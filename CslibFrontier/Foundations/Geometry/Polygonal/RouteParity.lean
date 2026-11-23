@@ -427,7 +427,7 @@ theorem exists_rayParity_excursion_of_subset {U : Set ℂ} (hU : IsOpen U)
           (1 * (line a a).point i.succ) (1 * z) then (true : Bool) else 0) = _
         rw [Fin.sum_univ_one]
         change (if RayCrosses (1 * a) (1 * a) (1 * z) then (true : Bool) else 0) = _
-        simp only [not_rayCrosses_of_im_eq rfl, if_false, Finset.notMem_empty,
+        simp only [not_rayCrosses_of_im_eq rfl, ite_false, Finset.notMem_empty,
           decide_false, Bool.zero_eq_false]
   | @insert c odd hc ih =>
       have hcPoints : c ∈ points := hodd (Finset.mem_insert_self _ _)
