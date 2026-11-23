@@ -147,10 +147,8 @@ namespace Turing.MultiTapeTM.ComputableInLogSpace
 theorem equal {α β : Type} {encIn : α ↪ List Bool} {enc : β ↪ List Bool} [DecidableEq β]
     {f g : α → β} (hf : ComputableInLogSpace f encIn enc)
     (hg : ComputableInLogSpace g encIn enc) :
-    ComputableInLogSpace (fun a => decide (f a = g a)) encIn encBool := by
-  have hw := CounterProgram.equality_logspace.comp (pair
-    (hf.congr (g := fun a => enc (f a)) fun _ => rfl)
-    (hg.congr (g := fun a => enc (g a)) fun _ => rfl))
-  exact hw.congr_fun fun a => by simp [enc.injective.eq_iff]
+    ComputableInLogSpace (fun a => decide (f a = g a)) encIn encBool :=
+  (CounterProgram.equality_logspace.comp' (f := fun a => (enc (f a), enc (g a)))
+    (by fun_prop)).congr_fun fun a => by simp [enc.injective.eq_iff]
 
 end Turing.MultiTapeTM.ComputableInLogSpace

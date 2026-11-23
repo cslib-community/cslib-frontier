@@ -293,8 +293,7 @@ theorem conditionalEntropy_observe_ge [Fintype α] [Finite β] [Finite γ]
       rw [sum_map_mul]
       exact (sum_conditionalSnd_map p observe (fun _ a => entropy (kernel a))).symm
     _ ≤ ∑ c, ((p.map observe) c).toReal * entropy ((conditional c).bind kernel) :=
-      Finset.sum_le_sum (fun c _ => mul_le_mul_of_nonneg_left
-        (sum_mul_entropy_le_entropy_bind (conditional c) kernel) ENNReal.toReal_nonneg)
+      by gcongr with c; exact sum_mul_entropy_le_entropy_bind (conditional c) kernel
     _ = _ := by rw [← hreplay, conditionalEntropy_bind_pair]
 
 /-- Replacing the observation by a function of it can only increase conditional entropy. -/

@@ -269,8 +269,7 @@ private theorem step_size (input : Input) (s : State) :
               ring
             _ ≤ 2 * (encWorkLog log).length + 4 * (encWorkExpansion (a, os)).length +
                 2 * (encList encRecord remaining).length + 4 :=
-              Nat.add_le_add_right
-                (Nat.add_le_add_left (Nat.mul_le_mul_left 2 hf) _) 4
+              by gcongr
             _ ≤ (encState (log, remaining, status)).length + 32 * B + 32 := by
               enc_len [encState, encWorkExpansion]
         | some b =>

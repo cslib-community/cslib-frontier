@@ -17,18 +17,22 @@ public meta import Lean.Elab.Tactic
 `growth_poly` proves `Turing.MultiTapeTM.PolyBounded size cost` by the existing constant,
 input-size, addition, multiplication and fixed-power rules, together with floor and ceiling
 logarithm, square root, maximum, one-sided minimum, truncated subtraction, division and
-remainder, conditional (`if`, non-dependent `dite`, `cond`), and structural `List.length` bounds
-(`[]`, `::`, `++`, `map`, `replicate`, `reverse`, `take`, `drop`). It also accepts
-`Cslib.PolynomiallyBounded` goals through the existing `fun_prop` rules.
+remainder, conditional (`if`, non-dependent `dite`, `cond`), structural `List.length` bounds
+(`[]`, `::`, `++`, `map`, `replicate`, `reverse`, `take`, `drop`), and `encPair` length
+expansion. It also accepts `Cslib.PolynomiallyBounded` goals through the existing `fun_prop`
+rules.
 
 The leaves come from the local context:
 
 * `PolyBounded` hypotheses, also inside conjunctions and inside definitions that unfold to them,
-  such as a native certificate's `IsPolynomial`;
+  such as a native certificate's `IsPolynomial`; when the bounded term is
+  `(encList enc (f a)).length`, the list length `(f a).length` itself is also bounded;
 * certificates whose output length is polynomially bounded, such as
   `ComputableInPolyTime f encIn encOut`; with `encOut = encUnary` the value `f a` itself is
-  bounded, and with `encOut = encBits` the length of the word `f a`;
-* `Cslib.PolynomiallyBounded p` hypotheses, or `fun_prop` facts, applied as `p (u a)`;
+  bounded, with `encOut = encBits` the length of the word `f a`, and with `encOut = encList enc`
+  both `(encList enc (f a)).length` and `(f a).length`;
+* `Cslib.PolynomiallyBounded p` hypotheses, or `fun_prop` facts, applied at `size a` or as
+  `p (u a)`;
 * a `PolyBounded size' v` hypothesis at another size applied as `v (g a)`, which leaves the
   substitution `PolyBounded size (fun a => size' (g a))`.
 
@@ -41,6 +45,9 @@ the last one to `CslibFrontier.Computability`):
   `MultiTape.Complexity.PolyTime.Basic` imports;
 * `ComputableInPolyTime` with `encUnary` output, the value: `MultiTape.Internal.PolyTimeLoops`,
   which `MultiTape.Complexity.PolyTime.Fold` imports;
+* `encList` output or `PolyBounded` length, the element count `(f a).length`:
+  `MultiTape.Complexity.Lists`, which `MultiTape.Complexity.PolyTime.List` and
+  `MultiTape.Encodings.Length` import;
 * `ComputableInPolySpace`: `MultiTape.Complexity.PolySpace.Plain`;
 * `ComputableInLogSpace`: `MultiTape.Complexity.LogSpace`;
 * `DegreeBounded`: `MultiTape.ResourceBounds.Degree`;
@@ -49,7 +56,8 @@ the last one to `CslibFrontier.Computability`):
 When a certificate in the context gives no leaf because its lemma is not imported, the failure
 message names the module to import.
 
-Local `let` values, and definitions whose bodies are arithmetic, are unfolded without memoization;
+Local `let` values, non-class structure projections, and definitions that unfold in bounded steps
+to supported operations or leaves are unfolded without memoization;
 leaf checks may invoke `unfoldDefinition?`, `isDefEq` and `fun_prop`. The tactic proves polynomial
 growth only. Word admission, exact time bounds and signed overflow conditions remain separate
 obligations, and it does not guess an intermediate size measure: a substitution needs the outer
@@ -148,19 +156,21 @@ end Turing.MultiTapeTM.PolyBounded
 
 /-- `growth_poly` proves `Turing.MultiTapeTM.PolyBounded size cost` by the closure rules for
 constants, the input size, `+`, `*`, fixed powers, `Nat.log`, `Nat.clog`, `Nat.sqrt`, `max`,
-one-sided `min`, truncated `-`, `/`, `%`, conditionals (`if`, non-dependent `dite`, `cond`), and
+one-sided `min`, truncated `-`, `/`, `%`, conditionals (`if`, non-dependent `dite`, `cond`),
 structural `List.length` normalization (`[]`, `::`, `++`, `map`, `replicate`, `reverse`, `take`,
-`drop`). The leaves come from local `PolyBounded` facts, also inside conjunctions and definitions
-that unfold to them; from local certificates, through their output-length bound; and from local
-`Cslib.PolynomiallyBounded` functions or `PolyBounded` facts at another size, applied to a
-bounded argument. `growth_poly [h₁, h₂]` adds the facts `h₁` and `h₂`.
+`drop`), and `encPair` length expansion. The leaves come from local `PolyBounded` facts, also
+inside conjunctions and definitions that unfold to them (including `(f a).length` from a bound on
+`(encList enc (f a)).length`); from local certificates, through their output-length bound; and from
+local `Cslib.PolynomiallyBounded` functions or `PolyBounded` facts at another size, applied to the
+input size or a bounded argument. `growth_poly [h₁, h₂]` adds the facts `h₁` and `h₂`.
 
 A certificate gives a leaf only when the module proving its bound is imported; the module
 docstring lists them, for example `MultiTape.Internal.PolyTimePrimitives` for the output length
 of `ComputableInPolyTime`. When a certificate in the context gives no leaf for this reason, the
 failure names the module to import.
 
-Local `let` values and arithmetic definitions are unfolded without memoization, and leaf checks
+Local `let` values, non-class structure projections, and definitions that unfold in bounded steps
+to supported operations or leaves are unfolded without memoization, and leaf checks
 may invoke `unfoldDefinition?`, `isDefEq` and `fun_prop`. The search is bounded and
 syntax-directed—trying `min_left` then `min_right` once at each `min` node without backtracking
 across surrounding operations—so an unsupported goal fails directly and names the term it could not
@@ -209,6 +219,13 @@ def certificateLemmas : List CertificateLemma :=
      head := `Cslib.GenericRAM.NativeCertificate.IsPolynomial
      module := `CslibFrontier.Computability.GenericRAM.Native.Certificate }]
 
+/-- The lemma bounding `l.length` by `(encList enc l).length`, used to derive element-count leaves
+from `encList` length bounds when `MultiTape.Complexity.Lists` is imported. -/
+def encListLemma : CertificateLemma :=
+  { name := `Turing.MultiTapeTM.length_le_length_encList
+    head := ``Turing.MultiTapeTM.PolyBounded
+    module := `CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Lists }
+
 /-- The facts available to `growth_poly`. -/
 private structure Facts where
   /-- Proofs of `PolyBounded size v`, with their `size`. -/
@@ -224,6 +241,18 @@ private def polyBoundedArgs? (e : Expr) : Option (Expr × Expr) :=
     some (e.getArg! 1, e.getArg! 2)
   else none
 
+/-- Replace a local `let` variable or `let` at the head of `e` by its value, and beta reduce. -/
+private partial def zetaHead (e : Expr) : MetaM Expr := do
+  let e := e.headBeta
+  match e.getAppFn with
+  | .fvar id =>
+    match ← id.getValue? with
+    | some v => zetaHead (v.beta e.getAppArgs)
+    | none => return e
+  | .letE _ _ v b _ => zetaHead ((b.instantiate1 v).beta e.getAppArgs)
+  | .mdata _ b => zetaHead (b.beta e.getAppArgs)
+  | _ => return e
+
 /-- Read the bound a certificate gives in the form goals use: drop the identity encoding
 `encBits` from `(encBits w).length`, and write `(f ∘ g) a` as `f (g a)`. -/
 private def normalizeFact (ty : Expr) : CoreM Expr := do
@@ -238,23 +267,60 @@ private def normalizeFact (ty : Expr) : CoreM Expr := do
     else none
   Core.betaReduce ty
 
-/-- Record `pf : ty`, splitting conjunctions and unfolding definitions until a `PolyBounded` or
-`Cslib.PolynomiallyBounded` fact appears, at most `depth` steps deep. -/
-private partial def addFact (facts : Facts) (pf ty : Expr) (depth : Nat := 3) :
+/-- From `pf : PolyBounded size u` where `u` has the form `fun x => (encList enc (l x)).length`,
+derive `PolyBounded size (fun x => (l x).length)` when `encListLemma` is in scope, or return
+`encListLemma` as missing. -/
+private def encListElemBound? (pf size u : Expr) :
+    MetaM (Option (Sum (Expr × Expr) CertificateLemma)) := do
+  try
+    let .forallE _ α _ _ ← whnfR (← inferType u) | return none
+    withLocalDeclD `x α fun x => do
+      let b ← zetaHead ((u.beta #[x]).headBeta)
+      unless b.isAppOfArity ``List.length 2 do return none
+      let arg ← zetaHead (b.getArg! 1)
+      unless arg.isAppOfArity ``DFunLike.coe 6 do return none
+      let encWhnf ← withReducible (whnf (arg.getArg! 4))
+      unless encWhnf.isAppOfArity `Turing.MultiTapeTM.encList 2 do return none
+      unless (← getEnv).contains encListLemma.name do
+        return some (.inr encListLemma)
+      let elemTy := encWhnf.getArg! 0
+      let innerEnc := encWhnf.getArg! 1
+      let listExpr := arg.getArg! 5
+      let uList ← mkLambdaFVars #[x] (← mkAppOptM ``List.length #[some elemTy, some listExpr])
+      let hleBody ← mkAppOptM encListLemma.name #[some elemTy, some innerEnc, some listExpr]
+      let hle ← mkLambdaFVars #[x] hleBody
+      let expectedLe ← mkForallFVars #[x] (← mkAppM ``LE.le #[mkApp uList x, mkApp u x])
+      let hle ← mkExpectedTypeHint hle expectedLe
+      let pfList ← mkAppM ``Turing.MultiTapeTM.PolyBounded.mono #[pf, hle]
+      return some (.inl (pfList, size))
+  catch _ =>
+    return none
+
+/-- Record `pf : ty` (originating from `origPf`), splitting conjunctions and unfolding definitions
+until a `PolyBounded` or `Cslib.PolynomiallyBounded` fact appears, at most `depth` steps deep. -/
+private partial def addFact (facts : Facts) (origPf pf ty : Expr) (depth : Nat := 3) :
     MetaM Facts := do
   let ty ← whnfR (← instantiateMVars ty)
   if let some (size, _) := polyBoundedArgs? ty then
     let ty' ← normalizeFact ty
     let pf ← if ty' == ty then pure pf else mkExpectedTypeHint pf ty'
-    return { facts with bounds := facts.bounds.push (pf, size) }
+    let mut bounds := facts.bounds.push (pf, size)
+    let mut unused := facts.unused
+    if let some extra ← encListElemBound? pf size (ty'.getArg! 2) then
+      match extra with
+      | .inl b => bounds := bounds.push b
+      | .inr l =>
+        unless unused.any fun (pf', l') => pf' == origPf && l'.name == l.name do
+          unused := unused.push (origPf, l)
+    return { facts with bounds, unused }
   if ty.isAppOfArity ``Cslib.PolynomiallyBounded 1 then
     return { facts with polys := facts.polys.push (pf, ty.appArg!) }
   if depth == 0 then return facts
   if ty.isAppOfArity ``And 2 then
-    let facts ← addFact facts (← mkAppM ``And.left #[pf]) ty.appFn!.appArg! (depth - 1)
-    return ← addFact facts (← mkAppM ``And.right #[pf]) ty.appArg! (depth - 1)
+    let facts ← addFact facts origPf (← mkAppM ``And.left #[pf]) ty.appFn!.appArg! (depth - 1)
+    return ← addFact facts origPf (← mkAppM ``And.right #[pf]) ty.appArg! (depth - 1)
   if let some ty' ← unfoldDefinition? ty then
-    return ← addFact facts pf ty' (depth - 1)
+    return ← addFact facts origPf pf ty' (depth - 1)
   return facts
 
 /-- The head constant of the type of the last explicit hypothesis of `lem`. -/
@@ -286,38 +352,26 @@ private def collectFacts (hints : Array Expr) : MetaM Facts := do
   let locals ← (← getLCtx).foldlM (init := #[]) fun acc decl =>
     if decl.isImplementationDetail then pure acc else pure (acc.push decl.toExpr)
   let mut facts : Facts := {}
-  let mut work := (hints ++ locals).map (·, 2)
+  let mut work := (hints ++ locals).map fun h => (h, h, 2)
   while !work.isEmpty do
-    let (pf, depth) := work.back!
+    let (origPf, pf, depth) := work.back!
     work := work.pop
     let ty ← instantiateMVars (← inferType pf)
     unless ← isProp ty do continue
-    facts ← addFact facts pf ty (if depth == 2 then 3 else 0)
+    facts ← addFact facts origPf pf ty (if depth == 2 then 3 else 0)
     if depth == 0 then continue
     let head := ty.getAppFn.constName?
     for (lem, lemHead) in lemmas do
       if head == some lemHead then
         if let some pf' ← applyCertificate? lem pf then
-          work := work.push (pf', depth - 1)
+          work := work.push (origPf, pf', depth - 1)
     -- Name one missing module per certificate: the first matching lemma's, which is the specific
     -- one when there is one, and whose module imports the general lemma's.
     if let some l := absent.find? fun l => head == some l.head &&
         l.outEnc.all fun enc => ty.getAppArgs.back?.any (·.isConstOf enc) then
-      unless facts.unused.any fun (pf', l') => pf' == pf && l'.name == l.name do
-        facts := { facts with unused := facts.unused.push (pf, l) }
+      unless facts.unused.any fun (pf', l') => pf' == origPf && l'.name == l.name do
+        facts := { facts with unused := facts.unused.push (origPf, l) }
   return facts
-
-/-- Replace a local `let` variable or `let` at the head of `e` by its value, and beta reduce. -/
-private partial def zetaHead (e : Expr) : MetaM Expr := do
-  let e := e.headBeta
-  match e.getAppFn with
-  | .fvar id =>
-    match ← id.getValue? with
-    | some v => zetaHead (v.beta e.getAppArgs)
-    | none => return e
-  | .letE _ _ v b _ => zetaHead ((b.instantiate1 v).beta e.getAppArgs)
-  | .mdata _ b => zetaHead (b.beta e.getAppArgs)
-  | _ => return e
 
 /-- The closure rule for an arithmetic operation, by head constant and arity. -/
 private def opRule? (body : Expr) : Option Name :=
@@ -363,8 +417,37 @@ private def nondepDiteToIte? (body : Expr) : MetaM (Option Expr) := do
   let (some tb, some eb) := (tBranch, eBranch) | return none
   return some (mkApp5 (mkConst ``_root_.ite [Level.one]) (mkConst ``Nat) cProp inst tb eb)
 
-/-- Normalize `List.length` of a list constructor or length-preserving/shrinking operation,
-returning an equality proof `body = rhs` when a structural rule applies. -/
+/-- Reduce projections `Prod.fst` and `Prod.snd` applied to (possibly nested) `Prod.mk` terms. -/
+private partial def reduceProdProj (e : Expr) : Expr :=
+  e.replace fun t =>
+    match t with
+    | .proj ``Prod 0 s =>
+      let s' := reduceProdProj s
+      if s'.isAppOfArity ``Prod.mk 4 then some (s'.getArg! 2)
+      else if s' != s then some (.proj ``Prod 0 s')
+      else none
+    | .proj ``Prod 1 s =>
+      let s' := reduceProdProj s
+      if s'.isAppOfArity ``Prod.mk 4 then some (s'.getArg! 3)
+      else if s' != s then some (.proj ``Prod 1 s')
+      else none
+    | _ =>
+      if t.isAppOfArity ``Prod.fst 3 then
+        let s := t.getArg! 2
+        let s' := reduceProdProj s
+        if s'.isAppOfArity ``Prod.mk 4 then some (s'.getArg! 2)
+        else if s' != s then some (mkAppN t.getAppFn #[t.getArg! 0, t.getArg! 1, s'])
+        else none
+      else if t.isAppOfArity ``Prod.snd 3 then
+        let s := t.getArg! 2
+        let s' := reduceProdProj s
+        if s'.isAppOfArity ``Prod.mk 4 then some (s'.getArg! 3)
+        else if s' != s then some (mkAppN t.getAppFn #[t.getArg! 0, t.getArg! 1, s'])
+        else none
+      else none
+
+/-- Normalize `List.length` of a list constructor, length-preserving/shrinking operation, or
+`encPair` encoding, returning an equality proof `body = rhs` when a structural rule applies. -/
 private def listLengthEq? (body : Expr) : MetaM (Option Expr) := do
   unless body.isAppOfArity ``List.length 2 do return none
   let elemTy := body.getArg! 0
@@ -398,6 +481,15 @@ private def listLengthEq? (body : Expr) : MetaM (Option Expr) := do
     | some ``List.drop, 3 =>
       some <$> mkAppOptM ``List.length_drop
         #[some elemTy, some (xs.getArg! 1), some (xs.getArg! 2)]
+    | some ``DFunLike.coe, 6 =>
+      if (← getEnv).contains `Turing.MultiTapeTM.length_encPair then
+        let encWhnf ← withReducible (whnf (xs.getArg! 4))
+        if encWhnf.isAppOfArity `Turing.MultiTapeTM.encPair 4 then
+          some <$> mkAppOptM `Turing.MultiTapeTM.length_encPair
+            #[some (encWhnf.getArg! 0), some (encWhnf.getArg! 1),
+              some (encWhnf.getArg! 2), some (encWhnf.getArg! 3), some (xs.getArg! 5)]
+        else pure none
+      else pure none
     | _, _ => pure none
   let some eqPf := cand? | return none
   let eqTy ← inferType eqPf
@@ -455,6 +547,49 @@ private def stripId (e : Expr) : Expr :=
 private def provesReducible (pf goalTy : Expr) : MetaM Bool := do
   withReducible <| withNewMCtxDepth <| isDefEq (← inferType pf) goalTy
 
+/-- Unfold one non-internal head definition or non-class structure projection of `e`, followed by
+local `let` and beta reduction. -/
+private def unfoldStepOnce? (e : Expr) : MetaM (Option Expr) := do
+  match e.getAppFn with
+  | .proj .. =>
+    let some f ← reduceProj? e.getAppFn | return none
+    some <$> zetaHead (f.beta e.getAppArgs)
+  | .const c _ =>
+    let cPub := (privateToUserName? c).getD c
+    if cPub.isInternal || c == ``List.length || c == ``DFunLike.coe then return none
+    if let some info ← getProjectionFnInfo? c then
+      if info.fromClass then return none
+      let some e' ← unfoldDefinition? e | return none
+      if let some f ← reduceProj? e'.getAppFn then
+        return some (← zetaHead (f.beta e'.getAppArgs))
+      return none
+    let some e' ← unfoldDefinition? e | return none
+    some <$> zetaHead e'
+  | _ => return none
+
+/-- Does `body` match a direct decomposition or leaf step of `chooseStep`? -/
+private def stepHeadRecognized (facts : Facts) (goalTy size a body : Expr) : MetaM Bool := do
+  let dependsOnInput (e : Expr) := e.containsFVar a.fvarId!
+  if !dependsOnInput body then return true
+  if ← withReducible (isDefEq body (stripId (size.beta #[a]).headBeta)) then return true
+  if body.isAppOfArity ``Nat.succ 1 || body.isAppOfArity ``Min.min 4 then return true
+  if (opRule? body).isSome && !((fixedArgs body).any dependsOnInput) then return true
+  if (condRule? body).isSome then return true
+  if (← nondepDiteToIte? body).isSome then return true
+  if (← listLengthEq? body).isSome then return true
+  let candGoal := mkAppN goalTy.getAppFn #[goalTy.getArg! 0, size, ← mkLambdaFVars #[a] body]
+  facts.bounds.anyM fun (pf, _) => provesReducible pf candGoal
+
+/-- Unfold definitions and structure projections at the head of `body` for at most `fuel` steps
+until a directly recognized `growth_poly` step or leaf appears. -/
+private partial def unfoldToRecognized? (facts : Facts) (goalTy size a body : Expr)
+    (fuel : Nat := 6) : MetaM (Option Expr) := do
+  if fuel == 0 then return none
+  let some body' ← unfoldStepOnce? body | return none
+  if ← stepHeadRecognized facts goalTy size a body' then
+    return some body'
+  unfoldToRecognized? facts goalTy size a body' (fuel - 1)
+
 /-- Choose the next step for the goal `goalTy`, which is `PolyBounded size u`, or throw an error
 naming the term that no rule bounds. -/
 private def chooseStep (facts : Facts) (goalTy size u : Expr) : MetaM Step := do
@@ -468,8 +603,15 @@ private def chooseStep (facts : Facts) (goalTy size u : Expr) : MetaM Step := do
     if body != body₀ then return .change (← mkLambdaFVars #[a] body)
     let dependsOnInput (e : Expr) := e.containsFVar a.fvarId!
     if !dependsOnInput body then return .apply ``Turing.MultiTapeTM.PolyBounded.const
-    if ← withReducible (isDefEq body (stripId (size.beta #[a]).headBeta)) then
+    let sizeVal := stripId (size.beta #[a]).headBeta
+    if ← withReducible (isDefEq body sizeVal) then
       return .apply ``Turing.MultiTapeTM.PolyBounded.self
+    if !facts.polys.isEmpty && (← inferType sizeVal).isConstOf ``Nat then
+      for (pf, p) in facts.polys do
+        if ← withReducible <| withNewMCtxDepth <| isDefEq body ((p.beta #[sizeVal]).headBeta) then
+          let cand ← mkAppOptM ``Turing.MultiTapeTM.PolyBounded.of_polynomiallyBounded
+            #[some α, some size, some p, some pf]
+          return .close (← mkExpectedTypeHint cand goalTy)
     let fail : MetaM Step := do
       let unused := facts.unused.toList.map fun (pf, l) =>
         m!"\nThe certificate `{pf}` gives no bound: `{l.name}` is not imported. \
@@ -492,9 +634,10 @@ private def chooseStep (facts : Facts) (goalTy size u : Expr) : MetaM Step := do
       return .change (← mkLambdaFVars #[a] iteExpr)
     if let some eqPf ← listLengthEq? body then
       let eqTy ← inferType eqPf
-      let rhs := eqTy.getArg! 2
+      let rhs₀ := eqTy.getArg! 2
+      let rhs := reduceProdProj rhs₀
       let u' ← mkLambdaFVars #[a] rhs
-      let hle ← mkLambdaFVars #[a] (mkApp3 (mkConst ``Nat.le_of_eq) (eqTy.getArg! 1) rhs eqPf)
+      let hle ← mkLambdaFVars #[a] (mkApp3 (mkConst ``Nat.le_of_eq) (eqTy.getArg! 1) rhs₀ eqPf)
       let expectedLe ← mkForallFVars #[a] (← mkAppM ``LE.le #[mkApp u a, mkApp u' a])
       return .mono u' (← mkExpectedTypeHint hle expectedLe)
     let natFunApp ← pure body.isApp <&&> pure !(dependsOnInput body.appFn!) <&&>
@@ -512,14 +655,9 @@ private def chooseStep (facts : Facts) (goalTy size u : Expr) : MetaM Step := do
         let (_, _, concl) ← forallMetaTelescopeReducing (← inferType comp)
         withReducible (isDefEq concl goalTy)
       if fits then return .applyTo ``Turing.MultiTapeTM.PolyBounded.comp pf
-    -- An arithmetic definition.
-    if let some c := body.getAppFn.constName? then
-      if !c.isInternal then
-        if let some body' ← unfoldDefinition? body then
-          let body' ← zetaHead body'
-          if (opRule? body').isSome || body'.isAppOfArity ``Min.min 4 ||
-              !dependsOnInput body' then
-            return .change (← mkLambdaFVars #[a] body')
+    -- Multi-step definition and structure-projection unfolding to a recognized step or leaf.
+    if let some body' ← unfoldToRecognized? facts goalTy size a body then
+      return .change (← mkLambdaFVars #[a] body')
     -- A polynomially bounded function of one natural number, by `fun_prop`.
     if natFunApp then
       if let some hp ← polynomiallyBoundedByFunProp? body.appFn! then

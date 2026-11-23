@@ -102,17 +102,11 @@ theorem after_query_bind_cons (m : List Bool) (next : List Bool → WordQueryCom
 /-- What remains after a concatenation is what remains of what remains. -/
 theorem after_append (p : WordQueryComp Unit α) (h e : History) :
     after p (h ++ e) = (after p h).bind (after · e) := by
-  induction h generalizing p with
-  | nil => simp
-  | cons x h ih =>
-    obtain ⟨m, y⟩ := x
-    cases p with
-    | pure a => rfl
-    | liftBind q next =>
-      simp only [List.cons_append, after]
-      split_ifs
-      · exact ih _
-      · rfl
+  fun_induction after p h with
+  | case1 => simp -- p, []
+  | case2 => rfl -- pure, _ :: _
+  | case3 _ _ _ _ ih => exact (ite_eq_left rfl).trans ih -- liftBind, message matches
+  | case4 _ _ _ _ _ hne => exact ite_eq_right hne -- liftBind, message differs
 
 /-- The outcome of a program after a history: it has finished with a result, it sends a message,
 or it does not send the messages of the history. -/

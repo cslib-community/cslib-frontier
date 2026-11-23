@@ -340,8 +340,7 @@ private theorem card_badMessages_mul_le {r : BitString k → BitString n} {δ γ
     exact_mod_cast (card_le_card hsub).trans (card_biUnion_le.trans (sum_le_sum fun σ _ =>
       card_biUnion_le.trans (sum_le_sum fun c _ => card_biUnion_le)))
   calc (#(badMessages r W Q γ) : ℝ) * (γ ^ 2 - δ)
-      ≤ (∑ σ, ∑ c, ∑ h ∈ H σ, (#(L h c) : ℝ)) * (γ ^ 2 - δ) :=
-        mul_le_mul_of_nonneg_right hcard hpos.le
+      ≤ (∑ σ, ∑ c, ∑ h ∈ H σ, (#(L h c) : ℝ)) * (γ ^ 2 - δ) := by gcongr
     _ = ∑ σ, ∑ c, ∑ h ∈ H σ, (#(L h c) : ℝ) * (γ ^ 2 - δ) := by simp only [sum_mul]
     _ ≤ ∑ σ : Fin k → Fin ℓ, ∑ _c : BitString k, ∑ _h ∈ H σ, (1 : ℝ) :=
         sum_le_sum fun σ _ => sum_le_sum fun c _ => sum_le_sum fun h _ => hL h c
@@ -787,8 +786,7 @@ private theorem discriminator_condition (hp : 1 ≤ p) {t : ℕ} (ht : 4 * t ≤
     linarith only [hcast]
   have h7 : (1 / 2 : ℝ) ^ (7 * p) ≤ a ^ 2 := by
     rw [ha, ← pow_mul]; exact pow_le_pow_of_le_one (by norm_num) (by norm_num) (by omega)
-  have hb1 : ((t : ℝ) + 1) * (1 / 2) ^ (7 * p) ≤ ((t : ℝ) + 1) * a ^ 2 :=
-    mul_le_mul_of_nonneg_left h7 (by positivity)
+  have hb1 : ((t : ℝ) + 1) * (1 / 2) ^ (7 * p) ≤ ((t : ℝ) + 1) * a ^ 2 := by gcongr
   have hb2 : ((t : ℝ) + 1) * a ^ 2 ≤ (1 / 4 + 1 / 8) * (1 / 8) := by
     rw [show ((t : ℝ) + 1) * a ^ 2 = (t * a + a) * a by ring]
     exact mul_le_mul (by linarith only [hta, ha8]) ha8 ha0.le (by norm_num)
@@ -879,8 +877,7 @@ private theorem le_mul_of_one_le_survivor (hp : 1 ≤ p) (hn : n ≤ 2 ^ p) (h�
     have h1 := mul_le_mul_of_nonneg_right
       (show (1 / 2 : ℝ) ≤ σ Q by linarith only [hmain hM Q, hCT]) hQA
     rw [hσ Q] at h1; linarith only [h1, show (1 / 2 : ℝ) * (A * (Q + 1)) = (Q + 1) * A / 2 by ring]
-  calc A * (n - (272 * p ^ 2 + 54 * p + 3)) ≤ A * ((36 * p + 2) * (Q + 1)) :=
-        mul_le_mul_of_nonneg_left hQ2 hA0.le
+  calc A * (n - (272 * p ^ 2 + 54 * p + 3)) ≤ A * ((36 * p + 2) * (Q + 1)) := by gcongr
     _ = (36 * p + 2) * ((Q + 1 : ℝ) * A) := by ring
     _ ≤ (36 * p + 2) * (8 * X) := mul_le_mul_of_nonneg_left hB (by positivity)
     _ = (288 * p + 16) * X := by ring
@@ -1201,8 +1198,7 @@ theorem exists_isSmallBias_kaneWilliamsRows (hp : 1 ≤ p) (hn : n ≤ 2 ^ p) :
   refine hg.mono ?_
   have hn1 : ((n - 1 : ℕ) : ℝ) ≤ 2 ^ p := by exact_mod_cast (Nat.sub_le n 1).trans hn
   rw [one_div_pow, div_le_div_iff₀ (by positivity) (by positivity), one_mul]
-  calc ((n - 1 : ℕ) : ℝ) * 2 ^ (7 * p) ≤ 2 ^ p * 2 ^ (7 * p) :=
-        mul_le_mul_of_nonneg_right hn1 (by positivity)
+  calc ((n - 1 : ℕ) : ℝ) * 2 ^ (7 * p) ≤ 2 ^ p * 2 ^ (7 * p) := by gcongr
     _ = 2 ^ (8 * p) := by rw [← pow_add]; ring_nf
 
 end Concrete
