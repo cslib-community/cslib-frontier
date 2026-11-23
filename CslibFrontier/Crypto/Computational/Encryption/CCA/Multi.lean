@@ -7,9 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Probabilistic.UniformNat
 public import CslibFrontier.Crypto.Computational.Encryption.CCA
-public import CslibFrontier.Crypto.Game.Hybrid
+public import CslibFrontier.Probability.UniformNat
 import Mathlib.Data.List.GetD
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
@@ -24,8 +23,9 @@ import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
-import CslibFrontier.Computability.Probabilistic.Sampling
+import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Crypto.Computational.Encryption.DecryptionBound
+import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation.Handler
 import CslibFrontier.Probability.PMF
@@ -79,6 +79,18 @@ length-bound dependencies for 1CCA-only clients.
   `Cslib.Crypto.Encryption.cca2MultiGameOn_gap`,
   `Cslib.Crypto.Encryption.advantage_cca2MultiGameOn`: exact single-step and `dyadicSize (Q n)`
   hybrid advantage identities.
+
+## Steps toward Theorem 12.1
+
+[BonehShoup2023], Theorem 12.1 (printed p. 468) concerns Attack Game 12.1 (p. 467), in which
+encryption and decryption queries are adaptively interleaved. It is
+`Cslib.Crypto.Encryption.INDCCA2On.indcca2InterleavedOn` and
+`Cslib.Crypto.Encryption.indcca2InterleavedOn_iff_indcca2On` in
+`CslibFrontier/Crypto/Computational/Encryption/CCA/Interleaved.lean`. The theorems below are its
+restriction to adversaries that submit all challenge pairs in one batch between the two phases of
+decryption queries; `Interleaved.lean` uses them to relate the two notions
+(`indcca2InterleavedOn_iff_indcca2MultiOn`).
+
 * `Cslib.Crypto.Encryption.INDCCA2On.indcca2MultiOn`,
   `Cslib.Crypto.Encryption.indcca2MultiOn_iff_indcca2On`,
   `Cslib.Crypto.Encryption.INDCCA2Of.indcca2MultiOf`,
@@ -86,9 +98,8 @@ length-bound dependencies for 1CCA-only clients.
   `Cslib.Crypto.Encryption.INDCCA2.indcca2Multi`,
   `Cslib.Crypto.Encryption.indcca2Multi_iff_indcca2`,
   `Cslib.Crypto.Encryption.WordINDCCA2.wordINDCCA2Multi`,
-  `Cslib.Crypto.Encryption.wordINDCCA2Multi_iff_wordINDCCA2`: single-challenge 1CCA implies (and is
-  equivalent to) batch-challenge multi-challenge CCA security when `valid`, `keyGen`, `encrypt`, and
-  `decrypt` are polynomial-time / strict PPT.
+  `Cslib.Crypto.Encryption.wordINDCCA2Multi_iff_wordINDCCA2`: single-challenge 1CCA implies
+  batch-challenge multi-challenge CCA, and the two are equivalent.
 
 ## References
 
