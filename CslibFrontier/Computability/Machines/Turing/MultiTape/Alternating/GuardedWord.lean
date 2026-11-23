@@ -24,7 +24,7 @@ public section
 
 namespace Turing.MultiTapeATM.GuardedWord
 
-open MultiTapeTM RootPackingBalance.TerminalLayout CountingTerminalDispatch
+open MultiTapeTM TwoWordLoad CountingTerminalDispatch
 
 private theorem copied_view {K : ℕ} {S : Type} (src : Fin K) (child : MultiTapeATM K Bool S)
     (input flags word : List Bool) :

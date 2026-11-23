@@ -29,7 +29,7 @@ theorem compile {U : ℕ} {Q : Type} (leaf : MultiTapeATM U Bool Q) (src : Fin U
     (h : ∀ (input : List Bool) (x : Input),
       let start := WordGameLeaf.config src (some leaf.toPTM.initial)
         (encInput x) (encInput x).length
-        (TerminalLayout.blank U input)
+        (TwoWordLoad.blank U input)
       leaf.HaltsWithin (clock x) start ∧ (leaf.AcceptsWithin (clock x) start ↔ value x))
     (hc : ∀ (p : Public) (word : List Bool), word.length = (flags p).length →
       clock (p, word) ≤ bound p) (input : List Bool) (p : Public) :
@@ -37,12 +37,12 @@ theorem compile {U : ℕ} {Q : Type} (leaf : MultiTapeATM U Bool Q) (src : Fin U
     let atm := machine leaf src
     let time := bound p + 2 * (flags p).length + 1
     let start := WordGameLeaf.config src (some atm.toPTM.initial) (pre ++ flags p) pre.length
-      (TerminalLayout.blank U input)
+      (TwoWordLoad.blank U input)
     atm.HaltsWithin time start ∧ (atm.AcceptsWithin time start ↔
       plays (fun word => value (p, word)) [] (flags p)) := by
   let pre := frame (encPublic p)
   let v := fun word : List Bool => value (p, word.drop pre.length)
-  obtain ⟨halt, acc⟩ := spec leaf src (bound p) (TerminalLayout.blank U input) v pre (flags p) (by
+  obtain ⟨halt, acc⟩ := spec leaf src (bound p) (TwoWordLoad.blank U input) v pre (flags p) (by
     intro suffix hlen
     let x : Input := (p, suffix)
     obtain ⟨ht, ha⟩ := h input x

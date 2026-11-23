@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.ScheduleFieldClock
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.OuterRootTemplate
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance.TerminalLayout
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TwoWordLoad
 
 /-!
 # Encoding a signed count-bit challenge for a clocked source

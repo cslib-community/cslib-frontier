@@ -45,7 +45,7 @@ theorem exists_challenge_verifier (k states : ℕ) {K : ℕ} {R : Type} [Finite 
   let := hS
   obtain ⟨d, hf, hg⟩ := ScheduleChallenge.exists_setup_degree k states
   obtain ⟨u, src, Q, hQ, atm, c, h⟩ :=
-    RootPackingBalance.TerminalLayout.exists_load_from hf hg _ _
+    TwoWordLoad.exists_load_from hf hg _ _
       (CarryLookaheadCountingPrepare.context_ne_request scratch a r q) eval
   obtain ⟨B, hB⟩ := ScheduleChallenge.exists_clock c d
   refine ⟨u, src, Q, hQ, atm, B + C, max 2 t₀, ?_⟩

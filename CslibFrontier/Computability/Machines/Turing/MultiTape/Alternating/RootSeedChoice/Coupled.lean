@@ -48,7 +48,7 @@ private theorem exists_continuation {K : ℕ} {R : Type} [Finite R] (i j : Fin K
   have hpub := (ComputableInDegree.fst encPublic encBits).inO_one.comp_linear hs
   have hnil := (ComputableInDegree.const (encIn := RootBalanceRequest.encInput)
     (encMid := encBits) ([] : List Bool)).inO_one.comp_linear hs
-  obtain ⟨J, src, Q, hQ, atm, F, h⟩ := TerminalLayout.exists_load hpub hnil i j hij right
+  obtain ⟨J, src, Q, hQ, atm, F, h⟩ := TwoWordLoad.exists_load hpub hnil i j hij right
   refine ⟨J, src, Q, hQ, atm, F, f, ?_⟩
   intro input x t
   simpa only [terminalTime, zero_mul, Nat.add_zero, SharedWordFork.start, continuationStart,
@@ -69,7 +69,7 @@ theorem exists_coupled_game (k : ℕ) {K : ℕ} {R : Type} [Finite R]
           let cfg := continuationStart i j right host seeded
           right.HaltsWithin t cfg ∧ (right.AcceptsWithin t cfg ↔ post seeded)) →
         let cfg := WordGameLeaf.config src (some atm.toPTM.initial) (pre ++ flags p) pre.length
-          (TerminalLayout.blank W host)
+          (TwoWordLoad.blank W host)
         let time := C * (p.1.raw.length + Initialize.shortSize p ^ D + 1) + t
         atm.HaltsWithin time cfg ∧ (atm.AcceptsWithin time cfg ↔
           ∃ seed, PacketPacking.Seeded.Balanced U a (explicitVertexEquiv k q copies).toEmbedding
@@ -93,7 +93,7 @@ theorem exists_coupled_game (k : ℕ) {K : ℕ} {R : Type} [Finite R]
     post (RootSeedInstall.install x).1
   let part (m exp : ℕ) := m * (p.1.raw.length + Initialize.shortSize p ^ exp + 1)
   let τ := part l e + part r v + t
-  have hgame := spec fork src (τ + 1) (TerminalLayout.blank H host)
+  have hgame := spec fork src (τ + 1) (TwoWordLoad.blank H host)
     (fun word => val (p, word.drop pre.length)) pre (flags p) (by
       intro choices hlen
       let x : RootBalanceRequest.Input := (p, choices)

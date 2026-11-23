@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.SeededChildWitness.Dispatch
 public import CslibFrontier.Computability.PolyTime.SeededChildWitness.CountingRequest
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance.TerminalLayout
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TwoWordLoad
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolyTime
 
 /-!
@@ -59,7 +59,7 @@ theorem exists_count_load {K : ℕ} {S : Type} [Finite S] (i j : Fin K) (hne : i
           (CountingInput.encInput (Function.uncurry params x.2))).withState
           (some leaf.toPTM.initial)
         let start := WordGameLeaf.config src (some atm.toPTM.initial) (encWork x) (encWork x).length
-          (RootPackingBalance.TerminalLayout.blank u input)
+          (TwoWordLoad.blank u input)
         let time := c * ((encWork x).length + 1) ^ d + t
         leaf.HaltsWithin t cfg → atm.HaltsWithin time start ∧
           (atm.AcceptsWithin time start ↔ leaf.AcceptsWithin t cfg) := by
@@ -75,7 +75,7 @@ theorem exists_count_load {K : ℕ} {S : Type} [Finite S] (i j : Fin K) (hne : i
     ((hT₁.add hS₁).add hT₂).add hS₂
   have hf' := hf.mono (T' := T) (S' := T) 1 (by dsimp [T]; omega) (by dsimp [T]; omega)
   have hg' := hg.mono (T' := T) (S' := T) 1 (by dsimp [T]; omega) (by dsimp [T]; omega)
-  obtain ⟨u, src, Q, hQ, atm, A, h⟩ := RootPackingBalance.TerminalLayout.exists_load hf' hg'
+  obtain ⟨u, src, Q, hQ, atm, A, h⟩ := TwoWordLoad.exists_load hf' hg'
     i j hne leaf
   obtain ⟨C, D, hD⟩ := ((PolyBounded.self.add ((PolyBounded.const A).mul
     (hT.add (.const 1)))).add (.const 8)).exists_le

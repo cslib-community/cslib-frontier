@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.ResidueChallenge
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance.TerminalLayout
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TwoWordLoad
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolyTime
 
 /-!
@@ -24,7 +24,7 @@ namespace Turing.MultiTapeATM.ResidueInverse
 
 open MultiTapeTM Cslib Cslib.Circuits.Frontier.FastContraction
 open Cslib.Circuits.Frontier.FastContraction.ResidueInverse
-open RootPackingBalance.TerminalLayout QuantifiedWord
+open TwoWordLoad QuantifiedWord
 
 /-- A local verdict or an indexed operand-bit claim. -/
 abbrev encResult := encSum encBool (encPair encNat encBool)

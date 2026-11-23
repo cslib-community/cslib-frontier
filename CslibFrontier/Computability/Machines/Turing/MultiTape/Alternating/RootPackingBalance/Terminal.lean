@@ -7,7 +7,7 @@ Authors: Sam McGuire
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance.TerminalLayout
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TwoWordLoad
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarryLookaheadCountingPair
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingRank
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootBalanceRequest
@@ -43,7 +43,7 @@ theorem exists_terminal_of_prepare {α : Type} (k : ℕ) {enc : α ↪ List Bool
       let x := model z
       let p := (prepare x).2
       let start := WordGameLeaf.config src (some atm.toPTM.initial) (enc z) (enc z).length
-        (TerminalLayout.blank U input)
+        (TwoWordLoad.blank U input)
       let countTime := A * ((selected x).raw.length + (RootPredecessorQuery.shortSize (selected x) +
         p.count.size + p.query.width.size + 1) ^ D + 1)
       let time := (enc z).length + c * (T z + 1) +
@@ -52,7 +52,7 @@ theorem exists_terminal_of_prepare {α : Type} (k : ℕ) {enc : α ↪ List Bool
   obtain ⟨s, u, r, v, S, hS, rank, A, D, h⟩ := RootPackingRank.exists_evaluator k
   let hf := (ComputableInDegree.fst encBits CountingInput.encInput).inO_one.comp_linear hd
   let hg := (ComputableInDegree.snd encBits CountingInput.encInput).inO_one.comp_linear hd
-  obtain ⟨U, src, Q, hQ, atm, c, ht⟩ := TerminalLayout.exists_load hf hg
+  obtain ⟨U, src, Q, hQ, atm, c, ht⟩ := TwoWordLoad.exists_load hf hg
     (CarryLookaheadCountingPair.contextTape s u r v) (CarryLookaheadCountingPair.paramTape s u r v)
     (CarryLookaheadCountingPair.contextTape_ne_paramTape s u r v) rank
   refine ⟨U, src, Q, hQ, atm, c, A, D, ?_⟩
@@ -72,7 +72,7 @@ theorem exists_terminal (k : ℕ) :
       (c d A D : ℕ), ∀ (input : List Bool) (x : Input),
       let p := (prepare x).2
       let start := WordGameLeaf.config src (some atm.toPTM.initial) (encInput x) (encInput x).length
-        (TerminalLayout.blank U input)
+        (TwoWordLoad.blank U input)
       let countTime := A * ((selected x).raw.length + (RootPredecessorQuery.shortSize (selected x) +
         p.count.size + p.query.width.size + 1) ^ D + 1)
       let time := (encInput x).length + c * ((rootQuery x).raw.length + shortSize x ^ d + 1) +

@@ -34,7 +34,7 @@ private theorem exists_game (k : ℕ) :
         let flags := rankFlags (Nat.clog 2 p.2)
         let time := C * (p.1.raw.length + Initialize.shortSize p ^ E + 1) + 2 * flags.length + 1
         let start := WordGameLeaf.config src (some atm.toPTM.initial) (pre ++ flags) pre.length
-          (TerminalLayout.blank U input)
+          (TwoWordLoad.blank U input)
         atm.HaltsWithin time start ∧ (atm.AcceptsWithin time start ↔
           plays (fun word => terminalValue k (p, word)) [] flags) := by
   obtain ⟨U, src, Q, hQ, leaf, c, d, A, D, h⟩ := exists_terminal k
@@ -46,7 +46,7 @@ private theorem exists_game (k : ℕ) :
   let value := fun word : List Bool => terminalValue k (p, word.drop pre.length)
   let t := C * (p.1.raw.length + Initialize.shortSize p ^ E + 1)
   have hh (suffix : List Bool) (hlen : suffix.length = flags.length) := hbound p suffix hlen
-  obtain ⟨halt, acc⟩ := spec leaf src t (TerminalLayout.blank U input) value pre flags (by
+  obtain ⟨halt, acc⟩ := spec leaf src t (TwoWordLoad.blank U input) value pre flags (by
     intro suffix hlen
     let x : RootBalanceRequest.Input := (p, suffix)
     obtain ⟨ht, ha⟩ := h input x

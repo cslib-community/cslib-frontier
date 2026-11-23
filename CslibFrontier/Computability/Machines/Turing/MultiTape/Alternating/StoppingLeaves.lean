@@ -120,7 +120,7 @@ theorem exists_leaves {N : ℕ} {S : Type} [Finite S]
     StoppingProduct.exists_evaluator assignment query hne terminal
   let := hQP
   obtain ⟨U, selected, QL, hQL, loaded, load, hload⟩ :=
-    RootPackingBalance.TerminalLayout.exists_load_from
+    TwoWordLoad.exists_load_from
       encPrepared_assignment_deg.inO_one encPrepared_position_deg.inO_one ass src hne' product
   let := hQL
   choose d hd using exists_instruction_inO

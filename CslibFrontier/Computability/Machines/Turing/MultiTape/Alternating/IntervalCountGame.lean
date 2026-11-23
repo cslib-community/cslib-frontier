@@ -80,6 +80,19 @@ private theorem total_succ (f : ℕ → Bool) (base h : ℕ) :
     total f base (h + 1) = total f base h + total f (base + 2 ^ h) h := by
   simp only [total, Nat.pow_succ, Nat.mul_two, Finset.sum_range_add, Nat.add_assoc]
 
+/-- Padding to a covering binary power preserves the sum, including for an empty prefix. -/
+theorem total_padded (f : ℕ → Bool) (n h : ℕ) (hn : n ≤ 2 ^ h) :
+    total (fun i => decide (i < n) && f i) 0 h =
+      ∑ j ∈ Finset.range n, (f j).toNat := by
+  unfold total
+  rw [show 2 ^ h = n + (2 ^ h - n) by omega, Finset.sum_range_add]
+  simp only [Nat.zero_add]
+  have h₀ : ∑ j ∈ Finset.range (2 ^ h - n),
+      (decide (n + j < n) && f (n + j)).toNat = 0 :=
+    Finset.sum_eq_zero fun j _ => by simp
+  rw [h₀, Nat.add_zero]
+  exact Finset.sum_congr rfl fun j hj => by simp [Finset.mem_range.mp hj]
+
 private theorem plays_const (P : Prop) (pre players : List Bool) :
     plays (fun _ => P) pre players ↔ P := by
   induction players generalizing pre with
@@ -168,16 +181,7 @@ theorem plays_flags (f : ℕ → Bool) (n bit : ℕ) (claim : Bool) :
   change (∃ x : Fin (2 ^ w), plays (fun ys => verdict padded
     (route n bit claim (lowBits w x.val ++ ys))) [] (rounds w n.size)) ↔ _
   rw [exists_congr he]
-  have hb := Nat.lt_size_self n
-  have hsum : total padded 0 n.size = ∑ j ∈ Finset.range n, (f j).toNat := by
-    unfold total
-    rw [show 2 ^ n.size = n + (2 ^ n.size - n) by omega, Finset.sum_range_add]
-    simp only [Nat.zero_add]
-    have h₀ : ∑ j ∈ Finset.range (2 ^ n.size - n), (padded (n + j)).toNat = 0 :=
-      Finset.sum_eq_zero fun j _ => by simp [padded]
-    rw [h₀, Nat.add_zero]
-    exact Finset.sum_congr rfl fun j hj => by simp [padded, Finset.mem_range.mp hj]
-  rw [← hsum]
+  rw [← total_padded f n n.size (Nat.lt_size_self n).le]
   constructor
   · rintro ⟨x, hbit, hx⟩
     rwa [← hx]

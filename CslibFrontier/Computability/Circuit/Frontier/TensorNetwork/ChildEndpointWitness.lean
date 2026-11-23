@@ -119,14 +119,17 @@ test is needed only at a real parent edge and its actual endpoints. -/
   s.vertices = labels.length ∧ (∀ v, s.label v = labels.getD v 0) ∧ es.length ≤ ps.length ∧
     ∀ e, e < es.length → ∀ packet, s.packet e (es.getD e (0, 0)) packet ↔ ps.getD e 0 = packet
 
-private theorem vertexRank_eq {s : Split} {gs es ps} (hs : s.Represents gs es ps) (v : ℕ) :
+/-- Counting a split's genuine parent keys agrees with counting the matching labels in the
+same prefix of its group table. No agreement outside the vertex universe is required. -/
+theorem Split.vertexRank_eq {s : Split} {gs : List ℕ} (hsize : s.vertices = gs.length)
+    (hlabels : ∀ v, v < s.vertices → s.label v = gs.getD v 0) (v : ℕ) :
     s.vertexRank v = (gs.take v).count s.group := by
   have h : (List.range (min v s.vertices)).map s.label = gs.take v := by
-    apply List.ext_getElem (by simp [hs.1])
+    apply List.ext_getElem (by simp [hsize])
     intro i h₁ h₂
-    have hi : i < gs.length := by simp [hs.1] at h₁; omega
-    simp only [List.getElem_map, List.getElem_range, hs.2.1, List.getD_eq_getElem _ _ hi,
-      List.getElem_take]
+    have hi : i < gs.length := by simp [hsize] at h₁; omega
+    simp only [List.getElem_map, List.getElem_range,
+      hlabels i (by simpa only [hsize] using hi), List.getD_eq_getElem _ _ hi, List.getElem_take]
   rw [← h, List.count, List.countP_map, Split.vertexRank]
   rfl
 
@@ -161,7 +164,8 @@ theorem Represents.child {q : EndpointQuery} {s : Split} {gs es ps} (hq : q.Repr
     have hvalid := hn ▸ hj
     refine ⟨hvalid, ?_⟩
     rw [List.getD_eq_getElem _ _ hvalid, get_childEdgeList _ _ _ _ hs.2.2.1 j hvalid]
-    simp only [hpar, hfull, vertexRank_eq hs, hs.1, List.take_length]
+    simp only [hpar, hfull, Split.vertexRank_eq hs.1 (fun v _ => hs.2.1 v), hs.1,
+      List.take_length]
   · rintro ⟨hj, rfl⟩
     let e := parentEdge gs s.group es j
     obtain ⟨he, hbranch⟩ :=
@@ -170,7 +174,8 @@ theorem Represents.child {q : EndpointQuery} {s : Split} {gs es ps} (hq : q.Repr
       (hs.2.2.2 e he _).mpr rfl, ?_, ?_⟩
     · rwa [prefix_eq hq hs _ he.le, prefix_eq hq hs _ he.le, hfull, hs.2.1, hs.2.1]
     · rw [List.getD_eq_getElem _ _ hj, get_childEdgeList _ _ _ _ hs.2.2.1 j hj]
-      simp only [e, hfull, vertexRank_eq hs, hs.1, List.take_length]
+      simp only [e, hfull, Split.vertexRank_eq hs.1 (fun v _ => hs.2.1 v), hs.1,
+        List.take_length]
 
 end EndpointQuery
 

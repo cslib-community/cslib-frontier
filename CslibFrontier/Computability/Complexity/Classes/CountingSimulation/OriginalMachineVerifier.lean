@@ -94,7 +94,7 @@ private theorem exists_widened_verifier (k states width : ℕ) (hw : 0 < width)
   let := hS
   obtain ⟨d, hf, hg⟩ := ScheduleChallenge.exists_widen_setup_degree k states width
   obtain ⟨u, src, Q, hQ, atm, c, h⟩ :=
-    RootPackingBalance.TerminalLayout.exists_load_from hf hg _ _
+    TwoWordLoad.exists_load_from hf hg _ _
       (CarryLookaheadCountingPrepare.context_ne_request scratch a r q) eval
   obtain ⟨B, hB⟩ := ScheduleChallenge.exists_widen_clock c d width hw
   refine ⟨u, src, Q, hQ, atm, B + C * width, max 2 t₀, ?_⟩

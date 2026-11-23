@@ -12,7 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ReducedProductRequest
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.SourceWordInput
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarryLookaheadCountingFromLeaves
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance.TerminalLayout
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TwoWordLoad
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Envelope
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.ResidueInverse
@@ -184,7 +184,7 @@ theorem exists_evaluator {N : ℕ} {S : Type} [Finite S] (src : Fin N)
   let := hS₁
   obtain ⟨d, hcontext, hparameters⟩ := exists_setup_inO
   obtain ⟨K, source, Q, hQ, atm, A, hload⟩ :=
-    RootPackingBalance.TerminalLayout.exists_load_from hcontext hparameters _ _
+    TwoWordLoad.exists_load_from hcontext hparameters _ _
       (CarryLookaheadCountingPrepare.context_ne_request scratch k r z) prepared
   obtain ⟨C, D, hclock⟩ := clock_bound ci di c e Cc dc A d Co dO
   refine ⟨K, source, Q, hQ, atm, C, D, ?_⟩

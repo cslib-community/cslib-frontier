@@ -11,7 +11,7 @@ public import
   CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarryLookaheadCountingPrepare
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.SharedWordFork
 import
- CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance.TerminalLayout
+ CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TwoWordLoad
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Envelope
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 
@@ -212,7 +212,7 @@ theorem exists_evaluator {k : ℕ} {S : Type} [Finite S]
   let continuation := finish.extendTapes e
   let prepared := prependTM prepare continuation
   obtain ⟨K, source, Q, hQ, atm, A, hload⟩ :=
-    RootPackingBalance.TerminalLayout.exists_load_from encRequest_context_deg.inO_one
+    TwoWordLoad.exists_load_from encRequest_context_deg.inO_one
       parameters_deg.inO_one _ _
       (CarryLookaheadCountingPrepare.context_ne_request scratch k r q) prepared
   obtain ⟨C, D, hclock⟩ := clock_bound A ci di c d

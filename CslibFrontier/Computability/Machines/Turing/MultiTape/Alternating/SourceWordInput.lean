@@ -24,7 +24,7 @@ public section
 
 namespace Turing.MultiTapeATM.SourceWordInput
 
-open MultiTapeTM RootPackingBalance.TerminalLayout
+open MultiTapeTM TwoWordLoad
 
 private def locate (k : ℕ) : MultiTapeTM (k + 2) Bool Bool :=
   ofTr false fun phase _ _ =>

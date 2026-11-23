@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.SeededChildEndpoints
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarryLookaheadCountingRawLeaves
-import CslibFrontier.Foundations.Data.List.OfFn
+import CslibFrontier.Foundations.Data.List.SumIndicator
 
 /-!
 # Counting subqueries of a recursive child endpoint
@@ -70,27 +70,19 @@ parent candidate at its genuine edge index. -/
   | .pack e p => decide (j < e) && atEndpoint q j fun x =>
       decide (l.code x.1 = l.code p.1 ∧ l.code x.2 = l.code p.2)
 
-private theorem countP_range (n : ℕ) (f : ℕ → Bool) :
-    (List.range n).countP f = ∑ j ∈ Finset.range n, (f j).toNat := by
-  rw [List.countP_range_eq_card_filter, Finset.card_eq_sum_ones, Finset.sum_filter,
-    ← Fin.sum_univ_eq_sum_range]
-  apply Finset.sum_congr rfl
-  intro i _
-  cases f i <;> rfl
-
 /-- The identical carry-lookahead input convention serves all three counts. -/
 theorem Request.value_eq (r : Request) (q : EndpointQuery) (l : Labels) :
     r.value q l = ∑ j ∈ Finset.range (r.size q l), (r.test q l j).toNat := by
   classical
   cases r with
   | vertex bound =>
-    simp only [value, size, Split.vertexRank, countP_range, test, Labels.split]
+    simp only [value, size, Split.vertexRank, List.countP_range_eq_sum, test, Labels.split]
     apply Finset.sum_congr rfl
     intro j _
     congr 2
   | port col bound =>
-    cases col <;> simp only [value, size, portCount, countP_range, test, atEndpoint, Labels.split,
-      Bool.false_eq_true, ↓reduceIte, decide_eq_true_eq]
+    cases col <;> simp only [value, size, portCount, List.countP_range_eq_sum, test, atEndpoint,
+      Labels.split, Bool.false_eq_true, ↓reduceIte, decide_eq_true_eq]
   | pack e p =>
     simp only [value, size, classCount, test, atEndpoint, decide_eq_true_eq]
     apply Finset.sum_congr rfl

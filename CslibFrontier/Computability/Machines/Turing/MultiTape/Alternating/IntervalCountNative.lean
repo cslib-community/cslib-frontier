@@ -75,11 +75,6 @@ private theorem finish_iterate (w h : ℕ) (s : Cursor) :
           Nat.mul_assoc, Nat.mul_comm]
     · simp [advance, walk, ← ofBits_eq_lsbValue, hle]
 
-private def start (a : Input) : Cursor :=
-  let w := a.count.size + 1
-  let value := ofBits (a.choices.take w)
-  ⟨a.choices.drop w, 0, value, decide (value.testBit a.bit = a.claim)⟩
-
 private theorem advance_polyTime :
     ComputableInPolyTime (fun p : ℕ × Cursor => advance p.1 p.2)
       (encPair encUnary encCursor) encCursor := by
@@ -114,13 +109,25 @@ private theorem growth (w : ℕ) (s : Cursor) :
       simp [encCursor_apply, encCursorFields, encNat_apply, Nat.size_eq_bits_len] <;> omega
   · simp [encCursor_apply, encCursorFields]
 
-private theorem start_polyTime : ComputableInPolyTime start encInput encCursor := by
-  have hw := unary_add' (binary_size.comp encInput_count_deg.computableInPolyTime) (const 1)
-  have hc := encInput_choices_deg.computableInPolyTime
-  have hv := bitsToNat.comp (bitsTakeWithInput hc hw)
-  exact encCursor_mk_polyTime (bitsDropWithInput hc hw) (const 0) hv
-    (decide_eq' (binary_testBit hv encInput_bit_deg.computableInPolyTime)
-      encInput_claim_deg.computableInPolyTime)
+/-- Parse an exact-total certificate without guessing another total. Width and height are
+unary; the initial subtotal and selected index are binary. The initial interval starts at zero. -/
+theorem computableInPolyTime_walk {α : Type} {enc : α ↪ List Bool}
+    {w h value : α → ℕ} {choices : α → List Bool}
+    (hw : ComputableInPolyTime w enc encUnary) (hh : ComputableInPolyTime h enc encUnary)
+    (hv : ComputableInPolyTime value enc encNat) (hc : ComputableInPolyTime choices enc encBits) :
+    ComputableInPolyTime (fun a => walk (w a) (h a) 0 (value a) (choices a)) enc
+      (encOption (encPair encNat encNat)) := by
+  have hs := encCursor_mk_polyTime hc (const 0) hv (const true)
+  have hi := iterateWith_of_bounded_growth hw hh hs advance_polyTime
+    (.const 12) (fun a s => growth (w a) s)
+  have hf : ComputableInPolyTime finish encCursor (encOption (encPair encNat encNat)) :=
+    ite encCursor_valid_deg.computableInPolyTime ((optionSome _).comp
+      (encCursor_index_deg.computableInPolyTime.prod encCursor_value_deg.computableInPolyTime))
+      (const none)
+  apply (hf.comp hi).of_enc_eq
+  intro a
+  congr 1
+  simp [finish_iterate]
 
 /-- The entire parser is one fixed deterministic machine, including detection of invalid
 subtotals, bit comparison, singleton selection and padding information. -/
@@ -129,19 +136,15 @@ theorem computableInPolyTime_route :
       (encOption (encPair encNat encNat)) := by
   have hh := binary_size.comp encInput_count_deg.computableInPolyTime
   have hw := unary_add' hh (const 1)
-  have hi := iterateWith_of_bounded_growth hw hh start_polyTime advance_polyTime
-    (.const 12) (fun a s => growth (a.count.size + 1) s)
-  have hf : ComputableInPolyTime finish encCursor (encOption (encPair encNat encNat)) :=
-    ite encCursor_valid_deg.computableInPolyTime ((optionSome _).comp
-      (encCursor_index_deg.computableInPolyTime.prod encCursor_value_deg.computableInPolyTime))
-      (const none)
-  apply (hf.comp hi).of_enc_eq
+  have hc := encInput_choices_deg.computableInPolyTime
+  have hv := bitsToNat.comp (bitsTakeWithInput hc hw)
+  have hwalk := computableInPolyTime_walk hw hh hv (bitsDropWithInput hc hw)
+  have hbit := decide_eq' (binary_testBit hv encInput_bit_deg.computableInPolyTime)
+    encInput_claim_deg.computableInPolyTime
+  apply (ite_decide hbit hwalk (const none)).of_enc_eq
   intro a
   congr 1
-  symm
-  change finish ((advance (a.count.size + 1))^[a.count.size] (start a)) = _
-  rw [finish_iterate]
-  simp [start, route, ofBits_eq_lsbValue]
+  simp [route, ofBits_eq_lsbValue]
 
 private theorem repeat_round (w h : ℕ) :
     (fun xs : List Bool => (List.replicate w false ++ [true]) ++ xs)^[h] [] = rounds w h := by
@@ -149,10 +152,10 @@ private theorem repeat_round (w h : ℕ) :
   | zero => rfl
   | succ h ih => rw [Function.iterate_succ_apply', ih]; simp [rounds]
 
-/-- Generate every flag without enumerating the counted interval. -/
-theorem computableInPolyTime_flags : ComputableInPolyTime flags encNat encBits := by
-  have hh := binary_size
-  have hw := unary_add' hh (const 1)
+/-- Generate the subdivision flags in polynomial time in unary width and height. -/
+theorem computableInPolyTime_rounds {α : Type} {enc : α ↪ List Bool} {w h : α → ℕ}
+    (hw : ComputableInPolyTime w enc encUnary) (hh : ComputableInPolyTime h enc encUnary) :
+    ComputableInPolyTime (fun a => rounds (w a) (h a)) enc encBits := by
   let step := fun w (xs : List Bool) => (List.replicate w false ++ [true]) ++ xs
   have hs : ComputableInPolyTime (fun p : ℕ × List Bool => step p.1 p.2)
       (encPair encUnary encBits) encBits :=
@@ -160,8 +163,14 @@ theorem computableInPolyTime_flags : ComputableInPolyTime flags encNat encBits :
       (snd encUnary encBits)
   have hi := iterateWith_of_bounded_growth hw hh (const []) hs
     (hw.polyBounded.add (.const 1)) (fun _ _ => by simp [step, encBits_apply]; omega)
-  apply (((bitsReplicate false).comp hw).bitsAppend hi).of_enc_eq
+  apply hi.of_enc_eq
   intro a
-  simp only [flags, step, Function.comp_def, repeat_round]
+  simp only [step, repeat_round]
+
+/-- Generate every flag without enumerating the counted interval. -/
+theorem computableInPolyTime_flags : ComputableInPolyTime flags encNat encBits := by
+  have hh := binary_size
+  have hw := unary_add' hh (const 1)
+  exact ((bitsReplicate false).comp hw).bitsAppend (computableInPolyTime_rounds hw hh)
 
 end Turing.MultiTapeATM.IntervalCountGame

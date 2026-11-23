@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.FramedPrefixInput
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.QuantifiedWord.Fields
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance.TerminalLayout
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TwoWordLoad
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootBalanceRequest
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Envelope
@@ -70,7 +70,7 @@ theorem exists_prepend_of_flags {flags : Public → List Bool} {d : ℕ}
         let input := encPublic p
         let header := frame input
         let cfg := WordGameLeaf.config tape (some leaf.toPTM.initial)
-          (header ++ flags p) header.length (TerminalLayout.blank K input)
+          (header ++ flags p) header.length (TwoWordLoad.blank K input)
         leaf.HaltsWithin t cfg →
           let time := C * (p.1.raw.length + shortSize p ^ d + 1) + t
           atm.HaltsWithin time (atm.toPTM.toNTM.initCfg input) ∧
@@ -82,7 +82,7 @@ theorem exists_prepend_of_flags {flags : Public → List Bool} {d : ℕ}
   have hz : (tapesCfg (encPublic p) (fun _ : Fin K => []) 0 0 []) =
       wordsCfg (encPublic p) (none : Option Unit) (fun _ : Fin K => []) [] :=
     tapesCfg_zero_withState _ _ _
-  simpa only [FramedPrefixInput.ready, TerminalLayout.blank, hz, Cfg.withState,
+  simpa only [FramedPrefixInput.ready, TwoWordLoad.blank, hz, Cfg.withState,
     WordGameLeaf.config] using h p t
 
 /-- A uniform finite machine starts from the public word on its read-only input tape. It pays
@@ -93,7 +93,7 @@ theorem exists_prepend {K : ℕ} {L : Type} [Finite L] (tape : Fin K) (leaf : Mu
         let input := encPublic p
         let header := frame input
         let cfg := WordGameLeaf.config tape (some leaf.toPTM.initial)
-          (header ++ rankFlags (Nat.clog 2 p.2)) header.length (TerminalLayout.blank K input)
+          (header ++ rankFlags (Nat.clog 2 p.2)) header.length (TwoWordLoad.blank K input)
         leaf.HaltsWithin t cfg →
           let time := C * (p.1.raw.length + shortSize p ^ d + 1) + t
           atm.HaltsWithin time (atm.toPTM.toNTM.initCfg input) ∧

@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Copyright (c) 2026 Samuel Schlesinger, Sam McGuire. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Sam McGuire
 -/
 
 module
@@ -23,11 +23,22 @@ sum (`List.sum_map_ite_and`).
 * `List.sum_map_range_ite_eq`: the indicator of `i₀` sums to `b` over `List.range n` when
   `i₀ < n`, and to `0` otherwise.
 * `List.sum_map_ite_and`: a constant conjunct of an indicator comes out of the sum.
+* `List.countP_range_eq_sum`: counting successful Boolean tests over a range is summing their
+  zero-or-one values.
 -/
 
 public section
 
 namespace List
+
+/-- Counting a Boolean predicate on a range equals the finite sum of its indicator values. -/
+theorem countP_range_eq_sum (n : ℕ) (f : ℕ → Bool) :
+    (List.range n).countP f = ∑ j ∈ Finset.range n, (f j).toNat := by
+  rw [List.countP_range_eq_card_filter, Finset.card_eq_sum_ones, Finset.sum_filter,
+    ← Fin.sum_univ_eq_sum_range]
+  apply Finset.sum_congr rfl
+  intro i _
+  cases f i <;> rfl
 
 variable {M : Type*} [AddCommMonoid M]
 

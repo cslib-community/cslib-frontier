@@ -30,10 +30,10 @@ private theorem read_first (x ch : List Bool) :
   rw [step_of_state h₁, step_of_state hs]
   cases x with
   | nil => simp [readFirst, start, Cfg.inputSymbol, Action.apply, moveInputPos,
-      SharedWordFork.start, WordGameLeaf.config, RootPackingBalance.TerminalLayout.blank, tapesCfg]
+      SharedWordFork.start, WordGameLeaf.config, TwoWordLoad.blank, tapesCfg]
   | cons a as =>
     cases a <;> simp [readFirst, start, Cfg.inputSymbol, Action.apply, moveInputPos,
-      SharedWordFork.start, WordGameLeaf.config, RootPackingBalance.TerminalLayout.blank, tapesCfg]
+      SharedWordFork.start, WordGameLeaf.config, TwoWordLoad.blank, tapesCfg]
 
 -- The two possible first source symbols and the empty source are all covered by one external ATM.
 example : ∃ (u : ℕ) (Q : Type) (_ : Finite Q) (atm : MultiTapeATM u Bool Q) (C : ℕ),

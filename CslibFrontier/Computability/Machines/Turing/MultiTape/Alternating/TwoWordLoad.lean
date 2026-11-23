@@ -17,46 +17,54 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Wor
 The last move leaves its tape head on the blank after the completed input. The loader rewinds
 that tape and computes two protected words. The time bound retains the original computation's
 input-dependent clock, including the native copies of its outputs.
+
+## Main results
+
+* `Turing.MultiTapeATM.TwoWordLoad.runs_rewind`: rewind one stored word while preserving all
+  ambient tape contents, heads, input position, and output.
+* `Turing.MultiTapeATM.TwoWordLoad.exists_load_from`: prepare two native words from one stored
+  source and transfer to a supplied alternating continuation, charging both computations.
 -/
 
 public section
-namespace Turing.MultiTapeATM.RootPackingBalance.TerminalLayout
+namespace Turing.MultiTapeATM.TwoWordLoad
 open MultiTapeTM WordFunctionLayout
 
 /-- All work tapes start blank and the input head is on its left blank. -/
 @[expose] def blank (K : ℕ) (input : List Bool) : Cfg K Bool Unit input :=
   { tapesCfg input (fun _ => []) 0 0 [] with inputPos := 0 }
 
-private noncomputable def rewind {K : ℕ} (src : Fin K) :=
-  ((rewindWork Bool).extendTapes (tapeEmb src)).fromLeftBlank
+/-- Rewind a selected completed word without changing any ambient tape, cursor or output. -/
+noncomputable def rewind {K : ℕ} (src : Fin K) :=
+  (rewindWork Bool).extendTapes (tapeEmb src)
+
+/-- The native rewind works over arbitrary ambient storage and preserves its input head. -/
+theorem runs_rewind {K : ℕ} (src : Fin K) (w : List Bool) {input : List Bool}
+    (storage : Cfg K Bool Unit input) (pos : ℕ) (hp : pos ≤ w.length) :
+    RunsBetween (rewind src) (WordGameLeaf.config src none w pos storage)
+      (WordGameLeaf.config src none w 0 storage) (pos + 2) (K * (pos + 3)) := by
+  apply RunsBetween.of_runFrom
+  simp only [rewind, runFrom_tapeEmb, oneTapeCfg, WordGameLeaf.config, Cfg.withState,
+    extendTapes_q₀, Function.update_self]
+  rw [runFrom_rewindWork_none _ _ _ rfl hp, embed_tapeEmb]
+  apply Cfg.ext <;> try rfl
+  all_goals
+    funext j
+    by_cases hj : j = src <;> simp [hj]
 
 private theorem rewind_run {K : ℕ} (src : Fin K) (w input : List Bool) (pos : ℕ)
     (hp : pos ≤ w.length) :
     let ws := Function.update (fun _ : Fin K => []) src w
-    RunsBetween (rewind src) (WordGameLeaf.config src none w pos (blank K input))
+    RunsBetween (rewind src).fromLeftBlank
+      (WordGameLeaf.config src none w pos (blank K input))
       { tapesCfg input ws 0 0 [] with inputPos := 0 } (pos + 2 + 2)
       (K * (pos + 3) + 4 * K) := by
-  dsimp only
-  let ws := Function.update (fun _ : Fin K => []) src w
-  let heads := Function.update (0 : Fin K → ℤ) src (pos : ℤ)
-  have hr : RunsBetween ((rewindWork Bool).extendTapes (tapeEmb src))
-      (tapesCfg input ws 0 heads []) (tapesCfg input ws 0 0 [])
-      (pos + 2) (K * (pos + 3)) := by
-    apply RunsBetween.of_runFrom
-    simp only [runFrom_tapeEmb, oneTapeCfg, tapesCfg, Cfg.withState, extendTapes_q₀,
-      Pi.zero_apply, sub_zero, heads, ws, Function.update_self]
-    rw [runFrom_rewindWork_none _ _ _ rfl hp, embed_tapeEmb]
-    apply Cfg.ext <;> try rfl
-    all_goals
-      funext j
-      by_cases hj : j = src <;> simp [hj]
-  have he : { tapesCfg input ws 0 heads [] with inputPos := 0 } =
-      WordGameLeaf.config src none w pos (blank K input) := by
-    apply Cfg.ext <;> try rfl
-    funext i
-    by_cases hi : i = src <;> simp [ws, WordGameLeaf.config, blank, tapesCfg, hi]
-  rw [← he]
-  exact hr.fromLeftBlank rfl rfl
+  have hr := runs_rewind src w (tapesCfg input (fun _ => []) 0 0 []) pos hp
+  have hs := hr.fromLeftBlank rfl rfl
+  convert hs using 1 <;> apply Cfg.ext <;> try rfl
+  all_goals
+    funext j
+    by_cases hj : j = src <;> simp [WordGameLeaf.config, tapesCfg, hj]
 
 /-- Run two clocked functions on the completed input and transfer to a continuation seeing only
 its two requested words. The choice tape may hold a long framed prefix. Its rewind is charged. -/
@@ -80,7 +88,7 @@ theorem exists_load_from {K : ℕ} {S α β γ : Type} {encIn : α ↪ List Bool
   let emb : Fin K ↪ Fin (s + K + 2) := (Fin.natAddEmb s).trans (Fin.castAddEmb 2)
   let prep₁ := (tm₁.extendTapes (outputTapes (Nat.le_max_left k₁ k₂) i)).fromLeftBlank
   let prep₂ := (tm₂.extendTapes (outputTapes (Nat.le_max_right k₁ k₂) j)).fromLeftBlank
-  let prep := ((rewind src).seq prep₁).seq prep₂
+  let prep := ((rewind src).fromLeftBlank.seq prep₁).seq prep₂
   let cont := leaf.extendTapes emb
   let atm := prependTM prep cont
   refine ⟨_, src, _, inferInstance, atm, c₁ + c₂, ?_⟩
@@ -136,4 +144,4 @@ theorem exists_load {K : ℕ} {S α β γ : Type} {encIn : α ↪ List Bool}
   obtain ⟨U, src, Q, hQ, atm, c, h⟩ := exists_load_from hf hg i j hne leaf
   exact ⟨U, src, Q, hQ, atm, c, fun input a => h input a _ le_rfl⟩
 
-end Turing.MultiTapeATM.RootPackingBalance.TerminalLayout
+end Turing.MultiTapeATM.TwoWordLoad

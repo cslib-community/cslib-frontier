@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.SharedFork
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance.TerminalLayout
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TwoWordLoad
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WorkTapePredicate
 
 /-!
@@ -22,7 +22,7 @@ public section
 
 namespace Turing.MultiTapeATM.SharedWordFork
 
-open MultiTapeTM RootPackingBalance.TerminalLayout
+open MultiTapeTM TwoWordLoad
 
 /-- The candidate remains on its work tape at the given cursor. -/
 @[expose] def start {K : ℕ} {S : Type} (src : Fin K) (atm : MultiTapeATM K Bool S)

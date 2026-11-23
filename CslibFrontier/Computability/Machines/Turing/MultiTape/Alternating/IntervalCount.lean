@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalCount.Decode
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarryLookaheadCountingContext
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance.TerminalLayout
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TwoWordLoad
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.SharedWordFork
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalCount.InputWindow
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
@@ -235,7 +235,7 @@ theorem exists_evaluator (machine : MultiTapePTM k Bool State) :
   let := hS
   obtain ⟨deg, hf, hg⟩ := exists_setup (k := k) (State := State)
   let T (a : Request k State) := a.interval.input.length + localSize a ^ deg
-  obtain ⟨v, src, Q, hQ, atm, c, hs⟩ := RootPackingBalance.TerminalLayout.exists_load_from hf hg
+  obtain ⟨v, src, Q, hQ, atm, c, hs⟩ := TwoWordLoad.exists_load_from hf hg
     _ _ (CarryLookaheadCountingPrepare.context_ne_request scratch u r q) eval
   let leafTime (a : Request k State) := A *
     ((2 * (encInputWindow (IntervalData.InputWindow.prepare a.interval)).length + 2 +
