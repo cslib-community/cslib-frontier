@@ -100,6 +100,15 @@ example : Realizes .exact
     pairWords word (fun _ _ _ => True) (fun _ _ => 0) := by
   realize
 
+-- The client is restated before certification, here by unfolding a definition.
+private def readTwice (a : ℕ) : Memory.Prog ℕ := do
+  let _ ← Memory.read a
+  Memory.read a
+
+example : Realizes .exact (fun a => readTwice a) word word (fun _ _ _ => True)
+    (fun _ _ => 0) := by
+  realize rewriting [readTwice]
+
 -- At address zero an arbitrary fitting word can still overflow when incremented.
 example : True := by
   fail_if_success

@@ -2323,4 +2323,17 @@ scoped macro "realize" "[" certificates:term,* "]" : tactic => do
     script ← `(tactic| (have hcert := $certificate; $script))
   return script
 
+/-- `realize [c₁, …] rewriting [r₁, …]` first rewrites the client, under its environment binder,
+with `simp only [r₁, …]`, and then runs `realize [c₁, …]`; the certificate list may be omitted.
+It stages a client whose syntax must be restated before it can be certified: a recursion replaced
+by its loop, definitions unfolded with a repeated subterm folded, or a client equation proved
+beforehand. Only the client is rewritten, not the domain or the work. -/
+scoped syntax "realize" (" [" term,* "]")? " rewriting " "[" Lean.Parser.Tactic.simpLemma,* "]" :
+  tactic
+
+macro_rules
+  | `(tactic| realize $[[$certificates,*]]? rewriting [$rules,*]) => do
+    let certificates := certificates.map (·.getElems) |>.getD #[]
+    `(tactic| (conv => arg 2; ext d; simp only [$rules,*]); realize [$certificates,*])
+
 end Cslib.WordRAM

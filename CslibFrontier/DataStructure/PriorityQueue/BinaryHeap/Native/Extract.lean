@@ -57,8 +57,7 @@ theorem realizes_extractMin :
         (Memory.extractMin d.2).map (Option.map fun a => (a.1.val, a.2))) layoutWords
       (WordEncoding.encode (α := Option (ℕ × ℕ)))
       (fun w d s => ∃ K, d.2.Valid w K ∧ Memory.Inv d.2 s) (fun _ _ => 0) := by
-  conv => arg 2; ext d; simp only [Memory.extractMin, Memory.entry]
-  realize [SiftDown.realizes_siftDown]
+  realize [SiftDown.realizes_siftDown] rewriting [Memory.extractMin, Memory.entry]
   all_goals
     rcases h with ⟨K, hL, hs⟩
     have hSn := hs.heap.size_le
