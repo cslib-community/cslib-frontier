@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Complexity.Classes.PP.Closure
 public import CslibFrontier.Computability.Complexity.Reduction
 public import CslibFrontier.Computability.Complexity.Classes.Space.Closure
 public import CslibFrontier.Computability.Complexity.Classes.Space.Savitch
+import CslibFrontier.Computability.Complexity.Classes.Space.Time
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace
 import CslibFrontier.Computability.Complexity.Reduction.Word
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
@@ -45,8 +46,8 @@ of `PSPACE` in `CslibFrontier.Computability.Complexity.Classes.Space.Closure`.
   one new cell per step on each work tape (`Turing.MultiTapeNTM.RunsInTime.runsInSpace`), so `NP`
   is within `NPSPACE`, which is `PSPACE` by Savitch's theorem
   (`Cslib.Complexity.NPSPACE_subset_PSPACE`).
-* `PSPACE ⊆ EXP` (`Cslib.Complexity.PSPACE_subset_EXP`): Savitch's decider runs within time
-  exponential in a polynomial (`Cslib.Reachability.computableInO_savitch`).
+* `PSPACE ⊆ EXP` (`Cslib.Complexity.PSPACE_subset_EXP`): a decider within polynomial space halts
+  within its number of configurations (`Cslib.Complexity.exists_mem_DTIME_of_mem_DSPACE`).
 * `PH ⊆ PSPACE` (`Cslib.Complexity.PH_subset_PSPACE`): `PSPACE` contains `P`, is closed under
   complement (`Cslib.Complexity.compl_mem_PSPACE`), under polynomial-time reductions
   (`Cslib.Complexity.PolyTimeReducible.mem_PSPACE`) and under polynomially bounded existential
@@ -118,75 +119,16 @@ private theorem exists_eventually_le_two_pow_pow {P Q R : ℕ → ℕ} (hP : Pol
     _ ≤ 2 ^ n ^ K := Nat.pow_le_pow_right (by norm_num) h₃
 
 /-- **`PSPACE ⊆ EXP`** [Arora and Barak, Theorem 4.2][AroraBarak09],
-[Sipser, Section 8.2][Sipser2013]: a problem in `PSPACE` is decided by a nondeterministic machine
-within polynomial space (`Cslib.Complexity.PSPACE_subset_NPSPACE`), and Savitch's decider for it
-runs within time exponential in a polynomial: its codes have polynomial width `w`, and it runs
-`2 ^ ((w + 2) * (w + 1))` rounds of polynomial cost
-(`Cslib.Reachability.computableInO_savitch`). -/
+[Sipser, Section 8.2][Sipser2013]: a decider within space `n ^ k` halts within its number of
+configurations, `(n + 2) * 2 ^ (c * n ^ k)` (`Cslib.Complexity.exists_mem_DTIME_of_mem_DSPACE`). -/
 theorem PSPACE_subset_EXP : PSPACE enc ⊆ EXP enc := by
   intro A hA
-  obtain ⟨k, State, hfinite, ntm, s, hs, hAn⟩ := PSPACE_subset_NPSPACE hA
-  obtain ⟨c, d, hcd⟩ := hs.exists_le
-  -- the inputs and the edge test of Savitch's decider are polynomial-time
-  have hwidth := MultiTapeNTM.computableInPolyTime_codeWidth (ntm := ntm) (enc := enc) c d
-  have hcodes : ComputableInPolyTime
-      (fun a => 2 * ntm.codeWidth c d (enc a) + 2) enc encUnary :=
-    ComputableInPolyTime.unary_add.comp ((ComputableInPolyTime.unary_mul.comp
-      ((ComputableInPolyTime.const 2).prod hwidth)).prod (ComputableInPolyTime.const 2))
-  set encE := encPair (encFinEnum Unit) (encPair encBits encBits)
-  have hedge : ComputableInPolyTime
-      (fun q : Unit × List Bool × List Bool => (fun _ => ntm.codeEdge) q.1 q.2.1 q.2.2)
-      encE encBool :=
-    ntm.computableInPolyTime_codeEdge ((ComputableInPolyTime.fst _ _).comp (.snd _ _))
-      ((ComputableInPolyTime.snd _ _).comp (.snd _ _))
-  have hin : ComputableInPolyTime
-      (fun a => ((), 2 * ntm.codeWidth c d (enc a) + 2, 2 * ntm.codeWidth c d (enc a) + 2,
-        MultiTapeNTM.viewCode (ntm.codeWidth c d (enc a)) (ntm.initView (enc a)),
-        MultiTapeNTM.acceptCode (ntm.codeWidth c d (enc a)))) enc
-      (Cslib.Reachability.encArgs (encFinEnum Unit)) :=
-    (ComputableInPolyTime.const ()).prod (hcodes.prod (hcodes.prod
-      ((MultiTapeNTM.computableInPolyTime_viewCode_initView hwidth
-        (.of_eq fun _ => rfl)).prod
-        (MultiTapeNTM.computableInPolyTime_acceptCode hwidth))))
-  -- only the time bounds feed `EXP`, so the coarser charged space (time plus space) is harmless
-  obtain ⟨Te, _, hTe, -, hedgeO⟩ := hedge.exists_computableInO
-  obtain ⟨Ti, _, hTi, -, hinO⟩ := hin.exists_computableInO
-  have h := Cslib.Reachability.computableInO_savitch (edge := fun _ => ntm.codeEdge)
-    (par := fun _ => ()) hedgeO hinO
-    (fun _ => MultiTapeNTM.length_viewCode (Nat.le_add_right _ _)) fun _ => List.length_replicate ..
-  -- polynomial bounds on the width, the inputs and the edge test
-  obtain ⟨cW, dW, hW⟩ := hwidth.polyBounded_length.exists_le
-  obtain ⟨cT, dT, hT⟩ := hTi.exists_le
-  obtain ⟨cE, dE, hE⟩ := hTe.exists_le
-  set L := (encFinEnum Unit ()).length
-  have hedgeMax (w : ℕ) :
-      Cslib.Reachability.edgeMax Te () w ≤
-        cE * (2 * L + 3 * w + 3) ^ dE :=
-    listMax_le fun u hu => listMax_le fun v hv => by
-      refine (hE _).trans (Nat.mul_le_mul_left cE (Nat.pow_le_pow_left ?_ dE))
-      enc_len [encE, Cslib.BitString.mem_enumList.mp hu, Cslib.BitString.mem_enumList.mp hv]
-  set B : ℕ → ℕ := fun n => 2 * (cW * (n + 1) ^ dW) + 2
-  obtain ⟨K, hK⟩ := exists_eventually_le_two_pow_pow (P := fun n => cT * (n + 1) ^ dT)
-    (Q := fun n => (B n + 2) * (B n + 1))
-    (R := fun n => ((B n + 1) * (B n + B n + 1) + L + 1) ^ 2 + cE * (2 * L + 3 * B n + 3) ^ dE)
-    (by fun_prop) (by simp only [B]; fun_prop) (by simp only [B]; fun_prop)
-  have hmem := setOf_mem_DTIME_of_computableInO h
-    (t := fun n => cT * (n + 1) ^ dT + 2 ^ ((B n + 2) * (B n + 1)) *
-      (((B n + 1) * (B n + B n + 1) + L + 1) ^ 2 + cE * (2 * L + 3 * B n + 3) ^ dE))
-    fun a => by
-      have hw : 2 * ntm.codeWidth c d (enc a) + 2 ≤ B (enc a).length := by
-        have := hW a
-        simp only [encUnary_apply, List.length_replicate] at this
-        simp only [B]
-        omega
-      gcongr
-      · exact hT a
-      · exact (hedgeMax _).trans (Nat.mul_le_mul_left cE (Nat.pow_le_pow_left (by omega) dE))
-  have hA' : A = {a | ntm.savitchDecide c d (enc a) = true} := Set.ext fun a =>
-    (hAn.recognizesInSpace a).2.trans
-      (MultiTapeNTM.savitchDecide_eq_true_iff (hAn.recognizesInSpace a).1 (hcd a)).symm
-  rw [hA']
-  exact mem_EXP_iff.mpr ⟨K, DTIME_mono_of_eventually_le hK hmem⟩
+  obtain ⟨k, hk⟩ := mem_PSPACE_iff_exists_mem_DSPACE.mp hA
+  obtain ⟨c, hc⟩ := exists_mem_DTIME_of_mem_DSPACE hk
+  obtain ⟨K, hK⟩ := exists_eventually_le_two_pow_pow (P := fun _ => 0) (Q := fun n => c * n ^ k)
+    (R := fun n => n + 2) (by fun_prop) (by fun_prop) (by fun_prop)
+  exact mem_EXP_iff.mpr ⟨K, DTIME_mono_of_eventually_le
+    (hK.mono fun n hn => by rw [Nat.mul_comm]; simpa using hn) hc⟩
 
 /-- **`NP ⊆ EXP`**, through `PSPACE`. -/
 theorem NP_subset_EXP : NP enc ⊆ EXP enc :=

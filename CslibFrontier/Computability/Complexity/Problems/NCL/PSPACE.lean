@@ -59,7 +59,7 @@ private theorem fit_eq (n : ℕ) (t : List Bool) (ht : t.length = n) : fit n t =
   simp [fit, ← ht]
 
 private def search (x : Input) : Bool :=
-  Cslib.Reachability.savitch x.graph.checkStep x.initial.length x.initial.length x.initial
+  Cslib.Reachability.reach x.graph.checkStep x.initial.length x.initial.length x.initial
     (fit x.initial.length x.target)
 
 private def guard (x : Input) : Bool :=
@@ -86,16 +86,8 @@ private theorem computableInPolyTime_inputTarget :
     fun_prop
   exact (bits_encList_polyTime encBool).2.comp h
 
-private theorem computableInPolyTime_edge :
-    ComputableInPolyTime (fun q : AndOrGraph × List Bool × List Bool =>
-      q.1.checkStep q.2.1 q.2.2) (Cslib.Reachability.encEdgeArgs encAndOrGraph) encBool := by
-  unfold Cslib.Reachability.encEdgeArgs
-  fun_prop
-
-private theorem computableInPolyTime_arguments :
-    ComputableInPolyTime (fun x : Input =>
-      (x.graph, x.initial.length, x.initial.length, x.initial, fit x.initial.length x.target))
-      encAndOrNCL (Cslib.Reachability.encArgs encAndOrGraph) := by
+private theorem computableInPolySpace_search :
+    ComputableInPolySpace search encAndOrNCL encBool := by
   have hg := computableInPolyTime_inputGraph
   have hs := computableInPolyTime_inputStart
   have ht := computableInPolyTime_inputTarget
@@ -108,19 +100,14 @@ private theorem computableInPolyTime_arguments :
       encAndOrNCL encBits := by
     unfold fit
     fun_prop
-  exact hg.prod (hn.prod (hn.prod (hs.prod hd)))
-
-private theorem computableInPolySpace_search :
-    ComputableInPolySpace search encAndOrNCL encBool := by
-  obtain ⟨time, space, hspace, hc⟩ := Cslib.Reachability.exists_polyBounded_space_savitch
-    computableInPolyTime_edge computableInPolyTime_arguments (fun _ => rfl)
-    (fun x => length_fit x.initial.length x.target)
-  apply ComputableInPolySpace.of_inSpace hspace
-  refine ⟨time, 1, ?_, ?_⟩
-  · exact hc.mono (fun _ => le_rfl) (fun _ => by omega)
-  · intro x
-    simp only [encBool_apply, List.length_singleton]
-    omega
+  have hedge : ComputableInPolyTime
+      (fun q : (List Bool × List Bool) × Input => q.2.graph.checkStep q.1.1 q.1.2)
+      (encPair (encPair encBits encBits) encAndOrNCL) encBool := by
+    have := hg.comp (ComputableInPolyTime.snd (encPair encBits encBits) encAndOrNCL)
+    fun_prop
+  exact ComputableInPolySpace.reach (edge := fun x => x.graph.checkStep) (.of_polyTime hn)
+    (.of_polyTime hn) (.of_polyTime hs) (.of_polyTime hd) (.of_polyTime hedge)
+    fun x => ⟨rfl, length_fit x.initial.length x.target⟩
 
 private theorem computableInPolyTime_guard : ComputableInPolyTime guard encAndOrNCL encBool := by
   have hg := computableInPolyTime_inputGraph
@@ -149,13 +136,13 @@ private theorem decideConfig_eq_true_iff (x : Input) : decideConfig x = true ↔
     refine ⟨hv, hs, ht, (AndOrGraph.checkLegal_eq_true_iff _ hv.1 _).1 hl, ?_⟩
     unfold search at hr
     rw [fit_eq _ _ (ht.trans hs.symm), hs] at hr
-    exact (AndOrGraph.savitch_eq_true_iff _ hv.1 _ _ hs ht).1 hr
+    exact (AndOrGraph.reach_eq_true_iff _ hv.1 _ _ hs ht).1 hr
   · rintro ⟨hv, hs, ht, hl, hr⟩
     refine ⟨⟨(AndOrGraph.checkValid_eq_true_iff _).2 hv, ⟨hs, ht⟩,
       (AndOrGraph.checkLegal_eq_true_iff _ hv.1 _).2 hl⟩, ?_⟩
     unfold search
     rw [fit_eq _ _ (ht.trans hs.symm), hs]
-    exact (AndOrGraph.savitch_eq_true_iff _ hv.1 _ _ hs ht).2 hr
+    exact (AndOrGraph.reach_eq_true_iff _ hv.1 _ _ hs ht).2 hr
 
 /-- Configuration-to-configuration reachability on AND/OR multigraphs is in PSPACE,
 including graphs with loops. -/
