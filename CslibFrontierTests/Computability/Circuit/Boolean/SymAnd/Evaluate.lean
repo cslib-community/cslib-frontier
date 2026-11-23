@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (test driver)
+
 import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Evaluate
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 
@@ -19,6 +22,8 @@ Concrete instances of `CslibFrontier.Computability.Circuit.Boolean.SymAnd.Evalua
   boundary witness for gate masks longer than `n`, and Williams's Evaluation Lemma
   `computableInO_truthTableList` instantiated on parity and threshold-majority symmetric gates.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Computability.Circuit.Boolean.SymAnd.Evaluate
 

@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.StreamFold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Subtraction
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.StreamFold
@@ -50,7 +51,7 @@ number of AND gates satisfied by the input with true positions `T` is
   are given by `SymAndInstance` (`encSymAndInstance`), pairing the unary input arity `n` with the
   framed list of characteristic bit-vector gate masks (`encList encBits`).
 * The pure specification `truthTable gates out` builds the multiplicity vector `multiplicity gates`,
-  computes `(Yates.zetaM _).ret`, and reads `out g[k]`.
+  evaluates `subsetZeta` at each cell `maskSet n k`, and reads `out`.
 * The `k`-th entry of `SymAndInstance.truthTableList` is the output at
   `(BitString.equivFin n).symm k` (coordinate `0` least significant bit).
 * The multi-tape Turing-machine realization (`computableInO_truthTableList_of_computableInO` and
@@ -173,12 +174,12 @@ theorem getElem_multiplicity (gates : List (Finset (Fin n))) (k : ℕ) (hk : k <
     (multiplicity gates)[k] = gates.count (maskSet n k) := by
   simp [multiplicity, getElem_foldl_multiplicity]
 
-/-- Pure evaluation of the truth table: compute gate multiplicities, apply Yates's fast zeta
-transform, and evaluate `out` at every cell. -/
+/-- Pure evaluation of the truth table: compute gate multiplicities, take their zeta transform at
+each input mask, and evaluate `out` at every cell. -/
 @[expose] def truthTable (gates : List (Finset (Fin n))) (out : ℕ → Bool) :
     Vector Bool (2 ^ n) :=
-  let g := (Yates.zetaM (multiplicity gates)).ret
-  Vector.ofFn fun k => out g[k.1]
+  let m := multiplicity gates
+  Vector.ofFn fun k => out (subsetZeta (fun T => m[(maskIndex T : ℕ)]) (maskSet n k.1))
 
 /-- **Cell correctness of `truthTable`**: entry `k` agrees with `C.eval` at
 `(BitString.equivFin n).symm k`. -/
@@ -186,14 +187,13 @@ theorem getElem_truthTable (C : SymAnd (Fin n)) (gates : List (Finset (Fin n)))
     (hgates : (gates : Multiset (Finset (Fin n))) = C.gates) (out : ℕ → Bool)
     (hout : ∀ j ≤ C.size, out j = C.out j) (k : Fin (2 ^ n)) :
     (truthTable gates out)[k.1] = C.eval ((BitString.equivFin n).symm k) := by
-  have hm : ∀ (j : ℕ) (hj : j < 2 ^ n),
-      (multiplicity gates)[j] = C.gateMultiplicity (maskSet n j) := by
-    intro j hj
-    rw [getElem_multiplicity, gateMultiplicity, ← hgates, Multiset.coe_count]
-  have hg : (Yates.zetaM (multiplicity gates)).ret[k.1] =
+  have hm : ∀ T : Finset (Fin n),
+      (multiplicity gates)[(maskIndex T : ℕ)] = C.gateMultiplicity T := fun T => by
+    rw [getElem_multiplicity, maskSet_maskIndex, gateMultiplicity, ← hgates, Multiset.coe_count]
+  have hg : subsetZeta (fun T => (multiplicity gates)[(maskIndex T : ℕ)]) (maskSet n k.1) =
       C.count ((BitString.equivFin n).symm k) := by
-    rw [Yates.getElem_ret_zetaM _ _ hm _ k.isLt, equivFin_symm_eq_decide_mem_maskSet,
-      count_eq_subsetZeta]
+    rw [equivFin_symm_eq_decide_mem_maskSet, count_eq_subsetZeta]
+    exact Finset.sum_congr rfl fun T _ => hm T
   simp only [truthTable, Vector.getElem_ofFn, hg]
   exact hout _ (C.count_le_size _)
 
@@ -254,19 +254,9 @@ theorem SymAndInstance.truthTableList_eq_truthTable (x : SymAndInstance) (out : 
 theorem length_encSymAndInstance_le (x : SymAndInstance)
     (hgates : ∀ g ∈ x.gates, g.length ≤ x.n) :
     (encSymAndInstance x).length ≤ (x.gates.length + 2) * (2 * x.n + 2) := by
-  have haux : ∀ l : List (List Bool), (∀ g ∈ l, g.length ≤ x.n) →
-      (encList encBits l).length ≤ l.length * (2 * x.n + 1) := by
-    intro l hl
-    induction l with
-    | nil => simp
-    | cons g gs ih =>
-      have hg : g.length ≤ x.n := hl g (List.mem_cons_self ..)
-      have hgs := ih fun a ha => hl a (List.mem_cons_of_mem _ ha)
-      simp only [encList_cons, List.length_append, List.length_cons, length_frame, encBits_apply]
-      calc (2 * g.length + 1) + (encList encBits gs).length
-          ≤ (2 * x.n + 1) + gs.length * (2 * x.n + 1) := by omega
-        _ = (gs.length + 1) * (2 * x.n + 1) := by ring
-  have hlist := haux x.gates hgates
+  have hlist : (encList encBits x.gates).length ≤ x.gates.length * (2 * x.n + 1) :=
+    Turing.MultiTapeTM.length_encList_le encBits x.gates fun g hg => by
+      simpa [encBits_apply] using hgates g hg
   rw [encSymAndInstance_apply]
   have hn : (encUnary x.n).length = x.n := by simp [encUnary_apply]
   rw [length_encPair, hn]
@@ -279,17 +269,6 @@ section MultiTapeTM
 open Turing.MultiTapeTM.ComputableInPolyTime
 
 /-! ### Streaming list-pass combinator and generic LSB radix sort -/
-
-/-- Uniform encoding-length bound for lists whose elements all fit in `B` bits. -/
-private theorem length_encList_le_of_forall {α : Type} (enc : α ↪ List Bool) (B : ℕ) :
-    ∀ (l : List α), (∀ a ∈ l, (enc a).length ≤ B) →
-      (encList enc l).length ≤ l.length * (2 * B + 1)
-  | [], _ => by simp
-  | a :: t, hl => by
-    have ha := hl a (List.mem_cons_self ..)
-    have ht := length_encList_le_of_forall enc B t fun b hb => hl b (List.mem_cons_of_mem _ hb)
-    rw [encList_cons, List.length_append, List.length_cons, length_frame]
-    nlinarith
 
 /-- List-level form of `count_eq_subsetZeta`: `subsetZeta` of `l.count` equals
 `l.countP (· ⊆ S)`. -/
@@ -763,7 +742,7 @@ private theorem computableInO_radixSortLSB {α γ : Type} {encα : α ↪ List B
     have hm : ∀ p ∈ (radixStep^[k] (0, L x)).2, (encElem p).length ≤ M x :=
       fun p hp => hM x p ((mem_radixStep_iff).1 hp)
     have hl : (radixStep^[k] (0, L x)).2.length = (L x).length := length_radixStep k 0 (L x)
-    exact (length_encList_le_of_forall encElem (M x) _ hm).trans (by rw [hl])
+    exact (length_encList_le encElem _ (b := M x) hm).trans (by rw [hl])
   have hit := ComputableInO.iterate hb hinit hstep
     (R := fun x => (L x).length * (2 * M x + 1) +
       ((L x).length + 1) * ((encNat (b x)).length + M x + 1) ^ d +
@@ -1079,7 +1058,7 @@ private theorem computableInO_allMasks :
       (encList encBits (allMasks k)).length ≤ 2 ^ k * (2 * k + 1) := fun k => by
     calc (encList encBits (allMasks k)).length
         ≤ (allMasks k).length * (2 * k + 1) :=
-          length_encList_le_of_forall encBits k _ fun bs hbs => by
+          length_encList_le encBits _ (b := k) fun bs hbs => by
             simpa [encBits_apply] using (hlen_allMasks_k k bs hbs).le
       _ = 2 ^ k * (2 * k + 1) := by rw [length_allMasks]
   have hit := ComputableInO.iterate computableInO_n_nat
@@ -1915,7 +1894,7 @@ private theorem computableInO_countMasks :
       have hlist_le : (encList encBits (allMasks x.n)).length ≤ 2 ^ x.n * (2 * x.n + 1) := by
         calc (encList encBits (allMasks x.n)).length
             ≤ (allMasks x.n).length * (2 * x.n + 1) :=
-              length_encList_le_of_forall encBits x.n _ fun bs hbs => by
+              length_encList_le encBits _ (b := x.n) fun bs hbs => by
                 simpa [encBits_apply] using (hlen_m bs hbs).le
           _ = 2 ^ x.n * (2 * x.n + 1) := by rw [length_allMasks]
       have hmax : listMax (fun bs : List Bool => (encBits bs).length) (allMasks x.n) ≤ x.n :=
@@ -2037,8 +2016,8 @@ private theorem computableInO_countMasks :
         2 * listMax (fun p : List Bool × Bool => p.1.length) q.2) 8 1]
       exact Nat.mul_le_mul (by omega) (by omega)
     · obtain ⟨hlen_ce, hmem_ce⟩ := hcountEmitted_bounds q.1 q.2
-      have hce := length_encList_le_of_forall encNat (Nat.log2 (q.1 + q.2.length + 1) + 1)
-        (countEmitted q.1 q.2) fun v hv =>
+      have hce := length_encList_le encNat (countEmitted q.1 q.2)
+        (b := Nat.log2 (q.1 + q.2.length + 1) + 1) fun v hv =>
           length_encNat_le_log2 ((hmem_ce v hv).trans (Nat.le_succ _))
       have hmul : (countEmitted q.1 q.2).length *
             (2 * (Nat.log2 (q.1 + q.2.length + 1) + 1) + 1) ≤
@@ -4037,10 +4016,10 @@ private theorem computableInO_queryEntries :
           | nil => rfl
           | cons _ _ ih => simp [queryEntriesFrom, ih]
         exact hrec q.1 q.2
-      have h1 := (length_encList_le_of_forall encJoinItem
-        (4 * (Nat.log2 (q.1 + q.2.length + 1) + 1) +
+      have h1 := (length_encList_le encJoinItem (queryEntriesFrom q.1 q.2)
+        (b := 4 * (Nat.log2 (q.1 + q.2.length + 1) + 1) +
           2 * listMax (fun v => (encNat v).length) q.2 + 24)
-        (queryEntriesFrom q.1 q.2) hm).trans (by rw [hlen_q])
+        hm).trans (by rw [hlen_q])
       have h1' : (encList encJoinItem (queryEntriesFrom q.1 q.2)).length ≤
           q.2.length * (8 * (Nat.log2 (q.1 + q.2.length + 1) + 1) +
             4 * listMax (fun v => (encNat v).length) q.2 + 49) := by
@@ -4464,8 +4443,8 @@ private theorem computableInO_extractMatched :
       dsimp only
       have h1 : (encList encJoinItem L).length ≤
           L.length * (2 * listMax (fun p : JoinItem => (encJoinItem p).length) L + 1) :=
-        length_encList_le_of_forall encJoinItem
-          (listMax (fun r : JoinItem => (encJoinItem r).length) L) L
+        length_encList_le encJoinItem L
+          (b := listMax (fun r : JoinItem => (encJoinItem r).length) L)
           fun p hp => le_listMax (f := fun r : JoinItem => (encJoinItem r).length) hp
       have h2 : L.length * (2 * listMax (fun p : JoinItem => (encJoinItem p).length) L + 1) ≤
           2 * ((L.length + 1) * (listMax (fun p : JoinItem => (encJoinItem p).length) L + 1)) := by
@@ -4946,8 +4925,8 @@ private theorem computableInO_extracted_of {out : ℕ → Bool} {T S : ℕ → �
       (encList encJoinItem (joined x)).length ≤
         2 * ((2 ^ x.n + ((encSymAndInstance x).length + 1)) *
           (4 * x.n + 6 * Nat.log2 ((encSymAndInstance x).length + 1) + 34) ^ D_ex) := fun x => by
-    have h1 := length_encList_le_of_forall encJoinItem
-      (4 * x.n + 6 * Nat.log2 ((encSymAndInstance x).length + 1) + 32) (joined x)
+    have h1 := length_encList_le encJoinItem (joined x)
+      (b := 4 * x.n + 6 * Nat.log2 ((encSymAndInstance x).length + 1) + 32)
       fun p hp => length_encJoinItem_joinInput_le out x p (hmem_joined x p hp)
     have hlen_j := hlen_joined x
     have hlen_in := length_joinInput_le out x
@@ -5403,8 +5382,8 @@ theorem computableInO_truthTableList_of_computableInO {out : ℕ → Bool} {T S 
         fun r hr => (hextract_bounds x).2 r ((mem_radixStep_iff).1 hr)
       have henc_r : (encList (encPair encBits encBool) (restored x)).length ≤
           (2 ^ x.n + A) * (4 * x.n + 17) := by
-        have h1 := (length_encList_le_of_forall (encPair encBits encBool) (2 * x.n + 8)
-          (restored x) hmem_r).trans (Nat.mul_le_mul_right _ hlen_r)
+        have h1 := (length_encList_le (encPair encBits encBool) (restored x)
+          (b := 2 * x.n + 8) hmem_r).trans (Nat.mul_le_mul_right _ hlen_r)
         exact h1.trans (by ring_nf; rfl)
       have hmax_r : listMax (fun r : List Bool × Bool => (encPair encBits encBool r).length)
           (restored x) ≤ 2 * x.n + 8 := listMax_le hmem_r
@@ -5510,4 +5489,3 @@ theorem computableInO_truthTableList {out : ℕ → Bool}
 
 end MultiTapeTM
 end Cslib.Circuits.Boolean.SymAnd
-
