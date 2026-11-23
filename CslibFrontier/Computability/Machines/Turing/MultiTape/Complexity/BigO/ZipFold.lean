@@ -10,8 +10,6 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.ListHead
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinaryPrimitives
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeOptionPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OLoops
 import Mathlib.Data.List.ReduceOption
 import Mathlib.Tactic.Linarith

@@ -67,11 +67,6 @@ linear_rule cons' : (fun p : α × List α => p.1 :: p.2) from (encPair enc (enc
   to (encList enc) := ComputableInDegree.cons enc
 linear_rule snoc' : (fun p : List α × α => p.1 ++ [p.2]) from (encPair (encList enc) enc)
   to (encList enc) := ComputableInDegree.snoc enc
-theorem append' : ComputableInO (fun p : List α × List α => p.1 ++ p.2)
-    (encPair (encList enc) (encList enc)) (encList enc)
-    (fun p => (encPair (encList enc) (encList enc) p).length)
-    fun p => (encPair (encList enc) (encList enc) p).length :=
-  (ComputableInDegree.listAppend enc).inO_one
 linear_rule tail' : (fun l : List α => l.tail) from (encList enc) to (encList enc) :=
   ComputableInDegree.listTail enc
 
@@ -195,7 +190,7 @@ theorem listAppend' {u v : γ → List α} (hu : ComputableInO u encIn (encList 
     (hv : ComputableInO v encIn (encList enc) T₂ S₂) :
     ComputableInO (fun x => u x ++ v x) encIn (encList enc) (fun x => T₁ x + T₂ x)
       fun x => S₁ x + S₂ x :=
-  (append' (enc := enc)).comp_linear (hu.prod hv)
+  (ComputableInDegree.listAppend enc).inO_one.comp_linear (hu.prod hv)
 
 /-- Frame a computed bit string, within its bounds. -/
 @[fun_prop]
