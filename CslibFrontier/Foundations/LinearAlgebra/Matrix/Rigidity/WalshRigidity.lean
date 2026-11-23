@@ -216,7 +216,6 @@ theorem sylvesterHadamardRigidityFinite : ∀ (K : Type*) [Field K] (n lo hi k t
   rw [hm]
   exact (rigidity_submatrix_le H e _).trans (walshRigidityFinite K n lo hi k t)
 
-
 /-- Summing a uniform edit budget over the rows bounds the total rigidity. -/
 private theorem rigidity_le_of_row_edits {ι K : Type*} [Fintype ι] [Field K]
     {H B : Matrix ι ι K} {r edits : ℕ} (hr : B.rank ≤ r)

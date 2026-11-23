@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger, Shengye Tao
 module
 -- upstream: candidate
 
+public import CslibFrontier.Init
 public import Mathlib.Algebra.BigOperators.Group.Finset.Powerset
 public import Mathlib.Data.Fintype.Powerset
 import Mathlib.Algebra.BigOperators.Group.Finset.Sigma

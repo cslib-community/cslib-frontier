@@ -94,7 +94,7 @@ register_result "alman-williams-sylvester-finite" where
   theorems := [Cslib.sylvesterHadamardRigidityFinite]
   scope := "The rank budget includes the interpolation rank and the cost of correcting \
     exceptional rows and columns. The edit budget counts ordered central pairs off the \
-    overlap band. All fields and integer band parameters. The asymptotic exponent is outside \
+    overlap band. All fields and natural band parameters. The asymptotic rate is outside \
     this entry."
 
 register_result "alman-williams-sylvester-rows" where
@@ -106,4 +106,4 @@ register_result "alman-williams-sylvester-rows" where
   theorems := [Cslib.sylvesterHadamardRowWitness]
   scope := "Any uniform bound on the explicit central binomial row sums bounds every row \
     of one approximant and yields a total edit bound after multiplication by the side length. \
-    All fields and integer band parameters. The asymptotic exponent is outside this entry."
+    All fields and natural band parameters. The asymptotic rate is outside this entry."
