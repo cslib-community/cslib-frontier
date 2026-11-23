@@ -8,6 +8,7 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
@@ -159,5 +160,19 @@ example : (criticalCoordinatePolynomialValue 13 1 1 1 0 5 (fun z => z[0]?.getD 0
   simpa only [Polynomial.IsRoot.def, aeval_X] using
     isRoot_charpoly_multiplicationMatrix_of_aeval_eq (by decide) r hr
       (X 0) (fun _ => ((5 : ℕ) : ZMod 13)) hx
+
+-- Index seven is above the deformation-degree bound six and within the field cutoff.
+example : (criticalCoordinateCandidateValue 13 1 1 0 7 5 (fun z => z[0]?.getD 0) :
+    ZMod 13) = 0 := by
+  let : Fact (Nat.Prime 13) := ⟨by decide⟩
+  let F : MvPolynomial (Fin 1) ℤ := X 0
+  have hF : F.totalDegree ≤ 1 + 1 := (totalDegree_X_le 0).trans (by decide)
+  change (criticalCoordinateCandidateValue 13 1 1 (0 : Fin 1).val 7 5 _ : ZMod 13) = 0
+  rw [criticalCoordinateCandidateValue_cast 1 (by decide) F hF (0 : Fin 1) 7 5
+    (by decide) (by decide) (by decide) (by decide) (fun z => z[0]?.getD 0)
+    (by intro z; simp only [F, eval₂_X, Fin.val_zero])]
+  have hdegree := (parametricCoordinatePolynomial_natDegree_swap_le 1 (by decide) F hF
+    (0 : Fin 1)).trans_lt (show coordinateParameterDegreeBound 1 1 < 7 by decide)
+  rw [Polynomial.coeff_eq_zero_of_natDegree_lt hdegree, Polynomial.eval₂_zero]
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

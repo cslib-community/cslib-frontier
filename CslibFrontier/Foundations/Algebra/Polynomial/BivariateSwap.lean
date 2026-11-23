@@ -41,4 +41,13 @@ theorem eval_C_eq_map_swap (p : R[X][Y]) (x : R) :
   simpa only [coe_mapAlgHom, coe_aeval_eq_evalRingHom, aeval_def, algebraMap_def,
     Algebra.algebraMap_self, mapRingHom_id, eval₂_id] using aeval_eq_map_swap x p
 
+/-- After a coefficient map, swapping the polynomial exchanges the two evaluation points. -/
+theorem eval₂_eval₂RingHom_swap {S : Type*} [CommSemiring S] (f : R →+* S)
+    (x y : S) (p : R[X][Y]) :
+    (swap p).eval₂ (eval₂RingHom f x) y = p.eval₂ (eval₂RingHom f y) x := by
+  have h : (eval₂RingHom (eval₂RingHom f x) y).comp swap.toRingHom =
+      eval₂RingHom (eval₂RingHom f y) x := by
+    ext <;> simp [swap_C_C, swap_X, swap_Y]
+  exact DFunLike.congr_fun h p
+
 end Polynomial.Bivariate
