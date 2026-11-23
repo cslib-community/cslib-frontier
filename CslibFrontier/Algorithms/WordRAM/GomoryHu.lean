@@ -119,13 +119,14 @@ private theorem input_add_ghScratch (n : ℕ) : 3 + n * n + ghScratch n = ghWork
 
 /-! ### Client reduction helpers -/
 
-attribute [local client_simps] fst_runClient_read fst_snd_runClient_read fst_runClient_write
-  fst_snd_runClient_write fst_runClient_ite fst_snd_runClient_ite
+attribute [local client_simps] runClient_read runClient_write runClient_ite
 
 local elab "simp_client" : tactic => do
   Lean.Elab.Tactic.evalTactic
     (← `(tactic| all_goals (dsimp -failIfUnchanged only;
-                            simp -failIfUnchanged only [*, ↓reduceIte, client_simps])))
+                            simp -failIfUnchanged only
+                              [*, ↓reduceIte, StateTransitionSpec.clientState,
+                               StateTransitionSpec.clientResult, client_simps])))
   for _ in [:6] do
     let gs ← Lean.Elab.Tactic.getGoals
     if gs.isEmpty then break
@@ -137,7 +138,9 @@ local elab "simp_client" : tactic => do
         Lean.Elab.Tactic.evalTactic
           (← `(tactic| (dsimp -failIfUnchanged only;
                         split_ifs <;>
-                          simp -failIfUnchanged only [*, ↓reduceIte, client_simps])))
+                          simp -failIfUnchanged only
+                              [*, ↓reduceIte, StateTransitionSpec.clientState,
+                               StateTransitionSpec.clientResult, client_simps])))
         progress := true
         newGs := newGs ++ (← Lean.Elab.Tactic.getGoals)
       catch _ =>
@@ -254,7 +257,8 @@ private theorem ghStep_realizes :
     dsimp -failIfUnchanged only [ghWorkspace, parBase, wtBase, scrBase, distBase] at *
     try omega
     try (apply hw.of_le; omega)
-  · exact ⟨by dsimp only; omega, hw.of_le (by dsimp only [ekScratch]; omega), hB⟩
+  · exact ⟨by dsimp only [Ctx.matBase, Ctx.n, Ctx.scratchBase]; omega,
+      hw.of_le (by dsimp only [Ctx.scratchBase, Ctx.n, ekScratch]; omega), hB⟩
   · refine iterationSafe_of_stepInv _ _ w _
       (fun rem (z : ℕ) _ => z + rem = d.1.1) ?_ (Nat.zero_add _)
     intro rem z t hsum
@@ -430,7 +434,7 @@ private theorem ghStep_spec {n r B k t : ℕ} {st : Memory.State} (hk : k < n) (
   have ht : t < n := htdef ▸ hpar k hk
   have hpt : st.mem (parBase n + t) < n := hpar t ht
   have h1 : ∀ a < scrBase n, st1.mem a = st.mem a := fun a ha =>
-    preservesAt_ekProg (d := (ghCtx n B, (k, t))) hk (Or.inl ha) st
+    preservesAt_ekProg (c := ghCtx n B) (src := k) (snk := t) hk (Or.inl ha) st
   obtain ⟨h2fr, h2par⟩ := rehang_spec n k t st1
   have e1 : (Memory.spec 0).clientState st (ekProg (ghCtx n B, (k, t))) = st1 := rfl
   have e2 : (Memory.spec 0).clientResult st (ekProg (ghCtx n B, (k, t))) = v := rfl
@@ -788,8 +792,8 @@ private theorem validHistory_rehang {w n s t : ℕ} {st : Memory.State} (hs : Me
 
 private theorem ekProg_result_le_ekBound (n B k t : ℕ) (st : Memory.State) :
     (Memory.spec 0).clientResult st (ekProg (ghCtx n B, (k, t))) ≤ ekBound n B := by
-  have h := ekProg_result_le (ghCtx n B, (k, t)) st
-  dsimp only at h
+  have h := ekProg_result_le (ghCtx n B) k t st
+  dsimp only [ghCtx, Ctx.n, Ctx.capBound] at h ⊢
   have : n * n * (n + B) = n * n * n + n * n * B := Nat.mul_add _ _ _
   unfold ekBound
   omega
@@ -805,9 +809,10 @@ private theorem validHistory_ghStep {w n r B k : ℕ} {st : Memory.State} (hs : 
   refine validHistory_ite (fun _ => validHistory_pure _ _ _) (fun _ => ?_)
   refine validHistory_read_bind (by omega) ?_
   refine validHistory_ite (fun ht => ?_) (fun _ => validHistory_pure _ _ _)
-  have hek := validHistory_ekProg (d := (ghCtx n B, (k, st.mem (3 + n * n + k))))
-    ⟨by dsimp only [scrBase]; omega, hfit.of_le (by dsimp only [ekScratch, scrBase]; omega), hB⟩
-    hk ht hs.1 (by dsimp only [ekScratch, scrBase]; omega)
+  have hek := validHistory_ekProg (c := ghCtx n B) (src := k) (snk := st.mem (3 + n * n + k))
+    ⟨by dsimp only [ghCtx, Ctx.matBase, Ctx.n, Ctx.scratchBase, scrBase]; omega,
+      hfit.of_le (by dsimp only [ghCtx, Ctx.scratchBase, Ctx.n, ekScratch, scrBase]; omega), hB⟩
+    hk ht hs.1 (by dsimp only [ghCtx, Ctx.scratchBase, Ctx.n, ekScratch, scrBase]; omega)
   refine validHistory_bind_step hek ?_
   have hs1 := MonotoneMemInv.pres hs hek
   have hr := validHistory_rehang (t := st.mem (3 + n * n + k)) hs1 hk
@@ -859,13 +864,13 @@ private theorem validHistory_ghMain {w n r B : ℕ} {st : Memory.State}
   rw [clientState_maxScan]
   have hfr1 := hs1.2
   dsimp only [ghWorkspace] at hfr1
-  have hf1 := validHistory_fillRange (d := ((parBase n, r), n)) hs1.1
+  have hf1 := validHistory_fillRange (base := parBase n) (val := r) (len := n) hs1.1
     (by dsimp only [parBase]; omega) hr
   refine validHistory_bind_step hf1 ?_
   have hs3 := MonotoneMemInv.pres hs1 hf1
   have hfr3 := hs3.2
   dsimp only [ghWorkspace] at hfr3
-  have hf2 := validHistory_fillRange (d := ((wtBase n, 0), n)) hs3.1
+  have hf2 := validHistory_fillRange (base := wtBase n) (val := 0) (len := n) hs3.1
     (by dsimp only [wtBase]; omega)
     (fits_zero w)
   refine validHistory_bind_step hf2 ?_
@@ -915,7 +920,7 @@ private theorem memoryCost_ghStep_le (n r B k : ℕ) (s : Memory.State) :
   refine (memoryCost_read_bind_le (k := ekCost n + 3 * n + 7) fun x t => ?_).trans (by omega)
   refine memoryCost_ite_le ?_ (by simp)
   have hek : memoryCost (ekProg (ghCtx n B, (k, x))) t ≤ ekCost n :=
-    memoryCost_ekProg_le (ghCtx n B, (k, x)) t
+    memoryCost_ekProg_le (ghCtx n B) k x t
   refine (memoryCost_bind_le (k₁ := ekCost n) (k₂ := 3 * n + 7) hek
     fun _ t => ?_).trans (by omega)
   refine (memoryCost_bind_le (k₁ := 3 * n) (k₂ := 7)
@@ -946,8 +951,8 @@ private theorem memoryCost_ghMain_le (n r : ℕ) (s : Memory.State) :
   refine le_trans (memoryCost_bind_le (memoryCost_alloc _ _).le fun _ t => ?_) (ghCost_arith n)
   refine memoryCost_bind_le (memoryCost_iterate_le_of maxStep 1 3
     (fun _ _ => memoryCost_maxStep_le _ _) (n * n) (0, 0) t) fun m t => ?_
-  refine memoryCost_bind_le (memoryCost_fillRange_le ((parBase n, r), n) t) fun _ t => ?_
-  refine memoryCost_bind_le (memoryCost_fillRange_le ((wtBase n, 0), n) t) fun _ t => ?_
+  refine memoryCost_bind_le (memoryCost_fillRange_le (parBase n) r n t) fun _ t => ?_
+  refine memoryCost_bind_le (memoryCost_fillRange_le (wtBase n) 0 n t) fun _ t => ?_
   exact memoryCost_bind_le (memoryCost_iterate_le_of ghStep (ekCost n + 3 * n + 9) _
     (fun k t => memoryCost_ghStep_le n r m.2 k t) n 0 t) fun _ t => by simp
 

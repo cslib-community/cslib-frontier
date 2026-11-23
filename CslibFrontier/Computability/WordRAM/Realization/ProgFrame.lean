@@ -44,8 +44,8 @@ This module provides width-independent reasoning principles for `Memory.Prog` cl
   `clientState_iterate_eq_of`, `clientState_boundedWhile_eq_of`, `memoryCost_iterate_le_of`,
   `memoryCost_iterate_le_potential`, `memoryCost_boundedWhile_le_of`: generic loop invariant and
   cost lemmas, including an amortized bound with a potential.
-* `clientResult_bind_read`, `clientState_bind_write`, `fst_runClient_read`,
-  `fst_snd_runClient_write`, `fst_runClient_ite`, `clientResult_map`, `memoryCost_map`,
+* `clientResult_bind_read`, `clientState_bind_write`, `runClient_read`,
+  `runClient_write`, `runClient_ite`, `clientResult_map`, `memoryCost_map`,
   `memoryCost_bind_le`, `memoryCost_read_bind_le`, `memoryCost_write_bind_le`,
   `memoryCost_ite_le`, `validHistory_iterate_nat`, `validHistory_iterate_fst`: reductions through
   primitive steps and cost and admissibility combinators for counting loops.
@@ -403,41 +403,25 @@ theorem clientState_bind_write {α : Type} (w : ℕ) (s : Memory.State) (a v : �
       (Memory.spec w).clientState ⟨Function.update s.mem a v, s.frontier⟩ (k ()) :=
   rfl
 
-/-- `Prod.fst` of running `Memory.read`. This and the following five `runClient` reductions are
-not in `client_simps` globally; clients add them with `attribute [local client_simps]`. -/
-theorem fst_runClient_read (w : ℕ) (s : (Memory.spec w).State) (a : ℕ) :
-    ((Memory.spec w).runClient s (Memory.read a)).1 = s.mem a :=
+/-- Running `Memory.read` returns the stored word, leaves memory unchanged, and logs the read.
+Add this and `runClient_write` / `runClient_ite` with `attribute [local client_simps]` when
+simplifying `runClient` projections directly. -/
+theorem runClient_read (w : ℕ) (s : (Memory.spec w).State) (a : ℕ) :
+    (Memory.spec w).runClient s (Memory.read a) = (s.mem a, s, [Memory.Op.read a]) :=
   rfl
 
-/-- The state after running `Memory.read`. -/
-theorem fst_snd_runClient_read (w : ℕ) (s : (Memory.spec w).State) (a : ℕ) :
-    ((Memory.spec w).runClient s (Memory.read a)).2.1 = s :=
+/-- Running `Memory.write` updates the cell at `a`, preserves the frontier, and logs the write. -/
+theorem runClient_write (w : ℕ) (s : (Memory.spec w).State) (a v : ℕ) :
+    (Memory.spec w).runClient s (Memory.write a v) =
+      ((), ⟨Function.update s.mem a v, s.frontier⟩, [Memory.Op.write a v]) :=
   rfl
 
-/-- `Prod.fst` of running `Memory.write`. -/
-theorem fst_runClient_write (w : ℕ) (s : (Memory.spec w).State) (a v : ℕ) :
-    ((Memory.spec w).runClient s (Memory.write a v)).1 = () :=
-  rfl
-
-/-- The state after running `Memory.write`. -/
-theorem fst_snd_runClient_write (w : ℕ) (s : (Memory.spec w).State) (a v : ℕ) :
-    ((Memory.spec w).runClient s (Memory.write a v)).2.1 =
-      ⟨Function.update s.mem a v, s.frontier⟩ :=
-  rfl
-
-/-- `Prod.fst` of running a conditional. -/
-theorem fst_runClient_ite {α : Type} (w : ℕ) (s : (Memory.spec w).State)
+/-- Running a conditional client commutes with `if`. -/
+theorem runClient_ite {α : Type} (w : ℕ) (s : (Memory.spec w).State)
     (c : Prop) [Decidable c] (p₁ p₂ : (Memory.spec w).Client α) :
-    ((Memory.spec w).runClient s (if c then p₁ else p₂)).1 =
-      if c then (Memory.spec w).clientResult s p₁ else (Memory.spec w).clientResult s p₂ :=
-  apply_ite (fun p => ((Memory.spec w).runClient s p).1) c p₁ p₂
-
-/-- The state after running a conditional. -/
-theorem fst_snd_runClient_ite {α : Type} (w : ℕ) (s : (Memory.spec w).State)
-    (c : Prop) [Decidable c] (p₁ p₂ : (Memory.spec w).Client α) :
-    ((Memory.spec w).runClient s (if c then p₁ else p₂)).2.1 =
-      if c then (Memory.spec w).clientState s p₁ else (Memory.spec w).clientState s p₂ :=
-  apply_ite (fun p => ((Memory.spec w).runClient s p).2.1) c p₁ p₂
+    (Memory.spec w).runClient s (if c then p₁ else p₂) =
+      if c then (Memory.spec w).runClient s p₁ else (Memory.spec w).runClient s p₂ :=
+  apply_ite ((Memory.spec w).runClient s) c p₁ p₂
 
 theorem clientResult_map {α β : Type} (w : ℕ) (f : α → β) (p : Memory.Prog α)
     (s : Memory.State) :

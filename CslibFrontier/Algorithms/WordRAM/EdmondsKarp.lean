@@ -39,8 +39,9 @@ each vertex at most once, so a round costs `O(n ^ 2)` memory operations and the 
 
 ## Main definitions
 
-* `Cslib.Algorithms.WordRAM.EdmondsKarp.Ctx`, `capAddr`, `flowAddr`, `distAddr`, `predAddr`,
-  `ekScratch`, `ekBound`, `CtxFits`: the layout and the word bound.
+* `Cslib.Algorithms.WordRAM.EdmondsKarp.Ctx`, `Ctx.n`, `Ctx.matBase`, `Ctx.scratchBase`,
+  `Ctx.capBound`, `capAddr`, `flowAddr`, `distAddr`, `predAddr`, `ekScratch`, `ekBound`,
+  `CtxFits`: the layout and the word bound.
 * `Cslib.Algorithms.WordRAM.EdmondsKarp.ekProg`: the solver, and `ekCost`, its memory budget.
 * `Cslib.Algorithms.WordRAM.EdmondsKarp.fillRange`: fill a range of memory with one word.
 
@@ -80,17 +81,29 @@ open StateTransitionSpec (clientResult_bind clientState_bind clientResult_pure c
 and a bound `B` on the capacities. -/
 abbrev Ctx := ℕ × ℕ × ℕ × ℕ
 
+/-- Number of vertices in a solver context. -/
+abbrev Ctx.n (c : Ctx) : ℕ := c.1
+
+/-- Base address of the row-major capacity matrix. -/
+abbrev Ctx.matBase (c : Ctx) : ℕ := c.2.1
+
+/-- Base address of the solver's scratch area. -/
+abbrev Ctx.scratchBase (c : Ctx) : ℕ := c.2.2.1
+
+/-- Upper bound on edge capacities in a solver context. -/
+abbrev Ctx.capBound (c : Ctx) : ℕ := c.2.2.2
+
 /-- Address of the capacity `W u v`. -/
-abbrev capAddr (c : Ctx) (u v : ℕ) : ℕ := c.2.1 + u * c.1 + v
+abbrev capAddr (c : Ctx) (u v : ℕ) : ℕ := c.matBase + u * c.n + v
 
 /-- Address of the flow on the arc `(u, v)`. -/
-abbrev flowAddr (c : Ctx) (u v : ℕ) : ℕ := c.2.2.1 + u * c.1 + v
+abbrev flowAddr (c : Ctx) (u v : ℕ) : ℕ := c.scratchBase + u * c.n + v
 
 /-- Address of the breadth-first-search distance of `x` (`n` when `x` is not reached). -/
-abbrev distAddr (c : Ctx) (x : ℕ) : ℕ := c.2.2.1 + c.1 * c.1 + x
+abbrev distAddr (c : Ctx) (x : ℕ) : ℕ := c.scratchBase + c.n * c.n + x
 
 /-- Address of the breadth-first-search parent of `x`. -/
-abbrev predAddr (c : Ctx) (x : ℕ) : ℕ := c.2.2.1 + c.1 * c.1 + c.1 + x
+abbrev predAddr (c : Ctx) (x : ℕ) : ℕ := c.scratchBase + c.n * c.n + c.n + x
 
 /-- Words of scratch memory used by the solver: the flow matrix, distances and parents. -/
 abbrev ekScratch (n : ℕ) : ℕ := n * n + 2 * n
@@ -102,17 +115,19 @@ abbrev ekBound (n B : ℕ) : ℕ := n * n * n + n * n * B + 3 * B + 1
 /-- Layout and word-size requirements on a context: the matrix lies below the scratch area and
 both the scratch area and `ekBound` fit a word. -/
 abbrev CtxFits (w : ℕ) (c : Ctx) : Prop :=
-  c.2.1 + c.1 * c.1 ≤ c.2.2.1 ∧ Fits w (c.2.2.1 + ekScratch c.1) ∧ Fits w (ekBound c.1 c.2.2.2)
+  c.matBase + c.n * c.n ≤ c.scratchBase ∧ Fits w (c.scratchBase + ekScratch c.n) ∧
+    Fits w (ekBound c.n c.capBound)
 
 /-! ### Client reduction tactic -/
 
-attribute [local client_simps] fst_runClient_read fst_snd_runClient_read fst_runClient_write
-  fst_snd_runClient_write fst_runClient_ite fst_snd_runClient_ite
+attribute [local client_simps] runClient_read runClient_write runClient_ite
 
 local elab "simp_client" : tactic => do
   Lean.Elab.Tactic.evalTactic
     (← `(tactic| all_goals (dsimp -failIfUnchanged only;
-                            simp -failIfUnchanged only [*, ↓reduceIte, client_simps])))
+                            simp -failIfUnchanged only
+                              [*, ↓reduceIte, StateTransitionSpec.clientState,
+                               StateTransitionSpec.clientResult, client_simps])))
   for _ in [:6] do
     let gs ← Lean.Elab.Tactic.getGoals
     if gs.isEmpty then break
@@ -124,7 +139,9 @@ local elab "simp_client" : tactic => do
         Lean.Elab.Tactic.evalTactic
           (← `(tactic| (dsimp -failIfUnchanged only;
                         split_ifs <;>
-                          simp -failIfUnchanged only [*, ↓reduceIte, client_simps])))
+                          simp -failIfUnchanged only
+                              [*, ↓reduceIte, StateTransitionSpec.clientState,
+                               StateTransitionSpec.clientResult, client_simps])))
         progress := true
         newGs := newGs ++ (← Lean.Elab.Tactic.getGoals)
       catch _ =>
@@ -135,7 +152,7 @@ local elab "simp_client" : tactic => do
 /-! ### Programs -/
 
 /-- One step of `fillRange`: write `val` at `base + idx`. -/
-def fillStep (d : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ := do
+private def fillStep (d : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ := do
   Memory.write (d.1.1 + d.2) d.1.2
   pure (d.2 + 1)
 
@@ -146,7 +163,7 @@ def fillRange (d : (ℕ × ℕ) × ℕ) : Memory.Prog Unit := do
 
 /-- Residual capacity `W u v - f u v + f v u` of the arc `(u, v)` (`d = ((c, u), v)`), guarded to
 be at most `2 * B`. -/
-def readResCap (d : (Ctx × ℕ) × ℕ) : Memory.Prog ℕ := do
+private def readResCap (d : (Ctx × ℕ) × ℕ) : Memory.Prog ℕ := do
   let c := d.1.1
   let u := d.1.2
   let v := d.2
@@ -157,7 +174,7 @@ def readResCap (d : (Ctx × ℕ) × ℕ) : Memory.Prog ℕ := do
 
 /-- Innermost step of the search (`d = (((c, layer), u), v)`): reach `v` from `u` at distance
 `layer + 1` when `v` is unreached and `(u, v)` has residual capacity. -/
-def bfsInnerStep (d : ((Ctx × ℕ) × ℕ) × ℕ) : Memory.Prog ℕ := do
+private def bfsInnerStep (d : ((Ctx × ℕ) × ℕ) × ℕ) : Memory.Prog ℕ := do
   let c := d.1.1.1
   let layer := d.1.1.2
   let u := d.1.2
@@ -172,7 +189,7 @@ def bfsInnerStep (d : ((Ctx × ℕ) × ℕ) × ℕ) : Memory.Prog ℕ := do
     pure (v + 1)
 
 /-- Middle step of the search (`d = ((c, layer), u)`): expand `u` if it lies in layer `layer`. -/
-def bfsMidStep (d : (Ctx × ℕ) × ℕ) : Memory.Prog ℕ := do
+private def bfsMidStep (d : (Ctx × ℕ) × ℕ) : Memory.Prog ℕ := do
   let c := d.1.1
   let layer := d.1.2
   let u := d.2
@@ -184,14 +201,14 @@ def bfsMidStep (d : (Ctx × ℕ) × ℕ) : Memory.Prog ℕ := do
     pure (u + 1)
 
 /-- One layer of the search (`d = (c, layer)`). -/
-def bfsLayerStep (d : Ctx × ℕ) : Memory.Prog ℕ := do
+private def bfsLayerStep (d : Ctx × ℕ) : Memory.Prog ℕ := do
   let _ ← Memory.read 0
   let _ ← iterate bfsMidStep d d.1.1 0
   pure (d.2 + 1)
 
 /-- Layered breadth-first search from `s` (`d = (c, s)`) on the residual graph of the stored
 flow. -/
-def bfsProg (d : Ctx × ℕ) : Memory.Prog Unit := do
+private def bfsProg (d : Ctx × ℕ) : Memory.Prog Unit := do
   let c := d.1
   let s := d.2
   fillRange ((distAddr c 0, c.1), c.1)
@@ -202,7 +219,7 @@ def bfsProg (d : Ctx × ℕ) : Memory.Prog Unit := do
 
 /-- One step of the bottleneck walk (`d = (c, (cur, δ))`): move to the parent `p` of `cur` and
 take the minimum of `δ` and the residual capacity of `(p, cur)`. -/
-def bnStep (d : Ctx × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
+private def bnStep (d : Ctx × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
   let c := d.1
   let cur := d.2.1
   let δ := d.2.2
@@ -217,7 +234,7 @@ def bnStep (d : Ctx × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
 
 /-- One step of the augmentation walk (`d = ((c, δ), cur)`): push `δ` units along the arc
 `(p, cur)` from the parent `p` of `cur`, cancelling flow on `(cur, p)` first. -/
-def augStep (d : (Ctx × ℕ) × ℕ) : Memory.Prog ℕ := do
+private def augStep (d : (Ctx × ℕ) × ℕ) : Memory.Prog ℕ := do
   let c := d.1.1
   let δ := d.1.2
   let cur := d.2
@@ -238,7 +255,7 @@ def augStep (d : (Ctx × ℕ) × ℕ) : Memory.Prog ℕ := do
 
 /-- One round (`d = ((c, (s, t)), st)`, `st = 0` while running): search, and if `t` is reached,
 compute the bottleneck of the found path and push it. Returns `1` once `t` is not reached. -/
-def roundStep (d : (Ctx × (ℕ × ℕ)) × ℕ) : Memory.Prog ℕ := do
+private def roundStep (d : (Ctx × (ℕ × ℕ)) × ℕ) : Memory.Prog ℕ := do
   let c := d.1.1
   let s := d.1.2.1
   let t := d.1.2.2
@@ -254,7 +271,7 @@ def roundStep (d : (Ctx × (ℕ × ℕ)) × ℕ) : Memory.Prog ℕ := do
   else pure 1
 
 /-- Inner step of the cut sum (`d = ((c, u), (v, acc))`): add `W u v` when `v` is unreached. -/
-def cutInnerStep (d : (Ctx × ℕ) × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
+private def cutInnerStep (d : (Ctx × ℕ) × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
   let c := d.1.1
   let u := d.1.2
   let v := d.2.1
@@ -268,7 +285,7 @@ def cutInnerStep (d : (Ctx × ℕ) × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) :
 
 /-- Outer step of the cut sum (`d = (c, (u, acc))`): add the capacities from `u` to the unreached
 vertices when `u` is reached. -/
-def cutOuterStep (d : Ctx × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
+private def cutOuterStep (d : Ctx × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
   let c := d.1
   let u := d.2.1
   let acc := d.2.2
@@ -293,14 +310,14 @@ def ekProg (d : Ctx × (ℕ × ℕ)) : Memory.Prog ℕ := do
 
 /-- `omega` after unfolding the layout abbreviations and reducing projections. -/
 local macro "ek_omega" : tactic => `(tactic| (
-  dsimp -failIfUnchanged only [CtxFits, ekScratch, ekBound, capAddr, flowAddr, distAddr,
-    predAddr] at *
+  dsimp -failIfUnchanged only [CtxFits, Ctx.n, Ctx.matBase, Ctx.scratchBase, Ctx.capBound,
+    ekScratch, ekBound, capAddr, flowAddr, distAddr, predAddr] at *
   omega))
 
 /-- Close the arithmetic side goals of `realize` for the solver's programs. -/
 local macro "ek_side" : tactic => `(tactic| (
-  dsimp -failIfUnchanged only [CtxFits, ekScratch, ekBound, capAddr, flowAddr, distAddr,
-    predAddr] at *
+  dsimp -failIfUnchanged only [CtxFits, Ctx.n, Ctx.matBase, Ctx.scratchBase, Ctx.capBound,
+    ekScratch, ekBound, capAddr, flowAddr, distAddr, predAddr] at *
   first
   | assumption
   | (constructor <;> first | assumption | (constructor <;> assumption))
@@ -325,7 +342,7 @@ private theorem fillStep_realizes :
 theorem fillRange_realizes :
     Realizes .exact fillRange (WordEncoding.encode (α := (ℕ × ℕ) × ℕ))
       (WordEncoding.encode (α := Unit))
-      (fun w d _ => Fits w (d.1.1 + d.2)) (fun _ _ => 0) := by
+      (fun w d _ => let ((base, _), len) := d; Fits w (base + len)) (fun _ _ => 0) := by
   unfold fillRange
   realize [fillStep_realizes]
   refine iterationSafe_of_stepInv _ _ w d
@@ -475,7 +492,7 @@ private theorem cutOuterStep_realizes :
 theorem ekProg_realizes :
     Realizes .exact ekProg (WordEncoding.encode (α := Ctx × (ℕ × ℕ)))
       (WordEncoding.encode (α := ℕ))
-      (fun w d _ => CtxFits w d.1 ∧ d.2.1 < d.1.1 ∧ d.2.2 < d.1.1) (fun _ _ => 0) := by
+      (fun w d _ => let (c, s, t) := d; CtxFits w c ∧ s < c.n ∧ t < c.n) (fun _ _ => 0) := by
   unfold ekProg
   realize [fillRange_realizes, roundStep_realizes, cutOuterStep_realizes]
   all_goals
@@ -494,13 +511,13 @@ theorem ekProg_realizes :
 
 /-! ### Frames and read-only steps -/
 
-theorem preservesAt_fillRange {a : ℕ} {d : (ℕ × ℕ) × ℕ}
-    (hout : a < d.1.1 ∨ d.1.1 + d.2 ≤ a) : PreservesAt a (fillRange d) := fun s => by
+theorem preservesAt_fillRange {a base val len : ℕ}
+    (hout : a < base ∨ base + len ≤ a) : PreservesAt a (fillRange ((base, val), len)) := fun s => by
   unfold fillRange
   rw [clientState_bind]
-  change ((Memory.spec 0).clientState s (iterate fillStep d.1 d.2 0)).mem a = s.mem a
-  refine iterate_invariant_of fillStep d.1
-    (fun rem (idx : ℕ) t => idx + rem = d.2 ∧ t.mem a = s.mem a)
+  change ((Memory.spec 0).clientState s (iterate fillStep (base, val) len 0)).mem a = s.mem a
+  refine iterate_invariant_of fillStep (base, val)
+    (fun rem (idx : ℕ) t => idx + rem = len ∧ t.mem a = s.mem a)
     (fun rem idx t ⟨hsum, hmem⟩ => ?_) ⟨Nat.zero_add _, rfl⟩ |>.2
   unfold fillStep
   simp only [client_simps]
@@ -521,7 +538,7 @@ theorem fillRange_spec (base val len : ℕ) (s : Memory.State) :
     (fun rem (idx : ℕ) t => idx + rem = len ∧ ∀ i < idx, t.mem (base + i) = val)
     (fun rem idx t ⟨hsum, hprev⟩ => by
       unfold fillStep
-      simp only [client_simps]
+      simp only [StateTransitionSpec.clientState, StateTransitionSpec.clientResult, client_simps]
       refine ⟨by omega, fun i hi => ?_⟩
       by_cases h : i = idx
       · subst h; simp
@@ -534,18 +551,17 @@ private theorem memoryCost_map_write_le {α : Type} (f : Unit → α) (a v : ℕ
     memoryCost (f <$> Memory.write a v) s ≤ 1 :=
   le_refl 1
 
-theorem memoryCost_fillRange_le (d : (ℕ × ℕ) × ℕ) (s : Memory.State) :
-    memoryCost (fillRange d) s ≤ d.2 := by
+theorem memoryCost_fillRange_le (base val len : ℕ) (s : Memory.State) :
+    memoryCost (fillRange ((base, val), len)) s ≤ len := by
   unfold fillRange
-  have hit := memoryCost_iterate_le_of fillStep 1 d.1
-    (fun idx t => by unfold fillStep; exact memoryCost_map_write_le _ _ _ t) d.2 0 s
+  have hit := memoryCost_iterate_le_of fillStep 1 (base, val)
+    (fun idx t => by unfold fillStep; exact memoryCost_map_write_le _ _ _ t) len 0 s
   exact le_trans (memoryCost_bind_le hit fun _ t => (memoryCost_pure () t).le) (by omega)
 
-theorem validHistory_fillRange {w : ℕ} {d : (ℕ × ℕ) × ℕ} {s : Memory.State}
-    (hwf : Memory.WellFormed w s) (hend : d.1.1 + d.2 ≤ s.frontier) (hval : Fits w d.1.2) :
-    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (fillRange d)) := by
-  rcases d with ⟨⟨base, val⟩, len⟩
-  dsimp only at hend hval
+theorem validHistory_fillRange {w base val len : ℕ} {s : Memory.State}
+    (hwf : Memory.WellFormed w s) (hend : base + len ≤ s.frontier) (hval : Fits w val) :
+    (Memory.spec w).ValidHistory s
+      ((Memory.spec w).clientHistory s (fillRange ((base, val), len))) := by
   unfold fillRange
   refine validHistory_bind_step
     (validHistory_iterate_nat (Inv := fun t => Memory.WellFormed w t ∧ base + len ≤ t.frontier)
@@ -811,7 +827,7 @@ private theorem memoryCost_bfsProg_le (d : Ctx × ℕ) (s : Memory.State) :
   dsimp only
   rw [memoryCost_bind', memoryCost_bind', memoryCost_write, memoryCost_bind', memoryCost_write,
     memoryCost_bind', memoryCost_pure]
-  have hfill := memoryCost_fillRange_le ((distAddr c 0, c.1), c.1) s
+  have hfill := memoryCost_fillRange_le (distAddr c 0) c.1 c.1 s
   set t₀ := (Memory.spec 0).clientState _ (Memory.write (predAddr c src) src)
   have hlayers := memoryCost_iterate_le_potential bfsLayerStep c
     (fun j (layer : ℕ) _ => layer + j = c.1 - 1)
@@ -918,18 +934,17 @@ private theorem memoryCost_cutOuterStep_le (d : Ctx × (ℕ × ℕ)) (s : Memory
 /-- Memory-operation budget of `ekProg` on `n` vertices, `O(n ^ 5)`. -/
 abbrev ekCost (n : ℕ) : ℕ := 20 * (n + 1) ^ 5
 
-theorem memoryCost_ekProg_le (d : Ctx × (ℕ × ℕ)) (s : Memory.State) :
-    memoryCost (ekProg d) s ≤ ekCost d.1.1 := by
+theorem memoryCost_ekProg_le (c : Ctx) (s t : ℕ) (st : Memory.State) :
+    memoryCost (ekProg (c, (s, t))) st ≤ ekCost c.n := by
   unfold ekProg
-  dsimp only
-  set n := d.1.1
-  refine le_trans (memoryCost_bind_le (memoryCost_fillRange_le _ s) fun _ t1 =>
-    memoryCost_bind_le (memoryCost_iterate_le_of roundStep (13 * (n + 1) ^ 2) d
+  dsimp only [Ctx.n]
+  set n := c.1
+  refine le_trans (memoryCost_bind_le (memoryCost_fillRange_le _ _ _ st) fun _ t1 =>
+    memoryCost_bind_le (memoryCost_iterate_le_of roundStep (13 * (n + 1) ^ 2) (c, (s, t))
       (fun _ _ => memoryCost_roundStep_le _ _) (n * n * n) 0 t1) fun _ t2 =>
-      memoryCost_bind_le (memoryCost_iterate_le_of cutOuterStep (1 + 2 * n) d.1
+      memoryCost_bind_le (memoryCost_iterate_le_of cutOuterStep (1 + 2 * n) c
         (fun _ _ => memoryCost_cutOuterStep_le _ _) n (0, 0) t2) fun _ t3 =>
         (memoryCost_pure _ t3).le) ?_
-  dsimp only
   have h1 : 13 * (n + 1) ^ 2 * (n * n * n) ≤ 13 * (n + 1) ^ 5 := by
     have : n * n * n ≤ (n + 1) ^ 3 := by
       have := Nat.pow_le_pow_left (Nat.le_succ n) 3
@@ -979,7 +994,7 @@ private theorem validHistory_bfsProg {w : ℕ} {d : Ctx × ℕ} {t : Memory.Stat
   obtain ⟨hlay, hws, hwb⟩ := hc
   unfold bfsProg
   dsimp only
-  have hfill := validHistory_fillRange (d := ((distAddr c 0, c.1), c.1)) ht.1
+  have hfill := validHistory_fillRange (base := distAddr c 0) (val := c.1) (len := c.1) ht.1
     (by have := ht.2; ek_omega) (hws.of_le (by ek_omega))
   refine validHistory_bind_step hfill ?_
   have ht1 : EkReady w c _ := MonotoneMemInv.pres ht hfill
@@ -1097,16 +1112,15 @@ private theorem validHistory_cutOuterStep {w : ℕ} {d : Ctx × (ℕ × ℕ)} {t
   · unfold cutInnerStep
     simp_client
 
-theorem validHistory_ekProg {w : ℕ} {d : Ctx × (ℕ × ℕ)} {s : Memory.State}
-    (hc : CtxFits w d.1) (hs : d.2.1 < d.1.1) (ht : d.2.2 < d.1.1)
-    (hwf : Memory.WellFormed w s) (hfr : d.1.2.2.1 + ekScratch d.1.1 ≤ s.frontier) :
-    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (ekProg d)) := by
-  obtain ⟨c, src, snk⟩ := d
-  dsimp only at hc hs ht hfr
+theorem validHistory_ekProg {w : ℕ} {c : Ctx} {src snk : ℕ} {s : Memory.State}
+    (hc : CtxFits w c) (hs : src < c.n) (ht : snk < c.n)
+    (hwf : Memory.WellFormed w s) (hfr : c.scratchBase + ekScratch c.n ≤ s.frontier) :
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (ekProg (c, (src, snk)))) := by
+  dsimp only [Ctx.n, Ctx.scratchBase] at hc hs ht hfr
   have hr : EkReady w c s := ⟨hwf, hfr⟩
   unfold ekProg
   dsimp only
-  have hfill := validHistory_fillRange (d := ((flowAddr c 0 0, 0), c.1 * c.1)) hwf
+  have hfill := validHistory_fillRange (base := flowAddr c 0 0) (val := 0) (len := c.1 * c.1) hwf
     (by ek_omega) (fits_zero w)
   refine validHistory_bind_step hfill ?_
   have hr1 : EkReady w c _ := MonotoneMemInv.pres hr hfill
@@ -1162,10 +1176,10 @@ private theorem preservesAt_roundStep {a : ℕ} {d : (Ctx × (ℕ × ℕ)) × �
     (preservesAt_iterate (fun _ => preservesAt_augStep (by ek_omega)) _ _)
     fun _ => preservesAt_pure _ _
 
-theorem preservesAt_ekProg {a : ℕ} {d : Ctx × (ℕ × ℕ)} (hs : d.2.1 < d.1.1)
-    (ha : a < d.1.2.2.1 ∨ d.1.2.2.1 + ekScratch d.1.1 ≤ a) : PreservesAt a (ekProg d) := by
-  obtain ⟨c, src, snk⟩ := d
-  dsimp only at hs ha
+theorem preservesAt_ekProg {a : ℕ} {c : Ctx} {src snk : ℕ} (hs : src < c.n)
+    (ha : a < c.scratchBase ∨ c.scratchBase + ekScratch c.n ≤ a) :
+    PreservesAt a (ekProg (c, (src, snk))) := by
+  dsimp only [Ctx.n, Ctx.scratchBase] at hs ha
   unfold ekProg
   dsimp only
   refine preservesAt_bind (preservesAt_fillRange (by ek_omega)) fun _ => ?_
@@ -1204,15 +1218,16 @@ private theorem cutOuterStep_acc_le (d : Ctx × (ℕ × ℕ)) (t : Memory.State)
   · rw [clientResult_pure]
     exact h
 
-theorem ekProg_result_le (d : Ctx × (ℕ × ℕ)) (s : Memory.State) :
-    (Memory.spec 0).clientResult s (ekProg d) ≤ d.1.1 * d.1.1 * d.1.2.2.2 + d.1.2.2.2 := by
+theorem ekProg_result_le (c : Ctx) (s t : ℕ) (st : Memory.State) :
+    (Memory.spec 0).clientResult st (ekProg (c, (s, t))) ≤
+      c.n * c.n * c.capBound + c.capBound := by
   unfold ekProg
-  dsimp only
+  dsimp only [Ctx.n, Ctx.capBound]
   rw [clientResult_bind, clientResult_bind,
     clientResult_bind, clientResult_pure]
-  exact iterate_invariant_of cutOuterStep d.1
-    (fun _ (ua : ℕ × ℕ) _ => ua.2 ≤ d.1.1 * d.1.1 * d.1.2.2.2 + d.1.2.2.2)
-    (fun _ ua t' hua => cutOuterStep_acc_le (d.1, ua) t' hua) (Nat.zero_le _)
+  exact iterate_invariant_of cutOuterStep c
+    (fun _ (ua : ℕ × ℕ) _ => ua.2 ≤ c.1 * c.1 * c.2.2.2 + c.2.2.2)
+    (fun _ ua t' hua => cutOuterStep_acc_le (c, ua) t' hua) (Nat.zero_le _)
 
 
 /-! ### Semantics: residual capacities and the breadth-first search -/
@@ -1780,7 +1795,7 @@ private theorem iterate_augStep_spec (hB : ∀ u v, W u v ≤ B) (f : (Network.m
     set u1 := (Memory.spec 0).clientState u_st (augStep ((c, δ), cur.1))
     have haddr : ∀ a b a' b' : Fin n, flowAddr c a.1 b.1 = flowAddr c a'.1 b'.1 →
         a = a' ∧ b = b' := fun a b a' b' h => by
-      dsimp only [c, flowAddr] at h
+      dsimp only [c, flowAddr, Ctx.n, Ctx.scratchBase] at h
       exact fin_mul_add_inj (by omega)
     have hflow1 : ∀ x y : Fin n, u1.mem (flowAddr c x.1 y.1) =
         if (x, y) = (parOf cur, cur) then f x y + (δ - min δ (f y x))
@@ -2163,7 +2178,7 @@ theorem ekProg_spec {n mb sb B : ℕ} {W : Fin n → Fin n → ℕ} {s t : Fin n
   have hn : 0 < n := Nat.zero_lt_of_lt s.2
   have hframe : ∀ a, (a < sb ∨ sb + ekScratch n ≤ a) →
       ((Memory.spec 0).clientState st (ekProg ((n, mb, sb, B), (s.1, t.1)))).mem a = st.mem a :=
-    fun a ha => preservesAt_ekProg (d := ((n, mb, sb, B), (s.1, t.1))) s.2 ha st
+    fun a ha => preservesAt_ekProg (c := (n, mb, sb, B)) (src := s.1) (snk := t.1) s.2 ha st
   let N : Network (Fin n) := Network.mk W s t
   set s1 := (Memory.spec 0).clientState st (fillRange ((flowAddr (n, mb, sb, B) 0 0, 0), n * n))
   have hs1 := fillRange_spec (flowAddr (n, mb, sb, B) 0 0) 0 (n * n) st
