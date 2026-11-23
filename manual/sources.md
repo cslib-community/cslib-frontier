@@ -2635,6 +2635,11 @@ L. G. Valiant. "A Theory of the Learnable." *Proceedings of the Sixteenth Annual
 
 T. van Aardenne-Ehrenfest and N. G. de Bruijn. "Circuits and trees in oriented linear graphs." *Simon Stevin* 28, 203–217, 1951. Bibliographic data from [Stanley's notes](#stanley13) (reference [1]), checked 2026-11-08 UTC. The paper was not inspected. Stanley (Chapter 10 notes, p. 198) attributes the BEST theorem to its Theorem 5a.
 
+<a id="vanderzanden2015"></a>
+## vanderzanden2015
+
+Tom C. van der Zanden. *Parameterized Complexity of Graph Constraint Logic*. IPEC 2015, LIPIcs 43, 282–293. https://doi.org/10.4230/LIPIcs.IPEC.2015.282 . [Conference PDF](https://drops.dagstuhl.de/storage/00lipics/lipics-vol043-ipec2015/LIPIcs.IPEC.2015.282/LIPIcs.IPEC.2015.282.pdf). Outside-fleet [agent source check](https://github.com/cslib-community/cslib-frontier/pull/7948#pullrequestreview-6028755848), 2026-11-23: §2.1 and Definition 4; §3, Theorem 6 and its proof, printed pp. 286–289 (PDF pp. 5–8). The registered result is configuration-to-configuration PSPACE-completeness for planar AND/OR graphs with one fixed bandwidth bound, under the general graph encoding.
+
 <a id="voleact26"></a>
 ## voleact26
 
@@ -2704,6 +2709,11 @@ David P. Williamson and David B. Shmoys. *The Design of Approximation Algorithms
 ## winter16
 
 Andreas Winter. "Tight Uniform Continuity Bounds for Quantum Entropies: Conditional Entropy, Relative Entropy Distance and Energy Constraints." *Communications in Mathematical Physics* 347(1), 291–313, 2016. https://doi.org/10.1007/s00220-016-2609-8 . Cited at topic level for the classical special case of the conditional-entropy continuity bound with observation-independent modulus `(1 + ε) h₂(ε / (1 + ε))`; no specific theorem or lemma number from the journal text is claimed.
+
+<a id="wrochna2014"></a>
+## wrochna2014
+
+Marcin Wrochna. *Reconfiguration in bounded bandwidth and treedepth*. arXiv:1405.0847v1, 5 May 2014. https://arxiv.org/pdf/1405.0847v1 . Outside-fleet [agent source check](https://github.com/cslib-community/cslib-frontier/pull/7948#pullrequestreview-6028755848), 2026-11-23: §2 through Lemma 2 and §3, Theorem 3 (p. 5). The registered result is the PSPACE-hardness direction for one fixed finite digraph H, with equal-length words and single-position changes preserving consecutive-pair legality.
 
 <a id="yannakakis91"></a>
 ## yannakakis91

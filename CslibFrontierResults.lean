@@ -13,6 +13,7 @@ import CslibFrontierResults.Entries.HashThenPRF
 import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.MinimumSpanningTree
+import CslibFrontierResults.Entries.NCLBandwidth
 import CslibFrontierResults.Entries.ODonnellLargeCoefficient
 import CslibFrontierResults.Entries.ODonnellLowDegreeGranularity
 import CslibFrontierResults.Entries.ODonnellLowDegreePart
