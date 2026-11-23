@@ -501,11 +501,11 @@ private def mirStep (S : St σ) (v : PVal) (d : ℕ) (vf : Bool) (pre : Array St
   | some (M, ax, r) =>
     let (v, pre) ← S.asSingle v pre
     let n ← S.takeKid
-    let negM := M.negate
+    let negK := keyOf M.negate
     let w := addAxioms v ax
-    let E : PVal := ⟨fdiv (fadd w.k (keyOf negM)) (d - r), w.ops ++ #[.id n, .add, .div (d - r)]⟩
+    let E : PVal := ⟨fdiv (fadd w.k negK) (d - r), w.ops ++ #[.id n, .add, .div (d - r)]⟩
     let e ← S.takeKid
-    let X := fadd (fmul E.k r) (keyOf negM)
+    let X := fadd (fmul E.k r) negK
     let x ← S.takeKid
     if !X.isContradiction then S.fail "internal error: MIR cut derivation"
     let m ← S.takeKid
@@ -600,10 +600,9 @@ private def impOps (v : PVal) (t : Key) (x : ℕ) : PVal := Id.run do
     let a := (cm[(x.var, x.pos)]?).getD 0
     if a < x.coeff then some ((x.var, x.pos), x.coeff - a) else none)
 
-/-- The premise of `i` or `ia`: the given one, or a constraint of the database implying `c`,
-equal ones first (VeriPB 3.0.2, `check_implication`). -/
-private def implPremise (S : St σ) (c : PBConstr) (hint : Option Ref) : EM σ ℕ := do
-  let t := keyOf c
+/-- The premise of `i` or `ia`: the given one, or a constraint of the database implying the
+constraint of canonical form `t`, equal ones first (VeriPB 3.0.2, `check_implication`). -/
+private def implPremise (S : St σ) (t : Key) (hint : Option Ref) : EM σ ℕ := do
   match hint with
   | some r =>
     let i ← S.resolve r
@@ -684,11 +683,12 @@ private partial def step (S : St σ) (top : Bool) (s : AStep) : EM σ (Array Ste
     let id ← S.add (normalizeParsed c) k false top (keyOfParsed c)
     return (#[.rup c h], some id)
   | .imp c add hint =>
-    let i ← S.implPremise c hint
+    let t := keyOfParsed c
+    let i ← S.implPremise t hint
     if !add then return (#[], some i)
     let e ← S.entry i
-    let v := impOps ⟨e.key, #[.id e.kid]⟩ (keyOfParsed c) (← S.lowerVar (e.c.terms ++ c.terms))
-    if v.k != keyOfParsed c then S.fail "internal error: ia derivation"
+    let v := impOps ⟨e.key, #[.id e.kid]⟩ t (← S.lowerVar (e.c.terms ++ c.terms))
+    if v.k != t then S.fail "internal error: ia derivation"
     let k ← S.takeKid
     let id ← S.add v.c k false top v.k
     return (#[.pol v.ops.toList], some id)
@@ -751,9 +751,10 @@ private partial def closing (S : St σ) (start : ℕ) (q : Option Ref) (goal : O
         return (#[.rup ⟨[], 1⟩ h], k)
       | none =>
         let some (n, G) := goal | S.fail "subproof: no contradiction"
-        let i ← try S.implPremise G none catch _ => S.fail "subproof: no contradiction"
+        let t := keyOf G
+        let i ← try S.implPremise t none catch _ => S.fail "subproof: no contradiction"
         let e ← S.entry i
-        let v := impOps ⟨e.key, #[.id e.kid]⟩ (keyOf G) (← S.lowerVar (e.c.terms ++ G.terms))
+        let v := impOps ⟨e.key, #[.id e.kid]⟩ t (← S.lowerVar (e.c.terms ++ G.terms))
         if !(fadd v.k (keyOf G.negate)).isContradiction then S.fail "subproof: no contradiction"
         let k ← S.takeKid
         return (#[.pol (v.ops.push (.id n) |>.push .add).toList], k)
