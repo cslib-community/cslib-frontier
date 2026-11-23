@@ -34,10 +34,9 @@ This module provides width-independent reasoning principles for `Memory.Prog` cl
 ## Main results
 
 * `clientState_read`, `clientResult_read`, `clientState_write`, `clientResult_write`,
-  `clientState_allocDirty`, `clientResult_allocDirty`, `runClient_read`, `runClient_write`,
+  `clientState_allocDirty`, `clientResult_allocDirty`,
   `runClient_allocDirty`, `runClient_map`, `runClient_ite`,
-  `prog_clientState_map`, `prog_clientResult_map`,
-  `prog_clientState_ite`, `prog_clientResult_ite`,
+  `prog_clientResult_map`, `prog_clientState_ite`, `prog_clientResult_ite`,
   `state_frontier_ite`, `state_mem_ite`, `memoryCost_read`, `memoryCost_write`,
   `memoryCost_alloc`, `memoryCost_allocDirty`, `memoryCost_ite`: primitive state, result, and cost
   equations.
@@ -90,19 +89,6 @@ theorem clientState_allocDirty (w : ℕ) (s : Memory.State) (k : ℕ) :
     (Memory.spec w).clientResult s (Memory.allocDirty k) = s.frontier :=
   Eq.trans rfl rfl
 
-/-- Running `Memory.read` returns the stored word, leaves memory unchanged, and logs the read.
-Add this and `runClient_write` with `attribute [local client_simps]` when simplifying `runClient`
-projections directly. -/
-theorem runClient_read (w : ℕ) (s : (Memory.spec w).State) (a : ℕ) :
-    (Memory.spec w).runClient s (Memory.read a) = (s.mem a, s, [Memory.Op.read a]) :=
-  rfl
-
-/-- Running `Memory.write` updates the cell at `a`, preserves the frontier, and logs the write. -/
-theorem runClient_write (w : ℕ) (s : (Memory.spec w).State) (a v : ℕ) :
-    (Memory.spec w).runClient s (Memory.write a v) =
-      ((), ⟨Function.update s.mem a v, s.frontier⟩, [Memory.Op.write a v]) :=
-  rfl
-
 /-- Running `Memory.allocDirty` advances the frontier by `k` and returns the old frontier. -/
 theorem runClient_allocDirty (w : ℕ) (s : (Memory.spec w).State) (k : ℕ) :
     (Memory.spec w).runClient s (Memory.allocDirty k) =
@@ -125,12 +111,6 @@ theorem runClient_ite {α : Type} (w : ℕ) (c : Prop) [Decidable c]
     (Memory.spec w).runClient s (if c then p₁ else p₂ : Memory.Prog α) =
       if c then (Memory.spec w).runClient s p₁ else (Memory.spec w).runClient s p₂ := by
   split_ifs <;> rfl
-
-theorem prog_clientState_map {α β : Type} (w : ℕ)
-    (s : Memory.State) (g : α → β) (p : Memory.Prog α) :
-    (Memory.spec w).clientState s (g <$> p : Memory.Prog β) =
-      (Memory.spec w).clientState s p := by
-  simpa [StateTransitionSpec.clientState] using congrArg (fun t => t.2.1) (runClient_map w s g p)
 
 @[simp, client_simps] theorem prog_clientResult_map {α β : Type} (w : ℕ)
     (s : Memory.State) (g : α → β) (p : Memory.Prog α) :
