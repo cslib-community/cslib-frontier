@@ -22,11 +22,14 @@ hinted `rup C : hints;` of the kernel format (§5.2.1 of the VeriPB/CakePB docum
 22 June 2026 edition).
 
 The engine is untrusted: it has no correctness theorem, and the hints it returns are checked by
-the kernel checker (`Cslib.Logic.PL.VeriPB.rup`). It is written for compiled execution, with
-arrays and mutable references in `ST`, and the kernel cannot evaluate it.
+the kernel checker (`Cslib.Logic.PL.VeriPB.rup`). It is written for compiled execution: its state
+(`Cslib.Logic.PL.VeriPB.Elab.EState`) is one value, held by a mutable reference in `ST` and
+updated in place by pure functions while it is uniquely referenced, and the kernel cannot evaluate
+it.
 
 **Data.** A constraint is stored as its literal codes (`2 i` for the `i`-th variable met, `2 i + 1`
-for its negation) and coefficients, sorted by decreasing coefficient, and its degree. A
+for its negation) and coefficients, sorted by decreasing coefficient, in two arrays shared by all
+constraints, and its degree. A
 constraint whose coefficients all reach a positive degree, with at least two terms, propagates as
 a clause; it is watched by two literals. Every other constraint keeps a slack counter, updated
 through occurrence lists, and propagates every unassigned term whose coefficient exceeds the
@@ -54,93 +57,78 @@ public section
 
 namespace Cslib.Logic.PL.VeriPB.Elab
 
-/-- A constraint of the engine: literal codes and coefficients, sorted by decreasing coefficient
-(a clause's first two literals are its watches), the degree, the slack of the empty assignment,
-whether it propagates as a clause, whether it is still in the database, and the kernel hint that
-names it. -/
+/-- A constraint of the engine: the position of its terms in the term arrays of the engine
+(literal codes and coefficients, sorted by decreasing coefficient; a clause's first two literals
+are its watches), their number, the degree, the slack of the empty assignment, whether it
+propagates as a clause, and the kernel hint that names it. -/
 structure CRec where
-  /-- The literal codes. -/
-  lits : Array Nat
-  /-- The coefficients, in the order of `lits`. -/
-  coeffs : Array Nat
+  /-- The position of the first term. -/
+  start : Nat
+  /-- The number of terms. -/
+  size : Nat
   /-- The degree. -/
   degree : Nat
   /-- The sum of the coefficients minus the degree. -/
   slack0 : Int
   /-- The constraint propagates as a clause and is watched by its first two literals. -/
   clause : Bool
-  /-- The constraint is in the database. -/
-  alive : Bool
   /-- The kernel hint naming the constraint. -/
   hint : Hint
 
-instance : Inhabited CRec := ⟨⟨#[], #[], 0, 0, false, false, .neg⟩⟩
+instance : Inhabited CRec := ⟨⟨0, 0, 0, 0, false, .neg⟩⟩
 
-/-- The state of the propagation engine, as mutable references. -/
-structure Engine (σ : Type) where
-  /-- The index of each variable met. -/
-  varIdx : ST.Ref σ (Std.HashMap ℕ ℕ)
-  /-- The variable of each index. -/
-  vars : ST.Ref σ (Array ℕ)
-  /-- The constraints, by engine index. -/
-  cons : ST.Ref σ (Array CRec)
-  /-- The clauses watched by each literal, which are visited when it becomes false. -/
-  watches : ST.Ref σ (Array (Array ℕ))
-  /-- The non-clause constraints containing each literal, with its coefficient. -/
-  occ : ST.Ref σ (Array (Array (ℕ × ℕ)))
-  /-- The constraints that propagate on the empty assignment. -/
-  roots : ST.Ref σ (Array ℕ)
+/-- The assignment of the engine. -/
+structure Asg where
   /-- The value of each variable: `0` unassigned, `1` true, `2` false. -/
-  value : ST.Ref σ ByteArray
+  value : ByteArray := .empty
   /-- The reason of each assigned variable. -/
-  reason : ST.Ref σ (Array ℕ)
+  reason : Array ℕ := #[]
   /-- The trail position of each assigned variable. -/
-  tpos : ST.Ref σ (Array ℕ)
+  tpos : Array ℕ := #[]
   /-- The true literals, in order of assignment. -/
-  trail : ST.Ref σ (Array ℕ)
+  trail : Array ℕ := #[]
+  deriving Inhabited
+
+/-- The state of the propagation engine. -/
+structure EState where
+  /-- The index of each variable met. -/
+  varIdx : Std.HashMap ℕ ℕ := {}
+  /-- The variable of each index. -/
+  vars : Array ℕ := #[]
+  /-- The constraints, by engine index; index `0` is unused. -/
+  cons : Array CRec := #[default]
+  /-- `1` for the constraints in the database, by engine index. -/
+  alive : ByteArray := ⟨#[0]⟩
+  /-- The literal codes of all constraints. -/
+  lits : Array ℕ := #[]
+  /-- The coefficients of all constraints, in the order of `lits`. -/
+  coeffs : Array ℕ := #[]
+  /-- The clauses watched by each literal, which are visited when it becomes false. -/
+  watches : Array (Array ℕ) := #[]
+  /-- The non-clause constraints containing each literal, with its coefficient, as consecutive
+  pairs. -/
+  occ : Array (Array ℕ) := #[]
+  /-- The constraints that propagate on the empty assignment. -/
+  roots : Array ℕ := #[]
+  /-- The assignment. -/
+  asg : Asg := {}
   /-- The trail entries whose falsified literal has been processed. -/
-  qhead : ST.Ref σ ℕ
+  qhead : ℕ := 0
   /-- The slack of each non-clause constraint under the processed part of the trail. -/
-  slack : ST.Ref σ (Array ℤ)
-  /-- The constraints that are reasons of root propagations. -/
-  rootReason : ST.Ref σ ByteArray
+  slack : Array ℤ := #[0]
+  /-- `1` for the constraints that are reasons of root propagations. -/
+  rootReason : ByteArray := ⟨#[0]⟩
   /-- The length of the root trail. -/
-  rootLen : ST.Ref σ ℕ
+  rootLen : ℕ := 0
   /-- A conflict of the database alone, if any. -/
-  rootConflict : ST.Ref σ (Option ℕ)
+  rootConflict : Option ℕ := none
   /-- The root level must be rebuilt before the next check. -/
-  dirty : ST.Ref σ Bool
+  dirty : Bool := false
 
-namespace Engine
-
-variable {σ : Type}
-
-/-- A new empty engine. -/
-def new : ST σ (Engine σ) := do
-  return {
-    varIdx := ← ST.mkRef {}, vars := ← ST.mkRef #[], cons := ← ST.mkRef #[default],
-    watches := ← ST.mkRef #[],
-    occ := ← ST.mkRef #[], roots := ← ST.mkRef #[], value := ← ST.mkRef ByteArray.empty,
-    reason := ← ST.mkRef #[], tpos := ← ST.mkRef #[], trail := ← ST.mkRef #[],
-    qhead := ← ST.mkRef 0, slack := ← ST.mkRef #[0], rootReason := ← ST.mkRef (.mk #[0]),
-    rootLen := ← ST.mkRef 0, rootConflict := ← ST.mkRef none, dirty := ← ST.mkRef false }
-
-/-- The code of a literal, registering its variable if it is new. -/
-private def litCode (e : Engine σ) (l : Literal ℕ) : ST σ ℕ := do
-  let m ← e.varIdx.get
-  let i ← match m[l.1]? with
-    | some i => pure i
-    | none =>
-      let i := m.size
-      e.varIdx.modify (·.insert l.1 i)
-      e.vars.modify (·.push l.1)
-      e.value.modify (·.push 0)
-      e.reason.modify (·.push 0)
-      e.tpos.modify (·.push 0)
-      e.watches.modify fun w => (w.push #[]).push #[]
-      e.occ.modify fun o => (o.push #[]).push #[]
-      pure i
-  return 2 * i + (if l.2 then 0 else 1)
+/-- The propagation engine: its state, as a mutable reference. -/
+structure Engine (σ : Type) where
+  /-- The state. -/
+  st : ST.Ref σ EState
 
 /-- The value of a literal code: `0` unassigned, `1` true, `2` false. -/
 @[inline] private def litVal (value : ByteArray) (code : ℕ) : UInt8 :=
@@ -148,207 +136,344 @@ private def litCode (e : Engine σ) (l : Literal ℕ) : ST σ ℕ := do
   if v == 0 then 0 else if (v == 1) == (code % 2 == 0) then 1 else 2
 
 /-- Make the literal `code` true with the reason `r`. -/
-private def assign (e : Engine σ) (code r : ℕ) : ST σ Unit := do
-  let v := code / 2
-  let n := (← e.trail.get).size
-  e.value.modify (·.set! v (if code % 2 == 0 then 1 else 2))
-  e.reason.modify (·.set! v r)
-  e.tpos.modify (·.set! v n)
-  e.trail.modify (·.push code)
+@[inline] private def Asg.assign (a : Asg) (code r : ℕ) : Asg :=
+  match a with
+  | ⟨value, reason, tpos, trail⟩ =>
+    let v := code / 2
+    ⟨value.set! v (if code % 2 == 0 then 1 else 2), reason.set! v r, tpos.set! v trail.size,
+      trail.push code⟩
 
-/-- Propagate the non-clause constraint `c` with slack `s`: make true every unassigned term whose
-coefficient exceeds `s`. -/
-private def propagatePB (e : Engine σ) (c : ℕ) (s : ℤ) : ST σ Unit := do
-  let r := (← e.cons.get)[c]!
-  let mut k := 0
-  while k < r.lits.size && (r.coeffs[k]! : ℤ) > s do
-    if litVal (← e.value.get) r.lits[k]! == 0 then e.assign r.lits[k]! c
+/-- Propagate the non-clause constraint `c` with slack `sl` on the assignment `a`: make true every
+unassigned term whose coefficient exceeds `sl`. -/
+private def propagatePB (cons : Array CRec) (lits coeffs : Array ℕ) (c : ℕ) (sl : ℤ) (a : Asg) :
+    Asg := Id.run do
+  let r := cons[c]!
+  let mut a := a
+  let mut k := r.start
+  while k < r.start + r.size && (coeffs[k]! : ℤ) > sl do
+    let l := lits[k]!
+    if litVal a.value l == 0 then a := a.assign l c
     k := k + 1
+  return a
 
-/-- Process the falsification of the literal `f`: update the slacks of the non-clause
-constraints containing it, and visit the clauses watching it. Returns a conflicting constraint,
-if any. The slack updates are always completed, so that backtracking can undo them. -/
-private def falsify (e : Engine σ) (f : ℕ) : ST σ (Option ℕ) := do
-  let mut confl : Option ℕ := none
-  -- Non-clause constraints.
-  let os := (← e.occ.get)[f]!
-  let mut keep : Array (ℕ × ℕ) := Array.mkEmpty os.size
-  for (c, a) in os do
-    if (← e.cons.get)[c]!.alive then
-      keep := keep.push (c, a)
-      let s := (← e.slack.get)[c]! - a
-      e.slack.modify (·.set! c s)
-      if confl.isNone then
-        if s < 0 then confl := some c
-        else e.propagatePB c s
-  if keep.size < os.size then e.occ.modify (·.set! f keep)
-  if confl.isSome then return confl
-  -- Clauses.
-  let ws := (← e.watches.get)[f]!
-  e.watches.modify (·.set! f #[])
-  let mut kept : Array ℕ := Array.mkEmpty ws.size
-  let mut i := 0
-  while i < ws.size do
-    let c := ws[i]!
-    i := i + 1
-    let r := (← e.cons.get)[c]!
-    if !r.alive then continue
-    if confl.isSome then kept := kept.push c; continue
-    let mut lits := r.lits
-    if lits[0]! == f then lits := lits.swapIfInBounds 0 1
-    let value ← e.value.get
-    if litVal value lits[0]! == 1 then
-      if lits[1]! != r.lits[1]! then e.cons.modify (·.modify c ({ · with lits := lits }))
-      kept := kept.push c
-      continue
-    let mut k := 2
-    let mut found := false
-    while k < lits.size && !found do
-      if litVal value lits[k]! != 2 then found := true else k := k + 1
-    if found then
-      lits := lits.swapIfInBounds 1 k
-      e.cons.modify (·.modify c ({ · with lits := lits }))
-      e.watches.modify fun w => w.modify lits[1]! (·.push c)
+/-- The results of the hot loops: a conflict, if any, the changed arrays, and the assignment,
+whose parts are passed separately so that no structure is rebuilt per step. -/
+private structure Hot where
+  confl : Option ℕ
+  arr : Array ℕ
+  lits : Array ℕ
+  watches : Array (Array ℕ)
+  slack : Array ℤ
+  value : ByteArray
+  reason : Array ℕ
+  tpos : Array ℕ
+  trail : Array ℕ
+  deriving Inhabited
+
+/-- The non-clause part of processing a falsified literal: the pairs `os` of constraint and
+coefficient from `i` on, the live ones written back from `j`. Every live slack is updated, so that
+backtracking can undo it; the first constraint whose slack becomes negative is the conflict. The
+result carries `os` as `arr`. -/
+private partial def pbLoop (cons : Array CRec) (alive : ByteArray) (lits coeffs : Array ℕ)
+    (watches : Array (Array ℕ)) (os : Array ℕ) (i j : ℕ) (confl : Option ℕ) (slack : Array ℤ)
+    (value : ByteArray) (reason tpos trail : Array ℕ) : Hot :=
+  if i + 1 < os.size then
+    let c := os[i]!
+    let w := os[i + 1]!
+    if alive.get! c == 0 then
+      pbLoop cons alive lits coeffs watches os (i + 2) j confl slack value reason tpos trail
     else
-      if lits[1]! != r.lits[1]! then e.cons.modify (·.modify c ({ · with lits := lits }))
-      kept := kept.push c
-      if litVal value lits[0]! == 0 then e.assign lits[0]! c
-      else confl := some c
-  e.watches.modify fun w => w.modify f (· ++ kept)
-  return confl
+      let os := (os.set! j c).set! (j + 1) w
+      let sl := slack[c]! - w
+      let slack := slack.set! c sl
+      if confl.isNone && sl < 0 then
+        pbLoop cons alive lits coeffs watches os (i + 2) (j + 2) (some c) slack value reason
+          tpos trail
+      else if confl.isNone then
+        match propagatePB cons lits coeffs c sl ⟨value, reason, tpos, trail⟩ with
+        | ⟨value, reason, tpos, trail⟩ =>
+          pbLoop cons alive lits coeffs watches os (i + 2) (j + 2) confl slack value reason tpos
+            trail
+      else
+        pbLoop cons alive lits coeffs watches os (i + 2) (j + 2) confl slack value reason tpos trail
+  else ⟨confl, os.shrink j, lits, watches, slack, value, reason, tpos, trail⟩
+
+/-- The first position from `k` below `e` whose literal is not false, or `e`. -/
+private partial def nonFalse (lits : Array ℕ) (value : ByteArray) (k e : ℕ) : ℕ :=
+  if k < e then if litVal value lits[k]! != 2 then k else nonFalse lits value (k + 1) e
+  else e
+
+/-- Copy the live entries of `ws` from `i` on to `j` on. -/
+private partial def keepLive (alive : ByteArray) (ws : Array ℕ) (i j : ℕ) : Array ℕ :=
+  if i < ws.size then
+    let c := ws[i]!
+    if alive.get! c == 0 then keepLive alive ws (i + 1) j
+    else keepLive alive (ws.set! j c) (i + 1) (j + 1)
+  else ws.shrink j
+
+/-- The clause part of processing the falsified literal `f`: the clauses `ws` watched by `f` from
+`i` on, those still watched by `f` written back from `j`. A clause whose other watch is true stays;
+else its watch moves to a literal that is not false, or else the other watch is propagated or the
+clause conflicts. After a conflict, the remaining live clauses stay. The result carries `ws` as
+`arr`. -/
+private partial def watchLoop (cons : Array CRec) (alive : ByteArray) (f : ℕ) (ws : Array ℕ)
+    (i j : ℕ) (lits : Array ℕ) (watches : Array (Array ℕ)) (slack : Array ℤ) (value : ByteArray)
+    (reason tpos trail : Array ℕ) : Hot :=
+  if i < ws.size then
+    let c := ws[i]!
+    if alive.get! c == 0 then
+      watchLoop cons alive f ws (i + 1) j lits watches slack value reason tpos trail
+    else
+      let r := cons[c]!
+      let p := r.start
+      -- The literal `f` goes to the second watch.
+      let lits := if lits[p]! == f then lits.swapIfInBounds p (p + 1) else lits
+      let o := lits[p]!
+      let vo := litVal value o
+      if vo == 1 then
+        watchLoop cons alive f (ws.set! j c) (i + 1) (j + 1) lits watches slack value reason tpos
+          trail
+      else
+        let e := p + r.size
+        let k := nonFalse lits value (p + 2) e
+        if k < e then
+          let lits := lits.swapIfInBounds (p + 1) k
+          let watches := watches.modify lits[p + 1]! (·.push c)
+          watchLoop cons alive f ws (i + 1) j lits watches slack value reason tpos trail
+        else
+          let ws := ws.set! j c
+          if vo == 0 then
+            -- Propagate the other watch.
+            let v := o / 2
+            watchLoop cons alive f ws (i + 1) (j + 1) lits watches slack
+              (value.set! v (if o % 2 == 0 then 1 else 2)) (reason.set! v c)
+              (tpos.set! v trail.size) (trail.push o)
+          else
+            -- A conflict: keep the remaining live clauses.
+            ⟨some c, keepLive alive ws (i + 1) (j + 1), lits, watches, slack, value, reason, tpos,
+              trail⟩
+  else ⟨none, ws.shrink j, lits, watches, slack, value, reason, tpos, trail⟩
+
+/-- Process the trail from `qhead` until a conflict or until every entry is processed: for each
+entry, the slacks of the non-clause constraints containing its negation, then the clauses
+watching it. The slack updates of an entry are always completed, so that backtracking can undo
+them. Returns the new `qhead` and the occurrence lists with the other results. -/
+private partial def propLoop (cons : Array CRec) (alive : ByteArray) (coeffs : Array ℕ)
+    (qhead : ℕ) (lits : Array ℕ) (watches occ : Array (Array ℕ)) (slack : Array ℤ)
+    (value : ByteArray) (reason tpos trail : Array ℕ) : ℕ × Array (Array ℕ) × Hot :=
+  if qhead < trail.size then
+    let f := trail[qhead]! ^^^ 1
+    let (os, occ) := occ.swapAt! f #[]
+    match pbLoop cons alive lits coeffs watches os 0 0 none slack value reason tpos trail with
+    | ⟨confl, os, lits, watches, slack, value, reason, tpos, trail⟩ =>
+      let occ := occ.set! f os
+      if confl.isSome then
+        (qhead + 1, occ, ⟨confl, #[], lits, watches, slack, value, reason, tpos, trail⟩)
+      else
+        let (ws, watches) := watches.swapAt! f #[]
+        match watchLoop cons alive f ws 0 0 lits watches slack value reason tpos trail with
+        | ⟨confl, ws, lits, watches, slack, value, reason, tpos, trail⟩ =>
+          let watches := watches.set! f ws
+          if confl.isSome then
+            (qhead + 1, occ, ⟨confl, #[], lits, watches, slack, value, reason, tpos, trail⟩)
+          else
+            propLoop cons alive coeffs (qhead + 1) lits watches occ slack value reason tpos trail
+  else (qhead, occ, ⟨none, #[], lits, watches, slack, value, reason, tpos, trail⟩)
+
+namespace EState
+
+/-- Set the byte `i` to `v`, or push it if `i` is the size. -/
+@[inline] private def setPush (b : ByteArray) (i : ℕ) (v : UInt8) : ByteArray :=
+  if i < b.size then b.set! i v else b.push v
+
+/-- The code of a literal, registering its variable if it is new. -/
+private def litCode (s : EState) (l : Literal ℕ) : EState × ℕ :=
+  let sign := if l.2 then 0 else 1
+  match s.varIdx[l.1]? with
+  | some i => (s, 2 * i + sign)
+  | none =>
+    let i := s.vars.size
+    let s := { s with varIdx := s.varIdx.insert l.1 i }
+    let s := { s with vars := s.vars.push l.1 }
+    let s := { s with asg := match s.asg with
+      | ⟨value, reason, tpos, trail⟩ => ⟨value.push 0, reason.push 0, tpos.push 0, trail⟩ }
+    let s := { s with watches := (s.watches.push #[]).push #[] }
+    let s := { s with occ := (s.occ.push #[]).push #[] }
+    (s, 2 * i + sign)
+
+/-- The terms of `c` with positive coefficients, as coefficients and literal codes, sorted by
+decreasing coefficient. -/
+private def codes (s : EState) (c : PBConstr) : EState × Array (ℕ × ℕ) := Id.run do
+  let mut s := s
+  let mut ts : Array (ℕ × ℕ) := #[]
+  for t in c.terms do
+    if t.1 > 0 then
+      let (s', code) := s.litCode t.2
+      s := s'
+      ts := ts.push (t.1, code)
+  return (s, ts.qsort (fun a b => a.1 > b.1))
+
+/-- Make the literal `code` true with the reason `r`. -/
+private def assign (s : EState) (code r : ℕ) : EState := { s with asg := s.asg.assign code r }
+
+/-- Propagate the non-clause constraint `c` with slack `sl`. -/
+private def propagatePB (s : EState) (c : ℕ) (sl : ℤ) : EState :=
+  { s with asg := Elab.propagatePB s.cons s.lits s.coeffs c sl s.asg }
 
 /-- Process the trail until a conflict or until every entry is processed. -/
-private def propagate (e : Engine σ) : ST σ (Option ℕ) := do
-  let mut confl := none
-  while confl.isNone && (← e.qhead.get) < (← e.trail.get).size do
-    let q ← e.qhead.get
-    e.qhead.set (q + 1)
-    confl ← e.falsify ((← e.trail.get)[q]! ^^^ 1)
-  return confl
+private def propagate (s : EState) : EState × Option ℕ :=
+  match s with
+  | ⟨varIdx, vars, cons, alive, lits, coeffs, watches, occ, roots, ⟨value, reason, tpos, trail⟩,
+      qhead, slack, rootReason, rootLen, rootConflict, dirty⟩ =>
+    match propLoop cons alive coeffs qhead lits watches occ slack value reason tpos trail with
+    | (qhead, occ, ⟨confl, _, lits, watches, slack, value, reason, tpos, trail⟩) =>
+      (⟨varIdx, vars, cons, alive, lits, coeffs, watches, occ, roots, ⟨value, reason, tpos, trail⟩,
+        qhead, slack, rootReason, rootLen, rootConflict, dirty⟩, confl)
+
+/-- Undo the trail from position `i` down to length `n`, restoring the slacks of the entries
+below `q`, which were processed. -/
+private partial def undo (occ : Array (Array ℕ)) (q n i : ℕ) (slack : Array ℤ) (a : Asg) :
+    Array ℤ × Asg :=
+  if n < i then
+    let i := i - 1
+    let t := a.trail[i]!
+    let slack := if i < q then restore occ[t ^^^ 1]! 0 slack else slack
+    undo occ q n i slack { a with value := a.value.set! (t / 2) 0 }
+  else (slack, { a with trail := a.trail.shrink n })
+where
+  /-- Add back the coefficients of the pairs `os` from `k` on. -/
+  restore (os : Array ℕ) (k : ℕ) (slack : Array ℤ) : Array ℤ :=
+    if k + 1 < os.size then restore os (k + 2) (slack.modify os[k]! (· + os[k + 1]!)) else slack
 
 /-- Undo the trail down to length `n`, restoring the slacks of the processed entries. -/
-private def backtrack (e : Engine σ) (n : ℕ) : ST σ Unit := do
-  let q ← e.qhead.get
-  let trail ← e.trail.get
-  let mut i := trail.size
-  while n < i do
-    i := i - 1
-    let t := trail[i]!
-    if i < q then
-      for (c, a) in (← e.occ.get)[t ^^^ 1]! do
-        e.slack.modify fun s => s.modify c (· + a)
-    e.value.modify (·.set! (t / 2) 0)
-  e.trail.modify (·.shrink n)
-  e.qhead.set (min q n)
+private def backtrack (s : EState) (n : ℕ) : EState :=
+  match s with
+  | ⟨varIdx, vars, cons, alive, lits, coeffs, watches, occ, roots, asg, qhead, slack, rootReason,
+      rootLen, rootConflict, dirty⟩ =>
+    let size := asg.trail.size
+    let (slack, asg) := undo occ qhead n size slack asg
+    ⟨varIdx, vars, cons, alive, lits, coeffs, watches, occ, roots, asg, min qhead n, slack,
+      rootReason, rootLen, rootConflict, dirty⟩
 
 /-- Mark the reasons of the trail entries from `n` as root reasons. -/
-private def markRootReasons (e : Engine σ) (n : ℕ) : ST σ Unit := do
-  let trail ← e.trail.get
-  for i in [n:trail.size] do
-    let r := (← e.reason.get)[trail[i]! / 2]!
-    e.rootReason.modify (·.set! r 1)
-
-/-- The slack of the terms `lits`, `coeffs` with degree `d` under the processed part of the
-trail: a literal counts as false only once its falsification has been processed. -/
-private def freshSlack (e : Engine σ) (lits coeffs : Array ℕ) (d : ℕ) : ST σ ℤ := do
-  let value ← e.value.get
-  let tpos ← e.tpos.get
-  let q ← e.qhead.get
-  let mut s : ℤ := -(d : ℤ)
-  for k in [0:lits.size] do
-    if !(litVal value lits[k]! == 2 && tpos[lits[k]! / 2]! < q) then s := s + coeffs[k]!
+private def markRootReasons (s : EState) (n : ℕ) : EState := Id.run do
+  let mut s := s
+  for i in [n:s.asg.trail.size] do
+    let r := s.asg.reason[s.asg.trail[i]! / 2]!
+    s := { s with rootReason := s.rootReason.set! r 1 }
   return s
+
+/-- The slack of the terms at positions `[p, p + m)` with degree `d` under the processed part of
+the trail: a literal counts as false only once its falsification has been processed. -/
+private def freshSlack (s : EState) (p m d : ℕ) : ℤ := Id.run do
+  let mut sl : ℤ := -(d : ℤ)
+  for k in [p:p + m] do
+    let l := s.lits[k]!
+    if !(litVal s.asg.value l == 2 && s.asg.tpos[l / 2]! < s.qhead) then sl := sl + s.coeffs[k]!
+  return sl
 
 /-- Propagate the constraint `c`, just added at the root level or checked during a rebuild,
 from scratch: its slack under the current assignment, then a conflict or its propagations. The
 processed part of the trail must be the whole trail. -/
-private def checkFresh (e : Engine σ) (c : ℕ) : ST σ (Option ℕ) := do
-  let r := (← e.cons.get)[c]!
-  let value ← e.value.get
-  let s ← e.freshSlack r.lits r.coeffs r.degree
+private def checkFresh (s : EState) (c : ℕ) : EState × Option ℕ := Id.run do
+  let r := s.cons[c]!
+  let p := r.start
+  let sl := s.freshSlack p r.size r.degree
   if r.clause then
     -- A clause with at least two terms: watch two non-false literals, if possible.
-    let mut lits := r.lits
+    let mut s := s
     let mut j := 0
-    for k in [0:lits.size] do
-      if j < 2 && litVal value lits[k]! != 2 then
-        lits := lits.swapIfInBounds j k
+    for k in [0:r.size] do
+      if j < 2 && litVal s.asg.value s.lits[p + k]! != 2 then
+        s := { s with lits := s.lits.swapIfInBounds (p + j) (p + k) }
         j := j + 1
-    e.cons.modify (·.modify c ({ · with lits := lits }))
-    e.watches.modify fun w => (w.modify lits[0]! (·.push c)).modify lits[1]! (·.push c)
-    if s < 0 then return some c
-    if j == 1 && litVal value lits[0]! == 0 then e.assign lits[0]! c
-    return none
+    let w₀ := s.lits[p]!
+    let w₁ := s.lits[p + 1]!
+    s := { s with watches := (s.watches.modify w₀ (·.push c)).modify w₁ (·.push c) }
+    if sl < 0 then return (s, some c)
+    if j == 1 && litVal s.asg.value w₀ == 0 then s := s.assign w₀ c
+    return (s, none)
   else
-    e.slack.modify (·.set! c s)
-    if s < 0 then return some c
-    e.propagatePB c s
-    return none
+    let s := { s with slack := s.slack.set! c sl }
+    if sl < 0 then return (s, some c)
+    return (s.propagatePB c sl, none)
+
+/-- Push a constraint with the sorted terms `ts`, the degree `d` and the hint `h`, whether it
+propagates as a clause; returns its engine index. -/
+private def pushCons (s : EState) (ts : Array (ℕ × ℕ)) (d : ℕ) (slack0 : ℤ) (clause : Bool)
+    (h : Hint) : EState × ℕ := Id.run do
+  let i := s.cons.size
+  let start := s.lits.size
+  let mut s := { s with cons := s.cons.push ⟨start, ts.size, d, slack0, clause, h⟩ }
+  for (a, l) in ts do
+    s := { s with lits := s.lits.push l }
+    s := { s with coeffs := s.coeffs.push a }
+  s := { s with alive := setPush s.alive i 1 }
+  s := { s with rootReason := setPush s.rootReason i 0 }
+  s := { s with slack := s.slack.push 0 }
+  if !clause && 0 < d then
+    for (a, l) in ts do
+      s := { s with occ := s.occ.modify l (·.push i |>.push a) }
+  return (s, i)
 
 /-- Add a constraint at the root level, named by the kernel hint `h`; returns its engine
 index. -/
-def add (e : Engine σ) (c : PBConstr) (h : Hint) : ST σ ℕ := do
-  let mut ts : Array (ℕ × ℕ) := #[]
-  for t in c.terms do
-    if t.1 > 0 then ts := ts.push (t.1, ← e.litCode t.2)
-  let sorted := ts.qsort (fun a b => a.1 > b.1)
-  let coeffs := sorted.map (·.1)
-  let lits := sorted.map (·.2)
-  let total := (coeffs.foldl (· + ·) 0 : ℕ)
-  let clause := 2 ≤ lits.size && 0 < c.degree && coeffs.all (c.degree ≤ ·)
-  let i := (← e.cons.get).size
-  e.cons.modify (·.push ⟨lits, coeffs, c.degree, (total : ℤ) - c.degree, clause, true, h⟩)
-  e.slack.modify (·.push 0)
-  e.rootReason.modify (·.push 0)
-  if !clause && 0 < c.degree then
-    for k in [0:lits.size] do
-      e.occ.modify fun o => o.modify lits[k]! (·.push (i, coeffs[k]!))
-  if (total : ℤ) - c.degree < ((coeffs[0]?.getD 0 : ℕ) : ℤ) || total < c.degree then
-    e.roots.modify (·.push i)
-  if (← e.dirty.get) || (← e.rootConflict.get).isSome then
+def add (s : EState) (c : PBConstr) (h : Hint) : EState × ℕ := Id.run do
+  let (s, ts) := s.codes c
+  let total : ℕ := ts.foldl (fun t x => t + x.1) 0
+  let clause := 2 ≤ ts.size && 0 < c.degree && ts.all (c.degree ≤ ·.1)
+  let (s, i) := s.pushCons ts c.degree ((total : ℤ) - c.degree) clause h
+  let mut s := s
+  if (total : ℤ) - c.degree < (((ts[0]?.map (·.1)).getD 0 : ℕ) : ℤ) || total < c.degree then
+    s := { s with roots := s.roots.push i }
+  if s.dirty || s.rootConflict.isSome then
     -- The root level is rebuilt or already in conflict; only record the slack.
-    if !clause then e.slack.modify (·.set! i (← e.freshSlack lits coeffs c.degree))
+    let r := s.cons[i]!
+    if !clause then s := { s with slack := s.slack.set! i (s.freshSlack r.start r.size r.degree) }
     else
-      e.watches.modify fun w => (w.modify lits[0]! (·.push i)).modify lits[1]! (·.push i)
-    if (← e.rootConflict.get).isSome then e.dirty.set true
-    return i
-  let n := (← e.trail.get).size
-  let confl ← match ← e.checkFresh i with
-    | some k => pure (some k)
-    | none => e.propagate
-  e.markRootReasons n
-  e.rootLen.set (← e.trail.get).size
-  if confl.isSome then e.rootConflict.set confl
-  return i
+      let w₀ := s.lits[r.start]!
+      let w₁ := s.lits[r.start + 1]!
+      s := { s with watches := (s.watches.modify w₀ (·.push i)).modify w₁ (·.push i) }
+    if s.rootConflict.isSome then s := { s with dirty := true }
+    return (s, i)
+  let n := s.asg.trail.size
+  let (s', confl) := match s.checkFresh i with
+    | (s, some k) => (s, some k)
+    | (s, none) => s.propagate
+  s := s'.markRootReasons n
+  s := { s with rootLen := s.asg.trail.size }
+  if confl.isSome then s := { s with rootConflict := confl }
+  return (s, i)
 
 /-- Delete the constraint with engine index `i`. -/
-def kill (e : Engine σ) (i : ℕ) : ST σ Unit := do
-  e.cons.modify (·.modify i ({ · with alive := false }))
-  if (← e.rootReason.get).get! i != 0 || (← e.rootConflict.get) == some i then e.dirty.set true
+def kill (s : EState) (i : ℕ) : EState :=
+  let s := { s with alive := s.alive.set! i 0 }
+  if s.rootReason.get! i != 0 || s.rootConflict == some i then { s with dirty := true } else s
 
 /-- Rebuild the root level: undo it, and propagate the constraints that propagate on the empty
 assignment. -/
-private def rebuild (e : Engine σ) : ST σ Unit := do
-  e.backtrack 0
-  e.rootConflict.set none
-  e.rootReason.modify fun b => ⟨b.data.map fun _ => 0⟩
-  let cons ← e.cons.get
-  let roots := (← e.roots.get).filter fun i => cons[i]!.alive
-  e.roots.set roots
+private def rebuild (s : EState) : EState := Id.run do
+  let mut s := s.backtrack 0
+  s := { s with rootConflict := none }
+  s := { s with rootReason := ⟨.replicate s.rootReason.size 0⟩ }
+  let roots := s.roots.filter fun i => s.alive.get! i != 0
+  s := { s with roots := roots }
   let mut confl := none
   for i in roots do
     if confl.isNone then
-      let r := (← e.cons.get)[i]!
+      let r := s.cons[i]!
       -- The constraint's slack is up to date; it propagates at most its own terms.
-      let s : ℤ ← if r.clause then pure r.slack0 else pure (← e.slack.get)[i]!
-      if s < 0 then confl := some i
+      let sl : ℤ := if r.clause then r.slack0 else s.slack[i]!
+      if sl < 0 then confl := some i
       else
-        if !r.clause then e.propagatePB i s
-        confl ← e.propagate
-  e.markRootReasons 0
-  e.rootLen.set (← e.trail.get).size
-  e.rootConflict.set confl
-  e.dirty.set false
+        if !r.clause then s := s.propagatePB i sl
+        let (s', c) := s.propagate
+        s := s'
+        confl := c
+  s := s.markRootReasons 0
+  s := { s with rootLen := s.asg.trail.size }
+  s := { s with rootConflict := confl }
+  return { s with dirty := false }
 
 /-- Push onto a binary max-heap. -/
 private def heapPush (h : Array ℕ) (x : ℕ) : Array ℕ := Id.run do
@@ -379,83 +504,104 @@ private def heapPop (h : Array ℕ) : ℕ × Array ℕ := Id.run do
 
 /-- The kernel hints of a conflict at the constraint `k`: the reasons of the needed literals, in
 trail order, a reason repeated on consecutive needed literals given once, then `k`. -/
-private def analyze (e : Engine σ) (k : ℕ) : ST σ (Array Hint) := do
-  let cons ← e.cons.get
-  let trail ← e.trail.get
-  let tpos ← e.tpos.get
-  let reason ← e.reason.get
-  let value ← e.value.get
+private def analyze (s : EState) (k : ℕ) : Array Hint := Id.run do
   -- `marked` holds the trail positions of the needed literals, `heap` those not yet processed.
-  let mark (r : CRec) (lim : ℕ) (st : Std.HashMap ℕ Unit × Array ℕ) :
+  let mark (c : ℕ) (lim : ℕ) (st : Std.HashMap ℕ Unit × Array ℕ) :
       Std.HashMap ℕ Unit × Array ℕ := Id.run do
+    let r := s.cons[c]!
     let mut (marked, heap) := st
-    for l in r.lits do
-      if litVal value l == 2 then
-        let p := tpos[l / 2]!
+    for q in [r.start:r.start + r.size] do
+      let l := s.lits[q]!
+      if litVal s.asg.value l == 2 then
+        let p := s.asg.tpos[l / 2]!
         if p < lim && !marked.contains p then
           marked := marked.insert p ()
           heap := heapPush heap p
     return (marked, heap)
-  let mut st := mark cons[k]! trail.size ({}, #[])
+  let mut st := mark k s.asg.trail.size ({}, #[])
   let mut out : Array ℕ := #[]
   while !st.2.isEmpty do
     let (p, heap) := heapPop st.2
     st := (st.1, heap)
-    let r := reason[trail[p]! / 2]!
+    let r := s.asg.reason[s.asg.trail[p]! / 2]!
     if out.back? != some r then out := out.push r
-    st := mark cons[r]! p st
-  return (out.reverse.map (cons[·]!.hint)).push cons[k]!.hint
+    st := mark r p st
+  return (out.reverse.map (s.cons[·]!.hint)).push s.cons[k]!.hint
 
 /-- **The hints of `rup C`**, given the negation `neg` of `C`: propagate the database and `neg`,
-and on a conflict return its hints, found by conflict analysis, `neg` being named `~`. Returns
-`none` when propagation reaches no conflict. -/
-def rupHints (e : Engine σ) (neg : PBConstr) : ST σ (Option (Array Hint)) := do
-  if ← e.dirty.get then e.rebuild
-  if let some k ← e.rootConflict.get then return some (← e.analyze k)
-  let rl ← e.rootLen.get
-  -- The negation, as a non-clause constraint of its own.
-  let mut ts : Array (ℕ × ℕ) := #[]
-  for t in neg.terms do
-    if t.1 > 0 then ts := ts.push (t.1, ← e.litCode t.2)
-  let sorted := ts.qsort (fun a b => a.1 > b.1)
-  let i := (← e.cons.get).size
-  let coeffs := sorted.map (·.1)
-  let lits := sorted.map (·.2)
-  e.cons.modify (·.push ⟨lits, coeffs, neg.degree, 0, false, true, .neg⟩)
-  e.slack.modify (·.push 0)
-  e.rootReason.modify (·.push 0)
-  for k in [0:lits.size] do
-    e.occ.modify fun o => o.modify lits[k]! (·.push (i, coeffs[k]!))
-  let confl ← match ← e.checkFresh i with
-    | some k => pure (some k)
-    | none => e.propagate
-  let res ← match confl with
-    | some k => pure (some (← e.analyze k))
-    | none => pure none
-  e.backtrack rl
-  e.cons.modify (·.modify i ({ · with alive := false, lits := #[], coeffs := #[] }))
-  return res
+and on a conflict return its hints (`Cslib.Logic.PL.VeriPB.Elab.EState.analyze`), `neg` being
+named `~`. Returns `none` when propagation reaches no conflict. The negation is removed again. -/
+def rupHints (s : EState) (neg : PBConstr) : EState × Option (Array Hint) := Id.run do
+  let s := if s.dirty then s.rebuild else s
+  if let some k := s.rootConflict then return (s, some (s.analyze k))
+  let rl := s.rootLen
+  -- The negation, as a non-clause constraint of its own, the last one.
+  let (s, ts) := s.codes neg
+  let (s, i) := s.pushCons ts neg.degree 0 false .neg
+  let start := s.cons[i]!.start
+  let (s, confl) := match s.checkFresh i with
+    | (s, some k) => (s, some k)
+    | (s, none) => s.propagate
+  let res := confl.map s.analyze
+  let mut s := s.backtrack rl
+  -- Remove the negation: its occurrences are the last pair of each of its lists.
+  if 0 < neg.degree then
+    for (_, l) in ts do
+      s := { s with occ := s.occ.modify l (·.pop.pop) }
+  s := { s with cons := s.cons.pop }
+  s := { s with alive := s.alive.set! i 0 }
+  s := { s with slack := s.slack.pop }
+  s := { s with lits := s.lits.shrink start }
+  s := { s with coeffs := s.coeffs.shrink start }
+  return (s, res)
 
 /-- **Extend a partial assignment by propagation**, as VeriPB does for a logged solution
 (§5.8.1): make the literals `ls` true, propagate the database, and return every assigned
 literal; `none` on a conflict. -/
-def extend (e : Engine σ) (ls : List (Literal ℕ)) : ST σ (Option (Array (Literal ℕ))) := do
-  if ← e.dirty.get then e.rebuild
-  if (← e.rootConflict.get).isSome then return none
-  let rl ← e.rootLen.get
+def extend (s : EState) (ls : List (Literal ℕ)) : EState × Option (Array (Literal ℕ)) := Id.run do
+  let s := if s.dirty then s.rebuild else s
+  if s.rootConflict.isSome then return (s, none)
+  let rl := s.rootLen
+  let mut s := s
   let mut ok := true
   for l in ls do
-    let code ← e.litCode l
-    let v := litVal (← e.value.get) code
-    if v == 0 then e.assign code 0
+    let (s', code) := s.litCode l
+    s := s'
+    let v := litVal s.asg.value code
+    if v == 0 then s := s.assign code 0
     else if v == 2 then ok := false
-  if ok then ok := (← e.propagate).isNone
-  let res ← if ok then do
-      let vars ← e.vars.get
-      pure (some ((← e.trail.get).map fun c => (vars[c / 2]!, c % 2 == 0)))
-    else pure none
-  e.backtrack rl
-  return res
+  if ok then
+    let (s', c) := s.propagate
+    s := s'
+    ok := c.isNone
+  let res := if ok then some (s.asg.trail.map fun c => (s.vars[c / 2]!, c % 2 == 0)) else none
+  return (s.backtrack rl, res)
+
+end EState
+
+namespace Engine
+
+variable {σ : Type}
+
+/-- A new empty engine. -/
+def new : ST σ (Engine σ) := return ⟨← ST.mkRef {}⟩
+
+/-- Add a constraint at the root level, named by the kernel hint `h`; returns its engine
+index (`Cslib.Logic.PL.VeriPB.Elab.EState.add`). -/
+def add (e : Engine σ) (c : PBConstr) (h : Hint) : ST σ ℕ :=
+  e.st.modifyGet fun s => let (s, i) := s.add c h; (i, s)
+
+/-- Delete the constraint with engine index `i`. -/
+def kill (e : Engine σ) (i : ℕ) : ST σ Unit := e.st.modify (·.kill i)
+
+/-- **The hints of `rup C`**, given the negation `neg` of `C`
+(`Cslib.Logic.PL.VeriPB.Elab.EState.rupHints`). -/
+def rupHints (e : Engine σ) (neg : PBConstr) : ST σ (Option (Array Hint)) :=
+  e.st.modifyGet fun s => let (s, r) := s.rupHints neg; (r, s)
+
+/-- **Extend a partial assignment by propagation** (`Cslib.Logic.PL.VeriPB.Elab.EState.extend`). -/
+def extend (e : Engine σ) (ls : List (Literal ℕ)) : ST σ (Option (Array (Literal ℕ))) :=
+  e.st.modifyGet fun s => let (s, r) := s.extend ls; (r, s)
 
 end Engine
 
