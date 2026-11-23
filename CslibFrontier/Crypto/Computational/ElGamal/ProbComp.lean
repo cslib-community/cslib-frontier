@@ -25,11 +25,10 @@ import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Crypto.Computational.DiffieHellman.SampleExp
 import CslibFrontier.Crypto.Game.FourHop
 import CslibFrontier.Crypto.Game.Statistical
-import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.StatisticalDistance
+import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.SuppCases
 
@@ -354,10 +353,7 @@ theorem DDH.kemINDCPA_hashedElGamalEncapsProb {F : PrimeOrderGroupFamily} {keyLe
   intro distinguisher hD
   have hddh := hDDH _ (F.isPPT_kdfToDDHDistinguisher hH (F.isPPT_kemToKDFDistinguisher hD))
   have hkdf := hKDF _ (F.isPPT_kemToKDFDistinguisher hD)
-  have h4 : Negligible fun n => (4 : ℝ≥0) / 2 ^ n := negligible_const_div_two_pow 4
-  refine negligible_of_le ((hddh.add hkdf).add h4) fun n => ?_
-  dsimp only [Pi.add_apply]
-  exact F.advantage_kemGame_hashedElGamalEncapsProb_le keyLen H d distinguisher n
+  negligible using F.advantage_kemGame_hashedElGamalEncapsProb_le keyLen H d distinguisher
 
 /-- **Theorem 11.5 for the $\mathcal{E}'_{\mathrm{EG}}$ variant of Remark 11.1, via
 `Encryption.INDCPAOf`** ([BonehShoup2023], Remark 11.1, p. 446, and Section 11.5.2, Theorem 11.5,
@@ -595,10 +591,7 @@ theorem DDH.indcpaOn_elGamalEncryptProb_on {F : PrimeOrderGroupFamily}
     INDCPAOn valid encMsg (F.elGamalKeyGenProb d) (F.elGamalEncryptProb encodeMsg d) := by
   intro adversary hA
   have hmid := hDDH.negligible_elGamalMsgCPAGameOn_ideal hvalid hsound hencMsg hA
-  have h2 : Negligible fun n => (2 : ℝ≥0) / 2 ^ n := negligible_const_div_two_pow 2
-  refine negligible_of_le ((h2.add hmid).add h2) fun n => ?_
-  dsimp only [Pi.add_apply]
-  exact Game.advantage_four_hop_le
+  negligible using fun n => Game.advantage_four_hop_le
     (F.advantage_gameOn_elGamalMsgCPAGameOn_le valid encodeMsg d adversary false n)
     (F.advantage_gameOn_elGamalMsgCPAGameOn_le valid encodeMsg d adversary true n)
 

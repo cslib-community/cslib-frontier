@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.SavedGroups
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Actual reconstruction in original request order
@@ -62,24 +63,20 @@ public theorem exec_reconstruct {w L m N : ℕ}
     unfold memoryEnd stampBase
     have h10 := Nat.zero_le (10 ^ L)
     omega
-  let start := x.set Reg.index 0
-  have hs : ExecWithin (B := .standard) w (ram[Reg.index ← #0]) x start 1 := by ram_eval [start]
-  have sp : Parameters L m N qs.length start := hp.set_work Reg.index (by decide) _
-  have hstart : P (start.regs Reg.index) start :=
-    ⟨sp, by simp [start, pos], by simp [start]⟩
   have hbody (z : Data 160) (hz : P (z.regs Reg.index) z) (hi : z.regs Reg.index < qs.length) :
       ∃ u, ExecWithin w reconstructStep z u 7 ∧
         P (z.regs Reg.index + 1) u ∧ u.regs Reg.index = z.regs Reg.index + 1 := by
+    obtain ⟨hzp, hzj, hza⟩ := hz
     obtain ⟨i, hip⟩ :=
       (CountingSort.position_bijective key qs.length).surjective ⟨z.regs Reg.index, hi⟩
     have hpos := congrArg (fun j : Fin qs.length => j.val) hip
     change pos i.val = z.regs Reg.index at hpos
     have hreadIndex : z.mem (originalBase L m N qs.length + z.regs Reg.index) = i.val := by
-      rw [hz.2.2 _ (Or.inl (by omega)), hg.originals _ hi, ← hpos]
+      rw [hza _ (Or.inl (by omega)), hg.originals _ hi, ← hpos]
       exact horiginals i
     have hreadValue : z.mem (groupedBase L m N qs.length + z.regs Reg.index) =
         Signed.encode ((X * Y) (qs.get i).1 (qs.get i).2) := by
-      rw [hz.2.2 _ (Or.inl (by omega)), ← hpos]
+      rw [hza _ (Or.inl (by omega)), ← hpos]
       exact hanswers i
     have fo : Fits w (originalBase L m N qs.length + z.regs Reg.index) :=
       allocated_fits hfit (by omega)
@@ -89,45 +86,31 @@ public theorem exec_reconstruct {w L m N : ℕ}
       have h := i.isLt
       omega)
     have fn : Fits w (z.regs Reg.index + 1) := allocated_fits hfit (by omega)
-    let answer := Signed.encode ((X * Y) (qs.get i).1 (qs.get i).2)
-    let u := ((((((z.set Reg.address (originalBase L m N qs.length + z.regs Reg.index)).set
-      Reg.temporary i.val).set Reg.address (groupedBase L m N qs.length + z.regs Reg.index)).set
-      Reg.value answer).set Reg.address (outputBase L m N qs.length + i.val)).write
-      (outputBase L m N qs.length + i.val) answer).set Reg.index (z.regs Reg.index + 1)
-    have he : ExecWithin w reconstructStep z u 7 := by
-      ram_eval [reconstructStep, u, answer, hz.1.originals, hz.1.grouped, hz.1.output,
-        hz.1.one, hreadIndex, hreadValue, fo, fg, fy, fn, Reg.address, Reg.originals, Reg.index,
-        Reg.temporary, Reg.grouped, Reg.value, Reg.output, Reg.one]
-    have up : Parameters L m N qs.length u :=
-      ((((((hz.1.set_work Reg.address (by decide) _).set_work Reg.temporary (by decide) _).set_work
-        Reg.address (by decide) _).set_work Reg.value (by decide) _).set_work Reg.address
-        (by decide) _).write _ _).set_work Reg.index (by decide) _
-    have un : u.regs Reg.index = z.regs Reg.index + 1 := by simp [u]
-    refine ⟨u, he, ⟨up, ?_, ?_⟩, un⟩
+    refine WP.exists_execWithin ?_
+    unfold reconstructStep
+    wram_exec * [hreadIndex, hreadValue, fo, fg, fy, fn]
+    refine ⟨⟨by regs_frame, ?_, ?_⟩, by wram_simp⟩
     · intro j hj
-      change Function.update z.mem (outputBase L m N qs.length + i.val) answer
-        (outputBase L m N qs.length + j.val) = _
       by_cases hij : j = i
-      · subst j
-        exact Function.update_self _ _ _
+      · subst hij
+        wram_simp
       · have hne : j.val ≠ i.val := fun heq => hij (Fin.ext heq)
-        rw [Function.update_of_ne (by omega)]
+        wram_simp [hne]
         have hpne : pos j.val ≠ pos i.val := fun heq => hij
           (CountingSort.position_injective key qs.length heq)
-        exact hz.2.1 j (by omega)
+        exact hzj j (by omega)
     · intro a ha
-      change Function.update z.mem (outputBase L m N qs.length + i.val) answer a = _
-      rw [Function.update_of_ne (by have h := i.isLt; rcases ha with ha | ha <;> omega)]
-      exact hz.2.2 a ha
-  obtain ⟨y, he, hy, _⟩ := ExecWithin.loop_count P (fun _ hy => hy.1.queryCount)
-    hbody (by simp [start]) hstart
-  refine ⟨y, ?_, hy.1, ?_, hy.2.2⟩
-  · apply (hs.seq he).mono
-    have hzero : start.regs Reg.index = 0 := by simp [start]
-    rw [hzero, Nat.sub_zero]
-    omega
-  · intro i
-    apply hy.2.1 i
-    exact CountingSort.position_lt key i.isLt
+      have hne : a ≠ outputBase L m N qs.length + i.val := by
+        have h := i.isLt
+        rcases ha with ha | ha <;> omega
+      wram_simp [hne]
+      exact hza a ha
+  refine WP.exists_execWithin ?_
+  unfold reconstruct
+  wram_exec
+  wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.queryCount) hbody
+    (by wram_simp; exact Nat.zero_le _)
+    ⟨by regs_frame, by wram_simp; simp, fun _ _ => rfl⟩) with y ⟨⟨hyp, hyj, hya⟩, _⟩
+  exact ⟨by wram_simp; omega, hyp, fun i => hyj i (CountingSort.position_lt key i.isLt), hya⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct

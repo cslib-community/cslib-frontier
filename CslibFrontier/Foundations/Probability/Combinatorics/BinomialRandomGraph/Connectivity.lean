@@ -260,8 +260,7 @@ theorem binomialRandom_real_not_connected_le {n : ℕ} (hn : 0 < n) (p : I)
     have h := one_sub_pow_le_exp p (n - 1)
     rw [Nat.cast_sub (by omega : 1 ≤ n), Nat.cast_one] at h
     have hp1 : (p : ℝ) ≤ 1 := unitInterval.le_one p
-    calc (n : ℝ) * (1 - p : ℝ) ^ (n - 1) ≤ n * Real.exp (-(p * ((n : ℝ) - 1))) :=
-          mul_le_mul_of_nonneg_left h hn0.le
+    calc (n : ℝ) * (1 - p : ℝ) ^ (n - 1) ≤ n * Real.exp (-(p * ((n : ℝ) - 1))) := by gcongr
       _ = Real.exp p * y := by
           rw [hydef, ← mul_assoc, mul_comm (Real.exp _) (n : ℝ), mul_assoc, ← Real.exp_add]
           congr 2; ring

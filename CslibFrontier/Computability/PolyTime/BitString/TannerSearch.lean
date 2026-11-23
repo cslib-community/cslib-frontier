@@ -185,8 +185,7 @@ theorem ceil_le_smallBiasCeil (r : ℕ) {p q : ℕ} (hp : 0 < p) (hq : 0 < q) :
   rw [div_le_iff₀ (by positivity)]
   calc
     4 * ((r : ℝ) + 1) = ((4 * (r + 1) * q ^ 2 : ℕ) : ℝ) / (q : ℝ) ^ 2 := by push_cast; field_simp
-    _ ≤ ((p ^ 2 : ℕ) * ((smallBiasCeil r p q : ℕ) : ℝ)) / (q : ℝ) ^ 2 :=
-        div_le_div_of_nonneg_right hle (by positivity)
+    _ ≤ ((p ^ 2 : ℕ) * ((smallBiasCeil r p q : ℕ) : ℝ)) / (q : ℝ) ^ 2 := by gcongr
     _ = ((smallBiasCeil r p q : ℕ) : ℝ) * ((p : ℝ) / q) ^ 2 := by push_cast; field_simp
 
 /-- Unconditional correctness of `findSmallBiasShifts r d p q` whenever `d ≥ smallBiasCeil r p q`

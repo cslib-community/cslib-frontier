@@ -489,7 +489,7 @@ theorem directCoreCertificate_le (entry : T → List Bool → List ℕ)
     have hout := hcS ((v.2, P, ℓ, fl, ζ), bs)
     have hZ' : ES ≤ Z := by omega
     refine ⟨ht, hs, hout.trans (Nat.mul_le_mul_left _ ?_)⟩
-    exact Nat.add_le_add_right (hs.trans (Nat.add_le_add_right hZ' _)) 1
+    omega
   have hr : ∀ z, SumOps.galois.Reduced (P, fl) z → (encList encNat z).length ≤ Z * (2 * Z + 3) :=
     fun z hz => (SumOps.length_encList_le_of_galois_reduced hz).trans (by
       have hfl := length_le_length_encList encNat fl

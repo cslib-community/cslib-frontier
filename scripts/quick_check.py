@@ -373,17 +373,6 @@ def make_plan(root: Path, base_ref: str = "origin/main", parser=None, *,
     executables = executable_sources(root)
     imports = (parser or imports_from_lean)(
         root, list(dict.fromkeys([*by_path, *(exe.path for exe in executables)])))
-    executable_targets: set[str] = set()
-    if changed:
-        for exe in executables:
-            # A helper outside the library graph may import a changed module indirectly.
-            # Build its executable conservatively instead of silently omitting that client.
-            if by_path.get(exe.path) in changed or any(
-                    any(dependency == r or dependency.startswith(r + ".") for r in roots) or any(
-                        (directory / Path(*dependency.split(".")).with_suffix(".lean")).exists()
-                        for directory in (exe.source, root))
-                    for dependency in imports[exe.path]):
-                executable_targets.add(exe.target)
     reverse: dict[str, set[str]] = defaultdict(set)
     for path, dependencies in imports.items():
         if path not in by_path:
@@ -401,21 +390,47 @@ def make_plan(root: Path, base_ref: str = "origin/main", parser=None, *,
             if consumer not in affected:
                 affected.add(consumer)
                 queue.append(consumer)
+    executable_targets: set[str] = set()
+    executable_local_imports: set[str] = set()
+    unindexed_executable_helper = False
+    for exe in executables:
+        exe_affected = by_path.get(exe.path) in affected
+        for dependency in imports[exe.path]:
+            if any(dependency == r or dependency.startswith(r + ".") for r in roots):
+                if dependency not in modules:
+                    raise FullCheck(f"missing local import {dependency} in {exe.path}")
+                executable_local_imports.add(dependency)
+                if dependency in affected:
+                    exe_affected = True
+            elif changed and any(
+                    (directory / Path(*dependency.split(".")).with_suffix(".lean")).exists()
+                    for directory in (exe.source, root)):
+                # A helper outside the library graph may import a changed module indirectly.
+                # Build its executable conservatively instead of silently omitting that client.
+                unindexed_executable_helper = True
+                exe_affected = True
+        if changed and exe_affected:
+            executable_targets.add(exe.target)
     # Only named whole-library tests with no importing client may be deferred. Keep directly
     # edited tests and every ordinary client, including clients that import the aggregate.
     deferred = set()
-    # Executable helpers can import further local modules outside this graph.
-    if focused and not executable_targets:
+    # Unindexed executable helpers can import further local modules outside this graph; indexed
+    # library imports of executables are checked explicitly via `executable_local_imports`.
+    if focused and not unindexed_executable_helper:
         global_tests = {"CslibFrontierTests.Axioms", "CslibFrontierTests.Smoke"}
-        deferred = {test for test in (affected & global_tests) - changed if not reverse[test]}
+        deferred = {test for test in (affected & global_tests) - changed - executable_local_imports
+                    if not reverse[test]}
         affected -= deferred
     # Traverse aggregates above: a real client importing one must never disappear from the plan.
     selected_executables = [exe for exe in executables if exe.target in executable_targets]
     # An aggregate may warn on an import even when its importing client elaborates silently.
     # Audit aggregates on built clients' import paths, not every root aggregate touched by the
-    # change. Executable helpers are outside this graph; include their built aggregates
+    # change. Unindexed executable helpers are outside this graph; include their built aggregates
     # conservatively.
-    needed = affected - aggregates
+    needed = (affected - aggregates) | {
+        dependency for exe in selected_executables
+        for dependency in imports[exe.path] if dependency in modules
+    }
     queue = deque(sorted(needed))
     while queue:
         for dependency in imports[modules[queue.popleft()]]:
@@ -423,7 +438,7 @@ def make_plan(root: Path, base_ref: str = "origin/main", parser=None, *,
                 needed.add(dependency)
                 queue.append(dependency)
     aggregate_checks = affected & aggregates & needed
-    if selected_executables:
+    if unindexed_executable_helper:
         aggregate_checks |= affected & aggregates
     return Plan(base, sorted((affected - aggregates) | executable_targets), checks,
                 lint_scope(root, aggregates, affected, reverse),

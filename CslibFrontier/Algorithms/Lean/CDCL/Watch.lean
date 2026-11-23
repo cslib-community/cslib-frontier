@@ -116,6 +116,57 @@ theorem getD_modifyWatch (W : Watches) (i : ℕ) (f : Array Watcher → Array Wa
   · rename_i hne
     simp [Ne.symm hne]
 
+theorem size_modifyWatch (W : Watches) (i : ℕ) (f : Array Watcher → Array Watcher) :
+    (modifyWatch W i f).size = max W.size (i + 1) := by
+  unfold modifyWatch
+  split <;> simp <;> omega
+
+/-- Two arrays of watch lists of the same size with the same lists are equal. -/
+theorem watches_ext {W W' : Watches} (hs : W.size = W'.size)
+    (h : ∀ j, W.getD j #[] = W'.getD j #[]) : W = W' := by
+  apply Array.ext hs
+  intro j h₁ h₂
+  have := h j
+  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem h₁,
+    Array.getElem?_eq_getElem h₂, Option.getD_some] at this
+  exact this
+
+/-- Modifying the same watch list twice is modifying it once. -/
+theorem modifyWatch_modifyWatch (W : Watches) (i : ℕ) (f g : Array Watcher → Array Watcher) :
+    modifyWatch (modifyWatch W i f) i g = modifyWatch W i (g ∘ f) := by
+  apply watches_ext
+  · simp only [size_modifyWatch]; omega
+  · intro j
+    simp only [getD_modifyWatch]
+    split <;> rfl
+
+/-- Modifying two different watch lists, in either order. -/
+theorem modifyWatch_comm (W : Watches) {i j : ℕ} (hij : i ≠ j)
+    (f g : Array Watcher → Array Watcher) :
+    modifyWatch (modifyWatch W i f) j g = modifyWatch (modifyWatch W j g) i f := by
+  apply watches_ext
+  · simp only [size_modifyWatch]; omega
+  · intro k
+    simp only [getD_modifyWatch]
+    by_cases hk : k = j
+    · subst hk; simp [Ne.symm hij]
+    · simp [hk, hij]
+
+/-- Adding a watcher to a list just replaced is replacing it with the longer array. -/
+theorem addWatch_setWatch (W : Watches) (i : ℕ) (L : Array Watcher) (k : Watcher) :
+    addWatch (setWatch W i L) i k = setWatch W i (L.push k) :=
+  modifyWatch_modifyWatch W i _ _
+
+/-- Replacing a watch list and adding a watcher to another, in either order. -/
+theorem addWatch_setWatch_comm (W : Watches) {i j : ℕ} (hij : i ≠ j) (L : Array Watcher)
+    (k : Watcher) : addWatch (setWatch W i L) j k = setWatch (addWatch W j k) i L :=
+  modifyWatch_comm W hij _ _
+
+/-- Replacing a watch list twice. -/
+theorem setWatch_setWatch (W : Watches) (i : ℕ) (L L' : Array Watcher) :
+    setWatch (setWatch W i L) i L' = setWatch W i L' :=
+  modifyWatch_modifyWatch W i _ _
+
 @[simp] theorem watchList_addWatch (W : Watches) (i : ℕ) (k : Watcher) (j : ℕ) :
     watchList (addWatch W i k) j = if j = i then k :: watchList W i else watchList W j := by
   unfold watchList addWatch

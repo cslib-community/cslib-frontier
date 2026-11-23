@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.De
 import CslibFrontier.Computability.Complexity.Classes.NP.Image
 import CslibFrontier.Computability.Complexity.Classes.Oracle.PolyTime
 import CslibFrontier.Computability.Complexity.Problems.Primes
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Gcd
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
@@ -177,8 +178,7 @@ theorem searchDomain_compositeSearch : searchDomain compositeSearch = {N | 1 < N
 /-- **The composite numbers are in `P`**, as the primes are [Agrawal, Kayal, Saxena][AKS2004]. -/
 theorem setOf_composite_mem_P : {N : ℕ | 1 < N ∧ ¬N.Prime} ∈ P encNat := by
   obtain ⟨f, hf, hfp⟩ := mem_P.mp primes_mem_P
-  refine mem_P.mpr ⟨fun N => decide (1 < N) && !f N,
-    bool_and' (binary_lt' (const 1) id') (bool_not.comp hf), fun N => ?_⟩
+  refine mem_P.mpr ⟨fun N => decide (1 < N) && !f N, by fun_prop, fun N => ?_⟩
   have h : N.Prime ↔ f N = true := hfp N
   cases hfN : f N <;> simp_all
 
@@ -189,18 +189,13 @@ private theorem length_encNat_le_of_lt {Q N : ℕ} (h : Q < N) :
 /-- The divisor relation is in `FNP` (Goldreich's `PC`): a candidate is checked by decoding it,
 re-encoding it, and comparing it and its greatest common divisor with `N`. -/
 theorem divisorSearch_mem_FNP : divisorSearch ∈ FNP encNat := by
-  have hw : ComputableInPolyTime (fun x : ℕ × List Bool => x.2)
-      (encPair encNat encBits) encBits := snd _ _
-  have hN : ComputableInPolyTime (fun x : ℕ × List Bool => x.1)
-      (encPair encNat encBits) encNat := fst _ _
-  have hQ := ComputableInPolyTime.bitsToNat.comp hw
+  have hre : ComputableInPolyTime (fun x : ℕ × List Bool => encNat (ofBits x.2))
+      (encPair encNat encBits) encBits := (bitsToNat.comp (snd encNat encBits)).encoding_comp
   refine mem_FNP.mpr ⟨⟨.X, fun N w ⟨Q, hw, _, hQN, _⟩ => ?_⟩,
     fun x => decide (encNat (ofBits x.2) = x.2) && decide (1 < ofBits x.2) &&
       decide (ofBits x.2 < x.1) && decide (Nat.gcd (ofBits x.2) x.1 = ofBits x.2),
-    ?_, fun N w => ?_⟩
+    by fun_prop, fun N w => ?_⟩
   · simpa [← hw] using length_encNat_le_of_lt hQN
-  · exact bool_and' (bool_and' (bool_and' (hQ.encoding_comp.decide_eq' hw)
-      (binary_lt' (const 1) hQ)) (binary_lt' hQ hN)) ((binary_gcd' hQ hN).decide_eq' hQ)
   · simp only [divisorSearch, Bool.and_eq_true, decide_eq_true_eq]
     constructor
     · rintro ⟨Q, rfl, hQ, hQN, hdvd⟩
@@ -211,15 +206,12 @@ theorem divisorSearch_mem_FNP : divisorSearch ∈ FNP encNat := by
 /-- `compositeSearch` is in `FPSearch`: test compositeness, and return `N`. -/
 theorem compositeSearch_mem_FPSearch : compositeSearch ∈ FPSearch encNat := by
   obtain ⟨c, hc, hcS⟩ := mem_P.mp setOf_composite_mem_P
-  have hre : ComputableInPolyTime (fun N : ℕ => encNat N) encNat encBits := id'.encoding_comp
   refine mem_FPSearch.mpr ⟨mem_FNP.mpr ⟨⟨.X, fun N w h => by simp [h.1]⟩,
-      fun x => decide (x.2 = encNat x.1) && c x.1,
-      bool_and' ((snd _ _).decide_eq' (hre.comp (fst _ _))) (hc.comp (fst _ _)),
+      fun x => decide (x.2 = encNat x.1) && c x.1, by fun_prop,
       fun N w => by
         simp only [compositeSearch, Bool.and_eq_true, decide_eq_true_eq, ← hcS N,
           Set.mem_ofPred_eq]⟩,
-    fun N => if c N then some (encNat N) else none,
-    ite' (encC := encBool) hc ((optionSome encBits).comp hre) (const none), fun N => ?_⟩
+    fun N => if c N then some (encNat N) else none, by fun_prop, fun N => ?_⟩
   by_cases hN : c N = true
   · simp only [hN, ite_true, Option.some.injEq]
     exact ⟨fun w hw => ⟨hw.symm, (hcS N).2 hN⟩, fun h => (Option.some_ne_none _ h).elim⟩
@@ -236,9 +228,7 @@ theorem divisorSearch_mem_FPSearch_iff : divisorSearch ∈ FPSearch encNat ↔
       ∀ N, 1 < N → ¬N.Prime → 1 < f N ∧ f N < N ∧ f N ∣ N := by
   constructor
   · rintro ⟨-, s, hs, hsolve⟩
-    refine ⟨fun N => ofBits ((s N).getD []),
-      ComputableInPolyTime.bitsToNat.comp (optionGetDWithInput hs (const [])),
-      fun N hN hp => ?_⟩
+    refine ⟨fun N => ofBits ((s N).getD []), by fun_prop, fun N hN hp => ?_⟩
     have hdom : N ∈ searchDomain divisorSearch := by
       rw [searchDomain_divisorSearch]
       exact ⟨hN, hp⟩
@@ -250,8 +240,7 @@ theorem divisorSearch_mem_FPSearch_iff : divisorSearch ∈ FPSearch encNat ↔
   · rintro ⟨f, hf, hsplit⟩
     obtain ⟨c, hc, hcS⟩ := mem_P.mp setOf_composite_mem_P
     refine mem_FPSearch.mpr ⟨divisorSearch_mem_FNP,
-      fun N => if c N then some (encNat (f N)) else none,
-      ite' (encC := encBool) hc ((optionSome encBits).comp hf.encoding_comp) (const none),
+      fun N => if c N then some (encNat (f N)) else none, by fun_prop,
       fun N => ⟨fun w hw => ?_, fun hw => ?_⟩⟩
     · by_cases hN : c N = true
       · simp only [hN, ite_true, Option.some.injEq] at hw

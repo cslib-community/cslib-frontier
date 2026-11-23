@@ -119,7 +119,7 @@ theorem realize_treeAddress (m j b q a : (language L).Term α) (v : α → Fin n
     (treeAddress L m j b q a).Realize v ↔ (j.realize v).val ≤ (m.realize v).val ∧
       BitString.sumTreeAddress (m.realize v).val (j.realize v).val (b.realize v).val
         (q.realize v).val = (a.realize v).val := by
-  fo_simp [treeAddress, Function.comp_def, and_assoc]
+  fo_simp [treeAddress, and_assoc]
   constructor
   · rintro ⟨u, h0, h1, h2, h3, h4, h5⟩
     have he : (u 0).val = (m.realize v).val - (j.realize v).val := by lia
@@ -163,7 +163,7 @@ theorem realize_nodeValue (m h : (language L).Term α) (w : Fin 8 → (language 
     (nodeValue L m h w j q z).Realize v ↔
       EncodesNode (m.realize v).val (h.realize v).val (fun r => ((w r).realize v).val)
         (j.realize v).val (q.realize v).val (z.realize v).val := by
-  fo_simp [nodeValue, Function.comp_def, hj]
+  fo_simp [nodeValue, hj]
   constructor
   · intro hn b
     constructor

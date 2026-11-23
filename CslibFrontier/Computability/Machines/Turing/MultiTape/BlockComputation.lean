@@ -300,69 +300,65 @@ label in its prefix. In particular, success at the root validates all earlier la
 theorem value_eq_some_iff {n : ℕ} (hn : n ≤ q) (v : View k State b) :
     value machine input b σ n = some v ↔
       Prefix machine input b σ n ∧ v = trueView machine input b σ n := by
-  induction n using Nat.strong_induction_on generalizing v with
-  | ind n ih =>
-    cases n with
-    | zero => simp [value, Prefix, trueView, eq_comm]
-    | succ n =>
-      have hnq : n < q := by omega
-      let i : Fin q := ⟨n, hnq⟩
-      let providers : Fin k → Fin 3 → Option (View k State b) := fun h d =>
-        match hp : lastBefore (InWindow σ h (portBlock σ i h d)) i with
-        | none => some (initialView machine b)
-        | some j => value machine input b σ (j + 1)
-      rw [value, dite_eq_left hnq]
-      change gate machine input b σ i (value machine input b σ n) providers = some v ↔ _
-      have hprev := ih n (by omega) (by omega)
-      by_cases hσ : Prefix machine input b σ n
-      · have hvn : value machine input b σ n = some (trueView machine input b σ n) :=
-          (hprev _).mpr ⟨hσ, rfl⟩
-        have hp h d j (hj : lastBefore (InWindow σ h (portBlock σ i h d)) i = some j) :
-            providers h d = some (trueView machine input b σ (j + 1)) := by
-          have hji := (lastBefore_eq_some_iff.mp hj).1
-          change (j : ℕ) < n at hji
-          have hvj := ih (j + 1) (by omega) (by omega)
-            (trueView machine input b σ (j + 1))
+  fun_induction value machine input b σ n generalizing v with
+  | case1 => simp [Prefix, trueView, eq_comm] -- index 0: initial view
+  | case3 n hnq => omega -- n + 1, n ≥ q: none
+  | case2 n hnq ihprev ihj => -- n + 1, n < q: gate
+    let i : Fin q := ⟨n, hnq⟩
+    let providers : Fin k → Fin 3 → Option (View k State b) := fun h d =>
+      match hp : lastBefore (InWindow σ h (portBlock σ i h d)) i with
+      | none => some (initialView machine b)
+      | some j => value machine input b σ (j + 1)
+    change gate machine input b σ i (value machine input b σ n) providers = some v ↔ _
+    have hprev := ihprev (by omega)
+    by_cases hσ : Prefix machine input b σ n
+    · have hvn : value machine input b σ n = some (trueView machine input b σ n) :=
+        (hprev _).mpr ⟨hσ, rfl⟩
+      have hp h d j (hj : lastBefore (InWindow σ h (portBlock σ i h d)) i = some j) :
+          providers h d = some (trueView machine input b σ (j + 1)) := by
+        have hji := (lastBefore_eq_some_iff.mp hj).1
+        change (j : ℕ) < n at hji
+        have hvj := ihj h d j hj j.isLt (trueView machine input b σ (j + 1))
+        dsimp only [providers]
+        split
+        next he =>
+          have hc := he.symm.trans hj
+          cases hc
+        next j' he =>
+          have heq : j' = j := Option.some.inj (he.symm.trans hj)
+          subst j'
+          exact hvj.mpr ⟨fun j' hj' => hσ j' (by omega), rfl⟩
+      have hproviders h d : (providers h d).isSome := by
+        cases hj : lastBefore (InWindow σ h (portBlock σ i h d)) i with
+        | none =>
           dsimp only [providers]
           split
-          next he =>
-            have hc := he.symm.trans hj
+          next => rfl
+          next j he =>
+            have hc := hj.symm.trans he
             cases hc
-          next j' he =>
-            have heq : j' = j := Option.some.inj (he.symm.trans hj)
-            subst j'
-            exact hvj.mpr ⟨fun j' hj' => hσ j' (by omega), rfl⟩
-        have hproviders h d : (providers h d).isSome := by
-          cases hj : lastBefore (InWindow σ h (portBlock σ i h d)) i with
-          | none =>
-            dsimp only [providers]
-            split
-            next => rfl
-            next j he =>
-              have hc := hj.symm.trans he
-              cases hc
-          | some j => rw [hp h d j hj]; rfl
-        rw [hvn, gate_true machine input b σ i hσ providers hproviders hp]
-        have hprefix : Prefix machine input b σ (n + 1) ↔
-            actualSchedule machine input b (q := q) i = σ i := by
-          constructor
-          · exact fun h => h i (by simp [i])
-          · intro h j hj
-            rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj | hj
-            · exact hσ j hj
-            · have heq : j = i := Fin.ext hj
-              simpa only [heq] using h
-        rw [hprefix]
-      · have hvn : value machine input b σ n = none := by
-          cases hv : value machine input b σ n with
-          | none => rfl
-          | some w => exact False.elim (hσ ((hprev w).mp hv).1)
-        rw [hvn, gate_none]
+        | some j => rw [hp h d j hj]; rfl
+      rw [hvn, gate_true machine input b σ i hσ providers hproviders hp]
+      have hprefix : Prefix machine input b σ (n + 1) ↔
+          actualSchedule machine input b (q := q) i = σ i := by
         constructor
-        · intro h
-          cases h
-        · rintro ⟨hp, -⟩
-          exact False.elim (hσ (fun j hj => hp j (by omega)))
+        · exact fun h => h i (by simp [i])
+        · intro h j hj
+          rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj | hj
+          · exact hσ j hj
+          · have heq : j = i := Fin.ext hj
+            simpa only [heq] using h
+      rw [hprefix]
+    · have hvn : value machine input b σ n = none := by
+        cases hv : value machine input b σ n with
+        | none => rfl
+        | some w => exact False.elim (hσ ((hprev w).mp hv).1)
+      rw [hvn, gate_none]
+      constructor
+      · intro h
+        cases h
+      · rintro ⟨hp, -⟩
+        exact False.elim (hσ (fun j hj => hp j (by omega)))
 
 /-- At the final boundary, every guessed label has been validated. -/
 theorem value_final_eq_some_iff (v : View k State b) :

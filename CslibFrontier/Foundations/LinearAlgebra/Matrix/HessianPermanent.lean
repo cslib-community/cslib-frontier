@@ -12,6 +12,7 @@ import CslibFrontier.Foundations.GroupTheory.Perm.Fixing
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rank
 import Mathlib.LinearAlgebra.Matrix.ToLinearEquiv
 import Mathlib.Tactic.Module
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # The Mignon–Ressayre Hessian of the permanent
@@ -290,7 +291,7 @@ theorem hessian_permanent_mignonRessayrePoint (o : ι) (a b : ι × ι) :
     split_ifs <;> first | ring1 | (exfalso; tauto)
   rw [Finset.sum_congr rfl fun σ _ => hterm σ, Finset.sum_add_distrib, ← Finset.mul_sum,
     Finset.sum_boole, Finset.sum_boole, card_perm_two, card_perm_three]
-  split_ifs <;> first | (push_cast; ring1) | (exfalso; tauto)
+  split_ifs <;> first | (push_cast; ring1) | (exfalso; lrat_tauto)
 
 /-- **Mignon–Ressayre lower bound for the permanent**: the Hessian of the generic `N × N`
 permanent at the Mignon–Ressayre point has full rank `N ^ 2`, provided `N ≥ 2` and

@@ -80,11 +80,9 @@ theorem sandwichedPolynomial_point_bounds_of_verifier (S : CommutingStrategy Q Q
       using decodedPoint_stateDist_le S d
   constructor
   · exact (average_successfulMismatch_sandwichedPolynomial_le S.state L R T hL hLR hLT).trans
-      (add_le_add (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hcopy) (by norm_num))
-        (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hvar) (by norm_num)))
+      (by gcongr)
   · exact (majorant_sub_sandwichedPolynomial_agreement_le S.state L R T hL hLR hLT Z hslack).trans
-      (add_le_add (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hcopy) (by norm_num))
-        (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hvar) (by norm_num)))
+      (by gcongr)
 
 /-- Strong self-consistency from the actual low-degree verifier. The two
 polynomial measurements are on the respective sides, and the majorant
