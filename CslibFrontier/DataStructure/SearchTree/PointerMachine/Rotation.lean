@@ -156,56 +156,6 @@ private theorem rewire_middle (near far : Fin 3)
 /-- The pointer field of the child on a side: zero on the left, one on the right. -/
 @[expose] def childField (right : Bool) : Fin 3 := if right then 1 else 0
 
-/-- The representation of a node whose distinguished child is on the selected side. -/
-theorem represents_nodeAt_iff (right : Bool) (h : List (Record M (layout extra regs)))
-    (parent : Pointer) (label : Label M extra) (child sibling : BinaryTree (Label M extra)) :
-    Represents h parent (nodeAt right label child sibling) ↔
-      h[label.address]? = some (record (if right then root sibling else root child)
-        (if right then root child else root sibling) parent label) ∧
-      Represents h (some label.address) child ∧ Represents h (some label.address) sibling := by
-  cases right
-  · exact Iff.rfl
-  · exact ⟨fun r => ⟨r.1, r.2.2, r.2.1⟩, fun r => ⟨r.1, r.2.2, r.2.1⟩⟩
-
-/-- The root of a node is its label, whichever side its distinguished child is on. -/
-@[simp] theorem root_nodeAt (right : Bool) (label : Label M extra)
-    (child sibling : BinaryTree (Label M extra)) :
-    root (nodeAt right label child sibling) = some label.address := by
-  cases right <;> rfl
-
-/-- The root of a tree is one of its addresses. -/
-theorem root_mem_addresses {t : BinaryTree (Label M extra)} {z : ℕ}
-    (h : root t = some z) : z ∈ addresses t := by
-  cases t with
-  | nil => cases h
-  | node label l r => exact (mem_addresses_iff ..).mpr ⟨.one, label, rfl, Option.some.inj h⟩
-
-/-- Agreement on the addresses of a tree transports its representation. -/
-theorem Represents.congr_addresses {h k : List (Record M (layout extra regs))}
-    {t : BinaryTree (Label M extra)} {parent : Pointer} (rep : Represents h parent t)
-    (agree : ∀ z ∈ addresses t, k[z]? = h[z]?) : Represents k parent t :=
-  rep.congr fun p a hp => agree _ ((mem_addresses_iff ..).mpr ⟨p, a, hp, rfl⟩)
-
-/-- Exchanging the side and the two subtrees gives the same node. -/
-theorem nodeAt_not (right : Bool) (label : Label M extra)
-    (child sibling : BinaryTree (Label M extra)) :
-    nodeAt (!right) label sibling child = nodeAt right label child sibling := by
-  cases right <;> rfl
-
-/-- Replacing the distinguished child of a node by a tree with the same root, in a heap that
-agrees outside the old child, keeps the node represented. -/
-theorem Represents.nodeAt_congr_child (right : Bool) {h k : List (Record M (layout extra regs))}
-    {label : Label M extra} {child child' sibling : BinaryTree (Label M extra)}
-    {parent : Pointer} (rep : Represents h parent (nodeAt right label child sibling))
-    (rep' : Represents k (some label.address) child') (same : root child' = root child)
-    (outside : ∀ z, z ∉ addresses child → k[z]? = h[z]?)
-    (nl : label.address ∉ addresses child)
-    (dis : Disjoint (addresses child) (addresses sibling)) :
-    Represents k parent (nodeAt right label child' sibling) := by
-  obtain ⟨hl, _, hs⟩ := (represents_nodeAt_iff ..).mp rep
-  refine (represents_nodeAt_iff ..).mpr ⟨by rw [outside _ nl, same]; exact hl, rep',
-    hs.congr_addresses fun z hz => outside z fun m => Finset.disjoint_left.mp dis m hz⟩
-
 /-- Changing only the parent link of the root gives the representation under a new parent. -/
 private theorem Represents.reparent {h k : List (Record M (layout extra regs))}
     {t : BinaryTree (Label M extra)} {parent parent' : Pointer} (rep : Represents h parent t)

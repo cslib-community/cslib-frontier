@@ -109,8 +109,8 @@ private theorem realize_leafChecks (m h k : (language L).Term α)
   have hd (u : Unit → Fin n) (z : (language L).Term (α ⊕ Unit)) :=
     realize_nodeValue (m.relabel Sum.inl) (h.relabel Sum.inl)
       (fun r => (w r).relabel Sum.inl) (zero L) (.var (.inr ())) z (Sum.elim v u)
-      (by simp) (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using hspace)
-  fo_simp [leafChecks, hd, Function.comp_def, not_le]
+      (by simp) (by fo_simp; exact hspace)
+  fo_simp [leafChecks, hd, not_le]
   constructor
   · intro hc q hq
     rcases hc (fun _ => q) hq with ⟨hx, hn⟩ | ⟨hx, hn⟩
@@ -137,11 +137,10 @@ private theorem realize_nodeChecks (m h : (language L).Term α)
           (u 0).val (u 6).val (a 1).val ∧
         EncodesNode (m.realize v).val (h.realize v).val (fun r => ((w r).realize v).val)
           (u 2).val (u 1).val (a 2).val ∧ (a 0).val + (a 1).val = (a 2).val := by
-  fo_simp [nodeChecks, Function.comp_def, not_le, and_assoc]
+  fo_simp [nodeChecks, not_le, and_assoc]
   refine forall_congr' fun u => imp_congr_right fun hu => ?_
   refine exists_congr fun a => ?_
-  fo_simp (disch := (simp only [Term.realize_var, Term.realize_relabel, Function.comp_def,
-      Sum.elim_inl, Sum.elim_inr]; lia)) [Function.comp_def]
+  fo_simp (disch := (fo_simp; lia))
 
 omit [Fact (2 ≤ n)] in
 private theorem count_eq_of_checks (m h k x : Fin n) (w : Fin 8 → ℕ)

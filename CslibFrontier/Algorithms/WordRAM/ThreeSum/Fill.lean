@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Memory
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Havoc
 
 /-!
 # Native matrix-building loop for Convolution-3SUM
@@ -93,89 +94,44 @@ theorem exec {w : ℕ} (A : Args) (x : Data 28)
       ∃ z, ExecWithin (w + 2) body y z 129 ∧ Inv (y.regs Cell.cell + 1) z ∧
         z.regs Cell.cell = y.regs Cell.cell + 1 := by
     obtain ⟨hr, ho, ha, hm⟩ := hy
-    have hinput : ∀ i < A.N, y.mem (A.base + i) = encode (A.values i) := by
-      intro i hi
-      rw [hm, A.input_filled x.mem _ hbelow (by omega) (by omega) hi]
-      exact hmem i hi
-    obtain ⟨z, he, hzmem, hzf, hzreg⟩ := Cell.exec_step y rfl
+    have hinput : ∀ i < A.N, y.mem (A.base + i) = encode (A.values i) := fun i hi => by
+      rw [hm, A.input_filled x.mem _ hbelow (by omega) (by omega) hi]; exact hmem i hi
+    have hinc : Fits (w + 2) (y.regs Cell.cell + 1) := hacfit.of_le (by omega)
+    refine WP.exists_execWithin ?_
+    unfold body
+    wram_exec
+    wram_call (Cell.exec_step y rfl
       (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
       (by regs_frame) (by regs_frame) (by regs_frame)
       hinput hlt hidx hF hnF hμ haddr (habfit.of_le (by omega))
-      (hbcfit.of_le (by omega)) (hacfit.of_le (by omega)) hbelow (by omega)
-    have hzc : z.regs Cell.cell = y.regs Cell.cell := hzreg Cell.cell (by decide)
-    have hzo : z.regs one = 1 := by regs_frame
-    have hza : z.regs area = A.t * A.t := by regs_frame
-    have hzr (i : Fin 28) (hi : P i) : z.regs i = x.regs i := by
+      (hbcfit.of_le (by omega)) (hacfit.of_le (by omega)) hbelow (by omega))
+      framed with v m ⟨hzmem, hzf, hzreg⟩
+    wram_exec [ho]
+    refine ⟨⟨?_, by wram_simp [ho], by wram_simp [ha], ?_⟩, by wram_simp⟩
+    · intro i hi
+      have hne : i ≠ Cell.cell := Fin.ne_of_val_ne (by dsimp only [P, Cell.cell] at hi ⊢; omega)
+      rw [Data.set_regs_of_ne hne]
       by_cases hif : i = Cell.filler
-      · subst i
-        exact hzf.trans (hr _ hi)
+      · subst i; wram_simp [hzf, hr _ hi]
       · have hiv : i.val ≠ 12 := fun hv => hif (Fin.ext hv)
         exact (hzreg i (by dsimp only [P] at hi; omega)).trans (hr i hi)
-    have hmemory : z.mem = A.filled x.mem (y.regs Cell.cell + 1) := by
+    · wram_simp
       rw [A.filled_succ x.mem hABBC hBCAC hlt, ← hm]
       simpa only [Args.valueAB, Args.valueBC, Args.valueAC] using hzmem
-    have hinc : Fits (w + 2) (z.regs Cell.cell + z.regs one) :=
-      hacfit.of_le (by rw [hzc, hzo]; omega)
-    refine ⟨z.set Cell.cell (y.regs Cell.cell + 1), ?_, ?_, ?_⟩
-    · have hi := (ExecWithin.bin (f := BinOp.add)
-        (x := z) (d := Cell.cell) (i := Cell.cell) (j := one) hinc)
-      simpa only [body, BinOp.eval, hzc, hzo] using he.seq hi
-    · refine ⟨?_, ?_, ?_, ?_⟩
-      · intro i hi
-        have hne : i ≠ Cell.cell := by
-          intro h
-          have hv := congrArg Fin.val h
-          change i.val = 14 at hv
-          dsimp only [P] at hi
-          omega
-        simpa only [Data.set_regs, Function.update_of_ne hne] using hzr i hi
-      · simpa +decide only [Data.set_regs, Function.update_apply, one, Cell.cell,
-          ↓reduceIte] using hzo
-      · simpa +decide only [Data.set_regs, Function.update_apply, area, Cell.cell,
-          ↓reduceIte] using hza
-      · exact hmemory
-    · simp only [Data.set_regs, Function.update_self]
   have h1 : Fits (w + 2) 1 := (show Fits 2 1 from by decide).mono (by omega)
-  let x₀ := ((x.set Cell.cell 0).set one 1).set area (A.t * A.t)
-  have hx₀ : Inv (x₀.regs Cell.cell) x₀ := by
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · intro i hi
-      have hic : i ≠ Cell.cell := by
-        intro h
-        have hv := congrArg Fin.val h
-        change i.val = 14 at hv
+  refine WP.exists_execWithin ?_
+  unfold program
+  wram_exec [ht]
+  wram_call (ExecWithin.loop_count Inv (fun _ hy => hy.2.2.1) hbody (by wram_simp; omega)
+    ⟨fun i hi => by
+      have hne : i ≠ area ∧ i ≠ one ∧ i ≠ Cell.cell := by
         dsimp only [P] at hi
-        omega
-      have hio : i ≠ one := by
-        intro h
-        have hv := congrArg Fin.val h
-        change i.val = 21 at hv
-        dsimp only [P] at hi
-        omega
-      have hia : i ≠ area := by
-        intro h
-        have hv := congrArg Fin.val h
-        change i.val = 20 at hv
-        dsimp only [P] at hi
-        omega
-      simp only [x₀, Data.set_regs, Function.update_of_ne hia, Function.update_of_ne hio,
-        Function.update_of_ne hic]
-    · simp +decide [x₀, one, area, Cell.cell]
-    · simp [x₀]
-    · simp +decide [x₀, one, area, Cell.cell]
-  obtain ⟨y, he, ⟨hr, _, _, hm⟩, _⟩ := ExecWithin.loop_count Inv
-    (fun _ hy => hy.2.2.1) hbody (by simp +decide [x₀, Cell.cell, area, one]) hx₀
-  refine ⟨y, ?_, hm,
-    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
-    by regs_frame, by regs_frame⟩
-  have hinit : ExecWithin (w + 2)
-      (ram[ Cell.cell ← #0; one ← #1; area ← Cell.side * Cell.side ]) x x₀ 3 := by
-    ram_eval [x₀, ht, h1, Cell.cell, Cell.side, one, area, Fin.mk.injEq]
-  have hall := hinit.seq he
-  convert hall using 1
-  · rfl
-  · simp +decide only [x₀, Data.set_regs, Function.update_apply, Cell.cell, one, area,
-      ↓reduceIte, Nat.sub_zero]
-    omega
+        refine ⟨?_, ?_, ?_⟩ <;>
+          (intro h; have := congrArg Fin.val h; norm_num [area, one, Cell.cell] at this; omega)
+      wram_simp [hne.1, hne.2.1, hne.2.2],
+      by wram_simp, by wram_simp, by wram_simp [Args.filled_zero]⟩)
+    with y ⟨⟨hr, _, _, hm⟩, _⟩
+  exact ⟨by wram_simp; omega, hm, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame⟩
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Fill

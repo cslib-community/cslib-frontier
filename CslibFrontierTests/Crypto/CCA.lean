@@ -5,7 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Crypto.Computational.CollisionResistant
-import CslibFrontier.Crypto.Computational.Encryption.CCA
+import CslibFrontier.Crypto.Computational.Encryption.CCA.Multi
 import CslibFrontierTests.Crypto.Encryption
 import Mathlib.Algebra.Field.ZMod
 
@@ -38,12 +38,6 @@ namespace CslibFrontierTests.Crypto.CCA
 
 open Cslib Cslib.Probability Cslib.Crypto Cslib.Crypto.Encryption Turing.MultiTapeTM
 open scoped NNReal
-
-/-- The `MultiCCA2State` record keeps the former tuple encoding `(active, stateA, ctsFront,
-ctsBack)`. -/
-example (s : MultiCCA2State) :
-    encMultiCCA2State s = encPair encBool (encPair encBits (encPair (encList encBits)
-      (encList encBits))) (s.active, s.stateA, s.ctsFront, s.ctsBack) := rfl
 
 /-! ### 1. Satisfiable `INDCCA2` instance -/
 

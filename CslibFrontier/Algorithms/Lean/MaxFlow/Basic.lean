@@ -1096,6 +1096,20 @@ theorem cutCapacity_cutOfReindex [Fintype V] [Fintype W] [DecidableEq V] [Decida
   rw [← e.sum_comp]
   simp
 
+theorem isMinCut_cutOfReindex [Fintype V] [Fintype W] [DecidableEq V] [DecidableEq W]
+    (e : V ≃ W) {N : Network V} {S : Finset W} (hS : (N.reindex e).IsMinCut S) :
+    N.IsMinCut (cutOfReindex e S) := by
+  refine ⟨isCut_cutOfReindex e hS.1, fun T hT => ?_⟩
+  have hT' : (N.reindex e).IsCut (T.map e.toEmbedding) := by
+    simp only [IsCut, reindex, Finset.mem_map_equiv, Equiv.symm_apply_apply]
+    exact hT
+  have h := hS.2 _ hT'
+  rw [← cutCapacity_cutOfReindex, ← cutCapacity_cutOfReindex] at h
+  have hround : cutOfReindex e (T.map e.toEmbedding) = T := by
+    ext x
+    simp [cutOfReindex]
+  rwa [hround] at h
+
 end Reindex
 
 end Network

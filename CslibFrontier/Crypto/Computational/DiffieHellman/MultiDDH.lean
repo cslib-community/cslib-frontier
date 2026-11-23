@@ -13,8 +13,6 @@ public import CslibFrontier.Crypto.Computational.DiffieHellman.SampleExp
 import CslibFrontier.Computability.Probabilistic.PPT.Extension
 import CslibFrontier.Computability.Probabilistic.PPT.PairCapture
 import CslibFrontier.Computability.Probabilistic.Repeat
-import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Product
@@ -38,8 +36,6 @@ and the Multi-DDH game hops) and the executable `ProbComp` reductions and unifor
 witnesses (`ddhFixedUSelfReduceDistinguisher`, `singleSecretMultiDDHToDDHDistinguisher`,
 `DDH.singleSecretMultiDDH`, `multiDDHToDDHDistinguisher`, `DDH.multiDDH`) using approximate
 exponent sampling via `sampleExp`.
-The distributional core was extracted from the reviewed Naor–Reingold source in PR #1103,
-authored by worker-jetski-cf53d356 (Gemini).
 
 ## Main definitions
 
@@ -489,12 +485,14 @@ replacing the two exact uniform exponents of `ddhFixedURerandomizeLaw` by the `s
 theorem advantage_ddhFixedURerandomizeLaw_ddhFixedUSelfReduceDistinguisher_le
     (distinguisher : F.DDHDistinguisher) (n : ℕ) (d : F.Desc) (u v w : F.Carrier d) :
     Game.advantage
-      ((F.ddhFixedURerandomizeLaw d u v w).bind fun (v', w') =>
+      (do
+        let (v', w') ← F.ddhFixedURerandomizeLaw d u v w
         ProbComp.eval (distinguisher n d u v' w'))
       (ProbComp.eval (F.ddhFixedUSelfReduceDistinguisher distinguisher n d u v w)) ≤
       2 / 2 ^ n := by
   rw [Game.advantage_comm]
-  simpa only [ddhFixedUSelfReduceDistinguisher, ProbComp.eval_bind] using
+  simpa only [ddhFixedUSelfReduceDistinguisher, ProbComp.eval_bind,
+    PMF.monad_bind_eq_bind] using
     F.advantage_bind_ddhFixedURerandomizeComp_le n d u v w
       (fun (v', w') => ProbComp.eval (distinguisher n d u v' w'))
 
@@ -733,13 +731,14 @@ theorem advantage_multiDDHRerandomizeLaw_singleSecretMultiDDHToDDHDistinguisher_
     (count : ℕ → ℕ) (distinguisher : F.SingleSecretMultiDDHDistinguisher) (n : ℕ) (d : F.Desc)
     (u v w : F.Carrier d) :
     Game.advantage
-      ((F.multiDDHRerandomizeLaw d (Fin (count n)) u v w).bind fun tuple =>
+      (do
+        let tuple ← F.multiDDHRerandomizeLaw d (Fin (count n)) u v w
         ProbComp.eval (distinguisher n d u (List.ofFn tuple)))
       (ProbComp.eval (F.singleSecretMultiDDHToDDHDistinguisher count distinguisher n d u v w)) ≤
       (2 * count n : ℝ≥0) / 2 ^ n := by
   rw [Game.advantage_comm]
   unfold singleSecretMultiDDHToDDHDistinguisher
-  simpa only [ProbComp.eval_bind] using
+  simpa only [ProbComp.eval_bind, PMF.monad_bind_eq_bind] using
     F.advantage_replicate_ddhFixedURerandomizeComp_le (count n) n d u v w
       (fun pairs => ProbComp.eval (distinguisher n d u pairs))
 
@@ -848,13 +847,7 @@ theorem DDH.singleSecretMultiDDH {F : PrimeOrderGroupFamily} {setup : ℕ → PM
   intro distinguisher hD
   have hddh := hDDH _ (F.isPPT_singleSecretMultiDDHToDDHDistinguisher hcount hD)
   have hord := hDDH.negligible_expected_inv_order
-  obtain ⟨t, _, ht, _, htm⟩ := hcount
-  have hpoly : PolynomiallyBounded count := ht.mono_of_le fun n => by
-    simpa using htm.length_le n
-  have hsamp : Negligible fun n => (4 * count n : ℝ≥0) / 2 ^ n := by
-    simpa [Nat.cast_mul] using ((PolynomiallyBounded.const 4).mul hpoly).negligible_div_two_pow
-  exact negligible_of_le ((hddh.add hord).add hsamp)
-    (F.advantage_singleSecretMultiDDHGame_le setup count distinguisher)
+  negligible using F.advantage_singleSecretMultiDDHGame_le setup count distinguisher
 
 /-! ### Full two-parameter $(n, m)$ Multi-DDH (I) reduction (Exercises 10.9 & 10.11) -/
 
@@ -992,9 +985,13 @@ theorem ddhShiftAndRerandomizeLaw_random (d : F.Desc) (m : ℕ) {α β γ : ZMod
 `PMF.iid (multiDDHRealBlockLaw d m) k`. -/
 theorem ddhRealTupleLaw_bind_iid_ddhShiftAndRerandomizeLaw (d : F.Desc) (k m : ℕ)
     (test : (Fin k → F.Carrier d × List (F.Carrier d × F.Carrier d)) → PMF Bool) :
-    ((F.ddhRealTupleLaw d).bind fun (u, v, w) =>
-      (PMF.iid (F.ddhShiftAndRerandomizeLaw d m u v w) k).bind test) =
-    (PMF.iid (F.multiDDHRealBlockLaw d m) k).bind test := by
+    (do
+      let (u, v, w) ← F.ddhRealTupleLaw d
+      let blocks ← PMF.iid (F.ddhShiftAndRerandomizeLaw d m u v w) k
+      test blocks) =
+    (do
+      let blocks ← PMF.iid (F.multiDDHRealBlockLaw d m) k
+      test blocks) := by
   simp only [pmf_norm, ddhRealTupleLaw, ddhShiftAndRerandomizeLaw_real, PMF.bind_const]
 
 /-- On a random DDH triple, `k` independent draws from `ddhShiftAndRerandomizeLaw d m` agree with
@@ -1003,9 +1000,13 @@ valid DDH triples. -/
 theorem advantage_ddhRandomTupleLaw_iid_ddhShiftAndRerandomizeLaw_le (d : F.Desc) (k m : ℕ)
     (test : (Fin k → F.Carrier d × List (F.Carrier d × F.Carrier d)) → PMF Bool) :
     Game.advantage
-      ((F.ddhRandomTupleLaw d).bind fun (u, v, w) =>
-        (PMF.iid (F.ddhShiftAndRerandomizeLaw d m u v w) k).bind test)
-      ((PMF.iid (F.multiDDHRandomBlockLaw d m) k).bind test) ≤
+      (do
+        let (u, v, w) ← F.ddhRandomTupleLaw d
+        let blocks ← PMF.iid (F.ddhShiftAndRerandomizeLaw d m u v w) k
+        test blocks)
+      (do
+        let blocks ← PMF.iid (F.multiDDHRandomBlockLaw d m) k
+        test blocks) ≤
     (F.order d : ℝ≥0)⁻¹ := by
   simp only [pmf_norm, ddhRandomTupleLaw]
   rw [← PMF.bind_const (PMF.uniformOfFintype (ZMod (F.order d)))
@@ -1305,14 +1306,15 @@ theorem advantage_ddhShiftAndRerandomizeLaw_multiDDHToDDHDistinguisher_le
     (secretCount pairCount : ℕ → ℕ) (distinguisher : F.MultiDDHDistinguisher) (n : ℕ) (d : F.Desc)
     (u v w : F.Carrier d) :
     Game.advantage
-      ((PMF.iid (F.ddhShiftAndRerandomizeLaw d (pairCount n) u v w) (secretCount n)).bind
-        fun blocks => ProbComp.eval (distinguisher n d (List.ofFn blocks)))
+      (do
+        let blocks ← PMF.iid (F.ddhShiftAndRerandomizeLaw d (pairCount n) u v w) (secretCount n)
+        ProbComp.eval (distinguisher n d (List.ofFn blocks)))
       (ProbComp.eval
         (F.multiDDHToDDHDistinguisher secretCount pairCount distinguisher n d u v w)) ≤
       (secretCount n * (1 + 2 * pairCount n) : ℝ≥0) / 2 ^ n := by
   rw [Game.advantage_comm]
   unfold multiDDHToDDHDistinguisher
-  simpa only [ProbComp.eval_bind] using
+  simpa only [ProbComp.eval_bind, PMF.monad_bind_eq_bind] using
     F.advantage_replicate_ddhShiftAndRerandomizeComp_le (secretCount n) (pairCount n) n d u v w
       (fun blocks => ProbComp.eval (distinguisher n d blocks))
 
@@ -1397,18 +1399,6 @@ theorem DDH.multiDDH {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
   intro distinguisher hD
   have hddh := hDDH _ (F.isPPT_multiDDHToDDHDistinguisher hsecret hpair hD)
   have hord := hDDH.negligible_expected_inv_order
-  obtain ⟨ts, _, hts, _, htms⟩ := hsecret
-  have hpoly_s : PolynomiallyBounded secretCount := hts.mono_of_le fun n => by
-    simpa using htms.length_le n
-  obtain ⟨tp, _, htp, _, htmp⟩ := hpair
-  have hpoly_p : PolynomiallyBounded pairCount := htp.mono_of_le fun n => by
-    simpa using htmp.length_le n
-  have hpoly : PolynomiallyBounded (fun n => 2 * secretCount n * (1 + 2 * pairCount n)) :=
-    ((PolynomiallyBounded.const 2).mul hpoly_s).mul
-      ((PolynomiallyBounded.const 1).add ((PolynomiallyBounded.const 2).mul hpoly_p))
-  have hsamp : Negligible fun n => (2 * secretCount n * (1 + 2 * pairCount n) : ℝ≥0) / 2 ^ n := by
-    simpa [Nat.cast_mul, Nat.cast_add] using hpoly.negligible_div_two_pow
-  exact negligible_of_le ((hddh.add hord).add hsamp)
-    (F.advantage_multiDDHGame_le setup secretCount pairCount distinguisher)
+  negligible using F.advantage_multiDDHGame_le setup secretCount pairCount distinguisher
 
 end Cslib.Crypto.PrimeOrderGroupFamily

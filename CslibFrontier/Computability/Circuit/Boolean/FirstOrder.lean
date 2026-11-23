@@ -11,9 +11,9 @@ public import CslibFrontier.Computability.Circuit.Boolean.Unbounded
 public import CslibFrontier.Computability.Circuit.Formula
 public import CslibFrontier.Logics.FirstOrder.Atom
 public import CslibFrontier.Logics.FirstOrder.Interpretation
+import CslibFrontier.Computability.Circuit.Simps
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -123,30 +123,20 @@ theorem depth_imp_le {A B : Formula Unbounded.signature N} {a b : ℕ} (hA : A.d
     (hB : B.depth ≤ b) :
     (Formula.gate (σ := Unbounded.signature) (.or 2) ![.gate .not ![A], B]).depth ≤
       max a b + 2 := by
-  rw [Formula.depth_gate]
-  refine (Nat.add_le_add_right (Finset.sup_le (a := max a b + 1) fun j _ => ?_) 1).trans
-    (by omega)
-  fin_cases j
-  · change (Formula.gate _ _).depth ≤ _
-    rw [Formula.depth_gate]
-    refine (Nat.add_le_add_right (Finset.sup_le (a := a) fun j _ => ?_) 1).trans (by omega)
-    fin_cases j
-    exact hA
-  · exact hB.trans (by omega)
+  circuit_bound
 
 /-- The compiled quantifier is one level deeper than its arguments. -/
 theorem depth_all_le {A : Fin n → Formula Unbounded.signature N} {a : ℕ}
     (hA : ∀ i, (A i).depth ≤ a) :
-    (Formula.gate (σ := Unbounded.signature) (.and n) A).depth ≤ a + 1 :=
-  Nat.add_le_add_right (Finset.sup_le fun i _ => hA i) 1
+    (Formula.gate (σ := Unbounded.signature) (.and n) A).depth ≤ a + 1 := by
+  circuit_bound
 
 /-- The inductive step of the polynomial size bound for the compiled implication. -/
 theorem size_imp_le {A B : Formula Unbounded.signature N} {a b : ℕ}
     (hA : A.size ≤ a * (n + 2) ^ a) (hB : B.size ≤ b * (n + 2) ^ b) :
     (Formula.gate (σ := Unbounded.signature) (.or 2) ![.gate .not ![A], B]).size ≤
       (a + b + 1) * (n + 2) ^ (a + b + 1) := by
-  simp only [Formula.size_gate, Fin.sum_univ_two, Matrix.cons_val_zero, Matrix.cons_val_one,
-    Fin.sum_univ_one]
+  simp only [circuit_simps]
   have ha : (n + 2) ^ a ≤ (n + 2) ^ (a + b + 1) := Nat.pow_le_pow_right (by omega) (by omega)
   have hb : (n + 2) ^ b ≤ (n + 2) ^ (a + b + 1) := Nat.pow_le_pow_right (by omega) (by omega)
   have hpos : 2 ≤ (n + 2) ^ (a + b + 1) :=

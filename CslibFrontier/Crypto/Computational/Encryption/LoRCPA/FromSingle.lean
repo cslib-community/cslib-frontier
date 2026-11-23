@@ -621,11 +621,7 @@ theorem INDCPAOn.lorINDCPAOn {Msg : Type}
   intro adversary hadversary
   have hsingleNeg := h (lorToSingle valid encrypt Q adversary)
     (isPPT_lorToSingle hvalid hencrypt hctBound hctLen hQ hadversary)
-  have hpolyDyadic : Cslib.PolynomiallyBounded (fun n => dyadicSize (Q n)) := by
-    have hQpoly : Cslib.PolynomiallyBounded Q := hQ.polynomiallyBounded
-    fun_prop
-  refine negligible_of_le (hsingleNeg.polynomiallyBounded_mul hpolyDyadic) fun n => ?_
-  rw [advantage_lorGameOn_eq valid keyGen encrypt Q adversary n]
+  negligible using fun n => (advantage_lorGameOn_eq valid keyGen encrypt Q adversary n).le
 
 /-- **Theorem 11.1 (unrestricted messages):** unrestricted `INDCPAOf` implies `LoRINDCPAOf`.
 - `hencrypt`: `encrypt` must be uniformly strict PPT so `lorToSingle` can simulate prefix/suffix

@@ -51,13 +51,13 @@ example (n : ℕ) :
 -- Malformed words neither sample an answer nor alter even a preassigned cache.
 example (cache : List (List Bool × List Bool)) :
     cachedRandomFunctionOracle (·.length == 2) 2 [] cache = pure ([], cache) := by
-  simp [cachedRandomFunctionOracle]
+  simp [cachedRandomFunctionOracle, cachedSamplerOracle]
 
 -- Duplicate preassigned keys use their first entry and do not resample.
 example : cachedRandomFunctionOracle (·.length == 1) 1 [false]
     [([false], [true]), ([false], [false])] =
       pure ([true], [([false], [true]), ([false], [false])]) := by
-  simp [cachedRandomFunctionOracle, memoize]
+  simp [cachedRandomFunctionOracle, cachedSamplerOracle, memoize]
 
 -- A purported family must produce valid-width answers, even if it has a trivial evaluator.
 example : ¬ PseudorandomFunction (fun _ _ => []) := by

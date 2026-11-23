@@ -219,23 +219,6 @@ decreasing_by
     exact potential_countingChild_lt_of_two_le_card_flower
       (choice_chooseBranch h.1).1.1 (choice_chooseBranch h.1).1.2.1 h.2 true
 
-private theorem countingLeafWords_of_sparse {θ : ℕ → ℕ} {ψ : ClauseSet V} (h : Sparse θ ψ) :
-    countingLeafWords θ ψ = [[]] := by
-  rw [countingLeafWords]
-  exact ite_eq_right fun h' => h'.1 h
-
-private theorem countingLeafWords_of_not_sparse {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ j → 2 ≤ θ j)
-    {ψ : ClauseSet V} (h : ¬ Sparse θ ψ) :
-    countingLeafWords θ ψ =
-      (countingLeafWords θ (countingChild ψ (chooseBranch θ ψ).1 (chooseBranch θ ψ).2 false)).map
-          (false :: ·) ++
-        (countingLeafWords θ (countingChild ψ (chooseBranch θ ψ).1 (chooseBranch θ ψ).2 true)).map
-          (true :: ·) := by
-  have hz : 2 ≤ (flower ψ (chooseBranch θ ψ).1 (chooseBranch θ ψ).2).card :=
-    two_le_card_flower_of_heavy hθ (choice_chooseBranch h).1
-  rw [countingLeafWords]
-  exact ite_eq_left ⟨h, hz⟩
-
 /-- Walking `countingTreeRule θ` from `ψ` along the branch-word addresses in
 `countingLeafWords θ ψ` reproduces `countingLeaves θ ψ` in exact list order, preserving
 multiplicity across equal or unsatisfiable leaf clause sets. -/
@@ -277,51 +260,21 @@ theorem length_countingLeaves_eq_card_toFinset_countingLeafWords (θ : ℕ → �
   rw [length_countingLeaves_eq_length_countingLeafWords,
     List.toFinset_card_of_nodup (nodup_countingLeafWords θ ψ)]
 
-private theorem mem_countingLeafWords_cons_iff {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ j → 2 ≤ θ j)
-    {ψ : ClauseSet V} (hs : ¬ Sparse θ ψ) {b : Bool} {u : List Bool} :
-    b :: u ∈ countingLeafWords θ ψ ↔
-      u ∈ countingLeafWords θ (countingChild ψ (chooseBranch θ ψ).1 (chooseBranch θ ψ).2 b) := by
-  rw [countingLeafWords_of_not_sparse hθ hs, List.mem_append, List.mem_map, List.mem_map]
-  cases b with
-  | false =>
-    constructor
-    · rintro (⟨u', hu', heq⟩ | ⟨u', -, heq⟩)
-      · exact (List.cons.inj heq).2 ▸ hu'
-      · exact absurd (List.cons.inj heq).1.symm Bool.false_ne_true
-    · intro hu
-      exact Or.inl ⟨u, hu, rfl⟩
-  | true =>
-    constructor
-    · rintro (⟨u', -, heq⟩ | ⟨u', hu', heq⟩)
-      · exact absurd (List.cons.inj heq).1 Bool.false_ne_true
-      · exact (List.cons.inj heq).2 ▸ hu'
-    · intro hu
-      exact Or.inr ⟨u, hu, rfl⟩
-
 /-- When `∀ j, 1 ≤ j → 2 ≤ θ j`, `countingLeafWords θ ψ` enumerates data-exact the leaf words of
 `countingTreeRule θ` starting from `ψ`. -/
 theorem mem_countingLeafWords_iff_isLeafWord {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ j → 2 ≤ θ j)
     (ψ : ClauseSet V) (w : List Bool) :
     w ∈ countingLeafWords θ ψ ↔ (countingTreeRule θ).tree.IsLeafWord ψ w := by
-  induction hp : potential ψ using Nat.strong_induction_on generalizing ψ w with
-  | _ n ih =>
-    by_cases hs : Sparse θ ψ
-    · rw [countingLeafWords_of_sparse hs, List.mem_singleton]
-      cases w with
-      | nil => exact ⟨fun _ => hs, fun _ => rfl⟩
-      | cons b u =>
-        exact ⟨fun h => absurd h (List.cons_ne_nil b u), fun hw => absurd hs hw.1⟩
-    · cases w with
-      | nil =>
-        rw [countingLeafWords_of_not_sparse hθ hs, List.mem_append, List.mem_map, List.mem_map]
-        refine ⟨?_, fun hw => absurd hw hs⟩
-        rintro (⟨u, -, h⟩ | ⟨u, -, h⟩)
-        · exact absurd h (List.cons_ne_nil false u)
-        · exact absurd h (List.cons_ne_nil true u)
-      | cons b u =>
-        have hlt := potential_countingChild_lt hθ (choice_chooseBranch hs).1 b
-        rw [mem_countingLeafWords_cons_iff hθ hs, ih _ (hp ▸ hlt) _ u rfl]
-        exact ⟨fun hu => ⟨hs, hu⟩, fun hw => hw.2⟩
+  fun_induction countingLeafWords θ ψ generalizing w with
+  | case1 ψ hsplit ch ih₀ ih₁ => -- not sparse, flower ≥ 2: branch
+    cases w with
+    | nil => simpa [BinaryBranching.IsLeafWord, countingTreeRule] using hsplit.1
+    | cons b u =>
+      cases b <;> simp [BinaryBranching.IsLeafWord, countingTreeRule, hsplit.1, ch, ih₀, ih₁]
+  | case2 ψ hleaf => -- leaf
+    have hs : Sparse θ ψ := of_not_not fun hs =>
+      hleaf ⟨hs, two_le_card_flower_of_heavy hθ (choice_chooseBranch hs).1⟩
+    cases w <;> simp [BinaryBranching.IsLeafWord, countingTreeRule, hs]
 
 /-- When `∀ j, 1 ≤ j → 2 ≤ θ j`, every address `w ∈ countingLeafWords θ ψ` is a leaf word of
 `countingTreeRule θ` starting from `ψ`. -/
