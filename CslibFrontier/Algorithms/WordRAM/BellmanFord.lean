@@ -1,25 +1,24 @@
 /-
-Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Copyright (c) 2026 Renfei Zhou, Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Renfei Zhou, Samuel Schlesinger
 -/
 
 module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.BellmanFord.Basic
+public import CslibFrontier.Algorithms.WordRAM.CSR
 public import CslibFrontier.Computability.WordRAM.ListOutput
 public import CslibFrontier.Computability.WordRAM.Notation
 public import CslibFrontier.Computability.WordRAM.Signed.Comparison
 import CslibFrontier.Computability.GenericRAM.Signed.Fits
 import CslibFrontier.Computability.WordRAM.CountingLoop
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
-import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Order.Group.Int
 import Mathlib.Data.List.GetD
 import Mathlib.Data.List.MinMax
-import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -72,6 +71,7 @@ and the two extra sign/overflow bits required by `Cslib.WordRAM.Signed.exec_add`
 * `Cslib.Algorithms.WordRAM.BellmanFord.answerWords`,
   `Cslib.Algorithms.WordRAM.BellmanFord.decodeAnswer`: output word list and decoder back to
   `Option (Fin G.n → WithTop ℤ)`.
+* `Cslib.Algorithms.WordRAM.BellmanFord.Reg.outBase`: output-list header register.
 * `Cslib.Algorithms.WordRAM.BellmanFord.solver`,
   `Cslib.Algorithms.WordRAM.BellmanFord.program`: structured and flat word-RAM programs.
 
@@ -83,9 +83,13 @@ and the two extra sign/overflow bits required by `Cslib.WordRAM.Signed.exec_add`
 * `Cslib.Algorithms.WordRAM.BellmanFord.answerWords_eq_nil_iff`,
   `Cslib.Algorithms.WordRAM.BellmanFord.isShortestDist_of_answerWords_ne_nil`: negative-cycle
   characterization and shortest-path correctness of `answerWords`.
-* `Cslib.Algorithms.WordRAM.BellmanFord.program_spec`,
+* `Cslib.Algorithms.WordRAM.BellmanFord.solver_spec`,
+  `Cslib.Algorithms.WordRAM.BellmanFord.program_spec`,
   `Cslib.Algorithms.WordRAM.BellmanFord.computesListInTime_program`: execution within
   `64 * n * (n + m)` instructions at every word width `w` with `Fits w G.wordBound`.
+* `Cslib.Algorithms.WordRAM.BellmanFord.not_readsWidth_program`,
+  `Cslib.Algorithms.WordRAM.BellmanFord.isRandFree_program`: width-independence and determinism
+  certificates for `program`.
 
 ## References
 
@@ -161,7 +165,7 @@ variable (G : Instance)
 theorem n_pos : 0 < G.n := Fin.pos G.source
 
 /-- Total number of directed edge entries across all adjacency lists. -/
-def m : ℕ := ∑ u, (G.adj u).length
+def m : ℕ := CSR.m G.n G.adj
 
 /-- Maximum absolute edge weight across all edges (`0` when `m = 0`). -/
 def maxAbsWeight : ℕ :=
@@ -178,125 +182,54 @@ theorem natAbs_le_maxAbsWeight {u : Fin G.n} {e : Fin G.n × ℤ} (he : e ∈ G.
 
 /-- Cumulative number of edges leaving vertices `< u`. -/
 def offset (u : ℕ) : ℕ :=
-  (((List.finRange G.n).take u).map fun x => (G.adj x).length).sum
+  CSR.offset G.n G.adj u
 
 /-- Word-list encoding of `G`: `n`, `source`, the `n + 1` offsets `offset 0, …, offset n`, and
 then all edges in vertex order as two words `(target, Signed.encode weight)`. -/
 def encode : List ℕ :=
-  G.n :: (G.source : ℕ) ::
-    ((List.range (G.n + 1)).map G.offset ++
-      (List.finRange G.n).flatMap fun u =>
-        (G.adj u).flatMap fun e => [(e.1 : ℕ), Signed.encode e.2])
+  CSR.encode G.n G.source G.adj Signed.encode
 
 /-- First memory address past the input in `State.init G.encode`, used as the output-list header. -/
 def outAddrBase : ℕ := G.n + 2 * G.m + 4
 
 /-- Base address of the `n`-word tentative distance table (`outAddrBase + 1`). -/
-def distAddrBase : ℕ := G.n + 2 * G.m + 5
+private def distAddrBase : ℕ := G.n + 2 * G.m + 5
 
 /-- Word-size envelope covering input length and words, memory addresses, and intermediate signed
 path weights of magnitude at most `(n * m + 1) * maxAbsWeight`. -/
 def wordBound : ℕ := 8 * (G.n + 1) * (G.m + 2) * (G.maxAbsWeight + 2)
 
-private def edges : List (Fin G.n × ℤ) := (List.finRange G.n).flatMap G.adj
-
-private theorem offset_eq_length (u : ℕ) :
-    G.offset u = (((List.finRange G.n).take u).flatMap G.adj).length := by
-  simp [offset, List.length_flatMap]
-
-private theorem length_edges : G.edges.length = G.m := by
-  simp [edges, m, List.length_flatMap, ← Fin.sum_univ_def]
-
-private theorem edges_eq_append (u : Fin G.n) :
-    G.edges = ((List.finRange G.n).take u).flatMap G.adj ++
-      (G.adj u ++ ((List.finRange G.n).drop (u + 1)).flatMap G.adj) := by
-  have hu : (u : ℕ) < (List.finRange G.n).length := by simp
-  conv_lhs => rw [edges, ← List.take_append_drop u (List.finRange G.n),
-    List.drop_eq_getElem_cons hu]
-  simp [List.flatMap_append]
-
-private theorem offset_add_lt_length_edges (u : Fin G.n) {i : ℕ} (hi : i < (G.adj u).length) :
-    G.offset u + i < G.edges.length := by
-  rw [G.edges_eq_append u, List.length_append, List.length_append, ← offset_eq_length]
-  omega
-
 private theorem offset_add_lt_m (u : Fin G.n) {i : ℕ} (hi : i < (G.adj u).length) :
     G.offset u + i < G.m :=
-  G.length_edges ▸ G.offset_add_lt_length_edges u hi
-
-private theorem edges_getElem (u : Fin G.n) {i : ℕ} (hi : i < (G.adj u).length) :
-    G.edges[G.offset u + i]'(G.offset_add_lt_length_edges u hi) = (G.adj u)[i] := by
-  simp only [G.edges_eq_append u, G.offset_eq_length u,
-    List.getElem_append_right (Nat.le_add_right _ _), Nat.add_sub_cancel_left,
-    List.getElem_append_left hi]
-
-private theorem getD_flatMap_pairs (l : List (Fin G.n × ℤ)) (j : ℕ) (hj : j < l.length) :
-    (l.flatMap fun e => [(e.1 : ℕ), Signed.encode e.2]).getD (2 * j) 0 = l[j].1 ∧
-      (l.flatMap fun e => [(e.1 : ℕ), Signed.encode e.2]).getD (2 * j + 1) 0 =
-        Signed.encode l[j].2 := by
-  induction l generalizing j with
-  | nil => simp at hj
-  | cons a l ih =>
-    cases j with
-    | zero => simp
-    | succ j =>
-      have h := ih j (by simpa using hj)
-      rw [show 2 * (j + 1) = 2 * j + 2 by ring, show 2 * j + 2 + 1 = 2 * j + 1 + 2 by ring]
-      simpa only [List.flatMap_cons, List.cons_append, List.nil_append, List.getD_cons_succ,
-        List.getElem_cons_succ] using h
-
-private theorem edgeWords_eq : ((List.finRange G.n).flatMap fun u =>
-    (G.adj u).flatMap fun e => [(e.1 : ℕ), Signed.encode e.2]) =
-    G.edges.flatMap fun e => [(e.1 : ℕ), Signed.encode e.2] := by
-  rw [edges, List.flatMap_assoc]
-
-private theorem encode_getD_edge (k : ℕ) :
-    G.encode.getD (k + G.n + 3) 0 =
-      (G.edges.flatMap fun e => [(e.1 : ℕ), Signed.encode e.2]).getD k 0 := by
-  rw [encode, show k + G.n + 3 = (k + G.n + 1) + 1 + 1 by ring,
-    List.getD_cons_succ, List.getD_cons_succ, edgeWords_eq,
-    List.getD_append_right _ _ _ _ (by simp)]
-  simp
+  CSR.offset_add_lt_m G.n G.adj u hi
 
 /-- The encoded input has `n + 2 * m + 3` words. -/
-theorem encode_length : G.encode.length = G.n + 2 * G.m + 3 := by
-  have h : ∀ l : List (Fin G.n × ℤ),
-      (l.flatMap fun e => [(e.1 : ℕ), Signed.encode e.2]).length = 2 * l.length := by
-    intro l
-    induction l with
-    | nil => simp
-    | cons _ l ih =>
-      simp only [List.flatMap_cons, List.cons_append, List.nil_append, List.length_cons, ih]
-      ring
-  simp only [encode, edgeWords_eq, List.length_cons, List.length_append, List.length_map,
-    List.length_range, h, length_edges, Nat.add_right_cancel_iff]
-  ring
+theorem encode_length : G.encode.length = G.n + 2 * G.m + 3 :=
+  CSR.encode_length G.n G.source G.adj Signed.encode
 
 theorem offset_succ {u : ℕ} (hu : u < G.n) :
-    G.offset (u + 1) = G.offset u + (G.adj ⟨u, hu⟩).length := by
-  have hl : u < (List.finRange G.n).length := by simpa using hu
-  simp [offset, List.take_add_one, List.getElem?_eq_getElem hl]
+    G.offset (u + 1) = G.offset u + (G.adj ⟨u, hu⟩).length :=
+  CSR.offset_succ G.n G.adj hu
 
-theorem offset_n : G.offset G.n = G.m := by
-  rw [offset, List.take_of_length_le (by simp), ← Fin.sum_univ_def]
-  rfl
+theorem offset_n : G.offset G.n = G.m :=
+  CSR.offset_n G.n G.adj
 
 theorem offset_mono {u v : ℕ} (h : u ≤ v) : G.offset u ≤ G.offset v :=
-  ((List.take_sublist_take_left h).map _).sum_le_sum fun _ _ => Nat.zero_le _
+  CSR.offset_mono G.n G.adj h
 
-theorem init_len {r : ℕ} : (Data.init G.encode : Data r).mem 0 = G.n + 2 * G.m + 3 := by
-  rw [Data.init_mem_zero, G.encode_length]
+theorem init_len {r : ℕ} : (Data.init G.encode : Data r).mem 0 = G.n + 2 * G.m + 3 :=
+  CSR.init_len G.n G.source G.adj Signed.encode
 
-theorem init_n {r : ℕ} : (Data.init G.encode : Data r).mem 1 = G.n := rfl
+theorem init_n {r : ℕ} : (Data.init G.encode : Data r).mem 1 = G.n :=
+  CSR.init_n G.n G.source G.adj Signed.encode
 
-theorem init_source {r : ℕ} : (Data.init G.encode : Data r).mem 2 = G.source := rfl
+theorem init_source {r : ℕ} : (Data.init G.encode : Data r).mem 2 = G.source :=
+  CSR.init_source G.n G.source G.adj Signed.encode
 
 theorem init_offset {r : ℕ} {u : ℕ} (hu : u ≤ G.n) :
     (Data.init G.encode : Data r).mem (3 + u) = G.offset u := by
-  rw [Nat.add_comm 3 u, Data.init_mem_succ, encode, List.getD_cons_succ, List.getD_cons_succ,
-    List.getD_append _ _ _ _ (by simp only [List.length_map, List.length_range]; omega),
-    List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range (Nat.lt_succ_of_le hu)]
-  rfl
+  rw [Nat.add_comm 3 u]
+  exact CSR.init_offset G.n G.source G.adj Signed.encode hu
 
 private theorem le_wordBound_linear {x : ℕ} (hx : x ≤ 2 * G.n + 2 * G.m + 32) :
     x ≤ G.wordBound := by
@@ -314,46 +247,27 @@ private theorem fits_of_linear {w x : ℕ} (hfit : Fits w G.wordBound)
 theorem init_target {r : ℕ} (u : Fin G.n) {i : ℕ} (hi : i < (G.adj u).length) :
     (Data.init G.encode : Data r).mem ((G.n + 4) + 2 * (G.offset u + i)) =
       ((G.adj u)[i].1 : ℕ) := by
-  rw [show (G.n + 4) + 2 * (G.offset u + i) = 2 * (G.offset u + i) + G.n + 3 + 1 by ring,
-    Data.init_mem_succ, encode_getD_edge,
-    (G.getD_flatMap_pairs _ _ (G.offset_add_lt_length_edges u hi)).1, G.edges_getElem u hi]
+  rw [show (G.n + 4) + 2 * (G.offset u + i) = 2 * (G.offset u + i) + G.n + 4 by ring]
+  exact CSR.init_target G.n G.source G.adj Signed.encode u hi
 
 theorem init_weight {r : ℕ} (u : Fin G.n) {i : ℕ} (hi : i < (G.adj u).length) :
     (Data.init G.encode : Data r).mem ((G.n + 4) + 2 * (G.offset u + i) + 1) =
       Signed.encode (G.adj u)[i].2 := by
-  rw [show (G.n + 4) + 2 * (G.offset u + i) + 1 =
-      (2 * (G.offset u + i) + 1) + G.n + 3 + 1 by ring,
-    Data.init_mem_succ, encode_getD_edge,
-    (G.getD_flatMap_pairs _ _ (G.offset_add_lt_length_edges u hi)).2, G.edges_getElem u hi]
+  rw [show (G.n + 4) + 2 * (G.offset u + i) + 1 = 2 * (G.offset u + i) + G.n + 5 by ring]
+  exact CSR.init_weight G.n G.source G.adj Signed.encode u hi
 
 /-- Whenever `G.wordBound` fits in `w` bits, the encoded input words fit in `w` bits. -/
 theorem inputFits_encode {w : ℕ} (hfit : Fits w G.wordBound) : InputFits w G.encode := by
-  refine ⟨?_, ?_⟩
-  · rw [G.encode_length]
-    exact G.fits_of_linear hfit (by omega)
-  · intro x hx
-    simp only [encode, List.mem_cons, List.mem_append, List.mem_map, List.mem_range,
-      List.mem_flatMap, List.mem_finRange, true_and] at hx
-    rcases hx with rfl | rfl | ⟨⟨i, hi, rfl⟩ | ⟨u, ⟨v, c⟩, he, hx⟩⟩
-    · exact G.fits_of_linear hfit (by omega)
-    · have := G.source.isLt
-      exact G.fits_of_linear hfit (by omega)
-    · have hle : G.offset i ≤ G.m := G.offset_n ▸ G.offset_mono (by omega)
-      exact G.fits_of_linear hfit (by omega)
-    · simp only [List.not_mem_nil, or_false] at hx
-      rcases hx with rfl | rfl
-      · have := v.isLt
-        exact G.fits_of_linear hfit (by omega)
-      · have hc := G.natAbs_le_maxAbsWeight he
-        have henc : Signed.encode c ≤ 2 * G.maxAbsWeight + 1 := by
-          unfold Signed.encode
-          split_ifs <;> omega
-        have h1 : 1 ≤ (G.n + 1) * (G.m + 2) := by nlinarith
-        have h2 : 8 * 1 * (G.maxAbsWeight + 2) ≤ G.wordBound := by
-          unfold wordBound
-          have : 8 * 1 ≤ 8 * (G.n + 1) * (G.m + 2) := by nlinarith
-          exact Nat.mul_le_mul_right _ this
-        exact hfit.of_le (by omega)
+  refine CSR.inputFits_encode G.n G.source G.adj Signed.encode
+    (G.le_wordBound_linear (by change G.n + 2 * G.m + 3 ≤ _; omega)) (fun u e he => ?_) hfit
+  have hc := G.natAbs_le_maxAbsWeight he
+  have henc : Signed.encode e.2 ≤ 2 * G.maxAbsWeight + 1 := by
+    unfold Signed.encode; split_ifs <;> omega
+  have h2 : 8 * 1 * (G.maxAbsWeight + 2) ≤ G.wordBound := by
+    unfold wordBound
+    have : 8 * 1 ≤ 8 * (G.n + 1) * (G.m + 2) := by nlinarith
+    exact Nat.mul_le_mul_right _ this
+  omega
 
 end Instance
 
@@ -423,6 +337,17 @@ theorem isShortestDist_of_answerWords_ne_nil {G : Instance} (h : answerWords G �
     rw [List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_eq_getElem hv,
       List.getElem_finRange]
     simpa using isShortestDist_of_bellmanFord_eq_some List.mem_finRange hbf v
+
+end Cslib.Algorithms.WordRAM.BellmanFord
+
+end
+
+public section
+
+namespace Cslib.Algorithms.WordRAM.BellmanFord
+
+open Cslib.WordRAM Cslib.WordRAM.Signed
+open Cslib.Algorithms.Lean.BellmanFord
 
 /-! ### Magnitude envelope of intermediate Bellman–Ford estimates -/
 
@@ -543,65 +468,65 @@ private theorem signed_fits_of_wordBound {G : Instance} {w : ℕ} (hfit : Fits w
 namespace Reg
 
 /-- Constant `0` (`= encodeDist (0 : WithTop ℤ)`). -/
-abbrev cZero : Fin (21 + 9) := ⟨9, by decide⟩
+private abbrev cZero : Fin (21 + 9) := ⟨9, by decide⟩
 /-- Constant `1` (`= encodeDist ⊤`). -/
-abbrev cOne : Fin (21 + 9) := ⟨10, by decide⟩
+private abbrev cOne : Fin (21 + 9) := ⟨10, by decide⟩
 /-- Constant `2`. -/
-abbrev cTwo : Fin (21 + 9) := ⟨11, by decide⟩
+private abbrev cTwo : Fin (21 + 9) := ⟨11, by decide⟩
 /-- Constant `3` (base of the offset array). -/
-abbrev cThree : Fin (21 + 9) := ⟨12, by decide⟩
+private abbrev cThree : Fin (21 + 9) := ⟨12, by decide⟩
 /-- Vertex count `n`. -/
-abbrev nv : Fin (21 + 9) := ⟨13, by decide⟩
+private abbrev nv : Fin (21 + 9) := ⟨13, by decide⟩
 /-- Source vertex `source`. -/
-abbrev src : Fin (21 + 9) := ⟨14, by decide⟩
+private abbrev src : Fin (21 + 9) := ⟨14, by decide⟩
 /-- Base address `n + 4` of the edge array. -/
-abbrev ebase : Fin (21 + 9) := ⟨15, by decide⟩
+private abbrev ebase : Fin (21 + 9) := ⟨15, by decide⟩
 /-- Output-list header address `outAddrBase`. -/
 abbrev outBase : Fin (21 + 9) := ⟨16, by decide⟩
 /-- Distance-table base address `distAddrBase = outAddrBase + 1`. -/
-abbrev dbase : Fin (21 + 9) := ⟨17, by decide⟩
+private abbrev dbase : Fin (21 + 9) := ⟨17, by decide⟩
 /-- Round index `0 .. n - 1`. -/
-abbrev rnd : Fin (21 + 9) := ⟨18, by decide⟩
+private abbrev rnd : Fin (21 + 9) := ⟨18, by decide⟩
 /-- Round limit `n - 1`. -/
-abbrev rndLim : Fin (21 + 9) := ⟨19, by decide⟩
+private abbrev rndLim : Fin (21 + 9) := ⟨19, by decide⟩
 /-- Current vertex `u`. -/
-abbrev u : Fin (21 + 9) := ⟨20, by decide⟩
+private abbrev u : Fin (21 + 9) := ⟨20, by decide⟩
 /-- Current edge cursor `j`. -/
-abbrev j : Fin (21 + 9) := ⟨21, by decide⟩
+private abbrev j : Fin (21 + 9) := ⟨21, by decide⟩
 /-- End of `u`'s edges `offset (u + 1)`. -/
-abbrev jEnd : Fin (21 + 9) := ⟨22, by decide⟩
+private abbrev jEnd : Fin (21 + 9) := ⟨22, by decide⟩
 /-- Encoded tentative distance `encodeDist (d u)`. -/
-abbrev du : Fin (21 + 9) := ⟨23, by decide⟩
+private abbrev du : Fin (21 + 9) := ⟨23, by decide⟩
 /-- Current edge target `v`. -/
-abbrev vReg : Fin (21 + 9) := ⟨24, by decide⟩
+private abbrev vReg : Fin (21 + 9) := ⟨24, by decide⟩
 /-- Encoded edge weight `Signed.encode c`. -/
-abbrev wc : Fin (21 + 9) := ⟨25, by decide⟩
+private abbrev wc : Fin (21 + 9) := ⟨25, by decide⟩
 /-- Encoded tentative distance `encodeDist (d v)`. -/
-abbrev dv : Fin (21 + 9) := ⟨26, by decide⟩
+private abbrev dv : Fin (21 + 9) := ⟨26, by decide⟩
 /-- Encoded candidate weight `Signed.encode (a + c)`. -/
-abbrev sumReg : Fin (21 + 9) := ⟨27, by decide⟩
+private abbrev sumReg : Fin (21 + 9) := ⟨27, by decide⟩
 /-- Scratch memory address. -/
-abbrev addr : Fin (21 + 9) := ⟨28, by decide⟩
+private abbrev addr : Fin (21 + 9) := ⟨28, by decide⟩
 /-- Check-pass accumulator (`1` if all edges so far satisfy `d v ≤ d u + c`, `0` otherwise). -/
-abbrev ok : Fin (21 + 9) := ⟨29, by decide⟩
+private abbrev ok : Fin (21 + 9) := ⟨29, by decide⟩
 
 end Reg
 
 open Reg
 
 /-- Initialize constants, dimensions, and base addresses from `State.init G.encode`. -/
-def setupCode : Code .standard (21 + 9) := ram[
+private def setupCode : Code .standard (21 + 9) := ram[
   cZero ← #0; cOne ← #1; cTwo ← #2; cThree ← #3;
   outBase ← *cZero; outBase ← outBase + cOne; dbase ← outBase + cOne;
   nv ← *cOne; src ← *cTwo;
   ebase ← nv + cThree; ebase ← ebase + cOne ]
 
 /-- Body setting `mem[dbase + u] := 1` (`⊤`). -/
-def initBody : Code .standard (21 + 9) := ram[
+private def initBody : Code .standard (21 + 9) := ram[
   addr ← dbase + u; *addr ← cOne; u ← u + cOne ]
 
 /-- Initialize `d` to `0` at `src` and `⊤` elsewhere. -/
-def initCode : Code .standard (21 + 9) := ram[
+private def initCode : Code .standard (21 + 9) := ram[
   u ← cZero;
   ⟪.loop (.lt u nv) initBody⟫;
   addr ← dbase + src; *addr ← cZero ]
@@ -609,7 +534,7 @@ def initCode : Code .standard (21 + 9) := ram[
 /-- Test whether edge `j` out of `u` strictly improves `d v`, setting `Signed.result` to
 `(decide (d u + c < d v)).toNat`, `vReg` to `v`, and (when improving) `sumReg` to
 `encodeDist (d u + c)` without modifying memory. -/
-def testImproveCode : Code .standard (21 + 9) := ram[
+private def testImproveCode : Code .standard (21 + 9) := ram[
   addr ← dbase + u; du ← *addr;
   addr ← cTwo * j; addr ← ebase + addr; vReg ← *addr;
   addr ← addr + cOne; wc ← *addr;
@@ -622,50 +547,50 @@ def testImproveCode : Code .standard (21 + 9) := ram[
       left ← sumReg; right ← dv; ⟪Signed.less⟫ ] ] ]
 
 /-- Relax edge `j` out of `u`. -/
-def relaxEdgeCode : Code .standard (21 + 9) :=
+private def relaxEdgeCode : Code .standard (21 + 9) :=
   testImproveCode.seq (ram[
     if result = cOne then [ addr ← dbase + vReg; *addr ← sumReg ] else [ dv ← dv ] ])
 
 /-- Loop over edges `j ∈ [offset u, offset (u + 1))` relaxing out-edges of `u`. -/
-def relaxEdgeLoop : Code .standard (21 + 9) :=
+private def relaxEdgeLoop : Code .standard (21 + 9) :=
   .loop (.lt j jEnd) (ram[ ⟪relaxEdgeCode⟫; j ← j + cOne ])
 
 /-- Load `[offset u, offset (u + 1))` into `[j, jEnd)`. -/
-def scanVertexPrep : Code .standard (21 + 9) := ram[
+private def scanVertexPrep : Code .standard (21 + 9) := ram[
   addr ← cThree + u; j ← *addr; addr ← addr + cOne; jEnd ← *addr ]
 
 /-- Scan all out-edges of vertex `u` in a relaxation round. -/
-def scanVertexCode : Code .standard (21 + 9) :=
+private def scanVertexCode : Code .standard (21 + 9) :=
   scanVertexPrep.seq relaxEdgeLoop
 
 /-- One full Bellman–Ford relaxation round over `u = 0, …, n - 1`. -/
-def roundCode : Code .standard (21 + 9) :=
+private def roundCode : Code .standard (21 + 9) :=
   (ram[ u ← cZero ]).seq (.loop (.lt u nv) (scanVertexCode.seq (ram[ u ← u + cOne ])))
 
 /-- Execute `n - 1` relaxation rounds. -/
-def roundsCode : Code .standard (21 + 9) :=
+private def roundsCode : Code .standard (21 + 9) :=
   (ram[ rndLim ← nv - cOne; rnd ← cZero ]).seq
     (.loop (.lt rnd rndLim) (roundCode.seq (ram[ rnd ← rnd + cOne ])))
 
 /-- Check whether edge `j` out of `u` can still be relaxed, clearing `ok` if `d u + c < d v`. -/
-def checkEdgeCode : Code .standard (21 + 9) :=
+private def checkEdgeCode : Code .standard (21 + 9) :=
   testImproveCode.seq (ram[ if result = cOne then [ ok ← cZero ] else [ dv ← dv ] ])
 
 /-- Loop checking edges `j ∈ [offset u, offset (u + 1))` out of `u`. -/
-def checkEdgeLoop : Code .standard (21 + 9) :=
+private def checkEdgeLoop : Code .standard (21 + 9) :=
   .loop (.lt j jEnd) (ram[ ⟪checkEdgeCode⟫; j ← j + cOne ])
 
 /-- Scan all out-edges of `u` during the negative-cycle check. -/
-def checkVertexCode : Code .standard (21 + 9) :=
+private def checkVertexCode : Code .standard (21 + 9) :=
   scanVertexPrep.seq checkEdgeLoop
 
 /-- Negative-cycle check pass over all vertices and edges. -/
-def checkCode : Code .standard (21 + 9) :=
+private def checkCode : Code .standard (21 + 9) :=
   (ram[ ok ← cOne; u ← cZero ]).seq
     (.loop (.lt u nv) (checkVertexCode.seq (ram[ u ← u + cOne ])))
 
 /-- Write output length header (`nv` on `ok = 1`, `0` on `ok = 0`) at `outBase`. -/
-def finishCode : Code .standard (21 + 9) := ram[
+private def finishCode : Code .standard (21 + 9) := ram[
   if ok = cOne then [ *outBase ← nv ] else [ *outBase ← cZero ] ]
 
 /-- Complete structured Bellman–Ford solver leaving output header address in `outBase`. -/
@@ -1528,5 +1453,15 @@ theorem computesListInTime_program :
   intro G w hfit _
   obtain ⟨steps, hle, hex⟩ := program_spec G hfit
   exact ⟨steps, hex, hle⟩
+
+/-- `program` does not read the word width (`width%`). -/
+theorem not_readsWidth_program : ¬ program.ReadsWidth := by
+  apply Code.not_readsWidth_program
+  decide +kernel
+
+/-- `program` is deterministic (`rand`-free). -/
+theorem isRandFree_program : program.IsRandFree := by
+  rw [program, Code.isRandFree_program]
+  decide +kernel
 
 end Cslib.Algorithms.WordRAM.BellmanFord
