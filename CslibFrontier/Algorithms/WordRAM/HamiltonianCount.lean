@@ -250,21 +250,20 @@ private theorem card_maskSet_succ_prefix_mod {n k t : ℕ}
       have hset_eq : maskSet n (k + 1) = insert tFin (maskSet n k \ S1) := by
         ext u
         simp only [Finset.mem_insert, Finset.mem_sdiff, mem_maskSet, S1, Finset.mem_Iio,
-          Nat.testBit_succ_of_lowest h0t h1]
+          Nat.testBit_add_one_of_lowest h0t h1]
         rcases lt_trichotomy u.1 t with hlt | heq | hgt
         · have hne : u ≠ tFin := fun h => by
             have := congrArg Fin.val h; dsimp [tFin] at this; omega
           have hltF : u < tFin := Fin.lt_def.2 hlt
-          simp [hlt, hltF, hne, h1 u.1 hlt]
+          simp [hlt.le, hltF, hne, h1 u.1 hlt]
         · have hu_eq : u = tFin := Fin.ext heq
           subst hu_eq
-          simp [tFin]
+          simp [tFin, h0t]
         · have hne : u ≠ tFin := fun h => by
             have := congrArg Fin.val h; dsimp [tFin] at this; omega
           have hnot : ¬ u < tFin := fun h => by
             have := Fin.lt_def.1 h; dsimp [tFin] at this; omega
-          have hnev : u.1 ≠ t := by omega
-          simp [hne, hnot, hnev, hgt.le]
+          simp [hne, hnot, show ¬ u.1 ≤ t by omega]
       have ht_not_diff : tFin ∉ maskSet n k \ S1 := fun h => ht_not (Finset.mem_sdiff.1 h).1
       rw [hset_eq, Finset.card_insert_of_notMem ht_not_diff, Finset.card_sdiff_of_subset hS1_sub,
         hS1_card]
