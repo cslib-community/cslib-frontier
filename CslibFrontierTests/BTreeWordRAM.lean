@@ -26,8 +26,8 @@ Kernel-checked examples (without `native_decide`) exercising `Cslib.DataStructur
    followed by `lookupCode.eval` verification on all 9 present keys, 5 absent boundary/gap keys,
    instruction step bounds, and preservation of sentinels `3 ↦ 777` and `150 ↦ 888`.
 3. End-to-end non-vacuity theorem chaining `initCode_spec`, `insertCode_log_spec`,
-   `insertProg_runs`, `insertProgram_executes`, `lookupCode_log_spec`, `lookupProg_runs`,
-   `lookupProgram_executes`, `Rep.isWF`, and width/randomness independence predicates.
+   `insertProgram_spec`, `lookupProgram_spec`, `Rep.setKey`, `Rep.setKeyVal`, `Rep.isWF`, and
+   width/randomness independence predicates.
 -/
 
 set_option linter.privateModule false
@@ -107,79 +107,68 @@ def finalState? : Option (Data 20) :=
 #guard (finalState?.bind fun y => (runLookup y 35).map fun r => decide (r.2.2 ≤ 122)) ==
   some true
 
-/-! ## 3. Non-vacuity theorem chaining `Rep`, `ExecWithin`, `Runs`, and `Executes` -/
+/-! ## 3. Non-vacuity theorem chaining `Rep`, `ExecWithin`, `lookupProgram_spec`, and
+`insertProgram_spec` -/
 
 example :
     ¬lookupProgram.ReadsWidth ∧
       lookupProgram.IsRandFree ∧
       ¬insertProgram.ReadsWidth ∧
       insertProgram.IsRandFree ∧
-      ∃ y₀ y₁ tr₁ y₂ tr₂ t₂ steps_hit steps_miss steps_ins,
+      ∃ y₀ y₁ tr₁ y₂ tr₂ t₂ y_hit steps_hit y_miss steps_miss y₃ tr₃ steps_ins,
         ExecWithin 12 initCode rawData y₀ 5 ∧
         Rep 4 12 2 12 .leaf y₀ ∧
+        allocCount 4 y₀ = 0 ∧
         Rep 4 12 2 12 tr₁ y₁ ∧
         BTree.IsWF 2 tr₁ ∧
         tr₁.toList = [(20, 200)] ∧
-        Runs 12 (insertCode.assemble 0)
-          ⟨0, (y₁.set rKey 10).set rVal 100⟩ ⟨insertCode.size, y₂⟩ t₂ ∧
+        Runs 12 insertProgram ⟨0, (y₁.set rKey 10).set rVal 100⟩ ⟨insertCode.size, y₂⟩ t₂ ∧
+        step 12 insertProgram ⟨insertCode.size, y₂⟩ = .halt 4 ∧
         Rep 4 12 2 12 tr₂ y₂ ∧
         tr₂.toList = [(10, 100), (20, 200)] ∧
         y₂.mem 3 = 777 ∧
         y₂.mem 150 = 888 ∧
-        Executes 12 lookupProgram ⟨0, y₂.set rKey 10⟩ 100 steps_hit ∧
-        steps_hit ≤ (16 * 2 + 21) * (Nat.log 2 ((tr₂.size + 1) / 2) + 1) + 17 ∧
-        Executes 12 lookupProgram ⟨0, y₂.set rKey 99⟩ 0 steps_miss ∧
-        Executes 12 insertProgram ⟨0, (y₂.set rKey 30).set rVal 300⟩ 4 steps_ins := by
+        Runs 12 lookupProgram ⟨0, y₂.set rKey 10⟩ ⟨lookupCode.size, y_hit⟩ steps_hit ∧
+        step 12 lookupProgram ⟨lookupCode.size, y_hit⟩ = .halt 100 ∧
+        steps_hit + 1 ≤ (16 * 2 + 21) * (Nat.log 2 ((tr₂.size + 1) / 2) + 1) + 17 ∧
+        y_hit.regs rFound = 1 ∧
+        y_hit.mem = y₂.mem ∧
+        Runs 12 lookupProgram ⟨0, y₂.set rKey 99⟩ ⟨lookupCode.size, y_miss⟩ steps_miss ∧
+        step 12 lookupProgram ⟨lookupCode.size, y_miss⟩ = .halt 0 ∧
+        y_miss.regs rFound = 0 ∧
+        Runs 12 insertProgram ⟨0, (y₂.set rKey 30).set rVal 300⟩ ⟨insertCode.size, y₃⟩ steps_ins ∧
+        step 12 insertProgram ⟨insertCode.size, y₃⟩ = .halt 4 ∧
+        Rep 4 12 2 12 tr₃ y₃ ∧
+        tr₃.toList = [(10, 100), (20, 200), (30, 300)] ∧
+        y₃.mem 3 = 777 ∧
+        y₃.mem 150 = 888 := by
   have ht : (2 : ℕ) ≤ 2 := by decide
   have hfit : Fits 12 (4 + arenaWords 2 12) := by decide
-  obtain ⟨y₀, hinit, hrep₀, hym₀, hmod₀⟩ := initCode_spec ht bounded_rawData rfl rfl hfit
-  have hcnt₀ : y₀.mem 5 = 0 := by
-    rw [hym₀]; rfl
+  obtain ⟨y₀, hinit, hrep₀, hcnt₀, hmod₀⟩ :=
+    initCode_spec (base := 4) (t := 2) ht bounded_rawData rfl rfl hfit
   have hf_k20 : Fits 12 20 := by decide
   have hf_v200 : Fits 12 200 := by decide
-  let s₁ := (y₀.set rKey 20).set rVal 200
-  have hrep_s₁ : Rep 4 12 2 12 .leaf s₁ :=
-    { bounded := (hrep₀.bounded.set hf_k20).set hf_v200
-      two_le := ht
-      base_eq := hrep₀.base_eq
-      deg_eq := hrep₀.deg_eq
-      fits_arena := hfit
-      cnt_le_cap := hrep₀.cnt_le_cap
-      tree_spec := hrep₀.tree_spec }
   obtain ⟨y₁, tr₁, _, hrep₁, htl₁, hcnt₁, hmod₁⟩ :=
-    insertCode_log_spec hrep_s₁ (k := 20) (v := 200) rfl rfl
-      (by change y₀.mem 5 + BTree.leaf.height + 2 ≤ 12; rw [hcnt₀]; decide)
-  have htl₁_eq : tr₁.toList = [(20, 200)] := by
-    rw [htl₁]; rfl
+    insertCode_log_spec (hrep₀.setKeyVal hf_k20 hf_v200) (k := 20) (v := 200) rfl rfl
+      (by simp only [allocCount_set, hcnt₀]; decide)
+  simp only [allocCount_set, Data.set_mem, hcnt₀] at hcnt₁ hmod₁
+  have htl₁_eq : tr₁.toList = [(20, 200)] := by rw [htl₁]; rfl
   have hh₁_le : tr₁.height ≤ 1 := by
     have hlog := hrep₁.height_le_log
     have hsize : tr₁.size = 1 := by simp only [BTree.size, htl₁_eq]; rfl
     rw [hsize] at hlog
-    have hlog_val : Nat.log 2 ((1 + 1) / 2) = 0 := by decide
+    have : Nat.log 2 ((1 + 1) / 2) = 0 := by decide
+    omega
+  have hcnt₁_le : allocCount 4 y₁ ≤ 2 := by
+    have : (BTree.leaf : BTree ℕ ℕ).height = 0 := rfl
     omega
   have hf_k10 : Fits 12 10 := by decide
   have hf_v100 : Fits 12 100 := by decide
-  let s₂ := (y₁.set rKey 10).set rVal 100
-  have hrep_s₂ : Rep 4 12 2 12 tr₁ s₂ :=
-    { bounded := (hrep₁.bounded.set hf_k10).set hf_v100
-      two_le := ht
-      base_eq := hrep₁.base_eq
-      deg_eq := hrep₁.deg_eq
-      fits_arena := hfit
-      cnt_le_cap := hrep₁.cnt_le_cap
-      tree_spec := hrep₁.tree_spec }
-  simp only [s₁, Data.set_mem] at hcnt₁ hmod₁
-  have hcnt₁_le : y₁.mem 5 ≤ 2 := by
-    have : (BTree.leaf : BTree ℕ ℕ).height = 0 := rfl
-    change y₁.mem 5 ≤ y₀.mem 5 + (BTree.leaf : BTree ℕ ℕ).height + 2 at hcnt₁
-    omega
-  obtain ⟨y₂, tr₂, t₂, hruns₂, _, hrep₂, htl₂, hcnt₂, hmod₂⟩ :=
-    insertProg_runs hrep_s₂ (k := 10) (v := 100) rfl rfl (by
-      change y₁.mem 5 + tr₁.height + 2 ≤ 12
-      omega)
-  simp only [s₂, Data.set_mem] at hcnt₂ hmod₂
-  have htl₂_eq : tr₂.toList = [(10, 100), (20, 200)] := by
-    rw [htl₂, htl₁_eq]; rfl
+  obtain ⟨y₂, tr₂, t₂, hruns₂, hhalt₂, _, hrep₂, htl₂, hcnt₂, hmod₂⟩ :=
+    insertProgram_spec (hrep₁.setKeyVal hf_k10 hf_v100) (k := 10) (v := 100) rfl rfl
+      (by simp only [allocCount_set]; omega)
+  simp only [allocCount_set, Data.set_mem] at hcnt₂ hmod₂
+  have htl₂_eq : tr₂.toList = [(10, 100), (20, 200)] := by rw [htl₂, htl₁_eq]; rfl
   have h3_not : (3 : ℕ) ∉ (Block.mk 4 (arenaWords 2 12)).footprint := by
     simp only [Block.mem_footprint, Block.Owns, arenaWords, nodeStride]; omega
   have h150_not : (150 : ℕ) ∉ (Block.mk 4 (arenaWords 2 12)).footprint := by
@@ -188,58 +177,39 @@ example :
     (hmod₂ 3 h3_not).trans ((hmod₁ 3 h3_not).trans (hmod₀ 3 h3_not))
   have hm150 : y₂.mem 150 = 888 :=
     (hmod₂ 150 h150_not).trans ((hmod₁ 150 h150_not).trans (hmod₀ 150 h150_not))
-  have hrep_lk10 : Rep 4 12 2 12 tr₂ (y₂.set rKey 10) :=
-    { bounded := hrep₂.bounded.set hf_k10
-      two_le := ht
-      base_eq := hrep₂.base_eq
-      deg_eq := hrep₂.deg_eq
-      fits_arena := hfit
-      cnt_le_cap := hrep₂.cnt_le_cap
-      tree_spec := hrep₂.tree_spec }
-  obtain ⟨steps_hit, hex_hit, hle_hit⟩ := lookupProgram_executes hrep_lk10 (k := 10) rfl
-  have hlk10 : (BTree.lookup 10 tr₂).getD 0 = 100 := by
+  obtain ⟨y_hit, steps_hit, hruns_hit, hhalt_hit, hle_hit, _, hmem_hit, hfnd_hit, _⟩ :=
+    lookupProgram_spec (hrep₂.setKey hf_k10) (k := 10) rfl
+  have hlk10 : BTree.lookup 10 tr₂ = some 100 := by
     rw [BTree.lookup_eq hrep₂.isWF 10, htl₂_eq]; rfl
-  rw [hlk10] at hex_hit
+  rw [hlk10] at hhalt_hit hfnd_hit
   have hf_k99 : Fits 12 99 := by decide
-  have hrep_lk99 : Rep 4 12 2 12 tr₂ (y₂.set rKey 99) :=
-    { bounded := hrep₂.bounded.set hf_k99
-      two_le := ht
-      base_eq := hrep₂.base_eq
-      deg_eq := hrep₂.deg_eq
-      fits_arena := hfit
-      cnt_le_cap := hrep₂.cnt_le_cap
-      tree_spec := hrep₂.tree_spec }
-  obtain ⟨steps_miss, hex_miss, _⟩ := lookupProgram_executes hrep_lk99 (k := 99) rfl
-  have hlk99 : (BTree.lookup 99 tr₂).getD 0 = 0 := by
+  obtain ⟨y_miss, steps_miss, hruns_miss, hhalt_miss, _, _, _, hfnd_miss, _⟩ :=
+    lookupProgram_spec (hrep₂.setKey hf_k99) (k := 99) rfl
+  have hlk99 : BTree.lookup 99 tr₂ = none := by
     rw [BTree.lookup_eq hrep₂.isWF 99, htl₂_eq]; rfl
-  rw [hlk99] at hex_miss
+  rw [hlk99] at hhalt_miss hfnd_miss
   have hh₂_le : tr₂.height ≤ 1 := by
     have hlog := hrep₂.height_le_log
     have hsize : tr₂.size = 2 := by simp only [BTree.size, htl₂_eq]; rfl
     rw [hsize] at hlog
-    have hlog_val : Nat.log 2 ((2 + 1) / 2) = 0 := by decide
+    have : Nat.log 2 ((2 + 1) / 2) = 0 := by decide
     omega
+  have hcnt₂_le : allocCount 4 y₂ ≤ 5 := by omega
   have hf_k30 : Fits 12 30 := by decide
   have hf_v300 : Fits 12 300 := by decide
-  have hrep_ins30 : Rep 4 12 2 12 tr₂ ((y₂.set rKey 30).set rVal 300) :=
-    { bounded := (hrep₂.bounded.set hf_k30).set hf_v300
-      two_le := ht
-      base_eq := hrep₂.base_eq
-      deg_eq := hrep₂.deg_eq
-      fits_arena := hfit
-      cnt_le_cap := hrep₂.cnt_le_cap
-      tree_spec := hrep₂.tree_spec }
-  have hcnt₂_le : y₂.mem 5 ≤ 5 := by
-    change y₂.mem 5 ≤ y₁.mem 5 + tr₁.height + 2 at hcnt₂
-    omega
-  obtain ⟨steps_ins, hex_ins, _⟩ :=
-    insertProgram_executes hrep_ins30 (k := 30) (v := 300) rfl rfl (by
-      change y₂.mem 5 + tr₂.height + 2 ≤ 12
-      omega)
+  obtain ⟨y₃, tr₃, steps_ins, hruns_ins, hhalt_ins, _, hrep₃, htl₃, _, hmod₃⟩ :=
+    insertProgram_spec (hrep₂.setKeyVal hf_k30 hf_v300) (k := 30) (v := 300) rfl rfl
+      (by simp only [allocCount_set]; omega)
+  simp only [Data.set_mem] at hmod₃
+  have htl₃_eq : tr₃.toList = [(10, 100), (20, 200), (30, 300)] := by
+    rw [htl₃, htl₂_eq]; rfl
   exact ⟨not_readsWidth_lookupProgram, isRandFree_lookupProgram,
     not_readsWidth_insertProgram, isRandFree_insertProgram,
-    y₀, y₁, tr₁, y₂, tr₂, t₂, steps_hit, steps_miss, steps_ins,
-    hinit, hrep₀, hrep₁, hrep₁.isWF, htl₁_eq, hruns₂, hrep₂, htl₂_eq, hm3, hm150,
-    hex_hit, hle_hit, hex_miss, hex_ins⟩
+    y₀, y₁, tr₁, y₂, tr₂, t₂, y_hit, steps_hit, y_miss, steps_miss, y₃, tr₃, steps_ins,
+    hinit, hrep₀, hcnt₀, hrep₁, hrep₁.isWF, htl₁_eq, hruns₂, hhalt₂, hrep₂, htl₂_eq, hm3, hm150,
+    hruns_hit, hhalt_hit, hle_hit, hfnd_hit, hmem_hit,
+    hruns_miss, hhalt_miss, hfnd_miss,
+    hruns_ins, hhalt_ins, hrep₃, htl₃_eq,
+    (hmod₃ 3 h3_not).trans hm3, (hmod₃ 150 h150_not).trans hm150⟩
 
 end CslibFrontierTests.BTreeWordRAM

@@ -62,14 +62,16 @@ public section
 
 namespace Cslib.DataStructure.BTree.NodeAccess
 
+open PFunctor.FreeM
+
 variable {α β H : Type} [LinearOrder α]
 
-/-- Within-page scan for `rangeR`: traverses an already-read page's triples without issuing extra
+/-- Within-page scan for `rangeR`: traverses an already-read page's entries without issuing extra
 page reads for the current node, recursing into children permitted by `[lo, hi]`. -/
 @[expose] def rangeScan (rec : Option H → NodeM α β H (List (α × β))) (lo hi : α) :
-    Option H → List (α × β × Option H) → NodeM α β H (List (α × β))
+    Option H → List (PageEntry α β H) → NodeM α β H (List (α × β))
   | first, [] => rec first
-  | first, (k, v, c) :: rs => do
+  | first, ⟨k, v, c⟩ :: rs => do
     let below ← if lo ≤ k then rec first else pure []
     if k ≤ hi then
       let after ← rangeScan rec lo hi c rs
@@ -83,7 +85,7 @@ page reads for the current node, recursing into children permitted by `[lo, hi]`
   | _ + 1, _, _, none => pure []
   | fuel + 1, lo, hi, some h => do
     let page ← readNode h
-    rangeScan (rangeR fuel lo hi) lo hi page.1 page.2
+    rangeScan (rangeR fuel lo hi) lo hi page.first page.rest
 
 /-- Structural page-read count of a pruned closed-interval traversal on `BTree α β`. -/
 def rangeVisits (lo hi : α) : BTree α β → ℕ
@@ -113,7 +115,7 @@ termination_by tr => sizeOf tr
 
 private theorem rangeScan_spec {s : Store α β H} {fuel : ℕ} {lo hi : α}
     {r₀ : Option H} {first : BTree α β}
-    {rs : List (α × β × Option H)} {rest : List (BTree.Triple α β)}
+    {rs : List (PageEntry α β H)} {rest : List (BTree.Triple α β)}
     (hdf : Denotes s r₀ first) (hdr : DenotesRest s rs rest)
     (hrec : ∀ c ∈ (BTree.node first rest).children, ∀ r, Denotes s r c → c.height ≤ fuel →
       eval s (rangeR fuel lo hi r) = BTree.range lo hi c ∧
@@ -134,7 +136,7 @@ private theorem rangeScan_spec {s : Store α β H} {fuel : ℕ} {lo hi : α}
   | cons e rs ih =>
     obtain ⟨k, v, r₁⟩ := e
     cases rest with
-    | nil => exact (denotesRest_cons_nil s (k, v, r₁) rs hdr).elim
+    | nil => exact (denotesRest_cons_nil s ⟨k, v, r₁⟩ rs hdr).elim
     | cons e' rest' =>
       obtain ⟨k', v', c⟩ := e'
       obtain ⟨rfl, rfl, hdc, hdr'⟩ :=

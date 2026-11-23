@@ -7,6 +7,7 @@ Authors: Jesse Alama, Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.WordRAM.Copy
 public import CslibFrontier.DataStructure.BTree.Height
 public import CslibFrontier.DataStructure.BTree.Lookup
 public import Mathlib.Order.Interval.Finset.Nat
@@ -44,9 +45,8 @@ proactive top-down node splitting (`memSplitRoot`, `memSplitChild`) and leaf/int
 * `BTree.WordRAM.ValidNode`, `BTree.WordRAM.SortedNode`: structural and strict key-order
   predicates on an allocated subtree.
 * `BTree.WordRAM.slotCount`: within-node strict lower-key count computed by a counting loop.
-* `BTree.WordRAM.copyArr`, `BTree.WordRAM.shiftArrRight`: generic forward-copy and backward-shift
-  memory transformers.
-* `BTree.WordRAM.memInitEmpty`, `BTree.WordRAM.memInitSingle`, `BTree.WordRAM.memOverwriteVal`,
+* `BTree.WordRAM.shiftArrRight`: backward-shift memory transformer.
+* `BTree.WordRAM.memInitSingle`, `BTree.WordRAM.memOverwriteVal`,
   `BTree.WordRAM.memInsertLeaf`, `BTree.WordRAM.memCopyUpper`, `BTree.WordRAM.memSplitRoot`,
   `BTree.WordRAM.memSplitChild`: pure memory transformers mirrored by the Word-RAM machine code.
 
@@ -76,7 +76,7 @@ public section
 
 namespace Cslib.DataStructure.BTree.WordRAM
 
-open Cslib.DataStructure
+open Cslib.DataStructure Cslib.WordRAM
 
 /-! ## 1. Address geometry and field accessors -/
 
@@ -142,7 +142,7 @@ theorem nodeAddr_disjoint {base t u v o₁ o₂ : ℕ} (huv : u ≠ v)
 /-! ## 2. Deterministic tree & node-set decoding -/
 
 /-- Deterministically decode a `BTree ℕ ℕ` of height `l + 1` rooted at node `u`. -/
-@[expose] def readTree : ℕ → ℕ → ℕ → (ℕ → ℕ) → ℕ → BTree ℕ ℕ
+def readTree : ℕ → ℕ → ℕ → (ℕ → ℕ) → ℕ → BTree ℕ ℕ
   | 0, base, t, mem, u =>
     let m := numKeys base t mem u
     .node .leaf (List.ofFn fun i : Fin m =>
@@ -155,12 +155,16 @@ theorem nodeAddr_disjoint {base t u v o₁ o₂ : ℕ} (huv : u ≠ v)
         readTree l base t mem (childAt base t mem u (i.val + 1))))
 
 /-- Set of allocated node indices visited when decoding `readTree l base t mem u`. -/
-@[expose] def readNodeSet : ℕ → ℕ → ℕ → (ℕ → ℕ) → ℕ → Finset ℕ
+def readNodeSet : ℕ → ℕ → ℕ → (ℕ → ℕ) → ℕ → Finset ℕ
   | 0, _, _, _, u => {u}
   | l + 1, base, t, mem, u =>
     let m := numKeys base t mem u
     insert u ((Finset.univ : Finset (Fin (m + 1))).biUnion fun j =>
       readNodeSet l base t mem (childAt base t mem u j.val))
+
+@[simp] theorem readNodeSet_zero (base t : ℕ) (mem : ℕ → ℕ) (u : ℕ) :
+    readNodeSet 0 base t mem u = {u} := by
+  simp [readNodeSet]
 
 theorem self_mem_readNodeSet (l base t : ℕ) (mem : ℕ → ℕ) (u : ℕ) :
     u ∈ readNodeSet l base t mem u := by
@@ -206,7 +210,7 @@ theorem mem_children_readTree_succ_iff (l base t : ℕ) (mem : ℕ → ℕ) (u :
 /-- Structural validity of a subtree of height `l + 1` rooted at node `u`: valid `leafFlag`,
 `1 ≤ numKeys ≤ 2 * t - 1`, `t - 1 ≤ numKeys` on all proper descendants, and pairwise disjoint
 node sets. -/
-@[expose] def ValidNode : ℕ → ℕ → ℕ → (ℕ → ℕ) → ℕ → Prop
+def ValidNode : ℕ → ℕ → ℕ → (ℕ → ℕ) → ℕ → Prop
   | 0, base, t, mem, u =>
     leafFlag base t mem u = 1 ∧ 1 ≤ numKeys base t mem u ∧ numKeys base t mem u ≤ 2 * t - 1
   | l + 1, base, t, mem, u =>
@@ -239,6 +243,21 @@ theorem ValidNode.numKeys_le {l base t : ℕ} {mem : ℕ → ℕ} {u : ℕ}
   cases l with
   | zero => exact hv.2.2
   | succ l => exact hv.2.2.1
+
+theorem ValidNode.child_valid {l base t : ℕ} {mem : ℕ → ℕ} {u j : ℕ}
+    (hv : ValidNode (l + 1) base t mem u) (hj : j < numKeys base t mem u + 1) :
+    ValidNode l base t mem (childAt base t mem u j) :=
+  (hv.2.2.2.1 j hj).1
+
+theorem ValidNode.child_numKeys_ge {l base t : ℕ} {mem : ℕ → ℕ} {u j : ℕ}
+    (hv : ValidNode (l + 1) base t mem u) (hj : j < numKeys base t mem u + 1) :
+    t - 1 ≤ numKeys base t mem (childAt base t mem u j) :=
+  (hv.2.2.2.1 j hj).2.1
+
+theorem ValidNode.not_mem_child_readNodeSet {l base t : ℕ} {mem : ℕ → ℕ} {u j : ℕ}
+    (hv : ValidNode (l + 1) base t mem u) (hj : j < numKeys base t mem u + 1) :
+    u ∉ readNodeSet l base t mem (childAt base t mem u j) :=
+  (hv.2.2.2.1 j hj).2.2
 
 /-- Disjoint-node framing: if `mem'` agrees with `mem` on every node in
 `readNodeSet l base t mem u`, then `ValidNode`, `readTree`, and `readNodeSet` are preserved. -/
@@ -446,7 +465,7 @@ theorem mem_toList_readTree_succ (l base t : ℕ) (mem : ℕ → ℕ) (u : ℕ) 
       | succ i => exact Or.inr ⟨⟨i, by omega⟩, Or.inr hpj⟩
 
 /-- Index-level strict key-order predicate for a subtree of height `l + 1` at node `u`. -/
-@[expose] def SortedNode : ℕ → ℕ → ℕ → (ℕ → ℕ) → ℕ → Prop
+def SortedNode : ℕ → ℕ → ℕ → (ℕ → ℕ) → ℕ → Prop
   | 0, base, t, mem, u =>
     ∀ i₁ i₂, i₁ < i₂ → i₂ < numKeys base t mem u → keyAt base t mem u i₁ < keyAt base t mem u i₂
   | l + 1, base, t, mem, u =>
@@ -457,6 +476,18 @@ theorem mem_toList_readTree_succ (l base t : ℕ) (mem : ℕ → ℕ) (u : ℕ) 
         p.1 < keyAt base t mem u i) ∧
       (∀ i < m, ∀ p ∈ (readTree l base t mem (childAt base t mem u (i + 1))).toList,
         keyAt base t mem u i < p.1)
+
+theorem SortedNode.keys_strict {l base t : ℕ} {mem : ℕ → ℕ} {u i₁ i₂ : ℕ}
+    (hs : SortedNode l base t mem u) (h12 : i₁ < i₂) (h2 : i₂ < numKeys base t mem u) :
+    keyAt base t mem u i₁ < keyAt base t mem u i₂ := by
+  cases l with
+  | zero => exact hs i₁ i₂ h12 h2
+  | succ _ => exact hs.1 i₁ i₂ h12 h2
+
+theorem SortedNode.child_sorted {l base t : ℕ} {mem : ℕ → ℕ} {u j : ℕ}
+    (hs : SortedNode (l + 1) base t mem u) (hj : j < numKeys base t mem u + 1) :
+    SortedNode l base t mem (childAt base t mem u j) :=
+  hs.2.1 j hj
 
 theorem SortedNode.congr_mem {l base t : ℕ} {mem mem' : ℕ → ℕ} {u : ℕ}
     (ht : 1 ≤ t) (hv : ValidNode l base t mem u) (hs : SortedNode l base t mem u)
@@ -738,39 +769,6 @@ theorem lookup_readTree_succ_eq_child {l base t : ℕ} {mem : ℕ → ℕ} {u sl
 
 /-! ## 6. Generic forward-copy and backward-shift array helpers -/
 
-/-- Copy `len` words forward from `srcBase` to `dstBase`. -/
-@[expose] def copyArr (srcBase dstBase : ℕ) : ℕ → (ℕ → ℕ) → (ℕ → ℕ)
-  | 0, mem => mem
-  | j + 1, mem =>
-    let prev := copyArr srcBase dstBase j mem
-    Function.update prev (dstBase + j) (prev (srcBase + j))
-
-theorem copyArr_outside (srcBase dstBase len : ℕ) (mem : ℕ → ℕ) (a : ℕ)
-    (ha : a < dstBase ∨ dstBase + len ≤ a) :
-    copyArr srcBase dstBase len mem a = mem a := by
-  induction len with
-  | zero => rfl
-  | succ j ih =>
-    simp only [copyArr]
-    rw [Function.update_of_ne (by omega)]
-    exact ih (by omega)
-
-theorem copyArr_inside {srcBase dstBase len : ℕ} (mem : ℕ → ℕ)
-    (hdisj : ∀ i₁ < len, ∀ i₂ < len, srcBase + i₁ ≠ dstBase + i₂)
-    (i : ℕ) (hi : i < len) :
-    copyArr srcBase dstBase len mem (dstBase + i) = mem (srcBase + i) := by
-  induction len with
-  | zero => omega
-  | succ j ih =>
-    simp only [copyArr]
-    rcases eq_or_lt_of_le (Nat.le_of_lt_succ hi) with rfl | hi_lt
-    · rw [Function.update_self, copyArr_outside]
-      by_contra hcontra
-      simp only [not_or, not_lt, not_le] at hcontra
-      exact hdisj i hi (srcBase + i - dstBase) (by omega) (by omega)
-    · rw [Function.update_of_ne (by omega)]
-      exact ih (fun i₁ h₁ i₂ h₂ => hdisj i₁ (by omega) i₂ (by omega)) hi_lt
-
 /-- Shift `count` words `[upper - count .. upper - 1]` right by `1` into
 `[upper - count + 1 .. upper]`. -/
 @[expose] def shiftArrRight (arrBase upper : ℕ) : ℕ → (ℕ → ℕ) → (ℕ → ℕ)
@@ -805,10 +803,6 @@ theorem shiftArrRight_shifted (arrBase upper count : ℕ) (mem : ℕ → ℕ) (h
       exact ih (by omega) hgt
 
 /-! ## 7. Pure memory operations: init, overwrite, leaf insert, and split -/
-
-/-- Initialize an empty B-tree arena (`root = 0, cnt = 0`). -/
-@[expose] def memInitEmpty (base : ℕ) (mem : ℕ → ℕ) : ℕ → ℕ :=
-  Function.update (Function.update mem base 0) (base + 1) 0
 
 /-- Initialize a 1-key leaf root at node `0` (`root = 0, cnt = 1`). -/
 @[expose] def memInitSingle (base t k v : ℕ) (mem : ℕ → ℕ) : ℕ → ℕ :=
@@ -1179,9 +1173,9 @@ newly allocated node `z` as the right `(t - 1)`-key half. -/
   let ac := nodeAddr base t c
   let az := nodeAddr base t z
   let lf := mem ac
-  let m1 := copyArr (ac + 2 + t) (az + 2) (t - 1) mem
-  let m2 := copyArr (ac + (2 * t + 1) + t) (az + (2 * t + 1)) (t - 1) m1
-  let m3 := if lf = 0 then copyArr (ac + 4 * t + t) (az + 4 * t) t m2 else m2
+  let m1 := ArrayCopy.copyPrefix mem (ac + 2 + t) (az + 2) (t - 1)
+  let m2 := ArrayCopy.copyPrefix m1 (ac + (2 * t + 1) + t) (az + (2 * t + 1)) (t - 1)
+  let m3 := if lf = 0 then ArrayCopy.copyPrefix m2 (ac + 4 * t + t) (az + 4 * t) t else m2
   let m4 := Function.update m3 az lf
   let m5 := Function.update m4 (az + 1) (t - 1)
   Function.update m5 (ac + 1) (t - 1)
@@ -1195,18 +1189,22 @@ theorem memCopyUpper_outside {base t c z : ℕ} (ht : 2 ≤ t) (mem : ℕ → �
   rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
     Function.update_of_ne (by omega)]
   have hm3 : (if mem (nodeAddr base t c) = 0 then
-      copyArr (nodeAddr base t c + 4 * t + t) (nodeAddr base t z + 4 * t) t
-        (copyArr (nodeAddr base t c + (2 * t + 1) + t) (nodeAddr base t z + (2 * t + 1)) (t - 1)
-          (copyArr (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1) mem))
+      ArrayCopy.copyPrefix
+        (ArrayCopy.copyPrefix
+          (ArrayCopy.copyPrefix mem (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1))
+          (nodeAddr base t c + (2 * t + 1) + t) (nodeAddr base t z + (2 * t + 1)) (t - 1))
+        (nodeAddr base t c + 4 * t + t) (nodeAddr base t z + 4 * t) t
       else
-        copyArr (nodeAddr base t c + (2 * t + 1) + t) (nodeAddr base t z + (2 * t + 1)) (t - 1)
-          (copyArr (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1) mem)) a =
-      copyArr (nodeAddr base t c + (2 * t + 1) + t) (nodeAddr base t z + (2 * t + 1)) (t - 1)
-        (copyArr (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1) mem) a := by
+        ArrayCopy.copyPrefix
+          (ArrayCopy.copyPrefix mem (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1))
+          (nodeAddr base t c + (2 * t + 1) + t) (nodeAddr base t z + (2 * t + 1)) (t - 1)) a =
+      ArrayCopy.copyPrefix
+        (ArrayCopy.copyPrefix mem (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1))
+        (nodeAddr base t c + (2 * t + 1) + t) (nodeAddr base t z + (2 * t + 1)) (t - 1) a := by
     split_ifs with h0
-    · exact copyArr_outside _ _ _ _ _ (by omega)
+    · exact ArrayCopy.copyPrefix_outside (by omega)
     · rfl
-  rw [hm3, copyArr_outside _ _ _ _ _ (by omega), copyArr_outside _ _ _ _ _ (by omega)]
+  rw [hm3, ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega)]
 
 theorem memCopyUpper_spec {l base t c z : ℕ} {mem : ℕ → ℕ}
     (ht : 2 ≤ t) (hv_c : ValidNode l base t mem c) (hs_c : SortedNode l base t mem c)
@@ -1253,9 +1251,9 @@ theorem memCopyUpper_spec {l base t c z : ℕ} {mem : ℕ → ℕ}
     rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
       Function.update_of_ne (by omega)]
     split_ifs
-    · rw [copyArr_outside _ _ _ _ _ (by omega), copyArr_outside _ _ _ _ _ (by omega),
-        copyArr_outside _ _ _ _ _ (by omega)]
-    · rw [copyArr_outside _ _ _ _ _ (by omega), copyArr_outside _ _ _ _ _ (by omega)]
+    · rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega),
+        ArrayCopy.copyPrefix_outside (by omega)]
+    · rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega)]
   have hnk_c : numKeys base t mem₁ c = t - 1 := by
     simp only [numKeys, mem₁, memCopyUpper, Function.update_self]
   have hkey_c : ∀ i < t - 1, keyAt base t mem₁ c i = keyAt base t mem c i := fun i hi => by
@@ -1263,17 +1261,17 @@ theorem memCopyUpper_spec {l base t c z : ℕ} {mem : ℕ → ℕ}
     rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
       Function.update_of_ne (by omega)]
     split_ifs
-    · rw [copyArr_outside _ _ _ _ _ (by omega), copyArr_outside _ _ _ _ _ (by omega),
-        copyArr_outside _ _ _ _ _ (by omega)]
-    · rw [copyArr_outside _ _ _ _ _ (by omega), copyArr_outside _ _ _ _ _ (by omega)]
+    · rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega),
+        ArrayCopy.copyPrefix_outside (by omega)]
+    · rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega)]
   have hval_c : ∀ i < t - 1, valAt base t mem₁ c i = valAt base t mem c i := fun i hi => by
     simp only [valAt, mem₁, memCopyUpper]
     rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
       Function.update_of_ne (by omega)]
     split_ifs
-    · rw [copyArr_outside _ _ _ _ _ (by omega), copyArr_outside _ _ _ _ _ (by omega),
-        copyArr_outside _ _ _ _ _ (by omega)]
-    · rw [copyArr_outside _ _ _ _ _ (by omega), copyArr_outside _ _ _ _ _ (by omega)]
+    · rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega),
+        ArrayCopy.copyPrefix_outside (by omega)]
+    · rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega)]
   -- Field readbacks on `z` in `mem₁`:
   have hlf_z : leafFlag base t mem₁ z = leafFlag base t mem c := by
     simp only [leafFlag, mem₁, memCopyUpper]
@@ -1286,47 +1284,56 @@ theorem memCopyUpper_spec {l base t c z : ℕ} {mem : ℕ → ℕ}
     rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
       Function.update_of_ne (by omega)]
     have hm3 : (if mem ac = 0 then
-        copyArr (ac + 4 * t + t) (az + 4 * t) t
-          (copyArr (ac + (2 * t + 1) + t) (az + (2 * t + 1)) (t - 1)
-            (copyArr (ac + 2 + t) (az + 2) (t - 1) mem))
+        ArrayCopy.copyPrefix
+          (ArrayCopy.copyPrefix
+            (ArrayCopy.copyPrefix mem (ac + 2 + t) (az + 2) (t - 1))
+            (ac + (2 * t + 1) + t) (az + (2 * t + 1)) (t - 1))
+          (ac + 4 * t + t) (az + 4 * t) t
         else
-          copyArr (ac + (2 * t + 1) + t) (az + (2 * t + 1)) (t - 1)
-            (copyArr (ac + 2 + t) (az + 2) (t - 1) mem)) (az + 2 + i) =
-        copyArr (ac + (2 * t + 1) + t) (az + (2 * t + 1)) (t - 1)
-          (copyArr (ac + 2 + t) (az + 2) (t - 1) mem) (az + 2 + i) := by
+          ArrayCopy.copyPrefix
+            (ArrayCopy.copyPrefix mem (ac + 2 + t) (az + 2) (t - 1))
+            (ac + (2 * t + 1) + t) (az + (2 * t + 1)) (t - 1)) (az + 2 + i) =
+        ArrayCopy.copyPrefix
+          (ArrayCopy.copyPrefix mem (ac + 2 + t) (az + 2) (t - 1))
+          (ac + (2 * t + 1) + t) (az + (2 * t + 1)) (t - 1) (az + 2 + i) := by
       split_ifs
-      · exact copyArr_outside _ _ _ _ _ (by omega)
+      · exact ArrayCopy.copyPrefix_outside (by omega)
       · rfl
     dsimp only [ac, az] at hm3
-    rw [hm3, copyArr_outside _ _ _ _ _ (by omega)]
-    have hcopy := copyArr_inside (srcBase := nodeAddr base t c + 2 + t)
-      (dstBase := nodeAddr base t z + 2) (len := t - 1) mem
-      (fun i₁ h₁ i₂ h₂ => by omega) i hi
+    rw [hm3, ArrayCopy.copyPrefix_outside (by omega)]
+    have hcopy := ArrayCopy.copyPrefix_read (mem := mem)
+      (src := nodeAddr base t c + 2 + t) (dst := nodeAddr base t z + 2) (k := t - 1) hi
     simpa only [Nat.add_assoc] using hcopy
   have hval_z : ∀ i < t - 1, valAt base t mem₁ z i = valAt base t mem c (t + i) := fun i hi => by
     simp only [valAt, mem₁, memCopyUpper]
     rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
       Function.update_of_ne (by omega)]
     have hm3 : (if mem ac = 0 then
-        copyArr (ac + 4 * t + t) (az + 4 * t) t
-          (copyArr (ac + (2 * t + 1) + t) (az + (2 * t + 1)) (t - 1)
-            (copyArr (ac + 2 + t) (az + 2) (t - 1) mem))
+        ArrayCopy.copyPrefix
+          (ArrayCopy.copyPrefix
+            (ArrayCopy.copyPrefix mem (ac + 2 + t) (az + 2) (t - 1))
+            (ac + (2 * t + 1) + t) (az + (2 * t + 1)) (t - 1))
+          (ac + 4 * t + t) (az + 4 * t) t
         else
-          copyArr (ac + (2 * t + 1) + t) (az + (2 * t + 1)) (t - 1)
-            (copyArr (ac + 2 + t) (az + 2) (t - 1) mem)) (az + (2 * t + 1) + i) =
-        copyArr (ac + (2 * t + 1) + t) (az + (2 * t + 1)) (t - 1)
-          (copyArr (ac + 2 + t) (az + 2) (t - 1) mem) (az + (2 * t + 1) + i) := by
+          ArrayCopy.copyPrefix
+            (ArrayCopy.copyPrefix mem (ac + 2 + t) (az + 2) (t - 1))
+            (ac + (2 * t + 1) + t) (az + (2 * t + 1)) (t - 1)) (az + (2 * t + 1) + i) =
+        ArrayCopy.copyPrefix
+          (ArrayCopy.copyPrefix mem (ac + 2 + t) (az + 2) (t - 1))
+          (ac + (2 * t + 1) + t) (az + (2 * t + 1)) (t - 1) (az + (2 * t + 1) + i) := by
       split_ifs
-      · exact copyArr_outside _ _ _ _ _ (by omega)
+      · exact ArrayCopy.copyPrefix_outside (by omega)
       · rfl
     dsimp only [ac, az] at hm3
     rw [hm3]
-    have hcopy := copyArr_inside (srcBase := nodeAddr base t c + (2 * t + 1) + t)
-      (dstBase := nodeAddr base t z + (2 * t + 1)) (len := t - 1)
-      (copyArr (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1) mem)
-      (fun i₁ h₁ i₂ h₂ => by omega) i hi
-    have hout := copyArr_outside (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1) mem
-      (nodeAddr base t c + (2 * t + 1) + t + i) (by omega)
+    have hcopy := ArrayCopy.copyPrefix_read
+      (mem := ArrayCopy.copyPrefix mem (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1))
+      (src := nodeAddr base t c + (2 * t + 1) + t) (dst := nodeAddr base t z + (2 * t + 1))
+      (k := t - 1) hi
+    have hout : ArrayCopy.copyPrefix mem (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1)
+        (nodeAddr base t c + (2 * t + 1) + t + i) =
+        mem (nodeAddr base t c + (2 * t + 1) + t + i) :=
+      ArrayCopy.copyPrefix_outside (by omega)
     simpa only [Nat.add_assoc] using hcopy.trans hout
   cases l with
   | zero =>
@@ -1381,25 +1388,31 @@ theorem memCopyUpper_spec {l base t c z : ℕ} {mem : ℕ → ℕ}
       rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
         Function.update_of_ne (by omega)]
       split_ifs
-      · rw [copyArr_outside _ _ _ _ _ (by omega), copyArr_outside _ _ _ _ _ (by omega),
-          copyArr_outside _ _ _ _ _ (by omega)]
-      · rw [copyArr_outside _ _ _ _ _ (by omega), copyArr_outside _ _ _ _ _ (by omega)]
+      · rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega),
+          ArrayCopy.copyPrefix_outside (by omega)]
+      · rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega)]
     have hcid_z : ∀ j < t, childAt base t mem₁ z j = childAt base t mem c (t + j) := fun j hj => by
       have hmem_ac0 : mem (nodeAddr base t c) = 0 := hlf0
       simp only [childAt, mem₁, memCopyUpper, hmem_ac0, ↓reduceIte]
       rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
         Function.update_of_ne (by omega)]
-      have hcopy := copyArr_inside (srcBase := nodeAddr base t c + 4 * t + t)
-        (dstBase := nodeAddr base t z + 4 * t) (len := t)
-        (copyArr (nodeAddr base t c + (2 * t + 1) + t) (nodeAddr base t z + (2 * t + 1)) (t - 1)
-          (copyArr (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1) mem))
-        (fun i₁ h₁ i₂ h₂ => by omega) j hj
-      have hout1 := copyArr_outside (nodeAddr base t c + (2 * t + 1) + t)
-        (nodeAddr base t z + (2 * t + 1)) (t - 1)
-        (copyArr (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1) mem)
-        (nodeAddr base t c + 4 * t + t + j) (by omega)
-      have hout2 := copyArr_outside (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1) mem
-        (nodeAddr base t c + 4 * t + t + j) (by omega)
+      have hcopy := ArrayCopy.copyPrefix_read
+        (mem := ArrayCopy.copyPrefix
+          (ArrayCopy.copyPrefix mem (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1))
+          (nodeAddr base t c + (2 * t + 1) + t) (nodeAddr base t z + (2 * t + 1)) (t - 1))
+        (src := nodeAddr base t c + 4 * t + t) (dst := nodeAddr base t z + 4 * t) (k := t) hj
+      have hout1 : ArrayCopy.copyPrefix
+          (ArrayCopy.copyPrefix mem (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1))
+          (nodeAddr base t c + (2 * t + 1) + t) (nodeAddr base t z + (2 * t + 1)) (t - 1)
+          (nodeAddr base t c + 4 * t + t + j) =
+          ArrayCopy.copyPrefix mem (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1)
+            (nodeAddr base t c + 4 * t + t + j) :=
+        ArrayCopy.copyPrefix_outside (by omega)
+      have hout2 : ArrayCopy.copyPrefix mem
+          (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1)
+          (nodeAddr base t c + 4 * t + t + j) =
+          mem (nodeAddr base t c + 4 * t + t + j) :=
+        ArrayCopy.copyPrefix_outside (by omega)
       simpa only [Nat.add_assoc] using (hcopy.trans hout1).trans hout2
     -- Every child `0 .. 2*t - 1` of `c` is untouched in `mem₁`:
     have hchild_congr : ∀ j < 2 * t,

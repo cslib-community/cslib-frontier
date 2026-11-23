@@ -65,6 +65,8 @@ public section
 
 namespace Cslib.DataStructure.BTree.NodeAccess
 
+open PFunctor.FreeM
+
 section Extremal
 
 variable {α β H : Type}
@@ -76,20 +78,20 @@ level. -/
   | _ + 1, none => pure none
   | fuel + 1, some h => do
     let page ← readNode h
-    match ← minR fuel page.1 with
+    match ← minR fuel page.first with
     | some p => pure (some p)
-    | none => pure (page.2.head?.map fun (k, v, _) => (k, v))
+    | none => pure (page.rest.head?.map fun e => (e.key, e.val))
 
-/-- Within-page scan for `maxR`: walks to the last triple of an already-read page without issuing
+/-- Within-page scan for `maxR`: walks to the last entry of an already-read page without issuing
 extra reads, then recurses into the rightmost child. -/
 @[expose] def maxScan (rec : Option H → NodeM α β H (Option (α × β))) :
-    Option H → List (α × β × Option H) → NodeM α β H (Option (α × β))
+    Option H → List (PageEntry α β H) → NodeM α β H (Option (α × β))
   | first, [] => rec first
-  | _, [(k, v, c)] => do
+  | _, [⟨k, v, c⟩] => do
     match ← rec c with
     | some p => pure (some p)
     | none => pure (some (k, v))
-  | _, (_, _, c) :: e :: rs => maxScan rec c (e :: rs)
+  | _, ⟨_, _, c⟩ :: e :: rs => maxScan rec c (e :: rs)
 
 /-- External-memory maximum query: read each page along the rightmost spine once. -/
 @[expose] def maxR : ℕ → Option H → NodeM α β H (Option (α × β))
@@ -97,7 +99,7 @@ extra reads, then recurses into the rightmost child. -/
   | _ + 1, none => pure none
   | fuel + 1, some h => do
     let page ← readNode h
-    maxScan (maxR fuel) page.1 page.2
+    maxScan (maxR fuel) page.first page.rest
 
 theorem countQueries_minR_le_fuel (s : Store α β H) (fuel : ℕ) (root : Option H) :
     countQueries s (minR fuel root) ≤ fuel := by
@@ -108,13 +110,13 @@ theorem countQueries_minR_le_fuel (s : Store α β H) (fuel : ℕ) (root : Optio
     | none => simp [minR]
     | some h =>
       simp only [minR, countQueries_bind, countQueries_readNode, eval_readNode]
-      have hsub := ih (s h).1
+      have hsub := ih (s h).first
       split <;> simp only [countQueries_pure] <;> omega
 
 private theorem countQueries_maxScan_le (s : Store α β H)
     (rec : Option H → NodeM α β H (Option (α × β))) {B : ℕ}
     (hrec : ∀ r, countQueries s (rec r) ≤ B) (first : Option H)
-    (rs : List (α × β × Option H)) :
+    (rs : List (PageEntry α β H)) :
     countQueries s (maxScan rec first rs) ≤ B := by
   induction rs generalizing first with
   | nil => exact hrec first
@@ -137,12 +139,12 @@ theorem countQueries_maxR_le_fuel (s : Store α β H) (fuel : ℕ) (root : Optio
     | none => simp [maxR]
     | some h =>
       simp only [maxR, countQueries_bind, countQueries_readNode, eval_readNode]
-      have hscan := countQueries_maxScan_le s (maxR fuel) ih (s h).1 (s h).2
+      have hscan := countQueries_maxScan_le s (maxR fuel) ih (s h).first (s h).rest
       omega
 
-private theorem head_map_eq_of_denotesRest {s : Store α β H} {rs : List (α × β × Option H)}
+private theorem head_map_eq_of_denotesRest {s : Store α β H} {rs : List (PageEntry α β H)}
     {rest : List (BTree.Triple α β)} (hd : DenotesRest s rs rest) :
-    (rs.head?.map fun e => (e.1, e.2.1)) =
+    (rs.head?.map fun e => (e.key, e.val)) =
       (rest.head?.map fun (e : BTree.Triple α β) => (e.1, e.val)) := by
   cases rs with
   | nil =>
@@ -152,7 +154,7 @@ private theorem head_map_eq_of_denotesRest {s : Store α β H} {rs : List (α ×
   | cons e rs =>
     obtain ⟨k, v, r⟩ := e
     cases rest with
-    | nil => exact (denotesRest_cons_nil s (k, v, r) rs hd).elim
+    | nil => exact (denotesRest_cons_nil s ⟨k, v, r⟩ rs hd).elim
     | cons e' rest =>
       obtain ⟨k', v', c⟩ := e'
       obtain ⟨rfl, rfl, _, _⟩ := (denotesRest_cons_cons_iff s k k' v v' r c rs rest).mp hd
@@ -209,7 +211,7 @@ theorem countQueries_minR_le {s : Store α β H} {fuel : ℕ} {root : Option H} 
 
 private theorem maxScan_spec {s : Store α β H} {fuel : ℕ}
     {r₀ : Option H} {first : BTree α β}
-    {rs : List (α × β × Option H)} {rest : List (BTree.Triple α β)}
+    {rs : List (PageEntry α β H)} {rest : List (BTree.Triple α β)}
     (hdf : Denotes s r₀ first) (hdr : DenotesRest s rs rest)
     (hrec : ∀ c ∈ (BTree.node first rest).children, ∀ r, Denotes s r c → c.height ≤ fuel →
       eval s (maxR fuel r) = BTree.max? c ∧ countQueries s (maxR fuel r) ≤ c.height)
@@ -228,7 +230,7 @@ private theorem maxScan_spec {s : Store α β H} {fuel : ℕ}
   | cons e₁ rs ih =>
     obtain ⟨k₁, v₁, r₁⟩ := e₁
     cases rest with
-    | nil => exact (denotesRest_cons_nil s (k₁, v₁, r₁) rs hdr).elim
+    | nil => exact (denotesRest_cons_nil s ⟨k₁, v₁, r₁⟩ rs hdr).elim
     | cons e₁' rest' =>
       obtain ⟨k₁', v₁', c₁⟩ := e₁'
       obtain ⟨rfl, rfl, hdc₁, hdr'⟩ :=
@@ -307,9 +309,9 @@ variable {α β H : Type} [LinearOrder α]
 /-- Within-page scan for `lookupR`: scans keys in memory and either returns on equality or
 recurses into the single selected child handle. -/
 @[expose] def lookupScan (rec : Option H → NodeM α β H (Option β)) (k : α) :
-    Option H → List (α × β × Option H) → NodeM α β H (Option β)
+    Option H → List (PageEntry α β H) → NodeM α β H (Option β)
   | first, [] => rec first
-  | first, (k', v, c) :: rs =>
+  | first, ⟨k', v, c⟩ :: rs =>
     if k ≤ k' then
       if k' ≤ k then pure (some v) else rec first
     else
@@ -321,7 +323,7 @@ recurses into the single selected child handle. -/
   | _ + 1, _, none => pure none
   | fuel + 1, k, some h => do
     let page ← readNode h
-    lookupScan (lookupR fuel k) k page.1 page.2
+    lookupScan (lookupR fuel k) k page.first page.rest
 
 /-- External-memory membership test, derived from `lookupR` at the same page-read cost. -/
 @[expose] def containsR (fuel : ℕ) (k : α) (root : Option H) : NodeM α β H Bool :=
@@ -330,9 +332,9 @@ recurses into the single selected child handle. -/
 /-- Within-page scan for `predR`: scans keys in memory, retaining smaller separators as fallbacks,
 and recurses into at most one child handle. -/
 @[expose] def predScan (rec : Option H → NodeM α β H (Option (α × β))) (k : α) :
-    Option H → List (α × β × Option H) → NodeM α β H (Option (α × β))
+    Option H → List (PageEntry α β H) → NodeM α β H (Option (α × β))
   | first, [] => rec first
-  | first, (k', v, c) :: rs =>
+  | first, ⟨k', v, c⟩ :: rs =>
     if k ≤ k' then
       rec first
     else
@@ -344,14 +346,14 @@ and recurses into at most one child handle. -/
   | _ + 1, _, none => pure none
   | fuel + 1, k, some h => do
     let page ← readNode h
-    predScan (predR fuel k) k page.1 page.2
+    predScan (predR fuel k) k page.first page.rest
 
 /-- Within-page scan for `succR`: skips keys `≤ k` in memory and recurses into the child before
 the first larger separator (or the rightmost child). -/
 @[expose] def succScan (rec : Option H → NodeM α β H (Option (α × β))) (k : α) :
-    Option H → List (α × β × Option H) → NodeM α β H (Option (α × β))
+    Option H → List (PageEntry α β H) → NodeM α β H (Option (α × β))
   | first, [] => rec first
-  | first, (k', v, c) :: rs =>
+  | first, ⟨k', v, c⟩ :: rs =>
     if k' ≤ k then
       succScan rec k c rs
     else
@@ -363,14 +365,14 @@ the first larger separator (or the rightmost child). -/
   | _ + 1, _, none => pure none
   | fuel + 1, k, some h => do
     let page ← readNode h
-    succScan (succR fuel k) k page.1 page.2
+    succScan (succR fuel k) k page.first page.rest
 
 /-- Within-page scan for `rankR` in an order-statistic page: accumulates stored child sizes of
 skipped children in memory without reading those children's pages. -/
 @[expose] def rankScan (rec : Option H → RankedNodeM α β H ℕ) (k : α) :
-    RankedChild H → List (α × β × RankedChild H) → RankedNodeM α β H ℕ
-  | (first, _), [] => rec first
-  | (first, firstSz), (k', _, rc) :: rs =>
+    RankedChild H → List (RankedPageEntry α β H) → RankedNodeM α β H ℕ
+  | ⟨first, _⟩, [] => rec first
+  | ⟨first, firstSz⟩, ⟨k', _, rc⟩ :: rs =>
     if k ≤ k' then
       rec first
     else
@@ -382,14 +384,14 @@ skipped children in memory without reading those children's pages. -/
   | _ + 1, _, none => pure 0
   | fuel + 1, k, some h => do
     let page ← readRankedNode h
-    rankScan (rankR fuel k) k page.1 page.2
+    rankScan (rankR fuel k) k page.first page.rest
 
 /-! ### Universal `≤ fuel` bounds -/
 
 private theorem countQueries_lookupScan_le (s : Store α β H)
     (rec : Option H → NodeM α β H (Option β)) (k : α) {B : ℕ}
     (hrec : ∀ r, countQueries s (rec r) ≤ B) (first : Option H)
-    (rs : List (α × β × Option H)) :
+    (rs : List (PageEntry α β H)) :
     countQueries s (lookupScan rec k first rs) ≤ B := by
   induction rs generalizing first with
   | nil => exact hrec first
@@ -411,7 +413,7 @@ theorem countQueries_lookupR_le_fuel (s : Store α β H) (fuel : ℕ) (k : α) (
     | none => simp [lookupR]
     | some h =>
       simp only [lookupR, countQueries_bind, countQueries_readNode, eval_readNode]
-      have hscan := countQueries_lookupScan_le s (lookupR fuel k) k ih (s h).1 (s h).2
+      have hscan := countQueries_lookupScan_le s (lookupR fuel k) k ih (s h).first (s h).rest
       omega
 
 theorem countQueries_containsR_le_fuel (s : Store α β H) (fuel : ℕ) (k : α) (root : Option H) :
@@ -421,7 +423,7 @@ theorem countQueries_containsR_le_fuel (s : Store α β H) (fuel : ℕ) (k : α)
 private theorem countQueries_predScan_le (s : Store α β H)
     (rec : Option H → NodeM α β H (Option (α × β))) (k : α) {B : ℕ}
     (hrec : ∀ r, countQueries s (rec r) ≤ B) (first : Option H)
-    (rs : List (α × β × Option H)) :
+    (rs : List (PageEntry α β H)) :
     countQueries s (predScan rec k first rs) ≤ B := by
   induction rs generalizing first with
   | nil => exact hrec first
@@ -441,13 +443,13 @@ theorem countQueries_predR_le_fuel (s : Store α β H) (fuel : ℕ) (k : α) (ro
     | none => simp [predR]
     | some h =>
       simp only [predR, countQueries_bind, countQueries_readNode, eval_readNode]
-      have hscan := countQueries_predScan_le s (predR fuel k) k ih (s h).1 (s h).2
+      have hscan := countQueries_predScan_le s (predR fuel k) k ih (s h).first (s h).rest
       omega
 
 private theorem countQueries_succScan_le (s : Store α β H)
     (rec : Option H → NodeM α β H (Option (α × β))) (k : α) {B : ℕ}
     (hrec : ∀ r, countQueries s (rec r) ≤ B) (first : Option H)
-    (rs : List (α × β × Option H)) :
+    (rs : List (PageEntry α β H)) :
     countQueries s (succScan rec k first rs) ≤ B := by
   induction rs generalizing first with
   | nil => exact hrec first
@@ -467,16 +469,16 @@ theorem countQueries_succR_le_fuel (s : Store α β H) (fuel : ℕ) (k : α) (ro
     | none => simp [succR]
     | some h =>
       simp only [succR, countQueries_bind, countQueries_readNode, eval_readNode]
-      have hscan := countQueries_succScan_le s (succR fuel k) k ih (s h).1 (s h).2
+      have hscan := countQueries_succScan_le s (succR fuel k) k ih (s h).first (s h).rest
       omega
 
 private theorem countQueries_rankScan_le (s : RankedStore α β H)
     (rec : Option H → RankedNodeM α β H ℕ) (k : α) {B : ℕ}
     (hrec : ∀ r, countQueries s (rec r) ≤ B) (fc : RankedChild H)
-    (rs : List (α × β × RankedChild H)) :
+    (rs : List (RankedPageEntry α β H)) :
     countQueries s (rankScan rec k fc rs) ≤ B := by
   induction rs generalizing fc with
-  | nil => exact hrec fc.1
+  | nil => exact hrec fc.ref
   | cons e rs ih =>
     obtain ⟨k', v, rc⟩ := e
     obtain ⟨first, firstSz⟩ := fc
@@ -494,14 +496,14 @@ theorem countQueries_rankR_le_fuel (s : RankedStore α β H) (fuel : ℕ) (k : �
     | none => simp [rankR]
     | some h =>
       simp only [rankR, countQueries_bind, countQueries_readRankedNode, eval_readRankedNode]
-      have hscan := countQueries_rankScan_le s (rankR fuel k) k ih (s h).1 (s h).2
+      have hscan := countQueries_rankScan_le s (rankR fuel k) k ih (s h).first (s h).rest
       omega
 
 /-! ### Exact pure-model agreement and `≤ tr.height` page-read bounds -/
 
 private theorem lookupScan_spec {s : Store α β H} {fuel : ℕ} {k : α}
     {r₀ : Option H} {first : BTree α β}
-    {rs : List (α × β × Option H)} {rest : List (BTree.Triple α β)}
+    {rs : List (PageEntry α β H)} {rest : List (BTree.Triple α β)}
     (hdf : Denotes s r₀ first) (hdr : DenotesRest s rs rest)
     (hrec : ∀ c ∈ (BTree.node first rest).children, ∀ r, Denotes s r c → c.height ≤ fuel →
       eval s (lookupR fuel k r) = BTree.lookup k c ∧ countQueries s (lookupR fuel k r) ≤ c.height)
@@ -521,7 +523,7 @@ private theorem lookupScan_spec {s : Store α β H} {fuel : ℕ} {k : α}
   | cons e rs ih =>
     obtain ⟨k', v, r₁⟩ := e
     cases rest with
-    | nil => exact (denotesRest_cons_nil s (k', v, r₁) rs hdr).elim
+    | nil => exact (denotesRest_cons_nil s ⟨k', v, r₁⟩ rs hdr).elim
     | cons e' rest' =>
       obtain ⟨k'', v', c⟩ := e'
       obtain ⟨rfl, rfl, hdc, hdr'⟩ :=
@@ -604,7 +606,7 @@ theorem countQueries_containsR_le {s : Store α β H} {fuel : ℕ} {root : Optio
 
 private theorem predScan_spec {s : Store α β H} {fuel : ℕ} {k : α}
     {r₀ : Option H} {first : BTree α β}
-    {rs : List (α × β × Option H)} {rest : List (BTree.Triple α β)}
+    {rs : List (PageEntry α β H)} {rest : List (BTree.Triple α β)}
     (hdf : Denotes s r₀ first) (hdr : DenotesRest s rs rest)
     (hrec : ∀ c ∈ (BTree.node first rest).children, ∀ r, Denotes s r c → c.height ≤ fuel →
       eval s (predR fuel k r) = BTree.pred? k c ∧ countQueries s (predR fuel k r) ≤ c.height)
@@ -624,7 +626,7 @@ private theorem predScan_spec {s : Store α β H} {fuel : ℕ} {k : α}
   | cons e rs ih =>
     obtain ⟨k', v, r₁⟩ := e
     cases rest with
-    | nil => exact (denotesRest_cons_nil s (k', v, r₁) rs hdr).elim
+    | nil => exact (denotesRest_cons_nil s ⟨k', v, r₁⟩ rs hdr).elim
     | cons e' rest' =>
       obtain ⟨k'', v', c⟩ := e'
       obtain ⟨rfl, rfl, hdc, hdr'⟩ :=
@@ -689,7 +691,7 @@ theorem countQueries_predR_le {s : Store α β H} {fuel : ℕ} {root : Option H}
 
 private theorem succScan_spec {s : Store α β H} {fuel : ℕ} {k : α}
     {r₀ : Option H} {first : BTree α β}
-    {rs : List (α × β × Option H)} {rest : List (BTree.Triple α β)}
+    {rs : List (PageEntry α β H)} {rest : List (BTree.Triple α β)}
     (hdf : Denotes s r₀ first) (hdr : DenotesRest s rs rest)
     (hrec : ∀ c ∈ (BTree.node first rest).children, ∀ r, Denotes s r c → c.height ≤ fuel →
       eval s (succR fuel k r) = BTree.succ? k c ∧ countQueries s (succR fuel k r) ≤ c.height)
@@ -709,7 +711,7 @@ private theorem succScan_spec {s : Store α β H} {fuel : ℕ} {k : α}
   | cons e rs ih =>
     obtain ⟨k', v, r₁⟩ := e
     cases rest with
-    | nil => exact (denotesRest_cons_nil s (k', v, r₁) rs hdr).elim
+    | nil => exact (denotesRest_cons_nil s ⟨k', v, r₁⟩ rs hdr).elim
     | cons e' rest' =>
       obtain ⟨k'', v', c⟩ := e'
       obtain ⟨rfl, rfl, hdc, hdr'⟩ :=
@@ -774,8 +776,8 @@ theorem countQueries_succR_le {s : Store α β H} {fuel : ℕ} {root : Option H}
 
 private theorem rankScan_spec {s : RankedStore α β H} {fuel : ℕ} {k : α}
     {fc : RankedChild H} {first : BTree α β}
-    {rs : List (α × β × RankedChild H)} {rest : List (BTree.Triple α β)}
-    (hdf : DenotesRanked s fc.1 first) (hszf : fc.2 = first.size)
+    {rs : List (RankedPageEntry α β H)} {rest : List (BTree.Triple α β)}
+    (hdf : DenotesRanked s fc.ref first) (hszf : fc.subSize = first.size)
     (hdr : DenotesRankedRest s rs rest)
     (hrec : ∀ c ∈ (BTree.node first rest).children, ∀ r, DenotesRanked s r c → c.height ≤ fuel →
       eval s (rankR fuel k r) = BTree.rank k c ∧ countQueries s (rankR fuel k r) ≤ c.height)
@@ -798,7 +800,7 @@ private theorem rankScan_spec {s : RankedStore α β H} {fuel : ℕ} {k : α}
     obtain ⟨r₀, sz₀⟩ := fc
     cases hszf
     cases rest with
-    | nil => exact (denotesRankedRest_cons_nil s (k', v, rc) rs hdr).elim
+    | nil => exact (denotesRankedRest_cons_nil s ⟨k', v, rc⟩ rs hdr).elim
     | cons e' rest' =>
       obtain ⟨k'', v', c⟩ := e'
       obtain ⟨rfl, rfl, hdc, hszc, hdr'⟩ :=

@@ -30,7 +30,8 @@ set_option linter.privateModule false
 
 namespace CslibFrontierTests.BTreeNodeAccess
 
-open Cslib.DataStructure Cslib.DataStructure.BTree Cslib.DataStructure.BTree.NodeAccess
+open PFunctor.FreeM Cslib.DataStructure Cslib.DataStructure.BTree
+open Cslib.DataStructure.BTree.NodeAccess
 
 /-- Well-formed height-2 B-tree of minimum degree `t = 2` holding 7 entries. -/
 def sampleTree : BTree ℕ String :=
@@ -43,25 +44,24 @@ theorem isWF_sampleTree : IsWF 2 sampleTree := by decide
 
 /-- Concrete integer-handle store (`H := ℕ`) with root at handle `0` and children at `1, 2, 3`. -/
 def intStore : Store ℕ String ℕ
-  | 0 => (some 1, [(5, "c", some 2), (11, "f", some 3)])
-  | 1 => (none, [(1, "a", none), (3, "b", none)])
-  | 2 => (none, [(7, "d", none), (9, "e", none)])
-  | 3 => (none, [(13, "g", none)])
-  | _ => (none, [])
+  | 0 => ⟨some 1, [⟨5, "c", some 2⟩, ⟨11, "f", some 3⟩]⟩
+  | 1 => ⟨none, [⟨1, "a", none⟩, ⟨3, "b", none⟩]⟩
+  | 2 => ⟨none, [⟨7, "d", none⟩, ⟨9, "e", none⟩]⟩
+  | 3 => ⟨none, [⟨13, "g", none⟩]⟩
+  | _ => ⟨none, []⟩
 
 /-- Concrete integer-handle order-statistic store (`H := ℕ`) augmenting child slots with sizes. -/
 def intRankedStore : RankedStore ℕ String ℕ
-  | 0 => ((some 1, 2), [(5, "c", (some 2, 2)), (11, "f", (some 3, 1))])
-  | 1 => ((none, 0), [(1, "a", (none, 0)), (3, "b", (none, 0))])
-  | 2 => ((none, 0), [(7, "d", (none, 0)), (9, "e", (none, 0))])
-  | 3 => ((none, 0), [(13, "g", (none, 0))])
-  | _ => ((none, 0), [])
+  | 0 => ⟨⟨some 1, 2⟩, [⟨5, "c", ⟨some 2, 2⟩⟩, ⟨11, "f", ⟨some 3, 1⟩⟩]⟩
+  | 1 => ⟨⟨none, 0⟩, [⟨1, "a", ⟨none, 0⟩⟩, ⟨3, "b", ⟨none, 0⟩⟩]⟩
+  | 2 => ⟨⟨none, 0⟩, [⟨7, "d", ⟨none, 0⟩⟩, ⟨9, "e", ⟨none, 0⟩⟩]⟩
+  | 3 => ⟨⟨none, 0⟩, [⟨13, "g", ⟨none, 0⟩⟩]⟩
+  | _ => ⟨⟨none, 0⟩, []⟩
 
 theorem denotesRanked_intRankedStore : DenotesRanked intRankedStore (some 0) sampleTree := by
-  simp only [sampleTree, denotesRanked_some_node_iff, intRankedStore, RankedNodeView.firstRef,
-    RankedNodeView.firstSize, BTree.size, BTree.toList, BTree.toListRest, List.nil_append,
-    List.cons_append, List.length_cons, List.length_nil, denotesRankedRest_cons_cons_iff,
-    denotesRankedRest_nil_nil, denotesRanked_none_leaf, and_self]
+  simp only [sampleTree, denotesRanked_some_node_iff, intRankedStore, BTree.size, BTree.toList,
+    BTree.toListRest, List.nil_append, List.cons_append, List.length_cons, List.length_nil,
+    denotesRankedRest_cons_cons_iff, denotesRankedRest_nil_nil, denotesRanked_none_leaf, and_self]
 
 theorem denotes_intStore : Denotes intStore (some 0) sampleTree := by
   have heq : intStore = intRankedStore.toStore := by
@@ -108,7 +108,7 @@ example :
 
 /-- Cyclic adversarial store where handle `0` points back to `0` on every child slot. -/
 def cyclicStore : Store ℕ String ℕ :=
-  fun h => (some h, [(10, "x", some h)])
+  fun h => ⟨some h, [⟨10, "x", some h⟩]⟩
 
 example :
     eval cyclicStore (lookupR 4 99 (some 0)) = none ∧

@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.WordRAM.Compile
 public import CslibFrontier.Computability.WordRAM.Heap
 public import CslibFrontier.Computability.WordRAM.Notation
 public import CslibFrontier.DataStructure.BTree.WordRAM.Arena
+import CslibFrontier.Computability.WordRAM.Call
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 
@@ -41,8 +42,10 @@ Concrete in-memory Word-RAM implementation of classic minimum-degree-`t` B-trees
   `Cslib.DataStructure.BTree.WordRAM.Reg.rKey`,
   `Cslib.DataStructure.BTree.WordRAM.Reg.rVal`,
   `Cslib.DataStructure.BTree.WordRAM.Reg.rFound`: caller-visible Word-RAM interface registers.
-* `Cslib.DataStructure.BTree.WordRAM.Rep`: coupling invariant between a `20`-register Word-RAM
-  state `x : Data 20` and a well-formed `BTree ℕ ℕ` in `[base, base + arenaWords t capNodes)`.
+* `Cslib.DataStructure.BTree.WordRAM.Rep` and `Cslib.DataStructure.BTree.WordRAM.allocCount`:
+  coupling invariant and allocated-node count (`x.mem (base + 1)`) for a `20`-register Word-RAM
+  state `x : Data 20` representing a well-formed `BTree ℕ ℕ` in
+  `[base, base + arenaWords t capNodes)`.
 * `Cslib.DataStructure.BTree.WordRAM.initCode`: `O(1)` empty-arena initializer over
   `Basis.standard`.
 * `Cslib.DataStructure.BTree.WordRAM.lookupCode`,
@@ -54,21 +57,22 @@ Concrete in-memory Word-RAM implementation of classic minimum-degree-`t` B-trees
 
 ## Main results
 
-* `Cslib.DataStructure.BTree.WordRAM.Rep.isWF` and
-  `Cslib.DataStructure.BTree.WordRAM.Rep.height_le_log`: any represented tree satisfies
-  `BTree.IsWF t tr` and `tr.height ≤ Nat.log t ((tr.size + 1) / 2) + 1`.
+* `Cslib.DataStructure.BTree.WordRAM.Rep.isWF`,
+  `Cslib.DataStructure.BTree.WordRAM.Rep.height_le_log`,
+  `Cslib.DataStructure.BTree.WordRAM.Rep.setKey`, and
+  `Cslib.DataStructure.BTree.WordRAM.Rep.setKeyVal`: well-formedness, logarithmic height bound,
+  and argument-register framing for `Rep`.
 * `Cslib.DataStructure.BTree.WordRAM.initCode_spec`: `O(1)` Word-RAM initialization of `.leaf`.
 * `Cslib.DataStructure.BTree.WordRAM.lookupCode_spec`,
-  `Cslib.DataStructure.BTree.WordRAM.lookupCode_log_spec`,
-  `Cslib.DataStructure.BTree.WordRAM.lookupProg_runs`, and
-  `Cslib.DataStructure.BTree.WordRAM.lookupProgram_executes`: `O(t * tr.height)` and `O(t log_t n)`
-  Word-RAM instruction bounds for `lookupCode` and `lookupProgram`.
+  `Cslib.DataStructure.BTree.WordRAM.lookupCode_log_spec`, and
+  `Cslib.DataStructure.BTree.WordRAM.lookupProgram_spec`: `O(t * tr.height)` and `O(t log_t n)`
+  Word-RAM instruction bounds for `lookupCode` and halting flat `lookupProgram` (retaining both
+  `rFound` and `rVal`, unchanged memory, and `Rep`).
 * `Cslib.DataStructure.BTree.WordRAM.insertCode_spec`,
-  `Cslib.DataStructure.BTree.WordRAM.insertCode_log_spec`,
-  `Cslib.DataStructure.BTree.WordRAM.insertProg_runs`, and
-  `Cslib.DataStructure.BTree.WordRAM.insertProgram_executes`: `O(t * (tr.height + 1))` and
+  `Cslib.DataStructure.BTree.WordRAM.insertCode_log_spec`, and
+  `Cslib.DataStructure.BTree.WordRAM.insertProgram_spec`: `O(t * (tr.height + 1))` and
   `O(t log_t n)` Word-RAM instruction bounds, `Rep` preservation, `SortedAssoc.insert` correctness,
-  and memory framing for `insertCode` and `insertProgram`.
+  node-allocation bound, and memory framing for `insertCode` and halting flat `insertProgram`.
 
 ## References
 
@@ -143,6 +147,42 @@ structure Rep (base capNodes t w : ℕ) (tr : BTree ℕ ℕ) (x : Data 20) : Pro
           SortedNode l base t x.mem (x.mem base) ∧
           readNodeSet l base t x.mem (x.mem base) ⊆ Finset.range (x.mem (base + 1)))
 
+/-- Number of arena nodes currently allocated in `x` (`x.mem (base + 1)`). -/
+@[expose] def allocCount (base : ℕ) (x : Data 20) : ℕ := x.mem (base + 1)
+
+@[simp] theorem allocCount_set (base : ℕ) (x : Data 20) (r : Fin 20) (v : ℕ) :
+    allocCount base (x.set r v) = allocCount base x := rfl
+
+/-- Allocated node count never exceeds `capNodes` under `Rep`. -/
+theorem Rep.allocCount_le_cap {base capNodes t w : ℕ} {tr : BTree ℕ ℕ} {x : Data 20}
+    (hr : Rep base capNodes t w tr x) : allocCount base x ≤ capNodes :=
+  hr.cnt_le_cap
+
+/-- Setting any register other than `rBase` and `rDeg` to a `w`-bit word preserves `Rep`. -/
+theorem Rep.set_of_ne {base capNodes t w : ℕ} {tr : BTree ℕ ℕ} {x : Data 20}
+    (hr : Rep base capNodes t w tr x) {r : Fin 20} (hb : r ≠ rBase) (hd : r ≠ rDeg)
+    {v : ℕ} (hv : Fits w v) :
+    Rep base capNodes t w tr (x.set r v) where
+  bounded := hr.bounded.set hv
+  two_le := hr.two_le
+  base_eq := (Data.set_regs_of_ne hb.symm v).trans hr.base_eq
+  deg_eq := (Data.set_regs_of_ne hd.symm v).trans hr.deg_eq
+  fits_arena := hr.fits_arena
+  cnt_le_cap := hr.cnt_le_cap
+  tree_spec := hr.tree_spec
+
+/-- Setting `rKey` to a `w`-bit word preserves `Rep`. -/
+theorem Rep.setKey {base capNodes t w : ℕ} {tr : BTree ℕ ℕ} {x : Data 20}
+    (hr : Rep base capNodes t w tr x) {k : ℕ} (hk : Fits w k) :
+    Rep base capNodes t w tr (x.set rKey k) :=
+  hr.set_of_ne (by decide) (by decide) hk
+
+/-- Setting `rKey` and `rVal` to `w`-bit words preserves `Rep`. -/
+theorem Rep.setKeyVal {base capNodes t w : ℕ} {tr : BTree ℕ ℕ} {x : Data 20}
+    (hr : Rep base capNodes t w tr x) {k v : ℕ} (hk : Fits w k) (hv : Fits w v) :
+    Rep base capNodes t w tr ((x.set rKey k).set rVal v) :=
+  (hr.setKey hk).set_of_ne (by decide) (by decide) hv
+
 /-- Every represented B-tree satisfies `BTree.IsWF t tr`. -/
 theorem Rep.isWF {base capNodes t w : ℕ} {tr : BTree ℕ ℕ} {x : Data 20}
     (hr : Rep base capNodes t w tr x) : BTree.IsWF t tr := by
@@ -181,42 +221,6 @@ private theorem nodeAddr_add_le_arena {base capNodes t u o : ℕ}
   simp only [nodeAddr, arenaWords, nodeStride, Nat.add_mul, Nat.one_mul] at hmul ⊢
   omega
 
-private theorem modifies_trans {s : Finset ℕ} {m₁ m₂ m₃ : ℕ → ℕ}
-    (h₁ : Modifies s m₁ m₂) (h₂ : Modifies s m₂ m₃) : Modifies s m₁ m₃ :=
-  fun a ha => (h₂ a ha).trans (h₁ a ha)
-
-private theorem modifies_arena_of_update {base capNodes t a v : ℕ} {mem : ℕ → ℕ}
-    (hlo : base ≤ a) (hhi : a < base + arenaWords t capNodes) :
-    Modifies (Block.mk base (arenaWords t capNodes)).footprint mem (Function.update mem a v) := by
-  intro addr hnot
-  apply Function.update_of_ne
-  intro heq
-  apply hnot
-  simp only [Block.mem_footprint, Block.Owns]
-  omega
-
-private theorem modifies_arena_of_copyArr {base capNodes t src dst len : ℕ} {mem : ℕ → ℕ}
-    (hlo : base ≤ dst) (hhi : dst + len ≤ base + arenaWords t capNodes) :
-    Modifies (Block.mk base (arenaWords t capNodes)).footprint mem (copyArr src dst len mem) := by
-  intro addr hnot
-  apply copyArr_outside
-  by_contra hcontra
-  apply hnot
-  simp only [Block.mem_footprint, Block.Owns]
-  omega
-
-private theorem modifies_arena_of_shiftArrRight {base capNodes t arr upper count : ℕ} {mem : ℕ → ℕ}
-    (hcount : count ≤ upper)
-    (hlo : base ≤ arr) (hhi : arr + upper < base + arenaWords t capNodes) :
-    Modifies (Block.mk base (arenaWords t capNodes)).footprint mem
-      (shiftArrRight arr upper count mem) := by
-  intro addr hnot
-  apply shiftArrRight_outside _ _ _ _ hcount
-  by_contra hcontra
-  apply hnot
-  simp only [Block.mem_footprint, Block.Owns]
-  omega
-
 /-! ## 3. Initialization (`initCode`) -/
 
 /-- Initialize `[base, base + 2)` to `(root = 0, cnt = 0)`. -/
@@ -227,8 +231,8 @@ def initCode : Code .standard 20 := ram[
   rTmp1 ← rBase + rOne;
   *rTmp1 ← rZero ]
 
-/-- `initCode` initializes an empty B-tree `.leaf` in at most `5` standard Word-RAM instructions,
-modifying only `[base, base + arenaWords t capNodes)`. -/
+/-- `initCode` initializes an empty B-tree `.leaf` (`allocCount base y = 0`) in at most `5`
+standard Word-RAM instructions, modifying only `[base, base + arenaWords t capNodes)`. -/
 theorem initCode_spec {w base capNodes t : ℕ} {x : Data 20}
     (ht : 2 ≤ t)
     (hbdd : x.Bounded w)
@@ -237,7 +241,7 @@ theorem initCode_spec {w base capNodes t : ℕ} {x : Data 20}
     (hfit : Fits w (base + arenaWords t capNodes)) :
     ∃ y, ExecWithin w initCode x y 5 ∧
       Rep base capNodes t w .leaf y ∧
-      y.mem = memInitEmpty base x.mem ∧
+      allocCount base y = 0 ∧
       Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem y.mem := by
   have hf1 : Fits w 1 := hfit.of_le (by simp only [arenaWords]; omega)
   have hf_b1 : Fits w (base + 1) := hfit.of_le (by simp only [arenaWords]; omega)
@@ -247,91 +251,82 @@ theorem initCode_spec {w base capNodes t : ℕ} {x : Data 20}
     unfold initCode
     dsimp only [y]
     wram_exec [hbase, hf1, hf_b1]
-  have hymem : y.mem = memInitEmpty base x.mem := by
-    dsimp only [y, memInitEmpty]
+  have hymem : y.mem = Function.update (Function.update x.mem base 0) (base + 1) 0 := by
+    dsimp only [y]
     wram_simp
+  have hcnt0 : allocCount base y = 0 := by
+    simp only [allocCount, hymem, Function.update_self]
   have hrep : Rep base capNodes t w .leaf y := by
-    refine ⟨hexec.bounded hbdd, ht, ?_, ?_, hfit, ?_, Or.inl ⟨?_, rfl⟩⟩
+    refine ⟨hexec.bounded hbdd, ht, ?_, ?_, hfit, ?_, Or.inl ⟨hcnt0, rfl⟩⟩
     · dsimp only [y]; wram_simp; exact hbase
     · dsimp only [y]; wram_simp; exact hdeg
-    · rw [hymem]; simp only [memInitEmpty, Function.update_self]; omega
-    · rw [hymem]; simp only [memInitEmpty, Function.update_self]
-  refine ⟨y, hexec, hrep, hymem, ?_⟩
+    · change allocCount base y ≤ capNodes; rw [hcnt0]; omega
+  refine ⟨y, hexec, hrep, hcnt0, ?_⟩
   rw [hymem]
-  exact modifies_trans
-    (modifies_arena_of_update (base := base) (capNodes := capNodes) (t := t) (a := base)
-      le_rfl (by simp only [arenaWords]; omega))
-    (modifies_arena_of_update (base := base) (capNodes := capNodes) (t := t) (a := base + 1)
-      (by omega) (by simp only [arenaWords]; omega))
+  simpa only [Finset.union_idempotent] using
+    (Modifies.write_of_owns (base := base) (n := arenaWords t capNodes)
+      ⟨le_rfl, by simp only [arenaWords]; omega⟩ 0).trans
+      (Modifies.write_of_owns (base := base) (n := arenaWords t capNodes)
+        ⟨by omega, by simp only [arenaWords]; omega⟩ 0)
 
-/-! ## 4. Reusable inner loops: `copyLoop`, `shiftLoop`, `slotScanLoop` -/
+/-! ## 4. Reusable inner loops: `copyArrayCode`, `shiftLoop`, `slotScanLoop` -/
 
-private def copyBody : Code .standard 20 := ram[
-  rTmp1 ← rSrc + rIdx;
-  rTmp2 ← *rTmp1;
-  rTmp1 ← rDst + rIdx;
-  *rTmp1 ← rTmp2;
-  rIdx ← rIdx + rOne ]
+private abbrev copyRegMap : Fin 7 → Fin 20 :=
+  ![rSrc, rDst, rLim, rIdx, rTmp1, rTmp2, rOne]
 
-private def copyLoop : Code .standard 20 := ram[
-  rIdx ← #0;
-  while rIdx < rLim do [⟪copyBody⟫] ]
+private theorem copyRegMap_injective : Function.Injective copyRegMap := by decide
 
-private theorem copyLoop_spec {w srcBase dstBase N : ℕ} {x : Data 20}
+private def copyArrayCode : Code .standard 20 := ram[
+  ⟪ArrayCopy.program.rename copyRegMap⟫;
+  rOne ← #1 ]
+
+private theorem copyArrayCode_spec {w srcBase dstBase N : ℕ} {x : Data 20}
     (hbdd : x.Bounded w)
     (ho : x.regs rOne = 1) (hsrc : x.regs rSrc = srcBase)
     (hdst : x.regs rDst = dstBase) (hlim : x.regs rLim = N)
-    (hf_src : Fits w (srcBase + N)) (hf_dst : Fits w (dstBase + N)) :
-    ∃ y, ExecWithin w copyLoop x y (7 * N + 3) ∧
+    (hf_src : Fits w (srcBase + N)) (hf_dst : Fits w (dstBase + N))
+    (hdisj : srcBase + N ≤ dstBase ∨ dstBase + N ≤ srcBase ∨ srcBase = dstBase) :
+    ∃ y, ExecWithin w copyArrayCode x y (7 * N + 5) ∧
       y.Bounded w ∧
-      y.mem = copyArr srcBase dstBase N x.mem ∧
+      y.mem = ArrayCopy.copyPrefix x.mem srcBase dstBase N ∧
       ∀ reg : Fin 20, reg ≠ rIdx → reg ≠ rTmp1 → reg ≠ rTmp2 → y.regs reg = x.regs reg := by
-  let x₀ := x.set rIdx 0
-  have h0 : ExecWithin w (ram[ rIdx ← #0 ] : Code .standard 20) x x₀ 1 :=
-    ExecWithin.const (hf_src.of_le (Nat.zero_le _))
-  let P (j : ℕ) (z : Data 20) : Prop :=
-    z.Bounded w ∧
-      z.mem = copyArr srcBase dstBase j x.mem ∧
-      ∀ reg : Fin 20, reg ≠ rIdx → reg ≠ rTmp1 → reg ≠ rTmp2 → z.regs reg = x.regs reg
-  have hP0 : P (x₀.regs rIdx) x₀ := by
-    have hidx0 : x₀.regs rIdx = 0 := rfl
-    rw [hidx0]
-    refine ⟨hbdd.set (hf_src.of_le (Nat.zero_le _)), rfl, fun reg h1 _ _ => ?_⟩
-    dsimp only [x₀]
-    exact Data.set_regs_of_ne h1 _
-  obtain ⟨y, hy_loop, hPN, _⟩ := ExecWithin.loop_count (w := w) (N := N) (T := 5)
-    (index := rIdx) (limit := rLim) (body := copyBody) P
-    (fun z hz => (hz.2.2 rLim (by decide) (by decide) (by decide)).trans hlim)
-    (fun z ⟨hb_z, hmem_z, hreg_z⟩ hj_lt => by
-      set j := z.regs rIdx
-      have ho_z : z.regs rOne = 1 := (hreg_z rOne (by decide) (by decide) (by decide)).trans ho
-      have hsrc_z : z.regs rSrc = srcBase :=
-        (hreg_z rSrc (by decide) (by decide) (by decide)).trans hsrc
-      have hdst_z : z.regs rDst = dstBase :=
-        (hreg_z rDst (by decide) (by decide) (by decide)).trans hdst
-      have hf_sj : Fits w (srcBase + j) := hf_src.of_le (by omega)
-      have hf_dj : Fits w (dstBase + j) := hf_dst.of_le (by omega)
-      have hf_j1 : Fits w (j + 1) := hf_src.of_le (by omega)
-      let z' : Data 20 :=
-        ((((z.set rTmp1 (srcBase + j)).set rTmp2 (z.mem (srcBase + j))).set rTmp1
-          (dstBase + j)).write (dstBase + j) (z.mem (srcBase + j))).set rIdx (j + 1)
-      have he_b : ExecWithin w copyBody z z' 5 := by
-        unfold copyBody
-        dsimp only [z']
-        wram_exec [ho_z, hsrc_z, hdst_z, hf_sj, hf_dj, hf_j1]
-      have hz'_mem : z'.mem = copyArr srcBase dstBase (j + 1) x.mem := by
-        dsimp only [z', copyArr]
-        rw [← hmem_z]
-        wram_simp
-      refine ⟨z', he_b, ⟨he_b.bounded hb_z, hz'_mem, fun reg h1 h2 h3 => ?_⟩, rfl⟩
-      dsimp only [z']
-      simp only [Data.set_regs_of_ne h1 _, Data.write_regs, Data.set_regs_of_ne h2 _,
-        Data.set_regs_of_ne h3 _]
-      exact hreg_z reg h1 h2 h3)
-    (Nat.zero_le N) hP0
-  have hfull : ExecWithin w copyLoop x y (7 * N + 3) :=
-    (h0.seq hy_loop).mono (by have : x₀.regs rIdx = 0 := rfl; rw [this]; omega)
-  exact ⟨y, hfull, hPN.1, hPN.2.1, hPN.2.2⟩
+  have h1 : Fits w 1 := by rw [← ho]; exact hbdd.1 rOne
+  have hcs : (x.comap copyRegMap).regs ArrayCopy.src = srcBase := hsrc
+  have hcd : (x.comap copyRegMap).regs ArrayCopy.dst = dstBase := hdst
+  have hcl : (x.comap copyRegMap).regs ArrayCopy.len = N := hlim
+  obtain ⟨z, hz_exec, ⟨hzm, hzs, hzd, hzl⟩, hframe⟩ :=
+    ExecWithin.rename_post copyRegMap_injective
+      (ArrayCopy.exec_of_separated_or_eq (x.comap copyRegMap) h1
+        (by rw [hcs, hcl]; exact hf_src)
+        (by rw [hcd, hcl]; exact hf_dst)
+        (by rw [hcs, hcd, hcl]; exact hdisj))
+  rw [hcl] at hz_exec hzm hzl
+  rw [hcs] at hzm hzs
+  rw [hcd] at hzm hzd
+  let y := z.set rOne 1
+  have hy_exec : ExecWithin w copyArrayCode x y (7 * N + 5) :=
+    hz_exec.seq (ExecWithin.const h1)
+  refine ⟨y, hy_exec, hy_exec.bounded hbdd, hzm, fun reg hi ht1 ht2 => ?_⟩
+  by_cases hor : reg = rOne
+  · subst hor; exact ho.symm
+  · dsimp only [y]
+    rw [Data.set_regs_of_ne hor]
+    by_cases hs : reg = rSrc
+    · subst hs; exact hzs.trans hsrc.symm
+    · by_cases hd : reg = rDst
+      · subst hd; exact hzd.trans hdst.symm
+      · by_cases hl : reg = rLim
+        · subst hl; exact hzl.trans hlim.symm
+        · refine hframe reg (fun j => ?_)
+          rcases j with ⟨_ | _ | _ | _ | _ | _ | _ | j, hj⟩
+          · exact Ne.symm hs
+          · exact Ne.symm hd
+          · exact Ne.symm hl
+          · exact hi.symm
+          · exact ht1.symm
+          · exact ht2.symm
+          · exact Ne.symm hor
+          · omega
 
 private def shiftBody : Code .standard 20 := ram[
   rTmp1 ← rDst - rIdx;
@@ -570,6 +565,66 @@ private theorem loadNodeHeader_spec {w base capNodes t u : ℕ} {x : Data 20}
     simp only [Data.set_regs_of_ne h4 _, Data.set_regs_of_ne h1 _, Data.set_regs_of_ne h3 _,
       Data.set_regs_of_ne h2 _]
 
+private def loadAndScan : Code .standard 20 := ram[
+  ⟪loadNodeHeader⟫;
+  ⟪slotScanLoop⟫ ]
+
+private theorem loadAndScan_spec {w base capNodes t u k : ℕ} {x : Data 20}
+    (ht : 2 ≤ t) (hu_cap : u < capNodes) (hm_le : numKeys base t x.mem u ≤ 2 * t - 1)
+    (hbdd : x.Bounded w) (hfit : Fits w (base + arenaWords t capNodes))
+    (hz : x.regs rZero = 0) (ho : x.regs rOne = 1)
+    (hbase : x.regs rBase = base) (hdeg : x.regs rDeg = t)
+    (hstride : x.regs rStride = 6 * t) (hkey : x.regs rKey = k) (hcur : x.regs rCur = u) :
+    let m := numKeys base t x.mem u
+    ∃ y, ExecWithin w loadAndScan x y (8 * m + 12) ∧
+      y.Bounded w ∧
+      y.mem = x.mem ∧
+      y.regs rZero = 0 ∧ y.regs rOne = 1 ∧
+      y.regs rBase = base ∧ y.regs rDeg = t ∧
+      y.regs rStride = 6 * t ∧ y.regs rKey = k ∧ y.regs rCur = u ∧
+      y.regs rSrc = nodeAddr base t u + 2 ∧
+      y.regs rNumK = m ∧
+      y.regs rSlot = slotCount base t x.mem u k m ∧
+      ∀ reg : Fin 20,
+        reg ≠ rSrc → reg ≠ rNumK → reg ≠ rLim → reg ≠ rSlot →
+          reg ≠ rIdx → reg ≠ rTmp1 → reg ≠ rTmp2 → reg ≠ rZero → y.regs reg = x.regs reg := by
+  set m := numKeys base t x.mem u
+  have ha_le : nodeAddr base t u + 6 * t ≤ base + arenaWords t capNodes :=
+    nodeAddr_add_le_arena hu_cap le_rfl
+  have hf_keys : Fits w (nodeAddr base t u + 2 + m) := hfit.of_le (by omega)
+  obtain ⟨x₁, h1, hb₁, hmem₁, hsrc₁, hnk₁, hlim₁, hreg₁⟩ :=
+    loadNodeHeader_spec ht hu_cap hbdd hfit ho hbase hstride hcur
+  have hz₁ : x₁.regs rZero = 0 :=
+    (hreg₁ rZero (by decide) (by decide) (by decide) (by decide)).trans hz
+  have ho₁ : x₁.regs rOne = 1 :=
+    (hreg₁ rOne (by decide) (by decide) (by decide) (by decide)).trans ho
+  have hk₁ : x₁.regs rKey = k :=
+    (hreg₁ rKey (by decide) (by decide) (by decide) (by decide)).trans hkey
+  obtain ⟨x₂, h2, hb₂, hmem₂, hslot₂, hz₂, hreg₂⟩ :=
+    slotScanLoop_spec hb₁ hz₁ ho₁ hk₁ hsrc₁ hlim₁ hf_keys
+  rw [hmem₁] at hslot₂ hmem₂
+  have hkeep : ∀ reg : Fin 20,
+      reg ≠ rSrc → reg ≠ rNumK → reg ≠ rLim → reg ≠ rSlot →
+        reg ≠ rIdx → reg ≠ rTmp1 → reg ≠ rTmp2 → reg ≠ rZero → x₂.regs reg = x.regs reg :=
+    fun reg hs hn hl hsl hi ht1 ht2 hzr =>
+      (hreg₂ reg hsl hi ht1 ht2 hzr).trans (hreg₁ reg hs ht1 hn hl)
+  refine ⟨x₂, (h1.seq h2).mono (by omega), hb₂, hmem₂, hz₂,
+    (hkeep rOne (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide)).trans ho,
+    (hkeep rBase (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide)).trans hbase,
+    (hkeep rDeg (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide)).trans hdeg,
+    (hkeep rStride (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide)).trans hstride,
+    (hkeep rKey (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide)).trans hkey,
+    (hkeep rCur (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide)).trans hcur,
+    (hreg₂ rSrc (by decide) (by decide) (by decide) (by decide) (by decide)).trans hsrc₁,
+    (hreg₂ rNumK (by decide) (by decide) (by decide) (by decide) (by decide)).trans hnk₁,
+    hslot₂, hkeep⟩
+
 /-! ## 6. Lookup (`lookupCode`, `O(t log_t n)`) -/
 
 private def lookupDescendOrStop : Code .standard 20 := ram[
@@ -607,8 +662,7 @@ private def lookupBranch : Code .standard 20 := ram[
   ] ]
 
 private def lookupStep : Code .standard 20 := ram[
-  ⟪loadNodeHeader⟫;
-  ⟪slotScanLoop⟫;
+  ⟪loadAndScan⟫;
   ⟪lookupBranch⟫ ]
 
 private def lookupLoop : Code .standard 20 := ram[
@@ -813,55 +867,26 @@ private theorem lookupStep_spec {w base capNodes t u k : ℕ} {x : Data 20}
         y.regs rActive = 0 ∧ y.regs rFound = x.regs rFound ∧ y.regs rVal = x.regs rVal) := by
   set m := numKeys base t x.mem u
   set slot := slotCount base t x.mem u k m
-  have ha_le : nodeAddr base t u + 6 * t ≤ base + arenaWords t capNodes :=
-    nodeAddr_add_le_arena hu_cap le_rfl
-  have hf_keys : Fits w (nodeAddr base t u + 2 + m) := hfit.of_le (by omega)
   have hslot_le : slot ≤ m := by
     dsimp only [slot]
     induction m with
     | zero => simp [slotCount]
     | succ n ihn => rw [slotCount]; split_ifs <;> omega
-  obtain ⟨x₁, h1, hb₁, hmem₁, hsrc₁, hnk₁, hlim₁, hreg₁⟩ :=
-    loadNodeHeader_spec ht hu_cap hbdd hfit ho hbase hstride hcur
-  have hz₁ : x₁.regs rZero = 0 :=
-    (hreg₁ rZero (by decide) (by decide) (by decide) (by decide)).trans hz
-  have ho₁ : x₁.regs rOne = 1 :=
-    (hreg₁ rOne (by decide) (by decide) (by decide) (by decide)).trans ho
-  have hk₁ : x₁.regs rKey = k :=
-    (hreg₁ rKey (by decide) (by decide) (by decide) (by decide)).trans hkey
-  obtain ⟨x₂, h2, hb₂, hmem₂, hslot₂, hz₂, hreg₂⟩ :=
-    slotScanLoop_spec hb₁ hz₁ ho₁ hk₁ hsrc₁ hlim₁ hf_keys
-  rw [hmem₁] at hslot₂ hmem₂
-  have ho₂ : x₂.regs rOne = 1 :=
-    (hreg₂ rOne (by decide) (by decide) (by decide) (by decide) (by decide)).trans ho₁
-  have hb₂_reg : x₂.regs rBase = base :=
-    (hreg₂ rBase (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-      ((hreg₁ rBase (by decide) (by decide) (by decide) (by decide)).trans hbase)
-  have hd₂ : x₂.regs rDeg = t :=
-    (hreg₂ rDeg (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-      ((hreg₁ rDeg (by decide) (by decide) (by decide) (by decide)).trans hdeg)
-  have hst₂ : x₂.regs rStride = 6 * t :=
-    (hreg₂ rStride (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-      ((hreg₁ rStride (by decide) (by decide) (by decide) (by decide)).trans hstride)
-  have hk₂ : x₂.regs rKey = k :=
-    (hreg₂ rKey (by decide) (by decide) (by decide) (by decide) (by decide)).trans hk₁
-  have hnk₂ : x₂.regs rNumK = m :=
-    (hreg₂ rNumK (by decide) (by decide) (by decide) (by decide) (by decide)).trans hnk₁
-  have hsrc₂ : x₂.regs rSrc = nodeAddr base t u + 2 :=
-    (hreg₂ rSrc (by decide) (by decide) (by decide) (by decide) (by decide)).trans hsrc₁
+  obtain ⟨x₂, h12, _, hmem₂, hz₂, ho₂, hb₂_reg, hd₂, hst₂, hk₂, _, hsrc₂, hnk₂, hslot₂, hreg₂⟩ :=
+    loadAndScan_spec ht hu_cap hm_le hbdd hfit hz ho hbase hdeg hstride hkey hcur
   have hact₂ : x₂.regs rActive = x.regs rActive :=
-    (hreg₂ rActive (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-      (hreg₁ rActive (by decide) (by decide) (by decide) (by decide))
+    hreg₂ rActive (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide)
   have hfnd₂ : x₂.regs rFound = x.regs rFound :=
-    (hreg₂ rFound (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-      (hreg₁ rFound (by decide) (by decide) (by decide) (by decide))
+    hreg₂ rFound (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide)
   have hval₂ : x₂.regs rVal = x.regs rVal :=
-    (hreg₂ rVal (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-      (hreg₁ rVal (by decide) (by decide) (by decide) (by decide))
+    hreg₂ rVal (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide)
   obtain ⟨y, h3, hmem₃, hz₃, ho₃, hb₃, hd₃, hst₃, hk₃, hbr₃⟩ :=
     lookupBranch_spec ht hu_cap hm_le hslot_le hfit hz₂ ho₂ hd₂ hk₂ hnk₂ hsrc₂ hslot₂
   have hfull : ExecWithin w lookupStep x y (16 * t + 19) :=
-    (h1.seq (h2.seq h3)).mono (by omega)
+    (h12.seq h3).mono (by omega)
   rw [hmem₂] at hbr₃
   rw [hact₂, hfnd₂, hval₂] at hbr₃
   exact ⟨y, hfull, hfull.bounded hbdd, hmem₃.trans hmem₂, hz₃, ho₃, hb₃.trans hb₂_reg, hd₃,
@@ -890,7 +915,7 @@ private theorem lookupLoop_spec {l w base capNodes t u k : ℕ} {x : Data 20}
       lookupStep_spec ht hu_cap hv.numKeys_le hbdd hfit hz ho hbase hdeg hstride hkey hcur
     set m := numKeys base t x.mem u
     set slot := slotCount base t x.mem u k m
-    have hsc := slotCount_spec (k := k) hs m le_rfl
+    have hsc := slotCount_spec (k := k) (fun _ _ => hs.keys_strict) m le_rfl
     have hcond_in : (Cond.lt rZero rActive).Holds x := by
       simp only [Cond.holds_lt, hz, hact, Nat.zero_lt_one]
     by_cases hhit : slot < m ∧ keyAt base t x.mem u slot = k
@@ -902,7 +927,7 @@ private theorem lookupLoop_spec {l w base capNodes t u k : ℕ} {x : Data 20}
       refine ⟨y, (hstep.loop_iter hcond_in hexit).mono (by omega), hmem_y, hb_y, hd_y, ?_, ?_⟩
       · rw [hlk, hbr.1]; rfl
       · rw [hlk, hbr.2.1]; rfl
-    · have hlf_ne : leafFlag base t x.mem u ≠ 0 := by rw [hv.1]; omega
+    · have hlf_ne : leafFlag base t x.mem u ≠ 0 := by simp [hv.leafFlag_eq]
       simp only [hhit, hlf_ne, ↓reduceIte] at hbr
       have hexit : ExecWithin w lookupLoop y y 2 :=
         ExecWithin.loop_exit (by simp only [Cond.holds_lt, hz_y, hbr.1, Nat.lt_irrefl,
@@ -919,7 +944,7 @@ private theorem lookupLoop_spec {l w base capNodes t u k : ℕ} {x : Data 20}
               have hle_s := hsc.2.2 slot le_rfl hlt_slot
               have hne_s : keyAt base t x.mem u slot ≠ k := fun heq => hhit ⟨hlt_slot, heq⟩
               omega
-            exact (hk_lt.trans (hs slot i hgt hi)).ne'
+            exact (hk_lt.trans (hs.keys_strict hgt hi)).ne'
       have hlk := lookup_readTree_leaf_none hs hne_all
       refine ⟨y, (hstep.loop_iter hcond_in hexit).mono (by omega), hmem_y, hb_y, hd_y, ?_, ?_⟩
       · rw [hlk, hbr.2.1, hfound0]; rfl
@@ -931,7 +956,7 @@ private theorem lookupLoop_spec {l w base capNodes t u k : ℕ} {x : Data 20}
       lookupStep_spec ht hu_cap hv.numKeys_le hbdd hfit hz ho hbase hdeg hstride hkey hcur
     set m := numKeys base t x.mem u
     set slot := slotCount base t x.mem u k m
-    have hsc := slotCount_spec (k := k) hs.1 m le_rfl
+    have hsc := slotCount_spec (k := k) (fun _ _ => hs.keys_strict) m le_rfl
     have hcond_in : (Cond.lt rZero rActive).Holds x := by
       simp only [Cond.holds_lt, hz, hact, Nat.zero_lt_one]
     have hmul_step : (16 * t + 21) * (l + 1 + 1) = (16 * t + 21) * (l + 1) + (16 * t + 21) :=
@@ -945,7 +970,7 @@ private theorem lookupLoop_spec {l w base capNodes t u k : ℕ} {x : Data 20}
       refine ⟨x₁, (hstep.loop_iter hcond_in hexit).mono (by omega), hmem₁, hb₁_reg, hd₁, ?_, ?_⟩
       · rw [hlk, hbr.1]; rfl
       · rw [hlk, hbr.2.1]; rfl
-    · simp only [hhit, hv.1, ↓reduceIte] at hbr
+    · simp only [hhit, hv.leafFlag_eq, Nat.succ_ne_zero, ↓reduceIte] at hbr
       have hslot_le : slot ≤ m := hsc.1
       have hgt_all : ∀ i, slot ≤ i → i < m → k < keyAt base t x.mem u i := by
         intro i hge hi
@@ -956,12 +981,12 @@ private theorem lookupLoop_spec {l w base capNodes t u k : ℕ} {x : Data 20}
         · have hle_s := hsc.2.2 slot le_rfl (by omega)
           have hne_s : keyAt base t x.mem u slot ≠ k := fun heq => hhit ⟨by omega, heq⟩
           have hk_lt : k < keyAt base t x.mem u slot := by omega
-          exact hk_lt.trans (hs.1 slot i hgt hi)
+          exact hk_lt.trans (hs.keys_strict hgt hi)
       have hslot_lt1 : slot < m + 1 := by omega
       have hv_c : ValidNode l base t x₁.mem (childAt base t x.mem u slot) :=
-        hmem₁ ▸ (hv.2.2.2.1 slot hslot_lt1).1
+        hmem₁ ▸ hv.child_valid hslot_lt1
       have hs_c : SortedNode l base t x₁.mem (childAt base t x.mem u slot) :=
-        hmem₁ ▸ hs.2.1 slot hslot_lt1
+        hmem₁ ▸ hs.child_sorted hslot_lt1
       have hcap_c : readNodeSet l base t x₁.mem (childAt base t x.mem u slot) ⊆
           Finset.range capNodes := by
         rw [hmem₁]
@@ -1076,33 +1101,29 @@ theorem not_readsWidth_lookupProgram : ¬lookupProgram.ReadsWidth :=
 theorem isRandFree_lookupProgram : lookupProgram.IsRandFree :=
   Code.isRandFree_program.mpr isRandFree_lookupCode
 
-/-- Flat assembled Word-RAM execution of `lookupCode.assemble 0` in `O(t log_t n)` instructions. -/
-theorem lookupProg_runs {w base capNodes t k : ℕ} {tr : BTree ℕ ℕ} {x : Data 20}
+/-- Complete halting flat-program specification of `lookupProgram`: runs in at most
+`(16 * t + 21) * (Nat.log t ((tr.size + 1) / 2) + 1) + 17` Word-RAM instructions (charging the
+final `halt`), halting with `(BTree.lookup k tr).getD 0` in `rVal`, the hit/miss bit in `rFound`
+(distinguishing `some 0` from `none`), unchanged memory `y.mem = x.mem`, and preserved `Rep`. -/
+theorem lookupProgram_spec {w base capNodes t k : ℕ} {tr : BTree ℕ ℕ} {x : Data 20}
     (hr : Rep base capNodes t w tr x)
     (hkey : x.regs rKey = k) :
     ∃ y steps,
-      Runs w (lookupCode.assemble 0) ⟨0, x⟩ ⟨lookupCode.size, y⟩ steps ∧
-      steps ≤ (16 * t + 21) * (Nat.log t ((tr.size + 1) / 2) + 1) + 16 ∧
+      Runs w lookupProgram ⟨0, x⟩ ⟨lookupCode.size, y⟩ steps ∧
+      step w lookupProgram ⟨lookupCode.size, y⟩ = .halt ((BTree.lookup k tr).getD 0) ∧
+      steps + 1 ≤ (16 * t + 21) * (Nat.log t ((tr.size + 1) / 2) + 1) + 17 ∧
       Rep base capNodes t w tr y ∧
       y.mem = x.mem ∧
       y.regs rFound = (if (BTree.lookup k tr).isSome then 1 else 0) ∧
       y.regs rVal = (BTree.lookup k tr).getD 0 := by
   obtain ⟨y, ⟨steps, hle, hexec⟩, hrep, hmem, hfnd, hval⟩ := lookupCode_log_spec hr hkey
-  refine ⟨y, steps, ?_, hle, hrep, hmem, hfnd, hval⟩
-  simpa only [Nat.zero_add] using hexec.runs (Program.Contains.self _)
-
-/-- Halting flat Word-RAM execution of `lookupProgram` returning `(BTree.lookup k tr).getD 0` in
-`O(t log_t n)` instructions. -/
-theorem lookupProgram_executes {w base capNodes t k : ℕ} {tr : BTree ℕ ℕ} {x : Data 20}
-    (hr : Rep base capNodes t w tr x)
-    (hkey : x.regs rKey = k) :
-    ∃ steps,
-      Executes w lookupProgram ⟨0, x⟩ ((BTree.lookup k tr).getD 0) steps ∧
-      steps ≤ (16 * t + 21) * (Nat.log t ((tr.size + 1) / 2) + 1) + 17 := by
-  obtain ⟨y, ⟨steps, hle, hexec⟩, _, _, _, hval⟩ := lookupCode_log_spec hr hkey
-  refine ⟨steps + 1, ?_, by omega⟩
-  rw [← hval]
-  exact hexec.executes rVal
+  have hruns : Runs w lookupProgram ⟨0, x⟩ ⟨lookupCode.size, y⟩ steps := by
+    simpa only [Nat.zero_add] using
+      hexec.runs (pc := 0) (p := lookupProgram) (Program.Contains.self _).append_left
+  have hhalt : step w lookupProgram ⟨0 + lookupCode.size, y⟩ = .halt (y.regs rVal) :=
+    step_halt (by simp [lookupProgram, Code.program])
+  rw [Nat.zero_add, hval] at hhalt
+  exact ⟨y, steps, hruns, hhalt, by omega, hrep, hmem, hfnd, hval⟩
 
 /-! ## 7. Split and leaf-insert subprograms (`copyUpperCode`, `splitRootCode`, `splitChildCode`,
 `leafInsertCode`) -/
@@ -1141,7 +1162,7 @@ private def copyUpperBranch : Code .standard 20 := ram[
     rDst ← rDst + rLim;
     rDst ← rDst + rDeg;
     rLim ← rDeg;
-    ⟪copyLoop⟫
+    ⟪copyArrayCode⟫
   ] else [
     rZero ← #0
   ] ]
@@ -1165,9 +1186,9 @@ private def copyUpperPost : Code .standard 20 := ram[
 
 private def copyUpperCode : Code .standard 20 := ram[
   ⟪copyUpperPre1⟫;
-  ⟪copyLoop⟫;
+  ⟪copyArrayCode⟫;
   ⟪copyUpperPre2⟫;
-  ⟪copyLoop⟫;
+  ⟪copyArrayCode⟫;
   ⟪copyUpperBranch⟫;
   ⟪copyUpperPost⟫ ]
 
@@ -1237,11 +1258,11 @@ private theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
       hf_cmul, hf_cb0, hf_cb1, hf_ac, hf_ac1, hf_ac2, hf_ac2t,
       hf_zmul, hf_zb0, hf_zb1, hf_az, hf_az1, hf_az2, hf_tm1]
   obtain ⟨x₂, hc1, hb₂, hmem₂, hreg₂⟩ :=
-    copyLoop_spec (srcBase := nodeAddr base t c + 2 + t)
+    copyArrayCode_spec (srcBase := nodeAddr base t c + 2 + t)
       (dstBase := nodeAddr base t z + 2) (N := t - 1)
       (he1.bounded hbdd) ho rfl rfl rfl
-      (hfit.of_le (by omega)) (hfit.of_le (by omega))
-  -- Step 2: `copyUpperPre2` + `copyLoop` (values)
+      (hfit.of_le (by omega)) (hfit.of_le (by omega)) (by omega)
+  -- Step 2: `copyUpperPre2` + `copyArrayCode` (values)
   have hsrc₂ : x₂.regs rSrc = nodeAddr base t c + 2 + t :=
     hreg₂ rSrc (by decide) (by decide) (by decide)
   have hdst₂ : x₂.regs rDst = nodeAddr base t z + 2 :=
@@ -1269,10 +1290,10 @@ private theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
     have hf_d2 : Fits w (nodeAddr base t z + (2 * t + 1)) := hfit.of_le (by omega)
     wram_exec [hsrc₂, hdst₂, hlim₂, hd₂, hv_c_eq, hv_z_eq, hf_s1, hf_s2, hf_d1, hf_d2]
   obtain ⟨x₄, hc2, hb₄, hmem₄, hreg₄⟩ :=
-    copyLoop_spec (srcBase := nodeAddr base t c + (2 * t + 1) + t)
+    copyArrayCode_spec (srcBase := nodeAddr base t c + (2 * t + 1) + t)
       (dstBase := nodeAddr base t z + (2 * t + 1)) (N := t - 1)
       (he2.bounded hb₂) ho₂ rfl rfl hlim₂
-      (hfit.of_le (by omega)) (hfit.of_le (by omega))
+      (hfit.of_le (by omega)) (hfit.of_le (by omega)) (by omega)
   -- Helper tracking unaffected registers up to `x₄`:
   have hkeep₄ : ∀ reg : Fin 20, reg ≠ rSrc → reg ≠ rDst → reg ≠ rLim → reg ≠ rIdx →
       reg ≠ rTmp1 → reg ≠ rTmp2 → x₄.regs reg = x.regs reg := fun reg hs1 hd1 hl1 hi1 ht1 ht2 => by
@@ -1285,8 +1306,8 @@ private theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
       Data.set_regs_of_ne hs1 _]
   have hlf₄ : x₄.mem (nodeAddr base t c) = x.mem (nodeAddr base t c) := by
     rw [hmem₄]; simp only [x₃, Data.set_mem]
-    rw [copyArr_outside _ _ _ _ _ (by omega), hmem₂]; simp only [x₁, Data.set_mem]
-    exact copyArr_outside _ _ _ _ _ (by omega)
+    rw [ArrayCopy.copyPrefix_outside (by omega), hmem₂]; simp only [x₁, Data.set_mem]
+    exact ArrayCopy.copyPrefix_outside (by omega)
   have hz₄ : x₄.regs rZero = 0 :=
     (hkeep₄ rZero (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide)).trans hz0
@@ -1315,10 +1336,10 @@ private theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
   have hlim₄ : x₄.regs rLim = t - 1 :=
     (hreg₄ rLim (by decide) (by decide) (by decide)).trans hlim₂
   -- Step 3: `copyUpperBranch` (`m3`)
-  have hmem₃_step : ∃ x₅, ExecWithin w copyUpperBranch x₄ x₅ (7 * t + 14) ∧
+  have hmem₃_step : ∃ x₅, ExecWithin w copyUpperBranch x₄ x₅ (7 * t + 16) ∧
       x₅.Bounded w ∧
       x₅.mem = (if x.mem (nodeAddr base t c) = 0 then
-        copyArr (nodeAddr base t c + 4 * t + t) (nodeAddr base t z + 4 * t) t x₄.mem
+        ArrayCopy.copyPrefix x₄.mem (nodeAddr base t c + 4 * t + t) (nodeAddr base t z + 4 * t) t
       else x₄.mem) ∧
       x₅.regs rZero = 0 ∧
       ∀ reg : Fin 20, reg ≠ rSrc → reg ≠ rDst → reg ≠ rLim → reg ≠ rIdx →
@@ -1341,12 +1362,12 @@ private theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
           (nodeAddr base t z + (2 * t + 1) + (t - 1))).set rDst
           (nodeAddr base t z + 4 * t)).set rLim t
       obtain ⟨x₅, hc3, hb₅, hmem₅, hreg₅⟩ :=
-        copyLoop_spec (x := x₄') (srcBase := nodeAddr base t c + 4 * t + t)
+        copyArrayCode_spec (x := x₄') (srcBase := nodeAddr base t c + 4 * t + t)
           (dstBase := nodeAddr base t z + 4 * t) (N := t)
           ((((((((((hb₄.set hf_cmul).set hf_cb0).set hf_cb1).set hf_ac).set
             (hfit.of_le (Nat.zero_le _))).set hf_s1).set hf_s2).set hf_d1).set hf_d2).set hf_t)
-          ho₄ rfl rfl rfl (hfit.of_le (by omega)) (hfit.of_le (by omega))
-      have he3 : ExecWithin w copyUpperBranch x₄ x₅ (7 * t + 14) := by
+          ho₄ rfl rfl rfl (hfit.of_le (by omega)) (hfit.of_le (by omega)) (by omega)
+      have he3 : ExecWithin w copyUpperBranch x₄ x₅ (7 * t + 16) := by
         unfold copyUpperBranch
         apply WP.execWithin
         wram_exec [hz₄, ho₄, hb₄_reg, hd₄, hst₄, hch₄, hsrc₄, hdst₄, hlim₄,
@@ -1366,7 +1387,7 @@ private theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
         (((((x₄.set rTmp1 (c * (6 * t))).set rTmp1 (base + c * (6 * t))).set rTmp1
           (base + c * (6 * t) + 1)).set rTmp1 (nodeAddr base t c)).set rTmp2
           (x.mem (nodeAddr base t c))).set rZero 0
-      have he3 : ExecWithin w copyUpperBranch x₄ x₅ (7 * t + 14) := by
+      have he3 : ExecWithin w copyUpperBranch x₄ x₅ (7 * t + 16) := by
         unfold copyUpperBranch
         dsimp only [x₅]
         wram_exec [hz₄, ho₄, hb₄_reg, hst₄, hch₄, hna_c, hlf₄, hlf0,
@@ -1382,7 +1403,7 @@ private theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
   have hlf₅ : x₅.mem (nodeAddr base t c) = x.mem (nodeAddr base t c) := by
     rw [hmem₅]
     split_ifs
-    · rw [copyArr_outside _ _ _ _ _ (by omega)]; exact hlf₄
+    · rw [ArrayCopy.copyPrefix_outside (by omega)]; exact hlf₄
     · exact hlf₄
   have ho₅ : x₅.regs rOne = 1 :=
     (hkeep₅ rOne (by decide) (by decide) (by decide) (by decide) (by decide)
@@ -1456,9 +1477,9 @@ private theorem memCopyUpper_at_c {base t c cnt : ℕ}
   rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
     Function.update_of_ne (by omega)]
   split_ifs
-  · rw [copyArr_outside _ _ _ _ _ (by omega), copyArr_outside _ _ _ _ _ (by omega),
-      copyArr_outside _ _ _ _ _ (by omega)]
-  · rw [copyArr_outside _ _ _ _ _ (by omega), copyArr_outside _ _ _ _ _ (by omega)]
+  · rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega),
+      ArrayCopy.copyPrefix_outside (by omega)]
+  · rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega)]
 
 private def splitRootPost : Code .standard 20 := ram[
   rCur ← rCnt + rOne;
@@ -1656,7 +1677,8 @@ private theorem splitRootCode_spec {w base capNodes t oldRoot cnt : ℕ} {x : Da
     rw [← hmem₁]
   have hfull : ExecWithin w splitRootCode x y (21 * t + 88) :=
     (he1.seq he2).mono (by omega)
-  exact ⟨y, hfull, hfull.bounded hbdd, hymem, modifies_trans hmod₁ hmod₂,
+  exact ⟨y, hfull, hfull.bounded hbdd, hymem,
+    by simpa only [Finset.union_idempotent] using hmod₁.trans hmod₂,
     hz_y, ho_y, hb_y, hd_y, hst_y, hk_y, hv_y, hcur_y, hcnt_y⟩
 
 private def splitChildPre1 : Code .standard 20 := ram[
@@ -2272,8 +2294,7 @@ private def insertBranch : Code .standard 20 := ram[
   ] ]
 
 private def insertStep : Code .standard 20 := ram[
-  ⟪loadNodeHeader⟫;
-  ⟪slotScanLoop⟫;
+  ⟪loadAndScan⟫;
   ⟪insertBranch⟫ ]
 
 private def insertLoop : Code .standard 20 := ram[
@@ -2375,8 +2396,8 @@ private theorem overwriteValCode_spec {w base capNodes t u slot v : ℕ} {x : Da
   have hmod : Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem y.mem := by
     rw [hymem]
     have hb_lo : base + 1 < au := hau_def ▸ base_lt_nodeAddr base t u 0
-    exact modifies_arena_of_update (a := nodeAddr base t u + (2 * t + 1) + slot)
-      (by rw [hau_def]; omega) (by rw [hau_def]; omega)
+    exact Modifies.write_of_owns (n := arenaWords t capNodes)
+      ⟨by rw [hau_def]; omega, by rw [hau_def]; omega⟩ v
   exact ⟨y, he, he.bounded hbdd, hymem, hmod, hz_y, hb_y, hd_y, hact_y⟩
 
 private theorem insertDescendAfterSplit_spec {w base capNodes t u slot c cnt₁ k v : ℕ}
@@ -2444,8 +2465,8 @@ private theorem insertDescendAfterSplit_spec {w base capNodes t u slot c cnt₁ 
     have hmod' : Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem y'.mem := by
       rw [hymem']
       have hb_lo : base + 1 < au := hau_def ▸ base_lt_nodeAddr base t u 0
-      exact modifies_arena_of_update (a := nodeAddr base t u + (2 * t + 1) + slot)
-        (by rw [hau_def]; omega) (by rw [hau_def]; omega)
+      exact Modifies.write_of_owns (n := arenaWords t capNodes)
+        ⟨by rw [hau_def]; omega, by rw [hau_def]; omega⟩ v
     refine ⟨y', he', he'.bounded hbdd, hmod', hz', ho', hb', hd', hst', hk', hv', hcnt', ?_⟩
     simp only [heq_k, ↓reduceIte]
     exact ⟨hymem', hact'⟩
@@ -2639,8 +2660,8 @@ private theorem insertDescendOrLeaf_int_spec
         hf_cmul, hf_cb0, hf_cb1, hf_cb2, hf_ac10, hf_ac1, hf_2t, hf_2tm10, hf_2tm1]
       refine WP.of_execWithin hsc_exec ?_
       exact WP.of_execWithin hdas ⟨by omega, rfl⟩
-    have hmod_all : Modifies (Block.mk base (arenaWords t capNodes)).footprint mem₀ x₃.mem :=
-      modifies_trans hmod_sc hmod_das
+    have hmod_all : Modifies (Block.mk base (arenaWords t capNodes)).footprint mem₀ x₃.mem := by
+      simpa only [Finset.union_idempotent] using hmod_sc.trans hmod_das
     rw [hmem_z₂] at hbr_das
     rw [hact_z₂.trans hactz] at hbr_das
     simp only [Nat.add_sub_cancel] at hbr_das
@@ -2666,6 +2687,92 @@ private theorem insertDescendOrLeaf_int_spec
       hox₃, hbx₃, hdx₃, hstx₃, hkx₃, hvx₃, ?_⟩
     simp only [hfull_c, ↓reduceIte]
     exact ⟨hmx₃.trans hmz, hcurx₃, hcntx₃, hactx₃⟩
+
+private theorem insertLoop_overwrite_spec {l w base capNodes t u cnt k v : ℕ} {x x₂ : Data 20}
+    (ht : 2 ≤ t) (hu_cap : u < capNodes)
+    (hbdd : x.Bounded w) (hfit : Fits w (base + arenaWords t capNodes))
+    (hv : ValidNode l base t x.mem u) (hs : SortedNode l base t x.mem u)
+    (hnonfull : numKeys base t x.mem u ≤ 2 * t - 2)
+    (hcnt_mem : x.mem (base + 1) = cnt)
+    (hcond_in : (Cond.lt rZero rActive).Holds x)
+    (h12 : ExecWithin w loadAndScan x x₂ (8 * numKeys base t x.mem u + 12))
+    (hb₂ : x₂.Bounded w) (hmem₂ : x₂.mem = x.mem)
+    (hz₂ : x₂.regs rZero = 0) (ho₂ : x₂.regs rOne = 1)
+    (hb₂_reg : x₂.regs rBase = base) (hd₂ : x₂.regs rDeg = t)
+    (hst₂ : x₂.regs rStride = 6 * t)
+    (hk₂ : x₂.regs rKey = k) (hv₂ : x₂.regs rVal = v) (hcur₂ : x₂.regs rCur = u)
+    (hsrc₂ : x₂.regs rSrc = nodeAddr base t u + 2)
+    (hnk₂ : x₂.regs rNumK = numKeys base t x.mem u)
+    (hslot₂ : x₂.regs rSlot = slotCount base t x.mem u k (numKeys base t x.mem u))
+    (hhit : slotCount base t x.mem u k (numKeys base t x.mem u) < numKeys base t x.mem u ∧
+      keyAt base t x.mem u (slotCount base t x.mem u k (numKeys base t x.mem u)) = k) :
+    ∃ y cnt',
+      ExecWithin w insertLoop x y ((91 * t + 160) * (l + 1) + 2) ∧
+      y.Bounded w ∧
+      cnt ≤ cnt' ∧ cnt' ≤ cnt + l ∧
+      y.mem base = x.mem base ∧
+      y.mem (base + 1) = cnt' ∧
+      y.regs rBase = base ∧
+      y.regs rDeg = t ∧
+      Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem y.mem ∧
+      (∀ w_id, w_id ∉ readNodeSet l base t x.mem u ∪ Finset.Ico cnt cnt' →
+        ∀ o < nodeStride t, y.mem (nodeAddr base t w_id + o) = x.mem (nodeAddr base t w_id + o)) ∧
+      ValidNode l base t y.mem u ∧
+      SortedNode l base t y.mem u ∧
+      numKeys base t x.mem u ≤ numKeys base t y.mem u ∧
+      readNodeSet l base t y.mem u ⊆ readNodeSet l base t x.mem u ∪ Finset.Ico cnt cnt' ∧
+      (readTree l base t y.mem u).toList =
+        Cslib.SortedAssoc.insert k v (readTree l base t x.mem u).toList := by
+  set m := numKeys base t x.mem u
+  set slot := slotCount base t x.mem u k m
+  have hau_le := nodeAddr_add_le_arena (base := base) hu_cap (o := 6 * t) le_rfl
+  have hlt_m : slot < m := hhit.1
+  have heq_k : keyAt base t x.mem u slot = k := hhit.2
+  have hf_ks : Fits w (nodeAddr base t u + 2 + slot) := hfit.of_le (by omega)
+  have hks_eq : x₂.mem (nodeAddr base t u + 2 + slot) = k := by rw [hmem₂]; exact heq_k
+  let x₂' := (x₂.set rTmp1 (nodeAddr base t u + 2 + slot)).set rTmp2 k
+  obtain ⟨y, hov, _, hymem, hmod_y, hz_y, hb_y_reg, hd_y, hact_y⟩ :=
+    overwriteValCode_spec (x := x₂') ht hu_cap (by omega)
+      ((hb₂.set hf_ks).set (hk₂ ▸ hb₂.1 rKey))
+      hfit ho₂ hb₂_reg hd₂ hst₂ hcur₂ hslot₂ hv₂
+  have h3 : ExecWithin w insertBranch x₂ y 15 := by
+    unfold insertBranch
+    apply WP.execWithin
+    wram_exec [hnk₂, hsrc₂, hslot₂, hk₂, hlt_m, hks_eq, hf_ks]
+    exact WP.of_execWithin hov ⟨by omega, rfl⟩
+  have hstep : ExecWithin w insertStep x y (91 * t + 158) :=
+    (h12.seq h3).mono (by omega)
+  have hz_y0 : y.regs rZero = 0 := hz_y.trans hz₂
+  have hexit : ExecWithin w insertLoop y y 2 :=
+    ExecWithin.loop_exit (by simp only [Cond.holds_lt, hz_y0, hact_y, Nat.lt_irrefl,
+      not_false_eq_true])
+  have hiter_bound : (91 * t + 158) + 2 + 2 ≤ (91 * t + 160) * (l + 1) + 2 := by
+    have hmul1 : 91 * t + 160 ≤ (91 * t + 160) * (l + 1) :=
+      Nat.le_mul_of_pos_right _ (Nat.succ_pos l)
+    omega
+  have hymem' : y.mem = memOverwriteVal base t u slot v x.mem := by
+    rw [hymem]; simp only [x₂', Data.set_mem, hmem₂]
+  obtain ⟨hv', hs', hset', htr'⟩ := memOverwriteVal_spec ht hv hs hlt_m heq_k
+  have hb_lo := base_lt_nodeAddr base t u (2 * t + 1 + slot)
+  simp only [x₂', Data.set_mem, hmem₂] at hmod_y
+  refine ⟨y, cnt, (hstep.loop_iter hcond_in hexit).mono hiter_bound,
+    (hstep.loop_iter hcond_in hexit).bounded hbdd, le_rfl, Nat.le_add_right cnt l, ?_, ?_,
+    hb_y_reg, hd_y, hmod_y, ?_, hymem' ▸ hv', hymem' ▸ hs', ?_, ?_, hymem' ▸ htr'⟩
+  · rw [hymem']; dsimp only [memOverwriteVal]; rw [Function.update_of_ne (by omega)]
+  · rw [hymem']; dsimp only [memOverwriteVal]; rw [Function.update_of_ne (by omega), hcnt_mem]
+  · intro w_id hnot o ho_lt
+    have hw_ne : w_id ≠ u := fun heq => hnot (by
+      rw [heq]; exact Finset.mem_union_left _ (self_mem_readNodeSet l base t x.mem u))
+    have hsep := nodeAddr_disjoint (base := base) (o₂ := (2 * t + 1) + slot) hw_ne ho_lt
+      (by simp only [nodeStride]; omega)
+    rw [← Nat.add_assoc] at hsep
+    rw [hymem']; dsimp only [memOverwriteVal]
+    exact Function.update_of_ne hsep _ _
+  · rw [hymem']; dsimp only [numKeys, memOverwriteVal]
+    have hst_eq : nodeStride t = 6 * t := rfl
+    rw [Function.update_of_ne (by omega)]
+    exact le_rfl
+  · rw [hymem', hset']; exact Finset.subset_union_left
 
 private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 20}
     (ht : 2 ≤ t)
@@ -2707,92 +2814,20 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
     have hu_cap : u < capNodes := by omega
     set m := numKeys base t x.mem u
     have hau_le := nodeAddr_add_le_arena (base := base) hu_cap (o := 6 * t) le_rfl
-    have hf_keys : Fits w (nodeAddr base t u + 2 + m) := hfit.of_le (by omega)
-    obtain ⟨x₁, h1, hb₁, hmem₁, hsrc₁, hnk₁, hlim₁, hreg₁⟩ :=
-      loadNodeHeader_spec ht hu_cap hbdd hfit ho hbase hstride hcur
-    have hz₁ : x₁.regs rZero = 0 :=
-      (hreg₁ rZero (by decide) (by decide) (by decide) (by decide)).trans hz
-    have ho₁ : x₁.regs rOne = 1 :=
-      (hreg₁ rOne (by decide) (by decide) (by decide) (by decide)).trans ho
-    have hk₁ : x₁.regs rKey = k :=
-      (hreg₁ rKey (by decide) (by decide) (by decide) (by decide)).trans hkey
-    obtain ⟨x₂, h2, hb₂, hmem₂, hslot₂, hz₂, hreg₂⟩ :=
-      slotScanLoop_spec hb₁ hz₁ ho₁ hk₁ hsrc₁ hlim₁ hf_keys
-    rw [hmem₁] at hslot₂ hmem₂
-    set slot := slotCount base t x.mem u k m
-    have hsc := slotCount_spec (k := k) hs m le_rfl
-    have hslot_le : slot ≤ m := hsc.1
-    have ho₂ : x₂.regs rOne = 1 :=
-      (hreg₂ rOne (by decide) (by decide) (by decide) (by decide) (by decide)).trans ho₁
-    have hb₂_reg : x₂.regs rBase = base :=
-      (hreg₂ rBase (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-        ((hreg₁ rBase (by decide) (by decide) (by decide) (by decide)).trans hbase)
-    have hd₂ : x₂.regs rDeg = t :=
-      (hreg₂ rDeg (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-        ((hreg₁ rDeg (by decide) (by decide) (by decide) (by decide)).trans hdeg)
-    have hst₂ : x₂.regs rStride = 6 * t :=
-      (hreg₂ rStride (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-        ((hreg₁ rStride (by decide) (by decide) (by decide) (by decide)).trans hstride)
-    have hk₂ : x₂.regs rKey = k :=
-      (hreg₂ rKey (by decide) (by decide) (by decide) (by decide) (by decide)).trans hk₁
+    obtain ⟨x₂, h12, hb₂, hmem₂, hz₂, ho₂, hb₂_reg, hd₂, hst₂, hk₂, hcur₂, hsrc₂, hnk₂,
+        hslot₂, hreg₂⟩ :=
+      loadAndScan_spec ht hu_cap hv.numKeys_le hbdd hfit hz ho hbase hdeg hstride hkey hcur
     have hv₂ : x₂.regs rVal = v :=
-      (hreg₂ rVal (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-        ((hreg₁ rVal (by decide) (by decide) (by decide) (by decide)).trans hval)
-    have hcur₂ : x₂.regs rCur = u :=
-      (hreg₂ rCur (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-        ((hreg₁ rCur (by decide) (by decide) (by decide) (by decide)).trans hcur)
-    have hnk₂ : x₂.regs rNumK = m :=
-      (hreg₂ rNumK (by decide) (by decide) (by decide) (by decide) (by decide)).trans hnk₁
-    have hsrc₂ : x₂.regs rSrc = nodeAddr base t u + 2 :=
-      (hreg₂ rSrc (by decide) (by decide) (by decide) (by decide) (by decide)).trans hsrc₁
+      (hreg₂ rVal (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide)).trans hval
+    set slot := slotCount base t x.mem u k m
+    have hsc := slotCount_spec (k := k) (fun _ _ => hs.keys_strict) m le_rfl
+    have hslot_le : slot ≤ m := hsc.1
     have hcond_in : (Cond.lt rZero rActive).Holds x := by
       simp only [Cond.holds_lt, hz, hact, Nat.zero_lt_one]
     by_cases hhit : slot < m ∧ keyAt base t x.mem u slot = k
-    · -- Overwrite in leaf `u`:
-      have hlt_m := hhit.1
-      have heq_k := hhit.2
-      have hf_ks : Fits w (nodeAddr base t u + 2 + slot) := hfit.of_le (by omega)
-      have hks_eq : x₂.mem (nodeAddr base t u + 2 + slot) = k := by
-        rw [hmem₂]; exact heq_k
-      let x₂' := (x₂.set rTmp1 (nodeAddr base t u + 2 + slot)).set rTmp2 k
-      obtain ⟨y, hov, hb_y, hymem, hmod_y, hz_y, hb_y_reg, hd_y, hact_y⟩ :=
-        overwriteValCode_spec (x := x₂') ht hu_cap (by omega)
-          ((hb₂.set hf_ks).set (hk₂ ▸ hb₂.1 rKey))
-          hfit ho₂ hb₂_reg hd₂ hst₂ hcur₂ hslot₂ hv₂
-      have h3 : ExecWithin w insertBranch x₂ y 15 := by
-        unfold insertBranch
-        apply WP.execWithin
-        wram_exec [hnk₂, hsrc₂, hslot₂, hk₂, hlt_m, hks_eq, hf_ks]
-        exact WP.of_execWithin hov ⟨by omega, rfl⟩
-      have hstep : ExecWithin w insertStep x y (91 * t + 158) :=
-        (h1.seq (h2.seq h3)).mono (by omega)
-      have hz_y0 : y.regs rZero = 0 := hz_y.trans hz₂
-      have hexit : ExecWithin w insertLoop y y 2 :=
-        ExecWithin.loop_exit (by simp only [Cond.holds_lt, hz_y0, hact_y, Nat.lt_irrefl,
-          not_false_eq_true])
-      have hymem' : y.mem = memOverwriteVal base t u slot v x.mem := by
-        rw [hymem]; simp only [x₂', Data.set_mem, hmem₂]
-      obtain ⟨hv', hs', hset', htr'⟩ := memOverwriteVal_spec ht hv hs hlt_m heq_k
-      have hb_lo := base_lt_nodeAddr base t u (2 * t + 1 + slot)
-      refine ⟨y, cnt, (hstep.loop_iter hcond_in hexit).mono (by omega),
-        (hstep.loop_iter hcond_in hexit).bounded hbdd, le_rfl, le_rfl, ?_, ?_,
-        hb_y_reg, hd_y, ?_, ?_, hymem' ▸ hv', hymem' ▸ hs', ?_, ?_, hymem' ▸ htr'⟩
-      · rw [hymem']; dsimp only [memOverwriteVal]; rw [Function.update_of_ne (by omega)]
-      · rw [hymem']; dsimp only [memOverwriteVal]; rw [Function.update_of_ne (by omega), hcnt_mem]
-      · simp only [x₂', Data.set_mem, hmem₂] at hmod_y; exact hmod_y
-      · intro w_id hnot o ho_lt
-        have hw_ne : w_id ≠ u := fun heq => hnot (by
-          rw [heq]; exact Finset.mem_union_left _ (self_mem_readNodeSet 0 base t x.mem u))
-        have hsep := nodeAddr_disjoint (base := base) (o₂ := (2 * t + 1) + slot) hw_ne ho_lt
-          (by simp only [nodeStride]; omega)
-        rw [← Nat.add_assoc] at hsep
-        rw [hymem']; dsimp only [memOverwriteVal]
-        exact Function.update_of_ne hsep _ _
-      · rw [hymem']; dsimp only [numKeys, memOverwriteVal]
-        have hst_eq : nodeStride t = 6 * t := rfl
-        rw [Function.update_of_ne (by omega)]
-        exact le_rfl
-      · rw [hymem', hset']; exact Finset.subset_union_left
+    · exact insertLoop_overwrite_spec ht hu_cap hbdd hfit hv hs hnonfull hcnt_mem hcond_in
+        h12 hb₂ hmem₂ hz₂ ho₂ hb₂_reg hd₂ hst₂ hk₂ hv₂ hcur₂ hsrc₂ hnk₂ hslot₂ hhit
     · -- Shift-insert into leaf `u`:
       have hgt_all : ∀ i, slot ≤ i → i < m → k < keyAt base t x.mem u i := by
         intro i hge hi
@@ -2802,11 +2837,10 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
           omega
         · have hle_s := hsc.2.2 slot le_rfl (by omega)
           have hne_s : keyAt base t x.mem u slot ≠ k := fun heq => hhit ⟨by omega, heq⟩
-          exact (show k < keyAt base t x.mem u slot by omega).trans (hs slot i hgt hi)
+          exact (show k < keyAt base t x.mem u slot by omega).trans (hs.keys_strict hgt hi)
       have hf_au1 : Fits w (nodeAddr base t u + 2 - 1) := hfit.of_le (by omega)
       have hf_au : Fits w (nodeAddr base t u) := hfit.of_le (by omega)
       have hsub2 : nodeAddr base t u + 2 - 1 - 1 = nodeAddr base t u := by omega
-      have hlf1 : x₂.mem (nodeAddr base t u) = 1 := by rw [hmem₂]; exact hv.1
       have h1_ne_0 : (1 : ℕ) ≠ 0 := by omega
       -- Execute `insertDescendOrLeaf` on leaf `u`:
       have hdesc_leaf : ∀ z : Data 20,
@@ -2818,7 +2852,7 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
             Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem y.mem ∧
             y.regs rBase = base ∧ y.regs rDeg = t ∧ y.regs rZero = 0 ∧ y.regs rActive = 0 := by
         intro z hbz hmz hzz hoz hbaz hdz hkz hvz hnkz hslz hsrcz
-        have hlfz : z.mem (nodeAddr base t u) = 1 := by rw [hmz]; exact hv.1
+        have hlfz : z.mem (nodeAddr base t u) = 1 := by rw [hmz]; exact hv.leafFlag_eq
         let z' := ((z.set rTmp1 (nodeAddr base t u + 2 - 1)).set rTmp1
           (nodeAddr base t u)).set rTmp2 1
         obtain ⟨y, hli, _, hym, hmod_l, hby, hdy, hzy, hacty⟩ :=
@@ -2864,7 +2898,7 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
           exact ⟨y, he_br, hym, hmod_l, hby, hdy, hzy, hacty⟩
       obtain ⟨y, h3, hymem, hmod_y, hb_y, hd_y, hz_y, hact_y⟩ := hbranch
       have hstep : ExecWithin w insertStep x y (91 * t + 158) :=
-        (h1.seq (h2.seq h3)).mono (by omega)
+        (h12.seq h3).mono (by omega)
       have hexit : ExecWithin w insertLoop y y 2 :=
         ExecWithin.loop_exit (by simp only [Cond.holds_lt, hz_y, hact_y, Nat.lt_irrefl,
           not_false_eq_true])
@@ -2883,106 +2917,35 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
         rw [hymem]
         exact memInsertLeaf_outside ht hnonfull hslot_le x.mem _ (by omega)
       · rw [hymem, hnk']; omega
-      · exact Finset.subset_union_left
+      · simp only [readNodeSet_zero]; exact Finset.subset_union_left
   | succ l ih =>
     have hu_lt_cnt : u < cnt :=
       Finset.mem_range.mp (hrange (self_mem_readNodeSet (l + 1) base t x.mem u))
     have hu_cap : u < capNodes := by omega
     set m := numKeys base t x.mem u
     have hau_le := nodeAddr_add_le_arena (base := base) hu_cap (o := 6 * t) le_rfl
-    have hf_keys : Fits w (nodeAddr base t u + 2 + m) := hfit.of_le (by omega)
-    obtain ⟨x₁, h1, hb₁, hmem₁, hsrc₁, hnk₁, hlim₁, hreg₁⟩ :=
-      loadNodeHeader_spec ht hu_cap hbdd hfit ho hbase hstride hcur
-    have hz₁ : x₁.regs rZero = 0 :=
-      (hreg₁ rZero (by decide) (by decide) (by decide) (by decide)).trans hz
-    have ho₁ : x₁.regs rOne = 1 :=
-      (hreg₁ rOne (by decide) (by decide) (by decide) (by decide)).trans ho
-    have hk₁ : x₁.regs rKey = k :=
-      (hreg₁ rKey (by decide) (by decide) (by decide) (by decide)).trans hkey
-    obtain ⟨x₂, h2, hb₂, hmem₂, hslot₂, hz₂, hreg₂⟩ :=
-      slotScanLoop_spec hb₁ hz₁ ho₁ hk₁ hsrc₁ hlim₁ hf_keys
-    rw [hmem₁] at hslot₂ hmem₂
-    set slot := slotCount base t x.mem u k m
-    have hsc := slotCount_spec (k := k) hs.1 m le_rfl
-    have hslot_le : slot ≤ m := hsc.1
-    have ho₂ : x₂.regs rOne = 1 :=
-      (hreg₂ rOne (by decide) (by decide) (by decide) (by decide) (by decide)).trans ho₁
-    have hb₂_reg : x₂.regs rBase = base :=
-      (hreg₂ rBase (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-        ((hreg₁ rBase (by decide) (by decide) (by decide) (by decide)).trans hbase)
-    have hd₂ : x₂.regs rDeg = t :=
-      (hreg₂ rDeg (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-        ((hreg₁ rDeg (by decide) (by decide) (by decide) (by decide)).trans hdeg)
-    have hst₂ : x₂.regs rStride = 6 * t :=
-      (hreg₂ rStride (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-        ((hreg₁ rStride (by decide) (by decide) (by decide) (by decide)).trans hstride)
-    have hk₂ : x₂.regs rKey = k :=
-      (hreg₂ rKey (by decide) (by decide) (by decide) (by decide) (by decide)).trans hk₁
+    obtain ⟨x₂, h12, hb₂, hmem₂, hz₂, ho₂, hb₂_reg, hd₂, hst₂, hk₂, hcur₂, hsrc₂, hnk₂,
+        hslot₂, hreg₂⟩ :=
+      loadAndScan_spec ht hu_cap hv.numKeys_le hbdd hfit hz ho hbase hdeg hstride hkey hcur
     have hv₂ : x₂.regs rVal = v :=
-      (hreg₂ rVal (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-        ((hreg₁ rVal (by decide) (by decide) (by decide) (by decide)).trans hval)
-    have hcur₂ : x₂.regs rCur = u :=
-      (hreg₂ rCur (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-        ((hreg₁ rCur (by decide) (by decide) (by decide) (by decide)).trans hcur)
+      (hreg₂ rVal (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide)).trans hval
     have hcnt₂ : x₂.regs rCnt = cnt :=
-      (hreg₂ rCnt (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-        ((hreg₁ rCnt (by decide) (by decide) (by decide) (by decide)).trans hcnt_reg)
+      (hreg₂ rCnt (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide)).trans hcnt_reg
     have hact₂ : x₂.regs rActive = 1 :=
-      (hreg₂ rActive (by decide) (by decide) (by decide) (by decide) (by decide)).trans
-        ((hreg₁ rActive (by decide) (by decide) (by decide) (by decide)).trans hact)
-    have hnk₂ : x₂.regs rNumK = m :=
-      (hreg₂ rNumK (by decide) (by decide) (by decide) (by decide) (by decide)).trans hnk₁
-    have hsrc₂ : x₂.regs rSrc = nodeAddr base t u + 2 :=
-      (hreg₂ rSrc (by decide) (by decide) (by decide) (by decide) (by decide)).trans hsrc₁
+      (hreg₂ rActive (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide)).trans hact
+    set slot := slotCount base t x.mem u k m
+    have hsc := slotCount_spec (k := k) (fun _ _ => hs.keys_strict) m le_rfl
+    have hslot_le : slot ≤ m := hsc.1
     have hcond_in : (Cond.lt rZero rActive).Holds x := by
       simp only [Cond.holds_lt, hz, hact, Nat.zero_lt_one]
     have hmul_step : (91 * t + 160) * (l + 1 + 1) = (91 * t + 160) * (l + 1) + (91 * t + 160) :=
       Nat.mul_succ _ _
     by_cases hhit : slot < m ∧ keyAt base t x.mem u slot = k
-    · -- Overwrite in internal node `u`:
-      have hlt_m := hhit.1
-      have heq_k := hhit.2
-      have hf_ks : Fits w (nodeAddr base t u + 2 + slot) := hfit.of_le (by omega)
-      have hks_eq : x₂.mem (nodeAddr base t u + 2 + slot) = k := by rw [hmem₂]; exact heq_k
-      let x₂' := (x₂.set rTmp1 (nodeAddr base t u + 2 + slot)).set rTmp2 k
-      obtain ⟨y, hov, _, hymem, hmod_y, hz_y, hb_y_reg, hd_y, hact_y⟩ :=
-        overwriteValCode_spec (x := x₂') ht hu_cap (by omega)
-          ((hb₂.set hf_ks).set (hk₂ ▸ hb₂.1 rKey))
-          hfit ho₂ hb₂_reg hd₂ hst₂ hcur₂ hslot₂ hv₂
-      have h3 : ExecWithin w insertBranch x₂ y 15 := by
-        unfold insertBranch
-        apply WP.execWithin
-        wram_exec [hnk₂, hsrc₂, hslot₂, hk₂, hlt_m, hks_eq, hf_ks]
-        exact WP.of_execWithin hov ⟨by omega, rfl⟩
-      have hstep : ExecWithin w insertStep x y (91 * t + 158) :=
-        (h1.seq (h2.seq h3)).mono (by omega)
-      have hz_y0 : y.regs rZero = 0 := hz_y.trans hz₂
-      have hexit : ExecWithin w insertLoop y y 2 :=
-        ExecWithin.loop_exit (by simp only [Cond.holds_lt, hz_y0, hact_y, Nat.lt_irrefl,
-          not_false_eq_true])
-      have hymem' : y.mem = memOverwriteVal base t u slot v x.mem := by
-        rw [hymem]; simp only [x₂', Data.set_mem, hmem₂]
-      obtain ⟨hv', hs', hset', htr'⟩ := memOverwriteVal_spec ht hv hs hlt_m heq_k
-      have hb_lo := base_lt_nodeAddr base t u (2 * t + 1 + slot)
-      simp only [x₂', Data.set_mem, hmem₂] at hmod_y
-      refine ⟨y, cnt, (hstep.loop_iter hcond_in hexit).mono (by omega),
-        (hstep.loop_iter hcond_in hexit).bounded hbdd, le_rfl, by omega, ?_, ?_,
-        hb_y_reg, hd_y, hmod_y, ?_, hymem' ▸ hv', hymem' ▸ hs', ?_, ?_, hymem' ▸ htr'⟩
-      · rw [hymem']; dsimp only [memOverwriteVal]; rw [Function.update_of_ne (by omega)]
-      · rw [hymem']; dsimp only [memOverwriteVal]; rw [Function.update_of_ne (by omega), hcnt_mem]
-      · intro w_id hnot o ho_lt
-        have hw_ne : w_id ≠ u := fun heq => hnot (by
-          rw [heq]; exact Finset.mem_union_left _ (self_mem_readNodeSet (l + 1) base t x.mem u))
-        have hsep := nodeAddr_disjoint (base := base) (o₂ := (2 * t + 1) + slot) hw_ne ho_lt
-          (by simp only [nodeStride]; omega)
-        rw [← Nat.add_assoc] at hsep
-        rw [hymem']; dsimp only [memOverwriteVal]
-        exact Function.update_of_ne hsep _ _
-      · rw [hymem']; dsimp only [numKeys, memOverwriteVal]
-        have hst_eq : nodeStride t = 6 * t := rfl
-        rw [Function.update_of_ne (by omega)]
-        exact le_rfl
-      · rw [hymem', hset']; exact Finset.subset_union_left
+    · exact insertLoop_overwrite_spec ht hu_cap hbdd hfit hv hs hnonfull hcnt_mem hcond_in
+        h12 hb₂ hmem₂ hz₂ ho₂ hb₂_reg hd₂ hst₂ hk₂ hv₂ hcur₂ hsrc₂ hnk₂ hslot₂ hhit
     · -- Internal descent into `c = childAt u slot`:
       have hgt_all : ∀ i, slot ≤ i → i < m → k < keyAt base t x.mem u i := by
         intro i hge hi
@@ -2992,12 +2955,11 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
           omega
         · have hle_s := hsc.2.2 slot le_rfl (by omega)
           have hne_s : keyAt base t x.mem u slot ≠ k := fun heq => hhit ⟨by omega, heq⟩
-          exact (show k < keyAt base t x.mem u slot by omega).trans (hs.1 slot i hgt hi)
+          exact (show k < keyAt base t x.mem u slot by omega).trans (hs.keys_strict hgt hi)
       obtain ⟨c, hc_def⟩ : ∃ c, childAt base t x.mem u slot = c := ⟨_, rfl⟩
       have hslot_lt1 : slot < m + 1 := by omega
-      have hch_spec := hv.2.2.2.1 slot hslot_lt1
-      have hv_c : ValidNode l base t x.mem c := hc_def ▸ hch_spec.1
-      have hs_c : SortedNode l base t x.mem c := hc_def ▸ hs.2.1 slot hslot_lt1
+      have hv_c : ValidNode l base t x.mem c := hc_def ▸ hv.child_valid hslot_lt1
+      have hs_c : SortedNode l base t x.mem c := hc_def ▸ hs.child_sorted hslot_lt1
       have hrange_c : readNodeSet l base t x.mem c ⊆ Finset.range cnt :=
         (hc_def ▸ child_subset_readNodeSet l base t x.mem u slot hslot_lt1).trans hrange
       have hc_lt_cnt : c < cnt :=
@@ -3005,7 +2967,7 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
       have hc_cap : c < capNodes := by omega
       have hac_le := nodeAddr_add_le_arena (base := base) hc_cap (o := 6 * t) le_rfl
       have huc : u ≠ c := fun heq =>
-        (hc_def ▸ hch_spec.2.2)
+        (hc_def ▸ hv.not_mem_child_readNodeSet hslot_lt1)
           (Eq.ndrec (motive := fun w_id => w_id ∈ readNodeSet l base t x.mem c)
             (self_mem_readNodeSet l base t x.mem c) heq.symm)
       -- Lift `insertDescendOrLeaf_int_spec` through `insertBranch` from `x₂`:
@@ -3035,8 +2997,8 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
             (keyAt base t x.mem u slot)
           obtain ⟨x₃, hdl, hbx₃, hmod₃, hz₃, ho₃, hb₃, hd₃, hst₃, hk₃, hv₃, hbr₃⟩ :=
             insertDescendOrLeaf_int_spec (z := x₂') ht hu_lt_cnt hc_lt_cnt huc (by omega) hnonfull
-              hslot_le hv.1 hc_def hfit ((hb₂.set hf_ks).set (hmem₂ ▸ hb₂.2 _)) hmem₂ hz₂ ho₂
-              hb₂_reg hd₂ hst₂ hk₂ hv₂ hcur₂ hcnt₂ hnk₂ hslot₂ hsrc₂ hact₂
+              hslot_le hv.leafFlag_eq hc_def hfit ((hb₂.set hf_ks).set (hmem₂ ▸ hb₂.2 _)) hmem₂ hz₂
+              ho₂ hb₂_reg hd₂ hst₂ hk₂ hv₂ hcur₂ hcnt₂ hnk₂ hslot₂ hsrc₂ hact₂
           have he_br : ExecWithin w insertBranch x₂ x₃ (75 * t + 162) := by
             unfold insertBranch
             apply WP.execWithin
@@ -3045,8 +3007,8 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
           exact ⟨x₃, he_br, hbx₃, hmod₃, hz₃, ho₃, hb₃, hd₃, hst₃, hk₃, hv₃, hbr₃⟩
         · obtain ⟨x₃, hdl, hbx₃, hmod₃, hz₃, ho₃, hb₃, hd₃, hst₃, hk₃, hv₃, hbr₃⟩ :=
             insertDescendOrLeaf_int_spec (z := x₂) ht hu_lt_cnt hc_lt_cnt huc (by omega) hnonfull
-              hslot_le hv.1 hc_def hfit hb₂ hmem₂ hz₂ ho₂ hb₂_reg hd₂ hst₂ hk₂ hv₂ hcur₂ hcnt₂ hnk₂
-              hslot₂ hsrc₂ hact₂
+              hslot_le hv.leafFlag_eq hc_def hfit hb₂ hmem₂ hz₂ ho₂ hb₂_reg hd₂ hst₂ hk₂ hv₂ hcur₂
+              hcnt₂ hnk₂ hslot₂ hsrc₂ hact₂
           have he_br : ExecWithin w insertBranch x₂ x₃ (75 * t + 162) := by
             unfold insertBranch
             apply WP.execWithin
@@ -3055,7 +3017,7 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
           exact ⟨x₃, he_br, hbx₃, hmod₃, hz₃, ho₃, hb₃, hd₃, hst₃, hk₃, hv₃, hbr₃⟩
       obtain ⟨x₃, h3, hbx₃, hmod₃, hz₃, ho₃, hb₃, hd₃, hst₃, hk₃, hv₃, hbr₃⟩ := hbranch
       have hstep : ExecWithin w insertStep x x₃ (91 * t + 158) :=
-        (h1.seq (h2.seq h3)).mono (by omega)
+        (h12.seq h3).mono (by omega)
       -- Now split on whether `c` was full (`numKeys c = 2 * t - 1`) or non-full:
       by_cases hfull_c : numKeys base t x.mem c = 2 * t - 1
       · simp only [hfull_c, ↓reduceIte] at hbr₃
@@ -3142,9 +3104,9 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
             have hslot_le_u1 : slot ≤ numKeys base t mem₁ u := by rw [hnk_u1]; omega
             have hslot_lt1_u1 : slot < numKeys base t mem₁ u + 1 := by rw [hnk_u1]; omega
             have hv_c_m1 : ValidNode l base t x₃.mem c := by
-              rw [hmem₃_eq, ← hc_s1]; exact (hv_u1.2.2.2.1 slot hslot_lt1_u1).1
+              rw [hmem₃_eq, ← hc_s1]; exact hv_u1.child_valid hslot_lt1_u1
             have hs_c_m1 : SortedNode l base t x₃.mem c := by
-              rw [hmem₃_eq, ← hc_s1]; exact hs_u1.2.1 slot hslot_lt1_u1
+              rw [hmem₃_eq, ← hc_s1]; exact hs_u1.child_sorted hslot_lt1_u1
             have hnf_c_m1 : numKeys base t x₃.mem c ≤ 2 * t - 2 := by
               rw [hmem₃_eq, hnk_c1]; omega
             have hrange_c_m1 : readNodeSet l base t x₃.mem c ⊆ Finset.range (cnt + 1) := by
@@ -3166,7 +3128,7 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
               intro i hge hi
               rcases eq_or_lt_of_le hge with rfl | hgt
               · exact hlt_med
-              · exact hlt_med.trans (hs_u1.1 slot i hgt hi)
+              · exact hlt_med.trans (hs_u1.keys_strict hgt hi)
             obtain ⟨hv_u', hs_u', hnk_u', hsub_u', htr_u'⟩ :=
               childInsert_spec (cnt := cnt + 1) (cnt' := cnt') ht hv_u1 hs_u1 hslot_le_u1
                 hlt_u1 hgt_u1 hrange_u1
@@ -3178,8 +3140,8 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
                 (by rwa [hc_s1])
             refine ⟨y, cnt', (hstep.loop_iter hcond_in hy_rec).mono (by omega), hby,
               by omega, by omega, hmb0.trans hm1_b0, hmb1, hby_reg, hdy_reg,
-              modifies_trans hmod₃ hmod_rec, ?_, hv_u', hs_u', by rw [hnk_u', hnk_u1]; omega, ?_,
-              by rw [htr_u', htr_u1]⟩
+              by simpa only [Finset.union_idempotent] using hmod₃.trans hmod_rec, ?_, hv_u', hs_u',
+              by rw [hnk_u', hnk_u1]; omega, ?_, by rw [htr_u', htr_u1]⟩
             · intro w_id hnot o ho_lt
               have hnot_rec : w_id ∉ readNodeSet l base t mem₁ c ∪ Finset.Ico (cnt + 1) cnt' := by
                 intro hin
@@ -3211,9 +3173,9 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
             have hslot1_le_u1 : slot + 1 ≤ numKeys base t mem₁ u := by rw [hnk_u1]; omega
             have hslot1_lt1_u1 : slot + 1 < numKeys base t mem₁ u + 1 := by rw [hnk_u1]; omega
             have hv_z_m1 : ValidNode l base t x₃.mem cnt := by
-              rw [hmem₃_eq, ← hc_s11]; exact (hv_u1.2.2.2.1 (slot + 1) hslot1_lt1_u1).1
+              rw [hmem₃_eq, ← hc_s11]; exact hv_u1.child_valid hslot1_lt1_u1
             have hs_z_m1 : SortedNode l base t x₃.mem cnt := by
-              rw [hmem₃_eq, ← hc_s11]; exact hs_u1.2.1 (slot + 1) hslot1_lt1_u1
+              rw [hmem₃_eq, ← hc_s11]; exact hs_u1.child_sorted hslot1_lt1_u1
             have hnf_z_m1 : numKeys base t x₃.mem cnt ≤ 2 * t - 2 := by
               rw [hmem₃_eq, hnk_z1]; omega
             have hrange_z_m1 : readNodeSet l base t x₃.mem cnt ⊆ Finset.range (cnt + 1) := by
@@ -3229,7 +3191,7 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
               intro i hi
               rcases eq_or_lt_of_le (Nat.le_of_lt_succ hi) with rfl | hlt_s
               · exact hmed_lt_k
-              · exact (hs_u1.1 i slot hlt_s (by rw [hnk_u1]; omega)).trans hmed_lt_k
+              · exact (hs_u1.keys_strict hlt_s (by rw [hnk_u1]; omega)).trans hmed_lt_k
             have hgt_u1 : ∀ i, slot + 1 ≤ i → i < numKeys base t mem₁ u →
                 k < keyAt base t mem₁ u i := by
               intro i hge hi
@@ -3248,8 +3210,8 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
                 (by rwa [hc_s11])
             refine ⟨y, cnt', (hstep.loop_iter hcond_in hy_rec).mono (by omega), hby,
               by omega, by omega, hmb0.trans hm1_b0, hmb1, hby_reg, hdy_reg,
-              modifies_trans hmod₃ hmod_rec, ?_, hv_u', hs_u', by rw [hnk_u', hnk_u1]; omega, ?_,
-              by rw [htr_u', htr_u1]⟩
+              by simpa only [Finset.union_idempotent] using hmod₃.trans hmod_rec, ?_, hv_u', hs_u',
+              by rw [hnk_u', hnk_u1]; omega, ?_, by rw [htr_u', htr_u1]⟩
             · intro w_id hnot o ho_lt
               have hnot_rec : w_id ∉ readNodeSet l base t mem₁ cnt ∪ Finset.Ico (cnt + 1) cnt' := by
                 intro hin
@@ -3286,13 +3248,15 @@ private theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 
           ih hbx₃ (hmem₃_eq ▸ hv_c) (hmem₃_eq ▸ hs_c) hnf_c (hmem₃_eq ▸ hrange_c) (by omega)
             (hmem₃_eq ▸ hcnt_mem) hz₃ ho₃ hb₃ hd₃ hst₃ hk₃ hv₃ hcur₃ hcnt₃ hact₃
         rw [hmem₃_eq] at hmb0 hfr_rec hnk_c_le hsub_c' htr_c'
-        have hnk_c_ge : t - 1 ≤ numKeys base t y.mem c := le_trans (hc_def ▸ hch_spec.2.1) hnk_c_le
+        have hnk_c_ge : t - 1 ≤ numKeys base t y.mem c :=
+          le_trans (hc_def ▸ hv.child_numKeys_ge hslot_lt1) hnk_c_le
         obtain ⟨hv_u', hs_u', hnk_u', hsub_u', htr_u'⟩ :=
           childInsert_spec (cnt := cnt) (cnt' := cnt') ht hv hs hslot_le hsc.2.1 hgt_all hrange
             (hc_def.symm ▸ hfr_rec) (hc_def.symm ▸ hv_c') (hc_def.symm ▸ hs_c')
             (hc_def.symm ▸ hnk_c_ge) (hc_def.symm ▸ hsub_c') (hc_def.symm ▸ htr_c')
         refine ⟨y, cnt', (hstep.loop_iter hcond_in hy_rec).mono (by omega), hby,
-          hcnt_le, by omega, hmb0, hmb1, hby_reg, hdy_reg, modifies_trans hmod₃ hmod_rec, ?_,
+          hcnt_le, by omega, hmb0, hmb1, hby_reg, hdy_reg,
+          by simpa only [Finset.union_idempotent] using hmod₃.trans hmod_rec, ?_,
           hv_u', hs_u', by rw [hnk_u'], hsub_u', htr_u'⟩
         intro w_id hnot o ho_lt
         apply hfr_rec w_id _ o ho_lt
@@ -3363,13 +3327,14 @@ theorem insertCode_spec {w base capNodes t k v : ℕ} {tr : BTree ℕ ℕ} {x : 
     (hr : Rep base capNodes t w tr x)
     (hkey : x.regs rKey = k)
     (hval : x.regs rVal = v)
-    (hcap : x.mem (base + 1) + tr.height + 2 ≤ capNodes) :
+    (hcap : allocCount base x + tr.height + 2 ≤ capNodes) :
     ∃ y tr',
       ExecWithin w insertCode x y ((91 * t + 160) * (tr.height + 1) + (21 * t + 120)) ∧
       Rep base capNodes t w tr' y ∧
       tr'.toList = Cslib.SortedAssoc.insert k v tr.toList ∧
-      y.mem (base + 1) ≤ x.mem (base + 1) + tr.height + 2 ∧
+      allocCount base y ≤ allocCount base x + tr.height + 2 ∧
       Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem y.mem := by
+  dsimp only [allocCount] at hcap ⊢
   have ht := hr.two_le
   have hfit := hr.fits_arena
   have hf0 : Fits w 0 := hfit.of_le (Nat.zero_le _)
@@ -3520,7 +3485,7 @@ theorem insertCode_spec {w base capNodes t k v : ℕ} {tr : BTree ℕ ℕ} {x : 
         · rw [hy_b0, hmb1]; exact hrange_y
       simp only [x₃, Data.set_mem] at hmod_loop
       refine ⟨y, readTree (l + 1) base t y.mem (cnt + 1), he, hrep, ?_, ?_,
-        modifies_trans hmod_sr hmod_loop⟩
+        by simpa only [Finset.union_idempotent] using hmod_sr.trans hmod_loop⟩
       · rw [htr_y]
         have htr_x₃ : readTree (l + 1) base t x₃.mem (cnt + 1) =
             readTree (l + 1) base t (memSplitRoot base t oldRoot cnt x.mem) (cnt + 1) := by
@@ -3588,13 +3553,13 @@ theorem insertCode_log_spec {w base capNodes t k v : ℕ} {tr : BTree ℕ ℕ} {
     (hr : Rep base capNodes t w tr x)
     (hkey : x.regs rKey = k)
     (hval : x.regs rVal = v)
-    (hcap : x.mem (base + 1) + tr.height + 2 ≤ capNodes) :
+    (hcap : allocCount base x + tr.height + 2 ≤ capNodes) :
     ∃ y tr',
       ExecWithin w insertCode x y
         ((91 * t + 160) * (Nat.log t ((tr.size + 1) / 2) + 2) + (21 * t + 120)) ∧
       Rep base capNodes t w tr' y ∧
       tr'.toList = Cslib.SortedAssoc.insert k v tr.toList ∧
-      y.mem (base + 1) ≤ x.mem (base + 1) + tr.height + 2 ∧
+      allocCount base y ≤ allocCount base x + tr.height + 2 ∧
       Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem y.mem := by
   obtain ⟨y, tr', he, hrep, htl, hcnt, hmod⟩ := insertCode_spec hr hkey hval hcap
   have h2 : tr.height + 1 ≤ Nat.log t ((tr.size + 1) / 2) + 2 := by
@@ -3619,37 +3584,32 @@ theorem not_readsWidth_insertProgram : ¬insertProgram.ReadsWidth :=
 theorem isRandFree_insertProgram : insertProgram.IsRandFree :=
   Code.isRandFree_program.mpr isRandFree_insertCode
 
-/-- Flat assembled Word-RAM execution of `insertCode.assemble 0` in `O(t log_t n)` instructions. -/
-theorem insertProg_runs {w base capNodes t k v : ℕ} {tr : BTree ℕ ℕ} {x : Data 20}
+/-- Complete halting flat-program specification of `insertProgram`: runs in at most
+`(91 * t + 160) * (Nat.log t ((tr.size + 1) / 2) + 2) + (21 * t + 121)` Word-RAM instructions
+(charging the final `halt`), halting with `base` in `rBase` while preserving `Rep` on `tr'` with
+`tr'.toList = Cslib.SortedAssoc.insert k v tr.toList`, bounding node allocation, and modifying only
+`[base, base + arenaWords t capNodes)`. -/
+theorem insertProgram_spec {w base capNodes t k v : ℕ} {tr : BTree ℕ ℕ} {x : Data 20}
     (hr : Rep base capNodes t w tr x)
     (hkey : x.regs rKey = k)
     (hval : x.regs rVal = v)
-    (hcap : x.mem (base + 1) + tr.height + 2 ≤ capNodes) :
+    (hcap : allocCount base x + tr.height + 2 ≤ capNodes) :
     ∃ y tr' steps,
-      Runs w (insertCode.assemble 0) ⟨0, x⟩ ⟨insertCode.size, y⟩ steps ∧
-      steps ≤ (91 * t + 160) * (Nat.log t ((tr.size + 1) / 2) + 2) + (21 * t + 120) ∧
+      Runs w insertProgram ⟨0, x⟩ ⟨insertCode.size, y⟩ steps ∧
+      step w insertProgram ⟨insertCode.size, y⟩ = .halt base ∧
+      steps + 1 ≤ (91 * t + 160) * (Nat.log t ((tr.size + 1) / 2) + 2) + (21 * t + 121) ∧
       Rep base capNodes t w tr' y ∧
       tr'.toList = Cslib.SortedAssoc.insert k v tr.toList ∧
-      y.mem (base + 1) ≤ x.mem (base + 1) + tr.height + 2 ∧
+      allocCount base y ≤ allocCount base x + tr.height + 2 ∧
       Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem y.mem := by
   obtain ⟨y, tr', ⟨steps, hle, hexec⟩, hrep, htl, hcnt, hmod⟩ :=
     insertCode_log_spec hr hkey hval hcap
-  refine ⟨y, tr', steps, ?_, hle, hrep, htl, hcnt, hmod⟩
-  simpa only [Nat.zero_add] using hexec.runs (Program.Contains.self _)
-
-/-- Halting flat Word-RAM execution of `insertProgram` in `O(t log_t n)` instructions. -/
-theorem insertProgram_executes {w base capNodes t k v : ℕ} {tr : BTree ℕ ℕ} {x : Data 20}
-    (hr : Rep base capNodes t w tr x)
-    (hkey : x.regs rKey = k)
-    (hval : x.regs rVal = v)
-    (hcap : x.mem (base + 1) + tr.height + 2 ≤ capNodes) :
-    ∃ steps,
-      Executes w insertProgram ⟨0, x⟩ base steps ∧
-      steps ≤ (91 * t + 160) * (Nat.log t ((tr.size + 1) / 2) + 2) + (21 * t + 121) := by
-  obtain ⟨y, _, ⟨steps, hle, hexec⟩, hrep, _, _, _⟩ :=
-    insertCode_log_spec hr hkey hval hcap
-  refine ⟨steps + 1, ?_, by omega⟩
-  rw [← hrep.base_eq]
-  exact hexec.executes rBase
+  have hruns : Runs w insertProgram ⟨0, x⟩ ⟨insertCode.size, y⟩ steps := by
+    simpa only [Nat.zero_add] using
+      hexec.runs (pc := 0) (p := insertProgram) (Program.Contains.self _).append_left
+  have hhalt : step w insertProgram ⟨0 + insertCode.size, y⟩ = .halt (y.regs rBase) :=
+    step_halt (by simp [insertProgram, Code.program])
+  rw [Nat.zero_add, hrep.base_eq] at hhalt
+  exact ⟨y, tr', steps, hruns, hhalt, by omega, hrep, htl, hcnt, hmod⟩
 
 end Cslib.DataStructure.BTree.WordRAM
