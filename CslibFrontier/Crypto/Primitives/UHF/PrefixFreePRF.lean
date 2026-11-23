@@ -36,6 +36,8 @@ Theorem 7.3 provides this room by giving the PRF domain one extra block of capac
 ## Main definitions
 
 * `Cslib.Crypto.UHF.prefixFreeCollisionReduction`: compare oracle replies on extended queries.
+* `Cslib.Crypto.UHF.prefixFreeCollisionReductionWithCap`: the shared program with a cap computed
+  from the first extended query.
 
 ## Main results
 
@@ -362,11 +364,12 @@ smaller domain. The uniform private key has `n` bits, and public setup is the un
 Valid hash inputs are whole blocks of positive width, and appending any one block puts them
 in the PRF domain.
 
-The source specialization uses positive-width bit blocks, with hash inputs of at most `ℓ`
-blocks and PRF inputs of at most `ℓ + 1` blocks. The hash input domain is included in the PRF
-input domain there, so `hPRF.length_eq` gives fixed-width digests for the original hash inputs.
-The conclusion expresses collision security with raw `List Bool` digests, which on those inputs
-are the bit-list representation of `BitString (outLen n)`.
+For positive-width bit blocks, the nonempty hash inputs of at most `ℓ` blocks lie in the
+oracle domain of one to `ℓ + 1` blocks. The PRF's length clause therefore gives fixed-width
+digests on those inputs. The word theorem also permits the zero-block hash input, whose
+extension is a nonempty oracle query. If the oracle domain excludes the empty word, the family
+supplies the digest width on that input separately, as in `length_cbcMacFamily`. The conclusion
+uses raw `List Bool` digests, which at the declared width represent `BitString (outLen n)`.
 
 The reduction obtains the reply width by evaluating the PRF at a public zero key on a valid
 extended query. -/
