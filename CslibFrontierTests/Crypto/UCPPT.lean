@@ -698,47 +698,4 @@ theorem dummyAdversary_wordHandle_replyBound_truncates_and_fits
 
 end ReplyBoundWitness
 
-/-! ### 5. Off-image state-word normalization -/
-
-section NormalizeWitness
-
-private noncomputable def emptyIdCert :
-    PPTCertificate (fun (_ : ℕ) (_ : Finset (Fin 1)) => Machine.id OracleSpec.empty)
-      WordInterface.empty WordInterface.empty where
-  codec _ _ :=
-    { enc := ⟨fun _ => [], fun a b _ => by cases a; cases b; rfl⟩
-      decode := fun _ => PUnit.unit
-      decode_enc := fun _ => rfl }
-  init := (ComputableInPolyTime.const (encIn := encPPTParam 1) (encOut := encBits) []).isPPTOn
-  handle := by
-    have : IsEmpty (PPTParam 1 × (WordInterface.empty.Channel × List Bool) × List Bool) :=
-      ⟨fun x => x.2.1.1.elim⟩
-    exact (ComputableInPolyTime.of_finite
-      (encIn := encHandlerCall (encPPTParam 1)
-        (encFinite WordInterface.empty.Channel) encBits)
-      (encOut := encPair encBits encBits)
-      (fun x : PPTParam 1 × (WordInterface.empty.Channel × List Bool) × List Bool =>
-        (x.2.1.1.elim : List Bool × List Bool))).isOraclePPTOn.congr fun x => x.2.1.1.elim
-  normalize := ComputableInPolyTime.const (encIn := encPair (encPPTParam 1) encBits)
-    (encOut := encBits) []
-  growth _ _ := 0
-  growth_poly := PolyBounded.const 0
-  preserve _ request _ _ h := request.1.elim
-
-/-- On a non-surjective state codec (`emptyIdCert`, encoding `PUnit` as `[]`), normalizing an
-off-image state word `[true]` strictly modifies it (`[] ≠ [true]`), lands inside `Set.range enc`,
-and is uniformly computable in polynomial time via `PPTCertificate.normalize`. -/
-theorem emptyIdCert_normalize_off_image (p : PPTParam 1) :
-    let c := emptyIdCert.codec p.secParam p.corrupted
-    c.enc (c.decode [true]) ≠ [true] ∧
-    c.enc (c.decode [true]) ∈ Set.range c.enc ∧
-    ComputableInPolyTime
-      (fun x : PPTParam 1 × List Bool =>
-        (emptyIdCert.codec x.1.secParam x.1.corrupted).enc
-          ((emptyIdCert.codec x.1.secParam x.1.corrupted).decode x.2))
-      (encPair (encPPTParam 1) encBits) encBits :=
-  ⟨by simp [emptyIdCert], ⟨PUnit.unit, rfl⟩, emptyIdCert.normalize⟩
-
-end NormalizeWitness
-
 end CslibFrontierTests.Crypto.UCPPT

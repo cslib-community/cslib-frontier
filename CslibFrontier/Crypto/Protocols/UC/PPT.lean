@@ -202,10 +202,10 @@ structure PPTCertificate {n : ℕ} {ιI ιE : Type} {I : ιI → Type} {E : ιE 
     (encPair encBits encBits)
     (fun x => wordHandle M iI iE codec x.1 x.2.1 x.2.2)
   /-- Decoding and re-encoding an arbitrary state word is uniformly computable in polynomial time
-  (`enc ∘ decode`). A composite branch that leaves a component untouched still outputs
-  `(codec p.secParam p.corrupted).enc ((codec p.secParam p.corrupted).decode w)` on off-image
-  state words, so this normalization cost is needed for closure under routing and composition
-  (analogous to `WordInterface.computable_replyNormalize`). -/
+  (`enc ∘ decode`). A branch that leaves a component's state unchanged must still re-encode its
+  state word, including words outside the codec's image, in polynomial time; this normalization cost
+  is needed for closure under routing, adversary placement, and composition (analogous to
+  `WordInterface.computable_replyNormalize`). -/
   normalize : ComputableInPolyTime
     (fun x : PPTParam n × List Bool =>
       (codec x.1.secParam x.1.corrupted).enc
@@ -322,8 +322,10 @@ structure IdealFunctionality.PPTCertificate {n : ℕ} {In Out BackQ BackR : Type
   onBackdoor : IsPPTOn (encPair encBits encBits) (encPair encBits encBits)
     (IdealFunctionality.wordStep back stateCodec F.onBackdoor)
   /-- Decoding and re-encoding an arbitrary state word is computable in polynomial time
-  (`stateCodec.enc ∘ stateCodec.decode`), needed for closure under hybrid wrapping and protocol
-  composition (analogous to `WordInterface.computable_replyNormalize`). -/
+  (`stateCodec.enc ∘ stateCodec.decode`): a branch that leaves a component's state unchanged must
+  still re-encode its state word, including words outside the codec's image, in polynomial time,
+  needed for closure under hybrid wrapping and protocol composition (analogous to
+  `WordInterface.computable_replyNormalize`). -/
   normalize : ComputableInPolyTime
     (fun w : List Bool => stateCodec.enc (stateCodec.decode w))
     encBits encBits
