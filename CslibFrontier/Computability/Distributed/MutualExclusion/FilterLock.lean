@@ -544,6 +544,18 @@ private theorem filterLocalInv_nextAfterRoom {n : ℕ} {s : FilterState n} {p : 
   · simp only [nextAfterRoom, h2, ↓reduceDIte]
     exact Or.inr (by have := r.isLt; omega)
 
+private theorem filter_update_eq {n : ℕ} (P : FilterPhase n → Bool) (f : Fin n → FilterPhase n)
+    (p : Fin n) (ph' : FilterPhase n) (h : P ph' = P (f p)) :
+    (Finset.univ.filter fun q => P (Function.update f p ph' q)) =
+      Finset.univ.filter fun q => P (f q) := by
+  ext q; by_cases hqp : q = p <;> simp [hqp, h]
+
+private theorem filter_update_false {n : ℕ} (P : FilterPhase n → Bool) (f : Fin n → FilterPhase n)
+    (p : Fin n) (ph' : FilterPhase n) (h : P ph' = false) :
+    (Finset.univ.filter fun q => P (Function.update f p ph' q)) =
+      (Finset.univ.filter fun q => P (f q)).erase p := by
+  ext q; by_cases hqp : q = p <;> simp [hqp, h]
+
 private theorem filterInv_of_unchanged_rooms {n : ℕ} {s : FilterState n} {p : Fin n}
     {ph' : FilterPhase n} {lv' : Fin n → Fin n}
     (hinv : FilterInv s)
@@ -553,18 +565,10 @@ private theorem filterInv_of_unchanged_rooms {n : ℕ} {s : FilterState n} {p : 
     (hab : ∀ r, ph'.aboveRoom r = (s.phase p).aboveRoom r) :
     FilterInv { s with phase := Function.update s.phase p ph', level := lv' } := by
   let s₁ : FilterState n := { s with phase := Function.update s.phase p ph', level := lv' }
-  have hat_eq : ∀ r, atRoomSet s₁ r = atRoomSet s r := by
-    intro r; ext q
-    simp only [atRoomSet, Finset.mem_filter, Finset.mem_univ, true_and]
-    by_cases hqp : q = p
-    · subst hqp; dsimp only [s₁]; rw [Function.update_self, hat r]
-    · dsimp only [s₁]; rw [Function.update_of_ne hqp]
-  have hab_eq : ∀ r, aboveRoomSet s₁ r = aboveRoomSet s r := by
-    intro r; ext q
-    simp only [aboveRoomSet, Finset.mem_filter, Finset.mem_univ, true_and]
-    by_cases hqp : q = p
-    · subst hqp; dsimp only [s₁]; rw [Function.update_self, hab r]
-    · dsimp only [s₁]; rw [Function.update_of_ne hqp]
+  have hat_eq : ∀ r, atRoomSet s₁ r = atRoomSet s r := fun r =>
+    filter_update_eq (·.atOrAboveRoom r) s.phase p ph' (hat r)
+  have hab_eq : ∀ r, aboveRoomSet s₁ r = aboveRoomSet s r := fun r =>
+    filter_update_eq (·.aboveRoom r) s.phase p ph' (hab r)
   refine ⟨hloc', ?_, ?_, ?_⟩
   · intro r cleared hw
     rw [hat_eq r]
@@ -586,21 +590,12 @@ private theorem filterInv_of_passRoom {n : ℕ} {s : FilterState n} {p : Fin n}
     (hvic_case : s.victim r₀ = p → ∀ q, q ≠ p → q ∉ atRoomSet s r₀) :
     FilterInv { s with phase := Function.update s.phase p (nextAfterRoom r₀) } := by
   let s₁ : FilterState n := { s with phase := Function.update s.phase p (nextAfterRoom r₀) }
-  have hat_all : ∀ r, atRoomSet s₁ r = atRoomSet s r := by
-    intro r; ext q
-    simp only [atRoomSet, Finset.mem_filter, Finset.mem_univ, true_and]
-    by_cases hqp : q = p
-    · subst hqp; dsimp only [s₁]; rw [Function.update_self, hph, nextAfterRoom_atOrAbove]; rfl
-    · dsimp only [s₁]; rw [Function.update_of_ne hqp]
-  have hab_ne : ∀ r ≠ r₀, aboveRoomSet s₁ r = aboveRoomSet s r := by
-    intro r hr; ext q
-    simp only [aboveRoomSet, Finset.mem_filter, Finset.mem_univ, true_and]
-    by_cases hqp : q = p
-    · subst hqp
-      have hr_val : r.val ≠ r₀.val := Fin.val_ne_of_ne hr
-      dsimp only [s₁]; rw [Function.update_self, hph, nextAfterRoom_above]
-      simp only [FilterPhase.aboveRoom, decide_eq_true_eq]; omega
-    · dsimp only [s₁]; rw [Function.update_of_ne hqp]
+  have hat_all : ∀ r, atRoomSet s₁ r = atRoomSet s r := fun r =>
+    filter_update_eq (·.atOrAboveRoom r) s.phase p _ (by rw [hph, nextAfterRoom_atOrAbove]; rfl)
+  have hab_ne : ∀ r ≠ r₀, aboveRoomSet s₁ r = aboveRoomSet s r := fun r hr =>
+    filter_update_eq (·.aboveRoom r) s.phase p _ (by
+      have := Fin.val_ne_of_ne hr
+      rw [hph, nextAfterRoom_above]; simp only [FilterPhase.aboveRoom, decide_eq_decide]; omega)
   refine ⟨hloc', ?_, ?_, ?_⟩
   · intro r cleared hw
     rw [hat_all r]
@@ -696,27 +691,14 @@ private theorem filterInv_step {n : ℕ} {s s' : FilterState n} {μ : FilterActi
       phase := Function.update s.phase p (.waitRoom r₀ ∅)
       victim := Function.update s.victim r₀ p }
     change FilterInv s₁
-    have hat_ne : ∀ r ≠ r₀, atRoomSet s₁ r = atRoomSet s r := by
-      intro r hr; ext q
-      simp only [atRoomSet, Finset.mem_filter, Finset.mem_univ, true_and]
-      by_cases hqp : q = p
-      · subst hqp
-        have hr_val : r.val ≠ r₀.val := Fin.val_ne_of_ne hr
-        dsimp only [s₁]; rw [Function.update_self, hph]
-        simp only [FilterPhase.atOrAboveRoom, decide_eq_true_eq]; omega
-      · dsimp only [s₁]; rw [Function.update_of_ne hqp]
+    have hat_ne : ∀ r ≠ r₀, atRoomSet s₁ r = atRoomSet s r := fun r hr =>
+      filter_update_eq (·.atOrAboveRoom r) s.phase p _ (by
+        have := Fin.val_ne_of_ne hr
+        simp only [hph, FilterPhase.atOrAboveRoom, decide_eq_decide]; omega)
     have hat_eq_r₀ : atRoomSet s₁ r₀ = insert p (atRoomSet s r₀) := by
-      ext q
-      simp only [atRoomSet, Finset.mem_insert, Finset.mem_filter, Finset.mem_univ, true_and]
-      by_cases hqp : q = p
-      · subst hqp; dsimp only [s₁]; rw [Function.update_self]; simp [FilterPhase.atOrAboveRoom]
-      · dsimp only [s₁]; rw [Function.update_of_ne hqp]; simp [hqp]
-    have hab_all : ∀ r, aboveRoomSet s₁ r = aboveRoomSet s r := by
-      intro r; ext q
-      simp only [aboveRoomSet, Finset.mem_filter, Finset.mem_univ, true_and]
-      by_cases hqp : q = p
-      · subst hqp; dsimp only [s₁]; rw [Function.update_self, hph]; simp [FilterPhase.aboveRoom]
-      · dsimp only [s₁]; rw [Function.update_of_ne hqp]
+      ext q; by_cases hqp : q = p <;> simp [atRoomSet, s₁, hqp, FilterPhase.atOrAboveRoom]
+    have hab_all : ∀ r, aboveRoomSet s₁ r = aboveRoomSet s r := fun r =>
+      filter_update_eq (·.aboveRoom r) s.phase p _ (by simp [hph, FilterPhase.aboveRoom])
     refine ⟨hloc', ?_, ?_, ?_⟩
     · intro r cleared hw
       by_cases hrr : r = r₀
@@ -772,18 +754,10 @@ private theorem filterInv_step {n : ℕ} {s s' : FilterState n} {μ : FilterActi
     let s₁ : FilterState n :=
       { s with phase := Function.update s.phase p (.waitRoom r₀ (insert target cleared₀)) }
     change FilterInv s₁
-    have hat_all : ∀ r, atRoomSet s₁ r = atRoomSet s r := by
-      intro r; ext q
-      simp only [atRoomSet, Finset.mem_filter, Finset.mem_univ, true_and]
-      by_cases hqp : q = p
-      · subst hqp; dsimp only [s₁]; rw [Function.update_self, hph]; rfl
-      · dsimp only [s₁]; rw [Function.update_of_ne hqp]
-    have hab_all : ∀ r, aboveRoomSet s₁ r = aboveRoomSet s r := by
-      intro r; ext q
-      simp only [aboveRoomSet, Finset.mem_filter, Finset.mem_univ, true_and]
-      by_cases hqp : q = p
-      · subst hqp; dsimp only [s₁]; rw [Function.update_self, hph]; rfl
-      · dsimp only [s₁]; rw [Function.update_of_ne hqp]
+    have hat_all : ∀ r, atRoomSet s₁ r = atRoomSet s r := fun r =>
+      filter_update_eq (·.atOrAboveRoom r) s.phase p _ (by rw [hph]; rfl)
+    have hab_all : ∀ r, aboveRoomSet s₁ r = aboveRoomSet s r := fun r =>
+      filter_update_eq (·.aboveRoom r) s.phase p _ (by rw [hph]; rfl)
     refine ⟨hloc', ?_, ?_, ?_⟩
     · intro r cleared hw
       rw [hat_all r]
@@ -810,18 +784,10 @@ private theorem filterInv_step {n : ℕ} {s s' : FilterState n} {μ : FilterActi
       phase := Function.update s.phase p .remainder
       level := Function.update s.level p ⟨0, p.pos⟩ }
     change FilterInv s₁
-    have hat_erase : ∀ r, atRoomSet s₁ r = (atRoomSet s r).erase p := by
-      intro r; ext q
-      simp only [atRoomSet, Finset.mem_erase, Finset.mem_filter, Finset.mem_univ, true_and]
-      by_cases hqp : q = p
-      · subst hqp; dsimp only [s₁]; rw [Function.update_self]; simp [FilterPhase.atOrAboveRoom]
-      · dsimp only [s₁]; rw [Function.update_of_ne hqp]; simp [hqp]
-    have hab_erase : ∀ r, aboveRoomSet s₁ r = (aboveRoomSet s r).erase p := by
-      intro r; ext q
-      simp only [aboveRoomSet, Finset.mem_erase, Finset.mem_filter, Finset.mem_univ, true_and]
-      by_cases hqp : q = p
-      · subst hqp; dsimp only [s₁]; rw [Function.update_self]; simp [FilterPhase.aboveRoom]
-      · dsimp only [s₁]; rw [Function.update_of_ne hqp]; simp [hqp]
+    have hat_erase : ∀ r, atRoomSet s₁ r = (atRoomSet s r).erase p := fun r =>
+      filter_update_false (·.atOrAboveRoom r) s.phase p _ rfl
+    have hab_erase : ∀ r, aboveRoomSet s₁ r = (aboveRoomSet s r).erase p := fun r =>
+      filter_update_false (·.aboveRoom r) s.phase p _ rfl
     refine ⟨hloc', ?_, ?_, ?_⟩
     · intro r cleared hw
       rw [hat_erase r]
@@ -981,12 +947,11 @@ private theorem potential_update_gt {n : ℕ} {s s' : FilterState n} {p : Fin n}
     (hlt : (s.phase p).potential < ph'.potential) :
     s.potential < s'.potential := by
   unfold FilterState.potential
-  rw [hupd, ← Finset.add_sum_erase _ _ (Finset.mem_univ p),
-      ← Finset.add_sum_erase _ _ (Finset.mem_univ p)]
-  have hsum : (Finset.univ.erase p).sum (fun q => (Function.update s.phase p ph' q).potential) =
+  have hrest : (Finset.univ.erase p).sum (fun q => (Function.update s.phase p ph' q).potential) =
       (Finset.univ.erase p).sum (fun q => (s.phase q).potential) :=
     Finset.sum_congr rfl fun q hq => by rw [Function.update_of_ne (Finset.ne_of_mem_erase hq)]
-  rw [hsum, Function.update_self]
+  rw [hupd, ← Finset.add_sum_erase _ _ (Finset.mem_univ p),
+    ← Finset.add_sum_erase _ _ (Finset.mem_univ p), hrest, Function.update_self]
   omega
 
 private theorem nextAfterRoom_potential_gt {n : ℕ} (r : Fin (n - 1)) (c : ℕ) (hc : c < n) :
