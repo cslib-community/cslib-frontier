@@ -12,6 +12,8 @@ public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.Cu
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.Consolidate
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.MinPQ
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.Decode
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -98,55 +100,46 @@ theorem dispatchCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {x :
       Modifies (Block.mk base (space n)).footprint x.mem y.mem ∧
       m + potential y ≤ charge n s o + potential x := by
   have hz0 : x.regs zeroP = 0 := hinv.2.1.regs_zeroP
+  dsimp only [PQCode.argMatch, code] at harg
+  change WP.Exact w dispatchCode x fun y m =>
+    code.decode (n := n) (K_max := K_max) o y.regs =
+      some ((indexedMinPQSpec n K_max).stepFn s o).2 ∧
+    FibInv n K_max w base ((indexedMinPQSpec n K_max).stepFn s o).1 y ∧
+    Modifies (Block.mk base (space n)).footprint x.mem y.mem ∧
+    m + potential y ≤ charge n s o + potential x
+  unfold dispatchCode
   cases o with
   | isEmpty =>
     obtain ⟨ht2, ht1, ht0⟩ := harg
-    have c2 : (Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht2
-    have c1 : (Cond.eq tag1 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht1
-    have c0 : (Cond.eq tag0 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht0
-    obtain ⟨y, t, ⟨m, hm, he⟩, hdec, hinv_y, hmod, hpot⟩ := isEmptyCode_exec hinv
-    refine ⟨y, m + 1 + 1 + 1,
-      Exec.branch_pos c2 (Exec.branch_pos c1 (Exec.branch_pos c0 he)), hdec, hinv_y, hmod, ?_⟩
-    simp only [charge, tEmpty]
-    omega
+    obtain ⟨y, _, ⟨m, hm, he⟩, hdec, hinv_y, hmod, hpot⟩ := isEmptyCode_exec hinv
+    wram_exec [code, hz0, ht2, ht1, ht0]
+    wram_call he
+    exact ⟨hdec, hinv_y, hmod, by simp only [charge, tEmpty]; omega⟩
   | getKey v =>
     obtain ⟨ht2, ht1, ht0, hv_reg⟩ := harg
-    have c2 : (Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht2
-    have c1 : (Cond.eq tag1 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht1
-    have c0 : ¬(Cond.eq tag0 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht0
-    obtain ⟨y, t, ⟨m, hm, he⟩, hdec, hinv_y, hmod, hpot⟩ := getKeyCode_exec v hinv hv_reg
-    refine ⟨y, m + 2 + 1 + 1,
-      Exec.branch_pos c2 (Exec.branch_pos c1 (Exec.branch_neg c0 he)), hdec, hinv_y, hmod, ?_⟩
-    simp only [charge, tGet]
-    omega
+    obtain ⟨y, _, ⟨m, hm, he⟩, hdec, hinv_y, hmod, hpot⟩ := getKeyCode_exec v hinv hv_reg
+    wram_exec [code, hz0, ht2, ht1, ht0]
+    wram_call he
+    exact ⟨hdec, hinv_y, hmod, by simp only [charge, tGet]; omega⟩
   | insert v k =>
     obtain ⟨ht2, ht1, ht0, hv_reg, hk_reg⟩ := harg
-    have c2 : (Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht2
-    have c1 : ¬(Cond.eq tag1 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht1
-    have c0 : (Cond.eq tag0 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht0
-    obtain ⟨y, t, ⟨m, hm, he⟩, hinv_y, hmod, hpot⟩ :=
+    obtain ⟨y, _, ⟨m, hm, he⟩, hinv_y, hmod, hpot⟩ :=
       insertCode_exec v k hinv hval hv_reg hk_reg
-    refine ⟨y, m + 1 + 2 + 1,
-      Exec.branch_pos c2 (Exec.branch_neg c1 (Exec.branch_pos c0 he)), rfl, hinv_y, hmod, ?_⟩
-    simp only [charge, tIns]
-    omega
+    wram_exec [code, hz0, ht2, ht1, ht0]
+    wram_call he
+    exact ⟨rfl, hinv_y, hmod, by simp only [charge, tIns]; omega⟩
   | decreaseKey v k =>
     obtain ⟨ht2, ht1, ht0, hv_reg, hk_reg⟩ := harg
-    have c2 : (Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht2
-    have c1 : ¬(Cond.eq tag1 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht1
-    have c0 : ¬(Cond.eq tag0 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht0
-    obtain ⟨y, t, ⟨m, hm, he⟩, hinv_y, hmod, hpot⟩ :=
+    obtain ⟨y, _, ⟨m, hm, he⟩, hinv_y, hmod, hpot⟩ :=
       decreaseKeyCode_exec v k hinv hval hv_reg hk_reg
-    refine ⟨y, m + 2 + 2 + 1,
-      Exec.branch_pos c2 (Exec.branch_neg c1 (Exec.branch_neg c0 he)), rfl, hinv_y, hmod, ?_⟩
-    simp only [charge, tDec]
-    omega
+    wram_exec [code, hz0, ht2, ht1, ht0]
+    wram_call he
+    exact ⟨rfl, hinv_y, hmod, by simp only [charge, tDec]; omega⟩
   | extractMin =>
-    have c2 : ¬(Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact harg
-    obtain ⟨y, t, ⟨m, hm, he⟩, hdec, hinv_y, hmod, hpot⟩ := extractMinCode_exec hinv
-    refine ⟨y, m + 2, Exec.branch_neg c2 he, hdec, hinv_y, hmod, ?_⟩
-    simp only [charge, tExt]
-    omega
+    obtain ⟨y, _, ⟨m, hm, he⟩, hdec, hinv_y, hmod, hpot⟩ := extractMinCode_exec hinv
+    wram_exec [code, hz0, harg]
+    wram_call he
+    exact ⟨hdec, hinv_y, hmod, by simp only [charge, tExt]; omega⟩
 
 /-! ## `WordRAM.StateTransitionImpl` certificate and `PQPackage` bundles -/
 
@@ -226,9 +219,9 @@ theorem resultRecoding_ready {n K_max w base : ℕ}
     (harg : (impl hS hK).toStandard.argMatch o x.regs)
     (he : Exec w code.toStandard.code x y m) : (resultRecoding hS hK).ready o y := by
   change code.argMatch o x.regs at harg
-  have h2 : y.regs tag2 = x.regs tag2 := he.regs_eq (by decide)
-  have h1 : y.regs tag1 = x.regs tag1 := he.regs_eq (by decide)
-  have h0 : y.regs tag0 = x.regs tag0 := he.regs_eq (by decide)
+  have h2 : y.regs tag2 = x.regs tag2 := by regs_frame
+  have h1 : y.regs tag1 = x.regs tag1 := by regs_frame
+  have h0 : y.regs tag0 = x.regs tag0 := by regs_frame
   change code.toStandard.nativeResultReady o y
   cases o <;>
     simp_all only [PQCode.nativeResultReady, PQCode.argMatch, PQCode.toStandard,

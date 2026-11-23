@@ -202,20 +202,9 @@ theorem ampSetup_exec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
       RoundFrame φ 6 ((s :: a :: b :: c :: encode φ).length + 1) (ampSetupData s a b c φ).mem
         (ampSetupData s a b c φ) := by
   have hL : 5 ≤ (s :: a :: b :: c :: encode φ).length := by simp [encode]
-  have : Fits w 2 := hw.of_le (by omega)
-  have : Fits w 3 := hw.of_le (by omega)
-  have : Fits w 4 := hw.of_le (by omega)
-  have : Fits w 5 := hw.of_le (by omega)
-  have : Fits w 6 := hw.of_le (by omega)
-  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n) := hw.of_le (by omega)
-  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n) := hw.of_le (by omega)
-  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n + 1) := hw.of_le (by omega)
-  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n + 1 + s) := hw.of_le (by omega)
-  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n + 1 + s + s) :=
-    hw.of_le (by omega)
-  have : Fits w (a * n + b) := hw.of_le (by omega)
-  have : Fits w ((a * n + b - 1) / b) := hw.of_le (by
-    have := Nat.div_le_self (a * n + b - 1) b; omega)
+  have hdiv := Nat.div_le_self (a * n + b - 1) b
+  have hfit (v : ℕ) (hv : v ≤ (s :: a :: b :: c :: encode φ).length + 2 * n + 2 * s +
+      a * n + b + 2) : Fits w v := hw.of_le hv
   have hm0 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 0 =
       (s :: a :: b :: c :: encode φ).length := rfl
   have hm1 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 1 = s := rfl
@@ -225,7 +214,7 @@ theorem ampSetup_exec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
   have hm5 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 5 = n := rfl
   refine ⟨WP.execWithin (by
       unfold ampSetup ampSetupData ppszExp
-      wram_exec [Data.init_regs, hm0, hm1, hm2, hm3, hm4, hm5]; rfl),
+      wram_exec [hfit, Data.init_regs, hm0, hm1, hm2, hm3, hm4, hm5]; rfl),
     ⟨by wram_simp [ampSetupData, Data.init_regs], by wram_simp [ampSetupData],
       by wram_simp [ampSetupData], by wram_simp [ampSetupData], by wram_simp [ampSetupData],
       by wram_simp [ampSetupData], by wram_simp [ampSetupData], by wram_simp [ampSetupData], ?_,
@@ -307,9 +296,8 @@ theorem ampProgram_spec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
     · rw [ite_eq_right (by omega), show L + 1 + 2 * n + (j + 1) = (L + 2 * n + j + 1) + 1 by omega,
         Data.init_mem_succ, List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega)]
       simp [List.getElem_replicate]
-  have hb₁ : y₁.regs bBase = L + 1 + 2 * n + 1 + 2 * s :=
-    (hy₁.regs_eq (i := bBase) (by decide)).trans hDb
-  have ho₁ : y₁.regs out = 0 := (hy₁.regs_eq (i := out) (by decide)).trans hDo
+  have hb₁ : y₁.regs bBase = L + 1 + 2 * n + 1 + 2 * s := by regs_frame
+  have ho₁ : y₁.regs out = 0 := by regs_frame
   have hstate : AmpState φ 6 (L + 1) (s :: List.replicate (2 * s) 0) (ppszDigits a b n c)
       (y₁.set flag 1) :=
     { frame := hfr₁.set (by decide) 1
