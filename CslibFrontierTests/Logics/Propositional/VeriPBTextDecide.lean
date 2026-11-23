@@ -41,10 +41,10 @@ theorem amo3_accepted : ∃ o : Output, checkOPBOutput amo3 amo3Proof amo3Out =
   obtain ⟨rfl, hg, hb⟩ := h
   exact ⟨o, rfl, hg, hb⟩
 
--- So `amo3` is satisfiable exactly when the output formula, read from `amo3Out` with names that
--- separate it from `amo3`, is.
+-- So `amo3` is satisfiable exactly when the output formula, read from `amo3Out` with well-formed
+-- names extending those of `amo3`, is.
 example : ∃ I O, parseOPB amo3 = some I ∧ (I.Satisfiable ↔ O.Satisfiable) ∧
-    ∃ N, N.Separates I amo3Out ∧ parseOPB amo3Out N = some O := by
+    ∃ N : Names, N.WF ∧ N.Extends (opbNames amo3) ∧ parseOPBWith N amo3Out = some O := by
   obtain ⟨o, h, hg, -⟩ := amo3_accepted
   obtain ⟨I, hI, hsem, -, hN⟩ := semOutput_of_checkOPBOutput h
   rw [hg] at hsem
