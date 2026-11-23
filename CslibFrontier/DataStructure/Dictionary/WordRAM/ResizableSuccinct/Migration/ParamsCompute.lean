@@ -11,6 +11,7 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.I
 import CslibFrontier.DataStructure.HashFamily.WordRAM.KWise
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # `1 · OPT` Migration Arena Accounting and Runtime Epoch-Parameter Computation
@@ -82,7 +83,7 @@ open Cslib.Probability
 attribute [local simp] Realization.memoryCost_bind'
 attribute [local simp] prog_clientResult_bind prog_runClient_state_bind prog_clientResult_pure
 attribute [local simp] prog_runClient_state_pure StateTransitionSpec.clientResult_map
-  StateTransitionSpec.runClient_map
+  StateTransitionSpec.fst_snd_runClient_map
 attribute [local simp] prog_memoryCost_map prog_clientResult_read prog_runClient_state_read
 attribute [local simp] prog_memoryCost_read prog_clientResult_write prog_runClient_state_write
 attribute [local simp] prog_memoryCost_write

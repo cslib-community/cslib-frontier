@@ -15,13 +15,15 @@ public import CslibFrontier.DataStructure.StateTransition
 A result map `g <$> p` runs `p` and applies `g` to its answer. `StateTransitionSpec.runClient_map`
 evaluates the map over the entire run, including the final state and the operation history, and
 `StateTransitionSpec.clientResult_map` and `StateTransitionSpec.clientState_map` are its answer
-and state. All three are in `client_simps`, together with `PFunctor.FreeM.map_eq_map`, so
+and state. The run, the answer and the state (as `StateTransitionSpec.fst_snd_runClient_map`, the
+form `simp` indexes) are in `client_simps`, together with `PFunctor.FreeM.map_eq_map`, so
 `simp only [client_simps]` handles both spellings `g <$> p` and `p.map g`.
 
 ## Main results
 
 * `StateTransitionSpec.runClient_map`, `StateTransitionSpec.clientResult_map`,
-  `StateTransitionSpec.clientState_map`: running a mapped client.
+  `StateTransitionSpec.clientState_map`, `StateTransitionSpec.fst_snd_runClient_map`: running a
+  mapped client.
 -/
 
 public section
@@ -50,6 +52,11 @@ variable {D : StateTransitionSpec.{u, v, w}}
 theorem clientState_map (p : D.Client α) (g : α → β) (s : D.State) :
     D.clientState s (g <$> p) = D.clientState s p := by
   rw [clientState, runClient_map]
+
+/-- `clientState_map`, stated in the form that `simp` indexes (see `fst_snd_runClient_bind`). -/
+@[client_simps] theorem fst_snd_runClient_map (p : D.Client α) (g : α → β) (s : D.State) :
+    (D.runClient s (g <$> p)).2.1 = D.clientState s p :=
+  clientState_map p g s
 
 attribute [client_simps] PFunctor.FreeM.map_eq_map
 
