@@ -67,8 +67,8 @@ open Cslib.DataStructure.StateTransitionSpec
 open Cslib.DataStructure.HashFamily.WordRAM
 open Cslib.DataStructure.Dictionary.WordRAM.LinearProbing
 
--- Preserve the ordinary simplifier behavior formerly supplied by this module's duplicate rule.
-attribute [simp] Cslib.WordRAM.Realization.memoryCost_bind'
+-- Scope imported `simp` rules locally so they do not leak into downstream modules.
+attribute [local simp] Cslib.WordRAM.Realization.memoryCost_bind'
 attribute [local simp] Cslib.DataStructure.StateTransitionSpec.clientResult_pure
 
 /-! ## Section 1: Cluster operation input record (`ClusterInput`) -/
