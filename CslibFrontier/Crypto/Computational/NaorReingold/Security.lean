@@ -2072,8 +2072,7 @@ theorem DDH.negligible_naorReingoldHashedGame_ideal_const {F : PrimeOrderGroupFa
           ENNReal.toReal_mono (ENNReal.mul_ne_top (by finiteness) hE_top) hadv
       _ = ((Q n : ℝ) * (K : ℝ)) * (∑' d, setup n d * (g d : ℝ≥0∞)).toReal := by
           rw [ENNReal.toReal_mul, ENNReal.toReal_mul]; rfl
-      _ ≤ ((Q n : ℝ) * (K : ℝ)) * Real.sqrt (ε n : ℝ) :=
-          mul_le_mul_of_nonneg_left hjensen (by positivity)
+      _ ≤ ((Q n : ℝ) * (K : ℝ)) * Real.sqrt (ε n : ℝ) := by gcongr
       _ = (((Q n : ℝ≥0) * K * NNReal.sqrt (ε n) : ℝ≥0) : ℝ) := by push_cast; rfl
   have hK_le : K ≤ (2 : ℝ≥0) ^ c :=
     (div_le_self zero_le (by norm_num)).trans

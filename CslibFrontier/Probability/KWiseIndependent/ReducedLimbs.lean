@@ -356,8 +356,7 @@ theorem reducedTableWords_le {t w : ℕ} (hc : 2 * reducedChunkBits t ≤ w) :
       nlinarith
     have hmul : w * reducedTableWords t w ≤ 2 * reducedTableBits t := by
       calc w * 2 ^ (c2 - reducedPackShift t w)
-          ≤ (2 * c2 * 2 ^ reducedPackShift t w) * 2 ^ (c2 - reducedPackShift t w) :=
-            Nat.mul_le_mul_right _ hw_le
+          ≤ (2 * c2 * 2 ^ reducedPackShift t w) * 2 ^ (c2 - reducedPackShift t w) := by gcongr
         _ = 2 * (c2 * (2 ^ reducedPackShift t w * 2 ^ (c2 - reducedPackShift t w))) := by ring
         _ = 2 * reducedTableBits t := by
             rw [← pow_add, Nat.add_sub_of_le (reducedPackShift_le t w)]; rfl

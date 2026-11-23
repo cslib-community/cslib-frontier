@@ -118,8 +118,7 @@ private theorem choose_add_le_choose_mul_pow_two {U E n Re : ℕ}
         ≤ (U.choose n : ℝ) * ((W : ℝ) * (1 + δ)) ^ n := by rwa [h1δ] at h0
       _ = (W : ℝ) ^ n * ((U.choose n : ℝ) * (1 + δ) ^ n) := by rw [mul_pow]; ring
       _ ≤ (W : ℝ) ^ n * ((U.choose n : ℝ) * (2 ^ (2 * Re) : ℝ)) :=
-          mul_le_mul_of_nonneg_left
-            (mul_le_mul_of_nonneg_left hexp_le (Nat.cast_nonneg _)) (by positivity)
+          by gcongr
       _ = (W : ℝ) ^ n * ((U.choose n * 2 ^ (2 * Re) : ℕ) : ℝ) := by push_cast; ring
   have hres : ((U + E).choose n : ℝ) ≤ ((U.choose n * 2 ^ (2 * Re) : ℕ) : ℝ) :=
     le_of_mul_le_mul_left hch_r (pow_pos hWr_pos n)
@@ -302,8 +301,7 @@ theorem succinctTableMetaBits_le {I m : ℕ} (hm : m ≤ 2 ^ I) :
     have hmax : max (Nat.clog 2 (max (2 ^ FeistelQuotient.quotientBits (2 ^ I) m) 2))
         (max (SuccinctBucket.totalMicroBits m) 1) ≤ I + 2 := max_le h1 h2
     omega
-  have hmq : m * FeistelQuotient.quotientBits (2 ^ I) m ≤ m * (I + 2) :=
-    Nat.mul_le_mul_left m (by omega)
+  have hmq : m * FeistelQuotient.quotientBits (2 ^ I) m ≤ m * (I + 2) := by gcongr; omega
   dsimp only [succinctTableMetaBits]
   nlinarith
 
@@ -539,8 +537,7 @@ private theorem routerSeedBits_sq_le_of_ge_threshold {U V n R p_min q_min p_max 
         _ ≤ B_seed ^ max P.epsInv 1 := Nat.pow_le_pow_right hB_pos hE_ge12
         _ ≤ FeistelPerm.childRouterSpaceConst P.epsInv P.alphaInv * 2 ^ P.idBits ℓ := by
             rwa [hdom_ℓ] at hpow
-        _ ≤ FeistelPerm.childRouterSpaceConst P.epsInv P.alphaInv * (256 * y ^ 4) :=
-            Nat.mul_le_mul_left _ hid_pow
+        _ ≤ FeistelPerm.childRouterSpaceConst P.epsInv P.alphaInv * (256 * y ^ 4) := by gcongr
         _ = (256 * FeistelPerm.childRouterSpaceConst P.epsInv P.alphaInv) * y ^ 4 := by ring
         _ ≤ y * y ^ 4 := Nat.mul_le_mul_right _ h256C
         _ = y ^ 5 := (pow_succ' y 4).symm
@@ -671,8 +668,7 @@ private theorem routerSeedBits_sq_le_of_lt_threshold {U V n R p_min q_min p_max 
       have hly_le : ly ≤ 5 * q := by omega
       calc 2 * (96 * ly ^ 2) ^ 2
           ≤ 2 * (96 * (5 * q) ^ 2) ^ 2 :=
-            Nat.mul_le_mul_left 2 (Nat.pow_le_pow_left
-              (Nat.mul_le_mul_left 96 (Nat.pow_le_pow_left hly_le 2)) 2)
+            by gcongr
         _ = 11520000 * q ^ 4 := by ring
         _ ≤ (70 * q) ^ 4 := by
             have : 11520000 ≤ 70 ^ 4 := by decide

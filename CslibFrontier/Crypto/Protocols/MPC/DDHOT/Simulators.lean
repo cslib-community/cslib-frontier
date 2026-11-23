@@ -434,7 +434,8 @@ private theorem idealJoint_ddhOTProb_empty (n : ℕ) (d : F.Desc)
       (F.ddhOTProbProtocol n d).realJoint noOracleWorld ∅ x := by
   simp only [ddhOTProbProtocol, evalWith_ddhOTProtocolWith, Protocol.realJoint, eval_idealJoint,
     otFunctionality, Functionality.ofDeterministic, ddhOTEmptySim, ProbComp.eval_pure,
-    PMF.pure_bind, PMF.pure_map, PMF.map_bind, PMF.map_comp, Function.comp_def, Prod.map, id]
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.pure_bind, PMF.pure_map, PMF.map_bind,
+    Prod.map, id]
   have hconst (raw₀ : DDHOTSenderBitCoins) (bBits : List Bool) :
       (Finset.restrict ∅ (ddhOTViewsWith (F.generator d)
           (DDHOTSenderBitCoins.toSenderCoins (F.order d))
@@ -442,7 +443,7 @@ private theorem idealJoint_ddhOTProb_empty (n : ℕ) (d : F.Desc)
         otOutputs x) =
         ((fun i : (∅ : Finset (Fin 2)) => nomatch i.2), otOutputs x) :=
     Prod.ext (funext fun i => nomatch i.2) rfl
-  simp only [hconst, ← PMF.bind_pure_comp, Function.comp_def, PMF.bind_const]
+  simp only [hconst, PMF.bind_const]
 
 /-- Parties `0` and `1` as members of `Finset.univ`. -/
 private abbrev senderUniv : (Finset.univ : Finset (Fin 2)) := ⟨0, Finset.mem_univ 0⟩
@@ -614,8 +615,8 @@ private theorem idealJoint_ddhOTProb_univ (n : ℕ) (d : F.Desc)
   simp only [ddhOTProbProtocol, evalWith_ddhOTProtocolWith,
     Protocol.realJoint, eval_idealJoint, otFunctionality, Functionality.ofDeterministic,
     ddhOTFullSimProb, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.pure_bind, PMF.pure_map, PMF.map_bind, PMF.map_comp,
-    Function.comp_def, Prod.map, id]
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.pure_bind, PMF.pure_map, PMF.map_bind,
+    Prod.map, id]
   rfl
 
 /-! ### Security -/
@@ -633,8 +634,8 @@ theorem advantage_ddhOTProbSenderGame_le (setup : ℕ → PMF F.Desc)
   simp only [ProtocolFamily.realGame, ProtocolFamily.idealGame, ddhOTProbProtocol,
     evalWith_ddhOTProtocolWith, Protocol.realJoint, eval_idealJoint, otFunctionality,
     Functionality.ofDeterministic, ddhOTSenderSimProb, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.pure_bind, PMF.bind_map, PMF.map_bind,
-    PMF.map_comp, Function.comp_def, Prod.map, id, restrict_singleton]
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, PMF.map_bind,
+    PMF.pure_map, Prod.map, id, restrict_singleton]
   refine Game.advantage_bind_le_nnreal _ _ _ fun d =>
     Game.advantage_bind_le_nnreal _ _ _ fun c => ?_
   let q := F.order d
@@ -655,7 +656,8 @@ theorem advantage_ddhOTProbSenderGame_le (setup : ℕ → PMF F.Desc)
   have hmid : realMid = idealMid := by
     have h := idealJoint_ddhOT_sender_with (C₁ := List Bool) g q
       (F.sampleDDHOTSenderBitCoins n d) (DDHOTSenderBitCoins.toSenderCoins q) c.inputs
-    simpa only [realMid, idealMid, PMF.bind_bind, PMF.bind_map, Function.comp_def] using
+    simpa only [realMid, idealMid, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind,
+      PMF.pure_bind] using
       congrArg (fun p => p.bind (Z.guess n d c.state · |>.eval)) h.symm
   have h1 : Game.advantage
       ((ProbComp.eval (F.sampleDDHOTSenderBitCoins n d)).bind fun raw₀ =>

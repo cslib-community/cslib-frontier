@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Defs
 public import CslibFrontier.Tactic.WramOmega.Init
+public meta import CslibFrontier.Tactic.WramOmega.Prove
 public meta import Lean.Elab.Tactic.Omega
 
 /-!
@@ -73,7 +74,7 @@ public meta section
 namespace Cslib.Tactic.Fits
 
 open Lean Meta Elab Tactic
-open Cslib.Tactic.WramOmega (isPowerOfTwo)
+open Cslib.Tactic.WramOmega (isPowerOfTwo proveOmega?)
 
 /-- Name of `Cslib.GenericRAM.Signed.Fits`, checked without importing `GenericRAM.Signed`. -/
 private def signedFitsName : Name := `Cslib.GenericRAM.Signed.Fits
@@ -340,20 +341,7 @@ private def tryOmegaQuick (startHb : ℕ) (proofs : List Expr) (prop : Expr) :
     MetaM (Option Expr) := do
   if prop.hasLooseBVars || prop.hasExprMVar then return none
   unless ← underBudget startHb do return none
-  let saved ← saveState
-  let attempt : MetaM (Option Expr) :=
-    withCurrHeartbeats <| withTheReader Core.Context
-      (fun ctx => { ctx with maxHeartbeats := microMaxHeartbeats * 1000 }) do
-      let g ← mkFreshExprSyntheticOpaqueMVar prop
-      let some g' ← g.mvarId!.falseOrByContra | return some (← instantiateMVars g)
-      g'.withContext do
-        let some neg := (← getLCtx).lastDecl | throwError "fits: no negated goal"
-        Lean.Elab.Tactic.Omega.omega (neg.toExpr :: proofs) g'
-      let prf ← instantiateMVars g
-      return if prf.hasExprMVar then none else some prf
-  tryCatchRuntimeEx attempt fun _ => do
-    saved.restore
-    return none
+  proveOmega? microMaxHeartbeats proofs prop
 
 /-- Fast syntactic lookup in context or `extra` for a proof whose type is `prop`. -/
 private def findExactProof? (extra : Array Hypothesis) (prop : Expr) : MetaM (Option Expr) := do
@@ -786,22 +774,10 @@ def prove? (target : Expr) : MetaM (Option Expr) := do
   let extra ← quickTargetFacts target'
   if (count == 0 && extra.isEmpty) || count > maxFacts then return none
   let facts ← fitsHypotheses (includeSigned := false)
-  let saved ← saveState
-  let budget (x : MetaM (Option Expr)) : MetaM (Option Expr) :=
-    withCurrHeartbeats <| withTheReader Core.Context
-      (fun ctx => { ctx with maxHeartbeats := maxHeartbeats * 1000 }) x
-  let attempt : MetaM (Option Expr) := do
-    let unfolded ← unfoldFits target
-    let proofs ← facts.mapM fun h => mkExpectedTypeHint h.value h.type
-    let g ← mkFreshExprSyntheticOpaqueMVar unfolded
-    let some g' ← g.mvarId!.falseOrByContra | throwError "fits: no goal"
-    g'.withContext do
-      let some neg := (← getLCtx).lastDecl | throwError "fits: no negated goal"
-      Lean.Elab.Tactic.Omega.omega (neg.toExpr :: (proofs ++ extra).toList) g'
-    return some (← mkExpectedTypeHint (← instantiateMVars g) target)
-  tryCatchRuntimeEx (budget attempt) fun _ => do
-    saved.restore
-    return none
+  let unfolded ← unfoldFits target
+  let proofs ← facts.mapM fun h => mkExpectedTypeHint h.value h.type
+  let some prf ← proveOmega? maxHeartbeats (proofs ++ extra).toList unfolded | return none
+  return some (← mkExpectedTypeHint prf target)
 
 /-- Rewrite a word-size bound `Fits w v` to `True` when `prove?` proves it. -/
 private def reduceFitsStep : Simp.Simproc := fun e => do

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.SearchTree.Cost
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Deletion from unbalanced binary search trees
@@ -97,7 +98,7 @@ private theorem elements_splitMin (a : α) (l r : BinaryTree α) :
     ext y
     have := Finset.ext_iff.mp (il b lr) y
     simp only [splitMin, mem_elements_node, Finset.mem_insert] at this ⊢
-    tauto
+    lrat_tauto
 
 /-- Gluing loses only the key of the deleted node. -/
 private theorem elements_glue (l r : BinaryTree α) :

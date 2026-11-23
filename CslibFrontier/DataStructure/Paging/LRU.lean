@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Paging.Basic
 public import Mathlib.Data.Finset.Sort
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Data.List.TakeDrop
 
 /-!
@@ -369,13 +370,7 @@ private theorem one_add_sdiff_le_maxWeightFrom_snoc :
         maxWeightFrom (init.length + 1) s (init ++ [last])
   | [], last, p, s, _, hcard, hps, hpnot, hlast => by
     have hne : p ≠ last := fun h => hpnot (by simp [h])
-    have hsub : ({p, last} : Finset α) ⊆ s := by grind
-    have h2 : 2 ≤ s.card := by
-      have hc := Finset.card_le_card hsub
-      rw [Finset.card_pair hne] at hc
-      exact hc
-    simp only [List.length_nil, Nat.zero_add] at hcard
-    omega
+    finset_card [List.length_nil]
   | x :: xs, last, p, s, hnodup, hcard, hps, hpnot, hlast => by
     simp only [List.cons_append, List.length_cons, maxWeightFrom_cons] at hnodup hcard hpnot ⊢
     rcases List.nodup_cons.mp hnodup with ⟨hxnot, hnodup'⟩
@@ -384,28 +379,14 @@ private theorem one_add_sdiff_le_maxWeightFrom_snoc :
     split
     · next hxs =>
       have hlx : last ≠ x := fun h => hxnot (by simp [h])
-      have hcard' : (s.erase x).card ≤ xs.length + 1 := by
-        rw [Finset.card_erase_of_mem hxs]
-        have hpos : 1 ≤ s.card := Finset.one_le_card.mpr ⟨x, hxs⟩
-        omega
+      have hcard' : (s.erase x).card ≤ xs.length + 1 := by finset_card
       have hps' : p ∈ s.erase x := Finset.mem_erase.mpr ⟨hpx, hps⟩
       have hlast' : last ∈ s.erase x := Finset.mem_erase.mpr ⟨hlx, hlast⟩
       have ih := one_add_sdiff_le_maxWeightFrom_snoc xs hnodup' hcard' hps' hpnot' hlast'
       rw [maxWeightFrom_erase_finset_of_notMem hxnot] at ih
-      have hsdiff : s \ (p :: x :: xs).toFinset = s.erase x \ (p :: xs).toFinset := by
-        ext z
-        simp only [Finset.mem_sdiff, List.mem_toFinset, List.mem_cons, Finset.mem_erase]
-        tauto
-      rw [hsdiff]
-      simpa only [Nat.add_sub_cancel] using ih
-    · have hsub : s \ (p :: x :: xs).toFinset ⊆ s.erase p := by
-        intro z hz
-        rw [Finset.mem_sdiff, List.mem_toFinset] at hz
-        exact Finset.mem_erase.mpr ⟨fun h => hz.2 (h ▸ List.mem_cons_self), hz.1⟩
-      have hc := Finset.card_le_card hsub
-      rw [Finset.card_erase_of_mem hps] at hc
-      have hpos : 1 ≤ s.card := Finset.one_le_card.mpr ⟨p, hps⟩
-      omega
+      rw [Nat.add_sub_cancel]
+      finset_card [List.toFinset_cons]
+    · finset_card [List.toFinset_cons]
 
 /-- `lruPotential k s q` never exceeds `k` when `s.card ≤ k`. -/
 theorem lruPotential_le {k : Nat} {s : Finset α} (hs : s.card ≤ k) (q : List α) :
@@ -453,8 +434,7 @@ theorem lruPotential_step {k : Nat} (hk : 0 < k) {s s' : Finset α} {q : List α
     · -- Online miss (`p ∉ q`) while offline hits (`p ∈ s`)
       have hpqs : p ∉ q.toFinset := by simpa only [List.mem_toFinset] using hpq
       rw [stepCost_of_notMem hpqs, lruNext_of_notMem hk hpq]
-      have hp_sdiff : 1 ≤ (s \ q.toFinset).card :=
-        Finset.one_le_card.mpr ⟨p, Finset.mem_sdiff.mpr ⟨hps, hpqs⟩⟩
+      have hp_sdiff : 1 ≤ (s \ q.toFinset).card := by finset_card
       have hmaxW : 1 + maxWeightFrom k s (p :: q.take (k - 1)) ≤ lruPotential k s q := by
         simp only [maxWeightFrom_cons, hps, ↓reduceIte]
         have hle := maxWeightFrom_take_le (k - 1) s q (k - 1)
@@ -467,14 +447,9 @@ theorem lruPotential_step {k : Nat} (hk : 0 < k) {s s' : Finset α} {q : List α
           exact h1.trans (le_max_left _ _)
       have hsdiff : 1 + (s \ (p :: q.take (k - 1)).toFinset).card ≤ lruPotential k s q := by
         by_cases hfull : q.length < k
-        · have htake_all : q.take (k - 1) = q := List.take_of_length_le (by omega)
-          rw [htake_all]
-          have herase : s \ (p :: q).toFinset = (s \ q.toFinset).erase p := by
-            ext z
-            simp only [Finset.mem_sdiff, List.mem_toFinset, List.mem_cons, Finset.mem_erase]
-            tauto
-          rw [herase, Finset.card_erase_of_mem (Finset.mem_sdiff.mpr ⟨hps, hpqs⟩)]
-          exact (Nat.add_sub_of_le hp_sdiff).trans_le (le_max_right _ _)
+        · rw [List.take_of_length_le (by omega : q.length ≤ k - 1)]
+          exact (show 1 + (s \ (p :: q).toFinset).card ≤ (s \ q.toFinset).card by
+            finset_card [List.toFinset_cons]).trans (le_max_right _ _)
         · have hqlen : q.length = k := by omega
           have hqne : q ≠ [] := by grind
           have hsnoc : q.dropLast ++ [q.getLast hqne] = q := List.dropLast_append_getLast hqne
@@ -491,22 +466,9 @@ theorem lruPotential_step {k : Nat} (hk : 0 < k) {s s' : Finset α} {q : List α
             rw [hk_eq] at hs_card ⊢
             exact (one_add_sdiff_le_maxWeightFrom_snoc init hnodup hs_card hps hpq hlast).trans
               (le_max_left _ _)
-          · have herase : s \ (p :: init).toFinset = (s \ q.toFinset).erase p := by
-              rw [← hsnoc]
-              ext z
-              simp only [Finset.mem_sdiff, List.mem_toFinset, List.mem_cons, List.mem_append,
-                List.not_mem_nil, or_false, Finset.mem_erase]
-              constructor
-              · rintro ⟨hzs, hnot⟩
-                refine ⟨fun hzp => hnot (Or.inl hzp), hzs, ?_⟩
-                rintro (hzi | hzl)
-                · exact hnot (Or.inr hzi)
-                · subst z
-                  exact hlast hzs
-              · rintro ⟨hzp, hzs, hzq⟩
-                exact ⟨hzs, fun h => h.elim hzp (fun hzi => hzq (Or.inl hzi))⟩
-            rw [herase, Finset.card_erase_of_mem (Finset.mem_sdiff.mpr ⟨hps, hpqs⟩)]
-            exact (Nat.add_sub_of_le hp_sdiff).trans_le (le_max_right _ _)
+          · have hq_eq : q.toFinset = insert last init.toFinset := by simp [← hsnoc]
+            exact (show 1 + (s \ (p :: init).toFinset).card ≤ (s \ q.toFinset).card by
+              finset_card [List.toFinset_cons]).trans (le_max_right _ _)
       have hcases :
           lruPotential k s (p :: q.take (k - 1)) = maxWeightFrom k s (p :: q.take (k - 1)) ∨
           lruPotential k s (p :: q.take (k - 1)) = (s \ (p :: q.take (k - 1)).toFinset).card :=
@@ -527,14 +489,7 @@ theorem lruPotential_step {k : Nat} (hk : 0 < k) {s s' : Finset α} {q : List α
         simp only [maxWeightFrom_cons, hps', ↓reduceIte]
         exact maxWeightFrom_le (k - 1) s' (q.take (k - 1))
       have hsdiff : (s' \ (p :: q.take (k - 1)).toFinset).card ≤ k - 1 := by
-        have hsub : s' \ (p :: q.take (k - 1)).toFinset ⊆ s'.erase p := by
-          intro z hz
-          rw [Finset.mem_sdiff, List.mem_toFinset] at hz
-          exact Finset.mem_erase.mpr ⟨fun h => hz.2 (h ▸ List.mem_cons_self), hz.1⟩
-        have hc := Finset.card_le_card hsub
-        rw [Finset.card_erase_of_mem hps'] at hc
-        have hpos : 1 ≤ s'.card := Finset.one_le_card.mpr ⟨p, hps'⟩
-        omega
+        finset_card [List.toFinset_cons]
       have hpot : lruPotential k s' (p :: q.take (k - 1)) ≤ k - 1 := max_le hmaxW hsdiff
       omega
 

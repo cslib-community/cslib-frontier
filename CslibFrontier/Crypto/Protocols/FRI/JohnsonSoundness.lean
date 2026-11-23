@@ -605,8 +605,7 @@ private theorem johnsonCurveBound_rescaled_le {ni m d D r mJ k₀ n₀ : ℕ}
     have hn₀_ne : (n₀ : ℝ) ≠ 0 := by exact_mod_cast (lt_of_lt_of_le hni hni_le).ne'
     calc _ = (ProximityGap.johnsonCurveBound ni m d D r n₀ : ℝ) * (ni : ℝ) * (k₀ : ℝ) := by ring
       _ ≤ (1800 * (r : ℝ) * ((mJ + 1 : ℝ) ^ 6) * ((ni : ℝ) ^ 2) /
-            ((k₀ : ℝ) / (n₀ : ℝ))) * (n₀ : ℝ) * (k₀ : ℝ) :=
-          mul_le_mul_of_nonneg_right h1 (Nat.cast_nonneg _)
+            ((k₀ : ℝ) / (n₀ : ℝ))) * (n₀ : ℝ) * (k₀ : ℝ) := by gcongr
       _ = _ := by field_simp
   have hmul_nat : ProximityGap.johnsonCurveBound ni m d D r n₀ * k₀ ≤
       1800 * (mJ + 1) ^ 6 * (r * ni) * n₀ ^ 2 := by

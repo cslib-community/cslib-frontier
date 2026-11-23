@@ -26,6 +26,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+from typing import NamedTuple
 
 
 RENDER_FILES = frozenset({
@@ -218,8 +219,17 @@ def _parse_module_ident(text: str, pos: int) -> tuple[str, int]:
     return ".".join(parts), i
 
 
-def parse_header_imports_text(text: str) -> list[str]:
-    """Return all imported module names from a Lean 4 module header.
+class HeaderImport(NamedTuple):
+    """A single `import` directive parsed from a Lean 4 module header."""
+
+    module: str
+    is_public: bool = False
+    is_meta: bool = False
+    is_all: bool = False
+
+
+def parse_header_details_text(text: str) -> tuple[bool, list[HeaderImport]]:
+    """Return `(has_module_kw, imports)` parsed from a Lean 4 module header.
 
     Supports Lean's token-based header grammar: optional `module` / `prelude` followed by
     `[public | private] [meta] import [all] <module>`, including line breaks, `--` comments,
@@ -227,7 +237,7 @@ def parse_header_imports_text(text: str) -> list[str]:
     Unicode letters/subscripts), and single-segment `«...»` escapes. Raises `AmbiguousHeader` on
     any unsupported continuation, malformed modifier ordering, or ambiguous quoted component.
     """
-    imports: list[str] = []
+    imports: list[HeaderImport] = []
     pos = 0
     seen_import = False
     seen_module = False
@@ -254,18 +264,22 @@ def parse_header_imports_text(text: str) -> list[str]:
             pos = nxt
             continue
         cur = nxt
+        is_public = False
         if word in ("public", "private"):
             if not _at_token_boundary(text, cur):
                 raise AmbiguousHeader(f"unexpected continuation after {word!r}")
+            is_public = word == "public"
             cur, ended = _skip_ws_and_comments(text, cur)
             if ended:
                 break
             word, cur = _read_word(text, cur)
             if word is None:
                 break
+        is_meta = False
         if word == "meta":
             if not _at_token_boundary(text, cur):
                 raise AmbiguousHeader("unexpected continuation after 'meta'")
+            is_meta = True
             cur, ended = _skip_ws_and_comments(text, cur)
             if ended:
                 break
@@ -294,16 +308,26 @@ def parse_header_imports_text(text: str) -> list[str]:
         cur, ended = _skip_ws_and_comments(text, cur)
         if ended:
             raise AmbiguousHeader("missing module name after import")
+        is_all = False
         if text.startswith("all", cur):
             if not _at_token_boundary(text, cur + 3):
                 raise AmbiguousHeader("ambiguous 'all' prefix in import target")
+            is_all = True
             cur, ended = _skip_ws_and_comments(text, cur + 3)
             if ended:
                 raise AmbiguousHeader("missing module name after 'import all'")
         mod, cur = _parse_module_ident(text, cur)
-        imports.append(mod)
+        imports.append(
+            HeaderImport(module=mod, is_public=is_public, is_meta=is_meta, is_all=is_all)
+        )
         pos = cur
-    return imports
+    return seen_module, imports
+
+
+def parse_header_imports_text(text: str) -> list[str]:
+    """Return all imported module names from a Lean 4 module header."""
+    _, imports = parse_header_details_text(text)
+    return [imp.module for imp in imports]
 
 
 def parse_header_imports(path: Path) -> list[str]:
