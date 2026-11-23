@@ -300,10 +300,11 @@ theorem isContained_iff_of_checkSubgraphIsoGraph {P : SimpleGraph (Fin p)} [Deci
   cases concl with
   | sat asg =>
     cases hb
-    exact iff_of_true (exists_satisfies_of_checkOPB_printOPB hc') rfl
+    exact iff_of_true (exists_satisfies_of_checkOPB_printOPB (stdNames_covers _) hc') rfl
   | unsat q =>
     cases hb
-    exact iff_of_false (fun ⟨σ, hσ⟩ => not_satisfiable_of_checkOPB_printOPB hc' σ hσ) (by simp)
+    exact iff_of_false
+      (fun ⟨σ, hσ⟩ => not_satisfiable_of_checkOPB_printOPB (stdNames_covers _) hc' σ hσ) (by simp)
   | _ => cases hb
 
 /-- **Subgraph isomorphism for LAD graphs** (CakePB's `check_unsat_3_sem`, the pure functional
