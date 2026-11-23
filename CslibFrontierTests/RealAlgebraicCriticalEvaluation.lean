@@ -80,6 +80,26 @@ example :
     (u := fun k => (k : ℝ)) (fun _ => Nat.cast_nonneg _) tendsto_natCast_atTop_atTop
   exact ⟨y, z, φ, hz, hlim, hcrit⟩
 
+-- The finite coordinate root grid meets the real zero set of the integer polynomial X².
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0 ^ 2
+    let hF : F.totalDegree ≤ 3 := (totalDegree_pow (X (R := ℤ) (0 : Fin 1)) 2).trans
+      (by
+        have h := totalDegree_X_le (R := ℤ) (0 : Fin 1)
+        omega)
+    let G := coordinateRootGrid (by decide : 1 ≤ 3) F hF
+    let p := (Polynomial.Bivariate.swap
+      (parametricCoordinatePolynomial (by decide) F hF 0)).leadingCoeff.map (Int.castRingHom ℝ)
+    G.Finite ∧ ∃ x ∈ G, eval x (F.map (Int.castRingHom ℝ)) = 0 ∧ p.IsRoot (x 0) := by
+  intro F hF G p
+  refine ⟨coordinateRootGrid_finite _ F hF, ?_⟩
+  have hFn (x : Fin 1 → ℝ) : 0 ≤ eval x (F.map (Int.castRingHom ℝ)) := by
+    simpa only [F, map_pow, MvPolynomial.map_X, eval_X] using sq_nonneg (x 0)
+  have hzero : eval (fun _ => 0) (F.map (Int.castRingHom ℝ)) = 0 := by simp [F]
+  obtain ⟨z, _, hz⟩ := exists_mem_coordinateRootGrid_of_isClopen (by decide) (by decide) F hF hFn
+    Set.univ isClopen_univ ⟨⟨fun _ => 0, hzero⟩, Set.mem_univ _⟩
+  exact ⟨z.val, hz, z.property, mem_coordinateRootGrid.mp hz 0⟩
+
 -- Zero is a critical point of the deformation of X² at every parameter.
 example :
     let F : MvPolynomial (Fin 1) ℤ := X 0 ^ 2
@@ -334,5 +354,50 @@ example :
     Decoder.nat (fun _ => 0) (fun _ => by omega)
     (fun _ => (totalDegree_X_le 0).trans (by omega))
     (ComputableInPolyTime.binary_add' ComputableInPolyTime.id' (.const 1)) (.const 0)
+
+-- Value, coefficient and derivative queries use binary inputs and the same level.
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0
+    let hF : F.totalDegree ≤ 2 := (totalDegree_X_le 0).trans (by decide)
+    let C : Controlled (fun _ : ℕ => F) encNat 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let leading := C.criticalCoordinateLeadingValue (d := fun _ => 1) (fun _ => 0) (fun _ => hF)
+    let residue :=
+      C.criticalCoordinateLeadingCoefficientResidue (d := fun _ => 1) (fun _ => 0) (fun _ => hF)
+    let derivative := fun k =>
+      C.criticalCoordinateLeadingDerivativeResidue (d := fun _ => 1) (fun _ => 0) (fun _ => hF)
+        k 101 k 5
+    let P := Polynomial.Bivariate.swap (parametricCoordinatePolynomial (by decide) F hF 0)
+    leading ∈ CountingFunction 18 (encPair encNat (encPair encNat encNat)) encNat ∧
+      residue ∈ CountingFunction 18 (encPair encNat (encPair encNat encNat)) encNat ∧
+      derivative ∈ CountingFunction 18 encNat encNat ∧
+      (∀ t : ℕ, (leading (0, 101, t) : ZMod 101) =
+        P.leadingCoeff.eval₂ (Int.castRingHom (ZMod 101)) (t : ZMod 101)) ∧
+      (residue (0, 101, 3) : ZMod 101) = 0 ∧ (derivative 3 : ZMod 101) = 0 := by
+  intro F hF C leading residue derivative P
+  let : Fact (Nat.Prime 101) := ⟨by decide⟩
+  have hdeg : P.leadingCoeff.natDegree < 3 := by
+    rw [← Polynomial.coeff_natDegree]
+    refine (Polynomial.Bivariate.natDegree_coeff_le_natDegree_swap _ _).trans_lt ?_
+    rw [show Polynomial.Bivariate.swap P = parametricCoordinatePolynomial (by decide) F hF 0
+      from Polynomial.Bivariate.swap_swap_apply _, parametricCoordinatePolynomial_natDegree]
+    decide
+  refine ⟨C.criticalCoordinateLeadingValue_mem Decoder.nat (fun _ => 0) (fun _ => by decide)
+    (fun _ => hF) (.const 1) (.const 0),
+    C.criticalCoordinateLeadingCoefficientResidue_mem Decoder.nat (fun _ => 0)
+      (fun _ => by decide) (fun _ => hF) (.const 1) (.const 0),
+    C.criticalCoordinateLeadingDerivativeResidue_mem Decoder.nat (fun _ => 0)
+      (fun _ => by decide) (fun _ => hF) (.const 1) (.const 0) (.const 101)
+      ComputableInPolyTime.id' (.const 5), ?_, ?_, ?_⟩
+  · intro t
+    exact C.criticalCoordinateLeadingValue_cast (fun _ => 0) (fun _ => hF) 0 (by decide) t
+      (by decide) (by decide) (by decide) (by decide)
+  -- The exponent is above the degree bound and below the interpolation cutoff.
+  · rw [C.criticalCoordinateLeadingCoefficientResidue_cast (fun _ => 0) (fun _ => hF) 0
+      (by decide) 3 (by decide) (by decide) (by decide) (by decide) (by decide)]
+    rw [Polynomial.coeff_eq_zero_of_natDegree_lt hdeg, Int.cast_zero]
+  · rw [C.criticalCoordinateLeadingDerivativeResidue_cast (fun _ => 0) (fun _ => hF) 3
+      (by decide) 3 5 (by decide) (by decide) (by decide) (by decide),
+      Polynomial.iterate_derivative_eq_zero hdeg, Polynomial.eval₂_zero]
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
