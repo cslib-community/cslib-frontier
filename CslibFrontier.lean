@@ -8886,6 +8886,8 @@ public import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF.Numbered
 public import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF.Refutation
 public import CslibFrontier.Logics.Propositional.PseudoBoolean
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.CuttingPlanes
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Graph.Clique
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Graph.Dimacs
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
