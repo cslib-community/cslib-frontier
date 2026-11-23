@@ -2261,6 +2261,19 @@ James Schummer and Rakesh V. Vohra. "Strategy-proof Location on a Network." *Jou
 
 James Schummer and Rakesh V. Vohra. "Mechanism Design without Money." Chapter 10 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 243–265. A university-hosted PDF of the book was consulted on 2026-11-08 for §10.3 (the definition of blocking coalitions and the core, Definition 10.5, Theorems 10.6 and 10.7, pp. 253–255). Its core uses weak blocking, the strict core of the housing-market modules. Its claim on p. 255 that the core and the strict core coincide under strict preferences is refuted by a checked three-agent market in `CslibFrontierTests/HousingMarket.lean`.
 
+<a id="sergeev2025symmetric"></a>
+## sergeev2025symmetric
+
+Igor S. Sergeev. *Economical formulae for symmetric boolean functions*. English preprint dated
+1 May 2025, https://igorssergeev.github.io/papers/symm2025eng.pdf . Source SHA-256:
+`5467458454fdaa803462a95da789d3a042b5c3c08bef65070eb8c30709f0d899`.
+The inspected locators are §2, the partial-comparison definitions on printed p. 9 and the
+majority reconstruction identity (2) in the proof of Claim 2 on p. 10; and §3, rule (4) on
+p. 12 and the three overlap-correction cases in the proof of Lemma 1 on p. 13.
+The finite reconstruction identities are distinct from the surrounding asymptotic formula-depth
+claims. The continued formalization of those claims is tracked in
+[#7708](https://github.com/cslib-community/cslib-frontier/issues/7708).
+
 <a id="shalevshwartzbendavid14"></a>
 ## shalevshwartzbendavid14
 
