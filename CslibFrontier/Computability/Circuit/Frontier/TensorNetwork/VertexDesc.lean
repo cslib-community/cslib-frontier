@@ -173,7 +173,7 @@ variable {encT : T ↪ List Bool}
 /-- The left summand of a descriptor and its bits. -/
 theorem getLeft_polyTime :
     ComputableInPolyTime (fun q : VertexDesc T × List Bool => q.1.getLeft?)
-       (encPair (enc encT) encBits) (encOption encT) := by
+      (encPair (enc encT) encBits) (encOption encT) := by
   fun_prop
 
 /-- The input of the packet evaluator at a descriptor and its bits, the default packet standing for

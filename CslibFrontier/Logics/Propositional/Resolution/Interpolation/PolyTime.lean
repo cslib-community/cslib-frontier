@@ -71,8 +71,6 @@ namespace Cslib.Logic.PL
 
 open Cslib.Circuits Cslib.Circuits.Boolean Turing.MultiTapeTM ComputableInPolyTime
 
-attribute [local irreducible] ComputableInPolyTime
-
 variable {Y Z : Type}
 
 namespace Interpolant
