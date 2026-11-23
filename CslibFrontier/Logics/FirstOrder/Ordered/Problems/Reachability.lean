@@ -300,12 +300,6 @@ private def midTuple {n d : ℕ} [NeZero n] (maxElem : Fin n) (x : Fin d → Fin
   else if h1 : j.val = 1 then maxElem
   else x ⟨j.val - 2, by have := j.isLt; omega⟩
 
-private theorem midTuple_tagZero {n d : ℕ} [NeZero n] (maxElem : Fin n) (x : Fin d → Fin n) :
-    midTuple maxElem x (tagZeroIdx d) = 0 := rfl
-
-private theorem midTuple_tagOne {n d : ℕ} [NeZero n] (maxElem : Fin n) (x : Fin d → Fin n) :
-    midTuple maxElem x (tagOneIdx d) = maxElem := rfl
-
 private theorem midTuple_payload {n d : ℕ} [NeZero n] (maxElem : Fin n) (x : Fin d → Fin n)
     (i : Fin d) :
     midTuple maxElem x (payloadIdx i) = x i := by
@@ -446,8 +440,7 @@ theorem mem_Reach_boundedReachInterpretation {L : Language} {d : ℕ}
     · exact False.elim (hT_not_mid hT)
     · exact hgoal
   · rintro ⟨x, y, hx, hxy, hy⟩
-    have hmid (a : Fin d → Fin M.size) : IsMid (midTuple maxElem a) :=
-      ⟨midTuple_tagZero maxElem a, midTuple_tagOne maxElem a⟩
+    have hmid (a : Fin d → Fin M.size) : IsMid (midTuple maxElem a) := ⟨rfl, rfl⟩
     have h1 : Edge Z (midTuple maxElem x) := by
       refine Or.inl ⟨⟨rfl, hmid x⟩, ?_⟩
       simpa only [midTuple_payload] using hx

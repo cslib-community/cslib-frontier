@@ -113,9 +113,7 @@ open Polynomial Finset
 namespace Cslib.Circuits.Frontier
 
 open ContractionSchedule (nodePrecision)
-
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
+open scoped TensorNetwork
 
 /-! ### Node precisions -/
 

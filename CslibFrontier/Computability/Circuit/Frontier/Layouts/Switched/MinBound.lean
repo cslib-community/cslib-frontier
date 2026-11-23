@@ -188,7 +188,6 @@ theorem min_bound {w wa wc : E} (hw : ‖w‖ = 1) (hwa : ‖wa‖ = 1) (hwc : �
           ((integrable_const q).indicator measurableSet_Ioc) (ae_of_all _ hpt)
     _ = q * (gaussianReal 0 1).real (Ioc 0 t) := by
         rw [integral_indicator_const _ measurableSet_Ioc, smul_eq_mul, mul_comm]
-    _ ≤ 1 / 3 * (gaussianReal 0 1).real (Ioc 0 t) :=
-        mul_le_mul_of_nonneg_right hq3 measureReal_nonneg
+    _ ≤ 1 / 3 * (gaussianReal 0 1).real (Ioc 0 t) := by gcongr
 
 end Cslib.Circuits.Frontier.Switched

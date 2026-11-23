@@ -11,10 +11,10 @@ public import CslibFrontier.Logics.Propositional.CNF.Dimacs
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Rename
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 -- `import all`: the round-trip proofs unfold the private lexer and parsers of `Text` (`lines`,
--- `splitChars`, `lexLine`, `flushToken`, `nat?`, `dropChar?`, `startsWithChar`,
+-- `lexLine`, `flushToken`, `nat?`, `dropChar?`, `startsWithChar`,
 -- `terms`, `constr`, `opbLines`, `objTerms`, `objective`, `presVars`, `dimacsClauses`) and the
--- unexposed bodies of `parseOPB`, `parseOPBWith`, `opbTokenLines`, `parseDIMACS`, `tokens`, `int?`,
--- `stdVar?`, `Names.var?` and `Names.nameChars`.
+-- unexposed bodies of `parseOPB`, `parseOPBWith`, `opbTokenLines`, `parseDIMACS`, `splitChars`,
+-- `tokens`, `int?`, `stdVar?`, `Names.var?` and `Names.nameChars`.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 
 /-! # Printing OPB instances, with round-trip theorems

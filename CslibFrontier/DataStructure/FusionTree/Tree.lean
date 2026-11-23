@@ -323,11 +323,7 @@ def predecessor (q : ℕ) : Tree → Option ℕ
     | none => none
     | some t => predecessor q t
 termination_by t => sizeOf t
-decreasing_by
-  have hm := selectChild_mem _hs
-  have ht := List.sizeOf_lt_of_mem hm
-  simp_wf
-  omega
+decreasing_by have := selectChild_mem _hs; decreasing_tactic
 
 /-- In a valid tree, `minimum` equals the first stored key (or `0` when empty). -/
 theorem minimum_eq_headD {B : ℕ} {t : Tree} (ht : Valid B t) :
@@ -446,11 +442,6 @@ theorem predecessor_eq_listPredecessor {B : ℕ} {t : Tree} (ht : Valid B t)
       have hu := selectChild_mem hchild
       exact predecessor_eq_listPredecessor (ht.2.2.2 u hu).1 (hsort u hu) q
 termination_by sizeOf t
-decreasing_by
-  have hlt := List.sizeOf_lt_of_mem hu
-  subst t
-  simp_wf
-  omega
 
 theorem listPredecessor_some_spec {q p : ℕ} {xs : List ℕ}
     (hs : xs.Pairwise (· ≤ ·)) (hp : listPredecessor q xs = some p) :
