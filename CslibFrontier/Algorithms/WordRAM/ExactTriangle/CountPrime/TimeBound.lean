@@ -50,9 +50,7 @@ theorem cost_le_seven_pow (n p : ℕ) :
   have hc := Nat.mul_le_mul_left 122 hunit
   have hmat := Nat.mul_le_mul_left (14 * p + 48) h4
   have ht := Strassen.traceBudget_potential_le p k
-  have htrace : Strassen.traceBudget p k ≤ (42 * p * p + 240 * p + 178) * 7 ^ k :=
-    ((Nat.le_add_right (Strassen.traceBudget p k) (231 * p * 4 ^ k)).trans
-      (Nat.le_add_right _ 150)).trans ht
+  have htrace : Strassen.traceBudget p k ≤ (42 * p * p + 240 * p + 178) * 7 ^ k := by omega
   change Strassen.traceBudget p k + (14 * p + 48) * 4 ^ k + 11 * (2 ^ k - 1) +
     91 * (n * n) + 4 * k + 81 + 9 * k + 31 + 10 ≤ _
   nlinarith only [htrace, hmat, hN, hsub, hk, hc]

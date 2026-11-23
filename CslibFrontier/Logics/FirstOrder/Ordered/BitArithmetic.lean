@@ -98,9 +98,7 @@ variable {L : Language} {n : ℕ} [Fact (2 ≤ n)] [L.Structure (Fin n)] {α : T
 @[simp, fo_realize]
 theorem realize_addEq (x y z : (language L).Term α) (v : α → Fin n) :
     (addEq L x y z).Realize v ↔ (x.realize v).val + (y.realize v).val = (z.realize v).val := by
-  change ((addition L).subst ![x, y, z]).Realize v _ ↔ _
-  rw [BoundedFormula.realize_subst]
-  exact realize_addition _
+  fo_simp [addEq]
 
 /-- `natEq L k x` holds exactly when `x` denotes `k`. -/
 @[simp, fo_realize]
@@ -110,7 +108,7 @@ theorem realize_natEq (k : ℕ) (x : (language L).Term α) (v : α → Fin n) :
   | zero =>
     fo_simp [natEq, ← Fin.val_inj]
   | succ k ih =>
-    fo_simp [natEq, ih, realize_one_val, Function.comp_def]
+    fo_simp [natEq, ih, realize_one_val]
     exact ⟨fun ⟨a, ha, he⟩ => by lia,
       fun hx => ⟨fun _ => ⟨k, by have := (x.realize v).isLt; lia⟩, rfl, hx.symm⟩⟩
 
@@ -119,9 +117,9 @@ theorem realize_natEq (k : ℕ) (x : (language L).Term α) (v : α → Fin n) :
 theorem realize_scaleEq (k : ℕ) (x z : (language L).Term α) (v : α → Fin n) :
     (scaleEq L k x z).Realize v ↔ k * (x.realize v).val = (z.realize v).val := by
   induction k generalizing α with
-  | zero => simp [scaleEq, ← Fin.val_inj, eq_comm]
+  | zero => fo_simp [scaleEq, ← Fin.val_inj, Nat.zero_mul, eq_comm]
   | succ k ih =>
-    fo_simp [scaleEq, ih, Function.comp_def]
+    fo_simp [scaleEq, ih]
     refine ⟨fun ⟨a, ha, he⟩ => by rw [Nat.succ_mul]; lia, fun hz => ?_⟩
     exact ⟨fun _ => ⟨k * (x.realize v).val,
       by have := (z.realize v).isLt; rw [Nat.succ_mul] at hz; lia⟩,
@@ -138,7 +136,7 @@ theorem realize_highestBit (x h : (language L).Term α) (v : α → Fin n) :
     (highestBit L x h).Realize v ↔
       2 ^ (h.realize v).val ≤ (x.realize v).val ∧
         (x.realize v).val < 2 ^ ((h.realize v).val + 1) := by
-  fo_simp [highestBit, Function.comp_def]
+  fo_simp [highestBit]
   constructor
   · rintro ⟨hx, ht⟩
     refine ⟨Nat.ge_two_pow_of_testBit hx, Nat.lt_pow_two_of_testBit _ ?_⟩
@@ -159,7 +157,7 @@ theorem realize_highestBit (x h : (language L).Term α) (v : α → Fin n) :
 @[simp, fo_realize]
 theorem realize_powerOfTwo (p e : (language L).Term α) (v : α → Fin n) :
     (powerOfTwo L p e).Realize v ↔ (p.realize v).val = 2 ^ (e.realize v).val := by
-  fo_simp [powerOfTwo, Function.comp_def]
+  fo_simp [powerOfTwo]
   constructor
   · intro h
     apply Nat.eq_of_testBit_eq

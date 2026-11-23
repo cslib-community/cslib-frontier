@@ -10,14 +10,13 @@ module
 public import CslibFrontier.Crypto.Computational.FuzzyExtractor.DecodeThenExtract
 public import CslibFrontier.Crypto.Computational.LWE.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Matrix.Binary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.UniformNat.Residue
+import CslibFrontier.Tactic.PPT
 import Mathlib.Algebra.BigOperators.Fin
 
 /-!
@@ -281,10 +280,8 @@ private theorem computableInPolyTime_keyWordOf {k w : α → ℕ} {keyCoins : α
     (hcoins : ComputableInPolyTime keyCoins input (encList encNat)) :
     ComputableInPolyTime (fun a => keyWordOf (k a) (w a) (keyCoins a)) input encBits := by
   unfold keyWordOf
-  apply flatMapToBitsWithInput (range.comp hk)
-  apply bitsLow (hw.comp (fst input encUnary))
-  exact (listGetD (encA := encNat) 0).comp
-    ((hcoins.comp (fst input encUnary)).prod (snd input encUnary))
+  apply flatMapToBitsWithInput (by polytime)
+  polytime
 
 private theorem computableInPolyTime_helperWordOf {m k l w : α → ℕ} {lweWord : α → List Bool}
     {a : α → List (List ℕ)} {b : α → List ℕ}
@@ -296,40 +293,33 @@ private theorem computableInPolyTime_helperWordOf {m k l w : α → ℕ} {lweWor
     ComputableInPolyTime
       (fun x => helperWordOf (m x) (k x) (l x) (w x) (lweWord x) (a x) (b x)) input encBits := by
   unfold helperWordOf
-  apply flatMapToBitsWithInput (range.comp hm)
+  apply flatMapToBitsWithInput (by polytime)
   have hrow : ComputableInPolyTime (fun p : α × ℕ => (a p.1).getD p.2 [])
-      (encPair input encUnary) (encList encNat) :=
-    (listGetD (encA := encList encNat) []).comp
-      ((ha.comp (fst input encUnary)).prod (snd input encUnary))
+      (encPair input encUnary) (encList encNat) := by polytime
+  have hcell : ComputableInPolyTime
+      (fun q : (α × ℕ) × ℕ => ((a q.1.1).getD q.1.2 []).getD q.2 0)
+      (encPair (encPair input encUnary) encUnary) encNat :=
+    (listGetD (encA := encNat) 0).comp ((hrow.comp (fst _ encUnary)).prod (snd _ encUnary))
   refine bitsAppend (bitsAppend ?_ ?_) ?_
-  · apply bitsLow (hw.comp (fst input encUnary))
-    have hterm : ComputableInPolyTime
-        (fun q : (α × ℕ) × ℕ => ((a q.1.1).getD q.1.2 []).getD q.2 0 * (b q.1.1).getD q.2 0)
-        (encPair (encPair input encUnary) encUnary) encNat :=
-      binary_mul' ((listGetD (encA := encNat) 0).comp
-          ((hrow.comp (fst _ encUnary)).prod (snd _ encUnary)))
-        ((listGetD (encA := encNat) 0).comp
-          ((hb.comp ((fst input encUnary).comp (fst _ encUnary))).prod (snd _ encUnary)))
-    have hsum := (show ComputableInPolyTime List.sum (encList encNat) encNat by fun_prop).comp
-      (mapWithInput (f := fun p j => ((a p.1).getD p.2 []).getD j 0 * (b p.1).getD j 0)
-        (range.comp (hk.comp (fst input encUnary))) hterm)
-    exact binary_add' hsum (matrixBinaryEntry (by fun_prop) (hw.comp (fst input encUnary))
-      (hlweWord.comp (fst input encUnary)) (snd input encUnary) (const 0))
-  · apply flatMapToBitsWithInput (range.comp (hk.comp (fst input encUnary)))
-    apply bitsLow (hw.comp ((fst input encUnary).comp (fst _ encUnary)))
-    exact (listGetD (encA := encNat) 0).comp
-      ((hrow.comp (fst _ encUnary)).prod (snd _ encUnary))
-  · apply flatMapToBitsWithInput (range.comp (hl.comp (fst input encUnary)))
-    apply bitsLow (hw.comp ((fst input encUnary).comp (fst _ encUnary)))
-    exact matrixBinaryEntry (by fun_prop) (hw.comp ((fst input encUnary).comp (fst _ encUnary)))
-      (hlweWord.comp ((fst input encUnary).comp (fst _ encUnary)))
-      ((snd input encUnary).comp (fst _ encUnary)) (by fun_prop)
+  · apply bitsLow (by polytime)
+    have hsum : ComputableInPolyTime
+        (fun p : α × ℕ =>
+          ((List.range (k p.1)).map fun j => ((a p.1).getD p.2 []).getD j 0 * (b p.1).getD j 0).sum)
+        (encPair input encUnary) encNat :=
+      binary_sum.comp (mapWithInput (encA := encUnary) (by polytime)
+        (binary_mul' hcell (by polytime)))
+    exact binary_add' hsum (by polytime)
+  · exact flatMapToBitsWithInput (by polytime) (bitsLow (by polytime) hcell)
+  · apply flatMapToBitsWithInput (by polytime); polytime
 
 end PolyTime
 
 /-! ### Certificates for the reductions -/
 
+attribute [local fun_prop] LWE.computableInPolyTime_secParam
+
 /-- Building the distinguisher input from an LWE input and coins is polynomial-time. -/
+@[local fun_prop]
 private theorem computableInPolyTime_reductionInput {β : Type} {enc : β ↪ List Bool}
     {x : β → LWE.Input l m w} {a : β → List (List ℕ)} {b keyCoins : β → List ℕ}
     (hm : ComputableInPolyTime m encUnary encUnary) (hk : ComputableInPolyTime k encUnary encUnary)
@@ -340,10 +330,12 @@ private theorem computableInPolyTime_reductionInput {β : Type} {enc : β ↪ Li
     (hkeyCoins : ComputableInPolyTime keyCoins enc (encList encNat)) :
     ComputableInPolyTime (fun q => reductionInput (k := k) (x q) (a q) (b q) (keyCoins q)) enc
       (encInput m k l w) := by
-  have hκ := LWE.computableInPolyTime_secParam.comp hx
+  have hκ : ComputableInPolyTime (fun q => (x q).secParam) enc encUnary :=
+    LWE.computableInPolyTime_secParam.comp hx
   have hword := LWE.computableInPolyTime_augmentedWord.comp hx
   refine ComputableInPolyTime.of_enc_eq
-    (hκ.prod ((computableInPolyTime_keyWordOf (hk.comp hκ) (hw.comp hκ) hkeyCoins).prod
+    (ComputableInPolyTime.prod hκ
+      ((computableInPolyTime_keyWordOf (hk.comp hκ) (hw.comp hκ) hkeyCoins).prod
       (computableInPolyTime_helperWordOf (hm.comp hκ) (hk.comp hκ) (hl.comp hκ) (hw.comp hκ)
         hword ha hb))) fun q => ?_
   change encPair encUnary (encPair encBits encBits) (reductionInput (x q) (a q) (b q)
@@ -385,23 +377,21 @@ private theorem eval_uniformReductionWords (D : Distinguisher m k l w) (x : LWE.
     ProbComp.eval_replicate_replicate_sampleBinaryNat, ProbComp.eval_replicate_sampleBinaryNat,
     PMF.bind_map, Function.comp_def, reductionInput, coinMatrix_ofFn, coinVector_ofFn]
 
+private theorem isPPTOn_sampleCoins {β : Type} {enc : β ↪ List Bool} {κ : β → ℕ}
+    (hκ : ComputableInPolyTime κ enc encUnary) (hk : ComputableInPolyTime k encUnary encUnary)
+    (hw : ComputableInPolyTime w encUnary encUnary) :
+    IsPPTOn enc (encList encNat) fun q => sampleCoins (k (κ q)) (w (κ q)) := by
+  ppt [sampleCoins]
+
 /-- Sampling the coins is strict PPT on LWE inputs. -/
 private theorem isPPTOn_sampleCoinRows (hm : ComputableInPolyTime m encUnary encUnary)
     (hk : ComputableInPolyTime k encUnary encUnary)
     (hw : ComputableInPolyTime w encUnary encUnary) :
     IsPPTOn (LWE.encInput l m w) (encList (encList encNat))
-      fun x => sampleCoinRows (m x.secParam) (k x.secParam) (w x.secParam) :=
-  ((hw.comp LWE.computableInPolyTime_secParam).sampleBinaryNat.replicate
-    (hk.comp LWE.computableInPolyTime_secParam)).replicate
-      (hm.comp LWE.computableInPolyTime_secParam)
-
-/-- Sampling a coin vector is strict PPT for every input encoding with a polynomial-time security
-parameter. -/
-private theorem isPPTOn_sampleCoins {β : Type} {enc : β ↪ List Bool} {κ : β → ℕ}
-    (hκ : ComputableInPolyTime κ enc encUnary) (hk : ComputableInPolyTime k encUnary encUnary)
-    (hw : ComputableInPolyTime w encUnary encUnary) :
-    IsPPTOn enc (encList encNat) fun q => sampleCoins (k (κ q)) (w (κ q)) :=
-  (hw.comp hκ).sampleBinaryNat.replicate (hk.comp hκ)
+      fun x => sampleCoinRows (m x.secParam) (k x.secParam) (w x.secParam) := by
+  have hcoins := isPPTOn_sampleCoins (enc := LWE.encInput l m w)
+    LWE.computableInPolyTime_secParam hk hw
+  ppt [sampleCoinRows]
 
 /-- **`keyReduction` is PPT.** When `m, k, l, w` are computable in polynomial time in unary, the
 real-key reduction of a PPT distinguisher family is a uniform strict PPT LWE distinguisher. -/
@@ -411,24 +401,11 @@ theorem isPPT_keyReduction (hm : ComputableInPolyTime m encUnary encUnary)
     (hw : ComputableInPolyTime w encUnary encUnary)
     {D : Distinguisher m k l w} (hD : D.IsPPT) : (keyReduction D).IsPPT := by
   let encA := encPair (LWE.encInput l m w) (encList (encList encNat))
-  have hκ : ComputableInPolyTime (fun p : LWE.Input l m w × List (List ℕ) => p.1.secParam)
-      encA encUnary :=
-    LWE.computableInPolyTime_secParam.comp (ComputableInPolyTime.fst _ _)
-  have hinput := computableInPolyTime_reductionInput hm hk hl hw
-    (x := fun q : (LWE.Input l m w × List (List ℕ)) × List ℕ => q.1.1)
-    (a := fun q => q.1.2) (b := fun q => q.2) (keyCoins := fun q => q.2)
-    ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _))
-    ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _))
-    (ComputableInPolyTime.snd _ _) (ComputableInPolyTime.snd _ _)
-  have hrun := hD.preprocess hinput
-  have hb := (isPPTOn_sampleCoins hκ hk hw).bind_with (second := fun p b =>
-    let y := reductionInput p.1 p.2 b b
-    D y.secParam y.key y.helper) hrun
-  have hall := (isPPTOn_sampleCoinRows (l := l) hm hk hw).bind_with (second := fun x a => do
-    let b ← sampleCoins (k x.secParam) (w x.secParam)
-    let y := reductionInput x a b b
-    D y.secParam y.key y.helper) hb
-  exact hall.congr (eval_keyReductionWords D)
+  have hrun := hD.preprocess (input := encPair encA (encList encNat))
+    (prepare := fun q => reductionInput q.1.1 q.1.2 q.2 q.2) (by polytime)
+  exact ((isPPTOn_sampleCoinRows (l := l) hm hk hw).bind_with
+    ((isPPTOn_sampleCoins (enc := encA) (by polytime) hk hw).bind_with hrun)).congr
+    (eval_keyReductionWords D)
 
 /-- **`uniformReduction` is PPT.** When `m, k, l, w` are computable in polynomial time in unary,
 the uniform-key reduction of a PPT distinguisher family is a uniform strict PPT LWE
@@ -440,35 +417,12 @@ theorem isPPT_uniformReduction (hm : ComputableInPolyTime m encUnary encUnary)
     {D : Distinguisher m k l w} (hD : D.IsPPT) : (uniformReduction D).IsPPT := by
   let encA := encPair (LWE.encInput l m w) (encList (encList encNat))
   let encB := encPair encA (encList encNat)
-  have hκA : ComputableInPolyTime (fun p : LWE.Input l m w × List (List ℕ) => p.1.secParam)
-      encA encUnary :=
-    LWE.computableInPolyTime_secParam.comp (ComputableInPolyTime.fst _ _)
-  have hκB : ComputableInPolyTime
-      (fun p : (LWE.Input l m w × List (List ℕ)) × List ℕ => p.1.1.secParam) encB encUnary :=
-    hκA.comp (ComputableInPolyTime.fst _ _)
-  have hinput := computableInPolyTime_reductionInput hm hk hl hw
-    (x := fun q : ((LWE.Input l m w × List (List ℕ)) × List ℕ) × List ℕ => q.1.1.1)
-    (a := fun q => q.1.1.2) (b := fun q => q.1.2) (keyCoins := fun q => q.2)
-    (((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)).comp
-      (ComputableInPolyTime.fst _ _))
-    (((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)).comp
-      (ComputableInPolyTime.fst _ _))
-    ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _))
-    (ComputableInPolyTime.snd _ _)
-  have hrun := hD.preprocess hinput
-  have hr := (isPPTOn_sampleCoins hκB hk hw).bind_with (second := fun p r =>
-    let y := reductionInput p.1.1 p.1.2 p.2 r
-    D y.secParam y.key y.helper) hrun
-  have hb := (isPPTOn_sampleCoins hκA hk hw).bind_with (second := fun p b => do
-    let r ← sampleCoins (k p.1.secParam) (w p.1.secParam)
-    let y := reductionInput p.1 p.2 b r
-    D y.secParam y.key y.helper) hr
-  have hall := (isPPTOn_sampleCoinRows (l := l) hm hk hw).bind_with (second := fun x a => do
-    let b ← sampleCoins (k x.secParam) (w x.secParam)
-    let r ← sampleCoins (k x.secParam) (w x.secParam)
-    let y := reductionInput x a b r
-    D y.secParam y.key y.helper) hb
-  exact hall.congr (eval_uniformReductionWords D)
+  have hrun := hD.preprocess (input := encPair encB (encList encNat))
+    (prepare := fun q => reductionInput q.1.1.1 q.1.1.2 q.1.2 q.2) (by polytime)
+  exact ((isPPTOn_sampleCoinRows (l := l) hm hk hw).bind_with
+    ((isPPTOn_sampleCoins (enc := encA) (by polytime) hk hw).bind_with
+      ((isPPTOn_sampleCoins (enc := encB) (by polytime) hk hw).bind_with hrun))).congr
+    (eval_uniformReductionWords D)
 
 end LWEFamily
 

@@ -9,6 +9,9 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Notation
 public import CslibFrontier.Foundations.Data.Nat.CeilDiv
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Tactic.UpdateSimp
 
 /-!
 # Native query-chunk descriptors
@@ -81,7 +84,7 @@ private theorem body_preserves : ∀ i : Fin 14,
 
 private theorem exec_body {w : ℕ} (x : Data 14) (ho : x.regs one = 1)
     (hthree : x.regs three = 3) (hp : x.regs pos < x.regs total)
-    (hc : x.regs count ≤ x.regs pos)
+    (hcle : x.regs count ≤ x.regs pos)
     (hptr : x.regs ptr = x.regs queries + 2 * x.regs pos)
     (hfit : Fits w (x.regs dst + 3 * x.regs total + 3))
     (hquery : Fits w (x.regs queries + 2 * x.regs total)) :
@@ -95,50 +98,17 @@ private theorem exec_body {w : ℕ} (x : Data 14) (ho : x.regs one = 1)
           (x.regs dst + 3 * x.regs count + 1) (x.regs queries + 2 * x.regs pos))
             (x.regs dst + 3 * x.regs count + 2)
               (min (x.regs capacity) (x.regs total - x.regs pos)) := by
-  let L := min (x.regs capacity) (x.regs total - x.regs pos)
-  have hL : L ≤ x.regs total - x.regs pos := min_le_right ..
-  have hsub : Fits w (x.regs total - x.regs pos) := hfit.of_le (by omega)
-  have hlen : Fits w L := hsub.of_le hL
-  have htriple : Fits w (x.regs count * 3) := hfit.of_le (by omega)
-  have haddr : Fits w (x.regs count * 3 + x.regs dst) := hfit.of_le (by omega)
-  have haddr1 : Fits w (x.regs count * 3 + x.regs dst + 1) := hfit.of_le (by omega)
-  have haddr2 : Fits w (x.regs count * 3 + x.regs dst + 1 + 1) := hfit.of_le (by omega)
-  have hptr1 : Fits w (x.regs ptr + L) := hquery.of_le (by omega)
-  have hptr2 : Fits w (x.regs ptr + L + L) := hquery.of_le (by omega)
-  have hpos : Fits w (x.regs pos + L) := hfit.of_le (by omega)
-  have hcount : Fits w (x.regs count + 1) := hfit.of_le (by omega)
-  let a := x.set length (x.regs total - x.regs pos) |>.set length L
-    |>.set addr (x.regs count * 3) |>.set addr (x.regs count * 3 + x.regs dst)
-    |>.write (x.regs count * 3 + x.regs dst) (x.regs residue)
-    |>.set addr (x.regs count * 3 + x.regs dst + 1)
-    |>.write (x.regs count * 3 + x.regs dst + 1) (x.regs ptr)
-    |>.set addr (x.regs count * 3 + x.regs dst + 1 + 1)
-    |>.write (x.regs count * 3 + x.regs dst + 1 + 1) L
-    |>.set ptr (x.regs ptr + L) |>.set ptr (x.regs ptr + L + L)
-    |>.set pos (x.regs pos + L) |>.set count (x.regs count + 1)
-  refine ⟨a, ?_, ?_, ?_, ?_, ?_⟩
-  · by_cases h : x.regs capacity < x.regs total - x.regs pos
-    · have he : L = x.regs capacity := min_eq_left h.le
-      rw [he] at hlen hptr1 hptr2 hpos
-      ram_eval [body, a, ho, hthree, h, he, hsub, hlen, htriple, haddr, haddr1, haddr2,
-        hptr1, hptr2, hpos, hcount, length, total, pos, capacity, addr, count, three,
-        dst, residue, one, ptr, Fin.mk.injEq]
-    · have he : L = x.regs total - x.regs pos := min_eq_right (by omega)
-      rw [he] at hlen hptr1 hptr2 hpos
-      ram_eval [body, a, ho, hthree, h, he, hsub, hlen, htriple, haddr, haddr1, haddr2,
-        hptr1, hptr2, hpos, hcount, length, total, pos, capacity, addr, count, three,
-        dst, residue, one, ptr, Fin.mk.injEq]
-  · change a.regs pos = x.regs pos + L
-    simp +decide [a, pos, count]
-  · simp [a]
-  · change a.regs ptr = x.regs queries + 2 * (x.regs pos + L)
-    simp +decide only [a, Data.set_regs, Data.write_regs, Function.update_apply,
-      pos, count, ptr, ↓reduceIte]
-    simp only [pos, ptr] at hptr
-    omega
-  · simp only [a, Data.set_mem, Data.write_mem, hptr]
-    have haddr' : x.regs count * 3 + x.regs dst = x.regs dst + 3 * x.regs count := by omega
-    rw [haddr']
+  have haddr' : x.regs count * 3 + x.regs dst = x.regs dst + 3 * x.regs count := by omega
+  unfold body
+  wram_exec [ho, hthree, hptr]
+  · have hmin : min (x.regs capacity) (x.regs total - x.regs pos) = x.regs capacity :=
+      min_eq_left hc.le
+    refine ⟨by wram_simp [hmin], by wram_simp, by wram_simp [hmin]; omega, ?_⟩
+    simp only [hmin, Data.set_mem, Data.write_mem, haddr']
+  · have hmin : min (x.regs capacity) (x.regs total - x.regs pos) = x.regs total - x.regs pos :=
+      min_eq_right (by omega)
+    refine ⟨by wram_simp [hmin], by wram_simp, by wram_simp [hmin]; omega, ?_⟩
+    simp only [hmin, Data.set_mem, Data.write_mem, haddr']
 
 /-- Write the exact nonempty chunks of one class. Descriptor `k` names the query slice beginning
 at pair `k * capacity`, with its final length truncated to the class size. All other memory is
@@ -184,80 +154,42 @@ theorem exec {w : ℕ} (x : Data 14) (hcap : 0 < x.regs capacity)
     have hprod : y.regs pos = y.regs count * Q := by
       by_cases h : y.regs count * Q ≤ N
       · simpa only [min_eq_right h] using hymin
-      · rw [min_eq_left (by omega)] at hymin
-        omega
-    have hQ : 0 < Q := hcap
+      · rw [min_eq_left (by omega)] at hymin; omega
     let L := min Q (N - y.regs pos)
-    have hL : 0 < L := lt_min hQ (by omega)
+    have hL : 0 < L := lt_min hcap (by omega)
     have hLle : L ≤ N - y.regs pos := min_le_right ..
     obtain ⟨z, he, hzp, hzc, hzptr, hzmem⟩ := exec_body y hyo hyt
       (by simpa only [hyN] using hlt) hyc (by simpa only [hyb] using hyptr)
       (by simpa only [hyd, hyN] using hfit) (by simpa only [hyb, hyN] using hquery)
     simp only [hyN, hyQ, hyb, hyd, hyrho] at hzp hzptr hzmem
     have hzmin : z.regs pos = min N (z.regs count * Q) := by
-      rw [hzp, hzc, Nat.add_mul, Nat.one_mul, ← hprod]
-      omega
+      rw [hzp, hzc, Nat.add_mul, Nat.one_mul, ← hprod]; omega
     have hpres (i : Fin 14) (hi : i.val < 5 ∨ i = one ∨ i = three) :
         z.regs i = y.regs i := he.regs_eq (body_preserves i hi)
     refine ⟨z, he, ⟨fun i hi => (hpres i (Or.inl hi)).trans (hyr i hi),
       (hpres one (by simp)).trans hyo, (hpres three (by simp)).trans hyt,
-      by omega, hzmin, by omega, Or.inr ?_, by simpa only [hzp] using hzptr,
-      ?_, ?_⟩, by omega⟩
-    · rw [hzc, Nat.add_sub_cancel, ← hprod]
-      exact hlt
-    · intro k hk
-      rw [hzc] at hk
+      by omega, hzmin, by omega, Or.inr (by rw [hzc, Nat.add_sub_cancel, ← hprod]; exact hlt),
+      by simpa only [hzp] using hzptr, ?_, ?_⟩, by omega⟩
+    · intro k hk; rw [hzc] at hk; rw [hzmem]
       by_cases h : k = y.regs count
-      · rw [h, hzmem]
-        refine ⟨?_, ?_, ?_⟩
-        · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-            Function.update_self]
-        · rw [Function.update_of_ne (by omega), Function.update_self, hprod]
-        · rw [Function.update_self, hprod]
-      · have hk' : k < y.regs count := by omega
-        obtain ⟨h0, h1, h2⟩ := hycells k hk'
-        rw [hzmem]
-        refine ⟨?_, ?_, ?_⟩ <;>
-          rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-            Function.update_of_ne (by omega)]
-        · exact h0
-        · exact h1
-        · exact h2
-    · intro a ha
-      rw [hzmem, Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-        Function.update_of_ne (by omega)]
-      exact hyframe a (by omega)
-  let x₀ := x.set one 1 |>.set three 3 |>.set pos 0 |>.set count 0 |>.set ptr b
-  have hx₀ : I x₀ := by
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · intro i hi
-      have hne : i ≠ one ∧ i ≠ three ∧ i ≠ pos ∧ i ≠ count ∧ i ≠ ptr := by
-        refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> intro h <;> subst i <;>
-          simp only [one, three, pos, count, ptr] at hi <;> omega
-      simp only [x₀, Data.set_regs, Function.update_of_ne hne.1,
-        Function.update_of_ne hne.2.1, Function.update_of_ne hne.2.2.1,
-        Function.update_of_ne hne.2.2.2.1, Function.update_of_ne hne.2.2.2.2]
-    · simp +decide [x₀, one, three, pos, count, ptr]
-    · simp +decide [x₀, three, pos, count, ptr]
-    · simp +decide [x₀, pos, count, ptr]
-    · simp +decide [x₀, pos, count, ptr]
-    · simp +decide [x₀, pos, count, ptr]
-    · exact Or.inl (by simp +decide [x₀, count, ptr])
-    · simp +decide [x₀, ptr, pos, count]
-    · simp +decide [x₀, ptr, count]
-    · intro a _
-      rfl
-  have hinit : ExecWithin (B := .standard) w
-      (ram[ one ← #1; three ← #3; pos ← #0; count ← #0; ptr ← queries ]) x x₀ 5 := by
-    have h1 : Fits w 1 := hfit.of_le (by omega)
-    ram_eval [x₀, b, h1, one, three, pos, count, ptr, queries, Fin.mk.injEq]
-  obtain ⟨y, hy, hI, hc⟩ := ExecWithin.loop_invariant I
-    (fun y => N - y.regs pos) hbody hx₀
-  obtain ⟨hyr, -, -, hyp, hymin, hyc, hylast, -, hycells, hyframe⟩ := hI
+      · subst k; exact ⟨by update_simp, by update_simp; rw [hprod], by update_simp; rw [hprod]⟩
+      · obtain ⟨h0, h1, h2⟩ := hycells k (by omega)
+        exact ⟨by update_simp; exact h0, by update_simp; exact h1, by update_simp; exact h2⟩
+    · intro a ha; rw [hzmem]; update_simp; exact hyframe a (by omega)
+  refine WP.exists_execWithin ?_
+  unfold program
+  wram_exec
+  have hx₀ : I (((((x.set one 1).set three 3).set pos 0).set count 0).set ptr b) :=
+    ⟨fun i hi => by
+      have hne : i ≠ one ∧ i ≠ three ∧ i ≠ pos ∧ i ≠ count ∧ i ≠ ptr := by revert i hi; decide
+      wram_simp [hne.1, hne.2.1, hne.2.2.1, hne.2.2.2.1, hne.2.2.2.2],
+     by wram_simp, by wram_simp, by wram_simp; exact Nat.zero_le _,
+     by wram_simp [Nat.zero_mul, Nat.min_zero], by wram_simp, Or.inl (by wram_simp),
+     by wram_simp, fun _ hk => by wram_simp at hk, fun _ _ => rfl⟩
+  wram_call (ExecWithin.loop_invariant I (fun y => N - y.regs pos) hbody hx₀)
+    with y ⟨⟨hyr, -, -, hyp, hymin, hyc, hylast, -, hycells, hyframe⟩, hc⟩
   have hyN : y.regs total = N := hyr total (by decide)
-  have hend : y.regs pos = N := by
-    simp only [Cond.holds_lt, hyN] at hc
-    omega
+  have hend : y.regs pos = N := by simp only [Cond.holds_lt, hyN] at hc; omega
   have hcover : N ≤ y.regs count * Q := by omega
   have hcount : y.regs count = N ⌈/⌉ Q := by
     apply Nat.le_antisymm
@@ -265,16 +197,9 @@ theorem exec {w : ℕ} (x : Data 14) (hcap : 0 < x.regs capacity)
       · omega
       · have hcov := Nat.le_ceilDiv_mul hcap (a := N)
         by_contra hgt
-        have hm : (N ⌈/⌉ Q) * Q ≤ (y.regs count - 1) * Q :=
-          Nat.mul_le_mul_right Q (by omega)
+        have hm : (N ⌈/⌉ Q) * Q ≤ (y.regs count - 1) * Q := Nat.mul_le_mul_right Q (by omega)
         omega
     · exact (Nat.ceilDiv_le_iff hcap).mpr hcover
-  refine ⟨y, ?_, hcount, hyr, hycells, hyframe⟩
-  convert hinit.seq hy using 1
-  · rfl
-  · simp +decide only [x₀, Data.set_regs, Function.update_apply, pos, count, ptr,
-      ↓reduceIte]
-    dsimp [N]
-    omega
+  refine ⟨by wram_simp; dsimp [N]; omega, hcount, hyr, hycells, hyframe⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.Chunks

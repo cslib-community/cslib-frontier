@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.Route
+public import Mathlib.Topology.Connected.PathConnected
 public import Mathlib.Topology.MetricSpace.Lipschitz
 public import Mathlib.Topology.MetricSpace.Thickening
 import Mathlib.Analysis.Normed.Module.Convex
@@ -25,7 +26,8 @@ Uniform samples on the closed unit interval give actual finite routes with exact
 Uniform continuity confines sufficiently fine chords to any prescribed open thickening of
 the original image. For a finite family with disjoint images, one mesh works for every pair.
 An affine increase in radius and a Lipschitz bound also ensure that sufficiently fine
-segments satisfy the outward chord inequality.
+segments satisfy the outward chord inequality. Sampling also realizes a continuous path
+in an open set by a finite polygonal route with the same endpoints.
 -/
 
 public section
@@ -148,5 +150,22 @@ theorem eventually_sampled_outward (γ : ℝ → ℂ) (z : ℂ) {K : ℝ≥0}
         (AffineMap.lineMap r R b + AffineMap.lineMap r R a) :=
       mul_le_mul_of_nonneg_left hsum (by rw [hdiff]; positivity)
     _ = _ := by ring
+
+/-- A continuous path inside an open region admits a polygonal route in the same region
+with the original endpoints. -/
+theorem exists_support_subset_of_joinedIn {U : Set ℂ} {a b : ℂ}
+    (hU : IsOpen U) (h : JoinedIn U a b) :
+    ∃ p : Route, p.start = a ∧ p.finish = b ∧ p.support ⊆ U := by
+  let γ := h.somePath
+  have hcompact : IsCompact (Set.range γ) := isCompact_range (map_continuous γ)
+  have hsub : Set.range γ ⊆ U := by
+    rintro z ⟨t, rfl⟩
+    exact h.somePath_mem t
+  obtain ⟨ε, hε, hthick⟩ := hcompact.exists_thickening_subset_open hU hsub
+  obtain ⟨m, hm⟩ :=
+    (eventually_sampled_support_subset γ.extend γ.continuous_extend.continuousOn hε).exists
+  rw [γ.image_extend_of_subset Subset.rfl] at hm
+  exact ⟨sampled γ.extend m, (sampled_start _ _).trans γ.extend_zero,
+    (sampled_finish _ _).trans γ.extend_one, hm.trans hthick⟩
 
 end Cslib.Polygonal.Route

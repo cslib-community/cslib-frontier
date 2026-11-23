@@ -379,9 +379,11 @@ class ManualChecks(unittest.TestCase):
             f"[Pair]({url.format(at['theorem in a docstring is not a declaration. -/'])})",
             f"[`one_eq`]({url.format(9999)})",
             f"[one](<{url.format(at['  2'])}>) and [two]({url.format(at['  2'])} \"sec\")",
+            f"[`three`](\n  {url.format(at['  2'])})",
+            f"[\n  Anchored.three\n]({url.format(at['/-- A documented definition. -/'])})",
         ]
         self.doc.write_text(self.doc.read_text() + "\n" + "\n".join(doc_lines) + "\n")
-        self.assertEqual(len(self.errors()), 5)
+        self.assertEqual(len(self.errors()), 7)
         fixes = fix_anchors(self.repo)
         self.assertEqual([f["new"] for f in fixes], [
             f"L{at['/-- A documented definition. -/']}",
@@ -389,12 +391,16 @@ class ManualChecks(unittest.TestCase):
             f"L{at['@[simp] theorem one_eq : one = 1 := rfl']}",
             f"L{at['/-- A documented definition. -/']}",
             f"L{at['private noncomputable def two : Nat :=']}",
+            f"L{at['def three : Nat := 3']}",
+            f"L{at['def three : Nat := 3']}",
         ])
         self.assertEqual(self.errors(), [])
         text = self.doc.read_text()
         self.assertIn(f"[one](<{url.format(at['/-- A documented definition. -/'])}>)", text)
         self.assertIn(f"[two]({url.format(at['private noncomputable def two : Nat :='])} \"sec\")",
                       text)
+        self.assertIn(f"[`three`](\n  {url.format(at['def three : Nat := 3'])})", text)
+        self.assertIn(f"[\n  Anchored.three\n]({url.format(at['def three : Nat := 3'])})", text)
         self.assertEqual(fix_anchors(self.repo), [])
         # Exercise the CLI `--fix-anchors` flag end-to-end on another drifted anchor.
         self.doc.write_text(text + f"\n[three]({url.format(at['  2'])})\n")

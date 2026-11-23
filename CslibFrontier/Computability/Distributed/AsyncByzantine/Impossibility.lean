@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Distributed.AsyncByzantine.Basic
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Data.Fintype.EquivFin
 
@@ -443,12 +444,8 @@ private lemma exists_three_partition {P : Type*} [Fintype P]
   have he_dealer : e dealer = zero := by
     simp [e, Equiv.swap_apply_left]
   let grp : Fin 3 → Finset P := fun k => Finset.univ.filter fun p => (e p : ℕ) % 3 = k.val
-  have hgrp_disj : ∀ k₁ k₂ : Fin 3, k₁ ≠ k₂ → Disjoint (grp k₁) (grp k₂) := by
-    intro k₁ k₂ hne
-    rw [Finset.disjoint_left]
-    intro p h₁ h₂
-    simp only [grp, Finset.mem_filter, Finset.mem_univ, true_and] at h₁ h₂
-    exact hne (Fin.ext (h₁.symm.trans h₂))
+  have hgrp_disj : ∀ k₁ k₂ : Fin 3, k₁ ≠ k₂ → Disjoint (grp k₁) (grp k₂) :=
+    fun _ _ _ => by finset_card
   have hgrp_card : ∀ k : Fin 3, (grp k).card ≤ t := by
     intro k
     calc (grp k).card

@@ -11,7 +11,6 @@ public import CslibFrontier.Crypto.Primitives.ByteString
 public import CslibFrontier.Crypto.Primitives.Hash.Sponge
 public import CslibFrontier.Foundations.Data.BitString.Binary
 public import Mathlib.Algebra.Order.Floor.Div
-import all CslibFrontier.Crypto.Primitives.ByteString
 import CslibFrontier.Foundations.Data.BitString.List
 import all Batteries.Data.List.Basic
 

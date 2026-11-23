@@ -56,8 +56,7 @@ private theorem prob_exists_le_eq (v : Fin 3 → E) (θ : ℝ) :
     simp only [Set.mem_ofPred_eq, Set.mem_compl_iff, inner_neg_left, neg_lt_neg_iff]
     have hall : (∀ j, θ < ⟪v j, x⟫) ↔ (θ < ⟪v 0, x⟫ ∧ θ < ⟪v 1, x⟫ ∧ θ < ⟪v 2, x⟫) :=
       ⟨fun h => ⟨h 0, h 1, h 2⟩, fun h j => by fin_cases j <;> simp [h.1, h.2.1, h.2.2]⟩
-    rw [← hall]
-    simp only [not_forall, not_lt]
+    rw [← hall]; simp only [not_forall, not_lt]
   rw [hcompl, measureReal_compl hm, probReal_univ]
 
 /-- The conditional comparison at one level. -/
@@ -65,14 +64,12 @@ private theorem exists_le_compare {w : Fin 3 → E} (hw : ∀ j, ‖w j‖ = 1) 
     (stdGaussian E).real {x | ∃ j, ⟪w j, x⟫ ≤ θ} ≤
       (stdGaussian E3).real {y | ∃ j, ⟪u j, y⟫ ≤ θ} := by
   rw [prob_exists_le_eq w, prob_exists_le_eq u]
-  have hneg : ∀ j, ‖-w j‖ = 1 := fun j => by rw [norm_neg]; exact hw j
+  have hneg : ∀ j, ‖-w j‖ = 1 := fun j => (norm_neg _).trans (hw j)
   have htl := triangle_lemma (hneg 0) (hneg 1) (hneg 2) (-θ)
-  rw [← idealResidual (-θ)] at htl
-  linarith
+  rw [← idealResidual (-θ)] at htl; linarith only [htl]
 
-theorem s_pos {r : ℝ} (hr : 0 < r) (hr1 : r < 1) : 0 < Ideal.s r := by
-  unfold Ideal.s
-  exact Real.sqrt_pos.mpr (by nlinarith)
+theorem s_pos {r : ℝ} (hr : 0 < r) (hr1 : r < 1) : 0 < Ideal.s r :=
+  Real.sqrt_pos.mpr (sub_pos.mpr (by simpa using pow_lt_pow_left₀ hr1 hr.le two_ne_zero))
 
 private theorem measurableSet_starSet {F : Type*} [NormedAddCommGroup F] [InnerProductSpace ℝ F]
     [MeasurableSpace F] [BorelSpace F] (v : Fin 3 → F) (r t : ℝ) :
@@ -140,24 +137,26 @@ private theorem compare_ideal {a : E} (ha : ‖a‖ = 1) {w : Fin 3 → E} (hw :
 theorem coupling_ineq {r c t Z : ℝ} (hr : 0 < r) (hrc : r ≤ c) (hc1 : c < 1) (ht : 0 ≤ t)
     (htZ : t ≤ Z) :
     (t - c * Z) / Real.sqrt (1 - c ^ 2) ≤ (t - r * Z) / Real.sqrt (1 - r ^ 2) := by
-  have hc2 : 0 < 1 - c ^ 2 := by nlinarith
-  have hr2 : 0 < 1 - r ^ 2 := by nlinarith
+  have hc0 : 0 ≤ c := hr.le.trans hrc
   set n := Real.sqrt (1 - c ^ 2)
   set s := Real.sqrt (1 - r ^ 2)
-  have hn : 0 < n := Real.sqrt_pos.mpr hc2
-  have hs : 0 < s := Real.sqrt_pos.mpr hr2
-  have hnn : n ^ 2 = 1 - c ^ 2 := Real.sq_sqrt hc2.le
-  have hss : s ^ 2 = 1 - r ^ 2 := Real.sq_sqrt hr2.le
-  have hsn : n ≤ s := Real.sqrt_le_sqrt (by nlinarith)
+  have hn : 0 < n := s_pos (hr.trans_le hrc) hc1
+  have hs : 0 < s := s_pos hr (hrc.trans_lt hc1)
+  have hsn : n ≤ s := Real.sqrt_le_sqrt (sub_le_sub_left (pow_le_pow_left₀ hr.le hrc 2) 1)
   have h1 : s * (1 - c) ≤ n * (1 - r) := by
-    have hsq : (s * (1 - c)) ^ 2 ≤ (n * (1 - r)) ^ 2 := by
-      rw [mul_pow, mul_pow, hnn, hss]
-      nlinarith [mul_nonneg (mul_nonneg (by linarith : (0 : ℝ) ≤ 1 - r)
-        (by linarith : (0 : ℝ) ≤ 1 - c)) (by linarith : (0 : ℝ) ≤ c - r)]
-    exact (pow_le_pow_iff_left₀ (by nlinarith) (by nlinarith) two_ne_zero).mp hsq
-  have h2 : 0 ≤ c * s - r * n := by nlinarith
-  rw [div_le_div_iff₀ hn hs]
-  nlinarith [mul_le_mul_of_nonneg_left h1 ht, mul_le_mul_of_nonneg_right htZ h2]
+    refine (pow_le_pow_iff_left₀ (mul_nonneg hs.le (sub_nonneg.mpr hc1.le))
+      (mul_nonneg hn.le (sub_nonneg.mpr (hrc.trans hc1.le))) two_ne_zero).mp ?_
+    rw [mul_pow, mul_pow, Real.sq_sqrt (sub_nonneg.mpr (pow_le_one₀ hc0 hc1.le)),
+      Real.sq_sqrt (sub_nonneg.mpr (pow_le_one₀ hr.le (hrc.trans hc1.le))), ← sub_nonneg,
+      show (1 - c ^ 2) * (1 - r) ^ 2 - (1 - r ^ 2) * (1 - c) ^ 2 =
+        2 * (1 - r) * (1 - c) * (c - r) by ring]
+    exact mul_nonneg (mul_nonneg (by linarith only [hrc, hc1]) (sub_nonneg.mpr hc1.le))
+      (sub_nonneg.mpr hrc)
+  rw [div_le_div_iff₀ hn hs, ← sub_nonneg, show (t - r * Z) * n - (t - c * Z) * s =
+    (Z - t) * (c * s - r * n) + t * (n * (1 - r) - s * (1 - c)) by ring]
+  exact add_nonneg
+    (mul_nonneg (sub_nonneg.mpr htZ) (sub_nonneg.mpr (mul_le_mul hrc hsn hn.le hc0)))
+    (mul_nonneg ht (sub_nonneg.mpr h1))
 
 omit [FiniteDimensional ℝ E] [MeasurableSpace E] [BorelSpace E] in
 /-- Unit vectors with inner product one coincide. -/
@@ -211,7 +210,7 @@ theorem exists_unit_residuals {d : ℕ} {a : E} {b : Fin d → E}
     rw [← hsq, Real.sqrt_sq (norm_nonneg _)]
   let W : Fin d → E := fun i => (‖R i‖)⁻¹ • R i
   have hSpos : ∀ i, ⟪a, b i⟫ < 1 → 0 < Real.sqrt (1 - ⟪a, b i⟫ ^ 2) := fun i hi =>
-    Real.sqrt_pos.mpr (by nlinarith [hc i, hab i])
+    Real.sqrt_pos.mpr (sub_pos.mpr (by simpa using pow_lt_pow_left₀ hi (hab i) two_ne_zero))
   have hRpos : ∀ i, ⟪a, b i⟫ < 1 → 0 < ‖R i‖ := fun i hi => by
     rw [hRnorm]; exact hSpos i hi
   let pick : Fin 3 → Fin d := fun j =>

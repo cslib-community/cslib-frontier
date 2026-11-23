@@ -82,27 +82,20 @@ theorem fixed_power_endpoint_tradeoff {n : ℕ} (c : Circuit signature n n) (T L
     (hH _).mpr (isEndpointCheckpoint_of_min f _ hi i hm)
   obtain ⟨out, ho, hout⟩ := fixed_power_of_ranked_checkpoints c q p Set.univ H T L hL hcover hp
   refine ⟨out, (out.computesOn_univ_iff _ _).mp ho, hout.trans ?_⟩
-  have hround : 2 ^ n < (2 ^ n / L + 1) * L := by
-    have hmod := Nat.mod_lt (2 ^ n) hL
-    have hdiv := Nat.mod_add_div (2 ^ n) L
-    nlinarith
   have hcard : H.card ≤ 512 * (2 ^ n / L + 1) := by
     apply Nat.le_of_lt
     apply Nat.lt_of_mul_lt_mul_right (a := L)
-    calc
-      _ ≤ 512 * 2 ^ n := hsize
-      _ < 512 * ((2 ^ n / L + 1) * L) := Nat.mul_lt_mul_of_pos_left hround (by decide)
-      _ = _ := by ring
+    nlinarith [Nat.lt_mul_div_succ (2 ^ n) hL]
   have hlocal : 2 * (3 * c.size + q.size + 16 * n + 18 * n + 3) ≤
       160 * (c.size + (n + 1) ^ 2) := by nlinarith
   have hhalf : 1 ≤ 2 ^ ((n + 1) / 2) := Nat.one_le_two_pow
   nlinarith [Nat.mul_le_mul_left L hlocal]
 
 /-- Every fixed power of an arbitrary `n`-bit transition circuit has size at most
-`12800 * min (2^n) (√(2^n * (s + (n+1)^2)))`, independently of the exponent. -/
+`8000 * min (2^n) (√(2^n * (s + (n+1)^2)))`, independently of the exponent. -/
 theorem fixed_power_endpoint {n : ℕ} (c : Circuit signature n n) (T : ℕ) :
     ∃ out : Circuit signature n n, out.Computes interpretation (c.eval interpretation)^[T] ∧
-      (out.size : ℝ) ≤ 12800 * min ((2 : ℝ) ^ n)
+      (out.size : ℝ) ≤ 8000 * min ((2 : ℝ) ^ n)
         (Real.sqrt ((2 : ℝ) ^ n * (c.size + (n + 1) ^ 2 : ℕ))) := by
   convert exists_circuit_of_endpoint_tradeoff ((c.eval interpretation)^[T])
     (show 0 < c.size + (n + 1) ^ 2 by positivity) (fixed_power_endpoint_tradeoff c T) using 4
