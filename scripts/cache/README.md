@@ -563,6 +563,10 @@ This stages local files. The report is kept outside the publication inventory. W
 the Python process's CPU time are recorded on every platform; completed-child user/system CPU
 times are included where Python's `resource` module is available. Child CPU includes the waited
 command and its waited descendants, not a separate measurement of each subprocess or peak memory.
+When profiling locally with carried-over `.ltar` files after a non-`-o` build has already cached
+`ltar`-less module entries in `~/.elan`, pass a fresh `LAKE_CACHE_DIR` so Lake caches the
+carried-over archives before `lake cache stage` copies them (ephemeral CI runners start with an
+empty `LAKE_CACHE_DIR`).
 
 `lake build ... -o` can create missing per-module archives even when the Lean outputs are warm.
 The pinned Lake implementation calls `packLtar` when output tracking finds no archive

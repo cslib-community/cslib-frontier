@@ -513,9 +513,11 @@ class HandoffTests(unittest.TestCase):
         self.assertNotEqual(handoff.digest(modified_fixture), stale_fixture_ltar_digest)
         self.assertEqual(run(str(self.build / "bin/fixture")).stdout.strip(), "44")
 
-    @unittest.skipUnless(os.environ.get("COMPLEXITYLIB_TEST_LAKE_HANDOFF") == "1",
-                         "real Lake regression runs after Lean installation")
-    def test_real_lake_publish_stage_reuses_carried_ltar_and_repacks_modified_module(self):
+        # 3. End-to-end `publish.py stage` (`enableArtifactCache = true` + `lake cache stage`)
+        # verification inside the CI-wired test target.
+        self._check_real_lake_publish_stage_ltar_carryover()
+
+    def _check_real_lake_publish_stage_ltar_carryover(self):
         import importlib.util
 
         spec = importlib.util.spec_from_file_location(
@@ -523,19 +525,24 @@ class HandoffTests(unittest.TestCase):
         publish = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(publish)
 
-        shutil.rmtree(self.build)
-        (self.root / "lean-toolchain").write_bytes((handoff.ROOT / "lean-toolchain").read_bytes())
-        (self.root / "lakefile.toml").write_text(
+        stage_base = self.base / "publish-stage-fixture"
+        repo = stage_base / "repo"
+        repo.mkdir(parents=True)
+        for name in handoff.INPUTS:
+            (repo / name).write_text(name + "\n")
+        (repo / ".gitignore").write_text(".lake/\n")
+        (repo / "lean-toolchain").write_bytes((handoff.ROOT / "lean-toolchain").read_bytes())
+        (repo / "lakefile.toml").write_text(
             'name = "publish_handoff_fixture"\n'
             'enableArtifactCache = true\n'
             'restoreAllArtifacts = true\n'
             'platformIndependent = true\n'
             '[[lean_lib]]\nname = "CslibFrontier"\n'
             '[[lean_lib]]\nname = "CslibFrontierTests"\nallowNonModules = true\n')
-        (self.root / "CslibFrontier.lean").write_text(
+        (repo / "CslibFrontier.lean").write_text(
             "module\npublic section\npublic def baseVal : Nat := 10\nend\n")
-        (self.root / "CslibFrontierTests").mkdir()
-        (self.root / "CslibFrontierTests.lean").write_text(
+        (repo / "CslibFrontierTests").mkdir()
+        (repo / "CslibFrontierTests.lean").write_text(
             "import CslibFrontier\ndef checkVal : Nat := baseVal + 1\n")
         clean_env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
         clean_env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1",
@@ -543,55 +550,67 @@ class HandoffTests(unittest.TestCase):
 
         def run_lake(cache_dir: Path, *args):
             result = subprocess.run(
-                args, cwd=self.root,
+                args, cwd=repo,
                 env={**clean_env, "LAKE_CACHE_DIR": str(cache_dir)},
                 text=True, capture_output=True, timeout=120,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             return result.stdout
 
-        c0_cache = self.base / "c0-cache"
+        c0_cache = stage_base / "c0-cache"
+        run_lake(c0_cache, "git", "init", "-q")
         run_lake(c0_cache, "lake", "update")
         run_lake(c0_cache, "lake", "build", "CslibFrontier", "CslibFrontierTests")
         run_lake(c0_cache, "git", "add", ".")
         run_lake(c0_cache, "git", "-c", "commit.gpgsign=false", "-c", "user.name=Test",
                  "-c", "user.email=test@example.invalid", "commit", "-qm", "Initial modules")
-        pub0, rep0 = self.base / "pub0", self.base / "rep0.json"
-        with patch.object(publish, "ROOT", self.root), \
+        pub0, rep0 = stage_base / "pub0", stage_base / "rep0.json"
+        with patch.object(publish, "ROOT", repo), \
                 patch.dict(os.environ, {**clean_env, "LAKE_CACHE_DIR": str(c0_cache)}, clear=True), \
                 contextlib.redirect_stdout(io.StringIO()):
             publish.stage(pub0, rep0)
-        main_snapshot = self.base / "main-actions-lake-build"
-        shutil.copytree(self.build, main_snapshot)
+        repo_build = repo / ".lake/build"
+        main_snapshot = stage_base / "main-actions-lake-build"
+        shutil.copytree(repo_build, main_snapshot)
         unchanged_ltar = main_snapshot / "ir/CslibFrontier.ltar"
         unchanged_stamp = (handoff.digest(unchanged_ltar), unchanged_ltar.stat().st_mtime_ns)
         stale_tests_digest = handoff.digest(main_snapshot / "ir/CslibFrontierTests.ltar")
 
         # Producer modifies CslibFrontierTests.lean only, builds without -o, and packs handoff.
-        mg_cache = self.base / "mg-cache"
-        (self.root / "CslibFrontierTests.lean").write_text(
+        mg_cache = stage_base / "mg-cache"
+        (repo / "CslibFrontierTests.lean").write_text(
             "import CslibFrontier\ndef checkVal : Nat := baseVal + 2\n")
         run_lake(mg_cache, "lake", "build", "CslibFrontier", "CslibFrontierTests")
         run_lake(mg_cache, "git", "add", "CslibFrontierTests.lean")
         run_lake(mg_cache, "git", "-c", "commit.gpgsign=false", "-c", "user.name=Test",
                  "-c", "user.email=test@example.invalid", "commit", "-qm", "Update tests module")
-        self.env["GITHUB_SHA"] = run_lake(mg_cache, "git", "rev-parse", "HEAD").strip()
-        self.output = self.base / "packed-mg"
-        self.api = API(handoff.source_context(self.root, self.env, "merge_group"))
-        self.pack()
+        sha = run_lake(mg_cache, "git", "rev-parse", "HEAD").strip()
+        mg_env = {**self.env, "GITHUB_SHA": sha, "GITHUB_OUTPUT": str(stage_base / "outputs")}
+        packed_mg = stage_base / "packed-mg"
+        api = API(handoff.source_context(repo, mg_env, "merge_group"))
+        with contextlib.redirect_stdout(io.StringIO()):
+            handoff.pack(repo, packed_mg, mg_env)
 
         # Consumer (`main`) starts with `main_snapshot`, restores handoff, runs `lake build` + `publish.stage`.
-        shutil.rmtree(self.build)
-        shutil.copytree(main_snapshot, self.build)
-        os.utime(self.build / "ir/CslibFrontier.ltar", ns=(unchanged_stamp[1], unchanged_stamp[1]))
-        self.restore()
-        self.assertTrue((self.build / "ir/CslibFrontier.ltar").is_file())
-        self.assertFalse((self.build / "ir/CslibFrontierTests.ltar").exists())
+        shutil.rmtree(repo_build)
+        shutil.copytree(main_snapshot, repo_build)
+        os.utime(repo_build / "ir/CslibFrontier.ltar", ns=(unchanged_stamp[1], unchanged_stamp[1]))
 
-        main_cache = self.base / "main-cache"
+        def download_mg(repository, run_id, name, destination):
+            self.assertEqual((repository, run_id, name), (REPOSITORY, 101, api.artifact["name"]))
+            for source in packed_mg.iterdir():
+                shutil.copyfile(source, destination / source.name)
+
+        push_env = {**mg_env, "GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/main"}
+        with contextlib.redirect_stdout(io.StringIO()):
+            handoff.restore(repo, push_env, api=api, downloader=download_mg)
+        self.assertTrue((repo_build / "ir/CslibFrontier.ltar").is_file())
+        self.assertFalse((repo_build / "ir/CslibFrontierTests.ltar").exists())
+
+        main_cache = stage_base / "main-cache"
         run_lake(main_cache, "lake", "build", "CslibFrontier", "CslibFrontierTests")
-        pub1, rep1 = self.base / "pub1", self.base / "rep1.json"
-        with patch.object(publish, "ROOT", self.root), \
+        pub1, rep1 = stage_base / "pub1", stage_base / "rep1.json"
+        with patch.object(publish, "ROOT", repo), \
                 patch.dict(os.environ, {**clean_env, "LAKE_CACHE_DIR": str(main_cache)}, clear=True), \
                 contextlib.redirect_stdout(io.StringIO()):
             publish.stage(pub1, rep1)
@@ -600,8 +619,8 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(metrics["archives_after"]["count"], 2)
         self.assertEqual(metrics["staged_artifacts"], 2)
         publish.validate(pub1)
-        kept = self.build / "ir/CslibFrontier.ltar"
-        rebuilt = self.build / "ir/CslibFrontierTests.ltar"
+        kept = repo_build / "ir/CslibFrontier.ltar"
+        rebuilt = repo_build / "ir/CslibFrontierTests.ltar"
         self.assertEqual((handoff.digest(kept), kept.stat().st_mtime_ns), unchanged_stamp)
         self.assertNotEqual(handoff.digest(rebuilt), stale_tests_digest)
 
@@ -680,14 +699,19 @@ class HandoffTests(unittest.TestCase):
         self.replace_archive([duplicate, duplicate])
         with self.assertRaises(handoff.Rejected):
             self.restore()
-        for pair in ([(".lake/build/collide", tarfile.REGTYPE, b"x"),
-                      (".lake/build/collide/nested", tarfile.REGTYPE, b"y")],
-                     [(".lake/build/collide/nested", tarfile.REGTYPE, b"x"),
-                      (".lake/build/collide", tarfile.REGTYPE, b"y")]):
-            self.replace_archive(pair)
-            with self.subTest(pair=pair), self.assertRaises(handoff.Rejected):
-                self.restore()
-        # PAX sparse metadata and out-of-range timestamps are rejected before install.
+        for use_dir_fd in (True, False):
+            for pair in ([(".lake/build/collide", tarfile.REGTYPE, b"x"),
+                          (".lake/build/collide/nested", tarfile.REGTYPE, b"y")],
+                         [(".lake/build/collide/nested", tarfile.REGTYPE, b"x"),
+                          (".lake/build/collide", tarfile.REGTYPE, b"y")]):
+                self.replace_archive(pair)
+                with self.subTest(pair=pair, use_dir_fd=use_dir_fd), \
+                        patch.object(handoff, "_USE_DIR_FD", use_dir_fd), \
+                        self.assertRaises(handoff.Rejected):
+                    self.restore()
+        # PAX sparse metadata (including 0-chunk sparse `member.sparse == []`, `GNU.sparse.realsize`
+        # payload-desync headers, and `XGLTYPE` global headers) and out-of-range timestamps are
+        # rejected before install.
         archive = self.output / "build.tar.gz"
         for bad_mtime in (-1, 2 ** 32 + 1):
             with tarfile.open(archive, "w:gz", format=tarfile.PAX_FORMAT) as bundle:
@@ -706,6 +730,64 @@ class HandoffTests(unittest.TestCase):
             sparse.type = tarfile.GNUTYPE_SPARSE
             sparse.size = 0
             bundle.addfile(sparse, io.BytesIO(b""))
+        self.metadata(lambda meta: meta.update(archive={
+            "sha256": handoff.digest(archive), "files": 1, "bytes": 1,
+            "compressed_bytes": archive.stat().st_size,
+        }))
+        with self.assertRaises(handoff.Rejected):
+            self.restore()
+        # 0-chunk PAX sparse 1.0 regular file (`member.sparse == []` in Python `tarfile`).
+        sparse_payload = b"0\n" + b"\0" * (512 - 2)
+        with tarfile.open(archive, "w:gz", format=tarfile.PAX_FORMAT) as bundle:
+            zero_sparse = tarfile.TarInfo(".lake/build/zero-chunk-sparse")
+            zero_sparse.size = len(sparse_payload)
+            zero_sparse.pax_headers = {
+                "GNU.sparse.major": "1",
+                "GNU.sparse.minor": "0",
+                "GNU.sparse.name": ".lake/build/zero-chunk-sparse",
+                "GNU.sparse.realsize": "0",
+            }
+            bundle.addfile(zero_sparse, io.BytesIO(sparse_payload))
+        self.metadata(lambda meta: meta.update(archive={
+            "sha256": handoff.digest(archive), "files": 1, "bytes": 512,
+            "compressed_bytes": archive.stat().st_size,
+        }))
+        with self.assertRaises(handoff.Rejected):
+            self.restore()
+        # `GNU.sparse.realsize` PAX header attempting to desynchronize physical tar stream framing
+        # across a subsequent member.
+        smuggled_hdr = tarfile.TarInfo(".lake/build/smuggled")
+        smuggled_hdr.size = 1
+        innocent_payload = smuggled_hdr.tobuf(tarfile.USTAR_FORMAT) + b"s" + b"\0" * 511
+        raw_tar = io.BytesIO()
+        hole = tarfile.TarInfo(".lake/build/hole")
+        hole.size = 0
+        hole.pax_headers = {"GNU.sparse.realsize": "512"}
+        raw_tar.write(hole.tobuf(tarfile.PAX_FORMAT))
+        innocent = tarfile.TarInfo(".lake/build/innocent")
+        innocent.size = len(innocent_payload)
+        raw_tar.write(innocent.tobuf(tarfile.USTAR_FORMAT))
+        raw_tar.write(innocent_payload)
+        raw_tar.write(b"\0" * 1024)
+        with gzip.open(archive, "wb") as gz:
+            gz.write(raw_tar.getvalue())
+        self.metadata(lambda meta: meta.update(archive={
+            "sha256": handoff.digest(archive), "files": 2, "bytes": 513,
+            "compressed_bytes": archive.stat().st_size,
+        }))
+        with self.assertRaises(handoff.Rejected):
+            self.restore()
+        self.assertFalse((self.build / "smuggled").exists())
+        # PAX global header (`XGLTYPE`) is rejected.
+        raw_global = io.BytesIO()
+        pax_global = tarfile.TarInfo.create_pax_global_header({"comment": "unexpected"})
+        raw_global.write(pax_global)
+        ok_member = tarfile.TarInfo(".lake/build/after-global")
+        ok_member.size = 1
+        raw_global.write(ok_member.tobuf(tarfile.PAX_FORMAT))
+        raw_global.write(b"x" + b"\0" * 511 + b"\0" * 1024)
+        with gzip.open(archive, "wb") as gz:
+            gz.write(raw_global.getvalue())
         self.metadata(lambda meta: meta.update(archive={
             "sha256": handoff.digest(archive), "files": 1, "bytes": 1,
             "compressed_bytes": archive.stat().st_size,
@@ -888,6 +970,52 @@ class HandoffTests(unittest.TestCase):
                         f = bundle.extractfile(member)
                         if f is not None:
                             f.read()
+
+    @unittest.skipUnless(os.name == "posix", "tests POSIX dir_fd LRU cap")
+    def test_unpack_bounds_open_directory_descriptors_across_many_deep_directories(self):
+        shutil.rmtree(self.build)
+        for idx in range(200):
+            sub = self.build / f"lib/lean/Area{idx // 10}/Sub{idx}"
+            sub.mkdir(parents=True, exist_ok=True)
+            (sub / f"Mod{idx}.olean").write_bytes(f"mod-{idx}".encode())
+        deep = self.build.joinpath("lib/lean", *[f"d{level}" for level in range(45)])
+        deep.mkdir(parents=True, exist_ok=True)
+        (deep / "Leaf.olean").write_bytes(b"deep-leaf")
+        self.pack()
+
+        context = handoff.source_context(self.root, self.env, "merge_group")
+        run = self.api.runs[0]
+        dest = self.base / "bounded-fd-unpack"
+        real_open, real_close = os.open, os.close
+        dir_flag = getattr(os, "O_DIRECTORY", 0)
+        live_dir_fds: set[int] = set()
+        peak_dir_fds = 0
+
+        def tracked_open(path, flags, *args, **kwargs):
+            nonlocal peak_dir_fds
+            fd = real_open(path, flags, *args, **kwargs)
+            if dir_flag and (flags & dir_flag):
+                live_dir_fds.add(fd)
+                peak_dir_fds = max(peak_dir_fds, len(live_dir_fds))
+            return fd
+
+        def tracked_close(fd):
+            live_dir_fds.discard(fd)
+            return real_close(fd)
+
+        with patch.object(handoff, "_DIR_FD_CACHE_LIMIT", 8), \
+                patch.object(handoff.os, "open", side_effect=tracked_open), \
+                patch.object(handoff.os, "close", side_effect=tracked_close):
+            unpacked = handoff.unpack(self.output, dest, context, run)
+
+        # At most 1 pinned stage root FD + 8 cached directory FDs (+ 1 transient child before eviction).
+        self.assertLessEqual(peak_dir_fds, 10)
+        self.assertEqual(live_dir_fds, set())
+        self.assertEqual((unpacked / "lib/lean/Area19/Sub199/Mod199.olean").read_bytes(), b"mod-199")
+        self.assertEqual(
+            unpacked.joinpath("lib/lean", *[f"d{level}" for level in range(45)], "Leaf.olean").read_bytes(),
+            b"deep-leaf",
+        )
 
 
 class AncestorAPI:

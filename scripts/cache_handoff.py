@@ -19,6 +19,7 @@ swapping retains matching `.ltar` archives from any displaced local build.
 from __future__ import annotations
 
 import argparse
+from collections import OrderedDict
 from contextlib import contextmanager
 import gzip
 import hashlib
@@ -583,6 +584,10 @@ def find_artifact(api, context: dict, run: dict) -> dict:
     return artifact
 
 
+_DIR_FD_CACHE_LIMIT = 64
+_USE_DIR_FD = os.name == "posix"
+
+
 def _extract_stream_to_fd(stream: _ForwardStream, fd: int, size: int) -> None:
     remaining = size
     while remaining > 0:
@@ -624,33 +629,60 @@ def unpack(download: Path, stage: Path, context: dict, run: dict) -> Path:
     current_umask = os.umask(0o022)
     os.umask(current_umask)
     open_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0)
-    use_dir_fd = os.name == "posix"
+    use_dir_fd = _USE_DIR_FD
     dir_flags = (os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
                  | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0))
-    dir_fds: dict[str, int] = {}
+    root_fd: int | None = None
+    dir_fds: OrderedDict[str, int] = OrderedDict()
     created_dirs: set[str] = set()
 
-    def get_dir_fd(rel_dir: str) -> int:
-        fd = dir_fds.get(rel_dir)
-        if fd is not None:
-            return fd
-        if not rel_dir:
+    def ensure_root_fd() -> int:
+        nonlocal root_fd
+        if root_fd is None:
             stage.mkdir(parents=True, exist_ok=True)
-            fd = os.open(stage, dir_flags)
-            dir_fds[""] = fd
-            return fd
-        parent_rel, _, base = rel_dir.rpartition("/")
-        parent_fd = get_dir_fd(parent_rel)
-        try:
-            os.mkdir(base, 0o755, dir_fd=parent_fd)
-        except FileExistsError:
-            pass
-        try:
-            fd = os.open(base, dir_flags, dir_fd=parent_fd)
-        except (NotADirectoryError, FileExistsError) as exc:
-            raise Rejected("Unsafe or duplicate archive member") from exc
-        dir_fds[rel_dir] = fd
-        return fd
+            root_fd = os.open(stage, dir_flags)
+        return root_fd
+
+    def get_dir_fd(rel_dir: str) -> int:
+        if not rel_dir:
+            return ensure_root_fd()
+        cached = dir_fds.get(rel_dir)
+        if cached is not None:
+            dir_fds.move_to_end(rel_dir)
+            return cached
+        missing: list[tuple[str, str]] = []
+        cur = rel_dir
+        parent_fd: int | None = None
+        while cur:
+            fd = dir_fds.get(cur)
+            if fd is not None:
+                dir_fds.move_to_end(cur)
+                parent_fd = fd
+                break
+            parent_rel, _, base = cur.rpartition("/")
+            missing.append((cur, base))
+            cur = parent_rel
+        if parent_fd is None:
+            parent_fd = ensure_root_fd()
+        limit = max(1, _DIR_FD_CACHE_LIMIT)
+        for full_rel, base in reversed(missing):
+            try:
+                os.mkdir(base, 0o755, dir_fd=parent_fd)
+            except FileExistsError:
+                pass
+            try:
+                child_fd = os.open(base, dir_flags, dir_fd=parent_fd)
+            except (NotADirectoryError, FileExistsError, IsADirectoryError, PermissionError) as exc:
+                raise Rejected("Unsafe or duplicate archive member") from exc
+            dir_fds[full_rel] = child_fd
+            while len(dir_fds) > limit:
+                evicted_key, evicted_fd = next(
+                    (k, v) for k, v in dir_fds.items() if k != full_rel
+                )
+                del dir_fds[evicted_key]
+                os.close(evicted_fd)
+            parent_fd = child_fd
+        return parent_fd
 
     try:
         with open_gzip_tar_reader(archive) as bundle:
@@ -659,7 +691,11 @@ def unpack(download: Path, stage: Path, context: dict, run: dict) -> Path:
             for member in bundle:
                 name = member.name
                 parts = name.split("/")
-                require(member.isfile() and not member.sparse and "\\" not in name
+                require(member.type in (tarfile.REGTYPE, tarfile.AREGTYPE)
+                        and member.sparse is None
+                        and not bundle.pax_headers
+                        and not any(key.startswith("GNU.sparse") for key in member.pax_headers)
+                        and "\\" not in name
                         and parts[:2] == [".lake", "build"] and len(parts) > 2
                         and all(part not in ("", ".", "..") for part in parts)
                         and name not in seen, "Unsafe or duplicate archive member")
@@ -668,6 +704,9 @@ def unpack(download: Path, stage: Path, context: dict, run: dict) -> Path:
                 size += msize
                 require(0 <= msize <= MAX_BYTES and len(seen) <= expected_files
                         and size <= expected_bytes, "Archive exceeds its declared inventory")
+                padded = (msize + 511) & ~511
+                require(member.offset_data == stream.pos and bundle.offset == stream.pos + padded,
+                        "Unsafe or duplicate archive member")
                 mtime = member.mtime
                 require(type(mtime) in (int, float) and 0 <= mtime <= 2 ** 32,
                         "Invalid archive timestamp")
@@ -677,17 +716,22 @@ def unpack(download: Path, stage: Path, context: dict, run: dict) -> Path:
                     dfd = get_dir_fd(rel_dir)
                     try:
                         fd = os.open(fname, open_flags, mode, dir_fd=dfd)
-                    except (FileExistsError, IsADirectoryError) as exc:
+                    except (FileExistsError, IsADirectoryError, NotADirectoryError,
+                            PermissionError) as exc:
                         raise Rejected("Unsafe or duplicate archive member") from exc
                 else:
-                    if rel_dir not in created_dirs:
-                        (stage / rel_dir).mkdir(parents=True, exist_ok=True)
-                        created_dirs.add(rel_dir)
-                    fd = os.open(stage / name, open_flags, mode)
+                    try:
+                        if rel_dir not in created_dirs:
+                            (stage / rel_dir).mkdir(parents=True, exist_ok=True)
+                            created_dirs.add(rel_dir)
+                        fd = os.open(stage / name, open_flags, mode)
+                    except (FileExistsError, IsADirectoryError, NotADirectoryError,
+                            PermissionError) as exc:
+                        raise Rejected("Unsafe or duplicate archive member") from exc
                 try:
                     if msize:
                         _extract_stream_to_fd(stream, fd, msize)
-                        bundle.offset = stream.pos
+                    require(stream.pos == bundle.offset, "Archive framing mismatch")
                     if use_dir_fd and (mode & current_umask):
                         os.fchmod(fd, mode)
                     if not use_dir_fd:
@@ -697,9 +741,12 @@ def unpack(download: Path, stage: Path, context: dict, run: dict) -> Path:
                         os.utime(fd, (mtime, mtime))
                 finally:
                     os.close(fd)
+            require(not bundle.pax_headers, "Unsafe or duplicate archive member")
     finally:
         for fd in dir_fds.values():
             os.close(fd)
+        if root_fd is not None:
+            os.close(root_fd)
     require(len(seen) == expected_files and size == expected_bytes,
             "Archive inventory mismatch")
     return stage / ".lake/build"
