@@ -355,23 +355,39 @@ example :
     (fun _ => (totalDegree_X_le 0).trans (by omega))
     (ComputableInPolyTime.binary_add' ComputableInPolyTime.id' (.const 1)) (.const 0)
 
--- The selected evaluator accepts binary modulus and value queries and agrees at a large prime.
+-- Value and coefficient queries use binary inputs and the same level.
 example :
     let F : MvPolynomial (Fin 1) ℤ := X 0
     let hF : F.totalDegree ≤ 2 := (totalDegree_X_le 0).trans (by decide)
     let C : Controlled (fun _ : ℕ => F) encNat 0 :=
       Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
     let leading := C.criticalCoordinateLeadingValue (d := fun _ => 1) (fun _ => 0) (fun _ => hF)
+    let residue :=
+      C.criticalCoordinateLeadingCoefficientResidue (d := fun _ => 1) (fun _ => 0) (fun _ => hF)
     let P := Polynomial.Bivariate.swap (parametricCoordinatePolynomial (by decide) F hF 0)
     leading ∈ CountingFunction 18 (encPair encNat (encPair encNat encNat)) encNat ∧
-      ∀ t : ℕ, (leading (0, 101, t) : ZMod 101) =
-        P.leadingCoeff.eval₂ (Int.castRingHom (ZMod 101)) (t : ZMod 101) := by
-  intro F hF C leading P
-  refine ⟨C.criticalCoordinateLeadingValue_mem Decoder.nat (fun _ => 0) (fun _ => by decide)
-    (fun _ => hF) (.const 1) (.const 0), ?_⟩
-  intro t
+      residue ∈ CountingFunction 18 (encPair encNat (encPair encNat encNat)) encNat ∧
+      (∀ t : ℕ, (leading (0, 101, t) : ZMod 101) =
+        P.leadingCoeff.eval₂ (Int.castRingHom (ZMod 101)) (t : ZMod 101)) ∧
+      (residue (0, 101, 3) : ZMod 101) = 0 := by
+  intro F hF C leading residue P
   let : Fact (Nat.Prime 101) := ⟨by decide⟩
-  exact C.criticalCoordinateLeadingValue_cast (fun _ => 0) (fun _ => hF) 0 (by decide) t
-    (by decide) (by decide) (by decide) (by decide)
+  refine ⟨C.criticalCoordinateLeadingValue_mem Decoder.nat (fun _ => 0) (fun _ => by decide)
+    (fun _ => hF) (.const 1) (.const 0),
+    C.criticalCoordinateLeadingCoefficientResidue_mem Decoder.nat (fun _ => 0)
+      (fun _ => by decide) (fun _ => hF) (.const 1) (.const 0), ?_, ?_⟩
+  · intro t
+    exact C.criticalCoordinateLeadingValue_cast (fun _ => 0) (fun _ => hF) 0 (by decide) t
+      (by decide) (by decide) (by decide) (by decide)
+  -- The exponent is above the degree bound but below the interpolation cutoff.
+  · rw [C.criticalCoordinateLeadingCoefficientResidue_cast (fun _ => 0) (fun _ => hF) 0
+      (by decide) 3 (by decide) (by decide) (by decide) (by decide) (by decide)]
+    have hdeg : P.leadingCoeff.natDegree < 3 := by
+      rw [← Polynomial.coeff_natDegree]
+      refine (Polynomial.Bivariate.natDegree_coeff_le_natDegree_swap _ _).trans_lt ?_
+      rw [show Polynomial.Bivariate.swap P = parametricCoordinatePolynomial (by decide) F hF 0
+        from Polynomial.Bivariate.swap_swap_apply _, parametricCoordinatePolynomial_natDegree]
+      decide
+    rw [Polynomial.coeff_eq_zero_of_natDegree_lt hdeg, Int.cast_zero]
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
