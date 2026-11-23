@@ -148,7 +148,8 @@ theorem not_breaksPair_expandLabels (y : Fin (compactSize pairs) → Bool) :
     ¬ BreaksPair pairs (expandLabels pairs y) := by
   rintro ⟨i, hi, hj, hk⟩
   simp only [expandLabels_left, expandLabels_right] at hi hj
-  simp [expandLabels_inter, hi, hj] at hk
+  rw [expandLabels_inter, hi, hj] at hk
+  cases hk
 
 /-- Compressed consistency checks the fixed empty set and each rejected component, with
 intersection labels supplied by `expandLabels`. -/
@@ -249,12 +250,24 @@ noncomputable def compactPointLabels (u : U) : Fin (compactSize pairs) → Bool 
     expandLabels pairs (compactPointLabels pairs u) = pointLabels pairs u := by
   funext j
   induction j using Fin.addCases with
-  | left i => simp [expandLabels, compactPointLabels, left]
+  | left i =>
+    change expandLabels pairs (compactPointLabels pairs u) (left pairs i) =
+      pointLabels pairs u (left pairs i)
+    simp only [expandLabels_left, compactPointLabels, Fin.append_left]
   | right j =>
     induction j using Fin.addCases with
-    | left i => simp [expandLabels, compactPointLabels, right]
+    | left i =>
+      change expandLabels pairs (compactPointLabels pairs u) (right pairs i) =
+        pointLabels pairs u (right pairs i)
+      simp only [expandLabels_right, compactPointLabels, Fin.append_right]
     | right i =>
-      simp [expandLabels, compactPointLabels, pointLabels, sets, left, right]
+      change expandLabels pairs (compactPointLabels pairs u) (inter pairs i) =
+        pointLabels pairs u (inter pairs i)
+      rw [expandLabels_inter]
+      apply Bool.eq_iff_iff.mpr
+      simp only [compactPointLabels, Fin.append_left, Fin.append_right, pointLabels,
+        sets_left, sets_right, sets_inter, Bool.and_eq_true, decide_eq_true_eq,
+        Set.mem_inter_iff]
 
 /-- The extended point certificate labels `i` by `true` if and only if `u ∈ sets pairs i`. -/
 @[simp] theorem label_pointLabels (u : U) (i : Option (Fin (size pairs))) :

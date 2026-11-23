@@ -98,24 +98,58 @@ example : ∃ a, ∃ g : BooleanFunction (2 + a),
 -- Compressing the labels keeps the empty-carrier contradiction even when there are no pairs.
 example : compactInvalid ([] : List (Set (Fin 0) × Set (Fin 0)))
     (fun _ : Fin 0 => ∅) Fin.elim0 Fin.elim0 := by
-  decide
+  refine Or.inl (Or.inr (Or.inl ⟨none, ?_, rfl⟩))
+  ext i
+  exact i.elim0
 
 example : ¬ compactInvalid ([] : List (Set Bool × Set Bool))
     (fun _ : Fin 0 => ∅) Fin.elim0 Fin.elim0 := by
-  decide
+  rintro (h | ⟨i, _, _⟩ | ⟨i, _, _⟩)
+  · rcases h with ⟨i, _, hi⟩ | ⟨i, hu, _⟩ | ⟨i, _, _⟩
+    · cases i with
+      | none => cases hi
+      | some i => exact i.elim0
+    · cases i with
+      | none =>
+        exact Set.empty_ne_univ (by simpa only [sets, Set.union_empty] using hu)
+      | some i => exact i.elim0
+    · exact i.elim0
+  · exact i.elim0
+  · exact i.elim0
 
 -- Duplicate component sets cannot be assigned contradictory labels.
 example : compactInvalid ([({false}, {false})] : List (Set Bool × Set Bool))
     (fun _ : Fin 0 => ∅) Fin.elim0 ![true, false] := by
-  decide
+  refine Or.inr (Or.inr ⟨0, rfl, Or.inl ⟨some (left _ 0), ?_, rfl⟩⟩)
+  simp
 
 -- For a complementary pair with empty intersection, precisely one component must be accepted.
 -- Both false violate the covering condition; both true force acceptance of the empty set.
 example (y : Fin 2 → Bool) :
     compactInvalid ([({false}, {true})] : List (Set Bool × Set Bool))
       (fun _ : Fin 0 => ∅) Fin.elim0 y ↔ y 0 = y 1 := by
-  revert y
-  decide
+  have hpoint (u : Bool) (h₀ : y 0 = !u) (h₁ : y 1 = u) :
+      ¬ compactInvalid ([({false}, {true})] : List (Set Bool × Set Bool))
+        (fun _ : Fin 0 => ∅) Fin.elim0 y := by
+    have hy : y = compactPointLabels ([({false}, {true})] : List (Set Bool × Set Bool)) u := by
+      funext i
+      fin_cases i
+      · cases u <;> simpa [compactPointLabels, pointLabels, sets, left] using h₀
+      · cases u <;> simpa [compactPointLabels, pointLabels, sets, right] using h₁
+    rw [← invalid_expandLabels_iff, hy, expandLabels_compactPointLabels]
+    exact not_invalid_pointLabels _ _ _ u (fun i => i.elim0)
+  cases h₀ : y 0 <;> cases h₁ : y 1
+  · refine iff_of_true ?_ rfl
+    refine Or.inr (Or.inl ⟨0, h₀, Or.inr (Or.inl ⟨some (right _ 0), ?_, ?_⟩)⟩)
+    · ext b
+      cases b <;> simp
+    · simpa only [label, expandLabels_right] using h₁
+  · exact iff_of_false (hpoint true h₀ h₁) (by decide)
+  · exact iff_of_false (hpoint false h₀ h₁) (by decide)
+  · refine iff_of_true ?_ rfl
+    refine Or.inl (Or.inl ⟨some (inter _ 0), ?_, ?_⟩)
+    · simp
+    · simp [label, expandLabels_inter, h₀, h₁]
 
 example : econondeterministicAndComplexity (fun x : BitString 2 => x 0 ^^ x 1) ≤ 1 := by
   exact econondeterministicAndComplexity_le_cost xorVerifier (by decide) xorCircuit xor_computes
