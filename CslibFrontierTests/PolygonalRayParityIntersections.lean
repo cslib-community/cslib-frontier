@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersection
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
 import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 import CslibFrontier.Foundations.Geometry.SegmentSign
+import Mathlib.Analysis.Convex.PathConnected
 import Mathlib.Logic.Equiv.Fin.Rotate
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
@@ -571,6 +572,41 @@ example :
     Route.exists_rayParity_isolating_loop points ⟨2, 3⟩ (ε := 1) (by norm_num)
   refine ⟨p, hclosed, hcenter, houtside _ (by simp [points]) ?_,
     houtside _ (by simp [points]) ?_⟩
+  all_goals
+    intro h
+    have hre := congrArg Complex.re h
+    norm_num at hre
+
+-- A closed excursion based away from the observations gives the specified parity
+-- and avoids all three marked points, including the one whose bit it flips.
+example :
+    ∃ p : Route, p.start = 0 ∧ p.finish = 0 ∧
+      (⟨2, 3⟩ : ℂ) ∉ p.support ∧ (⟨1, 3⟩ : ℂ) ∉ p.support ∧
+      (⟨3, 3⟩ : ℂ) ∉ p.support ∧
+      p.rayParity 1 ⟨2, 3⟩ = true ∧ p.rayParity 1 ⟨1, 3⟩ = false ∧
+      p.rayParity 1 ⟨3, 3⟩ = false := by
+  classical
+  let points : Finset ℂ := {⟨1, 3⟩, ⟨3, 3⟩}
+  have hne₀ : ∀ z ∈ points, (0 : ℂ) ≠ z := by
+    intro z hz heq
+    have hre := congrArg Complex.im heq
+    simp only [points, Finset.mem_insert, Finset.mem_singleton] at hz
+    rcases hz with rfl | rfl <;> norm_num at hre
+  have ha : (0 : ℂ) ∉ points := fun h => hne₀ _ h rfl
+  have hac : (0 : ℂ) ≠ ⟨2, 3⟩ := by
+    intro h
+    have hre := congrArg Complex.im h
+    norm_num at hre
+  have hconn : IsPathConnected (Set.univ : Set ℂ) :=
+    (convex_univ : Convex ℝ (Set.univ : Set ℂ)).isPathConnected ⟨0, Set.mem_univ 0⟩
+  obtain ⟨p, hstart, hfinish, hs, hodd, heven⟩ :=
+    Route.exists_rayParity_isolating_excursion isOpen_univ hconn points
+      (Set.mem_univ 0) (Set.mem_univ ⟨2, 3⟩) ha hac
+  have avoids (z : ℂ) (hz : z ∈ insert ⟨2, 3⟩ points) : z ∉ p.support :=
+    fun h => (hs h).2 hz
+  refine ⟨p, hstart, hfinish, avoids _ (by simp), avoids _ (by simp [points]),
+    avoids _ (by simp [points]), hodd, heven _ (by simp [points]) ?_,
+    heven _ (by simp [points]) ?_⟩
   all_goals
     intro h
     have hre := congrArg Complex.re h
