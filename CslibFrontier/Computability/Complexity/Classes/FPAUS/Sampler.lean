@@ -537,8 +537,7 @@ theorem eval_walk_le (R : SelfReducible enc W) (A : α → ℕ → ℕ → ProbC
                   (levelFactor m ^ n * invEstimate (cond c e₁ e₀))
                 = levelFactor m ^ n * ((weight m e e₀ e₁ c : ℝ) / total m e e₀ e₁ *
                     invEstimate (cond c e₁ e₀)) := by ring
-              _ ≤ levelFactor m ^ n * (levelFactor m * invEstimate e) :=
-                  mul_le_mul_of_nonneg_left h1 h2
+              _ ≤ levelFactor m ^ n * (levelFactor m * invEstimate e) := by gcongr
               _ = levelFactor m ^ (n + 1) * invEstimate e := by ring
 
 /-- The counter `A` is **accurate** for relative error `1 / p` and confidence `t` when, on every
@@ -639,11 +638,9 @@ private theorem fit_of_approx {m p N N₀ N₁ : ℕ} {e e₀ e₁ : ℕ × ℕ}
         = ((m : ℝ) - 1) * e.2 * (e₀.1 * e₁.2 + e₁.1 * e₀.2) := by ring
       _ ≤ ((m : ℝ) - 1) * e.2 *
             (N₀ * (1 + 1 / p) * e₀.2 * e₁.2 + N₁ * (1 + 1 / p) * e₁.2 * e₀.2) :=
-          mul_le_mul_of_nonneg_left (add_le_add (mul_le_mul_of_nonneg_right hu₀ hb₁)
-            (mul_le_mul_of_nonneg_right hu₁ hb₀)) (mul_nonneg hm1 hb)
+          by gcongr
       _ = ((m : ℝ) - 1) * (1 + 1 / p) * (N * e.2 * e₀.2 * e₁.2) := by rw [hN']; ring
-      _ ≤ m * (1 - 1 / p) * (N * e.2 * e₀.2 * e₁.2) :=
-          mul_le_mul_of_nonneg_right hkey (by positivity)
+      _ ≤ m * (1 - 1 / p) * (N * e.2 * e₀.2 * e₁.2) := by gcongr
       _ = m * e₀.2 * e₁.2 * (N * (1 - 1 / p) * e.2) := by ring
       _ ≤ m * e₀.2 * e₁.2 * e.1 := mul_le_mul_of_nonneg_left hl (by positivity)
       _ = (m : ℝ) * e.1 * e₀.2 * e₁.2 := by ring

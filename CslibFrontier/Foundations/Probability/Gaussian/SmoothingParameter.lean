@@ -403,8 +403,7 @@ private theorem exists_pos_lt_dualMass [Nontrivial E] (ε : ℝ) :
         linarith
       have hkn2 : ‖((emb k).val : E)‖ ^ 2 ≤ ((N : ℝ) * ‖(w₀ : E)‖) ^ 2 := by
         rw [hnormk]
-        exact pow_le_pow_left₀ (by positivity)
-          (mul_le_mul_of_nonneg_right hkn hnorm₀.le) 2
+        gcongr
       have h3 : Real.pi * ‖((emb k).val : E)‖ ^ 2 * s ^ 2 ≤
           Real.pi * ((N : ℝ) * ‖(w₀ : E)‖) ^ 2 * s ^ 2 := by
         gcongr

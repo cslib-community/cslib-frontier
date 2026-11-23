@@ -13,6 +13,7 @@ public import Mathlib.Data.Finset.Card
 public import Mathlib.Data.Finset.Max
 public import Mathlib.Data.Fintype.Card
 public import Mathlib.Data.List.Nodup
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Algebra.BigOperators.Group.Finset.Sigma
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
@@ -823,10 +824,8 @@ private theorem extracted_propagates {F : Finset P} (hF : F.card ≤ t)
   · -- Extracted in the final round `r = t`: `c₀` has `t + 1 > F.card` distinct signers.
     have hrt_eq : r = t := by omega
     subst r
-    have hcard_lt : F.card < c₀.signers.toFinset.card := by
-      rw [List.toFinset_card_of_nodup hnd]
-      omega
-    obtain ⟨k, hk_mem, hkF⟩ := Finset.exists_mem_notMem_of_card_lt_card hcard_lt
+    obtain ⟨k, hk_mem, hkF⟩ : ∃ k ∈ c₀.signers.toFinset, k ∉ F := by
+      finset_card [List.toFinset_card_of_nodup hnd]
     obtain ⟨r', -, dst', c', hc', hval, -⟩ :=
       hunf.exists_send_of_mem_signers (wellSigned_dolevStrong dealer v₀ t) t src p c₀ hc₀ k
         (List.mem_toFinset.1 hk_mem) hkF
@@ -1083,8 +1082,7 @@ theorem dolevStrong_correctMessagesSent_le (F : Finset P)
           Finset.sum_le_sum fun i _ =>
             dolevStrong_sum_send_length_le_two dealer v₀ t F adv input R j i
       _ = 2 * (Fintype.card P - 1) := by
-          rw [Finset.sum_const, Finset.card_erase_of_mem (Finset.mem_univ j), Finset.card_univ]
-          exact Nat.mul_comm _ 2
+          rw [Finset.sum_const, Nat.nsmul_eq_mul]; finset_card
   calc ∑ j ∈ Finset.univ \ F, ∑ r ∈ Finset.range R, ∑ i ∈ Finset.univ,
         ((dolevStrong P V dealer v₀ t).send r j
           ((dolevStrong P V dealer v₀ t).state F adv input r j) i).length
@@ -1095,9 +1093,8 @@ theorem dolevStrong_correctMessagesSent_le (F : Finset P)
     _ ≤ ∑ _j ∈ Finset.univ \ F, 2 * (Fintype.card P - 1) :=
         Finset.sum_le_sum fun j _ => hinner j
     _ = 2 * (Fintype.card P - F.card) * (Fintype.card P - 1) := by
-        rw [Finset.sum_const]
-        change (Finset.univ \ F).card * (2 * (Fintype.card P - 1)) = _
-        rw [Finset.card_sdiff_of_subset (Finset.subset_univ F), Finset.card_univ,
+        rw [Finset.sum_const, Nat.nsmul_eq_mul,
+          show (Finset.univ \ F).card = Fintype.card P - F.card by finset_card,
           ← Nat.mul_assoc, Nat.mul_comm _ 2]
 
 end DolevStrongProofs

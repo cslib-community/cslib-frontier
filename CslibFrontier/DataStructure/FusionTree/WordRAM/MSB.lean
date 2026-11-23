@@ -658,8 +658,7 @@ private theorem compressionMultiplier_lt {s : ℕ} (hs : 0 < s) :
   apply Cslib.DataStructure.FusionTree.positionMask_lt _ (compressionShift_injective hs)
   intro i
   unfold compressionShift
-  have hh : s * s - (s - 1) - i.val * s ≤ s * s :=
-    (Nat.sub_le _ _).trans (Nat.sub_le _ _)
+  have hh : s * s - (s - 1) - i.val * s ≤ s * s := by omega
   omega
 
 private theorem clusterMarkers_lt {s : ℕ} (hs : 0 < s) (x : ℕ) :

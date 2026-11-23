@@ -22,6 +22,7 @@ nonempty lists of blocks whose range is a prefix-free set (`InformationTheory.Is
   whose range is prefix-free.
 * `Cslib.Crypto.PRF.stopBitEncode`: Method 2 stop-bit encoding (§6.6.1, p. 236), appending `false`
   to every block except the last and `true` to the last block.
+* `Cslib.Crypto.PRF.separatingBlock`: a common extension block for two queries.
 
 ## Main results
 
@@ -32,6 +33,8 @@ nonempty lists of blocks whose range is a prefix-free set (`InformationTheory.Is
 * `Cslib.Crypto.PRF.length_stopBitEncode`: `stopBitEncode` preserves the number of blocks.
 * `Cslib.Crypto.PRF.isPrefixFreeEncoding_stopBitEncode`: `stopBitEncode` is a prefix-free encoding
   on nonempty lists of `n`-bit blocks.
+* `Cslib.Crypto.PRF.separatingBlock_prefix_incomparable`: the common extension makes two distinct
+  queries prefix-incomparable.
 
 ## Differences from the book
 
@@ -136,5 +139,57 @@ theorem isPrefixFreeEncoding_stopBitEncode (n : ℕ) :
   IsPrefixFreeEncoding.iff_forall_prefix.mpr
     ⟨fun m => stopBitEncode_ne_nil m.2,
       fun m₁ _ hp => Subtype.ext (eq_of_stopBitEncode_prefix m₁.2 hp)⟩
+
+/-- Choose a common block to append to two queries. At the end of the shorter query, the
+chosen block differs from the block at that position in the longer query. The two candidate
+blocks are supplied by the caller. This is a preparation step for [BonehShoup2023], v0.6,
+Theorem 7.3 (printed pp. 258–259), using one extra block even for incomparable queries. -/
+@[expose] def separatingBlock {X : Type*} [BEq X] (a b : X) (u v : List X) : X :=
+  let next := if u.length ≤ v.length then v.getD u.length a else u.getD v.length a
+  if next == a then b else a
+
+private theorem not_prefix_append_separatingBlock_of_length_le {X : Type*} [BEq X]
+    [LawfulBEq X] {a b : X} (hab : a ≠ b) {u v : List X} (hne : u ≠ v)
+    (hlen : u.length ≤ v.length) :
+    ¬ u ++ [separatingBlock a b u v] <+: v ++ [separatingBlock a b u v] := by
+  intro hp
+  rcases hlen.eq_or_lt with heq | hlt
+  · have hs := hp.eq_of_length (by simp only [List.length_append, heq])
+    exact hne (List.append_cancel_right hs)
+  · have hmem := List.prefix_iff_getElem?.mp hp u.length (by simp)
+    have hnext : v[u.length] = separatingBlock a b u v := by
+      apply Option.some.inj
+      simpa only [List.getElem?_append_left hlt, List.getElem_append_right (le_refl u.length),
+        Nat.sub_self, List.getElem_cons_zero, List.getElem?_eq_getElem hlt] using hmem
+    have hget : v.getD u.length a = v[u.length] := by
+      rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt, Option.getD_some]
+    rw [separatingBlock, ite_eq_left hlen, hget] at hnext
+    split_ifs at hnext with h
+    · exact hab ((beq_iff_eq.mp h).symm.trans hnext)
+    · exact h (beq_iff_eq.mpr hnext)
+
+/-- Appending the chosen common block makes two distinct queries prefix-incomparable. -/
+theorem separatingBlock_prefix_incomparable {X : Type*} [BEq X] [LawfulBEq X]
+    {a b : X} (hab : a ≠ b) {u v : List X} (hne : u ≠ v) :
+    let c := separatingBlock a b u v
+    (¬ u ++ [c] <+: v ++ [c]) ∧ (¬ v ++ [c] <+: u ++ [c]) := by
+  dsimp only
+  rcases lt_trichotomy u.length v.length with h | h | h
+  · refine ⟨not_prefix_append_separatingBlock_of_length_le hab hne h.le, ?_⟩
+    intro hp
+    have hle := hp.length_le
+    simp only [List.length_append, List.length_singleton] at hle
+    omega
+  · refine ⟨not_prefix_append_separatingBlock_of_length_le hab hne h.le, ?_⟩
+    intro hp
+    have hs := hp.eq_of_length (by simp only [List.length_append, h])
+    exact hne (List.append_cancel_right hs).symm
+  · have hc : separatingBlock a b u v = separatingBlock a b v u := by
+      simp only [separatingBlock, ite_eq_right (Nat.not_le_of_gt h), ite_eq_left h.le]
+    refine ⟨?_, hc ▸ not_prefix_append_separatingBlock_of_length_le hab hne.symm h.le⟩
+    intro hp
+    have hle := hp.length_le
+    simp only [List.length_append, List.length_singleton] at hle
+    omega
 
 end Cslib.Crypto.PRF

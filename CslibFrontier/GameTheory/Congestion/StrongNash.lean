@@ -99,9 +99,6 @@ private def coalitionLoad (A : Finset ι) (t : ∀ i, S i) (e : E) : ℕ :=
 private def coalitionPotential [Fintype E] (A : Finset ι) (t : ∀ i, S i) : ℝ :=
   ∑ e, ∑ n ∈ Finset.range (C.coalitionLoad A t e), C.latency e (n + 1)
 
-private theorem coalitionLoad_empty (t : ∀ i, S i) (e : E) : C.coalitionLoad ∅ t e = 0 := by
-  rw [coalitionLoad, Finset.filter_empty, Finset.card_empty]
-
 variable [DecidableEq ι]
 
 /-- The coalition's load splits off the contribution of a member `i ∈ A`. -/
@@ -174,8 +171,8 @@ private theorem sum_cost_le_coalitionPotential_of_isStrongEquilibrium [Fintype E
   | H A ih =>
     rcases A.eq_empty_or_nonempty with rfl | hA
     · rw [Finset.sum_empty, coalitionPotential]
-      simp only [coalitionLoad_empty, Finset.range_zero, Finset.sum_empty, Finset.sum_const_zero,
-        le_refl]
+      simp only [coalitionLoad, Finset.filter_empty, Finset.card_empty, Finset.range_zero,
+        Finset.sum_empty, Finset.sum_const_zero, le_refl]
     · obtain ⟨i, hi, hle⟩ := hs.exists_cost_le hA t
       have hrest := ih (A.erase i) (Finset.erase_ssubset hi)
       rw [← Finset.sum_erase_add _ _ hi, C.coalitionPotential_eq hi t]
