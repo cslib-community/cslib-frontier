@@ -337,3 +337,6 @@ The [module census script](data/census.py) can enumerate every tracked Lean sour
 | `mechanism-bayes-nash` | [Bayes–Nash equilibrium, revenue equivalence and the first-price auction](algorithms-and-memory/mechanism-design.md) | mechanism-design |
 | `social-welfare-function` | [Social welfare functions on strict rankings and Arrow's theorem](algorithms-and-memory/mechanism-design.md) | social-choice |
 | `facility-location-mechanism` | [Randomized facility-location mechanisms, strategyproofness, and median optimality](algorithms-and-memory/mechanism-design.md) | facility-location |
+| `cooperative-tu-game` | [Transferable-utility cost-sharing and surplus games, Bondareva–Shapley cores, and Shapley value](algorithms-and-memory/cooperative-games.md) | cooperative-games |
+| `moulin-cost-sharing` | [Cross-monotonic cost-sharing schemes, Moulin's group-strategyproof mechanism, and submodular water-filling](algorithms-and-memory/cooperative-games.md) | mechanism-design |
+| `nash-bargaining` | [Two-player compact convex Nash bargaining problems and axiomatic Nash product solution](algorithms-and-memory/cooperative-games.md) | cooperative-games |

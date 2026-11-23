@@ -24,6 +24,7 @@ The survey baseline is `13e6a31951bf1c89a1a6258c44f9444aecbbefd8`. Definitions a
   - [Shortest paths, traversals, Euler circuits and arborescences](graph-paths-and-traversal.md)
   - [Sorting, selection and recurrences](sorting-and-recurrences.md)
 - [Mechanism design](mechanism-design.md): single-parameter mechanisms, Myerson's Lemma, Vickrey and knapsack auctions, VCG, Myerson's optimal auction, Bayes–Nash equilibrium, revenue equivalence and the first-price auction; incentive properties only, with no running time charged. The same page covers social welfare functions and Arrow's impossibility theorem.
+- [Cooperative games, cost sharing and Nash bargaining](cooperative-games.md): TU cost-sharing and surplus games, Bondareva–Shapley LP characterizations of exact and approximate cores, linear exchange economies, cross-monotonic schemes and Moulin's group-strategyproof mechanism, primal-dual water-filling on submodular games, Shapley's uniqueness theorem, and two-player Nash bargaining.
 
 <!-- Maintenance: keep the "Representative algorithm endpoints" entry above generic. To add an algorithm, add a section to the matching topic page where its topic belongs; do not append topics to this entry, because concurrent appends to one line conflict in the merge queue. A new topic page gets one line in the sorted list above. -->
 

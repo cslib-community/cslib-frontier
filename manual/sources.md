@@ -1362,6 +1362,11 @@ Piotr Indyk, Rajeev Motwani. “Approximate Nearest Neighbors: Towards Removing 
 
 Sandy Irani. "Two Results on the List Update Problem." *Information Processing Letters* 38(6), 301–306, 1991. https://doi.org/10.1016/0020-0190(91)90086-W . Crossref metadata checked on 2026-11-07; the full text was not inspected in this pass. The manual uses it only as the place where secondary sources say the deterministic `2n/(n+1)` list-update lower bound of Karp and Raghavan is reported.
 
+<a id="jainmahdian07"></a>
+## jainmahdian07
+
+Kamal Jain and Mohammad Mahdian. "Cost Sharing." Chapter 15 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 385–410. https://doi.org/10.1017/CBO9780511800481.017 . Checked firsthand on 2026-11-23 against the chapter text (pp. 385–410): Section 15.1 (pp. 385–386: TU cost-sharing games with `c(∅) = 0`, Definition 15.1 cooperative facility location game, and Example 15.2), Section 15.2 (pp. 386–391: Definition 15.3 core, Example 15.4, LPs `(15.1)`–`(15.2)`, Definition 15.5 balanced weights, Theorem 15.6 Bondareva–Shapley theorem, Definition 15.7 `γ`-core with `γ · c(A) ≤ ∑ α_j ≤ c(A)`, Theorem 15.8 `γ`-Bondareva–Shapley theorem, Corollary 15.9 LP integrality gap, and Proposition 15.10 dual facility-location LP `(15.4)`), Section 15.3 (pp. 391–394: NPT, VP, CS, `γ`-budget balance, group-strategyproofness, Definition 15.12 cost-sharing scheme, Definition 15.13 cross-monotonicity, Proposition 15.14, Figure 15.2 Moulin's mechanism `M_ξ`, Proposition 15.15 largest willing coalition and pruning-order independence, and Theorem 15.16 Moulin 1999), Section 15.4.1 (pp. 396–397: Definition 15.17 submodular cost-sharing game, Lemma 15.18 tight-set uncrossing, Corollary 15.19 maximal tight set, Figure 15.3 `SubmodularCostShare`, and Theorem 15.20), Section 15.6 (pp. 402–405: Section 15.6.1 Shapley value formula, Example 15.24 `(23/6, 11/6, 7/3)` outside the core of Example 15.2, Definition 15.25 Anonymity/Dummy/Additivity where Efficiency is implicit and Dummy prints `S ⊂ A \ {i}` for `S ⊆ A \ {i}`, Theorem 15.26 Shapley's uniqueness theorem, Section 15.6.3 2-player bargaining, Definition 15.27 weak Pareto optimality / symmetry / scale independence / IIA combined with translation normalization to `d = (0, 0)`, and Theorem 15.28 Nash's bargaining theorem), and Section 15.8 (p. 410: Exercises 15.1 and 15.2). Cited by `CslibFrontier/GameTheory/Cooperative/{Basic,Core,MoulinCostSharing,ShapleyValue}.lean`.
+
 <a id="jansonluczakrucinski2000"></a>
 ## jansonluczakrucinski2000
 
@@ -2410,6 +2415,11 @@ Mechthild Stoer and Frank Wagner. "A Simple Min-Cut Algorithm." *Journal of the 
 ## sudantrevisanvadhan01
 
 Madhu Sudan, Luca Trevisan and Salil Vadhan. *Pseudorandom Generators without the XOR Lemma*. Journal of Computer and System Sciences 62(2), 236–266, 2001. DOI: [10.1006/jcss.2000.1730](https://doi.org/10.1006/jcss.2000.1730). Publisher metadata and abstract checked by the coordinated source pass on 2026-11-02; the proof-route attribution comes from the pinned Lean module.
+
+<a id="tardosvazirani07"></a>
+## tardosvazirani07
+
+Éva Tardos and Vijay V. Vazirani. "Basic Solution Concepts and Computational Issues." Chapter 1 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 3–28. https://doi.org/10.1017/CBO9780511800481.003 . Checked firsthand on 2026-11-23 against Section 1.7.2 (pp. 21–22: transferable-utility cooperative games, core allocations, and Example 1.14 defining the Shapley value as the expected marginal contribution under a uniformly random agent ordering). Cited by `CslibFrontier/GameTheory/Cooperative/{Basic,ShapleyValue}.lean`.
 
 <a id="tardoswexler07"></a>
 ## tardoswexler07
