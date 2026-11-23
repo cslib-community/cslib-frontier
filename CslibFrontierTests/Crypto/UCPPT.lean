@@ -286,6 +286,7 @@ private noncomputable def coinStoreCert :
         ((coinStore.onBackdoor (unitPort.queryDecoder.decode p.1)).run p.2).eval
       rw [coinStore_onBackdoor_eval, PMF.pure_map]
       rfl
+  normalize := ComputableInPolyTime.id'
   growth _ := 1
   growth_poly := PolyBounded.const 1
   preserve_onInput req s result hr := by

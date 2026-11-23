@@ -141,9 +141,9 @@ enc_structure encEnvParam : EnvParam where
 
 /-- Library construction (no cited definition): injective binary presentation of a type `α` with a
 total left-inverse decoder. Unlike `Turing.MultiTapeTM.Decoder`, this omits a standalone
-`ComputableInDegree` obligation on `decode` because decoding and re-encoding costs are certified
-directly inside `PPTCertificate.handle` (and `IdealFunctionality.PPTCertificate.onInput` /
-`onBackdoor`). -/
+`ComputableInDegree` obligation on `decode`; instead `PPTCertificate.normalize` and
+`IdealFunctionality.PPTCertificate.normalize` certify the combined word map `enc ∘ decode` in
+polynomial time, matching `PPTCertificate.handle` (and `onInput` / `onBackdoor`). -/
 structure WordCodec (α : Type) : Type where
   /-- Injectively encode a value as a bit word. -/
   enc : α ↪ List Bool
@@ -179,6 +179,9 @@ certificate for a UC machine family `M` in this library's word model.
 * `init` certifies `(M p.secParam p.corrupted).init` under `encPPTParam n` so it shares the
   parameter encoding with `handle`; the initialization program ignores `p.replyBound`.
 * `handle` certifies `wordHandle` as a uniform strict oracle-PPT program on `encHandlerCall`.
+* `normalize` certifies state-word renormalization `enc ∘ decode` in polynomial time (analogous to
+  `WordInterface.computable_replyNormalize`), needed so composite routing/composition branches
+  can preserve untouched components' behavior on off-image state words.
 * `growth`, `growth_poly`, and `preserve` bound additive encoded-state growth per activation by a
   polynomial in the encoded parameter and request word alone (independent of the current state).
   No state-independent reply bound is imposed: replies may depend on the current state and are
@@ -198,6 +201,16 @@ structure PPTCertificate {n : ℕ} {ιI ιE : Type} {I : ιI → Type} {E : ιE 
     (encHandlerCall (encPPTParam n) (encFinite iE.Channel) encBits)
     (encPair encBits encBits)
     (fun x => wordHandle M iI iE codec x.1 x.2.1 x.2.2)
+  /-- Decoding and re-encoding an arbitrary state word is uniformly computable in polynomial time
+  (`enc ∘ decode`). A composite branch that leaves a component untouched still outputs
+  `(codec p.secParam p.corrupted).enc ((codec p.secParam p.corrupted).decode w)` on off-image
+  state words, so this normalization cost is needed for closure under routing and composition
+  (analogous to `WordInterface.computable_replyNormalize`). -/
+  normalize : ComputableInPolyTime
+    (fun x : PPTParam n × List Bool =>
+      (codec x.1.secParam x.1.corrupted).enc
+        ((codec x.1.secParam x.1.corrupted).decode x.2))
+    (encPair (encPPTParam n) encBits) encBits
   /-- Additive encoded-state growth bound per activation, depending only on the parameter and
   request word (not on the current state). -/
   growth : PPTParam n → List Bool → ℕ
@@ -308,6 +321,12 @@ structure IdealFunctionality.PPTCertificate {n : ℕ} {In Out BackQ BackR : Type
   uniform strict PPT. -/
   onBackdoor : IsPPTOn (encPair encBits encBits) (encPair encBits encBits)
     (IdealFunctionality.wordStep back stateCodec F.onBackdoor)
+  /-- Decoding and re-encoding an arbitrary state word is computable in polynomial time
+  (`stateCodec.enc ∘ stateCodec.decode`), needed for closure under hybrid wrapping and protocol
+  composition (analogous to `WordInterface.computable_replyNormalize`). -/
+  normalize : ComputableInPolyTime
+    (fun w : List Bool => stateCodec.enc (stateCodec.decode w))
+    encBits encBits
   /-- Additive encoded-state growth bound per activation, depending only on the request word. -/
   growth : List Bool → ℕ
   /-- `growth` is polynomially bounded in the request word length. -/
@@ -481,6 +500,8 @@ theorem Machine.isPPTFamily_id {n : ℕ} {ι : Type} {E : ι → Type} (I : Word
       change IsPPTOn (encPPTParam n) encBits (fun _ => pure [])
       exact (ComputableInPolyTime.const (encIn := encPPTParam n) (encOut := encBits) []).isPPTOn
     handle := ?_
+    normalize := ComputableInPolyTime.const (encIn := encPair (encPPTParam n) encBits)
+      (encOut := encBits) []
     growth := fun _ _ => 0
     growth_poly := PolyBounded.const 0
     preserve := ?_ }⟩
@@ -553,6 +574,7 @@ theorem IdealFunctionality.IsPPT.toProtocol {n : ℕ} {In Out BackQ BackR : Type
     codec := codec
     init := ?_
     handle := ?_
+    normalize := cert.normalize.comp (ComputableInPolyTime.snd (encPPTParam n) encBits)
     growth := fun _ w => cert.growth w
     growth_poly := ?_
     preserve := ?_ }⟩
