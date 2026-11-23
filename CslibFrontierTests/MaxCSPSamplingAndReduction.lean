@@ -299,21 +299,23 @@ theorem nonvacuous_sample_size_eta :
   linarith
 
 /-- Witness recovery (`optimizeByBinarySearch` / `optimizeByBinarySearchQ`) finds both `optimum = 3`
-and an assignment scoring `3` on `fourClauseInst` within `⌊log₂ 4⌋ + 1 + 2 = 5` SAT queries. -/
+and a 2-bit assignment scoring `3` on `fourClauseInst` within `⌊log₂ 4⌋ + 1 + 2 = 5` SAT queries. -/
 theorem fourClause_optimize_witness :
     (optimizeByBinarySearch BruteForce.search fourClauseInst).optValue = 3 ∧
-      fourClauseInst.score (optimizeByBinarySearch BruteForce.search fourClauseInst).assignment =
-        3 ∧
+      (optimizeByBinarySearch BruteForce.search fourClauseInst).assignmentBits.length = 2 ∧
+      fourClauseInst.score
+        (BitString.ofList fourClauseInst.numVars
+          (optimizeByBinarySearch BruteForce.search fourClauseInst).assignmentBits) = 3 ∧
       (optimizeByBinarySearchQ fourClauseInst).eval bruteOracle =
         optimizeByBinarySearch BruteForce.search fourClauseInst ∧
       (optimizeByBinarySearchQ fourClauseInst).countQueries bruteOracle ≤ 5 := by
-  obtain ⟨hopt, hscore⟩ :=
+  obtain ⟨hopt, hlen, hscore⟩ :=
     optimizeByBinarySearch_spec (k := 3) le_rfl bruteForce_spec fourClauseInst
   have h3 : fourClauseInst.optimum = 3 := by decide
   have ht := countQueries_optimizeByBinarySearchQ_le bruteOracle fourClauseInst
   have h5 : Nat.log 2 fourClauseInst.clauses.length + 1 + fourClauseInst.numVars = 5 := by decide
-  exact ⟨hopt.trans h3, hscore.trans h3, eval_optimizeByBinarySearchQ bruteOracle fourClauseInst,
-    ht.trans_eq h5⟩
+  exact ⟨hopt.trans h3, hlen, hscore.trans h3,
+    eval_optimizeByBinarySearchQ bruteOracle fourClauseInst, ht.trans_eq h5⟩
 
 /-- End-to-end subsampled witness-recovery guarantee under the `η = 1 / 2` sample-size bound on
 `fourClauseInst` (`n = 2`, `w = 2`, `δ = 1 / 2`, `s = 8`: `4 * log 2 < 2.8 ≤ 4`). -/
@@ -324,8 +326,9 @@ theorem fourClause_sample_optimize_eta_spec :
       ((fourClauseInst.samplePMF (by decide) 8).toOuterMeasure
         {ω | (fourClauseInst.optimum : ℝ) -
               (fourClauseInst.score
-                (optimizeByBinarySearch BruteForce.search (fourClauseInst.sample ω)).assignment :
-                  ℝ) ≤
+                (BitString.ofList fourClauseInst.numVars
+                  (optimizeByBinarySearch BruteForce.search
+                    (fourClauseInst.sample ω)).assignmentBits) : ℝ) ≤
               2 * (1 / 2 : ℝ) * (fourClauseInst.clauses.length : ℝ) ∧
           |(fourClauseInst.clauses.length : ℝ) / (8 : ℝ) *
               ((optimizeByBinarySearch BruteForce.search (fourClauseInst.sample ω)).optValue : ℝ) -
@@ -374,7 +377,7 @@ theorem native_optimizeWith_fourClause :
     (optimizeWith BruteForce.search fourClauseInst).optValue = 3 ∧
       (optimizeWith BruteForce.search fourClauseInst).assignmentBits.length = 2 ∧
       fourClauseInst.score
-        (fourClauseInst.assignmentOfBits
+        (BitString.ofList fourClauseInst.numVars
           (optimizeWith BruteForce.search fourClauseInst).assignmentBits) = 3 := by
   obtain ⟨hopt, hlen, hsc⟩ := optimizeWith_spec (k := 3) le_rfl bruteForce_spec fourClauseInst
   have h3 : fourClauseInst.optimum = 3 := by decide
@@ -384,9 +387,8 @@ theorem native_maxCSPOptimize_xorCycle :
     (maxCSPOptimizeBounded 2 xor2Sem BruteForce.search xorCycleCSP).optValue = 2 ∧
       (maxCSPOptimizeBounded 2 xor2Sem BruteForce.search xorCycleCSP).assignmentBits.length = 3 ∧
       xorCycleCSP.score xor2Sem
-        (fun j =>
-          (maxCSPOptimizeBounded 2 xor2Sem BruteForce.search xorCycleCSP).assignmentBits.getD
-            j.val false) = 2 := by
+        (BitString.ofList xorCycleCSP.numVars
+          (maxCSPOptimizeBounded 2 xor2Sem BruteForce.search xorCycleCSP).assignmentBits) = 2 := by
   obtain ⟨hopt, hlen, hsc⟩ :=
     maxCSPOptimizeBounded_spec (w := 2) (k := 3) le_rfl xor2Sem bruteForce_spec
       (F := xorCycleCSP) (by decide)
@@ -399,7 +401,7 @@ theorem polyTime_optimize_if_ThreeSAT_mem_P (hP : ThreeSAT ∈ P encCNF) :
       ∀ F : StructInstance,
         (solveOpt F).optValue = F.optimum ∧
         (solveOpt F).assignmentBits.length = F.numVars ∧
-        F.score (F.assignmentOfBits (solveOpt F).assignmentBits) = F.optimum :=
+        F.score (BitString.ofList F.numVars (solveOpt F).assignmentBits) = F.optimum :=
   exists_computableInPolyTime_optimize_of_KSAT_mem_P (k := 3) le_rfl hP
 
 /-- Binary-search `Max-CSP` optimization instantiated on `xorCycleCSP` (`optimum = 2`). -/
