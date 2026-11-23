@@ -161,6 +161,55 @@ class HubImpactTests(unittest.TestCase):
         )
         self.assertEqual(hub.rebuilt_importers(graph, "CslibFrontier.Unrelated"), set())
 
+    def test_transitive_meta_and_legacy_non_module_traces_past_private_cutoff(self):
+        # `PrivMid` privately imports `Hub`, so `UnrebuiltMid` (`public import PrivMid`) does NOT
+        # rebuild; however, `metaTransTrace` and `legacyTransTrace` still change across `Reach_any+`.
+        self.write("CslibFrontier/Hub.lean", "module\n")
+        self.write("CslibFrontier/PrivMid.lean", "module\nimport CslibFrontier.Hub\n")
+        self.write("CslibFrontier/UnrebuiltMid.lean", "module\npublic import CslibFrontier.PrivMid\n")
+
+        # 1. Non-public `meta import` of `UnrebuiltMid` rebuilds `TacPriv`, but NOT its client.
+        self.write("CslibFrontier/TacPriv.lean", "module\nmeta import CslibFrontier.UnrebuiltMid\n")
+        self.write(
+            "CslibFrontier/TacPrivClient.lean", "module\npublic import CslibFrontier.TacPriv\n"
+        )
+
+        # 2. `public meta import` mixes `metaTransTrace` into `TacPub.transTrace`, rebuilding
+        #    `TacPub`, `Mid2`, and `TacPubClient`.
+        self.write(
+            "CslibFrontier/TacPub.lean", "module\npublic meta import CslibFrontier.UnrebuiltMid\n"
+        )
+        self.write("CslibFrontier/Mid2.lean", "module\npublic import CslibFrontier.TacPub\n")
+        self.write("CslibFrontier/TacPubClient.lean", "module\nimport CslibFrontier.Mid2\n")
+
+        # 3. `meta import all` checks `allTransTrace` (`Module.lean:352`), so on unrebuilt
+        #    `UnrebuiltMid` it does NOT rebuild.
+        self.write(
+            "CslibFrontier/MetaAllUnrebuilt.lean",
+            "module\nmeta import all CslibFrontier.UnrebuiltMid\n",
+        )
+
+        # 4. Classic test without `module` mixes `legacyTransTrace` across `Reach_any+` and
+        #    rebuilds (along with downstream legacy importers), whereas `ModTest` (`module`) stops.
+        self.write("CslibFrontierTests/ModTest.lean", "module\nimport CslibFrontier.UnrebuiltMid\n")
+        self.write("CslibFrontierTests/LegacyTest.lean", "import CslibFrontier.UnrebuiltMid\n")
+        self.write("CslibFrontierTests/LegacyTest2.lean", "import CslibFrontierTests.LegacyTest\n")
+
+        graph, total = hub.build_reverse_graph(self.root)
+        self.assertEqual(total, 12)
+        self.assertEqual(
+            hub.rebuilt_importers(graph, "CslibFrontier.Hub"),
+            {
+                "CslibFrontier.PrivMid",
+                "CslibFrontier.TacPriv",
+                "CslibFrontier.TacPub",
+                "CslibFrontier.Mid2",
+                "CslibFrontier.TacPubClient",
+                "CslibFrontierTests.LegacyTest",
+                "CslibFrontierTests.LegacyTest2",
+            },
+        )
+
     def test_github_output_writes_annotations_and_summary_and_never_fails(self):
         base = self.seed_graph()
         self.write("CslibFrontier/Hub.lean", "module\ndef h := 9\n")

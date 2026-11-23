@@ -5,20 +5,25 @@ Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 
-Under Lean 4's `module` system, editing a module `M`'s public interface invalidates downstream
-modules along exported imports (`public [meta] import`, or any `import` in a classic file without
-`module`), plus one hop of private `import` / `meta import` (whose own exported `.olean` stays
-unchanged when its public surface and axiom set do not change), plus `import all` chains from any
-rebuilt module. Under AGENTS.md, new helper lemmas should generally go in a small topic module
-instead of appending to a hub module.
+Under Lean 4 and Lake 5's `module` system (`Lake/Build/Module.lean`, `ModuleImportInfo.addImport`),
+editing a module `M`'s public `.olean` invalidates downstream modules as follows:
+1. Exported imports (`public [meta] import`, or any `import` in a classic file without `module`)
+   propagate `transTrace` / `artsTrace` invalidation transitively, while plain private `import`
+   rebuilds only one hop because its own exported `.olean` and `transTrace` stay unchanged when its
+   public surface and axiom set do not change.
+2. `[public] meta import` (without `all`) mixes `metaTransTrace` across the unrestricted import
+   closure (`{M} ∪ Reach_any+(M)`), rebuilding `meta import` clients and re-exporting invalidation
+   into `transTrace` for `public meta import` clients.
+3. Classic files without `module` mix `legacyTransTrace` across `{M} ∪ Reach_any+(M)`, rebuilding
+   and re-exporting invalidation to their importers.
+4. `[meta] import all` chains propagate from any rebuilt module (`allTransTrace` / `allArtsTrace`).
 
-This script scans `import` headers across `CslibFrontier/` and `CslibFrontierTests/` (excluding the
-root aggregator `CslibFrontier.lean`; no Lean invocation needed), computes direct importer counts
-and `.olean`-invalidated transitive rebuild counts for each modified library module relative to
-`--base`, and prints an advisory summary when any reaches `--threshold`. Legacy test files that
-still omit `module` bypass `module` encapsulation in Lake until migrated; this check models
-`.olean`-change propagation under `module` encapsulation, treating non-`module` files as
-re-exporting their imports. It never fails the job on findings.
+Under AGENTS.md, new helper lemmas should generally go in a small topic module instead of appending
+to a hub module. This script scans `import` headers across `CslibFrontier/` and `CslibFrontierTests/`
+(excluding the root aggregator `CslibFrontier.lean`; no Lean invocation needed), computes direct
+importer counts and Lake 5 transitive rebuild counts for each modified library module relative to
+`--base`, and prints an advisory summary when any reaches `--threshold`. It never fails the job on
+findings.
 """
 
 from __future__ import annotations
@@ -57,27 +62,24 @@ class ReverseGraph(NamedTuple):
     """Reverse import edges across `CslibFrontier/` and `CslibFrontierTests/`.
 
     - `any_importers[M]`: modules that directly import `M` with any modifier.
-    - `exported_importers[M]`: modules whose exported `.olean` re-exports `M`
-      (`public [meta] import`, or any import in a file without `module`).
-    - `all_importers[M]`: modules that import `M` with `[meta] import all`, reading `M`'s
-      `.olean.private` environment.
-    - `non_module_files`: scanned modules without a `module` header keyword, whose `.olean`
-      re-exports all of their imports whenever they rebuild.
+    - `exported_importers[M]`: modules whose `transTrace` mixes `M` (`public [meta] import`, or any
+      import in a classic file without `module`).
+    - `meta_importers[M]`: modules that import `M` with `[public] meta import` (without `all`),
+      mixing `M`'s `metaTransTrace` into their elaboration `trace`.
+    - `public_meta_importers[M]`: modules that import `M` with `public meta import` (or `meta` in a
+      non-`module` file), mixing `M`'s `metaTransTrace` into their exported `transTrace`.
+    - `all_importers[M]`: modules that import `M` with `[meta] import all`, mixing `M`'s
+      `allTransTrace` and `allArtsTrace` into their elaboration `trace`.
+    - `non_module_files`: scanned modules without a `module` header keyword, which mix
+      `legacyTransTrace` across their unrestricted transitive import closure.
     """
 
     any_importers: dict[str, set[str]]
     exported_importers: dict[str, set[str]]
+    meta_importers: dict[str, set[str]]
+    public_meta_importers: dict[str, set[str]]
     all_importers: dict[str, set[str]]
     non_module_files: frozenset[str]
-
-
-def is_local_module(mod: str) -> bool:
-    """Whether `mod` names a repository module under `CslibFrontier` or `CslibFrontierTests`."""
-    return (
-        mod == "CslibFrontier"
-        or mod.startswith("CslibFrontier.")
-        or mod.startswith("CslibFrontierTests.")
-    )
 
 
 def scan_local_imports(path: Path) -> tuple[bool, list[HeaderImport]]:
@@ -88,13 +90,20 @@ def scan_local_imports(path: Path) -> tuple[bool, list[HeaderImport]]:
         )
     except AmbiguousHeader:
         return True, []
-    return has_module, [imp for imp in imports if is_local_module(imp.module)]
+    return has_module, [
+        imp
+        for imp in imports
+        if imp.module == "CslibFrontier"
+        or imp.module.startswith(("CslibFrontier.", "CslibFrontierTests."))
+    ]
 
 
 def build_reverse_graph(root: Path) -> tuple[ReverseGraph, int]:
     """Return `(reverse_graph, total_modules)` over `CslibFrontier/` and `CslibFrontierTests/`."""
     any_imp: dict[str, set[str]] = defaultdict(set)
     exp_imp: dict[str, set[str]] = defaultdict(set)
+    meta_imp: dict[str, set[str]] = defaultdict(set)
+    pub_meta_imp: dict[str, set[str]] = defaultdict(set)
     all_imp: dict[str, set[str]] = defaultdict(set)
     non_mod: set[str] = set()
     total = 0
@@ -115,13 +124,20 @@ def build_reverse_graph(root: Path) -> tuple[ReverseGraph, int]:
                 if dep == mod:
                     continue
                 any_imp[dep].add(mod)
-                if imp.is_public or not has_module:
+                is_exported = imp.is_public or not has_module
+                if is_exported:
                     exp_imp[dep].add(mod)
+                if imp.is_meta and not imp.is_all:
+                    meta_imp[dep].add(mod)
+                if is_exported and imp.is_meta:
+                    pub_meta_imp[dep].add(mod)
                 if imp.is_all:
                     all_imp[dep].add(mod)
     graph = ReverseGraph(
         any_importers=dict(any_imp),
         exported_importers=dict(exp_imp),
+        meta_importers=dict(meta_imp),
+        public_meta_importers=dict(pub_meta_imp),
         all_importers=dict(all_imp),
         non_module_files=frozenset(non_mod),
     )
@@ -129,8 +145,17 @@ def build_reverse_graph(root: Path) -> tuple[ReverseGraph, int]:
 
 
 def rebuilt_importers(graph: ReverseGraph, module: str) -> set[str]:
-    """Return downstream modules invalidated when `module`'s public `.olean` changes."""
-    olean_changed: set[str] = {module}
+    """Return downstream modules rebuilt by Lake 5 when `module`'s public `.olean` changes."""
+    reach_any: set[str] = {module}
+    any_queue: deque[str] = deque([module])
+    while any_queue:
+        u = any_queue.popleft()
+        for v in graph.any_importers.get(u, ()):
+            if v not in reach_any:
+                reach_any.add(v)
+                any_queue.append(v)
+
+    trans_changed: set[str] = {module}
     rebuilt: set[str] = set()
     pub_queue: deque[str] = deque([module])
     all_queue: deque[str] = deque()
@@ -139,20 +164,26 @@ def rebuilt_importers(graph: ReverseGraph, module: str) -> set[str]:
         if node != module and node not in rebuilt:
             rebuilt.add(node)
             all_queue.append(node)
-            if node in graph.non_module_files:
-                mark_olean_changed(node)
 
-    def mark_olean_changed(node: str) -> None:
-        if node not in olean_changed:
-            olean_changed.add(node)
+    def mark_trans_changed(node: str) -> None:
+        if node not in trans_changed:
+            trans_changed.add(node)
             pub_queue.append(node)
         mark_rebuilt(node)
+
+    for d in reach_any:
+        if d != module and d in graph.non_module_files:
+            mark_trans_changed(d)
+        for v in graph.public_meta_importers.get(d, ()):
+            mark_trans_changed(v)
+        for v in graph.meta_importers.get(d, ()):
+            mark_rebuilt(v)
 
     while pub_queue or all_queue:
         while pub_queue:
             u = pub_queue.popleft()
             for v in graph.exported_importers.get(u, ()):
-                mark_olean_changed(v)
+                mark_trans_changed(v)
             for x in graph.any_importers.get(u, ()):
                 mark_rebuilt(x)
         while all_queue:
@@ -163,7 +194,7 @@ def rebuilt_importers(graph: ReverseGraph, module: str) -> set[str]:
 
 
 def transitive_importers(graph: ReverseGraph, module: str) -> int:
-    """Count downstream modules invalidated when `module`'s public `.olean` changes."""
+    """Count downstream modules rebuilt by Lake 5 when `module`'s public `.olean` changes."""
     return len(rebuilt_importers(graph, module))
 
 
@@ -208,10 +239,11 @@ def format_markdown(hits: list[tuple[str, int, int]], total: int, threshold: int
         "### High-fan-in module impact (advisory)",
         "",
         f"This change modifies {len(hits)} module(s) with at least **{threshold}** transitive "
-        f"importers invalidated by a public `.olean` change (out of {total:,} `CslibFrontier` / "
-        "`CslibFrontierTests` modules, respecting `module` private-import cutoff and `import all` "
-        "chains). Any public interface edit forces Lake to rebuild those dependents across "
-        "concurrent PRs, merge groups, and contributor worktrees.",
+        f"importers rebuilt by Lake 5 on a public `.olean` change (out of {total:,} "
+        "`CslibFrontier` / `CslibFrontierTests` modules, respecting `module` private-import "
+        "cutoff, `[public] meta import`, `import all`, and non-`module` traces). Any public "
+        "interface edit forces Lake to rebuild those dependents across concurrent PRs, merge "
+        "groups, and contributor worktrees.",
         "",
         "| Module | Direct importers | Transitive importers | Share |",
         "| --- | ---: | ---: | ---: |",
