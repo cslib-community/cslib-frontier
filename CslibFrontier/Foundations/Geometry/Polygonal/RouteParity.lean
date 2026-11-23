@@ -458,4 +458,43 @@ theorem exists_rayParity_excursion_of_subset {U : Set ℂ} (hU : IsOpen U)
           simp [hc, hqc, Bool.add_eq_xor]
         · simp [Finset.mem_insert, heq, hqRest z hz heq, Bool.add_eq_xor]
 
+/-- Insert a closed excursion at a join to add the prescribed ray-parity bits on the
+observations. The new support stays in the union of the original support and the punctured
+region. Both outer endpoints and their outgoing segment vectors are preserved. -/
+theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
+    (hconn : IsPathConnected U) (points odd : Finset ℂ) (hodd : odd ⊆ points)
+    (hUodd : ∀ z ∈ odd, z ∈ U) (p q : Route) (hjoin : p.finish = q.start)
+    (ha : p.finish ∈ U) (haPoints : p.finish ∉ points) :
+    ∃ r : Route, (∀ b, r.endpoint b = (p.concat q).endpoint b) ∧
+      (∀ b, r.germ b = (p.concat q).germ b) ∧
+      (p.concat q).support ⊆ r.support ∧
+      r.support ⊆ (p.concat q).support ∪ (U \ (↑points : Set ℂ)) ∧
+      ∀ z ∈ points, r.rayParity 1 z = (p.concat q).rayParity 1 z + decide (z ∈ odd) := by
+  obtain ⟨e, hstart, hfinish, hsupport, hparity⟩ :=
+    exists_rayParity_excursion_of_subset hU hconn points odd hodd hUodd ha haPoints
+  have he : p.finish = e.start := hstart.symm
+  have hq : (p.concat e).finish = q.start := by
+    change (p.concat e).endpoint true = q.start
+    rw [endpoint_concat p e he]
+    exact hfinish.trans hjoin
+  refine ⟨(p.concat e).concat q, ?_, ?_, ?_, ?_, ?_⟩
+  · intro b
+    rw [endpoint_concat _ _ hq, endpoint_concat p q hjoin, endpoint_concat p e he]
+    cases b <;> rfl
+  · intro b
+    rw [germ_concat _ _ hq, germ_concat p q hjoin, germ_concat p e he]
+    cases b <;> rfl
+  · rw [support_concat _ _ hq, support_concat p e he, support_concat p q hjoin]
+    intro z hz
+    exact hz.elim (fun hp => Or.inl (Or.inl hp)) Or.inr
+  · rw [support_concat _ _ hq, support_concat p e he, support_concat p q hjoin]
+    rintro z ((hp | hl) | hq')
+    · exact Or.inl (Or.inl hp)
+    · exact Or.inr (hsupport hl)
+    · exact Or.inl (Or.inr hq')
+  · intro z hz
+    rw [rayParity_concat _ _ hq, rayParity_concat p e he, rayParity_concat p q hjoin,
+      hparity z hz]
+    ac_rfl
+
 end Cslib.Polygonal.Route
