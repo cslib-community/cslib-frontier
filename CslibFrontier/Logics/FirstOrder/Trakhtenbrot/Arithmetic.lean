@@ -56,45 +56,62 @@ variable {M : Type*}
 
 /-! ### The axioms -/
 
+/-- Relation symbol code for `<` (`[a, b]`). -/
+private abbrev ltSym : ℕ := 0
+
+/-- Relation symbol code for "is zero" (`[a]`). -/
+private abbrev zeroSym : ℕ := 1
+
+/-- Relation symbol code for the successor graph `b = a + 1` (`[a, b]`). -/
+private abbrev succSym : ℕ := 2
+
+/-- Relation symbol code for the pairing graph `Nat.pair a b = p` (`[a, b, p]`). -/
+private abbrev pairSym : ℕ := 3
+
 /-- `<` is irreflexive. -/
-def axIrrefl : RawFormula := all 0 (neg (rel 0 [0, 0]))
+def axIrrefl : RawFormula := all 0 (neg (rel ltSym [0, 0]))
 
 /-- `<` is transitive. -/
 def axTrans : RawFormula :=
-  all 0 (all 1 (all 2 (imp (rel 0 [0, 1]) (imp (rel 0 [1, 2]) (rel 0 [0, 2])))))
+  all 0 (all 1 (all 2
+    (imp (rel ltSym [0, 1]) (imp (rel ltSym [1, 2]) (rel ltSym [0, 2])))))
 
 /-- `<` is total. -/
-def axTotal : RawFormula := all 0 (all 1 (disj (rel 0 [0, 1]) (disj (equal 0 1) (rel 0 [1, 0]))))
+def axTotal : RawFormula :=
+  all 0 (all 1 (disj (rel ltSym [0, 1]) (disj (equal 0 1) (rel ltSym [1, 0]))))
 
 /-- Zero is the `<`-least element. -/
-def axZero : RawFormula := all 0 (iff (rel 1 [0]) (all 1 (neg (rel 0 [1, 0]))))
+def axZero : RawFormula := all 0 (iff (rel zeroSym [0]) (all 1 (neg (rel ltSym [1, 0]))))
 
 /-- The successor graph is the immediate-successor relation of `<`. -/
 def axSucc : RawFormula :=
-  all 0 (all 1 (iff (rel 2 [0, 1])
-    (conj (rel 0 [0, 1]) (all 2 (neg (conj (rel 0 [0, 2]) (rel 0 [2, 1])))))))
+  all 0 (all 1 (iff (rel succSym [0, 1])
+    (conj (rel ltSym [0, 1]) (all 2 (neg (conj (rel ltSym [0, 2]) (rel ltSym [2, 1])))))))
 
 /-- In variables `a = 0, b = 1, a' = 3, b' = 4`: `(a, b)` is the pair enumerated right after
 `(a', b')` by `Nat.pair`. -/
 def nextF : RawFormula :=
-  disj (conj (rel 2 [3, 0]) (conj (rel 0 [0, 4]) (equal 1 4)))
-    (disj (conj (rel 2 [3, 4]) (conj (equal 0 4) (rel 1 [1])))
-      (disj (conj (rel 0 [4, 3]) (conj (equal 0 3) (rel 2 [4, 1])))
-        (conj (equal 3 4) (conj (rel 1 [0]) (rel 2 [4, 1])))))
+  disj (conj (rel succSym [3, 0]) (conj (rel ltSym [0, 4]) (equal 1 4)))
+    (disj (conj (rel succSym [3, 4]) (conj (equal 0 4) (rel zeroSym [1])))
+      (disj (conj (rel ltSym [4, 3]) (conj (equal 0 3) (rel succSym [4, 1])))
+        (conj (equal 3 4) (conj (rel zeroSym [0]) (rel succSym [4, 1])))))
 
 /-- The pairing graph is defined by recursion along the `Nat.pair` enumeration. -/
 def axPair : RawFormula :=
-  all 0 (all 1 (all 2 (iff (rel 3 [0, 1, 2])
-    (disj (conj (rel 1 [2]) (conj (rel 1 [0]) (rel 1 [1])))
-      (ex 3 (ex 4 (ex 5 (conj (rel 2 [5, 2]) (conj (rel 3 [3, 4, 5]) nextF)))))))))
+  all 0 (all 1 (all 2 (iff (rel pairSym [0, 1, 2])
+    (disj (conj (rel zeroSym [2]) (conj (rel zeroSym [0]) (rel zeroSym [1])))
+      (ex 3 (ex 4 (ex 5
+        (conj (rel succSym [5, 2]) (conj (rel pairSym [3, 4, 5]) nextF)))))))))
 
 /-- The arithmetic axioms. -/
 def arithAxioms : List RawFormula := [axIrrefl, axTrans, axTotal, axZero, axSucc, axPair]
 
 /-- Semantic version of `nextF`. -/
 def NextSem (I : ℕ → List M → Prop) (a' b' a b : M) : Prop :=
-  (I 2 [a', a] ∧ I 0 [a, b'] ∧ b = b') ∨ (I 2 [a', b'] ∧ a = b' ∧ I 1 [b]) ∨
-    (I 0 [b', a'] ∧ a = a' ∧ I 2 [b', b]) ∨ (a' = b' ∧ I 1 [a] ∧ I 2 [b', b])
+  (I succSym [a', a] ∧ I ltSym [a, b'] ∧ b = b') ∨
+    (I succSym [a', b'] ∧ a = b' ∧ I zeroSym [b]) ∨
+    (I ltSym [b', a'] ∧ a = a' ∧ I succSym [b', b]) ∨
+    (a' = b' ∧ I zeroSym [a] ∧ I succSym [b', b])
 
 /-- Semantic content of `arithAxioms`. -/
 structure ArithModel (I : ℕ → List M → Prop) : Prop where
@@ -106,24 +123,31 @@ structure ArithModel (I : ℕ → List M → Prop) : Prop where
   pair : ∀ a b p, I 3 [a, b, p] ↔ (I 1 [p] ∧ I 1 [a] ∧ I 1 [b]) ∨
     ∃ a' b' p', I 2 [p', p] ∧ I 3 [a', b', p'] ∧ NextSem I a' b' a b
 
+/-- `nextF` expresses `NextSem` on variables `a' = 3, b' = 4, a = 0, b = 1`. -/
 theorem realize_nextF {I : ℕ → List M → Prop} {v : ℕ → M} :
     nextF.Realize I v ↔ NextSem I (v 3) (v 4) (v 0) (v 1) := by
   simp [nextF, NextSem]
 
+/-- The sentences `arithAxioms` express the `ArithModel` structure. -/
 theorem realize_arithAxioms {I : ℕ → List M → Prop} {v : ℕ → M} :
     (∀ φ ∈ arithAxioms, φ.Realize I v) ↔ ArithModel I := by
+  have hirrefl : axIrrefl.Realize I v ↔ ∀ a, ¬I 0 [a, a] := by simp [axIrrefl]
+  have htrans : axTrans.Realize I v ↔ ∀ a b c, I 0 [a, b] → I 0 [b, c] → I 0 [a, c] := by
+    simp [axTrans]
+  have htotal : axTotal.Realize I v ↔ ∀ a b, I 0 [a, b] ∨ a = b ∨ I 0 [b, a] := by
+    simp [axTotal]
+  have hzero : axZero.Realize I v ↔ ∀ a, I 1 [a] ↔ ∀ b, ¬I 0 [b, a] := by
+    simp [axZero]
+  have hsucc : axSucc.Realize I v ↔
+      ∀ a b, I 2 [a, b] ↔ I 0 [a, b] ∧ ∀ c, I 0 [a, c] → ¬I 0 [c, b] := by
+    simp [axSucc, not_and]
+  have hpair : axPair.Realize I v ↔
+      ∀ a b p, I 3 [a, b, p] ↔ (I 1 [p] ∧ I 1 [a] ∧ I 1 [b]) ∨
+        ∃ a' b' p', I 2 [p', p] ∧ I 3 [a', b', p'] ∧ NextSem I a' b' a b := by
+    simp [axPair, realize_nextF]
   simp only [arithAxioms, List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp,
-    forall_eq]
-  simp only [axIrrefl, realize_all, realize_neg, realize_rel, List.map_cons,
-    Function.update_self, List.map_nil, axTrans, realize_imp, ne_eq, OfNat.zero_ne_ofNat,
-    not_false_eq_true, Function.update_of_ne, zero_ne_one, OfNat.one_ne_ofNat, axTotal,
-    realize_disj, realize_equal, axZero, realize_iff, axSucc, realize_conj, not_and, axPair,
-    realize_ex, Nat.reduceEqDiff, realize_nextF]
-  constructor
-  · rintro ⟨h1, h2, h3, h4, h5, h6⟩
-    exact ⟨h1, h2, h3, h4, h5, h6⟩
-  · rintro ⟨h1, h2, h3, h4, h5, h6⟩
-    exact ⟨h1, h2, h3, h4, h5, h6⟩
+    forall_eq, hirrefl, htrans, htotal, hzero, hsucc, hpair]
+  constructor <;> rintro ⟨h1, h2, h3, h4, h5, h6⟩ <;> exact ⟨h1, h2, h3, h4, h5, h6⟩
 
 /-! ### Faithfulness: finite models are standard initial segments -/
 
@@ -337,6 +361,7 @@ theorem arithModel_of_std {N : ℕ} {I : ℕ → List (Fin N) → Prop}
       · exact Or.inl ⟨h.1, h.2.1, h.2.2⟩
       · exact Or.inr ⟨a', a'.2, b', b'.2, p', p'.2, h4, (h3 _ _ _).1 h5, h6⟩
 
+/-- The standard arithmetic relations `StdArith N` form an `ArithModel`. -/
 theorem arithModel_stdArith (N : ℕ) : ArithModel (StdArith N) :=
   arithModel_of_std (fun _ _ => Iff.rfl) (fun _ => Iff.rfl) (fun _ _ => Iff.rfl)
     (fun _ _ _ => Iff.rfl)
