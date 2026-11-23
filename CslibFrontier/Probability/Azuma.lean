@@ -163,8 +163,7 @@ theorem tsum_toReal_seqProcess_step (step : ∀ t : ℕ, (Fin t → α) → PMF 
       exact (summable_toReal (seqProcess step n)).mul_right C
     have hs_prod : Summable F := Summable.of_norm_bounded hs_G fun p => by
       simp only [F, G, Real.norm_eq_abs, abs_mul, abs_of_nonneg ENNReal.toReal_nonneg, mul_assoc]
-      exact mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left (hC _) ENNReal.toReal_nonneg)
-        ENNReal.toReal_nonneg
+      gcongr; exact hC _
     calc ∑' h : Fin (n + 1) → α, ((seqProcess step (n + 1)) h).toReal * g h
         = ∑' p : (Fin n → α) × α, F p := by
           rw [← Equiv.tsum_eq (snocEquiv α n)]
@@ -236,8 +235,7 @@ theorem seqProcess_mul_exp_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)
         refine (tsum_mul_exp_sub_mean_le (step n h) (fun x => X (k := n + 1) (Fin.snoc h x)) hg
           s).trans (ENNReal.ofReal_le_ofReal (Real.exp_le_exp.mpr ?_))
         have hsq : (b - a) ^ 2 ≤ c n ^ 2 := pow_le_pow_left₀ hab0 hab_c 2
-        exact div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hsq (sq_nonneg s))
-          (by norm_num)
+        gcongr
       · rw [((seqProcess step n).apply_eq_zero_iff h).mpr hh, zero_mul, zero_mul]
     calc ∑' h : Fin n → α, seqProcess step n h *
             ∑' h' : Fin (n + 1) → α, ((step n h).map fun x => Fin.snoc h x) h' *

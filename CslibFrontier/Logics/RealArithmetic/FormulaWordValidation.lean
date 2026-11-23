@@ -8,10 +8,10 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Logics.RealArithmetic.FormulaTokenDecoding
+public import CslibFrontier.Logics.RealArithmetic.TokenEvaluationPolyTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import Mathlib.Basic.Sign.Defs
-import CslibFrontier.Logics.RealArithmetic.TokenEvaluationPolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
@@ -486,6 +486,98 @@ theorem formulaWordComparisonRequest_polyTime :
     ComputableInPolyTime (fun p : List Bool × ℕ => formulaWordComparisonRequest p.1 p.2)
       (encPair encBits encNat) (encOption encFormulaComparisonRequest) :=
   comparisonRequest_polyTime.comp formulaWordTokenAt_polyTime
+
+/-- Read an indexed gate's exact comparison term word. Unused slots return the encoding
+of the constant zero term. -/
+@[expose] def formulaWordGateTermWord (word : List Bool) (index : ℕ) : List Bool :=
+  (formulaWordComparisonRequest word index).elim (encTerm 0 (.const 0)) (·.termWord)
+
+/-- The arithmetic term of an indexed formula gate in the word's ambient dimension.
+Non-comparisons and indices beyond the token stream have the constant zero term. -/
+noncomputable def formulaWordGateTerm (word : List Bool) (index : ℕ) : Term word.length :=
+  Function.extend (encTerm word.length) id (fun _ => .const 0) (formulaWordGateTermWord word index)
+
+/-- Encoding the typed gate term recovers the executable reader's exact payload. -/
+theorem encTerm_formulaWordGateTerm (word : List Bool) (index : ℕ) :
+    encTerm word.length (formulaWordGateTerm word index) = formulaWordGateTermWord word index := by
+  have hcanonical : ∃ t : Term word.length, encTerm word.length t =
+      formulaWordGateTermWord word index := by
+    cases hrequest : formulaWordComparisonRequest word index with
+    | none =>
+      refine ⟨.const 0, ?_⟩
+      rw [formulaWordGateTermWord, hrequest, Option.elim_none]
+      rfl
+    | some request =>
+      have hi : index < (formulaWordTokens word).length := by
+        by_contra h
+        simp [formulaWordComparisonRequest, formulaWordTokenAt, List.getD_eq_getElem?_getD,
+          List.getElem?_eq_none (Nat.le_of_not_gt h), comparisonRequest] at hrequest
+      obtain ⟨t, ht⟩ := formulaWordComparisonRequest_termWord_exists hi hrequest
+      exact ⟨t, by rw [formulaWordGateTermWord, hrequest, Option.elim_some, ht]⟩
+  obtain ⟨t, ht⟩ := hcanonical
+  rw [formulaWordGateTerm, ← ht, (encTerm word.length).injective.extend_apply]
+  rfl
+
+/-- The typed gate terms have polynomial-time access under the raw formula word and binary
+index encoding. This adapts the term access of `LeanCanny.ETR.FormulaAtomPolynomials.termSource`
+to the frontier prefix token view. -/
+theorem encTerm_formulaWordGateTerm_polyTime :
+    ComputableInPolyTime (fun p : List Bool × ℕ => encTerm p.1.length (formulaWordGateTerm p.1 p.2))
+      (encPair encBits encNat) encBits := by
+  have hterm : ComputableInPolyTime FormulaComparisonRequest.termWord
+      encFormulaComparisonRequest encBits := by fun_prop
+  have h := formulaWordComparisonRequest_polyTime.optionElimWithInput
+    (body := fun _ request => request.termWord) (const (encTerm 0 (.const 0)))
+    (hterm.comp (snd (encPair encBits encNat) encFormulaComparisonRequest))
+  exact h.of_enc_eq fun p => congrArg encBits (encTerm_formulaWordGateTerm p.1 p.2)
+
+/-- Evaluate the comparison term at an indexed gate, using zero for missing coordinates.
+Gates without a comparison request have no residue. -/
+@[expose] def formulaWordComparisonResidue (word : List Bool) (index p : ℕ)
+    (point : List ℕ) : Option ℕ :=
+  (formulaWordComparisonRequest word index).elim none fun request =>
+    Term.evalTermWord p point request.termWord
+
+/-- At an in-bounds gate, the residue is present exactly when a comparison term exists and
+its polynomial has that residue. Coordinates missing from `point` are read as zero. -/
+theorem formulaWordComparisonResidue_eq_some_iff {word : List Bool} {index p residue : ℕ}
+    (hp : 0 < p) (hi : index < (formulaWordTokens word).length) (point : List ℕ) :
+    formulaWordComparisonResidue word index p point = some residue ↔
+      ∃ (request : FormulaComparisonRequest) (t : Term word.length),
+        formulaWordComparisonRequest word index = some request ∧
+        request.termWord = encTerm word.length t ∧
+        (t.toPolynomial.eval₂ (Int.castRingHom (ZMod p))
+          (fun i => ((point[i.val]?.getD 0 : ℕ) : ZMod p))).val = residue := by
+  constructor
+  · intro h
+    cases hrequest : formulaWordComparisonRequest word index with
+    | none => simp [formulaWordComparisonResidue, hrequest] at h
+    | some request =>
+      obtain ⟨t, ht⟩ := formulaWordComparisonRequest_termWord_exists hi hrequest
+      rw [formulaWordComparisonResidue, hrequest, Option.elim_some, ht,
+        Term.evalTermWord_encTerm, Term.evalResidue_eq hp, Option.some.injEq] at h
+      exact ⟨request, t, rfl, ht, h⟩
+  · rintro ⟨request, t, hrequest, ht, h⟩
+    rw [formulaWordComparisonResidue, hrequest, Option.elim_some, ht,
+      Term.evalTermWord_encTerm, Term.evalResidue_eq hp, h]
+
+/-- Comparison residue queries take polynomial time in the raw formula word, binary gate
+index and positive binary modulus, and framed binary coordinates. -/
+theorem formulaWordComparisonResidue_polyTime {α : Type} {input : α ↪ List Bool}
+    {word : α → List Bool} {index modulus : α → ℕ} {point : α → List ℕ}
+    (hword : ComputableInPolyTime word input encBits)
+    (hindex : ComputableInPolyTime index input encNat)
+    (hp : ComputableInPolyTime modulus input encNat) (hpos : ∀ a, 0 < modulus a)
+    (hpoint : ComputableInPolyTime point input (encList encNat)) :
+    ComputableInPolyTime (fun a => formulaWordComparisonResidue (word a) (index a)
+      (modulus a) (point a)) input (encOption encNat) := by
+  have hrequest := formulaWordComparisonRequest_polyTime.comp (hword.prod hindex)
+  have hcontext := fst input encFormulaComparisonRequest
+  have hterm : ComputableInPolyTime FormulaComparisonRequest.termWord
+      encFormulaComparisonRequest encBits := by fun_prop
+  exact hrequest.optionElimWithInput (const none)
+    (Term.evalTermWord_polyTime (hp.comp hcontext) (fun a => hpos a.1)
+      (hpoint.comp hcontext) (hterm.comp (snd input encFormulaComparisonRequest)))
 
 /-- Test a supplied sign against the comparison requested at a gate. Gates without a
 comparison request return `false`. -/

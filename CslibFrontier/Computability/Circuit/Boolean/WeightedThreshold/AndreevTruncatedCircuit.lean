@@ -487,8 +487,7 @@ theorem andreevTruncatedCircuit_part_two_of_balanced {b m : ℕ} (hbal : b * m =
         show (1 / ε) ^ 3 * (2 ^ r * ε) = 2 ^ r / ε ^ 2 by field_simp,
         le_div_iff₀ (by positivity)]
       linarith only [hq32, hεN]
-    calc Real.log (16 * (5 / 4 * N) / (2 ^ r * ε)) ≤ Real.log ((1 / ε) ^ 3) :=
-          Real.log_le_log hpos hle
+    calc Real.log (16 * (5 / 4 * N) / (2 ^ r * ε)) ≤ Real.log ((1 / ε) ^ 3) := by gcongr
       _ = 3 * L := by rw [Real.log_pow]; push_cast; ring
   have hNL1 : 1 ≤ N * L := one_le_mul_of_one_le_of_one_le hN hL1
   have hR : (R : ℝ) ≤ 8 * Real.sqrt (N * L) + 1 := by
@@ -540,8 +539,7 @@ theorem andreevTruncatedCircuit_part_two_of_balanced {b m : ℕ} (hbal : b * m =
     calc (C.size : ℝ) * n + C.size = (C.size : ℝ) * (n + 1) := by ring
       _ ≤ (C.size : ℝ) * (2 * n) :=
           mul_le_mul_of_nonneg_left (by linarith only [hn1]) (Nat.cast_nonneg _)
-      _ ≤ 2600 * ε ^ 2 * n * Real.sqrt (n * L) * (2 * n) :=
-          mul_le_mul_of_nonneg_right hsz2 (by positivity)
+      _ ≤ 2600 * ε ^ 2 * n * Real.sqrt (n * L) * (2 * n) := by gcongr
       _ = 5200 * (ε ^ 2 * n ^ 2 * Real.sqrt (n * L)) := by ring
   have hterm2 : n ≤ ε ^ 2 * n ^ 2 * Real.sqrt (n * L) := by
     calc n = 1 * n * 1 := by ring

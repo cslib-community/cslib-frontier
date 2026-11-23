@@ -1077,8 +1077,7 @@ theorem one_div_four_deg_le_prob_coinJoiners {s : LubyMIS.State V} {uid : V → 
         ≤ ∑ _w ∈ highNbrs, (1 : ℝ) / (2 * H.degree v) := Finset.sum_le_sum hterm
       _ = (highNbrs.card : ℝ) * ((1 : ℝ) / (2 * H.degree v)) := by
           rw [Finset.sum_const, nsmul_eq_mul]
-      _ ≤ (H.degree v : ℝ) * ((1 : ℝ) / (2 * H.degree v)) :=
-          mul_le_mul_of_nonneg_right hcard_le (by positivity)
+      _ ≤ (H.degree v : ℝ) * ((1 : ℝ) / (2 * H.degree v)) := by gcongr
       _ = 1 / 2 := by
           have hne : (H.degree v : ℝ) ≠ 0 := ne_of_gt hdv_pos
           field_simp [hne]
@@ -1097,8 +1096,7 @@ theorem one_div_four_deg_le_prob_coinJoiners {s : LubyMIS.State V} {uid : V → 
   have hdv_pos : (0 : ℝ) < H.degree v := by exact_mod_cast hdeg
   calc (1 : ℝ) / (4 * H.degree v)
       = ((1 : ℝ) / (2 * H.degree v)) * (1 / 2) := by ring
-    _ ≤ ((1 : ℝ) / (2 * H.degree v)) * (((PMF.pi p).map quiet) true).toReal :=
-        mul_le_mul_of_nonneg_left hquiet_ge (by positivity)
+    _ ≤ ((1 : ℝ) / (2 * H.degree v)) * (((PMF.pi p).map quiet) true).toReal := by gcongr
 
 omit [Fintype V] in
 /-- Second-order inclusion–exclusion (Bonferroni) lower bound for finite distributions:
@@ -1599,8 +1597,7 @@ theorem seventyTwo_mul_expect_liveEdges_coinPhase_le {uid : V → ℕ}
       calc ((inNbrs G s uid s.live v).card : ℝ) *
             ((ProbComp.eval (sampleMarks G s)).toOuterMeasure
               {m | v ∈ (coinStep G s uid m).live}).toReal
-          ≤ ((inNbrs G s uid s.live v).card : ℝ) * (35 / 36) :=
-            mul_le_mul_of_nonneg_left hsurv (Nat.cast_nonneg _)
+          ≤ ((inNbrs G s uid s.live v).card : ℝ) * (35 / 36) := by gcongr
         _ = (35 / 36 : ℝ) * (inNbrs G s uid s.live v).card := mul_comm _ _
     have hbad_bound :
         (∑ v ∈ badSet, ((inNbrs G s uid s.live v).card : ℝ) *
