@@ -99,16 +99,26 @@ class UnconditionalBanTests(unittest.TestCase):
             ("CslibFrontierTests/T.lean", "def f : TimeM ℕ ℕ := pure 0\n"),
             ("CslibFrontierResults/R.lean", "def f : TimeM ℕ ℕ := pure 0\n"),
             ("CslibFrontier.lean", "import Cslib.Algorithms.Lean.TimeM\n"),
+            ("scripts/Cdcl.lean", "import Cslib.Algorithms.Lean.TimeM\n"),
+            ("guide/Guide/Example.lean", "import Cslib.Algorithms.Lean.TimeM\n"),
+            ("tools/Tool.lean", "import Cslib.Algorithms.Lean.TimeM\n"),
         )
         for rel, content in cases:
             with self.subTest(rel=rel, content=content.strip()):
-                sub_tmp = tempfile.TemporaryDirectory()
-                sub_root = pathlib.Path(sub_tmp.name)
-                p = sub_root / rel
-                p.parent.mkdir(parents=True, exist_ok=True)
-                p.write_text(content, encoding="utf-8")
-                self.assertEqual(check_timem.main(["--root", str(sub_root)]), 1)
-                sub_tmp.cleanup()
+                with tempfile.TemporaryDirectory() as sub_tmp:
+                    sub_root = pathlib.Path(sub_tmp)
+                    p = sub_root / rel
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    p.write_text(content, encoding="utf-8")
+                    self.assertEqual(check_timem.main(["--root", str(sub_root)]), 1)
+
+    def test_dot_lake_directories_are_ignored(self) -> None:
+        self.write(
+            "guide/.lake/packages/cslib/Cslib/Algorithms/Lean/TimeM.lean",
+            "def f : TimeM ℕ ℕ := pure 0\n",
+        )
+        self.write("guide/Guide/Clean.lean", "def ok : ℕ := 0\n")
+        self.assertEqual(self.run_check(), 0)
 
 
 class RepositoryBanTests(unittest.TestCase):

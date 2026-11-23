@@ -5,7 +5,8 @@
 puts the algorithm's own source in the trusted base. All frontier bounds have moved to checked
 machine models, and frontier `TimeM` support has been removed. This check unconditionally rejects
 any occurrence in masked Lean syntax (outside comments and string, raw-string and character
-literals) under the library, test and result roots of:
+literals) under the maintained Lean source trees (`CslibFrontier`, `CslibFrontierTests`,
+`CslibFrontierResults`, `scripts`, `guide`, `tools`, excluding `.lake/` directories) of:
 
 * `TimeM` (including `Cslib.Algorithms.Lean.TimeM` and `CslibFrontier.Algorithms.Lean.TimeM.*`),
 * `✓` (tick notation),
@@ -21,6 +22,7 @@ Exit status: 0 when no forbidden uses exist, 1 otherwise.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
@@ -29,7 +31,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from proof_lengths import masks  # noqa: E402
 
-SOURCE_ROOTS = ("CslibFrontier", "CslibFrontierTests", "CslibFrontierResults")
+SOURCE_ROOTS = (
+    "CslibFrontier",
+    "CslibFrontierTests",
+    "CslibFrontierResults",
+    "scripts",
+    "guide",
+    "tools",
+)
 # `TimeM` itself, tick notation `✓`, upstream `MergeSort` over `TimeM`, and `TimeM` tactic/simp tags.
 USE = re.compile(
     r"\bTimeM\b|✓|\bCslib\.Algorithms\.Lean\.MergeSort\.MergeSort\b|\btime_simps\b|\btime_spec\b"
@@ -46,10 +55,15 @@ def scan(root: Path) -> dict[str, int]:
         base = root / top
         if not base.is_dir():
             continue
-        for path in sorted(base.rglob("*.lean")):
-            n = count_uses(path.read_text(encoding="utf-8"))
-            if n:
-                counts[path.relative_to(root).as_posix()] = n
+        for dirpath, dirnames, filenames in os.walk(base):
+            dirnames[:] = sorted(d for d in dirnames if d != ".lake")
+            for name in sorted(filenames):
+                if not name.endswith(".lean"):
+                    continue
+                path = Path(dirpath) / name
+                n = count_uses(path.read_text(encoding="utf-8"))
+                if n:
+                    counts[path.relative_to(root).as_posix()] = n
     top_level = [root / f"{top}.lean" for top in SOURCE_ROOTS]
     for path in top_level:
         if path.is_file():
