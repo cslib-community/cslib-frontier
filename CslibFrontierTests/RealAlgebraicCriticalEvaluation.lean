@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCo
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
+import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import Mathlib.LinearAlgebra.Matrix.Charpoly.Coeff
 import Mathlib.Tactic.NormNum
@@ -31,6 +32,21 @@ open scoped Topology
 
 private instance : Fact (Nat.Prime 7) := ⟨by decide⟩
 private instance : Fact (Nat.Prime 3) := ⟨by decide⟩
+
+-- A closed half-line retains a convergent subsequence of constrained minima of the deformation.
+example :
+    let F : MvPolynomial (Fin 1) ℝ := X 0 ^ 2
+    let S : Set (Fin 1 → ℝ) := Set.Ici 0
+    ∃ (y : ℕ → Fin 1 → ℝ) (z : Fin 1 → ℝ) (φ : ℕ → ℕ),
+      (∀ k : ℕ, IsMinOn (fun x => eval x (deformedPolynomial 3 0 (k : ℝ) F)) S (y k)) ∧
+      StrictMono φ ∧ Filter.Tendsto (y ∘ φ) Filter.atTop (𝓝 z) ∧ z ∈ S ∧ eval z F = 0 := by
+  intro F S
+  obtain ⟨y, z, φ, _, hmin, hφ, hlim, hz, hzero⟩ :=
+    exists_deformedPolynomial_minimizers_subseq 3 (by decide) (by decide) 0 (fun _ => le_rfl)
+      F (fun x => by simpa only [F, map_pow] using sq_nonneg (eval x (X 0)))
+      (S := S) isClosed_Ici (x₀ := 0) (by simp [S]) (by simp [F])
+      (u := fun k => (k : ℝ)) (fun _ => Nat.cast_nonneg _) tendsto_natCast_atTop_atTop
+  exact ⟨y, z, φ, hmin, hφ, hlim, hz, hzero⟩
 
 -- Zero is a critical point of the deformation of X² at every parameter.
 example :
