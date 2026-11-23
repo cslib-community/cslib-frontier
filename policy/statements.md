@@ -75,6 +75,34 @@ Record them in an issue (#5293 for cryptography). Domain contracts, such as
 [Security theorems](#security-theorems) for cryptography, refine what counts as a named assumption
 and a generic component in their area.
 
+### Running-time claims
+
+A running time is a theorem about a machine. A theorem, name, docstring, manual page, roadmap
+entry or results-inventory entry that presents a bound as an algorithm's running time states it
+in one of two models, in which cost comes from the machine's semantics rather than from the
+author:
+
+- **Word-RAM** (`Computability/WordRAM/`, `RAMTIME`): instruction counts at a stated word width
+  and basis. This is the default for algorithm running times. Dijkstra
+  (`Algorithms/Lean/Dijkstra/`) and Karger (`Algorithms/Lean/Karger/Memory*`) are worked examples;
+  [Choose a model](../manual/workflows/choosing-models.md) is the entry point.
+- **Multi-tape Turing machines** (`ComputableInO`, `ComputableInPolyTime`): polynomial-time and
+  complexity-class claims, and bounds the source states on Turing machines.
+
+An oracle or comparison count read off a `PFunctor.FreeM` program by its interpreter is
+admissible only when the cited result is itself a query bound.
+
+**`TimeM` is deprecated (#7636).** Its `time` field holds exactly the charges the author wrote
+with `tick`, and nothing checks them against the program's cost (`pure xs.mergeSort` costs zero).
+A `TimeM` bound is a claim about annotations, so presenting it as a running time is a stand-in
+under [Faithful headlines](#faithful-headlines), whatever its docstring says about uncharged
+work. Do not import `Cslib.Algorithms.Lean.TimeM` or `CslibFrontier.Algorithms.Lean.TimeM.*` in
+new modules, and do not add `TimeM` declarations, `time_simps` rules or `time_spec` features to
+existing ones. Moving the same hand-placed charges into another writer or cost monad is not a
+migration. Existing `TimeM` modules are ported under #7636: correctness moves to plain functions,
+running-time bounds are re-proved in Word-RAM or on Turing machines with any model-induced
+difference named, and scaffolding bounds are deleted.
+
 ### The cited result is the unit of quality
 
 Quality is judged one cited result at a time, by whether the theorem that carries the result's

@@ -355,11 +355,6 @@ private lemma valLe_extract {B r : ℕ} {w : Win} (h : ∀ t ∈ w.2, ValLe B t)
 
 /-! ### The windowed simulation -/
 
-private lemma firstHalf_lt (n : ℕ) : firstHalf (n + 2) < n + 2 := by
-  simp only [firstHalf]; omega
-
-private lemma half_lt (n : ℕ) : (n + 2) / 2 < n + 2 := by omega
-
 private lemma firstHalf_add_half (n : ℕ) : firstHalf n + n / 2 = n := by
   simp only [firstHalf]; omega
 
@@ -374,49 +369,39 @@ private lemma forall₂_restore {r m : ℕ} {w inner : Win}
 adds at most `2 * n` cells. -/
 private lemma forall₂_sim (d : Desc) (n : ℕ) (w : Win) :
     List.Forall₂ (Grow n) w.2 (sim d n w).1.2 := by
-  induction n using Nat.strong_induction_on generalizing w with
-  | _ n ih =>
-  rcases n with _ | _ | n
-  · rw [sim]; exact forall₂_grow_refl 0 _
-  · rw [sim]
+  fun_induction sim d n w with
+  | case1 => exact forall₂_grow_refl 0 _ -- 0 steps
+  | case2 w => -- 1 step: `wstep`
     rcases wstep_cases d w with h | ⟨i, ts, p, p', hw, h | h | ⟨e, -, h⟩⟩ <;> rw [h] <;>
       try rw [hw]
     · exact forall₂_grow_refl 1 _
     · exact .cons (grow_moveIn i p p') (forall₂_grow_refl 1 _)
     · exact .cons (grow_moveIn i p p') (forall₂_grow_refl 1 _)
     · exact .cons (grow_moveIn i p p') (forall₂_applyTapes ts _)
-  · rw [sim_add_two]
-    have h₁ := forall₂_restore (ih _ (firstHalf_lt n) (extract (firstHalf (n + 2)) w))
-    have h₂ := forall₂_restore (ih _ (half_lt n) (extract ((n + 2) / 2)
-      (restore (firstHalf (n + 2)) w
-        (sim d (firstHalf (n + 2)) (extract (firstHalf (n + 2)) w)).1)))
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     have hs := firstHalf_add_half (n + 2)
-    exact forall₂_trans (fun _ _ _ ha hb => ⟨by omega, by omega⟩) h₁ h₂
+    exact forall₂_trans (fun _ _ _ ha hb => ⟨by omega, by omega⟩) (forall₂_restore ih₁)
+      (forall₂_restore ih₂)
 
 /-- The windowed simulation keeps a bound on the state above the length of the description. -/
 private lemma state_sim {d : Desc} {D : ℕ} (hD : descLen d ≤ D) (n : ℕ) {w : Win}
     (hw : w.1.getD 0 ≤ D) : (sim d n w).1.1.getD 0 ≤ D := by
-  induction n using Nat.strong_induction_on generalizing w with
-  | _ n ih =>
-  rcases n with _ | _ | n
-  · rw [sim]; exact hw
-  · rw [sim]
+  fun_induction sim d n w with
+  | case1 => exact hw -- 0 steps
+  | case2 w => -- 1 step: `wstep`
     rcases wstep_cases d w with h | ⟨i, ts, p, p', -, h | h | ⟨e, he, h⟩⟩ <;> rw [h]
     · exact hw
     · exact hw
     · simp
     · exact (state_le he).trans hD
-  · rw [sim_add_two]
-    exact ih _ (half_lt n) (ih _ (firstHalf_lt n) hw)
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => exact ih₂ (ih₁ hw) -- n + 2 steps: first half, then second half
 
 /-- The windowed simulation keeps a bound on the cells above the length of the description. -/
 private lemma valLe_sim {d : Desc} {B : ℕ} (hB : descLen d ≤ B) (n : ℕ) {w : Win}
     (hw : ∀ t ∈ w.2, ValLe B t) : ∀ t ∈ (sim d n w).1.2, ValLe B t := by
-  induction n using Nat.strong_induction_on generalizing w with
-  | _ n ih =>
-  rcases n with _ | _ | n
-  · rw [sim]; exact hw
-  · rw [sim]
+  fun_induction sim d n w with
+  | case1 => exact hw -- 0 steps
+  | case2 w => -- 1 step: `wstep`
     rcases wstep_cases d w with h | ⟨i, ts, p, p', hw', h | h | ⟨e, he, h⟩⟩ <;> rw [h]
     · exact hw
     all_goals
@@ -426,10 +411,9 @@ private lemma valLe_sim {d : Desc} {B : ℕ} (hB : descLen d ≤ B) (n : ℕ) {w
     · exact hw.2
     · exact hw.2
     · exact valLe_applyTapes hw.2 fun ta hta => (write_le he hta).trans hB
-  · rw [sim_add_two]
-    exact valLe_restore (valLe_restore hw (ih _ (firstHalf_lt n) (valLe_extract hw)))
-      (ih _ (half_lt n) (valLe_extract
-        (valLe_restore hw (ih _ (firstHalf_lt n) (valLe_extract hw)))))
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
+    have h₁ : ∀ t ∈ w₁.2, ValLe B t := valLe_restore hw (ih₁ (valLe_extract hw))
+    exact valLe_restore h₁ (ih₂ (valLe_extract h₁))
 
 /-- **The bounds after the windowed simulation** of `n` steps, for a description of length at most
 `B`: the heads move by at most one and every window gains at most `2 * n` cells. -/
@@ -469,11 +453,9 @@ theorem WInv.restore_sim {d : Desc} {B h L : ℕ} (hDB : descLen d ≤ B) {w : W
 description. -/
 private lemma sim_out (d : Desc) (n : ℕ) (w : Win) :
     (sim d n w).2.length ≤ n ∧ ∀ o ∈ (sim d n w).2, o ≤ descLen d := by
-  induction n using Nat.strong_induction_on generalizing w with
-  | _ n ih =>
-  rcases n with _ | _ | n
-  · rw [sim]; simp
-  · rw [sim]
+  fun_induction sim d n w with
+  | case1 => simp -- 0 steps
+  | case2 w => -- 1 step: `wstep`
     rcases wstep_cases d w with h | ⟨i, ts, p, p', -, h | h | ⟨e, he, h⟩⟩ <;> rw [h]
     · simp
     · simp
@@ -481,15 +463,13 @@ private lemma sim_out (d : Desc) (n : ℕ) (w : Win) :
     · have := output_le he
       revert this
       cases e.2.output <;> simp
-  · rw [sim_add_two]
-    have h₁ := ih _ (firstHalf_lt n) (extract (firstHalf (n + 2)) w)
-    have h₂ := ih _ (half_lt n) (extract ((n + 2) / 2) (restore (firstHalf (n + 2)) w
-      (sim d (firstHalf (n + 2)) (extract (firstHalf (n + 2)) w)).1))
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     have hs := firstHalf_add_half (n + 2)
-    refine ⟨by rw [List.length_append]; omega, fun o ho => ?_⟩
-    rcases List.mem_append.mp ho with ho | ho
-    · exact h₁.2 o ho
-    · exact h₂.2 o ho
+    refine ⟨?_, fun o ho => (List.mem_append.mp ho).elim (ih₁.2 o) (ih₂.2 o)⟩
+    have h₁ := ih₁.1
+    have h₂ := ih₂.1
+    simp only [r₂, w₁, r₁, List.length_append] at h₂ ⊢
+    omega
 
 /-- The windowed simulation of `n` steps emits at most `n` symbols. -/
 theorem length_sim_out (d : Desc) (n : ℕ) (w : Win) : (sim d n w).2.length ≤ n :=

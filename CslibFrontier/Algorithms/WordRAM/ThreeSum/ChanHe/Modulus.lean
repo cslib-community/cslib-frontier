@@ -89,11 +89,12 @@ theorem exec_firstSetup {w : ℕ} (x : Data 64) (h3 : Fits w 3)
     (hsq : ∀ j, Fits w (x.regs (CountCall.length j) ^ 2))
     (hcut : ∀ j, Fits w (3 * x.regs digits * x.regs (CountCall.length j) ^ 2)) :
     ExecWithin w firstSetup x (firstState x) 9 := by
-  simp only [digits] at htriple
-  simp only [CountCall.length, pow_two] at hsq hcut
-  ram_eval [firstSetup, firstState, h3, htriple, hsq 0, hsq 1, hsq 2,
-    hcut 0, hcut 1, hcut 2, digits, multiplier, Search.rawModulus, Search.factor,
-    CountCall.length, CollisionTest.threshold, Fin.mk.injEq, pow_two, Nat.mul_comm]
+  have hs0 := hsq 0; have hs1 := hsq 1; have hs2 := hsq 2
+  have hc0 := hcut 0; have hc1 := hcut 1; have hc2 := hcut 2
+  simp only [pow_two] at hs0 hs1 hs2 hc0 hc1 hc2
+  unfold firstSetup firstState
+  wram_exec [Nat.mul_comm _ 3]
+  simp only [pow_two]
 
 /-- The exact data after the second setup; memory is unchanged. -/
 def secondState (x : Data 64) : Data 64 :=
@@ -108,11 +109,9 @@ theorem exec_secondSetup {w : ℕ} (x : Data 64) (h3 : Fits w 3)
     (htriple : Fits w (3 * x.regs digits))
     (hcut : ∀ j, Fits w (3 * x.regs digits * x.regs (CountCall.result j))) :
     ExecWithin w secondSetup x (secondState x) 6 := by
-  simp only [digits] at htriple
-  simp only [CountCall.result] at hcut
-  ram_eval [secondSetup, secondState, h3, htriple, hcut, digits, multiplier, first,
-    Search.rawModulus, Search.factor, CountCall.result, CollisionTest.threshold,
-    Fin.mk.injEq, Nat.mul_comm]
+  have hc0 := hcut 0; have hc1 := hcut 1; have hc2 := hcut 2
+  unfold secondSetup secondState
+  wram_exec [Nat.mul_comm _ 3]
 
 private theorem selector_bounds {m : ℕ} (hm : 1 ≤ m) (A : ℕ → Prop) [DecidablePred A] :
     1 ≤ minOrOne {q ∈ Nat.primesLE m | A q} ∧
@@ -459,8 +458,8 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
   have hc : ExecWithin (w + 2)
       (ram[ first ← Search.answer; Search.two ← #2; CountCall.modulus ← first * Search.two ])
       b c 3 := by
-    ram_eval [c, hbanswer, htwo, hencoded, first, Search.answer, Search.two,
-      CountCall.modulus, Fin.mk.injEq, Nat.mul_comm]
+    dsimp only [c]
+    wram_exec [hbanswer, Nat.mul_comm _ 2]
   have hcs : Same x c := same_set (same_set (same_set hbs first (by decide) _)
     Search.two (by decide) _) CountCall.modulus (by decide) _
   have hcm : c.regs CountCall.modulus = encode (p : ℤ) := by simpa only [henc] using
