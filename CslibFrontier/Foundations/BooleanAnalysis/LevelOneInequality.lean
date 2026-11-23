@@ -50,10 +50,12 @@ for weighted sums of signs, which the proof uses for the tail of `ℓ`, is
 `CslibFrontier.Foundations.Combinatorics.Hoeffding`: at most
 `2 * 2 ^ Fintype.card ι * exp (-(t ^ 2 / (2 * ∑ i, a i ^ 2)))` strings `x` have
 `t ≤ |∑ i, a i * signVal (x i)|`. Checked clients bound the degree-one weight of the two-bit AND
-by `log 4` and of minus half of it by `log 8 / 4`, check that for the seven-bit AND
-(`α = 1 / 128`) the bound is below the trivial `α (1 - α)`, and apply Hoeffding's bound to four
-unweighted signs, in
-[`CslibFrontierTests/BooleanAnalysisLevelOneInequality.lean`](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisLevelOneInequality.lean).
+by `log 4` and of minus half of it by `log 8 / 4`, and apply Hoeffding's bound to four unweighted
+signs, in
+[`CslibFrontierTests/BooleanAnalysisLevelOneInequality.lean`](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisLevelOneInequality.lean);
+the seven-bit `{0, 1}`-valued witness (`α = 1 / 128`), where the sharp bound is below the trivial
+`α (1 - α)`, is in
+[`CslibFrontierTests/BooleanAnalysisLevelK.lean`](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisLevelK.lean).
 
 ## Main results
 

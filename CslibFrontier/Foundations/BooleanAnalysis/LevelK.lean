@@ -171,19 +171,18 @@ theorem levelWeight_one_indicator_le_rpow {ρ : ℝ} (hρ : 0 < ρ) (hρ' : ρ �
     levelWeight 1 (A.indicator 1) ≤
       ((𝔼 x, A.indicator (1 : (ι → Bool) → ℝ) x) ^ (2 / (1 + ρ)) -
         (𝔼 x, A.indicator (1 : (ι → Bool) → ℝ) x) ^ 2) / ρ := by
-  set F : (ι → Bool) → ℝ := A.indicator 1
-  set c : Finset ι → ℝ := fun S => ρ ^ #S * fourierCoeff F S ^ 2
-  let e : ι ↪ Finset ι := ⟨fun i => {i}, singleton_injective⟩
-  have hdisj : Disjoint (univ.map e) {∅} := by
-    rw [disjoint_singleton_right, Finset.mem_map]
-    rintro ⟨i, -, hi⟩
-    exact singleton_ne_empty i hi
-  have hle := sum_le_sum_of_subset_of_nonneg (f := c) (subset_univ (univ.map e ∪ {∅}))
-    fun S _ _ => by positivity
-  rw [sum_union hdisj, sum_map, sum_singleton] at hle
-  simp only [c, e, Function.Embedding.coeFn_mk, card_singleton, pow_one, card_empty, pow_zero,
-    one_mul, fourierCoeff_empty, ← mul_sum] at hle
-  rw [← noiseStability_eq_sum, ← levelWeight_one] at hle
+  -- the degree-zero and degree-one terms of the level-weight sum
+  have hW : (𝔼 x, A.indicator (1 : (ι → Bool) → ℝ) x) ^ 2 + ρ * levelWeight 1 (A.indicator 1) ≤
+      noiseStability ρ (A.indicator 1) := by
+    rcases (Fintype.card ι).eq_zero_or_pos with hι | hι
+    · rw [levelWeight_eq_zero_of_card_lt (by omega), mul_zero, add_zero]
+      exact sq_expect_le_noiseStability hρ.le _
+    · have h := add_le_sum (s := range (Fintype.card ι + 1))
+        (f := fun k => ρ ^ k * levelWeight k (A.indicator 1))
+        (fun k _ => mul_nonneg (pow_nonneg hρ.le k) (levelWeight_nonneg k _))
+        (mem_range.2 (by omega)) (mem_range.2 (by omega)) zero_ne_one
+      simpa only [pow_zero, one_mul, pow_one, levelWeight_zero,
+        ← noiseStability_eq_sum_levelWeight] using h
   have hS := noiseStability_indicator_le hρ.le hρ' A
   rw [le_div_iff₀ hρ, mul_comm]
   linarith
