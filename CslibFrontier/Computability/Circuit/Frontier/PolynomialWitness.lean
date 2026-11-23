@@ -265,15 +265,13 @@ private noncomputable def footprint {m : ℕ} (A : Set (Fin m → Bool)) :
 private theorem mem_span_footprint {m : ℕ} (A : Set (Fin m → Bool)) (I : Finset (Fin m)) :
     monomialCol A I ∈ Submodule.span (ZMod 2)
       (monomialCol A '' (footprint A : Set (Finset (Fin m)))) := by
-  induction hn : monomialCode I using Nat.strong_induction_on generalizing I with
-  | ind n ih =>
-    subst hn
-    by_cases hI : I ∈ footprint A
-    · exact Submodule.subset_span ⟨I, hI, rfl⟩
-    · simp only [footprint, mem_filter, Finset.mem_univ, true_and, not_not] at hI
-      refine Submodule.span_le.mpr ?_ hI
-      rintro _ ⟨K, hK, rfl⟩
-      exact ih (monomialCode K) hK K rfl
+  by_cases hI : I ∈ footprint A
+  · exact Submodule.subset_span ⟨I, hI, rfl⟩
+  · simp only [footprint, mem_filter, Finset.mem_univ, true_and, not_not] at hI
+    refine Submodule.span_le.mpr ?_ hI
+    rintro _ ⟨K, hK, rfl⟩
+    exact mem_span_footprint A K
+termination_by monomialCode I
 
 private theorem footprint_downClosed {m : ℕ} {A : Set (Fin m → Bool)} {I J : Finset (Fin m)}
     (hJI : J ⊆ I) (hI : I ∈ footprint A) : J ∈ footprint A := by

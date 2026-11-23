@@ -431,20 +431,52 @@ def formulaWordComparisonRequest (word : List Bool) (index : ℕ) :
     Option FormulaComparisonRequest :=
   comparisonRequest (formulaWordTokenAt word index)
 
+private theorem formulaWordComparisonRequest_index_lt {word : List Bool} {index : ℕ}
+    {request : FormulaComparisonRequest} (h : formulaWordComparisonRequest word index =
+      some request) : index < (formulaWordTokens word).length := by
+  by_contra hindex
+  simp [formulaWordComparisonRequest, formulaWordTokenAt, List.getD_eq_getElem?_getD,
+    List.getElem?_eq_none (Nat.le_of_not_gt hindex), comparisonRequest] at h
+
+private theorem formulaWordTokenAt_mem {word : List Bool} {index : ℕ}
+    (hi : index < (formulaWordTokens word).length) :
+    formulaWordTokenAt word index ∈ formulaWordTokens word := by
+  rw [formulaWordTokenAt, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi,
+    Option.getD_some]
+  exact List.getElem_mem _
+
 /-- A comparison in the total formula view retains the canonical encoding of a term in
 the word's dimension. -/
 theorem formulaWordComparisonRequest_termWord_exists {word : List Bool} {index : ℕ}
     {request : FormulaComparisonRequest} (hi : index < (formulaWordTokens word).length)
     (h : formulaWordComparisonRequest word index = some request) :
     ∃ t : Term word.length, request.termWord = encTerm word.length t := by
-  have hmem : formulaWordTokenAt word index ∈ formulaWordTokens word := by
-    rw [formulaWordTokenAt, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi,
-      Option.getD_some]
-    exact List.getElem_mem _
+  have hmem := formulaWordTokenAt_mem hi
   rw [formulaWordTokens_eq] at hmem
   obtain ⟨token, _, htoken⟩ := List.mem_map.mp hmem
   rw [formulaWordComparisonRequest, ← htoken] at h
   rcases token with _ | (term | (term | (_ | (_ | _)))) <;> cases h <;> exact ⟨term, rfl⟩
+
+/-- A comparison request's term payload occupies strictly fewer bits than the original
+formula word. A malformed word has no comparison requests. -/
+theorem formulaWordComparisonRequest_termWord_length_lt {word : List Bool} {index : ℕ}
+    {request : FormulaComparisonRequest} (h : formulaWordComparisonRequest word index =
+      some request) : request.termWord.length < word.length := by
+  have hmem := formulaWordTokenAt_mem (formulaWordComparisonRequest_index_lt h)
+  have hterm : .inr (.inl request.termWord) ∈ formulaWordTokens word ∨
+      .inr (.inr (.inl request.termWord)) ∈ formulaWordTokens word := by
+    rw [formulaWordComparisonRequest] at h
+    generalize formulaWordTokenAt word index = token at hmem h
+    rcases token with _ | (_ | (_ | (_ | (_ | _)))) <;> cases h
+    · exact .inl hmem
+    · exact .inr hmem
+  by_cases hvalid : validFormulaWord word = true
+  · have hdecode := formulaTokensDecoder_decode_encFormula (Formula.ofWord word)
+    rw [encFormula_ofWord, normalizeFormulaWord, ite_eq_left hvalid, ← formulaWordTokens_eq]
+      at hdecode
+    exact formulaTermWord_length_lt_of_decode hdecode hterm
+  · rw [formulaWordTokens_eq, Formula.ofWord_of_not_valid hvalid] at hterm
+    simp [encFormula_tokens, FormulaToken.encodeTerms] at hterm
 
 private theorem comparisonRequest_polyTime :
     ComputableInPolyTime comparisonRequest encFormulaToken
@@ -508,11 +540,8 @@ theorem encTerm_formulaWordGateTerm (word : List Bool) (index : ℕ) :
       rw [formulaWordGateTermWord, hrequest, Option.elim_none]
       rfl
     | some request =>
-      have hi : index < (formulaWordTokens word).length := by
-        by_contra h
-        simp [formulaWordComparisonRequest, formulaWordTokenAt, List.getD_eq_getElem?_getD,
-          List.getElem?_eq_none (Nat.le_of_not_gt h), comparisonRequest] at hrequest
-      obtain ⟨t, ht⟩ := formulaWordComparisonRequest_termWord_exists hi hrequest
+      obtain ⟨t, ht⟩ := formulaWordComparisonRequest_termWord_exists
+        (formulaWordComparisonRequest_index_lt hrequest) hrequest
       exact ⟨t, by rw [formulaWordGateTermWord, hrequest, Option.elim_some, ht]⟩
   obtain ⟨t, ht⟩ := hcanonical
   rw [formulaWordGateTerm, ← ht, (encTerm word.length).injective.extend_apply]
@@ -530,6 +559,30 @@ theorem encTerm_formulaWordGateTerm_polyTime :
     (body := fun _ request => request.termWord) (const (encTerm 0 (.const 0)))
     (hterm.comp (snd (encPair encBits encNat) encFormulaComparisonRequest))
   exact h.of_enc_eq fun p => congrArg encBits (encTerm_formulaWordGateTerm p.1 p.2)
+
+/-- The term word at any gate fits within the formula word length or the constant zero
+encoding length, whichever is larger. -/
+theorem formulaWordGateTermWord_length_le (word : List Bool) (index : ℕ) :
+    (formulaWordGateTermWord word index).length ≤
+      max word.length (encTerm 0 (.const 0)).length := by
+  cases h : formulaWordComparisonRequest word index with
+  | none =>
+    simpa only [formulaWordGateTermWord, h, Option.elim_none] using le_max_right
+      word.length (encTerm 0 (.const 0)).length
+  | some request =>
+    rw [formulaWordGateTermWord, h, Option.elim_some]
+    exact (formulaWordComparisonRequest_termWord_length_lt h).le.trans (le_max_left ..)
+
+/-- The formula word gives a single degree and coefficient norm budget for all of its gate
+polynomials, including the zero padding at unused slots. -/
+theorem formulaWordGateTerm_toPolynomial_bounds (word : List Bool) (index : ℕ) :
+    let budget := max word.length (encTerm 0 (.const 0)).length
+    (formulaWordGateTerm word index).toPolynomial.totalDegree ≤ budget ∧
+      (formulaWordGateTerm word index).toPolynomial.coeffNorm1 ≤ 2 ^ budget := by
+  have hsize := formulaWordGateTermWord_length_le word index
+  obtain ⟨hdegree, hnorm⟩ := (formulaWordGateTerm word index).toPolynomial_bounds
+  rw [encTerm_formulaWordGateTerm] at hdegree hnorm
+  exact ⟨hdegree.trans hsize, hnorm.trans (Nat.pow_le_pow_right (by decide) hsize)⟩
 
 /-- Evaluate the comparison term at an indexed gate, using zero for missing coordinates.
 Gates without a comparison request have no residue. -/
