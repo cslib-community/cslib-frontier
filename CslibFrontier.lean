@@ -211,7 +211,6 @@ public import CslibFrontier.Algorithms.Lean.Query.ShortestPaths.MinPlus
 public import CslibFrontier.Algorithms.Lean.Query.ShortestPaths.MinPlusViaNegTriangle
 public import CslibFrontier.Algorithms.Lean.Query.ShortestPaths.NegTriangleFinding
 public import CslibFrontier.Algorithms.Lean.Query.ShortestPaths.NegTriangleSubcubic
-public import CslibFrontier.Algorithms.Lean.Query.Sort.Comparator
 public import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.Fooling
 public import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.QueriedPairs
 public import CslibFrontier.Algorithms.Lean.Query.Sort.Merge.CountBound

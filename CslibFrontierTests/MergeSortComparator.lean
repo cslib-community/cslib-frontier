@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-public import CslibFrontier.Algorithms.Lean.Query.Sort.Comparator
+public import CslibFrontier.Algorithms.Lean.Query.Sort.Merge.CountBound
 
 /-!
 # Tests for `List.mergeM` and `List.mergeSortM` Custom-Comparator Query Bounds
@@ -33,24 +33,45 @@ private theorem cmpSnd_count (x y : ℕ × ℕ) :
 example :
     let m : FreeM (LEQuery ℕ) (List (ℕ × ℕ)) :=
       List.mergeSortM [(1, 30), (2, 10), (3, 20), (4, 10)] cmpSnd
-    eval natOracle (List.mergeSortM [(1, 30), (2, 10)] cmpSnd) = [(2, 10), (1, 30)] ∧
+    eval natOracle (List.mergeSortM ([] : List (ℕ × ℕ)) cmpSnd) = [] ∧
+      countQueries natOracle (List.mergeSortM ([] : List (ℕ × ℕ)) cmpSnd) ≤ 0 ∧
+      eval natOracle (List.mergeSortM [(1, 5)] cmpSnd) = [(1, 5)] ∧
+      countQueries natOracle (List.mergeSortM [(1, 5)] cmpSnd) ≤ 0 ∧
+      eval natOracle (List.mergeSortM [(1, 10), (2, 10), (3, 20)] cmpSnd) =
+        [(1, 10), (2, 10), (3, 20)] ∧
+      countQueries natOracle (List.mergeSortM [(1, 10), (2, 10), (3, 20)] cmpSnd) ≤
+        mergeSortCountBound 3 ∧
+      eval natOracle (List.mergeSortM [(1, 30), (2, 10)] cmpSnd) = [(2, 10), (1, 30)] ∧
       (m.eval natOracle).Perm [(1, 30), (2, 10), (3, 20), (4, 10)] ∧
       m.eval natOracle = [(2, 10), (4, 10), (3, 20), (1, 30)] ∧
       m.countQueries natOracle ≤ mergeSortCountBound 4 ∧
       m.countQueries natOracle ≤ 4 * Nat.clog 2 4 ∧
       countQueries natOracle (List.mergeM [(2, 10), (3, 20)] [(4, 10), (1, 30)] cmpSnd) ≤
-        2 + 2 - 1 ∧
-      countQueries natOracle (List.mergeM [(2, 10), (3, 20)] [(4, 10), (1, 30)] cmpSnd) ≤
-        2 + 2 := by
+        2 + 2 - 1 := by
   have h2 : [(1, 30), (2, 10)].mergeSort (fun x y => decide (x.2 ≤ y.2)) = [(2, 10), (1, 30)] := by
     rw [show [(1, 30), (2, 10)] = [(1, 30)] ++ [(2, 10)] from rfl,
       List.mergeSort_append [(1, 30)] [(2, 10)] (by decide) (by decide)]
     simp
-  refine ⟨?_, ?_, ?_,
+  have h3 : [(1, 10), (2, 10), (3, 20)].mergeSort (fun x y => decide (x.2 ≤ y.2)) =
+      [(1, 10), (2, 10), (3, 20)] := by
+    rw [show [(1, 10), (2, 10), (3, 20)] = [(1, 10), (2, 10)] ++ [(3, 20)] from rfl,
+      List.mergeSort_append [(1, 10), (2, 10)] [(3, 20)] (by decide) (by decide),
+      show [(1, 10), (2, 10)] = [(1, 10)] ++ [(2, 10)] from rfl,
+      List.mergeSort_append [(1, 10)] [(2, 10)] (by decide) (by decide)]
+    simp
+  refine ⟨by simp,
+    (mergeSortM_countQueries_le_countBound natOracle _ cmpSnd cmpSnd_count).trans_eq
+      mergeSortCountBound_zero,
+    by simp,
+    (mergeSortM_countQueries_le_countBound natOracle _ cmpSnd cmpSnd_count).trans_eq
+      mergeSortCountBound_one,
+    ?_,
+    mergeSortM_countQueries_le_countBound natOracle _ cmpSnd cmpSnd_count,
+    ?_, ?_, ?_,
     mergeSortM_countQueries_le_countBound natOracle _ cmpSnd cmpSnd_count,
     mergeSortM_countQueries_le natOracle _ cmpSnd cmpSnd_count,
-    mergeM_countQueries_le_sub_one natOracle _ _ cmpSnd cmpSnd_count,
-    mergeM_countQueries_le natOracle _ _ cmpSnd cmpSnd_count⟩
+    mergeM_countQueries_le_sub_one natOracle _ _ cmpSnd cmpSnd_count⟩
+  · simpa only [eval_mergeSortM, cmpSnd, natOracle, LEQuery.eval_ask, LEQuery.oracleOf_le] using h3
   · simpa only [eval_mergeSortM, cmpSnd, natOracle, LEQuery.eval_ask, LEQuery.oracleOf_le] using h2
   · simp only [eval_mergeSortM]
     exact List.mergeSort_perm _ _

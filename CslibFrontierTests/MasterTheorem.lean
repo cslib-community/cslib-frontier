@@ -36,9 +36,9 @@ theorem mergeSort_bound : DivideConquerBound Cslib.Query.mergeSortCountBound
     rw [pow_one, one_mul]
     omega
 
-/-- Merge sort makes at most `2 n ⌈log₂ n⌉` comparisons from the generic master theorem (the
-halving lemma `mergeSortCountBound_le_mul_clog` gives `n ⌈log₂ n⌉`; the generic theorem loses the
-factor `b` from `b ^ ⌈log_b n⌉ ≤ b n`). -/
+/-- Merge sort makes at most `2 n ⌈log₂ n⌉` comparisons from the generic master theorem
+(`Cslib.Query.mergeSortCountBound_le_mul_clog` in `CountBound.lean` gives the sharp `n ⌈log₂ n⌉`
+by strong induction; the generic theorem loses the factor `b` from `b ^ ⌈log_b n⌉ ≤ b n`). -/
 example (n : ℕ) (hn : n ≠ 0) :
     Cslib.Query.mergeSortCountBound n ≤ 2 * n * clog 2 n := by
   have := mergeSort_bound.le_mul_pow_mul_clog (by norm_num) (by norm_num) le_rfl (by norm_num) hn
