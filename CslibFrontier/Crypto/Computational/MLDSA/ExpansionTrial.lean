@@ -9,14 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.PriorCommitmentRefresh
 import all CslibFrontier.Crypto.Computational.MLDSA.PriorCommitmentRefresh
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMask
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitmentRegister
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
-import all CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskExpansion
-import all CslibFrontier.Crypto.Computational.MLDSA.CommitmentContinuation
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
+import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMask
 
 /-!
 # Refreshing a digest in the byte-row signing experiment
@@ -36,6 +29,50 @@ private def rowMasks (s : Level) (row : FixedBytes 2 → FixedBytes (maskPolyByt
     (i : Fin 814) : Fin s.params.ℓ → Poly :=
   ringVectorCoeffs (maskFromRow s row (signingAttemptCounter s.params 0 i))
 
+private theorem iid_bind_update {β : Type} (μ : PMF β) {k : ℕ} (j : Fin k) :
+    ((PMF.iid μ k).bind fun v => μ.bind fun y => PMF.pure (Function.update v j y)) =
+      PMF.iid μ k := by
+  classical
+  ext w
+  let sw : (Fin k → β) × β ≃ (Fin k → β) × β :=
+    { toFun := fun (v, y) => (Function.update v j y, v j)
+      invFun := fun (v, y) => (Function.update v j y, v j)
+      left_inv := fun (v, y) => by simp [Function.update_idem]
+      right_inv := fun (v, y) => by simp [Function.update_idem] }
+  have lhs : ((PMF.iid μ k).bind fun v => μ.bind fun y =>
+      PMF.pure (Function.update v j y)) w =
+      ∑' p : (Fin k → β) × β,
+        (∏ i, μ (p.1 i)) * (μ p.2 * (PMF.pure (Function.update p.1 j p.2)) w) := by
+    rw [tsum_prod']
+    simp only [PMF.bind_apply, PMF.iid_apply]
+    refine tsum_congr fun v => (ENNReal.tsum_mul_left ..).symm
+  rw [lhs, ← sw.tsum_eq]
+  have hterm (p : (Fin k → β) × β) :
+      (∏ i, μ ((sw p).1 i)) * (μ (sw p).2 *
+        (PMF.pure (Function.update (sw p).1 j (sw p).2)) w) =
+        if p.1 = w then (∏ i, μ (w i)) * μ p.2 else 0 := by
+    rcases p with ⟨v, y⟩
+    change (∏ i, μ (Function.update v j y i)) *
+      (μ (v j) * (PMF.pure (Function.update (Function.update v j y) j (v j))) w) = _
+    rw [Function.update_idem, Function.update_eq_self, PMF.pure_apply]
+    by_cases hvw : v = w
+    · subst hvw
+      simp only [↓reduceIte, mul_one]
+      rw [← Finset.mul_prod_erase Finset.univ (fun i => μ (Function.update v j y i))
+          (Finset.mem_univ j),
+        ← Finset.mul_prod_erase Finset.univ (fun i => μ (v i)) (Finset.mem_univ j),
+        Function.update_self]
+      have heq : ∀ i ∈ Finset.univ.erase j,
+          μ (Function.update v j y i) = μ (v i) := fun i hi => by
+        rw [Function.update_of_ne (Finset.ne_of_mem_erase hi)]
+      rw [Finset.prod_congr rfl heq]
+      ring
+    · have hne : w ≠ v := Ne.symm hvw
+      simp [hvw, hne]
+  simp_rw [hterm]
+  rw [tsum_prod', tsum_eq_single w (fun v hv => by simp [hv])]
+  simp only [↓reduceIte, ENNReal.tsum_mul_left, PMF.tsum_coe, mul_one, PMF.iid_apply]
+
 private theorem replace_row_mask {α : Type} (s : Level) (j : Fin 814)
     (score : (Fin 814 → Fin s.params.ℓ → Poly) → PMF α) :
     ((PMF.uniformOfFintype (FixedBytes 2 → FixedBytes (maskPolyBytes s))).bind fun row =>
@@ -44,27 +81,15 @@ private theorem replace_row_mask {α : Type} (s : Level) (j : Fin 814)
     (PMF.uniformOfFintype (FixedBytes 2 → FixedBytes (maskPolyBytes s))).bind
       (fun row => score (rowMasks s row)) := by
   classical
-  have law := iid_maskFromRow s
-  change (PMF.uniformOfFintype _).map (rowMasks s) = _ at law
-  let U := PMF.uniformOfFintype (Coefficients s)
-  let read (c : Coefficients s) := fun i => ringRow (c i)
-  have box : U.map read = signingMaskLaw s.params (by cases s <;> decide) := maskLaw_coefficients s
+  have law : (PMF.uniformOfFintype _).map (rowMasks s) =
+      PMF.iid (signingMaskLaw s.params (by cases s <;> decide)) 814 := iid_maskFromRow s
   let rerun (v : Fin 814 → Fin s.params.ℓ → Poly) :=
     (signingMaskLaw s.params (by cases s <;> decide)).bind fun y => score (Function.update v j y)
   change (PMF.bind _ (rerun ∘ rowMasks s)) = PMF.bind _ (score ∘ rowMasks s)
-  rw [← PMF.bind_map, ← PMF.bind_map, law, ← box,
-    PMF.iid_map, PMF.iid_uniformOfFintype, PMF.bind_map, PMF.bind_map]
-  simp only [rerun, ← box, PMF.bind_map]
-  have commute (v : Fin 814 → Coefficients s) (c : Coefficients s) :
-      Function.update (fun i => read (v i)) j (read c) =
-      fun i => read (Function.update v j c i) := by
-    funext i
-    by_cases h : i = j <;> simp [h, Function.update_of_ne]
-  change (PMF.bind (PMF.uniformOfFintype (Fin 814 → Coefficients s)) (fun v =>
-    U.bind fun c => score (Function.update (fun i => read (v i)) j (read c)))) = _
-  simp_rw [commute]
-  exact PMF.uniformOfFintype_bind_bind_adaptiveUpdate (fun _ => j) (fun _ _ => rfl)
-    (fun v => score (fun i => read (v i)))
+  rw [← PMF.bind_map, ← PMF.bind_map, law]
+  simpa only [rerun, PMF.bind_bind, PMF.pure_bind] using
+    congrArg (fun p => p.bind score)
+      (iid_bind_update (signingMaskLaw s.params (by cases s <;> decide)) j)
 
 -- Separate the tests before the selected nonce. A terminal error prevents further attempts.
 private theorem split_firstAccepted (step : ℕ) (tryAt : ℕ → Option (Option (List Byte)))

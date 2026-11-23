@@ -11,11 +11,6 @@ public import CslibFrontier.Crypto.Computational.MLDSA.SecretExpansionLaw
 public import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 import all CslibFrontier.Crypto.Computational.MLDSA.SecretExpansionLaw
 import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
-import all CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Computational.MLDSA.MatrixOracle
-import all CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 import CslibFrontier.Probability.PMF.Bool
 
 /-!
@@ -197,6 +192,11 @@ private theorem planted_real {s : Level} (H : Xofs) (seed : FixedBytes 32) (run 
     idealShortPair p.2 (run p.1 (fun j => rho[j.val]!))
   have eq := congrArg (PMF.bind · use) (uniform_expandA_programMatrixPrefixes H s rho)
   simp only [PMF.bind_map, Function.comp_def] at eq
+  have hgame (t : MatrixPrefixes s) :
+      matrixGame (H.withMatrixPrefixes s rho t) seed run =
+        use (H.withMatrixPrefixes s rho t, (H.withMatrixPrefixes s rho t).expandA s rho) := by
+    simp only [matrixGame, Xofs.expandKeySeed, Xofs.withMatrixPrefixes_h256, rho, use]
+  simp_rw [hgame]
   apply eq.symm.trans
   rw [← PMF.uniformOfFintype_prod]
   simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def]

@@ -9,11 +9,6 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningMaskSeeds
 import all CslibFrontier.Crypto.Computational.MLDSA.SigningMaskSeeds
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 import CslibFrontier.Crypto.Game.CloseTo.UntilBad
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Crypto.Game.Statistical
@@ -54,8 +49,7 @@ private abbrev Unchanged (H G : Xofs) (bits : ℕ) :=
 private theorem commitmentInput_length_ne_maskSeed (s : Level)
     (w : Fin s.params.k → Fin 256 → ℤ) {μ : List Bool} (hμ : μ.length = 512) :
     (commitmentInput s w μ).length ≠ 1024 := by
-  simp only [commitmentInput, List.length_append, hμ, Keccak.length_bytesToBitsLE]
-  rw [length_packCoeffs]
+  rw [commitmentInput_length s w hμ]
   cases s <;> decide
 
 private theorem challenge_unchanged {H G : Xofs} {bits : ℕ} (raw : Unchanged H G bits) (s : Level)

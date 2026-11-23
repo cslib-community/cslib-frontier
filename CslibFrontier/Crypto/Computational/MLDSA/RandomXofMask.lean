@@ -320,7 +320,9 @@ theorem Xofs.uniformPrefixes_expandMask_schedule (base : Xofs) (s : Level) {a b 
   convert law using 1 <;> apply congrArg (fun g => PMF.map g _) <;>
     funext x i k j <;> rfl
 
-private theorem iid_maskFromRow (s : Level) :
+/-- Reading the 814 scheduled mask polynomials from a uniform two-byte-indexed XOF row table
+produces i.i.d. uniform masks in the signing mask distribution. -/
+theorem iid_maskFromRow (s : Level) :
     (PMF.uniformOfFintype (FixedBytes 2 → FixedBytes (maskPolyBytes s))).map
         (fun row (i : Fin 814) =>
           ringVectorCoeffs (maskFromRow s row (signingAttemptCounter s.params 0 i))) =

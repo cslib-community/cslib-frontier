@@ -9,9 +9,6 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
 import all CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
-import all CslibFrontier.Crypto.Computational.MLDSA.SecretExpansionLaw
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import CslibFrontier.Probability.PMF.UniformExtend
 
 /-!

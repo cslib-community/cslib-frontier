@@ -8,10 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import all CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
 import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
+import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.UniformExtend
 
 /-!

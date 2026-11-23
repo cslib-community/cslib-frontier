@@ -12,8 +12,6 @@ public import CslibFrontier.Crypto.Computational.MLDSA.SigningSimulation
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Computational.MLDSA.Basic
-import all CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -152,7 +150,7 @@ theorem TerminalSigningWrite.History.read_representative {s : Level} {base G : X
 
 /-- A signing experiment at the original FIPS seeded law of `(ρ,A,t)`. A setup error
 returns false. The continuation receives the matrix and full vector before public-key rounding. -/
-noncomputable def Xofs.fullPairExperiment (H : Xofs) (s : Level)
+@[expose] noncomputable def Xofs.fullPairExperiment (H : Xofs) (s : Level)
     (run : FixedBytes 32 → MLDSA.PublicKey s.params → Game) : Game :=
   H.keyExperiment s fun keys =>
     ((do
