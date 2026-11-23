@@ -24,13 +24,13 @@ the rounded expansion is the function itself, and its sign has error `0`
 (`UniformLearning.exactLowDegreeHypothesis_eq`). By Hoeffding's inequality and a union bound over
 the `N` sets of at most `k` coordinates
 (`UniformLearning.uniform_exists_abs_empiricalCoeff_sub_ge_le`), `2 · 4 ^ k · log (2 N / δ)`
-uniform random examples suffice (`UniformLearning.exactLowDegreeLearner_learns`)
-[O'Donnell, Theorem 3.36][ODonnell2014], proved as the book's Exercise 3.36 suggests. Since
-`N ≤ (n + 1) ^ k` (`BitString.card_filter_card_le_le_pow`), this is
-`O(4 ^ k (k log (n + 1) + log (1 / δ)))` examples; computing the `N` rounded estimates from them
-gives the book's running time `n ^ k · poly(n, 2 ^ k)` for constant `δ`. As in
-`UniformLearning.lowDegreeLearner_learns`, only the number of examples is certified, not the
-running time.
+uniform random examples suffice (`UniformLearning.exactLowDegreeLearner_learns`). This is the
+sample-complexity step toward [O'Donnell, Theorem 3.36][ODonnell2014], following the book's
+Exercise 3.36. Since `N ≤ (n + 1) ^ k` (`BitString.card_filter_card_le_le_pow`), it is
+`O(4 ^ k (k log (n + 1) + log (1 / δ)))` examples. The learner is noncomputable and its running
+time is not certified, so Theorem 3.36 itself, learning in time `n ^ k · poly(n, 2 ^ k)` with a
+circuit as output, remains open on
+[#2131](https://github.com/cslib-community/cslib-frontier/issues/2131).
 
 ## Usage
 
@@ -59,8 +59,9 @@ decision trees of depth two, with confidence `9 / 10`, in
 
 * `Cslib.MachineLearning.UniformLearning.exactLowDegreeHypothesis_eq`: estimates within `2 ^ (-k)`
   give back the function.
-* `Cslib.MachineLearning.UniformLearning.exactLowDegreeLearner_learns`: Theorem 3.36, exact
-  learning of the functions of degree at most `k`.
+* `Cslib.MachineLearning.UniformLearning.exactLowDegreeLearner_learns`: the number of examples
+  that suffices to learn the functions of degree at most `k` with error `0`, a step toward
+  Theorem 3.36.
 
 ## References
 
@@ -135,12 +136,15 @@ theorem exactLowDegreeHypothesis_eq {k : ℕ} (hk : 1 ≤ k) {f : (ι → Bool) 
   rw [exactLowDegreeHypothesis, signRound_apply, hsum]
   cases f x <;> norm_num
 
-/-- **Exact learning of low-degree functions** [O'Donnell, Theorem 3.36][ODonnell2014]: let `N` be
-the number of sets of at most `k ≥ 1` coordinates (at most `(n + 1) ^ k` for `n = Fintype.card ι`,
+/-- **Sample complexity of exact learning of low-degree functions**, a step toward
+[O'Donnell, Theorem 3.36][ODonnell2014], following Exercise 3.36: let `N` be the number of sets of
+at most `k ≥ 1` coordinates (at most `(n + 1) ^ k` for `n = Fintype.card ι`,
 `BitString.card_filter_card_le_le_pow`). From `m ≥ 2 · 4 ^ k · log (2 N / δ)` uniform random
 examples, the exact low-degree algorithm of degree `k` learns the Boolean functions of degree at
 most `k`, read as signs, with error `0` and confidence `1 - δ`. Only the number of examples is
-certified, not the running time. -/
+certified: the learner is noncomputable, and the book's running time `n ^ k · poly(n, 2 ^ k)` and
+circuit output remain open on
+[#2131](https://github.com/cslib-community/cslib-frontier/issues/2131). -/
 theorem exactLowDegreeLearner_learns {k m : ℕ} (hk : 1 ≤ k) {δ : ℝ} (hδ : 0 < δ)
     (hm : 2 * 4 ^ k * Real.log (2 * #{S : Finset ι | #S ≤ k} / δ) ≤ m) :
     Learns (exactLowDegreeLearner ι k m) {f | (fun x => signVal (f x)) ∈ lowDegree ℝ ι k} 0 δ := by

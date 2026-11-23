@@ -25,7 +25,9 @@ degree at most three, so its coefficients, read as signs, are multiples of `1 / 
 has integer coefficients.
 Over the two sets `∅` and `{0}`, `16` examples of a parity miss some coefficient by `1 / 2` with
 probability at most `4 exp (-2)`. The two examples `(0, 0)` and `(1, 1)` of the one-bit dictator
-give its coefficients exactly, so the exact hypothesis of degree one is the dictator. The functions
+give its coefficients exactly, so the exact hypothesis of degree one is the dictator; from the
+three examples `(0, 0)`, `(0, 0)` and `(1, 1)` the estimate on `∅` is `1 / 3`, and rounding still
+recovers the dictator. The functions
 of degree at most two on five bits, among them every decision tree of depth at most two, are
 learned with error `0` and confidence `9 / 10`.
 -/
@@ -129,6 +131,32 @@ example : exactLowDegreeHypothesis 1 dictatorSample = fun x => x 0 := by
           fun j _ => Subsingleton.elim j 0⟩)
     rcases hS with rfl | rfl <;>
       norm_num [empiricalCoeff, dictatorSample, Fin.sum_univ_two, chi_singleton]
+
+/-- The three examples `(0, 0)`, `(0, 0)` and `(1, 1)` of the dictator on one bit. -/
+abbrev unbalancedDictatorSample : LabeledSample (Fin 1 → Bool) Bool 3 :=
+  ![(fun _ => false, false), (fun _ => false, false), (fun _ => true, true)]
+
+/-- From the unbalanced examples `(0, 0)`, `(0, 0)` and `(1, 1)` the empirical coefficient of the
+one-bit dictator on `∅` is `1 / 3`, not its true value `0`; rounding to the nearest integer
+recovers `0`, so the exact hypothesis of degree one is still the dictator. -/
+example : exactLowDegreeHypothesis 1 unbalancedDictatorSample = fun x => x 0 := by
+  have hchi : (fun x : Fin 1 → Bool => signVal (x 0)) = chi ℝ {0} :=
+    funext fun x => (chi_singleton 0 x).symm
+  have hempty : empiricalCoeff unbalancedDictatorSample ∅ = 1 / 3 := by
+    norm_num [empiricalCoeff, unbalancedDictatorSample, Fin.sum_univ_three]
+  refine exactLowDegreeHypothesis_eq le_rfl ?_ fun S _ => ?_
+  · rw [hchi]
+    exact chi_mem_lowDegree {0}
+  · rw [hchi, fourierCoeff_chi]
+    have hS : S = ∅ ∨ S = {0} := by
+      rcases S.eq_empty_or_nonempty with h | ⟨i, hi⟩
+      · exact Or.inl h
+      · exact Or.inr (eq_singleton_iff_unique_mem.2 ⟨Subsingleton.elim i 0 ▸ hi,
+          fun j _ => Subsingleton.elim j 0⟩)
+    rcases hS with rfl | rfl
+    · rw [hempty]
+      norm_num
+    · norm_num [empiricalCoeff, unbalancedDictatorSample, Fin.sum_univ_three, chi_singleton]
 
 /-- Exact learning of the functions of degree at most `2` on five bits, confidence `9 / 10`. -/
 example : ∃ m, Learns (exactLowDegreeLearner (Fin 5) 2 m)

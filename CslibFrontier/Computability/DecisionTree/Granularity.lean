@@ -49,7 +49,7 @@ variable {ι β : Type*} [Fintype ι] [DecidableEq ι]
 
 /-- **Granularity of decision trees**: the Fourier coefficients of an integer-valued function of
 the output of a decision tree of depth `d` are integer multiples of `2 ^ (-d)`
-[O'Donnell, Proposition 3.16][ODonnell2014]. -/
+[O'Donnell, Proposition 3.16, fourth item][ODonnell2014]. -/
 theorem exists_fourierCoeff_eq_intCast_div_two_pow_depth (g : β → ℤ) (t : DecisionTree ι β)
     (S : Finset ι) : ∃ m : ℤ, fourierCoeff (fun x => (g (t.eval x) : ℝ)) S = m / 2 ^ t.depth :=
   exists_fourierCoeff_eq_intCast_div_two_pow_of_mem_lowDegree _
