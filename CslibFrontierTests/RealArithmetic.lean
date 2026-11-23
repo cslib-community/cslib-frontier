@@ -150,6 +150,17 @@ set_option linter.hashCommand false in
     (formulaWordComparisonRequest word (2 ^ 80)).isNone &&
     (formulaWordComparisonRequest [] 0).isNone
 
+-- The same comparison slots evaluate modulo a composite, with missing coordinates set to zero.
+set_option linter.hashCommand false in
+#guard
+  let word := encFormula 1 (.and (.eqZero (.var 0)) (.ltZero (.const (-2))))
+  formulaWordComparisonResidue word 1 8 [11] == some 3 &&
+    formulaWordComparisonResidue word 1 8 [] == some 0 &&
+    formulaWordComparisonResidue word 2 8 [] == some 6 &&
+    (formulaWordComparisonResidue word 0 8 []).isNone &&
+    (formulaWordComparisonResidue word (2 ^ 80) 8 []).isNone &&
+    (formulaWordComparisonResidue [] 0 8 []).isNone
+
 -- The left subtree stops at the right child of the conjunction.
 set_option linter.hashCommand false in
 #guard
@@ -195,6 +206,10 @@ set_option linter.hashCommand false in
     formulaWordGateValuesWithAnswers word (· != 2) == [true, true, false, true, false, true] &&
     formulaWordGateValuesWithAnswers word (fun i => formulaWordComparisonAnswer word i (-1)) ==
       [true, true, false, true, false, true] &&
+    formulaWordGateValuesWithSignature (n := 6) word (fun _ => -1) ==
+      [true, true, false, true, false, true] &&
+    formulaWordGateValuesWithSignature (n := 5) word (fun _ => -1) ==
+      [false, true, false, false, false, false] &&
     formulaWordGateValues [] termSign == [false]
 
 -- A huge gate index uses the same suffix offsets as a small one. A child at the gate
@@ -230,6 +245,14 @@ example :
   | some request =>
     rcases request with ⟨_, strict⟩
     cases strict <;> simp [Option.any, FormulaComparisonRequest.requestedSign]
+
+-- A raw formula word and a framed sign list are ordinary inputs to the space certificate.
+example :
+    ComputableInPolySpace (fun p : List Bool × List SignType =>
+      formulaWordGateValuesWithSignature p.1 (fun index : Fin p.2.length => p.2[index.val]))
+      (encPair encBits (encList encSign)) encBits :=
+  formulaWordGateValuesWithSignature_polySpace (ComputableInPolyTime.fst _ _)
+    (ComputableInPolyTime.snd _ _)
 
 -- A malformed word has no comparison terms, so its sign reader can be arbitrary.
 example (termSign : List Bool → SignType) (x : Fin 0 → ℝ) :

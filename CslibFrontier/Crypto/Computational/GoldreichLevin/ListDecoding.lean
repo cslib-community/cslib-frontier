@@ -579,8 +579,7 @@ theorem prune_bad_samples_le_quarter (predictor : BitString n → Bool) {precisi
     exact_mod_cast card_candidates_le predictor masks
   have hprod : (C.card : ℝ) * E ≤ 1 / 4 := by
     calc
-      (C.card : ℝ) * E ≤ (2 : ℝ) ^ k * (1 / (4 * (2 : ℝ) ^ k)) :=
-        mul_le_mul hcard hE_le hE_nonneg (by positivity)
+      (C.card : ℝ) * E ≤ (2 : ℝ) ^ k * (1 / (4 * (2 : ℝ) ^ k)) := by gcongr
       _ = 1 / 4 := by field_simp
   calc
     (PMF.uniformOfFintype (Fin m → BitString n)).toOuterMeasure

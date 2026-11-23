@@ -441,10 +441,6 @@ def energy : DecisionTree ι β → ℕ
 theorem energy_leaf (b : β) : (leaf b : DecisionTree ι β).energy = 0 :=
   rfl
 
-private theorem energy_node (i : ι) (left right : DecisionTree ι β) :
-    (node i left right).energy = max left.energy (right.energy + 1) :=
-  rfl
-
 /-- Relabelling queries preserves the energy. -/
 @[simp]
 theorem energy_mapQueries {κ : Type*} (f : ι → κ) (t : DecisionTree ι β) :
@@ -467,7 +463,7 @@ theorem leafCount_le_sum_choose_of_energy_le (t : DecisionTree ι β) {e d : ℕ
     (he : t.energy ≤ e) (hd : t.depth ≤ d) :
     t.leafCount ≤ ∑ j ∈ Finset.range (e + 1), d.choose j := by
   refine leafCount_le_sum_choose_of_measure energy (fun i left right => ?_) t he hd
-  rw [energy_node]
+  rw [energy]
   omega
 
 /-- A decision tree of depth `d` and energy `e` has at most

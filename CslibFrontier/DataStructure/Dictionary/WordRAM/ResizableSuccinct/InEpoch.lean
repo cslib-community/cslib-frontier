@@ -238,40 +238,41 @@ theorem reconstructKeyAt_spec {metaBase itemBase U V w N n : ℕ} {θ : QuotHash
       valAt 0 U V wg N (hashSpace U wg N) s_fix.mem (physOfDense N gm dt d) at hv0
     rw [htot_eq, hphys, ← hgm_eq] at hq0 hv0
     exact ⟨hq0, hv0⟩
-  have h1 : ∀ d < n, ∃ hu : reconstructKeyAt metaBase itemBase U V w N n θ s.mem d < U,
-      s_abs ⟨reconstructKeyAt metaBase itemBase U V w N n θ s.mem d, hu⟩ =
-        some (compValAt itemBase U V w N n s.mem d) ∧
-      compValAt itemBase U V w N n s.mem d < V := fun d hd => by
+  have howner : ∀ d < n,
+      let b := ownerBucketOfDense N gm dt d
+      let j := logicalIdxOfDense N gm dt d
+      let key := reconstructKeyAt metaBase itemBase U V w N n θ s.mem d
+      b < numBuckets N ∧
+      j < bCount N (gmAt 0 U V wg N (hashSpace U wg N) s_fix.mem) b ∧
+      denseOfPhys N gm td (slotOf N gm b j) = d ∧
+      feistelBucket (bucketBits N) (hValOfSeed U N θ) key = b ∧
+      keyQuotient (bucketBits N) key = compQuotAt itemBase U V w N n s.mem d ∧
+      compQuotAt itemBase U V w N n s.mem d =
+        quotAt 0 U wg N (hashSpace U wg N) s_fix.mem
+          (slotOf N (gmAt 0 U V wg N (hashSpace U wg N) s_fix.mem) b j) ∧
+      compValAt itemBase U V w N n s.mem d =
+        valAt 0 U V wg N (hashSpace U wg N) s_fix.mem
+          (slotOf N (gmAt 0 U V wg N (hashSpace U wg N) s_fix.mem) b j) := fun d hd => by
     have hd_tot : d < totalSlots N gm := hn ▸ hd
-    obtain ⟨hb_lt, hj_lt, _⟩ := ownerBucketOfDense_lt_and_slotOf hslot htd hd_tot
+    obtain ⟨hb_lt, hj_lt, hd_eq⟩ := ownerBucketOfDense_lt_and_slotOf hslot htd hd_tot
     obtain ⟨hq_d, hv_d⟩ := hqv_slot d hd_tot _ _ (physOfDense_eq_slotOf_owner hslot htd hd_tot)
-    have hmap := hbucket.hmap_some _ hb_lt _ (by rwa [hgm_eq])
+    obtain ⟨hfb_b, hfb_q⟩ := feistelBucket_feistelReconstruct (hValOfSeed U N θ) hb_lt
+      (compQuotAt itemBase U V w N n s.mem d)
+    exact ⟨hb_lt, hgm_eq.symm ▸ hj_lt, hd_eq, hfb_b, hfb_q, hq_d, hv_d⟩
+  refine ⟨fun d hd => ?_, fun d₁ hd₁ d₂ hd₂ heq => ?_, fun u hu => ?_⟩
+  · obtain ⟨hb_lt, hj_lt, -, -, -, hq_d, hv_d⟩ := howner d hd
+    have hmap := hbucket.hmap_some _ hb_lt _ hj_lt
     rw [← hq_d, ← hv_d] at hmap; unfold bucketMapOfState at hmap
     split_ifs at hmap with hcond
     exact ⟨hcond.1, hmap, hvals _ _ hmap⟩
-  refine ⟨h1, fun d₁ hd₁ d₂ hd₂ heq => ?_, fun u hu => ?_⟩
-  · have hd₁_tot : d₁ < totalSlots N gm := hn ▸ hd₁
-    have hd₂_tot : d₂ < totalSlots N gm := hn ▸ hd₂
-    obtain ⟨hb₁_lt, hj₁_lt, hd₁_eq⟩ := ownerBucketOfDense_lt_and_slotOf hslot htd hd₁_tot
-    obtain ⟨hb₂_lt, hj₂_lt, hd₂_eq⟩ := ownerBucketOfDense_lt_and_slotOf hslot htd hd₂_tot
-    set b₁ := ownerBucketOfDense N gm dt d₁
-    set j₁ := logicalIdxOfDense N gm dt d₁
-    set b₂ := ownerBucketOfDense N gm dt d₂
-    set j₂ := logicalIdxOfDense N gm dt d₂
-    have hfb₁ := feistelBucket_feistelReconstruct (hValOfSeed U N θ) hb₁_lt
-      (compQuotAt itemBase U V w N n s.mem d₁)
-    have hfb₂ := feistelBucket_feistelReconstruct (hValOfSeed U N θ) hb₂_lt
-      (compQuotAt itemBase U V w N n s.mem d₂)
-    change feistelReconstruct (bucketBits N) (hValOfSeed U N θ) b₁ _ =
-      feistelReconstruct (bucketBits N) (hValOfSeed U N θ) b₂ _ at heq
-    have hb_eq : b₁ = b₂ := by rw [← hfb₁.1, heq, hfb₂.1]
+  · obtain ⟨hb₁_lt, hj₁_lt, hd₁_eq, hfb₁_b, hfb₁_q, hq₁, -⟩ := howner d₁ hd₁
+    obtain ⟨-, hj₂_lt, hd₂_eq, hfb₂_b, hfb₂_q, hq₂, -⟩ := howner d₂ hd₂
+    have hb_eq : ownerBucketOfDense N gm dt d₁ = ownerBucketOfDense N gm dt d₂ := by
+      rw [← hfb₁_b, heq, hfb₂_b]
     have hq_eq : compQuotAt itemBase U V w N n s.mem d₁ =
-        compQuotAt itemBase U V w N n s.mem d₂ := by rw [← hfb₁.2, heq, hfb₂.2]
-    have hq₁ := (hqv_slot d₁ hd₁_tot b₁ j₁ (physOfDense_eq_slotOf_owner hslot htd hd₁_tot)).1
-    have hq₂ := (hqv_slot d₂ hd₂_tot b₁ j₂
-      (hb_eq ▸ physOfDense_eq_slotOf_owner hslot htd hd₂_tot)).1
-    have hj_eq := hbucket.hnodup_q b₁ hb₁_lt j₁ (by rwa [hgm_eq]) j₂
-      (by rwa [hgm_eq, hb_eq]) (by rw [← hq₁, ← hq₂, hq_eq])
+        compQuotAt itemBase U V w N n s.mem d₂ := by rw [← hfb₁_q, heq, hfb₂_q]
+    have hj_eq := hbucket.hnodup_q _ hb₁_lt _ hj₁_lt _ (hb_eq ▸ hj₂_lt)
+      (by rw [← hq₁, hb_eq, ← hq₂, hq_eq])
     rw [← hd₁_eq, ← hd₂_eq, hb_eq, hj_eq]
   · set b := feistelBucket (bucketBits N) (hValOfSeed U N θ) u.val
     set q := keyQuotient (bucketBits N) u.val

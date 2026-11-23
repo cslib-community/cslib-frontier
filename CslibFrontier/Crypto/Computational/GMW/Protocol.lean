@@ -121,13 +121,9 @@ theorem clauseEvalBits_eq_eval {c : Clause ℕ} (hc : c.length ≤ 3) (σ : ℕ 
 def varBit (φ : CNF ℕ) (vec : List Bool) (v : ℕ) : Bool :=
   if φ.vars.idxOf v < φ.vars.length then vec.getD (φ.vars.idxOf v) false else false
 
-private theorem varBit_eq_assignment {φ : CNF ℕ} (vec : List Bool) {v : ℕ} (hv : v ∈ φ.vars) :
-    varBit φ vec v = SAT.assignment φ vec v := by
-  simp [varBit, SAT.assignment, List.idxOf_lt_length_iff.mpr hv]
-
 private theorem eval_varBit_eq (φ : CNF ℕ) (vec : List Bool) :
     φ.eval (varBit φ vec) = φ.eval (SAT.assignment φ vec) :=
-  CNF.eval_congr (fun _ hv => varBit_eq_assignment vec hv)
+  CNF.eval_congr fun _ hv => by simp [varBit, SAT.assignment, List.idxOf_lt_length_iff.mpr hv]
 
 @[simp] theorem varBit_listXor (φ : CNF ℕ) (w m : List Bool) (v : ℕ) :
     varBit φ (BitString.listXor φ.vars.length [w, m]) v = (varBit φ w v ^^ varBit φ m v) := by

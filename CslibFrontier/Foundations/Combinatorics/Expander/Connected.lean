@@ -465,8 +465,7 @@ theorem exists_walk_length_le_clog_of_spectralExpansion_lt (h : G.spectralExpans
     (u v : V) : ∃ w : G.toSimpleGraph.Walk u v, w.length ≤ Nat.clog 4 (Fintype.card V) := by
   set t := Nat.clog 4 (Fintype.card V)
   have hN : (Fintype.card V : ℝ) ≤ 4 ^ t := by exact_mod_cast Nat.le_pow_clog (by norm_num) _
-  have hlam : G.spectralExpansion ^ t ≤ (1 / 4) ^ t :=
-    pow_le_pow_left₀ G.spectralExpansion_nonneg h.le t
+  have hlam : G.spectralExpansion ^ t ≤ (1 / 4) ^ t := by gcongr
   have hpos : (0 : ℝ) ≤ Fintype.card V - 1 := by
     rw [sub_nonneg]; exact Nat.one_le_cast.2 (Fintype.card_pos_iff.2 ⟨u⟩)
   obtain ⟨k, rfl⟩ := G.exists_neighbor_pow_eq (t := t) (by
