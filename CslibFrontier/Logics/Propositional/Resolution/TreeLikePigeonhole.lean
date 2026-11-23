@@ -237,11 +237,7 @@ private theorem update_eq_some_true_iff (hv : ρ (i, j) = none) (b : Bool) (a : 
     (c : Fin n) :
     update ρ (i, j) (some b) (a, c) = some true ↔
       ((a, c) = (i, j) ∧ b = true) ∨ ρ (a, c) = some true := by
-  by_cases he : (a, c) = (i, j)
-  · rw [he, update_self, hv]
-    simp
-  · rw [update_of_ne he]
-    simp [he]
+  grind [update_self]
 
 private theorem isMatching_update_false (hρ : IsMatching ρ) (hv : ρ (i, j) = none) :
     IsMatching (update ρ (i, j) (some false)) := by

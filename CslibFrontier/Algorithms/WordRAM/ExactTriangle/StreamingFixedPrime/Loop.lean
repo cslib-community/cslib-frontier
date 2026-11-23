@@ -116,21 +116,15 @@ private theorem exec_body {w m n g p A : ℕ} (values : List ℤ)
       hz.one hz.scans_coarse (order (z.regs Reg.index)) (order_mem _ hi) (order_ord _ hi)
   have newflag : y.regs Reg.found ≤ 1 := by rcases yf with h | h <;> omega
   have yInv : Inv y := by
-    refine ⟨ycursor, yproduced.trans yi.symm, yheap, ?_, ?_, ?_, yo, yf, ?_, ?_, ?_, ?_, yw⟩
+    refine ⟨ycursor, yproduced.trans yi.symm, yheap,
+      fun u hu => (ym u (Or.inl hu)).trans (hz.protected_mem hu), ?_,
+      yi ▸ Nat.succ_le_of_lt hi, yo, yf, by simpa only [yi] using yl, ?_,
+      by rw [ys, yi, Nat.add_mul, Nat.one_mul]; exact Nat.add_le_add hz.scans_coarse hcoarse,
+      ?_, yw⟩
     · intro u hu
-      exact (ym u (Or.inl hu)).trans (hz.protected_mem hu)
-    · intro u hu
-      have houtside : u < a.regs Instances.output ∨ a.regs Instances.output + (6 + 2 * (n * D m)) +
-          CallableProduct.windowSize n
-            (RecordProduct.recordQueryCount n (D m) p V (order (z.regs Reg.index))) ≤ u := by
-        rcases hu with h | h
-        · exact Or.inl h
-        · exact Or.inr (le_trans (Nat.add_le_add_left
-            (CallableProduct.windowSize_mono_right n (recordQueryCount_le n (D m) p V _)) _) h)
-      exact (ym u houtside).trans (hz.frame u hu)
-    · rw [yi]
-      exact Nat.succ_le_of_lt hi
-    · simpa only [yi] using yl
+      refine (ym u (hu.imp id fun h => le_trans (Nat.add_le_add_left
+        (CallableProduct.windowSize_mono_right n (recordQueryCount_le n (D m) p V _)) _) h)).trans
+        (hz.frame u hu)
     · have hs := hz.scans_failed
       rw [before, Nat.add_zero] at hs
       rw [ys, yi, Finset.sum_range_succ]
@@ -139,14 +133,9 @@ private theorem exec_body {w m n g p A : ℕ} (values : List ℤ)
       change S ≤ F (z.regs Reg.index) + y.regs Reg.found at hS
       change z.regs Reg.scans ≤ ∑ j ∈ Finset.range (z.regs Reg.index), F j at hs
       omega
-    · rw [ys, yi, Nat.add_mul, Nat.one_mul]
-      exact Nat.add_le_add hz.scans_coarse hcoarse
-    · rw [yi, Nat.count_succ]
-      have searched := hz.searched
-      rw [before] at searched
-      rw [searched, Nat.zero_add]
+    · rw [yi, Nat.count_succ, hz.searched, before, Nat.zero_add]
       rcases yf with h | h
-      · rw [ite_eq_right (by intro hh; have := yhit.mpr hh; omega), h]
+      · rw [ite_eq_right (mt yhit.mpr (by omega)), h]
       · rw [ite_eq_left (yhit.mp h), h]
   refine ⟨y, T, he, yInv, ?_⟩
   change T + 2 ≤ B (z.regs Reg.index) + C * S at hT
@@ -249,67 +238,47 @@ theorem exec_traverse {w m n g p A : ℕ} (values : List ℤ)
   obtain ⟨s, hs, sm, si, sl, sf, ss, so, sbank⟩ := exec_setup x h1
   have sInv : Inv s := by
     refine ⟨cursor.transfer (fun j _ _ _ _ => sbank _ (by change j.val < 400; omega)),
-      ?_, ?_, ?_, ?_, ?_, so, Or.inl sf, ?_, ?_, ?_, ?_, ?_⟩
-    · exact ((sbank _ (by decide)).trans hproduced).trans si.symm
-    · exact ((sbank _ (by decide)).trans hslotHeap).trans (sbank _ (by decide)).symm
-    · intro u hu
-      exact (congrFun sm u).trans (hmem hu)
-    · intro u _
-      exact congrFun sm u
-    · rw [si]
-      exact Nat.zero_le _
-    · rw [sf, ite_eq_right (by decide : ¬(0 : ℕ) = 1), sl]
-      have hc := cursor.total
-      rw [cursor.chunks, cursor.pieces] at hc
-      exact hc.trans hout.2.2.2.2.1.symm
-    · simp only [si, ss, sf, Finset.range_zero, Finset.sum_empty, Nat.zero_add, le_refl]
-    · simp only [ss, si, Nat.zero_mul, le_refl]
-    · simp only [si, sf, Nat.count_zero]
-    · intro h
-      omega
+      ((sbank _ (by decide)).trans hproduced).trans si.symm,
+      ((sbank _ (by decide)).trans hslotHeap).trans (sbank _ (by decide)).symm,
+      fun u hu => (congrFun sm u).trans (hmem hu), fun u _ => congrFun sm u,
+      si ▸ Nat.zero_le _, so, Or.inl sf, ?_,
+      by simp only [si, ss, sf, Finset.range_zero, Finset.sum_empty, Nat.zero_add, le_refl],
+      by simp only [ss, si, Nat.zero_mul, le_refl],
+      by simp only [si, sf, Nat.count_zero], fun h => by omega⟩
+    rw [sf, ite_eq_right (by decide : ¬(0 : ℕ) = 1), sl]
+    have hc := cursor.total
+    rw [cursor.chunks, cursor.pieces] at hc
+    exact hc.trans hout.2.2.2.2.1.symm
   obtain ⟨y, hy, hIy, hcy⟩ := ExecWithin.loop_potential Inv Φ body sInv
   have hbudget : 5 + (Φ s + 2) ≤
-      (∑ idx ∈ I, charge idx) +
-        C * (falsePositiveCount wAB wBC wAC p + 1) + 7 := by
+      (∑ idx ∈ I, charge idx) + C * (falsePositiveCount wAB wBC wAC p + 1) + 7 := by
     dsimp only [Φ, remainingCharge]
-    rw [si, sf]
-    simp only [Finset.range_zero, Finset.sum_empty, Nat.sub_zero]
-    have hmul := Nat.mul_le_mul_left C (Nat.add_le_add_right hF 1)
+    simp only [si, sf, Finset.range_zero, Finset.sum_empty, Nat.sub_zero]
+    have := Nat.mul_le_mul_left C (Nat.add_le_add_right hF 1)
     rw [sum_eq charge]
     omega
-  have hex : ExecWithin (w + 2) traverse x y
-      ((∑ idx ∈ I, charge idx) +
-        C * (falsePositiveCount wAB wBC wAC p + 1) + 7) := (hs.seq hy).mono hbudget
-  refine ⟨y, hex, hIy.flag, ?_, ?_, hIy.witness, hIy.frame, hIy.cursor, hIy.progress, hIy.heap⟩
-  · exact hIy.scans_failed.trans (Nat.add_le_add_right
-      ((sum_prefix_le F hIy.index_le).trans hF) _)
-  · constructor
-    · intro hf
-      obtain ⟨ha, hb, hc, hw⟩ := hIy.witness hf
-      exact ⟨⟨_, ha⟩, ⟨_, hb⟩, ⟨_, hc⟩, hw⟩
-    · intro hzero
-      by_contra hnot
-      have hf : y.regs Reg.found = 0 := by rcases hIy.flag with h | h <;> omega
-      have hlim : y.regs Reg.limit = M := by
-        simpa only [hf, zero_ne_one, ite_false] using hIy.limit
-      have hi : y.regs Reg.index = M := by
-        change ¬ y.regs Reg.index < y.regs Reg.limit at hcy
-        have := hIy.index_le
-        omega
-      obtain ⟨u, v, c, hw⟩ := hzero
-      have hans := RecordProduct.product_answers_correct V wAB wBC wAC hD hg hp
-        (by intro b c; rfl) (by intro u c; rfl)
-      obtain ⟨idx, hacc, hc⟩ := exists_mem_acceptedPairs hD hDn hg hp0 hans hw
-      obtain ⟨hidx, hquery, -⟩ := mem_acceptedPairs.mp hacc
-      obtain ⟨j, hj⟩ := fsurj idx hidx
-      have hh : recordHit (m := m) (n := n) (g := g) V (order j.val) := by
-        rw [order_at j.val j.isLt, hj]
-        exact ⟨(u, v), hquery, c, hc, hw⟩
-      have hpositive := Nat.count_strict_mono (p := fun j =>
-        recordHit (m := m) (n := n) (g := g) V (order j)) hh j.isLt
-      have searched := hIy.searched
-      rw [hf, hi] at searched
-      rw [searched] at hpositive
-      exact Nat.not_lt_zero _ hpositive
+  refine ⟨y, (hs.seq hy).mono hbudget, hIy.flag,
+    hIy.scans_failed.trans (Nat.add_le_add_right ((sum_prefix_le F hIy.index_le).trans hF) _),
+    ⟨fun hf => let ⟨ha, hb, hc, hw⟩ := hIy.witness hf; ⟨⟨_, ha⟩, ⟨_, hb⟩, ⟨_, hc⟩, hw⟩, ?_⟩,
+    hIy.witness, hIy.frame, hIy.cursor, hIy.progress, hIy.heap⟩
+  intro ⟨u, v, c, hw⟩
+  by_contra hnot
+  have hf : y.regs Reg.found = 0 := by rcases hIy.flag with h | h <;> omega
+  have hlim : y.regs Reg.limit = M := by simpa only [hf, zero_ne_one, ite_false] using hIy.limit
+  have hi : y.regs Reg.index = M := by
+    change ¬ y.regs Reg.index < y.regs Reg.limit at hcy
+    have := hIy.index_le; omega
+  obtain ⟨idx, hacc, hc⟩ := exists_mem_acceptedPairs hD hDn hg hp0
+    (RecordProduct.product_answers_correct V wAB wBC wAC hD hg hp (fun _ _ => rfl) (fun _ _ => rfl))
+    hw
+  obtain ⟨j, hj⟩ := fsurj idx (mem_acceptedPairs.mp hacc).1
+  have hh : recordHit (m := m) (n := n) (g := g) V (order j.val) := by
+    rw [order_at j.val j.isLt, hj]
+    exact ⟨(u, v), (mem_acceptedPairs.mp hacc).2.1, c, hc, hw⟩
+  have hpositive := Nat.count_strict_mono
+    (p := fun j => recordHit (m := m) (n := n) (g := g) V (order j)) hh j.isLt
+  have searched := hIy.searched
+  rw [hf, hi] at searched
+  exact Nat.not_lt_zero _ (searched ▸ hpositive)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime

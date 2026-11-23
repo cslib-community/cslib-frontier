@@ -47,8 +47,7 @@ private theorem one_add_pow_le_two_of_mul_le_half {q : ℝ} {n : ℕ}
     · nlinarith
   have hmul := mul_le_mul_of_nonneg_left hB (pow_nonneg (by linarith : 0 ≤ 1 + q) n)
   have hnonneg : 0 ≤ (1 + q) ^ n := pow_nonneg (by linarith) n
-  have hhalf : (1 + q) ^ n * (1 / 2) ≤ (1 + q) ^ n * (1 + n * -q) :=
-    mul_le_mul_of_nonneg_left (by linarith) hnonneg
+  have hhalf : (1 + q) ^ n * (1 / 2) ≤ (1 + q) ^ n * (1 + n * -q) := by gcongr; linarith
   have hsame : (1 + -q) ^ n = (1 - q) ^ n := by rw [sub_eq_add_neg]
   rw [hsame] at hmul
   linarith

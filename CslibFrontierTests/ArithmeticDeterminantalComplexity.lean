@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Computability.Circuit.Arithmetic.DeterminantalComplexity
 import CslibFrontier.Foundations.Data.Matrix.Permanent
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.HessianPermanent
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Moore
 import Mathlib.Algebra.MvPolynomial.CommRing
 import Mathlib.Algebra.Field.ZMod

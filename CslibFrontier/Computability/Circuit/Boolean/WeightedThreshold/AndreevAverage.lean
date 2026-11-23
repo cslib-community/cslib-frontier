@@ -88,29 +88,13 @@ theorem card_andreevSubcube {b r : ℕ} (hr : r ≤ b) (p : BitString b) :
     · rintro ⟨z, rfl⟩ j hj; rw [andreevSubcubeEmbedding_apply]; simp [hj]
   rw [hmap, card_map, card_univ, BitString.card]
 
-/-- Summing `chi ℤ S c * chi ℤ S p` over `S ∈ U.powerset` gives `2 ^ #U` if `c` and `p` agree on
-`U`, and `0` otherwise. -/
-theorem sum_chi_mul_chi_powerset {ι : Type*} (U : Finset ι) (c p : ι → Bool) :
-    ∑ S ∈ U.powerset, chi ℤ S c * chi ℤ S p =
-      if ∀ i ∈ U, c i = p i then (2 : ℤ) ^ #U else 0 := by
-  classical
-  have h := prod_add (fun i => (-1 : ℤ) ^ (c i).toNat * (-1 : ℤ) ^ (p i).toNat)
-    (fun _ => (1 : ℤ)) U
-  simp only [prod_const_one, mul_one] at h; simp only [chi, ← prod_mul_distrib, ← h]
-  split_ifs with hcp
-  · rw [show (∏ i ∈ U, ((-1 : ℤ) ^ (c i).toNat * (-1 : ℤ) ^ (p i).toNat + 1)) =
-      ∏ _i ∈ U, (2 : ℤ) from prod_congr rfl fun i hi => by rw [hcp i hi]; cases p i <;> rfl,
-      prod_const]
-  · push Not at hcp; rcases hcp with ⟨i, hi, hne⟩
-    exact prod_eq_zero hi (by cases hc : c i <;> cases hp : p i <;> simp_all)
-
 /-- Summing `chi ℤ S c * chi ℤ S p` over `S ∈ andreevPrefixSubsets b r` detects membership in
 `andreevSubcube b r p`. -/
 theorem sum_chi_mul_chi_prefixSubsets (b r : ℕ) (c p : BitString b) :
     ∑ S ∈ andreevPrefixSubsets b r, chi ℤ S c * chi ℤ S p =
       if c ∈ andreevSubcube b r p then (2 : ℤ) ^ #(andreevPrefixCoords b r) else 0 := by
   simpa [andreevPrefixSubsets, mem_andreevSubcube] using
-    sum_chi_mul_chi_powerset (andreevPrefixCoords b r) c p
+    sum_powerset_chi_mul_chi (R := ℤ) (andreevPrefixCoords b r) c p
 
 /-- **Subcube Fourier projection**: `andreevSubcubeScore b m r w` equals
 `2 ^ #(andreevPrefixCoords b r)` times the sum of `1 - 2 * x_c(w)` over

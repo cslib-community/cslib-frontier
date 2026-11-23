@@ -124,8 +124,7 @@ private theorem scored_bound {C : QuantumSigningForger} {α : Type} {prog : Prog
       rw [Finset.sum_comm]
       exact Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun seed _ => mul_left_comm ..
     _ ≤ 4 * j * ∑ _i ∈ Finset.range j, (1 / 2 ^ 256 : ℝ) :=
-      mul_le_mul_of_nonneg_left (Finset.sum_le_sum fun i _ =>
-        mean_keySeed_hit prog s H out sign d log tape i) (by positivity)
+      by gcongr with i; exact mean_keySeed_hit prog s H out sign d log tape i
     _ = _ := by simp only [Finset.sum_const, Finset.card_range, nsmul_eq_mul]; ring
 
 private theorem prefix_queries_le {C : QuantumSigningForger} {α : Type}

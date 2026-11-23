@@ -152,8 +152,7 @@ theorem cauchyBoundNat_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBi
       calc (1 : ℚ) / (2 : ℚ) ^ B
           ≤ (Int.natAbs lc.num : ℚ) / (2 : ℚ) ^ B := by
               gcongr; exact_mod_cast hlc_num_pos
-        _ ≤ (Int.natAbs lc.num : ℚ) / (lc.den : ℚ) :=
-              div_le_div_of_nonneg_left (Nat.cast_nonneg _) hden_pos hden_le
+        _ ≤ (Int.natAbs lc.num : ℚ) / (lc.den : ℚ) := by gcongr
         _ = |(lc.num : ℚ) / (lc.den : ℚ)| := by rw [abs_div, hnum_eq, Nat.abs_cast]
         _ = |lc| := by rw [Rat.num_div_den]
     have hdropB : HasCoeffBitBound B t.dropLast :=

@@ -50,4 +50,35 @@ example (f : List Bool → Bool) (hf : ComputableInLogSpace f encBits encBool) :
       encBool := by
   fun_prop
 
+/-- Raw encoding views, framing and unframing compose under `fun_prop`. -/
+example {α : Type} (encA : α ↪ List Bool) (g : List Bool → α)
+    (hg : ComputableInLogSpace g encBits encA) :
+    ComputableInLogSpace (fun p : List Bool × List Bool => frame (encA (g (unframe p.1))) ++ p.2)
+      (encPair encBits encBits) encBits := by
+  fun_prop
+
+/-- Unary bit replication with both constant and computed Boolean bits. -/
+example : ComputableInLogSpace
+    (fun p : ℕ × Bool => List.replicate p.1 false ++ List.replicate p.1 (!p.2))
+    (encPair encUnary encBool) encBits := by
+  fun_prop
+
+/-- Binary-count bit replication is rejected without a unary certificate. -/
+example (g : ℕ → ℕ) (_hg : ComputableInLogSpace g encNat encNat)
+    (h : ComputableInLogSpace g encNat encUnary) :
+    ComputableInLogSpace (fun n : ℕ => List.replicate (g n) false) encNat encBits := by
+  fail_if_success
+    clear h
+    fun_prop
+  fun_prop
+
+/-- A polynomial-time callback alone does not discharge a logspace goal. -/
+example (f : List Bool → Bool) (_hf : ComputableInPolyTime f encBits encBool)
+    (h : ComputableInLogSpace f encBits encBool) :
+    ComputableInLogSpace (fun w : List Bool => !f w) encBits encBool := by
+  fail_if_success
+    clear h
+    fun_prop
+  fun_prop
+
 end CslibFrontierTests.LogSpaceFunProp
