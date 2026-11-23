@@ -47,7 +47,7 @@ when the bidder has a single object; we raise the price by `ε` instead, which a
 ## Cost model and limitations
 
 * The resource measure here is the **number of bids** (`AuctionState.bids`); machine-level
-  `O(n² (C / ε + 1))` and scaled `O(n³ C)` running-time bounds on the word RAM live in
+  `O(n² (C / ε + 1))` and scaled `O(n³ C + n²)` running-time bounds on the word RAM live in
   `CslibFrontier.Algorithms.WordRAM.Auction`.
 * The bid bound `bids_auction_le` is pseudo-polynomial: at most `n (C + ε) / ε + 1` bids when every
   row has cost range at most `C`; it comes from the measure `n (C + ε) - ∑ j, p j`, which every bid

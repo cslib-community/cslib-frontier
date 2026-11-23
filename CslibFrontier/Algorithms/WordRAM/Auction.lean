@@ -315,8 +315,7 @@ abbrev bPrice : Fin 26 := ⟨11, by decide⟩
 abbrev bStack : Fin 26 := ⟨12, by decide⟩
 /-- Output list header address register. -/
 abbrev outBase : Fin 26 := ⟨13, by decide⟩
-/-- Stack pointer / scalar output register. -/
-abbrev sp : Fin 26 := ⟨14, by decide⟩
+private abbrev sp : Fin 26 := ⟨14, by decide⟩
 private abbrev curI : Fin 26 := ⟨15, by decide⟩
 private abbrev rowBase : Fin 26 := ⟨16, by decide⟩
 private abbrev bestJ : Fin 26 := ⟨17, by decide⟩
@@ -332,10 +331,6 @@ private abbrev tmp : Fin 26 := ⟨25, by decide⟩
 end Reg
 
 open Reg
-
-private def encodeOptFin {n : ℕ} : Option (Fin n) → ℕ
-  | some i => i.val
-  | none => n
 
 /-- Row-major unsigned `n × n` cost matrix `C` stored at `base`. -/
 structure CostMem {n : ℕ} (base : ℕ) (C : Fin n × Fin n → ℕ) (mem : ℕ → ℕ) : Prop where
@@ -400,7 +395,7 @@ private theorem BaseRegs.of_eq {n matBase eps scale M : ℕ} {x y : Data 26}
   houtBase := (heq outBase (by decide)).trans hb.houtBase
 
 private def OwnerMem {n : ℕ} (base : ℕ) (owner : Fin n → Option (Fin n)) (mem : ℕ → ℕ) : Prop :=
-  ∀ j : Fin n, mem (base + j.val) = encodeOptFin (owner j)
+  ∀ j : Fin n, mem (base + j.val) = (owner j).elim n Fin.val
 
 private def PriceMem {n : ℕ} (base : ℕ) (price : Fin n → ℤ) (mem : ℕ → ℕ) : Prop :=
   ∀ j : Fin n, mem (base + j.val) = (price j).toNat
@@ -411,15 +406,6 @@ private def StackMem {n : ℕ} (base : ℕ) (free : List (Fin n)) (x : Data 26) 
       x.mem (base + t) = (free.reverse[t]'(by simpa using ht)).val
 
 /-! ## Section 3: Pure list helpers and core in-memory solver (`coreCode`) -/
-
-private theorem argmin_append_singleton {α β : Type*} [LinearOrder β] (xs : List α) (x : α)
-    (f : α → β) :
-    (xs ++ [x]).argmin f =
-      match xs.argmin f with
-      | none => some x
-      | some a => if f x < f a then some x else some a := by
-  simp only [List.argmin, List.foldl_append, List.foldl_cons, List.foldl_nil, List.argAux]
-  cases List.foldl (List.argAux fun a b => f a < f b) none xs <;> rfl
 
 private theorem min?_append_singleton {β : Type*} [LinearOrder β] (xs : List β) (x : β) :
     (xs ++ [x]).min? =
@@ -549,7 +535,7 @@ private theorem exec_initCoreCode {w n matBase eps scale M : ℕ} (x : Data 26)
     rw [hf₃ _ (by have := j.isLt; omega), hmem₂,
       fill_of_not_owns (by simp only [Block.Owns]; have := j.isLt; omega),
       hmem₁, hb.hbOwner, hb.hrn]
-    simpa [auctionInit, encodeOptFin] using
+    simpa [auctionInit] using
       fill_of_owns ⟨Nat.le_add_right _ _, Nat.add_lt_add_left j.isLt _⟩
   have hprc : PriceMem (matBase + 2 * (n * n) + n) (auctionInit n).price y.mem := fun j => by
     dsimp only [y, Data.set]
@@ -712,7 +698,7 @@ private theorem exec_findBestCode {w n matBase eps scale M W : ℕ}
           hf_c, hf_p, hf_rc, hf_idx1]
         refine ⟨⟨by omega, fun r hr' => by wram_simp [hr r hr'], hmem, fun _ => ?_⟩, by wram_simp⟩
         refine ⟨k₀, ?_, by wram_simp [k₀], by wram_simp; rfl⟩
-        rw [htake_succ, argmin_append_singleton, harg_t]
+        rw [htake_succ, List.argmin_concat, harg_t]
         dsimp only
         exact ite_eq_left hlt_z
       · have hge_z : ¬redCost cZ price i₀ k₀ < redCost cZ price i₀ j_t := by
@@ -721,7 +707,7 @@ private theorem exec_findBestCode {w n matBase eps scale M W : ℕ}
           hf_c, hf_p, hf_rc, hf_idx1]
         refine ⟨⟨by omega, fun r hr' => by wram_simp [hr r hr'], hmem, fun _ => ?_⟩, by wram_simp⟩
         refine ⟨j_t, ?_, by wram_simp [hbj_t], by wram_simp [hbv_t]⟩
-        rw [htake_succ, argmin_append_singleton, harg_t]
+        rw [htake_succ, List.argmin_concat, harg_t]
         dsimp only
         exact ite_eq_right hge_z
   obtain ⟨y, hl, hPBn, _⟩ := ExecWithin.loop_count PB
@@ -1008,7 +994,7 @@ private theorem exec_bidStepCode {w n matBase eps scale M W : ℕ}
   have hsp₄ : y₄.regs sp = rest.length := (hr₄ sp (by decide)).trans hsp₃
   have hci₄ : y₄.regs curI = i₀.val := (hr₄ curI (by decide)).trans hci₃
   have hbj₄ : y₄.regs bestJ = j₀.val := (hr₄ bestJ (by decide)).trans hbj₃
-  have hOj : y₄.mem (matBase + 2 * (n * n) + j₀.val) = encodeOptFin (s.owner j₀) := by
+  have hOj : y₄.mem (matBase + 2 * (n * n) + j₀.val) = (s.owner j₀).elim n Fin.val := by
     rw [hmem₄]; exact hOM j₀
   have hupd_part : ∃ y₅, ExecWithin w
       (ram[ addr ← bPrice + bestJ; *addr ← val;
@@ -1016,7 +1002,7 @@ private theorem exec_bidStepCode {w n matBase eps scale M W : ℕ}
             *addr ← curI ] : Code .standard 26) y₄ y₅ 5 ∧
       BaseRegs n matBase eps scale M y₅ ∧
       y₅.regs sp = rest.length ∧
-      y₅.regs val2 = encodeOptFin (s.owner j₀) ∧
+      y₅.regs val2 = (s.owner j₀).elim n Fin.val ∧
       OwnerMem (matBase + 2 * (n * n)) s'.owner y₅.mem ∧
       PriceMem (matBase + 2 * (n * n) + n) s'.price y₅.mem ∧
       (∀ a, ¬(matBase + 2 * (n * n) ≤ a ∧ a < matBase + 2 * (n * n) + 2 * n) →
@@ -1027,7 +1013,7 @@ private theorem exec_bidStepCode {w n matBase eps scale M W : ℕ}
       fun j => ?_, fun j => ?_, fun a ha => by wram_simp [hmem₄]⟩
     · rw [hs'_eq]; dsimp only
       by_cases hjj : j = j₀
-      · subst hjj; rw [Function.update_self]; wram_simp [encodeOptFin]
+      · subst hjj; rw [Function.update_self]; wram_simp [Option.elim]
       · have : j.val ≠ j₀.val := fun h => hjj (Fin.ext h)
         rw [Function.update_of_ne hjj]; wram_simp [hmem₄, hOM j]
     · rw [hs'_eq]; dsimp only
@@ -1047,7 +1033,7 @@ private theorem exec_bidStepCode {w n matBase eps scale M W : ℕ}
     refine WP.exists_execWithin ?_
     cases hoj : s.owner j₀ with
     | none =>
-      have hv2_eq : y₅.regs val2 = n := by simpa [hoj, encodeOptFin] using hv2₅
+      have hv2_eq : y₅.regs val2 = n := by simpa [hoj] using hv2₅
       have hnl : ¬n < n := Nat.lt_irrefl n
       wram_exec [hb₅.hrn, hb₅.hzero, hv2_eq, hnl]
       refine ⟨hb₅.of_eq fun r hr => by wram_simp, ?_, fun _ _ => rfl⟩
@@ -1061,7 +1047,7 @@ private theorem exec_bidStepCode {w n matBase eps scale M W : ℕ}
       rw [List.getElem_append_left (by simpa using ht)]
     | some i' =>
       have hi'_lt := i'.isLt
-      have hv2_eq : y₅.regs val2 = i'.val := by simpa [hoj, encodeOptFin] using hv2₅
+      have hv2_eq : y₅.regs val2 = i'.val := by simpa [hoj] using hv2₅
       have hf_sp1 : Fits w (rest.length + 1) := hfit.of_le (by omega)
       wram_exec [hb₅.hbStack, hb₅.hrn, hb₅.hone, hsp₅, hv2_eq, hi'_lt, hf_st_addr, hf_sp1]
       refine ⟨hb₅.of_eq fun r hr => by wram_simp, ?_, fun a ha => by wram_simp⟩
@@ -1192,8 +1178,8 @@ theorem core_exec {w n matBase eps scale M W : ℕ} (hε : 0 < eps)
     hCM₁.of_outside fun a ha => hfy a (by omega)
   refine ⟨y, (he_init.seq he_loop).mono ?_, hby, hCM_y,
     fun j => by
-      have hj : y.mem (matBase + 2 * (n * n) + j.val) = encodeOptFin (s.owner j) := hOMy j
-      cases h : s.owner j <;> simpa [encodeOptFin, h] using hj,
+      have hj : y.mem (matBase + 2 * (n * n) + j.val) = (s.owner j).elim n Fin.val := hOMy j
+      cases h : s.owner j <;> simpa [h] using hj,
     hPMy⟩
   change (17 * n + 10) + ((s.bids - 0) * (28 * n + 30) + 2) ≤ _
   simp only [Nat.sub_zero]
