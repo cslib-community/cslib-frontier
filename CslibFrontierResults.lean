@@ -10,4 +10,5 @@ import CslibFrontierResults.Entries.ODonnellLowDegreePart
 import CslibFrontierResults.Entries.ODonnellStabilityDerivative
 import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.SergeevBkSequence
+import CslibFrontierResults.GameTheory.RoutingBeckmann
 import CslibFrontierResults.Registry

@@ -8107,13 +8107,17 @@ public import CslibFrontier.GameTheory.Bimatrix.RationalVertex
 public import CslibFrontier.GameTheory.Bimatrix.ShapleyOrientation
 public import CslibFrontier.GameTheory.Congestion.Affine
 public import CslibFrontier.GameTheory.Congestion.Basic
+public import CslibFrontier.GameTheory.Congestion.BeckmannPotential
+public import CslibFrontier.GameTheory.Congestion.CapacityAugmentation
 public import CslibFrontier.GameTheory.Congestion.CostSharing
 public import CslibFrontier.GameTheory.Congestion.Hedge
+public import CslibFrontier.GameTheory.Congestion.MarginalCostPricing
 public import CslibFrontier.GameTheory.Congestion.Nonatomic
 public import CslibFrontier.GameTheory.Congestion.PLS
 public import CslibFrontier.GameTheory.Congestion.PigouBound
 public import CslibFrontier.GameTheory.Congestion.Stability
 public import CslibFrontier.GameTheory.Congestion.StrongNash
+public import CslibFrontier.GameTheory.Congestion.WardropNoRegret
 public import CslibFrontier.GameTheory.Mechanism.Bayesian
 public import CslibFrontier.GameTheory.Mechanism.CriticalBid
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Basic

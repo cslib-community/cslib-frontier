@@ -387,6 +387,11 @@ Avrim Blum, Merrick Furst, Michael Kearns and Richard J. Lipton. "Cryptographic 
 
 Avrim Blum and Yishay Mansour. "From External to Internal Regret." *Journal of Machine Learning Research* 8, 1307–1324, 2007. https://www.jmlr.org/papers/v8/blum07a.html . Read in the JMLR PDF on 2026-11-10. Locators checked there: the definition of swap regret as regret against all `N^N` modification rules (§2, p. 1311), Definition 2 (`ε`-correlated equilibrium) and Theorem 3 (`R/T`-correlated equilibria from swap regret `R`, p. 1311), the reduction with stationary `p = pQ` and Definition 4 (§3, p. 1312), and Theorem 5 (swap regret at most `∑ i, R_i`) with Corollaries 6 and 7 (`O(N √(T log N))` and `O(√(T N log N))`, p. 1313). The paper scales losses to `[0, 1]`; the library's Hedge-based bound uses losses in `[-1, 1]` and the second-order Hedge bound, which gives `2 √(T N ln N)` with explicit constants.
 
+<a id="blummansour07agt"></a>
+## blummansour07agt
+
+Avrim Blum and Yishay Mansour. "Learning, Regret Minimization, and Equilibria." Chapter 4 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 79–101. Read in the book PDF on 2026-11-23 for §4.7 (pp. 96–98): `ε`-Nash (approximate Wardrop) flows `C(f) ≤ ε + min_P ∑_{e ∈ P} c_e(f_e)` (p. 97), external path regret `R(T) ≤ ε T` (p. 97), Theorem 4.18 (time-averaged flow `(1/T) ∑_{t=1}^T f^t` is `ε`-Wardrop for nonnegative affine latencies, p. 97), and the nonlinear bounded-slope convergence discussion on pp. 97–98 (citing Blum, Even-Dar and Ligett, 2006). Exercise 4.8 (p. 101) concerns dominated actions under RWM/PW rather than routing; for superlinear convex latencies such as `x ^ 2`, literal `ε`-preservation without slope-dependent fluctuation slack fails (`exists_not_isApproxWardrop_timeAverageFlow_sq`), while `O(ε + √ε)` convergence holds under bounded slope (`isApproxWardrop_timeAverageFlow_of_lipschitz`).
+
 <a id="bm15"></a>
 ## bm15
 
@@ -2196,6 +2201,11 @@ Alvin E. Roth and Marilda A. Oliveira Sotomayor. *Two-Sided Matching: A Study in
 
 Tim Roughgarden. *The Price of Anarchy is Independent of the Network Topology*. Journal of Computer and System Sciences 67(2), 341–364, 2003. https://doi.org/10.1016/S0022-0000(03)00044-8 . The author's version of 23 December 2002 (https://theory.stanford.edu/~tim/papers/indep.pdf) was consulted on 2026-11-08 for Section 2.4, Definitions 2.5 and 3.1–3.3, Theorem 3.8, Lemma 4.1, Theorem 4.2, Proposition 5.1 and Remark 5.2; locators follow that version. Its anarchy value is defined through marginal costs for latencies with `x c(x)` convex, and Proposition 5.1 takes the degree `p ≥ 1`. The library uses the Pigou-ratio definition of [roughgarden13cs364a](#roughgarden13cs364a), Lecture #11, (2), which agrees with it on standard classes (Definition 3.1; up to the degenerate convention when `c(r) = 0`), needs no convexity, and includes `d = 0`.
 
+<a id="roughgarden07routing"></a>
+## roughgarden07routing
+
+Tim Roughgarden. "Routing Games." Chapter 18 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 461–486. Read in the book PDF on 2026-11-23 for Example 18.3 (nonlinear Pigou, p. 464), Example 18.4 and Figure 18.2 (Braess's four-node Wheatstone paradox, pp. 464–465), Theorem 18.8 (existence and essential uniqueness of Wardrop equilibria, p. 468, proof p. 470), Proposition 18.9 and Corollary 18.10 (marginal-cost `c*(x) = c(x) + x c'(x)` characterization of optimal flows, pp. 468–469), Equation (18.3) and Proposition 18.11 (Beckmann's potential `Φ(f) = ∑_e ∫_0^{f_e} c_e(x) dx`, pp. 469–470), Theorem 18.16 and Corollary 18.17 (integral-potential `p + 1` price-of-anarchy bound, pp. 472–473), Proposition 18.20 (variational inequality characterization, p. 474), Remark 18.22 (general and `4/3` affine subnetwork bounds on Braess's paradox, p. 475), Theorem 18.27 (Pigouvian marginal-cost taxes `τ_e = f*_e c'_e(f*_e)`, p. 478), Example 18.28, Theorem 18.29 and Corollary 18.30 (`2r` capacity augmentation and `c̃_e(x) = c_e(x/2)/2` link speedup, pp. 479–480), and Exercises 18.1 (`p / ln p` polynomial Pigou bound asymptotics, p. 484), 18.6 (`4/3` Pigou bound for nonnegative nondecreasing concave latencies, p. 485) and 18.8(a–e) (`(1 + δ) r` bound `1 / δ`, tightness, atomic counterexample, and exact `δ = 1/4` affine threshold, p. 485).
+
 <a id="roughgarden13cs364a"></a>
 ## roughgarden13cs364a
 
@@ -2219,7 +2229,7 @@ Tim Roughgarden and Éva Tardos. *How Bad Is Selfish Routing?* Journal of the AC
 <a id="roughgardentardos07"></a>
 ## roughgardentardos07
 
-Tim Roughgarden and Éva Tardos. "Introduction to the Inefficiency of Equilibria." Chapter 17 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 443–459. A university-hosted PDF of the book was consulted on 2026-11-08 for §17.1.3 (the definitions of the price of anarchy and the price of stability) and Example 17.3 with Figure 17.3 (the `H_k` lower bound for Shapley network design games).
+Tim Roughgarden and Éva Tardos. "Introduction to the Inefficiency of Equilibria." Chapter 17 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 443–459. A university-hosted PDF of the book was consulted on 2026-11-08 for §17.1.3 (the definitions of the price of anarchy and the price of stability) and Example 17.3 with Figure 17.3 (the `H_k` lower bound for Shapley network design games), and on 2026-11-23 for Example 17.1 (Section 17.2.1, pp. 447–448, uniqueness of the Wardrop equilibrium on Pigou's linear network so `PoS = 4/3`).
 
 <a id="saglam27"></a>
 ## saglam27

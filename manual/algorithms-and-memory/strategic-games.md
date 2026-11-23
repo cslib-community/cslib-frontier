@@ -367,8 +367,34 @@ Flows are functions `f : P → ℝ`, and the definitions are:
   Definition 2.1 for continuous nondecreasing latencies (Lemma 2.2), in particular for the affine
   latencies of the `4/3` theorem.
 
-The module proves the variational inequality `IsWardrop.cost_le_sum_mul_pathLatency` and
-`cost_nonneg`. Existence of Wardrop flows is not proved; every bound below is about any given one.
+The module proves the forward variational inequality `IsWardrop.cost_le_sum_mul_pathLatency` and
+`cost_nonneg`.
+
+### Beckmann's potential, existence, and essential uniqueness
+
+[Congestion/BeckmannPotential.lean](../../CslibFrontier/GameTheory/Congestion/BeckmannPotential.lean)
+develops the potential-function theory of Wardrop equilibria following
+[roughgarden07routing][roughgarden07routing], Sections 18.3–18.4:
+
+- `isWardrop_iff_forall_cost_le_sum_mul_pathLatency` and `isWardrop_iff_variationalInequality`
+  (Proposition 18.20): a flow `f` is a Wardrop equilibrium iff `f` is feasible and satisfies
+  `∑ e, latency e (edgeFlow f e) * edgeFlow f e ≤ ∑ e, latency e (edgeFlow f e) * edgeFlow g e`
+  for every feasible flow `g`.
+- `beckmannPotential` and `isWardrop_iff_isMinOn_beckmannPotential` (Proposition 18.11): for
+  continuous nondecreasing latencies on `[0, ∞)`, `IsWardrop f` is equivalent to minimizing
+  `∑ e, ∫ x in 0..edgeFlow f e, latency e x` over `{g | IsFeasible g}`.
+- `isCompact_setOf_isFeasible`, `exists_isWardrop_of_nonempty`, and `exists_isWardrop`
+  (Theorem 18.8(a)): when `{g | IsFeasible g}` is nonempty and latencies are continuous and
+  nondecreasing on `[0, ∞)`, a Wardrop equilibrium exists.
+- `isWardrop_latency_eq`, `isWardrop_pathLatency_eq`, and `isWardrop_cost_eq` (Theorem 18.8(b)):
+  for continuous nondecreasing latencies, any two Wardrop flows induce equal resource latencies on
+  every resource and have equal total cost. On `pigouNetwork (fun x => x) 1`,
+  `pigouNetwork_id_isWardrop_iff` and `pigouNetwork_id_priceOfStability` deduce that `![1, 0]` is
+  the unique Wardrop equilibrium, so `PoS = 4/3` ([roughgardenTardos07][roughgardenTardos07],
+  Example 17.1).
+- `IsWardrop.cost_le_mul_of_le_mul_integral` and
+  `IsWardrop.cost_le_succ_mul_of_mem_polynomialLatencies` (Theorem 18.16 and Corollary 18.17):
+  integral-potential price-of-anarchy bounds giving `d + 1` on `polynomialLatencies d`.
 
 ### The Pigou bound
 
@@ -404,6 +430,16 @@ can be infinite, as it is for polynomials of unbounded degree. The main results:
   `4/3` (Theorem 4.5 of [roughgardenTardos02][roughgardenTardos02]), attained by Pigou's example.
   `HasAffineLatencies.latency_mem_polynomialLatencies` and `pigouBound_polynomialLatencies_one`
   connect the two.
+- `pigouBound_concaveLatencies` and `IsWardrop.cost_le_four_thirds_of_mem_concaveLatencies`
+  ([roughgarden07routing][roughgarden07routing], Exercise 18.6, in
+  [Congestion/CapacityAugmentation.lean](../../CslibFrontier/GameTheory/Congestion/CapacityAugmentation.lean)):
+  the class `concaveLatencies` of nonnegative, nondecreasing, concave functions on `[0, ∞)` also
+  has Pigou bound `4/3`.
+- `tendsto_polynomialPigouBound_mul_log_div`, `tendsto_polynomialPigouBound_nat_mul_log_div`, and
+  `tendsto_toReal_pigouBound_polynomialLatencies_mul_log_div`
+  ([roughgarden07routing][roughgarden07routing], Exercise 18.1): as `p → ∞`, the degree-`p`
+  polynomial Pigou bound satisfies `(pigouBound (polynomialLatencies d)).toReal * (log d / d) → 1`
+  (i.e. `(1 - p (p+1)^{-(p+1)/p})⁻¹ * (log p / p) → 1`).
 
 To bound a new latency class, first prove that its members are nonnegative and nondecreasing on
 `[0, ∞)`. Then bound `pigouBound C` with `pigouBound_le` or `pigouBound_le_ofReal_inv_one_sub`,
@@ -411,6 +447,49 @@ and apply `IsWardrop.cost_le_toReal_pigouBound_mul`. To show the bound is tight,
 `pigouNetwork`, `pigouNetwork_cost`, `pigouNetwork_isWardrop` and `pigouNetwork_isFeasible`.
 The Pigou bound uses Lean's `a / 0 = 0`. That changes nothing unless every function of `C`
 vanishes on `(0, ∞)` (see `one_le_pigouBound`).
+
+### Marginal-cost pricing, capacity augmentation, Braess's paradox, and no-regret routing
+
+Three sibling modules extend the nonatomic routing API (with concrete checked instances in
+[CslibFrontierTests/GameTheory/RoutingBeckmann.lean](../../CslibFrontierTests/GameTheory/RoutingBeckmann.lean)):
+
+- [Congestion/MarginalCostPricing.lean](../../CslibFrontier/GameTheory/Congestion/MarginalCostPricing.lean)
+  defines `marginalCost c c' x = c x + x * c' x`, `withMarginalCost`, `withTaxes`, and
+  `pigouvianTax` ([roughgarden07routing][roughgarden07routing], Sections 18.3.1 and 18.5.1). When
+  `x ↦ x * latency e x` is convex on `[0, ∞)` and `latency e` has derivative `c' e` on `[0, ∞)`, a
+  feasible flow is socially optimal (`IsOptimal`) iff it satisfies the marginal-cost Wardrop
+  condition (`isOptimal_iff_marginalCost_le`, `isOptimal_iff_isWardrop_withMarginalCost`,
+  Proposition 18.9 and Corollary 18.10). Constant per-unit edge taxes `τ_e = f*_e c'_e(f*_e)` make
+  any optimal flow `f*` a Wardrop equilibrium of `G.withTaxes (G.pigouvianTax c' f*)`, and whenever
+  the latencies `c_e` are nondecreasing on `[0, ∞)` and differentiable at `f*_e`, every Wardrop
+  equilibrium of that taxed game has equal cost and is optimal for `G`
+  (`IsOptimal.isWardrop_withTaxes_pigouvianTax`, `IsOptimal.cost_eq_of_isWardrop_withTaxes`,
+  Theorem 18.27).
+- [Congestion/CapacityAugmentation.lean](../../CslibFrontier/GameTheory/Congestion/CapacityAugmentation.lean)
+  proves the `(1 + δ) r` capacity-augmentation bound `IsWardrop.cost_le_inv_mul_of_scaleRate`
+  (`1 / δ` for `δ > 0`), the `2r` and link-speedup bounds `IsWardrop.cost_le_of_scaleRate_two` and
+  `IsWardrop.speedup_two_cost_le` ([roughgarden07routing][roughgarden07routing], Theorem 18.29,
+  Corollary 18.30, and Exercise 18.8(a, c)), tightness as degree grows
+  (`exists_pigouNetwork_pow_scaleRate_cost_lt`, Example 18.28 and Exercise 18.8(d)), the unweighted
+  atomic failure (`CongestionGame.exists_atomic_pureNash_socialCost_gt_doubled`, Exercise 18.8(b)),
+  and the exact affine threshold `δ ≥ 1/4` (`HasAffineLatencies.cost_le_of_scaleRate`,
+  `affine_scaleRate_bound_iff`, Exercise 18.8(e)). It also formalizes Braess's four-node Wheatstone
+  network (`braessInitial`, `braessAugmented`, `braess_paradox`, Example 18.4) and the general
+  path-restriction bound along `ι : P₁ ↪ P₂`
+  (`IsWardrop.cost_le_toReal_pigouBound_mul_restrictPaths`,
+  `HasAffineLatencies.cost_le_four_thirds_restrictPaths`, Remark 18.22).
+- [Congestion/WardropNoRegret.lean](../../CslibFrontier/GameTheory/Congestion/WardropNoRegret.lean)
+  defines `IsApproxWardrop`, `HasAvgRegretLe`, and `timeAverageFlow`
+  ([blummansour07agt][blummansour07agt], Section 4.7). For concave latencies with convex edge cost
+  `x * latency e x` — including all nonnegative affine latencies — average external regret `≤ ε`
+  makes `timeAverageFlow f T` feasible and `ε`-Wardrop
+  (`isApproxWardrop_timeAverageFlow_of_concaveOn`,
+  `HasAffineLatencies.isApproxWardrop_timeAverageFlow`, Theorem 4.18). A two-day quadratic Pigou
+  instance (`exists_not_isApproxWardrop_timeAverageFlow_sq`) shows literal `ε`-preservation fails
+  without slope slack, while nondecreasing `L`-Lipschitz latencies satisfy
+  `isApproxWardrop_timeAverageFlow_of_lipschitz`,
+  `isApproxWardrop_timeAverageFlow_of_convexOn_of_lipschitz`, and
+  `isWardrop_timeAverageFlow_of_hasAvgRegretLe_zero`.
 
 ## Bimatrix games and the Lemke–Howson parity argument
 
@@ -582,7 +661,7 @@ under strict `module` axiom checks.
 
 ## Known Limitations
 
-Existence of Wardrop flows and weighted congestion games are not formalized. For the Pigou bound, the tight lower bounds of
+Weighted atomic congestion games and atomic splittable routing games are not formalized. For the Pigou bound, the tight lower bounds of
 [roughgarden03][roughgarden03] for classes without the constant functions (diverse classes on
 parallel links, Theorem 4.5, and inhomogeneous classes on unions of paths, Theorem 4.9) and the
 M/M/1 and M/G/1 delay functions of its Section 5 are not formalized. Nor are the tight price of
@@ -607,6 +686,7 @@ cited in the Monderer–Shapley and Roughgarden papers; their own texts were not
 [anshelevichDKTWR08]: ../sources.md#anshelevichdktwr08
 [babaioffChuangFeldman07]: ../sources.md#babaioffchuangfeldman07
 [blummansour07]: ../sources.md#blummansour07
+[blummansour07agt]: ../sources.md#blummansour07agt
 [complexitylib]: ../sources.md#complexitylib
 [epsteinFeldmanMansour09]: ../sources.md#epsteinfeldmanmansour09
 [fabrikantPapadimitriouTalwar04]: ../sources.md#fabrikantpapadimitrioutalwar04
@@ -616,6 +696,7 @@ cited in the Monderer–Shapley and Roughgarden papers; their own texts were not
 [papadimitriou94ppad]: ../sources.md#papadimitriou94ppad
 [rosenthal73]: ../sources.md#rosenthal73
 [roughgarden03]: ../sources.md#roughgarden03
+[roughgarden07routing]: ../sources.md#roughgarden07routing
 [roughgarden13cs364a]: ../sources.md#roughgarden13cs364a
 [roughgarden15]: ../sources.md#roughgarden15
 [roughgardenTardos02]: ../sources.md#roughgardentardos02
