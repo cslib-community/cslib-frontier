@@ -61,20 +61,22 @@ noncomputable def coordinateRootGrid {n ell : ℕ} (hell : 1 ≤ ell)
   {x | ∀ i, ((Bivariate.swap (parametricCoordinatePolynomial hell F hF i)).leadingCoeff.map
     (Int.castRingHom ℝ)).IsRoot (x i)}
 
+/-- Grid membership is equivalent to each coordinate being a root of its leading
+deformation coefficient. -/
+@[simp] theorem mem_coordinateRootGrid {n ell : ℕ} {hell : 1 ≤ ell}
+    {F : MvPolynomial (Fin n) ℤ} {hF : F.totalDegree ≤ ell} {x : Fin n → ℝ} :
+    x ∈ coordinateRootGrid hell F hF ↔
+      ∀ i, ((Bivariate.swap (parametricCoordinatePolynomial hell F hF i)).leadingCoeff.map
+        (Int.castRingHom ℝ)).IsRoot (x i) := Iff.rfl
+
 /-- The leading deformation coefficient is nonzero for every coordinate, so the
 product of its real root sets is finite. -/
 theorem coordinateRootGrid_finite {n ell : ℕ} (hell : 1 ≤ ell)
     (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) :
-    (coordinateRootGrid hell F hF).Finite := by
-  refine Set.Finite.pi' (fun i => Polynomial.finite_setOfPred_isRoot ?_)
-  apply (Polynomial.map_ne_zero_iff Int.cast_injective).2
-  apply Polynomial.leadingCoeff_ne_zero.mpr
-  intro hswap
-  have hz := congrArg Bivariate.swap hswap
-  rw [Bivariate.swap_swap_apply, map_zero] at hz
-  have hdegree := parametricCoordinatePolynomial_natDegree hell F hF i
-  rw [hz, Polynomial.natDegree_zero] at hdegree
-  exact (Nat.ne_of_gt (pow_pos (by omega : 0 < ell) n)) hdegree.symm
+    (coordinateRootGrid hell F hF).Finite :=
+  Set.Finite.pi' fun i => Polynomial.finite_setOfPred_isRoot
+    ((Polynomial.map_ne_zero_iff Int.cast_injective).2
+      (leadingCoeff_swap_parametricCoordinatePolynomial_ne_zero hell F hF i))
 
 /-- Each nonempty relatively clopen piece of the real zero set of a nonnegative
 integer polynomial meets its coordinate root grid. -/
@@ -88,7 +90,7 @@ theorem exists_mem_coordinateRootGrid_of_isClopen {n ell : ℕ} (hell : 1 ≤ el
     exists_deformedPolynomial_critical_subseq_in_clopen ell hell he (fun _ => 0) (fun _ => le_rfl)
       (F.map (Int.castRingHom ℝ)) hFn C hC hCne
       (u := fun k => (k : ℝ)) (fun _ => Nat.cast_nonneg _) tendsto_natCast_atTop_atTop
-  refine ⟨z, hz, fun i => ?_⟩
+  refine ⟨z, hz, mem_coordinateRootGrid.mpr fun i => ?_⟩
   rw [Polynomial.IsRoot, Polynomial.eval_map]
   exact eval₂_coordinateLeadingCoeff_eq_zero_of_tendsto hell F hF
     (tendsto_natCast_atTop_atTop.comp hφ.tendsto_atTop) hlim hcritical i
