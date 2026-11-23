@@ -112,7 +112,7 @@ theorem runClient_ite {α : Type} (w : ℕ) (c : Prop) [Decidable c]
       if c then (Memory.spec w).runClient s p₁ else (Memory.spec w).runClient s p₂ := by
   split_ifs <;> rfl
 
-@[simp, client_simps] theorem prog_clientResult_map {α β : Type} (w : ℕ)
+@[client_simps] theorem prog_clientResult_map {α β : Type} (w : ℕ)
     (s : Memory.State) (g : α → β) (p : Memory.Prog α) :
     (Memory.spec w).clientResult s (g <$> p : Memory.Prog β) =
       g ((Memory.spec w).clientResult s p) := by
