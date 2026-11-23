@@ -53,10 +53,16 @@ min-entropy at least `k`. Consequently:
   `L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`) and satisfies the `(L₃ - δ) n` average-case
   agreement bound (`exists_eventually_agreement_le_of_isSumsetExtractor`).
 
-These sumset-extractor theorems are **conditional reduction steps**, not unconditional `P` circuit
-lower bounds: constructing an explicit polynomial-time sumset extractor family (such as
-`[Li2023, Thm. 7.13]`) remains open
-(`mem_P_and_eventually_switched_lt_multiarySize_of_isSumsetExtractor`).
+These theorems are **conditional reduction steps in Lean**: the explicit extractor and its
+polynomial-time implementation remain to be formalized, as tracked by
+[#7793](https://github.com/cslib-community/cslib-frontier/issues/7793).
+Mathematically, [Li2023], ECCC TR23-023 revision 1, Theorem 7.13 (p. 36), already supplies a
+polynomial-time one-bit sumset extractor with entropy threshold `c(ε) log n` for each fixed
+`ε > 0`. For `ε < 1 / 2`, it meets the hypotheses of
+`mem_P_and_eventually_switched_lt_multiarySize_of_isSumsetExtractor` and yields the explicit `P`
+worst-case bound. The corresponding average-case bound is
+`agreement ≤ 1 / 2 + ε + exp (-γ n)`; that fixed-error theorem alone does not supply a single
+family with vanishing error as `n` grows.
 
 ## Main results
 
@@ -75,7 +81,7 @@ lower bounds: constructing an explicit polynomial-time sumset extractor family (
 ## References
 
 * [X. Li, *Two Source Extractors for Asymptotically Optimal Entropy, and (Many) More*][Li2023],
-  Theorem 7.13
+  ECCC TR23-023 revision 1, Definition 1.1 (p. 1) and Theorem 7.13 (p. 36)
 -/
 
 public section
@@ -428,9 +434,9 @@ theorem exists_eventually_agreement_le_of_isSumsetExtractor {m k : ℕ → ℕ} 
   simpa only [neg_mul] using hn σ I Acc c hfan hsize
 
 /-- **Conditional reduction step from a polynomial-time sumset extractor to a language in `P`
-requiring `(L₃ - δ) n` multiary gates.** This is a reduction step, not an unconditional `P` circuit
-lower bound (formalizing an explicit polynomial-time sumset extractor such as
-`[Li2023, Thm. 7.13]` remains open): given any polynomial-time Boolean family `f` whose 1-bit
+requiring `(L₃ - δ) n` multiary gates.** The explicit construction of [Li2023], ECCC TR23-023
+revision 1, Theorem 7.13, is not yet formalized (see #7793). Given any
+polynomial-time Boolean family `f` whose 1-bit
 output is eventually a `(k n, k n, ε n)` sumset extractor with `k n = o(n)` and `ε n ≤ c < 1 / 2`,
 `Language.ofSlices f` lies in `P` and its `n`-bit slice requires more than
 `(1 + 2π / (3 arccos (5 / 6)) - δ) n` multiary gates over every fan-in-two signature `σ`. -/

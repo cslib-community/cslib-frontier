@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Combinatorics.SimpleGraph.Finite
 public import Mathlib.Combinatorics.SimpleGraph.Matching
 public import Mathlib.Combinatorics.SimpleGraph.VertexCover
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Combinatorics.Hall.Basic
 import Mathlib.Data.Set.Card
 
@@ -375,14 +376,12 @@ theorem exists_isCrown_of_card_lt (hI : G.IsIndepSet I)
     refine Finset.mem_sdiff.2 ⟨(hmemN v).2 ⟨y, hyY, hyv⟩, fun hvT => hyZ ?_⟩
     exact Finset.mem_inter.2 ⟨Finset.mem_biUnion.2 ⟨v, hvT, (G.mem_neighborFinset _ _).2
       hyv.symm⟩, hyY⟩
-  have h₁ := Finset.card_le_card hsub
-  rw [Finset.card_sdiff_of_subset hTN] at h₁
-  have h₂ := Finset.card_sdiff_of_subset hZY
-  have h₃ := Finset.card_le_card hTN
   have h₄ := Finset.card_le_card hZY
   have := hYmax (Y \ Z) ((Finset.sdiff_subset).trans hYI)
-  rw [h₂] at this
+  rw [Finset.card_sdiff_of_subset hZY] at this
   push_cast [h₄] at this
+  have : ((Y \ Z).biUnion fun v => G.neighborFinset v).card + T.card ≤ N.card ∧
+      (Y \ Z).card + Z.card = Y.card := by finset_card
   omega
 
 /-- **Hall's criterion for crowns**: `(C, H)` is a crown exactly when `C` is independent, `H` is
@@ -485,12 +484,9 @@ theorem exists_isCrown_forall_isCrown_eq_empty [Finite V] :
   have hc' : (c : V) ∉ C ∪ H := by
     have := c.2
     simpa [not_or] using this
-  have hsub : C ∪ H ⊂ C ∪ C'.map (Function.Embedding.subtype _) ∪
-      (H ∪ H'.map (Function.Embedding.subtype _)) := by
-    refine (Finset.ssubset_iff_of_subset ?_).2 ⟨c, ?_, hc'⟩
-    · exact Finset.union_subset_union Finset.subset_union_left Finset.subset_union_left
-    · exact Finset.mem_union_left _ (Finset.mem_union_right _ (Finset.mem_map_of_mem _ hc))
-  exact absurd hle (not_le.2 (Finset.card_lt_card hsub))
+  dsimp only at hle
+  finset_card [show (c : V) ∈ C'.map (Function.Embedding.subtype _) from
+    Finset.mem_map_of_mem _ hc]
 
 /-- A graph whose crowns are all empty has at most `2 |S|` vertices for every vertex cover `S`:
 otherwise the independent set `Sᶜ` has fewer neighbours than vertices. -/
@@ -505,10 +501,8 @@ theorem card_le_two_mul_card_of_forall_isCrown_eq_empty (hfree : ∀ C H, G.IsCr
     simp only [Finset.mem_biUnion, mem_neighborFinset, Finset.mem_compl] at hv
     obtain ⟨u, hu, huv⟩ := hv
     exact (hS huv).resolve_left hu
-  have hcompl := Finset.card_compl_add_card S
   by_contra hlt
-  obtain ⟨C, H, -, hC, hCH⟩ := G.exists_isCrown_of_card_lt hind
-    ((Finset.card_le_card hN).trans_lt (by omega))
+  obtain ⟨C, H, -, hC, hCH⟩ := G.exists_isCrown_of_card_lt hind (by finset_card)
   exact hC.ne_empty (hfree C H hCH)
 
 private theorem card_compl_union_eq [DecidableEq V] (C H : Finset V)
@@ -536,12 +530,7 @@ theorem exists_isMatchingInto_or_exists_isCrown {k : ℕ} (hk : 3 * k < Fintype.
   set I : Finset V := (A ∪ A.image m)ᶜ with hIdef
   have hmemI : ∀ {v}, v ∈ I ↔ v ∉ A ∧ v ∉ A.image m := fun {v} => by
     simp only [hIdef, Finset.mem_compl, Finset.mem_union, not_or]
-  have hIcard : k < I.card := by
-    have h₁ := Finset.card_compl_add_card (A ∪ A.image m)
-    have h₂ := Finset.card_union_le A (A.image m)
-    have h₃ := Finset.card_image_le (s := A) (f := m)
-    rw [← hIdef] at h₁
-    omega
+  have hIcard : k < I.card := by finset_card
   have hIind : G.IsIndepSet I := by
     intro u hu v hv huv hadj
     have hu := hmemI.1 hu
@@ -549,8 +538,7 @@ theorem exists_isMatchingInto_or_exists_isCrown {k : ℕ} (hk : 3 * k < Fintype.
     have hupd : ∀ a ∈ A, Function.update m u v a = m a := fun a ha =>
       Function.update_of_ne (by rintro rfl; exact hu.1 ha) _ _
     have := hmax (insert u A) (insert v (A.image m)) (Function.update m u v) ?_ ?_
-    · rw [Finset.card_insert_of_notMem hu.1] at this
-      omega
+    · finset_card
     · refine Finset.disjoint_left.2 fun x hx hx' => ?_
       rcases Finset.mem_insert.1 hx with hxu | hx <;>
         rcases Finset.mem_insert.1 hx' with hxv | hx'
@@ -639,8 +627,7 @@ theorem exists_isMatchingInto_or_exists_isCrown_card_compl_le [DecidableEq V] (k
     · rw [Finset.disjoint_union_left, Finset.disjoint_union_right, Finset.disjoint_union_right]
       exact ⟨⟨hCH.disjoint, Finset.disjoint_left.2 fun v hvH hv => (hRmem hv).2 hvH⟩,
         Finset.disjoint_left.2 fun v hv hvC => (hRmem hv).1 hvC, (Finset.disjoint_map _).2 hAB'⟩
-    · rw [Finset.card_union_of_disjoint hHA, Finset.card_map]
-      omega
+    · finset_card
   · exact absurd (hfree C' H' hCH') hC'.ne_empty
 
 /-- **The `2k` bound**: some crown `(C, H)` leaves a residual graph `G - (C ∪ H)` of at most

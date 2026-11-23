@@ -20,6 +20,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -157,10 +158,14 @@ class MainTests(unittest.TestCase):
         if baseline is not None:
             self.baseline.write_text(json.dumps(baseline))
         out, err = io.StringIO(), io.StringIO()
-        with mock.patch.object(lo, "Library", lambda _: FakeLibrary(self.modules)), \
+        with mock.patch.object(lo, "Library", return_value=FakeLibrary(self.modules)) as lib_mock, \
+                mock.patch.object(lo, "check_outputs", return_value="unchecked") as check_mock, \
                 contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             code = c.main(["--no-build-check", "--allowlist", str(self.allowlist),
                            "--baseline", str(self.baseline), *flags])
+        check_mock.assert_called_once_with(lo.DEFAULT_BUILD_DIR, True, roots=("CslibFrontier",))
+        lib_mock.assert_called_once_with(lo.DEFAULT_BUILD_DIR, roots=("CslibFrontier",),
+                                         exported_only=True)
         return code, out.getvalue(), err.getvalue()
 
     def test_at_the_baseline_passes(self) -> None:
@@ -304,6 +309,55 @@ class CompiledFixtureTests(unittest.TestCase):
     def test_statements_count(self) -> None:
         self.assertEqual(self.constants["Alias"]["tb"], ["ComputableTidilyFake"])
         self.assertEqual(self.counted, {"stated", "Alias", "Pred", "inType", "Cert.cert"})
+
+    def test_library_only_exported_mode_matches_full_tidy_statements_without_test_ileans(
+            self) -> None:
+        with tempfile.TemporaryDirectory(prefix="tidy-surface-lib-") as directory:
+            root = pathlib.Path(directory)
+            build = root / "build"
+            (build / "CslibFrontier").mkdir(parents=True)
+            (root / "CslibFrontier").mkdir()
+            (root / "CslibFrontier/A.lean").write_text(FIXTURE)
+            (root / "CslibFrontier/B.lean").write_text(
+                "module\npublic import Init\npublic section\n"
+                "theorem provedDup (n : Nat) : n = n := rfl\nend\n")
+            (root / "CslibFrontier.lean").write_text(
+                "module\npublic import CslibFrontier.A\npublic import CslibFrontier.B\n")
+            lean_path = subprocess.check_output(
+                ["lake", "env", "printenv", "LEAN_PATH"], cwd=c.ROOT, text=True).strip()
+            env = {**os.environ, "LEAN_PATH": f"{build}{os.pathsep}{lean_path}"}
+            for rel in ("CslibFrontier/A", "CslibFrontier/B", "CslibFrontier"):
+                subprocess.run(
+                    ["lean", f"--root={root}",
+                     "-o", str(build / f"{rel}.olean"), "-i", str(build / f"{rel}.ilean"),
+                     str(root / f"{rel}.lean")],
+                    cwd=c.ROOT, env=env, check=True, capture_output=True, text=True)
+            # No `CslibFrontierTests` `.ilean` files exist in `build`.
+            full_ileans = lo.load_ileans(build, roots=("CslibFrontier",))
+            full_constants, full_dups = lo.load_constants(
+                build, sorted(full_ileans), exported_only=False)
+            self.assertTrue(full_dups)
+            full_lib = FakeLibrary({})
+            full_lib.ileans = full_ileans
+            full_lib.modules = sorted(full_ileans)
+            full_lib.constants = full_constants
+            expected = c.tidy_statements(full_lib, set())
+            scoped = lo.Library(build, roots=("CslibFrontier",), exported_only=True)
+            self.assertEqual(scoped.duplicate_rows, [])
+            expected_exported = {n for n, row in full_constants.items() if row["e"]}
+            self.assertEqual(set(scoped.constants), expected_exported)
+            self.assertFalse(any("privateStated" in n for n in scoped.constants))
+            for name in expected_exported:
+                for key in ("n", "m", "e", "tidy", "tb", "r"):
+                    self.assertEqual(scoped.constants[name][key], full_constants[name][key], name)
+                self.assertEqual(scoped.constants[name]["k"], full_constants[name]["e"], name)
+            self.assertEqual(c.tidy_statements(scoped, set()), expected)
+            # Missing `.olean.private` must still fail under `--exported-only` (run in CI's
+            # post-build `Tidy statement ratchet` step).
+            (build / "CslibFrontier/B.olean.private").unlink()
+            with self.assertRaises(subprocess.CalledProcessError) as err:
+                lo.load_constants(build, ["CslibFrontier.B"], exported_only=True)
+            self.assertIn("incomplete split module outputs", err.exception.stderr)
 
 
 class CommittedFilesTests(unittest.TestCase):

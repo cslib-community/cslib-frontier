@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Init
+public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph
 public import Mathlib.Logic.Function.Iterate
 import Mathlib.Data.Finset.Max
 import Mathlib.Data.Fintype.Basic
@@ -79,5 +79,47 @@ theorem exists_endpointCheckpoint {L : ℕ} (hL : 0 < L) {x : α}
     (fun j : Fin (2 * L) => rank (f^[j.val] x)) hne
   exact ⟨_, by split <;> have := i.isLt <;> lia,
     isEndpointCheckpoint_of_min f rank hinj i (fun j => hi j (Finset.mem_univ j))⟩
+
+/-- For an orbit still in its transient part after at least `2 * L` steps, some checkpoint
+on that orbit is at most `2 * L` steps before the target. The first inequality on depths
+ensures that a forward walk from the checkpoint can reach the target. -/
+theorem exists_endpointCheckpoint_near_transient [Finite α] {L t : ℕ} (hL : 0 < L)
+    (x : α) (hfar : 2 * L ≤ t) (ht : t ≤ transientDepth f x) :
+    ∃ a, IsEndpointCheckpoint f rank L a ∧
+      (∃ j ≤ transientDepth f x, f^[j] x = a) ∧
+      transientDepth f (f^[t] x) ≤ transientDepth f a ∧
+      transientDepth f a ≤ transientDepth f (f^[t] x) + 2 * L := by
+  let b := t - 2 * L
+  let z := f^[b] x
+  have hb : b + 2 * L = t := Nat.sub_add_cancel hfar
+  have hz : transientDepth f z = transientDepth f x - b := transientDepth_iterate f x b
+  have hinj : Function.Injective (fun i : Fin (2 * L) => f^[i.val] z) := by
+    intro i j he
+    have hd := congrArg (transientDepth f) he
+    simp only [transientDepth_iterate, hz] at hd
+    apply Fin.ext
+    have hi := i.isLt
+    have hj := j.isLt
+    lia
+  obtain ⟨d, hd, ha⟩ := exists_endpointCheckpoint f rank hL hinj
+  refine ⟨f^[d] z, ha, ⟨d + b, by lia, Function.iterate_add_apply f d b x⟩, ?_⟩
+  simp only [transientDepth_iterate, hz]
+  lia
+
+/-- Every ancestor in the target depth window yields the same answer. Taking the difference
+of depths gives the exact suffix length to walk, bounded by the width of the window. -/
+theorem iterate_of_ancestor_depth_window [Finite α] {x a : α} {t K : ℕ}
+    (ht : t ≤ transientDepth f x) (ha : ∃ j ≤ transientDepth f x, f^[j] x = a)
+    (hlo : transientDepth f (f^[t] x) ≤ transientDepth f a)
+    (hhi : transientDepth f a ≤ transientDepth f (f^[t] x) + K) :
+    let k := transientDepth f a - transientDepth f (f^[t] x)
+    k ≤ K ∧ f^[k] a = f^[t] x := by
+  obtain ⟨j, hj, rfl⟩ := ha
+  simp only [transientDepth_iterate] at hlo hhi ⊢
+  constructor
+  · lia
+  · rw [← Function.iterate_add_apply]
+    congr 1
+    lia
 
 end Cslib.FunctionalGraph
