@@ -789,7 +789,7 @@ theorem ampProgram_spec (k c : ℕ) (hk : 1 ≤ k) (φ : CNF (Fin n)) {w : ℕ}
         (v = 0 ∨ (v = 1 ∧
           φ.eval (assignmentAt d.mem ((k :: c :: encode φ).length + 1) n) = true))) ∧
     (evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map Schoening.cfgSuccess =
+      (.init (k :: c :: encode φ))).map RandCfg.accepts =
         repeatRound φ (ppzRounds k n c) := by
   set L := (k :: c :: encode φ).length with hL
   have hE : (encodeClauses φ).length ≤ L := by
@@ -822,7 +822,7 @@ theorem ampProgram_spec (k c : ℕ) (hk : 1 ≤ k) (φ : CNF (Fin n)) {w : ℕ}
         (show n * (28 * (encodeClauses φ).length + 40) + 6 + 12 * (encodeClauses φ).length + 35 ≤
           n * (28 * L + 40) + 12 * L + 41 by omega)
       omega)
-    Schoening.cfgSuccess fun _ _ => rfl
+    RandCfg.accepts fun _ _ => rfl
   refine ⟨hhalt, hcalls, fun cfg hcfg => ?_, hlaw⟩
   obtain ⟨d, rfl, -, hd⟩ := hpost cfg hcfg
   exact ⟨_, d, rfl, hd⟩
@@ -834,7 +834,7 @@ theorem ampProgram_failure_eq (k c : ℕ) (hk : 1 ≤ k) (φ : CNF (Fin n)) {w :
     (hw : Fits w ((k :: c :: encode φ).length + 2 * n + k * n + k + 2 * c +
       ppzCounterLen k n c + 2)) :
     ((evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map Schoening.cfgSuccess false).toReal =
+      (.init (k :: c :: encode φ))).map RandCfg.accepts false).toReal =
       (1 - roundSuccessProb φ) ^ ppzRounds k n c := by
   rw [(ampProgram_spec k c hk φ hw).2.2.2, repeatRound_false_toReal]
 
@@ -846,7 +846,7 @@ theorem ampProgram_failure_le_exp {k c : ℕ} (hk : 1 ≤ k) {φ : CNF (Fin n)} 
     (hw : Fits w ((k :: c :: encode φ).length + 2 * n + k * n + k + 2 * c +
       ppzCounterLen k n c + 2)) :
     ((evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map Schoening.cfgSuccess false).toReal ≤ Real.exp (-c) := by
+      (.init (k :: c :: encode φ))).map RandCfg.accepts false).toReal ≤ Real.exp (-c) := by
   rw [(ampProgram_spec k c hk φ hw).2.2.2]
   exact repeatRoundWith_false_le_exp (roundSuccessProb_ge hk hφ hlen)
     (le_two_pow_mul_mul_rpow_neg (le_ppzExp hk n))

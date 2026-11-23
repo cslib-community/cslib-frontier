@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Distributed.Paxos.Basic
 public import Cslib.Foundations.Semantics.LTS.OmegaExecution
 public import Mathlib.Order.Fin.Basic
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Data.Finset.Max
 import Mathlib.Data.Finset.Sort
 import Mathlib.Data.Nat.Order.Lemmas
@@ -1750,17 +1751,11 @@ theorem not_safeSingleQuorum_of_card_le_two_mul {P S L M V : Type*}
     (π : AsyncQuorumProtocol P S L M V) :
     ¬ (π.SafeConsensus ∧ ∀ Q : Finset P, Fintype.card P - t ≤ Q.card → π.CanDecideIn Q) := by
   rintro ⟨hsafe, hprog⟩
-  have hhalf_le : Fintype.card P / 2 ≤ (Finset.univ : Finset P).card := by
-    rw [Finset.card_univ]; omega
-  obtain ⟨Q₁, _, hQ₁_card⟩ := Finset.exists_subset_card_eq hhalf_le
-  let Q₂ : Finset P := Finset.univ \ Q₁
-  have hdisj : Disjoint Q₁ Q₂ := Finset.disjoint_sdiff
-  have hQ₁_ge : Fintype.card P - t ≤ Q₁.card := by omega
-  have hQ₂_ge : Fintype.card P - t ≤ Q₂.card := by
-    have hcard₂_eq : Q₂.card = Fintype.card P - Q₁.card := by
-      rw [Finset.card_sdiff_of_subset (Finset.subset_univ Q₁), Finset.card_univ]
-    omega
-  exact not_synod_safe_of_disjoint_quorums π hdisj ⟨hsafe, hprog Q₁ hQ₁_ge, hprog Q₂ hQ₂_ge⟩
+  obtain ⟨Q₁, _, hQ₁_card⟩ :=
+    Finset.exists_subset_card_eq (s := (Finset.univ : Finset P)) (n := Fintype.card P / 2)
+      (by finset_card)
+  exact not_synod_safe_of_disjoint_quorums π (Q₁ := Q₁) (Q₂ := Finset.univ \ Q₁)
+    (by finset_card) ⟨hsafe, hprog Q₁ (by omega), hprog (Finset.univ \ Q₁) (by finset_card)⟩
 
 /-! ### Co-located Synod instantiated as an `AsyncQuorumProtocol` -/
 
