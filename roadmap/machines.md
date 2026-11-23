@@ -44,9 +44,7 @@ Part of the [roadmap](../ROADMAP.md), which explains what an entry is and when o
 - **Ropes** ([#3670](https://github.com/cslib-community/cslib-frontier/issues/3670)): a persistent sequence over an arbitrary element type, stored as an AVL-balanced binary tree with bounded non-empty chunks at its leaves and verified against `List`.
   Indexing, concatenation by join and positional splitting, with insertion, range erasure, extraction and replacement derived from split and join.
   Word-RAM running times for the same operations: join linear in the height difference and split logarithmic in the length.
-- **B-trees** ([#3674](https://github.com/cslib-community/cslib-frontier/issues/3674)): comparison bounds for B-tree operations in CSLib's query model, with linear and binary in-node search, and the `⌈log₂(n + 1)⌉` comparison lower bound for search.
-  Read-only operations behind a node-access oracle, whose query counts equal the node-visit counts.
-  B+-trees, with only separator keys in interior nodes and every entry in a leaf: structure, queries, updates, bulk loading and the same cost bounds.
+- **B-trees** ([#3674](https://github.com/cslib-community/cslib-frontier/issues/3674)): the `⌈log₂(n + 1)⌉` comparison lower bound for search, and B+-trees with only separator keys in interior nodes and every entry in a leaf: structure, queries, updates, bulk loading and cost bounds.
 - **Subconstant-redundancy dynamic dictionary** ([#5349](https://github.com/cslib-community/cslib-frontier/issues/5349)): dynamic succinct dictionaries with subconstant redundancy `R` following Li, Liang, Yu, and Zhou (SODA 2024, arXiv:2310.20536).
   Word-RAM bit-packed realization with `O(1)` expected query time, `infoBits + O(R)` bits for `R ≤ n` (including Section 4 small-`R` adapter trees), Las Vegas sentinel/resizing wrappers, and localized subtree rehashing with `O((n + M) log* n)` expected work.
 
