@@ -82,13 +82,7 @@ theorem exec {W b m n i out rho piece s t q : ℕ}
     (hX : ∀ a k, 0 ≤ X a k ∧ X a k ≤ 1) (hY : ∀ k a, 0 ≤ Y k a ∧ Y k a ≤ 1)
     (hN : D m ^ 18 ≤ n)
     (hfit : Fits W (2 * b + 4 * CallableProduct.windowSize n qs.length + 1024)) :
-    ∃ y, ExecWithin W program x y (timeBound (m := m) qs) ∧
-      y.regs Reg.result = b + QueriedProduct.outputBase (21 * m) m n qs.length ∧
-      (∀ j : Fin qs.length,
-        y.mem (b + (QueriedProduct.outputBase (21 * m) m n qs.length + j.val)) =
-          Signed.encode ((X * Y) (qs.get j).1 (qs.get j).2)) ∧
-      (∀ a, a < b ∨ b + CallableProduct.windowSize n qs.length ≤ a → y.mem a = x.mem a) ∧
-      ∀ j : Fin 320, j.val < 65 → y.regs j = x.regs j := by
+    ExecPost program (21 * m) W b (timeBound (m := m) qs) X Y qs x := by
   have hmargin := preparation_margin (Q := qs.length) hN
   obtain ⟨a, ha, ab, as, aright, aq, ahead, athreshold, af, ar⟩ := exec_prepare X Y qs x
     hD hn hi hout hb hrec hrecord (hfit.of_le (by omega))
@@ -131,5 +125,13 @@ theorem exec {W b m n i out rho piece s t q : ℕ}
   · intro j hj
     have hne : j ≠ Reg.result := by intro h; subst j; simp [Reg.result] at hj
     exact (yg j (by omega) hne).trans (ar j hj)
+
+/-- The `RecordBoxProduct` backend at tensor level `21 * m`. -/
+abbrev backend : RecordBackend where
+  program := program
+  level m := 21 * m
+  timeBound m {_n} qs := timeBound (m := m) qs
+  program_fixed := program_fixed
+  exec := @exec
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordBoxProduct

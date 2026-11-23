@@ -138,9 +138,8 @@ theorem computableInPolyTime_chainLevel :
     fun_prop
   have hbit : ComputableInPolyTime (fun x : (ℕ × ℕ × ℕ × ℕ) × ℕ =>
       if x.1.2.2.2.testBit x.2 then 1 else 0) encChainLevelInput encNat := by
-    have h := ComputableInPolyTime.of_tidy
-      ((ComputableTidilyInPolyTime.of_finite (encA := encBool) (encB := encNat)
-        Bool.toNat).comp (ComputableTidilyInPolyTime.binary_testBit hw.tidy hk.tidy))
+    have h := ((ComputableInPolyTime.of_finite (encIn := encBool) (encOut := encNat)
+        Bool.toNat).comp (ComputableInPolyTime.binary_testBit hw hk))
     convert h using 2 with x
     simp only [Function.comp_apply]
     cases x.1.2.2.2.testBit x.2 <;> rfl
@@ -151,11 +150,10 @@ theorem computableInPolyTime_chainLevel :
       ComputableInPolyTime a encChainLevelInput encUnary →
       ComputableInPolyTime b encChainLevelInput encUnary →
       ComputableInPolyTime c encChainLevelInput encNat →
-      ComputableTidilyInPolyTime (fun x => (⟨a x, b x, c x⟩ : WeightedEdge)) encChainLevelInput
-        encWeightedEdge := fun ha hb hc => (encWeightedEdge_mk_polyTime ha hb hc).tidy
-  refine ComputableInPolyTime.of_tidy ?_
+      ComputableInPolyTime (fun x => (⟨a x, b x, c x⟩ : WeightedEdge)) encChainLevelInput
+        encWeightedEdge := fun ha hb hc => (encWeightedEdge_mk_polyTime ha hb hc)
   unfold chainLevel
-  open ComputableTidilyInPolyTime in
+  open ComputableInPolyTime in
   exact cons' (he hu htgt hbit) (cons' (he hd hd hone) (cons' (he hd htgt hone)
     (cons' (he hr hr hone) (cons' (he hd hr hone) (cons' (he hr htgt hone) (const _))))))
 
@@ -232,9 +230,12 @@ theorem computableInPolyTime_intTableAbsSum :
 
 theorem computableInPolyTime_permanentModulus :
     ComputableInPolyTime permanentModulus encIntTable encNat := by
-  have hS := computableInPolyTime_intTableAbsSum
-  unfold permanentModulus
-  fun_prop
+  change ComputableInPolyTime (fun A => permanentModulus A) _ _
+  have hlength := length_list (encList encIntBin)
+  have hfactorial := binary_factorial.comp hlength
+  have hpower := binary_pow' computableInPolyTime_intTableAbsSum hlength
+  simpa only [Function.comp_def, permanentModulus] using
+    binary_add' (binary_mul' (binary_mul' (const 2) hfactorial) hpower) (const 1)
 
 theorem computableInPolyTime_reduceIntTable :
     ComputableInPolyTime reduceIntTable encIntTable encNatTable := by
@@ -249,8 +250,12 @@ theorem computableInPolyTime_recoverPermanent :
   have hQ := computableInPolyTime_permanentModulus.comp
     (show ComputableInPolyTime (fun x : List (List ℤ) × ℕ => x.1) (encPair encIntTable encNat)
       encIntTable by fun_prop)
+  have hresidue := binary_mod' (snd encIntTable encNat) hQ
   unfold recoverPermanent
-  fun_prop
+  exact ComputableInPolyTime.ite_decide
+    (binary_lt' (binary_mul' (const 2) hresidue) hQ)
+    (intBin_natCast.comp hresidue)
+    (intBin_sub.comp ((intBin_natCast.comp hresidue).prod (intBin_natCast.comp hQ)))
 
 /-- The permanent of a table of natural numbers. -/
 def NatPermanent (A : List (List ℕ)) : ℕ :=

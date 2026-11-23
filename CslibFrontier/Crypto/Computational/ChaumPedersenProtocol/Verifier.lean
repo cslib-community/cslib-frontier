@@ -25,9 +25,11 @@ Figure 19.7) as a deterministic polynomial-time word function: it checks `z • 
 ## Main results
 
 * `Cslib.Crypto.PrimeOrderGroupFamily.verifierRealizedBy_chaumPedersenVerifyWord`:
-  `chaumPedersenVerifyWord` realizes the verifier of `chaumPedersenFamily` on encodings.
-* `Cslib.Crypto.PrimeOrderGroupFamily.efficientVerifier_chaumPedersen`: the Chaum–Pedersen family
-  has an efficient verifier.
+  `chaumPedersenVerifyWord` realizes the verifier of `chaumPedersenFamily` (and
+  `chaumPedersenProbFamily`) on encodings.
+* `Cslib.Crypto.PrimeOrderGroupFamily.efficientVerifier_chaumPedersen`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.efficientVerifier_chaumPedersenProb`: both Chaum–Pedersen
+  families have an efficient verifier.
 
 ## References
 
@@ -80,5 +82,10 @@ theorem efficientVerifier_chaumPedersen :
     EfficientVerifier F.chaumPedersenFamily F.chaumPedersenEncoding :=
   ⟨F.chaumPedersenVerifyWord, F.computableInPolyTime_chaumPedersenVerifyWord,
     F.verifierRealizedBy_chaumPedersenVerifyWord⟩
+
+/-- **The fair-coin Chaum–Pedersen protocol has an efficient verifier.** -/
+theorem efficientVerifier_chaumPedersenProb :
+    EfficientVerifier F.chaumPedersenProbFamily F.chaumPedersenEncoding :=
+  F.efficientVerifier_chaumPedersen
 
 end Cslib.Crypto.PrimeOrderGroupFamily

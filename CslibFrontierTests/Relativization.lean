@@ -8,9 +8,10 @@ import CslibFrontier.Computability.Complexity.Classes.Hierarchy
 import CslibFrontier.Computability.Complexity.Classes.Oracle.BakerGillSolovay
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Collapse
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Monotone
+import CslibFrontier.Computability.Complexity.Problems.ThreeSAT
 
 /-! Requests of adaptive word-query programs under language oracles, locality, membership in the
-oracle classes, the unary length language, candidate deciders, the diagonal oracle, the
+oracle classes, the unary length language, clocked candidates, the diagonal oracle, the
 Baker–Gill–Solovay separation, oracles in polynomial space, the words of `TQBF`, the collapse and
 oracle monotonicity. -/
 
@@ -103,18 +104,17 @@ example : [true] ∉ unaryLengthLanguage {[], [true, true]} := fun h => by
   obtain ⟨-, w, hw, hlen⟩ := h
   rcases hw with rfl | rfl <;> simp at hlen
 
-/-! ### Candidate deciders -/
+/-! ### Clocked candidates -/
 
 open BakerGillSolovay in
-/-- A candidate with a machine that halts at once and a zero clock: its verdict makes no request
-and rejects, against every oracle. -/
+/-- A zero-clock candidate issues no requests and returns the empty word, against every oracle. -/
 example (A : Set (List Bool)) (n : ℕ) :
     OracleComp.queriesWith (languageOracle A)
-      (Candidate.verdict ⟨0, 1, ⟨0, fun _ _ _ _ _ => .step ⟨0, fun i => i.elim0, none, none⟩
+      (Candidate.output ⟨0, 1, ⟨0, fun _ _ _ _ _ => .step ⟨0, fun i => i.elim0, none, none⟩
         (fun _ => none) (fun _ => 0)⟩, 0, 0⟩ n) = [] ∧
     OracleComp.interpret (m := Id) (languageOracle A)
-      (Candidate.verdict ⟨0, 1, ⟨0, fun _ _ _ _ _ => .step ⟨0, fun i => i.elim0, none, none⟩
-        (fun _ => none) (fun _ => 0)⟩, 0, 0⟩ n) = false := by
+      (Candidate.output ⟨0, 1, ⟨0, fun _ _ _ _ _ => .step ⟨0, fun i => i.elim0, none, none⟩
+        (fun _ => none) (fun _ => 0)⟩, 0, 0⟩ n) = [] := by
   constructor <;> rfl
 
 /-- `NP` relative to an oracle is closed under reductions: prepending `true` reduces to the unary
@@ -123,6 +123,14 @@ example (B : Set (List Bool)) :
     {x : List Bool | true :: x ∈ unaryLengthLanguage B} ∈ NPWithOracle B encBits :=
   PolyTimeReducible.mem_NPWithOracle ⟨List.cons true, by fun_prop, fun _ => Iff.rfl⟩
     (unaryLengthLanguage_mem_NPWithOracle B)
+
+/-- Arora–Barak Exercise 3 §6: some language in relativized NP has no reduction to the word
+language of 3SAT, even if the reduction can query the oracle and output malformed words. -/
+example : ∃ (A : Set (List Bool)) (L : Set (List Bool)), L ∈ NPWithOracle A encBits ∧
+    ¬ManyOneReducibleBy (ComputableInPolyTimeWithOracle A · encBits encBits) L
+      (encCNF '' ThreeSAT) := by
+  obtain ⟨A, hA⟩ := exists_unaryLengthLanguage_not_reducibleWithOracle encBits (encCNF '' ThreeSAT)
+  exact ⟨A, unaryLengthLanguage A, hA⟩
 
 /-! ### The diagonal oracle -/
 

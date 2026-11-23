@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Multiword.Mul
-import CslibFrontier.Tactic.FinIndex
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Fixed banks of multiword registers
@@ -37,7 +37,7 @@ are part of the code, so even width two requires no address large enough to name
 namespace Cslib.WordRAM.Multiword.Bank
 
 open Workspace
-open Schoolbook (registers)
+open Schoolbook (registers registers_bounds nodup_registers)
 
 variable {n : ℕ}
 
@@ -55,21 +55,18 @@ theorem length_regs (j : Fin n) : (regs j).length = 18 := by
 /-- Physical register indices in `regs j` lie in `[44 + 18 * j, 44 + 18 * j + 18)`. -/
 theorem mem_regs {j : Fin n} {i : Fin (capacity n + 4)} (hi : i ∈ regs j) :
     44 + 18 * j.val ≤ i.val ∧ i.val < 44 + 18 * j.val + 18 := by
-  obtain ⟨k, rfl⟩ := List.mem_ofFn.mp hi
-  dsimp
+  have := registers_bounds hi
   omega
 
 /-- Every register of `regs j` is a non-scratch digit register (`IsDigit`). -/
 theorem digit_regs (j : Fin n) : ∀ i ∈ regs j, IsDigit i := by
   intro i hi
   have := mem_regs hi
-  dsimp [IsDigit]
-  omega
+  wram_omega
 
 /-- The register list `regs j` of a bank entry has no duplicates. -/
-theorem nodup_regs (j : Fin n) : (regs j).Nodup := by
-  apply List.nodup_ofFn_ofInjective
-  fin_index
+theorem nodup_regs (j : Fin n) : (regs j).Nodup :=
+  nodup_registers _ _ _
 
 /-- Distinct bank entries occupy disjoint lists of physical registers. -/
 theorem disjoint_regs {j k : Fin n} (hjk : j ≠ k) : List.Disjoint (regs j) (regs k) := by

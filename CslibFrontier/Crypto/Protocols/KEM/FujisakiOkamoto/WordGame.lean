@@ -35,7 +35,7 @@ Decapsulation runs the KEM's native decapsulation against the same random oracle
 
 **Domains of the random oracles.** `G` is a random function from messages of length `msgLen n`
 to uniform words of length `coinLen n`. `H` is a random function from the canonical encodings
-`encHQuery (b, m, c)` with `m` of length `msgLen n` and `c` of length at most `ctLen n`
+`encHQuery (false, m, c)` with `m` of length `msgLen n` and `c` of length at most `ctLen n`
 (`WordPKE.isHQuery`) to uniform words of length `keyLen n`. A request outside these domains gets
 the empty word and leaves the oracle unchanged (`WordPKE.roWordOracle`). The honest algorithms only
 query inside the domains, except that encapsulation queries `H` at a ciphertext longer than

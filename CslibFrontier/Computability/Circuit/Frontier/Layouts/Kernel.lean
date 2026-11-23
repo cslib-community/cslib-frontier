@@ -111,7 +111,7 @@ private theorem edist_eq_dist_of_le {v z : V} {n : ℕ} (h : G.edist v z ≤ n) 
     (ne_top_of_le_ne_top (ENat.natCast_ne_top n) h)).coe_dist_eq_edist.symm
 
 /-- `κ = 2 q / (1 + q ^ 2)` is at most one. -/
-private theorem two_mul_div_one_add_sq_le_one (q : ℝ) : 2 * q / (1 + q ^ 2) ≤ 1 := by
+theorem two_mul_div_one_add_sq_le_one (q : ℝ) : 2 * q / (1 + q ^ 2) ≤ 1 := by
   rw [div_le_one (by positivity)]
   nlinarith [sq_nonneg (q - 1)]
 

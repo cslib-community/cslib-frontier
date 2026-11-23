@@ -8,14 +8,17 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Game
-public import CslibFrontier.Crypto.Protocols.UC.Machine
+public import CslibFrontier.Crypto.Protocols.UC.Linking
 public import Cslib.Foundations.Data.Polynomial.Monotone
 
 /-!
-# The UC execution with static corruptions
+# Call-bounded UC execution with static corruptions
 
-This module defines the execution experiment of the universal-composability (UC) framework of
-[Canetti2020] for `n`-party protocols with a fixed set of statically corrupted parties, in the
+This module defines an execution experiment for the universal-composability (UC) framework of
+[Canetti2020], in this library's novel call-bounded port model: its budgets
+(`Protocol.PolyBounded`, `Adversary.PolyBounded`, `Environment.PolyBounded`) bound oracle call
+counts only, with unbounded local computation, and computational polynomial-time machine execution
+is open in #6043. For `n`-party protocols with a fixed set of statically corrupted parties, in the
 package style of `CslibFrontier.Crypto.Protocols.UC.Machine`:
 
 * A *protocol* `π : UC.Protocol n In Out NetQ NetR` is, for every security parameter `κ` and set
@@ -209,25 +212,15 @@ theorem handle_corruptRouter_map_state (C : Finset (Fin n))
     rfl
 
 /-- A program calling only the network port, as a program calling the ports of a protocol. -/
-@[expose] def liftNet {α : Type} (program : ProbOracleComp (netSpec NetQ NetR) α) :
+abbrev liftNet {α : Type} (program : ProbOracleComp (netSpec NetQ NetR) α) :
     ProbOracleComp (protocolSpec n In Out NetQ NetR) α :=
-  OracleComp.interpret
-    (sumHandler
-      (fun k => OracleComp.query (spec := probOracleSpec (protocolSpec n In Out NetQ NetR))
-        (Sum.inl k))
-      fun q => ProbOracleComp.query (Sum.inr q))
-    program
+  Machine.liftRightProgram (partySpec n In Out) program
 
 /-- The adversary in front of the network port: party queries pass through unchanged, and the
 adversary's activations call the network port. -/
-@[expose] def liftAdversary (A : Machine (netSpec NetQ NetR) (netSpec AdvQ AdvR)) :
-    Machine (protocolSpec n In Out NetQ NetR) (execSpec n In Out AdvQ AdvR) where
-  State := A.State
-  init := A.init
-  handle
-    | .inl p => StateT.lift (ProbOracleComp.query (spec := protocolSpec n In Out NetQ NetR)
-        (Sum.inl p))
-    | .inr q => fun s => liftNet ((A.handle q).run s)
+abbrev liftAdversary (A : Machine (netSpec NetQ NetR) (netSpec AdvQ AdvR)) :
+    Machine (protocolSpec n In Out NetQ NetR) (execSpec n In Out AdvQ AdvR) :=
+  Machine.liftRight (partySpec n In Out) A
 
 /-- The closed system the environment talks to: the adversary in front of the corruption-routed
 protocol. -/
@@ -288,17 +281,26 @@ section Budgets
 
 variable {n : ℕ} {In Out NetQ NetR AdvQ AdvR : Type}
 
-/-- Every activation of the protocol at security parameter `κ` makes at most `p.eval κ` calls. -/
+/-- Polynomial oracle-call-count bound on protocol activations (bounding oracle call counts only
+and leaving local computation unbounded, in this library's novel call-bounded port model;
+computational polynomial-time machine execution is open in #6043): every activation of the protocol
+at security parameter `κ` makes at most `p.eval κ` calls. -/
 @[expose] def Protocol.PolyBounded (π : Protocol n In Out NetQ NetR) (p : Polynomial ℕ) : Prop :=
   ∀ κ C, (π κ C).IsBounded (p.eval κ)
 
-/-- Every activation of the adversary at security parameter `κ` makes at most `p.eval κ` calls. -/
+/-- Polynomial oracle-call-count bound on adversary activations (bounding oracle call counts only
+and leaving local computation unbounded, in this library's novel call-bounded port model;
+computational polynomial-time machine execution is open in #6043): every activation of the adversary
+at security parameter `κ` makes at most `p.eval κ` calls. -/
 @[expose] def Adversary.PolyBounded (A : Adversary n AdvQ AdvR NetQ NetR) (p : Polynomial ℕ) :
     Prop :=
   ∀ κ C, (A κ C).IsBounded (p.eval κ)
 
-/-- With security parameter `κ`, the environment makes at most `p.eval κ` calls in total, counting
-its private samples, whatever its auxiliary input. -/
+/-- Polynomial oracle-call-count bound on an environment (bounding oracle call counts only and
+leaving local computation unbounded, in this library's novel call-bounded port model; computational
+polynomial-time machine execution is open in #6043): at security parameter `κ`, the environment
+makes at most `p.eval κ` calls in total, counting its private samples, whatever its auxiliary
+input. -/
 @[expose] def Environment.PolyBounded (Z : Environment n In Out AdvQ AdvR) (p : Polynomial ℕ) :
     Prop :=
   ∀ κ z, (Z κ z).IsQueryBounded (p.eval κ)

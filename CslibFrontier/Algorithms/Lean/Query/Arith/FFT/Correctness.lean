@@ -66,36 +66,29 @@ theorem eval_butterfly (w e o : α) : (butterfly w e o).eval honest = (e + w * o
 /-- `powersFrom ω r c` returns a list of length `r` under every oracle. -/
 theorem length_eval_powersFrom {β : Type} (oracle : {ι : Type} → ArithQuery β ι → ι) (ω : β)
     (r : ℕ) (c : β) : ((powersFrom ω r c).eval oracle).length = r := by
-  induction r using Nat.strongRecOn generalizing c with
-  | ind r ih =>
-    match r with
-    | 0 => rfl
-    | 1 => rfl
-    | r + 2 =>
-      simp only [powersFrom, FreeM.eval_bind, FreeM.eval_pure, List.length_cons, doMul,
-        FreeM.eval_lift]
-      rw [ih (r + 1) (by omega)]
+  fun_induction powersFrom ω r c with
+  | case1 | case2 => rfl -- 0, 1
+  | case3 r c ih => -- r + 2
+    simp only [FreeM.eval_bind, FreeM.eval_pure, List.length_cons, ih]
 
 /-- Entry `i` of `powersFrom ω r c` is `c * ω ^ i` under the honest oracle. -/
 theorem getElem_eval_powersFrom (ω : α) (r : ℕ) (c : α) (i : ℕ)
     (hi : i < ((powersFrom ω r c).eval honest).length) :
     ((powersFrom ω r c).eval honest)[i] = c * ω ^ i := by
-  induction r using Nat.strongRecOn generalizing c i with
-  | ind r ih =>
-    match r, hi with
-    | 0, hi => simp [powersFrom] at hi
-    | 1, hi =>
-      simp only [powersFrom, FreeM.eval_pure, List.length_singleton, Nat.lt_one_iff] at hi ⊢
-      subst hi
-      simp
-    | r + 2, hi =>
-      simp only [powersFrom, FreeM.eval_bind, FreeM.eval_pure, doMul, FreeM.eval_lift] at hi ⊢
-      rcases i with _ | i
-      · simp
-      · simp only [List.getElem_cons_succ]
-        rw [ih (r + 1) (by omega)]
-        simp only [honest]
-        ring
+  fun_induction powersFrom ω r c generalizing i with
+  | case1 => simp at hi -- 0
+  | case2 c => -- 1
+    simp only [FreeM.eval_pure, List.length_singleton, Nat.lt_one_iff] at hi ⊢
+    subst hi
+    simp
+  | case3 r c ih => -- r + 2
+    simp only [FreeM.eval_bind, FreeM.eval_pure, doMul, FreeM.eval_lift] at hi ⊢
+    rcases i with _ | i
+    · simp
+    · simp only [List.getElem_cons_succ]
+      rw [ih]
+      simp only [honest]
+      ring
 
 end FFT
 

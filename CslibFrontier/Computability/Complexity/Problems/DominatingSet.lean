@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Complexity.NatCodec
 public import CslibFrontier.Computability.Complexity.Problems.VertexCover
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.DominatingSet
@@ -69,9 +70,9 @@ between copies.
 * `Cslib.Complexity.DominatingSetInstance`, `Cslib.Complexity.encDominatingSet`.
 * `Cslib.Complexity.DominatingSet`.
 * `Cslib.Complexity.DominatingSet.isDominating`: the executable domination test.
-* `Cslib.Complexity.VertexCover.properEdges`, `Cslib.Complexity.VertexCover.edgeVertex`,
-  `Cslib.Complexity.VertexCover.dominationGraph`, `Cslib.Complexity.VertexCover.toDominatingSet`:
-  the reduction from `VertexCover`.
+* `Cslib.Complexity.VertexCover.properEdges`, `Cslib.Complexity.VertexCover.vertexCodec`,
+  `Cslib.Complexity.VertexCover.edgeVertex`, `Cslib.Complexity.VertexCover.dominationGraph`,
+  `Cslib.Complexity.VertexCover.toDominatingSet`: the reduction from `VertexCover`.
 
 ## Main results
 
@@ -218,16 +219,21 @@ theorem mem_properEdges {G : Graph} {e : ℕ × ℕ} :
     e ∈ properEdges G ↔ e ∈ G.edges ∧ e.1 ∈ G.vertices ∧ e.2 ∈ G.vertices ∧ e.1 ≠ e.2 := by
   simp only [properEdges, List.mem_filter, mem_declaredEdges, decide_eq_true_eq, and_assoc]
 
-/-- The vertex of the edge `e` in `dominationGraph`: an odd number at least `5`. -/
+/-- Codec partitioning the vertices of `dominationGraph G` into copies of declared vertices
+(`.inl v = 2 * v`), the hub and pendant (`.inr (.inl 0) = 1` and `.inr (.inl 1) = 3`), and proper
+edges (`.inr (.inr e) = 2 * (Nat.pair e.1 e.2 + 2) + 1`). -/
 @[expose]
-def edgeVertex (e : ℕ × ℕ) : ℕ := 2 * Nat.pair e.1 e.2 + 5
+def vertexCodec : NatCodec (ℕ ⊕ (Fin 2 ⊕ (ℕ × ℕ))) :=
+  NatCodec.nat.sum ((NatCodec.nat.pair .nat).finSum 2)
+
+/-- The vertex of the edge `e` in `dominationGraph`: `vertexCodec (.inr (.inr e))`. -/
+@[expose]
+def edgeVertex (e : ℕ × ℕ) : ℕ :=
+  vertexCodec (.inr (.inr e))
 
 /-- Distinct edges have distinct vertices. -/
-theorem edgeVertex_injective : Function.Injective edgeVertex := by
-  intro e e' h
-  have h' : Nat.pair e.1 e.2 = Nat.pair e'.1 e'.2 := by grind [edgeVertex]
-  rw [Nat.pair_eq_pair] at h'
-  exact Prod.ext h'.1 h'.2
+theorem edgeVertex_injective : Function.Injective edgeVertex :=
+  fun _ _ h => Sum.inr.inj (Sum.inr.inj (vertexCodec.injective h))
 
 /-- The graph of the reduction from `VertexCover` to `DominatingSet`: a copy `2v` of every
 declared vertex `v`, a hub `1` adjacent to every copy, a pendant `3` adjacent to the hub, and for
@@ -263,22 +269,42 @@ theorem mem_dominationGraph_snd {G : Graph} {a b : ℕ} :
     · exact Or.inr ⟨e, he, Or.inl ⟨rfl, rfl⟩⟩
     · exact Or.inr ⟨e, he, Or.inr ⟨rfl, rfl⟩⟩
 
+private theorem edgeVertex_ne_one (e : ℕ × ℕ) : edgeVertex e ≠ 1 :=
+  show vertexCodec (.inr (.inr e)) ≠ vertexCodec (.inr (.inl 0)) from
+    vertexCodec.injective.ne (by simp)
+
+private theorem edgeVertex_ne_three (e : ℕ × ℕ) : edgeVertex e ≠ 3 :=
+  show vertexCodec (.inr (.inr e)) ≠ vertexCodec (.inr (.inl 1)) from
+    vertexCodec.injective.ne (by simp)
+
+private theorem edgeVertex_ne_double (e : ℕ × ℕ) (v : ℕ) : edgeVertex e ≠ 2 * v :=
+  show vertexCodec (.inr (.inr e)) ≠ vertexCodec (.inl v) from
+    vertexCodec.injective.ne (by simp)
+
+private theorem double_ne_one (v : ℕ) : 2 * v ≠ 1 :=
+  show vertexCodec (.inl v) ≠ vertexCodec (.inr (.inl 0)) from
+    vertexCodec.injective.ne (by simp)
+
+private theorem double_ne_three (v : ℕ) : 2 * v ≠ 3 :=
+  show vertexCodec (.inl v) ≠ vertexCodec (.inr (.inl 1)) from
+    vertexCodec.injective.ne (by simp)
+
 private theorem adj_three_one (G : Graph) : (dominationGraph G).toSimpleGraph.Adj 3 1 :=
   Graph.toSimpleGraph_adj.2 ⟨by decide, Or.inr (mem_dominationGraph_snd.2 (Or.inl ⟨rfl, rfl⟩))⟩
 
 private theorem adj_double_one {G : Graph} {v : ℕ} (hv : v ∈ G.vertices) :
     (dominationGraph G).toSimpleGraph.Adj (2 * v) 1 :=
-  Graph.toSimpleGraph_adj.2 ⟨by omega,
+  Graph.toSimpleGraph_adj.2 ⟨double_ne_one v,
     Or.inr (mem_dominationGraph_snd.2 (Or.inr (Or.inl ⟨rfl, v, hv, rfl⟩)))⟩
 
 private theorem adj_edgeVertex_fst {G : Graph} {e : ℕ × ℕ} (he : e ∈ properEdges G) :
     (dominationGraph G).toSimpleGraph.Adj (edgeVertex e) (2 * e.1) :=
-  Graph.toSimpleGraph_adj.2 ⟨by unfold edgeVertex; omega,
+  Graph.toSimpleGraph_adj.2 ⟨edgeVertex_ne_double e e.1,
     Or.inl (mem_dominationGraph_snd.2 (Or.inr (Or.inr ⟨e, he, rfl, Or.inl rfl⟩)))⟩
 
 private theorem adj_edgeVertex_snd {G : Graph} {e : ℕ × ℕ} (he : e ∈ properEdges G) :
     (dominationGraph G).toSimpleGraph.Adj (edgeVertex e) (2 * e.2) :=
-  Graph.toSimpleGraph_adj.2 ⟨by unfold edgeVertex; omega,
+  Graph.toSimpleGraph_adj.2 ⟨edgeVertex_ne_double e e.2,
     Or.inl (mem_dominationGraph_snd.2 (Or.inr (Or.inr ⟨e, he, rfl, Or.inr rfl⟩)))⟩
 
 /-- The only neighbour of the pendant `3` is the hub `1`. -/
@@ -286,42 +312,42 @@ private theorem eq_one_of_adj_three {G : Graph} {s : ℕ}
     (h : (dominationGraph G).toSimpleGraph.Adj 3 s) : s = 1 := by
   obtain ⟨-, h | h⟩ := Graph.toSimpleGraph_adj.1 h <;> rw [mem_dominationGraph_snd] at h
   · rcases h with ⟨h, -⟩ | ⟨h, -⟩ | ⟨e, -, h, -⟩
-    · omega
-    · omega
-    · unfold edgeVertex at h; omega
+    · exact absurd h (by decide)
+    · exact absurd h (by decide)
+    · exact absurd h.symm (edgeVertex_ne_three e)
   · rcases h with ⟨h, -⟩ | ⟨-, v, -, h⟩ | ⟨e, -, -, h | h⟩
     · exact h
-    · omega
-    · omega
-    · omega
+    · exact absurd h.symm (double_ne_three v)
+    · exact absurd h.symm (double_ne_three e.1)
+    · exact absurd h.symm (double_ne_three e.2)
 
 /-- The only neighbours of the vertex of an edge are the copies of its endpoints. -/
 private theorem of_adj_edgeVertex {G : Graph} {e : ℕ × ℕ} {s : ℕ}
     (h : (dominationGraph G).toSimpleGraph.Adj (edgeVertex e) s) : s = 2 * e.1 ∨ s = 2 * e.2 := by
   obtain ⟨-, h | h⟩ := Graph.toSimpleGraph_adj.1 h <;> rw [mem_dominationGraph_snd] at h
   · rcases h with ⟨h, -⟩ | ⟨h, -⟩ | ⟨e', -, h, hs⟩
-    · unfold edgeVertex at h; omega
-    · unfold edgeVertex at h; omega
+    · exact absurd h (edgeVertex_ne_one e)
+    · exact absurd h (edgeVertex_ne_one e)
     · rwa [edgeVertex_injective h]
   · rcases h with ⟨-, h⟩ | ⟨-, v, -, h⟩ | ⟨e', -, -, h | h⟩
-    · unfold edgeVertex at h; omega
-    · unfold edgeVertex at h; omega
-    · unfold edgeVertex at h; omega
-    · unfold edgeVertex at h; omega
+    · exact absurd h (edgeVertex_ne_three e)
+    · exact absurd h (edgeVertex_ne_double e v)
+    · exact absurd h (edgeVertex_ne_double e e'.1)
+    · exact absurd h (edgeVertex_ne_double e e'.2)
 
 /-- Read a vertex of `dominationGraph G` back in `G`: the copy `2v` gives `v`, and the vertex of an
 edge `e` gives `e.1`. -/
-private def decodeVertex (w : ℕ) : ℕ := if w % 2 = 0 then w / 2 else (Nat.unpair ((w - 5) / 2)).1
+private def decodeVertex (w : ℕ) : ℕ :=
+  match vertexCodec.decode? w with
+  | some (.inl v) => v
+  | some (.inr (.inr e)) => e.1
+  | _ => 0
 
-private theorem decodeVertex_double (v : ℕ) : decodeVertex (2 * v) = v := by
-  have h : 2 * v % 2 = 0 := by omega
-  simp only [decodeVertex, h, ↓reduceIte]
-  omega
+private theorem decodeVertex_double (v : ℕ) : decodeVertex (2 * v) = v :=
+  show decodeVertex (vertexCodec (.inl v)) = v by simp [decodeVertex]
 
 private theorem decodeVertex_edgeVertex (e : ℕ × ℕ) : decodeVertex (edgeVertex e) = e.1 := by
-  have h : ¬edgeVertex e % 2 = 0 := by unfold edgeVertex; omega
-  have h' : (edgeVertex e - 5) / 2 = Nat.pair e.1 e.2 := by unfold edgeVertex; omega
-  simp only [decodeVertex, h, ↓reduceIte, h', Nat.unpair_pair]
+  simp [decodeVertex, edgeVertex]
 
 /-- The reduction from `VertexCover` to `DominatingSet`: the graph `dominationGraph G` with the
 target `k + 1`, or the unsatisfiable target `0` when `k` exceeds the number of distinct declared
@@ -382,7 +408,7 @@ private theorem exists_cover_of_mem_DominatingSet {G : Graph} {k : ℕ}
     rcases hD _ (mem_dominationGraph_fst.2 (Or.inr (Or.inr (Or.inr ⟨e, he, rfl⟩)))) with
       hw | ⟨s, hs, hadj⟩
     · refine Or.inl ?_
-      have := hmem _ hw (by unfold edgeVertex; omega) (by unfold edgeVertex; omega)
+      have := hmem _ hw (edgeVertex_ne_one e) (edgeVertex_ne_three e)
         (by rw [decodeVertex_edgeVertex]; exact he1)
       rwa [decodeVertex_edgeVertex] at this
     · rcases of_adj_edgeVertex hadj with rfl | rfl
@@ -440,7 +466,8 @@ theorem computableInPolyTime_properEdges :
 @[fun_prop]
 theorem computableInPolyTime_edgeVertex :
     ComputableInPolyTime edgeVertex (encPair encNat encNat) encNat := by
-  unfold edgeVertex Nat.pair
+  unfold edgeVertex
+  simp only [vertexCodec, NatCodec.sum_inr, NatCodec.finSum_inr]
   fun_prop
 
 /-- The graph of the reduction is computable in polynomial time. The four lists are certified

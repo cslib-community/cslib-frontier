@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Metadata and Circular-Window `Memory.Prog` Primitives
@@ -174,6 +175,23 @@ theorem clientState_readCompLMGenProg (c : Fin 9) (d : (CompParams × ℕ) × �
     memoryCost (readCompLMGenProg c d) s = 2 := by
   rcases d with ⟨⟨cp, metaBase⟩, idx⟩; simp [readCompLMGenProg]
 
+private theorem packedCompPre_of_metaEnv {w metaBase idx : ℕ} {cp : CompParams} {s : Memory.State}
+    {off k len : CompParams → ℕ}
+    (h : CompMetaEnv w cp metaBase s ∧ idx < len cp)
+    (hk_le : ∀ {U V N}, N ≤ U → U < 2 ^ w → k (mkCompParams U V w N) ≤ w)
+    (hend : ∀ U V N, off (mkCompParams U V w N) +
+        packedWords (len (mkCompParams U V w N)) (k (mkCompParams U V w N)) w ≤
+      offCompItems U w N := by
+        intro U V N
+        simp only [cpOffLMSub_mk, cpLmBits_mk, cpOffGM_mk, cpGmBits_mk, cpOffTD_mk, cpOffDT_mk,
+          cpMaxTail_mk, cpN_mk]
+        wram_omega) :
+    ReadPackedCompPre w (((metaBase, off cp), (k cp, cpW cp)), idx) s := by
+  obtain ⟨⟨U, V, N, hw, _, hnU, hU, _, rfl, hfr⟩, hidx⟩ := h
+  refine ⟨len (mkCompParams U V w N), hw, rfl, hk_le hnU hU, hidx, ?_⟩
+  have := hend U V N
+  omega
+
 /-- Precondition for reading from local metadata array `LM`. -/
 @[expose] def CompLMPre (w : ℕ) : (CompParams × ℕ) × ℕ → Memory.State → Prop
   | ((cp, metaBase), idx), s => CompMetaEnv w cp metaBase s ∧ idx < totalMicroBuckets (cpN cp)
@@ -184,14 +202,9 @@ theorem realizesBounded_readCompLMGen (c : Fin 9) :
       CompLMPre (fun _ _ => 0) := by
   have hrp := realizesBounded_readPackedCompGen
   fin_cases c <;>
-  · realize
-    rcases d with ⟨⟨cp, metaBase⟩, idx⟩
-    obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-    simp only [cpOffLMSub_mk, cpLmBits_mk, cpW_mk, cpN_mk] at *
-    refine ⟨totalMicroBuckets N, hw, rfl, effBucketPosBits_le_of_lt_pow hnU hU, hidx, ?_⟩
-    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLMSub offCompLM at *
-    change _ + lmSubWords N w ≤ s.frontier
-    omega
+    (realize; rcases d with ⟨⟨cp, metaBase⟩, idx⟩; dsimp only at *
+     exact packedCompPre_of_metaEnv (len := fun cp => totalMicroBuckets (cpN cp)) h
+       effBucketPosBits_le_of_lt_pow)
 
 /-- Write `val` into `LocalMeta[c, idx]` at `metaBase` in `Memory.Prog`. -/
 def writeCompLMGenProg (c : Fin 9) : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -237,14 +250,9 @@ theorem realizesBounded_writeCompLMGen (c : Fin 9) :
       WriteCompLMPre (fun _ _ => 0) := by
   have hwp := realizesBounded_writePackedCompGen
   fin_cases c <;>
-  · realize
-    rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, val⟩
-    obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-    simp only [cpOffLMSub_mk, cpLmBits_mk, cpW_mk, cpN_mk] at *
-    refine ⟨totalMicroBuckets N, hw, rfl, effBucketPosBits_le_of_lt_pow hnU hU, hidx, ?_⟩
-    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLMSub offCompLM at *
-    change _ + lmSubWords N w ≤ s.frontier
-    omega
+    (realize; rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, _⟩; dsimp only at *
+     exact packedCompPre_of_metaEnv (len := fun cp => totalMicroBuckets (cpN cp)) h
+       effBucketPosBits_le_of_lt_pow)
 
 /-- Read `GlobalMeta[idx]` at `metaBase` in `Memory.Prog`. -/
 def readCompGMGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -281,13 +289,9 @@ theorem realizesBounded_readCompGMGen :
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
       CompGMPre (fun _ _ => 0) := by
   have hrp := realizesBounded_readPackedCompGen
-  realize
-  rcases d with ⟨⟨cp, metaBase⟩, idx⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-  simp only [cpOffGM_mk, cpGmBits_mk, cpW_mk, cpN_mk] at *
-  refine ⟨globalMetaLen N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hidx, ?_⟩
-  unfold offCompItems offDenseToTail offTailToDense at *
-  omega
+  realize; rcases d with ⟨⟨cp, metaBase⟩, idx⟩; dsimp only at *
+  exact packedCompPre_of_metaEnv (len := fun cp => globalMetaLen (cpN cp)) h
+    globalPtrBits_le_of_lt_pow
 
 /-- Write `val` into `GlobalMeta[idx]` at `metaBase` in `Memory.Prog`. -/
 def writeCompGMGenProg : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -329,13 +333,9 @@ theorem realizesBounded_writeCompGMGen :
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
       WriteCompGMPre (fun _ _ => 0) := by
   have hwp := realizesBounded_writePackedCompGen
-  realize
-  rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, val⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-  simp only [cpOffGM_mk, cpGmBits_mk, cpW_mk, cpN_mk] at *
-  refine ⟨globalMetaLen N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hidx, ?_⟩
-  unfold offCompItems offDenseToTail offTailToDense at *
-  omega
+  realize; rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, _⟩; dsimp only at *
+  exact packedCompPre_of_metaEnv (len := fun cp => globalMetaLen (cpN cp)) h
+    globalPtrBits_le_of_lt_pow
 
 /-- Read `TailToDense[t]` at `metaBase` in `Memory.Prog`. -/
 def readCompTDGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -372,13 +372,8 @@ theorem realizesBounded_readCompTDGen :
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
       CompTailMapPre (fun _ _ => 0) := by
   have hrp := realizesBounded_readPackedCompGen
-  realize
-  rcases d with ⟨⟨cp, metaBase⟩, t⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, ht⟩ := h
-  simp only [cpOffTD_mk, cpGmBits_mk, cpW_mk, cpMaxTail_mk] at *
-  refine ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, ht, ?_⟩
-  unfold offCompItems offDenseToTail at *
-  omega
+  realize; rcases d with ⟨⟨cp, metaBase⟩, idx⟩
+  exact packedCompPre_of_metaEnv h globalPtrBits_le_of_lt_pow
 
 /-- Write `val` into `TailToDense[t]` at `metaBase` in `Memory.Prog`. -/
 def writeCompTDGenProg : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -419,13 +414,8 @@ theorem realizesBounded_writeCompTDGen :
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
       WriteCompTailMapPre (fun _ _ => 0) := by
   have hwp := realizesBounded_writePackedCompGen
-  realize
-  rcases d with ⟨⟨⟨cp, metaBase⟩, t⟩, val⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, ht⟩ := h
-  simp only [cpOffTD_mk, cpGmBits_mk, cpW_mk, cpMaxTail_mk] at *
-  refine ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, ht, ?_⟩
-  unfold offCompItems offDenseToTail at *
-  omega
+  realize; rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, _⟩
+  exact packedCompPre_of_metaEnv h globalPtrBits_le_of_lt_pow
 
 /-- Read `DenseToTail[r]` at `metaBase` in `Memory.Prog`. -/
 def readCompDTGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -458,13 +448,8 @@ theorem realizesBounded_readCompDTGen :
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
       CompTailMapPre (fun _ _ => 0) := by
   have hrp := realizesBounded_readPackedCompGen
-  realize
-  rcases d with ⟨⟨cp, metaBase⟩, r⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hr⟩ := h
-  simp only [cpOffDT_mk, cpGmBits_mk, cpW_mk, cpMaxTail_mk] at *
-  refine ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hr, ?_⟩
-  unfold offCompItems at *
-  omega
+  realize; rcases d with ⟨⟨cp, metaBase⟩, idx⟩
+  exact packedCompPre_of_metaEnv h globalPtrBits_le_of_lt_pow
 
 /-- Write `val` into `DenseToTail[r]` at `metaBase` in `Memory.Prog`. -/
 def writeCompDTGenProg : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -501,13 +486,8 @@ theorem realizesBounded_writeCompDTGen :
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
       WriteCompTailMapPre (fun _ _ => 0) := by
   have hwp := realizesBounded_writePackedCompGen
-  realize
-  rcases d with ⟨⟨⟨cp, metaBase⟩, r⟩, val⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hr⟩ := h
-  simp only [cpOffDT_mk, cpGmBits_mk, cpW_mk, cpMaxTail_mk] at *
-  refine ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hr, ?_⟩
-  unfold offCompItems at *
-  omega
+  realize; rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, _⟩
+  exact packedCompPre_of_metaEnv h globalPtrBits_le_of_lt_pow
 
 /-! ## Section 2: Circular-Window Transitions, Owner-Bucket Recovery, and `fits_mkCompParams` -/
 
@@ -518,8 +498,7 @@ theorem maxTailItems_le_of_pos {N : ℕ} (hM : 0 < maxTailItems N) : maxTailItem
     · exact hb
   have h1 := gmSlabMetaBase_add_eq_globalMetaLen hb_pos
   have h2 := globalMetaLen_le_of_bucketBits_pos hb_pos
-  unfold gmSlabMetaBase gmTailOwnerBase at h1
-  omega
+  wram_omega [h1]
 
 /-- Overflow-free evaluation of `denseOfCirc (cpMaxTail cp) b_win c` in `Memory.Prog`. -/
 def denseOfCircGenProg : CompParams × (ℕ × ℕ) → Memory.Prog ℕ
@@ -636,7 +615,7 @@ theorem clientResult_denseOfPhysGenProg {U V w N metaBase g : ℕ} {s : Memory.S
   · rw [ite_eq_left hb0, ite_eq_left hb0]; rfl
   · rw [ite_eq_right hb0, ite_eq_right hb0]
     have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
-    have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
+    have h0_lt : 0 < globalMetaLen N := by wram_omega
     rw [prog_clientResult_bind, clientResult_readCompGMGenProg h0_lt,
       clientState_readCompGMGenProg]
     by_cases hg_lt : g < compGmAt metaBase U w N s.mem 0 * slabSize N
@@ -691,7 +670,7 @@ theorem realizesBounded_denseOfPhysGen :
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hg_lt, hb_cond⟩ := h
     simp only [cpBucketBits_mk, cpSlabSize_mk, cpNSubOne_mk] at *
     have hb_pos : 0 < bucketBits N := by omega
-    have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
+    have h0_lt : 0 < globalMetaLen N := by wram_omega
     obtain ⟨hb_tail_le, htail_cond⟩ := hb_cond hb_pos
     try simp only [StateTransitionSpec.clientState, clientResult_readCompGMGenProg h0_lt,
       runClient_state_readCompGMGenProg] at *)

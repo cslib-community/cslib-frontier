@@ -21,7 +21,7 @@ arithmetic. -/
 
 namespace CslibFrontierTests.StackRecursion
 
-open Cslib.GenericRAM Cslib.GenericRAM.StackRecursion Turing.MultiTapeTM
+open Cslib.GenericRAM Cslib.Algorithms.StackRecursion Turing.MultiTapeTM
 
 /-- The halving scheme. The accumulator counts the children done and sums their values. -/
 def halving : Scheme ℕ (ℕ × ℕ) ℕ where

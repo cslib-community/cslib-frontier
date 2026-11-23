@@ -197,6 +197,20 @@ theorem disagreeProb_deterministic_eq_tsum_seed (seed : PMF Ω) (f : (Fin m → 
   rw [disagreeProb_deterministic, PMF.toOuterMeasure_bind_apply]
   ennreal_to_real
 
+/-- Paired output distribution of a deterministic-given-seed algorithm, drawing the two
+independent samples first, then the shared seed. -/
+theorem pairedOutput_deterministic_eq_samples (seed : PMF Ω) (f : (Fin m → X) → Ω → α)
+    (D : PMF X) :
+    (deterministic seed f).pairedOutput D =
+      (Probability.PMF.iid D m).bind fun S₁ =>
+        (Probability.PMF.iid D m).bind fun S₂ =>
+          seed.map fun r => (f S₁ r, f S₂ r) := by
+  rw [pairedOutput_deterministic, PMF.bind_comm]
+  refine PMF.bind_congr_on_support _ _ _ fun S₁ _ => ?_
+  simp only [PMF.map]
+  exact PMF.bind_comm seed (Probability.PMF.iid D m)
+    (fun r S₂ => PMF.pure (f S₁ r, f S₂ r))
+
 /-- Disagreement probability of a deterministic-given-seed algorithm expressed by drawing the two
 independent samples first, then the shared seed. -/
 theorem disagreeProb_deterministic_eq_tsum_samples (seed : PMF Ω) (f : (Fin m → X) → Ω → α)
@@ -205,17 +219,7 @@ theorem disagreeProb_deterministic_eq_tsum_samples (seed : PMF Ω) (f : (Fin m �
       ∑' S₁ : Fin m → X, (Probability.PMF.iid D m S₁).toReal *
         ∑' S₂ : Fin m → X, (Probability.PMF.iid D m S₂).toReal *
           (seed.toOuterMeasure {r | f S₁ r ≠ f S₂ r}).toReal := by
-  have hcomm :
-      (deterministic seed f).pairedOutput D =
-        (Probability.PMF.iid D m).bind fun S₁ =>
-          (Probability.PMF.iid D m).bind fun S₂ =>
-            seed.map fun r => (f S₁ r, f S₂ r) := by
-    rw [pairedOutput_deterministic, PMF.bind_comm]
-    refine PMF.bind_congr_on_support _ _ _ fun S₁ _ => ?_
-    simp only [PMF.map]
-    exact PMF.bind_comm seed (Probability.PMF.iid D m)
-      (fun r S₂ => PMF.pure (f S₁ r, f S₂ r))
-  rw [disagreeProb, hcomm, PMF.toOuterMeasure_bind_apply]
+  rw [disagreeProb, pairedOutput_deterministic_eq_samples, PMF.toOuterMeasure_bind_apply]
   ennreal_to_real
   simp only [PMF.toOuterMeasure_bind_apply]
   ennreal_to_real
@@ -267,7 +271,7 @@ theorem disagreeProb_mapWithSeed_le (A : Algorithm X Ω α m) (f : Ω → α →
     refine tsum_le_tsum fun S₁ => mul_le_mul_of_nonneg_left ?_ zero_le
     rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
     exact tsum_le_tsum fun S₂ => mul_le_mul_of_nonneg_left (hstep r S₁ S₂) zero_le
-  exact ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _) hle
+  ennreal_to_real using hle
 
 theorem disagreeProb_map_le (A : Algorithm X Ω α m) (f : α → γ) (D : PMF X) :
     (A.map f).disagreeProb D ≤ A.disagreeProb D :=
@@ -457,8 +461,7 @@ theorem IsAccurateFor.map {A : Algorithm X Ω α m} {𝒟 : Set (PMF X)}
   intro D hD
   rw [Algorithm.marginal_map, PMF.toOuterMeasure_map_apply]
   have hsub : f ⁻¹' (good' D)ᶜ ⊆ (good D)ᶜ := fun y hy hmem => hy (hgood D hD y hmem)
-  exact (ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
-    ((A.marginal D).toOuterMeasure.mono hsub)).trans (h D hD)
+  exact (Probability.PMF.toOuterMeasure_toReal_mono _ hsub).trans (h D hD)
 
 theorem EstimatesFor.mono {A : Algorithm X Ω ℝ m} {𝒟 : Set (PMF X)} {target : PMF X → ℝ}
     {ε ε' β β' : ℝ} (h : EstimatesFor A 𝒟 target ε β) (hε : ε ≤ ε') (hβ : β ≤ β') :
@@ -466,8 +469,7 @@ theorem EstimatesFor.mono {A : Algorithm X Ω ℝ m} {𝒟 : Set (PMF X)} {targe
   intro D hD
   have hsub : {y | |y - target D| ≤ ε'}ᶜ ⊆ {y | |y - target D| ≤ ε}ᶜ := fun y hy hle =>
     hy (hle.trans hε)
-  exact (ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
-    ((A.marginal D).toOuterMeasure.mono hsub)).trans ((h D hD).trans hβ)
+  exact (Probability.PMF.toOuterMeasure_toReal_mono _ hsub).trans ((h D hD).trans hβ)
 
 theorem EstimatesFor.antitone {A : Algorithm X Ω ℝ m} {𝒟 𝒟' : Set (PMF X)} {target : PMF X → ℝ}
     {ε β : ℝ} (h : EstimatesFor A 𝒟 target ε β) (h𝒟 : 𝒟' ⊆ 𝒟) :

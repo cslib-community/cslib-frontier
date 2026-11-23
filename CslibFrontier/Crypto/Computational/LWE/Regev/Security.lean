@@ -559,7 +559,7 @@ theorem distinguishingGame_realEnsemble_lorDistinguisherSerialized (n m w η Q :
     (adversary : Encryption.LoRAdversary) (bit : Bool) (security : ℕ) :
     distinguishingGame (LWE.realEnsemble n m w (fun k => LWE.noiseLaw (w k) (η k)) security)
         (lorDistinguisherSerialized n m w Q adversary bit security) =
-      (LWE.publicMatrixLaw (n security) (m security) (w security)
+      (LWE.publicMatrixLaw (n security) (m security)
           (LWE.noiseLaw (w security) (η security))).bind
         (lorDistinguisher (Q security) (typedLoRAdversary adversary security) bit) := by
   simp [distinguishingGame, Game.withSetup, LWE.realEnsemble, PMF.bind_map, Function.comp_def,
@@ -580,7 +580,7 @@ theorem distinguishingGame_uniformEnsemble_lorDistinguisherSerialized (n m w Q :
 theorem eval_lorGameSerialized (n m w η Q : ℕ → ℕ) (adversary : Encryption.LoRAdversary)
     (bit : Bool) (security : ℕ) :
     ProbComp.eval (lorGameSerialized n m w η Q adversary bit security) =
-      lorGame (LWE.publicMatrixLaw (n security) (m security) (w security)
+      lorGame (LWE.publicMatrixLaw (n security) (m security)
           (LWE.noiseLaw (w security) (η security)))
         (Q security) (typedLoRAdversary adversary security) bit := by
   rw [lorGameSerialized, Encryption.eval_lorGame_eq_distinguishingGame,
@@ -594,7 +594,7 @@ private theorem polynomiallyBounded_ciphertextLength {n w : ℕ → ℕ}
     Cslib.PolynomiallyBounded (fun k => (n k + 1) * w k) := by
   have h : ComputableInPolyTime (fun k => (n k + 1) * w k) encUnary encUnary := by fun_prop
   have hp : PolyBounded (fun x => x) (fun k => (n k + 1) * w k) := by
-    simpa only [encUnary_apply, List.length_replicate] using h.tidy.polyBounded
+    simpa only [encUnary_apply, List.length_replicate] using h.polyBounded
   exact PolyBounded.polynomiallyBounded hp
 
 private theorem isPPTOn_encryptSerialized_keyed {n m w : ℕ → ℕ}

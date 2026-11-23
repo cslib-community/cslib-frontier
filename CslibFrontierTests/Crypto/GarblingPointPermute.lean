@@ -121,7 +121,10 @@ example (g : Scheme.Garbled) :
 theorem xorFamily_polyTime :
     ComputableInPolyTime (fun p : List Bool × List Bool => xorFamily p.1 p.2)
       (encPair encBits encBits) encBits := by
-  polytime [xorFamily]
+  have hp := ComputableInPolyTime.id' (encIn := encPair encBits encBits)
+  exact ComputableInPolyTime.bitsZipWithInput xor
+    (hp.fst'.bitsAppend hp.fst')
+    ((hp.snd'.bitsAppend hp.snd').bitsAppend hp.snd')
 
 /-- **The efficiency certificate bounds the garbled AND gate.** The certificate for `Gb` in
 `scheme_isEfficient` bounds the word of `Gb(1^k, f, r)` by a polynomial of the word of

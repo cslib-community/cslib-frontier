@@ -91,6 +91,12 @@ def CNF.Satisfiable (φ : CNF V) : Prop := ∃ σ : V → Bool, φ.eval σ = tru
     Literal.eval σ l = true ↔ σ l.1 = l.2 := by
   simp [Literal.eval]
 
+/-- Negating a literal twice gives it back. -/
+@[simp]
+theorem negate_negate (ℓ : Literal V) : ℓ.negate.negate = ℓ := by
+  obtain ⟨v, b⟩ := ℓ
+  simp [Std.Sat.Literal.negate]
+
 /-- Negating a literal negates its value. -/
 @[simp] theorem Literal.eval_negate (σ : V → Bool) (l : Literal V) :
     Literal.eval σ (Std.Sat.Literal.negate l) = !Literal.eval σ l := by

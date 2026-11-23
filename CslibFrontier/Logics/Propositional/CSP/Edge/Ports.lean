@@ -10,32 +10,14 @@ module
 public import CslibFrontier.Logics.Propositional.CSP.Edge.Defects
 
 /-!
-# The two actual ports of an edge variable
+# Congruence of variable and set defects under port agreement
 
-Two distinct original incidences naming the same variable exhaust its occurrences. This
-packages the existing partner API for positional transports that already exhibit both ends.
+Agreement of two occurrence labelings on all ports of a variable preserves its defect
+status (`inconsistent_congr`), and agreement on all ports whose variables belong to a
+finite set preserves the defects in that set (`defects_inter_eq_of_eqOn`).
 -/
 
 public section
-
-namespace Cslib.Logic.PL.CSP.EdgeInstance
-
-variable {Rel V : Type*} {F : CSP Rel V}
-
-/-- Two distinct displayed ports exhaust every occurrence of their edge variable. -/
-theorem eq_or_eq_of_two (h : EdgeInstance F) {o p q : Occurrence F}
-    (hp : o.var = p.var) (hq : q.var = p.var) (hne : q ≠ p) : o = p ∨ o = q := by
-  have hqp := (h.eq_or_eq_partner hq).resolve_left hne
-  simpa only [← hqp] using h.eq_or_eq_partner hp
-
-/-- A variable's defect is the disagreement of any displayed pair of its distinct ports. -/
-theorem inconsistent_iff_of_two (h : EdgeInstance F) (l : OccurrenceLabeling F Bool)
-    (p q : Occurrence F) (hv : q.var = p.var) (hn : q ≠ p) :
-    Inconsistent l p.var ↔ l p ≠ l q := by
-  have hq : q = h.partner p := (h.eq_or_eq_partner hv).resolve_left hn
-  rw [h.inconsistent_iff, ← hq]
-
-end Cslib.Logic.PL.CSP.EdgeInstance
 
 namespace Cslib.Logic.PL.CSP
 

@@ -11,7 +11,9 @@ public import CslibFrontier.Init
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import Mathlib.Tactic.Linarith
 
 /-!
 # Statistical distance (`CloseTo`) on probability mass functions
@@ -47,11 +49,13 @@ distance.
   on every event by `ε`.
 * `Cslib.Probability.CloseTo.of_le_apply`: a distribution pointwise dominating `(1 - ε) ν` is
   `ε`-close to `ν`.
+* `Cslib.Probability.CloseTo.toReal_apply_le_of_uniformOfFintype`: a distribution `δ`-close to
+  `PMF.uniformOfFintype α` assigns mass at most `1 / Fintype.card α + δ` to every atom.
 -/
 
 public section
 
-open scoped ENNReal
+open scoped ENNReal NNReal
 
 namespace Cslib.Probability
 
@@ -172,12 +176,9 @@ every event by `ε`. -/
 theorem CloseTo.abs_toReal_sub_le {β : Type} {μ ν : PMF β} {ε : ℝ} (hε : 0 ≤ ε)
     (h : CloseTo μ ν (ENNReal.ofReal ε)) (E : Set β) :
     |(μ.toOuterMeasure E).toReal - (ν.toOuterMeasure E).toReal| ≤ ε := by
-  have hμ := PMF.toOuterMeasure_ne_top μ E
-  have hν := PMF.toOuterMeasure_ne_top ν E
-  have h₁ := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hν, ENNReal.ofReal_ne_top⟩) (h E)
-  have h₂ := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hμ, ENNReal.ofReal_ne_top⟩) (h.symm E)
-  rw [ENNReal.toReal_add hν ENNReal.ofReal_ne_top, ENNReal.toReal_ofReal hε] at h₁
-  rw [ENNReal.toReal_add hμ ENNReal.ofReal_ne_top, ENNReal.toReal_ofReal hε] at h₂
+  have h₁ := h E
+  have h₂ := h.symm E
+  ennreal_to_real at h₁ h₂
   rw [abs_le]
   constructor <;> linarith
 
@@ -202,5 +203,16 @@ theorem CloseTo.of_le_apply {β : Type} {μ ν : PMF β} {ε : ℝ} (hε : 0 ≤
           one_mul]
     _ ≤ μ.toOuterMeasure E + ENNReal.ofReal ε :=
         add_le_add hle (mul_le_of_le_one_right zero_le hν)
+
+/-- If `ν` is within statistical distance `δ` of the uniform distribution on a finite nonempty
+type `α`, every atom of `ν` has real probability at most `1 / Fintype.card α + δ`. -/
+theorem CloseTo.toReal_apply_le_of_uniformOfFintype {α : Type} [Fintype α] [Nonempty α]
+    {ν : PMF α} {δ : ℝ≥0} (h : CloseTo (PMF.uniformOfFintype α) ν δ) (a : α) :
+    (ν a).toReal ≤ 1 / Fintype.card α + δ := by
+  have ha := h.symm {a}
+  rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton,
+    PMF.uniformOfFintype_apply] at ha
+  ennreal_to_real at ha
+  linarith [one_div (Fintype.card α : ℝ)]
 
 end Cslib.Probability

@@ -8,13 +8,15 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+public import CslibFrontier.Computability.Probabilistic.Oracle.Codec
 public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Foundations.Data.BitString.List
 public import CslibFrontier.Languages.Probabilistic.BitString
 public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import CslibFrontier.Languages.Probabilistic.RandomOracle
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 
 /-!
@@ -44,8 +46,11 @@ queries and answers all have `n` bits.
 
 ## Main results
 
-* `Cslib.Crypto.interpret_randomFunctionQuery`: correctness of the finite-domain adapter.
+* `Cslib.Crypto.wordOracle_bitStrings`, `Cslib.Crypto.wordOracle_bitStrings_answer`: agreement of
+  `OracleCodec.bitStrings` with `randomFunctionOracle` and `lazyRandomFunctionOracle`.
 * `Cslib.Crypto.prfIdealGame_eq_lazy`: an exact lazy implementation of the ideal experiment.
+* `Cslib.Crypto.PseudorandomFunctionOver.outLen_polyTime`: computing the unary output width
+  from the unary input width schedule.
 
 ## References
 
@@ -75,19 +80,22 @@ def randomFunctionOracle (n : ℕ) {w : ℕ} (table : BitString n → BitString 
     (query : List Bool) : List Bool :=
   if query.length = n then List.ofFn (table (BitString.ofList n query)) else []
 
-/-- Adapt a valid word to the finite domain. Malformed words make no external call. -/
+/-- Adapt a valid word to the finite domain. Malformed words make no external call; this is
+`(OracleCodec.bitStrings n w).wordOracle ProbOracleComp.query` on `()`, `query`. -/
 def randomFunctionQuery (n : ℕ) {w : ℕ} (query : List Bool) :
     ProbOracleComp (fun _ : BitString n => BitString w) (List Bool) :=
   if query.length = n then List.ofFn <$> ProbOracleComp.query (BitString.ofList n query)
   else pure []
 
-/-- The finite query adapter preserves the word-valued table interface in every lawful monad. -/
-theorem interpret_randomFunctionQuery {m : Type → Type*} [Monad m] [LawfulMonad m]
-    (random : (n : ℕ) → m (Fin (n + 1))) (n : ℕ) {w : ℕ} (table : BitString n → BitString w)
-    (query : List Bool) :
-    OracleComp.interpret (OracleComp.sumHandler random (fun bits => pure (table bits)))
-      (randomFunctionQuery n query) = pure (randomFunctionOracle n table query) := by
-  by_cases h : query.length = n <;> simp [randomFunctionQuery, randomFunctionOracle, h]
+/-- `OracleCodec.bitStrings n w` presents `randomFunctionOracle n table` on the unit word channel:
+an `n`-bit request is answered by the bits of `table` and any other request by `[]`. -/
+theorem wordOracle_bitStrings {m : Type → Type*} [Monad m] [LawfulMonad m] (n w : ℕ)
+    (table : BitString n → BitString w) :
+    (OracleCodec.bitStrings n w).wordOracle (fun bits => (pure (table bits) : m (BitString w))) =
+      fun request => pure (randomFunctionOracle n table request.2) := by
+  funext ⟨⟨⟩, query⟩
+  by_cases h : query.length = n <;>
+    simp [OracleCodec.wordOracle, OracleCodec.bitStrings, randomFunctionOracle, h]
 
 open Classical in
 /-- A semantic random-function cache from `n`-bit to `w`-bit strings, retaining only the
@@ -98,6 +106,18 @@ noncomputable def lazyRandomFunctionOracle (n w : ℕ) (query : List Bool) :
     (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
       (RandomOracle.answer (fun _ => PMF.uniformOfFintype (BitString w))))
         (randomFunctionQuery n query)
+
+open Classical in
+/-- `OracleCodec.bitStrings n w` lifts `RandomOracle.answer` to `lazyRandomFunctionOracle n w` on
+the unit word channel. -/
+theorem wordOracle_bitStrings_answer (n w : ℕ) :
+    (OracleCodec.bitStrings n w).wordOracle
+        (RandomOracle.answer (fun _ : BitString n => PMF.uniformOfFintype (BitString w))) =
+      fun request => lazyRandomFunctionOracle n w request.2 := by
+  funext ⟨⟨⟩, query⟩
+  by_cases h : query.length = n <;>
+    simp [OracleCodec.wordOracle, OracleCodec.bitStrings, lazyRandomFunctionOracle,
+      randomFunctionQuery, h]
 
 /-- The real experiment of a keyed family with `inLen n`-bit inputs: sample one `n`-bit key and
 answer every query of `inLen n` bits with the family under that key, and any other query with the
@@ -124,29 +144,42 @@ theorem prfIdealGame_eq_lazy (inLen outLen : ℕ → ℕ) (adversary : OracleDis
           (fun request => lazyRandomFunctionOracle (inLen n) (outLen n) request.2))
             (adversary n [])).run (fun _ => none)).map Prod.fst := by
   classical
-  let adapted := OracleComp.interpret
-    (OracleComp.sumHandler (fun k => ProbOracleComp.sample (ProbComp.unifFin k))
-      (fun request : Unit × List Bool =>
-        (randomFunctionQuery (inLen n) request.2 :
-          ProbOracleComp (fun _ : BitString (inLen n) => BitString (outLen n)) (List Bool))))
-      (adversary n [])
-  have h := RandomOracle.uniform_interpret_prob_eq_lazy adapted
-  have heager (table : BitString (inLen n) → BitString (outLen n)) (query : List Bool) :
-      OracleComp.interpret
-        (OracleComp.sumHandler ProbComp.unifOracle (fun bits => PMF.pure (table bits)))
-          (randomFunctionQuery (inLen n) query) =
-        PMF.pure (randomFunctionOracle (inLen n) table query) :=
-    interpret_randomFunctionQuery ProbComp.unifOracle (inLen n) table query
-  simpa only [ProbOracleComp.runWith_eq_run_interpret, adapted, prfIdealGame, ProbComp.eval_uniform,
-    ProbOracleComp.eval_run, OracleComp.interpret_interpret, OracleComp.interpret_sumHandler,
-    interp_norm, pmf_norm, ProbComp.unifFin, heager, lazyRandomFunctionOracle] using h
+  have h := RandomOracle.uniform_interpret_prob_eq_lazy
+    ((OracleCodec.bitStrings (inLen n) (outLen n)).adapt (adversary n []))
+  have hpure (table : BitString (inLen n) → BitString (outLen n)) :
+      (fun bits => PMF.pure (table bits)) =
+        (fun bits => (pure (table bits) : PMF (BitString (outLen n)))) := rfl
+  simpa only [prfIdealGame, ProbComp.eval_bind, ProbComp.eval_uniform, ProbOracleComp.eval_run,
+    ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, OracleCodec.interpret_adapt,
+    OracleCodec.runWith_adapt, ProbOracleComp.runWith_eq_run_interpret,
+    hpure, wordOracle_bitStrings, wordOracle_bitStrings_answer] using h
 
 /-- A keyed family with `n`-bit keys, `inLen n`-bit inputs and `outLen n`-bit outputs, evaluated in
 plain polynomial time and secure against every uniform adaptive oracle test: [BonehShoup2023],
 Attack Game 4.2 and Definition 4.2, pp. 132–133, for a PRF defined over `(K, X, Y)`, read
 asymptotically with `K`, `X` and `Y` the words of `n`, `inLen n` and `outLen n` bits. A query of
 another length is answered by the empty word in both games, and deterministic polynomial-time
-evaluation is part of the notion. `PseudorandomFunction` is the case `inLen = outLen = id`. -/
+evaluation is part of the notion. `PseudorandomFunction` is the case `inLen = outLen = id`.
+
+The lengths are meant to be polynomially bounded in `n`, as in the book's asymptotic definition
+(Definition 4.4, Section 4.4.5, pp. 139–141), whose `X` and `Y` are families of spaces with strings
+of polynomially bounded length (Definition 2.9, Section 2.3.2, p. 30). The structure does not
+require this, and without it the notion degenerates:
+
+* if `inLen n` grows faster than every polynomial (for example `2 ^ n`), each admitted test
+  eventually writes only queries shorter than `inLen n` (`IsOraclePPT.query_bounds`), so both
+  games answer all of them with the empty word and `secure` holds for every family: every family
+  meeting `polyTime` and `length_eq` qualifies;
+* if `outLen n` is not bounded by a polynomial in `n + inLen n`, `polyTime` and `length_eq`
+  cannot both hold, because a polynomial-time machine writes polynomially many bits
+  (`ComputableInPolyTime.polyBounded_length`), and no family qualifies.
+
+The theorems that use the notion take the bound from their own hypotheses: a `BlockCipher`'s
+`blockLen` is computable in polynomial time from unary `n` (`BlockCipher.blockLen_polyTime`);
+`indistinguishable_prgFromPRF` and `PseudorandomFunctionOver.toPRG` assume the query points
+computable in polynomial time from unary `n`, and the former also `outLen`; and
+`MLKEM.indCPA_kpkePRF_of_decisionModuleLWEWith` assumes parameters computable in polynomial time,
+with `n`, `k`, `η₁` and `η₂` encoded in unary. -/
 structure PseudorandomFunctionOver (inLen outLen : ℕ → ℕ)
     (family : List Bool → List Bool → List Bool) : Prop where
   /-- One deterministic machine evaluates the family from the encoded key and query. -/
@@ -160,6 +193,19 @@ structure PseudorandomFunctionOver (inLen outLen : ℕ → ℕ)
     (fun adversary n => ProbComp.eval (prfRealGame inLen family adversary n))
     (fun adversary n => ProbComp.eval (prfIdealGame inLen outLen adversary n))
     (IsOraclePPT encBool)
+
+/-- Evaluate the family at the all-zero key and a valid all-zero query to compute the output width
+in unary. -/
+theorem PseudorandomFunctionOver.outLen_polyTime {inLen outLen : ℕ → ℕ}
+    {family : List Bool → List Bool → List Bool} (h : PseudorandomFunctionOver inLen outLen family)
+    (hinLen : ComputableInPolyTime inLen encUnary encUnary) :
+    ComputableInPolyTime outLen encUnary encUnary := by
+  have hzeros := ComputableInPolyTime.bitsReplicate false
+  have heval := h.polyTime.comp (hzeros.prod (hzeros.comp hinLen))
+  refine (ComputableInPolyTime.length_bits.comp heval).of_enc_eq fun n => ?_
+  have hwidth := h.length_eq (List.replicate n false) (List.replicate (inLen n) false)
+    (by simp only [List.length_replicate])
+  simpa only [List.length_replicate, Function.comp_def] using congrArg encUnary hwidth.symm
 
 /-- A length-preserving pseudorandom function: `PseudorandomFunctionOver id id`, whose keys, valid
 queries and answers all have `n` bits ([BonehShoup2023], Attack Game 4.2 and Definition 4.2,

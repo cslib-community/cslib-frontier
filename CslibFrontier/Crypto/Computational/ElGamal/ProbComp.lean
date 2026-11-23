@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.ElGamal
+public import CslibFrontier.Crypto.Computational.ElGamal.ExplicitCoin
 public import CslibFrontier.Crypto.Computational.Encryption.Hybrid
 public import CslibFrontier.Languages.Probabilistic.UniformNat
 public import CslibFrontier.Crypto.Encoding
@@ -47,13 +48,19 @@ in `CslibFrontier/Crypto/Computational/ElGamal.lean` directly to `Encryption.KEM
   \alpha)$; in the $\mathcal{E}'_{\mathrm{EG}}$ variant of Remark 11.1, encapsulation/encryption
   samples $\beta \leftarrow \mathbb{Z}_q$, sets $v = \beta \cdot g$ and $w = \beta \cdot u$,
   derives the symmetric key $k = H(w)$, and encrypts $m$ under $k$; decapsulation/decryption
-  computes $w = \alpha \cdot v$, recovers $k = H(w)$, and decrypts $c$ under $k$.
+  computes $w = \alpha \cdot v$, recovers $k = H(w)$, and decrypts $c$ under $k$. Theorem 11.5
+  (pp. 449–451) is stated for $\mathcal{E}_{\mathrm{EG}}$, which derives $k = H(v, w)$; Remark 11.1
+  states that the security results of the chapter hold for $\mathcal{E}'_{\mathrm{EG}}$ as well, so
+  the theorems here are Theorem 11.5 for $\mathcal{E}'_{\mathrm{EG}}$. The group description is a
+  deterministic schedule `d : ℕ → F.Desc` of the security parameter: the system parameterization
+  $P(\lambda)$ of Section 10.5.2 (p. 413) taken deterministic.
 * **Paraphrase of [BonehShoup2023], Exercise 11.5(a) (p. 459) and Exercise 11.9 (pp. 460–461):**
   multiplicative ElGamal encrypts a group element $m \in G$ as $(\beta \cdot g, \beta \cdot u + m)$
-  and is IND-CPA secure under DDH; Hashed ElGamal acts as an IND-CPA secure KEM under DDH and
-  `SecureKDF`, and composing it with any one-time semantically secure DEM yields an IND-CPA secure
-  public-key encryption scheme. The KDF output key space is uniform `keyLen n`-bit words;
-  `n` remains the security parameter controlling the modular-sampling error `4 / 2 ^ n`.
+  and is IND-CPA secure under DDH; composing a semantically secure KEM with a one-time
+  semantically secure symmetric cipher yields a semantically secure public-key encryption scheme.
+  That the Hashed ElGamal KEM is semantically secure under DDH and `SecureKDF` is Games 0–2 of the
+  proof of Theorem 11.5. The KDF output key space is uniform `keyLen n`-bit words; `n` remains the
+  security parameter controlling the modular-sampling error `4 / 2 ^ n`.
 
 ## Main definitions
 
@@ -67,8 +74,10 @@ in `CslibFrontier/Crypto/Computational/ElGamal.lean` directly to `Encryption.KEM
   KEM distinguisher; the DDH reduction derives the key from the candidate shared element and runs
   the KDF reduction (`kdfToDDHDistinguisher`).
 * `Cslib.Crypto.PrimeOrderGroupFamily.elGamalEncryptProb`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.elGamalDecryptDet`: uniform strict-PPT multiplicative ElGamal
-  encryption and deterministic polynomial-time decryption.
+  `Cslib.Crypto.PrimeOrderGroupFamily.elGamalDecryptDet`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.elGamalProbExplicitCoinPKE`: uniform strict-PPT
+  multiplicative ElGamal encryption, deterministic polynomial-time decryption, and the typed
+  fair-coin `ExplicitCoinPKE` they realize on encoded group elements.
 
 ## Main results
 
@@ -77,14 +86,15 @@ in `CslibFrontier/Crypto/Computational/ElGamal.lean` directly to `Encryption.KEM
   decapsulation and decryption correctness.
 * `Cslib.Crypto.PrimeOrderGroupFamily.advantage_kemGame_hashedElGamalEncapsProb_le`,
   `Cslib.Crypto.PrimeOrderGroupFamily.DDH.kemINDCPA_hashedElGamalEncapsProb`: quantitative KEM
-  advantage bound and `Encryption.KEMINDCPA` security of Hashed ElGamal under `DDH` and
-  `SecureKDF`.
+  advantage bound and `Encryption.KEMINDCPA` security of the $\mathcal{E}'_{\mathrm{EG}}$ KEM under
+  `DDH` and `SecureKDF`, the key-encapsulation step of Theorem 11.5.
 * `Cslib.Crypto.PrimeOrderGroupFamily.DDH.indcpaOf_hybrid_hashedElGamal`,
   `Cslib.Crypto.PrimeOrderGroupFamily.DDH.indcpaOn_hybrid_hashedElGamal`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.wordINDCPA_hybrid_hashedElGamal`: Theorem 11.5 via
-  `Encryption.INDCPAOf`, `Encryption.INDCPAOn`, and `Encryption.WordINDCPA` for any one-time
-  semantically secure symmetric cipher (`Encryption.DEMOneTimeINDCPAOf` /
-  `Encryption.DEMOneTimeINDCPAOn` / `Encryption.DEMOneTimeWordINDCPA`).
+  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.wordINDCPA_hybrid_hashedElGamal`: Theorem 11.5 for the
+  $\mathcal{E}'_{\mathrm{EG}}$ variant of Remark 11.1, over a deterministic polynomial-time group
+  schedule, via `Encryption.INDCPAOf`, `Encryption.INDCPAOn`, and `Encryption.WordINDCPA` for any
+  one-time semantically secure symmetric cipher (`Encryption.DEMOneTimeKeyINDCPAOf` /
+  `Encryption.DEMOneTimeKeyINDCPAOn` / `Encryption.DEMOneTimeKeyWordINDCPA`).
 * `Cslib.Crypto.PrimeOrderGroupFamily.DDH.indcpaOn_elGamalEncryptProb`,
   `Cslib.Crypto.PrimeOrderGroupFamily.DDH.indcpa_elGamalBitEncryptProb`: multiplicative and bit
   ElGamal satisfy `Encryption.INDCPAOn` and `Encryption.INDCPA` under `DDH`.
@@ -92,8 +102,9 @@ in `CslibFrontier/Crypto/Computational/ElGamal.lean` directly to `Encryption.KEM
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
-  Version 0.6][BonehShoup2023], Section 11.5 (pp. 445–446, Remark 11.1), Section 11.5.2
-  (pp. 448–451, Theorem 11.5), Exercise 11.5(a) (p. 459), and Exercise 11.9 (pp. 460–461).
+  Version 0.6][BonehShoup2023], Section 10.5.2 (p. 413), Section 11.5 (pp. 445–446,
+  Remark 11.1), Section 11.5.2 (pp. 448–451, Theorem 11.5), Exercise 11.5(a) (p. 459), and
+  Exercise 11.9 (pp. 460–461).
 -/
 
 @[expose] public section
@@ -321,12 +332,19 @@ theorem advantage_kemGame_hashedElGamalEncapsProb_le (keyLen : ℕ → ℕ)
   exact (Game.advantage_four_hop_le h0 h1).trans
     ((add_le_add (add_le_add le_rfl hmid) le_rfl).trans_eq (by ring))
 
-/-- **Hashed ElGamal KEM is `Encryption.KEMINDCPA`-secure under DDH and `SecureKDF`**
-([BonehShoup2023], Section 11.5.2, Theorem 11.5, pp. 449–451, and Exercise 11.9, pp. 460–461): for
-any group description family `d : ℕ → F.Desc`, if `F.DDH (fun n => PMF.pure (d n))` and
-`F.SecureKDF (fun n => PMF.pure (d n)) H keyLen` hold and `H` is computable in polynomial
-time, then `(elGamalKeyGenProb d, hashedElGamalEncapsProb H d)` satisfies
-`Encryption.KEMINDCPA keyLen`. -/
+/-- **Key-encapsulation step of Theorem 11.5 for the $\mathcal{E}'_{\mathrm{EG}}$ variant of
+Remark 11.1** ([BonehShoup2023], Remark 11.1, p. 446, and Section 11.5.2, Theorem 11.5,
+pp. 449–451, with the KEM notion `Encryption.KEMINDCPA`, which strengthens that of Exercise 11.9,
+pp. 460–461, by giving the distinguisher the public key): the KEM
+`(elGamalKeyGenProb d, hashedElGamalEncapsProb H d)`, which derives its key from the
+Diffie–Hellman element `w = b • u` alone (`H (d n, encode w)`, not Theorem 11.5's `H (v, w)`), over
+a deterministic group schedule `d : ℕ → F.Desc`, satisfies `Encryption.KEMINDCPA keyLen` when
+`F.DDH (fun n => PMF.pure (d n))` and `F.SecureKDF (fun n => PMF.pure (d n)) H keyLen` hold and `H`
+is computable in polynomial time. This is Games 0–2 of the proof of Theorem 11.5, which Remark 11.1
+carries over to $\mathcal{E}'_{\mathrm{EG}}$; Theorem 11.5 itself, semantic security of the
+encryption scheme, is `DDH.wordINDCPA_hybrid_hashedElGamal`. At parameter `n` the group
+description is `d n`: the system parameterization $P(\lambda)$ of Section 10.5.2 (p. 413) taken
+deterministic. -/
 theorem DDH.kemINDCPA_hashedElGamalEncapsProb {F : PrimeOrderGroupFamily} {keyLen : ℕ → ℕ}
     {H : F.Desc × List Bool → List Bool} {d : ℕ → F.Desc}
     (hDDH : F.DDH (fun n => PMF.pure (d n)))
@@ -341,10 +359,21 @@ theorem DDH.kemINDCPA_hashedElGamalEncapsProb {F : PrimeOrderGroupFamily} {keyLe
   dsimp only [Pi.add_apply]
   exact F.advantage_kemGame_hashedElGamalEncapsProb_le keyLen H d distinguisher n
 
-/-- **Theorem 11.5 via `Encryption.INDCPAOf`** ([BonehShoup2023], Section 11.5.2, Theorem 11.5,
-pp. 449–451): combining `DDH.kemINDCPA_hashedElGamalEncapsProb` with `KEMINDCPA.hybrid_indcpa`,
-Hashed ElGamal coupled with any uniform strict-PPT one-time semantically secure symmetric cipher
-`encryptSym` (`DEMOneTimeKeyINDCPAOf encMsg keyLen encryptSym`) satisfies `Encryption.INDCPAOf`. -/
+/-- **Theorem 11.5 for the $\mathcal{E}'_{\mathrm{EG}}$ variant of Remark 11.1, via
+`Encryption.INDCPAOf`** ([BonehShoup2023], Remark 11.1, p. 446, and Section 11.5.2, Theorem 11.5,
+pp. 449–451): Hashed ElGamal with the key derived from the Diffie–Hellman element `w = b • u` alone
+(`hashedElGamalEncapsProb H d`, not Theorem 11.5's `H (v, w)`), over a deterministic
+polynomial-time group schedule `d : ℕ → F.Desc`, coupled with any uniform strict-PPT one-time
+semantically secure symmetric cipher `encryptSym`
+(`DEMOneTimeKeyINDCPAOf encMsg keyLen encryptSym`), satisfies `Encryption.INDCPAOf` under
+`F.DDH (fun n => PMF.pure (d n))` and `F.SecureKDF (fun n => PMF.pure (d n)) H keyLen`.
+Remark 11.1 states that the chapter's security results hold for $\mathcal{E}'_{\mathrm{EG}}$ as
+well as for $\mathcal{E}_{\mathrm{EG}}$. At parameter `n` the group description is `d n`: the
+system parameterization $P(\lambda)$ of Section 10.5.2 (p. 413) taken deterministic. Every
+challenge pair is admissible, for the cipher as for the scheme; this is the source's notion when
+all messages of `Msg` have one length, and `DDH.wordINDCPA_hybrid_hashedElGamal` is the
+equal-length form for words. The proof combines `DDH.kemINDCPA_hashedElGamalEncapsProb` with
+`KEMINDCPA.hybrid_indcpa`. -/
 theorem DDH.indcpaOf_hybrid_hashedElGamal {F : PrimeOrderGroupFamily} {keyLen : ℕ → ℕ}
     {Msg : Type} {encMsg : Msg ↪ List Bool}
     {H : F.Desc × List Bool → List Bool} {d : ℕ → F.Desc}
@@ -361,12 +390,21 @@ theorem DDH.indcpaOf_hybrid_hashedElGamal {F : PrimeOrderGroupFamily} {keyLen : 
   (hDDH.kemINDCPA_hashedElGamalEncapsProb hKDF hH).hybrid_indcpa hdem
     (F.isPPTOn_elGamalKeyGenProb hd) (F.isPPTOn_hashedElGamalEncapsProb hH hd) hencryptSym
 
-/-- **Theorem 11.5 via `Encryption.INDCPAOn`** ([BonehShoup2023], Section 11.5.2, Theorem 11.5,
-pp. 449–451): combining `DDH.kemINDCPA_hashedElGamalEncapsProb` with `KEMINDCPA.hybrid_indcpaOn`,
-for any polynomial-time admissibility predicate `valid` that ignores the public key (such as
-the equal-length predicate `fun _ _ m₀ m₁ => m₀.length == m₁.length`), Hashed ElGamal coupled with
-any one-time semantically secure symmetric cipher `encryptSym`
-(`DEMOneTimeKeyINDCPAOn valid encMsg keyLen encryptSym`) satisfies `Encryption.INDCPAOn`. -/
+/-- **Theorem 11.5 for the $\mathcal{E}'_{\mathrm{EG}}$ variant of Remark 11.1, via
+`Encryption.INDCPAOn`** ([BonehShoup2023], Remark 11.1, p. 446, and Section 11.5.2, Theorem 11.5,
+pp. 449–451): for any polynomial-time admissibility predicate `valid` that ignores the public key,
+Hashed ElGamal with the key derived from the Diffie–Hellman element `w = b • u` alone
+(`hashedElGamalEncapsProb H d`, not Theorem 11.5's `H (v, w)`), over a deterministic
+polynomial-time group schedule `d : ℕ → F.Desc`, coupled with any uniform strict-PPT one-time
+semantically secure symmetric cipher `encryptSym`
+(`DEMOneTimeKeyINDCPAOn valid encMsg keyLen encryptSym`), satisfies `Encryption.INDCPAOn valid`
+under `F.DDH (fun n => PMF.pure (d n))` and `F.SecureKDF (fun n => PMF.pure (d n)) H keyLen`.
+Remark 11.1 states that the chapter's security results hold for $\mathcal{E}'_{\mathrm{EG}}$ as
+well as for $\mathcal{E}_{\mathrm{EG}}$. At parameter `n` the group description is `d n`: the
+system parameterization $P(\lambda)$ of Section 10.5.2 (p. 413) taken deterministic. Attack
+Game 11.1's equal-length rule `fun _ _ m₀ m₁ => m₀.length == m₁.length` gives the source's notion
+(`DDH.wordINDCPA_hybrid_hashedElGamal`). The proof combines
+`DDH.kemINDCPA_hashedElGamalEncapsProb` with `KEMINDCPA.hybrid_indcpaOn`. -/
 theorem DDH.indcpaOn_hybrid_hashedElGamal {F : PrimeOrderGroupFamily} {keyLen : ℕ → ℕ}
     {Msg : Type} {encMsg : Msg ↪ List Bool}
     {valid : ℕ → List Bool → Msg → Msg → Bool}
@@ -388,12 +426,20 @@ theorem DDH.indcpaOn_hybrid_hashedElGamal {F : PrimeOrderGroupFamily} {keyLen : 
   (hDDH.kemINDCPA_hashedElGamalEncapsProb hKDF hH).hybrid_indcpaOn hdem hvalid hpk
     (F.isPPTOn_elGamalKeyGenProb hd) (F.isPPTOn_hashedElGamalEncapsProb hH hd) hencryptSym
 
-/-- **Theorem 11.5 via `Encryption.WordINDCPA`** ([BonehShoup2023], Section 11.5.2, Theorem 11.5,
-pp. 449–451): combining `DDH.indcpaOn_hybrid_hashedElGamal` with Attack Game 11.1's equal-length
-rule (`fun _ _ m₀ m₁ => m₀.length == m₁.length`), Hashed ElGamal coupled with any equal-length
+/-- **Theorem 11.5 for the $\mathcal{E}'_{\mathrm{EG}}$ variant of Remark 11.1, via
+`Encryption.WordINDCPA`** ([BonehShoup2023], Remark 11.1, p. 446, and Section 11.5.2,
+Theorem 11.5, pp. 449–451): Hashed ElGamal with the key derived from the Diffie–Hellman element
+`w = b • u` alone (`hashedElGamalEncapsProb H d`, not Theorem 11.5's `H (v, w)`), over a
+deterministic polynomial-time group schedule `d : ℕ → F.Desc`, coupled with any uniform strict-PPT
 one-time semantically secure word cipher `encryptSym`
-(`DEMOneTimeKeyWordINDCPA keyLen encryptSym`) satisfies
-`Encryption.WordINDCPA`. -/
+(`DEMOneTimeKeyWordINDCPA keyLen encryptSym`), satisfies `Encryption.WordINDCPA` under
+`F.DDH (fun n => PMF.pure (d n))` and `F.SecureKDF (fun n => PMF.pure (d n)) H keyLen`.
+Remark 11.1 states that the chapter's security results hold for $\mathcal{E}'_{\mathrm{EG}}$ as
+well as for $\mathcal{E}_{\mathrm{EG}}$; here `SecureKDF` is Attack Game 11.3 for the hash of `w`
+alone. At parameter `n` the group description is `d n`: the system parameterization $P(\lambda)$
+of Section 10.5.2 (p. 413) taken deterministic. The scheme and the cipher are held to the
+equal-length rules of Attack Games 11.1 and 2.1; the proof applies
+`DDH.indcpaOn_hybrid_hashedElGamal` with `fun _ _ m₀ m₁ => m₀.length == m₁.length`. -/
 theorem DDH.wordINDCPA_hybrid_hashedElGamal {F : PrimeOrderGroupFamily} {keyLen : ℕ → ℕ}
     {H : F.Desc × List Bool → List Bool} {d : ℕ → F.Desc}
     {encryptSym : ℕ → List Bool → List Bool → ProbComp (List Bool)}
@@ -584,5 +630,43 @@ theorem DDH.indcpa_elGamalBitEncryptProb {F : PrimeOrderGroupFamily} {d : ℕ �
   hDDH.indcpaOn_elGamalEncryptProb
     (ComputableInPolyTime.const true)
     F.admitsGroupElements_encodeBit F.computableInPolyTime_encodeBit
+
+/-- Fair-coin multiplicative ElGamal ([BonehShoup2023], Section 12.6.2, pp. 499–500) at security
+parameter `n` and group description `d`: `elGamalExplicitCoinPKEWith` drawing both the secret key
+and the encryption coins from `(Nat.cast : ℕ → ZMod (F.order d)) <$> F.sampleExp n d`. Correctness
+holds by `elGamalExplicitCoinPKEWith_correct`, and `elGamalKeyGenProb`, `elGamalEncryptProb`, and
+`elGamalDecryptDet` realize it on encoded group elements (`eval_fst_elGamalKeyGenProb`,
+`eval_elGamalEncryptProb_encode`). -/
+noncomputable abbrev elGamalProbExplicitCoinPKE (n : ℕ) (d : F.Desc) :
+    Protocols.ExplicitCoinPKE (F.Carrier d) (ZMod (F.order d)) (F.Carrier d)
+      (ZMod (F.order d)) (F.Carrier d × F.Carrier d) :=
+  elGamalExplicitCoinPKEWith (F.order d) (F.generator d)
+    ((Nat.cast : ℕ → ZMod (F.order d)) <$> F.sampleExp n d)
+
+/-- The public-key output distribution of `elGamalKeyGenProb d n` equals the `(d n, encode ·)`
+image of the public key drawn by `(elGamalProbExplicitCoinPKE n (d n)).keyGen`. -/
+theorem eval_fst_elGamalKeyGenProb (d : ℕ → F.Desc) (n : ℕ) :
+    ProbComp.eval (Prod.fst <$> F.elGamalKeyGenProb d n) =
+      ProbComp.eval ((fun keys =>
+        encPair F.encDesc encBits (d n, F.encode (d n) keys.1)) <$>
+          (F.elGamalProbExplicitCoinPKE n (d n)).keyGen) := by
+  simp only [elGamalKeyGenProb, elGamalExplicitCoinPKEWith, encodeElGamalPublicKey_eq_encode,
+    ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map,
+    PMF.bind_map, Function.comp_def]
+
+/-- On an encoded public key `(d n, encode u)` and encoded group element `encode x`,
+`elGamalEncryptProb (fun _ w => w)` has the same output distribution as encoding both components of
+`(elGamalProbExplicitCoinPKE n (d n)).encrypt u x`. -/
+theorem eval_elGamalEncryptProb_encode (d : ℕ → F.Desc) (n : ℕ)
+    (u x : F.Carrier (d n)) :
+    ProbComp.eval (F.elGamalEncryptProb (fun _ w => w) d n
+        (encPair F.encDesc encBits (d n, F.encode (d n) u)) (F.encode (d n) x)) =
+      ProbComp.eval ((fun ct =>
+        encPair encBits encBits (F.encode (d n) ct.1, F.encode (d n) ct.2)) <$>
+          (F.elGamalProbExplicitCoinPKE n (d n)).encrypt u x) := by
+  simp only [elGamalEncryptProb, elGamalExplicitCoinPKEWith, Protocols.ExplicitCoinPKE.encrypt,
+    dropFrame_encPair_encBits, F.encodeElGamalEncrypt_encode, elGamalEncrypt, ProbComp.eval_map,
+    ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map, PMF.bind_map,
+    Function.comp_def]
 
 end Cslib.Crypto.PrimeOrderGroupFamily

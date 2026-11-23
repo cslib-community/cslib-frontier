@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Sequential.CoinTape
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.Space
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -372,7 +373,7 @@ private theorem step_cont_check (second : MultiTapePTM k₂ Bool S₂) (bit : Bo
   change (checkAction ((ctrl (S₂ := S₂) W P F (some false) pos out).workTapeSymbols
     (flagTape k₁ k₂))).apply _ = _
   rw [hflag, checkAction]
-  split_ifs <;> refine Cfg.ext rfl ?_ ?_ ?_ ?_ <;> simp [ctrl, Turing.Action.apply_workTapes]
+  split_ifs <;> tm_step [ctrl]
 
 private theorem step_cont_rewind (second : MultiTapePTM k₂ Bool S₂) (bit : Bool)
     (pos : Fin (input.length + 2)) (out : List Bool) :
@@ -386,8 +387,7 @@ private theorem step_cont_rewind (second : MultiTapePTM k₂ Bool S₂) (bit : B
   change (rewindAction second.initial
     (ctrl (k₂ := k₂) (S₂ := S₂) W P F (some true) pos out).inputSymbol).apply _ = _
   cases (ctrl (k₂ := k₂) (S₂ := S₂) W P F (some true) pos out).inputSymbol <;>
-    refine Cfg.ext rfl rfl ?_ ?_ ?_ <;> simp [ctrl, embed₂, rewindAction,
-      Turing.Action.apply_workTapes]
+    tm_step [ctrl, embed₂, rewindAction]
 
 /-- Rewinding from input position `q` takes `q + 1` steps and starts the second machine on the
 first input symbol. -/
