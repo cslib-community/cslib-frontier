@@ -1,10 +1,12 @@
 import CslibFrontierResults.Entries
+import CslibFrontierResults.Entries.AlternatingTimeSpace
 import CslibFrontierResults.Entries.CBCMAC
 import CslibFrontierResults.Entries.DeterminantalUniversality
 import CslibFrontierResults.Entries.DistributedConcurrentObjects
 import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Entries.HadamardRigidity
+import CslibFrontierResults.Entries.HalfBlockPRPCCA
 import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.MinimumSpanningTree
@@ -16,5 +18,6 @@ import CslibFrontierResults.Entries.ODonnellTribes
 import CslibFrontierResults.Entries.ODonnellUncertainty
 import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.SergeevBkSequence
+import CslibFrontierResults.Entries.SergeevMonotoneShift
 import CslibFrontierResults.Entries.SergeevUniqueDisjointness
 import CslibFrontierResults.Registry
