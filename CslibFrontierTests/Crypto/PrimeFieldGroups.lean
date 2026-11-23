@@ -1,0 +1,85 @@
+/-
+Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Samuel Schlesinger
+-/
+
+module
+
+public import CslibFrontier.Crypto.Computational.DiscreteLog
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
+
+/-! Shared fixture: the additive groups `ZMod p` of prime order `p` as a `PrimeOrderGroupFamily`,
+exported for ordinary module clients. A discrete logarithm in these groups is read off the
+encoding, since `α • 1` is encoded by the residue of `α`, so no hardness assumption holds for
+them: they show only that the structure is inhabited and that its encodings compute. -/
+
+public section
+
+namespace CslibFrontierTests.Crypto.PrimeFieldGroups
+
+open Cslib Cslib.Crypto Turing.MultiTapeTM
+
+/-- Primes, as public group parameters. -/
+abbrev PrimeDesc : Type := {p : ℕ // p.Prime}
+
+/-- A prime is encoded by its binary digits. -/
+@[expose] def encPrime : PrimeDesc ↪ List Bool :=
+  (Function.Embedding.subtype _).trans encNat
+
+theorem computableInPolyTime_val :
+    ComputableInPolyTime (Subtype.val : PrimeDesc → ℕ) encPrime encNat :=
+  ComputableInPolyTime.of_eq fun _ => rfl
+
+/-- Addition modulo `p` of binary residues. -/
+def primeAdd : PrimeDesc × List Bool × List Bool → List Bool
+  | (p, x, y) => ((ofBits x + ofBits y) % p.1).bits
+
+/-- Multiplication modulo `p` of a binary residue by a natural number. -/
+def primeSMul : PrimeDesc × ℕ × List Bool → List Bool
+  | (p, a, x) => (a * ofBits x % p.1).bits
+
+/-- The additive groups `ZMod p` of prime order `p`, with generator `1` and residues encoded in
+binary. -/
+@[expose] def primeFields : PrimeOrderGroupFamily where
+  Desc := PrimeDesc
+  encDesc := encPrime
+  order p := p.1
+  prime_order p := p.2
+  Carrier p := ZMod p.1
+  generator _ := 1
+  card_carrier p := Nat.card_zmod p.1
+  generator_ne_zero p := by
+    have := Fact.mk p.2
+    exact one_ne_zero
+  encode _ x := x.val.bits
+  encode_injective p x y h := by
+    have : NeZero p.1 := ⟨p.2.ne_zero⟩
+    exact ZMod.val_injective _ (encNat.injective h)
+  add := primeAdd
+  add_encode p x y := by
+    have : NeZero p.1 := ⟨p.2.ne_zero⟩
+    simp only [primeAdd, ofBits_bits, ZMod.val_add]
+  smul := primeSMul
+  smul_encode p a x := by
+    have : NeZero p.1 := ⟨p.2.ne_zero⟩
+    simp only [primeSMul, ofBits_bits, smul_eq_mul, ZMod.val_mul, ZMod.val_natCast,
+      Nat.mod_mul_mod]
+  computableInPolyTime_order := computableInPolyTime_val
+  computableInPolyTime_generator := by
+    have := computableInPolyTime_val
+    simp only [ZMod.val_one_eq_one_mod]
+    fun_prop
+  computableInPolyTime_add := by
+    have := computableInPolyTime_val
+    unfold primeAdd
+    fun_prop
+  computableInPolyTime_smul := by
+    have := computableInPolyTime_val
+    unfold primeSMul
+    fun_prop
+
+end CslibFrontierTests.Crypto.PrimeFieldGroups
