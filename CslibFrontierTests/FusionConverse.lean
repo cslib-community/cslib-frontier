@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Computability.Circuit.Fusion.Converse
 
 /-!
@@ -11,7 +13,9 @@ import CslibFrontier.Computability.Circuit.Fusion.Converse
 
 The cases include no primary or auxiliary inputs, empty and full targets, the fixed empty
 rejection on an empty carrier, a rejected self-pair, simultaneous acceptance of complementary
-sets, and a nonconstant XOR function with a one-pair cover and a five-AND universal verifier.
+sets, compressed labels for duplicate sets, and a nonconstant XOR function with a one-pair cover
+and a three-AND universal verifier using two auxiliary bits. Ordinary module imports exercise
+the exported compiler and certificate API.
 -/
 
 namespace CslibFrontierTests.FusionConverse
@@ -83,15 +87,38 @@ example : ∃ a, ∃ g : BooleanFunction (2 + a),
     ∃ c : Circuit Monotone.signature ((2 + a) + (2 + a)) 1,
     forallGuess g = (fun x => x 0 ^^ x 1) ∧
       c.ComputesFrom Monotone.interpretation (single g) AltFormula.literals ∧
-      c.program.cost Monotone.andCost = 5 ∧ a = 3 := by
+      c.program.cost Monotone.andCost = 3 ∧ a = 2 := by
   obtain ⟨cover, hcover⟩ := exists_pairCover_forallGuess xorVerifier xorCircuit xor_computes
   have hc : cover.pairs.length = 1 := hcover
   have hquant : forallGuess xorVerifier = (fun x => x 0 ^^ x 1) := by decide
   obtain ⟨g, c, hg, hcomputes, hcost⟩ := cover.exists_forallGuess (forallGuess xorVerifier)
-  exact ⟨size cover.pairs, g, c, hg.trans hquant, hcomputes, by simpa [hc] using hcost,
-    by simp [size, hc]⟩
+  exact ⟨compactSize cover.pairs, g, c, hg.trans hquant, hcomputes, by simpa [hc] using hcost,
+    by simp [compactSize, hc]⟩
+
+-- Compressing the labels keeps the empty-carrier contradiction even when there are no pairs.
+example : compactInvalid ([] : List (Set (Fin 0) × Set (Fin 0)))
+    (fun _ : Fin 0 => ∅) Fin.elim0 Fin.elim0 := by
+  decide
+
+example : ¬ compactInvalid ([] : List (Set Bool × Set Bool))
+    (fun _ : Fin 0 => ∅) Fin.elim0 Fin.elim0 := by
+  decide
+
+-- Duplicate component sets cannot be assigned contradictory labels.
+example : compactInvalid ([({false}, {false})] : List (Set Bool × Set Bool))
+    (fun _ : Fin 0 => ∅) Fin.elim0 ![true, false] := by
+  decide
+
+-- For a complementary pair with empty intersection, precisely one component must be accepted.
+-- Both false violate the covering condition; both true force acceptance of the empty set.
+example (y : Fin 2 → Bool) :
+    compactInvalid ([({false}, {true})] : List (Set Bool × Set Bool))
+      (fun _ : Fin 0 => ∅) Fin.elim0 y ↔ y 0 = y 1 := by
+  revert y
+  decide
 
 example : econondeterministicAndComplexity (fun x : BitString 2 => x 0 ^^ x 1) ≤ 1 := by
   exact econondeterministicAndComplexity_le_cost xorVerifier (by decide) xorCircuit xor_computes
 
 end CslibFrontierTests.FusionConverse
+
