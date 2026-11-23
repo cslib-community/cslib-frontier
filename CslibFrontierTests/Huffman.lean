@@ -4,30 +4,36 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Algorithms.Lean.Huffman.TwoQueue
+import CslibFrontier.Algorithms.WordRAM.Huffman
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 
+meta import CslibFrontier.Algorithms.Lean.Huffman.TwoQueue
+meta import CslibFrontier.Algorithms.WordRAM.Huffman
+meta import CslibFrontier.Computability.WordRAM.Structured.FastEval
+
 /-!
-# Tests for Huffman Coding, Kraft Converse, and Two-Queue Construction
+# Tests for Huffman Coding, Kraft Converse, and Word-RAM Two-Queue Construction
 -/
 
--- Regression `#guard` checks execute the compiled `huffman`, `huffmanM`, `kraftAssign`, and
--- `treeOfCodebook` implementations directly without requiring `@[expose]` on internal loops.
+set_option linter.privateModule false
 set_option linter.hashCommand false
 
 namespace CslibFrontierTests.Huffman
 
+open Cslib.WordRAM
 open Cslib.Algorithms.Lean.Huffman
-open scoped Cslib.Algorithms.Lean.TimeM
+open Cslib.Algorithms.WordRAM.Huffman
 
 /-! ## 1. Classic CLRS Figure 16.5 six-symbol example (`a:45, b:13, c:12, d:16, e:9, f:5`) -/
 
-private def clrsSyms : List Char := ['a', 'b', 'c', 'd', 'e', 'f']
+private meta def clrsSyms : List Char := ['a', 'b', 'c', 'd', 'e', 'f']
 
-private def clrsWeight : Char → ℕ
+private meta def clrsWeight : Char → ℕ
   | 'a' => 45
   | 'b' => 13
   | 'c' => 12
@@ -58,22 +64,66 @@ private def clrsWeight : Char → ℕ
 #guard huffman (id : ℕ → ℕ) [] == none
 #guard huffman (id : ℕ → ℕ) [42] == some (.leaf 42)
 
-/-! ## 2. Tightness of the `2n - 5` two-queue comparison bound (Fibonacci weights) -/
+/-! ## 2. Word-RAM `O(n)` pre-sorted and `O(n log n)` unsorted Huffman programs -/
 
-#guard (huffmanFromSortedM (id : ℕ → ℕ) []).time == 0
-#guard (huffmanFromSortedM (id : ℕ → ℕ) [7]).time == 0
-#guard (huffmanFromSortedM (id : ℕ → ℕ) [3, 5]).time == 0
-#guard (huffmanFromSortedM (id : ℕ → ℕ) [1, 2, 4]).time == 1
-#guard (huffmanFromSortedM (id : ℕ → ℕ) [1, 1, 2, 3]).time == 3
-#guard (huffmanFromSortedM (id : ℕ → ℕ) [1, 1, 2, 3, 5]).time == 5
-#guard (huffmanFromSortedM (id : ℕ → ℕ) [1, 1, 2, 3, 5, 8]).time == 7
+private meta def evalFromSorted (w : ℕ) (ws : List ℕ) : Option (List ℕ × ℕ) :=
+  (fromSortedCode.eval w 512 (Data.init ws)).map fun (x, t) =>
+    (outputList x.mem (x.regs (10 : Fin 30)), t + 1)
 
--- Unsorted `huffmanM` stays within `n * ⌈log₂ n⌉ + (2n - 5)` (`6 * 3 + 7 = 25`).
-#guard (huffmanM clrsWeight clrsSyms).time ≤ 6 * Nat.clog 2 6 + (2 * 6 - 5)
+private meta def evalHuffman (w : ℕ) (ws : List ℕ) : Option (List ℕ × ℕ) :=
+  (huffmanCode.eval w 512 (Data.init ws)).map fun (x, t) =>
+    (outputList x.mem (x.regs (10 : Fin 30)), t + 1)
+
+-- Boundary `n = 0`, `n = 1`, `n = 2`, and `n = 6` Fibonacci sorted runs within `58 * n + 26` steps.
+#guard (evalFromSorted 64 []).map Prod.fst == some []
+#guard (evalFromSorted 64 [42]).map Prod.fst == some [0]
+#guard (evalFromSorted 64 [3, 5]).map Prod.fst == some [1, 1]
+#guard
+  match evalFromSorted 64 [1, 1, 2, 3, 5, 8] with
+  | some (lens, steps) =>
+    lens == [5, 5, 4, 3, 2, 1] && steps ≤ 58 * 6 + 26
+  | none => false
+
+-- Unsorted Word-RAM runs: boundary cases and CLRS `[45, 13, 12, 16, 9, 5]` achieving WPL `224`.
+#guard (evalHuffman 64 []).map Prod.fst == some []
+#guard (evalHuffman 64 [42]).map Prod.fst == some [0]
+#guard (evalHuffman 64 [5, 5, 5, 5]).map Prod.fst == some [2, 2, 2, 2]
+#guard
+  match evalHuffman 64 [45, 13, 12, 16, 9, 5] with
+  | some (lens, steps) =>
+    lens == [1, 3, 3, 3, 4, 4] &&
+      (List.zipWith (· * ·) lens [45, 13, 12, 16, 9, 5]).sum == 224 &&
+      steps ≤ 50 * 6 * Nat.clog 2 6 + 84 * 6 + 50
+  | none => false
+
+-- Checked non-vacuity of `fromSortedProgram_spec` and `huffmanProgram_spec` at word width `64`.
+example :
+    let ws : List ℕ := [1, 1, 2, 3, 5, 8]
+    ∃ lens steps,
+      ExecutesList 64 fromSortedProgram (.init ws) lens steps ∧
+      steps ≤ 58 * ws.length + 26 ∧
+      lens.length = ws.length := by
+  intro ws
+  have hmem : Fits 64 (6 * ws.length + 2) := by decide
+  have hwpl : Fits 64 (ws.length * ws.sum) := by decide
+  obtain ⟨lens, steps, hex, hst, hlen, _, _⟩ := fromSortedProgram_spec ws hmem hwpl
+  exact ⟨lens, steps, hex, hst, hlen⟩
+
+example :
+    let ws : List ℕ := [45, 13, 12, 16, 9, 5]
+    ∃ lens steps,
+      ExecutesList 64 huffmanProgram (.init ws) lens steps ∧
+      steps ≤ 50 * ws.length * Nat.clog 2 ws.length + 84 * ws.length + 50 ∧
+      lens.length = ws.length := by
+  intro ws
+  have hmem : Fits 64 (10 * ws.length + 3) := by decide
+  have hwpl : Fits 64 (ws.length * ws.sum) := by decide
+  obtain ⟨lens, steps, hex, hst, hlen, _, _⟩ := huffmanProgram_spec ws hmem hwpl
+  exact ⟨lens, steps, hex, hst, hlen⟩
 
 /-! ## 3. Constructive binary Kraft assignment and unary-trie compaction -/
 
-private def kraftDemoLen : Fin 4 → ℕ
+private meta def kraftDemoLen : Fin 4 → ℕ
   | 0 => 1
   | 1 => 2
   | 2 => 3
