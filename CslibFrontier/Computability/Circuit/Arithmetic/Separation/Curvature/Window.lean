@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.WindowMean
 import Mathlib.Algebra.BigOperators.Field
+import Mathlib.Data.Nat.Choose.Cast
 import Mathlib.Analysis.SpecificLimits.Basic
 
 /-!
@@ -115,11 +116,6 @@ theorem bounded_windowPlace : windowPlace.Bounded :=
   ⟨1, fun n b i k => by
     rw [abs_of_nonneg (windowPlace_nonneg _ _ _ _)]; exact windowPlace_le_one _ _ _ _⟩
 
-private theorem sum_range_cast (N : ℕ) : ∑ i ∈ range N, (i : ℝ) = N * (N - 1) / 2 := by
-  induction N with
-  | zero => simp
-  | succ N ih => rw [Finset.sum_range_succ, ih]; push_cast; ring
-
 /-- The relative place has mean `1/2`. -/
 theorem mean_windowPlace : windowPlace.mean = 1 / 2 := by
   apply WindowFn.mean_eq bounded_windowPlace
@@ -133,7 +129,9 @@ theorem mean_windowPlace : windowPlace.mean = 1 / 2 := by
   have h2 : ∀ b : Bool, ∑ i ∈ range (n ^ 2), ∑ k ∈ range n, windowPlace n b (i : ℕ) (k : ℕ) =
       n * (((n ^ 2 : ℕ) : ℝ) * ((n ^ 2 : ℕ) - 1) / 2 / n ^ 2) := by
     intro b
-    rw [← sum_range_cast, Finset.sum_div, Finset.mul_sum]
+    have hsum : ∑ i ∈ range (n ^ 2), (i : ℝ) = ((n ^ 2 : ℕ) : ℝ) * ((n ^ 2 : ℕ) - 1) / 2 := by
+      rw [← Nat.cast_sum, Finset.sum_range_id, ← Nat.choose_two_right, Nat.cast_choose_two]
+    rw [← hsum, Finset.sum_div, Finset.mul_sum]
     refine Finset.sum_congr rfl fun i hi => ?_
     have hp : ∀ k ∈ range n, windowPlace n b (i : ℕ) (k : ℕ) = (i : ℝ) / n ^ 2 := by
       intro k _
