@@ -1360,7 +1360,7 @@ theorem mem_foldl_hkMatchingStep (mate : Vector (Option (Fin m)) r) (l : List (F
     unfold hkMatchingStep
     grind
 
-private theorem mem_foldl_hkCoverLeftStep (dist : Vector (Option ℕ) m) (l : List (Fin m))
+theorem mem_foldl_hkCoverLeftStep (dist : Vector (Option ℕ) m) (l : List (Fin m))
     (a : Finset (Fin m)) (u : Fin m) :
     u ∈ l.foldl (hkCoverLeftStep dist) a ↔ u ∈ a ∨ (u ∈ l ∧ vget dist u = none) := by
   induction l generalizing a with
@@ -1370,7 +1370,7 @@ private theorem mem_foldl_hkCoverLeftStep (dist : Vector (Option ℕ) m) (l : Li
     unfold hkCoverLeftStep
     grind
 
-private theorem mem_foldl_hkCoverRightStep (mate : Vector (Option (Fin m)) r)
+theorem mem_foldl_hkCoverRightStep (mate : Vector (Option (Fin m)) r)
     (dist : Vector (Option ℕ) m) (l : List (Fin r)) (a : Finset (Fin r)) (v : Fin r) :
     v ∈ l.foldl (hkCoverRightStep mate dist) a ↔
       v ∈ a ∨ (v ∈ l ∧ ∃ w, vget mate v = some w ∧ vget dist w ≠ none) := by
