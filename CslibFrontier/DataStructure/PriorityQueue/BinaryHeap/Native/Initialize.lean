@@ -43,19 +43,13 @@ open Cslib.DataStructure Cslib.DataStructure.Memory
 open Cslib.WordRAM Cslib.WordRAM.Realization
 open Cslib.DataStructure.PriorityQueue.BinaryHeap (space)
 
-private theorem space_add (n : ℕ) : space n = (n + n) + n + 1 := by wram_omega
-
-/-- Reserve the exact original span. The addition spelling avoids materializing a constant
+/-- Reserve the exact original span. The scalar certificate avoids materializing a constant
 three, which need not fit in an admitted one-bit zero-handle initialization. -/
 theorem realizes_reserve : Realizes .exact (fun n : ℕ => Memory.allocDirty (space n))
     (WordEncoding.encode (α := ℕ)) (WordEncoding.encode (α := ℕ))
     (fun w n s => Fits w (s.frontier + space n)) (fun _ _ => 0) := by
-  have h : Realizes .exact (fun n : ℕ => Memory.allocDirty ((n + n) + n + 1))
-      (WordEncoding.encode (α := ℕ)) (WordEncoding.encode (α := ℕ))
-      (fun w n s => Fits w (s.frontier + space n)) (fun _ _ => 0) := by
-    realize
-    exact h.of_le (by wram_omega)
-  exact h.congr (fun n => by rw [space_add])
+  realize
+  all_goals exact h.of_le (by wram_omega)
 
 /-- One selected reservation emitter returns the old frontier, preserves every cell and moves
 the frontier by exactly the old span. Its one memory charge plus the fixed exit unit cost at
@@ -106,23 +100,8 @@ theorem realizes_metadata : Realizes .exact
     (fun p : ℕ × ℕ => pure (![p.1, p.2 + p.1, 1] : Fin 3 → ℕ))
     (WordEncoding.encode (α := ℕ × ℕ)) (.refl (Fin 3 → ℕ))
     (fun w p _ => Fits w (p.2 + space p.1)) (fun _ _ => 0) := by
-  let g : Fin 3 → (Fin 2 → ℕ) → ℕ := ![fun v => v 0, fun v => v 1 + v 0, fun _ => 1]
-  let bound : (Fin 2 → ℕ) → ℕ := fun v => v 1 + space (v 0)
-  have hp0 : GlueComputable .exact (fun v : Fin 2 → ℕ => v 0) (fun _ => True) bound :=
-    GlueComputable.proj 0 (fun v _ => by wram_omega)
-  have hp1 : GlueComputable .exact (fun v : Fin 2 → ℕ => v 1) (fun _ => True) bound :=
-    GlueComputable.proj 1 (fun v _ => by wram_omega)
-  have hcoord (i : Fin 3) : GlueComputable .exact (g i) (fun _ => True) bound := by
-    fin_cases i
-    · exact hp0
-    · exact hp1.add hp0 (fun v _ => by wram_omega)
-    · exact GlueComputable.const 1 (fun v _ => by wram_omega)
-  refine (Realizes.pure₀ (WordEncoding.encode (α := ℕ × ℕ)) (.refl (Fin 3 → ℕ))
-    (fun p => ![p.1, p.2 + p.1, 1]) g (fun w v => Fits w (bound v))
-    (fun p i => by fin_cases i <;> rfl) hcoord (fun _ _ _ _ h => h)).consequence ?_
-      (fun _ _ => le_rfl)
-  intro w p s _ _ h
-  exact ⟨trivial, h⟩
+  realize
+  all_goals exact h.of_le (by wram_omega)
 
 /-- The selected metadata code performs its charged computation even though its source history
 is empty. It leaves the frontier, whole memory and both live input words unchanged. -/
@@ -160,17 +139,8 @@ theorem realizes_allocLayout : Realizes .exact
     (fun n : ℕ => do let L ← BinaryHeap.Memory.allocLayout n; pure (⟨n, L⟩ : HeapLayout))
     (WordEncoding.encode (α := ℕ)) layoutWords
     (fun w n s => Fits w (s.frontier + 1 + space n)) (fun _ _ => 0) := by
-  have h : Realizes .exact
-      (fun n : ℕ => do
-        let size ← Memory.allocBlockDirty 1
-        let arrays ← Memory.allocBlockDirty ((n + n) + n + 1)
-        pure (⟨n, ⟨size, arrays.base⟩⟩ : HeapLayout))
-      (WordEncoding.encode (α := ℕ)) layoutWords
-      (fun w n s => Fits w (s.frontier + 1 + space n)) (fun _ _ => 0) := by
-    realize
-    all_goals exact h.of_le (by wram_omega)
-  exact h.congr (fun n => by
-    simp only [BinaryHeap.Memory.allocLayout, space_add, bind_assoc, pure_bind])
+  realize
+  all_goals exact h.of_le (by wram_omega)
 
 /-- One selected code before all runtime sizes/frontiers/widths runs the actual two-query
 allocator. Memory is literally unchanged; the original allocated layout is really staged in

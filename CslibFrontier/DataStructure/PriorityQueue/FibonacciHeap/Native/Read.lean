@@ -40,23 +40,8 @@ theorem realizes_isEmpty : Realizes .exact
     (fun d : ℕ × ℕ => DataStructure.link ((layout d.1 d.2).methods 0) isEmpty)
     (WordEncoding.encode (α := ℕ × ℕ)) boolWords
     (fun w d _ => Fits w (d.2 + (9 * d.1 + 5))) (fun _ _ => 0) := by
-  have h : Realizes .exact (fun d : ℕ × ℕ => do
-      let m ← Memory.read (d.2 + (d.1 + d.1 + d.1 + d.1 + d.1 + d.1 + d.1 + d.1 + d.1) + 1)
-      if m = 0 then pure true else pure false)
-      (WordEncoding.encode (α := ℕ × ℕ)) boolWords
-      (fun w d _ => Fits w (d.2 + (9 * d.1 + 5))) (fun _ _ => 0) := by
-    realize
-    all_goals exact h.of_le (by omega)
-  apply h.congr
-  intro d
-  have ha : d.2 + (d.1 + d.1 + d.1 + d.1 + d.1 + d.1 + d.1 + d.1 + d.1) + 1 =
-      d.2 + 9 * d.1 + 1 := by omega
-  rw [ha]
-  change (Memory.read (d.2 + 9 * d.1 + 1) >>= fun m =>
-      if m = 0 then pure true else pure false) =
-    (Memory.read (d.2 + 9 * d.1 + 1) >>= fun m => pure (decide (m = 0)))
-  congr 1 with m : 1
-  by_cases hm : m = 0 <;> simp [hm]
+  realize
+  all_goals exact h.of_le (by omega)
 
 /-- The optional key method uses the original in-heap flag and key array. The raw runtime
 handle lies below capacity, and `some key` keeps the key itself rather than its successor. -/
@@ -64,22 +49,7 @@ theorem realizes_getKey : Realizes .exact
     (fun d : Fin 3 → ℕ => DataStructure.link ((layout (d 0) (d 1)).methods 0) (getKey (d 2)))
     (.refl _) optionWords
     (fun w d _ => Fits w (d 1 + (9 * d 0 + 5)) ∧ d 2 < d 0) (fun _ _ => 0) := by
-  have h : Realizes .exact (fun d : Fin 3 → ℕ => do
-      let b ← Memory.read (d 1 + (d 0 + d 0 + d 0 + d 0 + d 0 + d 0 + d 0) + d 2)
-      if b = 0 then pure none else do
-        let k ← Memory.read (d 1 + d 2)
-        pure (some k))
-      (.refl _) optionWords
-      (fun w d _ => Fits w (d 1 + (9 * d 0 + 5)) ∧ d 2 < d 0) (fun _ _ => 0) := by
-    realize
-    all_goals exact h.1.of_le (by have := h.2; omega)
-  apply h.congr
-  intro d
-  have ha : d 1 + (d 0 + d 0 + d 0 + d 0 + d 0 + d 0 + d 0) + d 2 =
-      d 1 + 7 * d 0 + d 2 := by omega
-  rw [ha]
-  simp only [DataStructure.link, getKey, PFunctor.FreeM.liftM_bind, rd, Record.read, layout]
-  congr 1 with b : 1
-  split_ifs <;> rfl
+  realize
+  all_goals exact h.1.of_le (by have := h.2; omega)
 
 end Cslib.DataStructure.PriorityQueue.FibonacciHeap.Native

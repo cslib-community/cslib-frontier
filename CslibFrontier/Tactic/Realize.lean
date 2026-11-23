@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Realization.WhileAbsorb
 public import CslibFrontier.Computability.WordRAM.Realization.Reindex
 public import CslibFrontier.Computability.WordRAM.Realization.Consequence
+public meta import Mathlib.Tactic.FunProp.Theorems
 
 /-!
 # The `realize` tactic
@@ -25,8 +26,10 @@ the client syntax, unfolding definitions, with one rule per form:
   encoding (`WordEncoding`); `realize` keeps this layout itself.
 * `pure`: `Realizes.pure₀`, with each result word certified by a `GlueComputable` proof assembled
   from the closure rules of `CslibFrontier.Computability.WordRAM.Glue`: projections, constants, and
-  the exact- or standard-basis arithmetic and bitwise operations. Conditional values, natural
-  minima/maxima and Boolean decisions are lifted to paid branches, including inside returned
+  the exact- or standard-basis arithmetic and bitwise operations. Local `GlueComputable` facts
+  and registered `fun_prop` certificates are reused before unfolding scalar functions, retaining
+  their domains and envelopes. Conditional values, natural minima/maxima and Boolean decisions
+  are lifted to paid branches, including inside returned
   constructors; only the selected alternative contributes fit and definedness conditions.
 * the four memory queries: `Realizes.read`, `write`, `alloc` and `allocDirty`.
 * `DataStructure.link` / `PFunctor.FreeM.liftM`: lowers linked free-monad source programs
@@ -58,8 +61,9 @@ Operands are located among the live words by definitional equality. An operand t
 live word is first computed by an inserted `pure`, preserving the program by a checked equality.
 
 Exact subtraction, division and remainder add their definedness conditions to the visible
-domain. The common glue envelope is the maximum of every intermediate value; `realize` proves
-that it fits from the fit of the live words, from the domain, and from the fit of the values it
+domain. The common glue envelope is the maximum of the primitive intermediates and the reused
+scalar certificates' envelopes; `realize` proves that it fits from the fit of the live words,
+from the domain, and from the fit of the values it
 cannot derive, which become the visible fit conditions. A value is derived when another fitting
 value dominates it, for example `a - b` and `b` by `a`, or the summands by a sum.
 
@@ -81,7 +85,9 @@ selection follows the client syntax, without searching for bounds. An unsupporte
 reported with its subterm.
 
 `realize [certificate₁, …]` first adds the supplied proof terms as local facts in list order,
-then runs the same tactic. Existing local certificates retain priority.
+then runs the same tactic. Existing local certificates retain priority. Scalar theorem parameters
+are inferred from the call and must be fixed before the runtime inputs; varying scalar arguments
+are computed and paid through `GlueComputable.comp_many`.
 
 Each certificate is stated for the client form as written, with its domain in the client's terms
 (`certify`), so certificates compose syntactically. A bind's continuation domain is stated at the
@@ -319,10 +325,54 @@ private inductive GNode
   | const (c : Expr) (zero : Bool)
   /-- A binary operation. -/
   | bin (op : GOp) (user : Expr) (a b : GNode)
+  /-- A certified scalar call and the arguments that must be computed. -/
+  | call (user envelope proof : Expr) (args : Array GNode)
 
 /-- The expression in the client's terms. -/
 private def GNode.user : GNode → Expr
-  | .reg _ u | .const u _ | .bin _ u _ _ => u
+  | .reg _ u | .const u _ | .bin _ u _ _ | .call u .. => u
+
+/-- `![x₀, …, xₙ]`. -/
+private def vecOf (xs : List Expr) : MetaM Expr := do
+  match xs with
+  | [] => mkAppOptM ``Matrix.vecEmpty #[mkConst ``Nat]
+  | x :: xs => mkAppM ``Matrix.vecCons #[x, ← vecOf xs]
+
+/-- Match a fixed scalar certificate against the call, exposing its finite input vector.
+The certificate itself must not depend on the runtime environment: only its inputs may do so. -/
+private def matchGlue (B d e proof : Expr) : MetaM (Option (Expr × Array Expr)) := do
+  let (params, _, ty) ← forallMetaTelescope (← inferType proof)
+  unless ty.isAppOfArity ``GlueComputable 5 do return none
+  unless ← withReducible (isDefEq (ty.getArg! 1) B) do return none
+  let some k ← (evalNat (← instantiateMVars (ty.getArg! 0))).run | return none
+  if k == 0 then return none
+  let args ← (Array.range k).mapM fun _ => mkFreshExprMVar (mkConst ``Nat)
+  let called ← reduceFinVecApps ((ty.getArg! 2).beta #[← vecOf args.toList])
+  unless called.getAppFn == e.getAppFn do return none
+  unless ← withReducible (isDefEq called e) do return none
+  let proof ← instantiateMVars (mkAppN proof params)
+  let args ← args.mapM instantiateMVars
+  if proof.hasMVar || proof.containsFVar d.fvarId! || args.any (fun a => a.hasMVar || a == e) then
+    return none
+  return some (proof, args)
+
+/-- Local scalar facts have priority over the registered rules for the function's head. -/
+private def findGlue (B d e : Expr) : MetaM (Option (Expr × Array Expr)) := do
+  let mut candidates := #[]
+  for decl in ← getLCtx do
+    if !decl.isImplementationDetail &&
+        (← instantiateMVars decl.type).getForallBody.isAppOfArity ``GlueComputable 5 then
+      candidates := candidates.push decl.toExpr
+  if let some name := e.getAppFn.constName? then
+    for thm in ← Mathlib.Meta.FunProp.getTheoremsForFunction name ``GlueComputable do
+      candidates := candidates.push (← thm.getProof)
+  for proof in candidates do
+    let saved ← saveState
+    try
+      if let some result ← matchGlue B d e proof then return some result
+    catch ex => if ex.isInterrupt then throw ex
+    saved.restore
+  return none
 
 /-- Recognize a binary operation on natural numbers. -/
 private def binOp? (e : Expr) : Option (GOp × Expr × Expr) :=
@@ -332,14 +382,18 @@ private def binOp? (e : Expr) : Option (GOp × Expr × Expr) :=
     else none
 
 /-- Parse a word-valued expression over the live words. -/
-private partial def analyze (atoms : Array Expr) (d : Expr) (e : Expr) : MetaM GNode := do
+private partial def analyze (B : Expr) (atoms : Array Expr) (d e : Expr) : MetaM GNode := do
   if let some i ← findAtom atoms e then return .reg i e
   if !e.containsFVar d.fvarId! then
     return .const e (← withNewMCtxDepth (isDefEq e (mkNatLit 0)))
+  if let some (proof, args) ← findGlue B d e then
+    let ty ← inferType proof
+    return .call e ((ty.getArg! 4).beta #[← vecOf args.toList]) proof
+      (← args.mapM (analyze B atoms d))
   if let some (op, a, b) := binOp? e then
-    return .bin op e (← analyze atoms d a) (← analyze atoms d b)
+    return .bin op e (← analyze B atoms d a) (← analyze B atoms d b)
   let e' ← whnfR e
-  if e' != e then return ← analyze atoms d e'
+  if e' != e then return ← analyze B atoms d e'
   throwError "realize: cannot compute{indentExpr e}\nfrom the live words{indentD
     (MessageData.joinSep (atoms.toList.map fun a => m!"{a}") ", ")}"
 
@@ -351,10 +405,12 @@ private inductive ANode
   | const (idx : Nat) (val : Expr) (zero : Bool)
   /-- A binary operation; `dom` numbers its definedness condition, if any. -/
   | bin (idx : Nat) (val : Expr) (op : GOp) (dom : Option Nat) (a b : ANode)
+  /-- A scalar call: `idx` records the envelope, not merely the returned value. -/
+  | call (idx : Nat) (val : Expr) (dom : Nat) (proof : Expr) (selfBound : Bool) (args : Array ANode)
 
 /-- The value over the word vector. -/
 private def ANode.val : ANode → Expr
-  | .reg _ v _ | .const _ v _ | .bin _ v .. => v
+  | .reg _ v _ | .const _ v _ | .bin _ v .. | .call _ v .. => v
 
 /-- The values of all nodes in depth-first order and the definedness conditions, over the word
 vector and in the client's terms. -/
@@ -399,6 +455,21 @@ private partial def annotate (exact : Bool) (k : Nat) (v : Expr) : GNode → Sta
         pure (some n)
       | none => pure none
     return .bin idx val op dom a' b'
+  | .call _ _ proof args => do
+    let idx := (← get).vals.size
+    modify fun st => { st with vals := st.vals.push default }
+    let args' ← args.mapM (annotate exact k v)
+    let ty ← inferType proof
+    let vs ← vecOf (args'.toList.map (·.val))
+    let us ← vecOf (args.toList.map (·.user))
+    let val := (ty.getArg! 2).beta #[vs]
+    let envelope := (ty.getArg! 4).beta #[vs]
+    let dom := (← get).domV.size
+    modify fun st => { st with
+      vals := st.vals.set! idx envelope
+      domV := st.domV.push ((ty.getArg! 3).beta #[vs])
+      domU := st.domU.push ((ty.getArg! 3).beta #[us]) }
+    return .call idx val dom proof (← withReducible (isDefEq val envelope)) args'
 
 /-- The node's value in the client's terms, by depth-first number. -/
 private partial def userVals (g : GNode) (acc : Array Expr := #[]) : Array Expr :=
@@ -406,6 +477,7 @@ private partial def userVals (g : GNode) (acc : Array Expr := #[]) : Array Expr 
   | .reg _ u => acc.push u
   | .const c _ => acc.push c
   | .bin _ u a b => userVals b (userVals a (acc.push u))
+  | .call _ envelope _ args => args.foldl (fun acc a => userVals a acc) (acc.push envelope)
 
 /-- The nodes whose fit is a visible condition: `covered` says that a dominating value fits. -/
 private partial def needNodes (exact : Bool) (n : ANode) (covered : Bool)
@@ -413,6 +485,9 @@ private partial def needNodes (exact : Bool) (n : ANode) (covered : Bool)
   match n with
   | .reg .. => acc
   | .const idx _ zero => if zero || covered then acc else acc.push idx
+  | .call idx _ _ _ selfBound args =>
+    args.foldl (fun acc a => needNodes exact a false acc)
+      (if covered && selfBound then acc else acc.push idx)
   | .bin idx _ op _ a b =>
     let acc := if op.belowLeft || covered then acc else acc.push idx
     match op with
@@ -442,6 +517,15 @@ private partial def fitProofs (exact : Bool) (k : Nat) (w hregs hdom hneed : Exp
     else match self? with
       | some p => record idx p
       | none => record idx (← fitNeed idx)
+  | .call idx _ dom proof selfBound args =>
+    for a in args do
+      discard <| fitProofs exact k w hregs hdom hneed ndom needIdx a none
+    let envelope ← record idx (← match selfBound, self? with
+      | true, some p => pure p
+      | _, _ => fitNeed idx)
+    let bound ← mkAppM ``And.left #[← mkAppM ``Exists.choose_spec #[proof]]
+    return ← fitLe envelope (mkAppN bound #[← vecOf (args.toList.map (·.val)),
+      ← conjunct hdom ndom dom])
   | .bin idx _ op dom a b =>
     if op.belowLeft then
       let pa ← fitProofs exact k w hregs hdom hneed ndom needIdx a none
@@ -502,26 +586,6 @@ private partial def fitChain (fits : Array Expr) (i : Nat := 0) : MetaM Expr := 
   if i + 1 ≥ fits.size then return fits[i]!
   mkAppM ``max_lt #[fits[i]!, ← fitChain fits (i + 1)]
 
-/-- The `GlueComputable` certificate of a node, one closure rule per form. -/
-private partial def glueProof (exact : Bool) (B kE P bound : Expr) (k : Nat)
-    (hb : Nat → MetaM Expr) (hd : Nat → MetaM Expr) : ANode → MetaM Expr
-  | .reg idx _ i => do
-    mkAppOptM ``GlueComputable.proj #[B, kE, P, bound, ← finLit k i, ← hb idx]
-  | .const idx c _ => do
-    mkAppOptM ``GlueComputable.const #[B, kE, P, bound, c, ← hb idx]
-  | .bin idx _ op dom a b => do
-    let ga ← glueProof exact B kE P bound k hb hd a
-    let gb ← glueProof exact B kE P bound k hb hd b
-    match dom with
-    | some di => mkAppM (op.rule exact) #[ga, gb, ← hd di, ← hb idx]
-    | none => mkAppM (op.rule exact) #[ga, gb, ← hb idx]
-
-/-- `![x₀, …, xₙ]`. -/
-private def vecOf (xs : List Expr) : MetaM Expr := do
-  match xs with
-  | [] => mkAppOptM ``Matrix.vecEmpty #[mkConst ``Nat]
-  | x :: xs => mkAppM ``Matrix.vecCons #[x, ← vecOf xs]
-
 /-- `∀ i, GlueComputable B (fun v => ![f₀ v, …] i) P bound` from the coordinate certificates. -/
 private partial def vecCoords (B kE P bound v : Expr) (vals proofs : Array Expr) (j : Nat) :
     MetaM Expr := do
@@ -535,6 +599,24 @@ private partial def vecCoords (B kE P bound v : Expr) (vals proofs : Array Expr)
     let tail ← vecCoords B kE P bound v vals proofs (j + 1)
     mkLambdaFVars #[i] (← mkAppOptM ``GlueComputable.vec_cons
       #[B, kE, P, bound, f, mkNatLit (l - j - 1), g, proofs[j]!, tail, i])
+
+/-- The `GlueComputable` certificate of a node, one closure rule per form. -/
+private partial def glueProof (exact : Bool) (B kE P bound v : Expr) (k : Nat)
+    (hb : Nat → MetaM Expr) (hd : Nat → MetaM Expr) : ANode → MetaM Expr
+  | .reg idx _ i => do
+    mkAppOptM ``GlueComputable.proj #[B, kE, P, bound, ← finLit k i, ← hb idx]
+  | .const idx c _ => do
+    mkAppOptM ``GlueComputable.const #[B, kE, P, bound, c, ← hb idx]
+  | .bin idx _ op dom a b => do
+    let ga ← glueProof exact B kE P bound v k hb hd a
+    let gb ← glueProof exact B kE P bound v k hb hd b
+    match dom with
+    | some di => mkAppM (op.rule exact) #[ga, gb, ← hd di, ← hb idx]
+    | none => mkAppM (op.rule exact) #[ga, gb, ← hb idx]
+  | .call idx _ dom proof _ args => do
+    let proofs ← args.mapM (glueProof exact B kE P bound v k hb hd)
+    let coords ← vecCoords B kE P bound v (args.map (·.val)) proofs 0
+    mkAppM ``GlueComputable.comp_many #[proof, coords, ← hd dom, ← hb idx]
 
 /-- Replace the maximal non-constructor subterms of `e` by local variables, then continue with
 the skeleton and the pairs (variable, replaced subterm). -/
@@ -700,7 +782,7 @@ private def realizePure (ctx : Ctx) (env : Env) (d : Expr) (atoms : Array Expr) 
     TermElabM Out := do
   let l ← encodingWidth out
   let coordsU ← coordinates out a l
-  let gnodes ← coordsU.mapM fun c => liftMetaM (analyze atoms d c)
+  let gnodes ← coordsU.mapM fun c => liftMetaM (analyze ctx.basis atoms d c)
   unless ctx.exact || ctx.standard || gnodes.all (fun g => !(g matches .bin ..)) do
     throwError "realize: word arithmetic is certified in the exact and standard bases; the \
       goal's basis is{indentExpr ctx.basis}"
@@ -722,7 +804,7 @@ private def realizePure (ctx : Ctx) (env : Env) (d : Expr) (atoms : Array Expr) 
       mkLambdaFVars #[v, hv] (← memProof maxFn st.vals idx)
     let hd (di : Nat) : MetaM Expr := withLocalDeclD `hv domTy fun hv => do
       mkLambdaFVars #[v, hv] (← conjunct hv st.domV.size di)
-    let proofs ← anodes.mapM fun n => liftMetaM (glueProof ctx.exact B kE P bound k hb hd n)
+    let proofs ← anodes.mapM fun n => liftMetaM (glueProof ctx.exact B kE P bound v k hb hd n)
     let vals := anodes.map (·.val)
     let gfun ← withLocalDeclD `i finL fun i => do
       mkLambdaFVars #[i, v] (mkApp (← vecOf vals.toList) i)
@@ -918,8 +1000,8 @@ private def isClientForm (e : Expr) : Bool :=
   e.isAppOfArity ``boundedWhile 8 || e.isAppOfArity ``iterate 6
 
 /-- Reduce a layout/projection scalar address to word arithmetic by pure definitional steps,
-stopping as soon as a live word, numeral or word-arithmetic operator is reached. -/
-private def normScalar (atoms : Array Expr) (e : Expr) : MetaM Expr := do
+stopping at a live word, numeral, word-arithmetic operator or certified scalar call. -/
+private def normScalar (B d : Expr) (atoms : Array Expr) (e : Expr) : MetaM Expr := do
   let isStop (x : Expr) : Bool :=
     if x.isFVar || x.isLit || x.isBVar || x.isMVar then true
     else if let some c := x.getAppFn.constName? then
@@ -934,6 +1016,7 @@ private def normScalar (atoms : Array Expr) (e : Expr) : MetaM Expr := do
   for _ in [0:32] do
     if isStop cur then break
     if (← findAtom atoms cur).isSome then break
+    if (← findGlue B d cur).isSome then break
     let head := cur.getAppFn
     let args := cur.getAppArgs
     if let .proj s idx sv := head then
@@ -966,7 +1049,7 @@ private def normScalar (atoms : Array Expr) (e : Expr) : MetaM Expr := do
 
 /-- Normalize an interpreted lower-interface operation `interp op` to a client form or primitive
 memory query with reduced scalar operands while preserving definitional (`rfl`) equality. -/
-private def normInterpOp (atoms : Array Expr) (e : Expr) : MetaM Expr := do
+private def normInterpOp (B d : Expr) (atoms : Array Expr) (e : Expr) : MetaM Expr := do
   let isStop (x : Expr) : Bool :=
     isClientForm x ||
     x.isAppOfArity ``Memory.read 1 || x.isAppOfArity ``Memory.write 2 ||
@@ -984,21 +1067,21 @@ private def normInterpOp (atoms : Array Expr) (e : Expr) : MetaM Expr := do
       continue
     break
   if cur.isAppOfArity ``Memory.read 1 then
-    return mkApp cur.getAppFn (← normScalar atoms cur.appArg!)
+    return mkApp cur.getAppFn (← normScalar B d atoms cur.appArg!)
   if cur.isAppOfArity ``Memory.write 2 then
-    return mkApp2 cur.getAppFn (← normScalar atoms (cur.getArg! 0))
-      (← normScalar atoms (cur.getArg! 1))
+    return mkApp2 cur.getAppFn (← normScalar B d atoms (cur.getArg! 0))
+      (← normScalar B d atoms (cur.getArg! 1))
   if cur.isAppOfArity ``Memory.alloc 1 || cur.isAppOfArity ``Memory.allocDirty 1 then
-    return mkApp cur.getAppFn (← normScalar atoms cur.appArg!)
+    return mkApp cur.getAppFn (← normScalar B d atoms cur.appArg!)
   if cur.isAppOfArity ``PFunctor.FreeM.lift 2 then
     let op ← whnfR cur.appArg!
     if op.isAppOfArity ``Memory.Op.read 1 then
       return mkApp2 cur.getAppFn (cur.getArg! 0)
-        (mkApp op.getAppFn (← normScalar atoms op.appArg!))
+        (mkApp op.getAppFn (← normScalar B d atoms op.appArg!))
     if op.isAppOfArity ``Memory.Op.write 2 then
       return mkApp2 cur.getAppFn (cur.getArg! 0)
-        (mkApp2 op.getAppFn (← normScalar atoms (op.getArg! 0))
-          (← normScalar atoms (op.getArg! 1)))
+        (mkApp2 op.getAppFn (← normScalar B d atoms (op.getArg! 0))
+          (← normScalar B d atoms (op.getArg! 1)))
   return cur
 
 /-- An optional answer that a `match` in the client inspects: a discriminant of an `Option` type
@@ -1520,13 +1603,13 @@ private partial def realizeLiftM (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arr
     if srcR.isAppOfArity ``PFunctor.FreeM.lift 2 then
       let op := srcR.appArg!
       let eqStep ← mkAppOptM ``PFunctor.FreeM.liftM_lift #[P, m, none, none, interp, op]
-      let rhs ← normInterpOp atoms (mkApp interp op)
+      let rhs ← normInterpOp ctx.basis d atoms (mkApp interp op)
       return ← congrFrom rhs eqStep
     -- `FreeM.liftBind op cont`
     if srcR.isAppOfArity ``PFunctor.FreeM.liftBind 4 then
       let op := srcR.getArg! 2
       let cont := srcR.getArg! 3
-      let first ← normInterpOp atoms (mkApp interp op)
+      let first ← normInterpOp ctx.basis d atoms (mkApp interp op)
       let domTy := (← whnf (← inferType cont)).bindingDomain!
       let contLift ← withLocalDeclD `u domTy fun u =>
         mkLambdaFVars #[u] (mkLift α (mkApp cont u).headBeta)
@@ -1571,14 +1654,14 @@ private partial def realizeLiftM (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arr
         continue
       if xR.isAppOfArity ``PFunctor.FreeM.lift 2 then
         let op := xR.appArg!
-        let first ← normInterpOp atoms (mkApp interp op)
+        let first ← normInterpOp ctx.basis d atoms (mkApp interp op)
         let contLift ← withLocalDeclD `u β fun u =>
           mkLambdaFVars #[u] (mkLift α (mkApp k u).headBeta)
         return ← realizeBind ctx env d first contLift output?
       if xR.isAppOfArity ``PFunctor.FreeM.liftBind 4 then
         let op := xR.getArg! 2
         let cont := xR.getArg! 3
-        let first ← normInterpOp atoms (mkApp interp op)
+        let first ← normInterpOp ctx.basis d atoms (mkApp interp op)
         let domTy := (← whnf (← inferType cont)).bindingDomain!
         let contLift ← withLocalDeclD `u domTy fun u => do
           let bound ← mkAppOptM ``PFunctor.FreeM.bind #[P, β, α, (mkApp cont u).headBeta, k]
@@ -2220,7 +2303,7 @@ scoped elab "realize" : tactic => withMainContext do
     | none => kept := kept.push g
   setGoals (kept.toList ++ workGoals)
 
-/-- Supply method certificates as local facts before running `realize`. -/
+/-- Supply method or scalar-glue certificates as local facts before running `realize`. -/
 scoped macro "realize" "[" certificates:term,* "]" : tactic => do
   let mut script ← `(tactic| realize)
   for certificate in certificates.getElems.reverse do

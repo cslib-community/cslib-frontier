@@ -9,14 +9,16 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Realization.BoundedTactic
 public import CslibFrontierTests.WordRAMRealizeGraded
+public import CslibFrontierTests.WordRAMGlueNamed
 
 /-!
-# Supplying method certificates to `realize`
+# Supplying certificates to `realize`
 
 Opaque methods force use of the supplied proof applications: the hypotheses producing them
 are functions, rather than certificates already visible to local lookup. The examples retain
 genuine domains and computed-argument fit conditions, and pin ordinary local-certificate
-priority, list order and boundedness without registering a global certificate search.
+priority, list order and boundedness. Scalar certificates additionally reuse the `fun_prop`
+registry, without unfolding their functions or forgetting their domains and value envelopes.
 -/
 
 public section
@@ -27,6 +29,65 @@ open Cslib.DataStructure Cslib.WordRAM Cslib.WordRAM.Realization
 
 private abbrev word : ℕ ↪ (Fin 1 → ℕ) := WordEncoding.encode
 private abbrev pairWords : ℕ × ℕ ↪ (Fin 2 → ℕ) := WordEncoding.encode
+
+/-- Its exposed arithmetic has a larger intermediate than its certified implementation. -/
+private def cancelAddress (n : ℕ) : ℕ := (100 + n) - (100 + n)
+
+private theorem cancelAddress_glue : GlueComputable .exact
+    (fun v : Fin 1 → ℕ => cancelAddress (v 0)) (fun _ => True) (fun _ => 0) := by
+  simp only [cancelAddress, Nat.sub_self]
+  exact GlueComputable.const 0 (fun _ _ => le_rfl)
+
+-- Interpreting a query preserves the named scalar certificate before normalizing its address.
+-- Unfolding the helper instead would unnecessarily demand that `100 + n` fit.
+example : Realizes .exact (fun n : ℕ =>
+    PFunctor.FreeM.liftM (P := ⟨ℕ, fun _ => ℕ⟩)
+      (fun a => Memory.read (cancelAddress a)) (PFunctor.FreeM.lift n))
+    word word (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize [cancelAddress_glue] <;> exact fits_zero _
+
+-- An imported scalar body is unavailable until its certificate is supplied. Its two arguments
+-- are computed from the same live word, then used as a genuine memory address.
+example : Realizes .exact
+    (fun n : ℕ => Memory.read (WordRAMGlueNamed.weighted ![n + 1, n + n])) word word
+    (fun w n _ => 5 * n + 1 ≤ 100 ∧ Fits w 100) (fun _ _ => 0) := by
+  fail_if_success realize
+  realize [WordRAMGlueNamed.weighted_glue] <;> dsimp [Fits] at * <;> omega
+
+-- Neither the opaque helper's domain nor its internal envelope follows from result fitting.
+example : True := by
+  fail_if_success
+    have _ : Realizes .exact (fun n : ℕ => pure (WordRAMGlueNamed.twice n)) word word
+        (fun w _ _ => Fits w 100) (fun _ _ => 0) := by
+      realize [WordRAMGlueNamed.twice_glue] <;> omega
+  fail_if_success
+    have _ : Realizes .exact (fun n : ℕ => pure (WordRAMGlueNamed.twice n)) word word
+        (fun w n _ => 2 * n ≤ 100 ∧ Fits w (WordRAMGlueNamed.twice n)) (fun _ _ => 0) := by
+      realize [WordRAMGlueNamed.twice_glue] <;> dsimp [Fits] at * <;> omega
+  trivial
+
+-- A pointwise family of constant emitters must not turn a runtime argument into a fixed
+-- program parameter. There is no uniform certificate for the arbitrary function `f`.
+example (f : ℕ → ℕ)
+    (_hc : ∀ c, GlueComputable .exact (fun v : Fin 1 → ℕ => f c + v 0)
+      (fun _ => True) (fun v => f c + v 0)) : True := by
+  fail_if_success
+    have _ : Realizes .exact (fun d : ℕ × ℕ => pure (f d.1 + d.2)) pairWords word
+        (fun w d _ => Fits w (f d.1 + d.2)) (fun _ _ => 0) := by
+      realize <;> exact h
+  trivial
+
+section
+
+attribute [local fun_prop] WordRAMGlueNamed.twice_glue
+
+-- Registered scalar facts are found with no list or local copy, including under arithmetic.
+example : Realizes .exact (fun n : ℕ => pure (WordRAMGlueNamed.twice (n + 1) + n)) word word
+    (fun w n _ => 2 * (n + 1) ≤ 100 ∧ Fits w 100 ∧
+      Fits w (WordRAMGlueNamed.twice (n + 1) + n)) (fun _ _ => 0) := by
+  realize <;> dsimp [Fits] at * <;> omega
+
+end
 
 /-- An empty certificate list retains the ordinary realization rules. -/
 theorem read_with_empty_certificates : Realizes .exact (fun n : ℕ => Memory.read n)
