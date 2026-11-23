@@ -26,7 +26,6 @@ on, in post-order.
 
 ## Main definitions
 
-* `Cslib.Logic.PL.Clause.toDIMACS`: a clause as DIMACS integers.
 * `Cslib.Logic.PL.CNF.Derivation.lratSteps`, `Cslib.Logic.PL.CNF.Derivation.toLRAT`: the
   certificate of a tree-like derivation.
 
@@ -43,29 +42,6 @@ on, in post-order.
 namespace Cslib.Logic.PL
 
 open Std.Tactic.BVDecide (LRAT.IntAction)
-
-/-- The DIMACS integer of a literal: `v + 1` for the variable `v`, `-(v + 1)` for its negation. -/
-def Literal.toDIMACS (l : Literal ℕ) : Int :=
-  if l.2 then (l.1 : Int) + 1 else -((l.1 : Int) + 1)
-
-/-- A clause as DIMACS integers. -/
-def Clause.toDIMACS (c : Clause ℕ) : Array Int :=
-  (c.map Literal.toDIMACS).toArray
-
-@[simp] theorem Literal.ofDIMACS_toDIMACS (l : Literal ℕ) :
-    Literal.ofDIMACS l.toDIMACS = some l := by
-  obtain ⟨v, b⟩ := l
-  cases b
-  · rw [show Literal.toDIMACS (v, false) = Int.negSucc v by
-      simp only [Literal.toDIMACS, Int.negSucc_eq]; rfl]
-    simp [Literal.ofDIMACS, Int.negSucc_lt_zero, Int.natAbs_negSucc]
-  · rw [show Literal.toDIMACS (v, true) = ((v + 1 : ℕ) : Int) by simp [Literal.toDIMACS]]
-    simp only [Literal.ofDIMACS, Int.natAbs_natCast, Nat.add_sub_cancel]
-    simp
-
-@[simp] theorem Clause.ofDIMACS_toDIMACS (c : Clause ℕ) :
-    Clause.ofDIMACS c.toDIMACS.toList = c := by
-  simp [Clause.ofDIMACS, Clause.toDIMACS, List.filterMap_map]
 
 namespace CNF
 

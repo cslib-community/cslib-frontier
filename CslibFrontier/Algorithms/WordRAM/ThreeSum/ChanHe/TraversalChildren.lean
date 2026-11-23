@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalProgram
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Native preparation of the three Chan–He child records
@@ -68,18 +69,20 @@ theorem length_childWords (x : Data 128) (j : Fin 3) : (childWords x j).length =
 theorem prepareThird_exec {w : ℕ} (x : Data 128) (hx : x.Bounded w) (hone : x.regs one = 1) :
     Exec w prepareThird x (thirdState x) 7 := by
   have hfit : Fits w (x.regs (slot 0) - 1) := (hx.1 (slot 0)).of_le (Nat.sub_le _ _)
-  dsimp only [slot, one] at hfit hone
-  ram_eval [prepareThird, thirdState, slot, one, original, heavyBase, heavyLength, hone, hfit]
+  unfold prepareThird thirdState
+  wram_exec [hone]
 
 /-- Restoring the third column and replacing the second costs four native copies. -/
 theorem prepareSecond_exec {w : ℕ} (x : Data 128) :
     Exec w prepareSecond x (secondState x) 4 := by
-  ram_eval [prepareSecond, secondState, slot, original, heavyBase, heavyLength]
+  unfold prepareSecond secondState
+  wram_exec
 
 /-- Restoring the second column and replacing the first costs four native copies. -/
 theorem prepareFirst_exec {w : ℕ} (x : Data 128) :
     Exec w prepareFirst x (firstState x) 4 := by
-  ram_eval [prepareFirst, firstState, slot, original, heavyBase, heavyLength]
+  unfold prepareFirst firstState
+  wram_exec
 
 private theorem thirdState_comap (x : Data 128) :
     (thirdState x).comap registers = x.comap registers := by

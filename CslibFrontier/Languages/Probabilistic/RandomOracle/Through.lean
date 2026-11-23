@@ -13,8 +13,8 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 import CslibFrontier.Foundations.Data.List.SortedAssoc
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
 
 /-!
@@ -42,7 +42,7 @@ namespace Cslib.RandomOracle
 
 open Probability OracleComp
 
-variable {M Y Z α : Type} [DecidableEq M] [DecidableEq Y]
+variable {M Y Z α : Type} [BEq M] [LawfulBEq M] [DecidableEq Y]
 
 /-- Lazy sampling of a function on `Y` that is called at `φ m`, with the cache kept by query. In
 the cache-hit branch, `(m, z)` is still recorded when `m` is not yet cached so that `cache`
@@ -83,6 +83,7 @@ private theorem hasImageCollision_cons_of_lookup (φ : M → Y) {cache : List (M
     (congrArg Prod.fst heq).symm⟩
   exact bne_iff_ne.mp (List.lookup_eq_none_iff.mp hm e he) hm_eq
 
+omit [LawfulBEq M] in
 private theorem memoizeThrough_map_ofList (φ : M → Y) (dist : PMF Z) (m : M)
     (cache : List (M × Z)) :
     (memoizeThrough φ dist m cache).map
@@ -158,6 +159,7 @@ private theorem identicalUntilBad_memoizeThrough (φ : M → Y) (dist : PMF Z) :
     · exact h ▸ hp
     · exact h ▸ List.mem_cons_of_mem _ hp
 
+omit [LawfulBEq M] in
 /-- The result of a program run against `memoizeThrough φ dist` is its result when each query `m`
 is replaced by the query `φ m` to a lazily sampled function on `Y`. -/
 private theorem runWith_memoizeThrough_map_fst (φ : M → Y) (dist : PMF Z)
@@ -166,18 +168,12 @@ private theorem runWith_memoizeThrough_map_fst (φ : M → Y) (dist : PMF Z)
       (ProbOracleComp.runWith (answer fun _ : Y => dist)
         (ProbOracleComp.simulate (fun m => ProbOracleComp.query (φ m)) program)
         (fun _ => none)).map Prod.fst := by
-  have h := ProbOracleComp.runWith_map_state (memoizeThrough φ dist)
-    (fun m => answer (fun _ : Y => dist) (φ m))
-    (fun cache => ofList (cache.map (Prod.map φ id)))
-    (fun m cache => memoizeThrough_map_ofList φ dist m cache) program []
-  have h' := congrArg (PMF.map Prod.fst) h
-  simp only [PMF.map_comp, Function.comp_def, List.map_nil, ofList_nil] at h'
-  have hq : (fun m => ProbOracleComp.runWith (answer fun _ : Y => dist)
-      (ProbOracleComp.query (spec := fun _ : Y => Z) (φ m))) =
-      fun m => answer (fun _ : Y => dist) (φ m) :=
-    funext fun m => funext fun s => ProbOracleComp.runWith_query _ _ _
-  rw [ProbOracleComp.runWith_simulate, hq]
-  exact h'
+  have h := congrArg (PMF.map Prod.fst) <|
+    ProbOracleComp.runWith_map_state (memoizeThrough φ dist)
+      (fun m => answer (fun _ : Y => dist) (φ m))
+      (fun cache => ofList (cache.map (Prod.map φ id)))
+      (fun m cache => memoizeThrough_map_ofList φ dist m cache) program []
+  simpa only [runWith_norm, pmf_norm, List.map_nil, ofList_nil] using h
 
 /-- **A lazily sampled function called through `φ`.** Replacing each query `m` of `program` by the
 query `φ m` to a lazily sampled function on `Y` changes the law of the result by at most the

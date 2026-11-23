@@ -69,7 +69,6 @@ noncomputable def rawQueryLoop
       st.rawQueryLoop scheme (ℓ + 1) (by omega) hlt (st.seeds.stepCoordEquiv h1 hlt c)
     else none
 termination_by P.depth - ℓ
-decreasing_by all_goals omega
 
 /-- Look up an internal key `x : Fin P.paddedUniv` along its root-to-leaf coordinate path. -/
 noncomputable def rawQuery
@@ -475,7 +474,6 @@ noncomputable def rawOverwriteLoop
         (st.seeds.stepCoordEquiv h1 hlt c)
     else st
 termination_by P.depth - ℓ
-decreasing_by all_goals omega
 
 /-- Overwrite an active padded key `x ∈ P.paddedDom d` with `v_new : Fin P.valBound`. -/
 noncomputable def rawOverwrite

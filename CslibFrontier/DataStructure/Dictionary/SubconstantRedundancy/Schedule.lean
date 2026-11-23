@@ -278,50 +278,30 @@ theorem two_pow_logStar_le_redundancyRatio {n R : ℕ} (hn : 2 ^ Nat.logStar n �
     exact hn
 
 private theorem le_treeDepthAux (U r cur fuel : ℕ) : cur ≤ treeDepthAux U r cur fuel := by
-  induction fuel generalizing cur with
-  | zero => exact le_rfl
-  | succ fuel ih =>
-    dsimp only [treeDepthAux]
-    split_ifs
-    · exact le_rfl
-    · exact (Nat.le_succ cur).trans (ih (cur + 1))
+  fun_induction treeDepthAux U r cur fuel <;> omega
 
 private theorem treeDepthAux_le (U r cur fuel : ℕ) :
     treeDepthAux U r cur fuel ≤ cur + fuel := by
-  induction fuel generalizing cur with
-  | zero => simp [treeDepthAux]
-  | succ fuel ih =>
-    dsimp only [treeDepthAux]
-    split_ifs
-    · omega
-    · have := ih (cur + 1)
-      omega
+  fun_induction treeDepthAux U r cur fuel <;> omega
 
 private theorem iterLog_treeDepthAux_le {U r cur fuel : ℕ}
     (hend : Nat.iterLog (cur + fuel) U ≤ max (4 * r) 1) :
     Nat.iterLog (treeDepthAux U r cur fuel) U ≤ max (4 * r) 1 := by
-  induction fuel generalizing cur with
-  | zero => simpa [treeDepthAux] using hend
-  | succ fuel ih =>
-    dsimp only [treeDepthAux]
-    split_ifs with h
-    · exact h.trans (le_max_left _ _)
-    · exact ih (by rwa [Nat.add_right_comm, Nat.add_assoc])
+  fun_induction treeDepthAux U r cur fuel with
+  | case1 => simpa only [Nat.add_zero] using hend -- fuel exhausted
+  | case2 _ _ hle => exact hle.trans (le_max_left _ _) -- iterLog cur U ≤ 4 * r: stop at cur
+  -- iterLog cur U > 4 * r: try cur + 1
+  | case3 _ _ _ ih => exact ih (by rwa [Nat.add_right_comm, Nat.add_assoc])
 
 private theorem lt_iterLog_of_lt_treeDepthAux {U r cur fuel ℓ : ℕ}
     (hlo : cur ≤ ℓ) (hlt : ℓ < treeDepthAux U r cur fuel) :
     4 * r < Nat.iterLog ℓ U := by
-  induction fuel generalizing cur with
-  | zero =>
-    dsimp only [treeDepthAux] at hlt
-    omega
-  | succ fuel ih =>
-    dsimp only [treeDepthAux] at hlt
-    split_ifs at hlt with h
-    · omega
-    · rcases eq_or_lt_of_le hlo with rfl | hgt
-      · exact not_le.mp h
-      · exact ih (Nat.succ_le_of_lt hgt) hlt
+  fun_induction treeDepthAux U r cur fuel with
+  | case3 cur _ hgt' ih => -- iterLog cur U > 4 * r: try cur + 1
+    rcases eq_or_lt_of_le hlo with rfl | hgt
+    · exact not_le.mp hgt'
+    · exact ih (Nat.succ_le_of_lt hgt) hlt
+  | _ => omega -- fuel exhausted, or iterLog cur U ≤ 4 * r: stop at cur
 
 theorem two_le_treeDepth (U r : ℕ) : 2 ≤ treeDepth U r :=
   le_treeDepthAux U r 2 _
@@ -476,14 +456,9 @@ def paddedUniv : ℕ :=
   P.branchFactor 0 * 2 ^ P.idBits 1 * P.quotOne
 
 theorem quotUniv_pos (ℓ : ℕ) : 1 ≤ P.quotUniv ℓ := by
-  induction ℓ with
-  | zero => exact P.quotOne_pos
-  | succ m ih =>
-    cases m with
-    | zero => exact P.quotOne_pos
-    | succ m' =>
-      dsimp only [quotUniv]
-      exact Nat.mul_pos ih (Nat.two_pow_pos _)
+  fun_induction quotUniv P ℓ with
+  | case3 _ ih => exact Nat.mul_pos ih (Nat.two_pow_pos _) -- ℓ + 2
+  | _ => exact P.quotOne_pos -- ℓ = 0 or ℓ = 1
 
 theorem quotUniv_succ_of_pos {ℓ : ℕ} (h1 : 1 ≤ ℓ) :
     P.quotUniv (ℓ + 1) = P.quotUniv ℓ * 2 ^ P.remBits ℓ := by

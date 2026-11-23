@@ -116,11 +116,6 @@ private def simCfg {width : ℕ} (hw : 0 < width) (cfg : Cfg k Bool State input)
     cfg.inputPos, cfg.workTapes, cfg.workTapePos,
     if cfg.state = none ∧ cfg.output = [true] then [true] else []⟩
 
-private theorem initial_table {width : ℕ} (hw : 0 < width)
-    (machine : MultiTapeCTM k Bool State) (input : List Bool) :
-    ((table hw machine).initialConfig input).tapes =
-      simCfg hw (Cfg.init machine.initial input) := rfl
-
 private theorem step_table {width : ℕ} (hw : 0 < width)
     (machine : MultiTapeCTM k Bool State) {cfg : Cfg k Bool (ScanState width State) input}
     {s : ScanState width State} (hs : cfg.state = some s) (bit : Bool) :

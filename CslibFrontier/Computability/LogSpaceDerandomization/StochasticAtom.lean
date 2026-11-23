@@ -61,8 +61,9 @@ formed.
 
 ## Main results
 
+* `Finset.expect_mul_div_clip_eq`, `Cslib.abs_mul_div_clip_le`: bias removal and magnitude bound
+  for dividing by a clipped gate normalizer.
 * `Matrix.denseAtom_nonneg`: nonnegativity from nonnegative cutoffs and gates.
-
 * `Matrix.expect_denseAtom`, `Matrix.expect_denseAtom_of_retentionChannels`: the dense atom
   identity.
 * `Matrix.abs_denseAtom_le`: the atom is bounded.
@@ -81,6 +82,51 @@ public section
 
 open Finset
 open scoped BigOperators
+
+namespace Finset
+
+variable {Ω : Type*}
+
+/-- **The normalization principle** [OpenAI2026LogSpace, Section 5.1]. Let a gate `γ` take values
+in `[0, 1]` on a nonempty finite set `S` of draws, and be below one on at most half of them. Then
+dividing by its clipped mean `c(q) = max (1/2) (min 1 q)` removes the gate's bias:
+`𝔼_S [m · γ / c(𝔼_S γ)] = m`. -/
+theorem expect_mul_div_clip_eq {S : Finset Ω} (hS : S.Nonempty) {γ : Ω → ℝ}
+    (hγ0 : ∀ s ∈ S, 0 ≤ γ s) (hγ1 : ∀ s ∈ S, γ s ≤ 1) (hfail : 2 * (#{s ∈ S | γ s < 1} : ℝ) ≤ #S)
+    (m : ℝ) : 𝔼 s ∈ S, m * γ s / max (1 / 2) (min 1 (𝔼 s ∈ S, γ s)) = m := by
+  have hSr : (0 : ℝ) < #S := by exact_mod_cast hS.card_pos
+  have hγ : ∀ s ∈ S, 1 - (if γ s < 1 then 1 else 0) ≤ γ s := fun s hs => by
+    split_ifs with h
+    · rw [sub_self]; exact hγ0 s hs
+    · simpa using not_lt.mp h
+  have hlo : 1 / 2 ≤ 𝔼 s ∈ S, γ s := by
+    rw [expect_eq_sum_div_card, le_div_iff₀ hSr]
+    calc 1 / 2 * (#S : ℝ) ≤ #S - #{s ∈ S | γ s < 1} := by linarith
+      _ = ∑ s ∈ S, (1 - (if γ s < 1 then 1 else 0)) := by
+          rw [sum_sub_distrib, sum_boole, sum_const, nsmul_eq_mul, mul_one]
+      _ ≤ ∑ s ∈ S, γ s := sum_le_sum hγ
+  have hhi : 𝔼 s ∈ S, γ s ≤ 1 := expect_le hS hγ1
+  have hpos : 0 < 𝔼 s ∈ S, γ s := lt_of_lt_of_le (by norm_num) hlo
+  rw [min_eq_right hhi, max_eq_right hlo]
+  simp only [mul_div_assoc]
+  rw [← mul_expect, ← expect_div, div_self hpos.ne', mul_one]
+
+end Finset
+
+namespace Cslib
+
+/-- Dividing a `[0, 1]`-gated value by a denominator clipped to at least `1/2` at most doubles
+its magnitude [OpenAI2026LogSpace, Section 5.1]. -/
+theorem abs_mul_div_clip_le {m γ : ℝ} (hγ0 : 0 ≤ γ) (hγ1 : γ ≤ 1) (q : ℝ) :
+    |m * γ / max (1 / 2) (min 1 q)| ≤ 2 * |m| := by
+  have hc : (1 / 2 : ℝ) ≤ max (1 / 2) (min 1 q) := le_max_left _ _
+  have hc0 : 0 < max (1 / 2) (min 1 q) := lt_of_lt_of_le (by norm_num) hc
+  rw [abs_div, abs_mul, abs_of_nonneg hγ0, abs_of_pos hc0, div_le_iff₀ hc0]
+  calc |m| * γ ≤ |m| * 1 := mul_le_mul_of_nonneg_left hγ1 (abs_nonneg _)
+    _ = 2 * |m| * (1 / 2) := by ring
+    _ ≤ 2 * |m| * max (1 / 2) (min 1 q) := mul_le_mul_of_nonneg_left hc (by positivity)
+
+end Cslib
 
 namespace Matrix
 
@@ -142,25 +188,13 @@ that the usage channel retains `y` [OpenAI2026LogSpace, (5.10)]. -/
 
 variable {Y Yt k h ρ K a G}
 
-omit [Fintype κ] in
-/-- The clipped denominator is at least `1/2`. -/
-private theorem half_le_clip (q : ℝ) : (1 / 2 : ℝ) ≤ max (1 / 2) (min 1 q) := le_max_left _ _
-
 /-- **The dense atom is bounded**: `|B(x, y)| ≤ 2 |k (G x y / a)|` on every draw, when
 `ρ ∈ [0, 1]` [OpenAI2026LogSpace, Lemma 5.1]. -/
 theorem abs_denseAtom_le (hρ0 : ∀ r, 0 ≤ ρ r) (hρ1 : ∀ r, ρ r ≤ 1) (s : κ) (x y : V) :
     |denseAtom Y Yt k h ρ K a G s x y| ≤ 2 * |k (G x y / a)| := by
   rw [denseAtom]
   split_ifs
-  · have hR0 : 0 ≤ rowGate ρ K a G {w | Y s w} x := hρ0 _
-    have hR1 : rowGate ρ K a G {w | Y s w} x ≤ 1 := hρ1 _
-    have hc := half_le_clip (atomNormalizer Y Yt h ρ K a G x y)
-    have hc0 : 0 < max (1 / 2) (min 1 (atomNormalizer Y Yt h ρ K a G x y)) :=
-      lt_of_lt_of_le (by norm_num) hc
-    rw [abs_div, abs_mul, abs_of_nonneg hR0, abs_of_pos hc0, div_le_iff₀ hc0]
-    calc |k (G x y / a)| * rowGate ρ K a G {w | Y s w} x ≤ |k (G x y / a)| * 1 := by gcongr
-      _ = 2 * |k (G x y / a)| * (1 / 2) := by ring
-      _ ≤ _ := mul_le_mul_of_nonneg_left hc (by positivity)
+  · exact Cslib.abs_mul_div_clip_le (hρ0 _) (hρ1 _) _
   · simp
 
 /-- **Row support of the dense atom** [OpenAI2026LogSpace, Lemmas 5.1 and 5.5]: if `k` vanishes
@@ -197,47 +231,29 @@ theorem expect_denseAtom {x y : V} (hS : ({s | Yt s y} : Finset κ).Nonempty)
     rw [denseAtom, hk0]
     split_ifs <;> simp
   have hh1 : h (G x y / a) = 1 := hkh _ hk0
-  have hSr : (0 : ℝ) < #S := by exact_mod_cast hS.card_pos
-  have hKr : (0 : ℝ) < K := by
-    have : 0 ≤ c * M / η := by
-      have hM : 0 ≤ M := (sum_nonneg fun w _ => hG0 w).trans hGM
-      positivity
+  have hD : 0 < 1 + c * M / η := by
+    have hM : 0 ≤ M := (sum_nonneg fun w _ => hG0 w).trans hGM
+    have : 0 ≤ c * M / η := by positivity
     linarith
-  have hKpos : 0 < K := by exact_mod_cast hKr
+  have hKpos : 0 < K := by exact_mod_cast (show (0 : ℝ) < K by linarith)
   -- the gate fails on at most half of the conditioning draws
-  have hfail : (#{s ∈ S | R s < 1} : ℝ) * K ≤ #S * (1 + c * M / η) :=
-    card_filter_rowGate_lt_one_mul_le S x ha hη hρη hG0 hGM hKpos hc fun w hwy => by
-      have hset : ({s ∈ S | Y s w} : Finset κ) = ({s | Yt s y ∧ Y s w} : Finset κ) := by
-        ext s; simp only [S, mem_filter, mem_univ, true_and]
-      rw [hset]
-      exact hpair w hwy
-  have hhalf : (#{s ∈ S | R s < 1} : ℝ) ≤ #S / 2 := by
-    rw [le_div_iff₀ (by norm_num : (0 : ℝ) < 2)]
-    nlinarith
-  -- so the normalizer, the mean gate, lies in `[1/2, 1]`
+  have hfail : 2 * (#{s ∈ S | R s < 1} : ℝ) ≤ #S := by
+    have h : (#{s ∈ S | R s < 1} : ℝ) * K ≤ #S * (1 + c * M / η) :=
+      card_filter_rowGate_lt_one_mul_le S x ha hη hρη hG0 hGM hKpos hc fun w hwy => by
+        have hset : ({s ∈ S | Y s w} : Finset κ) = ({s | Yt s y ∧ Y s w} : Finset κ) := by
+          ext s; simp only [S, mem_filter, mem_univ, true_and]
+        rw [hset]
+        exact hpair w hwy
+    nlinarith [Nat.cast_nonneg (α := ℝ) #{s ∈ S | R s < 1}]
+  -- the normalizer is the mean gate, and the normalization principle applies
   have hq : atomNormalizer Y Yt h ρ K a G x y = 𝔼 s ∈ S, R s := by
     simp only [atomNormalizer, atomPrep, hh1, one_mul, S, R]
-  have hR1 : ∀ s, 1 - (if R s < 1 then 1 else 0) ≤ R s := fun s => by
-    split_ifs with h
-    · simp only [sub_self]; exact hρ0 _
-    · simpa using not_lt.mp h
-  have hq_lo : 1 / 2 ≤ 𝔼 s ∈ S, R s := by
-    rw [expect_eq_sum_div_card, le_div_iff₀ hSr]
-    calc 1 / 2 * (#S : ℝ) ≤ #S - #{s ∈ S | R s < 1} := by linarith
-      _ = ∑ s ∈ S, (1 - (if R s < 1 then 1 else 0)) := by
-          rw [sum_sub_distrib, sum_boole, sum_const, nsmul_eq_mul, mul_one]
-      _ ≤ ∑ s ∈ S, R s := sum_le_sum fun s _ => hR1 s
-  have hq_hi : 𝔼 s ∈ S, R s ≤ 1 := expect_le hS fun s _ => hρ1 _
-  have hclip : max (1 / 2) (min 1 (atomNormalizer Y Yt h ρ K a G x y)) = 𝔼 s ∈ S, R s := by
-    rw [hq, min_eq_right hq_hi, max_eq_right hq_lo]
-  have hpos : 0 < 𝔼 s ∈ S, R s := lt_of_lt_of_le (by norm_num) hq_lo
-  -- the atom is `k · R / q` on the conditioning draws
   have hterm : ∀ s ∈ S, denseAtom Y Yt k h ρ K a G s x y =
-      (k (G x y / a) / 𝔼 s ∈ S, R s) * R s := fun s hs => by
+      k (G x y / a) * R s / max (1 / 2) (min 1 (𝔼 s ∈ S, R s)) := fun s hs => by
     have hs' : Yt s y := by simpa [S] using hs
-    simp only [denseAtom, hs', ↓reduceIte, hclip, R]
-    ring
-  rw [expect_congr rfl hterm, ← mul_expect, div_mul_cancel₀ _ hpos.ne']
+    simp only [denseAtom, hs', ↓reduceIte, hq, R]
+  rw [expect_congr rfl hterm]
+  exact expect_mul_div_clip_eq hS (fun _ _ => hρ0 _) (fun _ _ => hρ1 _) hfail _
 
 /-- **The dense atom identity for retention channels** [OpenAI2026LogSpace, Lemma 5.1], when the
 usage channel is the rank channel `Y` at the atom's scale `f`, as for corrections and detector

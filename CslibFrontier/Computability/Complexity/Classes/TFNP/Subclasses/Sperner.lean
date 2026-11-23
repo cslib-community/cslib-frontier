@@ -273,6 +273,8 @@ theorem eq_endOfLineRel :
 
 /-! ### Polynomial-time door graph -/
 
+attribute [local irreducible] ComputableInPolyTime
+
 /-- Grid triangles encoded as triples, for the polynomial-time proofs below. (`enc_structure` would
 add public `ComputableInO` rules that these proofs do not use.) -/
 private def encTri : GridTriangle ↪ List Bool :=

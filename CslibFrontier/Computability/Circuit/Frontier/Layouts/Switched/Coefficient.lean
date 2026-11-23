@@ -143,8 +143,7 @@ theorem switchedCoefficient_lt_gaussianCoefficient :
     rwa [arccos_cos (by linarith) (by linarith)] at hlt
   unfold switchedCoefficient Gaussian.gaussianCoefficient
   have hpi : 0 < π := pi_pos
-  have h1 : 3 / (4 * π) * arccos (5 / 6) < 3 / (4 * π) * (2 * α) :=
-    mul_lt_mul_of_pos_left hangle (by positivity)
+  have h1 : 3 / (4 * π) * arccos (5 / 6) < 3 / (4 * π) * (2 * α) := by gcongr
   have h2 : 3 / (4 * π) * (2 * α) = 3 / (2 * π) * α := by ring
   linarith
 
