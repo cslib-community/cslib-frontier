@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Languages.Probabilistic.Semantics
+public import CslibFrontier.Languages.Probabilistic.Iteration
 import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
@@ -36,6 +36,8 @@ Unbounded or faulting branches naturally evaluate to `⊤`.
   `Cslib.ProbComp.expect_eq_top_of_mem_support`: support-localized congruence, monotonicity, and
   divergence propagation.
 * `Cslib.ProbComp.expect_unifFin`, `Cslib.ProbComp.expect_uniform`: uniform finite averages.
+* `Cslib.ProbComp.pow_mul_expect_iterate_le`: geometric contraction of `expect` across
+  `OracleComp.iterate`.
 
 ## References
 
@@ -132,5 +134,25 @@ theorem expect_uniform [Fintype α] [Nonempty α] (f : α → ℝ≥0∞) :
   rw [expect, eval_uniform, tsum_fintype]
   simp only [Probability.PMF.uniformOfFintype_apply]
   rw [← Finset.mul_sum, div_eq_mul_inv, mul_comm]
+
+/-- If one step satisfies `c * E[f(step s)] ≤ d * f s` for every state `s`, then `k` iterated
+steps satisfy `c ^ k * E[f(iterate k step init)] ≤ d ^ k * f init`. -/
+theorem pow_mul_expect_iterate_le {c d : ℝ≥0∞} (step : α → ProbComp α) (init : α)
+    (f : α → ℝ≥0∞) (hstep : ∀ s, c * expect (step s) f ≤ d * f s) (k : ℕ) :
+    c ^ k * expect (OracleComp.iterate k step init) f ≤ d ^ k * f init := by
+  induction k with
+  | zero => simp [pow_zero]
+  | succ k ih =>
+    calc c ^ (k + 1) * expect (OracleComp.iterate (k + 1) step init) f
+        = c ^ k * expect (OracleComp.iterate k step init) (fun a => c * expect (step a) f) := by
+          rw [pow_succ', mul_assoc, OracleComp.iterate_succ, expect_bind, expect_mul_left,
+            mul_left_comm]
+      _ ≤ c ^ k * expect (OracleComp.iterate k step init) (fun a => d * f a) := by
+          gcongr
+          exact expect_mono hstep
+      _ = d * (c ^ k * expect (OracleComp.iterate k step init) f) := by
+          rw [expect_mul_left, mul_left_comm]
+      _ ≤ d * (d ^ k * f init) := by gcongr
+      _ = d ^ (k + 1) * f init := by rw [← mul_assoc, ← pow_succ']
 
 end Cslib.ProbComp

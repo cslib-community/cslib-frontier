@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Distributed.ABD.Basic
 import CslibFrontier.Computability.Distributed.ABD.Protocol
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Data.Fintype.EquivFin
 
 /-!
@@ -412,12 +413,7 @@ private lemma exists_two_partition {P : Type*} [Fintype P] {t : ℕ}
   let n := Fintype.card P
   let e : P ≃ Fin n := Fintype.equivFin P
   let grp : Fin 2 → Finset P := fun k => Finset.univ.filter fun p => (e p : ℕ) % 2 = k.val
-  have hdisj : Disjoint (grp 0) (grp 1) := by
-    rw [Finset.disjoint_left]
-    intro p h0 h1
-    simp only [grp, Finset.mem_filter, Finset.mem_univ, true_and] at h0 h1
-    have : (0 : Fin 2).val = (1 : Fin 2).val := h0.symm.trans h1
-    omega
+  have hdisj : Disjoint (grp 0) (grp 1) := by finset_card
   have hcard : ∀ k : Fin 2, (grp k).card ≤ t := by
     intro k
     calc (grp k).card

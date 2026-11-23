@@ -38,7 +38,8 @@ private theorem need_call {p d r : ℕ} [Fact p.Prime]
       some (0, (Iter.path stack).map Fin.val, [], 0) := by
   have hv := RawController.validBank_ofRegs (Fact.out : p.Prime).two_le S
   simp only [RawController.need, RawController.ofCfg, hv, ↓reduceIte,
-    RawController.needCore, RawController.ofMode, RawController.path_ofFrame]
+    RawController.needCore, RawController.State.stack, RawController.ofMode,
+    RawController.path_ofFrame]
 
 private theorem need_ret {p d r : ℕ} [Fact p.Prime]
     (S : Cslib.TreeEval.Ary.State (ZMod p) d r) (fr : Iter.Frame (ZMod p) d)
@@ -49,7 +50,8 @@ private theorem need_ret {p d r : ℕ} [Fact p.Prime]
         RawController.point d r fr.target.val (RawController.ofRegs S), 0) := by
   have hv := RawController.validBank_ofRegs (Fact.out : p.Prime).two_le S
   simp only [RawController.need, RawController.ofCfg, hv, ↓reduceIte,
-    RawController.needCore, RawController.ofMode, List.map_cons, RawController.ofFrame,
+    RawController.needCore, RawController.State.bank, RawController.Frame.undo,
+    RawController.Frame.target, RawController.ofMode, List.map_cons, RawController.ofFrame,
     hu, hc, decide_false, Bool.false_or, Bool.false_eq_true, RawController.path_ofFrame]
 
 /-- One uniform allowance covers both immediate node replies and routed gate computations. -/

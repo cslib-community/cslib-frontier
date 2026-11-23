@@ -177,9 +177,7 @@ noncomputable def gadgetDomain (ps : Fin 3 → Bool) : cnf.Formula (Fin 4) :=
 
 private theorem realize_gadgetDomain (ps : Fin 3 → Bool) (d : Fin 4 → M) :
     (gadgetDomain ps).Realize d ↔ GadgetDomain ps d := by
-  simp only [gadgetDomain, Formula.realize_inf, Formula.realize_iInf, Formula.realize_rel₂,
-    Term.realize_var, Formula.realize_iAlls, Formula.realize_imp, Formula.realize_iSup,
-    Sum.elim_inl, Sum.elim_inr, GadgetDomain]
+  fo_simp [gadgetDomain, GadgetDomain]
   refine and_congr Iff.rfl ⟨fun h ⟨p, y⟩ hl => ?_, fun h e p hp => ?_⟩
   · obtain ⟨i, hi⟩ := h (fun _ => y) p hl
     refine ⟨i, ?_⟩

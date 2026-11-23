@@ -230,28 +230,20 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
   induction C with
   | nil =>
     refine ⟨[], fun _ => 1, rfl, fun _ g hg => absurd hg (List.not_mem_nil), fun y x => ?_⟩
-    simp only [Quantum.Circuit.matrix_nil, evalAct, Submonoid.coe_one, Matrix.one_apply]
+    simp only [Quantum.Circuit.matrix_nil, evalAct, Submonoid.coe_one, Matrix.one_apply,
+      Fintype.prod_boole]
     have hsplit : (y = x) ↔
         (A.domRestrict y = A.domRestrict x ∧ ∀ q : {q : Fin N // q ∉ A}, y q.1 = x q.1) := by
-      constructor
-      · rintro rfl
-        exact ⟨rfl, fun _ => rfl⟩
-      · rintro ⟨hA, hAc⟩
-        ext j
-        by_cases hj : j ∈ A
-        · exact congrFun hA ⟨j, hj⟩
-        · exact hAc ⟨j, hj⟩
+      refine ⟨fun h => h ▸ ⟨rfl, fun _ => rfl⟩, fun ⟨hA, hAc⟩ => funext fun j => ?_⟩
+      by_cases hj : j ∈ A
+      · exact congrFun hA ⟨j, hj⟩
+      · exact hAc ⟨j, hj⟩
     rw [if_congr hsplit rfl rfl]
     by_cases hA : A.domRestrict y = A.domRestrict x
-    · simp only [hA, true_and, ↓reduceIte, one_mul]
-      by_cases hAc : ∀ q : {q : Fin N // q ∉ A}, y q.1 = x q.1
-      · rw [ite_eq_left hAc]
-        exact (Finset.prod_eq_one fun q _ => by simp only [hAc q, ↓reduceIte]).symm
-      · rw [ite_eq_right hAc]
-        push Not at hAc
-        obtain ⟨q₀, hq₀⟩ := hAc
-        exact (Finset.prod_eq_zero (Finset.mem_univ q₀) (by simp only [hq₀, ↓reduceIte])).symm
-    · simp only [hA, false_and, ↓reduceIte, zero_mul]
+    · by_cases hAc : ∀ q : {q : Fin N // q ∉ A}, y q.1 = x q.1
+      · rw [ite_eq_left ⟨hA, hAc⟩, ite_eq_left hA, ite_eq_left hAc, mul_one]
+      · rw [ite_eq_right (fun h => hAc h.2), ite_eq_right hAc, mul_zero]
+    · rw [ite_eq_right (fun h => hA h.1), ite_eq_right hA, zero_mul]
   | cons g C ih =>
     have htwo_g : g.arity ≤ 2 := htwo g List.mem_cons_self
     have htwo_C : TwoLocal C := fun g' hg' => htwo g' (List.mem_cons_of_mem _ hg')
@@ -331,25 +323,12 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
             by_cases hjA : j ∈ A
             · exact hA ⟨j, hjA⟩ fun ⟨i, hi⟩ => hj ⟨i, congrArg Subtype.val hi⟩
             · exact hAc ⟨j, hjA⟩
+        simp only [Submonoid.coe_one, Matrix.one_apply, Fintype.prod_boole]
         rw [if_congr hoff rfl rfl]
         by_cases hA_cond : ∀ q : ↥A, (¬∃ i, wA i = q) → A.domRestrict z q = A.domRestrict x q
-        · rw [ite_eq_left hA_cond]
-          by_cases hAc : ∀ q : {q : Fin N // q ∉ A}, z q.1 = x q.1
-          · rw [ite_eq_left ⟨hA_cond, hAc⟩]
-            have hprod1 : (∏ q : {q : Fin N // q ∉ A},
-                ((1 : unitaryGroup Bool ℂ) : Matrix Bool Bool ℂ) (z q.1) (x q.1)) = 1 :=
-              Finset.prod_eq_one fun q _ => by
-                simp only [Submonoid.coe_one, Matrix.one_apply, hAc q, ↓reduceIte]
-            rw [hprod1, mul_one]
-            rfl
-          · rw [ite_eq_right (fun h => hAc h.2)]
-            push Not at hAc
-            obtain ⟨q₀, hq₀⟩ := hAc
-            have hprod0 : (∏ q : {q : Fin N // q ∉ A},
-                ((1 : unitaryGroup Bool ℂ) : Matrix Bool Bool ℂ) (z q.1) (x q.1)) = 0 :=
-              Finset.prod_eq_zero (Finset.mem_univ q₀)
-                (by simp only [Submonoid.coe_one, Matrix.one_apply, hq₀, ↓reduceIte])
-            rw [hprod0, mul_zero]
+        · by_cases hAc : ∀ q : {q : Fin N // q ∉ A}, z q.1 = x q.1
+          · rw [ite_eq_left ⟨hA_cond, hAc⟩, ite_eq_left hA_cond, ite_eq_left hAc, mul_one]; rfl
+          · rw [ite_eq_right (fun h => hAc h.2), ite_eq_right hAc, mul_zero]
         · rw [ite_eq_right (fun h => hA_cond h.1), ite_eq_right hA_cond, zero_mul]
     · -- Not all wires of `g` lie in `A`: since `TouchingIn A (g :: C)` and `g.arity ≤ 2`,
       -- we must have `g.arity = 1` and its single wire `q₀ ∉ A`!
@@ -802,792 +781,652 @@ private noncomputable def openStateOne {d : ℕ} {W : Type} [Fintype W] [Decidab
       rw [Fintype.sum_bool]
       ring }
 
-/-- Step for a general `2`-qubit gate in degree `d = 4` (adds `Unit` vertex and `Bool` edges). -/
+private theorem activeGate_wires_ne {W : Type} (g : ActiveGate W) (h2 : g.1.val = 2) :
+    g.2.2 ⟨0, by omega⟩ ≠ g.2.2 ⟨1, by omega⟩ := fun h => by
+  have hv := congrArg Fin.val (g.2.2.injective h)
+  dsimp only at hv
+  omega
+
+private theorem placeAct_two_mul_apply {W : Type} [Fintype W] [DecidableEq W]
+    (g : ActiveGate W) (h2 : g.1.val = 2) (M : Matrix (W → Bool) (W → Bool) ℂ)
+    (y x : W → Bool) :
+    let i₀ : Fin g.1.val := ⟨0, by omega⟩
+    let i₁ : Fin g.1.val := ⟨1, by omega⟩
+    ((placeAct g : Matrix (W → Bool) (W → Bool) ℂ) * M) y x =
+      ∑ z₀ : Bool, ∑ z₁ : Bool,
+        (g.2.1 : Matrix (Fin g.1.val → Bool) (Fin g.1.val → Bool) ℂ)
+          (fun i => if i = i₀ then y (g.2.2 i₀) else y (g.2.2 i₁))
+          (fun i => if i = i₀ then z₀ else z₁) *
+        M (Function.update (Function.update y (g.2.2 i₁) z₁) (g.2.2 i₀) z₀) x := by
+  intro i₀ i₁
+  set q₀ : W := g.2.2 i₀
+  set q₁ : W := g.2.2 i₁
+  have hq_ne : q₀ ≠ q₁ := activeGate_wires_ne g h2
+  rw [Matrix.mul_apply]
+  have hplace (z : W → Bool) :
+      (placeAct g : Matrix (W → Bool) (W → Bool) ℂ) y z =
+        if ∀ q, q ≠ q₀ ∧ q ≠ q₁ → y q = z q then
+          (g.2.1 : Matrix (Fin g.1.val → Bool) (Fin g.1.val → Bool) ℂ)
+            (fun i => if i = i₀ then y q₀ else y q₁)
+            (fun i => if i = i₀ then z q₀ else z q₁)
+        else 0 := by
+    rw [placeAct_apply]
+    have hiff : (∀ q : W, (¬∃ i, g.2.2 i = q) → y q = z q) ↔
+        ∀ q, q ≠ q₀ ∧ q ≠ q₁ → y q = z q := by
+      refine forall_congr' fun q => imp_congr_left
+        ⟨fun h => ⟨fun h0 => h ⟨i₀, h0.symm⟩, fun h1 => h ⟨i₁, h1.symm⟩⟩,
+         fun ⟨h0, h1⟩ ⟨i, hi⟩ => ?_⟩
+      rcases (by omega : i.val = 0 ∨ i.val = 1) with hi0 | hi1
+      · exact h0 (hi.symm.trans (congrArg g.2.2 (Fin.ext hi0)))
+      · exact h1 (hi.symm.trans (congrArg g.2.2 (Fin.ext hi1)))
+    rw [if_congr hiff rfl rfl]
+    split_ifs with h
+    · have hcomp_eq (w : W → Bool) : (w ∘ g.2.2) = fun i => if i = i₀ then w q₀ else w q₁ :=
+        funext fun i => by
+          by_cases hi0 : i = i₀
+          · subst hi0; simp only [Function.comp_apply, ↓reduceIte, q₀]
+          · have hi0_v : i.val ≠ 0 := fun h => hi0 (Fin.ext h)
+            have hi1 : i = i₁ := Fin.ext (by dsimp only [i₁]; omega)
+            subst hi1; simp only [Function.comp_apply, hi0, ↓reduceIte, q₁]
+      rw [hcomp_eq y, hcomp_eq z]
+    · rfl
+  simp_rw [hplace, ite_mul, zero_mul]
+  let fupd (p : Bool × Bool) : W → Bool :=
+    Function.update (Function.update y q₁ p.2) q₀ p.1
+  have hfupd_inj : Function.Injective fupd := fun p₁ p₂ h => by
+    have h0 : p₁.1 = p₂.1 := by simpa [fupd] using congrFun h q₀
+    have h1 : p₁.2 = p₂.2 := by simpa [fupd, hq_ne.symm] using congrFun h q₁
+    exact Prod.ext h0 h1
+  have hfilt : (Finset.univ.filter fun z : W → Bool =>
+      ∀ q, q ≠ q₀ ∧ q ≠ q₁ → y q = z q) = Finset.univ.image fupd := by
+    ext z
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_image]
+    constructor
+    · intro hz
+      refine ⟨(z q₀, z q₁), funext fun q => ?_⟩
+      by_cases h0 : q = q₀
+      · subst h0; simp only [fupd, Function.update_self]
+      · by_cases h1 : q = q₁
+        · subst h1; simp only [fupd, ne_eq, h0, not_false_eq_true, Function.update_of_ne,
+            Function.update_self]
+        · simp only [fupd, ne_eq, h0, h1, not_false_eq_true, Function.update_of_ne,
+            hz q ⟨h0, h1⟩]
+    · rintro ⟨⟨z₀, z₁⟩, rfl⟩ q ⟨h0, h1⟩
+      simp only [fupd, ne_eq, h0, h1, not_false_eq_true, Function.update_of_ne]
+  rw [← Finset.sum_filter, hfilt, Finset.sum_image (fun _ _ _ _ h => hfupd_inj h),
+    Fintype.sum_prod_type]
+  refine Finset.sum_congr rfl fun z₀ _ => Finset.sum_congr rfl fun z₁ _ => ?_
+  simp only [fupd, Function.update_self, ne_eq, hq_ne.symm, not_false_eq_true,
+    Function.update_of_ne]
+
+private theorem OpenState.contract_update_two {d : ℕ} {W : Type} [Fintype W] [DecidableEq W]
+    {M : Matrix (W → Bool) (W → Bool) ℂ} {s : ℕ} (S : OpenState d W M s)
+    {q₀ q₁ : W} (hq_ne : q₀ ≠ q₁) (K : Bool → Bool → ℂ) (y x : W → Bool) :
+    (∑ z₀ : Bool, ∑ z₁ : Bool,
+      K z₀ z₁ * M (Function.update (Function.update y q₁ z₁) q₀ z₀) x) =
+    S.scalar * ∑ γ : S.E ⊕ W → Bool,
+      (∏ u : S.V, S.openF u x γ) *
+        (∑ z₀ : Bool, ∑ z₁ : Bool,
+          K z₀ z₁ * S.tipMat q₀ z₀ (γ (.inr q₀)) * S.tipMat q₁ z₁ (γ (.inr q₁))) *
+        ∏ q ∈ (Finset.univ.erase q₀).erase q₁, S.tipMat q (y q) (γ (.inr q)) := by
+  have hstep1 : (∑ z₀ : Bool, ∑ z₁ : Bool,
+      K z₀ z₁ * M (Function.update (Function.update y q₁ z₁) q₀ z₀) x) =
+      S.scalar * ∑ z₀ : Bool, ∑ z₁ : Bool, ∑ γ : S.E ⊕ W → Bool,
+        K z₀ z₁ *
+          ((∏ u : S.V, S.openF u x γ) *
+            ∏ q : W, S.tipMat q (Function.update (Function.update y q₁ z₁) q₀ z₀ q)
+              (γ (.inr q))) := by
+    rw [Finset.mul_sum]
+    refine Finset.sum_congr rfl fun z₀ _ => ?_
+    rw [Finset.mul_sum]
+    refine Finset.sum_congr rfl fun z₁ _ => ?_
+    rw [S.contract _ x, ← mul_assoc, mul_comm (K z₀ z₁) S.scalar, mul_assoc, Finset.mul_sum]
+  rw [hstep1, Finset.sum_comm]
+  simp_rw [Finset.sum_comm (s := Finset.univ (α := Bool))
+    (t := Finset.univ (α := S.E ⊕ W → Bool))]
+  congr 1
+  refine Finset.sum_congr rfl fun γ _ => ?_
+  have hupd_prod (z₀ z₁ : Bool) :
+      (∏ q : W, S.tipMat q (Function.update (Function.update y q₁ z₁) q₀ z₀ q) (γ (.inr q))) =
+      S.tipMat q₀ z₀ (γ (.inr q₀)) * S.tipMat q₁ z₁ (γ (.inr q₁)) *
+        ∏ q ∈ (Finset.univ.erase q₀).erase q₁, S.tipMat q (y q) (γ (.inr q)) := by
+    rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ q₀),
+      ← Finset.mul_prod_erase (Finset.univ.erase q₀) _
+        (Finset.mem_erase.mpr ⟨hq_ne.symm, Finset.mem_univ q₁⟩)]
+    have hupd0 : Function.update (Function.update y q₁ z₁) q₀ z₀ q₀ = z₀ :=
+      Function.update_self _ _ _
+    have hupd1 : Function.update (Function.update y q₁ z₁) q₀ z₀ q₁ = z₁ := by
+      rw [Function.update_of_ne hq_ne.symm, Function.update_self]
+    rw [hupd0, hupd1, mul_assoc]
+    congr 2
+    refine Finset.prod_congr rfl fun q hq => ?_
+    have hq1 : q ≠ q₁ := (Finset.mem_erase.mp hq).1
+    have hq0 : q ≠ q₀ := (Finset.mem_erase.mp (Finset.mem_erase.mp hq).2).1
+    rw [Function.update_of_ne hq0, Function.update_of_ne hq1]
+  simp_rw [hupd_prod]
+  rw [Finset.sum_comm]
+  rw [Finset.mul_sum, Finset.sum_mul]
+  refine Finset.sum_congr rfl fun z₀ _ => ?_
+  rw [Finset.mul_sum, Finset.sum_mul]
+  exact Finset.sum_congr rfl fun z₁ _ => by ring
+
+private def spliceTwoGraph {V E V_add E_int W : Type} (G : Multigraph V E) (tip : W → V)
+    (q₀ q₁ : W) (G_int : Multigraph V_add E_int) (v₀ v₁ : V_add) :
+    Multigraph (V ⊕ V_add) (E ⊕ (Bool ⊕ E_int)) where
+  src
+    | .inl e₀ => .inl (G.src e₀)
+    | .inr (.inl false) => .inl (tip q₀)
+    | .inr (.inl true) => .inl (tip q₁)
+    | .inr (.inr e_int) => .inr (G_int.src e_int)
+  tgt
+    | .inl e₀ => .inl (G.tgt e₀)
+    | .inr (.inl false) => .inr v₀
+    | .inr (.inl true) => .inr v₁
+    | .inr (.inr e_int) => .inr (G_int.tgt e_int)
+
+private def spliceTwoTip {V V_add W : Type} [DecidableEq W] (tip : W → V)
+    (q₀ q₁ : W) (v₀ v₁ : V_add) (q : W) : V ⊕ V_add :=
+  if q = q₀ then .inr v₀ else if q = q₁ then .inr v₁ else .inl (tip q)
+
+private def spliceTwoOldEdge {E E_int W : Type} [DecidableEq W] (q₀ q₁ : W) :
+    E ⊕ W ↪ (E ⊕ (Bool ⊕ E_int)) ⊕ W where
+  toFun
+    | .inl e₀ => .inl (.inl e₀)
+    | .inr q =>
+      if q = q₀ then .inl (.inr (.inl false))
+      else if q = q₁ then .inl (.inr (.inl true))
+      else .inr q
+  inj' a b hab := by
+    cases a with
+    | inl ea =>
+      cases b with
+      | inl eb => exact congrArg Sum.inl (Sum.inl.inj (Sum.inl.inj hab))
+      | inr qb => dsimp only at hab; split_ifs at hab <;> cases hab
+    | inr qa =>
+      cases b with
+      | inl eb => dsimp only at hab; split_ifs at hab <;> cases hab
+      | inr qb => dsimp only at hab; split_ifs at hab <;> simp_all
+
+private theorem spliceTwoOldEdge_inr {E E_int W : Type} [DecidableEq W] (q₀ q₁ : W) (q : W) :
+    spliceTwoOldEdge (E := E) (E_int := E_int) q₀ q₁ (.inr q) =
+      if q = q₀ then .inl (.inr (.inl false))
+      else if q = q₁ then .inl (.inr (.inl true))
+      else .inr q := rfl
+
+private theorem ncard_incidence_spliceTwo_inr {V E V_add E_int W : Type} [DecidableEq W]
+    [DecidableEq V_add] [Finite E_int] (G : Multigraph V E) (tip : W → V) {q₀ q₁ : W}
+    (hq_ne : q₀ ≠ q₁) (G_int : Multigraph V_add E_int) (v₀ v₁ v : V_add) :
+    ((capGraph (spliceTwoGraph G tip q₀ q₁ G_int v₀ v₁)
+        (spliceTwoTip tip q₀ q₁ v₀ v₁)).incidenceSet (.inl (.inr v))).ncard =
+      (if v = v₀ then 2 else 0) + (if v = v₁ then 2 else 0) + (G_int.incidenceSet v).ncard := by
+  let S₀ : Set ((E ⊕ (Bool ⊕ E_int)) ⊕ W) :=
+    if v = v₀ then {.inl (.inr (.inl false)), .inr q₀} else ∅
+  let S₁ : Set ((E ⊕ (Bool ⊕ E_int)) ⊕ W) :=
+    if v = v₁ then {.inl (.inr (.inl true)), .inr q₁} else ∅
+  let S_int : Set ((E ⊕ (Bool ⊕ E_int)) ⊕ W) :=
+    (fun e => .inl (.inr (.inr e))) '' G_int.incidenceSet v
+  have hpart : (capGraph (spliceTwoGraph G tip q₀ q₁ G_int v₀ v₁)
+        (spliceTwoTip tip q₀ q₁ v₀ v₁)).incidenceSet (.inl (.inr v)) =
+      S₀ ∪ (S₁ ∪ S_int) := by
+    ext ((e₀ | (b | e_int)) | q)
+    · simp [Multigraph.mem_incidenceSet, capGraph, spliceTwoGraph, S₀, S₁, S_int]
+    · cases b <;>
+        simp [Multigraph.mem_incidenceSet, capGraph, spliceTwoGraph, S₀, S₁, S_int, eq_comm]
+    · simp [Multigraph.mem_incidenceSet, capGraph, spliceTwoGraph, S₀, S₁, S_int]
+    · by_cases hq0 : q = q₀
+      · subst hq0
+        have hnot1 : (.inr q : (E ⊕ (Bool ⊕ E_int)) ⊕ W) ∉ S₁ := by
+          dsimp only [S₁]; split_ifs
+          · simp [hq_ne]
+          · simp
+        simp [Multigraph.mem_incidenceSet, capGraph, spliceTwoTip, S₀, S_int, hnot1, eq_comm]
+      · by_cases hq1 : q = q₁
+        · subst hq1
+          have hnot0 : (.inr q : (E ⊕ (Bool ⊕ E_int)) ⊕ W) ∉ S₀ := by
+            dsimp only [S₀]; split_ifs
+            · simp [hq0]
+            · simp
+          simp only [Multigraph.mem_incidenceSet, capGraph, spliceTwoTip, hq0, ↓reduceIte]
+          simp [S₁, S_int, hnot0, eq_comm]
+        · simp [Multigraph.mem_incidenceSet, capGraph, spliceTwoTip, S₀, S₁, S_int, hq0, hq1]
+  have hfin₀ : S₀.Finite := by dsimp only [S₀]; split_ifs <;> simp
+  have hfin₁ : S₁.Finite := by dsimp only [S₁]; split_ifs <;> simp
+  have hfin_int : S_int.Finite := (toFinite _).image _
+  have hd₀ : Disjoint S₀ (S₁ ∪ S_int) := by
+    rw [Set.disjoint_left]
+    intro x hx0 hx12
+    dsimp only [S₀] at hx0
+    split_ifs at hx0
+    · rcases hx0 with rfl | rfl
+      · rcases hx12 with hx1 | ⟨_, _, h⟩
+        · dsimp only [S₁] at hx1; split_ifs at hx1 <;> simp at hx1
+        · cases h
+      · rcases hx12 with hx1 | ⟨_, _, h⟩
+        · dsimp only [S₁] at hx1
+          split_ifs at hx1
+          · simp [hq_ne] at hx1
+          · exact hx1
+        · cases h
+    · exact hx0
+  have hd₁ : Disjoint S₁ S_int := by
+    rw [Set.disjoint_left]
+    rintro x hx1 ⟨_, _, rfl⟩
+    dsimp only [S₁] at hx1
+    split_ifs at hx1 <;> simp at hx1
+  have hc₀ : S₀.ncard = if v = v₀ then 2 else 0 := by
+    dsimp only [S₀]; split_ifs
+    · rw [ncard_insert_of_notMem (by simp), ncard_singleton]
+    · exact ncard_empty _
+  have hc₁ : S₁.ncard = if v = v₁ then 2 else 0 := by
+    dsimp only [S₁]; split_ifs
+    · rw [ncard_insert_of_notMem (by simp), ncard_singleton]
+    · exact ncard_empty _
+  have hc_int : S_int.ncard = (G_int.incidenceSet v).ncard :=
+    ncard_image_of_injective _ fun _ _ h => Sum.inr.inj (Sum.inr.inj (Sum.inl.inj h))
+  rw [hpart, ncard_union_eq hd₀ hfin₀ (hfin₁.union hfin_int),
+    ncard_union_eq hd₁ hfin₁ hfin_int, hc₀, hc₁, hc_int, add_assoc]
+
+/-- Shared 2-wire gadget splice constructor for `OpenState d W`: attaches a finite gadget
+`(V_add, E_int, G_int, v₀, v₁, T_add)` onto active wires `q₀ = g.2.2 0` and `q₁ = g.2.2 1`. -/
+private noncomputable def OpenState.spliceTwo {d : ℕ} {W : Type} [Fintype W] [DecidableEq W]
+    {M : Matrix (W → Bool) (W → Bool) ℂ} {s : ℕ} (S : OpenState d W M s)
+    (g : ActiveGate W) (h2 : g.1.val = 2)
+    (V_add E_int : Type) [Fintype V_add] [DecidableEq V_add] [Fintype E_int] [DecidableEq E_int]
+    (G_int : Multigraph V_add E_int) (hloop_int : G_int.Loopless) (v₀ v₁ : V_add)
+    (hcard_add : (d - 2) * Fintype.card V_add = 2)
+    (hdeg_add : ∀ v : V_add,
+      (if v = v₀ then 2 else 0) + (if v = v₁ then 2 else 0) + (G_int.incidenceSet v).ncard = d)
+    (T_add : V_add → Bool → Bool → Bool → Bool → (E_int → Bool) → ℂ)
+    (hT_contract : ∀ b₀ b₁ a₀ a₁ : Bool,
+      (∑ β : E_int → Bool, ∏ v : V_add, T_add v b₀ b₁ a₀ a₁ β) =
+        ∑ z₀ : Bool, ∑ z₁ : Bool,
+          (g.2.1 : Matrix (Fin g.1.val → Bool) (Fin g.1.val → Bool) ℂ)
+            (fun i => if i = (⟨0, by omega⟩ : Fin g.1.val) then a₀ else a₁)
+            (fun i => if i = (⟨0, by omega⟩ : Fin g.1.val) then z₀ else z₁) *
+          S.tipMat (g.2.2 ⟨0, by omega⟩) z₀ b₀ * S.tipMat (g.2.2 ⟨1, by omega⟩) z₁ b₁)
+    (hT_loc : ∀ (v : V_add) (b₀ b₀' b₁ b₁' a₀ a₀' a₁ a₁' : Bool) (β β' : E_int → Bool),
+      (v = v₀ → b₀ = b₀' ∧ a₀ = a₀') →
+      (v = v₁ → b₁ = b₁' ∧ a₁ = a₁') →
+      Set.EqOn β β' (G_int.incidenceSet v) →
+      T_add v b₀ b₁ a₀ a₁ β = T_add v b₀' b₁' a₀' a₁' β') :
+    OpenState d W ((placeAct g : Matrix _ _ ℂ) * M) (s + 1) :=
+  let i₀ : Fin g.1.val := ⟨0, by omega⟩
+  let i₁ : Fin g.1.val := ⟨1, by omega⟩
+  let q₀ : W := g.2.2 i₀
+  let q₁ : W := g.2.2 i₁
+  have hq_ne : q₀ ≠ q₁ := activeGate_wires_ne g h2
+  let G' := spliceTwoGraph S.G S.tip q₀ q₁ G_int v₀ v₁
+  let tip' := spliceTwoTip S.tip q₀ q₁ v₀ v₁
+  let oldEdge : S.E ⊕ W ↪ (S.E ⊕ (Bool ⊕ E_int)) ⊕ W := spliceTwoOldEdge q₀ q₁
+  have hmap_u (u : S.V) (e : S.E ⊕ W) :
+      e ∈ (capGraph S.G S.tip).incidenceSet (.inl u) ↔
+        oldEdge e ∈ (capGraph G' tip').incidenceSet (.inl (.inl u)) := by
+    cases e with
+    | inl e₀ =>
+      change _ ↔ (.inl (.inl e₀) : (S.E ⊕ (Bool ⊕ E_int)) ⊕ W) ∈ _
+      simp [Multigraph.mem_incidenceSet, capGraph, G', spliceTwoGraph]
+    | inr q =>
+      by_cases hq0 : q = q₀
+      · subst hq0
+        simp [Multigraph.mem_incidenceSet, capGraph, oldEdge, spliceTwoOldEdge_inr, G',
+          spliceTwoGraph]
+      · by_cases hq1 : q = q₁
+        · subst hq1
+          simp [Multigraph.mem_incidenceSet, capGraph, oldEdge, spliceTwoOldEdge_inr, hq0, G',
+            spliceTwoGraph]
+        · simp [Multigraph.mem_incidenceSet, capGraph, oldEdge, spliceTwoOldEdge_inr, hq0, hq1,
+            tip', spliceTwoTip]
+  have hsurj_u (u : S.V) (e' : (S.E ⊕ (Bool ⊕ E_int)) ⊕ W)
+      (he' : e' ∈ (capGraph G' tip').incidenceSet (.inl (.inl u))) :
+      ∃ e, oldEdge e = e' := by
+    rcases e' with (e₀ | (b | e_int)) | q
+    · exact ⟨.inl e₀, rfl⟩
+    · cases b
+      · exact ⟨.inr q₀, by simp [oldEdge, spliceTwoOldEdge_inr]⟩
+      · exact ⟨.inr q₁, by simp [oldEdge, spliceTwoOldEdge_inr, hq_ne.symm]⟩
+    · simp [Multigraph.mem_incidenceSet, capGraph, G', spliceTwoGraph] at he'
+    · by_cases hq0 : q = q₀
+      · subst hq0; simp [Multigraph.mem_incidenceSet, capGraph, tip', spliceTwoTip] at he'
+      · by_cases hq1 : q = q₁
+        · subst hq1; simp [Multigraph.mem_incidenceSet, capGraph, tip', spliceTwoTip, hq0] at he'
+        · exact ⟨.inr q, by simp [oldEdge, spliceTwoOldEdge_inr, hq0, hq1]⟩
+  { V := S.V ⊕ V_add
+    E := S.E ⊕ (Bool ⊕ E_int)
+    instFV := inferInstance
+    instDV := inferInstance
+    instFE := inferInstance
+    instDE := inferInstance
+    G := G'
+    inVert := S.inVert.trans ⟨Sum.inl, Sum.inl_injective⟩
+    tip := tip'
+    scalar := S.scalar
+    tipMat := fun q => if q = q₀ ∨ q = q₁ then 1 else S.tipMat q
+    openF := fun v x γ' => match v with
+      | .inl u => S.openF u x (γ' ∘ oldEdge)
+      | .inr v =>
+        T_add v (γ' (.inl (.inr (.inl false)))) (γ' (.inl (.inr (.inl true))))
+          (γ' (.inr q₀)) (γ' (.inr q₁)) (fun e_int => γ' (.inl (.inr (.inr e_int))))
+    loopless := by
+      rintro (e₀ | (b | e_int))
+      · exact fun h => S.loopless e₀ (Sum.inl.inj h)
+      · cases b <;> exact Sum.inl_ne_inr
+      · exact fun h => hloop_int e_int (Sum.inr.inj h)
+    deg_inVert := fun q =>
+      (ncard_incidence_eq_of_bij S.G S.tip G' tip' Sum.inl oldEdge (S.inVert q)
+        (hmap_u _) (hsurj_u _)).trans (S.deg_inVert q)
+    deg_gate := by
+      rintro (u | v) hv
+      · have hu : u ∉ Set.range S.inVert := fun ⟨q, hq⟩ => hv ⟨q, congrArg Sum.inl hq⟩
+        exact (ncard_incidence_eq_of_bij S.G S.tip G' tip' Sum.inl oldEdge u
+          (hmap_u u) (hsurj_u u)).trans (S.deg_gate u hu)
+      · exact (ncard_incidence_spliceTwo_inr S.G S.tip hq_ne G_int v₀ v₁ v).trans (hdeg_add v)
+    reach_tip := fun q => by
+      have hprev : G'.toSimpleGraph.Reachable (.inl (S.inVert q)) (.inl (S.tip q)) :=
+        reachable_map_inl ⟨Sum.inl, Sum.inl_injective⟩
+          (fun e₀ => ⟨.inl e₀, by simp [Multigraph.ends, G', spliceTwoGraph]⟩) (S.reach_tip q)
+      by_cases hq0 : q = q₀
+      · subst hq0; simp only [tip', spliceTwoTip, ↓reduceIte]
+        exact hprev.trans (G'.reachable_src_tgt (.inr (.inl false)))
+      · by_cases hq1 : q = q₁
+        · subst hq1; simp only [tip', spliceTwoTip, hq0, ↓reduceIte]
+          exact hprev.trans (G'.reachable_src_tgt (.inr (.inl true)))
+        · simp only [tip', spliceTwoTip, hq0, hq1, ↓reduceIte]; exact hprev
+    card_V := by
+      rw [Fintype.card_sum]
+      obtain ⟨hc1, hc2⟩ := S.card_V
+      refine ⟨?_, by omega⟩
+      calc (d - 2) * (Fintype.card S.V + Fintype.card V_add - Fintype.card W)
+          = (d - 2) * (Fintype.card S.V - Fintype.card W) + (d - 2) * Fintype.card V_add := by
+            rw [← mul_add]; congr 1; omega
+        _ = 2 * (s + 1) := by rw [hc1, hcard_add]; ring
+    contract := fun y x => by
+      let eqvFun : ((S.E ⊕ (Bool ⊕ E_int)) ⊕ W → Bool) ≃
+          (S.E ⊕ W → Bool) × (Bool × Bool × (E_int → Bool)) :=
+        { toFun := fun γ' =>
+            (γ' ∘ oldEdge, (γ' (.inr q₀), γ' (.inr q₁), fun e => γ' (.inl (.inr (.inr e)))))
+          invFun := fun p s => match s with
+            | .inl (.inl e₀) => p.1 (.inl e₀)
+            | .inl (.inr (.inl false)) => p.1 (.inr q₀)
+            | .inl (.inr (.inl true)) => p.1 (.inr q₁)
+            | .inl (.inr (.inr e)) => p.2.2.2 e
+            | .inr q => if q = q₀ then p.2.1 else if q = q₁ then p.2.2.1 else p.1 (.inr q)
+          left_inv := fun γ' => by
+            ext ((e₀ | (b | e_int)) | q)
+            · rfl
+            · rcases b with _ | _
+              · simp [oldEdge, spliceTwoOldEdge_inr]
+              · simp [oldEdge, spliceTwoOldEdge_inr, hq_ne.symm]
+            · rfl
+            · by_cases hq0 : q = q₀
+              · subst hq0; simp
+              · by_cases hq1 : q = q₁
+                · subst hq1; simp [hq0]
+                · simp [hq0, hq1, oldEdge, spliceTwoOldEdge_inr]
+          right_inv := fun ⟨γ, a₀, a₁, β⟩ => by
+            refine Prod.ext (funext fun s => ?_) (Prod.ext ?_ (Prod.ext ?_ (funext fun _ => rfl)))
+            · cases s with
+              | inl e₀ => rfl
+              | inr q =>
+                by_cases hq0 : q = q₀
+                · subst hq0; simp [oldEdge, spliceTwoOldEdge_inr]
+                · by_cases hq1 : q = q₁
+                  · subst hq1; simp [oldEdge, spliceTwoOldEdge_inr, hq0]
+                  · simp [oldEdge, spliceTwoOldEdge_inr, hq0, hq1]
+            · simp
+            · simp [hq_ne.symm] }
+      have hrhs : (∑ γ' : (S.E ⊕ (Bool ⊕ E_int)) ⊕ W → Bool,
+          (∏ v : S.V ⊕ V_add, (match v with
+            | .inl u => S.openF u x (γ' ∘ oldEdge)
+            | .inr v =>
+              T_add v (γ' (.inl (.inr (.inl false)))) (γ' (.inl (.inr (.inl true))))
+                (γ' (.inr q₀)) (γ' (.inr q₁)) (fun e_int => γ' (.inl (.inr (.inr e_int)))))) *
+            ∏ q : W, (if q = q₀ ∨ q = q₁ then (1 : Matrix Bool Bool ℂ) else S.tipMat q)
+              (y q) (γ' (.inr q))) =
+          ∑ γ : S.E ⊕ W → Bool,
+            (∏ u : S.V, S.openF u x γ) *
+              (∑ z₀ : Bool, ∑ z₁ : Bool,
+                (g.2.1 : Matrix (Fin g.1.val → Bool) (Fin g.1.val → Bool) ℂ)
+                  (fun i => if i = i₀ then y q₀ else y q₁)
+                  (fun i => if i = i₀ then z₀ else z₁) *
+                  S.tipMat q₀ z₀ (γ (.inr q₀)) * S.tipMat q₁ z₁ (γ (.inr q₁))) *
+              ∏ q ∈ (Finset.univ.erase q₀).erase q₁, S.tipMat q (y q) (γ (.inr q)) := by
+        rw [← Fintype.sum_equiv eqvFun.symm
+          (fun p =>
+            (∏ v : S.V ⊕ V_add, (match v with
+              | .inl u => S.openF u x ((eqvFun.symm p) ∘ oldEdge)
+              | .inr v =>
+                T_add v (eqvFun.symm p (.inl (.inr (.inl false))))
+                  (eqvFun.symm p (.inl (.inr (.inl true))))
+                  (eqvFun.symm p (.inr q₀)) (eqvFun.symm p (.inr q₁))
+                  (fun e_int => eqvFun.symm p (.inl (.inr (.inr e_int)))))) *
+              ∏ q : W, (if q = q₀ ∨ q = q₁ then (1 : Matrix Bool Bool ℂ) else S.tipMat q)
+                (y q) (eqvFun.symm p (.inr q))) _ (fun _ => rfl)]
+        rw [Fintype.sum_prod_type]
+        refine Finset.sum_congr rfl fun γ _ => ?_
+        rw [Fintype.sum_prod_type]
+        simp_rw [Fintype.sum_prod_type]
+        let body (β : E_int → Bool) : ℂ :=
+          (∏ u : S.V, S.openF u x γ) *
+            (∏ v : V_add, T_add v (γ (.inr q₀)) (γ (.inr q₁)) (y q₀) (y q₁) β) *
+            ∏ q ∈ (Finset.univ.erase q₀).erase q₁, S.tipMat q (y q) (γ (.inr q))
+        have hterm_ab (a₀ a₁ : Bool) (β : E_int → Bool) :
+            (∏ v : S.V ⊕ V_add, (match v with
+              | .inl u => S.openF u x ((eqvFun.symm (γ, a₀, a₁, β)) ∘ oldEdge)
+              | .inr v =>
+                T_add v (eqvFun.symm (γ, a₀, a₁, β) (.inl (.inr (.inl false))))
+                  (eqvFun.symm (γ, a₀, a₁, β) (.inl (.inr (.inl true))))
+                  (eqvFun.symm (γ, a₀, a₁, β) (.inr q₀)) (eqvFun.symm (γ, a₀, a₁, β) (.inr q₁))
+                  (fun e_int => eqvFun.symm (γ, a₀, a₁, β) (.inl (.inr (.inr e_int)))))) *
+            (∏ q : W, (if q = q₀ ∨ q = q₁ then (1 : Matrix Bool Bool ℂ) else S.tipMat q)
+              (y q) (eqvFun.symm (γ, a₀, a₁, β) (.inr q))) =
+            if a₀ = y q₀ ∧ a₁ = y q₁ then body β else 0 := by
+          have hcomp_γ : (eqvFun.symm (γ, a₀, a₁, β)) ∘ oldEdge = γ :=
+            congrArg Prod.fst (eqvFun.apply_symm_apply (γ, a₀, a₁, β))
+          have ha₀_val : eqvFun.symm (γ, a₀, a₁, β) (.inr q₀) = a₀ :=
+            congrArg (Prod.fst ∘ Prod.snd) (eqvFun.apply_symm_apply (γ, a₀, a₁, β))
+          have ha₁_val : eqvFun.symm (γ, a₀, a₁, β) (.inr q₁) = a₁ :=
+            congrArg (Prod.fst ∘ Prod.snd ∘ Prod.snd) (eqvFun.apply_symm_apply (γ, a₀, a₁, β))
+          have hf0 : eqvFun.symm (γ, a₀, a₁, β) (.inl (.inr (.inl false))) = γ (.inr q₀) := rfl
+          have hf1 : eqvFun.symm (γ, a₀, a₁, β) (.inl (.inr (.inl true))) = γ (.inr q₁) := rfl
+          have hβ_val : (fun e_int => eqvFun.symm (γ, a₀, a₁, β) (.inl (.inr (.inr e_int)))) = β :=
+            rfl
+          rw [Fintype.prod_sum_type]
+          simp only [hcomp_γ, ha₀_val, ha₁_val, hf0, hf1, hβ_val]
+          rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ q₀),
+            ← Finset.mul_prod_erase (Finset.univ.erase q₀) _
+              (Finset.mem_erase.mpr ⟨hq_ne.symm, Finset.mem_univ q₁⟩)]
+          simp only [true_or, or_true, ↓reduceIte, ha₀_val, ha₁_val, Matrix.one_apply]
+          have hrest : (∏ q ∈ (Finset.univ.erase q₀).erase q₁,
+              (if q = q₀ ∨ q = q₁ then (1 : Matrix Bool Bool ℂ) else S.tipMat q) (y q)
+                (eqvFun.symm (γ, a₀, a₁, β) (.inr q))) =
+              ∏ q ∈ (Finset.univ.erase q₀).erase q₁, S.tipMat q (y q) (γ (.inr q)) := by
+            refine Finset.prod_congr rfl fun q hq => ?_
+            have hq1 : q ≠ q₁ := (Finset.mem_erase.mp hq).1
+            have hq0 : q ≠ q₀ := (Finset.mem_erase.mp (Finset.mem_erase.mp hq).2).1
+            simp only [not_or.mpr ⟨hq0, hq1⟩, ↓reduceIte]
+            have hval : eqvFun.symm (γ, a₀, a₁, β) (.inr q) = γ (.inr q) := by
+              simp only [eqvFun, Equiv.coe_fn_symm_mk, hq0, hq1, ↓reduceIte]
+            rw [hval]
+          rw [hrest]
+          by_cases h0 : y q₀ = a₀ <;> by_cases h1 : y q₁ = a₁
+          · subst h0; subst h1
+            simp only [and_self, ↓reduceIte, body]
+            ring
+          · simp only [h1, show ¬(a₀ = y q₀ ∧ a₁ = y q₁) from fun h => h1 h.2.symm,
+              ↓reduceIte, mul_zero, zero_mul]
+          · simp only [h0, show ¬(a₀ = y q₀ ∧ a₁ = y q₁) from fun h => h0 h.1.symm,
+              ↓reduceIte, zero_mul, mul_zero]
+          · simp only [h0, show ¬(a₀ = y q₀ ∧ a₁ = y q₁) from fun h => h0 h.1.symm,
+              ↓reduceIte, zero_mul, mul_zero]
+        simp_rw [hterm_ab]
+        have collapse_a : (∑ a₀ : Bool, ∑ a₁ : Bool, ∑ β : E_int → Bool,
+            if a₀ = y q₀ ∧ a₁ = y q₁ then body β else 0) = ∑ β : E_int → Bool, body β := by
+          rw [Fintype.sum_bool]
+          simp_rw [Fintype.sum_bool]
+          cases y q₀ <;> cases y q₁ <;> simp
+        rw [collapse_a]
+        dsimp only [body]
+        rw [← Finset.sum_mul, ← Finset.mul_sum, hT_contract]
+      rw [placeAct_two_mul_apply g h2 M y x, S.contract_update_two hq_ne _ y x, hrhs]
+    loc_in := by
+      rintro (u | _) x₁ x₂ γ' h
+      · exact S.loc_in u x₁ x₂ (γ' ∘ oldEdge) fun q hq => h q (congrArg Sum.inl hq)
+      · rfl
+    loc_edge := by
+      rintro (u | v) x γ₁ γ₂ h
+      · exact S.loc_edge u x (γ₁ ∘ oldEdge) (γ₂ ∘ oldEdge) fun e he => h ((hmap_u u e).mp he)
+      · refine hT_loc v _ _ _ _ _ _ _ _ _ _
+          (fun hv0 => ?_) (fun hv1 => ?_) (fun e_int he => ?_)
+        · subst hv0
+          exact ⟨h (Or.inr rfl),
+            h (Or.inl (by simp only [capGraph, tip', spliceTwoTip, ↓reduceIte]))⟩
+        · subst hv1
+          exact ⟨h (Or.inr rfl),
+            h (Or.inl (by simp only [capGraph, tip', spliceTwoTip, hq_ne.symm, ↓reduceIte]))⟩
+        · exact h (he.imp (congrArg (Sum.inl ∘ Sum.inr)) (congrArg (Sum.inl ∘ Sum.inr))) }
+
+/-- Step for a general `2`-qubit gate in degree `d = 4` (adds `Unit` vertex and `Bool ⊕ Empty`
+edges). -/
 private noncomputable def openStateTwoDegFour {W : Type} [Fintype W] [DecidableEq W]
     {M : Matrix (W → Bool) (W → Bool) ℂ} {s : ℕ} (S : OpenState 4 W M s)
     (g : ActiveGate W) (h2 : g.1.val = 2) :
-    OpenState 4 W ((placeAct g : Matrix _ _ ℂ) * M) (s + 1) := by
+    OpenState 4 W ((placeAct g : Matrix _ _ ℂ) * M) (s + 1) :=
   let i₀ : Fin g.1.val := ⟨0, by omega⟩
-  let i₁ : Fin g.1.val := ⟨1, by omega⟩
-  have hi_ne : i₀ ≠ i₁ := fun h => by
-    have hv := congrArg Fin.val h
-    dsimp only [i₀, i₁] at hv
-    omega
   let q₀ : W := g.2.2 i₀
-  let q₁ : W := g.2.2 i₁
-  have hq_ne : q₀ ≠ q₁ := fun h => hi_ne (g.2.2.injective h)
-  let G' : Multigraph (S.V ⊕ Unit) (S.E ⊕ Bool) :=
-    { src := fun e => match e with
-        | .inl e₀ => .inl (S.G.src e₀)
-        | .inr false => .inl (S.tip q₀)
-        | .inr true => .inl (S.tip q₁)
-      tgt := fun e => match e with
-        | .inl e₀ => .inl (S.G.tgt e₀)
-        | .inr _ => .inr () }
-  let tip' : W → S.V ⊕ Unit := fun q => if q = q₀ ∨ q = q₁ then .inr () else .inl (S.tip q)
-  let oldEdgeFun : S.E ⊕ W → (S.E ⊕ Bool) ⊕ W := fun e => match e with
-    | .inl e₀ => .inl (.inl e₀)
-    | .inr q =>
-      if q = q₀ then .inl (.inr false)
-      else if q = q₁ then .inl (.inr true)
-      else .inr q
-  have hold_inj : Function.Injective oldEdgeFun := fun a b hab => by
-    cases a with
-    | inl ea =>
-      cases b with
-      | inl eb => exact congrArg Sum.inl (Sum.inl.inj (Sum.inl.inj hab))
-      | inr qb => dsimp only [oldEdgeFun] at hab; split_ifs at hab <;> simp at hab
-    | inr qa =>
-      cases b with
-      | inl eb => dsimp only [oldEdgeFun] at hab; split_ifs at hab <;> simp at hab
-      | inr qb => dsimp only [oldEdgeFun] at hab; split_ifs at hab <;> simp_all
-  let oldEdge : S.E ⊕ W ↪ (S.E ⊕ Bool) ⊕ W := ⟨oldEdgeFun, hold_inj⟩
-  have hmap_u (u : S.V) (e : S.E ⊕ W) :
-      e ∈ (capGraph S.G S.tip).incidenceSet (.inl u) ↔
-        oldEdge e ∈ (capGraph G' tip').incidenceSet (.inl (.inl u)) := by
-    change _ ↔ oldEdgeFun e ∈ _
-    cases e with
-    | inl e₀ =>
-      simp [Multigraph.mem_incidenceSet, capGraph, oldEdgeFun, G']
-    | inr q =>
-      by_cases hq0 : q = q₀
-      · subst hq0; simp [Multigraph.mem_incidenceSet, capGraph, oldEdgeFun, G']
-      · by_cases hq1 : q = q₁
-        · subst hq1; simp [Multigraph.mem_incidenceSet, capGraph, oldEdgeFun, hq0, G']
-        · simp [Multigraph.mem_incidenceSet, capGraph, oldEdgeFun, hq0, hq1, tip']
-  have hsurj_u (u : S.V) (e' : (S.E ⊕ Bool) ⊕ W)
-      (he' : e' ∈ (capGraph G' tip').incidenceSet (.inl (.inl u))) :
-      ∃ e, oldEdge e = e' := by
-    change ∃ e, oldEdgeFun e = e'
-    rcases e' with (e₀ | b) | q
-    · exact ⟨.inl e₀, rfl⟩
-    · cases b
-      · exact ⟨.inr q₀, by simp [oldEdgeFun]⟩
-      · exact ⟨.inr q₁, by simp [oldEdgeFun, hq_ne.symm]⟩
-    · by_cases hq : q = q₀ ∨ q = q₁
-      · simp [Multigraph.mem_incidenceSet, capGraph, tip', hq] at he'
-      · push Not at hq
-        exact ⟨.inr q, by simp [oldEdgeFun, hq.1, hq.2]⟩
-  let g2Mat (a₀ a₁ b₀ b₁ : Bool) : ℂ :=
-    (g.2.1 : Matrix (Fin g.1.val → Bool) (Fin g.1.val → Bool) ℂ)
-      (fun i => if i = i₀ then a₀ else a₁)
-      (fun i => if i = i₀ then b₀ else b₁)
-  let gateTensor (γ' : (S.E ⊕ Bool) ⊕ W → Bool) : ℂ :=
-    ∑ z₀ : Bool, ∑ z₁ : Bool,
-      g2Mat (γ' (.inr q₀)) (γ' (.inr q₁)) z₀ z₁ *
-        S.tipMat q₀ z₀ (γ' (.inl (.inr false))) *
-        S.tipMat q₁ z₁ (γ' (.inl (.inr true)))
-  exact
-    { V := S.V ⊕ Unit
-      E := S.E ⊕ Bool
-      instFV := inferInstance
-      instDV := inferInstance
-      instFE := inferInstance
-      instDE := inferInstance
-      G := G'
-      inVert := S.inVert.trans ⟨Sum.inl, Sum.inl_injective⟩
-      tip := tip'
-      scalar := S.scalar
-      tipMat := fun q => if q = q₀ ∨ q = q₁ then 1 else S.tipMat q
-      openF := fun v x γ' => match v with
-        | .inl u => S.openF u x (γ' ∘ oldEdge)
-        | .inr () => gateTensor γ'
-      loopless := by
-        rintro (e₀ | b)
-        · exact fun h => S.loopless e₀ (Sum.inl.inj h)
-        · cases b <;> exact Sum.inl_ne_inr
-      deg_inVert := fun q =>
-        (ncard_incidence_eq_of_bij S.G S.tip G' tip' Sum.inl oldEdge (S.inVert q)
-          (hmap_u _) (hsurj_u _)).trans (S.deg_inVert q)
-      deg_gate := by
-        rintro (u | ⟨⟩) hv
-        · have hu : u ∉ Set.range S.inVert := fun ⟨q, hq⟩ => hv ⟨q, congrArg Sum.inl hq⟩
-          exact (ncard_incidence_eq_of_bij S.G S.tip G' tip' Sum.inl oldEdge u
-            (hmap_u u) (hsurj_u u)).trans (S.deg_gate u hu)
-        · have hset : (capGraph G' tip').incidenceSet (.inl (.inr ())) =
-              {.inl (.inr false), .inl (.inr true), .inr q₀, .inr q₁} := by
-            ext ((e₀ | b) | q)
-            · simp [Multigraph.mem_incidenceSet, capGraph, G']
-            · cases b <;> simp [Multigraph.mem_incidenceSet, capGraph, G']
-            · by_cases hq : q = q₀ ∨ q = q₁ <;>
-                simp [Multigraph.mem_incidenceSet, capGraph, tip', hq]
-          rw [hset, ncard_insert_of_notMem, ncard_insert_of_notMem, ncard_insert_of_notMem,
-            ncard_singleton]
-          · simp only [mem_singleton_iff, Sum.inr.injEq]; exact hq_ne
-          · simp [mem_insert_iff, mem_singleton_iff]
-          · simp [mem_insert_iff, mem_singleton_iff]
-      reach_tip := fun q => by
-        have hprev : G'.toSimpleGraph.Reachable (.inl (S.inVert q)) (.inl (S.tip q)) :=
-          reachable_map_inl ⟨Sum.inl, Sum.inl_injective⟩
-            (fun e₀ => ⟨.inl e₀, by simp [Multigraph.ends, G']⟩) (S.reach_tip q)
-        by_cases hq : q = q₀ ∨ q = q₁
-        · simp only [tip', hq, ↓reduceIte]
-          rcases hq with rfl | rfl
-          · exact hprev.trans (G'.reachable_src_tgt (.inr false))
-          · exact hprev.trans (G'.reachable_src_tgt (.inr true))
-        · simp only [tip', hq, ↓reduceIte]
-          exact hprev
-      card_V := by
-        rw [Fintype.card_sum, Fintype.card_unit]
-        obtain ⟨hc1, hc2⟩ := S.card_V
-        exact ⟨by omega, by omega⟩
-      contract := fun y x => by
-        let eqvFun : ((S.E ⊕ Bool) ⊕ W → Bool) ≃ (S.E ⊕ W → Bool) × (Bool × Bool) :=
-          { toFun := fun γ' => (γ' ∘ oldEdgeFun, (γ' (.inr q₀), γ' (.inr q₁)))
-            invFun := fun p s => match s with
-              | .inl (.inl e₀) => p.1 (.inl e₀)
-              | .inl (.inr false) => p.1 (.inr q₀)
-              | .inl (.inr true) => p.1 (.inr q₁)
-              | .inr q => if q = q₀ then p.2.1 else if q = q₁ then p.2.2 else p.1 (.inr q)
-            left_inv := fun γ' => by
-              ext ((e₀ | b) | q)
-              · rfl
-              · cases b <;> simp [oldEdgeFun, hq_ne.symm]
-              · by_cases hq0 : q = q₀
-                · subst hq0; simp
-                · by_cases hq1 : q = q₁
-                  · subst hq1; simp [hq0]
-                  · simp [hq0, hq1, oldEdgeFun]
-            right_inv := fun ⟨γ, a₀, a₁⟩ => by
-              refine Prod.ext (funext fun s => ?_) ?_
-              · cases s with
-                | inl e₀ => rfl
-                | inr q =>
-                  by_cases hq0 : q = q₀
-                  · subst hq0; simp [oldEdgeFun]
-                  · by_cases hq1 : q = q₁
-                    · subst hq1; simp [oldEdgeFun, hq0]
-                    · simp [oldEdgeFun, hq0, hq1]
-              · simp [hq_ne.symm] }
-        rw [Matrix.mul_apply]
-        have hplace (z : W → Bool) :
-            (placeAct g : Matrix _ _ ℂ) y z =
-              if ∀ q, q ≠ q₀ ∧ q ≠ q₁ → y q = z q then g2Mat (y q₀) (y q₁) (z q₀) (z q₁)
-              else 0 := by
-          rw [placeAct_apply]
-          have hiff : (∀ q : W, (¬∃ i, g.2.2 i = q) → y q = z q) ↔
-              ∀ q, q ≠ q₀ ∧ q ≠ q₁ → y q = z q := by
-            refine forall_congr' fun q => imp_congr_left
-              ⟨fun h => ⟨fun h0 => h ⟨i₀, h0.symm⟩, fun h1 => h ⟨i₁, h1.symm⟩⟩,
-               fun ⟨h0, h1⟩ ⟨i, hi⟩ => ?_⟩
-            rcases (by omega : i.val = 0 ∨ i.val = 1) with hi0 | hi1
-            · have hii : i = i₀ := Fin.ext hi0
-              exact h0 (hi.symm.trans (congrArg g.2.2 hii))
-            · have hii : i = i₁ := Fin.ext hi1
-              exact h1 (hi.symm.trans (congrArg g.2.2 hii))
-          rw [if_congr hiff rfl rfl]
-          split_ifs with h
-          · have hy_eq : (y ∘ g.2.2) = fun i => if i = i₀ then y q₀ else y q₁ :=
-              funext fun i => by
-                by_cases hi0 : i = i₀
-                · subst hi0; simp [q₀]
-                · have hi1 : i = i₁ := by ext; omega
-                  subst hi1; simp [hi0, q₁]
-            have hz_eq : (z ∘ g.2.2) = fun i => if i = i₀ then z q₀ else z q₁ :=
-              funext fun i => by
-                by_cases hi0 : i = i₀
-                · subst hi0; simp [q₀]
-                · have hi1 : i = i₁ := by ext; omega
-                  subst hi1; simp [hi0, q₁]
-            rw [hy_eq, hz_eq]
-          · rfl
-        have hsum_z : (∑ z : W → Bool, (placeAct g : Matrix _ _ ℂ) y z * M z x) =
-            ∑ z₀ : Bool, ∑ z₁ : Bool,
-              g2Mat (y q₀) (y q₁) z₀ z₁ *
-                M (Function.update (Function.update y q₁ z₁) q₀ z₀) x := by
-          simp_rw [hplace, ite_mul, zero_mul]
-          let fupd (p : Bool × Bool) : W → Bool :=
-            Function.update (Function.update y q₁ p.2) q₀ p.1
-          have hfupd_inj : Function.Injective fupd := fun p₁ p₂ h => by
-            have h0 : p₁.1 = p₂.1 := by simpa [fupd] using congrFun h q₀
-            have h1 : p₁.2 = p₂.2 := by simpa [fupd, hq_ne.symm] using congrFun h q₁
-            exact Prod.ext h0 h1
-          have hfilt : (Finset.univ.filter fun z : W → Bool =>
-              ∀ q, q ≠ q₀ ∧ q ≠ q₁ → y q = z q) = Finset.univ.image fupd := by
-            ext z
-            simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_image]
-            constructor
-            · intro hz
-              refine ⟨(z q₀, z q₁), funext fun q => ?_⟩
-              by_cases h0 : q = q₀
-              · subst h0; simp only [fupd, Function.update_self]
-              · by_cases h1 : q = q₁
-                · subst h1; simp only [fupd, ne_eq, h0, not_false_eq_true, Function.update_of_ne,
-                    Function.update_self]
-                · simp only [fupd, ne_eq, h0, h1, not_false_eq_true, Function.update_of_ne,
-                    hz q ⟨h0, h1⟩]
-            · rintro ⟨⟨z₀, z₁⟩, rfl⟩ q ⟨h0, h1⟩
-              simp only [fupd, ne_eq, h0, h1, not_false_eq_true, Function.update_of_ne]
-          rw [← Finset.sum_filter, hfilt, Finset.sum_image (fun _ _ _ _ h => hfupd_inj h),
-            Fintype.sum_prod_type]
-          refine Finset.sum_congr rfl fun z₀ _ => Finset.sum_congr rfl fun z₁ _ => ?_
-          simp only [fupd, Function.update_self, ne_eq, hq_ne.symm, not_false_eq_true,
-            Function.update_of_ne]
-        rw [hsum_z]
-        have hrhs : (∑ γ' : (S.E ⊕ Bool) ⊕ W → Bool,
-            (∏ v : S.V ⊕ Unit, (match v with
-              | .inl u => S.openF u x (γ' ∘ oldEdge)
-              | .inr () => gateTensor γ')) *
-              ∏ q : W, (if q = q₀ ∨ q = q₁ then (1 : Matrix Bool Bool ℂ) else S.tipMat q)
-                (y q) (γ' (.inr q))) =
-            ∑ γ : S.E ⊕ W → Bool,
-              (∏ u : S.V, S.openF u x γ) *
-                (∑ z₀ : Bool, ∑ z₁ : Bool,
-                  g2Mat (y q₀) (y q₁) z₀ z₁ *
-                    S.tipMat q₀ z₀ (γ (.inr q₀)) * S.tipMat q₁ z₁ (γ (.inr q₁))) *
-                ∏ q ∈ (Finset.univ.erase q₀).erase q₁, S.tipMat q (y q) (γ (.inr q)) := by
-          rw [← Fintype.sum_equiv eqvFun.symm
-            (fun p =>
-              (∏ v : S.V ⊕ Unit, (match v with
-                | .inl u => S.openF u x ((eqvFun.symm p) ∘ oldEdge)
-                | .inr () => gateTensor (eqvFun.symm p))) *
-                ∏ q : W, (if q = q₀ ∨ q = q₁ then (1 : Matrix Bool Bool ℂ) else S.tipMat q)
-                  (y q) (eqvFun.symm p (.inr q))) _ (fun _ => rfl)]
-          rw [Fintype.sum_prod_type]
-          refine Finset.sum_congr rfl fun γ _ => ?_
-          rw [Fintype.sum_prod_type]
-          set body : ℂ :=
-            (∏ u : S.V, S.openF u x γ) *
-              (∑ z₀ : Bool, ∑ z₁ : Bool,
-                g2Mat (y q₀) (y q₁) z₀ z₁ *
-                  S.tipMat q₀ z₀ (γ (.inr q₀)) * S.tipMat q₁ z₁ (γ (.inr q₁))) *
-              ∏ q ∈ (Finset.univ.erase q₀).erase q₁, S.tipMat q (y q) (γ (.inr q))
-          have hterm_ab (a₀ a₁ : Bool) :
-              (∏ v : S.V ⊕ Unit, (match v with
-                | .inl u => S.openF u x ((eqvFun.symm (γ, a₀, a₁)) ∘ oldEdge)
-                | .inr () => gateTensor (eqvFun.symm (γ, a₀, a₁)))) *
-              (∏ q : W, (if q = q₀ ∨ q = q₁ then (1 : Matrix Bool Bool ℂ) else S.tipMat q)
-                (y q) (eqvFun.symm (γ, a₀, a₁) (.inr q))) =
-              if a₀ = y q₀ ∧ a₁ = y q₁ then body else 0 := by
-            have hcomp_γ : (eqvFun.symm (γ, a₀, a₁)) ∘ oldEdge = γ :=
-              congrArg Prod.fst (eqvFun.apply_symm_apply (γ, a₀, a₁))
-            have ha₀_val : eqvFun.symm (γ, a₀, a₁) (.inr q₀) = a₀ :=
-              congrArg (Prod.fst ∘ Prod.snd) (eqvFun.apply_symm_apply (γ, a₀, a₁))
-            have ha₁_val : eqvFun.symm (γ, a₀, a₁) (.inr q₁) = a₁ :=
-              congrArg (Prod.snd ∘ Prod.snd) (eqvFun.apply_symm_apply (γ, a₀, a₁))
-            have hf0 : eqvFun.symm (γ, a₀, a₁) (.inl (.inr false)) = γ (.inr q₀) := rfl
-            have hf1 : eqvFun.symm (γ, a₀, a₁) (.inl (.inr true)) = γ (.inr q₁) := rfl
-            rw [Fintype.prod_sum_type]
-            simp only [Fintype.prod_unique, hcomp_γ, gateTensor, ha₀_val, ha₁_val, hf0, hf1]
-            rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ q₀),
-              ← Finset.mul_prod_erase (Finset.univ.erase q₀) _
-                (Finset.mem_erase.mpr ⟨hq_ne.symm, Finset.mem_univ q₁⟩)]
-            simp only [true_or, or_true, ↓reduceIte, ha₀_val, ha₁_val, Matrix.one_apply]
-            have hrest : (∏ q ∈ (Finset.univ.erase q₀).erase q₁,
-                (if q = q₀ ∨ q = q₁ then (1 : Matrix Bool Bool ℂ) else S.tipMat q) (y q)
-                  (eqvFun.symm (γ, a₀, a₁) (.inr q))) =
-                ∏ q ∈ (Finset.univ.erase q₀).erase q₁, S.tipMat q (y q) (γ (.inr q)) := by
-              refine Finset.prod_congr rfl fun q hq => ?_
-              have hq1 : q ≠ q₁ := (Finset.mem_erase.mp hq).1
-              have hq0 : q ≠ q₀ := (Finset.mem_erase.mp (Finset.mem_erase.mp hq).2).1
-              have hnot : ¬(q = q₀ ∨ q = q₁) := not_or.mpr ⟨hq0, hq1⟩
-              simp only [hnot, ↓reduceIte]
-              have hval : eqvFun.symm (γ, a₀, a₁) (.inr q) = γ (.inr q) := by
-                simp only [eqvFun, Equiv.coe_fn_symm_mk, hq0, hq1, ↓reduceIte]
-              rw [hval]
-            rw [hrest]
-            by_cases h0 : y q₀ = a₀ <;> by_cases h1 : y q₁ = a₁
-            · subst h0; subst h1
-              simp only [and_self, ↓reduceIte, body]
-              ring
-            · have hna : ¬(a₀ = y q₀ ∧ a₁ = y q₁) := fun h => h1 h.2.symm
-              simp only [h1, hna, ↓reduceIte, mul_zero, zero_mul]
-            · have hna : ¬(a₀ = y q₀ ∧ a₁ = y q₁) := fun h => h0 h.1.symm
-              simp only [h0, hna, ↓reduceIte, zero_mul, mul_zero]
-            · have hna : ¬(a₀ = y q₀ ∧ a₁ = y q₁) := fun h => h0 h.1.symm
-              simp only [h0, hna, ↓reduceIte, zero_mul, mul_zero]
-          simp_rw [hterm_ab]
-          simp only [Fintype.sum_bool]
-          cases y q₀ <;> cases y q₁ <;> simp
-        rw [hrhs]
-        have hstep1 : (∑ z₀ : Bool, ∑ z₁ : Bool,
-            g2Mat (y q₀) (y q₁) z₀ z₁ *
-              M (Function.update (Function.update y q₁ z₁) q₀ z₀) x) =
-            S.scalar * ∑ z₀ : Bool, ∑ z₁ : Bool, ∑ γ : S.E ⊕ W → Bool,
-              g2Mat (y q₀) (y q₁) z₀ z₁ *
-                ((∏ u : S.V, S.openF u x γ) *
-                  ∏ q : W, S.tipMat q (Function.update (Function.update y q₁ z₁) q₀ z₀ q)
-                    (γ (.inr q))) := by
-          rw [Finset.mul_sum]
-          refine Finset.sum_congr rfl fun z₀ _ => ?_
-          rw [Finset.mul_sum]
-          refine Finset.sum_congr rfl fun z₁ _ => ?_
-          rw [S.contract _ x, ← mul_assoc, mul_comm (g2Mat _ _ _ _) S.scalar, mul_assoc,
-            Finset.mul_sum]
-        rw [hstep1, Finset.sum_comm]
-        simp_rw [Finset.sum_comm (s := Finset.univ (α := Bool))
-          (t := Finset.univ (α := S.E ⊕ W → Bool))]
-        congr 1
-        refine Finset.sum_congr rfl fun γ _ => ?_
-        have hupd_prod (z₀ z₁ : Bool) :
-            (∏ q : W, S.tipMat q (Function.update (Function.update y q₁ z₁) q₀ z₀ q)
-              (γ (.inr q))) =
-            S.tipMat q₀ z₀ (γ (.inr q₀)) * S.tipMat q₁ z₁ (γ (.inr q₁)) *
-              ∏ q ∈ (Finset.univ.erase q₀).erase q₁, S.tipMat q (y q) (γ (.inr q)) := by
-          rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ q₀),
-            ← Finset.mul_prod_erase (Finset.univ.erase q₀) _
-              (Finset.mem_erase.mpr ⟨hq_ne.symm, Finset.mem_univ q₁⟩)]
-          have hupd0 : Function.update (Function.update y q₁ z₁) q₀ z₀ q₀ = z₀ :=
-            Function.update_self _ _ _
-          have hupd1 : Function.update (Function.update y q₁ z₁) q₀ z₀ q₁ = z₁ := by
-            rw [Function.update_of_ne hq_ne.symm, Function.update_self]
-          rw [hupd0, hupd1, mul_assoc]
-          congr 2
-          refine Finset.prod_congr rfl fun q hq => ?_
-          have hq1 : q ≠ q₁ := (Finset.mem_erase.mp hq).1
-          have hq0 : q ≠ q₀ := (Finset.mem_erase.mp (Finset.mem_erase.mp hq).2).1
-          have hupdq : Function.update (Function.update y q₁ z₁) q₀ z₀ q = y q := by
-            rw [Function.update_of_ne hq0, Function.update_of_ne hq1]
-          rw [hupdq]
-        simp_rw [hupd_prod]
-        rw [Finset.sum_comm]
-        symm
-        rw [Finset.mul_sum, Finset.sum_mul]
-        refine Finset.sum_congr rfl fun z₀ _ => ?_
-        rw [Finset.mul_sum, Finset.sum_mul]
-        exact Finset.sum_congr rfl fun z₁ _ => by ring
-      loc_in := by
-        rintro (u | ⟨⟩) x₁ x₂ γ' h
-        · exact S.loc_in u x₁ x₂ (γ' ∘ oldEdge) fun q hq => h q (congrArg Sum.inl hq)
-        · rfl
-      loc_edge := by
-        rintro (u | ⟨⟩) x γ₁ γ₂ h
-        · exact S.loc_edge u x (γ₁ ∘ oldEdge) (γ₂ ∘ oldEdge) fun e he => h ((hmap_u u e).mp he)
-        · simp only [gateTensor]
-          have h0 : γ₁ (.inr q₀) = γ₂ (.inr q₀) :=
-            h (Or.inl (by simp only [capGraph, tip', true_or, ↓reduceIte]))
-          have h1 : γ₁ (.inr q₁) = γ₂ (.inr q₁) :=
-            h (Or.inl (by simp only [capGraph, tip', or_true, ↓reduceIte]))
-          have hf0 : γ₁ (.inl (.inr false)) = γ₂ (.inl (.inr false)) := h (Or.inr rfl)
-          have hf1 : γ₁ (.inl (.inr true)) = γ₂ (.inl (.inr true)) := h (Or.inr rfl)
-          rw [h0, h1, hf0, hf1] }
+  let q₁ : W := g.2.2 ⟨1, by omega⟩
+  S.spliceTwo g h2 Unit Empty { src := Empty.elim, tgt := Empty.elim } (fun e => Empty.elim e)
+    () () (by simp)
+    (fun ⟨⟩ => by
+      have hemp : ({ src := Empty.elim, tgt := Empty.elim } : Multigraph Unit Empty).incidenceSet ()
+          = ∅ := by ext e; exact Empty.elim e
+      rw [hemp, ncard_empty]; rfl)
+    (fun _ b₀ b₁ a₀ a₁ _ =>
+      ∑ z₀ : Bool, ∑ z₁ : Bool,
+        (g.2.1 : Matrix (Fin g.1.val → Bool) (Fin g.1.val → Bool) ℂ)
+          (fun i => if i = i₀ then a₀ else a₁)
+          (fun i => if i = i₀ then z₀ else z₁) *
+        S.tipMat q₀ z₀ b₀ * S.tipMat q₁ z₁ b₁)
+    (fun _ _ _ _ => by simp only [Fintype.sum_unique, Fintype.prod_unique]; rfl)
+    (fun ⟨⟩ _ _ _ _ _ _ _ _ _ _ h0 h1 _ => by
+      obtain ⟨rfl, rfl⟩ := h0 rfl
+      obtain ⟨rfl, rfl⟩ := h1 rfl
+      rfl)
 
-/-- Step for a bond-rank-two `2`-qubit gate in degree `d = 3` (adds `Bool` vertices and `Fin 3`
-edges). -/
+/-- Step for a bond-rank-two `2`-qubit gate in degree `d = 3` (adds `Bool` vertices and
+`Bool ⊕ Unit` edges). -/
 private noncomputable def openStateTwoDegThree {W : Type} [Fintype W] [DecidableEq W]
     {M : Matrix (W → Bool) (W → Bool) ℂ} {s : ℕ} (S : OpenState 3 W M s)
     (g : ActiveGate W) (h2 : g.1.val = 2) (hbond : HasBondRankTwo (h2 ▸ g.2.1)) :
-    OpenState 3 W ((placeAct g : Matrix _ _ ℂ) * M) (s + 1) := by
-  let i₀ : Fin g.1.val := ⟨0, by omega⟩
-  let i₁ : Fin g.1.val := ⟨1, by omega⟩
-  have hi_ne : i₀ ≠ i₁ := fun h => by
-    have hv := congrArg Fin.val h
-    dsimp only [i₀, i₁] at hv
-    omega
-  let q₀ : W := g.2.2 i₀
-  let q₁ : W := g.2.2 i₁
-  have hq_ne : q₀ ≠ q₁ := fun h => hi_ne (g.2.2.injective h)
+    OpenState 3 W ((placeAct g : Matrix _ _ ℂ) * M) (s + 1) :=
+  let q₀ : W := g.2.2 ⟨0, by omega⟩
+  let q₁ : W := g.2.2 ⟨1, by omega⟩
   let L_ten : Bool → Bool → Bool → ℂ := Classical.choose hbond
   let R_ten : Bool → Bool → Bool → ℂ := Classical.choose (Classical.choose_spec hbond)
-  have hLR : ∀ y' x' : Fin 2 → Bool,
-      ((h2 ▸ g.2.1 : Quantum.Gate 2) : Matrix _ _ ℂ) y' x' =
-        ∑ b : Bool, L_ten (x' 0) (y' 0) b * R_ten (x' 1) (y' 1) b :=
-    Classical.choose_spec (Classical.choose_spec hbond)
-  let G' : Multigraph (S.V ⊕ Bool) (S.E ⊕ Fin 3) :=
-    { src := fun e => match e with
-        | .inl e₀ => .inl (S.G.src e₀)
-        | .inr 0 => .inl (S.tip q₀)
-        | .inr 1 => .inl (S.tip q₁)
-        | .inr 2 => .inr false
-      tgt := fun e => match e with
-        | .inl e₀ => .inl (S.G.tgt e₀)
-        | .inr 0 => .inr false
-        | .inr 1 => .inr true
-        | .inr 2 => .inr true }
-  let tip' : W → S.V ⊕ Bool :=
-    fun q => if q = q₀ then .inr false else if q = q₁ then .inr true else .inl (S.tip q)
-  let oldEdgeFun : S.E ⊕ W → (S.E ⊕ Fin 3) ⊕ W := fun e => match e with
-    | .inl e₀ => .inl (.inl e₀)
-    | .inr q =>
-      if q = q₀ then .inl (.inr 0)
-      else if q = q₁ then .inl (.inr 1)
-      else .inr q
-  have hold_inj : Function.Injective oldEdgeFun := fun a b hab => by
-    cases a with
-    | inl ea =>
-      cases b with
-      | inl eb => exact congrArg Sum.inl (Sum.inl.inj (Sum.inl.inj hab))
-      | inr qb => dsimp only [oldEdgeFun] at hab; split_ifs at hab <;> simp at hab
-    | inr qa =>
-      cases b with
-      | inl eb => dsimp only [oldEdgeFun] at hab; split_ifs at hab <;> simp at hab
-      | inr qb => dsimp only [oldEdgeFun] at hab; split_ifs at hab <;> simp_all
-  let oldEdge : S.E ⊕ W ↪ (S.E ⊕ Fin 3) ⊕ W := ⟨oldEdgeFun, hold_inj⟩
-  have hmap_u (u : S.V) (e : S.E ⊕ W) :
-      e ∈ (capGraph S.G S.tip).incidenceSet (.inl u) ↔
-        oldEdge e ∈ (capGraph G' tip').incidenceSet (.inl (.inl u)) := by
-    change _ ↔ oldEdgeFun e ∈ _
-    cases e with
-    | inl e₀ =>
-      simp [Multigraph.mem_incidenceSet, capGraph, oldEdgeFun, G']
-    | inr q =>
-      by_cases hq0 : q = q₀
-      · subst hq0; simp [Multigraph.mem_incidenceSet, capGraph, oldEdgeFun, G']
-      · by_cases hq1 : q = q₁
-        · subst hq1; simp [Multigraph.mem_incidenceSet, capGraph, oldEdgeFun, hq0, G']
-        · simp [Multigraph.mem_incidenceSet, capGraph, oldEdgeFun, hq0, hq1, tip']
-  have hsurj_u (u : S.V) (e' : (S.E ⊕ Fin 3) ⊕ W)
-      (he' : e' ∈ (capGraph G' tip').incidenceSet (.inl (.inl u))) :
-      ∃ e, oldEdge e = e' := by
-    change ∃ e, oldEdgeFun e = e'
-    rcases e' with (e₀ | r) | q
-    · exact ⟨.inl e₀, rfl⟩
-    · fin_cases r
-      · exact ⟨.inr q₀, by simp [oldEdgeFun]⟩
-      · exact ⟨.inr q₁, by simp [oldEdgeFun, hq_ne.symm]⟩
-      · simp [Multigraph.mem_incidenceSet, capGraph, G'] at he'
-    · by_cases hq0 : q = q₀
-      · subst hq0; simp [Multigraph.mem_incidenceSet, capGraph, tip'] at he'
-      · by_cases hq1 : q = q₁
-        · subst hq1; simp [Multigraph.mem_incidenceSet, capGraph, tip', hq0] at he'
-        · exact ⟨.inr q, by simp [oldEdgeFun, hq0, hq1]⟩
-  let leftT (γ' : (S.E ⊕ Fin 3) ⊕ W → Bool) : ℂ :=
-    ∑ z₀ : Bool, L_ten z₀ (γ' (.inr q₀)) (γ' (.inl (.inr 2))) *
-      S.tipMat q₀ z₀ (γ' (.inl (.inr 0)))
-  let rightT (γ' : (S.E ⊕ Fin 3) ⊕ W → Bool) : ℂ :=
-    ∑ z₁ : Bool, R_ten z₁ (γ' (.inr q₁)) (γ' (.inl (.inr 2))) *
-      S.tipMat q₁ z₁ (γ' (.inl (.inr 1)))
-  exact
-    { V := S.V ⊕ Bool
-      E := S.E ⊕ Fin 3
-      instFV := inferInstance
-      instDV := inferInstance
-      instFE := inferInstance
-      instDE := inferInstance
-      G := G'
-      inVert := S.inVert.trans ⟨Sum.inl, Sum.inl_injective⟩
-      tip := tip'
-      scalar := S.scalar
-      tipMat := fun q => if q = q₀ ∨ q = q₁ then 1 else S.tipMat q
-      openF := fun v x γ' => match v with
-        | .inl u => S.openF u x (γ' ∘ oldEdge)
-        | .inr false => leftT γ'
-        | .inr true => rightT γ'
-      loopless := by
-        rintro (e₀ | r)
-        · exact fun h => S.loopless e₀ (Sum.inl.inj h)
-        · fin_cases r
-          · exact Sum.inl_ne_inr
-          · exact Sum.inl_ne_inr
-          · simp [G']
-      deg_inVert := fun q =>
-        (ncard_incidence_eq_of_bij S.G S.tip G' tip' Sum.inl oldEdge (S.inVert q)
-          (hmap_u _) (hsurj_u _)).trans (S.deg_inVert q)
-      deg_gate := by
-        rintro (u | b) hv
-        · have hu : u ∉ Set.range S.inVert := fun ⟨q, hq⟩ => hv ⟨q, congrArg Sum.inl hq⟩
-          exact (ncard_incidence_eq_of_bij S.G S.tip G' tip' Sum.inl oldEdge u
-            (hmap_u u) (hsurj_u u)).trans (S.deg_gate u hu)
-        · cases b
-          · have hset : (capGraph G' tip').incidenceSet (.inl (.inr false)) =
-                {.inl (.inr 0), .inl (.inr 2), .inr q₀} := by
-              ext ((e₀ | r) | q)
-              · simp [Multigraph.mem_incidenceSet, capGraph, G']
-              · fin_cases r <;> simp [Multigraph.mem_incidenceSet, capGraph, G']
-              · by_cases hq0 : q = q₀
-                · subst hq0; simp [Multigraph.mem_incidenceSet, capGraph, tip']
-                · by_cases hq1 : q = q₁ <;>
-                    simp [Multigraph.mem_incidenceSet, capGraph, tip', hq0, hq1]
-            rw [hset, ncard_insert_of_notMem, ncard_insert_of_notMem, ncard_singleton]
-            · simp
-            · simp [mem_insert_iff, mem_singleton_iff]
-          · have hset : (capGraph G' tip').incidenceSet (.inl (.inr true)) =
-                {.inl (.inr 1), .inl (.inr 2), .inr q₁} := by
-              ext ((e₀ | r) | q)
-              · simp [Multigraph.mem_incidenceSet, capGraph, G']
-              · fin_cases r <;> simp [Multigraph.mem_incidenceSet, capGraph, G']
-              · by_cases hq0 : q = q₀
-                · subst hq0; simp [Multigraph.mem_incidenceSet, capGraph, tip', hq_ne]
-                · by_cases hq1 : q = q₁ <;>
-                    simp [Multigraph.mem_incidenceSet, capGraph, tip', hq0, hq1, hq_ne.symm]
-            rw [hset, ncard_insert_of_notMem, ncard_insert_of_notMem, ncard_singleton]
-            · simp
-            · simp [mem_insert_iff, mem_singleton_iff]
-      reach_tip := fun q => by
-        have hprev : G'.toSimpleGraph.Reachable (.inl (S.inVert q)) (.inl (S.tip q)) :=
-          reachable_map_inl ⟨Sum.inl, Sum.inl_injective⟩
-            (fun e₀ => ⟨.inl e₀, by simp [Multigraph.ends, G']⟩) (S.reach_tip q)
-        by_cases hq0 : q = q₀
-        · subst hq0; simp only [tip', ↓reduceIte]
-          exact hprev.trans (G'.reachable_src_tgt (.inr 0))
-        · by_cases hq1 : q = q₁
-          · subst hq1; simp only [tip', hq0, ↓reduceIte]
-            exact hprev.trans (G'.reachable_src_tgt (.inr 1))
-          · simp only [tip', hq0, hq1, ↓reduceIte]; exact hprev
-      card_V := by
-        rw [Fintype.card_sum, Fintype.card_bool]
-        obtain ⟨hc1, hc2⟩ := S.card_V
-        exact ⟨by omega, by omega⟩
-      contract := fun y x => by
-        let eqvFun : ((S.E ⊕ Fin 3) ⊕ W → Bool) ≃
-            (S.E ⊕ W → Bool) × (Bool × Bool × Bool) :=
-          { toFun := fun γ' =>
-              (γ' ∘ oldEdgeFun, (γ' (.inr q₀), γ' (.inr q₁), γ' (.inl (.inr 2))))
-            invFun := fun p s => match s with
-              | .inl (.inl e₀) => p.1 (.inl e₀)
-              | .inl (.inr r) =>
-                if r = 0 then p.1 (.inr q₀) else if r = 1 then p.1 (.inr q₁) else p.2.2.2
-              | .inr q =>
-                if q = q₀ then p.2.1 else if q = q₁ then p.2.2.1 else p.1 (.inr q)
-            left_inv := fun γ' => by
-              ext ((e₀ | r) | q)
-              · rfl
-              · fin_cases r
-                · simp [oldEdgeFun]
-                · simp [oldEdgeFun, hq_ne.symm]
-                · simp
-              · by_cases hq0 : q = q₀
-                · subst hq0; simp
-                · by_cases hq1 : q = q₁
-                  · subst hq1; simp [hq0]
-                  · simp [hq0, hq1, oldEdgeFun]
-            right_inv := fun ⟨γ, a₀, a₁, b_bond⟩ => by
-              refine Prod.ext (funext fun s => ?_) ?_
-              · cases s with
-                | inl e₀ => rfl
-                | inr q =>
-                  by_cases hq0 : q = q₀
-                  · subst hq0; simp [oldEdgeFun]
-                  · by_cases hq1 : q = q₁
-                    · subst hq1; simp [oldEdgeFun, hq0]
-                    · simp [oldEdgeFun, hq0, hq1]
-              · simp [hq_ne.symm] }
-        have hg_eq (a₀ a₁ z₀ z₁ : Bool) :
-            (g.2.1 : Matrix (Fin g.1.val → Bool) (Fin g.1.val → Bool) ℂ)
-              (fun i => if i = i₀ then a₀ else a₁)
-              (fun i => if i = i₀ then z₀ else z₁) =
-              ∑ b : Bool, L_ten z₀ a₀ b * R_ten z₁ a₁ b := by
-          rcases g with ⟨⟨arity, har_lt⟩, gate, wires⟩
-          dsimp only [i₀, i₁] at h2 hLR ⊢
-          subst h2
-          exact hLR (fun i => if i = 0 then a₀ else a₁) (fun i => if i = 0 then z₀ else z₁)
-        rw [Matrix.mul_apply]
-        have hplace (z : W → Bool) :
-            (placeAct g : Matrix _ _ ℂ) y z =
-              if ∀ q, q ≠ q₀ ∧ q ≠ q₁ → y q = z q then
-                ∑ b : Bool, L_ten (z q₀) (y q₀) b * R_ten (z q₁) (y q₁) b
-              else 0 := by
-          rw [placeAct_apply]
-          have hiff : (∀ q : W, (¬∃ i, g.2.2 i = q) → y q = z q) ↔
-              ∀ q, q ≠ q₀ ∧ q ≠ q₁ → y q = z q := by
-            refine forall_congr' fun q => imp_congr_left
-              ⟨fun h => ⟨fun h0 => h ⟨i₀, h0.symm⟩, fun h1 => h ⟨i₁, h1.symm⟩⟩,
-               fun ⟨h0, h1⟩ ⟨i, hi⟩ => ?_⟩
-            rcases (by omega : i.val = 0 ∨ i.val = 1) with hi0 | hi1
-            · have hii : i = i₀ := Fin.ext hi0
-              exact h0 (hi.symm.trans (congrArg g.2.2 hii))
-            · have hii : i = i₁ := Fin.ext hi1
-              exact h1 (hi.symm.trans (congrArg g.2.2 hii))
-          rw [if_congr hiff rfl rfl]
-          split_ifs with h
-          · rw [← hg_eq (y q₀) (y q₁) (z q₀) (z q₁)]
-            have hy_eq : (y ∘ g.2.2) = fun i => if i = i₀ then y q₀ else y q₁ :=
-              funext fun i => by
-                by_cases hi0 : i = i₀
-                · subst hi0; simp [q₀]
-                · have hi1 : i = i₁ := by ext; omega
-                  subst hi1; simp [hi0, q₁]
-            have hz_eq : (z ∘ g.2.2) = fun i => if i = i₀ then z q₀ else z q₁ :=
-              funext fun i => by
-                by_cases hi0 : i = i₀
-                · subst hi0; simp [q₀]
-                · have hi1 : i = i₁ := by ext; omega
-                  subst hi1; simp [hi0, q₁]
-            rw [hy_eq, hz_eq]
-          · rfl
-        have hsum_z : (∑ z : W → Bool, (placeAct g : Matrix _ _ ℂ) y z * M z x) =
-            ∑ z₀ : Bool, ∑ z₁ : Bool,
-              (∑ b : Bool, L_ten z₀ (y q₀) b * R_ten z₁ (y q₁) b) *
-                M (Function.update (Function.update y q₁ z₁) q₀ z₀) x := by
-          simp_rw [hplace, ite_mul, zero_mul]
-          let fupd (p : Bool × Bool) : W → Bool :=
-            Function.update (Function.update y q₁ p.2) q₀ p.1
-          have hfupd_inj : Function.Injective fupd := fun p₁ p₂ h => by
-            have h0 : p₁.1 = p₂.1 := by simpa [fupd] using congrFun h q₀
-            have h1 : p₁.2 = p₂.2 := by simpa [fupd, hq_ne.symm] using congrFun h q₁
-            exact Prod.ext h0 h1
-          have hfilt : (Finset.univ.filter fun z : W → Bool =>
-              ∀ q, q ≠ q₀ ∧ q ≠ q₁ → y q = z q) = Finset.univ.image fupd := by
-            ext z
-            simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_image]
-            constructor
-            · intro hz
-              refine ⟨(z q₀, z q₁), funext fun q => ?_⟩
-              by_cases h0 : q = q₀
-              · subst h0; simp only [fupd, Function.update_self]
-              · by_cases h1 : q = q₁
-                · subst h1; simp only [fupd, ne_eq, h0, not_false_eq_true, Function.update_of_ne,
-                    Function.update_self]
-                · simp only [fupd, ne_eq, h0, h1, not_false_eq_true, Function.update_of_ne,
-                    hz q ⟨h0, h1⟩]
-            · rintro ⟨⟨z₀, z₁⟩, rfl⟩ q ⟨h0, h1⟩
-              simp only [fupd, ne_eq, h0, h1, not_false_eq_true, Function.update_of_ne]
-          rw [← Finset.sum_filter, hfilt, Finset.sum_image (fun _ _ _ _ h => hfupd_inj h),
-            Fintype.sum_prod_type]
-          refine Finset.sum_congr rfl fun z₀ _ => Finset.sum_congr rfl fun z₁ _ => ?_
-          simp only [fupd, Function.update_self, ne_eq, hq_ne.symm, not_false_eq_true,
-            Function.update_of_ne]
-        rw [hsum_z]
-        have hrhs : (∑ γ' : (S.E ⊕ Fin 3) ⊕ W → Bool,
-            (∏ v : S.V ⊕ Bool, (match v with
-              | .inl u => S.openF u x (γ' ∘ oldEdge)
-              | .inr false => leftT γ'
-              | .inr true => rightT γ')) *
-              ∏ q : W, (if q = q₀ ∨ q = q₁ then (1 : Matrix Bool Bool ℂ) else S.tipMat q)
-                (y q) (γ' (.inr q))) =
-            ∑ γ : S.E ⊕ W → Bool,
-              (∏ u : S.V, S.openF u x γ) *
-                (∑ z₀ : Bool, ∑ z₁ : Bool,
-                  (∑ b : Bool, L_ten z₀ (y q₀) b * R_ten z₁ (y q₁) b) *
-                    S.tipMat q₀ z₀ (γ (.inr q₀)) * S.tipMat q₁ z₁ (γ (.inr q₁))) *
-                ∏ q ∈ (Finset.univ.erase q₀).erase q₁, S.tipMat q (y q) (γ (.inr q)) := by
-          rw [← Fintype.sum_equiv eqvFun.symm
-            (fun p =>
-              (∏ v : S.V ⊕ Bool, (match v with
-                | .inl u => S.openF u x ((eqvFun.symm p) ∘ oldEdge)
-                | .inr false => leftT (eqvFun.symm p)
-                | .inr true => rightT (eqvFun.symm p))) *
-                ∏ q : W, (if q = q₀ ∨ q = q₁ then (1 : Matrix Bool Bool ℂ) else S.tipMat q)
-                  (y q) (eqvFun.symm p (.inr q))) _ (fun _ => rfl)]
-          rw [Fintype.sum_prod_type]
-          refine Finset.sum_congr rfl fun γ _ => ?_
-          rw [Fintype.sum_prod_type]
-          simp_rw [Fintype.sum_prod_type]
-          let body (b : Bool) : ℂ :=
-            (∏ u : S.V, S.openF u x γ) *
-              ((∑ z₀ : Bool, L_ten z₀ (y q₀) b * S.tipMat q₀ z₀ (γ (.inr q₀))) *
-                (∑ z₁ : Bool, R_ten z₁ (y q₁) b * S.tipMat q₁ z₁ (γ (.inr q₁)))) *
-              ∏ q ∈ (Finset.univ.erase q₀).erase q₁, S.tipMat q (y q) (γ (.inr q))
-          have hterm_ab (a₀ a₁ b : Bool) :
-              (∏ v : S.V ⊕ Bool, (match v with
-                | .inl u => S.openF u x ((eqvFun.symm (γ, a₀, a₁, b)) ∘ oldEdge)
-                | .inr false => leftT (eqvFun.symm (γ, a₀, a₁, b))
-                | .inr true => rightT (eqvFun.symm (γ, a₀, a₁, b)))) *
-              (∏ q : W, (if q = q₀ ∨ q = q₁ then (1 : Matrix Bool Bool ℂ) else S.tipMat q)
-                (y q) (eqvFun.symm (γ, a₀, a₁, b) (.inr q))) =
-              if a₀ = y q₀ ∧ a₁ = y q₁ then body b else 0 := by
-            have hcomp_γ : (eqvFun.symm (γ, a₀, a₁, b)) ∘ oldEdge = γ :=
-              congrArg Prod.fst (eqvFun.apply_symm_apply (γ, a₀, a₁, b))
-            have ha₀_val : eqvFun.symm (γ, a₀, a₁, b) (.inr q₀) = a₀ :=
-              congrArg (Prod.fst ∘ Prod.snd) (eqvFun.apply_symm_apply (γ, a₀, a₁, b))
-            have ha₁_val : eqvFun.symm (γ, a₀, a₁, b) (.inr q₁) = a₁ :=
-              congrArg (Prod.fst ∘ Prod.snd ∘ Prod.snd) (eqvFun.apply_symm_apply (γ, a₀, a₁, b))
-            have hb_val : eqvFun.symm (γ, a₀, a₁, b) (.inl (.inr 2)) = b :=
-              congrArg (Prod.snd ∘ Prod.snd ∘ Prod.snd) (eqvFun.apply_symm_apply (γ, a₀, a₁, b))
-            have hf0 : eqvFun.symm (γ, a₀, a₁, b) (.inl (.inr 0)) = γ (.inr q₀) := rfl
-            have hf1 : eqvFun.symm (γ, a₀, a₁, b) (.inl (.inr 1)) = γ (.inr q₁) := rfl
-            rw [Fintype.prod_sum_type, Fintype.prod_bool]
-            simp only [hcomp_γ, leftT, rightT, ha₀_val, ha₁_val, hb_val, hf0, hf1]
-            rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ q₀),
-              ← Finset.mul_prod_erase (Finset.univ.erase q₀) _
-                (Finset.mem_erase.mpr ⟨hq_ne.symm, Finset.mem_univ q₁⟩)]
-            simp only [true_or, or_true, ↓reduceIte, ha₀_val, ha₁_val, Matrix.one_apply]
-            have hrest : (∏ q ∈ (Finset.univ.erase q₀).erase q₁,
-                (if q = q₀ ∨ q = q₁ then (1 : Matrix Bool Bool ℂ) else S.tipMat q) (y q)
-                  (eqvFun.symm (γ, a₀, a₁, b) (.inr q))) =
-                ∏ q ∈ (Finset.univ.erase q₀).erase q₁, S.tipMat q (y q) (γ (.inr q)) := by
-              refine Finset.prod_congr rfl fun q hq => ?_
-              have hq1 : q ≠ q₁ := (Finset.mem_erase.mp hq).1
-              have hq0 : q ≠ q₀ := (Finset.mem_erase.mp (Finset.mem_erase.mp hq).2).1
-              have hnot : ¬(q = q₀ ∨ q = q₁) := not_or.mpr ⟨hq0, hq1⟩
-              simp only [hnot, ↓reduceIte]
-              have hval : eqvFun.symm (γ, a₀, a₁, b) (.inr q) = γ (.inr q) := by
-                simp only [eqvFun, Equiv.coe_fn_symm_mk, hq0, hq1, ↓reduceIte]
-              rw [hval]
-            rw [hrest]
-            by_cases h0 : y q₀ = a₀ <;> by_cases h1 : y q₁ = a₁
-            · subst h0; subst h1
-              simp only [and_self, ↓reduceIte, body]
-              ring
-            · have hna : ¬(a₀ = y q₀ ∧ a₁ = y q₁) := fun h => h1 h.2.symm
-              simp only [h1, hna, ↓reduceIte, mul_zero, zero_mul]
-            · have hna : ¬(a₀ = y q₀ ∧ a₁ = y q₁) := fun h => h0 h.1.symm
-              simp only [h0, hna, ↓reduceIte, zero_mul, mul_zero]
-            · have hna : ¬(a₀ = y q₀ ∧ a₁ = y q₁) := fun h => h0 h.1.symm
-              simp only [h0, hna, ↓reduceIte, zero_mul, mul_zero]
-          simp_rw [hterm_ab]
-          have collapse_a : (∑ a₀ : Bool, ∑ a₁ : Bool, ∑ b : Bool,
-              if a₀ = y q₀ ∧ a₁ = y q₁ then body b else 0) = ∑ b : Bool, body b := by
-            rw [Fintype.sum_bool]
-            simp_rw [Fintype.sum_bool]
-            cases y q₀ <;> cases y q₁ <;> simp
-          rw [collapse_a]
-          dsimp only [body]
-          rw [← Finset.sum_mul, ← Finset.mul_sum]
-          congr 2
-          simp only [Finset.sum_mul_sum]
-          rw [Finset.sum_comm]
-          refine Finset.sum_congr rfl fun z₀ _ => ?_
-          rw [Finset.sum_comm]
-          refine Finset.sum_congr rfl fun z₁ _ => ?_
-          simp only [Finset.sum_mul]
-          exact Finset.sum_congr rfl fun b _ => by ring
-        rw [hrhs]
-        have hstep1 : (∑ z₀ : Bool, ∑ z₁ : Bool,
-            (∑ b : Bool, L_ten z₀ (y q₀) b * R_ten z₁ (y q₁) b) *
-              M (Function.update (Function.update y q₁ z₁) q₀ z₀) x) =
-            S.scalar * ∑ z₀ : Bool, ∑ z₁ : Bool, ∑ γ : S.E ⊕ W → Bool,
-              (∑ b : Bool, L_ten z₀ (y q₀) b * R_ten z₁ (y q₁) b) *
-                ((∏ u : S.V, S.openF u x γ) *
-                  ∏ q : W, S.tipMat q (Function.update (Function.update y q₁ z₁) q₀ z₀ q)
-                    (γ (.inr q))) := by
-          rw [Finset.mul_sum]
-          refine Finset.sum_congr rfl fun z₀ _ => ?_
-          rw [Finset.mul_sum]
-          refine Finset.sum_congr rfl fun z₁ _ => ?_
-          rw [S.contract _ x, ← mul_assoc, mul_comm _ S.scalar, mul_assoc, Finset.mul_sum]
-        rw [hstep1, Finset.sum_comm]
-        simp_rw [Finset.sum_comm (s := Finset.univ (α := Bool))
-          (t := Finset.univ (α := S.E ⊕ W → Bool))]
-        congr 1
-        refine Finset.sum_congr rfl fun γ _ => ?_
-        have hupd_prod (z₀ z₁ : Bool) :
-            (∏ q : W, S.tipMat q (Function.update (Function.update y q₁ z₁) q₀ z₀ q)
-              (γ (.inr q))) =
-            S.tipMat q₀ z₀ (γ (.inr q₀)) * S.tipMat q₁ z₁ (γ (.inr q₁)) *
-              ∏ q ∈ (Finset.univ.erase q₀).erase q₁, S.tipMat q (y q) (γ (.inr q)) := by
-          rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ q₀),
-            ← Finset.mul_prod_erase (Finset.univ.erase q₀) _
-              (Finset.mem_erase.mpr ⟨hq_ne.symm, Finset.mem_univ q₁⟩)]
-          have hupd0 : Function.update (Function.update y q₁ z₁) q₀ z₀ q₀ = z₀ :=
-            Function.update_self _ _ _
-          have hupd1 : Function.update (Function.update y q₁ z₁) q₀ z₀ q₁ = z₁ := by
-            rw [Function.update_of_ne hq_ne.symm, Function.update_self]
-          rw [hupd0, hupd1, mul_assoc]
-          congr 2
-          refine Finset.prod_congr rfl fun q hq => ?_
-          have hq1 : q ≠ q₁ := (Finset.mem_erase.mp hq).1
-          have hq0 : q ≠ q₀ := (Finset.mem_erase.mp (Finset.mem_erase.mp hq).2).1
-          have hupdq : Function.update (Function.update y q₁ z₁) q₀ z₀ q = y q := by
-            rw [Function.update_of_ne hq0, Function.update_of_ne hq1]
-          rw [hupdq]
-        simp_rw [hupd_prod]
-        rw [Finset.sum_comm]
-        symm
-        rw [Finset.mul_sum, Finset.sum_mul]
-        refine Finset.sum_congr rfl fun z₀ _ => ?_
-        rw [Finset.mul_sum, Finset.sum_mul]
-        exact Finset.sum_congr rfl fun z₁ _ => by ring
-      loc_in := by
-        rintro (u | b) x₁ x₂ γ' h
-        · exact S.loc_in u x₁ x₂ (γ' ∘ oldEdge) fun q hq => h q (congrArg Sum.inl hq)
-        · cases b <;> rfl
-      loc_edge := by
-        rintro (u | b) x γ₁ γ₂ h
-        · exact S.loc_edge u x (γ₁ ∘ oldEdge) (γ₂ ∘ oldEdge) fun e he => h ((hmap_u u e).mp he)
-        · cases b
-          · simp only [leftT]
-            have h0 : γ₁ (.inr q₀) = γ₂ (.inr q₀) :=
-              h (Or.inl (by simp only [capGraph, tip', ↓reduceIte]))
-            have hb : γ₁ (.inl (.inr 2)) = γ₂ (.inl (.inr 2)) := h (Or.inl rfl)
-            have hf0 : γ₁ (.inl (.inr 0)) = γ₂ (.inl (.inr 0)) := h (Or.inr rfl)
-            rw [h0, hb, hf0]
-          · simp only [rightT]
-            have h1 : γ₁ (.inr q₁) = γ₂ (.inr q₁) :=
-              h (Or.inl (by simp only [capGraph, tip', hq_ne.symm, ↓reduceIte]))
-            have hb : γ₁ (.inl (.inr 2)) = γ₂ (.inl (.inr 2)) := h (Or.inr rfl)
-            have hf1 : γ₁ (.inl (.inr 1)) = γ₂ (.inl (.inr 1)) := h (Or.inr rfl)
-            rw [h1, hb, hf1] }
+  let G_int : Multigraph Bool Unit := { src := fun _ => false, tgt := fun _ => true }
+  S.spliceTwo g h2 Bool Unit G_int (fun _ => Bool.false_ne_true) false true (by simp)
+    (fun b => by
+      have hset : G_int.incidenceSet b = {()} := by
+        ext ⟨⟩; cases b <;> simp [Multigraph.mem_incidenceSet, G_int]
+      rw [hset, ncard_singleton]
+      cases b <;> decide)
+    (fun v b₀ b₁ a₀ a₁ β => match v with
+      | false => ∑ z₀ : Bool, L_ten z₀ a₀ (β ()) * S.tipMat q₀ z₀ b₀
+      | true => ∑ z₁ : Bool, R_ten z₁ a₁ (β ()) * S.tipMat q₁ z₁ b₁)
+    (fun b₀ b₁ a₀ a₁ => by
+      have hg_eq (z₀ z₁ : Bool) :
+          (g.2.1 : Matrix (Fin g.1.val → Bool) (Fin g.1.val → Bool) ℂ)
+            (fun i => if i = ⟨0, by omega⟩ then a₀ else a₁)
+            (fun i => if i = ⟨0, by omega⟩ then z₀ else z₁) =
+            ∑ b : Bool, L_ten z₀ a₀ b * R_ten z₁ a₁ b := by
+        have hLR := Classical.choose_spec (Classical.choose_spec hbond)
+        rcases g with ⟨⟨arity, har_lt⟩, gate, wires⟩
+        dsimp only at h2 hLR ⊢
+        subst h2
+        exact hLR (fun i => if i = 0 then a₀ else a₁) (fun i => if i = 0 then z₀ else z₁)
+      have hprod_unit : (∑ β : Unit → Bool, ∏ v : Bool, (match v with
+          | false => ∑ z₀ : Bool, L_ten z₀ a₀ (β ()) * S.tipMat q₀ z₀ b₀
+          | true => ∑ z₁ : Bool, R_ten z₁ a₁ (β ()) * S.tipMat q₁ z₁ b₁)) =
+          ∑ b : Bool,
+            (∑ z₀ : Bool, L_ten z₀ a₀ b * S.tipMat q₀ z₀ b₀) *
+              ∑ z₁ : Bool, R_ten z₁ a₁ b * S.tipMat q₁ z₁ b₁ := by
+        simp only [Fintype.prod_bool]
+        exact Fintype.sum_equiv (Equiv.funUnique Unit Bool) _ _ fun _ => mul_comm _ _
+      refine hprod_unit.trans ?_
+      simp only [Finset.sum_mul_sum]
+      rw [Finset.sum_comm]
+      refine Finset.sum_congr rfl fun z₀ _ => ?_
+      rw [Finset.sum_comm]
+      refine Finset.sum_congr rfl fun z₁ _ => ?_
+      rw [hg_eq z₀ z₁]
+      simp only [Finset.sum_mul]
+      exact Finset.sum_congr rfl fun _ _ => by dsimp only [q₀, q₁]; ring)
+    (fun v _ _ _ _ _ _ _ _ _ _ h0 h1 hβ => by
+      cases v
+      · obtain ⟨rfl, rfl⟩ := h0 rfl
+        rw [hβ (Or.inl rfl)]
+      · obtain ⟨rfl, rfl⟩ := h1 rfl
+        rw [hβ (Or.inr rfl)])
+
+private theorem OpenState.sum_comp_eq {d : ℕ} {W : Type} [Fintype W] [DecidableEq W]
+    {M : Matrix (W → Bool) (W → Bool) ℂ} {s : ℕ} (S : OpenState d W M s)
+    (Comp : Set (S.V ⊕ W)) [DecidablePred (· ∈ Comp)] [Fintype Comp]
+    (hreach_mem : ∀ q : W, (.inl (S.inVert q) : S.V ⊕ W) ∈ Comp ↔ (.inr q : S.V ⊕ W) ∈ Comp)
+    (f : S.V ⊕ W → ℕ) :
+    (∑ w : Comp, f w.1) =
+      (∑ q ∈ Finset.univ.filter (fun q : W => (.inl (S.inVert q) : S.V ⊕ W) ∈ Comp),
+        f (.inl (S.inVert q))) +
+      (∑ q ∈ Finset.univ.filter (fun q : W => (.inl (S.inVert q) : S.V ⊕ W) ∈ Comp),
+        f (.inr q)) +
+      ∑ u ∈ Finset.univ.filter (fun u : S.V => (.inl u : S.V ⊕ W) ∈ Comp ∧ u ∉ Set.range S.inVert),
+        f (.inl u) := by
+  classical
+  let inV : W ↪ S.V ⊕ W := S.inVert.trans ⟨Sum.inl, Sum.inl_injective⟩
+  let outV : W ↪ S.V ⊕ W := ⟨Sum.inr, Sum.inr_injective⟩
+  set FW := Finset.univ.filter (fun q : W => (.inl (S.inVert q) : S.V ⊕ W) ∈ Comp)
+  set FI := Finset.univ.filter (fun u : S.V => (.inl u : S.V ⊕ W) ∈ Comp ∧ u ∉ Set.range S.inVert)
+  have hsub : (∑ w : Comp, f w.1) = ∑ v ∈ Finset.univ.filter (· ∈ Comp), f v :=
+    (Finset.sum_subtype (Finset.univ.filter (· ∈ Comp))
+      (fun _ => Finset.mem_filter.trans (and_iff_right (Finset.mem_univ _))) f).symm
+  rw [hsub]
+  have hpart : (Finset.univ.filter (· ∈ Comp) : Finset (S.V ⊕ W)) =
+      FW.image inV ∪ (FW.image outV ∪ FI.image Sum.inl) := by
+    ext (u | q)
+    · simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union,
+        Finset.mem_image, inV, outV, FW, FI, Function.Embedding.trans_apply,
+        Function.Embedding.coeFn_mk, Sum.inl.injEq, reduceCtorEq, and_false, exists_false,
+        exists_eq_right, false_or, Set.mem_range]
+      by_cases hu : ∃ y, S.inVert y = u
+      · obtain ⟨y, rfl⟩ := hu
+        exact ⟨fun h => Or.inl ⟨y, h, rfl⟩,
+          fun h => h.elim (fun ⟨y', hy', hyy⟩ => S.inVert.injective hyy ▸ hy')
+            fun h' => absurd ⟨y, rfl⟩ h'.2⟩
+      · exact ⟨fun h => Or.inr ⟨h, hu⟩,
+          fun h => h.elim (fun ⟨y, _, hy⟩ => absurd ⟨y, hy⟩ hu) And.left⟩
+    · simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union,
+        Finset.mem_image, inV, outV, FW, FI, Function.Embedding.trans_apply,
+        Function.Embedding.coeFn_mk, reduceCtorEq, Sum.inr.injEq, and_false, exists_false,
+        exists_eq_right, false_or, or_false]
+      exact (hreach_mem q).symm
+  have hd1 : Disjoint (FW.image inV) (FW.image outV ∪ FI.image Sum.inl) := by
+    rw [Finset.disjoint_left]
+    rintro _ hv1 hv2
+    obtain ⟨q, -, rfl⟩ := Finset.mem_image.mp hv1
+    rcases Finset.mem_union.mp hv2 with hv_out | hv_gate
+    · obtain ⟨q', -, hqq⟩ := Finset.mem_image.mp hv_out
+      exact Sum.inl_ne_inr hqq.symm
+    · obtain ⟨u, hu, huq⟩ := Finset.mem_image.mp hv_gate
+      exact (Finset.mem_filter.mp hu).2.2 ⟨q, Sum.inl.inj huq.symm⟩
+  have hd2 : Disjoint (FW.image outV) (FI.image Sum.inl) := by
+    rw [Finset.disjoint_left]
+    rintro _ hv1 hv2
+    obtain ⟨q, -, rfl⟩ := Finset.mem_image.mp hv1
+    obtain ⟨u, -, huq⟩ := Finset.mem_image.mp hv2
+    exact Sum.inl_ne_inr huq
+  rw [hpart, Finset.sum_union hd1, Finset.sum_union hd2,
+    Finset.sum_image (fun _ _ _ _ h => inV.injective h),
+    Finset.sum_image (fun _ _ _ _ h => outV.injective h),
+    Finset.sum_image (fun _ _ _ _ h => Sum.inl_injective h), ← add_assoc]
+  rfl
 
 open Classical in
 /-- Close an `OpenState d W M s` (`d ∈ {3, 4}`, `Nonempty W`) into a `CappedWireNet d W M s`. -/
@@ -1668,83 +1507,16 @@ private theorem OpenState.toCappedWireNet {d : ℕ} (hd : d = 3 ∨ d = 4) {W : 
         Nat.card_eq_fintype_card] at hcompl
       have hle := ncard_le_ncard hsub (toFinite _)
       omega
-    -- Rewrite `∑_{w : Comp} deg(w)` and `Comp.ncard` via Finset filtering on `S.V ⊕ W`.
+    have hcardW : (Finset.univ.filter (· ∈ W_in)).card = W_in.ncard := by
+      rw [← ncard_coe_finset]; congr 1; ext q; simp
+    have hcardI : (Finset.univ.filter (· ∈ I_gate)).card = I_gate.ncard := by
+      rw [← ncard_coe_finset]; congr 1; ext u; simp
     have hsum_deg : (∑ w : Comp, (G_fin.incidenceSet w.1).ncard) =
         2 * W_in.ncard + d * I_gate.ncard := by
-      have hrew : (∑ w : Comp, (G_fin.incidenceSet w.1).ncard) =
-          ∑ v ∈ Finset.univ.filter (· ∈ Comp), (G_fin.incidenceSet v).ncard :=
-        (Finset.sum_subtype (Finset.univ.filter (· ∈ Comp))
-          (fun _ => Finset.mem_filter.trans (and_iff_right (Finset.mem_univ _)))
-          fun v => (G_fin.incidenceSet v).ncard).symm
-      rw [hrew]
-      have hpart : (Finset.univ.filter (· ∈ Comp) : Finset (S.V ⊕ W)) =
-          Finset.univ.image (fun q : W => inV q) ∩ Finset.univ.filter (· ∈ Comp) ∪
-            (Finset.univ.image (fun q : W => outV q) ∩ Finset.univ.filter (· ∈ Comp) ∪
-              Finset.univ.image (fun u : S.V => (.inl u : S.V ⊕ W)) ∩
-                Finset.univ.filter (fun v => v ∈ Comp ∧ v ∉ Set.range inV)) := by
-        ext (u | q)
-        · simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union,
-            Finset.mem_inter, Finset.mem_image, inV, outV, Function.Embedding.trans_apply,
-            Function.Embedding.coeFn_mk, Sum.inl.injEq, reduceCtorEq, false_and, exists_false,
-            false_or, Set.mem_range]
-          by_cases hu : ∃ y, S.inVert y = u <;> tauto
-        · simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union,
-            Finset.mem_inter, Finset.mem_image, inV, outV, Function.Embedding.trans_apply,
-            Function.Embedding.coeFn_mk, reduceCtorEq, Sum.inr.injEq, exists_eq, true_and,
-            false_and, exists_false, or_false, false_or]
-      have hdisj1 : Disjoint
-          (Finset.univ.image (fun q : W => inV q) ∩ Finset.univ.filter (· ∈ Comp))
-          (Finset.univ.image (fun q : W => outV q) ∩ Finset.univ.filter (· ∈ Comp) ∪
-            Finset.univ.image (fun u : S.V => (.inl u : S.V ⊕ W)) ∩
-              Finset.univ.filter (fun v => v ∈ Comp ∧ v ∉ Set.range inV)) := by
-        rw [Finset.disjoint_left]
-        intro v hv1 hv2
-        obtain ⟨q, -, rfl⟩ := Finset.mem_image.mp (Finset.mem_inter.mp hv1).1
-        rcases Finset.mem_union.mp hv2 with hv_out | hv_gate
-        · obtain ⟨q', -, hqq⟩ := Finset.mem_image.mp (Finset.mem_inter.mp hv_out).1
-          exact Sum.inl_ne_inr hqq.symm
-        · exact (Finset.mem_filter.mp (Finset.mem_inter.mp hv_gate).2).2.2 ⟨q, rfl⟩
-      have hdisj2 : Disjoint
-          (Finset.univ.image (fun q : W => outV q) ∩ Finset.univ.filter (· ∈ Comp))
-          (Finset.univ.image (fun u : S.V => (.inl u : S.V ⊕ W)) ∩
-            Finset.univ.filter (fun v => v ∈ Comp ∧ v ∉ Set.range inV)) := by
-        rw [Finset.disjoint_left]
-        intro v hv1 hv2
-        obtain ⟨q, -, rfl⟩ := Finset.mem_image.mp (Finset.mem_inter.mp hv1).1
-        obtain ⟨u, -, hu⟩ := Finset.mem_image.mp (Finset.mem_inter.mp hv2).1
-        exact Sum.inl_ne_inr hu
-      rw [hpart, Finset.sum_union hdisj1, Finset.sum_union hdisj2]
-      have hs1 : (Finset.univ.image (fun q : W => inV q) ∩ Finset.univ.filter (· ∈ Comp)) =
-          (Finset.univ.filter (· ∈ W_in)).image inV := by
-        ext v
-        simp only [Finset.mem_inter, Finset.mem_image, Finset.mem_univ, true_and,
-          Finset.mem_filter, W_in, mem_ofPred_eq]
-        constructor
-        · rintro ⟨⟨q, rfl⟩, hq⟩; exact ⟨q, hq, rfl⟩
-        · rintro ⟨q, hq, rfl⟩; exact ⟨⟨q, rfl⟩, hq⟩
-      have hs2 : (Finset.univ.image (fun q : W => outV q) ∩ Finset.univ.filter (· ∈ Comp)) =
-          (Finset.univ.filter (· ∈ W_in)).image outV := by
-        ext v
-        simp only [Finset.mem_inter, Finset.mem_image, Finset.mem_univ, true_and,
-          Finset.mem_filter, W_in, mem_ofPred_eq]
-        constructor
-        · rintro ⟨⟨q, rfl⟩, hq⟩; exact ⟨q, (hreach_mem q).mpr hq, rfl⟩
-        · rintro ⟨q, hq, rfl⟩; exact ⟨⟨q, rfl⟩, (hreach_mem q).mp hq⟩
-      have hs3 : (Finset.univ.image (fun u : S.V => (.inl u : S.V ⊕ W)) ∩
-            Finset.univ.filter (fun v => v ∈ Comp ∧ v ∉ Set.range inV)) =
-          (Finset.univ.filter (· ∈ I_gate)).image Sum.inl := by
-        ext (u | q)
-        · simp only [Finset.mem_inter, Finset.mem_image, Finset.mem_univ, true_and, Sum.inl.injEq,
-            exists_eq, exists_eq_right, Finset.mem_filter, Set.mem_range, inV,
-            Function.Embedding.trans_apply, Function.Embedding.coeFn_mk, I_gate, mem_ofPred_eq]
-        · simp
-      have hcardW : (Finset.univ.filter (· ∈ W_in)).card = W_in.ncard := by
-        rw [← ncard_coe_finset]; congr 1; ext q; simp
-      have hcardI : (Finset.univ.filter (· ∈ I_gate)).card = I_gate.ncard := by
-        rw [← ncard_coe_finset]; congr 1; ext u; simp
-      rw [hs1, hs2, hs3, Finset.sum_image (fun _ _ _ _ h => inV.injective h),
-        Finset.sum_image (fun _ _ _ _ h => outV.injective h),
-        Finset.sum_image (fun _ _ _ _ h => Sum.inl_injective h)]
+      rw [S.sum_comp_eq Comp hreach_mem (fun w => (G_fin.incidenceSet w).ncard)]
+      change (∑ q ∈ Finset.univ.filter (· ∈ W_in), (G_fin.incidenceSet (inV q)).ncard) +
+        (∑ q ∈ Finset.univ.filter (· ∈ W_in), (G_fin.incidenceSet (outV q)).ncard) +
+        ∑ u ∈ Finset.univ.filter (· ∈ I_gate), (G_fin.incidenceSet (.inl u)).ncard = _
       have hsum1 : ∑ q ∈ Finset.univ.filter (· ∈ W_in), (G_fin.incidenceSet (inV q)).ncard =
           W_in.ncard := by
         trans ∑ _q ∈ Finset.univ.filter (· ∈ W_in), 1
@@ -1768,64 +1540,11 @@ private theorem OpenState.toCappedWireNet {d : ℕ} (hd : d = 3 ∨ d = 4) {W : 
       have h1 : Comp.ncard = ∑ _w : Comp, 1 := by
         rw [Finset.sum_const, Finset.card_univ, smul_eq_mul, mul_one, ← Nat.card_eq_fintype_card,
           Nat.card_coe_set_eq]
-      -- Same partition!
-      have hrew : (∑ _w : Comp, 1) = ∑ _v ∈ Finset.univ.filter (· ∈ Comp), 1 :=
-        (Finset.sum_subtype (Finset.univ.filter (· ∈ Comp))
-          (fun _ => Finset.mem_filter.trans (and_iff_right (Finset.mem_univ _)))
-          fun _ => 1).symm
-      rw [h1, hrew, Finset.sum_const, smul_eq_mul, mul_one]
-      have hbij : (Finset.univ.filter (· ∈ Comp)).card =
-          (Finset.univ.filter (· ∈ W_in)).card +
-            (Finset.univ.filter (· ∈ W_in)).card +
-            (Finset.univ.filter (· ∈ I_gate)).card := by
-        have hpart : (Finset.univ.filter (· ∈ Comp) : Finset (S.V ⊕ W)) =
-            (Finset.univ.filter (· ∈ W_in)).image inV ∪
-              ((Finset.univ.filter (· ∈ W_in)).image outV ∪
-                (Finset.univ.filter (· ∈ I_gate)).image Sum.inl) := by
-          ext (u | q)
-          · simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union,
-              Finset.mem_image, inV, outV, Function.Embedding.trans_apply,
-              Function.Embedding.coeFn_mk, Sum.inl.injEq, reduceCtorEq, and_false, exists_false,
-              exists_eq_right, false_or, W_in, I_gate, mem_ofPred_eq, Set.mem_range]
-            by_cases hu : ∃ y, S.inVert y = u
-            · obtain ⟨y, rfl⟩ := hu
-              exact ⟨fun h => Or.inl ⟨y, h, rfl⟩,
-                fun h => h.elim (fun ⟨y', hy', hyy⟩ => S.inVert.injective hyy ▸ hy')
-                  fun h' => absurd ⟨y, rfl⟩ h'.2⟩
-            · exact ⟨fun h => Or.inr ⟨h, hu⟩,
-                fun h => h.elim (fun ⟨y, _, hy⟩ => absurd ⟨y, hy⟩ hu) And.left⟩
-          · simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union,
-              Finset.mem_image, inV, outV, Function.Embedding.trans_apply,
-              Function.Embedding.coeFn_mk, reduceCtorEq, Sum.inr.injEq, and_false, exists_false,
-              exists_eq_right, false_or, or_false, W_in, mem_ofPred_eq]
-            exact (hreach_mem q).symm
-        have hd1 : Disjoint ((Finset.univ.filter (· ∈ W_in)).image inV)
-            ((Finset.univ.filter (· ∈ W_in)).image outV ∪
-              (Finset.univ.filter (· ∈ I_gate)).image Sum.inl) := by
-          rw [Finset.disjoint_left]
-          rintro _ hv1 hv2
-          obtain ⟨q, -, rfl⟩ := Finset.mem_image.mp hv1
-          rcases Finset.mem_union.mp hv2 with hv_out | hv_gate
-          · obtain ⟨q', -, hqq⟩ := Finset.mem_image.mp hv_out
-            exact Sum.inl_ne_inr hqq.symm
-          · obtain ⟨u, hu, huq⟩ := Finset.mem_image.mp hv_gate
-            exact (Finset.mem_filter.mp hu).2.2 ⟨q, Sum.inl.inj huq.symm⟩
-        have hd2 : Disjoint ((Finset.univ.filter (· ∈ W_in)).image outV)
-            ((Finset.univ.filter (· ∈ I_gate)).image Sum.inl) := by
-          rw [Finset.disjoint_left]
-          rintro _ hv1 hv2
-          obtain ⟨q, -, rfl⟩ := Finset.mem_image.mp hv1
-          obtain ⟨u, -, huq⟩ := Finset.mem_image.mp hv2
-          exact Sum.inl_ne_inr huq
-        rw [hpart, Finset.card_union_of_disjoint hd1, Finset.card_union_of_disjoint hd2,
-          Finset.card_image_of_injective _ inV.injective,
-          Finset.card_image_of_injective _ outV.injective,
-          Finset.card_image_of_injective _ Sum.inl_injective, add_assoc]
-      have hcardW : (Finset.univ.filter (· ∈ W_in)).card = W_in.ncard := by
-        rw [← ncard_coe_finset]; congr 1; ext q; simp
-      have hcardI : (Finset.univ.filter (· ∈ I_gate)).card = I_gate.ncard := by
-        rw [← ncard_coe_finset]; congr 1; ext u; simp
-      rw [hbij, hcardW, hcardI]
+      rw [h1, S.sum_comp_eq Comp hreach_mem (fun _ => 1)]
+      change (∑ _q ∈ Finset.univ.filter (· ∈ W_in), 1) +
+        (∑ _q ∈ Finset.univ.filter (· ∈ W_in), 1) +
+        (∑ _u ∈ Finset.univ.filter (· ∈ I_gate), 1) = _
+      simp only [Finset.sum_const, smul_eq_mul, mul_one, hcardW, hcardI]
       omega
     obtain ⟨hc1, hc2⟩ := S.card_V
     rw [Multigraph.cycleRankOn]
@@ -2089,6 +1808,36 @@ theorem norm_phaseState {n N : ℕ} (Q : Matrix (Fin n) (Fin n) (ZMod 2))
       one_pow]
   nlinarith [norm_nonneg ψ]
 
+private theorem exists_lift_domRestrict {n N : ℕ} {α : Type*}
+    (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool) {A : Set (Fin N)} (heA : Set.range e ⊆ A)
+    (Q_sub : Set ↥A) {T : Set (Fin n)}
+    (hQT : ∀ i : Fin n, (⟨e i, heA ⟨i, rfl⟩⟩ : ↥A) ∈ Q_sub → i ∈ T)
+    (inp : α → Fin n → Bool) (proj : α → T → Bool)
+    (hinp : ∀ z (i : T), inp z i.1 = proj z i) :
+    ∃ liftQ : (T → Bool) → (Q_sub → Bool),
+      ∀ z : α, Q_sub.domRestrict (A.domRestrict (Quantum.glue e (inp z) x₀)) = liftQ (proj z) := by
+  refine ⟨fun a q => open Classical in
+    if hq : ∃ i : Fin n, e i = q.1 then
+      a ⟨Classical.choose hq, hQT _ ?_⟩
+    else x₀ q.1.1, fun z => ?_⟩
+  · have hspec : (⟨e (Classical.choose hq), heA ⟨_, rfl⟩⟩ : ↥A) = q.1 :=
+      Subtype.ext (Classical.choose_spec hq)
+    rw [hspec]; exact q.2
+  · ext q
+    simp only [Set.domRestrict_apply]
+    by_cases hq : ∃ i : Fin n, e i = q.1.1
+    · simp only [hq, ↓reduceDIte]
+      have hg : Quantum.glue e (inp z) x₀ q.1.1 = inp z (Classical.choose hq) :=
+        (congrArg (Quantum.glue e (inp z) x₀) (Classical.choose_spec hq)).symm.trans
+          (Quantum.glue_apply_emb e (inp z) x₀ (Classical.choose hq))
+      have hmem : Classical.choose hq ∈ T := hQT _ (by
+        have hspec : (⟨e (Classical.choose hq), heA ⟨_, rfl⟩⟩ : ↥A) = q.1 :=
+          Subtype.ext (Classical.choose_spec hq)
+        rw [hspec]; exact q.2)
+      exact hg.trans (hinp z ⟨Classical.choose hq, hmem⟩)
+    · simp only [hq, ↓reduceDIte]
+      exact Quantum.glue_of_not e _ x₀ fun i hi => hq ⟨i, hi⟩
+
 /-- Given `Q_sub ⊆ ↥A` inducing `S = {i : Fin n | ⟨e i, _⟩ ∈ Q_sub}`, restricting
 `Quantum.glue e (glueS (a, b)) x₀` to `Q_sub` depends only on `a : S → Bool` and restricting to
 `Q_subᶜ` depends only on `b : ↥Sᶜ → Bool`. -/
@@ -2104,74 +1853,70 @@ private theorem exists_lift_domRestrict_glue {n N : ℕ}
       (∀ (a : S → Bool) (b : ↥Sᶜ → Bool),
         Q_subᶜ.domRestrict (A.domRestrict (Quantum.glue e (glueS (a, b)) x₀)) = liftPc b) := by
   intro S glueS
-  let liftP (a : S → Bool) : Q_sub → Bool := fun q =>
-    open Classical in
-    if hq : ∃ i : Fin n, e i = q.1 then
-      a ⟨Classical.choose hq, by
-        have hspec : (⟨e (Classical.choose hq), heA ⟨_, rfl⟩⟩ : ↥A) = q.1 :=
-          Subtype.ext (Classical.choose_spec hq)
-        change (⟨e (Classical.choose hq), _⟩ : ↥A) ∈ Q_sub
-        rw [hspec]; exact q.2⟩
-    else x₀ q.1.1
-  let liftPc (b : ↥Sᶜ → Bool) : ↥Q_subᶜ → Bool := fun q =>
-    open Classical in
-    if hq : ∃ i : Fin n, e i = q.1 then
-      b ⟨Classical.choose hq, by
-        have hspec : (⟨e (Classical.choose hq), heA ⟨_, rfl⟩⟩ : ↥A) = q.1 :=
-          Subtype.ext (Classical.choose_spec hq)
-        change (⟨e (Classical.choose hq), _⟩ : ↥A) ∉ Q_sub
-        rw [hspec]; exact q.2⟩
-    else x₀ q.1.1
-  refine ⟨liftP, liftPc, fun a b => ?_, fun a b => ?_⟩
-  · ext q
-    simp only [Set.domRestrict_apply, liftP]
-    by_cases hq : ∃ i, e i = q.1.1
-    · simp only [hq, ↓reduceDIte]
-      have hg : Quantum.glue e (glueS (a, b)) x₀ q.1.1 = glueS (a, b) (Classical.choose hq) :=
-        (congrArg (Quantum.glue e (glueS (a, b)) x₀) (Classical.choose_spec hq)).symm.trans
-          (Quantum.glue_apply_emb e (glueS (a, b)) x₀ (Classical.choose hq))
-      rw [hg]
-      have hm : Classical.choose hq ∈ S := by
-        have hs : (⟨e (Classical.choose hq), heA ⟨_, rfl⟩⟩ : ↥A) = q.1 :=
-          Subtype.ext (Classical.choose_spec hq)
-        change (⟨e (Classical.choose hq), _⟩ : ↥A) ∈ Q_sub
-        rw [hs]; exact q.2
-      exact congrFun (congrArg Prod.fst
-        ((Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).apply_symm_apply (a, b)))
-        ⟨Classical.choose hq, hm⟩
-    · simp only [hq, ↓reduceDIte]
-      exact Quantum.glue_of_not e _ x₀ fun i hi => hq ⟨i, hi⟩
-  · ext q
-    simp only [Set.domRestrict_apply, liftPc]
-    by_cases hq : ∃ i, e i = q.1.1
-    · simp only [hq, ↓reduceDIte]
-      have hg : Quantum.glue e (glueS (a, b)) x₀ q.1.1 = glueS (a, b) (Classical.choose hq) :=
-        (congrArg (Quantum.glue e (glueS (a, b)) x₀) (Classical.choose_spec hq)).symm.trans
-          (Quantum.glue_apply_emb e (glueS (a, b)) x₀ (Classical.choose hq))
-      rw [hg]
-      have hm : Classical.choose hq ∈ Sᶜ := by
-        have hs : (⟨e (Classical.choose hq), heA ⟨_, rfl⟩⟩ : ↥A) = q.1 :=
-          Subtype.ext (Classical.choose_spec hq)
-        change (⟨e (Classical.choose hq), _⟩ : ↥A) ∉ Q_sub
-        rw [hs]; exact q.2
-      exact congrFun (congrArg Prod.snd
-        ((Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).apply_symm_apply (a, b)))
-        ⟨Classical.choose hq, hm⟩
-    · simp only [hq, ↓reduceDIte]
-      exact Quantum.glue_of_not e _ x₀ fun i hi => hq ⟨i, hi⟩
+  obtain ⟨liftP, hP⟩ := exists_lift_domRestrict (T := S) e x₀ heA Q_sub (fun _ h => h)
+    glueS Prod.fst fun ⟨a, b⟩ i => by
+      simp only [glueS, Equiv.piEquivPiSubtypeProd_symm_apply, i.2, ↓reduceDIte]
+  obtain ⟨liftPc, hPc⟩ := exists_lift_domRestrict (T := Sᶜ) e x₀ heA Q_subᶜ (fun _ h => h)
+    glueS Prod.snd fun ⟨a, b⟩ i => by
+      have hni : i.1 ∉ S := i.2
+      simp only [glueS, Equiv.piEquivPiSubtypeProd_symm_apply, hni, ↓reduceDIte]; rfl
+  exact ⟨liftP, liftPc, fun a b => hP (a, b), fun a b => hPc (a, b)⟩
 
 /-! ### Core single-cut bounds from `CappedWireNet` -/
+
+private def realCutLeft {α ι : Type*} (Φ : α → ι → ℂ) : Matrix α (ι × Bool) ℝ :=
+  fun a p => if p.2 then -(Φ a p.1).im else (Φ a p.1).re
+
+private def realCutRight {β ι : Type*} (Ψ : β → ι → ℂ) : Matrix (ι × Bool) β ℝ :=
+  fun p b => if p.2 then (Ψ b p.1).im else (Ψ b p.1).re
+
+private theorem realCutLeft_mul_realCutRight_apply {α β ι : Type*} [Fintype ι]
+    (Φ : α → ι → ℂ) (Ψ : β → ι → ℂ) (a : α) (b : β) :
+    (realCutLeft Φ * realCutRight Ψ) a b = (∑ τ : ι, Φ a τ * Ψ b τ).re := by
+  rw [Complex.re_sum, Matrix.mul_apply, Fintype.sum_prod_type]
+  refine Finset.sum_congr rfl fun τ _ => ?_
+  rw [Fintype.sum_bool, Complex.mul_re]
+  simp only [realCutLeft, realCutRight, Bool.false_eq_true, ↓reduceIte, neg_mul]
+  ring
+
+private theorem realCutLeft_neg_I_mul_realCutRight_apply {α β ι : Type*} [Fintype ι]
+    (Φ : α → ι → ℂ) (Ψ : β → ι → ℂ) (a : α) (b : β) :
+    (realCutLeft (fun a' τ => -Complex.I * Φ a' τ) * realCutRight Ψ) a b =
+      (∑ τ : ι, Φ a τ * Ψ b τ).im := by
+  rw [realCutLeft_mul_realCutRight_apply, Complex.re_sum, Complex.im_sum]
+  refine Finset.sum_congr rfl fun τ _ => ?_
+  simp only [Complex.mul_re, Complex.neg_re, Complex.neg_im, Complex.I_re, Complex.I_im,
+    Complex.mul_im]
+  ring
+
+private theorem card_cut_prod_bool {E_fin : Type} (Ecut : Set E_fin) [Fintype Ecut]
+    [DecidableEq Ecut] :
+    (Fintype.card ((Ecut → Bool) × Bool) : ℝ) = 2 * (2 : ℝ) ^ Ecut.ncard := by
+  have hE : Fintype.card Ecut = Ecut.ncard := by
+    rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
+  simp only [Fintype.card_prod, Fintype.card_fun, Fintype.card_bool, hE, mul_comm]
+  push_cast; rfl
+
+private theorem sum_prod_subtype_compl_one {m : ℕ} (S : Set (Fin m)) [Fintype S] [Fintype ↥Sᶜ] :
+    (∑ _a : S → Bool, ∑ _b : ↥Sᶜ → Bool, (1 : ℝ)) = (2 : ℝ) ^ m := by
+  simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one, Fintype.card_fun,
+    Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat]
+  rw [← pow_add]
+  congr 1
+  rw [← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card, Nat.card_coe_set_eq,
+    Nat.card_coe_set_eq]
+  have hc := ncard_add_ncard_compl S
+  rwa [Nat.card_eq_fintype_card (α := Fin m), Fintype.card_fin] at hc
 
 section CoreCutBounds
 
 open Classical in
-/-- Across any vertex cut `P` of a `CappedWireNet` `G` inducing `X = {i | inVert ⟨e i, _⟩ ∈ P}`,
-the acceptance probability `quantumAcceptProb C q_out e x₀` factors as the real part of a bilinear
-sum indexed by pairs `(γ₁, γ₂) : (G.edgeCut P → Bool) × (G.edgeCut P → Bool)` of crossing bond
-configurations. -/
-private theorem exists_quantumAcceptProb_pair_sum {n N : ℕ}
-    {C : Quantum.Circuit N} {q_out : Fin N} {e : Fin n ↪ Fin N} (x₀ : Fin N → Bool)
-    {A : Set (Fin N)} (heA : Set.range e ⊆ A) (hqA : q_out ∈ A)
+/-- Across any vertex cut `P` of a `CappedWireNet` `G`, the transition amplitude
+`(C.run (Quantum.glue e x x₀)).ofLp (Quantum.glue e y x₀)` factors across `(X, Xᶜ)` and `(Y, Yᶜ)`
+into `2 ^ |G.edgeCut P|` rank-one complex terms. -/
+private theorem exists_run_glue_cut_factorization {n N : ℕ}
+    {C : Quantum.Circuit N} {e : Fin n ↪ Fin N} (x₀ : Fin N → Bool)
+    {A : Set (Fin N)} (heA : Set.range e ⊆ A)
     {L : List (ActiveGate ↥A)} {inactU : {q : Fin N // q ∉ A} → unitaryGroup Bool ℂ}
     (hsplit : ∀ y x : Fin N → Bool,
       (C.matrix : Matrix _ _ ℂ) y x =
@@ -2186,17 +1931,93 @@ private theorem exists_quantumAcceptProb_pair_sum {n N : ℕ}
     (hloc_edge : ∀ v x y γ₁ γ₂, Set.EqOn γ₁ γ₂ (G.incidenceSet v) → F v x y γ₁ = F v x y γ₂)
     (P : Set V_fin) :
     let X : Set (Fin n) := {i | inVert ⟨e i, heA ⟨i, rfl⟩⟩ ∈ P}
+    let Y : Set (Fin n) := {j | outVert ⟨e j, heA ⟨j, rfl⟩⟩ ∈ P}
     let Ecut : Set E_fin := G.edgeCut P
-    ∃ (A_pair : (X → Bool) → (Ecut → Bool) × (Ecut → Bool) → ℂ)
-      (B_pair : (↥Xᶜ → Bool) → (Ecut → Bool) × (Ecut → Bool) → ℂ),
-      ∀ (a : X → Bool) (b : ↥Xᶜ → Bool),
-        quantumAcceptProb C q_out e x₀
-            ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm (a, b)) =
-          ∑ p : (Ecut → Bool) × (Ecut → Bool),
-            ((A_pair a p).re * (B_pair b p).re - (A_pair a p).im * (B_pair b p).im) := by
+    ∃ (Φ' : (X → Bool) → (Y → Bool) → (Ecut → Bool) → ℂ)
+      (Ψ' : (↥Xᶜ → Bool) → (↥Yᶜ → Bool) → (Ecut → Bool) → ℂ),
+      ∀ (xP : X → Bool) (xPc : ↥Xᶜ → Bool) (yP : Y → Bool) (yPc : ↥Yᶜ → Bool),
+        (C.run (Quantum.glue e
+            ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm (xP, xPc)) x₀)).ofLp
+          (Quantum.glue e
+            ((Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool).symm (yP, yPc)) x₀) =
+        ∑ τ : Ecut → Bool, Φ' xP yP τ * Ψ' xPc yPc τ := by
   classical
-  intro X Ecut
-  -- Express `quantumAcceptProb C q_out e x₀ x` purely on `↥A → Bool` (inactive wires sum to `1`).
+  intro X Y Ecut
+  obtain ⟨Φ, Ψ, hamp⟩ := amplitude_cut_factorization G inVert outVert F
+    hcontract hloc_in hloc_out hloc_edge P
+  let XP : Set ↥A := {q | inVert q ∈ P}
+  let YP : Set ↥A := {q | outVert q ∈ P}
+  let glueX := (Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm
+  let glueY := (Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool).symm
+  let c_inact : ℂ := ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (x₀ q.1) (x₀ q.1)
+  obtain ⟨liftXP, liftXPc, hdom_XP', hdom_XPc'⟩ := exists_lift_domRestrict_glue e x₀ heA XP
+  obtain ⟨liftYP, liftYPc, hdom_YP', hdom_YPc'⟩ := exists_lift_domRestrict_glue e x₀ heA YP
+  have hdom_XP (a : X → Bool) (b : ↥Xᶜ → Bool) :
+      {q | inVert q ∈ P}.domRestrict (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀)) =
+        liftXP a := hdom_XP' a b
+  have hdom_XPc (a : X → Bool) (b : ↥Xᶜ → Bool) :
+      {q | inVert q ∈ P}ᶜ.domRestrict (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀)) =
+        liftXPc b := hdom_XPc' a b
+  have hdom_YP (yP : Y → Bool) (yPc : ↥Yᶜ → Bool) :
+      {q | outVert q ∈ P}.domRestrict (A.domRestrict (Quantum.glue e (glueY (yP, yPc)) x₀)) =
+        liftYP yP := hdom_YP' yP yPc
+  have hdom_YPc (yP : Y → Bool) (yPc : ↥Yᶜ → Bool) :
+      {q | outVert q ∈ P}ᶜ.domRestrict (A.domRestrict (Quantum.glue e (glueY (yP, yPc)) x₀)) =
+        liftYPc yPc := hdom_YPc' yP yPc
+  refine ⟨fun xP yP τ => c_inact * Φ (liftXP xP) (liftYP yP) τ,
+    fun xPc yPc τ => Ψ (liftXPc xPc) (liftYPc yPc) τ, fun xP xPc yP yPc => ?_⟩
+  have hrun : (C.run (Quantum.glue e (glueX (xP, xPc)) x₀)).ofLp
+        (Quantum.glue e (glueY (yP, yPc)) x₀) =
+      (C.matrix : Matrix _ _ ℂ)
+        (Quantum.glue e (glueY (yP, yPc)) x₀) (Quantum.glue e (glueX (xP, xPc)) x₀) := by
+    simp only [Quantum.Circuit.run, Quantum.Circuit.eval, Quantum.unitaryEquiv_apply,
+      Matrix.mulVec, dotProduct, Quantum.ket_apply, mul_ite, mul_one, mul_zero,
+      Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
+  have hamp1 :=
+    hamp (A.domRestrict (Quantum.glue e (glueX (xP, xPc)) x₀))
+      (A.domRestrict (Quantum.glue e (glueY (yP, yPc)) x₀))
+  rw [hdom_XP xP xPc, hdom_XPc xP xPc, hdom_YP yP yPc, hdom_YPc yP yPc] at hamp1
+  rw [hrun, hsplit, hamp1]
+  have hcin : (∏ q : {q : Fin N // q ∉ A},
+      (inactU q : Matrix Bool Bool ℂ) (Quantum.glue e (glueY (yP, yPc)) x₀ q.1)
+        (Quantum.glue e (glueX (xP, xPc)) x₀ q.1)) = c_inact := by
+    refine Finset.prod_congr rfl fun q _ => ?_
+    rw [Quantum.glue_of_not e _ x₀ (fun i hi => q.2 (heA ⟨i, hi⟩)),
+      Quantum.glue_of_not e _ x₀ (fun i hi => q.2 (heA ⟨i, hi⟩))]
+  rw [hcin, mul_comm _ c_inact, Finset.mul_sum]
+  exact Finset.sum_congr rfl fun _ _ => by ring
+
+open Classical in
+/-- Across any vertex cut `P` of a `CappedWireNet` `G` inducing `X = {i | inVert ⟨e i, _⟩ ∈ P}`,
+any affine transform `α_coef * quantumAcceptProb C q_out e x₀ + β_coef` factors as `U_mat * V_mat`
+of inner dimension at most `3 * 4 ^ |G.edgeCut P|`. -/
+private theorem exists_quantumAcceptProb_affine_mul {n N : ℕ}
+    {C : Quantum.Circuit N} {q_out : Fin N} {e : Fin n ↪ Fin N} (x₀ : Fin N → Bool)
+    {A : Set (Fin N)} (heA : Set.range e ⊆ A) (hqA : q_out ∈ A)
+    {L : List (ActiveGate ↥A)} {inactU : {q : Fin N // q ∉ A} → unitaryGroup Bool ℂ}
+    (hsplit : ∀ y x : Fin N → Bool,
+      (C.matrix : Matrix _ _ ℂ) y x =
+        (evalAct L : Matrix (↥A → Bool) (↥A → Bool) ℂ) (A.domRestrict y) (A.domRestrict x) *
+          ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (y q.1) (x q.1))
+    {V_fin E_fin : Type} [Fintype V_fin] [Fintype E_fin] [DecidableEq E_fin]
+    (G : Multigraph V_fin E_fin) (inVert outVert : ↥A ↪ V_fin)
+    (F : V_fin → (↥A → Bool) → (↥A → Bool) → (E_fin → Bool) → ℂ)
+    (hcontract : ∀ y x : ↥A → Bool, evalAct L y x = ∑ γ : E_fin → Bool, ∏ v : V_fin, F v x y γ)
+    (hloc_in : ∀ v x₁ x₂ y γ, (∀ q, inVert q = v → x₁ q = x₂ q) → F v x₁ y γ = F v x₂ y γ)
+    (hloc_out : ∀ v x y₁ y₂ γ, (∀ q, outVert q = v → y₁ q = y₂ q) → F v x y₁ γ = F v x y₂ γ)
+    (hloc_edge : ∀ v x y γ₁ γ₂, Set.EqOn γ₁ γ₂ (G.incidenceSet v) → F v x y γ₁ = F v x y γ₂)
+    (P : Set V_fin) (α_coef β_coef : ℝ) :
+    let X : Set (Fin n) := {i | inVert ⟨e i, heA ⟨i, rfl⟩⟩ ∈ P}
+    ∃ (κ : Type) (_ : Fintype κ) (U_mat : Matrix (X → Bool) κ ℝ)
+      (V_mat : Matrix κ (↥Xᶜ → Bool) ℝ),
+      Fintype.card κ ≤ 3 * 4 ^ (G.edgeCut P).ncard ∧
+      ∀ (a : X → Bool) (b : ↥Xᶜ → Bool),
+        (U_mat * V_mat) a b =
+          α_coef * quantumAcceptProb C q_out e x₀
+            ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm (a, b)) + β_coef := by
+  classical
+  intro X
+  let Ecut : Set E_fin := G.edgeCut P
   let q_act : ↥A := ⟨q_out, hqA⟩
   have hprob_act (x : Fin n → Bool) :
       quantumAcceptProb C q_out e x₀ x =
@@ -2283,22 +2104,18 @@ private theorem exists_quantumAcceptProb_pair_sum {n N : ℕ}
         rw [mul_comm, Complex.mul_conj, Complex.normSq_eq_norm_sq, Complex.ofReal_re]
       rw [hnorm_re false, hnorm_re true, ← Complex.add_re, hcol]
     rw [hsum_split, hinact_one, mul_one]
-  -- Factor `quantumAcceptProb` across `(X, Xᶜ)` using `amplitude_cut_factorization`.
   obtain ⟨Φ, Ψ, hamp⟩ := amplitude_cut_factorization G inVert outVert F
     hcontract hloc_in hloc_out hloc_edge P
   let XP : Set ↥A := {q | inVert q ∈ P}
   let YP : Set ↥A := {q | outVert q ∈ P}
   let glueX := (Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm
-  obtain ⟨liftXP, liftXPc, hdom_XP', hdom_XPc'⟩ :=
-    exists_lift_domRestrict_glue e x₀ heA XP
+  obtain ⟨liftXP, liftXPc, hdom_XP', hdom_XPc'⟩ := exists_lift_domRestrict_glue e x₀ heA XP
   have hdom_XP (a : X → Bool) (b : ↥Xᶜ → Bool) :
       {q | inVert q ∈ P}.domRestrict (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀)) =
-        liftXP a :=
-    hdom_XP' a b
+        liftXP a := hdom_XP' a b
   have hdom_XPc (a : X → Bool) (b : ↥Xᶜ → Bool) :
       {q | inVert q ∈ P}ᶜ.domRestrict (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀)) =
         liftXPc b := hdom_XPc' a b
-  -- Product indicator on `YP` and `YPᶜ` for `yA q_act = true`:
   let wYP (yP : YP → Bool) : ℝ :=
     if hq : q_act ∈ YP then (if yP ⟨q_act, hq⟩ = true then 1 else 0) else 1
   let wYPc (yPc : ↥YPᶜ → Bool) : ℝ :=
@@ -2317,10 +2134,9 @@ private theorem exists_quantumAcceptProb_pair_sum {n N : ℕ}
     ∑ yP : YP → Bool, (wYP yP : ℂ) * Φ (liftXP a) yP p.1 * star (Φ (liftXP a) yP p.2)
   let B_pair (b : ↥Xᶜ → Bool) (p : (Ecut → Bool) × (Ecut → Bool)) : ℂ :=
     ∑ yPc : ↥YPᶜ → Bool, (wYPc yPc : ℂ) * Ψ (liftXPc b) yPc p.1 * star (Ψ (liftXPc b) yPc p.2)
-  have hprob_pair (a : X → Bool) (b : ↥Xᶜ → Bool) :
+  have hprob_re (a : X → Bool) (b : ↥Xᶜ → Bool) :
       quantumAcceptProb C q_out e x₀ (glueX (a, b)) =
-        ∑ p : (Ecut → Bool) × (Ecut → Bool),
-          ((A_pair a p).re * (B_pair b p).re - (A_pair a p).im * (B_pair b p).im) := by
+        (∑ p : (Ecut → Bool) × (Ecut → Bool), A_pair a p * B_pair b p).re := by
     rw [hprob_act]
     have hstep1 : (∑ yA : ↥A → Bool,
         (if yA q_act = true then (1 : ℝ) else 0) *
@@ -2333,7 +2149,7 @@ private theorem exists_quantumAcceptProb_pair_sum {n N : ℕ}
                 star (Ψ (liftXPc b) (YPᶜ.domRestrict yA) p.2))).re := by
       refine Finset.sum_congr rfl fun yA _ => ?_
       have h1 := hamp (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀)) yA
-      rw [hdom_XP, hdom_XPc] at h1
+      rw [hdom_XP a b, hdom_XPc a b] at h1
       set z_amp : ℂ :=
         (evalAct L : Matrix _ _ ℂ) yA (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀))
       have hnorm_sq : ‖z_amp‖ ^ 2 = (z_amp * star z_amp).re := by
@@ -2348,18 +2164,36 @@ private theorem exists_quantumAcceptProb_pair_sum {n N : ℕ}
       ring
     rw [hstep1]
     simp_rw [← Complex.re_sum]
-    rw [Finset.sum_comm, Complex.re_sum]
-    refine Finset.sum_congr rfl fun p _ => ?_
-    have hsplit_y : (∑ yA : ↥A → Bool,
-        ((wYP (YP.domRestrict yA) : ℂ) * Φ (liftXP a) (YP.domRestrict yA) p.1 *
-            star (Φ (liftXP a) (YP.domRestrict yA) p.2)) *
-        ((wYPc (YPᶜ.domRestrict yA) : ℂ) * Ψ (liftXPc b) (YPᶜ.domRestrict yA) p.1 *
-            star (Ψ (liftXPc b) (YPᶜ.domRestrict yA) p.2))) = A_pair a p * B_pair b p := by
-      dsimp only [A_pair, B_pair]
-      rw [Finset.sum_mul_sum, ← Fintype.sum_prod_type']
-      exact Fintype.sum_equiv (Equiv.piEquivPiSubtypeProd (· ∈ YP) fun _ => Bool) _ _ fun _ => rfl
-    rw [hsplit_y, Complex.mul_re]
-  exact ⟨A_pair, B_pair, hprob_pair⟩
+    rw [Finset.sum_comm, Complex.re_sum, Complex.re_sum]
+    refine Finset.sum_congr rfl fun p _ => congrArg Complex.re ?_
+    dsimp only [A_pair, B_pair]
+    rw [Finset.sum_mul_sum, ← Fintype.sum_prod_type']
+    exact Fintype.sum_equiv (Equiv.piEquivPiSubtypeProd (· ∈ YP) fun _ => Bool) _ _ fun _ => rfl
+  let κ := (((Ecut → Bool) × (Ecut → Bool)) × Bool) ⊕ Unit
+  let U_mat : Matrix (X → Bool) κ ℝ := fun a idx => match idx with
+    | .inl p => α_coef * realCutLeft A_pair a p
+    | .inr () => β_coef
+  let V_mat : Matrix κ (↥Xᶜ → Bool) ℝ := fun idx b => match idx with
+    | .inl p => realCutRight B_pair p b
+    | .inr () => 1
+  refine ⟨κ, inferInstance, U_mat, V_mat, ?_, fun a b => ?_⟩
+  · have hE : Fintype.card Ecut = (G.edgeCut P).ncard := by
+      rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
+    have hc : Fintype.card κ = 2 * 4 ^ (G.edgeCut P).ncard + 1 := by
+      simp only [κ, Fintype.card_sum, Fintype.card_prod, Fintype.card_fun, Fintype.card_bool,
+        Fintype.card_unit, hE]
+      rw [← pow_add, ← two_mul, pow_mul]
+      ring
+    have h1 : 1 ≤ 4 ^ (G.edgeCut P).ncard := Nat.one_le_pow _ 4 (by norm_num)
+    omega
+  · rw [Matrix.mul_apply, Fintype.sum_sum_type]
+    simp only [Fintype.sum_unique, U_mat, V_mat, mul_one]
+    have hmul_sum : (∑ x : ((Ecut → Bool) × (Ecut → Bool)) × Bool,
+        α_coef * realCutLeft A_pair a x * realCutRight B_pair x b) =
+        α_coef * (realCutLeft A_pair * realCutRight B_pair) a b := by
+      rw [Matrix.mul_apply, Finset.mul_sum]
+      exact Finset.sum_congr rfl fun _ _ => by ring
+    rw [hmul_sum, realCutLeft_mul_realCutRight_apply, ← hprob_re]
 
 open Classical in
 /-- Single-cut `BQP` correlation inequality for a `CappedWireNet`: across any vertex cut `P` of `G`
@@ -2388,54 +2222,25 @@ private theorem sq_quantumCorrelation_mul_le_of_capped {n N : ℕ}
       4 * (4 : ℝ) ^ (G.edgeCut P).ncard := by
   classical
   intro X
-  let Ecut : Set E_fin := G.edgeCut P
   let glueX := (Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm
-  obtain ⟨A_pair, B_pair, hprob_pair⟩ := exists_quantumAcceptProb_pair_sum x₀ heA hqA hsplit
-    G inVert outVert F hcontract hloc_in hloc_out hloc_edge P
-  let κ := (((Ecut → Bool) × (Ecut → Bool)) × Bool) ⊕ Unit
-  let U_mat : Matrix (X → Bool) κ ℝ := fun a idx => match idx with
-    | .inl (p, false) => 2 * (A_pair a p).re
-    | .inl (p, true) => -2 * (A_pair a p).im
-    | .inr () => -1
-  let V_mat : Matrix κ (↥Xᶜ → Bool) ℝ := fun idx b => match idx with
-    | .inl (p, false) => (B_pair b p).re
-    | .inl (p, true) => (B_pair b p).im
-    | .inr () => 1
+  obtain ⟨κ, _, U_mat, V_mat, hcard_nat, hUV'⟩ := exists_quantumAcceptProb_affine_mul x₀ heA hqA
+    hsplit G inVert outVert F hcontract hloc_in hloc_out hloc_edge P 2 (-1)
   have hUV (a : X → Bool) (b : ↥Xᶜ → Bool) :
       (U_mat * V_mat) a b = 2 * quantumAcceptProb C q_out e x₀ (glueX (a, b)) - 1 := by
-    rw [Matrix.mul_apply, Fintype.sum_sum_type, Fintype.sum_prod_type]
-    simp_rw [Fintype.sum_bool]
-    simp only [Fintype.sum_unique, U_mat, V_mat, mul_one]
-    dsimp only [glueX]
-    rw [hprob_pair, Finset.mul_sum, sub_eq_add_neg]
-    congr 1
-    exact Finset.sum_congr rfl fun _ _ => by ring
+    rw [hUV' a b]; ring
   have hUV_sq : (∑ a : X → Bool, ∑ b : ↥Xᶜ → Bool, (U_mat * V_mat) a b ^ 2) ≤ (2 : ℝ) ^ n := by
-    have hle1 (a : X → Bool) (b : ↥Xᶜ → Bool) : (U_mat * V_mat) a b ^ 2 ≤ 1 := by
-      rw [hUV]
-      have h0 := quantumAcceptProb_nonneg C q_out e x₀ (glueX (a, b))
-      have h1 := quantumAcceptProb_le_one C q_out e x₀ (glueX (a, b))
-      nlinarith
-    calc ∑ a : X → Bool, ∑ b : ↥Xᶜ → Bool, (U_mat * V_mat) a b ^ 2
-        ≤ ∑ _a : X → Bool, ∑ _b : ↥Xᶜ → Bool, (1 : ℝ) :=
-          Finset.sum_le_sum fun a _ => Finset.sum_le_sum fun b _ => hle1 a b
-      _ = (Fintype.card (X → Bool) : ℝ) * Fintype.card (↥Xᶜ → Bool) := by
-          simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one]
-      _ = (2 : ℝ) ^ n := by
-          have hn : Fintype.card X + Fintype.card ↥Xᶜ = n := by
-            rw [← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card, Nat.card_coe_set_eq,
-              Nat.card_coe_set_eq]
-            have hc := ncard_add_ncard_compl X
-            rwa [Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin] at hc
-          simp only [Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat]
-          rw [← pow_add, hn]
+    refine (Finset.sum_le_sum fun a _ => Finset.sum_le_sum fun b _ => ?_).trans_eq
+      (sum_prod_subtype_compl_one X)
+    rw [hUV]
+    have h0 := quantumAcceptProb_nonneg C q_out e x₀ (glueX (a, b))
+    have h1 := quantumAcceptProb_le_one C q_out e x₀ (glueX (a, b))
+    nlinarith
   have hcorr_sum : quantumCorrelation {x | BitString.quadForm Q x}
         (quantumAcceptProb C q_out e x₀) * (2 : ℝ) ^ n =
       -(∑ a : X → Bool, ∑ b : ↥Xᶜ → Bool,
         Communication.signMatrix ℝ (fun a' b' => BitString.quadForm Q (glueX (a', b'))) a b *
           (U_mat * V_mat) a b) := by
-    rw [quantumCorrelation, div_mul_cancel₀ _ (by positivity)]
-    rw [← Finset.sum_neg_distrib]
+    rw [quantumCorrelation, div_mul_cancel₀ _ (by positivity), ← Finset.sum_neg_distrib]
     simp_rw [← Finset.sum_neg_distrib]
     rw [← Fintype.sum_prod_type']
     refine Fintype.sum_equiv (Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool) _ _ fun x => ?_
@@ -2448,18 +2253,10 @@ private theorem sq_quantumCorrelation_mul_le_of_capped {n N : ℕ}
       simp only [hqx, Bool.false_eq_true, ↓reduceIte]; ring
   have hfrob := Communication.sq_sum_mul_signMatrix_quadForm_le_card_of_mul Q X U_mat V_mat
   rw [Fintype.card_fin] at hfrob
-  have hcard_κ : (Fintype.card κ : ℝ) ≤ 4 * (4 : ℝ) ^ Ecut.ncard := by
-    have hE : Fintype.card Ecut = Ecut.ncard := by
-      rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
-    have hc : Fintype.card κ = 2 * 4 ^ Ecut.ncard + 1 := by
-      simp only [κ, Fintype.card_sum, Fintype.card_prod, Fintype.card_fun, Fintype.card_bool,
-        Fintype.card_unit, hE]
-      rw [← pow_add, ← two_mul, pow_mul]
-      ring
-    rw [hc]
-    push_cast
-    have h1 : (1 : ℝ) ≤ (4 : ℝ) ^ Ecut.ncard := one_le_pow₀ (by norm_num)
-    linarith
+  have hcard_κ : (Fintype.card κ : ℝ) ≤ 4 * (4 : ℝ) ^ (G.edgeCut P).ncard := by
+    have hr : (Fintype.card κ : ℝ) ≤ 3 * (4 : ℝ) ^ (G.edgeCut P).ncard := by
+      exact_mod_cast hcard_nat
+    linarith [pow_nonneg (by norm_num : (0 : ℝ) ≤ 4) (G.edgeCut P).ncard]
   have hsq_corr : (quantumCorrelation {x | BitString.quadForm Q x}
         (quantumAcceptProb C q_out e x₀) * (2 : ℝ) ^ n) ^ 2 =
       (∑ a, ∑ b, Communication.signMatrix ℝ (fun a' b' => BitString.quadForm Q (glueX (a', b')))
@@ -2469,7 +2266,7 @@ private theorem sq_quantumCorrelation_mul_le_of_capped {n N : ℕ}
   have hmult : (quantumCorrelation {x | BitString.quadForm Q x}
         (quantumAcceptProb C q_out e x₀)) ^ 2 *
         (2 : ℝ) ^ (Q + Qᵀ).cutRank X * ((2 : ℝ) ^ n) ^ 2 ≤
-      4 * (4 : ℝ) ^ Ecut.ncard * ((2 : ℝ) ^ n) ^ 2 := by
+      4 * (4 : ℝ) ^ (G.edgeCut P).ncard * ((2 : ℝ) ^ n) ^ 2 := by
     calc (quantumCorrelation {x | BitString.quadForm Q x}
             (quantumAcceptProb C q_out e x₀)) ^ 2 *
             (2 : ℝ) ^ (Q + Qᵀ).cutRank X * ((2 : ℝ) ^ n) ^ 2
@@ -2478,9 +2275,9 @@ private theorem sq_quantumCorrelation_mul_le_of_capped {n N : ℕ}
             (2 : ℝ) ^ (Q + Qᵀ).cutRank X := by ring
       _ ≤ (Fintype.card κ : ℝ) * (2 : ℝ) ^ n * ∑ a, ∑ b, (U_mat * V_mat) a b ^ 2 := by
           rw [hsq_corr]; exact hfrob
-      _ ≤ (4 * (4 : ℝ) ^ Ecut.ncard) * (2 : ℝ) ^ n * (2 : ℝ) ^ n :=
+      _ ≤ (4 * (4 : ℝ) ^ (G.edgeCut P).ncard) * (2 : ℝ) ^ n * (2 : ℝ) ^ n :=
           by gcongr
-      _ = 4 * (4 : ℝ) ^ Ecut.ncard * ((2 : ℝ) ^ n) ^ 2 := by ring
+      _ = 4 * (4 : ℝ) ^ (G.edgeCut P).ncard * ((2 : ℝ) ^ n) ^ 2 := by ring
   exact le_of_mul_le_mul_right hmult (by positivity)
 
 open Classical in
@@ -2511,47 +2308,16 @@ private theorem signRank_uqp_le_of_capped {n N : ℕ}
       3 * 4 ^ (G.edgeCut P).ncard := by
   classical
   intro X
-  let Ecut : Set E_fin := G.edgeCut P
   let glueX := (Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm
-  obtain ⟨A_pair, B_pair, hprob_pair⟩ := exists_quantumAcceptProb_pair_sum x₀ heA hqA hsplit
-    G inVert outVert F hcontract hloc_in hloc_out hloc_edge P
-  -- `θ - quantumAcceptProb` strictly sign-represents `f (glueX (a, b))`!
-  let κ := (((Ecut → Bool) × (Ecut → Bool)) × Bool) ⊕ Unit
-  let U_sr : Matrix (X → Bool) κ ℝ := fun a idx => match idx with
-    | .inl (p, false) => -(A_pair a p).re
-    | .inl (p, true) => (A_pair a p).im
-    | .inr () => θ
-  let V_sr : Matrix κ (↥Xᶜ → Bool) ℝ := fun idx b => match idx with
-    | .inl (p, false) => (B_pair b p).re
-    | .inl (p, true) => (B_pair b p).im
-    | .inr () => 1
+  obtain ⟨κ, _, U_sr, V_sr, hcard_κ, hUV⟩ := exists_quantumAcceptProb_affine_mul x₀ heA hqA
+    hsplit G inVert outVert F hcontract hloc_in hloc_out hloc_edge P (-1) θ
   have hrep : Communication.SignRepresents (U_sr * V_sr) (fun a b => f (glueX (a, b))) := by
     refine Communication.SignRepresents.iff_lt.mpr fun a b => ?_
-    have hmul : (U_sr * V_sr) a b = θ - quantumAcceptProb C q_out e x₀ (glueX (a, b)) := by
-      rw [Matrix.mul_apply, Fintype.sum_sum_type, Fintype.sum_prod_type]
-      simp_rw [Fintype.sum_bool]
-      simp only [Fintype.sum_unique, U_sr, V_sr, mul_one]
-      dsimp only [glueX]
-      rw [hprob_pair, sub_eq_add_neg, add_comm, ← Finset.sum_neg_distrib]
-      congr 1
-      exact Finset.sum_congr rfl fun _ _ => by ring
-    rw [hmul]
+    rw [hUV a b]
     have hu := huqp (glueX (a, b))
     cases hf_ab : f (glueX (a, b))
-    · simp only [hf_ab, Bool.false_eq_true, ↓reduceIte] at hu ⊢
-      linarith
-    · simp only [hf_ab, ↓reduceIte] at hu ⊢
-      linarith
-  have hcard_κ : Fintype.card κ ≤ 3 * 4 ^ Ecut.ncard := by
-    have hE : Fintype.card Ecut = Ecut.ncard := by
-      rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
-    have hc : Fintype.card κ = 2 * 4 ^ Ecut.ncard + 1 := by
-      simp only [κ, Fintype.card_sum, Fintype.card_prod, Fintype.card_fun, Fintype.card_bool,
-        Fintype.card_unit, hE]
-      rw [← pow_add, ← two_mul, pow_mul]
-      ring
-    have h1 : 1 ≤ 4 ^ Ecut.ncard := Nat.one_le_pow _ 4 (by norm_num)
-    omega
+    · simp only [hf_ab, Bool.false_eq_true, ↓reduceIte] at hu ⊢; linarith
+    · simp only [hf_ab, ↓reduceIte] at hu ⊢; linarith
   exact (Communication.signRank_le_card_of_mul hrep).trans hcard_κ
 
 open Classical in
@@ -2579,68 +2345,33 @@ private theorem sq_fidelity_phaseState_mul_le_of_capped {n N : ℕ}
       4 * (2 : ℝ) ^ (G.edgeCut P).ncard := by
   classical
   intro Y
-  obtain ⟨Φ, Ψ, hamp⟩ := amplitude_cut_factorization G inVert outVert F
-    hcontract hloc_in hloc_out hloc_edge P
-  let XP : Set ↥A := {q | inVert q ∈ P}
-  let YP : Set ↥A := {q | outVert q ∈ P}
+  let X : Set (Fin n) := {i | inVert ⟨e i, heA ⟨i, rfl⟩⟩ ∈ P}
   let Ecut : Set E_fin := G.edgeCut P
   let glueY := (Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool).symm
-  let c_inact : ℂ := ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (x₀ q.1) (x₀ q.1)
-  obtain ⟨liftYP, liftYPc, hdom_YP', hdom_YPc'⟩ :=
-    exists_lift_domRestrict_glue e x₀ heA YP
-  have hdom_YP (a : Y → Bool) (b : ↥Yᶜ → Bool) :
-      {q | outVert q ∈ P}.domRestrict (A.domRestrict (Quantum.glue e (glueY (a, b)) x₀)) =
-        liftYP a := hdom_YP' a b
-  have hdom_YPc (a : Y → Bool) (b : ↥Yᶜ → Bool) :
-      {q | outVert q ∈ P}ᶜ.domRestrict (A.domRestrict (Quantum.glue e (glueY (a, b)) x₀)) =
-        liftYPc b := hdom_YPc' a b
+  obtain ⟨Φ', Ψ', hrun_cut⟩ := exists_run_glue_cut_factorization x₀ heA hsplit G inVert outVert F
+    hcontract hloc_in hloc_out hloc_edge P
+  let p₀ := (Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool) (x₀ ∘ e)
   let amp (z : Fin n → Bool) : ℂ := (C.run x₀).ofLp (Quantum.glue e z x₀)
   have hamp_z (a : Y → Bool) (b : ↥Yᶜ → Bool) :
-      amp (glueY (a, b)) =
-        ∑ τ : Ecut → Bool,
-          (c_inact * Φ (XP.domRestrict (A.domRestrict x₀)) (liftYP a) τ) *
-            Ψ (XPᶜ.domRestrict (A.domRestrict x₀)) (liftYPc b) τ := by
-    have hrun : amp (glueY (a, b)) =
-        (C.matrix : Matrix _ _ ℂ) (Quantum.glue e (glueY (a, b)) x₀) x₀ := by
-      simp only [amp, Quantum.Circuit.run, Quantum.Circuit.eval, Quantum.unitaryEquiv_apply,
-        Matrix.mulVec, dotProduct, Quantum.ket_apply, mul_ite, mul_one, mul_zero,
-        Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
-    have hamp1 := hamp (A.domRestrict x₀) (A.domRestrict (Quantum.glue e (glueY (a, b)) x₀))
-    rw [hdom_YP, hdom_YPc] at hamp1
-    rw [hrun, hsplit, hamp1]
-    have hcin : (∏ q : {q : Fin N // q ∉ A},
-        (inactU q : Matrix Bool Bool ℂ)
-          (Quantum.glue e (glueY (a, b)) x₀ q.1) (x₀ q.1)) = c_inact := by
-      refine Finset.prod_congr rfl fun q _ => ?_
-      rw [Quantum.glue_of_not e _ x₀ (fun i hi => q.2 (heA ⟨i, hi⟩))]
-    rw [hcin, mul_comm _ c_inact, Finset.mul_sum]
-    exact Finset.sum_congr rfl fun _ _ => by ring
-  -- Real and imaginary parts of `amp (glueY (a, b))` each factor through `(Ecut → Bool) × Bool`.
-  let κ := (Ecut → Bool) × Bool
-  let U_re : Matrix (Y → Bool) κ ℝ := fun a p =>
-    if p.2 then -(c_inact * Φ (XP.domRestrict (A.domRestrict x₀)) (liftYP a) p.1).im
-    else (c_inact * Φ (XP.domRestrict (A.domRestrict x₀)) (liftYP a) p.1).re
-  let V_re : Matrix κ (↥Yᶜ → Bool) ℝ := fun p b =>
-    if p.2 then (Ψ (XPᶜ.domRestrict (A.domRestrict x₀)) (liftYPc b) p.1).im
-    else (Ψ (XPᶜ.domRestrict (A.domRestrict x₀)) (liftYPc b) p.1).re
-  let U_im : Matrix (Y → Bool) κ ℝ := fun a p =>
-    if p.2 then (c_inact * Φ (XP.domRestrict (A.domRestrict x₀)) (liftYP a) p.1).im
-    else (c_inact * Φ (XP.domRestrict (A.domRestrict x₀)) (liftYP a) p.1).re
-  let V_im : Matrix κ (↥Yᶜ → Bool) ℝ := fun p b =>
-    if p.2 then (Ψ (XPᶜ.domRestrict (A.domRestrict x₀)) (liftYPc b) p.1).re
-    else (Ψ (XPᶜ.domRestrict (A.domRestrict x₀)) (liftYPc b) p.1).im
+      amp (glueY (a, b)) = ∑ τ : Ecut → Bool, Φ' p₀.1 a τ * Ψ' p₀.2 b τ := by
+    have hx₀ : Quantum.glue e ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm p₀) x₀ =
+        x₀ := by
+      rw [Equiv.symm_apply_apply]
+      ext q
+      by_cases h : ∃ i, e i = q
+      · obtain ⟨i, rfl⟩ := h; exact Quantum.glue_apply_emb e (x₀ ∘ e) x₀ i
+      · exact Quantum.glue_of_not e (x₀ ∘ e) x₀ fun i hi => h ⟨i, hi⟩
+    have hrc := hrun_cut p₀.1 p₀.2 a b
+    dsimp only [amp, glueY]
+    rwa [Prod.mk.eta, hx₀] at hrc
+  let U_re := realCutLeft (Φ' p₀.1)
+  let V_re := realCutRight (Ψ' p₀.2)
+  let U_im := realCutLeft (fun a τ => -Complex.I * Φ' p₀.1 a τ)
+  let V_im := realCutRight (Ψ' p₀.2)
   have hUV_re (a : Y → Bool) (b : ↥Yᶜ → Bool) : (U_re * V_re) a b = (amp (glueY (a, b))).re := by
-    rw [hamp_z, Complex.re_sum, Matrix.mul_apply, Fintype.sum_prod_type]
-    refine Finset.sum_congr rfl fun τ _ => ?_
-    rw [Fintype.sum_bool, Complex.mul_re]
-    simp only [U_re, V_re, Bool.false_eq_true, ↓reduceIte, neg_mul]
-    ring
+    rw [hamp_z, realCutLeft_mul_realCutRight_apply]
   have hUV_im (a : Y → Bool) (b : ↥Yᶜ → Bool) : (U_im * V_im) a b = (amp (glueY (a, b))).im := by
-    rw [hamp_z, Complex.im_sum, Matrix.mul_apply, Fintype.sum_prod_type]
-    refine Finset.sum_congr rfl fun τ _ => ?_
-    rw [Fintype.sum_bool, Complex.mul_im]
-    simp only [U_im, V_im, Bool.false_eq_true, ↓reduceIte]
-    ring
+    rw [hamp_z, realCutLeft_neg_I_mul_realCutRight_apply]
   have hnorm_sum_le : (∑ a : Y → Bool, ∑ b : ↥Yᶜ → Bool,
       ((U_re * V_re) a b ^ 2 + (U_im * V_im) a b ^ 2)) ≤ 1 := by
     have h1 (a : Y → Bool) (b : ↥Yᶜ → Bool) :
@@ -2659,7 +2390,6 @@ private theorem sq_fidelity_phaseState_mul_le_of_capped {n N : ℕ}
           Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _) fun _ _ _ => by positivity
       _ = ‖C.run x₀‖ ^ 2 := Quantum.measureProb_univ _
       _ = 1 := by rw [Quantum.Circuit.norm_run, one_pow]
-  -- Express `inner ℂ (phaseState Q e x₀) (C.run x₀)` via `U_re * V_re` and `U_im * V_im`.
   set S_mat := Communication.signMatrix ℝ (fun a' b' => BitString.quadForm Q (glueY (a', b')))
   have hinner_eq : inner ℂ (phaseState Q e x₀) (C.run x₀) =
       (((1 / √2) ^ n : ℝ) : ℂ) *
@@ -2721,19 +2451,12 @@ private theorem sq_fidelity_phaseState_mul_le_of_capped {n N : ℕ}
         Complex.add_im, Complex.mul_im, one_mul, zero_add]
       ring
     rw [h12, hre_im]
-  have hf_re : (∑ a, ∑ b, S_mat a b * (U_re * V_re) a b) ^ 2 * (2 : ℝ) ^ (Q + Qᵀ).cutRank Y ≤
-      (Fintype.card κ : ℝ) * (2 : ℝ) ^ Fintype.card (Fin n) * ∑ a, ∑ b, (U_re * V_re) a b ^ 2 :=
-    Communication.sq_sum_mul_signMatrix_quadForm_le_card_of_mul Q Y U_re V_re
-  have hf_im : (∑ a, ∑ b, S_mat a b * (U_im * V_im) a b) ^ 2 * (2 : ℝ) ^ (Q + Qᵀ).cutRank Y ≤
-      (Fintype.card κ : ℝ) * (2 : ℝ) ^ Fintype.card (Fin n) * ∑ a, ∑ b, (U_im * V_im) a b ^ 2 :=
-    Communication.sq_sum_mul_signMatrix_quadForm_le_card_of_mul Q Y U_im V_im
-  rw [Fintype.card_fin] at hf_re hf_im
-  have hcard_κ : (Fintype.card κ : ℝ) = 2 * (2 : ℝ) ^ Ecut.ncard := by
-    have hE : Fintype.card Ecut = Ecut.ncard := by
-      rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
-    simp only [κ, Fintype.card_prod, Fintype.card_fun, Fintype.card_bool, hE, mul_comm]
-    push_cast; rfl
-  rw [hcard_κ] at hf_re hf_im
+  have hfrob (U_m : Matrix (Y → Bool) ((Ecut → Bool) × Bool) ℝ)
+      (V_m : Matrix ((Ecut → Bool) × Bool) (↥Yᶜ → Bool) ℝ) :
+      (∑ a, ∑ b, S_mat a b * (U_m * V_m) a b) ^ 2 * (2 : ℝ) ^ (Q + Qᵀ).cutRank Y ≤
+        (2 * (2 : ℝ) ^ Ecut.ncard) * (2 : ℝ) ^ n * ∑ a, ∑ b, (U_m * V_m) a b ^ 2 :=
+    (Communication.sq_sum_mul_signMatrix_quadForm_le_card_of_mul Q Y U_m V_m).trans_eq
+      (by rw [Fintype.card_fin, card_cut_prod_bool Ecut])
   rw [hnorm_inner]
   have hsum_frob : ((∑ a, ∑ b, S_mat a b * (U_re * V_re) a b) ^ 2 +
         (∑ a, ∑ b, S_mat a b * (U_im * V_im) a b) ^ 2) * (2 : ℝ) ^ (Q + Qᵀ).cutRank Y ≤
@@ -2743,7 +2466,7 @@ private theorem sq_fidelity_phaseState_mul_le_of_capped {n N : ℕ}
         ≤ 2 * (2 : ℝ) ^ Ecut.ncard * (2 : ℝ) ^ n *
             (∑ a, ∑ b, (U_re * V_re) a b ^ 2 + ∑ a, ∑ b, (U_im * V_im) a b ^ 2) := by
           rw [add_mul, mul_add]
-          exact add_le_add hf_re hf_im
+          exact add_le_add (hfrob U_re V_re) (hfrob U_im V_im)
       _ = 2 * (2 : ℝ) ^ Ecut.ncard * (2 : ℝ) ^ n *
             ∑ a, ∑ b, ((U_re * V_re) a b ^ 2 + (U_im * V_im) a b ^ 2) := by
           simp_rw [Finset.sum_add_distrib]
@@ -2852,10 +2575,6 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
     (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank {k | leaf2n k ∈ P} ≤
       (G.edgeCut P).ncard + 1 := by
   classical
-  obtain ⟨Φ, Ψ, hamp⟩ := amplitude_cut_factorization G inVert outVert F
-    hcontract hloc_in hloc_out hloc_edge P
-  let XP : Set ↥A := {q | inVert q ∈ P}
-  let YP : Set ↥A := {q | outVert q ∈ P}
   let Ecut : Set E_fin := G.edgeCut P
   let U : Set (Fin (2 * n)) := {k | leaf2n k ∈ P}
   let X : Set (Fin n) := {i | inVert ⟨e i, heA ⟨i, rfl⟩⟩ ∈ P}
@@ -2863,92 +2582,32 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
   let glueU := (Equiv.piEquivPiSubtypeProd (· ∈ U) fun _ => Bool).symm
   let glueX := (Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm
   let glueY := (Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool).symm
-  let c_inact : ℂ := ∏ q : {q : Fin N // q ∉ A}, (inactU q : Matrix Bool Bool ℂ) (x₀ q.1) (x₀ q.1)
-  obtain ⟨liftXP, liftXPc, hdom_XP', hdom_XPc'⟩ :=
-    exists_lift_domRestrict_glue e x₀ heA XP
-  have hdom_XP (a : X → Bool) (b : ↥Xᶜ → Bool) :
-      {q | inVert q ∈ P}.domRestrict (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀)) =
-        liftXP a :=
-    hdom_XP' a b
-  have hdom_XPc (a : X → Bool) (b : ↥Xᶜ → Bool) :
-      {q | inVert q ∈ P}ᶜ.domRestrict (A.domRestrict (Quantum.glue e (glueX (a, b)) x₀)) =
-        liftXPc b := hdom_XPc' a b
-  obtain ⟨liftYP, liftYPc, hdom_YP', hdom_YPc'⟩ :=
-    exists_lift_domRestrict_glue e x₀ heA YP
-  have hdom_YP (wP : Y → Bool) (wPc : ↥Yᶜ → Bool) :
-      {q | outVert q ∈ P}.domRestrict (A.domRestrict (Quantum.glue e (glueY (wP, wPc)) x₀)) =
-        liftYP wP := hdom_YP' wP wPc
-  have hdom_YPc (wP : Y → Bool) (wPc : ↥Yᶜ → Bool) :
-      {q | outVert q ∈ P}ᶜ.domRestrict (A.domRestrict (Quantum.glue e (glueY (wP, wPc)) x₀)) =
-        liftYPc wPc := hdom_YPc' wP wPc
+  obtain ⟨Φ', Ψ', hrun_cut⟩ := exists_run_glue_cut_factorization x₀ heA hsplit G inVert outVert F
+    hcontract hloc_in hloc_out hloc_edge P
   have hamp_wx (xP : X → Bool) (xPc : ↥Xᶜ → Bool) (wP : Y → Bool) (wPc : ↥Yᶜ → Bool) :
       (if glueY (wP, wPc) = boolMulVec R (glueX (xP, xPc)) then (1 : ℂ) else 0) =
-        ∑ τ : Ecut → Bool,
-          (c_inact * Φ (liftXP xP) (liftYP wP) τ) * Ψ (liftXPc xPc) (liftYPc wPc) τ := by
-    have hket : (if glueY (wP, wPc) = boolMulVec R (glueX (xP, xPc)) then (1 : ℂ) else 0) =
-        (C.run (Quantum.glue e (glueX (xP, xPc)) x₀)).ofLp
-          (Quantum.glue e (glueY (wP, wPc)) x₀) := by
-      rw [hlin, Quantum.ket_apply]
-      have hinj : (Quantum.glue e (glueY (wP, wPc)) x₀ =
-          Quantum.glue e (boolMulVec R (glueX (xP, xPc))) x₀) ↔
-          glueY (wP, wPc) = boolMulVec R (glueX (xP, xPc)) :=
-        ⟨fun h => glue_left_injective e x₀ h, fun h => congrArg (Quantum.glue e · x₀) h⟩
-      exact (if_congr hinj rfl rfl).symm
-    have hrun : (C.run (Quantum.glue e (glueX (xP, xPc)) x₀)).ofLp
-          (Quantum.glue e (glueY (wP, wPc)) x₀) =
-        (C.matrix : Matrix _ _ ℂ)
-          (Quantum.glue e (glueY (wP, wPc)) x₀) (Quantum.glue e (glueX (xP, xPc)) x₀) := by
-      simp only [Quantum.Circuit.run, Quantum.Circuit.eval, Quantum.unitaryEquiv_apply,
-        Matrix.mulVec, dotProduct, Quantum.ket_apply, mul_ite, mul_one, mul_zero,
-        Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
-    have hamp1 :=
-      hamp (A.domRestrict (Quantum.glue e (glueX (xP, xPc)) x₀))
-        (A.domRestrict (Quantum.glue e (glueY (wP, wPc)) x₀))
-    rw [hdom_XP, hdom_XPc, hdom_YP, hdom_YPc] at hamp1
-    rw [hket, hrun, hsplit, hamp1]
-    have hcin : (∏ q : {q : Fin N // q ∉ A},
-        (inactU q : Matrix Bool Bool ℂ) (Quantum.glue e (glueY (wP, wPc)) x₀ q.1)
-          (Quantum.glue e (glueX (xP, xPc)) x₀ q.1)) = c_inact := by
-      refine Finset.prod_congr rfl fun q _ => ?_
-      rw [Quantum.glue_of_not e _ x₀ (fun i hi => q.2 (heA ⟨i, hi⟩)),
-        Quantum.glue_of_not e _ x₀ (fun i hi => q.2 (heA ⟨i, hi⟩))]
-    rw [hcin, mul_comm _ c_inact, Finset.mul_sum]
-    exact Finset.sum_congr rfl fun _ _ => by ring
-  -- Extract `(xP, yP)` from `a : U → Bool` and `(xPc, yPc)` from `b : ↥Uᶜ → Bool`.
+        ∑ τ : Ecut → Bool, Φ' xP wP τ * Ψ' xPc wPc τ := by
+    have hinj : (Quantum.glue e (glueY (wP, wPc)) x₀ =
+        Quantum.glue e (boolMulVec R (glueX (xP, xPc))) x₀) ↔
+        glueY (wP, wPc) = boolMulVec R (glueX (xP, xPc)) :=
+      ⟨fun h => glue_left_injective e x₀ h, fun h => congrArg (Quantum.glue e · x₀) h⟩
+    refine (if_congr hinj.symm rfl rfl).trans ?_
+    simpa only [hlin, Quantum.ket_apply] using hrun_cut xP xPc wP wPc
   have hglue_emb (emb : Fin n → Fin (2 * n)) (S : Set (Fin n)) (hemb : ∀ i, emb i ∈ U ↔ i ∈ S)
       (a : U → Bool) (b : ↥Uᶜ → Bool) (i : Fin n) :
       glueU (a, b) (emb i) =
         (Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).symm
           ((fun k => a ⟨emb k.1, (hemb k.1).mpr k.2⟩),
            (fun k => b ⟨emb k.1, fun h => k.2 ((hemb k.1).mp h)⟩)) i := by
+    simp only [glueU, Equiv.piEquivPiSubtypeProd_symm_apply]
     by_cases hi : i ∈ S
-    · have hiU : emb i ∈ U := (hemb i).mpr hi
-      have h1 : glueU (a, b) (emb i) = a ⟨emb i, hiU⟩ :=
-        congrFun (congrArg Prod.fst
-          ((Equiv.piEquivPiSubtypeProd (· ∈ U) fun _ => Bool).apply_symm_apply (a, b))) ⟨emb i, hiU⟩
-      have h2 : (Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).symm
-          ((fun k => a ⟨emb k.1, (hemb k.1).mpr k.2⟩),
-           (fun k => b ⟨emb k.1, fun h => k.2 ((hemb k.1).mp h)⟩)) i = a ⟨emb i, hiU⟩ :=
-        congrFun (congrArg Prod.fst
-          ((Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).apply_symm_apply _)) ⟨i, hi⟩
-      exact h1.trans h2.symm
-    · have hiUc : emb i ∈ Uᶜ := fun h => hi ((hemb i).mp h)
-      have h1 : glueU (a, b) (emb i) = b ⟨emb i, hiUc⟩ :=
-        congrFun (congrArg Prod.snd
-          ((Equiv.piEquivPiSubtypeProd (· ∈ U) fun _ => Bool).apply_symm_apply (a, b)))
-          ⟨emb i, hiUc⟩
-      have h2 : (Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).symm
-          ((fun k => a ⟨emb k.1, (hemb k.1).mpr k.2⟩),
-           (fun k => b ⟨emb k.1, fun h => k.2 ((hemb k.1).mp h)⟩)) i = b ⟨emb i, hiUc⟩ :=
-        congrFun (congrArg Prod.snd
-          ((Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).apply_symm_apply _)) ⟨i, hi⟩
-      exact h1.trans h2.symm
+    · simp only [hi, (hemb i).mpr hi, ↓reduceDIte]
+    · have hiU : emb i ∉ U := fun h => hi ((hemb i).mp h)
+      simp only [hi, hiU, ↓reduceDIte]
   have hinl_mem (i : Fin n) : inl2n n i ∈ U ↔ i ∈ X := by
-    change leaf2n (inl2n n i) ∈ P ↔ inVert ⟨e i, heA ⟨i, rfl⟩⟩ ∈ P
-    rw [hleaf_in]
+    change leaf2n (inl2n n i) ∈ P ↔ inVert ⟨e i, heA ⟨i, rfl⟩⟩ ∈ P; rw [hleaf_in]
   have hinr_mem (j : Fin n) : inr2n n j ∈ U ↔ j ∈ Y := by
-    change leaf2n (inr2n n j) ∈ P ↔ outVert ⟨e j, heA ⟨j, rfl⟩⟩ ∈ P
-    rw [hleaf_out]
+    change leaf2n (inr2n n j) ∈ P ↔ outVert ⟨e j, heA ⟨j, rfl⟩⟩ ∈ P; rw [hleaf_out]
   let x_of_a (a : U → Bool) : X → Bool := fun i => a ⟨inl2n n i.1, (hinl_mem i.1).mpr i.2⟩
   let y_of_a (a : U → Bool) : Y → Bool := fun j => a ⟨inr2n n j.1, (hinr_mem j.1).mpr j.2⟩
   let x_of_b (b : ↥Uᶜ → Bool) : ↥Xᶜ → Bool :=
@@ -2961,15 +2620,12 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
   have hglue_inr (a : U → Bool) (b : ↥Uᶜ → Bool) (j : Fin n) :
       glueU (a, b) (inr2n n j) = glueY (y_of_a a, y_of_b b) j :=
     hglue_emb (inr2n n) Y hinr_mem a b j
-  -- Walsh-transform `Φ` over `wP : Y → Bool` and `Ψ` over `wPc : ↥Yᶜ → Bool`.
   let Φ_lin (a : U → Bool) (τ : Ecut → Bool) : ℂ :=
     ∑ wP : Y → Bool,
-      (∏ j : Y, if y_of_a a j && wP j then (-1 : ℂ) else 1) *
-        (c_inact * Φ (liftXP (x_of_a a)) (liftYP wP) τ)
+      (∏ j : Y, if y_of_a a j && wP j then (-1 : ℂ) else 1) * Φ' (x_of_a a) wP τ
   let Ψ_lin (b : ↥Uᶜ → Bool) (τ : Ecut → Bool) : ℂ :=
     ∑ wPc : ↥Yᶜ → Bool,
-      (∏ j : ↥Yᶜ, if y_of_b b j && wPc j then (-1 : ℂ) else 1) *
-        Ψ (liftXPc (x_of_b b)) (liftYPc wPc) τ
+      (∏ j : ↥Yᶜ, if y_of_b b j && wPc j then (-1 : ℂ) else 1) * Ψ' (x_of_b b) wPc τ
   set S_mat := Communication.signMatrix ℝ
     (fun a' b' => BitString.quadForm (linBlockMatrix n R) (glueU (a', b')))
   have hsum_τ (a : U → Bool) (b : ↥Uᶜ → Bool) :
@@ -2978,9 +2634,7 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
         ∑ wP : Y → Bool, ∑ wPc : ↥Yᶜ → Bool,
           ((∏ j : Y, if y_of_a a j && wP j then (-1 : ℂ) else 1) *
             (∏ j : ↥Yᶜ, if y_of_b b j && wPc j then (-1 : ℂ) else 1)) *
-          ∑ τ : Ecut → Bool,
-            (c_inact * Φ (liftXP (x_of_a a)) (liftYP wP) τ) *
-              Ψ (liftXPc (x_of_b b)) (liftYPc wPc) τ := by
+          ∑ τ : Ecut → Bool, Φ' (x_of_a a) wP τ * Ψ' (x_of_b b) wPc τ := by
       dsimp only [Φ_lin, Ψ_lin]
       simp_rw [Finset.sum_mul_sum]
       rw [Finset.sum_comm]
@@ -2999,25 +2653,10 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
         (fun j => if glueU (a, b) (inr2n n j) && glueY (wP, wPc) j then (-1 : ℂ) else 1)]
       congr 1
       · refine Finset.prod_congr rfl fun j _ => ?_
-        have hy : glueU (a, b) (inr2n n j.1) = y_of_a a j := by
-          rw [hglue_inr]
-          exact congrFun (congrArg Prod.fst
-            ((Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool).apply_symm_apply
-              (y_of_a a, y_of_b b))) j
-        have hw : glueY (wP, wPc) j.1 = wP j :=
-          congrFun (congrArg Prod.fst
-            ((Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool).apply_symm_apply (wP, wPc))) j
-        rw [hy, hw]
+        simp only [hglue_inr, glueY, Equiv.piEquivPiSubtypeProd_symm_apply, j.2, ↓reduceDIte]
       · refine Finset.prod_congr rfl fun j _ => ?_
-        have hy : glueU (a, b) (inr2n n j.1) = y_of_b b j := by
-          rw [hglue_inr]
-          exact congrFun (congrArg Prod.snd
-            ((Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool).apply_symm_apply
-              (y_of_a a, y_of_b b))) j
-        have hw : glueY (wP, wPc) j.1 = wPc j :=
-          congrFun (congrArg Prod.snd
-            ((Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool).apply_symm_apply (wP, wPc))) j
-        rw [hy, hw]
+        have hnj : j.1 ∉ Y := j.2
+        simp only [hglue_inr, glueY, Equiv.piEquivPiSubtypeProd_symm_apply, hnj, ↓reduceDIte]; rfl
     simp_rw [hprod_y, ← Fintype.sum_prod_type']
     refine (Fintype.sum_equiv (Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool)
       (fun w =>
@@ -3033,7 +2672,6 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
       ?_
     simp only [mul_ite, mul_one, mul_zero, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte,
       ← hglue_inl a b]
-    -- Identify the remaining product with `S_mat a b`.
     have hquad := BitString.quadForm_eq_of_submatrix (inr2n_injective n) (inl2n_injective n)
       (Matrix.submatrix_extendBlock (inr2n_injective n) (inl2n_injective n) R)
       (fun _ _ h => Matrix.extendBlock_eq_zero R h) (glueU (a, b))
@@ -3045,66 +2683,41 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
     rw [← hquad]
     simp only [S_mat, Communication.signMatrix_apply]
     cases BitString.quadForm (linBlockMatrix n R) (glueU (a, b)) <;> simp
-  -- Extract real factorization `U_re * V_re = S_mat` of inner dimension `2 * 2 ^ |Ecut|`.
-  let κ := (Ecut → Bool) × Bool
-  let U_re : Matrix (U → Bool) κ ℝ := fun a p =>
-    if p.2 then -(Φ_lin a p.1).im else (Φ_lin a p.1).re
-  let V_re : Matrix κ (↥Uᶜ → Bool) ℝ := fun p b =>
-    if p.2 then (Ψ_lin b p.1).im else (Ψ_lin b p.1).re
+  let U_re := realCutLeft Φ_lin
+  let V_re := realCutRight Ψ_lin
   have hUV (a : U → Bool) (b : ↥Uᶜ → Bool) : (U_re * V_re) a b = S_mat a b := by
-    have hre := congrArg Complex.re (hsum_τ a b)
-    rw [Complex.ofReal_re, Complex.re_sum] at hre
-    rw [← hre, Matrix.mul_apply, Fintype.sum_prod_type]
-    refine Finset.sum_congr rfl fun τ _ => ?_
-    rw [Fintype.sum_bool, Complex.mul_re]
-    simp only [U_re, V_re, Bool.false_eq_true, ↓reduceIte, neg_mul]
-    ring
+    rw [realCutLeft_mul_realCutRight_apply, hsum_τ, Complex.ofReal_re]
   have hfrob :
       (∑ a, ∑ b, S_mat a b * (U_re * V_re) a b) ^ 2 *
         (2 : ℝ) ^ (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank U ≤
-      (Fintype.card κ : ℝ) * (2 : ℝ) ^ Fintype.card (Fin (2 * n)) *
-        ∑ a, ∑ b, (U_re * V_re) a b ^ 2 :=
-    Communication.sq_sum_mul_signMatrix_quadForm_le_card_of_mul (linBlockMatrix n R) U U_re V_re
-  rw [Fintype.card_fin] at hfrob
+      (2 * (2 : ℝ) ^ Ecut.ncard) * (2 : ℝ) ^ (2 * n) * ∑ a, ∑ b, (U_re * V_re) a b ^ 2 := by
+    have h :=
+      Communication.sq_sum_mul_signMatrix_quadForm_le_card_of_mul (linBlockMatrix n R) U U_re V_re
+    exact h.trans_eq (by rw [Fintype.card_fin, card_cut_prod_bool Ecut])
   have hS_sq (a : U → Bool) (b : ↥Uᶜ → Bool) : S_mat a b ^ 2 = 1 := by
     simp only [S_mat, Communication.signMatrix_apply]
     cases BitString.quadForm (linBlockMatrix n R) (glueU (a, b)) <;> norm_num
-  have hcard_ab : (∑ _a : U → Bool, ∑ _b : ↥Uᶜ → Bool, (1 : ℝ)) = (2 : ℝ) ^ (2 * n) := by
-    simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one, Fintype.card_fun,
-      Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat]
-    rw [← pow_add]
-    congr 1
-    rw [← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card, Nat.card_coe_set_eq,
-      Nat.card_coe_set_eq]
-    have hc := ncard_add_ncard_compl U
-    rwa [Nat.card_eq_fintype_card (α := Fin (2 * n)), Fintype.card_fin] at hc
+  have hcard_ab := sum_prod_subtype_compl_one U
   have hsum1 : (∑ a : U → Bool, ∑ b : ↥Uᶜ → Bool, S_mat a b * (U_re * V_re) a b) =
-      (2 : ℝ) ^ (2 * n) := by
-    simp_rw [hUV, ← sq, hS_sq]
-    exact hcard_ab
+      (2 : ℝ) ^ (2 * n) := by simp_rw [hUV, ← sq, hS_sq]; exact hcard_ab
   have hsum2 : (∑ a : U → Bool, ∑ b : ↥Uᶜ → Bool, (U_re * V_re) a b ^ 2) =
-      (2 : ℝ) ^ (2 * n) := by
-    simp_rw [hUV, hS_sq]
-    exact hcard_ab
-  have hcard_κ : (Fintype.card κ : ℝ) = 2 * (2 : ℝ) ^ Ecut.ncard := by
-    have hE : Fintype.card Ecut = Ecut.ncard := by
-      rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
-    simp only [κ, Fintype.card_prod, Fintype.card_fun, Fintype.card_bool, hE, mul_comm]
-    push_cast; rfl
+      (2 : ℝ) ^ (2 * n) := by simp_rw [hUV, hS_sq]; exact hcard_ab
   have hfrob' :
       ((2 : ℝ) ^ (2 * n)) ^ 2 * (2 : ℝ) ^ (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank U ≤
       (2 * (2 : ℝ) ^ Ecut.ncard) * (2 : ℝ) ^ (2 * n) * (2 : ℝ) ^ (2 * n) :=
     (congrArg (fun x => x ^ 2 * _) hsum1.symm).trans_le
-      (hfrob.trans_eq (congrArg₂ (fun x y => x * (2 : ℝ) ^ (2 * n) * y) hcard_κ hsum2))
+      (hfrob.trans_eq (congrArg (2 * (2 : ℝ) ^ Ecut.ncard * (2 : ℝ) ^ (2 * n) * ·) hsum2))
   have h2pos : (0 : ℝ) < ((2 : ℝ) ^ (2 * n)) ^ 2 := by positivity
   have hpow_r : (2 : ℝ) ^ (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank U ≤
       (2 : ℝ) ^ (Ecut.ncard + 1) := by
-    have hmul : (2 : ℝ) ^ (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank U *
-        ((2 : ℝ) ^ (2 * n)) ^ 2 ≤ (2 : ℝ) ^ (Ecut.ncard + 1) * ((2 : ℝ) ^ (2 * n)) ^ 2 := by
-      have hp1 : (2 : ℝ) ^ (Ecut.ncard + 1) = 2 * (2 : ℝ) ^ Ecut.ncard := by rw [pow_succ']
-      rw [hp1]
-      linarith
-    exact le_of_mul_le_mul_right hmul h2pos
+    refine le_of_mul_le_mul_right ?_ h2pos
+    calc (2 : ℝ) ^ (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank U *
+            ((2 : ℝ) ^ (2 * n)) ^ 2
+        = ((2 : ℝ) ^ (2 * n)) ^ 2 *
+            (2 : ℝ) ^ (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank U := mul_comm _ _
+      _ ≤ (2 * (2 : ℝ) ^ Ecut.ncard) * (2 : ℝ) ^ (2 * n) * (2 : ℝ) ^ (2 * n) := hfrob'
+      _ = (2 : ℝ) ^ (Ecut.ncard + 1) * ((2 : ℝ) ^ (2 * n)) ^ 2 := by
+          rw [pow_succ' (2 : ℝ) Ecut.ncard]; ring
   have hpow_nat : 2 ^ (linBlockMatrix n R + (linBlockMatrix n R)ᵀ).cutRank U ≤
       2 ^ (Ecut.ncard + 1) := by exact_mod_cast hpow_r
   dsimp only [U, Ecut] at hpow_nat

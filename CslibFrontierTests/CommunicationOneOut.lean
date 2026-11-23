@@ -6,7 +6,6 @@ Authors: Christian Reitwiessner
 
 import CslibFrontier.Computability.Communication.Forcing
 import CslibFrontier.Computability.Communication.OneOut
-import Mathlib.Tactic
 
 /-! Concrete forcing, steering and distinct-tuple clients for submission 865's prerequisites. -/
 
