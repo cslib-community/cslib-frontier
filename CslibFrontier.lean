@@ -6404,7 +6404,9 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArrayProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ChainedHash
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing.Analysis
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing.Evict
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing.HashFamily
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing.Rehash
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.KickTree.Layout
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.KickTree.Prog
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.LinearProbing
