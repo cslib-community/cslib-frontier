@@ -322,26 +322,26 @@ theorem memoryCost_iterate_le_of {δ σ : Type} (body : δ × σ → Memory.Prog
     rw [Nat.mul_succ]
     omega
 
-/-- Amortized `memoryCost` bound for `iterate`: if every step from a state satisfying `Inv`
-costs at most `c` plus the drop of the potential `Φ`, and preserves `Inv`, then `m` steps cost at
-most `c * m` plus the initial potential. -/
+/-- Amortized `memoryCost` bound for `iterate`: if every step from a state satisfying the
+step-indexed invariant `I` costs at most `c` plus the drop of the potential `Φ`, and preserves `I`,
+then `m` steps cost at most `c * m` plus the initial potential. -/
 theorem memoryCost_iterate_le_potential {δ σ : Type} (body : δ × σ → Memory.Prog σ) (d : δ)
-    (Inv : σ → Memory.State → Prop) (Φ : σ → Memory.State → ℕ) (c : ℕ)
-    (hstep : ∀ a s, Inv a s →
-      Inv ((Memory.spec 0).clientResult s (body (d, a)))
+    (I : ℕ → σ → Memory.State → Prop) (Φ : σ → Memory.State → ℕ) (c : ℕ)
+    (hstep : ∀ j a s, I (j + 1) a s →
+      I j ((Memory.spec 0).clientResult s (body (d, a)))
           ((Memory.spec 0).clientState s (body (d, a))) ∧
         memoryCost (body (d, a)) s +
             Φ ((Memory.spec 0).clientResult s (body (d, a)))
               ((Memory.spec 0).clientState s (body (d, a))) ≤
           c + Φ a s)
-    (m : ℕ) (a : σ) (s : Memory.State) (hi : Inv a s) :
+    (m : ℕ) (a : σ) (s : Memory.State) (hi : I m a s) :
     memoryCost (iterate body d m a) s ≤ c * m + Φ a s := by
   induction m generalizing a s with
   | zero => simp [iterate]
   | succ m ih =>
     change memoryCost (body (d, a) >>= iterate body d m) s ≤ c * (m + 1) + Φ a s
     rw [memoryCost_bind']
-    obtain ⟨hi', h1⟩ := hstep a s hi
+    obtain ⟨hi', h1⟩ := hstep m a s hi
     have h2 := ih _ _ hi'
     rw [Nat.mul_succ]
     omega
@@ -468,7 +468,7 @@ theorem validHistory_iterate_fst {w : ℕ} {Inv : Memory.State → Prop} [Monoto
 /-! ## Single-address frames -/
 
 /-- `p` leaves memory address `a` unchanged from every starting state. -/
-def PreservesAt (a : ℕ) {α : Type} (p : Memory.Prog α) : Prop :=
+@[expose] def PreservesAt (a : ℕ) {α : Type} (p : Memory.Prog α) : Prop :=
   ∀ s, ((Memory.spec 0).clientState s p).mem a = s.mem a
 
 theorem preservesAt_pure (a : ℕ) {α : Type} (x : α) :
@@ -504,6 +504,30 @@ theorem preservesAt_iterate {a : ℕ} {δ σ : Type} {body : δ × σ → Memory
     PreservesAt a (iterate body d m st₀) := fun s =>
   iterate_invariant_of body d (fun _ _ t => t.mem a = s.mem a)
     (fun _ st t ht => (hstep st t).trans ht) rfl
+
+/-- Frame of a counting `iterate` loop whose step returns its index plus one: only the steps
+`i < m` that actually run need to preserve `a`. -/
+theorem preservesAt_iterate_nat {a : ℕ} {δ : Type} {body : δ × ℕ → Memory.Prog ℕ} {d : δ}
+    {m : ℕ} (hstep : ∀ i < m, PreservesAt a (body (d, i)) ∧
+      ∀ s, (Memory.spec 0).clientResult s (body (d, i)) = i + 1) :
+    PreservesAt a (iterate body d m 0) := fun s =>
+  (iterate_invariant_of body d (fun rem (i : ℕ) t => i + rem = m ∧ t.mem a = s.mem a)
+    (fun rem i t ⟨hsum, hmem⟩ => by
+      obtain ⟨hp, hr⟩ := hstep i (by omega)
+      exact ⟨by rw [hr]; omega, (hp t).trans hmem⟩)
+    ⟨Nat.zero_add _, rfl⟩).2
+
+/-- Frame of an `iterate` loop whose state carries a counter in its first component. -/
+theorem preservesAt_iterate_fst {a : ℕ} {δ β : Type}
+    {body : δ × (ℕ × β) → Memory.Prog (ℕ × β)} {d : δ}
+    {m : ℕ} (b₀ : β) (hstep : ∀ i < m, ∀ b, PreservesAt a (body (d, (i, b))) ∧
+      ∀ s, ((Memory.spec 0).clientResult s (body (d, (i, b)))).1 = i + 1) :
+    PreservesAt a (iterate body d m (0, b₀)) := fun s =>
+  (iterate_invariant_of body d (fun rem (ib : ℕ × β) t => ib.1 + rem = m ∧ t.mem a = s.mem a)
+    (fun rem ib t ⟨hsum, hmem⟩ => by
+      obtain ⟨hp, hr⟩ := hstep ib.1 (by omega) ib.2
+      exact ⟨by rw [hr]; omega, (hp t).trans hmem⟩)
+    ⟨Nat.zero_add _, rfl⟩).2
 
 theorem preservesAt_boundedWhile {a : ℕ} {δ σ : Type}
     (guard : δ → σ → Prop) [∀ d a, Decidable (guard d a)]
