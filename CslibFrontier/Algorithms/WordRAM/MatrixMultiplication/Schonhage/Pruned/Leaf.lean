@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Control
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Actual native leaf multiplication
@@ -31,9 +32,6 @@ def LeafLocal (i : Fin registers) : Prop := i.val < 9 ∨ i = address
 instance (i : Fin registers) : Decidable (LeafLocal i) :=
   inferInstanceAs (Decidable (i.val < 9 ∨ i = address))
 
-private theorem leafProduct_preserves (i : Fin registers) :
-    ¬LeafLocal i → leafProduct.Preserves i := by decide +kernel +revert
-
 /-- Both loads, the existing fourteen-instruction signed multiplication kernel and the store
 are charged. The ordinary mathematical product must fit the source signed width. -/
 theorem exec_leafProduct {w : ℕ} {a b : ℤ} (ha : GenericRAM.Signed.Fits w a)
@@ -46,25 +44,25 @@ theorem exec_leafProduct {w : ℕ} {a b : ℤ} (ha : GenericRAM.Signed.Fits w a)
     ∃ y, ExecWithin (w + 2) leafProduct x y 19 ∧
       y.mem = Function.update x.mem (x.regs valueBase) (encode (a * b)) ∧
       (∀ i, ¬LeafLocal i → y.regs i = x.regs i) := by
-  let z := ((((x.set address (x.regs arrayA + x.regs leafPrefix)).set left (encode a)).set
-    address (x.regs arrayB + x.regs leafPrefix)).set right (encode b))
-  have hload : ExecWithin (w + 2) leafLoad x z 4 := by
-    ram_eval [leafLoad, z, hleft, hright, hp, hq, address, arrayA, arrayB, leafPrefix,
-      left, right, Fin.mk.injEq]
-  obtain ⟨u, hu, hproduct, hframe⟩ := Signed.exec_multiply (r := 87) ha hb hab z
-    (by simp +decide [z, left, right, address]) (by simp [z])
+  refine WP.exists_execWithin ?_
+  unfold leafProduct leafLoad
+  wram_exec [hleft, hright, hp, hq]
+  wram_call (Signed.exec_multiply (r := 87) ha hb hab _ (by wram_simp) (by wram_simp))
+    with u ⟨hproduct, hmem, hreg⟩
   have hv : u.regs valueBase = x.regs valueBase := by
-    rw [hframe.2 valueBase (Or.inr (by decide))]
-    simp +decide [z, valueBase, address, left, right]
+    rw [hreg valueBase (Or.inr (by decide))]
+    wram_simp
   have hproduct' : u.regs result = encode (a * b) := hproduct
-  let y := u.write (x.regs valueBase) (encode (a * b))
-  have hstore : ExecWithin (w + 2)
-      (ram[ *valueBase ← result ] : Code .standard registers) u y 1 := by
-    ram_eval [y, hv, hproduct']
-  have he : ExecWithin (w + 2) leafProduct x y 19 := hload.seq (hu.seq hstore)
-  refine ⟨y, he, ?_, fun i hi => he.regs_eq (leafProduct_preserves i hi)⟩
-  simpa only [y, Data.write_mem, z, Data.set_mem] using
-    congrArg (fun mem => Function.update mem (x.regs valueBase) (encode (a * b))) hframe.1
+  wram_exec [hv, hproduct']
+  refine ⟨?_, fun i hi => ?_⟩
+  · wram_simp
+    rw [hmem]
+    rfl
+  · simp only [LeafLocal, not_or, not_lt] at hi
+    rcases hi with ⟨hi9, had⟩
+    wram_simp
+    rw [hreg i (Or.inr hi9)]
+    wram_simp
 
 /-- Registers used by the full leaf phase, including its actual parent-return decision. -/
 def LeafReturnLocal (i : Fin registers) : Prop :=
@@ -72,9 +70,6 @@ def LeafReturnLocal (i : Fin registers) : Prop :=
 
 instance (i : Fin registers) : Decidable (LeafReturnLocal i) :=
   inferInstanceAs (Decidable (LeafLocal i ∨ PopLocal i ∨ i = temporary))
-
-private theorem leaf_preserves (i : Fin registers) :
-    ¬LeafReturnLocal i → leaf.Preserves i := by decide +kernel +revert
 
 /-- The empty leaf performs no operand loads or multiplication. A requested leaf computes
 its signed product. Both execute the real return branch; root termination and parent
@@ -94,39 +89,30 @@ theorem exec_leaf {w : ℕ} {a b : ℤ} (ha : GenericRAM.Signed.Fits w a)
       y.regs mode = (if x.regs level = 0 then x.regs mode else 2) ∧
       y.regs active = (if x.regs level = 0 then 0 else x.regs active) ∧
       (∀ i, ¬LeafReturnLocal i → y.regs i = x.regs i) := by
-  have hpre : ∃ v, ExecWithin (w + 2)
-      (ram[ if nil < count then [ ⟪leafProduct⟫ ] else [ temporary ← temporary ] ])
-      x v 20 ∧
-      v.mem = (if x.regs count = 0 then x.mem else
-        Function.update x.mem (x.regs valueBase) (encode (a * b))) ∧
-      (∀ i, ¬LeafLocal i → v.regs i = x.regs i) := by
-    by_cases hc : x.regs count = 0
-    · have hcopy : ExecWithin (w + 2)
-          (ram[ temporary ← temporary ] : Code .standard registers) x x 1 := by
-        simpa only [Data.set, Function.update_eq_self] using
-          (Exec.copy (w := w + 2) (B := .standard) (x := x)
-            (d := temporary) (s := temporary)).within
-      have he : ExecWithin (w + 2)
-          (ram[ if nil < count then [ ⟪leafProduct⟫ ] else [ temporary ← temporary ] ])
-          x x 3 := by
-        exact hcopy.branch_neg (by simp only [Cond.holds_lt, h0, hc, lt_self_iff_false,
-          not_false_eq_true])
-      exact ⟨x, he.mono (by decide), by simp only [hc, ↓reduceIte], fun _ _ => rfl⟩
-    · obtain ⟨v, hv, hmem, hreg⟩ := exec_leafProduct ha hb hab x hleft hright hp hq
-      have hcond : (Cond.lt nil count).Holds x := by
-        simpa only [Cond.holds_lt, h0] using Nat.pos_of_ne_zero hc
-      exact ⟨v, hv.branch_pos hcond, by simpa only [hc, ↓reduceIte] using hmem, hreg⟩
-  obtain ⟨v, hv, hmem, hreg⟩ := hpre
-  have hv0 := (hreg nil (by decide)).trans h0
-  have hv1 := (hreg one (by decide)).trans h1
-  have hvd := hreg level (by decide)
-  have hvm := hreg mode (by decide)
-  have hva := hreg active (by decide)
-  obtain ⟨y, hy, hymem, hyl, hym, hya, _⟩ := exec_pop v hv0 hv1
-    (by simpa only [hvd] using hd)
-  have he : ExecWithin (w + 2) leaf x y 24 := hv.seq hy
-  exact ⟨y, he, hymem.trans hmem, by simpa only [hvd] using hyl,
-    by simpa only [hvd, hvm] using hym, by simpa only [hvd, hva] using hya,
-    fun i hi => he.regs_eq (leaf_preserves i hi)⟩
+  refine WP.exists_execWithin ?_
+  unfold leaf
+  wram_exec [h0]
+  · have hne : x.regs count ≠ 0 := Nat.ne_of_gt hc
+    wram_call (exec_leafProduct ha hb hab x hleft hright hp hq) with v ⟨hmem, hreg⟩
+    have hvd : v.regs level = x.regs level := hreg level (by decide)
+    have hvm : v.regs mode = x.regs mode := hreg mode (by decide)
+    have hva : v.regs active = x.regs active := hreg active (by decide)
+    wram_call (exec_pop v (by regs_frame) (by regs_frame) (by rwa [hvd]))
+      with y ⟨hymem, hyl, hym, hya, hyr⟩
+    refine ⟨by omega, ?_, by rwa [hvd] at hyl, by rwa [hvd, hvm] at hym, by rwa [hvd, hva] at hya,
+      fun i hi => ?_⟩
+    · simp only [hne, ↓reduceIte]
+      exact hymem.trans hmem
+    · simp only [LeafReturnLocal, not_or] at hi
+      exact (hyr i hi.2.1).trans (hreg i hi.1)
+  · have heq : x.regs count = 0 := Nat.eq_zero_of_not_pos hc
+    wram_call (exec_pop _ (by wram_simp [h0]) (by wram_simp [h1]) (by wram_simp; exact hd))
+      with y ⟨hymem, hyl, hym, hya, hyr⟩
+    wram_simp at hymem hyl hym hya
+    refine ⟨by omega, by simp only [heq, ↓reduceIte]; exact hymem, hyl, hym, hya, fun i hi => ?_⟩
+    simp only [LeafReturnLocal, not_or] at hi
+    rcases hi with ⟨_, hip, hit⟩
+    rw [hyr i hip]
+    wram_simp
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

@@ -13,8 +13,6 @@ public import CslibFrontier.Crypto.Computational.DiffieHellman.SampleExp
 import CslibFrontier.Computability.Probabilistic.PPT.Extension
 import CslibFrontier.Computability.Probabilistic.PPT.PairCapture
 import CslibFrontier.Computability.Probabilistic.Repeat
-import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Product
@@ -848,13 +846,7 @@ theorem DDH.singleSecretMultiDDH {F : PrimeOrderGroupFamily} {setup : ℕ → PM
   intro distinguisher hD
   have hddh := hDDH _ (F.isPPT_singleSecretMultiDDHToDDHDistinguisher hcount hD)
   have hord := hDDH.negligible_expected_inv_order
-  obtain ⟨t, _, ht, _, htm⟩ := hcount
-  have hpoly : PolynomiallyBounded count := ht.mono_of_le fun n => by
-    simpa using htm.length_le n
-  have hsamp : Negligible fun n => (4 * count n : ℝ≥0) / 2 ^ n := by
-    simpa [Nat.cast_mul] using ((PolynomiallyBounded.const 4).mul hpoly).negligible_div_two_pow
-  exact negligible_of_le ((hddh.add hord).add hsamp)
-    (F.advantage_singleSecretMultiDDHGame_le setup count distinguisher)
+  negligible using F.advantage_singleSecretMultiDDHGame_le setup count distinguisher
 
 /-! ### Full two-parameter $(n, m)$ Multi-DDH (I) reduction (Exercises 10.9 & 10.11) -/
 
@@ -1397,18 +1389,6 @@ theorem DDH.multiDDH {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
   intro distinguisher hD
   have hddh := hDDH _ (F.isPPT_multiDDHToDDHDistinguisher hsecret hpair hD)
   have hord := hDDH.negligible_expected_inv_order
-  obtain ⟨ts, _, hts, _, htms⟩ := hsecret
-  have hpoly_s : PolynomiallyBounded secretCount := hts.mono_of_le fun n => by
-    simpa using htms.length_le n
-  obtain ⟨tp, _, htp, _, htmp⟩ := hpair
-  have hpoly_p : PolynomiallyBounded pairCount := htp.mono_of_le fun n => by
-    simpa using htmp.length_le n
-  have hpoly : PolynomiallyBounded (fun n => 2 * secretCount n * (1 + 2 * pairCount n)) :=
-    ((PolynomiallyBounded.const 2).mul hpoly_s).mul
-      ((PolynomiallyBounded.const 1).add ((PolynomiallyBounded.const 2).mul hpoly_p))
-  have hsamp : Negligible fun n => (2 * secretCount n * (1 + 2 * pairCount n) : ℝ≥0) / 2 ^ n := by
-    simpa [Nat.cast_mul, Nat.cast_add] using hpoly.negligible_div_two_pow
-  exact negligible_of_le ((hddh.add hord).add hsamp)
-    (F.advantage_multiDDHGame_le setup secretCount pairCount distinguisher)
+  negligible using F.advantage_multiDDHGame_le setup secretCount pairCount distinguisher
 
 end Cslib.Crypto.PrimeOrderGroupFamily

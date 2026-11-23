@@ -428,8 +428,7 @@ blocks. -/
     have hw : (w.length / spec.width) * spec.width ≤ w.length :=
       Nat.div_mul_le_self w.length spec.width
     have happ := decodeTrials_append_of_some hw h [b]
-    have hle : w.length / spec.width ≤ (w ++ [b]).length / spec.width :=
-      Nat.div_le_div_right (by simp)
+    have hle : w.length / spec.width ≤ (w ++ [b]).length / spec.width := by gcongr; simp
     exact decodeTrials_mono_of_some hle happ
 
 /-- Running `toDDGTree` on `n` fair bits has the exact law of `n / width` rejection trials. -/

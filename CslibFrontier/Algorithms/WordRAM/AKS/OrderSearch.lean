@@ -79,6 +79,9 @@ def gcdMap : Fin 4 → Fin 13 := ![ga, gb, 11, 12]
 
 theorem gcdMap_injective : gcdMap.Injective := by decide
 
+@[local wram_simps] private theorem gcdMap_regs :
+    gcdMap NatGcd.a = ga ∧ gcdMap NatGcd.b = gb := ⟨rfl, rfl⟩
+
 /-- One more power: `p := p · (n mod r) mod r`, and record whether it is `1`. -/
 def powBody : Code .standard 13 := ram[
   p ← p * nr; p ← p % r; k ← k + one; if p = one then [ ok ← #0 ] else [ ok ← ok ] ]
@@ -102,16 +105,11 @@ def program : Code .standard 13 :=
 /-- The instruction bound of `program`. -/
 def time (L r₀ : ℕ) : ℕ := (2 * r₀ + 1) * (8 * L + 5 * r₀ + 20) + 5
 
-/-- The registers that the power loop preserves. -/
-private theorem loop_preserves :
-    ∀ j ∈ [n, L, r, found, one], (Code.loop (.lt k L) powBody).Preserves j := by decide
-
 private theorem powers_exec {w : ℕ} (x : Data 13) {N L₀ R : ℕ} (hn : x.regs n = N)
     (hL : x.regs L = L₀) (hr : x.regs r = R) (h1 : x.regs one = 1) (hR : 2 ≤ R)
     (hfN : Fits w N) (hfR : Fits w (R * R)) (hfL : Fits w (L₀ + 1)) :
     ∃ y, ExecWithin w powers x y (8 * L₀ + 6) ∧ y.regs ok ≤ 1 ∧
-      (y.regs ok = 1 ↔ ∀ j, 1 ≤ j → j ≤ L₀ → N ^ j % R ≠ 1) ∧
-      ∀ j ∈ [n, L, r, found, one], y.regs j = x.regs j := by
+      (y.regs ok = 1 ↔ ∀ j, 1 ≤ j → j ≤ L₀ → N ^ j % R ≠ 1) := by
   have hR0 : 0 < R := by omega
   let J (j : ℕ) (y : Data 13) : Prop := y.regs L = L₀ ∧ y.regs r = R ∧ y.regs one = 1 ∧
     y.regs nr = N % R ∧ y.regs p = N ^ j % R ∧ y.regs ok ≤ 1 ∧
@@ -140,30 +138,11 @@ private theorem powers_exec {w : ℕ} (x : Data 13) {N L₀ R : ℕ} (hn : x.reg
   have hNR_le : N % R ≤ N := Nat.mod_le N R
   unfold powers
   wram_exec [hn, hr, h1]
-  refine WP.name fun x₀ hx₀ => ?_
-  have hk₀ : x₀.regs k = 0 := by subst hx₀; wram_simp
-  have hx₀J : J (x₀.regs k) x₀ := by
-    subst hx₀
-    simp only [J]
-    wram_simp [hL, hr, h1]
-    refine ⟨?_, ?_⟩
-    · rw [pow_zero, Nat.mod_eq_of_lt (by omega : 1 < R)]
-    · simp; omega
-  obtain ⟨y, hrun, ⟨_, _, _, _, _, hyok, hyiff⟩, _⟩ := ExecWithin.loop_count J
-    (fun _ hy => hy.1) hstep (by omega) hx₀J
-  refine WP.of_execWithin hrun ⟨by omega, hyok, hyiff, fun j hj => ?_⟩
-  rw [hrun.regs_eq (loop_preserves j hj)]
-  subst hx₀
-  rcases List.mem_cons.mp hj with rfl | hj
-  · wram_simp
-  rcases List.mem_cons.mp hj with rfl | hj
-  · wram_simp
-  rcases List.mem_cons.mp hj with rfl | hj
-  · wram_simp
-  rcases List.mem_cons.mp hj with rfl | hj
-  · wram_simp
-  simp only [List.mem_singleton] at hj; subst hj
-  wram_simp [h1]
+  wram_call (ExecWithin.loop_count J (fun _ hy => hy.1) hstep)
+    with y ⟨⟨_, _, _, _, _, hyok, hyiff⟩, _⟩
+  · wram_simp; exact ⟨by omega, hyok, hyiff⟩
+  · wram_simp [J, hL, hr, h1]
+    exact ⟨by rw [pow_zero, Nat.mod_eq_of_lt (by omega : 1 < R)], by simp; omega⟩
 
 /-- **The search for `r`.** If some `r₀ ≥ 2` satisfies `Good n L r₀`, and the word size holds
 `n`, `r₀²` and `L + 1`, the search stops within `time L r₀` instructions at some `2 ≤ r ≤ r₀`
@@ -183,68 +162,49 @@ theorem exec {w : ℕ} (x : Data 13) {N L₀ r₀ : ℕ} (hn : x.regs n = N) (hL
     obtain ⟨R, hR⟩ : ∃ R, y.regs r = R := ⟨_, rfl⟩
     rw [hR] at hr2 hrr₀
     have hf0 : y.regs found = 0 := by simp only [Cond.holds_lt, hy1] at hlt_f; omega
+    apply WP.exists_execWithin
     unfold body
-    wram_exec
     wram_call (powers_exec (w := w) y hyn hyL hR hy1 hr2 hfN
-      (hfR.of_le (Nat.mul_le_mul hrr₀ hrr₀)) hfL) with y₁ ⟨hok1, hokiff, hy₁⟩
-    have hy₁n : y₁.regs n = N := (hy₁ n (by simp)).trans hyn
-    have hy₁r : y₁.regs r = R := (hy₁ r (by simp)).trans hR
+      (hfR.of_le (Nat.mul_le_mul hrr₀ hrr₀)) hfL) with y₁ ⟨hok1, hokiff⟩
+    have hy₁n : y₁.regs n = N := by regs_frame
+    have hy₁r : y₁.regs r = R := by regs_frame
     wram_exec [hy₁n, hy₁r]
-    refine WP.name fun y₂ hy₂ => ?_
-    have hy₂a : y₂.regs ga = N := by subst hy₂; wram_simp
-    have hy₂b : y₂.regs gb = R := by subst hy₂; wram_simp
-    wram_call (NatGcd.exec (y₂.comap gcdMap)
-      (by change Fits w (y₂.regs ga); exact hy₂a ▸ hfN)
-      (by change Fits w (y₂.regs gb); exact hy₂b ▸ hfR.of_le (hrr₀.trans (Nat.le_mul_self r₀))))
-      renamed gcdMap_injective with y₃ ⟨⟨hg, -⟩, hout₃⟩
-    have hgcd : y₃.regs ga = Nat.gcd N R := by
-      change y₃.regs ga = (y₂.regs ga).gcd (y₂.regs gb) at hg
-      rwa [hy₂a, hy₂b] at hg
-    have hkeep : ∀ j ∈ [n, L, r, found, one, ok], (∀ i, gcdMap i ≠ j) ∧ j ≠ ga ∧ j ≠ gb := by
-      decide
-    have hy₃ {j : Fin 13} (hj : j ∈ [n, L, r, found, one, ok]) : y₃.regs j = y₁.regs j := by
-      obtain ⟨h1, h2, h3⟩ := hkeep j hj
-      rw [hout₃ j h1]; subst hy₂; wram_simp [h2, h3]
-    have hy₃n : y₃.regs n = N := (hy₃ (by simp)).trans hy₁n
-    have hy₃L : y₃.regs L = L₀ := (hy₃ (by simp)).trans ((hy₁ L (by simp)).trans hyL)
-    have hy₃r : y₃.regs r = R := (hy₃ (by simp)).trans hy₁r
-    have hy₃f : y₃.regs found = 0 := (hy₃ (by simp)).trans ((hy₁ found (by simp)).trans hf0)
-    have hy₃1 : y₃.regs one = 1 := (hy₃ (by simp)).trans ((hy₁ one (by simp)).trans hy1)
-    have hy₃ok : y₃.regs ok = y₁.regs ok := hy₃ (by simp)
-    have hgood' : Good N L₀ R ↔ Nat.gcd N R = 1 ∧ y₁.regs ok = 1 := by
-      rw [hokiff]; rfl
+    wram_call (NatGcd.exec (w := w)) renamed
+      [hfN, hfR.of_le (hrr₀.trans (Nat.le_mul_self r₀))] with y₃ ⟨⟨hg, -⟩, hout₃⟩
+    wram_simp at hg
+    have hy₃n : y₃.regs n = N := by regs_frame
+    have hy₃L : y₃.regs L = L₀ := by regs_frame
+    have hy₃r : y₃.regs r = R := by regs_frame
+    have hy₃f : y₃.regs found = 0 := by regs_frame
+    have hy₃1 : y₃.regs one = 1 := by regs_frame
+    have hy₃ok : y₃.regs ok = y₁.regs ok := by regs_frame
+    have hgood' : Good N L₀ R ↔ Nat.gcd N R = 1 ∧ y₁.regs ok = 1 := by rw [hokiff]; rfl
     unfold accept
     by_cases hg1 : Nat.gcd N R = 1
     · by_cases ho1 : y₁.regs ok = 1
       · have hG : Good N L₀ R := hgood'.mpr ⟨hg1, ho1⟩
-        wram_exec [hgcd, hg1, hy₃1, hy₃ok, ho1]
-        rw [show gcdMap NatGcd.b = gb from rfl, hy₂b]
-        wram_simp [I, hy₃n, hy₃L, hy₃1, hy₃r, hy₃f, hR, hf0, hr2, hrr₀, hG]
-        exact ⟨by omega, id, by omega⟩
+        wram_exec [hg, hg1, hy₃1, hy₃ok, ho1]
+        wram_simp [I, hy₃n, hy₃L, hy₃1, hy₃r, hy₃f, hR, hf0, hr2, hrr₀, eq_true hG]
+        simp
       · have hne : R ≠ r₀ := fun h => ho1 (hgood'.mp (h ▸ hgood)).2
-        wram_exec [hgcd, hg1, hy₃1, hy₃ok, ho1, hy₃r]
-        rw [show gcdMap NatGcd.b = gb from rfl, hy₂b]
+        wram_exec [hg, hg1, hy₃1, hy₃ok, ho1, hy₃r]
         wram_simp [I, hy₃n, hy₃L, hy₃1, hy₃r, hy₃f, hR, hf0]
-        exact ⟨by omega, ⟨by omega, by omega, nofun⟩, by omega⟩
+        exact ⟨⟨by omega, by omega, nofun⟩, by omega⟩
     · have hne : R ≠ r₀ := fun h => hg1 (hgood'.mp (h ▸ hgood)).1
-      wram_exec [hgcd, hg1, hy₃1, hy₃r]
-      rw [show gcdMap NatGcd.b = gb from rfl, hy₂b]
+      wram_exec [hg, hg1, hy₃1, hy₃r]
       wram_simp [I, hy₃n, hy₃L, hy₃1, hy₃r, hy₃f, hR, hf0]
-      exact ⟨by omega, ⟨by omega, by omega, nofun⟩, by omega⟩
+      exact ⟨⟨by omega, by omega, nofun⟩, by omega⟩
   unfold program
   wram_exec
-  refine WP.name fun x₀ hx₀ => ?_
-  have hx₀r : x₀.regs r = 2 := by subst hx₀; wram_simp
-  have hx₀f : x₀.regs found = 0 := by subst hx₀; wram_simp
-  have hx₀I : I x₀ := by
-    subst hx₀; simp only [I]; wram_simp [hn, hL, hr₀]; nofun
-  obtain ⟨y, hrun, ⟨hyn, hyL, hy1, hr2, hrr₀, _, hgoody⟩, hc⟩ := ExecWithin.loop_invariant I
-    (fun y => 2 * (r₀ - y.regs r) + (1 - y.regs found)) hstep hx₀I
-  have hf1 : y.regs found = 1 := by simp only [Cond.holds_lt, hy1] at hc; omega
-  refine WP.of_execWithin hrun ⟨?_, hr2, hrr₀, hgoody hf1, hyn, hyL⟩
-  have hμ : 2 * (r₀ - x₀.regs r) + (1 - x₀.regs found) ≤ 2 * r₀ + 1 := by omega
-  have := Nat.mul_le_mul hμ (le_refl (8 * L₀ + 5 * r₀ + 16 + 2))
-  unfold time
-  nlinarith
+  wram_call (ExecWithin.loop_invariant I
+    (fun y => 2 * (r₀ - y.regs r) + (1 - y.regs found)) hstep)
+    with y ⟨⟨hyn, hyL, hy1, hr2, hrr₀, _, hgoody⟩, hc⟩
+  · have hf1 : y.regs found = 1 := by simp only [Cond.holds_lt, hy1] at hc; omega
+    wram_simp
+    refine ⟨?_, hr2, hrr₀, hgoody hf1, hyn, hyL⟩
+    have hμ : 2 * (r₀ - 2) + 1 ≤ 2 * r₀ + 1 := by omega
+    have := Nat.mul_le_mul hμ (show 8 * L₀ + 5 * r₀ + 16 + 2 ≤ 8 * L₀ + 5 * r₀ + 20 by omega)
+    unfold time; omega
+  · wram_simp [I, hn, hL, hr₀]; nofun
 
 end Cslib.Algorithms.WordRAM.AKS.OrderSearch

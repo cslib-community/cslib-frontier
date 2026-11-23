@@ -26,6 +26,7 @@ import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
 import Mathlib.Data.List.GetD
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Multi-bit chosen-plaintext security of bitwise public-key encryption
@@ -671,11 +672,8 @@ theorem INDCPA.indcpaOn_bitwiseEncrypt
   intro adversary hadversary
   have hsingle := h (bitwiseToSingle valid encrypt maxLen adversary)
     (isPPT_bitwiseToSingle hvalid hencrypt hmax hadversary)
-  have hpolyDyadic : Cslib.PolynomiallyBounded (fun n => dyadicSize (maxLen n)) := by
-    have hmaxPoly : Cslib.PolynomiallyBounded maxLen := hmax.polynomiallyBounded
-    fun_prop
-  refine negligible_of_le (hsingle.polynomiallyBounded_mul hpolyDyadic) fun n => ?_
-  exact le_of_eq (advantage_bitwiseEncrypt_eq valid keyGen encrypt maxLen adversary n (hlen n))
+  negligible using fun n =>
+    (advantage_bitwiseEncrypt_eq valid keyGen encrypt maxLen adversary n (hlen n)).le
 
 /-- Public-key-bounded bitwise hybrid step: when every public key produced by `keyGen n` has bit
 length at most `pkBound n` for a polynomially bounded function `pkBound` (which need not be

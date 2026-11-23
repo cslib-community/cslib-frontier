@@ -569,11 +569,6 @@ def coloringSubsingleton : Interpretation cnf Language.graph Unit where
     | .adj => ∼(cnf.pos.formula₂ (.var (0, ())) (.var (0, ())) ⊔
         cnf.neg.formula₂ (.var (0, ())) (.var (0, ())))
 
-private theorem coloringSubsingleton_rel_adj :
-    coloringSubsingleton.rel adj = ∼(cnf.pos.formula₂ (.var (0, ())) (.var (0, ())) ⊔
-      cnf.neg.formula₂ (.var (0, ())) (.var (0, ()))) :=
-  rfl
-
 private theorem colorable_coloringSubsingleton_iff [Subsingleton M] [Nonempty M] :
     graph.Colorable 3 (coloringSubsingleton.Model M) ↔ IsThreeCNF M ∧ Satisfiable M := by
   obtain ⟨e⟩ := ‹Nonempty M›

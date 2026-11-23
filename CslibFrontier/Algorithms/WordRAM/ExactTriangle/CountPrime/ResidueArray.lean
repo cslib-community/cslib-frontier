@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.WordRAM.RegisterFrame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.Program
 
 /-!
@@ -40,55 +41,29 @@ theorem exec_residues {w n p a b : ℕ} (src dst : Fin 128) (x : Data 128)
       (∀ i < n * n, y.mem (b + i) = (values i % (p : ℤ)).toNat) ∧
       (∀ d, d < b ∨ b + n * n ≤ d → y.mem d = x.mem d) ∧
       ∀ j, 16 ≤ j.val → y.regs j = x.regs j := by
-  let z := (((x.set Reg.low9 a).set Reg.low10 b).set Reg.low11 (n * n)).set
-    Reg.low12 (encode (p : ℤ))
-  have args : ExecWithin (B := .standard) (w + 2)
-      (ram[ Reg.low9 ← src; Reg.low10 ← dst; Reg.low11 ← Reg.cells;
-        Reg.low12 ← Reg.encodedModulus ]) x z 4 := by
-    have hs : src ≠ Reg.low9 := by intro he; subst src; contradiction
-    have hd9 : dst ≠ Reg.low9 := by intro he; subst dst; contradiction
-    have hd10 : dst ≠ Reg.low10 := by intro he; subst dst; contradiction
-    ram_eval [z, ha, hb, hc, hm, hs, hd9, hd10, Reg.low9, Reg.low10, Reg.low11, Reg.low12,
-      Reg.cells, Reg.encodedModulus]
-  let f : Fin 16 → Fin 128 := Fin.castLE (by decide)
-  have za : (z.comap f).regs ThreeSum.ChanHe.Residues.src = a := by
-    simp +decide [z, f, Data.comap, ThreeSum.ChanHe.Residues.src,
-      Reg.low9, Reg.low10, Reg.low11, Reg.low12]
-  have zb : (z.comap f).regs ThreeSum.ChanHe.Residues.dst = b := by
-    simp +decide [z, f, Data.comap, ThreeSum.ChanHe.Residues.dst,
-      Reg.low10, Reg.low11, Reg.low12]
-  have zl : (z.comap f).regs ThreeSum.ChanHe.Residues.len = n * n := by
-    simp +decide [z, f, Data.comap, ThreeSum.ChanHe.Residues.len, Reg.low11, Reg.low12]
-  have zp : (z.comap f).regs ThreeSum.ChanHe.Residues.modulus = encode (p : ℤ) := by
-    simp [z, f, Data.comap, ThreeSum.ChanHe.Residues.modulus, Reg.low12]
-  obtain ⟨s, he, memory, _⟩ := ThreeSum.ChanHe.Residues.exec (z.comap f) values hp hmod zp
-    (by simpa only [zl] using hv) (by simpa only [za, zl] using haf)
-    (by simpa only [zb, zl] using hbf) (by simpa only [za, zb, zl] using hdisjoint)
-    (by simpa only [za, zl, show (z.comap f).mem = x.mem from rfl] using hinput)
-  let y := s.extend f z
-  have call : ExecWithin (w + 2)
-      (ThreeSum.ChanHe.Residues.program.rename f) z y (23 * (n * n) + 4) := by
-    simpa only [zl] using he.rename (Fin.castLE_injective _)
-  have full : ExecWithin (w + 2) (residues src dst) x y (23 * (n * n) + 8) :=
-    (args.seq call).mono (by omega)
-  have ym : y.mem = ThreeSum.ChanHe.Residues.memory x.mem values p b (n * n) := by
-    change s.mem = _
-    simpa only [zl, zb, show (z.comap f).mem = x.mem from rfl] using memory
-  refine ⟨y, full, ?_, ?_, ?_⟩
+  have hs : src ≠ Reg.low9 := fun h => by subst h; contradiction
+  have hd9 : dst ≠ Reg.low9 := fun h => by subst h; contradiction
+  have hd10 : dst ≠ Reg.low10 := fun h => by subst h; contradiction
+  refine WP.exists_execWithin ?_
+  unfold residues
+  wram_exec [ha, hb, hc, hm, hs, hd9, hd10]
+  wram_call (ThreeSum.ChanHe.Residues.exec _ values hp hmod
+    (by wram_simp) (by wram_simp; exact hv) (by wram_simp; exact haf)
+    (by wram_simp; exact hbf) (by wram_simp; exact hdisjoint)
+    (by wram_simp; exact hinput))
+    canonical (Fin.castLE_injective _) with s ⟨memory, -⟩
+  wram_simp at memory
+  refine ⟨by wram_simp; omega, ?_, ?_, ?_⟩
   · intro i hi
-    rw [ym]
-    simp only [ThreeSum.ChanHe.Residues.memory, show b ≤ b + i ∧ b + i < b + n * n by omega,
-      and_self, ite_true, Nat.add_sub_cancel_left]
+    wram_simp [memory, ThreeSum.ChanHe.Residues.memory]
+    exact ite_eq_left (by omega)
   · intro d hd
-    rw [ym]
-    simp only [ThreeSum.ChanHe.Residues.memory, show ¬(b ≤ d ∧ d < b + n * n) by omega,
-      ite_false]
+    wram_simp [memory, ThreeSum.ChanHe.Residues.memory]
+    exact ite_eq_right (by omega)
   · intro j hj
-    refine (Data.extend_castLE_regs_of_le s z j hj).trans ?_
-    simp only [z, Data.set,
-      Function.update_of_ne (show j ≠ Reg.low9 by intro h; subst j; contradiction),
-      Function.update_of_ne (show j ≠ Reg.low10 by intro h; subst j; contradiction),
-      Function.update_of_ne (show j ≠ Reg.low11 by intro h; subst j; contradiction),
-      Function.update_of_ne (show j ≠ Reg.low12 by intro h; subst j; contradiction)]
+    refine (Data.extend_castLE_regs_of_le s _ j hj).trans ?_
+    have hne : j ≠ Reg.low9 ∧ j ≠ Reg.low10 ∧ j ≠ Reg.low11 ∧ j ≠ Reg.low12 := by
+      refine ⟨?_, ?_, ?_, ?_⟩ <;> (intro h; subst j; contradiction)
+    wram_simp [hne.1, hne.2.1, hne.2.2.1, hne.2.2.2]
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime
