@@ -23,39 +23,56 @@ import CslibFrontier.Tactic.Realize
 # Materialized-table Chu–Liu/Edmonds and optimum branchings on the Word-RAM (`O(n³)`)
 
 This module implements a dense materialized-table Chu–Liu/Edmonds minimum-cost spanning
-arborescence algorithm and Edmonds' super-root maximum-weight branching reduction on the
-deterministic standard-basis Word-RAM (`Cslib.WordRAM.Basis.standard`), proving `O(n³)`
-width-blind (`¬prog.ReadsWidth`) instruction-count bounds (`Program.ComputesListInTime`) at
-logarithmic word widths `w = Ω(log n + log M₀)`.
+arborescence algorithm and this formalization's super-root maximum-weight branching reduction on
+the deterministic standard-basis Word-RAM (`Cslib.WordRAM.Basis.standard`), proving uniform
+width-blind (`¬prog.ReadsWidth`) instruction-count bounds `C * (I.n + 1) ^ 3`
+(`Program.ComputesListInTime`) at every word width `w` satisfying `Fits w I.wordBound` (i.e.,
+`I.wordBound < 2 ^ w`). Because `wordBound n M₀ = 4 * (n + 1) * M₀ + 32 * (n + 1) ^ 2` is a
+polynomial bound on **word values and addresses**, a word width `w` of order
+`log(n + 2) + log(M₀ + 2)` bits suffices.
 
 Signed integer arc costs and weights are represented in memory via `Cslib.WordRAM.Signed.encode`
-(`2 * |z| + signBit`). Following Edmonds' Section 4 reduced-cost contraction, at round `k` the
-contracted exit cost for an arc `(x, w)` leaving a contracted cycle `C` (`x ∈ C`, `w ∉ C`) is
-computed as the reduced difference `c_k[x][w] - c_k[x][f[x]]` (with inactive contracted cells set
-to `0`). Because `f[x]` minimizes `c_k[x][z]` over active non-self outgoing arcs of `x`, every
-reduced exit cost is nonnegative (`0 ≤ c_k[x][w] - c_k[x][f[x]]`), so all entries of the working
-cost matrix stay within `[-M₀, (k + 1) * M₀]` across all `k ≤ n` contraction rounds while
-maintaining exact row-potential equivalence (`∃ φ, ∀ u w, a[u][w] → c_unred[u][w] = c_red[u][w] +
-φ u`) with `edmondsTableAux`. Consequently, any word width `w` satisfying `Fits w (wordBound n M₀)`
-for `wordBound n M₀ = 4 * (n + 1) * M₀ + 32 * (n + 1) ^ 2` accommodates all signed-encoded
-intermediate weights and `O(n²)` workspace addresses without overflow.
+(`2 * |z| + signBit`). In [Edmonds1967Branchings], §4 instruction (I2), equation (1), contracting a
+cycle adjusts the weight of each arc entering the cycle by subtracting its selected cycle-edge
+weight and adding a cycle-wide offset. This module implements the rooted, reversed min-cost
+variant: at round `k`, the contracted exit cost for an arc `(x, w)` leaving a contracted cycle `C`
+(`x ∈ C`, `w ∉ C`) is computed as the reduced exit-cost difference `c_k[x][w] - c_k[x][f[x]]` (with
+inactive contracted cells set to `0`). Because `f[x]` minimizes `c_k[x][z]` over active non-self
+outgoing arcs of `x`, every reduced exit cost is nonnegative (`0 ≤ c_k[x][w] - c_k[x][f[x]]`), so
+all entries of the working cost matrix stay within `[-M₀, (k + 1) * M₀]` across all `k ≤ n`
+contraction rounds while maintaining exact row-potential equivalence (`∃ φ, ∀ u w, a[u][w] →
+c_unred[u][w] = c_red[u][w] + φ u`) with `edmondsTableAux`. Consequently, any word width `w`
+satisfying `Fits w (wordBound n M₀)` (`wordBound n M₀ < 2 ^ w`, so `w` of order
+`log(n + 2) + log(M₀ + 2)` bits) accommodates all signed-encoded intermediate weights and `O(n²)`
+workspace addresses without overflow.
 
-The dense `O(n³)` Word-RAM realization, workspace layout, and instruction-count bounds are original
-to this formalization over the contraction algorithm and super-root branching reduction of
-[Edmonds1967Branchings], Sections 1–4 ([ChuLiu1965] was not inspected directly).
+For maximum-weight branchings, [Edmonds1967Branchings], §2 adds a new node with one arc to a
+prescribed root and reduces optimum spanning arborescence to optimum branching via a weight shift
+(formalized in `CslibFrontier.Algorithms.Lean.Arborescence.Branching`). To solve maximum-weight
+branchings via the rooted in-arborescence Word-RAM core, `optimumBranchingProg` implements this
+formalization's reverse super-root reduction from
+`CslibFrontier.Algorithms.Lean.Arborescence.Branching`: it reduces maximum-weight branching to
+rooted spanning in-arborescence by adding a zero-cost arc from every original vertex to the
+super-root and reversing and negating all original arcs.
+
+The dense `O(n³)` Word-RAM realization, workspace layout, word-value/address bound, and
+instruction-count bounds are original to this formalization over the cycle-contraction algorithm
+and §2 weight-shift reduction of [Edmonds1967Branchings], Sections 1–4 ([ChuLiu1965] was not
+inspected directly).
 
 ## Main definitions
 
-* `Cslib.Algorithms.WordRAM.Arborescence.wordBound`: polynomial word-width threshold
-  `4 * (n + 1) * M₀ + 32 * (n + 1) ^ 2` covering reduced signed costs and `O(n²)` workspace
-  addresses (`w = Ω(log n + log M₀)`).
+* `Cslib.Algorithms.WordRAM.Arborescence.wordBound`: polynomial bound
+  `4 * (n + 1) * M₀ + 32 * (n + 1) ^ 2` on word values and workspace addresses; `Fits w (wordBound
+  n M₀)` (`wordBound n M₀ < 2 ^ w`) holds at word widths `w` of order `log(n + 2) + log(M₀ + 2)`
+  bits.
 * `Cslib.Algorithms.WordRAM.Arborescence.flattenBoolMatrix`,
   `Cslib.Algorithms.WordRAM.Arborescence.flattenSignedMatrix`: row-major flat word-list encodings
   of Boolean adjacency and signed cost/weight matrices.
 * `Cslib.Algorithms.WordRAM.Arborescence.ArborescenceInput`,
   `Cslib.Algorithms.WordRAM.Arborescence.BranchingInput`: weighted digraph inputs on `Fin n` with
-  intrinsic magnitude and word-width bounds (`maxAbsCost`, `maxAbsWeight`, `wordBound`), flat word
-  encodings (`encode`), and expected parent-list outputs (`expectedParentList`,
+  intrinsic magnitude and word-value/address bounds (`maxAbsCost`, `maxAbsWeight`, `wordBound`),
+  flat word encodings (`encode`), and expected parent-list outputs (`expectedParentList`,
   `expectedOutParentList`).
 
 ## Main results
@@ -66,15 +83,18 @@ to this formalization over the contraction algorithm and super-root branching re
   `Cslib.Algorithms.WordRAM.Arborescence.ArborescenceInput.expectedOutParentList_spec`,
   `Cslib.Algorithms.WordRAM.Arborescence.BranchingInput.expectedParentList_spec`: public
   correctness and optimality characterizations of the encoded parent-list outputs.
-* `Cslib.Algorithms.WordRAM.Arborescence.exists_edmonds_program`: `O(n³)` width-blind
+* `Cslib.Algorithms.WordRAM.Arborescence.exists_edmonds_program`: uniform width-blind
   standard-basis Word-RAM program (`Program.ComputesListInTime`) for Chu–Liu/Edmonds minimum-cost
-  spanning in-arborescence at `Fits w I.wordBound`.
-* `Cslib.Algorithms.WordRAM.Arborescence.exists_edmondsOut_program`: `O(n³)` width-blind
+  spanning in-arborescence running in `C * (I.n + 1) ^ 3` instructions at every word width `w`
+  satisfying `Fits w I.wordBound` (`I.wordBound < 2 ^ w`).
+* `Cslib.Algorithms.WordRAM.Arborescence.exists_edmondsOut_program`: uniform width-blind
   standard-basis Word-RAM program (`Program.ComputesListInTime`) for minimum-cost spanning
-  out-arborescence at `Fits w I.wordBound`.
-* `Cslib.Algorithms.WordRAM.Arborescence.exists_optimumBranching_program`: `O(n³)` width-blind
-  standard-basis Word-RAM program (`Program.ComputesListInTime`) for Edmonds' maximum-weight
-  branching at `Fits w I.wordBound`.
+  out-arborescence running in `C * (I.n + 1) ^ 3` instructions at every word width `w` satisfying
+  `Fits w I.wordBound` (`I.wordBound < 2 ^ w`).
+* `Cslib.Algorithms.WordRAM.Arborescence.exists_optimumBranching_program`: uniform width-blind
+  standard-basis Word-RAM program (`Program.ComputesListInTime`) for maximum-weight branching via
+  this formalization's super-root reduction, running in `C * (I.n + 1) ^ 3` instructions at every
+  word width `w` satisfying `Fits w I.wordBound` (`I.wordBound < 2 ^ w`).
 
 ## References
 
@@ -125,12 +145,14 @@ open Cslib.WordRAM.Realization.Signed
     ((Memory.spec w).runClient s (signedSubProg d)).2.1 = s :=
   clientState_signedSubProg s d
 
-/-! ### Word-width bound -/
+/-! ### Word-value and address bound -/
 
 public section
 
-/-- Polynomial word-width threshold covering Edmonds' reduced signed intermediate costs up to
-`4 * (n + 1) * M₀` together with all `O(n²)` workspace addresses (`w = Ω(log n + log M₀)`). -/
+/-- Polynomial bound on word values and workspace addresses covering the rooted, reversed min-cost
+reduced exit costs up to `4 * (n + 1) * M₀` together with all `O(n²)` workspace addresses.
+The condition `Fits w (wordBound n M₀)` means `wordBound n M₀ < 2 ^ w`, so a word width `w` of
+order `log(n + 2) + log(M₀ + 2)` bits suffices. -/
 @[expose] def wordBound (n M₀ : ℕ) : ℕ :=
   4 * (n + 1) * M₀ + 32 * (n + 1) ^ 2
 
@@ -5546,7 +5568,9 @@ theorem ArborescenceInput.natAbs_cost_le_maxAbsCost (I : ArborescenceInput) (u v
   Finset.le_sup (f := fun p : Fin I.n × Fin I.n => (I.cost p.1 p.2).natAbs)
     (Finset.mem_univ (u, v))
 
-/-- Intrinsic polynomial word-width threshold `wordBound I.n I.maxAbsCost`. -/
+/-- Intrinsic polynomial word-value/address bound `wordBound I.n I.maxAbsCost`
+(`Fits w I.wordBound` means `I.wordBound < 2 ^ w`, so `w` of order
+`log(I.n + 2) + log(I.maxAbsCost + 2)` bits suffices). -/
 @[expose] def ArborescenceInput.wordBound (I : ArborescenceInput) : ℕ :=
   Arborescence.wordBound I.n I.maxAbsCost
 
@@ -5667,7 +5691,9 @@ theorem BranchingInput.natAbs_weight_le_maxAbsWeight (I : BranchingInput) (u v :
   Finset.le_sup (f := fun p : Fin I.n × Fin I.n => (I.weight p.1 p.2).natAbs)
     (Finset.mem_univ (u, v))
 
-/-- Intrinsic polynomial word-width threshold `wordBound (I.n + 1) I.maxAbsWeight`. -/
+/-- Intrinsic polynomial word-value/address bound `wordBound (I.n + 1) I.maxAbsWeight`
+(`Fits w I.wordBound` means `I.wordBound < 2 ^ w`, so `w` of order
+`log(I.n + 2) + log(I.maxAbsWeight + 2)` bits suffices). -/
 @[expose] def BranchingInput.wordBound (I : BranchingInput) : ℕ :=
   Arborescence.wordBound (I.n + 1) I.maxAbsWeight
 
@@ -7342,27 +7368,34 @@ private theorem exists_arb_program_of_spec
 
 public section
 
-/-- Materialized-table Chu–Liu/Edmonds minimum-cost spanning in-arborescence runs in `O(n³)`
-instructions on the deterministic width-blind standard-basis Word-RAM at every word width fitting
-`I.wordBound = 4 * (I.n + 1) * I.maxAbsCost + 32 * (I.n + 1) ^ 2` (`w = Ω(log n + log M₀)`). -/
+/-- Materialized-table Chu–Liu/Edmonds minimum-cost spanning in-arborescence runs in at most
+`C * (I.n + 1) ^ 3` instructions on the deterministic width-blind standard-basis Word-RAM at every
+word width `w` satisfying `Fits w I.wordBound` (i.e., `I.wordBound < 2 ^ w`, where
+`I.wordBound = 4 * (I.n + 1) * I.maxAbsCost + 32 * (I.n + 1) ^ 2` bounds word values and addresses,
+so `w` of order `log(I.n + 2) + log(I.maxAbsCost + 2)` bits suffices). -/
 theorem exists_edmonds_program :
     ∃ r C : ℕ, ∃ prog : Program .standard r, ¬prog.ReadsWidth ∧
       prog.ComputesListInTime (fun _ I => I.encode) (fun I _ => C * (I.n + 1) ^ 3)
         (fun I w => Fits w I.wordBound) ArborescenceInput.expectedParentList :=
   exists_arb_program_of_spec (by omega) edmondsProg_realizes edmondsProg_spec
 
-/-- Materialized-table Chu–Liu/Edmonds minimum-cost spanning out-arborescence runs in `O(n³)`
-instructions on the deterministic width-blind standard-basis Word-RAM at every word width fitting
-`I.wordBound = 4 * (I.n + 1) * I.maxAbsCost + 32 * (I.n + 1) ^ 2`. -/
+/-- Materialized-table Chu–Liu/Edmonds minimum-cost spanning out-arborescence runs in at most
+`C * (I.n + 1) ^ 3` instructions on the deterministic width-blind standard-basis Word-RAM at every
+word width `w` satisfying `Fits w I.wordBound` (i.e., `I.wordBound < 2 ^ w`, where
+`I.wordBound = 4 * (I.n + 1) * I.maxAbsCost + 32 * (I.n + 1) ^ 2` bounds word values and addresses,
+so `w` of order `log(I.n + 2) + log(I.maxAbsCost + 2)` bits suffices). -/
 theorem exists_edmondsOut_program :
     ∃ r C : ℕ, ∃ prog : Program .standard r, ¬prog.ReadsWidth ∧
       prog.ComputesListInTime (fun _ I => I.encode) (fun I _ => C * (I.n + 1) ^ 3)
         (fun I w => Fits w I.wordBound) ArborescenceInput.expectedOutParentList :=
   exists_arb_program_of_spec (by omega) edmondsOutProg_realizes edmondsOutProg_spec
 
-/-- Edmonds' super-root maximum-weight branching solver runs in `O(n³)` instructions on the
-deterministic width-blind standard-basis Word-RAM at every word width fitting
-`I.wordBound = 4 * (I.n + 2) * I.maxAbsWeight + 32 * (I.n + 2) ^ 2`. -/
+/-- Maximum-weight branching via this formalization's super-root reduction to rooted spanning
+in-arborescence (`CslibFrontier.Algorithms.Lean.Arborescence.Branching`) runs in at most
+`C * (I.n + 1) ^ 3` instructions on the deterministic width-blind standard-basis Word-RAM at every
+word width `w` satisfying `Fits w I.wordBound` (i.e., `I.wordBound < 2 ^ w`, where
+`I.wordBound = 4 * (I.n + 2) * I.maxAbsWeight + 32 * (I.n + 2) ^ 2` bounds word values and
+addresses, so `w` of order `log(I.n + 2) + log(I.maxAbsWeight + 2)` bits suffices). -/
 theorem exists_optimumBranching_program :
     ∃ r C : ℕ, ∃ prog : Program .standard r, ¬prog.ReadsWidth ∧
       prog.ComputesListInTime (fun _ I => I.encode) (fun I _ => C * (I.n + 1) ^ 3)
