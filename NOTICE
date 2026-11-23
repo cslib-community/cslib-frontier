@@ -47,6 +47,13 @@ The native shared-band preparation selectively adapts the band-array and all-ban
 organization from that same pinned source. Anthropic, PBC credit is retained in
 BandProgram.lean; its native mask scans, dense inverse table and execution proofs are new.
 
+The equivalence and evaluation laws in
+CslibFrontier/Computability/DecisionTree/FreeM.lean are adapted from
+PolyFunFrontier/PolyFunFrontier/PFunctor/Free/DecisionTree.lean in Verified-zkEVM/PolyFun,
+revision 713d8857e49d20927c1447b3ba7397acc5537319.
+Copyright (c) 2026 PolyFun Contributors. Author: Devon Tuma. Licensed under the Apache
+License, Version 2.0.
+
 The SQL semantics in CslibFrontier/Languages/SQL/, its tests in CslibFrontierTests/Languages/SQL/
 and its guide chapter guide/CslibFrontierGuide/SQL.lean adapt and redesign evelynmitchell/sql_equiv
 by Evelyn Mitchell, revision 38030a6b614a87499bf4f1e258d75b7f2fa20672, licensed under the Apache

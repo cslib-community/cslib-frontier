@@ -381,6 +381,7 @@ public import CslibFrontier.Algorithms.WordRAM.AKS.PerfectPower
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyArray
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyMul
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyPow
+public import CslibFrontier.Algorithms.WordRAM.BurrowsWheeler
 public import CslibFrontier.Algorithms.WordRAM.ClauseCode
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Program
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Scan
@@ -394,6 +395,7 @@ public import CslibFrontier.Algorithms.WordRAM.Dijkstra.FibonacciStatement
 public import CslibFrontier.Algorithms.WordRAM.Dijkstra.HeapStatement
 public import CslibFrontier.Algorithms.WordRAM.Dijkstra.ListEncode
 public import CslibFrontier.Algorithms.WordRAM.Dijkstra.LogLinear
+public import CslibFrontier.Algorithms.WordRAM.EditDistance
 public import CslibFrontier.Algorithms.WordRAM.ElementDistinctness
 public import CslibFrontier.Algorithms.WordRAM.ElementDistinctnessRAM
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.BoxRecordWitness.Exec
@@ -598,6 +600,7 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WitnessScan.Setup
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WriteMatrices
 public import CslibFrontier.Algorithms.WordRAM.Histogram
 public import CslibFrontier.Algorithms.WordRAM.Huffman
+public import CslibFrontier.Algorithms.WordRAM.KMP
 public import CslibFrontier.Algorithms.WordRAM.Karger.Contract
 public import CslibFrontier.Algorithms.WordRAM.Karger.OutputLaw
 public import CslibFrontier.Algorithms.WordRAM.KargerMinCut
@@ -3403,6 +3406,8 @@ public import CslibFrontier.Computability.DecisionTree.Cost
 public import CslibFrontier.Computability.DecisionTree.Dual
 public import CslibFrontier.Computability.DecisionTree.Evasive
 public import CslibFrontier.Computability.DecisionTree.Fourier
+public import CslibFrontier.Computability.DecisionTree.FreeM
+public import CslibFrontier.Computability.DecisionTree.FreeM.OracleComp
 public import CslibFrontier.Computability.DecisionTree.Granularity
 public import CslibFrontier.Computability.DecisionTree.Influence
 public import CslibFrontier.Computability.DecisionTree.InnerProduct
