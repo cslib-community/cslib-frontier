@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: candidate
+
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -14,12 +17,10 @@ import Mathlib.Tactic.FailIfNoProgress
 /-!
 # Polynomial-time rational arithmetic and natural-number casts
 
-Concrete encodings, `fun_prop` composition checks for binary and unary natural casts into `ℤ` and
-`ℚ`, rational field operations, unary powers, comparisons, floor, and the boundary check that
-`rat_pow` rejects binary-encoded exponents.
+Concrete encodings, `fun_prop` composition checks for binary natural casts into `ℚ`, unary natural
+casts into `ℤ`, rational field operations, unary powers, comparisons, floor, and the boundary check
+that `rat_pow` rejects binary-encoded exponents.
 -/
-
-set_option linter.privateModule false
 
 namespace CslibFrontierTests.PolyTimeRat
 
@@ -41,9 +42,9 @@ example : ComputableInPolyTime
     (encPair encNat encRat) encRat := by
   fun_prop
 
--- Unary natural casts into `ℤ` and `ℚ` compose with runtime unary exponents.
+-- Runtime unary exponents on `ℚ` compose with `Rat.floor` and unary casts into `ℤ`.
 example : ComputableInPolyTime
-    (fun p : ℕ × ℚ => ((p.2 - (p.1 : ℚ)) ^ (2 * p.1 + 1)).floor + (p.1 : ℤ))
+    (fun p : ℕ × ℚ => (p.2 ^ (2 * p.1 + 1)).floor + (p.1 : ℤ))
     (encPair encUnary encRat) encIntBin := by
   fun_prop
 

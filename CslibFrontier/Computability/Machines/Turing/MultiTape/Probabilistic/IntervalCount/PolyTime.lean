@@ -628,14 +628,12 @@ private theorem localStartData' {d : α → IntervalData k State}
     ComputableInPolyTime (fun a => (d a).cIn) input encControlData)
   have hw : ComputableInPolyTime (fun a => (d a).wIn) input
       (encPi (encList (encOption encBool))) := hp.snd'.snd'.snd'.snd'.snd'.fst'
-  have hbZ : ComputableInPolyTime (fun a => ((d a).b : ℤ)) input encIntBin :=
-    intBin_natCast.comp (unary_to_binary.comp hb)
   have hoff (head : Option (Fin k)) : ComputableInPolyTime (fun a => (d a).cIn.2.1 head) input
       encUnary := (pi_apply _ head).comp hc.snd'.fst'
   have hcoord (head : Option (Fin k)) : ComputableInPolyTime
       (fun a => ((d a).b : ℤ) * (d a).J head + ((d a).cIn.2.1 head : ℤ)) input encIntBin :=
-    intBin_add' (intBin_mul' hbZ ((pi_apply _ head).comp hJ))
-      (intBin_natCast.comp (unary_to_binary.comp (hoff head)))
+    intBin_add' (intBin_mul' (intBin_natCast_unary.comp hb) ((pi_apply _ head).comp hJ))
+      (intBin_natCast_unary.comp (hoff head))
   exact localCfg_mk hc.fst' (inputPosOfCoord' hword (hcoord none))
     (pi fun h => biTape_ofCells ((pi_apply _ h).comp hw) (unary_add' hb (hoff (some h))))
     (pi fun h => hcoord (some h)) hc.snd'.snd'
@@ -688,10 +686,6 @@ private theorem computableInPolyTime_stepTest [DecidableEq State] :
   have hw : ComputableInPolyTime (fun p : IntervalData k State × LocalCfg k State => p.1.wOut)
       (encPair encIntervalData encLocalCfg) (encPi (encList (encOption encBool))) :=
     hp.snd'.snd'.snd'.snd'.snd'.snd'.snd'
-  have hbZ : ComputableInPolyTime
-      (fun p : IntervalData k State × LocalCfg k State => (p.1.b : ℤ))
-      (encPair encIntervalData encLocalCfg) encIntBin :=
-    intBin_natCast.comp (unary_to_binary.comp hb)
   refine bool_and' (bool_and' (bool_and' (decide_eq' (localCfg_state.comp hl) hc.fst')
     (decide_eq' (localCfg_track.comp hl) hc.snd'.snd')) ?_) ?_
   · refine allConst _ fun head _ => bool_and' (unary_lt' ((pi_apply _ head).comp hc.snd'.fst') hb)
@@ -700,8 +694,9 @@ private theorem computableInPolyTime_stepTest [DecidableEq State] :
         (fun p : IntervalData k State × LocalCfg k State => ((p.1.δ head : SignType) : ℤ))
         (encPair encIntervalData encLocalCfg) encIntBin :=
       (of_finite fun δ : Option (Fin k) → SignType => ((δ head : SignType) : ℤ)).comp hδ
-    exact intBin_add' (intBin_mul' hbZ (intBin_add' ((pi_apply _ head).comp hJ) hδZ))
-      (intBin_natCast.comp (unary_to_binary.comp ((pi_apply _ head).comp hc.snd'.fst')))
+    exact intBin_add' (intBin_mul' (intBin_natCast_unary.comp hb)
+      (intBin_add' ((pi_apply _ head).comp hJ) hδZ))
+      (intBin_natCast_unary.comp ((pi_apply _ head).comp hc.snd'.fst'))
   · exact allConst _ fun h _ => decide_eq'
       (localCfg_windowCellsAt hb ((pi_apply _ (some h)).comp hJ) hl h) ((pi_apply _ h).comp hw)
 

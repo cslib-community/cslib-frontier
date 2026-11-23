@@ -134,27 +134,7 @@ private def intTableToRatTable (B : IntTable) : RatTable :=
 
 private theorem computableInPolyTime_intTableToRatTable :
     ComputableInPolyTime intTableToRatTable IntTable.enc RatTable.enc := by
-  have hcast : ComputableInPolyTime (fun p : List ℤ × ℤ => (p.2 : ℚ))
-      (encPair (encList encIntBin) encIntBin) encRat :=
-    (snd (encList encIntBin) encIntBin).trans rat_intCast
-  have hrow : ComputableInPolyTime (fun row : List ℤ => row.map (Int.cast : ℤ → ℚ))
-      (encList encIntBin) (encList encRat) :=
-    mapWithInput (f := fun _ (z : ℤ) => (z : ℚ)) (id' (encIn := encList encIntBin)) hcast
-  have hBrows : ComputableInPolyTime (Cslib.RowTable.rows : IntTable → _) IntTable.enc
-      (encList (encList encIntBin)) := by
-    fun_prop
-  have hrows : ComputableInPolyTime
-      (fun B : IntTable => B.rows.map fun row => row.map (Int.cast : ℤ → ℚ))
-      IntTable.enc (encList (encList encRat)) := by
-    have hstep : ComputableInPolyTime (fun p : IntTable × List ℤ => p.2.map (Int.cast : ℤ → ℚ))
-        (encPair IntTable.enc (encList encIntBin)) (encList encRat) :=
-      (snd IntTable.enc (encList encIntBin)).trans hrow
-    exact mapWithInput (f := fun _ (row : List ℤ) => row.map (Int.cast : ℤ → ℚ)) hBrows hstep
-  have heq : intTableToRatTable = fun B =>
-      Cslib.RowTable.mk (α := ℚ) B.numRows B.numCols
-        (B.rows.map fun row => row.map (Int.cast : ℤ → ℚ)) := rfl
-  rw [heq]
-  fun_prop
+  fun_prop [intTableToRatTable]
 
 /-- Row-wise integer matrix-vector multiplication via `ListMatrix.dotProduct`. -/
 private theorem computableInPolyTime_intTableMulVec :

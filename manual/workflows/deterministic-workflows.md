@@ -44,10 +44,10 @@ For rational numbers `ℚ` encoded as `(q.num, q.den)` under
 `Turing.MultiTapeTM.encRat` ([Encodings/Rat.lean](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Rat.lean)),
 import
 `CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Rat`
-for `ComputableInPolyTime.rat_num`, `rat_den`, `rat_intCast`, `rat_natCast`, `rat_natCast_unary`,
-`rat_divInt`, `rat_neg`, `rat_inv`, `rat_add`, `rat_sub`, `rat_mul`, `rat_div`, `rat_pow`,
-`rat_isZero`, `rat_eq`, `rat_lt`, `rat_le`, `rat_floor`, and their primed `fun_prop` composition
-rules ([PolyTimeRat client](../../CslibFrontierTests/PolyTimeRat.lean)).
+for `ComputableInPolyTime.rat_num`, `rat_den`, `rat_intCast`, `rat_natCast`, `rat_divInt`,
+`rat_neg`, `rat_inv`, `rat_add`, `rat_sub`, `rat_mul`, `rat_div`, `rat_pow`, `rat_isZero`,
+`rat_eq`, `rat_lt`, `rat_le`, `rat_floor`, and their primed `fun_prop` composition rules
+([PolyTimeRat client](../../CslibFrontierTests/PolyTimeRat.lean)).
 
 For a padded integer dot product, import
 [PolyTime/Int/DotProduct.lean](../../CslibFrontier/Computability/PolyTime/Int/DotProduct.lean)

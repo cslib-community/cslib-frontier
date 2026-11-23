@@ -1045,9 +1045,7 @@ theorem polyNorm1_le_two_pow_encList (l : List ℤ) :
     (hp : ComputableInPolyTime p encIn (encList encIntBin))
     (hq : ComputableInPolyTime q encIn (encList encIntBin)) :
     ComputableInPolyTime (fun x => polyAdd (p x) (q x)) encIn (encList encIntBin) := by
-  have hp1 := fst encIn encUnary; have hi := snd encIn encUnary
-  exact mapWithInput (range.comp' (unary_max' (length_listIntBin hp) (length_listIntBin hq)))
-    (intBin_add' (listGetDWithInput (hp.comp' hp1) hi 0) (listGetDWithInput (hq.comp' hp1) hi 0))
+  fun_prop [polyAdd]
 
 /-- Polynomial-time certificate for `cauchyCoeff`. -/
 @[fun_prop] theorem computableInPolyTime_cauchyCoeff {p q : α → List ℤ} {k : α → ℕ}

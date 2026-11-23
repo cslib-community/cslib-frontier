@@ -31,8 +31,8 @@ numerator and binary denominator, casting integers, constructing normalized quot
 
 * `Turing.MultiTapeTM.ComputableInPolyTime.rat_pair`: projecting `q : ℚ` to `(q.num, q.den)`.
 * `Turing.MultiTapeTM.ComputableInPolyTime.rat_num`, `.rat_den`: extracting numerator/denominator.
-* `Turing.MultiTapeTM.ComputableInPolyTime.rat_intCast`, `.rat_natCast`,
-  `.rat_natCast_unary`: casting `ℤ → ℚ` and binary or unary `ℕ → ℚ`.
+* `Turing.MultiTapeTM.ComputableInPolyTime.rat_intCast`, `.rat_natCast`: casting `ℤ → ℚ` and
+  binary `ℕ → ℚ`.
 * `Turing.MultiTapeTM.ComputableInPolyTime.rat_divInt`, `.rat_divInt'`: normalized quotient.
 * `Turing.MultiTapeTM.ComputableInPolyTime.rat_neg`, `.rat_inv`, `.rat_add`, `.rat_sub`,
   `.rat_mul`, `.rat_div`, `.rat_pow` and primed composition rules: rational field operations and
@@ -80,12 +80,6 @@ private theorem int_eq_signMagnitude_self (z : ℤ) :
   split_ifs <;> lia
 
 attribute [local irreducible] encRat encIntBin encNat encUnary
-
-/-- Casting a unary natural `n : ℕ` to `(n : ℚ)` is computable in polynomial time under
-`encUnary` and `encRat`. -/
-@[fun_prop]
-theorem rat_natCast_unary : ComputableInPolyTime (fun n : ℕ => (n : ℚ)) encUnary encRat :=
-  (rat_intCast.comp intBin_natCast_unary).of_enc_eq fun _ => rfl
 
 /-- Casting a binary natural `n : ℕ` to `(n : ℚ)` is computable in polynomial time under
 `encNat` and `encRat`. -/

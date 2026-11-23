@@ -127,7 +127,6 @@ private theorem sampleZRadius_ge_two (inp : SampleZInput) : 2 ≤ sampleZRadius 
 section SampleZRadiusPolyTime
 attribute [local irreducible] ComputableInPolyTime SampleZInput.enc encRat encIntBin encNat encUnary
 
-@[local fun_prop]
 private theorem computableInPolyTime_sampleZRadius :
     ComputableInPolyTime sampleZRadius SampleZInput.enc encNat := by
   have htailSq : ComputableInPolyTime (fun inp : SampleZInput => inp.tail ^ 2)
