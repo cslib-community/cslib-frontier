@@ -4378,6 +4378,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Rea
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.RepeatUntilBlank
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.RewindWork
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.RunsBetween
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.SelectTapes
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Sequential
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Shadow
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
