@@ -1061,6 +1061,7 @@ public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.Scan
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates
 public import CslibFrontier.Algorithms.WordRAM.TwoSAT
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination
+public import CslibFrontier.Algorithms.WordRAM.Yates
 public import CslibFrontier.Algorithms.WordRAM.ZFunction
 public import CslibFrontier.Computability.Automata.DPDA.Basic
 public import CslibFrontier.Computability.Automata.MPDA.Basic
