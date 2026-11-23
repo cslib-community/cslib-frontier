@@ -377,6 +377,31 @@ theorem feasibilityGame_transpose (A : Matrix m n K) (b : m → K) :
     (feasibilityGame A b)ᵀ = -feasibilityGame A b :=
   dantzigGame_transpose _ _ _
 
+omit [LinearOrder K] [IsStrictOrderedRing K] in
+/-- Right-multiplication of the block constraint matrix in `feasibilityGame` against `(x, u)`. -/
+private theorem feasibilityBlock_mulVec (A : Matrix m n K) (x : n → K) (u : K) :
+    fromBlocks A (of fun _ (_ : Unit) => (1 : K)) (of fun (_ : Unit) j => -∑ i, A i j) 1 *ᵥ
+        Sum.elim x (fun _ => u) =
+      Sum.elim (A *ᵥ x + fun _ => u) fun _ => -∑ i, (A *ᵥ x) i + u := by
+  rw [fromBlocks_mulVec, Sum.elim_comp_inl, Sum.elim_comp_inr, one_mulVec]
+  ext (i | _)
+  · simp [mulVec, dotProduct]
+  · have hAx : ∑ j, (∑ i, A i j) * x j = ∑ i, (A *ᵥ x) i := by
+      simp only [mulVec, dotProduct, sum_mul]
+      exact sum_comm
+    simp [mulVec, dotProduct, sum_neg_distrib, hAx]
+
+omit [LinearOrder K] [IsStrictOrderedRing K] [Fintype n] in
+/-- Left-multiplication of the block constraint matrix in `feasibilityGame` against `(y, v)`. -/
+private theorem vecMul_feasibilityBlock (A : Matrix m n K) (y : m → K) (v : K) :
+    Sum.elim y (fun _ => v) ᵥ*
+        fromBlocks A (of fun _ (_ : Unit) => (1 : K)) (of fun (_ : Unit) j => -∑ i, A i j) 1 =
+      Sum.elim ((y - v • 1) ᵥ* A) fun _ => ∑ i, y i + v := by
+  rw [vecMul_fromBlocks, Sum.elim_comp_inl, Sum.elim_comp_inr, vecMul_one]
+  ext (j | _)
+  · simp [vecMul, dotProduct, ← mul_sum, sub_eq_add_neg, add_mul, sum_add_distrib]
+  · simp [vecMul, dotProduct]
+
 /-- The solutions of the Dantzig game associated with `F(A, b)` are the solutions of
 [Adler2013], (6a)–(6g). -/
 private theorem feasibilityGame_spec {A : Matrix m n K} {b : m → K} {y : m → K} {v : K}
@@ -388,33 +413,24 @@ private theorem feasibilityGame_spec {A : Matrix m n K} {b : m → K} {y : m →
       0 ≤ y ∧ 0 ≤ v ∧ 0 ≤ x ∧ 0 ≤ u ∧ 0 ≤ t ∧ ∑ i, y i + v + (∑ j, x j + u) + t = 1 := by
   obtain ⟨hy, hx, ht, hsum, hb, hc, hgap⟩ := isSymmetricGameSolution_dantzigGame_iff.1 h
   rw [← Sum.elim_zero_zero, Sum.elim_le_elim_iff] at hy hx
-  simp only [Fintype.sum_sum_type, Sum.elim_inl, Sum.elim_inr, univ_unique, sum_singleton]
-    at hsum
-  have hb₁ (i : m) := hb (.inl i)
-  have hb₂ := hb (.inr ())
-  have hc₁ (j : n) := hc (.inl j)
-  have hc₂ := hc (.inr ())
-  simp only [Pi.smul_apply, Sum.elim_inl, Sum.elim_inr, smul_eq_mul, mul_neg, vecMul,
-    dotProduct, Fintype.sum_sum_type, fromBlocks_apply₁₁, fromBlocks_apply₂₁, fromBlocks_apply₁₂,
-    fromBlocks_apply₂₂, of_apply, mulVec, univ_unique, sum_singleton, one_apply_eq, mul_one,
-    one_mul, Pi.zero_apply, mul_zero, zero_mul, sum_const_zero, Pi.one_apply, zero_add, neg_mul,
-    sum_neg_distrib]
-    at hb₁ hb₂ hc₁ hc₂ hgap
-  -- the column sums of `A` against `x`, and of `A` against `y`, in one normal form
-  have hAx : ∑ i, (A *ᵥ x) i = ∑ j, (∑ i, A i j) * x j := by
-    simp only [mulVec, dotProduct, sum_mul]
-    exact sum_comm
-  refine ⟨fun i => ?_, ?_, fun j => ?_, hc₂, ?_, hy.1, hy.2 (), hx.1, hx.2 (), ht, hsum⟩
-  · simpa [mulVec, dotProduct] using hb₁ i
-  · rw [hAx]
+  simp only [Fintype.sum_sum_type, Sum.elim_inl, Sum.elim_inr, univ_unique, sum_singleton] at hsum
+  rw [feasibilityBlock_mulVec] at hb
+  rw [vecMul_feasibilityBlock] at hc
+  have hgap_lhs : (Sum.elim (0 : n → K) (1 : Unit → K)) ⬝ᵥ Sum.elim x (fun _ => u) = u := by
+    rw [dotProduct_block, Sum.elim_comp_inl, Sum.elim_comp_inr]
+    simp [dotProduct]
+  have hgap_rhs :
+      Sum.elim y (fun _ : Unit => v) ⬝ᵥ Sum.elim b (fun _ => -∑ i, b i) = (y - v • 1) ⬝ᵥ b := by
+    rw [dotProduct_block, Sum.elim_comp_inl, Sum.elim_comp_inr, sub_dotProduct, smul_dotProduct]
+    simp [dotProduct, sub_eq_add_neg]
+  rw [hgap_lhs, hgap_rhs] at hgap
+  refine ⟨fun i => ?_, ?_, fun j => ?_, ?_, hgap, hy.1, hy.2 (), hx.1, hx.2 (), ht, hsum⟩
+  · simpa [smul_eq_mul] using hb (.inl i)
+  · have hb₂ := hb (.inr ())
+    simp only [Pi.smul_apply, Sum.elim_inr, smul_eq_mul] at hb₂
     linarith
-  · have hj := hc₁ j
-    simp only [vecMul, dotProduct, Pi.sub_apply, Pi.smul_apply, Pi.one_apply, smul_eq_mul,
-      mul_one, sub_mul, sum_sub_distrib, Pi.zero_apply, ← mul_sum]
-    linarith
-  · simp only [dotProduct, Pi.sub_apply, Pi.smul_apply, Pi.one_apply, smul_eq_mul, mul_one,
-      sub_mul, sum_sub_distrib, ← mul_sum]
-    linarith
+  · simpa using hc (.inl j)
+  · simpa [smul_eq_mul] using hc (.inr ())
 
 namespace IsSymmetricGameSolution
 
@@ -490,8 +506,9 @@ theorem pos_of_feasibilityGame_bounded {β : K} {y : m ⊕ Unit → K} {x : n �
       (feasibilityGame (fromBlocks A 0 (of fun _ _ => 1) 1) (Sum.elim b fun _ => β))
       (Sum.elim (Sum.elim y fun _ => v) (Sum.elim (Sum.elim x fun _ => u) fun _ => t))) :
     0 < t := by
-  refine (feasibilityGame_spec h).2.2.2.2.2.2.2.2.2.1.lt_of_ne fun ht => ?_
-  subst ht
+  obtain ⟨-, -, -, -, -, -, -, -, -, ht, -⟩ := feasibilityGame_spec h
+  refine ht.lt_of_ne fun ht0 => ?_
+  subst ht0
   obtain ⟨hx0, hx, hAx⟩ := h.mulVec_eq_zero_of_feasibilityGame
   -- the last row `∑ j, x j + s = 0` with `0 ≤ x` forces `x = 0`
   have hrow := congr_fun hAx (.inr ())
