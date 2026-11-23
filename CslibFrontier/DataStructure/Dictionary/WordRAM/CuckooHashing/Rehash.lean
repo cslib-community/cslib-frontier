@@ -9,8 +9,8 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing.Evict
-public import CslibFrontier.Computability.WordRAM.Randomized.UniformLoopExit
 import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
+import CslibFrontier.Computability.WordRAM.Randomized.UniformLoopExit
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
 import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
@@ -67,7 +67,6 @@ open Cslib.WordRAM
 open Cslib.WordRAM.Randomized
 open Cslib.Probability
 open Cslib.Probability.PMF
-open Cslib.DataStructure.WordRAM Cslib.DataStructure.WordRAM.Randomized
 open scoped ENNReal
 
 /-! ### Table clearing and insertion-order replay (`clearTablesCode`, `replayLoopCode`) -/
@@ -447,6 +446,7 @@ private def rehashAttemptSteps (c_exp n_max U : ℕ) : ℕ :=
 /-- Loop invariant for `rehashLoopCode`: machine configuration is word-bounded, `reg 0 = base`,
 the header and `HashPairTableRep` are intact, `insKeys` / `insVals` realize `(ks, s)`, and all
 memory modifications since `x₀` lie inside `[base, base + space c_exp n_max)`. -/
+@[expose]
 def RehashLoopInv (w base c_exp n_max U V : ℕ) (ks : List (Fin U)) (s : Dictionary.State U)
     (x₀ z : Data 19) : Prop :=
   z.Bounded w ∧
@@ -458,6 +458,7 @@ def RehashLoopInv (w base c_exp n_max U V : ℕ) (ks : List (Fin U)) (s : Dictio
 
 /-- Exit postcondition for `rehashLoopCode`: `RehashLoopInv` holds together with `HashPairRep`
 for `θ_mem = extractSeed ... z.mem` and a valid replayed table `tbl` in `T₁, T₂`. -/
+@[expose]
 def RehashLoopPost (w base c_exp n_max U V : ℕ) (ks : List (Fin U)) (s : Dictionary.State U)
     (x₀ z : Data 19) : Prop :=
   RehashLoopInv w base c_exp n_max U V ks s x₀ z ∧

@@ -8,11 +8,12 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing.Analysis
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing.Evict
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing.Rehash
+public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
 import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing.Analysis
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -102,7 +103,6 @@ namespace Cslib.DataStructure.Dictionary.WordRAM.CuckooHashing
 
 open Cslib.DataStructure.Dictionary.CuckooHashing
 open Cslib.WordRAM
-open Cslib.WordRAM.Randomized
 open Cslib.Probability
 open Cslib.Probability.PMF
 open Cslib.DataStructure.WordRAM Cslib.DataStructure.WordRAM.Randomized
@@ -114,6 +114,7 @@ open scoped ENNReal
 /-- Standalone register encoding for `Dictionary.Op U`:
 * `query u` sets `reg 2 = 0` (selector) and `reg 3 = u.val`.
 * `insert u v` sets `reg 2 = 1` (selector), `reg 3 = u.val`, and `reg 4 = v`. -/
+@[expose]
 def encode {U : ℕ} (o : Dictionary.Op U) (i : Fin 19) : ℕ :=
   match o with
   | .query u =>
@@ -127,12 +128,14 @@ def encode {U : ℕ} (o : Dictionary.Op U) (i : Fin 19) : ℕ :=
     else 0
 
 /-- Partial argument-matching predicate for inline callers on `Fin 19 → ℕ`. -/
+@[expose]
 def argMatch {U : ℕ} (o : Dictionary.Op U) (regs : Fin 19 → ℕ) : Prop :=
   match o with
   | .query u => regs 2 = 0 ∧ regs 3 = u.val
   | .insert u v => regs 2 = 1 ∧ regs 3 = u.val ∧ regs 4 = v
 
 /-- Output decoder reading `Option ((Dictionary.spec U V n_max).Result o)` from final registers. -/
+@[expose]
 def decode {U V n_max : ℕ} (o : Dictionary.Op U) (regs : Fin 19 → ℕ) :
     Option ((Dictionary.spec U V n_max).Result o) :=
   match o with
@@ -401,6 +404,7 @@ private theorem tsum_seedLaw_insertSeedSteps_le {c_exp n_max U V C_walk C_reh v 
 /-! ### `cuckooCode`, `impl`, and expected-amortized sequence theorems -/
 
 /-- Relocatable `SubroutineCode` bundle for Pagh–Rodler cuckoo hashing over `Basis.exact`. -/
+@[expose]
 def cuckooCode (c_exp n_max : ℕ) : SubroutineCode .exact 19 2 where
   allocSpan := allocSpan c_exp n_max
   initSetup := initSetup c_exp n_max
@@ -586,56 +590,30 @@ theorem isCuckooHashFamily_tableBits {c_exp U n_max : ℕ}
     IsCuckooHashFamily c_exp U n_max (tableBits n_max) (maxEvictions n_max) 3 4 :=
   isCuckooHashPair_provableFamily hU (thirtyTwo_mul_max_le_tableSize n_max)
 
-/-- `O(c_exp⁴) = O_{c_exp}(1)` worst-case step bound for `queryCode c_exp n_max`, independent of
-`n_max` and `U` whenever `U ≤ max n_max 4 ^ c_exp`. -/
-def queryStepsBound (c_exp : ℕ) : ℕ :=
-  2 * (evalHashBound c_exp + 36) + 31
-
 /-- `O(c_exp⁴) = O_{c_exp}(1)` worst-case instruction bound for `query` via `opCode c_exp n_max`. -/
+@[expose]
 def queryChargeBound (c_exp : ℕ) : ℕ :=
   queryStepsBound c_exp + 2
 
-private def evictIterBound (c_exp : ℕ) : ℕ :=
-  2 * (evalHashBound c_exp + 54) + 59
-
-private def insertBaseBound (c_exp : ℕ) : ℕ :=
-  2 * (evalHashBound c_exp + 35) + 78
-
-private def resampleAtBaseFactor (c_exp : ℕ) : ℕ :=
-  max (10 * cuckooKBound c_exp + 35)
-    (80 * ((DoubleTabulation.provableC c_exp + 1) *
-      DoubleTabulation.provableD c_exp) + 63)
-
-private def rehashAmortizedBound (c_exp : ℕ) : ℕ :=
-  3 * evictIterBound c_exp + 2 * resampleAtBaseFactor c_exp + 4290 + 1
-
 /-- `O(c_exp⁴) = O_{c_exp}(1)` expected amortized instruction bound for `insert` (`C_walk = 3`,
 `C_reh = 4`), independent of `n_max` and `U` whenever `U ≤ max n_max 4 ^ c_exp`. -/
+@[expose]
 def insertChargeBound (c_exp : ℕ) : ℕ :=
-  2 * (insertBaseBound c_exp + 3 + 3 * evictIterBound c_exp + 4 * rehashAmortizedBound c_exp)
+  let evictIterBound := 2 * (evalHashBound c_exp + 54) + 59
+  let insertBaseBound := 2 * (evalHashBound c_exp + 35) + 78
+  let resampleAtBaseFactor :=
+    max (10 * cuckooKBound c_exp + 35)
+      (80 * ((DoubleTabulation.provableC c_exp + 1) *
+        DoubleTabulation.provableD c_exp) + 63)
+  let rehashAmortizedBound := 3 * evictIterBound + 2 * resampleAtBaseFactor + 4290 + 1
+  2 * (insertBaseBound + 3 + 3 * evictIterBound + 4 * rehashAmortizedBound)
 
 /-- `O(c_exp⁴) = O_{c_exp}(1)` expected amortized per-operation instruction charge for Pagh–Rodler
 cuckoo hashing, completely independent of `n_max` and `U` whenever `U ≤ max n_max 4 ^ c_exp`. -/
+@[expose]
 def expectedOpCharge (c_exp : ℕ) {U : ℕ} (_s : Dictionary.State U) : Dictionary.Op U → ℕ
   | .query _ => queryChargeBound c_exp
   | .insert _ _ => insertChargeBound c_exp
-
-theorem querySteps_le {c_exp n_max U : ℕ}
-    (hU : U ≤ max n_max 4 ^ c_exp) :
-    querySteps c_exp n_max U ≤ queryStepsBound c_exp :=
-  querySteps_le_add hU
-
-private theorem evictIterSteps_le {c_exp n_max U : ℕ}
-    (hU : U ≤ max n_max 4 ^ c_exp) :
-    evictIterSteps c_exp n_max U ≤ evictIterBound c_exp :=
-  evictIterSteps_le_add hU
-
-private theorem insertBaseSteps_le {c_exp n_max U : ℕ}
-    (hU : U ≤ max n_max 4 ^ c_exp) :
-    insertBaseSteps c_exp n_max U ≤ insertBaseBound c_exp := by
-  have hp := probeKeySteps_le hU
-  dsimp only [insertBaseSteps, insertBaseBound]
-  omega
 
 private theorem le_rehashScale (n_max : ℕ) :
     1 ≤ max n_max 1 * max (maxEvictions n_max) 1 ∧
@@ -649,27 +627,29 @@ private theorem le_rehashScale (n_max : ℕ) :
 
 private theorem resampleAtBaseSteps_le_mul (c_exp n_max : ℕ) :
     resampleAtBaseSteps c_exp n_max ≤
-      resampleAtBaseFactor c_exp * (max n_max 1 * max (maxEvictions n_max) 1) := by
+      max (10 * cuckooKBound c_exp + 35)
+        (80 * ((DoubleTabulation.provableC c_exp + 1) *
+          DoubleTabulation.provableD c_exp) + 63) *
+        (max n_max 1 * max (maxEvictions n_max) 1) := by
   obtain ⟨h1_D, hn_D, hev_D⟩ := le_rehashScale n_max
   set D := max n_max 1 * max (maxEvictions n_max) 1
+  set rf := max (10 * cuckooKBound c_exp + 35)
+    (80 * ((DoubleTabulation.provableC c_exp + 1) * DoubleTabulation.provableD c_exp) + 63)
   have hev18 := eighteen_le_maxEvictions n_max
   have hmax4_D : max n_max 4 ≤ D := by omega
   dsimp only [resampleAtBaseSteps, resampleHashPairSteps, resampleSingleSteps]
   split_ifs with hlt
   · have hk := cuckooK_le_cuckooKBound_of_lt hlt
-    have hfac : 10 * cuckooKBound c_exp + 35 ≤ resampleAtBaseFactor c_exp :=
-      le_max_left _ _
+    have hfac : 10 * cuckooKBound c_exp + 35 ≤ rf := le_max_left _ _
     calc 2 * (5 * cuckooK n_max + 10) + 4 + 4
       _ ≤ 10 * cuckooKBound c_exp + 35 := by omega
-      _ ≤ resampleAtBaseFactor c_exp * 1 := by omega
-      _ ≤ resampleAtBaseFactor c_exp * D := Nat.mul_le_mul_left _ h1_D
+      _ ≤ rf * 1 := by omega
+      _ ≤ rf * D := Nat.mul_le_mul_left _ h1_D
   · have hb : 2 ^ DoubleTabulation.provableB n_max ≤ 8 * D := by
       have h2b := DoubleTabulation.two_pow_provableB_le n_max
       omega
-    set S := (DoubleTabulation.provableC c_exp + 1) *
-      DoubleTabulation.provableD c_exp
-    have hfac : 80 * S + 63 ≤ resampleAtBaseFactor c_exp :=
-      le_max_right _ _
+    set S := (DoubleTabulation.provableC c_exp + 1) * DoubleTabulation.provableD c_exp
+    have hfac : 80 * S + 63 ≤ rf := le_max_right _ _
     have hmul : S * 2 ^ DoubleTabulation.provableB n_max ≤ S * (8 * D) :=
       Nat.mul_le_mul_left S hb
     calc 2 * DoubleTabulation.resampleSteps
@@ -681,46 +661,50 @@ private theorem resampleAtBaseSteps_le_mul (c_exp n_max : ℕ) :
           omega
       _ ≤ 10 * (S * (8 * D)) + 63 * D := by omega
       _ = (80 * S + 63) * D := by ring
-      _ ≤ resampleAtBaseFactor c_exp * D := Nat.mul_le_mul_right D hfac
+      _ ≤ rf * D := Nat.mul_le_mul_right D hfac
 
 private theorem rehashAmortizedSteps_le {c_exp n_max U : ℕ}
     (hU : U ≤ max n_max 4 ^ c_exp) :
-    rehashAmortizedSteps c_exp n_max U ≤ rehashAmortizedBound c_exp := by
+    rehashAmortizedSteps c_exp n_max U ≤
+      3 * (2 * (evalHashBound c_exp + 54) + 59) +
+        2 * max (10 * cuckooKBound c_exp + 35)
+          (80 * ((DoubleTabulation.provableC c_exp + 1) *
+            DoubleTabulation.provableD c_exp) + 63) + 4290 + 1 := by
   obtain ⟨h1_D, hn_D, hev_D⟩ := le_rehashScale n_max
   set D := max n_max 1 * max (maxEvictions n_max) 1
+  set evB := 2 * (evalHashBound c_exp + 54) + 59
+  set rf := max (10 * cuckooKBound c_exp + 35)
+    (80 * ((DoubleTabulation.provableC c_exp + 1) * DoubleTabulation.provableD c_exp) + 63)
   have hnev_D : n_max * maxEvictions n_max ≤ D :=
     Nat.mul_le_mul (le_max_left n_max 1) (le_max_left (maxEvictions n_max) 1)
   have hmax4_D : max n_max 4 ≤ 4 * D := by omega
-  have hiter := evictIterSteps_le hU
-  have hres : resampleAtBaseSteps c_exp n_max ≤ resampleAtBaseFactor c_exp * D :=
+  have hiter : evictIterSteps c_exp n_max U ≤ evB := evictIterSteps_le_add hU
+  have hres : resampleAtBaseSteps c_exp n_max ≤ rf * D :=
     resampleAtBaseSteps_le_mul c_exp n_max
   have hts := tableSize_le_sixtyFour_mul_max n_max
   have hclear : 8 * tableSize n_max + 10 ≤ 2058 * D := by omega
-  have h_ev_mul : maxEvictions n_max * evictIterSteps c_exp n_max U ≤
-      D * evictIterBound c_exp :=
+  have h_ev_mul : maxEvictions n_max * evictIterSteps c_exp n_max U ≤ D * evB :=
     Nat.mul_le_mul hev_D hiter
-  have h_nev_mul : (n_max * maxEvictions n_max) * evictIterSteps c_exp n_max U ≤
-      D * evictIterBound c_exp :=
+  have h_nev_mul : (n_max * maxEvictions n_max) * evictIterSteps c_exp n_max U ≤ D * evB :=
     Nat.mul_le_mul hnev_D hiter
   have hreplay :
       n_max * (maxEvictions n_max * evictIterSteps c_exp n_max U + 54) + 23 ≤
-        (evictIterBound c_exp + 77) * D := by
+        (evB + 77) * D := by
     calc n_max * (maxEvictions n_max * evictIterSteps c_exp n_max U + 54) + 23
       _ = (n_max * maxEvictions n_max) * evictIterSteps c_exp n_max U + 54 * n_max + 23 := by ring
-      _ ≤ D * evictIterBound c_exp + 54 * D + 23 * D := by omega
-      _ = (evictIterBound c_exp + 77) * D := by ring
+      _ ≤ D * evB + 54 * D + 23 * D := by omega
+      _ = (evB + 77) * D := by ring
   have hnum : maxEvictions n_max * evictIterSteps c_exp n_max U +
         rehashLoopSteps c_exp n_max U + 2 ≤
-      D * (3 * evictIterBound c_exp + 2 * resampleAtBaseFactor c_exp + 4290) := by
+      D * (3 * evB + 2 * rf + 4290) := by
     rw [rehashLoopSteps_eq]
     calc maxEvictions n_max * evictIterSteps c_exp n_max U +
           (2 * (resampleAtBaseSteps c_exp n_max + (8 * tableSize n_max + 10) +
             (n_max * (maxEvictions n_max * evictIterSteps c_exp n_max U + 54) + 23) + 4) + 10) + 2
-      _ ≤ D * evictIterBound c_exp +
-          (2 * (resampleAtBaseFactor c_exp * D + 2058 * D +
-            (evictIterBound c_exp + 77) * D + 4 * D) + 10 * D) + 2 * D := by omega
-      _ = D * (3 * evictIterBound c_exp + 2 * resampleAtBaseFactor c_exp + 4290) := by ring
-  dsimp only [rehashAmortizedSteps, rehashAmortizedBound]
+      _ ≤ D * evB +
+          (2 * (rf * D + 2058 * D + (evB + 77) * D + 4 * D) + 10 * D) + 2 * D := by omega
+      _ = D * (3 * evB + 2 * rf + 4290) := by ring
+  dsimp only [rehashAmortizedSteps]
   exact Nat.add_le_add_right (Nat.div_le_of_le_mul hnum) 1
 
 theorem charge_le_expectedOpCharge {c_exp n_max U : ℕ}
@@ -732,9 +716,9 @@ theorem charge_le_expectedOpCharge {c_exp n_max U : ℕ}
     have hg := querySteps_le hU
     omega
   | insert _ _ =>
-    dsimp only [charge, expectedOpCharge, insertCharge, insertChargeBound]
-    have hb := insertBaseSteps_le hU
-    have he := evictIterSteps_le hU
+    dsimp only [charge, expectedOpCharge, insertCharge, insertChargeBound, insertBaseSteps]
+    have hp := probeKeySteps_le hU
+    have he := evictIterSteps_le_add hU
     have hr := rehashAmortizedSteps_le hU
     omega
 

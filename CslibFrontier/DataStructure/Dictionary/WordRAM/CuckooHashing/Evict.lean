@@ -8,9 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Computability.WordRAM.Heap
+public import CslibFrontier.Computability.WordRAM.Randomized.Expected
 public import CslibFrontier.DataStructure.Dictionary.Spec
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing.HashFamily
-public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
 import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
@@ -39,8 +40,9 @@ two-table cuckoo displacement loop (`evictLoopCode`) for Pagh and Rodler's cucko
   `Cslib.DataStructure.Dictionary.WordRAM.CuckooHashing.initSetup`: bump-allocation span and
   randomized header/hash initialization subroutines.
 * `Cslib.DataStructure.Dictionary.WordRAM.CuckooHashing.probeKeyCode`,
-  `Cslib.DataStructure.Dictionary.WordRAM.CuckooHashing.queryCode`: deterministic two-table slot
-  probing and dictionary lookup subroutines.
+  `Cslib.DataStructure.Dictionary.WordRAM.CuckooHashing.queryCode`,
+  `Cslib.DataStructure.Dictionary.WordRAM.CuckooHashing.queryStepsBound`: deterministic two-table
+  slot probing, dictionary lookup subroutine, and `O_{c_exp}(1)` lookup step bound.
 * `Cslib.DataStructure.Dictionary.WordRAM.CuckooHashing.evictLoopCode`: bounded two-table cuckoo
   displacement loop.
 
@@ -51,8 +53,10 @@ two-table cuckoo displacement loop (`evictLoopCode`) for Pagh and Rodler's cucko
 * `Cslib.DataStructure.Dictionary.WordRAM.CuckooHashing.Rep.unique`,
   `Cslib.DataStructure.Dictionary.WordRAM.CuckooHashing.Rep.supported`: state uniqueness and
   memory-footprint framing for `Rep`.
-* `Cslib.DataStructure.Dictionary.WordRAM.CuckooHashing.queryCode_execWithin`: deterministic
-  worst-case two-probe lookup specification preserving `RepWithKeys` and the in-memory seed.
+* `Cslib.DataStructure.Dictionary.WordRAM.CuckooHashing.queryCode_execWithin`,
+  `Cslib.DataStructure.Dictionary.WordRAM.CuckooHashing.querySteps_le`: deterministic worst-case
+  two-probe lookup specification preserving `RepWithKeys` and the in-memory seed, with step count at
+  most `queryStepsBound c_exp` under `U ≤ max n_max 4 ^ c_exp`.
 * `Cslib.DataStructure.Dictionary.WordRAM.CuckooHashing.evictLoopCode_execWithin`: deterministic
   execution specification relating `evictLoopCode` to `pureEvict` and `evictRounds`.
 
@@ -72,7 +76,6 @@ open Cslib.DataStructure.Dictionary.CuckooHashing
 open Cslib.WordRAM
 open Cslib.Probability
 open Cslib.Probability.PMF
-open Cslib.DataStructure.WordRAM Cslib.DataStructure.WordRAM.Randomized
 open Cslib.DataStructure.HashFamily.WordRAM
 open scoped ENNReal
 
@@ -315,13 +318,11 @@ private def computeScaleCode (c_exp n_max : ℕ) : Code .exact 19 :=
   (.seq (.op (.const 11 (hashPairSpace c_exp n_max)))
         (.op (.const 13 (space c_exp n_max)))))))
 
-private def computeScaleSteps : ℕ := 6
-
 private theorem computeScaleCode_execWithin {w c_exp n_max : ℕ} {x : Data 19}
     (hfit_sp : Fits w (space c_exp n_max))
     (hfit_ev : Fits w (maxEvictions n_max)) :
     ∃ y : Data 19,
-      ExecWithin w (computeScaleCode c_exp n_max) x y computeScaleSteps ∧
+      ExecWithin w (computeScaleCode c_exp n_max) x y 6 ∧
       y.mem = x.mem ∧
       (∀ r : Fin 19, r.val ≤ 4 → y.regs r = x.regs r) ∧
       y.regs 6 = 1 ∧
@@ -333,7 +334,7 @@ private theorem computeScaleCode_execWithin {w c_exp n_max : ℕ} {x : Data 19}
   have hM_lt : tableBits n_max < tableSize n_max := Nat.lt_two_pow_self
   have hsp : space c_exp n_max =
       20 + hashPairSpace c_exp n_max + 2 * tableSize n_max + 2 * n_max := rfl
-  unfold computeScaleCode computeScaleSteps
+  unfold computeScaleCode
   wram_exec
   exact ⟨rfl, fun r hr => by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     by wram_simp, by wram_simp⟩
@@ -346,8 +347,9 @@ def allocSpan (c_exp n_max : ℕ) : Code .exact 19 :=
         (.op (.exactBin .add 1 0 13)))
 
 /-- Exact step bound for `allocSpan`. -/
+@[expose]
 def spanSteps : ℕ :=
-  computeScaleSteps + 2
+  8
 
 theorem allocSpan_execWithin {w base c_exp n_max U : ℕ} {x : Data 19}
     (hfr : x.regs 1 = base) (h3 : x.regs 3 = n_max) (h4 : x.regs 4 = U)
@@ -480,8 +482,9 @@ def initSetup (c_exp n_max : ℕ) : Code .exact 19 :=
         restoreAfterHashInitCode)
 
 /-- Exact step bound for `initSetup`. -/
+@[expose]
 def setupSteps (c_exp n_max U : ℕ) : ℕ :=
-  computeScaleSteps + 35 + initTableHashPairSteps c_exp n_max U (tableBits n_max) +
+  6 + 35 + initTableHashPairSteps c_exp n_max U (tableBits n_max) +
     resampleHashPairSteps c_exp n_max + 5
 
 /-- Distributional execution specification for `resampleHashPairCode`. -/
@@ -636,11 +639,13 @@ theorem initSetup_spec {w base c_exp n_max U V : ℕ} {x₁ : Data 19}
 /-! ### Section 3: Base-shifted hash wrappers, `probeKeyCode`, and `queryCode` -/
 
 /-- Encode `Option ℕ` as a single machine word (`0` for `none` and `v + 1` for `some v`). -/
+@[expose]
 def encodeOptionNat : Option ℕ → ℕ
   | none => 0
   | some v => v + 1
 
 /-- Decode a single machine word into `Option ℕ` (`0` as `none` and `v + 1` as `some v`). -/
+@[expose]
 def decodeOptionNat : ℕ → Option ℕ
   | 0 => none
   | v + 1 => some v
@@ -1597,11 +1602,17 @@ theorem probeKeySteps_le {c_exp n_max U : ℕ}
   dsimp only [probeKeySteps, probeTableSlotSteps, evalHashAtBaseSteps]
   omega
 
-theorem querySteps_le_add {c_exp n_max U : ℕ}
+/-- `O(c_exp⁴) = O_{c_exp}(1)` worst-case step bound for `queryCode c_exp n_max`, independent of
+`n_max` and `U` whenever `U ≤ max n_max 4 ^ c_exp`. -/
+@[expose]
+def queryStepsBound (c_exp : ℕ) : ℕ :=
+  2 * (evalHashBound c_exp + 36) + 31
+
+theorem querySteps_le {c_exp n_max U : ℕ}
     (hU : U ≤ max n_max 4 ^ c_exp) :
-    querySteps c_exp n_max U ≤ 2 * (evalHashBound c_exp + 36) + 31 := by
+    querySteps c_exp n_max U ≤ queryStepsBound c_exp := by
   have hp := probeKeySteps_le hU
-  dsimp only [querySteps]
+  dsimp only [querySteps, queryStepsBound]
   omega
 
 theorem evictIterSteps_le_add {c_exp n_max U : ℕ}
