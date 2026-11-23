@@ -50,7 +50,8 @@ theorem encodeQuery_zeroQuery (k : ℕ) :
   have hzero (n : ℕ) : List.ofFn (0 : BitString n) = List.replicate n false := by
     rw [← List.ofFn_const]
     rfl
-  simp only [CCR.codec, zeroQuery, hzero, Prod.mk.injEq, true_and, List.eq_replicate_iff]
+  simp only [CCR.codec, zeroQuery, labelBits_apply, hzero, Prod.mk.injEq, true_and,
+    List.eq_replicate_iff]
   constructor
   · simp
     omega
@@ -72,7 +73,7 @@ theorem firstBitZero_isOraclePPT : IsOraclePPT encBool firstBitZero := by
       (encPair (encPair encUnary encBits) encBits) encBool := by
     polytime
   unfold firstBitZero
-  exact ((IsOraclePPTOn.query_take' () hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
+  exact ((IsOraclePPTOn.query_take () hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
 
 /-- `firstBitZero` asks one query, so it never repeats a tweak. -/
 theorem firstBitZero_isTweakUnique (k : ℕ) :

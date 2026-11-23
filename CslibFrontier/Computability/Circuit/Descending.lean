@@ -119,16 +119,15 @@ theorem trace_node_eq (hchild : ∀ i, 0 < i → ∀ a, child i a < i) {v : ℕ 
     (hzero : v 0 = source) (hsucc : ∀ i < g, v (i + 1) = gates (i + 1) fun a => v (child (i + 1) a))
     {i : ℕ} (hi : i ≤ g) :
     (program child g).trace (interpretation gates) (fun _ => source) (node g i) = v i := by
-  induction i using Nat.strong_induction_on with
-  | _ i ih =>
-    cases i with
-    | zero => exact hzero.symm
-    | succ i =>
-      rw [trace_node_succ child gates source hchild (by omega), hsucc i (by omega)]
-      congr 1
-      funext a
-      have ha := hchild (i + 1) (by omega) a
-      exact ih _ ha (by omega)
+  cases i with
+  | zero => exact hzero.symm
+  | succ i =>
+    rw [trace_node_succ child gates source hchild (by omega), hsucc i (by omega)]
+    congr 1
+    funext a
+    have ha := hchild (i + 1) (by omega) a
+    exact trace_node_eq hchild hzero hsucc (i := child (i + 1) a) (by omega)
+termination_by i
 
 /-- In the computation DAG, the predecessors of a positive index are its children. -/
 theorem dag_adj_node (hchild : ∀ i, 0 < i → ∀ a, child i a < i) {g i : ℕ} (hi : i < g)

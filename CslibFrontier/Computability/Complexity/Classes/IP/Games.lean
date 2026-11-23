@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
 public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.Games
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -574,16 +575,10 @@ def merlinBits : List (AMMove × ℕ) → ℕ
 
 theorem transcriptLength_eq_arthurBits_add_merlinBits (g : List (AMMove × ℕ)) :
     AMGame.transcriptLength g = AMGame.arthurBits g + merlinBits g := by
-  induction g with
-  | nil => rfl
-  | cons x g ih =>
-    obtain ⟨_ | _, n⟩ := x
-    · simp only [AMGame.transcriptLength, List.map_cons, List.sum_cons, AMGame.arthurBits,
-        merlinBits] at ih ⊢
-      omega
-    · simp only [AMGame.transcriptLength, List.map_cons, List.sum_cons, AMGame.arthurBits,
-        merlinBits] at ih ⊢
-      omega
+  fun_induction merlinBits g <;>
+    simp only [AMGame.transcriptLength, List.map_nil, List.map_cons, List.sum_nil, List.sum_cons,
+      AMGame.arthurBits] at * <;>
+    omega
 
 theorem transcriptLength_toAM (g : List (IPMove × ℕ)) :
     AMGame.transcriptLength (toAM g) = transcriptLength g := by

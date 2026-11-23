@@ -75,7 +75,6 @@ the forger only the public key.
 
 * `schnorrForkingAdversary`: the native two-pass forking discrete-logarithm adversary.
 * `schnorrForkOutput`: its extraction step.
-* `schnorrSampledSimulate`: the law of the strict-PPT Schnorr simulator at a typed challenge.
 
 ## Main results
 
@@ -179,14 +178,13 @@ theorem computableInPolyTime_schnorrForkOutput :
       (ℕ × List Bool × List Bool) × (ℕ × List Bool × List Bool) → List Bool}
       (hf : ComputableInPolyTime f E encBits) :
       ComputableInPolyTime (fun x => ofBits (f x)) E encNat :=
-    .of_tidy (ComputableTidilyInPolyTime.bitsToNat.comp hf.tidy)
+    (ComputableInPolyTime.bitsToNat.comp hf)
   have hextract := computableInPolyTime_extractNat hd
     (hnat (f := fun x => x.2.2.2.1.2.1) (by fun_prop))
     (hnat (f := fun x => x.2.2.2.1.2.2) (by fun_prop))
     (hnat (f := fun x => x.2.2.2.2.2.1) (by fun_prop))
     (hnat (f := fun x => x.2.2.2.2.2.2) (by fun_prop))
-  have hbits := ComputableInPolyTime.of_tidy
-    (ComputableTidilyInPolyTime.natBits.comp hextract.tidy)
+  have hbits := (ComputableInPolyTime.natBits.comp hextract)
   have hi : ComputableInPolyTime (fun x : F.Desc × List (List Bool) × List (List Bool) ×
       (ℕ × List Bool × List Bool) × (ℕ × List Bool × List Bool) => x.2.2.2.1.1 - 1)
       E encUnary := by
@@ -327,36 +325,6 @@ section Law
 
 variable {F}
 
-/-- The law of the strict-PPT Schnorr simulator at a typed challenge: a sampled scalar response `z`
-and the commitment `z • g - c • u`, with the challenge read as a binary number. -/
-noncomputable def schnorrSampledSimulate (n : ℕ) (d : F.Desc) {m : ℕ} (u : F.Carrier d)
-    (c : BitString m) : PMF (List Bool × List Bool) :=
-  ((ProbComp.eval (F.sampleExp n d)).map (Nat.cast : ℕ → ZMod (F.order d))).map fun z =>
-    (F.encode d (z • F.generator d - (ofBits (List.ofFn c) : ZMod (F.order d)) • u), z.val.bits)
-
-/-- A strict-PPT simulated transcript is a typed simulated conversation, written as words. -/
-theorem eval_schnorrSimulatedTranscript_eq_map (n : ℕ) (d : F.Desc) (m : ℕ) (u : F.Carrier d) :
-    ProbComp.eval (F.schnorrSimulatedTranscript n d (F.encode d u) m) =
-      (simulateConversation (schnorrSampledSimulate n d (m := m)) u).map transcriptWords := by
-  rw [eval_schnorrSimulatedTranscript, BitString.uniformList, PMF.bind_map]
-  simp only [simulateConversation, schnorrSampledSimulate, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.map_bind, PMF.bind_map, PMF.pure_map, Function.comp_def]
-  congr 1 with c : 1
-  rw [← PMF.bind_pure_comp, PMF.bind_map]
-  rfl
-
-/-- `k` strict-PPT simulated transcripts are `k` typed simulated conversations, written as
-words. -/
-theorem eval_replicate_schnorrSimulatedTranscript (n : ℕ) (d : F.Desc) (m k : ℕ)
-    (u : F.Carrier d) :
-    ProbComp.eval (OracleComp.replicate k (F.schnorrSimulatedTranscript n d (F.encode d u) m)) =
-      (PMF.iid (simulateConversation (schnorrSampledSimulate n d (m := m)) u) k).map
-        fun transcripts => (List.ofFn transcripts).map transcriptWords := by
-  rw [ProbComp.eval_replicate_iid, eval_schnorrSimulatedTranscript_eq_map, PMF.iid_map,
-    PMF.map_comp]
-  congr 1 with transcripts : 1
-  simp [List.map_ofFn, Function.comp_def]
-
 /-- A query named by the typed forking algorithm was answered with the forgery's challenge. -/
 private theorem forkingAlgorithm_challenge {m q : ℕ} (d : F.Desc) (hm : 2 ^ m ≤ F.order d)
     (A : Forger (F.Carrier d) (List Bool) (List Bool × List Bool) (List Bool) (BitString m))
@@ -417,7 +385,8 @@ theorem map_eval_schnorrForkingAdversary {k : ℕ} {Control : Type}
   simp only [schnorrForkingAdversary, ProbComp.eval_bind, ProbComp.eval_pure,
     BitString.eval_sampleList, eval_replicate_schnorrSimulatedTranscript,
     ProbComp.eval_replicate_sampleList, PMF.bind_map]
-  simp only [FiatShamir.reduction, Probability.Forking.fork, FiatShamir.coins,
+  simp only [FiatShamir.reduction, Probability.Forking.fork, Probability.Forking.onTapes,
+    FiatShamir.coins,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, PMF.map_bind,
     PMF.bind_map, PMF.pure_map, Function.comp_def]
   refine congrArg _ (funext fun tape => congrArg _ (funext fun transcripts =>

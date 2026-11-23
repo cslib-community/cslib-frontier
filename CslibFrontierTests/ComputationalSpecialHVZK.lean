@@ -26,7 +26,9 @@ Attack Game 20.4 and Definition 20.6, p. 840) on concrete instances and two-side
 * **Boolean and infinite-type `CloseTo`/`Game` bridges.** Check `Game.closeTo_iff_advantage_le` on
   concrete `PMF Bool` laws and `Game.advantage_bind_le_of_closeTo` across `PMF ℕ` without
   `Fintype`.
-* **Schnorr in `schnorrGroups`.** Instantiate
+* **Schnorr in `schnorrGroups`.** Instantiate the fair-coin protocol
+  `schnorrGroups.schnorrProbFamily` for completeness, efficient special soundness, polynomial-time
+  verification, `2 / 2 ^ n` transcript closeness, and
   `PrimeOrderGroupFamily.computationalSpecialHVZK_schnorr` with exact zero acceptance error
   (`δ = fun _ => 0`), exercising both `accepts_schnorrSimulator` and Attack Game 20.4
   indistinguishability.
@@ -88,10 +90,31 @@ example (μ ν : PMF ℕ) (h : CloseTo μ ν ((1 / 8 : ℝ≥0) : ℝ≥0∞)) (
 
 /-! ### Schnorr in `schnorrGroups` -/
 
-/-- Schnorr's Sigma protocol in `schnorrGroups` satisfies `ComputationalSpecialHVZK` with exact zero
-acceptance error (`δ = fun _ => 0`) for any group-description setup `setup`. -/
+/-- Fair-coin Schnorr Sigma protocol in `schnorrGroups`: completeness, polynomial-time verification,
+efficient special soundness, `2 / 2 ^ n` statistical transcript closeness, and
+`ComputationalSpecialHVZK` with exact zero acceptance error (`δ = fun _ => 0`) for any
+group-description setup `setup`. -/
+example (i : ℕ × schnorrGroups.Desc) :
+    (schnorrGroups.schnorrProbFamily i).Complete
+        (fun α u => α • schnorrGroups.generator i.2 = u) ∧
+      EfficientVerifier schnorrGroups.schnorrProbFamily schnorrGroups.schnorrEncoding ∧
+      EfficientSpecialSoundness schnorrGroups.schnorrProbFamily
+        (fun i α u => α • schnorrGroups.generator i.2 = u)
+        schnorrGroups.schnorrEncoding (fun i => schnorrGroups.encScalar i.2)
+        schnorrGroups.schnorrExtract :=
+  ⟨schnorrGroups.schnorrProbFamily_complete i,
+    schnorrGroups.efficientVerifier_schnorrProb,
+    schnorrGroups.efficientSpecialSoundness_schnorrProb⟩
+
+example (i : ℕ × schnorrGroups.Desc) (α c : ZMod (schnorrGroups.order i.2)) :
+    CloseTo
+      ((schnorrGroups.schnorrProbFamily i).transcript α (α • schnorrGroups.generator i.2) c)
+      (ProbComp.eval (schnorrGroups.schnorrSimulator i (α • schnorrGroups.generator i.2) c))
+      (2 / 2 ^ i.1) :=
+  schnorrGroups.closeTo_transcript_schnorrProbFamily_simulator i rfl c
+
 example (setup : ℕ → PMF schnorrGroups.Desc) :
-    ComputationalSpecialHVZK schnorrGroups.schnorrFamily
+    ComputationalSpecialHVZK schnorrGroups.schnorrProbFamily
       (fun i α u => α • schnorrGroups.generator i.2 = u)
       schnorrGroups.schnorrEncoding (fun i => schnorrGroups.encScalar i.2)
       (fun n => (setup n).map (n, ·)) schnorrGroups.schnorrSimulator (fun _ => 0) :=
@@ -496,7 +519,7 @@ theorem computationalSpecialHVZK_prgWitnessSigma
       have hchoose : IsPPTOn encD encW fun p =>
           (fun out => ((encBool out.1.1, encUnit out.1.2), out.2)) <$>
             (adversary p.1 p.1).choose () :=
-        hadv.choose.preprocess (hn.prod hn)
+        (hadv.choose.preprocess (hn.prod hn) :)
       have hlen' : ComputableInPolyTime
           (fun q : (ℕ × List Bool) × (List Bool × List Bool) × σ => length q.1.1) encT encUnary :=
         hlen.comp (by fun_prop)
@@ -505,9 +528,9 @@ theorem computationalSpecialHVZK_prgWitnessSigma
       have hguess : IsPPTOn (encPair (encPair encT encBits) encBool) encBool
           (fun q : (((ℕ × List Bool) × (List Bool × List Bool) × σ) × List Bool) × Bool =>
             (adversary q.1.1.1.1 q.1.1.1.1).guess q.1.1.2.2 (q.1.2, q.2, ())) := by
-        refine hadv.guess.preprocess (prepare :=
+        refine (hadv.guess.preprocess (prepare :=
           fun q : (((ℕ × List Bool) × (List Bool × List Bool) × σ) × List Bool) × Bool =>
-            ⟨q.1.1.1.1, q.1.1.2.2, q.1.1.1.1, q.1.2, q.2, ()⟩) ?_
+            ⟨q.1.1.1.1, q.1.1.2.2, q.1.1.1.1, q.1.2, q.2, ()⟩) ?_ :)
         exact encCHVZKGuessInput_mk_polyTime _ _ (by fun_prop) (by fun_prop) (by fun_prop)
           (by simpa only [prgWitnessEncoding] using (by fun_prop : ComputableInPolyTime
             (fun q : (((ℕ × List Bool) × (List Bool × List Bool) × σ) × List Bool) × Bool =>
@@ -528,7 +551,7 @@ theorem computationalSpecialHVZK_prgWitnessSigma
               (adversary p.1 p.1).guess out.2 (t, c, ()) := by
         refine hchoose.bind_with ?_
         refine IsPPTOn.bind_with (left := encBits) ?_ ?_
-        · exact IsPPTOn.cond' (by fun_prop) (by ppt) (by fun_prop)
+        · exact IsPPTOn.cond (by fun_prop) (by ppt) (by fun_prop)
         refine IsPPTOn.bind_with (left := encBool) (by ppt) ?_
         exact hguess
       refine hrun.congr fun ⟨n, word⟩ => congrArg ProbComp.eval ?_
@@ -793,11 +816,11 @@ example (guess : ℕ → List Bool → List Bool × List Bool × List Bool → P
         enc.challenge g.index g.challenge, enc.response g.index g.response) := by
   have hg : ComputableInPolyTime (fun g : CHVZKGuessInput I T C Z (List Bool) => g)
       (encCHVZKGuessInput enc encBits) (encCHVZKGuessInput enc encBits) := ComputableInPolyTime.id'
-  exact hguess.preprocess ((encCHVZKGuessInput_secParam_polyTime _ _ hg).prod
+  exact (hguess.preprocess ((encCHVZKGuessInput_secParam_polyTime _ _ hg).prod
     ((encCHVZKGuessInput_state_polyTime _ _ hg).prod
       ((encCHVZKGuessInput_commitment_polyTime _ _ hg).prod
         ((encCHVZKGuessInput_challenge_polyTime _ _ hg).prod
-          (encCHVZKGuessInput_response_polyTime _ _ hg)))))
+          (encCHVZKGuessInput_response_polyTime _ _ hg))))) :)
 
 end WordLevel
 

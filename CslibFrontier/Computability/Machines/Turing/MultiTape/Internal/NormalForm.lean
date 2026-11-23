@@ -12,11 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBoun
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Defs
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelNormalForm
-import CslibFrontier.Computability.Machines.Turing.MultiTape.TapeLemmas
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Deterministic
-import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
+import Mathlib.Tactic.TypeStar
 
 /-!
 # Internal machine normal forms for plain resource bounds
@@ -108,6 +104,18 @@ private theorem independentBounds {f : α → β} {T S : α → ℕ}
       have e₂ : (2 + 6 * k) * c * (S a + 1) = 2 * (c * (S a + 1)) + 6 * (k * (c * (S a + 1))) := by
         ring
       exact le_mul_succ (A := (2 + 6 * k) * c) (B := 2 * k * (2 * k + 3)) (by omega) (by omega)
+
+/-- Exact callback bounds normalize with independent multiplicative overheads. The positive
+constant absorbs control even when either original bound is zero. No output bound is required. -/
+theorem exactBounds {f : α → β} {t s : α → ℕ}
+    (h : ComputableInTimeAndSpace f encIn encMid t s) :
+    ∃ C, 1 ≤ C ∧ ∃ (k : ℕ) (State : Type) (_ : Finite State)
+      (tm : MultiTapeTM k Bool State), ∀ a,
+        tm.ComputesTidilyInTimeAndSpace (encIn a) (encMid (f a))
+          (C * (t a + 1)) (C * (s a + 1)) := by
+  apply independentBounds 1
+  simpa only [one_mul] using h.mono (fun a => Nat.le_succ (t a))
+    (fun a => Nat.le_succ (s a))
 
 /-- Independent asymptotic time/workspace bounds normalize without an output-length premise. -/
 theorem bigO {f : α → β} {T S : α → ℕ}

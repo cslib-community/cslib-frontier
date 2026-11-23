@@ -85,6 +85,9 @@ oracle for `B` within polynomial time [Ladner, Lynch and Selman][LadnerLynchSelm
   hardness across complementation between `NP` and `coNP`.
 * `Cslib.Complexity.PolyTimeHard.polyTimeTuringHard_of_turing`: transferring many-one hardness
   across a Turing reduction.
+* `Cslib.Complexity.PolyTimeTuringHard.trans`: transferring Turing hardness across a Turing
+  reduction from a word language; with membership in `NP` this is the Cook-reduction form of
+  [Goldreich, Proposition 2.20][Goldreich2008].
 * Hardness transfer to `P`:
   * `Cslib.Complexity.NPHard.P_eq_NP_of_turing_mem_P`: if an NP-hard problem Turing-reduces to a
     problem in `P`, then `P = NP`.
@@ -100,6 +103,7 @@ oracle for `B` within polynomial time [Ladner, Lynch and Selman][LadnerLynchSelm
 * [R. E. Ladner, N. A. Lynch, A. L. Selman, *A comparison of polynomial time
   reducibilities*][LadnerLynchSelman1975]
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
+* [O. Goldreich, *Computational Complexity: A Conceptual Perspective*][Goldreich2008]
 -/
 
 @[expose] public section
@@ -184,14 +188,14 @@ theorem isOraclePPTOn_queryWords :
     Probability.IsOraclePPTOn (encList encBits) encBits
       (fun words => OracleComp.interpret ProbOracleComp.query (queryWords words)) := by
   simp only [queryWords, OracleComp.interpret_map, OracleComp.interpret_iterate]
-  refine Probability.IsOraclePPTOn.map' (Probability.IsOraclePPTOn.iterate_of_bounded_growth'
+  refine Probability.IsOraclePPTOn.map (Probability.IsOraclePPTOn.iterate_of_bounded_growth
     (stateEncoding := encPair (encList encBits) encBits) (by fun_prop) (by fun_prop) ?_
     (growth := 0) ?_) (by fun_prop)
   · simp only [interpret_queryWordsStep]
-    refine Probability.IsOraclePPTOn.cond' (by fun_prop)
+    refine Probability.IsOraclePPTOn.cond (by fun_prop)
       (ComputableInPolyTime.id'.isOraclePPTOn) ?_
-    exact Probability.IsOraclePPTOn.map_with'
-      (Probability.IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop))
+    exact Probability.IsOraclePPTOn.map_with
+      (Probability.IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop))
       (by fun_prop)
   · intro state next hnext
     rw [interpret_queryWordsStep] at hnext
@@ -430,6 +434,18 @@ theorem PolyTimeHard.polyTimeTuringHard_of_turing {C : ∀ {α : Type}, (α ↪ 
     (hL : PolyTimeHard C encL L) (hLB : PolyTimeTuringReducible encL encB L B) :
     PolyTimeTuringHard C encB B :=
   HardUnder.trans (fun _ _ hr h_t => hr.trans_turing h_t) hL hLB
+
+/-- **Turing hardness transfers along Turing reductions** from a word language: if every problem
+of `C` Turing-reduces to `B ⊆ {0,1}*` and `B` Turing-reduces to `L`, then every problem of `C`
+Turing-reduces to `L`. With `C = NP` and `L ∈ NP`, this is the Cook-reduction form of
+[Goldreich, Proposition 2.20][Goldreich2008] (draft `r1.pdf` of 30 December 2006, PDF p. 103,
+printed p. 78), where NP-hardness allows arbitrary Cook reductions and problems are sets of bit
+strings. The intermediate problem is a word language because a Turing reduction to `B` under an
+encoding `encB` may ask about words outside the range of `encB`. -/
+theorem PolyTimeTuringHard.trans {C : ∀ {α : Type}, (α ↪ List Bool) → Set (Set α)}
+    {B : Set (List Bool)} (hB : PolyTimeTuringHard C encBits B)
+    (hBL : PolyTimeTuringReducible encBits encL B L) : PolyTimeTuringHard C encL L :=
+  HardUnder.trans (fun _ _ hr h => hr.trans h) hB hBL
 
 /-- **Hardness transfer to `P`**: if a problem hard for `C` under many-one reductions Turing-reduces
 to a problem `B ∈ P`, then `C ⊆ P`. -/

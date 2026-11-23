@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Primitives.PRF.Finite
 public import CslibFrontier.Foundations.Data.BitString.ShortWords
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 import CslibFrontier.Crypto.Negligible.Dyadic
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
 import CslibFrontier.Probability.PMF.UniformExtend
@@ -251,7 +252,7 @@ private theorem runWith_tracked_map_fst (f : X → T) (O : M → T) {α : Type}
   rw [ProbOracleComp.runWith_lift] at h
   have h' := congrArg (PMF.map Prod.fst) h
   rw [PMF.map_comp, PMF.map_comp] at h'
-  exact h'.trans (PMF.map_id _)
+  exact h'.trans ((PMF.map_id _).trans (OracleComp.evalWith_eq_interpret _ _))
 
 /-- The recorded keys of a run number at most the `O`-queries of the program. -/
 private theorem card_le_of_mem_support_runWith_tracked (f : X → T) (O : M → T) {α : Type}
@@ -259,6 +260,7 @@ private theorem card_le_of_mem_support_runWith_tracked (f : X → T) (O : M → 
     (hQ : OracleComp.IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) (fun _ => 1))) A Q)
     {z : α × Finset Key} (hz : z ∈ (ProbOracleComp.runWith (tracked encode f O) A ∅).support) :
     z.2.card ≤ Q := by
+  rw [ProbOracleComp.runWith_eq_run_interpret] at hz
   have h := OracleComp.IsCostBounded.measure_le hQ
     (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) (tracked encode f O))
     Finset.card (fun q S res S' hres => ?_) (s := ∅) (s' := z.2) (result := z.1) hz
@@ -436,17 +438,13 @@ theorem roAdvantage_const_simulate [Fintype Y] [Nonempty Y] (F : Key → X → Y
   have hreal : ProbComp.eval (roRealExperiment (M := M) (T := T) (fun _ => F)
       (ProbOracleComp.simulate (fun x => ProbOracleComp.query (Sum.inl x)) A)) =
       ProbComp.eval (realExperiment F A) := by
-    simp only [roRealExperiment, realExperiment, ProbComp.eval_bind, ProbComp.eval_uniform,
-      ProbOracleComp.run_simulate, ProbOracleComp.run_query]
-    exact PMF.bind_const (uniformOfFintype (M → T))
-      ((uniformOfFintype Key).bind fun key => (ProbOracleComp.run A fun x => pure (F key x)).eval)
+    simp only [roRealExperiment, realExperiment, ProbComp.eval_uniform, runWith_norm, pmf_norm,
+      PMF.bind_const]
   have hideal : ProbComp.eval (roIdealExperiment (M := M) (T := T)
       (ProbOracleComp.simulate (fun x => ProbOracleComp.query (Sum.inl x)) A)) =
       ProbComp.eval (idealExperiment A) := by
-    simp only [roIdealExperiment, idealExperiment, ProbComp.eval_bind, ProbComp.eval_uniform,
-      ProbOracleComp.run_simulate, ProbOracleComp.run_query]
-    exact PMF.bind_const (uniformOfFintype (M → T))
-      ((uniformOfFintype (X → Y)).bind fun f => (ProbOracleComp.run A fun x => pure (f x)).eval)
+    simp only [roIdealExperiment, idealExperiment, ProbComp.eval_uniform, runWith_norm, pmf_norm,
+      PMF.bind_const]
   rw [roAdvantage, advantage, hreal, hideal]
 
 /-- **Theorem 8.9, concrete bound** ([BonehShoup2023], Section 8.10.2, p. 329). If `encode` is

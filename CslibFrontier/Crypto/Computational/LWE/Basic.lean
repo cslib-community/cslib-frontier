@@ -94,24 +94,23 @@ namespace LWE
 /-! ### Encoded matrices -/
 
 /-- The deterministic LWE public matrix `[B * t + error | B]`. -/
-def publicMatrix {n m w : ℕ} (B : Matrix (Fin m) (Fin n) (ZMod (2 ^ w)))
-    (t : Fin n → ZMod (2 ^ w)) (error : Fin m → ZMod (2 ^ w)) :
-    Matrix (Fin m) (Fin (n + 1)) (ZMod (2 ^ w)) :=
+def publicMatrix {n m : ℕ} {R : Type} [CommRing R] (B : Matrix (Fin m) (Fin n) R)
+    (t : Fin n → R) (error : Fin m → R) : Matrix (Fin m) (Fin (n + 1)) R :=
   fun i => Fin.cons ((B *ᵥ t) i + error i) (B i)
 
 /-- Draw the public matrix `[B * t + e | B]`. The errors are independent of one another, of
 the uniform matrix, and of the uniform secret shared by all rows. -/
-noncomputable def publicMatrixLaw (n m w : ℕ) (noise : PMF (ZMod (2 ^ w))) :
-    PMF (Matrix (Fin m) (Fin (n + 1)) (ZMod (2 ^ w))) := do
-  let secret ← PMF.uniformOfFintype (Fin n → ZMod (2 ^ w))
-  let publicPart ← PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod (2 ^ w)))
+noncomputable def publicMatrixLaw {R : Type} [CommRing R] [Fintype R] [Nonempty R]
+    (n m : ℕ) (noise : PMF R) : PMF (Matrix (Fin m) (Fin (n + 1)) R) := do
+  let secret ← PMF.uniformOfFintype (Fin n → R)
+  let publicPart ← PMF.uniformOfFintype (Matrix (Fin m) (Fin n) R)
   let error ← PMF.pi (fun _ : Fin m => noise)
   return publicMatrix publicPart secret error
 
 /-- Binary decision-LWE samples, using `w` bits per residue and a uniform secret. -/
 noncomputable def realEnsemble (n m w : ℕ → ℕ)
     (noise : (security : ℕ) → PMF (ZMod (2 ^ w security))) (security : ℕ) : PMF (List Bool) :=
-  (publicMatrixLaw (n security) (m security) (w security) (noise security)).map Matrix.toBinary
+  (publicMatrixLaw (n security) (m security) (noise security)).map Matrix.toBinary
 
 /-- Encode a uniform matrix with exactly the real experiment's dimensions and modulus. -/
 noncomputable def uniformEnsemble (n m w : ℕ → ℕ) (security : ℕ) : PMF (List Bool) :=
@@ -256,6 +255,21 @@ theorem publicMatrix_eq_augmentedMatrix {n m w : ℕ} (B : Matrix (Fin m) (Fin n
     publicMatrix B t e = augmentedMatrix B (B *ᵥ t + e) :=
   rfl
 
+/-- Column `0` of row `i` of the word of `[b | A]` is `b i`. -/
+theorem binaryEntry_toBinary_augmentedMatrix_zero {n m w : ℕ}
+    (A : Matrix (Fin m) (Fin n) (ZMod (2 ^ w))) (b : Fin m → ZMod (2 ^ w)) (i : Fin m) :
+    (Matrix.binaryEntry (n + 1) w (Matrix.toBinary (augmentedMatrix A b)) i.val 0 :
+      ZMod (2 ^ w)) = b i := by
+  simpa [augmentedMatrix] using Matrix.binaryEntry_toBinary (augmentedMatrix A b) i 0
+
+/-- Column `j + 1` of row `i` of the word of `[b | A]` is `A i j`. -/
+theorem binaryEntry_toBinary_augmentedMatrix_succ {n m w : ℕ}
+    (A : Matrix (Fin m) (Fin n) (ZMod (2 ^ w))) (b : Fin m → ZMod (2 ^ w)) (i : Fin m)
+    (j : Fin n) :
+    (Matrix.binaryEntry (n + 1) w (Matrix.toBinary (augmentedMatrix A b)) i.val (j.val + 1) :
+      ZMod (2 ^ w)) = A i j := by
+  simpa [augmentedMatrix] using Matrix.binaryEntry_toBinary (augmentedMatrix A b) i j.succ
+
 /-! ### Distinguishers at modulus `2 ^ w` -/
 
 variable (n m w : ℕ → ℕ)
@@ -301,6 +315,24 @@ theorem encInput_apply (x : Input n m w) :
     encInput n m w x =
       frame (encUnary x.secParam) ++ Matrix.toBinary (augmentedMatrix x.matrix x.target) := by
   simp [encInput, Input.words, encPair, encBits]
+
+variable {n m w} in
+/-- The security parameter of a decision-LWE input is computable in polynomial time from its
+encoding. -/
+theorem computableInPolyTime_secParam :
+    ComputableInPolyTime (fun x : Input n m w => x.secParam) (encInput n m w) encUnary :=
+  (ComputableInPolyTime.fst encUnary encBits).comp
+    (ComputableInPolyTime.of_eq (f := Input.words) fun _ => rfl)
+
+variable {n m w} in
+/-- The word of the matrix `[b | A]` of a decision-LWE input is computable in polynomial time from
+its encoding. -/
+theorem computableInPolyTime_augmentedWord :
+    ComputableInPolyTime
+      (fun x : Input n m w => Matrix.toBinary (augmentedMatrix x.matrix x.target))
+      (encInput n m w) encBits :=
+  (ComputableInPolyTime.snd encUnary encBits).comp
+    (ComputableInPolyTime.of_eq (f := Input.words) fun _ => rfl)
 
 /-- A decision-LWE distinguisher: given the security parameter `κ`, a matrix `A` and a vector `b`
 of the dimensions and modulus at `κ`, it outputs a bit. `Distinguisher.IsPPT` states its

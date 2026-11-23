@@ -66,7 +66,7 @@ public section
 namespace Cslib.Complexity.CountingSimulation
 
 open Cslib.Circuits.Frontier Cslib.Circuits.Frontier.ContractionSchedule
-  Cslib.Circuits.Frontier.EntryContraction Cslib.GenericRAM Cslib.GenericRAM.StackRecursion
+  Cslib.Circuits.Frontier.EntryContraction Cslib.GenericRAM Cslib.Algorithms.StackRecursion
   Turing.MultiTapeTM
 open Cslib.Circuits.Frontier.FastContraction (Call Reach reachInv scheme nativeMk value encCall
   encFrame encValue leafCertificate modulus active OnSchedule fuelConst)

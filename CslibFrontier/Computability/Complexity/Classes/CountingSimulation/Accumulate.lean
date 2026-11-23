@@ -125,7 +125,8 @@ theorem exists_computableInO_modSum {encC : C ↪ List Bool}
   have hno : ComputableInPolyTime (fun p : ℕ × (C × ℕ) => p.2)
       (encPair encNat (encPair encC encNat)) (encPair encC encNat) := by fun_prop
   have hadd : ComputableInPolyTime (fun q : ℕ × ℕ × ℕ => (q.1 + q.2.1) % q.2.2)
-      (encPair encNat (encPair encNat encNat)) encNat := by fun_prop
+      (encPair encNat (encPair encNat encNat)) encNat := by
+    exact ComputableInPolyTime.binary_mod' (by fun_prop) (by fun_prop)
   have hinit : ComputableInPolyTime (fun c : C => (c, 0)) encC (encPair encC encNat) := by
     fun_prop
   -- The round: a test, then either the addition or nothing.

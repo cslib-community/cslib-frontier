@@ -57,10 +57,10 @@ theorem exists_common_seedLength {sourceBits observationBound densityBound : ℕ
       StrictMono common ∧ (∀ n, n + 1 ≤ common n) ∧
       ∀ n index, index < size (sourceBits n) (densityBound n) →
         seedLength n (sourceBits n) (observationBound n) (densityBound n) index ≤ common n := by
-  have hsize := (isPolyTime_size hsource hdensity).tidy.polynomiallyBounded
+  have hsize := (isPolyTime_size hsource hdensity).polynomiallyBounded
   have h1 := ComputableInPolyTime.fst encUnary encUnary
   have hseed := (isPolyTime_seedLength h1 (h1.trans hsource) (h1.trans hobservation)
-    (h1.trans hdensity) (.snd _ _)).tidy
+    (h1.trans hdensity) (.snd _ _))
   obtain ⟨c, d, hbound⟩ := hseed.indexed_polynomial_bound
     (f := fun n index => seedLength n (sourceBits n) (observationBound n) (densityBound n) index)
     hsize

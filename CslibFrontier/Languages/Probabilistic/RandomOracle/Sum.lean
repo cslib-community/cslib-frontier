@@ -205,6 +205,7 @@ theorem run_interpret_memoizeSum_liftLeft (dist₁ : ι₁ → PMF R₁) (dist�
   induction prog using OracleComp.induction generalizing tr₁ with
   | pure a => simp [PMF.monad_pure_eq_pure]
   | query_bind q cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     simp only [liftLeft_bind, liftLeft_query, run_interpret_bind, run_interpret_query,
       memoizeSum_inl, PMF.monad_bind_eq_bind, PMF.bind_map, PMF.map_bind, Function.comp_def]
     exact congrArg (PMF.bind _) (funext fun ⟨ans, tr₁'⟩ => ih ans tr₁')
@@ -219,6 +220,7 @@ theorem run_interpret_memoizeSum_liftRight (dist₁ : ι₁ → PMF R₁) (dist�
   induction prog using OracleComp.induction generalizing tr₂ with
   | pure a => simp [PMF.monad_pure_eq_pure]
   | query_bind q cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     simp only [liftRight_bind, liftRight_query, run_interpret_bind, run_interpret_query,
       memoizeSum_inr, PMF.monad_bind_eq_bind, PMF.bind_map, PMF.map_bind, Function.comp_def]
     exact congrArg (PMF.bind _) (funext fun ⟨ans, tr₂'⟩ => ih ans tr₂')
@@ -252,6 +254,7 @@ theorem run_interpret_memoizeSum (dist₁ : ι₁ → PMF R₁) (dist₂ : ι₂
         (fun (res, st') => (res, Cache.sum (ofList st'.1) (ofList st'.2))) =
       runWith (answer (sumHandler (spec₁ := fun _ : ι₁ => R₁) (spec₂ := fun _ : ι₂ => R₂)
         dist₁ dist₂)) prog (Cache.sum (ofList st.1) (ofList st.2)) := by
+  rw [runWith_eq_run_interpret]
   refine run_interpret_map_state _ _ (fun st => Cache.sum (ofList st.1) (ofList st.2)) ?_ prog st
   rintro (q | q) ⟨tr₁, tr₂⟩
   · rw [memoizeSum_inl, PMF.map_comp, answer_sum_inl, ← memoize_map_ofList, PMF.map_comp]

@@ -143,8 +143,7 @@ private theorem sound_arith (c B N κ : ℕ) (hc : 0 < c)
   unfold threshold
   generalize Nat.clog 2 (6 * c * (B + 1)) = e at h2 ⊢
   have hμ : 6 * c * (B + 1) * 2 ^ e ≤ 72 * c ^ 2 * (B + 1) ^ 2 := by
-    calc 6 * c * (B + 1) * 2 ^ e ≤ 6 * c * (B + 1) * (2 * (6 * c * (B + 1))) :=
-          Nat.mul_le_mul_left _ h2.le
+    calc 6 * c * (B + 1) * 2 ^ e ≤ 6 * c * (B + 1) * (2 * (6 * c * (B + 1))) := by gcongr
       _ = 72 * c ^ 2 * (B + 1) ^ 2 := by ring
   have hN' : 6 * ((6 * c * (B + 1) * 2 ^ e) ^ c * N) ≤ 2 ^ κ :=
     calc 6 * ((6 * c * (B + 1) * 2 ^ e) ^ c * N) ≤ 6 * ((72 * c ^ 2 * (B + 1) ^ 2) ^ c * N) := by

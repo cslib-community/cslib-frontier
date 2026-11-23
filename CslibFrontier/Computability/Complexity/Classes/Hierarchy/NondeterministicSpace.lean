@@ -19,7 +19,7 @@ import CslibFrontier.Computability.Complexity.Classes.Hierarchy.SpaceDiagonalBou
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.Complement
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.Savitch
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OPrimitives
 import CslibFrontier.Foundations.Data.Nat.AffineBound
 import Mathlib.Tactic.Linarith
@@ -71,8 +71,6 @@ The gap `f = o(g)` and the lower bound `log n ≤ g n` are those of the determin
 
 ## Main results
 
-* `Turing.MultiTapeTM.Universal.accepts_iff_bAccepts_descN`: a machine within `S` cells accepts
-  exactly when its description accepts within any budget at least the size of its configurations.
 * `Cslib.Complexity.not_recognizesInSpace_nspaceDiagonal`: no nondeterministic machine recognizes
   the diagonal within space `O(f)`.
 * `Cslib.Complexity.nspaceDiagonal_notMem_NSPACE`, `Cslib.Complexity.nspaceDiagonal_mem_NSPACE`:
@@ -91,22 +89,6 @@ The gap `f = o(g)` and the lower bound `log n ≤ g n` are those of the determin
 -/
 
 public section
-
-namespace Turing.MultiTapeTM.Universal
-
-/-- **A machine within `S` cells accepts exactly when its description accepts within a budget**
-`b` at least the size bound `Turing.MultiTapeTM.Universal.cfgSpaceBound` of its configurations. -/
-theorem accepts_iff_bAccepts_descN {k : ℕ} {State : Type} [Finite State] (eS : State ↪ ℕ)
-    (ntm : MultiTapeNTM k Bool State) {input : List Bool} {S b : ℕ}
-    (hS : ntm.RunsInSpace input S)
-    (hb : cfgSpaceBound (descLen (descN eS eBit ntm)) input.length k S ≤ b) :
-    ntm.Accepts input ↔ BAccepts (descN eS eBit ntm) (input.map eBit) b := by
-  refine ⟨fun h => BAccepts.mono ((accepts_iff_reflTransGen_nStep_fits eS ntm input hS).mp h) hb,
-    fun h => ?_⟩
-  obtain ⟨s, hs, hr⟩ := h.exists_reflTransGen_nStep
-  exact (accepts_iff_reflTransGen_nStep eS ntm input).mpr ⟨s, hs, hr⟩
-
-end Turing.MultiTapeTM.Universal
 
 namespace Cslib.Complexity
 

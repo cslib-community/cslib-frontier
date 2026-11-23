@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Structured
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Native programs in a caller-owned memory window
@@ -182,7 +183,7 @@ theorem exec_compileOp {w W b : ℕ} {o : Op .standard r} {x x' : Data r}
   | load d a =>
     simp only [Op.eval, Option.some.injEq] at he
     subst x'
-    have ha : Fits W (b + x.regs a) := hfit.of_le (by have := hx.1 a; unfold Fits at this; omega)
+    have ha : Fits W (b + x.regs a) := hfit.of_le (by have := hx.1 a; wram_omega [this])
     have hz : Matches w b x (y.set Reg.address (b + x.regs a)) := hxy.address _
     have hfm : Fits W (x.mem (x.regs a)) := (hx.2 (x.regs a)).mono hw
     unfold compileOp
@@ -193,7 +194,7 @@ theorem exec_compileOp {w W b : ℕ} {o : Op .standard r} {x x' : Data r}
   | store a s =>
     simp only [Op.eval, Option.some.injEq] at he
     subst x'
-    have ha : Fits W (b + x.regs a) := hfit.of_le (by have := hx.1 a; unfold Fits at this; omega)
+    have ha : Fits W (b + x.regs a) := hfit.of_le (by have := hx.1 a; wram_omega [this])
     have hz : Matches w b x (y.set Reg.address (b + x.regs a)) := hxy.address _
     unfold compileOp
     wram_exec [hxy.base_eq, hxy.regs, ha]
@@ -201,8 +202,7 @@ theorem exec_compileOp {w W b : ℕ} {o : Op .standard r} {x x' : Data r}
     intro j hj
     have hja : j ≠ b + x.regs a := by
       have := hx.1 a
-      unfold Fits at this
-      omega
+      wram_omega [this]
     exact Function.update_of_ne hja _ _
 
 private theorem Matches.holds {w b : ℕ} {x : Data r} {y : Data (r + 3)}

@@ -1,0 +1,215 @@
+/-
+Copyright (c) 2026 Jesse Alama. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Jesse Alama
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.DataStructure.BPlusTree.Lookup
+public import CslibFrontier.Foundations.Data.List.SortedAssoc.Flatten
+
+/-!
+# Range queries in B+-trees
+
+`rangeM lo hi` returns the entries whose keys lie in the closed interval `[lo, hi]`, in key
+order. At an interior node it walks along the separators. The child before a separator `s` holds
+keys below `s`, so it is entered only when `s` is not at most `lo`; the children after `s` hold
+keys that are at least `s`, so the walk goes on only while `s` is at most `hi`. That is two
+comparisons per separator reached. In a leaf it runs the scan `Cslib.SortedAssoc.rangeM` of the
+entry list. `visit` fires once at each node entered, the leaves included. Costs are not stated
+here.
+
+The walk enters children one after another; it does not follow a chain of leaves. What a chained
+implementation would return is described by `range_eq_flatten_run`: the output is the
+restriction of a contiguous run of leaves, every leaf of the run contributes, and every leaf of
+the run other than its first and last is returned whole.
+
+## Main definitions
+
+* `rangeM`, `range`: restriction to a closed interval of keys.
+
+## Main results
+
+* `map_rangeM`: a monad morphism commutes with the query.
+* `range_eq`: on a well-formed tree, `range` is `SortedAssoc.range` on `toList`.
+* `Occupied.ne_nil_of_mem_leaves`: an occupied tree has no empty leaf when `2 ≤ t`.
+* `range_eq_flatten_run`: on a well-formed tree, the output is the restriction of a contiguous
+  run of leaves whose interior leaves are returned whole.
+-/
+
+public section
+
+universe w
+
+namespace Cslib.DataStructure
+
+namespace BPlusTree
+
+open Cslib.SortedAssoc (leI)
+
+section Polymorphic
+
+variable {α β : Type} {m : Type → Type w} [Monad m]
+
+/-- Entries with key in the closed interval `[lo, hi]`. Walk along the separators of a node:
+enter the child before a separator unless the separator is at most `lo`, and go on past the
+separator only when it is at most `hi`; in a leaf, scan the entries. `visit` fires once at each
+node entered, when the walk along its separators ends. -/
+@[expose] def rangeM (le : α → α → m Bool) (visit : m Unit) (lo hi : α) :
+    BPlusTree α β → m (List (α × β))
+  | .leaf entries => do
+    visit
+    SortedAssoc.rangeM le lo hi entries
+  | .node first [] => do
+    visit
+    rangeM le visit lo hi first
+  | .node first ((s, c) :: rest) => do
+    let below ← if ← le s lo then pure [] else rangeM le visit lo hi first
+    if ← le s hi then
+      return below ++ (← rangeM le visit lo hi (.node c rest))
+    else
+      visit
+      pure below
+termination_by tr => sizeOf tr
+
+end Polymorphic
+
+section Transfer
+
+open Cslib (IsMonadHom)
+
+variable {α β : Type} {m n : Type → Type*} [Monad m] [Monad n]
+  {f : {γ : Type} → m γ → n γ}
+
+/-- A monad morphism commutes with the range query. -/
+theorem map_rangeM (hf : IsMonadHom m n f) (le : α → α → m Bool) (visit : m Unit) (lo hi : α)
+    (tr : BPlusTree α β) :
+    f (rangeM le visit lo hi tr) = rangeM (fun a b => f (le a b)) (f visit) lo hi tr := by
+  fun_induction rangeM le visit lo hi tr <;>
+    simp [rangeM, hf.map_bind, hf.map_pure, apply_ite f, SortedAssoc.map_rangeM hf, *]
+
+end Transfer
+
+section Pure
+
+variable {α β : Type} [LinearOrder α] {t : ℕ} {tr : BPlusTree α β}
+
+/-- Pure range restriction: the `Id` instantiation of `rangeM` with `visit := pure ()`. -/
+def range (lo hi : α) (tr : BPlusTree α β) : List (α × β) :=
+  Id.run (rangeM leI (pure ()) lo hi tr)
+
+/-- `range` is the `Id` instantiation of `rangeM`. -/
+theorem range_def (lo hi : α) : range lo hi tr = Id.run (rangeM leI (pure ()) lo hi tr) := (rfl)
+
+/-- Range restriction of a leaf is the scan of its entries. -/
+theorem range_leaf (lo hi : α) (entries : List (α × β)) :
+    range lo hi (.leaf entries) = Id.run (SortedAssoc.rangeM leI lo hi entries) := by
+  simp [range, rangeM]
+
+/-- Range restriction of a node without separators is that of its only child. -/
+@[simp] theorem range_node_nil (lo hi : α) (first : BPlusTree α β) :
+    range lo hi (.node first []) = range lo hi first := by
+  simp [range, rangeM]
+
+/-- Range restriction at a node's first separator: the child before it contributes unless the
+separator is at most `lo`, and what follows it contributes when the separator is at most `hi`. -/
+theorem range_node_cons (lo hi s : α) (first c : BPlusTree α β) (rest : List (Branch α β)) :
+    range lo hi (.node first ((s, c) :: rest)) =
+      (if s ≤ lo then [] else range lo hi first) ++
+        if s ≤ hi then range lo hi (.node c rest) else [] := by
+  by_cases h₁ : s ≤ lo <;> by_cases h₂ : s ≤ hi <;> simp [range, rangeM, leI, h₁, h₂]
+
+/-- Range restriction against the model, under what the walk uses: the separator convention,
+sorted entries, and occupied children at `2 ≤ t`. -/
+private theorem range_eq_of (ht : 2 ≤ t) (lo hi : α) :
+    ∀ tr : BPlusTree α β, Separated tr → tr.toList.IsSortedAssoc →
+      (∀ c ∈ tr.children, Occupied t c) → range lo hi tr = SortedAssoc.range lo hi tr.toList
+  | .leaf entries, _, hs, _ => by
+    rw [range_leaf, toList_leaf]
+    exact SortedAssoc.idRun_rangeM (by simpa using hs) lo hi
+  | .node first [], hp, hs, ho => by
+    have hf : Occupied t first := ho first (by simp)
+    rw [range_node_nil,
+      range_eq_of ht lo hi first hp.first (by simpa using hs) fun c hc => hf.of_mem_children hc]
+    simp
+  | .node first ((s, c) :: rest), hp, hs, ho => by
+    have hf : Occupied t first := ho first (by simp)
+    have hc : Occupied t c := ho c (by simp)
+    have hs' := hs
+    rw [toList_node_cons, List.isSortedAssoc_append_iff] at hs'
+    rw [range_node_cons, toList_node_cons, SortedAssoc.range_append]
+    congr 1
+    · by_cases h₁ : s ≤ lo
+      · simp only [h₁, ↓reduceIte]
+        exact (SortedAssoc.range_eq_nil_iff.2 fun p hp' => Or.inl (lt_of_lt_of_le
+          (hp.lt_of_mem_first (e := (s, c)) List.mem_cons_self hp') h₁)).symm
+      · simp only [h₁, ↓reduceIte]
+        exact range_eq_of ht lo hi first hp.first hs'.1 fun d hd => hf.of_mem_children hd
+    · by_cases h₂ : s ≤ hi
+      · simp only [h₂, ↓reduceIte]
+        exact range_eq_of ht lo hi (.node c rest) hp.tail hs'.2.1 fun d hd => ho d (by
+          simp only [children_node, List.map_cons, List.mem_cons] at hd ⊢
+          exact Or.inr hd)
+      · simp only [h₂, ↓reduceIte]
+        exact (SortedAssoc.range_eq_nil_iff.2 fun q hq => Or.inr (lt_of_lt_of_le
+          (lt_of_not_ge h₂) (hp.le_of_mem_tail hs (hc.size_pos ht) hq))).symm
+termination_by tr => sizeOf tr
+
+/-- Model equation of range restriction on well-formed trees. -/
+theorem range_eq (h : IsWF t tr) (lo hi : α) :
+    range lo hi tr = SortedAssoc.range lo hi tr.toList :=
+  range_eq_of h.two_le lo hi tr h.separated h.sorted h.occupied_of_mem_children
+
+omit [LinearOrder α] in
+/-- An occupied tree has no empty leaf when `2 ≤ t`. -/
+theorem Occupied.ne_nil_of_mem_leaves (ht : 2 ≤ t) (ho : Occupied t tr) :
+    ∀ l ∈ tr.leaves, l ≠ [] := by
+  induction tr with
+  | leaf entries =>
+    intro l hl
+    have := ho.le_width
+    simp only [leaves_leaf, List.mem_singleton] at hl
+    simp only [width_leaf] at this
+    subst hl
+    exact List.ne_nil_of_length_pos (by omega)
+  | node first rest ih₁ ih₂ =>
+    intro l hl
+    simp only [leaves_node, leavesRest_eq_flatMap, List.mem_append, List.mem_flatMap] at hl
+    rcases hl with hl | ⟨e, he, hl⟩
+    · exact ih₁ ho.first l hl
+    · exact ih₂ e he (ho.of_mem_children (by
+        simp only [children_node, List.mem_cons, List.mem_map]
+        exact Or.inr ⟨e, he, rfl⟩)) l hl
+
+/-- On a well-formed tree, the output of a range query is the restriction of a contiguous run of
+leaves in which every leaf contributes and every leaf other than the first and last is returned
+whole. Without the last two conjuncts the run could be all of `leaves`. -/
+theorem range_eq_flatten_run (h : IsWF t tr) (lo hi : α) :
+    ∃ pre run post : List (List (α × β)), tr.leaves = pre ++ run ++ post ∧
+      range lo hi tr = (run.map (SortedAssoc.range lo hi)).flatten ∧
+      (∀ l ∈ run, SortedAssoc.range lo hi l ≠ []) ∧
+      ∀ l ∈ (run.drop 1).dropLast, SortedAssoc.range lo hi l = l := by
+  rw [range_eq h]
+  by_cases hne : ∀ l ∈ tr.leaves, l ≠ []
+  · exact SortedAssoc.exists_run_range_flatten h.sorted hne lo hi
+  · cases tr with
+    | leaf entries =>
+      have he : entries = [] := by simpa using hne
+      subst he
+      exact ⟨[[]], [], [], by simp, by simp, by simp, by simp⟩
+    | node first rest =>
+      refine absurd (fun l hl => ?_) hne
+      simp only [leaves_node, leavesRest_eq_flatMap, List.mem_append, List.mem_flatMap] at hl
+      rcases hl with hl | ⟨e, he, hl⟩
+      · exact (h.occupied_of_mem_children first (by simp)).ne_nil_of_mem_leaves h.two_le l hl
+      · exact (h.occupied_of_mem_children e.child (by
+          simp only [children_node, List.mem_cons, List.mem_map]
+          exact Or.inr ⟨e, he, rfl⟩)).ne_nil_of_mem_leaves h.two_le l hl
+
+end Pure
+
+end BPlusTree
+
+end Cslib.DataStructure

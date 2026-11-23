@@ -514,7 +514,7 @@ theorem PiP_three_subset_SigmaP_three_of_coBH_subset_BH {k : ℕ}
     (h : coBH (encPair enc encBits) k ⊆ BH (encPair enc encBits) k) :
     PiP 3 enc ⊆ SigmaP 3 enc := by
   rintro A ⟨ps, V, hps, hV, hAV⟩
-  rcases ps with _ | ⟨p₁, _ | ⟨p₂, _ | ⟨p₃, _ | _⟩⟩⟩ <;> try cases hps
+  rcases ps with _ | ⟨p₁, _ | ⟨p₂, _ | ⟨p₃, _ | _⟩⟩⟩ <;> cases hps
   let E : Set (α × List Bool) :=
     {y | ∃ u₃ : List Bool, u₃.length = p₃.eval (enc y.1).length ∧ (!V (y.1, y.2 ++ u₃)) = true}
   have hE : E ∈ NP (encPair enc encBits) :=

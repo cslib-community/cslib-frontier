@@ -9,6 +9,9 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.WindowOps
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctHash
+import CslibFrontier.DataStructure.Dictionary.WordRAM.PackedSlice
+import CslibFrontier.Tactic.StrideOmega
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Metadata Frame Laws, Circular-Window Effects, and Compacted Slot Resolution
@@ -69,49 +72,51 @@ theorem compLmAt_congr {metaBase U w N : ℕ} (hw : 0 < w) {mem₁ mem₂ : ℕ 
     (h : ∀ addr, metaBase + offCompLM U w N ≤ addr ∧ addr < metaBase + offCompGM U w N →
       mem₁ addr = mem₂ addr) :
     compLmAt metaBase U w N mem₁ = compLmAt metaBase U w N mem₂ := by
-  funext ⟨c, idx⟩
-  unfold compLmAt; dsimp only
+  funext ⟨c, idx⟩; unfold compLmAt; dsimp only
   split_ifs with hc
-  · refine readPacked_congr hw (fun addr haddr => h addr ?_) hc.2
-    have hmul : (c + 1) * lmSubWords N w ≤ 9 * lmSubWords N w :=
-      Nat.mul_le_mul_right _ hc.1
-    rw [Nat.add_one_mul] at hmul
-    unfold offCompGM offCompLMSub lmSubWords at *
-    omega
+  · exact readPacked_congr hw (fun addr haddr => h addr (by stride_omega)) hc.2
   · rfl
 
 theorem compGmAt_congr {metaBase U w N : ℕ} (hw : 0 < w) {mem₁ mem₂ : ℕ → ℕ}
     (h : ∀ addr, metaBase + offCompGM U w N ≤ addr ∧ addr < metaBase + offTailToDense U w N →
       mem₁ addr = mem₂ addr) :
-    compGmAt metaBase U w N mem₁ = compGmAt metaBase U w N mem₂ := by
-  funext idx
-  unfold compGmAt
-  split_ifs with hidx
-  · refine readPacked_congr hw (fun addr haddr => h addr ?_) hidx
-    unfold offTailToDense at *; omega
-  · rfl
+    compGmAt metaBase U w N mem₁ = compGmAt metaBase U w N mem₂ :=
+  packedView_congr hw (fun addr haddr => h addr (by wram_omega))
 
 theorem compTDAt_congr {metaBase U w N : ℕ} (hw : 0 < w) {mem₁ mem₂ : ℕ → ℕ}
     (h : ∀ addr, metaBase + offTailToDense U w N ≤ addr ∧ addr < metaBase + offDenseToTail U w N →
       mem₁ addr = mem₂ addr) :
-    compTDAt metaBase U w N mem₁ = compTDAt metaBase U w N mem₂ := by
-  funext t
-  unfold compTDAt
-  split_ifs with ht
-  · refine readPacked_congr hw (fun addr haddr => h addr ?_) ht
-    unfold offDenseToTail at *; omega
-  · rfl
+    compTDAt metaBase U w N mem₁ = compTDAt metaBase U w N mem₂ :=
+  packedView_congr hw (fun addr haddr => h addr (by wram_omega))
 
 theorem compDTAt_congr {metaBase U w N : ℕ} (hw : 0 < w) {mem₁ mem₂ : ℕ → ℕ}
     (h : ∀ addr, metaBase + offDenseToTail U w N ≤ addr ∧ addr < metaBase + offCompItems U w N →
       mem₁ addr = mem₂ addr) :
-    compDTAt metaBase U w N mem₁ = compDTAt metaBase U w N mem₂ := by
-  funext r
-  unfold compDTAt
-  split_ifs with hr
-  · refine readPacked_congr hw (fun addr haddr => h addr ?_) hr
-    unfold offCompItems at *; omega
-  · rfl
+    compDTAt metaBase U w N mem₁ = compDTAt metaBase U w N mem₂ :=
+  packedView_congr hw (fun addr haddr => h addr (by wram_omega))
+
+/-- Monotonicity chain of the five contiguous compacted-epoch section offsets. -/
+private theorem offComp_mono (U w N : ℕ) :
+    offCompLM U w N ≤ offCompGM U w N ∧
+    offCompGM U w N ≤ offTailToDense U w N ∧
+    offTailToDense U w N ≤ offDenseToTail U w N ∧
+    offDenseToTail U w N ≤ offCompItems U w N :=
+  ⟨Nat.le_add_right _ _, Nat.le_add_right _ _, Nat.le_add_right _ _, Nat.le_add_right _ _⟩
+
+/-- Any memory modification preserving every word strictly below `itemBase`
+(with `metaBase + offCompItems ≤ itemBase`) leaves all four metadata views unchanged. -/
+private theorem compMeta_frame_of_lt {metaBase itemBase U w N : ℕ} (hw : 0 < w)
+    (hitem : metaBase + offCompItems U w N ≤ itemBase) {mem mem' : ℕ → ℕ}
+    (h : ∀ a, a < itemBase → mem' a = mem a) :
+    compLmAt metaBase U w N mem' = compLmAt metaBase U w N mem ∧
+    compGmAt metaBase U w N mem' = compGmAt metaBase U w N mem ∧
+    compTDAt metaBase U w N mem' = compTDAt metaBase U w N mem ∧
+    compDTAt metaBase U w N mem' = compDTAt metaBase U w N mem := by
+  have ⟨h0, h1, h2, h3⟩ := offComp_mono U w N
+  exact ⟨compLmAt_congr hw fun a ha => h a (by omega),
+    compGmAt_congr hw fun a ha => h a (by omega),
+    compTDAt_congr hw fun a ha => h a (by omega),
+    compDTAt_congr hw fun a ha => h a (by omega)⟩
 
 /-- Updating `LocalMeta[c, idx] := val` updates `compLmAt` via `Function.update` and preserves
 all other metadata views, dense item views (`metaBase + offCompItems ≤ itemBase`), and outside
@@ -130,47 +135,38 @@ theorem writeCompLM_effect {metaBase itemBase U V w N m_items idx val : ℕ} (c 
     (∀ a, ¬(metaBase + offCompLM U w N ≤ a ∧ a < metaBase + offCompGM U w N) →
       mem' a = mem a) := by
   intro mem'
-  have hout : ∀ a, ¬(metaBase + offCompLM U w N ≤ a ∧ a < metaBase + offCompGM U w N) →
-      mem' a = mem a := fun a ha => by
-    refine writePacked_outside hw mem hidx val (fun hin => ha ?_)
-    have hmul : (c.val + 1) * lmSubWords N w ≤ 9 * lmSubWords N w :=
-      Nat.mul_le_mul_right _ c.isLt
-    rw [Nat.add_one_mul] at hmul
-    unfold offCompGM offCompLMSub lmSubWords at *; omega
+  have hw_out := writePacked_writeOutside (base := metaBase + offCompLMSub U w N c.val)
+    (k := effBucketPosBits N) (val := val) hw hidx (lo := metaBase + offCompLM U w N)
+    (hi := metaBase + offCompGM U w N) (by wram_omega) (by stride_omega) mem
   have hlm : compLmAt metaBase U w N mem' =
       Function.update (compLmAt metaBase U w N mem) (c.val, idx) val := by
     funext ⟨c', idx'⟩
     by_cases hci : (c', idx') = (c.val, idx)
     · injection hci with hc_eq hidx_eq; subst hc_eq hidx_eq
-      rw [Function.update_self]
-      unfold compLmAt; simp only [c.isLt, hidx, and_self, ↓reduceIte]
+      rw [Function.update_self]; unfold compLmAt
+      simp only [c.isLt, hidx, and_self, ↓reduceIte]
       exact readPacked_writePacked_self _ _ _ _ _ hval
-    · rw [Function.update_of_ne hci]
-      unfold compLmAt; dsimp only
+    · rw [Function.update_of_ne hci]; unfold compLmAt; dsimp only
       split_ifs with hc'
       · by_cases hce : c' = c.val
         · subst hce
           exact readPacked_writePacked_of_ne hw mem (fun h => hci (Prod.ext rfl h)) val
-        · refine readPacked_congr hw (fun addr haddr => ?_) hc'.2
-          refine writePacked_outside hw mem hidx val (fun hin => ?_)
-          rcases lt_or_gt_of_ne hce with hlt | hgt
-          · have hmul := Nat.mul_le_mul_right (lmSubWords N w) hlt
-            rw [Nat.add_one_mul] at hmul
-            unfold offCompLMSub lmSubWords at *; omega
-          · have hmul := Nat.mul_le_mul_right (lmSubWords N w) hgt
-            rw [Nat.add_one_mul] at hmul
-            unfold offCompLMSub lmSubWords at *; omega
+        · have hdisj : DisjointIntervals (metaBase + offCompLMSub U w N c')
+              (metaBase + offCompLMSub U w N c' +
+                packedWords (totalMicroBuckets N) (effBucketPosBits N) w)
+              (metaBase + offCompLMSub U w N c.val)
+              (metaBase + offCompLMSub U w N c.val +
+                packedWords (totalMicroBuckets N) (effBucketPosBits N) w) := by
+            rcases lt_or_gt_of_ne hce with _ | _ <;> [left; right] <;> stride_omega
+          simpa [hc'.2] using
+            congrFun (packedView_writePacked_disjoint hw hidx hdisj mem (val := val)) idx'
       · rfl
-  have h1 : offCompGM U w N ≤ offTailToDense U w N := Nat.le_add_right _ _
-  have h2 : offTailToDense U w N ≤ offDenseToTail U w N := Nat.le_add_right _ _
-  have h3 : offDenseToTail U w N ≤ offCompItems U w N := Nat.le_add_right _ _
-  exact ⟨hlm,
-    compGmAt_congr hw (fun a ha => hout a (by omega)),
-    compTDAt_congr hw (fun a ha => hout a (by omega)),
-    compDTAt_congr hw (fun a ha => hout a (by omega)),
-    compQuotAt_congr hw (fun a ha => hout a (by omega)),
-    compValAt_congr hw (fun a ha => hout a (by omega)),
-    hout⟩
+  have ⟨_, h1, h2, h3⟩ := offComp_mono U w N
+  exact ⟨hlm, compGmAt_congr hw (hw_out.eq_on_disjoint (Or.inl le_rfl)),
+    compTDAt_congr hw (hw_out.eq_on_disjoint (Or.inl (by omega))),
+    compDTAt_congr hw (hw_out.eq_on_disjoint (Or.inl (by omega))),
+    compQuotAt_congr hw fun a ha => hw_out.eq_outside a (by omega),
+    compValAt_congr hw fun a ha => hw_out.eq_outside a (by omega), hw_out.eq_outside⟩
 
 /-- Updating `GlobalMeta[idx] := val` updates `compGmAt` via `Function.update` and preserves all
 other views and outside memory. -/
@@ -186,29 +182,17 @@ theorem writeCompGM_effect {metaBase itemBase U V w N m_items idx val : ℕ}
     compValAt itemBase U V w N m_items mem' = compValAt itemBase U V w N m_items mem ∧
     (∀ a, ¬(metaBase + offCompGM U w N ≤ a ∧ a < metaBase + offTailToDense U w N) →
       mem' a = mem a) := by
-  intro mem'
-  have hout : ∀ a, ¬(metaBase + offCompGM U w N ≤ a ∧ a < metaBase + offTailToDense U w N) →
-      mem' a = mem a := fun a ha =>
-    writePacked_outside hw mem hidx val (fun hin => ha (by unfold offTailToDense; omega))
-  have hgm : compGmAt metaBase U w N mem' =
-      Function.update (compGmAt metaBase U w N mem) idx val := by
-    funext idx'
-    by_cases heq : idx' = idx
-    · subst heq; rw [Function.update_self]; unfold compGmAt; simp only [hidx, ↓reduceIte]
-      exact readPacked_writePacked_self _ _ _ _ _ hval
-    · rw [Function.update_of_ne heq]; unfold compGmAt; split_ifs with hlt
-      · exact readPacked_writePacked_of_ne hw mem heq val
-      · rfl
-  have h0 : offCompLM U w N ≤ offCompGM U w N := Nat.le_add_right _ _
-  have h2 : offTailToDense U w N ≤ offDenseToTail U w N := Nat.le_add_right _ _
-  have h3 : offDenseToTail U w N ≤ offCompItems U w N := Nat.le_add_right _ _
-  exact ⟨hgm,
-    compLmAt_congr hw (fun a ha => hout a (by omega)),
-    compTDAt_congr hw (fun a ha => hout a (by omega)),
-    compDTAt_congr hw (fun a ha => hout a (by omega)),
-    compQuotAt_congr hw (fun a ha => hout a (by omega)),
-    compValAt_congr hw (fun a ha => hout a (by omega)),
-    hout⟩
+  have hw_out := writePacked_writeOutside (base := metaBase + offCompGM U w N)
+    (k := globalPtrBits N) (val := val) hw hidx (lo := metaBase + offCompGM U w N)
+    (hi := metaBase + offTailToDense U w N) le_rfl (by wram_omega) mem
+  have ⟨h0, _, h2, h3⟩ := offComp_mono U w N
+  exact ⟨readPacked_writePacked_bounded hw hidx hval mem,
+    compLmAt_congr hw (hw_out.eq_on_disjoint (Or.inr (by omega))),
+    packedView_writePacked_disjoint hw hidx (Or.inr (by wram_omega)) mem,
+    packedView_writePacked_disjoint hw hidx (Or.inr (by wram_omega)) mem,
+    compQuotAt_congr hw fun a ha => hw_out.eq_outside a (by omega),
+    compValAt_congr hw fun a ha => hw_out.eq_outside a (by omega), hw_out.eq_outside⟩
+
 /-- Updating `TailToDense[t] := val` updates `compTDAt` via `Function.update` and preserves all
 other views and outside memory. -/
 theorem writeCompTD_effect {metaBase itemBase U V w N m_items t val : ℕ}
@@ -223,29 +207,16 @@ theorem writeCompTD_effect {metaBase itemBase U V w N m_items t val : ℕ}
     compValAt itemBase U V w N m_items mem' = compValAt itemBase U V w N m_items mem ∧
     (∀ a, ¬(metaBase + offTailToDense U w N ≤ a ∧ a < metaBase + offDenseToTail U w N) →
       mem' a = mem a) := by
-  intro mem'
-  have hout : ∀ a, ¬(metaBase + offTailToDense U w N ≤ a ∧ a < metaBase + offDenseToTail U w N) →
-      mem' a = mem a := fun a ha =>
-    writePacked_outside hw mem ht val (fun hin => ha (by unfold offDenseToTail; omega))
-  have htd : compTDAt metaBase U w N mem' =
-      Function.update (compTDAt metaBase U w N mem) t val := by
-    funext t'
-    by_cases heq : t' = t
-    · subst heq; rw [Function.update_self]; unfold compTDAt; simp only [ht, ↓reduceIte]
-      exact readPacked_writePacked_self _ _ _ _ _ hval
-    · rw [Function.update_of_ne heq]; unfold compTDAt; split_ifs with hlt
-      · exact readPacked_writePacked_of_ne hw mem heq val
-      · rfl
-  have h0 : offCompLM U w N ≤ offCompGM U w N := Nat.le_add_right _ _
-  have h1 : offCompGM U w N ≤ offTailToDense U w N := Nat.le_add_right _ _
-  have h3 : offDenseToTail U w N ≤ offCompItems U w N := Nat.le_add_right _ _
-  exact ⟨htd,
-    compLmAt_congr hw (fun a ha => hout a (by omega)),
-    compGmAt_congr hw (fun a ha => hout a (by omega)),
-    compDTAt_congr hw (fun a ha => hout a (by omega)),
-    compQuotAt_congr hw (fun a ha => hout a (by omega)),
-    compValAt_congr hw (fun a ha => hout a (by omega)),
-    hout⟩
+  have hw_out := writePacked_writeOutside (base := metaBase + offTailToDense U w N)
+    (k := globalPtrBits N) (val := val) hw ht (lo := metaBase + offTailToDense U w N)
+    (hi := metaBase + offDenseToTail U w N) le_rfl (by wram_omega) mem
+  have ⟨h0, h1, _, h3⟩ := offComp_mono U w N
+  exact ⟨readPacked_writePacked_bounded hw ht hval mem,
+    compLmAt_congr hw (hw_out.eq_on_disjoint (Or.inr (by omega))),
+    packedView_writePacked_disjoint hw ht (Or.inl (by wram_omega)) mem,
+    packedView_writePacked_disjoint hw ht (Or.inr (by wram_omega)) mem,
+    compQuotAt_congr hw fun a ha => hw_out.eq_outside a (by omega),
+    compValAt_congr hw fun a ha => hw_out.eq_outside a (by omega), hw_out.eq_outside⟩
 
 /-- Updating `DenseToTail[r] := val` updates `compDTAt` via `Function.update` and preserves all
 other views and outside memory. -/
@@ -261,29 +232,16 @@ theorem writeCompDT_effect {metaBase itemBase U V w N m_items r val : ℕ}
     compValAt itemBase U V w N m_items mem' = compValAt itemBase U V w N m_items mem ∧
     (∀ a, ¬(metaBase + offDenseToTail U w N ≤ a ∧ a < metaBase + offCompItems U w N) →
       mem' a = mem a) := by
-  intro mem'
-  have hout : ∀ a, ¬(metaBase + offDenseToTail U w N ≤ a ∧ a < metaBase + offCompItems U w N) →
-      mem' a = mem a := fun a ha =>
-    writePacked_outside hw mem hr val (fun hin => ha (by unfold offCompItems; omega))
-  have hdt : compDTAt metaBase U w N mem' =
-      Function.update (compDTAt metaBase U w N mem) r val := by
-    funext r'
-    by_cases heq : r' = r
-    · subst heq; rw [Function.update_self]; unfold compDTAt; simp only [hr, ↓reduceIte]
-      exact readPacked_writePacked_self _ _ _ _ _ hval
-    · rw [Function.update_of_ne heq]; unfold compDTAt; split_ifs with hlt
-      · exact readPacked_writePacked_of_ne hw mem heq val
-      · rfl
-  have h0 : offCompLM U w N ≤ offCompGM U w N := Nat.le_add_right _ _
-  have h1 : offCompGM U w N ≤ offTailToDense U w N := Nat.le_add_right _ _
-  have h2 : offTailToDense U w N ≤ offDenseToTail U w N := Nat.le_add_right _ _
-  exact ⟨hdt,
-    compLmAt_congr hw (fun a ha => hout a (by omega)),
-    compGmAt_congr hw (fun a ha => hout a (by omega)),
-    compTDAt_congr hw (fun a ha => hout a (by omega)),
-    compQuotAt_congr hw (fun a ha => hout a (by omega)),
-    compValAt_congr hw (fun a ha => hout a (by omega)),
-    hout⟩
+  have hw_out := writePacked_writeOutside (base := metaBase + offDenseToTail U w N)
+    (k := globalPtrBits N) (val := val) hw hr (lo := metaBase + offDenseToTail U w N)
+    (hi := metaBase + offCompItems U w N) le_rfl (by wram_omega) mem
+  have ⟨h0, h1, h2, _⟩ := offComp_mono U w N
+  exact ⟨readPacked_writePacked_bounded hw hr hval mem,
+    compLmAt_congr hw (hw_out.eq_on_disjoint (Or.inr (by omega))),
+    packedView_writePacked_disjoint hw hr (Or.inl (by wram_omega)) mem,
+    packedView_writePacked_disjoint hw hr (Or.inl (by wram_omega)) mem,
+    compQuotAt_congr hw fun a ha => hw_out.eq_outside a (by omega),
+    compValAt_congr hw fun a ha => hw_out.eq_outside a (by omega), hw_out.eq_outside⟩
 
 /-- Writing a dense quotient at `itemBase` (`metaBase + offCompItems ≤ itemBase`) preserves all
 metadata views at `metaBase`. -/
@@ -294,16 +252,8 @@ theorem writeCompQuot_meta_frame {metaBase itemBase U V w N m_items d q : ℕ}
     compLmAt metaBase U w N mem' = compLmAt metaBase U w N mem ∧
     compGmAt metaBase U w N mem' = compGmAt metaBase U w N mem ∧
     compTDAt metaBase U w N mem' = compTDAt metaBase U w N mem ∧
-    compDTAt metaBase U w N mem' = compDTAt metaBase U w N mem := by
-  intro mem'
-  have h0 : offCompLM U w N ≤ offCompGM U w N := Nat.le_add_right _ _
-  have h1 : offCompGM U w N ≤ offTailToDense U w N := Nat.le_add_right _ _
-  have h2 : offTailToDense U w N ≤ offDenseToTail U w N := Nat.le_add_right _ _
-  have h3 : offDenseToTail U w N ≤ offCompItems U w N := Nat.le_add_right _ _
-  exact ⟨compLmAt_congr hw (fun a ha => writeCompQuot_outside hw hd mem (by omega)),
-    compGmAt_congr hw (fun a ha => writeCompQuot_outside hw hd mem (by omega)),
-    compTDAt_congr hw (fun a ha => writeCompQuot_outside hw hd mem (by omega)),
-    compDTAt_congr hw (fun a ha => writeCompQuot_outside hw hd mem (by omega))⟩
+    compDTAt metaBase U w N mem' = compDTAt metaBase U w N mem :=
+  compMeta_frame_of_lt hw hitem fun _ ha => writeCompQuot_outside hw hd mem (by omega)
 
 /-- Writing a dense value at `itemBase` (`metaBase + offCompItems ≤ itemBase`) preserves all
 metadata views at `metaBase`. -/
@@ -314,16 +264,8 @@ theorem writeCompVal_meta_frame {metaBase itemBase U V w N m_items d v : ℕ}
     compLmAt metaBase U w N mem' = compLmAt metaBase U w N mem ∧
     compGmAt metaBase U w N mem' = compGmAt metaBase U w N mem ∧
     compTDAt metaBase U w N mem' = compTDAt metaBase U w N mem ∧
-    compDTAt metaBase U w N mem' = compDTAt metaBase U w N mem := by
-  intro mem'
-  have h0 : offCompLM U w N ≤ offCompGM U w N := Nat.le_add_right _ _
-  have h1 : offCompGM U w N ≤ offTailToDense U w N := Nat.le_add_right _ _
-  have h2 : offTailToDense U w N ≤ offDenseToTail U w N := Nat.le_add_right _ _
-  have h3 : offDenseToTail U w N ≤ offCompItems U w N := Nat.le_add_right _ _
-  exact ⟨compLmAt_congr hw (fun a ha => writeCompVal_outside hw hd mem (by omega)),
-    compGmAt_congr hw (fun a ha => writeCompVal_outside hw hd mem (by omega)),
-    compTDAt_congr hw (fun a ha => writeCompVal_outside hw hd mem (by omega)),
-    compDTAt_congr hw (fun a ha => writeCompVal_outside hw hd mem (by omega))⟩
+    compDTAt metaBase U w N mem' = compDTAt metaBase U w N mem :=
+  compMeta_frame_of_lt hw hitem fun _ ha => writeCompVal_outside hw hd mem (by omega)
 
 /-! ## Section 2: Circular-Window State-Transition Specifications -/
 
@@ -380,16 +322,8 @@ theorem winGrowRightGenProg_effect {metaBase itemBase U V w N m_items b_win n_wi
     (∀ a, ¬(metaBase + offTailToDense U w N ≤ a ∧ a < metaBase + offCompItems U w N) →
       s'.mem a = s.mem a) := by
   intro s'
-  have hM_pos : 0 < maxTailItems N := by omega
-  set c := (b_win + n_win) % maxTailItems N
-  have hc_lt : c < maxTailItems N := Nat.mod_lt _ hM_pos
-  have hs' := clientState_winGrowRightGenProg U V w N metaBase b_win n_win s
-  have hcore := winUpdatePair_effect_core
-    (itemBase := itemBase) (U := U) (V := V) (m_items := m_items)
-    hw hitem hn hc_lt s
-  dsimp only [s']; rw [hs']; dsimp only [winGrowRight]
-  exact ⟨rfl, hcore.1, hcore.2.1, hcore.2.2.1, hcore.2.2.2.1, hcore.2.2.2.2.1,
-    hcore.2.2.2.2.2.1, hcore.2.2.2.2.2.2⟩
+  dsimp only [s']; rw [clientState_winGrowRightGenProg U V w N metaBase b_win n_win s]
+  exact ⟨rfl, winUpdatePair_effect_core hw hitem hn (Nat.mod_lt _ (by omega)) s⟩
 
 theorem winGrowLeftGenProg_effect {metaBase itemBase U V w N m_items b_win n_win : ℕ}
     (hw : 0 < w) (hitem : metaBase + offCompItems U w N ≤ itemBase)
@@ -410,16 +344,8 @@ theorem winGrowLeftGenProg_effect {metaBase itemBase U V w N m_items b_win n_win
     (∀ a, ¬(metaBase + offTailToDense U w N ≤ a ∧ a < metaBase + offCompItems U w N) →
       s'.mem a = s.mem a) := by
   intro s'
-  have hM_pos : 0 < maxTailItems N := by omega
-  set c := b_win % maxTailItems N
-  have hc_lt : c < maxTailItems N := Nat.mod_lt _ hM_pos
-  have hs' := clientState_winGrowLeftGenProg U V w N metaBase b_win n_win s
-  have hcore := winUpdatePair_effect_core
-    (itemBase := itemBase) (U := U) (V := V) (m_items := m_items)
-    hw hitem hn hc_lt s
-  dsimp only [s']; rw [hs']; dsimp only [winGrowLeft]
-  exact ⟨rfl, hcore.1, hcore.2.1, hcore.2.2.1, hcore.2.2.2.1, hcore.2.2.2.2.1,
-    hcore.2.2.2.2.2.1, hcore.2.2.2.2.2.2⟩
+  dsimp only [s']; rw [clientState_winGrowLeftGenProg U V w N metaBase b_win n_win s]
+  exact ⟨rfl, winUpdatePair_effect_core hw hitem hn (Nat.mod_lt _ (by omega)) s⟩
 
 theorem winShrinkRightGenProg_effect {metaBase itemBase U V w N m_items b_win n_win : ℕ}
     (hw : 0 < w) (hitem : metaBase + offCompItems U w N ≤ itemBase)
@@ -443,18 +369,9 @@ theorem winShrinkRightGenProg_effect {metaBase itemBase U V w N m_items b_win n_
     (∀ a, ¬(metaBase + offTailToDense U w N ≤ a ∧ a < metaBase + offCompItems U w N) →
       s'.mem a = s.mem a) := by
   intro s'
-  have hM_pos : 0 < maxTailItems N := by omega
-  have hc_lt : (b_win + n_win) % maxTailItems N < maxTailItems N := Nat.mod_lt _ hM_pos
-  set t_rem := compDTAt metaBase U w N s.mem ((b_win + n_win) % maxTailItems N)
-  set c_last := compTDAt metaBase U w N s.mem n_win
-  have hs' := clientState_winShrinkRightGenProg (U := U) (V := V) (w := w) (metaBase := metaBase)
-    (s := s) hc_lt hn
-  have hcore := winUpdatePair_effect_core
-    (itemBase := itemBase) (U := U) (V := V) (m_items := m_items)
-    hw hitem hdt_lt htd_lt s
-  dsimp only [s']; rw [hs']; dsimp only [winShrinkRight]
-  exact ⟨rfl, hcore.1, hcore.2.1, hcore.2.2.1, hcore.2.2.2.1, hcore.2.2.2.2.1,
-    hcore.2.2.2.2.2.1, hcore.2.2.2.2.2.2⟩
+  have hc_lt : (b_win + n_win) % maxTailItems N < maxTailItems N := Nat.mod_lt _ (by omega)
+  dsimp only [s']; rw [clientState_winShrinkRightGenProg hc_lt hn]
+  exact ⟨rfl, winUpdatePair_effect_core hw hitem hdt_lt htd_lt s⟩
 
 theorem winShrinkLeftGenProg_effect {metaBase itemBase U V w N m_items b_win n_win : ℕ}
     (hw : 0 < w) (hitem : metaBase + offCompItems U w N ≤ itemBase)
@@ -478,24 +395,15 @@ theorem winShrinkLeftGenProg_effect {metaBase itemBase U V w N m_items b_win n_w
     (∀ a, ¬(metaBase + offTailToDense U w N ≤ a ∧ a < metaBase + offCompItems U w N) →
       s'.mem a = s.mem a) := by
   intro s'
-  have hM_pos : 0 < maxTailItems N := by omega
-  have hc_lt : b_win % maxTailItems N < maxTailItems N := Nat.mod_lt _ hM_pos
-  set t_rem := compDTAt metaBase U w N s.mem (b_win % maxTailItems N)
-  set c_last := compTDAt metaBase U w N s.mem n_win
-  have hs' := clientState_winShrinkLeftGenProg (U := U) (V := V) (w := w) (metaBase := metaBase)
-    (s := s) hc_lt hn
-  have hcore := winUpdatePair_effect_core
-    (itemBase := itemBase) (U := U) (V := V) (m_items := m_items)
-    hw hitem hdt_lt htd_lt s
-  dsimp only [s']; rw [hs']; dsimp only [winShrinkLeft]
-  exact ⟨rfl, hcore.1, hcore.2.1, hcore.2.2.1, hcore.2.2.2.1, hcore.2.2.2.2.1,
-    hcore.2.2.2.2.2.1, hcore.2.2.2.2.2.2⟩
+  have hc_lt : b_win % maxTailItems N < maxTailItems N := Nat.mod_lt _ (by omega)
+  dsimp only [s']; rw [clientState_winShrinkLeftGenProg hc_lt hn]
+  exact ⟨rfl, winUpdatePair_effect_core hw hitem hdt_lt htd_lt s⟩
 /-! ## Section 3: Register-Width Bounds (`fits_mkCompParams`) -/
 
 theorem fits_const_of_offCompItems {U w N metaBase c : ℕ}
     (hfit : Fits w (metaBase + offCompItems U w N)) (hc : c ≤ 225) : Fits w c := by
   refine lt_of_le_of_lt ?_ hfit
-  unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
+  wram_omega
 theorem fits_of_le_max_N_one {U w N x : ℕ} (hw : 0 < w) (hnU : N ≤ U) (hU : U < 2 ^ w)
     (hx : x ≤ max N 1) : Fits w x :=
   (max_n_one_lt_two_pow_w hw hnU hU).of_le hx
@@ -554,12 +462,9 @@ theorem fits_mkCompParams {U V w N metaBase : ℕ}
         Nat.mul_one, Nat.mul_zero, Nat.add_zero]
       exact ⟨h7, h7, h7, h7⟩
     · have hlen := gmSlabMetaBase_add_eq_globalMetaLen hb_pos
-      have hd_le : gmSlabDirBase N ≤ globalMetaLen N := by
-        unfold gmSlabMetaBase gmTailOwnerBase gmTailPtrBase at hlen; omega
-      have hp_le : gmTailPtrBase N ≤ globalMetaLen N := by
-        unfold gmSlabMetaBase gmTailOwnerBase at hlen; omega
-      have ho_le : gmTailOwnerBase N ≤ globalMetaLen N := by
-        unfold gmSlabMetaBase at hlen; omega
+      have hd_le : gmSlabDirBase N ≤ globalMetaLen N := by wram_omega [hlen]
+      have hp_le : gmTailPtrBase N ≤ globalMetaLen N := by wram_omega [hlen]
+      have ho_le : gmTailOwnerBase N ≤ globalMetaLen N := by wram_omega [hlen]
       have hm_le : gmSlabMetaBase N ≤ globalMetaLen N := by omega
       exact ⟨fits_of_le_globalMetaLen_comp hb_pos hw hnU hU hd_le,
         fits_of_le_globalMetaLen_comp hb_pos hw hnU hU hp_le,
@@ -573,10 +478,8 @@ theorem fits_mkCompParams {U V w N metaBase : ℕ}
     rcases Nat.eq_zero_or_pos (maxTailItems N) with h0 | hpos
     · rw [h0]; exact fits_const_of_offCompItems hfit (by decide)
     · exact lt_of_le_of_lt (maxTailItems_le_of_pos hpos |>.trans hnU) hU
-  have hoffLM_fit : ∀ c ≤ 8, Fits w (offCompLMSub U w N c) := fun c hc => by
-    refine lt_of_le_of_lt ?_ hoff
-    have hmul : c * lmSubWords N w ≤ 9 * lmSubWords N w := Nat.mul_le_mul_right _ (by omega)
-    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLMSub; omega
+  have hoffLM_fit : ∀ c ≤ 8, Fits w (offCompLMSub U w N c) := fun c hc =>
+    lt_of_le_of_lt (by stride_omega) hoff
   fin_cases i <;> simp only [mkCompParams]
   · exact hw_fit
   · exact lt_of_le_of_lt hnU hU
@@ -593,10 +496,10 @@ theorem fits_mkCompParams {U V w N metaBase : ℕ}
   · exact hoffLM_fit 7 (by decide)
   · exact hoffLM_fit 8 (by decide)
   · exact lt_of_le_of_lt (effBucketPosBits_le_of_lt_pow hnU hU) hw_fit
-  · exact lt_of_le_of_lt (by unfold offCompItems offDenseToTail offTailToDense; omega) hoff
+  · exact lt_of_le_of_lt (by wram_omega) hoff
   · exact lt_of_le_of_lt (globalPtrBits_le_of_lt_pow hnU hU) hw_fit
-  · exact lt_of_le_of_lt (by unfold offCompItems offDenseToTail; omega) hoff
-  · exact lt_of_le_of_lt (by unfold offCompItems; omega) hoff
+  · exact lt_of_le_of_lt (by wram_omega) hoff
+  · exact lt_of_le_of_lt (by wram_omega) hoff
   · exact hM_fit
   · exact h2b_fit.of_le (le_of_lt Nat.lt_two_pow_self)
   · exact h2b_fit.of_le (Nat.sub_le _ _)
@@ -613,8 +516,7 @@ theorem fits_mkCompParams {U V w N metaBase : ℕ}
   · exact hmicro_fit
   · exact lt_of_le_of_lt ((Nat.min_le_left _ _).trans hnU) hU
   · exact hoff
-  · exact lt_of_le_of_lt (by
-      unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM; omega) hoff
+  · exact lt_of_le_of_lt (by wram_omega) hoff
 /-! ## Section 4: Compacted Slot Resolution, Owner-Bucket Recovery, and Key Reconstruction -/
 
 /-- Read `bCount N gm b` at `metaBase` in `Memory.Prog` (`¬ReadsWidth`). -/
@@ -639,13 +541,13 @@ theorem clientResult_readCompBucketCountGenProg {U V w N metaBase b : ℕ} {s : 
   dsimp only [readCompBucketCountGenProg, bCount, cpBucketBits_mk, cpSlabSize_mk]
   simp only [pure_bind]
   by_cases hb0 : bucketBits N = 0
-  · have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
+  · have h0_lt : 0 < globalMetaLen N := by wram_omega
     have hb_eq : b = 0 := by simp only [numBuckets, hb0, pow_zero] at hb; omega
     subst hb_eq; simp [hb0, h0_lt]
   · have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
     have hq_lt : gmQIdx b < globalMetaLen N := gmQIdx_lt hb_pos hb
     have hr_lt : gmRIdx b < globalMetaLen N := gmRIdx_lt hb_pos hb
-    have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
+    have hq_eq : 4 + (b + b + b) = gmQIdx b := by wram_omega
     have hr_eq : gmQIdx b + 1 = gmRIdx b := rfl
     rw [ite_eq_right hb0, ite_eq_right hb0, ite_eq_left hb, hq_eq, hr_eq,
       prog_clientResult_bind, clientResult_readCompGMGenProg hq_lt, clientState_readCompGMGenProg,
@@ -689,7 +591,7 @@ theorem realizesBounded_readCompBucketCountGen :
     rcases d with ⟨⟨cp, metaBase⟩, b⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hslot, hb⟩ := h
     simp only [cpBucketBits_mk, cpSlabSize_mk] at *
-    have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
+    have h0_lt : 0 < globalMetaLen N := by wram_omega
     have hfit_meta : Fits w (metaBase + offCompItems U w N) :=
       lt_of_le_of_lt hfr hmem.1)
   all_goals try exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, h0_lt⟩
@@ -698,17 +600,16 @@ theorem realizesBounded_readCompBucketCountGen :
     have hb_ne : bucketBits N ≠ 0 := hb_pos.ne'
     have hq_lt : gmQIdx b < globalMetaLen N := gmQIdx_lt hb_pos hb
     have hr_lt : gmRIdx b < globalMetaLen N := gmRIdx_lt hb_pos hb
-    have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
+    have hq_eq : 4 + (b + b + b) = gmQIdx b := by wram_omega
     have hr_eq : gmQIdx b + 1 = gmRIdx b := rfl
     have hbc_le : bCount N (compGmAt metaBase U w N s.mem) b ≤ N := bCount_le_n_max hslot b
     unfold bCount at hbc_le; simp only [hb_ne, ↓reduceIte, hb] at hbc_le
-    try simp only [hq_eq, hr_eq, StateTransitionSpec.clientState,
+    simp only [hq_eq, hr_eq, StateTransitionSpec.clientState,
       clientResult_readCompGMGenProg hq_lt, clientResult_readCompGMGenProg hr_lt,
       runClient_state_readCompGMGenProg] at *)
-  all_goals try exact fits_of_le_globalMetaLen_comp hb_pos hw hnU hU (by
-    unfold gmQIdx gmRIdx at *; omega)
+  all_goals try exact fits_of_le_globalMetaLen_comp hb_pos hw hnU hU (by wram_omega)
   all_goals try exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, by assumption⟩
-  all_goals exact lt_of_le_of_lt (by omega) hU
+  exact lt_of_le_of_lt (by omega) hU
 
 private def recoverOwnerTailProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
   | ((cp, metaBase), d) => do
@@ -741,7 +642,7 @@ private theorem realizesBounded_recoverOwnerTail :
     have hr_lt : idx_d % maxTailItems N < maxTailItems N := Nat.mod_lt _ hM_pos
     have hidx_lt := gmTailOwnerIdx_lt hb_pos ht_M
     have hlen_le := globalMetaLen_le_of_bucketBits_pos hb_pos
-    try simp only [cpMaxTail_mk, cpGmTailOwnerBase_mk, cpTailCap_mk,
+    simp only [cpMaxTail_mk, cpGmTailOwnerBase_mk, cpTailCap_mk,
       StateTransitionSpec.clientState, clientResult_readCompDTGenProg hr_lt,
       runClient_state_readCompDTGenProg] at *)
   all_goals try omega
@@ -751,6 +652,16 @@ private theorem realizesBounded_recoverOwnerTail :
   all_goals try exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx_lt⟩
   · have hK := slabSize_pos N
     unfold tailCapPerBucket; rw [ite_eq_right hb_ne]; omega
+
+private theorem gmSlabOwnerBIdx_div_lt {U w N metaBase d : ℕ} {mem : ℕ → ℕ}
+    (hb_pos : 0 < bucketBits N) (hslot : SlotStoreInv N (compGmAt metaBase U w N mem))
+    (hd : d < compGmAt metaBase U w N mem 0 * slabSize N) :
+    gmSlabOwnerBIdx N (d / slabSize N) < globalMetaLen N := by
+  have hslab := hslot.multi_slab hb_pos
+  have := slabSize_pos N
+  exact gmSlabOwnerBIdx_lt hb_pos <|
+    (by stride_omega : d / slabSize N < compGmAt metaBase U w N mem 0).trans_le
+      (hslab.nslabs_eq.trans_le hslab.nslabs_le)
 
 /-- Recover `ownerBucketOfDense N gm dt d` in $O(1)$ steps (`Memory.Prog`, `¬ReadsWidth`). -/
 def recoverOwnerBucketGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -785,22 +696,14 @@ theorem clientResult_recoverOwnerBucketGenProg {U V w N metaBase d : ℕ} {s : M
   · rw [ite_eq_left hb0, ite_eq_left hb0]; rfl
   · rw [ite_eq_right hb0, ite_eq_right hb0]
     have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
-    have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
+    have h0_lt : 0 < globalMetaLen N := by wram_omega
     rw [prog_clientResult_bind, clientResult_readCompGMGenProg h0_lt, clientState_readCompGMGenProg]
     by_cases hd_slab : d < compGmAt metaBase U w N s.mem 0 * slabSize N
     · rw [ite_eq_left hd_slab, ite_eq_left hd_slab]
-      have hslab := hslot.multi_slab hb_pos
-      have hp_lt : d / slabSize N < maxFullSlabs N := by
-        have h1 : d / slabSize N < compGmAt metaBase U w N s.mem 0 :=
-          Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])
-        have := hslab.nslabs_eq.trans_le hslab.nslabs_le; omega
-      have hidx_lt : gmSlabOwnerBIdx N (d / slabSize N) < globalMetaLen N :=
-        gmSlabOwnerBIdx_lt hb_pos hp_lt
       have hidx_eq : gmSlabMetaBase N + (d / slabSize N + d / slabSize N +
-          (d / slabSize N + d / slabSize N)) = gmSlabOwnerBIdx N (d / slabSize N) := by
-        unfold gmSlabOwnerBIdx; omega
+          (d / slabSize N + d / slabSize N)) = gmSlabOwnerBIdx N (d / slabSize N) := by wram_omega
       rw [hidx_eq]
-      exact clientResult_readCompGMGenProg hidx_lt s
+      exact clientResult_readCompGMGenProg (gmSlabOwnerBIdx_div_lt hb_pos hslot hd_slab) s
     · rw [ite_eq_right hd_slab, ite_eq_right hd_slab]
       unfold epochTotalSlots at hd; rw [ite_eq_right hb0] at hd
       have htd' := htd hb_pos
@@ -846,7 +749,7 @@ theorem realizesBounded_recoverOwnerBucketGen :
     simp only [cpBucketBits_mk, cpSlabSize_mk, cpGmSlabMetaBase_mk] at *
     have hb_pos : 0 < bucketBits N := by omega
     have hb_ne : bucketBits N ≠ 0 := hb_pos.ne'
-    have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
+    have h0_lt : 0 < globalMetaLen N := by wram_omega
     have hSN := hslot.multi_total_le hb_pos
     have hlen_le := globalMetaLen_le_of_bucketBits_pos hb_pos
     try simp only [StateTransitionSpec.clientState, clientResult_readCompGMGenProg h0_lt,
@@ -854,23 +757,13 @@ theorem realizesBounded_recoverOwnerBucketGen :
   all_goals try exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, h0_lt⟩
   all_goals try exact (slabSize_pos N).ne'
   all_goals try exact lt_of_le_of_lt (by omega) hU
-  · have hslab := hslot.multi_slab hb_pos
-    have hp_lt : idx_d / slabSize N < maxFullSlabs N := by
-      have h1 : idx_d / slabSize N < compGmAt metaBase U w N s.mem 0 :=
-        Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])
-      have := hslab.nslabs_eq.trans_le hslab.nslabs_le; omega
-    have hidx := gmSlabOwnerBIdx_lt hb_pos hp_lt
+  · have hidx := gmSlabOwnerBIdx_div_lt hb_pos hslot hc
     unfold gmSlabOwnerBIdx at hidx
     exact lt_of_le_of_lt (by omega) hU
-  · have hslab := hslot.multi_slab hb_pos
-    have hp_lt : idx_d / slabSize N < maxFullSlabs N := by
-      have h1 : idx_d / slabSize N < compGmAt metaBase U w N s.mem 0 :=
-        Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])
-      have := hslab.nslabs_eq.trans_le hslab.nslabs_le; omega
-    have hidx := gmSlabOwnerBIdx_lt hb_pos hp_lt
+  · have hidx := gmSlabOwnerBIdx_div_lt hb_pos hslot hc
     have heq : gmSlabMetaBase N + (idx_d / slabSize N + idx_d / slabSize N +
         (idx_d / slabSize N + idx_d / slabSize N)) = gmSlabOwnerBIdx N (idx_d / slabSize N) := by
-      unfold gmSlabOwnerBIdx; omega
+      wram_omega
     rw [heq]
     exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩
   · unfold epochTotalSlots at hd_lt; rw [ite_eq_right hb_ne] at hd_lt

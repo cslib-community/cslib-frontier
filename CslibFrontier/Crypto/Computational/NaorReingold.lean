@@ -17,6 +17,7 @@ import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Product
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # The Naor–Reingold pseudorandom function from Decisional Diffie–Hellman
@@ -59,11 +60,12 @@ Following Boneh–Shoup Exercises 10.4, 10.8, 10.11, and 4.18, we formalize:
      identities `naorReingoldHybridGame_zero` and `naorReingoldHybridGame_self`.
    - The distributional single-level DDH distinguisher `naorReingoldLevelDDHDistinguisher`
      (which samples the $2^k$-entry prefix table `BitString k`) and adjacent-hop bound
-     `advantage_naorReingoldHybridGame_succ_le`, the $n$-hybrid sum bound
-     `advantage_naorReingold_le_sum`, and the common-bound algebraic helper
-     `advantage_naorReingold_le_mul_of_reduction_le`
-     ($\le n \cdot (\varepsilon + 1 / q)$). The efficient lazy-sampling `IsOraclePPT` reduction and
-     `PseudorandomFunction` bridge are proved in `NaorReingold.Security` and `NaorReingold.PRF`.
+     `advantage_naorReingoldHybridGame_succ_le`, and the exact $n$-hybrid sum bound
+     `advantage_naorReingold_le_sum` for arbitrary typed adversaries at one group. These are
+     concrete bounds through PMF distinguishers with no efficiency certificate. Asymptotic security
+     under `F.DDH` (`DDH.negligible_naorReingoldProbGame`) goes through a different, certified
+     lazy-sampling reduction in `NaorReingold.Security`; the `PseudorandomFunction` bridge is in
+     `NaorReingold.PRF`.
 
 ## Main definitions
 
@@ -101,9 +103,8 @@ Following Boneh–Shoup Exercises 10.4, 10.8, 10.11, and 4.18, we formalize:
   $n = 1$ Multi-DDH (I) reduction to DDH, sampling $|\iota|$ rerandomized pairs
   (Boneh–Shoup Exercise 10.11).
 * `Cslib.Crypto.PrimeOrderGroupFamily.advantage_naorReingoldHybridGame_succ_le`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_naorReingold_le_sum`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_naorReingold_le_mul_of_reduction_le`:
-  distributional prefix-hybrid security bounds for the Naor–Reingold PRF against the explicit
+  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_naorReingold_le_sum`:
+  distributional prefix-hybrid bounds for the Naor–Reingold PRF against the explicit
   $2^k$-pair PMF distinguisher `naorReingoldLevelDDHDistinguisher` (Boneh–Shoup Exercise 10.4(b);
   Naor–Reingold Theorem 4.1); see `NaorReingold.Security` and `NaorReingold.PRF` for the
   lazy-sampling `IsOraclePPT` reduction and `PseudorandomFunction` bridge.
@@ -448,9 +449,7 @@ theorem naorReingoldSuffixExp_succ_update (d : F.Desc) {n k : ℕ} (hk : k < n)
   refine Finset.prod_congr rfl fun i _ => ?_
   by_cases h : k + 1 ≤ i.1
   · have hne : i ≠ ⟨k, hk⟩ := by
-      intro heq
-      have hval : i.1 = k := congrArg Fin.val heq
-      omega
+      fin_index
     simp [hne]
   · simp [h]
 
@@ -653,7 +652,10 @@ noncomputable def naorReingoldHopDDHDistinguisher (d : F.Desc) (n k : ℕ)
 between `naorReingoldRealGame` and `naorReingoldIdealGame` is bounded by the sum over
 `k ∈ Finset.range n` of the DDH distinguishing advantages of the explicit `2^k`-pair PMF
 distinguisher `naorReingoldLevelDDHDistinguisher` (`naorReingoldHopDDHDistinguisher`) plus
-`n * (F.order d)⁻¹`. -/
+`n * (F.order d)⁻¹`. This is a concrete bound for every typed adversary at one group; the
+distinguishers have no efficiency certificate. Security under `F.DDH` is
+`DDH.negligible_naorReingoldProbGame`, through the certified reduction
+`naorReingoldToDDHDistinguisher`. -/
 theorem advantage_naorReingold_le_sum (d : F.Desc) (n : ℕ)
     (adv : OracleComp (fun _ : BitString n => F.Carrier d) Bool) :
     Game.advantage (F.naorReingoldRealGame d n adv) (F.naorReingoldIdealGame d n adv) ≤
@@ -685,31 +687,5 @@ theorem advantage_naorReingold_le_sum (d : F.Desc) (n : ℕ)
     simp [naorReingoldHopDDHDistinguisher, hlt]
   rw [heq]
   exact F.advantage_naorReingoldHybridGame_succ_le d k hlt adv
-
-/-- **Common-bound Naor–Reingold PRF distributional prefix-hybrid bound**
-([BonehShoup2023], Exercise 10.4; [NaorReingold2004], Theorem 4.1): if for every `k < n` the
-explicit `2^k`-pair PMF distinguisher `naorReingoldHopDDHDistinguisher d n k adv` has DDH advantage
-at most `ε`, then the Naor–Reingold PRF advantage is at most `n * (ε + (F.order d)⁻¹)`.
-
-This is an algebraic helper: it assumes the bound on the hop distinguishers that the proof builds.
-The asymptotic theorem uses the certified lazy-sampling reduction of `NaorReingold.Security`. -/
-theorem advantage_naorReingold_le_mul_of_reduction_le (d : F.Desc) (n : ℕ)
-    (adv : OracleComp (fun _ : BitString n => F.Carrier d) Bool) (ε : ℝ≥0)
-    (hε : ∀ k < n,
-      Game.advantage
-        ((F.ddhRealTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv))
-        ((F.ddhRandomTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv)) ≤ ε) :
-    Game.advantage (F.naorReingoldRealGame d n adv) (F.naorReingoldIdealGame d n adv) ≤
-      n * (ε + (F.order d : ℝ≥0)⁻¹) := by
-  rw [← F.naorReingoldHybridGame_zero d n adv, ← F.naorReingoldHybridGame_self d n adv]
-  refine Game.advantage_hybrid_le (F.naorReingoldHybridGame d n · adv) n
-    (ε + (F.order d : ℝ≥0)⁻¹) fun k hk => ?_
-  have heq : F.naorReingoldHopDDHDistinguisher d n k adv =
-      F.naorReingoldLevelDDHDistinguisher d k hk adv := by
-    funext t
-    simp [naorReingoldHopDDHDistinguisher, hk]
-  refine (F.advantage_naorReingoldHybridGame_succ_le d k hk adv).trans ?_
-  rw [← heq]
-  exact add_le_add (hε k hk) le_rfl
 
 end Cslib.Crypto.PrimeOrderGroupFamily

@@ -62,6 +62,8 @@ deterministic encryption. KEM transforms and their security reductions live in s
 
 ## Main results
 
+* `Cslib.Crypto.Protocols.ExplicitCoinPKE.eval_encrypt_eq_toOuterMeasure`: the probability of a
+  ciphertext is the probability of the coins that produce it.
 * `Cslib.Crypto.Protocols.ExplicitCoinPKE.deltaCorrect_zero_of_perfect`: perfect supported
   decryption implies zero-error correctness.
 * `Cslib.Crypto.Protocols.ExplicitCoinPKE.DeltaCorrect.mono`: correctness is monotone in `δ`.
@@ -104,6 +106,18 @@ variable {PK SK M R CT : Type}
 def encrypt (P : ExplicitCoinPKE PK SK M R CT) (pk : PK) (m : M) : ProbComp CT := do
   let r ← P.sampleCoins
   return P.encDet pk m r
+
+/-- The probability that `P.encrypt pk m` outputs `c` is the probability that fresh coins `r`
+satisfy `P.encDet pk m r = c`. -/
+theorem eval_encrypt_eq_toOuterMeasure (P : ExplicitCoinPKE PK SK M R CT) (pk : PK) (m : M)
+    (c : CT) :
+    (ProbComp.eval (P.encrypt pk m)) c =
+      (ProbComp.eval P.sampleCoins).toOuterMeasure {r | P.encDet pk m r = c} := by
+  have h : ProbComp.eval (P.encrypt pk m) =
+      (ProbComp.eval P.sampleCoins).map (P.encDet pk m) := by
+    simp [encrypt, PMF.map, Function.comp_def]
+  rw [h, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
+  rfl
 
 /-- The randomized public-key encryption scheme `(Gen, Enc, Dec)` of `P`: key generation
 `P.keyGen`, encryption `P.encrypt` with fresh coins, and decryption `P.dec`. -/

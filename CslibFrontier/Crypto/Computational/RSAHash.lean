@@ -84,9 +84,11 @@ The book's proof applies Theorem 10.6 with `f = b' - b`, which may be negative. 
 orders the pair instead: it takes `f = b' - b` and `w = a * a'⁻¹` when `b < b'`, and
 `f = b - b'` and `w = a' * a⁻¹` otherwise, so `Cslib.Crypto.commonRoot` keeps natural exponents.
 
-Exercise 10.26 (p. 431) and the use of `H_rsa` as a compression function in the Merkle–Damgård
-construction (p. 416) are not formalized. The accumulator of §10.9 is in `GUOAccumulator.lean`,
-without its security theorem.
+The use of `H_rsa` as a compression function in the Merkle–Damgård construction (p. 416) is not
+formalized; Exercises 10.25–10.26 (§10.11, p. 431) are in
+`CslibFrontier/Crypto/Computational/RSAUnitInversion/Converse.lean`. The accumulator of §10.9
+is in `GUOAccumulator.lean`, and its security under strong RSA in
+`CslibFrontier/Crypto/Computational/GUOAccumulator/Security.lean`.
 
 ## References
 
@@ -296,8 +298,8 @@ theorem computableInPolyTime_validRSAHashInput :
     (ComputableInPolyTime.binary_gcd' hd.fst' hN) (ComputableInPolyTime.const 1)
   have hlt₂ := ComputableInPolyTime.binary_lt' hd.snd' he
   unfold validRSAHashInput
-  exact .of_tidy (ComputableTidilyInPolyTime.bool_and' (ComputableTidilyInPolyTime.bool_and'
-    (ComputableTidilyInPolyTime.bool_and' hcanon.tidy hlt.tidy) hcop.tidy) hlt₂.tidy)
+  exact (ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and'
+    (ComputableInPolyTime.bool_and' hcanon hlt) hcop) hlt₂)
 
 /-- A collision of the RSA hash at a key with prime `e` and a unit base `y < N` decodes to pairs
 from which `rsaHashRoot` computes an `e`-th root of `y`. -/

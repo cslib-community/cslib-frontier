@@ -42,8 +42,9 @@ The proof:
 * `Cslib.Complexity.PH_eq_SigmaP_two_of_coNP_subset_AM`: **Boppana–Håstad–Zachos**.
 * `Cslib.Complexity.SigmaP_two_eq_AM_of_coNP_subset_AM`,
   `Cslib.Complexity.PiP_two_eq_SigmaP_two_of_coNP_subset_AM`: `Σ₂ = Π₂ = AM`.
-* `Cslib.Complexity.PH_eq_SigmaP_two_of_npComplete_GraphIsomorphism`: if graph isomorphism is
-  `NP`-complete, then `PH = Σ₂`.
+* `Cslib.Complexity.PH_eq_SigmaP_two_of_npComplete_GraphIsomorphism`,
+  `Cslib.Complexity.SigmaP_two_eq_PiP_two_of_npComplete_GraphIsomorphism`: if graph isomorphism
+  is `NP`-complete, then `PH = Σ₂` and `Σ₂ = Π₂`.
 
 ## References
 
@@ -51,6 +52,7 @@ The proof:
   proofs?*][BoppanaHastadZachos1987]
 * [L. Babai, *Trading group theory for randomness*][Babai1985]
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
+* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, 2007 web draft][AroraBarak07]
 -/
 
 public section
@@ -99,12 +101,24 @@ theorem PiP_two_eq_SigmaP_two_of_coNP_subset_AM
     (h : ∀ {β : Type} (encB : β ↪ List Bool), coNP encB ⊆ AM encB) : PiP 2 enc = SigmaP 2 enc :=
   PiP_eq_SigmaP_of_PiP_subset_SigmaP (PiP_two_subset_SigmaP_two_of_coNP_subset_AM h enc)
 
+/-- If graph isomorphism is `NP`-complete, then `coNP ⊆ AM` for every encoding: graph
+non-isomorphism is then `coNP`-hard, and it is in `AM`, which is closed under reductions. -/
+theorem coNP_subset_AM_of_npComplete_GraphIsomorphism
+    (hGI : NPComplete encGraphIsomorphism GraphIsomorphism) {β : Type} (encB : β ↪ List Bool) :
+    coNP encB ⊆ AM encB := fun A hA =>
+  (NPHard.compl hGI.2 encB A hA).mem_AM GraphNonIsomorphism.mem_AM
+
 /-- **If graph isomorphism is `NP`-complete, then `PH = Σ₂`** [BoppanaHastadZachos1987],
-[Arora and Barak, Section 8.2][AroraBarak09]: graph non-isomorphism is then `coNP`-hard, and it
-is in `AM`, which is closed under reductions, so `coNP ⊆ AM`. -/
+[Arora and Barak, Section 8.2][AroraBarak09]. -/
 theorem PH_eq_SigmaP_two_of_npComplete_GraphIsomorphism
     (hGI : NPComplete encGraphIsomorphism GraphIsomorphism) : PH enc = SigmaP 2 enc :=
-  PH_eq_SigmaP_two_of_coNP_subset_AM fun encB A hA =>
-    (NPHard.compl hGI.2 encB A hA).mem_AM GraphNonIsomorphism.mem_AM
+  PH_eq_SigmaP_two_of_coNP_subset_AM (coNP_subset_AM_of_npComplete_GraphIsomorphism hGI)
+
+/-- **If graph isomorphism is `NP`-complete, then `Σ₂ = Π₂`** [BoppanaHastadZachos1987],
+[Arora and Barak, Theorem 8.16][AroraBarak07]. -/
+theorem SigmaP_two_eq_PiP_two_of_npComplete_GraphIsomorphism
+    (hGI : NPComplete encGraphIsomorphism GraphIsomorphism) : SigmaP 2 enc = PiP 2 enc :=
+  (PiP_two_eq_SigmaP_two_of_coNP_subset_AM
+    (coNP_subset_AM_of_npComplete_GraphIsomorphism hGI)).symm
 
 end Cslib.Complexity

@@ -14,22 +14,16 @@ public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Linear
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrSignature
 public import CslibFrontier.Crypto.Protocols.Signature.RandomOracle
 public import CslibFrontier.Languages.Probabilistic.Forking
-import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Programming
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Presample
-import CslibFrontier.Languages.Probabilistic.RandomOracle
 import CslibFrontier.Languages.Probabilistic.Simulation
-import CslibFrontier.Languages.Probabilistic.UntilBad
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.BindFailure
-import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Uniform
-import CslibFrontier.Probability.PMF.Union
 
 /-!
-# Fiat–Shamir non-interactive zero-knowledge proofs of knowledge in the random-oracle model
+# Fiat–Shamir non-interactive proofs in the random-oracle model: completeness and concrete bounds
 
 The Fiat–Shamir transformation ([FiatShamir1986]; [BonehShoup2023], Sections 20.3.3–20.3.5)
 compiles a public-coin Sigma protocol `P : SigmaProtocol X Y T C Z` for a relation
@@ -42,16 +36,16 @@ in the hash query is essential when statements can be chosen adaptively after qu
 `t` alone fails soundness on protocols such as Schnorr's where a cheating prover can solve the
 verification equation for `y` after seeing `H(t)`.
 
-This module establishes the random-oracle security properties of Fiat–Shamir NIZK proofs as exact
-probability laws over `OracleComp`:
+This module proves completeness of Fiat–Shamir non-interactive proofs and concrete simulation,
+extraction and soundness bounds for them in the `OracleComp` random-oracle model:
 
 1. **Completeness** (`fiatShamirNIZK_complete`, `fiatShamirNIZK_verify_of_prove`; [BonehShoup2023],
    Section 20.3.3): for every `(x, y)` with `R x y` and every initial random-oracle cache `cache`,
    running honest commitment sampling, `fiatShamirNIZKProve`, and `fiatShamirNIZKVerify` against the
    lazy uniform random oracle `ROMSignature.oracle C` accepts with probability `1`
    (`= PMF.pure true`).
-2. **Adaptive multi-theorem zero knowledge in the programmable ROM** ([BonehShoup2023], Section
-   20.3.5, Attack Game 20.3, Figure 20.2, and Theorem 20.3 / Equation (20.9)): an adaptive
+2. **The zero-knowledge bound (20.9) in the programmable ROM** ([BonehShoup2023], Section
+   20.3.5, Attack Game 20.3 and Figure 20.2; a step toward Theorem 20.3): an adaptive
    distinguisher queries `.inl (x, y)` for a proof (validated by an explicit Boolean relation
    checker `valid : X → Y → Bool` with `∀ x y, valid x y = true → R x y`, returning `none`
    identically in both experiments when `valid x y = false`) and `.inr (y, t)` for the random
@@ -63,16 +57,19 @@ probability laws over `OracleComp`:
    `advantage_fiatShamirNIZKRealGame_simGame_le`). Concrete adaptation: whereas Figure 20.2 in
    [BonehShoup2023] outputs `fail` when a sampled commitment point `(y, t)` is already programmed in
    the random-oracle table, `nizkSimProve` overwrites `(y, t)` at the head of the association-list
-   cache; the `IdenticalUntilBad` / `toOuterMeasure_bad_le` collision hop directly justifies this
-   overwrite simulator.
-3. **ROM proof of knowledge and derived simulation-extractability**:
-   * *Plain ROM proof of knowledge* (`fiatShamirNIZKExtract`,
-     `succProbability_fiatShamirNIZKPokGame_le`; [BonehShoup2023], Section 20.3.4, proved via the
-     general forking inequality of [BellareNeven2006], Lemma 1): for an explicit-coin cheating
-     prover making at most `Qro` hash calls on statement `y`, the acceptance probability `ε`
-     satisfies `ε ≤ (Qro + 1) / |C| + √((Qro + 1) * ε')`, where `ε'` is the probability that
-     rewinding outputs `some w` with `R w y`.
-   * *Derived adaptive multi-theorem simulation-extractability* (`fiatShamirNIZKSimExtractWith`,
+   cache; the programming collision hop
+   `RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded`
+   directly justifies this overwrite simulator.
+3. **ROM extraction bounds and derived simulation-extractability bounds**:
+   * *Plain ROM extraction bound* (`fiatShamirNIZKExtract`,
+     `succProbability_fiatShamirNIZKPokGame_le`, proved via the general forking inequality of
+     [BellareNeven2006], Lemma 1): for an explicit-coin cheating prover making at most `Qro` hash
+     calls on statement `y`, the acceptance probability `ε` satisfies
+     `ε ≤ (Qro + 1) / |C| + √((Qro + 1) * ε')`, where `ε'` is the probability that rewinding
+     outputs `some w` with `R w y`. On a false statement this gives the soundness bound
+     `(Qro + 1) / |C|` (`succProbability_fiatShamirNIZKPokGame_le_of_false`). [BonehShoup2023],
+     Section 20.3.4, proves soundness (Theorem 20.2) by guessing the relevant hash query instead.
+   * *Derived adaptive simulation-extraction bounds* (`fiatShamirNIZKSimExtractWith`,
      `fiatShamirNIZKSimExtract`, `succProbability_fiatShamirNIZKRealExtGame_le`,
      `succProbability_fiatShamirNIZKSimExtGame_le`): derived here by combining our Attack Game 20.3
      zero-knowledge simulation hop, `SimCoinSource` presampling across forks, and
@@ -86,11 +83,15 @@ probability laws over `OracleComp`:
 
 Specializations are provided for `SigmaProtocol.linear` and `SigmaProtocol.schnorr`, using an
 explicit statement-independent simulator coin source (`linearSimCoinSource`) so that `linear` and
-`schnorr` simulation-extractability require no finiteness assumption on the statement or group
+`schnorr` simulation-extraction bounds require no finiteness assumption on the statement or group
 carrier types.
 
-All results are exact finite probability laws in the `OracleComp` random-oracle model; encoded
-machine-level `IsPPT` efficiency bridges for multi-query rewinding reductions are separate.
+Every result is about one Sigma protocol: completeness is an equality of distributions, and the
+other results are concrete inequalities. The zero-knowledge, extraction and soundness bounds are
+steps toward [BonehShoup2023], Theorems 20.2 and 20.3, not the cited results: those theorems
+conclude that the proof system is sound (Definition 20.4) and niZK (Definition 20.5, which asks
+for an efficient simulator), while nothing here certifies the simulator `nizkSimProve` or the
+rewinding extractors as efficient. The asymptotic theorems are open (#5293).
 
 ## Main definitions
 
@@ -141,28 +142,33 @@ machine-level `IsPPT` efficiency bridges for multi-query rewinding reductions ar
   `Cslib.Crypto.Protocols.SigmaProtocol.nizkSimHandler_inl_of_false`,
   `Cslib.Crypto.Protocols.SigmaProtocol.nizkSimHandler_inl_congr`: invalid queries return `none`
   identically and simulation ignores witness values beyond `valid x y`.
+* `Cslib.Crypto.Protocols.SigmaProtocol.linear_unpredictableCommitments_of_injective`,
+  `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_unpredictableCommitments`,
+  `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_fiatShamirNIZK_complete`: unpredictable
+  commitments of `SigmaProtocol.linear` and `SigmaProtocol.schnorr`, and completeness for Schnorr.
+
+## Steps toward Theorems 20.2 and 20.3
+
 * `Cslib.Crypto.Protocols.SigmaProtocol.abs_sub_fiatShamirNIZKRealGame_simGame_le`,
-  `Cslib.Crypto.Protocols.SigmaProtocol.advantage_fiatShamirNIZKRealGame_simGame_le`: adaptive
-  multi-theorem NIZK zero-knowledge bound `Qp * (Qp + Qro) * δ`.
+  `Cslib.Crypto.Protocols.SigmaProtocol.advantage_fiatShamirNIZKRealGame_simGame_le`: the concrete
+  zero-knowledge bound (20.9), `Qp * (Qp + Qro) * δ`, for one Sigma protocol.
 * `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKPokGame_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKPokKeyGen_le`,
-  `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKPokGame_le_of_false`: plain
-  ROM proof-of-knowledge, one-way key-generator reduction, and soundness on false statements.
+  `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKPokGame_le_of_false`:
+  concrete extraction bounds on one statement and against a key generator, and the soundness
+  bound on one false statement.
 * `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKSimExtGameOn_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKSimExtGame_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKRealExtGameOn_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKRealExtGame_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKFreshStmtGameOn_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.succProbability_fiatShamirNIZKRealExtGameOn_le_of_false`:
-  adaptive simulation-extractability and simulation-soundness bounds.
-* `Cslib.Crypto.Protocols.SigmaProtocol.linear_unpredictableCommitments_of_injective`,
-  `Cslib.Crypto.Protocols.SigmaProtocol.linear_advantage_fiatShamirNIZKRealGame_simGame_le`,
+  concrete adaptive simulation-extraction and soundness bounds, derived here.
+* `Cslib.Crypto.Protocols.SigmaProtocol.linear_advantage_fiatShamirNIZKRealGame_simGame_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.linear_succProbability_fiatShamirNIZKPokGame_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.linear_succProbability_fiatShamirNIZKRealExtGame_le`:
   specializations to `SigmaProtocol.linear`.
-* `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_unpredictableCommitments`,
-  `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_fiatShamirNIZK_complete`,
-  `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_advantage_fiatShamirNIZKRealGame_simGame_le`,
+* `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_advantage_fiatShamirNIZKRealGame_simGame_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_succProbability_fiatShamirNIZKPokGame_le`,
   `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_succProbability_fiatShamirNIZKRealExtGame_le`:
   specializations to `SigmaProtocol.schnorr`.
@@ -170,8 +176,8 @@ machine-level `IsPPT` efficiency bridges for multi-query rewinding reductions ar
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
-  Version 0.6][BonehShoup2023], Sections 19.6.1, 19.7, and 20.3.3–20.3.5 (Attack Game 20.3,
-  Figure 20.2, and Theorem 20.3).
+  Version 0.6][BonehShoup2023], Sections 19.6.1, 19.7, and 20.3.2–20.3.5 (Definitions 20.3–20.5,
+  Attack Games 20.2 and 20.3, Figure 20.2, and Theorems 20.2 and 20.3).
 * [M. Bellare, G. Neven, *Multi-Signatures in the Plain Public-Key Model and a General Forking
   Lemma*][BellareNeven2006], Lemma 1.
 * [A. Fiat, A. Shamir, *How to Prove Yourself: Practical Solutions to Identification and Signature
@@ -375,7 +381,7 @@ theorem nizkSimHandler_inl_congr [DecidableEq Y] [DecidableEq T] [Fintype C] [No
   let (b, _) ← (interpret (nizkSimHandler simulate valid) D).run []
   return b
 
-/-! ### Shared game-hop handlers (logging proved `(y, t)` pairs and collision flag) -/
+/-! ### Shared game-hop handlers (logging proved `(y, t)` pairs via `RandomOracle.Programming`) -/
 
 /-- State of the logged adaptive experiment: the random-oracle cache paired with the list of
 statement-commitment pairs `(y, t)` returned by valid prove queries. -/
@@ -410,35 +416,6 @@ query. -/
       PMF.pure (none, (cache, proved))
   | .inr yt => fun (cache, proved) =>
     (oracle C yt cache).map fun (c, cache') => (c, (cache', proved))
-
-/-- Flagged real handler raising `bad` when a valid prove commitment hits an existing cache
-entry. -/
-private noncomputable def realFlaggedHandler [DecidableEq Y] [DecidableEq T] [Fintype C]
-    [Nonempty C] (P : SigmaProtocol X Y T C Z) (valid : X → Y → Bool) :
-    (q : (X × Y) ⊕ (Y × T)) →
-      StateT (ExtGameState Y T C × Bool) PMF (NIZKDistinguisherSpec X Y T C Z q)
-  | .inl (x, y) => fun st =>
-    if valid x y then
-      (P.commit x y).bind fun ts =>
-        (oracle C (y, ts.1) st.1.1).map fun r =>
-          (some (ts.1, P.respond x y ts.2 r.1),
-            ((r.2, (y, ts.1) :: st.1.2), st.2 || (st.1.1.lookup (y, ts.1)).isSome))
-    else
-      PMF.pure (none, st)
-  | .inr yt => fun st =>
-    (oracle C yt st.1.1).map fun r => (r.1, ((r.2, st.1.2), st.2))
-
-/-- Flagged programming handler setting `(y, t) ↦ c` to a fresh uniform challenge on valid prove
-queries, raising the same `bad` flag on cache collisions. -/
-private noncomputable def programFlaggedHandler [DecidableEq Y] [DecidableEq T] [Fintype C]
-    [Nonempty C] (P : SigmaProtocol X Y T C Z) (valid : X → Y → Bool) :
-    (q : (X × Y) ⊕ (Y × T)) →
-      StateT (ExtGameState Y T C × Bool) PMF (NIZKDistinguisherSpec X Y T C Z q) :=
-  RandomOracle.flaggedOverwriteProgramHandler (Reply := fun _ : X × Y => Option (T × Z))
-    (PMF.uniformOfFintype C) (fun xy => valid xy.1 xy.2)
-    (fun _ _ proved => PMF.pure (none, proved)) (fun xy => P.commit xy.1 xy.2)
-    (fun xy ts => (xy.2, ts.1))
-    (fun xy ts c proved => (some (ts.1, P.respond xy.1 xy.2 ts.2 c), (xy.2, ts.1) :: proved))
 
 /-- Projecting away the proved-pair log from `nizkRealExtHandler` recovers `nizkRealHandler`. -/
 private theorem nizkRealExtHandler_map_cache [DecidableEq Y] [DecidableEq T] [Fintype C]
@@ -484,27 +461,6 @@ private theorem nizkSimExtHandler_map_cache [DecidableEq Y] [DecidableEq T] [Fin
   | inr yt =>
     simp only [nizkSimExtHandler, nizkSimHandler, PMF.map_comp]
     exact PMF.map_id _
-
-private theorem realFlaggedHandler_eq_flaggedLazyProgramHandler [DecidableEq Y] [DecidableEq T]
-    [Fintype C] [Nonempty C] (P : SigmaProtocol X Y T C Z) (valid : X → Y → Bool) :
-    realFlaggedHandler P valid =
-      RandomOracle.flaggedLazyProgramHandler (Reply := fun _ : X × Y => Option (T × Z))
-        (PMF.uniformOfFintype C) (fun xy => valid xy.1 xy.2)
-        (fun _ _ proved => PMF.pure (none, proved)) (fun xy => P.commit xy.1 xy.2)
-        (fun xy ts => (xy.2, ts.1))
-        (fun xy ts c proved =>
-          (some (ts.1, P.respond xy.1 xy.2 ts.2 c), (xy.2, ts.1) :: proved)) := by
-  funext q ⟨⟨cache, proved⟩, b⟩
-  cases q with
-  | inl xy =>
-    obtain ⟨x, y⟩ := xy
-    rw [RandomOracle.flaggedLazyProgramHandler_apply_inl]
-    by_cases hv : valid x y = true
-    · simp only [realFlaggedHandler, hv, ↓reduceIte, ↓reduceDIte, oracle]
-    · simp only [realFlaggedHandler, hv, Bool.false_eq_true, ↓reduceIte, ↓reduceDIte, PMF.pure_map]
-  | inr yt =>
-    rw [RandomOracle.flaggedLazyProgramHandler_apply_inr]
-    rfl
 
 private theorem nizkRealExtHandler_eq_lazyProgramHandler [DecidableEq Y] [DecidableEq T] [Fintype C]
     [Nonempty C] (P : SigmaProtocol X Y T C Z) (valid : X → Y → Bool) :
@@ -558,95 +514,32 @@ private theorem nizkSimExtHandler_eq_overwriteProgramHandler [DecidableEq Y] [De
   | inr yt =>
     rfl
 
-/-- `realFlaggedHandler` and `programFlaggedHandler` are identical until the collision flag is
-raised. -/
-private theorem identicalUntilBad_flaggedHandlers [DecidableEq Y] [DecidableEq T] [Fintype C]
-    [Nonempty C] (P : SigmaProtocol X Y T C Z) (valid : X → Y → Bool) :
-    IdenticalUntilBad (realFlaggedHandler P valid) (programFlaggedHandler P valid)
-      fun st => st.2 = true := by
-  rw [realFlaggedHandler_eq_flaggedLazyProgramHandler, programFlaggedHandler]
-  exact RandomOracle.identicalUntilBad_flaggedProgramHandlers _ _ _ _ _ _
-
-/-- Union bound for a commitment hitting an existing cache entry at `(y, ·)`. -/
-private theorem toOuterMeasure_lookup_commit_le [DecidableEq Y] [DecidableEq T]
-    (P : SigmaProtocol X Y T C Z) {x : X} {y : Y} {δ : ℝ≥0∞}
-    (hcommit : ∀ t, (P.commit x y).map Prod.fst t ≤ δ) (cache : List ((Y × T) × C)) :
-    (P.commit x y).toOuterMeasure {ts | (cache.lookup (y, ts.1)).isSome} ≤
-      cache.length * δ := by
-  refine Probability.PMF.toOuterMeasure_lookup_isSome_le _ _ (fun k => ?_) cache
-  calc (P.commit x y).toOuterMeasure {ts | (y, ts.1) = k}
-      ≤ (P.commit x y).toOuterMeasure (Prod.fst ⁻¹' {k.2}) :=
-        (P.commit x y).toOuterMeasure.mono fun ts (hts : (y, ts.1) = k) =>
-          (congrArg Prod.snd hts : ts.1 = k.2)
-    _ ≤ δ := by
-        rw [← PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_apply_singleton]
-        exact hcommit k.2
-
-/-- Under `UnpredictableCommitments R δ` and `hvalid`, a program with budgets `(Qp, Qro)` raises
-the collision flag of `realFlaggedHandler` with probability at most `Qp * (Qp + Qro) * δ`. -/
-private theorem toOuterMeasure_flag_le_nizk [DecidableEq Y] [DecidableEq T] [Fintype C]
-    [Nonempty C] {P : SigmaProtocol X Y T C Z} {R : X → Y → Prop} {valid : X → Y → Bool}
-    {δ : ℝ≥0} (hvalid : ∀ x y, valid x y = true → R x y)
+/-- Statistical closeness between `nizkRealExtHandler` and `nizkSimExtHandler` for any bounded
+program. -/
+private theorem closeTo_nizkExtHandlers [DecidableEq Y] [DecidableEq T] [Fintype C] [Nonempty C]
+    {P : SigmaProtocol X Y T C Z} {R : X → Y → Prop} {simulate : Y → C → PMF (T × Z)}
+    {valid : X → Y → Bool} {δ : ℝ≥0}
+    (hvalid : ∀ x y, valid x y = true → R x y)
+    (hHVZK : P.SpecialHVZK R simulate)
     (hUnpred : P.UnpredictableCommitments R δ) {α : Type}
     {program : OracleComp (NIZKDistinguisherSpec X Y T C Z) α} {Qp Qro : ℕ}
     (hcall : NIZKCallBounded program Qp Qro) :
-    ((interpret (realFlaggedHandler P valid) program).run (([], []), false)).toOuterMeasure
-      {x | x.2.2 = true} ≤ (Qp * (Qp + Qro) : ℕ) * (δ : ℝ≥0∞) := by
-  have h := toOuterMeasure_bad_le (handler := realFlaggedHandler P valid)
-    (bad := fun st => st.2 = true)
-    (Sum.elim (fun _ => 1) (fun _ => 0))
-    (fun st => st.1.1.length * (δ : ℝ≥0∞)) (δ : ℝ≥0∞) ?_ ?_
-    hcall.isQueryBounded hcall.1 (s := (([], []), false)) (by simp)
-  · calc _ ≤ (Qp : ℝ≥0∞) * (0 + (Qp + Qro : ℕ) * (δ : ℝ≥0∞)) := by simpa using h
-      _ = (Qp * (Qp + Qro) : ℕ) * (δ : ℝ≥0∞) := by push_cast; ring
-  · intro q st hst
-    cases q with
-    | inl xy =>
-      obtain ⟨x, y⟩ := xy
-      rw [Sum.elim_inl, Nat.cast_one, one_mul]
-      by_cases hv : valid x y = true
-      · simp only [realFlaggedHandler, hv, ↓reduceIte]
-        refine (Probability.PMF.toOuterMeasure_bind_le_add _ _
-          {ts : T × P.State | (st.1.1.lookup (y, ts.1)).isSome} _ 0
-          fun ts _ hts => le_of_eq ((PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr
-            (Set.disjoint_left.mpr fun out hout hbad => ?_))).trans ?_
-        · obtain ⟨r, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hout
-          simp_all
-        · rw [add_zero]
-          exact toOuterMeasure_lookup_commit_le P (hUnpred x y (hvalid x y hv)) st.1.1
-      · simp only [Bool.not_eq_true] at hv
-        simp only [realFlaggedHandler, hv, Bool.false_eq_true, ↓reduceIte,
-          PMF.toOuterMeasure_pure_apply]
-        split_ifs with hbad
-        · exact absurd hbad hst
-        · exact zero_le
-    | inr yt =>
-      refine le_of_eq_of_le ((PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr ?_) zero_le
-      refine Set.disjoint_left.mpr fun out hout hbad => hst ?_
-      obtain ⟨r, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hout
-      exact hbad
-  · intro q st _ out hout _
-    have hlen : out.2.1.1.length ≤ st.1.1.length + 1 := by
-      cases q with
-      | inl xy =>
-        obtain ⟨x, y⟩ := xy
-        by_cases hv : valid x y = true
-        · simp only [realFlaggedHandler, hv, ↓reduceIte] at hout
-          obtain ⟨ts, -, hout⟩ := (PMF.mem_support_bind_iff _ _ _).mp hout
-          obtain ⟨r, hr, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hout
-          exact length_le_of_mem_support_oracle hr
-        · simp only [Bool.not_eq_true] at hv
-          simp only [realFlaggedHandler, hv, Bool.false_eq_true, ↓reduceIte,
-            PMF.mem_support_pure_iff] at hout
-          subst hout
-          exact Nat.le_succ _
-      | inr yt =>
-        obtain ⟨r, hr, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hout
-        exact length_le_of_mem_support_oracle hr
-    calc (out.2.1.1.length : ℝ≥0∞) * (δ : ℝ≥0∞)
-        ≤ ((st.1.1.length + 1 : ℕ) : ℝ≥0∞) * (δ : ℝ≥0∞) := by gcongr
-      _ = st.1.1.length * (δ : ℝ≥0∞) + (δ : ℝ≥0∞) := by
-          rw [Nat.cast_add, Nat.cast_one, add_mul, one_mul]
+    CloseTo
+      ((interpret (nizkRealExtHandler P valid) program).run ([], []))
+      ((interpret (nizkSimExtHandler simulate valid) program).run ([], []))
+      ((Qp * (Qp + Qro) : ℕ) * (δ : ℝ≥0∞)) := by
+  rw [nizkRealExtHandler_eq_lazyProgramHandler,
+    nizkSimExtHandler_eq_overwriteProgramHandler hvalid hHVZK]
+  have h := RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded
+    (Reply := fun _ : X × Y => Option (T × Z))
+    (PMF.uniformOfFintype C) (fun xy => valid xy.1 xy.2)
+    (fun _ _ proved => PMF.pure (none, proved)) (fun xy => P.commit xy.1 xy.2)
+    (fun xy ts => (xy.2, ts.1))
+    (fun xy ts c proved => (some (ts.1, P.respond xy.1 xy.2 ts.2 c), (xy.2, ts.1) :: proved))
+    (fun xy hv k => RandomOracle.map_comp_apply_le_of_injective
+      (fun _ _ h => (Prod.mk.inj h).2) (hUnpred xy.1 xy.2 (hvalid xy.1 xy.2 hv)) k)
+    hcall.1 hcall.isQueryBounded [] []
+  rwa [List.length_nil, zero_add] at h
 
 /-- Two-sided difference bound between continuing from `nizkRealExtHandler` and continuing from
 `nizkSimExtHandler`. -/
@@ -662,26 +555,16 @@ private theorem abs_sub_extHandlers_bind_le [DecidableEq Y] [DecidableEq T] [Fin
         (((interpret (nizkSimExtHandler simulate valid) program).run ([], [])).bind
           next b).toReal| ≤
       Qp * (Qp + Qro) * δ := by
-  have hreal : ((interpret (realFlaggedHandler P valid) program).run (([], []), false)).map
-      (Prod.map id Prod.fst) =
-      (interpret (nizkRealExtHandler P valid) program).run ([], []) := by
-    rw [realFlaggedHandler_eq_flaggedLazyProgramHandler, nizkRealExtHandler_eq_lazyProgramHandler]
-    exact RandomOracle.run_flaggedLazyProgramHandler_map_fst _ _ _ _ _ _ _ _ false
-  have hsim : ((interpret (programFlaggedHandler P valid) program).run (([], []), false)).map
-      (Prod.map id Prod.fst) =
-      (interpret (nizkSimExtHandler simulate valid) program).run ([], []) := by
-    rw [programFlaggedHandler, nizkSimExtHandler_eq_overwriteProgramHandler hvalid hHVZK]
-    exact RandomOracle.run_flaggedOverwriteProgramHandler_map_fst _ _ _ _ _ _ _ _ false
-  rw [← hreal, ← hsim, PMF.bind_map, PMF.bind_map]
-  have hdiff := (identicalUntilBad_flaggedHandlers P valid).abs_sub_le program (([], []), false)
-    (next ∘ Prod.map id Prod.fst) b
-  have hflag := toOuterMeasure_flag_le_nizk hvalid hUnpred hcall
-  have htop : ((Qp * (Qp + Qro) : ℕ) : ℝ≥0∞) * (δ : ℝ≥0∞) ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) ENNReal.coe_ne_top
-  refine hdiff.trans ((ENNReal.toReal_mono htop hflag).trans_eq ?_)
-  rw [ENNReal.toReal_mul, ENNReal.toReal_natCast, ENNReal.coe_toReal]
-  push_cast
-  ring
+  have hclose := (closeTo_nizkExtHandlers hvalid hHVZK hUnpred hcall).bind_left next
+  have hε : (0 : ℝ) ≤ (Qp : ℝ) * (Qp + Qro) * δ := by positivity
+  have heq : ((Qp * (Qp + Qro) : ℕ) : ℝ≥0∞) * (δ : ℝ≥0∞) =
+      ENNReal.ofReal ((Qp : ℝ) * (Qp + Qro) * δ) := by
+    rw [← ENNReal.coe_natCast, ← ENNReal.coe_mul, ← ENNReal.ofReal_coe_nnreal]
+    push_cast
+    rfl
+  rw [heq] at hclose
+  have h := hclose.abs_toReal_sub_le hε {b}
+  rwa [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at h
 
 /-- One-sided `ℝ≥0∞` bound between continuing from `nizkRealExtHandler` and continuing from
 `nizkSimExtHandler`. -/
@@ -696,27 +579,20 @@ private theorem extHandlers_bind_apply_le [DecidableEq Y] [DecidableEq T] [Finty
     ((interpret (nizkRealExtHandler P valid) program).run ([], [])).bind next b ≤
       ((interpret (nizkSimExtHandler simulate valid) program).run ([], [])).bind next b +
         (Qp * (Qp + Qro) : ℕ) * (δ : ℝ≥0∞) := by
-  have hreal : ((interpret (realFlaggedHandler P valid) program).run (([], []), false)).map
-      (Prod.map id Prod.fst) =
-      (interpret (nizkRealExtHandler P valid) program).run ([], []) := by
-    rw [realFlaggedHandler_eq_flaggedLazyProgramHandler, nizkRealExtHandler_eq_lazyProgramHandler]
-    exact RandomOracle.run_flaggedLazyProgramHandler_map_fst _ _ _ _ _ _ _ _ false
-  have hsim : ((interpret (programFlaggedHandler P valid) program).run (([], []), false)).map
-      (Prod.map id Prod.fst) =
-      (interpret (nizkSimExtHandler simulate valid) program).run ([], []) := by
-    rw [programFlaggedHandler, nizkSimExtHandler_eq_overwriteProgramHandler hvalid hHVZK]
-    exact RandomOracle.run_flaggedOverwriteProgramHandler_map_fst _ _ _ _ _ _ _ _ false
-  rw [← hreal, ← hsim, PMF.bind_map, PMF.bind_map]
-  exact ((identicalUntilBad_flaggedHandlers P valid).bind_apply_le program (([], []), false)
-    (next ∘ Prod.map id Prod.fst) b).trans
-      (add_le_add le_rfl (toOuterMeasure_flag_le_nizk hvalid hUnpred hcall))
+  have h := ((closeTo_nizkExtHandlers hvalid hHVZK hUnpred hcall).bind_left next) {b}
+  rwa [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at h
 
-/-- **Adaptive multi-theorem zero knowledge** of Fiat–Shamir NIZK proofs in the programmable
-random-oracle model ([BonehShoup2023], Section 20.3.5, Theorem 20.3 / Equation (20.9), adapted via
-`IdenticalUntilBad` to the overwrite simulator `nizkSimProve`): under `SpecialHVZK` and
-`δ`-unpredictable commitments, any adaptive distinguisher making at most `Qp` prove calls and `Qro`
-direct hash calls distinguishes `fiatShamirNIZKRealGame` from `fiatShamirNIZKSimGame` with
-acceptance-probability difference at most `Qp * (Qp + Qro) * δ`. -/
+/-- Concrete zero-knowledge bound (20.9) for one Sigma protocol, a step toward [BonehShoup2023],
+Theorem 20.3, not the cited result: under `SpecialHVZK` and `δ`-unpredictable commitments, any
+adaptive distinguisher making at most `Qp` prove calls and `Qro` direct hash calls distinguishes
+`fiatShamirNIZKRealGame` from `fiatShamirNIZKSimGame` with acceptance-probability difference at most
+`Qp * (Qp + Qro) * δ`. The simulator is the overwrite variant `nizkSimProve` of Figure 20.2,
+justified by the programming hop
+`RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded`.
+
+Theorem 20.3 concludes that the proof system is niZK (Definition 20.5), which asks for an efficient
+simulator. This lemma has no efficiency claim for the simulator and fixes one protocol; the
+asymptotic theorem is open (#5293). -/
 theorem abs_sub_fiatShamirNIZKRealGame_simGame_le [DecidableEq Y] [DecidableEq T] [Fintype C]
     [Nonempty C] {P : SigmaProtocol X Y T C Z} {R : X → Y → Prop}
     {simulate : Y → C → PMF (T × Z)} {valid : X → Y → Bool} {δ : ℝ≥0}
@@ -743,8 +619,9 @@ theorem abs_sub_fiatShamirNIZKRealGame_simGame_le [DecidableEq Y] [DecidableEq T
   rw [hrealEq, hsimEq]
   exact abs_sub_extHandlers_bind_le hvalid hHVZK hUnpred hD (fun (b, _) => PMF.pure b) true
 
-/-- `Game.advantage` form of **adaptive multi-theorem Fiat–Shamir NIZK zero knowledge**
-([BonehShoup2023], Section 20.3.5, Theorem 20.3 / Equation (20.9)). -/
+/-- `Game.advantage` form of the concrete zero-knowledge bound (20.9) for one Sigma protocol, a step
+toward [BonehShoup2023], Theorem 20.3, not the cited result: the simulator has no efficiency claim
+(`abs_sub_fiatShamirNIZKRealGame_simGame_le`; #5293). -/
 theorem advantage_fiatShamirNIZKRealGame_simGame_le [DecidableEq Y] [DecidableEq T] [Fintype C]
     [Nonempty C] {P : SigmaProtocol X Y T C Z} {R : X → Y → Prop}
     {simulate : Y → C → PMF (T × Z)} {valid : X → Y → Bool} {δ : ℝ≥0}
@@ -942,11 +819,16 @@ private theorem fork_plain_le_extractGame [DecidableEq Y] [DecidableEq T] [Finty
     have hR := hsound _ _ _ _ _ hne hacc hacc'
     simp [hR]
 
-/-- **Plain ROM proof of knowledge** for Fiat–Shamir NIZK proofs ([BonehShoup2023], Section 20.3.4,
-proved via the general forking inequality of [BellareNeven2006], Lemma 1): if `P` is special sound
-at `y` with extractor `extract` and `A` makes at most `Qro` hash calls on `y`, then `A`'s
-acceptance probability `ε` satisfies `ε ≤ (Qro + 1) / |C| + √((Qro + 1) * ε')`, where `ε'` is the
-probability that `fiatShamirNIZKExtract P extract A Qro y` outputs `some w` with `R w y`. -/
+/-- Concrete extraction bound for one Sigma protocol and statement, a step toward
+[BonehShoup2023], Theorem 20.2, not the cited result (proved via the general forking inequality of
+[BellareNeven2006], Lemma 1): if `P` is special sound at `y` with extractor `extract` and `A` makes
+at most `Qro` hash calls on `y`, then `A`'s acceptance probability `ε` satisfies
+`ε ≤ (Qro + 1) / |C| + √((Qro + 1) * ε')`, where `ε'` is the probability that
+`fiatShamirNIZKExtract P extract A Qro y` outputs `some w` with `R w y`.
+
+The book proves soundness, not extraction, in Section 20.3.4; this bound yields the soundness bound
+`succProbability_fiatShamirNIZKPokGame_le_of_false`. The extractor has no efficiency claim and the
+protocol is one instance (#5293). -/
 theorem succProbability_fiatShamirNIZKPokGame_le [DecidableEq Y] [DecidableEq T] [Fintype C]
     [Nonempty C] [DecidableEq C] {W : Type} {P : SigmaProtocol X Y T C Z} {R : W → Y → Prop}
     [∀ w y, Decidable (R w y)] {extract : Y → T → C → Z → C → Z → W}
@@ -968,9 +850,10 @@ theorem succProbability_fiatShamirNIZKPokGame_le [DecidableEq Y] [DecidableEq T]
   push_cast at h ⊢
   linarith [ENNReal.toReal_zero]
 
-/-- **Plain ROM proof of knowledge against a key generator** (`oneWayGame` form): averaging over
-`(x, y) ← keyGen`, a cheating prover making at most `Qro` hash calls yields a `oneWayGame`
-adversary via `fiatShamirNIZKExtract`. -/
+/-- Concrete extraction bound against a key generator (`oneWayGame` form), a step like
+`succProbability_fiatShamirNIZKPokGame_le`, with no efficiency claim for the extractor (#5293):
+averaging over `(x, y) ← keyGen`, a cheating prover making at most `Qro` hash calls yields a
+`oneWayGame` adversary via `fiatShamirNIZKExtract`. -/
 theorem succProbability_fiatShamirNIZKPokKeyGen_le [DecidableEq Y] [DecidableEq T] [Fintype C]
     [Nonempty C] [DecidableEq C] [Nonempty X] {P : SigmaProtocol X Y T C Z}
     {keyGen : PMF (X × Y)} {R : X → Y → Prop} [∀ x y, Decidable (R x y)]
@@ -1022,9 +905,16 @@ theorem succProbability_fiatShamirNIZKPokKeyGen_le [DecidableEq Y] [DecidableEq 
   push_cast at h ⊢
   linarith [ENNReal.toReal_zero]
 
-/-- **ROM soundness on false statements**: if `y` has no witness in `R`, any cheating prover making
-at most `Qro` hash calls convinces `fiatShamirNIZKVerify` with probability at most
-`(Qro + 1) / |C|`. -/
+/-- Concrete soundness bound on one fixed false statement, a step toward [BonehShoup2023],
+Theorem 20.2, not the cited result: if `y` has no witness in `R`, any cheating prover making at most
+`Qro` hash calls convinces `fiatShamirNIZKVerify` with probability at most `(Qro + 1) / |C|`.
+
+This is the bound `(Qro + 1) / N` that the book derives from Theorems 20.2 and 20.1 for its
+Chaum–Pedersen example (pp. 837–838), here from special soundness and for a statement fixed in
+advance. In Attack Game 20.2 the adversary chooses the statement; with special HVZK and
+unpredictable commitments, `succProbability_fiatShamirNIZKRealExtGameOn_le_of_false` bounds
+adaptively chosen false statements. Theorem 20.2 assumes only that the Sigma protocol is sound and
+concludes asymptotic soundness (#5293). -/
 theorem succProbability_fiatShamirNIZKPokGame_le_of_false [DecidableEq Y] [DecidableEq T]
     [Fintype C] [Nonempty C] {W : Type} {P : SigmaProtocol X Y T C Z}
     {R : W → Y → Prop} {extract : Y → T → C → Z → C → Z → W}
@@ -1301,11 +1191,12 @@ private theorem fork_sim_le_simExtractGame [DecidableEq Y] [DecidableEq T] [Fint
     have hadm := hv.1
     simp [hadm, hR]
 
-/-- **Derived simulation-extractability against simulated proofs** (general `SimCoinSource` and
-`admissible` form, via `SimCoinSource` presampling and [BellareNeven2006], Lemma 1): without
-needing commitment unpredictability or `SpecialHVZK`, an adaptive adversary making at most `Qp`
-prove calls and `Qro` hash calls wins `fiatShamirNIZKSimExtGameOn` with probability at most
-`(Qro + 1) / |C| + √((Qro + 1) * ε')`. -/
+/-- Concrete simulation-extraction bound against simulated proofs for one Sigma protocol, derived
+here and not a result of [BonehShoup2023] (general `SimCoinSource` and `admissible` form, via
+`SimCoinSource` presampling and [BellareNeven2006], Lemma 1): without needing commitment
+unpredictability or `SpecialHVZK`, an adaptive adversary making at most `Qp` prove calls and `Qro`
+hash calls wins `fiatShamirNIZKSimExtGameOn` with probability at most
+`(Qro + 1) / |C| + √((Qro + 1) * ε')`. The extractor has no efficiency claim (#5293). -/
 theorem succProbability_fiatShamirNIZKSimExtGameOn_le [DecidableEq Y] [DecidableEq T]
     [Fintype C] [Nonempty C] [DecidableEq C] {W : Type} {P : SigmaProtocol X Y T C Z}
     {R : W → Y → Prop} [∀ w y, Decidable (R w y)]
@@ -1330,8 +1221,8 @@ theorem succProbability_fiatShamirNIZKSimExtGameOn_le [DecidableEq Y] [Decidable
   push_cast at h ⊢
   linarith [ENNReal.toReal_zero]
 
-/-- **Simulation-extractability against simulated proofs** over finite statement and transcript
-types. -/
+/-- The concrete simulation-extraction bound of `succProbability_fiatShamirNIZKSimExtGameOn_le`
+against simulated proofs, over finite statement and transcript types. -/
 theorem succProbability_fiatShamirNIZKSimExtGame_le [DecidableEq Y] [DecidableEq T]
     [Fintype Y] [Finite T] [Finite Z] [Fintype C] [Nonempty C] [DecidableEq C] {W : Type}
     {P : SigmaProtocol X Y T C Z} {R : W → Y → Prop} [∀ w y, Decidable (R w y)]
@@ -1346,12 +1237,14 @@ theorem succProbability_fiatShamirNIZKSimExtGame_le [DecidableEq Y] [DecidableEq
   succProbability_fiatShamirNIZKSimExtGameOn_le hsound (SimCoinSource.ofFintype simulate)
     valid (fun _ => true) hA
 
-/-- **Derived adaptive multi-theorem proof of knowledge (simulation-extractability) against real
-proofs** (general `SimCoinSource` and `admissible` form, combining the Attack Game 20.3 / Theorem
-20.3 zero-knowledge hop with `SimCoinSource` presampling and [BellareNeven2006], Lemma 1): under
-`SpecialSoundness`, `SpecialHVZK`, and `UnpredictableCommitments R_honest δ`, an adversary making
-at most `Qp` prove calls and `Qro` hash calls wins `fiatShamirNIZKRealExtGameOn` with probability
-at most `Qp * (Qp + Qro) * δ + (Qro + 1) / |C| + √((Qro + 1) * ε')`. -/
+/-- Concrete adaptive simulation-extraction bound against real proofs for one Sigma protocol,
+derived here and not a result of [BonehShoup2023] (general `SimCoinSource` and `admissible` form,
+combining the Attack Game 20.3 zero-knowledge hop with `SimCoinSource` presampling and
+[BellareNeven2006], Lemma 1): under `SpecialSoundness`, `SpecialHVZK`, and
+`UnpredictableCommitments R_honest δ`, an adversary making at most `Qp` prove calls and `Qro` hash
+calls wins `fiatShamirNIZKRealExtGameOn` with probability at most
+`Qp * (Qp + Qro) * δ + (Qro + 1) / |C| + √((Qro + 1) * ε')`. The extractor has no efficiency
+claim (#5293). -/
 theorem succProbability_fiatShamirNIZKRealExtGameOn_le [DecidableEq Y] [DecidableEq T]
     [Fintype C] [Nonempty C] [DecidableEq C] {W : Type} {P : SigmaProtocol X Y T C Z}
     {R_honest : X → Y → Prop} {R : W → Y → Prop} [∀ w y, Decidable (R w y)]
@@ -1393,9 +1286,9 @@ theorem succProbability_fiatShamirNIZKRealExtGameOn_le [DecidableEq Y] [Decidabl
     linarith
   linarith
 
-/-- **Derived adaptive multi-theorem simulation-extractability** of Fiat–Shamir NIZK proofs in the
-random-oracle model (combining the Attack Game 20.3 / Theorem 20.3 zero-knowledge hop with
-[BellareNeven2006], Lemma 1). -/
+/-- The concrete simulation-extraction bound of `succProbability_fiatShamirNIZKRealExtGameOn_le`
+against real proofs, over finite statement and transcript types, with every final statement
+admissible. -/
 theorem succProbability_fiatShamirNIZKRealExtGame_le [DecidableEq Y] [DecidableEq T]
     [Fintype Y] [Finite T] [Finite Z] [Fintype C] [Nonempty C] [DecidableEq C] {W : Type}
     {P : SigmaProtocol X Y T C Z} {R_honest : X → Y → Prop} {R : W → Y → Prop}
@@ -1456,10 +1349,10 @@ theorem succProbability_fiatShamirNIZKFreshStmtGameOn_le [DecidableEq Y] [Decida
   simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal]
   exact ENNReal.toReal_mono (PMF.apply_ne_top _ _) hmono
 
-/-- **Adaptive simulation-soundness** on false statements: if every statement accepted by
-`admissible` lacks a witness in `R`, then even after `Qp` adaptive prove queries on valid
-statements, `A` produces an accepted proof on an `admissible` false statement with probability at
-most `Qp * (Qp + Qro) * δ + (Qro + 1) / |C|`. -/
+/-- Concrete adaptive soundness bound on false statements for one Sigma protocol, derived here: if
+every statement accepted by `admissible` lacks a witness in `R`, then even after `Qp` adaptive
+prove queries on valid statements, `A` produces an accepted proof on an `admissible` false
+statement with probability at most `Qp * (Qp + Qro) * δ + (Qro + 1) / |C|`. -/
 theorem succProbability_fiatShamirNIZKRealExtGameOn_le_of_false [DecidableEq Y] [DecidableEq T]
     [Fintype C] [Nonempty C] {W : Type} {P : SigmaProtocol X Y T C Z}
     {R_honest : X → Y → Prop} {R : W → Y → Prop}

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Program
 public import CslibFrontier.Foundations.Data.BitString.Enumeration
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import Mathlib.Data.List.Perm.Basic
 import Mathlib.Data.List.Nodup
 
@@ -122,16 +123,12 @@ private theorem apply_emit {input output : List Bool} {index : ℕ}
     (h : index < input.length) (bit : Bool) :
     (emit bit).apply (config input (some ()) index output (by lia)) =
       config input (some ()) (index + 1) (output ++ [bit]) h := by
-  refine Cfg.ext_zero_tapes rfl ?_ rfl
-  apply Fin.ext
-  change (moveInputPos _ .pos).val = index + 1 + 1
-  rw [moveInputPos_pos_of_ne_right _ (by simp only [config]; lia)]
-  rfl
+  tm_step [emit, config]
 
 private theorem apply_halt (input output : List Bool) :
     halt.apply (config input (some ()) input.length output le_rfl) =
       config input none input.length output le_rfl := by
-  apply Cfg.ext_zero_tapes <;> simp [Turing.Action.apply, halt, config]
+  tm_step [halt, config]
 
 theorem step?_inner {input output : List Bool} {index : ℕ}
     (h : index < input.length) (choice : ℕ) :
@@ -206,7 +203,7 @@ private theorem haltsWithin_config (input : List Bool) (remaining : ℕ) :
 /-- Starting from blank tapes is the zero-position scanner invariant. -/
 theorem init_eq_config (input : List Bool) :
     Cfg.init guessMachine.initial input = config input (some ()) 0 [] (Nat.zero_le _) := by
-  exact Cfg.ext_zero_tapes rfl rfl rfl
+  tm_step
 
 /-- Every branch halts in `n + 1` transitions, with a nonempty choice list at every live node. -/
 theorem haltsWithin (input : List Bool) :

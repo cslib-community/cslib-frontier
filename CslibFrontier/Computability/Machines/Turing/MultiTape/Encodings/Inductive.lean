@@ -13,11 +13,16 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.B
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Bounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunProp
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 public meta import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeLifts
 public meta import Lean.Elab.Command
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.RecursiveParser
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Partial
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.RecursiveChild
+public meta import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.InductiveRecursive
 
 /-!
-# Encodings of non-recursive inductive types
+# Encodings of inductive types
 
 `enc_inductive eT : T where | c₁ : e₁₁, e₁₂ | c₂ | …` declares the encoding of an inductive type
 whose constructors take explicit, non-recursive fields. A value is mapped to a right-nested sum
@@ -49,17 +54,63 @@ convention above, with a declaration-specific `defsWithUnderscore` exemption.
 The `toSum` and constructor rules are `scoped` `fun_prop` rules, as for `enc_structure`. The case
 rule is stated for an input paired with the value, as `ComputableInO.sumElimSnd` is.
 
-The command does not inspect the declaration for recursion, and it derives no recursive
-encodings: each field encoding must already be available as an ordinary term, and the generated
-certificates are relative to those encodings. A recursive field is accepted only when such an
-encoding is supplied, for example `encUnary` for the field of `Nat.succ`. Fields that are
-propositions, indices or implicit arguments are not supported.
+The original form preserves its sum-of-tuples words and all its rules. Supplying an existing
+encoding for a recursive field, such as `encUnary` for `Nat.succ`, retains this original behavior.
+Use `_` to request the flat recursive representation described below.
 
-Before declaring anything, the command checks that `T` is an inductive type without parameters or
+For the original form, the command checks that `T` is an inductive type without parameters or
 indices, that every constructor is listed once in declaration order, and that each has no
 implicit field and one encoding per field, of the field's type. A wrong type or constructor list
 is reported at `T`, with the expected list; a wrong field is reported at its constructor or
 encoding.
+
+## Direct recursion with uniform parameters
+
+Write explicit uniform parameters before the colon, as for `enc_structure`, apply the family to
+them, and mark directly recursive fields with `_`:
+
+```
+enc_inductive encTerm (n : ℕ) : Term n where
+  | const : encIntBin
+  | var : (encFinEnum (Fin n))
+  | add : _, _
+  | mul : _, _
+```
+
+The encoded value type currently lies in `Type`, as required by the native codec and loop APIs.
+Higher-universe phantom parameters are allowed when the value type stays small.
+Type parameters and their encodings are also explicit binders, for example `(α : Type)` and
+`(eα : α ↪ List Bool)`. Every generated declaration takes these arguments in the same order.
+Parameters select the family and scalar encodings; they are not serialized. Nonrecursive fields,
+including previously encoded families such as `Term n` inside `Formula n`, always name their
+chosen embeddings. No encoding or decoder is inferred from a typeclass.
+
+Each constructor contributes one token containing its nonrecursive fields in declaration order.
+The token uses a right-nested sum tag: constructor `i` of `c` has `i` leading `true` bits and a
+`false` bit unless it is last. Its scalar tuple frames every field except the last; an empty
+payload is `encUnit`. The preorder stream then lists the recursive children's streams in
+recursive-field order. `encList` frames each token once; entire child streams are never framed
+again. Zero-child constructors still contribute one token.
+
+`eT_tokens`, `eT_nodes`, and `eT_leafSize` expose the stream, constructor count, and sum of the
+chosen scalar word lengths. `eT_length` gives the exact sum of token-frame lengths.
+`eT_length_le` bounds bit size by `(2 * (c + m) + 1) * nodes + 4 * leafSize`, where `m` is the
+maximum number of scalar fields in one constructor. The bound counts scalar *words*, including
+a cross-family encoding's complete word, and is independent of recursive depth.
+
+Constructor equations and native assembly rules preserve separate argument time and charged
+workspace bounds. Recognition and field extraction operate on encoded values without scalar
+decoders. `eT_decodeTokens` parses typed tokens; strict bit-word decoding additionally requires
+explicit `PartialDecoder` witnesses for the scalar embeddings. These supply both decoding and
+native polynomial-time certificates, including output space, on malformed as well as valid words.
+An arbitrary field embedding supplies neither. No generated rule certifies arbitrary recursive
+functions, evaluation, folds, or induction hypotheses merely from the existence of the encoding.
+
+Preflight rejects genuine indices, fields depending on earlier constructor fields, proof or
+implicit fields, mutual recursion, nested recursion, and recursive fields with changed parameters,
+before emitting any declarations. Constructor arity is unrestricted; both empty constructors and
+multiple recursive fields mixed with scalar fields are supported.
+
 -/
 
 public meta section
@@ -73,6 +124,20 @@ type `T`: constructor `c₁` with fields encoded by `e₁` and `e₂`, and const
 fields. Constructors are listed in declaration order. -/
 syntax (name := encInductive) (docComment)? "enc_inductive " ident " : " ident " where"
   (" | " ident (" : " term:max,+)?)+ : command
+
+/-- Explicit uniform parameters and field encodings for a flat recursive inductive encoding.
+Write `_` for every directly recursive field. -/
+syntax (name := encInductiveParameterized) (docComment)? "enc_inductive " ident
+  (" (" ident " : " term ")")+ " : " term " where"
+  (" | " ident (" : " term:max,+)?)+ : command
+
+/-- Elaborate explicit uniform parameters and field choices through the recursive generator. -/
+@[command_elab encInductiveParameterized] def elabEncInductiveParameterized : CommandElab :=
+    fun stx => do
+  let `($[$doc:docComment]? enc_inductive $eT:ident $[($ps:ident : $pts:term)]* : $T:term where
+      $[ | $cs:ident $[: $ess,*]?]*) := stx | throwUnsupportedSyntax
+  let encss : Array (Array Term) := ess.map fun o => (o.map (·.getElems)).getD #[]
+  Internal.elabRecursiveInductive doc eT ps (pts.map (⟨·⟩)) T cs encss
 
 private def app (base : Name) (suffix : String) : Ident :=
   mkIdent (base.appendAfter suffix)
@@ -168,6 +233,8 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
   let name := eT.getId
   let n := cs.size
   let encss : Array (Array Term) := ess.map fun o => (o.map (·.getElems)).getD #[]
+  if encss.any (·.any (·.raw.isOfKind ``Lean.Parser.Term.hole)) then
+    return ← Internal.elabRecursiveInductive doc eT #[] #[] (⟨T.raw⟩) cs encss
   checkConstructors T cs encss
   let payloads ← liftMacroM <| encss.mapM tupleEnc
   -- the encoding of the sum of the payloads

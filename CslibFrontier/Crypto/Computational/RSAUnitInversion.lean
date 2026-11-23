@@ -54,8 +54,10 @@ the proof uses only that `N = p * q` for distinct primes `p` and `q` and that `e
 `(p - 1) * (q - 1)`, so `p = 2` and `e = 1` are allowed. The challenge `x ^ e % N` is given to
 the inverter as a residue in `Fin N`, as in `rsaInversionGame`, and the inverter wins when it
 returns `x`; the two games differ only in the law of `x`. The bound compares success
-probabilities at each security parameter. Exercise 10.26 (p. 431), the converse with a loss of
-`2 ^ -(ℓ - 2)`, is not formalized.
+probabilities at each security parameter. Exercises 10.25–10.26 (§10.11, p. 431), the converse
+with statistical distance strictly less than `4 / 2 ^ ℓ` and additive security loss `4 / 2 ^ ℓ`
+(`2 ^ -(ℓ - 2)` for `ℓ ≥ 2`), are formalized in
+`CslibFrontier.Crypto.Computational.RSAUnitInversion.Converse`.
 
 The wrapper finds the exponent as the book's proof describes. For a challenge `y ≠ 0` that is not
 a unit, `g = gcd(y, N)` is `p` or `q`, so `(g - 1) * (N / g - 1)` is `(p - 1) * (q - 1)` and its
@@ -180,6 +182,17 @@ theorem rsaNonUnitRoot_rsaEval (desc : RSADesc) {x : ℕ} (hx : x < desc.modulus
     d := BinaryGcd.modInv desc.e desc.totient
     hed := BinaryGcd.mul_modInv_modEq_one (by have := desc.totient_gt_one; lia) desc.he } hx
 
+/-- On a residue `y < N` that is not coprime to `N`, `rsaNonUnitRoot` is trapdoor inversion: the
+`e`-th root that `rsaInvert N d` computes with the private exponent is computed from `N` and `e`
+alone. -/
+theorem rsaNonUnitRoot_eq_rsaInvert (desc : RSADesc) {y : ℕ} (hy : y < desc.modulus)
+    (hunit : ¬ Nat.Coprime y desc.modulus) :
+    rsaNonUnitRoot desc.modulus desc.e y = rsaInvert desc.modulus desc.d y := by
+  have hx : rsaInvert desc.modulus desc.d y < desc.modulus := Nat.mod_lt _ desc.modulus_pos
+  have hev := rsaEval_rsaInvert desc hy
+  have h := rsaNonUnitRoot_rsaEval desc hx (by rwa [← coprime_rsaEval_iff desc, hev])
+  rwa [hev] at h
+
 /-- `rsaNonUnitRoot` is computable in polynomial time whenever `N`, `e` and `y` are, and
 `0 < N a`. -/
 theorem computableInPolyTime_rsaNonUnitRoot {α : Type} {enc : α ↪ List Bool} {N e y : α → ℕ}
@@ -216,7 +229,7 @@ theorem isPPT_unitRSAToRSA {A : RSAInverter} (hA : A.IsPPT) : (unitRSAToRSA A).I
       encRSAInput encNat :=
     computableInPolyTime_rsaNonUnitRoot (by fun_prop) (by fun_prop) (by fun_prop)
       (fun x => x.challenge.pos)
-  refine (IsPPTOn.ite' hcond hA hroot.isPPTOn).congr fun x => ?_
+  refine (IsPPTOn.ite hcond hA hroot.isPPTOn).congr fun x => ?_
   unfold unitRSAToRSA
   split <;> simp
 

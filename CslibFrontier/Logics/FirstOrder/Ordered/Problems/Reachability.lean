@@ -11,6 +11,7 @@ public import CslibFrontier.Logics.FirstOrder.Ordered.FullTuple.DomainInterpreta
 public import CslibFrontier.Logics.FirstOrder.Ordered.TransitiveClosure
 public import Mathlib.ModelTheory.Graph
 import CslibFrontier.Foundations.Relation.Transport
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Canonical ordered directed reachability
@@ -299,12 +300,6 @@ private def midTuple {n d : ℕ} [NeZero n] (maxElem : Fin n) (x : Fin d → Fin
   else if h1 : j.val = 1 then maxElem
   else x ⟨j.val - 2, by have := j.isLt; omega⟩
 
-private theorem midTuple_tagZero {n d : ℕ} [NeZero n] (maxElem : Fin n) (x : Fin d → Fin n) :
-    midTuple maxElem x (tagZeroIdx d) = 0 := rfl
-
-private theorem midTuple_tagOne {n d : ℕ} [NeZero n] (maxElem : Fin n) (x : Fin d → Fin n) :
-    midTuple maxElem x (tagOneIdx d) = maxElem := rfl
-
 private theorem midTuple_payload {n d : ℕ} [NeZero n] (maxElem : Fin n) (x : Fin d → Fin n)
     (i : Fin d) :
     midTuple maxElem x (payloadIdx i) = x i := by
@@ -352,11 +347,8 @@ theorem mem_Reach_boundedReachInterpretation {L : Language} {d : ℕ}
   let I := boundedReachInterpretation src step tgt
   let maxElem : Fin M.size := M.maxElem
   have h0_ne_max : (0 : Fin M.size) ≠ maxElem := by
-    intro h
-    have hv := congrArg Fin.val h
     have hge := M.size_ge_two
-    simp only [Fin.val_zero, maxElem] at hv
-    omega
+    fin_index [maxElem]
   let Z : Fin (d + 2) → Fin M.size := constantTuple (n := M.size) (k := d + 1) .zero
   let T : Fin (d + 2) → Fin M.size := constantTuple (n := M.size) (k := d + 1) .max
   let hc : (I.toDomainInterpretation.map hI M).size = M.size ^ (d + 2) :=
@@ -448,8 +440,7 @@ theorem mem_Reach_boundedReachInterpretation {L : Language} {d : ℕ}
     · exact False.elim (hT_not_mid hT)
     · exact hgoal
   · rintro ⟨x, y, hx, hxy, hy⟩
-    have hmid (a : Fin d → Fin M.size) : IsMid (midTuple maxElem a) :=
-      ⟨midTuple_tagZero maxElem a, midTuple_tagOne maxElem a⟩
+    have hmid (a : Fin d → Fin M.size) : IsMid (midTuple maxElem a) := ⟨rfl, rfl⟩
     have h1 : Edge Z (midTuple maxElem x) := by
       refine Or.inl ⟨⟨rfl, hmid x⟩, ?_⟩
       simpa only [midTuple_payload] using hx

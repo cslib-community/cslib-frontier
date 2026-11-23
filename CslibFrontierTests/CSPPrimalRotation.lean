@@ -46,7 +46,7 @@ example : (polygonRotation unaryRotation).faceNext (polygonDart unaryOccurrence 
   exact unary_unique _
 example : (Quotient.mk _ (polygonDart unaryOccurrence false) :
     (polygonRotation unaryRotation).Face) ≠ Quotient.mk _ (polygonDart unaryOccurrence true) :=
-  polygon_edge_faces_distinct unaryRotation unary_order (by decide) unaryOccurrence
+  polygon_edge_faces_distinct unaryRotation unaryOccurrence
 example : (polygonRotation unaryRotation).NumericalGenusZero :=
   (numericalGenusZero_polygon_iff unaryRotation unary_order (by decide)).mpr
     ((verifyEuler_eq_true_iff (by decide)).mp (by decide))

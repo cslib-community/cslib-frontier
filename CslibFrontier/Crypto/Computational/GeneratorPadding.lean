@@ -147,8 +147,15 @@ theorem isPPTOn_test {α : Type} {input : α ↪ List Bool}
     (hword : ComputableInPolyTime word input encBits) :
     IsPPTOn input encBool
       (fun a => test (seedBits a) (commonBits a) (adversary a) (word a)) := by
-  unfold test
-  ppt
+  have hpadding := ComputableInPolyTime.sampleList
+    (ComputableInPolyTime.unary_sub' hcommon hseedBits)
+  have hcaller := ComputableInPolyTime.fst input encBits
+  have hpaddingWord := ComputableInPolyTime.snd input encBits
+  have hjoined := ComputableInPolyTime.bitsAppend (hword.comp hcaller) hpaddingWord
+  have hlimit := ComputableInPolyTime.unary_add' (hcommon.comp hcaller)
+    (ComputableInPolyTime.const 1)
+  have hprepared := hcaller.prod (ComputableInPolyTime.bitsTakeWithInput hjoined hlimit)
+  exact hpadding.bind_with (hadversary.preprocess hprepared)
 
 /-- Padding preserves the tested distinguishing advantage exactly. -/
 theorem advantage_eq {seedBits outputBits commonBits : ℕ} (generator : List Bool → List Bool)

@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Copyright (c) 2026 Samuel Schlesinger, Christian Reitwiessner. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
@@ -18,9 +18,9 @@ import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 
 For an oracle language `B`, the unary length language `Cslib.Complexity.unaryLengthLanguage B`
 consists of the words `1ⁿ` such that `B` has a word of length `n`. Baker, Gill and Solovay
-construct an oracle `B` for which this language is not in `P` relative to `B`, while it is in `NP`
-relative to every oracle (a certificate is a word of length `n` in `B`) [BakerGillSolovay1975]; we
-follow the proof of [Arora and Barak, Theorem 3.7][AroraBarak09].
+construct an oracle `B` for which this language is not in `P` relative to `B`. For every `B`, its
+unary length language is in `NP` relative to that same `B` (a certificate is a word of length `n`
+in `B`) [BakerGillSolovay1975]. We follow [Arora and Barak, Theorem 3.7][AroraBarak09].
 
 The oracle diagonalizes against all candidate deciders at once
 (`Cslib.Complexity.exists_oracle_diagonal`). The candidates are the fair-coin tables with one
@@ -37,13 +37,23 @@ makes one request: the certificate itself
 Relative to the diagonal oracle, `P` is therefore strictly contained in `NP`
 (`Cslib.Complexity.exists_PWithOracle_ssubset_NPWithOracle`).
 
+The query argument also applies to reductions into a fixed language. Test the machine's output
+for membership in the encoded target after its last oracle query. This test need not be
+efficient, since the diagonalization bounds only the oracle queries of the candidate reduction.
+Taking 3SAT as the target gives Exercise 3 §6 of the January 2007 draft [AroraBarak07].
+
 ## Main definitions
 
 * `Cslib.Complexity.unaryLengthLanguage`: the words `1ⁿ` such that the oracle has a word of
   length `n`.
+* `Cslib.Complexity.BakerGillSolovay.Candidate.output`: the output of a clocked oracle machine on
+  `1ⁿ`.
 
 ## Main results
 
+* `Cslib.Complexity.exists_unaryLengthLanguage_not_reducibleWithOracle`: for any fixed target, some
+  oracle's unary length language is in relative `NP` and has no polynomial-time oracle reduction
+  to that target.
 * `Cslib.Complexity.exists_unaryLengthLanguage_notMem_PWithOracle`: for some oracle `B`, the unary
   length language of `B` is not in `P` relative to `B`.
 * `Cslib.Complexity.unaryLengthLanguage_mem_NPWithOracle`: the unary length language of every
@@ -82,18 +92,17 @@ abbrev Candidate : Type := Σ k m : ℕ, MultiTapePTM k Bool (Fin m) Unit × ℕ
 def Candidate.clock (candidate : Candidate) (n : ℕ) : ℕ :=
   candidate.2.2.2.1 * (n + 1) ^ candidate.2.2.2.2
 
-/-- The verdict of a candidate on `1ⁿ`: its clocked run with every coin fixed to `false`, accepting
-exactly with output `[true]`. -/
-def Candidate.verdict (candidate : Candidate) (n : ℕ) : WordQueryComp Unit Bool :=
-  (fun output => decide (output = [true])) <$> candidate.2.2.1.run (pure false)
+/-- The output of a candidate on `1ⁿ` after its clocked run with all coins fixed to false. -/
+def Candidate.output (candidate : Candidate) (n : ℕ) : WordQueryComp Unit (List Bool) :=
+  candidate.2.2.1.run (pure false)
     (fun op word => OracleComp.query (op, word)) (candidate.clock n) (List.replicate n true)
 
 /-- A candidate makes at most one request per instruction. -/
-private theorem Candidate.length_queriesWith_verdict_le (candidate : Candidate) (n : ℕ)
+private theorem Candidate.length_queriesWith_output_le (candidate : Candidate) (n : ℕ)
     (A : Set (List Bool)) :
-    (OracleComp.queriesWith (languageOracle A) (candidate.verdict n)).length ≤
+    (OracleComp.queriesWith (languageOracle A) (candidate.output n)).length ≤
       candidate.clock n := by
-  simp only [verdict, MultiTapePTM.run, MultiTapePTM.runFrom, OracleComp.queriesWith_map]
+  simp only [output, MultiTapePTM.run, MultiTapePTM.runFrom, OracleComp.queriesWith_map]
   exact MultiTapeMachine.length_queriesWith_runConfigFrom_le candidate.2.2.1
     (fun choices => choices false) _ _ _
 
@@ -102,34 +111,6 @@ private theorem Candidate.eventually_clock_lt (candidate : Candidate) :
     ∀ᶠ n in Filter.atTop, candidate.clock n < 2 ^ n :=
   PolynomiallyBounded.eventually_lt_two_pow (f := candidate.clock)
     (by unfold Candidate.clock; fun_prop)
-
-end BakerGillSolovay
-
-open BakerGillSolovay in
-/-- **Baker–Gill–Solovay, the lower bound** [Arora and Barak, Theorem 3.7][AroraBarak09]: for some
-oracle language `B`, the unary length language of `B` is not decidable in polynomial time relative
-to `B`. -/
-theorem exists_unaryLengthLanguage_notMem_PWithOracle :
-    ∃ B : Set (List Bool), unaryLengthLanguage B ∉ PWithOracle B encBits := by
-  obtain ⟨B, hB⟩ := exists_oracle_diagonal Candidate.verdict Candidate.clock
-    Candidate.eventually_clock_lt Candidate.length_queriesWith_verdict_le
-  refine ⟨B, fun ⟨f, ⟨program, hcertificate, hprogram⟩, hf⟩ => ?_⟩
-  obtain ⟨k, m, machine, c, d, hrun⟩ := hcertificate.exists_fin_run_pure_false
-  obtain ⟨n, hn⟩ := hB ⟨k, m, machine, c, d⟩
-  apply hn
-  have hlength : (encBits (List.replicate n true)).length = n := by
-    simp [encBits]
-  have hverdict := hrun (List.replicate n true) (languageOracle B)
-  rw [hprogram, encBool_apply, hlength] at hverdict
-  simp only [encBits, Function.Embedding.refl_apply] at hverdict
-  have heq : OracleComp.interpret (m := Id) (languageOracle B)
-      (Candidate.verdict ⟨k, m, machine, c, d⟩ n) = f (List.replicate n true) := by
-    simp only [Candidate.verdict, Candidate.clock, OracleComp.interpret_map]
-    rw [hverdict]
-    cases f (List.replicate n true) <;> rfl
-  rw [heq, ← hf, replicate_mem_unaryLengthLanguage]
-
-namespace BakerGillSolovay
 
 /-- Whether the first word consists of `true` symbols only, beside a Boolean, in polynomial
 time. -/
@@ -160,6 +141,43 @@ theorem unaryLengthLanguage_mem_NPWithOracle (B : Set (List Bool)) :
       exact ⟨w, hlength, hall, hw⟩
     · rintro ⟨w, hlength, hall, hw⟩
       exact ⟨hall, w, hw, hlength⟩
+
+open Classical BakerGillSolovay in
+/-- For any fixed encoded target `L`, some oracle `B` defeats every polynomial-time many-one
+reduction of its unary length language to `L`, even with access to `B`. The source language lies
+in `NPWithOracle B encBits`. Taking 3SAT as the target gives Exercise 3 §6 of [AroraBarak07]. -/
+theorem exists_unaryLengthLanguage_not_reducibleWithOracle {α : Type}
+    (enc : α ↪ List Bool) (L : Set α) :
+    ∃ B : Set (List Bool), unaryLengthLanguage B ∈ NPWithOracle B encBits ∧
+      ¬ManyOneReducibleBy (ComputableInPolyTimeWithOracle B · encBits enc)
+        (unaryLengthLanguage B) L := by
+  let test (w : List Bool) := decide (w ∈ enc '' L)
+  obtain ⟨B, hB⟩ := exists_oracle_diagonal (fun c n => test <$> Candidate.output c n)
+    Candidate.clock Candidate.eventually_clock_lt
+    (fun c n A => by
+      simpa only [OracleComp.queriesWith_map] using c.length_queriesWith_output_le n A)
+  refine ⟨B, unaryLengthLanguage_mem_NPWithOracle B,
+    fun ⟨f, ⟨program, hcertificate, hprogram⟩, hf⟩ => ?_⟩
+  obtain ⟨k, m, machine, c, d, hrun⟩ := hcertificate.exists_fin_run_pure_false
+  obtain ⟨n, hn⟩ := hB ⟨k, m, machine, c, d⟩
+  apply hn
+  have hlength : (encBits (List.replicate n true)).length = n := by
+    simp [encBits]
+  have houtput := hrun (List.replicate n true) (languageOracle B)
+  rw [hprogram, hlength] at houtput
+  simp only [encBits, Function.Embedding.refl_apply] at houtput
+  simp only [Candidate.output, Candidate.clock, OracleComp.interpret_map]
+  rw [houtput]
+  change decide (enc (f (List.replicate n true)) ∈ enc '' L) = true ↔ _
+  rw [decide_eq_true_eq, enc.injective.mem_set_image, ← hf, replicate_mem_unaryLengthLanguage]
+
+/-- **Baker–Gill–Solovay, the lower bound** [Arora and Barak, Theorem 3.7][AroraBarak09]: for some
+oracle language `B`, the unary length language of `B` is not decidable in polynomial time relative
+to `B`. A decider would be a reduction to the singleton language containing `true`. -/
+theorem exists_unaryLengthLanguage_notMem_PWithOracle :
+    ∃ B : Set (List Bool), unaryLengthLanguage B ∉ PWithOracle B encBits := by
+  obtain ⟨B, hB⟩ := exists_unaryLengthLanguage_not_reducibleWithOracle encBool {true}
+  exact ⟨B, fun ⟨f, hf, hcorrect⟩ => hB.2 ⟨f, hf, fun x => by simpa using hcorrect x⟩⟩
 
 /-- **Baker–Gill–Solovay** [BakerGillSolovay1975], [Arora and Barak, Theorem 3.7][AroraBarak09]:
 relative to some oracle language, `P` is strictly contained in `NP`. -/

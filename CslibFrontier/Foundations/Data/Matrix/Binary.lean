@@ -123,6 +123,12 @@ theorem toBinary_ofBinary {rows cols w : ℕ} {word : List Bool}
     (binaryEntry cols w (toBinary A) i.val j.val : ZMod (2 ^ w)) = A i j := by
   rw [← ofBinary_apply rows cols w, ofBinary_toBinary]
 
+/-- An entry whose digits lie beyond the end of the word reads as `0`. -/
+theorem binaryEntry_eq_zero_of_length_le {cols w : ℕ} {word : List Bool} {i j : ℕ}
+    (h : word.length ≤ (i * cols + j) * w) : binaryEntry cols w word i j = 0 := by
+  rw [binaryEntry, listRow, List.drop_eq_nil_of_le h, List.nil_append, List.take_replicate,
+    Nat.min_self, Nat.foldr_bit_replicate_false]
+
 /-- Fixed-dimensional matrices inject into their complete binary words. This fixed-type
 embedding alone makes no claim of uniform computational efficiency in the dimensions. -/
 def encBinary (rows cols w : ℕ) : Matrix (Fin rows) (Fin cols) (ZMod (2 ^ w)) ↪ List Bool :=
