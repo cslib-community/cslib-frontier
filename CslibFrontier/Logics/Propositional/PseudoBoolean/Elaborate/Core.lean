@@ -116,6 +116,12 @@ private def keyOf (c : PBConstr) : Key := Id.run do
       d := d - e.2
   return (ts.qsort fun a b => a.var < b.var, d.toNat)
 
+/-- `Cslib.Logic.PL.VeriPB.Elab.keyOf` of a constraint of the parser (`Parse.constr`), whose terms
+have positive coefficients on distinct variables: its terms sorted by variable. -/
+private def keyOfParsed (c : PBConstr) : Key :=
+  ((c.terms.toArray.map fun t => (⟨termVar t, termPos t, t.1⟩ : KTerm)).qsort
+    fun a b => a.var < b.var, c.degree)
+
 /-- The constraint of a canonical form. -/
 private def ofKey (k : Key) : PBConstr := ⟨k.1.toList.map fun t => (t.coeff, t.var, t.pos), k.2⟩
 
@@ -309,7 +315,7 @@ private def deleteRefs (S : St σ) (ids : List ℕ) : EM σ (Array TopStep) := d
 
 /-- **Deletion by specification** of `c` (§5.7.2, §5.7.3). -/
 private def deleteSpec (S : St σ) (c : PBConstr) : EM σ (Array TopStep) := do
-  let key := keyOf c
+  let key := keyOfParsed c
   match (← S.specs.get)[key]? with
   | some (l, k) =>
     if l.isEmpty then S.fail "del spec: no such constraint"
@@ -380,7 +386,9 @@ private def fdiv (c : Key) (k : ℕ) : Key :=
 
 /-- Saturation, as `Cslib.Logic.PL.PBConstr.saturate`. -/
 private def fsat (c : Key) : Key :=
-  if c.2 = 0 then (#[], 0) else (c.1.map fun t => { t with coeff := min t.coeff c.2 }, c.2)
+  if c.2 = 0 then (#[], 0)
+  else if c.1.all (·.coeff ≤ c.2) then c
+  else (c.1.map fun t => if t.coeff ≤ c.2 then t else { t with coeff := c.2 }, c.2)
 
 /-- Weakening, as `Cslib.Logic.PL.PBConstr.weaken`. -/
 private def fweaken (c : Key) (v : ℕ) : Key :=
@@ -673,19 +681,19 @@ private partial def step (S : St σ) (top : Bool) (s : AStep) : EM σ (Array Ste
   | .rup c hs =>
     let h ← S.rupHintsOf c hs
     let k ← S.takeKid
-    let id ← S.add (normalizeParsed c) k false top
+    let id ← S.add (normalizeParsed c) k false top (keyOfParsed c)
     return (#[.rup c h], some id)
   | .imp c add hint =>
     let i ← S.implPremise c hint
     if !add then return (#[], some i)
     let e ← S.entry i
-    let v := impOps ⟨e.key, #[.id e.kid]⟩ (keyOf c) (← S.lowerVar (e.c.terms ++ c.terms))
-    if v.k != keyOf c then S.fail "internal error: ia derivation"
+    let v := impOps ⟨e.key, #[.id e.kid]⟩ (keyOfParsed c) (← S.lowerVar (e.c.terms ++ c.terms))
+    if v.k != keyOfParsed c then S.fail "internal error: ia derivation"
     let k ← S.takeKid
     let id ← S.add v.c k false top v.k
     return (#[.pol v.ops.toList], some id)
   | .equal c hint =>
-    let key := keyOf c
+    let key := keyOfParsed c
     match hint with
     | some r =>
       let i ← S.resolve r
@@ -700,7 +708,7 @@ private partial def step (S : St σ) (top : Bool) (s : AStep) : EM σ (Array Ste
         | none => S.fail "e: no such constraint"
       | none => S.fail "e: no such constraint"
   | .isDeleted c =>
-    match (← S.specs.get)[keyOf c]? with
+    match (← S.specs.get)[keyOfParsed c]? with
     | some (l, _) => if l.isEmpty then return (#[], none) else S.fail "is_deleted: not deleted"
     | none => return (#[], none)
   | .pbc c sub q =>
