@@ -171,7 +171,8 @@ private structure Hot where
   reason : Array ℕ
   tpos : Array ℕ
   trail : Array ℕ
-  deriving Inhabited
+
+private instance : Inhabited Hot := ⟨⟨none, #[], #[], #[], #[], .empty, #[], #[], #[]⟩⟩
 
 /-- The non-clause part of processing a falsified literal: the pairs `os` of constraint and
 coefficient from `i` on, the live ones written back from `j`. Every live slack is updated, so that
