@@ -963,8 +963,125 @@ private theorem gusfieldAt_ghProg {n : ℕ} {W : Fin n → Fin n → ℕ} (r : F
     unfold ghProg
     rw [clientState_bind_read, clientState_bind_read]
     rfl
+  have hent : ∀ i < n * n, (Memory.State.init (encodeInput W r)).mem (3 + i) ≤ B :=
+    fun i hi => init_le r hB hi
   rw [e0]
-  generalize Memory.State.init (encodeInput W r) = s₀ at hfr0 hW0 hB ⊢
-  sorry
+  generalize Memory.State.init (encodeInput W r) = s₀ at hfr0 hW0 hent
+  unfold ghMain
+  dsimp only
+  have hal : ∀ a < 3 + n * n,
+      ((Memory.spec 0).clientState s₀ (Memory.alloc (ghScratch n))).mem a = s₀.mem a :=
+    fun a ha => Memory.mem_step_of_lt_frontier s₀ (.alloc _) (by rw [hfr0]; exact ha) (by simp)
+  rw [StateTransitionSpec.clientState_bind]
+  generalize (Memory.spec 0).clientState s₀ (Memory.alloc (ghScratch n)) = s_al at hal ⊢
+  rw [StateTransitionSpec.clientState_bind, clientState_maxScan]
+  have hent' : ∀ i < n * n, s_al.mem (3 + i) ≤ B := fun i hi =>
+    (hal _ (by omega)).trans_le (hent i hi)
+  obtain ⟨-, hMall⟩ := maxScan_spec hent'
+  generalize ((Memory.spec 0).clientResult s_al (iterate maxStep 3 (n * n) (0, 0))).2 = M
+    at hMall ⊢
+  have hWM : ∀ u v : Fin n, W u v ≤ M := fun u v => by
+    have hlt : u.1 * n + v.1 < n * n := by nlinarith [u.2, v.2]
+    have h := hMall _ hlt
+    rwa [← Nat.add_assoc, hal _ (by omega), hW0 u v] at h
+  rw [StateTransitionSpec.clientState_bind]
+  obtain ⟨hp1, hp1fr⟩ := fillRange_spec (parBase n) r.1 n s_al
+  generalize (Memory.spec 0).clientState s_al (fillRange ((parBase n, r.1), n)) = s_p
+    at hp1 hp1fr ⊢
+  rw [StateTransitionSpec.clientState_bind]
+  obtain ⟨hw1, hw1fr⟩ := fillRange_spec (wtBase n) 0 n s_p
+  generalize (Memory.spec 0).clientState s_p (fillRange ((wtBase n, 0), n)) = s_w at hw1 hw1fr ⊢
+  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
+  have hWw : MatrixLoaded W s_w := fun u v => by
+    have hlt : u.1 * n + v.1 < n * n := by nlinarith [u.2, v.2]
+    rw [hw1fr _ (Or.inl (by dsimp only [wtBase]; omega)),
+      hp1fr _ (Or.inl (by dsimp only [parBase]; omega)), hal _ (by omega)]
+    exact hW0 u v
+  have hG0 : GusfieldAt W r 0 s_w := by
+    have hex : ∀ a b : Fin n, a ≠ b → ∃ X, IsMinCutBetween (cutWeight W) a b X :=
+      fun a b hab => exists_isMinCutBetween _ hab
+    choose! C₀ hC₀ using hex
+    refine ⟨C₀, fun a b => cutWeight W (C₀ a b), hC₀, fun _ _ _ => rfl, fun z => ?_⟩
+    rw [List.take_zero]
+    refine ⟨?_, ?_⟩
+    · rw [hw1fr _ (Or.inl (by dsimp only [parBase, wtBase]; omega)), hp1 z.1 z.2]
+      rfl
+    · rw [hw1 z.1 z.2]
+      rfl
+  obtain ⟨hsum, -, hG⟩ := iterate_invariant_of ghStep (n, r.1, M)
+    (fun rem k st => k + rem = n ∧ MatrixLoaded W st ∧ GusfieldAt W r k st)
+    (fun rem k st ⟨hsum, hW, hG⟩ => by
+      rw [clientResult_ghStep]
+      obtain ⟨h1, h2⟩ := gusfieldAt_ghStep (by omega) hWM hW hG
+      exact ⟨by omega, h1, h2⟩)
+    (n := n) (a := 0) (s := s_w) ⟨Nat.zero_add _, hWw, hG0⟩
+  rw [Nat.add_zero] at hsum
+  rw [hsum] at hG
+  exact hG
+
+/-! ### The uniform program -/
+
+/-- **Gusfield's Gomory–Hu tree algorithm on the Word-RAM** ([Gusfield1990], with
+[EdmondsKarp1972] as the maximum flow subroutine): one flat program over `Basis.exact` that, on
+the input `encodeInput W r` of a weighted multigraph `W` on `Fin n` with entries at most `B` and a
+root `r`, halts within `C * (n + 1) ^ 6` instructions at every word width `w` that fits the
+workspace `ghWorkspace n` and the subroutine's word bound `ekBound n B`. The final memory holds a
+parent function `p` rooted at `r` whose parent graph is a Gomory–Hu tree of `W` (at `parAddr n u`)
+and the minimum cut weight `minCutBetween W u (p u)` of every tree edge (at `wtAddr n u`, `0` at
+the root). -/
+theorem exists_gomoryHu_program :
+    ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
+      ∀ {n : ℕ} (W : Fin n → Fin n → ℕ) (r : Fin n) (B w : ℕ), IsMultigraph W →
+        (∀ u v, W u v ≤ B) → Fits w (ghWorkspace n) → Fits w (ekBound n B) →
+        ∃ (y : Data R) (steps res : ℕ) (p : Fin n → Fin n),
+          Runs w prog (State.init (encodeInput W r)) ⟨pc, y⟩ steps ∧
+          step w prog ⟨pc, y⟩ = .halt res ∧
+          steps + 1 ≤ C * (n + 1) ^ 6 ∧
+          (∀ u, y.mem (parAddr n u.1) = (p u).1) ∧ p r = r ∧
+          IsGomoryHuTree (cutWeight W) (parentGraph p) ∧
+          ∀ u, y.mem (wtAddr n u.1) = minCutBetween W u (p u) := by
+  obtain ⟨R, C₀, pc, prog, frontier, _, hprog⟩ :=
+    ghProg_realizes.exists_standard_init_program_state_from_words 0
+  refine ⟨R, 41 * C₀ + 2, pc, by omega, prog, ?_⟩
+  intro n W r B w hW hB hw hwB
+  have hfr := init_frontier W r
+  have hlen : Fits w ((encodeInput W r).length + 1) := hw.of_le (by
+    simp only [encodeInput, List.length_cons, length_flattenMatrix, ghWorkspace]
+    omega)
+  obtain ⟨y, steps, hruns, hhalt, hmem, _, hbound⟩ :=
+    hprog w () (encodeInput W r) (fun j => Fin.elim0 j) (Nat.zero_le _) hlen
+      (inputFits_encodeInput r hB hw hwB) ⟨hfr, hw, B, fun i hi => init_le r hB hi, hwB⟩
+      (validHistory_ghProg r hB hw hwB)
+  rw [clientState_width w (ghProg ())] at hmem
+  have hymem : y.mem =
+      ((Memory.spec 0).clientState (Memory.State.init (encodeInput W r)) (ghProg ())).mem :=
+    congrArg Memory.State.mem hmem
+  obtain ⟨C, val, hC, hval, hcells⟩ := gusfieldAt_ghProg r hB
+  rw [List.take_of_length_le (by rw [List.length_finRange])] at hcells
+  obtain ⟨htree, hroot, hwroot, hside⟩ :=
+    gusfieldWithWeights_spec (cutWeight_compl' hW) (isSubmodular_cutWeight W) hC hval r 0
+      (List.nodup_finRange n) (fun x _ => List.mem_finRange x)
+  have hmc : memoryCost (ghProg ()) (Memory.State.init (encodeInput W r)) ≤ 40 * (n + 1) ^ 6 :=
+    memoryCost_ghProg_le _
+  have hp : 1 ≤ (n + 1) ^ 6 := Nat.one_le_pow _ _ (Nat.succ_pos n)
+  refine ⟨y, steps, _, (gusfieldWithWeights C val r 0 (List.finRange n)).1, hruns, hhalt, ?_,
+    fun u => ?_, hroot, htree, fun u => ?_⟩
+  · calc steps + 1
+        ≤ C₀ * (memoryCost (ghProg ()) (Memory.State.init (encodeInput W r)) + 0 + 1) + 1 :=
+          hbound
+      _ ≤ C₀ * (40 * (n + 1) ^ 6 + 1) + 1 :=
+          Nat.add_le_add_right (Nat.mul_le_mul_left _ (by omega)) 1
+      _ ≤ (41 * C₀ + 2) * (n + 1) ^ 6 := by nlinarith
+  · rw [hymem]
+    exact (hcells u).1
+  · rw [hymem]
+    refine (hcells u).2.trans ?_
+    change (gusfieldWithWeights C val r 0 (List.finRange n)).2 u = _
+    by_cases hur : u = r
+    · subst hur
+      rw [hwroot, hroot, minCutBetween_self]
+    · obtain ⟨hcut, hwt⟩ := hside u hur
+      rw [hwt]
+      exact ((isMinCutBetween_cutWeight_iff W).mp hcut).2.2
 
 end Cslib.Algorithms.WordRAM.GomoryHu
