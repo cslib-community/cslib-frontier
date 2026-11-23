@@ -7,35 +7,33 @@ Authors: Karn Seth
 module
 -- upstream: local-only (test)
 
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.PPT.Capture
-import CslibFrontier.Computability.Probabilistic.PPT.Composition
-import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Crypto.Protocols.UC.Execution
 import CslibFrontier.Crypto.Protocols.UC.PPT
 import CslibFrontier.Crypto.Protocols.UC.PPT.Wrappers
-import CslibFrontier.Languages.Probabilistic.Oracle.Support
+import CslibFrontierTests.Crypto.UCPPT
 
 /-!
 # Tests for `UC.PPT.Wrappers`
 
 Non-degenerate witnesses for `CslibFrontier.Crypto.Protocols.UC.PPT.Wrappers`:
 
-1. `windowStore`: a two-party functionality storing `(κ, log)`, where party-`0` writes mask a bit
-   with a uniform coin and grow the log without bound, and party-`1` polls return the most recent
-   `κ` bits (`s.take κ`). Certified via `IdealFunctionality.IsPPT` (including `normalize`) and
-   lifted via `toProtocol`.
-2. `corruptRouter`: routing branches matter on `corruptRouter {1} (windowStore.toProtocol κ {1})`
-   (environment inputs to corrupted party `1` drop without touching state; adversary-routed inputs
-   to party `1` and honest party `0` inputs reach `windowStore`), certified via
-   `Protocol.IsPPT.corruptRouter` and `WordPort.computable_partyIndex`.
+1. Length-changing `PortMap` witness (`prependFalseMap`): a strict-PPT adapter with `replyMap`
+   growing words by `1` bit (`w ↦ false :: w`) and distinct `r = 2` vs `capIn = 3`. Against an
+   overlong `[true, true, true]` reply, the adapted computation evaluates to `[false, true, true]`,
+   sensitive to taking the `r = 2` outer prefix before translation (`≠ [false, true]` and
+   `≠ [false, true, true, true]`).
+2. `corruptRouter` over the shared `coinStore` protocol from `UCPPT`: blocked environment inputs
+   at corrupted party `1` drop without mutating state, adversary-routed inputs to party `1` and
+   honest party-`0` inputs reach `coinStore`, an adversary poll returns `Sum.inl (some s)`, and
+   `Protocol.IsPPT.corruptRouter` certifies the routed protocol via
+   `WordPort.computable_partyIndex`.
 3. `logAdv` and `liftAdversary`: a stateful unary-counter adversary forwarding `List Bool` queries
-   is certified, lifted via `Adversary.IsPPT.liftAdversary`, and checked to forward left-channel
-   party queries while normalizing the state word.
+   is certified via `WordInterface.isOraclePPTOn_lowerWith_decodeQuery`, lifted via
+   `Adversary.IsPPT.liftAdversary`, and evaluated on an off-image state word `[false]` to confirm
+   left-channel forwarding and state-word normalization.
 -/
 
 set_option linter.privateModule false
@@ -43,27 +41,10 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.Crypto.UCPPTWrappers
 
 open Cslib Cslib.Crypto.Protocols.UC Cslib.Probability Turing.MultiTapeTM
-
-private def unitDecoder : Decoder encUnit where
-  decode _ := ()
-  decode_enc _ := rfl
-  computable :=
-    (ComputableInPolyTime.const (encIn := encBits) (encOut := encUnit) ()).exists_degree
-
-private def unitPort : WordPort Unit Unit :=
-  ⟨encUnit, unitDecoder, encUnit, unitDecoder⟩
-
-private def windowInputPort : WordPort Bool (List Bool) :=
-  ⟨encBool, Decoder.bool, encBits, Decoder.bits⟩
-
-private def windowPartyPort : WordPort (Fin 2 × Bool) (Option (List Bool)) :=
-  WordPort.party (n := 2) windowInputPort
+open CslibFrontierTests.Crypto.UCPPT
 
 private def msgPort : WordPort (List Bool) (List Bool) :=
   ⟨encBits, Decoder.bits, encBits, Decoder.bits⟩
-
-private def encFin2 : Fin 2 ↪ List Bool :=
-  ⟨fun i => encUnary i.val, fun _ _ h => Fin.val_injective (encUnary.injective h)⟩
 
 private def unaryCodec : WordCodec ℕ where
   enc := encUnary
@@ -74,249 +55,83 @@ private noncomputable def emptyWordOracle :
     WordInterface.empty.Channel × List Bool → StateT Unit PMF (List Bool)
   | cw, _ => cw.1.elim
 
-/-! ### 1. `windowStore` ideal functionality witness -/
+/-! ### 1. Length-changing `PortMap` adapter witness -/
 
-section WindowStoreWitness
+section LengthChangingAdapterWitness
 
-/-- Two-party functionality storing `(κ, log)`: party `0` samples a uniform coin `c`, prepends
-`b ^^ c` to the log (unbounded state growth), party `1` returns the most recent `κ` bits
-(`s.take κ`), and the backdoor is a no-op. -/
-private noncomputable def windowStore : IdealFunctionality 2 Bool (List Bool) Unit Unit where
-  State := ℕ × List Bool
-  init κ _ := pure (κ, [])
-  onInput i b := do
-    let (κ, s) ← get
-    if i = 0 then
-      let c ← StateT.lift (ProbComp.uniform Bool)
-      set (κ, (b ^^ c) :: s)
-      return none
-    else
-      return some (s.take κ)
-  onBackdoor _ := return ()
+private def prependFalseMap :
+    WordInterface.PortMap (WordInterface.net msgPort) (WordInterface.net msgPort) where
+  queryMap := id
+  replyBack _ r := false :: r
+  channelMap := id
+  wordMap _ w := w
+  replyMap _ w := false :: w
+  channelMap_channel _ := rfl
+  wordMap_request _ := rfl
+  decodeReply_replyMap _ _ := rfl
+  wordMap_poly := ComputableInPolyTime.snd (encFinite (WordInterface.net msgPort).Channel) encBits
+  replyMap_poly := ComputableInPolyTime.bitsCons (ComputableInPolyTime.const false)
+    (ComputableInPolyTime.snd (encFinite (WordInterface.net msgPort).Channel) encBits)
 
-private theorem windowStore_onInput_zero_eval (b : Bool) (st : ℕ × List Bool) :
-    ((windowStore.onInput (0 : Fin 2) b).run st).eval =
-      PMF.map (fun c : Bool => ((none : Option (List Bool)), (st.1, (b ^^ c) :: st.2)))
-        (ProbComp.uniform Bool).eval := by
-  change (do
-      let x ← (pure (st, st) : ProbComp _)
-      let y ← ((fun c => (c, x.2)) <$> ProbComp.uniform Bool)
-      let z ← (pure ((), (x.1.1, (b ^^ y.1) :: x.1.2)) : ProbComp _)
-      pure ((none : Option (List Bool)), z.2)).eval =
-    PMF.map (fun c : Bool => ((none : Option (List Bool)), (st.1, (b ^^ c) :: st.2)))
-      (ProbComp.uniform Bool).eval
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_map, PMF.pure_bind,
-    PMF.bind_map]
+private noncomputable def tripleOracle :
+    (WordInterface.net msgPort).Channel × List Bool → StateT Unit PMF (List Bool)
+  | _, s => PMF.pure ([true, true, true], s)
+
+/-- `WordInterface.isOraclePPTOn_lowerWith_adapt` certifies `prependFalseMap.adapt` at `r = 2`
+from an inner certificate at `capIn = 3` (`r ≠ capIn`). -/
+theorem prependFalseMap_adapt_isOraclePPTOn :
+    IsOraclePPTOn encUnit encBits (fun _ : Unit =>
+      ProbOracleComp.lowerWith (WordInterface.net msgPort) 2
+        (prependFalseMap.adapt
+          (ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) []))) := by
+  have hinner : IsOraclePPTOn encUnit encBits (fun _ : Unit =>
+      ProbOracleComp.lowerWith (WordInterface.net msgPort) 3
+        (ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) [])) := by
+    have hq := (WordInterface.net msgPort).isOraclePPTOn_lowerWith_query
+      (input := encUnit) (query := fun _ : Unit => ([] : List Bool)) (limit := fun _ => 3)
+      (ComputableInPolyTime.const ()) (ComputableInPolyTime.const []) (ComputableInPolyTime.const 3)
+    exact hq.congr fun _ State oracle s => rfl
+  refine WordInterface.isOraclePPTOn_lowerWith_adapt prependFalseMap hinner
+    (ComputableInPolyTime.const 2) fun _ _ w => ?_
+  simp only [prependFalseMap, List.length_cons]
+  have hlen : (List.take 2 w).length ≤ 2 := List.length_take_le 2 w
+  omega
+
+/-- Against an overlong `[true, true, true]` oracle reply, adapting at outer prefix `r = 2`
+returns `[false, true, true]`: taking the `2`-bit prefix before translation differs from
+truncating after translation (`[false, true]`) and from using `capIn = 3`
+(`[false, true, true, true]`). -/
+theorem prependFalseMap_adapt_prefix_before_translate :
+    ProbOracleComp.runWith tripleOracle
+        (ProbOracleComp.lowerWith (WordInterface.net msgPort) 2
+          (prependFalseMap.adapt
+            (ProbOracleComp.query (spec := netSpec (List Bool) (List Bool)) []))) () =
+      PMF.pure ([false, true, true], ()) ∧
+    ([false, true, true] ≠ [false, true] ∧ [false, true, true] ≠ [false, true, true, true]) := by
+  refine ⟨?_, by decide, by decide⟩
+  simp only [prependFalseMap, WordInterface.PortMap.adapt, ProbOracleComp.lowerWith,
+    ProbOracleComp.simulate_map, ProbOracleComp.simulate_query, WordInterface.lowerQuery,
+    ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, tripleOracle, PMF.pure_map]
   rfl
 
-private theorem windowStore_onInput_one_eval (b : Bool) (st : ℕ × List Bool) :
-    ((windowStore.onInput (1 : Fin 2) b).run st).eval =
-      PMF.pure ((some (st.2.take st.1) : Option (List Bool)), st) := by
-  have hne : (1 : Fin 2) ≠ 0 := by decide
-  change (do
-      let x ← (pure (st, st) : ProbComp _)
-      if (1 : Fin 2) = 0 then
-        let y ← ((fun c => (c, x.2)) <$> ProbComp.uniform Bool)
-        let z ← (pure ((), (x.1.1, (b ^^ y.1) :: x.1.2)) : ProbComp _)
-        pure ((none : Option (List Bool)), z.2)
-      else
-        pure ((some (x.1.2.take x.1.1) : Option (List Bool)), x.2)).eval =
-    PMF.pure ((some (st.2.take st.1) : Option (List Bool)), st)
-  simp only [hne, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind]
+end LengthChangingAdapterWitness
 
-private theorem windowStore_onBackdoor_eval (u : Unit) (st : ℕ × List Bool) :
-    ((windowStore.onBackdoor u).run st).eval = PMF.pure ((), st) := by
-  change (pure ((), st) : ProbComp _).eval = PMF.pure ((), st)
-  exact ProbComp.eval_pure ((), st)
-
-private theorem windowStore_onInput_zero_support (b : Bool) (st : windowStore.State)
-    (r : Option (List Bool) × windowStore.State) :
-    r ∈ ((windowStore.onInput (0 : Fin 2) b).run st).eval.support ↔
-      ∃ c : Bool, r.1 = none ∧
-        r.2 = ((st : ℕ × List Bool).1, (b ^^ c) :: (st : ℕ × List Bool).2) := by
-  let st' : ℕ × List Bool := st
-  let r' : Option (List Bool) × ℕ × List Bool := (r.1, r.2)
-  have h : ((windowStore.onInput (0 : Fin 2) b).run st).eval r =
-      (PMF.map (fun c : Bool => ((none : Option (List Bool)), (st'.1, (b ^^ c) :: st'.2)))
-        (ProbComp.uniform Bool).eval) r' :=
-    congrFun (congrArg DFunLike.coe (windowStore_onInput_zero_eval b st')) r'
-  rw [PMF.mem_support_iff, h, ← PMF.mem_support_iff, PMF.mem_support_map_iff]
-  constructor
-  · rintro ⟨c, _, hc⟩
-    exact ⟨c, (congrArg Prod.fst hc).symm, (congrArg Prod.snd hc).symm⟩
-  · rintro ⟨c, h1, h2⟩
-    exact ⟨c, by simp [ProbComp.eval_uniform], Prod.ext h1.symm h2.symm⟩
-
-private def windowStoreCodec : WordCodec (ℕ × List Bool) where
-  enc := encPair encUnary encBits
-  decode := (Decoder.pair Decoder.unary Decoder.bits).decode
-  decode_enc := (Decoder.pair Decoder.unary Decoder.bits).decode_enc
-
-private theorem windowStore_onInput_isPPTOn :
-    IsPPTOn (encPair encBits encBits) (encPair encBits encBits)
-      (IdealFunctionality.wordStep windowPartyPort windowStoreCodec
-        fun q => windowStore.onInput q.1 q.2) := by
-  have hdecReq : ComputableInPolyTime
-      (fun p : List Bool × List Bool => windowPartyPort.queryDecoder.decode p.1)
-      (encPair encBits encBits) (encPair encFin2 encBool) :=
-    windowPartyPort.queryDecoder.computableInPolyTime.comp
-      (ComputableInPolyTime.fst encBits encBits)
-  have hdecState := (Decoder.pair Decoder.unary Decoder.bits).computableInPolyTime.comp
-    (ComputableInPolyTime.snd encBits encBits)
-  have hcond : ComputableInPolyTime
-      (fun p : List Bool × List Bool =>
-        decide ((windowPartyPort.queryDecoder.decode p.1).1 = 0))
-      (encPair encBits encBits) encBool :=
-    (ComputableInPolyTime.of_finite (fun i : Fin 2 => decide (i = 0))).comp
-      ((ComputableInPolyTime.fst encFin2 encBool).comp hdecReq)
-  have hyes : IsPPTOn (encPair encBits encBits) (encPair encBits encBits)
-      (fun p =>
-        (fun c => (windowPartyPort.reply none,
-          windowStoreCodec.enc ((windowStoreCodec.decode p.2).1,
-            ((windowPartyPort.queryDecoder.decode p.1).2 ^^ c) ::
-              (windowStoreCodec.decode p.2).2))) <$> ProbComp.uniform Bool) := by
-    refine (isPPTOn_uniform_bool (encPair encBits encBits)).map_with ?_
-    have hbit := ((ComputableInPolyTime.snd encFin2 encBool).comp hdecReq).comp
-      (ComputableInPolyTime.fst (encPair encBits encBits) encBool)
-    have hxor := ComputableInPolyTime.bool_xor.comp
-      (hbit.prod (ComputableInPolyTime.snd (encPair encBits encBits) encBool))
-    have hhead := (ComputableInPolyTime.of_finite (fun b : Bool => [b]) (encIn := encBool)
-      (encOut := encBits)).comp hxor
-    have hst := hdecState.comp (ComputableInPolyTime.fst (encPair encBits encBits) encBool)
-    have hlist := ComputableInPolyTime.bitsAppend hhead
-      ((ComputableInPolyTime.snd encUnary encBits).comp hst)
-    have hencSt := (ComputableInPolyTime.of_eq (encIn := encPair encUnary encBits)
-      (encOut := encBits) (fun _ => rfl)).comp
-      (((ComputableInPolyTime.fst encUnary encBits).comp hst).prod hlist)
-    exact (ComputableInPolyTime.const (windowPartyPort.reply none)).prod hencSt
-  have hno : IsPPTOn (encPair encBits encBits) (encPair encBits encBits)
-      (fun p => pure (windowPartyPort.reply (some
-        ((windowStoreCodec.decode p.2).2.take (windowStoreCodec.decode p.2).1)),
-        windowStoreCodec.enc (windowStoreCodec.decode p.2))) := by
-    have htake := ComputableInPolyTime.bitsTakeWithInput
-      ((ComputableInPolyTime.snd encUnary encBits).comp hdecState)
-      ((ComputableInPolyTime.fst encUnary encBits).comp hdecState)
-    have hsome : ComputableInPolyTime
-        (fun p : List Bool × List Bool =>
-          some ((windowStoreCodec.decode p.2).2.take (windowStoreCodec.decode p.2).1))
-        (encPair encBits encBits) (encOption encBits) := by
-      fun_prop
-    have hrep := (ComputableInPolyTime.of_eq (encIn := encOption encBits) (encOut := encBits)
-      (fun _ => rfl)).comp hsome
-    have hnorm := (ComputableInPolyTime.of_eq (encIn := encPair encUnary encBits)
-      (encOut := encBits) (fun _ => rfl)).comp hdecState
-    exact (hrep.prod hnorm).isPPTOn
-  refine (IsPPTOn.ite
-    (condition := fun p => (windowPartyPort.queryDecoder.decode p.1).1 = 0)
-    hcond hyes hno).congr fun p => ?_
-  dsimp only [IdealFunctionality.wordStep]
-  by_cases hi : (windowPartyPort.queryDecoder.decode p.1).1 = 0
-  · simp only [hi, ↓reduceIte, ProbComp.eval_map]
-    change _ = PMF.map (fun result : Option (List Bool) × ℕ × List Bool =>
-      (windowPartyPort.reply result.1, windowStoreCodec.enc result.2))
-      ((windowStore.onInput 0 (windowPartyPort.queryDecoder.decode p.1).2).run
-        (windowStoreCodec.decode p.2)).eval
-    rw [windowStore_onInput_zero_eval, PMF.map_comp]
-    rfl
-  · have hi1 : (windowPartyPort.queryDecoder.decode p.1).1 = 1 := by omega
-    simp only [hi, ↓reduceIte, ProbComp.eval_pure, ProbComp.eval_map]
-    rw [hi1]
-    change _ = PMF.map (fun result : Option (List Bool) × ℕ × List Bool =>
-      (windowPartyPort.reply result.1, windowStoreCodec.enc result.2))
-      ((windowStore.onInput 1 (windowPartyPort.queryDecoder.decode p.1).2).run
-        (windowStoreCodec.decode p.2)).eval
-    rw [windowStore_onInput_one_eval, PMF.pure_map]
-
-private noncomputable def windowStoreCert :
-    IdealFunctionality.PPTCertificate windowStore windowPartyPort unitPort where
-  stateCodec := windowStoreCodec
-  init := by
-    have hpair := (ComputableInPolyTime.fst encUnary (encFinite (Finset (Fin 2)))).prod
-      (ComputableInPolyTime.const (encIn := encPair encUnary (encFinite (Finset (Fin 2))))
-        (encOut := encBits) [])
-    have hcomp := (ComputableInPolyTime.of_eq (encIn := encPair encUnary encBits)
-      (encOut := encBits) (fun _ => rfl)).comp hpair
-    exact hcomp.isPPTOn.congr fun p => by
-      simp only [windowStore, ProbComp.eval_pure]
-      rfl
-  onInput := windowStore_onInput_isPPTOn
-  onBackdoor := by
-    have hnorm := (ComputableInPolyTime.of_eq (encIn := encPair encUnary encBits)
-      (encOut := encBits) (fun _ => rfl)).comp
-      ((Decoder.pair Decoder.unary Decoder.bits).computableInPolyTime.comp
-        (ComputableInPolyTime.snd encBits encBits))
-    exact ((ComputableInPolyTime.const (unitPort.reply ())).prod hnorm).isPPTOn.congr fun p => by
-      simp only [IdealFunctionality.wordStep, ProbComp.eval_pure, ProbComp.eval_map]
-      change _ = PMF.map (fun result : Unit × ℕ × List Bool =>
-        (unitPort.reply result.1, windowStoreCodec.enc result.2))
-        ((windowStore.onBackdoor (unitPort.queryDecoder.decode p.1)).run
-          (windowStoreCodec.decode p.2)).eval
-      rw [windowStore_onBackdoor_eval, PMF.pure_map]
-      rfl
-  normalize :=
-    (ComputableInPolyTime.of_eq (encIn := encPair encUnary encBits) (encOut := encBits)
-      (fun _ => rfl)).comp (Decoder.pair Decoder.unary Decoder.bits).computableInPolyTime
-  growth _ := 1
-  growth_poly := PolyBounded.const 1
-  preserve_onInput req st result hr := by
-    let st' : ℕ × List Bool := st
-    by_cases hi : (windowPartyPort.queryDecoder.decode req).1 = 0
-    · rw [hi, windowStore_onInput_zero_support] at hr
-      rcases hr with ⟨c, _, hs⟩
-      let r2 : ℕ × List Bool := result.2
-      have hs' : r2 = (st'.1, ((windowPartyPort.queryDecoder.decode req).2 ^^ c) :: st'.2) := hs
-      change (encPair encUnary encBits r2).length ≤ (encPair encUnary encBits st').length + 1
-      rw [hs']
-      simp only [length_encPair, encBits_apply, List.length_cons]
-      omega
-    · have hi1 : (windowPartyPort.queryDecoder.decode req).1 = 1 := by omega
-      let r' : Option (List Bool) × ℕ × List Bool := (result.1, result.2)
-      have h : ((windowStore.onInput (windowPartyPort.queryDecoder.decode req).1
-          (windowPartyPort.queryDecoder.decode req).2).run st).eval result =
-          (PMF.pure ((some (st'.2.take st'.1) : Option (List Bool)), st')) r' := by
-        rw [hi1]
-        exact congrFun (congrArg DFunLike.coe (windowStore_onInput_one_eval _ st')) r'
-      rw [PMF.mem_support_iff, h, ← PMF.mem_support_iff, PMF.mem_support_pure_iff] at hr
-      change (windowStoreCodec.enc r'.2).length ≤ (windowStoreCodec.enc st').length + 1
-      rw [congrArg Prod.snd hr]
-      exact Nat.le_add_right _ _
-  preserve_onBackdoor req st result hr := by
-    let st' : ℕ × List Bool := st
-    let r' : Unit × ℕ × List Bool := (result.1, result.2)
-    have h : ((windowStore.onBackdoor (unitPort.queryDecoder.decode req)).run st).eval result =
-        (PMF.pure ((), st')) r' :=
-      congrFun (congrArg DFunLike.coe (windowStore_onBackdoor_eval _ st')) r'
-    rw [PMF.mem_support_iff, h, ← PMF.mem_support_iff, PMF.mem_support_pure_iff] at hr
-    change (windowStoreCodec.enc r'.2).length ≤ (windowStoreCodec.enc st').length + 1
-    rw [congrArg Prod.snd hr]
-    exact Nat.le_add_right _ _
-
-/-- `windowStore` is a strict-PPT ideal functionality. -/
-theorem windowStore_isPPT : windowStore.IsPPT windowPartyPort unitPort :=
-  ⟨windowStoreCert⟩
-
-/-- Lifting `windowStore` via `IdealFunctionality.IsPPT.toProtocol` gives a strict-PPT protocol. -/
-theorem windowStore_toProtocol_isPPT : windowStore.toProtocol.IsPPT windowPartyPort unitPort :=
-  windowStore_isPPT.toProtocol
-
-end WindowStoreWitness
-
-/-! ### 2. `corruptRouter` branches and certificate witness -/
+/-! ### 2. `corruptRouter` branches and certificate witness on `coinStore` -/
 
 section CorruptRouterWitness
 
-/-- Under `corruptRouter {1} (windowStore.toProtocol κ {1})`, environment inputs to corrupted party
+/-- Under `corruptRouter {1} (coinStore.toProtocol κ {1})`, environment inputs to corrupted party
 `1` return `none` without changing state, adversary-routed inputs to party `1` forward to
-`windowStore`, and environment inputs to honest party `0` reach `windowStore`. -/
-theorem windowStore_corruptRouter_branches (κ : ℕ) (b : Bool) :
-    (corruptRouter ({1} : Finset (Fin 2)) (windowStore.toProtocol κ {1})).handle
+`coinStore`, and environment inputs to honest party `0` reach `coinStore`. -/
+theorem coinStore_corruptRouter_branches (κ : ℕ) (b : Bool) :
+    (corruptRouter ({1} : Finset (Fin 2)) (coinStore.toProtocol κ {1})).handle
         (Sum.inl ((1 : Fin 2), b)) = pure none ∧
-    (corruptRouter ({1} : Finset (Fin 2)) (windowStore.toProtocol κ {1})).handle
+    (corruptRouter ({1} : Finset (Fin 2)) (coinStore.toProtocol κ {1})).handle
         (Sum.inr (.inl ((1 : Fin 2), b))) =
-      Sum.inl <$> (windowStore.toProtocol κ {1}).handle (Sum.inl ((1 : Fin 2), b)) ∧
-    (corruptRouter ({1} : Finset (Fin 2)) (windowStore.toProtocol κ {1})).handle
+      Sum.inl <$> (coinStore.toProtocol κ {1}).handle (Sum.inl ((1 : Fin 2), b)) ∧
+    (corruptRouter ({1} : Finset (Fin 2)) (coinStore.toProtocol κ {1})).handle
         (Sum.inl ((0 : Fin 2), b)) =
-      (windowStore.toProtocol κ {1}).handle (Sum.inl ((0 : Fin 2), b)) := by
+      (coinStore.toProtocol κ {1}).handle (Sum.inl ((0 : Fin 2), b)) := by
   have h1 : (1 : Fin 2) ∈ ({1} : Finset (Fin 2)) := by decide
   have h0 : (0 : Fin 2) ∉ ({1} : Finset (Fin 2)) := by decide
   refine ⟨?_, ?_, ?_⟩
@@ -324,34 +139,33 @@ theorem windowStore_corruptRouter_branches (κ : ℕ) (b : Bool) :
   · simp [corruptRouter, h1]
   · simp [corruptRouter, h0]
 
-/-- Concrete routed poll evaluation on `corruptRouter {1} (windowStore.toProtocol κ {1})`: an
-adversary-routed poll at corrupted party `1` returns `Sum.inl (some (st.2.take st.1))` without
-modifying state. -/
-theorem windowStore_corruptRouter_adv_poll_eval (κ : ℕ) (b : Bool) (st : ℕ × List Bool) :
+/-- Concrete routed poll evaluation on `corruptRouter {1} (coinStore.toProtocol κ {1})`: an
+adversary-routed poll at corrupted party `1` returns `Sum.inl (some s)` without modifying state. -/
+theorem coinStore_corruptRouter_adv_poll_eval (κ : ℕ) (b : Bool) (s : List Bool) :
     ProbOracleComp.runWith emptyWordOracle
         (ProbOracleComp.lowerWith WordInterface.empty 0
-          (((corruptRouter ({1} : Finset (Fin 2)) (windowStore.toProtocol κ {1})).handle
-            (Sum.inr (.inl ((1 : Fin 2), b)))).run st)) () =
-      PMF.pure (((Sum.inl (some (st.2.take st.1)) : RoutedNetR (List Bool) Unit), st), ()) := by
-  rw [(windowStore_corruptRouter_branches κ b).2.1]
-  let st' : windowStore.State := st
-  have hev : ((windowStore.onInput (1 : Fin 2) b).run st').eval =
-      PMF.pure ((some (st.2.take st.1) : Option (List Bool)), st') :=
-    windowStore_onInput_one_eval b st
+          (((corruptRouter ({1} : Finset (Fin 2)) (coinStore.toProtocol κ {1})).handle
+            (Sum.inr (.inl ((1 : Fin 2), b)))).run s)) () =
+      PMF.pure (((Sum.inl (some s) : RoutedNetR (List Bool) Unit), s), ()) := by
+  rw [(coinStore_corruptRouter_branches κ b).2.1]
+  let s' : coinStore.State := s
+  have hev : ((coinStore.onInput (1 : Fin 2) b).run s').eval =
+      PMF.pure ((some s : Option (List Bool)), s') :=
+    coinStore_onInput_one_eval b s
   change ProbOracleComp.runWith emptyWordOracle
       (ProbOracleComp.lowerWith WordInterface.empty 0
         (Prod.map Sum.inl id <$>
-          ProbOracleComp.sample ((windowStore.onInput (1 : Fin 2) b).run st'))) () = _
+          ProbOracleComp.sample ((coinStore.onInput (1 : Fin 2) b).run s'))) () = _
   rw [ProbOracleComp.lowerWith, ProbOracleComp.simulate_map, ProbOracleComp.simulate_sample,
     ProbOracleComp.runWith_map, ProbOracleComp.runWith_sample, hev, PMF.pure_map, PMF.pure_map]
   rfl
 
-/-- Static-corruption routing around `windowStore.toProtocol` preserves `Protocol.IsPPT`, using
-`WordPort.computable_partyIndex` to extract the party index from `windowPartyPort`. -/
-theorem windowStore_corruptRouter_isPPT :
-    Protocol.IsPPT (fun κ C => corruptRouter C (windowStore.toProtocol κ C))
-      windowPartyPort (WordPort.sum windowPartyPort unitPort) :=
-  windowStore_toProtocol_isPPT.corruptRouter (WordPort.computable_partyIndex windowInputPort)
+/-- Static-corruption routing around `coinStore.toProtocol` preserves `Protocol.IsPPT`, using
+`WordPort.computable_partyIndex` to extract the party index from `coinPartyPort`. -/
+theorem coinStore_corruptRouter_isPPT :
+    Protocol.IsPPT (fun κ C => corruptRouter C (coinStore.toProtocol κ C))
+      coinPartyPort (WordPort.sum coinPartyPort unitPort) :=
+  coinStore_toProtocol_isPPT.corruptRouter (WordPort.computable_partyIndex coinInputPort)
 
 end CorruptRouterWitness
 
@@ -394,25 +208,10 @@ private def logAdvCert :
           iN.reply (iN.decodeQuery x.2.1.1 x.2.1.2) <$>
             ProbOracleComp.lowerWith iN x.1.replyBound
               (ProbOracleComp.query (iN.decodeQuery x.2.1.1 x.2.1.2))) := by
-      refine iN.isOraclePPTOn_lowerWith_query
-        (query := fun x : PPTParam 2 × (iN.Channel × List Bool) × List Bool =>
-          iN.decodeQuery x.2.1.1 x.2.1.2)
-        (limit := fun x => x.1.replyBound) ?_ ?_ ?_
-      · have heq : (fun x : PPTParam 2 × (iN.Channel × List Bool) × List Bool =>
-            iN.channel (iN.decodeQuery x.2.1.1 x.2.1.2)) = fun x => x.2.1.1 :=
-          funext fun x => (iN.request_decodeQuery x.2.1.1 x.2.1.2).1
-        rw [heq]; unfold EIn encHandlerCall; fun_prop
-      · have heq : (fun x : PPTParam 2 × (iN.Channel × List Bool) × List Bool =>
-            iN.request (iN.decodeQuery x.2.1.1 x.2.1.2)) =
-            fun x => iN.requestNormalize x.2.1.1 x.2.1.2 :=
-          funext fun x => (iN.request_decodeQuery x.2.1.1 x.2.1.2).2
-        rw [heq]
-        have hproj : ComputableInPolyTime
-            (fun x : PPTParam 2 × (iN.Channel × List Bool) × List Bool => x.2.1)
-            EIn (encPair (encFinite iN.Channel) encBits) := by
-          unfold EIn encHandlerCall; fun_prop
-        exact iN.computable_requestNormalize.comp hproj
-      · unfold EIn encHandlerCall; fun_prop
+      refine iN.isOraclePPTOn_lowerWith_decodeQuery
+        (ch := fun x : PPTParam 2 × (iN.Channel × List Bool) × List Bool => x.2.1.1)
+        (word := fun x => x.2.1.2) (limit := fun x => x.1.replyBound) ?_ ?_ ?_ <;>
+        (unfold EIn encHandlerCall; fun_prop)
     have hsucc : ComputableInPolyTime
         (fun pair : (PPTParam 2 × (iN.Channel × List Bool) × List Bool) × List Bool =>
           (pair.2, encUnary (Decoder.unary.decode pair.1.2.2 + 1)))
@@ -453,44 +252,44 @@ theorem logAdv_isPPT : logAdv.IsPPT msgPort msgPort :=
   ⟨logAdvCert⟩
 
 /-- Lifting `logAdv` past the party port yields a strict-PPT machine family over
-`WordInterface.exec windowPartyPort msgPort`. -/
+`WordInterface.exec coinPartyPort msgPort`. -/
 theorem logAdv_liftAdversary_isPPT :
     Machine.IsPPTFamily (fun κ C => liftAdversary (In := Bool) (Out := List Bool) (logAdv κ C))
-      (WordInterface.protocol windowPartyPort msgPort)
-      (WordInterface.exec windowPartyPort msgPort) :=
+      (WordInterface.protocol coinPartyPort msgPort)
+      (WordInterface.exec coinPartyPort msgPort) :=
   logAdv_isPPT.liftAdversary
 
 /-- On `liftAdversary (logAdv κ C)`, a party-channel word activation forwards on the left channel
 and re-encodes even an off-image state word `[false]` into `Set.range encUnary` (`≠ [false]`). -/
 theorem logAdv_liftAdversary_forwards_party_and_normalizes (p : PPTParam 2) (w : List Bool) :
-    let cert := logAdvCert.liftAdversary windowPartyPort
-    let iIn := WordInterface.protocol windowPartyPort msgPort
-    let iOut := WordInterface.exec windowPartyPort msgPort
+    let cert := logAdvCert.liftAdversary coinPartyPort
+    let iIn := WordInterface.protocol coinPartyPort msgPort
+    let iOut := WordInterface.exec coinPartyPort msgPort
     let noneOracle : iIn.Channel × List Bool → StateT Unit PMF (List Bool) :=
-      fun _ _ => PMF.pure (windowPartyPort.reply none, ())
+      fun _ _ => PMF.pure (coinPartyPort.reply none, ())
     (∀ sw : List Bool,
       wordHandle (fun κ C => liftAdversary (In := Bool) (Out := List Bool) (logAdv κ C))
           iIn iOut cert.codec p (.inl (), w) sw =
-        (fun r => (windowPartyPort.reply r, encUnary (Decoder.unary.decode sw))) <$>
+        (fun r => (coinPartyPort.reply r, encUnary (Decoder.unary.decode sw))) <$>
           ProbOracleComp.lowerWith iIn p.replyBound
             (ProbOracleComp.query
               (spec := protocolSpec 2 Bool (List Bool) (List Bool) (List Bool))
-              (.inl (windowPartyPort.queryDecoder.decode w)))) ∧
+              (.inl (coinPartyPort.queryDecoder.decode w)))) ∧
     (encUnary (Decoder.unary.decode [false]) ≠ [false] ∧
       ProbOracleComp.runWith noneOracle
         (wordHandle (fun κ C => liftAdversary (In := Bool) (Out := List Bool) (logAdv κ C))
           iIn iOut cert.codec ⟨p.secParam, 1, p.corrupted⟩ (.inl (), w) [false]) () =
-      PMF.pure ((windowPartyPort.reply none, encUnary (Decoder.unary.decode [false])), ())) := by
+      PMF.pure ((coinPartyPort.reply none, encUnary (Decoder.unary.decode [false])), ())) := by
   have hfwd : ∀ (q : PPTParam 2) (sw : List Bool),
       wordHandle (fun κ C => liftAdversary (In := Bool) (Out := List Bool) (logAdv κ C))
-          (WordInterface.protocol windowPartyPort msgPort)
-          (WordInterface.exec windowPartyPort msgPort)
-          (logAdvCert.liftAdversary windowPartyPort).codec q (.inl (), w) sw =
-        (fun r => (windowPartyPort.reply r, encUnary (Decoder.unary.decode sw))) <$>
-          ProbOracleComp.lowerWith (WordInterface.protocol windowPartyPort msgPort) q.replyBound
+          (WordInterface.protocol coinPartyPort msgPort)
+          (WordInterface.exec coinPartyPort msgPort)
+          (logAdvCert.liftAdversary coinPartyPort).codec q (.inl (), w) sw =
+        (fun r => (coinPartyPort.reply r, encUnary (Decoder.unary.decode sw))) <$>
+          ProbOracleComp.lowerWith (WordInterface.protocol coinPartyPort msgPort) q.replyBound
             (ProbOracleComp.query
               (spec := protocolSpec 2 Bool (List Bool) (List Bool) (List Bool))
-              (.inl (windowPartyPort.queryDecoder.decode w))) := by
+              (.inl (coinPartyPort.queryDecoder.decode w))) := by
     intro q sw
     simp only [wordHandle, liftAdversary, Machine.liftRight, PPTCertificate.liftAdversary,
       PPTCertificate.liftRight, logAdvCert, StateT.run, ProbOracleComp.lowerWith]
@@ -504,9 +303,9 @@ theorem logAdv_liftAdversary_forwards_party_and_normalizes (p : PPTParam 2) (w :
     dsimp only at hfwd2
     change ProbOracleComp.runWith _
         (wordHandle (fun κ C => liftAdversary (In := Bool) (Out := List Bool) (logAdv κ C))
-          (WordInterface.protocol windowPartyPort msgPort)
-          (WordInterface.exec windowPartyPort msgPort)
-          (logAdvCert.liftAdversary windowPartyPort).codec ⟨p.secParam, 1, p.corrupted⟩
+          (WordInterface.protocol coinPartyPort msgPort)
+          (WordInterface.exec coinPartyPort msgPort)
+          (logAdvCert.liftAdversary coinPartyPort).codec ⟨p.secParam, 1, p.corrupted⟩
           (.inl (), w) [false]) () = _
     rw [hfwd2, ProbOracleComp.lowerWith, ProbOracleComp.simulate_query, WordInterface.lowerQuery,
       ProbOracleComp.runWith_map, ProbOracleComp.runWith_map, ProbOracleComp.runWith_map,
