@@ -40,17 +40,26 @@ each vertex at most once, so a round costs `O(n ^ 2)` memory operations and the 
 ## Main definitions
 
 * `Cslib.Algorithms.WordRAM.EdmondsKarp.Ctx`, `capAddr`, `flowAddr`, `distAddr`, `predAddr`,
-  `ekScratch`, `ekBound`: the layout and the word bound.
-* `Cslib.Algorithms.WordRAM.EdmondsKarp.ekProg`: the solver.
+  `ekScratch`, `ekBound`, `CtxFits`: the layout and the word bound.
+* `Cslib.Algorithms.WordRAM.EdmondsKarp.ekProg`: the solver, and `ekCost`, its memory budget.
+* `Cslib.Algorithms.WordRAM.EdmondsKarp.fillRange`: fill a range of memory with one word.
 
 ## Main results
 
-* `Cslib.Algorithms.WordRAM.EdmondsKarp.ekProg_realizes`: `ekProg` compiles to `Basis.exact`
-  word-RAM code.
 * `Cslib.Algorithms.WordRAM.EdmondsKarp.ekProg_spec`: the reached set of the final search is a
-  minimum `s`–`t` cut of `cutWeight W`, and the returned value is its weight.
-* `Cslib.Algorithms.WordRAM.EdmondsKarp.memoryCost_ekProg_le`: at most `ekCost n` memory
-  operations, `O(n ^ 5)`.
+  minimum `s`–`t` cut of `cutWeight W`, the returned value is its weight, and memory outside the
+  scratch area is unchanged.
+* `Cslib.Algorithms.WordRAM.EdmondsKarp.memoryCost_ekProg_le`: at most `ekCost n = 20 (n + 1) ^ 5`
+  memory operations from any state.
+* `Cslib.Algorithms.WordRAM.EdmondsKarp.ekProg_realizes`,
+  `Cslib.Algorithms.WordRAM.EdmondsKarp.validHistory_ekProg`,
+  `Cslib.Algorithms.WordRAM.EdmondsKarp.preservesAt_ekProg`,
+  `Cslib.Algorithms.WordRAM.EdmondsKarp.ekProg_result_le`: compilation to `Basis.exact` code,
+  admissibility on a well-formed memory with the scratch area allocated, the frame, and the bound
+  `n * n * B + B` on the returned word, for clients that call `ekProg`.
+* `Cslib.Algorithms.WordRAM.EdmondsKarp.fillRange_realizes`, `fillRange_spec`,
+  `preservesAt_fillRange`, `memoryCost_fillRange_le`, `validHistory_fillRange`: the same for
+  `fillRange`.
 
 ## References
 

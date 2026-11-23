@@ -29,6 +29,7 @@ This module provides width-independent reasoning principles for `Memory.Prog` cl
 ## Main definitions
 
 * `MonotoneMemInv`: memory-state invariant preserved by any admissible `Memory.Prog` step.
+* `PreservesAt`: a program leaves one memory address unchanged.
 
 ## Main results
 
@@ -40,8 +41,15 @@ This module provides width-independent reasoning principles for `Memory.Prog` cl
   `validHistory_read_bind`, `validHistory_write_bind`, `validHistory_ite`, `validHistory_dite`,
   `validHistory_iterate_inv`, `validHistory_boundedWhile_inv`: monadic admissibility combinators.
 * `boundedWhile_invariant_of`, `iterate_invariant_of`, `iterationSafe_of_stepInv`,
-  `clientState_iterate_eq_of`, `clientState_boundedWhile_eq_of`, `memoryCost_iterate_le_of`:
-  generic loop invariant and cost lemmas.
+  `clientState_iterate_eq_of`, `clientState_boundedWhile_eq_of`, `memoryCost_iterate_le_of`,
+  `memoryCost_iterate_le_potential`, `memoryCost_boundedWhile_le_of`: generic loop invariant and
+  cost lemmas, including an amortized bound with a potential.
+* `clientResult_bind_read`, `clientState_bind_write`, `clientResult_map`, `memoryCost_map`,
+  `memoryCost_bind_le`, `memoryCost_ite_le`, `validHistory_iterate_nat`,
+  `validHistory_iterate_fst`: reductions through primitive steps and cost and admissibility
+  combinators for counting loops.
+* `PreservesAt`, `preservesAt_bind`, `preservesAt_iterate`, `preservesAt_iterate_nat`,
+  `preservesAt_boundedWhile`: single-address frames.
 -/
 
 public section
