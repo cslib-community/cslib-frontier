@@ -157,7 +157,8 @@ theorem exists_coupling_toOuterMeasure_eq_tsum_tsub (μ ν : PMF α) :
       by_cases hp : p.1 = p.2
       · rw [Set.indicator_of_notMem (by simpa using hp), hp, hef, zero_mul]
       · rw [Set.indicator_of_mem hp]
-        simp only [ω, w, hp, ite_false, zero_add]
+        change w p = _
+        simp only [w, hp, ite_false, zero_add]
     rw [PMF.toOuterMeasure_apply]
     simp only [hind]
     rw [tsum_prod']

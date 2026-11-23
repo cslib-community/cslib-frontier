@@ -5,8 +5,9 @@ Authors: Samuel Schlesinger
 -/
 
 module
--- upstream: local-only (regression tests)
+-- upstream: candidate
 
+public import CslibFrontier.Init
 import CslibFrontier.Probability.StatisticalDistance.CouplingBind
 import CslibFrontier.Probability.StatisticalDistance.OptimalCoupling
 import Mathlib.Analysis.SpecificLimits.Basic
@@ -19,18 +20,24 @@ mass disagrees with probability exactly `1 / 2`, and no coupling can improve thi
 The zero-excess branch and sequential composition across different universes are also exercised.
 -/
 
+-- This test module deliberately exports no fixture API.
+set_option linter.privateModule false
+
 open Cslib.Probability Cslib.Probability.PMF
 open scoped ENNReal Cslib.Probability.PMF
 
 private noncomputable def geometric : PMF ℕ :=
   ⟨fun n => (2⁻¹ : ℝ≥0∞) ^ (n + 1), CompleteLattice.summable.hasSum_iff.mpr (by
     rw [ENNReal.tsum_geometric_add_one, ENNReal.one_sub_inv_two, inv_inv]
-    norm_num)⟩
+    exact ENNReal.inv_mul_cancel (by norm_num) ENNReal.ofNat_ne_top)⟩
 
 /-- This fixture has infinite support, rather than finite support embedded in `ℕ`. -/
 example : geometric.support = Set.univ := by
-  ext n
-  simp [PMF.mem_support_iff, geometric]
+  apply Set.eq_univ_of_forall
+  intro n
+  rw [PMF.mem_support_iff]
+  change (2⁻¹ : ℝ≥0∞) ^ (n + 1) ≠ 0
+  exact pow_ne_zero _ (by simp)
 
 private theorem geometric_excess :
     ∑' n, ((PMF.pure 0 : PMF ℕ) n - geometric n) = (1 / 2 : ℝ≥0∞) := by
@@ -39,7 +46,9 @@ private theorem geometric_excess :
       if n = 0 then (1 / 2 : ℝ≥0∞) else 0 := by
     by_cases hn : n = 0
     · subst n
-      norm_num [PMF.pure_apply, geometric]
+      simp only [PMF.pure_apply, ↓reduceIte]
+      change (1 : ℝ≥0∞) - 2⁻¹ ^ (0 + 1) = 1 / 2
+      simpa only [zero_add, pow_one, one_div] using ENNReal.one_sub_inv_two
     · simp [PMF.pure_apply, hn]
   simp only [h, tsum_ite_eq]
 
@@ -56,7 +65,7 @@ example : CoupledWithin (PMF.pure 0) geometric (1 / 2) ∧
   simp only [coupledWithin_iff_closeTo, closeTo_iff_tsum_tsub_le, geometric_excess]
   norm_num
 
-/-- Zero excess is handled without dividing by a nonzero residual mass. -/
+/-- The zero-excess branch still constructs a coupling with no disagreement. -/
 example : ∃ ω : PMF (ℕ × ℕ), ω.map Prod.fst = geometric ∧ ω.map Prod.snd = geometric ∧
     ω.toOuterMeasure {p | p.1 ≠ p.2} = 0 := by
   simpa using exists_coupling_toOuterMeasure_eq_tsum_tsub geometric geometric
