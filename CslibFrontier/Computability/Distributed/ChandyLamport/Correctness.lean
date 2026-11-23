@@ -13,7 +13,6 @@ public import Mathlib.Logic.Relation
 import Mathlib.Data.Finset.Lattice.Fold
 import Mathlib.Data.Fintype.Prod
 import Mathlib.Data.List.Perm.Basic
-import CslibFrontier.Tactic.UpdateSimp
 
 /-!
 # Chandy–Lamport consistent-cut permutation, stable-property detection, and liveness
@@ -486,7 +485,8 @@ private lemma ofSnap_step_initiate [DecidableEq P] [DecidableRel sys.graph.Adj]
     rcases eq_or_ne u p with rfl | hu
     · exact sys.pre_post_emit_marker hinv hen' (by simp [S₂, stepSnap, applyInitiate])
         (by simp [S₂, stepSnap, applyInitiate])
-    · apply pre_post_congr <;> update_simp [S₂, stepSnap, applyInitiate]
+    · exact pre_post_congr (by simp [S₂, stepSnap, applyInitiate, hu])
+        (by simp [S₂, stepSnap, applyInitiate, hu])
   refine ⟨hen', hproj, ?_, funext fun u => funext fun v => (hboth u v).1,
     funext fun u => funext fun v => (hboth u v).2, ?_⟩
   · funext r
@@ -524,8 +524,8 @@ private lemma ofSnap_step_recvMarker_none [DecidableEq P] [DecidableRel sys.grap
         exact pre_post_pop_marker hsrc_some
           (by simpa [S₂, stepSnap, applyRecvMarker, hdest, hud] using hsrc_some)
           ht_sd (by simp [S₂, stepSnap, applyRecvMarker, hdest, hud, ht_sd]) hnotm_tail
-      · apply pre_post_congr <;>
-          (simp only [S₂, stepSnap, applyRecvMarker, hdest]; update_simp)
+      · exact pre_post_congr (by simp [S₂, stepSnap, applyRecvMarker, hdest, hud])
+          (by simp [S₂, stepSnap, applyRecvMarker, hdest, hud, hsd])
   refine ⟨hdest, hproj, ?_, funext fun u => funext fun v => (hboth u v).1,
     funext fun u => funext fun v => (hboth u v).2, ?_⟩
   · funext r
@@ -556,8 +556,8 @@ private lemma ofSnap_step_recvMarker_some [DecidableEq P] [DecidableRel sys.grap
     · rcases hsd with ⟨rfl, rfl⟩
       exact pre_post_pop_marker hsrc_some (by rw [hsnap_unch]; exact hsrc_some)
         ht_sd (by simp [S₂, stepSnap, applyRecvMarker, hdest, ht_sd]) hnotm_tail
-    · apply pre_post_congr (hsnap_unch u)
-      simp only [S₂, stepSnap, applyRecvMarker, hdest]; update_simp
+    · exact pre_post_congr (hsnap_unch u)
+        (by simp [S₂, stepSnap, applyRecvMarker, hdest, hsd])
   apply CutState.ext hproj (funext hsnap_unch)
     (funext fun u => funext fun v => (hboth u v).1)
     (funext fun u => funext fun v => (hboth u v).2)
@@ -594,7 +594,11 @@ private lemma postInFlight_pop_app {P S M : Type*} {S₁ S₂ : SnapGlobalState 
 private lemma applyApp_snapState {P S M : Type*} [DecidableEq P]
     (S₁ : SnapGlobalState P S M) (e : Event P S M) (r : P) :
     ((S₁.applyApp e).proc r).snapState = (S₁.proc r).snapState := by
-  cases e <;> update_simp [SnapGlobalState.applyApp]
+  cases e with
+  | internal p _ _ | recv _ p _ _ _ =>
+    rcases eq_or_ne r p with rfl | hr
+    · simp only [SnapGlobalState.applyApp, ↓reduceIte]
+    · simp only [SnapGlobalState.applyApp, hr, ↓reduceIte]
 
 private lemma applyApp_chan {P S M : Type*} [DecidableEq P]
     (S₁ : SnapGlobalState P S M) (e : Event P S M) (u v : P) :
@@ -629,10 +633,15 @@ private lemma ofSnap_step_app_pre [DecidableEq P] [DecidableRel sys.graph.Adj]
   have hrec_eq : (ofSnap (S₁.applyApp e)).recBuf = (ofSnap S₁).recBuf := by
     funext u v; simp only [ofSnap, applyApp_snapState]
     cases e with
-    | internal _ _ _ => update_simp [SnapGlobalState.applyApp]
-    | recv _ _ _ _ _ =>
-      dsimp only [SnapGlobalState.applyApp]; simp only [Event.actor] at hact
-      simp only [hact, Option.isSome_none, Bool.false_eq_true, ↓reduceIte]; update_simp
+    | internal p _ _ =>
+      rcases eq_or_ne v p with rfl | hv
+      · simp only [SnapGlobalState.applyApp, ↓reduceIte]
+      · simp only [SnapGlobalState.applyApp, hv, ↓reduceIte]
+    | recv _ dest _ _ _ =>
+      simp only [Event.actor] at hact
+      rcases eq_or_ne v dest with rfl | hv
+      · simp only [hact, Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
+      · simp only [SnapGlobalState.applyApp, hv, ↓reduceIte]
   have hpop_info : ∀ u v, e.popsFrom u v →
       ∃ msg ws, S₁.chan u v = .app msg :: ws ∧
         ∃ t_pre, preInFlight S₁ u v = msg :: t_pre := by
@@ -768,8 +777,7 @@ private lemma ofSnap_step_app_post [DecidableEq P] [DecidableRel sys.graph.Adj]
     intro u v
     cases e with
     | internal p st' sent =>
-      simp only [ofSnap, Event.popsFrom, ↓reduceIte]
-      update_simp [SnapGlobalState.applyApp]
+      by_cases hv : v = p <;> simp [ofSnap, Event.popsFrom, SnapGlobalState.applyApp, hv]
     | recv src dest msg st' sent =>
       simp only [Event.actor] at hact
       have hpost_rec := sys.postRecv_records_iff_preInFlight hinv ⟨hen, rfl⟩ hact
@@ -787,7 +795,10 @@ private lemma ofSnap_step_app_post [DecidableEq P] [DecidableRel sys.graph.Adj]
         · dsimp only [stepSnap] at hmsgs
           simp [heq_nil, hmsgs]
       · simp only [hsd, ↓reduceIte]
-        rcases not_and_or.mp hsd with _ | _ <;> update_simp [SnapGlobalState.applyApp]
+        rcases eq_or_ne v dest with rfl | hv
+        · have hu : u ≠ src := fun h => hsd ⟨h, rfl⟩
+          simp only [SnapGlobalState.applyApp, hact, hu, ↓reduceIte]
+        · simp only [SnapGlobalState.applyApp, hv, ↓reduceIte]
 
 /-! #### Adjacent inversion swaps in `CutMTr` -/
 

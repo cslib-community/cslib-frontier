@@ -12,7 +12,6 @@ public import Cslib.Computability.Distributed.FLP.Impossibility
 import Cslib.Computability.Distributed.FLP.FairScheduler
 import Mathlib.Data.Finset.Max
 import Mathlib.Data.List.Dedup
-import CslibFrontier.Tactic.UpdateSimp
 
 /-!
 # One-Shot and Slot-Trace Total-Order Broadcast Steps and `Cslib.FLP` Reduction
@@ -1411,8 +1410,9 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
       rcases hmsgs_wf e he_mem with ⟨p₀, rfl⟩ | ⟨p₀, rfl⟩ | ⟨q₀, slot, item, rfl, hslot_lt, hlog_s⟩
       · simp only [stepLog]
         refine ⟨hnodup, hlog_wf, ?_, ?_, ?_, ?_, ?_⟩
-        · update_simp [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]
-          exact hnextSlot
+        · rcases eq_or_ne leader p₀ with rfl | hp₀
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] using hnextSlot
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hp₀] using hnextSlot
         · intro p
           have hc := hcons p
           simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
@@ -1452,12 +1452,15 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
           · exact hmsgs_wf e' (Multiset.mem_of_mem_erase he')
           · exact Or.inr (Or.inl ⟨p₀, rfl⟩)
         · intro q entry hmem
-          update_simp [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] at hmem
-          exact hbuf_wf q entry hmem
+          by_cases hq : q = p₀ <;>
+            simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hq,
+              ↓reduceIte] at hmem <;>
+            exact hbuf_wf _ entry hmem
         · intro q
-          simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, List.append_nil]
-          update_simp
-          exact hdeliv_wf q
+          rcases eq_or_ne q p₀ with rfl | hq
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] using hdeliv_wf _
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hq]
+              using hdeliv_wf _
       · let newItem : BcastMsg P V := ⟨p₀, inp p₀⟩
         let log' := log ++ [newItem]
         simp only [stepLog, ↓reduceIte]
@@ -1536,16 +1539,19 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
             · simp [hnextSlot]
             · simp [newItem, hnextSlot]
         · intro q entry hmem
-          update_simp [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] at hmem
-          obtain ⟨hsl, hit⟩ := hbuf_wf q entry hmem
-          exact ⟨by simp only [List.length_append, List.length_singleton]; omega,
-            by simpa [List.getElem_append_left hsl] using hit⟩
+          by_cases hq : q = leader <;>
+            simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hq,
+              ↓reduceIte] at hmem <;>
+            (obtain ⟨hsl, hit⟩ := hbuf_wf _ entry hmem;
+             exact ⟨by simp only [List.length_append, List.length_singleton]; omega,
+               by simpa [List.getElem_append_left hsl] using hit⟩)
         · intro q
           obtain ⟨hnd_le, hdel_eq⟩ := hdeliv_wf q
-          simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, List.append_nil,
-            List.length_append, List.length_singleton]
-          update_simp
-          exact ⟨by omega, hdel_eq.trans (List.take_append_of_le_length hnd_le).symm⟩
+          by_cases hq : q = leader <;>
+            simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, List.append_nil,
+              List.length_append, List.length_singleton, hq, ↓reduceIte] <;>
+            (try subst hq) <;>
+            exact ⟨by omega, hdel_eq.trans (List.take_append_of_le_length hnd_le).symm⟩
       · simp only [stepLog]
         let buf' : List (SlotEntry P V) := ⟨slot, item⟩ :: (s.proc q₀).state.buf
         have hbuf'_wf :
@@ -1558,8 +1564,9 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
         obtain ⟨hres_le, hres_take, _⟩ :=
           drainConsecutive_spec hbuf'_wf (s.proc q₀).state.nextDeliver (buf'.length + 1) hnd_q₀
         refine ⟨hnodup, hlog_wf, ?_, ?_, ?_, ?_, ?_⟩
-        · update_simp [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]
-          exact hnextSlot
+        · rcases eq_or_ne leader q₀ with rfl | hq₀
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] using hnextSlot
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hq₀] using hnextSlot
         · intro p
           have hc := hcons p
           simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
@@ -1579,13 +1586,15 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
           · simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
               ↓reduceIte] at hmem
             exact hbuf'_wf entry hmem
-          · update_simp [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] at hmem
+          · simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqq₀,
+              ↓reduceIte] at hmem
             exact hbuf_wf q entry hmem
         · intro q
           rcases eq_or_ne q q₀ with rfl | hqq₀
           · simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, ↓reduceIte]
             exact ⟨hres_le, hdel_q₀ ▸ hres_take⟩
-          · update_simp [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]
+          · simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqq₀,
+              ↓reduceIte]
             exact hdeliv_wf q
   -- Build the run-level log sequence `runLog xs k` along any `0`-admissible execution `(ss, xs)`.
   let mkRunLog (xs : ωSequence (BcastAction P (SeqMsg P V) V)) : ℕ → List (BcastMsg P V) :=
@@ -1648,12 +1657,17 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
         rcases htr with ⟨_, hstep⟩
         rw [← Nat.add_assoc, hstep]
         rcases e with ⟨dest, _ | ( _ | ⟨sl, it⟩)⟩
-        · update_simp [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]; exact hmem_d
-        · update_simp [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]; exact hmem_d
+        · rcases eq_or_ne q dest with rfl | hqd
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] using hmem_d
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqd] using hmem_d
+        · rcases eq_or_ne q dest with rfl | hqd
+          · by_cases hdl : q = leader <;>
+              simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hdl] using hmem_d
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqd] using hmem_d
         · rcases eq_or_ne q dest with rfl | hqe
           · simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, ↓reduceIte]
             exact List.mem_cons_of_mem _ hmem_d
-          · update_simp [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]; exact hmem_d
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqe] using hmem_d
   -- Core slot-delivery helper: if slot `m < (mkRunLog xs K).length` is in `mkRunLog xs K`, then
   -- every process `q` in a `0`-admissible run eventually delivers `(mkRunLog xs K)[m]`.
   have heventually_delivers_slot : ∀ inp ss xs, π.AdmissibleRun inp 0 ss xs →

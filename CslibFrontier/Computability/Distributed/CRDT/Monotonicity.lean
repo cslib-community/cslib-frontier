@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Computability.Distributed.CRDT.DataTypes
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Data.Finset.Max
-import CslibFrontier.Tactic.UpdateSimp
 
 /-!
 # Semilattice Irrevocable-Emission Coordination-Free Consistency ↔ Monotonicity
@@ -619,7 +618,8 @@ theorem not_semilatticeCoordinationFreeConsistent_gcounterExactCount
   let c₂ : GCounter Q := c₁.inc q₀
   have hc₁_val : c₁.value = k := by
     simp only [GCounter.value, c₁]
-    rw [Finset.sum_eq_single q₀ (fun x _ hx => by update_simp) (by simp), Function.update_self]
+    rw [Finset.sum_eq_single q₀ (fun x _ hx => Function.update_of_ne hx ..) (by simp),
+      Function.update_self]
   have hc₂_val : c₂.value = k + 1 := by
     simp [c₂, GCounter.value_inc, hc₁_val]
   have hle : c₁ ≤ c₂ := GCounter.le_inc q₀ c₁
