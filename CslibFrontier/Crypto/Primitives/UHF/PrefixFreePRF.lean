@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFree
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFreePair
 public import CslibFrontier.Crypto.Primitives.UHF.Computational
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
@@ -20,10 +21,10 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.UniformPoint
 
 /-!
-# A prefix-free oracle wrapper for collision guesses
+# Computational universal hashing from an extendable prefix-free PRF
 
-This is the two-query wrapper in the proof of [BonehShoup2023], v0.6, Theorem 7.3
-(printed pp. 258–259). It runs the collision guesser on the public unary parameter, extends
+The two-query wrapper proves [BonehShoup2023], v0.6, Theorem 7.3 (printed pp. 258–259),
+in the word model. It runs the collision guesser on the public unary parameter, extends
 each accepted word by the same full block, and checks equality of the two oracle replies.
 The wrapper always extends an accepted pair. Its reply reads are capped at the declared width.
 
@@ -35,17 +36,23 @@ Theorem 7.3 provides this room by giving the PRF domain one extra block of capac
 ## Main definitions
 
 * `Cslib.Crypto.UHF.prefixFreeCollisionReduction`: compare oracle replies on extended queries.
+* `Cslib.Crypto.UHF.prefixFreeCollisionReductionWithCap`: the shared program with a cap computed
+  from the first extended query.
 
 ## Main results
 
 * `Cslib.Crypto.UHF.isPrefixFreeOraclePPT_prefixFreeCollisionReduction`: the wrapper for a strict
   PPT guesser is strict oracle PPT and makes prefix-incomparable queries.
+* `Cslib.Crypto.UHF.isQueryBounded_prefixFreeCollisionReduction`: the wrapper makes at most
+  two oracle queries.
 * `Cslib.Crypto.UHF.succProbability_collisionGame_le_real_prefixFreeCollisionReduction`:
   the real-game comparison (7.7) for an extendable family on the chosen domains.
 * `Cslib.Crypto.UHF.eval_prfIdealGameOn_prefixFreeCollisionReduction_le`:
   the ideal-game bound corresponding to (7.8).
 * `Cslib.Crypto.UHF.succProbability_collisionGame_le_prefixFreeCollisionReduction`:
   the concrete advantage inequality (7.6) in the word model.
+* `Cslib.Crypto.UHF.isComputationalUHF_of_extendable_prefixFreePRF`:
+  the single-query security theorem for an extendable prefix-free PRF.
 -/
 
 public section
@@ -56,72 +63,106 @@ open Probability Turing.MultiTapeTM
 open scoped ENNReal NNReal
 
 /-- Reject invalid and repeated guesses. On an accepted pair, append the same separating block
-to both words and compare the two oracle replies up to the declared reply width. -/
-@[expose] def prefixFreeCollisionReduction (width outLen : ℕ → ℕ)
+to both words and compare the two oracle replies, capped at the value of `cap` on the parameter
+and first extended query. -/
+@[expose] def prefixFreeCollisionReductionWithCap (width : ℕ → ℕ) (cap : ℕ → List Bool → ℕ)
     (valid : ℕ → List Bool → Bool) (guessPair : ℕ × ℕ → ProbComp (CollisionGuess (List Bool))) :
     OracleDistinguisher :=
   fun n _ => do
     let guess ← ProbOracleComp.sample (guessPair (n, n))
     if valid n guess.first && valid n guess.second && decide (guess.first ≠ guess.second) then
       let block := PRF.separatingWordBlock (width n) guess.first guess.second
-      let left ← List.take (outLen n) <$> ProbOracleComp.query ((), guess.first ++ block)
-      let right ← List.take (outLen n) <$> ProbOracleComp.query ((), guess.second ++ block)
+      let limit := cap n (guess.first ++ block)
+      let left ← List.take limit <$> ProbOracleComp.query ((), guess.first ++ block)
+      let right ← List.take limit <$> ProbOracleComp.query ((), guess.second ++ block)
       return decide (left = right)
     else
       return false
 
+/-- The prefix-free collision wrapper with both replies capped at the declared output width. -/
+@[expose] def prefixFreeCollisionReduction (width outLen : ℕ → ℕ)
+    (valid : ℕ → List Bool → Bool) (guessPair : ℕ × ℕ → ProbComp (CollisionGuess (List Bool))) :
+    OracleDistinguisher :=
+  prefixFreeCollisionReductionWithCap width (fun n _ => outLen n) valid guessPair
+
+/-- The wrapper makes at most two external queries, regardless of the guess or the replies. -/
+theorem isQueryBounded_prefixFreeCollisionReduction (width outLen : ℕ → ℕ)
+    (valid : ℕ → List Bool → Bool) (guessPair : ℕ × ℕ → ProbComp (CollisionGuess (List Bool)))
+    (n : ℕ) (aux : List Bool) :
+    (prefixFreeCollisionReduction width outLen valid guessPair n aux).IsQueryBounded 2 := by
+  rw [prefixFreeCollisionReduction, prefixFreeCollisionReductionWithCap, ← Nat.zero_add 2]
+  refine (ProbOracleComp.IsQueryBounded.sample _).bind fun guess => ?_
+  split
+  · simp only [map_eq_bind_pure_comp, bind_assoc, pure_bind, Function.comp_def]
+    refine (ProbOracleComp.IsQueryBounded.query _).bind (m := 1) fun _ => ?_
+    exact (ProbOracleComp.IsQueryBounded.query _).bind (m := 0) fun _ =>
+      OracleComp.IsCostBounded.pure _ 0
+  · exact OracleComp.IsCostBounded.pure _ 2
+
 private theorem isOraclePPT_prefixFreeCollisionReduction {width outLen : ℕ → ℕ}
+    {cap : ℕ → List Bool → ℕ}
     {valid : ℕ → List Bool → Bool} {guessPair : ℕ × ℕ → ProbComp (CollisionGuess (List Bool))}
     (hwidth : ComputableInPolyTime width encUnary encUnary)
-    (hout : ComputableInPolyTime outLen encUnary encUnary)
+    (hcap : ComputableInPolyTime (fun p => cap p.1 p.2) (encPair encUnary encBits) encUnary)
+    (hcapEq : ∀ {n word block}, valid n word = true → block.length = width n →
+      cap n (word ++ block) = outLen n)
     (hvalid : ComputableInPolyTime (fun p => valid p.1 p.2) (encPair encUnary encBits) encBool)
     (hguess : IsPPTOn (encPair encUnary encUnary) (encCollisionGuess encBits) guessPair) :
     IsOraclePPT encBool (prefixFreeCollisionReduction width outLen valid guessPair) := by
-  let encGuess := encCollisionGuess encBits
-  let encInput := encPair encUnary encBits
-  let encStage := encPair encInput encGuess
-  have hn := ComputableInPolyTime.fst encUnary encBits
-  have hrun := hguess.preprocess (hn.prod hn)
-  have hn' := hn.comp (ComputableInPolyTime.fst encInput encGuess)
-  have hl := encCollisionGuess_first_polyTime encBits (ComputableInPolyTime.snd encInput encGuess)
-  have hr := encCollisionGuess_second_polyTime encBits (ComputableInPolyTime.snd encInput encGuess)
-  have hguard := ComputableInPolyTime.bool_and.comp
-    ((ComputableInPolyTime.bool_and.comp
-      ((hvalid.comp (hn'.prod hl)).prod (hvalid.comp (hn'.prod hr)))).prod
-      (ComputableInPolyTime.decide_ne hl hr))
-  have hblock := PRF.computableInPolyTime_separatingWordBlock.comp
-    ((hwidth.comp hn').prod (hl.prod hr))
-  have hleft := IsOraclePPTOn.query_take () (hl.bitsAppend hblock) (hout.comp hn')
-  have hright := IsOraclePPTOn.query_take () (hr.bitsAppend hblock) (hout.comp hn')
-  have hstage := ComputableInPolyTime.fst encStage encBits
-  have hcompare := ComputableInPolyTime.decide_eq'
-    ((ComputableInPolyTime.snd encStage encBits).comp
-      (ComputableInPolyTime.fst (encPair encStage encBits) encBits))
-    (ComputableInPolyTime.snd (encPair encStage encBits) encBits)
-  refine hrun.isOraclePPTOn.bind_with
-    (IsOraclePPTOn.cond hguard ?_ (ComputableInPolyTime.const false).isOraclePPTOn)
-  apply hleft.bind_with
-  simpa only [map_eq_bind_pure_comp, Function.comp_def] using
-    (hright.preprocess hstage).map_with (f := fun p right => decide (p.2 = right)) hcompare
+  have hcert : IsOraclePPT encBool
+      (prefixFreeCollisionReductionWithCap width cap valid guessPair) := by
+    let encGuess := encCollisionGuess encBits
+    let encInput := encPair encUnary encBits
+    let encStage := encPair encInput encGuess
+    have hn := ComputableInPolyTime.fst encUnary encBits
+    have hrun := hguess.preprocess (hn.prod hn)
+    have hn' := hn.comp (ComputableInPolyTime.fst encInput encGuess)
+    have hpair := ComputableInPolyTime.snd encInput encGuess
+    have hl := encCollisionGuess_first_polyTime encBits hpair
+    have hr := encCollisionGuess_second_polyTime encBits hpair
+    have hguard := ComputableInPolyTime.bool_and.comp
+      ((ComputableInPolyTime.bool_and.comp
+        ((hvalid.comp (hn'.prod hl)).prod (hvalid.comp (hn'.prod hr)))).prod
+        (ComputableInPolyTime.decide_ne hl hr))
+    have hblock := PRF.computableInPolyTime_separatingWordBlock.comp
+      ((hwidth.comp hn').prod (hl.prod hr))
+    have hleftWord := hl.bitsAppend hblock
+    have hlimit := hcap.comp (hn'.prod hleftWord)
+    have hleft := IsOraclePPTOn.query_take () hleftWord hlimit
+    have hright := IsOraclePPTOn.query_take () (hr.bitsAppend hblock) hlimit
+    have hstage := ComputableInPolyTime.fst encStage encBits
+    have hcompare := ComputableInPolyTime.decide_eq'
+      ((ComputableInPolyTime.snd encStage encBits).comp
+        (ComputableInPolyTime.fst (encPair encStage encBits) encBits))
+      (ComputableInPolyTime.snd (encPair encStage encBits) encBits)
+    refine hrun.isOraclePPTOn.bind_with
+      (IsOraclePPTOn.cond hguard ?_ (ComputableInPolyTime.const false).isOraclePPTOn)
+    apply hleft.bind_with
+    simpa only [map_eq_bind_pure_comp, Function.comp_def] using
+      (hright.preprocess hstage).map_with (f := fun p right => decide (p.2 = right)) hcompare
+  apply hcert.congr
+  intro n aux State oracle state
+  apply congrArg (fun program => ProbOracleComp.runWith oracle program state)
+  simp only [prefixFreeCollisionReduction, prefixFreeCollisionReductionWithCap]
+  congr 1
+  funext guess
+  by_cases hg :
+      (valid n guess.first && valid n guess.second && decide (guess.first ≠ guess.second)) = true
+  · have hLeft := (Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp hg).1).1
+    have hBlock := PRF.length_separatingWordBlock (width n) guess.first guess.second
+    simp only [ite_eq_left hg, hcapEq hLeft hBlock]
+  · simp only [ite_eq_right hg]
 
-/-- If valid input words are aligned at a positive width, the wrapper for a strict PPT
-collision guesser is a strict oracle-PPT distinguisher with prefix-incomparable queries.
-The prefix condition is relative to `oracleValid`. Applying the certificate to the source
-game also requires showing that the extended queries are nonempty and satisfy `oracleValid`,
-as they do for the domain with one extra block in [BonehShoup2023], Theorem 7.3. -/
-theorem isPrefixFreeOraclePPT_prefixFreeCollisionReduction {width outLen : ℕ → ℕ}
+private theorem isPrefixFreeOn_prefixFreeCollisionReduction {width outLen : ℕ → ℕ}
     {valid oracleValid : ℕ → List Bool → Bool}
     {guessPair : ℕ × ℕ → ProbComp (CollisionGuess (List Bool))}
-    (hwidth : ComputableInPolyTime width encUnary encUnary)
-    (hout : ComputableInPolyTime outLen encUnary encUnary)
-    (hvalid : ComputableInPolyTime (fun p => valid p.1 p.2) (encPair encUnary encBits) encBool)
     (haligned : ∀ n w, valid n w = true → 0 < width n ∧ width n ∣ w.length)
-    (hguess : IsPPTOn (encPair encUnary encUnary) (encCollisionGuess encBits) guessPair) :
-    IsPrefixFreeOraclePPT oracleValid outLen
-      (prefixFreeCollisionReduction width outLen valid guessPair) := by
-  refine ⟨isOraclePPT_prefixFreeCollisionReduction hwidth hout hvalid hguess, ?_⟩
-  intro n oracle _ _ result hres
-  simp only [prefixFreeCollisionReduction, wordQueryRunDist_sample_bind,
+    (n : ℕ) :
+    IsPrefixFreeOn (oracleValid n) (outLen n)
+      (prefixFreeCollisionReduction width outLen valid guessPair n []) := by
+  intro oracle _ _ result hres
+  simp only [prefixFreeCollisionReduction, prefixFreeCollisionReductionWithCap,
+    wordQueryRunDist_sample_bind,
     PMF.mem_support_bind_iff] at hres
   obtain ⟨guess, _, hguessRun⟩ := hres
   split at hguessRun
@@ -147,6 +188,25 @@ theorem isPrefixFreeOraclePPT_prefixFreeCollisionReduction {width outLen : ℕ �
     subst result
     intro x hx
     cases hx
+
+/-- If valid input words are aligned at a positive width, the wrapper for a strict PPT
+collision guesser is a strict oracle-PPT distinguisher with prefix-incomparable queries.
+The prefix condition is relative to `oracleValid`. Applying the certificate to the source
+game also requires showing that the extended queries are nonempty and satisfy `oracleValid`,
+as they do for the domain with one extra block in [BonehShoup2023], Theorem 7.3. -/
+theorem isPrefixFreeOraclePPT_prefixFreeCollisionReduction {width outLen : ℕ → ℕ}
+    {valid oracleValid : ℕ → List Bool → Bool}
+    {guessPair : ℕ × ℕ → ProbComp (CollisionGuess (List Bool))}
+    (hwidth : ComputableInPolyTime width encUnary encUnary)
+    (hout : ComputableInPolyTime outLen encUnary encUnary)
+    (hvalid : ComputableInPolyTime (fun p => valid p.1 p.2) (encPair encUnary encBits) encBool)
+    (haligned : ∀ n w, valid n w = true → 0 < width n ∧ width n ∣ w.length)
+    (hguess : IsPPTOn (encPair encUnary encUnary) (encCollisionGuess encBits) guessPair) :
+    IsPrefixFreeOraclePPT oracleValid outLen
+      (prefixFreeCollisionReduction width outLen valid guessPair) :=
+  ⟨isOraclePPT_prefixFreeCollisionReduction
+    (cap := fun n _ => outLen n) hwidth (hout.comp (ComputableInPolyTime.fst encUnary encBits))
+    (fun _ _ => rfl) hvalid hguess, isPrefixFreeOn_prefixFreeCollisionReduction haligned⟩
 
 /-- The real-game step (7.7) in [BonehShoup2023], v0.6, Theorem 7.3 (printed p. 259).
 Valid words remain valid for the PRF after a one-block extension. If that extension
@@ -176,7 +236,8 @@ theorem succProbability_collisionGame_le_real_prefixFreeCollisionReduction
       (prefixFreeCollisionReduction width outLen valid guessPair n []).run
         (fun req => pure (prfOracleOn (oracleValid n) family key req.2)) =
       ((guessPair (n, n)) >>= fun guess => pure (accept key guess)) := by
-    simp only [prefixFreeCollisionReduction, ProbOracleComp.run_bind, ProbOracleComp.run_sample]
+    simp only [prefixFreeCollisionReduction, prefixFreeCollisionReductionWithCap,
+      ProbOracleComp.run_bind, ProbOracleComp.run_sample]
     congr 1
     funext guess
     by_cases hg :
@@ -218,7 +279,8 @@ theorem eval_prfIdealGameOn_prefixFreeCollisionReduction_le
       ((2 : ℝ≥0∞) ^ outLen n)⁻¹ := by
   simp only [prfIdealGameOn, ProbComp.eval_map, ProbOracleComp.eval_run_interpret_eq_runWith,
     cachedRandomFunctionOracle, eval_cachedSamplerOracle, BitString.eval_sampleList,
-    prefixFreeCollisionReduction, ProbOracleComp.runWith_sample_bind, PMF.map_bind]
+    prefixFreeCollisionReduction, prefixFreeCollisionReductionWithCap,
+    ProbOracleComp.runWith_sample_bind, PMF.map_bind]
   apply PMF.bind_apply_le_on_support
   intro guess _
   by_cases hg :
@@ -295,5 +357,59 @@ theorem succProbability_collisionGame_le_prefixFreeCollisionReduction
     ((Game.succProbability_le_add_of_advantage_le (g₁ := I) le_rfl).trans ?_)
   rw [add_comm I.succProbability]
   exact add_le_add le_rfl hIdeal
+
+/-- Boneh–Shoup v0.6, Theorem 7.3 (printed pp. 258–259), in the word model. An extendable
+prefix-free PRF with negligible reciprocal reply-space size is a computational UHF on the
+smaller domain. The uniform private key has `n` bits, and public setup is the unary parameter.
+Valid hash inputs are whole blocks of positive width, and appending any one block puts them
+in the PRF domain.
+
+For positive-width bit blocks, the nonempty hash inputs of at most `ℓ` blocks lie in the
+oracle domain of one to `ℓ + 1` blocks. The PRF's length clause therefore gives fixed-width
+digests on those inputs. The word theorem also permits the zero-block hash input, whose
+extension is a nonempty oracle query. If the oracle domain excludes the empty word, the family
+supplies the digest width on that input separately, as in `length_cbcMacFamily`. The conclusion
+uses raw `List Bool` digests, which at the declared width represent `BitString (outLen n)`.
+
+The reduction obtains the reply width by evaluating the PRF at a public zero key on a valid
+extended query. -/
+theorem isComputationalUHF_of_extendable_prefixFreePRF
+    {width outLen : ℕ → ℕ} {valid oracleValid : ℕ → List Bool → Bool}
+    {family : List Bool → List Bool → List Bool}
+    (hPRF : PrefixFreePseudorandomFunctionOn oracleValid outLen family)
+    (hwidth : ComputableInPolyTime width encUnary encUnary)
+    (hvalid : ComputableInPolyTime (fun p => valid p.1 p.2) (encPair encUnary encBits) encBool)
+    (haligned : ∀ n word, valid n word = true → 0 < width n ∧ width n ∣ word.length)
+    (hDomain : ∀ {n word block}, valid n word = true → block.length = width n →
+      oracleValid n (word ++ block) = true)
+    (hExtend : ∀ {n key left right block}, key.length = n →
+      valid n left = true → valid n right = true → block.length = width n →
+      family key left = family key right →
+      family key (left ++ block) = family key (right ++ block))
+    (hout : Negligible (fun n => ((2 : ℝ≥0) ^ outLen n)⁻¹)) :
+    IsComputationalUHF encUnary encBits pure (fun _ d => valid d)
+      (fun _ d (key : BitString d) => family (List.ofFn key)) := by
+  apply Game.Indistinguishable.of_negligible_succProbability
+  intro guessPair hguess
+  let cap (n : ℕ) (query : List Bool) := (family (List.replicate n false) query).length
+  have hcap : ComputableInPolyTime (fun p => cap p.1 p.2)
+      (encPair encUnary encBits) encUnary := by
+    have hzero := (ComputableInPolyTime.bitsReplicate false).comp
+      (ComputableInPolyTime.fst encUnary encBits)
+    have hquery := ComputableInPolyTime.snd encUnary encBits
+    exact (hPRF.polyTime.comp (hzero.prod hquery)).length_bits_comp
+  have hcapEq {n : ℕ} {word block : List Bool} (hw : valid n word = true)
+      (hb : block.length = width n) : cap n (word ++ block) = outLen n := by
+    have hv := hDomain hw hb
+    have hlen := hPRF.length_eq (List.replicate n false) (word ++ block)
+      (by simpa only [List.length_replicate] using hv)
+    simpa only [cap, List.length_replicate] using hlen
+  have hred : IsPrefixFreeOraclePPT oracleValid outLen
+      (prefixFreeCollisionReduction width outLen valid guessPair) :=
+    ⟨isOraclePPT_prefixFreeCollisionReduction hwidth hcap hcapEq hvalid hguess,
+      isPrefixFreeOn_prefixFreeCollisionReduction haligned⟩
+  exact negligible_of_le ((hPRF.secure _ hred).add hout) fun n =>
+    succProbability_collisionGame_le_prefixFreeCollisionReduction family guessPair n hDomain
+      hExtend
 
 end Cslib.Crypto.UHF

@@ -23,6 +23,7 @@ import CslibFrontierResults.Entries.ODonnellStabilityDerivative
 import CslibFrontierResults.Entries.ODonnellTribes
 import CslibFrontierResults.Entries.ODonnellUncertainty
 import CslibFrontierResults.Entries.PolynomialHashing
+import CslibFrontierResults.Entries.PrefixFreePRF
 import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.SergeevAdditiveMultiplicative
 import CslibFrontierResults.Entries.SergeevBkSequence
@@ -31,4 +32,5 @@ import CslibFrontierResults.Entries.SergeevORComplement
 import CslibFrontierResults.Entries.SergeevPrefixDepth
 import CslibFrontierResults.Entries.SergeevUniqueDisjointness
 import CslibFrontierResults.Entries.TwoSATWordRAM
+import CslibFrontierResults.Entries.VeriPBClique
 import CslibFrontierResults.Registry

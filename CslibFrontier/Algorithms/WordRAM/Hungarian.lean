@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.Lean.MaxFlow.Hungarian
 public import CslibFrontier.Computability.WordRAM.ListOutput
 public import CslibFrontier.Computability.WordRAM.Signed.Encoding
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Foundations.Data.List.RowMajor
 import CslibFrontier.Foundations.Data.Matrix.PairChunks
@@ -203,30 +204,20 @@ theorem init_mem_n {r : ℕ} (inst : Instance) :
 
 theorem init_mem_cost {r : ℕ} (inst : Instance) (u v : Fin inst.n) :
     (Data.init inst.encode : Data r).mem (2 + (u.val * inst.n + v.val)) =
-      Signed.encode (inst.cost (u, v)) := by
-  let g : Fin inst.n → List ℕ := fun u' =>
-    (List.finRange inst.n).map fun v' => Signed.encode (inst.cost (u', v'))
-  have h := List.getElem?_flatMap_mul_add (List.finRange inst.n) g inst.n
-    (fun _ _ => by simp [g]) (show u.val < (List.finRange inst.n).length by simp) v.isLt
-  rw [show 2 + (u.val * inst.n + v.val) = (u.val * inst.n + v.val) + 1 + 1 by omega,
-    Data.init_mem_succ, encode, List.getD_cons_succ, List.getD_eq_getElem?_getD, h]
-  simp [g]
+      Signed.encode (inst.cost (u, v)) :=
+  Data.init_mem_flatMap_finRange [inst.n] (fun u' v' => Signed.encode (inst.cost (u', v'))) u v
 
 /-- Every instance's encoding fits at any word width admitting `inst.wordBound`. -/
 theorem inputFits_encode (inst : Instance) {w : ℕ} (hw : Fits w inst.wordBound) :
-    InputFits w inst.encode := by
-  refine ⟨?_, fun x hx => ?_⟩
-  · rw [inst.encode_length]
-    exact hw.of_le (by unfold wordBound; nlinarith)
-  · simp only [encode, List.mem_cons, List.mem_flatMap, List.mem_finRange, List.mem_map,
-      true_and] at hx
-    rcases hx with rfl | ⟨u, v, rfl⟩
-    · exact hw.of_le (by unfold wordBound; nlinarith)
-    · have hm := inst.natAbs_cost_le_maxMag u v
-      have he : Signed.encode (inst.cost (u, v)) ≤ 2 * inst.maxMag + 1 := by
-        unfold Signed.encode
-        split_ifs <;> omega
-      exact hw.of_le (by unfold wordBound; nlinarith)
+    InputFits w inst.encode :=
+  InputFits.flatMap_finRange [inst.n] (fun u v => Signed.encode (inst.cost (u, v)))
+    (hw.of_le (by unfold wordBound; dsimp only [List.length]; nlinarith))
+    (by
+      simp only [List.mem_singleton]
+      rintro _ rfl
+      exact hw.of_le (by unfold wordBound; nlinarith))
+    (fun u v => hw.of_le ((Signed.encode_le_two_mul_add_one
+      (inst.natAbs_cost_le_maxMag u v)).trans (by unfold wordBound; nlinarith)))
 
 end Instance
 
