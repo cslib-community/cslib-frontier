@@ -22,11 +22,13 @@ checks of `Cslib.Complexity.UniqueGames.Propagation.solveCode` / `program`:
 * the odd and even cycles of negations over two labels, i.e. 2-colouring a triangle and a square;
   the triangle is also a no-instance of `GapUniqueGames Bool 1 s` for `2/3 ≤ s < 1`;
 * a disconnected instance, whose second component pins its seed's label by a loop;
-* edges outside the declared vertex range, and the empty instance;
+* edges outside the declared vertex range, the empty instance, the single-label (`L = 1`) case,
+  and conflicting parallel edges;
 * a satisfiable instance with non-injective tables on which `solve` fails, showing that
   completeness needs injective tables;
 * Word-RAM execution checks (`#guard`) verifying exact output arrays, decision bits, and step
-  counts bounded by `timeBound`.
+  counts bounded by `timeBound`, plus theorem-level instantiations of `solveCode_spec`,
+  `program_spec_of_wellFormed`, `decideProgram_spec`, and `decodeSolution_encodeSolution`.
 -/
 
 set_option linter.privateModule false
@@ -144,6 +146,28 @@ example : slots (⟨0, [⟨0, 1, not⟩]⟩ : Graph (Bool → Bool)) = 2 := by d
 /-- The empty instance is satisfiable. -/
 example : (solve [false, true] (⟨0, []⟩ : Graph (Bool → Bool))).isSome = true := by decide
 
+/-- Single-label (`L = 1`) boundary case: every constraint is `id` and every vertex maps to `0`. -/
+def oneLabel : Graph (Fin 1 → Fin 1) := ⟨2, [⟨0, 1, id⟩, ⟨1, 0, id⟩]⟩
+
+example : (solve (List.finRange 1) oneLabel).map (fun σ => (List.range 2).map σ) =
+    some [0, 0] := by
+  decide
+
+/-- Conflicting parallel edges `0 → 1` carrying `id` and `rot`: every edge carries a bijection,
+but no labelling satisfies both constraints simultaneously. -/
+def parConflict : Graph (Fin 3 → Fin 3) := ⟨2, [⟨0, 1, id⟩, ⟨0, 1, rot⟩]⟩
+
+theorem isUniqueGame_parConflict : IsUniqueGame parConflict := by
+  simp only [IsUniqueGame, parConflict, List.mem_cons, List.not_mem_nil, or_false,
+    forall_eq_or_imp, forall_eq]
+  decide
+
+example : (solve (List.finRange 3) parConflict).isSome = false := by decide
+
+example : ¬ (parConflict.toGraph permutationEval).Satisfiable := by
+  rw [← solve_isSome_iff (fun a => List.mem_finRange a) isUniqueGame_parConflict]
+  decide
+
 /-! ### Completeness needs injective tables -/
 
 /-- The edges `0 → 1` and `2 → 1` carry the constant `0` and the loop `2 → 2` the constant `1`.
@@ -221,6 +245,16 @@ def evenFlipFin : Graph (Fin 2 → Fin 2) :=
   | some (out, ok, steps) => out == [0] && ok == 0 && steps ≤ timeBound constTables
   | none => false
 
+-- Single-label (`L = 1`) instance `oneLabel`.
+#guard match evalRAM 7 oneLabel with
+  | some (out, ok, steps) => out == [1, 0, 0] && ok == 1 && steps ≤ timeBound oneLabel
+  | none => false
+
+-- Conflicting parallel edges `parConflict` (`IsUniqueGame`, unsatisfiable).
+#guard match evalRAM 7 parConflict with
+  | some (out, ok, steps) => out == [0] && ok == 0 && steps ≤ timeBound parConflict
+  | none => false
+
 end GuardChecks
 
 /-! ### Non-vacuous theorem-level `ExecutesList` and `Executes` instantiations -/
@@ -257,5 +291,20 @@ theorem disc_wordram_decode_roundtrip :
   refine ⟨n, hn, hout ▸ hex, ?_⟩
   rw [← hout, decodeSolution_encodeSolution]
   decide
+
+theorem oneLabel_solveCode_spec :
+    ∃ y, ExecWithin 7 solveCode (Data.init (encode oneLabel)) y (timeBound oneLabel - 1) ∧
+      y.regs Reg.ok = 1 ∧ outputList y.mem (y.regs Reg.outBase) = [1, 0, 0] := by
+  obtain ⟨y, hy, hok, hout, -⟩ := solveCode_spec (w := 7) oneLabel (by decide)
+  have hok1 : (solve (List.finRange 1) oneLabel).isSome.toNat = 1 := by decide
+  have hout1 : encodeSolution (slots oneLabel) (solve (List.finRange 1) oneLabel) = [1, 0, 0] := by
+    decide
+  exact ⟨y, hy, hok.trans hok1, hout.trans hout1⟩
+
+theorem parConflict_wordram_decide :
+    ∃ n ≤ timeBound parConflict, Executes 7 decideProgram (.init (encode parConflict)) 0 n := by
+  obtain ⟨n, hn, hex⟩ := decideProgram_spec (w := 7) parConflict (by decide)
+  have h0 : (solve (List.finRange 3) parConflict).isSome.toNat = 0 := by decide
+  exact ⟨n, hn, h0 ▸ hex⟩
 
 end CslibFrontierTests.UniqueGamesPropagation

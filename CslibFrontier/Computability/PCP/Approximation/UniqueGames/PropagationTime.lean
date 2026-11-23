@@ -41,6 +41,11 @@ halt in at most `timeBound g` (`O(L · (N + E))`) instructions: `program` output
 `decodeSolution L` recovers `solve (List.finRange L) g` identically), and `decideProgram` outputs
 `(solve (List.finRange L) g).isSome.toNat` via `Executes`.
 
+The Word-RAM verification reuses the private state definitions, traversal invariants, and
+potential/step lemmas of `UniqueGames.Propagation` (such as `State.unvisited`, `State.potential`,
+`State.wpot`, `Step`, `foldl_visit_step`, and `unvisited_settle`), which this module reads through
+`import all`.
+
 ## Main definitions
 
 * `Cslib.Complexity.UniqueGames.Propagation.insertEdge`,
@@ -68,6 +73,8 @@ halt in at most `timeBound g` (`O(L · (N + E))`) instructions: `program` output
   recovers `solve (List.finRange L) g` from `encodeSolution`.
 * `Cslib.Complexity.UniqueGames.Propagation.Fits.inputFits_encode`: fitting `wordBound g` suffices
   for `InputFits w (encode g)`.
+* `Cslib.Complexity.UniqueGames.Propagation.solveCode_spec`: structured `ExecWithin` specification
+  for `solveCode` certifying both `Reg.ok` and the `outputList` at `Reg.outBase`.
 * `Cslib.Complexity.UniqueGames.Propagation.program_spec`,
   `Cslib.Complexity.UniqueGames.Propagation.program_spec_of_wellFormed`,
   `Cslib.Complexity.UniqueGames.Propagation.computesListInTime_program`: `ExecutesList` and
@@ -421,48 +428,34 @@ private def edgeVisLoad : Code .standard 34 := ram[
   rTmp2 ← rVisBase + rDst;
   rTmp2 ← *rTmp2 ]
 
-private def extendFwdPrep : Code .standard 34 := ram[
-  rTmp2 ← rSrc * rL;
+private def extendPrep (fromReg toReg : Fin 34) : Code .standard 34 := ram[
+  rTmp2 ← fromReg * rL;
   rTmp2 ← rTabBase + rTmp2;
-  rTmp3 ← rDst * rL;
+  rTmp3 ← toReg * rL;
   rTmp3 ← rTabBase + rTmp3;
   rLabIdx ← rZero ]
 
-private def extendFwdPush : Code .standard 34 := ram[
-  rTmp4 ← rVisBase + rDst;
+private def extendPush (slotReg : Fin 34) : Code .standard 34 := ram[
+  rTmp4 ← rVisBase + slotReg;
   *rTmp4 ← rOne;
   rTmp4 ← rStackBase + rStackLen;
-  *rTmp4 ← rDst;
-  rStackLen ← rStackLen + rOne ]
-
-private def extendBwdPrep : Code .standard 34 := ram[
-  rTmp2 ← rDst * rL;
-  rTmp2 ← rTabBase + rTmp2;
-  rTmp3 ← rSrc * rL;
-  rTmp3 ← rTabBase + rTmp3;
-  rLabIdx ← rZero ]
-
-private def extendBwdPush : Code .standard 34 := ram[
-  rTmp4 ← rVisBase + rSrc;
-  *rTmp4 ← rOne;
-  rTmp4 ← rStackBase + rStackLen;
-  *rTmp4 ← rSrc;
+  *rTmp4 ← slotReg;
   rStackLen ← rStackLen + rOne ]
 
 private def extendCode : Code .standard 34 := ram[
   ⟪edgeVisLoad⟫;
   if rTmp1 = rOne then [
     if rTmp2 = rZero then [
-      ⟪extendFwdPrep⟫;
+      ⟪extendPrep rSrc rDst⟫;
       ⟪.loop (.lt rLabIdx rL) extendFwdBody⟫;
-      ⟪extendFwdPush⟫
+      ⟪extendPush rDst⟫
     ] else [ rLabIdx ← rLabIdx ]
   ] else [
     if rTmp2 = rOne then [
       ⟪invLoopsCode⟫;
-      ⟪extendBwdPrep⟫;
+      ⟪extendPrep rDst rSrc⟫;
       ⟪.loop (.lt rLabIdx rL) extendBwdBody⟫;
-      ⟪extendBwdPush⟫
+      ⟪extendPush rSrc⟫
     ] else [ rLabIdx ← rLabIdx ] ] ]
 
 private def pruneBody : Code .standard 34 := ram[
@@ -484,7 +477,7 @@ private def pruneCode : Code .standard 34 := ram[
   ⟪edgeVisLoad⟫;
   if rTmp1 = rOne then [
     if rTmp2 = rOne then [
-      ⟪extendFwdPrep⟫;
+      ⟪extendPrep rSrc rDst⟫;
       ⟪.loop (.lt rLabIdx rL) pruneBody⟫
     ] else [ rLabIdx ← rLabIdx ]
   ] else [ rLabIdx ← rLabIdx ] ]
@@ -1357,6 +1350,32 @@ private theorem StateAt.of_eq {L : ℕ} {g : Graph (Fin L → Fin L)} {S : State
   ⟨h.toTableStateAt.of_eq hc hm, h.pot_le, fun a ha => hm ▸ h.cand_mem a ha,
     hsl, h.stack_lt, hm ▸ h.stack_mem, hcl, h.comp_le, h.comp_lt, hm ▸ h.comp_mem⟩
 
+private theorem StateAt.frame_inv {L : ℕ} {g : Graph (Fin L → Fin L)} {S : State (Fin L)}
+    {x y : Data 34} (hS : StateAt g S x) (hc : ConstRegs g y)
+    (hsl : y.regs rStackLen = S.stack.length) (hcl : y.regs rCompLen = S.comp.length)
+    (hfr : ∀ a, ¬ (invBase g ≤ a ∧ a < invBase g + L) → y.mem a = x.mem a) :
+    StateAt g S y :=
+  StateAt.mk ⟨hc,
+    hS.inp.frame (fun a ha =>
+      hfr _ (by simp only [invBase, candBase, tabBase, visBase, nodeBase]; omega)),
+    hS.bkt.frame (fun a ha =>
+      hfr _ (by simp only [invBase, candBase, tabBase]; omega)),
+    hS.len_table,
+    fun v hv hvn => by
+      rw [hfr _ (by simp only [invBase, candBase, tabBase]; omega)]
+      exact hS.vis_none v hv hvn,
+    fun v hv fn hvf => by
+      obtain ⟨hv1, hvtab⟩ := hS.vis_some v hv fn hvf
+      have hv_cb := tabRow_hi_le_candBase (g := g) hv
+      exact ⟨by rw [hfr _ (by simp only [invBase, candBase, tabBase]; omega)]; exact hv1,
+        fun a ha => by rw [hfr _ (by simp only [invBase] at *; omega)]; exact hvtab a ha⟩⟩
+    hS.pot_le
+    (fun a ha => by rw [hfr _ (by simp only [invBase] at *; omega)]; exact hS.cand_mem a ha)
+    hsl hS.stack_lt
+    (hS.stack_mem.frame fun a ha1 _ => hfr _ (by simp only [stackBase] at *; omega))
+    hcl hS.comp_le hS.comp_lt
+    (hS.comp_mem.frame fun a ha1 _ => hfr _ (by simp only [compBase, stackBase] at *; omega))
+
 private theorem StateAt.push_slot {L : ℕ} {g : Graph (Fin L → Fin L)} {S : State (Fin L)}
     {x y : Data 34} {u : ℕ} {f : Fin L → Fin L}
     (hS : StateAt g S x) (hc : ConstRegs g y) (hu : u < slots g) (hnone : S.get u = none)
@@ -1949,37 +1968,65 @@ private theorem edgeVisLoad_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : 
     by wram_simp [hsrc_reg], by wram_simp [hdst_reg], by wram_simp [hS.stack_len],
     by wram_simp [hS.comp_len], by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
 
-private theorem extendFwdPrep_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x1 : Data 34)
-    (j : ℕ) (hj : j < g.edges.length) (hc1 : ConstRegs g x1)
-    (hs1 : x1.regs rSrc = g.edges[j].src) (hd1 : x1.regs rDst = g.edges[j].dst)
+private theorem extendPrep_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (fromReg toReg : Fin 34)
+    (x1 : Data 34) (u v : ℕ)
+    (hregs : (fromReg = rSrc ∧ toReg = rDst) ∨ (fromReg = rDst ∧ toReg = rSrc))
+    (hc1 : ConstRegs g x1) (hu : u < slots g) (hv : v < slots g)
+    (hfrom : x1.regs fromReg = u) (hto : x1.regs toReg = v)
     (hw : Fits w (wordBound g)) :
-    ∃ x2, ExecWithin w extendFwdPrep x1 x2 5 ∧ ConstRegs g x2 ∧
-      x2.regs rTmp2 = tabBase g + g.edges[j].src * L ∧
-      x2.regs rTmp3 = tabBase g + g.edges[j].dst * L ∧ x2.regs rLabIdx = 0 ∧
-      x2.regs rEdgeIdx = x1.regs rEdgeIdx ∧ x2.regs rSrc = g.edges[j].src ∧
-      x2.regs rDst = g.edges[j].dst ∧ x2.regs rStackLen = x1.regs rStackLen ∧
+    ∃ x2, ExecWithin w (extendPrep fromReg toReg) x1 x2 5 ∧ ConstRegs g x2 ∧
+      x2.regs rTmp2 = tabBase g + u * L ∧ x2.regs rTmp3 = tabBase g + v * L ∧
+      x2.regs rLabIdx = 0 ∧
+      x2.regs rEdgeIdx = x1.regs rEdgeIdx ∧ x2.regs rSrc = x1.regs rSrc ∧
+      x2.regs rDst = x1.regs rDst ∧ x2.regs rStackLen = x1.regs rStackLen ∧
       x2.regs rCompLen = x1.regs rCompLen ∧ x2.regs rCurNode = x1.regs rCurNode ∧
       x2.regs rRem = x1.regs rRem ∧ x2.regs rOuterIdx = x1.regs rOuterIdx ∧
       x2.mem = x1.mem := by
-  have hs_lt : g.edges[j].src < slots g := src_lt_slots (List.getElem_mem hj)
-  have hd_lt : g.edges[j].dst < slots g := dst_lt_slots (List.getElem_mem hj)
-  have hcb_s := tabRow_hi_le_candBase (g := g) hs_lt
-  have hcb_d := tabRow_hi_le_candBase (g := g) hd_lt
+  have hcb_u := tabRow_hi_le_candBase (g := g) hu
+  have hcb_v := tabRow_hi_le_candBase (g := g) hv
   have hwb := outBaseAddr_lt_wordBound g
   have hfit_top : Fits w (outBaseAddr g + slots g) := hw.of_le (by omega)
-  have : Fits w (g.edges[j].src * L) := hfit_top.of_le (by
+  have : Fits w (u * L) := hfit_top.of_le (by
     simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase] at *; omega)
-  have : Fits w (g.edges[j].dst * L) := hfit_top.of_le (by
+  have : Fits w (v * L) := hfit_top.of_le (by
     simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase] at *; omega)
-  have : Fits w (tabBase g + g.edges[j].src * L) := hfit_top.of_le (by
+  have : Fits w (tabBase g + u * L) := hfit_top.of_le (by
     simp only [outBaseAddr, compBase, stackBase, invBase, candBase] at *; omega)
-  have : Fits w (tabBase g + g.edges[j].dst * L) := hfit_top.of_le (by
+  have : Fits w (tabBase g + v * L) := hfit_top.of_le (by
     simp only [outBaseAddr, compBase, stackBase, invBase, candBase] at *; omega)
-  unfold extendFwdPrep
-  wram_exec [hc1.zero, hc1.regL, hc1.tabB, hs1, hd1]
-  exact ⟨by wram_simp [hc1], by wram_simp, by wram_simp, by wram_simp, by wram_simp,
-    by wram_simp [hs1], by wram_simp [hd1], by wram_simp, by wram_simp, by wram_simp,
-    by wram_simp, by wram_simp, by wram_simp⟩
+  rcases hregs with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;>
+  · unfold extendPrep
+    wram_exec [hc1.zero, hc1.regL, hc1.tabB, hfrom, hto]
+    exact ⟨by wram_simp [hc1], by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+      by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+      by wram_simp, by wram_simp, by wram_simp⟩
+
+private theorem extendPush_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (slotReg : Fin 34)
+    (x : Data 34) (u stkLen : ℕ)
+    (hsr : slotReg = rSrc ∨ slotReg = rDst)
+    (hc : ConstRegs g x) (hu : u < slots g) (hstk_lt : stkLen < slots g)
+    (hslot : x.regs slotReg = u) (hsl : x.regs rStackLen = stkLen)
+    (hw : Fits w (wordBound g)) :
+    ∃ y, ExecWithin w (extendPush slotReg) x y 5 ∧ ConstRegs g y ∧
+      y.regs rEdgeIdx = x.regs rEdgeIdx ∧ y.regs rSrc = x.regs rSrc ∧ y.regs rDst = x.regs rDst ∧
+      y.regs rStackLen = stkLen + 1 ∧ y.regs rCompLen = x.regs rCompLen ∧
+      y.regs rCurNode = x.regs rCurNode ∧ y.regs rRem = x.regs rRem ∧
+      y.regs rOuterIdx = x.regs rOuterIdx ∧
+      y.mem = Function.update (Function.update x.mem (visBase g + u) 1)
+        (stackBase g + stkLen) u := by
+  have hwb := outBaseAddr_lt_wordBound g
+  have hfit_top : Fits w (outBaseAddr g + slots g) := hw.of_le (by omega)
+  have : Fits w (visBase g + u) := hfit_top.of_le (by
+    simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase] at *; omega)
+  have : Fits w (stackBase g + stkLen) := hfit_top.of_le (by
+    simp only [outBaseAddr, compBase] at *; omega)
+  have : Fits w (stkLen + 1) := hfit_top.of_le (by
+    simp only [outBaseAddr, compBase] at *; omega)
+  rcases hsr with rfl | rfl <;>
+  · unfold extendPush
+    wram_exec [hc.one, hc.visB, hc.stackB, hslot, hsl]
+    exact ⟨by wram_simp [hc], by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+      by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
 
 private theorem extendCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin L))
     (x : Data 34) (j : ℕ) (hj : j < g.edges.length)
@@ -1998,12 +2045,6 @@ private theorem extendCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : S
   set e := g.edges[j] with he_def
   have hs_lt : e.src < slots g := src_lt_slots (List.getElem_mem hj)
   have hd_lt : e.dst < slots g := dst_lt_slots (List.getElem_mem hj)
-  have hwb := outBaseAddr_lt_wordBound g
-  have hfit_top : Fits w (outBaseAddr g + slots g) := hw.of_le (by omega)
-  have : Fits w (visBase g + e.src) := hfit_top.of_le (by
-    simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase] at *; omega)
-  have : Fits w (visBase g + e.dst) := hfit_top.of_le (by
-    simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase] at *; omega)
   obtain ⟨x1, hx1, hc1, ht1_1, ht2_1, he1, hs1, hd1, hsl1, hcl1, hcn1, hrem1, hidx1, hm1⟩ :=
     edgeVisLoad_spec (w := w) g S x j hj hS heptr hsrc_reg hdst_reg hw
   simp only [← he_def] at ht1_1 ht2_1 hs1 hd1
@@ -2024,11 +2065,13 @@ private theorem extendCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : S
         have hmem := mem_unvisited (hS.len_table ▸ hd_lt) hgd
         have hpos : 0 < S.unvisited.card := Finset.card_pos.mpr ⟨e.dst, hmem⟩
         have hpot := hS.pot_le; unfold State.potential at hpot; omega
-      obtain ⟨x2, hx2, hc2, ht2_2, ht3_2, hlab2, he2', hs2, hd2,
+      obtain ⟨x2, hx2, hc2, ht2_2, ht3_2, hlab2, he2', hs2', hd2',
           hsl2', hcl2', hcn2', hrem2', hidx2', hm2'⟩ :=
-        extendFwdPrep_spec (w := w) g x1 j hj hc1 hs1 hd1 hw
-      simp only [← he_def] at ht2_2 ht3_2 hs2 hd2
+        extendPrep_spec (w := w) g rSrc rDst x1 e.src e.dst (Or.inl ⟨rfl, rfl⟩)
+          hc1 hs_lt hd_lt hs1 hd1 hw
       have he2 := he2'.trans he1
+      have hs2 := hs2'.trans hs1
+      have hd2 := hd2'.trans hd1
       have hsl2 := hsl2'.trans hsl1
       have hcl2 := hcl2'.trans hcl1
       have hcn2 := hcn2'.trans hcn1
@@ -2039,24 +2082,16 @@ private theorem extendCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : S
         extendFwdLoop_spec (w := w) g x2 j hj f hc2 (hm2 ▸ hS.inp) he2 hs_lt hd_lt hsd
           ht2_2 ht3_2 hlab2 (fun a ha => by rw [hm2]; exact htab_s a ha) hw
       simp only [← he_def] at hrow3 hfr3
-      have hpush_exec : ∃ y, ExecWithin w extendFwdPush x3 y 5 ∧ ConstRegs g y ∧
-          y.regs rEdgeIdx = 4 + j * (L + 2) ∧ y.regs rSrc = e.src ∧ y.regs rDst = e.dst ∧
-          y.regs rStackLen = S.stack.length + 1 ∧ y.regs rCompLen = S.comp.length ∧
-          y.regs rCurNode = x.regs rCurNode ∧ y.regs rRem = x.regs rRem ∧
-          y.regs rOuterIdx = x.regs rOuterIdx ∧
-          y.mem = Function.update (Function.update x3.mem (visBase g + e.dst) 1)
-            (stackBase g + S.stack.length) e.dst := by
-        have : Fits w (stackBase g + S.stack.length) := hfit_top.of_le (by
-          simp only [outBaseAddr, compBase] at *; omega)
-        have : Fits w (S.stack.length + 1) := hfit_top.of_le (by
-          simp only [outBaseAddr, compBase] at *; omega)
-        unfold extendFwdPush
-        wram_exec [hc3.one, hc3.visB, hc3.stackB, hd3.trans hd2, hsl3.trans hsl2]
-        exact ⟨by wram_simp [hc3], by wram_simp [he3.trans he2], by wram_simp [hs3.trans hs2],
-          by wram_simp [hd3.trans hd2], by wram_simp, by wram_simp [hcl3.trans hcl2],
-          by wram_simp [hcn3.trans hcn2], by wram_simp [hrem3.trans hrem2],
-          by wram_simp [hidx3.trans hidx2], by wram_simp⟩
-      obtain ⟨y, hx4, hc4, he4, hs4, hd4, hsl4, hcl4, hcn4, hrem4, hidx4, hym⟩ := hpush_exec
+      obtain ⟨y, hx4, hc4, he4', hs4', hd4', hsl4, hcl4', hcn4', hrem4', hidx4', hym⟩ :=
+        extendPush_spec (w := w) g rDst x3 e.dst S.stack.length (Or.inr rfl)
+          hc3 hd_lt hstk_lt (hd3.trans hd2) (hsl3.trans hsl2) hw
+      have he4 := he4'.trans (he3.trans he2)
+      have hs4 := hs4'.trans (hs3.trans hs2)
+      have hd4 := hd4'.trans (hd3.trans hd2)
+      have hcl4 := hcl4'.trans (hcl3.trans hcl2)
+      have hcn4 := hcn4'.trans (hcn3.trans hcn2)
+      have hrem4 := hrem4'.trans (hrem3.trans hrem2)
+      have hidx4 := hidx4'.trans (hidx3.trans hidx2)
       have hcb_d := tabRow_hi_le_candBase (g := g) hd_lt
       have hstk_mem : HoldsList (stackBase g) (S.stack.reverse ++ [e.dst]) y.mem := by
         have hbase : HoldsList (stackBase g) S.stack.reverse
@@ -2111,33 +2146,29 @@ private theorem extendCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : S
         have hpot := hS.pot_le; unfold State.potential at hpot; omega
       have hcb_s := tabRow_hi_le_candBase (g := g) hs_lt
       have hcb_d := tabRow_hi_le_candBase (g := g) hd_lt
-      have : Fits w (e.src * L) := hfit_top.of_le (by
-        simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase] at *; omega)
-      have : Fits w (e.dst * L) := hfit_top.of_le (by
-        simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase] at *; omega)
-      have : Fits w (tabBase g + e.src * L) := hfit_top.of_le (by
-        simp only [outBaseAddr, compBase, stackBase, invBase, candBase] at *; omega)
-      have : Fits w (tabBase g + e.dst * L) := hfit_top.of_le (by
-        simp only [outBaseAddr, compBase, stackBase, invBase, candBase] at *; omega)
-      obtain ⟨x2, hx2, hc2, he2, hs2, hd2, hsl2, hcl2, hcn2, hrem2, hidx2, hinv2, hfr2⟩ :=
+      obtain ⟨x2, hx2, hc2, he2', hs2', hd2', hsl2', hcl2', hcn2', hrem2', hidx2', hinv2, hfr2⟩ :=
         invLoops_spec (w := w) g x1 j hj hc1 (hm1 ▸ hS.inp) he1 hw
       simp only [← he_def] at hinv2
-      have hprep : ∃ x3, ExecWithin w extendBwdPrep x2 x3 5 ∧
-          ConstRegs g x3 ∧ x3.regs rTmp2 = tabBase g + e.dst * L ∧
-          x3.regs rTmp3 = tabBase g + e.src * L ∧ x3.regs rLabIdx = 0 ∧
-          x3.regs rEdgeIdx = 4 + j * (L + 2) ∧ x3.regs rSrc = e.src ∧ x3.regs rDst = e.dst ∧
-          x3.regs rStackLen = S.stack.length ∧ x3.regs rCompLen = S.comp.length ∧
-          x3.regs rCurNode = x.regs rCurNode ∧ x3.regs rRem = x.regs rRem ∧
-          x3.regs rOuterIdx = x.regs rOuterIdx ∧ x3.mem = x2.mem := by
-        unfold extendBwdPrep
-        wram_exec [hc2.zero, hc2.regL, hc2.tabB, hs2.trans hs1, hd2.trans hd1]
-        exact ⟨by wram_simp [hc2], by wram_simp, by wram_simp, by wram_simp,
-          by wram_simp [he2.trans he1], by wram_simp [hs2.trans hs1], by wram_simp [hd2.trans hd1],
-          by wram_simp [hsl2.trans hsl1], by wram_simp [hcl2.trans hcl1],
-          by wram_simp [hcn2.trans hcn1], by wram_simp [hrem2.trans hrem1],
-          by wram_simp [hidx2.trans hidx1], by wram_simp⟩
-      obtain ⟨x3, hx3, hc3, ht2_3, ht3_3, hlab3, he3, hs3, hd3,
-          hsl3, hcl3, hcn3, hrem3, hidx3, hm3⟩ := hprep
+      have he2 := he2'.trans he1
+      have hs2 := hs2'.trans hs1
+      have hd2 := hd2'.trans hd1
+      have hsl2 := hsl2'.trans hsl1
+      have hcl2 := hcl2'.trans hcl1
+      have hcn2 := hcn2'.trans hcn1
+      have hrem2 := hrem2'.trans hrem1
+      have hidx2 := hidx2'.trans hidx1
+      obtain ⟨x3, hx3, hc3, ht2_3, ht3_3, hlab3, he3', hs3', hd3',
+          hsl3', hcl3', hcn3', hrem3', hidx3', hm3⟩ :=
+        extendPrep_spec (w := w) g rDst rSrc x2 e.dst e.src (Or.inr ⟨rfl, rfl⟩)
+          hc2 hd_lt hs_lt hd2 hs2 hw
+      have he3 := he3'.trans he2
+      have hs3 := hs3'.trans hs2
+      have hd3 := hd3'.trans hd2
+      have hsl3 := hsl3'.trans hsl2
+      have hcl3 := hcl3'.trans hcl2
+      have hcn3 := hcn3'.trans hcn2
+      have hrem3 := hrem3'.trans hrem2
+      have hidx3 := hidx3'.trans hidx2
       obtain ⟨x4, hx4, hc4, he4, hs4, hd4, hsl4, hcl4, hcn4, hrem4, hidx4, hrow4, hfr4⟩ :=
         extendBwdLoop_spec (w := w) g x3 j hj h hc3 hs_lt hd_lt hsd ht2_3 ht3_3 hlab3
           (fun a ha => by
@@ -2146,24 +2177,16 @@ private theorem extendCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : S
             exact htab_d a ha)
           (fun b hb => by simp only [← he_def]; rw [hm3]; exact hinv2 b hb) hw
       simp only [← he_def] at hrow4 hfr4
-      have hpush_exec : ∃ y, ExecWithin w extendBwdPush x4 y 5 ∧ ConstRegs g y ∧
-          y.regs rEdgeIdx = 4 + j * (L + 2) ∧ y.regs rSrc = e.src ∧ y.regs rDst = e.dst ∧
-          y.regs rStackLen = S.stack.length + 1 ∧ y.regs rCompLen = S.comp.length ∧
-          y.regs rCurNode = x.regs rCurNode ∧ y.regs rRem = x.regs rRem ∧
-          y.regs rOuterIdx = x.regs rOuterIdx ∧
-          y.mem = Function.update (Function.update x4.mem (visBase g + e.src) 1)
-            (stackBase g + S.stack.length) e.src := by
-        have : Fits w (stackBase g + S.stack.length) := hfit_top.of_le (by
-          simp only [outBaseAddr, compBase] at *; omega)
-        have : Fits w (S.stack.length + 1) := hfit_top.of_le (by
-          simp only [outBaseAddr, compBase] at *; omega)
-        unfold extendBwdPush
-        wram_exec [hc4.one, hc4.visB, hc4.stackB, hs4.trans hs3, hsl4.trans hsl3]
-        exact ⟨by wram_simp [hc4], by wram_simp [he4.trans he3], by wram_simp [hs4.trans hs3],
-          by wram_simp [hd4.trans hd3], by wram_simp, by wram_simp [hcl4.trans hcl3],
-          by wram_simp [hcn4.trans hcn3], by wram_simp [hrem4.trans hrem3],
-          by wram_simp [hidx4.trans hidx3], by wram_simp⟩
-      obtain ⟨y, hx5, hc5, he5, hs5, hd5, hsl5, hcl5, hcn5, hrem5, hidx5, hym⟩ := hpush_exec
+      obtain ⟨y, hx5, hc5, he5', hs5', hd5', hsl5, hcl5', hcn5', hrem5', hidx5', hym⟩ :=
+        extendPush_spec (w := w) g rSrc x4 e.src S.stack.length (Or.inl rfl)
+          hc4 hs_lt hstk_lt (hs4.trans hs3) (hsl4.trans hsl3) hw
+      have he5 := he5'.trans (he4.trans he3)
+      have hs5 := hs5'.trans (hs4.trans hs3)
+      have hd5 := hd5'.trans (hd4.trans hd3)
+      have hcl5 := hcl5'.trans (hcl4.trans hcl3)
+      have hcn5 := hcn5'.trans (hcn4.trans hcn3)
+      have hrem5 := hrem5'.trans (hrem4.trans hrem3)
+      have hidx5 := hidx5'.trans (hidx4.trans hidx3)
       have hstk_mem : HoldsList (stackBase g) (S.stack.reverse ++ [e.src]) y.mem := by
         have hbase : HoldsList (stackBase g) S.stack.reverse
             (Function.update x4.mem (visBase g + e.src) 1) :=
@@ -2173,36 +2196,10 @@ private theorem extendCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : S
               hfr4 _ (by simp only [stackBase, invBase] at *; omega), hm3,
               hfr2 _ (by simp only [stackBase] at *; omega), hm1]
         simpa only [hym, List.length_reverse] using hbase.append_one e.src
-      have hSy : StateAt g (push S e.src (preimage (List.finRange L) e.constraint ∘ h)) y := by
-        have hS' : StateAt g S x2 :=
-          StateAt.mk ⟨hc2, hS.inp.frame (fun a ha => by
-              rw [hfr2 _ (by
-                simp only [invBase, candBase, tabBase, visBase, nodeBase]; omega), hm1]),
-            hS.bkt.frame (fun a ha => by
-              rw [hfr2 _ (by simp only [invBase, candBase, tabBase]; omega), hm1]),
-            hS.len_table,
-            fun v hv hvn => by
-              rw [hfr2 _ (by simp only [invBase, candBase, tabBase]; omega), hm1]
-              exact hS.vis_none v hv hvn,
-            fun v hv fn hvf => by
-              obtain ⟨hv1, hvtab⟩ := hS.vis_some v hv fn hvf
-              refine ⟨?_, fun a ha => ?_⟩
-              · rw [hfr2 _ (by simp only [invBase, candBase, tabBase]; omega), hm1]
-                exact hv1
-              · have hv_cb := tabRow_hi_le_candBase (g := g) hv
-                rw [hfr2 _ (by simp only [invBase] at *; omega), hm1]
-                exact hvtab a ha⟩
-            hS.pot_le
-            (fun a ha => by
-              rw [hfr2 _ (by simp only [invBase] at *; omega), hm1]
-              exact hS.cand_mem a ha)
-            (hsl2.trans hsl1) hS.stack_lt
-            (hS.stack_mem.frame fun a ha1 ha2 => by
-              rw [hfr2 _ (by simp only [stackBase] at *; omega), hm1])
-            (hcl2.trans hcl1) hS.comp_le hS.comp_lt
-            (hS.comp_mem.frame fun a ha1 ha2 => by
-              rw [hfr2 _ (by simp only [compBase, stackBase] at *; omega), hm1])
-        exact hS'.push_slot hc5 hs_lt hgs
+      have hS' : StateAt g S x2 :=
+        hS.frame_inv hc2 hsl2 hcl2 (fun a ha => by rw [hfr2 a ha, hm1])
+      have hSy : StateAt g (push S e.src (preimage (List.finRange L) e.constraint ∘ h)) y :=
+        hS'.push_slot hc5 hs_lt hgs
           (fun a ha => by
             rw [hym, Function.update_of_ne (by simp only [stackBase, invBase] at *; omega),
               Function.update_of_ne (by simp only [tabBase]; omega)]
@@ -2281,8 +2278,8 @@ private theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : St
       have hcb_d := tabRow_hi_le_candBase (g := g) hd_lt
       obtain ⟨x2, hx2, hc2, ht2_2, ht3_2, hlab2, he2', _, _,
           hsl2', hcl2', hcn2', hrem2', hidx2', hm2'⟩ :=
-        extendFwdPrep_spec (w := w) g x1 j hj hc1 hs1 hd1 hw
-      simp only [← he_def] at ht2_2 ht3_2
+        extendPrep_spec (w := w) g rSrc rDst x1 e.src e.dst (Or.inl ⟨rfl, rfl⟩)
+          hc1 hs_lt hd_lt hs1 hd1 hw
       have he2 := he2'.trans he1
       have hsl2 := hsl2'.trans hsl1
       have hcl2 := hcl2'.trans hcl1
@@ -3395,10 +3392,13 @@ private theorem finishCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin
       rw [hsolve]
       exact hw.of_le (by simp [encodeSolution]; omega)
 
-private theorem solveCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
+/-- **Structured Word-RAM specification for `solveCode`:** from `Data.init (encode g)` at any
+width `w` fitting `wordBound g`, `solveCode` terminates in at most `timeBound g - 1` steps with
+`Reg.ok` equal to `(solve (List.finRange L) g).isSome.toNat` and `outputList` at `Reg.outBase`
+equal to `encodeSolution (slots g) (solve (List.finRange L) g)` (whose end address fits in `w`). -/
+theorem solveCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
     (hw : Fits w (wordBound g)) :
     ∃ y, ExecWithin w solveCode (Data.init (encode g)) y (timeBound g - 1) ∧
-      y.regs outBase = outBaseAddr g ∧
       y.regs ok = (solve (List.finRange L) g).isSome.toNat ∧
       outputList y.mem (y.regs outBase) =
         encodeSolution (slots g) (solve (List.finRange L) g) ∧
@@ -3423,7 +3423,7 @@ private theorem solveCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin 
   obtain ⟨x4, hx4, hT4⟩ := stepsLoop_spec (w := w) g x3 hT3 hidx3 hw
   obtain ⟨x5, hx5, hc5, hinp5, hout5⟩ := extractCode_spec (w := w) g x4 hT4 hw
   obtain ⟨x6, hx6, hc6, hok6, hm6⟩ := checkCode_spec (w := w) g x5 hc5 hinp5 hout5 hw
-  obtain ⟨y, hx7, houtB, hokY, houtList, hfitOut⟩ :=
+  obtain ⟨y, hx7, _, hokY, houtList, hfitOut⟩ :=
     finishCode_spec (w := w) g x6 hc6 hok6 (hm6 ▸ hout5) hw
   have htot_le :
       16 * g.edges.length + 30 +
@@ -3438,7 +3438,7 @@ private theorem solveCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin 
     nlinarith
   have htot : ExecWithin w solveCode (Data.init (encode g)) y (timeBound g - 1) :=
     (hx1.seq (hx2.seq (hx3.seq (hx4.seq (hx5.seq (hx6.seq hx7)))))).mono htot_le
-  exact ⟨y, htot, houtB, hokY, houtList, hfitOut⟩
+  exact ⟨y, htot, hokY, houtList, hfitOut⟩
 
 end Verification
 
@@ -3451,7 +3451,7 @@ theorem program_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
     ∃ n ≤ timeBound g,
       ExecutesList w program (.init (encode g))
         (encodeSolution (slots g) (solve (List.finRange L) g)) n := by
-  obtain ⟨y, ⟨m, hm, he⟩, _, _, hout, hfit⟩ := solveCode_spec (w := w) g hw
+  obtain ⟨y, ⟨m, hm, he⟩, _, hout, hfit⟩ := solveCode_spec (w := w) g hw
   have hpos : 1 ≤ timeBound g := by simp only [timeBound]; omega
   exact ⟨m + 1, by omega, hout ▸ he.executesList outBase (by rwa [hout])⟩
 
@@ -3485,7 +3485,7 @@ theorem decideProgram_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
     ∃ n ≤ timeBound g,
       Executes w decideProgram (.init (encode g))
         (solve (List.finRange L) g).isSome.toNat n := by
-  obtain ⟨y, ⟨m, hm, he⟩, _, hok, _, _⟩ := solveCode_spec (w := w) g hw
+  obtain ⟨y, ⟨m, hm, he⟩, hok, _, _⟩ := solveCode_spec (w := w) g hw
   have hpos : 1 ≤ timeBound g := by simp only [timeBound]; omega
   exact ⟨m + 1, by omega, hok ▸ he.executes ok⟩
 
