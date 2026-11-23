@@ -37,6 +37,8 @@ nonempty lists of blocks whose range is a prefix-free set (`InformationTheory.Is
   on nonempty lists of `n`-bit blocks.
 * `Cslib.Crypto.PRF.separatingBlock_prefix_incomparable`: the common extension makes two distinct
   queries prefix-incomparable.
+* `Cslib.Crypto.PRF.isPrefixFree_append_of_freshBatchBlock_eq_some`: every block returned by
+  the search makes the extended batch prefix-free.
 * `Cslib.Crypto.PRF.isPrefixFree_append_freshBatchBlock`: the bounded search succeeds when
   there are more possible blocks than block occurrences, and its extension is prefix-free.
 
@@ -55,7 +57,7 @@ nonempty lists of blocks whose range is a prefix-free set (`InformationTheory.Is
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], Version 0.6,
-  Sections 6.6–6.6.1, pp. 235–236.
+  Sections 6.6–6.6.1, pp. 235–236, and 7.2.2, pp. 258–260.
 -/
 
 public section
@@ -196,17 +198,29 @@ theorem separatingBlock_prefix_incomparable {X : Type*} [BEq X] [LawfulBEq X]
     simp only [List.length_append, List.length_singleton] at hle
     omega
 
-private def batchBlockCandidates (n limit : ℕ) : List (BitString n) :=
-  (List.finRange (min (2 ^ n) limit)).map fun i =>
-    (BitString.equivFin n).symm (Fin.castLE (min_le_left _ _) i)
-
 /-- Search the first `min (2 ^ n) (b + 1)` bit strings for a block absent from `messages`, where
 `b` counts all block occurrences. This is the block-selection step of [BonehShoup2023], v0.6,
 Theorem 7.4 (printed pp. 259–260). It returns `none` when the batch uses the whole alphabet. -/
-def freshBatchBlock {n : ℕ} (messages : List (List (BitString n))) :
+@[expose] def freshBatchBlock {n : ℕ} (messages : List (List (BitString n))) :
     Option (BitString n) :=
   let used := messages.flatten
-  (batchBlockCandidates n (used.length + 1)).find? fun block => !used.contains block
+  let candidates := (List.finRange (min (2 ^ n) (used.length + 1))).map fun i =>
+    (BitString.equivFin n).symm (Fin.castLE (min_le_left _ _) i)
+  candidates.find? fun block => !used.contains block
+
+/-- Appending a block returned by the batch search makes the extended messages prefix-free. -/
+theorem isPrefixFree_append_of_freshBatchBlock_eq_some {n : ℕ}
+    {messages : List (List (BitString n))} {block : BitString n}
+    (hblock : freshBatchBlock messages = some block) :
+    InformationTheory.IsPrefixFree ((fun msg => msg ++ [block]) '' {msg | msg ∈ messages}) := by
+  unfold freshBatchBlock at hblock
+  have hfresh : block ∉ messages.flatten := by simpa using List.find?_some hblock
+  have hnotMem {msg} (hm : msg ∈ messages) : block ∉ msg :=
+    fun hb => hfresh (List.mem_flatten.mpr ⟨msg, hm, hb⟩)
+  rintro _ ⟨u, hu, rfl⟩ _ ⟨v, hv, rfl⟩ ⟨tail, htail⟩
+  have hsplit : u ++ block :: tail = v ++ block :: [] := by
+    simpa only [List.append_assoc, List.singleton_append] using htail
+  rw [((List.append_cons_inj_of_notMem_prefix (hnotMem hu) (hnotMem hv)).mp hsplit).1]
 
 /-- The batch search supplies a fresh delimiter whenever the total block count is below the
 alphabet size. Appending it to every message gives a prefix-free set, including when an original
@@ -216,32 +230,24 @@ theorem isPrefixFree_append_freshBatchBlock {n : ℕ} {messages : List (List (Bi
     ∃ block, freshBatchBlock messages = some block ∧
       InformationTheory.IsPrefixFree ((fun msg => msg ++ [block]) '' {msg | msg ∈ messages}) := by
   let used := messages.flatten
-  let candidates := batchBlockCandidates n (used.length + 1)
-  have hfind : (candidates.find? fun block => !used.contains block).isSome := by
+  let candidate := (BitString.equivFin n).symm ∘ Fin.castLE (min_le_left (2 ^ n) (used.length + 1))
+  let candidates := (List.finRange (min (2 ^ n) (used.length + 1))).map candidate
+  have hfind : (freshBatchBlock messages).isSome := by
+    change (candidates.find? fun block => !used.contains block).isSome
     rw [List.find?_isSome]
     by_contra! hnone
     have hsubset : candidates.toFinset ⊆ used.toFinset := by
       intro block hb
       simpa using hnone block (List.mem_toFinset.mp hb)
-    have hinj : Function.Injective fun i : Fin (min (2 ^ n) (used.length + 1)) =>
-        (BitString.equivFin n).symm (Fin.castLE (min_le_left _ _) i) := fun i j h =>
-      Fin.ext (congrArg (fun k : Fin (2 ^ n) => k.val) ((BitString.equivFin n).symm.injective h))
+    have hinj : Function.Injective candidate :=
+      (BitString.equivFin n).symm.injective.comp (Fin.castLE_injective _)
     have hnodup : candidates.Nodup := (List.nodup_finRange _).map hinj
     have hle := (Finset.card_le_card hsubset).trans (List.toFinset_card_le used)
     rw [List.toFinset_card_of_nodup hnodup] at hle
-    simp only [candidates, batchBlockCandidates, List.length_map, List.length_finRange,
+    simp only [candidates, List.length_map, List.length_finRange,
       min_eq_right (Nat.succ_le_of_lt (show used.length < 2 ^ n from hsize))] at hle
     omega
   obtain ⟨block, hblock⟩ := Option.isSome_iff_exists.mp hfind
-  have hfresh : block ∉ used := by simpa using List.find?_some hblock
-  have hnotMem {msg} (hm : msg ∈ messages) : block ∉ msg :=
-    fun hb => hfresh (List.mem_flatten.mpr ⟨msg, hm, hb⟩)
-  refine ⟨block, ?_, ?_⟩
-  · change (candidates.find? fun b => !used.contains b) = some block
-    exact hblock
-  rintro _ ⟨u, hu, rfl⟩ _ ⟨v, hv, rfl⟩ ⟨tail, htail⟩
-  have hsplit : u ++ block :: tail = v ++ block :: [] := by
-    simpa only [List.append_assoc, List.singleton_append] using htail
-  rw [((List.append_cons_inj_of_notMem_prefix (hnotMem hu) (hnotMem hv)).mp hsplit).1]
+  exact ⟨block, hblock, isPrefixFree_append_of_freshBatchBlock_eq_some hblock⟩
 
 end Cslib.Crypto.PRF

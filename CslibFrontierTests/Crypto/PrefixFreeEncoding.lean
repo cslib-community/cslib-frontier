@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import CslibFrontier.Crypto.Primitives.BlockCipher.LengthPrependedCBCMAC
-import all CslibFrontier.Crypto.Primitives.PRF.PrefixFreeEncoding
+public import CslibFrontier.Crypto.Primitives.PRF.PrefixFreeEncoding
 public import CslibFrontier.Crypto.Primitives.PRF.RandPrefixFreeEncoding
 
 /-!
@@ -106,6 +106,15 @@ example : ∃ block, freshBatchBlock [[], [blk01], [blk01, blk10]] = some block 
     InformationTheory.IsPrefixFree
       ((fun msg => msg ++ [block]) '' {msg | msg ∈ [[], [blk01], [blk01, blk10]]}) :=
   isPrefixFree_append_freshBatchBlock (by decide)
+
+/-- Three occurrences of the zero block leave the one block free in a two-block alphabet. -/
+example :
+    let zero : BitString 1 := fun _ => false
+    let one : BitString 1 := fun _ => true
+    let messages := [[zero], [zero, zero]]
+    InformationTheory.IsPrefixFree ((fun msg => msg ++ [one]) '' {msg | msg ∈ messages}) := by
+  dsimp only
+  exact isPrefixFree_append_of_freshBatchBlock_eq_some (by decide)
 
 /-- If both one-bit blocks occur in the batch, the search reports exhaustion. -/
 example : freshBatchBlock (n := 1) [[fun _ => false], [fun _ => true]] = none := by decide
