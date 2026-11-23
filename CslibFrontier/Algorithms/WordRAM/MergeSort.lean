@@ -76,24 +76,6 @@ theorem StableKeyOrder.asym {keys : List ℕ} {a b : ℕ} (h : StableKeyOrder ke
 
 /-! ## Pure Stability Equivalence with `List.mergeSort` -/
 
-private theorem eq_of_perm_of_pairwise_asym {α : Type*} {R : α → α → Prop}
-    (hasym : ∀ x y, R x y → ¬ R y x) {xs ys : List α}
-    (hp : xs.Perm ys) (hxs : xs.Pairwise R) (hys : ys.Pairwise R) : xs = ys := by
-  induction xs generalizing ys with
-  | nil => exact hp.nil_eq
-  | cons x xs ih =>
-    rcases ys with _ | ⟨y, ys⟩
-    · cases hp.symm.nil_eq
-    · obtain ⟨hx_xs, hxs'⟩ := List.pairwise_cons.mp hxs
-      obtain ⟨hy_ys, hys'⟩ := List.pairwise_cons.mp hys
-      rcases List.mem_cons.mp (hp.subset List.mem_cons_self) with rfl | hx_in_ys
-      · exact congrArg (x :: ·) (ih hp.cons_inv hxs' hys')
-      · have hy_in_xxs := hp.symm.subset List.mem_cons_self
-        have hy_ne_x : y ≠ x := fun h => by
-          subst h; exact hasym y y (hy_ys y hx_in_ys) (hy_ys y hx_in_ys)
-        have hy_in_xs : y ∈ xs := (List.mem_cons.mp hy_in_xxs).resolve_left hy_ne_x
-        exact False.elim (hasym x y (hx_xs y hy_in_xs) (hy_ys x hx_in_ys))
-
 private theorem pairwise_stable_merge {β : Type*} (k idx : β → ℕ) {A B : List β}
     (hA : A.Pairwise (fun p q => k p < k q ∨ (k p = k q ∧ idx p < idx q)))
     (hB : B.Pairwise (fun p q => k p < k q ∨ (k p = k q ∧ idx p < idx q)))
@@ -159,17 +141,6 @@ private theorem map_fst_merge_zip {α : Type*} (key : α → ℕ) (A B : List (�
       · simp [h, iha (b :: bs)]
       · simp [h, ihb]
 
-private theorem zipIdx_mem_range {α : Type*} (xs : List α) (s : ℕ) {p : α × ℕ}
-    (hp : p ∈ xs.zipIdx s) : s ≤ p.2 ∧ p.2 < s + xs.length := by
-  induction xs generalizing s with
-  | nil => simp at hp
-  | cons x tl ih =>
-    simp only [List.zipIdx_cons, List.mem_cons] at hp
-    rcases hp with rfl | htl
-    · simp only [List.length_cons]; omega
-    · have h := ih (s + 1) htl
-      simp only [List.length_cons]; omega
-
 private theorem mergeSort_zipIdx_spec {α : Type*} (xs : List α) (key : α → ℕ) (s : ℕ) :
     (((xs.zipIdx s).mergeSort (fun p q => decide (key p.1 ≤ key q.1))).Pairwise
       (fun p q => key p.1 < key q.1 ∨ (key p.1 = key q.1 ∧ p.2 < q.2))) ∧
@@ -230,8 +201,8 @@ private theorem mergeSort_zipIdx_spec {α : Type*} (xs : List α) (key : α → 
       constructor
       · rw [hms_zip]
         refine pairwise_stablePair_merge key hpwL hpwR fun p hp q hq => ?_
-        have hp' := zipIdx_mem_range L s ((List.mergeSort_perm _ _).subset hp)
-        have hq' := zipIdx_mem_range R (s + L.length) ((List.mergeSort_perm _ _).subset hq)
+        have hp' := List.snd_lt_add_of_mem_zipIdx ((List.mergeSort_perm _ _).subset hp)
+        have hq' := List.le_snd_of_mem_zipIdx ((List.mergeSort_perm _ _).subset hq)
         omega
       · rw [hms_zip, map_fst_merge_zip, hmapL, hmapR, hms_plain]
 
@@ -282,8 +253,8 @@ theorem filterMap_getElem?_eq_mergeSort {α : Type*} (xs : List α) (key : α �
   obtain ⟨hms_pw, hms_map⟩ := mergeSort_zipIdx_spec xs key 0
   have heq_Z : perm.filterMap (Z[·]?) =
       Z.mergeSort (fun p q => decide (key p.1 ≤ key q.1)) :=
-    eq_of_perm_of_pairwise_asym (fun p q h => by omega)
-      (hperm_Z.trans (List.mergeSort_perm _ _).symm) hpw_Z hms_pw
+    List.Perm.eq_of_pairwise (fun _ _ _ _ hab hba => absurd hab (by omega)) hpw_Z hms_pw
+      (hperm_Z.trans (List.mergeSort_perm _ _).symm)
   have hmap_fm : ∀ {L : List ℕ}, (∀ i ∈ L, i < xs.length) →
       (L.filterMap (Z[·]?)).map Prod.fst = L.filterMap (xs[·]?) := by
     intro L hbound
