@@ -44,7 +44,7 @@ theorem realizes_reserve : Realizes .exact (fun n : ℕ => Memory.allocDirty (9 
     (WordEncoding.encode (α := ℕ)) (WordEncoding.encode (α := ℕ))
     (fun w n s => Fits w (s.frontier + (9 * n + 5))) (fun _ _ => 0) := by
   realize
-  all_goals exact h.of_le (by omega)
+  exact h.of_le (by omega)
 
 /-- One selected emitter returns the old frontier and reserves exactly the original span.
 The fixed exchange factor precedes capacity, width, memory and register layout; all memory and

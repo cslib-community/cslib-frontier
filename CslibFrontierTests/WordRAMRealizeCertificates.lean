@@ -44,7 +44,8 @@ example : Realizes .exact (fun n : ℕ =>
     PFunctor.FreeM.liftM (P := ⟨ℕ, fun _ => ℕ⟩)
       (fun a => Memory.read (cancelAddress a)) (PFunctor.FreeM.lift n))
     word word (fun _ _ _ => True) (fun _ _ => 0) := by
-  realize [cancelAddress_glue] <;> exact fits_zero _
+  realize [cancelAddress_glue]
+  exact fits_zero _
 
 -- An imported scalar body is unavailable until its certificate is supplied. Its two arguments
 -- are computed from the same live word, then used as a genuine memory address.
@@ -74,7 +75,8 @@ example (f : ℕ → ℕ)
   fail_if_success
     have _ : Realizes .exact (fun d : ℕ × ℕ => pure (f d.1 + d.2)) pairWords word
         (fun w d _ => Fits w (f d.1 + d.2)) (fun _ _ => 0) := by
-      realize <;> exact h
+      try realize
+      all_goals assumption
   trivial
 
 section

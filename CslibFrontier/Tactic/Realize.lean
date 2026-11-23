@@ -341,7 +341,7 @@ private def vecOf (xs : List Expr) : MetaM Expr := do
 /-- Match a fixed scalar certificate against the call, exposing its finite input vector.
 The certificate itself must not depend on the runtime environment: only its inputs may do so. -/
 private def matchGlue (B d e proof : Expr) : MetaM (Option (Expr × Array Expr)) := do
-  let (params, _, ty) ← forallMetaTelescope (← inferType proof)
+  let (params, _, ty) ← forallMetaTelescope (← instantiateMVars (← inferType proof))
   unless ty.isAppOfArity ``GlueComputable 5 do return none
   unless ← withReducible (isDefEq (ty.getArg! 1) B) do return none
   let some k ← (evalNat (← instantiateMVars (ty.getArg! 0))).run | return none
@@ -387,8 +387,9 @@ private partial def analyze (B : Expr) (atoms : Array Expr) (d e : Expr) : MetaM
   if !e.containsFVar d.fvarId! then
     return .const e (← withNewMCtxDepth (isDefEq e (mkNatLit 0)))
   if let some (proof, args) ← findGlue B d e then
-    let ty ← inferType proof
-    return .call e ((ty.getArg! 4).beta #[← vecOf args.toList]) proof
+    let ty ← instantiateMVars (← inferType proof)
+    let envelope ← reduceFinVecApps ((ty.getArg! 4).beta #[← vecOf args.toList])
+    return .call e envelope proof
       (← args.mapM (analyze B atoms d))
   if let some (op, a, b) := binOp? e then
     return .bin op e (← analyze B atoms d a) (← analyze B atoms d b)
@@ -459,16 +460,17 @@ private partial def annotate (exact : Bool) (k : Nat) (v : Expr) : GNode → Sta
     let idx := (← get).vals.size
     modify fun st => { st with vals := st.vals.push default }
     let args' ← args.mapM (annotate exact k v)
-    let ty ← inferType proof
+    let ty ← instantiateMVars (← inferType proof)
     let vs ← vecOf (args'.toList.map (·.val))
     let us ← vecOf (args.toList.map (·.user))
     let val := (ty.getArg! 2).beta #[vs]
     let envelope := (ty.getArg! 4).beta #[vs]
+    let userDomain ← reduceFinVecApps ((ty.getArg! 3).beta #[us])
     let dom := (← get).domV.size
     modify fun st => { st with
       vals := st.vals.set! idx envelope
       domV := st.domV.push ((ty.getArg! 3).beta #[vs])
-      domU := st.domU.push ((ty.getArg! 3).beta #[us]) }
+      domU := st.domU.push userDomain }
     return .call idx val dom proof (← withReducible (isDefEq val envelope)) args'
 
 /-- The node's value in the client's terms, by depth-first number. -/
