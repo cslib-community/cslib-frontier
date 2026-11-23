@@ -120,12 +120,12 @@ theorem flipX5_accepted : ∃ o : Output,
   exact ⟨o, rfl, hg, hb⟩
 
 -- So, although the preserved set was changed, the projections of the solutions of `pres4Rm` to
--- its preserved set are in bijection with those of the output formula, read from `pres4Flip`, to
--- its own.
+-- its preserved set are in bijection with those of the output formula, read from `pres4Flip` with
+-- well-formed names extending those of `pres4Rm`, to its own.
 example : ∃ I O P Q, parseOPB pres4Rm = some I ∧ I.preserved = some P ∧
     O.preserved = some Q ∧
     (∃ f, Set.BijOn f (projections I.constraints P) (projections O.constraints Q)) ∧
-    ∃ N, N.Separates I pres4Flip ∧ parseOPB pres4Flip N = some O := by
+    ∃ N : Names, N.WF ∧ N.Extends (opbNames pres4Rm) ∧ parseOPBWith N pres4Flip = some O := by
   obtain ⟨o, h, hg, hb⟩ := flipX5_accepted
   obtain ⟨I, hI, hsem, -, hN⟩ := semOutput_of_checkOPBOutput h
   rw [hg, hb] at hsem
