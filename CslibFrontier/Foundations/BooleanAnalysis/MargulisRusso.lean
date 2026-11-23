@@ -25,8 +25,9 @@ the Margulis–Russo Formula: differentiating the weight `p` or `1 - p` of bit `
 pairing each string with its flip at `i` turns these into differences. Since `true` reads as `-1`,
 the change is `-2` times the derivative `D_{x_i} h` (`BitString.derivative` of
 `CslibFrontier.Foundations.BooleanAnalysis.Influence`), so the slope in `p` is
-`-2 ∑ᵢ 𝔼_p[D_{x_i} h]` (`BitString.hasDerivAt_bernoulliAverage_sum_derivative`). Both hold for
-every real `p`.
+`-2 ∑ᵢ 𝔼_p[D_{x_i} h]` (`BitString.hasDerivAt_bernoulliAverage_sum_derivative`). Both hold as
+identities of polynomials at every real `p`; the weighted sums are expectations only for
+`0 ≤ p ≤ 1`.
 
 The book states the formula [O'Donnell, Section 8.4, (8.8)][ODonnell2014] for `0 < p < 1` as a
 derivative in the mean `μ = 1 - 2p` of a bit read as a sign: it is `σ⁻¹ ∑ᵢ f̂^{(p)}(i)`, where
@@ -40,10 +41,13 @@ and pairing across bit `i` gives `𝔼_p[h · (signVal (x i) - μ)] = σ² 𝔼_
 For a monotone Boolean function the change is the indicator that `i` is pivotal, so the derivative
 of `Pr_p[f = true]` is the expected number of pivotal coordinates
 (`BitString.hasDerivAt_bernoulliAverage_bitVal_of_monotone`), the expected sensitivity
-`𝔼_p[sens_f]` that the book's Proposition 8.45 equates with `I[f^{(p)}] / σ²`. With `f` read as
-signs this is `∑ᵢ 𝔼_p[(D_{x_i} f)²]`, which is `I[f^{(p)}] / σ²` since
-`Inf_i[f^{(p)}] = σ² 𝔼_p[(D_{x_i} f)²]`; that is the book's (8.9)
-(`BitString.hasDerivAt_bernoulliAverage_bitVal_sum_sq_derivative_of_monotone`). Hence
+`𝔼_p[sens_f]`. With `f` read as signs this is `∑ᵢ 𝔼_p[(D_{x_i} f)²]`
+(`BitString.hasDerivAt_bernoulliAverage_bitVal_sum_sq_derivative_of_monotone`). Both hold as
+identities of polynomials at every real `p`. They read as statements about `Pr_p[f = true]` only
+for `0 ≤ p ≤ 1`, and their right sides are the book's `I[f^{(p)}] / σ²` only for `0 < p < 1`,
+where `f^{(p)}` is defined (Notation 8.43) and `σ² > 0`: there Proposition 8.45 equates
+`𝔼_p[sens_f]` with `I[f^{(p)}] / σ²`, and `Inf_i[f^{(p)}] = σ² 𝔼_p[(D_{x_i} f)²]`, so the second
+form is the book's (8.9). At `p = 0` or `1` a dictator still has slope `1` while `σ² = 0`. Hence
 `Pr_p[f = true]` is strictly increasing on `[0, 1]` for a nonconstant monotone `f`
 [O'Donnell, Remark 8.48][ODonnell2014]
 (`BitString.strictMonoOn_bernoulliAverage_bitVal_of_monotone`).
@@ -95,7 +99,7 @@ pivotal coordinate of the AND of two bits, show that its probability is strictly
 * `Cslib.BitString.hasDerivAt_bernoulliAverage_bitVal_of_monotone`: the formula for monotone
   Boolean functions, via pivotal coordinates.
 * `Cslib.BitString.hasDerivAt_bernoulliAverage_bitVal_sum_sq_derivative_of_monotone`: the same as
-  `∑ᵢ 𝔼_p[(D_{x_i} f)²] = I[f^{(p)}] / σ²`, the book's (8.9).
+  `∑ᵢ 𝔼_p[(D_{x_i} f)²]`, which is `I[f^{(p)}] / σ²` for `0 < p < 1`, the book's (8.9).
 * `Cslib.BitString.strictMonoOn_bernoulliAverage_bitVal_of_monotone`: Remark 8.48.
 
 ## References
@@ -253,8 +257,10 @@ theorem hasDerivAt_bernoulliAverage_one_sub_div_two (h : (ι → Bool) → ℝ) 
 
 /-- **The Margulis–Russo Formula for monotone functions** [O'Donnell, Section 8.4][ODonnell2014]:
 the derivative in `p` of `Pr_p[f = true]` is the expected number of pivotal coordinates, that is
-`∑ᵢ Pr_p[f(x^{i ↦ true}) ≠ f(x^{i ↦ false})]`, the expected sensitivity `𝔼_p[sens_f]`. The book's
-`I[f^{(p)}] / σ²` equals it by [O'Donnell, Proposition 8.45][ODonnell2014]. -/
+`∑ᵢ Pr_p[f(x^{i ↦ true}) ≠ f(x^{i ↦ false})]`, the expected sensitivity `𝔼_p[sens_f]`. The
+identity holds as polynomials at every real `p`; it is about probabilities only for `0 ≤ p ≤ 1`,
+and for `0 < p < 1` the book's `I[f^{(p)}] / σ²` equals the right side by
+[O'Donnell, Proposition 8.45][ODonnell2014]. -/
 theorem hasDerivAt_bernoulliAverage_bitVal_of_monotone {f : (ι → Bool) → Bool} (hf : Monotone f)
     (p : ℝ) :
     HasDerivAt (fun q => bernoulliAverage q fun x => bitVal ℝ (f x))
@@ -270,8 +276,11 @@ theorem hasDerivAt_bernoulliAverage_bitVal_of_monotone {f : (ι → Bool) → Bo
 
 /-- **The Margulis–Russo Formula for monotone functions, influence form** [O'Donnell, Section 8.4,
 (8.9)][ODonnell2014]: for `f` read as signs, the derivative in `p` of `Pr_p[f = true]` is
-`∑ᵢ 𝔼_p[(D_{x_i} f)²]`. This is the book's `I[f^{(p)}] / σ²`, since the `p`-biased influence is
-`Inf_i[f^{(p)}] = σ² 𝔼_p[(D_{x_i} f)²]` [O'Donnell, proof of Proposition 8.45][ODonnell2014]. -/
+`∑ᵢ 𝔼_p[(D_{x_i} f)²]`. The identity holds as polynomials at every real `p`. For `0 < p < 1` the
+right side is the book's `I[f^{(p)}] / σ²`, since the `p`-biased influence is
+`Inf_i[f^{(p)}] = σ² 𝔼_p[(D_{x_i} f)²]` [O'Donnell, proof of Proposition 8.45][ODonnell2014]; the
+book defines `f^{(p)}` only for `0 < p < 1` (Notation 8.43), and at `p = 0` or `1` a dictator
+still has slope `1` while `σ² = 0`. -/
 theorem hasDerivAt_bernoulliAverage_bitVal_sum_sq_derivative_of_monotone {f : (ι → Bool) → Bool}
     (hf : Monotone f) (p : ℝ) :
     HasDerivAt (fun q => bernoulliAverage q fun x => bitVal ℝ (f x))

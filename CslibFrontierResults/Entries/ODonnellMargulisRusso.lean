@@ -35,14 +35,19 @@ register_result "odonnell-margulis-russo-monotone" where
   sources := [
     { paper := ODonnell2014, theorem := "Margulis–Russo Formula, equation (8.9)",
       locator := "arXiv:2105.10386v1, §8.4, printed p. 225; Inf_i = σ² E[(D_{x_i} f)²] in the \
-        proof of Proposition 8.45, printed p. 223" }
+        proof of Proposition 8.45, printed p. 223; f^{(p)} for p ∈ (0, 1) in Notation 8.43, \
+        printed p. 222" }
   ]
   theorems := [Cslib.BitString.hasDerivAt_bernoulliAverage_bitVal_sum_sq_derivative_of_monotone]
   scope := "Any finite coordinate type ι and f : (ι → Bool) → Bool monotone for false < true \
-    (the source's monotonicity, with true read as −1), at every real p: the derivative of \
-    Pr_p[f = true] is Σᵢ E_p[(D_{x_i} f)²] for f read through signVal, which is the source's \
-    I[f^{(p)}]/σ² since Inf_i[f^{(p)}] = σ² E_p[(D_{x_i} f)²]; the p-biased influence itself is \
-    not defined. The middle term d/dμ E[f^{(p)}] of (8.9) is not stated separately."
+    (the source's monotonicity, with true read as −1). The identity holds as polynomials in p, \
+    at every real p: the derivative of p ↦ bernoulliAverage p (bitVal ∘ f) is \
+    Σᵢ E_p[(D_{x_i} f)²] for f read through signVal, with E_p the p-weighted sum. The left side \
+    reads as Pr_p[f = true] only for p ∈ [0, 1], and the right side as the source's \
+    I[f^{(p)}]/σ², since Inf_i[f^{(p)}] = σ² E_p[(D_{x_i} f)²], only for 0 < p < 1, where \
+    Notation 8.43 defines f^{(p)} and σ² > 0: at p = 0 or 1 a dictator still has slope 1 while \
+    σ² = 0. The p-biased influence itself is not defined. The middle term d/dμ E[f^{(p)}] of \
+    (8.9) is not stated separately."
 
 register_result "odonnell-monotone-strictly-increasing-p-biased" where
   title := "Nonconstant monotone functions have strictly increasing p-biased probability"
