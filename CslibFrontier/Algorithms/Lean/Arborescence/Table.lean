@@ -108,7 +108,7 @@ private theorem foldl_argAux_skip {α : Type*} (r : α → α → Prop) [Decidab
   | nil => rfl
   | cons i l ih => cases h : pred i <;> simp [h, ih]
 
-theorem argMinFin_eq_argmin {β : Type*} [LinearOrder β] (n : ℕ) (pred : Fin n → Bool)
+private theorem argMinFin_eq_argmin {β : Type*} [LinearOrder β] (n : ℕ) (pred : Fin n → Bool)
     (val : Fin n → β) :
     argMinFin n pred val = ((List.finRange n).filter pred).argmin val :=
   foldl_argAux_skip (fun x y => val x < val y) pred (List.finRange n) none
@@ -137,7 +137,7 @@ check feasibility, and materialize the parent vector `f`. -/
   let tbl := Vector.ofFn fun v : Fin n => opts[v.1].getD v
   { feasible := feas, parents := tbl }
 
-theorem selectParents_eq (a : AdjTable n) (c : CostTable β n) (r : Fin n) :
+private theorem selectParents_eq (a : AdjTable n) (c : CostTable β n) (r : Fin n) :
     let optFn : Fin n → Option (Fin n) := fun v =>
       if v = r then some r
       else ((List.finRange n).filter fun w => a[v.1][w.1] && w != v).argmin (fun w => c[v.1][w.1])
@@ -234,7 +234,7 @@ private theorem foldl_find_step {α : Type*} (p : α → Bool) :
     · simp only [List.foldl_cons, findStep, List.find?_cons, h, ↓reduceIte]
       exact foldl_find_step p l (some x)
 
-theorem findCycleTable_eq (r : Fin n) (f : ParentTable n) :
+private theorem findCycleTable_eq (r : Fin n) (f : ParentTable n) :
     findCycleTable r f =
       (List.finRange n).find? fun x =>
         x != r && (List.range n).any fun k => (fun i : Fin n => f[i.1])^[k + 1] x == x := by
@@ -301,7 +301,7 @@ theorem getElem_cycleMask (f : ParentTable n) (x0 y : Fin n) :
   Vector.ofFn fun u : Fin n =>
     argMinFin n (fun y => inCycle[y.1] && a[u.1][y.1]) (fun y => c[u.1][y.1])
 
-theorem getElem_bestEntryTable (a : AdjTable n) (c : CostTable β n)
+private theorem getElem_bestEntryTable (a : AdjTable n) (c : CostTable β n)
     (inCycle : Vector Bool n) (u : Fin n) :
     (bestEntryTable a c inCycle)[u.1] =
       ((List.finRange n).filter fun y => inCycle[y.1] && a[u.1][y.1]).argmin
@@ -333,7 +333,7 @@ private theorem foldl_add_filter {α : Type*} (pred : α → Bool) (val : α →
     cases h : pred y <;> simp [h, foldl_add_filter pred val l, add_assoc]
 
 omit [LinearOrder β] in
-theorem getElem_otherCycleCost (c : CostTable β n) (f : ParentTable n)
+private theorem getElem_otherCycleCost (c : CostTable β n) (f : ParentTable n)
     (inCycle : Vector Bool n) (C : Finset (Fin n)) (hC : ∀ y : Fin n, inCycle[y.1] = true ↔ y ∈ C)
     {x : Fin n} (hx : x ∈ C) :
     (otherCycleCost c f inCycle)[x.1] = ∑ y ∈ C.erase x, c[y.1][f[y.1].1] := by
@@ -351,7 +351,7 @@ theorem getElem_otherCycleCost (c : CostTable β n) (f : ParentTable n)
     argMinFin n (fun x => inCycle[x.1] && a[x.1][w.1])
       (fun x => c[x.1][w.1] + other[x.1])
 
-theorem getElem_bestExitTable (a : AdjTable n) (c : CostTable β n)
+private theorem getElem_bestExitTable (a : AdjTable n) (c : CostTable β n)
     (inCycle : Vector Bool n) (other : Vector β n) (w : Fin n) :
     (bestExitTable a c inCycle other)[w.1] =
       ((List.finRange n).filter fun x => inCycle[x.1] && a[x.1][w.1]).argmin

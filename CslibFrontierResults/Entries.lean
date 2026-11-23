@@ -5609,7 +5609,7 @@ register_result "edmonds-optimum-branchings" where
     contraction keeps intermediate table entries within (n + 1) ^ i · M₀, yielding native \
     multi-tape P deciders for bounded-cost spanning in- and out-arborescences and \
     bounded-weight branchings. Materialized Vector-table solvers, weight-shift reductions, and \
-    O(n³) exact-basis Word-RAM programs at explicit word width wordBound live in the sibling \
+    O(n³) standard-basis Word-RAM programs at polynomial word width wordBound live in the sibling \
     Arborescence.Table, Arborescence.Branching, and CslibFrontier.Algorithms.WordRAM.Arborescence \
     modules; Edmonds' Theorem 2 (the branching polytope) and sparse O(m log n) / O(m + n log n) \
     implementations are not formalized."

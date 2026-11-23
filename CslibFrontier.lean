@@ -5288,6 +5288,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.Random
 public import CslibFrontier.Computability.WordRAM.Realization.RandomLoop
 public import CslibFrontier.Computability.WordRAM.Realization.Reindex
 public import CslibFrontier.Computability.WordRAM.Realization.Result
+public import CslibFrontier.Computability.WordRAM.Realization.Signed
 public import CslibFrontier.Computability.WordRAM.Realization.Structure
 public import CslibFrontier.Computability.WordRAM.Realization.While
 public import CslibFrontier.Computability.WordRAM.Realization.WhileAbsorb
