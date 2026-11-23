@@ -62,50 +62,13 @@ private theorem exec_compare {w : ℕ} (j : Fin 3) (x : Data 64)
       y.regs good = (if x.regs (CountCall.result j) * x.regs card ≤ x.regs (threshold j)
         then x.regs good else 0) ∧ y.mem = x.mem ∧
       ∀ i, i ≠ scaled → i ≠ good → y.regs i = x.regs i := by
-  let product := x.regs (CountCall.result j) * x.regs card
-  let y := (x.set scaled product).set good
-    (if x.regs (threshold j) < product then 0 else x.regs good)
-  have hm : ExecWithin w
-      (.op (.bin .mul scaled (CountCall.result j) card)) x (x.set scaled product) 1 :=
-    ExecWithin.bin hfit
-  have hcut : (x.set scaled product).regs (threshold j) = x.regs (threshold j) := by
-    fin_cases j <;> rfl
-  have hz' : (x.set scaled product).regs zero = 0 := by
-    simpa +decide [zero, scaled] using hz
-  have hg' : (x.set scaled product).regs good = x.regs good := rfl
-  have hscaled : (x.set scaled product).regs scaled = product := rfl
-  have he : ExecWithin w (compare j) x y 4 := by
-    by_cases hlt : x.regs (threshold j) < product
-    · have hc : (Cond.lt (threshold j) scaled).Holds (x.set scaled product) := by
-        simpa only [Cond.holds_lt, hcut, hscaled] using hlt
-      have hb := ExecWithin.branch_pos (B := .standard) (w := w) (pos := ram[ good ← zero ])
-        (neg := ram[ good ← good ]) hc
-        (ExecWithin.copy (x := x.set scaled product) (d := good) (s := zero))
-      have hb' : ExecWithin (B := .standard) w
-          (.branch (.lt (threshold j) scaled) (ram[ good ← zero ]) (ram[ good ← good ]))
-          (x.set scaled product) y 2 := by
-        simpa only [y, hlt, ↓reduceIte, hz'] using hb
-      exact (hm.seq hb').mono (by decide)
-    · have hc : ¬(Cond.lt (threshold j) scaled).Holds (x.set scaled product) := by
-        simpa only [Cond.holds_lt, hcut, hscaled] using hlt
-      have hb := ExecWithin.branch_neg (B := .standard) (w := w) (pos := ram[ good ← zero ])
-        (neg := ram[ good ← good ]) hc
-        (ExecWithin.copy (x := x.set scaled product) (d := good) (s := good))
-      have hb' : ExecWithin (B := .standard) w
-          (.branch (.lt (threshold j) scaled) (ram[ good ← zero ]) (ram[ good ← good ]))
-          (x.set scaled product) y 3 := by
-        simpa only [y, hlt, ↓reduceIte, hg'] using hb
-      exact hm.seq hb'
-  refine ⟨y, he, ?_, rfl, ?_⟩
-  · change (if x.regs (threshold j) < product then 0 else x.regs good) =
-      if product ≤ x.regs (threshold j) then x.regs good else 0
-    by_cases hlt : x.regs (threshold j) < product
-    · have hnot : ¬product ≤ x.regs (threshold j) := by omega
-      simp only [hlt, hnot, ↓reduceIte]
-    · have hle : product ≤ x.regs (threshold j) := by omega
-      simp only [hlt, hle, ↓reduceIte]
-  · intro i hs hg
-    simp only [y, Data.set_regs, Function.update_of_ne hg, Function.update_of_ne hs]
+  have hcut : (x.set scaled (x.regs (CountCall.result j) * x.regs card)).regs (threshold j) =
+      x.regs (threshold j) := by fin_cases j <;> rfl
+  refine WP.exists_execWithin ?_
+  unfold compare
+  wram_exec [hz, hcut] <;>
+    exact ⟨by wram_simp; split_ifs <;> omega, by wram_simp,
+      fun i hs hg => by wram_simp [Function.update_of_ne hs, Function.update_of_ne hg]⟩
 
 /-- Test all three inequalities with a shared acceptance flag. The only written registers
 are `scaled` and `good`; memory and every other caller register are unchanged. -/

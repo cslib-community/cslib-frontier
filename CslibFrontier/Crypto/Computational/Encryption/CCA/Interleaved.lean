@@ -39,6 +39,7 @@ import CslibFrontier.Probability.PMF.Coupling
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Fully adaptive interleaved-query multi-challenge CCA security (Attack Game 12.1)
@@ -2039,11 +2040,8 @@ theorem INDCCA2On.indcca2InterleavedOn {Msg Out : Type} [Inhabited Msg]
     simpa [Q, encUnary_apply] using hlenQ n
   have hsingleNeg := h (interleavedToSingle valid encrypt decBound Q adversary)
     (isPPT_interleavedToSingle hvalid hencrypt hdecBoundPoly hQPoly hA)
-  have hpolyDyadic : PolynomiallyBounded (fun n => dyadicSize (Q n)) := by
-    dsimp only [Q]; fun_prop
-  refine negligible_of_le (hsingleNeg.polynomiallyBounded_mul hpolyDyadic) fun n => ?_
-  rw [advantage_interleavedCca2GameOn valid encOut keyGen encrypt decrypt decBound
-    Q adversary n (hdecBound n) (hQ n)]
+  negligible using fun n => (advantage_interleavedCca2GameOn valid encOut keyGen encrypt decrypt
+    decBound Q adversary n (hdecBound n) (hQ n)).le
 
 /-- **Equivalence of single-challenge 1CCA and fully adaptive interleaved-query multi-challenge CCA
 security** ([BonehShoup2023], Section 12.1, Theorem 12.1 together with Definition 12.2, printed

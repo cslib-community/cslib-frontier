@@ -821,22 +821,19 @@ theorem refuterLoop_valid {n} {f : BooleanFunction n} {S : State n}
     (refuterLoop S fuel).Valid f ∧
     (refuterLoop S fuel).W + 9 * S.a ≤ S.W + 9 * (refuterLoop S fuel).a ∧
     (refuterLoop S fuel).a ≤ S.a := by
-  induction fuel generalizing S with
-  | zero =>
+  fun_induction refuterLoop S fuel with
+  | case1 S => -- fuel exhausted
     have hnone : chooseStep? S = none := by
       rcases hc : chooseStep? S with _ | c
       · rfl
       · have := (refuterStep_applyStep hS hc).spec.1
         omega
     exact ⟨hnone, hS, le_rfl, le_rfl⟩
-  | succ k ih =>
-    rcases hc : chooseStep? S with _ | c
-    · simp only [refuterLoop, hc]
-      exact ⟨by simp, hS, le_rfl, le_rfl⟩
-    · obtain ⟨hlt, hS', hpot, ha⟩ := (refuterStep_applyStep hS hc).spec
-      obtain ⟨h1, h2, h3, h4⟩ := ih hS' (by omega)
-      simp only [refuterLoop, hc]
-      exact ⟨h1, h2, by omega, by omega⟩
+  | case2 S k c hc ih => -- chooseStep? S = some c: step and recurse
+    obtain ⟨hlt, hS', hpot, ha⟩ := (refuterStep_applyStep hS hc).spec
+    obtain ⟨h1, h2, h3, h4⟩ := ih hS' (by omega)
+    exact ⟨h1, h2, by omega, by omega⟩
+  | case3 S k hc => exact ⟨hc, hS, le_rfl, le_rfl⟩ -- chooseStep? S = none
 
 /-- The refuter finds an input on which any circuit satisfying
 `C.program.cost binaryB2Cost + 9 * d < 4 * n` disagrees with a `d`-affine disperser. -/

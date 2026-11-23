@@ -1606,8 +1606,8 @@ private theorem eval_prfIdealGame_cpaToPrfDistinguisher (adversary : OracleDisti
           Function.comp_def, Prod.map_apply, id_eq]
         refine PMF.bind_congr_on_support _ _ _ fun r hr => ?_
         have hrLen : r.length = n := BitString.length_of_mem_support_uniformList hr
-        simp only [cachedRandomFunctionOracle, beq_iff_eq, hrLen, ↓reduceIte, ProbComp.eval_memoize,
-          BitString.eval_sampleList]
+        simp only [cachedRandomFunctionOracle, cachedSamplerOracle, beq_iff_eq, hrLen, ↓reduceIte,
+          ProbComp.eval_memoize, BitString.eval_sampleList]
         rfl
       · simp [hlenEq, ProbOracleComp.runWith_pure])
     (adversary n []) []

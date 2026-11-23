@@ -289,8 +289,7 @@ theorem mass_map_regularityBucket_le {n : ℕ} {Image : Type*}
   rw [hmap, div_le_div_iff₀ hS_pos (by positivity)]
   calc ((S.filter fun x => f x = y).card : ℝ) * (2 : ℝ) ^ n
       ≤ (2 * (2 : ℝ) ^ r.val) * ((n + 1 : ℝ) * S.card) :=
-        mul_le_mul (by exact_mod_cast hcard_le) (by exact_mod_cast hdense)
-          (by positivity) (by positivity)
+        by gcongr <;> assumption_mod_cast
     _ = 2 * (n + 1 : ℝ) * (2 : ℝ) ^ r.val * S.card := by ring
 
 /-- For any nonnegative function $G : \mathrm{BitString}\; n \to \mathbb{R}$, its expectation over

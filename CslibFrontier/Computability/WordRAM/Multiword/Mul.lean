@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Multiword.Workspace
+import CslibFrontier.Tactic.Fits
 import Mathlib.Data.Nat.Choose.Basic
 
 /-!
@@ -37,6 +38,9 @@ accumulator and shifted operand have the same length.
 
 ## Main results
 
+* `Cslib.WordRAM.Multiword.Schoolbook.registers_bounds`,
+  `Cslib.WordRAM.Multiword.Schoolbook.nodup_registers`: index bounds and duplicate-freedom for
+  contiguous digit-register slices.
 * `Cslib.WordRAM.Multiword.Schoolbook.exec_fixedProgram`: exact multiplication, bounded digits,
   preservation of operands and memory, and an exact width-independent instruction count.
 * `Cslib.WordRAM.Multiword.Schoolbook.exec_eighteen`: 18-digit operands, 36 result digits,
@@ -58,12 +62,6 @@ namespace Cslib.WordRAM.Multiword.Schoolbook
 open Workspace
 
 variable {r : ℕ}
-
-private theorem value_eq_of_frame {β : ℕ} {x y : Data (r + 4)}
-    {ds es : List (Fin (r + 4))}
-    (hf : Frame x y ds) (he : ∀ i ∈ es, i ∉ ds ∧ i ≠ total ∧ i ≠ carry) :
-    value β y es = value β x es :=
-  value_congr fun i hi => hf.2 i (he i hi).1 (he i hi).2.1 (he i hi).2.2
 
 /-- The in-place form of `LimbUpdate.program`: five ordinary instructions for one multiply-add,
 overwriting the destination digit after reading it. -/
@@ -91,10 +89,8 @@ private theorem exec_cell {w : ℕ} (x : Data (r + 4)) (a b d : Fin (r + 4))
       Frame x (cellResult x a b d) [d] := by
   obtain ⟨hdt, hdc, hdb, _⟩ := digit_ne hd
   have hs := limb_update_fits ha hb hx hc
-  have hp := hs.of_le (show x.regs a * x.regs b ≤
-      x.regs a * x.regs b + x.regs d + x.regs carry by omega)
-  have hpd := hs.of_le (show x.regs a * x.regs b + x.regs d ≤
-      x.regs a * x.regs b + x.regs d + x.regs carry by omega)
+  have hp : Fits w (x.regs a * x.regs b) := by fits
+  have hpd : Fits w (x.regs a * x.regs b + x.regs d) := by fits
   have hm := hs.of_le (Nat.mod_le
     (x.regs a * x.regs b + x.regs d + x.regs carry) (x.regs base))
   have hq := hs.of_le (Nat.div_le_self
@@ -168,52 +164,33 @@ private theorem exec_row {w : ℕ} (hw : 2 ≤ w) (I : Set (Fin (r + 4)))
     | cons d ds =>
       have hlen' : bs.length = ds.length := by simpa using hlen
       have hd0 := hds d (by simp)
+      have hds_d : ∀ i ∈ ds, IsDigit i := fun i hi => (hds i (by simp [hi])).1
+      have hdnot : d ∉ ds := (List.nodup_cons.mp hnd).1
       obtain ⟨he, hzd, hzc, hzeq, hzf⟩ :=
-        exec_cell x a b d hd0.1 hw hbase ha (hb b (by simp))
-          (hd d (by simp)) hc
+        exec_cell x a b d hd0.1 hw hbase ha (hb b (by simp)) (hd d (by simp)) hc
       let z := cellResult x a b d
       have hzI (i : Fin (r + 4)) (hi : i ∈ I) : z.regs i = x.regs i :=
-        hzf.2 i (by simp only [List.mem_singleton]; rintro rfl; exact hd0.2 hi)
-          (hI i hi).1 (hI i hi).2
-      have hzds (i : Fin (r + 4)) (hi : i ∈ ds) : z.regs i = x.regs i :=
-        hzf.2 i (by
-          simp only [List.mem_singleton]
-          rintro rfl
-          exact (List.nodup_cons.mp hnd).1 hi)
-          (digit_ne (hds i (by simp [hi])).1).1
-          (digit_ne (hds i (by simp [hi])).1).2.1
-      have hzb : z.regs base = radix w := by
-        rw [hzf.2 base (by simp [Ne.symm (digit_ne hd0.1).2.2.1])
-          (by simp [base, total]) (by simp [base, carry])]
-        exact hbase
+        hzf.2 i (fun hm => hd0.2 (List.mem_singleton.mp hm ▸ hi)) (hI i hi).1 (hI i hi).2
       obtain ⟨y, hey, hyd, hyc, hyeq, hyf⟩ := ih ds hlen'
         (fun i hi => hbs i (by simp [hi])) (fun i hi => hds i (by simp [hi]))
-        (List.nodup_cons.mp hnd).2 z hzb (by rw [hzI a haI]; exact ha)
-        (fun i hi => by rw [hzI i (hbs i (by simp [hi]))]; exact hb i (by simp [hi]))
-        (fun i hi => by rw [hzds i hi]; exact hd i (by simp [hi])) hzc
-      have hyd0 : y.regs d = z.regs d :=
-        hyf.2 d (List.nodup_cons.mp hnd).1 (digit_ne hd0.1).1 (digit_ne hd0.1).2.1
+        (List.nodup_cons.mp hnd).2 z ((hzf.base_regs (by simpa using hd0.1)).trans hbase)
+        (hzI a haI ▸ ha)
+        (fun i hi => hzI i (hbs i (by simp [hi])) ▸ hb i (by simp [hi]))
+        (hzf.bounded_of_digits hds_d (fun _ hi hm => hdnot (List.mem_singleton.mp hm ▸ hi))
+          fun i hi => hd i (by simp [hi])) hzc
+      obtain ⟨hyd0, hvalds, hyb, hyframe⟩ := hzf.cons_step hyf hd0.1 hds_d hdnot hzd hyd
       have hvalbs : value (radix w) z bs = value (radix w) x bs :=
-        value_eq_of_frame (es := bs) hzf (fun i hi =>
-          ⟨by
-            simp only [List.mem_singleton]
-            rintro rfl
-            exact hd0.2 (hbs i (by simp [hi])), hI i (hbs i (by simp [hi]))⟩)
-      have hvalds : value (radix w) z ds = value (radix w) x ds := value_congr hzds
-      refine ⟨y, ?_, ?_, hyc, ?_, ?_⟩
+        hzf.value_eq fun i hi =>
+          ⟨fun hm => hd0.2 (List.mem_singleton.mp hm ▸ hbs i (by simp [hi])),
+            hI i (hbs i (by simp [hi]))⟩
+      refine ⟨y, ?_, hyb, hyc, ?_, hyframe⟩
       · simpa only [row, List.length_cons, Nat.mul_add, Nat.mul_one,
           Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using he.seq hey
-      · intro i hi
-        rcases List.mem_cons.mp hi with rfl | hi
-        · rw [hyd0]; exact hzd
-        · exact hyd i hi
-      · simp only [value_cons, List.length_cons,
-          pow_succ] at ⊢
+      · simp only [value_cons, List.length_cons, pow_succ]
         rw [hyd0]
         rw [hzI a haI, hvalbs, hvalds] at hyeq
         change z.regs d + radix w * z.regs carry = _ at hzeq
         nlinarith [congrArg (radix w * ·) hyeq]
-      · exact frame_trans (frame_mono hzf (by simp)) (frame_mono hyf (by simp))
 
 /-- Unrolled schoolbook rows. `ds` is the current accumulator and `os` supplies one fresh
 high digit per remaining multiplicand digit. The multiplier gains a leading zero each row. -/
@@ -343,22 +320,16 @@ private theorem exec_rows {w : ℕ} (hw : 2 ≤ w) (I : Set (Fin (r + 4)))
           · exact (hds' j hj).2
           · obtain rfl := List.mem_singleton.mp hj
             exact hdd.2) hi
-      have huBase : u.regs base = radix w := by
-        rw [hfxu.2 base (by
-          simp only [List.mem_append, List.mem_singleton, not_or]
-          exact ⟨fun hm => (digit_ne (hds' base hm).1).2.2.1 rfl,
-            Ne.symm (digit_ne hdd.1).2.2.1⟩)
-          (by simp [base, total]) (by simp [base, carry])]
-        exact hbase
+      have huBase : u.regs base = radix w :=
+        (hfxu.base_regs fun j hj => by
+          rcases List.mem_append.mp hj with hj | hj
+          · exact (hds' j hj).1
+          · exact List.mem_singleton.mp hj ▸ hdd.1).trans hbase
+      have hdis_d : ∀ i ∈ ds, i ∉ [d] := fun _ hi hm => hdnot (List.mem_singleton.mp hm ▸ hi)
       have huDs : Bounded (radix w) u (ds ++ [d]) := by
         intro i hi
         rcases List.mem_append.mp hi with hids | hid
-        · rw [hfzu.2 i (by
-            simp only [List.mem_singleton]
-            rintro rfl
-            exact hdnot hids)
-            (digit_ne (hds' i hids).1).1 (digit_ne (hds' i hids).1).2.1]
-          exact hzd i hids
+        · exact (hfzu.bounded_of_digits (fun j hj => (hds' j hj).1) hdis_d hzd) i hids
         · obtain rfl := List.mem_singleton.mp hid
           simpa [u] using hzc
       have hnext : (ds ++ [d]) ++ os = ds ++ d :: os := by simp
@@ -378,22 +349,17 @@ private theorem exec_rows {w : ℕ} (hw : 2 ≤ w) (I : Set (Fin (r + 4)))
           · rw [huI i (hbs i hi)]; exact hb i hi) huDs
       have huValDs : value (radix w) u (ds ++ [d]) =
           value (radix w) x ds + x.regs a * value (radix w) x bs := by
-        have hvds := value_eq_of_frame (β := radix w) (es := ds) hfzu (fun i hi =>
-          ⟨by
-            simp only [List.mem_singleton]
-            rintro rfl
-            exact hdnot hi,
-            (digit_ne (hds' i hi).1).1, (digit_ne (hds' i hi).1).2.1⟩)
+        have hvds := hfzu.value_eq_of_digits (β := radix w) (fun i hi => (hds' i hi).1) hdis_d
         simp only [value, List.map_append, Nat.ofDigits_append, List.length_map,
-          List.map_singleton, Nat.ofDigits_singleton] at ⊢
+          List.map_singleton, Nat.ofDigits_singleton]
         change value (radix w) u ds + radix w ^ ds.length * u.regs d = _
         rw [hvds]
         have hud : u.regs d = z.regs carry := by simp [u]
         rw [hud, hzeq]
         have h₀ (i : Fin (r + 4)) (hi : i ≠ carry) : x₀.regs i = x.regs i := hx₀i i hi
         have hva := h₀ a (hI a (has a (by simp))).2
-        have hvb := value_eq_of_frame (β := radix w) (es := bs) hx₀ (fun i hi =>
-          ⟨fun hm => (hds' i hm).2 (hbs i hi), hI i (hbs i hi)⟩)
+        have hvb := hx₀.value_eq (β := radix w) fun i hi =>
+          ⟨fun hm => (hds' i hm).2 (hbs i hi), hI i (hbs i hi)⟩
         have hvd : value (radix w) x₀ ds = value (radix w) x ds :=
           value_congr fun i hi => h₀ i (digit_ne (hds' i hi).1).2.1
         rw [hva, hvb, hvd]
@@ -458,8 +424,7 @@ theorem exec_clear {w : ℕ} (ds : List (Fin (r + 4)))
         Nat.add_assoc] using hez.seq hey
     · intro i hi
       rcases List.mem_cons.mp hi with rfl | hi
-      · rw [hyf.2 i (List.nodup_cons.mp hnd).1 (digit_ne (hds i (by simp))).1
-          (digit_ne (hds i (by simp))).2.1]
+      · rw [hyf.digit_regs (hds i (by simp)) (List.nodup_cons.mp hnd).1]
         simp [z]
       · exact hy i hi
     · exact frame_trans (frame_set_mem x 0) (frame_mono hyf (by intro i hi; simp [hi]))
@@ -503,22 +468,15 @@ theorem exec {w : ℕ} (hw : 2 ≤ w) (as bs ds os : List (Fin (r + 4)))
     · exact (digit_ne (hout i hi)).2.2.2 hz
     · exact List.disjoint_left.mp hdis hi hin'
   let z := setupResult w x
-  obtain ⟨u, heu, hu, huf⟩ := exec_clear (w := w) ds
-    (fun i hi => hout i (by simp [hi])) (List.nodup_append.mp hnd).1 z
-  have huz (i : Fin (r + 4)) (hi : i ∉ ds) (ht : i ≠ total) (hc : i ≠ carry) :
-      u.regs i = z.regs i := huf.2 i hi ht hc
-  have hui (i : Fin (r + 4)) (hi : i ∈ as ++ bs) : u.regs i = x.regs i := by
-    rw [huz i (fun hm => List.disjoint_left.mp hdis (by simp [hm]) hi)
-      (digit_ne (hin i hi)).1 (digit_ne (hin i hi)).2.1]
-    exact setup_digit w x (hin i hi)
-  have hub : u.regs base = radix w := by
-    rw [huz base (fun hm => (digit_ne (hout base (by simp [hm]))).2.2.1 rfl)
-      (by simp [base, total]) (by simp [base, carry])]
-    simp [z, setupResult, base, zero]
-  have huzero : u.regs zero = 0 := by
-    rw [huz zero (fun hm => (digit_ne (hout zero (by simp [hm]))).2.2.2 rfl)
-      (by simp [zero, total]) (by simp [zero, carry])]
-    simp [z, setupResult]
+  have hds_digit : ∀ i ∈ ds, IsDigit i := fun i hi => hout i (by simp [hi])
+  obtain ⟨u, heu, hu, huf⟩ := exec_clear (w := w) ds hds_digit (List.nodup_append.mp hnd).1 z
+  have hui (i : Fin (r + 4)) (hi : i ∈ as ++ bs) : u.regs i = x.regs i :=
+    (huf.digit_regs (hin i hi) fun hm => List.disjoint_left.mp hdis (by simp [hm]) hi).trans
+      (setup_digit w x (hin i hi))
+  have hub : u.regs base = radix w :=
+    (huf.base_regs hds_digit).trans (by simp [z, setupResult, base, zero])
+  have huzero : u.regs zero = 0 :=
+    (huf.zero_regs hds_digit).trans (by simp [z, setupResult])
   obtain ⟨y, hey, hyb, hyval, hyf⟩ := exec_rows hw I hI (Or.inl rfl)
     as bs ds os hlen hos (fun i hi => Or.inr (by simp [hi]))
     (fun i hi => Or.inr (by simp [hi])) houtI hnd u hub huzero
@@ -543,14 +501,17 @@ theorem exec {w : ℕ} (hw : 2 ≤ w) (as bs ds os : List (Fin (r + 4)))
 def registers (start len : ℕ) (h : start + len ≤ r) : List (Fin (r + 4)) :=
   List.ofFn fun i : Fin len => ⟨4 + start + i.val, by omega⟩
 
-private theorem registers_bounds {start len : ℕ} {h : start + len ≤ r}
+/-- Every register in `registers start len h` has physical index in
+`[4 + start, 4 + start + len)`. -/
+theorem registers_bounds {start len : ℕ} {h : start + len ≤ r}
     {i : Fin (r + 4)} (hi : i ∈ registers start len h) :
     4 + start ≤ i.val ∧ i.val < 4 + start + len := by
   obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hi
   dsimp
   omega
 
-private theorem nodup_registers (start len : ℕ) (h : start + len ≤ r) :
+/-- The contiguous register slice `registers start len h` has no duplicate registers. -/
+theorem nodup_registers (start len : ℕ) (h : start + len ≤ r) :
     (registers start len h).Nodup := by
   apply List.nodup_ofFn_ofInjective
   intro i j hij
