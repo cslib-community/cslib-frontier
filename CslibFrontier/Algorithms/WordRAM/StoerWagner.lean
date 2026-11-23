@@ -147,73 +147,11 @@ theorem StoerWagnerInput.expectedOutput_spec (I : StoerWagnerInput) (hn : 2 ≤ 
 
 end
 
-/-! ### Local `Memory.Prog` simplification and loop-invariant combinators -/
+/-! ### Local `Memory.Prog` simplification -/
 
 -- Local `simp`-indexed forms matching `StateTransitionSpec.fst_snd_runClient_bind`.
 attribute [local client_simps] StateTransitionSpec.clientState
   runClient_read runClient_write runClient_allocDirty runClient_ite map_eq_pure_bind
-
-private theorem iterate_spec {δ σ : Type} (body : δ × σ → Memory.Prog σ)
-    (Safe : ℕ → δ × σ → Memory.State → Prop) (w : ℕ) (d : δ) (stepCost N : ℕ)
-    (Inv : ℕ → σ → Memory.State → Prop) (Mod : ℕ → Prop)
-    (hstep : ∀ k < N, ∀ a s, Inv k a s →
-      Safe w (d, a) s ∧
-        (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (body (d, a))) ∧
-        memoryCost (body (d, a)) s ≤ stepCost ∧
-        ((Memory.spec 0).clientState s (body (d, a))).frontier = s.frontier ∧
-        (∀ addr, ¬Mod addr →
-          ((Memory.spec 0).clientState s (body (d, a))).mem addr = s.mem addr) ∧
-        Inv (k + 1) ((Memory.spec 0).clientResult s (body (d, a)))
-          ((Memory.spec 0).clientState s (body (d, a))))
-    (a₀ : σ) (s₀ : Memory.State) (h0 : Inv 0 a₀ s₀) :
-    let res := (Memory.spec 0).clientResult s₀ (iterate body d N a₀)
-    let s' := (Memory.spec 0).clientState s₀ (iterate body d N a₀)
-    iterationSafe body Safe w d N a₀ s₀ ∧
-      (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (iterate body d N a₀)) ∧
-      memoryCost (iterate body d N a₀) s₀ ≤ stepCost * N ∧
-      s'.frontier = s₀.frontier ∧
-      (∀ addr, ¬Mod addr → s'.mem addr = s₀.mem addr) ∧
-      Inv N res s' := by
-  have hgen : ∀ rem k, k + rem = N → ∀ a s, Inv k a s →
-      iterationSafe body Safe w d rem a s ∧
-        (Memory.spec w).ValidHistory s
-          ((Memory.spec w).clientHistory s (iterate body d rem a)) ∧
-        memoryCost (iterate body d rem a) s ≤ stepCost * rem ∧
-        ((Memory.spec 0).clientState s (iterate body d rem a)).frontier = s.frontier ∧
-        (∀ addr, ¬Mod addr →
-          ((Memory.spec 0).clientState s (iterate body d rem a)).mem addr = s.mem addr) ∧
-        Inv N ((Memory.spec 0).clientResult s (iterate body d rem a))
-          ((Memory.spec 0).clientState s (iterate body d rem a)) := by
-    intro rem
-    induction rem with
-    | zero =>
-      intro k hk a s hinv
-      have hkN : k = N := by omega
-      subst hkN
-      exact ⟨trivial, validHistory_pure w s a, by simp [iterate], rfl, fun _ _ => rfl, hinv⟩
-    | succ rem ih =>
-      intro k hk a s hinv
-      obtain ⟨hsafe, hvh, hmc, hfr, hmod, hinv'⟩ := hstep k (by omega) a s hinv
-      let a1 := (Memory.spec 0).clientResult s (body (d, a))
-      let s1 := (Memory.spec 0).clientState s (body (d, a))
-      obtain ⟨hsafe2, hvh2, hmc2, hfr2, hmod2, hinv2⟩ := ih (k + 1) (by omega) a1 s1 hinv'
-      refine ⟨⟨hsafe, hsafe2⟩, validHistory_bind_step hvh hvh2, ?_, ?_, ?_, ?_⟩
-      · change memoryCost (body (d, a) >>= iterate body d rem) s ≤ stepCost * (rem + 1)
-        rw [memoryCost_bind', Nat.mul_succ]
-        dsimp only [s1, a1] at hmc2
-        omega
-      · change ((Memory.spec 0).clientState s (body (d, a) >>= iterate body d rem)).frontier = _
-        rw [StateTransitionSpec.clientState_bind]
-        exact hfr2.trans hfr
-      · intro addr haddr
-        change ((Memory.spec 0).clientState s (body (d, a) >>= iterate body d rem)).mem addr = _
-        rw [StateTransitionSpec.clientState_bind]
-        exact (hmod2 addr haddr).trans (hmod addr haddr)
-      · change Inv N ((Memory.spec 0).clientResult s (body (d, a) >>= iterate body d rem))
-          ((Memory.spec 0).clientState s (body (d, a) >>= iterate body d rem))
-        rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind]
-        exact hinv2
-  exact hgen N 0 (Nat.zero_add N) a₀ s₀ h0
 
 /-! ### Pure combinatorics and `maSearch` / `run` bridges -/
 
@@ -244,20 +182,13 @@ private theorem add_entry_le_totalDoubledWeight {m : ℕ} {W : Fin m → Fin m �
     omega
   omega
 
-private theorem attachWeight_eq_sum {m : ℕ} (W : Fin m → Fin m → ℕ) (A : Finset (Fin m))
-    (y : Fin m) :
-    attachWeight W A y = ∑ a ∈ A, W a y := by
-  induction A using Finset.induction_on with
-  | empty => simp [attachWeight_empty]
-  | insert a s ha ih => rw [attachWeight_insert W ha, Finset.sum_insert ha, ih]
-
 private theorem attachWeight_le_totalDoubledWeight {m : ℕ} {W : Fin m → Fin m → ℕ}
     (hW : IsMultigraph W) (A : Finset (Fin m)) (y : Fin m) :
     attachWeight W A y ≤ totalDoubledWeight W := by
   have h1 : attachWeight W A y ≤ attachWeight W Finset.univ y :=
     attachWeight_mono W (Finset.subset_univ A) y
   have h2 : attachWeight W Finset.univ y = rowDeg W y := by
-    rw [attachWeight_eq_sum]
+    rw [attachWeight_def]
     unfold rowDeg
     exact Finset.sum_congr rfl fun a _ => hW.1 a y
   exact (h1.trans (le_of_eq h2)).trans (rowDeg_le_totalDoubledWeight W y)
@@ -265,7 +196,7 @@ private theorem attachWeight_le_totalDoubledWeight {m : ℕ} {W : Fin m → Fin 
 private theorem attachWeight_erase_self {m : ℕ} {W : Fin m → Fin m → ℕ}
     (hW : IsMultigraph W) (t : Fin m) :
     attachWeight W (Finset.univ.erase t) t = rowDeg W t := by
-  rw [attachWeight_eq_sum]
+  rw [attachWeight_def]
   unfold rowDeg
   have hsplit := Finset.add_sum_erase (Finset.univ : Finset (Fin m)) (fun a => W a t)
     (Finset.mem_univ t)
