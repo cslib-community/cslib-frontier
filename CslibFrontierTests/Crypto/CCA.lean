@@ -5,7 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Crypto.Computational.CollisionResistant
-import CslibFrontier.Crypto.Computational.Encryption.CCA
+import CslibFrontier.Crypto.Computational.Encryption.CCA.Multi
 import CslibFrontierTests.Crypto.Encryption
 import Mathlib.Algebra.Field.ZMod
 
@@ -15,10 +15,10 @@ import Mathlib.Algebra.Field.ZMod
 Two-sided nonvacuity and regression tests for `CslibFrontier.Crypto.Computational.Encryption.CCA`
 and
 `CslibFrontier.Crypto.Computational.CollisionResistant`:
-1. **Satisfiable `INDCCA2` and `WordINDCCA2` instances**: a constant-ciphertext scheme satisfies
-   `INDCCA2`, and a length-only word scheme satisfies `WordINDCCA2` while violating unrestricted
-   `INDCCA2Of encBits` and `INDCCA2MultiOf encBits` (batch and interleaved multi-challenge lifts
-   are tested in `CslibFrontierTests.Crypto.CCAInterleaved`).
+1. **Satisfiable `INDCCA2`, `INDCCA2Multi`, `WordINDCCA2`, and `WordINDCCA2Multi` instances**: a
+   constant-ciphertext scheme satisfies `INDCCA2` and `INDCCA2Multi`, and a length-only word scheme
+   satisfies `WordINDCCA2` and `WordINDCCA2Multi` while violating unrestricted `INDCCA2Of encBits`
+   and `INDCCA2MultiOf encBits`.
 2. **Refutable `INDCCA2` and `INDCCA2Multi` instances**: the plaintext-leaking scheme from
    `CslibFrontierTests.Crypto.Encryption` violates both `INDCCA2` and `INDCCA2Multi`.
 3. **Concrete `cca2Phase2Oracle`, `cca2MultiPhase2Oracle`, `CCA2AdversaryOf.IsPPT`, and
@@ -55,6 +55,14 @@ are identical. -/
 theorem indcca2_const : INDCCA2 constKeyGen constEncrypt constDecrypt := by
   intro adversary _
   simpa only [cca2Game, cca2GameOn, constEncrypt, Game.advantage_self] using negligible_zero
+
+/-- By `INDCCA2.indcca2Multi` (the batch-challenge step toward Theorem 12.1),
+`constKeyGen`/`constEncrypt`/`constDecrypt` also satisfies batch-challenge `INDCCA2Multi`. -/
+theorem indcca2Multi_const : INDCCA2Multi constKeyGen constEncrypt constDecrypt :=
+  indcca2_const.indcca2Multi
+    ((ComputableInPolyTime.const ([], [])).isPPTOn)
+    ((ComputableInPolyTime.const []).isPPTOn)
+    (ComputableInPolyTime.const none)
 
 /-- Length-only word encryption (`ct = List.replicate msg.length false`). -/
 def lenEncrypt (_ : ℕ) (_ : List Bool) (msg : List Bool) : ProbComp (List Bool) :=
@@ -126,8 +134,19 @@ theorem not_indcca2Of_lenEncrypt {Out : Type} (encOut : Out ↪ List Bool)
     ¬ INDCCA2Of encBits encOut constKeyGen lenEncrypt decrypt :=
   fun hCCA => not_indcpaOf_lenEncrypt hCCA.indcpaOf
 
-/-- By `INDCCA2MultiOf.indcca2Of`, `lenEncrypt` also violates unrestricted
-`INDCCA2MultiOf encBits encOut`. -/
+/-- By `WordINDCCA2.wordINDCCA2Multi` (the batch-challenge step toward Theorem 12.1),
+`lenEncrypt` satisfies batch-challenge `WordINDCCA2Multi`, while by `INDCCA2MultiOf.indcca2Of` it
+violates unrestricted `INDCCA2MultiOf encBits encOut`. -/
+theorem wordINDCCA2Multi_lenEncrypt : WordINDCCA2Multi constKeyGen lenEncrypt lenDecrypt :=
+  wordINDCCA2_lenEncrypt.wordINDCCA2Multi
+    ((ComputableInPolyTime.const ([], [])).isPPTOn)
+    (by
+      have h : ComputableInPolyTime
+          (fun p : ℕ × List Bool × List Bool => List.replicate p.2.2.length false)
+          (encPair encUnary (encPair encBits encBits)) encBits := by polytime
+      exact h.isPPTOn)
+    (ComputableInPolyTime.const none)
+
 theorem not_indcca2MultiOf_lenEncrypt {Out : Type} (encOut : Out ↪ List Bool)
     (decrypt : ℕ → List Bool → List Bool → Option Out) :
     ¬ INDCCA2MultiOf encBits encOut constKeyGen lenEncrypt decrypt :=

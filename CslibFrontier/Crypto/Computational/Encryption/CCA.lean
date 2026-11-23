@@ -41,10 +41,11 @@ printed pp. 467–469][BonehShoup2023]), together with closed strict PPT experim
 admissibility restriction, the 1CCA → IND-CPA implication, and the Definition 12.2 embedding of
 single-challenge adversaries into batch multi-challenge adversaries.
 
-The fully adaptive interleaved-query multi-challenge CCA game of Attack Game 12.1, the Boneh–Shoup
-Theorem 12.1 hybrid reduction (`INDCCA2On.indcca2InterleavedOn`), the direct simulation of batch
-multi-challenge adversaries by interleaved ones (`INDCCA2InterleavedOn.indcca2MultiOn`), and the
-resulting 1CCA ↔ batch multi-challenge CCA equivalences (`indcca2MultiOn_iff_indcca2On`) live in
+The hybrid reduction from 1CCA to batch multi-challenge CCA (`INDCCA2On.indcca2MultiOn`,
+`indcca2MultiOn_iff_indcca2On`) lives in
+`CslibFrontier/Crypto/Computational/Encryption/CCA/Multi.lean`, and the fully adaptive
+interleaved-query multi-challenge CCA game of Attack Game 12.1 along with Boneh–Shoup Theorem 12.1
+(`INDCCA2On.indcca2InterleavedOn`, `indcca2InterleavedOn_iff_indcca2On`) lives in
 `CslibFrontier/Crypto/Computational/Encryption/CCA/Interleaved.lean`.
 
 ## Source Statements ([BonehShoup2023], Section 12.1, printed pp. 467–469)
@@ -130,8 +131,10 @@ And the two-phase decomposition of the 1CCA experiment (printed pp. 468–469):
   submitted in one block `challenges : List (Msg × Msg)` between Phase 1 and Phase 2 decryption
   queries (rather than adaptively interleaving individual encryption and decryption queries).
   Single-challenge 1CCA adversaries embed into 1-challenge batch adversaries via
-  `CCA2AdversaryOf.toMulti` ([BonehShoup2023], Definition 12.2, printed p. 468); the converse
-  implication and full adaptive equivalence with Attack Game 12.1 are proved in
+  `CCA2AdversaryOf.toMulti` ([BonehShoup2023], Definition 12.2, printed p. 468); the converse batch
+  hybrid reduction (`INDCCA2On.indcca2MultiOn`) is proved in
+  `CslibFrontier/Crypto/Computational/Encryption/CCA/Multi.lean`, and full adaptive equivalence with
+  Attack Game 12.1 is proved in
   `CslibFrontier/Crypto/Computational/Encryption/CCA/Interleaved.lean`.
 * **Phase 2 challenge-rejection convention**: in Phase 2, querying the challenge ciphertext
   (`request.2 == ct` in `cca2Phase2Oracle`, or `decide (request.2 ∈ cts)` in
