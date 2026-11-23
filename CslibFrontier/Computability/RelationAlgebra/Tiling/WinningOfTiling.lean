@@ -22,9 +22,9 @@ of `RA(τ)`.
 
 ## The strategy
 
-By `AtomFrame.HasWinningStrategy.of_forall_exists_comap_castSucc` it is enough that ∃ answers the
-moves of ∀ that have no witness yet, each by adding one node. On the edges from the new node that
-∀ leaves unlabelled she puts the atoms of the source, Section 6.1:
+By `AtomStructure.HasWinningStrategy.of_forall_exists_comap_castSucc` it is enough that ∃ answers
+the moves of ∀ that have no witness yet, each by adding one node. On the edges from the new node
+that ∀ leaves unlabelled she puts the atoms of the source, Section 6.1:
 
 * a white atom between two nodes of one kind;
 * a tile atom between a `1`-node and a `2`-node that some `0`-node sees along green edges, and

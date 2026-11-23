@@ -36,6 +36,9 @@ def AtomStructure.map (A : AtomStructure α) (e : α ≃ β) : AtomStructure β 
   conv b := e (A.conv (e.symm b))
   id := e.symm ⁻¹' A.id
   cycles := {(r, s, t) | (e.symm r, e.symm s, e.symm t) ∈ A.cycles}
+
+instance AtomStructure.instLawfulAtomStructureMap (A : AtomStructure α) [LawfulAtomStructure A]
+    (e : α ≃ β) : LawfulAtomStructure (A.map e) where
   assoc h₁ h₂ :=
     let ⟨q, hq₁, hq₂⟩ := A.assoc h₁ h₂
     ⟨e q, by simpa using hq₁, by simpa using hq₂⟩
@@ -48,12 +51,12 @@ def AtomStructure.map (A : AtomStructure α) (e : α ≃ β) : AtomStructure β 
 @[simp]
 theorem AtomStructure.map_map_symm (A : AtomStructure α) (e : α ≃ β) :
     (A.map e).map e.symm = A := by
-  obtain ⟨conv, id, cycles, _, _, _, _⟩ := A
+  obtain ⟨conv, id, cycles⟩ := A
   simp only [AtomStructure.map, AtomStructure.mk.injEq]
   exact ⟨funext fun a => by simp, Set.ext fun a => by simp, Set.ext fun a => by simp⟩
 
 /-- Renaming the atoms of an atom structure gives an isomorphic complex algebra. -/
-def ComplexAlgebra.mapEquiv (A : AtomStructure α) (e : α ≃ β) :
+def ComplexAlgebra.mapEquiv (A : AtomStructure α) [LawfulAtomStructure A] (e : α ≃ β) :
     RelationAlgebraEquiv (ComplexAlgebra A) (ComplexAlgebra (A.map e)) where
   toFun x := ⟨e.symm ⁻¹' x.carrier⟩
   invFun y := ⟨e ⁻¹' y.carrier⟩

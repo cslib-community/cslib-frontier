@@ -17,8 +17,8 @@ import Mathlib.Tactic.IntervalCases
 Hirsch and Hodkinson associate with a finite set `τ` of Wang tiles a finite algebra `RA(τ)` whose
 networks force the tile atoms to form tilings [HirschHodkinson2001], Section 4. It has `2k + 28`
 atoms for `k` tiles, and is given by a converse, three identity atoms and a list of inconsistent
-triangles. It need not be associative, so it is defined here as an `AtomFrame`, the data of an
-atom structure without its laws.
+triangles. It need not be associative, so it is defined here as an `AtomStructure`, which does not
+include the laws (`LawfulAtomStructure`).
 
 The tiles are given as a list `L`, and the tile atoms are indexed by the positions of `L`, so that
 a repeated tile contributes two atoms for each of its positions. The tile at position `0` plays
@@ -254,7 +254,7 @@ open Tiling
 `L`: its atoms, their converses, the three identity atoms and the consistent triangles. The tile
 at position `0` is the one exempted by rule 3. The algebra need not be associative, so this is a
 frame and not an atom structure. -/
-def tilingFrame (L : List WangTile) : AtomFrame (Atom (Fin L.length)) where
+def tilingFrame (L : List WangTile) : AtomStructure (Atom (Fin L.length)) where
   conv := Atom.conv
   id := {a | a.IsUnit}
   cycles := {(r, s, t) | Cycle L r s t}

@@ -19,9 +19,11 @@ import CslibFrontier.Computability.WangTile.Undecidable
 No algorithm decides whether a finite relation algebra is representable [HirschHodkinson2001],
 Theorem 8. The instances here are atom tables: every finite relation algebra is isomorphic to the
 complex algebra of an atom structure that some table presents
-(`Cslib.RelationAlgebra.AtomTable.exists_presents_equiv`), and isomorphic finite relation
-algebras are both representable or both not (`Cslib.RelationAlgebraEquiv.representable_iff`). A
-table that presents no atom structure is a no-instance. `Representable` is cslib's: an injective
+(`Cslib.RelationAlgebra.AtomTable.exists_presents_equiv`), and isomorphic relation algebras are
+both representable or both not (`Cslib.RelationAlgebraEquiv.representable_iff`; for finite ones in
+different universes, by `Cslib.RelationAlgebra.Representation.representable`). A table that
+presents no atom structure, or one violating the laws of an atom structure (so that its complex
+algebra is not a relation algebra), is a no-instance. `Representable` is cslib's: an injective
 homomorphism into a product of algebras of all relations on a set. Its relation to the source's
 representations, which have non-empty domains, is described in the module
 `CslibFrontier.Foundations.RelationAlgebra.Game`.
@@ -53,11 +55,12 @@ namespace Cslib.RelationAlgebra.AtomTable
 open WangTile
 
 /-- **Representability of finite relation algebras is undecidable** [HirschHodkinson2001],
-Theorem 8: no algorithm decides whether a table presents an atom structure whose complex algebra
-is representable. The predicate is `AtomTable.IsRepresentable`, written out. -/
+Theorem 8: no algorithm decides whether a table presents a lawful atom structure whose complex
+algebra is representable. The predicate is `AtomTable.IsRepresentable`, written out. -/
 theorem not_computablePred_representable_complexAlgebra :
     ¬ComputablePred fun t : AtomTable =>
-      ∃ A : AtomStructure (Fin t.size), t.Presents A ∧ Representable (ComplexAlgebra A) :=
+      ∃ A : AtomStructure (Fin t.size), t.Presents A ∧
+        ∃ _ : LawfulAtomStructure A, Representable (ComplexAlgebra A) :=
   fun hrep =>
     not_computablePred_tilesPlane <|
       computablePred_tilesPlane_of_computablePred_everyTileOccurs <|

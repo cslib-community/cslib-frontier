@@ -26,10 +26,10 @@ Theorem 1 of the source states that `A` is representable if and only if ∃ has 
 ## Formalization
 
 * The rules mention only the converse, the identity atoms and the cycles, so the game is defined
-  for an `AtomFrame`. For the frame of an `AtomStructure A` it is the game of the complex algebra
-  of `A`, and every finite relation algebra is the complex algebra of its atom structure. No law
-  of an atom structure is assumed: they all hold on a frame on which ∃ has a winning strategy
-  (`AtomStructure.ofHasWinningStrategy`).
+  for every `AtomStructure`. For a lawful one it is the game of its complex algebra, and every
+  finite relation algebra is the complex algebra of its atom structure. No law of an atom
+  structure is assumed: they all hold on one on which ∃ has a winning strategy
+  (`AtomStructure.HasWinningStrategy.lawful`).
 * A `Position` is a network on `Fin n`, and `P ≤ Q` means that `P` is the restriction of `Q` to
   its first `P.size` nodes. A chain `N₀ ⊆ N₁ ⊆ ⋯` of finite networks as in the source becomes a
   chain of positions when its nodes are numbered in the order in which they appear, and the rules
@@ -52,18 +52,18 @@ Theorem 1 of the source states that `A` is representable if and only if ∃ has 
 
 ## Main definitions
 
-* `Cslib.RelationAlgebra.AtomFrame.Position`, `Position.Move`, `Position.Answers`: the finite
+* `Cslib.RelationAlgebra.AtomStructure.Position`, `Position.Move`, `Position.Answers`: the finite
   networks, the moves of ∀ and the legal answers of ∃.
-* `Cslib.RelationAlgebra.AtomFrame.Strategy`, `Strategy.IsWinning`, `HasWinningStrategy`: the
+* `Cslib.RelationAlgebra.AtomStructure.Strategy`, `Strategy.IsWinning`, `HasWinningStrategy`: the
   strategies of ∃.
-* `Cslib.RelationAlgebra.AtomStructure.ofHasWinningStrategy`: the atom structure on a frame on
-  which ∃ has a winning strategy; its associativity is [HirschHodkinson2001], Lemma 7.
 
 ## Main results
 
-* `Cslib.RelationAlgebra.AtomFrame.hasWinningStrategy_iff`: ∃ has a winning strategy if and only
+* `Cslib.RelationAlgebra.AtomStructure.HasWinningStrategy.lawful`: an atom structure on which ∃
+  has a winning strategy satisfies the laws; its associativity is [HirschHodkinson2001], Lemma 7.
+* `Cslib.RelationAlgebra.AtomStructure.hasWinningStrategy_iff`: ∃ has a winning strategy if and only
   if some set of networks realizes every atom and is closed under answering the moves of ∀.
-* `Cslib.RelationAlgebra.AtomFrame.HasWinningStrategy.exists_saturated`, `.of_saturated`: over
+* `Cslib.RelationAlgebra.AtomStructure.HasWinningStrategy.exists_saturated`, `.of_saturated`: over
   countably many atoms, ∃ has a winning strategy if and only if every atom labels an edge of a
   saturated network.
 * `Cslib.RelationAlgebra.representable_complexAlgebra_iff`,
@@ -71,7 +71,7 @@ Theorem 1 of the source states that `A` is representable if and only if ∃ has 
   [HirschHodkinson2001], for the complex algebra of a finite atom structure and for a finite
   relation algebra. The two directions are
   `Cslib.RelationAlgebra.Representation.hasWinningStrategy`, for representations in any universes,
-  and `Cslib.RelationAlgebra.AtomFrame.HasWinningStrategy.representable`, which needs only
+  and `Cslib.RelationAlgebra.AtomStructure.HasWinningStrategy.representable`, which needs only
   countably many atoms. The proof is that of [HirschHodkinson1997], Lemma 6.
 
 ## References
@@ -90,9 +90,9 @@ namespace Cslib.RelationAlgebra
 
 variable {α : Type u}
 
-namespace AtomFrame
+namespace AtomStructure
 
-variable (F : AtomFrame α)
+variable (F : AtomStructure α)
 
 /-- A position of the game `G(F)`: a finite atomic network, with its nodes numbered
 `0, …, size - 1`. -/
@@ -250,11 +250,11 @@ theorem HasWinningStrategy.exists_saturated [Countable α] (h : F.HasWinningStra
   have : Nonempty α := ⟨a⟩
   obtain ⟨e, he⟩ := exists_surjective_nat (ℕ × ℕ × α × α)
   -- a round in which ∀ makes the move coded by `d`, if `d` codes a move
-  have step (P : W) (d : ℕ × ℕ × α × α) : ∃ Q : W, P.1 ≤ Q.1 ∧
-      ∀ v : P.1.Move, (v.m.1, v.n.1, v.a, v.b) = d → Q.1.Answers v := by
-    by_cases hd : ∃ v : P.1.Move, (v.m.1, v.n.1, v.a, v.b) = d
+  have step (P : W) (d : ℕ × ℕ × α × α) : ∃ Q : W, P.val ≤ Q.val ∧
+      ∀ v : P.val.Move, (v.m.val, v.n.val, v.a, v.b) = d → Q.val.Answers v := by
+    by_cases hd : ∃ v : P.val.Move, (v.m.val, v.n.val, v.a, v.b) = d
     · obtain ⟨v, rfl⟩ := hd
-      obtain ⟨Q, hQ, hQv⟩ := hW P.1 P.2 v
+      obtain ⟨Q, hQ, hQv⟩ := hW P.val P.property v
       refine ⟨⟨Q, hQ⟩, hQv.1, ?_⟩
       rintro ⟨m, n, a, b, _⟩ hv
       obtain ⟨m', n', a', b', _⟩ := v
@@ -265,19 +265,20 @@ theorem HasWinningStrategy.exists_saturated [Countable α] (h : F.HasWinningStra
   choose next hle hnext using step
   -- the play in which the moves of ∀ follow `e`, each code recurring infinitely often
   let play : ℕ → W := fun k => k.rec ⟨P₀, hP₀⟩ fun k P => next P (e k.unpair.1)
-  have hplay : Monotone fun k => (play k).1 := monotone_nat_of_le_succ fun k => hle _ _
-  have lt_size {i k l : ℕ} (hkl : k ≤ l) (hi : i < (play k).1.size) : i < (play l).1.size :=
+  have hplay : Monotone fun k => (play k).val := monotone_nat_of_le_succ fun k => hle _ _
+  have lt_size {i k l : ℕ} (hkl : k ≤ l) (hi : i < (play k).val.size) : i < (play l).val.size :=
     hi.trans_le (Position.size_mono (hplay hkl))
   -- its limit
-  let D : Type := {i : ℕ // ∃ k, i < (play k).1.size}
-  have common (d e : D) : ∃ k, d.1 < (play k).1.size ∧ e.1 < (play k).1.size :=
-    let ⟨k, hk⟩ := d.2
-    let ⟨l, hl⟩ := e.2
+  let D : Type := {i : ℕ // ∃ k, i < (play k).val.size}
+  have common (d e : D) : ∃ k, d.val < (play k).val.size ∧ e.val < (play k).val.size :=
+    let ⟨k, hk⟩ := d.property
+    let ⟨l, hl⟩ := e.property
     ⟨max k l, lt_size (le_max_left k l) hk, lt_size (le_max_right k l) hl⟩
   choose lvl hlvl using common
-  let label (d e : D) : α := (play (lvl d e)).1.network ⟨d, (hlvl d e).1⟩ ⟨e, (hlvl d e).2⟩
-  have label_eq (d e : D) (k : ℕ) (hd : d.1 < (play k).1.size) (he : e.1 < (play k).1.size) :
-      label d e = (play k).1.network ⟨d, hd⟩ ⟨e, he⟩ := by
+  let label (d e : D) : α := (play (lvl d e)).val.network ⟨d, (hlvl d e).1⟩ ⟨e, (hlvl d e).2⟩
+  have label_eq (d e : D) (k : ℕ) (hd : d.val < (play k).val.size)
+      (he : e.val < (play k).val.size) :
+      label d e = (play k).val.network ⟨d, hd⟩ ⟨e, he⟩ := by
     obtain hk | hk := le_total k (lvl d e)
     · exact Position.network_castLE (hplay hk) ⟨d, hd⟩ ⟨e, he⟩
     · exact (Position.network_castLE (hplay hk) ⟨d, (hlvl d e).1⟩ ⟨e, (hlvl d e).2⟩).symm
@@ -288,13 +289,13 @@ theorem HasWinningStrategy.exists_saturated [Countable α] (h : F.HasWinningStra
         rw [label_eq e d _ (hlvl d e).2 (hlvl d e).1]
         exact AtomicNetwork.conv_label _ _ _
       label_mem_cycles := fun d e f => by
-        obtain ⟨l, hf⟩ := f.2
+        obtain ⟨l, hf⟩ := f.property
         have hd := lt_size (le_max_left (lvl d e) l) (hlvl d e).1
         have he := lt_size (le_max_left (lvl d e) l) (hlvl d e).2
         have hf := lt_size (le_max_right (lvl d e) l) hf
         rw [label_eq d e _ hd he, label_eq e f _ he hf, label_eq d f _ hd hf]
         exact AtomicNetwork.label_mem_cycles _ _ _ _ }
-  refine ⟨D, N, fun m n a b hab => ?_, ⟨m₀, 0, m₀.2⟩, ⟨n₀, 0, n₀.2⟩, ?_⟩
+  refine ⟨D, N, fun m n a b hab => ?_, ⟨m₀, 0, m₀.isLt⟩, ⟨n₀, 0, n₀.isLt⟩, ?_⟩
   · obtain ⟨j, hj⟩ := he (m, n, a, b)
     obtain ⟨k, hk, hle⟩ : ∃ k, k.unpair.1 = j ∧ lvl m n ≤ k :=
       ⟨Nat.pair j (lvl m n), by rw [Nat.unpair_pair], Nat.right_le_pair _ _⟩
@@ -302,35 +303,32 @@ theorem HasWinningStrategy.exists_saturated [Countable α] (h : F.HasWinningStra
     have hn := lt_size hle (hlvl m n).2
     obtain ⟨hPQ, p, hpa, hpb⟩ := hnext (play k) (e k.unpair.1)
       ⟨⟨m, hm⟩, ⟨n, hn⟩, a, b, label_eq m n k hm hn ▸ hab⟩ (by rw [hk, hj])
-    have hp : p.1 < (play (k + 1)).1.size := p.2
+    have hp : p.val < (play (k + 1)).val.size := p.isLt
     exact ⟨⟨p, k + 1, hp⟩, (label_eq _ _ (k + 1) (lt_size k.le_succ hm) hp).trans hpa,
       (label_eq _ _ (k + 1) hp (lt_size k.le_succ hn)).trans hpb⟩
-  · exact (label_eq _ _ 0 m₀.2 n₀.2).trans ha
+  · exact (label_eq _ _ 0 m₀.isLt n₀.isLt).trans ha
 
-end AtomFrame
+end AtomStructure
 
 /-- In a set of networks closed under ∃'s responses, a move at a member is answered by a member
 containing a copy of it and a witness. -/
-private theorem exists_answer {F : AtomFrame α} {W : Set F.Position}
+private theorem exists_answer {F : AtomStructure α} {W : Set F.Position}
     (hW : ∀ P ∈ W, ∀ v : P.Move, ∃ Q ∈ W, Q.Answers v) {P : F.Position} (hP : P ∈ W)
     (m n : Fin P.size) {a b : α} (hab : (a, b, P.network m n) ∈ F.cycles) :
     ∃ Q ∈ W, ∃ f : Fin P.size → Fin Q.size, (∀ i j, Q.network (f i) (f j) = P.network i j) ∧
       ∃ p, Q.network (f m) p = a ∧ Q.network p (f n) = b :=
   let ⟨Q, hQ, hPQ, hp⟩ := hW P hP ⟨m, n, a, b, hab⟩
-  ⟨Q, hQ, Fin.castLE (AtomFrame.Position.size_mono hPQ), AtomFrame.Position.network_castLE hPQ, hp⟩
+  ⟨Q, hQ, Fin.castLE (AtomStructure.Position.size_mono hPQ),
+    AtomStructure.Position.network_castLE hPQ, hp⟩
 
-/-- A frame on which ∃ has a winning strategy is an atom structure. Associativity is
+/-- An atom structure on which ∃ has a winning strategy satisfies the laws. Associativity is
 [HirschHodkinson2001], Lemma 7: ∀ opens with `p ≤ r;q`, then demands `r`, `q` on that edge and
 `s`, `t` on the new edge labelled `q`, and the remaining edge of the resulting network is the atom
 required. The source assumes the other laws; they follow in the same way from at most one move. -/
-@[expose, simps]
-def AtomStructure.ofHasWinningStrategy (F : AtomFrame α) (h : F.HasWinningStrategy) :
-    AtomStructure α where
-  conv := F.conv
-  id := F.id
-  cycles := F.cycles
+theorem AtomStructure.HasWinningStrategy.lawful {F : AtomStructure α}
+    (h : F.HasWinningStrategy) : LawfulAtomStructure F where
   assoc {r q p s t} h₁ h₂ := by
-    obtain ⟨W, hopen, hW⟩ := AtomFrame.hasWinningStrategy_iff.mp h
+    obtain ⟨W, hopen, hW⟩ := AtomStructure.hasWinningStrategy_iff.mp h
     obtain ⟨P, hP, m, n, rfl⟩ := hopen p
     obtain ⟨Q, hQ, f, hf, x, rfl, rfl⟩ := exists_answer hW hP m n h₁
     obtain ⟨R, hR, g, hg, y, rfl, rfl⟩ := exists_answer hW hQ x (f n) h₂
@@ -340,31 +338,27 @@ def AtomStructure.ofHasWinningStrategy (F : AtomFrame α) (h : F.HasWinningStrat
     · rw [← hg (f m) x]
       exact R.network.label_mem_cycles _ _ _
   id_cycle_right {s r p} hs hc := by
-    obtain ⟨W, hopen, hW⟩ := AtomFrame.hasWinningStrategy_iff.mp h
+    obtain ⟨W, hopen, hW⟩ := AtomStructure.hasWinningStrategy_iff.mp h
     obtain ⟨P, hP, m, n, rfl⟩ := hopen p
     obtain ⟨Q, hQ, f, hf, x, rfl, rfl⟩ := exists_answer hW hP m n hc
     rw [← hf m n, Q.network.label_mem_id.mp hs]
   exists_id_cycle_right r := by
-    obtain ⟨W, hopen, -⟩ := AtomFrame.hasWinningStrategy_iff.mp h
+    obtain ⟨W, hopen, -⟩ := AtomStructure.hasWinningStrategy_iff.mp h
     obtain ⟨P, hP, m, n, rfl⟩ := hopen r
     exact ⟨P.network n n, P.network.label_mem_id.mpr rfl, P.network.label_mem_cycles m n n⟩
   cycle_left {r s t} hc := by
-    obtain ⟨W, hopen, hW⟩ := AtomFrame.hasWinningStrategy_iff.mp h
+    obtain ⟨W, hopen, hW⟩ := AtomStructure.hasWinningStrategy_iff.mp h
     obtain ⟨P, hP, m, n, rfl⟩ := hopen t
     obtain ⟨Q, hQ, f, hf, x, rfl, rfl⟩ := exists_answer hW hP m n hc
     rw [← hf m n, Q.network.conv_label]
     exact Q.network.label_mem_cycles _ _ _
 
-@[simp]
-theorem AtomStructure.frame_ofHasWinningStrategy (F : AtomFrame α) (h : F.HasWinningStrategy) :
-    (AtomStructure.ofHasWinningStrategy F h).frame = F := rfl
-
-variable {A : AtomStructure α}
+variable {A : AtomStructure α} [LawfulAtomStructure A]
 
 /-- If ∃ has a winning strategy in the game of an atom structure with countably many atoms, then
 its complex algebra is representable. -/
-theorem AtomFrame.HasWinningStrategy.representable [Countable α]
-    (h : A.frame.HasWinningStrategy) : Representable (ComplexAlgebra A) := by
+theorem AtomStructure.HasWinningStrategy.representable [Countable α]
+    (h : A.HasWinningStrategy) : Representable (ComplexAlgebra A) := by
   choose D N hN m n hmn using h.exists_saturated
   refine ⟨α, fun a => ULift.{u} (D a),
     ⟨.pi fun a => ((hN a).comap Equiv.ulift).hom, fun x y hxy => ?_⟩⟩
@@ -374,25 +368,26 @@ theorem AtomFrame.HasWinningStrategy.representable [Countable α]
 /-- If the complex algebra of a finite atom structure has a representation, with index and base
 types in any universes, then ∃ has a winning strategy in its game. -/
 theorem Representation.hasWinningStrategy [Finite α] {ι : Type v} {β : ι → Type w}
-    (r : Representation (ComplexAlgebra A) ι β) : A.frame.HasWinningStrategy := by
+    (r : Representation (ComplexAlgebra A) ι β) : A.HasWinningStrategy := by
   refine .of_saturated fun a => ?_
   have hne : r.hom ⟨{a}⟩ ≠ ⊥ := fun h =>
     (congr(a ∈ $(r.injective (h.trans (map_bot r.hom).symm)))).mp rfl
   obtain ⟨i, hi⟩ := Function.ne_iff.mp hne
-  obtain ⟨⟨x, y⟩, hxy⟩ := Set.nonempty_iff_ne_empty.mpr hi
+  obtain ⟨⟨x, y⟩, hxy⟩ := Set.ne_empty_iff_nonempty.mp hi
   obtain ⟨N, hN, hmem⟩ := ((RelationAlgebraHom.eval _ i).comp r.hom).exists_saturated
   exact ⟨β i, N, hN, x, y, (hmem _ x y).mp hxy⟩
 
 /-- **Theorem 1 of [HirschHodkinson2001]**: the complex algebra of a finite atom structure is
 representable if and only if ∃ has a winning strategy in its game. -/
-theorem representable_complexAlgebra_iff [Finite α] (A : AtomStructure α) :
-    Representable (ComplexAlgebra A) ↔ A.frame.HasWinningStrategy :=
+theorem representable_complexAlgebra_iff [Finite α] (A : AtomStructure α)
+    [LawfulAtomStructure A] :
+    Representable (ComplexAlgebra A) ↔ A.HasWinningStrategy :=
   ⟨fun ⟨_, _, ⟨r⟩⟩ => r.hasWinningStrategy, fun h => h.representable⟩
 
 /-- **Theorem 1 of [HirschHodkinson2001]**, as stated there: a finite relation algebra is
 representable if and only if ∃ has a winning strategy in the game on its atoms. -/
 theorem representable_iff_hasWinningStrategy (α : Type u) [RelationAlgebra α] [Finite α] :
-    Representable α ↔ (atomStructure α).frame.HasWinningStrategy := by
+    Representable α ↔ (atomStructure α).HasWinningStrategy := by
   cases nonempty_fintype α
   let : CompleteAtomicRelationAlgebra α :=
     { ‹RelationAlgebra α›, Fintype.toCompleteAtomicBooleanAlgebra α with }

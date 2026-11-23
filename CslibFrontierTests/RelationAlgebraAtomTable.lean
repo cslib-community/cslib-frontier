@@ -35,6 +35,9 @@ def cyclicTwo : AtomTable := ⟨2, [0, 1], [0], [(0, 0, 0), (0, 1, 1), (1, 0, 1)
 def cyclicTwoStructure : AtomStructure (Fin 2) :=
   (AtomStructure.ofGroup (Multiplicative (ZMod 2))).map Multiplicative.toAdd
 
+instance : LawfulAtomStructure cyclicTwoStructure :=
+  AtomStructure.instLawfulAtomStructureMap _ _
+
 theorem presents_cyclicTwo : cyclicTwo.Presents cyclicTwoStructure where
   conv := by decide
   id := by
@@ -47,9 +50,13 @@ theorem presents_cyclicTwo : cyclicTwo.Presents cyclicTwoStructure where
 
 /-- The table of the group of order two satisfies the predicate of the representation problem, by
 the Cayley representation. -/
-theorem isRepresentable_cyclicTwo : cyclicTwo.IsRepresentable :=
-  ⟨cyclicTwoStructure, presents_cyclicTwo, (ComplexAlgebra.mapEquiv _ _).representable_iff.mp
-    (ComplexAlgebra.representable_ofGroup _)⟩
+theorem isRepresentable_cyclicTwo : cyclicTwo.IsRepresentable := by
+  change ∃ A : AtomStructure (Fin 2), cyclicTwo.Presents A ∧
+    ∃ _ : LawfulAtomStructure A, Representable (ComplexAlgebra A)
+  have h : Representable (ComplexAlgebra
+      ((AtomStructure.ofGroup (Multiplicative (ZMod 2))).map Multiplicative.toAdd)) :=
+    (ComplexAlgebra.mapEquiv _ _).representable_iff.mp (ComplexAlgebra.representable_ofGroup _)
+  exact ⟨cyclicTwoStructure, presents_cyclicTwo, inferInstance, h⟩
 
 /-! ### A no-instance that presents a relation algebra
 
@@ -70,13 +77,16 @@ def fourAtoms : AtomTable := ⟨4, [0, 2, 1, 3], [0],
     (2, 1, 3), (2, 2, 2), (2, 3, 2), (2, 3, 3), (3, 0, 3), (3, 1, 1), (3, 1, 3), (3, 2, 2),
     (3, 2, 3), (3, 3, 0), (3, 3, 1), (3, 3, 2)]⟩
 
--- The instances deciding the laws nest five bounded quantifiers.
-set_option synthInstance.maxSize 1024 in
-/-- The atom structure of `14₃₇`: its table satisfies the laws, associativity among them. -/
+/-- The atom structure of `14₃₇`. -/
 def fourAtomsStructure : AtomStructure (Fin 4) where
   conv := ![0, 2, 1, 3]
   id := {a | a.val ∈ fourAtoms.id}
   cycles := {(a, b, c) | (a.val, b.val, c.val) ∈ fourAtoms.cycles}
+
+-- The instances deciding the laws nest five bounded quantifiers.
+set_option synthInstance.maxSize 1024 in
+/-- The table of `14₃₇` satisfies the laws, associativity among them. -/
+instance : LawfulAtomStructure fourAtomsStructure where
   assoc {r q p s t} :=
     (by decide : ∀ r q p s t : Fin 4, (r.val, q.val, p.val) ∈ fourAtoms.cycles →
       (s.val, t.val, q.val) ∈ fourAtoms.cycles → ∃ q' : Fin 4,
@@ -103,12 +113,14 @@ problem. In a saturated network with an edge `m → n` labelled `r`, take `p₂`
 `m → p₄ → p₂` labelled `a`, `a`. No labels of the edges `p₂ p₃`, `n p₄`, `p₃ p₄` make all the
 triangles on these five nodes cycles. -/
 theorem not_isRepresentable_fourAtoms : ¬fourAtoms.IsRepresentable := by
-  rintro ⟨A, hA, hrep⟩
+  change ¬∃ A : AtomStructure (Fin 4), fourAtoms.Presents A ∧
+    ∃ _ : LawfulAtomStructure A, Representable (ComplexAlgebra A)
+  rintro ⟨A, hA, _, hrep⟩
   obtain rfl := hA.unique presents_fourAtoms
   obtain ⟨D, N, hN, m, n, hmn⟩ :=
     ((representable_complexAlgebra_iff _).mp hrep).exists_saturated (1 : Fin 4)
   have mem (x y z : Fin 4) (h : (x.val, y.val, z.val) ∈ fourAtoms.cycles) :
-      (x, y, z) ∈ fourAtomsStructure.frame.cycles := h
+      (x, y, z) ∈ fourAtomsStructure.cycles := h
   obtain ⟨p₂, h₁, h₂⟩ := hN (m := m) (n := n) (by rw [hmn]; exact mem 1 3 1 (by decide))
   obtain ⟨p₃, h₃, h₄⟩ := hN (m := m) (n := n) (by rw [hmn]; exact mem 3 3 1 (by decide))
   obtain ⟨p₄, h₅, h₆⟩ := hN (m := m) (n := p₂) (by rw [h₁]; exact mem 3 3 1 (by decide))

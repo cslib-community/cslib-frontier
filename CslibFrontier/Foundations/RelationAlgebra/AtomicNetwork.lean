@@ -19,7 +19,8 @@ An atomic network labels every ordered pair of nodes with an atom so that the la
 the atoms holding between the points of a representation: identity atoms label exactly the loops,
 reversing an edge takes the converse, and every triangle is a cycle
 [HirschHodkinson2001], Section 2.1. Networks need only the converse, the identity atoms and the
-cycles, so they are defined over an `AtomFrame`, the data of an `AtomStructure` without its laws.
+cycles, so they are defined over any `AtomStructure`, without assuming its laws
+(`LawfulAtomStructure`).
 
 A network is *saturated* when every way of placing an edge label below a product of two atoms is
 witnessed by a third node. A saturated network over an atom structure defines a homomorphism from
@@ -31,8 +32,8 @@ way, because every pair of points then lies in the image of exactly one atom, as
 
 ## Main definitions
 
-* `Cslib.RelationAlgebra.AtomFrame`: a converse, a set of identity atoms and a set of cycles.
-* `Cslib.RelationAlgebra.AtomicNetwork`: the atomic networks over a frame on a type of nodes.
+* `Cslib.RelationAlgebra.AtomicNetwork`: the atomic networks over an atom structure on a type of
+  nodes.
 * `Cslib.RelationAlgebra.AtomicNetwork.comap`: the subnetwork induced along an embedding.
 * `Cslib.RelationAlgebra.AtomicNetwork.Saturated`: every consistent triangle on an edge is
   witnessed.
@@ -57,30 +58,12 @@ namespace Cslib.RelationAlgebra
 
 variable {α D D' : Type*}
 
-/-- The data of an atom structure without its laws: a converse, the identity atoms and the cycles.
-
-Atomic networks and the game played with them are defined over a frame, because the laws of an
-`AtomStructure`, associativity among them, follow when ∃ has a winning strategy. -/
-structure AtomFrame (α : Type*) where
-  /-- The converse of an atom. -/
-  conv : α → α
-  /-- The set of identity atoms. -/
-  id : Set α
-  /-- The set of atom cycles, where `(r, s, t)` represents `t ≤ r * s`. -/
-  cycles : Set (α × α × α)
-
-/-- The frame underlying an atom structure. -/
-@[expose, simps]
-def AtomStructure.frame (A : AtomStructure α) : AtomFrame α where
-  conv := A.conv
-  id := A.id
-  cycles := A.cycles
-
-/-- An atomic network over the frame `F` with nodes `D`: a labelling of the ordered pairs of nodes
-by atoms in which the identity atoms label exactly the loops, the reverse of an edge carries the
-converse atom, and every triangle is a cycle [HirschHodkinson2001], Section 2.1. The source's
-networks are these with `D` finite; they are *strict*, in that only loops have identity labels. -/
-structure AtomicNetwork (F : AtomFrame α) (D : Type*) where
+/-- An atomic network over the atom structure `F` with nodes `D`: a labelling of the ordered pairs
+of nodes by atoms in which the identity atoms label exactly the loops, the reverse of an edge
+carries the converse atom, and every triangle is a cycle [HirschHodkinson2001], Section 2.1. The
+source's networks are these with `D` finite; they are *strict*, in that only loops have identity
+labels. -/
+structure AtomicNetwork (F : AtomStructure α) (D : Type*) where
   /-- The atom labelling the edge from the first node to the second. -/
   label : D → D → α
   /-- The source's `h(d, e) ≤ 1' ↔ d = e`. -/
@@ -92,7 +75,7 @@ structure AtomicNetwork (F : AtomFrame α) (D : Type*) where
 
 namespace AtomicNetwork
 
-variable {F : AtomFrame α}
+variable {F : AtomStructure α}
 
 instance : CoeFun (AtomicNetwork F D) fun _ => D → D → α := ⟨label⟩
 
@@ -126,7 +109,7 @@ theorem Saturated.comap {N : AtomicNetwork F D} (h : N.Saturated) (e : D' ≃ D)
   let ⟨p, hp⟩ := h (m := e m) (n := e n) hab
   ⟨e.symm p, by simpa using hp⟩
 
-variable {A : AtomStructure α} {N : AtomicNetwork A.frame D}
+variable {A : AtomStructure α} [LawfulAtomStructure A] {N : AtomicNetwork A D}
 
 /-- The homomorphism from a complex algebra to the relations on the nodes of a saturated network:
 an element is sent to the set of edges whose labels belong to it. -/
@@ -149,7 +132,7 @@ def Saturated.hom (h : N.Saturated) : RelationAlgebraHom (ComplexAlgebra A) (Set
       exact ⟨_, hp, _, hq, N.label_mem_cycles m p n⟩
   map_star' x := by
     ext ⟨m, n⟩
-    exact (ComplexAlgebra.mem_star.trans (by rw [← N.conv_label m n]; rfl) :
+    exact (ComplexAlgebra.mem_star.trans (by rw [← N.conv_label m n]) :
       N m n ∈ star x ↔ N n m ∈ x)
 
 @[simp]
@@ -164,13 +147,13 @@ namespace Cslib.RelationAlgebraHom
 
 open RelationAlgebra
 
-variable {α X : Type*} {A : AtomStructure α}
+variable {α X : Type*} {A : AtomStructure α} [LawfulAtomStructure A]
 
 /-- Over finitely many atoms, every homomorphism from a complex algebra to the algebra of all
 relations on a type is the homomorphism of a saturated network on that type: each pair of points
 lies in the image of exactly one atom, which labels it. -/
 theorem exists_saturated [Finite α] (f : RelationAlgebraHom (ComplexAlgebra A) (SetRel X X)) :
-    ∃ N : AtomicNetwork A.frame X, N.Saturated ∧ ∀ x m n, (m, n) ∈ f x ↔ N m n ∈ x := by
+    ∃ N : AtomicNetwork A X, N.Saturated ∧ ∀ x m n, (m, n) ∈ f x ↔ N m n ∈ x := by
   have atom (m n : X) : ∃ a, (m, n) ∈ f ⟨{a}⟩ := by
     have key (s : Set α) : (m, n) ∈ f ⟨s⟩ → ∃ a, (m, n) ∈ f ⟨{a}⟩ := by
       induction s, s.toFinite using Set.Finite.induction_on with

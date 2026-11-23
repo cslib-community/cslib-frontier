@@ -23,16 +23,16 @@ the triples `(a, b, c)` with `c ≤ a;b`. An `AtomTable` records these as number
 numbers, so that finite relation algebras become the instances of decision problems in the sense
 of Mathlib's `ComputablePred` and many-one reducibility.
 
-A table need not describe an atom structure: the lists may be malformed, and the laws of an atom
-structure, associativity among them, may fail. `AtomTable.Presents` relates a table to the atom
-structure it describes, of which there is at most one.
+A table need not describe an atom structure: the lists may be malformed. `AtomTable.Presents`
+relates a table to the atom structure it describes, of which there is at most one, and that
+structure need not satisfy the laws (`LawfulAtomStructure`), associativity among them.
 
 ## Main definitions
 
 * `Cslib.RelationAlgebra.AtomTable`: tables, coded as tuples `(size, conv, id, cycles)`.
 * `Cslib.RelationAlgebra.AtomTable.Presents`: a table presents an atom structure on `Fin size`.
-* `Cslib.RelationAlgebra.AtomTable.IsRepresentable`: a table presents an atom structure whose
-  complex algebra is representable.
+* `Cslib.RelationAlgebra.AtomTable.IsRepresentable`: a table presents a lawful atom structure
+  whose complex algebra is representable.
 
 ## Main results
 
@@ -90,19 +90,21 @@ theorem Presents.unique {t : AtomTable} {A B : AtomStructure (Fin t.size)} (hA :
   cases B
   congr
 
-/-- The table presents an atom structure whose complex algebra is representable. This is the
-representation problem for finite relation algebras as a predicate on tables; a table that
-presents no atom structure is a no-instance. -/
+/-- The table presents a lawful atom structure whose complex algebra is representable. This is
+the representation problem for finite relation algebras as a predicate on tables; a table that
+presents no atom structure, or one violating the laws, is a no-instance. -/
 @[expose] def IsRepresentable (t : AtomTable) : Prop :=
-  ∃ A : AtomStructure (Fin t.size), t.Presents A ∧ Representable (ComplexAlgebra A)
+  ∃ A : AtomStructure (Fin t.size), t.Presents A ∧
+    ∃ _ : LawfulAtomStructure A, Representable (ComplexAlgebra A)
 
 /-- Every finite relation algebra is isomorphic to the complex algebra of an atom structure that
-some table presents. Isomorphic finite relation algebras are both representable or both not
-(`Cslib.RelationAlgebraEquiv.representable_iff`, proved from the representation game), so tables
-cover the representation problem for finite relation algebras. -/
+some table presents. Isomorphic relation algebras are both representable or both not
+(`Cslib.RelationAlgebraEquiv.representable_iff`; for finite ones in different universes, by
+`Cslib.RelationAlgebra.Representation.representable`), so tables cover the representation problem
+for finite relation algebras. -/
 theorem exists_presents_equiv (α : Type u) [RelationAlgebra α] [Finite α] :
     ∃ (t : AtomTable) (A : AtomStructure (Fin t.size)), t.Presents A ∧
-      Nonempty (RelationAlgebraEquiv α (ComplexAlgebra A)) := by
+      ∃ _ : LawfulAtomStructure A, Nonempty (RelationAlgebraEquiv α (ComplexAlgebra A)) := by
   cases nonempty_fintype α
   let : CompleteAtomicRelationAlgebra α :=
     { ‹RelationAlgebra α›, Fintype.toCompleteAtomicBooleanAlgebra α with }
@@ -110,7 +112,7 @@ theorem exists_presents_equiv (α : Type u) [RelationAlgebra α] [Finite α] :
   let A := (atomStructure α).map e
   refine ⟨⟨n, List.ofFn fun a => (A.conv a).val, A.id.toFinite.toFinset.toList.map Fin.val,
     A.cycles.toFinite.toFinset.toList.map fun c => (c.1.val, c.2.1.val, c.2.2.val)⟩, A,
-    ⟨fun a => by simp, fun a => ?_, fun a b c => ?_⟩,
+    ⟨fun a => by simp, fun a => ?_, fun a b c => ?_⟩, inferInstance,
     ⟨complexAlgebraEquiv.trans (ComplexAlgebra.mapEquiv _ e)⟩⟩
   · simpa using ⟨fun h => ⟨a, h, rfl⟩, fun ⟨b, hb, h⟩ => Fin.ext h ▸ hb⟩
   · simp only [List.mem_map, Finset.mem_toList, Set.Finite.mem_toFinset, Prod.exists,
