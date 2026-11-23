@@ -186,6 +186,13 @@ example : (signLabelResidue 17 0 1 (fun _ => 3) (fun _ => 0) : ZMod 17) = 1 := b
     Finset.univ_unique]
   decide
 
+-- The number of weighted tests may vary with the binary input.
+example : (fun m : ℕ => fingerprintLabelResidue 17 0 1 m (fun _ => 3) (fun _ => 1) 16) ∈
+    CountingFunction 7 encNat encNat :=
+  fingerprintLabelResidue_mem (a := 0) Decoder.nat (.const 17) (.const 0) (.const 1)
+    ComputableInPolyTime.id' (CountingFunction.of_polyTime (.const 3))
+    (CountingFunction.of_polyTime (.const 1)) (CountingFunction.of_polyTime (.const 16))
+
 -- The weighted test has zero denominator modulo 17, but its cleared numerator survives.
 example : (fingerprintLabelResidue 17 0 1 1 (fun i => if i = 0 then 0 else 3)
     (fun _ => 1) 16 : ZMod 17) = 4 := by
