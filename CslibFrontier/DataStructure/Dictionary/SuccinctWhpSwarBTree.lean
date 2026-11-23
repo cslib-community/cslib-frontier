@@ -359,7 +359,7 @@ theorem wordUpdateAt_lt {W j m v word : ℕ} (hj : j < m) (hv : v < 2 ^ W)
   exact wordInsertAt_lt (by omega) hv (wordDeleteAt_lt (by omega) hw)
 /-! ### `swarOnes`, `ltMask`, and `swarRank_eq_count_lt` -/
 
-private theorem swarOnes_eq_sum {W : ℕ} (hW : 1 ≤ W) (n : ℕ) :
+theorem swarOnes_eq_sum {W : ℕ} (hW : 1 ≤ W) (n : ℕ) :
     swarOnes W n = ∑ j ∈ range n, 2 ^ (j * W) := by
   have hpos : 0 < 2 ^ W - 1 := by
     have : 2 ^ 1 ≤ 2 ^ W := Nat.pow_le_pow_right (by decide) hW
