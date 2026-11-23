@@ -7,6 +7,7 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Chosen
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 public import Mathlib.Order.Bounds.Defs
@@ -25,14 +26,14 @@ Sidorov][DemirovicMcCreeshMcIlreeNordstromOertelSidorov2024]. The proof is check
 `Cslib.Logic.PL.VeriPB.checkRed`; nothing about the dynamic program is proved.
 
 **The encoding** (equations (1)–(3) of the paper). Item `i` is the variable `i`, true when the
-item is taken; an assignment `σ` takes the items `Cslib.Logic.PL.VeriPB.Knapsack.selection σ`.
+item is taken; an assignment `σ` takes the items `Cslib.Logic.PL.VeriPB.chosen n σ`.
 The formula is the single capacity constraint `∑ wᵢ ¬xᵢ ≥ ∑ wᵢ - B`, the normal form of
 `∑ wᵢ xᵢ ≤ B` (`Cslib.Logic.PL.VeriPB.Knapsack.capacity`), and the objective, to be minimized, is
 the negated profit `∑ -pᵢ xᵢ` (`Cslib.Logic.PL.VeriPB.Knapsack.objective`). An assignment
-satisfies the formula exactly when its selection fits
+satisfies the formula exactly when the items it takes fit
 (`Cslib.Logic.PL.VeriPB.Knapsack.holds_capacity_iff`), its objective value is the negated profit
-of its selection (`Cslib.Logic.PL.VeriPB.Knapsack.eval_objective`), and every set of items is a
-selection (`Cslib.Logic.PL.VeriPB.Knapsack.selection_surjective`). So a proof that the checker
+of those items (`Cslib.Logic.PL.VeriPB.Knapsack.eval_objective`), and every set of items is taken
+by some assignment (`Cslib.Logic.PL.VeriPB.exists_chosen_eq`). So a proof that the checker
 accepts with the conclusion `BOUNDS lb : q ub` shows that the optimum lies in `[-ub, -lb]`
 (`Cslib.Logic.PL.VeriPB.Knapsack.bounds_of_checkRed`), and is `-lb` when `lb = ub`
 (`Cslib.Logic.PL.VeriPB.Knapsack.isGreatest_of_checkRed`). These statements hold for every proof,
@@ -82,8 +83,7 @@ acceptance into optimality.
 ## Main results
 
 * `Cslib.Logic.PL.VeriPB.Knapsack.holds_capacity_iff`,
-  `Cslib.Logic.PL.VeriPB.Knapsack.eval_objective`,
-  `Cslib.Logic.PL.VeriPB.Knapsack.selection_surjective`: the encoding is correct.
+  `Cslib.Logic.PL.VeriPB.Knapsack.eval_objective`: the encoding is correct.
 * `Cslib.Logic.PL.VeriPB.Knapsack.bounds_of_checkRed`,
   `Cslib.Logic.PL.VeriPB.Knapsack.isGreatest_of_checkRed`: an accepted proof bounds the optimum.
 * `Cslib.Logic.PL.VeriPB.Knapsack.isGreatest_of_checkRed_certify`: if the checker accepts the
@@ -122,43 +122,28 @@ paper). -/
 def objective (p : Fin n → ℕ) : Objective :=
   ⟨(List.finRange n).map fun i => (i.val, -(p i : ℤ)), 0⟩
 
-/-- The items an assignment takes. -/
-@[expose]
-def selection (σ : ℕ → Bool) : Finset (Fin n) := {i | σ i.val}
-
-@[simp] theorem mem_selection {σ : ℕ → Bool} {i : Fin n} : i ∈ selection σ ↔ σ i.val = true := by
-  simp [selection]
-
-/-- Every set of items is the selection of some assignment. -/
-theorem selection_surjective : Function.Surjective (selection (n := n)) := by
-  intro S
-  refine ⟨fun v => decide (∃ i ∈ S, i.val = v), ?_⟩
-  ext i
-  simp only [mem_selection, decide_eq_true_eq]
-  exact ⟨fun ⟨j, hj, he⟩ => Fin.ext he ▸ hj, fun h => ⟨i, h, rfl⟩⟩
-
 private theorem lhs_capacity (w : Fin n → ℕ) (B : ℕ) (σ : ℕ → Bool) :
-    lhs σ (capacity w B).terms = ∑ i ∈ (selection σ)ᶜ, w i := by
+    lhs σ (capacity w B).terms = ∑ i ∈ (chosen n σ)ᶜ, w i := by
   rw [capacity, lhs, List.map_map, ← Fin.sum_univ_def,
-    show (selection σ)ᶜ = Finset.univ.filter fun i : Fin n => σ i.val = false by ext; simp,
+    show (chosen n σ)ᶜ = Finset.univ.filter fun i : Fin n => σ i.val = false by ext; simp,
     Finset.sum_filter]
   refine Finset.sum_congr rfl fun i _ => ?_
   cases h : σ i.val <;> simp [termVal, Literal.eval, h]
 
-/-- **The capacity constraint holds exactly when the selection fits.** -/
+/-- **The capacity constraint holds exactly when the items taken fit.** -/
 theorem holds_capacity_iff (w : Fin n → ℕ) (B : ℕ) (σ : ℕ → Bool) :
-    (capacity w B).Holds σ ↔ ∑ i ∈ selection σ, w i ≤ B := by
-  have htot : ((List.finRange n).map w).sum = ∑ i ∈ selection σ, w i + ∑ i ∈ (selection σ)ᶜ, w i :=
+    (capacity w B).Holds σ ↔ ∑ i ∈ chosen n σ, w i ≤ B := by
+  have htot : ((List.finRange n).map w).sum = ∑ i ∈ chosen n σ, w i + ∑ i ∈ (chosen n σ)ᶜ, w i :=
     by rw [Finset.sum_add_sum_compl, Fin.sum_univ_def]
   rw [Holds, lhs_capacity]
   change ((List.finRange n).map w).sum - B ≤ _ ↔ _
   omega
 
-/-- **The objective value is the negated profit of the selection.** -/
+/-- **The objective value is the negated profit of the items taken.** -/
 theorem eval_objective (p : Fin n → ℕ) (σ : ℕ → Bool) :
-    (objective p).eval σ = -∑ i ∈ selection σ, (p i : ℤ) := by
+    (objective p).eval σ = -∑ i ∈ chosen n σ, (p i : ℤ) := by
   rw [Objective.eval, objective, linVal, List.map_map, ← Fin.sum_univ_def, add_zero,
-    ← Finset.sum_neg_distrib, selection, Finset.sum_filter]
+    ← Finset.sum_neg_distrib, chosen, Finset.sum_filter]
   refine Finset.sum_congr rfl fun i _ => ?_
   cases h : σ i.val <;> simp [h]
 
@@ -174,12 +159,12 @@ theorem bounds_of_checkRed {w p : Fin n → ℕ} {B : ℕ} {P : RedProof} {lb ub
     (∀ S : Finset (Fin n), ∑ i ∈ S, w i ≤ B → ∑ i ∈ S, (p i : ℤ) ≤ -lb) ∧
       ∃ S : Finset (Fin n), ∑ i ∈ S, w i ≤ B ∧ -ub ≤ ∑ i ∈ S, (p i : ℤ) := by
   refine ⟨fun S hS => ?_, ?_⟩
-  · obtain ⟨σ, rfl⟩ := selection_surjective S
+  · obtain ⟨σ, rfl⟩ := exists_chosen_eq S
     have := le_eval_of_checkRed h hc σ (by simpa [formula, holds_capacity_iff] using hS)
     rw [eval_objective] at this
     omega
   · obtain ⟨σ, hσ, hle⟩ := exists_eval_le_of_checkRed h hc
-    refine ⟨selection σ, (holds_capacity_iff w B σ).1 (hσ _ (by simp [formula])), ?_⟩
+    refine ⟨chosen n σ, (holds_capacity_iff w B σ).1 (hσ _ (by simp [formula])), ?_⟩
     rw [eval_objective] at hle
     omega
 

@@ -24,7 +24,7 @@ register_result "cakepb-clique-encode-correct" where
   ]
   theorems := [
     Cslib.Logic.PL.VeriPB.Graph.forall_holds_cliqueConstraints_iff,
-    Cslib.Logic.PL.VeriPB.Graph.exists_chosen_eq,
+    Cslib.Logic.PL.VeriPB.exists_chosen_eq,
     Cslib.Logic.PL.VeriPB.Graph.eval_cliqueObjective
   ]
   scope := "For every n and every graph G : SimpleGraph (Fin n) with decidable adjacency, an \
