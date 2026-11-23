@@ -1766,6 +1766,11 @@ Carsten Lund, Lance Fortnow, Howard Karloff and Noam Nisan. *Algebraic Methods f
 
 Xin Li. *Two Source Extractors for Asymptotically Optimal Entropy, and (Many) More*. FOCS 2023, 1271–1281. https://doi.org/10.1109/FOCS57990.2023.00075 . `SumsetBridge.lean` uses ECCC TR23-023, revision 1, https://eccc.weizmann.ac.il/report/2023/023/revision/1/download/ , checked directly on 2026-11-22: Definition 1.1 (printed p. 1, explicit means polynomial-time computable) and Theorem 7.13 (printed p. 36, a one-bit sumset extractor at entropy `c(ε) log n` for every fixed error `ε > 0`). Formalizing that construction remains the [explicit frontier extractor objective](../roadmap/circuits.md). The fixed-error statement alone does not provide one family with vanishing error. Other numbered locators in `AffineSource.lean`, previously taken from secondary descriptions, remain unverified against the typeset FOCS version.
 
+<a id="liliangyuzhou2023"></a>
+## liliangyuzhou2023
+
+Tianxiao Li, Jingxun Liang, Huacheng Yu, and Renfei Zhou. *Tight Cell-Probe Lower Bounds for Dynamic Succinct Dictionaries*. FOCS 2023, 1842–1862. https://doi.org/10.1109/FOCS57990.2023.00112 . Section, theorem, lemma, claim, equation, and page locators follow https://arxiv.org/abs/2306.02253v3 (where printed page `p` is PDF page `p + 1`).
+
 <a id="lindell17"></a>
 ## lindell17
 
