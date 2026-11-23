@@ -13,7 +13,8 @@ register_result "twosat-linear-wordram" where
     word RAM"
   topic := "algorithms"
   sources := [
-    { paper := AspvallPlassTarjan1979, theorem := unverified, locator := unverified }
+    { paper := AspvallPlassTarjan1979, theorem := "Theorem 1 and \"Two-satisfiability algorithm\"",
+      locator := "1979 journal scan, printed p. 121 steps 1(i)–(ii) and p. 122" }
   ]
   theorems := [
     Cslib.Algorithms.WordRAM.TwoSAT.Instance.inputFits_encode,
@@ -30,4 +31,7 @@ register_result "twosat-linear-wordram" where
     512 * (n + |φ| + 1) instructions (ExecutesList / Program.ComputesListInTime) using CSR \
     implication and transpose graphs and an explicit iterative DFS stack in linear memory, \
     outputting [] iff φ violates width ≤ 2 or is unsatisfiable and \
-    1 :: [(σ 0).toNat, …, (σ (n - 1)).toNat] for a satisfying assignment σ otherwise."
+    1 :: [(σ 0).toNat, …, (σ (n - 1)).toNat] for a satisfying assignment σ otherwise. Lean's \
+    Kosaraju SCC pass and this certified Word-RAM implementation and instruction bound are this \
+    formalization's own refinement; the paper uses Tarjan's SCC algorithm and also studies \
+    quantified 2-CNF."

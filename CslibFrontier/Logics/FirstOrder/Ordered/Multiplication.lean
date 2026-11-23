@@ -100,7 +100,6 @@ private theorem realize_parameters (h e s m k : (language L).Term α) (v : α �
   fo_simp [parameters, Fin.le_def, and_assoc]
   refine and_congr_right fun _ => and_congr_right fun _ => and_congr_right fun hs =>
     and_congr_right fun _ => and_congr_right fun _ => and_congr_right fun _ => ?_
-  fo_simp [Function.comp_def, Fin.le_def, and_assoc]
   constructor
   · rintro ⟨u, ho, hw, hw2, hkw, ho8, hks, hsize, hs1, hcap, hcap'⟩
     have hn := (u 0).isLt
@@ -141,7 +140,7 @@ private theorem packedFormula_sound (v : Fin 3 → Fin n)
   rw [realize_packedField _ _ _ _ _ _ (by simpa using (show 8 * (u (.inl 0)).val < n by lia))]
     at hzero hend
   fo_simp at hzero hend
-  fo_simp [allBlocks, Function.comp_def, not_le] at hblocks
+  fo_simp [allBlocks, not_le] at hblocks
   have hinput (i : Fin 3) : (v i).val < 2 ^ ((u (.inl 0)).val + 1) := by
     have := (v i).isLt
     lia
@@ -159,7 +158,7 @@ private theorem packedFormula_sound (v : Fin 3 → Fin n)
   rw [realize_blockChecks _ _ _ _ _ _ _ _ _ (by simpa using hs)
     (by simpa using hcapn) (by simpa [a] using hjend)
     (by simpa using hwidth) (by simpa using hspace)] at hb
-  fo_simp [Function.comp_def] at hb
+  fo_simp at hb
   obtain ⟨w, h0, hs', ht⟩ := hb
   refine ⟨fun t => BitString.readPackedField (u (.inl 0)).val (fun r => (w r).val)
     (t * (u (.inl 2)).val) (u (.inl 2)).val, ?_, ?_, ?_⟩
@@ -267,7 +266,7 @@ private theorem packedFormula_complete (v : Fin 3 → Fin n) (hn : 257 ≤ n)
     simpa [u] using hg0.symm
   · rw [realize_packedField _ _ _ _ _ _ (by simpa [u] using (show 8 * h < n by lia))]
     simpa [u] using hgk.symm
-  · fo_simp [allBlocks, Function.comp_def, not_le]
+  · fo_simp [allBlocks, not_le]
     intro a ⟨haj, hak⟩
     change (a 0).val * s = (a 1).val at haj
     change (a 1).val < k at hak
@@ -277,7 +276,7 @@ private theorem packedFormula_complete (v : Fin 3 → Fin n) (hn : 257 ≤ n)
     rw [realize_blockChecks _ _ _ _ _ _ _ _ _ (by rfl)
       (by simpa [u] using hcapn) (by simpa [u] using (show (a 1).val + s < n by lia))
       (by simpa [u] using hwidth) (by simpa [u] using hspace)]
-    fo_simp [Function.comp_def]
+    fo_simp
     refine exists_local_carries v (h := h) (s := s) (j := (a 1).val) (g := g)
       hp hspace hcap hspos hcwidth (hinput 0) hprod ?_ ?_
     · rw [← haj]

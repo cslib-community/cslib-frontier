@@ -253,6 +253,19 @@ private theorem abs_card_filter_sub_le {α : Type*} [Fintype α]
     exact_mod_cast h2
   exact abs_le.mpr ⟨by linarith, by linarith⟩
 
+/-- Updating coordinate `u` of `ω` changes `# {x | P x ω}` by at most `# {x | u ∈ S x}` whenever
+`P x` depends only on `S x`. -/
+private theorem abs_card_filter_update_le {α κ β : Type*} [Fintype α] [DecidableEq κ]
+    (S : α → Finset κ) {p q : α → Prop} [DecidablePred p] [DecidablePred q]
+    (ω : κ → β) (u : κ) (a b : β)
+    (hlocal : ∀ x, (∀ v ∈ S x, Function.update ω u a v = Function.update ω u b v) → (p x ↔ q x)) :
+    |((Finset.univ.filter p).card : ℝ) - (Finset.univ.filter q).card| ≤
+      (Finset.univ.filter fun x => u ∈ S x).card := by
+  refine abs_card_filter_sub_le p q (Finset.univ.filter fun x => u ∈ S x) fun x hx =>
+    hlocal x fun v hv => ?_
+  have hvu : v ≠ u := fun heq => hx (Finset.mem_filter.mpr ⟨Finset.mem_univ x, heq ▸ hv⟩)
+  rw [Function.update_of_ne hvu, Function.update_of_ne hvu]
+
 end Concentration
 
 /-! ### Bottom-up splitting of bounded-degree forests -/
@@ -543,16 +556,8 @@ theorem exists_layout_signalWidth_of_piece (c : Circuit σ n m) {r : ℕ} (hfan 
     ((Finset.univ.filter fun w : ActiveSignal c => bad j ω w).card : ℝ)
   let T : κ → Finset (ActiveSignal c) := fun u => Finset.univ.filter fun w => u ∈ P w
   have hosc : ∀ (j : Fin M) (ω : κ → Fin M) (u : κ) (a b : Fin M),
-      |f j (Function.update ω u a) - f j (Function.update ω u b)| ≤ (T u).card := by
-    intro j ω u a b
-    refine abs_card_filter_sub_le (bad j (Function.update ω u a)) (bad j (Function.update ω u b))
-      (T u) fun w hw => ?_
-    have hnu : u ∉ P w := fun h => hw (Finset.mem_filter.mpr ⟨Finset.mem_univ w, h⟩)
-    have hag : ∀ z ∈ P w, Function.update ω u a z = Function.update ω u b z := fun z hz => by
-      have hzu : z ≠ u := fun heq => hnu (heq ▸ hz)
-      rw [Function.update_of_ne hzu, Function.update_of_ne hzu]
-    dsimp only [bad]
-    exact or_congr
+      |f j (Function.update ω u a) - f j (Function.update ω u b)| ≤ (T u).card :=
+    fun _ ω u a b => abs_card_filter_update_le P ω u a b fun _ hag => or_congr
       (and_congr (exists_congr fun z => and_congr_right fun hz => by rw [hag z hz])
         (exists_congr fun z => and_congr_right fun hz => by rw [hag z hz]))
       (exists_congr fun z => and_congr_right fun hz => by rw [hag z hz])
@@ -965,6 +970,20 @@ theorem exists_layout_signalWidth_reuse_le (c : Circuit σ n m) (hfan : c.FanInA
 
 /-! ### Balanced two-colorings on `Node c` for quadratic-form correlation -/
 
+private theorem card_filter_mem_support_le_deg {c : Circuit σ n m} {α : Type*} [Fintype α]
+    (emb : α ↪ ActiveSignal c) (u : Node c) :
+    (Finset.univ.filter fun x : α =>
+      u ∈ (toFinite (support c (emb x))).toFinset).card ≤
+      {w : ActiveSignal c | u ∈ support c w}.ncard := by
+  let T := Finset.univ.filter fun x : α => u ∈ (toFinite (support c (emb x))).toFinset
+  have hsub : (T.map emb : Set (ActiveSignal c)) ⊆ {w | u ∈ support c w} := by
+    intro w hw
+    obtain ⟨x, hx, rfl⟩ := Finset.mem_map.mp hw
+    exact (toFinite (support c (emb x))).mem_toFinset.mp (Finset.mem_filter.mp hx).2
+  calc T.card = (T.map emb).card := (Finset.card_map emb).symm
+    _ = (T.map emb : Set (ActiveSignal c)).ncard := (ncard_coe_finset _).symm
+    _ ≤ {w : ActiveSignal c | u ∈ support c w}.ncard := ncard_le_ncard hsub (toFinite _)
+
 /-- **Simultaneous two-coloring margin on `Node c`.** Under a uniform `Node c → Bool` cut, some
 node set `A ⊆ Node c` simultaneously makes the monochromatic reachable input sets `L` (in `A`) and
 `R'` (in `Aᶜ`) at least `∑_i 2^{-|support i|} - (r + 1)√(3 |Node c|)` while cutting at most
@@ -985,6 +1004,10 @@ theorem exists_node_cut_margin (c : Circuit σ n m) {r : ℕ} (hfan : c.FanInAtM
           (r + 1 : ℝ) * √(3 * (Nat.card (Node c) : ℝ)) := by
   classical
   have := Fintype.ofFinite (Node c)
+  let emb_in : {i : Fin n // Reach c (.input i)} ↪ ActiveSignal c :=
+    ⟨fun x => .input x.1 x.2, fun _ _ h => Subtype.ext (ActiveSignal.input.inj h)⟩
+  let emb_gt : InnerGate c ↪ ActiveSignal c :=
+    ⟨ActiveSignal.gate, fun _ _ h => ActiveSignal.gate.inj h⟩
   let S_in (x : {i : Fin n // Reach c (.input i)}) : Finset (Node c) :=
     (toFinite (support c (.input x.1 x.2))).toFinset
   let S_gt (g : InnerGate c) : Finset (Node c) :=
@@ -998,55 +1021,19 @@ theorem exists_node_cut_margin (c : Circuit σ n m) {r : ℕ} (hfan : c.FanInAtM
         (∃ v ∈ S_gt g, ω v = false) ∧ (∃ v ∈ S_gt g, ω v = true)).card : ℝ)
   let deg (u : Node c) : ℕ := {w : ActiveSignal c | u ∈ support c w}.ncard
   have hdeg_le (u : Node c) : deg u ≤ r + 1 := ncard_activeSignal_mem_support_le hfan u
-  have hosc_in (b₀ : Bool) (ω : Node c → Bool) (u : Node c) (a b : Bool) :
-      |((Finset.univ.filter fun x : {i : Fin n // Reach c (.input i)} =>
-          ∀ v ∈ S_in x, Function.update ω u a v = b₀).card : ℝ) -
-        ((Finset.univ.filter fun x : {i : Fin n // Reach c (.input i)} =>
-          ∀ v ∈ S_in x, Function.update ω u b v = b₀).card : ℝ)| ≤ deg u := by
-    let T_in : Finset {i : Fin n // Reach c (.input i)} :=
-      Finset.univ.filter fun x => u ∈ S_in x
-    have hcard_T : T_in.card ≤ deg u := by
-      let emb : {i : Fin n // Reach c (.input i)} ↪ ActiveSignal c :=
-        ⟨fun x => .input x.1 x.2, fun _ _ h => Subtype.ext (ActiveSignal.input.inj h)⟩
-      have hsub : (T_in.map emb : Set (ActiveSignal c)) ⊆ {w | u ∈ support c w} := by
-        intro w hw
-        obtain ⟨x, hx, rfl⟩ := Finset.mem_map.mp hw
-        exact (toFinite (support c (.input x.1 x.2))).mem_toFinset.mp (Finset.mem_filter.mp hx).2
-      calc T_in.card = (T_in.map emb).card := (Finset.card_map emb).symm
-        _ = (T_in.map emb : Set (ActiveSignal c)).ncard := (ncard_coe_finset _).symm
-        _ ≤ deg u := ncard_le_ncard hsub (toFinite _)
-    refine (abs_card_filter_sub_le _ _ T_in fun x hx => ?_).trans (by exact_mod_cast hcard_T)
-    have hnu : u ∉ S_in x := fun h => hx (Finset.mem_filter.mpr ⟨Finset.mem_univ x, h⟩)
-    exact forall₂_congr fun v hv => by
-      have hvu : v ≠ u := fun heq => hnu (heq ▸ hv)
-      rw [Function.update_of_ne hvu, Function.update_of_ne hvu]
   have hosc : ∀ (j : Fin 3) (ω : Node c → Bool) (u : Node c) (a b : Bool),
       |f j (Function.update ω u a) - f j (Function.update ω u b)| ≤ deg u := by
     rintro ⟨j, hj⟩ ω u a b
     match j, hj with
-    | 0, _ => exact hosc_in false ω u a b
-    | 1, _ => exact hosc_in true ω u a b
+    | 0, _ | 1, _ =>
+      exact (abs_card_filter_update_le S_in ω u a b fun _ h =>
+        forall₂_congr fun v hv => by rw [h v hv]).trans
+          (Nat.cast_le.mpr (card_filter_mem_support_le_deg emb_in u))
     | 2, _ =>
-      let T_gt : Finset (InnerGate c) := Finset.univ.filter fun g => u ∈ S_gt g
-      have hcard_T : T_gt.card ≤ deg u := by
-        let emb : InnerGate c ↪ ActiveSignal c :=
-          ⟨ActiveSignal.gate, fun _ _ h => ActiveSignal.gate.inj h⟩
-        have hsub : (T_gt.map emb : Set (ActiveSignal c)) ⊆ {w | u ∈ support c w} := by
-          intro w hw
-          obtain ⟨g, hg, rfl⟩ := Finset.mem_map.mp hw
-          exact (toFinite (support c (.gate g))).mem_toFinset.mp (Finset.mem_filter.mp hg).2
-        calc T_gt.card = (T_gt.map emb).card := (Finset.card_map emb).symm
-          _ = (T_gt.map emb : Set (ActiveSignal c)).ncard := (ncard_coe_finset _).symm
-          _ ≤ deg u := ncard_le_ncard hsub (toFinite _)
-      refine (abs_card_filter_sub_le _ _ T_gt fun g hg => ?_).trans (by exact_mod_cast hcard_T)
-      have hnu : u ∉ S_gt g := fun h => hg (Finset.mem_filter.mpr ⟨Finset.mem_univ g, h⟩)
-      exact and_congr
-        (exists_congr fun v => and_congr_right fun hv => by
-          have hvu : v ≠ u := fun heq => hnu (heq ▸ hv)
-          rw [Function.update_of_ne hvu, Function.update_of_ne hvu])
-        (exists_congr fun v => and_congr_right fun hv => by
-          have hvu : v ≠ u := fun heq => hnu (heq ▸ hv)
-          rw [Function.update_of_ne hvu, Function.update_of_ne hvu])
+      exact (abs_card_filter_update_le S_gt ω u a b fun _ h => and_congr
+        (exists_congr fun v => and_congr_right fun hv => by rw [h v hv])
+        (exists_congr fun v => and_congr_right fun hv => by rw [h v hv])).trans
+          (Nat.cast_le.mpr (card_filter_mem_support_le_deg emb_gt u))
     | k + 3, hk => exact absurd hk (by omega)
   obtain ⟨ω, hω⟩ := Fintype.exists_forall_abs_sub_expect_le f (fun _ u => (deg u : ℝ))
     (fun _ _ => Nat.cast_nonneg _) hosc
@@ -1146,34 +1133,29 @@ theorem exists_node_cut_margin (c : Circuit σ n m) {r : ℕ} (hfan : c.FanInAtM
     norm_num at hpow2 ⊢
     linarith
   let A : Set (Node c) := {v | ω v = false}
+  have hcard_in (b : Bool) (B : Set (Node c)) (hB : ∀ v, v ∈ B ↔ ω v = b) :
+      ({i : Fin n | ∃ hi : Reach c (.input i), support c (.input i hi) ⊆ B}.ncard : ℝ) =
+        (Finset.univ.filter fun x : {i : Fin n // Reach c (.input i)} =>
+          ∀ v ∈ S_in x, ω v = b).card := by
+    let S_b := Finset.univ.filter fun x : {i : Fin n // Reach c (.input i)} =>
+      ∀ v ∈ S_in x, ω v = b
+    have himg : (Subtype.val '' (S_b : Set {i : Fin n // Reach c (.input i)})) =
+        {i : Fin n | ∃ hi : Reach c (.input i), support c (.input i hi) ⊆ B} := by
+      ext i
+      simp only [mem_image, Finset.mem_coe, S_b, Finset.mem_filter, Finset.mem_univ, true_and,
+        Subtype.exists, S_in, Finite.mem_toFinset, subset_def, hB]
+      exact ⟨fun ⟨a, h, hv, ha⟩ => ha ▸ ⟨h, hv⟩, fun ⟨hi, hv⟩ => ⟨i, hi, hv, rfl⟩⟩
+    rw [← himg, ncard_image_of_injective _ Subtype.val_injective, ncard_coe_finset]
   refine ⟨A, ?_, ?_, ?_⟩
   · have hcardL : ({i : Fin n | ∃ hi : Reach c (.input i), support c (.input i hi) ⊆ A}.ncard : ℝ) =
-        f ⟨0, by decide⟩ ω := by
-      let S₀ := Finset.univ.filter fun x : {i : Fin n // Reach c (.input i)} =>
-        ∀ v ∈ S_in x, ω v = false
-      have himg : (Subtype.val '' (S₀ : Set {i : Fin n // Reach c (.input i)})) =
-          {i : Fin n | ∃ hi : Reach c (.input i), support c (.input i hi) ⊆ A} := by
-        ext i
-        simp only [mem_image, Finset.mem_coe, S₀, Finset.mem_filter, Finset.mem_univ, true_and,
-          Subtype.exists, S_in, Finite.mem_toFinset, A, mem_ofPred_eq, subset_def]
-        exact ⟨fun ⟨a, h, hv, ha⟩ => ha ▸ ⟨h, hv⟩, fun ⟨hi, hv⟩ => ⟨i, hi, hv, rfl⟩⟩
-      rw [← himg, ncard_image_of_injective _ Subtype.val_injective, ncard_coe_finset]
+        f ⟨0, by decide⟩ ω := hcard_in false A fun _ => Iff.rfl
     have hb0 := (abs_le.mp (hω ⟨0, by decide⟩)).1
     have hm0 : 𝔼 ω', f ⟨0, by decide⟩ ω' = _ := hexp0 false
     linarith
   · have hcardR :
         ({i : Fin n | ∃ hi : Reach c (.input i), support c (.input i hi) ⊆ Aᶜ}.ncard : ℝ) =
-          f ⟨1, by decide⟩ ω := by
-      let S₁ := Finset.univ.filter fun x : {i : Fin n // Reach c (.input i)} =>
-        ∀ v ∈ S_in x, ω v = true
-      have himg : (Subtype.val '' (S₁ : Set {i : Fin n // Reach c (.input i)})) =
-          {i : Fin n | ∃ hi : Reach c (.input i), support c (.input i hi) ⊆ Aᶜ} := by
-        ext i
-        simp only [mem_image, Finset.mem_coe, S₁, Finset.mem_filter, Finset.mem_univ, true_and,
-          Subtype.exists, S_in, Finite.mem_toFinset, A, mem_compl_iff, mem_ofPred_eq,
-          Bool.not_eq_false, subset_def]
-        exact ⟨fun ⟨a, h, hv, ha⟩ => ha ▸ ⟨h, hv⟩, fun ⟨hi, hv⟩ => ⟨i, hi, hv, rfl⟩⟩
-      rw [← himg, ncard_image_of_injective _ Subtype.val_injective, ncard_coe_finset]
+          f ⟨1, by decide⟩ ω :=
+      hcard_in true Aᶜ fun _ => by simp only [A, mem_compl_iff, mem_ofPred_eq, Bool.not_eq_false]
     have hb1 := (abs_le.mp (hω ⟨1, by decide⟩)).1
     have hm1 : 𝔼 ω', f ⟨1, by decide⟩ ω' = _ := hexp0 true
     linarith
