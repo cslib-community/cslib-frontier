@@ -79,7 +79,7 @@ instance : Inhabited CRec := ⟨⟨0, 0, 0, 0, false, .neg⟩⟩
 
 /-- The assignment of the engine. -/
 structure Asg where
-  /-- The value of each variable: `0` unassigned, `1` true, `2` false. -/
+  /-- The value of each literal code: `0` unassigned, `1` true, `2` false. -/
   value : ByteArray := .empty
   /-- The reason of each assigned variable. -/
   reason : Array ℕ := #[]
@@ -136,16 +136,14 @@ structure Engine (σ : Type) where
   st : ST.Ref σ EState
 
 /-- The value of a literal code: `0` unassigned, `1` true, `2` false. -/
-@[inline] private def litVal (value : ByteArray) (code : ℕ) : UInt8 :=
-  let v := value.get! (code / 2)
-  if v == 0 then 0 else if (v == 1) == (code % 2 == 0) then 1 else 2
+@[inline] private def litVal (value : ByteArray) (code : ℕ) : UInt8 := value.get! code
 
 /-- Make the literal `code` true with the reason `r`. -/
 @[inline] private def Asg.assign (a : Asg) (code r : ℕ) : Asg :=
   match a with
   | ⟨value, reason, tpos, trail⟩ =>
     let v := code / 2
-    ⟨value.set! v (if code % 2 == 0 then 1 else 2), reason.set! v r, tpos.set! v trail.size,
+    ⟨(value.set! code 1).set! (code ^^^ 1) 2, reason.set! v r, tpos.set! v trail.size,
       trail.push code⟩
 
 /-- Propagate the non-clause constraint `c` with slack `sl` on the assignment `a`: make true every
@@ -250,7 +248,7 @@ private partial def watchLoop (cpos : Array ℕ) (alive : ByteArray) (f : ℕ) (
             -- Propagate the other watch.
             let v := o / 2
             watchLoop cpos alive f ws (i + 1) (j + 1) lits watches slack
-              (value.set! v (if o % 2 == 0 then 1 else 2)) (reason.set! v c)
+              ((value.set! o 1).set! (o ^^^ 1) 2) (reason.set! v c)
               (tpos.set! v trail.size) (trail.push o)
           else
             -- A conflict: keep the remaining live clauses.
@@ -302,7 +300,8 @@ private def litCode (s : EState) (l : Literal ℕ) : EState × ℕ :=
     let s := { s with varIdx := s.varIdx.insert l.1 i }
     let s := { s with vars := s.vars.push l.1 }
     let s := { s with asg := match s.asg with
-      | ⟨value, reason, tpos, trail⟩ => ⟨value.push 0, reason.push 0, tpos.push 0, trail⟩ }
+      | ⟨value, reason, tpos, trail⟩ =>
+        ⟨(value.push 0).push 0, reason.push 0, tpos.push 0, trail⟩ }
     let s := { s with watches := (s.watches.push #[]).push #[] }
     let s := { s with occ := (s.occ.push #[]).push #[] }
     (s, 2 * i + sign)
@@ -346,7 +345,7 @@ private partial def undo (occ : Array (Array ℕ)) (q n i : ℕ) (slack : Array 
     let i := i - 1
     let t := a.trail[i]!
     let slack := if i < q then restore occ[t ^^^ 1]! 0 slack else slack
-    undo occ q n i slack { a with value := a.value.set! (t / 2) 0 }
+    undo occ q n i slack { a with value := (a.value.set! t 0).set! (t ^^^ 1) 0 }
   else (slack, { a with trail := a.trail.shrink n })
 where
   /-- Add back the coefficients of the pairs `os` from `k` on. -/
