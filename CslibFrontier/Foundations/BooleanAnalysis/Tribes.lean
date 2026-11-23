@@ -341,7 +341,7 @@ theorem coalitionInfluence_tribes_le (Q : Finset (Fin (s * w))) :
     _ = ∑ j ∈ J, 𝔼 x : BitString (s * w),
           if ∀ k ∈ tribe w j \ Q, x k = true then (1 : ℝ) else 0 := expect_sum_comm _ _ _
     _ = ∑ j ∈ J, (2 : ℝ) ^ #(tribe w j ∩ Q) / 2 ^ w := sum_congr rfl fun j _ => by
-        exact (expect_ite_forall_mem_eq (tribe w j \ Q) true).trans
+        exact (expect_ite_forall_mem_eq (tribe w j \ Q) fun _ => true).trans
           (key _ _ ((card_sdiff_add_card_inter _ _).trans (card_tribe j)))
     _ ≤ 2 ^ #Q / 2 ^ w := by
         rw [← sum_div]

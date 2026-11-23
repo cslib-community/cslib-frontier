@@ -11,6 +11,7 @@ import CslibFrontier.Computability.WordRAM.Call
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Host.Prepare
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
@@ -144,62 +145,33 @@ theorem exec_fill_at {w N U src workspace s : ℕ} (μ : ℕ → ℤ) (x : Data 
       ParametersAt N U src workspace y ∧ y.regs inst = s ∧ y.regs found = x.regs found ∧
       y.mem = (instanceArgsAt N U src workspace s μ).filled x.mem (sideLength N * sideLength N) ∧
       (∀ a < workspace, y.mem a = x.mem a) := by
-  let b := x.set (fillRegisters Cell.len) N |>.set (fillRegisters Cell.base) src
-    |>.set (fillRegisters Cell.filler) (4 * U + 2)
-    |>.set (fillRegisters Cell.side) (sideLength N) |>.set (fillRegisters Cell.inst) s
-    |>.set (fillRegisters Cell.matAB) workspace
-    |>.set (fillRegisters Cell.matBC) (workspace + sideLength N * sideLength N)
-    |>.set (fillRegisters Cell.matAC) (workspace + 2 * (sideLength N * sideLength N))
-  have hb : ExecWithin (w + 2) fillSetup x b 8 := by
-    ram_eval [fillSetup, b, hp.len, hp.base, hp.encodedFiller, hp.side, hs,
-      hp.ab, hp.bc, hp.ac, fillRegisters, Cell.len, Cell.base, Cell.filler, Cell.side,
-      Cell.inst, Cell.matAB, Cell.matBC, Cell.matAC, len, base, encodedFiller, side, inst,
-      matAB, matBC, matAC, Fin.mk.injEq]
-  have hbregs (i : Fin 64) (hi : 34 ≤ i.val) : b.regs i = x.regs i := by
-    have hne (j : Fin 28) : i ≠ fillRegisters j := by
-      intro he
-      have hv := congrArg Fin.val he
-      dsimp only [fillRegisters] at hv
-      have := j.isLt
-      omega
-    simp only [b, Data.set_regs, Function.update_of_ne (hne _)]
-  have hbf : (b.comap fillRegisters).regs Cell.filler =
-      encode (instanceArgsAt N U src workspace s μ).filler := by
-    simp +decide [b, instanceArgsAt, fillRegisters, Cell.filler, Cell.side, Cell.inst,
-      Cell.matAB, Cell.matBC, Cell.matAC, encode,
-      show ¬(2 * (U : ℤ) + 1 < 0) from by omega]
-    omega
-  obtain ⟨y, hy, ⟨hm, -⟩, -⟩ :=
-    ExecWithin.rename_post fill_injective
-      (Fill.exec (instanceArgsAt N U src workspace s μ) (b.comap fillRegisters)
-      (by simp +decide [b, instanceArgsAt, fillRegisters, Cell.side, Cell.inst,
-        Cell.matAB, Cell.matBC, Cell.matAC])
-      (by simp +decide [b, instanceArgsAt, fillRegisters, Cell.inst,
-        Cell.matAB, Cell.matBC, Cell.matAC])
-      (by simp +decide [b, instanceArgsAt, fillRegisters, Cell.matAB, Cell.matBC, Cell.matAC])
-      (by simp +decide [b, instanceArgsAt, fillRegisters, Cell.matBC, Cell.matAC])
-      (by simp [b, instanceArgsAt])
-      (by simp +decide [b, instanceArgsAt, fillRegisters, Cell.len, Cell.base, Cell.filler,
-        Cell.side, Cell.inst, Cell.matAB, Cell.matBC, Cell.matAC])
-      (by simp +decide [b, instanceArgsAt, fillRegisters, Cell.base, Cell.filler,
-        Cell.side, Cell.inst, Cell.matAB, Cell.matBC, Cell.matAC]) hbf
-      hmem hidx hF hnF hμ
-      (hsize.of_le (by dsimp [instanceArgsAt]; omega))
-      (hsize.of_le (by dsimp [instanceArgsAt]; omega))
-      (hsize.of_le (by dsimp [instanceArgsAt]; omega))
-      (hsize.of_le (by dsimp [instanceArgsAt]; omega))
-      (by dsimp [instanceArgsAt]; omega) (by dsimp [instanceArgsAt]; omega)
-      (by dsimp [instanceArgsAt]; omega))
-  change ExecWithin (w + 2) (Fill.program.rename fillRegisters) b y
-    (131 * (sideLength N * sideLength N) + 5) at hy
-  have hyr (i : Fin 64) (hi : 34 ≤ i.val) : y.regs i = x.regs i := by
-    exact (hy.regs_eq (Code.preserves_rename_of_offset (offset := 0) Fill.program fillRegisters
-      (fun j => (Nat.zero_add j.val).symm) i (Or.inr (by omega)))).trans (hbregs i hi)
-  refine ⟨y, ?_, parameters_of_regs hp (fun i hi _ _ => hyr i hi), by regs_frame,
-    hyr found (by decide), hm, ?_⟩
-  · convert hb.seq hy using 1 <;> first | rfl | omega
-  · intro a ha
-    rw [show y.mem = _ from hm]
+  have henc : encode (2 * (U : ℤ) + 1) = 4 * U + 2 := by
+    simp only [encode, show ¬(2 * (U : ℤ) + 1 < 0) from by omega, ↓reduceIte]; omega
+  refine WP.exists_execWithin ?_
+  unfold fill fillSetup
+  wram_exec [hp.len, hp.base, hp.encodedFiller, hp.side, hs, hp.ab, hp.bc, hp.ac]
+  wram_call (Fill.exec (instanceArgsAt N U src workspace s μ) _
+    (by wram_simp [fillRegisters, instanceArgsAt])
+    (by wram_simp [fillRegisters, instanceArgsAt])
+    (by wram_simp [fillRegisters, instanceArgsAt])
+    (by wram_simp [fillRegisters, instanceArgsAt])
+    (by wram_simp [fillRegisters, instanceArgsAt])
+    (by wram_simp [fillRegisters, instanceArgsAt])
+    (by wram_simp [fillRegisters, instanceArgsAt])
+    (by wram_simp [fillRegisters, instanceArgsAt, henc])
+    (by wram_simp; exact hmem) hidx hF hnF hμ
+    (hsize.of_le (by dsimp [instanceArgsAt]; omega))
+    (hsize.of_le (by dsimp [instanceArgsAt]; omega))
+    (hsize.of_le (by dsimp [instanceArgsAt]; omega))
+    (hsize.of_le (by dsimp [instanceArgsAt]; omega))
+    (by dsimp [instanceArgsAt]; omega) (by dsimp [instanceArgsAt]; omega)
+    (by dsimp [instanceArgsAt]; omega)) canonical fill_injective with a ⟨hm, _⟩
+  refine ⟨by dsimp only [instanceArgsAt]; omega, ?_, by wram_simp [hs], by wram_simp,
+    by wram_simp [hm]; rfl, ?_⟩
+  · constructor <;> wram_simp [hp.len, hp.upper, hp.base, hp.ab, hp.bc, hp.ac, hp.free,
+      hp.side, hp.stop, hp.filler, hp.encodedFiller, hp.one]
+  · intro addr haddr
+    wram_simp [hm]
     apply Fill.Args.outside_filled
     all_goals dsimp [instanceArgsAt]; omega
 
@@ -215,6 +187,22 @@ private theorem solver_injective {r : ℕ} : (solverRegisters (r := r)).Injectiv
   dsimp only [solverRegisters] at this
   omega
 
+private theorem hostRegisters_eq_iff {r : ℕ} {i j : Fin 64} :
+    hostRegisters (r := r) i = hostRegisters j ↔ i = j :=
+  hostRegisters_injective.eq_iff
+
+private theorem callRegisters_eq_iff {r : ℕ} {i j : Fin 7} :
+    callRegisters (r := r) i = callRegisters j ↔ i = j := by
+  simp [callRegisters, solverRegisters, solverArg, Fin.ext_iff]
+
+private theorem call_ne_host {r : ℕ} (i : Fin 7) (j : Fin 64) :
+    callRegisters (r := r) i ≠ hostRegisters (r := r + 7) j :=
+  Fin.ne_of_val_ne (by dsimp [callRegisters, solverRegisters, solverArg, hostRegisters]; omega)
+
+private theorem host_ne_call {r : ℕ} (j : Fin 64) (i : Fin 7) :
+    hostRegisters (r := r + 7) j ≠ callRegisters (r := r) i :=
+  (call_ne_host i j).symm
+
 private theorem exec_solverSetup {w r : ℕ} (x : Data (64 + (r + 7))) :
     ∃ y, ExecWithin w solverSetup x y 6 ∧
       (∀ i, y.regs (hostRegisters i) = x.regs (hostRegisters i)) ∧ y.mem = x.mem ∧
@@ -224,16 +212,10 @@ private theorem exec_solverSetup {w r : ℕ} (x : Data (64 + (r + 7))) :
       y.regs (callRegisters 3) = x.regs (hostRegisters matBC) ∧
       y.regs (callRegisters 4) = x.regs (hostRegisters matAC) ∧
       y.regs (callRegisters 5) = x.regs (hostRegisters free) := by
-  refine ⟨?y, ?exec, ?frame, ?mem, ?side, ?bound, ?ab, ?bc, ?ac, ?free⟩
-  case exec => ram_eval [solverSetup, callRegisters, solverArg, solverRegisters,
-    hostRegisters, side, filler,
-    matAB, matBC, matAC, free, Fin.mk.injEq]
-  case frame =>
-    intro i
-    have hlt := i.isLt
-    simp only [Data.set_regs, Function.update_apply, hostRegisters, Fin.mk.injEq]
-    split_ifs <;> omega
-  all_goals simp +decide [Data.set_regs, callRegisters, solverArg, solverRegisters, hostRegisters]
+  refine WP.exists_execWithin ?_
+  unfold solverSetup
+  wram_exec
+  simp +decide [Data.set_regs, callRegisters_eq_iff, host_ne_call]
 
 private theorem exec_finish {w r s : ℕ} (x : Data (64 + (r + 7)))
     (ho : x.regs (hostRegisters one) = 1) (hi : x.regs (hostRegisters inst) = s)
@@ -244,47 +226,13 @@ private theorem exec_finish {w r s : ℕ} (x : Data (64 + (r + 7)))
         (if x.regs (callRegisters 6) = 1 then 1 else x.regs (hostRegisters found)) ∧
       (∀ i : Fin 64, i ≠ inst → i ≠ found →
         y.regs (hostRegisters i) = x.regs (hostRegisters i)) ∧ y.mem = x.mem := by
-  change x.regs ⟨45, by omega⟩ = 1 at ho
-  change x.regs ⟨42, by omega⟩ = s at hi
-  by_cases ha : x.regs (callRegisters 6) = 1
-  · change x.regs ⟨70, by omega⟩ = 1 at ha
-    refine ⟨(x.set (hostRegisters found) 1).set (hostRegisters inst) (s + 1),
-      ?exec, ?inst, ?found, ?frame, ?mem⟩
-    case exec =>
-      apply ExecWithin.of_eval (fuel := 0) (n := 3)
-      · simp +decide [finish, Code.eval, Op.eval_copy, Op.eval_bin, Data.put,
-          Data.set_regs, Cond.holds_eq, BinOp.eval,
-          callRegisters, solverArg, solverRegisters, hostRegisters, one, inst, found,
-          ho, hi, ha, hfit]
-      · omega
-    case inst => simp
-    case found =>
-      simp +decide [ha, callRegisters, solverArg, solverRegisters, hostRegisters, inst, found]
-    case frame =>
-      intro i hi hf
-      have hni := (hostRegisters_injective (r := r + 7)).ne hi
-      have hnf := (hostRegisters_injective (r := r + 7)).ne hf
-      simp only [Data.set_regs, Function.update_of_ne hni, Function.update_of_ne hnf]
-    case mem => rfl
-  · change ¬x.regs ⟨70, by omega⟩ = 1 at ha
-    refine ⟨(x.set (hostRegisters found) (x.regs (hostRegisters found))).set
-      (hostRegisters inst) (s + 1), ?exec, ?inst, ?found, ?frame, ?mem⟩
-    case exec =>
-      apply ExecWithin.of_eval (fuel := 0) (n := 4)
-      · simp +decide [finish, Code.eval, Op.eval_copy, Op.eval_bin, Data.put,
-          Data.set_regs, Cond.holds_eq, BinOp.eval,
-          callRegisters, solverArg, solverRegisters, hostRegisters, one, inst, found,
-          ho, hi, ha, hfit]
-      · omega
-    case inst => simp
-    case found =>
-      simp +decide [ha, callRegisters, solverArg, solverRegisters, hostRegisters, inst, found]
-    case frame =>
-      intro i hi hf
-      have hni := (hostRegisters_injective (r := r + 7)).ne hi
-      have hnf := (hostRegisters_injective (r := r + 7)).ne hf
-      simp only [Data.set_regs, Function.update_of_ne hni, Function.update_of_ne hnf]
-    case mem => rfl
+  refine WP.exists_execWithin ?_
+  unfold finish
+  wram_exec [Function.update_apply, hostRegisters_eq_iff, ho, hi] <;>
+    exact ⟨by wram_simp [Function.update_apply, hostRegisters_eq_iff],
+      by wram_simp [Function.update_apply, hostRegisters_eq_iff, hc],
+      fun i hni hnf => by wram_simp [Function.update_apply, hostRegisters_eq_iff, hni, hnf],
+      by wram_simp⟩
 
 /-- One generated instance, with the concrete solver's native execution proof supplied by the
 caller. The solver may overwrite matrices and scratch, but preserves the memory prefix below

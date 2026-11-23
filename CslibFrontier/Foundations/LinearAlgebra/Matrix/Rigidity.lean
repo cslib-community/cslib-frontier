@@ -9,7 +9,9 @@ module
 
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rank
 public import Mathlib.Data.Set.Card
+import Mathlib.LinearAlgebra.LinearIndependent.Lemmas
 import Mathlib.LinearAlgebra.Matrix.Diagonal
+import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
 
 /-!
 # Matrix rigidity
@@ -26,7 +28,11 @@ matrices have no linear circuits of linear size and logarithmic depth
 
 Changing one entry changes the rank by at most one, so `A` must lose `rank A - r` rank and every
 matrix needs at least `rank A - r` changes (`Matrix.rank_sub_le_rigidity`). For the identity matrix
-of size `n` this is exact: `rigidity 1 r = n - r` (`Matrix.rigidity_one`).
+of size `n` this is exact: `rigidity 1 r = n - r` (`Matrix.rigidity_one`). Conversely, when
+`r ≤ rank A`, choosing an invertible `r × r` submatrix and replacing the complementary
+`(|m| - r) × (|n| - r)` block by the Schur-complement product of the bordering blocks brings the
+rank down to `r`, so `A.rigidity r ≤ (|m| - r) (|n| - r)` (`Matrix.rigidity_le_mul_sub`, and
+`(|n| - r) ^ 2` for square matrices in `Matrix.rigidity_le_sq_sub`; [Lokam2009], §2.1, p. 11).
 
 ## Main definitions
 
@@ -40,6 +46,8 @@ of size `n` this is exact: `rigidity 1 r = n - r` (`Matrix.rigidity_one`).
 * `Matrix.rigidity_antitone`: rigidity decreases as the target rank grows.
 * `Matrix.rigidity_eq_zero_iff`: rigidity is zero exactly when the rank is already at most `r`.
 * `Matrix.rigidity_zero`: at target rank zero, rigidity counts the nonzero entries.
+* `Matrix.rigidity_le_mul_sub`, `Matrix.rigidity_le_sq_sub`: every `m × n` matrix has rigidity at
+  most `(|m| - r) (|n| - r)` (and `(|n| - r) ^ 2` when square).
 * `Matrix.rank_le_diffCount_zero`: the rank is at most the number of nonzero entries.
 * `Matrix.rank_sub_diffCount_le_rank`, `Matrix.rank_sub_le_rigidity`: each change lowers the rank
   by at most one, so every matrix needs at least `rank A - r` changes.
@@ -47,7 +55,8 @@ of size `n` this is exact: `rigidity 1 r = n - r` (`Matrix.rigidity_one`).
 
 ## References
 
-* [S. V. Lokam, *Complexity Lower Bounds using Linear Algebra*][Lokam2009], Definition 2.1
+* [S. V. Lokam, *Complexity Lower Bounds using Linear Algebra*][Lokam2009], Definition 2.1 and
+  §2.1, p. 11
 * [L. G. Valiant, *Graph-theoretic arguments in low-level complexity*][Valiant1977]
 -/
 
@@ -122,6 +131,8 @@ theorem rigidity_le_card [Fintype m] (A : Matrix m n K) (r : ℕ) :
     A.rigidity r ≤ Fintype.card m * Fintype.card n :=
   (rigidity_le (B := 0) (by simp)).trans (diffCount_le_card _ _)
 
+section FiniteRows
+
 variable [Finite m]
 
 /-- Some matrix of rank at most `r` differs from `A` in exactly `A.rigidity r` entries. -/
@@ -193,6 +204,90 @@ theorem rank_sub_le_rigidity (A : Matrix m n K) (r : ℕ) : A.rank - r ≤ A.rig
   obtain ⟨B, hB, hAB⟩ := exists_rigidity_eq A r
   have := rank_sub_diffCount_le_rank A B
   omega
+
+/-- A matrix of rank at least `r` over a field contains an invertible `r × r` submatrix. -/
+private theorem exists_submatrix_mul_eq_one_of_le_rank {A : Matrix m n K} {r : ℕ}
+    (hr : r ≤ A.rank) :
+    ∃ (f : Fin r → m) (g : Fin r → n) (M' : Matrix (Fin r) (Fin r) K),
+      Function.Injective f ∧ Function.Injective g ∧
+        A.submatrix f g * M' = 1 ∧ M' * A.submatrix f g = 1 := by
+  classical
+  have := Fintype.ofFinite m
+  obtain ⟨κ, a, ha, hspan, hli⟩ := exists_linearIndependent' K A.row
+  have : Finite κ := Finite.of_injective a ha
+  have := Fintype.ofFinite κ
+  have hκ : r ≤ Fintype.card κ := by
+    rwa [← finrank_span_eq_card hli, hspan, ← A.rank_eq_finrank_span_row]
+  let e₁ : Fin r → κ := (Fintype.equivFin κ).symm ∘ Fin.castLE hκ
+  have he₁ : Function.Injective e₁ := (Equiv.injective _).comp (Fin.castLE_injective hκ)
+  let f : Fin r → m := a ∘ e₁
+  have hf : Function.Injective f := ha.comp he₁
+  have hf_rank : (A.submatrix f id).rank = r := by
+    have hrow : LinearIndependent K (A.submatrix f id).row := hli.comp e₁ he₁
+    rw [hrow.rank_matrix, Fintype.card_fin]
+  obtain ⟨κ', b, hb, hspan', hli'⟩ := exists_linearIndependent' K (A.submatrix f id).col
+  have : Finite κ' := Finite.of_injective b hb
+  have := Fintype.ofFinite κ'
+  have hκ' : Fintype.card κ' = r := by
+    rw [← finrank_span_eq_card hli', hspan', ← rank_eq_finrank_span_cols, hf_rank]
+  let e₂ : Fin r ≃ κ' := Fintype.equivOfCardEq (by rw [Fintype.card_fin, hκ'])
+  let g : Fin r → n := b ∘ e₂
+  have hg : Function.Injective g := hb.comp e₂.injective
+  have hfg_rank : (A.submatrix f g).rank = Fintype.card (Fin r) := by
+    rw [← rank_transpose]
+    have hcol : LinearIndependent K (A.submatrix f g)ᵀ.row := hli'.comp e₂ e₂.injective
+    exact hcol.rank_matrix
+  obtain ⟨M', hMM'⟩ := exists_mul_eq_one_of_rank_eq_card hfg_rank
+  exact ⟨f, g, M', hf, hg, hMM', mul_eq_one_comm.mp hMM'⟩
+
+end FiniteRows
+
+/-- **Upper bound on matrix rigidity** ([Valiant1977]; [Lokam2009], §2.1, p. 11, for square
+matrices). Every `m × n` matrix over a field has rigidity at most `(|m| - r) (|n| - r)` at target
+rank `r`: if `rank A ≤ r` no changes are needed, and if `r < rank A` then `A` contains an
+invertible `r × r` submatrix `A_{I, J}`, so `A_{·, J} A_{I, J}⁻¹ A_{I, ·}` has rank at most `r`
+and agrees with `A` on all of `I × n` and `m × J`. -/
+theorem rigidity_le_mul_sub [Fintype m] (A : Matrix m n K) (r : ℕ) :
+    A.rigidity r ≤ (Fintype.card m - r) * (Fintype.card n - r) := by
+  rcases le_or_gt A.rank r with hle | hlt
+  · rw [rigidity_eq_zero_iff.mpr hle]
+    exact Nat.zero_le _
+  obtain ⟨f, g, M', hf, hg, hMM', hM'M⟩ := exists_submatrix_mul_eq_one_of_le_rank hlt.le
+  let B : Matrix m n K := A.submatrix id g * M' * A.submatrix f id
+  have hBrank : B.rank ≤ r :=
+    (rank_mul_le_right _ _).trans ((rank_le_card_height _).trans_eq (Fintype.card_fin r))
+  have hBf : B.submatrix f id = A.submatrix f id := by
+    calc B.submatrix f id
+        = (A.submatrix id g * M').submatrix f id * A.submatrix f id := rfl
+      _ = A.submatrix f g * M' * A.submatrix f id := rfl
+      _ = A.submatrix f id := by rw [hMM', Matrix.one_mul]
+  have hBg : B.submatrix id g = A.submatrix id g := by
+    calc B.submatrix id g
+        = A.submatrix id g * M' * (A.submatrix f id).submatrix id g := rfl
+      _ = A.submatrix id g * (M' * A.submatrix f g) := Matrix.mul_assoc _ _ _
+      _ = A.submatrix id g := by rw [hM'M, Matrix.mul_one]
+  have hsub : {p : m × n | A p.1 p.2 ≠ B p.1 p.2} ⊆ (Set.range f)ᶜ ×ˢ (Set.range g)ᶜ := by
+    rintro ⟨i, j⟩ hij
+    refine ⟨?_, ?_⟩
+    · rintro ⟨a, rfl⟩
+      exact hij (congr_fun₂ hBf.symm a j)
+    · rintro ⟨b, rfl⟩
+      exact hij (congr_fun₂ hBg.symm i b)
+  refine (rigidity_le hBrank).trans ?_
+  calc diffCount A B
+      ≤ ((Set.range f)ᶜ ×ˢ (Set.range g)ᶜ).ncard := Set.ncard_le_ncard hsub
+    _ = (Set.range f)ᶜ.ncard * (Set.range g)ᶜ.ncard := Set.ncard_prod
+    _ = (Fintype.card m - r) * (Fintype.card n - r) := by
+        rw [Set.ncard_compl, Set.ncard_compl, Set.ncard_range_of_injective hf,
+          Set.ncard_range_of_injective hg]
+        simp only [Nat.card_eq_fintype_card, Fintype.card_fin]
+
+/-- **Upper bound on the rigidity of a square matrix** ([Valiant1977]; [Lokam2009], §2.1, p. 11).
+Every `n × n` matrix over a field has rigidity at most `(|n| - r) ^ 2` at target rank `r`. -/
+theorem rigidity_le_sq_sub (A : Matrix n n K) (r : ℕ) :
+    A.rigidity r ≤ (Fintype.card n - r) ^ 2 := by
+  rw [sq]
+  exact A.rigidity_le_mul_sub r
 
 section One
 

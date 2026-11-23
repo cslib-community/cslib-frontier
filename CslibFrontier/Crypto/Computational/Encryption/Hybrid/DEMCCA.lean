@@ -12,9 +12,8 @@ public import CslibFrontier.Crypto.Computational.Encryption.Authenticated
 public import CslibFrontier.Crypto.Encoding
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
-import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Tactic.PPT
@@ -210,11 +209,8 @@ private theorem eval_run_substituted_phase {α : Type}
       (handler request))
     (fun _ : Unit => state) (fun request s => by
       have h := congrArg ProbComp.eval (hstep request)
-      rw [ProbOracleComp.eval_run_interpret_eq_runWith, ProbComp.eval_pure] at h
-      simpa only [PMF.pure_map] using h.symm) program ()
-  rw [ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_simulate, ← hsim,
-    ProbOracleComp.eval_run_interpret_eq_runWith]
-  simp only [ProbComp.eval_pure]
+      simpa only [runWith_norm, pmf_norm] using h.symm) program ()
+  simpa only [runWith_norm, pmf_norm] using hsim.symm
 
 private theorem eval_run_hybridDEMContinuation (E : SymmetricCipher)
     (decaps : ℕ → List Bool → List Bool → Option (List Bool))
@@ -304,9 +300,8 @@ theorem eval_hybridDEMGame (E : SymmetricCipher)
       ProbComp.eval (E.ccaOneTimeGame
         (hybridToOneTimeCCAAdversary E keyGen encaps decaps ctBound decBound adversary) bit n) := by
   symm
-  simp only [pmf_norm, hybridDEMGame, SymmetricCipher.ccaOneTimeGame, hybridToOneTimeCCAAdversary,
-    ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_sample]
+  simp only [hybridDEMGame, SymmetricCipher.ccaOneTimeGame, hybridToOneTimeCCAAdversary,
+    runWith_norm, pmf_norm]
   rw [PMF.bind_comm]
   apply PMF.bind_congr_on_support
   intro keys _

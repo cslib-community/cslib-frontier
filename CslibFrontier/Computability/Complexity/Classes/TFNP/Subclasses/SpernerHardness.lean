@@ -211,6 +211,18 @@ private def tileColor : TileKind → ℕ → ℕ → Fin 3
   | .capE, dx, dy => hseg 8 15 7 true dx dy
   | .capW, dx, dy => hseg 0 7 7 false dx dy
 
+private def cellNoTrichromatic (c : ℕ × ℕ → Fin 3) (x y : ℕ) : Bool :=
+  let c00 := c (x, y)
+  let c10 := c (x + 1, y)
+  let c01 := c (x, y + 1)
+  let c11 := c (x + 1, y + 1)
+  (c00 == c11 || c00 == c01 || c11 == c01) && (c00 == c10 || c00 == c11 || c10 == c11)
+
+private theorem fin3_not_injective_of_beq {f : Fin 3 → Fin 3}
+    (h : (f 0 == f 1 || f 0 == f 2 || f 1 == f 2) = true) : ¬Function.Injective f := by
+  revert f h
+  decide +kernel
+
 private theorem tileColor_border_check :
     TileKind.all.all (fun k =>
       (List.range 16).all fun i =>
@@ -218,14 +230,13 @@ private theorem tileColor_border_check :
         decide (tileColor k 15 i = portColor (tilePorts k).2.1 i) &&
         decide (tileColor k i 0 = portColorV (tilePorts k).2.2.1 i) &&
         decide (tileColor k i 15 = portColorV (tilePorts k).2.2.2 i)) = true := by
-  decide
+  decide +kernel
 
 private theorem tileColor_no_spurious :
     TileKind.all.all (fun k =>
       k.isCap || (List.range 15).all fun x => (List.range 15).all fun y =>
-        !decide (Trichromatic (fun p => tileColor k p.1 p.2) ⟨false, x, y⟩) &&
-        !decide (Trichromatic (fun p => tileColor k p.1 p.2) ⟨true, x, y⟩)) = true := by
-  decide
+        cellNoTrichromatic (fun p => tileColor k p.1 p.2) x y) = true := by
+  decide +kernel
 
 private theorem mem_tileKind_all (k : TileKind) : k ∈ TileKind.all := by
   cases k <;> simp [TileKind.all]
@@ -256,15 +267,14 @@ private theorem tileColor_north {k : TileKind} {i : ℕ} (hi : i < 16) :
 
 private theorem not_trichromatic_of_all_range {W H : ℕ} {c : ℕ × ℕ → Fin 3}
     (hall : ((List.range W).all fun x => (List.range H).all fun y =>
-      !decide (Trichromatic c ⟨false, x, y⟩) &&
-      !decide (Trichromatic c ⟨true, x, y⟩)) = true)
+      cellNoTrichromatic c x y) = true)
     {t : GridTriangle} (hx : t.x < W) (hy : t.y < H) : ¬Trichromatic c t := by
   have h := List.all_eq_true.mp (List.all_eq_true.mp hall t.x (List.mem_range.mpr hx))
     t.y (List.mem_range.mpr hy)
-  simp only [Bool.and_eq_true, Bool.not_eq_true', decide_eq_false_iff_not] at h
+  simp only [cellNoTrichromatic, Bool.and_eq_true] at h
   rcases t with ⟨_ | _, x, y⟩
-  · exact h.1
-  · exact h.2
+  · exact fin3_not_injective_of_beq h.1
+  · exact fin3_not_injective_of_beq h.2
 
 private theorem isCap_of_trichromatic_tileColor {k : TileKind} {t : GridTriangle}
     (hx : t.x < 15) (hy : t.y < 15)
@@ -385,7 +395,7 @@ private theorem tilePorts_tileKindOff_check (ho hi eqv ltYX ltXv ltvX ltPY ltYP 
       decide (tilePorts (tileKindOff ho hi eqv ltYX ltXv ltvX ltPY ltYP) =
         portsOff ho hi eqv ltYX ltXv ltvX ltPY ltYP) = true := by
   revert ho hi eqv ltYX ltXv ltvX ltPY ltYP
-  decide
+  decide +kernel
 
 private theorem tilePorts_tileKind {N : ℕ} {P S : ℕ → ℕ} {X Y : ℕ}
     (hX : X < N) (hY : Y < N) :
@@ -537,9 +547,8 @@ private def marginColor (ho0 : Bool) (x y : ℕ) : Fin 3 :=
 
 private theorem margin_no_trichromatic :
     ((List.range 26).all fun x => (List.range 16).all fun y =>
-      !decide (Trichromatic (fun p => marginColor true p.1 p.2) ⟨false, x, y⟩) &&
-      !decide (Trichromatic (fun p => marginColor true p.1 p.2) ⟨true, x, y⟩)) = true := by
-  decide
+      cellNoTrichromatic (fun p => marginColor true p.1 p.2) x y) = true := by
+  decide +kernel
 
 private theorem trichromatic_marginColor_imp {ho0 : Bool} {t : GridTriangle}
     (hx : t.x < 26) (hy : t.y < 16)
@@ -1030,6 +1039,8 @@ private theorem length_colorToBits (c : Fin 3) : (colorToBits c).length = 3 := b
 private theorem outputColor_colorToBits (c : Fin 3) :
     Sperner2D.outputColor (colorToBits c) = c := by
   fin_cases c <;> decide
+
+attribute [local irreducible] ComputableInPolyTime
 
 private theorem computableInPolyTime_lsbValue {α : Type} {enc : α ↪ List Bool}
     {bits : α → List Bool} (hbits : ComputableInPolyTime bits enc encBits) :

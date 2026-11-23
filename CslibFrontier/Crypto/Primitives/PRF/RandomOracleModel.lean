@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Primitives.PRF.Finite
 public import CslibFrontier.Foundations.Data.BitString.ShortWords
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 import CslibFrontier.Crypto.Negligible.Dyadic
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
 import CslibFrontier.Probability.PMF.UniformExtend
@@ -437,17 +438,13 @@ theorem roAdvantage_const_simulate [Fintype Y] [Nonempty Y] (F : Key → X → Y
   have hreal : ProbComp.eval (roRealExperiment (M := M) (T := T) (fun _ => F)
       (ProbOracleComp.simulate (fun x => ProbOracleComp.query (Sum.inl x)) A)) =
       ProbComp.eval (realExperiment F A) := by
-    simp only [roRealExperiment, realExperiment, ProbComp.eval_bind, ProbComp.eval_uniform,
-      ProbOracleComp.run_simulate, ProbOracleComp.run_query]
-    exact PMF.bind_const (uniformOfFintype (M → T))
-      ((uniformOfFintype Key).bind fun key => (ProbOracleComp.run A fun x => pure (F key x)).eval)
+    simp only [roRealExperiment, realExperiment, ProbComp.eval_uniform, runWith_norm, pmf_norm,
+      PMF.bind_const]
   have hideal : ProbComp.eval (roIdealExperiment (M := M) (T := T)
       (ProbOracleComp.simulate (fun x => ProbOracleComp.query (Sum.inl x)) A)) =
       ProbComp.eval (idealExperiment A) := by
-    simp only [roIdealExperiment, idealExperiment, ProbComp.eval_bind, ProbComp.eval_uniform,
-      ProbOracleComp.run_simulate, ProbOracleComp.run_query]
-    exact PMF.bind_const (uniformOfFintype (M → T))
-      ((uniformOfFintype (X → Y)).bind fun f => (ProbOracleComp.run A fun x => pure (f x)).eval)
+    simp only [roIdealExperiment, idealExperiment, ProbComp.eval_uniform, runWith_norm, pmf_norm,
+      PMF.bind_const]
   rw [roAdvantage, advantage, hreal, hideal]
 
 /-- **Theorem 8.9, concrete bound** ([BonehShoup2023], Section 8.10.2, p. 329). If `encode` is

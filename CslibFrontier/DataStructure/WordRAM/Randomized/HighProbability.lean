@@ -13,6 +13,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
 public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.SuppCases
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -209,8 +210,7 @@ theorem ExecRand.tsum_le_eval_runRand_assemble {w : ℕ} {c : Code B r} {x : Dat
         (fun z hz => by simp [PMF.pure_apply, hz])]
       simp [h1, Code.size]
     · refine le_trans (le_of_eq (tsum_mul_ite_le_eq_zero _ _ fun z hz => ?_)) zero_le
-      obtain ⟨_, -, hs⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
-      cases OracleComp.eq_of_mem_supportWith_pure hs
+      supp_cases hz with ⟨_, rfl⟩
       exact h1
   | @seq c₁ c₂ x m₁ m₂ _ _ ih₁ ih₂ =>
     have hc₂ : p.Contains (pc + c₁.size) (c₂.assemble (pc + c₁.size)) := by
@@ -295,9 +295,7 @@ theorem ExecRand.tsum_le_eval_runRand_assemble {w : ℕ} {c : Code B r} {x : Dat
             simp [show ¬z₁.2 + z₂.2 + 2 ≤ k + 1 + 1 by omega])) zero_le
       · rw [(PMF.apply_eq_zero_iff _ _).mpr hz₁, zero_mul, zero_mul]
     · refine le_trans (le_of_eq (tsum_mul_ite_le_eq_zero _ _ fun z hz => ?_)) zero_le
-      obtain ⟨z₁, -, hrest⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
-      obtain ⟨z₂, -, hfin⟩ := OracleComp.mem_supportWith_bind_iff.mp hrest
-      cases OracleComp.eq_of_mem_supportWith_pure hfin
+      supp_cases hz with ⟨z₁, -, z₂, -, rfl⟩
       omega
 
 /-- **Partial-horizon flat-program halting lower bound (`toOuterMeasure_le_evalRand_program`).**
@@ -604,15 +602,14 @@ noncomputable def toHighProb (C : StateTransitionImpl P D w base params s₀)
     obtain ⟨y, ⟨n₀, hn₀, he⟩, hfr', hrep, _, hmod⟩ := C.setup_exec hx₁ hb hfr hpar hz
     refine ⟨pure (y, n₀), PMF.pure ((), y), he.execRand, .pure _ 0, ?_, ?_, ?_, ?_⟩
     · intro z hz
-      cases OracleComp.eq_of_mem_supportWith_pure hz
+      supp_cases hz
       exact hn₀
     · simp [ProbComp.eval_pure]
     · intro θ
       cases θ
       simp
     · intro p hp
-      rw [PMF.support_pure, Set.mem_singleton_iff] at hp
-      subst hp
+      supp_cases hp
       exact ⟨hfr', hrep, hmod⟩
   step_exec _ o ν _ _ hsupp := by
     classical
@@ -637,8 +634,7 @@ noncomputable def toHighProb (C : StateTransitionImpl P D w base params s₀)
     · intro t ht_mem
       obtain ⟨a, he, hstep, hdec, hrep', hmod, _⟩ := hq t (hsupp t ht_mem)
       refine ⟨he.execRand, by simp [ProbComp.eval_pure], fun p hp => ?_⟩
-      rw [PMF.support_pure, Set.mem_singleton_iff] at hp
-      subst hp
+      supp_cases hp
       exact ⟨a, hstep, hdec, hrep', hmod⟩
     · intro θ'
       cases θ'
@@ -646,10 +642,7 @@ noncomputable def toHighProb (C : StateTransitionImpl P D w base params s₀)
     · refine le_of_eq ?_
       rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
       rintro p hp hlt
-      rw [PMF.mem_support_bind_iff] at hp
-      rcases hp with ⟨t, ht_mem, hp_pure⟩
-      rw [PMF.support_pure, Set.mem_singleton_iff] at hp_pure
-      subst hp_pure
+      supp_cases hp with ⟨t, ht_mem, rfl⟩
       obtain ⟨a, _, _, _, _, hpot_ineq⟩ := hq t (hsupp t ht_mem)
       have hpot1 := hpot (q t).1
       have hpot2 := hpot t.data
@@ -785,7 +778,7 @@ noncomputable abbrev ofFnGhost {stepFn : (s : D.State) → (o : D.Op) → D.Stat
       rw [PMF.map_comp]; exact hseed θ
     have hsupp_det : ∀ p ∈ ν_det.support, ghostRep g p.1 s p.2 ∧ argMatch o p.2.regs := by
       rintro p hp
-      rcases (PMF.mem_support_map_iff _ _ _).mp hp with ⟨t, ht, rfl⟩
+      supp_cases hp [ν_det] with ⟨t, ht, rfl⟩
       exact ⟨hs t ht ▸ (hsupp t ht).2.1, (hsupp t ht).2.2⟩
     obtain ⟨m_det, μ_det, hstep_det, hseed_det', hfail_det⟩ :=
       step_exec g o ν_det hv hseed_det hsupp_det
@@ -801,7 +794,7 @@ noncomputable abbrev ofFnGhost {stepFn : (s : D.State) → (o : D.Op) → D.Stat
         hstep_det (proj t) ((PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩)
       refine ⟨hm_t, by dsimp only [μ_step, liftOut]; rw [PMF.map_comp]; exact heval_t, ?_⟩
       rintro p hp
-      rcases (PMF.mem_support_map_iff _ _ _).mp hp with ⟨q, hq, rfl⟩
+      supp_cases hp [μ_step, liftOut] with ⟨q, hq, rfl⟩
       obtain ⟨hdec, hrep', hmod⟩ := hq_det q hq
       exact ⟨(D.stepFn s o).2, by rw [hs t ht]; exact D.step_stepFn s o, hdec, hrep', hmod⟩
     · intro θ'
@@ -811,8 +804,8 @@ noncomputable abbrev ofFnGhost {stepFn : (s : D.State) → (o : D.Op) → D.Stat
       exact hseed_det' θ'
     · intro _
       refine ⟨(D.stepFn s o).1, fun p hp => ?_⟩
-      rw [hbind_eq, PMF.mem_support_map_iff] at hp
-      rcases hp with ⟨_, _, rfl⟩; rfl
+      rw [hbind_eq] at hp
+      supp_cases hp [liftOut] with ⟨_, _, rfl⟩; rfl
     · rw [hbind_eq, PMF.toOuterMeasure_map_apply]
       exact hfail_det
 
@@ -902,13 +895,13 @@ theorem step_exec_ofFn (C : HighProbStateTransitionImpl P D w base params s₀)
   let lift : C.Seed × Data r_ds → CoupledState C.Seed D.State r_ds := fun p => ⟨p.1, s, p.2⟩
   let ν_rel : PMF (CoupledState C.Seed D.State r_ds) := ν.map lift
   have hsingle : C.singleState → ∃ s', ∀ t ∈ ν_rel.support, t.state = s' := fun _ =>
-    ⟨s, fun t ht => by rcases (PMF.mem_support_map_iff _ _ _).mp ht with ⟨_, _, rfl⟩; rfl⟩
+    ⟨s, fun t ht => by supp_cases ht [ν_rel, lift] with ⟨_, _, rfl⟩; rfl⟩
   have hseed_rel : ∀ θ, (ν_rel.map CoupledState.seed) θ ≤ C.seedSlack * C.seedLaw θ := fun θ => by
     rw [PMF.map_comp]; exact hseed θ
   have hsupp_rel : ∀ t ∈ ν_rel.support,
       D.valid t.state o ∧ C.ghostRep g t.seed t.state t.data ∧ C.argMatch o t.data.regs := by
     rintro t ht
-    rcases (PMF.mem_support_map_iff _ _ _).mp ht with ⟨p, hp, rfl⟩
+    supp_cases ht [ν_rel, lift] with ⟨p, hp, rfl⟩
     exact ⟨hv, (hsupp p hp).1, (hsupp p hp).2⟩
   obtain ⟨m_rel, μ_rel, hstep_rel, hseed_rel', _, hfail_rel⟩ :=
     C.step_exec g o ν_rel hsingle hseed_rel hsupp_rel
@@ -924,7 +917,7 @@ theorem step_exec_ofFn (C : HighProbStateTransitionImpl P D w base params s₀)
       hstep_rel (lift p) ((PMF.mem_support_map_iff _ _ _).mpr ⟨p, hp, rfl⟩)
     refine ⟨hm_rel, by dsimp only [μ_step, projOut]; rw [PMF.map_comp]; exact heval_rel, ?_⟩
     rintro q hq
-    rcases (PMF.mem_support_map_iff _ _ _).mp hq with ⟨q_rel, hq_mem, rfl⟩
+    supp_cases hq [μ_step, projOut] with ⟨q_rel, hq_mem, rfl⟩
     obtain ⟨a, hstep_a, hdec, hrep', hmod⟩ := hq_rel q_rel hq_mem
     have hpair : (q_rel.1.state, a) = D.stepFn s o :=
       (D.step_iff_stepFn s o q_rel.1.state a).mp hstep_a
@@ -1050,14 +1043,12 @@ private theorem execRand_seq_det_prefix {B : Basis} {w r : ℕ}
   obtain ⟨n₁, hn₁, he₁⟩ := h₁
   refine ⟨do let z₁ ← pure (x₁, n₁); let z₂ ← m₀; pure (z₂.1, z₁.2 + z₂.2), ?_, ?_, ?_, ?_⟩
   · exact he₁.execRand.seq (m₂ := fun _ => m₀) fun z₁ hz₁ => by
-      cases OracleComp.eq_of_mem_supportWith_pure hz₁; exact h₂
+      supp_cases hz₁; exact h₂
   · simpa [pure_bind, OracleComp.IsQueryBounded] using
       (OracleComp.isCostBounded_map_iff (f := fun z₂ : Data r × ℕ => (z₂.1, n₁ + z₂.2))
         _ _).mpr hq
   · intro z hz
-    simp only [pure_bind] at hz
-    obtain ⟨z₂, hz₂, hfin⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
-    cases OracleComp.eq_of_mem_supportWith_pure hfin
+    supp_cases hz with ⟨z₂, hz₂, rfl⟩
     exact Nat.add_le_add hn₁ (hT z₂ hz₂)
   · simp [pure_bind, ProbComp.eval_map]
 
@@ -1222,14 +1213,13 @@ theorem step_whp (C : HighProbStateTransitionImpl P D w base params s₀)
   let ν_prep : PMF (CoupledState C.Seed D.State r_ds) := ν.map prepMap
   have hsingle_prep : C.singleState → ∃ s, ∀ t' ∈ ν_prep.support, t'.state = s := fun hd =>
     let ⟨s, hs⟩ := hsingle hd
-    ⟨s, fun t' ht' => by
-      rcases (PMF.mem_support_map_iff _ _ _).mp ht' with ⟨t, ht, rfl⟩; exact hs t ht⟩
+    ⟨s, fun t' ht' => by supp_cases ht' [ν_prep] with ⟨t, ht, rfl⟩; exact hs t ht⟩
   have hseed_prep : ∀ θ, (ν_prep.map CoupledState.seed) θ ≤ C.seedSlack * C.seedLaw θ := fun θ => by
     rw [PMF.map_comp]; exact hseed θ
   have hsupp_prep : ∀ t' ∈ ν_prep.support,
       D.valid t'.state o ∧ C.ghostRep g t'.seed t'.state t'.data ∧ C.argMatch o t'.data.regs := by
     rintro t' ht'
-    rcases (PMF.mem_support_map_iff _ _ _).mp ht' with ⟨t, ht, rfl⟩
+    supp_cases ht' [ν_prep, prepMap] with ⟨t, ht, rfl⟩
     exact ⟨hv t ht, C.prepare_ghostRep (hrep t ht) (hv t ht), C.prepare_argMatch o t.data⟩
   obtain ⟨m_step, μ_step, hstep, hseed₁, hsingle₁, hfail₁⟩ :=
     C.step_exec g o ν_prep hsingle_prep hseed_prep hsupp_prep
@@ -1260,8 +1250,8 @@ theorem step_whp (C : HighProbStateTransitionImpl P D w base params s₀)
           Modifies (Block.mk base C.space).footprint t.data.mem q.data.mem
       have hQ_t : ∀ z ∈ (m_step (prepMap t)).eval.support, Q_t z.1 := by
         intro z hz
-        rw [← heval_t, PMF.mem_support_map_iff] at hz
-        rcases hz with ⟨p, hp, rfl⟩
+        rw [← heval_t] at hz
+        supp_cases hz with ⟨p, hp, rfl⟩
         obtain ⟨a, hst, hdec, hrep_p, hmod_p⟩ := hp_t p hp
         exact ⟨p.1, a, rfl, hst, hdec, hrep_p, C.bounded hrep_p, hmod_p⟩
       have hm_le : (μ_op t).toOuterMeasure {p | p.2 ≤ C.worstCaseTime} =
@@ -1305,10 +1295,10 @@ theorem step_whp_ofFn (C : HighProbStateTransitionImpl P D w base params s₀)
   let lift : C.Seed × Data r_ds → CoupledState C.Seed D.State r_ds := fun p => ⟨p.1, s, p.2⟩
   let ν_rel : PMF (CoupledState C.Seed D.State r_ds) := ν.map lift
   have hs₀ : ∀ t ∈ ν_rel.support, t.state = s := fun t ht => by
-    rcases (PMF.mem_support_map_iff _ _ _).mp ht with ⟨_, _, rfl⟩; rfl
+    supp_cases ht [ν_rel, lift] with ⟨_, _, rfl⟩; rfl
   obtain ⟨_, _, _, _, _, _, hwhp⟩ := C.step_whp out o ν_rel (fun t ht => hs₀ t ht ▸ hv)
     (fun θ => by rw [PMF.map_comp]; exact hseed θ)
-    (fun t ht => by rcases (PMF.mem_support_map_iff _ _ _).mp ht with ⟨p, hp, rfl⟩; exact hrep p hp)
+    (fun t ht => by supp_cases ht [ν_rel, lift] with ⟨p, hp, rfl⟩; exact hrep p hp)
     (fun _ => ⟨s, hs₀⟩)
   have hbind_eq :
       (ν_rel.bind fun t =>
@@ -1319,7 +1309,7 @@ theorem step_whp_ofFn (C : HighProbStateTransitionImpl P D w base params s₀)
   rw [hbind_eq] at hwhp
   refine hwhp.trans (MeasureTheory.measure_mono fun cfg hcfg => ?_)
   rcases hcfg with ⟨t, q, a, ht, rfl, hst, hdec, hrep_q, hbdd_q, hmod_q⟩
-  rcases (PMF.mem_support_map_iff _ _ _).mp ht with ⟨p, hp, rfl⟩
+  supp_cases ht [ν_rel, lift] with ⟨p, hp, rfl⟩
   have hpair : (q.state, a) = D.stepFn s o := (D.step_iff_stepFn s o q.state a).mp hst
   exact ⟨p, (q.seed, q.data), hp, rfl, congrArg Prod.snd hpair ▸ hdec,
     congrArg Prod.fst hpair ▸ hrep_q, hbdd_q, hmod_q⟩
@@ -1481,10 +1471,8 @@ theorem steps_whp (C : HighProbStateTransitionImpl P D w base params s₀)
     have hmem_src : ∀ q ∈ (τ₁.map WhpSeqOutcome.current).support,
         ∃ t ∈ ν.support, ∃ p ∈ (μ_op t).support, p.1 = q := by
       intro q hq
-      rw [hcur₁, PMF.mem_support_map_iff] at hq
-      rcases hq with ⟨p, hp, rfl⟩
-      rw [PMF.mem_support_bind_iff] at hp
-      rcases hp with ⟨t, ht, hp_op⟩
+      rw [hcur₁] at hq
+      supp_cases hq with ⟨p, ⟨t, ht, hp_op⟩, rfl⟩
       exact ⟨t, ht, p, hp_op, rfl⟩
     have hv₁ : ∀ q ∈ (τ₁.map WhpSeqOutcome.current).support, D.ValidOpSeq q.state os := by
       intro q hq
@@ -1501,8 +1489,9 @@ theorem steps_whp (C : HighProbStateTransitionImpl P D w base params s₀)
         q.state = s' := fun hd =>
       let ⟨s', hs'⟩ := hsingle₁ hd
       ⟨s', fun q hq => by
-        rw [hcur₁, PMF.mem_support_map_iff] at hq
-        rcases hq with ⟨p, hp, rfl⟩; exact hs' p hp⟩
+        rw [hcur₁] at hq
+        supp_cases hq with ⟨p, ⟨t, ht, hp⟩, rfl⟩
+        exact hs' p ((PMF.mem_support_bind_iff _ _ _).mpr ⟨t, ht, hp⟩)⟩
     have hfail_step :
         τ₁.toOuterMeasure {tr | C.worstCaseTime < tr.maxSteps} ≤
           τ.toOuterMeasure {tr | C.worstCaseTime < tr.maxSteps} + C.failureProb :=
@@ -1515,7 +1504,7 @@ theorem steps_whp (C : HighProbStateTransitionImpl P D w base params s₀)
       · have hfn : (fun p : (CoupledState C.Seed D.State r_ds × D.Result o) × ℕ =>
             (p.1.1.data, p.2)) = (fun p => (p.1.data, p.2)) ∘ (fun p => (p.1.1, p.2)) := rfl
         rw [hfn, ← PMF.map_comp, hproj t, hev]
-      · rcases (PMF.mem_support_map_iff _ _ _).mp hp' with ⟨p, hp, rfl⟩
+      · supp_cases hp' [μ_step] with ⟨p, hp, rfl⟩
         simp only [show t ∈ ν.support ∧ p ∈ (μ_op t).support from ⟨ht, hp⟩]
         obtain ⟨hst_p, hdec_p, hgrep_p, hbdd_p, hmod_p⟩ := Classical.choose_spec (hq p hp)
         exact ⟨hst_p, hdec_p, ⟨C.ghostStep g o, hgrep_p⟩, hbdd_p, hmod_p⟩
@@ -1569,17 +1558,14 @@ theorem seq_whp (C : HighProbStateTransitionImpl P D w base params s₀)
   have hzero_max : τ₀.toOuterMeasure {tr | C.worstCaseTime < tr.maxSteps} = 0 := by
     rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
     rintro tr htr hlt
-    rcases (PMF.mem_support_map_iff _ _ _).mp htr with ⟨_, _, rfl⟩
+    supp_cases htr [τ₀] with ⟨_, _, rfl⟩
     exact Nat.not_lt_zero _ hlt
   obtain ⟨τ_final, hex, hseed_final, hrep_final, hfail⟩ := C.steps_whp out ops τ₀
-    (fun t ht => by
-      rw [hcur₀, PMF.mem_support_map_iff] at ht; rcases ht with ⟨_, _, rfl⟩; exact hv)
+    (fun t ht => by rw [hcur₀] at ht; supp_cases ht with ⟨_, _, rfl⟩; exact hv)
     (fun θ => by rw [hcur₀, PMF.map_comp]; exact hseed₀ θ)
     (fun t ht => by
-      rw [hcur₀, PMF.mem_support_map_iff] at ht
-      rcases ht with ⟨p, hp, rfl⟩; exact (hsupp₀ p hp).2.1)
-    (fun _ => ⟨s₀, fun t ht => by
-      rw [hcur₀, PMF.mem_support_map_iff] at ht; rcases ht with ⟨_, _, rfl⟩; rfl⟩)
+      rw [hcur₀] at ht; supp_cases ht with ⟨p, hp, rfl⟩; exact (hsupp₀ p hp).2.1)
+    (fun _ => ⟨s₀, fun t ht => by rw [hcur₀] at ht; supp_cases ht with ⟨_, _, rfl⟩; rfl⟩)
   rw [hzero_max, zero_add] at hfail
   refine ⟨ν₀, τ_final, hhalts₀, heval₀, ?_, hex, ?_, hseed_final, hfail,
     one_sub_le_toOuterMeasure_le _ WhpSeqOutcome.maxSteps _ hfail⟩
@@ -1612,9 +1598,7 @@ theorem ExecWhpSteps.transcript_eq_ofFn {C : HighProbStateTransitionImpl P D w b
         tr'.current.state = (D.stepFn s o).1 ∧
         tr'.transcript = acc ++ [⟨o, (D.stepFn s o).2⟩] := by
       intro tr' htr'
-      rw [PMF.mem_support_bind_iff] at htr'
-      rcases htr' with ⟨tr, htr, hmap⟩
-      rcases (PMF.mem_support_map_iff _ _ _).mp hmap with ⟨p, hp, rfl⟩
+      supp_cases htr' with ⟨tr, htr, p, hp, rfl⟩
       obtain ⟨hst, -, -, -, -⟩ := (hstep tr.current
         ((PMF.mem_support_map_iff _ _ _).mpr ⟨tr, htr, rfl⟩)).2.2.2.2 p hp
       obtain ⟨hs_tr, hacc_tr⟩ := hinit tr htr
@@ -1664,7 +1648,7 @@ theorem seq_whp_ofFn (C : HighProbStateTransitionImpl P D w base params s₀)
   obtain ⟨ν₀, τ_final, hhalts₀, heval₀, hsupp₀, hex, hrep_fin, _, hfail, hsucc⟩ :=
     C.seq_whp out ops hx hfr hpar hz ((D.validOpSeq_iff_validHistory s₀ ops).mpr hv)
   have htr_eq := hex.transcript_eq_ofFn (s := s₀) (acc := []) fun tr htr => by
-    rcases (PMF.mem_support_map_iff _ _ _).mp htr with ⟨_, _, rfl⟩; exact ⟨rfl, rfl⟩
+    supp_cases htr with ⟨_, _, rfl⟩; exact ⟨rfl, rfl⟩
   refine ⟨ν₀, τ_final, hhalts₀, heval₀, hsupp₀, hex, ?_, hfail, ?_⟩
   · intro tr htr
     obtain ⟨hs_tr, htrans_tr⟩ := htr_eq tr htr
@@ -1703,7 +1687,7 @@ theorem reachable_step_whp_ofFn (C : HighProbStateTransitionImpl P D w base para
   obtain ⟨ν₀, τ_pref, -, -, -, hex, hrep_pref, hseed_pref, -, -⟩ :=
     C.seq_whp out ops hx hfr hpar hz ((D.validOpSeq_iff_validHistory s₀ ops).mpr hv)
   have htr_eq := hex.transcript_eq_ofFn (s := s₀) (acc := []) fun tr htr => by
-    rcases (PMF.mem_support_map_iff _ _ _).mp htr with ⟨_, _, rfl⟩; exact ⟨rfl, rfl⟩
+    supp_cases htr with ⟨_, _, rfl⟩; exact ⟨rfl, rfl⟩
   let ν_cur : PMF (C.Seed × Data r_ds) :=
     τ_pref.map fun tr => (tr.current.seed, tr.current.data)
   have hseed_cur : ∀ θ, (ν_cur.map Prod.fst) θ ≤ C.seedSlack * C.seedLaw θ := fun θ => by
@@ -1713,7 +1697,7 @@ theorem reachable_step_whp_ofFn (C : HighProbStateTransitionImpl P D w base para
   have hrep_cur : ∀ p ∈ ν_cur.support,
       C.ghostRep (C.ghostRun C.ghostInit ops) p.1 (D.run s₀ ops).1 p.2 := by
     rintro p hp
-    rcases (PMF.mem_support_map_iff _ _ _).mp hp with ⟨tr, htr, rfl⟩
+    supp_cases hp [ν_cur] with ⟨tr, htr, rfl⟩
     exact (htr_eq tr htr).1 ▸ hrep_pref tr htr
   refine ⟨ν₀, τ_pref, hex, (C.step_whp_ofFn out o ν_cur hvo hseed_cur hrep_cur).trans
     (MeasureTheory.measure_mono fun cfg hcfg => ?_)⟩
