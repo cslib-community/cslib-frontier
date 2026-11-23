@@ -36,8 +36,8 @@ coefficient bit-length bound `B`.
 * `Cslib.RealRoot.mignotteBisectionDepth_le_of_bitBound`: unconditional polynomial bound
   `mignotteBisectionDepth cs ≤ (cs.length + 2) ^ 2 * (B + 2)`.
 * `Cslib.RealRoot.DyadicBounded.den_le`, `Cslib.RealRoot.DyadicBounded.natAbs_num_le`,
-  and `Cslib.RealRoot.isolateRoots_dyadicBounded`: dyadic numerator and denominator bounds on all
-  endpoints produced by Sturm bisection.
+  `Cslib.RealRoot.refineLeftRoot_dyadicBounded`, and `Cslib.RealRoot.isolateRoots_dyadicBounded`:
+  dyadic numerator and denominator bounds on all endpoints produced by Sturm bisection.
 
 ## References
 
@@ -51,7 +51,7 @@ public section
 
 namespace Cslib.RealRoot
 
-open Polynomial Cslib.Algorithms.Lean
+open Polynomial
 
 /-- Every rational entry `q ∈ cs` has numerator and denominator bounded by `2 ^ B`. -/
 @[expose] def HasCoeffBitBound (B : ℕ) (cs : List ℚ) : Prop :=
@@ -393,79 +393,70 @@ theorem DyadicBounded.natAbs_num_le {b e : ℕ} {q : ℚ} (hq : DyadicBounded b 
     exact Nat.mul_le_mul hz hden
   exact Nat.le_of_mul_le_mul_right hmul_le (Nat.pow_pos zero_lt_two)
 
-private theorem refineLeftLoopM_dyadicBounded (t : List ℚ) (seq : List (List ℚ)) :
+/-- Dyadic bound for `refineLeftLoop`: starting from `DyadicBounded b e` endpoints, `fuel` steps
+produce endpoints satisfying `DyadicBounded b (e + fuel)`. -/
+theorem refineLeftLoop_dyadicBounded (t : List ℚ) (seq : List (List ℚ)) :
     ∀ (fuel b e : ℕ) (u v : ℚ) (vu : ℕ),
       DyadicBounded b e u → DyadicBounded b e v →
-      let I := (refineLeftLoopM t seq fuel u v vu).ret
+      let I := refineLeftLoop t seq fuel u v vu
       DyadicBounded b (e + fuel) I.lower ∧ DyadicBounded b (e + fuel) I.upper
-  | 0, b, e, u, v, _, hu, hv => by
-    simp only [refineLeftLoopM, TimeM.ret_pure, Nat.add_zero]
+  | 0, _, e, _, _, _, hu, hv => by
+    simp only [refineLeftLoop, Nat.add_zero]
     exact ⟨hu, hv⟩
   | fuel + 1, b, e, u, v, vu, hu, hv => by
-    dsimp only [refineLeftLoopM]
-    rw [TimeM.ret_bind, sturmVariationsM_ret]
+    dsimp only [refineLeftLoop]
     have hm : DyadicBounded b (e + 1) ((u + v) / 2) := hu.mid hv
-    split_ifs with hvm
-    · rw [TimeM.ret_pure]
-      exact ⟨hm.mono (by omega), hv.mono (by omega)⟩
-    · rw [TimeM.ret_bind, evalListM_ret]
-      split_ifs with hem
-      · rw [TimeM.ret_pure]
-        exact ⟨hm.mono (by omega), hm.mono (by omega)⟩
-      · have ih := refineLeftLoopM_dyadicBounded t seq fuel b (e + 1) u ((u + v) / 2) vu
-          (hu.mono (by omega)) hm
-        have heq : e + 1 + fuel = e + (fuel + 1) := by omega
-        simpa only [heq] using ih
+    split_ifs with hvm hem
+    · exact ⟨hm.mono (by omega), hv.mono (by omega)⟩
+    · exact ⟨hm.mono (by omega), hm.mono (by omega)⟩
+    · have ih := refineLeftLoop_dyadicBounded t seq fuel b (e + 1) u ((u + v) / 2) vu
+        (hu.mono (by omega)) hm
+      have heq : e + 1 + fuel = e + (fuel + 1) := by omega
+      simpa only [heq] using ih
 
-private theorem refineLeftRootM_dyadicBounded (t : List ℚ) (seq : List (List ℚ))
+/-- Dyadic bound for `refineLeftRoot`: starting from `DyadicBounded b e` endpoints, `fuel` steps
+produce endpoints satisfying `DyadicBounded b (e + fuel)`. -/
+theorem refineLeftRoot_dyadicBounded (t : List ℚ) (seq : List (List ℚ))
     (fuel b e : ℕ) (u v : ℚ) (vu : ℕ)
     (hu : DyadicBounded b e u) (hv : DyadicBounded b e v) :
-    let I := (refineLeftRootM t seq fuel u v vu).ret
+    let I := refineLeftRoot t seq fuel u v vu
     DyadicBounded b (e + fuel) I.lower ∧ DyadicBounded b (e + fuel) I.upper := by
-  dsimp only [refineLeftRootM]
-  rw [TimeM.ret_bind, evalListM_ret]
-  split_ifs with hev
-  · rw [TimeM.ret_pure]
-    exact ⟨hv.mono (by omega), hv.mono (by omega)⟩
-  · rw [TimeM.ret_bind, evalListM_ret]
-    split_ifs with heu
-    · rw [TimeM.ret_pure]
-      exact ⟨hu.mono (by omega), hv.mono (by omega)⟩
-    · exact refineLeftLoopM_dyadicBounded t seq fuel b e u v vu hu hv
+  dsimp only [refineLeftRoot]
+  split_ifs with hev heu
+  · exact ⟨hv.mono (by omega), hv.mono (by omega)⟩
+  · exact ⟨hu.mono (by omega), hv.mono (by omega)⟩
+  · exact refineLeftLoop_dyadicBounded t seq fuel b e u v vu hu hv
 
-private theorem isolateIocM_dyadicBounded (t : List ℚ) (seq : List (List ℚ)) (depthBound : ℕ) :
+/-- Dyadic bound for `isolateIoc`: starting from `DyadicBounded b e` endpoints, every returned
+interval has endpoints satisfying `DyadicBounded b (e + fuel + depthBound)`. -/
+theorem isolateIoc_dyadicBounded (t : List ℚ) (seq : List (List ℚ)) (depthBound : ℕ) :
     ∀ (fuel b e : ℕ) (u v : ℚ) (vu vv : ℕ),
       DyadicBounded b e u → DyadicBounded b e v →
-      ∀ I ∈ (isolateIocM t seq depthBound fuel u v vu vv).ret,
+      ∀ I ∈ isolateIoc t seq depthBound fuel u v vu vv,
         DyadicBounded b (e + fuel + depthBound) I.lower ∧
           DyadicBounded b (e + fuel + depthBound) I.upper
   | fuel, b, e, u, v, vu, vv, hu, hv => by
-    unfold isolateIocM
+    unfold isolateIoc
     dsimp only
     split_ifs with hc0 hc1
-    · rw [TimeM.ret_pure]
-      intro _ h; cases h
-    · rw [TimeM.ret_bind, TimeM.ret_pure]
-      intro I hI
+    · intro _ h; cases h
+    · intro I hI
       rw [List.mem_singleton] at hI
       subst hI
-      have href := refineLeftRootM_dyadicBounded t seq depthBound b e u v vu hu hv
+      have href := refineLeftRoot_dyadicBounded t seq depthBound b e u v vu hu hv
       exact ⟨href.1.mono (by omega), href.2.mono (by omega)⟩
     · cases fuel with
-      | zero =>
-        rw [TimeM.ret_pure]
-        intro _ h; cases h
+      | zero => intro _ h; cases h
       | succ fuel' =>
-        simp only [TimeM.ret_bind, sturmVariationsM_ret, TimeM.ret_pure]
         have hm : DyadicBounded b (e + 1) ((u + v) / 2) := hu.mid hv
         intro I hI
         rw [List.mem_append] at hI
         have heq : e + 1 + fuel' + depthBound = e + (fuel' + 1) + depthBound := by omega
         rcases hI with hL | hR
-        · have h := isolateIocM_dyadicBounded t seq depthBound fuel' b (e + 1) u ((u + v) / 2)
+        · have h := isolateIoc_dyadicBounded t seq depthBound fuel' b (e + 1) u ((u + v) / 2)
             vu _ (hu.mono (by omega)) hm I hL
           simpa only [heq] using h
-        · have h := isolateIocM_dyadicBounded t seq depthBound fuel' b (e + 1) ((u + v) / 2) v
+        · have h := isolateIoc_dyadicBounded t seq depthBound fuel' b (e + 1) ((u + v) / 2) v
             _ vv hm (hv.mono (by omega)) I hR
           simpa only [heq] using h
 
@@ -476,15 +467,15 @@ theorem isolateRoots_dyadicBounded (cs : List ℚ) :
     ∀ I ∈ isolateRoots cs,
       DyadicBounded (cauchyBoundNat cs) (2 * mignotteBisectionDepth cs) I.lower ∧
         DyadicBounded (cauchyBoundNat cs) (2 * mignotteBisectionDepth cs) I.upper := by
-  simp only [isolateRoots, isolateRootsM]
+  simp only [isolateRoots]
   by_cases he : (CoeffList.trim cs).isEmpty = true
-  · simp only [he, ↓reduceIte, TimeM.ret_pure]
+  · simp only [he, ↓reduceIte]
     intro _ h; cases h
-  · simp only [he, Bool.false_eq_true, ↓reduceIte, TimeM.ret_bind, sturmVariationsM_ret]
+  · simp only [he, Bool.false_eq_true, ↓reduceIte]
     intro I hI
     let b := cauchyBoundNat cs
     let k := mignotteBisectionDepth cs
-    have h := isolateIocM_dyadicBounded (CoeffList.trim cs) (sturmSeqList cs) k k b 0
+    have h := isolateIoc_dyadicBounded (CoeffList.trim cs) (sturmSeqList cs) k k b 0
       (-(b : ℚ)) (b : ℚ) _ _ (DyadicBounded.of_neg_nat b) (DyadicBounded.of_nat b) I hI
     have heq : 0 + k + k = 2 * k := by omega
     simpa only [heq] using h
