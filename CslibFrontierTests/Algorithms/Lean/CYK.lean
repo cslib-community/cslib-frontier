@@ -210,6 +210,25 @@ example : ∃ n ≤ 42 * 10 * 8,
   rw [hval] at hexec
   exact ⟨n, hle, hexec, run_mono hexec.run_eq hle⟩
 
+-- Single-letter accepted witness (`S → 0` on `[0]`, exercising `|w| = 1` with `cykFinalRead = 1`)
+def singleLetterInst : CYKInstance where
+  numNTs := 1
+  initial := 0
+  rules := [leaf 0 0]
+  nilRule := false
+  initial_notMem_output := by intro h; cases h
+  word := [0]
+
+example : ∃ n ≤ 42 * 2 * 1,
+    Executes 5 cykProgram (.init singleLetterInst.encode) 1 n ∧
+      Cslib.WordRAM.run 5 cykProgram (42 * 2 * 1) (.init singleLetterInst.encode) =
+        some (1, n) := by
+  obtain ⟨n, hexec, hle⟩ := computesInTime_cyk singleLetterInst 5 (by decide) (by decide)
+  dsimp only at hexec hle
+  have hval : (cyk singleLetterInst.grammar singleLetterInst.word).toNat = 1 := by decide
+  rw [hval] at hexec
+  exact ⟨n, hle, hexec, run_mono hexec.run_eq hle⟩
+
 /-! ### The invariant is not vacuous -/
 
 /-- With the rule `S → ε`, no rule may use the start symbol on its right-hand side; `dyck` shows

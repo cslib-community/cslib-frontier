@@ -13,6 +13,7 @@ import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Computability.WordRAM.Notation
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Foundations.Data.List.RowMajor
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -78,6 +79,18 @@ open Cslib.ChomskyNormalFormGrammar Cslib.ChomskyNormalFormRule
   | .leaf A a => [0, A.val, a, 0]
   | .node A B C => [1, A.val, B.val, C.val]
 
+@[simp]
+private theorem length_encodeRule {V : ℕ} (r : ChomskyNormalFormRule ℕ (Fin V)) :
+    (encodeRule r).length = 4 := by
+  cases r <;> rfl
+
+private theorem flatMap_encodeRule_length {V : ℕ}
+    (rs : List (ChomskyNormalFormRule ℕ (Fin V))) :
+    (rs.flatMap encodeRule).length = 4 * rs.length := by
+  simp only [List.length_flatMap, length_encodeRule, List.map_const', List.sum_replicate,
+    Nat.nsmul_eq_mul]
+  omega
+
 /-- An encoded Chomsky normal form membership instance for the Word-RAM: nonterminals
 `Fin numNTs`, natural-number terminal words, a rule list satisfying the standard `nilRule`
 invariant, and an input word `word : List ℕ`. -/
@@ -116,12 +129,8 @@ abbrev grammar (I : CYKInstance) : ChomskyNormalFormGrammar ℕ where
     I.encodeRules ++ I.word
 
 @[simp]
-theorem length_encodeRules (I : CYKInstance) : I.encodeRules.length = 4 * I.rules.length := by
-  unfold encodeRules
-  induction I.rules with
-  | nil => rfl
-  | cons r rs ih =>
-    cases r <;> simp [encodeRule, ih] <;> omega
+theorem length_encodeRules (I : CYKInstance) : I.encodeRules.length = 4 * I.rules.length :=
+  flatMap_encodeRule_length I.rules
 
 @[simp]
 theorem length_encode (I : CYKInstance) :
@@ -341,29 +350,15 @@ private theorem init_mem_above (input : List ℕ) {addr : ℕ} (h : input.length
   rw [Data.init_mem_succ, List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega)]
   rfl
 
-private theorem flatMap_encodeRule_length {V : ℕ} (rs : List (ChomskyNormalFormRule ℕ (Fin V))) :
-    (rs.flatMap encodeRule).length = 4 * rs.length := by
-  induction rs with
-  | nil => rfl
-  | cons r rs ih => cases r <;> simp [encodeRule, ih] <;> omega
-
 private theorem flatMap_encodeRule_getElem {V : ℕ} (rs : List (ChomskyNormalFormRule ℕ (Fin V)))
     {idx off : ℕ} (hidx : idx < rs.length) (hoff : off < 4) :
     (rs.flatMap encodeRule)[4 * idx + off]'(by rw [flatMap_encodeRule_length]; omega) =
-      (encodeRule rs[idx])[off]'(by cases rs[idx] <;> simp [encodeRule] <;> omega) := by
-  induction rs generalizing idx with
-  | nil => cases hidx
-  | cons r rs ih =>
-    have hrlen : (encodeRule r).length = 4 := by cases r <;> rfl
-    rcases idx with _ | idx
-    · simp only [Nat.mul_zero, Nat.zero_add, List.flatMap_cons, List.getElem_cons_zero]
-      rw [List.getElem_append_left (by omega)]
-    · simp only [List.flatMap_cons, List.getElem_cons_succ]
-      have hge : (encodeRule r).length ≤ 4 * (idx + 1) + off := by omega
-      rw [List.getElem_append_right hge]
-      have hsub : 4 * (idx + 1) + off - (encodeRule r).length = 4 * idx + off := by omega
-      simp only [hsub]
-      exact ih (Nat.lt_of_succ_lt_succ hidx)
+      (encodeRule rs[idx])[off]'(by simp [hoff]) := by
+  have h := List.getElem?_flatMap_mul_add rs encodeRule 4
+    (fun r _ => length_encodeRule r) hidx hoff
+  rw [Nat.mul_comm idx 4, List.getElem?_eq_getElem (by rw [flatMap_encodeRule_length]; omega),
+    List.getElem?_eq_getElem (by simpa using hoff)] at h
+  exact Option.some.inj h
 
 private theorem cyk_read_rule (I : CYKInstance) {idx off : ℕ} (hidx : idx < I.rules.length)
     (hoff : off < 4) :
@@ -532,6 +527,21 @@ private theorem activeCellMem_start (I : CYKInstance) (d i : ℕ) {mem : ℕ →
     exact hb.2.2.2 _ (by dsimp only [cellBase]; omega)
   · exact hb.2.2.2 _ (by dsimp only [cellBase]; nlinarith)
 
+private theorem activeCellMem_read_rule (I : CYKInstance) {d i rIdx : ℕ}
+    {P : Fin I.numNTs → Prop} [DecidablePred P] {mem : ℕ → ℕ}
+    (hmem : ActiveCellMem I d i P mem) (hrIdx : rIdx < I.rules.length) :
+    mem (6 + 4 * rIdx) = (encodeRule I.rules[rIdx])[0]'(by simp) ∧
+      mem (6 + 4 * rIdx + 1) = (encodeRule I.rules[rIdx])[1]'(by simp) ∧
+      mem (6 + 4 * rIdx + 1 + 1) = (encodeRule I.rules[rIdx])[2]'(by simp) ∧
+      mem (6 + 4 * rIdx + 1 + 1 + 1) = (encodeRule I.rules[rIdx])[3]'(by simp) := by
+  have hlen := I.length_encode
+  have h (off : ℕ) (hoff : off < 4) :
+      mem (6 + 4 * rIdx + off) = (encodeRule I.rules[rIdx])[off]'(by simp [hoff]) :=
+    (hmem.1 (6 + 4 * rIdx + off) (by omega)).trans (cyk_read_rule I hrIdx hoff)
+  refine ⟨by simpa only [Nat.add_zero] using h 0 (by decide), h 1 (by decide), ?_, ?_⟩
+  · rw [show 6 + 4 * rIdx + 1 + 1 = 6 + 4 * rIdx + 2 by omega]; exact h 2 (by decide)
+  · rw [show 6 + 4 * rIdx + 1 + 1 + 1 = 6 + 4 * rIdx + 3 by omega]; exact h 3 (by decide)
+
 private theorem activeCellMem_write_one (I : CYKInstance) {d i : ℕ} (hi : i < I.word.length)
     (P Q : Fin I.numNTs → Prop) [DecidablePred P] [DecidablePred Q]
     (A₀ : Fin I.numNTs) (hQ : ∀ A, Q A ↔ P A ∨ A = A₀) {mem : ℕ → ℕ}
@@ -649,16 +659,7 @@ private theorem exec_leafRuleStep {w : ℕ} (I : CYKInstance) (hw : I.FitsWidth 
       ActiveCellMem I 0 i (LeafAccProp I I.word[i] (rIdx + 1)) st'.mem := by
   have hlen := I.length_encode
   have hle_tbl := cellBase_add_le_tableEnd I 0 i (Nat.zero_lt_of_lt hi) hi
-  have hm0 : st.mem (6 + 4 * rIdx) =
-      (encodeRule I.rules[rIdx])[0]'(by cases I.rules[rIdx] <;> simp [encodeRule]) :=
-    (hmem.1 (6 + 4 * rIdx) (by omega)).trans (cyk_read_rule I (off := 0) hrIdx (by decide))
-  have hm1 : st.mem (6 + 4 * rIdx + 1) =
-      (encodeRule I.rules[rIdx])[1]'(by cases I.rules[rIdx] <;> simp [encodeRule]) :=
-    (hmem.1 (6 + 4 * rIdx + 1) (by omega)).trans (cyk_read_rule I hrIdx (by decide))
-  have hm2 : st.mem (6 + 4 * rIdx + 1 + 1) =
-      (encodeRule I.rules[rIdx])[2]'(by cases I.rules[rIdx] <;> simp [encodeRule]) := by
-    rw [show 6 + 4 * rIdx + 1 + 1 = 6 + 4 * rIdx + 2 by omega]
-    exact (hmem.1 (6 + 4 * rIdx + 2) (by omega)).trans (cyk_read_rule I hrIdx (by decide))
+  obtain ⟨hm0, hm1, hm2, _⟩ := activeCellMem_read_rule I hmem hrIdx
   unfold leafRuleBody leafRuleLoad
   cases hr_eq : I.rules[rIdx] with
   | leaf A₀ a₀ =>
@@ -808,20 +809,7 @@ private theorem exec_nodeRuleStep {w : ℕ} (I : CYKInstance) (hw : I.FitsWidth 
       st'.regs regRIdx = rIdx + 1 ∧
       ActiveCellMem I d i (NodeAccProp I d i k (rIdx + 1)) st'.mem := by
   have hlen := I.length_encode
-  have hm0 : st.mem (6 + 4 * rIdx) =
-      (encodeRule I.rules[rIdx])[0]'(by cases I.rules[rIdx] <;> simp [encodeRule]) :=
-    (hmem.1 (6 + 4 * rIdx) (by omega)).trans (cyk_read_rule I (off := 0) hrIdx (by decide))
-  have hm1 : st.mem (6 + 4 * rIdx + 1) =
-      (encodeRule I.rules[rIdx])[1]'(by cases I.rules[rIdx] <;> simp [encodeRule]) :=
-    (hmem.1 (6 + 4 * rIdx + 1) (by omega)).trans (cyk_read_rule I hrIdx (by decide))
-  have hm2 : st.mem (6 + 4 * rIdx + 1 + 1) =
-      (encodeRule I.rules[rIdx])[2]'(by cases I.rules[rIdx] <;> simp [encodeRule]) := by
-    rw [show 6 + 4 * rIdx + 1 + 1 = 6 + 4 * rIdx + 2 by omega]
-    exact (hmem.1 (6 + 4 * rIdx + 2) (by omega)).trans (cyk_read_rule I hrIdx (by decide))
-  have hm3 : st.mem (6 + 4 * rIdx + 1 + 1 + 1) =
-      (encodeRule I.rules[rIdx])[3]'(by cases I.rules[rIdx] <;> simp [encodeRule]) := by
-    rw [show 6 + 4 * rIdx + 1 + 1 + 1 = 6 + 4 * rIdx + 3 by omega]
-    exact (hmem.1 (6 + 4 * rIdx + 3) (by omega)).trans (cyk_read_rule I hrIdx (by decide))
+  obtain ⟨hm0, hm1, hm2, hm3⟩ := activeCellMem_read_rule I hmem hrIdx
   unfold nodeRuleBody nodeRuleLoad nodeSubcellLoads
   cases hr_eq : I.rules[rIdx] with
   | leaf A₀ a₀ =>
@@ -1151,24 +1139,11 @@ theorem decidesInTime_cyk :
     cykProgram.DecidesInTime (fun _ => CYKInstance.encode)
       {I : CYKInstance | I.word ∈ I.grammar.toCFG.language}
       (fun I _ => I.timeBound) CYKInstance.FitsWidth := by
-  refine (cykCode.decidesInTime_program regTag
-    (time := fun I _ =>
-      if I.word = [] then 20 else 41 * (I.rules.length + 1) * I.word.length ^ 3) ?_).mono ?_
-    (fun _ _ h => h)
-  · intro I w hw _
-    obtain ⟨xf, hexec, hres⟩ := exec_cykCode I hw
-    refine ⟨xf, hexec, ?_, ?_⟩
-    · rw [hres]
-      exact Bool.toNat_le (cyk I.grammar I.word)
-    · rw [hres, Set.mem_ofPred_eq, ← cyk_eq_true_iff (G := I.grammar) (w := I.word)]
-      cases cyk I.grammar I.word <;> simp
-  · intro I _
-    unfold CYKInstance.timeBound
-    split_ifs with hw
-    · omega
-    · have hpos : 1 ≤ (I.rules.length + 1) * I.word.length ^ 3 :=
-        Nat.mul_pos (Nat.succ_pos _) (Nat.pow_pos (List.length_pos_of_ne_nil hw))
-      nlinarith
+  intro I w hw hin
+  obtain ⟨n, hexec, hle⟩ := computesInTime_cyk I w hw hin
+  refine ⟨(cyk I.grammar I.word).toNat, n, hexec, hle, Bool.toNat_le _, ?_⟩
+  rw [Set.mem_ofPred_eq, ← cyk_eq_true_iff (G := I.grammar) (w := I.word)]
+  cases cyk I.grammar I.word <;> simp
 
 /-- **Uniform cubic Word-RAM decidability of CYK.** Membership in the language of an encoded
 Chomsky normal form grammar is uniformly decidable on a standard-basis Word-RAM in at most

@@ -3445,6 +3445,9 @@ public import CslibFrontier.Computability.Distributed.ChandyLamport.Snapshot
 public import CslibFrontier.Computability.Distributed.ClockSync.Basic
 public import CslibFrontier.Computability.Distributed.ClockSync.ByzantineSync
 public import CslibFrontier.Computability.Distributed.ClockSync.LundeliusLynch
+public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability
+public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Progress
+public import CslibFrontier.Computability.Distributed.ConcurrentObjects.TreiberStack
 public import CslibFrontier.Computability.Distributed.DijkstraScholten.Basic
 public import CslibFrontier.Computability.Distributed.DijkstraScholten.Correctness
 public import CslibFrontier.Computability.Distributed.FailureDetectors.Consensus
@@ -3453,6 +3456,7 @@ public import CslibFrontier.Computability.Distributed.FailureDetectors.Reduction
 public import CslibFrontier.Computability.Distributed.LocalGraph.Basic
 public import CslibFrontier.Computability.Distributed.LocalGraph.Coloring
 public import CslibFrontier.Computability.Distributed.LocalGraph.LubyMIS
+public import CslibFrontier.Computability.Distributed.MinimumSpanningTree.GHS
 public import CslibFrontier.Computability.Distributed.MutualExclusion.Bakery
 public import CslibFrontier.Computability.Distributed.MutualExclusion.FilterLock
 public import CslibFrontier.Computability.Distributed.OrientedCycle.Basic
@@ -4082,6 +4086,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryOrder
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryPair
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BlockMove
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.ChineseRemainder
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Choose
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
@@ -4870,6 +4875,7 @@ public import CslibFrontier.Computability.Probabilistic.Internal.Oracle.Time
 public import CslibFrontier.Computability.Probabilistic.LinearHash
 public import CslibFrontier.Computability.Probabilistic.Memoize
 public import CslibFrontier.Computability.Probabilistic.Oracle
+public import CslibFrontier.Computability.Probabilistic.Oracle.CachedSampler
 public import CslibFrontier.Computability.Probabilistic.Oracle.Codec
 public import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 public import CslibFrontier.Computability.Probabilistic.Oracle.Memoize
@@ -5490,6 +5496,7 @@ public import CslibFrontier.Crypto.Computational.GoldreichLevin.WordListDecoder
 public import CslibFrontier.Crypto.Computational.GoldreichLevin.WordReduction
 public import CslibFrontier.Crypto.Computational.GoldwasserMicali
 public import CslibFrontier.Crypto.Computational.GoldwasserMicali.Malleability
+public import CslibFrontier.Crypto.Computational.GoldwasserMicali.TextbookKeyGen
 public import CslibFrontier.Crypto.Computational.HQC.DQCSD
 public import CslibFrontier.Crypto.Computational.HQC.INDCPA
 public import CslibFrontier.Crypto.Computational.HardCore
@@ -7078,6 +7085,7 @@ public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Ne
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Realization
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Subdivision
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Tree
+public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MinimumSpanningTree
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MotzkinStraus
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.OddCycleTransversal
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.OrientedIncidence
@@ -8192,6 +8200,7 @@ public import CslibFrontier.Languages.Probabilistic.RandomOracle.ImageCollision
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Invariant
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Programming
+public import CslibFrontier.Languages.Probabilistic.RandomOracle.QueryHit
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Represented
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Sum
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Through
