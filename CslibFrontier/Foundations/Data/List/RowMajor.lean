@@ -24,6 +24,7 @@ import Mathlib.Data.List.GetD
 * `List.getD_flatMap_ofFn`: read a cell at its ordinary flat row-major index.
 * `List.getElem?_flatMap_mul_add`: read entry `j` of block `i` of a flattened list whose blocks
   all have length `M`.
+* `List.take_succ_finRange`: extend a prefix `(finRange n).take k` by one element `⟨k, hk⟩`.
 -/
 
 public section
@@ -82,5 +83,12 @@ theorem getElem?_flatMap_mul_add {ι δ : Type*} (l : List ι) (f : ι → List 
       have : (i + 1) * M + j - M = i * M + j := by rw [Nat.succ_mul]; omega
       rw [this, ih (fun y hy => hf y (by simp [hy])) (by simpa using hi)]
       simp
+
+/-- Extending a prefix of `finRange n` by one element appends `⟨k, hk⟩`. -/
+theorem take_succ_finRange {n k : ℕ} (hk : k < n) :
+    (finRange n).take (k + 1) = (finRange n).take k ++ [⟨k, hk⟩] := by
+  have hlen : k < (finRange n).length := by simpa using hk
+  rw [take_add_one, getElem?_eq_getElem hlen, getElem_finRange]
+  rfl
 
 end List

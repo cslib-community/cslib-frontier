@@ -39,6 +39,7 @@ import CslibFrontier.Probability.PMF.Coupling
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Fully adaptive interleaved-query multi-challenge CCA security (Attack Game 12.1)
@@ -1543,13 +1544,11 @@ private theorem eval_interpret_iterate_interleavedOpenRoundStep_phase1 {Msg Out 
       (interleavedRoundStep valid encOut encrypt decrypt adversary n pk sk roundBit) st)).map
       (fun st' => (st', ())) := by
   simp only [OracleComp.run_interpret_iterate, ProbComp.eval_iterate]
-  refine (Probability.PMF.map_iterate_bind_of_invariant
-    (fun st' => ProbComp.eval
-      (interleavedRoundStep valid encOut encrypt decrypt adversary n pk sk roundBit st'))
-    _ (fun st' => (st', ())) (fun _ _ => True) k st trivial
-    fun _ _ st' _ => ⟨?_, fun _ _ => trivial⟩).1.symm
-  exact (eval_interpret_interleavedOpenRoundStep_phase1 valid encOut encrypt decrypt decBound
-    adversary roundBit n pk sk st' hdecBound).symm
+  symm
+  apply Probability.PMF.RepInv.map_eq (inv := fun _ => True)
+  exact Probability.PMF.RepInv.iterate (fun _ _ => True) rfl trivial
+    fun _ _ st' _ => .of_eq (eval_interpret_interleavedOpenRoundStep_phase1 valid encOut encrypt
+      decrypt decBound adversary roundBit n pk sk st' hdecBound).symm
 
 /-- Iterating `interleavedOpenRoundStep` `k` times under `cca2Phase2Oracle` on `ct ∈ st.2.2` has the
 same distribution as iterating `interleavedRoundStep` `k` times. -/
@@ -1573,13 +1572,15 @@ private theorem eval_interpret_iterate_interleavedOpenRoundStep_phase2 {Msg Out 
       (interleavedRoundStep valid encOut encrypt decrypt adversary n pk sk roundBit) st)).map
       (fun st' => (st', ())) := by
   simp only [OracleComp.run_interpret_iterate, ProbComp.eval_iterate]
-  refine (Probability.PMF.map_iterate_bind_of_invariant
-    (fun st' => ProbComp.eval
-      (interleavedRoundStep valid encOut encrypt decrypt adversary n pk sk roundBit st'))
-    _ (fun st' => (st', ())) (fun _ st' => ct ∈ st'.2.2) k st hct
-    fun _ _ st' hst' => ⟨?_, fun _ h => mem_S_of_mem_support_interleavedRoundStep h hst'⟩).1.symm
-  exact (eval_interpret_interleavedOpenRoundStep_phase2 valid encOut encrypt decrypt decBound
-    adversary roundBit n pk sk ct st' hst' hdecBound).symm
+  symm
+  apply Probability.PMF.RepInv.map_eq (inv := fun st' => ct ∈ st'.2.2)
+  apply Probability.PMF.RepInv.iterate (fun (_ : ℕ) (st' : InterleavedLoopState) => ct ∈ st'.2.2)
+  · rfl
+  · exact hct
+  intro _ _ st' hst'
+  exact ⟨(eval_interpret_interleavedOpenRoundStep_phase2 valid encOut encrypt decrypt decBound
+    adversary roundBit n pk sk ct st' hst' hdecBound).symm,
+    fun _ h => mem_S_of_mem_support_interleavedRoundStep h hst'⟩
 
 /-- Continuation of `interleavedHybridGameOn` after round `split` has emitted `stepOut` from state
 `stMid`, parameterized by the challenge bit `roundBit` used in round `split`. -/
@@ -2039,11 +2040,8 @@ theorem INDCCA2On.indcca2InterleavedOn {Msg Out : Type} [Inhabited Msg]
     simpa [Q, encUnary_apply] using hlenQ n
   have hsingleNeg := h (interleavedToSingle valid encrypt decBound Q adversary)
     (isPPT_interleavedToSingle hvalid hencrypt hdecBoundPoly hQPoly hA)
-  have hpolyDyadic : PolynomiallyBounded (fun n => dyadicSize (Q n)) := by
-    dsimp only [Q]; fun_prop
-  refine negligible_of_le (hsingleNeg.polynomiallyBounded_mul hpolyDyadic) fun n => ?_
-  rw [advantage_interleavedCca2GameOn valid encOut keyGen encrypt decrypt decBound
-    Q adversary n (hdecBound n) (hQ n)]
+  negligible using fun n => (advantage_interleavedCca2GameOn valid encOut keyGen encrypt decrypt
+    decBound Q adversary n (hdecBound n) (hQ n)).le
 
 /-- **Equivalence of single-challenge 1CCA and fully adaptive interleaved-query multi-challenge CCA
 security** ([BonehShoup2023], Section 12.1, Theorem 12.1 together with Definition 12.2, printed

@@ -16,6 +16,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace
 
 /-! Ordinary-import regression tests for polynomial resource-growth automation. -/
 
+set_option linter.privateModule false
+
 open Turing.MultiTapeTM
 
 section
@@ -195,10 +197,77 @@ example {α β γ : Type} {encIn : α ↪ List Bool} {encMid : β ↪ List Bool}
 open Lean in
 run_meta do
   let env ← getEnv
-  for l in Cslib.Tactic.GrowthPoly.certificateLemmas do
+  for l in Cslib.Tactic.GrowthPoly.certificateLemmas ++ [Cslib.Tactic.GrowthPoly.encListLemma] do
     let some i := env.getModuleIdxFor? l.name | throwError "{l.name} is not imported"
     let home := env.header.moduleNames[i.toNat]!
     unless home == l.module do throwError "{l.name} is proved in {home}, not {l.module}"
+
+/-! ### Multi-step unfolding, structure projections, `encList` element counts, and `encPair` -/
+
+private def innerStepCost (x y : ℕ) : ℕ :=
+  let s := x + y
+  Nat.succ (2 * s ^ 2)
+
+private def branchStepCost (ok : Bool) (x y : ℕ) : ℕ :=
+  if ok then innerStepCost x y else cond ok x (y + 3)
+
+private def outerWrapperCost (ok : Bool) (x y : ℕ) : ℕ :=
+  branchStepCost ok x y
+
+private structure CostBundle (α : Type*) where
+  time : α → ℕ
+  space : α → ℕ
+
+private def mkBranchBundle {α : Type*} (ok : α → Bool) (b₁ b₂ : CostBundle α) : CostBundle α where
+  time a := if ok a then b₁.time a else b₂.time a
+  space a := b₁.space a + (if _h : ok a = true then b₁.space a else b₂.space a)
+
+private def wrapBundle {α : Type*} (b : CostBundle α) : CostBundle α :=
+  { time := b.time, space := b.space }
+
+-- Multi-step unfolding across nested helper definitions, `let` bindings, `ite`, `cond`, and `succ`.
+example {α : Type*} {size u v : α → ℕ} {ok : α → Bool}
+    (hu : PolyBounded size u) (hv : PolyBounded size v) :
+    PolyBounded size (fun a => outerWrapperCost (ok a) (u a) (v a)) := by
+  growth_poly
+
+-- Non-class structure projections through multi-step combinators (`ite` and non-dependent `dite`).
+example {α : Type*} {size : α → ℕ} {ok : α → Bool} {b₁ b₂ : CostBundle α}
+    (h₁ : PolyBounded size b₁.space) (h₂ : PolyBounded size b₂.space) :
+    PolyBounded size (wrapBundle (mkBranchBundle ok b₁ b₂)).space := by
+  growth_poly
+
+-- Element-count leaf `(fl a).length` derived from `ComputableInPolyTime fl encIn (encList enc)`,
+-- including reducible encoding abbreviations (`abbrev`).
+private abbrev encNestedNat : List (List ℕ) ↪ List Bool := encList (encList encNat)
+
+example {α : Type} {encIn : α ↪ List Bool} {fl : α → List ℕ} {rows : α → List (List ℕ)}
+    {p : α → ℕ}
+    (hp : ComputableInPolyTime p encIn encUnary)
+    (hfl : ComputableInPolyTime fl encIn (encList encNat))
+    (hrows : ComputableInPolyTime rows encIn encNestedNat) :
+    PolyBounded (fun a => (encIn a).length)
+      (fun a => ((rows a).length + 1) * (2 * ((fl a).length * (2 * (p a + 1) + 1)) + 1)) := by
+  growth_poly
+
+-- `encPair` length expansion (including nested pairs) and direct `PolynomiallyBounded` leaf
+-- matching at `size = id`.
+example {α β γ : Type} {encA : α ↪ List Bool} {encB : β ↪ List Bool} {encC : γ ↪ List Bool}
+    {f : ℕ → α} {g : ℕ → β} {h : ℕ → γ}
+    (hf : Cslib.PolynomiallyBounded fun n => (encA (f n)).length)
+    (hg : Cslib.PolynomiallyBounded fun n => (encB (g n)).length)
+    (hh : Cslib.PolynomiallyBounded fun n => (encC (h n)).length) :
+    PolyBounded id
+      (fun n => (encPair (encPair encA encB) encC ((f n, g n), h n)).length) := by
+  growth_poly
+
+-- Soundness: element-count derivation bounds `(fl a).length`, NOT individual element values
+-- `(fl a).headD 0` when elements are binary-encoded.
+example {α : Type} {encIn : α ↪ List Bool} {fl : α → List ℕ}
+    (_hfl : ComputableInPolyTime fl encIn (encList encNat)) : True := by
+  fail_if_success
+    have : PolyBounded (fun a => (encIn a).length) (fun a => (fl a).headD 0) := by growth_poly
+  trivial
 
 example {F : ℕ → ℕ} (hF : Cslib.PolynomiallyBounded F) :
     Cslib.PolynomiallyBounded (fun n => 3 * F n ^ 2 + Nat.log 2 (n + 1)) := by

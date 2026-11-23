@@ -24,7 +24,8 @@ public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate
 * the standard name `x1099511627777` next to an auxiliary name.
 
 And rejections: a step that is not RUP, a wrong `e` check, a reference to a deleted constraint,
-and a premise that does not imply the `ia` constraint. The checks run by `#guard`; the soundness
+a premise that does not imply the `ia` constraint, and an `ENUMERATION` count that is not a
+number. The checks run by `#guard`; the soundness
 theorems (`Cslib.Logic.PL.VeriPB.Elab.not_satisfiable_of_checkAugmented`, …) apply to any
 accepted pair of texts. -/
 
@@ -77,6 +78,12 @@ conclusion NONE;\nend pseudo-Boolean proof;").toOption.map (·.proof.steps.lengt
 #guard (checkAugmented php32 (php32Proof.replace "1 x6 >= 1 : @a" "1 x6 >= 1 : 1")).isNone
 -- After `wiplvl 1`, the constraints of level `1` are gone.
 #guard (checkAugmented php32 (php32Proof.replace "pol 1 2 + 3 + 4 + 5 +" "pol -1 1 +")).isNone
+
+-- The count of an `ENUMERATION` conclusion must be a number.
+#guard match elaborate [] none none "pseudo-Boolean proof version 3.0\noutput NONE;
+conclusion ENUMERATION_PARTIAL x1 ;\nend pseudo-Boolean proof;" with
+  | .ok _ => false
+  | .error e => (e.splitOn "expected a number, found `x1`").length == 2
 
 /-- A formula for the `pol` operations of the augmented format. -/
 def cuts : String := "* #variable= 4 #constraint= 3

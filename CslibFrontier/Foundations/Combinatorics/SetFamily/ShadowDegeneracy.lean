@@ -286,8 +286,7 @@ theorem card_filter_card_ge_le {α : Type*} {p d : ℕ} (hp : 1 ≤ p) {Δ : Fin
             calc #{I ∈ Γ | q + 1 ≤ #I}
                 = #{I ∈ Γdel | q + 1 ≤ #I} + #{J ∈ Γlink | q ≤ #J} := by
                   rw [hsplit, hwith_card]
-              _ ≤ (v - 1) ^ q * 2 ^ d + (v - 1) ^ (q - 1) * 2 ^ d :=
-                  Nat.add_le_add hdel_bound hlink_bound
+              _ ≤ (v - 1) ^ q * 2 ^ d + (v - 1) ^ (q - 1) * 2 ^ d := by gcongr
               _ = ((v - 1) ^ q + (v - 1) ^ (q - 1)) * 2 ^ d := (add_mul _ _ _).symm
               _ ≤ v ^ q * 2 ^ d := Nat.mul_le_mul_right _ hpow_step
 

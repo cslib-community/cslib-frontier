@@ -537,9 +537,7 @@ theorem one_sub_rpow_le_dens_forall_norm_signProjection_sq_mem_Icc {n : ℕ}
     ring
   rw [h2, exp_log hn']
   have : (n : ℝ) * (n - 1) * exp (-(k / 2) * (ε ^ 2 / 2 - ε ^ 3 / 3)) ≤
-      n * n * exp (-((2 + β) * log n)) :=
-    mul_le_mul (mul_le_mul_of_nonneg_left (by linarith) hn'.le) he (exp_pos _).le
-      (by positivity)
+      n * n * exp (-((2 + β) * log n)) := by gcongr; linarith
   linarith
 
 /-- **The Johnson–Lindenstrauss lemma with sign matrices** [Achlioptas2003]

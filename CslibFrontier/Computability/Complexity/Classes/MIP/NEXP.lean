@@ -171,26 +171,16 @@ theorem foldl_consistentHistStep_false (h₁ h₂ : History) (ok : Bool) :
 
 theorem foldl_consistentHistStep_true (h₁ h₂ : History) (ok : Bool) :
     (h₁.foldl consistentHistStep (h₂, true, ok)).2.2 = (ok && consistentHist h₁ h₂) := by
-  induction h₁ generalizing h₂ ok with
-  | nil =>
-    simp [consistentHist]
-  | cons e₁ rest₁ ih =>
-    obtain ⟨q₁, r₁⟩ := e₁
-    cases h₂ with
-    | nil =>
-      simp only [List.foldl_cons, consistentHistStep, Bool.not_true, List.isEmpty_nil,
-        Bool.false_or, ↓reduceIte, foldl_consistentHistStep_false, consistentHist, Bool.and_true]
-    | cons e₂ rest₂ =>
-      obtain ⟨q₂, r₂⟩ := e₂
-      simp only [List.foldl_cons, consistentHistStep, Bool.not_true, List.isEmpty_cons,
-        Bool.false_or, Bool.false_eq_true, ↓reduceIte, List.headD_cons, List.tail_cons,
-        consistentHist]
-      by_cases hq : q₁ = q₂
-      · subst hq
-        simp only [beq_self_eq_true, ↓reduceIte, ih, Bool.and_assoc]
-      · have hq' : (q₁ == q₂) = false := beq_false_of_ne hq
-        simp only [hq', Bool.false_eq_true, ↓reduceIte, foldl_consistentHistStep_false,
-          Bool.and_true]
+  fun_induction consistentHist h₁ h₂ generalizing ok with
+  | case1 => simp -- [], _
+  | case2 h₁ hne => -- _ :: _, []
+    cases h₁
+    · exact absurd rfl hne
+    · simp [consistentHistStep, foldl_consistentHistStep_false]
+  -- same query: compare replies
+  | case3 q₁ r₁ rest₁ q₂ r₂ rest₂ hq ih => simp [consistentHistStep, hq, ih, Bool.and_assoc]
+  -- different queries: stop
+  | case4 => simp_all [consistentHistStep, foldl_consistentHistStep_false]
 
 theorem consistentHistStep_suffix {h₂ : History} {s : History × Bool × Bool}
     (hs : s.1 <:+ h₂) (e₁ : List Bool × List Bool) :

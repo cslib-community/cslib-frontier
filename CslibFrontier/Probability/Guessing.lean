@@ -93,8 +93,7 @@ theorem score_le_uniform_guess (real : PMF (Seed × (Prefix × Suffix))) (seed :
         field_simp
   calc
     _ ≤ ∑ pair, (real pair).toReal * best (pair.1, pair.2.1) :=
-      Finset.sum_le_sum (fun pair _ =>
-        mul_le_mul_of_nonneg_left (hbest _ _ _) ENNReal.toReal_nonneg)
+      by gcongr; exact hbest _ _ _
     _ = ∑ pair, ((real.map (fun (s, p, _) => (s, p))) pair).toReal * best pair := by
       rw [← hmap]
       exact (sum_map_mul _ _ _).symm

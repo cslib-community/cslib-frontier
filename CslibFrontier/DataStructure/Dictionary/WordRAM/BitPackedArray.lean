@@ -749,12 +749,10 @@ theorem writePackedCode_execWithin {base offset N k w idx val : ℕ} {x : Data 1
     Fits.mono (hold₀ ▸ and_mask_lt _ _) h0_le, Fits.mono (hval₀ ▸ and_mask_lt _ _) h0_le,
     Fits.mono (hold₁ ▸ and_mask_lt _ _) h1_le, Fits.mono (hval₁ ▸ and_mask_lt _ _) h1_le,
     Fits.mono hδ0 h0_le, Fits.mono hδ1 h1_le, hsh0, hsh1]
-  · refine ⟨?_, by wram_simp [hr0, hr1', hr2'.trans hr2]⟩
-    subst hold₀ hval₀ hold₁ hval₁
-    simp only [Data.write_mem, Data.set_mem, hmem₁, writePacked, writeBitSlice,
-      Function.update_of_ne hne]
-    rfl
-  · exact Nat.xor_lt_two_pow (hx.2 _) hsh0
-  · exact Nat.xor_lt_two_pow (hx.2 _) hsh1
+  refine ⟨?_, by wram_simp [hr0, hr1', hr2'.trans hr2]⟩
+  subst hold₀ hval₀ hold₁ hval₁
+  simp only [Data.write_mem, Data.set_mem, hmem₁, writePacked, writeBitSlice,
+    Function.update_of_ne hne]
+  rfl
 
 end Cslib.DataStructure.Dictionary.WordRAM.BitPackedArray

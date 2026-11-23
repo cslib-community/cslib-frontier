@@ -203,9 +203,10 @@ structure AuxNames where
   deriving Inhabited, Repr
 
 /-- The name of the variable `v`: its non-standard name, or else the standard name `x(v + 1)`.
-Variables from `N.base + N.names.size` on, such as the variable the elaborator picks for the `pol`
-operation `-`, have no name in the proof, and get standard names, which no other variable has
-when `N.base` is above the standard names of the proof. -/
+Variables from `N.base + N.names.size` on have no name in the proof, and get standard names, which
+no other variable has when `N.base` is above the standard names of the proof. The variable the
+elaborator picks for the `pol` operation `-` is the one above the largest variable of the
+constraint, so it may be any of these. -/
 def AuxNames.name (N : AuxNames) (v : ℕ) : String :=
   if h : N.base ≤ v ∧ v - N.base < N.names.size then N.names[v - N.base] else s!"x{v + 1}"
 
@@ -246,7 +247,7 @@ private def isDigit (c : UInt8) : Bool := c ≥ 48 && c ≤ 57
 It takes every `x` followed by digits and then by a byte that cannot continue an identifier, which
 includes every standard name of the text, and some other strings, such as the end of `ax5` or
 text in a comment, which only raise the bound. -/
-def stdBound (b : ByteArray) : ℕ := Id.run do
+private def stdBound (b : ByteArray) : ℕ := Id.run do
   let mut m := 0
   let mut p := 0
   while p < b.size do
@@ -311,7 +312,7 @@ private def scan (L : Lexer σ) : ST σ String := do
   else single 1
 
 /-- The next token, without consuming it. -/
-def peek (L : Lexer σ) : ST σ String := do
+private def peek (L : Lexer σ) : ST σ String := do
   let a ← L.ahead.get
   if h : 0 < a.size then return a[0]
   let t ← L.scan
@@ -319,7 +320,7 @@ def peek (L : Lexer σ) : ST σ String := do
   return t
 
 /-- The token after the next one, without consuming either. -/
-def peek2 (L : Lexer σ) : ST σ String := do
+private def peek2 (L : Lexer σ) : ST σ String := do
   let _ ← L.peek
   let a ← L.ahead.get
   if h : 1 < a.size then return a[1]
@@ -328,13 +329,13 @@ def peek2 (L : Lexer σ) : ST σ String := do
   return t
 
 /-- Consume the next token. -/
-def next (L : Lexer σ) : ST σ String := do
+private def next (L : Lexer σ) : ST σ String := do
   let t ← L.peek
   L.ahead.modify (·.eraseIdx! 0)
   return t
 
 /-- The current line, for error messages. -/
-def lineNo (L : Lexer σ) : ST σ ℕ := L.line.get
+private def lineNo (L : Lexer σ) : ST σ ℕ := L.line.get
 
 end Lexer
 
@@ -349,21 +350,22 @@ def fail {α : Type} (L : Lexer σ) (msg : String) : PM σ α := do
   throw s!"line {← L.lineNo}: {msg}"
 
 /-- Consume the token `t`, or fail. -/
-def expect (L : Lexer σ) (t : String) : PM σ Unit := do
+private def expect (L : Lexer σ) (t : String) : PM σ Unit := do
   let u ← L.next
   if u != t then fail L s!"expected `{t}`, found `{u}`"
 
 /-- A natural number. -/
-def nat? (t : String) : Option ℕ := if t.isEmpty || !t.all Char.isDigit then none else t.toNat?
+private def nat? (t : String) : Option ℕ :=
+  if t.isEmpty || !t.all Char.isDigit then none else t.toNat?
 
 /-- An integer with an optional sign. -/
-def int? (t : String) : Option ℤ :=
+private def int? (t : String) : Option ℤ :=
   if t.startsWith "+" then nat? (t.drop 1).toString |>.map Int.ofNat
   else if t.startsWith "-" then nat? (t.drop 1).toString |>.map fun n => -(n : ℤ)
   else nat? t |>.map Int.ofNat
 
 /-- The number of a variable name. -/
-def var (L : Lexer σ) (t : String) : PM σ ℕ := do
+private def var (L : Lexer σ) (t : String) : PM σ ℕ := do
   if t.startsWith "x" then
     if let some (n + 1) := nat? (t.drop 1).toString then return n
   if t.isEmpty || !t.front.isAlpha && t.front != '_' && t.front != '$' then
@@ -378,13 +380,13 @@ def var (L : Lexer σ) (t : String) : PM σ ℕ := do
     return v
 
 /-- A literal `x` or `~ x`. -/
-def lit (L : Lexer σ) : PM σ (Literal ℕ) := do
+private def lit (L : Lexer σ) : PM σ (Literal ℕ) := do
   let t ← L.next
   if t == "~" then return (← var L (← L.next), false)
   return (← var L t, true)
 
 /-- A constraint reference: a number, a relative number `-k`, or a label. -/
-def ref? (t : String) : Option Ref :=
+private def ref? (t : String) : Option Ref :=
   if t.startsWith "@" then some (.label t)
   else match int? t with
     | some (.ofNat (n + 1)) => some (.abs (n + 1))
@@ -392,21 +394,21 @@ def ref? (t : String) : Option Ref :=
     | _ => none
 
 /-- A constraint reference, or fail. -/
-def ref (L : Lexer σ) : PM σ Ref := do
+private def ref (L : Lexer σ) : PM σ Ref := do
   let t ← L.next
   match ref? t with
   | some r => return r
   | none => fail L s!"expected a constraint reference, found `{t}`"
 
 /-- References up to `;`, which is consumed. -/
-partial def refs (L : Lexer σ) : PM σ (List Ref) := do
+private partial def refs (L : Lexer σ) : PM σ (List Ref) := do
   let t ← L.peek
   if t == ";" then let _ ← L.next; return []
   let r ← ref L
   return r :: (← refs L)
 
 /-- References up to `;` or `:`, not consumed. -/
-partial def refsTo (L : Lexer σ) : PM σ (List Ref) := do
+private partial def refsTo (L : Lexer σ) : PM σ (List Ref) := do
   let t ← L.peek
   if t == ";" || t == ":" then return []
   let r ← ref L
@@ -414,7 +416,7 @@ partial def refsTo (L : Lexer σ) : PM σ (List Ref) := do
 
 /-- The terms `a ℓ` of a constraint or objective up to a non-term token: the linear form, merged
 by variable, and the constant moved out of negative literals. -/
-partial def terms (L : Lexer σ) : PM σ (Array (ℕ × ℤ) × ℤ) := do
+private partial def terms (L : Lexer σ) : PM σ (Array (ℕ × ℤ) × ℤ) := do
   let mut lin : Array (ℕ × ℤ) := #[]
   let mut idx : Std.HashMap ℕ ℕ := {}
   let mut k : ℤ := 0
@@ -442,7 +444,7 @@ partial def terms (L : Lexer σ) : PM σ (Array (ℕ × ℤ) × ℤ) := do
 
 /-- A constraint `∑ aᵢ ℓᵢ ⋈ A` with `⋈` one of `>=`, `<=`: as `fromLinear` does in the kernel text
 front end. -/
-def constr (L : Lexer σ) : PM σ PBConstr := do
+private def constr (L : Lexer σ) : PM σ PBConstr := do
   let (lin, k) ← terms L
   let rel ← L.next
   let d ← L.next
@@ -452,7 +454,7 @@ def constr (L : Lexer σ) : PM σ PBConstr := do
   else fail L s!"expected `>=` or `<=`, found `{rel}`"
 
 /-- An objective `∑ wᵢ ℓᵢ [k]` up to `;` or `:`. -/
-def objective (L : Lexer σ) : PM σ Objective := do
+private def objective (L : Lexer σ) : PM σ Objective := do
   let (lin, k) ← terms L
   let t ← L.peek
   let c ← match int? t with
@@ -461,7 +463,7 @@ def objective (L : Lexer σ) : PM σ Objective := do
   return ⟨lin.toList.filter (·.2 != 0), k + c⟩
 
 /-- Literals up to `;`, which is consumed, or up to `: v;`, the value `v` being ignored. -/
-partial def lits (L : Lexer σ) : PM σ (List (Literal ℕ)) := do
+private partial def lits (L : Lexer σ) : PM σ (List (Literal ℕ)) := do
   let t ← L.peek
   if t == ";" then let _ ← L.next; return []
   if t == ":" then
@@ -472,14 +474,14 @@ partial def lits (L : Lexer σ) : PM σ (List (Literal ℕ)) := do
   return l :: (← lits L)
 
 /-- Variables up to `;`, which is consumed. -/
-partial def vars (L : Lexer σ) : PM σ (List ℕ) := do
+private partial def vars (L : Lexer σ) : PM σ (List ℕ) := do
   let t ← L.next
   if t == ";" then return []
   let v ← var L t
   return v :: (← vars L)
 
 /-- The pairs `x -> b` of a witness, up to `:` or `;`, not consumed. -/
-partial def witness (L : Lexer σ) : PM σ Witness := do
+private partial def witness (L : Lexer σ) : PM σ Witness := do
   let t ← L.peek
   if t == ":" || t == ";" then return []
   let x ← var L (← L.next)
@@ -491,7 +493,7 @@ partial def witness (L : Lexer σ) : PM σ Witness := do
   return (x, w) :: (← witness L)
 
 /-- The operations of a `pol` step, up to `;`, which is consumed. -/
-partial def polOps (L : Lexer σ) : PM σ (List AOp) := do
+private partial def polOps (L : Lexer σ) : PM σ (List AOp) := do
   let t ← L.next
   if t == ";" then return []
   let op ← do
@@ -518,7 +520,7 @@ partial def polOps (L : Lexer σ) : PM σ (List AOp) := do
   return op :: (← polOps L)
 
 /-- RUP hints up to `;`, which is consumed. -/
-partial def hints (L : Lexer σ) : PM σ (List AHint) := do
+private partial def hints (L : Lexer σ) : PM σ (List AHint) := do
   let t ← L.peek
   if t == ";" then let _ ← L.next; return []
   if t == "~" then let _ ← L.next; return .neg :: (← hints L)
@@ -526,7 +528,7 @@ partial def hints (L : Lexer σ) : PM σ (List AHint) := do
   return .ref r :: (← hints L)
 
 /-- An optional `: id` before `;`, both consumed. -/
-def optRef (L : Lexer σ) : PM σ (Option Ref) := do
+private def optRef (L : Lexer σ) : PM σ (Option Ref) := do
   let t ← L.next
   if t == ";" then return none
   if t != ":" then fail L s!"expected `:` or `;`, found `{t}`"
@@ -535,14 +537,14 @@ def optRef (L : Lexer σ) : PM σ (Option Ref) := do
   return some r
 
 /-- The end `qed [label] [: id];` of a subproof. -/
-def qed (L : Lexer σ) : PM σ (Option Ref) := do
+private def qed (L : Lexer σ) : PM σ (Option Ref) := do
   expect L "qed"
   let t ← L.peek
   if t != ":" && t != ";" then let _ ← L.next
   optRef L
 
 /-- The end `end [words];` of a section. -/
-partial def endSection (L : Lexer σ) : PM σ Unit := do
+private partial def endSection (L : Lexer σ) : PM σ Unit := do
   expect L "end"
   while (← L.next) != ";" do pure ()
 
@@ -551,13 +553,13 @@ partial def endSection (L : Lexer σ) : PM σ Unit := do
 mutual
 
 /-- A reference of a specification step, made absolute and sent to its kernel number. -/
-partial def remapRef (map : Std.HashMap ℕ ℕ) : Ref → Ref
+private partial def remapRef (map : Std.HashMap ℕ ℕ) : Ref → Ref
   | .abs n => .abs ((map[n]?).getD n)
   | r => r
 
 /-- The constraint references of a step in a specification, sent to kernel numbers; relative
 references inside the subproof are kept. -/
-partial def remap (map : Std.HashMap ℕ ℕ) (a : ℕ) : AStep → AStep
+private partial def remap (map : Std.HashMap ℕ ℕ) (a : ℕ) : AStep → AStep
   | .pol ops => .pol (ops.map fun (o : AOp) => match o with
     | .ref r => .ref (remapRef map r)
     | o => o)
@@ -569,14 +571,14 @@ partial def remap (map : Std.HashMap ℕ ℕ) (a : ℕ) : AStep → AStep
   | s => s
 
 /-- The local number of a reference inside `def_order`, the next number being `next`. -/
-partial def refNum (next : ℕ) : Ref → ℕ
+private partial def refNum (next : ℕ) : Ref → ℕ
   | .abs n => n
   | .rel k => next - k
   | .label _ => 0
 
 /-- A step inside `def_order`, in the kernel syntax, numbered from `next`; with the next number
 after it. -/
-partial def toKernelStep (s : AStep) (next : ℕ) : Option (Step × ℕ) :=
+private partial def toKernelStep (s : AStep) (next : ℕ) : Option (Step × ℕ) :=
   match s with
   | .pol ops => (ops.mapM fun (o : AOp) => match o with
       | .ref r => some (PolOp.id (refNum next r)) | .lit l => some (.lit l) | .add => some .add
@@ -593,14 +595,14 @@ partial def toKernelStep (s : AStep) (next : ℕ) : Option (Step × ℕ) :=
   | _ => none
 
 /-- Steps inside `def_order`, numbered from `next`. -/
-partial def toKernelSteps (ss : List AStep) (next : ℕ) : List Step × ℕ :=
+private partial def toKernelSteps (ss : List AStep) (next : ℕ) : List Step × ℕ :=
   ss.foldl (fun (acc, n) s => match toKernelStep s n with
     | some (k, n') => (acc ++ [k], n')
     | none => (acc, n)) ([], next)
 
 /-- The items of a subproof inside `def_order`, in the kernel syntax, numbered from `next`: a
 `proofgoal` block's negated goal takes the next number. -/
-partial def toKernelItems (items : List AStep) (next : ℕ) : List RedItem × ℕ :=
+private partial def toKernelItems (items : List AStep) (next : ℕ) : List RedItem × ℕ :=
   items.foldl (fun (acc, n) s => match s with
     | .goal g sub q =>
       let (ks, n') := toKernelSteps sub (n + 1)
@@ -779,7 +781,7 @@ partial def step (L : Lexer σ) : PM σ (Option AStep) := do
   | _ => fail L s!"unsupported rule `{t}`"
 
 /-- Rules up to `output`, `qed`, `end` or `conclusion`. -/
-partial def steps (L : Lexer σ) : PM σ (List AStep) := do
+private partial def steps (L : Lexer σ) : PM σ (List AStep) := do
   let mut acc : Array AStep := #[]
   repeat
     match ← step L with
@@ -788,7 +790,7 @@ partial def steps (L : Lexer σ) : PM σ (List AStep) := do
   return acc.toList
 
 /-- `def_order name …`, after the keyword. -/
-partial def defOrder (L : Lexer σ) : PM σ (Option AStep) := do
+private partial def defOrder (L : Lexer σ) : PM σ (Option AStep) := do
   let name ← L.next
   let (O, sp, w, tp, rp) ← orderBody L true
   return some (.defOrder name O sp w tp rp)
@@ -797,7 +799,7 @@ partial def defOrder (L : Lexer σ) : PM σ (Option AStep) := do
 its `end`. The subproofs are in the kernel syntax, with local numbers: the specification is
 numbered from `1`, the transitivity proof after its premises, and the reflexivity proof after the
 transitivity proof and its premises (`Cslib.Logic.PL.VeriPB.Order.defCheck`). -/
-partial def orderBody (L : Lexer σ) (full : Bool) :
+private partial def orderBody (L : Lexer σ) (full : Bool) :
     PM σ (Order × List SpecStep × TransVars × OrderProof × OrderProof) := do
   expect L "vars"
   expect L "left"
@@ -886,7 +888,7 @@ partial def orderBody (L : Lexer σ) (full : Bool) :
   return (O, ksp.toList, ⟨w, b, c⟩, tp, rp)
 
 /-- A `proof … qed [: id];` block of an order. -/
-partial def orderProof (L : Lexer σ) : PM σ (List AStep × Option Ref) := do
+private partial def orderProof (L : Lexer σ) : PM σ (List AStep × Option Ref) := do
   expect L "proof"
   let items ← steps L
   let q ← qed L
@@ -895,15 +897,22 @@ partial def orderProof (L : Lexer σ) : PM σ (List AStep × Option Ref) := do
 end
 
 /-- A bound of `BOUNDS`: an integer, or `INF`. -/
-def bound (L : Lexer σ) : PM σ (Option ℤ) := do
+private def bound (L : Lexer σ) : PM σ (Option ℤ) := do
   let t ← L.next
   if t == "INF" then return none
   match int? t with
   | some v => return some v
   | none => fail L s!"expected a bound, found `{t}`"
 
+/-- A natural number, the count of an `ENUMERATION` conclusion. -/
+private def count (L : Lexer σ) : PM σ ℕ := do
+  let t ← L.next
+  match nat? t with
+  | some n => return n
+  | none => fail L s!"expected a number, found `{t}`"
+
 /-- An optional assignment `: ρ` before `;`, both consumed. -/
-def asgOpt (L : Lexer σ) : PM σ (Option (List (Literal ℕ))) := do
+private def asgOpt (L : Lexer σ) : PM σ (Option (List (Literal ℕ))) := do
   let t ← L.next
   if t == ";" then return none
   if t != ":" then fail L s!"expected `:` or `;`, found `{t}`"
@@ -937,12 +946,12 @@ def tail (L : Lexer σ) : PM σ (Option (Guarantee × Bool) × AConclusion) := d
       let ub ← bound L
       pure (.bounds lb q ub (← asgOpt L))
     | "ENUMERATION_PARTIAL" => do
-      let n ← L.next
+      let n ← count L
       expect L ";"
-      pure (.enumPartial ((nat? n).getD 0))
+      pure (.enumPartial n)
     | "ENUMERATION_COMPLETE" => do
-      let n ← L.next
-      pure (.enumComplete ((nat? n).getD 0) (← optRef L))
+      let n ← count L
+      pure (.enumComplete n (← optRef L))
     | _ => fail L s!"unknown conclusion `{k}`"
   expect L "end"
   expect L "pseudo-Boolean"

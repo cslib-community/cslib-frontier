@@ -398,8 +398,7 @@ theorem le_toOuterMeasure_productEstimate (μ : κ → PMF S) (A : κ → Set S)
     rw [not_le, abs_lt] at hlt
     have hεR : 0 ≤ ε * R := mul_nonneg hε.le hR0.le
     rcases hx with hx | hx
-    · have h1 : (1 - ε / 2) * ((1 - ε / 6) * R) ≤ (1 - ε / 2) * m :=
-        mul_le_mul_of_nonneg_left hm_lo (by linarith)
+    · have h1 : (1 - ε / 2) * ((1 - ε / 6) * R) ≤ (1 - ε / 2) * m := by gcongr; linarith
       have h2 : 0 ≤ ε * (ε * R) := mul_nonneg hε.le hεR
       linarith [hlt.1]
     · have h1 : (1 + ε / 2) * m ≤ (1 + ε / 2) * ((1 + ε / 3) * R) := by gcongr

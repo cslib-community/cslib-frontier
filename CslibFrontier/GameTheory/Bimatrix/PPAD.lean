@@ -4429,18 +4429,8 @@ private lemma witness_length_arith {m n L ax ay : ℕ}
     calc L ^ 2 = L ^ 2 * 1 := (mul_one _).symm
       _ ≤ L ^ 2 * L := Nat.mul_le_mul_left _ hL
       _ = L ^ 3 := by ring
-  have hax : ax ≤ 2 * L ^ 3 + L := by
-    have hm1 : 19 * m ≤ L := by omega
-    have hm2_le3 : 30 * m ^ 2 ≤ L ^ 3 := hm2_le'.trans hL2_le
-    calc ax ≤ 30 * (m ^ 2 * L) + 30 * m ^ 2 + 19 * m := hx
-      _ ≤ L ^ 3 + L ^ 3 + L := Nat.add_le_add (Nat.add_le_add hm2L_le' hm2_le3) hm1
-      _ = 2 * L ^ 3 + L := by ring
-  have hay : ay ≤ 2 * L ^ 3 + L := by
-    have hn1 : 19 * n ≤ L := by omega
-    have hn2_le3 : 30 * n ^ 2 ≤ L ^ 3 := hn2_le'.trans hL2_le
-    calc ay ≤ 30 * (n ^ 2 * L) + 30 * n ^ 2 + 19 * n := hy
-      _ ≤ L ^ 3 + L ^ 3 + L := Nat.add_le_add (Nat.add_le_add hn2L_le' hn2_le3) hn1
-      _ = 2 * L ^ 3 + L := by ring
+  have hax : ax ≤ 2 * L ^ 3 + L := by omega
+  have hay : ay ≤ 2 * L ^ 3 + L := by omega
   calc 2 * ax + 1 + ay
       ≤ 2 * (2 * L ^ 3 + L) + 1 + (2 * L ^ 3 + L) :=
         Nat.add_le_add (Nat.add_le_add_right (Nat.mul_le_mul_left 2 hax) 1) hay

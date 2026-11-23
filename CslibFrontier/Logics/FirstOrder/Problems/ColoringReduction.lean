@@ -177,9 +177,7 @@ noncomputable def gadgetDomain (ps : Fin 3 → Bool) : cnf.Formula (Fin 4) :=
 
 private theorem realize_gadgetDomain (ps : Fin 3 → Bool) (d : Fin 4 → M) :
     (gadgetDomain ps).Realize d ↔ GadgetDomain ps d := by
-  simp only [gadgetDomain, Formula.realize_inf, Formula.realize_iInf, Formula.realize_rel₂,
-    Term.realize_var, Formula.realize_iAlls, Formula.realize_imp, Formula.realize_iSup,
-    Sum.elim_inl, Sum.elim_inr, GadgetDomain]
+  fo_simp [gadgetDomain, GadgetDomain]
   refine and_congr Iff.rfl ⟨fun h ⟨p, y⟩ hl => ?_, fun h e p hp => ?_⟩
   · obtain ⟨i, hi⟩ := h (fun _ => y) p hl
     refine ⟨i, ?_⟩
@@ -568,11 +566,6 @@ def coloringSubsingleton : Interpretation cnf Language.graph Unit where
   rel R := match R with
     | .adj => ∼(cnf.pos.formula₂ (.var (0, ())) (.var (0, ())) ⊔
         cnf.neg.formula₂ (.var (0, ())) (.var (0, ())))
-
-private theorem coloringSubsingleton_rel_adj :
-    coloringSubsingleton.rel adj = ∼(cnf.pos.formula₂ (.var (0, ())) (.var (0, ())) ⊔
-      cnf.neg.formula₂ (.var (0, ())) (.var (0, ()))) :=
-  rfl
 
 private theorem colorable_coloringSubsingleton_iff [Subsingleton M] [Nonempty M] :
     graph.Colorable 3 (coloringSubsingleton.Model M) ↔ IsThreeCNF M ∧ Satisfiable M := by

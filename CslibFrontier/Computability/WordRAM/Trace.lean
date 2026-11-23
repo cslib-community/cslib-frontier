@@ -204,6 +204,6 @@ theorem TraceExec.length_le {w n : ℕ} {c : Code B r} {x y : Data r} {ts : List
   | loop_exit => simp
   | loop_iter _ _ _ ih₁ ih₂ =>
     simp only [List.length_append]
-    exact (Nat.add_le_add ih₁ ih₂).trans (Nat.le_add_right _ _)
+    omega
 
 end Cslib.WordRAM

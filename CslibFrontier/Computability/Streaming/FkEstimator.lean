@@ -252,8 +252,7 @@ theorem expect_fkBasicEstimate_sq_le {k : ℕ} (hk : k ≠ 0) (s : List α) :
     rw [div_le_iff₀ hl]
     calc (s.length : ℝ) ^ 2 * ∑ p ∈ range s.length, ((suffixCount s p ^ (j + 1) -
           (suffixCount s p - 1) ^ (j + 1) : ℕ) : ℝ) ^ 2
-        ≤ (s.length : ℝ) ^ 2 * (((j + 1 : ℕ) : ℝ) * freqMoment (2 * j + 1) s) :=
-          mul_le_mul_of_nonneg_left h (by positivity)
+        ≤ (s.length : ℝ) ^ 2 * (((j + 1 : ℕ) : ℝ) * freqMoment (2 * j + 1) s) := by gcongr
       _ = _ := by push_cast; ring
 
 /-- The group size condition `(3 k) ^ k n ^ (k - 1) ≤ (K η²) ^ k` bounds three times the second
@@ -281,12 +280,10 @@ theorem three_mul_length_mul_freqMoment_le {k K n : ℕ} (hk : k ≠ 0) {η : �
         push_cast
         ring_nf
     _ ≤ (3 * ((j + 1 : ℕ) : ℝ)) ^ (j + 1) *
-          ((n : ℝ) ^ j * (freqMoment (j + 1) s : ℝ) ^ (2 * (j + 1))) :=
-        mul_le_mul_of_nonneg_left hfact (by positivity)
+          ((n : ℝ) ^ j * (freqMoment (j + 1) s : ℝ) ^ (2 * (j + 1))) := by gcongr
     _ = ((3 * ((j + 1 : ℕ) : ℝ)) ^ (j + 1) * (n : ℝ) ^ j) *
           (freqMoment (j + 1) s : ℝ) ^ (2 * (j + 1)) := by ring
-    _ ≤ ((K : ℝ) * η ^ 2) ^ (j + 1) * (freqMoment (j + 1) s : ℝ) ^ (2 * (j + 1)) :=
-        mul_le_mul_of_nonneg_right hK (by positivity)
+    _ ≤ ((K : ℝ) * η ^ 2) ^ (j + 1) * (freqMoment (j + 1) s : ℝ) ^ (2 * (j + 1)) := by gcongr
     _ = (K * (η * freqMoment (j + 1) s) ^ 2) ^ (j + 1) := by ring
 
 /-- The `rpow` form `3 k n ^ (1 - 1/k) ≤ K η²` of the group size condition of

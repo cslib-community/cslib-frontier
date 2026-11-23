@@ -85,7 +85,6 @@ def strassenT : ℕ → ℕ
   | 1 => 1
   | n + 2 => 7 * strassenT ((n + 3) / 2) + (n + 2) ^ 2
 termination_by n => n
-decreasing_by omega
 
 example : strassenT 4 = 93 := by simp [strassenT]
 
@@ -122,7 +121,6 @@ def bsT : ℕ → ℕ
   | 1 => 0
   | n + 2 => bsT ((n + 3) / 2) + 1
 termination_by n => n
-decreasing_by omega
 
 theorem bsT_bound : DivideConquerBound bsT 1 2 1 0 fun n => 1 * n ^ 0 := by
   refine ⟨fun n hn => ?_, fun n hn S hS => ?_⟩
@@ -144,7 +142,6 @@ def t3 : ℕ → ℕ
   | 1 => 1
   | n + 2 => 2 * t3 ((n + 4) / 3) + (n + 2)
 termination_by n => n
-decreasing_by omega
 
 theorem t3_bound : DivideConquerBound t3 2 3 1 1 fun n => 1 * n ^ 1 := by
   refine ⟨fun n hn => ?_, fun n hn S hS => ?_⟩
