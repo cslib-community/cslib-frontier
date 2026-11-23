@@ -35,18 +35,32 @@ private abbrev fx : CNF ℕ :=
   [[(0, true)], [(0, false), (1, true)], [(2, false), (3, true)], [(3, false), (4, true)],
     [(2, false), (1, false), (5, true)], [(6, false), (4, false), (5, false), (2, false)]]
 
-/-- The trail, newest first. -/
-private abbrev T : XTrail :=
-  [.decision (6, true), .implied (5, true) 5, .implied (4, true) 4, .implied (3, true) 3,
-    .decision (2, true), .implied (1, true) 2, .implied (0, true) 1]
+/-- The array trail, oldest first (`0`, `1` at the root; decision `2`, implied `3`, `4`, `5`;
+newest decision `6` at position `6`), with variable positions `vpos`. -/
+private def tr : ATrail :=
+  (((((((ATrail.empty.push (litKey (0, true)) 2).push (litKey (1, true)) 3).push
+    (litKey (2, true)) 0).push (litKey (3, true)) 4).push (litKey (4, true)) 5).push
+    (litKey (5, true)) 6).push (litKey (6, true)) 0)
+
+private def vpos : Array ℕ := #[0, 1, 2, 3, 4, 5, 6]
 
 /-- The learned clause `¬d ∨ ¬c ∨ ¬e ∨ ¬a`. -/
 private abbrev C : Clause ℕ := [(6, false), (4, false), (5, false), (2, false)]
 
-/-- The minimized clause and the hints of its RUP step, as `Learned.minimize` builds them. -/
+/-- The minimized clause and the hints of its RUP step, via `ATrail.reasonAt`, `redundant`, and
+`ATrail.derivedHintsBelow` as `Learned.minimize` computes them at `p = 6`. -/
 private def minimized (recursive : Bool) : Clause ℕ × List ℕ :=
-  let r := minimizeRedundant (LRATLog.init fx) T C (6, false) recursive
-  ((6, false) :: C.filter fun y => y != (6, false) && !r.1.contains y, derivedHints T r.2 ++ [6])
+  let inCArr := (⟨Array.replicate 7 0⟩ : Assign).markLits C
+  let r0 := tr.firstDecGo 0 6
+  let deep : ℕ → Bool :=
+    if recursive then fun _ => true
+    else fun v =>
+      let i := vpos.getD v 0
+      i < r0 && tr.lits.getD i 0 / 2 == v
+  let r := redundant (LRATLog.init fx) (tr.reasonAt vpos 6) inCArr.assigned deep (tr.size + 1)
+    (6, false) C ⟨Array.replicate 7 0⟩
+  ((6, false) :: C.filter fun y => !Assign.litEq y (6, false) && !r.memo.holds (y.1, true),
+    tr.derivedHintsBelow 6 r.memo ++ [6])
 
 /-- Basic minimization removes `¬e` and keeps `¬c`; the hints replay the root chain and `e`. -/
 example : minimized false = ([(6, false), (4, false), (2, false)], [1, 2, 5, 6]) := by

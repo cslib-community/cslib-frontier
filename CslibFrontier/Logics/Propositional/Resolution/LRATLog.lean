@@ -421,51 +421,102 @@ theorem extends_addRup {log : LRATLog φ} {c : Clause ℕ} {hints : List ℕ}
   rw [show (log.next == i) = false by simp; omega]
   exact h
 
-/-- Marking each number of `ids` in `a`: a mark within the array is set when its number is in
-`ids`; the array keeps its size. -/
-private theorem getD_foldl_setTrue (ids : List ℕ) (a : Array Bool) (i : ℕ) :
-    (ids.foldl (fun a j => a.setIfInBounds j true) a).getD i false =
-      (a.getD i false || (decide (i < a.size) && ids.contains i)) := by
-  induction ids generalizing a with
+/-- **A `1024`-bucket table** of clause numbers for fast membership tests without allocating an
+array spanning `max - min` (which reaches hundreds of thousands of slots on long runs when an old
+clause is locked or deleted alongside recent ones). -/
+def idBuckets (ids : List ℕ) : Array (List ℕ) :=
+  ids.foldl (fun b i => b.modify (i % 1024) (i :: ·)) (Array.replicate 1024 [])
+
+/-- Whether `i` is in the bucket table `b`. -/
+@[inline] def inBuckets (b : Array (List ℕ)) (i : ℕ) : Bool :=
+  (b.getD (i % 1024) []).contains i
+
+private theorem inBuckets_modify (b : Array (List ℕ)) (hb : b.size = 1024) (j i : ℕ) :
+    inBuckets (b.modify (j % 1024) (j :: ·)) i = ((i == j) || inBuckets b i) := by
+  unfold inBuckets
+  have hi : i % 1024 < b.size := by rw [hb]; exact Nat.mod_lt _ (by decide)
+  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_modify, Array.getElem?_eq_getElem hi,
+    Option.getD_some]
+  by_cases hmod : j % 1024 = i % 1024
+  · simp only [hmod, ↓reduceIte, Option.map_some, Option.getD_some, List.contains_cons]
+  · have hij : (i == j) = false := beq_false_of_ne fun e => hmod (e ▸ rfl)
+    simp [hmod, hij]
+
+private theorem inBuckets_foldl (ids : List ℕ) (b : Array (List ℕ)) (hb : b.size = 1024) (i : ℕ) :
+    inBuckets (ids.foldl (fun b j => b.modify (j % 1024) (j :: ·)) b) i =
+      (inBuckets b i || ids.contains i) := by
+  induction ids generalizing b with
   | nil => simp
   | cons j ids ih =>
-    rw [List.foldl_cons, ih, Array.size_setIfInBounds]
-    simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds, List.contains_cons]
-    by_cases hij : j = i
-    · subst hij; by_cases hi : j < a.size <;> simp [hi]
-    · simp [hij, show (i == j) = false from beq_false_of_ne (Ne.symm hij)]
+    rw [List.foldl_cons, ih _ (by simp [hb]), inBuckets_modify b hb, List.contains_cons]
+    cases i == j <;> cases inBuckets b i <;> rfl
 
-private theorem le_foldl_max {ids : List ℕ} {i : ℕ} :
-    ∀ m, i ∈ ids ∨ i ≤ m → i ≤ ids.foldl max m := by
-  induction ids with
-  | nil => intro m h; simpa using h
-  | cons j ids ih =>
-    intro m h
-    refine ih _ ?_
-    rcases h with h | h
-    · rcases List.mem_cons.1 h with rfl | h
-      · exact .inr (le_max_right _ _)
+theorem inBuckets_idBuckets (ids : List ℕ) (i : ℕ) :
+    inBuckets (idBuckets ids) i = ids.contains i := by
+  rw [idBuckets, inBuckets_foldl _ _ (by simp)]
+  have hi : i % 1024 < 1024 := Nat.mod_lt _ (by decide)
+  simp [inBuckets, Array.getD_eq_getD_getElem?, hi]
+
+/-- Removing repeated clause numbers via a `1024`-bucket table, preserving order. -/
+def dedupIds (ids : List ℕ) : List ℕ :=
+  go ids (Array.replicate 1024 []) []
+where
+  /-- Accumulating unseen numbers of `ids` in `acc` (reversed) using bucket table `seen`. -/
+  go : List ℕ → Array (List ℕ) → List ℕ → List ℕ
+  | [], _, acc => acc.reverse
+  | i :: ids, seen, acc =>
+    if inBuckets seen i then go ids seen acc
+    else go ids (seen.modify (i % 1024) (i :: ·)) (i :: acc)
+
+private theorem dedupIds_go_spec (l : List ℕ) (seen : Array (List ℕ)) (acc : List ℕ)
+    (hs : seen.size = 1024) (hseen : ∀ y, inBuckets seen y = true ↔ y ∈ acc) (hnd : acc.Nodup) :
+    (∀ y, y ∈ dedupIds.go l seen acc ↔ y ∈ acc ∨ y ∈ l) ∧ (dedupIds.go l seen acc).Nodup := by
+  induction l generalizing seen acc with
+  | nil => exact ⟨fun y => by simp [dedupIds.go], List.nodup_reverse.2 hnd⟩
+  | cons i l ih =>
+    rw [dedupIds.go]
+    split
+    · rename_i hi
+      have hia : i ∈ acc := (hseen i).1 hi
+      obtain ⟨hmem, hnd'⟩ := ih seen acc hs hseen hnd
+      refine ⟨fun y => (hmem y).trans ⟨fun h => h.imp id (List.mem_cons_of_mem _), fun h => ?_⟩,
+        hnd'⟩
+      rcases h with h | h
       · exact .inl h
-    · exact .inr (le_max_of_le_left h)
+      · rcases List.mem_cons.1 h with rfl | h
+        · exact .inl hia
+        · exact .inr h
+    · rename_i hi
+      have hia : i ∉ acc := fun h => hi ((hseen i).2 h)
+      have hseen' : ∀ y, inBuckets (seen.modify (i % 1024) (i :: ·)) y = true ↔ y ∈ i :: acc := by
+        intro y
+        rw [inBuckets_modify seen hs, Bool.or_eq_true, beq_iff_eq, hseen, List.mem_cons]
+      obtain ⟨hmem, hnd'⟩ := ih _ (i :: acc) (by simp [hs]) hseen' (List.nodup_cons.2 ⟨hia, hnd⟩)
+      refine ⟨fun y => (hmem y).trans ?_, hnd'⟩
+      simp only [List.mem_cons, or_assoc, or_left_comm]
+
+private theorem inBuckets_replicate_nil (y : ℕ) :
+    inBuckets (Array.replicate 1024 []) y = true ↔ y ∈ ([] : List ℕ) := by
+  have hy : y % 1024 < 1024 := Nat.mod_lt _ (by decide)
+  simp [inBuckets, Array.getD_eq_getD_getElem?, hy]
+
+theorem mem_dedupIds {ids : List ℕ} {x : ℕ} : x ∈ dedupIds ids ↔ x ∈ ids := by
+  rw [dedupIds]
+  simpa using (dedupIds_go_spec ids _ [] (by simp) inBuckets_replicate_nil List.nodup_nil).1 x
+
+theorem nodup_dedupIds (ids : List ℕ) : (dedupIds ids).Nodup :=
+  (dedupIds_go_spec ids _ [] (by simp) inBuckets_replicate_nil List.nodup_nil).2
 
 /-- **The numbered clauses `db` without those numbered in `ids`**: the clauses whose number is
-not in `ids` (`eraseIds_eq`). The numbers are marked once, in an array reaching the greatest of
-them, so that each clause is tested in constant time instead of by searching `ids`. -/
+not in `ids` (`eraseIds_eq`), tested via a fixed-size `1024`-bucket table (`idBuckets`). -/
 def eraseIds (db : List (ℕ × Clause ℕ)) (ids : List ℕ) : List (ℕ × Clause ℕ) :=
-  let marks := ids.foldl (fun a i => a.setIfInBounds i true)
-    (Array.replicate (ids.foldl max 0 + 1) false)
-  db.filter fun e => !marks.getD e.1 false
+  let marks := idBuckets ids
+  db.filter fun e => !inBuckets marks e.1
 
 theorem eraseIds_eq (db : List (ℕ × Clause ℕ)) (ids : List ℕ) :
     eraseIds db ids = db.filter fun e => !ids.contains e.1 := by
   unfold eraseIds
-  refine List.filter_congr fun e _ => ?_
-  rw [getD_foldl_setTrue]
-  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_replicate, Array.size_replicate]
-  by_cases hi : e.1 < ids.foldl max 0 + 1
-  · simp [hi]
-  · have : e.1 ∉ ids := fun h => hi (Nat.lt_succ_of_le (le_foldl_max 0 (.inl h)))
-    simp [hi, this]
+  exact List.filter_congr fun e _ => by rw [inBuckets_idBuckets]
 
 /-- **Deleting clauses** from the log. An empty list deletes nothing and adds no step. The index
 entries are cleared in place (`chunkClear`), so deleting a number that names no clause does not
