@@ -76,11 +76,14 @@ Since every state has measure below `restartBound φ`, a `d` with `restartBound 
 once, never runs out; the measure appears only in proofs, so at run time a move does no
 arithmetic on it.
 
-**Reducing the learned clauses** (`Cslib.Algorithms.Lean.CDCL.WExec.maybeReduce`). As in
-MiniSat's `reduceDB`, once the learned clauses exceed the assigned variables by a limit, which
-grows on a schedule, the less active half of them is forgotten
-(`Cslib.Algorithms.Lean.CDCL.Exec.forget`), except the reasons of the trail and the clauses of at
-most two literals, and the watch store is rebuilt on the trail
+**Reducing the learned clauses** (`Cslib.Algorithms.Lean.CDCL.WExec.maybeReduce`). Once the learned
+clauses exceed the assigned variables by a limit, which grows on a schedule as in MiniSat's
+`reduceDB`, half of them are forgotten (`Cslib.Algorithms.Lean.CDCL.Exec.forget`), together with
+any in the upper half of four or more literals whose activity is below `inc / learnts.length`,
+except the reasons of the trail and the clauses of at most two literals; refining MiniSat's
+pure-activity ordering, ternary learned clauses (`= 3`) sort above longer ones and are exempt from
+that upper-half `< inc / learnts.length` purge, while longer learned clauses sort by size-weighted
+activity (`(act >>> 10) / size`). The watch store is then rebuilt on the trail
 (`Cslib.Algorithms.Lean.CDCL.WatchStore.build`). This happens with the queue empty and no clause
 false, and keeps the measure.
 
@@ -2404,11 +2407,11 @@ theorem mem_chooseIds {n : ℕ} {locked cand : List ℕ} {i : ℕ} (h : i ∈ ch
   exact ⟨h.1, by simpa [isLearntId] using h.2.1, fun hm =>
     absurd (h.2.2.symm.trans (List.contains_iff_mem.2 hm)) (by decide)⟩
 
-/-- **The learned clauses to forget**, as MiniSat's `reduceDB` chooses them: the learned clauses
-of the store, those of more than two literals first by increasing activity; of the less active
-half, those of more than two literals, and of the other half, those of more than two literals and
-activity below the increment divided by their number. Kept in any case are the clauses of `φ`, the
-reasons of the trail (MiniSat's *locked* clauses) and the short clauses. -/
+/-- **The learned clauses to forget**: binary learned clauses (`≤ 2`), the clauses of `φ`, the
+reasons of the trail (MiniSat's *locked* clauses) and the short clauses are always kept; ternary
+learned clauses (`= 3`) sort above longer ones and are exempt from the upper-half
+`< inc / learnts.length` purge; and longer learned clauses sort by size-weighted activity
+(`(act >>> 10) / size`). -/
 @[expose] def WExec.reduceIds (S : WExec φ) : List ℕ :=
   let act := S.red.act
   -- computed once, not in each test
@@ -2416,13 +2419,18 @@ reasons of the trail (MiniSat's *locked* clauses) and the short clauses. -/
   -- the learned clauses, by number and number of literals, read directly from `codes`
   let learnts := S.store.codes.foldr (fun a acc =>
     if isLearntId n (clauseId a) then (clauseId a, a.size - 1) :: acc else acc) []
+  let tier (k : ℕ) : ℕ := if k ≤ 2 then 2 else if k == 3 then 1 else 0
   let sorted := sortBy (fun a b =>
-    if (a.2 ≤ 2) == (b.2 ≤ 2) then act.get a.1 ≤ act.get b.1 else b.2 ≤ 2)
+    let ta := tier a.2
+    let tb := tier b.2
+    if ta == tb then (act.get a.1 >>> 10) * b.2 ≤ (act.get b.1 >>> 10) * a.2
+    else ta < tb)
     learnts
-  let half := sorted.length / 2
-  -- MiniSat's `activity < cla_inc / learnts.size()`, without rounding the quotient
+  let len := sorted.length
+  let half := len / 2
+  let thresh := if len == 0 then 0 else act.inc / len
   let chosen := (sorted.take half).filter (2 < ·.2) ++
-    (sorted.drop half).filter fun e => 2 < e.2 && act.get e.1 * sorted.length < act.inc
+    (sorted.drop half).filter fun e => 3 < e.2 && act.get e.1 < thresh
   -- the reasons of the trail (MiniSat's `locked`) and the short clauses are kept
   chooseIds n (S.exec.tr.reasonIds ++ S.short.map Prod.fst) (chosen.map Prod.fst)
 

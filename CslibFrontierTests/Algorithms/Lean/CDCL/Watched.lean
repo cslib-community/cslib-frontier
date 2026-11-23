@@ -249,6 +249,16 @@ example :
       (CDCL.WExec.init two {}).store.learntCount 2 + 1 ∧ CDCL.isLearntId 2 3 = true := by
   decide +kernel
 
+/-- With a 4-literal learned clause (`3`) and a 3-literal learned clause (`4`), both of activity
+`0 < inc / 2`, `WExec.reduceIds` places the 4-literal clause in the lower half to forget and spares
+the ternary clause in the upper half from the `< inc / learnts.length` tail purge. -/
+example :
+    (let S₀ := CDCL.WExec.init two {}
+     let st := (S₀.store.addClause 3 [(0, true), (1, true), (2, true), (3, true)]).addClause 4
+       [(0, true), (1, false), (2, true)]
+     ({ S₀ with store := st }).reduceIds) = [3] := by
+  decide +kernel
+
 /-- With reduction on, a conflict learning a clause of two or more literals numbered `2` in a
 formula of two clauses, at the newest decision at position `p` of the trail, leaves the counter
 of learned clauses as it is, and one numbered `3` adds one. -/
