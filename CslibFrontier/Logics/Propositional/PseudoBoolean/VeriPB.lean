@@ -633,11 +633,13 @@ theorem idOk_initDb (F : List PBConstr) : IdOk (initDb F) (F.length + 1) := by
 /-- **The shape of a successful step on the database `db`, whose next number is `n`**: which
 constraint it adds, at which number, and what it deletes. Each addition puts its constraint in
 front and continues from the number after it: `pol`, `rup` and `rupSearch` at `n`, and `pbc` at
-the number `m > n` its subproof stops at, its own constraints having taken the numbers in
-between. `rup`, `rupSearch` and `pbc` add their stated constraint, normalized; for `pol` the
-relation records only that one constraint is added, not which. A deletion `del ids` drops the
-constraints numbered in `ids` and keeps the next number. The relation does not record that a
-step's check passed; that is the job of the soundness proofs. -/
+some number `m > n`. `rup`, `rupSearch` and `pbc` add their stated constraint, normalized; for
+`pol` the relation records only that one constraint is added, not which. A deletion `del ids`
+drops the constraints numbered in `ids` and keeps the next number. The relation does not record
+that a step's check passed, nor, for `pbc`, which number its subproof stops at: any `m > n` is
+allowed. `Cslib.Logic.PL.VeriPB.runStep_effect` shows that a successful `runStep` has this
+shape, taking `m` from the counter at which the subproof of a `pbc` step stops, above `n` since
+the negated constraint takes `n`. -/
 inductive StepEffect (db : List (ℕ × PBConstr)) (n : ℕ) :
     Step → List (ℕ × PBConstr) → ℕ → Prop where
   /-- `pol ops` adds the constraint `c` that its derivation leaves, at `n`. -/
@@ -648,7 +650,8 @@ inductive StepEffect (db : List (ℕ × PBConstr)) (n : ℕ) :
   /-- `rupSearch c` adds `c` at `n`. -/
   | rupSearch {c : PBConstr} :
       StepEffect db n (.rupSearch c) ((n, c.normalize) :: db) (n + 1)
-  /-- `pbc c sub q` adds `c` at the number `m > n` that its subproof stops at. -/
+  /-- `pbc c sub q` adds `c`, normalized, at some number `m > n`; `m` does not depend on
+  `sub`. -/
   | pbc {c : PBConstr} {sub : List Step} {q m : ℕ} (hm : n < m) :
       StepEffect db n (.pbc c sub q) ((m, c.normalize) :: db) (m + 1)
   /-- `del ids` drops the constraints numbered in `ids`. -/
@@ -684,7 +687,8 @@ end StepEffect
 
 mutual
 
-/-- **The effect of a successful step** (`Cslib.Logic.PL.VeriPB.StepEffect`). -/
+/-- **The effect of a successful step** (`Cslib.Logic.PL.VeriPB.StepEffect`). For `pbc`, the
+number of the added constraint is the counter at which the successful subproof stops. -/
 theorem runStep_effect :
     ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (s : Step) (db' : List (ℕ × PBConstr)) (n' : ℕ),
       runStep db n s = some (db', n') → StepEffect db n s db' n'
