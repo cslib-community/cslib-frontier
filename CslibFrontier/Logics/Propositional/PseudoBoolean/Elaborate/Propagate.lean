@@ -250,10 +250,9 @@ private partial def watchLoop (cpos : Array ℕ) (alive : ByteArray) (f : ℕ) (
           let ws := ws.set! j c
           if vo == 0 then
             -- Propagate the other watch.
-            let v := o / 2
-            watchLoop cpos alive f ws (i + 1) (j + 1) lits watches slack
-              ((value.set! o 1).set! (o ^^^ 1) 2) (reason.set! v c)
-              (tpos.set! v trail.size) (trail.push o)
+            match Asg.assign ⟨value, reason, tpos, trail⟩ o c with
+            | ⟨value, reason, tpos, trail⟩ =>
+              watchLoop cpos alive f ws (i + 1) (j + 1) lits watches slack value reason tpos trail
           else
             -- A conflict: keep the remaining live clauses.
             ⟨some c, keepLive alive ws (i + 1) (j + 1), lits, watches, slack, value, reason, tpos,

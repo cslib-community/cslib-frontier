@@ -492,9 +492,7 @@ private partial def terms (L : Lexer σ) : PM σ (Array (ℕ × ℤ) × ℤ) := 
       let l ← lit L
       let c : ℤ := if l.2 then a else -a
       if !l.2 then k := k + a
-      match idx[l.1]? with
-      | some i => lin := lin.modify i fun e => (e.1, e.2 + c)
-      | none => idx := idx.insert l.1 lin.size; lin := lin.push (l.1, c)
+      (lin, idx) := addEntry lin idx l.1 c
   return (lin, k)
 
 /-- A constraint `∑ aᵢ ℓᵢ ⋈ A` with `⋈` one of `>=`, `<=`: as `fromLinear` does in the kernel text
