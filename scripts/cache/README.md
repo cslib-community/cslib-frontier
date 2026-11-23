@@ -171,26 +171,31 @@ five seconds and the largest decrease. Compare warm PRs, cold pin builds, merge 
 publication before setting the repository variable `SDK_CLEANUP_MIN_GIB`. Keep margin for short
 peaks between samples. Unset the variable to restore the default.
 
-## Runner for `main` and merge-group builds
+## Runner for `main`, merge-group and docs builds
 
 The `lean-checks` job of a push to `main` runs on the runner named by the repository variable
 `MAIN_BUILD_RUNNER` (`gh variable set MAIN_BUILD_RUNNER --body cslib-ubuntu-24.04-8core`), and a
-`merge_group` run optionally runs on the runner named by `MERGE_GROUP_RUNNER` when set. Pull
-requests and manual runs always use the standard `ubuntu-24.04` runner, as do `main` and merge
-groups while their respective variable is unset. The `main` run saves the `.lake` snapshot and
-stages the remote-cache publication, so a faster one publishes caches for more landed commits;
-setting `MERGE_GROUP_RUNNER` likewise drains queued merge batches sooner when queue wait rises.
-The cache keys depend on the operating system, architecture and base image family (`ImageOS`), not
-the runner size or image patch version, so standard and larger runners share both `.lake`
-snapshots and merge-group handoffs.
+`merge_group` run optionally runs on the runner named by `MERGE_GROUP_RUNNER` when set. The `docs`
+job in `.github/workflows/docs.yml` (nightly `schedule` and manual `workflow_dispatch` on `main`)
+optionally runs on the runner named by `DOCS_BUILD_RUNNER` (`gh variable set DOCS_BUILD_RUNNER
+--body cslib-ubuntu-24.04-8core`). Pull requests, manual runs of `lean_action_ci.yml`, non-`main`
+runs of `docs.yml`, and events whose variable is unset always use the standard `ubuntu-24.04`
+runner. The `main` run saves the `.lake` snapshot and stages the remote-cache publication, so a
+faster one publishes caches for more landed commits; setting `MERGE_GROUP_RUNNER` likewise drains
+queued merge batches sooner when queue wait rises; setting `DOCS_BUILD_RUNNER` speeds up uncached
+`doc-gen4` generation across the library and its dependencies. The cache keys depend on the
+operating system, architecture and base image family (`ImageOS`), not the runner size or image
+patch version, so standard and larger runners share `.lake` snapshots, Guide dependency caches and
+merge-group handoffs.
 
 Larger runners are billed per minute even in public repositories. If the organization's Actions
 budget is exhausted or the runner is unavailable, the job fails before a runner is allocated:
-`main` shows a failed run and publishes no cache, while merging continues. Delete either variable
-(`gh variable delete MAIN_BUILD_RUNNER` / `gh variable delete MERGE_GROUP_RUNNER`) to return that
-event to the standard runner without a commit. A pull request from a branch of this repository
-runs its own copy of the workflow, so this expression does not stop a branch from naming a billed
-runner; restrict the runner group in the organization's settings for that.
+`main` shows a failed run and publishes no cache, a `docs` run fails without deploying, and merge
+groups stall until `MERGE_GROUP_RUNNER` is deleted. Delete a variable (`gh variable delete
+MAIN_BUILD_RUNNER`, `MERGE_GROUP_RUNNER` or `DOCS_BUILD_RUNNER`) to return that event to the
+standard runner without a commit. A pull request from a branch of this repository runs its own copy
+of the workflow, so these expressions do not stop a branch from naming a billed runner; restrict
+the runner group in the organization's settings for that.
 
 ## Merge-queue handoff
 
