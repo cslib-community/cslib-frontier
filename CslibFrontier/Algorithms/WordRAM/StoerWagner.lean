@@ -150,60 +150,8 @@ end
 /-! ### Local `Memory.Prog` simplification and loop-invariant combinators -/
 
 -- Local `simp`-indexed forms matching `StateTransitionSpec.fst_snd_runClient_bind`.
-attribute [local client_simps] clientResult_read map_eq_pure_bind
-
-@[local client_simps] private theorem local_fst_snd_read (w : ℕ) (s : Memory.State) (a : ℕ) :
-    ((Memory.spec w).runClient s (Memory.read a)).2.1 = s := by
-  rw [runClient_read]
-
-@[local client_simps] private theorem local_fst_snd_write (w : ℕ) (s : Memory.State) (a v : ℕ) :
-    ((Memory.spec w).runClient s (Memory.write a v)).2.1 =
-      ⟨Function.update s.mem a v, s.frontier⟩ := by
-  rw [runClient_write]
-
-@[local client_simps] private theorem local_clientResult_write (w : ℕ) (s : Memory.State)
-    (a v : ℕ) :
-    (Memory.spec w).clientResult s (Memory.write a v) = () :=
-  Eq.trans rfl rfl
-
-@[local client_simps] private theorem local_fst_snd_allocDirty (w : ℕ) (s : Memory.State) (k : ℕ) :
-    ((Memory.spec w).runClient s (Memory.allocDirty k)).2.1 = ⟨s.mem, s.frontier + k⟩ :=
-  Eq.trans rfl rfl
-
-@[local client_simps] private theorem local_clientResult_allocDirty (w : ℕ) (s : Memory.State)
-    (k : ℕ) :
-    (Memory.spec w).clientResult s (Memory.allocDirty k) = s.frontier :=
-  Eq.trans rfl rfl
-
-@[local client_simps] private theorem local_fst_snd_ite {α : Type} (w : ℕ)
-    (c : Prop) [Decidable c] (p₁ p₂ : Memory.Prog α) (s : Memory.State) :
-    ((Memory.spec w).runClient s (if c then p₁ else p₂ : Memory.Prog α)).2.1 =
-      if c then (Memory.spec w).clientState s p₁ else (Memory.spec w).clientState s p₂ := by
-  split_ifs <;> rfl
-
-@[local client_simps] private theorem local_clientResult_ite {α : Type} (w : ℕ)
-    (c : Prop) [Decidable c] (p₁ p₂ : Memory.Prog α) (s : Memory.State) :
-    (Memory.spec w).clientResult s (if c then p₁ else p₂ : Memory.Prog α) =
-      if c then (Memory.spec w).clientResult s p₁ else (Memory.spec w).clientResult s p₂ := by
-  split_ifs <;> rfl
-
-@[local client_simps] private theorem local_state_frontier_ite
-    (c : Prop) [Decidable c] (s₁ s₂ : Memory.State) :
-    (if c then s₁ else s₂).frontier = if c then s₁.frontier else s₂.frontier := by
-  split_ifs <;> rfl
-
-@[local client_simps] private theorem local_state_mem_ite
-    (c : Prop) [Decidable c] (s₁ s₂ : Memory.State) (x : ℕ) :
-    (if c then s₁ else s₂).mem x = if c then s₁.mem x else s₂.mem x := by
-  split_ifs <;> rfl
-
-private theorem validHistory_allocDirty_bind {α : Type} {w : ℕ} {s : Memory.State} {k : ℕ}
-    {q : ℕ → Memory.Prog α} (hk : Fits w (s.frontier + k))
-    (hq : (Memory.spec w).ValidHistory ⟨s.mem, s.frontier + k⟩
-      ((Memory.spec w).clientHistory ⟨s.mem, s.frontier + k⟩ (q s.frontier))) :
-    (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (Memory.allocDirty k >>= q)) :=
-  ⟨hk, hq⟩
+attribute [local client_simps] fst_snd_runClient_read fst_snd_runClient_write
+  fst_snd_runClient_allocDirty fst_snd_runClient_ite map_eq_pure_bind
 
 private theorem iterate_spec {δ σ : Type} (body : δ × σ → Memory.Prog σ)
     (Safe : ℕ → δ × σ → Memory.State → Prop) (w : ℕ) (d : δ) (stepCost N : ℕ)
