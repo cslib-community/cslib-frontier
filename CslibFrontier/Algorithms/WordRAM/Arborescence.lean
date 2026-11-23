@@ -8,9 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.Arborescence.Branching
-public import CslibFrontier.Algorithms.Lean.Arborescence.Table
 public import CslibFrontier.Computability.WordRAM.ListOutput
 public import CslibFrontier.Computability.WordRAM.Signed.Encoding
+import CslibFrontier.Algorithms.Lean.Arborescence.Table
 import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
 import CslibFrontier.Computability.WordRAM.Realization.Structure
@@ -85,6 +85,16 @@ private theorem sq_le_wordBound (n M₀ : ℕ) : 32 * (n + 1) * (n + 1) ≤ word
   have h : 32 * (n + 1) * (n + 1) = 32 * (n + 1) ^ 2 := by ring
   unfold wordBound
   omega
+
+private theorem fits_signedEncode_add_one_of_wordBound {w n M₀ : ℕ} {z : ℤ}
+    (hz : z.natAbs ≤ M₀) (hwb : Fits w (wordBound n M₀)) :
+    Fits w (Signed.encode z + 1) := by
+  have hpow1 : 1 ≤ (n + 1) ^ n := Nat.one_le_pow n (n + 1) (Nat.succ_pos _)
+  have hmul : z.natAbs ≤ (n + 1) ^ n * M₀ :=
+    hz.trans (by simpa using Nat.mul_le_mul_right M₀ hpow1)
+  have hsq1 : 1 ≤ (n + 1) ^ 2 := Nat.one_le_pow 2 (n + 1) (Nat.succ_pos _)
+  unfold Signed.encode
+  exact hwb.of_le (by dsimp only [wordBound]; split_ifs <;> linarith only [hmul, hsq1])
 
 /-! ### Signed-word primitives over `Signed.encode` -/
 
@@ -5866,6 +5876,22 @@ private theorem init_mem_encode_arb_cost (I : ArborescenceInput) (u v : Fin I.n)
   simp only [hlen1, Nat.add_sub_cancel_left, ← List.getD_eq_getElem?_getD]
   exact getD_flattenSignedMatrix I.n I.cost u v
 
+private theorem fits_mem_flatten_adj_signed {w n m M₀ : ℕ}
+    (adj : Fin n → Fin n → Bool) (wt : Fin n → Fin n → ℤ)
+    (hM : ∀ u v, (wt u v).natAbs ≤ M₀) (hwb : Fits w (wordBound m M₀))
+    {x : ℕ} (hx : x ∈ flattenBoolMatrix n adj ++ flattenSignedMatrix n wt) :
+    Fits w x := by
+  have hsq := sq_le_wordBound m M₀
+  rcases List.mem_append.mp hx with hbool | hwt
+  · simp only [flattenBoolMatrix, List.mem_flatMap, List.mem_finRange, List.mem_map,
+      true_and] at hbool
+    rcases hbool with ⟨u, v, rfl⟩
+    split_ifs <;> exact hwb.of_le (by nlinarith only [hsq])
+  · simp only [flattenSignedMatrix, List.mem_flatMap, List.mem_finRange, List.mem_map,
+      true_and] at hwt
+    rcases hwt with ⟨u, v, rfl⟩
+    exact (fits_signedEncode_add_one_of_wordBound (hM u v) hwb).of_le (Nat.le_succ _)
+
 private theorem inputFits_arb_encode {w M₀ : ℕ} (I : ArborescenceInput)
     (hM : ∀ u v, (I.cost u v).natAbs ≤ M₀) (hwb : Fits w (wordBound I.n M₀)) :
     Fits w (I.encode.length + 1) ∧ InputFits w I.encode := by
@@ -5875,26 +5901,12 @@ private theorem inputFits_arb_encode {w M₀ : ℕ} (I : ArborescenceInput)
     omega
   have hfit_len1 : Fits w (I.encode.length + 1) :=
     hwb.of_le (by rw [hlen]; nlinarith only [hsq])
-  refine ⟨hfit_len1, hfit_len1.of_le (by omega), ?_⟩
-  intro x hx
-  simp only [ArborescenceInput.encode, List.mem_cons, List.mem_append] at hx
-  rcases hx with rfl | rfl | hbool | hcost
+  refine ⟨hfit_len1, hfit_len1.of_le (by omega), fun x hx => ?_⟩
+  simp only [ArborescenceInput.encode, List.mem_cons] at hx
+  rcases hx with rfl | rfl | hrest
   · exact hwb.of_le (by nlinarith only [hsq])
   · exact hwb.of_le (by have hr := I.root.isLt; nlinarith only [hsq, hr])
-  · simp only [flattenBoolMatrix, List.mem_flatMap, List.mem_finRange, List.mem_map,
-      true_and] at hbool
-    rcases hbool with ⟨u, v, rfl⟩
-    split_ifs <;> exact hwb.of_le (by nlinarith only [hsq])
-  · simp only [flattenSignedMatrix, List.mem_flatMap, List.mem_finRange, List.mem_map,
-      true_and] at hcost
-    rcases hcost with ⟨u, v, rfl⟩
-    have huv := hM u v
-    have hpow1 : 1 ≤ (I.n + 1) ^ I.n := Nat.one_le_pow I.n (I.n + 1) (Nat.succ_pos _)
-    have hmul : (I.cost u v).natAbs ≤ (I.n + 1) ^ I.n * M₀ :=
-      huv.trans (by simpa using Nat.mul_le_mul_right M₀ hpow1)
-    have hsq1 : 1 ≤ (I.n + 1) ^ 2 := Nat.one_le_pow 2 (I.n + 1) (Nat.succ_pos _)
-    unfold Signed.encode
-    exact hwb.of_le (by dsimp only [wordBound]; split_ifs <;> linarith only [hmul, hsq1])
+  · exact fits_mem_flatten_adj_signed I.adj I.cost hM hwb hrest
 
 private def edmondsProg (d : ℕ × ℕ) : Memory.Prog ℕ := do
   let n := Prod.fst d
@@ -6781,26 +6793,11 @@ private theorem inputFits_branching_encode {w M₀ : ℕ} (I : BranchingInput)
     omega
   have hfit_len1 : Fits w (I.encode.length + 1) :=
     hwb.of_le (by rw [hlen]; nlinarith only [hsq])
-  refine ⟨hfit_len1, hfit_len1.of_le (by omega), ?_⟩
-  intro x hx
-  simp only [BranchingInput.encode, List.mem_cons, List.mem_append] at hx
-  rcases hx with rfl | hbool | hwt
+  refine ⟨hfit_len1, hfit_len1.of_le (by omega), fun x hx => ?_⟩
+  simp only [BranchingInput.encode, List.mem_cons] at hx
+  rcases hx with rfl | hrest
   · exact hwb.of_le (by nlinarith only [hsq])
-  · simp only [flattenBoolMatrix, List.mem_flatMap, List.mem_finRange, List.mem_map,
-      true_and] at hbool
-    rcases hbool with ⟨u, v, rfl⟩
-    split_ifs <;> exact hwb.of_le (by nlinarith only [hsq])
-  · simp only [flattenSignedMatrix, List.mem_flatMap, List.mem_finRange, List.mem_map,
-      true_and] at hwt
-    rcases hwt with ⟨u, v, rfl⟩
-    have huv := hM u v
-    have hpow1 : 1 ≤ (I.n + 1 + 1) ^ (I.n + 1) :=
-      Nat.one_le_pow (I.n + 1) (I.n + 1 + 1) (Nat.succ_pos _)
-    have hmul : (I.weight u v).natAbs ≤ (I.n + 1 + 1) ^ (I.n + 1) * M₀ :=
-      huv.trans (by simpa using Nat.mul_le_mul_right M₀ hpow1)
-    have hsq1 : 1 ≤ (I.n + 1 + 1) ^ 2 := Nat.one_le_pow 2 (I.n + 1 + 1) (Nat.succ_pos _)
-    unfold Signed.encode
-    exact hwb.of_le (by dsimp only [wordBound]; split_ifs <;> linarith only [hmul, hsq1])
+  · exact fits_mem_flatten_adj_signed I.adj I.weight hM hwb hrest
 
 private structure SuperRootRowArgs where
   n : ℕ
@@ -7407,15 +7404,8 @@ private theorem optimumBranchingProg_spec {w M₀ : ℕ} (I : BranchingInput)
       nlinarith only [hsq])
   have hws_fit : WsFits w ws m := hfit_top.of_le (by dsimp only [outAddr, ws]; omega)
   let s1 : Memory.State := ⟨s₀.mem, outAddr + (n + 1)⟩
-  have hfit_wt1 : ∀ u v : Fin n, Fits w (Signed.encode (weight u v) + 1) := fun u v => by
-    have huv := hM u v
-    have hpow1 : 1 ≤ (n + 1 + 1) ^ (n + 1) :=
-      Nat.one_le_pow (n + 1) (n + 1 + 1) (Nat.succ_pos _)
-    have hmul : (weight u v).natAbs ≤ (n + 1 + 1) ^ (n + 1) * M₀ :=
-      huv.trans (by simpa using Nat.mul_le_mul_right M₀ hpow1)
-    have hsq1 : 1 ≤ (n + 1 + 1) ^ 2 := Nat.one_le_pow 2 (n + 1 + 1) (Nat.succ_pos _)
-    unfold Signed.encode
-    exact hwb.of_le (by dsimp only [wordBound]; split_ifs <;> linarith only [hmul, hsq1])
+  have hfit_wt1 : ∀ u v : Fin n, Fits w (Signed.encode (weight u v) + 1) :=
+    fun u v => fits_signedEncode_add_one_of_wordBound (hM u v) hwb
   let G : Digraph (Fin n) := BranchingInput.digraph ⟨n, adj, weight⟩
   have hsr := superRootProg_spec G weight s1 hws_fit
     (hfit_top.of_le (by dsimp only [outAddr, ws, m, wsSize] at hws_eq ⊢; rw [hws_eq]; nlinarith))
@@ -7517,6 +7507,51 @@ private theorem optimumBranchingProg_spec {w M₀ : ℕ} (I : BranchingInput)
       List.length_finRange]
     exact hfit_top.of_le (by dsimp only [outAddr, ws, m]; omega)
 
+private theorem executesList_of_client_spec {α : Type} {k r C₁ w K n : ℕ}
+    {enc : α ↪ (Fin k → ℕ)} {f : α → Memory.Prog ℕ} {Safe : ℕ → α → Memory.State → Prop}
+    {pc : ℕ} {prog : Program .exact r} {frontier : Fin r} {out : Fin 1 → Fin r}
+    (he : ∀ (w : ℕ) (a : α) (xs : List ℕ),
+      (∀ j : Fin k, xs.getD j.val 0 = enc a j) →
+      k ≤ xs.length → Fits w (xs.length + 1) → InputFits w xs →
+      Safe w a (Memory.State.init xs) →
+      (Memory.spec w).ValidHistory (Memory.State.init xs)
+        ((Memory.spec w).clientHistory (Memory.State.init xs) (f a)) →
+      ∃ y m, Runs w prog (State.init xs) ⟨pc, y⟩ m ∧
+        step w prog ⟨pc, y⟩ =
+          .halt (wordWords ((Memory.spec w).clientResult (Memory.State.init xs) (f a)) 0) ∧
+        memoryState frontier y =
+          (Memory.spec w).clientState (Memory.State.init xs) (f a) ∧
+        (∀ j, y.regs (out j) =
+          wordWords ((Memory.spec w).clientResult (Memory.State.init xs) (f a)) j) ∧
+        m + 1 ≤ C₁ * (memoryCost (f a) (Memory.State.init xs) + 0 + 1) + 1)
+    (a : α) (xs expected : List ℕ)
+    (hlayout : ∀ j : Fin k, xs.getD j.val 0 = enc a j)
+    (hk : k ≤ xs.length) (hfit_len : Fits w (xs.length + 1)) (hin_fits : InputFits w xs)
+    (hsafe : Safe w a (Memory.State.init xs))
+    (hvh : (Memory.spec w).ValidHistory (Memory.State.init xs)
+      ((Memory.spec w).clientHistory (Memory.State.init xs) (f a)))
+    (hmc : memoryCost (f a) (Memory.State.init xs) + 1 ≤ K * (n + 1) ^ 3)
+    (hout : outputList ((Memory.spec 0).clientState (Memory.State.init xs) (f a)).mem
+      ((Memory.spec 0).clientResult (Memory.State.init xs) (f a)) = expected)
+    (hfit_out :
+      Fits w ((Memory.spec 0).clientResult (Memory.State.init xs) (f a) + expected.length)) :
+    ∃ t, ExecutesList w prog (State.init xs) expected t ∧
+      t ≤ (K * C₁ + 1) * (n + 1) ^ 3 := by
+  obtain ⟨y, m, hruns, hhalt, hmem, _, hsteps⟩ :=
+    he w a xs hlayout hk hfit_len hin_fits hsafe hvh
+  rw [clientState_width w] at hmem
+  rw [clientResult_width w] at hhalt
+  dsimp only [wordWords] at hhalt
+  have hymem :
+      y.mem = ((Memory.spec 0).clientState (Memory.State.init xs) (f a)).mem :=
+    congrArg Memory.State.mem hmem
+  refine ⟨m + 1, ⟨⟨pc, y⟩, m, _, hruns, hhalt, hymem ▸ hout, hfit_out, rfl⟩, ?_⟩
+  have hmul : C₁ * (memoryCost (f a) (Memory.State.init xs) + 0 + 1) ≤ C₁ * (K * (n + 1) ^ 3) :=
+    Nat.mul_le_mul_left C₁ (by omega)
+  have hpos : 1 ≤ (n + 1) ^ 3 := Nat.one_le_pow 3 (n + 1) (Nat.succ_pos _)
+  have hring : C₁ * (K * (n + 1) ^ 3) + (n + 1) ^ 3 = (K * C₁ + 1) * (n + 1) ^ 3 := by ring
+  linarith only [hsteps, hmul, hpos, hring]
+
 /-! ### Main `O(n³)` Word-RAM running-time theorems -/
 
 public section
@@ -7536,37 +7571,16 @@ theorem exists_edmonds_program :
   refine ⟨r, 42 * C₁ + 1, prog, fun I M₀ w hM hwb => ?_⟩
   obtain ⟨hfit_len, hin_fits⟩ := inputFits_arb_encode I hM hwb
   have hspec := edmondsProg_spec I hM hwb
-  have hlayout : ∀ j : Fin 2, I.encode.getD j.val 0 = pairWords (I.n, I.root.1) j := by
-    rintro ⟨_ | _ | _, h⟩
-    · rfl
-    · rfl
-    · omega
-  have hk : 2 ≤ I.encode.length := by simp [ArborescenceInput.encode]
-  obtain ⟨y, m, hruns, hhalt, hmem, _, hsteps⟩ :=
-    he w (I.n, I.root.1) I.encode hlayout hk hfit_len hin_fits hspec.1 hspec.2.1
-  rw [clientState_width w] at hmem
-  rw [clientResult_width w] at hhalt
-  dsimp only [wordWords] at hhalt
-  have hymem :
-      y.mem = ((Memory.spec 0).clientState (Memory.State.init I.encode)
-        (edmondsProg (I.n, I.root.1))).mem :=
-    congrArg Memory.State.mem hmem
-  refine ⟨m + 1, ⟨⟨pc, y⟩, m, _, hruns, hhalt, ?_, hspec.2.2.2.2, rfl⟩, ?_⟩
-  · rw [hymem]
-    exact hspec.2.2.2.1
-  · have hmc := hspec.2.2.1
-    have hsq0 := Nat.zero_le (I.n ^ 2)
-    have hn0 := Nat.zero_le I.n
-    have hexp : 42 * (I.n + 1) ^ 3 = 42 * I.n ^ 3 + 126 * I.n ^ 2 + 126 * I.n + 42 := by ring
-    have hpoly : memoryCost (edmondsProg (I.n, I.root.1)) (Memory.State.init I.encode) + 0 + 1 ≤
-        42 * (I.n + 1) ^ 3 := by linarith only [hmc, hexp, hsq0, hn0]
-    have hmul : C₁ * (memoryCost (edmondsProg (I.n, I.root.1))
-        (Memory.State.init I.encode) + 0 + 1) ≤ C₁ * (42 * (I.n + 1) ^ 3) :=
-      Nat.mul_le_mul_left C₁ hpoly
-    have hpos : 1 ≤ (I.n + 1) ^ 3 := Nat.one_le_pow 3 (I.n + 1) (Nat.succ_pos _)
-    have hring : C₁ * (42 * (I.n + 1) ^ 3) + (I.n + 1) ^ 3 = (42 * C₁ + 1) * (I.n + 1) ^ 3 := by
-      ring
-    linarith only [hsteps, hmul, hpos, hring]
+  exact executesList_of_client_spec he (I.n, I.root.1) I.encode I.expectedParentList
+    (by rintro ⟨_ | _ | _, h⟩; exacts [rfl, rfl, by omega])
+    (by simp [ArborescenceInput.encode]) hfit_len hin_fits hspec.1 hspec.2.1
+    (by
+      have hmc := hspec.2.2.1
+      have hsq0 := Nat.zero_le (I.n ^ 2)
+      have hn0 := Nat.zero_le I.n
+      have hexp : 42 * (I.n + 1) ^ 3 = 42 * I.n ^ 3 + 126 * I.n ^ 2 + 126 * I.n + 42 := by ring
+      linarith only [hmc, hexp, hsq0, hn0])
+    hspec.2.2.2.1 hspec.2.2.2.2
 
 /-- Materialized-table Chu–Liu/Edmonds minimum-cost spanning out-arborescence runs in `O(n³)`
 instructions on the deterministic exact-basis Word-RAM at any word width fitting
@@ -7583,37 +7597,16 @@ theorem exists_edmondsOut_program :
   refine ⟨r, 42 * C₁ + 1, prog, fun I M₀ w hM hwb => ?_⟩
   obtain ⟨hfit_len, hin_fits⟩ := inputFits_arb_encode I hM hwb
   have hspec := edmondsOutProg_spec I hM hwb
-  have hlayout : ∀ j : Fin 2, I.encode.getD j.val 0 = pairWords (I.n, I.root.1) j := by
-    rintro ⟨_ | _ | _, h⟩
-    · rfl
-    · rfl
-    · omega
-  have hk : 2 ≤ I.encode.length := by simp [ArborescenceInput.encode]
-  obtain ⟨y, m, hruns, hhalt, hmem, _, hsteps⟩ :=
-    he w (I.n, I.root.1) I.encode hlayout hk hfit_len hin_fits hspec.1 hspec.2.1
-  rw [clientState_width w] at hmem
-  rw [clientResult_width w] at hhalt
-  dsimp only [wordWords] at hhalt
-  have hymem :
-      y.mem = ((Memory.spec 0).clientState (Memory.State.init I.encode)
-        (edmondsOutProg (I.n, I.root.1))).mem :=
-    congrArg Memory.State.mem hmem
-  refine ⟨m + 1, ⟨⟨pc, y⟩, m, _, hruns, hhalt, ?_, hspec.2.2.2.2, rfl⟩, ?_⟩
-  · rw [hymem]
-    exact hspec.2.2.2.1
-  · have hmc := hspec.2.2.1
-    have hsq0 := Nat.zero_le (I.n ^ 2)
-    have hn0 := Nat.zero_le I.n
-    have hexp : 42 * (I.n + 1) ^ 3 = 42 * I.n ^ 3 + 126 * I.n ^ 2 + 126 * I.n + 42 := by ring
-    have hpoly : memoryCost (edmondsOutProg (I.n, I.root.1)) (Memory.State.init I.encode) + 0 + 1 ≤
-        42 * (I.n + 1) ^ 3 := by linarith only [hmc, hexp, hsq0, hn0]
-    have hmul : C₁ * (memoryCost (edmondsOutProg (I.n, I.root.1))
-        (Memory.State.init I.encode) + 0 + 1) ≤ C₁ * (42 * (I.n + 1) ^ 3) :=
-      Nat.mul_le_mul_left C₁ hpoly
-    have hpos : 1 ≤ (I.n + 1) ^ 3 := Nat.one_le_pow 3 (I.n + 1) (Nat.succ_pos _)
-    have hring : C₁ * (42 * (I.n + 1) ^ 3) + (I.n + 1) ^ 3 = (42 * C₁ + 1) * (I.n + 1) ^ 3 := by
-      ring
-    linarith only [hsteps, hmul, hpos, hring]
+  exact executesList_of_client_spec he (I.n, I.root.1) I.encode I.expectedOutParentList
+    (by rintro ⟨_ | _ | _, h⟩; exacts [rfl, rfl, by omega])
+    (by simp [ArborescenceInput.encode]) hfit_len hin_fits hspec.1 hspec.2.1
+    (by
+      have hmc := hspec.2.2.1
+      have hsq0 := Nat.zero_le (I.n ^ 2)
+      have hn0 := Nat.zero_le I.n
+      have hexp : 42 * (I.n + 1) ^ 3 = 42 * I.n ^ 3 + 126 * I.n ^ 2 + 126 * I.n + 42 := by ring
+      linarith only [hmc, hexp, hsq0, hn0])
+    hspec.2.2.2.1 hspec.2.2.2.2
 
 /-- Edmonds' super-root maximum-weight branching solver runs in `O(n³)` instructions on the
 deterministic exact-basis Word-RAM at any word width fitting `wordBound (I.n + 1) M₀`. -/
@@ -7629,37 +7622,18 @@ theorem exists_optimumBranching_program :
   refine ⟨r, 80 * C₁ + 1, prog, fun I M₀ w hM hwb => ?_⟩
   obtain ⟨hfit_len, hin_fits⟩ := inputFits_branching_encode I hM hwb
   have hspec := optimumBranchingProg_spec I hM hwb
-  have hlayout : ∀ j : Fin 1, I.encode.getD j.val 0 = wordWords I.n j := by
-    rintro ⟨_ | _, h⟩
-    · rfl
-    · omega
-  have hk : 1 ≤ I.encode.length := by simp [BranchingInput.encode]
-  obtain ⟨y, m, hruns, hhalt, hmem, _, hsteps⟩ :=
-    he w I.n I.encode hlayout hk hfit_len hin_fits hspec.1 hspec.2.1
-  rw [clientState_width w] at hmem
-  rw [clientResult_width w] at hhalt
-  dsimp only [wordWords] at hhalt
-  have hymem :
-      y.mem = ((Memory.spec 0).clientState (Memory.State.init I.encode)
-        (optimumBranchingProg I.n)).mem :=
-    congrArg Memory.State.mem hmem
-  refine ⟨m + 1, ⟨⟨pc, y⟩, m, _, hruns, hhalt, ?_, hspec.2.2.2.2, rfl⟩, ?_⟩
-  · rw [hymem]
-    exact hspec.2.2.2.1
-  · have hmc := hspec.2.2.1
-    have hpos : 1 ≤ (I.n + 1) ^ 3 := Nat.one_le_pow 3 (I.n + 1) (Nat.succ_pos _)
-    have hsq : (I.n + 1) ^ 2 ≤ (I.n + 1) ^ 3 :=
-      Nat.pow_le_pow_right (Nat.succ_pos _) (by decide)
-    have hlin : I.n + 1 ≤ (I.n + 1) ^ 3 := by
-      simpa using Nat.pow_le_pow_right (Nat.succ_pos I.n) (show 1 ≤ 3 by decide)
-    have hpoly : memoryCost (optimumBranchingProg I.n) (Memory.State.init I.encode) + 0 + 1 ≤
-        80 * (I.n + 1) ^ 3 := by linarith [hmc, hpos, hsq, hlin]
-    have hmul : C₁ * (memoryCost (optimumBranchingProg I.n)
-        (Memory.State.init I.encode) + 0 + 1) ≤ C₁ * (80 * (I.n + 1) ^ 3) :=
-      Nat.mul_le_mul_left C₁ hpoly
-    have hring : C₁ * (80 * (I.n + 1) ^ 3) + (I.n + 1) ^ 3 = (80 * C₁ + 1) * (I.n + 1) ^ 3 := by
-      ring
-    linarith only [hsteps, hmul, hpos, hring]
+  exact executesList_of_client_spec he I.n I.encode I.expectedParentList
+    (by rintro ⟨_ | _, h⟩; exacts [rfl, by omega])
+    (by simp [BranchingInput.encode]) hfit_len hin_fits hspec.1 hspec.2.1
+    (by
+      have hmc := hspec.2.2.1
+      have hpos : 1 ≤ (I.n + 1) ^ 3 := Nat.one_le_pow 3 (I.n + 1) (Nat.succ_pos _)
+      have hsq : (I.n + 1) ^ 2 ≤ (I.n + 1) ^ 3 :=
+        Nat.pow_le_pow_right (Nat.succ_pos _) (by decide)
+      have hlin : I.n + 1 ≤ (I.n + 1) ^ 3 := by
+        simpa using Nat.pow_le_pow_right (Nat.succ_pos I.n) (show 1 ≤ 3 by decide)
+      linarith [hmc, hpos, hsq, hlin])
+    hspec.2.2.2.1 hspec.2.2.2.2
 
 end
 
