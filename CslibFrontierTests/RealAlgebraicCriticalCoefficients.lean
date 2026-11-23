@@ -357,15 +357,12 @@ example :
     let x : MvPolynomial (Fin 1) (Polynomial ℤ) := X 0
     residue 2 r (x ^ 3) = U ∧ Polynomial.coeffNorm1 (residue 2 r (x ^ 3)) ≤ 4 := by
   intro U r x
-  have hU : Polynomial.coeffNorm1 U = 1 := by
-    simpa only [U, mul_one, Polynomial.coeffNorm1_one] using
-      Polynomial.coeffNorm1_X_mul (1 : Polynomial ℤ)
   have hr (i : Fin 1) : (r i).totalDegree < 2 := by
     simp only [r, totalDegree_C]
     decide
   have hdeg : (x ^ 3).totalDegree ≤ 3 := (totalDegree_pow _ _).trans (by simp [x])
   have h := coeffNorm1_residue_le (B := 3) (R := 1) (by decide : 1 ≤ 2) (by decide)
-    r hr (fun _ => by simp [r, hU]) _ hdeg
+    r hr (fun _ => by simp [r, U]) _ hdeg
   have hv := ParameterCoeffNorm.pow_le x 3
   simp only [x, ParameterCoeffNorm.X, one_pow] at hv
   refine ⟨?_, h.trans (by simpa using Nat.mul_le_mul_left 4 hv)⟩
@@ -549,11 +546,9 @@ example : ¬ ∃ B : ℝ, ∀ u : ℝ, 0 ≤ u → u ≤ B := by
     simp [P]
   have hR : (P.leadingCoeff.coeffNorm1 : ℝ) + 1 ≤ ((2 : ℤ) : ℝ) := by
     norm_num [hlead, Polynomial.coeffNorm1_one]
-  have hX : (Polynomial.X : Polynomial ℤ).coeffNorm1 = 1 := by
-    simpa using Polynomial.coeffNorm1_X_mul (1 : Polynomial ℤ)
   have hU : ((P.map (Polynomial.evalRingHom (2 : ℤ))).coeffNorm1 : ℝ) + 1 ≤ 4 := by
     have hbound := Polynomial.coeffNorm1_sub_le Polynomial.X (Polynomial.C (2 : ℤ))
-    rw [hX, Polynomial.coeffNorm1_C] at hbound
+    rw [Polynomial.coeffNorm1_X, Polynomial.coeffNorm1_C] at hbound
     have hnorm : (P.map (Polynomial.evalRingHom (2 : ℤ))).coeffNorm1 ≤ 3 := by
       simpa [P] using hbound
     exact_mod_cast (Nat.add_le_add_right hnorm 1)
@@ -657,17 +652,15 @@ example :
   have hp : p ≠ 0 := fun h => by simp [h] at hp₁
   have hD : p.natDegree ≤ 1 := (Polynomial.natDegree_sub_le _ _).trans (by simp)
   have hE : g.natDegree ≤ 1 := by simp [g]
-  have hg : g.coeffNorm1 = 1 := by
-    simpa only [g, mul_one, Polynomial.coeffNorm1_one] using Polynomial.coeffNorm1_X_mul 1
   have hb : p.coeffNorm1 ≤ 2 ^ 2 := by
     change (Polynomial.C 2 * g - 1).coeffNorm1 ≤ 2 ^ 2
     refine (Polynomial.coeffNorm1_sub_le _ _).trans ?_
     have h := Polynomial.coeffNorm1_C_mul_le 2 g
-    rw [hg] at h
+    rw [show g.coeffNorm1 = 1 from Polynomial.coeffNorm1_X] at h
     rw [Polynomial.coeffNorm1_one]
     omega
   have hx : p.eval₂ (Int.castRingHom ℝ) (1 / 2) = 0 := by norm_num [p]
-  have h := Polynomial.eval₂_eq_zero_or_dyadic_bounds hp hD hE hb (c := 0) (by simp [hg]) hx
+  have h := Polynomial.eval₂_eq_zero_or_dyadic_bounds hp hD hE hb (c := 0) (by simp [g]) hx
   rcases h with hzero | hbounds
   · norm_num [g] at hzero
   · simpa only [R, g, Polynomial.eval₂_X, abs_of_nonneg (by norm_num : (0 : ℝ) ≤ 1 / 2)]
@@ -747,12 +740,10 @@ example :
     q.natDegree ≤ 12 ∧ q.coeffNorm1 ≤ 2 ^ 24 := by
   intro g q
   have hD : g.natDegree ≤ 2 := (Polynomial.natDegree_sub_le _ _).trans (by simp)
-  have hx : (Polynomial.X : Polynomial ℤ).coeffNorm1 = 1 := by
-    simpa only [mul_one, Polynomial.coeffNorm1_one] using Polynomial.coeffNorm1_X_mul 1
   have hg : g.coeffNorm1 ≤ 2 ^ 1 := by
     refine (Polynomial.coeffNorm1_sub_le _ _).trans ?_
     have h := Polynomial.coeffNorm1_pow_le (Polynomial.X : Polynomial ℤ) 2
-    rw [hx, one_pow] at h
+    rw [Polynomial.coeffNorm1_X, one_pow] at h
     rw [Polynomial.coeffNorm1_one]
     omega
   exact Polynomial.dyadicSignProduct_comp_bounds 1 1 g hD hg
@@ -763,9 +754,7 @@ example :
     let p := Polynomial.signLabelPolynomial 1 g (fun _ => 1)
     p.natDegree ≤ 48 ∧ p.coeffNorm1 ≤ 2 ^ 156 := by
   intro g p
-  have hb (i : Fin 1) : (g i).coeffNorm1 ≤ 2 ^ 0 := by
-    simpa only [g, mul_one, Polynomial.coeffNorm1_one, pow_zero] using
-      (Polynomial.coeffNorm1_X_mul 1).le
+  have hb (i : Fin 1) : (g i).coeffNorm1 ≤ 2 ^ 0 := by simp [g]
   have hDegree : Polynomial.signLabelDegreeBound 1 1 1 = 48 := by decide
   have hNorm : Polynomial.signLabelNormExponent 1 1 0 = 156 := by decide
   simpa only [hDegree, hNorm] using
@@ -883,9 +872,7 @@ example (a : ℤ) (ha : a.natAbs ≤ 1) :
           (Polynomial.sparseIntegerRootLabel p q 0 0 ([] : List (Fin 1 × SignType))))).re < 0) ↔
       0 < a := by
   intro p q
-  have hp : p.coeffNorm1 ≤ 2 ^ 0 := by
-    simpa only [p, mul_one, Polynomial.coeffNorm1_one, pow_zero] using
-      (Polynomial.coeffNorm1_X_mul 1).le
+  have hp : p.coeffNorm1 ≤ 2 ^ 0 := by simp [p]
   have hq : q.coeffNorm1 ≤ 2 ^ 0 := by
     simpa only [q, Polynomial.coeffNorm1_C, pow_zero] using ha
   have h := Polynomial.exists_eval₂_pos_at_root_iff_neg_shiftedRootLabel_prod
@@ -963,9 +950,7 @@ example :
   have hcard : Fintype.card (NormalIndex 0 1) = 1 := Fintype.card_unique
   have hchar : M.charpoly = Polynomial.X := by
     simp only [M, map_zero, Matrix.charpoly_zero, hcard, pow_one]
-  have hMb : M.charpoly.coeffNorm1 ≤ 2 ^ 0 := by
-    simpa only [hchar, mul_one, Polynomial.coeffNorm1_one, pow_zero] using
-      (Polynomial.coeffNorm1_X_mul 1).le
+  have hMb : M.charpoly.coeffNorm1 ≤ 2 ^ 0 := by simp [hchar]
   have hsep : (M.charpoly.map (algebraMap ℤ ℂ)).Separable := by
     rw [hchar, Polynomial.map_X]
     exact Polynomial.separable_X

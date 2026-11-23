@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.BooleanHierarchy
 public import CslibFrontier.Foundations.Order.BooleanSubalgebra
 import CslibFrontier.Computability.Complexity.Classes.NP.Witness
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Boolean closure of the Boolean hierarchy
@@ -57,7 +58,7 @@ private theorem paste_mem_differenceHierarchy
       ext a
       have := @hBE a
       simp only [Set.mem_union, Set.mem_sdiff] at *
-      tauto
+      lrat_tauto
     rw [heq]
     have hn : 2 * (n + 1) + m = (2 * n + (m + 1)) + 1 := by omega
     rw [hn]
@@ -88,7 +89,7 @@ private theorem inter_and_diff_mem_differenceHierarchy
       have heq : A \ (E \ D) = (A \ E) ∪ ((A ∩ D) ∩ E) := by
         ext a
         simp only [Set.mem_inter_iff, Set.mem_sdiff, Set.mem_union]
-        tauto
+        lrat_tauto
       rw [heq]
       simpa only [Nat.mul_add, Nat.mul_one, two_mul, Nat.add_assoc,
         Nat.add_comm, Nat.add_left_comm] using hp
