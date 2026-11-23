@@ -19,7 +19,62 @@ import Mathlib.Tactic.Ring
 /-!
 # Gomory–Hu trees on the Word-RAM
 
-TODO docstring.
+Gusfield's algorithm ([Gusfield1990]) as one uniform flat program over
+`Cslib.WordRAM.Basis.exact`, with the dense Edmonds–Karp solver
+`Cslib.Algorithms.WordRAM.EdmondsKarp.ekProg` ([EdmondsKarp1972]) as its maximum flow subroutine.
+`Basis.exact` supplies the unit-cost multiplication used for the row-major addresses
+`3 + u * n + v` of the `n × n` weight matrix and of the flow matrix of the subroutine.
+
+## Overview
+
+The input `encodeInput W r = n :: r :: flattenMatrix W` places `n` at address `1`, the root `r` at
+address `2` and `W u v` at `3 + u * n + v`. The program allocates the workspace up to
+`ghWorkspace n = 3 + 2 * n ^ 2 + 4 * n`: the parent array at `parAddr n u = 3 + n * n + u`, the
+weight array at `wtAddr n u = 3 + n * n + n + u`, and the scratch area of `ekProg` after them. It
+then
+
+1. scans the matrix for its maximum entry `M`, the capacity bound given to `ekProg`;
+2. starts from the star centred at `r`, with weight `0` everywhere;
+3. for `s = 0, …, n - 1` other than `r`, with `t` the current parent of `s`: runs `ekProg` on
+   `(s, t)`, whose final breadth-first search marks the `s`-side `X` of a minimum `s`–`t` cut;
+   re-hangs below `s` every other vertex with parent `t` in `X`; and if the parent of `t` lies in
+   `X`, lets `s` take the place of `t`. The tree-edge weights are updated from the flow value as
+   in `Cslib.Algorithms.Lean.GomoryHu.gusfieldStepWeight`.
+
+Each step costs `ekCost n + O(n)` memory operations, `O(n ^ 5)`, so the program halts within
+`C * (n + 1) ^ 6` instructions. This is the `O(n ^ 6)` bound of Gusfield's algorithm with dense
+Edmonds–Karp, formerly stated with `TimeM` annotations, now proved for a machine.
+
+Correctness is transferred from `Cslib.Algorithms.Lean.GomoryHu.gusfieldWithWeights_spec`, which
+accepts any oracle returning minimum cuts: after `k` steps the arrays hold
+`gusfieldWeightLoop C val r` run on the first `k` vertices, for oracles `C` and `val` that agree
+with the machine at every pair it queried. The machine and `Cslib.Algorithms.Lean.GomoryHu.gomoryHu`
+may return different minimum cuts, and hence different trees.
+
+## Main definitions
+
+* `Cslib.Algorithms.WordRAM.GomoryHu.encodeInput`: the input word list `n :: r :: flattenMatrix W`.
+* `Cslib.Algorithms.WordRAM.GomoryHu.parAddr`, `Cslib.Algorithms.WordRAM.GomoryHu.wtAddr`,
+  `Cslib.Algorithms.WordRAM.GomoryHu.ghWorkspace`: the output addresses and the memory frontier.
+
+## Main results
+
+* `Cslib.Algorithms.WordRAM.GomoryHu.exists_gomoryHu_program`: one program over `Basis.exact`
+  halts within `C * (n + 1) ^ 6` instructions on every weighted multigraph `W` on `Fin n` with
+  entries at most `B` and every root `r`, at every word width fitting `ghWorkspace n` and
+  `ekBound n B`, leaving in memory a parent function rooted at `r` whose parent graph is a
+  Gomory–Hu tree of `W`, together with the minimum cut weight `minCutBetween W u (p u)` of every
+  tree edge.
+
+## Limitations
+
+The weights are natural numbers, and the word width must hold `ekBound n B`, a bound on the cut
+sums and flow updates of the subroutine.
+
+## References
+
+* [Gusfield1990]
+* [EdmondsKarp1972]
 -/
 
 public section
@@ -296,7 +351,7 @@ private theorem ghMain_realizes :
     simp_client <;> omega
   · have hclr : ∀ i < d.1 * d.1,
         clear s.mem s.frontier (ghScratch d.1) (3 + i) ≤ B := fun i hi => by
-      rw [clear_of_not_owns fun h => absurd h.1 (by show ¬s.frontier ≤ 3 + i; omega)]
+      rw [clear_of_not_owns fun h => absurd h.1 (by change ¬s.frontier ≤ 3 + i; omega)]
       exact hB i hi
     have hM := (maxScan_spec (st := ⟨clear s.mem s.frontier (ghScratch d.1),
       s.frontier + ghScratch d.1⟩) hclr).1
@@ -431,7 +486,7 @@ private theorem ghStep_spec {n r B k t : ℕ} {st : Memory.State} (hk : k < n) (
         (parBase n + t) k) (parBase n + k) (st.mem (parBase n + t))) (wtBase n + t) v)
         (wtBase n + k) (st.mem (wtBase n + t)), st2.frontier⟩
     else ⟨Function.update st2.mem (wtBase n + k) v, st2.frontier⟩ := by
-    show (Memory.spec 0).clientState st (ghStep ((n, r, B), k)) = _
+    change (Memory.spec 0).clientState st (ghStep ((n, r, B), k)) = _
     unfold ghStep
     rw [clientState_bind_read, ite_eq_right hkr, clientState_bind_read, htdef, ite_eq_left ht,
       StateTransitionSpec.clientState_bind, e1, e2, StateTransitionSpec.clientState_bind, hst2,
