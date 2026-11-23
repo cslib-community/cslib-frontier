@@ -220,6 +220,9 @@ example :
       kruskalGraph k4Graph k4Weight =
         [⟨0, 1, 3⟩, ⟨0, 2, 5⟩, ⟨0, 3, 9⟩] ∧
       (toSimpleGraph (kruskalGraph k4Graph k4Weight)).IsTree ∧
+      k4Graph.IsMST k4Weight (toSimpleGraph (kruskalGraph k4Graph k4Weight)) ∧
+      (∀ T : SimpleGraph (Fin 4),
+        k4Graph.IsMST k4Weight T ↔ T = toSimpleGraph (kruskalGraph k4Graph k4Weight)) ∧
       (∑ z ∈ (toSimpleGraph (kruskalGraph k4Graph k4Weight)).edgeFinset,
           k4Weight z) = 17 ∧
       (∀ (T : SimpleGraph (Fin 4)) [Fintype T.edgeSet],
@@ -248,7 +251,10 @@ example :
         k4Weight z) = 17 := by
     rw [sum_edgeFinset_toSimpleGraph_kruskalGraph, hk]
     rfl
-  refine ⟨rfl, hk, (kruskalGraph_isTree hconn k4Weight).1, hsum, ?_, ?_, ?_, ?_⟩
+  refine ⟨rfl, hk, (kruskalGraph_isTree hconn k4Weight).1,
+    kruskalGraph_isMST hconn k4Weight,
+    fun T => isMST_iff_eq_toSimpleGraph_kruskalGraph_of_injOn hconn k4Weight k4Weight_injOn,
+    hsum, ?_, ?_, ?_, ?_⟩
   · intro T _ hT
     have hle : T ≤ k4Graph := by rw [k4Graph_eq_top]; exact le_top
     rw [← hsum]

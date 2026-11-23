@@ -376,12 +376,6 @@ noncomputable section
 variable {K : Type*} [Field K] {d : ℕ} [NeZero d]
 variable (χ : AddChar (ZMod d) K)
 
-private lemma coeffP_zero (a b : ZMod d) : coeffP χ 0 a b = 0 := by simp [coeffP]
-
-private lemma coeffP_add (R S : Matrix (ZMod d) (ZMod d) K[X]) (a b : ZMod d) :
-    coeffP χ (R + S) a b = coeffP χ R a b + coeffP χ S a b := by
-  simp [coeffP, mul_add, Finset.sum_add_distrib]
-
 private lemma coeffP_smul (c : K) (R : Matrix (ZMod d) (ZMod d) K[X]) (a b : ZMod d) :
     coeffP χ (c • R) a b = Polynomial.C c * coeffP χ R a b := by
   simp only [coeffP, Matrix.smul_apply, Polynomial.smul_eq_C_mul, Finset.mul_sum]
@@ -392,13 +386,13 @@ private lemma coeffP_smul (c : K) (R : Matrix (ZMod d) (ZMod d) K[X]) (a b : ZMo
 /-- The three-parameter lift of the zero matrix is zero. -/
 lemma lift_zero : lift χ 0 = 0 := by
   funext i j
-  simp [lift, coeffP_zero]
+  simp [lift, coeffP]
 
 /-- The three-parameter lift is additive. -/
 lemma lift_add (R S : Matrix (ZMod d) (ZMod d) K[X]) :
     lift χ (R + S) = lift χ R + lift χ S := by
   funext i j
-  simp [lift, coeffP_add, map_add, add_mul, Finset.sum_add_distrib]
+  simp [lift, coeffP, map_add, add_mul, mul_add, Finset.sum_add_distrib]
 
 /-- The three-parameter lift commutes with scalar multiplication by constants in `K`. -/
 lemma lift_smul (c : K) (R : Matrix (ZMod d) (ZMod d) K[X]) :

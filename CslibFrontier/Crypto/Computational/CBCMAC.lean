@@ -498,7 +498,7 @@ private theorem eval_prfIdealGameOn_eq_eager_of_codec {Q : Type} [Fintype Q] [De
         (adapter query) =
       fun cache => ProbComp.eval (cachedRandomFunctionOracle valid w query cache) := by
     funext cache
-    rw [cachedRandomFunctionOracle, hvalid query]
+    rw [cachedRandomFunctionOracle, cachedSamplerOracle, hvalid query]
     cases hdec : codec.decodeQuery ((), query) with
     | none =>
       simp only [adapter, hdec, Option.isSome_none, Bool.false_eq_true, ↓reduceIte,
@@ -1891,7 +1891,7 @@ private theorem eval_prfIdealGameOn_restrictLengthDistinguisher
             (fun r state => (cachedRandomFunctionOracle (valid n) n r.2 state).eval))
           (restrictLengthQuery inLen n req)) cache).map _ = _
       rw [← ProbOracleComp.runWith_eq_run_interpret]
-      unfold restrictLengthQuery cachedRandomFunctionOracle
+      unfold restrictLengthQuery cachedRandomFunctionOracle cachedSamplerOracle
       by_cases hq : req.2.length = inLen n
       · have hv : valid n req.2 = true := hsub req.2 hq
         simp only [hq, beq_self_eq_true, ↓reduceIte, hv, ProbOracleComp.runWith_map,
@@ -2279,7 +2279,7 @@ private theorem prfIdealLogOracleOn_inv (valid : ℕ → List Bool → Bool) (ad
   unfold macLogHandlerOn at hstep
   dsimp only [StateT.run] at hstep
   by_cases hv : valid n msg = true
-  · unfold cachedRandomFunctionOracle at hstep
+  · unfold cachedRandomFunctionOracle cachedSamplerOracle at hstep
     simp only [hv, ↓reduceIte, Functor.map_map, OracleComp.interpret_map,
       ProbOracleComp.interpret_query] at hstep
     dsimp only [Functor.map, StateT.map, StateT.run] at hstep
@@ -2365,7 +2365,7 @@ theorem succProbability_prfIdealGameOn_macToPrfOnDistinguisher_le
         exact Bool.false_ne_true (hcond.2.symm.trans (List.contains_iff_mem.mpr hmemQ))
       simp only [Functor.map_map, OracleComp.interpret_map, StateT.run_map,
         ProbOracleComp.interpret_query, PMF.monad_map_eq_map, PMF.map_comp, Function.comp_def]
-      unfold cachedRandomFunctionOracle
+      unfold cachedRandomFunctionOracle cachedSamplerOracle
       simp only [hcond.1, ↓reduceIte, ProbComp.eval_memoize, BitString.eval_sampleList]
       dsimp only [StateT.run]
       rw [memoize, hmiss, BitString.uniformList]

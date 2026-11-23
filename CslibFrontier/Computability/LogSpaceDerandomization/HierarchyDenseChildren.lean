@@ -111,9 +111,7 @@ theorem dense_terminal_mean (hD : D ≠ 0) (hid : Function.Injective ident)
     r.terminal.rate * cutoff (C x y / r.terminal.rate) := by
   have hpos : 0 < (dens {A | splitUsage D ident r A y} : ℝ) := by
     rw [split_usage_density D ident r hu]
-    have hP : (0 : ℝ) < P := by exact_mod_cast (Fact.out : P.Prime).pos
-    have hside : (0 : ℝ) < side P u := by
-      exact_mod_cast side_pos P u (Fact.out : P.Prime).pos
+    have := (Fact.out : P.Prime).pos
     positivity
   have hne : ({A | splitUsage D ident r A y} : Finset _).Nonempty :=
     dens_ne_zero.mp (by exact_mod_cast (ne_of_gt hpos))
@@ -149,9 +147,7 @@ theorem denseChild_mean_on_terminal_event
   have hpos : 0 < (dens {σ : Environment P J |
       r.source.retains (channels D) σ (ident x)} : ℝ) := by
     rw [channel_density D r.source s hs]
-    have hside : (0 : ℝ) < side P s := by
-      exact_mod_cast side_pos P s (Fact.out : P.Prime).pos
-    have hP : (0 : ℝ) < P := by exact_mod_cast (Fact.out : P.Prime).pos
+    have := (Fact.out : P.Prime).pos
     positivity
   have hfull : ({σ : Environment P J |
       r.source.retains (channels D) σ (ident x)} : Finset _).Nonempty :=
