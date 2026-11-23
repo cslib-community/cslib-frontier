@@ -152,8 +152,7 @@ theorem wOffQ_add_one_lt_compactedItemWords {U V w N n d : ℕ} (hw : 0 < w) (hd
     wOffQ (quotientBits U N) (valBits V) w d + 1 < compactedItemWords U V w N n := by
   have hid := wOffQ_mul_add_bOffQ
     (q_bits := quotientBits U N) (v_bits := valBits V) (w := w) (d := d)
-  have hle : d * (quotientBits U N + valBits V) ≤ n * (quotientBits U N + valBits V) :=
-    Nat.mul_le_mul_right _ hd.le
+  have hle : d * (quotientBits U N + valBits V) ≤ n * (quotientBits U N + valBits V) := by gcongr
   have hdiv : wOffQ (quotientBits U N) (valBits V) w d ≤
       (n * (quotientBits U N + valBits V) + w - 1) / w := by
     have h1 : wOffQ (quotientBits U N) (valBits V) w d =
@@ -187,8 +186,7 @@ theorem wOffV_add_one_lt_compactedItemWords {U V w N n d : ℕ} (hw : 0 < w) (hd
 theorem compactedItemWords_mono {U V w N n₁ n₂ : ℕ} (h : n₁ ≤ n₂) :
     compactedItemWords U V w N n₁ ≤ compactedItemWords U V w N n₂ := by
   unfold compactedItemWords
-  have hmul : n₁ * (quotientBits U N + valBits V) ≤ n₂ * (quotientBits U N + valBits V) :=
-    Nat.mul_le_mul_right _ h
+  have hmul : n₁ * (quotientBits U N + valBits V) ≤ n₂ * (quotientBits U N + valBits V) := by gcongr
   have hdiv : (n₁ * (quotientBits U N + valBits V) + w - 1) / w ≤
       (n₂ * (quotientBits U N + valBits V) + w - 1) / w :=
     Nat.div_le_div_right (by omega)
@@ -205,8 +203,7 @@ theorem compactedItemWords_succ_sub_le_two {U V w N n : ℕ} (hw : 0 < w)
       (n * (quotientBits U N + valBits V) + w - 1) / w + 2 := by
     rw [Nat.add_mul, Nat.one_mul]
     calc (n * (quotientBits U N + valBits V) + (quotientBits U N + valBits V) + w - 1) / w
-        ≤ (n * (quotientBits U N + valBits V) + w - 1 + 2 * w) / w :=
-          Nat.div_le_div_right (by omega)
+        ≤ (n * (quotientBits U N + valBits V) + w - 1 + 2 * w) / w := by gcongr; omega
       _ = (n * (quotientBits U N + valBits V) + w - 1) / w + 2 :=
           Nat.add_mul_div_right _ _ hw
   omega

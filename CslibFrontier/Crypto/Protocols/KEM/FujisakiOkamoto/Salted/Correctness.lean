@@ -286,24 +286,19 @@ private theorem lookup_offTargetKeyCache [DecidableEq (JointInput JointPrefix M 
     (offTargetKeyCache S pk entries).lookup input =
       if input = ⟨S.jointPrefix pk, input.message, input.salt⟩ then none
       else (entries.lookup input).map JointReply.key := by
-  induction entries with
-  | nil =>
-    simp only [offTargetKeyCache, List.lookup_nil, Option.map_none]
-    split <;> rfl
-  | cons entry rest ih =>
-    rcases entry with ⟨cached, reply⟩
-    rw [offTargetKeyCache]
-    by_cases hcached : cached = ⟨S.jointPrefix pk, cached.message, cached.salt⟩
-    · rw [ite_eq_left hcached, ih]
-      by_cases hinput : input = ⟨S.jointPrefix pk, input.message, input.salt⟩
-      · simp only [ite_eq_left hinput]
-      · have hne : input ≠ cached := by rintro rfl; exact hinput hcached
-        simp only [ite_eq_right hinput, List.lookup_cons, beq_eq_false_iff_ne.mpr hne]
-    · rw [ite_eq_right hcached]
-      by_cases heq : input = cached
-      · subst cached
-        simp only [ite_eq_right hcached, List.lookup_cons, beq_self_eq_true, Option.map_some]
-      · simp only [List.lookup_cons, beq_eq_false_iff_ne.mpr heq, ih]
+  fun_induction offTargetKeyCache S pk entries with
+  | case1 => simp only [List.lookup_nil, Option.map_none]; split <;> rfl -- []
+  | case2 cached reply rest hcached ih => -- on-target entry: dropped
+    rw [ih]
+    by_cases hinput : input = ⟨S.jointPrefix pk, input.message, input.salt⟩
+    · simp only [ite_eq_left hinput]
+    · have hne : input ≠ cached := by rintro rfl; exact hinput hcached
+      simp only [ite_eq_right hinput, List.lookup_cons, beq_eq_false_iff_ne.mpr hne]
+  | case3 cached reply rest hcached ih => -- off-target entry: kept
+    by_cases heq : input = cached
+    · subst cached
+      simp only [ite_eq_right hcached, List.lookup_cons, beq_self_eq_true, Option.map_some]
+    · simp only [List.lookup_cons, beq_eq_false_iff_ne.mpr heq, ih]
 
 private theorem offTargetKeyCache_cons_of_target
     [DecidableEq (JointInput JointPrefix M Salt)]

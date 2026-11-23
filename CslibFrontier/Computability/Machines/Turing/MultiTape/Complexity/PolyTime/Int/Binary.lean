@@ -85,7 +85,7 @@ theorem size_natAbs_sum_le {l : List ℤ} {b : ℕ} (h : ∀ z ∈ l, z.natAbs.s
     | nil => simp
     | cons z l ih =>
       simp only [List.sum_cons, List.map_cons]
-      exact (Int.natAbs_add_le _ _).trans (Nat.add_le_add_left ih _)
+      omega
   have hsum := Nat.size_sum_le (l := l.map Int.natAbs) (b := b) (by simpa using h)
   rw [List.length_map] at hsum
   exact (Nat.size_le_size (habs l)).trans hsum

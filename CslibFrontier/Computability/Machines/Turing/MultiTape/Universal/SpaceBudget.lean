@@ -552,7 +552,6 @@ public theorem computableTidilyInTimeAndSpace_budgetedUniversal : ∃ c,
     have h₄ := Nat.pow_le_pow_left (Nat.add_le_add_right h₂ 1) 3
     have h₅ : budgetSpace (d, x, t, b) + 1 ≤ (budgetSpace (d, x, t, b) + 1) ^ 3 :=
       Nat.le_self_pow (by norm_num) _
-    refine (Nat.add_le_add (Nat.add_le_add h₁ h₃) h₄).trans ?_
     omega
   case refine_6 =>
     rintro ⟨d, x, t, b⟩ i -
