@@ -5,7 +5,6 @@
     "CslibFrontier/Algorithms/Lean/Arborescence/Branching.lean": 1,
     "CslibFrontier/Algorithms/Lean/Arborescence/Table.lean": 36,
     "CslibFrontier/Algorithms/Lean/BellmanFord/Basic.lean": 17,
-    "CslibFrontier/Algorithms/Lean/BinarySearch.lean": 9,
     "CslibFrontier/Algorithms/Lean/BurrowsWheeler/Decode.lean": 9,
     "CslibFrontier/Algorithms/Lean/CSP/VariableElimination.lean": 22,
     "CslibFrontier/Algorithms/Lean/CYK/Basic.lean": 12,
