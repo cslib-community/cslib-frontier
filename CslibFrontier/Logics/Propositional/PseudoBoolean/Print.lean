@@ -9,10 +9,11 @@ module
 
 public import CslibFrontier.Logics.Propositional.CNF.Dimacs
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
--- `import all`: the round-trip proofs unfold the private lexer and parsers of `Text` (`lines`,
--- `splitChars`, `lexLine`, `flushToken`, `nat?`, `dropChar?`, `startsWithChar`,
--- `terms`, `constr`, `opbLines`, `objTerms`, `objective`, `presVars`, `dimacsClauses`) and the
--- unexposed bodies of `parseOPB`, `parseDIMACS`, `tokens`, `int?`, `stdVar?` and `Names.var?`.
+-- `import all`: the round-trip proofs read the private lexer of `Text` through its specification
+-- (`lines_eq_spec`, `tokens_eq_spec`, `lineTokens`, `splitChars`, `lexLine`, `flushToken`), unfold
+-- its private parsers (`nat?`, `dropChar?`, `startsWithChar`, `terms`, `constr`, `opbLines`,
+-- `objTerms`, `objective`, `presVars`, `dimacsClauses`) and the unexposed bodies of `parseOPB`,
+-- `parseDIMACS`, `tokens`, `int?`, `stdVar?` and `Names.var?`.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 
 /-! # Printing OPB instances, with round-trip theorems
@@ -294,14 +295,14 @@ private theorem tokens_render {ws : List (List Char)} (hw : ∀ w ∈ ws, IsWord
   have htw : (ws.flatMap (· ++ [' '])).takeWhile (· != '%') = ws.flatMap (· ++ [' ']) := by
     simpa using List.takeWhile_append_of_pos (l₂ := []) (p := (· != '%'))
       fun c hc' => by simpa using (hc c hc').2
-  rw [tokens, String.toList_ofList, hsplit, List.flatMap_singleton, htw]
+  rw [tokens_eq_spec, lineTokens, String.toList_ofList, hsplit, List.flatMap_singleton, htw]
   simpa [lexLine, flushToken] using lexLine_words [] hw
 
 /-- **The tokens of the lines of a printed text**, with an empty last line. -/
 private theorem lines_render {L : List (List (List Char))} (hL : ∀ l ∈ L, ∀ w ∈ l, IsWord w) :
     (lines (String.ofList (L.flatMap renderLine))).map tokens =
       L.map (·.map String.ofList) ++ [[]] := by
-  rw [lines, String.toList_ofList]
+  rw [lines_eq_spec, String.toList_ofList]
   induction L with
   | nil => rfl
   | cons l L ih =>
@@ -399,18 +400,18 @@ private theorem litChars_ne (l : Literal ℕ) {s : String} (hs : s = ";" ∨ s =
 
 /-! #### Constraints and objectives -/
 
-private theorem terms_stop (N : Names) (fuel : ℕ) {t : String} (rest : List String)
+private theorem terms_stop (N : Names) {t : String} (rest : List String)
     (L : List (ℕ × ℤ)) (k : ℤ) (ht : t = ">=" ∨ t = ";") :
-    terms N (fuel + 1) (t :: rest) L k = some (L, k, t :: rest) := by
+    terms N (t :: rest) L k = some (L, k, t :: rest) := by
   rcases ht with rfl | rfl <;> rfl
 
 /-- The parser reads a coefficient word `ct` of value `a` and a literal `ℓ`. -/
-private theorem terms_step (N : Names) (fuel : ℕ) {ct : List Char} {a : ℤ}
+private theorem terms_step (N : Names) {ct : List Char} {a : ℤ}
     (hct : ∃ d ds, ct = d :: ds ∧ (d = '-' ∨ d.isDigit = true))
     (ha : int? (String.ofList ct) = some a) (l : Literal ℕ) (rest : List String)
     (L : List (ℕ × ℤ)) (k : ℤ) :
-    terms N (fuel + 1) (String.ofList ct :: String.ofList (litChars l) :: rest) L k =
-      terms N fuel rest (insertCoeff l.1 (if l.2 then a else -a) L)
+    terms N (String.ofList ct :: String.ofList (litChars l) :: rest) L k =
+      terms N rest (insertCoeff l.1 (if l.2 then a else -a) L)
         (k + if l.2 then 0 else a) := by
   obtain ⟨d, ds, rfl, hd⟩ := hct
   have hk : ∀ s ∈ [">=", "<=", "=", ";", ":", "min:", "preserved:"],
@@ -421,7 +422,7 @@ private theorem terms_step (N : Names) (fuel : ℕ) {ct : List Char} {a : ℤ}
   rw [terms]
   simp only [hk ">=" (by simp), hk "<=" (by simp), hk "=" (by simp), hk ";" (by simp),
     hk ":" (by simp), Bool.or_false, Bool.false_eq_true, ↓reduceIte, ha, hl ";" (.inl rfl),
-    hl ":" (.inr rfl), Option.isSome_some, Bool.and_false, lit?_litChars]
+    hl ":" (.inr rfl), lit?_litChars]
   obtain ⟨v, _ | _⟩ := l <;> simp
 
 private theorem isWord_toDecimal (n : ℕ) : IsWord (Nat.toDecimal n) :=
@@ -457,74 +458,55 @@ private theorem isWord_intToDecimal (a : ℤ) : IsWord (Int.toDecimal a) := by
   · exact isWord_toDecimal _
 
 /-- The parser reads the terms of a constraint. -/
-private theorem terms_terms (N : Names) (ts : List (ℕ × Literal ℕ)) (fuel : ℕ)
+private theorem terms_terms (N : Names) (ts : List (ℕ × Literal ℕ))
     (rest : List String) (L : List (ℕ × ℤ)) (k : ℤ) :
-    terms N (fuel + ts.length) ((ts.flatMap termWords).map String.ofList ++ rest) L k =
-      terms N fuel rest (linOf L ts) (negOf k ts) := by
-  induction ts generalizing L k fuel with
+    terms N ((ts.flatMap termWords).map String.ofList ++ rest) L k =
+      terms N rest (linOf L ts) (negOf k ts) := by
+  induction ts generalizing L k with
   | nil => rfl
   | cons t ts ih =>
     obtain ⟨a, l⟩ := t
-    simp only [List.flatMap_cons, List.length_cons, termWords, List.map_cons, List.cons_append,
-      List.nil_append]
+    simp only [List.flatMap_cons, termWords, List.map_cons, List.cons_append, List.nil_append]
     obtain ⟨d, ds, h, hd⟩ := Nat.exists_toDecimal_eq_cons a
-    rw [← Nat.add_assoc, terms_step N _ ⟨d, ds, h, .inr hd⟩ (int?_toDecimal a), ih]
+    rw [terms_step N ⟨d, ds, h, .inr hd⟩ (int?_toDecimal a), ih]
     obtain ⟨v, _ | _⟩ := l <;> rfl
 
 /-- The parser reads the weights of an objective. -/
-private theorem terms_weights (N : Names) (es : List (ℕ × ℤ)) (fuel : ℕ)
+private theorem terms_weights (N : Names) (es : List (ℕ × ℤ))
     (rest : List String) (L : List (ℕ × ℤ)) (k : ℤ) :
-    terms N (fuel + es.length)
-        ((es.flatMap fun e => [Int.toDecimal e.2, varChars e.1]).map String.ofList ++ rest) L k =
-      terms N fuel rest (es.foldl (fun L e => insertCoeff e.1 e.2 L) L) k := by
-  induction es generalizing L k fuel with
+    terms N ((es.flatMap fun e => [Int.toDecimal e.2, varChars e.1]).map String.ofList ++ rest)
+        L k =
+      terms N rest (es.foldl (fun L e => insertCoeff e.1 e.2 L) L) k := by
+  induction es generalizing L k with
   | nil => rfl
   | cons e es ih =>
-    simp only [List.flatMap_cons, List.length_cons, List.map_cons, List.cons_append,
-      List.nil_append]
-    rw [← Nat.add_assoc, show varChars e.1 = litChars (e.1, true) from rfl,
-      terms_step N _ (Int.exists_toDecimal_eq_cons e.2) (int?_intToDecimal e.2), ih]
+    simp only [List.flatMap_cons, List.map_cons, List.cons_append, List.nil_append]
+    rw [show varChars e.1 = litChars (e.1, true) from rfl,
+      terms_step N (Int.exists_toDecimal_eq_cons e.2) (int?_intToDecimal e.2), ih]
     simp
 
 private theorem constr_constrWords (N : Names) (c : PBConstr) :
     constr N ((constrWords c).map String.ofList) = some ([rereadConstr c], [";"]) := by
-  have hlen : ((constrWords c).map String.ofList).length + 1 = (3 + 1 + c.terms.length) +
-      c.terms.length := by
-    simp [constrWords, termWords]
-    omega
-  rw [constr, hlen, constrWords, List.map_append, terms_terms]
+  rw [constr, constrWords, List.map_append, terms_terms]
   simp only [List.map_cons, List.map_nil]
-  rw [show 3 + 1 + c.terms.length = (3 + c.terms.length) + 1 by omega,
-    terms_stop N _ _ _ _ (.inl (by decide))]
+  rw [terms_stop N _ _ _ (.inl (by decide))]
   simp only [show String.ofList ['>', '='] = ">=" by decide, int?_toDecimal,
     show String.ofList [';'] = ";" by decide]
   simp [rereadConstr]
 
-private theorem length_weightWords (es : List (ℕ × ℤ)) :
-    (es.flatMap fun e => [Int.toDecimal e.2, varChars e.1]).length = 2 * es.length := by
-  induction es with
-  | nil => rfl
-  | cons e es ih => simp only [List.flatMap_cons, List.length_append, ih]; simp; omega
-
 private theorem objective_objWords (N : Names) (f : Objective) :
     objective N ((objTermWords f ++ [[';']]).map String.ofList) = some (rereadObj f) := by
   rw [objective, objTerms]
-  simp only [objTermWords, List.map_append, List.append_assoc, List.length_append,
-    List.length_map, length_weightWords]
+  simp only [objTermWords, List.map_append, List.append_assoc]
   by_cases h : f.const = 0
-  · simp only [h, ↓reduceIte, List.map_nil, List.nil_append, List.length_nil, List.map_cons,
-      List.length_cons, Nat.zero_add]
-    rw [show 2 * f.lin.length + 1 + 1 = (f.lin.length + 1 + 1) + f.lin.length by omega,
-      terms_weights, show String.ofList [';'] = ";" by decide,
-      terms_stop N _ _ _ _ (.inr rfl)]
+  · simp only [h, ↓reduceIte, List.map_nil, List.nil_append, List.map_cons]
+    rw [terms_weights, show String.ofList [';'] = ";" by decide, terms_stop N _ _ _ (.inr rfl)]
     simp [rereadObj, h]
   · obtain ⟨d, ds, hd, hd'⟩ := Int.exists_toDecimal_eq_cons f.const
     have hk : ∀ s ∈ [">=", "<=", "=", ";", ":", "min:", "preserved:"],
         String.ofList (Int.toDecimal f.const) ≠ s := fun s hs => hd ▸ ne_keyword hd' hs
-    simp only [h, ↓reduceIte, List.map_cons, List.map_nil, List.length_cons, List.length_nil,
-      List.cons_append, List.nil_append]
-    rw [show 2 * f.lin.length + (0 + 1) + (0 + 1) + 1 = (f.lin.length + 2 + 1) + f.lin.length by
-      omega, terms_weights, terms, show String.ofList [';'] = ";" by decide]
+    simp only [h, ↓reduceIte, List.map_cons, List.map_nil, List.cons_append, List.nil_append]
+    rw [terms_weights, terms, show String.ofList [';'] = ";" by decide]
     simp [hk ">=" (by simp), hk "<=" (by simp), hk "=" (by simp), hk ";" (by simp),
       hk ":" (by simp), int?_intToDecimal, rereadObj]
 
@@ -856,7 +838,7 @@ private theorem tokens_ofList {cs : List Char} (h : ∀ c ∈ cs, c ≠ '\n' ∧
   have htw : cs.takeWhile (· != '%') = cs := by
     simpa using List.takeWhile_append_of_pos (l₂ := []) (p := (· != '%'))
       fun c hc' => by simpa using (h c hc').2
-  rw [tokens, String.toList_ofList, hsplit, List.flatMap_singleton, htw]
+  rw [tokens_eq_spec, lineTokens, String.toList_ofList, hsplit, List.flatMap_singleton, htw]
 
 /-- Lexing words followed by spaces and a last word. -/
 private theorem lexLine_last {ws : List (List Char)} {w : List Char} (hws : ∀ u ∈ ws, IsWord u)
@@ -961,9 +943,9 @@ theorem parseDIMACS_toDIMACS (φ : CNF ℕ) : parseDIMACS φ.toDIMACS = some φ 
         dimacsClauses_clause hcl, ih hψ']
       simp [ofDIMACS_map_toDIMACS]
   unfold parseDIMACS
-  rw [CNF.toDIMACS, lines, String.toList_ofList, hH, List.append_assoc, List.singleton_append,
-    splitChars_append _ (fun c hc => by simpa using (hHc c hc).1) (by decide),
-    hsplit]
+  rw [CNF.toDIMACS, lines_eq_spec, String.toList_ofList, hH, List.append_assoc,
+    List.singleton_append,
+    splitChars_append _ (fun c hc => by simpa using (hHc c hc).1) (by decide), hsplit]
   simp only [List.map_cons, List.map_append, List.map_map, Function.comp_def, htok, List.map_nil]
   rw [tokens_ofList hHc, lexLine_last hhdr (Nat.toDecimal_ne_nil _) (plain_toDecimal _)]
   have hp : String.ofList ['p'] = "p" := by decide
