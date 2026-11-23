@@ -1331,6 +1331,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.
 public import CslibFrontier.Computability.Circuit.Boolean.Hastad
 public import CslibFrontier.Computability.Circuit.Boolean.Hastad.Sharp
 public import CslibFrontier.Computability.Circuit.Boolean.Hierarchy
+public import CslibFrontier.Computability.Circuit.Boolean.InnerProductApproximation
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Active
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.AffineController
@@ -1452,6 +1453,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Nechiporuk
 public import CslibFrontier.Computability.Circuit.Boolean.NegationNormalForm
 public import CslibFrontier.Computability.Circuit.Boolean.NonconstantCost
 public import CslibFrontier.Computability.Circuit.Boolean.Nondeterminism
+public import CslibFrontier.Computability.Circuit.Boolean.NonlinearCost
 public import CslibFrontier.Computability.Circuit.Boolean.NonuniformSeparation
 public import CslibFrontier.Computability.Circuit.Boolean.OpValue
 public import CslibFrontier.Computability.Circuit.Boolean.Oracle
@@ -1512,6 +1514,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.SortingTrace
 public import CslibFrontier.Computability.Circuit.Boolean.Sparse
 public import CslibFrontier.Computability.Circuit.Boolean.SparseSynthesis
 public import CslibFrontier.Computability.Circuit.Boolean.SparseSynthesisConstruction
+public import CslibFrontier.Computability.Circuit.Boolean.SpectralNorm
 public import CslibFrontier.Computability.Circuit.Boolean.Spira
 public import CslibFrontier.Computability.Circuit.Boolean.Substitution
 public import CslibFrontier.Computability.Circuit.Boolean.SuccinctVerifier
@@ -6884,6 +6887,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Bernoulli
 public import CslibFrontier.Foundations.BooleanAnalysis.Bonami
 public import CslibFrontier.Foundations.BooleanAnalysis.BooleanQuotient
 public import CslibFrontier.Foundations.BooleanAnalysis.BucketWeight
+public import CslibFrontier.Foundations.BooleanAnalysis.CharacterProjection
 public import CslibFrontier.Foundations.BooleanAnalysis.Concentration
 public import CslibFrontier.Foundations.BooleanAnalysis.Convolution
 public import CslibFrontier.Foundations.BooleanAnalysis.CoordinateOperators
@@ -6916,6 +6920,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.TwoPo
 public import CslibFrontier.Foundations.BooleanAnalysis.Hypercube
 public import CslibFrontier.Foundations.BooleanAnalysis.IncidenceExpansion
 public import CslibFrontier.Foundations.BooleanAnalysis.Influence
+public import CslibFrontier.Foundations.BooleanAnalysis.InnerProduct
 public import CslibFrontier.Foundations.BooleanAnalysis.Invariance
 public import CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy
 public import CslibFrontier.Foundations.BooleanAnalysis.InvarianceNoise
@@ -6964,6 +6969,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.SparseEquations.Degree
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseHermiteRecovery
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseIncidence
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseReplacementDesign
+public import CslibFrontier.Foundations.BooleanAnalysis.SpectralNorm
 public import CslibFrontier.Foundations.BooleanAnalysis.SpectralSample
 public import CslibFrontier.Foundations.BooleanAnalysis.StableInfluence
 public import CslibFrontier.Foundations.BooleanAnalysis.Subcube
