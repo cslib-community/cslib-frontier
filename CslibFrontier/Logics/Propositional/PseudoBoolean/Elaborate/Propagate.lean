@@ -97,6 +97,9 @@ structure EState where
   vars : Array ℕ := #[]
   /-- The constraints, by engine index; index `0` is unused. -/
   cons : Array CRec := #[default]
+  /-- The position of the first term of each constraint, by engine index: the terms of `c` are
+  those up to the next constraint's, or to the end. -/
+  cpos : Array ℕ := #[0]
   /-- `1` for the constraints in the database, by engine index. -/
   alive : ByteArray := ⟨#[0]⟩
   /-- The literal codes of all constraints. -/
@@ -218,36 +221,35 @@ private partial def keepLive (alive : ByteArray) (ws : Array ℕ) (i j : ℕ) : 
 else its watch moves to a literal that is not false, or else the other watch is propagated or the
 clause conflicts. After a conflict, the remaining live clauses stay. The result carries `ws` as
 `arr`. -/
-private partial def watchLoop (cons : Array CRec) (alive : ByteArray) (f : ℕ) (ws : Array ℕ)
+private partial def watchLoop (cpos : Array ℕ) (alive : ByteArray) (f : ℕ) (ws : Array ℕ)
     (i j : ℕ) (lits : Array ℕ) (watches : Array (Array ℕ)) (slack : Array ℤ) (value : ByteArray)
     (reason tpos trail : Array ℕ) : Hot :=
   if i < ws.size then
     let c := ws[i]!
     if alive.get! c == 0 then
-      watchLoop cons alive f ws (i + 1) j lits watches slack value reason tpos trail
+      watchLoop cpos alive f ws (i + 1) j lits watches slack value reason tpos trail
     else
-      let r := cons[c]!
-      let p := r.start
+      let p := cpos[c]!
       -- The literal `f` goes to the second watch.
       let lits := if lits[p]! == f then lits.swapIfInBounds p (p + 1) else lits
       let o := lits[p]!
       let vo := litVal value o
       if vo == 1 then
-        watchLoop cons alive f (ws.set! j c) (i + 1) (j + 1) lits watches slack value reason tpos
+        watchLoop cpos alive f (ws.set! j c) (i + 1) (j + 1) lits watches slack value reason tpos
           trail
       else
-        let e := p + r.size
+        let e := if c + 1 < cpos.size then cpos[c + 1]! else lits.size
         let k := nonFalse lits value (p + 2) e
         if k < e then
           let lits := lits.swapIfInBounds (p + 1) k
           let watches := watches.modify lits[p + 1]! (·.push c)
-          watchLoop cons alive f ws (i + 1) j lits watches slack value reason tpos trail
+          watchLoop cpos alive f ws (i + 1) j lits watches slack value reason tpos trail
         else
           let ws := ws.set! j c
           if vo == 0 then
             -- Propagate the other watch.
             let v := o / 2
-            watchLoop cons alive f ws (i + 1) (j + 1) lits watches slack
+            watchLoop cpos alive f ws (i + 1) (j + 1) lits watches slack
               (value.set! v (if o % 2 == 0 then 1 else 2)) (reason.set! v c)
               (tpos.set! v trail.size) (trail.push o)
           else
@@ -260,7 +262,8 @@ private partial def watchLoop (cons : Array CRec) (alive : ByteArray) (f : ℕ) 
 entry, the slacks of the non-clause constraints containing its negation, then the clauses
 watching it. The slack updates of an entry are always completed, so that backtracking can undo
 them. Returns the new `qhead` and the occurrence lists with the other results. -/
-private partial def propLoop (cons : Array CRec) (alive : ByteArray) (coeffs : Array ℕ)
+private partial def propLoop (cons : Array CRec) (cpos : Array ℕ) (alive : ByteArray)
+    (coeffs : Array ℕ)
     (qhead : ℕ) (lits : Array ℕ) (watches occ : Array (Array ℕ)) (slack : Array ℤ)
     (value : ByteArray) (reason tpos trail : Array ℕ) : ℕ × Array (Array ℕ) × Hot :=
   if qhead < trail.size then
@@ -273,13 +276,14 @@ private partial def propLoop (cons : Array CRec) (alive : ByteArray) (coeffs : A
         (qhead + 1, occ, ⟨confl, #[], lits, watches, slack, value, reason, tpos, trail⟩)
       else
         let (ws, watches) := watches.swapAt! f #[]
-        match watchLoop cons alive f ws 0 0 lits watches slack value reason tpos trail with
+        match watchLoop cpos alive f ws 0 0 lits watches slack value reason tpos trail with
         | ⟨confl, ws, lits, watches, slack, value, reason, tpos, trail⟩ =>
           let watches := watches.set! f ws
           if confl.isSome then
             (qhead + 1, occ, ⟨confl, #[], lits, watches, slack, value, reason, tpos, trail⟩)
           else
-            propLoop cons alive coeffs (qhead + 1) lits watches occ slack value reason tpos trail
+            propLoop cons cpos alive coeffs (qhead + 1) lits watches occ slack value reason tpos
+              trail
   else (qhead, occ, ⟨none, #[], lits, watches, slack, value, reason, tpos, trail⟩)
 
 namespace EState
@@ -325,12 +329,14 @@ private def propagatePB (s : EState) (c : ℕ) (sl : ℤ) : EState :=
 /-- Process the trail until a conflict or until every entry is processed. -/
 private def propagate (s : EState) : EState × Option ℕ :=
   match s with
-  | ⟨varIdx, vars, cons, alive, lits, coeffs, watches, occ, roots, ⟨value, reason, tpos, trail⟩,
-      qhead, slack, rootReason, rootLen, rootConflict, dirty, seen⟩ =>
-    match propLoop cons alive coeffs qhead lits watches occ slack value reason tpos trail with
+  | ⟨varIdx, vars, cons, cpos, alive, lits, coeffs, watches, occ, roots,
+      ⟨value, reason, tpos, trail⟩, qhead, slack, rootReason, rootLen, rootConflict, dirty, seen⟩ =>
+    match propLoop cons cpos alive coeffs qhead lits watches occ slack value reason tpos trail
+      with
     | (qhead, occ, ⟨confl, _, lits, watches, slack, value, reason, tpos, trail⟩) =>
-      (⟨varIdx, vars, cons, alive, lits, coeffs, watches, occ, roots, ⟨value, reason, tpos, trail⟩,
-        qhead, slack, rootReason, rootLen, rootConflict, dirty, seen⟩, confl)
+      (⟨varIdx, vars, cons, cpos, alive, lits, coeffs, watches, occ, roots,
+        ⟨value, reason, tpos, trail⟩, qhead, slack, rootReason, rootLen, rootConflict, dirty,
+        seen⟩, confl)
 
 /-- Undo the trail from position `i` down to length `n`, restoring the slacks of the entries
 below `q`, which were processed. -/
@@ -350,11 +356,11 @@ where
 /-- Undo the trail down to length `n`, restoring the slacks of the processed entries. -/
 private def backtrack (s : EState) (n : ℕ) : EState :=
   match s with
-  | ⟨varIdx, vars, cons, alive, lits, coeffs, watches, occ, roots, asg, qhead, slack, rootReason,
-      rootLen, rootConflict, dirty, seen⟩ =>
+  | ⟨varIdx, vars, cons, cpos, alive, lits, coeffs, watches, occ, roots, asg, qhead, slack,
+      rootReason, rootLen, rootConflict, dirty, seen⟩ =>
     let size := asg.trail.size
     let (slack, asg) := undo occ qhead n size slack asg
-    ⟨varIdx, vars, cons, alive, lits, coeffs, watches, occ, roots, asg, min qhead n, slack,
+    ⟨varIdx, vars, cons, cpos, alive, lits, coeffs, watches, occ, roots, asg, min qhead n, slack,
       rootReason, rootLen, rootConflict, dirty, seen⟩
 
 /-- Mark the reasons of the trail entries from `n` as root reasons. -/
@@ -407,6 +413,7 @@ private def pushCons (s : EState) (ts : Array (ℕ × ℕ)) (d : ℕ) (slack0 : 
   let i := s.cons.size
   let start := s.lits.size
   let mut s := { s with cons := s.cons.push ⟨start, ts.size, d, slack0, clause, h⟩ }
+  s := { s with cpos := s.cpos.push start }
   for (a, l) in ts do
     s := { s with lits := s.lits.push l }
     s := { s with coeffs := s.coeffs.push a }
@@ -560,6 +567,7 @@ def rupHints (s : EState) (neg : PBConstr) : EState × Option (Array Hint) := Id
     for (_, l) in ts do
       s := { s with occ := s.occ.modify l (·.pop.pop) }
   s := { s with cons := s.cons.pop }
+  s := { s with cpos := s.cpos.pop }
   s := { s with alive := s.alive.set! i 0 }
   s := { s with slack := s.slack.pop }
   s := { s with lits := s.lits.shrink start }
