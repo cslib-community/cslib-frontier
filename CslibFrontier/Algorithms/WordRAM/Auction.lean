@@ -10,9 +10,9 @@ module
 public import CslibFrontier.Algorithms.Lean.Assignment.Auction
 public import CslibFrontier.Computability.WordRAM.ListOutput
 public import CslibFrontier.Computability.WordRAM.Signed.Encoding
+import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
-import CslibFrontier.Computability.WordRAM.Realization.Signed
 import CslibFrontier.Computability.WordRAM.Realization.Structure
 import CslibFrontier.Computability.WordRAM.Realization.WhileAbsorb
 import CslibFrontier.Foundations.Data.List.RowMajor
@@ -250,50 +250,7 @@ end EpsInstance
 
 end
 
-/-! ## Section 2: Private `rand`-stripping helper and workspace records -/
-
-private def stripRandInstr {B : Basis} {r : ℕ} : Instr B r → Instr B r
-  | .rand dst _ => .op (.copy dst dst)
-  | i => i
-
-private def stripRandProg {B : Basis} {r : ℕ} (p : Program B r) : Program B r :=
-  p.map stripRandInstr
-
-private theorem isRandFree_stripRandProg {B : Basis} {r : ℕ} (p : Program B r) :
-    (stripRandProg p).IsRandFree := by
-  intro i hi
-  obtain ⟨j, _, rfl⟩ := List.mem_map.mp hi
-  cases j <;> trivial
-
-private theorem not_readsWidth_stripRandProg {B : Basis} {r : ℕ} {p : Program B r}
-    (hp : ¬ p.ReadsWidth) : ¬ (stripRandProg p).ReadsWidth := by
-  rintro ⟨i, hi, hrw⟩
-  obtain ⟨j, hj, rfl⟩ := List.mem_map.mp hi
-  cases j with
-  | rand _ _ => exact hrw
-  | _ => exact hp ⟨_, hj, hrw⟩
-
-private theorem step_stripRandProg_of_ne_fault {B : Basis} {r w : ℕ} {p : Program B r}
-    {s : State r} (hne : WordRAM.step w p s ≠ .fault) :
-    WordRAM.step w (stripRandProg p) s = WordRAM.step w p s := by
-  unfold WordRAM.step at hne ⊢
-  rw [stripRandProg, List.getElem?_map]
-  cases hp : p[s.pc]? with
-  | none => simp [hp] at hne
-  | some ins =>
-    cases ins with
-    | rand _ _ => simp [hp] at hne
-    | _ => rfl
-
-private theorem runs_stripRandProg {B : Basis} {r w : ℕ} {p : Program B r}
-    {s t : State r} {m : ℕ} (h : Runs w p s t m) : Runs w (stripRandProg p) s t m := by
-  induction h with
-  | refl => exact .refl _
-  | tail _ _ _ _ hstep ih =>
-    refine .tail _ _ _ _ ih ?_
-    unfold Next at hstep ⊢
-    rw [step_stripRandProg_of_ne_fault (by rw [hstep]; exact nofun)]
-    exact hstep
+/-! ## Section 2: Private workspace and state records -/
 
 /-- Private workspace layout and parameters for the memory-client auction solver. -/
 private structure AuctionWS where
@@ -2601,7 +2558,7 @@ theorem exists_epsAuction_program :
         (fun inst w => 0 < inst.eps ∧ Fits w inst.wordBound) EpsInstance.assignment := by
   obtain ⟨r, C₁, pc, prog₀, hnw₀, frontier, _, he⟩ :=
     epsMainProg_realizes.exists_standard_basis_init_program_state_from_words (0 : Fin 1)
-  let prog := stripRandProg prog₀
+  let prog := stripRand prog₀
   have hmain : ∀ {w C : ℕ} (inst : EpsInstance),
       0 < inst.eps →
       (∀ i j k : Fin inst.n, inst.cost (i, k) - inst.cost (i, j) ≤ (C : ℤ)) →
@@ -2624,11 +2581,11 @@ theorem exists_epsAuction_program :
     rw [clientState_width w] at hmem
     rw [clientResult_width w] at hhalt₀
     dsimp only [wordWords] at hhalt₀
-    have hruns : Runs w prog (.init inst.encode) ⟨pc, y⟩ m := runs_stripRandProg hruns₀
+    have hruns : Runs w prog (.init inst.encode) ⟨pc, y⟩ m := runs_stripRand hruns₀
     have hhalt : WordRAM.step w prog ⟨pc, y⟩ =
         .halt ((Memory.spec 0).clientResult (Memory.State.init inst.encode)
           (epsMainProg (inst.n, inst.eps))) := by
-      rw [step_stripRandProg_of_ne_fault (by rw [hhalt₀]; exact nofun)]
+      rw [step_stripRand_of_ne_fault (by rw [hhalt₀]; exact nofun)]
       exact hhalt₀
     have hymem : y.mem =
         ((Memory.spec 0).clientState (Memory.State.init inst.encode)
@@ -2642,8 +2599,8 @@ theorem exists_epsAuction_program :
       Nat.mul_le_mul_left C₁ (by omega)
     have hpos : 1 ≤ inst.n ^ 2 * (C / inst.eps + 1) + 1 := Nat.succ_pos _
     nlinarith
-  refine ⟨r, 42 * C₁ + 1, by omega, prog, not_readsWidth_stripRandProg hnw₀,
-    isRandFree_stripRandProg prog₀, @hmain, fun inst w ⟨hε, hw⟩ _ =>
+  refine ⟨r, 42 * C₁ + 1, by omega, prog, not_readsWidth_stripRand hnw₀,
+    isRandFree_stripRand prog₀, @hmain, fun inst w ⟨hε, hw⟩ _ =>
       hmain inst hε inst.toInstance.sub_le_rowSpread hw⟩
 
 /-- **`O(n³ C + n²)` Word-RAM exact `(n + 1)`-scaled integer assignment (`ExecutesList` and
@@ -2666,7 +2623,7 @@ theorem exists_scaledAuction_program :
         (fun inst w => Fits w inst.wordBound) Instance.assignment := by
   obtain ⟨r, C₁, pc, prog₀, hnw₀, frontier, _, he⟩ :=
     scaledMainProg_realizes.exists_standard_basis_init_program_state_from_words (0 : Fin 1)
-  let prog := stripRandProg prog₀
+  let prog := stripRand prog₀
   have hmain : ∀ {w C : ℕ} (inst : Instance),
       (∀ i j k : Fin inst.n, inst.cost (i, k) - inst.cost (i, j) ≤ (C : ℤ)) →
       Fits w inst.wordBound →
@@ -2692,11 +2649,11 @@ theorem exists_scaledAuction_program :
     rw [clientState_width w] at hmem
     rw [clientResult_width w] at hhalt₀
     dsimp only [wordWords] at hhalt₀
-    have hruns : Runs w prog (.init inst.encode) ⟨pc, y⟩ m := runs_stripRandProg hruns₀
+    have hruns : Runs w prog (.init inst.encode) ⟨pc, y⟩ m := runs_stripRand hruns₀
     have hhalt : WordRAM.step w prog ⟨pc, y⟩ =
         .halt ((Memory.spec 0).clientResult (Memory.State.init inst.encode)
           (scaledMainProg inst.n)) := by
-      rw [step_stripRandProg_of_ne_fault (by rw [hhalt₀]; exact nofun)]
+      rw [step_stripRand_of_ne_fault (by rw [hhalt₀]; exact nofun)]
       exact hhalt₀
     have hymem : y.mem =
         ((Memory.spec 0).clientState (Memory.State.init inst.encode)
@@ -2719,8 +2676,8 @@ theorem exists_scaledAuction_program :
     · rw [hres_eq, inst.length_assignment]
       rw [hws_n] at hfit_ws
       exact hfit_ws.of_le (Nat.le_succ _)
-  refine ⟨r, 34 * C₁ + 1, by omega, prog, not_readsWidth_stripRandProg hnw₀,
-    isRandFree_stripRandProg prog₀, @hmain, fun inst w hw _ =>
+  refine ⟨r, 34 * C₁ + 1, by omega, prog, not_readsWidth_stripRand hnw₀,
+    isRandFree_stripRand prog₀, @hmain, fun inst w hw _ =>
       hmain inst inst.sub_le_rowSpread hw⟩
 
 /-- **`O(n³ C + n²)` Word-RAM exact `(n + 1)`-scaled integer minimum assignment cost (`Executes`
@@ -2742,7 +2699,7 @@ theorem exists_scaledMinCost_program :
         (fun inst w => Fits w inst.wordBound) Instance.encodedMinCost := by
   obtain ⟨r, C₁, pc, prog₀, hnw₀, _, _, he⟩ :=
     scaledMinCostMainProg_realizes.exists_standard_basis_init_program_state_from_words (0 : Fin 1)
-  let prog := stripRandProg prog₀
+  let prog := stripRand prog₀
   have hmain : ∀ {w C : ℕ} (inst : Instance),
       (∀ i j k : Fin inst.n, inst.cost (i, k) - inst.cost (i, j) ≤ (C : ℤ)) →
       Fits w inst.wordBound →
@@ -2781,13 +2738,13 @@ theorem exists_scaledMinCost_program :
       rw [clientResult_bind]
       exact hres_sum
     rw [hres_eq] at hhalt₀
-    have hruns : Runs w prog (.init inst.encode) ⟨pc, y⟩ m := runs_stripRandProg hruns₀
+    have hruns : Runs w prog (.init inst.encode) ⟨pc, y⟩ m := runs_stripRand hruns₀
     have hhalt : WordRAM.step w prog ⟨pc, y⟩ = .halt inst.encodedMinCost := by
-      rw [step_stripRandProg_of_ne_fault (by rw [hhalt₀]; exact nofun)]
+      rw [step_stripRand_of_ne_fault (by rw [hhalt₀]; exact nofun)]
       exact hhalt₀
     exact ⟨m + 1, ⟨⟨pc, y⟩, m, hruns, hhalt, rfl⟩, scaled_steps_le hsteps hmc⟩
-  refine ⟨r, 34 * C₁ + 1, by omega, prog, not_readsWidth_stripRandProg hnw₀,
-    isRandFree_stripRandProg prog₀, @hmain, fun inst w hw _ =>
+  refine ⟨r, 34 * C₁ + 1, by omega, prog, not_readsWidth_stripRand hnw₀,
+    isRandFree_stripRand prog₀, @hmain, fun inst w hw _ =>
       hmain inst inst.sub_le_rowSpread hw⟩
 
 end
