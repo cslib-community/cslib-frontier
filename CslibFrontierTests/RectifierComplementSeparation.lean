@@ -14,7 +14,9 @@ import Mathlib.Data.Nat.Prime.Basic
 /-!
 # Client tests for rectifier (`OR`) circuits, Brown's matrix, and Sergeev's complement separation
 
-Exercises the public module interface under ordinary imports:
+Exercises the public module interface under ordinary imports. Domain checks ensure that
+natural-valued `orComplexity` rejects an infinite row or column type, while extended-natural
+`orDepthComplexity` remains available on those domains. Concrete finite examples cover:
 
 1. **Disjoint-poles boundary (`idMatrix n`):** the `n × n` Boolean identity matrix is `2`-free of
    weight `n`, so `orComplexity (idMatrix n) = n` and `orDepthComplexity 1 (idMatrix n) = n`
@@ -34,6 +36,18 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.RectifierComplementSeparation
 
 open Finset Cslib Cslib.Circuits
+
+-- Neither infinite matrix dimension may collapse the natural-valued minimum to zero.
+example : True := by
+  fail_if_success
+    have _ := orComplexity (fun (_ : ℕ) (_ : Fin 1) => false)
+  fail_if_success
+    have _ := orComplexity (fun (_ : Fin 1) (_ : ℕ) => false)
+  trivial
+
+-- The extended-natural API still represents infeasible infinite-domain problems by `⊤`.
+example : orDepthComplexity 0 (fun (_ : ℕ) (_ : Fin 1) => true) = ⊤ :=
+  orDepthComplexity_zero_eq_top (i := 0) (j := 0) rfl
 
 /-- The `n × n` Boolean identity matrix. -/
 private def idMatrix (n : ℕ) : Matrix (Fin n) (Fin n) Bool :=
