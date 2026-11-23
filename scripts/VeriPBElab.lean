@@ -25,16 +25,15 @@ open Cslib.Logic.PL Cslib.Logic.PL.VeriPB
 namespace VeriPBElab
 
 /-- The name of a variable. -/
-def varName (names : Array String) (v : ℕ) : String :=
-  if v ≥ Elab.nameBase then names[v - Elab.nameBase]! else s!"x{v + 1}"
+def varName (N : Elab.AuxNames) (v : ℕ) : String := N.name v
 
-def litStr (N : Array String) (l : Literal ℕ) : String :=
+def litStr (N : Elab.AuxNames) (l : Literal ℕ) : String :=
   (if l.2 then "" else "~") ++ varName N l.1
 
-def constrStr (N : Array String) (c : PBConstr) : String :=
+def constrStr (N : Elab.AuxNames) (c : PBConstr) : String :=
   String.join (c.terms.map fun t => s!"+{t.1} {litStr N t.2} ") ++ s!">= {c.degree}"
 
-def objStr (N : Array String) (f : Objective) : String :=
+def objStr (N : Elab.AuxNames) (f : Objective) : String :=
   String.join (f.lin.map fun e => s!"{if e.2 ≥ 0 then "+" else ""}{e.2} {varName N e.1} ") ++
     s!"{if f.const ≥ 0 then "+" else ""}{f.const}"
 
@@ -42,7 +41,7 @@ def hintStr : Hint → String
   | .neg => "~"
   | .id n => toString n
 
-def polStr (N : Array String) : PolOp → String
+def polStr (N : Elab.AuxNames) : PolOp → String
   | .id n => toString n
   | .lit l => litStr N l
   | .add => "+"
@@ -51,7 +50,7 @@ def polStr (N : Array String) : PolOp → String
   | .sat => "s"
   | .weaken v => s!"{varName N v} w"
 
-def witStr (N : Array String) (ω : Witness) : String :=
+def witStr (N : Elab.AuxNames) (ω : Witness) : String :=
   " ".intercalate (ω.map fun (x, w) => s!"{varName N x} -> " ++ match w with
     | .zero => "0" | .one => "1" | .lit l => litStr N l)
 
@@ -61,7 +60,7 @@ def goalStr : GoalId → String
 
 mutual
 
-partial def stepStr (N : Array String) : Step → String
+partial def stepStr (N : Elab.AuxNames) : Step → String
   | .pol ops => s!"pol {" ".intercalate (ops.map (polStr N))};\n"
   | .rup c hs => s!"rup {constrStr N c} : {" ".intercalate (hs.map hintStr)};\n"
   | .rupSearch c => s!"rup {constrStr N c};\n"
@@ -69,7 +68,7 @@ partial def stepStr (N : Array String) : Step → String
       String.join (sub.map (stepStr N)) ++ s!"qed : {q};\n"
   | .del ids => s!"del id {" ".intercalate (ids.map toString)};\n"
 
-partial def itemStr (N : Array String) : RedItem → String
+partial def itemStr (N : Elab.AuxNames) : RedItem → String
   | .step s => stepStr N s
   | .goal g sub q => s!"proofgoal {goalStr g}\n" ++ String.join (sub.map (stepStr N)) ++
       s!"qed : {q};\n"
@@ -78,20 +77,20 @@ partial def itemStr (N : Array String) : RedItem → String
 
 end
 
-def subStr (N : Array String) (kw : String) (sub : Option (List RedItem)) (q : Option ℕ) :
+def subStr (N : Elab.AuxNames) (kw : String) (sub : Option (List RedItem)) (q : Option ℕ) :
     String :=
   match sub with
   | none => ";\n"
   | some items => " : subproof\n" ++ String.join (items.map (itemStr N)) ++
       s!"qed {kw}" ++ (match q with | some q => s!" : {q}" | none => "") ++ ";\n"
 
-def orderProofStr (N : Array String) (p : OrderProof) : String :=
+def orderProofStr (N : Elab.AuxNames) (p : OrderProof) : String :=
   "proof\n" ++ String.join (p.items.map (itemStr N)) ++
     "qed" ++ (match p.qed with | some q => s!" : {q}" | none => "") ++ ";\n"
 
-def varsStr (N : Array String) (vs : List ℕ) : String := " ".intercalate (vs.map (varName N))
+def varsStr (N : Elab.AuxNames) (vs : List ℕ) : String := " ".intercalate (vs.map (varName N))
 
-def topStr (N : Array String) : TopStep → String
+def topStr (N : Elab.AuxNames) : TopStep → String
   | .step s => stepStr N s
   | .red c ω sub q => s!"red {constrStr N c} : {witStr N ω}" ++ subStr N "red" sub q
   | .dom c ω sub q => s!"dom {constrStr N c} : {witStr N ω}" ++ subStr N "dom" sub q
@@ -137,11 +136,11 @@ def boundStr : Option ℤ → String
   | none => "INF"
   | some v => toString v
 
-def asgStr (N : Array String) : Option (List (Literal ℕ)) → String
+def asgStr (N : Elab.AuxNames) : Option (List (Literal ℕ)) → String
   | none => ""
   | some ρ => " : " ++ " ".intercalate (ρ.map (litStr N))
 
-def conclStr (N : Array String) : Conclusion → String
+def conclStr (N : Elab.AuxNames) : Conclusion → String
   | .unsat q => s!"UNSAT : {q}"
   | .sat asg => "SAT" ++ asgStr N asg
   | .bounds lb q ub asg => s!"BOUNDS {boundStr lb} : {q} {boundStr ub}" ++ asgStr N asg
@@ -185,7 +184,7 @@ def main (args : List String) : IO UInt32 := do
     let t₁ ← IO.monoMsNow
     IO.println s!"c kernel text check {t₁ - t₀} ms"
     match r with
-    | some c => IO.println s!"s VERIFIED {conclStr #[] c}"; return 0
+    | some c => IO.println s!"s VERIFIED {conclStr default c}"; return 0
     | none => IO.println "s REJECTED kernel text check"; return 1
   let inst : Option Instance := if cnf then
       (Text.parseDIMACS fmlText).map fun φ => ⟨φ.map Clause.toPB, none, none⟩

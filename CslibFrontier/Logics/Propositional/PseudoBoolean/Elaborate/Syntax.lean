@@ -36,7 +36,10 @@ digits and `_ [ ] { } ^ -`; `~`, `:`, `;` and `*` are tokens of their own; `%` s
 
 **Variables.** The variable `xN` is `N - 1`, as in the kernel text front end
 (`Cslib.Logic.PL.VeriPB.Text`), so variables of the formula keep their numbers. Every other name
-gets a number from `2 ^ 40` on, in order of first appearance.
+gets a number from a base on, in order of first appearance (`Cslib.Logic.PL.VeriPB.Elab.AuxNames`).
+As for the kernel text front end (`Cslib.Logic.PL.VeriPB.Text.Names.Separates`), the base is above
+every variable of the instance and every standard name of the proof, which a pass over the bytes
+of the proof finds before parsing, so distinct names get distinct numbers.
 
 ## References
 
@@ -190,10 +193,28 @@ inductive AConclusion where
 
 /-! ### The lexer -/
 
+/-- The non-standard variable names of a proof: the `i`-th name of `names` is the variable
+`base + i`. -/
+structure AuxNames where
+  /-- The number of the first non-standard name. -/
+  base : ℕ
+  /-- The non-standard names, in order of first appearance. -/
+  names : Array String
+  deriving Inhabited, Repr
+
+/-- The name of the variable `v`: its non-standard name, or else the standard name `x(v + 1)`.
+Variables from `N.base + N.names.size` on, such as the variable the elaborator picks for the `pol`
+operation `-`, have no name in the proof, and get standard names, which no other variable has
+when `N.base` is above the standard names of the proof. -/
+def AuxNames.name (N : AuxNames) (v : ℕ) : String :=
+  if h : N.base ≤ v ∧ v - N.base < N.names.size then N.names[v - N.base] else s!"x{v + 1}"
+
 /-- The lexer and the variable names, as mutable references. -/
 structure Lexer (σ : Type) where
   /-- The text. -/
   bytes : ByteArray
+  /-- The number of the first non-standard variable name. -/
+  base : ℕ
   /-- The position of the next byte. -/
   pos : ST.Ref σ ℕ
   /-- Tokens read ahead. -/
@@ -205,19 +226,12 @@ structure Lexer (σ : Type) where
   /-- The non-standard names, in order of first appearance. -/
   others : ST.Ref σ (Array String)
 
-/-- The first number of a non-standard variable name. -/
-def nameBase : ℕ := 2 ^ 40
-
 /-- The parser monad. -/
 abbrev PM (σ : Type) := ExceptT String (ST σ)
 
 namespace Lexer
 
 variable {σ : Type}
-
-/-- A new lexer for the text `s`. -/
-def new (s : String) : ST σ (Lexer σ) := do
-  return ⟨s.toUTF8, ← ST.mkRef 0, ← ST.mkRef #[], ← ST.mkRef 1, ← ST.mkRef {}, ← ST.mkRef #[]⟩
 
 private def isIdStart (c : UInt8) : Bool :=
   (c ≥ 65 && c ≤ 90) || (c ≥ 97 && c ≤ 122) || c == 95 || c == 64 || c == 36
@@ -227,6 +241,34 @@ private def isIdChar (c : UInt8) : Bool :=
     c == 93 || c == 123 || c == 125 || c == 94 || c == 45
 
 private def isDigit (c : UInt8) : Bool := c ≥ 48 && c ≤ 57
+
+/-- A bound on the standard names of the text `b`: every token `xN` has `N` at most this bound.
+It takes every `x` followed by digits and then by a byte that cannot continue an identifier, which
+includes every standard name of the text, and some other strings, such as the end of `ax5` or
+text in a comment, which only raise the bound. -/
+def stdBound (b : ByteArray) : ℕ := Id.run do
+  let mut m := 0
+  let mut p := 0
+  while p < b.size do
+    if b.get! p == 120 then
+      let mut q := p + 1
+      let mut v := 0
+      while q < b.size && isDigit (b.get! q) do
+        v := 10 * v + (b.get! q - 48).toNat
+        q := q + 1
+      if q > p + 1 && (q ≥ b.size || !isIdChar (b.get! q)) then m := max m v
+      p := q
+    else p := p + 1
+  return m
+
+/-- A new lexer for the text `s` of a proof for an instance whose variables are below `floor`.
+The non-standard names are numbered from the larger of `floor` and `stdBound` of the text, which
+is above every variable of the instance and every standard name `xN` (the variable `N - 1`) of the
+text. -/
+def new (s : String) (floor : ℕ) : ST σ (Lexer σ) := do
+  let b := s.toUTF8
+  return ⟨b, max floor (stdBound b), ← ST.mkRef 0, ← ST.mkRef #[], ← ST.mkRef 1, ← ST.mkRef {},
+    ← ST.mkRef #[]⟩
 
 /-- Read the next token from the text, or `""` at its end. -/
 private def scan (L : Lexer σ) : ST σ String := do
@@ -330,7 +372,7 @@ def var (L : Lexer σ) (t : String) : PM σ ℕ := do
   match m[t]? with
   | some v => return v
   | none =>
-    let v := nameBase + m.size
+    let v := L.base + m.size
     L.names.modify (·.insert t v)
     L.others.modify (·.push t)
     return v

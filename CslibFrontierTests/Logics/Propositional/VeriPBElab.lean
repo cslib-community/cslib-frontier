@@ -20,7 +20,8 @@ public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate
 * the `pol` operations `n`, `c`, `m` and `-`, the cuts checked by `e`;
 * a `red` step whose goal is autoproven by RUP, and `pbc` without a subproof;
 * `core range` and `del range`;
-* a DIMACS formula with a hintless proof.
+* a DIMACS formula with a hintless proof;
+* the standard name `x1099511627777` next to an auxiliary name.
 
 And rejections: a step that is not RUP, a wrong `e` check, a reference to a deleted constraint,
 and a premise that does not imply the `ia` constraint. The checks run by `#guard`; the soundness
@@ -148,5 +149,40 @@ end pseudo-Boolean proof;
 "
 
 #guard checkAugmentedDIMACS php32cnf php32cnfProof == some (.unsat 12)
+
+/-! The standard name `x1099511627777` is the variable `2 ^ 40`. The non-standard names are
+numbered above it, whether it occurs in the proof or in the instance, so it stays apart from the
+auxiliary name `$a`, in the parsed proof and in the printed one. -/
+
+/-- A proof with the standard name `x1099511627777` and the auxiliary name `$a`. -/
+def bigNameProof : String := "pseudo-Boolean proof version 3.0
+red 1 x1099511627777 1 $a >= 1 : $a -> 1 ;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+"
+
+-- `$a` is the variable `2 ^ 40 + 1`, and each variable prints as its own name.
+#guard match elaborate [] none none bigNameProof with
+  | .ok r =>
+    r.names.base == 2 ^ 40 + 1 && r.names.names == #["$a"] &&
+      (match r.proof.steps with
+        | [.red c _ _ _] => c.terms.map fun t => r.names.name (PBConstr.termVar t)
+        | _ => []) == ["x1099511627777", "$a"]
+  | .error _ => false
+
+/-- An instance over the variable `2 ^ 40`, which it sets to `1`. -/
+def bigName : String := "* #variable= 1 #constraint= 1
+1 x1099511627777 >= 1 ;
+"
+
+-- Setting `$a` to `0` by redundance is sound only if `$a` is not the variable of the instance.
+#guard checkAugmented bigName "pseudo-Boolean proof version 3.0
+f 1;
+red 1 ~$a >= 1 : $a -> 0 ;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+" == some .noClaim
 
 end CslibFrontierTests.Logics.Propositional.VeriPBElab
