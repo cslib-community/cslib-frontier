@@ -69,16 +69,19 @@ the same addition and RUP, as the paper allows ("we could instead derive the app
 implication whenever the maximum rule is used"). The conclusion is `BOUNDS -k : q -k`.
 
 The proof has three extension variables for each state and a constant number of steps for each
-state and transition. That the checker accepts it is not proved: it is checked when the proof is
-run, and the theorem `Cslib.Logic.PL.VeriPB.Knapsack.isGreatest_of_checkRed_certify` turns
-acceptance into optimality.
+state and transition. That the checker accepts it is not proved, nor that the claimed optimum is
+right: both are checked when the proof is run, and the theorem
+`Cslib.Logic.PL.VeriPB.Knapsack.isGreatest_of_checkRed_certify` turns acceptance into
+optimality.
 
 ## Main definitions
 
-* `Cslib.Logic.PL.VeriPB.Knapsack.formula`, `Cslib.Logic.PL.VeriPB.Knapsack.objective`: the
-  encoding.
+* `Cslib.Logic.PL.VeriPB.Knapsack.capacity`, `Cslib.Logic.PL.VeriPB.Knapsack.formula`,
+  `Cslib.Logic.PL.VeriPB.Knapsack.objective`: the encoding; an assignment takes the items
+  `Cslib.Logic.PL.VeriPB.chosen n σ`, shared with the clique encoding.
 * `Cslib.Logic.PL.VeriPB.Knapsack.Certificate`, `Cslib.Logic.PL.VeriPB.Knapsack.certify`: the
-  proof-logging dynamic program.
+  record of a claimed optimum and a candidate proof, and the proof-logging dynamic program that
+  writes one.
 
 ## Main results
 
@@ -153,8 +156,8 @@ theorem eval_objective (p : Fin n → ℕ) (σ : ℕ → Bool) :
 `BOUNDS lb : q ub` for the knapsack formula and objective, then every set of items that fits has
 profit at most `-lb`, and some set that fits has profit at least `-ub`. -/
 theorem bounds_of_checkRed {w p : Fin n → ℕ} {B : ℕ} {P : RedProof} {lb ub : ℤ} {q : ℕ}
-    {asg : Option (List (Literal ℕ))}
-    (h : checkRed (formula w B) (some (objective p)) P = true)
+    {asg : Option (List (Literal ℕ))} {pres : Option (List ℕ)}
+    (h : checkRed (formula w B) (some (objective p)) P pres = true)
     (hc : P.conclusion = .bounds (some lb) q (some ub) asg) :
     (∀ S : Finset (Fin n), ∑ i ∈ S, w i ≤ B → ∑ i ∈ S, (p i : ℤ) ≤ -lb) ∧
       ∃ S : Finset (Fin n), ∑ i ∈ S, w i ≤ B ∧ -ub ≤ ∑ i ∈ S, (p i : ℤ) := by
@@ -171,8 +174,8 @@ theorem bounds_of_checkRed {w p : Fin n → ℕ} {B : ℕ} {P : RedProof} {lb ub
 /-- **An accepted proof of `BOUNDS lb : q lb` certifies the optimum `-lb`**: it is the largest
 profit of a set of items that fits. -/
 theorem isGreatest_of_checkRed {w p : Fin n → ℕ} {B : ℕ} {P : RedProof} {lb : ℤ} {q : ℕ}
-    {asg : Option (List (Literal ℕ))}
-    (h : checkRed (formula w B) (some (objective p)) P = true)
+    {asg : Option (List (Literal ℕ))} {pres : Option (List ℕ)}
+    (h : checkRed (formula w B) (some (objective p)) P pres = true)
     (hc : P.conclusion = .bounds (some lb) q (some lb) asg) :
     IsGreatest ((fun S : Finset (Fin n) => ∑ i ∈ S, (p i : ℤ)) '' {S | ∑ i ∈ S, w i ≤ B})
       (-lb) := by
@@ -320,17 +323,23 @@ private def step (B : ℕ) (X : Layer) (item : ℕ × ℕ × ℕ) : Layer :=
   let dead := X.alo :: X.nodes.flatMap Node.ids ++ dead
   ⟨L, alo, pre, ⟨.deld dead :: e.steps, e.next, e.var⟩⟩
 
-/-- **A knapsack answer with its proof**: the optimum claimed, and a kernel proof whose conclusion
-is `BOUNDS -optimum : q -optimum`. -/
+/-- **A claimed knapsack optimum with a candidate proof**: a plain record of a natural number and a
+kernel proof. Its type imposes no relation between them, nor any constraint on the proof's
+conclusion; `Cslib.Logic.PL.VeriPB.Knapsack.certify` writes one whose conclusion is
+`BOUNDS -optimum : q -optimum`, and only the checker's acceptance makes the optimum certified. -/
 structure Certificate where
   /-- The claimed optimum. -/
   optimum : ℕ
-  /-- The proof. -/
+  /-- The candidate proof. -/
   proof : RedProof
 
 /-- **The proof-logging dynamic program** for the items of weights `w` and profits `p` and the
-capacity `B`: the largest profit of a set of items that fits, with a VeriPB proof that it is the
-optimum of the knapsack formula and objective. -/
+capacity `B`. It returns a claimed optimum, the largest profit in the last layer of the dynamic
+program, and a candidate VeriPB proof with the conclusion `BOUNDS -optimum : q -optimum` for the
+knapsack formula and objective. No theorem says that the checker accepts the proof or that the
+claimed optimum is right; when `Cslib.Logic.PL.VeriPB.checkRed` accepts the proof on an
+instance, the claimed optimum is the optimum there
+(`Cslib.Logic.PL.VeriPB.Knapsack.isGreatest_of_checkRed_certify`). -/
 def certify (w p : Fin n → ℕ) (B : ℕ) : Certificate :=
   -- The solution is logged first, so its improving constraint is `2`; the rest starts at `3`.
   let (e, L₀) := mkLayer ⟨[], [], 0⟩ ⟨[], 3, n⟩ [⟨0, 0, []⟩]
