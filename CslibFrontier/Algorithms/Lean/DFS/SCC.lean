@@ -185,6 +185,11 @@ theorem sum_length_transposeAdj [Fintype V] (adj : V → List V) (vs : List V) :
 
 end Transpose
 
+/-- `outDegreeSum` is additive over list concatenation. -/
+theorem outDegreeSum_append (g : V → List V) (a b : List V) :
+    outDegreeSum g (a ++ b) = outDegreeSum g a + outDegreeSum g b := by
+  simp [outDegreeSum, List.map_append, List.sum_append]
+
 /-! ### Kosaraju's second pass -/
 
 /-- Peel strongly connected components in `revAdj` along finishing order `rs`. -/
@@ -476,7 +481,8 @@ section IndexComponents
 
 variable [DecidableEq V] {adj : V → List V}
 
-private theorem foldl_update_const (idx : ℕ) :
+/-- Folding constant updates over `c` sets exactly the members of `c` to `idx`. -/
+theorem foldl_update_const (idx : ℕ) :
     ∀ (c : List V) (f : V → ℕ) (u : V),
       (c.foldl (fun f v => Function.update f v idx) f) u = if u ∈ c then idx else f u
   | [], f, u => by simp

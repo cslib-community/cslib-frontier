@@ -15,6 +15,7 @@ public import CslibFrontier.Computability.WordRAM.Notation
 import CslibFrontier.Computability.WordRAM.Allocation
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Foundations.Data.List.Fold
 import Mathlib.Data.List.GetD
 import Mathlib.Tactic.Ring
 
@@ -38,6 +39,10 @@ Under `Cslib.WordRAM.ExecutesList`, the output word list (`answerWords G`) is:
 Prefixing `1` distinguishes a satisfying empty assignment on `n = 0` (`[1]`) from rejection (`[]`),
 so `decodeAnswer G (answerWords G) = TwoSAT.solveFin G.n G.φ` holds unconditionally for all `n` and
 `φ`.
+
+The implication graph is built in compressed sparse row form in the scratch layout of
+`CslibFrontier.Algorithms.WordRAM.DFS`, whose `sccIndexCode` computes the topological component
+index of every literal (forward iterative DFS, CSR transposition, and Kosaraju peeling).
 
 ## Main definitions
 
@@ -146,15 +151,6 @@ private theorem fits_of_le {G : Instance} {w x : ℕ} (hfit : Fits w G.wordBound
     (hle : x ≤ G.wordBound) : Fits w x :=
   hfit.of_le hle
 
-private theorem length_mem_le_sum {n : ℕ} :
-    ∀ {cs : CNF (Fin n)} {c : Clause (Fin n)}, c ∈ cs → c.length ≤ (cs.map List.length).sum
-  | _ :: _, _, hc => by
-    rcases List.mem_cons.1 hc with rfl | hmem
-    · simp
-    · have := length_mem_le_sum hmem
-      simp only [List.map_cons, List.sum_cons]
-      omega
-
 /-- Every word of `G.encode`, together with its length, fits in any word width admitting
 `G.wordBound`. -/
 theorem inputFits_encode (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
@@ -166,7 +162,7 @@ theorem inputFits_encode (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
   · exact hfit.of_le (by unfold wordBound; omega)
   · simp only [encodeClauseBy, List.mem_cons, List.mem_map] at hvc
     rcases hvc with rfl | ⟨ℓ, _, rfl⟩
-    · have hle : c.length ≤ G.totalLits := length_mem_le_sum hc
+    · have hle : c.length ≤ G.totalLits := List.le_sum_of_mem (List.mem_map_of_mem hc)
       exact hfit.of_le (by unfold wordBound; omega)
     · have hlt : litCodeBy Fin.val ℓ < 2 * G.n := by
         have := ℓ.1.isLt
@@ -1540,18 +1536,6 @@ def solver : Code .standard 28 :=
 /-- Flat standard-basis Word-RAM 2-SAT program returning `answerWords G` via `ExecutesList`. -/
 def program : Program .standard 28 := solver.program outBase
 
-private theorem mem_of_foldl_and_true {α : Type*} (p : α → Bool) :
-    ∀ (l : List α) (b : Bool),
-      l.foldl (fun acc x => acc && p x) b = true → b = true ∧ ∀ x ∈ l, p x = true
-  | [], b, h => ⟨h, fun _ hx => absurd hx List.not_mem_nil⟩
-  | a :: l, b, h => by
-    obtain ⟨hb, hl⟩ := mem_of_foldl_and_true p l (b && p a) h
-    rw [Bool.and_eq_true] at hb
-    refine ⟨hb.1, fun x hx => ?_⟩
-    rcases List.mem_cons.1 hx with rfl | hx
-    · exact hb.2
-    · exact hl x hx
-
 /-- Structured execution of `solver` computes `answerWords G` at `outAddrBase` within
 `512 * (G.n + G.φ.length + 1) - 1` instructions. -/
 theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
@@ -1885,9 +1869,10 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
             wram_exec [hs₈_nv, hs₈_1, hs₈_ob, hf_n1, hf_ob1]
           obtain ⟨ts, hts, hes⟩ := hpos_sat
           have hdist_all : ∀ v : Fin G.n, compIdx (v, true) ≠ compIdx (v, false) := by
-            have hall := (mem_of_foldl_and_true
-              (fun v => decide (compIdx (v, true) ≠ compIdx (v, false)))
-              (List.finRange G.n) true hok_all).2
+            have hall : (List.finRange G.n).foldl
+                (fun acc v => acc && decide (compIdx (v, true) ≠ compIdx (v, false))) true =
+                  true := hok_all
+            rw [foldl_and_eq_and_all, Bool.true_and, List.all_eq_true] at hall
             exact fun v => of_decide_eq_true (hall v (List.mem_finRange v))
           refine ⟨y_sat, ⟨ts + 1, by omega, Exec.branch_pos hcond_ok hes⟩,
             by dsimp only [y_sat]; wram_simp; exact hs₈_ob, ?_⟩

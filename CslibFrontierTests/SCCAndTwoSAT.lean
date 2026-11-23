@@ -165,6 +165,32 @@ abbrev threeLitFinInst : Cslib.Algorithms.WordRAM.TwoSAT.Instance :=
 #guard_msgs in
 #eval (runTwoSAT emptyFin0Inst 16, runTwoSAT emptyClauseFin0Inst 16, runTwoSAT threeLitFinInst 16)
 
+/-- Model boundaries of the implication graph: a unit clause `x₀` with `¬x₀ ∨ x₁` (unit arc
+`¬x₀ → x₀`), repeated-literal clauses `x₀ ∨ x₀` and `¬x₀ ∨ ¬x₀` (doubled self-implication arcs),
+a tautology `x₀ ∨ ¬x₀` (self-loop arcs `¬x₀ → ¬x₀` and `x₀ → x₀`), and contradictory unit
+clauses. -/
+abbrev unitInst : Cslib.Algorithms.WordRAM.TwoSAT.Instance :=
+  ⟨2, [[(0, true)], [(0, false), (1, true)]]⟩
+abbrev dupPosInst : Cslib.Algorithms.WordRAM.TwoSAT.Instance := ⟨1, [[(0, true), (0, true)]]⟩
+abbrev dupNegInst : Cslib.Algorithms.WordRAM.TwoSAT.Instance := ⟨1, [[(0, false), (0, false)]]⟩
+abbrev tautInst : Cslib.Algorithms.WordRAM.TwoSAT.Instance := ⟨1, [[(0, true), (0, false)]]⟩
+abbrev unitClashInst : Cslib.Algorithms.WordRAM.TwoSAT.Instance :=
+  ⟨1, [[(0, true)], [(0, false)]]⟩
+
+example : Cslib.Algorithms.WordRAM.TwoSAT.answerWords unitInst = [1, 1, 1] := by decide +kernel
+
+example : Cslib.Algorithms.WordRAM.TwoSAT.answerWords dupPosInst = [1, 1] ∧
+    Cslib.Algorithms.WordRAM.TwoSAT.answerWords dupNegInst = [1, 0] ∧
+    Cslib.Algorithms.WordRAM.TwoSAT.answerWords unitClashInst = [] := by decide +kernel
+
+/-- info: (some ([1, 1, 1], true), some ([1, 1], true), some ([1, 0], true)) -/
+#guard_msgs in
+#eval (runTwoSAT unitInst 16, runTwoSAT dupPosInst 16, runTwoSAT dupNegInst 16)
+
+/-- info: (some ([1, 0], true), some ([], true)) -/
+#guard_msgs in
+#eval (runTwoSAT tautInst 16, runTwoSAT unitClashInst 16)
+
 /-- Symmetry-breaking `x₀ ↔ ¬x₁`: two incomparable literal SCCs. -/
 def xorTwo : CNF ℕ :=
   [[(0, true), (1, true)], [(0, false), (1, false)]]

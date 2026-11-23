@@ -725,10 +725,6 @@ private theorem card_visit_nil {V : Type*} [DecidableEq V] (adj : V → List V)
     simp [hvis x]
   rw [hunion, Finset.card_union_of_disjoint hdisj, List.toFinset_card_of_nodup hnd]
 
-private theorem outDegreeSum_append_local {V : Type*} (g : V → List V) (a b : List V) :
-    outDegreeSum g (a ++ b) = outDegreeSum g a + outDegreeSum g b := by
-  simp [outDegreeSum, List.map_append, List.sum_append]
-
 def VisAt {N : ℕ} (vis : Finset (Fin N)) (visAddr : ℕ) (mem : ℕ → ℕ) : Prop :=
   ∀ w : Fin N, mem (visAddr + w.val) = (decide (w ∈ vis)).toNat
 
@@ -1256,12 +1252,6 @@ private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
         have hfold_cons : foldEmpty adj (k' + 1) (v :: es') vis =
             ⟨s₂.visited, s₂.finished ++ s₁.finished⟩ := by
           rw [← hs₂_def, ← hs₁_def]; exact foldEmpty_cons adj (k' + 1) v es' vis
-        have hes' : ∀ q (hq : q < es'.length), (adj u)[idx + 1 + q]'(by omega) = es'[q] := by
-          intro q hq
-          have h := hes (q + 1) (by simp only [List.length_cons]; omega)
-          have hcongr : (adj u)[idx + 1 + q]'(by omega) = (adj u)[idx + (q + 1)]'(by omega) := by
-            congr 1; omega
-          exact hcongr.trans (by simpa only [List.getElem_cons_succ] using h)
         have hcard_s₁ : s₁.visited.card = vis.card + s₁.finished.length := by
           rw [← hs₁_def]; exact card_visit_nil adj (k' + 1) v vis
         have hcard_s₁_le : s₁.visited.card ≤ N := by
@@ -1372,7 +1362,7 @@ private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
               ((adj v).length + outDegreeSum adj s_child.finished) := by
           rw [hfold_cons, hs₁_eq]
           dsimp only
-          rw [outDegreeSum_append_local]
+          rw [outDegreeSum_append]
           simp only [outDegreeSum, List.map_cons, List.sum_cons]
         have hlen_eq : (foldEmpty adj (k' + 1) (v :: es') vis).finished.length =
             s₂.finished.length + (1 + s_child.finished.length) := by
@@ -1669,7 +1659,7 @@ private theorem forwardDFSLoop_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Li
       by rw [hfold_cons]; dsimp only; rw [List.length_append]; omega,
       fun q hq => ?_, fun a ha => ?_, fun reg hreg => ?_⟩
     · rw [hfold_cons]; dsimp only
-      rw [List.length_cons, List.length_append, outDegreeSum_append_local]
+      rw [List.length_cons, List.length_append, outDegreeSum_append]
       omega
     · have hrev : (foldEmpty adj N (r :: rs) vis).finished.reverse =
           s₁.finished.reverse ++ s₂.finished.reverse := by
@@ -2770,16 +2760,6 @@ private theorem peelLoop_spec {N w : ℕ} (hN : 0 < N) (revAdj : Fin N → List 
         have hinc_i : ExecWithin w (ram[ iReg ← iReg + cOne ])
             (z₁.set compIdxReg (cIdx + 1)) y₂ 1 := by
           wram_exec [hz₁_i, hz₁_1, hf_i1]
-        have hfold_upd : ∀ (l : List (Fin N)) (g : Fin N → ℕ) (u : Fin N),
-            l.foldl (fun h v => Function.update h v cIdx) g u = if u ∈ l then cIdx else g u := by
-          intro l
-          induction l with
-          | nil => intro g u; simp
-          | cons v l ih =>
-            intro g u; rw [List.foldl_cons, ih]
-            by_cases huv : u = v
-            · subst huv; by_cases hul : u ∈ l <;> simp [hul]
-            · simp [huv]
         refine ⟨y₂, (hbr_ex.seq hinc_i).mono (by omega),
           by dsimp only [y₂]; wram_simp,
           by
@@ -2789,7 +2769,8 @@ private theorem peelLoop_spec {N w : ℕ} (hN : 0 < N) (revAdj : Fin N → List 
           by dsimp only [y₂, cIdx']; wram_simp; simp [hempty],
           fun u hu => ?_, fun a ha => hz₁_out a ha, fun reg hreg => ?_⟩
         · dsimp only [y₂, f']; mem_upd
-          simp only [hempty, Bool.false_eq_true, ↓reduceIte, hz₁_mem u, List.mem_reverse, hfold_upd]
+          simp only [hempty, Bool.false_eq_true, ↓reduceIte, hz₁_mem u, List.mem_reverse,
+            foldl_update_const]
           by_cases huf : u ∈ s.finished
           · simp [huf]
           · simp only [huf, ↓reduceIte]
@@ -2858,7 +2839,7 @@ private theorem peelLoop_spec {N w : ℕ} (hN : 0 < N) (revAdj : Fin N → List 
         simp only [List.length_cons]
         omega
       · simp only [List.length_cons, List.flatten_cons, List.length_append,
-          outDegreeSum_append_local]
+          outDegreeSum_append]
         omega
     · rw [peelSCCs, show visit revAdj N r ⟨vis, []⟩ = s from rfl] at hu ⊢
       split_ifs with he
