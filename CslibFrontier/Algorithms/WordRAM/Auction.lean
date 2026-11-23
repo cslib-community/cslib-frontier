@@ -10,11 +10,13 @@ module
 public import CslibFrontier.Algorithms.Lean.Assignment.Auction
 public import CslibFrontier.Computability.WordRAM.ListOutput
 public import CslibFrontier.Computability.WordRAM.Signed.Encoding
-import CslibFrontier.Computability.WordRAM.Allocation
-import CslibFrontier.Computability.WordRAM.CountingLoop
-import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
+import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
+import CslibFrontier.Computability.WordRAM.Realization.Structure
+import CslibFrontier.Computability.WordRAM.Realization.WhileAbsorb
 import CslibFrontier.Foundations.Data.List.RowMajor
 import CslibFrontier.Foundations.Data.Matrix.PairChunks
+import CslibFrontier.Tactic.Realize
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Tactic.Linarith
 
@@ -23,61 +25,48 @@ import Mathlib.Tactic.Linarith
 
 This file implements and proves machine-level running-time bounds on the standard-basis word RAM
 (`Basis.standard`) for Bertsekas's Gauss–Seidel `ε`-auction algorithm
-(`Cslib.Algorithms.Lean.Assignment.auction` and `Cslib.Algorithms.Lean.Assignment.scaledAuction`):
+(`Cslib.Algorithms.Lean.Assignment.auction` and `Cslib.Algorithms.Lean.Assignment.scaledAuction`),
+using the memory-oracle refinement framework (`Memory.Prog` and `realize`):
 
-1. **In-memory unsigned cost core (`coreCode`, `core_exec`).** Given an `n × n` unsigned cost
-   matrix `C : Fin n × Fin n → ℕ` bounded by `W` stored row-major at `bC` and a positive integer
-   increment `ε > 0`, `coreCode` maintains `owner[0..n)`, nonnegative integer prices `price[0..n)`,
-   and the reversed unassigned-person stack `stack[0..sp)` in `O(1)` per push/pop and `O(n)` per
-   bid. By `AuctionInv.price_le` and `price_nonneg_bidStep`, all active prices stay in
-   `[0, W + ε]`, reduced costs stay in `[0, 2 W + ε]`, and unsigned bid updates never underflow or
-   overflow at any word width satisfying `Fits w (matBase + 2 n² + 4 n + 2 W + 2 ε + 4)`, executing
-   in `(auction c ε).bids * (28 n + 30) + 17 n + 12` instructions.
-2. **Unscaled `ε`-auction from `State.init` (`EpsInstance`, `epsAuctionProgram`).** Scans the
-   signed input costs for a magnitude bound `M ≤ inst.maxMag`, shifts every entry by `+ M` into
-   `[0, 2 M]` (leaving the entire trajectory unchanged by `auction_add_const`), runs `coreCode`,
-   and scatters the permutation `auctionPerm` to length-prefixed output memory in
-   `epsAuctionTime n C eps = O(n² (C / ε + 1))` instructions ([Bertsekas1988], §1) whenever `C`
-   bounds the row cost ranges (`inst.rowSpread` unconditionally) and `Fits w inst.wordBound`
-   (`w = O(log n + log M + log ε)`).
-3. **Exact `(n + 1)`-scaled integer auction from `State.init` (`Instance`, `scaledAuctionProgram`,
-   `scaledMinCostProgram`).** Scales shifted costs by `n + 1` with `ε = 1` ([Bertsekas1988], §3),
-   computing the exact minimum-cost assignment `scaledAuctionPerm` (`sum_scaledAuctionPerm_le`) and
-   `Signed.encode` of its minimum cost in `scaledAuctionTime n C = O(n³ C + n²)` instructions at
-   logarithmic word width `Fits w inst.wordBound` (`w = O(log n + log M)`).
+1. **Private `Memory.Prog` auction refinement.** Given an `n × n` unsigned cost matrix bounded by
+   `W` in workspace memory and a positive integer increment `ε > 0`, the memory client maintains
+   `owner[0..n)`, nonnegative integer prices `price[0..n)`, and a reversed unassigned-person stack
+   `stack[0..sp)` in `O(1)` memory operations per push/pop and `O(n)` memory operations per bid.
+   By `AuctionInv.price_le` and `price_nonneg_bidStep`, active prices stay in `[0, W + ε]` and
+   reduced costs stay in `[0, 2 W + ε]`, so unsigned bid updates never underflow or overflow.
+2. **Unscaled `ε`-auction (`EpsInstance`, `exists_epsAuction_program`).** Scans the signed input
+   costs for an entry magnitude bound `M ≤ inst.maxMag`, shifts every entry by `+ M` into
+   `[0, 2 M]` (preserving the bid trajectory by `auction_add_const`), runs the memory-client
+   auction, and scatters the permutation `auctionPerm` to length-prefixed output memory in
+   `O(n² (C / ε + 1))` instructions ([Bertsekas1988], §1) whenever `C` bounds the row cost ranges
+   (`inst.rowSpread` unconditionally) and `Fits w inst.wordBound` (`w = O(log n + log M + log ε)`).
+3. **Exact `(n + 1)`-scaled integer auction (`Instance`, `exists_scaledAuction_program`,
+   `exists_scaledMinCost_program`).** Scales shifted costs by `n + 1` with `ε = 1`
+   ([Bertsekas1988], §3), computing the exact minimum-cost assignment `scaledAuctionPerm`
+   (`sum_scaledAuctionPerm_le`) and `Signed.encode` of its minimum cost in `O(n³ C + n²)`
+   instructions at logarithmic word width `Fits w inst.wordBound` (`w = O(log n + log M)`).
 
 ## Main definitions
 
-* `Cslib.Algorithms.WordRAM.Auction.EpsInstance`,
-  `Cslib.Algorithms.WordRAM.Auction.Instance`: problem instances for the `ε`-auction and exact
-  scaled integer auction, with their encodings, `maxMag`, `rowSpread`, `wordBound`, and outputs.
-* `Cslib.Algorithms.WordRAM.Auction.BaseRegs`,
-  `Cslib.Algorithms.WordRAM.Auction.CostMem`: register frame and row-major matrix assertion for
-  `coreCode`.
-* `Cslib.Algorithms.WordRAM.Auction.coreCode`,
-  `Cslib.Algorithms.WordRAM.Auction.epsAuctionProgram`,
-  `Cslib.Algorithms.WordRAM.Auction.scaledAuctionProgram`,
-  `Cslib.Algorithms.WordRAM.Auction.scaledMinCostProgram`: structured and flat word-RAM programs.
-* `Cslib.Algorithms.WordRAM.Auction.epsAuctionTime`,
-  `Cslib.Algorithms.WordRAM.Auction.scaledAuctionTime`: instruction bounds.
+* `Cslib.Algorithms.WordRAM.Auction.Instance`,
+  `Cslib.Algorithms.WordRAM.Auction.EpsInstance`: problem instances for the exact `(n + 1)`-scaled
+  integer auction and unscaled `ε`-auction, with their encodings, `maxMag`, `rowSpread`,
+  `wordBound`, and outputs (`assignment`, `minCost`, `encodedMinCost`).
 
 ## Main results
 
-* `Cslib.Algorithms.WordRAM.Auction.core_exec`: in-memory execution of `coreCode` matching
-  `auction`.
-* `Cslib.Algorithms.WordRAM.Auction.executesList_epsAuction`,
-  `Cslib.Algorithms.WordRAM.Auction.computesListInTime_epsAuction`: `O(n² (C / ε + 1))` `ε`-auction
-  running-time bounds (whose output satisfies `sum_auctionPerm_le` and
-  `isEpsCompSlack_auctionPerm`).
-* `Cslib.Algorithms.WordRAM.Auction.executesList_scaledAuction`,
-  `Cslib.Algorithms.WordRAM.Auction.computesListInTime_scaledAuction`,
-  `Cslib.Algorithms.WordRAM.Auction.executes_scaledMinCost`,
-  `Cslib.Algorithms.WordRAM.Auction.computesInTime_scaledMinCost`: `O(n³ C + n²)` exact assignment
-  and minimum-cost bounds (optimal by `sum_scaledAuctionPerm_le`).
-* `Cslib.Algorithms.WordRAM.Auction.not_readsWidth_epsAuctionProgram`,
-  `Cslib.Algorithms.WordRAM.Auction.not_readsWidth_scaledAuctionProgram`,
-  `Cslib.Algorithms.WordRAM.Auction.not_readsWidth_scaledMinCostProgram`: width-independence
-  (`¬ Program.ReadsWidth`) and `IsRandFree` certificates.
+* `Cslib.Algorithms.WordRAM.Auction.exists_epsAuction_program`: uniform deterministic width-blind
+  `Program .standard r` (`¬ prog.ReadsWidth`, `prog.IsRandFree`) computing `EpsInstance.assignment`
+  in `K * (inst.n ^ 2 * (C / inst.eps + 1) + 1)` instructions (`ExecutesList` and
+  `Program.ComputesListInTime`; `n * eps`-optimal by `sum_auctionPerm_le`).
+* `Cslib.Algorithms.WordRAM.Auction.exists_scaledAuction_program`: uniform deterministic width-blind
+  `Program .standard r` (`¬ prog.ReadsWidth`, `prog.IsRandFree`) computing `Instance.assignment` in
+  `K * (inst.n ^ 3 * C + inst.n ^ 2 + 1)` instructions (`ExecutesList` and
+  `Program.ComputesListInTime`; optimal by `sum_scaledAuctionPerm_le`).
+* `Cslib.Algorithms.WordRAM.Auction.exists_scaledMinCost_program`: uniform deterministic width-blind
+  `Program .standard r` (`¬ prog.ReadsWidth`, `prog.IsRandFree`) computing
+  `Instance.encodedMinCost` in `K * (inst.n ^ 3 * C + inst.n ^ 2 + 1)` instructions (`Executes` and
+  `Program.ComputesInTime`).
 
 ## References
 
@@ -86,14 +75,17 @@ This file implements and proves machine-level running-time bounds on the standar
 * [Bertsekas1998]
 -/
 
-public section
-
 namespace Cslib.Algorithms.WordRAM.Auction
 
 open Cslib.WordRAM
+open Cslib.WordRAM.Realization
+open Cslib.DataStructure
 open Cslib.Algorithms.Lean.Assignment
+open StateTransitionSpec (clientResult_bind clientState_bind clientResult_pure clientState_pure)
 
 /-! ## Section 1: Problem instances and encodings -/
+
+public section
 
 /-- Problem instance for exact minimum-cost integer assignment via Bertsekas's `(n + 1)`-scaled
 auction (`scaledAuction`, `ε = 1`). -/
@@ -165,25 +157,19 @@ prices, reduced costs, and accumulated total assignment cost (`w = O(log n + log
 @[simp] theorem length_assignment (inst : Instance) : inst.assignment.length = inst.n := by
   simp [assignment]
 
-private theorem getElem_assignment (inst : Instance) (i : Fin inst.n) :
-    inst.assignment[i.val]'(by simp [assignment]) = (scaledAuctionPerm inst.cost i).val := by
-  simp [assignment]
-
 theorem encode_length (inst : Instance) : inst.encode.length = 1 + inst.n * inst.n := by
   simp only [encode, List.length_cons, List.length_flatMap, List.length_map, List.length_finRange,
     List.map_const', List.sum_replicate, smul_eq_mul]
   omega
 
-private theorem init_mem_n {reg : ℕ} (inst : Instance) :
-    (Data.init inst.encode : Data reg).mem 1 = inst.n := rfl
-
-private theorem init_mem_cost {reg : ℕ} (inst : Instance) (i j : Fin inst.n) :
-    (Data.init inst.encode : Data reg).mem (2 + (i.val * inst.n + j.val)) =
+private theorem init_mem_cost (inst : Instance) (i j : Fin inst.n) :
+    (Memory.State.init inst.encode).mem (2 + (i.val * inst.n + j.val)) =
       Signed.encode (inst.cost (i, j)) := by
   let g : Fin inst.n → List ℕ := fun i' =>
     (List.finRange inst.n).map fun j' => Signed.encode (inst.cost (i', j'))
   have h := List.getElem?_flatMap_mul_add (List.finRange inst.n) g inst.n
     (fun _ _ => by simp [g]) (show i.val < (List.finRange inst.n).length by simp) j.isLt
+  change (Data.init (r := 0) inst.encode).mem (2 + (i.val * inst.n + j.val)) = _
   rw [show 2 + (i.val * inst.n + j.val) = (i.val * inst.n + j.val) + 1 + 1 by omega,
     Data.init_mem_succ, encode, List.getD_cons_succ, List.getD_eq_getElem?_getD, h]
   simp [g]
@@ -251,16 +237,12 @@ theorem encode_length (inst : EpsInstance) : inst.encode.length = 2 + inst.n * i
   simp only [encode, List.length_cons, htail]
   omega
 
-private theorem init_mem_n {reg : ℕ} (inst : EpsInstance) :
-    (Data.init inst.encode : Data reg).mem 1 = inst.n := rfl
-
-private theorem init_mem_eps {reg : ℕ} (inst : EpsInstance) :
-    (Data.init inst.encode : Data reg).mem 2 = inst.eps := rfl
-
-private theorem init_mem_cost {reg : ℕ} (inst : EpsInstance) (i j : Fin inst.n) :
-    (Data.init inst.encode : Data reg).mem (3 + (i.val * inst.n + j.val)) =
+private theorem init_mem_cost (inst : EpsInstance) (i j : Fin inst.n) :
+    (Memory.State.init inst.encode).mem (3 + (i.val * inst.n + j.val)) =
       Signed.encode (inst.cost (i, j)) := by
-  have hbase := inst.toInstance.init_mem_cost (reg := reg) i j
+  have hbase := inst.toInstance.init_mem_cost i j
+  change (Data.init (r := 0) inst.encode).mem (3 + (i.val * inst.n + j.val)) = _
+  change (Data.init (r := 0) inst.toInstance.encode).mem (2 + (i.val * inst.n + j.val)) = _ at hbase
   rw [show 3 + (i.val * inst.n + j.val) = (i.val * inst.n + j.val) + 1 + 1 + 1 by omega,
     Data.init_mem_succ, encode, List.getD_cons_succ, List.getD_cons_succ]
   rw [show 2 + (i.val * inst.n + j.val) = (i.val * inst.n + j.val) + 1 + 1 by omega,
@@ -283,1483 +265,2170 @@ theorem inputFits_encode {w : ℕ} (inst : EpsInstance) (hw : Fits w inst.wordBo
 
 end EpsInstance
 
-/-! ## Section 2: Registers and memory layout -/
+end
 
-namespace Reg
+/-! ## Section 2: Private `rand`-stripping helper and workspace records -/
 
-/-- Constant `0`. -/
-abbrev zero : Fin 26 := ⟨0, by decide⟩
-/-- Constant `1`. -/
-abbrev one : Fin 26 := ⟨1, by decide⟩
-/-- Constant `2`. -/
-abbrev two : Fin 26 := ⟨2, by decide⟩
-/-- Dimension `n`. -/
-abbrev rn : Fin 26 := ⟨3, by decide⟩
-/-- Product `n * n`. -/
-abbrev rnn : Fin 26 := ⟨4, by decide⟩
-/-- Bidding increment `ε`. -/
-abbrev reps : Fin 26 := ⟨5, by decide⟩
-/-- Cost scaling factor (`1` or `n + 1`). -/
-abbrev rscale : Fin 26 := ⟨6, by decide⟩
-/-- Scanned entry magnitude bound `M`. -/
-abbrev rM : Fin 26 := ⟨7, by decide⟩
-/-- Start address of input encoded matrix (`3` or `2`). -/
-abbrev matBaseReg : Fin 26 := ⟨8, by decide⟩
-/-- Base address of working unsigned `n × n` matrix `C[0..n*n)`. -/
-abbrev bC : Fin 26 := ⟨9, by decide⟩
-/-- Base address of `owner[0..n)`. -/
-abbrev bOwner : Fin 26 := ⟨10, by decide⟩
-/-- Base address of `price[0..n)`. -/
-abbrev bPrice : Fin 26 := ⟨11, by decide⟩
-/-- Base address of reversed unassigned stack `stack[0..n)`. -/
-abbrev bStack : Fin 26 := ⟨12, by decide⟩
-/-- Output list header address register. -/
-abbrev outBase : Fin 26 := ⟨13, by decide⟩
-private abbrev sp : Fin 26 := ⟨14, by decide⟩
-private abbrev curI : Fin 26 := ⟨15, by decide⟩
-private abbrev rowBase : Fin 26 := ⟨16, by decide⟩
-private abbrev bestJ : Fin 26 := ⟨17, by decide⟩
-private abbrev bestVal : Fin 26 := ⟨18, by decide⟩
-private abbrev hasSecond : Fin 26 := ⟨19, by decide⟩
-private abbrev secondVal : Fin 26 := ⟨20, by decide⟩
-private abbrev idx : Fin 26 := ⟨21, by decide⟩
-private abbrev addr : Fin 26 := ⟨22, by decide⟩
-private abbrev val : Fin 26 := ⟨23, by decide⟩
-private abbrev val2 : Fin 26 := ⟨24, by decide⟩
-private abbrev tmp : Fin 26 := ⟨25, by decide⟩
+private def stripRandInstr {B : Basis} {r : ℕ} : Instr B r → Instr B r
+  | .rand dst _ => .op (.copy dst dst)
+  | i => i
 
-end Reg
+private def stripRandProg {B : Basis} {r : ℕ} (p : Program B r) : Program B r :=
+  p.map stripRandInstr
 
-open Reg
+private theorem isRandFree_stripRandProg {B : Basis} {r : ℕ} (p : Program B r) :
+    (stripRandProg p).IsRandFree := by
+  intro i hi
+  obtain ⟨j, _, rfl⟩ := List.mem_map.mp hi
+  cases j <;> trivial
 
-/-- Row-major unsigned `n × n` cost matrix `C` stored at `base`. -/
-structure CostMem {n : ℕ} (base : ℕ) (C : Fin n × Fin n → ℕ) (mem : ℕ → ℕ) : Prop where
-  /-- Entry `(i, j)` lies at `base + i * n + j`. -/
-  hentry : ∀ i j : Fin n, mem (base + (i.val * n + j.val)) = C (i, j)
+private theorem not_readsWidth_stripRandProg {B : Basis} {r : ℕ} {p : Program B r}
+    (hp : ¬ p.ReadsWidth) : ¬ (stripRandProg p).ReadsWidth := by
+  rintro ⟨i, hi, hrw⟩
+  obtain ⟨j, hj, rfl⟩ := List.mem_map.mp hi
+  cases j with
+  | rand _ _ => exact hrw
+  | _ => exact hp ⟨_, hj, hrw⟩
 
-private theorem CostMem.of_outside {n base : ℕ} {C : Fin n × Fin n → ℕ} {mem mem' : ℕ → ℕ}
-    (h : CostMem base C mem) (hf : ∀ a, base ≤ a ∧ a < base + n * n → mem' a = mem a) :
-    CostMem base C mem' where
-  hentry i j := by
+private theorem step_stripRandProg_of_ne_fault {B : Basis} {r w : ℕ} {p : Program B r}
+    {s : State r} (hne : WordRAM.step w p s ≠ .fault) :
+    WordRAM.step w (stripRandProg p) s = WordRAM.step w p s := by
+  unfold WordRAM.step at hne ⊢
+  rw [stripRandProg, List.getElem?_map]
+  cases hp : p[s.pc]? with
+  | none => simp [hp] at hne
+  | some ins =>
+    cases ins with
+    | rand _ _ => simp [hp] at hne
+    | _ => rfl
+
+private theorem runs_stripRandProg {B : Basis} {r w : ℕ} {p : Program B r}
+    {s t : State r} {m : ℕ} (h : Runs w p s t m) : Runs w (stripRandProg p) s t m := by
+  induction h with
+  | refl => exact .refl _
+  | tail _ _ _ _ hstep ih =>
+    refine .tail _ _ _ _ ih ?_
+    unfold Next at hstep ⊢
+    rw [step_stripRandProg_of_ne_fault (by rw [hstep]; exact nofun)]
+    exact hstep
+
+/-- Private workspace layout and parameters for the memory-client auction solver. -/
+private structure AuctionWS where
+  /-- Common number of persons and objects. -/
+  n : ℕ
+  /-- Positive bidding increment `ε`. -/
+  eps : ℕ
+  /-- Cost scaling factor (`1` or `n + 1`). -/
+  scale : ℕ
+  /-- Scanned entry magnitude bound `M`. -/
+  M : ℕ
+  /-- Start address of encoded input matrix (`3` or `2`). -/
+  matBase : ℕ
+  /-- Base address of working unsigned `n × n` matrix `C[0..n*n)`. -/
+  bC : ℕ
+  /-- Base address of `owner[0..n)` (`n` denotes `none`, `i < n` denotes `some i`). -/
+  bOwner : ℕ
+  /-- Base address of nonnegative integer prices `price[0..n)`. -/
+  bPrice : ℕ
+  /-- Base address of reversed unassigned-person stack `stack[0..n)`. -/
+  bStack : ℕ
+  /-- Base address of length-prefixed output list (`n + 1` cells). -/
+  outBase : ℕ
+
+private word_enc_structure encAuctionWS : AuctionWS where
+  n : wordWords,
+  eps : wordWords,
+  scale : wordWords,
+  M : wordWords,
+  matBase : wordWords,
+  bC : wordWords,
+  bOwner : wordWords,
+  bPrice : wordWords,
+  bStack : wordWords,
+  outBase : wordWords
+
+private instance : WordEncoding AuctionWS := ⟨10, encAuctionWS⟩
+
+private structure ScanArgs where
+  matBase : ℕ
+  total : ℕ
+
+private word_enc_structure encScanArgs : ScanArgs where
+  matBase : wordWords, total : wordWords
+
+private instance : WordEncoding ScanArgs := ⟨2, encScanArgs⟩
+
+private structure ScanState where
+  idx : ℕ
+  curM : ℕ
+
+private word_enc_structure encScanState : ScanState where
+  idx : wordWords, curM : wordWords
+
+private instance : WordEncoding ScanState := ⟨2, encScanState⟩
+
+private structure ScanRowArgs where
+  n : ℕ
+  rowBase : ℕ
+  bPrice : ℕ
+
+private word_enc_structure encScanRowArgs : ScanRowArgs where
+  n : wordWords, rowBase : wordWords, bPrice : wordWords
+
+private instance : WordEncoding ScanRowArgs := ⟨3, encScanRowArgs⟩
+
+private structure BestState where
+  idx : ℕ
+  bestJ : ℕ
+  bestVal : ℕ
+
+private word_enc_structure encBestState : BestState where
+  idx : wordWords, bestJ : wordWords, bestVal : wordWords
+
+private instance : WordEncoding BestState := ⟨3, encBestState⟩
+
+private structure ScanSecondArgs where
+  n : ℕ
+  rowBase : ℕ
+  bPrice : ℕ
+  bestJ : ℕ
+
+private word_enc_structure encScanSecondArgs : ScanSecondArgs where
+  n : wordWords, rowBase : wordWords, bPrice : wordWords, bestJ : wordWords
+
+private instance : WordEncoding ScanSecondArgs := ⟨4, encScanSecondArgs⟩
+
+private structure SecondState where
+  idx : ℕ
+  hasSecond : ℕ
+  secondVal : ℕ
+
+private word_enc_structure encSecondState : SecondState where
+  idx : wordWords, hasSecond : wordWords, secondVal : wordWords
+
+private instance : WordEncoding SecondState := ⟨3, encSecondState⟩
+
+private structure SumState where
+  idx : ℕ
+  acc : ℕ
+
+private word_enc_structure encSumState : SumState where
+  idx : wordWords, acc : wordWords
+
+private instance : WordEncoding SumState := ⟨2, encSumState⟩
+
+/-! ## Section 3: Memory-client subroutines, `realize` certificates, and simulations -/
+
+/-! ### 3.1 Scanning input costs for `M ≤ maxMag` -/
+
+private def scanMaxStep (x : ScanArgs × ScanState) : Memory.Prog ScanState := do
+  let d := x.1
+  let st := x.2
+  let raw ← Memory.read (d.matBase + st.idx)
+  let mag := raw / 2
+  if st.curM < mag then
+    pure ⟨st.idx + 1, mag⟩
+  else
+    pure ⟨st.idx + 1, st.curM⟩
+
+private abbrev ScanMaxStepSafe (w : ℕ) (x : ScanArgs × ScanState) (_ : Memory.State) : Prop :=
+  Fits w 2 ∧ Fits w (x.1.matBase + x.2.idx) ∧ Fits w (x.2.idx + 1)
+
+private theorem scanMaxStep_realizes :
+    Realizes .exact scanMaxStep (appendWords encScanArgs encScanState) encScanState
+      ScanMaxStepSafe (fun _ _ => 0) := by
+  unfold scanMaxStep
+  realize
+  all_goals
+    rcases h with ⟨_, _, _⟩
+    first | assumption | omega
+
+private def scanMaxProg (d : ScanArgs) : Memory.Prog ℕ := do
+  let res ← iterate scanMaxStep d d.total ⟨0, 0⟩
+  pure res.curM
+
+private theorem scanMaxProg_realizes :
+    Realizes .exact scanMaxProg encScanArgs wordWords
+      (fun w d s => iterationSafe scanMaxStep ScanMaxStepSafe w d d.total ⟨0, 0⟩ s)
+      (fun _ _ => 0) := by
+  unfold scanMaxProg
+  realize [scanMaxStep_realizes]
+  exact h
+
+private theorem scanMaxProg_spec {w n matBase maxM : ℕ} {cost : Fin n × Fin n → ℤ}
+    {s₀ : Memory.State}
+    (hcost_mem : ∀ i j : Fin n,
+      s₀.mem (matBase + (i.val * n + j.val)) = Signed.encode (cost (i, j)))
+    (hmag : ∀ i j : Fin n, (cost (i, j)).natAbs ≤ maxM)
+    (hfr : matBase + n * n ≤ s₀.frontier)
+    (hfit2 : Fits w 2) (hfit_end : Fits w (matBase + n * n)) :
+    let d : ScanArgs := ⟨matBase, n * n⟩
+    let M := (Memory.spec 0).clientResult s₀ (scanMaxProg d)
+    iterationSafe scanMaxStep ScanMaxStepSafe w d d.total ⟨0, 0⟩ s₀ ∧
+      (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (scanMaxProg d)) ∧
+      memoryCost (scanMaxProg d) s₀ ≤ n * n ∧
+      (Memory.spec 0).clientState s₀ (scanMaxProg d) = s₀ ∧
+      M ≤ maxM ∧ ∀ i j : Fin n, (cost (i, j)).natAbs ≤ M := by
+  let d : ScanArgs := ⟨matBase, n * n⟩
+  have hit := iterate_spec scanMaxStep ScanMaxStepSafe w d 1 (n * n)
+    (fun k st s => s = s₀ ∧ st.idx = k ∧ st.curM ≤ maxM ∧
+      ∀ idx < k, s₀.mem (matBase + idx) / 2 ≤ st.curM)
+    (fun _ => False)
+    (fun k hk st s ⟨hs, hidx, hle, hprev⟩ => by
+      subst s
+      have hsafe : ScanMaxStepSafe w (d, st) s₀ :=
+        ⟨hfit2, hfit_end.of_le (by dsimp only [d]; omega),
+          hfit_end.of_le (by dsimp only [d]; omega)⟩
+      have hv : (Memory.spec w).ValidHistory s₀
+          ((Memory.spec w).clientHistory s₀ (scanMaxStep (d, st))) :=
+        validHistory_read_bind (by dsimp only [d]; omega)
+          (validHistory_ite (fun _ => validHistory_pure w _ _) (fun _ => validHistory_pure w _ _))
+      have hmc : memoryCost (scanMaxStep (d, st)) s₀ ≤ 1 := by
+        unfold scanMaxStep
+        refine memoryCost_read_bind_le fun _ _ => ?_
+        exact memoryCost_ite_le (Nat.le_refl 0) (Nat.le_refl 0)
+      have hst_eq : (Memory.spec 0).clientState s₀ (scanMaxStep (d, st)) = s₀ := by
+        unfold scanMaxStep
+        rw [clientState_bind_read, prog_clientState_ite, clientState_pure, clientState_pure,
+          ite_self]
+      have hdiv_le : s₀.mem (matBase + st.idx) / 2 ≤ maxM := by
+        have hn_pos : 0 < n := by by_contra h0; simp [Nat.eq_zero_of_not_pos h0] at hk
+        have hlt_nn : st.idx < n * n := hidx ▸ hk
+        let i : Fin n := ⟨st.idx / n, (Nat.div_lt_iff_lt_mul hn_pos).mpr hlt_nn⟩
+        let j : Fin n := ⟨st.idx % n, Nat.mod_lt _ hn_pos⟩
+        have hij : i.val * n + j.val = st.idx := by
+          dsimp only [i, j]; rw [Nat.mul_comm, Nat.div_add_mod]
+        rw [← hij, hcost_mem i j, Signed.encode_div_two]
+        exact hmag i j
+      refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun _ _ => by rw [hst_eq], hst_eq, ?_⟩
+      unfold scanMaxStep
+      rw [clientResult_bind_read]
+      dsimp only [d]
+      by_cases hlt : st.curM < s₀.mem (matBase + st.idx) / 2
+      · rw [ite_eq_left hlt, clientResult_pure]
+        dsimp only
+        refine ⟨by omega, hdiv_le, fun idx hidx_lt => ?_⟩
+        rcases Nat.lt_succ_iff_lt_or_eq.mp hidx_lt with hlt' | rfl
+        · exact (hprev idx hlt').trans (le_of_lt hlt)
+        · rw [← hidx]
+      · rw [ite_eq_right hlt, clientResult_pure]
+        dsimp only
+        refine ⟨by omega, hle, fun idx hidx_lt => ?_⟩
+        rcases Nat.lt_succ_iff_lt_or_eq.mp hidx_lt with hlt' | rfl
+        · exact hprev idx hlt'
+        · rw [← hidx]; omega)
+    ⟨0, 0⟩ s₀ ⟨rfl, rfl, Nat.zero_le _, fun _ h => absurd h (Nat.not_lt_zero _)⟩
+  obtain ⟨hsafe, hv_it, hmc_it, _, _, hs_eq, _, hM_le, hprev⟩ := hit
+  dsimp only [d]
+  unfold scanMaxProg
+  refine ⟨hsafe, validHistory_bind_step hv_it (validHistory_pure w _ _), ?_, ?_, ?_, ?_⟩
+  · rw [memoryCost_bind']
+    have hp : memoryCost (pure ((Memory.spec 0).clientResult s₀
+        (iterate scanMaxStep d (n * n) ⟨0, 0⟩)).curM : Memory.Prog ℕ)
+        ((Memory.spec 0).clientState s₀ (iterate scanMaxStep d (n * n) ⟨0, 0⟩)) = 0 := rfl
+    dsimp only [d] at hmc_it ⊢
+    rw [hp]; omega
+  · rw [clientState_bind, clientState_pure]
+    exact hs_eq
+  · rw [clientResult_bind, clientResult_pure]
+    exact hM_le
+  · intro i j
+    rw [clientResult_bind, clientResult_pure]
     have hlt : i.val * n + j.val < n * n := Cslib.Matrix.pairIndex_lt (i, j)
-    exact (hf _ ⟨by omega, by omega⟩).trans (h.hentry i j)
+    have h := hprev (i.val * n + j.val) hlt
+    rwa [hcost_mem i j, Signed.encode_div_two] at h
 
-/-- Read-only constant and workspace pointer registers (`0 .. 13`) for `coreCode`. -/
-structure BaseRegs (n matBase eps scale M : ℕ) (x : Data 26) : Prop where
-  /-- `zero = 0`. -/
-  hzero : x.regs zero = 0
-  /-- `one = 1`. -/
-  hone : x.regs one = 1
-  /-- `two = 2`. -/
-  htwo : x.regs two = 2
-  /-- `rn = n`. -/
-  hrn : x.regs rn = n
-  /-- `rnn = n * n`. -/
-  hrnn : x.regs rnn = n * n
-  /-- `reps = eps`. -/
-  hreps : x.regs reps = eps
-  /-- `rscale = scale`. -/
-  hrscale : x.regs rscale = scale
-  /-- `rM = M`. -/
-  hrM : x.regs rM = M
-  /-- `matBaseReg = matBase`. -/
-  hmatBase : x.regs matBaseReg = matBase
-  /-- `bC = matBase + n * n`. -/
-  hbC : x.regs bC = matBase + n * n
-  /-- `bOwner = matBase + 2 * (n * n)`. -/
-  hbOwner : x.regs bOwner = matBase + 2 * (n * n)
-  /-- `bPrice = matBase + 2 * (n * n) + n`. -/
-  hbPrice : x.regs bPrice = matBase + 2 * (n * n) + n
-  /-- `bStack = matBase + 2 * (n * n) + 2 * n`. -/
-  hbStack : x.regs bStack = matBase + 2 * (n * n) + 2 * n
-  /-- `outBase = matBase + 2 * (n * n) + 3 * n`. -/
-  houtBase : x.regs outBase = matBase + 2 * (n * n) + 3 * n
+/-! ### 3.2 Filling the shifted, scaled unsigned cost matrix -/
 
-private theorem BaseRegs.of_eq {n matBase eps scale M : ℕ} {x y : Data 26}
-    (hb : BaseRegs n matBase eps scale M x)
-    (heq : ∀ i : Fin 26, i.val < 14 → y.regs i = x.regs i) :
-    BaseRegs n matBase eps scale M y where
-  hzero := (heq zero (by decide)).trans hb.hzero
-  hone := (heq one (by decide)).trans hb.hone
-  htwo := (heq two (by decide)).trans hb.htwo
-  hrn := (heq rn (by decide)).trans hb.hrn
-  hrnn := (heq rnn (by decide)).trans hb.hrnn
-  hreps := (heq reps (by decide)).trans hb.hreps
-  hrscale := (heq rscale (by decide)).trans hb.hrscale
-  hrM := (heq rM (by decide)).trans hb.hrM
-  hmatBase := (heq matBaseReg (by decide)).trans hb.hmatBase
-  hbC := (heq bC (by decide)).trans hb.hbC
-  hbOwner := (heq bOwner (by decide)).trans hb.hbOwner
-  hbPrice := (heq bPrice (by decide)).trans hb.hbPrice
-  hbStack := (heq bStack (by decide)).trans hb.hbStack
-  houtBase := (heq outBase (by decide)).trans hb.houtBase
+private def fillCStep (x : AuctionWS × ℕ) : Memory.Prog ℕ := do
+  let ws := x.1
+  let idx := x.2
+  let raw ← Memory.read (ws.matBase + idx)
+  let mag := raw / 2
+  let sign := raw % 2
+  if sign = 0 then
+    Memory.write (ws.bC + idx) (ws.scale * (ws.M + mag))
+    pure (idx + 1)
+  else
+    Memory.write (ws.bC + idx) (ws.scale * (ws.M - mag))
+    pure (idx + 1)
 
-private def OwnerMem {n : ℕ} (base : ℕ) (owner : Fin n → Option (Fin n)) (mem : ℕ → ℕ) : Prop :=
-  ∀ j : Fin n, mem (base + j.val) = (owner j).elim n Fin.val
+private abbrev FillCStepSafe (w : ℕ) (x : AuctionWS × ℕ) (s : Memory.State) : Prop :=
+  let ws := x.1
+  let idx := x.2
+  let mag := s.mem (ws.matBase + idx) / 2
+  Fits w 2 ∧ Fits w (ws.matBase + idx) ∧ Fits w (ws.bC + idx) ∧ Fits w (idx + 1) ∧
+    mag ≤ ws.M ∧ Fits w (ws.M + mag) ∧ Fits w (ws.scale * (ws.M + mag))
 
-private def PriceMem {n : ℕ} (base : ℕ) (price : Fin n → ℤ) (mem : ℕ → ℕ) : Prop :=
-  ∀ j : Fin n, mem (base + j.val) = (price j).toNat
+private theorem fillCStep_realizes :
+    Realizes .exact fillCStep (appendWords encAuctionWS wordWords) wordWords
+      FillCStepSafe (fun _ _ => 0) := by
+  unfold fillCStep
+  realize
+  all_goals
+    rcases h with ⟨_, _, _, _, _, _, hfsc⟩
+    first
+    | assumption
+    | omega
+    | exact hfsc.of_le (Nat.mul_le_mul_left _ (by omega))
 
-private def StackMem {n : ℕ} (base : ℕ) (free : List (Fin n)) (x : Data 26) : Prop :=
-  x.regs sp = free.length ∧
-    ∀ (t : ℕ) (ht : t < free.length),
-      x.mem (base + t) = (free.reverse[t]'(by simpa using ht)).val
+private def fillCProg (ws : AuctionWS) : Memory.Prog ℕ :=
+  iterate fillCStep ws (ws.n * ws.n) 0
 
-/-! ## Section 3: Pure list helpers and core in-memory solver (`coreCode`) -/
+private abbrev FillCProgSafe (w : ℕ) (ws : AuctionWS) (s : Memory.State) : Prop :=
+  Fits w (ws.n * ws.n) ∧ iterationSafe fillCStep FillCStepSafe w ws (ws.n * ws.n) 0 s
 
-private theorem min?_append_singleton {β : Type*} [LinearOrder β] (xs : List β) (x : β) :
-    (xs ++ [x]).min? =
-      match xs.min? with
-      | none => some x
-      | some a => some (if x < a then x else a) := by
-  cases h : xs.min? with
-  | none =>
-    rw [List.min?_eq_none_iff.mp h]
-    simp
-  | some a =>
-    rw [List.min?_eq_some_iff] at h ⊢
-    obtain ⟨ha_mem, ha_le⟩ := h
-    split_ifs with hlt
-    · refine ⟨List.mem_append_right _ (List.mem_singleton.mpr rfl), fun b hb => ?_⟩
-      rcases List.mem_append.mp hb with hb | hb
-      · exact (le_of_lt hlt).trans (ha_le b hb)
-      · rw [List.mem_singleton.mp hb]
-    · refine ⟨List.mem_append_left _ ha_mem, fun b hb => ?_⟩
-      rcases List.mem_append.mp hb with hb | hb
-      · exact ha_le b hb
-      · rw [List.mem_singleton.mp hb]; exact le_of_not_gt hlt
+private theorem fillCProg_realizes :
+    Realizes .exact fillCProg encAuctionWS wordWords FillCProgSafe (fun _ _ => 0) := by
+  unfold fillCProg
+  realize [fillCStep_realizes]
+  all_goals
+    rcases h with ⟨_, _⟩
+    assumption
 
-private theorem bids_le_bids_auctionLoop {n : ℕ} (c : Fin n × Fin n → ℤ) (ε : ℤ) :
-    ∀ (fuel : ℕ) (s : AuctionState n), s.bids ≤ (auctionLoop c ε fuel s).bids
-  | 0, _ => le_rfl
-  | fuel + 1, s => by
-    rcases hs : s.free with _ | ⟨i, rest⟩
-    · simp [auctionLoop, hs]
-    · simp only [auctionLoop, hs]
-      have h := bids_le_bids_auctionLoop c ε fuel (bidStep c ε s)
-      rw [bids_bidStep hs] at h
-      omega
-
-private def initStackBody : Code .standard 26 := ram[
-  val ← rn - one; val ← val - idx;
-  addr ← bStack + idx; *addr ← val;
-  idx ← idx + one ]
-
-private def initCoreCode : Code .standard 26 :=
-  .seq (Cslib.WordRAM.fillConst bOwner rn rn one idx addr)
-    (.seq (Cslib.WordRAM.fillConst bPrice rn zero one idx addr)
-      (.seq (ram[ idx ← #0 ])
-        (.seq (.loop (.lt idx rn) initStackBody)
-          (ram[ sp ← rn ]))))
-
-private theorem exec_initCoreCode {w n matBase eps scale M : ℕ} (x : Data 26)
-    (hb : BaseRegs n matBase eps scale M x)
-    (hfit : Fits w (matBase + 2 * (n * n) + 3 * n)) :
-    ∃ y, ExecWithin w initCoreCode x y (17 * n + 10) ∧
-      BaseRegs n matBase eps scale M y ∧
-      OwnerMem (matBase + 2 * (n * n)) (auctionInit n).owner y.mem ∧
-      PriceMem (matBase + 2 * (n * n) + n) (auctionInit n).price y.mem ∧
-      StackMem (matBase + 2 * (n * n) + 2 * n) (auctionInit n).free y ∧
-      (∀ a, ¬(matBase + 2 * (n * n) ≤ a ∧ a < matBase + 2 * (n * n) + 3 * n) →
-        y.mem a = x.mem a) := by
-  obtain ⟨y₁, he₁_raw, hr₁_raw, _, hmem₁⟩ := Cslib.WordRAM.fillConst_exec (w := w)
-    (base := bOwner) (len := rn) (val := rn) (one := one) (idx := idx) (addr := addr)
-    (by decide) (by decide) (by decide) (by decide)
-    (by decide) (by decide) (by decide) (by decide) (by decide) hb.hone
-    (by rw [hb.hbOwner, hb.hrn]; exact hfit.of_le (by omega))
-    (by rw [hb.hrn]; exact hfit.of_le (by omega))
-  have he₁ : ExecWithin w (Cslib.WordRAM.fillConst bOwner rn rn one idx addr) x y₁ (5 * n + 3) := by
-    rw [hb.hrn] at he₁_raw; exact he₁_raw.within
-  have hr₁ : ∀ i : Fin 26, i.val < 21 → y₁.regs i = x.regs i := fun i hi =>
-    hr₁_raw i (fun h => by subst h; simp at hi) (fun h => by subst h; simp at hi)
-  have hb₁ : BaseRegs n matBase eps scale M y₁ := hb.of_eq fun i hi => hr₁ i (by omega)
-  obtain ⟨y₂, he₂_raw, hr₂_raw, _, hmem₂⟩ := Cslib.WordRAM.fillConst_exec (w := w) (x := y₁)
-    (base := bPrice) (len := rn) (val := zero) (one := one) (idx := idx) (addr := addr)
-    (by decide) (by decide) (by decide) (by decide)
-    (by decide) (by decide) (by decide) (by decide) (by decide) hb₁.hone
-    (by rw [hb₁.hbPrice, hb₁.hrn]; exact hfit.of_le (by omega))
-    (by rw [hb₁.hrn]; exact hfit.of_le (by omega))
-  have he₂ :
-      ExecWithin w (Cslib.WordRAM.fillConst bPrice rn zero one idx addr) y₁ y₂ (5 * n + 3) := by
-    rw [hb₁.hrn] at he₂_raw; exact he₂_raw.within
-  have hr₂ : ∀ i : Fin 26, i.val < 21 → y₂.regs i = y₁.regs i := fun i hi =>
-    hr₂_raw i (fun h => by subst h; simp at hi) (fun h => by subst h; simp at hi)
-  rw [hb₁.hbPrice, hb₁.hrn, hb₁.hzero] at hmem₂
-  have hb₂ : BaseRegs n matBase eps scale M y₂ := hb₁.of_eq fun i hi => hr₂ i (by omega)
-  have hs₀ : ∃ s₀, ExecWithin w (ram[ idx ← #0 ] : Code .standard 26) y₂ s₀ 1 ∧
-      s₀ = y₂.set idx 0 := by
-    refine WP.exists_execWithin ?_; wram_exec; rfl
-  obtain ⟨s₀, he_s₀, rfl⟩ := hs₀
-  let P (t : ℕ) (w_st : Data 26) : Prop :=
-    t ≤ n ∧
-      (∀ i : Fin 26, i.val < 14 → w_st.regs i = y₂.regs i) ∧
-      (∀ k < t, w_st.mem (matBase + 2 * (n * n) + 2 * n + k) = n - 1 - k) ∧
-      (∀ a, ¬(matBase + 2 * (n * n) + 2 * n ≤ a ∧ a < matBase + 2 * (n * n) + 2 * n + t) →
-        w_st.mem a = y₂.mem a)
-  have hP₀ : P 0 (y₂.set idx 0) :=
-    ⟨Nat.zero_le _, fun i hi => by wram_simp, fun _ hk => absurd hk (Nat.not_lt_zero _),
-      fun _ _ => rfl⟩
-  have hbody (w_st : Data 26) (hw_st : P (w_st.regs idx) w_st) (hlt : w_st.regs idx < n) :
-      ∃ z, ExecWithin w initStackBody w_st z 5 ∧ P (w_st.regs idx + 1) z ∧
-        z.regs idx = w_st.regs idx + 1 := by
-    obtain ⟨_, hr, hst, hf⟩ := hw_st
-    have hbw : BaseRegs n matBase eps scale M w_st := hb₂.of_eq hr
-    have h1_le_n : 1 ≤ n := by omega
-    have hidx_le : w_st.regs idx ≤ n - 1 := by omega
-    have hf_n1 : Fits w (n - 1) := hfit.of_le (by omega)
-    have hf_sub : Fits w (n - 1 - w_st.regs idx) := hfit.of_le (by omega)
-    have hf_addr : Fits w (matBase + 2 * (n * n) + 2 * n + w_st.regs idx) := hfit.of_le (by omega)
-    have hf_idx1 : Fits w (w_st.regs idx + 1) := hfit.of_le (by omega)
-    refine WP.exists_execWithin ?_
-    unfold initStackBody
-    wram_exec [hbw.hrn, hbw.hone, hbw.hbStack, h1_le_n, hidx_le, hf_n1, hf_sub, hf_addr, hf_idx1]
-    refine ⟨⟨by omega, fun i hi => by wram_simp [hr i hi], fun k hk => ?_, fun a ha => ?_⟩,
-      by wram_simp⟩
-    · by_cases heq : k = w_st.regs idx
-      · subst heq; wram_simp
-      · wram_simp; exact hst k (by omega)
-    · wram_simp; exact hf a (by omega)
-  obtain ⟨y₃, hl_st, hPn, _⟩ := ExecWithin.loop_count P
-    (fun w_st hw_st => (hw_st.2.1 rn (by decide)).trans hb₂.hrn) hbody
-    (x := y₂.set idx 0) (by simp) (by simpa using hP₀)
-  obtain ⟨_, hr₃, hst₃, hf₃⟩ := hPn
-  have hb₃ : BaseRegs n matBase eps scale M y₃ := hb₂.of_eq hr₃
-  have hsp_step : ∃ y, ExecWithin w (ram[ sp ← rn ] : Code .standard 26) y₃ y 1 ∧
-      y = y₃.set sp n := by
-    refine WP.exists_execWithin ?_; wram_exec [hb₃.hrn]; rfl
-  obtain ⟨y, he_sp, rfl⟩ := hsp_step
-  let y := y₃.set sp n
-  have hby : BaseRegs n matBase eps scale M y := hb₃.of_eq fun i hi => by dsimp only [y]; wram_simp
-  have hown : OwnerMem (matBase + 2 * (n * n)) (auctionInit n).owner y.mem := fun j => by
-    dsimp only [y, Data.set]
-    rw [hf₃ _ (by have := j.isLt; omega), hmem₂,
-      fill_of_not_owns (by simp only [Block.Owns]; have := j.isLt; omega),
-      hmem₁, hb.hbOwner, hb.hrn]
-    simpa [auctionInit] using
-      fill_of_owns ⟨Nat.le_add_right _ _, Nat.add_lt_add_left j.isLt _⟩
-  have hprc : PriceMem (matBase + 2 * (n * n) + n) (auctionInit n).price y.mem := fun j => by
-    dsimp only [y, Data.set]
-    rw [hf₃ _ (by have := j.isLt; omega), hmem₂]
-    simpa [auctionInit] using fill_of_owns ⟨Nat.le_add_right _ _, Nat.add_lt_add_left j.isLt _⟩
-  have hstk : StackMem (matBase + 2 * (n * n) + 2 * n) (auctionInit n).free y := by
-    refine ⟨by dsimp only [y]; wram_simp; simp [auctionInit], fun t ht => ?_⟩
-    have ht_lt : t < n := by simpa [auctionInit] using ht
-    dsimp only [y, Data.set]
-    rw [hst₃ t ht_lt]
-    simp [auctionInit, List.getElem_reverse]
-  have hout_frame : ∀ a, ¬(matBase + 2 * (n * n) ≤ a ∧ a < matBase + 2 * (n * n) + 3 * n) →
-      y.mem a = x.mem a := fun a ha => by
-    dsimp only [y, Data.set]
-    rw [hf₃ a (by omega), hmem₂, fill_of_not_owns (by simp only [Block.Owns]; omega),
-      hmem₁, hb.hbOwner, hb.hrn]
-    exact fill_of_not_owns (by simp only [Block.Owns]; omega)
-  refine ⟨y, (he₁.seq (he₂.seq (he_s₀.seq (hl_st.seq he_sp)))).mono (by simp; omega),
-    hby, hown, hprc, hstk, hout_frame⟩
-
-private def findBestBody : Code .standard 26 := ram[
-  addr ← rowBase + idx; val ← *addr;
-  addr ← bPrice + idx; val2 ← *addr;
-  val ← val + val2;
-  if idx = zero then [
-    bestJ ← idx; bestVal ← val
-  ] else [
-    if val < bestVal then [ bestJ ← idx; bestVal ← val ] else [ tmp ← zero ]
-  ];
-  idx ← idx + one ]
-
-private def findBestCode : Code .standard 26 :=
-  .seq (ram[ idx ← #0 ]) (.loop (.lt idx rn) findBestBody)
-
-private def findSecondBody : Code .standard 26 := ram[
-  if idx = bestJ then [ tmp ← zero ] else [
-    addr ← rowBase + idx; val ← *addr;
-    addr ← bPrice + idx; val2 ← *addr;
-    val ← val + val2;
-    if hasSecond = zero then [
-      hasSecond ← one; secondVal ← val
-    ] else [
-      if val < secondVal then [ secondVal ← val ] else [ tmp ← zero ]
-    ]
-  ];
-  idx ← idx + one ]
-
-private def findSecondCode : Code .standard 26 :=
-  .seq (ram[ hasSecond ← #0; secondVal ← #0; idx ← #0 ])
-    (.loop (.lt idx rn) findSecondBody)
-
-private def applyBidTail : Code .standard 26 :=
-  .seq (ram[
-    if hasSecond = zero then [
-      addr ← bPrice + bestJ; val ← *addr;
-      val ← val + reps
-    ] else [
-      addr ← rowBase + bestJ; val2 ← *addr;
-      val ← secondVal - val2;
-      val ← val + reps
-    ] ])
-    (.seq (ram[ addr ← bPrice + bestJ; *addr ← val;
-                addr ← bOwner + bestJ; val2 ← *addr;
-                *addr ← curI ])
-      (ram[ if val2 < rn then [
-              addr ← bStack + sp; *addr ← val2;
-              sp ← sp + one
-            ] else [ tmp ← zero ] ]))
-
-private def bidStepCode : Code .standard 26 :=
-  .seq (ram[ sp ← sp - one; addr ← bStack + sp; curI ← *addr;
-             rowBase ← curI * rn; rowBase ← bC + rowBase ])
-    (.seq findBestCode (.seq findSecondCode applyBidTail))
-
-/-- Structured word-RAM implementation of `auction` on an in-memory unsigned `n × n` cost matrix
-at `bC` with bidding increment `reps`. -/
-def coreCode : Code .standard 26 :=
-  .seq initCoreCode (.loop (.lt zero sp) bidStepCode)
-
-private theorem exec_findBestCode {w n matBase eps scale M W : ℕ}
-    {C : Fin n × Fin n → ℕ} (hC : ∀ i j, C (i, j) ≤ W)
-    {price : Fin n → ℤ} (hp_nonneg : ∀ k, 0 ≤ price k) (hp_le : ∀ k, price k ≤ (W + eps : ℤ))
-    (i₀ : Fin n) (x : Data 26) (hb : BaseRegs n matBase eps scale M x)
-    (hCM : CostMem (matBase + n * n) C x.mem)
-    (hPM : PriceMem (matBase + 2 * (n * n) + n) price x.mem)
-    (hrb : x.regs rowBase = matBase + n * n + i₀.val * n)
-    (hfit : Fits w (matBase + 2 * (n * n) + 4 * n + 2 * W + 2 * eps + 4)) :
-    let cZ : Fin n × Fin n → ℤ := fun e => (C e : ℤ)
-    ∃ y j₀, ExecWithin w findBestCode x y (13 * n + 3) ∧
-      bestObject cZ price i₀ = some j₀ ∧
-      (∀ k : Fin n, redCost cZ price i₀ j₀ ≤ redCost cZ price i₀ k) ∧
-      (∀ r : Fin 26, r.val < 17 → y.regs r = x.regs r) ∧
-      y.regs bestJ = j₀.val ∧
-      (y.regs bestVal : ℤ) = redCost cZ price i₀ j₀ ∧
-      y.mem = x.mem := by
-  intro cZ
-  have hn_pos : 0 < n := Nat.zero_lt_of_lt i₀.isLt
-  have hs₀ : ∃ s₀, ExecWithin w (ram[ idx ← #0 ] : Code .standard 26) x s₀ 1 ∧
-      s₀ = x.set idx 0 := by
-    refine WP.exists_execWithin ?_; wram_exec; rfl
-  obtain ⟨s₀, he₀, rfl⟩ := hs₀
-  let rcNat (k : Fin n) : ℕ := C (i₀, k) + (price k).toNat
-  have hrc_eq : ∀ k : Fin n, (rcNat k : ℤ) = redCost cZ price i₀ k := fun k => by
-    have := hp_nonneg k
-    simp only [rcNat, redCost, cZ]
-    omega
-  have hrc_le : ∀ k : Fin n, rcNat k ≤ 2 * W + eps := fun k => by
-    have := hC i₀ k
-    have := hp_nonneg k
-    have := hp_le k
-    dsimp only [rcNat]
-    omega
-  let PB (t : ℕ) (y : Data 26) : Prop :=
-    t ≤ n ∧
-      (∀ r : Fin 26, r.val < 17 → y.regs r = x.regs r) ∧
-      y.mem = x.mem ∧
-      (0 < t → ∃ j_t : Fin n,
-        (((List.finRange n).take t).argmin (redCost cZ price i₀)) = some j_t ∧
-          y.regs bestJ = j_t.val ∧ y.regs bestVal = rcNat j_t)
-  have hPB₀ : PB 0 (x.set idx 0) :=
-    ⟨Nat.zero_le _, fun r hr => by wram_simp, rfl, fun h => absurd h (Nat.lt_irrefl 0)⟩
-  have hbody (y : Data 26) (hy : PB (y.regs idx) y) (hlt : y.regs idx < n) :
-      ∃ z, ExecWithin w findBestBody y z 11 ∧ PB (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨_, hr, hmem, hinv⟩ := hy
-    have hby : BaseRegs n matBase eps scale M y := hb.of_eq fun r hr' => hr r (by omega)
-    have hy_rb : y.regs rowBase = matBase + n * n + i₀.val * n :=
-      (hr rowBase (by decide)).trans hrb
-    let k₀ : Fin n := ⟨y.regs idx, hlt⟩
-    have hmul_lt : i₀.val * n + y.regs idx < n * n := Cslib.Matrix.pairIndex_lt (i₀, k₀)
-    have hC_k : y.mem (matBase + n * n + i₀.val * n + y.regs idx) = C (i₀, k₀) := by
-      rw [hmem, Nat.add_assoc (matBase + n * n)]
-      exact hCM.hentry i₀ k₀
-    have hP_k : y.mem (matBase + 2 * (n * n) + n + y.regs idx) = (price k₀).toNat := by
-      rw [hmem]
-      exact hPM k₀
-    have hf_c : Fits w (matBase + n * n + i₀.val * n + y.regs idx) := hfit.of_le (by omega)
-    have hf_p : Fits w (matBase + 2 * (n * n) + n + y.regs idx) := hfit.of_le (by omega)
-    have hf_rc : Fits w (rcNat k₀) := by
-      have := hrc_le k₀; exact hfit.of_le (by omega)
-    have hf_idx1 : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
-    have htake_succ : (List.finRange n).take (y.regs idx + 1) =
-        (List.finRange n).take (y.regs idx) ++ [k₀] := List.take_succ_finRange hlt
-    refine WP.exists_execWithin ?_
-    unfold findBestBody
-    by_cases ht0 : y.regs idx = 0
-    · have hc0 : y.regs zero = y.regs idx := hby.hzero.trans ht0.symm
-      wram_exec [hy_rb, hby.hbPrice, hby.hone, hc0, hC_k, hP_k,
-        hf_c, hf_p, hf_rc, hf_idx1]
-      refine ⟨⟨by omega, fun r hr' => by wram_simp [hr r hr'], hmem, fun _ => ?_⟩, by wram_simp⟩
-      refine ⟨k₀, ?_, by wram_simp [k₀], by wram_simp; rfl⟩
-      rw [htake_succ, ht0, List.take_zero, List.nil_append]
-      rfl
-    · obtain ⟨j_t, harg_t, hbj_t, hbv_t⟩ := hinv (Nat.pos_of_ne_zero ht0)
-      have hc0 : y.regs idx ≠ y.regs zero := by rw [hby.hzero]; exact ht0
-      by_cases hlt_rc : rcNat k₀ < rcNat j_t
-      · have hlt_z : redCost cZ price i₀ k₀ < redCost cZ price i₀ j_t := by
-          rw [← hrc_eq k₀, ← hrc_eq j_t]; exact Nat.cast_lt.mpr hlt_rc
-        wram_exec [hy_rb, hby.hbPrice, hby.hone, hc0, hC_k, hP_k, hbv_t, hlt_rc,
-          hf_c, hf_p, hf_rc, hf_idx1]
-        refine ⟨⟨by omega, fun r hr' => by wram_simp [hr r hr'], hmem, fun _ => ?_⟩, by wram_simp⟩
-        refine ⟨k₀, ?_, by wram_simp [k₀], by wram_simp; rfl⟩
-        rw [htake_succ, List.argmin_concat, harg_t]
+private theorem fillC_spec {w : ℕ} (ws : AuctionWS) {cost : Fin ws.n × Fin ws.n → ℤ}
+    (s₀ : Memory.State)
+    (hsc : 1 ≤ ws.scale)
+    (hdisj : ws.matBase + ws.n * ws.n ≤ ws.bC)
+    (hfr : ws.bC + ws.n * ws.n ≤ s₀.frontier)
+    (hcost_mem : ∀ i j : Fin ws.n,
+      s₀.mem (ws.matBase + (i.val * ws.n + j.val)) = Signed.encode (cost (i, j)))
+    (hM_ge : ∀ i j : Fin ws.n, (cost (i, j)).natAbs ≤ ws.M)
+    (hfit2 : Fits w 2) (hfit_addr : Fits w (ws.bC + ws.n * ws.n))
+    (hfit_val : Fits w (ws.scale * (2 * ws.M))) :
+    let prog := fillCProg ws
+    let s' := (Memory.spec 0).clientState s₀ prog
+    FillCProgSafe w ws s₀ ∧
+      (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ prog) ∧
+      memoryCost prog s₀ ≤ 2 * (ws.n * ws.n) ∧
+      s'.frontier = s₀.frontier ∧
+      (∀ a, ¬(ws.bC ≤ a ∧ a < ws.bC + ws.n * ws.n) → s'.mem a = s₀.mem a) ∧
+      ∀ i j : Fin ws.n,
+        s'.mem (ws.bC + (i.val * ws.n + j.val)) =
+          ws.scale * (cost (i, j) + (ws.M : ℤ)).toNat := by
+  have hit := iterate_spec fillCStep FillCStepSafe w ws 2 (ws.n * ws.n)
+    (fun k idx s => idx = k ∧ s.frontier = s₀.frontier ∧
+      (∀ a < ws.bC, s.mem a = s₀.mem a) ∧
+      ∀ i j : Fin ws.n, i.val * ws.n + j.val < k →
+        s.mem (ws.bC + (i.val * ws.n + j.val)) =
+          ws.scale * (cost (i, j) + (ws.M : ℤ)).toNat)
+    (fun a => ws.bC ≤ a ∧ a < ws.bC + ws.n * ws.n)
+    (fun k hk idx s ⟨hidx, hsfr, hlow, hfilled⟩ => by
+      subst idx
+      have hn_pos : 0 < ws.n := by by_contra h0; simp [Nat.eq_zero_of_not_pos h0] at hk
+      let i₀ : Fin ws.n := ⟨k / ws.n, (Nat.div_lt_iff_lt_mul hn_pos).mpr hk⟩
+      let j₀ : Fin ws.n := ⟨k % ws.n, Nat.mod_lt _ hn_pos⟩
+      have hij₀ : i₀.val * ws.n + j₀.val = k := by
+        dsimp only [i₀, j₀]; rw [Nat.mul_comm, Nat.div_add_mod]
+      have hraw : s.mem (ws.matBase + k) = Signed.encode (cost (i₀, j₀)) := by
+        rw [hlow _ (by omega), ← hij₀, hcost_mem i₀ j₀]
+      have hmag_eq : s.mem (ws.matBase + k) / 2 = (cost (i₀, j₀)).natAbs := by
+        rw [hraw, Signed.encode_div_two]
+      have hmag_le : s.mem (ws.matBase + k) / 2 ≤ ws.M := hmag_eq.trans_le (hM_ge i₀ j₀)
+      have hf_sc : Fits w (ws.scale * (ws.M + s.mem (ws.matBase + k) / 2)) :=
+        hfit_val.of_le (Nat.mul_le_mul_left _ (by omega))
+      have hf_add : Fits w (ws.M + s.mem (ws.matBase + k) / 2) :=
+        hf_sc.of_le (Nat.le_mul_of_pos_left _ hsc)
+      have hsafe : FillCStepSafe w (ws, k) s := by
+        dsimp only [FillCStepSafe]
+        exact ⟨hfit2, hfit_addr.of_le (by omega), hfit_addr.of_le (by omega),
+          hfit_addr.of_le (by omega), hmag_le, hf_add, hf_sc⟩
+      have hv : (Memory.spec w).ValidHistory s
+          ((Memory.spec w).clientHistory s (fillCStep (ws, k))) := by
+        unfold fillCStep
         dsimp only
-        exact ite_eq_left hlt_z
-      · have hge_z : ¬redCost cZ price i₀ k₀ < redCost cZ price i₀ j_t := by
-          rw [← hrc_eq k₀, ← hrc_eq j_t]; exact mod_cast hlt_rc
-        wram_exec [hy_rb, hby.hbPrice, hby.hone, hc0, hC_k, hP_k, hbv_t, hlt_rc,
-          hf_c, hf_p, hf_rc, hf_idx1]
-        refine ⟨⟨by omega, fun r hr' => by wram_simp [hr r hr'], hmem, fun _ => ?_⟩, by wram_simp⟩
-        refine ⟨j_t, ?_, by wram_simp [hbj_t], by wram_simp [hbv_t]⟩
-        rw [htake_succ, List.argmin_concat, harg_t]
+        exact validHistory_read_bind (by omega)
+          (validHistory_ite
+            (fun _ => validHistory_write_bind (by omega) hf_sc (validHistory_pure w _ _))
+            (fun _ => validHistory_write_bind (by omega)
+              (hf_sc.of_le (Nat.mul_le_mul_left _ (by omega))) (validHistory_pure w _ _)))
+      have hmc : memoryCost (fillCStep (ws, k)) s ≤ 2 := by
+        unfold fillCStep
+        refine memoryCost_read_bind_le fun _ _ => ?_
+        exact memoryCost_ite_le
+          (memoryCost_write_bind_le fun _ _ => Nat.le_refl 0)
+          (memoryCost_write_bind_le fun _ _ => Nat.le_refl 0)
+      let written :=
+        if s.mem (ws.matBase + k) % 2 = 0 then
+          ws.scale * (ws.M + s.mem (ws.matBase + k) / 2)
+        else
+          ws.scale * (ws.M - s.mem (ws.matBase + k) / 2)
+      have hwritten : written = ws.scale * (cost (i₀, j₀) + (ws.M : ℤ)).toNat := by
+        dsimp only [written]
+        rw [hraw, Signed.encode_mod_two, Signed.encode_div_two]
+        have hm := hM_ge i₀ j₀
+        by_cases hneg : cost (i₀, j₀) < 0
+        · simp only [hneg, ↓reduceIte, one_ne_zero]
+          congr 1; omega
+        · simp only [hneg, ↓reduceIte]
+          congr 1; omega
+      have hst_eq : (Memory.spec 0).clientState s (fillCStep (ws, k)) =
+          ⟨Function.update s.mem (ws.bC + k) written, s.frontier⟩ := by
+        unfold fillCStep
+        rw [clientState_bind_read]
+        dsimp only [written]
+        split_ifs with hmod
+        · rw [clientState_bind_write, clientState_pure]
+        · rw [clientState_bind_write, clientState_pure]
+      have hres_eq : (Memory.spec 0).clientResult s (fillCStep (ws, k)) = k + 1 := by
+        unfold fillCStep
+        rw [clientResult_bind_read]
         dsimp only
-        exact ite_eq_right hge_z
-  obtain ⟨y, hl, hPBn, _⟩ := ExecWithin.loop_count PB
-    (fun w_st hw_st => (hw_st.2.1 rn (by decide)).trans hb.hrn) hbody
-    (x := x.set idx 0) (by simp) (by simpa using hPB₀)
-  obtain ⟨_, hr_y, hmem_y, hinv_y⟩ := hPBn
-  obtain ⟨j₀, harg_n, hbj_y, hbv_y⟩ := hinv_y hn_pos
-  rw [List.take_of_length_le (by simp)] at harg_n
-  have hbo : bestObject cZ price i₀ = some j₀ := harg_n
-  exact ⟨y, j₀, (he₀.seq hl).mono (by simp; omega), hbo,
-    fun k => List.le_of_mem_argmin (List.mem_finRange k) hbo,
-    hr_y, hbj_y, by rw [hbv_y, hrc_eq], hmem_y⟩
+        split_ifs
+        · rw [clientResult_bind_write, clientResult_pure]
+        · rw [clientResult_bind_write, clientResult_pure]
+      refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun x hx => ?_, ?_⟩
+      · rw [hst_eq]
+        dsimp only
+        exact Function.update_of_ne (by omega) _ _
+      · rw [hst_eq, hres_eq]
+        dsimp only
+        refine ⟨rfl, hsfr, fun a ha => ?_, fun i j hij => ?_⟩
+        · rw [Function.update_of_ne (by omega)]
+          exact hlow a ha
+        · rcases Nat.lt_succ_iff_lt_or_eq.mp hij with hlt' | heq
+          · rw [Function.update_of_ne (by omega)]
+            exact hfilled i j hlt'
+          · rw [heq, Function.update_self, hwritten]
+            have hi_eq : i = i₀ := by
+              ext; dsimp only [i₀]; rw [← heq, Nat.mul_comm i.val ws.n, Nat.mul_add_div hn_pos,
+                Nat.div_eq_of_lt j.isLt, Nat.add_zero]
+            have hj_eq : j = j₀ := by
+              ext; dsimp only [j₀]; rw [← heq, Nat.mul_comm i.val ws.n, Nat.mul_add_mod,
+                Nat.mod_eq_of_lt j.isLt]
+            rw [hi_eq, hj_eq])
+    0 s₀ ⟨rfl, rfl, fun _ _ => rfl, fun _ _ h => absurd h (Nat.not_lt_zero _)⟩
+  obtain ⟨hsafe, hv, hmc, hfr', hmod, _, _, _, hfilled⟩ := hit
+  exact ⟨⟨hfit_addr.of_le (by omega), hsafe⟩, hv, hmc, hfr', hmod,
+    fun i j => hfilled i j (Cslib.Matrix.pairIndex_lt (i, j))⟩
 
-private theorem exec_findSecondCode {w n matBase eps scale M W : ℕ}
-    {C : Fin n × Fin n → ℕ} (hC : ∀ i j, C (i, j) ≤ W)
-    {price : Fin n → ℤ} (hp_nonneg : ∀ k, 0 ≤ price k) (hp_le : ∀ k, price k ≤ (W + eps : ℤ))
-    (i₀ j₀ : Fin n) (x : Data 26) (hb : BaseRegs n matBase eps scale M x)
-    (hCM : CostMem (matBase + n * n) C x.mem)
-    (hPM : PriceMem (matBase + 2 * (n * n) + n) price x.mem)
-    (hrb : x.regs rowBase = matBase + n * n + i₀.val * n)
-    (hbj : x.regs bestJ = j₀.val)
-    (hfit : Fits w (matBase + 2 * (n * n) + 4 * n + 2 * W + 2 * eps + 4)) :
-    let cZ : Fin n × Fin n → ℤ := fun e => (C e : ℤ)
-    ∃ y, ExecWithin w findSecondCode x y (15 * n + 5) ∧
-      (∀ r : Fin 26, r.val < 19 → y.regs r = x.regs r) ∧
-      y.mem = x.mem ∧
-      match secondBest cZ price i₀ j₀ with
-      | none => y.regs hasSecond = 0
-      | some wVal =>
-        y.regs hasSecond = 1 ∧ (y.regs secondVal : ℤ) = wVal ∧ y.regs secondVal ≤ 2 * W + eps := by
-  intro cZ
-  have hs₀ : ∃ s₀, ExecWithin w
-      (ram[ hasSecond ← #0; secondVal ← #0; idx ← #0 ] : Code .standard 26) x s₀ 3 ∧
-      s₀ = ((x.set hasSecond 0).set secondVal 0).set idx 0 := by
-    refine WP.exists_execWithin ?_; wram_exec; rfl
-  obtain ⟨s₀, he₀, rfl⟩ := hs₀
-  let rcNat (k : Fin n) : ℕ := C (i₀, k) + (price k).toNat
-  have hrc_eq : ∀ k : Fin n, (rcNat k : ℤ) = redCost cZ price i₀ k := fun k => by
-    have := hp_nonneg k; simp only [rcNat, redCost, cZ]; omega
-  have hrc_le : ∀ k : Fin n, rcNat k ≤ 2 * W + eps := fun k => by
-    have := hC i₀ k; have := hp_nonneg k; have := hp_le k; dsimp only [rcNat]; omega
-  let cand (t : ℕ) : List ℤ :=
-    (((List.finRange n).take t).filter fun k => decide (k ≠ j₀)).map (redCost cZ price i₀)
-  let PS (t : ℕ) (y : Data 26) : Prop :=
-    t ≤ n ∧
-      (∀ r : Fin 26, r.val < 19 → y.regs r = x.regs r) ∧
-      y.mem = x.mem ∧
-      match (cand t).min? with
-      | none => y.regs hasSecond = 0
-      | some wVal =>
-        y.regs hasSecond = 1 ∧ (y.regs secondVal : ℤ) = wVal ∧ y.regs secondVal ≤ 2 * W + eps
-  have hPS₀ : PS 0 (((x.set hasSecond 0).set secondVal 0).set idx 0) :=
-    ⟨Nat.zero_le _, fun r hr => by wram_simp, rfl, by simp [cand]⟩
-  have hbody (y : Data 26) (hy : PS (y.regs idx) y) (hlt : y.regs idx < n) :
-      ∃ z, ExecWithin w findSecondBody y z 13 ∧ PS (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨_, hr, hmem, hinv⟩ := hy
-    have hby : BaseRegs n matBase eps scale M y := hb.of_eq fun r hr' => hr r (by omega)
-    have hy_rb : y.regs rowBase = matBase + n * n + i₀.val * n :=
-      (hr rowBase (by decide)).trans hrb
-    have hy_bj : y.regs bestJ = j₀.val := (hr bestJ (by decide)).trans hbj
-    let k₀ : Fin n := ⟨y.regs idx, hlt⟩
-    have hf_idx1 : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
-    refine WP.exists_execWithin ?_
-    unfold findSecondBody
-    by_cases hkj : y.regs idx = j₀.val
-    · have hk_eq_j : (⟨y.regs idx, hlt⟩ : Fin n) = j₀ := Fin.ext hkj
-      have hcand_eq : cand (y.regs idx + 1) = cand (y.regs idx) := by
-        simp [cand, List.take_succ_finRange hlt, hk_eq_j]
-      have hcond : y.regs bestJ = y.regs idx := hy_bj.trans hkj.symm
-      wram_exec [hby.hzero, hby.hone, hcond, hf_idx1]
-      refine ⟨⟨by omega, fun r hr' => by wram_simp [hr r hr'], hmem, ?_⟩, by wram_simp⟩
-      rw [hcand_eq]
-      cases hmin : (cand (y.regs idx)).min? with
-      | none => rw [hmin] at hinv; wram_simp [hinv]
-      | some wVal => rw [hmin] at hinv; exact ⟨by wram_simp [hinv.1], hinv.2.1, hinv.2.2⟩
-    · have hk_ne_j : k₀ ≠ j₀ := fun h => hkj (congrArg Fin.val h)
-      have hcand_eq : cand (y.regs idx + 1) = cand (y.regs idx) ++ [redCost cZ price i₀ k₀] := by
-        simp [cand, List.take_succ_finRange hlt, hk_ne_j, k₀]
-      have hcond : y.regs idx ≠ y.regs bestJ := by rw [hy_bj]; exact hkj
-      have hmul_lt : i₀.val * n + y.regs idx < n * n := Cslib.Matrix.pairIndex_lt (i₀, k₀)
-      have hC_k : y.mem (matBase + n * n + i₀.val * n + y.regs idx) = C (i₀, k₀) := by
-        rw [hmem, Nat.add_assoc (matBase + n * n)]; exact hCM.hentry i₀ k₀
-      have hP_k : y.mem (matBase + 2 * (n * n) + n + y.regs idx) = (price k₀).toNat := by
-        rw [hmem]; exact hPM k₀
-      have hf_c : Fits w (matBase + n * n + i₀.val * n + y.regs idx) := hfit.of_le (by omega)
-      have hf_p : Fits w (matBase + 2 * (n * n) + n + y.regs idx) := hfit.of_le (by omega)
-      have hf_rc : Fits w (rcNat k₀) := by
-        have := hrc_le k₀; exact hfit.of_le (by omega)
-      cases hmin : (cand (y.regs idx)).min? with
-      | none =>
-        rw [hmin] at hinv
-        have hhs0 : y.regs hasSecond = y.regs zero := hinv.trans hby.hzero.symm
-        wram_exec [hy_rb, hby.hbPrice, hby.hone, hcond, hC_k, hP_k, hhs0,
-          hf_c, hf_p, hf_rc, hf_idx1]
-        refine ⟨⟨by omega, fun r hr' => by wram_simp [hr r hr'], hmem, ?_⟩, by wram_simp⟩
-        rw [hcand_eq, min?_append_singleton, hmin]
-        exact ⟨by wram_simp, by wram_simp; exact hrc_eq k₀, by wram_simp; exact hrc_le k₀⟩
-      | some wVal =>
-        rw [hmin] at hinv
-        obtain ⟨hhs1, hsv_eq, hsv_le⟩ := hinv
-        have hhs_ne0 : y.regs hasSecond ≠ y.regs zero := by rw [hby.hzero]; omega
-        by_cases hlt_sv : rcNat k₀ < y.regs secondVal
-        · have hlt_z : redCost cZ price i₀ k₀ < wVal := by
-            rw [← hrc_eq k₀, ← hsv_eq]; exact Nat.cast_lt.mpr hlt_sv
-          wram_exec [hy_rb, hby.hbPrice, hby.hone, hcond, hC_k, hP_k,
-            hhs_ne0, hlt_sv, hf_c, hf_p, hf_rc, hf_idx1]
-          refine ⟨⟨by omega, fun r hr' => by wram_simp [hr r hr'], hmem, ?_⟩, by wram_simp⟩
-          rw [hcand_eq, min?_append_singleton, hmin]
-          dsimp only
-          rw [ite_eq_left hlt_z]
-          exact ⟨by wram_simp [hhs1], by wram_simp; exact hrc_eq k₀,
-            by wram_simp; exact hrc_le k₀⟩
-        · have hge_z : ¬redCost cZ price i₀ k₀ < wVal := by
-            rw [← hrc_eq k₀, ← hsv_eq]; exact mod_cast hlt_sv
-          wram_exec [hy_rb, hby.hbPrice, hby.hzero, hby.hone, hcond, hC_k, hP_k,
-            hhs_ne0, hlt_sv, hf_c, hf_p, hf_rc, hf_idx1]
-          refine ⟨⟨by omega, fun r hr' => by wram_simp [hr r hr'], hmem, ?_⟩, by wram_simp⟩
-          rw [hcand_eq, min?_append_singleton, hmin]
-          dsimp only
-          rw [ite_eq_right hge_z]
-          exact ⟨by wram_simp [hhs1], by wram_simp [hsv_eq], by wram_simp; exact hsv_le⟩
-  obtain ⟨y, hl, hPSn, _⟩ := ExecWithin.loop_count PS
-    (fun w_st hw_st => (hw_st.2.1 rn (by decide)).trans hb.hrn) hbody
-    (x := ((x.set hasSecond 0).set secondVal 0).set idx 0) (by simp) (by simpa using hPS₀)
-  obtain ⟨_, hr_y, hmem_y, hinv_y⟩ := hPSn
-  have hcand_full : cand n =
-      (((List.finRange n).filter fun k => decide (k ≠ j₀)).map (redCost cZ price i₀)) := by
-    simp only [cand, List.take_of_length_le (by simp : (List.finRange n).length ≤ n)]
-  rw [hcand_full] at hinv_y
-  exact ⟨y, (he₀.seq hl).mono (by simp; omega), hr_y, hmem_y, hinv_y⟩
+/-! ### 3.3 Workspace representation of `AuctionState` and initialization -/
 
-private theorem exec_bidStepCode {w n matBase eps scale M W : ℕ}
-    {C : Fin n × Fin n → ℕ} (hC : ∀ i j, C (i, j) ≤ W)
-    {s : AuctionState n} {i₀ : Fin n} {rest : List (Fin n)} (hs : s.free = i₀ :: rest)
-    (hinv : AuctionInv (fun e => (C e : ℤ)) (eps : ℤ) s)
-    (hp_nonneg : ∀ k, 0 ≤ s.price k)
-    (x : Data 26) (hb : BaseRegs n matBase eps scale M x)
-    (hCM : CostMem (matBase + n * n) C x.mem)
-    (hOM : OwnerMem (matBase + 2 * (n * n)) s.owner x.mem)
-    (hPM : PriceMem (matBase + 2 * (n * n) + n) s.price x.mem)
-    (hSM : StackMem (matBase + 2 * (n * n) + 2 * n) s.free x)
-    (hfit : Fits w (matBase + 2 * (n * n) + 4 * n + 2 * W + 2 * eps + 4)) :
-    let cZ : Fin n × Fin n → ℤ := fun e => (C e : ℤ)
-    let s' := bidStep cZ (eps : ℤ) s
-    ∃ y, ExecWithin w bidStepCode x y (28 * n + 28) ∧
-      BaseRegs n matBase eps scale M y ∧
-      OwnerMem (matBase + 2 * (n * n)) s'.owner y.mem ∧
-      PriceMem (matBase + 2 * (n * n) + n) s'.price y.mem ∧
-      StackMem (matBase + 2 * (n * n) + 2 * n) s'.free y ∧
-      (∀ a, ¬(matBase + 2 * (n * n) ≤ a ∧ a < matBase + 2 * (n * n) + 3 * n) →
-        y.mem a = x.mem a) := by
-  intro cZ s'
-  have hi₀_lt := i₀.isLt
-  have hnd := hinv.free_nodup
-  have hlen_le_n : s.free.length ≤ n := by simpa using hnd.length_le_card
-  have hrest_lt_n : rest.length < n := by rw [hs, List.length_cons] at hlen_le_n; omega
-  have hp_le : ∀ k : Fin n, s.price k ≤ (W + eps : ℤ) :=
-    hinv.price_le (by simp [hs])
-      (fun i j k => by have := hC i k; omega) (Nat.cast_nonneg eps)
-  have hsp_x : x.regs sp = rest.length + 1 := by rw [hSM.1, hs, List.length_cons]
-  have htop_mem : x.mem (matBase + 2 * (n * n) + 2 * n + rest.length) = i₀.val := by
-    have ht : rest.length < s.free.length := by rw [hs, List.length_cons]; omega
-    have hget := hSM.2 rest.length ht
-    rw [hget]
-    simp only [hs, List.reverse_cons]
-    have hlen_rev : rest.reverse.length = rest.length := List.length_reverse
-    rw [List.getElem_append_right (by omega)]
-    simp [hlen_rev]
-  have hf_sp : Fits w rest.length := hfit.of_le (by omega)
-  have hf_st_addr : Fits w (matBase + 2 * (n * n) + 2 * n + rest.length) := hfit.of_le (by omega)
-  have hf_mul : Fits w (i₀.val * n) := by
-    have : i₀.val * n < n * n := Nat.mul_lt_mul_of_pos_right hi₀_lt (Nat.zero_lt_of_lt hi₀_lt)
-    exact hfit.of_le (by omega)
-  have hf_rb : Fits w (matBase + n * n + i₀.val * n) := by
-    have : i₀.val * n < n * n := Nat.mul_lt_mul_of_pos_right hi₀_lt (Nat.zero_lt_of_lt hi₀_lt)
-    exact hfit.of_le (by omega)
-  have hpop : ∃ y₁, ExecWithin w
-      (ram[ sp ← sp - one; addr ← bStack + sp; curI ← *addr;
-            rowBase ← curI * rn; rowBase ← bC + rowBase ] : Code .standard 26) x y₁ 5 ∧
-      (∀ r : Fin 26, r.val < 14 → y₁.regs r = x.regs r) ∧
-      y₁.regs sp = rest.length ∧ y₁.regs curI = i₀.val ∧
-      y₁.regs rowBase = matBase + n * n + i₀.val * n ∧ y₁.mem = x.mem := by
-    refine WP.exists_execWithin ?_
-    wram_exec [hsp_x, hb.hone, hb.hbStack, hb.hrn, hb.hbC, htop_mem,
-      hf_sp, hf_st_addr, hf_mul, hf_rb]
-    exact ⟨fun r hr => by wram_simp, by wram_simp, by wram_simp, by wram_simp, rfl⟩
-  obtain ⟨y₁, he_pop, hr₁, hsp₁, hci₁, hrb₁, hmem₁⟩ := hpop
-  have hb₁ : BaseRegs n matBase eps scale M y₁ := hb.of_eq hr₁
-  have hCM₁ : CostMem (matBase + n * n) C y₁.mem := hmem₁ ▸ hCM
-  have hPM₁ : PriceMem (matBase + 2 * (n * n) + n) s.price y₁.mem := hmem₁ ▸ hPM
-  obtain ⟨y₂, j₀, he_best, hbo, hj₀_min, hr₂, hbj₂, hbv₂, hmem₂⟩ :=
-    exec_findBestCode hC hp_nonneg hp_le i₀ y₁ hb₁ hCM₁ hPM₁ hrb₁ hfit
-  have hb₂ : BaseRegs n matBase eps scale M y₂ := hb₁.of_eq fun r hr => hr₂ r (by omega)
-  have hCM₂ : CostMem (matBase + n * n) C y₂.mem := hmem₂ ▸ hCM₁
-  have hPM₂ : PriceMem (matBase + 2 * (n * n) + n) s.price y₂.mem := hmem₂ ▸ hPM₁
-  have hrb₂ : y₂.regs rowBase = matBase + n * n + i₀.val * n :=
-    (hr₂ rowBase (by decide)).trans hrb₁
-  obtain ⟨y₃, he_sec, hr₃, hmem₃, hsec₃⟩ :=
-    exec_findSecondCode hC hp_nonneg hp_le i₀ j₀ y₂ hb₂ hCM₂ hPM₂ hrb₂ hbj₂ hfit
-  have hb₃ : BaseRegs n matBase eps scale M y₃ := hb₂.of_eq fun r hr => hr₃ r (by omega)
-  have hsp₃ : y₃.regs sp = rest.length :=
-    (hr₃ sp (by decide)).trans ((hr₂ sp (by decide)).trans hsp₁)
-  have hci₃ : y₃.regs curI = i₀.val :=
-    (hr₃ curI (by decide)).trans ((hr₂ curI (by decide)).trans hci₁)
-  have hrb₃ : y₃.regs rowBase = matBase + n * n + i₀.val * n :=
-    (hr₃ rowBase (by decide)).trans hrb₂
-  have hbj₃ : y₃.regs bestJ = j₀.val := (hr₃ bestJ (by decide)).trans hbj₂
-  have hbv₃ : (y₃.regs bestVal : ℤ) = redCost cZ s.price i₀ j₀ :=
-    (congrArg Nat.cast (hr₃ bestVal (by decide))).trans hbv₂
-  have hmem₃_x : y₃.mem = x.mem := hmem₃.trans (hmem₂.trans hmem₁)
-  have hs'_eq : s' =
-      { owner := Function.update s.owner j₀ (some i₀)
-        price := Function.update s.price j₀ (bidPrice cZ (eps : ℤ) s.price i₀ j₀)
-        free := (s.owner j₀).toList ++ rest
-        bids := s.bids + 1 } := by
-    simp only [s', bidStep, hs, cZ, hbo]
-  have hj₀_lt := j₀.isLt
-  have hmul_ij : i₀.val * n + j₀.val < n * n := Cslib.Matrix.pairIndex_lt (i₀, j₀)
-  have hf_pj : Fits w (matBase + 2 * (n * n) + n + j₀.val) := hfit.of_le (by omega)
-  have hf_oj : Fits w (matBase + 2 * (n * n) + j₀.val) := hfit.of_le (by omega)
-  have hf_cj : Fits w (matBase + n * n + i₀.val * n + j₀.val) := hfit.of_le (by omega)
-  let newP : ℕ := (bidPrice cZ (eps : ℤ) s.price i₀ j₀).toNat
-  have hnewP_nonneg : 0 ≤ bidPrice cZ (eps : ℤ) s.price i₀ j₀ := by
-    have hle := le_bidPrice (c := cZ) (ε := (eps : ℤ)) hj₀_min
-    have := hp_nonneg j₀
+/-- Memory `s` represents pure `st : AuctionState ws.n` over unsigned cost matrix `C` at `ws`. -/
+private structure AuctionMem (ws : AuctionWS) (C : Fin ws.n × Fin ws.n → ℕ)
+    (st : AuctionState ws.n) (s : Memory.State) : Prop where
+  /-- Unsigned matrix `C` is stored row-major at `ws.bC`. -/
+  hC : ∀ i j : Fin ws.n, s.mem (ws.bC + (i.val * ws.n + j.val)) = C (i, j)
+  /-- `owner[j]` stores `(st.owner j).elim ws.n Fin.val`. -/
+  hOwner : ∀ j : Fin ws.n, s.mem (ws.bOwner + j.val) = (st.owner j).elim ws.n Fin.val
+  /-- `price[j]` stores `(st.price j).toNat`. -/
+  hPrice : ∀ j : Fin ws.n, s.mem (ws.bPrice + j.val) = (st.price j).toNat
+  /-- `stack[0..st.free.length)` stores `st.free` in reverse (`top` at `st.free.length - 1`). -/
+  hStack : ∀ k (hk : k < st.free.length),
+    s.mem (ws.bStack + k) = (st.free[st.free.length - 1 - k]'(by omega)).val
+
+/-- Disjointness and frontier validity of `ws : AuctionWS`. -/
+private structure ValidWS (ws : AuctionWS) (s : Memory.State) : Prop where
+  hbOwner : ws.bOwner = ws.bC + ws.n * ws.n
+  hbPrice : ws.bPrice = ws.bOwner + ws.n
+  hbStack : ws.bStack = ws.bPrice + ws.n
+  houtBase : ws.outBase = ws.bStack + ws.n
+  hfrontier : ws.outBase + ws.n + 1 ≤ s.frontier
+
+private theorem ValidWS.of_frontier_eq {ws : AuctionWS} {s s' : Memory.State}
+    (h : ValidWS ws s) (hfr : s'.frontier = s.frontier) : ValidWS ws s' :=
+  ⟨h.hbOwner, h.hbPrice, h.hbStack, h.houtBase, hfr ▸ h.hfrontier⟩
+
+private def initStep (x : AuctionWS × ℕ) : Memory.Prog ℕ := do
+  let ws := x.1
+  let idx := x.2
+  Memory.write (ws.bOwner + idx) ws.n
+  Memory.write (ws.bPrice + idx) 0
+  Memory.write (ws.bStack + idx) (ws.n - (idx + 1))
+  pure (idx + 1)
+
+private abbrev InitStepSafe (w : ℕ) (x : AuctionWS × ℕ) (_ : Memory.State) : Prop :=
+  let ws := x.1
+  let idx := x.2
+  idx + 1 ≤ ws.n ∧ Fits w (ws.bOwner + idx) ∧ Fits w (ws.bPrice + idx) ∧
+    Fits w (ws.bStack + idx) ∧ Fits w (idx + 1)
+
+private theorem initStep_realizes :
+    Realizes .exact initStep (appendWords encAuctionWS wordWords) wordWords
+      InitStepSafe (fun _ _ => 0) := by
+  unfold initStep
+  realize
+  all_goals
+    rcases h with ⟨_, _, _, _, _⟩
+    assumption
+
+private theorem initAuction_spec {w : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n → ℕ}
+    (s₀ : Memory.State) (hws : ValidWS ws s₀)
+    (hC_mem : ∀ i j : Fin ws.n, s₀.mem (ws.bC + (i.val * ws.n + j.val)) = C (i, j))
+    (hfit_ws : Fits w (ws.outBase + ws.n + 1)) :
+    let prog := iterate initStep ws ws.n 0
+    let s' := (Memory.spec 0).clientState s₀ prog
+    iterationSafe initStep InitStepSafe w ws ws.n 0 s₀ ∧
+      (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ prog) ∧
+      memoryCost prog s₀ ≤ 3 * ws.n ∧
+      s'.frontier = s₀.frontier ∧
+      (∀ a, ¬(ws.bOwner ≤ a ∧ a < ws.outBase) → s'.mem a = s₀.mem a) ∧
+      AuctionMem ws C (auctionInit ws.n) s' := by
+  obtain ⟨hbO, hbP, hbS, hout, hfr⟩ := hws
+  have hit := iterate_spec initStep InitStepSafe w ws 3 ws.n
+    (fun k idx s => idx = k ∧ s.frontier = s₀.frontier ∧
+      (∀ j < k, s.mem (ws.bOwner + j) = ws.n ∧ s.mem (ws.bPrice + j) = 0 ∧
+        s.mem (ws.bStack + j) = ws.n - (j + 1)))
+    (fun a => ws.bOwner ≤ a ∧ a < ws.outBase)
+    (fun k hk idx s ⟨hidx, hsfr, hprev⟩ => by
+      subst idx
+      have hsafe : InitStepSafe w (ws, k) s := by
+        dsimp only [InitStepSafe]
+        exact ⟨by omega, hfit_ws.of_le (by omega), hfit_ws.of_le (by omega),
+          hfit_ws.of_le (by omega), hfit_ws.of_le (by omega)⟩
+      have hv : (Memory.spec w).ValidHistory s
+          ((Memory.spec w).clientHistory s (initStep (ws, k))) := by
+        unfold initStep
+        dsimp only
+        exact validHistory_write_bind (by omega) (hfit_ws.of_le (by omega))
+          (validHistory_write_bind (by dsimp only; omega) (fits_zero w)
+            (validHistory_write_bind (by dsimp only; omega) (hfit_ws.of_le (by omega))
+              (validHistory_pure w _ _)))
+      have hmc : memoryCost (initStep (ws, k)) s ≤ 3 := by
+        unfold initStep
+        exact memoryCost_write_bind_le fun _ _ =>
+          memoryCost_write_bind_le fun _ _ =>
+            memoryCost_write_bind_le fun _ _ => Nat.le_refl 0
+      have hst_eq : (Memory.spec 0).clientState s (initStep (ws, k)) =
+          ⟨Function.update (Function.update (Function.update s.mem
+            (ws.bOwner + k) ws.n) (ws.bPrice + k) 0) (ws.bStack + k) (ws.n - (k + 1)),
+            s.frontier⟩ := by
+        unfold initStep
+        rw [clientState_bind_write, clientState_bind_write, clientState_bind_write,
+          clientState_pure]
+      have hres_eq : (Memory.spec 0).clientResult s (initStep (ws, k)) = k + 1 := by
+        unfold initStep
+        rw [clientResult_bind_write, clientResult_bind_write, clientResult_bind_write,
+          clientResult_pure]
+      refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun x hx => ?_, ?_⟩
+      · rw [hst_eq]
+        dsimp only
+        simp only [Function.update_of_ne (by omega : x ≠ ws.bStack + k),
+          Function.update_of_ne (by omega : x ≠ ws.bPrice + k),
+          Function.update_of_ne (by omega : x ≠ ws.bOwner + k)]
+      · rw [hst_eq, hres_eq]
+        dsimp only
+        refine ⟨rfl, hsfr, fun j hj => ?_⟩
+        rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hlt' | rfl
+        · obtain ⟨ho, hp, hst⟩ := hprev j hlt'
+          refine ⟨?_, ?_, ?_⟩
+          · simp only [Function.update_of_ne (by omega : ws.bOwner + j ≠ ws.bStack + k),
+              Function.update_of_ne (by omega : ws.bOwner + j ≠ ws.bPrice + k),
+              Function.update_of_ne (by omega : ws.bOwner + j ≠ ws.bOwner + k), ho]
+          · simp only [Function.update_of_ne (by omega : ws.bPrice + j ≠ ws.bStack + k),
+              Function.update_of_ne (by omega : ws.bPrice + j ≠ ws.bPrice + k),
+              Function.update_of_ne (by omega : ws.bPrice + j ≠ ws.bOwner + k), hp]
+          · simp only [Function.update_of_ne (by omega : ws.bStack + j ≠ ws.bStack + k),
+              Function.update_of_ne (by omega : ws.bStack + j ≠ ws.bPrice + k),
+              Function.update_of_ne (by omega : ws.bStack + j ≠ ws.bOwner + k), hst]
+        · refine ⟨?_, ?_, ?_⟩
+          · simp only [Function.update_of_ne (by omega : ws.bOwner + j ≠ ws.bStack + j),
+              Function.update_of_ne (by omega : ws.bOwner + j ≠ ws.bPrice + j),
+              Function.update_self]
+          · simp only [Function.update_of_ne (by omega : ws.bPrice + j ≠ ws.bStack + j),
+              Function.update_self]
+          · simp only [Function.update_self])
+    0 s₀ ⟨rfl, rfl, fun _ h => absurd h (Nat.not_lt_zero _)⟩
+  obtain ⟨hsafe, hv, hmc, hfr', hmod, _, _, hprev⟩ := hit
+  refine ⟨hsafe, hv, hmc, hfr', hmod, ?_⟩
+  refine ⟨fun i j => ?_, fun j => (hprev j.val j.isLt).1, fun j => (hprev j.val j.isLt).2.1,
+    fun k hk => ?_⟩
+  · have hlt : i.val * ws.n + j.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i, j)
+    exact (hmod _ (by omega)).trans (hC_mem i j)
+  · simp only [auctionInit, List.length_finRange] at hk ⊢
+    rw [(hprev k hk).2.2, List.getElem_finRange]
+    dsimp only [Fin.cast]
     omega
-  -- Execute the price computation prefix of `applyBidTail`
-  have hprice_part : ∃ y₄, ExecWithin w
-      (ram[ if hasSecond = zero then [
-              addr ← bPrice + bestJ; val ← *addr;
-              val ← val + reps
-            ] else [
-              addr ← rowBase + bestJ; val2 ← *addr;
-              val ← secondVal - val2;
-              val ← val + reps
-            ] ] : Code .standard 26) y₃ y₄ 6 ∧
-      (∀ r : Fin 26, r.val < 21 → y₄.regs r = y₃.regs r) ∧
-      y₄.regs val = newP ∧ y₄.mem = x.mem := by
-    refine WP.exists_execWithin ?_
-    cases hsb : secondBest cZ s.price i₀ j₀ with
-    | none =>
-      rw [hsb] at hsec₃
-      have hPj : y₃.mem (matBase + 2 * (n * n) + n + j₀.val) = (s.price j₀).toNat := by
-        rw [hmem₃_x]; exact hPM j₀
-      have hval_eq : (s.price j₀).toNat + eps = newP := by
-        have := hp_nonneg j₀
-        dsimp only [newP, bidPrice]
-        rw [hsb]
-        dsimp only
+
+/-! ### 3.4 Row scan 1 (`findBestStep`) and row scan 2 (`findSecondStep`) -/
+
+private def findBestStep (x : ScanRowArgs × BestState) : Memory.Prog BestState := do
+  let d := x.1
+  let st := x.2
+  let cij ← Memory.read (d.rowBase + st.idx)
+  let pj ← Memory.read (d.bPrice + st.idx)
+  let rc := cij + pj
+  if st.idx = 0 then
+    pure ⟨1, 0, rc⟩
+  else if rc < st.bestVal then
+    pure ⟨st.idx + 1, st.idx, rc⟩
+  else
+    pure ⟨st.idx + 1, st.bestJ, st.bestVal⟩
+
+private abbrev FindBestStepSafe (w : ℕ) (x : ScanRowArgs × BestState) (s : Memory.State) : Prop :=
+  let d := x.1
+  let st := x.2
+  Fits w 1 ∧ Fits w (d.rowBase + st.idx) ∧ Fits w (d.bPrice + st.idx) ∧
+    Fits w (s.mem (d.rowBase + st.idx) + s.mem (d.bPrice + st.idx)) ∧ Fits w (st.idx + 1)
+
+private theorem findBestStep_realizes :
+    Realizes .exact findBestStep (appendWords encScanRowArgs encBestState) encBestState
+      FindBestStepSafe (fun _ _ => 0) := by
+  unfold findBestStep
+  realize
+  all_goals
+    rcases h with ⟨_, _, _, _, _⟩
+    assumption
+
+private def findBestProg (d : ScanRowArgs) : Memory.Prog BestState :=
+  iterate findBestStep d d.n ⟨0, 0, 0⟩
+
+private theorem findBestProg_realizes :
+    Realizes .exact findBestProg encScanRowArgs encBestState
+      (fun w d s => iterationSafe findBestStep FindBestStepSafe w d d.n ⟨0, 0, 0⟩ s)
+      (fun _ _ => 0) := by
+  unfold findBestProg
+  realize [findBestStep_realizes]
+  exact h
+
+private theorem findBest_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n → ℕ}
+    {st : AuctionState ws.n} (s₀ : Memory.State) (hws : ValidWS ws s₀)
+    (ham : AuctionMem ws C st s₀)
+    (hC_le : ∀ i j : Fin ws.n, C (i, j) ≤ W)
+    (hp_nn : ∀ j : Fin ws.n, 0 ≤ st.price j)
+    (hp_le : ∀ j : Fin ws.n, st.price j ≤ (W + ws.eps : ℤ))
+    (i₀ : Fin ws.n)
+    (hfit1 : Fits w 1) (hfit_ws : Fits w (ws.outBase + ws.n + 1))
+    (hfit_rc : Fits w (2 * W + ws.eps)) :
+    let rowBase := ws.bC + i₀.val * ws.n
+    let d : ScanRowArgs := ⟨ws.n, rowBase, ws.bPrice⟩
+    let prog := findBestProg d
+    let res := (Memory.spec 0).clientResult s₀ prog
+    iterationSafe findBestStep FindBestStepSafe w d d.n ⟨0, 0, 0⟩ s₀ ∧
+      (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ prog) ∧
+      memoryCost prog s₀ ≤ 2 * ws.n ∧
+      (Memory.spec 0).clientState s₀ prog = s₀ ∧
+      ∃ j₀ : Fin ws.n,
+        bestObject (fun e => (C e : ℤ)) st.price i₀ = some j₀ ∧
+        (∀ k : Fin ws.n,
+          redCost (fun e => (C e : ℤ)) st.price i₀ j₀ ≤
+            redCost (fun e => (C e : ℤ)) st.price i₀ k) ∧
+        res.bestJ = j₀.val ∧
+        (res.bestVal : ℤ) = redCost (fun e => (C e : ℤ)) st.price i₀ j₀ := by
+  obtain ⟨hbO, hbP, hbS, hout, hfr⟩ := hws
+  let cZ : Fin ws.n × Fin ws.n → ℤ := fun e => (C e : ℤ)
+  let rowBase := ws.bC + i₀.val * ws.n
+  let d : ScanRowArgs := ⟨ws.n, rowBase, ws.bPrice⟩
+  have hn_pos : 0 < ws.n := Nat.zero_lt_of_lt i₀.isLt
+  have hit := iterate_spec findBestStep FindBestStepSafe w d 2 ws.n
+    (fun k b s => s = s₀ ∧ b.idx = k ∧
+      (k = 0 ∨ ∃ j₀ : Fin ws.n, j₀.val < k ∧
+        ((List.finRange ws.n).take k).argmin (redCost cZ st.price i₀) = some j₀ ∧
+        b.bestJ = j₀.val ∧ (b.bestVal : ℤ) = redCost cZ st.price i₀ j₀))
+    (fun _ => False)
+    (fun k hk b s ⟨hs, hbidx, harg⟩ => by
+      subst s
+      have hk' : b.idx < ws.n := hbidx ▸ hk
+      let jk : Fin ws.n := ⟨b.idx, hk'⟩
+      have hmul_k : i₀.val * ws.n + b.idx < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i₀, jk)
+      have hC_k : s₀.mem (rowBase + b.idx) = C (i₀, jk) := by
+        dsimp only [rowBase]; rw [Nat.add_assoc]; exact ham.hC i₀ jk
+      have hP_k : s₀.mem (ws.bPrice + b.idx) = (st.price jk).toNat := ham.hPrice jk
+      have hrc_le : s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) ≤ 2 * W + ws.eps := by
+        rw [hC_k, hP_k]
+        have := hC_le i₀ jk; have := hp_nn jk; have := hp_le jk
         omega
-      have hpj_le := hp_le j₀
-      have hpj_nn := hp_nonneg j₀
-      have hf_np : Fits w ((s.price j₀).toNat + eps) := hfit.of_le (by omega)
-      wram_exec [hsec₃, hb₃.hzero, hb₃.hbPrice, hbj₃, hb₃.hreps, hPj, hf_pj, hf_np]
-      exact ⟨fun r hr => by wram_simp, by wram_simp [hval_eq], hmem₃_x⟩
+      have hrc_z : ((s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) : ℕ) : ℤ) =
+          redCost cZ st.price i₀ jk := by
+        rw [hC_k, hP_k]
+        have := hp_nn jk
+        dsimp only [redCost, cZ]
+        omega
+      have hsafe : FindBestStepSafe w (d, b) s₀ := by
+        dsimp only [FindBestStepSafe, d]
+        exact ⟨hfit1, hfit_ws.of_le (by dsimp only [rowBase]; omega),
+          hfit_ws.of_le (by omega), hfit_rc.of_le hrc_le, hfit_ws.of_le (by omega)⟩
+      have hv : (Memory.spec w).ValidHistory s₀
+          ((Memory.spec w).clientHistory s₀ (findBestStep (d, b))) := by
+        unfold findBestStep
+        dsimp only [d]
+        exact validHistory_read_bind (by dsimp only [rowBase]; omega)
+          (validHistory_read_bind (by omega)
+            (validHistory_ite (fun _ => validHistory_pure w _ _)
+              (fun _ => validHistory_ite (fun _ => validHistory_pure w _ _)
+                (fun _ => validHistory_pure w _ _))))
+      have hmc : memoryCost (findBestStep (d, b)) s₀ ≤ 2 := by
+        unfold findBestStep
+        exact memoryCost_read_bind_le fun _ _ =>
+          memoryCost_read_bind_le fun _ _ =>
+            memoryCost_ite_le (Nat.le_refl 0)
+              (memoryCost_ite_le (Nat.le_refl 0) (Nat.le_refl 0))
+      have hst_eq : (Memory.spec 0).clientState s₀ (findBestStep (d, b)) = s₀ := by
+        unfold findBestStep
+        rw [clientState_bind_read, clientState_bind_read]
+        dsimp only
+        split_ifs <;> exact clientState_pure _ _
+      refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun _ _ => by rw [hst_eq], hst_eq, ?_⟩
+      unfold findBestStep
+      rw [clientResult_bind_read, clientResult_bind_read]
+      dsimp only [d]
+      by_cases hk0 : b.idx = 0
+      · have hk_zero : k = 0 := by omega
+        subst hk_zero
+        have hjk0 : jk = ⟨0, hn_pos⟩ := Fin.ext hk0
+        rw [ite_eq_left hk0, clientResult_pure]
+        dsimp only
+        refine ⟨rfl, Or.inr ⟨⟨0, hn_pos⟩, Nat.one_pos, ?_, rfl, ?_⟩⟩
+        · rw [show (1 : ℕ) = 0 + 1 from rfl, List.take_succ_finRange hn_pos, List.take_zero,
+            List.nil_append]
+          rfl
+        · rw [← hjk0]
+          simpa only [hk0] using hrc_z
+      · rw [ite_eq_right hk0]
+        rcases harg with h0 | ⟨j₀, hj₀_lt, htake, hbj, hbv⟩
+        · omega
+        · subst hbidx
+          by_cases hlt : s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) < b.bestVal
+          · have hlt_z : redCost cZ st.price i₀ jk < redCost cZ st.price i₀ j₀ := by
+              have hlt' : ((s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) : ℕ) : ℤ) <
+                  (b.bestVal : ℤ) := Nat.cast_lt.mpr hlt
+              rwa [hrc_z, hbv] at hlt'
+            rw [ite_eq_left hlt, clientResult_pure]
+            dsimp only
+            refine ⟨rfl, Or.inr ⟨jk, Nat.lt_succ_self _, ?_, rfl, hrc_z⟩⟩
+            rw [List.take_succ_finRange hk', List.argmin_concat, htake]
+            dsimp only
+            exact ite_eq_left hlt_z
+          · have hnlt_z : ¬(redCost cZ st.price i₀ jk < redCost cZ st.price i₀ j₀) := by
+              intro hz
+              apply hlt
+              exact Nat.cast_lt.mp (by rwa [hrc_z, hbv])
+            rw [ite_eq_right hlt, clientResult_pure]
+            dsimp only
+            refine ⟨rfl, Or.inr ⟨j₀, Nat.lt_succ_of_lt hj₀_lt, ?_, hbj, hbv⟩⟩
+            rw [List.take_succ_finRange hk', List.argmin_concat, htake]
+            dsimp only
+            exact ite_eq_right hnlt_z)
+    ⟨0, 0, 0⟩ s₀ ⟨rfl, rfl, Or.inl rfl⟩
+  obtain ⟨hsafe, hv, hmc, _, _, hs_eq, _, hfinal⟩ := hit
+  rcases hfinal with h0 | ⟨j₀, _, htake, hbj, hbv⟩
+  · omega
+  · rw [List.take_of_length_le (by simp)] at htake
+    exact ⟨hsafe, hv, hmc, hs_eq, j₀, htake,
+      fun k => List.le_of_mem_argmin (List.mem_finRange k) htake, hbj, hbv⟩
+
+private def findSecondStep (x : ScanSecondArgs × SecondState) : Memory.Prog SecondState := do
+  let d := x.1
+  let st := x.2
+  let cij ← Memory.read (d.rowBase + st.idx)
+  let pj ← Memory.read (d.bPrice + st.idx)
+  let rc := cij + pj
+  if st.idx = d.bestJ then
+    pure ⟨st.idx + 1, st.hasSecond, st.secondVal⟩
+  else if st.hasSecond = 0 then
+    pure ⟨st.idx + 1, 1, rc⟩
+  else if rc < st.secondVal then
+    pure ⟨st.idx + 1, 1, rc⟩
+  else
+    pure ⟨st.idx + 1, st.hasSecond, st.secondVal⟩
+
+private abbrev FindSecondStepSafe (w : ℕ) (x : ScanSecondArgs × SecondState)
+    (s : Memory.State) : Prop :=
+  let d := x.1
+  let st := x.2
+  Fits w 1 ∧ Fits w (d.rowBase + st.idx) ∧ Fits w (d.bPrice + st.idx) ∧
+    Fits w (s.mem (d.rowBase + st.idx) + s.mem (d.bPrice + st.idx)) ∧ Fits w (st.idx + 1)
+
+private theorem findSecondStep_realizes :
+    Realizes .exact findSecondStep (appendWords encScanSecondArgs encSecondState) encSecondState
+      FindSecondStepSafe (fun _ _ => 0) := by
+  unfold findSecondStep
+  realize
+  all_goals
+    rcases h with ⟨_, _, _, _, _⟩
+    assumption
+
+private def findSecondProg (d : ScanSecondArgs) : Memory.Prog SecondState :=
+  iterate findSecondStep d d.n ⟨0, 0, 0⟩
+
+private theorem findSecondProg_realizes :
+    Realizes .exact findSecondProg encScanSecondArgs encSecondState
+      (fun w d s => iterationSafe findSecondStep FindSecondStepSafe w d d.n ⟨0, 0, 0⟩ s)
+      (fun _ _ => 0) := by
+  unfold findSecondProg
+  realize [findSecondStep_realizes]
+  exact h
+
+private theorem findSecond_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n → ℕ}
+    {st : AuctionState ws.n} (s₀ : Memory.State) (hws : ValidWS ws s₀)
+    (ham : AuctionMem ws C st s₀)
+    (hC_le : ∀ i j : Fin ws.n, C (i, j) ≤ W)
+    (hp_nn : ∀ j : Fin ws.n, 0 ≤ st.price j)
+    (hp_le : ∀ j : Fin ws.n, st.price j ≤ (W + ws.eps : ℤ))
+    (i₀ j₀ : Fin ws.n)
+    (hfit1 : Fits w 1) (hfit_ws : Fits w (ws.outBase + ws.n + 1))
+    (hfit_rc : Fits w (2 * W + ws.eps)) :
+    let rowBase := ws.bC + i₀.val * ws.n
+    let d : ScanSecondArgs := ⟨ws.n, rowBase, ws.bPrice, j₀.val⟩
+    let prog := findSecondProg d
+    let res := (Memory.spec 0).clientResult s₀ prog
+    iterationSafe findSecondStep FindSecondStepSafe w d d.n ⟨0, 0, 0⟩ s₀ ∧
+      (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ prog) ∧
+      memoryCost prog s₀ ≤ 2 * ws.n ∧
+      (Memory.spec 0).clientState s₀ prog = s₀ ∧
+      match secondBest (fun e => (C e : ℤ)) st.price i₀ j₀ with
+      | none => res.hasSecond = 0
+      | some wVal =>
+        res.hasSecond = 1 ∧ (res.secondVal : ℤ) = wVal ∧ res.secondVal ≤ 2 * W + ws.eps := by
+  obtain ⟨hbO, hbP, hbS, hout, hfr⟩ := hws
+  let cZ : Fin ws.n × Fin ws.n → ℤ := fun e => (C e : ℤ)
+  let rowBase := ws.bC + i₀.val * ws.n
+  let d : ScanSecondArgs := ⟨ws.n, rowBase, ws.bPrice, j₀.val⟩
+  let prefList (k : ℕ) : List ℤ :=
+    (((List.finRange ws.n).take k).filter fun k' => decide (k' ≠ j₀)).map (redCost cZ st.price i₀)
+  have hit := iterate_spec findSecondStep FindSecondStepSafe w d 2 ws.n
+    (fun k b s => s = s₀ ∧ b.idx = k ∧
+      match (prefList k).min? with
+      | none => b.hasSecond = 0
+      | some wVal => b.hasSecond = 1 ∧ (b.secondVal : ℤ) = wVal ∧ b.secondVal ≤ 2 * W + ws.eps)
+    (fun _ => False)
+    (fun k hk b s ⟨hs, hbidx, hmin⟩ => by
+      subst s; subst hbidx
+      let jk : Fin ws.n := ⟨b.idx, hk⟩
+      have hmul_k : i₀.val * ws.n + b.idx < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i₀, jk)
+      have hC_k : s₀.mem (rowBase + b.idx) = C (i₀, jk) := by
+        dsimp only [rowBase]; rw [Nat.add_assoc]; exact ham.hC i₀ jk
+      have hP_k : s₀.mem (ws.bPrice + b.idx) = (st.price jk).toNat := ham.hPrice jk
+      have hrc_le : s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) ≤ 2 * W + ws.eps := by
+        rw [hC_k, hP_k]
+        have := hC_le i₀ jk; have := hp_nn jk; have := hp_le jk
+        omega
+      have hrc_z : ((s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) : ℕ) : ℤ) =
+          redCost cZ st.price i₀ jk := by
+        rw [hC_k, hP_k]
+        have := hp_nn jk
+        dsimp only [redCost, cZ]
+        omega
+      have hsafe : FindSecondStepSafe w (d, b) s₀ := by
+        dsimp only [FindSecondStepSafe, d]
+        exact ⟨hfit1, hfit_ws.of_le (by dsimp only [rowBase]; omega),
+          hfit_ws.of_le (by omega), hfit_rc.of_le hrc_le, hfit_ws.of_le (by omega)⟩
+      have hv : (Memory.spec w).ValidHistory s₀
+          ((Memory.spec w).clientHistory s₀ (findSecondStep (d, b))) := by
+        unfold findSecondStep
+        dsimp only [d]
+        exact validHistory_read_bind (by dsimp only [rowBase]; omega)
+          (validHistory_read_bind (by omega)
+            (validHistory_ite (fun _ => validHistory_pure w _ _)
+              (fun _ => validHistory_ite (fun _ => validHistory_pure w _ _)
+                (fun _ => validHistory_ite (fun _ => validHistory_pure w _ _)
+                  (fun _ => validHistory_pure w _ _)))))
+      have hmc : memoryCost (findSecondStep (d, b)) s₀ ≤ 2 := by
+        unfold findSecondStep
+        exact memoryCost_read_bind_le fun _ _ =>
+          memoryCost_read_bind_le fun _ _ =>
+            memoryCost_ite_le (Nat.le_refl 0)
+              (memoryCost_ite_le (Nat.le_refl 0)
+                (memoryCost_ite_le (Nat.le_refl 0) (Nat.le_refl 0)))
+      have hst_eq : (Memory.spec 0).clientState s₀ (findSecondStep (d, b)) = s₀ := by
+        unfold findSecondStep
+        rw [clientState_bind_read, clientState_bind_read]
+        dsimp only
+        split_ifs <;> exact clientState_pure _ _
+      refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun _ _ => by rw [hst_eq], hst_eq, ?_⟩
+      unfold findSecondStep
+      rw [clientResult_bind_read, clientResult_bind_read]
+      dsimp only [d]
+      by_cases heq_j : b.idx = j₀.val
+      · have hjk_eq : jk = j₀ := Fin.ext heq_j
+        have hpref_eq : prefList (b.idx + 1) = prefList b.idx := by
+          dsimp only [prefList]
+          rw [List.take_succ_finRange hk, List.filter_append, List.map_append]
+          simp [jk, hjk_eq]
+        rw [ite_eq_left heq_j, clientResult_pure]
+        dsimp only
+        refine ⟨rfl, ?_⟩
+        simpa only [hpref_eq] using hmin
+      · have hjk_ne : jk ≠ j₀ := fun e => heq_j (congrArg Fin.val e)
+        have hpref_eq : prefList (b.idx + 1) = prefList b.idx ++ [redCost cZ st.price i₀ jk] := by
+          dsimp only [prefList]
+          rw [List.take_succ_finRange hk, List.filter_append, List.map_append]
+          simp [jk, hjk_ne]
+        rw [ite_eq_right heq_j]
+        rcases hl_prev : prefList b.idx with _ | ⟨hd_prev, tl_prev⟩
+        · rw [hl_prev] at hmin hpref_eq
+          dsimp only [List.min?] at hmin
+          rw [ite_eq_left hmin, clientResult_pure]
+          dsimp only
+          refine ⟨rfl, ?_⟩
+          rw [hpref_eq, List.nil_append, List.min?_singleton]
+          exact ⟨rfl, hrc_z, hrc_le⟩
+        · have hm_some : (hd_prev :: tl_prev).min? = some (tl_prev.foldl min hd_prev) := rfl
+          let wPrev := tl_prev.foldl min hd_prev
+          rw [hl_prev, hm_some] at hmin
+          obtain ⟨hhs1, hsv_z, hsv_le⟩ := hmin
+          have hhs_ne : b.hasSecond ≠ 0 := by omega
+          rw [ite_eq_right hhs_ne]
+          have hmin_app : (prefList (b.idx + 1)).min? =
+              some (min wPrev (redCost cZ st.price i₀ jk)) := by
+            rw [hpref_eq, hl_prev, List.cons_append, List.min?_cons', List.foldl_append,
+              List.foldl_cons, List.foldl_nil]
+          rw [hmin_app]
+          by_cases hlt : s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) < b.secondVal
+          · have hlt_z : redCost cZ st.price i₀ jk < wPrev := by
+              have hlt' : ((s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) : ℕ) : ℤ) <
+                  (b.secondVal : ℤ) := Nat.cast_lt.mpr hlt
+              rwa [hrc_z, hsv_z] at hlt'
+            rw [ite_eq_left hlt, clientResult_pure, min_eq_right (le_of_lt hlt_z)]
+            exact ⟨rfl, rfl, hrc_z, hrc_le⟩
+          · have hle_z : wPrev ≤ redCost cZ st.price i₀ jk := by
+              by_contra hgt
+              have hlt_z : redCost cZ st.price i₀ jk < wPrev := lt_of_not_ge hgt
+              exact hlt (Nat.cast_lt.mp (by rwa [hrc_z, hsv_z]))
+            rw [ite_eq_right hlt, clientResult_pure, min_eq_left hle_z]
+            exact ⟨rfl, hhs1, hsv_z, hsv_le⟩)
+    ⟨0, 0, 0⟩ s₀ ⟨rfl, rfl, by simp [prefList]⟩
+  obtain ⟨hsafe, hv, hmc, _, _, hs_eq, _, hfinal⟩ := hit
+  have hpref_n : (prefList ws.n).min? = secondBest cZ st.price i₀ j₀ := by
+    dsimp only [prefList, secondBest]
+    rw [List.take_of_length_le (by simp)]
+  rw [hpref_n] at hfinal
+  exact ⟨hsafe, hv, hmc, hs_eq, hfinal⟩
+
+/-! ### 3.5 Single bid step (`bidStepProg`) and outer loop (`auctionCoreProg`) -/
+
+private def computeNewP (ws : AuctionWS) (rowBase bestJ : ℕ) (sec : SecondState) :
+    Memory.Prog ℕ :=
+  if sec.hasSecond = 0 then do
+    let pj ← Memory.read (ws.bPrice + bestJ)
+    pure (pj + ws.eps)
+  else do
+    let cij ← Memory.read (rowBase + bestJ)
+    pure (sec.secondVal - cij + ws.eps)
+
+private def bidStepProg (x : AuctionWS × ℕ) : Memory.Prog ℕ := do
+  let ws := x.1
+  let sp := x.2
+  let curI ← Memory.read (ws.bStack + (sp - 1))
+  let rowBase := ws.bC + curI * ws.n
+  let best ← findBestProg ⟨ws.n, rowBase, ws.bPrice⟩
+  let sec ← findSecondProg ⟨ws.n, rowBase, ws.bPrice, best.bestJ⟩
+  let newP ← computeNewP ws rowBase best.bestJ sec
+  Memory.write (ws.bPrice + best.bestJ) newP
+  let oldOwner ← Memory.read (ws.bOwner + best.bestJ)
+  Memory.write (ws.bOwner + best.bestJ) curI
+  if oldOwner = ws.n then
+    pure (sp - 1)
+  else do
+    Memory.write (ws.bStack + (sp - 1)) oldOwner
+    pure sp
+
+private abbrev BidStepSafe (w : ℕ) (x : AuctionWS × ℕ) (s : Memory.State) : Prop :=
+  let ws := x.1
+  let sp := x.2
+  let curI := s.mem (ws.bStack + (sp - 1))
+  let rowBase := ws.bC + curI * ws.n
+  let dBest : ScanRowArgs := ⟨ws.n, rowBase, ws.bPrice⟩
+  let best := (Memory.spec 0).clientResult s (findBestProg dBest)
+  let s₁ := (Memory.spec 0).clientState s (findBestProg dBest)
+  let dSec : ScanSecondArgs := ⟨ws.n, rowBase, ws.bPrice, best.bestJ⟩
+  let sec := (Memory.spec 0).clientResult s₁ (findSecondProg dSec)
+  let s₂ := (Memory.spec 0).clientState s₁ (findSecondProg dSec)
+  1 ≤ sp ∧ Fits w 1 ∧ Fits w (ws.bStack + (sp - 1)) ∧ Fits w (curI * ws.n) ∧
+    Fits w rowBase ∧
+    iterationSafe findBestStep FindBestStepSafe w dBest dBest.n ⟨0, 0, 0⟩ s ∧
+    iterationSafe findSecondStep FindSecondStepSafe w dSec dSec.n ⟨0, 0, 0⟩ s₁ ∧
+    Fits w (ws.bPrice + best.bestJ) ∧ Fits w (ws.bOwner + best.bestJ) ∧
+    (sec.hasSecond = 0 → Fits w (s₂.mem (ws.bPrice + best.bestJ) + ws.eps)) ∧
+    (sec.hasSecond ≠ 0 →
+      Fits w (rowBase + best.bestJ) ∧
+        s₂.mem (rowBase + best.bestJ) ≤ sec.secondVal ∧
+        Fits w (sec.secondVal - s₂.mem (rowBase + best.bestJ) + ws.eps))
+
+private theorem bidStepProg_realizes :
+    Realizes .exact bidStepProg (appendWords encAuctionWS wordWords) wordWords
+      BidStepSafe (fun _ _ => 0) := by
+  unfold bidStepProg computeNewP
+  realize [findBestProg_realizes, findSecondProg_realizes]
+  all_goals
+    rcases h with ⟨_, _, _, _, _, _, _, _, _, _, _⟩
+    tauto
+
+private def auctionCutoff (ws : AuctionWS) : ℕ :=
+  ws.n * (2 * ws.scale * ws.M + ws.eps) + 2
+
+private def auctionCoreProg (ws : AuctionWS) : Memory.Prog ℕ := do
+  let _ ← iterate initStep ws ws.n 0
+  boundedWhile (fun _ (sp : ℕ) => 0 < sp) bidStepProg ws (auctionCutoff ws) ws.n
+
+private abbrev AuctionCoreSafe (w : ℕ) (ws : AuctionWS) (s : Memory.State) : Prop :=
+  let s₁ := (Memory.spec 0).clientState s (iterate initStep ws ws.n 0)
+  let bw := boundedWhile (fun _ (sp : ℕ) => 0 < sp) bidStepProg ws (auctionCutoff ws) ws.n
+  iterationSafe initStep InitStepSafe w ws ws.n 0 s ∧
+    ((Memory.spec w).ValidHistory s₁ ((Memory.spec w).clientHistory s₁ bw) →
+      whileSafe (fun _ (sp : ℕ) => 0 < sp) bidStepProg
+        (fun w x s => BidStepSafe w (ws, x.2) s) w ws (auctionCutoff ws) ws.n s₁)
+
+private theorem auctionCoreProg_realizes :
+    Realizes .exact auctionCoreProg encAuctionWS wordWords
+      AuctionCoreSafe (fun _ _ => 0) := by
+  unfold auctionCoreProg
+  realize [initStep_realizes, bidStepProg_realizes]
+  all_goals
+    rcases h with ⟨_, _⟩
+    assumption
+
+private theorem getElem_zero_of_eq_cons {α : Type*} {l : List α} {x : α} {xs : List α}
+    (h : l = x :: xs) {i : ℕ} (hi : i < l.length) (hi0 : i = 0) : l[i]'hi = x := by
+  subst h; subst hi0; rfl
+
+private theorem getElem_succ_of_eq_cons {α : Type*} {l : List α} {x : α} {xs : List α}
+    (h : l = x :: xs) (j : ℕ) {i : ℕ} (hi : i < l.length) (hj : j < xs.length)
+    (hij : i = j + 1) : l[i]'hi = xs[j]'hj := by
+  subst h; subst hij; rfl
+
+private theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n → ℕ}
+    {st : AuctionState ws.n} {i₀ : Fin ws.n} {rest : List (Fin ws.n)}
+    (hs_free : st.free = i₀ :: rest)
+    (hε : 0 < ws.eps)
+    (hinv : AuctionInv (fun e => (C e : ℤ)) (ws.eps : ℤ) st)
+    (hp_nn : ∀ j : Fin ws.n, 0 ≤ st.price j)
+    (hC_le : ∀ i j : Fin ws.n, C (i, j) ≤ W)
+    (s₀ : Memory.State) (hws : ValidWS ws s₀) (ham : AuctionMem ws C st s₀)
+    (hfit1 : Fits w 1) (hfit_ws : Fits w (ws.outBase + ws.n + 1))
+    (hfit_p : Fits w (2 * W + 2 * ws.eps)) :
+    let sp := st.free.length
+    let st' := bidStep (fun e => (C e : ℤ)) (ws.eps : ℤ) st
+    let s' := (Memory.spec 0).clientState s₀ (bidStepProg (ws, sp))
+    BidStepSafe w (ws, sp) s₀ ∧
+      (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (bidStepProg (ws, sp))) ∧
+      memoryCost (bidStepProg (ws, sp)) s₀ ≤ 4 * ws.n + 6 ∧
+      s'.frontier = s₀.frontier ∧
+      (Memory.spec 0).clientResult s₀ (bidStepProg (ws, sp)) = st'.free.length ∧
+      AuctionMem ws C st' s' := by
+  obtain ⟨hbO, hbP, hbS, hout, hfr⟩ := hws
+  let cZ : Fin ws.n × Fin ws.n → ℤ := fun e => (C e : ℤ)
+  have hC_spread : ∀ i j k : Fin ws.n, cZ (i, k) - cZ (i, j) ≤ (W : ℤ) := fun i j k => by
+    have := hC_le i k
+    dsimp only [cZ]; omega
+  have hp_le : ∀ j : Fin ws.n, st.price j ≤ (W + ws.eps : ℤ) := fun j =>
+    hinv.price_le (by simp [hs_free]) hC_spread (by positivity) j
+  have hlen_le : st.free.length ≤ ws.n := by
+    have := hinv.free_nodup.length_le_card
+    rwa [Fintype.card_fin] at this
+  have hsp_eq : st.free.length = rest.length + 1 := by simp [hs_free]
+  have hcurI : s₀.mem (ws.bStack + (st.free.length - 1)) = i₀.val := by
+    have h := ham.hStack (st.free.length - 1) (by omega)
+    rw [h, getElem_zero_of_eq_cons hs_free _ (by omega)]
+  have hbest := findBest_spec ws s₀ ⟨hbO, hbP, hbS, hout, hfr⟩ ham hC_le hp_nn hp_le i₀
+    hfit1 hfit_ws (hfit_p.of_le (by omega))
+  obtain ⟨hsafe_b, hv_b, hmc_b, hs_b, j₀, hbo, hj₀_min, hbj, hbv⟩ := hbest
+  have hsec := findSecond_spec ws s₀ ⟨hbO, hbP, hbS, hout, hfr⟩ ham hC_le hp_nn hp_le i₀ j₀
+    hfit1 hfit_ws (hfit_p.of_le (by omega))
+  obtain ⟨hsafe_s, hv_s, hmc_s, hs_s, hsec_spec⟩ := hsec
+  let rowBase := ws.bC + i₀.val * ws.n
+  let dBest : ScanRowArgs := ⟨ws.n, rowBase, ws.bPrice⟩
+  let best := (Memory.spec 0).clientResult s₀ (findBestProg dBest)
+  have hbj' : best.bestJ = j₀.val := hbj
+  let dSec : ScanSecondArgs := ⟨ws.n, rowBase, ws.bPrice, j₀.val⟩
+  let sec := (Memory.spec 0).clientResult s₀ (findSecondProg dSec)
+  change (match secondBest cZ st.price i₀ j₀ with
+    | none => sec.hasSecond = 0
     | some wVal =>
-      rw [hsb] at hsec₃
-      obtain ⟨hhs1, hsv_z, hsv_le⟩ := hsec₃
-      have hhs_ne0 : y₃.regs hasSecond ≠ 0 := by omega
-      have hCj : y₃.mem (matBase + n * n + i₀.val * n + j₀.val) = C (i₀, j₀) := by
-        rw [hmem₃_x, Nat.add_assoc (matBase + n * n)]; exact hCM.hentry i₀ j₀
-      have hw_ge_rc : redCost cZ s.price i₀ j₀ ≤ wVal := by
+      sec.hasSecond = 1 ∧ (sec.secondVal : ℤ) = wVal ∧ sec.secondVal ≤ 2 * W + ws.eps) at hsec_spec
+  have hmul_ij : i₀.val * ws.n + j₀.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i₀, j₀)
+  have hmul_i : i₀.val * ws.n < ws.n * ws.n := by have := j₀.isLt; omega
+  let newPZ := bidPrice cZ (ws.eps : ℤ) st.price i₀ j₀
+  have hnewP_nn : 0 ≤ newPZ := by
+    have := le_bidPrice (c := cZ) (ε := (ws.eps : ℤ)) hj₀_min
+    have := hp_nn j₀
+    dsimp only [newPZ]
+    omega
+  let pBranch : Memory.Prog ℕ := computeNewP ws rowBase j₀.val sec
+  have hpBranch :
+      (sec.hasSecond = 0 → Fits w (s₀.mem (ws.bPrice + j₀.val) + ws.eps)) ∧
+      (sec.hasSecond ≠ 0 →
+        Fits w (rowBase + j₀.val) ∧
+          s₀.mem (rowBase + j₀.val) ≤ sec.secondVal ∧
+          Fits w (sec.secondVal - s₀.mem (rowBase + j₀.val) + ws.eps)) ∧
+      (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ pBranch) ∧
+      memoryCost pBranch s₀ ≤ 1 ∧
+      (Memory.spec 0).clientState s₀ pBranch = s₀ ∧
+      (Memory.spec 0).clientResult s₀ pBranch = newPZ.toNat ∧
+      Fits w newPZ.toNat := by
+    cases hsb : secondBest cZ st.price i₀ j₀ with
+    | none =>
+      rw [hsb] at hsec_spec
+      have hhs0 : sec.hasSecond = 0 := hsec_spec
+      have hpj_mem : s₀.mem (ws.bPrice + j₀.val) = (st.price j₀).toNat := ham.hPrice j₀
+      have hnp_eq : s₀.mem (ws.bPrice + j₀.val) + ws.eps = newPZ.toNat := by
+        rw [hpj_mem]; have := hp_nn j₀
+        dsimp only [newPZ, bidPrice]; rw [hsb]; dsimp only; omega
+      have hnp_fit : Fits w (s₀.mem (ws.bPrice + j₀.val) + ws.eps) := by
+        rw [hpj_mem]; have := hp_nn j₀; have := hp_le j₀
+        exact hfit_p.of_le (by omega)
+      refine ⟨fun _ => hnp_fit, fun hne => absurd hhs0 hne, ?_, ?_, ?_, ?_, hnp_eq ▸ hnp_fit⟩
+      · dsimp only [pBranch, computeNewP]
+        rw [ite_eq_left hhs0]
+        exact validHistory_read_bind (by omega) (validHistory_pure w _ _)
+      · dsimp only [pBranch, computeNewP]
+        rw [ite_eq_left hhs0]
+        exact memoryCost_read_bind_le fun _ _ => Nat.le_refl 0
+      · dsimp only [pBranch, computeNewP]
+        rw [ite_eq_left hhs0, clientState_bind_read, clientState_pure]
+      · dsimp only [pBranch, computeNewP]
+        rw [ite_eq_left hhs0, clientResult_bind_read, clientResult_pure, hnp_eq]
+    | some wVal =>
+      rw [hsb] at hsec_spec
+      obtain ⟨hhs1, hsv_z, hsv_le⟩ := hsec_spec
+      have hhs_ne : sec.hasSecond ≠ 0 := by omega
+      have hcj_mem : s₀.mem (rowBase + j₀.val) = C (i₀, j₀) := by
+        dsimp only [rowBase]; rw [Nat.add_assoc]; exact ham.hC i₀ j₀
+      have hw_ge_rc : redCost cZ st.price i₀ j₀ ≤ wVal := by
         rw [secondBest, List.min?_eq_some_iff] at hsb
         obtain ⟨hmem_w, _⟩ := hsb
         obtain ⟨k_w, _, rfl⟩ := List.mem_map.mp hmem_w
         exact hj₀_min k_w
-      have hCj_le_sv : C (i₀, j₀) ≤ y₃.regs secondVal := by
-        have hpj_nn := hp_nonneg j₀
+      have hcj_le : s₀.mem (rowBase + j₀.val) ≤ sec.secondVal := by
+        rw [hcj_mem]; have := hp_nn j₀
         simp only [redCost, cZ] at hw_ge_rc
         omega
-      have hval_eq : y₃.regs secondVal - C (i₀, j₀) + eps = newP := by
-        dsimp only [newP, bidPrice, cZ]
-        rw [hsb]
-        dsimp only
-        omega
-      have hf_sub : Fits w (y₃.regs secondVal - C (i₀, j₀)) := hfit.of_le (by omega)
-      have hf_np : Fits w (y₃.regs secondVal - C (i₀, j₀) + eps) := hfit.of_le (by omega)
-      wram_exec [hhs_ne0, hb₃.hzero, hrb₃, hbj₃, hb₃.hreps, hCj, hCj_le_sv,
-        hf_cj, hf_sub, hf_np]
-      exact ⟨fun r hr => by wram_simp, by wram_simp [hval_eq], hmem₃_x⟩
-  obtain ⟨y₄, he_p, hr₄, hval₄, hmem₄⟩ := hprice_part
-  have hb₄ : BaseRegs n matBase eps scale M y₄ := hb₃.of_eq fun r hr => hr₄ r (by omega)
-  have hsp₄ : y₄.regs sp = rest.length := (hr₄ sp (by decide)).trans hsp₃
-  have hci₄ : y₄.regs curI = i₀.val := (hr₄ curI (by decide)).trans hci₃
-  have hbj₄ : y₄.regs bestJ = j₀.val := (hr₄ bestJ (by decide)).trans hbj₃
-  have hOj : y₄.mem (matBase + 2 * (n * n) + j₀.val) = (s.owner j₀).elim n Fin.val := by
-    rw [hmem₄]; exact hOM j₀
-  have hupd_part : ∃ y₅, ExecWithin w
-      (ram[ addr ← bPrice + bestJ; *addr ← val;
-            addr ← bOwner + bestJ; val2 ← *addr;
-            *addr ← curI ] : Code .standard 26) y₄ y₅ 5 ∧
-      BaseRegs n matBase eps scale M y₅ ∧
-      y₅.regs sp = rest.length ∧
-      y₅.regs val2 = (s.owner j₀).elim n Fin.val ∧
-      OwnerMem (matBase + 2 * (n * n)) s'.owner y₅.mem ∧
-      PriceMem (matBase + 2 * (n * n) + n) s'.price y₅.mem ∧
-      (∀ a, ¬(matBase + 2 * (n * n) ≤ a ∧ a < matBase + 2 * (n * n) + 2 * n) →
-        y₅.mem a = x.mem a) := by
-    refine WP.exists_execWithin ?_
-    wram_exec [hb₄.hbPrice, hb₄.hbOwner, hbj₄, hval₄, hci₄, hOj, hf_pj, hf_oj]
-    refine ⟨hb₄.of_eq fun r hr => by wram_simp, by wram_simp [hsp₄], by wram_simp,
-      fun j => ?_, fun j => ?_, fun a ha => by wram_simp [hmem₄]⟩
-    · rw [hs'_eq]; dsimp only
-      by_cases hjj : j = j₀
-      · subst hjj; rw [Function.update_self]; wram_simp [Option.elim]
-      · have : j.val ≠ j₀.val := fun h => hjj (Fin.ext h)
-        rw [Function.update_of_ne hjj]; wram_simp [hmem₄, hOM j]
-    · rw [hs'_eq]; dsimp only
-      by_cases hjj : j = j₀
-      · subst hjj; rw [Function.update_self]; wram_simp [newP]
-      · have : j.val ≠ j₀.val := fun h => hjj (Fin.ext h)
-        rw [Function.update_of_ne hjj]; wram_simp [hmem₄, hPM j]
-  obtain ⟨y₅, he_upd, hb₅, hsp₅, hv2₅, hOy₅, hPy₅, hf₅⟩ := hupd_part
-  have hpush_part : ∃ y, ExecWithin w
-      (ram[ if val2 < rn then [
-              addr ← bStack + sp; *addr ← val2;
-              sp ← sp + one
-            ] else [ tmp ← zero ] ] : Code .standard 26) y₅ y 4 ∧
-      BaseRegs n matBase eps scale M y ∧
-      StackMem (matBase + 2 * (n * n) + 2 * n) s'.free y ∧
-      (∀ a, a ≠ matBase + 2 * (n * n) + 2 * n + rest.length → y.mem a = y₅.mem a) := by
-    refine WP.exists_execWithin ?_
-    cases hoj : s.owner j₀ with
+      have hnp_eq : sec.secondVal - s₀.mem (rowBase + j₀.val) + ws.eps = newPZ.toNat := by
+        rw [hcj_mem]; dsimp only [newPZ, bidPrice, cZ] at hnewP_nn ⊢
+        rw [hsb] at hnewP_nn ⊢; dsimp only at hnewP_nn ⊢; omega
+      have hnp_fit : Fits w (sec.secondVal - s₀.mem (rowBase + j₀.val) + ws.eps) :=
+        hfit_p.of_le (by omega)
+      have hfrb_j : Fits w (rowBase + j₀.val) :=
+        hfit_ws.of_le (by dsimp only [rowBase]; omega)
+      refine ⟨fun h0 => absurd h0 hhs_ne, fun _ => ⟨hfrb_j, hcj_le, hnp_fit⟩,
+        ?_, ?_, ?_, ?_, hnp_eq ▸ hnp_fit⟩
+      · dsimp only [pBranch, computeNewP]
+        rw [ite_eq_right hhs_ne]
+        exact validHistory_read_bind (by dsimp only [rowBase]; omega) (validHistory_pure w _ _)
+      · dsimp only [pBranch, computeNewP]
+        rw [ite_eq_right hhs_ne]
+        exact memoryCost_read_bind_le fun _ _ => Nat.le_refl 0
+      · dsimp only [pBranch, computeNewP]
+        rw [ite_eq_right hhs_ne, clientState_bind_read, clientState_pure]
+      · dsimp only [pBranch, computeNewP]
+        rw [ite_eq_right hhs_ne, clientResult_bind_read, clientResult_pure, hnp_eq]
+  obtain ⟨hbr_pos, hbr_neg, hv_p, hmc_p, hs_p, hres_p, hfit_np⟩ := hpBranch
+  have hsafe_all : BidStepSafe w (ws, st.free.length) s₀ := by
+    unfold BidStepSafe
+    dsimp only
+    rw [hcurI]
+    change 1 ≤ st.free.length ∧ Fits w 1 ∧ Fits w (ws.bStack + (st.free.length - 1)) ∧
+      Fits w (i₀.val * ws.n) ∧ Fits w rowBase ∧
+      iterationSafe findBestStep FindBestStepSafe w dBest dBest.n ⟨0, 0, 0⟩ s₀ ∧
+      iterationSafe findSecondStep FindSecondStepSafe w ⟨ws.n, rowBase, ws.bPrice, best.bestJ⟩
+        ws.n ⟨0, 0, 0⟩ ((Memory.spec 0).clientState s₀ (findBestProg dBest)) ∧
+      Fits w (ws.bPrice + best.bestJ) ∧ Fits w (ws.bOwner + best.bestJ) ∧ _
+    rw [hs_b, hbj']
+    change _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧
+      (sec.hasSecond = 0 → Fits w (((Memory.spec 0).clientState s₀
+          (findSecondProg dSec)).mem (ws.bPrice + j₀.val) + ws.eps)) ∧
+      (sec.hasSecond ≠ 0 →
+        Fits w (rowBase + j₀.val) ∧
+          ((Memory.spec 0).clientState s₀ (findSecondProg dSec)).mem
+            (rowBase + j₀.val) ≤ sec.secondVal ∧
+          Fits w (sec.secondVal - ((Memory.spec 0).clientState s₀
+            (findSecondProg dSec)).mem (rowBase + j₀.val) + ws.eps))
+    rw [hs_s]
+    exact ⟨by omega, hfit1, hfit_ws.of_le (by omega),
+      hfit_ws.of_le (by omega), hfit_ws.of_le (by dsimp only [rowBase]; omega),
+      hsafe_b, hsafe_s, hfit_ws.of_le (by omega), hfit_ws.of_le (by omega),
+      hbr_pos, hbr_neg⟩
+  have hst'_eq : bidStep cZ (ws.eps : ℤ) st =
+      { owner := Function.update st.owner j₀ (some i₀)
+        price := Function.update st.price j₀ newPZ
+        free := (st.owner j₀).toList ++ rest
+        bids := st.bids + 1 } := by
+    simp only [bidStep, hs_free, cZ, hbo, newPZ]
+  have hold_mem : s₀.mem (ws.bOwner + j₀.val) = (st.owner j₀).elim ws.n Fin.val :=
+    ham.hOwner j₀
+  let s_mid : Memory.State :=
+    ⟨Function.update (Function.update s₀.mem (ws.bPrice + j₀.val) newPZ.toNat)
+      (ws.bOwner + j₀.val) i₀.val, s₀.frontier⟩
+  have hold_s_mid : (Function.update s₀.mem (ws.bPrice + j₀.val) newPZ.toNat)
+      (ws.bOwner + j₀.val) = (st.owner j₀).elim ws.n Fin.val := by
+    rw [Function.update_of_ne (by omega)]
+    exact hold_mem
+  have hrun_state : (Memory.spec 0).clientState s₀ (bidStepProg (ws, st.free.length)) =
+      if (st.owner j₀).elim ws.n Fin.val = ws.n then
+        s_mid
+      else
+        ⟨Function.update s_mid.mem (ws.bStack + (st.free.length - 1))
+          ((st.owner j₀).elim ws.n Fin.val), s₀.frontier⟩ := by
+    unfold bidStepProg
+    dsimp only
+    rw [clientState_bind_read, hcurI, clientState_bind, hs_b]
+    rw [hbj, clientState_bind, hs_s]
+    change (Memory.spec 0).clientState s₀ (pBranch >>= _) = _
+    rw [clientState_bind, hs_p, hres_p, clientState_bind_write, clientState_bind_read]
+    dsimp only
+    simp only [hold_s_mid]
+    rw [clientState_bind_write]
+    split_ifs
+    · exact clientState_pure _ _
+    · rw [clientState_bind_write, clientState_pure]
+  have hrun_res : (Memory.spec 0).clientResult s₀ (bidStepProg (ws, st.free.length)) =
+      if (st.owner j₀).elim ws.n Fin.val = ws.n then
+        st.free.length - 1
+      else
+        st.free.length := by
+    unfold bidStepProg
+    dsimp only
+    rw [clientResult_bind_read, hcurI, clientResult_bind, hs_b]
+    rw [hbj, clientResult_bind, hs_s]
+    change (Memory.spec 0).clientResult s₀ (pBranch >>= _) = _
+    rw [clientResult_bind, hs_p, hres_p, clientResult_bind_write, clientResult_bind_read]
+    dsimp only
+    simp only [hold_s_mid]
+    rw [clientResult_bind_write]
+    split_ifs
+    · exact clientResult_pure _ _
+    · rw [clientResult_bind_write, clientResult_pure]
+  refine ⟨hsafe_all, ?_, ?_, ?_, ?_, ?_⟩
+  · -- ValidHistory
+    unfold bidStepProg
+    dsimp only
+    refine validHistory_read_bind (by omega) ?_
+    rw [hcurI]
+    refine validHistory_bind_step hv_b ?_
+    rw [hs_b, hbj]
+    refine validHistory_bind_step hv_s ?_
+    rw [hs_s]
+    change (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (pBranch >>= _))
+    refine validHistory_bind_step hv_p ?_
+    rw [hs_p, hres_p]
+    refine validHistory_write_bind (by omega) hfit_np ?_
+    refine validHistory_read_bind (by dsimp only; omega) ?_
+    dsimp only
+    simp only [hold_s_mid]
+    refine validHistory_write_bind (by dsimp only; omega) (hfit_ws.of_le (by omega)) ?_
+    refine validHistory_ite (fun _ => validHistory_pure w _ _) (fun hne => ?_)
+    have hold_lt : (st.owner j₀).elim ws.n Fin.val < ws.n := by
+      cases ho : st.owner j₀ with
+      | none => simp [ho] at hne
+      | some p => exact p.isLt
+    exact validHistory_write_bind (by dsimp only; omega) (hfit_ws.of_le (by omega))
+      (validHistory_pure w _ _)
+  · -- memoryCost ≤ 4 * ws.n + 6
+    unfold bidStepProg
+    dsimp only
+    rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read, hcurI,
+      memoryCost_bind']
+    rw [hs_b, hbj, memoryCost_bind', hs_s]
+    change 1 + (_ + (_ + memoryCost (pBranch >>= _) s₀)) ≤ _
+    rw [memoryCost_bind', hs_p, hres_p]
+    have htail_mc : memoryCost
+        (Memory.write (ws.bPrice + j₀.val) newPZ.toNat >>= fun _ =>
+          Memory.read (ws.bOwner + j₀.val) >>= fun oldOwner =>
+            Memory.write (ws.bOwner + j₀.val) i₀.val >>= fun _ =>
+              if oldOwner = ws.n then pure (st.free.length - 1)
+              else Memory.write (ws.bStack + (st.free.length - 1)) oldOwner >>=
+                fun _ => pure st.free.length) s₀ ≤ 4 :=
+      memoryCost_write_bind_le fun _ _ =>
+        memoryCost_read_bind_le fun _ _ =>
+          memoryCost_write_bind_le fun _ _ =>
+            memoryCost_ite_le (Nat.zero_le 1)
+              (memoryCost_write_bind_le fun _ _ => Nat.le_refl 0)
+    omega
+  · -- frontier unchanged
+    rw [hrun_state]
+    split_ifs <;> rfl
+  · -- clientResult = st'.free.length
+    rw [hst'_eq, hrun_res]
+    cases ho : st.owner j₀ with
+    | none => simp [hsp_eq]
+    | some prevI =>
+      have hne : prevI.val ≠ ws.n := ne_of_lt prevI.isLt
+      simp [hne, hsp_eq]
+  · -- AuctionMem ws C st' s'
+    rw [hst'_eq, hrun_state]
+    have hs_mid_c : ∀ i j : Fin ws.n, s_mid.mem (ws.bC + (i.val * ws.n + j.val)) = C (i, j) :=
+      fun i j => by
+        have hlt_ij : i.val * ws.n + j.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i, j)
+        dsimp only [s_mid]
+        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+        exact ham.hC i j
+    have hs_mid_owner : ∀ j : Fin ws.n,
+        s_mid.mem (ws.bOwner + j.val) =
+          (Function.update st.owner j₀ (some i₀) j).elim ws.n Fin.val := fun j => by
+      dsimp only [s_mid]
+      by_cases hj : j = j₀
+      · subst hj; simp
+      · have hne : j.val ≠ j₀.val := Fin.val_ne_of_ne hj
+        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
+          Function.update_of_ne hj]
+        exact ham.hOwner j
+    have hs_mid_price : ∀ j : Fin ws.n,
+        s_mid.mem (ws.bPrice + j.val) = (Function.update st.price j₀ newPZ j).toNat := fun j => by
+      dsimp only [s_mid]
+      rw [Function.update_of_ne (by omega)]
+      by_cases hj : j = j₀
+      · subst hj; simp
+      · have hne : j.val ≠ j₀.val := Fin.val_ne_of_ne hj
+        rw [Function.update_of_ne (by omega), Function.update_of_ne hj]
+        exact ham.hPrice j
+    cases ho : st.owner j₀ with
     | none =>
-      have hv2_eq : y₅.regs val2 = n := by simpa [hoj] using hv2₅
-      have hnl : ¬n < n := Nat.lt_irrefl n
-      wram_exec [hb₅.hrn, hb₅.hzero, hv2_eq, hnl]
-      refine ⟨hb₅.of_eq fun r hr => by wram_simp, ?_, fun _ _ => rfl⟩
-      rw [hs'_eq]; simp only [hoj, Option.toList_none, List.nil_append]
-      refine ⟨by wram_simp [hsp₅], fun t ht => ?_⟩
-      wram_simp
-      rw [hf₅ _ (by omega)]
-      have ht' : t < s.free.length := by rw [hs, List.length_cons]; omega
-      rw [hSM.2 t ht']
-      simp only [hs, List.reverse_cons]
-      rw [List.getElem_append_left (by simpa using ht)]
-    | some i' =>
-      have hi'_lt := i'.isLt
-      have hv2_eq : y₅.regs val2 = i'.val := by simpa [hoj] using hv2₅
-      have hf_sp1 : Fits w (rest.length + 1) := hfit.of_le (by omega)
-      wram_exec [hb₅.hbStack, hb₅.hrn, hb₅.hone, hsp₅, hv2_eq, hi'_lt, hf_st_addr, hf_sp1]
-      refine ⟨hb₅.of_eq fun r hr => by wram_simp, ?_, fun a ha => by wram_simp⟩
-      rw [hs'_eq]; simp only [hoj, Option.toList_some, List.singleton_append]
-      refine ⟨by wram_simp; simp, fun t ht => ?_⟩
-      simp only [List.reverse_cons]
-      have hlen_rev : rest.reverse.length = rest.length := List.length_reverse
-      by_cases htt : t < rest.length
-      · rw [List.getElem_append_left (by omega)]
-        wram_simp
-        rw [hf₅ _ (by omega)]
-        have ht' : t < s.free.length := by rw [hs, List.length_cons]; omega
-        rw [hSM.2 t ht']
-        simp only [hs, List.reverse_cons]
-        rw [List.getElem_append_left (by omega)]
-      · have hteq : t = rest.length := by simp only [List.length_cons] at ht; omega
-        subst hteq
-        rw [List.getElem_append_right (by rw [hlen_rev])]
-        wram_simp
-        simp [hlen_rev]
-  obtain ⟨y, he_push, hby, hSy, hf_push⟩ := hpush_part
-  have hOy : OwnerMem (matBase + 2 * (n * n)) s'.owner y.mem := fun j =>
-    (hf_push _ (by have := j.isLt; omega)).trans (hOy₅ j)
-  have hPy : PriceMem (matBase + 2 * (n * n) + n) s'.price y.mem := fun j =>
-    (hf_push _ (by have := j.isLt; omega)).trans (hPy₅ j)
-  have hfy : ∀ a, ¬(matBase + 2 * (n * n) ≤ a ∧ a < matBase + 2 * (n * n) + 3 * n) →
-      y.mem a = x.mem a := fun a ha =>
-    (hf_push a (by omega)).trans (hf₅ a (by omega))
-  exact ⟨y, (he_pop.seq (he_best.seq (he_sec.seq (he_p.seq (he_upd.seq he_push))))).mono (by omega),
-    hby, hOy, hPy, hSy, hfy⟩
+      simp only [Option.elim_none, ↓reduceIte, Option.toList_none, List.nil_append]
+      refine ⟨hs_mid_c, hs_mid_owner, hs_mid_price, fun k hk => ?_⟩
+      dsimp only [s_mid] at hk ⊢
+      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+      have hk' : k < st.free.length := by rw [hsp_eq]; omega
+      rw [ham.hStack k hk',
+        getElem_succ_of_eq_cons hs_free (rest.length - 1 - k) _ (by omega)
+          (by rw [hsp_eq]; omega)]
+    | some prevI =>
+      have hne : prevI.val ≠ ws.n := ne_of_lt prevI.isLt
+      simp only [Option.elim_some, hne, ↓reduceIte, Option.toList_some, List.singleton_append]
+      refine ⟨fun i j => ?_, fun j => ?_, fun j => ?_, fun k hk => ?_⟩
+      · have hlt_ij : i.val * ws.n + j.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i, j)
+        dsimp only
+        rw [Function.update_of_ne (by omega)]
+        exact hs_mid_c i j
+      · dsimp only
+        rw [Function.update_of_ne (by omega)]
+        exact hs_mid_owner j
+      · dsimp only
+        rw [Function.update_of_ne (by omega)]
+        exact hs_mid_price j
+      · dsimp only at hk ⊢
+        simp only [List.length_cons] at hk
+        rcases Nat.lt_succ_iff_lt_or_eq.mp hk with hlt_r | rfl
+        · dsimp only [s_mid]
+          rw [Function.update_of_ne (by rw [hsp_eq]; omega), Function.update_of_ne (by omega),
+            Function.update_of_ne (by omega)]
+          have hk' : k < st.free.length := by rw [hsp_eq]; omega
+          rw [ham.hStack k hk',
+            getElem_succ_of_eq_cons hs_free (rest.length - 1 - k) _ (by omega)
+              (by rw [hsp_eq]; omega),
+            getElem_succ_of_eq_cons rfl (rest.length - 1 - k) _ (by omega) (by simp; omega)]
+        · rw [show st.free.length - 1 = rest.length by rw [hsp_eq]; omega, Function.update_self,
+            getElem_zero_of_eq_cons rfl _ (by simp)]
 
-private theorem exec_bidLoop {w n matBase eps scale M W : ℕ}
-    {C : Fin n × Fin n → ℕ} (hC : ∀ i j, C (i, j) ≤ W)
-    (fuel : ℕ) :
-    let cZ : Fin n × Fin n → ℤ := fun e => (C e : ℤ)
-    ∀ (s : AuctionState n) (x : Data 26),
-      AuctionInv cZ (eps : ℤ) s →
-      (∀ k, 0 ≤ s.price k) →
-      (auctionLoop cZ (eps : ℤ) fuel s).free = [] →
-      BaseRegs n matBase eps scale M x →
-      CostMem (matBase + n * n) C x.mem →
-      OwnerMem (matBase + 2 * (n * n)) s.owner x.mem →
-      PriceMem (matBase + 2 * (n * n) + n) s.price x.mem →
-      StackMem (matBase + 2 * (n * n) + 2 * n) s.free x →
-      Fits w (matBase + 2 * (n * n) + 4 * n + 2 * W + 2 * eps + 4) →
-      ∃ y, ExecWithin w (.loop (.lt zero sp) bidStepCode) x y
-          (((auctionLoop cZ (eps : ℤ) fuel s).bids - s.bids) * (28 * n + 30) + 2) ∧
-        BaseRegs n matBase eps scale M y ∧
-        OwnerMem (matBase + 2 * (n * n)) (auctionLoop cZ (eps : ℤ) fuel s).owner y.mem ∧
-        PriceMem (matBase + 2 * (n * n) + n) (auctionLoop cZ (eps : ℤ) fuel s).price y.mem ∧
-        (∀ a, ¬(matBase + 2 * (n * n) ≤ a ∧ a < matBase + 2 * (n * n) + 3 * n) →
-          y.mem a = x.mem a) := by
-  intro cZ
-  induction fuel with
-  | zero =>
-    intro s x _ _ hfree hb _ hOM hPM hSM _
-    rw [auctionLoop] at hfree
-    have hc : ¬(Cond.lt zero sp).Holds x := by
-      rw [Cond.holds_lt, hb.hzero, hSM.1, hfree]
-      simp
-    exact ⟨x, (ExecWithin.loop_exit hc).mono (by simp [auctionLoop]), hb, hOM, hPM,
-      fun _ _ => rfl⟩
-  | succ fuel ih =>
-    intro s x hinv hp_nn hfree hb hCM hOM hPM hSM hfit
-    rcases hs : s.free with _ | ⟨i₀, rest⟩
-    · have hc : ¬(Cond.lt zero sp).Holds x := by
-        rw [Cond.holds_lt, hb.hzero, hSM.1, hs]
-        simp
-      simpa [auctionLoop, hs] using
-        ⟨x, (ExecWithin.loop_exit hc).mono (by simp), hb, hOM, hPM, fun _ _ => rfl⟩
-    · have hc : (Cond.lt zero sp).Holds x := by
-        rw [Cond.holds_lt, hb.hzero, hSM.1, hs, List.length_cons]
-        omega
-      obtain ⟨x₁, he_step, hb₁, hOM₁, hPM₁, hSM₁, hf₁⟩ :=
-        exec_bidStepCode hC hs hinv hp_nn x hb hCM hOM hPM hSM hfit
-      have hCM₁ : CostMem (matBase + n * n) C x₁.mem := hCM.of_outside fun a ha => hf₁ a (by omega)
-      have hfree₁ : (auctionLoop cZ (eps : ℤ) fuel (bidStep cZ (eps : ℤ) s)).free = [] := by
-        simpa [auctionLoop, hs] using hfree
-      have hbids₁ : (bidStep cZ (eps : ℤ) s).bids = s.bids + 1 := bids_bidStep hs
-      have hbids_le :
-          (bidStep cZ (eps : ℤ) s).bids ≤
-            (auctionLoop cZ (eps : ℤ) fuel (bidStep cZ (eps : ℤ) s)).bids :=
-        bids_le_bids_auctionLoop cZ (eps : ℤ) fuel (bidStep cZ (eps : ℤ) s)
-      obtain ⟨y, he_rec, hby, hOMy, hPMy, hfy⟩ :=
-        ih (bidStep cZ (eps : ℤ) s) x₁ (hinv.bidStep (Nat.cast_nonneg eps))
-          (price_nonneg_bidStep (Nat.cast_nonneg eps) hp_nn)
-          hfree₁ hb₁ hCM₁ hOM₁ hPM₁ hSM₁ hfit
-      have hsub_eq :
-          (auctionLoop cZ (eps : ℤ) fuel (bidStep cZ (eps : ℤ) s)).bids - s.bids =
-            ((auctionLoop cZ (eps : ℤ) fuel (bidStep cZ (eps : ℤ) s)).bids -
-              (bidStep cZ (eps : ℤ) s).bids) + 1 := by
-        omega
-      refine ⟨y, (ExecWithin.loop_iter hc he_step he_rec).mono ?_, hby,
-        by simpa [auctionLoop, hs] using hOMy,
-        by simpa [auctionLoop, hs] using hPMy,
-        fun a ha => (hfy a ha).trans (hf₁ a ha)⟩
-      simp only [auctionLoop, hs, hsub_eq, Nat.add_mul, Nat.one_mul]
+private theorem bids_le_auctionLoop {n : ℕ} (c : Fin n × Fin n → ℤ) (ε : ℤ) :
+    ∀ (fuel : ℕ) (st : AuctionState n), st.bids ≤ (auctionLoop c ε fuel st).bids
+  | 0, _ => le_rfl
+  | m + 1, st => by
+    unfold auctionLoop
+    rcases hf : st.free with _ | ⟨_, _⟩
+    · exact le_rfl
+    · dsimp only
+      have hb := bids_bidStep (c := c) (ε := ε) hf
+      have hm := bids_le_auctionLoop c ε m (bidStep c ε st)
       omega
 
-/-- **In-memory execution of `coreCode`**: starting with `BaseRegs` and `CostMem` for an unsigned
-cost matrix `C` bounded by `W` and increment `eps > 0`, `coreCode` terminates at the exact pure
-state `auction (fun e => (C e : ℤ)) (eps : ℤ)` within
-`(auction c ε).bids * (28 * n + 30) + 17 * n + 12` instructions. -/
-theorem core_exec {w n matBase eps scale M W : ℕ} (hε : 0 < eps)
-    {C : Fin n × Fin n → ℕ} (hC : ∀ i j, C (i, j) ≤ W)
-    (x : Data 26) (hb : BaseRegs n matBase eps scale M x)
-    (hCM : CostMem (matBase + n * n) C x.mem)
-    (hfit : Fits w (matBase + 2 * (n * n) + 4 * n + 2 * W + 2 * eps + 4)) :
-    let s := auction (fun e => (C e : ℤ)) (eps : ℤ)
-    ∃ y, ExecWithin w coreCode x y (s.bids * (28 * n + 30) + 17 * n + 12) ∧
-      BaseRegs n matBase eps scale M y ∧
-      CostMem (matBase + n * n) C y.mem ∧
-      (∀ j : Fin n, y.mem (matBase + 2 * (n * n) + j.val) =
-        match s.owner j with | some i => i.val | none => n) ∧
-      (∀ j : Fin n, y.mem (matBase + 2 * (n * n) + n + j.val) = (s.price j).toNat) := by
-  intro s
-  obtain ⟨x₁, he_init, hb₁, hOM₁, hPM₁, hSM₁, hf₁⟩ :=
-    exec_initCoreCode x hb (hfit.of_le (by omega))
-  have hCM₁ : CostMem (matBase + n * n) C x₁.mem := hCM.of_outside fun a ha => hf₁ a (by omega)
-  let cZ : Fin n × Fin n → ℤ := fun e => (C e : ℤ)
-  have hfree :
-      (auctionLoop cZ (eps : ℤ) (bidBound n (costSpread cZ) (eps : ℤ)) (auctionInit n)).free =
-        [] := auction_free (Nat.cast_pos.mpr hε)
-  obtain ⟨y, he_loop, hby, hOMy, hPMy, hfy⟩ :=
-    exec_bidLoop hC (bidBound n (costSpread cZ) (eps : ℤ)) (auctionInit n) x₁
-      auctionInv_init (fun _ => le_rfl) hfree hb₁ hCM₁ hOM₁ hPM₁ hSM₁ hfit
-  have hCM_y : CostMem (matBase + n * n) C y.mem :=
-    hCM₁.of_outside fun a ha => hfy a (by omega)
-  refine ⟨y, (he_init.seq he_loop).mono ?_, hby, hCM_y,
-    fun j => by
-      have hj : y.mem (matBase + 2 * (n * n) + j.val) = (s.owner j).elim n Fin.val := hOMy j
-      cases h : s.owner j <;> simpa [h] using hj,
-    hPMy⟩
-  change (17 * n + 10) + ((s.bids - 0) * (28 * n + 30) + 2) ≤ _
-  simp only [Nat.sub_zero]
+private theorem boundedWhile_auctionLoop_spec {w W : ℕ} (ws : AuctionWS)
+    {C : Fin ws.n × Fin ws.n → ℕ} (hε : 0 < ws.eps)
+    (hC_le : ∀ i j : Fin ws.n, C (i, j) ≤ W)
+    (fuel : ℕ) (st : AuctionState ws.n) (s : Memory.State)
+    (hinv : AuctionInv (fun e => (C e : ℤ)) (ws.eps : ℤ) st)
+    (hp_nn : ∀ j : Fin ws.n, 0 ≤ st.price j)
+    (hws : ValidWS ws s) (ham : AuctionMem ws C st s)
+    (hfit1 : Fits w 1) (hfit_ws : Fits w (ws.outBase + ws.n + 1))
+    (hfit_p : Fits w (2 * W + 2 * ws.eps)) :
+    let cZ : Fin ws.n × Fin ws.n → ℤ := fun e => (C e : ℤ)
+    let bw := boundedWhile (fun _ (sp : ℕ) => 0 < sp) bidStepProg ws fuel st.free.length
+    let s' := (Memory.spec 0).clientState s bw
+    let st_end := auctionLoop cZ (ws.eps : ℤ) fuel st
+    ((st_end.free = []) →
+      whileSafe (fun _ (sp : ℕ) => 0 < sp) bidStepProg
+        (fun w x s => BidStepSafe w (ws, x.2) s) w ws fuel st.free.length s) ∧
+      (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s bw) ∧
+      memoryCost bw s ≤ (st_end.bids - st.bids) * (4 * ws.n + 6) ∧
+      s'.frontier = s.frontier ∧
+      AuctionMem ws C st_end s' := by
+  induction fuel generalizing st s with
+  | zero =>
+    unfold boundedWhile auctionLoop
+    refine ⟨fun hfree => by simp [whileSafe, hfree], validHistory_pure w _ _, ?_, rfl, ham⟩
+    exact Nat.zero_le _
+  | succ fuel ih =>
+    rcases hs_free : st.free with _ | ⟨i₀, rest⟩
+    · unfold boundedWhile auctionLoop
+      simp only [hs_free, List.length_nil, lt_self_iff_false, ↓reduceIte]
+      refine ⟨fun _ => by simp [whileSafe], validHistory_pure w _ _, ?_, rfl, ham⟩
+      exact Nat.zero_le _
+    · have hpos : 0 < st.free.length := by simp [hs_free]
+      have hstep := bidStepProg_spec ws hs_free hε hinv hp_nn hC_le s hws ham
+        hfit1 hfit_ws hfit_p
+      obtain ⟨hsafe_step, hv_step, hmc_step, hfr_step, hres_step, ham_step⟩ := hstep
+      let cZ : Fin ws.n × Fin ws.n → ℤ := fun e => (C e : ℤ)
+      let st₁ := bidStep cZ (ws.eps : ℤ) st
+      let s₁ := (Memory.spec 0).clientState s (bidStepProg (ws, st.free.length))
+      have hinv₁ : AuctionInv cZ (ws.eps : ℤ) st₁ := hinv.bidStep (by positivity)
+      have hp_nn₁ : ∀ j, 0 ≤ st₁.price j := price_nonneg_bidStep (by positivity) hp_nn
+      have hws₁ : ValidWS ws s₁ := hws.of_frontier_eq hfr_step
+      have hih := ih st₁ s₁ hinv₁ hp_nn₁ hws₁ ham_step
+      obtain ⟨hwsafe_ih, hv_ih, hmc_ih, hfr_ih, ham_ih⟩ := hih
+      have hbids₁ : st₁.bids = st.bids + 1 := bids_bidStep hs_free
+      have hbids_mono : st₁.bids ≤ (auctionLoop cZ (ws.eps : ℤ) fuel st₁).bids :=
+        bids_le_auctionLoop cZ (ws.eps : ℤ) fuel st₁
+      have hbw_eq : boundedWhile (fun _ (sp : ℕ) => 0 < sp) bidStepProg ws (fuel + 1)
+          st.free.length =
+          (bidStepProg (ws, st.free.length) >>= fun a' =>
+            boundedWhile (fun _ (sp : ℕ) => 0 < sp) bidStepProg ws fuel a') := by
+        rw [boundedWhile, ite_eq_left hpos]
+      have hloop_step : auctionLoop cZ (ws.eps : ℤ) (fuel + 1) st =
+          auctionLoop cZ (ws.eps : ℤ) fuel st₁ := by
+        rw [auctionLoop, hs_free]
+      simp only [← hs_free]
+      change ((auctionLoop cZ (ws.eps : ℤ) (fuel + 1) st).free = [] → _) ∧
+        (Memory.spec w).ValidHistory s
+          ((Memory.spec w).clientHistory s
+            (boundedWhile (fun _ (sp : ℕ) => 0 < sp) bidStepProg ws (fuel + 1) st.free.length)) ∧
+        memoryCost
+          (boundedWhile (fun _ (sp : ℕ) => 0 < sp) bidStepProg ws (fuel + 1) st.free.length) s ≤
+          ((auctionLoop cZ (ws.eps : ℤ) (fuel + 1) st).bids - st.bids) * (4 * ws.n + 6) ∧
+        ((Memory.spec 0).clientState s
+          (boundedWhile (fun _ (sp : ℕ) => 0 < sp) bidStepProg ws (fuel + 1)
+            st.free.length)).frontier = s.frontier ∧
+        AuctionMem ws C (auctionLoop cZ (ws.eps : ℤ) (fuel + 1) st)
+          ((Memory.spec 0).clientState s
+            (boundedWhile (fun _ (sp : ℕ) => 0 < sp) bidStepProg ws (fuel + 1) st.free.length))
+      rw [hbw_eq, hloop_step]
+      refine ⟨fun hfree => ?_, ?_, ?_, ?_, ?_⟩
+      · rw [whileSafe, ite_eq_left hpos, hres_step]
+        exact ⟨hsafe_step, hwsafe_ih hfree⟩
+      · refine validHistory_bind_step hv_step ?_
+        rwa [hres_step]
+      · rw [memoryCost_bind', hres_step]
+        have hsub : (auctionLoop cZ (ws.eps : ℤ) fuel st₁).bids - st.bids =
+            1 + ((auctionLoop cZ (ws.eps : ℤ) fuel st₁).bids - st₁.bids) := by omega
+        rw [hsub, Nat.add_mul, one_mul]
+        exact Nat.add_le_add hmc_step hmc_ih
+      · rw [clientState_bind, hres_step]
+        exact hfr_ih.trans hfr_step
+      · rw [clientState_bind, hres_step]
+        exact ham_ih
+
+private theorem auctionCoreProg_spec {w : ℕ} (ws : AuctionWS)
+    {C : Fin ws.n × Fin ws.n → ℕ} (hε : 0 < ws.eps)
+    (hC_le : ∀ i j : Fin ws.n, C (i, j) ≤ 2 * ws.scale * ws.M)
+    (s₀ : Memory.State) (hws : ValidWS ws s₀)
+    (hC_mem : ∀ i j : Fin ws.n, s₀.mem (ws.bC + (i.val * ws.n + j.val)) = C (i, j))
+    (hfit1 : Fits w 1) (hfit_ws : Fits w (ws.outBase + ws.n + 1))
+    (hfit_p : Fits w (4 * ws.scale * ws.M + 2 * ws.eps)) :
+    let cZ : Fin ws.n × Fin ws.n → ℤ := fun e => (C e : ℤ)
+    let s' := (Memory.spec 0).clientState s₀ (auctionCoreProg ws)
+    AuctionCoreSafe w ws s₀ ∧
+      (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (auctionCoreProg ws)) ∧
+      memoryCost (auctionCoreProg ws) s₀ ≤
+        (auction cZ (ws.eps : ℤ)).bids * (4 * ws.n + 6) + 3 * ws.n ∧
+      s'.frontier = s₀.frontier ∧
+      AuctionMem ws C (auction cZ (ws.eps : ℤ)) s' := by
+  have hinit := initAuction_spec ws s₀ hws hC_mem hfit_ws
+  obtain ⟨hsafe_init, hv_init, hmc_init, hfr_init, _, ham_init⟩ := hinit
+  let s₁ := (Memory.spec 0).clientState s₀ (iterate initStep ws ws.n 0)
+  have hws₁ : ValidWS ws s₁ := hws.of_frontier_eq hfr_init
+  let W := 2 * ws.scale * ws.M
+  have hfit_p' : Fits w (2 * W + 2 * ws.eps) :=
+    hfit_p.of_le (le_of_eq (by dsimp only [W]; ring))
+  have hlen_init : (auctionInit ws.n).free.length = ws.n := by simp [auctionInit]
+  have hbw := boundedWhile_auctionLoop_spec ws hε hC_le (auctionCutoff ws) (auctionInit ws.n) s₁
+    auctionInv_init (fun _ => le_rfl) hws₁ ham_init hfit1 hfit_ws hfit_p'
+  obtain ⟨hwsafe_bw, hv_bw, hmc_bw, hfr_bw, ham_bw⟩ := hbw
+  let cZ : Fin ws.n × Fin ws.n → ℤ := fun e => (C e : ℤ)
+  have hεZ : (0 : ℤ) < (ws.eps : ℤ) := Nat.cast_pos.mpr hε
+  have hC_spread : ∀ i j k : Fin ws.n, cZ (i, k) - cZ (i, j) ≤ (W : ℤ) := fun i j k => by
+    have := hC_le i k
+    dsimp only [cZ]; omega
+  have hcut_free : (auctionLoop cZ (ws.eps : ℤ) (auctionCutoff ws) (auctionInit ws.n)).free = [] :=
+    (auctionLoop_spec hεZ hC_spread (auctionCutoff ws) (auctionInit ws.n) auctionInv_init (by
+      simp only [auctionInit, Finset.sum_const_zero, sub_zero]
+      have hK_nn : (0 : ℤ) ≤ (ws.n : ℤ) * ((W : ℤ) + (ws.eps : ℤ)) := by positivity
+      have h1 : (1 : ℤ) ≤ (ws.eps : ℤ) := by omega
+      have hmul : (ws.n : ℤ) * ((W : ℤ) + (ws.eps : ℤ)) ≤
+          ((ws.n : ℤ) * ((W : ℤ) + (ws.eps : ℤ))) * (ws.eps : ℤ) := by
+        simpa only [mul_one] using mul_le_mul_of_nonneg_left h1 hK_nn
+      have hcut_eq : ((auctionCutoff ws : ℕ) : ℤ) =
+          (ws.n : ℤ) * ((W : ℤ) + (ws.eps : ℤ)) + 2 := by
+        dsimp only [auctionCutoff, W]; push_cast; ring
+      rw [hcut_eq, add_mul]
+      linarith)).2
+  have hloop_eq :
+      auctionLoop cZ (ws.eps : ℤ) (auctionCutoff ws) (auctionInit ws.n) =
+        auction cZ (ws.eps : ℤ) := by
+    unfold auction
+    have hf2 : (auctionLoop cZ (ws.eps : ℤ)
+        (bidBound ws.n (costSpread cZ) (ws.eps : ℤ)) (auctionInit ws.n)).free = [] :=
+      auction_free hεZ
+    rcases le_total (auctionCutoff ws)
+        (bidBound ws.n (costSpread cZ) (ws.eps : ℤ)) with hle | hle
+    · symm
+      rw [← Nat.add_sub_cancel' hle, auctionLoop_add hcut_free]
+    · rw [← Nat.add_sub_cancel' hle, auctionLoop_add hf2]
+  simp only [hlen_init] at hwsafe_bw hv_bw hmc_bw hfr_bw ham_bw
+  have hsafe_core : AuctionCoreSafe w ws s₀ := ⟨hsafe_init, fun _ => hwsafe_bw hcut_free⟩
+  unfold auctionCoreProg
+  refine ⟨hsafe_core, validHistory_bind_step hv_init hv_bw, ?_, ?_, ?_⟩
+  · rw [memoryCost_bind']
+    rw [hloop_eq, show (auctionInit ws.n).bids = 0 from rfl, Nat.sub_zero] at hmc_bw
+    dsimp only [s₁, cZ] at hmc_bw ⊢
+    omega
+  · rw [clientState_bind]
+    exact hfr_bw.trans hfr_init
+  · rw [clientState_bind]
+    rwa [← hloop_eq]
+
+/-! ### 3.6 Scattering `objectOf` to output memory (`scatterProg`) -/
+
+private def scatterStep (x : AuctionWS × ℕ) : Memory.Prog ℕ := do
+  let ws := x.1
+  let j := x.2
+  let i ← Memory.read (ws.bOwner + j)
+  Memory.write (ws.outBase + 1 + i) j
+  pure (j + 1)
+
+private abbrev ScatterStepSafe (w : ℕ) (x : AuctionWS × ℕ) (s : Memory.State) : Prop :=
+  let ws := x.1
+  let j := x.2
+  Fits w 1 ∧ Fits w (ws.bOwner + j) ∧ Fits w (ws.outBase + 1 + s.mem (ws.bOwner + j)) ∧
+    Fits w (j + 1)
+
+private theorem scatterStep_realizes :
+    Realizes .exact scatterStep (appendWords encAuctionWS wordWords) wordWords
+      ScatterStepSafe (fun _ _ => 0) := by
+  unfold scatterStep
+  realize
+  all_goals
+    rcases h with ⟨_, _, _, _⟩
+    assumption
+
+private def scatterProg (ws : AuctionWS) : Memory.Prog ℕ := do
+  Memory.write ws.outBase ws.n
+  let _ ← iterate scatterStep ws ws.n 0
+  pure ws.outBase
+
+private abbrev ScatterProgSafe (w : ℕ) (ws : AuctionWS) (s : Memory.State) : Prop :=
+  let s₁ : Memory.State := ⟨Function.update s.mem ws.outBase ws.n, s.frontier⟩
+  iterationSafe scatterStep ScatterStepSafe w ws ws.n 0 s₁
+
+private theorem scatterProg_realizes :
+    Realizes .exact scatterProg encAuctionWS wordWords
+      ScatterProgSafe (fun _ _ => 0) := by
+  unfold scatterProg
+  realize [scatterStep_realizes]
+  exact iterationSafe_imp h (fun _ => rfl) fun _ _ hs => hs
+
+private theorem scatterProg_spec {w : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n → ℕ}
+    {st : AuctionState ws.n} (hinv : AuctionInv (fun e => (C e : ℤ)) (ws.eps : ℤ) st)
+    (hfree : st.free = [])
+    (s₀ : Memory.State) (hws : ValidWS ws s₀) (ham : AuctionMem ws C st s₀)
+    (hfit1 : Fits w 1) (hfit_ws : Fits w (ws.outBase + ws.n + 1)) :
+    let s' := (Memory.spec 0).clientState s₀ (scatterProg ws)
+    ScatterProgSafe w ws s₀ ∧
+      (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (scatterProg ws)) ∧
+      memoryCost (scatterProg ws) s₀ ≤ 2 * ws.n + 1 ∧
+      s'.frontier = s₀.frontier ∧
+      (Memory.spec 0).clientResult s₀ (scatterProg ws) = ws.outBase ∧
+      (∀ i j : Fin ws.n, s'.mem (ws.bC + (i.val * ws.n + j.val)) = C (i, j)) ∧
+      outputList s'.mem ws.outBase = (List.finRange ws.n).map fun i => (st.objectOf i).val := by
+  obtain ⟨hbO, hbP, hbS, hout, hfr⟩ := hws
+  have howner_some : ∀ j : Fin ws.n, ∃ i : Fin ws.n, st.owner j = some i := fun j => by
+    cases ho : st.owner j with
+    | some i => exact ⟨i, rfl⟩
+    | none =>
+      exfalso
+      have hcard : (Finset.univ.image st.objectOf).card = ws.n := by
+        rw [Finset.card_image_of_injective _ fun i₁ i₂ e =>
+          Option.some_injective _
+            ((hinv.owner_objectOf hfree i₁).symm.trans (by
+              rw [e]; exact hinv.owner_objectOf hfree i₂)),
+          Finset.card_univ, Fintype.card_fin]
+      have hsub : Finset.univ.image st.objectOf ⊆ Finset.univ.erase j := by
+        intro x hx
+        obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp hx
+        refine Finset.mem_erase.mpr ⟨fun hEq => ?_, Finset.mem_univ _⟩
+        have := hinv.owner_objectOf hfree i
+        rw [hEq, ho] at this
+        cases this
+      have hlt := (Finset.card_le_card hsub).trans_lt
+        (Finset.card_erase_lt_of_mem (Finset.mem_univ j))
+      rw [hcard, Finset.card_univ, Fintype.card_fin] at hlt
+      exact Nat.lt_irrefl _ hlt
+  let s₁ : Memory.State := ⟨Function.update s₀.mem ws.outBase ws.n, s₀.frontier⟩
+  have hit := iterate_spec scatterStep ScatterStepSafe w ws 2 ws.n
+    (fun k idx s => idx = k ∧ s.frontier = s₀.frontier ∧
+      s.mem ws.outBase = ws.n ∧
+      (∀ a < ws.outBase, s.mem a = s₀.mem a) ∧
+      ∀ j : Fin ws.n, j.val < k → ∀ i : Fin ws.n, st.owner j = some i →
+        s.mem (ws.outBase + 1 + i.val) = j.val)
+    (fun a => ws.outBase + 1 ≤ a ∧ a < ws.outBase + ws.n + 1)
+    (fun k hk idx s ⟨hidx, hsfr, hhdr, hlow, hscat⟩ => by
+      subst idx
+      let jk : Fin ws.n := ⟨k, hk⟩
+      obtain ⟨ik, hik⟩ := howner_some jk
+      have ho_k : s.mem (ws.bOwner + k) = ik.val := by
+        rw [hlow _ (by omega), ham.hOwner jk, hik]; rfl
+      have hsafe : ScatterStepSafe w (ws, k) s := by
+        dsimp only [ScatterStepSafe]
+        refine ⟨hfit1, hfit_ws.of_le (by omega), ?_, hfit_ws.of_le (by omega)⟩
+        rw [ho_k]; exact hfit_ws.of_le (by have := ik.isLt; omega)
+      have hv : (Memory.spec w).ValidHistory s
+          ((Memory.spec w).clientHistory s (scatterStep (ws, k))) := by
+        unfold scatterStep
+        dsimp only
+        exact validHistory_read_bind (by omega)
+          (validHistory_write_bind (by rw [ho_k]; have := ik.isLt; omega)
+            (hfit_ws.of_le (by omega)) (validHistory_pure w _ _))
+      have hmc : memoryCost (scatterStep (ws, k)) s ≤ 2 := by
+        unfold scatterStep
+        exact memoryCost_read_bind_le fun _ _ =>
+          memoryCost_write_bind_le fun _ _ => Nat.le_refl 0
+      have hst_eq : (Memory.spec 0).clientState s (scatterStep (ws, k)) =
+          ⟨Function.update s.mem (ws.outBase + 1 + ik.val) k, s.frontier⟩ := by
+        unfold scatterStep
+        rw [clientState_bind_read]
+        dsimp only
+        rw [ho_k, clientState_bind_write, clientState_pure]
+      have hres_eq : (Memory.spec 0).clientResult s (scatterStep (ws, k)) = k + 1 := by
+        unfold scatterStep
+        rw [clientResult_bind_read, clientResult_bind_write, clientResult_pure]
+      refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun x hx => ?_, ?_⟩
+      · rw [hst_eq]
+        dsimp only
+        exact Function.update_of_ne (by have := ik.isLt; omega) _ _
+      · rw [hst_eq, hres_eq]
+        dsimp only
+        refine ⟨rfl, hsfr, ?_, fun a ha => ?_, fun j hj i hi => ?_⟩
+        · rw [Function.update_of_ne (by omega)]; exact hhdr
+        · rw [Function.update_of_ne (by omega)]; exact hlow a ha
+        · rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hlt' | heq
+          · have hij_ne : i ≠ ik := fun hEq => by
+              subst hEq
+              have hj_eq : j = jk := hinv.owner_inj j jk i hi hik
+              exact absurd (congrArg Fin.val hj_eq) (ne_of_lt hlt')
+            rw [Function.update_of_ne (by have := Fin.val_ne_of_ne hij_ne; omega)]
+            exact hscat j hlt' i hi
+          · have hj_eq : j = jk := Fin.ext heq
+            subst hj_eq
+            have hi_eq : i = ik := Option.some_injective _ (hi.symm.trans hik)
+            subst hi_eq
+            exact Function.update_self _ _ _)
+    0 s₁ ⟨rfl, rfl, Function.update_self _ _ _,
+      fun a ha => Function.update_of_ne (by omega) _ _,
+      fun _ h => absurd h (Nat.not_lt_zero _)⟩
+  obtain ⟨hsafe, hv_it, hmc_it, hfr_it, _, _, _, hhdr, hlow, hscat⟩ := hit
+  unfold scatterProg
+  refine ⟨hsafe,
+    validHistory_write_bind (by omega) (hfit_ws.of_le (by omega))
+      (validHistory_bind_step hv_it (validHistory_pure w _ _)),
+    ?_, ?_, ?_, fun i j => ?_, ?_⟩
+  · rw [memoryCost_bind', memoryCost_write, clientState_write, memoryCost_bind', memoryCost_pure]
+    dsimp only [s₁] at hmc_it
+    omega
+  · rw [clientState_bind_write, clientState_bind, clientState_pure]
+    exact hfr_it
+  · rw [clientResult_bind_write, clientResult_bind, clientResult_pure]
+  · rw [clientState_bind_write, clientState_bind, clientState_pure]
+    have hlt_ij : i.val * ws.n + j.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i, j)
+    exact (hlow _ (by omega)).trans (ham.hC i j)
+  · rw [clientState_bind_write, clientState_bind, clientState_pure, outputList_eq_iff]
+    refine ⟨by simp only [List.length_map, List.length_finRange]; exact hhdr, fun idx => ?_⟩
+    have hi_lt : idx.val < ws.n := by simpa using idx.isLt
+    let iFin : Fin ws.n := ⟨idx.val, hi_lt⟩
+    change ((Memory.spec 0).clientState s₁ (iterate scatterStep ws ws.n 0)).mem
+        (ws.outBase + 1 + idx.val) =
+      ((List.finRange ws.n).map fun i => (st.objectOf i).val)[idx.val]
+    simp only [List.getElem_map, List.getElem_finRange]
+    exact hscat (st.objectOf iFin) (st.objectOf iFin).isLt iFin (hinv.owner_objectOf hfree iFin)
+
+/-! ### 3.7 Summing and signed-encoding optimal cost (`sumScaledCostProg`) -/
+
+private def sumScaledStep (x : AuctionWS × SumState) : Memory.Prog SumState := do
+  let ws := x.1
+  let st := x.2
+  let j ← Memory.read (ws.outBase + 1 + st.idx)
+  let cScaled ← Memory.read (ws.bC + (st.idx * ws.n + j))
+  let cUnscaled := cScaled / ws.scale
+  pure ⟨st.idx + 1, st.acc + cUnscaled⟩
+
+private abbrev SumScaledStepSafe (w : ℕ) (x : AuctionWS × SumState) (s : Memory.State) : Prop :=
+  let ws := x.1
+  let st := x.2
+  let j := s.mem (ws.outBase + 1 + st.idx)
+  let cScaled := s.mem (ws.bC + (st.idx * ws.n + j))
+  ws.scale ≠ 0 ∧ Fits w (ws.outBase + 1 + st.idx) ∧ Fits w (st.idx * ws.n) ∧
+    Fits w (ws.bC + (st.idx * ws.n + j)) ∧ Fits w (st.idx + 1) ∧
+    Fits w (st.acc + cScaled / ws.scale)
+
+private theorem sumScaledStep_realizes :
+    Realizes .exact sumScaledStep (appendWords encAuctionWS encSumState) encSumState
+      SumScaledStepSafe (fun _ _ => 0) := by
+  unfold sumScaledStep
+  realize
+  all_goals
+    rcases h with ⟨_, _, _, _, _, _⟩
+    assumption
+
+private def sumScaledCostProg (ws : AuctionWS) : Memory.Prog ℕ := do
+  let res ← iterate sumScaledStep ws ws.n ⟨0, 0⟩
+  let shiftTotal := ws.n * ws.M
+  if res.acc < shiftTotal then
+    pure (2 * (shiftTotal - res.acc) + 1)
+  else
+    pure (2 * (res.acc - shiftTotal))
+
+private abbrev SumScaledCostSafe (w : ℕ) (ws : AuctionWS) (s : Memory.State) : Prop :=
+  let res := (Memory.spec 0).clientResult s (iterate sumScaledStep ws ws.n ⟨0, 0⟩)
+  let shiftTotal := ws.n * ws.M
+  iterationSafe sumScaledStep SumScaledStepSafe w ws ws.n ⟨0, 0⟩ s ∧
+    Fits w 1 ∧ Fits w 2 ∧ Fits w shiftTotal ∧
+    (res.acc < shiftTotal →
+      res.acc ≤ shiftTotal ∧ Fits w (2 * (shiftTotal - res.acc)) ∧
+        Fits w (2 * (shiftTotal - res.acc) + 1)) ∧
+    (¬(res.acc < shiftTotal) →
+      shiftTotal ≤ res.acc ∧ Fits w (2 * (res.acc - shiftTotal)))
+
+private theorem sumScaledCostProg_realizes :
+    Realizes .exact sumScaledCostProg encAuctionWS wordWords
+      SumScaledCostSafe (fun _ _ => 0) := by
+  unfold sumScaledCostProg
+  realize [sumScaledStep_realizes]
+  all_goals
+    rcases h with ⟨_, _, _, _, _, _⟩
+    tauto
+
+private theorem four_n_maxMag_add_one_le_wordBound (inst : Instance) :
+    4 * (inst.n * inst.maxMag) + 1 ≤ inst.wordBound := by
+  unfold Instance.wordBound
+  have h : 4 * (inst.n * inst.maxMag) ≤ 4 * (inst.n + 1) * inst.maxMag := by
+    calc 4 * (inst.n * inst.maxMag) = 4 * inst.n * inst.maxMag := by ring
+      _ ≤ 4 * (inst.n + 1) * inst.maxMag :=
+        Nat.mul_le_mul_right _ (Nat.mul_le_mul_left 4 (Nat.le_succ _))
   omega
 
-/-! ## Section 4: Shared input scan/shift, output scatter, and `State.init` endpoints -/
+private theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
+    (s₀ : Memory.State) (hws : ValidWS ws s₀)
+    (hn : ws.n = inst.n) (hscale : ws.scale = inst.n + 1)
+    (hM_le : ws.M ≤ inst.maxMag)
+    (hM_ge : ∀ i j : Fin inst.n, (inst.cost (i, j)).natAbs ≤ ws.M)
+    (hC_mem : ∀ i j : Fin inst.n,
+      s₀.mem (ws.bC + (i.val * inst.n + j.val)) =
+        (inst.n + 1) * (inst.cost (i, j) + (ws.M : ℤ)).toNat)
+    (hout : outputList s₀.mem ws.outBase = inst.assignment)
+    (hw : Fits w inst.wordBound)
+    (hfit_ws : Fits w (ws.outBase + ws.n + 1)) :
+    SumScaledCostSafe w ws s₀ ∧
+      (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (sumScaledCostProg ws)) ∧
+      memoryCost (sumScaledCostProg ws) s₀ ≤ 2 * inst.n ∧
+      (Memory.spec 0).clientResult s₀ (sumScaledCostProg ws) = inst.encodedMinCost := by
+  obtain ⟨hbO, hbP, hbS, houtB, hfr⟩ := hws
+  have hwb := four_n_maxMag_add_one_le_wordBound inst
+  let C_unsc (p : Fin inst.n × Fin inst.n) : ℕ := (inst.cost p + (ws.M : ℤ)).toNat
+  have hC_unsc_le : ∀ p : Fin inst.n × Fin inst.n, C_unsc p ≤ 2 * ws.M := by
+    rintro ⟨i, j⟩; have := hM_ge i j; dsimp only [C_unsc]; omega
+  let π := scaledAuctionPerm inst.cost
+  have hmem_out : ∀ i : Fin inst.n, s₀.mem (ws.outBase + 1 + i.val) = (π i).val := fun i => by
+    have hi : i.val < (outputList s₀.mem ws.outBase).length := by
+      rw [hout, inst.length_assignment]; exact i.isLt
+    calc s₀.mem (ws.outBase + 1 + i.val)
+        = (outputList s₀.mem ws.outBase)[i.val]'hi := (getElem_outputList _ _ _ hi).symm
+      _ = inst.assignment[i.val]'(by simp) := by simp [hout]
+      _ = (π i).val := by simp [Instance.assignment, π]
+  have hf1 : Fits w 1 := hw.of_le (by unfold Instance.wordBound; omega)
+  have hf2 : Fits w 2 := hw.of_le (by unfold Instance.wordBound; omega)
+  have hit := iterate_spec sumScaledStep SumScaledStepSafe w ws 2 ws.n
+    (fun k st s => s = s₀ ∧ st.idx = k ∧
+      st.acc = (((List.finRange inst.n).take k).map fun i => C_unsc (i, π i)).sum ∧
+      st.acc ≤ k * (2 * ws.M))
+    (fun _ => False)
+    (fun k hk st s ⟨hs, hidx, hacc_sum, hacc_le⟩ => by
+      subst s; subst hidx
+      have hk' : st.idx < inst.n := hn ▸ hk
+      let i₀ : Fin inst.n := ⟨st.idx, hk'⟩
+      let j₀ : Fin inst.n := π i₀
+      have hj_mem : s₀.mem (ws.outBase + 1 + st.idx) = j₀.val := hmem_out i₀
+      have hmul_ij : st.idx * ws.n + j₀.val < ws.n * ws.n := by
+        rw [hn]
+        exact Cslib.Matrix.pairIndex_lt (⟨st.idx, hk'⟩, j₀)
+      have hc_mem :
+          s₀.mem (ws.bC + (st.idx * ws.n + s₀.mem (ws.outBase + 1 + st.idx))) =
+            (inst.n + 1) * C_unsc (i₀, j₀) := by
+        rw [hj_mem, hn]; exact hC_mem i₀ j₀
+      have hdiv : ((inst.n + 1) * C_unsc (i₀, j₀)) / ws.scale = C_unsc (i₀, j₀) := by
+        rw [hscale]; exact Nat.mul_div_right _ (Nat.succ_pos inst.n)
+      have hacc_next_le : st.acc + C_unsc (i₀, j₀) ≤ (st.idx + 1) * (2 * ws.M) := by
+        rw [Nat.add_mul, one_mul]
+        exact Nat.add_le_add hacc_le (hC_unsc_le (i₀, j₀))
+      have hacc_fit : Fits w (st.acc + C_unsc (i₀, j₀)) := by
+        have hle_max : st.acc + C_unsc (i₀, j₀) ≤ 2 * (inst.n * inst.maxMag) := by
+          calc st.acc + C_unsc (i₀, j₀)
+              ≤ (st.idx + 1) * (2 * ws.M) := hacc_next_le
+            _ ≤ inst.n * (2 * ws.M) := Nat.mul_le_mul_right _ hk'
+            _ ≤ inst.n * (2 * inst.maxMag) := Nat.mul_le_mul_left _ (by omega)
+            _ = 2 * (inst.n * inst.maxMag) := by ring
+        exact hw.of_le (by omega)
+      have hmul_idx : st.idx * ws.n ≤ ws.n * ws.n :=
+        Nat.mul_le_mul_right ws.n (le_of_lt hk)
+      have hsafe : SumScaledStepSafe w (ws, st) s₀ := by
+        dsimp only [SumScaledStepSafe]
+        refine ⟨by omega, hfit_ws.of_le (by omega),
+          hfit_ws.of_le (by omega),
+          hfit_ws.of_le (by rw [hj_mem]; omega),
+          hfit_ws.of_le (by omega), ?_⟩
+        rw [hc_mem, hdiv]
+        exact hacc_fit
+      have hv : (Memory.spec w).ValidHistory s₀
+          ((Memory.spec w).clientHistory s₀ (sumScaledStep (ws, st))) := by
+        unfold sumScaledStep
+        dsimp only
+        exact validHistory_read_bind (by omega)
+          (validHistory_read_bind (by rw [hj_mem]; omega) (validHistory_pure w _ _))
+      have hmc : memoryCost (sumScaledStep (ws, st)) s₀ ≤ 2 := by
+        unfold sumScaledStep
+        exact memoryCost_read_bind_le fun _ _ =>
+          memoryCost_read_bind_le fun _ _ => Nat.le_refl 0
+      have hst_eq : (Memory.spec 0).clientState s₀ (sumScaledStep (ws, st)) = s₀ := by
+        unfold sumScaledStep
+        rw [clientState_bind_read, clientState_bind_read, clientState_pure]
+      refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun _ _ => by rw [hst_eq], hst_eq, ?_⟩
+      unfold sumScaledStep
+      rw [clientResult_bind_read, clientResult_bind_read, clientResult_pure]
+      dsimp only
+      rw [hc_mem, hdiv]
+      refine ⟨rfl, ?_, hacc_next_le⟩
+      rw [hacc_sum, List.take_succ_finRange hk', List.map_append, List.sum_append,
+        List.map_singleton, List.sum_singleton])
+    ⟨0, 0⟩ s₀ ⟨rfl, rfl, by simp, by simp⟩
+  obtain ⟨hsafe_it, hv_it, hmc_it, _, _, hs_it, _, hacc_full, hacc_le_n⟩ := hit
+  let res := (Memory.spec 0).clientResult s₀ (iterate sumScaledStep ws ws.n ⟨0, 0⟩)
+  change res.acc = (((List.finRange inst.n).take ws.n).map fun i => C_unsc (i, π i)).sum
+    at hacc_full
+  change res.acc ≤ ws.n * (2 * ws.M) at hacc_le_n
+  have hsum_z : (res.acc : ℤ) = inst.minCost + ((inst.n * ws.M : ℕ) : ℤ) := by
+    rw [hn, List.take_of_length_le (by simp), ← Fin.sum_univ_def] at hacc_full
+    rw [hacc_full, Nat.cast_sum]
+    have hcu_z : ∀ i : Fin inst.n, (C_unsc (i, π i) : ℤ) =
+        inst.cost (i, π i) + (ws.M : ℤ) := fun i => by
+      have := hM_ge i (π i); dsimp only [C_unsc]; omega
+    simp only [hcu_z, Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, Fintype.card_fin]
+    dsimp only [Instance.minCost, π]
+    push_cast
+    ring
+  have hf_st : Fits w (ws.n * ws.M) := by
+    rw [hn]
+    have hle : inst.n * ws.M ≤ inst.n * inst.maxMag := Nat.mul_le_mul_left _ hM_le
+    exact hw.of_le (by omega)
+  have hpos_safe : res.acc < ws.n * ws.M →
+      res.acc ≤ ws.n * ws.M ∧ Fits w (2 * (ws.n * ws.M - res.acc)) ∧
+        Fits w (2 * (ws.n * ws.M - res.acc) + 1) := fun hlt => by
+    rw [hn] at hlt ⊢
+    have hd : 2 * (inst.n * ws.M - res.acc) ≤ 2 * (inst.n * inst.maxMag) :=
+      Nat.mul_le_mul_left 2 ((Nat.sub_le _ _).trans (Nat.mul_le_mul_left _ hM_le))
+    exact ⟨le_of_lt hlt, hw.of_le (by omega), hw.of_le (by omega)⟩
+  have hneg_safe : ¬(res.acc < ws.n * ws.M) →
+      ws.n * ws.M ≤ res.acc ∧ Fits w (2 * (res.acc - ws.n * ws.M)) := fun hlt => by
+    rw [hn] at hlt hacc_le_n ⊢
+    have hd : 2 * (res.acc - inst.n * ws.M) ≤ 4 * (inst.n * inst.maxMag) := by
+      calc 2 * (res.acc - inst.n * ws.M)
+          ≤ 2 * (inst.n * (2 * ws.M)) :=
+            Nat.mul_le_mul_left 2 ((Nat.sub_le _ _).trans hacc_le_n)
+        _ ≤ 2 * (inst.n * (2 * inst.maxMag)) :=
+            Nat.mul_le_mul_left 2 (Nat.mul_le_mul_left _ (by omega))
+        _ = 4 * (inst.n * inst.maxMag) := by ring
+    exact ⟨le_of_not_gt hlt, hw.of_le (by omega)⟩
+  unfold sumScaledCostProg
+  refine ⟨⟨hsafe_it, hf1, hf2, hf_st, hpos_safe, hneg_safe⟩,
+    validHistory_bind_step hv_it
+      (validHistory_ite (fun _ => validHistory_pure w _ _) (fun _ => validHistory_pure w _ _)),
+    ?_, ?_⟩
+  · rw [memoryCost_bind', memoryCost_ite]
+    split_ifs <;> {
+      rw [memoryCost_pure, Nat.add_zero]
+      exact hmc_it.trans_eq (by rw [hn]) }
+  · rw [clientResult_bind, hs_it]
+    change (Memory.spec 0).clientResult s₀
+      (if res.acc < ws.n * ws.M then pure (2 * (ws.n * ws.M - res.acc) + 1)
+       else pure (2 * (res.acc - ws.n * ws.M))) = _
+    unfold Instance.encodedMinCost Signed.encode
+    rw [hn]
+    by_cases hlt : res.acc < inst.n * ws.M
+    · have hneg : inst.minCost < 0 := by omega
+      have habs : inst.minCost.natAbs = inst.n * ws.M - res.acc := by omega
+      rw [ite_eq_left hlt, clientResult_pure, habs, ite_eq_left hneg]
+    · have hnneg : ¬inst.minCost < 0 := by omega
+      have habs : inst.minCost.natAbs = res.acc - inst.n * ws.M := by omega
+      rw [ite_eq_right hlt, clientResult_pure, habs, ite_eq_right hnneg, Nat.add_zero]
 
-private def scanMaxBody : Code .standard 26 := ram[
-  addr ← matBaseReg + idx; val ← *addr;
-  val ← val / two;
-  if rM < val then [ rM ← val ] else [ tmp ← zero ];
-  idx ← idx + one ]
+/-! ## Section 4: Top-level clients and Word-RAM running-time theorems -/
 
-private def scanMaxCode : Code .standard 26 :=
-  .seq (ram[ rM ← #0; idx ← #0 ]) (.loop (.lt idx rnn) scanMaxBody)
+private abbrev pairWords : (ℕ × ℕ) ↪ (Fin 2 → ℕ) := appendWords wordWords wordWords
 
-private def fillCBody : Code .standard 26 := ram[
-  addr ← matBaseReg + idx; val ← *addr;
-  val2 ← val % two;
-  val ← val / two;
-  if val2 = one then [ val ← rM - val ] else [ val ← rM + val ];
-  val ← rscale * val;
-  addr ← bC + idx; *addr ← val;
-  idx ← idx + one ]
+private def epsMainProg (ne : ℕ × ℕ) : Memory.Prog ℕ := do
+  let n := ne.1
+  let eps := ne.2
+  let base ← Memory.allocDirty (n * n + n + n + n + n + 1)
+  let M ← scanMaxProg ⟨3, n * n⟩
+  let ws : AuctionWS :=
+    { n := n
+      eps := eps
+      scale := 1
+      M := M
+      matBase := 3
+      bC := base
+      bOwner := base + n * n
+      bPrice := base + n * n + n
+      bStack := base + n * n + n + n
+      outBase := base + n * n + n + n + n }
+  let _ ← fillCProg ws
+  let _ ← auctionCoreProg ws
+  scatterProg ws
 
-private def fillCCode : Code .standard 26 :=
-  .seq (ram[ idx ← #0 ]) (.loop (.lt idx rnn) fillCBody)
+private abbrev EpsMainSafe (w : ℕ) (ne : ℕ × ℕ) (s₀ : Memory.State) : Prop :=
+  let n := ne.1
+  let eps := ne.2
+  let base := s₀.frontier
+  let s₁ : Memory.State := ⟨s₀.mem, base + (n * n + n + n + n + n + 1)⟩
+  let M := (Memory.spec 0).clientResult s₁ (scanMaxProg ⟨3, n * n⟩)
+  let s₂ := (Memory.spec 0).clientState s₁ (scanMaxProg ⟨3, n * n⟩)
+  let ws : AuctionWS :=
+    ⟨n, eps, 1, M, 3, base, base + n * n, base + n * n + n,
+      base + n * n + n + n, base + n * n + n + n + n⟩
+  let s₃ := (Memory.spec 0).clientState s₂ (fillCProg ws)
+  let s₄ := (Memory.spec 0).clientState s₃ (auctionCoreProg ws)
+  Fits w 1 ∧ Fits w 3 ∧ Fits w (n * n) ∧
+    Fits w (n * n + n + n + n + n + 1) ∧ Fits w (base + n * n + n + n + n) ∧
+    iterationSafe scanMaxStep ScanMaxStepSafe w ⟨3, n * n⟩ (n * n) ⟨0, 0⟩ s₁ ∧
+    FillCProgSafe w ws s₂ ∧
+    AuctionCoreSafe w ws s₃ ∧
+    ScatterProgSafe w ws s₄
 
-private def setupRegsCode (isScaled : Bool) : Code .standard 26 :=
-  .seq (ram[ zero ← #0; one ← #1; two ← #2; addr ← #1; rn ← *addr; rnn ← rn * rn ])
-    (.seq (if isScaled then
-             ram[ reps ← #1; rscale ← rn + one; matBaseReg ← #2 ]
-           else
-             ram[ addr ← #2; reps ← *addr; rscale ← #1; matBaseReg ← #3 ])
-      (ram[ bC ← matBaseReg + rnn;
-            bOwner ← bC + rnn;
-            bPrice ← bOwner + rn;
-            bStack ← bPrice + rn;
-            outBase ← bStack + rn ]))
+private theorem epsMainProg_realizes :
+    Realizes .exact epsMainProg pairWords wordWords EpsMainSafe (fun _ _ => 0) := by
+  unfold epsMainProg
+  realize [scanMaxProg_realizes, fillCProg_realizes, auctionCoreProg_realizes, scatterProg_realizes]
+  all_goals
+    rcases h with ⟨_, _, _, _, hfout, _, _, _, _⟩
+    first
+    | assumption
+    | exact hfout.of_le (by omega)
 
-private def setupAndFillCode (isScaled : Bool) : Code .standard 26 :=
-  .seq (setupRegsCode isScaled) (.seq scanMaxCode fillCCode)
-
-private theorem exec_setupRegsCode {w n eps : ℕ} (isScaled : Bool)
-    (input : List ℕ) (hn : (Data.init input : Data 26).mem 1 = n)
-    (heps : isScaled = false → (Data.init input : Data 26).mem 2 = eps)
-    (hfit : Fits w ((if isScaled then 2 else 3) + 2 * (n * n) + 3 * n + 4)) :
-    ∃ y₁, ExecWithin w (setupRegsCode isScaled) (Data.init input) y₁ 15 ∧
-      BaseRegs n (if isScaled then 2 else 3) (if isScaled then 1 else eps)
-        (if isScaled then n + 1 else 1) (y₁.regs rM) y₁ ∧
-      y₁.mem = (Data.init input : Data 26).mem := by
-  let matBase := if isScaled then 2 else 3
-  have hf_bound : ∀ k, k ≤ matBase + 2 * (n * n) + 3 * n + 4 → Fits w k :=
-    fun _ hk => hfit.of_le hk
-  have hmb_pos : 2 ≤ matBase := by cases isScaled <;> simp [matBase]
-  have hf0 : Fits w 0 := hf_bound 0 (by omega)
-  have hf1 : Fits w 1 := hf_bound 1 (by omega)
-  have hf2 : Fits w 2 := hf_bound 2 (by omega)
-  have hf3 : Fits w 3 := hf_bound 3 (by omega)
-  have hfnn : Fits w (n * n) := hf_bound (n * n) (by omega)
-  have hfbC : Fits w (matBase + n * n) := hf_bound _ (by omega)
-  have hfbO : Fits w (matBase + n * n + n * n) := hf_bound _ (by omega)
-  have hfbP : Fits w (matBase + n * n + n * n + n) := hf_bound _ (by omega)
-  have hfbS : Fits w (matBase + n * n + n * n + n + n) := hf_bound _ (by omega)
-  have hfOb : Fits w (matBase + n * n + n * n + n + n + n) := hf_bound _ (by omega)
-  cases isScaled with
-  | true =>
-    have hfn1 : Fits w (n + 1) := hf_bound _ (by omega)
-    simp only [setupRegsCode, matBase, ↓reduceIte] at hfbC hfbO hfbP hfbS hfOb ⊢
-    refine WP.exists_execWithin ?_
-    wram_exec [hn, hf0, hf1, hf2, hfnn, hfn1, hfbC, hfbO, hfbP, hfbS, hfOb]
-    refine ⟨?_, rfl⟩
-    exact
-      { hzero := by wram_simp
-        hone := by wram_simp
-        htwo := by wram_simp
-        hrn := by wram_simp
-        hrnn := by wram_simp
-        hreps := by wram_simp
-        hrscale := by wram_simp
-        hrM := rfl
-        hmatBase := by wram_simp
-        hbC := by wram_simp
-        hbOwner := by wram_simp; omega
-        hbPrice := by wram_simp; omega
-        hbStack := by wram_simp; omega
-        houtBase := by wram_simp; omega }
-  | false =>
-    have heps_mem := heps rfl
-    simp only [setupRegsCode, matBase, Bool.false_eq_true, ↓reduceIte]
-      at hfbC hfbO hfbP hfbS hfOb ⊢
-    refine WP.exists_execWithin ?_
-    wram_exec [hn, heps_mem, hf0, hf1, hf2, hf3, hfnn, hfbC, hfbO, hfbP, hfbS, hfOb]
-    refine ⟨?_, rfl⟩
-    exact
-      { hzero := by wram_simp
-        hone := by wram_simp
-        htwo := by wram_simp
-        hrn := by wram_simp
-        hrnn := by wram_simp
-        hreps := by wram_simp
-        hrscale := by wram_simp
-        hrM := rfl
-        hmatBase := by wram_simp
-        hbC := by wram_simp
-        hbOwner := by wram_simp; omega
-        hbPrice := by wram_simp; omega
-        hbStack := by wram_simp; omega
-        houtBase := by wram_simp; omega }
-
-private theorem exec_scanMaxCode {w n matBase effEps scale M₀ maxMag : ℕ}
-    (cost : Fin n × Fin n → ℤ) (y₁ : Data 26)
-    (hb₁ : BaseRegs n matBase effEps scale M₀ y₁)
-    (hmag : ∀ i j : Fin n, (cost (i, j)).natAbs ≤ maxMag)
-    (hmat : ∀ i j : Fin n, y₁.mem (matBase + (i.val * n + j.val)) = Signed.encode (cost (i, j)))
-    (hfit : Fits w (matBase + n * n + maxMag + 1)) :
-    ∃ y₂ M, ExecWithin w scanMaxCode y₁ y₂ (9 * (n * n) + 4) ∧
-      M ≤ maxMag ∧
-      (∀ i j : Fin n, (cost (i, j)).natAbs ≤ M) ∧
-      BaseRegs n matBase effEps scale M y₂ ∧
-      y₂.mem = y₁.mem := by
-  let PM (k : ℕ) (y : Data 26) : Prop :=
-    k ≤ n * n ∧
-      (∀ r : Fin 26, r.val < 14 → r ≠ rM → y.regs r = y₁.regs r) ∧
-      y.mem = y₁.mem ∧
-      y.regs rM ≤ maxMag ∧
-      (∀ q : ℕ, (hq : q < k) → (hq' : q < n * n) →
-        (cost (finProdFinEquiv.symm ⟨q, hq'⟩)).natAbs ≤ y.regs rM)
-  have hs_m₀ : ∃ sm, ExecWithin w (ram[ rM ← #0; idx ← #0 ] : Code .standard 26) y₁ sm 2 ∧
-      sm = (y₁.set rM 0).set idx 0 := by
-    refine WP.exists_execWithin ?_; wram_exec; rfl
-  obtain ⟨sm, he_m₀, rfl⟩ := hs_m₀
-  have hPM₀ : PM 0 ((y₁.set rM 0).set idx 0) :=
-    ⟨Nat.zero_le _, fun _ _ _ => by wram_simp, rfl, by wram_simp; exact Nat.zero_le _,
-      fun _ hq _ => absurd hq (Nat.not_lt_zero _)⟩
-  have hbodyM (y : Data 26) (hy : PM (y.regs idx) y) (hlt : y.regs idx < n * n) :
-      ∃ z, ExecWithin w scanMaxBody y z 7 ∧ PM (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨_, hr, hmem, hM_le, hM_ge⟩ := hy
-    let p := finProdFinEquiv.symm ⟨y.regs idx, hlt⟩
-    have hp_mul : p.1.val * n + p.2.val = y.regs idx :=
-      (Cslib.Matrix.pairIndex_eq_val_finProdFinEquiv p).trans
-        (congrArg Fin.val (finProdFinEquiv.apply_symm_apply ⟨y.regs idx, hlt⟩))
-    have hy_mb : y.regs matBaseReg = matBase :=
-      (hr matBaseReg (by decide) (by decide)).trans hb₁.hmatBase
-    have hy_two : y.regs two = 2 := (hr two (by decide) (by decide)).trans hb₁.htwo
-    have hy_zero : y.regs zero = 0 := (hr zero (by decide) (by decide)).trans hb₁.hzero
-    have hy_one : y.regs one = 1 := (hr one (by decide) (by decide)).trans hb₁.hone
-    have hload : y.mem (matBase + y.regs idx) = Signed.encode (cost (p.1, p.2)) := by
-      rw [hmem, ← hp_mul]; exact hmat p.1 p.2
-    have hdiv : Signed.encode (cost (p.1, p.2)) / 2 = (cost (p.1, p.2)).natAbs :=
-      Signed.encode_div_two _
-    have hmag_p : (cost (p.1, p.2)).natAbs ≤ maxMag := hmag p.1 p.2
-    have hf_a : Fits w (matBase + y.regs idx) := hfit.of_le (by omega)
-    have hf_v : Fits w (cost (p.1, p.2)).natAbs := hfit.of_le (by omega)
-    have hf_i1 : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
-    refine WP.exists_execWithin ?_
-    unfold scanMaxBody
-    by_cases hcmp : y.regs rM < (cost (p.1, p.2)).natAbs
-    · wram_exec [hy_mb, hy_two, hy_zero, hy_one, hload, hdiv, hcmp, hf_a, hf_v, hf_i1]
-      refine ⟨⟨by omega, fun r hr' hne => by wram_simp [hr r hr' hne], hmem,
-        by wram_simp; exact hmag_p, fun q hq hq' => ?_⟩, by wram_simp⟩
-      wram_simp
-      rcases eq_or_ne q (y.regs idx) with rfl | hne
-      · exact le_rfl
-      · exact (hM_ge q (by omega) hq').trans (le_of_lt hcmp)
-    · wram_exec [hy_mb, hy_two, hy_zero, hy_one, hload, hdiv, hcmp, hf_a, hf_v, hf_i1]
-      refine ⟨⟨by omega, fun r hr' hne => by wram_simp [hr r hr' hne], hmem,
-        by wram_simp; exact hM_le, fun q hq hq' => ?_⟩, by wram_simp⟩
-      wram_simp
-      rcases eq_or_ne q (y.regs idx) with rfl | hne
-      · exact le_of_not_gt hcmp
-      · exact hM_ge q (by omega) hq'
-  obtain ⟨y₂, hl_m, hPMn, _⟩ := ExecWithin.loop_count PM
-    (fun y hy => (hy.2.1 rnn (by decide) (by decide)).trans hb₁.hrnn) hbodyM
-    (x := (y₁.set rM 0).set idx 0) (by simp) (by simpa using hPM₀)
-  obtain ⟨_, hr₂, hmem₂, hM_le, hM_ge_q⟩ := hPMn
-  let M := y₂.regs rM
-  have hM_ge : ∀ i j : Fin n, (cost (i, j)).natAbs ≤ M := fun i j => by
-    have hq : i.val * n + j.val < n * n := Cslib.Matrix.pairIndex_lt (i, j)
-    have h := hM_ge_q (i.val * n + j.val) hq hq
-    have hp_eq : (⟨i.val * n + j.val, hq⟩ : Fin (n * n)) = finProdFinEquiv (i, j) :=
-      Fin.ext (Cslib.Matrix.pairIndex_eq_val_finProdFinEquiv (i, j))
-    rwa [hp_eq, finProdFinEquiv.symm_apply_apply] at h
-  have hb₂ : BaseRegs n matBase effEps scale M y₂ :=
-    { hzero := (hr₂ zero (by decide) (by decide)).trans hb₁.hzero
-      hone := (hr₂ one (by decide) (by decide)).trans hb₁.hone
-      htwo := (hr₂ two (by decide) (by decide)).trans hb₁.htwo
-      hrn := (hr₂ rn (by decide) (by decide)).trans hb₁.hrn
-      hrnn := (hr₂ rnn (by decide) (by decide)).trans hb₁.hrnn
-      hreps := (hr₂ reps (by decide) (by decide)).trans hb₁.hreps
-      hrscale := (hr₂ rscale (by decide) (by decide)).trans hb₁.hrscale
-      hrM := rfl
-      hmatBase := (hr₂ matBaseReg (by decide) (by decide)).trans hb₁.hmatBase
-      hbC := (hr₂ bC (by decide) (by decide)).trans hb₁.hbC
-      hbOwner := (hr₂ bOwner (by decide) (by decide)).trans hb₁.hbOwner
-      hbPrice := (hr₂ bPrice (by decide) (by decide)).trans hb₁.hbPrice
-      hbStack := (hr₂ bStack (by decide) (by decide)).trans hb₁.hbStack
-      houtBase := (hr₂ outBase (by decide) (by decide)).trans hb₁.houtBase }
-  exact ⟨y₂, M, (he_m₀.seq hl_m).mono (by simp; omega), hM_le, hM_ge, hb₂, hmem₂⟩
-
-private theorem exec_fillCCode {w n matBase effEps scale M : ℕ}
-    (hscale : 1 ≤ scale) (cost : Fin n × Fin n → ℤ) (y₂ : Data 26)
-    (hb₂ : BaseRegs n matBase effEps scale M y₂)
-    (hM_ge : ∀ i j : Fin n, (cost (i, j)).natAbs ≤ M)
-    (hmat : ∀ i j : Fin n, y₂.mem (matBase + (i.val * n + j.val)) = Signed.encode (cost (i, j)))
-    (hfit : Fits w (matBase + 2 * (n * n) + 2 * scale * M + 1)) :
-    ∃ y, ExecWithin w fillCCode y₂ y (13 * (n * n) + 3) ∧
-      BaseRegs n matBase effEps scale M y ∧
-      CostMem (matBase + n * n) (fun p => scale * (cost p + (M : ℤ)).toNat) y.mem := by
-  let Cw : Fin n × Fin n → ℕ := fun p => scale * (cost p + (M : ℤ)).toNat
-  let eC : ℕ → ℕ := fun q => if hq : q < n * n then Cw (finProdFinEquiv.symm ⟨q, hq⟩) else 0
-  have hs_c₀ : ∃ sc, ExecWithin w (ram[ idx ← #0 ] : Code .standard 26) y₂ sc 1 ∧
-      sc = y₂.set idx 0 := by
-    refine WP.exists_execWithin ?_; wram_exec; rfl
-  obtain ⟨sc, he_c₀, rfl⟩ := hs_c₀
-  let PC (k : ℕ) (y : Data 26) : Prop :=
-    k ≤ n * n ∧
-      (∀ r : Fin 26, r.val < 14 → y.regs r = y₂.regs r) ∧
-      (∀ j < k, y.mem (matBase + n * n + j) = eC j) ∧
-      (∀ a, ¬(matBase + n * n ≤ a ∧ a < matBase + n * n + k) → y.mem a = y₂.mem a)
-  have hPC₀ : PC 0 (y₂.set idx 0) :=
-    ⟨Nat.zero_le _, fun _ _ => by wram_simp, fun _ hj => absurd hj (Nat.not_lt_zero _),
-      fun _ _ => rfl⟩
-  have hbodyC (y : Data 26) (hy : PC (y.regs idx) y) (hlt : y.regs idx < n * n) :
-      ∃ z, ExecWithin w fillCBody y z 11 ∧ PC (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨_, hr, hm, hf⟩ := hy
-    have hby : BaseRegs n matBase effEps scale M y := hb₂.of_eq hr
-    let p := finProdFinEquiv.symm ⟨y.regs idx, hlt⟩
-    have hp_mul : p.1.val * n + p.2.val = y.regs idx :=
-      (Cslib.Matrix.pairIndex_eq_val_finProdFinEquiv p).trans
-        (congrArg Fin.val (finProdFinEquiv.apply_symm_apply ⟨y.regs idx, hlt⟩))
-    have hload : y.mem (matBase + y.regs idx) = Signed.encode (cost (p.1, p.2)) := by
-      rw [hf _ (by omega), ← hp_mul]; exact hmat p.1 p.2
-    have hdiv : Signed.encode (cost (p.1, p.2)) / 2 = (cost (p.1, p.2)).natAbs :=
-      Signed.encode_div_two _
-    have hmod : Signed.encode (cost (p.1, p.2)) % 2 =
-        if cost (p.1, p.2) < 0 then 1 else 0 := Signed.encode_mod_two _
-    have hmag_M : (cost (p.1, p.2)).natAbs ≤ M := hM_ge p.1 p.2
-    have hM_fit : M ≤ scale * M := by
-      calc M = 1 * M := by omega
-        _ ≤ scale * M := Nat.mul_le_mul_right M hscale
-    have hf_a : Fits w (matBase + y.regs idx) := hfit.of_le (by omega)
-    have hf_v : Fits w (cost (p.1, p.2)).natAbs := hfit.of_le (by nlinarith)
-    have hf_bc : Fits w (matBase + n * n + y.regs idx) := hfit.of_le (by omega)
-    have hf_i1 : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
-    refine WP.exists_execWithin ?_
-    unfold fillCBody
-    by_cases hneg : cost (p.1, p.2) < 0
-    · have hmod1 : (if cost (p.1, p.2) < 0 then 1 else 0) = 1 := ite_eq_left hneg
-      have hsh_eq : M - (cost (p.1, p.2)).natAbs = (cost (p.1, p.2) + (M : ℤ)).toNat := by omega
-      have hsh_le : M - (cost (p.1, p.2)).natAbs ≤ M := Nat.sub_le _ _
-      have hmul_le : scale * (M - (cost (p.1, p.2)).natAbs) ≤ scale * M :=
-        Nat.mul_le_mul_left scale hsh_le
-      have hf_sh : Fits w (M - (cost (p.1, p.2)).natAbs) := hfit.of_le (by nlinarith)
-      have hf_sc : Fits w (scale * (M - (cost (p.1, p.2)).natAbs)) := hfit.of_le (by nlinarith)
-      wram_exec [hby.hmatBase, hby.htwo, hby.hone, hby.hrM, hby.hrscale, hby.hbC,
-        hload, hdiv, hmod, hmod1, hmag_M, hf_a, hf_v, hf_sh, hf_sc, hf_bc, hf_i1]
-      refine ⟨⟨by omega, fun r hr' => by wram_simp [hr r hr'], fun j hj => ?_, fun a ha => ?_⟩,
-        by wram_simp⟩
-      · by_cases hjeq : j = y.regs idx
-        · subst hjeq; wram_simp; simp only [eC, hlt, dite_true, Cw, ← hsh_eq, p, Prod.mk.eta]
-        · wram_simp; exact hm j (by omega)
-      · wram_simp; exact hf a (by omega)
-    · have hmod0 : (if cost (p.1, p.2) < 0 then 1 else 0) = 0 := ite_eq_right hneg
-      have hsh_eq : M + (cost (p.1, p.2)).natAbs = (cost (p.1, p.2) + (M : ℤ)).toNat := by omega
-      have hsh_le : M + (cost (p.1, p.2)).natAbs ≤ 2 * M := by omega
-      have hsh_fit : M + (cost (p.1, p.2)).natAbs ≤ 2 * scale * M := by
-        calc M + (cost (p.1, p.2)).natAbs ≤ 2 * M := hsh_le
-          _ ≤ 2 * (scale * M) := Nat.mul_le_mul_left 2 hM_fit
-          _ = 2 * scale * M := by ring
-      have hmul_le : scale * (M + (cost (p.1, p.2)).natAbs) ≤ 2 * scale * M := by
-        calc scale * (M + (cost (p.1, p.2)).natAbs) ≤ scale * (2 * M) :=
-              Nat.mul_le_mul_left scale hsh_le
-          _ = 2 * scale * M := by ring
-      have hf_sh : Fits w (M + (cost (p.1, p.2)).natAbs) := hfit.of_le (by omega)
-      have hf_sc : Fits w (scale * (M + (cost (p.1, p.2)).natAbs)) := hfit.of_le (by omega)
-      wram_exec [hby.hmatBase, hby.htwo, hby.hone, hby.hrM, hby.hrscale, hby.hbC,
-        hload, hdiv, hmod, hmod0, hf_a, hf_v, hf_sh, hf_sc, hf_bc, hf_i1]
-      refine ⟨⟨by omega, fun r hr' => by wram_simp [hr r hr'], fun j hj => ?_, fun a ha => ?_⟩,
-        by wram_simp⟩
-      · by_cases hjeq : j = y.regs idx
-        · subst hjeq; wram_simp; simp only [eC, hlt, dite_true, Cw, ← hsh_eq, p, Prod.mk.eta]
-        · wram_simp; exact hm j (by omega)
-      · wram_simp; exact hf a (by omega)
-  obtain ⟨y, hl_c, hPCn, _⟩ := ExecWithin.loop_count PC
-    (fun y hy => (hy.2.1 rnn (by decide)).trans hb₂.hrnn) hbodyC
-    (x := y₂.set idx 0) (by simp) (by simpa using hPC₀)
-  obtain ⟨_, hr_y, hm_y, _⟩ := hPCn
-  have hCM_y : CostMem (matBase + n * n) Cw y.mem :=
-    { hentry := fun i j => by
-        have hq : i.val * n + j.val < n * n := Cslib.Matrix.pairIndex_lt (i, j)
-        rw [hm_y (i.val * n + j.val) hq]
-        simp only [eC, hq, dite_true]
-        have hp_eq : (⟨i.val * n + j.val, hq⟩ : Fin (n * n)) = finProdFinEquiv (i, j) :=
-          Fin.ext (Cslib.Matrix.pairIndex_eq_val_finProdFinEquiv (i, j))
-        rw [hp_eq, finProdFinEquiv.symm_apply_apply] }
-  exact ⟨y, (he_c₀.seq hl_c).mono (by simp; omega), hb₂.of_eq hr_y, hCM_y⟩
-
-private theorem exec_setupAndFillCode {w n eps : ℕ} (isScaled : Bool)
-    (cost : Fin n × Fin n → ℤ) (input : List ℕ) (maxMag : ℕ)
-    (hmag : ∀ i j : Fin n, (cost (i, j)).natAbs ≤ maxMag)
-    (hn : (Data.init input : Data 26).mem 1 = n)
-    (heps : isScaled = false → (Data.init input : Data 26).mem 2 = eps)
-    (hmat : ∀ i j : Fin n,
-      (Data.init input : Data 26).mem ((if isScaled then 2 else 3) + (i.val * n + j.val)) =
-        Signed.encode (cost (i, j)))
-    (hfit : Fits w ((if isScaled then 2 else 3) + 2 * (n * n) + 4 * n +
-      2 * (if isScaled then n + 1 else 1) * maxMag + 4)) :
-    ∃ y M, ExecWithin w (setupAndFillCode isScaled) (Data.init input) y
-        (22 * (n * n) + 22) ∧
-      M ≤ maxMag ∧
-      (∀ i j : Fin n, (cost (i, j)).natAbs ≤ M) ∧
-      BaseRegs n (if isScaled then 2 else 3) (if isScaled then 1 else eps)
-        (if isScaled then n + 1 else 1) M y ∧
-      CostMem ((if isScaled then 2 else 3) + n * n)
-        (fun p => (if isScaled then n + 1 else 1) * (cost p + (M : ℤ)).toNat) y.mem := by
-  have hscale : 1 ≤ if isScaled then n + 1 else 1 := by cases isScaled <;> simp
-  obtain ⟨y₁, he_pre, hb₁, hmem₁⟩ :=
-    exec_setupRegsCode isScaled input hn heps
-      (hfit.of_le (by cases isScaled <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> nlinarith))
-  obtain ⟨y₂, M, he_m, hM_le, hM_ge, hb₂, hmem₂⟩ :=
-    exec_scanMaxCode cost y₁ hb₁ hmag (fun i j => hmem₁ ▸ hmat i j)
-      (hfit.of_le (by cases isScaled <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> nlinarith))
-  obtain ⟨y, he_c, hb_y, hCM_y⟩ :=
-    exec_fillCCode hscale cost y₂ hb₂ hM_ge (fun i j => (hmem₂.trans hmem₁) ▸ hmat i j)
-      (hfit.of_le (by cases isScaled <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> nlinarith))
-  exact ⟨y, M, (he_pre.seq (he_m.seq he_c)).mono (by omega), hM_le, hM_ge, hb_y, hCM_y⟩
-
-private def scatterOutputBody : Code .standard 26 := ram[
-  addr ← bOwner + idx; val ← *addr;
-  addr ← outBase + one; addr ← addr + val; *addr ← idx;
-  idx ← idx + one ]
-
-private def scatterOutputCode : Code .standard 26 :=
-  .seq (ram[ addr ← outBase; *addr ← rn; idx ← #0 ])
-    (.loop (.lt idx rn) scatterOutputBody)
-
-private theorem exec_scatterOutputCode {w n matBase eps scale M : ℕ}
-    {cZ : Fin n × Fin n → ℤ} {εZ : ℤ} {s : AuctionState n}
-    (hinv : AuctionInv cZ εZ s) (hfree : s.free = [])
-    (x : Data 26) (hb : BaseRegs n matBase eps scale M x)
-    (hOM : ∀ j : Fin n, x.mem (matBase + 2 * (n * n) + j.val) =
-      match s.owner j with | some i => i.val | none => n)
-    (hfit : Fits w (matBase + 2 * (n * n) + 4 * n + 2)) :
-    ∃ z, ExecWithin w scatterOutputCode x z (8 * n + 5) ∧
-      BaseRegs n matBase eps scale M z ∧
-      outputList z.mem (z.regs outBase) =
-        ((List.finRange n).map fun i => (s.objectOf i).val) ∧
-      Fits w (z.regs outBase + n) ∧
-      (∀ a, ¬(matBase + 2 * (n * n) + 3 * n ≤ a ∧ a < matBase + 2 * (n * n) + 4 * n + 1) →
-        z.mem a = x.mem a) := by
-  let bOut := matBase + 2 * (n * n) + 3 * n
-  have hf_ob : Fits w bOut := hfit.of_le (by dsimp only [bOut]; omega)
-  have hs₀ : ∃ s₀, ExecWithin w
-      (ram[ addr ← outBase; *addr ← rn; idx ← #0 ] : Code .standard 26) x s₀ 3 ∧
-      s₀ = ((x.set addr bOut).write bOut n).set idx 0 := by
-    refine WP.exists_execWithin ?_
-    wram_exec [hb.houtBase, hb.hrn, hf_ob]
-    rfl
-  obtain ⟨s₀, he₀, rfl⟩ := hs₀
-  let s₀ := ((x.set addr bOut).write bOut n).set idx 0
-  let PO (t : ℕ) (y : Data 26) : Prop :=
-    t ≤ n ∧
-      (∀ r : Fin 26, r.val < 14 → y.regs r = x.regs r) ∧
-      y.mem bOut = n ∧
-      (∀ (j i : Fin n), j.val < t → s.owner j = some i → y.mem (bOut + 1 + i.val) = j.val) ∧
-      (∀ a, ¬(bOut ≤ a ∧ a < bOut + 1 + n) → y.mem a = x.mem a)
-  have hPO₀ : PO 0 s₀ :=
-    ⟨Nat.zero_le _, fun _ _ => by dsimp only [s₀]; wram_simp,
-      by dsimp only [s₀]; wram_simp,
-      fun _ _ hj => absurd hj (Nat.not_lt_zero _),
-      fun a ha => by dsimp only [s₀]; wram_simp⟩
-  have hbody (y : Data 26) (hy : PO (y.regs idx) y) (hlt : y.regs idx < n) :
-      ∃ z, ExecWithin w scatterOutputBody y z 6 ∧ PO (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨_, hr, hob, hsome, hf⟩ := hy
-    have hby : BaseRegs n matBase eps scale M y := hb.of_eq hr
-    let j₀ : Fin n := ⟨y.regs idx, hlt⟩
-    -- Since `s.free = []`, `j₀` is owned by `s.personOf j₀`!
-    have hobj_pers : s.objectOf (s.personOf j₀) = j₀ := hinv.objectOf_personOf hfree j₀
-    have hown_j₀ : s.owner j₀ = some (s.personOf j₀) := by
-      have := hinv.owner_objectOf hfree (s.personOf j₀)
-      rwa [hobj_pers] at this
-    let i₀ : Fin n := s.personOf j₀
-    have hi₀_lt := i₀.isLt
-    have hmem_oj : y.mem (matBase + 2 * (n * n) + y.regs idx) = i₀.val := by
-      rw [hf _ (by dsimp only [bOut]; omega), hOM j₀, hown_j₀]
-    have hf_oj : Fits w (matBase + 2 * (n * n) + y.regs idx) := hfit.of_le (by omega)
-    have hf_o1 : Fits w (bOut + 1) := hfit.of_le (by dsimp only [bOut]; omega)
-    have hf_oi : Fits w ((bOut + 1) + i₀.val) := hfit.of_le (by dsimp only [bOut]; omega)
-    have hf_idx1 : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
-    refine WP.exists_execWithin ?_
-    unfold scatterOutputBody
-    wram_exec [hby.hbOwner, hby.houtBase, hby.hone, hmem_oj, hf_oj, hf_o1, hf_oi, hf_idx1]
-    refine ⟨⟨by omega, fun r hr' => by wram_simp [hr r hr'], by wram_simp [hob],
-      fun j i hj hm => ?_, fun a ha => ?_⟩, by wram_simp⟩
-    · by_cases hjj : j = j₀
-      · subst hjj
-        rw [hown_j₀] at hm
-        obtain ⟨rfl⟩ := hm
-        dsimp only [j₀]
-        wram_simp
-      · have hj_lt : j.val < y.regs idx := by
-          have : j.val ≠ y.regs idx := fun h => hjj (Fin.ext h)
-          omega
-        have hii : i ≠ i₀ := fun h => by
-          subst h
-          exact hjj (hinv.owner_inj j j₀ i₀ hm hown_j₀)
-        have hne_val : i.val ≠ i₀.val := fun h => hii (Fin.ext h)
-        wram_simp
-        exact hsome j i hj_lt hm
-    · wram_simp; exact hf a ha
-  have hs₀_idx : s₀.regs idx = 0 := by dsimp only [s₀]; wram_simp
-  obtain ⟨z, hl, hPOn, _⟩ := ExecWithin.loop_count PO
-    (fun y hy => (hy.2.1 rn (by decide)).trans hb.hrn) hbody
-    (x := s₀) (by rw [hs₀_idx]; exact Nat.zero_le n) (by rw [hs₀_idx]; exact hPO₀)
-  obtain ⟨_, hr_z, hob_z, hsome_z, hf_z⟩ := hPOn
-  have hbz : BaseRegs n matBase eps scale M z := hb.of_eq hr_z
-  have hout_z : outputList z.mem (z.regs outBase) =
-      ((List.finRange n).map fun i => (s.objectOf i).val) := by
-    rw [hbz.houtBase, outputList_eq_iff]
-    simp only [List.length_map, List.length_finRange]
-    refine ⟨hob_z, fun i => ?_⟩
-    have hi_lt : i.val < n := by simpa using i.isLt
-    let i_fin : Fin n := ⟨i.val, hi_lt⟩
-    have hown_i : s.owner (s.objectOf i_fin) = some i_fin := hinv.owner_objectOf hfree i_fin
-    change z.mem (bOut + 1 + i_fin.val) = ((List.finRange n).map fun k => (s.objectOf k).val)[i.val]
-    rw [hsome_z (s.objectOf i_fin) i_fin (s.objectOf i_fin).isLt hown_i]
-    simp [i_fin]
-  have hfit_out : Fits w (z.regs outBase + n) := by
-    rw [hbz.houtBase]; exact hfit.of_le (by omega)
-  exact ⟨z, (he₀.seq hl).mono (by rw [hs₀_idx]; omega), hbz, hout_z, hfit_out,
-    fun a ha => hf_z a (by dsimp only [bOut]; omega)⟩
-
-/-! ### 4A. Unscaled `ε`-auction (`O(n² (C / ε + 1))`) -/
-
-private def epsAuctionCode : Code .standard 26 :=
-  .seq (setupAndFillCode false) (.seq coreCode scatterOutputCode)
-
-/-- Standard-basis word-RAM program computing `EpsInstance.assignment` (`ExecutesList`) via
-Bertsekas's Gauss–Seidel `ε`-auction. -/
-def epsAuctionProgram : Program .standard 26 :=
-  epsAuctionCode.program outBase
-
-/-- Instruction bound `O(n² (C / ε + 1))` for `epsAuctionProgram` when `C` bounds the row cost
-ranges ([Bertsekas1988], §1). -/
-@[expose] def epsAuctionTime (n C eps : ℕ) : ℕ :=
-  (n * (C + eps) / eps + 1) * (28 * n + 30) + 22 * (n * n) + 25 * n + 42
-
-/-- **`O(n² (C / ε + 1))` Word-RAM `ε`-auction (`ExecutesList`).** Whenever `0 < inst.eps`, `C`
-bounds every row cost range `inst.cost (i, k) - inst.cost (i, j) ≤ C`, and `Fits w inst.wordBound`,
-`epsAuctionProgram` halts within `epsAuctionTime inst.n C inst.eps` instructions returning
-`inst.assignment` (`n * eps`-optimal by `sum_auctionPerm_le`). -/
-theorem executesList_epsAuction {w : ℕ} (inst : EpsInstance) (hε : 0 < inst.eps)
-    {C : ℕ} (hC : ∀ i j k : Fin inst.n, inst.cost (i, k) - inst.cost (i, j) ≤ (C : ℤ))
+private theorem epsMainProg_spec {w C : ℕ} (inst : EpsInstance) (hε : 0 < inst.eps)
+    (hC : ∀ i j k : Fin inst.n, inst.cost (i, k) - inst.cost (i, j) ≤ (C : ℤ))
     (hw : Fits w inst.wordBound) :
-    ∃ steps, ExecutesList w epsAuctionProgram (.init inst.encode) inst.assignment steps ∧
-      steps ≤ epsAuctionTime inst.n C inst.eps := by
-  obtain ⟨y₁, M, he_sf, hM_le, hM_ge, hb₁, hCM₁⟩ :=
-    exec_setupAndFillCode (n := inst.n) (eps := inst.eps) false inst.cost inst.encode inst.maxMag
-      inst.toInstance.natAbs_cost_le_maxMag inst.init_mem_n (fun _ => inst.init_mem_eps)
-      inst.init_mem_cost
-      (hw.of_le (by
-        simp only [Bool.false_eq_true, ↓reduceIte, mul_one]
-        unfold EpsInstance.wordBound EpsInstance.maxMag
-        nlinarith))
-  simp only [Bool.false_eq_true, ↓reduceIte] at hb₁ hCM₁
+    let s₀ := Memory.State.init inst.encode
+    let d := (inst.n, inst.eps)
+    let outAddr := (Memory.spec 0).clientResult s₀ (epsMainProg d)
+    let s' := (Memory.spec 0).clientState s₀ (epsMainProg d)
+    EpsMainSafe w d s₀ ∧
+      (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (epsMainProg d)) ∧
+      memoryCost (epsMainProg d) s₀ ≤
+        (inst.n * (C + inst.eps) / inst.eps + 1) * (4 * inst.n + 6) +
+          3 * (inst.n * inst.n) + 5 * inst.n + 2 ∧
+      outputList s'.mem outAddr = inst.assignment ∧
+      Fits w (outAddr + inst.assignment.length) := by
+  let s₀ := Memory.State.init inst.encode
+  have hs₀_fr : s₀.frontier = 3 + inst.n * inst.n := by
+    change inst.encode.length + 1 = _
+    rw [inst.encode_length]; omega
+  let base := s₀.frontier
+  let s₁ : Memory.State :=
+    ⟨s₀.mem, base + (inst.n * inst.n + inst.n + inst.n + inst.n + inst.n + 1)⟩
+  have hf1 : Fits w 1 := hw.of_le (by unfold EpsInstance.wordBound; nlinarith)
+  have hf2 : Fits w 2 := hw.of_le (by unfold EpsInstance.wordBound; nlinarith)
+  have hf3 : Fits w 3 := hw.of_le (by unfold EpsInstance.wordBound; nlinarith)
+  have hf_fr1 : Fits w s₁.frontier :=
+    hw.of_le (by dsimp only [s₁, base]; rw [hs₀_fr]; unfold EpsInstance.wordBound; nlinarith)
+  have hscan := scanMaxProg_spec (s₀ := s₁)
+    (fun i j => inst.init_mem_cost i j) inst.toInstance.natAbs_cost_le_maxMag
+    (by dsimp only [s₁, base]; rw [hs₀_fr]; omega)
+    hf2 (hf_fr1.of_le (by dsimp only [s₁, base]; rw [hs₀_fr]; omega))
+  obtain ⟨hsafe_scan, hv_scan, hmc_scan, hs₂_eq, hM_le, hM_ge⟩ := hscan
+  let M := (Memory.spec 0).clientResult s₁ (scanMaxProg ⟨3, inst.n * inst.n⟩)
+  let ws : AuctionWS :=
+    ⟨inst.n, inst.eps, 1, M, 3, base, base + inst.n * inst.n, base + inst.n * inst.n + inst.n,
+      base + inst.n * inst.n + inst.n + inst.n,
+      base + inst.n * inst.n + inst.n + inst.n + inst.n⟩
+  have hws₁ : ValidWS ws s₁ :=
+    ⟨rfl, rfl, rfl, rfl, by dsimp only [ws, s₁]; omega⟩
+  have hfit_ws : Fits w (ws.outBase + ws.n + 1) :=
+    hf_fr1.of_le (by dsimp only [ws, s₁]; omega)
+  have hfill := fillC_spec ws s₁ (by dsimp only [ws]; omega)
+    (by dsimp only [ws, base]; rw [hs₀_fr])
+    (by dsimp only [ws, s₁]; omega)
+    (fun i j => inst.init_mem_cost i j) hM_ge hf2
+    (hfit_ws.of_le (by dsimp only [ws]; omega))
+    (hw.of_le <| by
+      dsimp only [ws, EpsInstance.maxMag] at hM_le ⊢
+      unfold EpsInstance.wordBound
+      nlinarith)
+  obtain ⟨hsafe_fill, hv_fill, hmc_fill, hfr_fill, _, hC_filled⟩ := hfill
+  let s₃ := (Memory.spec 0).clientState s₁ (fillCProg ws)
+  have hws₃ : ValidWS ws s₃ := hws₁.of_frontier_eq hfr_fill
   let C_nat : Fin inst.n × Fin inst.n → ℕ := fun p => 1 * (inst.cost p + (M : ℤ)).toNat
-  have hC_le : ∀ i j : Fin inst.n, C_nat (i, j) ≤ 2 * M := fun i j => by
-    have := hM_ge i j; dsimp only [C_nat]; omega
+  have hC_le : ∀ i j : Fin inst.n, C_nat (i, j) ≤ 2 * ws.scale * ws.M := fun i j => by
+    have := hM_ge i j; dsimp only [C_nat, ws]; omega
+  have hcore := auctionCoreProg_spec ws hε hC_le s₃ hws₃ hC_filled hf1 hfit_ws
+    (hw.of_le <| by
+      dsimp only [ws, EpsInstance.maxMag] at hM_le ⊢
+      unfold EpsInstance.wordBound
+      nlinarith)
+  obtain ⟨hsafe_core, hv_core, hmc_core, hfr_core, ham_core⟩ := hcore
+  let s₄ := (Memory.spec 0).clientState s₃ (auctionCoreProg ws)
+  have hws₄ : ValidWS ws s₄ := hws₃.of_frontier_eq hfr_core
   have hC_cast : (fun e => (C_nat e : ℤ)) = fun e => inst.cost e + (M : ℤ) := by
     funext ⟨i, j⟩; have := hM_ge i j; dsimp only [C_nat]; omega
-  have hfit_core : Fits w (3 + 2 * (inst.n * inst.n) + 4 * inst.n +
-      2 * (2 * M) + 2 * inst.eps + 4) :=
-    hw.of_le (by unfold EpsInstance.wordBound; nlinarith)
-  obtain ⟨y₂, he_core, hb₂, _, hOM₂, _⟩ := core_exec hε hC_le y₁ hb₁ hCM₁ hfit_core
   have hs_eq : auction (fun e => (C_nat e : ℤ)) (inst.eps : ℤ) =
       auction inst.cost (inst.eps : ℤ) := by
     rw [hC_cast]
     exact auction_add_const inst.cost (M : ℤ) (Nat.cast_pos.mpr hε)
-  rw [hs_eq] at he_core hOM₂
-  obtain ⟨z, he_scat, _, hout_z, hfit_out, _⟩ :=
-    exec_scatterOutputCode (auctionInv_auction (Nat.cast_pos.mpr hε))
-      (auction_free (Nat.cast_pos.mpr hε)) y₂ hb₂ hOM₂
-      (hw.of_le (by unfold EpsInstance.wordBound; nlinarith))
+  have hinv_fin : AuctionInv (fun e => (C_nat e : ℤ)) (ws.eps : ℤ)
+      (auction (fun e => (C_nat e : ℤ)) (ws.eps : ℤ)) :=
+    auctionInv_auction (Nat.cast_pos.mpr hε)
+  have hfree_fin : (auction (fun e => (C_nat e : ℤ)) (ws.eps : ℤ)).free = [] :=
+    auction_free (Nat.cast_pos.mpr hε)
+  have hscat := scatterProg_spec ws hinv_fin hfree_fin s₄ hws₄ ham_core hf1 hfit_ws
+  obtain ⟨hsafe_scat, hv_scat, hmc_scat, _, hres_scat, _, hout_scat⟩ := hscat
+  rw [hs_eq] at hmc_core hout_scat
   have hbids_le : (auction inst.cost (inst.eps : ℤ)).bids ≤
       inst.n * (C + inst.eps) / inst.eps + 1 := by
     have hb_raw := bids_auction_le (c := inst.cost) (Nat.cast_pos.mpr hε) hC
     simpa only [bidBound, ← Nat.cast_add, Int.toNat_natCast] using hb_raw
   have hmul_le :
-      (auction inst.cost (inst.eps : ℤ)).bids * (28 * inst.n + 30) ≤
-        (inst.n * (C + inst.eps) / inst.eps + 1) * (28 * inst.n + 30) :=
+      (auction inst.cost (inst.eps : ℤ)).bids * (4 * inst.n + 6) ≤
+        (inst.n * (C + inst.eps) / inst.eps + 1) * (4 * inst.n + 6) :=
     Nat.mul_le_mul_right _ hbids_le
-  obtain ⟨t, ht, hex⟩ := he_sf.seq (he_core.seq he_scat)
-  have hout_eq : outputList z.mem (z.regs outBase) = inst.assignment := hout_z
-  refine ⟨t + 1, hout_eq ▸ hex.executesList outBase (by rwa [hout_eq, inst.length_assignment]), ?_⟩
-  unfold epsAuctionTime
-  omega
+  have hsafe_main : EpsMainSafe w (inst.n, inst.eps) s₀ := by
+    unfold EpsMainSafe
+    dsimp only
+    rw [hs₂_eq]
+    exact ⟨hf1, hf3, hf_fr1.of_le (by dsimp only [s₁, base]; omega),
+      hf_fr1.of_le (by dsimp only [s₁, base]; omega),
+      hfit_ws.of_le (by dsimp only [ws]; omega),
+      hsafe_scan, hsafe_fill, hsafe_core, hsafe_scat⟩
+  unfold epsMainProg
+  dsimp only
+  refine ⟨hsafe_main, ?_, ?_, ?_, ?_⟩
+  · refine validHistory_allocDirty_bind hf_fr1 ?_
+    refine validHistory_bind_step hv_scan ?_
+    rw [hs₂_eq]
+    exact validHistory_bind_step hv_fill (validHistory_bind_step hv_core hv_scat)
+  · rw [memoryCost_bind', memoryCost_allocDirty, clientResult_allocDirty, clientState_allocDirty]
+    change 1 + memoryCost (scanMaxProg ⟨3, inst.n * inst.n⟩ >>= _) s₁ ≤ _
+    rw [memoryCost_bind', hs₂_eq, memoryCost_bind', memoryCost_bind']
+    dsimp only [ws, M, base, s₃, s₄, s₀] at hmc_scan hmc_fill hmc_core hmc_scat ⊢
+    omega
+  · rw [clientState_bind, clientResult_bind, clientResult_allocDirty, clientState_allocDirty]
+    change outputList ((Memory.spec 0).clientState s₁ (scanMaxProg ⟨3, inst.n * inst.n⟩ >>= _)).mem
+      ((Memory.spec 0).clientResult s₁ (scanMaxProg ⟨3, inst.n * inst.n⟩ >>= _)) = _
+    rw [clientState_bind, clientResult_bind, hs₂_eq,
+      clientState_bind, clientResult_bind,
+      clientState_bind, clientResult_bind]
+    exact hres_scat ▸ hout_scat
+  · rw [clientResult_bind, clientResult_allocDirty, clientState_allocDirty]
+    change Fits w ((Memory.spec 0).clientResult s₁ (scanMaxProg ⟨3, inst.n * inst.n⟩ >>= _) + _)
+    rw [clientResult_bind, hs₂_eq, clientResult_bind, clientResult_bind,
+      hres_scat, inst.length_assignment]
+    exact hfit_ws.of_le (by dsimp only [ws]; omega)
 
-/-- **`Program.ComputesListInTime` form of `executesList_epsAuction` (at `inst.rowSpread`).** -/
-theorem computesListInTime_epsAuction :
-    epsAuctionProgram.ComputesListInTime (fun _ inst => inst.encode)
-      (fun inst _ => epsAuctionTime inst.n inst.rowSpread inst.eps)
-      (fun inst w => 0 < inst.eps ∧ Fits w inst.wordBound) EpsInstance.assignment :=
-  fun inst _ ⟨hε, hw⟩ _ =>
-    executesList_epsAuction inst hε inst.toInstance.sub_le_rowSpread hw
+private def scaledSolveProg (n : ℕ) : Memory.Prog AuctionWS := do
+  let base ← Memory.allocDirty (n * n + n + n + n + n + 1)
+  let M ← scanMaxProg ⟨2, n * n⟩
+  let ws : AuctionWS :=
+    { n := n
+      eps := 1
+      scale := n + 1
+      M := M
+      matBase := 2
+      bC := base
+      bOwner := base + n * n
+      bPrice := base + n * n + n
+      bStack := base + n * n + n + n
+      outBase := base + n * n + n + n + n }
+  let _ ← fillCProg ws
+  let _ ← auctionCoreProg ws
+  let _ ← scatterProg ws
+  pure ws
 
-/-- `epsAuctionProgram` does not read the word width (`width%`). -/
-theorem not_readsWidth_epsAuctionProgram : ¬ epsAuctionProgram.ReadsWidth := by
-  apply Code.not_readsWidth_program
-  decide +kernel
+private abbrev ScaledSolveSafe (w n : ℕ) (s₀ : Memory.State) : Prop :=
+  let base := s₀.frontier
+  let s₁ : Memory.State := ⟨s₀.mem, base + (n * n + n + n + n + n + 1)⟩
+  let M := (Memory.spec 0).clientResult s₁ (scanMaxProg ⟨2, n * n⟩)
+  let s₂ := (Memory.spec 0).clientState s₁ (scanMaxProg ⟨2, n * n⟩)
+  let ws : AuctionWS :=
+    ⟨n, 1, n + 1, M, 2, base, base + n * n, base + n * n + n,
+      base + n * n + n + n, base + n * n + n + n + n⟩
+  let s₃ := (Memory.spec 0).clientState s₂ (fillCProg ws)
+  let s₄ := (Memory.spec 0).clientState s₃ (auctionCoreProg ws)
+  Fits w 1 ∧ Fits w 2 ∧ Fits w (n + 1) ∧ Fits w (n * n) ∧
+    Fits w (n * n + n + n + n + n + 1) ∧ Fits w (base + n * n + n + n + n) ∧
+    iterationSafe scanMaxStep ScanMaxStepSafe w ⟨2, n * n⟩ (n * n) ⟨0, 0⟩ s₁ ∧
+    FillCProgSafe w ws s₂ ∧
+    AuctionCoreSafe w ws s₃ ∧
+    ScatterProgSafe w ws s₄
 
-/-- `epsAuctionProgram` is deterministic (`rand`-free). -/
-theorem isRandFree_epsAuctionProgram : epsAuctionProgram.IsRandFree := by
-  rw [epsAuctionProgram, Code.isRandFree_program]
-  decide +kernel
+private theorem scaledSolveProg_realizes :
+    Realizes .exact scaledSolveProg wordWords encAuctionWS ScaledSolveSafe (fun _ _ => 0) := by
+  unfold scaledSolveProg
+  realize [scanMaxProg_realizes, fillCProg_realizes, auctionCoreProg_realizes, scatterProg_realizes]
+  all_goals
+    rcases h with ⟨_, _, _, _, _, hfout, _, _, _, _⟩
+    first
+    | assumption
+    | exact hfout.of_le (by omega)
 
-/-! ### 4B. Exact `(n + 1)`-scaled integer auction (`O(n³ C + n²)`) -/
-
-private def scaledAuctionCode : Code .standard 26 :=
-  .seq (setupAndFillCode true) (.seq coreCode scatterOutputCode)
-
-private def sumScaledCostBody : Code .standard 26 := ram[
-  addr ← outBase + one; addr ← addr + idx; val ← *addr;
-  addr ← idx * rn; addr ← addr + val; addr ← bC + addr; val2 ← *addr;
-  val2 ← val2 / rscale;
-  sp ← sp + val2;
-  idx ← idx + one ]
-
-private def sumScaledCostTail : Code .standard 26 :=
-  .seq (ram[ sp ← #0; idx ← #0 ])
-    (.seq (.loop (.lt idx rn) sumScaledCostBody)
-      (ram[ val ← rn * rM;
-            if sp < val then [
-              val2 ← val - sp; sp ← two * val2; sp ← sp + one
-            ] else [
-              val2 ← sp - val; sp ← two * val2 ] ]))
-
-/-- Standard-basis word-RAM program computing the exact minimum-cost assignment
-`Instance.assignment` (`ExecutesList`) via Bertsekas's `(n + 1)`-scaled auction. -/
-def scaledAuctionProgram : Program .standard 26 :=
-  scaledAuctionCode.program outBase
-
-/-- Standard-basis word-RAM program computing `Instance.encodedMinCost` (`Executes`) via
-Bertsekas's `(n + 1)`-scaled auction. -/
-def scaledMinCostProgram : Program .standard 26 :=
-  (scaledAuctionCode.seq sumScaledCostTail).program sp
-
-/-- Instruction bound `O(n³ C + n²)` for `scaledAuctionProgram` and `scaledMinCostProgram` when `C`
-bounds the row cost ranges ([Bertsekas1988], §3). -/
-@[expose] def scaledAuctionTime (n C : ℕ) : ℕ :=
-  (n * ((n + 1) * C + 1) + 1) * (28 * n + 30) + 22 * (n * n) + 37 * n + 52
-
-private theorem exec_scaledAuctionCode {w : ℕ} (inst : Instance)
-    {C : ℕ} (hC : ∀ i j k : Fin inst.n, inst.cost (i, k) - inst.cost (i, j) ≤ (C : ℤ))
+private theorem scaledSolveProg_spec {w C : ℕ} (inst : Instance)
+    (hC : ∀ i j k : Fin inst.n, inst.cost (i, k) - inst.cost (i, j) ≤ (C : ℤ))
     (hw : Fits w inst.wordBound) :
-    ∃ z M, ExecWithin w scaledAuctionCode (Data.init inst.encode) z
-        (scaledAuctionTime inst.n C - (12 * inst.n + 11)) ∧
-      M ≤ inst.maxMag ∧
-      (∀ i j : Fin inst.n, (inst.cost (i, j)).natAbs ≤ M) ∧
-      BaseRegs inst.n 2 1 (inst.n + 1) M z ∧
-      CostMem (2 + inst.n * inst.n)
-        (fun p => (inst.n + 1) * (inst.cost p + (M : ℤ)).toNat) z.mem ∧
-      outputList z.mem (z.regs outBase) = inst.assignment ∧
-      Fits w (z.regs outBase + inst.n) := by
-  obtain ⟨y₁, M, he_sf, hM_le, hM_ge, hb₁, hCM₁⟩ :=
-    exec_setupAndFillCode (n := inst.n) (eps := 1) true inst.cost inst.encode inst.maxMag
-      inst.natAbs_cost_le_maxMag inst.init_mem_n (fun h => by cases h)
-      inst.init_mem_cost
-      (hw.of_le (by simp only [↓reduceIte]; unfold Instance.wordBound; nlinarith))
-  simp only [↓reduceIte] at hb₁ hCM₁
+    let s₀ := Memory.State.init inst.encode
+    let ws := (Memory.spec 0).clientResult s₀ (scaledSolveProg inst.n)
+    let s' := (Memory.spec 0).clientState s₀ (scaledSolveProg inst.n)
+    ScaledSolveSafe w inst.n s₀ ∧
+      (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (scaledSolveProg inst.n)) ∧
+      memoryCost (scaledSolveProg inst.n) s₀ ≤
+        (inst.n * ((inst.n + 1) * C + 1) + 1) * (4 * inst.n + 6) +
+          3 * (inst.n * inst.n) + 5 * inst.n + 2 ∧
+      ValidWS ws s' ∧
+      ws.n = inst.n ∧ ws.scale = inst.n + 1 ∧
+      ws.M ≤ inst.maxMag ∧
+      (∀ i j : Fin inst.n, (inst.cost (i, j)).natAbs ≤ ws.M) ∧
+      (∀ i j : Fin inst.n,
+        s'.mem (ws.bC + (i.val * inst.n + j.val)) =
+          (inst.n + 1) * (inst.cost (i, j) + (ws.M : ℤ)).toNat) ∧
+      outputList s'.mem ws.outBase = inst.assignment ∧
+      Fits w (ws.outBase + ws.n + 1) := by
+  let s₀ := Memory.State.init inst.encode
+  have hs₀_fr : s₀.frontier = 2 + inst.n * inst.n := by
+    change inst.encode.length + 1 = _
+    rw [inst.encode_length]; omega
+  let base := s₀.frontier
+  let s₁ : Memory.State :=
+    ⟨s₀.mem, base + (inst.n * inst.n + inst.n + inst.n + inst.n + inst.n + 1)⟩
+  have hf1 : Fits w 1 := hw.of_le (by unfold Instance.wordBound; nlinarith)
+  have hf2 : Fits w 2 := hw.of_le (by unfold Instance.wordBound; nlinarith)
+  have hf_fr1 : Fits w s₁.frontier :=
+    hw.of_le (by dsimp only [s₁, base]; rw [hs₀_fr]; unfold Instance.wordBound; nlinarith)
+  have hscan := scanMaxProg_spec (s₀ := s₁)
+    (fun i j => inst.init_mem_cost i j) inst.natAbs_cost_le_maxMag
+    (by dsimp only [s₁, base]; rw [hs₀_fr]; omega)
+    hf2 (hf_fr1.of_le (by dsimp only [s₁, base]; rw [hs₀_fr]; omega))
+  obtain ⟨hsafe_scan, hv_scan, hmc_scan, hs₂_eq, hM_le, hM_ge⟩ := hscan
+  let M := (Memory.spec 0).clientResult s₁ (scanMaxProg ⟨2, inst.n * inst.n⟩)
+  let ws₀ : AuctionWS :=
+    ⟨inst.n, 1, inst.n + 1, M, 2, base, base + inst.n * inst.n, base + inst.n * inst.n + inst.n,
+      base + inst.n * inst.n + inst.n + inst.n,
+      base + inst.n * inst.n + inst.n + inst.n + inst.n⟩
+  have hws₁ : ValidWS ws₀ s₁ :=
+    ⟨rfl, rfl, rfl, rfl, by dsimp only [ws₀, s₁]; omega⟩
+  have hfit_ws : Fits w (ws₀.outBase + ws₀.n + 1) :=
+    hf_fr1.of_le (by dsimp only [ws₀, s₁]; omega)
+  have hfill := fillC_spec ws₀ s₁ (by dsimp only [ws₀]; omega)
+    (by dsimp only [ws₀, base]; rw [hs₀_fr])
+    (by dsimp only [ws₀, s₁]; omega)
+    (fun i j => inst.init_mem_cost i j) hM_ge hf2
+    (hfit_ws.of_le (by dsimp only [ws₀]; omega))
+    (hw.of_le (by dsimp only [ws₀] at hM_le ⊢; unfold Instance.wordBound; nlinarith))
+  obtain ⟨hsafe_fill, hv_fill, hmc_fill, hfr_fill, _, hC_filled⟩ := hfill
+  let s₃ := (Memory.spec 0).clientState s₁ (fillCProg ws₀)
+  have hws₃ : ValidWS ws₀ s₃ := hws₁.of_frontier_eq hfr_fill
   let C_sc : Fin inst.n × Fin inst.n → ℕ :=
     fun p => (inst.n + 1) * (inst.cost p + (M : ℤ)).toNat
-  have hC_sc_le : ∀ i j : Fin inst.n, C_sc (i, j) ≤ 2 * (inst.n + 1) * M := fun i j => by
+  have hC_sc_le : ∀ i j : Fin inst.n, C_sc (i, j) ≤ 2 * ws₀.scale * ws₀.M := fun i j => by
     have hle2M : (inst.cost (i, j) + (M : ℤ)).toNat ≤ 2 * M := by have := hM_ge i j; omega
+    dsimp only [C_sc, ws₀]
     calc (inst.n + 1) * (inst.cost (i, j) + (M : ℤ)).toNat
         ≤ (inst.n + 1) * (2 * M) := Nat.mul_le_mul_left _ hle2M
       _ = 2 * (inst.n + 1) * M := by ring
+  have hcore := auctionCoreProg_spec ws₀ Nat.one_pos hC_sc_le s₃ hws₃ hC_filled hf1 hfit_ws
+    (hw.of_le (by dsimp only [ws₀] at hM_le ⊢; unfold Instance.wordBound; nlinarith))
+  obtain ⟨hsafe_core, hv_core, hmc_core, hfr_core, ham_core⟩ := hcore
+  let s₄ := (Memory.spec 0).clientState s₃ (auctionCoreProg ws₀)
+  have hws₄ : ValidWS ws₀ s₄ := hws₃.of_frontier_eq hfr_core
   have hC_sc_cast :
       (fun e => (C_sc e : ℤ)) =
         fun e => ((inst.n : ℤ) + 1) * inst.cost e + ((inst.n : ℤ) + 1) * (M : ℤ) := by
@@ -1768,26 +2437,19 @@ private theorem exec_scaledAuctionCode {w : ℕ} (inst : Instance)
       have := hM_ge i j; omega
     dsimp only [C_sc]
     push_cast
-    rw [hsh]
-    ring
-  have hfit_core : Fits w (2 + 2 * (inst.n * inst.n) + 4 * inst.n +
-      2 * (2 * (inst.n + 1) * M) + 2 * 1 + 4) :=
-    hw.of_le (by unfold Instance.wordBound; nlinarith)
-  obtain ⟨y₂, he_core, hb₂, hCM₂, hOM₂, _⟩ :=
-    core_exec Nat.one_pos hC_sc_le y₁ hb₁ hCM₁ hfit_core
+    rw [hsh]; ring
   have hs_eq : auction (fun e => (C_sc e : ℤ)) ((1 : ℕ) : ℤ) = scaledAuction inst.cost := by
     rw [hC_sc_cast, Nat.cast_one]
     exact auction_add_const (fun e => ((inst.n : ℤ) + 1) * inst.cost e)
       (((inst.n : ℤ) + 1) * (M : ℤ)) one_pos
-  rw [hs_eq] at he_core hOM₂
-  have hinv_sc : AuctionInv (fun e => ((inst.n : ℤ) + 1) * inst.cost e) 1
-      (scaledAuction inst.cost) := auctionInv_auction one_pos
-  have hfree_sc : (scaledAuction inst.cost).free = [] := auction_free one_pos
-  obtain ⟨z, he_scat, hbz, hout_z, hfit_out, hf_z⟩ :=
-    exec_scatterOutputCode hinv_sc hfree_sc y₂ hb₂ hOM₂
-      (hw.of_le (by unfold Instance.wordBound; nlinarith))
-  have hCM_z : CostMem (2 + inst.n * inst.n) C_sc z.mem :=
-    hCM₂.of_outside fun a ha => hf_z a (by omega)
+  have hinv_fin : AuctionInv (fun e => (C_sc e : ℤ)) ((1 : ℕ) : ℤ)
+      (auction (fun e => (C_sc e : ℤ)) ((1 : ℕ) : ℤ)) :=
+    auctionInv_auction one_pos
+  have hfree_fin : (auction (fun e => (C_sc e : ℤ)) ((1 : ℕ) : ℤ)).free = [] :=
+    auction_free one_pos
+  have hscat := scatterProg_spec ws₀ hinv_fin hfree_fin s₄ hws₄ ham_core hf1 hfit_ws
+  obtain ⟨hsafe_scat, hv_scat, hmc_scat, hfr_scat, _, hC_scat, hout_scat⟩ := hscat
+  rw [hs_eq] at hmc_core hout_scat
   have hbids_le : (scaledAuction inst.cost).bids ≤
       inst.n * ((inst.n + 1) * C + 1) + 1 := by
     have hb_raw := bids_scaledAuction_le (c := inst.cost) hC
@@ -1795,213 +2457,376 @@ private theorem exec_scaledAuctionCode {w : ℕ} (inst : Instance)
       exact_mod_cast Int.toNat_natCast ((inst.n + 1) * C + 1)
     rwa [hcast] at hb_raw
   have hmul_le :
-      (scaledAuction inst.cost).bids * (28 * inst.n + 30) ≤
-        (inst.n * ((inst.n + 1) * C + 1) + 1) * (28 * inst.n + 30) :=
+      (scaledAuction inst.cost).bids * (4 * inst.n + 6) ≤
+        (inst.n * ((inst.n + 1) * C + 1) + 1) * (4 * inst.n + 6) :=
     Nat.mul_le_mul_right _ hbids_le
-  refine ⟨z, M, (he_sf.seq (he_core.seq he_scat)).mono ?_,
-    hM_le, hM_ge, hbz, hCM_z, hout_z, hfit_out⟩
-  unfold scaledAuctionTime
-  omega
-
-/-- **`O(n³ C + n²)` Word-RAM exact minimum-cost assignment (`ExecutesList`).** Whenever `C` bounds
-every row cost range `inst.cost (i, k) - inst.cost (i, j) ≤ C` and `Fits w inst.wordBound`,
-`scaledAuctionProgram` halts within `scaledAuctionTime inst.n C` instructions returning the exact
-optimal assignment `inst.assignment` (`sum_scaledAuctionPerm_le`). -/
-theorem executesList_scaledAuction {w : ℕ} (inst : Instance)
-    {C : ℕ} (hC : ∀ i j k : Fin inst.n, inst.cost (i, k) - inst.cost (i, j) ≤ (C : ℤ))
-    (hw : Fits w inst.wordBound) :
-    ∃ steps, ExecutesList w scaledAuctionProgram (.init inst.encode) inst.assignment steps ∧
-      steps ≤ scaledAuctionTime inst.n C := by
-  obtain ⟨z, _, ⟨t, ht, hex⟩, _, _, _, _, hout, hfit⟩ := exec_scaledAuctionCode inst hC hw
-  refine ⟨t + 1, hout ▸ hex.executesList outBase (by rwa [hout, inst.length_assignment]), ?_⟩
-  unfold scaledAuctionTime at ht ⊢
-  omega
-
-/-- **`Program.ComputesListInTime` form of `executesList_scaledAuction` (at `inst.rowSpread`).** -/
-theorem computesListInTime_scaledAuction :
-    scaledAuctionProgram.ComputesListInTime (fun _ inst => inst.encode)
-      (fun inst _ => scaledAuctionTime inst.n inst.rowSpread)
-      (fun inst w => Fits w inst.wordBound) Instance.assignment :=
-  fun inst _ hw _ => executesList_scaledAuction inst inst.sub_le_rowSpread hw
-
-/-- **`O(n³ C + n²)` Word-RAM exact minimum assignment cost (`Executes`).** -/
-theorem executes_scaledMinCost {w : ℕ} (inst : Instance)
-    {C : ℕ} (hC : ∀ i j k : Fin inst.n, inst.cost (i, k) - inst.cost (i, j) ≤ (C : ℤ))
-    (hw : Fits w inst.wordBound) :
-    ∃ steps, Executes w scaledMinCostProgram (.init inst.encode) inst.encodedMinCost steps ∧
-      steps ≤ scaledAuctionTime inst.n C := by
-  obtain ⟨z, M, he_main, hM_le, hM_ge, hbz, hCMz, hout_z, _⟩ :=
-    exec_scaledAuctionCode inst hC hw
-  let C_unsc (p : Fin inst.n × Fin inst.n) : ℕ := (inst.cost p + (M : ℤ)).toNat
-  have hC_unsc_le : ∀ p : Fin inst.n × Fin inst.n, C_unsc p ≤ 2 * M := by
-    rintro ⟨i, j⟩
-    have := hM_ge i j
-    dsimp only [C_unsc]
+  have hsafe_solve : ScaledSolveSafe w inst.n s₀ := by
+    unfold ScaledSolveSafe
+    dsimp only
+    rw [hs₂_eq]
+    exact ⟨hf1, hf2, hw.of_le (by unfold Instance.wordBound; nlinarith),
+      hf_fr1.of_le (by dsimp only [s₁, base]; omega),
+      hf_fr1.of_le (by dsimp only [s₁, base]; omega),
+      hfit_ws.of_le (by dsimp only [ws₀]; omega),
+      hsafe_scan, hsafe_fill, hsafe_core, hsafe_scat⟩
+  have hres_solve : (Memory.spec 0).clientResult s₀ (scaledSolveProg inst.n) = ws₀ := by
+    unfold scaledSolveProg
+    dsimp only
+    rw [clientResult_bind, clientResult_allocDirty, clientState_allocDirty]
+    change (Memory.spec 0).clientResult s₁ (scanMaxProg ⟨2, inst.n * inst.n⟩ >>= _) = _
+    rw [clientResult_bind, hs₂_eq, clientResult_bind, clientResult_bind, clientResult_bind,
+      clientResult_pure]
+  have hst_solve : (Memory.spec 0).clientState s₀ (scaledSolveProg inst.n) =
+      (Memory.spec 0).clientState s₄ (scatterProg ws₀) := by
+    unfold scaledSolveProg
+    dsimp only
+    rw [clientState_bind, clientResult_allocDirty, clientState_allocDirty]
+    change (Memory.spec 0).clientState s₁ (scanMaxProg ⟨2, inst.n * inst.n⟩ >>= _) = _
+    rw [clientState_bind, hs₂_eq, clientState_bind, clientState_bind, clientState_bind,
+      clientState_pure]
+  refine ⟨hsafe_solve, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · unfold scaledSolveProg
+    dsimp only
+    refine validHistory_allocDirty_bind hf_fr1 ?_
+    refine validHistory_bind_step hv_scan ?_
+    rw [hs₂_eq]
+    exact validHistory_bind_step hv_fill
+      (validHistory_bind_step hv_core
+        (validHistory_bind_step hv_scat (validHistory_pure w _ _)))
+  · unfold scaledSolveProg
+    dsimp only
+    rw [memoryCost_bind', memoryCost_allocDirty, clientResult_allocDirty, clientState_allocDirty]
+    change 1 + memoryCost (scanMaxProg ⟨2, inst.n * inst.n⟩ >>= _) s₁ ≤ _
+    rw [memoryCost_bind', hs₂_eq, memoryCost_bind', memoryCost_bind', memoryCost_bind',
+      memoryCost_pure]
+    dsimp only [ws₀, M, base, s₃, s₄, s₀] at hmc_scan hmc_fill hmc_core hmc_scat ⊢
     omega
-  let π := scaledAuctionPerm inst.cost
-  have hmem_out : ∀ i : Fin inst.n,
-      z.mem (2 + 2 * (inst.n * inst.n) + 3 * inst.n + 1 + i.val) = (π i).val :=
-    fun i => by
-      have hi : i.val < (outputList z.mem (z.regs outBase)).length := by
-        rw [hout_z, inst.length_assignment]; exact i.isLt
-      calc z.mem (2 + 2 * (inst.n * inst.n) + 3 * inst.n + 1 + i.val)
-          = z.mem (z.regs outBase + 1 + i.val) := by rw [hbz.houtBase]
-        _ = (outputList z.mem (z.regs outBase))[i.val]'hi := (getElem_outputList _ _ _ hi).symm
-        _ = inst.assignment[i.val]'(by simp) := by simp [hout_z]
-        _ = (π i).val := inst.getElem_assignment i
-  have hs₀ : ∃ s₀, ExecWithin w (ram[ sp ← #0; idx ← #0 ] : Code .standard 26) z s₀ 2 ∧
-      s₀ = (z.set sp 0).set idx 0 := by
-    refine WP.exists_execWithin ?_; wram_exec; rfl
-  obtain ⟨s₀, he₀, rfl⟩ := hs₀
-  let PS (t : ℕ) (y : Data 26) : Prop :=
-    t ≤ inst.n ∧
-      (∀ r : Fin 26, r.val < 14 → y.regs r = z.regs r) ∧
-      y.mem = z.mem ∧
-      y.regs sp = (((List.finRange inst.n).take t).map fun i => C_unsc (i, π i)).sum ∧
-      y.regs sp ≤ t * (2 * M)
-  have hPS₀ : PS 0 ((z.set sp 0).set idx 0) :=
-    ⟨Nat.zero_le _, fun _ _ => by wram_simp, rfl, by wram_simp; simp, by wram_simp; simp⟩
-  have hbodyS (y : Data 26) (hy : PS (y.regs idx) y) (hlt : y.regs idx < inst.n) :
-      ∃ y', ExecWithin w sumScaledCostBody y y' 10 ∧ PS (y.regs idx + 1) y' ∧
-        y'.regs idx = y.regs idx + 1 := by
-    obtain ⟨_, hr, hmem, hsp_sum, hsp_le⟩ := hy
-    have hby : BaseRegs inst.n 2 1 (inst.n + 1) M y := hbz.of_eq hr
-    let i₀ : Fin inst.n := ⟨y.regs idx, hlt⟩
-    let j₀ : Fin inst.n := π i₀
-    have hj₀_lt := j₀.isLt
-    have hload_j :
-        y.mem (2 + 2 * (inst.n * inst.n) + 3 * inst.n + 1 + y.regs idx) = j₀.val := by
-      rw [hmem]; exact hmem_out i₀
-    have hmul_ij : i₀.val * inst.n + j₀.val < inst.n * inst.n :=
-      Cslib.Matrix.pairIndex_lt (i₀, j₀)
-    have hload_c : y.mem (2 + inst.n * inst.n + (y.regs idx * inst.n + j₀.val)) =
-        (inst.n + 1) * C_unsc (i₀, j₀) := by
-      rw [hmem]; exact hCMz.hentry i₀ j₀
-    have hdiv_sc : ((inst.n + 1) * C_unsc (i₀, j₀)) / (inst.n + 1) = C_unsc (i₀, j₀) :=
-      Nat.mul_div_right _ (Nat.succ_pos inst.n)
-    have hcu_le : C_unsc (i₀, j₀) ≤ 2 * inst.maxMag :=
-      (hC_unsc_le (i₀, j₀)).trans (by omega)
-    have hsum_le1 : y.regs sp + C_unsc (i₀, j₀) ≤ (y.regs idx + 1) * (2 * M) := by
-      have := hC_unsc_le (i₀, j₀); nlinarith
-    have hsum_fit : y.regs sp + C_unsc (i₀, j₀) ≤ 2 * inst.n * inst.maxMag := by
-      calc y.regs sp + C_unsc (i₀, j₀) ≤ inst.n * (2 * M) := by nlinarith
-        _ ≤ inst.n * (2 * inst.maxMag) := Nat.mul_le_mul_left inst.n (by omega)
-        _ = 2 * inst.n * inst.maxMag := by ring
-    have hf_o1 : Fits w (2 + 2 * (inst.n * inst.n) + 3 * inst.n + 1) :=
-      hw.of_le (by unfold Instance.wordBound; nlinarith)
-    have hf_oi : Fits w (2 + 2 * (inst.n * inst.n) + 3 * inst.n + 1 + y.regs idx) :=
-      hw.of_le (by unfold Instance.wordBound; nlinarith)
-    have hf_in : Fits w (y.regs idx * inst.n) :=
-      hw.of_le (by unfold Instance.wordBound; nlinarith)
-    have hf_inj : Fits w (y.regs idx * inst.n + j₀.val) :=
-      hw.of_le (by unfold Instance.wordBound; nlinarith)
-    have hf_bc : Fits w (2 + inst.n * inst.n + (y.regs idx * inst.n + j₀.val)) :=
-      hw.of_le (by unfold Instance.wordBound; nlinarith)
-    have hf_div : Fits w (C_unsc (i₀, j₀)) :=
-      hw.of_le (by unfold Instance.wordBound; nlinarith)
-    have hf_acc : Fits w (y.regs sp + C_unsc (i₀, j₀)) :=
-      hw.of_le (by unfold Instance.wordBound; nlinarith)
-    have hf_i1 : Fits w (y.regs idx + 1) :=
-      hw.of_le (by unfold Instance.wordBound; nlinarith)
-    refine WP.exists_execWithin ?_
-    unfold sumScaledCostBody
-    wram_exec [hby.houtBase, hby.hone, hby.hrn, hby.hbC, hby.hrscale,
-      hload_j, hload_c, hdiv_sc, hf_o1, hf_oi, hf_in, hf_inj, hf_bc, hf_div, hf_acc, hf_i1]
-    refine ⟨⟨by omega, fun r hr' => by wram_simp [hr r hr'], hmem, ?_, ?_⟩, by wram_simp⟩
-    · wram_simp [hsp_sum]
-      rw [List.take_succ_finRange hlt, List.map_append, List.sum_append, List.map_singleton,
-        List.sum_singleton]
-    · wram_simp; exact hsum_le1
-  obtain ⟨y_sum, hl_sum, hPSn, _⟩ := ExecWithin.loop_count PS
-    (fun y hy => (hy.2.1 rn (by decide)).trans hbz.hrn) hbodyS
-    (x := (z.set sp 0).set idx 0) (by simp) (by simpa using hPS₀)
-  obtain ⟨_, hr_sum, _, hsp_full, hsp_le_n⟩ := hPSn
-  have hbs : BaseRegs inst.n 2 1 (inst.n + 1) M y_sum := hbz.of_eq hr_sum
-  have hsum_z : (y_sum.regs sp : ℤ) = inst.minCost + (inst.n * M : ℕ) := by
-    rw [List.take_of_length_le (by simp), ← Fin.sum_univ_def] at hsp_full
-    rw [hsp_full, Nat.cast_sum]
-    have hcu_z : ∀ i : Fin inst.n, (C_unsc (i, π i) : ℤ) =
-        inst.cost (i, π i) + (M : ℤ) := fun i => by
-      have := hM_ge i (π i); dsimp only [C_unsc]; omega
-    simp only [hcu_z, Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, Fintype.card_fin]
-    dsimp only [Instance.minCost]
-    push_cast
-    ring
-  have hf_nM : Fits w (inst.n * M) := by
-    have : inst.n * M ≤ inst.n * inst.maxMag := Nat.mul_le_mul_left inst.n hM_le
-    exact hw.of_le (by unfold Instance.wordBound; nlinarith)
-  have henc_step : ∃ y_end, ExecWithin w
-      (ram[ val ← rn * rM;
-            if sp < val then [
-              val2 ← val - sp; sp ← two * val2; sp ← sp + one
-            ] else [
-              val2 ← sp - val; sp ← two * val2 ] ] : Code .standard 26) y_sum y_end 6 ∧
-      y_end.regs sp = inst.encodedMinCost := by
-    refine WP.exists_execWithin ?_
-    by_cases hlt_opt : y_sum.regs sp < inst.n * M
-    · have hneg_opt : inst.minCost < 0 := by omega
-      have hsub_le : y_sum.regs sp ≤ inst.n * M := le_of_lt hlt_opt
-      have habs : inst.minCost.natAbs = inst.n * M - y_sum.regs sp := by omega
-      have hd_le : inst.n * M - y_sum.regs sp ≤ inst.n * inst.maxMag :=
-        (Nat.sub_le _ _).trans (Nat.mul_le_mul_left inst.n hM_le)
-      have hf_d : Fits w (inst.n * M - y_sum.regs sp) :=
-        hw.of_le (by unfold Instance.wordBound; nlinarith)
-      have hf_2d : Fits w (2 * (inst.n * M - y_sum.regs sp)) :=
-        hw.of_le (by unfold Instance.wordBound; nlinarith)
-      have hf_2d1 : Fits w (2 * (inst.n * M - y_sum.regs sp) + 1) :=
-        hw.of_le (by unfold Instance.wordBound; nlinarith)
-      wram_exec [hbs.hrn, hbs.hrM, hbs.htwo, hbs.hone, hlt_opt, hsub_le,
-        hf_nM, hf_d, hf_2d, hf_2d1]
-      wram_simp
-      unfold Instance.encodedMinCost Signed.encode
-      rw [habs, ite_eq_left hneg_opt]
-    · have hnneg_opt : ¬inst.minCost < 0 := by omega
-      have hsub_le : inst.n * M ≤ y_sum.regs sp := le_of_not_gt hlt_opt
-      have habs : inst.minCost.natAbs = y_sum.regs sp - inst.n * M := by omega
-      have hd_le : y_sum.regs sp - inst.n * M ≤ inst.n * (2 * inst.maxMag) :=
-        (Nat.sub_le _ _).trans (hsp_le_n.trans (Nat.mul_le_mul_left inst.n (by omega)))
-      have hf_d : Fits w (y_sum.regs sp - inst.n * M) :=
-        hw.of_le (by unfold Instance.wordBound; nlinarith)
-      have hf_2d : Fits w (2 * (y_sum.regs sp - inst.n * M)) :=
-        hw.of_le (by unfold Instance.wordBound; nlinarith)
-      wram_exec [hbs.hrn, hbs.hrM, hbs.htwo, hbs.hone, hlt_opt, hsub_le,
-        hf_nM, hf_d, hf_2d]
-      wram_simp
-      unfold Instance.encodedMinCost Signed.encode
-      rw [habs, ite_eq_right hnneg_opt, Nat.add_zero]
-  obtain ⟨y_end, he_enc, hsp_end⟩ := henc_step
-  have he_tail : ExecWithin w sumScaledCostTail z y_end (12 * inst.n + 10) :=
-    (he₀.seq (hl_sum.seq he_enc)).mono (by simp; omega)
-  obtain ⟨t, ht, hex⟩ := he_main.seq he_tail
-  refine ⟨t + 1, hsp_end ▸ hex.executes sp, ?_⟩
-  unfold scaledAuctionTime at ht ⊢
-  omega
+  · rw [hres_solve, hst_solve]; exact hws₄.of_frontier_eq hfr_scat
+  · rw [hres_solve]
+  · rw [hres_solve]
+  · rw [hres_solve]; exact hM_le
+  · rw [hres_solve]; exact hM_ge
+  · rw [hres_solve, hst_solve]; exact hC_scat
+  · rw [hres_solve, hst_solve]; exact hout_scat
+  · rw [hres_solve]; exact hfit_ws
 
-/-- **`Program.ComputesInTime` form of `executes_scaledMinCost` (at `inst.rowSpread`).** -/
-theorem computesInTime_scaledMinCost :
-    scaledMinCostProgram.ComputesInTime (fun _ inst => inst.encode)
-      (fun inst _ => scaledAuctionTime inst.n inst.rowSpread)
-      (fun inst w => Fits w inst.wordBound) Instance.encodedMinCost :=
-  fun inst _ hw _ => executes_scaledMinCost inst inst.sub_le_rowSpread hw
+private def scaledMainProg (n : ℕ) : Memory.Prog ℕ := do
+  let ws ← scaledSolveProg n
+  pure ws.outBase
 
-/-- `scaledAuctionProgram` does not read the word width (`width%`). -/
-theorem not_readsWidth_scaledAuctionProgram : ¬ scaledAuctionProgram.ReadsWidth := by
-  apply Code.not_readsWidth_program
-  decide +kernel
+private theorem scaledMainProg_realizes :
+    Realizes .exact scaledMainProg wordWords wordWords ScaledSolveSafe (fun _ _ => 0) := by
+  unfold scaledMainProg
+  realize [scaledSolveProg_realizes]
+  exact h
 
-/-- `scaledAuctionProgram` is deterministic (`rand`-free). -/
-theorem isRandFree_scaledAuctionProgram : scaledAuctionProgram.IsRandFree := by
-  rw [scaledAuctionProgram, Code.isRandFree_program]
-  decide +kernel
+private def scaledMinCostMainProg (n : ℕ) : Memory.Prog ℕ := do
+  let ws ← scaledSolveProg n
+  sumScaledCostProg ws
 
-/-- `scaledMinCostProgram` does not read the word width (`width%`). -/
-theorem not_readsWidth_scaledMinCostProgram : ¬ scaledMinCostProgram.ReadsWidth := by
-  apply Code.not_readsWidth_program
-  decide +kernel
+private abbrev ScaledMinCostSafe (w n : ℕ) (s₀ : Memory.State) : Prop :=
+  let ws := (Memory.spec 0).clientResult s₀ (scaledSolveProg n)
+  let s' := (Memory.spec 0).clientState s₀ (scaledSolveProg n)
+  ScaledSolveSafe w n s₀ ∧ SumScaledCostSafe w ws s'
 
-/-- `scaledMinCostProgram` is deterministic (`rand`-free). -/
-theorem isRandFree_scaledMinCostProgram : scaledMinCostProgram.IsRandFree := by
-  rw [scaledMinCostProgram, Code.isRandFree_program]
-  decide +kernel
+private theorem scaledMinCostMainProg_realizes :
+    Realizes .exact scaledMinCostMainProg wordWords wordWords ScaledMinCostSafe (fun _ _ => 0) := by
+  unfold scaledMinCostMainProg
+  realize [scaledSolveProg_realizes, sumScaledCostProg_realizes]
+  all_goals
+    rcases h with ⟨_, _⟩
+    assumption
+
+private theorem eps_poly_bound (n C eps : ℕ) (hε : 0 < eps) :
+    (n * (C + eps) / eps + 1) * (4 * n + 6) + 3 * (n * n) + 5 * n + 3 + 1 ≤
+      42 * (n ^ 2 * (C / eps + 1) + 1) := by
+  rcases Nat.eq_zero_or_pos n with rfl | hn
+  · simp
+  · have hC_lt : C < (C / eps + 1) * eps := by
+      rw [Nat.add_mul, one_mul]
+      exact Nat.lt_div_mul_add hε
+    have heps_le : eps ≤ (C / eps + 1) * eps :=
+      Nat.le_mul_of_pos_left eps (Nat.succ_pos (C / eps))
+    have hCeps_le : C + eps ≤ 2 * (C / eps + 1) * eps := by
+      calc C + eps ≤ (C / eps + 1) * eps + (C / eps + 1) * eps :=
+            Nat.add_le_add (le_of_lt hC_lt) heps_le
+        _ = 2 * (C / eps + 1) * eps := by ring
+    have hmul_le : n * (C + eps) ≤ (2 * n * (C / eps + 1)) * eps := by
+      calc n * (C + eps) ≤ n * (2 * (C / eps + 1) * eps) := Nat.mul_le_mul_left n hCeps_le
+        _ = (2 * n * (C / eps + 1)) * eps := by ring
+    have hdiv_le : n * (C + eps) / eps ≤ 2 * n * (C / eps + 1) :=
+      (Nat.div_le_div_right hmul_le).trans_eq (Nat.mul_div_cancel _ hε)
+    have h1_le : 1 ≤ n * (C / eps + 1) := Nat.mul_pos hn (Nat.succ_pos _)
+    have hbids_le : n * (C + eps) / eps + 1 ≤ 3 * n * (C / eps + 1) := by
+      calc n * (C + eps) / eps + 1
+          ≤ 2 * n * (C / eps + 1) + n * (C / eps + 1) := Nat.add_le_add hdiv_le h1_le
+        _ = 3 * n * (C / eps + 1) := by ring
+    have h4n : 4 * n + 6 ≤ 10 * n := by omega
+    have hprod : (n * (C + eps) / eps + 1) * (4 * n + 6) ≤ 30 * (n ^ 2 * (C / eps + 1)) := by
+      calc (n * (C + eps) / eps + 1) * (4 * n + 6)
+          ≤ (3 * n * (C / eps + 1)) * (10 * n) := Nat.mul_le_mul hbids_le h4n
+        _ = 30 * (n ^ 2 * (C / eps + 1)) := by ring
+    have hquad : 3 * (n * n) + 5 * n + 4 ≤ 12 * (n ^ 2 * (C / eps + 1)) := by
+      have hn2 : 3 * (n * n) + 5 * n + 4 ≤ 12 * n ^ 2 := by nlinarith
+      calc 3 * (n * n) + 5 * n + 4 ≤ 12 * n ^ 2 := hn2
+        _ = 12 * (n ^ 2 * 1) := by ring
+        _ ≤ 12 * (n ^ 2 * (C / eps + 1)) :=
+          Nat.mul_le_mul_left 12 (Nat.mul_le_mul_left _ (Nat.succ_pos _))
+    linarith
+
+private theorem scaled_poly_bound (n C : ℕ) :
+    (n * ((n + 1) * C + 1) + 1) * (4 * n + 6) + 3 * (n * n) + 7 * n + 3 + 1 ≤
+      34 * (n ^ 3 * C + n ^ 2 + 1) := by
+  rcases Nat.eq_zero_or_pos n with rfl | hn
+  · simp
+  · have h1 : (n + 1) * C + 1 ≤ 2 * n * C + 1 := by
+      have : n + 1 ≤ 2 * n := by omega
+      nlinarith
+    have h2 : n * ((n + 1) * C + 1) + 1 ≤ 2 * n ^ 2 * C + 2 * n := by nlinarith
+    have h3 : 4 * n + 6 ≤ 10 * n := by omega
+    have hprod : (n * ((n + 1) * C + 1) + 1) * (4 * n + 6) ≤
+        20 * (n ^ 3 * C) + 20 * n ^ 2 := by
+      calc (n * ((n + 1) * C + 1) + 1) * (4 * n + 6)
+          ≤ (2 * n ^ 2 * C + 2 * n) * (10 * n) := Nat.mul_le_mul h2 h3
+        _ = 20 * (n ^ 3 * C) + 20 * n ^ 2 := by ring
+    have hquad : 3 * (n * n) + 7 * n + 4 ≤ 14 * n ^ 2 := by nlinarith
+    have hnn3 : 0 ≤ n ^ 3 * C := Nat.zero_le _
+    linarith
+
+private theorem init_words_spec {w : ℕ} (inst : Instance) (hw : Fits w inst.wordBound) :
+    InputFits w inst.encode ∧
+      Fits w (inst.encode.length + 1) ∧
+      (∀ j : Fin 1, inst.encode.getD j.val 0 = wordWords inst.n j) ∧
+      1 ≤ inst.encode.length := by
+  refine ⟨inst.inputFits_encode hw,
+    hw.of_le (by rw [inst.encode_length]; unfold Instance.wordBound; nlinarith),
+    ?_, by rw [inst.encode_length]; omega⟩
+  rintro ⟨_ | _, hj⟩
+  · rfl
+  · omega
+
+private theorem scaled_steps_le {m C₁ mc n C : ℕ}
+    (hsteps : m + 1 ≤ C₁ * (mc + 0 + 1) + 1)
+    (hmc : mc ≤ (n * ((n + 1) * C + 1) + 1) * (4 * n + 6) + 3 * (n * n) + 7 * n + 2) :
+    m + 1 ≤ (34 * C₁ + 1) * (n ^ 3 * C + n ^ 2 + 1) := by
+  have hp := scaled_poly_bound n C
+  have hmul : C₁ * (mc + 0 + 1) ≤ C₁ * (34 * (n ^ 3 * C + n ^ 2 + 1)) :=
+    Nat.mul_le_mul_left C₁ (by omega)
+  have hpos : 1 ≤ n ^ 3 * C + n ^ 2 + 1 := Nat.succ_pos _
+  nlinarith
+
+public section
+
+/-- **`O(n² (C / ε + 1))` Word-RAM `ε`-auction (`ExecutesList` and `Program.ComputesListInTime`).**
+There is a uniform deterministic width-blind standard-basis program (`Program .standard r`,
+`¬ prog.ReadsWidth`, `prog.IsRandFree`) that, on `inst.encode` for any `inst : EpsInstance` with
+`0 < inst.eps`, row cost ranges bounded by `C`, and `Fits w inst.wordBound`
+(`w = O(log n + log M + log ε)`), halts within `K * (inst.n ^ 2 * (C / inst.eps + 1) + 1)`
+instructions returning `inst.assignment` (`n * eps`-optimal by `sum_auctionPerm_le` and
+`ε`-complementary-slack by `isEpsCompSlack_auctionPerm`; [Bertsekas1988], §1). -/
+theorem exists_epsAuction_program :
+    ∃ r K : ℕ, 0 < K ∧ ∃ prog : Program .standard r,
+      ¬ prog.ReadsWidth ∧ prog.IsRandFree ∧
+      (∀ {w C : ℕ} (inst : EpsInstance),
+        0 < inst.eps →
+        (∀ i j k : Fin inst.n, inst.cost (i, k) - inst.cost (i, j) ≤ (C : ℤ)) →
+        Fits w inst.wordBound →
+        ∃ steps, ExecutesList w prog (.init inst.encode) inst.assignment steps ∧
+          steps ≤ K * (inst.n ^ 2 * (C / inst.eps + 1) + 1)) ∧
+      prog.ComputesListInTime (fun _ inst => inst.encode)
+        (fun inst _ => K * (inst.n ^ 2 * (inst.rowSpread / inst.eps + 1) + 1))
+        (fun inst w => 0 < inst.eps ∧ Fits w inst.wordBound) EpsInstance.assignment := by
+  obtain ⟨r, C₁, pc, prog₀, hnw₀, frontier, _, he⟩ :=
+    epsMainProg_realizes.exists_standard_basis_init_program_state_from_words (0 : Fin 1)
+  let prog := stripRandProg prog₀
+  have hmain : ∀ {w C : ℕ} (inst : EpsInstance),
+      0 < inst.eps →
+      (∀ i j k : Fin inst.n, inst.cost (i, k) - inst.cost (i, j) ≤ (C : ℤ)) →
+      Fits w inst.wordBound →
+      ∃ steps, ExecutesList w prog (.init inst.encode) inst.assignment steps ∧
+        steps ≤ (42 * C₁ + 1) * (inst.n ^ 2 * (C / inst.eps + 1) + 1) := by
+    intro w C inst hε hC hw
+    have hin := inst.inputFits_encode hw
+    have hfit_len : Fits w (inst.encode.length + 1) :=
+      hw.of_le (by rw [inst.encode_length]; unfold EpsInstance.wordBound; nlinarith)
+    have hlayout : ∀ j : Fin 2, inst.encode.getD j.val 0 = pairWords (inst.n, inst.eps) j := by
+      rintro ⟨_ | _ | _, hj⟩
+      · rfl
+      · rfl
+      · omega
+    have hk : 2 ≤ inst.encode.length := by rw [inst.encode_length]; omega
+    obtain ⟨hsafe, hv, hmc, hout, hfit_out⟩ := epsMainProg_spec inst hε hC hw
+    obtain ⟨y, m, hruns₀, hhalt₀, hmem, _, hsteps⟩ :=
+      he w (inst.n, inst.eps) inst.encode hlayout hk hfit_len hin hsafe hv
+    rw [clientState_width w] at hmem
+    rw [clientResult_width w] at hhalt₀
+    dsimp only [wordWords] at hhalt₀
+    have hruns : Runs w prog (.init inst.encode) ⟨pc, y⟩ m := runs_stripRandProg hruns₀
+    have hhalt : WordRAM.step w prog ⟨pc, y⟩ =
+        .halt ((Memory.spec 0).clientResult (Memory.State.init inst.encode)
+          (epsMainProg (inst.n, inst.eps))) := by
+      rw [step_stripRandProg_of_ne_fault (by rw [hhalt₀]; exact nofun)]
+      exact hhalt₀
+    have hymem : y.mem =
+        ((Memory.spec 0).clientState (Memory.State.init inst.encode)
+          (epsMainProg (inst.n, inst.eps))).mem :=
+      congrArg Memory.State.mem hmem
+    refine ⟨m + 1, ⟨⟨pc, y⟩, m, _, hruns, hhalt, hymem ▸ hout, hfit_out, rfl⟩, ?_⟩
+    have hp := eps_poly_bound inst.n C inst.eps hε
+    have hmul : C₁ * (memoryCost (epsMainProg (inst.n, inst.eps))
+        (Memory.State.init inst.encode) + 0 + 1) ≤
+        C₁ * (42 * (inst.n ^ 2 * (C / inst.eps + 1) + 1)) :=
+      Nat.mul_le_mul_left C₁ (by omega)
+    have hpos : 1 ≤ inst.n ^ 2 * (C / inst.eps + 1) + 1 := Nat.succ_pos _
+    nlinarith
+  refine ⟨r, 42 * C₁ + 1, by omega, prog, not_readsWidth_stripRandProg hnw₀,
+    isRandFree_stripRandProg prog₀, @hmain, fun inst w ⟨hε, hw⟩ _ =>
+      hmain inst hε inst.toInstance.sub_le_rowSpread hw⟩
+
+/-- **`O(n³ C + n²)` Word-RAM exact `(n + 1)`-scaled integer assignment (`ExecutesList` and
+`Program.ComputesListInTime`).** There is a uniform deterministic width-blind standard-basis
+program (`Program .standard r`, `¬ prog.ReadsWidth`, `prog.IsRandFree`) that, on `inst.encode` for
+any `inst : Instance` with row cost ranges bounded by `C` and `Fits w inst.wordBound`
+(`w = O(log n + log M)`), halts within `K * (inst.n ^ 3 * C + inst.n ^ 2 + 1)` instructions
+returning the exact optimal assignment `inst.assignment` (`sum_scaledAuctionPerm_le`;
+[Bertsekas1988], §3). -/
+theorem exists_scaledAuction_program :
+    ∃ r K : ℕ, 0 < K ∧ ∃ prog : Program .standard r,
+      ¬ prog.ReadsWidth ∧ prog.IsRandFree ∧
+      (∀ {w C : ℕ} (inst : Instance),
+        (∀ i j k : Fin inst.n, inst.cost (i, k) - inst.cost (i, j) ≤ (C : ℤ)) →
+        Fits w inst.wordBound →
+        ∃ steps, ExecutesList w prog (.init inst.encode) inst.assignment steps ∧
+          steps ≤ K * (inst.n ^ 3 * C + inst.n ^ 2 + 1)) ∧
+      prog.ComputesListInTime (fun _ inst => inst.encode)
+        (fun inst _ => K * (inst.n ^ 3 * inst.rowSpread + inst.n ^ 2 + 1))
+        (fun inst w => Fits w inst.wordBound) Instance.assignment := by
+  obtain ⟨r, C₁, pc, prog₀, hnw₀, frontier, _, he⟩ :=
+    scaledMainProg_realizes.exists_standard_basis_init_program_state_from_words (0 : Fin 1)
+  let prog := stripRandProg prog₀
+  have hmain : ∀ {w C : ℕ} (inst : Instance),
+      (∀ i j k : Fin inst.n, inst.cost (i, k) - inst.cost (i, j) ≤ (C : ℤ)) →
+      Fits w inst.wordBound →
+      ∃ steps, ExecutesList w prog (.init inst.encode) inst.assignment steps ∧
+        steps ≤ (34 * C₁ + 1) * (inst.n ^ 3 * C + inst.n ^ 2 + 1) := by
+    intro w C inst hC hw
+    obtain ⟨hin, hfit_len, hlayout, hk⟩ := init_words_spec inst hw
+    obtain ⟨hsafe, hv_s, hmc_s, _, hws_n, _, _, _, _, hout_s, hfit_ws⟩ :=
+      scaledSolveProg_spec inst hC hw
+    have hv : (Memory.spec w).ValidHistory (Memory.State.init inst.encode)
+        ((Memory.spec w).clientHistory (Memory.State.init inst.encode)
+          (scaledMainProg inst.n)) := by
+      unfold scaledMainProg
+      exact validHistory_bind_step hv_s (validHistory_pure w _ _)
+    have hmc : memoryCost (scaledMainProg inst.n) (Memory.State.init inst.encode) ≤
+        (inst.n * ((inst.n + 1) * C + 1) + 1) * (4 * inst.n + 6) +
+          3 * (inst.n * inst.n) + 7 * inst.n + 2 := by
+      unfold scaledMainProg
+      rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
+      exact hmc_s.trans (by omega)
+    obtain ⟨y, m, hruns₀, hhalt₀, hmem, _, hsteps⟩ :=
+      he w inst.n inst.encode hlayout hk hfit_len hin hsafe hv
+    rw [clientState_width w] at hmem
+    rw [clientResult_width w] at hhalt₀
+    dsimp only [wordWords] at hhalt₀
+    have hruns : Runs w prog (.init inst.encode) ⟨pc, y⟩ m := runs_stripRandProg hruns₀
+    have hhalt : WordRAM.step w prog ⟨pc, y⟩ =
+        .halt ((Memory.spec 0).clientResult (Memory.State.init inst.encode)
+          (scaledMainProg inst.n)) := by
+      rw [step_stripRandProg_of_ne_fault (by rw [hhalt₀]; exact nofun)]
+      exact hhalt₀
+    have hymem : y.mem =
+        ((Memory.spec 0).clientState (Memory.State.init inst.encode)
+          (scaledMainProg inst.n)).mem :=
+      congrArg Memory.State.mem hmem
+    have hres_eq : (Memory.spec 0).clientResult (Memory.State.init inst.encode)
+        (scaledMainProg inst.n) =
+        ((Memory.spec 0).clientResult (Memory.State.init inst.encode)
+          (scaledSolveProg inst.n)).outBase := by
+      unfold scaledMainProg
+      rw [clientResult_bind, clientResult_pure]
+    have hst_eq : (Memory.spec 0).clientState (Memory.State.init inst.encode)
+        (scaledMainProg inst.n) =
+        (Memory.spec 0).clientState (Memory.State.init inst.encode)
+          (scaledSolveProg inst.n) := by
+      unfold scaledMainProg
+      rw [clientState_bind, clientState_pure]
+    refine ⟨m + 1, ⟨⟨pc, y⟩, m, _, hruns, hhalt, ?_, ?_, rfl⟩, scaled_steps_le hsteps hmc⟩
+    · rw [hymem, hst_eq, hres_eq]; exact hout_s
+    · rw [hres_eq, inst.length_assignment]
+      rw [hws_n] at hfit_ws
+      exact hfit_ws.of_le (Nat.le_succ _)
+  refine ⟨r, 34 * C₁ + 1, by omega, prog, not_readsWidth_stripRandProg hnw₀,
+    isRandFree_stripRandProg prog₀, @hmain, fun inst w hw _ =>
+      hmain inst inst.sub_le_rowSpread hw⟩
+
+/-- **`O(n³ C + n²)` Word-RAM exact `(n + 1)`-scaled integer minimum assignment cost (`Executes`
+and `Program.ComputesInTime`).** There is a uniform deterministic width-blind standard-basis
+program (`Program .standard r`, `¬ prog.ReadsWidth`, `prog.IsRandFree`) that, on `inst.encode` for
+any `inst : Instance` with row cost ranges bounded by `C` and `Fits w inst.wordBound`
+(`w = O(log n + log M)`), halts within `K * (inst.n ^ 3 * C + inst.n ^ 2 + 1)` instructions
+returning `inst.encodedMinCost` (`Signed.encode inst.minCost`; [Bertsekas1988], §3). -/
+theorem exists_scaledMinCost_program :
+    ∃ r K : ℕ, 0 < K ∧ ∃ prog : Program .standard r,
+      ¬ prog.ReadsWidth ∧ prog.IsRandFree ∧
+      (∀ {w C : ℕ} (inst : Instance),
+        (∀ i j k : Fin inst.n, inst.cost (i, k) - inst.cost (i, j) ≤ (C : ℤ)) →
+        Fits w inst.wordBound →
+        ∃ steps, Executes w prog (.init inst.encode) inst.encodedMinCost steps ∧
+          steps ≤ K * (inst.n ^ 3 * C + inst.n ^ 2 + 1)) ∧
+      prog.ComputesInTime (fun _ inst => inst.encode)
+        (fun inst _ => K * (inst.n ^ 3 * inst.rowSpread + inst.n ^ 2 + 1))
+        (fun inst w => Fits w inst.wordBound) Instance.encodedMinCost := by
+  obtain ⟨r, C₁, pc, prog₀, hnw₀, _, _, he⟩ :=
+    scaledMinCostMainProg_realizes.exists_standard_basis_init_program_state_from_words (0 : Fin 1)
+  let prog := stripRandProg prog₀
+  have hmain : ∀ {w C : ℕ} (inst : Instance),
+      (∀ i j k : Fin inst.n, inst.cost (i, k) - inst.cost (i, j) ≤ (C : ℤ)) →
+      Fits w inst.wordBound →
+      ∃ steps, Executes w prog (.init inst.encode) inst.encodedMinCost steps ∧
+        steps ≤ (34 * C₁ + 1) * (inst.n ^ 3 * C + inst.n ^ 2 + 1) := by
+    intro w C inst hC hw
+    obtain ⟨hin, hfit_len, hlayout, hk⟩ := init_words_spec inst hw
+    obtain ⟨hsafe_s, hv_s, hmc_s, hws_s, hws_n, hws_sc, hM_le, hM_ge, hC_s, hout_s, hfit_ws⟩ :=
+      scaledSolveProg_spec inst hC hw
+    let ws := (Memory.spec 0).clientResult (Memory.State.init inst.encode)
+      (scaledSolveProg inst.n)
+    let s_after := (Memory.spec 0).clientState (Memory.State.init inst.encode)
+      (scaledSolveProg inst.n)
+    obtain ⟨hsafe_sum, hv_sum, hmc_sum, hres_sum⟩ :=
+      sumScaledCostProg_spec inst ws s_after hws_s hws_n hws_sc hM_le hM_ge hC_s hout_s hw hfit_ws
+    have hsafe : ScaledMinCostSafe w inst.n (Memory.State.init inst.encode) :=
+      ⟨hsafe_s, hsafe_sum⟩
+    have hv : (Memory.spec w).ValidHistory (Memory.State.init inst.encode)
+        ((Memory.spec w).clientHistory (Memory.State.init inst.encode)
+          (scaledMinCostMainProg inst.n)) := by
+      unfold scaledMinCostMainProg
+      exact validHistory_bind_step hv_s hv_sum
+    have hmc : memoryCost (scaledMinCostMainProg inst.n) (Memory.State.init inst.encode) ≤
+        (inst.n * ((inst.n + 1) * C + 1) + 1) * (4 * inst.n + 6) +
+          3 * (inst.n * inst.n) + 7 * inst.n + 2 := by
+      unfold scaledMinCostMainProg
+      rw [memoryCost_bind']
+      exact (Nat.add_le_add hmc_s hmc_sum).trans (by omega)
+    obtain ⟨y, m, hruns₀, hhalt₀, _, _, hsteps⟩ :=
+      he w inst.n inst.encode hlayout hk hfit_len hin hsafe hv
+    rw [clientResult_width w] at hhalt₀
+    dsimp only [wordWords] at hhalt₀
+    have hres_eq : (Memory.spec 0).clientResult (Memory.State.init inst.encode)
+        (scaledMinCostMainProg inst.n) = inst.encodedMinCost := by
+      unfold scaledMinCostMainProg
+      rw [clientResult_bind]
+      exact hres_sum
+    rw [hres_eq] at hhalt₀
+    have hruns : Runs w prog (.init inst.encode) ⟨pc, y⟩ m := runs_stripRandProg hruns₀
+    have hhalt : WordRAM.step w prog ⟨pc, y⟩ = .halt inst.encodedMinCost := by
+      rw [step_stripRandProg_of_ne_fault (by rw [hhalt₀]; exact nofun)]
+      exact hhalt₀
+    exact ⟨m + 1, ⟨⟨pc, y⟩, m, hruns, hhalt, rfl⟩, scaled_steps_le hsteps hmc⟩
+  refine ⟨r, 34 * C₁ + 1, by omega, prog, not_readsWidth_stripRandProg hnw₀,
+    isRandFree_stripRandProg prog₀, @hmain, fun inst w hw _ =>
+      hmain inst inst.sub_le_rowSpread hw⟩
+
+end
 
 end Cslib.Algorithms.WordRAM.Auction

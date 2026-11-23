@@ -9,15 +9,13 @@ module
 
 import CslibFrontier.Algorithms.Lean.Assignment.Auction
 import CslibFrontier.Algorithms.WordRAM.Auction
-meta import CslibFrontier.Algorithms.WordRAM.Auction
-meta import CslibFrontier.Computability.WordRAM.Structured.FastEval
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Data.Fintype.Perm
 
 /-!
 # Auction algorithm for the assignment problem: checked instances
 
-Kernel-checked (`decide +kernel`, no `native_decide`) pure and Word-RAM runs of Bertsekas's
+Kernel-checked (`decide +kernel`, no `native_decide`) pure and Word-RAM checks of Bertsekas's
 auction algorithm (`CslibFrontier.Algorithms.Lean.Assignment.Auction` and
 `CslibFrontier.Algorithms.WordRAM.Auction`):
 
@@ -30,12 +28,12 @@ auction algorithm (`CslibFrontier.Algorithms.Lean.Assignment.Auction` and
    equally good objects to a third): the number of bids grows with `C / ε`, and the run stays
    within the bound of `bids_auction_le`.
 4. Boundary cases `n = 0` (no bids) and `n = 1` (one bid, raising the price by `ε`).
-5. **Word-RAM `O(n² (C / ε + 1))` `ε`-auction and `O(n³ C)` exact scaled auction:** ordinary
-   `module` client instantiations of `executesList_epsAuction`, `executesList_scaledAuction`,
-   `executes_scaledMinCost`, and `sum_scaledAuctionPerm_le`, plus compiled
-   `Program.runFast` / `Program.runFastList` runs across `n = 0`, `n = 1`, zero/tie weights,
-   `c2`, `c3`, Bertsekas's price war, an `n = 12` instance at `w = 64`, width invariance, and
-   narrow-width fault cases.
+5. **Word-RAM `O(n² (C / ε + 1))` `ε`-auction and `O(n³ C + n²)` exact scaled auction:** ordinary
+   `module` client instantiations of `exists_epsAuction_program`, `exists_scaledAuction_program`,
+   `exists_scaledMinCost_program`, and `sum_scaledAuctionPerm_le` across `n = 0` (`w = 4`),
+   negative singleton `n = 1` (`w = 8`), all-zero `C = 0` ties (`n = 3`), `c2`, `c3` (at both
+   `w = 16` and `w = 64`), Bertsekas's price war (`ε = 1` and `ε = 2`), and an `n = 12` instance
+   (`C = 55`, `w = 64`).
 -/
 
 set_option linter.privateModule false
@@ -130,7 +128,7 @@ example : (auction (fun _ : Fin 1 × Fin 1 => 7) 1).bids = 1 ∧
     (auction (fun _ : Fin 1 × Fin 1 => 7) 1).price 0 = 1 := by
   decide +kernel
 
-/-! ### Word-RAM `O(n² (C / ε + 1))` and `O(n³ C)` checks -/
+/-! ### Word-RAM `O(n² (C / ε + 1))` and `O(n³ C + n²)` checks -/
 
 private def emptyInst : Instance := ⟨0, fun _ => 0⟩
 private def singleNegInst : Instance := ⟨1, fun _ => -7⟩
@@ -146,113 +144,115 @@ private def c2EpsInst : EpsInstance := ⟨2, 1, c2⟩
 private def tieEpsInst : EpsInstance := ⟨3, 1, tie⟩
 private def tieEps2Inst : EpsInstance := ⟨3, 2, tie⟩
 
-/-- Ordinary `module` client instantiation of `executesList_scaledAuction`,
-`executes_scaledMinCost`, and `sum_scaledAuctionPerm_le` on `c3Inst` (`C = 5`, `w = 16`). -/
+/-- Ordinary `module` client instantiation of `exists_scaledAuction_program` and
+`sum_scaledAuctionPerm_le` across `n = 0` (`w = 4`), negative singleton `n = 1` (`w = 8`),
+all-zero `C = 0` (`n = 3`, exercising the `+ n²` term), `c2`, `c3` (at `w = 16` and `w = 64`),
+`tie`, and `large12Inst` (`n = 12`, `C = 55`, `w = 64`). -/
 example :
     (∀ τ : Equiv.Perm (Fin 3), c3Inst.minCost ≤ ∑ i, c3 (i, τ i)) ∧
-    (∃ steps, ExecutesList 16 scaledAuctionProgram (.init c3Inst.encode) [1, 0, 2] steps ∧
-      steps ≤ scaledAuctionTime 3 5) ∧
-    (∃ steps, Executes 16 scaledMinCostProgram (.init c3Inst.encode) (Signed.encode 5) steps ∧
-      steps ≤ scaledAuctionTime 3 5) := by
-  have h1 := executesList_scaledAuction c3Inst (w := 16) (C := 5) (by decide) (by decide)
-  have h2 := executes_scaledMinCost c3Inst (w := 16) (C := 5) (by decide) (by decide)
-  have ha : c3Inst.assignment = [1, 0, 2] := by decide +kernel
-  have hm : c3Inst.encodedMinCost = Signed.encode 5 := by decide +kernel
-  rw [ha] at h1
-  rw [hm] at h2
-  exact ⟨sum_scaledAuctionPerm_le, h1, h2⟩
+    ∃ r K : ℕ, 0 < K ∧ ∃ prog : Program .standard r,
+      ¬ prog.ReadsWidth ∧ prog.IsRandFree ∧
+      (∃ t, ExecutesList 4 prog (.init emptyInst.encode) [] t ∧ t ≤ K) ∧
+      (∃ t, ExecutesList 8 prog (.init singleNegInst.encode) [0] t ∧ t ≤ K * 2) ∧
+      (∃ t, ExecutesList 16 prog (.init zeroTieInst.encode) [0, 1, 2] t ∧ t ≤ K * 10) ∧
+      (∃ t, ExecutesList 16 prog (.init c2Inst.encode) [0, 1] t ∧ t ≤ K * 21) ∧
+      (∃ t, ExecutesList 16 prog (.init c3Inst.encode) [1, 0, 2] t ∧ t ≤ K * 145) ∧
+      (∃ t, ExecutesList 64 prog (.init c3Inst.encode) [1, 0, 2] t ∧ t ≤ K * 145) ∧
+      (∃ t, ExecutesList 16 prog (.init tieInst.encode) [2, 0, 1] t ∧ t ≤ K * 280) ∧
+      (∃ t, ExecutesList 64 prog (.init large12Inst.encode) large12Inst.assignment t ∧
+        t ≤ K * 95185) := by
+  refine ⟨sum_scaledAuctionPerm_le, ?_⟩
+  obtain ⟨r, K, hK, prog, hnw, hrf, hrun, _⟩ := exists_scaledAuction_program
+  obtain ⟨t₀, he₀, hl₀⟩ := hrun emptyInst (w := 4) (C := 0) (by decide) (by decide)
+  obtain ⟨t₁, he₁, hl₁⟩ := hrun singleNegInst (w := 8) (C := 0) (by decide) (by decide)
+  obtain ⟨t₂, he₂, hl₂⟩ := hrun zeroTieInst (w := 16) (C := 0) (by decide) (by decide)
+  obtain ⟨t₃, he₃, hl₃⟩ := hrun c2Inst (w := 16) (C := 2) (by decide) (by decide)
+  obtain ⟨t₄, he₄, hl₄⟩ := hrun c3Inst (w := 16) (C := 5) (by decide) (by decide)
+  obtain ⟨t₅, he₅, hl₅⟩ := hrun c3Inst (w := 64) (C := 5) (by decide) (by decide +kernel)
+  obtain ⟨t₆, he₆, hl₆⟩ := hrun tieInst (w := 16) (C := 10) (by decide) (by decide)
+  obtain ⟨t₇, he₇, hl₇⟩ := hrun large12Inst (w := 64) (C := 55) (by decide +kernel)
+    (by decide +kernel)
+  have ha₀ : emptyInst.assignment = [] := by decide +kernel
+  have ha₁ : singleNegInst.assignment = [0] := by decide +kernel
+  have ha₂ : zeroTieInst.assignment = [0, 1, 2] := by decide +kernel
+  have ha₃ : c2Inst.assignment = [0, 1] := by decide +kernel
+  have ha₄ : c3Inst.assignment = [1, 0, 2] := by decide +kernel
+  have ha₆ : tieInst.assignment = [2, 0, 1] := by decide +kernel
+  refine ⟨r, K, hK, prog, hnw, hrf,
+    ⟨t₀, ha₀ ▸ he₀, by simpa [emptyInst] using hl₀⟩,
+    ⟨t₁, ha₁ ▸ he₁, by simpa [singleNegInst] using hl₁⟩,
+    ⟨t₂, ha₂ ▸ he₂, by simpa [zeroTieInst] using hl₂⟩,
+    ⟨t₃, ha₃ ▸ he₃, by simpa [c2Inst] using hl₃⟩,
+    ⟨t₄, ha₄ ▸ he₄, by simpa [c3Inst] using hl₄⟩,
+    ⟨t₅, ha₄ ▸ he₅, by simpa [c3Inst] using hl₅⟩,
+    ⟨t₆, ha₆ ▸ he₆, by simpa [tieInst] using hl₆⟩,
+    ⟨t₇, he₇, by simpa [large12Inst] using hl₇⟩⟩
 
-/-- Ordinary `module` client instantiation of `executesList_epsAuction` on Bertsekas's price-war
-instance `tieEpsInst` (`C = 10`, `ε = 1`, `w = 16`). -/
-example : ∃ steps,
-    ExecutesList 16 epsAuctionProgram (.init tieEpsInst.encode) [2, 0, 1] steps ∧
-      steps ≤ epsAuctionTime 3 10 1 := by
-  have h := executesList_epsAuction tieEpsInst (w := 16) (C := 10) (by decide) (by decide)
-    (by decide)
-  have ha : tieEpsInst.assignment = [2, 0, 1] := by decide +kernel
-  rwa [ha] at h
-
-/-- Boundary `n = 0` (`w = 4`) and negative singleton `n = 1` (`cost = -7`, `w = 8`) Word-RAM
-instantiations, plus logarithmic word width (`w = 64`) on `n = 12` (`large12Inst`). -/
+/-- Ordinary `module` client instantiation of `exists_scaledMinCost_program` across `n = 0`
+(`w = 4`), negative singleton `n = 1` (`cost = -7`, `w = 8`), all-zero `C = 0` (`n = 3`), `c2`,
+`c3`, `tie` (`cost = -20`), and `large12Inst` (`n = 12`, `C = 55`, `w = 64`). -/
 example :
-    (∃ steps, ExecutesList 4 scaledAuctionProgram (.init emptyInst.encode) [] steps ∧
-      steps ≤ scaledAuctionTime 0 0) ∧
-    (∃ steps, Executes 8 scaledMinCostProgram (.init singleNegInst.encode)
-      (Signed.encode (-7)) steps ∧ steps ≤ scaledAuctionTime 1 0) ∧
-    Fits 64 large12Inst.wordBound := by
-  have h0 := executesList_scaledAuction emptyInst (w := 4) (C := 0) (by decide) (by decide)
-  have h1 := executes_scaledMinCost singleNegInst (w := 8) (C := 0) (by decide) (by decide)
-  have hm1 : singleNegInst.encodedMinCost = Signed.encode (-7) := by decide +kernel
-  rw [hm1] at h1
-  exact ⟨h0, h1, by decide +kernel⟩
+    ∃ r K : ℕ, 0 < K ∧ ∃ prog : Program .standard r,
+      ¬ prog.ReadsWidth ∧ prog.IsRandFree ∧
+      (∃ t, Executes 4 prog (.init emptyInst.encode) (Signed.encode 0) t ∧ t ≤ K) ∧
+      (∃ t, Executes 8 prog (.init singleNegInst.encode) (Signed.encode (-7)) t ∧ t ≤ K * 2) ∧
+      (∃ t, Executes 16 prog (.init zeroTieInst.encode) (Signed.encode 0) t ∧ t ≤ K * 10) ∧
+      (∃ t, Executes 16 prog (.init c2Inst.encode) (Signed.encode 1) t ∧ t ≤ K * 21) ∧
+      (∃ t, Executes 16 prog (.init c3Inst.encode) (Signed.encode 5) t ∧ t ≤ K * 145) ∧
+      (∃ t, Executes 16 prog (.init tieInst.encode) (Signed.encode (-20)) t ∧ t ≤ K * 280) ∧
+      (∃ t, Executes 64 prog (.init large12Inst.encode) large12Inst.encodedMinCost t ∧
+        t ≤ K * 95185) := by
+  obtain ⟨r, K, hK, prog, hnw, hrf, hrun, _⟩ := exists_scaledMinCost_program
+  obtain ⟨t₀, he₀, hl₀⟩ := hrun emptyInst (w := 4) (C := 0) (by decide) (by decide)
+  obtain ⟨t₁, he₁, hl₁⟩ := hrun singleNegInst (w := 8) (C := 0) (by decide) (by decide)
+  obtain ⟨t₂, he₂, hl₂⟩ := hrun zeroTieInst (w := 16) (C := 0) (by decide) (by decide)
+  obtain ⟨t₃, he₃, hl₃⟩ := hrun c2Inst (w := 16) (C := 2) (by decide) (by decide)
+  obtain ⟨t₄, he₄, hl₄⟩ := hrun c3Inst (w := 16) (C := 5) (by decide) (by decide)
+  obtain ⟨t₅, he₅, hl₅⟩ := hrun tieInst (w := 16) (C := 10) (by decide) (by decide)
+  obtain ⟨t₆, he₆, hl₆⟩ := hrun large12Inst (w := 64) (C := 55) (by decide +kernel)
+    (by decide +kernel)
+  have hm₀ : emptyInst.encodedMinCost = Signed.encode 0 := by decide +kernel
+  have hm₁ : singleNegInst.encodedMinCost = Signed.encode (-7) := by decide +kernel
+  have hm₂ : zeroTieInst.encodedMinCost = Signed.encode 0 := by decide +kernel
+  have hm₃ : c2Inst.encodedMinCost = Signed.encode 1 := by decide +kernel
+  have hm₄ : c3Inst.encodedMinCost = Signed.encode 5 := by decide +kernel
+  have hm₅ : tieInst.encodedMinCost = Signed.encode (-20) := by decide +kernel
+  exact ⟨r, K, hK, prog, hnw, hrf,
+    ⟨t₀, hm₀ ▸ he₀, by simpa [emptyInst] using hl₀⟩,
+    ⟨t₁, hm₁ ▸ he₁, by simpa [singleNegInst] using hl₁⟩,
+    ⟨t₂, hm₂ ▸ he₂, by simpa [zeroTieInst] using hl₂⟩,
+    ⟨t₃, hm₃ ▸ he₃, by simpa [c2Inst] using hl₃⟩,
+    ⟨t₄, hm₄ ▸ he₄, by simpa [c3Inst] using hl₄⟩,
+    ⟨t₅, hm₅ ▸ he₅, by simpa [tieInst] using hl₅⟩,
+    ⟨t₆, he₆, by simpa [large12Inst] using hl₆⟩⟩
 
-private meta def checkScaled (w C : ℕ) (inst : Instance) (expectedAssign : List ℕ)
-    (expectedCost : ℤ) : Bool :=
-  let budget := scaledAuctionTime inst.n C
-  match Program.runFastList w budget scaledAuctionProgram inst.encode,
-      Program.runFast w budget scaledMinCostProgram inst.encode with
-  | some (assign, s₁), some (encCost, s₂) =>
-    assign == expectedAssign && Signed.decode encCost == expectedCost &&
-      s₁ ≤ budget && s₂ ≤ budget
-  | _, _ => false
-
-private meta def checkEps (w C : ℕ) (inst : EpsInstance) (expectedAssign : List ℕ) : Bool :=
-  let budget := epsAuctionTime inst.n C inst.eps
-  match Program.runFastList w budget epsAuctionProgram inst.encode with
-  | some (assign, steps) => assign == expectedAssign && steps ≤ budget
-  | none => false
-
-/-- info: true -/
-#guard_msgs in
-#eval checkScaled 16 0 emptyInst [] 0
-
-/-- info: true -/
-#guard_msgs in
-#eval checkScaled 16 0 singleNegInst [0] (-7)
-
-/-- info: true -/
-#guard_msgs in
-#eval checkScaled 16 0 zeroTieInst [0, 1, 2] 0
-
-/-- info: true -/
-#guard_msgs in
-#eval checkScaled 16 2 c2Inst [0, 1] 1
-
-/-- info: true -/
-#guard_msgs in
-#eval checkScaled 16 5 c3Inst [1, 0, 2] 5
-
-/-- info: true -/
-#guard_msgs in
-#eval checkScaled 16 10 tieInst [2, 0, 1] (-20)
-
-/-- info: true -/
-#guard_msgs in
-#eval checkEps 16 0 emptyEpsInst []
-
-/-- info: true -/
-#guard_msgs in
-#eval checkEps 16 0 singleEpsInst [0]
-
-/-- info: true -/
-#guard_msgs in
-#eval checkEps 16 2 c2EpsInst [1, 0]
-
-/-- info: true -/
-#guard_msgs in
-#eval checkEps 16 10 tieEpsInst [2, 0, 1]
-
-/-- info: true -/
-#guard_msgs in
-#eval checkEps 16 10 tieEps2Inst [0, 2, 1]
-
--- Width invariance (`w = 16` vs `w = 64`) and narrow-width fault (`w = 2`).
-/-- info: true -/
-#guard_msgs in
-#eval decide (Program.runFastList 16 50000 scaledAuctionProgram c3Inst.encode =
-    Program.runFastList 64 50000 scaledAuctionProgram c3Inst.encode ∧
-  Program.runFastList 16 50000 epsAuctionProgram tieEpsInst.encode =
-    Program.runFastList 64 50000 epsAuctionProgram tieEpsInst.encode ∧
-  Program.runFastList 2 5000 scaledAuctionProgram c3Inst.encode = none)
+/-- Ordinary `module` client instantiation of `exists_epsAuction_program` across `n = 0` (`w = 4`),
+`n = 1` (`ε = 3`, `w = 8`), `c2` (`ε = 1`, suboptimal swap `[1, 0]`), and Bertsekas's price war at
+`ε = 1` (`[2, 0, 1]`) and `ε = 2` (`[0, 2, 1]`). -/
+example :
+    ∃ r K : ℕ, 0 < K ∧ ∃ prog : Program .standard r,
+      ¬ prog.ReadsWidth ∧ prog.IsRandFree ∧
+      (∃ t, ExecutesList 4 prog (.init emptyEpsInst.encode) [] t ∧ t ≤ K) ∧
+      (∃ t, ExecutesList 8 prog (.init singleEpsInst.encode) [0] t ∧ t ≤ K * 2) ∧
+      (∃ t, ExecutesList 16 prog (.init c2EpsInst.encode) [1, 0] t ∧ t ≤ K * 13) ∧
+      (∃ t, ExecutesList 16 prog (.init tieEpsInst.encode) [2, 0, 1] t ∧ t ≤ K * 100) ∧
+      (∃ t, ExecutesList 16 prog (.init tieEps2Inst.encode) [0, 2, 1] t ∧ t ≤ K * 55) := by
+  obtain ⟨r, K, hK, prog, hnw, hrf, hrun, _⟩ := exists_epsAuction_program
+  obtain ⟨t₀, he₀, hl₀⟩ := hrun emptyEpsInst (w := 4) (C := 0) (by decide) (by decide) (by decide)
+  obtain ⟨t₁, he₁, hl₁⟩ := hrun singleEpsInst (w := 8) (C := 0) (by decide) (by decide) (by decide)
+  obtain ⟨t₂, he₂, hl₂⟩ := hrun c2EpsInst (w := 16) (C := 2) (by decide) (by decide) (by decide)
+  obtain ⟨t₃, he₃, hl₃⟩ := hrun tieEpsInst (w := 16) (C := 10) (by decide) (by decide) (by decide)
+  obtain ⟨t₄, he₄, hl₄⟩ := hrun tieEps2Inst (w := 16) (C := 10) (by decide) (by decide) (by decide)
+  have ha₀ : emptyEpsInst.assignment = [] := by decide +kernel
+  have ha₁ : singleEpsInst.assignment = [0] := by decide +kernel
+  have ha₂ : c2EpsInst.assignment = [1, 0] := by decide +kernel
+  have ha₃ : tieEpsInst.assignment = [2, 0, 1] := by decide +kernel
+  have ha₄ : tieEps2Inst.assignment = [0, 2, 1] := by decide +kernel
+  exact ⟨r, K, hK, prog, hnw, hrf,
+    ⟨t₀, ha₀ ▸ he₀, by simpa [emptyEpsInst] using hl₀⟩,
+    ⟨t₁, ha₁ ▸ he₁, by simpa [singleEpsInst] using hl₁⟩,
+    ⟨t₂, ha₂ ▸ he₂, by simpa [c2EpsInst] using hl₂⟩,
+    ⟨t₃, ha₃ ▸ he₃, by simpa [tieEpsInst] using hl₃⟩,
+    ⟨t₄, ha₄ ▸ he₄, by simpa [tieEps2Inst] using hl₄⟩⟩
 
 end CslibFrontierTests.AuctionAssignment
