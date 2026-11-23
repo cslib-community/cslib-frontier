@@ -8204,6 +8204,7 @@ public import CslibFrontier.Computability.Complexity.Parameterized
 public import CslibFrontier.Computability.Complexity.Classes.PP.Oracle.Closure
 public import CslibFrontier.Computability.Complexity.ExplicitRamsey
 public import CslibFrontier.GameTheory.Congestion.Nonatomic
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BitWord
 public import CslibFrontier.Algorithms.Lean.TSP.MSTTour
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.QueryMachine
 public import CslibFrontier.Foundations.Data.Finset.OrderedFilter
@@ -10818,6 +10819,7 @@ public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized
 public import CslibFrontier.Crypto.Computational.Homomorphic.Leveled.Reduction
 public import CslibFrontier.Computability.Complexity.Classes.WPP.Robustness
 public import CslibFrontier.Foundations.Quantum.Algebra.AlgState
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Context
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Scale
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.ModulusCounter.Basic
 public import CslibFrontier.Computability.PCP.Encoded.GenericComposition
