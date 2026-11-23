@@ -446,7 +446,7 @@ theorem VarOrder.PosOK.pop {a p : Array ℕ} (h : PosOK a p) (hn : 0 < a.size) :
 /-! #### Sifting, with positions -/
 
 /-- `heapifyUpF` in the order of the activities `A`, also updating the positions `p`. -/
-def VarOrder.siftUp (A : Activity) : (fuel : ℕ) → {n : ℕ} → Vector ℕ n → Array ℕ → Fin n →
+def VarOrder.siftUp (A : @& Activity) : (fuel : ℕ) → {n : ℕ} → Vector ℕ n → Array ℕ → Fin n →
     Vector ℕ n × Array ℕ
   | 0, _, a, p, _ => (a, p)
   | _ + 1, _, a, p, ⟨0, _⟩ => (a, p)
@@ -493,7 +493,8 @@ theorem VarOrder.siftUp_pos (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : Vec
     · exact h
 
 /-- The larger child, `maxChildF` in the order of the activities `A`. -/
-def VarOrder.maxChild (A : Activity) {n : ℕ} (a : Vector ℕ n) (i : Fin n) : Option (Fin n) :=
+@[inline] def VarOrder.maxChild (A : @& Activity) {n : ℕ} (a : @& Vector ℕ n) (i : Fin n) :
+    Option (Fin n) :=
   let left := 2 * i.1 + 1
   let right := left + 1
   if hleft : left < n then
@@ -508,7 +509,7 @@ theorem VarOrder.maxChild_eq (A : Activity) {n : ℕ} (a : Vector ℕ n) (i : Fi
   simp only [Activity.isLT_compare]
 
 /-- `heapifyDownF` in the order of the activities `A`, also updating the positions `p`. -/
-def VarOrder.siftDown (A : Activity) : (fuel : ℕ) → {n : ℕ} → Vector ℕ n → Array ℕ → Fin n →
+def VarOrder.siftDown (A : @& Activity) : (fuel : ℕ) → {n : ℕ} → Vector ℕ n → Array ℕ → Fin n →
     Vector ℕ n × Array ℕ
   | 0, _, a, p, _ => (a, p)
   | fuel + 1, _, a, p, i =>
@@ -586,7 +587,7 @@ def VarOrder.WF (H : VarOrder) (A : Activity) : Prop :=
   @Batteries.BinaryHeap.WF ℕ A.keyOrd (@Batteries.BinaryHeap.mk ℕ A.keyOrd H.heap)
 
 /-- **Inserting** `v` with the activities `A`, if it is not in the heap and has a position. -/
-def VarOrder.insert (A : Activity) (H : VarOrder) (v : ℕ) : VarOrder :=
+def VarOrder.insert (A : @& Activity) (H : VarOrder) (v : ℕ) : VarOrder :=
   if H.pos.getD v 0 == 0 && v < H.pos.size then
     let n := H.heap.size
     let a : Vector ℕ n := ⟨H.heap, rfl⟩
@@ -597,7 +598,7 @@ def VarOrder.insert (A : Activity) (H : VarOrder) (v : ℕ) : VarOrder :=
 
 /-- **Moving `v` up** after its activity grew, the new activities being `A`, if it is in the
 heap: MiniSat's `decrease`. -/
-def VarOrder.increase (A : Activity) (H : VarOrder) (v : ℕ) : VarOrder :=
+def VarOrder.increase (A : @& Activity) (H : VarOrder) (v : ℕ) : VarOrder :=
   let k := H.pos.getD v 0
   if h : k ≠ 0 ∧ k - 1 < H.heap.size then
     let r := VarOrder.siftUp A k (⟨H.heap, rfl⟩ : Vector ℕ H.heap.size) H.pos ⟨k - 1, h.2⟩
@@ -606,7 +607,7 @@ def VarOrder.increase (A : Activity) (H : VarOrder) (v : ℕ) : VarOrder :=
 
 /-- **Removing the top** of the heap, in the order of the activities `A`: the last variable takes
 its place and is moved down, as `popMaxF` does. -/
-def VarOrder.removeTop (A : Activity) (H : VarOrder) (h : 0 < H.heap.size) : VarOrder :=
+def VarOrder.removeTop (A : @& Activity) (H : VarOrder) (h : 0 < H.heap.size) : VarOrder :=
   let n := H.heap.size
   let a : Vector ℕ n := ⟨H.heap, rfl⟩
   let x := a[0]
@@ -620,12 +621,12 @@ def VarOrder.removeTop (A : Activity) (H : VarOrder) (h : 0 < H.heap.size) : Var
 
 /-- **Inserting the variables `vs`** not in the heap, with the activities `A`: MiniSat's
 `insertVarOrder` on each. -/
-def VarOrder.addAll (A : Activity) (H : VarOrder) (vs : List ℕ) : VarOrder :=
+def VarOrder.addAll (A : @& Activity) (H : VarOrder) (vs : List ℕ) : VarOrder :=
   vs.foldl (VarOrder.insert A) H
 
 /-- **Rebuilding** the heap with the activities `A`, after they were scaled down: scaling can turn
 different activities into ties, which the order breaks by variable. -/
-def VarOrder.rebuild (A : Activity) (H : VarOrder) : VarOrder :=
+def VarOrder.rebuild (A : @& Activity) (H : VarOrder) : VarOrder :=
   H.heap.foldl (VarOrder.insert A) (VarOrder.empty H.pos.size)
 
 /-! #### What the operations keep -/

@@ -472,6 +472,33 @@ theorem findFree_none {A : Assign} {c : Array ℕ} :
         exact absurd hi h
     · omega
 
+/-- `findFree A c (c.size - 3) 2` with the binary (`c.size = 3`) and ternary (`c.size = 4`) cases
+unrolled inline, avoiding out-of-line recursive calls on 2-literal and 3-literal clauses. -/
+@[expose, inline]
+def findFree2 (A : Assign) (c : Array ℕ) : ℕ :=
+  let sz := c.size
+  if h3 : 3 < sz then
+    if A.isFalseKey c[2] then
+      if 4 < sz then findFree A c (sz - 4) 3 else sz
+    else 2
+  else sz
+
+theorem findFree2_eq (A : Assign) (c : Array ℕ) :
+    findFree2 A c = findFree A c (c.size - 3) 2 := by
+  unfold findFree2
+  by_cases h3 : 3 < c.size
+  · simp only [h3, ↓reduceDIte]
+    rw [show c.size - 3 = (c.size - 4) + 1 by omega, findFree]
+    simp only [show 2 < c.size by omega, ↓reduceDIte]
+    split
+    · split
+      · rfl
+      · rename_i h4
+        rw [show c.size - 4 = 0 by omega, findFree]
+    · rfl
+  · simp only [h3, ↓reduceDIte]
+    rw [show c.size - 3 = 0 by omega, findFree]
+
 /-- `WatchStore.visit` directly on the array `codes` of clause arrays, so a loop holding `codes`
 apart from `watches` avoids packing a `WatchStore`. -/
 @[expose, inline]
@@ -484,12 +511,14 @@ def visitCodes (codes : Array (Array ℕ)) (A : Assign) (u k b : ℕ) : KeyVisit
       let w₂ := c[1]
       if w₁ == u || w₂ == u then
         let other := if w₁ == u then w₂ else w₁
-        if A.holdsKey other then .keep other
+        let ov := A.vals.getD (other / 2) 0
+        let obit := other &&& 1
+        if ov == obit + 1 then .keep other
         else
           -- the literals but the watched ones, before the clause's number
-          let j := findFree A c (c.size - 3) 2
+          let j := findFree2 A c
           if hj : j < c.size then .move j c[j] other
-          else if A.isFalseKey other then .conflict (clauseId c)
+          else if ov == 2 - obit then .conflict (clauseId c)
           else .unit other (clauseId c)
       else .drop
     else .drop
@@ -631,7 +660,9 @@ theorem WatchStore.visit_spec (S : WatchStore) {A : Assign} {M : Trail} (hA : A.
       otherWatch u w₁ w₂ := by
     unfold otherWatch; split <;> simp [hw₁, hw₂]
   generalize (if w₁ = u then S.codes[k][1] else S.codes[k][0]) = oc at hother
-  rw [Assign.holdsKey_eq, hother]
+  rw [show (A.vals.getD (oc / 2) 0 == (oc &&& 1) + 1) = A.holdsKey oc from rfl,
+    show (A.vals.getD (oc / 2) 0 == 2 - (oc &&& 1)) = A.isFalseKey oc from rfl,
+    Assign.holdsKey_eq, hother, findFree2_eq]
   by_cases htrue : A.holds (otherWatch u w₁ w₂) = true
   · simp only [htrue, ↓reduceIte, KeyVisit.lits, VisitSpec, hother]
     exact ⟨hk', w₁, w₂, _, hlist, hu, rfl, (hA.holds_iff _).1 htrue⟩
@@ -790,12 +821,15 @@ theorem WatchStore.Inv.addClause {F : List (ℕ × Clause ℕ)} {M : Trail} {Q :
       obtain ⟨rfl, -, -⟩ := hc'
       exact absurd h₁ hw₁
 
-/-- The empty store. -/
-theorem WatchStore.inv_empty (M : Trail) (Q : List (Literal ℕ)) :
-    (⟨#[], #[]⟩ : WatchStore).Inv [] M Q :=
+/-- A store with no clauses and `nb` empty watch lists. -/
+theorem WatchStore.inv_empty (cap nb : ℕ) (M : Trail) (Q : List (Literal ℕ)) :
+    (⟨Array.emptyWithCapacity cap, Array.replicate nb #[]⟩ : WatchStore).Inv [] M Q :=
   ⟨by simp [WatchStore.clauses], by simp [WatchStore.clauses], by simp [WatchStore.clauses],
     fun e he => by simp at he, fun k hk => by simp [WatchStore.clauses] at hk,
-    fun i x hx => by simp [watchList, unpackWatchers] at hx, by simp [WatchStore.clauses]⟩
+    fun i x hx => by
+      simp only [watchList, Array.getD_eq_getD_getElem?, Array.getElem?_replicate] at hx
+      split at hx <;> simp [unpackWatchers] at hx,
+    by simp [WatchStore.clauses]⟩
 
 /-- A clause with its literals that are not false under the assignment `A` first, so that they are
 the ones watched. -/
@@ -934,57 +968,58 @@ theorem dedupWith_spec (m : Array Bool) (c : Clause ℕ) (hm : ∀ y, m.getD (li
       rw [h₁, List.mem_dedup]; simp, clearKeys_clean _ _ fun y hy => (h₃ y).1 hy⟩
   · exact ⟨dedupLits_perm c, hm⟩
 
-/-- The watch store of `F`, as `WatchStore.build`, removing repetitions with the marks `m`, which
-are returned cleared. -/
+/-- Tail-recursively adding the reversed clause list `G` onto the watch store `S`, removing
+repetitions with the reusable marks `m`. -/
 @[expose] def WatchStore.buildWith (P : Array ℕ) (A : Assign) :
-    List (ℕ × Clause ℕ) → Array Bool → WatchStore × Array Bool
-  | [], m => (⟨#[], #[]⟩, m)
-  | e :: F, m =>
-    let r := buildWith P A F m
-    let d := dedupWith r.2 e.2
-    (r.1.addClause e.1 (watchOrderAt P A d.1), d.2)
+    List (ℕ × Clause ℕ) → WatchStore → Array Bool → WatchStore
+  | [], S, _ => S
+  | e :: G, S, m =>
+    let d := dedupWith m e.2
+    buildWith P A G (S.addClause e.1 (watchOrderAt P A d.1)) d.2
 
-/-- One past the greatest literal code of `F`: the size of the marks for its repetitions. -/
+/-- One past the greatest literal code of `F`: the size of the marks for its repetitions and initial
+watch-list table. -/
 @[expose] def keyBound (F : List (ℕ × Clause ℕ)) : ℕ :=
   F.foldl (fun n e => e.2.foldl (fun n l => max n (litKey l + 1)) n) 0
 
 /-- **The watch store** of the numbered clauses `F` under the assignment `A`: every clause with at
 least two different literals, without repetitions, watching its first two literals once those that
-are not false under `A` are put first. It adds the clauses with
-`Cslib.Algorithms.Lean.CDCL.WatchStore.addClause`, as learning does, which leaves the store
-unchanged for fewer than two literals. Repetitions are removed with one array of marks for all the
-clauses (`Cslib.Algorithms.Lean.CDCL.dedupWith`). -/
+are not false under `A` are put first. It adds `F.reverse` tail-recursively with
+`Cslib.Algorithms.Lean.CDCL.WatchStore.addClause` onto pre-allocated `codes` and `watches`, removing
+repetitions with one array of marks for all the clauses (`Cslib.Algorithms.Lean.CDCL.dedupWith`). -/
 @[expose] def WatchStore.build (P : Array ℕ) (A : Assign) (F : List (ℕ × Clause ℕ)) : WatchStore :=
-  (WatchStore.buildWith P A F (Array.replicate (keyBound F) false)).1
+  let kb := keyBound F
+  WatchStore.buildWith P A F.reverse
+    ⟨Array.emptyWithCapacity F.length, Array.replicate kb #[]⟩ (Array.replicate kb false)
 
 theorem WatchStore.buildWith_inv (P : Array ℕ) {A : Assign} {M : Trail} (hA : A.Agrees M) :
-    ∀ (F : List (ℕ × Clause ℕ)) (m : Array Bool), (∀ y, m.getD (litKey y) false = false) →
-    (∀ e ∈ F, 2 ≤ e.2.dedup.length → ¬ Trail.Falsifies M e.2) →
-    (WatchStore.buildWith P A F m).1.Inv F M [] ∧
-      ∀ y, (WatchStore.buildWith P A F m).2.getD (litKey y) false = false
-  | [], m, hm, _ => ⟨WatchStore.inv_empty M [], hm⟩
-  | e :: F, m, hm, hF => by
-    obtain ⟨ih, hm'⟩ := buildWith_inv P hA F m hm fun e' he' =>
-      hF e' (List.mem_cons_of_mem _ he')
-    have hd := dedupWith_spec _ e.2 hm'
+    ∀ (G H : List (ℕ × Clause ℕ)) (S : WatchStore) (m : Array Bool),
+    S.Inv H M [] → (∀ y, m.getD (litKey y) false = false) →
+    (∀ e ∈ G, 2 ≤ e.2.dedup.length → ¬ Trail.Falsifies M e.2) →
+    (WatchStore.buildWith P A G S m).Inv (G.reverse ++ H) M []
+  | [], _, S, _, hS, _, _ => by simpa [buildWith] using hS
+  | e :: G, H, S, m, hS, hm, hG => by
+    have hd := dedupWith_spec m e.2 hm
     have hperm := (watchOrderAt_perm P A _).trans hd.1
-    simp only [buildWith]
-    refine ⟨?_, hd.2⟩
-    match hc : watchOrderAt P A (dedupWith (buildWith P A F m).2 e.2).1 with
-    | w₁ :: w₂ :: rest =>
-      rw [hc] at hperm
-      have hlen : 2 ≤ e.2.dedup.length := by simp [← hperm.length_eq]
-      refine ih.addClause (id := e.1) (C := e.2) (hperm.nodup_iff.2 (List.nodup_dedup e.2))
-        (fun l => by rw [hperm.mem_iff, List.mem_dedup]) fun hp => ?_
-      obtain ⟨rest', hc'⟩ := watchOrderAt_head hc
-      exact hF e List.mem_cons_self hlen fun l hl =>
-        falsifies_of_watchOrder hA hc' hp.1 l (hd.1.mem_iff.2 (List.mem_dedup.2 hl))
-    | [] =>
-      rw [hc] at hperm
-      exact ih.consShort e (by simp [← hperm.length_eq])
-    | [_] =>
-      rw [hc] at hperm
-      exact ih.consShort e (by simp [← hperm.length_eq])
+    have hS' : (S.addClause e.1 (watchOrderAt P A (dedupWith m e.2).1)).Inv (e :: H) M [] := by
+      match hc : watchOrderAt P A (dedupWith m e.2).1 with
+      | w₁ :: w₂ :: rest =>
+        rw [hc] at hperm
+        have hlen : 2 ≤ e.2.dedup.length := by simp [← hperm.length_eq]
+        refine hS.addClause (id := e.1) (C := e.2) (hperm.nodup_iff.2 (List.nodup_dedup e.2))
+          (fun l => by rw [hperm.mem_iff, List.mem_dedup]) fun hp => ?_
+        obtain ⟨rest', hc'⟩ := watchOrderAt_head hc
+        exact hG e List.mem_cons_self hlen fun l hl =>
+          falsifies_of_watchOrder hA hc' hp.1 l (hd.1.mem_iff.2 (List.mem_dedup.2 hl))
+      | [] =>
+        rw [hc] at hperm
+        exact hS.consShort e (by simp [← hperm.length_eq])
+      | [_] =>
+        rw [hc] at hperm
+        exact hS.consShort e (by simp [← hperm.length_eq])
+    have ih := buildWith_inv P hA G (e :: H) _ (dedupWith m e.2).2 hS' hd.2 fun e' he' =>
+      hG e' (List.mem_cons_of_mem _ he')
+    simpa [buildWith, List.reverse_cons, List.append_assoc] using ih
 
 /-- The watch store built from `F` under an assignment agreeing with the trail `M`, none of whose
 clauses `M` falsifies, satisfies the invariant with every literal of `M` processed: a clause whose
@@ -993,9 +1028,13 @@ false while the clause is still open, as in a binary clause with one false and o
 literal.) -/
 theorem WatchStore.build_inv (P : Array ℕ) {A : Assign} {M : Trail} (hA : A.Agrees M)
     (F : List (ℕ × Clause ℕ)) (hF : ∀ e ∈ F, 2 ≤ e.2.dedup.length → ¬ Trail.Falsifies M e.2) :
-    (WatchStore.build P A F).Inv F M [] :=
-  (WatchStore.buildWith_inv P hA F _ (fun y => by
-    simp only [Array.getD_eq_getD_getElem?, Array.getElem?_replicate]
-    split <;> simp) hF).1
+    (WatchStore.build P A F).Inv F M [] := by
+  have h := WatchStore.buildWith_inv P hA F.reverse [] _ (Array.replicate (keyBound F) false)
+    (WatchStore.inv_empty F.length (keyBound F) M [])
+    (fun y => by
+      simp only [Array.getD_eq_getD_getElem?, Array.getElem?_replicate]
+      split <;> simp)
+    (fun e he => hF e (List.mem_reverse.1 he))
+  simpa [WatchStore.build] using h
 
 end Cslib.Algorithms.Lean.CDCL

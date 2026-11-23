@@ -2416,6 +2416,18 @@ theorem mem_chooseIds {n : ℕ} {locked cand : List ℕ} {i : ℕ} (h : i ∈ ch
   rw [← Assign.assigned_marks] at this
   simp [this] at hkept
 
+/-- `XTrail.reasonIds` read directly from the `rsns` array of the trail without allocating an
+`XTrail` list (`ATrail.reasonIds_eq`). -/
+@[expose] def ATrail.reasonIds (T : ATrail) : List ℕ :=
+  T.foldUp (fun acc _ r => if r == 0 then acc else (r - 1) :: acc) 0 T.size []
+
+theorem ATrail.reasonIds_eq (T : ATrail) : T.reasonIds = XTrail.reasonIds T.toX := by
+  rw [reasonIds, foldUp_eq, ATrail.toX]
+  generalize T.seg 0 T.size = M
+  induction M with
+  | nil => rfl
+  | cons e M ih => rw [List.foldr_cons, ih]; cases e <;> simp [XEntry.rsnCode]
+
 /-- **The learned clauses to forget**, as MiniSat's `reduceDB` chooses them: the learned clauses
 of the store, those of more than two literals first by increasing activity; of the less active
 half, those of more than two literals, and of the other half, those of more than two literals and
@@ -2425,9 +2437,9 @@ reasons of the trail (MiniSat's *locked* clauses) and the short clauses. -/
   let act := S.red.act
   -- computed once, not in each test
   let n := φ.length
-  -- the learned clauses, by number and number of literals
-  let learnts := S.store.codes.toList.filterMap fun a =>
-    if isLearntId n (clauseId a) then some (clauseId a, a.size - 1) else none
+  -- the learned clauses, by number and number of literals, read directly from `codes`
+  let learnts := S.store.codes.foldr (fun a acc =>
+    if isLearntId n (clauseId a) then (clauseId a, a.size - 1) :: acc else acc) []
   let sorted := sortBy (fun a b =>
     if (a.2 ≤ 2) == (b.2 ≤ 2) then act.get a.1 ≤ act.get b.1 else b.2 ≤ 2)
     learnts
@@ -2436,7 +2448,7 @@ reasons of the trail (MiniSat's *locked* clauses) and the short clauses. -/
   let chosen := (sorted.take half).filter (2 < ·.2) ++
     (sorted.drop half).filter fun e => 2 < e.2 && act.get e.1 * sorted.length < act.inc
   -- the reasons of the trail (MiniSat's `locked`) and the short clauses are kept
-  chooseIds n (XTrail.reasonIds S.exec.trail ++ S.short.map Prod.fst) (chosen.map Prod.fst)
+  chooseIds n (S.exec.tr.reasonIds ++ S.short.map Prod.fst) (chosen.map Prod.fst)
 
 /-- The number of learned clauses in the store, those numbered above `n` (`isLearntId`). Reduction
 and simplification set the count of learned clauses from the rebuilt store, instead of subtracting
@@ -2469,14 +2481,38 @@ where
   | _, 0, P => P
   | i, k + 1, P => go (i + 1) k (P.setIfInBounds (T.lits.getD i 0 / 2) (i + 1))
 
+/-- Marking the variables of the numbered clauses `db` in a fresh assignment of `slots` slots,
+without building the flattened variable list `CNF.vars`. -/
+@[expose] def markDbVars (db : List (ℕ × Clause ℕ)) (slots : ℕ) : Assign :=
+  db.foldl (fun A e => A.markLits e.2) ⟨Array.replicate slots 0⟩
+
+theorem assigned_markDbVars (db : List (ℕ × Clause ℕ)) (slots v : ℕ) :
+    (markDbVars db slots).assigned v = true ↔ v ∈ CNF.vars (db.map Prod.snd) := by
+  have hgo : ∀ (es : List (ℕ × Clause ℕ)) (A : Assign),
+      (es.foldl (fun A e => A.markLits e.2) A).assigned v = true ↔
+        v ∈ CNF.vars (es.map Prod.snd) ∨ A.assigned v = true := by
+    intro es
+    induction es with
+    | nil => intro A; simp [CNF.vars]
+    | cons e es ih =>
+      intro A
+      rw [List.foldl_cons, ih, Assign.markLits_eq, Assign.assigned_mark]
+      simp only [List.map_cons, CNF.vars, List.flatten_cons, List.map_append, List.mem_append,
+        or_assoc, or_left_comm]
+  rw [markDbVars, hgo]
+  have h0 : (⟨Array.replicate slots 0⟩ : Assign).assigned v = false := by
+    rw [Bool.eq_false_iff, Ne, Assign.assigned_eq_isSome, Assign.value_replicate]
+    simp
+  simp [h0]
+
 /-- **Forgetting clauses**: the clauses numbered `ids` are forgotten, and the watch store, the
-short clauses and the marks of the variables occurring in the database are rebuilt. Reduction and
-simplification both use it, each with its own bookkeeping. -/
+short clauses and the marks of the variables occurring in the database are rebuilt without
+allocating `CNF.vars`. Reduction and simplification both use it, each with its own bookkeeping. -/
 @[expose] def WExec.forgetRebuilt (S : WExec φ) (ids : List ℕ) : WExec φ :=
   let exec := S.exec.forget ids
   { S with
     exec := exec
-    occurs := Assign.marks exec.clauses.vars
+    occurs := markDbVars exec.db S.occurs.vals.size
     store := WatchStore.build (S.exec.tr.positions S.assign.vals.size) S.assign exec.db
     short := S.short.filter fun e => !ids.contains e.1 }
 
@@ -2496,9 +2532,9 @@ theorem WExec.Inv.forgetRebuilt {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
   refine ⟨⟨hexec, ?_, fun e he => ?_, fun e he hlen => ?_, hS.queue_nodup, hS.queue_trail,
     hS.queue_above, fun hv => (hS.order hv).restrict rfl rfl rfl fun v hv' =>
       (hS.occurs v).2 (by
-      obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.1 ((Assign.assigned_marks _ v).1 hv')
+      obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.1 ((assigned_markDbVars _ _ v).1 hv')
       exact CNF.mem_vars.2 ⟨c, hsub c hc, b, hb⟩), hS.assign,
-    fun v => Assign.assigned_marks _ v⟩, fun c hc => hnoconf c (hsub c hc), rfl⟩
+    fun v => assigned_markDbVars _ _ v⟩, fun c hc => hnoconf c (hsub c hc), rfl⟩
   · change (WatchStore.build (S.exec.tr.positions S.assign.vals.size) S.assign
       (S.exec.forget ids).db).Inv _ S.M S.queue
     rw [hq]
@@ -2527,6 +2563,7 @@ rebuilt and the certificate gets no deletion step. -/
 theorem WExec.mem_reduceIds {S : WExec φ} {i : ℕ} (h : i ∈ S.reduceIds) :
     φ.length < i ∧ i ∉ XTrail.reasonIds S.exec.trail ∧ ∀ e ∈ S.short, e.1 ≠ i := by
   obtain ⟨-, hlt, hnot⟩ := mem_chooseIds h
+  rw [ATrail.reasonIds_eq] at hnot
   simp only [List.mem_append, List.mem_map, not_or, not_exists, not_and] at hnot
   exact ⟨hlt, hnot.1, fun e he hei => hnot.2 e he hei⟩
 
@@ -2574,7 +2611,7 @@ on the input clauses with `removeSatisfied`): those satisfied by a literal of th
 trail, except the reasons of the trail. -/
 @[expose] def WExec.simplifyIds (S : WExec φ) : List ℕ :=
   let root := Assign.ofTrail (XTrail.trail (XTrail.root S.exec.trail))
-  let locked := Assign.marks (XTrail.reasonIds S.exec.trail)
+  let locked := Assign.marks S.exec.tr.reasonIds
   -- without repetitions, as in `reduceIds`
   dedupVars <| (S.exec.db.filter fun e =>
     (S.opts.removeSatisfied || φ.length < e.1) && e.2.any root.holds && !locked.assigned e.1).map
@@ -2584,6 +2621,7 @@ theorem WExec.mem_simplifyIds {S : WExec φ} (hS : S.Inv) {i : ℕ} (h : i ∈ S
     i ∉ XTrail.reasonIds S.exec.trail ∧ ∃ e ∈ S.exec.db, e.1 = i ∧
       ∃ l ∈ e.2, l ∈ Trail.lits (XTrail.trail (XTrail.root S.exec.trail)) := by
   unfold simplifyIds at h
+  rw [ATrail.reasonIds_eq, ← Exec.trail] at h
   rw [mem_dedupKey Function.injective_id] at h
   simp only [List.mem_map, List.mem_filter, Bool.and_eq_true, List.any_eq_true,
     Bool.not_eq_true'] at h
