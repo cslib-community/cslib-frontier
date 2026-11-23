@@ -11,7 +11,9 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacob
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
+import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
+import Mathlib.LinearAlgebra.Matrix.Charpoly.Coeff
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
 
@@ -160,6 +162,52 @@ example : (criticalCoordinatePolynomialValue 13 1 1 1 0 5 (fun z => z[0]?.getD 0
   simpa only [Polynomial.IsRoot.def, aeval_X] using
     isRoot_charpoly_multiplicationMatrix_of_aeval_eq (by decide) r hr
       (X 0) (fun _ => ((5 : ℕ) : ZMod 13)) hx
+
+example : (fun j : ℕ => criticalCoordinateCandidateValue 13 1 1 0 j 5 (fun _ => 0)) ∈
+    CountingFunction 11 encNat encNat := by
+  apply criticalCoordinateCandidateValue_mem (a := 0) (p := fun _ => 13) (n := fun _ => 1)
+    (d := fun _ => 1) (i := fun _ => 0) (j := fun j => j) (t := fun _ => 5) (value := fun _ => 0)
+    Decoder.nat (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+  exact CountingFunction.of_polyTime (ComputableInPolyTime.const 0)
+
+example : ComputableInPolyTime (fun d : ℕ => coordinateParameterDegreeBound 1 d) encNat encNat :=
+  coordinateParameterDegreeBound_polyTime (.const 1) ComputableInPolyTime.id'
+
+-- At u = 0 the critical relation is X² = 0, so the constant coefficient in u is T².
+example : (criticalCoordinateCandidateValue 13 1 1 0 0 5 (fun z => z[0]?.getD 0) :
+    ZMod 13) = 12 := by
+  let : Fact (Nat.Prime 13) := ⟨by decide⟩
+  let F : MvPolynomial (Fin 1) ℤ := X 0
+  have hF : F.totalDegree ≤ 1 + 1 := (totalDegree_X_le 0).trans (by decide)
+  change (criticalCoordinateCandidateValue 13 1 1 (0 : Fin 1).val 0 5 _ : ZMod 13) = 12
+  rw [criticalCoordinateCandidateValue_cast 1 (by decide) F hF (0 : Fin 1) 0 5
+    (by decide) (by decide) (by decide) (by decide) (fun z => z[0]?.getD 0)
+    (by intro z; simp only [F, eval₂_X, Fin.val_zero])]
+  let P := parametricCoordinatePolynomial (by decide : 1 ≤ 2) F hF (0 : Fin 1)
+  let φ := Int.castRingHom (ZMod 13)
+  let t : ZMod 13 := (5 : ℕ)
+  change Polynomial.eval₂RingHom φ t ((Polynomial.Bivariate.swap P).coeff 0) = 12
+  rw [← Polynomial.coeff_map, Polynomial.coeff_zero_eq_eval_zero, Polynomial.eval_map,
+    Polynomial.Bivariate.eval₂_eval₂RingHom_swap, ← Polynomial.eval_map]
+  change ((parametricCoordinatePolynomial _ F hF (0 : Fin 1)).map
+    (Polynomial.eval₂RingHom φ 0)).eval t = 12
+  rw [parametricCoordinatePolynomial_map_eval₂]
+  let r := criticalLower 2 (fun _ => 0) (0 : ZMod 13) (F.map φ)
+  have hr (j : Fin 1) : (r j).totalDegree < 2 :=
+    criticalLower_degree 2 (by decide) _ _ _ ((totalDegree_map_le φ F).trans hF) j
+  let M := multiplicationMatrix (by decide : 1 ≤ 2) r hr (X 0)
+  have hnil : IsNilpotent M := ⟨2, by
+    dsimp only [M]
+    rw [← map_pow]
+    have hproj : projection 2 r ((X (0 : Fin 1)) ^ 2) = projection 2 r 0 := by
+      rw [map_pow, projection_X_pow, map_zero]
+      simp [r, criticalLower]
+    rw [multiplicationMatrix_eq_of_projection_eq _ r hr hproj, map_zero]⟩
+  have hchar := sub_eq_zero.mp (Matrix.isNilpotent_charpoly_sub_pow_of_isNilpotent hnil).eq_zero
+  have hcard : Fintype.card (NormalIndex 1 2) = 2 := by simp [NormalIndex]
+  change M.charpoly.eval t = 12
+  rw [hchar, hcard, Polynomial.eval_pow, Polynomial.eval_X]
+  decide
 
 -- Index seven is above the deformation-degree bound six and within the field cutoff.
 example : (criticalCoordinateCandidateValue 13 1 1 0 7 5 (fun z => z[0]?.getD 0) :

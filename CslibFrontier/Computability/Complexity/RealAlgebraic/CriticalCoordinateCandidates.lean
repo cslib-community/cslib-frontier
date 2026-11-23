@@ -15,7 +15,8 @@ import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 
 Each coefficient in the deformation parameter is a polynomial in the coordinate value.
 The bivariate evaluator and a finite-field coefficient sum evaluate the addressed polynomial
-without expanding it.
+without expanding it. The theorem `coordinateParameterDegreeBound_polyTime` computes a bound
+on the coefficient index in binary from the unary arity and the binary exponent parameter.
 
 This adapts `LeanCanny.CountingHierarchy.coordinateCandidateValue` at lean-canny
 `970f28a5ecefc1327402ade16c068aa4b1b2c183`, the coefficient extraction in

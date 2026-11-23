@@ -88,12 +88,6 @@ theorem parametricCoordinatePolynomial_natDegree_swap_le (d : ℕ) (hd : 1 ≤ d
     have h := hk.trans (Nat.mul_le_mul_right _ (Nat.sub_le ((d + 1) ^ n) k))
     simpa only [parametricCoordinatePolynomial, r, coordinateParameterDegreeBound,
       Nat.mul_one, Nat.zero_add] using h
-  apply Polynomial.natDegree_le_iff_coeff_eq_zero.mpr
-  intro j hj
-  apply AddMonoidAlgebra.ext
-  apply Finsupp.ext
-  intro k
-  rw [Polynomial.Bivariate.coeff_coeff_swap, Polynomial.coeff_zero]
-  exact Polynomial.coeff_eq_zero_of_natDegree_lt ((hcoeff k).trans_lt hj)
+  exact (Polynomial.Bivariate.natDegree_swap_le_iff _ _).mpr hcoeff
 
 end MvPolynomial.CriticalSystem

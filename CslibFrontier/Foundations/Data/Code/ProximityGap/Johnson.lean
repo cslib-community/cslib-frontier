@@ -183,13 +183,8 @@ private theorem degZ₂_mul {R : Type*} [CommRing R] [IsDomain R] {f g : R[X][X]
   rfl
 
 private theorem degZ₂_le_iff {R : Type*} [CommSemiring R] {f : R[X][X]} {B : ℕ} :
-    degZ₂ f ≤ B ↔ ∀ a, (f.coeff a).natDegree ≤ B := by
-  rw [degZ₂, natDegree_le_iff_coeff_eq_zero]
-  refine ⟨fun h a => natDegree_le_iff_coeff_eq_zero.2 fun t ht => by
-    simpa [coeff_coeff_swap] using congrArg (fun p : R[X] => p.coeff a) (h t ht),
-    fun h t ht => by
-      ext a; rw [coeff_coeff_swap, coeff_zero]
-      exact coeff_eq_zero_of_natDegree_lt ((h a).trans_lt ht)⟩
+    degZ₂ f ≤ B ↔ ∀ a, (f.coeff a).natDegree ≤ B :=
+  Bivariate.natDegree_swap_le_iff f B
 
 private theorem degZ₂_C {R : Type*} [CommSemiring R] (p : R[X]) :
     degZ₂ (C p) = p.natDegree :=
@@ -968,9 +963,9 @@ private theorem exists_eval_C_ne_zero {F : Type*} [Field F] {H : F[X][X]} (hH : 
     by_contra hall; push Not at hall
     exact (map_ne_zero_iff _ Bivariate.swap.injective).2 hH (by ext j : 2; simpa using hall j)
   obtain ⟨j, hj_ne⟩ := hex_j
-  have hdeg : ((Bivariate.swap H).coeff j).natDegree ≤ H.natDegree :=
-    natDegree_le_iff_coeff_eq_zero.2 fun a ha => by
-      rw [coeff_coeff_swap, coeff_eq_zero_of_natDegree_lt ha, coeff_zero]
+  have hdeg : ((Bivariate.swap H).coeff j).natDegree ≤ H.natDegree := by
+    simpa only [Bivariate.swap_swap_apply] using
+      Bivariate.natDegree_coeff_le_natDegree_swap (Bivariate.swap H) j
   obtain ⟨x₀, hx₀, hne⟩ := exists_eval_ne_zero_of_natDegree_lt_card hj_ne (hdeg.trans_lt hT)
   refine ⟨x₀, hx₀, fun hH0 => hne ?_⟩
   have hc := congrArg (fun p : F[X] => p.coeff j) hH0
