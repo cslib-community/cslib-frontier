@@ -25,7 +25,7 @@ a time below `2 * 2 ^ n`, namely `T` itself or `2 ^ n` plus `T - 2 ^ n` modulo t
 reduction streams through the time bits at `O(n)` gates per bit, and only `n + 3` time bits remain
 for binary powering (`compressedTime`). This gives a circuit of size at most
 `200000 * (n + 1) * powerBudget n s (2 ^ n) L + 80 * m * (n + 1)`, additive in the time width
-(`variable_time_additive`), and `600000 * (n + 1) * optimizedBudget n s (2 ^ n) + 80 * m * (n + 1)`
+(`variable_time_additive`), and `400000 * (n + 1) * optimizedBudget n s (2 ^ n) + 80 * m * (n + 1)`
 balanced (`variable_time_additive_optimized`). Together with `variable_time_optimized` this gives
 the minimum of the two bounds.
 
@@ -199,12 +199,12 @@ theorem variable_time_additive (c : Circuit signature n n) (m L : ℕ) (hL : 0 <
     nlinarith
 
 /-- **Square-root long input times.** Some circuit of size at most
-`600000 * (n + 1) * optimizedBudget n c.size (2 ^ n) + 80 * m * (n + 1)` iterates `c` for a
+`400000 * (n + 1) * optimizedBudget n c.size (2 ^ n) + 80 * m * (n + 1)` iterates `c` for a
 number of steps given by `m` input bits. -/
 theorem variable_time_additive_optimized (c : Circuit signature n n) (m : ℕ) :
     ∃ out : Circuit signature (n + m) n,
       out.Computes interpretation (inputTimeIterate (c.eval interpretation) m) ∧
-      (out.size : ℝ) ≤ 600000 * (n + 1) * optimizedBudget n c.size (2 ^ n) + 80 * m * (n + 1) := by
+      (out.size : ℝ) ≤ 400000 * (n + 1) * optimizedBudget n c.size (2 ^ n) + 80 * m * (n + 1) := by
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, ho, hs⟩ := variable_time_additive c m L hL hLN
   refine ⟨out, ho, ?_⟩
