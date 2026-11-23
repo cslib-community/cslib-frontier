@@ -4,11 +4,15 @@
 `TimeM` annotations are trusted: nothing ties a tick to the work a program does, so a `TimeM` bound
 puts the algorithm's own source in the trusted base. The library is replacing every such bound by
 a statement in a machine model. Until that is done, `scripts/timem_baseline.json` records, for each
-Lean file under the library and test roots, how often `TimeM` and its tick notation occur in masked
-Lean syntax (outside comments and string, raw-string and character literals). This check fails when
+Lean file under the library, test and results roots, how often `TimeM` and its tick notation occur
+in masked Lean syntax (outside comments and string, raw-string and character literals). A separate
+`automation` ratchet counts `time_simps` and `time_spec`: adding a rule or tactic use need not name
+`TimeM` or a tick, and removing old annotations must not buy an allowance for new automation.
+This check fails when
 
 * a file that is not in the baseline uses `TimeM`, or
-* a file in the baseline uses it more often than recorded.
+* a file in the baseline uses it more often than recorded, or
+* either condition holds for the separate automation count.
 
 A lower count, or a file that no longer uses `TimeM` at all, passes without touching the baseline,
 so a port does not have to edit a shared file and two ports cannot conflict there. Run with
@@ -38,40 +42,44 @@ BASELINE = Path(__file__).resolve().parent / "timem_baseline.json"
 SOURCE_ROOTS = ("CslibFrontier", "CslibFrontierTests", "CslibFrontierResults")
 # `TimeM` itself, and the tick notation `✓`, which a file can use after `open` without naming it.
 USE = re.compile(r"\bTimeM\b|✓")
+AUTOMATION = re.compile(r"\b(?:time_simps|time_spec)\b")
+COUNTERS = {"files": (USE, "TimeM"), "automation": (AUTOMATION, "TimeM automation")}
 
 
-def count_uses(text: str) -> int:
-    return len(USE.findall(masks(text)[1]))
+def count_uses(text: str, pattern: re.Pattern[str] = USE) -> int:
+    return len(pattern.findall(masks(text)[1]))
 
 
-def scan(root: Path) -> dict[str, int]:
-    counts: dict[str, int] = {}
+def scan(root: Path) -> dict[str, dict[str, int]]:
+    """Read and mask each file once for both independent ratchets."""
+    counts: dict[str, dict[str, int]] = {key: {} for key in COUNTERS}
+    paths: list[Path] = []
     for top in SOURCE_ROOTS:
         base = root / top
-        if not base.is_dir():
-            continue
-        for path in sorted(base.rglob("*.lean")):
-            n = count_uses(path.read_text(encoding="utf-8"))
+        if base.is_dir():
+            paths.extend(sorted(base.rglob("*.lean")))
+        aggregate = root / f"{top}.lean"
+        if aggregate.is_file():
+            paths.append(aggregate)
+    for path in paths:
+        syntax = masks(path.read_text(encoding="utf-8"))[1]
+        for key, (pattern, _) in COUNTERS.items():
+            n = len(pattern.findall(syntax))
             if n:
-                counts[path.relative_to(root).as_posix()] = n
-    top_level = [root / f"{top}.lean" for top in SOURCE_ROOTS]
-    for path in top_level:
-        if path.is_file():
-            n = count_uses(path.read_text(encoding="utf-8"))
-            if n:
-                counts[path.relative_to(root).as_posix()] = n
+                counts[key][path.relative_to(root).as_posix()] = n
     return counts
 
 
-def compare(baseline: dict[str, int], current: dict[str, int]) -> list[str]:
-    """The files whose use of `TimeM` rose, each with a one-line explanation."""
+def compare(baseline: dict[str, int], current: dict[str, int],
+            label: str = "TimeM") -> list[str]:
+    """The files whose use rose, each with a one-line explanation."""
     problems = []
     for path, n in sorted(current.items()):
         allowed = baseline.get(path)
         if allowed is None:
-            problems.append(f"{path}: {n} use(s) of TimeM in a file that had none")
+            problems.append(f"{path}: {n} use(s) of {label} in a file that had none")
         elif n > allowed:
-            problems.append(f"{path}: {n} uses of TimeM, up from {allowed}")
+            problems.append(f"{path}: {n} uses of {label}, up from {allowed}")
     return problems
 
 
@@ -84,9 +92,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--baseline", type=Path, default=BASELINE)
     args = parser.parse_args(argv)
 
-    baseline: dict[str, int] = json.loads(args.baseline.read_text(encoding="utf-8"))["files"]
+    baseline: dict[str, dict[str, int]] = json.loads(args.baseline.read_text(encoding="utf-8"))
     current = scan(args.root)
-    problems = compare(baseline, current)
+    problems = [problem for key, (_, label) in COUNTERS.items()
+                for problem in compare(baseline.get(key, {}), current[key], label)]
     if problems:
         print("check_timem: TimeM use rose. Running times are stated in a machine model "
               "(policy/statements.md#running-time-claims; #7636, #6301); do not add TimeM.",
@@ -95,16 +104,23 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {line}", file=sys.stderr)
         return 1
     if args.update:
-        lowered = {p: min(n, current[p]) for p, n in baseline.items() if p in current}
+        lowered = {
+            key: {p: current[key][p] for p in sorted(baseline.get(key, {})) if p in current[key]}
+            for key in COUNTERS
+        }
         args.baseline.write_text(
-            json.dumps({"files": dict(sorted(lowered.items()))}, indent=2, ensure_ascii=False)
+            json.dumps(lowered, indent=2, ensure_ascii=False)
             + "\n", encoding="utf-8")
-        print(f"check_timem: baseline lowered to {len(lowered)} files, "
-              f"{sum(lowered.values())} uses")
+        for key, (_, label) in COUNTERS.items():
+            print(f"check_timem: {label} baseline lowered to {len(lowered[key])} files, "
+                  f"{sum(lowered[key].values())} uses")
         return 0
     if args.report:
-        print(f"check_timem: {len(current)} files and {sum(current.values())} uses of TimeM "
-              f"remain (baseline {len(baseline)} files, {sum(baseline.values())} uses)")
+        for key, (_, label) in COUNTERS.items():
+            recorded = baseline.get(key, {})
+            print(f"check_timem: {len(current[key])} files and {sum(current[key].values())} "
+                  f"uses of {label} remain "
+                  f"(baseline {len(recorded)} files, {sum(recorded.values())} uses)")
     return 0
 
 

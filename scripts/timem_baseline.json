@@ -75,5 +75,16 @@
     "CslibFrontierTests/SuffixArray.lean": 4,
     "CslibFrontierTests/ThresholdSearchAndExactSampler.lean": 4,
     "CslibFrontierTests/TimeMSpec.lean": 17
+  },
+  "automation": {
+    "CslibFrontier/Algorithms/Lean/TSP/HamiltonianCount.lean": 14,
+    "CslibFrontier/Algorithms/Lean/TimeM/Loops.lean": 6,
+    "CslibFrontier/Algorithms/Lean/TimeM/Simps/Init.lean": 1,
+    "CslibFrontier/Algorithms/Lean/TimeM/Simps.lean": 3,
+    "CslibFrontier/Algorithms/Lean/Yates.lean": 3,
+    "CslibFrontier/Foundations/Algebra/Polynomial/RealRoot/Isolation.lean": 26,
+    "CslibFrontier/Foundations/Algebra/Polynomial/RealRoot/TotalIsolation.lean": 51,
+    "CslibFrontier/Foundations/Algebra/Polynomial/RealRoot/TotalRatPoly.lean": 160,
+    "CslibFrontierTests/TimeMSpec.lean": 21
   }
 }

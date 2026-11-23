@@ -442,8 +442,12 @@ the deprecated `TimeM` cost monad ([policy/statements.md](policy/statements.md#r
 [#7636](https://github.com/cslib-community/cslib-frontier/issues/7636),
 [#6301](https://github.com/cslib-community/cslib-frontier/issues/6301)): a Lean file may not use
 `TimeM` or its tick notation more often than `scripts/timem_baseline.json` records for it, and an
-unlisted file may not use them at all. Removing uses needs no baseline edit; `--update` lowers the
-recorded counts and never raises one. On pull requests CI also runs
+unlisted file may not use them at all. A separate `automation` count applies the same ratchet to
+`time_simps` and `time_spec`, including rules and proofs that do not explicitly name `TimeM`.
+Removing annotations does not permit adding automation. Removing uses needs no baseline edit;
+`--update` lowers both recorded counts and never raises either. These are source-token checks,
+not a check of the cost semantics or a substitute for reviewing a running-time statement.
+On pull requests CI also runs
 `python3 scripts/parallel_defs.py`, an advisory notice (it never fails) that lists new or changed
 public definitions sharing a large anonymized subterm with an existing one, or merely renaming one.
 With `--theorems` it lists new or changed theorems, private ones included, whose statement another
