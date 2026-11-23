@@ -20,6 +20,8 @@ fixed widths has, in each window of bits, the bits of the corresponding field.
 ## Main results
 
 * `Nat.testBit_add_one_eq_xor`, `Nat.testBit_sub_one_eq_xor`: the bits of `c + 1` and `c - 1`.
+* `Nat.testBit_add_one_eq_ite_forall`, `Nat.testBit_add_one_of_lowest`: lower-bit prefix and
+  lowest-zero forms of `Nat.testBit_add_one_eq_xor`.
 * `Nat.testBit_sub_two_pow`, `Nat.eq_two_pow_of_testBit`: removing a set bit, and the numbers
   with a single set bit.
 * `Nat.testBit_add_four_mul`: the bits of a two-bit tag followed by a payload.
@@ -135,5 +137,40 @@ theorem eq_two_pow_of_testBit {m a : ℕ} (h : ∀ c, m.testBit c = true ↔ c =
       simpa using (h c).2 rfl
     · rw [decide_eq_false (Ne.symm hc)]
       exact Bool.eq_false_iff.2 fun h' => hc ((h c).1 h')
+
+/-- Bit `q` of `c + 1` flips iff all lower bits `i < q` of `c` are `true`. -/
+theorem testBit_add_one_eq_ite_forall (c q : ℕ) :
+    (c + 1).testBit q =
+      if ∀ i < q, c.testBit i = true then !(c.testBit q) else c.testBit q := by
+  have hiff : c % 2 ^ q = 2 ^ q - 1 ↔ ∀ i < q, c.testBit i = true := by
+    constructor
+    · intro hm i hi
+      rw [← Bool.and_true (c.testBit i), Bool.and_comm, ← decide_eq_true hi,
+        ← Nat.testBit_mod_two_pow, hm, Nat.testBit_two_pow_sub_one]
+    · intro hlow
+      refine Nat.eq_of_testBit_eq fun i => ?_
+      rw [Nat.testBit_mod_two_pow, Nat.testBit_two_pow_sub_one]
+      by_cases hi : i < q
+      · simp [hi, hlow i hi]
+      · simp [hi]
+  rw [testBit_add_one_eq_xor]
+  by_cases h : ∀ i < q, c.testBit i = true
+  · rw [ite_eq_left h, decide_eq_true (hiff.mpr h), Bool.xor_true]
+  · rw [ite_eq_right h, decide_eq_false (mt hiff.mp h), Bool.xor_false]
+
+/-- Adding one to `N` complements the bits up to and including its lowest zero bit `j`. -/
+theorem testBit_add_one_of_lowest {N j : ℕ} (hj : N.testBit j = false)
+    (hlow : ∀ l < j, N.testBit l = true) (l : ℕ) :
+    (N + 1).testBit l = if l ≤ j then !N.testBit l else N.testBit l := by
+  have hiff : (∀ i < l, N.testBit i = true) ↔ l ≤ j :=
+    ⟨fun h => Nat.le_of_not_lt fun hlt => by
+      have ht := h j hlt
+      rw [hj] at ht
+      exact Bool.false_ne_true ht,
+     fun h i hi => hlow i (Nat.lt_of_lt_of_le hi h)⟩
+  rw [testBit_add_one_eq_ite_forall]
+  by_cases hl : l ≤ j
+  · rw [ite_eq_left (hiff.mpr hl), ite_eq_left hl]
+  · rw [ite_eq_right (mt hiff.mp hl), ite_eq_right hl]
 
 end Nat

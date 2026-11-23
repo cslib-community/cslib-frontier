@@ -56,6 +56,17 @@ theorem parametricCoordinatePolynomial_natDegree (hell : 1 ≤ ell)
   rw [parametricCoordinatePolynomial, Matrix.charpoly_natDegree_eq_dim]
   simp [NormalIndex]
 
+/-- The leading coefficient in the deformation parameter is a nonzero polynomial in the
+coordinate value. -/
+theorem leadingCoeff_swap_parametricCoordinatePolynomial_ne_zero (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (i : Fin n) :
+    (Polynomial.Bivariate.swap (parametricCoordinatePolynomial hell F hF i)).leadingCoeff ≠ 0 := by
+  apply Polynomial.leadingCoeff_ne_zero.mpr
+  intro hswap
+  have hz := congrArg Polynomial.Bivariate.swap hswap
+  rw [Polynomial.Bivariate.swap_swap_apply, map_zero] at hz
+  exact (Matrix.charpoly_monic _).ne_zero hz
+
 /-- Evaluating the parameter commutes with coordinate multiplication and its characteristic
 polynomial, including for noninjective specializations. -/
 theorem parametricCoordinatePolynomial_map_eval₂ {R : Type*} [CommRing R] (hell : 1 ≤ ell)
