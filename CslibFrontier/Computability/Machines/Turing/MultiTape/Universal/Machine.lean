@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bound
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Correct
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -73,25 +74,13 @@ open ComputableInO
 /-- A round, within the time of a step and linear space. -/
 lemma round_inO : ComputableInO round eRun eRun (fun s => stepTime s.1 + (eRun s).length)
     fun s => (eRun s).length := by
-  have hctx := fst eCtx (encList encUnary)
-  have hout := snd eCtx (encList encUnary)
   -- bridge for #862: tidy client of the plain `step_inO`
-  have hstep := step_inO.comp hctx
-  have hnewout := ((ComputableInDegree.isSome encUnary).inO_one.comp_linear
-    hstep.snd').ite ((ComputableInDegree.snoc encUnary).inO_one.comp_linear
-      (hout.prod ((ComputableInDegree.getD (enc₁ := encUnary) 0).inO_one.comp_linear
-        hstep.snd'))) hout
-  refine (((hctx.fst'.prod hstep.fst').prod hnewout).mono 8 (fun s => ?_)
-    fun s => ?_).of_enc_eq fun s => ?_
+  have hstep := step_inO.comp' (fst eCtx (encList encUnary))
+  refine .mono (by unfold round; fun_prop) 8 (fun s => ?_) fun s => ?_
   all_goals
     have h₁ := length_le_encPair_left eCtx (encList encUnary) s
-    simp only [Function.comp_apply]
     dsimp only [eRun] at *
-  · split_ifs <;> omega
-  · split_ifs <;> omega
-  · simp only [round]
-    generalize (step s.1.1.1 s.1.1.2 s.1.2).2 = o
-    cases o <;> simp
+    omega
 
 lemma iterate_snoc_blank (k : ℕ) :
     (fun acc : List Tape => acc ++ [Tape.blank])^[k] [] = List.replicate k Tape.blank := by
