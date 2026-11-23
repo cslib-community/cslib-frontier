@@ -208,7 +208,7 @@ theorem clique_bounds_of_checkCliqueGraph {G : SimpleGraph (Fin n)} [DecidableRe
   obtain ⟨concl, hc, hconv⟩ := Option.bind_eq_some_iff.1 h
   cases concl with
   | bounds lb q ub asg =>
-    obtain ⟨f, hf, hlb, hub⟩ := bounds_of_checkOPB_printOPB hc
+    obtain ⟨f, hf, hlb, hub⟩ := bounds_of_checkOPB_printOPB (stdNames_covers _) hc
     cases hf
     simp only [convConcl, Option.some.injEq, Prod.mk.injEq] at hconv
     obtain ⟨rfl, rfl⟩ := hconv
