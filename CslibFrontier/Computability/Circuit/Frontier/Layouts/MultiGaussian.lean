@@ -125,14 +125,9 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
       (fun v => card_not_disjoint_closedBall_le hdeg (by omega) R v) hcpos
     rwa [hcardV] at this
   have hsmall : M * (m * D / c ^ 2 + h * D / c ^ 2) + h * D / c ^ 2 + h * D / c ^ 2 < 1 := by
-    have hm' : m * D / c ^ 2 ≤ d * h * D / c ^ 2 := by gcongr
-    have hcalc : (M * (d * h * D / c ^ 2 + h * D / c ^ 2) + h * D / c ^ 2 + h * D / c ^ 2) =
-        (M * (d + 1) + 2) * D / ε ^ 2 / h := by
-      rw [hc]
-      field_simp
-      ring
-    have hlast : (M * (d + 1) + 2) * D / ε ^ 2 / h < 1 := (div_lt_one hhpos).mpr large
-    nlinarith [mul_le_mul_of_nonneg_left hm' (Nat.cast_nonneg (α := ℝ) M)]
+    calc _ ≤ M * (d * h * D / c ^ 2 + h * D / c ^ 2) + h * D / c ^ 2 + h * D / c ^ 2 := by gcongr
+      _ = (M * (d + 1) + 2) * D * h / c ^ 2 := by ring
+      _ < 1 := mul_div_mul_sq_lt_one hε.ne' hhpos large
   obtain ⟨ω, hmid, hlow, hhigh⟩ := exists_sample_of_grid_bounds
     (fun i _ => crossDev (-T + i * δ))
     (fun i _ => vertexDev (f := fun x => -T + i * δ ≤ x ∧ x < -T + i * δ + δ)

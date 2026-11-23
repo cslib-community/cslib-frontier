@@ -1509,11 +1509,9 @@ theorem provableSpace_le (c_exp k n_max : ℕ) :
     have hpow := two_pow_provableB_le n_max
     have hpow' : 2 ^ provableB n_max ≤ 16 * (n_max + 1) := by omega
     calc (provableC c_exp + 1) * provableD c_exp * 2 ^ provableB n_max
-        ≤ (provableC c_exp + 1) * provableD c_exp * (16 * (n_max + 1)) :=
-          Nat.mul_le_mul_left _ hpow'
+        ≤ (provableC c_exp + 1) * provableD c_exp * (16 * (n_max + 1)) := by gcongr
       _ = 16 * (provableC c_exp + 1) * provableD c_exp * (n_max + 1) := by ring
-      _ ≤ (16 + k + 16 * (provableC c_exp + 1) * provableD c_exp) * (n_max + 1) :=
-          Nat.mul_le_mul_right _ (by omega)
+      _ ≤ (16 + k + 16 * (provableC c_exp + 1) * provableD c_exp) * (n_max + 1) := by gcongr; omega
 
 /-- Uniform `O(c_exp)` upper bound `21 * max c_exp 1 + 16` on `KWise.limbCount n_max U M` when
 `U ≤ max n_max 4 ^ c_exp` and `M ≤ max c_exp 1 * Nat.clog 2 (max n_max 4) + 5`. -/

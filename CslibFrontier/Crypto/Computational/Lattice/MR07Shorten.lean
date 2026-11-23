@@ -289,8 +289,7 @@ private theorem pow_shortenRoundBound_mul_lt_one {n B : ℕ} (hn : 0 < n) :
   have hBL : (B : ℝ) < (2 : ℝ) ^ L := by
     exact_mod_cast Nat.lt_pow_succ_log_self (by decide : 1 < 2) B
   have hbase : ((13 / 16 : ℝ) ^ 2) ^ 2 < 1 / 2 := by norm_num
-  have hstep1 : (((13 / 16 : ℝ) ^ 2) ^ 2) ^ L ≤ (1 / 2 : ℝ) ^ L :=
-    pow_le_pow_left₀ (by positivity) hbase.le L
+  have hstep1 : (((13 / 16 : ℝ) ^ 2) ^ 2) ^ L ≤ (1 / 2 : ℝ) ^ L := by gcongr
   have hone_term : (((13 / 16 : ℝ) ^ 2) ^ 2) ^ L * (B : ℝ) < 1 := by
     calc (((13 / 16 : ℝ) ^ 2) ^ 2) ^ L * (B : ℝ)
         ≤ (1 / 2 : ℝ) ^ L * (B : ℝ) := mul_le_mul_of_nonneg_right hstep1 (Nat.cast_nonneg B)
@@ -747,8 +746,7 @@ private theorem shortenLoopFrom_invariant (L : Submodule ℤ E)
                   (Function.update S (stepTarget S).1 u))
               ≤ ((13 / 16 : ℝ) ^ 2) ^ fuel *
                   sqNormProd (Function.update S (stepTarget S).1 u) := hpot_o
-            _ ≤ ((13 / 16 : ℝ) ^ 2) ^ fuel * ((13 / 16 : ℝ) ^ 2 * sqNormProd S) :=
-                mul_le_mul_of_nonneg_left hpot' (by positivity)
+            _ ≤ ((13 / 16 : ℝ) ^ 2) ^ fuel * ((13 / 16 : ℝ) ^ 2 * sqNormProd S) := by gcongr
             _ = ((13 / 16 : ℝ) ^ 2) ^ (fuel + 1) * sqNormProd S := by rw [pow_succ]; ring
       · have hneg := shortenLoopFrom_succ_some_neg L stepTarget oracles r fuel S hcall hvalid
         dsimp only

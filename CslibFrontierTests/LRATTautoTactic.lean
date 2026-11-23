@@ -372,6 +372,23 @@ example : ∀ p : Fin 3 → Fin 2 → Prop,
     (p 0 1 ∧ p 1 1) ∨ (p 0 1 ∧ p 2 1) ∨ (p 1 1 ∧ p 2 1) := by
   lrat_tauto
 
+/-- If each of five pigeons sits in one of four holes, two share a hole. The kernel check of the
+solver's certificate took about 8 seconds with the checker on lists, and takes about 1 with the
+kernel checker. -/
+example : ∀ p : Fin 5 → Fin 4 → Prop,
+    (p 0 0 ∨ p 0 1 ∨ p 0 2 ∨ p 0 3) → (p 1 0 ∨ p 1 1 ∨ p 1 2 ∨ p 1 3) →
+    (p 2 0 ∨ p 2 1 ∨ p 2 2 ∨ p 2 3) → (p 3 0 ∨ p 3 1 ∨ p 3 2 ∨ p 3 3) →
+    (p 4 0 ∨ p 4 1 ∨ p 4 2 ∨ p 4 3) →
+    (p 0 0 ∧ p 1 0) ∨ (p 0 0 ∧ p 2 0) ∨ (p 0 0 ∧ p 3 0) ∨ (p 0 0 ∧ p 4 0) ∨ (p 1 0 ∧ p 2 0) ∨
+    (p 1 0 ∧ p 3 0) ∨ (p 1 0 ∧ p 4 0) ∨ (p 2 0 ∧ p 3 0) ∨ (p 2 0 ∧ p 4 0) ∨ (p 3 0 ∧ p 4 0) ∨
+    (p 0 1 ∧ p 1 1) ∨ (p 0 1 ∧ p 2 1) ∨ (p 0 1 ∧ p 3 1) ∨ (p 0 1 ∧ p 4 1) ∨ (p 1 1 ∧ p 2 1) ∨
+    (p 1 1 ∧ p 3 1) ∨ (p 1 1 ∧ p 4 1) ∨ (p 2 1 ∧ p 3 1) ∨ (p 2 1 ∧ p 4 1) ∨ (p 3 1 ∧ p 4 1) ∨
+    (p 0 2 ∧ p 1 2) ∨ (p 0 2 ∧ p 2 2) ∨ (p 0 2 ∧ p 3 2) ∨ (p 0 2 ∧ p 4 2) ∨ (p 1 2 ∧ p 2 2) ∨
+    (p 1 2 ∧ p 3 2) ∨ (p 1 2 ∧ p 4 2) ∨ (p 2 2 ∧ p 3 2) ∨ (p 2 2 ∧ p 4 2) ∨ (p 3 2 ∧ p 4 2) ∨
+    (p 0 3 ∧ p 1 3) ∨ (p 0 3 ∧ p 2 3) ∨ (p 0 3 ∧ p 3 3) ∨ (p 0 3 ∧ p 4 3) ∨ (p 1 3 ∧ p 2 3) ∨
+    (p 1 3 ∧ p 3 3) ∨ (p 1 3 ∧ p 4 3) ∨ (p 2 3 ∧ p 3 3) ∨ (p 2 3 ∧ p 4 3) ∨ (p 3 3 ∧ p 4 3) := by
+  lrat_tauto
+
 -- A goal that is not a tautology is refuted by an assignment to its atoms.
 /--
 error: lrat_tauto: the goal is not a propositional tautology. It is false under this assignment to its atoms, read as independent propositions:

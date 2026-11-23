@@ -97,10 +97,6 @@ namespace Program
 private def coeff (p : Program (affineSignature K) n g) (w : Wire n g) (j : Fin n) : K :=
   p.trace (affineInterpretation K) (Pi.single j 1) w - p.trace (affineInterpretation K) 0 w
 
-private theorem coeff_input (p : Program (affineSignature K) n g) (i j : Fin n) :
-    p.coeff (.input i) j = (Pi.single j 1 : Fin n → K) i := by
-  simp only [coeff, Program.trace_input, Pi.zero_apply, sub_zero]
-
 private theorem coeff_gate (p : Program (affineSignature K) n g) (k : Fin g) (j : Fin n) :
     p.coeff (.gate k) j = ∑ a, (p.lines k).op.2.1 a * p.coeff ((p.lines k).wires a) j := by
   simp only [coeff, Program.trace_gate, affineInterpretation]
@@ -128,7 +124,7 @@ private theorem exists_coeff_decomp (p : Program (affineSignature K) n g)
   | input i =>
     refine ⟨0, {i}, (Finset.card_singleton i).trans_le Nat.one_le_two_pow, fun j hj => ?_⟩
     have hij : i ≠ j := fun h => hj (Finset.mem_singleton.2 h.symm)
-    simp [coeff_input, hij]
+    simp [coeff, hij]
   | gate k ih =>
     -- every argument decomposes with at most `2 ^ ψ (.gate k) / 2` exceptional inputs
     have harg : ∀ a, ∃ (β : Wire n g → K) (S : Finset (Fin n)), S.card ≤ 2 ^ ψ (.gate k) / 2 ∧
