@@ -58,10 +58,10 @@ an ASCII letter or `_` first, then letters, digits and `_ [ ] { } ^ -`, the rule
 `veripb-parser` 0.1.2, which VeriPB 3.0.2 locks. A proof may also name the auxiliary variables of
 an order `$a`, a `$` followed by those characters (§5.3; `Cslib.Logic.PL.VeriPB.Text.isName`), as
 VeriPB's proof lexer does; the parser of instances rejects them, as VeriPB does (CakePB accepts
-`1 $a >= 1 ;` in an instance). A standard name `xN`, with `N ≥ 1` written without leading zeros,
-is the variable `N - 1`, as in `Cslib.Logic.PL.Literal.ofDIMACS`, so a DIMACS variable and its
-name in the proof agree; `x01` is another name, as in VeriPB. The other names of an instance are
-numbered after its largest standard name, in order of first appearance
+the constraint `1 $a >= 1` in an instance). A standard name `xN`, with `N ≥ 1` written without
+leading zeros, is the variable `N - 1`, as in `Cslib.Logic.PL.Literal.ofDIMACS`, so a DIMACS
+variable and its name in the proof agree; `x01` is another name, as in VeriPB. The other names of
+an instance are numbered after its largest standard name, in order of first appearance
 (`Cslib.Logic.PL.VeriPB.Text.opbNames`), so an instance with standard names only has the variables
 `N - 1`, and one without them is numbered as VeriPB numbers it. The proof and the output text
 share these names: the names they add, the auxiliary variables and the keywords of the proof
