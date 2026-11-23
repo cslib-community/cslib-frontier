@@ -59,6 +59,47 @@ example (m : ℕ → Memory.Prog (ℕ × ℕ))
       (fun _ _ _ => True) (fun _ _ => 0) := by
   realize [hm]
 
+-- A map over a `do` block is pushed to its return, so the intermediate answer, whose `Fin 3`
+-- component has no word encoding, is never stored.
+example : Realizes .exact
+    (fun a : ℕ => Prod.snd <$> (do
+      let v ← Memory.read a
+      pure ((0 : Fin 3), v))) word word (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize
+
+-- A mapped optional answer is simplified at the return: the proof in the `Fin` handle is erased
+-- and the dependent `if` becomes a word comparison.
+example : Realizes .exact
+    (fun d : ℕ × ℕ => (do
+      let v ← Memory.read d.1
+      if v = 0 then pure none else pure (if h : v < 3 then some ((⟨v, h⟩ : Fin 3), d.2) else none)
+      : Memory.Prog (Option (Fin 3 × ℕ))).map (Option.map fun p => (p.1.val, p.2)))
+    pairWords (WordEncoding.encode (α := Option (ℕ × ℕ))) (fun w _ _ => Fits w 3 ∧ Fits w 1)
+    (fun _ _ => 0) := by
+  realize
+  all_goals first | exact h.1 | exact h.2
+
+-- A map of a map of a certified call composes the two maps and keeps the certificate.
+example (m : ℕ → Memory.Prog (ℕ × ℕ))
+    (hm : Realizes .exact m word pairWords (fun _ _ _ => True) (fun _ _ => 0)) :
+    Realizes .exact (fun n => (fun a => a) <$> (Prod.snd <$> m n)) word word
+      (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize [hm]
+
+-- A map over a conditional maps each alternative; only the chosen one must fit.
+example : Realizes .exact
+    (fun d : ℕ × ℕ => (· + 1) <$> (if d.1 < d.2 then pure d.1 else Memory.read d.2))
+    pairWords word (fun w d s => if d.1 < d.2 then Fits w (d.1 + 1) else Fits w (s.mem d.2 + 1))
+    (fun _ _ => 0) := by
+  realize
+  all_goals simpa [hc] using h
+
+-- A map inside a loop body.
+example : Realizes .exact
+    (fun d : ℕ × ℕ => iterate (fun x : ℕ × ℕ => (fun v => v) <$> Memory.read x.2) d.1 d.2 d.1)
+    pairWords word (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize
+
 -- At address zero an arbitrary fitting word can still overflow when incremented.
 example : True := by
   fail_if_success

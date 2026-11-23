@@ -175,7 +175,7 @@ private theorem splitCount_sq (n : ℕ) :
 
 /-! ### Client reduction and frame helpers for `Memory.Prog` -/
 
-attribute [local client_simps] runClient_read runClient_write clientState_map
+attribute [local client_simps] runClient_read runClient_write StateTransitionSpec.clientState_map
 
 private theorem preservesAt_iterate_fst {a : ℕ} {δ β : Type}
     {body : δ × (ℕ × β) → Memory.Prog (ℕ × β)} {d : δ}

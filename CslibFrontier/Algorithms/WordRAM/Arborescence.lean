@@ -123,12 +123,6 @@ open Cslib.WordRAM.Realization.Signed
     ((Memory.spec w).runClient s (Memory.allocDirty k)).2.1 = ⟨s.mem, s.frontier + k⟩ := by
   rw [runClient_allocDirty]
 
-@[local client_simps] private theorem local_fst_snd_map {α β : Type} (w : ℕ)
-    (s : Memory.State) (g : α → β) (p : Memory.Prog α) :
-    ((Memory.spec w).runClient s (g <$> p : Memory.Prog β)).2.1 =
-      (Memory.spec w).clientState s p := by
-  rw [runClient_map]
-
 @[local client_simps] private theorem local_fst_snd_ite {α : Type} (w : ℕ)
     (c : Prop) [Decidable c] (p₁ p₂ : Memory.Prog α) (s : Memory.State) :
     ((Memory.spec w).runClient s (if c then p₁ else p₂ : Memory.Prog α)).2.1 =

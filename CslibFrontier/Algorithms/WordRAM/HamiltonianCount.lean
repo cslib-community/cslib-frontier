@@ -86,7 +86,7 @@ open Finset
 
 attribute [local client_simps] StateTransitionSpec.clientState
   StateTransitionSpec.runClient_pure'
-  runClient_read runClient_write runClient_allocDirty runClient_ite runClient_map
+  runClient_read runClient_write runClient_allocDirty runClient_ite
   prog_clientState_ite
 
 private def finPrefSum {n : ℕ} (f : Fin n → ℕ) (k : ℕ) : ℕ :=
@@ -743,7 +743,7 @@ private theorem stepInnerProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth 
     have hfr := hspec.2.2.2.1
     have hmem := hspec.2.2.2.2.1
     dsimp only [stepInnerProg]
-    rw [← map_eq_pure_bind, clientState_map]
+    rw [← map_eq_pure_bind, StateTransitionSpec.clientState_map]
     ext a
     · exact hmem a (by simp)
     · exact hfr
@@ -754,7 +754,7 @@ private theorem stepInnerProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth 
     rw [memoryCost_bind', memoryCost_pure, add_zero]
     exact hspec.2.2.1
   · dsimp only [stepInnerProg]
-    rw [← map_eq_pure_bind, prog_clientResult_map, hspec.2.2.2.2.2.1, hpref_n]
+    rw [← map_eq_pure_bind, StateTransitionSpec.clientResult_map, hspec.2.2.2.2.2.1, hpref_n]
 
 -- 4. One round of restricted matrix–vector multiplication `stepVecProg`
 
@@ -1309,7 +1309,7 @@ private theorem sumVecProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w)
     have hfr := hspec.2.2.2.1
     have hmem' := hspec.2.2.2.2.1
     dsimp only [sumVecProg]
-    rw [← map_eq_pure_bind, clientState_map]
+    rw [← map_eq_pure_bind, StateTransitionSpec.clientState_map]
     ext a
     · exact hmem' a (by simp)
     · exact hfr
@@ -1320,7 +1320,7 @@ private theorem sumVecProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w)
     rw [memoryCost_bind', memoryCost_pure, add_zero]
     simpa only [one_mul] using hspec.2.2.1
   · dsimp only [sumVecProg]
-    rw [← map_eq_pure_bind, prog_clientResult_map, hspec.2.2.2.2.2.1, hpref_n]
+    rw [← map_eq_pure_bind, StateTransitionSpec.clientResult_map, hspec.2.2.2.2.2.1, hpref_n]
 
 -- 7. In-place binary odometer + parity flip `odometerProg`
 
@@ -1550,18 +1550,18 @@ private theorem odometerProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w
     rw [memoryCost_bind', memoryCost_pure, add_zero]
     exact hspec.2.2.1
   · dsimp only [odometerProg]
-    rw [← map_eq_pure_bind, clientState_map]
+    rw [← map_eq_pure_bind, StateTransitionSpec.clientState_map]
     exact hspec.2.2.2.1
   · intro x hx
     dsimp only [odometerProg]
-    rw [← map_eq_pure_bind, clientState_map]
+    rw [← map_eq_pure_bind, StateTransitionSpec.clientState_map]
     exact hspec.2.2.2.2.1 x hx
   · intro u
     dsimp only [odometerProg]
-    rw [← map_eq_pure_bind, clientState_map]
+    rw [← map_eq_pure_bind, StateTransitionSpec.clientState_map]
     exact hspec.2.2.2.2.2.2.2.1 u u.isLt
   · dsimp only [odometerProg]
-    rw [← map_eq_pure_bind, prog_clientResult_map]
+    rw [← map_eq_pure_bind, StateTransitionSpec.clientResult_map]
     exact hpar_eq
 
 -- 8. Computing `2 ^ n` via `n`-step doubling (`pow2Prog`)

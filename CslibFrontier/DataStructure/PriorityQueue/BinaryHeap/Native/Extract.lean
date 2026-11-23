@@ -57,13 +57,7 @@ theorem realizes_extractMin :
         (Memory.extractMin d.2).map (Option.map fun a => (a.1.val, a.2))) layoutWords
       (WordEncoding.encode (α := Option (ℕ × ℕ)))
       (fun w d s => ∃ K, d.2.Valid w K ∧ Memory.Inv d.2 s) (fun _ _ => 0) := by
-  -- Move the conversion to each return, where the handle and key are already words.
-  conv =>
-    arg 2
-    ext d
-    simp only [Memory.extractMin, ← PFunctor.FreeM.bind_eq_bind, PFunctor.FreeM.map_bind,
-      PFunctor.FreeM.map_pure, apply_ite, Memory.entry, apply_dite, Option.map_some,
-      Option.map_none, dite_eq_ite]
+  conv => arg 2; ext d; simp only [Memory.extractMin, Memory.entry]
   realize [SiftDown.realizes_siftDown]
   all_goals
     rcases h with ⟨K, hL, hs⟩

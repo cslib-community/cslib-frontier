@@ -12,8 +12,16 @@ public import CslibFrontier.DataStructure.StateTransition
 /-!
 # Mapping the result of a deterministic client
 
-`StateTransitionSpec.runClient_map` evaluates a result map over an entire run, including its
-final state and operation history. Use `simp only [client_simps]` for both `g <$> p` and `p.map g`.
+A result map `g <$> p` runs `p` and applies `g` to its answer. `StateTransitionSpec.runClient_map`
+evaluates the map over the entire run, including the final state and the operation history, and
+`StateTransitionSpec.clientResult_map` and `StateTransitionSpec.clientState_map` are its answer
+and state. All three are in `client_simps`, together with `PFunctor.FreeM.map_eq_map`, so
+`simp only [client_simps]` handles both spellings `g <$> p` and `p.map g`.
+
+## Main results
+
+* `StateTransitionSpec.runClient_map`, `StateTransitionSpec.clientResult_map`,
+  `StateTransitionSpec.clientState_map`: running a mapped client.
 -/
 
 public section
@@ -32,6 +40,16 @@ variable {D : StateTransitionSpec.{u, v, w}}
       (g (D.clientResult s p), D.clientState s p, D.clientHistory s p) := by
   rw [← bind_pure_comp, ← PFunctor.FreeM.bind_eq_bind, runClient_bind]
   simp only [runClient_pure', List.append_nil]
+
+/-- A mapped client answers with the function applied to the client's answer. -/
+@[client_simps] theorem clientResult_map (p : D.Client α) (g : α → β) (s : D.State) :
+    D.clientResult s (g <$> p) = g (D.clientResult s p) := by
+  rw [clientResult, runClient_map]
+
+/-- A mapped client stops where the client stops. -/
+theorem clientState_map (p : D.Client α) (g : α → β) (s : D.State) :
+    D.clientState s (g <$> p) = D.clientState s p := by
+  rw [clientState, runClient_map]
 
 attribute [client_simps] PFunctor.FreeM.map_eq_map
 
