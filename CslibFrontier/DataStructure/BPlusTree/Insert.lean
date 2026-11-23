@@ -42,7 +42,7 @@ on concrete trees. Costs are not stated here.
 * `Good`: a balanced, occupied subtree of a given height, which is what a split produces
   (`InsertResult.exists_good_split_ofLeaf`, `InsertResult.exists_good_split_ofNode`).
 * `Linked`, `Sep`: the separator convention between neighbouring children, and that of a
-  result (`separated_node_of_linked`, `sep_ofLeaf`, `sep_ofNode`).
+  result (`separated_node_of_linked`, `sep_ofLeaf`, `sep_ofNode`, `linked_withRest_of_sep`).
 
 ## Main results
 
@@ -824,6 +824,33 @@ theorem mem_toList_of_mem_withRest_fst {x : InsertResult α β} {rest : List (Br
   | tree c => exact hp
   | split l s r => exact List.mem_append_left _ hp
 
+/-- The convention between neighbours looks at a child only through the bound of the next
+separator on its keys. -/
+theorem Linked.of_forall_lt {a b : BPlusTree α β} {rest : List (Branch α β)}
+    (hl : Linked a rest)
+    (hb : ∀ s c rest', rest = (s, c) :: rest' → ∀ p ∈ b.toList, p.1 < s) : Linked b rest := by
+  cases rest with
+  | nil => trivial
+  | cons e rest =>
+    obtain ⟨s, c⟩ := e
+    exact ⟨hb s c rest rfl, hl.2.1, hl.2.2⟩
+
+/-- Placing a result with the separator convention in the place of a child linked to `rest`
+keeps the convention between neighbours, when the keys of the result are below the next
+separator. -/
+theorem linked_withRest_of_sep {x : InsertResult α β} {c : BPlusTree α β}
+    {rest : List (Branch α β)} (hx : Sep x) (hl : Linked c rest)
+    (hr : ∀ e ∈ rest, Separated e.child)
+    (hb : ∀ s c' rest', rest = (s, c') :: rest' → ∀ p ∈ x.toList, p.1 < s) :
+    Linked (x.withRest rest).1 (x.withRest rest).2 ∧ Separated (x.withRest rest).1 ∧
+      ∀ e ∈ (x.withRest rest).2, Separated e.child := by
+  cases x with
+  | tree m => exact ⟨hl.of_forall_lt hb, hx, hr⟩
+  | split l' s' r' =>
+    obtain ⟨hl', hr', h₁, h₂⟩ := hx
+    exact ⟨⟨h₁, h₂, hl.of_forall_lt fun s c' rest' h p hp =>
+      hb s c' rest' h p (List.mem_append_right _ hp)⟩, hl', List.forall_mem_cons.2 ⟨hr', hr⟩⟩
+
 /-- Placing a result with the separator convention in the place of a child keeps the convention
 between neighbours, when every key of the result is the inserted key or a key of the child, and
 the inserted key is below the next separator. -/
@@ -833,25 +860,10 @@ private theorem linked_withRest {prev : BPlusTree α β} {x : InsertResult α β
     (hr : ∀ e ∈ rest, Separated e.child)
     (hk : ∀ s c rest', rest = (s, c) :: rest' → k < s) :
     Linked (x.withRest rest).1 (x.withRest rest).2 ∧ Separated (x.withRest rest).1 ∧
-      ∀ e ∈ (x.withRest rest).2, Separated e.child := by
-  -- a tree whose keys are the inserted key or keys of `prev` is linked to `rest` as `prev` is
-  have key : ∀ c' : BPlusTree α β, (∀ p ∈ c'.toList, p.1 = k ∨ p ∈ prev.toList) →
-      Linked c' rest := by
-    intro c' hc'
-    cases rest with
-    | nil => trivial
-    | cons e rest =>
-      obtain ⟨s, c⟩ := e
-      obtain ⟨h₁, h₂, h₃⟩ := hl
-      exact ⟨fun p hp => (hc' p hp).elim (fun e => e ▸ hk s c rest rfl) (h₁ p), h₂, h₃⟩
-  cases x with
-  | tree c' => exact ⟨key c' hkeys, hx, hr⟩
-  | split l s' r =>
-    obtain ⟨hl', hr', h₁, h₂⟩ := hx
-    refine ⟨⟨h₁, h₂, key r fun p hp => hkeys p (List.mem_append_right _ hp)⟩, hl',
-      fun e he => ?_⟩
-    rcases List.mem_cons.1 he with rfl | he
-    exacts [hr', hr e he]
+      ∀ e ∈ (x.withRest rest).2, Separated e.child :=
+  linked_withRest_of_sep hx hl hr fun s c rest' h p hp => by
+    subst h
+    exact (hkeys p hp).elim (fun e => e ▸ hk s c rest' rfl) (hl.1 p)
 
 /-- The search among the branches of a node keeps the separator convention between neighbours
 and keeps every child separated. When it defers, the key is below the first separator. -/

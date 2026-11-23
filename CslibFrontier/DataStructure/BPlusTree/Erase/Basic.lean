@@ -25,8 +25,9 @@ the last child against its left one. A root left without separators collapses in
 child (`collapse`), so the height falls only there.
 
 Every entry is in a leaf, so there is no interior case: the search descends by the separators to
-one leaf and removes the entry there. A separator changes only in `mergeSplit`. A separator equal
-to the erased key stays where it is and need not be a key afterwards.
+one leaf and removes the entry there. A separator changes only in `mergeSplit`: a separator equal
+to the erased key stays where it is, and need not be a key afterwards, unless a repair drops or
+replaces it.
 
 Each operation is defined once over an arbitrary monad `m`, with a comparator
 `le : α → α → m Bool` and a node-visit action `visit : m Unit`, and no order instance in scope.
@@ -37,14 +38,16 @@ are scanned as in `slotM`, one comparison per separator passed and one more wher
 In the leaf the entry is removed by `Cslib.SortedAssoc.eraseM`. `eraseRestM` takes the child
 before the branches together with the computation of its erasure, so that the recursion is
 structural and the definitions are `@[expose]`d: `decide` evaluates erasure on concrete trees.
-Costs are not stated here.
+In a strict monad such as `Id` that computation is run for every child the scan passes, so the
+pure `erase` does work linear in the size of the tree when it is evaluated, although it visits
+and compares along one path, which is what `visit` and `le` record. Costs are not stated here.
 
 ## Main definitions
 
 * `underflows`, `mergeSplit`, `collapse`: underflow, the sibling repair and the root collapse.
 * `rebalanceRightM`, `rebalanceLastM`: the repairs against the right and the left sibling.
 * `eraseSubtreeM`, `eraseRestM`, `eraseM`: erasure, polymorphic.
-* `eraseSubtree`, `eraseRest`, `erase`: the pure operations.
+* `rebalanceRight`, `rebalanceLast`, `eraseSubtree`, `eraseRest`, `erase`: the pure operations.
 
 ## Main results
 
@@ -52,8 +55,8 @@ Costs are not stated here.
 * `toList_erase`: on a well-formed tree, the entries after erasure are `Cslib.SortedAssoc.erase`
   of the entries.
 * `IsWF.erase`: erasure preserves well-formedness.
-* `height_erase`, `height_erase_le`, `height_le_height_erase_add_one`: the height falls by one
-  exactly when the root collapses.
+* `height_erase`, `height_erase_le`, `height_le_height_erase_add_one`: the height stays or falls
+  by one.
 * `size_erase`: the size falls by one exactly when the key was present.
 * `toList_erase_of_lookup_eq_none`: erasing an absent key keeps the entries.
 
@@ -779,17 +782,6 @@ private theorem eraseFits_eraseSubtree (ht : 2 ≤ t) (k : α) (tr : BPlusTree �
 
 /-! ### The separator convention of the result -/
 
-/-- The convention between neighbours looks at a child only through the bound of the next
-separator on its keys. -/
-private theorem Linked.of_forall_lt {a b : BPlusTree α β} {rest : List (Branch α β)}
-    (hl : Linked a rest)
-    (hb : ∀ s c rest', rest = (s, c) :: rest' → ∀ p ∈ b.toList, p.1 < s) : Linked b rest := by
-  cases rest with
-  | nil => trivial
-  | cons e rest =>
-    obtain ⟨s, c⟩ := e
-    exact ⟨hb s c rest rfl, hl.2.1, hl.2.2⟩
-
 /-- Joining two runs of linked children around a separator above the keys of the first run and
 at most the keys of the child it introduces. -/
 private theorem Linked.append {a c : BPlusTree α β} {l₁ l₂ : List (Branch α β)} {s : α}
@@ -838,22 +830,6 @@ private theorem sep_mergeSplit {l r : BPlusTree α β} {s : α} (hl : Separated 
       · rcases List.mem_cons.1 he with rfl | he
         · exact hr.first
         · exact hr.of_mem_rest he
-
-/-- Placing a result with the separator convention in the place of a child linked to `rest`
-keeps the convention between neighbours, when the keys of the result are below the next
-separator. -/
-private theorem linked_withRest_of_sep {x : InsertResult α β} {c : BPlusTree α β}
-    {rest : List (Branch α β)} (hx : Sep x) (hl : Linked c rest)
-    (hr : ∀ e ∈ rest, Separated e.child)
-    (hb : ∀ s c' rest', rest = (s, c') :: rest' → ∀ p ∈ x.toList, p.1 < s) :
-    Linked (x.withRest rest).1 (x.withRest rest).2 ∧ Separated (x.withRest rest).1 ∧
-      ∀ e ∈ (x.withRest rest).2, Separated e.child := by
-  cases x with
-  | tree m => exact ⟨hl.of_forall_lt hb, hx, hr⟩
-  | split l' s' r' =>
-    obtain ⟨hl', hr', h₁, h₂⟩ := hx
-    exact ⟨⟨h₁, h₂, hl.of_forall_lt fun s c' rest' h p hp =>
-      hb s c' rest' h p (List.mem_append_right _ hp)⟩, hl', List.forall_mem_cons.2 ⟨hr', hr⟩⟩
 
 /-- The erasure among the branches after a good child `prev` keeps the separator convention
 between neighbours and keeps every child separated; the entries of the tree in the place of

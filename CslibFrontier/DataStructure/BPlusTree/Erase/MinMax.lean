@@ -28,8 +28,11 @@ not stated here.
 ## Main results
 
 * `map_eraseMinM`, `map_eraseMaxM`: a monad morphism commutes with the removals.
+* `eraseMin?_eq_map_min?`, `eraseMax?_eq_map_max?`: the entry that `min?` or `max?` finds,
+  together with the tree with its key erased.
 * `eraseMin?_eq`, `eraseMax?_eq`: on a well-formed tree, the first or the last entry together
   with the tree with its key erased.
+* `eraseMin?_eq_some_iff`, `eraseMax?_eq_some_iff`: when an entry and a tree are returned.
 * `toList_of_eraseMin?_eq_some`, `toList_of_eraseMax?_eq_some`: the returned tree has the entries
   after the first, or before the last.
 * `IsWF.of_eraseMin?_eq_some`, `IsWF.of_eraseMax?_eq_some`: the returned tree is well-formed.

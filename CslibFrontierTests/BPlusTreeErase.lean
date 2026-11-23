@@ -67,7 +67,8 @@ example : (erase 2 4 twoLevels).leaves = twoLevels.leaves ∧ IsWF 2 (erase 2 4 
   decide
 
 /-- Below minimum degree `2` erasure still evaluates and removes the entry. -/
-example : (erase 0 1 pair).toList = [(2, "b")] := by decide
+example : (erase 0 1 pair).toList = [(2, "b")] ∧ (erase 1 1 pair).toList = [(2, "b")] := by
+  decide
 
 /-- A key equal to a separator that is not a key is absent. -/
 example : (erase 2 2 gap).leaves = gap.leaves := by decide
