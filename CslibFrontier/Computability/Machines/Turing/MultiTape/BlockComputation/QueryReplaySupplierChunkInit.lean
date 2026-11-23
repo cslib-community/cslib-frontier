@@ -52,7 +52,7 @@ theorem length_runFrom_prepare_le (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s)
     (w : List Bool) (b : ℕ) [NeZero b] (σ i limit counter stride m chunk t : ℕ) :
     let (positive, negative) := ScheduleRead.origin k 0 (σ, i)
     (encState ((machine M e).runFrom w
-      (prepare e ((m, chunk), (w.length, b, σ, i, limit, counter, stride))) t)).length ≤
+      (prepare e ((m, chunk), ⟨w.length, b, σ, i, limit, counter, stride⟩)) t)).length ≤
       2 * (encContext (m, chunk)).length + 1 + (Encoding.width k s b + 1) +
         (2 * (Gate.encContext
           (positive, negative, ScheduleRead.fullrow k (σ, i))).length + 2 +
@@ -69,7 +69,7 @@ omit [Finite Q] in
 theorem halted_runFrom_prepare (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s)
     (w : List Bool) (N b σ i limit counter stride m chunk : ℕ) :
     (machine M e).halted ((machine M e).runFrom w
-      (prepare e ((m, chunk), (N, b, σ, i, limit, counter, stride))) b) = true := by
+      (prepare e ((m, chunk), ⟨N, b, σ, i, limit, counter, stride⟩)) b) = true := by
   rw [prepare, runFrom_eq]
   exact Supplier.halted_runFrom_prepare M e w N b σ i limit counter stride
 
@@ -78,7 +78,7 @@ omit [Finite Q] in
 call rules, and returns the state used by the packed-answer correctness theorem. -/
 theorem exists_first_return (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) (w : List Bool)
     (N b σ i limit counter stride m chunk : ℕ) :
-    let start := prepare e ((m, chunk), (N, b, σ, i, limit, counter, stride))
+    let start := prepare e ((m, chunk), ⟨N, b, σ, i, limit, counter, stride⟩)
     ∃ T, T ≤ b ∧ (machine M e).halted ((machine M e).runFrom w start T) = true ∧
       (∀ t < T, (machine M e).halted ((machine M e).runFrom w start t) = false) ∧
       (machine M e).runFrom w start T = (machine M e).runFrom w start b := by

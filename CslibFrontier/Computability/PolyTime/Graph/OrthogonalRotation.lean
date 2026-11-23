@@ -47,18 +47,14 @@ abbrev encDrawingDart := encPair encDrawingInput encUnary
 private theorem dartCount_polyTime :
     ComputableInPolyTime (fun p : Graph × OrthogonalDrawing => 2 * p.1.edges.length)
       encDrawingInput encUnary := by
-  have he := encGraph_edges_polyTime (ComputableInPolyTime.fst encGraph encOrthogonalDrawing)
-  have hl := (ComputableInPolyTime.length_list (encPair encNat encNat)).comp he
-  exact ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const 2).prod hl)
+  unfold encDrawingInput
+  fun_prop
 
 private theorem endpoint_polyTime :
     ComputableInPolyTime (fun p : Graph × ℕ => endpoint p.1 p.2)
       (encPair encGraph encUnary) encNat := by
-  have hv := RotationCertificate.incidenceVertices_polyTime
   unfold endpoint
-  exact ComputableInPolyTime.listGetDWithInput
-    (hv.comp (ComputableInPolyTime.fst encGraph encUnary))
-    (ComputableInPolyTime.snd encGraph encUnary) 0
+  fun_prop
 
 private theorem dartOrigin_polyTime :
     ComputableInPolyTime (fun p : (Graph × OrthogonalDrawing) × ℕ =>
@@ -166,6 +162,6 @@ theorem computableInPolyTime_rotationCertificate :
       (ComputableInPolyTime.unary_to_binary.comp
         (ComputableInPolyTime.snd encDrawingInput encUnary))
     simpa only [Function.comp_def, List.map_id'] using h
-  exact encRotationCertificate_mk_deg.computableInPolyTime.comp hb
+  exact encRotationCertificate_mk_polyTime hb
 
 end Cslib.Complexity.Graph.OrthogonalDrawing

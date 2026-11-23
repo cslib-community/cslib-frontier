@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Multiword.Bank
 public import CslibFrontier.Computability.WordRAM.Multiword.Bitwise
 public import CslibFrontier.Computability.WordRAM.Multiword.Transfer
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Tactic.FinIndex
 import CslibFrontier.Tactic.WramOmega
 
@@ -184,38 +185,26 @@ theorem exec_input {w z : ℕ} (hw : 2 ≤ w) (hz : Fits w z) (d : Fin n) :
     ∃ y, Exec w (input d) (Data.init [z]) y 46 ∧
       Encodes w y (Function.update (fun _ => 0) d z) ∧
       y.mem = (Data.init [z] : Data (capacity n + 4)).mem ∧ y.regs inputReg = z := by
-  let u : Data (capacity n + 4) := ((Data.init [z]).set inputReg 1).set inputReg z
-  have he : Exec (B := .standard) w (ram[inputReg ← #1; inputReg ← *inputReg])
-      (Data.init [z]) u 2 := by
-    ram_eval [u, fits_one (by omega : w ≠ 0), Data.init, inputReg]
+  have hmem1 : (Data.init [z] : Data (capacity n + 4)).mem 1 = z := rfl
+  have hnot : inputReg (n := n) ∉ regs d := fun hi => by
+    have hh := mem_regs hi; dsimp only [inputReg] at hh; omega
+  refine WP.Exact.exists_exec ?_
+  unfold input
+  wram_exec [fits_one (by omega : w ≠ 0), hmem1]
+  refine WP.Exact.name fun u hux => ?_
   have hzero (i : Fin (capacity n + 4)) (hi : 44 ≤ i.val) : u.regs i = 0 := by
-    have hine : i ≠ inputReg := by
-      fin_index
-    simp only [u, Data.set_regs, Function.update_of_ne hine, Data.init_regs]
-  have hu : Encodes w u (fun _ => 0) := by
-    intro j
-    refine ⟨?_, ?_⟩
-    · intro i hi
-      rw [hzero i (by have := mem_regs hi; omega)]
-      have := one_lt_radix hw
-      omega
-    · exact value_eq_zero_of_forall fun i hi => hzero i (by have := mem_regs hi; omega)
-  have huz : u.regs inputReg = z := by simp [u]
-  obtain ⟨y, hey, hyb, hyv, hyf, hyp⟩ := Transfer.exec_split_eighteen hw inputReg
-    (regs d) (length_regs d) (by dsimp [IsDigit, inputReg]; omega)
-    (digit_regs d) (nodup_regs d) u
-    (by rwa [huz])
-  rw [huz] at hyv
-  have hnot : inputReg ∉ regs d := by
-    intro hi
-    have hh := mem_regs hi
-    dsimp only [inputReg] at hh
-    omega
-  refine ⟨y, ?_, encodes_update hu d z hyb hyv ?_, hyf.1, ?_⟩
-  · exact he.seq hey
-  · intro i hi hid
-    exact hyp i (by wram_omega) hid
-  · exact (hyp inputReg (by dsimp [IsDigit, inputReg]; omega) hnot).trans huz
+    have : i ≠ inputReg := by fin_index
+    rw [hux]; wram_simp [Data.init_regs]
+  have hu : Encodes w u (fun _ => 0) := fun j =>
+    ⟨fun i hi => hzero i (by have := mem_regs hi; omega) ▸ Nat.zero_lt_of_lt (one_lt_radix hw),
+      value_eq_zero_of_forall fun i hi => hzero i (by have := mem_regs hi; omega)⟩
+  have huz : u.regs inputReg = z := by rw [hux]; wram_simp
+  obtain ⟨y, he, hyb, hyv, hyf, hyp⟩ := Transfer.exec_split_eighteen hw inputReg (regs d)
+    (length_regs d) (by dsimp [IsDigit, inputReg]; omega) (digit_regs d) (nodup_regs d) u
+    (huz ▸ hz)
+  exact WP.Exact.of_exec he ⟨rfl, encodes_update hu d z hyb (hyv.trans huz) fun i _ hid =>
+    hyp i (by wram_omega) hid, by rw [hyf.1, hux]; rfl,
+    (hyp inputReg (by dsimp [IsDigit, inputReg]; omega) hnot).trans huz⟩
 
 end Cslib.WordRAM.Multiword.Bank
 
