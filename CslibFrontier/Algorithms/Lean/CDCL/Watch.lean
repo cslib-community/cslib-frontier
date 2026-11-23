@@ -13,16 +13,16 @@ public import CslibFrontier.Algorithms.Lean.CDCL.Assign
 
 The watch store of the CDCL solver: an array of numbered clauses without repetitions, each of at
 least two literals, whose first two literals are its watches, and an array of watch lists indexed
-by literal (`litKey`). A watch list holds *watchers* (`Watcher`): the position of a clause and a
-*blocker*, a literal of the clause. As in MiniSat, a watcher whose blocker is true is skipped
-without reading its clause.
+by literal (its key `litCode`). A watch list holds *watchers* (`Watcher`): the position of a
+clause and a *blocker*, a literal of the clause. As in MiniSat, a watcher whose blocker is true is
+skipped without reading its clause.
 
 The store holds numbers only, so that the solver follows no pointer to read a literal, and moving a
 watch or keeping a watcher makes no object for the watcher or the literal. This holds for numbers
 in the scalar range of Lean's runtime: a larger number is boxed. The arrays are written in place
 when they are not shared and have room; otherwise `Array.push` grows or copies them, and adding a
 watch may also grow the array of watch lists (`addWatch`). A literal is its key `2 * v + b`
-(`litKey`, the word code `Cslib.Algorithms.WordRAM.ClauseCode.litCode`), decoded by `litOfKey`, a
+(the word code `Cslib.Algorithms.WordRAM.ClauseCode.litCode`), decoded by `litOfKey`, a
 bijection between literals and numbers. A clause is an array of numbers: the keys of its literals,
 then its number (`WatchStore.codes`). A watch list is an array of numbers, two per watcher: the
 position of the clause and the key of the blocker.
@@ -62,6 +62,7 @@ public section
 namespace Cslib.Algorithms.Lean.CDCL
 
 open Cslib.Logic.PL
+open Cslib.Algorithms.WordRAM.ClauseCode (litCode litCode_injective)
 
 /-- **A watcher**: a clause of the store, by position, and its *blocker*, a literal of the clause.
 When the blocker is true, the clause is satisfied and is skipped without being read. The store
@@ -76,8 +77,8 @@ structure Watcher where
 /-- The positions of the clauses of a list of watchers. -/
 abbrev clauseIds (L : List Watcher) : List ℕ := L.map Watcher.clause
 
-/-- **The watch lists**: for each index (`litKey`), an array of numbers, two for each watcher: the
-position of its clause, then the key of its blocker (`litKey`). Numbers in the scalar range are
+/-- **The watch lists**: for each index (`litCode`), an array of numbers, two for each watcher: the
+position of its clause, then the key of its blocker (`litCode`). Numbers in the scalar range are
 unboxed at run time, so a watch list of them holds no pointers, and keeping or adding a watcher
 makes no object of its own. Pushing writes in place only when the array is not shared and has
 room, and otherwise grows or copies it. -/
@@ -261,11 +262,11 @@ theorem mem_clauseIds_addWatch_self (W : Watches) (i k b : ℕ) :
 /-- **The watch store**: the clauses with at least two literals, each with its watched literals
 first, and the watch lists, giving for each literal the clauses that may watch it. -/
 structure WatchStore where
-  /-- The numbered clauses, each an array of numbers: the keys of its literals (`litKey`), watched
+  /-- The numbered clauses, each an array of numbers: the keys of its literals (`litCode`), watched
   literals first, then its number. Moving a watch updates the array in place, and reading a literal
   follows no pointer. -/
   codes : Array (Array ℕ)
-  /-- The watch lists, by `litKey`. -/
+  /-- The watch lists, by `litCode`. -/
   watches : Watches
 
 /-- The number of a clause of the store: the last number of its array. -/
@@ -289,7 +290,7 @@ theorem WatchStore.getElem_clauses (S : WatchStore) {k : ℕ} (hk : k < S.codes.
 
 /-- Encoding the literals of a clause, then its number, and decoding them gives them back. -/
 theorem decodeClause_encode (id : ℕ) (c : Clause ℕ) :
-    decodeClause ((c.map litKey).toArray.push id) = (id, c.toArray) := by
+    decodeClause ((c.map litCode).toArray.push id) = (id, c.toArray) := by
   simp [decodeClause, clauseId, Function.comp_def]
 
 /-- Writing into an array and dropping its last element, in either order. -/
@@ -364,7 +365,7 @@ structure WatchStore.Inv (F : List (ℕ × Clause ℕ)) (M : Trail) (Q : List (L
   covers : ∀ e ∈ F, 2 ≤ e.2.dedup.length →
     ∃ e' ∈ S.clauses, e'.1 = e.1 ∧ ∀ l, l ∈ e'.2.toList ↔ l ∈ e.2
   listed : ∀ (k : ℕ) (hk : k < S.clauses.size), ∀ w ∈ S.clauses[k].2.toList.take 2,
-    k ∈ clauseIds (watchList S.watches (litKey w))
+    k ∈ clauseIds (watchList S.watches (litCode w))
   blocker_mem : ∀ i, ∀ x ∈ watchList S.watches i, ∃ (hk : x.clause < S.clauses.size),
     x.blocker ∈ S.clauses[x.clause].2.toList
   covered : ∀ e ∈ S.clauses, ∀ w₁ w₂ rest, e.2.toList = w₁ :: w₂ :: rest →
@@ -407,7 +408,7 @@ inductive Visit
   /-- The clause no longer watches `u`. -/
   | drop
 
-/-- **What a visit finds, on the keys**: `Visit` with the literals as their keys (`litKey`), so
+/-- **What a visit finds, on the keys**: `Visit` with the literals as their keys (`litCode`), so
 that the solver decodes none of them but the one it propagates. -/
 inductive KeyVisit
   /-- The blocker is true. -/
@@ -564,17 +565,17 @@ theorem toList_eq_cons_cons {α : Type} {c : Array α} (h : 2 ≤ c.size) :
   | a :: b :: rest, _ => rfl
 
 /-- Comparing a key with the key of a literal is comparing the literals. -/
-theorem beq_litKey (n : ℕ) (u : Literal ℕ) : (n == litKey u) = decide (litOfKey n = u) := by
+theorem beq_litCode (n : ℕ) (u : Literal ℕ) : (n == litCode u) = decide (litOfKey n = u) := by
   by_cases h : litOfKey n = u
   · subst h; simp
-  · have : n ≠ litKey u := fun h' => h (by rw [h', litOfKey_litKey])
+  · have : n ≠ litCode u := fun h' => h (by rw [h', litOfKey_litCode])
     simp [h, this]
 
 /-- **The visit meets its specification**, under an assignment agreeing with the trail, for the
 watcher read back from the two numbers and the outcome read back from the keys. -/
 theorem WatchStore.visit_spec (S : WatchStore) {A : Assign} {M : Trail} (hA : A.Agrees M)
     (u : Literal ℕ) (k b : ℕ) :
-    VisitSpec S M u ⟨k, litOfKey b⟩ (S.visit A (litKey u) k b).lits := by
+    VisitSpec S M u ⟨k, litOfKey b⟩ (S.visit A (litCode u) k b).lits := by
   unfold visit
   rw [Assign.holdsKey_eq]
   by_cases hb : A.holds (litOfKey b) = true
@@ -603,7 +604,7 @@ theorem WatchStore.visit_spec (S : WatchStore) {A : Assign} {M : Trail} (hA : A.
   have hlist : S.clauses[k].2.toList = litOfKey S.codes[k][0] :: litOfKey S.codes[k][1] ::
       (S.codes[k].pop.toList.drop 2).map litOfKey := by
     rw [hcl, toList_eq_cons_cons h2']; simp
-  simp only [beq_litKey, Bool.or_eq_true, decide_eq_true_eq]
+  simp only [beq_litCode, Bool.or_eq_true, decide_eq_true_eq]
   generalize hw₁ : litOfKey S.codes[k][0] = w₁ at hlist ⊢
   generalize hw₂ : litOfKey S.codes[k][1] = w₂ at hlist ⊢
   by_cases hu : w₁ = u ∨ w₂ = u
@@ -693,8 +694,8 @@ the other as blocker. -/
     let codes := S.codes
     let watches := S.watches
     -- `List.map`, not `Array.map`, so that the kernel and `decide` evaluate it
-    ⟨codes.push ((c.map litKey).toArray.push id),
-      addWatch (addWatch watches (litKey w₁) k (litKey w₂)) (litKey w₂) k (litKey w₁)⟩
+    ⟨codes.push ((c.map litCode).toArray.push id),
+      addWatch (addWatch watches (litCode w₁) k (litCode w₂)) (litCode w₂) k (litCode w₁)⟩
   | _ => S
 
 /-- **The clauses after adding one**, read back: the clause added, with its literals. -/
@@ -715,8 +716,8 @@ theorem WatchStore.Inv.addClause {F : List (ℕ × Clause ℕ)} {M : Trail} {Q :
     (hmem : ∀ l, l ∈ w₁ :: w₂ :: rest ↔ l ∈ C) (hw₁ : ¬ Processed M Q w₁.negate) :
     (S.addClause id (w₁ :: w₂ :: rest)).Inv ((id, C) :: F) M Q := by
   suffices H : ∀ T : WatchStore, T.clauses = S.clauses.push (id, (w₁ :: w₂ :: rest).toArray) →
-      T.watches = addWatch (addWatch S.watches (litKey w₁) S.clauses.size (litKey w₂)) (litKey w₂)
-        S.clauses.size (litKey w₁) → T.Inv ((id, C) :: F) M Q from
+      T.watches = addWatch (addWatch S.watches (litCode w₁) S.clauses.size (litCode w₂))
+        (litCode w₂) S.clauses.size (litCode w₁) → T.Inv ((id, C) :: F) M Q from
     H _ (S.clauses_addClause id _) (by simp [WatchStore.addClause, WatchStore.size_clauses])
   intro T hcl hW
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> rw [hcl] <;> (try rw [hW])
@@ -814,27 +815,27 @@ theorem falsifies_of_watchOrder {A : Assign} {M : Trail} (hA : A.Agrees M) {c re
 /-- The literals of a clause without repetitions, removed in linear time (`dedupLits`), are those
 of `List.dedup`, up to order. -/
 theorem dedupLits_perm (c : Clause ℕ) : (dedupLits c).Perm c.dedup :=
-  (List.perm_ext_iff_of_nodup (nodup_dedupKey litKey_injective c) (List.nodup_dedup c)).2
-    fun l => by rw [mem_dedupKey litKey_injective, List.mem_dedup]
+  (List.perm_ext_iff_of_nodup (nodup_dedupKey litCode_injective c) (List.nodup_dedup c)).2
+    fun l => by rw [mem_dedupKey litCode_injective, List.mem_dedup]
 
 /-! #### Removing repetitions with a shared array -/
 
 /-- Clearing the marks of the literals `L`. -/
 @[expose] def clearKeys (L : Clause ℕ) (m : Array Bool) : Array Bool :=
-  L.foldl (fun m x => m.setIfInBounds (litKey x) false) m
+  L.foldl (fun m x => m.setIfInBounds (litCode x) false) m
 
 /-- Clearing the marks of `L`, which include every literal marked, leaves no mark. -/
 theorem clearKeys_clean : ∀ (L : Clause ℕ) (m : Array Bool),
-    (∀ y, m.getD (litKey y) false = true → y ∈ L) →
-    ∀ y, (clearKeys L m).getD (litKey y) false = false
+    (∀ y, m.getD (litCode y) false = true → y ∈ L) →
+    ∀ y, (clearKeys L m).getD (litCode y) false = false
   | [], m, hm => fun y => by
-    cases h : m.getD (litKey y) false
+    cases h : m.getD (litCode y) false
     · exact h
     · exact absurd (hm y h) List.not_mem_nil
   | x :: L, m, hm => by
     refine clearKeys_clean L _ fun y hy => ?_
     simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds] at hy
-    by_cases hyx : litKey x = litKey y
+    by_cases hyx : litCode x = litCode y
     · rw [ite_eq_left hyx] at hy
       split at hy <;> simp at hy
     · rw [ite_eq_right hyx] at hy
@@ -845,19 +846,20 @@ theorem clearKeys_clean : ∀ (L : Clause ℕ) (m : Array Bool),
 again: the array is not allocated per clause, as `dedupLits` allocates it. If a literal of `c`
 lies beyond the array, `dedupLits` is used instead. -/
 @[expose] def dedupWith (m : Array Bool) (c : Clause ℕ) : Clause ℕ × Array Bool :=
-  if c.all fun l => decide (litKey l < m.size) then
-    let r := dedupKeyGo litKey c m []
+  if c.all fun l => decide (litCode l < m.size) then
+    let r := dedupKeyGo litCode c m []
     (r.1, clearKeys r.1 r.2)
   else (dedupLits c, m)
 
-theorem dedupWith_spec (m : Array Bool) (c : Clause ℕ) (hm : ∀ y, m.getD (litKey y) false = false) :
-    (dedupWith m c).1.Perm c.dedup ∧ ∀ y, (dedupWith m c).2.getD (litKey y) false = false := by
+theorem dedupWith_spec (m : Array Bool) (c : Clause ℕ)
+    (hm : ∀ y, m.getD (litCode y) false = false) :
+    (dedupWith m c).1.Perm c.dedup ∧ ∀ y, (dedupWith m c).2.getD (litCode y) false = false := by
   unfold dedupWith
   split
   · rename_i hall
-    have hsize : ∀ x ∈ c, litKey x < m.size := by simpa using hall
-    have hm0 : ∀ y, m.getD (litKey y) false = true ↔ y ∈ ([] : Clause ℕ) := by simp [hm]
-    obtain ⟨h₁, h₂, h₃⟩ := dedupKeyGo_spec litKey_injective c m [] hsize hm0 List.nodup_nil
+    have hsize : ∀ x ∈ c, litCode x < m.size := by simpa using hall
+    have hm0 : ∀ y, m.getD (litCode y) false = true ↔ y ∈ ([] : Clause ℕ) := by simp [hm]
+    obtain ⟨h₁, h₂, h₃⟩ := dedupKeyGo_spec litCode_injective c m [] hsize hm0 List.nodup_nil
     exact ⟨(List.perm_ext_iff_of_nodup h₂ (List.nodup_dedup c)).2 fun l => by
       rw [h₁, List.mem_dedup]; simp, clearKeys_clean _ _ fun y hy => (h₃ y).1 hy⟩
   · exact ⟨dedupLits_perm c, hm⟩
@@ -874,7 +876,7 @@ are returned cleared. -/
 
 /-- One past the greatest literal code of `F`: the size of the marks for its repetitions. -/
 @[expose] def keyBound (F : List (ℕ × Clause ℕ)) : ℕ :=
-  F.foldl (fun n e => e.2.foldl (fun n l => max n (litKey l + 1)) n) 0
+  F.foldl (fun n e => e.2.foldl (fun n l => max n (litCode l + 1)) n) 0
 
 /-- **The watch store** of the numbered clauses `F` under the assignment `A`: every clause with at
 least two different literals, without repetitions, watching its first two literals once those that
@@ -886,10 +888,10 @@ clauses (`Cslib.Algorithms.Lean.CDCL.dedupWith`). -/
   (WatchStore.buildWith A F (Array.replicate (keyBound F) false)).1
 
 theorem WatchStore.buildWith_inv {A : Assign} {M : Trail} (hA : A.Agrees M) :
-    ∀ (F : List (ℕ × Clause ℕ)) (m : Array Bool), (∀ y, m.getD (litKey y) false = false) →
+    ∀ (F : List (ℕ × Clause ℕ)) (m : Array Bool), (∀ y, m.getD (litCode y) false = false) →
     (∀ e ∈ F, 2 ≤ e.2.dedup.length → ¬ Trail.Falsifies M e.2) →
     (WatchStore.buildWith A F m).1.Inv F M [] ∧
-      ∀ y, (WatchStore.buildWith A F m).2.getD (litKey y) false = false
+      ∀ y, (WatchStore.buildWith A F m).2.getD (litCode y) false = false
   | [], m, hm, _ => ⟨WatchStore.inv_empty M [], hm⟩
   | e :: F, m, hm, hF => by
     obtain ⟨ih, hm'⟩ := buildWith_inv hA F m hm fun e' he' => hF e' (List.mem_cons_of_mem _ he')

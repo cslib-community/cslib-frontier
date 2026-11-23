@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.HeadCounters
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Basic.Finite.Prod
 import Mathlib.Data.Fintype.Option
 import Mathlib.Data.Fintype.Pi
@@ -179,22 +180,19 @@ private def hi (j : Fin k) : Fin (k + k + 1) := ⟨k + j, by have := j.isLt; ome
 private def tmp : Fin (k + k + 1) := Fin.last _
 
 private lemma lo_ne_tmp (j : Fin k) : lo j ≠ tmp := by
-  simp only [lo, tmp, ne_eq, Fin.ext_iff, Fin.val_last]
-  omega
+  fin_index [lo, tmp]
 
 private lemma hi_ne_tmp (j : Fin k) : hi j ≠ tmp := by
-  simp only [hi, tmp, ne_eq, Fin.ext_iff, Fin.val_last]
-  omega
+  fin_index [hi, tmp]
 
 private lemma lo_ne_hi (j j' : Fin k) : lo j ≠ hi j' := by
-  simp only [lo, hi, ne_eq, Fin.ext_iff]
-  omega
+  fin_index [lo, hi]
 
-private lemma lo_inj {j j' : Fin k} : lo j = lo j' ↔ j = j' := by
-  simp [lo, Fin.ext_iff]
+private lemma lo_inj {j j' : Fin k} : lo j = lo j' ↔ j = j' :=
+  ⟨fun _ => by fin_index [lo], congrArg lo⟩
 
-private lemma hi_inj {j j' : Fin k} : hi j = hi j' ↔ j = j' := by
-  simp [hi, Fin.ext_iff]
+private lemma hi_inj {j j' : Fin k} : hi j = hi j' ↔ j = j' :=
+  ⟨fun _ => by fin_index [hi], congrArg hi⟩
 
 /-- The stack that a move in direction `d` pushes onto: the half behind the head. -/
 private def target (j : Fin k) (d : SignType) : Fin (k + k + 1) := if d = 1 then lo j else hi j
@@ -473,14 +471,14 @@ private lemma run_count (Y r : ℕ) (hr : r < 3) (cs : Fin (k + k + 1) → ℕ)
         · subst h2
           simp only [update_of_ne h1, update_self, hY]
         · simp only [update_of_ne h1, update_of_ne h2]
-    have hrem : rem3 (r + 0) = ⟨r, hr⟩ := Fin.ext (Nat.mod_eq_of_lt hr)
+    have hrem : rem3 (r + 0) = ⟨r, hr⟩ := by fin_index [rem3]
     rw [e, hrem, runFrom_succ_of_ctl tm pos out (c' := ⟨q, inp, sc, cur, .restore j ⟨r, hr⟩⟩)
       (mv := fun _ => 0) (fun _ => by simp [ctl, hY]), moveCounters_zero]
     rfl
   | succ Y ih =>
     by_cases h2 : r = 2
     · subst h2
-      have hrem : rem3 (0 + Y) = rem3 (2 + (Y + 1)) := Fin.ext (by simp only [rem3]; omega)
+      have hrem : rem3 (0 + Y) = rem3 (2 + (Y + 1)) := by fin_index [rem3]
       rw [runFrom_succ_of_ctl tm pos out (c' := ⟨q, inp, sc, cur, .count j ⟨0, by omega⟩⟩)
           (mv := transfer (source j (dir tm q inp sc j)) tmp) (fun _ => by simp [ctl, hY]),
         moveCounters_transfer _ hne, ih 0 (by omega) _ (by simp [hne, hY]), hrem]
@@ -494,12 +492,9 @@ private lemma run_count (Y r : ℕ) (hr : r < 3) (cs : Fin (k + k + 1) → ℕ)
         · subst h3
           simp only [update_of_ne h1, update_self]
         · simp only [update_of_ne h1, update_of_ne h3]
-    · have hsucc : (⟨r, hr⟩ + 1 : Fin 3) = ⟨r + 1, by omega⟩ := Fin.ext (by
-        rw [Fin.val_add]
-        simp only [Fin.val_one]
-        omega)
+    · have hsucc : (⟨r, hr⟩ + 1 : Fin 3) = ⟨r + 1, by omega⟩ := by fin_index [Fin.val_add]
       have hrem : rem3 (r + 1 + Y) = rem3 (r + (Y + 1)) := by rw [Nat.add_assoc, Nat.add_comm 1]
-      have hne2 : (⟨r, hr⟩ : Fin 3) ≠ 2 := fun e => h2 (congrArg Fin.val e)
+      have hne2 : (⟨r, hr⟩ : Fin 3) ≠ 2 := by fin_index
       rw [runFrom_succ_of_ctl tm pos out (c' := ⟨q, inp, sc, cur, .count j ⟨r + 1, by omega⟩⟩)
           (mv := Pi.single (source j (dir tm q inp sc j)) (-1))
           (fun _ => by simp [ctl, hY, hne2, hsucc]),
@@ -659,8 +654,7 @@ private lemma run_tape (pos : Fin (input.length + 2)) (out : List Bool) (q : Sta
     by_cases hij : i = j
     · subst hij
       exact ⟨fun _ => hj, fun h => absurd h (by omega)⟩
-    · have hne : (i : ℕ) ≠ j := fun e => hij (Fin.ext e)
-      rw [hcur' i hij, hlo i hij, hhi i hij]
+    · rw [hcur' i hij, hlo i hij, hhi i hij]
       exact ⟨fun h => (hinv i).1 (by omega), fun h => (hinv i).2 (by omega)⟩
   rcases hd : ((tm.tr q c.inputSymbol c.workTapeSymbols).workTapes j).2 with _ | _ | _
   · -- no move: only the scanned symbol changes
