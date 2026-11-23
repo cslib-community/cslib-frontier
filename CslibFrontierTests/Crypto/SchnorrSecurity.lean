@@ -10,10 +10,8 @@ module
 import CslibFrontier.Crypto.Computational.SchnorrSignature.Security
 import CslibFrontier.Crypto.Computational.DiscreteLog.SchnorrGroup
 import CslibFrontier.Crypto.Negligible.Dyadic
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
+import CslibFrontier.Foundations.Data.Nat.Bits
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import Mathlib.NumberTheory.Bertrand
 import Mathlib.Tactic.NormNum.Prime

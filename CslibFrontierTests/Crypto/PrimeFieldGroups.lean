@@ -28,7 +28,7 @@ open Cslib Cslib.Crypto Turing.MultiTapeTM
 abbrev PrimeDesc : Type := {p : ℕ // p.Prime}
 
 /-- A prime is encoded by its binary digits. -/
-@[expose] def encPrime : PrimeDesc ↪ List Bool :=
+abbrev encPrime : PrimeDesc ↪ List Bool :=
   (Function.Embedding.subtype _).trans encNat
 
 theorem computableInPolyTime_val :
@@ -45,7 +45,7 @@ def primeSMul : PrimeDesc × ℕ × List Bool → List Bool
 
 /-- The additive groups `ZMod p` of prime order `p`, with generator `1` and residues encoded in
 binary. -/
-@[expose] def primeFields : PrimeOrderGroupFamily where
+abbrev primeFields : PrimeOrderGroupFamily where
   Desc := PrimeDesc
   encDesc := encPrime
   order p := p.1
