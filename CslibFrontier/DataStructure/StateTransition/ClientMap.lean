@@ -55,7 +55,7 @@ theorem clientState_map (p : D.Client α) (g : α → β) (s : D.State) :
 
 /-- `clientState_map`, stated in the form that `simp` indexes (see `fst_snd_runClient_bind`). -/
 @[client_simps] theorem fst_snd_runClient_map (p : D.Client α) (g : α → β) (s : D.State) :
-    (D.runClient s (g <$> p)).2.1 = D.clientState s p :=
+    Prod.fst (Prod.snd (D.runClient s (g <$> p))) = D.clientState s p :=
   clientState_map p g s
 
 attribute [client_simps] PFunctor.FreeM.map_eq_map
