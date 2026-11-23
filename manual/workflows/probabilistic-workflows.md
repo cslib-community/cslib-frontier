@@ -1863,15 +1863,16 @@ loop as a chain of distributions: `ProbComp.eval_iterate` for a closed loop and
 only the step laws agree, `ProbComp.eval_iterate_congr` gives equal loop laws directly.
 
 Then import [PMF/Coupling.lean](../../CslibFrontier/Probability/PMF/Coupling.lean).
-`PMF.map_iterate_bind_of_invariant` lifts a state representation that commutes with every step.
-`PMF.iterate_bind_comm_of_invariant` handles the case where the ideal chain first draws a hidden
-sample `k` and then runs on a smaller state. The link between the two chains is the law
-`(exp a).map (·, rep a)`, where `exp a` samples what the real state `a` has not yet fixed, as in
-lazy and eager sampling. The local step equation is needed only on states satisfying an invariant
-indexed by the round. Each lemma returns the lifted equation together with that invariant on the
-reachable states, so you can chain hops. `bind_bind_comm_of_invariant` and `map_bind_of_invariant`
-are the one-step forms for straight-line code, and `iterate_bind_invariant` gives only the
-invariant.
+`PMF.RepInv` bundles a state representation `d₁.map rep = d₂` with an invariant on `d₁.support`, and
+`PMF.RepInv.iterate` lifts a step-wise representation across a loop. `PMF.HiddenCoupling` handles
+the case where the ideal run first draws a hidden sample `k` from `exp₀` and then runs `d₂ k` on a
+smaller state. The link between the two runs is `(exp a).map (·, rep a)`, where `exp a` samples what
+the real state `a` has not yet fixed, as in lazy and eager sampling, and
+`PMF.HiddenCoupling.iterate` lifts it across a loop under an invariant indexed by the round. Both
+predicates infer intermediate distributions and continuations through dot-notation combinators
+(`.pure`, `.bind`, `.map`, `.iterate`, plus `RepInv.of_eq`, `HiddenCoupling.bind_pure`, and
+`HiddenCoupling.congr`), returning both the distribution equation and `support_inv` so you can chain
+hops. `PMF.iterate_bind_invariant` gives only the invariant.
 
 For an adaptive program with a query budget, import
 [Oracle/QueryBoundedSimulation.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/QueryBoundedSimulation.lean).

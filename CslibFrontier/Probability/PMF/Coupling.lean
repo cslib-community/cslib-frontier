@@ -37,11 +37,7 @@ hidden sample turns the link into a plain state representation, `(d.map rep)`.
   dot-notation combinators inferring intermediate distributions and continuations.
 * `Cslib.Probability.PMF.RepInv.pure`, `.of_eq`, `.map_eq`, `.bind`, `.map`, `.iterate`:
   dot-notation combinators for deterministic state representations with invariants.
-* `Cslib.Probability.PMF.bind_bind_comm_of_invariant`,
-  `Cslib.Probability.PMF.map_bind_of_invariant`,
-  `Cslib.Probability.PMF.iterate_bind_comm_of_invariant`,
-  `Cslib.Probability.PMF.map_iterate_bind_of_invariant`,
-  `Cslib.Probability.PMF.iterate_bind_invariant`: explicit-argument forms.
+* `Cslib.Probability.PMF.iterate_bind_invariant`: invariant preservation across `m` monadic steps.
 -/
 
 public section
@@ -57,8 +53,10 @@ running `d₂ k`, linked by the conditional law `exp a` of the hidden sample and
 `rep a`, carrying `inv` on `d₁.support`. -/
 structure HiddenCoupling (d₁ : PMF α) (exp₀ : PMF γ) (exp : α → PMF γ)
     (rep : α → β) (d₂ : γ → PMF β) (inv : α → Prop) : Prop where
+  /-- Joint law of the concrete outcome with its explained sample matches the ideal pair. -/
   bind_eq : (d₁.bind fun a => (exp a).map (·, rep a)) =
     (exp₀.bind fun k => (d₂ k).map (k, ·))
+  /-- Every reachable concrete outcome satisfies `inv`. -/
   support_inv : ∀ a ∈ d₁.support, inv a
 
 /-- Pointwise hidden-sample coupling on `PMF.pure`. -/
@@ -131,7 +129,9 @@ theorem HiddenCoupling.iterate {step₁ : α → PMF α} {step₂ : γ → β �
 /-- Couple a concrete distribution `d₁` with an abstract distribution `d₂` via `d₁.map rep = d₂`,
 carrying `inv` on `d₁.support`. -/
 structure RepInv (d₁ : PMF α) (d₂ : PMF β) (rep : α → β) (inv : α → Prop) : Prop where
+  /-- Pushforward of `d₁` along `rep` equals `d₂`. -/
   map_eq : d₁.map rep = d₂
+  /-- Every reachable concrete outcome satisfies `inv`. -/
   support_inv : ∀ a ∈ d₁.support, inv a
 
 /-- Pointwise representation and invariant on `PMF.pure`. -/
@@ -176,72 +176,6 @@ theorem RepInv.iterate {step₁ : α → PMF α} {step₂ : β → PMF β} {rep 
     simp only [Function.iterate_succ_apply']
     exact (ih fun i hi => hstep i (Nat.lt_succ_of_lt hi)).bind
       fun a _ ha => hstep m (Nat.lt_succ_self m) a ha
-
-/-- A step preserves the link `(exp a).map (·, rep a)` between real states and an ideal pair of a
-hidden sample and a represented state. The ideal step may depend on the hidden sample. The local
-link need only hold on reachable states satisfying `inv₁`, and the step preserves the invariant. -/
-theorem bind_bind_comm_of_invariant
-    (d₁ : PMF α₁) (exp₁ : α₁ → PMF γ) (rep₁ : α₁ → β₁) (d₂ : γ → PMF β₁) (inv₁ : α₁ → Prop)
-    (exp₀ : PMF γ)
-    (f₁ : α₁ → PMF α) (exp : α → PMF γ) (rep : α → β) (f₂ : γ → β₁ → PMF β) (inv : α → Prop)
-    (hd : (d₁.bind fun a => (exp₁ a).map (·, rep₁ a)) =
-        (exp₀.bind fun k => (d₂ k).map (k, ·)) ∧ ∀ a ∈ d₁.support, inv₁ a)
-    (hf : ∀ a ∈ d₁.support, inv₁ a →
-      ((f₁ a).bind fun b => (exp b).map (·, rep b)) =
-        ((exp₁ a).bind fun k => (f₂ k (rep₁ a)).map (k, ·)) ∧
-      ∀ b ∈ (f₁ a).support, inv b) :
-    ((d₁.bind f₁).bind fun b => (exp b).map (·, rep b)) =
-      (exp₀.bind fun k => ((d₂ k).bind (f₂ k)).map (k, ·)) ∧
-    ∀ b ∈ (d₁.bind f₁).support, inv b :=
-  let ⟨h1, h2⟩ := HiddenCoupling.bind ⟨hd.1, hd.2⟩ fun a ha i => ⟨(hf a ha i).1, (hf a ha i).2⟩
-  ⟨h1, h2⟩
-
-/-- A step preserves a state representation `rep₁` when it commutes with the representation on
-reachable states satisfying `inv₁`, and it preserves the invariant. -/
-theorem map_bind_of_invariant
-    (d₁ : PMF α₁) (d₂ : PMF β₁) (rep₁ : α₁ → β₁) (inv₁ : α₁ → Prop)
-    (f₁ : α₁ → PMF α) (f₂ : β₁ → PMF β) (rep : α → β) (inv : α → Prop)
-    (hd : d₁.map rep₁ = d₂ ∧ ∀ a ∈ d₁.support, inv₁ a)
-    (hf : ∀ a ∈ d₁.support, inv₁ a →
-      (f₁ a).map rep = f₂ (rep₁ a) ∧ ∀ b ∈ (f₁ a).support, inv b) :
-    (d₁.bind f₁).map rep = d₂.bind f₂ ∧ ∀ b ∈ (d₁.bind f₁).support, inv b :=
-  let ⟨h1, h2⟩ := RepInv.bind ⟨hd.1, hd.2⟩ fun a ha i => ⟨(hf a ha i).1, (hf a ha i).2⟩
-  ⟨h1, h2⟩
-
-/-- A chain of `m` steps preserves the link between real states and an ideal pair of a hidden
-sample and a represented state, when each step keeps the link on states satisfying the invariant
-`inv i` of its round `i` and preserves the invariant. The ideal chain may depend on the hidden
-sample, drawn once from its law at the initial state. -/
-theorem iterate_bind_comm_of_invariant
-    (step₁ : α → PMF α) (step₂ : γ → β → PMF β)
-    (exp : α → PMF γ) (rep : α → β) (inv : ℕ → α → Prop)
-    (m : ℕ) (init : α) (hinit : inv 0 init)
-    (hstep : ∀ i < m, ∀ a, inv i a →
-      ((step₁ a).bind fun a' => (exp a').map (·, rep a')) =
-        ((exp a).bind fun k => (step₂ k (rep a)).map (k, ·)) ∧
-      ∀ a' ∈ (step₁ a).support, inv (i + 1) a') :
-    ((Nat.iterate (fun d => d.bind step₁) m (PMF.pure init)).bind
-        fun a => (exp a).map (·, rep a)) =
-      ((exp init).bind fun k =>
-        (Nat.iterate (fun d => d.bind (step₂ k)) m (PMF.pure (rep init))).map (k, ·)) ∧
-      ∀ a ∈ (Nat.iterate (fun d => d.bind step₁) m (PMF.pure init)).support, inv m a :=
-  let ⟨h1, h2⟩ := HiddenCoupling.iterate inv rfl (fun _ _ => rfl) hinit fun i hi a ha =>
-    ⟨(hstep i hi a ha).1, (hstep i hi a ha).2⟩
-  ⟨h1, h2⟩
-
-/-- A chain of `m` steps preserves a state representation when each step commutes with it on
-states satisfying the invariant `inv i` of its round `i` and preserves the invariant. -/
-theorem map_iterate_bind_of_invariant
-    (step₁ : α → PMF α) (step₂ : β → PMF β) (rep : α → β) (inv : ℕ → α → Prop)
-    (m : ℕ) (init : α) (hinit : inv 0 init)
-    (hstep : ∀ i < m, ∀ a, inv i a →
-      (step₁ a).map rep = step₂ (rep a) ∧ ∀ a' ∈ (step₁ a).support, inv (i + 1) a') :
-    (Nat.iterate (fun d => d.bind step₁) m (PMF.pure init)).map rep =
-        Nat.iterate (fun d => d.bind step₂) m (PMF.pure (rep init)) ∧
-      ∀ a ∈ (Nat.iterate (fun d => d.bind step₁) m (PMF.pure init)).support, inv m a :=
-  let ⟨h1, h2⟩ := RepInv.iterate inv rfl hinit fun i hi a ha =>
-    ⟨(hstep i hi a ha).1, (hstep i hi a ha).2⟩
-  ⟨h1, h2⟩
 
 /-- Every reachable state of a chain of `m` steps satisfies an invariant indexed by the round,
 when every possible step from a state satisfying the invariant of its round preserves it. -/
