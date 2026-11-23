@@ -4,18 +4,24 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.InputBit
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.StoredCount
-import CslibFrontierTests.SpaceQueryLoop
+module
+
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.InputBit
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.StoredCount
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Unary
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
 
 /-!
 # Majority of the bits of a word by enumeration
 
 The predicate at index `i` is the bit of the word at the stored position `i`, read by
 `Turing.MultiTapeTM.ComputableInSpace.inputBit`; the range is the length of the word, computed by
-the scan of `CslibFrontierTests.SpaceQueryLoop`. `Turing.MultiTapeTM.ComputableInSpace.majorityWith`
-enumerates the positions with a stored counter. No loop state or invariant is written.
+the logspace routine `Turing.MultiTapeTM.computableInLogSpace_bitsLength`.
+`Turing.MultiTapeTM.ComputableInSpace.majorityWith` enumerates the positions with a stored
+counter. No loop state or invariant is written.
 -/
+
+@[expose] public section
 
 open Turing Turing.MultiTapeTM
 
@@ -38,8 +44,7 @@ theorem bit_inSpace : ComputableInSpace bit (encPair encNat encBits) encBool
 
 theorem length_inSpace : ComputableInSpace (fun w : List Bool => w.length) encBits encNat
     fun w => Nat.log2 (encBits w).length :=
-  (SpaceQueryLoopTest.encScan_pos_budget SpaceQueryLoopTest.scan_inSpace).mono_le fun w => by
-    simp only [encBits_apply]; omega
+  computableInLogSpace_bitsLength.inSpace_of_length_log length_bitsLength_log
 
 /-- **Majority of the bits of a word** within logarithmic space, by counting over positions. -/
 theorem majority_inSpace : ComputableInSpace majority encBits encBool

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.StoredLoop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinarySizeFacts
 
 /-!
@@ -35,11 +36,24 @@ namespace Turing.MultiTapeTM
 
 open ComputableInSpace
 
-/-- The body of the counting loop on the bound, the index and the count. -/
-private def countStep {α : Type} (p : ℕ × α → Bool) (q : (ℕ × ℕ × ℕ) × α) :
-    Option (ℕ × ℕ × ℕ) :=
-  if q.1.2.1 < q.1.1 then
-    some (q.1.1, q.1.2.1 + 1, q.1.2.2 + if p (q.1.2.1, q.2) then 1 else 0)
+/-- The registers of the counting loop. -/
+private structure CountState where
+  /-- The number of indices to enumerate. -/
+  bound : ℕ
+  /-- The next index. -/
+  idx : ℕ
+  /-- The number of indices below `idx` that satisfy the predicate. -/
+  count : ℕ
+
+/-- Registers of the counting loop, as their fields. -/
+private enc_structure encCountState : CountState where
+  bound : encNat, idx : encNat, count : encNat
+
+/-- The body of the counting loop: count the predicate at the next index, or stop at the
+bound. -/
+private def countStep {α : Type} (p : ℕ × α → Bool) (q : CountState × α) : Option CountState :=
+  if q.1.idx < q.1.bound then
+    some ⟨q.1.bound, q.1.idx + 1, q.1.count + if p (q.1.idx, q.2) then 1 else 0⟩
   else none
 
 private theorem countP_range_succ {α : Type} (p : ℕ × α → Bool) (a : α) (j : ℕ) :
@@ -59,51 +73,50 @@ theorem ComputableInSpace.countWith {α : Type} {encA : α ↪ List Bool} {m : �
     ComputableInSpace (fun a => (List.range (m a)).countP fun i => p (i, a)) encA encNat
       fun a => S a + Nat.log2 (encA a).length := by
   obtain ⟨-, cm, -, hmout⟩ := id hm
-  have hreg : ComputableInSpace (fun q : (ℕ × ℕ × ℕ) × α => q.1)
-      (encPair (encPair encNat (encPair encNat encNat)) encA)
-      (encPair encNat (encPair encNat encNat))
-      fun q => (encPair encNat (encPair encNat encNat) q.1).length +
-        (S q.2 + Nat.log2 (encA q.2).length) :=
+  have hreg : ComputableInSpace (fun q : CountState × α => q.1) (encPair encCountState encA)
+      encCountState
+      fun q => (encCountState q.1).length + (S q.2 + Nat.log2 (encA q.2).length) :=
     ((ComputableInLogSpace.fst _ encA).inSpace_context
       (.of_le fun _ => Nat.le_add_right _ _)).mono_le fun _ => by omega
-  have hpq : ComputableInSpace (fun q : (ℕ × ℕ × ℕ) × α => p (q.1.2.1, q.2))
-      (encPair (encPair encNat (encPair encNat encNat)) encA) encBool
-      fun q => (encPair encNat (encPair encNat encNat) q.1).length +
-        (S q.2 + Nat.log2 (encA q.2).length) :=
-    hp.comp_logSpace_context (f := fun q : (ℕ × ℕ × ℕ) × α => (q.1.2.1, q.2))
+  have hpq : ComputableInSpace (fun q : CountState × α => p (q.1.idx, q.2))
+      (encPair encCountState encA) encBool
+      fun q => (encCountState q.1).length + (S q.2 + Nat.log2 (encA q.2).length) :=
+    hp.comp_logSpace_context (f := fun q : CountState × α => (q.1.idx, q.2))
       (S := fun a => S a + Nat.log2 (encA a).length)
       (ComputableInLogSpace.pair
         (((ComputableInLogSpace.fst encNat encNat).comp'
           (ComputableInLogSpace.snd encNat (encPair encNat encNat))).comp'
-          (ComputableInLogSpace.fst _ encA))
+          ((ComputableInLogSpace.of_eq (f := fun s : CountState => (s.bound, s.idx, s.count))
+            (encIn := encCountState) (encMid := encPair encNat (encPair encNat encNat))
+            fun _ => rfl).comp' (ComputableInLogSpace.fst _ encA)))
         (ComputableInLogSpace.snd _ encA))
-      (.of_le fun q => by simp only [length_encPair]; omega) fun _ => by omega
+      (.of_le fun q => by
+        simp only [encCountState_apply, encCountStateFields, length_encPair]; omega)
+      fun _ => by omega
   have hconst {β : Type} (encB : β ↪ List Bool) (b : β) :
-      ComputableInSpace (fun _ : (ℕ × ℕ × ℕ) × α => b)
-        (encPair (encPair encNat (encPair encNat encNat)) encA) encB
-        fun q => (encPair encNat (encPair encNat encNat) q.1).length +
-          (S q.2 + Nat.log2 (encA q.2).length) :=
+      ComputableInSpace (fun _ : CountState × α => b) (encPair encCountState encA) encB
+        fun q => (encCountState q.1).length + (S q.2 + Nat.log2 (encA q.2).length) :=
     (ComputableInSpace.constZero b).mono_le fun _ => Nat.zero_le _
-  have hi := hreg.snd'.fst'
-  have hstep : ComputableInSpace (countStep p)
-      (encPair (encPair encNat (encPair encNat encNat)) encA)
-      (encOption (encPair encNat (encPair encNat encNat)))
-      fun q => (encPair encNat (encPair encNat encNat) q.1).length +
-        (S q.2 + Nat.log2 (encA q.2).length) :=
-    (budget_ite (budget_natLt hi hreg.fst')
-      (budget_optionSome (budget_prod hreg.fst' (budget_prod (budget_natSucc hi)
-        (budget_natAdd hreg.snd'.snd' (budget_ite hpq (hconst encNat 1) (hconst encNat 0))))))
+  have hbound := encCountState_bound_budget hreg
+  have hi := encCountState_idx_budget hreg
+  have hstep : ComputableInSpace (countStep p) (encPair encCountState encA)
+      (encOption encCountState)
+      fun q => (encCountState q.1).length + (S q.2 + Nat.log2 (encA q.2).length) :=
+    (budget_ite (budget_natLt hi hbound)
+      (budget_optionSome (encCountState_mk_budget hbound (budget_natSucc hi)
+        (budget_natAdd (encCountState_count_budget hreg)
+          (budget_ite hpq (hconst encNat 1) (hconst encNat 0)))))
       (hconst _ none)).of_enc_eq fun q => by
         unfold countStep
-        by_cases h : q.1.2.1 < q.1.1 <;> simp [h]
-  have hinit : ComputableInSpace (fun a => (m a, 0, 0)) encA
-      (encPair encNat (encPair encNat encNat)) fun a => S a + Nat.log2 (encA a).length :=
-    budget_prod (hm.mono_le fun _ => by omega) (budget_prod
+        by_cases h : q.1.idx < q.1.bound <;> simp [h]
+  have hinit : ComputableInSpace (fun a => (⟨m a, 0, 0⟩ : CountState)) encA encCountState
+      fun a => S a + Nat.log2 (encA a).length :=
+    encCountState_mk_budget (hm.mono_le fun _ => by omega)
       ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _)
-      ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _))
+      ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _)
   have hloop := ComputableInSpace.loopWith (step := countStep p)
     (B := fun a => 6 * (encNat (m a)).length + 3)
-    (fun a j => (m a, j, (List.range j).countP fun i => p (i, a))) m
+    (fun a j => ⟨m a, j, (List.range j).countP fun i => p (i, a)⟩) m
     hinit hstep (fun _ => rfl)
     (fun a j hj => by simp [countStep, hj, countP_range_succ])
     (fun a => by simp [countStep])
@@ -111,9 +124,9 @@ theorem ComputableInSpace.countWith {α : Type} {encA : α ↪ List Bool} {m : �
       have h₁ := length_encNat_mono hj
       have h₂ := length_encNat_mono (((List.range j).countP_le_length).trans
         (by rw [List.length_range]; exact hj) : (List.range j).countP (fun i => p (i, a)) ≤ m a)
-      simp only [length_encPair]
+      simp only [encCountState_apply, encCountStateFields, length_encPair]
       omega)
-  exact hloop.snd'.snd'.weaken ⟨7 * cm + 4, fun a => by
+  exact (encCountState_count_budget hloop).weaken ⟨7 * cm + 4, fun a => by
     dsimp only
     have := hmout a
     have h : 6 * (cm * (S a + 1)) ≤ 6 * (cm * (S a + Nat.log2 (encA a).length + 1)) :=
