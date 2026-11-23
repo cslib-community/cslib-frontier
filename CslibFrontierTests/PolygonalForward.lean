@@ -33,7 +33,7 @@ example : ∃ D : PolygonalDrawing (starGraph 13),
     (numericalGenusZero_starRotation 13)
 
 private theorem checkedGenus {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
     (h : RotationCertificate.verifyEuler G (RotationCertificate.ofRotation r) = true) :
     r.NumericalGenusZero := by
   have he := (RotationCertificate.verifyEuler_eq_true_iff

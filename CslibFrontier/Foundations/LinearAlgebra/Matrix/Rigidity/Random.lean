@@ -222,24 +222,24 @@ private theorem card_submodule_finrank_eq_lt {r : ℕ} (hr : r ≤ Fintype.card 
     rw [← Nat.card_eq_fintype_card, card_linearIndependent (K := K) (V := n → K)
       (by rwa [Module.finrank_fintype_fun_eq_card])]
     simp only [Module.finrank_fintype_fun_eq_card, q, N]
-  let spanOf : LI → Submodule K (n → K) := fun s => Submodule.span K (Set.range s.1)
+  let spanOf : LI → Submodule K (n → K) := fun s => Submodule.span K (Set.range s.val)
   have hmaps : ∀ s ∈ (univ : Finset LI), spanOf s ∈ S := fun s _ => by
-    simp only [S, mem_filter, mem_univ, true_and, spanOf, finrank_span_eq_card s.2,
+    simp only [S, mem_filter, mem_univ, true_and, spanOf, finrank_span_eq_card s.property,
       Fintype.card_fin]
   have hfiber : ∀ W ∈ S, #{s : LI | spanOf s = W} = ∏ i : Fin r, (q ^ r - q ^ i.val) := by
     intro W hW
     have hWr : finrank K W = r := (mem_filter.mp hW).2
     let e : {s' : Fin r → W // LinearIndependent K s'} ≃ {s : LI // spanOf s = W} :=
       { toFun := fun s' =>
-          ⟨⟨W.subtype ∘ s'.1, s'.2.map' W.subtype W.ker_subtype⟩, by
+          ⟨⟨W.subtype ∘ s'.val, s'.property.map' W.subtype W.ker_subtype⟩, by
             apply Submodule.eq_of_le_of_finrank_eq
             · rw [Submodule.span_le]
               rintro _ ⟨i, rfl⟩
-              exact (s'.1 i).2
-            · rw [finrank_span_eq_card (s'.2.map' W.subtype W.ker_subtype), Fintype.card_fin, hWr]⟩
+              exact (s'.val i).property
+            · rw [finrank_span_eq_card (s'.property.map' W.subtype W.ker_subtype), Fintype.card_fin, hWr]⟩
         invFun := fun s =>
-          ⟨fun i => ⟨s.1.1 i, s.2.le (Submodule.subset_span ⟨i, rfl⟩)⟩,
-            LinearIndependent.of_comp W.subtype s.1.2⟩
+          ⟨fun i => ⟨s.val.val i, s.property.le (Submodule.subset_span ⟨i, rfl⟩)⟩,
+            LinearIndependent.of_comp W.subtype s.val.property⟩
         left_inv := fun s' => Subtype.ext (funext fun _ => Subtype.ext rfl)
         right_inv := fun s => Subtype.ext (Subtype.ext (funext fun _ => rfl)) }
     have hc : #{s : LI | spanOf s = W} = Fintype.card {s : LI // spanOf s = W} := by
@@ -321,8 +321,8 @@ theorem card_rank_le_mul_lt (r : ℕ) :
       intro W hW
       have hWr : finrank K W = r := (mem_filter.mp hW).2
       let e : (m → W) ≃ {B : Matrix m n K // ∀ i, B.row i ∈ W} :=
-        { toFun := fun f => ⟨of fun i j => (f i).1 j, fun i => (f i).2⟩
-          invFun := fun B => fun i => ⟨B.1.row i, B.2 i⟩
+        { toFun := fun f => ⟨of fun i j => (f i).val j, fun i => (f i).property⟩
+          invFun := fun B => fun i => ⟨B.val.row i, B.property i⟩
           left_inv := fun _ => rfl
           right_inv := fun _ => Subtype.ext rfl }
       have hc : #{B : Matrix m n K | ∀ i, B.row i ∈ W} =

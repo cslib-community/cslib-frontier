@@ -221,7 +221,7 @@ private theorem wellFormed_iff_tableOk {a : EncodedStructure} :
     rwa [List.getD_eq_getElem _ _ hi', ← hai] at this
   · rintro ⟨hok, hlen⟩
     refine ⟨hlen, fun i => ?_⟩
-    obtain ⟨hi, h⟩ := hok i i.2
+    obtain ⟨hi, h⟩ := hok i i.isLt
     rw [List.getD_eq_getElem _ _ hi, h]
     simp [arityAt]
 

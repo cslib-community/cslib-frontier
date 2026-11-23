@@ -261,7 +261,7 @@ private theorem eval_hashCNF (σ : Var → Bool) (vars : List ℕ) (k : ℕ) (w 
     forall_exists_index, eval_rowClauses]
   constructor
   · intro h i
-    obtain ⟨h0, hL, hs⟩ := h _ i i.2 rfl
+    obtain ⟨h0, hL, hs⟩ := h _ i i.isLt rfl
     exact ⟨h0.trans (hoff i), hL, fun j hj => (hs j hj).trans (by rw [hrow i hj])⟩
   · rintro h row i hi rfl
     obtain ⟨h0, hL, hs⟩ := h ⟨i, hi⟩
@@ -314,10 +314,10 @@ private theorem eval_hashCNF_extend {vars : List ℕ} {k : ℕ} {w : List Bool} 
       if hp : p.1 < k then auxValue vars k w σ ⟨p.1, hp⟩ p.2 else false) = true := by
   refine (eval_hashCNF _ vars k w).2 fun i => ⟨?_, ?_, fun j hj => ?_⟩
   · simp [auxValue]
-  · simp only [Sum.elim_inr, i.2, dite_true, Fin.eta]
+  · simp only [Sum.elim_inr, i.isLt, dite_true, Fin.eta]
     rw [auxValue_length, h]
     rfl
-  · simp only [Sum.elim_inr, Sum.elim_inl, i.2, dite_true, Fin.eta, auxValue,
+  · simp only [Sum.elim_inr, Sum.elim_inl, i.isLt, dite_true, Fin.eta, auxValue,
       Finset.sum_range_succ, hj]
     rw [← add_assoc]
     rfl
@@ -535,7 +535,7 @@ theorem matrix_take (k width : ℕ) (w : List Bool) :
   funext i j
   simp only [matrix, BitString.block_apply, BitString.ofList, List.getD_eq_getElem?_getD,
     List.getElem?_take]
-  rw [ite_eq_left (by have := (finProdFinEquiv (i, j)).2; omega)]
+  rw [ite_eq_left (by have := (finProdFinEquiv (i, j)).isLt; omega)]
 
 /-- The offsets only read the first `k * width + k` bits. -/
 theorem offset_take (k width : ℕ) (w : List Bool) :

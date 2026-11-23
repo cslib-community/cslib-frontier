@@ -70,32 +70,32 @@ private theorem exponent_sum {d : ℕ} (s : Finset (Fin d)) :
   simp
 
 private theorem exponent_add_compl_eq_univ_iff {d k : ℕ} (r c : Layer d k) :
-    exponent r.1 + exponent c.1ᶜ = exponent Finset.univ ↔ r = c := by
+    exponent r.val + exponent c.valᶜ = exponent Finset.univ ↔ r = c := by
   constructor
   · intro h
     apply Subtype.ext
     ext i
     have hi := DFunLike.congr_fun h i
-    by_cases hr : i ∈ r.1 <;> by_cases hc : i ∈ c.1 <;>
+    by_cases hr : i ∈ r.val <;> by_cases hc : i ∈ c.val <;>
       simp [exponent_apply, hr, hc] at hi ⊢
   · rintro rfl
     ext i
-    by_cases hi : i ∈ r.1 <;> simp [exponent_apply, hi]
+    by_cases hi : i ∈ r.val <;> simp [exponent_apply, hi]
 
 private theorem exponent_add_compl_sum {d k : ℕ} (r c : Layer d k) :
-    (exponent r.1 + exponent c.1ᶜ).sum (fun _ e => e) = d := by
+    (exponent r.val + exponent c.valᶜ).sum (fun _ e => e) = d := by
   rw [Finsupp.sum_add_index' (fun _ => rfl) (fun _ _ _ => rfl), exponent_sum, exponent_sum,
     Finset.card_compl, Fintype.card_fin]
-  have hr := (Finset.mem_powersetCard.mp r.2).2
-  have hc := (Finset.mem_powersetCard.mp c.2).2
-  have hle := Finset.card_le_univ r.1
+  have hr := (Finset.mem_powersetCard.mp r.property).2
+  have hc := (Finset.mem_powersetCard.mp c.property).2
+  have hle := Finset.card_le_univ r.val
   simp only [Fintype.card_fin] at hle
   lia
 
 private noncomputable def feature (K : Type*) [Field K] (d k : ℕ) :
     MvPolynomial (Fin d) K →ₗ[K] (Layer d k → K) →ₗ[K] Layer d k → K :=
   Matrix.toLin'.toLinearMap.comp
-    (catalecticant (fun r : Layer d k => exponent r.1) (fun c : Layer d k => exponent c.1ᶜ))
+    (catalecticant (fun r : Layer d k => exponent r.val) (fun c : Layer d k => exponent c.valᶜ))
 
 variable {K : Type*} [Field K] [CharZero K] {d : ℕ}
 
@@ -113,8 +113,8 @@ private theorem rank_feature_prod_X (d k : ℕ) :
   have htarget : (∏ i : Fin d, (X i : MvPolynomial (Fin d) K)) =
       monomial (exponent Finset.univ) 1 := by
     simpa [exponent] using prod_X_pow (R := K) (fun _ : Fin d => 1) Finset.univ
-  have hmatrix : catalecticant (fun r : Layer d k => exponent r.1)
-      (fun c : Layer d k => exponent c.1ᶜ) (∏ i : Fin d, (X i : MvPolynomial (Fin d) K)) =
+  have hmatrix : catalecticant (fun r : Layer d k => exponent r.val)
+      (fun c : Layer d k => exponent c.valᶜ) (∏ i : Fin d, (X i : MvPolynomial (Fin d) K)) =
       ((exponent (Finset.univ : Finset (Fin d))).multinomial : K)⁻¹ •
         (1 : Matrix (Layer d k) (Layer d k) K) := by
     ext r c

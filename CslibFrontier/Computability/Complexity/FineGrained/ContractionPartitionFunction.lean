@@ -176,7 +176,7 @@ theorem count_eq (hW : ∀ R w, w.length ≤ k → wt R w ≤ W) {F : CSP Rel �
       simp only [List.isEmpty_nil, ↓reduceIte, CSP.partitionFunction, CSP.weight, List.map_nil,
         List.prod_nil, Finset.sum_const, smul_eq_mul, Nat.mul_one, Finset.card_univ]
       have hempty : ∀ x : (CSP.vars ([] : CSP Rel ℕ)).toFinset, False := fun x => by
-        simpa [CSP.vars] using x.2
+        simpa [CSP.vars] using x.property
       exact (Fintype.card_eq_one_iff.mpr ⟨fun x => (hempty x).elim,
         fun _ => funext fun x => (hempty x).elim⟩).symm
     | cons c F =>

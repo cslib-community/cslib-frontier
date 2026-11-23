@@ -146,7 +146,7 @@ theorem finrank_iteratedPDerivSpan_homogeneousComponent_shift_le {p : MvPolynomi
   -- a linearly independent family of derivatives of `h` spanning all of them
   obtain ⟨b, hbsub, hbspan, hbli⟩ := exists_linearIndependent K
     (Set.range fun x : Σ k, Fin k → σ => iteratedPDeriv x.2 h)
-  have hbsub' (x : b) : ∃ y : Σ k, Fin k → σ, iteratedPDeriv y.2 h = x := hbsub x.2
+  have hbsub' (x : b) : ∃ y : Σ k, Fin k → σ, iteratedPDeriv y.2 h = x := hbsub x.property
   choose idx hidx using hbsub'
   have hk (x : b) : (idx x).1 ≤ m := not_lt.1 fun hlt => hbli.ne_zero x (by
     rw [← hidx x]

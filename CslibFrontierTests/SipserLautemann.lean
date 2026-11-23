@@ -36,16 +36,16 @@ example : trialSeed 0 [] 0 0 = [] ∧ trialSeed 2 [] 0 0 = [false, false] ∧
 
 -- Strict majority tie convention: exactly `halfRuns m` accepting runs is a rejection;
 -- `halfRuns m + 1` accepting runs is an acceptance.
-example : ¬ majorityAccepts (m := 1) (fun s => s 0) (fun j _ => decide (j.1 < halfRuns 1)) := by
+example : ¬ majorityAccepts (m := 1) (fun s => s 0) (fun j _ => decide (j.val < halfRuns 1)) := by
   simp only [majorityAccepts, not_lt]
-  have hsub : (Finset.univ.filter fun j : Fin (runs 1) => decide (j.1 < halfRuns 1) = true) =
-      Finset.univ.filter fun j : Fin (runs 1) => j.1 < halfRuns 1 := by
+  have hsub : (Finset.univ.filter fun j : Fin (runs 1) => decide (j.val < halfRuns 1) = true) =
+      Finset.univ.filter fun j : Fin (runs 1) => j.val < halfRuns 1 := by
     ext j
     simp
   rw [hsub]
   decide
 
-example : majorityAccepts (m := 1) (fun s => s 0) (fun j _ => decide (j.1 ≤ halfRuns 1)) := by
+example : majorityAccepts (m := 1) (fun s => s 0) (fun j _ => decide (j.val ≤ halfRuns 1)) := by
   simp only [majorityAccepts]
   decide
 

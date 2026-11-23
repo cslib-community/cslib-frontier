@@ -73,32 +73,32 @@ variable {V E : Type*} {G : Multigraph V E} {c : Compression G 3}
 /-- In a saturated compression with budget three, two distinct blocks are joined by at most one
 edge. -/
 private theorem Saturated.ncard_edgeCut_inter_le_one [Finite E] (hc : c.Saturated) {B B' : c.blocks}
-    (hne : B ≠ B') : (G.edgeCut {v | v ∈ B.1} ∩ G.edgeCut {v | v ∈ B'.1}).ncard ≤ 1 := by
-  rcases (G.edgeCut {v | v ∈ B.1} ∩ G.edgeCut {v | v ∈ B'.1}).eq_empty_or_nonempty with h | h
+    (hne : B ≠ B') : (G.edgeCut {v | v ∈ B.val} ∩ G.edgeCut {v | v ∈ B'.val}).ncard ≤ 1 := by
+  rcases (G.edgeCut {v | v ∈ B.val} ∩ G.edgeCut {v | v ∈ B'.val}).eq_empty_or_nonempty with h | h
   · simp [h]
-  have := hc _ B.2 _ B'.2 (fun h => hne (Subtype.ext h)) h
+  have := hc _ B.property _ B'.property (fun h => hne (Subtype.ext h)) h
   have := G.ncard_edgeCut_union_add (c.disjoint_of_ne hne)
-  have := c.ncard_edgeCut_le _ B.2
-  have := c.ncard_edgeCut_le _ B'.2
+  have := c.ncard_edgeCut_le _ B.property
+  have := c.ncard_edgeCut_le _ B'.property
   omega
 
 /-- In a saturated compression with budget three of a connected multigraph into at least two
 blocks, exactly three edges leave each block. -/
 private theorem Saturated.ncard_edgeCut_eq_three [Finite E] (hc : c.Saturated)
     (hG : G.toSimpleGraph.Connected) (two : 1 < Nat.card c.blocks) (B : c.blocks) :
-    (G.edgeCut {v | v ∈ B.1}).ncard = 3 :=
-  le_antisymm (c.ncard_edgeCut_le _ B.2)
+    (G.edgeCut {v | v ∈ B.val}).ncard = 3 :=
+  le_antisymm (c.ncard_edgeCut_le _ B.property)
     ((hc.three_le_ncard_incidenceSet_quotient hG two B).trans_eq (c.ncard_incidenceSet_quotient B))
 
 /-- The quotient of a saturated compression with budget three has no parallel edges. -/
 theorem Saturated.injective_ends_quotient [Finite E] (hc : c.Saturated) :
     Function.Injective c.quotient.ends := by
   intro e e' h
-  have hne : c.blockOf (G.src e.1) ≠ c.blockOf (G.tgt e.1) := e.2
+  have hne : c.blockOf (G.src e.val) ≠ c.blockOf (G.tgt e.val) := e.property
   -- Both edges join the blocks of the endpoints of `e`.
   have hmem (f : c.external) (hf : c.quotient.ends f = c.quotient.ends e) :
-      f.1 ∈ G.edgeCut {v | v ∈ (c.blockOf (G.src e.1)).1} ∩
-        G.edgeCut {v | v ∈ (c.blockOf (G.tgt e.1)).1} := by
+      f.val ∈ G.edgeCut {v | v ∈ (c.blockOf (G.src e.val)).val} ∩
+        G.edgeCut {v | v ∈ (c.blockOf (G.tgt e.val)).val} := by
     simp only [ends, quotient_src, quotient_tgt, Sym2.eq_iff] at hf
     simp only [mem_inter_iff, mem_edgeCut_block]
     grind

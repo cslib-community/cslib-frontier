@@ -216,7 +216,7 @@ private noncomputable def rehashStoreLvlTwo : Fin P.paddedUniv → ℕ :=
   fun x =>
     if hxA : x ∈ A₀ then
       if hlt_c : canonLvl x < ℓ₀ then
-        storeLvl (φ.symm ⟨x, mem_filter.mpr ⟨hxA, hlt_c⟩⟩).1
+        storeLvl (φ.symm ⟨x, mem_filter.mpr ⟨hxA, hlt_c⟩⟩).val
       else canonLvl x
     else storeLvl x
 
@@ -231,7 +231,7 @@ private theorem rehashStoreLvlTwo_ge_iff
   by_cases hlt_c : canonicalStoreLvl seeds' (P.paddedDom d) hgood' x < ℓ₀
   · rw [dite_eq_left hlt_c]
     have hy_lt := (mem_filter.mp ((rehashWaitEquiv hwf h2₀ hℓ₀ u₀ houtside hgood').symm
-      ⟨x, mem_filter.mpr ⟨hxA, hlt_c⟩⟩).2).2
+      ⟨x, mem_filter.mpr ⟨hxA, hlt_c⟩⟩).property).2
     exact ⟨by constructor <;> intro <;> omega, by constructor <;> intro <;> omega⟩
   · rw [dite_eq_right hlt_c]; exact ⟨Iff.rfl, Iff.rfl⟩
 
@@ -249,23 +249,23 @@ private theorem card_filter_rehashStoreLvlTwo_lt {j : ℕ} (hj_lt : j < ℓ₀) 
     dsimp only [rehashStoreLvlTwo] at hsl; dsimp only [canonLvl] at hge
     rw [dite_eq_left hxA, dite_eq_right hge] at hsl; omega
   refine Finset.card_bij
-    (fun x hx => (φ.symm ⟨x, mem_filter.mpr ⟨(mem_filter.mp hx).1, hlt_of hx⟩⟩).1)
+    (fun x hx => (φ.symm ⟨x, mem_filter.mpr ⟨(mem_filter.mp hx).1, hlt_of hx⟩⟩).val)
     (fun x hx => ?_)
     (fun _ _ _ _ heq => congrArg Subtype.val (φ.symm.injective (Subtype.ext heq)))
     (fun y hy => ?_)
   · obtain ⟨hxA, hsl⟩ := mem_filter.mp hx
     have hlt_c := hlt_of hx
     dsimp only [rehashStoreLvlTwo] at hsl; rw [dite_eq_left hxA, dite_eq_left hlt_c] at hsl
-    exact mem_filter.mpr ⟨(mem_filter.mp (φ.symm ⟨x, mem_filter.mpr ⟨hxA, hlt_c⟩⟩).2).1, hsl⟩
+    exact mem_filter.mpr ⟨(mem_filter.mp (φ.symm ⟨x, mem_filter.mpr ⟨hxA, hlt_c⟩⟩).property).1, hsl⟩
   · obtain ⟨hyA, hsly⟩ := mem_filter.mp hy
     let hyU : y ∈ A₀.filter fun w => storeLvl w < ℓ₀ := mem_filter.mpr ⟨hyA, by omega⟩
     let x_sub := φ ⟨y, hyU⟩
-    obtain ⟨hxA, hlt_c⟩ := mem_filter.mp x_sub.2
-    have hsymm : φ.symm ⟨x_sub.1, mem_filter.mpr ⟨hxA, hlt_c⟩⟩ = ⟨y, hyU⟩ :=
+    obtain ⟨hxA, hlt_c⟩ := mem_filter.mp x_sub.property
+    have hsymm : φ.symm ⟨x_sub.val, mem_filter.mpr ⟨hxA, hlt_c⟩⟩ = ⟨y, hyU⟩ :=
       φ.symm_apply_apply ⟨y, hyU⟩
-    refine ⟨x_sub.1, mem_filter.mpr ⟨hxA, ?_⟩, congrArg Subtype.val hsymm⟩
+    refine ⟨x_sub.val, mem_filter.mpr ⟨hxA, ?_⟩, congrArg Subtype.val hsymm⟩
     dsimp only [rehashStoreLvlTwo]; rw [dite_eq_left hxA, dite_eq_left hlt_c]
-    exact (congrArg (fun p => storeLvl p.1) hsymm).trans hsly
+    exact (congrArg (fun p => storeLvl p.val) hsymm).trans hsly
 
 private theorem validStoreLvl_rehashStoreLvlTwo :
     ValidStoreLvl seeds' (P.paddedDom d)
@@ -298,7 +298,7 @@ private theorem validStoreLvl_rehashStoreLvlTwo :
         split_ifs with hxA hlt_c
         · exact hvsl_old.bounds _ (SeedAssignment.mem_activeAt_iff.mp
             (mem_filter.mp ((rehashWaitEquiv hwf h2₀ hℓ₀ u₀ houtside hgood').symm
-              ⟨x, mem_filter.mpr ⟨hxA, hlt_c⟩⟩).2).1).1
+              ⟨x, mem_filter.mpr ⟨hxA, hlt_c⟩⟩).property).1).1
         · exact hvsl_can.bounds x hx
         · exact hvsl_old.bounds x hx
       outside := fun x hx => by

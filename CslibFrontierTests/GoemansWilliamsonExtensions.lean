@@ -164,7 +164,7 @@ example :
     linarith
   have hforall := exists_forall_goemansWilliamsonConstant_mul_sub_le
     (fun i : Fin sample2CNF.length => sample2CNF[i])
-    (fun i => sample2CNF_le2 _ (List.getElem_mem i.2)) (fun _ => zero_le_one)
+    (fun i => sample2CNF_le2 _ (List.getElem_mem i.isLt)) (fun _ => zero_le_one)
     norm_satOptVec (ε := 0)
     (fun v' hv' => by simpa only [add_zero] using isMaxOn_iff.1 isMaxOn_satOptVec v' hv')
   simp only [sub_zero] at hforall

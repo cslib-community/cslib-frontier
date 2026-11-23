@@ -271,7 +271,7 @@ theorem isKWiseIndependent_parityPair (K : ℕ) : IsKWiseIndependent K (parityPa
 its marginal outside `{0}` is not uniform. -/
 theorem bias_parityPair_second (K : ℕ) : bias (parityPair K) (firstHalf K)ᶜ = 1 := by
   have h (x : ParityPair K) : parityOn (firstHalf K)ᶜ (x : Fin (2 * K + 2) → Bool) = false :=
-    (mem_parityPair_iff.1 x.2).2
+    (mem_parityPair_iff.1 x.property).2
   rw [parityPair, bias_uniformOfFintype_map]
   simp only [chi_eq_signVal_parityOn, h, signVal_false]
   exact Fintype.expect_const 1

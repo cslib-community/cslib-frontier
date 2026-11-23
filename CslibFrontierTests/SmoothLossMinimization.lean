@@ -37,7 +37,7 @@ example {ℓ : E → Z → ℝ} {K : Set E} {m : ℕ} {r : ℝ} {A : (Fin m → 
   refine (hA.replaceOneGap_le_tikhonov_of_lipschitzWith_fderiv hK hr hconv hdiff hsmooth hnonneg
     hβ D hint').trans ?_
   gcongr
-  linarith [β.2]
+  linarith [β.property]
 
 /-- [ShalevShwartzBenDavid2014, Corollary 13.10] with the source's factor `1 + 48β / (r m)`. -/
 example {ℓ : E → Z → ℝ} {K : Set E} {m : ℕ} {r : ℝ} {A : (Fin m → Z) → E}
@@ -59,7 +59,7 @@ example {ℓ : E → Z → ℝ} {K : Set E} {m : ℕ} {r : ℝ} {A : (Fin m → 
     integral_nonneg fun S => Finset.expect_nonneg fun j _ => hnonneg _ _
   have hc : 5 * (β : ℝ) / (r * m) ≤ 48 * β / (r * m) := by
     gcongr
-    linarith [β.2]
+    linarith [β.property]
   obtain ⟨h1, h2⟩ := hA.integral_trueRisk_le_tikhonov_of_lipschitzWith_fderiv hK hr hconv hdiff
     hsmooth hnonneg hβ D hm hint hint' hw hwint
   have hfit := hA.integral_empiricalRisk_le (fun _ _ => by positivity) D hm hint' hw hwint

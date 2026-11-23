@@ -156,7 +156,7 @@ private def mergeTripartitionEquiv {n : ℕ} {U : Type*} (p : Fin n → Fin 3) :
     (({i : Fin n // p i = 0} → U) × ({i : Fin n // p i = 1} → U) ×
       ({i : Fin n // p i = 2} → U)) ≃ (Fin n → U) where
   toFun q := mergeTripartition p q.1 q.2.1 q.2.2
-  invFun x := (fun i => x i.1, fun i => x i.1, fun i => x i.1)
+  invFun x := (fun i => x i.val, fun i => x i.val, fun i => x i.val)
   left_inv q := by
     rcases q with ⟨x₀, x₁, x₂⟩
     ext ⟨i, hi⟩
@@ -576,8 +576,8 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
     simp only [hn0, hn1, hnc0, ↓reduceDIte]
   -- Reconstruct any global assignment `β : Edge c → U` from its `6` restrictions.
   have glue_restrict (β : Compiler.Edge c → U) :
-      glueEdges (fun e => β e.1) (fun e => β e.1) (fun e => β e.1)
-        (fun e => β e.1) (fun e => β e.1) (fun e => β e.1) = β := by
+      glueEdges (fun e => β e.val) (fun e => β e.val) (fun e => β e.val)
+        (fun e => β e.val) (fun e => β e.val) (fun e => β e.val) = β := by
     funext e
     dsimp [glueEdges]
     split_ifs with h0 h1 h2 hc0 hc1 hc2
@@ -597,14 +597,14 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
   -- Also extract `a₀, a₁, a₂` back from `glueEdges`.
   have glue_on_cut0 (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U)
       (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) (e : CutE 0) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.1 = a₀ e := by
-    have hc0 : e.1 ∈ G.edgeCut {v | col v = 0} ∩ G.edgeCut {v | col v = 1} := e.2
-    have hmem := (mem_inter_edgeCut_iff 0 1 (by decide) e.1).mp hc0
-    have hn0 : ¬(col (G.src e.1) = 0 ∧ col (G.tgt e.1) = 0) := by
+      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.val = a₀ e := by
+    have hc0 : e.val ∈ G.edgeCut {v | col v = 0} ∩ G.edgeCut {v | col v = 1} := e.property
+    have hmem := (mem_inter_edgeCut_iff 0 1 (by decide) e.val).mp hc0
+    have hn0 : ¬(col (G.src e.val) = 0 ∧ col (G.tgt e.val) = 0) := by
       rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn1 : ¬(col (G.src e.1) = 1 ∧ col (G.tgt e.1) = 1) := by
+    have hn1 : ¬(col (G.src e.val) = 1 ∧ col (G.tgt e.val) = 1) := by
       rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn2 : ¬(col (G.src e.1) = 2 ∧ col (G.tgt e.1) = 2) := by
+    have hn2 : ¬(col (G.src e.val) = 2 ∧ col (G.tgt e.val) = 2) := by
       rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
     dsimp [glueEdges]
     simp only [hn0, hn1, hn2, ↓reduceDIte]
@@ -613,16 +613,16 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
     · exact absurd hc0 h
   have glue_on_cut1 (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U)
       (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) (e : CutE 1) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.1 = a₁ e := by
-    have hc1 : e.1 ∈ G.edgeCut {v | col v = 1} ∩ G.edgeCut {v | col v = 2} := e.2
-    have hmem := (mem_inter_edgeCut_iff 1 2 (by decide) e.1).mp hc1
-    have hn0 : ¬(col (G.src e.1) = 0 ∧ col (G.tgt e.1) = 0) := by
+      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.val = a₁ e := by
+    have hc1 : e.val ∈ G.edgeCut {v | col v = 1} ∩ G.edgeCut {v | col v = 2} := e.property
+    have hmem := (mem_inter_edgeCut_iff 1 2 (by decide) e.val).mp hc1
+    have hn0 : ¬(col (G.src e.val) = 0 ∧ col (G.tgt e.val) = 0) := by
       rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn1 : ¬(col (G.src e.1) = 1 ∧ col (G.tgt e.1) = 1) := by
+    have hn1 : ¬(col (G.src e.val) = 1 ∧ col (G.tgt e.val) = 1) := by
       rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn2 : ¬(col (G.src e.1) = 2 ∧ col (G.tgt e.1) = 2) := by
+    have hn2 : ¬(col (G.src e.val) = 2 ∧ col (G.tgt e.val) = 2) := by
       rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hnc0 : e.1 ∉ G.edgeCut {w | col w = 0} ∩ G.edgeCut {w | col w = 1} := by
+    have hnc0 : e.val ∉ G.edgeCut {w | col w = 0} ∩ G.edgeCut {w | col w = 1} := by
       rw [mem_inter_edgeCut_iff 0 1 (by decide)]
       rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
     dsimp [glueEdges]
@@ -632,19 +632,19 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
     · exact absurd hc1 h
   have glue_on_cut2 (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U)
       (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) (e : CutE 2) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.1 = a₂ e := by
-    have hc2 : e.1 ∈ G.edgeCut {v | col v = 2} ∩ G.edgeCut {v | col v = 0} := e.2
-    have hmem := (mem_inter_edgeCut_iff 2 0 (by decide) e.1).mp hc2
-    have hn0 : ¬(col (G.src e.1) = 0 ∧ col (G.tgt e.1) = 0) := by
+      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.val = a₂ e := by
+    have hc2 : e.val ∈ G.edgeCut {v | col v = 2} ∩ G.edgeCut {v | col v = 0} := e.property
+    have hmem := (mem_inter_edgeCut_iff 2 0 (by decide) e.val).mp hc2
+    have hn0 : ¬(col (G.src e.val) = 0 ∧ col (G.tgt e.val) = 0) := by
       rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn1 : ¬(col (G.src e.1) = 1 ∧ col (G.tgt e.1) = 1) := by
+    have hn1 : ¬(col (G.src e.val) = 1 ∧ col (G.tgt e.val) = 1) := by
       rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn2 : ¬(col (G.src e.1) = 2 ∧ col (G.tgt e.1) = 2) := by
+    have hn2 : ¬(col (G.src e.val) = 2 ∧ col (G.tgt e.val) = 2) := by
       rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hnc0 : e.1 ∉ G.edgeCut {w | col w = 0} ∩ G.edgeCut {w | col w = 1} := by
+    have hnc0 : e.val ∉ G.edgeCut {w | col w = 0} ∩ G.edgeCut {w | col w = 1} := by
       rw [mem_inter_edgeCut_iff 0 1 (by decide)]
       rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hnc1 : e.1 ∉ G.edgeCut {w | col w = 1} ∩ G.edgeCut {w | col w = 2} := by
+    have hnc1 : e.val ∉ G.edgeCut {w | col w = 1} ∩ G.edgeCut {w | col w = 2} := by
       rw [mem_inter_edgeCut_iff 1 2 (by decide)]
       rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
     dsimp [glueEdges]
@@ -673,9 +673,9 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
       (x₂ : {i : Fin n // p i = 2} → U) (a₂ : CutE 2 → U) (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) :
       (Valid₀ x₀ a₂ a₀ ∧ Valid₁ x₁ a₀ a₁ ∧ Valid₂ x₂ a₂ a₁) ↔
         mergeTripartition p x₀ x₁ x₂ ∈ S_acc ∧
-          a₂ = (fun e => c.program.trace I (mergeTripartition p x₀ x₁ x₂) e.1.signal.1) ∧
-          a₀ = (fun e => c.program.trace I (mergeTripartition p x₀ x₁ x₂) e.1.signal.1) ∧
-          a₁ = (fun e => c.program.trace I (mergeTripartition p x₀ x₁ x₂) e.1.signal.1) := by
+          a₂ = (fun e => c.program.trace I (mergeTripartition p x₀ x₁ x₂) e.val.signal.val) ∧
+          a₀ = (fun e => c.program.trace I (mergeTripartition p x₀ x₁ x₂) e.val.signal.val) ∧
+          a₁ = (fun e => c.program.trace I (mergeTripartition p x₀ x₁ x₂) e.val.signal.val) := by
     set x := mergeTripartition p x₀ x₁ x₂
     constructor
     · rintro ⟨⟨α₀, h0⟩, ⟨α₁, h1⟩, ⟨α₂, h2⟩⟩
@@ -726,50 +726,50 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
       · funext e
         rw [← glue_on_cut1 α₀ α₁ α₂ a₀ a₁ a₂ e, show glueEdges α₀ α₁ α₂ a₀ a₁ a₂ = α from rfl, htr]
     · rintro ⟨hx, rfl, rfl, rfl⟩
-      set β : Compiler.Edge c → U := fun e => c.program.trace I x e.signal.1
+      set β : Compiler.Edge c → U := fun e => c.program.trace I x e.signal.val
       have hsat : N_net.Satisfies x β :=
         Compiler.satisfies_trace fun o => Subsingleton.elim (0 : Fin 1) o ▸ hx
       have hβ_eq := (glue_restrict β).symm
-      refine ⟨⟨fun e => β e.1, fun v hv0 => ?_⟩,
-              ⟨fun e => β e.1, fun v hv1 => ?_⟩,
-              ⟨fun e => β e.1, fun v hv2 => ?_⟩⟩
+      refine ⟨⟨fun e => β e.val, fun v hv0 => ?_⟩,
+              ⟨fun e => β e.val, fun v hv1 => ?_⟩,
+              ⟨fun e => β e.val, fun v hv2 => ?_⟩⟩
       · refine N_net.constraint_congr v x (mergeTripartition p x₀ d1 d2) β
-          (glueEdges (fun e => β e.1) (fun _ => u₀) (fun _ => u₀)
-            (fun e => β e.1) (fun _ => u₀) (fun e => β e.1))
+          (glueEdges (fun e => β e.val) (fun _ => u₀) (fun _ => u₀)
+            (fun e => β e.val) (fun _ => u₀) (fun e => β e.val))
           (fun i hi => ?_)
           (fun e he => by
             conv_lhs => rw [hβ_eq]
-            exact glue_eq_at_zero (fun e => β e.1) (fun e => β e.1) (fun _ => u₀)
-              (fun e => β e.1) (fun _ => u₀) (fun e => β e.1)
-              (fun e => β e.1) (fun _ => u₀) (fun e => β e.1) hv0 he)
+            exact glue_eq_at_zero (fun e => β e.val) (fun e => β e.val) (fun _ => u₀)
+              (fun e => β e.val) (fun _ => u₀) (fun e => β e.val)
+              (fun e => β e.val) (fun _ => u₀) (fun e => β e.val) hv0 he)
           (hsat v)
         have hp0 : p i = 0 := (hcompat i v hi).trans hv0
         dsimp only [x]
         rw [mergeTripartition_apply_zero p x₀ x₁ x₂ hp0,
           mergeTripartition_apply_zero p x₀ d1 d2 hp0]
       · refine N_net.constraint_congr v x (mergeTripartition p d0 x₁ d2) β
-          (glueEdges (fun _ => u₀) (fun e => β e.1) (fun _ => u₀)
-            (fun e => β e.1) (fun e => β e.1) (fun _ => u₀))
+          (glueEdges (fun _ => u₀) (fun e => β e.val) (fun _ => u₀)
+            (fun e => β e.val) (fun e => β e.val) (fun _ => u₀))
           (fun i hi => ?_)
           (fun e he => by
             conv_lhs => rw [hβ_eq]
-            exact glue_eq_at_one (fun e => β e.1) (fun _ => u₀) (fun e => β e.1)
-              (fun e => β e.1) (fun _ => u₀) (fun e => β e.1)
-              (fun e => β e.1) (fun e => β e.1) (fun _ => u₀) hv1 he)
+            exact glue_eq_at_one (fun e => β e.val) (fun _ => u₀) (fun e => β e.val)
+              (fun e => β e.val) (fun _ => u₀) (fun e => β e.val)
+              (fun e => β e.val) (fun e => β e.val) (fun _ => u₀) hv1 he)
           (hsat v)
         have hp1 : p i = 1 := (hcompat i v hi).trans hv1
         dsimp only [x]
         rw [mergeTripartition_apply_one p x₀ x₁ x₂ hp1,
           mergeTripartition_apply_one p d0 x₁ d2 hp1]
       · refine N_net.constraint_congr v x (mergeTripartition p d0 d1 x₂) β
-          (glueEdges (fun _ => u₀) (fun _ => u₀) (fun e => β e.1)
-            (fun _ => u₀) (fun e => β e.1) (fun e => β e.1))
+          (glueEdges (fun _ => u₀) (fun _ => u₀) (fun e => β e.val)
+            (fun _ => u₀) (fun e => β e.val) (fun e => β e.val))
           (fun i hi => ?_)
           (fun e he => by
             conv_lhs => rw [hβ_eq]
-            exact glue_eq_at_two (fun e => β e.1) (fun _ => u₀) (fun e => β e.1)
-              (fun _ => u₀) (fun e => β e.1) (fun e => β e.1)
-              (fun _ => u₀) (fun e => β e.1) (fun e => β e.1) hv2 he)
+            exact glue_eq_at_two (fun e => β e.val) (fun _ => u₀) (fun e => β e.val)
+              (fun _ => u₀) (fun e => β e.val) (fun e => β e.val)
+              (fun _ => u₀) (fun e => β e.val) (fun e => β e.val) hv2 he)
           (hsat v)
         have hp2 : p i = 2 := (hcompat i v hi).trans hv2
         dsimp only [x]
@@ -835,9 +835,9 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
   by_cases hx : mergeTripartition p x₀ x₁ x₂ ∈ S_acc
   · simp only [hx, ↓reduceIte]
     set x := mergeTripartition p x₀ x₁ x₂
-    let tr₂ : CutE 2 → U := fun e => c.program.trace I x e.1.signal.1
-    let tr₀ : CutE 0 → U := fun e => c.program.trace I x e.1.signal.1
-    let tr₁ : CutE 1 → U := fun e => c.program.trace I x e.1.signal.1
+    let tr₂ : CutE 2 → U := fun e => c.program.trace I x e.val.signal.val
+    let tr₀ : CutE 0 → U := fun e => c.program.trace I x e.val.signal.val
+    let tr₁ : CutE 1 → U := fun e => c.program.trace I x e.val.signal.val
     have hv_tr := (valid_iff x₀ x₁ x₂ tr₂ tr₀ tr₁).mpr ⟨hx, rfl, rfl, rfl⟩
     -- Only `(emb₂ tr₂, emb₀ tr₀, emb₁ tr₁)` survives in the triple sum!
     have hsingle_term (i₂ i₀ i₁ : Fin D) :
@@ -1132,16 +1132,16 @@ private theorem exists_balanced_rank_of_read_ncard (K : Type*) [CommSemiring K]
     intro c
     have hbij : {i : Fin n | p i = c}.ncard = {j : Fin n | j.val % 3 = c.val}.ncard := by
       rw [← Nat.card_coe_set_eq, ← Nat.card_coe_set_eq]
-      refine Nat.card_congr ⟨fun x => ⟨eqvIdx x.1, by
-          have hx := x.2; rw [mem_ofPred_eq] at hx ⊢
+      refine Nat.card_congr ⟨fun x => ⟨eqvIdx x.val, by
+          have hx := x.property; rw [mem_ofPred_eq] at hx ⊢
           exact congrArg Fin.val hx⟩,
-        fun y => ⟨eqvIdx.symm y.1, by
-          have hy := y.2; rw [mem_ofPred_eq] at hy ⊢
+        fun y => ⟨eqvIdx.symm y.val, by
+          have hy := y.property; rw [mem_ofPred_eq] at hy ⊢
           apply Fin.ext
-          change (eqvIdx (eqvIdx.symm y.1)).val % 3 = c.val
+          change (eqvIdx (eqvIdx.symm y.val)).val % 3 = c.val
           rw [Equiv.apply_symm_apply]; exact hy⟩,
-        fun x => Subtype.ext (eqvIdx.symm_apply_apply x.1),
-        fun y => Subtype.ext (eqvIdx.apply_symm_apply y.1)⟩
+        fun x => Subtype.ext (eqvIdx.symm_apply_apply x.val),
+        fun y => Subtype.ext (eqvIdx.apply_symm_apply y.val)⟩
     rw [hbij]
     have hinj_mod : Set.InjOn (fun t : Fin (n / 3) =>
         (⟨3 * t.val + c.val, by have := t.isLt; have := c.isLt; omega⟩ : Fin n)) univ := by
@@ -1162,18 +1162,18 @@ private theorem exists_balanced_rank_of_read_ncard (K : Type*) [CommSemiring K]
   have hread_part_le (c : Fin 3) :
       Fintype.card {i : Fin n // p i = c ∧ i ∈ R_set} ≤ m / 3 + 1 := by
     let toQuot (x : {i : Fin n // p i = c ∧ i ∈ R_set}) : Fin (m / 3 + 1) :=
-      ⟨(eqvIdx x.1).val / 3, by
-        have hiR : x.1 ∈ R_fin := Set.mem_toFinset.mpr x.2.2
-        have hval : (eqvIdx x.1).val = (eR ⟨x.1, hiR⟩).val := by
-          change (idx x.1).val = _; simp [idx, hiR]
-        have hlt : (eR ⟨x.1, hiR⟩).val < m := by rw [← hcard_R]; exact (eR ⟨x.1, hiR⟩).isLt
+      ⟨(eqvIdx x.val).val / 3, by
+        have hiR : x.val ∈ R_fin := Set.mem_toFinset.mpr x.property.2
+        have hval : (eqvIdx x.val).val = (eR ⟨x.val, hiR⟩).val := by
+          change (idx x.val).val = _; simp [idx, hiR]
+        have hlt : (eR ⟨x.val, hiR⟩).val < m := by rw [← hcard_R]; exact (eR ⟨x.val, hiR⟩).isLt
         omega⟩
     have hinj_q : Function.Injective toQuot := by
       intro x₁ x₂ hq
-      have hdiv : (eqvIdx x₁.1).val / 3 = (eqvIdx x₂.1).val / 3 := Fin.ext_iff.mp hq
-      have hmod1 : (eqvIdx x₁.1).val % 3 = c.val := congrArg Fin.val x₁.2.1
-      have hmod2 : (eqvIdx x₂.1).val % 3 = c.val := congrArg Fin.val x₂.2.1
-      have hval_eq : (eqvIdx x₁.1).val = (eqvIdx x₂.1).val := by omega
+      have hdiv : (eqvIdx x₁.val).val / 3 = (eqvIdx x₂.val).val / 3 := Fin.ext_iff.mp hq
+      have hmod1 : (eqvIdx x₁.val).val % 3 = c.val := congrArg Fin.val x₁.property.1
+      have hmod2 : (eqvIdx x₂.val).val % 3 = c.val := congrArg Fin.val x₂.property.1
+      have hval_eq : (eqvIdx x₁.val).val = (eqvIdx x₂.val).val := by omega
       exact Subtype.ext (eqvIdx.injective (Fin.ext hval_eq))
     simpa using Fintype.card_le_of_injective toQuot hinj_q
   -- 3. `partitionThreeTensor K p S` factors through `{i // p i = 0 ∧ i ∈ R_set} → U` and
@@ -1182,12 +1182,12 @@ private theorem exists_balanced_rank_of_read_ncard (K : Type*) [CommSemiring K]
   obtain ⟨u_def⟩ := ‹Nonempty U›
   let Y₀ := {i : Fin n // p i = 0 ∧ i ∈ R_set} → U
   let Y₁ := {i : Fin n // p i = 1 ∧ i ∈ R_set} → U
-  let π₀ (x₀ : {i : Fin n // p i = 0} → U) : Y₀ := fun j => x₀ ⟨j.1, j.2.1⟩
-  let π₁ (x₁ : {i : Fin n // p i = 1} → U) : Y₁ := fun j => x₁ ⟨j.1, j.2.1⟩
+  let π₀ (x₀ : {i : Fin n // p i = 0} → U) : Y₀ := fun j => x₀ ⟨j.val, j.property.1⟩
+  let π₁ (x₁ : {i : Fin n // p i = 1} → U) : Y₁ := fun j => x₁ ⟨j.val, j.property.1⟩
   let ext₀ (y₀ : Y₀) : {i : Fin n // p i = 0} → U :=
-    fun i => if hi : i.1 ∈ R_set then y₀ ⟨i.1, i.2, hi⟩ else u_def
+    fun i => if hi : i.val ∈ R_set then y₀ ⟨i.val, i.property, hi⟩ else u_def
   let ext₁ (y₁ : Y₁) : {i : Fin n // p i = 1} → U :=
-    fun i => if hi : i.1 ∈ R_set then y₁ ⟨i.1, i.2, hi⟩ else u_def
+    fun i => if hi : i.val ∈ R_set then y₁ ⟨i.val, i.property, hi⟩ else u_def
   let g (y₀ : Y₀) (y₁ : Y₁) (x₂ : {i : Fin n // p i = 2} → U) : K :=
     partitionThreeTensor K p {x | c.eval I x 0 ∈ Acc 0} (ext₀ y₀) (ext₁ y₁) x₂
   have hten_eq : partitionThreeTensor K p {x | c.eval I x 0 ∈ Acc 0} =
@@ -1346,15 +1346,15 @@ theorem innerSize_gt_of_threeTensorHard (K : Type*) [Field K] [CharZero K]
         Compiler.read_network I Acc
       rw [hread_eq]
       refine Nat.card_congr
-        { toFun := fun v => ⟨v.2.choose, (Compiler.site_eq_some v.2.choose_spec).1⟩
-          invFun := fun i => ⟨.signal ⟨.input i.1, i.2⟩, i.1, Compiler.site_of_reach i.2⟩
+        { toFun := fun v => ⟨v.property.choose, (Compiler.site_eq_some v.property.choose_spec).1⟩
+          invFun := fun i => ⟨.signal ⟨.input i.val, i.property⟩, i.val, Compiler.site_of_reach i.property⟩
           left_inv := fun v => by
-            obtain ⟨_, hv_eq⟩ := Compiler.site_eq_some v.2.choose_spec
+            obtain ⟨_, hv_eq⟩ := Compiler.site_eq_some v.property.choose_spec
             ext; exact hv_eq.symm
           right_inv := fun i => by
             ext1
-            have hs := ((⟨.signal ⟨.input i.1, i.2⟩, i.1,
-              Compiler.site_of_reach i.2⟩ : A_in).2).choose_spec
+            have hs := ((⟨.signal ⟨.input i.val, i.property⟩, i.val,
+              Compiler.site_of_reach i.property⟩ : A_in).property).choose_spec
             obtain ⟨_, heq⟩ := Compiler.site_eq_some hs
             exact (Wire.input.inj (congrArg Subtype.val (Compiler.Vertex.signal.inj heq))).symm }
     obtain ⟨col₀, hbal₀, hcut₀⟩ := hcut3 G hloop hconn hdeg A_in

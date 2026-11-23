@@ -65,7 +65,7 @@ noncomputable def takeFinset {α : Type*} [LinearOrder α] (A : Finset α) (m : 
     Finset α :=
   (Finset.range m).attach.map
     ⟨fun (i : { x : ℕ // x ∈ Finset.range m }) =>
-        (A.orderEmbOfFin rfl) ⟨i.1, (Finset.mem_range.mp i.2).trans_le hm⟩,
+        (A.orderEmbOfFin rfl) ⟨i.val, (Finset.mem_range.mp i.property).trans_le hm⟩,
       fun _ _ h => Subtype.ext (congrArg Fin.val ((A.orderEmbOfFin rfl).injective h))⟩
 
 theorem takeFinset_subset {α : Type*} [LinearOrder α] (A : Finset α) (m : ℕ) (hm : m ≤ #A) :

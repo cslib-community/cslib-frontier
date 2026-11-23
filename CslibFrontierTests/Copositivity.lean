@@ -94,7 +94,7 @@ example :
     omega
 
 private def c4Adj (i j : Fin 4) : Bool :=
-  (i.1 + 1) % 4 == j.1 || (j.1 + 1) % 4 == i.1
+  (i.val + 1) % 4 == j.val || (j.val + 1) % 4 == i.val
 
 private def c4Graph : SimpleGraph (Fin 4) where
   Adj i j := c4Adj i j = true
@@ -210,8 +210,8 @@ example : posMat2 ∈ Copositive := by
   rw [Fin.sum_univ_two]
   have hrow : ∀ i : Fin 2,
       (∑ j : Fin posMat2.rows.length,
-        (posMat2.rows.getD (e.symm i).1 []).getD j.1 0 * x j) =
-      ∑ j : Fin 2, (posMat2.rows.getD i.1 []).getD j.1 0 * x (e.symm j) := by
+        (posMat2.rows.getD (e.symm i).val []).getD j.val 0 * x j) =
+      ∑ j : Fin 2, (posMat2.rows.getD i.val []).getD j.val 0 * x (e.symm j) := by
     intro i
     rw [← Equiv.sum_comp e.symm]
     rfl
@@ -266,8 +266,8 @@ example : negMat2 ∈ NonCopositive := by
   rw [Fin.sum_univ_two] at h
   have hrow : ∀ i : Fin 2,
       (∑ j : Fin negMat2.rows.length,
-        (negMat2.rows.getD (e.symm i).1 []).getD j.1 0 * 1) =
-      ∑ j : Fin 2, (negMat2.rows.getD i.1 []).getD j.1 0 * (1 : ℚ) := fun i => by
+        (negMat2.rows.getD (e.symm i).val []).getD j.val 0 * 1) =
+      ∑ j : Fin 2, (negMat2.rows.getD i.val []).getD j.val 0 * (1 : ℚ) := fun i => by
     rw [← Equiv.sum_comp e.symm]
     rfl
   rw [hrow 0, hrow 1, Fin.sum_univ_two, Fin.sum_univ_two] at h

@@ -30,7 +30,7 @@ example : ((Projection.offDiagonalComplement Language.empty).comp
 /-- Complement on the empty universe still has no elements: the output domain is not forced
 nonempty by the interpretation API. -/
 example : IsEmpty ((Projection.offDiagonalComplement Language.empty).numeric.Model (Fin 0)) := by
-  exact ⟨fun x => (x.1 ()).elim0⟩
+  exact ⟨fun x => (x.val ()).elim0⟩
 
 section Graph
 

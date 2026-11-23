@@ -332,7 +332,7 @@ private lemma satisfiable_of_mem_Clique {r : ℕ} (hr : 1 ≤ r) {φ : CNF ℕ} 
     by_contra hne
     obtain ⟨i, hi, a, ha, hea, rfl⟩ := hV v₁ hv₁
     obtain ⟨j, hj, b, hb, heb, rfl⟩ := hV v₂ hv₂
-    have hij := ((adj_vertex_iff ha hb hi hj hea heb).mp (hclique.1 hv₁ hv₂ hne)).1
+    have hij := ((adj_vertex_iff ha hb hi hj hea heb).mp (hclique.isClique hv₁ hv₂ hne)).1
     simp only [vertex_div ha, vertex_div hb] at hdiv
     exact hij hdiv
   have himg : S.image (fun v => v / bound) = Finset.range r := by
@@ -340,7 +340,7 @@ private lemma satisfiable_of_mem_Clique {r : ℕ} (hr : 1 ≤ r) {φ : CNF ℕ} 
     · obtain ⟨v, hv, rfl⟩ := Finset.mem_image.mp hi
       obtain ⟨i', hi', a', ha', -, rfl⟩ := hV v hv
       simpa only [vertex_div ha', Finset.mem_range] using hi'
-    · rw [Finset.card_image_of_injOn hinj, hclique.2, Finset.card_range]
+    · rw [Finset.card_image_of_injOn hinj, hclique.card_eq, Finset.card_range]
   have hpick : ∀ i < r, ∃ a < bound, (GroupClique.block φ r i).eval
       (bitsAssignment (GroupClique.block φ r i).distinctVars a) = true ∧
       GroupClique.vertex bound i a ∈ S := by
@@ -362,7 +362,7 @@ private lemma satisfiable_of_mem_Clique {r : ℕ} (hr : 1 ≤ r) {φ : CNF ℕ} 
     · have hne : GroupClique.vertex bound i (code i) ≠ GroupClique.vertex bound j (code j) :=
         fun h => hij (vertex_inj (hcode_lt i hi) (hcode_lt j hj) h).1
       have hc := ((adj_vertex_iff (hcode_lt i hi) (hcode_lt j hj) hi hj (hcode_eval i hi)
-        (hcode_eval j hj)).mp (hclique.1 (hcode_mem i hi) (hcode_mem j hj) hne)).2
+        (hcode_eval j hj)).mp (hclique.isClique (hcode_mem i hi) (hcode_mem j hj) hne)).2
       exact compat_iff.mp hc x hxi hxj
   classical
   let τ : ℕ → Bool := fun x =>
@@ -474,7 +474,7 @@ theorem groupClique_mem_Clique_iff {r : ℕ} (hr : 1 ≤ r) (φ : CNF ℕ) :
     simp only [groupClique, GroupClique.graphOfBound, hr0, hnot, Bool.false_eq_true, ↓reduceIte,
       mem_Clique_iff_mk]
     refine ⟨fun ⟨S, hSV, hclique⟩ => ?_, fun h => absurd h.1 h3⟩
-    obtain ⟨v, hv⟩ := Finset.card_pos.mp (hclique.2 ▸ hr)
+    obtain ⟨v, hv⟩ := Finset.card_pos.mp (hclique.card_eq ▸ hr)
     exact absurd (hSV v hv) List.not_mem_nil
 
 /-! ### Polynomial-time computability of the bounded builder -/

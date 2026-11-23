@@ -240,7 +240,7 @@ theorem Shape.child (h₀s : x₀.scale = x₀.edges) (h₀b : x₀.bound + x₀
     rw [show pk = nativeParentPacking x.rows (slots x) x.net from rfl,
       nativeParentPacking_eq h.wf.2 hK] at hy
     obtain ⟨e, rfl⟩ := List.mem_ofFn.mp hy
-    exact ((parentPacking h.wf.2 (slots x)).slot e).2
+    exact ((parentPacking h.wf.2 (slots x)).slot e).isLt
   have hvert : (FastContraction.child x nativeMk c).net.vertices.length ≤
       x.net.vertices.length + m ^ 2 := by
     change (nativeMk x c).2.vertices.length ≤ _

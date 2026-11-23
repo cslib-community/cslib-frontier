@@ -250,7 +250,7 @@ example : SAT.toThreeColoring [[(0, false), (1, false), (2, false), (3, true)]] 
   (SAT.toThreeColoring_mem_iff _).2 ⟨fun _ => true, rfl⟩
 
 -- Universal vertices for more colors: four colors for the gadget graph with one universal vertex.
-example : (SAT.toKColoring 1 []).2 =
+example : (SAT.toKColoring 1 []).edges =
     [(0, 1), (1, 4), (4, 0), (12, 0), (12, 1), (12, 1), (12, 4), (12, 4), (12, 0)] := by
   decide
 example : SAT.toKColoring 1 [[(0, true)]] ∈ KColoring 4 :=

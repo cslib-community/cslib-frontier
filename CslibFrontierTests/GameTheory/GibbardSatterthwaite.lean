@@ -72,7 +72,7 @@ noncomputable def restrictedDictatorship (S : Set A) [Finite S] [Nonempty S] (i 
 
 theorem restrictedDictatorship_mem (S : Set A) [Finite S] [Nonempty S] (i : V)
     (P : Profile V A) : restrictedDictatorship S i P ∈ S :=
-  ((P i).restrict S).top.2
+  ((P i).restrict S).top.property
 
 /-- The range of the restricted dictatorship is `S`. -/
 theorem range_restrictedDictatorship (S : Set A) [Finite S] [Nonempty S] (i : V) :

@@ -692,24 +692,24 @@ private theorem ncard_matchedVertices_eq_two_mul {V E : Type*}
     (G.matchedVertices M).ncard = 2 * M.ncard := by
   classical
   let f : M × Bool → G.matchedVertices M := fun ⟨e, b⟩ =>
-    if b then ⟨G.src e.1, e.1, e.2, Or.inl rfl⟩ else ⟨G.tgt e.1, e.1, e.2, Or.inr rfl⟩
+    if b then ⟨G.src e.val, e.val, e.property, Or.inl rfl⟩ else ⟨G.tgt e.val, e.val, e.property, Or.inr rfl⟩
   have hbij : Function.Bijective f := by
     refine ⟨?_, ?_⟩
     · rintro ⟨e₁, b₁⟩ ⟨e₂, b₂⟩ heq
       have hval := congrArg Subtype.val heq
       have he_eq : e₁ = e₂ := by
         by_contra hne
-        have hdis := hM e₁.2 e₂.2 fun h => hne (Subtype.ext h)
-        have hm₁ : (f ⟨e₁, b₁⟩).1 ∈ ({G.src e₁.1, G.tgt e₁.1} : Set V) := by
+        have hdis := hM e₁.property e₂.property fun h => hne (Subtype.ext h)
+        have hm₁ : (f ⟨e₁, b₁⟩).val ∈ ({G.src e₁.val, G.tgt e₁.val} : Set V) := by
           cases b₁ <;> simp [f]
-        have hm₂ : (f ⟨e₁, b₁⟩).1 ∈ ({G.src e₂.1, G.tgt e₂.1} : Set V) := by
+        have hm₂ : (f ⟨e₁, b₁⟩).val ∈ ({G.src e₂.val, G.tgt e₂.val} : Set V) := by
           rw [hval]; cases b₂ <;> simp [f]
         exact Set.disjoint_left.mp hdis hm₁ hm₂
       subst he_eq
       cases b₁ <;> cases b₂
       · rfl
-      · exfalso; exact hloop e₁.1 (by simpa [f] using hval.symm)
-      · exfalso; exact hloop e₁.1 (by simpa [f] using hval)
+      · exfalso; exact hloop e₁.val (by simpa [f] using hval.symm)
+      · exfalso; exact hloop e₁.val (by simpa [f] using hval)
       · rfl
     · rintro ⟨v, e, heM, hev⟩
       rcases hev with rfl | rfl

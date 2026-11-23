@@ -74,7 +74,7 @@ example :
       (by decide : ProductRelations sampleT1 sampleT2) (⟨1, 2, 3, ![4]⟩ : DealerExtra 5 1) 1 4)
   simp only [discrepancyPoly, Polynomial.eval_sub, Polynomial.eval_mul, Polynomial.eval_add,
     Polynomial.eval_zero, sub_eq_zero] at hpoly
-  have hr : ∀ k : Fin (1 + 1), (2 : ZMod 5) ≠ (k.1 : ZMod 5) := by decide
+  have hr : ∀ k : Fin (1 + 1), (2 : ZMod 5) ≠ (k.val : ZMod 5) := by decide
   dsimp only [verifyPair]
   rw [decide_eq_true hpoly, decide_eq_true hr]
   rfl
@@ -88,7 +88,7 @@ example :
       (by decide : ProductRelations sampleT1 sampleT2) (⟨1, 2, 3, ![4]⟩ : DealerExtra 5 1) 1 4)
   simp only [discrepancyPoly, Polynomial.eval_sub, Polynomial.eval_mul, Polynomial.eval_add,
     Polynomial.eval_zero, sub_eq_zero] at hpoly
-  have hr : ¬ (∀ k : Fin (1 + 1), (1 : ZMod 5) ≠ (k.1 : ZMod 5)) := by decide
+  have hr : ¬ (∀ k : Fin (1 + 1), (1 : ZMod 5) ≠ (k.val : ZMod 5)) := by decide
   dsimp only [verifyPair]
   rw [decide_eq_true hpoly, decide_eq_false hr]
   rfl
@@ -162,17 +162,17 @@ example :
   have hC2 : badD2.polyC = 0 := hZero badD2 fun k => by fin_cases k <;> rfl
   have : Nonempty (Challenge 5 1) := nonempty_challenge 5 1 (by decide)
   have hmap : ProbComp.eval (honestPartiesRun 5 1 (by decide) badD1 badD2) =
-      (PMF.uniformOfFintype (Challenge 5 1)).map (fun r => verifyPair badD1 badD2 r.1) := by
+      (PMF.uniformOfFintype (Challenge 5 1)).map (fun r => verifyPair badD1 badD2 r.val) := by
     simp only [honestPartiesRun, bind_pure_comp, ProbComp.eval_map, ProbComp.eval_uniform]
   have hfilter :
       (Finset.univ.filter fun r : Challenge 5 1 =>
-          (verifyPair badD1 badD2 r.1).1 = true ∨
-            (verifyPair badD1 badD2 r.1).2 = true).card = 2 := by
+          (verifyPair badD1 badD2 r.val).1 = true ∨
+            (verifyPair badD1 badD2 r.val).2 = true).card = 2 := by
     have heq :
         Finset.univ.filter (fun r : Challenge 5 1 =>
-          (verifyPair badD1 badD2 r.1).1 = true ∨ (verifyPair badD1 badD2 r.1).2 = true) =
+          (verifyPair badD1 badD2 r.val).1 = true ∨ (verifyPair badD1 badD2 r.val).2 = true) =
         Finset.univ.filter (fun r : Challenge 5 1 =>
-          (r.1 - 2) * (r.1 - 3) = 0) := by
+          (r.val - 2) * (r.val - 3) = 0) := by
       ext r
       simp only [Finset.mem_filter, Finset.mem_univ, true_and,
         verifyPair, hA1, hB1, hC1, hA2, hB2, hC2, Polynomial.eval_sub,
@@ -185,7 +185,7 @@ example :
   rw [hmap, PMF.toOuterMeasure_map_apply,
     Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype]
   have hfilter' :
-      (Finset.univ.filter (· ∈ (fun r : Challenge 5 1 => verifyPair badD1 badD2 r.1) ⁻¹'
+      (Finset.univ.filter (· ∈ (fun r : Challenge 5 1 => verifyPair badD1 badD2 r.val) ⁻¹'
           { res : Bool × Bool | res.1 = true ∨ res.2 = true })).card = 2 := by
     rw [← hfilter]
     congr 1
@@ -235,7 +235,7 @@ example :
     let A₁ : (ZMod 6)[X] := 2 * X + 2
     let B₁ : (ZMod 6)[X] := X + 3
     A₁.eval 1 * B₁.eval 1 ≠ 0 ∧
-    (Finset.univ.filter (fun r : Challenge 6 1 => A₁.eval r.1 * B₁.eval r.1 = 0)).card > 2 * 1 ∧
+    (Finset.univ.filter (fun r : Challenge 6 1 => A₁.eval r.val * B₁.eval r.val = 0)).card > 2 * 1 ∧
     Fintype.card (Challenge 6 1) = 4 := by
   refine ⟨?_, ?_, by decide⟩
   · suffices (2 * (1 : ZMod 6) + 2) * (1 + 3) ≠ 0 by
@@ -243,15 +243,15 @@ example :
     decide
   · have hfilt :
         Finset.univ.filter (fun r : Challenge 6 1 =>
-          ((2 * X + 2 : (ZMod 6)[X]).eval r.1) * ((X + 3 : (ZMod 6)[X]).eval r.1) = 0) =
+          ((2 * X + 2 : (ZMod 6)[X]).eval r.val) * ((X + 3 : (ZMod 6)[X]).eval r.val) = 0) =
         Finset.univ.filter (fun r : Challenge 6 1 =>
-          (2 * r.1 + 2) * (r.1 + 3) = 0) := by
+          (2 * r.val + 2) * (r.val + 3) = 0) := by
       ext r
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, eval_add, eval_mul,
         eval_ofNat, eval_X]
     have hcount :
         (Finset.univ.filter (fun r : Challenge 6 1 =>
-          (2 * r.1 + 2) * (r.1 + 3) = 0)).card = 3 := by
+          (2 * r.val + 2) * (r.val + 3) = 0)).card = 3 := by
       decide
     rw [hfilt, hcount]
     omega
@@ -264,7 +264,7 @@ example :
     ∃ (t₁ t₂ : Fin 3 → TripleShare (ZMod 5)) (e₁ : DealerExtra 5 3) (a02 b02 : ZMod 5),
       ProductRelations t₁ t₂ ∧
       discrepancyPoly (e₁.toDeal t₁) ((honestC2 t₁ t₂ e₁ a02 b02).toDeal t₂) ≠ 0 := by
-  let t₁ : Fin 3 → TripleShare (ZMod 5) := fun k => if k.1 = 0 then ⟨1, 1, 1⟩ else ⟨0, 0, 0⟩
+  let t₁ : Fin 3 → TripleShare (ZMod 5) := fun k => if k.val = 0 then ⟨1, 1, 1⟩ else ⟨0, 0, 0⟩
   let t₂ : Fin 3 → TripleShare (ZMod 5) := fun _ => ⟨0, 0, 0⟩
   let e₁ : DealerExtra 5 3 := ⟨0, 0, 0, 0⟩
   refine ⟨by omega, by omega, nonempty_challenge 5 3 (by omega),
@@ -390,7 +390,7 @@ theorem counterAdversaryNoRel_separates :
     (ProbComp.eval (experiment1P1 5 1 counterAdversaryNoRel)) true = 1 ∧
     (ProbComp.eval (experiment0P1 5 1 counterAdversaryNoRel)) true ≠
       (ProbComp.eval (experiment1P1 5 1 counterAdversaryNoRel)) true := by
-  have hr : ∀ k : Fin (1 + 1), (3 : ZMod 5) ≠ (k.1 : ZMod 5) := by decide
+  have hr : ∀ k : Fin (1 + 1), (3 : ZMod 5) ≠ (k.val : ZMod 5) := by decide
   have hexp0 : ProbComp.eval (experiment0P1 5 1 counterAdversaryNoRel) = PMF.pure false := by
     simp only [experiment0P1, counterAdversaryNoRel, deal, pmf_norm, ProbComp.eval_uniform]
     simp only [eq_true hr, ite_true, pmf_norm]

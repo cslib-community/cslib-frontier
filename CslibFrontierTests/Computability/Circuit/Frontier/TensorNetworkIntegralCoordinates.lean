@@ -47,7 +47,7 @@ example : cauchyKernel 2 1 ∉ lifts (Rat.padicValuation 2).integer.subtype := b
   rw [lifts_iff_coeff_lifts]
   intro h
   obtain ⟨c, hc⟩ := h 3
-  have hle := c.2
+  have hle := c.property
   rw [Valuation.mem_integer_iff] at hle
   change Rat.padicValuation 2 (c : ℚ) ≤ 1 at hle
   have hv : Rat.padicValuation 2 (-1 / 2 : ℚ) = WithZero.exp 1 := by

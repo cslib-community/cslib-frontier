@@ -111,7 +111,7 @@ example : #(sparseTable cubes) ≤ 16 :=
 /-- The root `x = (1/3, 1/3)`, Bob's monomial weights `xᵉ / 8`, and Critter uniform. -/
 noncomputable def root : Coord (sparseTable cubes) 2 → ℝ
   | ⟨.alice, _⟩ => 1 / 3
-  | ⟨.bob, e⟩ => expoPow (fun _ => 1 / 3) (e : sparseTable cubes).1 / 8
+  | ⟨.bob, e⟩ => expoPow (fun _ => 1 / 3) (e : sparseTable cubes).val / 8
   | ⟨.critter, _⟩ => 1 / 10
 
 /-- The root, with its monomials on Bob and Critter uniform, is a totally mixed Nash

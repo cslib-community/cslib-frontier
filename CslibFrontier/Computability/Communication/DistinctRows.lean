@@ -66,7 +66,7 @@ theorem card_image_le_two_pow_rank [Fintype X] (K : Type*) [Field K] [DecidableE
     rw [← Matrix.finrank_span_range_col, ← hbspan, finrank_span_set_eq_card hbli,
       Set.toFinset_card]
   -- a column index for every element of `b`
-  have hpre : ∀ v : b, ∃ y, M.col y = v.1 := fun v => hbsub v.2
+  have hpre : ∀ v : b, ∃ y, M.col y = v.val := fun v => hbsub v.property
   choose c hc using hpre
   -- a row is determined by its entries on the columns `c`
   have hdet : ∀ x x', (∀ v, f x (c v) = f x' (c v)) → f x = f x' := by

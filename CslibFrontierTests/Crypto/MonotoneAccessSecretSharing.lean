@@ -111,7 +111,7 @@ example (m : ZMod 5) :
     example22_1Scheme.viewDist
         (uniformOfFintype (GenericKey example22_1Access (ZMod 5))) {1, 2, 3} m =
       uniformOfFintype ((i : ({1, 2, 3} : Finset (Fin 4))) →
-        GenericShare example22_1Access (ZMod 5) i.1) :=
+        GenericShare example22_1Access (ZMod 5) i.val) :=
   genericUniform_viewDist_eq example22_1Access (ZMod 5)
     example22_1Access_not_authorized_empty (by decide) m
 
@@ -134,10 +134,10 @@ example (share : Unit → ZMod 5 → Fin 2 → ZMod 5)
 the empty subtype and returns `0 ≠ 1`. -/
 example (r : GenericKey (AccessStructure.threshold (Fin 2) 0) (ZMod 5)) :
     genericReconstruct (AccessStructure.threshold (Fin 2) 0) ∅
-      (fun j => genericShare (AccessStructure.threshold (Fin 2) 0) r (1 : ZMod 5) j.1) ≠ 1 := by
+      (fun j => genericShare (AccessStructure.threshold (Fin 2) 0) r (1 : ZMod 5) j.val) ≠ 1 := by
   have h0 :
       genericReconstruct (AccessStructure.threshold (Fin 2) 0) ∅
-        (fun j => genericShare (AccessStructure.threshold (Fin 2) 0) r (1 : ZMod 5) j.1) = 0 := by
+        (fun j => genericShare (AccessStructure.threshold (Fin 2) 0) r (1 : ZMod 5) j.val) = 0 := by
     simp [genericReconstruct]
   rw [h0]
   decide

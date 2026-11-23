@@ -46,7 +46,7 @@ and `(2, 1) ↦ 4` from CLRS 2nd ed., Figure 26.1(a) (compare [CLRS2009], Figure
 pp. 710–711, which split the antiparallel pair while keeping maximum flow and minimum cut `23`). -/
 def clrsNet : Network (Fin 6) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 16
     | 0, 2 => 13
     | 1, 2 => 10
@@ -96,7 +96,7 @@ example :
 ([CLRS2009], Figure 26.6, p. 727). -/
 def largeDiamondNet : Network (Fin 4) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 1000000000
     | 0, 2 => 1000000000
     | 1, 2 => 1
@@ -117,7 +117,7 @@ example : largeDiamondNet.cutCapacity ({0} : Finset (Fin 4)) = 2000000000 := by 
 /-- Unit diamond network exercising residual backward-arc cancellation after a zig-zag path. -/
 def unitDiamondNet : Network (Fin 4) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 1
     | 0, 2 => 1
     | 1, 2 => 1
@@ -147,7 +147,7 @@ example :
 flow in both directions (`f 1 2 = 2` and `f 2 1 = 1`). -/
 def antiparallelNet : Network (Fin 4) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 5
     | 0, 2 => 5
     | 1, 2 => 3
@@ -161,7 +161,7 @@ def antiparallelNet : Network (Fin 4) where
 /-- Feasible flow on `antiparallelNet` carrying positive flow on both `(1, 2)` and `(2, 1)`. -/
 def bothWaysFlow : antiparallelNet.Flow where
   toFun u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 2
     | 1, 2 => 2
     | 2, 1 => 1

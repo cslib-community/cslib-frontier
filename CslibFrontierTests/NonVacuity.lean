@@ -396,12 +396,12 @@ example : RectangleFree (univ : Set (Fin 1 → Bool)) 2 ∧ 2 ≤ (univ : Set (F
   by_cases h : (0 : Fin 1) ∈ X
   · right
     have : Subsingleton (↥Xᶜ → Bool) :=
-      ⟨fun f g => funext fun i => absurd (Subsingleton.elim i.1 0 ▸ h) i.2⟩
+      ⟨fun f g => funext fun i => absurd (Subsingleton.elim i.val 0 ▸ h) i.property⟩
     exact (ncard_le_one (toFinite _)).mpr (fun a _ b _ => Subsingleton.elim a b) |>.trans_lt
       one_lt_two
   · left
     have : Subsingleton (↥X → Bool) :=
-      ⟨fun f g => funext fun i => absurd (Subsingleton.elim i.1 0 ▸ i.2) h⟩
+      ⟨fun f g => funext fun i => absurd (Subsingleton.elim i.val 0 ▸ i.property) h⟩
     exact (ncard_le_one (toFinite _)).mpr (fun a _ b _ => Subsingleton.elim a b) |>.trans_lt
       one_lt_two
 
@@ -543,9 +543,9 @@ example : ∃ (c : Circuit (fullSignature 8 Bool) 8 1) (S : Set (Fin 8 → Bool)
         b = fun _ => false := by
       funext j
       by_contra hj
-      have := huniq (hz ha hb) (i := i) (j := j) (by simp [z, i.2, hi])
-        (by simpa [z, show (j : Fin 8) ∉ X from j.2] using hj)
-      exact j.2 (this ▸ i.2)
+      have := huniq (hz ha hb) (i := i) (j := j) (by simp [z, i.property, hi])
+        (by simpa [z, show (j : Fin 8) ∉ X from j.property] using hj)
+      exact j.property (this ▸ i.property)
     obtain ⟨i, hi⟩ := Function.ne_iff.mp hne
     rcases Bool.eq_false_or_eq_true (a i) with h₁ | h₁
     · exact hne' ((hzero ha h₁ hb).trans (hzero ha h₁ hb').symm)

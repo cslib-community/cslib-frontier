@@ -458,7 +458,7 @@ noncomputable def qrRealGame (setup : ℕ → PMF ModulusDesc)
     (adversary : ℕ → ℕ × ℕ → ProbComp Bool) (n : ℕ) : Game := do
   let d ← setup n
   let y ← PMF.uniformOfFintype (quadResidueSet d.p d.q)
-  ProbComp.eval (adversary n (d.p * d.q, y.1.val.val))
+  ProbComp.eval (adversary n (d.p * d.q, y.val.val.val))
 
 /-- Ideal quadratic residuosity experiment: sample `N = p * q` and a uniform quadratic
 nonresidue `y ∈ QNR_N^{+1}` with Jacobi symbol `+1`, and give `(N, y)` to the distinguisher. -/
@@ -466,7 +466,7 @@ noncomputable def qrIdealGame (setup : ℕ → PMF ModulusDesc)
     (adversary : ℕ → ℕ × ℕ → ProbComp Bool) (n : ℕ) : Game := do
   let d ← setup n
   let y ← PMF.uniformOfFintype (positiveNonresidues d.p d.q)
-  ProbComp.eval (adversary n (d.p * d.q, y.1.val.val))
+  ProbComp.eval (adversary n (d.p * d.q, y.val.val.val))
 
 /-- The computational quadratic residuosity assumption ([KatzLindell2020], Section 15.4.3;
 locator not independently inspected in the 3rd-edition PDF): no uniform strict PPT distinguisher
@@ -600,13 +600,13 @@ theorem qrRealGame_factorToQR (setup : ℕ → PMF ModulusDesc)
   funext d
   have hconst : (fun y : quadResidueSet d.p d.q =>
       (ProbComp.eval (F n (d.p * d.q))).bind fun ab =>
-        PMF.pure (qrEulerTest (d.p * d.q) y.1.val.val ab.1 ab.2)) =
+        PMF.pure (qrEulerTest (d.p * d.q) y.val.val.val ab.1 ab.2)) =
       fun _ => (ProbComp.eval (F n (d.p * d.q))).bind fun ab =>
         PMF.pure (decide (1 < ab.1 ∧ 1 < ab.2 ∧ ab.1 * ab.2 = d.p * d.q)) := by
     funext y
     congr 1
     funext ab
-    rw [qrEulerTest_of_mem_quadResidueSet d y.2 ab.1 ab.2]
+    rw [qrEulerTest_of_mem_quadResidueSet d y.property ab.1 ab.2]
   rw [hconst, PMF.bind_const]
   rfl
 
@@ -619,18 +619,18 @@ theorem qrIdealGame_factorToQR (setup : ℕ → PMF ModulusDesc)
   have hconst : (fun d : ModulusDesc =>
       (PMF.uniformOfFintype (positiveNonresidues d.p d.q)).bind fun y =>
         (ProbComp.eval (F n (d.p * d.q))).bind fun ab =>
-          PMF.pure (qrEulerTest (d.p * d.q) y.1.val.val ab.1 ab.2)) =
+          PMF.pure (qrEulerTest (d.p * d.q) y.val.val.val ab.1 ab.2)) =
       fun _ => PMF.pure false := by
     funext d
     have hy : (fun y : positiveNonresidues d.p d.q =>
         (ProbComp.eval (F n (d.p * d.q))).bind fun ab =>
-          PMF.pure (qrEulerTest (d.p * d.q) y.1.val.val ab.1 ab.2)) =
+          PMF.pure (qrEulerTest (d.p * d.q) y.val.val.val ab.1 ab.2)) =
         fun _ => PMF.pure false := by
       funext y
-      have hab : (fun ab : ℕ × ℕ => PMF.pure (qrEulerTest (d.p * d.q) y.1.val.val ab.1 ab.2)) =
+      have hab : (fun ab : ℕ × ℕ => PMF.pure (qrEulerTest (d.p * d.q) y.val.val.val ab.1 ab.2)) =
           fun _ => PMF.pure false := by
         funext ab
-        rw [qrEulerTest_of_mem_positiveNonresidues d y.2 ab.1 ab.2]
+        rw [qrEulerTest_of_mem_positiveNonresidues d y.property ab.1 ab.2]
       rw [hab, PMF.bind_const]
     rw [hy, PMF.bind_const]
   rw [hconst, PMF.bind_const]

@@ -107,10 +107,10 @@ private def torusRotation : RotationSystem torus where
 
 -- The wrong rotation's universal color premise fails, although its underlying graph is
 -- planar. This remains an algebraic obstruction, not a geometric nonrealizability test.
-example : ¬ ∀ x : Fin torus.2.length → Bool, torus.VertexEven x →
+example : ¬ ∀ x : Fin torus.edges.length → Bool, torus.VertexEven x →
     ∃ q : torusRotation.Face → Bool, torusRotation.faceBoundary q = x := by
   intro h
-  have hG : ∀ v ∈ torus.incidenceVertices, v ∈ torus.1 := by decide
+  have hG : ∀ v ∈ torus.incidenceVertices, v ∈ torus.vertices := by decide
   have hg := torusRotation.numericalGenusZero_of_vertexEven_faceBoundary hG h
   have he := (RotationCertificate.verifyEuler_eq_true_iff
     (RotationCertificate.verifyRotation_ofRotation torusRotation hG)).mpr

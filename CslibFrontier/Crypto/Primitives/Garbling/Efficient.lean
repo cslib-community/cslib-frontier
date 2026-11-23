@@ -167,16 +167,16 @@ def encValidCircuit : ValidCircuit ↪ List Bool :=
 /-- A valid circuit's word has at least `n + q` bits: `n` in unary and at least one bit per
 gate. -/
 theorem n_add_q_le_length_encValidCircuit (f : ValidCircuit) :
-    f.1.n + f.1.q ≤ (encValidCircuit f).length := by
-  change f.1.n + f.1.q ≤ (encCircuitData (f.1.n, f.1.m, f.1.gateList)).length
-  have h := length_le_length_encList (encPair encNat (encPair encNat encBits)) f.1.gateList
+    f.val.n + f.val.q ≤ (encValidCircuit f).length := by
+  change f.val.n + f.val.q ≤ (encCircuitData (f.val.n, f.val.m, f.val.gateList)).length
+  have h := length_le_length_encList (encPair encNat (encPair encNat encBits)) f.val.gateList
   simp only [ConventionalCircuit.length_gateList] at h
   simp only [encCircuitData, length_encPair, encUnary_apply, List.length_replicate]
   omega
 
 /-- The data of a valid circuit is read from its word in polynomial time. -/
 theorem circuitData_polyTime :
-    ComputableInPolyTime (fun f : ValidCircuit => (f.1.n, f.1.m, f.1.gateList)) encValidCircuit
+    ComputableInPolyTime (fun f : ValidCircuit => (f.val.n, f.val.m, f.val.gateList)) encValidCircuit
       encCircuitData :=
   .of_eq fun _ => rfl
 
@@ -220,61 +220,61 @@ private theorem wireStep_polyTime :
 /-- **The plaintext wire values** `f.wires x f.q` of a valid circuit on an input, the `n` input
 bits followed by the `q` gate values, are computed in polynomial time. -/
 theorem wires_polyTime :
-    ComputableInPolyTime (fun (f, x) => f.1.wires x f.1.q) (encPair encValidCircuit encBits)
+    ComputableInPolyTime (fun (f, x) => f.val.wires x f.val.q) (encPair encValidCircuit encBits)
       encBits := by
   have hd : ComputableInPolyTime (fun p : ValidCircuit × List Bool =>
-      (p.1.1.n, p.1.1.m, p.1.1.gateList)) (encPair encValidCircuit encBits) encCircuitData :=
+      (p.1.val.n, p.1.val.m, p.1.val.gateList)) (encPair encValidCircuit encBits) encCircuitData :=
     circuitData_polyTime.comp (ComputableInPolyTime.fst _ _)
-  have hg : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.1.gateList)
+  have hg : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.val.gateList)
       (encPair encValidCircuit encBits) (encList (encPair encNat (encPair encNat encBits))) :=
     hd.snd'.snd'
-  have hn : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.1.n)
+  have hn : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.val.n)
       (encPair encValidCircuit encBits) encUnary := hd.fst'
   have hfold := ComputableInPolyTime.foldlWith_of_bounded_growth
     (encP := encUnit) (encL := encList (encPair encNat (encPair encNat encBits)))
     (encB := encBits) (encA := encPair encNat (encPair encNat encBits))
     (encIn := encPair encValidCircuit encBits)
     (step := fun (_ : Unit) ws gate => wireStep ws gate) (par := fun _ => ())
-    (list := fun p => p.1.1.gateList)
-    (init := fun p => p.2.take p.1.1.n ++ List.replicate (p.1.1.n - p.2.length) false)
+    (list := fun p => p.1.val.gateList)
+    (init := fun p => p.2.take p.1.val.n ++ List.replicate (p.1.val.n - p.2.length) false)
     (by polytime) hg (by polytime) wireStep_polyTime (growth := fun _ => 1)
     (PolyBounded.const 1) (fun _ ws gate _ => by
       change (wireStep ws gate).length ≤ ws.length + 1
       simp [wireStep])
-  have heq : (fun (f, x) => f.1.wires x f.1.q) = fun p : ValidCircuit × List Bool =>
-      p.1.1.gateList.foldl wireStep (p.2.take p.1.1.n ++
-        List.replicate (p.1.1.n - p.2.length) false) := by
+  have heq : (fun (f, x) => f.val.wires x f.val.q) = fun p : ValidCircuit × List Bool =>
+      p.1.val.gateList.foldl wireStep (p.2.take p.1.val.n ++
+        List.replicate (p.1.val.n - p.2.length) false) := by
     funext ⟨f, x⟩
     dsimp only
     rw [wires_eq_foldl _ _ le_rfl,
-      List.take_of_length_le (show f.1.gateList.length ≤ f.1.q by simp)]
+      List.take_of_length_le (show f.val.gateList.length ≤ f.val.q by simp)]
   rw [heq]
   exact hfold
 
 /-- **The semantics** `evalCirc` of a valid circuit on an input, the semantics `ev` of the
 garbling schemes over conventional circuits, is computed in polynomial time. -/
 theorem evalCirc_polyTime :
-    ComputableInPolyTime (fun (f, x) => f.1.evalCirc x) (encPair encValidCircuit encBits)
+    ComputableInPolyTime (fun (f, x) => f.val.evalCirc x) (encPair encValidCircuit encBits)
       encBits := by
   have hd : ComputableInPolyTime (fun p : ValidCircuit × List Bool =>
-      (p.1.1.n, p.1.1.m, p.1.1.gateList)) (encPair encValidCircuit encBits) encCircuitData :=
+      (p.1.val.n, p.1.val.m, p.1.val.gateList)) (encPair encValidCircuit encBits) encCircuitData :=
     circuitData_polyTime.comp (ComputableInPolyTime.fst _ _)
-  have hn : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.1.n)
+  have hn : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.val.n)
       (encPair encValidCircuit encBits) encUnary := hd.fst'
-  have hm : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.1.m)
+  have hm : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.val.m)
       (encPair encValidCircuit encBits) encUnary := hd.snd'.fst'
   have hq := (ComputableInPolyTime.length_list _).comp
-    (hd.snd'.snd' : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.1.gateList)
+    (hd.snd'.snd' : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.val.gateList)
       (encPair encValidCircuit encBits) (encList (encPair encNat (encPair encNat encBits))))
   have hc : ComputableInPolyTime (fun p : ValidCircuit × List Bool =>
-      p.1.1.n + p.1.1.gateList.length - p.1.1.m) (encPair encValidCircuit encBits) encUnary :=
+      p.1.val.n + p.1.val.gateList.length - p.1.val.m) (encPair encValidCircuit encBits) encUnary :=
     ComputableInPolyTime.unary_sub.comp
       ((ComputableInPolyTime.unary_add.comp (hn.prod hq)).prod hm)
   have hdrop : ComputableInPolyTime (fun p : List Bool × ℕ => p.1.drop p.2)
       (encPair encBits encUnary) encBits := by
     polytime
-  have heq : (fun (f, x) => f.1.evalCirc x) = fun p : ValidCircuit × List Bool =>
-      (p.1.1.wires p.2 p.1.1.q).drop (p.1.1.n + p.1.1.gateList.length - p.1.1.m) := by
+  have heq : (fun (f, x) => f.val.evalCirc x) = fun p : ValidCircuit × List Bool =>
+      (p.1.val.wires p.2 p.1.val.q).drop (p.1.val.n + p.1.val.gateList.length - p.1.val.m) := by
     funext p
     obtain ⟨f, x⟩ := p
     simp only [ConventionalCircuit.evalCirc, ConventionalCircuit.length_gateList]
@@ -324,7 +324,7 @@ def encValidTopo : ValidTopo ↪ List Bool :=
 
 /-- The data of a valid topology is read from its word in polynomial time. -/
 theorem topoData_polyTime :
-    ComputableInPolyTime (fun t : ValidTopo => (t.1.n, t.1.m, t.1.gateList)) encValidTopo
+    ComputableInPolyTime (fun t : ValidTopo => (t.val.n, t.val.m, t.val.gateList)) encValidTopo
       encTopoData :=
   .of_eq fun _ => rfl
 
@@ -333,10 +333,10 @@ the truth table of each gate. -/
 theorem phiTopo_polyTime : ComputableInPolyTime phiTopo.phi encValidCircuit encValidTopo := by
   have hd := circuitData_polyTime
   have hgates : ComputableInPolyTime (fun f : ValidCircuit =>
-      f.1.gateList.map fun t => (t.1, t.2.1)) encValidCircuit (encList (encPair encNat encNat)) :=
+      f.val.gateList.map fun t => (t.1, t.2.1)) encValidCircuit (encList (encPair encNat encNat)) :=
     ComputableInPolyTime.mapWithInput hd.snd'.snd' (by fun_prop)
   refine (hd.fst'.prod (hd.snd'.fst'.prod hgates)).of_enc_eq fun f => ?_
-  change encTopoData (f.1.n, f.1.m, f.1.topo.gateList) = encTopoData (f.1.n, f.1.m, _)
+  change encTopoData (f.val.n, f.val.m, f.val.topo.gateList) = encTopoData (f.val.n, f.val.m, _)
   simp only [Topo.gateList, ConventionalCircuit.gateList, ConventionalCircuit.topo, List.map_ofFn]
   rfl
 

@@ -32,7 +32,7 @@ private theorem reversal : ∀ a : Graph.Dart G,
     coordinates a.reverse = (coordinates a).reverse := by decide +kernel
 
 private theorem genus : r.NumericalGenusZero := by
-  have hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1 := by decide
+  have hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices := by decide
   have h := (Graph.RotationCertificate.verifyEuler_eq_true_iff
     (Graph.RotationCertificate.verifyRotation_ofRotation r hG)).mp (by decide)
   exact Graph.RotationCertificate.decode_ofRotation r hG ▸ h

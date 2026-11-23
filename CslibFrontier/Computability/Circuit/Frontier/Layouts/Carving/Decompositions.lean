@@ -97,7 +97,7 @@ variable {α ι κ : Type*} (D : SubcubicLeafTree α ι)
 
 /-- The subset of `α` on the `u`-side of `(u, v)`. -/
 def cutSet (u v : ι) : Set α :=
-  {a : α | (D.leaf a).1 ∈ D.isTree.treeSide u v}
+  {a : α | (D.leaf a).val ∈ D.isTree.treeSide u v}
 
 /-- Reversing an edge of `D.tree` complements the induced subset of `α`. -/
 theorem cutSet_compl_of_adj {u v : ι} (huv : D.tree.Adj u v) :
@@ -122,25 +122,25 @@ def reindex (e : ι ≃ κ) : SubcubicLeafTree α κ where
     rw [hset, ncard_image_of_injective _ e.injective]
     exact D.degree_le_three _
   leaf := D.leaf.trans
-    { toFun := fun t => ⟨e t.1, by
-        have hset : (D.tree.comap e.symm).neighborSet (e t.1) = e '' D.tree.neighborSet t.1 := by
+    { toFun := fun t => ⟨e t.val, by
+        have hset : (D.tree.comap e.symm).neighborSet (e t.val) = e '' D.tree.neighborSet t.val := by
           ext x
           simp only [SimpleGraph.mem_neighborSet, SimpleGraph.comap_adj, Equiv.symm_apply_apply]
           exact ⟨fun h => ⟨e.symm x, h, e.apply_symm_apply x⟩,
             by rintro ⟨y, hy, rfl⟩; simpa using hy⟩
         rw [hset, ncard_image_of_injective _ e.injective]
-        exact t.2⟩
-      invFun := fun k => ⟨e.symm k.1, by
-        have hset : D.tree.neighborSet (e.symm k.1) =
-            e.symm '' (D.tree.comap e.symm).neighborSet k.1 := by
+        exact t.property⟩
+      invFun := fun k => ⟨e.symm k.val, by
+        have hset : D.tree.neighborSet (e.symm k.val) =
+            e.symm '' (D.tree.comap e.symm).neighborSet k.val := by
           ext y
           simp only [SimpleGraph.mem_neighborSet]
           exact ⟨fun h => ⟨e y, by simpa [SimpleGraph.comap_adj] using h, e.symm_apply_apply y⟩,
             by rintro ⟨x, hx, rfl⟩; exact hx⟩
         rw [hset, ncard_image_of_injective _ e.symm.injective]
-        exact k.2⟩
-      left_inv := fun t => Subtype.ext (e.symm_apply_apply t.1)
-      right_inv := fun k => Subtype.ext (e.apply_symm_apply k.1) }
+        exact k.property⟩
+      left_inv := fun t => Subtype.ext (e.symm_apply_apply t.val)
+      right_inv := fun k => Subtype.ext (e.apply_symm_apply k.val) }
 
 private theorem pathTo_reindex_length (e : ι ≃ κ) (w u : ι) :
     ((D.reindex e).isTree.pathTo (e w) (e u)).length = (D.isTree.pathTo w u).length := by
@@ -160,13 +160,13 @@ private theorem pathTo_reindex_length (e : ι ≃ κ) (w u : ι) :
 @[simp] theorem cutSet_reindex (e : ι ≃ κ) (u v : κ) :
     (D.reindex e).cutSet u v = D.cutSet (e.symm u) (e.symm v) := by
   ext a
-  have hleaf : ((D.reindex e).leaf a).1 = e (D.leaf a).1 := rfl
+  have hleaf : ((D.reindex e).leaf a).val = e (D.leaf a).val := rfl
   simp only [cutSet, SimpleGraph.IsTree.treeSide, mem_ofPred_eq]
   rw [hleaf]
   conv_lhs =>
     rw [← e.apply_symm_apply u, ← e.apply_symm_apply v]
-  rw [D.pathTo_reindex_length e (D.leaf a).1 (e.symm u),
-    D.pathTo_reindex_length e (D.leaf a).1 (e.symm v)]
+  rw [D.pathTo_reindex_length e (D.leaf a).val (e.symm u),
+    D.pathTo_reindex_length e (D.leaf a).val (e.symm v)]
 
 /-- Width of a `SubcubicLeafTree` with respect to any cut cost `cost : Set α → ℕ`. -/
 noncomputable def costWidth [Fintype ι] (cost : Set α → ℕ) : ℕ :=
@@ -749,7 +749,7 @@ theorem exists_subcubicLeafTree_of_binTree (t : BinTree α) (hp : t.IsPartition 
       refine ⟨{ preconnected := fun x y => (hreach x).trans (hreach y).symm
                 nonempty := ⟨root⟩ }, ?_⟩
       let f : {z : TopNode l r // z ≠ root} → T.edgeSet :=
-        fun z => ⟨s(z.1, par z.1), hadj.mpr (Or.inl ⟨z.2, rfl⟩)⟩
+        fun z => ⟨s(z.val, par z.val), hadj.mpr (Or.inl ⟨z.property, rfl⟩)⟩
       have hf : Function.Bijective f := by
         refine ⟨?_, ?_⟩
         · rintro ⟨z₁, hz₁⟩ ⟨z₂, hz₂⟩ heq
@@ -976,11 +976,11 @@ theorem exists_subcubicLeafTree_of_binTree (t : BinTree α) (hp : t.IsPartition 
         have hadjz : T.Adj z (par z) := hadj.mpr (Or.inl ⟨hz, rfl⟩)
         have hdecomp := hT.treeSide_eq_insert_biUnion hadjz
         have hleaf_apply (j : (BinTree.node l r).LeafIdx) :
-            (D.leaf ((BinTree.node l r).leafLabel j)).1 = (idxToNode j).1 := by
-          change (leafEquiv ((Equiv.ofBijective _ hlbl_bij) j)).1 = _
+            (D.leaf ((BinTree.node l r).leafLabel j)).val = (idxToNode j).val := by
+          change (leafEquiv ((Equiv.ofBijective _ hlbl_bij) j)).val = _
           simp [leafEquiv]
-        have hset_eq (S : Set (TopNode l r)) : {a : α | (D.leaf a).1 ∈ S} =
-            (BinTree.node l r).leafLabel '' {j | (idxToNode j).1 ∈ S} := by
+        have hset_eq (S : Set (TopNode l r)) : {a : α | (D.leaf a).val ∈ S} =
+            (BinTree.node l r).leafLabel '' {j | (idxToNode j).val ∈ S} := by
           ext a
           constructor
           · intro ha
@@ -988,7 +988,7 @@ theorem exists_subcubicLeafTree_of_binTree (t : BinTree α) (hp : t.IsPartition 
             exact ⟨j, by simpa [hleaf_apply] using ha, rfl⟩
           · rintro ⟨j, hj, rfl⟩
             simpa [hleaf_apply] using hj
-        change {a : α | (D.leaf a).1 ∈ hT.treeSide z (par z)} = subSet z
+        change {a : α | (D.leaf a).val ∈ hT.treeSide z (par z)} = subSet z
         rw [hdecomp]
         rcases z with x | y
         · have hxr : x ≠ l.nodeRoot := fun h => hz (congrArg Sum.inl h)
@@ -1017,10 +1017,10 @@ theorem exists_subcubicLeafTree_of_binTree (t : BinTree α) (hp : t.IsPartition 
               rw [hcpar, heq] at h2
               exact lt_asymm h1 h2
           rw [hch]
-          have hself : {a : α | (D.leaf a).1 = Sum.inl x} =
+          have hself : {a : α | (D.leaf a).val = Sum.inl x} =
               l.leafLabel '' {i : l.LeafIdx | l.leafToNode i = x} := by
-            rw [show {a : α | (D.leaf a).1 = Sum.inl x} =
-                {a : α | (D.leaf a).1 ∈ ({Sum.inl x} : Set (TopNode l r))} from rfl, hset_eq]
+            rw [show {a : α | (D.leaf a).val = Sum.inl x} =
+                {a : α | (D.leaf a).val ∈ ({Sum.inl x} : Set (TopNode l r))} from rfl, hset_eq]
             ext b
             constructor
             · rintro ⟨i | j, hi, rfl⟩
@@ -1028,9 +1028,9 @@ theorem exists_subcubicLeafTree_of_binTree (t : BinTree α) (hp : t.IsPartition 
               · exact nomatch hi
             · rintro ⟨i, hi, rfl⟩
               exact ⟨Sum.inl i, congrArg Sum.inl hi, rfl⟩
-          calc {a : α | (D.leaf a).1 ∈ insert (Sum.inl x)
+          calc {a : α | (D.leaf a).val ∈ insert (Sum.inl x)
                   (⋃ c ∈ Sum.inl '' (l.nodeChildren x : Set l.Node), hT.treeSide c (Sum.inl x))}
-              = {a : α | (D.leaf a).1 = Sum.inl x} ∪
+              = {a : α | (D.leaf a).val = Sum.inl x} ∪
                   ⋃ wx ∈ l.nodeChildren x, D.cutSet (Sum.inl wx) (Sum.inl x) := by
                 ext a; simp [SubcubicLeafTree.cutSet]
             _ = (l.leafLabel '' {i : l.LeafIdx | l.leafToNode i = x}) ∪
@@ -1072,10 +1072,10 @@ theorem exists_subcubicLeafTree_of_binTree (t : BinTree α) (hp : t.IsPartition 
               rw [hcpar, heq] at h2
               exact lt_asymm h1 h2
           rw [hch]
-          have hself : {a : α | (D.leaf a).1 = Sum.inr y} =
+          have hself : {a : α | (D.leaf a).val = Sum.inr y} =
               r.leafLabel '' {j : r.LeafIdx | r.leafToNode j = y} := by
-            rw [show {a : α | (D.leaf a).1 = Sum.inr y} =
-                {a : α | (D.leaf a).1 ∈ ({Sum.inr y} : Set (TopNode l r))} from rfl, hset_eq]
+            rw [show {a : α | (D.leaf a).val = Sum.inr y} =
+                {a : α | (D.leaf a).val ∈ ({Sum.inr y} : Set (TopNode l r))} from rfl, hset_eq]
             ext b
             constructor
             · rintro ⟨i | j, hj, rfl⟩
@@ -1083,9 +1083,9 @@ theorem exists_subcubicLeafTree_of_binTree (t : BinTree α) (hp : t.IsPartition 
               · exact ⟨j, Sum.inr.inj hj, rfl⟩
             · rintro ⟨j, hj, rfl⟩
               exact ⟨Sum.inr j, congrArg Sum.inr hj, rfl⟩
-          calc {a : α | (D.leaf a).1 ∈ insert (Sum.inr y)
+          calc {a : α | (D.leaf a).val ∈ insert (Sum.inr y)
                   (⋃ c ∈ Sum.inr '' (r.nodeChildren y : Set r.Node), hT.treeSide c (Sum.inr y))}
-              = {a : α | (D.leaf a).1 = Sum.inr y} ∪
+              = {a : α | (D.leaf a).val = Sum.inr y} ∪
                   ⋃ wy ∈ r.nodeChildren y, D.cutSet (Sum.inr wy) (Sum.inr y) := by
                 ext a; simp [SubcubicLeafTree.cutSet]
             _ = (r.leafLabel '' {j : r.LeafIdx | r.leafToNode j = y}) ∪
@@ -1138,8 +1138,8 @@ theorem exists_binTree_of_subcubicLeafTree {ι : Type*} [Finite ι] [Nonempty α
       ext a
       simp [Subsingleton.elim a a₀]
   · have hcard' : 1 < Fintype.card ι := not_le.mp hcard
-    let r₀ : ι := (D.leaf a₀).1
-    have hr₀_le : (D.tree.neighborSet r₀).ncard ≤ 1 := (D.leaf a₀).2
+    let r₀ : ι := (D.leaf a₀).val
+    have hr₀_le : (D.tree.neighborSet r₀).ncard ≤ 1 := (D.leaf a₀).property
     -- Since `|ι| ≥ 2` and `D.tree` is connected, `r₀` has a unique neighbour `c₀`.
     obtain ⟨w₀, hw₀⟩ : ∃ w : ι, w ≠ r₀ := Fintype.exists_ne_of_one_lt_card hcard' r₀
     have hwalk := SimpleGraph.Walk.not_nil_of_ne (p := D.isTree.pathTo w₀ r₀) hw₀.symm
@@ -1198,16 +1198,16 @@ theorem exists_binTree_of_subcubicLeafTree {ι : Type*} [Finite ι] [Nonempty α
           omega
         have hdecomp := D.isTree.treeSide_eq_insert_biUnion htp
         have hcut_decomp : D.cutSet t p =
-            {a : α | (D.leaf a).1 = t} ∪
+            {a : α | (D.leaf a).val = t} ∪
               ⋃ c ∈ ch, D.cutSet c t := by
           ext a
           simp only [SubcubicLeafTree.cutSet, mem_ofPred_eq, hdecomp, mem_insert_iff, mem_iUnion,
             mem_union, hch_mem]
-        have hnotleaf (hpos : 1 ≤ ch.card) : {a : α | (D.leaf a).1 = t} = ∅ := by
+        have hnotleaf (hpos : 1 ≤ ch.card) : {a : α | (D.leaf a).val = t} = ∅ := by
           ext a
           simp only [mem_ofPred_eq, mem_empty_iff_false, iff_false]
           intro hat
-          have hle1 := (D.leaf a).2
+          have hle1 := (D.leaf a).property
           rw [hat] at hle1
           omega
         interval_cases hcard_ch : ch.card
@@ -1279,7 +1279,7 @@ theorem exists_binTree_of_subcubicLeafTree {ι : Type*} [Finite ι] [Nonempty α
     have hcut_r₀ : D.cutSet r₀ c₀ = {a₀} := by
       ext a
       simp only [SubcubicLeafTree.cutSet, hr₀_side, mem_ofPred_eq, mem_singleton_iff]
-      exact ⟨fun h => D.leaf.injective (Subtype.ext h), fun h => congrArg (fun x => (D.leaf x).1) h⟩
+      exact ⟨fun h => D.leaf.injective (Subtype.ext h), fun h => congrArg (fun x => (D.leaf x).val) h⟩
     have hcut_c₀ : D.cutSet c₀ r₀ = ({a₀} : Set α)ᶜ := by
       rw [D.cutSet_compl_of_adj hc₀_adj, hcut_r₀]
     rw [hcut_c₀] at hbt₀_part

@@ -35,13 +35,13 @@ namespace Cslib.Complexity.Graph.RotationSystem
 genus zero. No connectedness, degree or nonloop assumption is needed. This algebraic
 criterion does not by itself construct colors from a geometric drawing. -/
 theorem numericalGenusZero_of_vertexEven_faceBoundary {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
-    (hcolor : ∀ x : Fin G.2.length → Bool, G.VertexEven x →
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
+    (hcolor : ∀ x : Fin G.edges.length → Bool, G.VertexEven x →
       ∃ q : r.Face → Bool, r.faceBoundary q = x) : r.NumericalGenusZero := by
   apply (r.numericalGenusZero_dual_iff hG).mp
   apply r.dualRotation.numericalGenusZero_of_faceEven_lifts r.dualGraph_endpoints_declared
   intro y hy
-  let x (i : Fin G.2.length) : Bool := y (Fin.cast r.dualGraph_length.symm i)
+  let x (i : Fin G.edges.length) : Bool := y (Fin.cast r.dualGraph_length.symm i)
   have hxy : (fun i => x (Fin.cast r.dualGraph_length i)) = y :=
     funext fun _ => congrArg y (Fin.ext rfl)
   have hx : G.VertexEven x := by

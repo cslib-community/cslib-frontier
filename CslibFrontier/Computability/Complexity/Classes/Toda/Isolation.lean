@@ -245,7 +245,7 @@ private theorem sixteen_pow_mul_card_filter_no_isolation_le {M t B : ℕ} {S : F
     ¬#{x ∈ S | hashesToZero k₀ (List.ofFn σ) (List.ofFn x)} = 1 with hFbad
   -- the rounds use the level `k₀` at the indices `i * (M + 3) + k₀`
   let idx : Fin t → Fin T := fun i => ⟨i * (M + 3) + k₀, by
-    have := i.2
+    have := i.isLt
     calc i * (M + 3) + k₀ < i * (M + 3) + (M + 3) := by omega
       _ = (i + 1) * (M + 3) := by ring
       _ ≤ t * (M + 3) := Nat.mul_le_mul_right _ this⟩

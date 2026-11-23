@@ -300,7 +300,7 @@ theorem interpRecover_eq {P ℓ : ℕ} {fl : List ℕ}
   have hZ : Z' = Lagrange.ringInterpolate univ ζ fun i => val P fl (ys.getD i []) := by
     conv_lhs => rw [Lagrange.eq_ringInterpolate (fun i _ j _ hij => hunit hij) hdeg']
     congr 1 with i : 1
-    exact (hys i i.2).symm
+    exact (hys i i.isLt).symm
   have hpval : pval P fl (interp P fl pts ys) = Z' := hg.trans hZ.symm
   refine List.map_congr_left fun j _ => ?_
   have hval : val P fl ((interp P fl pts ys).getD j []) = val P fl [Z.coeff j] := by

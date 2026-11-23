@@ -177,7 +177,7 @@ theorem uniformBridge_sampleInts_checks :
     (∑' z : ℤ, ((uniformOfFinset sampleInts sampleInts_nonempty) z).toReal *
         (z : ℝ) ^ 2) = 15 / 2 ∧
       (∑ x : sampleInts,
-        if 0 < x.1 then ((uniformOfFintype sampleInts) x).toReal else 0) = 1 / 2 ∧
+        if 0 < x.val then ((uniformOfFintype sampleInts) x).toReal else 0) = 1 / 2 ∧
       ((sampleInts.filter (0 < ·)).card : ℝ) =
         sampleInts.card *
           ((uniformOfFinset sampleInts sampleInts_nonempty).toOuterMeasure

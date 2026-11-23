@@ -98,7 +98,7 @@ example : ∃ S ⊆ (univ : Finset (Fin 4)), 4 ≤ 2 * #S ∧
 -- at most half of the `1023` directions leave the request unclean.
 example (targets : Fin 1 → Fin 10 → ZMod 2) :
     #{d : Fin 1 → {v : Fin 10 → ZMod 2 // v ≠ 0} |
-        2 * #{i | IsClean ∅ targets (fun j => (d j).1) i} < 1} * 2 ^ 1 ≤ (2 ^ 10 - 1) ^ 1 := by
+        2 * #{i | IsClean ∅ targets (fun j => (d j).val) i} < 1} * 2 ^ 1 ≤ (2 ^ 10 - 1) ^ 1 := by
   have h := card_filter_two_mul_card_isClean_lt_mul_two_pow_le (∅ : Finset (Fin 10 → ZMod 2))
     targets (by rw [ZMod.card, card_empty]; decide)
   rwa [ZMod.card] at h

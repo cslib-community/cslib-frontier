@@ -28,18 +28,18 @@ open Equiv
 /-- Face-even labels have potentials on consecutive indexed face darts, with no genus or
 endpoint-declaration hypothesis. A dart potential need not descend to graph vertices. -/
 theorem exists_facePotential_of_faceEven {G : Graph} (r : RotationSystem G)
-    (x : Fin G.2.length → Bool) (hx : r.FaceEven x) :
+    (x : Fin G.edges.length → Bool) (hx : r.FaceEven x) :
     ∃ p : Dart G → Bool, ∀ d, x d.1 = (p d ^^ p (r.faceNext d)) := by
   classical
   let e := Dart.indexEquiv G
   let f := e.permCongr r.faceNext
-  let y (i : Fin (2 * G.2.length)) := x (e.symm i).1
-  have hsame (i : Fin (2 * G.2.length)) (d : Dart G) :
+  let y (i : Fin (2 * G.edges.length)) := x (e.symm i).1
+  have hsame (i : Fin (2 * G.edges.length)) (d : Dart G) :
       f.SameCycle i (e d) ↔ r.faceNext.SameCycle (e.symm i) d := by
     simpa only [Equiv.apply_symm_apply] using
       (Perm.sameCycle_equiv_iff e r.faceNext f (fun d => by simp [f]) (e.symm i) d)
-  have hsum (i : Fin (2 * G.2.length)) :
-      (∑ j : Fin (2 * G.2.length), if f.SameCycle i j then y j else 0) = 0 := by
+  have hsum (i : Fin (2 * G.edges.length)) :
+      (∑ j : Fin (2 * G.edges.length), if f.SameCycle i j then y j else 0) = 0 := by
     rw [← Equiv.sum_comp e]
     simp only [hsame, y, Equiv.symm_apply_apply]
     have h := hx (Quotient.mk _ (e.symm i))
@@ -53,7 +53,7 @@ theorem exists_facePotential_of_faceEven {G : Graph} (r : RotationSystem G)
 /-- Differences of consecutive face-dart potentials telescope on every full face orbit.
 This implication also needs neither numerical genus nor declared endpoints. -/
 theorem faceEven_of_facePotential {G : Graph} (r : RotationSystem G)
-    (x : Fin G.2.length → Bool) (p : Dart G → Bool)
+    (x : Fin G.edges.length → Bool) (p : Dart G → Bool)
     (hp : ∀ d, x d.1 = (p d ^^ p (r.faceNext d))) : r.FaceEven x := by
   classical
   intro face

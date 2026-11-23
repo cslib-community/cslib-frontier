@@ -383,10 +383,10 @@ theorem vec_mem_toDiameter₂ {j : ℕ} (hj : j < p.2.length) :
 
 /-- Two vertices joined by an edge, or equal, are at distance at most one. -/
 private theorem edist_le_one_of {u v : {v // v ∈ (toDiameter p).vertices}}
-    (h : u.1 = v.1 ∨ (u.1, v.1) ∈ (toDiameter p).edges ∨ (v.1, u.1) ∈ (toDiameter p).edges) :
+    (h : u.val = v.val ∨ (u.val, v.val) ∈ (toDiameter p).edges ∨ (v.val, u.val) ∈ (toDiameter p).edges) :
     (toDiameter p).induced.edist u v ≤ 1 := by
   rw [SimpleGraph.edist_le_one_iff_adj_or_eq]
-  by_cases huv : u.1 = v.1
+  by_cases huv : u.val = v.val
   · exact Or.inr (Subtype.ext huv)
   · refine Or.inl (Graph.toSimpleGraph_adj.mpr ⟨huv, ?_⟩)
     rcases h with h | h | h
@@ -427,9 +427,9 @@ vector of the first list, adjacent to `0`, or a vector of the second list, adjac
 theorem classify_toDiameter (u : {v // v ∈ (toDiameter p).vertices}) :
     ((toDiameter p).induced.edist (toDiameterHub₀ p) u ≤ 1 ∧
         (toDiameter p).induced.edist (toDiameterHub₁ p) u ≤ 1) ∨
-      (∃ k < p.1.length, u.1 = vecVertex k ∧
+      (∃ k < p.1.length, u.val = vecVertex k ∧
         (toDiameter p).induced.edist (toDiameterHub₀ p) u ≤ 1) ∨
-      (∃ j < p.2.length, u.1 = vecVertex (p.1.length + j) ∧
+      (∃ j < p.2.length, u.val = vecVertex (p.1.length + j) ∧
         (toDiameter p).induced.edist (toDiameterHub₁ p) u ≤ 1) := by
   have hc {a b : ℕ} (h : (a, b) ∈ constEdges) : (a, b) ∈ (toDiameter p).edges :=
     const_mem_edges_toDiameter h
@@ -492,7 +492,7 @@ holding `true` in both, and all other pairs of vertices share a hub. -/
 theorem edist_toDiameter_le_two (hp : p ∉ OV) (u v : {v // v ∈ (toDiameter p).vertices}) :
     (toDiameter p).induced.edist u v ≤ 2 := by
   have cross {u v : {v // v ∈ (toDiameter p).vertices}} {k j : ℕ} (hk : k < p.1.length)
-      (hj : j < p.2.length) (hu : u.1 = vecVertex k) (hv : v.1 = vecVertex (p.1.length + j)) :
+      (hj : j < p.2.length) (hu : u.val = vecVertex k) (hv : v.val = vecVertex (p.1.length + j)) :
       (toDiameter p).induced.edist u v ≤ 2 := by
     have hno : ¬OV.Orthogonal p.1[k] p.2[j] := fun h =>
       hp ⟨_, List.getElem_mem hk, _, List.getElem_mem hj, h⟩
@@ -531,11 +531,11 @@ theorem two_lt_edist_toDiameter {k j : ℕ} (hk : k < p.1.length) (hj : j < p.2.
     rw [SimpleGraph.mem_commonNeighbors] at hw
     obtain ⟨-, hu⟩ := Graph.toSimpleGraph_adj.mp hw.1
     obtain ⟨-, hv⟩ := Graph.toSimpleGraph_adj.mp hw.2
-    have hu' : (w.1, vecVertex k) ∈ (toDiameter p).edges ∨
-        (vecVertex k, w.1) ∈ (toDiameter p).edges :=
+    have hu' : (w.val, vecVertex k) ∈ (toDiameter p).edges ∨
+        (vecVertex k, w.val) ∈ (toDiameter p).edges :=
       hu.symm
-    have hv' : (w.1, vecVertex (p.1.length + j)) ∈ (toDiameter p).edges ∨
-        (vecVertex (p.1.length + j), w.1) ∈ (toDiameter p).edges := hv.symm
+    have hv' : (w.val, vecVertex (p.1.length + j)) ∈ (toDiameter p).edges ∨
+        (vecVertex (p.1.length + j), w.val) ∈ (toDiameter p).edges := hv.symm
     rcases eq_of_mem_edges_toDiameter_vec₁ hk hu' with hu | ⟨i, hia, ha, hu⟩ <;>
       rcases eq_of_mem_edges_toDiameter_vec₂ hj hv' with hv | ⟨i', hib, hb, hv⟩
     · omega

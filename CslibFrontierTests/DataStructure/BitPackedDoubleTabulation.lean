@@ -209,7 +209,7 @@ theorem sample_goodTop_and_kWise :
     ∀ θ : Seed 4 1 8 25 4, GoodTop 16 4 4 1 8 25 2 W_set θ.1 θ.top →
       IsKWiseIndependentHash 2
         (fun T₂ : DoubleTabBotSeed 8 25 4 => fun su : Fin 2 × W_set =>
-          evalSalted 16 4 4 1 8 25 4 2 (θ.1, θ.top, T₂) (su.1, su.2.1)) := by
+          evalSalted 16 4 4 1 8 25 4 2 (θ.1, θ.top, T₂) (su.1, su.2.val)) := by
   intro W_set
   refine ⟨?_, fun θ hgood => isKWiseIndependentHash_evalSalted_of_goodTop
     (by norm_num : 2 ≤ 2 ^ 25) (by decide : min 4 4 ≤ 1 * 25) hgood⟩

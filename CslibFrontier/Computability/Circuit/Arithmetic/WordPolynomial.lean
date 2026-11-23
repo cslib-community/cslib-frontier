@@ -624,7 +624,7 @@ private theorem choiceDigits_surjective (p : ℤ → Prop) [DecidablePred p] :
     Function.Surjective (choiceDigits (w := w) p) := by
   intro y
   refine ⟨fun j => (Equiv.sigmaSubtype (j : Fin d)).symm
-    ⟨y j, by simpa [sideSize, mem_wordBlocks.mp j.2] using (y j).isLt⟩, ?_⟩
+    ⟨y j, by simpa [sideSize, mem_wordBlocks.mp j.property] using (y j).isLt⟩, ?_⟩
   funext j
   by_cases h : p (w j)
   · ext

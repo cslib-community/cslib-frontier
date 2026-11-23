@@ -42,7 +42,7 @@ private noncomputable def port (d : Dart G) : ℝ := (r.portRank d : ℝ) + 1
 Each vertex cycle is cut once and its darts placed at positive horizontal ports in rank order.
 Numerical genus zero is needed for embedding, not to define these actual coordinates. -/
 noncomputable def bouquet
-    (hloop : ∀ e : Fin G.2.length,
+    (hloop : ∀ e : Fin G.edges.length,
       (Dart.vertex (G := G) (e, false)) = Dart.vertex (e, true)) : PolygonalDrawing G where
   vertex := center r
   route := fun e => (portLoop (port r (e, false)) (port r (e, true))).translate
@@ -80,7 +80,7 @@ private theorem same_center_of_contact {u v : ℕ} {x y : ℝ}
     have hmul := mul_le_mul_of_nonneg_left hvu (spacing_pos r).le
     nlinarith [hy.1, hy.2, hx.1]
 
-private theorem eval_re_bounds (e : Fin G.2.length) (i : Fin 5) {t : ℝ}
+private theorem eval_re_bounds (e : Fin G.edges.length) (i : Fin 5) {t : ℝ}
     (ht : t ∈ Set.Icc 0 1) :
     ((portLoop (port r (e, false)) (port r (e, true))).eval i t).re ∈
       Set.Ico 0 (spacing r) := by
@@ -98,7 +98,7 @@ private theorem port_injective (a b : Dart G) (hv : a.vertex = b.vertex)
 
 /-- The two actual loop-end germs are the ports of those very indexed darts. -/
 theorem germ_bouquet
-    (hloop : ∀ e : Fin G.2.length,
+    (hloop : ∀ e : Fin G.edges.length,
       (Dart.vertex (G := G) (e, false)) = Dart.vertex (e, true)) (d : Dart G) :
     (bouquet r hloop).germ d = ⟨(r.portRank d : ℝ) + 1, 1⟩ := by
   rcases d with ⟨e, b⟩
@@ -109,7 +109,7 @@ theorem germ_bouquet
 /-- The construction realizes the exact given clockwise rotation, without reflection.
 This needs no numerical-genus assumption; `bouquet_isEmbedding` supplies embedding separately. -/
 theorem bouquet_realizes
-    (hloop : ∀ e : Fin G.2.length,
+    (hloop : ∀ e : Fin G.edges.length,
       (Dart.vertex (G := G) (e, false)) = Dart.vertex (e, true)) :
     (bouquet r hloop).Realizes r where
   nonzero d := by
@@ -140,17 +140,17 @@ theorem bouquet_realizes
     omega
 
 private theorem eval_bouquet
-    (hloop : ∀ e : Fin G.2.length,
+    (hloop : ∀ e : Fin G.edges.length,
       (Dart.vertex (G := G) (e, false)) = Dart.vertex (e, true))
-    (e : Fin G.2.length) (i : Fin 5) (t : ℝ) :
+    (e : Fin G.edges.length) (i : Fin 5) (t : ℝ) :
     ((bouquet r hloop).route e).eval i t =
       center r (Dart.vertex (G := G) (e, false)) +
         (portLoop (port r (e, false)) (port r (e, true))).eval i t :=
   Route.eval_translate _ _ _ _
 
 private theorem distinct_ports
-    (hloop : ∀ e : Fin G.2.length,
-      (Dart.vertex (G := G) (e, false)) = Dart.vertex (e, true)) (e : Fin G.2.length) :
+    (hloop : ∀ e : Fin G.edges.length,
+      (Dart.vertex (G := G) (e, false)) = Dart.vertex (e, true)) (e : Fin G.edges.length) :
     port r (e, false) ≠ port r (e, true) := by
   intro h
   exact Bool.false_ne_true (congrArg Prod.snd (port_injective r _ _ (hloop e) h))
@@ -159,8 +159,8 @@ private theorem distinct_ports
 five-segment drawing a genuine embedding. Degrees, repeated edge pairs, declared vertex
 names, isolated vertices and disconnected components are unrestricted. -/
 theorem bouquet_isEmbedding
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (hr : r.NumericalGenusZero)
-    (hloop : ∀ e : Fin G.2.length,
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hr : r.NumericalGenusZero)
+    (hloop : ∀ e : Fin G.edges.length,
       (Dart.vertex (G := G) (e, false)) = Dart.vertex (e, true)) :
     (bouquet r hloop).IsEmbedding where
   vertices_injective := by

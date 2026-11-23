@@ -199,16 +199,16 @@ example
     (σ : {σ : ↥((Finset.range 3).erase 0) → Bool //
       (branchingFormula.restrict 0 true).eval
         (fun u => if h : u ∈ (Finset.range 3).erase 0 then σ ⟨u, h⟩ else false) = true}) :
-    (CNF.restrictModelsEquiv branchingFormula (Finset.range 3) (by decide) true σ).1
+    (CNF.restrictModelsEquiv branchingFormula (Finset.range 3) (by decide) true σ).val
         ⟨0, by decide⟩ = true ∧
       ((CNF.modelsSplitEquiv branchingFormula (Finset.range 3) (by decide)).symm
-        ⟨(CNF.modelsSplitEquiv branchingFormula (Finset.range 3) (by decide) (Sum.inr σ)).1,
+        ⟨(CNF.modelsSplitEquiv branchingFormula (Finset.range 3) (by decide) (Sum.inr σ)).val,
          (CNF.modelsSplitEquiv branchingFormula (Finset.range 3) (by decide)
-           (Sum.inr σ)).2⟩) =
+           (Sum.inr σ)).property⟩) =
         Sum.inr σ := by
   refine ⟨by simp, ?_⟩
   have hzero :
-      (CNF.modelsSplitEquiv branchingFormula (Finset.range 3) (by decide) (Sum.inr σ)).1
+      (CNF.modelsSplitEquiv branchingFormula (Finset.range 3) (by decide) (Sum.inr σ)).val
         ⟨0, by decide⟩ = true := by
     simp
   rw [CNF.modelsSplitEquiv_symm_of_eq_true _ _ _ _ hzero]
@@ -221,8 +221,8 @@ example
       (branchingFormula.restrict 0 false).eval
         (fun u => if h : u ∈ (Finset.range 3).erase 0 then σ ⟨u, h⟩ else false) = true})
     (h1 : 1 ∈ Finset.range 3) :
-    (CNF.restrictModelsEquiv branchingFormula (Finset.range 3) (by decide) false σ).1 ⟨1, h1⟩ =
-      σ.1 ⟨1, by decide⟩ := by
+    (CNF.restrictModelsEquiv branchingFormula (Finset.range 3) (by decide) false σ).val ⟨1, h1⟩ =
+      σ.val ⟨1, by decide⟩ := by
   simp
 
 end CslibFrontierTests.CNFBasics

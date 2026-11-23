@@ -120,9 +120,9 @@ example :
 /-- Every element of `schnorrGroups.Carrier d23` has binary encoding length at most `6`. -/
 theorem encode_d23_length_le (x : schnorrGroups.Carrier d23) :
     (schnorrGroups.encode d23 x).length ≤ 6 := by
-  have : NeZero d23.1.1 := ⟨by decide⟩
+  have : NeZero d23.val.1 := ⟨by decide⟩
   have hfin : ∀ i : Fin 23, i.val.bits.length ≤ 6 := by decide
-  exact hfin ⟨((Additive.toMul x).1 : ZMod d23.1.1).val, ZMod.val_lt _⟩
+  exact hfin ⟨((Additive.toMul x).val : ZMod d23.val.1).val, ZMod.val_lt _⟩
 
 /-- One-query `IsOraclePPT` distinguisher testing whether the oracle reply on `[true, true]` has
 head bit `true`. -/

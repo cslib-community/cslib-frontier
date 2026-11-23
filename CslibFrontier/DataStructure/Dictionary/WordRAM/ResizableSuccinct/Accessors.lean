@@ -250,7 +250,7 @@ theorem realizesBounded_readBitSliceGen :
       · rw [Nat.min_eq_right (by omega)]; omega)
   all_goals try exact trivial
   all_goals try exact ⟨hw, hk0_le_w⟩
-  all_goals try (refine lt_of_le_of_lt ?_ hmem.1; omega)
+  all_goals try (refine lt_of_le_of_lt ?_ hmem.frontier_fits; omega)
   all_goals try omega
   all_goals try (rw [Nat.shiftLeft_eq, one_mul]; exact Nat.one_le_two_pow)
   all_goals try (rw [Nat.shiftLeft_eq, one_mul]; exact Nat.pow_lt_pow_right one_lt_two hk1_lt)
@@ -289,7 +289,7 @@ private theorem realizesBounded_writeBitSliceLow :
     rcases d with ⟨⟨⟨base, wOff⟩, ⟨bOff, mask₀⟩⟩, val⟩
     obtain ⟨k₀, rfl, hbOff, hbk, hfr⟩ := h
     dsimp only at *)
-  all_goals try (refine lt_of_le_of_lt ?_ hmem.1; omega)
+  all_goals try (refine lt_of_le_of_lt ?_ hmem.frontier_fits; omega)
   all_goals (
     have hδ_lt : (((s.mem (base + wOff) >>> bOff) &&& (2 ^ k₀ - 1)) ^^^
         (val &&& (2 ^ k₀ - 1))) < 2 ^ k₀ := by
@@ -301,7 +301,7 @@ private theorem realizesBounded_writeBitSliceLow :
       calc _ < 2 ^ k₀ * 2 ^ bOff := Nat.mul_lt_mul_of_pos_right hδ_lt (Nat.two_pow_pos _)
         _ = 2 ^ (k₀ + bOff) := (Nat.pow_add 2 k₀ bOff).symm
         _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos (by omega)
-    first | exact hsh_lt | exact Nat.xor_lt_two_pow (hmem.2 _) hsh_lt)
+    first | exact hsh_lt | exact Nat.xor_lt_two_pow (hmem.mem_fits _) hsh_lt)
 
 /-- Write the high `k₁`-bit portion of `val >>> k₀` into `base + wOff + 1` at bit offset `0`. -/
 private def writeBitSliceHighProg : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ → Memory.Prog Unit
@@ -325,7 +325,7 @@ private theorem realizesBounded_writeBitSliceHigh :
     rcases d with ⟨⟨⟨base, wOff⟩, ⟨k₀, k₁⟩⟩, val⟩
     obtain ⟨hk0, hk1, hfr⟩ := h
     dsimp only at *)
-  all_goals try (refine lt_of_le_of_lt ?_ hmem.1; omega)
+  all_goals try (refine lt_of_le_of_lt ?_ hmem.frontier_fits; omega)
   all_goals try (rw [Nat.shiftLeft_eq, one_mul]; exact Nat.one_le_two_pow)
   all_goals try (rw [Nat.shiftLeft_eq, one_mul]; exact Nat.pow_lt_pow_right one_lt_two hk1)
   all_goals (
@@ -334,7 +334,7 @@ private theorem realizesBounded_writeBitSliceHigh :
       rw [Nat.shiftLeft_eq, one_mul]
       refine (Nat.xor_lt_two_pow ?_ ?_).trans_le (Nat.pow_le_pow_right two_pos hk1.le) <;>
         (rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _))
-    first | exact hδ_lt | exact Nat.xor_lt_two_pow (hmem.2 _) hδ_lt)
+    first | exact hδ_lt | exact Nat.xor_lt_two_pow (hmem.mem_fits _) hδ_lt)
 
 /-- Write `val` into the `k`-bit slice starting at `(base + wOff, bOff)` in `Memory.Prog`. -/
 def writeBitSliceGenProg : ((ℕ × (ℕ × ℕ)) × (ℕ × ℕ)) × ℕ → Memory.Prog Unit
@@ -447,7 +447,7 @@ private theorem realizesBounded_packedOffset :
     have hwo_def : (idx / w) * k + ((idx % w) * k) / w < s.frontier := hwo)
   all_goals try exact hw.ne'
   all_goals try exact mod_mul_lt_two_pow hw hkw idx
-  refine lt_of_le_of_lt ?_ hmem.1; omega
+  refine lt_of_le_of_lt ?_ hmem.frontier_fits; omega
 
 /-- Read `readPacked (base + offset) k w s.mem idx` in `Memory.Prog` with `RealizesBounded`. -/
 def readPackedCompGenProg : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ → Memory.Prog ℕ
@@ -499,7 +499,7 @@ theorem realizesBounded_readPackedCompGen :
     simp only [StateTransitionSpec.clientState, clientResult_packedOffsetProg,
       runClient_state_packedOffsetProg] at *
     have hlt := wordOffset_add_one_lt_packedWords (k := k) hw hidx)
-  all_goals try (refine lt_of_le_of_lt ?_ hmem.1; omega)
+  all_goals try (refine lt_of_le_of_lt ?_ hmem.frontier_fits; omega)
   all_goals try exact ⟨hw, rfl, hkw, by omega⟩
   exact ⟨hw, rfl, hkw, bitOffset_lt hw, by omega⟩
 
@@ -558,7 +558,7 @@ theorem realizesBounded_writePackedCompGen :
     simp only [StateTransitionSpec.clientState, clientResult_packedOffsetProg,
       runClient_state_packedOffsetProg] at *
     have hlt := wordOffset_add_one_lt_packedWords (k := k) hw hidx)
-  all_goals try (refine lt_of_le_of_lt ?_ hmem.1; omega)
+  all_goals try (refine lt_of_le_of_lt ?_ hmem.frontier_fits; omega)
   all_goals try exact ⟨hw, rfl, hkw, by omega⟩
   exact ⟨hw, rfl, hkw, bitOffset_lt hw, by omega⟩
 
@@ -634,7 +634,7 @@ private theorem realizesBounded_compQOffset :
   · unfold PackedOffsetPre; exact ⟨hw, rfl, hv, by omega⟩
   all_goals try exact hw.ne'
   all_goals try exact hbsum
-  refine lt_of_le_of_lt ?_ hmem.1; omega
+  refine lt_of_le_of_lt ?_ hmem.frontier_fits; omega
 
 /-- Compute `(wOffV q_bits v_bits wVal d, bOffV q_bits v_bits wVal d)` overflow-free. -/
 private def compVOffsetProg : ((ℕ × ℕ) × ℕ) × ℕ → Memory.Prog (ℕ × ℕ)
@@ -690,7 +690,7 @@ private theorem realizesBounded_compVOffset :
   · unfold CompQOffsetPre; exact ⟨hw, rfl, hq, hv, by omega⟩
   all_goals try exact hw.ne'
   all_goals try exact hbsum
-  refine lt_of_le_of_lt ?_ hmem.1; omega
+  refine lt_of_le_of_lt ?_ hmem.frontier_fits; omega
 
 /-- Entry precondition for dense `(quotient, value)` stream operations at `itemBase`. -/
 @[expose] def CompItemEnv (w : ℕ) (cp : CompParams) (itemBase m_items : ℕ)

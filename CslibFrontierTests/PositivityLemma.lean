@@ -174,7 +174,7 @@ is not determined by
 #guard_msgs in
 attribute [local positivity_lemma] shifted_inst_undetermined
 
-private theorem nnreal_nonneg (x : NNReal) : 0 ≤ x := x.2
+private theorem nnreal_nonneg (x : NNReal) : 0 ≤ x := x.property
 
 /--
 error: `@[positivity_lemma]`: nnreal_nonneg states the sign of a variable, which `positivity` would have to try on every expression

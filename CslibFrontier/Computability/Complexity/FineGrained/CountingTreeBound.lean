@@ -81,19 +81,19 @@ theorem countingTreeBound_of_budget (hM2 : 2 ≤ M) {B : ℕ} (hB : 1 ≤ B)
       B * countingBChoiceCoeff K * Nat.clog 2 (4 * countingDepthCoeff K M * M) ≤ M) :
     CountingTreeBound M K B (countingDepthCoeff K M) hM hK := by
   intro ψ declared hsupport
-  have hnt : ∀ C ∈ ψ.1.toClauseSet, ∀ l ∈ C, Std.Sat.Literal.negate l ∉ C := by
+  have hnt : ∀ C ∈ ψ.val.toClauseSet, ∀ l ∈ C, Std.Sat.Literal.negate l ∉ C := by
     intro C' hC' l hl hneg
     obtain ⟨C, hC, rfl⟩ := mem_toClauseSet.mp hC'
-    exact ψ.2.nontautological C hC l (List.mem_toFinset.mp hl) (List.mem_toFinset.mp hneg)
-  have hsup : ∀ C ∈ ψ.1.toClauseSet, ∀ l ∈ C, l.1 ∈ declared := by
+    exact ψ.property.nontautological C hC l (List.mem_toFinset.mp hl) (List.mem_toFinset.mp hneg)
+  have hsup : ∀ C ∈ ψ.val.toClauseSet, ∀ l ∈ C, l.1 ∈ declared := by
     intro C' hC' l hl
     obtain ⟨C, hC, rfl⟩ := mem_toClauseSet.mp hC'
     exact hsupport C hC l (List.mem_toFinset.mp hl)
   refine ⟨fun w hw => ?_, fun W hW => ?_⟩
-  · exact CountingBranchingRule.length_le_of_isNodeWord (R := rule hM hK) hM2 ψ.2.reduced
-      hnt ψ.2.card_le declared hsup hw.isNodeWord
+  · exact CountingBranchingRule.length_le_of_isNodeWord (R := rule hM hK) hM2 ψ.property.reduced
+      hnt ψ.property.card_le declared hsup hw.isNodeWord
   · exact CountingBranchingRule.card_le_two_pow_of_isLeafWord (R := rule hM hK) hM2
-      ψ.2.reduced hnt ψ.2.card_le declared hsup hB hbudget W hW
+      ψ.property.reduced hnt ψ.property.card_le declared hsup hB hbudget W hW
 
 include hK in
 /-- **Unconditional `CountingTreeBound` at `countingThresholdBase K B`.**

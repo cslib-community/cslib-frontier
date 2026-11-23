@@ -251,7 +251,7 @@ private theorem fieldOfBits_drop_take (hw : w ≠ 0) {M : ℕ} {y : List Bool}
   apply congrArg (BinaryField.equivBits hw).symm
   funext j
   rw [BitString.block_apply, hY, Fin.val_castAdd, finProdFinEquiv_apply_val,
-    List.getD_take_drop y (i * w) j.2 false]
+    List.getD_take_drop y (i * w) j.isLt false]
   congr 1
   ring
 
@@ -290,7 +290,7 @@ theorem encodedProgram_eq {L : Language Bool} {gL : List Bool → Bool}
   have hw0 : 4 * blockLength M y.length ≠ 0 := by omega
   have hle := encodedLength_le M y.length
   have hY : ∀ k, (fun i : Fin y.length => y[i]) (Fin.castLE hle k) = y.getD k false := fun k =>
-    (List.getD_eq_getElem y false (by have := k.2; omega)).symm
+    (List.getD_eq_getElem y false (by have := k.isLt; omega)).symm
   have hlen : (ldeVal (fieldTable (4 * blockLength M y.length)) (4 * blockLength M y.length)
       (blockLength M y.length) M (BitString.enumList (blockLength M y.length))
       ((BitString.enumList (M * blockLength M y.length)).filter
@@ -305,6 +305,6 @@ theorem encodedProgram_eq {L : Language Bool} {gL : List Bool → Bool}
   apply congrArg (BinaryField.equivBits hw0)
   apply congrArg (truthTableExtension _ _)
   funext i
-  rw [List.getD_map_range _ [] i.2, fieldOfBits_drop_take hw0 hY]
+  rw [List.getD_map_range _ [] i.isLt, fieldOfBits_drop_take hw0 hY]
 
 end Cslib.HardnessEncoding

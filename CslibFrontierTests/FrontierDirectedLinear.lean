@@ -92,8 +92,8 @@ example :
 /-- Oriented cubic theta multigraph: edges `0, 1` run `false → true` (`σ(false) = +1`), edge `2`
 runs `true → false` (`σ(true) = -1`), forming two directed 2-cycles. -/
 private def dirTheta : Multigraph Bool (Fin 3) where
-  src e := if e.1 < 2 then false else true
-  tgt e := if e.1 < 2 then true else false
+  src e := if e.val < 2 then false else true
+  tgt e := if e.val < 2 then true else false
 
 private theorem dirTheta_loopless : dirTheta.Loopless := by
   intro e

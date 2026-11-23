@@ -100,7 +100,7 @@ theorem segment_endpoint_eq_eval {G : Graph} (D : PolygonalDrawing G)
 /-- At an internal bend, the only incident segment ends are the two consecutive
 occurrences of its route. This includes bends of closed loop routes. -/
 theorem IsEmbedding.segment_ends_at_bend {G : Graph} {D : PolygonalDrawing G}
-    (hD : D.IsEmbedding) (e : Fin G.2.length) (i : Fin (D.route e).bends)
+    (hD : D.IsEmbedding) (e : Fin G.edges.length) (i : Fin (D.route e).bends)
     (k : D.SegmentIndex × Bool)
     (hp : rayEndpoint D.segmentStart D.segmentFinish k =
       (D.route e).point i.castSucc.succ) :
@@ -174,7 +174,7 @@ theorem segmentEnd_vector {G : Graph} (D : PolygonalDrawing G) (d : Dart G) :
 /-- Every segment end at a declared vertex is an actual original graph dart there.
 Internal bends cannot be mistaken for vertex incidences. -/
 theorem IsEmbedding.segment_end_at_vertex {G : Graph} {D : PolygonalDrawing G}
-    (hD : D.IsEmbedding) (v : ℕ) (hv : v ∈ G.1) (k : D.SegmentIndex × Bool)
+    (hD : D.IsEmbedding) (v : ℕ) (hv : v ∈ G.vertices) (k : D.SegmentIndex × Bool)
     (hp : rayEndpoint D.segmentStart D.segmentFinish k = D.vertex v) :
     ∃ d : Dart G, d.vertex = v ∧ D.segmentEnd d = k := by
   rcases k with ⟨⟨e, i⟩, tag⟩

@@ -121,10 +121,10 @@ open Cslib.Algorithms.Lean.TimeM
   | zero => exact i.elim0
   | succ n ih =>
     simp only [ofFnTickM, time_simps, vget]
-    by_cases hi : i.1 < n
+    by_cases hi : i.val < n
     · rw [Vector.getElem_push_lt hi]
-      exact ih (fun j => f j.castSucc) ⟨i.1, hi⟩
-    · have : i = Fin.last n := Fin.ext (by have := i.2; simp; omega)
+      exact ih (fun j => f j.castSucc) ⟨i.val, hi⟩
+    · have : i = Fin.last n := Fin.ext (by have := i.isLt; simp; omega)
       subst this
       simp
 
@@ -146,10 +146,10 @@ open Cslib.Algorithms.Lean.TimeM
   | zero => exact i.elim0
   | succ n ih =>
     simp only [ofFnM, time_simps, vget]
-    by_cases hi : i.1 < n
+    by_cases hi : i.val < n
     · rw [Vector.getElem_push_lt hi]
-      exact ih (fun j => f j.castSucc) ⟨i.1, hi⟩
-    · have : i = Fin.last n := Fin.ext (by have := i.2; simp; omega)
+      exact ih (fun j => f j.castSucc) ⟨i.val, hi⟩
+    · have : i = Fin.last n := Fin.ext (by have := i.isLt; simp; omega)
       subst this
       simp
 

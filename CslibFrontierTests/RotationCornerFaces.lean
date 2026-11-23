@@ -43,7 +43,7 @@ private def mixedRotation : Graph.RotationSystem mixed where
   sameCycle_iff := by decide +kernel
 
 private theorem mixedGenus : mixedRotation.NumericalGenusZero := by
-  have hG : ∀ v ∈ mixed.incidenceVertices, v ∈ mixed.1 := by decide
+  have hG : ∀ v ∈ mixed.incidenceVertices, v ∈ mixed.vertices := by decide
   have h := (Graph.RotationCertificate.verifyEuler_eq_true_iff
     (Graph.RotationCertificate.verifyRotation_ofRotation mixedRotation hG)).mp (by decide)
   exact Graph.RotationCertificate.decode_ofRotation mixedRotation hG ▸ h

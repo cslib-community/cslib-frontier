@@ -498,7 +498,7 @@ noncomputable def HardKeyValSeed.candidateOps {U V n : ℕ} (s : HardKeyValSeed 
 /-- Dictionary state reached after `n` initial insertions and `t ≤ n` meta-operations of `s.ops`. -/
 theorem HardKeyValSeed.run_take_ops_fst {U V n t : ℕ} (s : HardKeyValSeed U V n) (ht : t ≤ n) :
     ((Dynamic.spec U V n).run (Dictionary.empty U) (s.ops.take (n + 3 * t))).1 =
-      (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx)) t ht).1 := by
+      (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx)) t ht).val := by
   set vals := fun idx => s.kv (s.keys idx); set pvals := fun idx => s.kv (s.permKeyEmb idx)
   have hinit : ((Dynamic.spec U V n).run (Dictionary.empty U) (initInsertSeq s.keys vals)).1 =
       ((Dynamic.spec U V n).run (Dictionary.empty U) (initInsertSeq s.permKeyEmb pvals)).1 := by

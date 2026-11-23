@@ -2139,8 +2139,8 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
       simp only [Finset.sum_const, Finset.card_univ, smul_eq_mul, mul_one,
         ← Nat.card_eq_fintype_card] at hsum
       have hge1 (B : cmp.blocks) : 1 ≤ cmp.blockWeight B := by
-        obtain ⟨v, hv⟩ := List.exists_mem_of_ne_nil B.1 (cmp.ne_nil B.1 B.2)
-        have hlen : 1 ≤ B.1.length := List.length_pos_of_mem hv
+        obtain ⟨v, hv⟩ := List.exists_mem_of_ne_nil B.val (cmp.ne_nil B.val B.property)
+        have hlen : 1 ≤ B.val.length := List.length_pos_of_mem hv
         simpa [CappedCompression.blockWeight] using hlen
       calc cmp.blocks.card = ∑ _B : cmp.blocks, 1 := by simp
         _ ≤ ∑ B : cmp.blocks, cmp.blockWeight B := Finset.sum_le_sum fun B _ => hge1 B
@@ -2358,20 +2358,20 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
       dsimp [h]; exact_mod_cast (Nat.zero_lt_of_lt hM_lt_V)
     set thr : ℝ := η * h
     have hthr_pos : 0 < thr := by positivity
-    let aWt (B : cmp.blocks) : ℝ := ((A ∩ {v : V | v ∈ B.1}).ncard : ℝ)
+    let aWt (B : cmp.blocks) : ℝ := ((A ∩ {v : V | v ∈ B.val}).ncard : ℝ)
     have haWt_bounds (B : cmp.blocks) : 0 ≤ aWt B ∧ aWt B ≤ M := by
       refine ⟨Nat.cast_nonneg _, ?_⟩
-      have hsub : A ∩ {v : V | v ∈ B.1} ⊆ {v : V | v ∈ B.1} := inter_subset_right
-      have hle_len : (A ∩ {v : V | v ∈ B.1}).ncard ≤ cmp.blockWeight B := by
+      have hsub : A ∩ {v : V | v ∈ B.val} ⊆ {v : V | v ∈ B.val} := inter_subset_right
+      have hle_len : (A ∩ {v : V | v ∈ B.val}).ncard ≤ cmp.blockWeight B := by
         refine (ncard_le_ncard hsub (toFinite _)).trans ?_
         rw [cmp.ncard_block_eq_length B, CappedCompression.blockWeight]
         simp
       exact Nat.cast_le.mpr (hle_len.trans (cmp.blockWeight_le B))
     have haWt_sum_univ : ∑ B : cmp.blocks, aWt B = (A.ncard : ℝ) := by
-      have hnat : (∑ B : cmp.blocks, (A ∩ {v : V | v ∈ B.1}).ncard) = A.ncard := by
+      have hnat : (∑ B : cmp.blocks, (A ∩ {v : V | v ∈ B.val}).ncard) = A.ncard := by
         let fSet (B : cmp.blocks) : Finset V :=
           Finset.univ.filter fun v => v ∈ A ∧ cmp.blockOf v = B
-        have hf_eq (B : cmp.blocks) : (A ∩ {v : V | v ∈ B.1}).ncard = (fSet B).card := by
+        have hf_eq (B : cmp.blocks) : (A ∩ {v : V | v ∈ B.val}).ncard = (fSet B).card := by
           rw [← ncard_coe_finset]
           congr 1; ext v; simp [fSet, cmp.mem_iff_blockOf_eq]
         simp_rw [hf_eq]

@@ -31,7 +31,7 @@ namespace Cslib.Complexity.Graph
 namespace ClosedPassages
 
 /-- One passage using the two actual ends of a single listed loop. -/
-@[expose] def loop {G : Graph} (e : Fin G.2.length)
+@[expose] def loop {G : Graph} (e : Fin G.edges.length)
     (he : (Dart.vertex (G := G) (e, false)) = Dart.vertex (e, true)) :
     ClosedPassages G (fun i => decide (i = e)) where
   count := 1
@@ -51,7 +51,7 @@ namespace ClosedPassages
   vertex_eq := fun _ => he
 
 /-- The single-loop passage keeps the original edge occurrence and both endpoint tags. -/
-@[simp] theorem dart_loop {G : Graph} (e : Fin G.2.length)
+@[simp] theorem dart_loop {G : Graph} (e : Fin G.edges.length)
     (he : (Dart.vertex (G := G) (e, false)) = Dart.vertex (e, true))
     (i : Fin (loop e he).count) (b : Bool) : (loop e he).dart i b = (e, b) := rfl
 
@@ -62,8 +62,8 @@ namespace RotationSystem
 /-- Two distinct listed loops cannot have alternating ends in a numerically genus-zero
 rotation. No connectedness, degree bound, drawing or Jordan-curve premise is used. -/
 theorem not_alternates_loops {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (hr : r.NumericalGenusZero)
-    (e f : Fin G.2.length) (hef : e ≠ f)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hr : r.NumericalGenusZero)
+    (e f : Fin G.edges.length) (hef : e ≠ f)
     (he : (Dart.vertex (G := G) (e, false)) = Dart.vertex (e, true))
     (hf : (Dart.vertex (G := G) (f, false)) = Dart.vertex (f, true)) :
     ¬r.Alternates (e, false) (e, true) (f, false) (f, true) := by

@@ -258,10 +258,10 @@ theorem exists_multidigraph_arcDisjoint_eq_outArcs [Finite V] [DecidableEq V] [F
     Finset.univ.filter fun i => (u, v) ∈ (P i).zip (P i).tail
   let A (u v : V) : Finset E := Finset.univ.filter fun e => src e = u ∧ tgt e = v
   let pick (u v : V) i (hi : i ∈ I u v) : E :=
-    ((A u v).equivFin.symm (Fin.castLE (hcap u v) ((I u v).equivFin ⟨i, hi⟩))).1
+    ((A u v).equivFin.symm (Fin.castLE (hcap u v) ((I u v).equivFin ⟨i, hi⟩))).val
   have hpick_st : ∀ u v i (hi : i ∈ I u v), src (pick u v i hi) = u ∧ tgt (pick u v i hi) = v :=
     fun u v i hi => by
-      have hm := ((A u v).equivFin.symm (Fin.castLE (hcap u v) ((I u v).equivFin ⟨i, hi⟩))).2
+      have hm := ((A u v).equivFin.symm (Fin.castLE (hcap u v) ((I u v).equivFin ⟨i, hi⟩))).property
       simp only [A, Finset.mem_filter, Finset.mem_univ, true_and] at hm; exact hm
   have hpick_inj : ∀ u₁ v₁ i₁ hi₁ u₂ v₂ i₂ hi₂,
       pick u₁ v₁ i₁ hi₁ = pick u₂ v₂ i₂ hi₂ → i₁ = i₂ := by
@@ -416,7 +416,7 @@ theorem exists_arcDisjoint_iff_forall_isArcCut [Finite V] (G : Digraph V) (s t :
               (fun _ _ => ⟨rfl, rfl⟩) hp.1 hp.2.1 hp.2.2.1
               (Digraph.isChain_iff_forall_mem_zip_tail.mp hp.2.2.2)
             obtain ⟨a, ha, haC'⟩ := hC' _ hq
-            exact ⟨a.1, hzip ▸ List.mem_map_of_mem ha, Finset.mem_map_of_mem _ haC'⟩
+            exact ⟨a.val, hzip ▸ List.mem_map_of_mem ha, Finset.mem_map_of_mem _ haC'⟩
           simpa using h _ hCut
     refine ⟨fun i => s :: (Q i).map (Multidigraph.arcTgt G), fun i => ?_,
       fun i j hij e hei hej => ?_⟩
@@ -1052,7 +1052,7 @@ theorem isVertexConnected_iff_forall_exists_injective_internallyDisjoint [Finite
           (exists_internallyDisjoint_iff_forall_isVertexSeparator G₀ u v (k - 1)).mpr hsep₀
         have hG₀le : G₀ ≤ G := G.deleteEdges_le _
         let W : Fin k → G.Walk u v := fun i =>
-          if h : i.1 < k - 1 then (W₀ ⟨i.1, h⟩).mapLe hG₀le else hadj.toWalk
+          if h : i.val < k - 1 then (W₀ ⟨i.val, h⟩).mapLe hG₀le else hadj.toWalk
         have hWpath : ∀ i, (W i).IsPath := fun i => by
           dsimp only [W]; split_ifs
           · exact Walk.IsPath.mk'
@@ -1060,7 +1060,7 @@ theorem isVertexConnected_iff_forall_exists_injective_internallyDisjoint [Finite
           · exact hadj.isPath_toWalk
         have hWdisj : SimpleGraph.InternallyDisjoint W := by
           intro i j hij x hxi hxj
-          rcases lt_or_ge i.1 (k - 1) with hi | hi <;> rcases lt_or_ge j.1 (k - 1) with hj | hj
+          rcases lt_or_ge i.val (k - 1) with hi | hi <;> rcases lt_or_ge j.val (k - 1) with hj | hj
           · simp only [W, hi, hj, ↓reduceDIte, Walk.support_mapLe_eq_support] at hxi hxj
             exact hdisj₀ (fun h => hij (Fin.ext (congrArg (@Fin.val (k - 1)) h))) x hxi hxj
           · simp only [W, Nat.not_lt.mpr hj, ↓reduceDIte, Adj.toWalk] at hxj; simpa using hxj
@@ -1068,15 +1068,15 @@ theorem isVertexConnected_iff_forall_exists_injective_internallyDisjoint [Finite
           · exact absurd (Fin.ext (by omega)) hij
         have hWinj : Function.Injective W := by
           have hinj₀ := injective_of_internallyDisjoint_of_not_adj huv hadj₀ hW₀ hdisj₀
-          have hlen : ∀ i : Fin k, i.1 < k - 1 → 2 ≤ (W i).length := fun i hi => by
+          have hlen : ∀ i : Fin k, i.val < k - 1 → 2 ≤ (W i).length := fun i hi => by
             simp only [W, hi, ↓reduceDIte, Walk.length_mapLe]
-            cases hw : W₀ ⟨i.1, hi⟩ with
+            cases hw : W₀ ⟨i.val, hi⟩ with
             | nil => exact absurd rfl huv
             | @cons _ _ _ h₁ p => cases p with
               | nil => exact absurd h₁ hadj₀
               | cons _ _ => simp [Walk.length_cons]
           intro i j hij
-          rcases lt_or_ge i.1 (k - 1) with hi | hi <;> rcases lt_or_ge j.1 (k - 1) with hj | hj
+          rcases lt_or_ge i.val (k - 1) with hi | hi <;> rcases lt_or_ge j.val (k - 1) with hj | hj
           · simp only [W, hi, hj, ↓reduceDIte] at hij
             exact Fin.ext (congrArg (@Fin.val (k - 1)) (hinj₀ (Walk.ext_support
               (by simpa [Walk.support_mapLe_eq_support] using congrArg Walk.support hij))))

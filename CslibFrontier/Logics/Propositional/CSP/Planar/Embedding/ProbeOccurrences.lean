@@ -76,7 +76,7 @@ theorem argumentSuccessor_probeOccurrence_reverse (F : CSP Rel V) (ports : List 
   · change (finRotate _ (probeOccurrence F ports (finRotate ports.length i)).2).val = _
     rw [val_finRotate, probeOccurrence_argument]
     have hlen := length_scope_probeOccurrence F ports (finRotate ports.length i)
-    change (probeBody F ports)[(probeOccurrence F ports (finRotate ports.length i)).1.val].2.length
+    change (probeBody F ports)[(probeOccurrence F ports (finRotate ports.length i)).1.val].scope.length
       = ports.length at hlen
     rw [hlen, probeOccurrence_argument, val_finRotate]
     split_ifs <;> omega
@@ -131,7 +131,7 @@ theorem record_bodyOccurrence (F : CSP Rel V) (ports : List V) (o : F.Occurrence
 omit [DecidableEq V] in
 /-- Appending the probe retains the complete original scope at each indexed body row. -/
 theorem scope_bodyOccurrence (F : CSP Rel V) (ports : List V) (o : F.Occurrence) :
-    (probeBody F ports)[(bodyOccurrence F ports o).1.val].2 = F[o.1.val].scope := by
+    (probeBody F ports)[(bodyOccurrence F ports o).1.val].scope = F[o.1.val].scope := by
   have hrow : (bodyOccurrence F ports o).1.val = o.1.val :=
     congrArg Prod.fst (record_bodyOccurrence F ports o)
   simp [hrow, probeBody, o.1.isLt]

@@ -403,7 +403,7 @@ theorem computableInPolyTime_naorReingoldWordEval :
 -/
 def naorReingoldSuffixExp (d : F.Desc) {n : ℕ} (k : ℕ)
     (α : Fin n → ZMod (F.order d)) (x : BitString n) : ZMod (F.order d) :=
-  ∏ i : Fin n, if k ≤ i.1 ∧ x i then α i else 1
+  ∏ i : Fin n, if k ≤ i.val ∧ x i then α i else 1
 
 @[simp]
 theorem naorReingoldSuffixExp_zero (d : F.Desc) {n : ℕ}
@@ -432,12 +432,12 @@ theorem naorReingoldSuffixExp_eq_mul_succ (d : F.Desc) {n k : ℕ} (hk : k < n)
     rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ (⟨k, hk⟩ : Fin n))]
     simp only [Nat.add_one_le_iff, lt_self_iff_false, false_and, ↓reduceIte, one_mul]
     refine Finset.prod_congr rfl fun i hi => ?_
-    have hne : i.1 ≠ k := by
+    have hne : i.val ≠ k := by
       intro heq
       exact (Finset.mem_erase.mp hi).1 (Fin.ext heq)
-    by_cases hlt : k < i.1
+    by_cases hlt : k < i.val
     · simp [hlt, Nat.le_of_lt hlt]
-    · have hnotle : ¬k ≤ i.1 := fun hle => hlt (Nat.lt_of_le_of_ne hle hne.symm)
+    · have hnotle : ¬k ≤ i.val := fun hle => hlt (Nat.lt_of_le_of_ne hle hne.symm)
       simp [hlt, hnotle]
 
 /-- Updating `α` at `⟨k, hk⟩` does not affect `naorReingoldSuffixExp` at depth `k + 1`. -/
@@ -447,7 +447,7 @@ theorem naorReingoldSuffixExp_succ_update (d : F.Desc) {n k : ℕ} (hk : k < n)
       F.naorReingoldSuffixExp d (k + 1) α x := by
   unfold naorReingoldSuffixExp
   refine Finset.prod_congr rfl fun i _ => ?_
-  by_cases h : k + 1 ≤ i.1
+  by_cases h : k + 1 ≤ i.val
   · have hne : i ≠ ⟨k, hk⟩ := by
       fin_index
     simp [hne]

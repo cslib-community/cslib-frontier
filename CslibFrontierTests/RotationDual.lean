@@ -64,7 +64,7 @@ example : torusRotation.faceId (0, false) = torusRotation.faceId (1, true) := by
 
 example : ¬ torusRotation.NumericalGenusZero := by
   intro h
-  have hG : ∀ v ∈ torusBouquet.incidenceVertices, v ∈ torusBouquet.1 := by decide
+  have hG : ∀ v ∈ torusBouquet.incidenceVertices, v ∈ torusBouquet.vertices := by decide
   have hd := RotationCertificate.decode_ofRotation torusRotation hG
   have he := (RotationCertificate.verifyEuler_eq_true_iff
     (RotationCertificate.verifyRotation_ofRotation torusRotation hG)).mpr (hd.symm ▸ h)
@@ -80,7 +80,7 @@ example (spin : ℕ → Bool) : bridgeRotation.FaceEven (bridge.edgeGradient spi
   bridgeRotation.faceEven_edgeGradient spin
 
 private theorem bridgeGenus : bridgeRotation.NumericalGenusZero := by
-  have hG : ∀ v ∈ bridge.incidenceVertices, v ∈ bridge.1 := by decide
+  have hG : ∀ v ∈ bridge.incidenceVertices, v ∈ bridge.vertices := by decide
   have h := (RotationCertificate.verifyEuler_eq_true_iff
     (RotationCertificate.verifyRotation_ofRotation bridgeRotation hG)).mp (by decide)
   exact RotationCertificate.decode_ofRotation bridgeRotation hG ▸ h

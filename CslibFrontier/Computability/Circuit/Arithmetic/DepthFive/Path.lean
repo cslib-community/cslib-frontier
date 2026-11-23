@@ -52,7 +52,7 @@ namespace Path
 variable (P : Path n)
 
 /-- The variable of the path in layer `t`: the entry `(P t, P (t + 1))` of the `t`-th matrix. -/
-def edge (t : Fin n) : Fin n × Fin n × Fin n := (t, P.1 t.castSucc, P.1 t.succ)
+def edge (t : Fin n) : Fin n × Fin n × Fin n := (t, P.val t.castSucc, P.val t.succ)
 
 @[simp] theorem edge_fst (t : Fin n) : (P.edge t).1 = t := rfl
 

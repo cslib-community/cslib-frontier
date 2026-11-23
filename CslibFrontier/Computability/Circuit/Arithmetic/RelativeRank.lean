@@ -156,8 +156,8 @@ to choices of one variable per block. -/
 @[simps]
 def blockChoiceCongr (e : σ ≃ τ) (he : ∀ x, blk' (e x) = blk x) (S : Finset (Fin d)) :
     BlockChoice blk S ≃ BlockChoice blk' S where
-  toFun x i := ⟨e (x i), (he _).trans (x i).2⟩
-  invFun y i := ⟨e.symm (y i), by rw [← he, e.apply_symm_apply]; exact (y i).2⟩
+  toFun x i := ⟨e (x i), (he _).trans (x i).property⟩
+  invFun y i := ⟨e.symm (y i), by rw [← he, e.apply_symm_apply]; exact (y i).property⟩
   left_inv x := by
     funext i
     simp

@@ -222,7 +222,7 @@ private theorem local_sq (W : Quad p.n) {M M' : Fin p.n × Fin p.n × Fin p.n �
 /-- The entry of `Fᵀ * F` is at most the sum over the pairs of paths that link its indices. -/
 private theorem gram_le (M M' : Slice p (p.a, p.b)) :
     ((pathMatrix p)ᵀ * pathMatrix p) M M' ≤ ∑ PQ : Path p.n × Path p.n,
-      if Link PQ M.1 M'.1 then √(PQ.1.coeff p M.1) * √(PQ.2.coeff p M'.1) else 0 := by
+      if Link PQ M.val M'.val then √(PQ.1.coeff p M.val) * √(PQ.2.coeff p M'.val) else 0 := by
   classical
   simp only [Matrix.mul_apply, Matrix.transpose_apply, pathMatrix, Matrix.of_apply, pathEntry,
     Finset.sum_mul_sum, ← Finset.sum_product']
@@ -230,16 +230,16 @@ private theorem gram_le (M M' : Slice p (p.a, p.b)) :
   refine Finset.sum_le_sum fun PQ _ => ?_
   dsimp only
   by_cases h : ∃ N : Slice p (p.a - p.k, p.b + p.m),
-      N.1 + PQ.1.vPart p = M.1 + PQ.1.uPart p ∧ N.1 + PQ.2.vPart p = M'.1 + PQ.2.uPart p
+      N.val + PQ.1.vPart p = M.val + PQ.1.uPart p ∧ N.val + PQ.2.vPart p = M'.val + PQ.2.uPart p
   · obtain ⟨N, hN₁, hN₂⟩ := h
-    have hl : Link PQ M.1 M'.1 := by
+    have hl : Link PQ M.val M'.val := by
       rw [Link, ← hN₁, ← hN₂]
       abel
     rw [Finset.sum_eq_single N (fun N' _ hN' => ?_) (fun h => absurd (Finset.mem_univ _) h),
       ite_eq_left hN₁, ite_eq_left hN₂, ite_eq_left hl]
     rw [ite_eq_right fun h' => hN' (Subtype.ext (add_right_cancel (h'.trans hN₁.symm))), zero_mul]
   · refine le_trans (le_of_eq (Finset.sum_eq_zero fun N _ => ?_)) (by split_ifs <;> positivity)
-    by_cases h₁ : N.1 + PQ.1.vPart p = M.1 + PQ.1.uPart p
+    by_cases h₁ : N.val + PQ.1.vPart p = M.val + PQ.1.uPart p
     · rw [ite_eq_right fun h₂ => h ⟨N, h₁, h₂⟩, mul_zero]
     · rw [ite_eq_right h₁, zero_mul]
 
@@ -256,7 +256,7 @@ local polynomials. -/
 theorem second_trace_le_sum_local :
     (((pathMatrix p)ᵀ * pathMatrix p) * ((pathMatrix p)ᵀ * pathMatrix p)).trace ≤
       ∑ M : Slice p (p.a, p.b), ∑ W : Quad p.n,
-        if W.HasType W.type then ((∏ t, W.local p M.1 t : ℕ) : ℝ) else 0 := by
+        if W.HasType W.type then ((∏ t, W.local p M.val t : ℕ) : ℝ) else 0 := by
   classical
   have hsymm (M M' : Slice p (p.a, p.b)) : ((pathMatrix p)ᵀ * pathMatrix p) M' M =
       ((pathMatrix p)ᵀ * pathMatrix p) M M' := by
@@ -267,8 +267,8 @@ theorem second_trace_le_sum_local :
   refine Finset.sum_le_sum fun M _ => ?_
   calc ∑ M', ((pathMatrix p)ᵀ * pathMatrix p) M M' * ((pathMatrix p)ᵀ * pathMatrix p) M' M
       ≤ ∑ M' : Slice p (p.a, p.b), ∑ W : Quad p.n,
-          (if Link W.1 M.1 M'.1 then √(W.1.1.coeff p M.1) * √(W.1.2.coeff p M'.1) else 0) *
-            if Link W.2 M.1 M'.1 then √(W.2.1.coeff p M.1) * √(W.2.2.coeff p M'.1) else 0 := by
+          (if Link W.1 M.val M'.val then √(W.1.1.coeff p M.val) * √(W.1.2.coeff p M'.val) else 0) *
+            if Link W.2 M.val M'.val then √(W.2.1.coeff p M.val) * √(W.2.2.coeff p M'.val) else 0 := by
         refine Finset.sum_le_sum fun M' _ => ?_
         rw [hsymm M M']
         refine (mul_le_mul (gram_le M M') (gram_le M M') (gram_nonneg M M')
@@ -277,7 +277,7 @@ theorem second_trace_le_sum_local :
     _ ≤ _ := by
         rw [Finset.sum_comm]
         refine Finset.sum_le_sum fun W _ => ?_
-        by_cases h : ∃ M' : Slice p (p.a, p.b), Link W.1 M.1 M'.1 ∧ Link W.2 M.1 M'.1
+        by_cases h : ∃ M' : Slice p (p.a, p.b), Link W.1 M.val M'.val ∧ Link W.2 M.val M'.val
         · obtain ⟨M', h₁, h₂⟩ := h
           obtain ⟨hty, hsq⟩ := local_sq W h₁ h₂
           rw [Finset.sum_eq_single M' (fun N' _ hN' => ?_) (fun h => absurd (Finset.mem_univ _) h),
@@ -285,17 +285,17 @@ theorem second_trace_le_sum_local :
             ← Real.sqrt_mul (Nat.cast_nonneg _), ← Real.sqrt_mul (Nat.cast_nonneg _),
             ← Real.sqrt_mul (by positivity)]
           · refine le_of_eq ?_
-            rw [← Real.sqrt_sq (Nat.cast_nonneg (∏ t, W.local p M.1 t))]
+            rw [← Real.sqrt_sq (Nat.cast_nonneg (∏ t, W.local p M.val t))]
             congr 1
             rw [mul_mul_mul_comm]
             exact_mod_cast hsq
           · rw [ite_eq_right fun h' => hN' (Subtype.ext (add_right_cancel
-              (a := N'.1) (b := W.1.2.uPart p + W.1.1.vPart p) (c := M'.1) (by
+              (a := N'.val) (b := W.1.2.uPart p + W.1.1.vPart p) (c := M'.val) (by
                 rw [← add_assoc, ← add_assoc]
                 exact h'.symm.trans h₁))), zero_mul]
         · refine le_trans (le_of_eq (Finset.sum_eq_zero fun M' _ => ?_))
             (by split_ifs <;> positivity)
-          by_cases h₁ : Link W.1 M.1 M'.1
+          by_cases h₁ : Link W.1 M.val M'.val
           · rw [ite_eq_right fun h₂ => h ⟨M', h₁, h₂⟩, mul_zero]
           · rw [ite_eq_right h₁, zero_mul]
 

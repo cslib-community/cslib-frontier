@@ -212,7 +212,7 @@ toward `true` (mass `3/4` on `true`, `1/4` on `false`) with constant side inform
 every randomized guessing adversary's advantage via
 `guessAdvantage_le_one_sub_errorProb_maxPosteriorGuess`, achieved by `fun _ => pure true`. -/
 noncomputable def biasedBool : PMF Bool :=
-  (uniformOfFintype (Fin 4)).map fun i => decide (i.1 < 3)
+  (uniformOfFintype (Fin 4)).map fun i => decide (i.val < 3)
 
 theorem biasedBool_apply_true : biasedBool true = 3 / 4 := by
   simp only [biasedBool, PMF.map_apply, tsum_fintype, Fin.sum_univ_four,

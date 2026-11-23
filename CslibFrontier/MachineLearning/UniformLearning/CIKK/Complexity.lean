@@ -71,7 +71,7 @@ theorem complexity_eval_ampLearner_le {k n : ℕ} {Ω : Type*}
         3 * m + 1 := by
   obtain ⟨⟨masks, guess⟩, P, b₀, v⟩ := a
   rw [eval_ampLearner]
-  have hP : #(P : Finset (Fin k)) = s := (mem_powersetCard.1 P.2).2
+  have hP : #(P : Finset (Fin k)) = s := (mem_powersetCard.1 P.property).2
   refine (complexity_dpDecode_le _ false P b₀ v
     (complexity_glAmpCandidate_apply_le hA masks guess)).trans_eq ?_
   rw [hP]

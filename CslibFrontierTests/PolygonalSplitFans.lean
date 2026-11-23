@@ -100,12 +100,12 @@ example : ∃ a ∈ Metric.ball (0 : ℂ) 1, ∃ b ∈ Metric.ball (0 : ℂ) 1,
 
 -- Moving an actual selected edge of a high-degree star last retains its embedding.
 example : ∃ H u v, ∃ D : PolygonalDrawing (RotationSystem.lastEdgeGraph H u v),
-    D.IsEmbedding ∧ H.2.length + 1 = (RotationSystem.starGraph 9).2.length := by
+    D.IsEmbedding ∧ H.edges.length + 1 = (RotationSystem.starGraph 9).edges.length := by
   obtain ⟨H, u, v, e, hV, hlength, hv, _⟩ :=
     exists_lastEdge_reindex (RotationSystem.starGraph 9) ⟨3, by decide⟩
   refine ⟨H, u, v, (PolygonalDrawing.star 9).edgeTransport e hv, ?_, hlength⟩
   exact (PolygonalDrawing.star_isEmbedding 9).edgeTransport e hv (fun w => by
-    change w ∈ (RotationSystem.starGraph 9).1 ↔ w ∈ H.1
+    change w ∈ (RotationSystem.starGraph 9).vertices ↔ w ∈ H.vertices
     rw [hV])
 
 end CslibFrontierTests.PolygonalSplitFans

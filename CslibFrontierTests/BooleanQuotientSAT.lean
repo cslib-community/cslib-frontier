@@ -111,12 +111,12 @@ example :
 /-- Forward and inverse `restrictDegreeOneLinearEquiv` and `restrictDegreeOneQuotientEquiv`
 evaluations and canonical representatives work across the `module` boundary. -/
 example (p : restrictDegree (Fin 1) (ZMod 4) 1) (x : Fin 1 → Bool) :
-    restrictDegreeOneLinearEquiv (Fin 1) (ZMod 4) p x = eval (bitPoint x) p.1 ∧
+    restrictDegreeOneLinearEquiv (Fin 1) (ZMod 4) p x = eval (bitPoint x) p.val ∧
       ((restrictDegreeOneLinearEquiv (Fin 1) (ZMod 4)).symm (fun y => if y 0 then 3 else 0) :
         MvPolynomial (Fin 1) (ZMod 4)) =
         multilinearExtension (fun y => if y 0 then 3 else 0) ∧
       restrictDegreeOneQuotientEquiv (Fin 1) (ZMod 4) p =
-        Ideal.Quotient.mk (boolIdeal (Fin 1) (ZMod 4)) p.1 ∧
+        Ideal.Quotient.mk (boolIdeal (Fin 1) (ZMod 4)) p.val ∧
       ((restrictDegreeOneQuotientEquiv (Fin 1) (ZMod 4)).symm
           (Ideal.Quotient.mk (boolIdeal (Fin 1) (ZMod 4)) (X 0 ^ 3 + 2 * X 0 ^ 2)) :
         MvPolynomial (Fin 1) (ZMod 4)) = 3 * X 0 := by

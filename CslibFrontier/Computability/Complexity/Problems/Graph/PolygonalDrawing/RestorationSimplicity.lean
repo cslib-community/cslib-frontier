@@ -39,7 +39,7 @@ theorem IsEmbedding.restoredRoute_simple {G : Graph} {u v : ℕ}
       (contractionLift G u v d.val).vertex = u → f a < f (D.cutPort ρ d.val))
     (hpb : ∀ d : {d : Dart (contractLastEdgeGraph G u v) // d.vertex = v},
       (contractionLift G u v d.val).vertex = v → f (D.cutPort ρ d.val) < f b)
-    (e : Fin G.2.length) : (D.restoredRoute ρ a b e).IsSimple := by
+    (e : Fin G.edges.length) : (D.restoredRoute ρ a b e).IsSimple := by
   let w₀ := Dart.vertex (G := G) (e, false)
   let w₁ := Dart.vertex (G := G) (e, true)
   let j := contractedIndex G u v e

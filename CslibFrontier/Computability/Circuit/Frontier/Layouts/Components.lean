@@ -115,7 +115,7 @@ theorem LayoutBound.exists_layout_componentwise {d : ℕ} {A : ℝ} (h : LayoutB
   have hBK (S : Set K.supp) : Disjoint B (Subtype.val '' S) := by
     refine disjoint_left.2 fun u hu ⟨u', _, hu'⟩ => ?_
     have hu : num (Γ.connectedComponentMk u) < num K := hu
-    rw [← hu', u'.2] at hu
+    rw [← hu', u'.property] at hu
     exact lt_irrefl _ hu
   -- The first `t` vertices are the components before `K` and the first `p` vertices of `K`.
   have hinit : π.initial t = B ∪ Subtype.val '' (ρ K).initial p := by
@@ -127,8 +127,8 @@ theorem LayoutBound.exists_layout_componentwise {d : ℕ} {A : ℝ} (h : LayoutB
     · obtain hu := num.injective hu
       exact ⟨⟨u, hu⟩, by rwa [← hpos u K hu], rfl⟩
     · subst hu'u
-      refine ⟨congrArg num u'.2, ?_⟩
-      rwa [hpos _ K u'.2]
+      refine ⟨congrArg num u'.property, ?_⟩
+      rwa [hpos _ K u'.property]
   have hinit' : π.initial (t + 1) = B ∪ Subtype.val '' (ρ K).initial (p + 1) := by
     rw [π.initial_succ ht, hinit, (ρ K).initial_succ hp, image_insert_eq, union_insert]
     congr 1
@@ -145,6 +145,6 @@ theorem LayoutBound.exists_layout_componentwise {d : ℕ} {A : ℝ} (h : LayoutB
     · exact ⟨p, by rw [Multigraph.frontier, hinit, hfront]⟩
     · exact ⟨p + 1, by rw [Multigraph.frontier, hinit', hfront]⟩
   rw [hq, ncard_image_of_injective _ Subtype.val_injective]
-  exact ⟨fun _ ⟨e, _, he⟩ => he ▸ Or.inl e.2.1, hρ K q⟩
+  exact ⟨fun _ ⟨e, _, he⟩ => he ▸ Or.inl e.property.1, hρ K q⟩
 
 end Cslib.Circuits.Frontier

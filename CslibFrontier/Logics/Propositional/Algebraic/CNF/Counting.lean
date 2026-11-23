@@ -273,7 +273,7 @@ theorem CNF.sum_eval_satIndicatorPoly_eq_modelCountOn [Fintype V] [DecidableEq V
     rw [CNF.eval_satIndicatorPoly]
   rw [hrew, Finset.sum_boole, CNF.modelCountOn]
   congr 1
-  refine Finset.card_bij (fun x _ (v : (Finset.univ : Finset V)) => x v.1)
+  refine Finset.card_bij (fun x _ (v : (Finset.univ : Finset V)) => x v.val)
     (fun x hx => ?_) (fun x y _ _ hxy => ?_) (fun σ hσ => ?_)
   · simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_univ, ↓reduceDIte] at hx ⊢
     exact hx
@@ -311,7 +311,7 @@ theorem CNF.sum_range_eval_satIndicatorPoly_distinctVars [DecidableEq V] (φ : C
     rw [CNF.eval_satIndicatorPoly]
   rw [hrew, Finset.sum_boole, CNF.modelCount]
   congr 1
-  refine Finset.card_bij (fun i _ v => bitsAssignment φ.distinctVars i v.1)
+  refine Finset.card_bij (fun i _ v => bitsAssignment φ.distinctVars i v.val)
     (fun i hi => ?_) (fun i₁ hi₁ i₂ hi₂ h => ?_) (fun τ hτ => ?_)
   · rw [Finset.mem_filter] at hi ⊢
     refine ⟨Finset.mem_univ _, ?_⟩
@@ -337,8 +337,8 @@ theorem CNF.sum_range_eval_satIndicatorPoly_distinctVars [DecidableEq V] (φ : C
     refine ⟨i, Finset.mem_filter.2 ⟨Finset.mem_range.2 ?_, ?_⟩, funext fun v => ?_⟩
     · rwa [← CNF.length_distinctVars]
     · exact (CNF.eval_congr fun v hv => hiτ v (CNF.mem_distinctVars.2 hv)).trans hτ.2
-    · have hv : v.1 ∈ φ.vars := List.mem_toFinset.1 v.2
-      exact (hiτ v.1 (CNF.mem_distinctVars.2 hv)).trans (CNF.extendAssignment_of_mem τ hv)
+    · have hv : v.val ∈ φ.vars := List.mem_toFinset.1 v.property
+      exact (hiτ v.val (CNF.mem_distinctVars.2 hv)).trans (CNF.extendAssignment_of_mem τ hv)
 
 end ModelCounting
 

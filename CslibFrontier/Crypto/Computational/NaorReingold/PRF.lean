@@ -635,7 +635,7 @@ private theorem uniformOfFintype_map_lowBits_randomFunction {r M : ℕ} (hM : M 
   let x : Fin M ↪ BitString r :=
     ⟨fun j => BitString.ofList r (Cslib.BitString.lowBits r j.val), fun a b h => by
       ext
-      exact Cslib.BitString.lowBits_injective_of_lt (a.2.trans_le hM) (b.2.trans_le hM)
+      exact Cslib.BitString.lowBits_injective_of_lt (a.isLt.trans_le hM) (b.isLt.trans_le hM)
         (by simpa [BitString.ofFn_ofList (Cslib.BitString.length_lowBits r _)] using
           congrArg List.ofFn h)⟩
   have hpref := Cslib.BitString.uniformOfFintype_map_readPrefixes x (fun _ => 1) (fun _ => le_rfl)

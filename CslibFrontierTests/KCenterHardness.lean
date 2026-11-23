@@ -129,7 +129,7 @@ example : (∀ D k, IsInstance D → 0 < k → k ≤ D.length →
   refine ⟨fun D k _ _ _ => ?_, fun D k _ _ _ _ r hr => ?_⟩
   · rcases Nat.eq_zero_or_pos D.length with h0 | h0
     · refine le_of_eq_of_le (Finset.card_eq_zero.2 ?_) (Nat.zero_le k)
-      exact Finset.eq_empty_of_forall_notMem fun i _ => absurd i.2 (by omega)
+      exact Finset.eq_empty_of_forall_notMem fun i _ => absurd i.isLt (by omega)
     · have : NeZero D.length := ⟨by omega⟩
       exact (hspec D k).1
   · rw [one_mul, (hspec D k).2]
@@ -161,7 +161,7 @@ example : (∀ D k, IsInstance D → 0 < k → k ≤ D.length →
     exact card_toFinset_gonzalez_le _ _ k
   · rw [centers_gonzalezCenters]
     refine radius_gonzalez_le_two_mul (fun i j => ?_) (fun i j l => ?_) (List.mem_finRange) hr
-    · exact_mod_cast hD.isMetric.symm i i.2 j j.2
-    · exact_mod_cast hD.isMetric.triangle i i.2 j j.2 l l.2
+    · exact_mod_cast hD.isMetric.symm i i.isLt j j.isLt
+    · exact_mod_cast hD.isMetric.triangle i i.isLt j j.isLt l l.isLt
 
 end CslibFrontierTests.KCenterHardness

@@ -49,7 +49,7 @@ def shamir23 : MonotoneSpanProgram (ZMod 5) (Fin 3) where
 /-- The coalition `{0, 1}` is accepted, with weights `2` and `4`. -/
 theorem shamir23_accepts_01 : shamir23.Accepts {0, 1} := by
   rw [MonotoneSpanProgram.accepts_iff_exists_vecMul]
-  let w : (i : ({0, 1} : Finset (Fin 3))) → Fin (shamir23.rowDim i.1) → ZMod 5 :=
+  let w : (i : ({0, 1} : Finset (Fin 3))) → Fin (shamir23.rowDim i.val) → ZMod 5 :=
     fun i => match i with
       | ⟨0, _⟩ => ![2]
       | ⟨1, _⟩ => ![4]
@@ -67,7 +67,7 @@ theorem shamir23_not_accepts_1 : ¬ shamir23.Accepts {1} := by
 /-- Theorem 22.14(a) as a caller uses it: `Lin` reconstructs for an accepted coalition. -/
 example (k : LinearKey shamir23) (secret : ZMod 5) :
     ∑ i : ({0, 1} : Finset (Fin 3)),
-      shamir23.recombination {0, 1} i.1 ⬝ᵥ linearShare shamir23 k secret i.1 = secret :=
+      shamir23.recombination {0, 1} i.val ⬝ᵥ linearShare shamir23 k secret i.val = secret :=
   sum_recombination_dotProduct_linearShare shamir23 shamir23_accepts_01 k secret
 
 /-- The same with the book's hypothesis, a coalition authorized in the access structure that the
@@ -75,7 +75,7 @@ program recognizes ([BonehShoup2023], Definition 22.21, p. 978). -/
 example (hs : shamir23.accessStructure.authorized {0, 1}) (k : LinearKey shamir23)
     (secret : ZMod 5) :
     ∑ i : ({0, 1} : Finset (Fin 3)),
-      shamir23.recombination {0, 1} i.1 ⬝ᵥ linearShare shamir23 k secret i.1 = secret :=
+      shamir23.recombination {0, 1} i.val ⬝ᵥ linearShare shamir23 k secret i.val = secret :=
   sum_recombination_dotProduct_linearShare shamir23 hs k secret
 
 /-- Theorem 22.14(b) as a caller uses it: for a coalition that is not accepted, the normal form
@@ -117,24 +117,24 @@ example {F : Type*} [Field F] [Fintype F] [DecidableEq F] {N : ℕ}
   have key : ∀ secret,
       AccessStructure.viewDistOf (uniformOfFintype (LinearKey P)) (linearShare P) s secret =
         (uniformOfFintype (LinearKey P)).map
-          fun k (i : s) => linearShare (P.normalForm s) k secret i.1 := by
+          fun k (i : s) => linearShare (P.normalForm s) k secret i.val := by
     intro secret
     have h₁ : AccessStructure.viewDistOf (uniformOfFintype (LinearKey P)) (linearShare P) s
         secret = ((linearUniformAccessScheme P).shareDist (uniformOfFintype (LinearKey P))
-          secret).map fun sh (i : s) => sh i.1 :=
-      (PMF.map_comp (fun k => linearShare P k secret) _ (fun sh (i : s) => sh i.1)).symm
+          secret).map fun sh (i : s) => sh i.val :=
+      (PMF.map_comp (fun k => linearShare P k secret) _ (fun sh (i : s) => sh i.val)).symm
     have h₂ : ((linearUniformAccessScheme (P.normalForm s)).shareDist
-        (uniformOfFintype (LinearKey (P.normalForm s))) secret).map (fun sh (i : s) => sh i.1) =
+        (uniformOfFintype (LinearKey (P.normalForm s))) secret).map (fun sh (i : s) => sh i.val) =
         (uniformOfFintype (LinearKey P)).map
-          fun k (i : s) => linearShare (P.normalForm s) k secret i.1 :=
-      PMF.map_comp (fun k => linearShare (P.normalForm s) k secret) _ (fun sh (i : s) => sh i.1)
-    have h := congrArg (fun D => PMF.map (fun sh (i : s) => sh i.1) D)
+          fun k (i : s) => linearShare (P.normalForm s) k secret i.val :=
+      PMF.map_comp (fun k => linearShare (P.normalForm s) k secret) _ (fun sh (i : s) => sh i.val)
+    have h := congrArg (fun D => PMF.map (fun sh (i : s) => sh i.val) D)
       (shareDist_linearUniformAccessScheme_normalForm P hs secret)
     exact h₁.trans (h.symm.trans h₂)
   rw [key, key]
   congr 1
   funext k i
-  exact linearShare_eq_of_col_zero _ (P.normalForm_matrix_zero i.2) k secret₀ secret₁
+  exact linearShare_eq_of_col_zero _ (P.normalForm_matrix_zero i.property) k secret₀ secret₁
 
 /-! ### Values
 
@@ -234,14 +234,14 @@ not either: the keys `![0]` with secret `0` and `![3]` with secret `4` give part
 share. -/
 example : ¬ ∀ (k : LinearKey shamir23) (secret : ZMod 5),
     ∑ i : ({1} : Finset (Fin 3)),
-      shamir23.recombination {1} i.1 ⬝ᵥ linearShare shamir23 k secret i.1 = secret := by
+      shamir23.recombination {1} i.val ⬝ᵥ linearShare shamir23 k secret i.val = secret := by
   intro h
   have hone : linearShare shamir23 ![3] 4 1 = linearShare shamir23 ![0] 0 1 := by
     funext row
     fin_cases row
     decide
   have hshare : ∀ i : ({1} : Finset (Fin 3)),
-      linearShare shamir23 ![3] 4 i.1 = linearShare shamir23 ![0] 0 i.1 := by
+      linearShare shamir23 ![3] 4 i.val = linearShare shamir23 ![0] 0 i.val := by
     rintro ⟨i, hi⟩
     obtain rfl : i = 1 := Finset.mem_singleton.1 hi
     exact hone
@@ -261,7 +261,7 @@ theorem not_shareDist_normalForm_of_accepts {F : Type*} [Field F] [Fintype F]
       (linearUniformAccessScheme P).shareDist (uniformOfFintype (LinearKey P)) secret := by
   intro h
   let g : ((i : Fin N) → LinearShare P i) → F := fun sh =>
-    ∑ i : s, P.recombination s i.1 ⬝ᵥ sh i.1
+    ∑ i : s, P.recombination s i.val ⬝ᵥ sh i.val
   have hP : ∀ secret, ((linearUniformAccessScheme P).shareDist
       (uniformOfFintype (LinearKey P)) secret).map g = PMF.pure secret := by
     intro secret
@@ -284,8 +284,8 @@ theorem not_shareDist_normalForm_of_accepts {F : Type*} [Field F] [Fintype F]
     congr 1
     funext k
     exact Finset.sum_congr rfl fun i _ =>
-      congrArg (P.recombination s i.1 ⬝ᵥ ·)
-        (linearShare_eq_of_col_zero _ (P.normalForm_matrix_zero i.2) k secret₀ secret₁)
+      congrArg (P.recombination s i.val ⬝ᵥ ·)
+        (linearShare_eq_of_col_zero _ (P.normalForm_matrix_zero i.property) k secret₀ secret₁)
   have h01 : (PMF.pure (0 : F)) = PMF.pure 1 := by
     rw [← hP 0, ← hP 1, ← h 0, ← h 1]
     exact hN 0 1

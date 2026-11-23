@@ -43,8 +43,8 @@ namespace Cslib.Algorithms.MatrixMultiplication.Schonhage
 tile set. -/
 theorem tile_mem_tiles {L m N : ℕ} (hmL : m ≤ L) (I J : Fin N) :
     (bandOf L m I, bandOf L m J) ∈ tiles L m N :=
-  mem_product.mpr ⟨mem_range.mpr (bandOf_lt_numBands hmL N I I.2),
-    mem_range.mpr (bandOf_lt_numBands hmL N J J.2)⟩
+  mem_product.mpr ⟨mem_range.mpr (bandOf_lt_numBands hmL N I I.isLt),
+    mem_range.mpr (bandOf_lt_numBands hmL N J J.isLt)⟩
 
 /-- A requested position contributes its output string to `wantedStrings` for its band pair. -/
 theorem outStrOfPos_mem_wantedStrings {L m N : ℕ} (lay : Layout L m) (W : Finset (Fin N × Fin N))

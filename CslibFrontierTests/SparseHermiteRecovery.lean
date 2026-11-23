@@ -110,7 +110,7 @@ example :
         (((Polynomial.hermiteMatrix toyCountingDesign.nodes (jetOrder (1 * 1) 2)).map
           (Int.cast : ℤ → ℚ)).updateCol (⟨0, toyCountingDesign.Q_pos⟩, ⟨0, jetOrder_pos _ _⟩)
           (fun p => toyCountingDesign.measurementFiberJet toyFactor ((1 * 1) / 2) p.1
-            (toyCountingDesign.classicalRepresentative p.1) p.2.1)).det := by
+            (toyCountingDesign.classicalRepresentative p.1) p.2.val)).det := by
   have hsum : targetSum (univ : Finset (Fin 1)) toyDesignScope toyFactor = 2 := by
     have hbij : (univ : Finset (Fin 2 → Bool)) =
         {![false, false], ![false, true], ![true, false], ![true, true]} := by
@@ -189,7 +189,7 @@ def unitReplacementDesign {F : Type*} [Fintype F] {n : ℕ}
 /-- Explicit `Q = 1, r = 2, A₀ = 0, R = 2, τ = 0` replacement design on
 `withNeutralScope sampleScope` with nonconstant degree-`1` replacement rows. -/
 def nonconstSampleVarAssign : Fin 3 → Fin 1 → Fin 2 :=
-  fun v _ => if v.1 < 2 then 0 else 1
+  fun v _ => if v.val < 2 then 0 else 1
 
 /-- Factor group schedule for `nonconstSampleDesign`. -/
 def nonconstSampleFactorAssign : Fin 2 ⊕ Fin 3 → Fin 1 → Fin 2
@@ -199,8 +199,8 @@ def nonconstSampleFactorAssign : Fin 2 ⊕ Fin 3 → Fin 1 → Fin 2
 /-- Copy index in `Fin 3` separating the `7` incidences of `withNeutralScope sampleScope`. -/
 def nonconstSampleCopy (e : ScopeIncidence (withNeutralScope sampleScope)) : Fin 3 :=
   match e.1 with
-  | Sum.inl 0 => if e.2.1 = 0 then 0 else 1
-  | Sum.inl 1 => if e.2.1 = 1 then 2 else 0
+  | Sum.inl 0 => if e.2.val = 0 then 0 else 1
+  | Sum.inl 1 => if e.2.val = 1 then 2 else 0
   | Sum.inr 0 => 0
   | Sum.inr 1 => 1
   | Sum.inr 2 => 0
@@ -357,7 +357,7 @@ example :
 /-- Explicit equivalence between the unbranched variables `{0, 2}` (`univ \ {1}` in `Fin 3`) and
 `Fin 2`. -/
 def sampleFreeVarEquiv : ↥((univ : Finset (Fin 3)) \ ({1} : Finset (Fin 3))) ≃ Fin 2 where
-  toFun v := if v.1 = 0 then 0 else 1
+  toFun v := if v.val = 0 then 0 else 1
   invFun i := if i = 0 then ⟨0, by decide⟩ else ⟨2, by decide⟩
   left_inv := by decide
   right_inv := by decide

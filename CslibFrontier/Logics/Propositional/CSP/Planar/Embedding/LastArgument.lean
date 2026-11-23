@@ -57,7 +57,7 @@ theorem ofRotation_deleteLastArgumentRotation (F : CSP Rel V) (r : Rel) (scope :
     RotationCertificate.ofRotation (deleteLastArgumentRotation F r scope v ρ) =
       restrictPrefix (2 * (F ++ [Constraint.mk r scope]).occurrences.length)
         (RotationCertificate.ofRotation ρ) := by
-  have he : (lastArgumentPrefixGraph F r scope v).2.length =
+  have he : (lastArgumentPrefixGraph F r scope v).edges.length =
       (F ++ [Constraint.mk r scope]).occurrences.length := by
     simp [lastArgumentPrefixGraph]
   change RotationCertificate.ofRotation

@@ -114,14 +114,14 @@ theorem rank_communicationMatrix_dotProduct :
   refine le_antisymm ?_ ?_
   · -- The row of `0` vanishes, so `M` factors through the other `2 ^ |ι| - 1` rows.
     let E : Matrix (ι → Bool) {x : ι → Bool // x ≠ 0} R :=
-      Matrix.of fun x j => if x = j.1 then 1 else 0
-    let N : Matrix {x : ι → Bool // x ≠ 0} (ι → Bool) R := Matrix.of fun j y => M j.1 y
+      Matrix.of fun x j => if x = j.val then 1 else 0
+    let N : Matrix {x : ι → Bool // x ≠ 0} (ι → Bool) R := Matrix.of fun j y => M j.val y
     have hEN : M = E * N := by
       ext x y
       simp only [Matrix.mul_apply, E, N, Matrix.of_apply, ite_mul, one_mul, zero_mul]
       by_cases hx : x = 0
       · subst hx
-        rw [sum_eq_zero fun j _ => ite_eq_right fun h => j.2 h.symm]
+        rw [sum_eq_zero fun j _ => ite_eq_right fun h => j.property h.symm]
         simp [M, zero_dotProduct]
       · rw [Fintype.sum_eq_single ⟨x, hx⟩ fun j hj => ite_eq_right fun h => hj (Subtype.ext h.symm)]
         simp

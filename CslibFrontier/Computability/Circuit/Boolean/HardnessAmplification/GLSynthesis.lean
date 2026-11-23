@@ -86,15 +86,15 @@ private theorem strictMajorityOn_eq_atLeast {n : ℕ} {ι : Type*} (T : Finset �
   refine card_bij (fun i hi => (T.equivFin ⟨i, (mem_filter.1 hi).1⟩ : ℕ)) (fun i hi => ?_)
     (fun i hi i' hi' h => ?_) (fun l hl => ?_)
   · rw [mem_filter] at hi ⊢
-    refine ⟨mem_range.2 (T.equivFin _).2, ?_⟩
-    rw [dite_eq_left (T.equivFin _).2]
+    refine ⟨mem_range.2 (T.equivFin _).isLt, ?_⟩
+    rw [dite_eq_left (T.equivFin _).isLt]
     simpa using hi.2
   · have := T.equivFin.injective (Fin.ext h)
     exact congrArg Subtype.val this
   · rw [mem_filter, mem_range] at hl
     obtain ⟨hl, hv⟩ := hl
     rw [dite_eq_left hl] at hv
-    refine ⟨T.equivFin.symm ⟨l, hl⟩, mem_filter.2 ⟨(T.equivFin.symm ⟨l, hl⟩).2, hv⟩, ?_⟩
+    refine ⟨T.equivFin.symm ⟨l, hl⟩, mem_filter.2 ⟨(T.equivFin.symm ⟨l, hl⟩).property, hv⟩, ?_⟩
     simp
 
 variable {a w n : ℕ}
@@ -153,7 +153,7 @@ theorem synthesis_candidate_apply {C : BooleanFunction (a + w)} {sC : ℕ}
     (fun l => if h : l < #T then V (T.equivFin.symm ⟨l, h⟩) else fun _ => false)
     (fun l hl => by
       rw [dite_eq_left hl]
-      exact Set.mem_union_right _ (Set.mem_biUnion (T.equivFin.symm ⟨l, hl⟩).2 rfl))
+      exact Set.mem_union_right _ (Set.mem_biUnion (T.equivFin.symm ⟨l, hl⟩).property rfl))
     (by omega)
   refine (hvotes.trans hmaj).mono Set.Subset.rfl (Set.singleton_subset_iff.2 ?_) ?_
   · change _ = _

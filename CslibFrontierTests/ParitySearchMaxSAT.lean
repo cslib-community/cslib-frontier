@@ -44,11 +44,11 @@ example : ¬ IsKWiseIndependentHash 4
   have key : ∀ t : BitString 3, ∃ x : BitString 2, t ⬝ᵥ Fin.cons true x ≠ decide (x = 0) := by
     decide
   have hempty : ({t | Finset.univ.restrict (fun x : BitString 2 => t ⬝ᵥ Fin.cons true x) =
-      fun x => decide (x.1 = 0)} : Finset (BitString 3)) = ∅ := by
+      fun x => decide (x.val = 0)} : Finset (BitString 3)) = ∅ := by
     refine Finset.filter_eq_empty_iff.2 fun t _ ht => ?_
     obtain ⟨x, hx⟩ := key t
     exact hx (congrFun ht ⟨x, Finset.mem_univ x⟩)
-  have h := hh.dens_filter_restrict_eq (T := Finset.univ) (by simp) fun x => decide (x.1 = 0)
+  have h := hh.dens_filter_restrict_eq (T := Finset.univ) (by simp) fun x => decide (x.val = 0)
   rw [hempty, Finset.dens_empty] at h
   norm_num at h
 

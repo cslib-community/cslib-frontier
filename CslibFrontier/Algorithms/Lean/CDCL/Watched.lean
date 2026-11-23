@@ -1316,7 +1316,7 @@ analysis returned once its level is cleared. -/
 @[expose] def jumpMarks {log : LRATLog φ} (sp : Split)
     (L : Learned log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below)) :
     Assign :=
-  (clearedMarks sp L).1.mark (L.clause.map Prod.fst)
+  (clearedMarks sp L).val.mark (L.clause.map Prod.fst)
 
 /-- Whether a variable is marked for the backjump. It reads one array, built once: the function is
 `Assign.assigned` applied to `jumpMarks sp L`. -/
@@ -1333,7 +1333,7 @@ theorem jumpMarked_iff {log : LRATLog φ} (sp : Split)
   by_cases hv : v ∈ L.clause.map Prod.fst
   · simp [jumpMarked, jumpMarks, Assign.assigned_eq_isSome, Assign.value_mark, hv]
   · simp only [jumpMarked, jumpMarks, Assign.assigned_eq_isSome, Assign.value_mark, hv, ite_false,
-      (clearedMarks sp L).2 v, Option.isSome_none, Bool.false_eq_true]
+      (clearedMarks sp L).property v, Option.isSome_none, Bool.false_eq_true]
 
 theorem jumpMarked_of_mem {log : LRATLog φ} (sp : Split)
     (L : Learned log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below)) :
@@ -1358,7 +1358,7 @@ cleared again, which leaves no value. -/
     (A : Assign) (hA : A = jumpMarks sp L) : {A : Assign // ∀ v, A.value v = none} :=
   ⟨A.unassign (L.clause.map Prod.fst), Assign.value_unassign_eq_none fun v hv => by
     rw [hA, jumpMarks, Assign.value_mark, ite_eq_right_iff.2 fun h => absurd h hv]
-    exact (clearedMarks sp L).2 v⟩
+    exact (clearedMarks sp L).property v⟩
 
 /-- The state with its marks taken out, replaced by an empty array, so that the marks can be
 updated in place. -/
@@ -2189,10 +2189,10 @@ a restarted state has fewer conflicts than that. -/
       have hT₁ : T₁.Inv := hT.dropMarks
       let L₀ := analyze T₁.exec.log sp.decision sp.below
         (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) sp.above (fun _ h => h)
-        (marks.1.assignLevel sp.decision sp.above)
+        (marks.val.assignLevel sp.decision sp.above)
         (by
           rw [Assign.assignLevel_eq]
-          exact Assign.agrees_assignTrail marks.2 _ (hT.exec.split_level_nodup hsp)) e.1 e.2
+          exact Assign.agrees_assignTrail marks.property _ (hT.exec.split_level_nodup hsp)) e.1 e.2
         (hT.exec.db_log e he) (hT.exec.split_reasons hsp)
         (XTrail.split_eq_some hsp).2 (XTrail.falsifies_of_split hsp hconf)
         (hT.exec.split_cur hsp he hconf) (hT.exec.split_nodup hsp)

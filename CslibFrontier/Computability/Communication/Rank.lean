@@ -179,9 +179,9 @@ theorem Solves.rank_communicationMatrix_le {p : Protocol X Y Bool}
     (communicationMatrix R fun (x : A) (y : B) => f x y).rank ≤
       #{i | p.leafOutput i = true} := by
   have h : (communicationMatrix R fun (x : A) (y : B) => f x y) =
-      Matrix.of fun x y => (fun b => if b then (1 : R) else 0) (p.run x.1 y.1) := by
+      Matrix.of fun x y => (fun b => if b then (1 : R) else 0) (p.run x.val y.val) := by
     ext x y
-    simp [(hp x.1 x.2 y.1 y.2 :)]
+    simp [(hp x.val x.property y.val y.property :)]
   rw [h]
   exact rank_comp_run_le p Subtype.val Subtype.val (fun b => if b then (1 : R) else 0)
     fun i hi => by simpa using hi

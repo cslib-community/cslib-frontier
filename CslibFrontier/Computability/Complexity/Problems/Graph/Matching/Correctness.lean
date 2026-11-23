@@ -116,9 +116,9 @@ theorem coversVertices_maximumMatching (G : Graph) :
     maximumMatching, edgesAtPositions, List.mem_map]
   constructor
   · intro h v
-    obtain ⟨_, ⟨i, hi, rfl⟩, hinc⟩ := h v.val v.2
+    obtain ⟨_, ⟨i, hi, rfl⟩, hinc⟩ := h v.val v.property
     exact (mem_verts_matchingOfPositions_iff
-      (fun _ hi => maximumMatchingPositions_lt (List.mem_toFinset.mp hi)) v.val v.2).mpr
+      (fun _ hi => maximumMatchingPositions_lt (List.mem_toFinset.mp hi)) v.val v.property).mpr
         ⟨i, List.mem_toFinset.mpr hi, hinc⟩
   · intro h v hv
     obtain ⟨i, hi, hinc⟩ := (mem_verts_matchingOfPositions_iff

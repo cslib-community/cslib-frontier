@@ -31,17 +31,17 @@ open Polygonal RotationSystem
 all local geometric data internally, including the exact literal clockwise source rotation. -/
 theorem Realizes.exists_restoration {G : Graph} {u v : ℕ}
     (r : RotationSystem (lastEdgeGraph G u v)) (huv : u ≠ v)
-    (hG : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ G.1)
+    (hG : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ G.vertices)
     {D : PolygonalDrawing (contractLastEdgeGraph G u v)} (hD : D.IsEmbedding)
     (hR : D.Realizes (r.contractLastEdge huv)) :
     ∃ ρ > 0, ∃ a b : ℂ, (D.restoration huv ρ a b).IsEmbedding ∧
       (D.restoration huv ρ a b).Realizes r := by
-  have hv : v ∈ G.1 := by
+  have hv : v ∈ G.vertices := by
     have h := RotationSystem.vertex_mem hG (lastEdgeDart G u v true)
-    have hv : v ∈ (lastEdgeGraph G u v).1 := by
+    have hv : v ∈ (lastEdgeGraph G u v).vertices := by
       simpa only [vertex_lastEdgeDart, ↓reduceIte] using h
     exact hv
-  have hdecl : v ∈ (contractLastEdgeGraph G u v).1 := by
+  have hdecl : v ∈ (contractLastEdgeGraph G u v).vertices := by
     have h := List.mem_map_of_mem (f := Function.update id u v) hv
     simpa only [contractLastEdgeGraph, Graph.relabel, Function.update_of_ne huv.symm,
       id_eq] using h

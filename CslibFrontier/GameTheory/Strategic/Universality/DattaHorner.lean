@@ -151,7 +151,7 @@ theorem continuous_horner (F : MvPolynomial (Fin n) ℝ) (k : ℕ) (e : Fin n �
 theorem horner_of_le (F : MvPolynomial (Fin n) ℝ) (x : Fin n → ℝ) {k : ℕ} (hk : n ≤ k)
     (e : Fin n →₀ ℕ) : horner F x k e = F.coeff e := by
   have hf : ∀ f : Fin n →₀ ℕ, (e ≤ f ∧ ∀ i : Fin n, i.val < k → f i = e i) ↔ f = e := fun f =>
-    ⟨fun h => Finsupp.ext fun i => h.2 i (i.2.trans_le hk), fun h => h ▸ ⟨le_rfl, fun _ _ => rfl⟩⟩
+    ⟨fun h => Finsupp.ext fun i => h.2 i (i.isLt.trans_le hk), fun h => h ▸ ⟨le_rfl, fun _ _ => rfl⟩⟩
   simp only [horner, hf, filter_eq']
   split_ifs with h
   · simp [expoPow]
@@ -752,7 +752,7 @@ theorem isTotallyMixedNash_game_iff (q : Coord F → ℝ) :
       simp only [equation, map_sub, eval_X, eval_C] at this
       linarith
     · have := heq .alice ⟨j, hj⟩
-      simp only [equation, j.2, ↓reduceDIte, map_sub, eval_X, eval_C] at this
+      simp only [equation, j.isLt, ↓reduceDIte, map_sub, eval_X, eval_C] at this
       linarith
   · rintro ⟨⟨ha, hasum, hF0⟩, hb, hcb, hca, hcpos, hcsum⟩
     have hval : ∀ j, ∀ p ∈ nodes (degreeVec (F j)),
@@ -800,7 +800,7 @@ theorem isTotallyMixedNash_game_iff (q : Coord F → ℝ) :
     · rcases w with _ | _ | _
       · simp only [equation]
         split_ifs with h
-        · simp [hca _ (show (⟨t, h⟩ : Fin m).val < n from t.2)]
+        · simp [hca _ (show (⟨t, h⟩ : Fin m).val < n from t.isLt)]
         · simp
       · simp [equation, hcb]
       · rcases t with ⟨⟨j, p⟩, h⟩ | j

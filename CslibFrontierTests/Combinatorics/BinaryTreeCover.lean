@@ -23,7 +23,7 @@ verifies minimality against the all-leaves cover of size `5`. -/
 example :
     let S : Finset (Fin (2 ^ 3)) := {0, 1, 3, 4, 5}
     let Wleaves : Finset (Node 3) :=
-      S.image fun i => ⟨0, i.1, Nat.zero_le 3, by simp⟩
+      S.image fun i => ⟨0, i.val, Nat.zero_le 3, by simp⟩
     (cover S).card = 3 ∧ Covers (cover S) S ∧ Covers Wleaves S ∧
       (cover S).card ≤ Wleaves.card ∧
       ((cover S).card : ℝ) ≤ (3 : ℝ) * Real.logb 2 ((2 ^ 3 : ℝ) / 3) := by

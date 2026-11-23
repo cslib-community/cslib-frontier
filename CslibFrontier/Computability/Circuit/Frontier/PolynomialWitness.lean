@@ -246,12 +246,12 @@ private theorem monomialCode_union_lt_of_lt {m : ℕ} {K J D : Finset (Fin m)}
     nlinarith
 
 private def monomialCol {m : ℕ} (A : Set (Fin m → Bool)) (I : Finset (Fin m)) : A → ZMod 2 :=
-  fun a => BitString.monomial (ZMod 2) I a.1
+  fun a => BitString.monomial (ZMod 2) I a.val
 
 private theorem monomialCol_mul {m : ℕ} (A : Set (Fin m → Bool)) (I J : Finset (Fin m)) :
     monomialCol A I * monomialCol A J = monomialCol A (I ∪ J) := by
   funext a
-  change BitString.monomial (ZMod 2) I a.1 * BitString.monomial (ZMod 2) J a.1 = _
+  change BitString.monomial (ZMod 2) I a.val * BitString.monomial (ZMod 2) J a.val = _
   rw [← Pi.mul_apply, BitString.monomial_mul]
   rfl
 
@@ -312,7 +312,7 @@ private theorem footprint_downClosed {m : ℕ} {A : Set (Fin m → Bool)} {I J :
   exact hI hcontr
 
 private theorem sum_footprint_eq_zero {m : ℕ} (A : Set (Fin m → Bool))
-    (g : footprint A → ZMod 2) (hsum : ∑ I : footprint A, g I • monomialCol A I.1 = 0) :
+    (g : footprint A → ZMod 2) (hsum : ∑ I : footprint A, g I • monomialCol A I.val = 0) :
     g = 0 := by
   classical
   by_contra hne
@@ -321,8 +321,8 @@ private theorem sum_footprint_eq_zero {m : ℕ} (A : Set (Fin m → Bool))
   have hsupp_ne : supp.Nonempty := by
     obtain ⟨I, hI⟩ := hex
     exact ⟨I, mem_filter.mpr ⟨Finset.mem_univ I, hI⟩⟩
-  obtain ⟨I₀, hI₀, hmax⟩ := exists_max_image supp (fun I : footprint A => monomialCode I.1) hsupp_ne
-  have hsum_supp : ∑ I ∈ supp, g I • monomialCol A I.1 = 0 := by
+  obtain ⟨I₀, hI₀, hmax⟩ := exists_max_image supp (fun I : footprint A => monomialCode I.val) hsupp_ne
+  have hsum_supp : ∑ I ∈ supp, g I • monomialCol A I.val = 0 := by
     rw [← hsum]
     exact Finset.sum_subset (subset_univ supp) fun I _ hIn => by
       simp only [supp, mem_filter, Finset.mem_univ, true_and, not_not] at hIn
@@ -333,20 +333,20 @@ private theorem sum_footprint_eq_zero {m : ℕ} (A : Set (Fin m → Bool))
     fin_cases z
     · exact absurd rfl hne
     · rfl
-  have hsplit := Finset.add_sum_erase supp (fun I : footprint A => g I • monomialCol A I.1) hI₀
+  have hsplit := Finset.add_sum_erase supp (fun I : footprint A => g I • monomialCol A I.val) hI₀
   rw [hsum_supp, hgI₀, one_smul] at hsplit
-  have hcol_eq : monomialCol A I₀.1 = - ∑ I ∈ supp.erase I₀, g I • monomialCol A I.1 :=
+  have hcol_eq : monomialCol A I₀.val = - ∑ I ∈ supp.erase I₀, g I • monomialCol A I.val :=
     eq_neg_of_add_eq_zero_left hsplit
-  have hmem_span : monomialCol A I₀.1 ∈ Submodule.span (ZMod 2)
-      (monomialCol A '' {K : Finset (Fin m) | monomialCode K < monomialCode I₀.1}) := by
+  have hmem_span : monomialCol A I₀.val ∈ Submodule.span (ZMod 2)
+      (monomialCol A '' {K : Finset (Fin m) | monomialCode K < monomialCode I₀.val}) := by
     rw [hcol_eq]
     refine Submodule.neg_mem _ (Submodule.sum_mem _ fun I hI => Submodule.smul_mem _ _ ?_)
     obtain ⟨hneI, hIsupp⟩ := mem_erase.mp hI
-    have hle_code : monomialCode I.1 ≤ monomialCode I₀.1 := hmax I hIsupp
-    have hne_code : monomialCode I.1 ≠ monomialCode I₀.1 := fun heq =>
+    have hle_code : monomialCode I.val ≤ monomialCode I₀.val := hmax I hIsupp
+    have hne_code : monomialCode I.val ≠ monomialCode I₀.val := fun heq =>
       hneI (Subtype.ext (monomialCode_injective heq))
-    exact Submodule.subset_span ⟨I.1, lt_of_le_of_ne hle_code hne_code, rfl⟩
-  have hfp := I₀.2
+    exact Submodule.subset_span ⟨I.val, lt_of_le_of_ne hle_code hne_code, rfl⟩
+  have hfp := I₀.property
   simp only [footprint, mem_filter, Finset.mem_univ, true_and] at hfp
   exact hfp hmem_span
 
@@ -354,7 +354,7 @@ private theorem ncard_le_card_footprint {m : ℕ} (A : Set (Fin m → Bool)) :
     A.ncard ≤ #(footprint A) := by
   classical
   let Ψ : (footprint A → ZMod 2) → (A → ZMod 2) :=
-    fun c => ∑ I : footprint A, c I • monomialCol A I.1
+    fun c => ∑ I : footprint A, c I • monomialCol A I.val
   have hΨ_surj : Function.Surjective Ψ := by
     let W : Submodule (ZMod 2) (A → ZMod 2) :=
       { carrier := Set.range Ψ
@@ -378,7 +378,7 @@ private theorem ncard_le_card_footprint {m : ℕ} (A : Set (Fin m → Bool)) :
     intro g
     let gExt : (Fin m → Bool) → ZMod 2 := fun x => if hx : x ∈ A then g ⟨x, hx⟩ else 0
     let res : ((Fin m → Bool) → ZMod 2) →ₗ[ZMod 2] (A → ZMod 2) :=
-      { toFun := fun f a => f a.1
+      { toFun := fun f a => f a.val
         map_add' := fun _ _ => rfl
         map_smul' := fun _ _ => rfl }
     have hres_g : res gExt = g := funext fun ⟨x, hx⟩ => by
@@ -549,7 +549,7 @@ private theorem exists_pivots_of_polyThreshold {α : Type*} [Finite α]
     ∃ (a : Fin s → (α → Bool)) (J : Fin s ↪ {I : Finset α // #I ≤ p}),
       Function.Injective a ∧ (∀ i, a i ∈ A) ∧
       ∀ r : Fin s → ZMod 2,
-        (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J j).1 (a i)) = 0 → r = 0 := by
+        (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J j).val (a i)) = 0 → r = 0 := by
   cases nonempty_fintype α
   classical
   set m := Fintype.card α
@@ -561,33 +561,33 @@ private theorem exists_pivots_of_polyThreshold {α : Type*} [Finite α]
   have hcard := le_card_footprint_le_of_polyThreshold hp hA'
   obtain ⟨Sub, hSub_sub, hSub_card⟩ := exists_subset_card_eq hcard
   let eSub : Fin s ≃ Sub := Fintype.equivOfCardEq (by simp [hSub_card])
-  let J' (j : Fin s) : Finset (Fin m) := (eSub j).1
+  let J' (j : Fin s) : Finset (Fin m) := (eSub j).val
   have hJ'_mem (j : Fin s) : J' j ∈ footprint A' ∧ #(J' j) ≤ p :=
-    mem_filter.mp (hSub_sub (eSub j).2)
+    mem_filter.mp (hSub_sub (eSub j).property)
   have hJ'_inj : Function.Injective J' := fun j₁ j₂ h => eSub.injective (Subtype.ext h)
   have hcol : ∀ c : Fin s → ZMod 2,
       (fun a' : A' => ∑ j : Fin s, c j * monomialCol A' (J' j) a') = 0 → c = 0 := by
     intro c hc
     let g (I : footprint A') : ZMod 2 :=
-      if h : ∃ j : Fin s, J' j = I.1 then c h.choose else 0
-    have hsum : ∑ I : footprint A', g I • monomialCol A' I.1 = 0 := by
+      if h : ∃ j : Fin s, J' j = I.val then c h.choose else 0
+    have hsum : ∑ I : footprint A', g I • monomialCol A' I.val = 0 := by
       funext a'
       simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply]
       let embJ : Fin s ↪ footprint A' :=
         ⟨fun j => ⟨J' j, (hJ'_mem j).1⟩, fun j₁ j₂ h => hJ'_inj (Subtype.mk.inj h)⟩
-      have h1 : ∑ I : footprint A', g I * monomialCol A' I.1 a' =
+      have h1 : ∑ I : footprint A', g I * monomialCol A' I.val a' =
           ∑ j : Fin s, c j * monomialCol A' (J' j) a' := by
         rw [← Finset.sum_subset (subset_univ (Finset.univ.map embJ))]
         · rw [Finset.sum_map]
           refine Finset.sum_congr rfl fun j _ => ?_
-          have hex : ∃ j' : Fin s, J' j' = (embJ j).1 := ⟨j, rfl⟩
+          have hex : ∃ j' : Fin s, J' j' = (embJ j).val := ⟨j, rfl⟩
           have hg_eq : g (embJ j) = c j := by
             simp only [g, hex, ↓reduceDIte]
             rw [hJ'_inj hex.choose_spec]
           rw [hg_eq]
           rfl
         · intro I _ hIn
-          have hnex : ¬ ∃ j : Fin s, J' j = I.1 := fun ⟨j, hj⟩ =>
+          have hnex : ¬ ∃ j : Fin s, J' j = I.val := fun ⟨j, hj⟩ =>
             hIn (Finset.mem_map.mpr ⟨j, Finset.mem_univ j, Subtype.ext hj⟩)
           have hg0_I : g I = 0 := by
             simp only [g, hnex, ↓reduceDIte]
@@ -603,9 +603,9 @@ private theorem exists_pivots_of_polyThreshold {α : Type*} [Finite α]
       rw [hJ'_inj hex.choose_spec]
     exact hgj_eq.symm.trans hgj
   obtain ⟨a'_sub, ha'_rows⟩ := exists_pivot_rows (fun (a' : A') j => monomialCol A' (J' j) a') hcol
-  let a (i : Fin s) : α → Bool := tr.symm (a'_sub i).1
+  let a (i : Fin s) : α → Bool := tr.symm (a'_sub i).val
   have ha_mem (i : Fin s) : a i ∈ A := by
-    obtain ⟨x, hx, hxeq⟩ := (a'_sub i).2
+    obtain ⟨x, hx, hxeq⟩ := (a'_sub i).property
     have : a i = x := by
       simp only [a, ← hxeq, Equiv.symm_apply_apply]
     exact this ▸ hx
@@ -614,16 +614,16 @@ private theorem exists_pivots_of_polyThreshold {α : Type*} [Finite α]
     ⟨fun j => ⟨mapSet (J' j), by simp only [mapSet, card_map]; exact (hJ'_mem j).2⟩,
       fun j₁ j₂ h => hJ'_inj (Finset.map_injective e.symm.toEmbedding (Subtype.mk.inj h))⟩
   have hmon (i j : Fin s) :
-      BitString.monomial (ZMod 2) (J j).1 (a i) = monomialCol A' (J' j) (a'_sub i) := by
+      BitString.monomial (ZMod 2) (J j).val (a i) = monomialCol A' (J' j) (a'_sub i) := by
     change (∏ x ∈ (J' j).map e.symm.toEmbedding, BitString.bitVal (ZMod 2) (a i x)) =
-      ∏ k ∈ J' j, BitString.bitVal (ZMod 2) ((a'_sub i).1 k)
+      ∏ k ∈ J' j, BitString.bitVal (ZMod 2) ((a'_sub i).val k)
     rw [Finset.prod_map]
     refine Finset.prod_congr rfl fun k _ => ?_
-    have hk : a i (e.symm k) = (a'_sub i).1 k :=
-      congrFun (tr.apply_symm_apply (a'_sub i).1) k
+    have hk : a i (e.symm k) = (a'_sub i).val k :=
+      congrFun (tr.apply_symm_apply (a'_sub i).val) k
     rw [Equiv.coe_toEmbedding, hk]
   have hrows : ∀ r : Fin s → ZMod 2,
-      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J j).1 (a i)) = 0 → r = 0 := by
+      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J j).val (a i)) = 0 → r = 0 := by
     intro r hr
     refine ha'_rows r ?_
     funext j
@@ -632,7 +632,7 @@ private theorem exists_pivots_of_polyThreshold {α : Type*} [Finite α]
     intro i₁ i₂ heq
     by_contra hne
     let r (i : Fin s) : ZMod 2 := (if i = i₁ then 1 else 0) + (if i = i₂ then 1 else 0)
-    have hr_zero : (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J j).1 (a i)) = 0 := by
+    have hr_zero : (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J j).val (a i)) = 0 := by
       funext j
       simp only [r, add_mul, Finset.sum_add_distrib, Pi.zero_apply]
       rw [Fintype.sum_eq_single i₁ (fun i hi => by simp [hi]),
@@ -652,16 +652,16 @@ section Kronecker
 private abbrev PolyIdx (n D : ℕ) := {S : Finset (Fin n) // #S ≤ D}
 
 private def evalPoly {n D : ℕ} (c : PolyIdx n D → ZMod 2) (x : Fin n → Bool) : ZMod 2 :=
-  ∑ S : PolyIdx n D, c S * BitString.monomial (ZMod 2) S.1 x
+  ∑ S : PolyIdx n D, c S * BitString.monomial (ZMod 2) S.val x
 
 private theorem evalPoly_mem_lowDegree {n D : ℕ} (c : PolyIdx n D → ZMod 2) :
     evalPoly c ∈ BitString.lowDegree (ZMod 2) (Fin n) D := by
-  have h : evalPoly c = ∑ S : PolyIdx n D, c S • BitString.monomial (ZMod 2) S.1 := by
+  have h : evalPoly c = ∑ S : PolyIdx n D, c S • BitString.monomial (ZMod 2) S.val := by
     funext x
     simp only [evalPoly, Finset.sum_apply, Pi.smul_apply, smul_eq_mul]
   rw [h]
   exact Submodule.sum_mem _ fun S _ =>
-    Submodule.smul_mem _ _ (BitString.monomial_mem_lowDegree S.2)
+    Submodule.smul_mem _ _ (BitString.monomial_mem_lowDegree S.property)
 
 private theorem bijective_kronecker_bilinear {s : ℕ} (M₁ M₂ : Fin s → Fin s → ZMod 2)
     (hM₁ : ∀ r : Fin s → ZMod 2, (fun j => ∑ i, r i * M₁ i j) = 0 → r = 0)
@@ -705,9 +705,9 @@ private theorem card_filter_evalPoly_mul_two_pow {n p s : ℕ} (X : Set (Fin n))
     (a : Fin s → (X → Bool)) (J₁ : Fin s ↪ {I : Finset X // #I ≤ p})
     (b : Fin s → (↥Xᶜ → Bool)) (J₂ : Fin s ↪ {I : Finset ↥Xᶜ // #I ≤ p})
     (ha_rows : ∀ r : Fin s → ZMod 2,
-      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₁ j).1 (a i)) = 0 → r = 0)
+      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₁ j).val (a i)) = 0 → r = 0)
     (hb_rows : ∀ r : Fin s → ZMod 2,
-      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₂ j).1 (b i)) = 0 → r = 0)
+      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₂ j).val (b i)) = 0 → r = 0)
     (P : (Fin s × Fin s → ZMod 2) → Prop) [DecidablePred P] :
     (#{c : PolyIdx n (2 * p) → ZMod 2 | P (fun q => evalPoly c
       ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm (a q.1, b q.2)))} *
@@ -719,57 +719,57 @@ private theorem card_filter_evalPoly_mul_two_pow {n p s : ℕ} (X : Set (Fin n))
   let emb₁ : X ↪ Fin n := ⟨Subtype.val, Subtype.val_injective⟩
   let emb₂ : ↥Xᶜ ↪ Fin n := ⟨Subtype.val, Subtype.val_injective⟩
   let μFun (q : Fin s × Fin s) : PolyIdx n (2 * p) :=
-    ⟨(J₁ q.1).1.map emb₁ ∪ (J₂ q.2).1.map emb₂, by
-      calc #((J₁ q.1).1.map emb₁ ∪ (J₂ q.2).1.map emb₂)
-          ≤ #((J₁ q.1).1.map emb₁) + #((J₂ q.2).1.map emb₂) := card_union_le _ _
-        _ = #(J₁ q.1).1 + #(J₂ q.2).1 := by rw [card_map, card_map]
-        _ ≤ p + p := Nat.add_le_add (J₁ q.1).2 (J₂ q.2).2
+    ⟨(J₁ q.1).val.map emb₁ ∪ (J₂ q.2).val.map emb₂, by
+      calc #((J₁ q.1).val.map emb₁ ∪ (J₂ q.2).val.map emb₂)
+          ≤ #((J₁ q.1).val.map emb₁) + #((J₂ q.2).val.map emb₂) := card_union_le _ _
+        _ = #(J₁ q.1).val + #(J₂ q.2).val := by rw [card_map, card_map]
+        _ ≤ p + p := Nat.add_le_add (J₁ q.1).property (J₂ q.2).property
         _ = 2 * p := (two_mul p).symm⟩
   have hμ_inj : Function.Injective μFun := by
     intro q₁ q₂ h
     have hval := congrArg Subtype.val h
     have hX : ∀ q : Fin s × Fin s,
-        (μFun q).1.filter (· ∈ X) = (J₁ q.1).1.map emb₁ := fun q => by
+        (μFun q).val.filter (· ∈ X) = (J₁ q.1).val.map emb₁ := fun q => by
       ext i
       simp only [μFun, mem_filter, Finset.mem_union, Finset.mem_map, emb₁, emb₂]
       constructor
       · rintro ⟨(⟨x, hx, rfl⟩ | ⟨x, _, rfl⟩), hiX⟩
         · exact ⟨x, hx, rfl⟩
-        · exact absurd hiX x.2
+        · exact absurd hiX x.property
       · rintro ⟨x, hx, rfl⟩
-        exact ⟨Or.inl ⟨x, hx, rfl⟩, x.2⟩
+        exact ⟨Or.inl ⟨x, hx, rfl⟩, x.property⟩
     have hXc : ∀ q : Fin s × Fin s,
-        (μFun q).1.filter (· ∉ X) = (J₂ q.2).1.map emb₂ := fun q => by
+        (μFun q).val.filter (· ∉ X) = (J₂ q.2).val.map emb₂ := fun q => by
       ext i
       simp only [μFun, mem_filter, Finset.mem_union, Finset.mem_map, emb₁, emb₂]
       constructor
       · rintro ⟨(⟨x, _, rfl⟩ | ⟨x, hx, rfl⟩), hni⟩
-        · exact absurd x.2 hni
+        · exact absurd x.property hni
         · exact ⟨x, hx, rfl⟩
       · rintro ⟨x, hx, rfl⟩
-        exact ⟨Or.inr ⟨x, hx, rfl⟩, x.2⟩
-    have h1 : (J₁ q₁.1).1.map emb₁ = (J₁ q₂.1).1.map emb₁ := by
+        exact ⟨Or.inr ⟨x, hx, rfl⟩, x.property⟩
+    have h1 : (J₁ q₁.1).val.map emb₁ = (J₁ q₂.1).val.map emb₁ := by
       rw [← hX q₁, ← hX q₂, hval]
-    have h2 : (J₂ q₁.2).1.map emb₂ = (J₂ q₂.2).1.map emb₂ := by
+    have h2 : (J₂ q₁.2).val.map emb₂ = (J₂ q₂.2).val.map emb₂ := by
       rw [← hXc q₁, ← hXc q₂, hval]
     exact Prod.ext
       (J₁.injective (Subtype.ext (Finset.map_injective emb₁ h1)))
       (J₂.injective (Subtype.ext (Finset.map_injective emb₂ h2)))
   let μ : Fin s × Fin s ↪ PolyIdx n (2 * p) := ⟨μFun, hμ_inj⟩
-  let M₁ (i j : Fin s) : ZMod 2 := BitString.monomial (ZMod 2) (J₁ j).1 (a i)
-  let M₂ (k j : Fin s) : ZMod 2 := BitString.monomial (ZMod 2) (J₂ j).1 (b k)
+  let M₁ (i j : Fin s) : ZMod 2 := BitString.monomial (ZMod 2) (J₁ j).val (a i)
+  let M₂ (k j : Fin s) : ZMod 2 := BitString.monomial (ZMod 2) (J₂ j).val (b k)
   have hmon_μ (j₁ j₂ i k : Fin s) :
-      BitString.monomial (ZMod 2) (μ (j₁, j₂)).1 (z (i, k)) = M₁ i j₁ * M₂ k j₂ := by
-    have hmul : BitString.monomial (ZMod 2) (μ (j₁, j₂)).1 (z (i, k)) =
-        BitString.monomial (ZMod 2) ((J₁ j₁).1.map emb₁) (z (i, k)) *
-          BitString.monomial (ZMod 2) ((J₂ j₂).1.map emb₂) (z (i, k)) := by
-      change (BitString.monomial (ZMod 2) ((J₁ j₁).1.map emb₁ ∪ (J₂ j₂).1.map emb₂)) (z (i, k)) = _
+      BitString.monomial (ZMod 2) (μ (j₁, j₂)).val (z (i, k)) = M₁ i j₁ * M₂ k j₂ := by
+    have hmul : BitString.monomial (ZMod 2) (μ (j₁, j₂)).val (z (i, k)) =
+        BitString.monomial (ZMod 2) ((J₁ j₁).val.map emb₁) (z (i, k)) *
+          BitString.monomial (ZMod 2) ((J₂ j₂).val.map emb₂) (z (i, k)) := by
+      change (BitString.monomial (ZMod 2) ((J₁ j₁).val.map emb₁ ∪ (J₂ j₂).val.map emb₂)) (z (i, k)) = _
       rw [← BitString.monomial_mul]
       rfl
-    have hzX : ∀ x : X, z (i, k) x.1 = a i x := fun x => by
+    have hzX : ∀ x : X, z (i, k) x.val = a i x := fun x => by
       change (eCut (z (i, k))).1 x = a i x
       simp only [z, Equiv.apply_symm_apply]
-    have hzXc : ∀ x : ↥Xᶜ, z (i, k) x.1 = b k x := fun x => by
+    have hzXc : ∀ x : ↥Xᶜ, z (i, k) x.val = b k x := fun x => by
       change (eCut (z (i, k))).2 x = b k x
       simp only [z, Equiv.apply_symm_apply]
     rw [hmul]
@@ -786,14 +786,14 @@ private theorem card_filter_evalPoly_mul_two_pow {n p s : ℕ} (X : Set (Fin n))
   let eCoeff : ((Fin s × Fin s → ZMod 2) × (Rest → ZMod 2)) ≃ (PolyIdx n (2 * p) → ZMod 2) :=
     { toFun := fun p0 S =>
         if h : S ∈ Set.range μ then p0.1 (eRange.symm ⟨S, h⟩) else p0.2 ⟨S, h⟩
-      invFun := fun c => (fun q => c (μ q), fun S => c S.1)
+      invFun := fun c => (fun q => c (μ q), fun S => c S.val)
       left_inv := fun ⟨C, cr⟩ => by
         ext q
         · simp only [Set.mem_range_self, ↓reduceDIte]
           have hsymm : eRange.symm ⟨μ q, Set.mem_range_self q⟩ = q :=
             eRange.symm_apply_apply q
           rw [hsymm]
-        · simp only [q.2, ↓reduceDIte]
+        · simp only [q.property, ↓reduceDIte]
           exact congrArg cr (Subtype.ext rfl)
       right_inv := fun c => by
         funext S
@@ -805,17 +805,17 @@ private theorem card_filter_evalPoly_mul_two_pow {n p s : ℕ} (X : Set (Fin n))
         · simp only [h, ↓reduceDIte] }
   have heval_split (C : Fin s × Fin s → ZMod 2) (cr : Rest → ZMod 2) (q : Fin s × Fin s) :
       evalPoly (eCoeff (C, cr)) (z q) =
-        (∑ S : Rest, cr S * BitString.monomial (ZMod 2) S.1.1 (z q)) +
+        (∑ S : Rest, cr S * BitString.monomial (ZMod 2) S.val.val (z q)) +
           ∑ j₁ : Fin s, ∑ j₂ : Fin s, M₁ q.1 j₁ * C (j₁, j₂) * M₂ q.2 j₂ := by
     simp only [evalPoly]
-    rw [← eIdx.sum_comp (fun S => eCoeff (C, cr) S * BitString.monomial (ZMod 2) S.1 (z q)),
+    rw [← eIdx.sum_comp (fun S => eCoeff (C, cr) S * BitString.monomial (ZMod 2) S.val (z q)),
       Fintype.sum_sum_type, add_comm]
     congr 1
     · refine Finset.sum_congr rfl fun S _ => ?_
-      have h1 : eIdx (Sum.inr S) = S.1 := rfl
-      have h2 : eCoeff (C, cr) S.1 = cr S := by
-        change (if h : S.1 ∈ Set.range μ then C (eRange.symm ⟨S.1, h⟩) else cr ⟨S.1, h⟩) = cr S
-        simp only [S.2, ↓reduceDIte]
+      have h1 : eIdx (Sum.inr S) = S.val := rfl
+      have h2 : eCoeff (C, cr) S.val = cr S := by
+        change (if h : S.val ∈ Set.range μ then C (eRange.symm ⟨S.val, h⟩) else cr ⟨S.val, h⟩) = cr S
+        simp only [S.property, ↓reduceDIte]
         exact congrArg cr (Subtype.ext rfl)
       rw [h1, h2]
     · rw [Fintype.sum_prod_type]
@@ -836,7 +836,7 @@ private theorem card_filter_evalPoly_mul_two_pow {n p s : ℕ} (X : Set (Fin n))
       #{C : Fin s × Fin s → ZMod 2 | P (fun q => evalPoly (eCoeff (C, cr)) (z q))} =
         #{T : Fin s × Fin s → ZMod 2 | P T} := by
     let R₀ (q : Fin s × Fin s) : ZMod 2 :=
-      ∑ S : Rest, cr S * BitString.monomial (ZMod 2) S.1.1 (z q)
+      ∑ S : Rest, cr S * BitString.monomial (ZMod 2) S.val.val (z q)
     let Φ (C : Fin s × Fin s → ZMod 2) : Fin s × Fin s → ZMod 2 :=
       R₀ + fun q => ∑ j₁ : Fin s, ∑ j₂ : Fin s, M₁ q.1 j₁ * C (j₁, j₂) * M₂ q.2 j₂
     have hΦ_eq : ∀ C, (fun q => evalPoly (eCoeff (C, cr)) (z q)) = Φ C := fun C =>
@@ -845,11 +845,11 @@ private theorem card_filter_evalPoly_mul_two_pow {n p s : ℕ} (X : Set (Fin n))
     let eΦ := Equiv.ofBijective Φ hΦ_bij
     rw [← Fintype.card_subtype, ← Fintype.card_subtype]
     exact Fintype.card_congr
-      { toFun := fun C => ⟨eΦ C.1, by change P (Φ C.1); rw [← hΦ_eq C.1]; exact C.2⟩
-        invFun := fun T => ⟨eΦ.symm T.1, by
-          rw [hΦ_eq]; change P (eΦ (eΦ.symm T.1)); rw [eΦ.apply_symm_apply]; exact T.2⟩
-        left_inv := fun C => Subtype.ext (eΦ.symm_apply_apply C.1)
-        right_inv := fun T => Subtype.ext (eΦ.apply_symm_apply T.1) }
+      { toFun := fun C => ⟨eΦ C.val, by change P (Φ C.val); rw [← hΦ_eq C.val]; exact C.property⟩
+        invFun := fun T => ⟨eΦ.symm T.val, by
+          rw [hΦ_eq]; change P (eΦ (eΦ.symm T.val)); rw [eΦ.apply_symm_apply]; exact T.property⟩
+        left_inv := fun C => Subtype.ext (eΦ.symm_apply_apply C.val)
+        right_inv := fun T => Subtype.ext (eΦ.apply_symm_apply T.val) }
   have hcount_pair : #{c : PolyIdx n (2 * p) → ZMod 2 | P (fun q => evalPoly c (z q))} =
       2 ^ Fintype.card Rest * #{T : Fin s × Fin s → ZMod 2 | P T} := by
     have hbij : #{c : PolyIdx n (2 * p) → ZMod 2 | P (fun q => evalPoly c (z q))} =
@@ -857,10 +857,10 @@ private theorem card_filter_evalPoly_mul_two_pow {n p s : ℕ} (X : Set (Fin n))
           P (fun q => evalPoly (eCoeff p0) (z q))} := by
       rw [← Fintype.card_subtype, ← Fintype.card_subtype]
       exact Fintype.card_congr
-        { toFun := fun c => ⟨eCoeff.symm c.1, by simpa only [Equiv.apply_symm_apply] using c.2⟩
-          invFun := fun p0 => ⟨eCoeff p0.1, p0.2⟩
-          left_inv := fun c => Subtype.ext (eCoeff.apply_symm_apply c.1)
-          right_inv := fun p0 => Subtype.ext (eCoeff.symm_apply_apply p0.1) }
+        { toFun := fun c => ⟨eCoeff.symm c.val, by simpa only [Equiv.apply_symm_apply] using c.property⟩
+          invFun := fun p0 => ⟨eCoeff p0.val, p0.property⟩
+          left_inv := fun c => Subtype.ext (eCoeff.apply_symm_apply c.val)
+          right_inv := fun p0 => Subtype.ext (eCoeff.symm_apply_apply p0.val) }
     set Sig := (Finset.univ : Finset (Rest → ZMod 2)).sigma
       fun cr => ({C : Fin s × Fin s → ZMod 2 | P (fun q => evalPoly (eCoeff (C, cr)) (z q))} :
         Finset _)
@@ -873,9 +873,9 @@ private theorem card_filter_evalPoly_mul_two_pow {n p s : ℕ} (X : Set (Fin n))
       have h2 : #Sig = Fintype.card Sig := (Fintype.card_coe Sig).symm
       rw [h1, h2]
       exact Fintype.card_congr
-        { toFun := fun p0 => ⟨⟨p0.1.2, p0.1.1⟩, mem_sigma.mpr ⟨Finset.mem_univ _,
-            mem_filter.mpr ⟨Finset.mem_univ _, p0.2⟩⟩⟩
-          invFun := fun x => ⟨(x.1.2, x.1.1), (mem_filter.mp (mem_sigma.mp x.2).2).2⟩
+        { toFun := fun p0 => ⟨⟨p0.val.2, p0.val.1⟩, mem_sigma.mpr ⟨Finset.mem_univ _,
+            mem_filter.mpr ⟨Finset.mem_univ _, p0.property⟩⟩⟩
+          invFun := fun x => ⟨(x.val.2, x.val.1), (mem_filter.mp (mem_sigma.mp x.property).2).2⟩
           left_inv := fun ⟨⟨C, cr⟩, _⟩ => rfl
           right_inv := fun ⟨⟨cr, C⟩, _⟩ => rfl }
     rw [hbij, hprod_sig, Finset.card_sigma, Finset.sum_congr rfl fun cr _ => hfiber cr,
@@ -903,10 +903,10 @@ theorem exists_lowDegree_rectangleFree {p : ℕ} (hp : 1 ≤ p) (n : ℕ) :
   set M := Fintype.card (PolyIdx n (2 * p))
   let Good (X : Set (Fin n)) (w : Fin s → Fin n → Bool) : Prop :=
     (∃ J₁ : Fin s ↪ {I : Finset X // #I ≤ p}, ∀ r : Fin s → ZMod 2,
-      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₁ j).1 (X.domRestrict (w i))) = 0 →
+      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₁ j).val (X.domRestrict (w i))) = 0 →
         r = 0) ∧
     (∃ J₂ : Fin s ↪ {I : Finset ↥Xᶜ // #I ≤ p}, ∀ r : Fin s → ZMod 2,
-      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₂ j).1 (Xᶜ.domRestrict (w i))) = 0 →
+      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₂ j).val (Xᶜ.domRestrict (w i))) = 0 →
         r = 0)
   let isConst (T : Fin s × Fin s → ZMod 2) : Prop :=
     (∀ q, T q = 0) ∨ (∀ q, T q = 1)
@@ -1063,20 +1063,20 @@ private theorem rectangleBias_of_pivot_blocks {n p s K₀ K : ℕ} {b₀ : ℝ}
       ∃ (a : Fin s → (X → Bool)) (J₁ : Fin s ↪ {I : Finset X // #I ≤ p}),
         Function.Injective a ∧ (∀ i, a i ∈ A) ∧
         ∀ r : Fin s → ZMod 2,
-          (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₁ j).1 (a i)) = 0 → r = 0)
+          (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₁ j).val (a i)) = 0 → r = 0)
     (hpiv_Xc : ∀ (X : Set (Fin n)) {B : Set (↥Xᶜ → Bool)}, K₀ ≤ B.ncard →
       ∃ (b' : Fin s → (↥Xᶜ → Bool)) (J₂ : Fin s ↪ {I : Finset ↥Xᶜ // #I ≤ p}),
         Function.Injective b' ∧ (∀ i, b' i ∈ B) ∧
         ∀ r : Fin s → ZMod 2,
-          (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₂ j).1 (b' i)) = 0 → r = 0)
+          (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₂ j).val (b' i)) = 0 → r = 0)
     (hblock : ∀ (X : Set (Fin n)) (a : Fin s → (X → Bool))
         (J₁ : Fin s ↪ {I : Finset X // #I ≤ p})
         (b' : Fin s → (↥Xᶜ → Bool)) (J₂ : Fin s ↪ {I : Finset ↥Xᶜ // #I ≤ p}),
       Function.Injective a → Function.Injective b' →
       (∀ r : Fin s → ZMod 2,
-        (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₁ j).1 (a i)) = 0 → r = 0) →
+        (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₁ j).val (a i)) = 0 → r = 0) →
       (∀ r : Fin s → ZMod 2,
-        (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₂ j).1 (b' i)) = 0 → r = 0) →
+        (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₂ j).val (b' i)) = 0 → r = 0) →
       |((rectangle X (Set.range a) (Set.range b') ∩ S).ncard : ℝ) - (s * s : ℕ) / 2| ≤
         b₀ * (s * s : ℕ)) :
     RectangleBias S K (2 * b₀) := by
@@ -1084,7 +1084,7 @@ private theorem rectangleBias_of_pivot_blocks {n p s K₀ K : ℕ} {b₀ : ℝ}
   have bias_good_left : ∀ (a : Fin s → (X → Bool)) (J₁ : Fin s ↪ {I : Finset X // #I ≤ p}),
       Function.Injective a →
       (∀ r : Fin s → ZMod 2,
-        (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₁ j).1 (a i)) = 0 → r = 0) →
+        (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₁ j).val (a i)) = 0 → r = 0) →
       ∀ (B' : Set (↥Xᶜ → Bool)),
         |((rectangle X (Set.range a) B' ∩ S).ncard : ℝ) -
             (rectangle X (Set.range a) B').ncard / 2| ≤
@@ -1299,10 +1299,10 @@ theorem exists_lowDegree_rectangleBias {p : ℕ} (hp : 1 ≤ p) (n : ℕ) {b : �
           field_simp
   let Good (X : Set (Fin n)) (w : Fin s → Fin n → Bool) : Prop :=
     (∃ J₁ : Fin s ↪ {I : Finset X // #I ≤ p}, ∀ r : Fin s → ZMod 2,
-      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₁ j).1 (X.domRestrict (w i))) = 0 →
+      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₁ j).val (X.domRestrict (w i))) = 0 →
         r = 0) ∧
     (∃ J₂ : Fin s ↪ {I : Finset ↥Xᶜ // #I ≤ p}, ∀ r : Fin s → ZMod 2,
-      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₂ j).1 (Xᶜ.domRestrict (w i))) = 0 →
+      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₂ j).val (Xᶜ.domRestrict (w i))) = 0 →
         r = 0)
   let E (u : Set (Fin n) × (Fin s → Fin n → Bool)) : Finset (PolyIdx n (2 * p) → ZMod 2) :=
     {c | Good u.1 u.2 ∧ isBiased fun q => evalPoly c

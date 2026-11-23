@@ -97,7 +97,7 @@ private theorem mixedDigit_eq (ms : List ℕ) (u : Fin (∏ i, ms.get i)) (i : F
     intro a h1 h2
     simp
   change _ = u / (∏ j : Fin i, ms.get (Fin.castLE i.is_lt.le j)) % ms.get i
-  rw [hprod, mixedDigit, List.getD_eq_getElem _ _ i.2]
+  rw [hprod, mixedDigit, List.getD_eq_getElem _ _ i.isLt]
   rfl
 
 private theorem bitEquiv_symm_all (k : ℕ) (p : ℕ → Bool) :
@@ -105,7 +105,7 @@ private theorem bitEquiv_symm_all (k : ℕ) (p : ℕ → Bool) :
   by_cases h : (List.range k).all p = true
   · rw [h, bitEquiv_symm_true, eq_comm]
     refine Finset.prod_eq_one fun i _ => ?_
-    rw [List.all_eq_true.1 h i (List.mem_range.2 i.2), bitEquiv_symm_true]
+    rw [List.all_eq_true.1 h i (List.mem_range.2 i.isLt), bitEquiv_symm_true]
   · rw [Bool.not_eq_true] at h
     rw [h, bitEquiv_symm_false, eq_comm]
     obtain ⟨i, hi, hpi⟩ := List.all_eq_false.1 h
@@ -142,9 +142,9 @@ theorem isMulTable_monomialTable (ms : List ℕ) (R : List (List (List Bool)))
   rw [Basis.reindex_apply, Equiv.symm_apply_apply]
   congr 1
   have hms := Fin.prod_univ_getElem ms
-  have hv : (finPiFinEquiv M : ℕ) < ms.prod := (finPiFinEquiv M).2.trans_eq hms
-  have hu : (u : ℕ) < ms.prod := u.2.trans_eq hms
-  have hw : (w : ℕ) < ms.prod := w.2.trans_eq hms
+  have hv : (finPiFinEquiv M : ℕ) < ms.prod := (finPiFinEquiv M).isLt.trans_eq hms
+  have hu : (u : ℕ) < ms.prod := u.isLt.trans_eq hms
+  have hw : (w : ℕ) < ms.prod := w.isLt.trans_eq hms
   rw [tableEntry_monomialTable hu hw, List.getD_eq_getElem _ _ (by simpa using hv),
     List.getElem_map, List.getElem_range, monomialBit, bitEquiv_symm_all]
   refine Finset.prod_congr rfl fun i _ => ?_

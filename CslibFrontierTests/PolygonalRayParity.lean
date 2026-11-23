@@ -144,7 +144,7 @@ example : ∃ u : ℂ, u ≠ 0 ∧ ∀ z : ℂ,
 -- Genuine high-degree geometry, sparse duplicated points and the empty arrangement use
 -- the same local theorem. These statements assert no numerical-genus characterization.
 private abbrev LocalParity {G : Graph} (D : PolygonalDrawing G) (u : ℂ) : Prop :=
-  ∀ x : Fin G.2.length → Bool, G.VertexEven x → ∀ z : ℂ,
+  ∀ x : Fin G.edges.length → Bool, G.VertexEven x → ∀ z : ℂ,
     (∀ s : D.SegmentIndex, x s.1 = true →
       z ∉ segment ℝ (u * D.segmentStart s) (u * D.segmentFinish s)) →
     ∀ᶠ w in nhds z,

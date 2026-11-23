@@ -226,7 +226,7 @@ theorem realize_ascFrom_nat (d : ℕ) (i : Fin 2) (a : Fin 2 → ℕ) :
 
 theorem bound_of_realize_ascFrom {n : ℕ} (d : ℕ) (i : Fin 2) (a : Fin 2 → Fin n) :
     (letI : Language.order.Structure (Fin n) := orderStructure (Fin n);
-      (ascFrom i d).Realize a) → (a i).1 + d < n := by
+      (ascFrom i d).Realize a) → (a i).val + d < n := by
   let _ : Language.order.Structure (Fin n) := orderStructure (Fin n)
   have _ : Language.order.OrderedStructure (Fin n) := ⟨fun _ => Iff.rfl⟩
   induction d generalizing i a with
@@ -239,7 +239,7 @@ theorem bound_of_realize_ascFrom {n : ℕ} (d : ℕ) (i : Fin 2) (a : Fin 2 → 
     simp only [Function.update_self, Function.update_of_ne hne] at hlt
     have hrec := ih (1 - i) (Function.update a (1 - i) c) hd
     simp only [Function.update_self] at hrec
-    have hlt_val : (a i).1 < c.1 := hlt
+    have hlt_val : (a i).val < c.val := hlt
     omega
 
 /-- `infiniteAscChain` holds on `(ℕ, ≤)`. -/

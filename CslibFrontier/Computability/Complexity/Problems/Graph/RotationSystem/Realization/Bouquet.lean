@@ -38,8 +38,8 @@ namespace Cslib.Complexity.Graph.RotationSystem
 with its exact clockwise germ order. All listed occurrences and both ends of every loop
 are retained, without any noncrossing or geometric hypothesis. -/
 theorem exists_polygonalDrawing_of_loops {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (hr : r.NumericalGenusZero)
-    (hloop : ∀ e : Fin G.2.length,
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hr : r.NumericalGenusZero)
+    (hloop : ∀ e : Fin G.edges.length,
       (Dart.vertex (G := G) (e, false)) = Dart.vertex (e, true)) :
     ∃ D : PolygonalDrawing G, D.IsEmbedding ∧ D.Realizes r :=
   ⟨PolygonalDrawing.bouquet r hloop, PolygonalDrawing.bouquet_isEmbedding r hG hr hloop,

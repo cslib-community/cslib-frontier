@@ -257,7 +257,7 @@ private theorem sum_nonUnit_straddle_le_of_tangent {σ : Signature.{v}} {n m k�
       (S_nu.card : ℝ) =
         ({i : Fin n | Compiler.Reach c (.input i)}.ncard : ℝ) + Compiler.multiFanoutSize c := by
     let emb_in : {i : Fin n // Compiler.Reach c (.input i)} ↪ Compiler.ActiveSignal c :=
-      ⟨fun x => .input x.1 x.2, fun _ _ h => Subtype.ext (Compiler.ActiveSignal.input.inj h)⟩
+      ⟨fun x => .input x.val x.property, fun _ _ h => Subtype.ext (Compiler.ActiveSignal.input.inj h)⟩
     let emb_gt : Compiler.InnerGate c ↪ Compiler.ActiveSignal c :=
       ⟨Compiler.ActiveSignal.gate, fun _ _ h => Compiler.ActiveSignal.gate.inj h⟩
     let M_fin := Finset.univ.filter fun g : Compiler.InnerGate c => g ∈ Compiler.multiFanoutGates c

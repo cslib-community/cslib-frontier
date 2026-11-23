@@ -19,8 +19,8 @@ example {G : Graph} (r : RotationSystem G) (a b : Dart G) (hab : a.vertex = b.ve
     (heq : r.portRank a = r.portRank b) : a = b := r.portRank_injective a b hab heq
 
 example {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (hr : r.NumericalGenusZero)
-    (e f : Fin G.2.length) (hef : e ≠ f)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hr : r.NumericalGenusZero)
+    (e f : Fin G.edges.length) (hef : e ≠ f)
     (he : Dart.vertex (G := G) (e, false) = Dart.vertex (e, true))
     (hf : Dart.vertex (G := G) (f, false) = Dart.vertex (f, true))
     (hv : Dart.vertex (G := G) (e, false) = Dart.vertex (f, false)) :

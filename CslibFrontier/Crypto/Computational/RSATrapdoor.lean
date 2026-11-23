@@ -273,10 +273,10 @@ theorem rsaEval_bijective_fin (desc : RSADesc) : Function.Bijective desc.publicK
     ⟨rsaInvert desc.modulus desc.d y, Nat.mod_lt _ desc.modulus_pos⟩, ?_, ?_⟩
   · intro x
     ext
-    exact rsaInvert_rsaEval desc x.2
+    exact rsaInvert_rsaEval desc x.isLt
   · intro y
     ext
-    exact rsaEval_rsaInvert desc y.2
+    exact rsaEval_rsaInvert desc y.isLt
 
 /-- RSA evaluation `x ↦ x ^ e` is a bijection on `(ZMod N)ˣ`. -/
 theorem rsaEval_bijective_units (desc : RSADesc) :

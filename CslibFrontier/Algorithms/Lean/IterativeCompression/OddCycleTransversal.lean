@@ -121,18 +121,18 @@ variable {n : ℕ}
 
 /-- The subgraph of `G` spanned by the vertices `0, …, m - 1`. The other vertices are isolated. -/
 @[expose] def prefixGraph (G : SimpleGraph (Fin n)) (m : ℕ) : SimpleGraph (Fin n) where
-  Adj u v := G.Adj u v ∧ u.1 < m ∧ v.1 < m
+  Adj u v := G.Adj u v ∧ u.val < m ∧ v.val < m
   symm := ⟨fun _ _ h => ⟨h.1.symm, h.2.2, h.2.1⟩⟩
   loopless := ⟨fun v h => G.loopless.irrefl v h.1⟩
 
 @[simp]
 theorem prefixGraph_adj {G : SimpleGraph (Fin n)} {m : ℕ} {u v : Fin n} :
-    (prefixGraph G m).Adj u v ↔ G.Adj u v ∧ u.1 < m ∧ v.1 < m :=
+    (prefixGraph G m).Adj u v ↔ G.Adj u v ∧ u.val < m ∧ v.val < m :=
   Iff.rfl
 
 instance (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (m : ℕ) :
     DecidableRel (prefixGraph G m).Adj :=
-  fun u v => inferInstanceAs (Decidable (G.Adj u v ∧ u.1 < m ∧ v.1 < m))
+  fun u v => inferInstanceAs (Decidable (G.Adj u v ∧ u.val < m ∧ v.val < m))
 
 theorem prefixGraph_le (G : SimpleGraph (Fin n)) (m : ℕ) : prefixGraph G m ≤ G :=
   fun _ _ h => h.1
@@ -495,7 +495,7 @@ variable (G)
     TimeM.tick (k + 2)
     let W := if i ∈ S then S else i :: S
     if W.length ≤ k then pure (some (W, c))
-    else compressM (prefixGraph G (i.1 + 1)) k W c
+    else compressM (prefixGraph G (i.val + 1)) k W c
 
 /-- The first `i` steps of the iteration, starting from `∅` and the all-`false` colouring. -/
 @[expose] def loopM (k : ℕ) : (i : ℕ) → i ≤ n → TimeM ℕ (Option (List (Fin n) × Vector Bool n))
@@ -520,7 +520,7 @@ private def Inv (G : SimpleGraph (Fin n)) (k i : ℕ) : Option (List (Fin n) × 
   | some (S, c) => S.Nodup ∧ S.length ≤ k ∧ IsProperOff (prefixGraph G i) c S
 
 private theorem inv_stepM {k : ℕ} {i : Fin n} {r : Option (List (Fin n) × Vector Bool n)}
-    (h : Inv G k i.1 r) : Inv G k (i.1 + 1) (stepM G k i r).ret := by
+    (h : Inv G k i.val r) : Inv G k (i.val + 1) (stepM G k i r).ret := by
   rcases r with _ | ⟨S, c⟩
   · exact fun T hT => h T (hT.anti (prefixGraph_mono G (Nat.le_succ _)))
   obtain ⟨hS, hSk, hc⟩ := h
@@ -534,7 +534,7 @@ private theorem inv_stepM {k : ℕ} {i : Fin n} {r : Option (List (Fin n) × Vec
     by_cases hi : i ∈ S
     · simpa only [hWdef, hi, ↓reduceIte] using hS
     · simpa only [hWdef, hi, ↓reduceIte] using List.nodup_cons.mpr ⟨hi, hS⟩
-  have hcW : IsProperOff (prefixGraph G (i.1 + 1)) c W := by
+  have hcW : IsProperOff (prefixGraph G (i.val + 1)) c W := by
     intro u v huv hu hv
     rw [hWS, not_or] at hu hv
     refine hc ⟨huv.1, ?_, ?_⟩ hu.2 hv.2
@@ -548,7 +548,7 @@ private theorem inv_stepM {k : ℕ} {i : Fin n} {r : Option (List (Fin n) × Vec
   rw [← hWdef]
   split_ifs with hk
   · exact ⟨hW, hk, hcW⟩
-  · rcases hr : (compressM (prefixGraph G (i.1 + 1)) k W c).ret with _ | ⟨S', c'⟩
+  · rcases hr : (compressM (prefixGraph G (i.val + 1)) k W c).ret with _ | ⟨S', c'⟩
     · exact compressM_complete hcW hW hr
     · exact compressM_sound hcW hW hr
 
@@ -610,7 +610,7 @@ private theorem leafCost_mono (n : ℕ) {L L' : ℕ} (h : L ≤ L') : leafCost n
   k + 2 + 3 ^ (k + 2) + 3 ^ (k + 1) * leafCost n n
 
 private theorem time_stepM_le {k : ℕ} {i : Fin n} {r : Option (List (Fin n) × Vector Bool n)}
-    (h : Inv G k i.1 r) : (stepM G k i r).time ≤ stepCost n k := by
+    (h : Inv G k i.val r) : (stepM G k i r).time ≤ stepCost n k := by
   rcases r with _ | ⟨S, c⟩
   · exact Nat.zero_le _
   obtain ⟨hS, hSk, -⟩ := h
@@ -631,7 +631,7 @@ private theorem time_stepM_le {k : ℕ} {i : Fin n} {r : Option (List (Fin n) ×
   · simp only [TimeM.time_pure]
     have h0 : 0 ≤ 3 ^ (k + 2) := Nat.zero_le _
     omega
-  · have hc := time_compressM_le (G := prefixGraph G (i.1 + 1)) k W c
+  · have hc := time_compressM_le (G := prefixGraph G (i.val + 1)) k W c
     have h1 : 3 ^ (W.length + 1) ≤ 3 ^ (k + 2) := Nat.pow_le_pow_right (by norm_num) (by omega)
     have h2 : 3 ^ W.length * leafCost n W.length ≤ 3 ^ (k + 1) * leafCost n n :=
       Nat.mul_le_mul (Nat.pow_le_pow_right (by norm_num) (by omega)) (leafCost_mono n hWn)

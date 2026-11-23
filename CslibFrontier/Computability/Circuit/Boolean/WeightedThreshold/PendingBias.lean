@@ -94,10 +94,10 @@ private theorem card_image_le_of_factorsThrough {α β γ : Type*} [Fintype α] 
     [DecidableEq γ] (f : α → γ) (g : α → β) (hfg : ∀ x y, g x = g y → f x = f y) :
     (univ.image f).card ≤ Fintype.card β := by
   rw [← Fintype.card_coe]
-  refine Fintype.card_le_of_injective (fun c : univ.image f => g (mem_image.mp c.2).choose) ?_
+  refine Fintype.card_le_of_injective (fun c : univ.image f => g (mem_image.mp c.property).choose) ?_
   intro c₁ c₂ h
   ext
-  rw [← (mem_image.mp c₁.2).choose_spec.2, ← (mem_image.mp c₂.2).choose_spec.2]
+  rw [← (mem_image.mp c₁.property).choose_spec.2, ← (mem_image.mp c₂.property).choose_spec.2]
   exact hfg _ _ h
 
 private theorem card_image_le_card_image_of_factorsThrough {α β γ : Type*} [Fintype α]
@@ -107,10 +107,10 @@ private theorem card_image_le_card_image_of_factorsThrough {α β γ : Type*} [F
   rw [← Fintype.card_coe (univ.image f), ← Fintype.card_coe (univ.image g)]
   refine Fintype.card_le_of_injective
     (fun c : univ.image f =>
-      ⟨g (mem_image.mp c.2).choose, mem_image_of_mem g (mem_univ _)⟩) ?_
+      ⟨g (mem_image.mp c.property).choose, mem_image_of_mem g (mem_univ _)⟩) ?_
   intro c₁ c₂ h
   ext
-  rw [← (mem_image.mp c₁.2).choose_spec.2, ← (mem_image.mp c₂.2).choose_spec.2]
+  rw [← (mem_image.mp c₁.property).choose_spec.2, ← (mem_image.mp c₂.property).choose_spec.2]
   exact hfg _ _ (Subtype.mk.inj h)
 
 private def shiftedIntTerm (z : ℤ) (b : Bool) : ℕ :=

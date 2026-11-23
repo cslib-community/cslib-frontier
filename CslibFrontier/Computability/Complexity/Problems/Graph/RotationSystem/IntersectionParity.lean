@@ -46,7 +46,7 @@ namespace Cslib.Complexity.Graph
 
 /-- A finite pairing of all actual darts of a Boolean edge support. This is the local
 passage data of closed edge-disjoint routes; it need not consist of one connected route. -/
-structure ClosedPassages (G : Graph) (x : Fin G.2.length → Bool) where
+structure ClosedPassages (G : Graph) (x : Fin G.edges.length → Bool) where
   /-- Number of indexed passages, including separate visits to the same vertex. -/
   count : ℕ
   /-- Exactly-once enumeration of both ends of every supported edge. The two ports of a
@@ -57,7 +57,7 @@ structure ClosedPassages (G : Graph) (x : Fin G.2.length → Bool) where
 
 namespace ClosedPassages
 
-variable {G : Graph} {x : Fin G.2.length → Bool} (P : ClosedPassages G x)
+variable {G : Graph} {x : Fin G.edges.length → Bool} (P : ClosedPassages G x)
 
 /-- The actual indexed dart at one port of a passage. -/
 @[expose] def dart (i : Fin P.count) (b : Bool) : Dart G := (P.ports (i, b)).val
@@ -245,7 +245,7 @@ theorem alternates_eq_interval (a b c d : Dart G)
       fun h => hvc (hv.trans (r.vertex_of_mem_rotationInterval c d b h))
     simp [Alternates, hvc, ha, hb, Bool.add_eq_xor]
 
-private theorem disjoint_ports_ne {x y : Fin G.2.length → Bool}
+private theorem disjoint_ports_ne {x y : Fin G.edges.length → Bool}
     (P : ClosedPassages G x) (Q : ClosedPassages G y)
     (hdisj : ∀ e, x e = true → y e = true → False)
     (i : Fin P.count) (j : Fin Q.count) (b c : Bool) : P.dart i b ≠ Q.dart j c := by
@@ -258,7 +258,7 @@ open Classical in
 /-- Against one passage of an edge-disjoint system, the sum of all alternating passage
 pairs counts precisely the supported darts in its literal rotation interval. Local pairing
 choices and multiple visits are unrestricted. -/
-theorem sum_alternates_eq_interval {x y : Fin G.2.length → Bool}
+theorem sum_alternates_eq_interval {x y : Fin G.edges.length → Bool}
     (P : ClosedPassages G x) (Q : ClosedPassages G y)
     (hdisj : ∀ e, x e = true → y e = true → False) (j : Fin Q.count) :
     (∑ i : Fin P.count, decide (r.Alternates
@@ -291,7 +291,7 @@ theorem sum_alternates_eq_interval {x y : Fin G.2.length → Bool}
 open Classical in
 /-- If the first support is a face boundary, its local alternating count along one passage
 of an edge-disjoint system is the sum of the two incident face colors. -/
-theorem sum_alternates_eq_faceColors {x y : Fin G.2.length → Bool}
+theorem sum_alternates_eq_faceColors {x y : Fin G.edges.length → Bool}
     (P : ClosedPassages G x) (Q : ClosedPassages G y)
     (hdisj : ∀ e, x e = true → y e = true → False)
     (q : r.Face → Bool) (hq : r.faceBoundary q = x) (j : Fin Q.count) :
@@ -304,7 +304,7 @@ theorem sum_alternates_eq_faceColors {x y : Fin G.2.length → Bool}
 open Classical in
 /-- Total intersection parity of indexed passage pairs, using literal local alternation in
 the actual rotation. Distinct visits and arbitrary local pairing choices are counted separately. -/
-@[expose] noncomputable def intersectionParity {x y : Fin G.2.length → Bool}
+@[expose] noncomputable def intersectionParity {x y : Fin G.edges.length → Bool}
     (P : ClosedPassages G x) (Q : ClosedPassages G y) : Bool :=
   ∑ j : Fin Q.count, ∑ i : Fin P.count, decide (r.Alternates
     (P.dart i false) (P.dart i true) (Q.dart j false) (Q.dart j true))
@@ -312,12 +312,12 @@ the actual rotation. Distinct visits and arbitrary local pairing choices are cou
 /-- Face-boundary support has even total intersection with every edge-disjoint closed
 passage system, independently of genus. Adjacent face colors agree on the second support;
 its exactly-once dart enumeration makes every endpoint contribution occur twice. -/
-theorem intersectionParity_faceBoundary {x y : Fin G.2.length → Bool}
+theorem intersectionParity_faceBoundary {x y : Fin G.edges.length → Bool}
     (P : ClosedPassages G x) (Q : ClosedPassages G y)
     (hdisj : ∀ e, x e = true → y e = true → False)
     (q : r.Face → Bool) (hq : r.faceBoundary q = x) : r.intersectionParity P Q = false := by
   classical
-  have hx (i : Fin G.2.length) (hi : y i = true) : x i = false := by
+  have hx (i : Fin G.edges.length) (hi : y i = true) : x i = false := by
     cases he : x i
     · rfl
     · exact False.elim (hdisj i he hi)
@@ -345,8 +345,8 @@ disconnected supports, multiple visits and arbitrary local pairings are allowed.
 circular-order and parity facts are proved internally. No geometric or Hanani–Tutte premise
 is assumed or concluded. -/
 theorem intersectionParity_eq_false
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (hgenus : r.NumericalGenusZero)
-    {x y : Fin G.2.length → Bool} (P : ClosedPassages G x) (Q : ClosedPassages G y)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hgenus : r.NumericalGenusZero)
+    {x y : Fin G.edges.length → Bool} (P : ClosedPassages G x) (Q : ClosedPassages G y)
     (hdisj : ∀ e, x e = true → y e = true → False) :
     r.intersectionParity P Q = false := by
   obtain ⟨q, hq⟩ := (r.vertexEven_iff_exists_faceColors hG hgenus x).mp P.vertexEven

@@ -145,34 +145,34 @@ private theorem computableInPolyTime_modulus :
 
 /-- Addition modulo `q` of binary residues. -/
 private def modulusAdd : ModulusDesc × List Bool × List Bool → List Bool
-  | (q, x, y) => ((ofBits x + ofBits y) % q.1).bits
+  | (q, x, y) => ((ofBits x + ofBits y) % q.val).bits
 
 /-- Multiplication modulo `q` of a binary residue by a natural number. -/
 private def modulusSMul : ModulusDesc × ℕ × List Bool → List Bool
-  | (q, a, x) => (a * ofBits x % q.1).bits
+  | (q, a, x) => (a * ofBits x % q.val).bits
 
 /-- The additive groups `ZMod q` of nonzero order `q`, with generator `1` and residues encoded in
 binary. The order need not be prime. -/
 private def residueGroups : CyclicGroupFamily where
   Desc := ModulusDesc
   encDesc := encModulus
-  order q := q.1
-  order_ne_zero q := q.2
-  Carrier q := ZMod q.1
+  order q := q.val
+  order_ne_zero q := q.property
+  Carrier q := ZMod q.val
   generator _ := 1
-  card_carrier q := Nat.card_zmod q.1
+  card_carrier q := Nat.card_zmod q.val
   smul_generator_injective _ a b h := by simpa using h
   encode _ x := x.val.bits
   encode_injective q x y h := by
-    have : NeZero q.1 := ⟨q.2⟩
+    have : NeZero q.val := ⟨q.property⟩
     exact ZMod.val_injective _ (encNat.injective h)
   add := modulusAdd
   add_encode q x y := by
-    have : NeZero q.1 := ⟨q.2⟩
+    have : NeZero q.val := ⟨q.property⟩
     simp only [modulusAdd, ofBits_bits, ZMod.val_add]
   smul := modulusSMul
   smul_encode q a x := by
-    have : NeZero q.1 := ⟨q.2⟩
+    have : NeZero q.val := ⟨q.property⟩
     simp only [modulusSMul, ofBits_bits, smul_eq_mul, ZMod.val_mul, ZMod.val_natCast,
       Nat.mod_mul_mod]
   computableInPolyTime_order := computableInPolyTime_modulus

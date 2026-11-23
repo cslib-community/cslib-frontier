@@ -25,7 +25,7 @@ example :
     wireLength (lastLiteral [] [(-1, -2), (-1, -3)] true).2 = 150 ∧
     (∀ r ∈ routes [[(7, true)]], IsOrthogonal r ∧ IsSimple r) ∧
     (routes [[(7, true)]]).length =
-      (SAT.incidenceGraph (formula [[(7, true)]])).2.length ∧
+      (SAT.incidenceGraph (formula [[(7, true)]])).edges.length ∧
     (occurrencePath [[(7, true)]] ⟨0, 0, (7, true)⟩).Nodup ∧
     cellPort 120 (-1, -2) (side (-1, -2) (0, -2)) =
       cellPort 120 (0, -2) (side (0, -2) (-1, -2)) ∧

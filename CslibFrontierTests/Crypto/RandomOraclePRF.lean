@@ -179,7 +179,7 @@ example {A : ROAdversary Bool Bool (Bool × Bool) Bool} (hA : A.IsOracleQueryBou
 
 open Cslib.BitString in
 /-- The key `[true, false]` followed by the word `[true]`. -/
-example : (keyAppend 2 1 ![true, false] ⟨[true], mem_shortWords.mpr (by simp)⟩).1 =
+example : (keyAppend 2 1 ![true, false] ⟨[true], mem_shortWords.mpr (by simp)⟩).val =
     [true, false, true] := by
   simp
 

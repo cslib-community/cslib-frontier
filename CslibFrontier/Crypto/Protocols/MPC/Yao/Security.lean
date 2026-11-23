@@ -704,11 +704,11 @@ theorem isPPT_oneSidedEvaluatorToPrvSim {encFn : Fn ↪ List Bool} {samp : ℕ �
 /-- Simulator for `I = ∅` (no corrupted parties) in `oneSidedFamily`: returns the unique empty view
 table. -/
 private def oneSidedEmptySim : SimulatorFamily (oneSidedFamily G) ∅ :=
-  fun _ _ _ _ => pure fun i => nomatch i.2
+  fun _ _ _ _ => pure fun i => nomatch i.property
 
 private theorem isPPT_oneSidedEmptySim {encFn : Fn ↪ List Bool} :
     (oneSidedEmptySim (G := G)).IsPPT (oneSidedEncoding G encFn) :=
-  (ComputableInPolyTime.dpi fun i : (∅ : Finset (Fin 2)) => nomatch i.2).isPPTOn.congr fun _ => rfl
+  (ComputableInPolyTime.dpi fun i : (∅ : Finset (Fin 2)) => nomatch i.property).isPPTOn.congr fun _ => rfl
 
 private theorem idealJoint_oneSidedEmptySim (hproj : G.encode = projectiveEncode)
     (hcorrect : G.Correct) {n : ℕ} (hn : 0 < n) (c : Params G) (x : (i : Fin 2) → Input c i) :
@@ -719,12 +719,12 @@ private theorem idealJoint_oneSidedEmptySim (hproj : G.encode = projectiveEncode
     ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind]
   symm
   refine (Probability.PMF.bind_congr_on_support (BitString.uniformList (G.coins n c.fn)) _
-    (fun _ => PMF.pure ((fun i : (∅ : Finset (Fin 2)) => nomatch i.2),
+    (fun _ => PMF.pure ((fun i : (∅ : Finset (Fin 2)) => nomatch i.property),
       oneSidedOutputs (G.ev c.fn (circuitInput x)))) fun coins hcoins => ?_).trans
     (PMF.bind_const _ _)
   simp only [Function.comp_apply,
     runOutput_eq hproj hcorrect hn c x (BitString.mem_support_uniformList_iff.mp hcoins)]
-  exact congrArg PMF.pure (Prod.ext (funext fun i => nomatch i.2) rfl)
+  exact congrArg PMF.pure (Prod.ext (funext fun i => nomatch i.property) rfl)
 
 /-- Simulator for `I = Finset.univ` (both parties corrupted) in `oneSidedFamily`: draws `G.coins`
 fair coins and constructs both parties' exact views from their inputs. -/
@@ -792,7 +792,7 @@ private theorem isPPT_oneSidedFullSim {encFn : Fn ↪ List Bool}
               G.encode (G.gb p.1.secParam p.1.desc.fn p.2).encInfo
                 (List.ofFn (p.1.inputs ⟨0, Finset.mem_univ 0⟩) ++
                   List.ofFn (p.1.inputs ⟨1, Finset.mem_univ 1⟩)),
-              (G.gb p.1.secParam p.1.desc.fn p.2).decInfo⟩) i.1)
+              (G.gb p.1.secParam p.1.desc.fn p.2).decInfo⟩) i.val)
       P (encDPi fun i : (Finset.univ : Finset (Fin 2)) => E.view.enc i) := by
     refine ComputableInPolyTime.dpi fun ⟨j, hj⟩ => ?_
     fin_cases j

@@ -180,7 +180,7 @@ private theorem edgePoint_eq_rayPt {V : Type*} (W : WeightedGraph V) (d : W.grap
     (t : unitInterval) : edgePoint d t = rayPt W d ((t : ℝ) * W.weight d.edge) := by
   have hm : (t : ℝ) * W.weight d.edge / W.weight d.edge = t :=
     mul_div_cancel_right₀ _ (W.dart_weight_pos d).ne'
-  rw [rayPt, Set.projIcc_of_mem zero_le_one (by rw [hm]; exact t.2)]
+  rw [rayPt, Set.projIcc_of_mem zero_le_one (by rw [hm]; exact t.property)]
   exact congrArg (edgePoint d) (Subtype.ext hm.symm)
 
 private theorem dist_vertex_rayPt {V : Type*} (W : WeightedGraph V) [Finite V]
@@ -324,8 +324,8 @@ private theorem uniform_step_of_periodic_local {L : ℝ} (hL : 0 < L) (g : ℝ �
     (hg : ∀ s ∈ Set.Icc 0 L, ∃ η > 0, ∀ u v : ℝ, s - η < u → u ≤ v → v < s + η → g u v)
     (hg_per : ∀ (u v : ℝ) (m : ℤ), g u v → g (u + m * L) (v + m * L)) :
     ∃ δ₀ > 0, ∀ u r : ℝ, 0 ≤ r → r ≤ δ₀ → g u (u + r) := by
-  let η (s : Set.Icc 0 L) := (hg s s.2).choose
-  have hη_pos (s : Set.Icc 0 L) : 0 < η s := (hg s s.2).choose_spec.1
+  let η (s : Set.Icc 0 L) := (hg s s.property).choose
+  have hη_pos (s : Set.Icc 0 L) : 0 < η s := (hg s s.property).choose_spec.1
   obtain ⟨t, ht⟩ := isCompact_Icc.elim_finite_subcover
     (fun s : Set.Icc 0 L => Metric.ball (s : ℝ) (η s / 2)) (fun _ => Metric.isOpen_ball)
     fun s hs => Set.mem_iUnion.mpr ⟨⟨s, hs⟩, Metric.mem_ball_self (by linarith [hη_pos ⟨s, hs⟩])⟩
@@ -344,7 +344,7 @@ private theorem uniform_step_of_periodic_local {L : ℝ} (hL : 0 < L) (g : ℝ �
   simp only [Set.mem_iUnion, exists_prop, Metric.mem_ball, Real.dist_eq] at hball
   obtain ⟨s, hs_t, hdist⟩ := hball
   have hδs : δ₀ ≤ η s / 2 := Finset.inf'_le _ hs_t
-  have hgu' := (hg s s.2).choose_spec.2 u' (u' + r)
+  have hgu' := (hg s s.property).choose_spec.2 u' (u' + r)
     (by linarith [(abs_lt.mp hdist).1]) (by linarith) (by linarith [(abs_lt.mp hdist).2, hδs])
   have h1 : u' + k * L = u := by dsimp only [u']; ring
   have h2 : u' + r + k * L = u + r := by dsimp only [u']; ring
@@ -535,8 +535,8 @@ private theorem edgePoint_close_interior_dart {V : Type*} (W : WeightedGraph V) 
     have hge : ε ≤ min (dist (edgePoint d ⟨t, ht0.le, ht1.le⟩) (vertex d.fst) +
         (u : ℝ) * W.weight d.edge) (dist (edgePoint d ⟨t, ht0.le, ht1.le⟩) (vertex d.snd) +
         (1 - (u : ℝ)) * W.weight d.edge) :=
-      le_min (by linarith [hfar d.fst, mul_nonneg u.2.1 hw.le])
-        (by linarith [hfar d.snd, mul_nonneg (sub_nonneg.mpr u.2.2) hw.le])
+      le_min (by linarith [hfar d.fst, mul_nonneg u.property.1 hw.le])
+        (by linarith [hfar d.snd, mul_nonneg (sub_nonneg.mpr u.property.2) hw.le])
     rw [hdm] at hlt ⊢
     exact min_eq_left (((min_lt_iff.mp hlt).resolve_right hge.not_gt).le.trans hge)
 
@@ -741,7 +741,7 @@ private theorem local_moulin_circle {V : Type*} (W : WeightedGraph V) [Finite V]
   let φ : Set.Icc (0 : ℝ) (2 * δ) → MetricGraph W := fun t => circleMap hs.1 (s₀ - δ + (t : ℝ))
   have hφ : Isometry φ := isometry_iff_dist_eq.mpr fun t₁ t₂ => by
     have hsub : (s₀ - δ + (t₁ : ℝ)) - (s₀ - δ + (t₂ : ℝ)) = (t₁ : ℝ) - t₂ := by ring
-    have h11 := t₁.2.1; have h12 := t₁.2.2; have h21 := t₂.2.1; have h22 := t₂.2.2
+    have h11 := t₁.property.1; have h12 := t₁.property.2; have h21 := t₂.property.1; have h22 := t₂.property.2
     have hle : |(s₀ - δ + (t₁ : ℝ)) - (s₀ - δ + (t₂ : ℝ))| ≤ walkLength W.weight c / 2 := by
       rw [hsub]
       have habs : |(t₁ : ℝ) - t₂| ≤ 2 * δ := abs_sub_le_iff.mpr ⟨by linarith, by linarith⟩
@@ -756,8 +756,8 @@ private theorem local_moulin_circle {V : Type*} (W : WeightedGraph V) [Finite V]
       ext i; fin_cases i
       · exact h0.symm.trans (by dsimp only [φ]; congr 1; ring)
       · exact h1.symm.trans (by dsimp only [φ]; congr 1; ring)
-    obtain ⟨r, hr, hreq⟩ := hinv ((t0 : ℝ) - δ) ⟨by linarith [t0.2.1], by linarith [t0.2.2]⟩
-      ((t1 : ℝ) - δ) ⟨by linarith [t1.2.1], by linarith [t1.2.2]⟩
+    obtain ⟨r, hr, hreq⟩ := hinv ((t0 : ℝ) - δ) ⟨by linarith [t0.property.1], by linarith [t0.property.2]⟩
+      ((t1 : ℝ) - δ) ⟨by linarith [t1.property.1], by linarith [t1.property.2]⟩
     exact ⟨⟨r + δ, by linarith [hr.1], by linarith [hr.2]⟩,
       by dsimp only [φ]; rw [hx_eq, ← hreq]; congr 1; ring⟩
   obtain ⟨E, hE⟩ := moulinScheme_of_isometry (by linarith) φ hφ hf_sp hrange
@@ -988,7 +988,7 @@ private theorem exists_shared_vertex_of_dist_edgePoint_le {V : Type*} (W : Weigh
         (t₀ : ℝ) * W.weight d₀.edge + (t'' : ℝ) * W.weight d''.edge ≤ η' := by
     let d₀ := if isFst then d else d.symm
     let t₀ := if isFst then t else unitInterval.symm t
-    have h0 : 0 ≤ (t₀ : ℝ) * W.weight d₀.edge := mul_nonneg t₀.2.1 (W.dart_weight_pos d₀).le
+    have h0 : 0 ≤ (t₀ : ℝ) * W.weight d₀.edge := mul_nonneg t₀.property.1 (W.dart_weight_pos d₀).le
     rcases hdis with h | h
     · obtain ⟨hfst, hsum⟩ := hmatch h0 (mul_nonneg ht'0.le hwd') h
       exact ⟨d₀, d', t₀, t', rfl, rfl, hfst, rfl, ht'0, ht'1, rfl, hsum⟩
@@ -1654,9 +1654,9 @@ private theorem cycleDictator_of_unanimous_aux {V : Type*} (W : WeightedGraph V)
         obtain ⟨k', hk'⟩ := ih (n - 1) (by omega) (ι := ι') (by simp [ι', hcard])
           (merge_isStrategyProof hf_sp m) fun p hp => hf_unam p hp
         have hk'_eq : k' = m i₀ := dictator_merge_eq W hs hf_sp hf_unam hi₀_U m hk'
-        have hfun : (fun i => x (m i).1) = x := funext fun i => by
+        have hfun : (fun i => x (m i).val) = x := funext fun i => by
           by_cases h : i = j₂ <;> simp [m, h, hx12]
-        have hval := hk' (fun i' => x i'.1) fun i' => hx i'.1
+        have hval := hk' (fun i' => x i'.val) fun i' => hx i'.val
         rw [hfun, hk'_eq] at hval
         exact hval.trans (by by_cases h : i₀ = j₂ <;> simp [m, h, hx12])
       intro x hx

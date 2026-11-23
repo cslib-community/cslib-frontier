@@ -217,16 +217,16 @@ example (l : List (Fin 1)) : ¬ IsEulerianCircuit srcArc tgtArc 0 l := fun hl =>
 section RootIndependence
 
 /-- Doubled `2`-cycle: arcs `0, 1 : 0 → 1` and arcs `2, 3 : 1 → 0`. -/
-private def rotSrc (e : Fin 4) : Fin 2 := if e.1 < 2 then 0 else 1
+private def rotSrc (e : Fin 4) : Fin 2 := if e.val < 2 then 0 else 1
 
-private def rotTgt (e : Fin 4) : Fin 2 := if e.1 < 2 then 1 else 0
+private def rotTgt (e : Fin 4) : Fin 2 := if e.val < 2 then 1 else 0
 
 -- Cyclic rotation `IsEulerianCircuit.equivRotate` sends `[0, 2, 1, 3]` to `[2, 1, 3, 0]`,
 -- proving circuit-count and arborescence-count root independence.
 example :
     (∀ h : Cslib.Multidigraph.IsEulerianCircuit rotSrc rotTgt 0 [0, 2, 1, 3],
       (Cslib.Multidigraph.IsEulerianCircuit.equivRotate (src := rotSrc) (tgt := rotTgt) 0 2
-        ⟨[0, 2, 1, 3], h⟩).1 = [2, 1, 3, 0]) ∧
+        ⟨[0, 2, 1, 3], h⟩).val = [2, 1, 3, 0]) ∧
     Nat.card {l : List (Fin 4) // Cslib.Multidigraph.IsEulerianCircuit rotSrc rotTgt 0 l} =
       Nat.card {l : List (Fin 4) // Cslib.Multidigraph.IsEulerianCircuit rotSrc rotTgt 2 l} ∧
     Nat.card {f : {v : Fin 2 // v ≠ 0} → Fin 4 //
@@ -254,9 +254,9 @@ example :
 
 -- Counterexample showing balance is needed: `2` arcs `0 → 1` and `1` arc `1 → 0` give `1`
 -- arborescence rooted at `0` and `2` rooted at `1`.
-private def unbalSrc (e : Fin 3) : Fin 2 := if e.1 < 2 then 0 else 1
+private def unbalSrc (e : Fin 3) : Fin 2 := if e.val < 2 then 0 else 1
 
-private def unbalTgt (e : Fin 3) : Fin 2 := if e.1 < 2 then 1 else 0
+private def unbalTgt (e : Fin 3) : Fin 2 := if e.val < 2 then 1 else 0
 
 example :
     Nat.card {f : {v : Fin 2 // v ≠ 0} → Fin 3 //

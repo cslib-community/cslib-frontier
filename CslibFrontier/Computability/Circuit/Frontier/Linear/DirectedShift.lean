@@ -274,24 +274,24 @@ theorem add_ncard_block_le {d : ℕ} (hM : M.IsTotallyRegular)
     (hc : c.Computes I fun x => M *ᵥ x) (hcap : c.LinearCapacity I)
     (cmp : Multigraph.Compression (graph c) d)
     (hsmall : d * Nat.log 2 (Nat.card (Vertex c)) < N) (B : cmp.blocks) :
-    ((network c I fun _ => univ).readIn {v | v ∈ B.1}).ncard +
-      {o : Fin N | Vertex.output o ∈ B.1}.ncard ≤ N := by
+    ((network c I fun _ => univ).readIn {v | v ∈ B.val}).ncard +
+      {o : Fin N | Vertex.output o ∈ B.val}.ncard ≤ N := by
   by_contra! hgt
   set Gnet := network c I fun _ => univ
-  let P : ℕ → Set (Vertex c) := fun k => {v | v ∈ B.1.take k}
+  let P : ℕ → Set (Vertex c) := fun k => {v | v ∈ B.val.take k}
   let outs : Set (Vertex c) → Set (Fin N) := fun S => {o | Vertex.output o ∈ S}
   let a : ℕ → ℕ := fun k => (Gnet.readIn (P k)).ncard + (outs (P k)).ncard
-  have houts_B : outs {v | v ∈ B.1} = {o | Vertex.output o ∈ B.1} := rfl
+  have houts_B : outs {v | v ∈ B.val} = {o | Vertex.output o ∈ B.val} := rfl
   have h0 : a 0 ≤ N := by
     simp [a, P, outs]
-  have hT : N ≤ a B.1.length := by
-    have htake : P B.1.length = {v | v ∈ B.1} := by simp [P]
+  have hT : N ≤ a B.val.length := by
+    have htake : P B.val.length = {v | v ∈ B.val} := by simp [P]
     dsimp only [a]
     rw [htake, houts_B]
     omega
-  have hstep : ∀ k < B.1.length, a (k + 1) ≤ a k + 1 := by
+  have hstep : ∀ k < B.val.length, a (k + 1) ≤ a k + 1 := by
     intro k hk
-    set w := B.1[k]
+    set w := B.val[k]
     have hsucc : P (k + 1) = insert w (P k) := by
       ext v
       simp only [P, mem_ofPred_eq, List.take_succ_eq_append_getElem hk, List.mem_append,
@@ -314,22 +314,22 @@ theorem add_ncard_block_le {d : ℕ} (hM : M.IsTotallyRegular)
     dsimp only [a]
     omega
   obtain ⟨k₀, hk₀_le, hk₀_eq⟩ := Nat.exists_eq_of_forall_le_add_one h0 hT hstep
-  have hk₀_lt : k₀ < B.1.length := by
+  have hk₀_lt : k₀ < B.val.length := by
     rcases hk₀_le.eq_or_lt with rfl | hlt
-    · have htake : P B.1.length = {v | v ∈ B.1} := by simp [P]
+    · have htake : P B.val.length = {v | v ∈ B.val} := by simp [P]
       dsimp only [a] at hk₀_eq
       rw [htake, houts_B] at hk₀_eq
       omega
     · exact hlt
   have hdem := min_le_ncard_edgeCut hM hc hcap (P k₀)
-  change min (a k₀) (2 * N - a k₀) ≤ ((graph c).edgeCut {v | v ∈ B.1.take k₀}).ncard at hdem
+  change min (a k₀) (2 * N - a k₀) ≤ ((graph c).edgeCut {v | v ∈ B.val.take k₀}).ncard at hdem
   rw [hk₀_eq, show 2 * N - N = N by omega, min_self] at hdem
-  have hsup := cmp.ncard_edgeCut_take_le B.1 B.2 k₀ hk₀_lt
-  have hlen : B.1.length ≤ Nat.card (Vertex c) := by
+  have hsup := cmp.ncard_edgeCut_take_le B.val B.property k₀ hk₀_lt
+  have hlen : B.val.length ≤ Nat.card (Vertex c) := by
     have := Fintype.ofFinite (Vertex c)
     rw [Nat.card_eq_fintype_card]
-    exact (cmp.nodup B.1 B.2).length_le_card
-  have hlog : d * Nat.log 2 B.1.length ≤ d * Nat.log 2 (Nat.card (Vertex c)) :=
+    exact (cmp.nodup B.val B.property).length_le_card
+  have hlog : d * Nat.log 2 B.val.length ≤ d * Nat.log 2 (Nat.card (Vertex c)) :=
     Nat.mul_le_mul_left d (Nat.log_mono_right hlen)
   omega
 
@@ -341,18 +341,18 @@ theorem one_lt_card_blocks_of_lt {d : ℕ} (hN : 0 < N) (hM : M.IsTotallyRegular
     1 < Nat.card cmp.blocks := by
   by_contra! hle
   let B₀ := cmp.blockOf (.output ⟨0, hN⟩)
-  have hall : {v : Vertex c | v ∈ B₀.1} = univ := by
+  have hall : {v : Vertex c | v ∈ B₀.val} = univ := by
     ext v
     simp only [mem_ofPred_eq, mem_univ, iff_true, cmp.mem_iff_blockOf_eq]
     have hsub : Subsingleton cmp.blocks := Finite.card_le_one_iff_subsingleton.mp hle
     exact Subsingleton.elim _ _
   have hsum := add_ncard_block_le hM hc hcap cmp hsmall B₀
-  have hread : (network c I fun _ => univ).readIn {v | v ∈ B₀.1} = univ := by
+  have hread : (network c I fun _ => univ).readIn {v | v ∈ B₀.val} = univ := by
     rw [hall]
     exact read_eq_univ_of_isTotallyRegular hM hc _
-  have houts : {o : Fin N | Vertex.output o ∈ B₀.1} = univ := by
+  have houts : {o : Fin N | Vertex.output o ∈ B₀.val} = univ := by
     ext o
-    have : Vertex.output o ∈ ({v : Vertex c | v ∈ B₀.1} : Set (Vertex c)) := by simp [hall]
+    have : Vertex.output o ∈ ({v : Vertex c | v ∈ B₀.val} : Set (Vertex c)) := by simp [hall]
     simpa using this
   rw [hread, houts, ncard_univ, Nat.card_eq_fintype_card, Fintype.card_fin] at hsum
   omega
@@ -363,15 +363,15 @@ theorem ncard_readIn_block_le_outCut {d : ℕ} (hM : M.IsTotallyRegular)
     (hc : c.Computes I fun x => M *ᵥ x) (hcap : c.LinearCapacity I)
     (cmp : Multigraph.Compression (graph c) d)
     (hsmall : d * Nat.log 2 (Nat.card (Vertex c)) < N) (B : cmp.blocks) :
-    ((network c I fun _ => univ).readIn {v | v ∈ B.1}).ncard ≤
+    ((network c I fun _ => univ).readIn {v | v ∈ B.val}).ncard ≤
       (cmp.quotient.outCut {B}).ncard := by
-  have hpre : cmp.blockOf ⁻¹' ({B} : Set cmp.blocks) = {v | v ∈ B.1} := by
+  have hpre : cmp.blockOf ⁻¹' ({B} : Set cmp.blocks) = {v | v ∈ B.val} := by
     ext v
     simp [cmp.mem_iff_blockOf_eq]
   have hout := min_le_ncard_outCut_quotient hM hc hcap cmp {B}
   rw [hpre] at hout
-  change min ((network c I fun _ => univ).readIn {v | v ∈ B.1}).ncard
-    (N - {o : Fin N | Vertex.output o ∈ B.1}.ncard) ≤ _ at hout
+  change min ((network c I fun _ => univ).readIn {v | v ∈ B.val}).ncard
+    (N - {o : Fin N | Vertex.output o ∈ B.val}.ncard) ≤ _ at hout
   have hsum := add_ncard_block_le hM hc hcap cmp hsmall B
   omega
 
@@ -381,14 +381,14 @@ theorem ncard_outputs_block_le_inCut {d : ℕ} (hM : M.IsTotallyRegular)
     (hc : c.Computes I fun x => M *ᵥ x) (hcap : c.LinearCapacity I)
     (cmp : Multigraph.Compression (graph c) d)
     (hsmall : d * Nat.log 2 (Nat.card (Vertex c)) < N) (B : cmp.blocks) :
-    {o : Fin N | Vertex.output o ∈ B.1}.ncard ≤ (cmp.quotient.inCut {B}).ncard := by
-  have hpre : cmp.blockOf ⁻¹' ({B} : Set cmp.blocks) = {v | v ∈ B.1} := by
+    {o : Fin N | Vertex.output o ∈ B.val}.ncard ≤ (cmp.quotient.inCut {B}).ncard := by
+  have hpre : cmp.blockOf ⁻¹' ({B} : Set cmp.blocks) = {v | v ∈ B.val} := by
     ext v
     simp [cmp.mem_iff_blockOf_eq]
   have hin := min_le_ncard_inCut_quotient hM hc hcap cmp {B}
   rw [hpre] at hin
-  change min (N - ((network c I fun _ => univ).readIn {v | v ∈ B.1}).ncard)
-    {o : Fin N | Vertex.output o ∈ B.1}.ncard ≤ _ at hin
+  change min (N - ((network c I fun _ => univ).readIn {v | v ∈ B.val}).ncard)
+    {o : Fin N | Vertex.output o ∈ B.val}.ncard ≤ _ at hin
   have hsum := add_ncard_block_le hM hc hcap cmp hsmall B
   omega
 
@@ -1390,11 +1390,11 @@ theorem eventually_4217_div_1000_sub_mul_lt_innerSize_of_isTotallyRegular {ε : 
   -- Multiplicity `≤ 3` of `bin` and `bout` in every block `B`:
   have hbin_mult (B : cmp.blocks) : (Finset.univ.filter fun i : Fin N => bin i = B).card ≤ 3 := by
     have hin_sub : ↑(Finset.univ.filter fun i : Fin N => bin i = B) ⊆
-        (Compiler.network c I fun _ => univ).readIn {v | v ∈ B.1} := by
+        (Compiler.network c I fun _ => univ).readIn {v | v ∈ B.val} := by
       intro i hi
       rw [Finset.mem_coe, Finset.mem_filter] at hi
       have hiB : Compiler.Vertex.signal
-          ⟨.input i, (Compiler.exists_reachable_of_isTotallyRegular hM hc i i).1⟩ ∈ B.1 :=
+          ⟨.input i, (Compiler.exists_reachable_of_isTotallyRegular hM hc i i).1⟩ ∈ B.val :=
         cmp.mem_iff_blockOf_eq.mpr hi.2
       exact ⟨_, hiB, Compiler.site_of_reach _⟩
     have hcard := (ncard_le_ncard hin_sub (toFinite _)).trans
@@ -1405,7 +1405,7 @@ theorem eventually_4217_div_1000_sub_mul_lt_innerSize_of_isTotallyRegular {ε : 
   have hbout_mult (B : cmp.blocks) :
       (Finset.univ.filter fun o : Fin N => bout o = B).card ≤ 3 := by
     have hout_sub : ↑(Finset.univ.filter fun o : Fin N => bout o = B) ⊆
-        {o : Fin N | Compiler.Vertex.output o ∈ B.1} := by
+        {o : Fin N | Compiler.Vertex.output o ∈ B.val} := by
       intro o ho
       rw [Finset.mem_coe, Finset.mem_filter] at ho
       exact cmp.mem_iff_blockOf_eq.mpr ho.2

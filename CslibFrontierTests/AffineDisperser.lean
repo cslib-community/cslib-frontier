@@ -47,7 +47,7 @@ example (a b : ZMod 2) (a' u : GaloisField 2 3) :
     (!![(1 : ZMod 2), 1, 0; 0, 1, 1; 1, 0, 1]).det_eq_permanent_of_charTwo⟩
 
 theorem strictAnti_three_sub : StrictAnti fun i : Fin 3 => 3 - (i : ℕ) := fun i j hij =>
-  show 3 - (j : ℕ) < 3 - (i : ℕ) by have := j.2; have : (i : ℕ) < j := hij; omega
+  show 3 - (j : ℕ) < 3 - (i : ℕ) by have := j.isLt; have : (i : ℕ) < j := hij; omega
 
 -- The hypotheses of the covering lemma are satisfiable: the identity covers a block set.
 example : ∃ ℓ : (Σ j : ({0, 2} : Finset (Fin 3)), Fin (3 - j)) →
@@ -62,7 +62,7 @@ example (ℓ : (Σ j : ({0, 2} : Finset (Fin 3)), Fin (3 - j)) →
     (hcov : ∀ v, ∃ p, ℓ p = some v) (hmono : ∀ p v, ℓ p = some v → (v.1 : Fin 3) ≤ p.1) :
     False :=
   absurd (eq_of_covering (fun i => 3 - i) strictAnti_three_sub
-    (fun i => show 0 < 3 - (i : ℕ) by have := i.2; omega) {1, 2} {0, 2} rfl ℓ hcov hmono)
+    (fun i => show 0 < 3 - (i : ℕ) by have := i.isLt; omega) {1, 2} {0, 2} rfl ℓ hcov hmono)
     (by decide)
 
 -- Pivot spaces of the whole space `(ZMod 2) ^ 2` add up to its dimension.

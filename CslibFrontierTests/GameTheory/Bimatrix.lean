@@ -183,7 +183,7 @@ theorem zeroGame_infinite_isNash :
     (f := fun t => (![(t : ℝ), 1 - t], ![1, 0])) (fun s t h => ?_) (fun t => ?_)
   · have := congrFun (congrArg Prod.fst h) 0
     exact Subtype.ext (by simpa using this)
-  · exact zeroGame_isNash (isMixedStrategy_fin2 t.2.1 (by linarith [t.2.2]) (by ring))
+  · exact zeroGame_isNash (isMixedStrategy_fin2 t.property.1 (by linarith [t.property.2]) (by ring))
       (isMixedStrategy_fin2 (by norm_num) le_rfl (by norm_num))
 
 /-- Nash's theorem needs no nondegeneracy: it applies to the degenerate zero game. -/

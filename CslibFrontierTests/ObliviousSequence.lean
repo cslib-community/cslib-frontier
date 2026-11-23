@@ -524,7 +524,7 @@ theorem isKWiseIndependentHash_toyTwoLevelEval_true :
       have hfilter :
           ({i | (∅ : Finset (Fin 1)).restrict (toyTwoLevelEval true i) = y} : Finset (Fin 2)) =
             Finset.univ :=
-        Finset.filter_true_of_mem fun i _ => funext fun x => (Finset.notMem_empty _ x.2).elim
+        Finset.filter_true_of_mem fun i _ => funext fun x => (Finset.notMem_empty _ x.property).elim
       rw [hfilter, Finset.dens_univ]
       simp
     · obtain ⟨x, rfl⟩ := Finset.card_eq_one.1 hc

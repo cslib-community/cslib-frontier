@@ -163,8 +163,8 @@ example :
 example :
     IsLocalitySensitive
       (measureCollisionProb (stdGaussian (EuclideanSpace ℝ (Fin 2)))
-        (fun r (u : {x : EuclideanSpace ℝ (Fin 2) // ‖x‖ = 1}) => simHash r u.1))
-      (fun u v => √2 / 2 ≤ ⟪u.1, v.1⟫) (fun u v => ⟪u.1, v.1⟫ ≤ 0) (3 / 4) (1 / 2) := by
+        (fun r (u : {x : EuclideanSpace ℝ (Fin 2) // ‖x‖ = 1}) => simHash r u.val))
+      (fun u v => √2 / 2 ≤ ⟪u.val, v.val⟫) (fun u v => ⟪u.val, v.val⟫ ≤ 0) (3 / 4) (1 / 2) := by
   have h := isLocalitySensitive_simHash_inner (E := EuclideanSpace ℝ (Fin 2)) (√2 / 2) 0
   have hpi : π ≠ 0 := pi_ne_zero
   have h1 : (1 : ℝ) - Real.arccos (√2 / 2) / π = 3 / 4 := by
@@ -204,9 +204,9 @@ example :
         Measure.pi fun _ : Fin (numHashes P.length (1 - 2 * (π / 4) / π)) =>
           stdGaussian (EuclideanSpace ℝ (Fin 2))).real
         {s | query
-            (andHash (fun r (u : {x : EuclideanSpace ℝ (Fin 2) // x ≠ 0}) => simHash r u.1)
+            (andHash (fun r (u : {x : EuclideanSpace ℝ (Fin 2) // x ≠ 0}) => simHash r u.val)
               (numHashes P.length (1 - 2 * (π / 4) / π)))
-            (fun x y => 2 * (π / 4) ≤ InnerProductGeometry.angle x.1 y.1) s
+            (fun x y => 2 * (π / 4) ≤ InnerProductGeometry.angle x.val y.val) s
             (3 * numTables P.length (1 - (π / 4) / π) (1 - 2 * (π / 4) / π))
             P ⟨u45, u45_ne_zero⟩ = none} ≤
       Real.exp (-1) + 1 / 3 := by

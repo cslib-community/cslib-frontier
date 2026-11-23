@@ -37,7 +37,7 @@ private theorem genus : rotation.NumericalGenusZero :=
 
 private abbrev target : Graph := contractLastEdgeGraph retained 7 11
 
-private abbrev parallel : Fin target.2.length := ⟨2, by decide +kernel⟩
+private abbrev parallel : Fin target.edges.length := ⟨2, by decide +kernel⟩
 
 private noncomputable def targetRotation : RotationSystem target :=
   rotation.contractLastEdge (by decide)
@@ -82,7 +82,7 @@ example : ∃ D : PolygonalDrawing source,
   have hab : a ≠ b := fun heq => (ne_of_lt hsep) (congrArg f heq.symm)
   refine ⟨D, ?_, ?_⟩
   · intro e
-    change (if h : e.val < retained.2.length then
+    change (if h : e.val < retained.edges.length then
       drawing.restoredRoute ρ a b ⟨e.val, h⟩ else Route.line a b).IsSimple
     split_ifs with he
     · exact embedded.restoredRoute_simple (by decide) hρ hsimple hcut ha hb f hsep hpa hpb _

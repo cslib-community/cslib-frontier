@@ -79,23 +79,23 @@ example : phiTopo.phi sampleValidCircuit = phiTopo.phi sampleValidCircuitSameTop
 example :
     let t := phiTopo.phi sampleValidCircuit
     let q := mTopo t [true]
-    phiTopo.phi q.fn = t ∧ q.input = [false, false, false] ∧ q.fn.1.evalCirc q.input = [true] := by
+    phiTopo.phi q.fn = t ∧ q.input = [false, false, false] ∧ q.fn.val.evalCirc q.input = [true] := by
   decide
 
 example :
     let s := phiSize.phi sampleValidCircuit
     let q := mSize s [true]
-    phiSize.phi q.fn = s ∧ q.input = [false, false, false] ∧ q.fn.1.evalCirc q.input = [true] := by
+    phiSize.phi q.fn = s ∧ q.input = [false, false, false] ∧ q.fn.val.evalCirc q.input = [true] := by
   decide
 
 /-- A concrete circuit scheme over `ValidCircuit` with semantics `evalCirc`. -/
 def plainCircuitScheme : Scheme ValidCircuit where
-  inLen f := f.1.n
-  outLen f := f.1.m
-  size f := f.1.q
-  ev f x := f.1.evalCirc x
+  inLen f := f.val.n
+  outLen f := f.val.m
+  size f := f.val.q
+  ev f x := f.val.evalCirc x
   coinLen _ _ _ _ := 0
-  gb _ f _ := ⟨[], [], List.replicate f.1.m false⟩
+  gb _ f _ := ⟨[], [], List.replicate f.val.m false⟩
   encode _ x := x
   evalGarbled _ x := x
   decode d y := if y.length = d.length then some y else none
@@ -143,7 +143,7 @@ example {σ : Type} (k : ℕ) (B : ObvSimAdversary ValidCircuit σ) :
 
 /-- A stateful `Prv1Simulator` for `plainCircuitScheme` under `phiTopo`. -/
 def samplePrv1Simulator : Prv1Simulator ValidTopo ValidTopo where
-  garble t := pure (⟨[], List.replicate t.1.m false⟩, t)
+  garble t := pure (⟨[], List.replicate t.val.m false⟩, t)
   input _ y := pure y
 
 example {σ : Type} (k : ℕ) (B : PrvSimAdversary ValidCircuit σ) :

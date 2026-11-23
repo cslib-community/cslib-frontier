@@ -66,7 +66,7 @@ example : minEntropy lopsided = 1 := by
 -- The non-flat `1`-source `lopsided` is a mixture of flat distributions on pairs of outcomes.
 example : ∃ mix : PMF {S : Finset (Fin 3) // S.card = 2 ^ 1},
     lopsided = mix.bind fun S =>
-      uniformOfFinset S.1 (card_ne_zero.mp (S.2.trans_ne (pow_ne_zero 1 two_ne_zero))) :=
+      uniformOfFinset S.val (card_ne_zero.mp (S.property.trans_ne (pow_ne_zero 1 two_ne_zero))) :=
   exists_eq_bind_uniformOfFinset_of_le_minEntropy lopsided (by
     simpa only [Nat.cast_one] using one_le_minEntropy_lopsided)
 

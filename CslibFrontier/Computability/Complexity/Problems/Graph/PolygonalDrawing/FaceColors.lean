@@ -121,18 +121,18 @@ private theorem Frame.distinct (F : Frame D) (hD : D.IsEmbedding)
   rayEndVector_injective_of_interior_disjoint F.a F.b
     (fun i h => F.height hD i (congrArg Complex.im h)) (F.disjoint hD) k e hp harg
 
-private theorem Frame.even (F : Frame D) (x : Fin G.2.length → Bool) (hx : G.VertexEven x)
+private theorem Frame.even (F : Frame D) (x : Fin G.edges.length → Bool) (hx : G.VertexEven x)
     (p : ℂ) :
     (∑ i : D.SegmentIndex, ((if F.a i = p then x i.1 else 0) +
       (if F.b i = p then x i.1 else 0))) = false :=
   D.segment_endpoints_even x hx F.u p
 
-private noncomputable def Frame.color (F : Frame D) (x : Fin G.2.length → Bool)
+private noncomputable def Frame.color (F : Frame D) (x : Fin G.edges.length → Bool)
     (k : D.SegmentIndex × Bool) : Bool :=
   rayGermColor F.a F.b (fun i => x i.1) (rayEndpoint F.a F.b k) (rayEndVector F.a F.b k)
 
 private theorem Frame.color_adjacent (F : Frame D) (hD : D.IsEmbedding)
-    (x : Fin G.2.length → Bool) (hx : G.VertexEven x) (p : ℂ)
+    (x : Fin G.edges.length → Bool) (hx : G.VertexEven x) (p : ℂ)
     (k l : D.SegmentIndex × Bool)
     (hk : rayEndpoint F.a F.b k = p) (hl : rayEndpoint F.a F.b l = p) (hkl : k ≠ l)
     (hgap : ∀ j : D.SegmentIndex × Bool, rayEndpoint F.a F.b j = p → j ≠ k → j ≠ l →
@@ -147,14 +147,14 @@ private theorem Frame.color_adjacent (F : Frame D) (hD : D.IsEmbedding)
     (fun j f hj hf h => F.distinct hD f j (hj.trans hf.symm) h) hgap
 
 private theorem Frame.color_ends (F : Frame D) (hD : D.IsEmbedding)
-    (x : Fin G.2.length → Bool) (hx : G.VertexEven x) (i : D.SegmentIndex) :
+    (x : Fin G.edges.length → Bool) (hx : G.VertexEven x) (i : D.SegmentIndex) :
     F.color x (i, false) + F.color x (i, true) = x i.1 := by
   exact rayGermColor_ends F.a F.b (fun i => x i.1) (F.height hD) (F.even x hx) i
     (F.disjoint hD i) (F.remote hD) (F.distinct hD)
 
 private theorem Frame.color_bend (F : Frame D) (hD : D.IsEmbedding)
-    (x : Fin G.2.length → Bool) (hx : G.VertexEven x)
-    (e : Fin G.2.length) (i : Fin (D.route e).bends) :
+    (x : Fin G.edges.length → Bool) (hx : G.VertexEven x)
+    (e : Fin G.edges.length) (i : Fin (D.route e).bends) :
     F.color x (⟨e, i.castSucc⟩, true) + F.color x (⟨e, i.succ⟩, false) = x e := by
   let k : D.SegmentIndex × Bool := (⟨e, i.castSucc⟩, true)
   let l : D.SegmentIndex × Bool := (⟨e, i.succ⟩, false)
@@ -178,15 +178,15 @@ private theorem Frame.color_bend (F : Frame D) (hD : D.IsEmbedding)
   exact F.color_adjacent hD x hx p k l hk hl hkl hgap
 
 private theorem Frame.color_bend_transport (F : Frame D) (hD : D.IsEmbedding)
-    (x : Fin G.2.length → Bool) (hx : G.VertexEven x)
-    (e : Fin G.2.length) (i : Fin (D.route e).bends) :
+    (x : Fin G.edges.length → Bool) (hx : G.VertexEven x)
+    (e : Fin G.edges.length) (i : Fin (D.route e).bends) :
     F.color x (⟨e, i.castSucc⟩, false) = F.color x (⟨e, i.succ⟩, false) := by
   have h := (F.color_ends hD x hx ⟨e, i.castSucc⟩).trans (F.color_bend hD x hx e i).symm
   rw [add_comm (F.color x (⟨e, i.castSucc⟩, false))] at h
   exact add_left_cancel h
 
 private theorem Frame.color_route_ends (F : Frame D) (hD : D.IsEmbedding)
-    (x : Fin G.2.length → Bool) (hx : G.VertexEven x) (e : Fin G.2.length) :
+    (x : Fin G.edges.length → Bool) (hx : G.VertexEven x) (e : Fin G.edges.length) :
     F.color x (D.segmentEnd (e, false)) + F.color x (D.segmentEnd (e, true)) = x e := by
   have hstart (i : Fin (D.route e).segments) :
       F.color x (⟨e, 0⟩, false) = F.color x (⟨e, i⟩, false) := by
@@ -199,8 +199,8 @@ private theorem Frame.color_route_ends (F : Frame D) (hD : D.IsEmbedding)
 
 private theorem Frame.color_vertex (F : Frame D) (hD : D.IsEmbedding)
     {r : RotationSystem G} (hR : D.Realizes r)
-    (x : Fin G.2.length → Bool) (hx : G.VertexEven x)
-    (d : Dart G) (hv : d.vertex ∈ G.1) :
+    (x : Fin G.edges.length → Bool) (hx : G.VertexEven x)
+    (d : Dart G) (hv : d.vertex ∈ G.vertices) :
     F.color x (D.segmentEnd d) + F.color x (D.segmentEnd (r.rotate.symm d)) = x d.1 := by
   classical
   let a := r.rotate.symm d
@@ -263,8 +263,8 @@ rotation. The multiplier and all side transport are constructed internally from 
 finite real-affine segments. No genus or topological separation hypothesis is used. -/
 theorem IsEmbedding.exists_faceColors {G : Graph} {D : PolygonalDrawing G}
     (hD : D.IsEmbedding) {r : RotationSystem G} (hR : D.Realizes r)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
-    (x : Fin G.2.length → Bool) (hx : G.VertexEven x) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
+    (x : Fin G.edges.length → Bool) (hx : G.VertexEven x) :
     ∃ q : r.Face → Bool, r.faceBoundary q = x := by
   classical
   obtain ⟨u, hu, hheight⟩ := exists_mul_im_injOn (endpointSet D)

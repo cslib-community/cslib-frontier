@@ -109,8 +109,8 @@ theorem card_lt_or_card_lt_of_rectangleFree {f : Cslib.BooleanFunction n} {K : �
     (hconst : ∀ p ∈ P, ∀ q ∈ Q, f (glue U p q) = b) :
     P.card < K ∨ Q.card < K := by
   let emb : (↥Uᶜ → Bool) ↪ (↥(↑U : Set (Fin n))ᶜ → Bool) :=
-    ⟨fun q i => q ⟨i.1, mem_compl.mpr i.2⟩, fun q₁ q₂ h =>
-      funext fun i => congrFun h ⟨i.1, mem_compl.mp i.2⟩⟩
+    ⟨fun q i => q ⟨i.val, mem_compl.mpr i.property⟩, fun q₁ q₂ h =>
+      funext fun i => congrFun h ⟨i.val, mem_compl.mp i.property⟩⟩
   have hrect : Frontier.rectangle (↑U : Set (Fin n)) (↑P : Set (U → Bool))
       (↑(Q.map emb) : Set (↥(↑U : Set (Fin n))ᶜ → Bool)) ⊆ {x | f x = b} := by
     intro x hx
@@ -203,9 +203,9 @@ private theorem exists_initial (S A : Finset (Fin n)) :
   have hinj : Function.Injective ext := by
     intro f f' hff
     funext i
-    have := congrFun hff ⟨i.1, (mem_sdiff.mp i.2).1⟩
+    have := congrFun hff ⟨i.val, (mem_sdiff.mp i.property).1⟩
     simp only [ext] at this
-    rwa [dite_eq_left i.2, dite_eq_left i.2] at this
+    rwa [dite_eq_left i.property, dite_eq_left i.property] at this
   refine ⟨univ.image ext, ?_, ?_⟩
   · rw [card_image_of_injective _ hinj, card_univ, Fintype.card_fun,
       Fintype.card_bool, Fintype.card_coe]
