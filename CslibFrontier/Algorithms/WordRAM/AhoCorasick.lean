@@ -12,7 +12,9 @@ public import CslibFrontier.Algorithms.Lean.AhoCorasick.Basic
 public import CslibFrontier.Computability.WordRAM.ListOutput
 public import CslibFrontier.Computability.WordRAM.Structured
 import CslibFrontier.Computability.WordRAM.Allocation
+import CslibFrontier.Computability.WordRAM.PreservesMask
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Foundations.Data.Nat.Div
 import Mathlib.Data.Finset.Card
 
 /-!
@@ -179,33 +181,6 @@ theorem decodeOccurrences_encodeOccurrences (P : List (List ℕ)) (t : List ℕ)
   obtain ⟨hpos, -, -, hsuf⟩ := mem_occurrences_iff.mp hmem
   exact ⟨hpos, hsuf⟩
 
-private theorem length_occurrences_le (P : List (List ℕ)) (t : List ℕ) :
-    (occurrences P t).length ≤ t.length * P.length := by
-  let grid := (List.range' 1 t.length).flatMap fun i => P.map fun y => (i, y)
-  have hgrid_len : grid.length = t.length * P.length := by
-    have : ∀ m s : ℕ, ((List.range' s m).flatMap fun i => P.map fun y => (i, y)).length =
-        m * P.length := by
-      intro m
-      induction m with
-      | zero => simp
-      | succ m ih =>
-        intro s
-        simp only [List.range'_succ, List.flatMap_cons, List.length_append, List.length_map,
-          ih (s + 1), Nat.add_mul, Nat.one_mul]
-        omega
-    exact this t.length 1
-  have hsub : (occurrences P t).Subperm grid := by
-    refine List.subperm_of_subset (nodup_occurrences P t) fun ⟨i, y⟩ hmem => ?_
-    obtain ⟨hi_le, hy_ne, hy_P, hsuf⟩ := mem_occurrences_iff.mp hmem
-    have hy_pos : 0 < y.length := List.length_pos_iff.mpr hy_ne
-    have htake_le : y.length ≤ (t.take i).length := hsuf.length_le
-    have hi_pos : 1 ≤ i := by
-      have := List.length_take_le i t
-      omega
-    exact List.mem_flatMap.mpr ⟨i, List.mem_range'.mpr ⟨i - 1, by omega, by omega⟩,
-      List.mem_map.mpr ⟨y, hy_P, rfl⟩⟩
-  exact hgrid_len ▸ hsub.length_le
-
 /-- Word-width threshold for `searchCode` and `searchProgram`. -/
 @[expose] def Input.wordBound (inp : Input) : ℕ :=
   let M := totalPatternLen inp.patterns
@@ -306,6 +281,22 @@ private theorem treeInv_init (σ : ℕ) : TreeInv σ PTrie.init where
   depth_oob := fun _ _ => rfl
   term_oob := fun _ _ => rfl
 
+private theorem TreeInv.trie_eq_of_strOf {σ : ℕ} {T : PTrie} (hT : TreeInv σ T)
+    {u v a : ℕ} (hu : u < T.numStates) (hv : v < T.numStates)
+    (hstr : T.strOf v = T.strOf u ++ [a]) :
+    0 < v ∧ T.trie u a = v := by
+  have hv_pos : 0 < v := by
+    rcases Nat.eq_zero_or_pos v with rfl | hp
+    · rw [hT.str_zero] at hstr
+      exact absurd hstr.symm (List.append_ne_nil_of_right_ne_nil _ (List.cons_ne_nil a []))
+    · exact hp
+  obtain ⟨u', hu'v, a', _, htrie', hstr'⟩ := hT.parent_exists v hv_pos hv
+  have hinj := List.append_inj' (hstr'.symm.trans hstr) rfl
+  have ha_eq : a' = a := List.head_eq_of_cons_eq hinj.2
+  have hu_eq : u' = u := hT.str_inj u' (by omega) u hu hinj.1
+  subst ha_eq; subst hu_eq
+  exact ⟨hv_pos, htrie'⟩
+
 private theorem stepChar_spec {σ : ℕ} {T : PTrie} (hT : TreeInv σ T) {u a : ℕ}
     (hu : u < T.numStates) (ha : a < σ) :
     let res := T.stepChar u a
@@ -320,18 +311,8 @@ private theorem stepChar_spec {σ : ℕ} {T : PTrie} (hT : TreeInv σ T) {u a : 
   · dsimp only
     set s := T.numStates
     have hs_pos : 0 < s := hT.one_le
-    have hfresh : ∀ v < s, T.strOf v ≠ T.strOf u ++ [a] := by
-      intro v hv heq
-      have hv_pos : 0 < v := by
-        rcases Nat.eq_zero_or_pos v with rfl | hp
-        · rw [hT.str_zero] at heq
-          exact absurd heq.symm (List.append_ne_nil_of_right_ne_nil _ (List.cons_ne_nil a []))
-        · exact hp
-      obtain ⟨u', hu'v, a', ha', htrie', hstr'⟩ := hT.parent_exists v hv_pos hv
-      have hinj := List.append_inj' (hstr'.symm.trans heq) rfl
-      have ha_eq : a' = a := List.head_eq_of_cons_eq hinj.2
-      have hu_eq : u' = u := hT.str_inj u' (by omega) u hu hinj.1
-      subst ha_eq; subst hu_eq
+    have hfresh : ∀ v < s, T.strOf v ≠ T.strOf u ++ [a] := fun v hv heq => by
+      have := hT.trie_eq_of_strOf hu hv heq
       omega
     refine ⟨?_, by omega, by omega, hs_pos, by omega, Function.update_self s _ T.strOf,
       fun v hv => ⟨Function.update_of_ne (by omega) _ _, rfl⟩⟩
@@ -641,21 +622,23 @@ private theorem trie_char_iff (P : List (List ℕ)) (σ : ℕ)
   intro u hu a ha
   refine ⟨fun his => ?_, fun hnot => ?_⟩
   · obtain ⟨w, hw, hws⟩ := hcomp _ his
-    have hw_pos : 0 < w := by
-      rcases Nat.eq_zero_or_pos w with rfl | hp
-      · rw [hT.str_zero] at hws
-        exact absurd hws.symm (List.append_ne_nil_of_right_ne_nil _ (List.cons_ne_nil a []))
-      · exact hp
-    obtain ⟨u', hu'w, a', ha', ht', hs'⟩ := hT.parent_exists w hw_pos hw
-    have hinj := List.append_inj' (hs'.symm.trans hws) rfl
-    have ha_eq : a' = a := List.head_eq_of_cons_eq hinj.2
-    have hu_eq : u' = u := hT.str_inj u' (by omega) u hu hinj.1
-    subst ha_eq; subst hu_eq
-    rw [ht']
+    obtain ⟨hw_pos, htw⟩ := hT.trie_eq_of_strOf hu hw hws
+    rw [htw]
     exact ⟨hw_pos, hw, hws⟩
   · rcases hT.trie_spec u hu a ha with h0 | ⟨_, hstr⟩
     · exact h0
     · exact absurd (hstr ▸ hnode _ (hT.trie_lt u hu a ha)) hnot
+
+private theorem trie_char_pos_iff (P : List (List ℕ)) (σ : ℕ)
+    (hvalid : ∀ p ∈ P, ∀ a ∈ p, a < σ) :
+    ∀ u < (PTrie.build P).numStates, ∀ a < σ,
+      IsNode P ((PTrie.build P).strOf u ++ [a]) ↔ 0 < (PTrie.build P).trie u a := by
+  intro u hu a ha
+  have h := trie_char_iff P σ hvalid u hu a ha
+  refine ⟨fun his => (h.1 his).1, fun hpos => ?_⟩
+  by_contra hnot
+  have h0 := h.2 hnot
+  omega
 
 
 /-! ## Pure BFS failure, next-move, and output-link construction -/
@@ -1576,23 +1559,12 @@ private structure AutomatonInv (P : List (List ℕ)) (σ : ℕ) (T : PTrie) (B :
     followOut T.depth B.outNext T.numStates (B.outHead u) =
       (output P (T.strOf u)).map List.length
 
-private theorem build_bfs_spec (P : List (List ℕ)) (σ : ℕ)
-    (hvalid : ∀ p ∈ P, ∀ a ∈ p, a < σ) :
-    AutomatonInv P σ (PTrie.build P) (PBFS.build (PTrie.build P) σ) := by
-  obtain ⟨hT, _, _, _, hterm⟩ := build_trie_spec P σ hvalid
-  set T := PTrie.build P
-  have hchar : ∀ u < T.numStates, ∀ a < σ, IsNode P (T.strOf u ++ [a]) ↔ 0 < T.trie u a := by
-    intro u hu a ha
-    have h := trie_char_iff P σ hvalid u hu a ha
-    refine ⟨fun his => (h.1 his).1, fun hpos => ?_⟩
-    by_contra hnot
-    have h0 := h.2 hnot
-    dsimp only [T] at hpos
-    omega
+private theorem rootLoopInv_init {P : List (List ℕ)} {σ : ℕ} {T : PTrie} (hT : TreeInv σ T) :
+    RootLoopInv P σ T 0 PBFS.init := by
   have hinit_disc : PBFS.init.disc = {0} := by
     simp only [PBFS.init, PBFS.disc, Finset.range_zero, Finset.image_empty]
     rfl
-  have hInitRoot : RootLoopInv P σ T 0 PBFS.init :=
+  exact
     { qHead_zero := rfl
       q_bounds := fun _ hi => absurd hi (Nat.not_lt_zero _)
       q_inj := fun _ hi => absurd hi (Nat.not_lt_zero _)
@@ -1602,7 +1574,7 @@ private theorem build_bfs_spec (P : List (List ℕ)) (σ : ℕ)
       delta_zero := fun _ hc => absurd hc (Nat.not_lt_zero _)
       tables :=
         { zero_vals := ⟨rfl, rfl, rfl⟩
-          fail_spec := fun x hx hxp => by
+          fail_spec := fun x hx _ => by
             rw [hinit_disc, Finset.mem_singleton] at hx
             omega
           outHead_spec := fun x hx => by
@@ -1610,7 +1582,7 @@ private theorem build_bfs_spec (P : List (List ℕ)) (σ : ℕ)
             rw [Finset.mem_singleton] at hx
             subst hx
             exact ⟨Finset.mem_singleton_self 0, Nat.le_refl _⟩
-          outNext_spec := fun x hx hxp => by
+          outNext_spec := fun x hx _ => by
             rw [hinit_disc, Finset.mem_singleton] at hx
             omega
           follow_spec := fun x hx => by
@@ -1618,14 +1590,21 @@ private theorem build_bfs_spec (P : List (List ℕ)) (σ : ℕ)
             subst hx
             rw [hT.str_zero, output_nil, List.map_nil]
             exact followOut_zero_right _ _ _ } }
-  have hRoot := rootLoop_spec hT hchar hterm σ 0 PBFS.init (by omega) hInitRoot
+
+private theorem bfsInv_rootLoop {P : List (List ℕ)} {σ : ℕ} {T : PTrie} (hT : TreeInv σ T)
+    (hchar : ∀ u < T.numStates, ∀ a < σ, IsNode P (T.strOf u ++ [a]) ↔ 0 < T.trie u a)
+    (hterm : ∀ u < T.numStates, T.isTerm u = if T.strOf u ≠ [] ∧ T.strOf u ∈ P then 1 else 0) :
+    let B₀ := PBFS.rootLoop T σ 0 PBFS.init
+    BFSInv P σ T B₀ ∧ B₀.qHead = 0 := by
+  have hRoot := rootLoop_spec hT hchar hterm σ 0 PBFS.init (by omega) (rootLoopInv_init hT)
   rw [Nat.zero_add] at hRoot
   set B₀ := PBFS.rootLoop T σ 0 PBFS.init
   have hexp₀ : B₀.expAt B₀.qHead = {0} := by
     rw [hRoot.qHead_zero]
     simp only [PBFS.expAt, Finset.range_zero, Finset.image_empty]
     rfl
-  have hBFS₀ : BFSInv P σ T B₀ :=
+  refine ⟨?_, hRoot.qHead_zero⟩
+  exact
     { qHead_le := by rw [hRoot.qHead_zero]; exact Nat.zero_le _
       q_bounds := fun i hi => ⟨(hRoot.q_bounds i hi).1, (hRoot.q_bounds i hi).2.1⟩
       q_inj := hRoot.q_inj
@@ -1634,7 +1613,7 @@ private theorem build_bfs_spec (P : List (List ℕ)) (σ : ℕ)
         simp only [Finset.mem_singleton, exists_eq_left]
       q_mono := fun i j hij hj => by
         rw [(hRoot.q_bounds i (lt_of_le_of_lt hij hj)).2.2, (hRoot.q_bounds j hj).2.2]
-      q_depth_ub := fun j hj hlt => by
+      q_depth_ub := fun j hj _ => by
         rw [(hRoot.q_bounds j hj).2.2]
         omega
       lt_depth_mem_exp := fun v hv hlt hdv => by
@@ -1650,6 +1629,15 @@ private theorem build_bfs_spec (P : List (List ℕ)) (σ : ℕ)
         rw [hT.str_zero]
         exact ⟨h1, h2⟩
       tables := hRoot.tables }
+
+private theorem build_bfs_spec (P : List (List ℕ)) (σ : ℕ)
+    (hvalid : ∀ p ∈ P, ∀ a ∈ p, a < σ) :
+    AutomatonInv P σ (PTrie.build P) (PBFS.build (PTrie.build P) σ) := by
+  obtain ⟨hT, _, _, _, hterm⟩ := build_trie_spec P σ hvalid
+  have hchar := trie_char_pos_iff P σ hvalid
+  set T := PTrie.build P
+  set B₀ := PBFS.rootLoop T σ 0 PBFS.init
+  obtain ⟨hBFS₀, hqh₀⟩ := bfsInv_rootLoop hT hchar hterm
   have hOuter := outerLoop_spec hT hchar hterm T.numStates B₀ hBFS₀ (by omega)
   change BFSInv P σ T (PBFS.build T σ) ∧
     (PBFS.build T σ).qHead = (PBFS.build T σ).qTail at hOuter
@@ -1694,23 +1682,6 @@ private theorem build_bfs_spec (P : List (List ℕ)) (σ : ℕ)
 
 
 /-! ## Word-RAM register and memory layout (`Fin 26`, `Basis.standard`) -/
-
-private theorem rowMajor_lt {S σ u c : ℕ} (hu : u < S) (hc : c < σ) : u * σ + c < S * σ := by
-  have hle : (u + 1) * σ ≤ S * σ := Nat.mul_le_mul_right σ (by omega)
-  rw [Nat.add_mul, Nat.one_mul] at hle
-  omega
-
-private theorem rowMajor_inj {σ u₁ c₁ u₂ c₂ : ℕ} (hc₁ : c₁ < σ) (hc₂ : c₂ < σ) :
-    u₁ * σ + c₁ = u₂ * σ + c₂ ↔ u₁ = u₂ ∧ c₁ = c₂ := by
-  refine ⟨fun h => ?_, fun ⟨rfl, rfl⟩ => rfl⟩
-  rcases lt_trichotomy u₁ u₂ with hlt | rfl | hgt
-  · have hle : (u₁ + 1) * σ ≤ u₂ * σ := Nat.mul_le_mul_right σ (by omega)
-    rw [Nat.add_mul, Nat.one_mul] at hle
-    omega
-  · exact ⟨rfl, by omega⟩
-  · have hle : (u₂ + 1) * σ ≤ u₁ * σ := Nat.mul_le_mul_right σ (by omega)
-    rw [Nat.add_mul, Nat.one_mul] at hle
-    omega
 
 private def Input.maxS (inp : Input) : ℕ := totalPatternLen inp.patterns + 1
 private def Input.textBase (inp : Input) : ℕ :=
@@ -1768,20 +1739,16 @@ private theorem Input.trie_spec {inp : Input} (hv : inp.Valid) :
 
 private theorem Input.char_iff {inp : Input} (hv : inp.Valid) :
     ∀ u < inp.trie.numStates, ∀ c < inp.alphabetSize,
-      IsNode inp.patterns (inp.trie.strOf u ++ [c]) ↔ 0 < inp.trie.trie u c := by
-  intro u hu c hc
-  dsimp only [Input.trie] at hu ⊢
-  have h := trie_char_iff inp.patterns inp.alphabetSize hv.1 u hu c hc
-  refine ⟨fun his => (h.1 his).1, fun hpos => ?_⟩
-  by_contra hnot
-  have h0 := h.2 hnot
-  omega
+      IsNode inp.patterns (inp.trie.strOf u ++ [c]) ↔ 0 < inp.trie.trie u c :=
+  trie_char_pos_iff inp.patterns inp.alphabetSize hv.1
 
 private theorem Input.bfs_spec {inp : Input} (hv : inp.Valid) :
     AutomatonInv inp.patterns inp.alphabetSize inp.trie inp.bfs :=
   build_bfs_spec inp.patterns inp.alphabetSize hv.1
 
-attribute [irreducible] Input.trie Input.bfs
+attribute [irreducible] Input.trie Input.bfs Input.maxS Input.textBase Input.trieBase
+  Input.deltaBase Input.failBase Input.depthBase Input.termBase Input.outHeadBase
+  Input.outNextBase Input.queueBase Input.outBase
 
 private theorem mem_encodePatterns_fits {P : List (List ℕ)} {σ w B : ℕ}
     (hP : ∀ p ∈ P, ∀ a ∈ p, a < σ) (hw : Fits w B)
@@ -1880,84 +1847,27 @@ private structure LayoutInv (inp : Input) (x : Data 26) : Prop where
   h_zero : x.regs zero = 0
   h_one : x.regs one = 1
 
-private def keepsLayout : Code .standard 26 → Bool
-  | .op o => match o.dest with | none => true | some d => decide (18 ≤ d.val)
-  | .seq c₁ c₂ => keepsLayout c₁ && keepsLayout c₂
-  | .branch _ pos neg => keepsLayout pos && keepsLayout neg
-  | .loop _ body => keepsLayout body
-  | .rand dst _ => decide (18 ≤ dst.val)
-
-private theorem keepsLayout_preserves {c : Code .standard 26} (hk : keepsLayout c = true)
-    {i : Fin 26} (hi : i.val ≤ 17) : c.Preserves i := by
-  induction c with
-  | op o =>
-    dsimp only [keepsLayout, Code.Preserves] at hk ⊢
-    cases hd : o.dest with
-    | none => simp
-    | some d =>
-      rw [hd] at hk
-      have hge : 18 ≤ d.val := of_decide_eq_true hk
-      intro h; injection h with hdi; subst hdi; omega
-  | seq c₁ c₂ ih₁ ih₂ =>
-    simp only [keepsLayout, Bool.and_eq_true] at hk
-    exact ⟨ih₁ hk.1, ih₂ hk.2⟩
-  | branch _ pos neg ih₁ ih₂ =>
-    simp only [keepsLayout, Bool.and_eq_true] at hk
-    exact ⟨ih₁ hk.1, ih₂ hk.2⟩
-  | loop _ body ih => exact ih hk
-  | rand dst _ =>
-    dsimp only [keepsLayout, Code.Preserves] at hk ⊢
-    have hge : 18 ≤ dst.val := of_decide_eq_true hk
-    intro h; subst h; omega
-
-private theorem update1_eq {f : ℕ → ℕ} {a₁ v₁ x r : ℕ}
-    (h₁ : x ≠ a₁) (hr : f x = r) :
-    Function.update f a₁ v₁ x = r := by
-  rw [Function.update_of_ne h₁, hr]
-
-private theorem update2_eq {f : ℕ → ℕ} {a₁ a₂ v₁ v₂ x r : ℕ}
-    (h₁ : x ≠ a₁) (h₂ : x ≠ a₂) (hr : f x = r) :
-    Function.update (Function.update f a₁ v₁) a₂ v₂ x = r := by
-  rw [Function.update_of_ne h₂]; exact update1_eq h₁ hr
-
-private theorem update3_eq {f : ℕ → ℕ} {a₁ a₂ a₃ v₁ v₂ v₃ x r : ℕ}
-    (h₁ : x ≠ a₁) (h₂ : x ≠ a₂) (h₃ : x ≠ a₃) (hr : f x = r) :
-    Function.update (Function.update (Function.update f a₁ v₁) a₂ v₂) a₃ v₃ x = r := by
-  rw [Function.update_of_ne h₃]; exact update2_eq h₁ h₂ hr
-
-private theorem update4_eq {f : ℕ → ℕ} {a₁ a₂ a₃ a₄ v₁ v₂ v₃ v₄ x r : ℕ}
-    (h₁ : x ≠ a₁) (h₂ : x ≠ a₂) (h₃ : x ≠ a₃) (h₄ : x ≠ a₄) (hr : f x = r) :
-    Function.update (Function.update (Function.update (Function.update f a₁ v₁)
-      a₂ v₂) a₃ v₃) a₄ v₄ x = r := by
-  rw [Function.update_of_ne h₄]; exact update3_eq h₁ h₂ h₃ hr
-
-private theorem update5_eq {f : ℕ → ℕ} {a₁ a₂ a₃ a₄ a₅ v₁ v₂ v₃ v₄ v₅ x r : ℕ}
-    (h₁ : x ≠ a₁) (h₂ : x ≠ a₂) (h₃ : x ≠ a₃) (h₄ : x ≠ a₄) (h₅ : x ≠ a₅) (hr : f x = r) :
-    Function.update (Function.update (Function.update (Function.update
-      (Function.update f a₁ v₁) a₂ v₂) a₃ v₃) a₄ v₄) a₅ v₅ x = r := by
-  rw [Function.update_of_ne h₅]; exact update4_eq h₁ h₂ h₃ h₄ hr
-
 private theorem LayoutInv.of_preserves {inp : Input} {x y : Data 26} {w t : ℕ}
     {c : Code .standard 26} (hL : LayoutInv inp x) (he : ExecWithin w c x y t)
-    (hk : keepsLayout c = true := by decide) : LayoutInv inp y where
-  h_sigma := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_sigma
-  h_numPat := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_numPat
-  h_totPat := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_totPat
-  h_textLen := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_textLen
-  h_maxS := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_maxS
-  h_patBase := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_patBase
-  h_textBase := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_textBase
-  h_trieBase := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_trieBase
-  h_deltaBase := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_deltaBase
-  h_failBase := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_failBase
-  h_depthBase := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_depthBase
-  h_termBase := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_termBase
-  h_outHeadBase := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_outHeadBase
-  h_outNextBase := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_outNextBase
-  h_out := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_out
-  h_queueBase := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_queueBase
-  h_zero := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_zero
-  h_one := (he.regs_eq (keepsLayout_preserves hk (by decide))).trans hL.h_one
+    (hk : 18 ≤ c.writeStart := by decide) : LayoutInv inp y where
+  h_sigma := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_sigma
+  h_numPat := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_numPat
+  h_totPat := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_totPat
+  h_textLen := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_textLen
+  h_maxS := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_maxS
+  h_patBase := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_patBase
+  h_textBase := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_textBase
+  h_trieBase := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_trieBase
+  h_deltaBase := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_deltaBase
+  h_failBase := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_failBase
+  h_depthBase := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_depthBase
+  h_termBase := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_termBase
+  h_outHeadBase := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_outHeadBase
+  h_outNextBase := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_outNextBase
+  h_out := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_out
+  h_queueBase := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_queueBase
+  h_zero := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_zero
+  h_one := (he.regs_eq (c.preserves_of_writeStart hk (by decide))).trans hL.h_one
 
 /-! ## Word-RAM structured code -/
 
@@ -2185,7 +2095,8 @@ private theorem exec_setupCode (inp : Input) (w : ℕ) (hw : Fits w inp.wordBoun
     (hm4 : d₀.mem 4 = inp.text.length) :
     ∃ x₀, ExecWithin w setupCode d₀ x₀ 25 ∧
       LayoutInv inp x₀ ∧ x₀.regs r1 = inp.trieBase ∧ x₀.mem = d₀.mem := by
-  have hlo := layout_order inp
+  obtain ⟨hmaxS_eq, htb_eq, htr_eq, hdb_eq, hfb_eq, hdp_eq, htm_eq, hoh_eq, hon_eq, hqb_eq,
+    hob_eq⟩ := layout_order inp
   have hob : inp.outBase = inp.trieBase + (2 * (inp.maxS * inp.alphabetSize) + 6 * inp.maxS) := by
     omega
   have hf1 : Fits w 1 := fits_of_le_outBase hw (by omega)
@@ -2194,7 +2105,7 @@ private theorem exec_setupCode (inp : Input) (w : ℕ) (hw : Fits w inp.wordBoun
   have hf4 : Fits w 4 := fits_of_le_outBase hw (by omega)
   have hf5 : Fits w 5 := fits_of_le_outBase hw (by omega)
   have hf_maxS : Fits w inp.maxS := fits_of_le_outBase hw (by omega)
-  have hf_maxS' : Fits w (totalPatternLen inp.patterns + 1) := hf_maxS
+  have hf_maxS' : Fits w (totalPatternLen inp.patterns + 1) := by rw [← hmaxS_eq]; exact hf_maxS
   have hf_tb1 : Fits w (5 + inp.patterns.length) := fits_of_le_outBase hw (by omega)
   have hf_tb2 : Fits w (5 + inp.patterns.length + totalPatternLen inp.patterns) :=
     fits_of_le_outBase hw (by omega)
@@ -2217,25 +2128,16 @@ private theorem exec_setupCode (inp : Input) (w : ℕ) (hw : Fits w inp.wordBoun
     unfold setupHeaderCode
     wram_exec [hf1, hf2, hf3, hf4, hf5, hm1, hm2, hm3, hm4, hf_maxS']
     exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
-      by wram_simp; rfl, by wram_simp, by wram_simp⟩
+      by wram_simp [hmaxS_eq], by wram_simp, by wram_simp⟩
   obtain ⟨x₁, he₁, hz1, ho1, hsig1, hnp1, htp1, htl1, hms1, hpb1, hmem1⟩ := h1
-  have htb_eq : 5 + inp.patterns.length + totalPatternLen inp.patterns = inp.textBase := rfl
-  have htr_eq : inp.textBase + inp.text.length = inp.trieBase := rfl
-  have hdb_eq : inp.trieBase + inp.maxS * inp.alphabetSize = inp.deltaBase := rfl
-  have hfb_eq : inp.deltaBase + inp.maxS * inp.alphabetSize = inp.failBase := rfl
-  have hdp_eq : inp.failBase + inp.maxS = inp.depthBase := rfl
-  have htm_eq : inp.depthBase + inp.maxS = inp.termBase := rfl
-  have hoh_eq : inp.termBase + inp.maxS = inp.outHeadBase := rfl
-  have hon_eq : inp.outHeadBase + inp.maxS = inp.outNextBase := rfl
-  have hqb_eq : inp.outNextBase + inp.maxS = inp.queueBase := rfl
-  have hob_eq : inp.queueBase + inp.maxS = inp.outBase := rfl
   have h2 : ∃ x₀, ExecWithin w setupBaseCode x₁ x₀ 13 ∧
       LayoutInv inp x₀ ∧ x₀.regs r1 = inp.trieBase ∧ x₀.mem = x₁.mem := by
     refine WP.exists_execWithin ?_
     unfold setupBaseCode
-    wram_exec [hpb1, hnp1, htp1, htl1, hms1, hsig1, hf_tb1, hf_tb2, htb_eq, hf_tr, htr_eq,
-      hf_msig, hf_db, hdb_eq, hf_fb, hfb_eq, hf_dp, hdp_eq, hf_tm, htm_eq, hf_oh, hoh_eq,
-      hf_on, hon_eq, hf_qb, hqb_eq, hf_ob, hob_eq]
+    wram_exec [hpb1, hnp1, htp1, htl1, hms1, hsig1, hf_tb1, hf_tb2, htb_eq.symm, hf_tr,
+      htr_eq.symm, hf_msig, hf_db, hdb_eq.symm, hf_fb, hfb_eq.symm, hf_dp, hdp_eq.symm,
+      hf_tm, htm_eq.symm, hf_oh, hoh_eq.symm, hf_on, hon_eq.symm, hf_qb, hqb_eq.symm,
+      hf_ob, hob_eq.symm]
     refine ⟨?_, by wram_simp, by wram_simp⟩
     exact
       { h_sigma := by wram_simp [hsig1]
@@ -2273,7 +2175,7 @@ private theorem trieMem_of_clear_init {inp : Input} {mem : ℕ → ℕ}
       txt := htxt.frame fun a _ hlt =>
         Cslib.WordRAM.clear_of_not_owns fun hown => by have : inp.trieBase ≤ a := hown.1; omega
       trie_cell := fun u hu c hc => by
-        have := rowMajor_lt hu hc
+        have := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
         exact Cslib.WordRAM.clear_of_owns ⟨by dsimp only; omega, by dsimp only; omega⟩
       depth_cell := fun u hu =>
         Cslib.WordRAM.clear_of_owns ⟨by dsimp only; omega, by dsimp only; omega⟩
@@ -2338,41 +2240,45 @@ private theorem trieMem_stepChar_new {inp : Input} {T : PTrie} {mem : ℕ → �
         (Function.update mem (inp.trieBase + u₀ * inp.alphabetSize + a) T.numStates)
         (inp.depthBase + T.numStates) (T.depth u₀ + 1)) := by
   have hlo := layout_order inp
-  have hrm₀ := rowMajor_lt hu₀ ha
+  have hrm₀ := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu₀ ha
   have hlen := length_encodePatterns inp.patterns
   dsimp only [PTrie.stepChar]
   simp only [h0, ↓reduceIte]
   refine
-    { pats := hM.pats.frame fun addr ha1 ha2 =>
-        update2_eq (by omega) (by omega) rfl
-      txt := hM.txt.frame fun addr ha1 ha2 =>
-        update2_eq (by omega) (by omega) rfl
+    { pats := hM.pats.frame fun addr ha1 ha2 => by
+        simp (disch := omega) only [Function.update_of_ne]
+      txt := hM.txt.frame fun addr ha1 ha2 => by
+        simp (disch := omega) only [Function.update_of_ne]
       trie_cell := fun u hu c hc => by
-        have huc_lt := rowMajor_lt hu hc
+        have huc_lt := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
         dsimp only
-        refine update1_eq (by omega) ?_
+        rw [Function.update_of_ne (by omega)]
         by_cases huc : u = u₀ ∧ c = a
         · obtain ⟨rfl, rfl⟩ := huc
           simp only [and_self, ↓reduceIte, Function.update_self]
         · simp only [huc, ↓reduceIte]
           have hne_addr : inp.trieBase + u * inp.alphabetSize + c ≠
-              inp.trieBase + u₀ * inp.alphabetSize + a := fun heq =>
-            huc ((rowMajor_inj hc ha).mp (by omega))
-          exact update1_eq hne_addr (hM.trie_cell u hu c hc)
+              inp.trieBase + u₀ * inp.alphabetSize + a := fun heq => by
+            obtain ⟨hc_eq, hu_eq⟩ := Nat.eq_of_add_mul_eq (b := u) (b' := u₀) hc ha (by omega)
+            exact huc ⟨hu_eq, hc_eq⟩
+          rw [Function.update_of_ne hne_addr]
+          exact hM.trie_cell u hu c hc
       depth_cell := fun u hu => by
         dsimp only
         by_cases hus : u = T.numStates
         · subst hus
           rw [Function.update_self, Function.update_self]
-        · refine update2_eq (by omega) (by omega) ?_
-          rw [Function.update_of_ne hus]
+        · simp (disch := omega) only [Function.update_of_ne]
           exact hM.depth_cell u hu
-      term_cell := fun u hu =>
-        update2_eq (by omega) (by omega) (hM.term_cell u hu)
-      zero_df := fun addr ha1 ha2 =>
-        update2_eq (by omega) (by omega) (hM.zero_df addr ha1 ha2)
-      zero_rest := fun addr ha1 ha2 =>
-        update2_eq (by omega) (by omega) (hM.zero_rest addr ha1 ha2) }
+      term_cell := fun u hu => by
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.term_cell u hu
+      zero_df := fun addr ha1 ha2 => by
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.zero_df addr ha1 ha2
+      zero_rest := fun addr ha1 ha2 => by
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.zero_rest addr ha1 ha2 }
 
 private theorem trieMem_insertPat_pos {inp : Input} {T : PTrie} {mem : ℕ → ℕ}
     {u₁ : ℕ} (hu₁ : u₁ < inp.maxS) (hM : TrieMem inp T mem) :
@@ -2381,24 +2287,29 @@ private theorem trieMem_insertPat_pos {inp : Input} {T : PTrie} {mem : ℕ → �
   have hlo := layout_order inp
   have hlen := length_encodePatterns inp.patterns
   refine
-    { pats := hM.pats.frame fun addr ha1 ha2 => update1_eq (by omega) rfl
-      txt := hM.txt.frame fun addr ha1 ha2 => update1_eq (by omega) rfl
+    { pats := hM.pats.frame fun addr ha1 ha2 => by
+        simp (disch := omega) only [Function.update_of_ne]
+      txt := hM.txt.frame fun addr ha1 ha2 => by
+        simp (disch := omega) only [Function.update_of_ne]
       trie_cell := fun u hu c hc => by
-        have huc_lt := rowMajor_lt hu hc
-        exact update1_eq (by omega) (hM.trie_cell u hu c hc)
-      depth_cell := fun u hu =>
-        update1_eq (by omega) (hM.depth_cell u hu)
+        have huc_lt := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.trie_cell u hu c hc
+      depth_cell := fun u hu => by
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.depth_cell u hu
       term_cell := fun u hu => by
         dsimp only
         by_cases huu : u = u₁
         · subst huu; rw [Function.update_self, Function.update_self]
-        · refine update1_eq (by omega) ?_
-          rw [Function.update_of_ne huu]
+        · simp (disch := omega) only [Function.update_of_ne]
           exact hM.term_cell u hu
-      zero_df := fun addr ha1 ha2 =>
-        update1_eq (by omega) (hM.zero_df addr ha1 ha2)
-      zero_rest := fun addr ha1 ha2 =>
-        update1_eq (by omega) (hM.zero_rest addr ha1 ha2) }
+      zero_df := fun addr ha1 ha2 => by
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.zero_df addr ha1 ha2
+      zero_rest := fun addr ha1 ha2 => by
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.zero_rest addr ha1 ha2 }
 
 private theorem exec_trieCharLoop (inp : Input) (w : ℕ) (hw : Fits w inp.wordBound) :
     ∀ (chars rest : List ℕ) (T : PTrie) (x : Data 26),
@@ -2439,7 +2350,7 @@ private theorem exec_trieCharLoop (inp : Input) (w : ℕ) (hw : Fits w inp.wordB
     obtain ⟨hm_a, hhold_tail⟩ := Block.holdsList_cons_iff.mp hhold
     have hu_maxS : x.regs r4 < inp.maxS := by simp only [List.length_cons] at hbud; omega
     have hrm_lt : x.regs r4 * inp.alphabetSize + a < inp.maxS * inp.alphabetSize :=
-      rowMajor_lt hu_maxS ha_lt
+      Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu_maxS ha_lt
     have htrie_read :
         x.mem (inp.trieBase + (x.regs r4 * inp.alphabetSize + a)) = T.trie (x.regs r4) a := by
       rw [← Nat.add_assoc]; exact hM.trie_cell (x.regs r4) hu_maxS a ha_lt
@@ -2568,7 +2479,7 @@ private theorem exec_trieCharLoop (inp : Input) (w : ℕ) (hw : Fits w inp.wordB
           refine hhold_tail.frame fun addr ha1 ha2 => ?_
           simp only [List.append_eq, List.cons_append, List.length_cons, List.length_append]
             at hptr_ub ha2
-          exact update2_eq (by omega) (by omega) rfl
+          simp (disch := omega) only [Function.update_of_ne]
         exact ⟨x₂, he_br, hL₂, hM₂, hx₂_rS.trans hT₁_num.symm, hx₂_r4.trans hu₁_eq.symm,
           hx₂_r2.trans hx₁_r2, hx₂_r3.trans hx₁_r3, hx₂_r1.trans hx₁_r1, hhold₂⟩
     obtain ⟨x₂, he_br, hL₂, hM₂, hx₂_rS, hx₂_r4, hx₂_r2, hx₂_r3, hx₂_r1, hhold₂⟩ := hbranch
@@ -2687,7 +2598,7 @@ private theorem exec_triePatLoop (inp : Input) (w : ℕ) (hw : Fits w inp.wordBo
             rw [hx₂_r2, hx₁_r2]
             simp only [List.length_cons, List.length_append] at hptr_ub
             omega
-          exact update1_eq (by omega) rfl
+          simp (disch := omega) only [Function.update_of_ne]
         exact ⟨x₃, he_br, hL₃, hM₃, by rw [hx₃_rS, hx₂_rS, hT₂_eq], hx₃_r1, hx₃_r2, hhold₃⟩
       · have hpos' : ¬0 < (T.insertChars 0 p).2 := hpos
         have hcond : ¬(Cond.lt zero r4).Holds x₂ := by
@@ -2783,7 +2694,7 @@ private theorem bfsMem_init {inp : Input} {T : PTrie} {mem : ℕ → ℕ}
   trie_cell := hM.trie_cell
   delta_cell := fun u hu c hc => by
     have hlo := layout_order inp
-    have hlt := rowMajor_lt hu hc
+    have hlt := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
     exact hM.zero_df _ (by omega) (by omega)
   fail_cell := fun u hu => by
     have hlo := layout_order inp
@@ -2799,6 +2710,141 @@ private theorem bfsMem_init {inp : Input} {T : PTrie} {mem : ℕ → ℕ}
   queue_cell := fun i hi => by
     have hlo := layout_order inp
     exact hM.zero_rest _ (by omega) (by omega)
+
+private theorem bfsMem_of_set_delta {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → ℕ}
+    {u₀ a dval : ℕ} (hu₀ : u₀ < inp.maxS) (ha : a < inp.alphabetSize)
+    (hM : BFSMem inp T B mem) :
+    BFSMem inp T
+      { B with delta := fun u c => if u = u₀ ∧ c = a then dval else B.delta u c }
+      (Function.update mem (inp.deltaBase + (u₀ * inp.alphabetSize + a)) dval) := by
+  have hlo := layout_order inp
+  have hrm₀ := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu₀ ha
+  refine
+    { txt := hM.txt.frame fun addr ha1 ha2 => Function.update_of_ne (by omega) _ _
+      trie_cell := fun u hu c hc => by
+        have huc := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
+        rw [Function.update_of_ne (by omega)]
+        exact hM.trie_cell u hu c hc
+      delta_cell := fun u hu c hc => by
+        dsimp only
+        by_cases hrc : u = u₀ ∧ c = a
+        · obtain ⟨rfl, rfl⟩ := hrc
+          simp only [and_self, ↓reduceIte]
+          rw [← Nat.add_assoc, Function.update_self]
+        · simp only [hrc, ↓reduceIte]
+          have hne : inp.deltaBase + u * inp.alphabetSize + c ≠
+              inp.deltaBase + (u₀ * inp.alphabetSize + a) := fun heq => by
+            obtain ⟨hc_eq, hu_eq⟩ := Nat.eq_of_add_mul_eq (b := u) (b' := u₀) hc ha (by omega)
+            exact hrc ⟨hu_eq, hc_eq⟩
+          rw [Function.update_of_ne hne]
+          exact hM.delta_cell u hu c hc
+      fail_cell := fun u hu => by
+        rw [Function.update_of_ne (by omega)]; exact hM.fail_cell u hu
+      depth_cell := fun u hu => by
+        rw [Function.update_of_ne (by omega)]; exact hM.depth_cell u hu
+      term_cell := fun u hu => by
+        rw [Function.update_of_ne (by omega)]; exact hM.term_cell u hu
+      outHead_cell := fun u hu => by
+        rw [Function.update_of_ne (by omega)]; exact hM.outHead_cell u hu
+      outNext_cell := fun u hu => by
+        rw [Function.update_of_ne (by omega)]; exact hM.outNext_cell u hu
+      queue_cell := fun i hi => by
+        rw [Function.update_of_ne (by omega)]; exact hM.queue_cell i hi }
+
+private theorem bfsMem_of_set_fail_queue {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → ℕ}
+    {s fval : ℕ} (hs : s < inp.maxS) (hM : BFSMem inp T B mem) :
+    BFSMem inp T
+      { B with
+        fail := Function.update B.fail s fval
+        queue := Function.update B.queue B.qTail s
+        qTail := B.qTail + 1 }
+      (Function.update (Function.update mem (inp.failBase + s) fval)
+        (inp.queueBase + B.qTail) s) := by
+  have hlo := layout_order inp
+  refine
+    { txt := hM.txt.frame fun addr ha1 ha2 => by
+        simp (disch := omega) only [Function.update_of_ne]
+      trie_cell := fun u hu c hc => by
+        have huc := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.trie_cell u hu c hc
+      delta_cell := fun u hu c hc => by
+        have huc := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.delta_cell u hu c hc
+      fail_cell := fun u hu => by
+        dsimp only
+        rw [Function.update_of_ne (by omega)]
+        by_cases hus : u = s
+        · subst hus; rw [Function.update_self, Function.update_self]
+        · rw [Function.update_of_ne (by omega), Function.update_of_ne hus]
+          exact hM.fail_cell u hu
+      depth_cell := fun u hu => by
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.depth_cell u hu
+      term_cell := fun u hu => by
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.term_cell u hu
+      outHead_cell := fun u hu => by
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.outHead_cell u hu
+      outNext_cell := fun u hu => by
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.outNext_cell u hu
+      queue_cell := fun i hi => by
+        dsimp only
+        by_cases hiq : i = B.qTail
+        · subst hiq; rw [Function.update_self, Function.update_self]
+        · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
+            Function.update_of_ne hiq]
+          exact hM.queue_cell i hi }
+
+private theorem bfsMem_of_set_out {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → ℕ}
+    {s onval ohval : ℕ} (hs : s < inp.maxS) (hM : BFSMem inp T B mem) :
+    BFSMem inp T
+      { B with
+        outHead := Function.update B.outHead s ohval
+        outNext := Function.update B.outNext s onval }
+      (Function.update (Function.update mem (inp.outNextBase + s) onval)
+        (inp.outHeadBase + s) ohval) := by
+  have hlo := layout_order inp
+  refine
+    { txt := hM.txt.frame fun addr ha1 ha2 => by
+        simp (disch := omega) only [Function.update_of_ne]
+      trie_cell := fun u hu c hc => by
+        have huc := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.trie_cell u hu c hc
+      delta_cell := fun u hu c hc => by
+        have huc := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.delta_cell u hu c hc
+      fail_cell := fun u hu => by
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.fail_cell u hu
+      depth_cell := fun u hu => by
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.depth_cell u hu
+      term_cell := fun u hu => by
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.term_cell u hu
+      outHead_cell := fun u hu => by
+        dsimp only
+        by_cases hus : u = s
+        · subst hus; rw [Function.update_self, Function.update_self]
+        · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
+            Function.update_of_ne hus]
+          exact hM.outHead_cell u hu
+      outNext_cell := fun u hu => by
+        dsimp only
+        rw [Function.update_of_ne (by omega)]
+        by_cases hus : u = s
+        · subst hus; rw [Function.update_self, Function.update_self]
+        · rw [Function.update_of_ne (by omega), Function.update_of_ne hus]
+          exact hM.outNext_cell u hu
+      queue_cell := fun i hi => by
+        simp (disch := omega) only [Function.update_of_ne]
+        exact hM.queue_cell i hi }
 
 private theorem bfsMem_of_enqueue {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → ℕ}
     {u₀ a s fval onval ohval : ℕ} (hu₀ : u₀ < inp.maxS) (ha : a < inp.alphabetSize)
@@ -2819,182 +2865,8 @@ private theorem bfsMem_of_enqueue {inp : Input} {T : PTrie} {B : PBFS} {mem : �
               (inp.failBase + s) fval)
             (inp.queueBase + B.qTail) s)
           (inp.outNextBase + s) onval)
-        (inp.outHeadBase + s) ohval) := by
-  have hlo := layout_order inp
-  have hrm₀ := rowMajor_lt hu₀ ha
-  have hd_hi : inp.deltaBase + (u₀ * inp.alphabetSize + a) < inp.failBase := by omega
-  have hf_hi : inp.failBase + s < inp.depthBase := by omega
-  have hdp_oh : inp.depthBase ≤ inp.outHeadBase := by omega
-  have hoh_hi : inp.outHeadBase + s < inp.outNextBase := by omega
-  have hon_hi : inp.outNextBase + s < inp.queueBase := by omega
-  have hd_lt_f : inp.deltaBase + (u₀ * inp.alphabetSize + a) < inp.failBase + s :=
-    lt_of_lt_of_le hd_hi (Nat.le_add_right _ _)
-  have hf_lt_oh : inp.failBase + s < inp.outHeadBase + s :=
-    lt_of_lt_of_le (lt_of_lt_of_le hf_hi hdp_oh) (Nat.le_add_right _ _)
-  have hoh_lt_on : inp.outHeadBase + s < inp.outNextBase + s :=
-    lt_of_lt_of_le hoh_hi (Nat.le_add_right _ _)
-  have hon_lt_q : inp.outNextBase + s < inp.queueBase + B.qTail :=
-    lt_of_lt_of_le hon_hi (Nat.le_add_right _ _)
-  have hlow {x : ℕ} (hx : x < inp.deltaBase) :
-      Function.update
-        (Function.update
-          (Function.update
-            (Function.update
-              (Function.update mem (inp.deltaBase + (u₀ * inp.alphabetSize + a)) s)
-              (inp.failBase + s) fval)
-            (inp.queueBase + B.qTail) s)
-          (inp.outNextBase + s) onval)
-        (inp.outHeadBase + s) ohval x = mem x := by
-    have h1 : x < inp.deltaBase + (u₀ * inp.alphabetSize + a) :=
-      lt_of_lt_of_le hx (Nat.le_add_right _ _)
-    have h2 := lt_trans h1 hd_lt_f
-    have h5 := lt_trans h2 hf_lt_oh
-    have h4 := lt_trans h5 hoh_lt_on
-    have h3 := lt_trans h4 hon_lt_q
-    exact update5_eq (ne_of_lt h1) (ne_of_lt h2) (ne_of_lt h3) (ne_of_lt h4) (ne_of_lt h5) rfl
-  have hmid {x : ℕ} (hx1 : inp.depthBase ≤ x) (hx2 : x < inp.outHeadBase) :
-      Function.update
-        (Function.update
-          (Function.update
-            (Function.update
-              (Function.update mem (inp.deltaBase + (u₀ * inp.alphabetSize + a)) s)
-              (inp.failBase + s) fval)
-            (inp.queueBase + B.qTail) s)
-          (inp.outNextBase + s) onval)
-        (inp.outHeadBase + s) ohval x = mem x := by
-    have h2 : inp.failBase + s < x := lt_of_lt_of_le hf_hi hx1
-    have h1 := lt_trans hd_lt_f h2
-    have h5 : x < inp.outHeadBase + s := lt_of_lt_of_le hx2 (Nat.le_add_right _ _)
-    have h4 := lt_trans h5 hoh_lt_on
-    have h3 := lt_trans h4 hon_lt_q
-    exact update5_eq (ne_of_gt h1) (ne_of_gt h2) (ne_of_lt h3) (ne_of_lt h4) (ne_of_lt h5) rfl
-  refine
-    { txt := hM.txt.frame fun addr ha1 ha2 => hlow (by omega)
-      trie_cell := fun u hu c hc => by
-        have huc := rowMajor_lt hu hc
-        rw [hlow (by omega)]
-        exact hM.trie_cell u hu c hc
-      delta_cell := fun u hu c hc => by
-        have huc := rowMajor_lt hu hc
-        dsimp only
-        have hx_f : inp.deltaBase + u * inp.alphabetSize + c < inp.failBase + s :=
-          lt_of_lt_of_le (by omega) (Nat.le_add_right _ _)
-        have hx_oh := lt_trans hx_f hf_lt_oh
-        have hx_on := lt_trans hx_oh hoh_lt_on
-        have hx_q := lt_trans hx_on hon_lt_q
-        refine update4_eq (ne_of_lt hx_f) (ne_of_lt hx_q) (ne_of_lt hx_on) (ne_of_lt hx_oh) ?_
-        by_cases hrc : u = u₀ ∧ c = a
-        · obtain ⟨rfl, rfl⟩ := hrc
-          simp only [and_self, ↓reduceIte]
-          rw [← Nat.add_assoc, Function.update_self]
-        · simp only [hrc, ↓reduceIte]
-          have hne : inp.deltaBase + u * inp.alphabetSize + c ≠
-              inp.deltaBase + (u₀ * inp.alphabetSize + a) := fun heq =>
-            hrc ((rowMajor_inj hc ha).mp (by omega))
-          exact update1_eq hne (hM.delta_cell u hu c hc)
-      fail_cell := fun u hu => by
-        dsimp only
-        have hx_oh : inp.failBase + u < inp.outHeadBase + s :=
-          lt_of_lt_of_le (lt_of_lt_of_le (by omega) hdp_oh) (Nat.le_add_right _ _)
-        have hx_on := lt_trans hx_oh hoh_lt_on
-        have hx_q := lt_trans hx_on hon_lt_q
-        refine update3_eq (ne_of_lt hx_q) (ne_of_lt hx_on) (ne_of_lt hx_oh) ?_
-        by_cases hus : u = s
-        · subst hus; rw [Function.update_self, Function.update_self]
-        · have hd_x : inp.deltaBase + (u₀ * inp.alphabetSize + a) < inp.failBase + u :=
-            lt_of_lt_of_le hd_hi (Nat.le_add_right _ _)
-          refine update2_eq (ne_of_gt hd_x) (fun h => hus (Nat.add_left_cancel h)) ?_
-          rw [Function.update_of_ne hus]
-          exact hM.fail_cell u hu
-      depth_cell := fun u hu => by
-        rw [hmid (Nat.le_add_right _ _) (by omega)]
-        exact hM.depth_cell u hu
-      term_cell := fun u hu => by
-        rw [hmid (by omega) (by omega)]
-        exact hM.term_cell u hu
-      outHead_cell := fun u hu => by
-        dsimp only
-        by_cases hus : u = s
-        · subst hus; rw [Function.update_self, Function.update_self]
-        · have hx_on : inp.outHeadBase + u < inp.outNextBase + s :=
-            lt_of_lt_of_le (by omega) (Nat.le_add_right _ _)
-          have hx_q := lt_trans hx_on hon_lt_q
-          have hf_x : inp.failBase + s < inp.outHeadBase + u :=
-            lt_of_lt_of_le (lt_of_lt_of_le hf_hi hdp_oh) (Nat.le_add_right _ _)
-          have hd_x := lt_trans hd_lt_f hf_x
-          refine update5_eq (ne_of_gt hd_x) (ne_of_gt hf_x) (ne_of_lt hx_q) (ne_of_lt hx_on)
-            (fun h => hus (Nat.add_left_cancel h)) ?_
-          rw [Function.update_of_ne hus]
-          exact hM.outHead_cell u hu
-      outNext_cell := fun u hu => by
-        dsimp only
-        have hoh_x : inp.outHeadBase + s < inp.outNextBase + u :=
-          lt_of_lt_of_le hoh_hi (Nat.le_add_right _ _)
-        refine update1_eq (ne_of_gt hoh_x) ?_
-        by_cases hus : u = s
-        · subst hus; rw [Function.update_self, Function.update_self]
-        · have hx_q : inp.outNextBase + u < inp.queueBase + B.qTail :=
-            lt_of_lt_of_le (by omega) (Nat.le_add_right _ _)
-          have hf_x := lt_trans hf_lt_oh hoh_x
-          have hd_x := lt_trans hd_lt_f hf_x
-          refine update4_eq (ne_of_gt hd_x) (ne_of_gt hf_x) (ne_of_lt hx_q)
-            (fun h => hus (Nat.add_left_cancel h)) ?_
-          rw [Function.update_of_ne hus]
-          exact hM.outNext_cell u hu
-      queue_cell := fun i hi => by
-        dsimp only
-        have hon_x : inp.outNextBase + s < inp.queueBase + i :=
-          lt_of_lt_of_le hon_hi (Nat.le_add_right _ _)
-        have hoh_x := lt_trans hoh_lt_on hon_x
-        refine update2_eq (ne_of_gt hon_x) (ne_of_gt hoh_x) ?_
-        by_cases hiq : i = B.qTail
-        · subst hiq; rw [Function.update_self, Function.update_self]
-        · have hf_x := lt_trans hf_lt_oh hoh_x
-          have hd_x := lt_trans hd_lt_f hf_x
-          refine update3_eq (ne_of_gt hd_x) (ne_of_gt hf_x)
-            (fun h => hiq (Nat.add_left_cancel h)) ?_
-          rw [Function.update_of_ne hiq]
-          exact hM.queue_cell i hi }
-
-private theorem bfsMem_of_set_delta {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → ℕ}
-    {u₀ a dval : ℕ} (hu₀ : u₀ < inp.maxS) (ha : a < inp.alphabetSize)
-    (hM : BFSMem inp T B mem) :
-    BFSMem inp T
-      { B with delta := fun u c => if u = u₀ ∧ c = a then dval else B.delta u c }
-      (Function.update mem (inp.deltaBase + (u₀ * inp.alphabetSize + a)) dval) := by
-  have hlo := layout_order inp
-  have hrm₀ := rowMajor_lt hu₀ ha
-  refine
-    { txt := hM.txt.frame fun addr ha1 ha2 => Function.update_of_ne (by omega) _ _
-      trie_cell := fun u hu c hc => by
-        have huc := rowMajor_lt hu hc
-        rw [Function.update_of_ne (by omega)]
-        exact hM.trie_cell u hu c hc
-      delta_cell := fun u hu c hc => by
-        dsimp only
-        by_cases hrc : u = u₀ ∧ c = a
-        · obtain ⟨rfl, rfl⟩ := hrc
-          simp only [and_self, ↓reduceIte]
-          rw [← Nat.add_assoc, Function.update_self]
-        · simp only [hrc, ↓reduceIte]
-          have hne : inp.deltaBase + u * inp.alphabetSize + c ≠
-              inp.deltaBase + (u₀ * inp.alphabetSize + a) := by
-            intro heq
-            exact hrc ((rowMajor_inj hc ha).mp (by omega))
-          rw [Function.update_of_ne hne]
-          exact hM.delta_cell u hu c hc
-      fail_cell := fun u hu => by
-        rw [Function.update_of_ne (by omega)]; exact hM.fail_cell u hu
-      depth_cell := fun u hu => by
-        rw [Function.update_of_ne (by omega)]; exact hM.depth_cell u hu
-      term_cell := fun u hu => by
-        rw [Function.update_of_ne (by omega)]; exact hM.term_cell u hu
-      outHead_cell := fun u hu => by
-        rw [Function.update_of_ne (by omega)]; exact hM.outHead_cell u hu
-      outNext_cell := fun u hu => by
-        rw [Function.update_of_ne (by omega)]; exact hM.outNext_cell u hu
-      queue_cell := fun i hi => by
-        rw [Function.update_of_ne (by omega)]; exact hM.queue_cell i hi }
+        (inp.outHeadBase + s) ohval) :=
+  bfsMem_of_set_out hs (bfsMem_of_set_fail_queue hs (bfsMem_of_set_delta hu₀ ha hM))
 
 private theorem exec_bfsRootLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     (hw : Fits w inp.wordBound) :
@@ -3028,7 +2900,7 @@ private theorem exec_bfsRootLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
       simp only [Cond.holds_lt, hr5, hL.h_sigma]; exact ha
     have h0_maxS : 0 < inp.maxS := by omega
     have ha_rm : a < inp.maxS * inp.alphabetSize := by
-      simpa only [Nat.zero_mul, Nat.zero_add] using rowMajor_lt h0_maxS ha
+      simpa only [Nat.mul_zero, Nat.zero_add] using Nat.mul_add_lt_mul_of_lt_of_lt h0_maxS ha
     have ht_read : x.mem (inp.trieBase + a) = inp.trie.trie 0 a := by
       simpa only [Nat.zero_mul, Nat.add_zero] using hM.trie_cell 0 h0_maxS a ha
     have hf_ta : Fits w (inp.trieBase + a) := fits_of_le_outBase hw (by omega)
@@ -3190,7 +3062,7 @@ private theorem exec_bfsInnerStore (inp : Input) (w : ℕ) (hw : Fits w inp.word
           (inp.failBase + s) df)
         (inp.queueBase + qt) s := by
   have hlo := layout_order inp
-  have hrm_r := rowMajor_lt hr_maxS ha
+  have hrm_r := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hr_maxS ha
   have hf_mr : Fits w (r * inp.alphabetSize) := fits_of_le_outBase hw (by omega)
   have hf_ra : Fits w (r * inp.alphabetSize + a) := fits_of_le_outBase hw (by omega)
   have hf_dra : Fits w (inp.deltaBase + (r * inp.alphabetSize + a)) :=
@@ -3237,16 +3109,18 @@ private theorem exec_bfsInnerLink (inp : Input) (w : ℕ) (hw : Fits w inp.wordB
       x_m.regs r3 = x_s.regs r3 ∧ x_m.regs r4 = x_s.regs r4 ∧ x_m.regs r5 = x_s.regs r5 ∧
       x_m.mem = Function.update x_s.mem (inp.outNextBase + s) ohdf := by
   have hlo := layout_order inp
-  have hrm_r := rowMajor_lt hr_maxS ha
+  have hrm_r := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hr_maxS ha
   have hf_ohdf : Fits w (inp.outHeadBase + df) := fits_of_le_outBase hw (by omega)
   have hf_ons : Fits w (inp.outNextBase + s) := fits_of_le_outBase hw (by omega)
   have hf_tms : Fits w (inp.termBase + s) := fits_of_le_outBase hw (by omega)
   have hoh_xs : x_s.mem (inp.outHeadBase + df) = ohdf := by
     rw [hxs_mem]
-    exact update3_eq (by omega) (by omega) (by omega) hoh_read
+    simp (disch := omega) only [Function.update_of_ne]
+    exact hoh_read
   have htm_xs : x_s.mem (inp.termBase + s) = tms := by
     rw [hxs_mem]
-    exact update3_eq (by omega) (by omega) (by omega) htm_read
+    simp (disch := omega) only [Function.update_of_ne]
+    exact htm_read
   have hne_tm_on : inp.termBase + s ≠ inp.outNextBase + s := by omega
   have hm2 : ∃ x_m, ExecWithin w bfsInnerLinkCode x_s x_m 6 ∧
       x_m.regs rState = tms ∧ x_m.regs r6 = s ∧ x_m.regs r7 = ohdf ∧
@@ -3278,7 +3152,7 @@ private theorem exec_bfsInnerBranch (inp : Input) (w : ℕ) (hw : Fits w inp.wor
         (if 0 < tms then s else ohdf) := by
   have hlo := layout_order inp
   have h0_maxS : 0 < inp.maxS := by omega
-  have ha_rm := rowMajor_lt h0_maxS ha
+  have ha_rm := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt h0_maxS ha
   have hf_ohs : Fits w (inp.outHeadBase + s) := fits_of_le_outBase hw (by omega)
   have hf_a1 : Fits w (a + 1) := fits_of_le_outBase hw (by omega)
   by_cases ht_pos : 0 < tms
@@ -3392,8 +3266,10 @@ private theorem exec_bfsInnerStep (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     · exact hT.one_le
     · exact (hinv.q_bounds i (lt_trans hi hqh_lt)).2
   have hfr_maxS : fr < inp.maxS := lt_of_lt_of_le hfr_lt hT_maxS
-  have hrm_r : r * inp.alphabetSize + a < inp.maxS * inp.alphabetSize := rowMajor_lt hr_maxS ha
-  have hrm_fr : fr * inp.alphabetSize + a < inp.maxS * inp.alphabetSize := rowMajor_lt hfr_maxS ha
+  have hrm_r : r * inp.alphabetSize + a < inp.maxS * inp.alphabetSize :=
+    Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hr_maxS ha
+  have hrm_fr : fr * inp.alphabetSize + a < inp.maxS * inp.alphabetSize :=
+    Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hfr_maxS ha
   have ht_read : x.mem (inp.trieBase + (r * inp.alphabetSize + a)) = inp.trie.trie r a := by
     rw [← Nat.add_assoc]; exact hM.trie_cell r hr_maxS a ha
   have hd_read : x.mem (inp.deltaBase + (fr * inp.alphabetSize + a)) = B.delta fr a := by
@@ -3588,27 +3464,6 @@ private theorem exec_bfsBuild (inp : Input) (w : ℕ) (hvalid : inp.Valid)
   have hchar := inp.char_iff hvalid
   have hlo := layout_order inp
   have h1_maxS : 1 ≤ inp.maxS := by omega
-  have hinit_disc : PBFS.init.disc = {0} := by
-    simp only [PBFS.init, PBFS.disc, Finset.range_zero, Finset.image_empty]; rfl
-  have hInitRoot : RootLoopInv inp.patterns inp.alphabetSize inp.trie 0 PBFS.init :=
-    { qHead_zero := rfl
-      q_bounds := fun _ hi => absurd hi (Nat.not_lt_zero _)
-      q_inj := fun _ hi => absurd hi (Nat.not_lt_zero _)
-      disc_iff := fun w' _ => by
-        rw [hinit_disc]
-        simp only [Finset.mem_singleton, Nat.not_lt_zero, false_and, exists_false, or_false]
-      delta_zero := fun _ hc => absurd hc (Nat.not_lt_zero _)
-      tables :=
-        { zero_vals := ⟨rfl, rfl, rfl⟩
-          fail_spec := fun z hz _ => by rw [hinit_disc, Finset.mem_singleton] at hz; omega
-          outHead_spec := fun z hz => by
-            rw [hinit_disc] at hz ⊢; rw [Finset.mem_singleton] at hz; subst hz
-            exact ⟨Finset.mem_singleton_self 0, Nat.le_refl _⟩
-          outNext_spec := fun z hz _ => by rw [hinit_disc, Finset.mem_singleton] at hz; omega
-          follow_spec := fun z hz => by
-            rw [hinit_disc, Finset.mem_singleton] at hz; subst hz
-            rw [hT.str_zero, output_nil, List.map_nil]
-            exact followOut_zero_right _ _ _ } }
   have h0_code : ∃ x₀, ExecWithin (B := .standard) w
       (ram[ r1 ← #0; r2 ← #0; r5 ← #0 ]) x x₀ 3 ∧
       x₀.regs r1 = 0 ∧ x₀.regs r2 = 0 ∧ x₀.regs r5 = 0 ∧ x₀.mem = x.mem := by
@@ -3616,41 +3471,15 @@ private theorem exec_bfsBuild (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     wram_exec
     exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
   obtain ⟨x₀, he₀, hx₀_r1, hx₀_r2, hx₀_r5, hx₀_mem⟩ := h0_code
-  have hL₀ : LayoutInv inp x₀ :=
-    hL.of_preserves he₀
+  have hL₀ : LayoutInv inp x₀ := hL.of_preserves he₀
   obtain ⟨x₁, he_rt, hL₁, hM₁, hx₁_r1, hx₁_r2⟩ :=
     exec_bfsRootLoop inp w hvalid hw inp.alphabetSize 0 PBFS.init x₀ (Nat.zero_add _)
-      hL₀ (bfsMem_init (by rwa [hx₀_mem])) hInitRoot hx₀_r1 hx₀_r2 hx₀_r5
-  have hRoot := rootLoop_spec hT hchar hterm inp.alphabetSize 0 PBFS.init (by omega) hInitRoot
-  rw [Nat.zero_add] at hRoot
+      hL₀ (bfsMem_init (by rwa [hx₀_mem])) (rootLoopInv_init hT) hx₀_r1 hx₀_r2 hx₀_r5
   set B₀ := PBFS.rootLoop inp.trie inp.alphabetSize 0 PBFS.init
-  have hexp₀ : B₀.expAt B₀.qHead = {0} := by
-    rw [hRoot.qHead_zero]
-    simp only [PBFS.expAt, Finset.range_zero, Finset.image_empty]; rfl
-  have hBFS₀ : BFSInv inp.patterns inp.alphabetSize inp.trie B₀ :=
-    { qHead_le := by rw [hRoot.qHead_zero]; exact Nat.zero_le _
-      q_bounds := fun i hi => ⟨(hRoot.q_bounds i hi).1, (hRoot.q_bounds i hi).2.1⟩
-      q_inj := hRoot.q_inj
-      disc_iff := fun w' hw' => by
-        rw [hexp₀, hRoot.disc_iff w' hw']
-        simp only [Finset.mem_singleton, exists_eq_left]
-      q_mono := fun i j hij hj => by
-        rw [(hRoot.q_bounds i (lt_of_le_of_lt hij hj)).2.2, (hRoot.q_bounds j hj).2.2]
-      q_depth_ub := fun j hj _ => by rw [(hRoot.q_bounds j hj).2.2]; omega
-      lt_depth_mem_exp := fun v hv hlt hdv => by
-        rw [hexp₀, Finset.mem_singleton]
-        rw [hRoot.qHead_zero] at hlt hdv
-        rw [(hRoot.q_bounds 0 hlt).2.2, hT.depth_eq v hv] at hdv
-        have hv_nil : inp.trie.strOf v = [] := List.eq_nil_of_length_eq_zero (by omega)
-        exact hT.str_inj v hv 0 hT.one_le (hv_nil.trans hT.str_zero.symm)
-      delta_spec := fun u hu c hc => by
-        rw [hexp₀, Finset.mem_singleton] at hu; subst hu
-        obtain ⟨h1, h2⟩ := hRoot.delta_zero c hc
-        rw [hT.str_zero]; exact ⟨h1, h2⟩
-      tables := hRoot.tables }
+  obtain ⟨hBFS₀, hqh₀⟩ := bfsInv_rootLoop hT hchar hterm
   obtain ⟨y, he_out, hLy, hMy⟩ :=
     exec_bfsOuterLoop inp w hvalid hw inp.trie.numStates B₀ x₁ hL₁ hM₁ hBFS₀
-      (by rw [hRoot.qHead_zero]; omega) (hx₁_r1.trans hRoot.qHead_zero.symm) hx₁_r2
+      (by rw [hqh₀]; omega) (hx₁_r1.trans hqh₀.symm) hx₁_r2
   have hcost_le :
       3 + (21 * inp.alphabetSize + 2) + ((31 * inp.alphabetSize + 10) * inp.trie.numStates + 2) ≤
         52 * inp.maxS * inp.alphabetSize + 10 * inp.maxS + 7 := by
@@ -3704,7 +3533,7 @@ private theorem exec_computeFailCond (inp : Input) (w : ℕ) (hw : Fits w inp.wo
   by_cases hupos : 0 < x.regs rState
   · have hc1 : (Cond.lt zero rState).Holds x₀ := by
       simp only [Cond.holds_lt, hL₀.h_zero, hs0]; exact hupos
-    have hrm := rowMajor_lt hu ha
+    have hrm := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu ha
     have hf_m : Fits w (x.regs rState * inp.alphabetSize) := fits_of_le_outBase hw (by omega)
     have hf_a : Fits w (x.regs rState * inp.alphabetSize + x.regs r5) :=
       fits_of_le_outBase hw (by omega)
@@ -3878,7 +3707,7 @@ private theorem exec_stepCode (inp : Input) (w : ℕ) (hvalid : inp.Valid)
   set u' := inp.trie.trie u_ex a
   have hu'_lt : u' < inp.trie.numStates := hT.trie_lt u_ex hu_ex_lt a ha_lt
   have hu_ex_maxS : u_ex < inp.maxS := lt_of_lt_of_le hu_ex_lt hT_maxS
-  have hrm := rowMajor_lt hu_ex_maxS ha_lt
+  have hrm := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu_ex_maxS ha_lt
   have ht_read : x₂.mem (inp.trieBase + (u_ex * inp.alphabetSize + a)) = u' := by
     rw [hm2, hm1, ← Nat.add_assoc]; exact hM.trie_cell u_ex hu_ex_maxS a ha_lt
   have hf_m : Fits w (u_ex * inp.alphabetSize) := fits_of_le_outBase hw (by omega)
@@ -3924,10 +3753,12 @@ private theorem bfsMem_of_eq_below_outBase {inp : Input} {T : PTrie} {B : PBFS}
   txt := hM.txt.frame fun a _ hlt => by
     have hlo := layout_order inp; exact heq a (by omega)
   trie_cell := fun u hu c hc => by
-    have hlo := layout_order inp; have := rowMajor_lt hu hc
+    have hlo := layout_order inp
+    have := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
     rw [heq _ (by omega)]; exact hM.trie_cell u hu c hc
   delta_cell := fun u hu c hc => by
-    have hlo := layout_order inp; have := rowMajor_lt hu hc
+    have hlo := layout_order inp
+    have := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
     rw [heq _ (by omega)]; exact hM.delta_cell u hu c hc
   fail_cell := fun u hu => by
     have hlo := layout_order inp; rw [heq _ (by omega)]; exact hM.fail_cell u hu
@@ -4124,17 +3955,6 @@ private theorem exec_emitCode (inp : Input) (w : ℕ) (hvalid : inp.Valid)
   exact ⟨y, (he₀.seq he_lp).mono (by omega), hLy, hMy, hholdy, hy_r2,
     hy_rS.trans hx₀_rS, hy_r1.trans hx₀_r1, hy_r3.trans hx₀_r3⟩
 
-private theorem occurrences_prefix_append (P : List (List ℕ)) (p : List ℕ) :
-    ∀ ts : List ℕ, occurrences P p <+: occurrences P (p ++ ts)
-  | [] => by simp only [List.append_nil]; exact List.prefix_rfl
-  | a :: ts => by
-    have ih := occurrences_prefix_append P (p ++ [a]) ts
-    rw [List.append_assoc, List.singleton_append] at ih
-    have h1 : occurrences P p <+: occurrences P (p ++ [a]) := by
-      rw [occurrences_append_singleton]
-      exact List.prefix_append _ _
-    exact h1.trans ih
-
 private theorem exec_scanLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     (hw : Fits w inp.wordBound) :
     ∀ (ts pref : List ℕ) (x : Data 26),
@@ -4308,7 +4128,9 @@ theorem searchCode_exec (inp : Input) (w : ℕ)
           ((52 * inp.maxS * inp.alphabetSize + 10 * inp.maxS + 7) +
             (38 * inp.text.length + 10 * (occurrences inp.patterns inp.text).length + 8))) ≤
       searchTime inp - 1 := by
-    dsimp only [searchTime, Input.maxS]
+    have hmaxS := (layout_order inp).1
+    dsimp only [searchTime]
+    rw [hmaxS]
     simp only [Nat.mul_assoc]
     omega
   refine ⟨y, (he₁.seq (he₂.seq (he₃.seq he₄))).mono hcost, hout, ?_⟩

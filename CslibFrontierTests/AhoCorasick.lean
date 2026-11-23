@@ -132,6 +132,16 @@ private def dupEmptyInp : Input :=
 
 #guard checkSearch 16 dupEmptyInp
 
+-- Non-terminal prefix state reaching a match through a multi-hop non-terminal failure chain
+-- (exercises the `isTerm[s] = 0`, `outHead[s] := outHead[fail[s]]` arm of `bfsInnerStepCode`):
+-- state `[0, 1, 2, 3]` is non-terminal, fails to non-terminal `[1, 2, 3]`, which fails to
+-- terminal keyword `[2, 3]`.
+private def nonTermChainInp : Input :=
+  ⟨6, [[0, 1, 2, 3, 4], [1, 2, 3, 5], [2, 3]], [0, 1, 2, 3]⟩
+
+#guard (evalSearch 16 nonTermChainInp).map Prod.fst = some [4, 2]
+#guard checkSearch 16 nonTermChainInp
+
 -- Boundary cases: empty text, empty pattern list, and `σ = 0`.
 #guard checkSearch 16 ⟨6, ushersInp.patterns, []⟩
 #guard checkSearch 16 ⟨4, [], [1, 2, 3]⟩
@@ -183,5 +193,12 @@ example :
       t ≤ searchTime unaryInp :=
   searchProgram_executesList unaryInp 16 (by decide)
     (Fits.of_le (by decide) (wordBound_le unaryInp))
+
+example :
+    ∃ t, ExecutesList 16 searchProgram (.init nonTermChainInp.encode)
+        (encodeOccurrences (occurrences nonTermChainInp.patterns nonTermChainInp.text)) t ∧
+      t ≤ searchTime nonTermChainInp :=
+  searchProgram_executesList nonTermChainInp 16 (by decide)
+    (Fits.of_le (by decide) (wordBound_le nonTermChainInp))
 
 end Cslib.Algorithms.Lean.AhoCorasick.Tests

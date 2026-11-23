@@ -124,7 +124,7 @@ theorem step_eq_nextMove {P : List (List α)} {f : List α → List α} {u : Lis
 
 /-- The operating cycles of Algorithm 1 of `[AhoCorasick1975]` on the remaining text `t`, from
 state `u` after `i` symbols. -/
-def scanLoop (P : List (List α)) (M : Machine α) :
+private def scanLoop (P : List (List α)) (M : Machine α) :
     List α → ℕ → List α → List (ℕ × List α)
   | [], _, _ => []
   | a :: t, i, u =>
@@ -137,7 +137,7 @@ each keyword occurrence as its end position and the keyword. -/
 def scan (P : List (List α)) (M : Machine α) (t : List α) : List (ℕ × List α) :=
   scanLoop P M t 0 []
 
-theorem scanLoop_eq_occurrences {P : List (List α)} {M : Machine α} (hM : M.IsValid P)
+private theorem scanLoop_eq_occurrences {P : List (List α)} {M : Machine α} (hM : M.IsValid P)
     (w t : List α) :
     occurrences P w ++ scanLoop P M t w.length (longestNodeSuffix P w) =
       occurrences P (w ++ t) := by
@@ -167,20 +167,20 @@ theorem scan_eq_occurrences {P : List (List α)} {M : Machine α} (hM : M.IsVali
 
 /-- Record the failure state `f` of the state `v`, and its output (`[AhoCorasick1975]`, the last
 two statements of Algorithm 3). -/
-def Machine.set (P : List (List α)) (M : Machine α) (v f : List α) : Machine α where
+private def Machine.set (P : List (List α)) (M : Machine α) (v f : List α) : Machine α where
   fail w := if w = v then f else M.fail w
   out w := if w = v then (if v ∈ P then [v] else []) ++ M.out f else M.out w
 
 /-- The tables before Algorithm 3's main loop: the start state and the states of depth `1` fail to
 the start state, and the output of a state of depth `1` is the state itself if it is a keyword. -/
-def initMachine (P : List (List α)) : Machine α where
+private def initMachine (P : List (List α)) : Machine α where
   fail _ := []
   out w := if w ≠ [] ∧ w ∈ P then [w] else []
 
 /-- One round of Algorithm 3 of `[AhoCorasick1975]` (depth `d` to depth `d + 1`): for each keyword
 `p` longer than `d`, compute the failure state of `p.take (d + 1)` by one operating cycle from the
 failure state of `p.take d`. -/
-def level (P : List (List α)) (d : ℕ) : List (List α) → Machine α → Machine α
+private def level (P : List (List α)) (d : ℕ) : List (List α) → Machine α → Machine α
   | [], M => M
   | p :: ps, M =>
     if h : d < p.length then
@@ -190,16 +190,16 @@ def level (P : List (List α)) (d : ℕ) : List (List α) → Machine α → Mac
       level P d ps M
 
 /-- Rounds `d, d + 1, …, d + n - 1` of Algorithm 3. -/
-def buildLoop (P : List (List α)) : ℕ → ℕ → Machine α → Machine α
+private def buildLoop (P : List (List α)) : ℕ → ℕ → Machine α → Machine α
   | 0, _, M => M
   | n + 1, d, M => buildLoop P n (d + 1) (level P d P M)
 
 /-- The length of the longest keyword. -/
-def maxLength (P : List (List α)) : ℕ :=
+private def maxLength (P : List (List α)) : ℕ :=
   P.foldr (fun p m => max p.length m) 0
 
 omit [DecidableEq α] in
-theorem length_le_maxLength {P : List (List α)} {p : List α} (hp : p ∈ P) :
+private theorem length_le_maxLength {P : List (List α)} {p : List α} (hp : p ∈ P) :
     p.length ≤ maxLength P := by
   induction P with
   | nil => exact absurd hp List.not_mem_nil
