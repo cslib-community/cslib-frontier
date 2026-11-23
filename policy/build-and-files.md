@@ -49,9 +49,10 @@ to validation machinery also need direct checks of the changed behavior. The req
 checks source validation. A PR confined to allowlisted prose
 can skip the Lean job. Merge groups still run it. The HTTP origin suite runs on main and on
 PR or queue changes outside the known Lean, bibliography and prose paths, and `lean-checks` skips
-its Lean-fixture Python tooling unit tests on PR and merge-group diffs confined to library/test/entry
-Lean modules, `references.bib`, `prose_path` and `manual/` Markdown (`source-checks`, `main` pushes
-and manual runs always run them). Set the repository
+its Lean-fixture Python tooling unit tests on PR and merge-group diffs confined to library, test and
+result-entry Lean modules (excluding `CslibFrontierResults/Registry.lean`), `references.bib`,
+`prose_path` and `manual/` Markdown (`main` pushes and manual runs always run them, and
+`source-checks` always runs the non-Lean Python unit tests). Set the repository
 variable `FORCE_FULL_CI=1` to schedule full selection on every event. On `pull_request` and
 `merge_group` runs, `lean-checks` runs declaration linting scoped to affected library modules
 (`scripts/quick_check.py --lint-only`, falling back to whole-library `lake lint` when changes are

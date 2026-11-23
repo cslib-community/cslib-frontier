@@ -14,8 +14,9 @@ def prose_path(path: str) -> bool:
 
 
 def manual_markdown_path(path: str) -> bool:
-    """Markdown pages under `manual/` (excluding `manual/**/data/*` code and JSON fixtures)."""
-    return re.fullmatch(r"manual/(?:[a-z][a-z0-9-]*/)?[A-Za-z0-9_-]+\.md", path) is not None
+    """Markdown pages under `manual/` (excluding `manual/**/data/*` code and fixtures)."""
+    return re.fullmatch(
+        r"manual/(?:(?!data/)[a-z][a-z0-9-]*/)?[A-Za-z0-9_-]+\.md", path) is not None
 
 
 def classify(event: str, paths: list[str]) -> tuple[bool, bool, bool]:

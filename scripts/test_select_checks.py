@@ -32,7 +32,8 @@ class SelectionTests(unittest.TestCase):
         for path in ("lakefile.toml", "lake-manifest.json", "lean-toolchain",
                      "tools/cache-origin/main.go", "scripts/test_cache_dashboard_frontend.cjs",
                      "scripts/check_hygiene.py", "scripts/timem_baseline.json",
-                     "manual/data/build_latex.py", "manual/workflows/data/models-excerpts.json",
+                     "manual/data/build_latex.py", "manual/data/notes.md",
+                     "manual/workflows/data/models-excerpts.json",
                      "guide/Guide/Example.lean", ".github/workflows/lean_action_ci.yml",
                      "policy/nested/unknown.md"):
             self.assertEqual(classify("pull_request", ["README.md", path]), (True, True, True))

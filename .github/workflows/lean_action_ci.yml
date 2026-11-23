@@ -329,9 +329,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           DISABLE_BUILD_HANDOFF: ${{ vars.DISABLE_BUILD_HANDOFF }}
         run: python3 -B scripts/cache_handoff.py restore
-      # Build the library, the `CslibFrontierTests` library test driver (`lake test --wfail --iofail`),
-      # and the Lean helper executables in one Lake DAG so ready test modules backfill idle cores
-      # while long-pole library stragglers finish.
+      # Build the library, the `CslibFrontierTests` library test driver, and the Lean helper
+      # executables in one Lake DAG so ready test modules backfill idle cores while long-pole
+      # library stragglers finish.
       - name: "lake build"
         id: build
         run: lake build --wfail --iofail @cslib-frontier CslibFrontierTests @/mk_all @/checkInitImports @mathlib/lint-style
