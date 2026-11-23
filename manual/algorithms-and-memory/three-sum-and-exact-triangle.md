@@ -239,48 +239,41 @@ enormous interpreter benchmark.
 
 Chan, Itakura, Ma and Yu (STOC submission 1421, `[ChanItakuraMaYu2026]`) reach integer 3SUM
 through selected entries of the ranked subset convolution instead of selected-entries matrix
-multiplication. Pure commutative-ring correctness lives in `CslibFrontier.Algorithms.Lean.TrimmedYates`
-(namespace `Cslib.Algorithms.Lean.TrimmedYates`), and the standard unit-cost Word-RAM program and
-Theorem 2.2 running-time bound live in `CslibFrontier.Algorithms.WordRAM.TrimmedYates` (namespace
-`Cslib.Algorithms.WordRAM.TrimmedYates`). The hashing reduction from 3SUM (Theorem 2.3) and the
+multiplication. Their Theorem 2.2 is formalized in the unit-cost time monad `TimeM`, not on the
+Word-RAM: import `CslibFrontier.Algorithms.Lean.TrimmedYates`, namespace
+`Cslib.Algorithms.Lean.TrimmedYates`. The hashing reduction from 3SUM (Theorem 2.3) and the
 other endpoints of the submission are open in
 [#4667](https://github.com/cslib-community/cslib-frontier/issues/4667).
 
-In the pure specification, `f g : Finset ι → R` take values in a commutative ring on a
-duplicate-free coordinate list `l` of length `d` at threshold `s`. `solve l s f g Cs` runs
-`preprocess` once, keeping every stage of Yates's passes on subsets of `l` with at most `s`
-elements, and then `query` for each query set `C`, running the passes only on subsets of `C` with
-at least `s` elements and reading smaller sets from the preprocessed stages. `query_preprocess`
-proves that a query returns `coveringProduct f g C` whenever `C ⊆ l.toFinset` and `s ≤ #C` via
-`coveringProduct_eq_subsetMobius` (`CslibFrontier.Foundations.BooleanAnalysis.CoveringProduct`); for
-ranked inputs supported on sizes `t₁` and `t₂` with `#C = t₁ + t₂`, `solve_eq_subsetConvolution`
-gives `[subsetConvolution f g C | C ∈ Cs]`.
+The inputs are look-up functions `f g : Finset ι → R` into a commutative ring, the coordinates
+a duplicate-free list `l` of length `d`, and a threshold `s`. `solveM l s f g Cs` runs
+`preprocessM` once, which keeps every stage of Yates's passes on the subsets of `l` with at most
+`s` elements, and then `queryM` for each query set, which runs the passes only on the subsets
+of the query with at least `s` elements and reads smaller sets from the preprocessed stages.
+`ret_queryM_preprocessM` proves that a query returns `coveringProduct f g C` whenever
+`C ⊆ l.toFinset` and `s ≤ #C`; the identity behind it is
+`coveringProduct_eq_subsetMobius` in `CslibFrontier.Foundations.BooleanAnalysis.CoveringProduct`.
+For ranked inputs, supported on sets of sizes `t₁` and `t₂`, with `#C = t₁ + t₂`,
+`ret_solveM` gives the subset convolutions `subsetConvolution f g C`. `time_solveM` is the exact
+tick count `3 (d + 1) (∑_{j ≤ s} (d choose j) + |Cs| ∑_{s ≤ j ≤ 2t} (2t choose j))` for
+queries of size `2t`, derived from the program by `time_tabulateM` and `time_stagesM`.
 
-On `Basis.standard` Word-RAM, `Instance` encodes `d`, `s`, sparse `(set, signed weight)` entry
-lists `leftEntries` and `rightEntries` (`n = inst.numEntries`), and `d`-bit query masks `queries`.
-`program` (`Program .standard 56`) builds depth-`d` binary tries in flat memory, enumerates the
-low subsets (`#X ≤ s`) and each query's high subsets (`X ⊆ C`, `s ≤ #X`) directly without scanning
-`2 ^ d` masks, and evaluates the trimmed passes using `Cslib.WordRAM.Signed` arithmetic.
-`computesListInTime_program` proves uniform `ComputesListInTime` for `coveringProduct` on all
-queries (answering `#C < s` directly from the preprocessed table), and `executesList_program`
-specializes to ranked inputs (`t₁ = t₂ = t` in Theorem 2.2) to bound the halting `ExecutesList`
-run from `State.init inst.encode` by
-`250 * (d + 1) ^ 2 * (n + lowCount d s + |queries| * highCount (t₁ + t₂) s)` instructions at
-explicit word width `w` satisfying `solveSpace` and `valueEnvelope` (`exec_solveFromTries_subsetConvolution`
-separates the `200 * (d + 1) ^ 2 * (lowCount d s + |Cs| * highCount (t₁ + t₂) s)` bound from
-pre-built input tries). The [tests](../../CslibFrontierTests/Algorithms/Lean/TrimmedYates.lean)
-check pure evaluation, ranked and negative-weight Word-RAM `ExecutesList` witnesses, short-query
-and empty-instance boundaries, and the unranked separation between covering product and subset
-convolution. Check a client with
+One tick computes one table cell: one input look-up, one product, or one Yates pass at one set
+with its dictionary reads. Enumerating cells, building dictionaries and loop control are
+uncharged; the module docstring lists the charges. Since the inputs are look-up functions, the
+paper's `n` term for storing the input sets does not appear. The
+[tests](../../CslibFrontierTests/Algorithms/Lean/TrimmedYates.lean) run `solveM` on `Fin 4` by
+kernel reduction, compare the answers and the tick count `210` with `ret_solveM` and
+`time_solveM`, and show that covering product and subset convolution differ on unranked inputs.
+Check a client with
 
 ```bash
-scripts/build.sh --wfail --iofail CslibFrontier.Algorithms.WordRAM.TrimmedYates CslibFrontierTests.Algorithms.Lean.TrimmedYates
+lake build --wfail CslibFrontier.Algorithms.Lean.TrimmedYates
+lake env lean CslibFrontierTests/Algorithms/Lean/TrimmedYates.lean
 ```
 
-If `executesList_program` does not apply, check the entry support hypotheses
-`∀ p ∈ inst.leftEntries, p.2 ≠ 0 → #p.1 = t₁`, that every `C ∈ inst.queries` has `#C = t₁ + t₂`
-with `inst.s ≤ t₁ + t₂`, and the address and signed-magnitude width bounds `Fits w (solveSpace ...)`
-and `Fits w (valueEnvelope inst.d inst.weightSum)`.
+If `ret_solveM` does not apply, check the support hypotheses `∀ A, f A ≠ 0 → #A = t₁`, that
+every query is a subset of `l.toFinset` with `t₁ + t₂` elements, and `s ≤ t₁ + t₂`.
 
 ## Conservative ordinary integer 3SUM
 

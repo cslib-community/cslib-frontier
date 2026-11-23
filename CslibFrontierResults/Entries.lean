@@ -6009,7 +6009,8 @@ register_result "selected-entries-subset-convolution" where
   topic := "algorithms"
   sources := [
     { paper := ChanItakuraMaYu2026, theorem := "Theorem 2.2",
-      locator := "Section 2.1, p. 5" }
+      locator := "STOC submission 1421 (Nov. 3, 2026 manuscript), §2.1 Problem 2.1 & \
+        Theorem 2.2, p. 5; recurrences and word-RAM footnote 7, pp. 5–6" }
   ]
   theorems := [
     Cslib.Algorithms.WordRAM.TrimmedYates.exec_solveFromTries_subsetConvolution,
@@ -6018,12 +6019,19 @@ register_result "selected-entries-subset-convolution" where
   ]
   scope := "Standard unit-cost Word-RAM (Basis.standard) over signed integer weights at explicit \
     word width w, charging sparse input insertion, bounded-cardinality enumeration, depth-d \
-    binary trie indexing, signed arithmetic, and the final halt: \
-    250 * (d + 1)^2 * (n + sum_{j <= s} (d choose j) + |queries| * sum_{s <= j <= 2t} \
-    (2t choose j)) instructions from State.init inst.encode (and 200 * (d + 1)^2 * \
-    (sum_{j <= s} (d choose j) + |queries| * sum_{s <= j <= 2t} (2t choose j)) from pre-built \
-    input tries). Pure commutative-ring correctness is in \
-    CslibFrontier.Algorithms.Lean.TrimmedYates."
+    binary trie indexing, signed arithmetic, and halting. computesListInTime_program gives \
+    unconditional Program.ComputesListInTime for general coveringProduct on all queries under \
+    Instance.FitsWidth in 250 * (d + 1)^2 * (n + sum_{j <= s} (d choose j) + |queries| * \
+    max 1 (highPeak s queries)) instructions (covering #C < s directly from preprocessing). \
+    executesList_program (initialized from State.init inst.encode, 250 * (d + 1)^2 * (n + \
+    sum_{j <= s} (d choose j) + |queries| * sum_{s <= j <= t₁ + t₂} (t₁ + t₂ choose j))) and \
+    exec_solveFromTries_subsetConvolution (from pre-built input tries, 200 * (d + 1)^2 * \
+    (sum_{j <= s} (d choose j) + |Cs| * sum_{s <= j <= t₁ + t₂} (t₁ + t₂ choose j))) \
+    specialize to ranked integer subsetConvolution when leftEntries/rightEntries have nonzero \
+    ranks t₁, t₂ (Theorem 2.2 sets t₁ = t₂ = t), every query C has size t₁ + t₂, s <= t₁ + t₂, \
+    and w satisfies explicit address (Fits w (solveSpace ...)) and signed-magnitude (Fits w \
+    (valueEnvelope d weightSum)) premises. Pure commutative-ring correctness is in \
+    CslibFrontier.Algorithms.Lean.TrimmedYates; Theorem 2.3 (3SUM hashing) remains open (#4667)."
 
 register_result "twosat-linear-timem" where
   title := "Aspvall–Plass–Tarjan linear-time 2-SAT solver and witness construction in TimeM"
