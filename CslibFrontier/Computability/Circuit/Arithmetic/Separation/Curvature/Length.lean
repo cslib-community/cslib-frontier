@@ -214,7 +214,8 @@ theorem meanLength_add (h h' : ℤ × ℤ) :
   have h1 : (translateDist W 0 (h + h')).rms ≤
       (translateDist W 0 h + translateDist W h (h + h')).rms :=
     rms_mono (H.bounded _ _) ((H.bounded _ _).add (H.bounded _ _))
-      (fun n b i k => H.nonneg _ _ _ _) (Eventually.of_forall fun n b i _ k _ => H.triangle _ _ _ _ _)
+      (fun n b i k => H.nonneg _ _ _ _)
+      (Eventually.of_forall fun n b i _ k _ => H.triangle _ _ _ _ _)
   have h2 := rms_add_le (H.bounded 0 h) (H.bounded h (h + h'))
   rw [H.rms_translateDist' h, add_sub_cancel_left] at h2
   exact h1.trans h2

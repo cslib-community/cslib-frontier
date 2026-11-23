@@ -282,7 +282,8 @@ distances of a midpoint of two of its points. -/
 theorem exists_proj (F : Set Y) (hF : IsClosed F) (hne : F.Nonempty)
     (hconv : ∀ x ∈ F, ∀ v ∈ F, ∀ m, dist x m = dist x v / 2 → dist m v = dist x v / 2 → m ∈ F)
     (y : Y) :
-    ∃ P ∈ F, (∀ q ∈ F, dist y P ≤ dist y q) ∧ ∀ q ∈ F, dist y P ^ 2 + dist P q ^ 2 ≤ dist y q ^ 2 := by
+    ∃ P ∈ F, (∀ q ∈ F, dist y P ≤ dist y q) ∧
+      ∀ q ∈ F, dist y P ^ 2 + dist P q ^ 2 ≤ dist y q ^ 2 := by
   obtain ⟨P, hP, h⟩ := exists_add_mul_dist_sq_le F hF hne
     (fun x hx v hv => hconv x hx v hv _ (dist_mid_left x v) (dist_mid_right x v))
     (fun q => dist y q ^ 2) (by fun_prop) (fun _ => sq_nonneg _) one_pos

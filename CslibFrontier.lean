@@ -1195,6 +1195,10 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.RelativeRankUpper
 public import CslibFrontier.Computability.Circuit.Arithmetic.Rigidity
 public import CslibFrontier.Computability.Circuit.Arithmetic.RootFormula
 public import CslibFrontier.Computability.Circuit.Arithmetic.SPCircuit
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Length
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.MidpointTerm
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Window
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.WindowMean
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinear
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinearGadget
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinearLowerBound
@@ -7892,6 +7896,8 @@ public import CslibFrontier.Foundations.FieldTheory.Finite.Subfield
 public import CslibFrontier.Foundations.FieldTheory.Finite.Trinomial
 public import CslibFrontier.Foundations.FieldTheory.Finite.UnitSum
 public import CslibFrontier.Foundations.FieldTheory.TensorBasis
+public import CslibFrontier.Foundations.Geometry.CAT0.Basic
+public import CslibFrontier.Foundations.Geometry.CAT0.Toolkit
 public import CslibFrontier.Foundations.Geometry.Euclidean.Angle.Cap
 public import CslibFrontier.Foundations.Geometry.Euclidean.Angle.Unoriented.Basic
 public import CslibFrontier.Foundations.Geometry.FiniteLineAvoidance
