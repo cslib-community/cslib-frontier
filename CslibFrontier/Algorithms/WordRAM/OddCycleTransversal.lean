@@ -175,107 +175,7 @@ private theorem splitCount_sq (n : ℕ) :
 
 /-! ### Client reduction and frame helpers for `Memory.Prog` -/
 
-@[client_simps]
-private theorem fst_runClient_read (w : ℕ) (s : (Memory.spec w).State) (a : ℕ) :
-    ((Memory.spec w).runClient s (Memory.read a)).1 = s.mem a :=
-  rfl
-
-@[client_simps]
-private theorem fst_snd_runClient_read (w : ℕ) (s : (Memory.spec w).State) (a : ℕ) :
-    ((Memory.spec w).runClient s (Memory.read a)).2.1 = s :=
-  rfl
-
-@[client_simps]
-private theorem fst_runClient_write (w : ℕ) (s : (Memory.spec w).State) (a v : ℕ) :
-    ((Memory.spec w).runClient s (Memory.write a v)).1 = () :=
-  rfl
-
-@[client_simps]
-private theorem fst_snd_runClient_write (w : ℕ) (s : (Memory.spec w).State) (a v : ℕ) :
-    ((Memory.spec w).runClient s (Memory.write a v)).2.1 =
-      ⟨Function.update s.mem a v, s.frontier⟩ :=
-  rfl
-
-@[client_simps]
-private theorem fst_runClient_ite {α : Type} (w : ℕ) (s : (Memory.spec w).State)
-    (c : Prop) [Decidable c] (p₁ p₂ : (Memory.spec w).Client α) :
-    ((Memory.spec w).runClient s (if c then p₁ else p₂)).1 =
-      if c then (Memory.spec w).clientResult s p₁ else (Memory.spec w).clientResult s p₂ :=
-  apply_ite (fun p => ((Memory.spec w).runClient s p).1) c p₁ p₂
-
-@[client_simps]
-private theorem fst_snd_runClient_ite {α : Type} (w : ℕ) (s : (Memory.spec w).State)
-    (c : Prop) [Decidable c] (p₁ p₂ : (Memory.spec w).Client α) :
-    ((Memory.spec w).runClient s (if c then p₁ else p₂)).2.1 =
-      if c then (Memory.spec w).clientState s p₁ else (Memory.spec w).clientState s p₂ :=
-  apply_ite (fun p => ((Memory.spec w).runClient s p).2.1) c p₁ p₂
-
-local elab "simp_client" : tactic => do
-  Lean.Elab.Tactic.evalTactic
-    (← `(tactic| all_goals (dsimp -failIfUnchanged only;
-                            simp -failIfUnchanged only [*, ↓reduceIte, client_simps])))
-  for _ in [:6] do
-    let gs ← Lean.Elab.Tactic.getGoals
-    if gs.isEmpty then break
-    let mut progress := false
-    let mut newGs : List Lean.MVarId := []
-    for g in gs do
-      Lean.Elab.Tactic.setGoals [g]
-      try
-        Lean.Elab.Tactic.evalTactic
-          (← `(tactic| (dsimp -failIfUnchanged only;
-                        split_ifs <;>
-                          simp -failIfUnchanged only [*, ↓reduceIte, client_simps])))
-        progress := true
-        newGs := newGs ++ (← Lean.Elab.Tactic.getGoals)
-      catch _ =>
-        newGs := newGs ++ [g]
-    Lean.Elab.Tactic.setGoals newGs
-    if !progress then break
-
-private def PreservesAt (a : ℕ) {α : Type} (p : Memory.Prog α) : Prop :=
-  ∀ s, ((Memory.spec 0).clientState s p).mem a = s.mem a
-
-private theorem preservesAt_pure (a : ℕ) {α : Type} (x : α) :
-    PreservesAt a (pure x : Memory.Prog α) :=
-  fun _ => rfl
-
-private theorem preservesAt_read (a b : ℕ) :
-    PreservesAt a (Memory.read b) :=
-  fun _ => rfl
-
-private theorem preservesAt_write {a b : ℕ} (v : ℕ) (hne : a ≠ b) :
-    PreservesAt a (Memory.write b v) := fun s => by
-  change Function.update s.mem b v a = s.mem a
-  exact Function.update_of_ne hne v s.mem
-
-private theorem preservesAt_bind {a : ℕ} {α β : Type} {p : Memory.Prog α} {k : α → Memory.Prog β}
-    (hp : PreservesAt a p) (hk : ∀ x, PreservesAt a (k x)) :
-    PreservesAt a (p >>= k) := fun s => by
-  rw [StateTransitionSpec.clientState_bind, hk, hp]
-
-private theorem preservesAt_ite {a : ℕ} {α : Type} (c : Prop) [Decidable c]
-    {p₁ p₂ : Memory.Prog α} (h₁ : PreservesAt a p₁) (h₂ : PreservesAt a p₂) :
-    PreservesAt a (if c then p₁ else p₂) := by
-  split_ifs
-  · exact h₁
-  · exact h₂
-
-private theorem preservesAt_iterate {a : ℕ} {δ σ : Type} {body : δ × σ → Memory.Prog σ} {d : δ}
-    (hstep : ∀ st, PreservesAt a (body (d, st))) (m : ℕ) (st₀ : σ) :
-    PreservesAt a (iterate body d m st₀) := fun s =>
-  iterate_invariant_of body d (fun _ _ t => t.mem a = s.mem a)
-    (fun _ st t ht => (hstep st t).trans ht) rfl
-
-private theorem preservesAt_iterate_nat {a : ℕ} {δ : Type} {body : δ × ℕ → Memory.Prog ℕ} {d : δ}
-    {m : ℕ} (hstep : ∀ i < m, PreservesAt a (body (d, i)) ∧
-      ∀ s, (Memory.spec 0).clientResult s (body (d, i)) = i + 1) :
-    PreservesAt a (iterate body d m 0) := fun s =>
-  (iterate_invariant_of body d (fun rem (i : ℕ) t => i + rem = m ∧ t.mem a = s.mem a)
-    (fun rem i t ⟨hsum, hmem⟩ => by
-      obtain ⟨hp, hr⟩ := hstep i (by omega)
-      exact ⟨by rw [hr]; omega, (hp t).trans hmem⟩)
-    ⟨Nat.zero_add _, rfl⟩).2
+attribute [local client_simps] runClient_read runClient_write clientState_map
 
 private theorem preservesAt_iterate_fst {a : ℕ} {δ β : Type}
     {body : δ × (ℕ × β) → Memory.Prog (ℕ × β)} {d : δ}
@@ -418,10 +318,17 @@ private theorem readSplitCap_realizes :
             Nat.mul_lt_mul_of_pos_right hu (by omega)
           omega))
 
+private theorem clientState_readSplitCap (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
+    (Memory.spec 0).clientState s (readSplitCap d) = s := by
+  unfold readSplitCap
+  rw [clientState_bind_read]
+  dsimp only
+  split_ifs <;> try rfl
+  all_goals rw [clientState_bind_read]; split_ifs <;> rfl
+
 private theorem preservesAt_readSplitCap (a : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) :
     PreservesAt a (readSplitCap d) := fun s => by
-  unfold readSplitCap
-  simp_client
+  rw [clientState_readSplitCap]
 
 private def readResCap (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog ℕ := do
   let cap ← readSplitCap d
@@ -483,6 +390,12 @@ private theorem bfsInnerStep_realizes :
     have hsq := splitCount_sq d.1.1.1.1
     first | omega | (apply hw.of_le; omega)
 
+private theorem clientResult_bfsInnerStep (d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ) (s : Memory.State) :
+    (Memory.spec 0).clientResult s (bfsInnerStep d) = d.2 + 1 := by
+  unfold bfsInnerStep
+  rw [clientResult_bind_read, clientResult_bind]
+  split_ifs <;> simp only [clientResult_bind_write, clientResult_pure]
+
 private def bfsMidStep (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog ℕ := do
   let n := d.1.1.1
   let m := d.1.1.2
@@ -512,9 +425,16 @@ private theorem bfsMidStep_realizes :
   refine iterationSafe_of_stepInv _ _ w _
     (fun rem (v : ℕ) _ => v + rem = splitCount d.1.1.1) ?_ (Nat.zero_add _)
   intro rem v t hsum
-  dsimp -failIfUnchanged only [bfsInnerStep, octWorkspace, splitCount] at *
+  dsimp -failIfUnchanged only [octWorkspace, splitCount] at *
   refine ⟨⟨hw, hl, hu, by omega⟩, ?_⟩
-  simp_client <;> omega
+  rw [clientResult_bfsInnerStep]
+  omega
+
+private theorem clientResult_bfsMidStep (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
+    (Memory.spec 0).clientResult s (bfsMidStep d) = d.2 + 1 := by
+  unfold bfsMidStep
+  rw [clientResult_bind_read]
+  split_ifs <;> simp only [clientResult_bind, clientResult_pure]
 
 private def bfsLayerStep (d : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ := do
   let n := d.1.1
@@ -539,9 +459,10 @@ private theorem bfsLayerStep_realizes :
   refine iterationSafe_of_stepInv _ _ w _
     (fun rem (u : ℕ) _ => u + rem = splitCount d.1.1) ?_ (Nat.zero_add _)
   intro rem u t hsum
-  dsimp -failIfUnchanged only [bfsMidStep, octWorkspace, splitCount] at *
+  dsimp -failIfUnchanged only [octWorkspace, splitCount] at *
   refine ⟨⟨hw, hl, by omega⟩, ?_⟩
-  simp_client <;> omega
+  rw [clientResult_bfsMidStep]
+  omega
 
 private def bfsProg (d : ℕ × ℕ) : Memory.Prog Unit := do
   let n := d.1
@@ -602,10 +523,8 @@ private theorem preservesAt_bfsProg {a : ℕ} {d : ℕ × ℕ}
         refine preservesAt_bind (preservesAt_write _
           (by dsimp only [parBase, distBase, splitCount] at ha hv ⊢; omega))
           fun _ => preservesAt_pure _ _
-      · unfold bfsInnerStep
-        simp_client
-    · unfold bfsMidStep
-      simp_client
+      · exact clientResult_bfsInnerStep _ s
+    · exact clientResult_bfsMidStep _ s
   · unfold bfsLayerStep
     simp only [client_simps]
 
@@ -695,6 +614,12 @@ private theorem augRoundStep_realizes :
   intro _ _ _ _
   exact ⟨hw, trivial⟩
 
+private theorem clientResult_augRoundStep (d : (ℕ × ℕ) × ℕ) (s : Memory.State) :
+    (Memory.spec 0).clientResult s (augRoundStep d) = d.2 + 1 := by
+  unfold augRoundStep
+  rw [clientResult_bind, clientResult_bind_read]
+  split_ifs <;> simp only [clientResult_bind, clientResult_pure]
+
 private def extractSepStep (d : ℕ × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
   let n := d.1
   let v := d.2.1
@@ -724,6 +649,13 @@ private theorem extractSepStep_realizes :
     have hsq := splitCount_sq d.1
     first | omega | (apply hw.of_le; omega)
 
+private theorem clientResult_extractSepStep (d : ℕ × (ℕ × ℕ)) (s : Memory.State) :
+    ((Memory.spec 0).clientResult s (extractSepStep d)).1 = d.2.1 + 1 ∧
+      ((Memory.spec 0).clientResult s (extractSepStep d)).2 ≤ d.2.2 + 1 := by
+  unfold extractSepStep
+  rw [clientResult_bind_read, clientResult_bind_read, clientResult_bind_read]
+  split_ifs <;> simp only [clientResult_bind_write, clientResult_pure] <;> exact ⟨trivial, by omega⟩
+
 private def minSepProg (d : ℕ × ℕ) : Memory.Prog ℕ := do
   let n := d.1
   let M := splitCount n
@@ -747,15 +679,18 @@ private theorem minSepProg_realizes :
   · refine iterationSafe_of_stepInv _ _ w _
       (fun rem (r : ℕ) _ => r + rem = d.1) ?_ (Nat.zero_add _)
     intro rem r t hsum
-    dsimp -failIfUnchanged only [augRoundStep, octWorkspace] at *
+    dsimp only
     refine ⟨⟨h, by omega⟩, ?_⟩
-    simp_client <;> omega
+    rw [clientResult_augRoundStep]
+    omega
   · refine iterationSafe_of_stepInv _ _ w _
       (fun rem (vc : ℕ × ℕ) _ => vc.1 + rem = d.1 ∧ vc.2 ≤ vc.1) ?_ ⟨Nat.zero_add _, le_rfl⟩
     intro rem vc t ⟨hsum, hc⟩
-    dsimp -failIfUnchanged only [extractSepStep, octWorkspace] at *
+    dsimp only
     refine ⟨⟨h, by omega, hc⟩, ?_⟩
-    simp_client <;> exact ⟨by omega, by omega⟩
+    obtain ⟨h1, h2⟩ := clientResult_extractSepStep (d.1, vc) t
+    dsimp only at h1 h2
+    exact ⟨by omega, by omega⟩
 
 private theorem preservesAt_minSepProg {a : ℕ} {d : ℕ × ℕ} (ha : a < flowBase d.1) :
     PreservesAt a (minSepProg d) := by
@@ -808,6 +743,13 @@ private theorem buildWListStep_realizes :
     dsimp -failIfUnchanged only [octWorkspace, wBase, wListBase] at *
     first | omega | (apply hw.of_le; omega)
 
+private theorem clientResult_buildWListStep (d : ℕ × (ℕ × ℕ)) (s : Memory.State) :
+    ((Memory.spec 0).clientResult s (buildWListStep d)).1 = d.2.1 + 1 ∧
+      ((Memory.spec 0).clientResult s (buildWListStep d)).2 ≤ d.2.2 + 1 := by
+  unfold buildWListStep
+  rw [clientResult_bind_read]
+  split_ifs <;> simp only [clientResult_bind_write, clientResult_pure] <;> exact ⟨trivial, by omega⟩
+
 private def buildWProg (d : ℕ × ℕ) : Memory.Prog ℕ := do
   let n := d.1
   let m := d.2
@@ -830,9 +772,11 @@ private theorem buildWProg_realizes :
   refine iterationSafe_of_stepInv _ _ w _
     (fun rem (vL : ℕ × ℕ) _ => vL.1 + rem = d.1 ∧ vL.2 ≤ vL.1) ?_ ⟨Nat.zero_add _, le_rfl⟩
   intro rem vL t ⟨hsum, hL⟩
-  dsimp -failIfUnchanged only [buildWListStep, octWorkspace] at *
+  dsimp only
   refine ⟨⟨hw, by omega, hL⟩, ?_⟩
-  simp_client <;> exact ⟨by omega, by omega⟩
+  obtain ⟨h1, h2⟩ := clientResult_buildWListStep (d.1, vL) t
+  dsimp only at h1 h2
+  exact ⟨by omega, by omega⟩
 
 private def unpackStep (d : ℕ × ℕ) : Memory.Prog ℕ := do
   let n := d.1
@@ -856,6 +800,12 @@ private theorem unpackStep_realizes :
     dsimp -failIfUnchanged only [octWorkspace, wListBase, digitBase, guessBase] at *
     first | omega | (apply hw.of_le; omega)
 
+private theorem clientResult_unpackStep (d : ℕ × ℕ) (s : Memory.State) :
+    (Memory.spec 0).clientResult s (unpackStep d) = d.2 + 1 := by
+  unfold unpackStep
+  rw [clientResult_bind_read, clientResult_bind_read]
+  split_ifs <;> simp only [clientResult_bind_write, clientResult_pure]
+
 private def unpackGuessProg (d : ℕ × ℕ) : Memory.Prog Unit := do
   let n := d.1
   let L := d.2
@@ -877,9 +827,10 @@ private theorem unpackGuessProg_realizes :
   refine iterationSafe_of_stepInv _ _ w _
     (fun rem (j : ℕ) _ => j + rem = d.2) ?_ (Nat.zero_add _)
   intro rem j t hsum
-  dsimp -failIfUnchanged only [unpackStep, octWorkspace] at *
+  dsimp only
   refine ⟨⟨hw, by omega⟩, ?_⟩
-  simp_client <;> omega
+  rw [clientResult_unpackStep]
+  omega
 
 private theorem preservesAt_unpackGuessProg {a : ℕ} {d : ℕ × ℕ} (ha : a < guessBase d.1) :
     PreservesAt a (unpackGuessProg d) := by
@@ -922,6 +873,15 @@ private theorem properInnerStep_realizes :
     dsimp -failIfUnchanged only [octWorkspace, wListBase, digitBase] at *
     first | omega | (apply hw.of_le; first | omega | nlinarith)
 
+private theorem clientResult_properInnerStep_fst (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ))
+    (s : Memory.State) :
+    ((Memory.spec 0).clientResult s (properInnerStep d)).1 = d.2.1 + 1 := by
+  unfold properInnerStep
+  rw [clientResult_bind_read, clientResult_bind_read]
+  split_ifs
+  · rw [clientResult_bind_read]; split_ifs <;> rfl
+  · rfl
+
 private def properOuterStep (d : ((ℕ × ℕ) × ℕ) × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
   let n := d.1.1.1
   let m := d.1.1.2
@@ -952,9 +912,18 @@ private theorem properOuterStep_realizes :
   refine iterationSafe_of_stepInv _ _ w _
     (fun rem (jok : ℕ × ℕ) _ => jok.1 + rem = d.1.2) ?_ (Nat.zero_add _)
   intro rem jok t hsum
-  dsimp -failIfUnchanged only [properInnerStep, octWorkspace] at *
+  dsimp only
   refine ⟨⟨hw, by omega⟩, ?_⟩
-  simp_client <;> omega
+  rw [clientResult_properInnerStep_fst]
+  dsimp only
+  omega
+
+private theorem clientResult_properOuterStep_fst (d : ((ℕ × ℕ) × ℕ) × (ℕ × ℕ))
+    (s : Memory.State) :
+    ((Memory.spec 0).clientResult s (properOuterStep d)).1 = d.2.1 + 1 := by
+  unfold properOuterStep
+  rw [clientResult_bind_read, clientResult_bind_read]
+  split_ifs <;> simp only [clientResult_bind, clientResult_pure]
 
 private def checkProperProg (d : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ := do
   let _ ← Memory.read 0
@@ -975,9 +944,11 @@ private theorem checkProperProg_realizes :
   refine iterationSafe_of_stepInv _ _ w _
     (fun rem (iok : ℕ × ℕ) _ => iok.1 + rem = d.2) ?_ (Nat.zero_add _)
   intro rem iok t hsum
-  dsimp -failIfUnchanged only [properOuterStep, octWorkspace] at *
+  dsimp only
   refine ⟨⟨hw, hL, by omega⟩, ?_⟩
-  simp_client <;> omega
+  rw [clientResult_properOuterStep_fst]
+  dsimp only
+  omega
 
 private theorem preservesAt_checkProperProg (a : ℕ) (d : (ℕ × ℕ) × ℕ) :
     PreservesAt a (checkProperProg d) := by
@@ -1029,6 +1000,15 @@ private theorem termInnerStep_realizes :
     dsimp -failIfUnchanged only [octWorkspace, wListBase, digitBase, flipBase, keepBase] at *
     first | omega | (apply hw.of_le; first | omega | nlinarith)
 
+private theorem clientResult_termInnerStep (d : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) (s : Memory.State) :
+    (Memory.spec 0).clientResult s (termInnerStep d) = d.2 + 1 := by
+  unfold termInnerStep
+  rw [clientResult_bind_read, clientResult_bind_read]
+  split_ifs <;> try rfl
+  all_goals
+    rw [clientResult_bind_read]
+    split_ifs <;> simp only [clientResult_bind_write, clientResult_pure]
+
 private def termOuterStep (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog ℕ := do
   let n := d.1.1.1
   let m := d.1.1.2
@@ -1058,9 +1038,16 @@ private theorem termOuterStep_realizes :
   refine iterationSafe_of_stepInv _ _ w _
     (fun rem (j : ℕ) _ => j + rem = d.1.2) ?_ (Nat.zero_add _)
   intro rem j t hsum
-  dsimp -failIfUnchanged only [termInnerStep, octWorkspace] at *
+  dsimp only
   refine ⟨⟨hw, by omega⟩, ?_⟩
-  simp_client <;> omega
+  rw [clientResult_termInnerStep]
+  omega
+
+private theorem clientResult_termOuterStep (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
+    (Memory.spec 0).clientResult s (termOuterStep d) = d.2 + 1 := by
+  unfold termOuterStep
+  rw [clientResult_bind_read, clientResult_bind_read]
+  split_ifs <;> simp only [clientResult_bind, clientResult_pure]
 
 private def buildTerminalsProg (d : (ℕ × ℕ) × ℕ) : Memory.Prog Unit := do
   let n := d.1.1
@@ -1083,9 +1070,10 @@ private theorem buildTerminalsProg_realizes :
   refine iterationSafe_of_stepInv _ _ w _
     (fun rem (v : ℕ) _ => v + rem = d.1.1) ?_ (Nat.zero_add _)
   intro rem v t hsum
-  dsimp -failIfUnchanged only [termOuterStep, octWorkspace] at *
+  dsimp only
   refine ⟨⟨hw, hL, by omega⟩, ?_⟩
-  simp_client <;> omega
+  rw [clientResult_termOuterStep]
+  omega
 
 private theorem preservesAt_buildTerminalsProg {a : ℕ} {d : (ℕ × ℕ) × ℕ}
     (ha : a < keepBase d.1.1) :
@@ -1130,6 +1118,13 @@ private theorem countDelStep_realizes :
     dsimp -failIfUnchanged only [octWorkspace, digitBase] at *
     first | omega | (apply hw.of_le; omega)
 
+private theorem clientResult_countDelStep (d : ℕ × (ℕ × ℕ)) (s : Memory.State) :
+    ((Memory.spec 0).clientResult s (countDelStep d)).1 = d.2.1 + 1 ∧
+      ((Memory.spec 0).clientResult s (countDelStep d)).2 ≤ d.2.2 + 1 := by
+  unfold countDelStep
+  rw [clientResult_bind_read]
+  split_ifs <;> simp only [clientResult_pure] <;> exact ⟨trivial, by omega⟩
+
 private def countDelProg (d : ℕ × ℕ) : Memory.Prog ℕ := do
   let _ ← Memory.read 0
   let res ← iterate countDelStep d.1 d.2 (0, 0)
@@ -1145,9 +1140,11 @@ private theorem countDelProg_realizes :
   refine iterationSafe_of_stepInv _ _ w _
     (fun rem (jc : ℕ × ℕ) _ => jc.1 + rem = d.2 ∧ jc.2 ≤ jc.1) ?_ ⟨Nat.zero_add _, le_rfl⟩
   intro rem jc t ⟨hsum, hc⟩
-  dsimp -failIfUnchanged only [countDelStep, octWorkspace] at *
+  dsimp only
   refine ⟨⟨hw, by omega, hc⟩, ?_⟩
-  simp_client <;> exact ⟨by omega, by omega⟩
+  obtain ⟨h1, h2⟩ := clientResult_countDelStep (d.1, jc) t
+  dsimp only at h1 h2
+  exact ⟨by omega, by omega⟩
 
 private theorem preservesAt_countDelProg (a : ℕ) (d : ℕ × ℕ) :
     PreservesAt a (countDelProg d) := by
@@ -1192,6 +1189,14 @@ private theorem commitStep_realizes :
     have hsq := splitCount_sq d.1
     first | omega | (apply hw.of_le; omega)
 
+private theorem clientResult_commitStep (d : ℕ × ℕ) (s : Memory.State) :
+    (Memory.spec 0).clientResult s (commitStep d) = d.2 + 1 := by
+  unfold commitStep
+  rw [clientResult_bind_read, clientResult_bind_read, clientResult_bind_read,
+    clientResult_bind_read, clientResult_bind_read]
+  dsimp only
+  split_ifs <;> simp only [clientResult_bind_write, clientResult_pure]
+
 private def commitLeafProg (n : ℕ) : Memory.Prog Unit := do
   let _ ← Memory.read 0
   let _ ← iterate commitStep n n 0
@@ -1206,9 +1211,10 @@ private theorem commitLeafProg_realizes :
   refine iterationSafe_of_stepInv _ _ w _
     (fun rem (v : ℕ) _ => v + rem = d) ?_ (Nat.zero_add _)
   intro rem v t hsum
-  dsimp -failIfUnchanged only [commitStep, octWorkspace] at *
+  dsimp only
   refine ⟨⟨h, by omega⟩, ?_⟩
-  simp_client <;> omega
+  rw [clientResult_commitStep]
+  omega
 
 private theorem preservesAt_commitLeafProg {a n : ℕ}
     (ha : a < sepBase n ∨ wBase n ≤ a) :
@@ -1220,10 +1226,14 @@ private theorem preservesAt_commitLeafProg {a n : ℕ}
   · unfold commitStep
     have hsep : a ≠ sepBase n + v := by dsimp only [sepBase, wBase] at ha ⊢; omega
     have hcol : a ≠ colBase n + v := by dsimp only [sepBase, colBase, wBase] at ha ⊢; omega
-    simp_client
-    all_goals simp only [Function.update_of_ne hsep, Function.update_of_ne hcol]
-  · unfold commitStep
-    simp_client
+    rw [clientState_bind_read, clientState_bind_read, clientState_bind_read,
+      clientState_bind_read, clientState_bind_read]
+    dsimp only
+    split_ifs <;>
+      (rw [clientState_bind_write, clientState_bind_write, clientState_pure]
+       dsimp only
+       rw [Function.update_of_ne hcol, Function.update_of_ne hsep])
+  · exact clientResult_commitStep (n, v) s
 
 private def leafProg (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog ℕ := do
   let n := d.1.1.1
@@ -1304,6 +1314,12 @@ private theorem incOdomStep_realizes :
     dsimp -failIfUnchanged only [octWorkspace, digitBase] at *
     first | omega | (apply hw.of_le; omega)
 
+private theorem clientResult_incOdomStep_fst (d : ℕ × (ℕ × ℕ)) (s : Memory.State) :
+    ((Memory.spec 0).clientResult s (incOdomStep d)).1 = d.2.1 + 1 := by
+  unfold incOdomStep
+  rw [clientResult_bind_read]
+  split_ifs <;> simp only [clientResult_bind_write, clientResult_pure]
+
 private def incOdomProg (d : ℕ × ℕ) : Memory.Prog ℕ := do
   let _ ← Memory.read 0
   let res ← iterate incOdomStep d.1 d.2 (0, 1)
@@ -1323,9 +1339,11 @@ private theorem incOdomProg_realizes :
   refine iterationSafe_of_stepInv _ _ w _
     (fun rem (jc : ℕ × ℕ) _ => jc.1 + rem = d.2) ?_ (Nat.zero_add _)
   intro rem jc t hsum
-  dsimp -failIfUnchanged only [incOdomStep, octWorkspace] at *
+  dsimp only
   refine ⟨⟨hw, by omega⟩, ?_⟩
-  simp_client <;> omega
+  rw [clientResult_incOdomStep_fst]
+  dsimp only
+  omega
 
 private def guessStep (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) := do
   let _ ← Memory.read 0
@@ -1385,7 +1403,9 @@ private theorem incOdomProg_base3At (n L : ℕ) (s : Memory.State) :
       have hdj : t.mem (digitBase n + jc.1) = s.mem (digitBase n + jc.1) := habove jc.1 le_rfl
       by_cases hc : jc.2 = 1
       · by_cases hlt : t.mem (digitBase n + jc.1) < 2
-        · simp only [client_simps, hc, hlt, ↓reduceIte]
+        · rw [clientResult_bind_read, clientState_bind_read, ite_eq_left hc, ite_eq_left hlt,
+            clientResult_bind_write, clientState_bind_write, clientResult_pure, clientState_pure]
+          dsimp only
           have hpre : base3At (Function.update t.mem (digitBase n + jc.1)
               (t.mem (digitBase n + jc.1) + 1)) (digitBase n) jc.1 =
               base3At t.mem (digitBase n) jc.1 :=
@@ -1400,7 +1420,9 @@ private theorem incOdomProg_base3At (n L : ℕ) (s : Memory.State) :
             rw [← hdj]; exact Nat.min_eq_left (by omega)
           rw [hmin1, hmin0, add_mul, one_mul]
           omega
-        · simp only [client_simps, hc, hlt, ↓reduceIte]
+        · rw [clientResult_bind_read, clientState_bind_read, ite_eq_left hc, ite_eq_right hlt,
+            clientResult_bind_write, clientState_bind_write, clientResult_pure, clientState_pure]
+          dsimp only
           have hpre : base3At (Function.update t.mem (digitBase n + jc.1) 0)
               (digitBase n) jc.1 = base3At t.mem (digitBase n) jc.1 :=
             base3At_congr fun i hi => Function.update_of_ne (by omega) _ _
@@ -1414,7 +1436,9 @@ private theorem incOdomProg_base3At (n L : ℕ) (s : Memory.State) :
           rw [hmin0]
           omega
       · have hc0 : jc.2 = 0 := by omega
-        simp only [client_simps, hc, ↓reduceIte]
+        rw [clientResult_bind_read, clientState_bind_read, ite_eq_right hc,
+          clientResult_pure, clientState_pure]
+        dsimp only
         refine ⟨by omega, by omega, fun i hi => habove i (by omega), ?_⟩
         simp only [base3At, hdj, zero_mul, add_zero]
         rw [hc0, zero_mul, add_zero] at hval
@@ -1455,9 +1479,20 @@ private theorem compressProg_realizes :
   · intro st t _ hg _
     refine ⟨⟨hw, hL⟩, trivial, ?_⟩
     have hlt := base3At_lt t.mem (digitBase d.1.1.1) d.2
-    dsimp only [guessStep]
     by_cases h0 : st.2 = 0
-    · simp only [h0, ↓reduceIte, hg, client_simps]
+    · have hres : ((Memory.spec 0).clientResult t (guessStep (d, st))).1 =
+          (Memory.spec 0).clientResult ((Memory.spec 0).clientState t (leafProg d))
+            (incOdomProg (d.1.1.1, d.2)) := by
+        unfold guessStep
+        rw [clientResult_bind_read, ite_eq_left h0, clientResult_bind, clientResult_bind,
+          clientResult_pure]
+      have hst : (Memory.spec 0).clientState t (guessStep (d, st)) =
+          (Memory.spec 0).clientState ((Memory.spec 0).clientState t (leafProg d))
+            (incOdomProg (d.1.1.1, d.2)) := by
+        unfold guessStep
+        rw [clientState_bind_read, ite_eq_left h0, clientState_bind, clientState_bind,
+          clientState_pure]
+      simp only [hres, hst, hg, ↓reduceIte]
       have hpres : base3At ((Memory.spec 0).clientState t (leafProg d)).mem
           (digitBase d.1.1.1) d.2 = base3At t.mem (digitBase d.1.1.1) d.2 := by
         refine base3At_congr fun i hi => preservesAt_leafProg (Or.inr ⟨?_, ?_⟩) t
@@ -1470,7 +1505,17 @@ private theorem compressProg_realizes :
       split_ifs with hdone0
       · rw [hdone0, zero_mul, add_zero] at hodom_eq; omega
       · omega
-    · simp only [h0, ↓reduceIte, hg, client_simps]
+    · have hres : ((Memory.spec 0).clientResult t (guessStep (d, st))).1 =
+          (Memory.spec 0).clientResult t (incOdomProg (d.1.1.1, d.2)) := by
+        unfold guessStep
+        rw [clientResult_bind_read, ite_eq_right h0, clientResult_bind, clientState_pure,
+          clientResult_bind, clientResult_pure]
+      have hst : (Memory.spec 0).clientState t (guessStep (d, st)) =
+          (Memory.spec 0).clientState t (incOdomProg (d.1.1.1, d.2)) := by
+        unfold guessStep
+        rw [clientState_bind_read, ite_eq_right h0, clientState_bind, clientState_pure,
+          clientState_bind, clientState_pure]
+      simp only [hres, hst, hg, ↓reduceIte]
       have hodom := incOdomProg_base3At d.1.1.1 d.2 t
       dsimp only at hodom
       obtain ⟨hdone_le, hodom_eq⟩ := hodom
@@ -1511,6 +1556,14 @@ private theorem octStep_realizes :
     dsimp -failIfUnchanged only [octWorkspace, sepBase] at *
     first | exact hw | omega | (apply hw.of_le; omega)
 
+private theorem clientResult_octStep_fst (d : (ℕ × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
+    ((Memory.spec 0).clientResult s (octStep d)).1 = d.2.1 + 1 := by
+  unfold octStep
+  rw [clientResult_bind_read]
+  split_ifs <;> try rfl
+  rw [clientResult_bind]
+  split_ifs <;> simp only [clientResult_bind, clientResult_pure]
+
 private def octProg (_ : Unit) : Memory.Prog ℕ := do
   let n ← Memory.read 1
   let k ← Memory.read 2
@@ -1536,48 +1589,16 @@ private theorem octProg_realizes :
   refine iterationSafe_of_stepInv _ _ w _
     (fun rem (ma : ℕ × ℕ) _ => ma.1 + rem = s.mem 1) ?_ (Nat.zero_add _)
   intro rem ma t hsum
-  dsimp -failIfUnchanged only [octStep, octWorkspace] at *
+  dsimp only
   refine ⟨⟨hw, by omega⟩, ?_⟩
-  simp_client <;> omega
+  rw [clientResult_octStep_fst]
+  dsimp only
+  omega
 
 /-! ### Admissibility (`ValidHistory`) and `memoryCost` bounds -/
 
 private abbrev MemReady (w n : ℕ) (s : Memory.State) : Prop :=
   Memory.WellFormed w s ∧ octWorkspace n ≤ s.frontier
-
-private theorem validHistory_iterate_nat {w : ℕ} {Inv : Memory.State → Prop} [MonotoneMemInv w Inv]
-    {δ : Type} {body : δ × ℕ → Memory.Prog ℕ} {d : δ}
-    (m i₀ : ℕ) (hstep : ∀ i, i < i₀ + m → ∀ t, Inv t →
-      (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t (body (d, i))) ∧
-        (Memory.spec 0).clientResult t (body (d, i)) = i + 1)
-    {s : Memory.State} (hinv : Inv s) :
-    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (iterate body d m i₀)) := by
-  induction m generalizing i₀ s with
-  | zero => exact validHistory_pure w s i₀
-  | succ m ih =>
-    obtain ⟨hv, hr⟩ := hstep i₀ (by omega) s hinv
-    refine validHistory_bind_step hv ?_
-    rw [hr]
-    exact ih (i₀ + 1) (fun i hi => hstep i (by omega)) (MonotoneMemInv.pres hinv hv)
-
-private theorem validHistory_iterate_fst {w : ℕ} {Inv : Memory.State → Prop} [MonotoneMemInv w Inv]
-    {δ β : Type} {body : δ × (ℕ × β) → Memory.Prog (ℕ × β)} {d : δ}
-    (m i₀ : ℕ) (b₀ : β) (hstep : ∀ i, i < i₀ + m → ∀ b t, Inv t →
-      (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t (body (d, (i, b)))) ∧
-        ((Memory.spec 0).clientResult t (body (d, (i, b)))).1 = i + 1)
-    {s : Memory.State} (hinv : Inv s) :
-    (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (iterate body d m (i₀, b₀))) := by
-  induction m generalizing i₀ b₀ s with
-  | zero => exact validHistory_pure w s (i₀, b₀)
-  | succ m ih =>
-    obtain ⟨hv, hr⟩ := hstep i₀ (by omega) b₀ s hinv
-    refine validHistory_bind_step hv ?_
-    have hpair : (Memory.spec 0).clientResult s (body (d, (i₀, b₀))) =
-        (i₀ + 1, ((Memory.spec 0).clientResult s (body (d, (i₀, b₀)))).2) :=
-      Prod.ext hr rfl
-    rw [hpair]
-    exact ih (i₀ + 1) _ (fun i hi => hstep i (by omega)) (MonotoneMemInv.pres hinv hv)
 
 private theorem validHistory_bind_ready {α β : Type} {w n : ℕ} {s : Memory.State}
     (hs : MemReady w n s) {p : Memory.Prog α} {q : α → Memory.Prog β}
@@ -1595,25 +1616,6 @@ private theorem mc_read (a : ℕ) (s : Memory.State) :
 
 private theorem mc_write (a v : ℕ) (s : Memory.State) :
     memoryCost (Memory.write a v) s ≤ 1 := le_refl 1
-
-private theorem mc_map_write {α : Type} (f : Unit → α) (a v : ℕ) (s : Memory.State) :
-    memoryCost (f <$> Memory.write a v) s ≤ 1 :=
-  le_refl 1
-
-private theorem mc_bind {α β : Type} {p : Memory.Prog α} {q : α → Memory.Prog β}
-    {s : Memory.State} {k₁ k₂ : ℕ} (h₁ : memoryCost p s ≤ k₁)
-    (h₂ : ∀ x t, memoryCost (q x) t ≤ k₂) :
-    memoryCost (p >>= q) s ≤ k₁ + k₂ := by
-  rw [memoryCost_bind']
-  have := h₂ ((Memory.spec 0).clientResult s p) ((Memory.spec 0).clientState s p)
-  omega
-
-private theorem mc_ite {α : Type} {c : Prop} [Decidable c]
-    {p₁ p₂ : Memory.Prog α} {s : Memory.State} {k : ℕ}
-    (h₁ : memoryCost p₁ s ≤ k) (h₂ : memoryCost p₂ s ≤ k) :
-    memoryCost (if c then p₁ else p₂) s ≤ k := by
-  rw [memoryCost_ite]
-  split_ifs <;> assumption
 
 private theorem memReady_write {w n : ℕ} {s : Memory.State} (hs : MemReady w n s) (a v : ℕ)
     (hv : Fits w v) : MemReady w n ⟨Function.update s.mem a v, s.frontier⟩ := by
@@ -1702,8 +1704,7 @@ private theorem validHistory_readResCap {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × 
   dsimp only at hs hx hy
   unfold readResCap
   refine validHistory_bind_step (validHistory_readSplitCap hs) ?_
-  rw [show (Memory.spec 0).clientState s (readSplitCap (((n, m), x), y)) = s from by
-    unfold readSplitCap; simp_client]
+  rw [clientState_readSplitCap]
   dsimp only
   have hfr := hs.2
   have hsq := splitCount_sq n
@@ -1785,8 +1786,8 @@ private theorem validHistory_bfsProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.Stat
               omega)
           (by apply hw.of_le; dsimp only [octWorkspace, splitCount] at hu ⊢; omega)
           (validHistory_pure _ _ _)
-      · unfold bfsInnerStep; simp_client
-    · unfold bfsMidStep; simp_client
+      · exact clientResult_bfsInnerStep _ t''
+    · exact clientResult_bfsMidStep _ t'
   · unfold bfsLayerStep; simp only [client_simps]
 
 private theorem validHistory_minSepProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.State}
@@ -1872,7 +1873,7 @@ private theorem validHistory_minSepProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.S
       (fun _ => validHistory_write_bind hsep
         (by apply hw.of_le; dsimp only [octWorkspace]; omega) (validHistory_pure _ _ _))
       (fun _ => validHistory_write_bind hsep (fits_zero w) (validHistory_pure _ _ _))
-  · unfold extractSepStep; simp_client
+  · exact (clientResult_extractSepStep _ t).1
 
 private theorem validHistory_buildWProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.State}
     (hw : Fits w (octWorkspace d.1)) (hm : d.2 < d.1) (hs : MemReady w d.1 s) :
@@ -1915,8 +1916,8 @@ private theorem validHistory_buildWProg {w : ℕ} {d : ℕ × ℕ} {s : Memory.S
       refine validHistory_bind_step hvstep ?_
       have ht' := MonotoneMemInv.pres ht hvstep
       refine ih _ _ ?_ ?_ ht'
-      · unfold buildWListStep; simp_client <;> omega
-      · unfold buildWListStep; simp_client <;> omega
+      · obtain ⟨h1, _⟩ := clientResult_buildWListStep (n, vL) t; dsimp only at h1; omega
+      · obtain ⟨h1, h2⟩ := clientResult_buildWListStep (n, vL) t; dsimp only at h1 h2; omega
   exact validHistory_bind_step (hloop n (0, 0) _ (Nat.zero_add _) le_rfl hs2)
     (validHistory_pure _ _ _)
 
@@ -1951,7 +1952,7 @@ private theorem validHistory_leafProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × �
           (by apply hw.of_le; dsimp only [octWorkspace]; omega)
           (validHistory_pure _ _ _))
         (fun _ => validHistory_pure _ _ _)
-    · unfold unpackStep; simp_client
+    · exact clientResult_unpackStep _ t
   refine validHistory_bind_ready hs hunpack fun _ t1 hs1 => ?_
   refine validHistory_bind_ready hs1 ?_ fun _ t2 hs2 => ?_
   · unfold checkProperProg
@@ -1983,8 +1984,8 @@ private theorem validHistory_leafProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × �
         have hmul : t.mem (wListBase n + i) * n < n * n :=
           Nat.mul_lt_mul_of_pos_right hcond.1 (by omega)
         dsimp only [octWorkspace] at this ⊢; omega
-      · unfold properInnerStep; simp_client
-    · unfold properOuterStep; simp_client
+      · exact clientResult_properInnerStep_fst _ t'
+    · exact clientResult_properOuterStep_fst _ t
   refine validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
   refine validHistory_bind_ready hs2 ?_ fun _ t3 hs3 => ?_
   · unfold buildTerminalsProg
@@ -2031,8 +2032,8 @@ private theorem validHistory_leafProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × �
           (fun _ => validHistory_write_bind
             (by have := ht'.2; dsimp only [octWorkspace, keepBase] at *; omega) h1
             (validHistory_pure _ _ _))
-      · unfold termInnerStep; simp_client
-    · unfold termOuterStep; simp_client
+      · exact clientResult_termInnerStep _ t'
+    · exact clientResult_termOuterStep _ t
   refine validHistory_bind_ready hs3 (validHistory_minSepProg (d := (n, m)) hw hs3)
     fun _ t4 hs4 => ?_
   refine validHistory_bind_ready hs4 ?_ fun _ t5 hs5 => ?_
@@ -2047,7 +2048,7 @@ private theorem validHistory_leafProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × �
       exact validHistory_read_bind
         (by have := ht.2; dsimp only [octWorkspace, digitBase] at *; omega)
         (validHistory_ite (fun _ => validHistory_pure _ _ _) (fun _ => validHistory_pure _ _ _))
-    · unfold countDelStep; simp_client
+    · exact (clientResult_countDelStep _ t).1
   refine validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
   refine validHistory_bind_ready hs5 ?_ fun _ _ _ => validHistory_pure _ _ _
   unfold commitLeafProg
@@ -2095,7 +2096,7 @@ private theorem validHistory_leafProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × �
     exact validHistory_ite
       (fun _ => validHistory_write_bind hsaddr h1 (hw1 1 h1))
       (fun _ => validHistory_write_bind hsaddr (fits_zero w) (hw1 0 (fits_zero w)))
-  · unfold commitStep; simp_client
+  · exact clientResult_commitStep _ t
 
 private theorem validHistory_compressProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × ℕ} {s : Memory.State}
     (hw : Fits w (octWorkspace d.1.1.1)) (hL : d.2 ≤ d.1.1.1) (hs : MemReady w d.1.1.1 s) :
@@ -2138,7 +2139,7 @@ private theorem validHistory_compressProg {w : ℕ} {d : ((ℕ × ℕ) × ℕ) �
         (fun _ => validHistory_write_bind
           (by have := ht'.2; dsimp only [octWorkspace, digitBase] at *; omega)
           (fits_zero w) (validHistory_pure _ _ _))
-    · unfold incOdomStep; simp_client
+    · exact clientResult_incOdomStep_fst _ t'
   dsimp only [guessStep]
   refine validHistory_read_bind (by have := ht.2; dsimp only [octWorkspace] at *; omega) ?_
   refine validHistory_ite (fun _ => ?_) (fun _ => ?_)
@@ -2235,14 +2236,14 @@ private theorem validHistory_octProg {n : ℕ} (G : SimpleGraph (Fin n)) [Decida
           (validHistory_compressProg (d := (((n, k), m + 1), _)) hw hLn ht1)
           (validHistory_pure _ _ _))
         (fun _ => validHistory_pure _ _ _)
-  · unfold octStep; simp_client
+  · exact clientResult_octStep_fst _ t
 
 private theorem memoryCost_fillRange_le (d : (ℕ × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (fillRange d) s ≤ d.2 := by
   unfold fillRange
   have hit := memoryCost_iterate_le_of fillStep 1 d.1
-    (fun idx t => by unfold fillStep; exact mc_map_write _ _ _ t) d.2 0 s
-  exact le_trans (mc_bind hit fun _ t => mc_pure () t) (by omega)
+    (fun idx t => by unfold fillStep; exact (le_refl 1)) d.2 0 s
+  exact le_trans (memoryCost_bind_le hit fun _ t => mc_pure () t) (by omega)
 
 private theorem memoryCost_copyRange_le (d : (ℕ × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (copyRange d) s ≤ 2 * d.2 := by
@@ -2250,8 +2251,8 @@ private theorem memoryCost_copyRange_le (d : (ℕ × ℕ) × ℕ) (s : Memory.St
   have hit := memoryCost_iterate_le_of copyStep 2 d.1
     (fun idx t => by
       unfold copyStep
-      exact mc_bind (mc_read _ t) fun _ t' => mc_map_write _ _ _ t') d.2 0 s
-  exact le_trans (mc_bind hit fun _ t => mc_pure () t) (by omega)
+      exact memoryCost_bind_le (mc_read _ t) fun _ t' => (le_refl 1 : memoryCost _ t' ≤ 1)) d.2 0 s
+  exact le_trans (memoryCost_bind_le hit fun _ t => mc_pure () t) (by omega)
 
 private theorem memoryCost_readSplitCap_le (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (readSplitCap d) s ≤ 2 := by
@@ -2283,21 +2284,22 @@ private theorem memoryCost_readSplitCap_le (d : ((ℕ × ℕ) × ℕ) × ℕ) (s
     have hleaf : ∀ a c1 c2,
         memoryCost (do let e ← Memory.read a; if e = c1 then pure c2 else pure 0) t ≤ 1 := by
       intro a c1 c2
-      exact le_trans (mc_bind (mc_read a t) fun _ t' => mc_ite (mc_pure _ t') (mc_pure 0 t'))
+      exact le_trans (memoryCost_bind_le (mc_read a t) fun _ t' => memoryCost_ite_le (mc_pure _ t')
+        (mc_pure 0 t'))
         (by decide)
-    refine mc_ite (mc_ite (hleaf _ _ _) (Nat.zero_le _)) ?_
-    refine mc_ite (mc_ite (hleaf _ _ _) (Nat.zero_le _)) ?_
-    refine mc_ite (mc_ite (hleaf _ _ _) (Nat.zero_le _)) ?_
-    exact mc_ite (mc_ite (hleaf _ _ _) (Nat.zero_le _)) (Nat.zero_le _)
-  exact le_trans (mc_bind (mc_read 0 s) fun _ t => hbody t) (by decide)
+    refine memoryCost_ite_le (memoryCost_ite_le (hleaf _ _ _) (Nat.zero_le _)) ?_
+    refine memoryCost_ite_le (memoryCost_ite_le (hleaf _ _ _) (Nat.zero_le _)) ?_
+    refine memoryCost_ite_le (memoryCost_ite_le (hleaf _ _ _) (Nat.zero_le _)) ?_
+    exact memoryCost_ite_le (memoryCost_ite_le (hleaf _ _ _) (Nat.zero_le _)) (Nat.zero_le _)
+  exact le_trans (memoryCost_bind_le (mc_read 0 s) fun _ t => hbody t) (by decide)
 
 private theorem memoryCost_readResCap_le (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (readResCap d) s ≤ 4 := by
   unfold readResCap
-  refine le_trans (mc_bind (memoryCost_readSplitCap_le d s) fun _ t1 =>
-    mc_bind (mc_read _ t1) fun _ t2 =>
-      mc_bind (mc_read _ t2) fun _ t3 =>
-        mc_ite (mc_pure _ t3) (mc_pure 0 t3)) (by decide)
+  refine le_trans (memoryCost_bind_le (memoryCost_readSplitCap_le d s) fun _ t1 =>
+    memoryCost_bind_le (mc_read _ t1) fun _ t2 =>
+      memoryCost_bind_le (mc_read _ t2) fun _ t3 =>
+        memoryCost_ite_le (mc_pure _ t3) (mc_pure 0 t3)) (by decide)
 
 private theorem memoryCost_bfsProg_le (d : ℕ × ℕ) (s : Memory.State) :
     memoryCost (bfsProg d) s ≤ 80 * (d.1 + 1) ^ 3 := by
@@ -2319,20 +2321,24 @@ private theorem memoryCost_bfsProg_le (d : ℕ × ℕ) (s : Memory.State) :
         intro v t4
         unfold bfsInnerStep
         dsimp only
-        exact le_trans (mc_bind (mc_read _ t4) fun _ t5 =>
-          mc_bind (memoryCost_readResCap_le (((n, m), u), v) t5) fun _ t6 =>
-            mc_ite (mc_bind (mc_write _ _ t6) fun _ t7 => mc_map_write _ _ _ t7) (Nat.zero_le _))
+        exact le_trans (memoryCost_bind_le (mc_read _ t4) fun _ t5 =>
+          memoryCost_bind_le (memoryCost_readResCap_le (((n, m), u), v) t5) fun _ t6 =>
+            memoryCost_ite_le
+              (memoryCost_bind_le (mc_write _ _ t6) fun _ t7 => (le_refl 1 : memoryCost _ t7 ≤ 1))
+              (Nat.zero_le _))
           (by decide)
-      exact le_trans (mc_bind (mc_read _ t') fun _ t3 =>
-        mc_ite (mc_bind (memoryCost_iterate_le_of bfsInnerStep 7 (((n, m), l), u) hinn M 0 t3)
+      exact le_trans (memoryCost_bind_le (mc_read _ t') fun _ t3 =>
+        memoryCost_ite_le (memoryCost_bind_le (memoryCost_iterate_le_of bfsInnerStep 7 (((n, m),
+          l), u) hinn M 0 t3)
           fun _ t4 => mc_pure _ t4) (Nat.zero_le _)) (by omega)
-    exact le_trans (mc_bind (mc_read 0 t) fun _ t' =>
-      mc_bind (memoryCost_iterate_le_of bfsMidStep (8 * M) ((n, m), l) hmid M 0 t')
+    exact le_trans (memoryCost_bind_le (mc_read 0 t) fun _ t' =>
+      memoryCost_bind_le (memoryCost_iterate_le_of bfsMidStep (8 * M) ((n, m), l) hmid M 0 t')
         fun _ t'' => mc_pure _ t'') (by nlinarith [hM])
-  refine le_trans (mc_bind (memoryCost_fillRange_le ((distBase n, M), M) s) fun _ t1 =>
-    mc_bind (mc_write _ _ t1) fun _ t2 =>
-      mc_bind (mc_write _ _ t2) fun _ t3 =>
-        mc_bind (memoryCost_iterate_le_of bfsLayerStep (9 * M * M) (n, m) hlayer (M - 1) 0 t3)
+  refine le_trans (memoryCost_bind_le (memoryCost_fillRange_le ((distBase n, M), M) s) fun _ t1 =>
+    memoryCost_bind_le (mc_write _ _ t1) fun _ t2 =>
+      memoryCost_bind_le (mc_write _ _ t2) fun _ t3 =>
+        memoryCost_bind_le (memoryCost_iterate_le_of bfsLayerStep (9 * M * M) (n,
+          m) hlayer (M - 1) 0 t3)
           fun _ t4 => mc_pure () t4) ?_
   dsimp only
   have hsub : M - 1 ≤ M := Nat.sub_le _ _
@@ -2363,12 +2369,12 @@ private theorem memoryCost_minSepProg_le (d : ℕ × ℕ) (s : Memory.State) :
     intro cur t3
     unfold pushUnitStep
     dsimp only
-    exact le_trans (mc_bind (mc_read 0 t3) fun _ t4 =>
-      mc_ite (mc_bind (mc_read _ t4) fun _ t5 =>
-        mc_ite (mc_bind (mc_read _ t5) fun _ t6 =>
-          mc_ite (le_trans (mc_map_write _ _ _ t6) (by decide : 1 ≤ 2))
-            (mc_bind (mc_read _ t6) fun _ t7 =>
-              mc_ite (mc_map_write _ _ _ t7) (Nat.zero_le _)))
+    exact le_trans (memoryCost_bind_le (mc_read 0 t3) fun _ t4 =>
+      memoryCost_ite_le (memoryCost_bind_le (mc_read _ t4) fun _ t5 =>
+        memoryCost_ite_le (memoryCost_bind_le (mc_read _ t5) fun _ t6 =>
+          memoryCost_ite_le (k := 2) (le_trans (le_refl 1 : memoryCost _ t6 ≤ 1) (by decide))
+            (memoryCost_bind_le (k₂ := 1) (mc_read _ t6) fun _ t7 =>
+              memoryCost_ite_le (k := 1) (le_refl 1) (Nat.zero_le _)))
           (Nat.zero_le _))
         (Nat.zero_le _)) (by decide)
   have haug : ∀ r t, memoryCost (augRoundStep ((n, m), r)) t ≤ 91 * (n + 1) ^ 3 := by
@@ -2383,27 +2389,29 @@ private theorem memoryCost_minSepProg_le (d : ℕ × ℕ) (s : Memory.State) :
       intro d1 t''
       rw [memoryCost_ite]
       split_ifs with hd1
-      · refine le_trans (mc_bind (memoryCost_iterate_le_of pushUnitStep 5 n hpush d1 1 t'')
+      · refine le_trans (memoryCost_bind_le (memoryCost_iterate_le_of pushUnitStep 5 n hpush d1 1
+        t'')
           fun _ t3 => mc_pure _ t3) ?_
         have : 5 * d1 ≤ 5 * M := Nat.mul_le_mul_left 5 (le_of_lt hd1)
         omega
       · exact Nat.zero_le _
-    refine le_trans (mc_bind (memoryCost_bfsProg_le (n, m) t) fun _ t' =>
-      mc_bind (mc_read _ t') fun d1 t'' => hbranch d1 t'') ?_
+    refine le_trans (memoryCost_bind_le (memoryCost_bfsProg_le (n, m) t) fun _ t' =>
+      memoryCost_bind_le (mc_read _ t') fun d1 t'' => hbranch d1 t'') ?_
     dsimp only
     omega
   have hext : ∀ vc t4, memoryCost (extractSepStep (n, vc)) t4 ≤ 4 := by
     intro vc t4
     unfold extractSepStep
-    exact le_trans (mc_bind (mc_read _ t4) fun _ t5 =>
-      mc_bind (mc_read _ t5) fun _ t6 =>
-        mc_bind (mc_read _ t6) fun _ t7 =>
-          mc_ite (mc_map_write _ _ _ t7) (mc_map_write _ _ _ t7)) (by decide)
-  refine le_trans (mc_bind (memoryCost_fillRange_le ((flowBase n, 0), M * M) s) fun _ t1 =>
-    mc_bind (memoryCost_iterate_le_of augRoundStep (91 * (n + 1) ^ 3) (n, m) haug n 0 t1)
+    exact le_trans (memoryCost_bind_le (mc_read _ t4) fun _ t5 =>
+      memoryCost_bind_le (mc_read _ t5) fun _ t6 =>
+        memoryCost_bind_le (mc_read _ t6) fun _ t7 =>
+          memoryCost_ite_le ((le_refl 1)) ((le_refl 1))) (by decide)
+  refine le_trans (memoryCost_bind_le (memoryCost_fillRange_le ((flowBase n, 0),
+    M * M) s) fun _ t1 =>
+    memoryCost_bind_le (memoryCost_iterate_le_of augRoundStep (91 * (n + 1) ^ 3) (n, m) haug n 0 t1)
       fun _ t2 =>
-        mc_bind (memoryCost_bfsProg_le (n, m) t2) fun _ t3 =>
-          mc_bind (memoryCost_iterate_le_of extractSepStep 4 n hext n (0, 0) t3)
+        memoryCost_bind_le (memoryCost_bfsProg_le (n, m) t2) fun _ t3 =>
+          memoryCost_bind_le (memoryCost_iterate_le_of extractSepStep 4 n hext n (0, 0) t3)
             fun _ t4 => mc_pure _ t4) ?_
   dsimp only
   have hMM : M * M = 4 * (n + 1) ^ 2 := by rw [hM]; ring
@@ -2425,11 +2433,12 @@ private theorem memoryCost_leafProg_le {d : ((ℕ × ℕ) × ℕ) × ℕ} (hL : 
     dsimp only
     have hstep : ∀ j t2, memoryCost (unpackStep (n, j)) t2 ≤ 3 := fun j t2 => by
       unfold unpackStep
-      exact le_trans (mc_bind (mc_read _ t2) fun _ t3 =>
-        mc_bind (mc_read _ t3) fun _ t4 =>
-          mc_ite (mc_map_write _ _ _ t4) (Nat.zero_le _)) (by decide)
-    exact le_trans (mc_bind (memoryCost_fillRange_le ((guessBase n, 0), n) t) fun _ t1 =>
-      mc_bind (memoryCost_iterate_le_of unpackStep 3 n hstep L 0 t1) fun _ t2 => mc_pure () t2)
+      exact le_trans (memoryCost_bind_le (mc_read _ t2) fun _ t3 =>
+        memoryCost_bind_le (mc_read _ t3) fun _ t4 =>
+          memoryCost_ite_le ((le_refl 1)) (Nat.zero_le _)) (by decide)
+    exact le_trans (memoryCost_bind_le (memoryCost_fillRange_le ((guessBase n, 0), n) t) fun _ t1 =>
+      memoryCost_bind_le (memoryCost_iterate_le_of unpackStep 3 n hstep L 0 t1) fun _ t2 => mc_pure
+        () t2)
       (by dsimp only; omega)
   have hchk : ∀ t, memoryCost (checkProperProg ((n, m), L)) t ≤ 6 * (n + 1) ^ 2 := by
     intro t
@@ -2440,16 +2449,18 @@ private theorem memoryCost_leafProg_le {d : ((ℕ × ℕ) × ℕ) × ℕ} (hL : 
       have hinn : ∀ (u du : ℕ) jok t5,
           memoryCost (properInnerStep ((((n, m), u), du), jok)) t5 ≤ 3 := fun u du jok t5 => by
         unfold properInnerStep
-        exact le_trans (mc_bind (mc_read _ t5) fun _ t6 =>
-          mc_bind (mc_read _ t6) fun _ t7 =>
-            mc_ite (mc_bind (mc_read _ t7) fun _ t8 =>
-              mc_ite (mc_pure _ t8) (mc_pure _ t8)) (Nat.zero_le _)) (by decide)
-      exact le_trans (mc_bind (mc_read _ t3) fun u t4 =>
-        mc_bind (mc_read _ t4) fun du t5 =>
-          mc_ite (mc_bind (memoryCost_iterate_le_of properInnerStep 3 (((n, m), u), du)
+        exact le_trans (memoryCost_bind_le (mc_read _ t5) fun _ t6 =>
+          memoryCost_bind_le (mc_read _ t6) fun _ t7 =>
+            memoryCost_ite_le (memoryCost_bind_le (mc_read _ t7) fun _ t8 =>
+              memoryCost_ite_le (mc_pure _ t8) (mc_pure _ t8)) (Nat.zero_le _)) (by decide)
+      exact le_trans (memoryCost_bind_le (mc_read _ t3) fun u t4 =>
+        memoryCost_bind_le (mc_read _ t4) fun du t5 =>
+          memoryCost_ite_le (memoryCost_bind_le (memoryCost_iterate_le_of properInnerStep 3 (((n,
+            m), u), du)
             (hinn u du) L (0, iok.2) t5) fun _ t6 => mc_pure _ t6) (Nat.zero_le _)) (by omega)
-    exact le_trans (mc_bind (mc_read 0 t) fun _ t2 =>
-      mc_bind (memoryCost_iterate_le_of properOuterStep (3 * L + 2) ((n, m), L) hout L (0, 1) t2)
+    exact le_trans (memoryCost_bind_le (mc_read 0 t) fun _ t2 =>
+      memoryCost_bind_le (memoryCost_iterate_le_of properOuterStep (3 * L + 2) ((n, m),
+        L) hout L (0, 1) t2)
         fun _ t3 => mc_pure _ t3) (by nlinarith [hL])
   have hterm : ∀ t, memoryCost (buildTerminalsProg ((n, m), L)) t ≤ 8 * (n + 1) ^ 2 := by
     intro t
@@ -2461,28 +2472,31 @@ private theorem memoryCost_leafProg_le {d : ((ℕ × ℕ) × ℕ) × ℕ} (hL : 
       have hinn : ∀ (cv : ℕ) j t7,
           memoryCost (termInnerStep (((n, m), (v, cv)), j)) t7 ≤ 4 := fun cv j t7 => by
         unfold termInnerStep
-        exact le_trans (mc_bind (mc_read _ t7) fun _ t8 =>
-          mc_bind (mc_read _ t8) fun _ t9 =>
-            mc_ite (mc_bind (mc_read _ t9) fun _ t10 =>
-              mc_ite (mc_ite (mc_map_write _ _ _ t10) (mc_map_write _ _ _ t10))
+        exact le_trans (memoryCost_bind_le (mc_read _ t7) fun _ t8 =>
+          memoryCost_bind_le (mc_read _ t8) fun _ t9 =>
+            memoryCost_ite_le (memoryCost_bind_le (mc_read _ t9) fun _ t10 =>
+              memoryCost_ite_le (memoryCost_ite_le ((le_refl 1)) ((le_refl 1)))
                 (Nat.zero_le _)) (Nat.zero_le _)) (by decide)
-      exact le_trans (mc_bind (mc_read _ t5) fun _ t6 =>
-        mc_bind (mc_read _ t6) fun cv t7 =>
-          mc_ite (mc_bind (memoryCost_iterate_le_of termInnerStep 4 ((n, m), (v, cv))
+      exact le_trans (memoryCost_bind_le (mc_read _ t5) fun _ t6 =>
+        memoryCost_bind_le (mc_read _ t6) fun cv t7 =>
+          memoryCost_ite_le (memoryCost_bind_le (memoryCost_iterate_le_of termInnerStep 4 ((n, m),
+            (v, cv))
             (hinn cv) L 0 t7) fun _ t8 => mc_pure _ t8) (Nat.zero_le _)) (by omega)
-    exact le_trans (mc_bind (memoryCost_fillRange_le ((keepBase n, 0), n) t) fun _ t1 =>
-      mc_bind (memoryCost_fillRange_le ((flipBase n, 0), n) t1) fun _ t2 =>
-        mc_bind (memoryCost_iterate_le_of termOuterStep (4 * L + 2) ((n, m), L) hout n 0 t2)
+    exact le_trans (memoryCost_bind_le (memoryCost_fillRange_le ((keepBase n, 0), n) t) fun _ t1 =>
+      memoryCost_bind_le (memoryCost_fillRange_le ((flipBase n, 0), n) t1) fun _ t2 =>
+        memoryCost_bind_le (memoryCost_iterate_le_of termOuterStep (4 * L + 2) ((n, m),
+          L) hout n 0 t2)
           fun _ t3 => mc_pure () t3) (by dsimp only; nlinarith [hL])
   have hcdel : ∀ t, memoryCost (countDelProg (n, L)) t ≤ 2 * (n + 1) := by
     intro t
     unfold countDelProg
     have hstep : ∀ jc t2, memoryCost (countDelStep (n, jc)) t2 ≤ 1 := fun jc t2 => by
       unfold countDelStep
-      exact le_trans (mc_bind (mc_read _ t2) fun _ t3 => mc_ite (mc_pure _ t3) (mc_pure _ t3))
+      exact le_trans (memoryCost_bind_le (mc_read _ t2) fun _ t3 => memoryCost_ite_le (mc_pure _
+        t3) (mc_pure _ t3))
         (by decide)
-    exact le_trans (mc_bind (mc_read 0 t) fun _ t1 =>
-      mc_bind (memoryCost_iterate_le_of countDelStep 1 n hstep L (0, 0) t1)
+    exact le_trans (memoryCost_bind_le (mc_read 0 t) fun _ t1 =>
+      memoryCost_bind_le (memoryCost_iterate_le_of countDelStep 1 n hstep L (0, 0) t1)
         fun _ t2 => mc_pure _ t2) (by omega)
   have hcom : ∀ t, memoryCost (commitLeafProg n) t ≤ 8 * (n + 1) := by
     intro t
@@ -2501,27 +2515,29 @@ private theorem memoryCost_leafProg_le {d : ((ℕ × ℕ) × ℕ) × ℕ} (hL : 
             else if c5 then (fun _ => v + 1) <$> Memory.write (colBase n + v) 0
             else (fun _ => v + 1) <$> Memory.write (colBase n + v) 1) t7 ≤ 1 := by
         intro t7 c1 c2 c3 c4 c5 _ _ _ _ _
-        exact mc_ite (mc_ite (mc_map_write _ _ _ t7) (mc_map_write _ _ _ t7))
-          (mc_ite (mc_ite (mc_map_write _ _ _ t7) (mc_map_write _ _ _ t7))
-            (mc_ite (mc_map_write _ _ _ t7) (mc_map_write _ _ _ t7)))
-      exact le_trans (mc_bind (mc_read _ t2) fun _ t3 =>
-        mc_bind (mc_read _ t3) fun _ t4 =>
-          mc_bind (mc_read _ t4) fun _ t5 =>
-            mc_bind (mc_read _ t5) fun _ t6 =>
-              mc_bind (mc_read _ t6) fun _ t7 =>
-                mc_ite (mc_bind (mc_write _ _ t7) fun _ t8 => hcol t8 _ _ _ _ _)
-                  (mc_bind (mc_write _ _ t7) fun _ t8 => hcol t8 _ _ _ _ _)) (by decide)
-    exact le_trans (mc_bind (mc_read 0 t) fun _ t1 =>
-      mc_bind (memoryCost_iterate_le_of commitStep 7 n hstep n 0 t1)
+        exact memoryCost_ite_le (memoryCost_ite_le ((le_refl 1)) ((le_refl 1)))
+          (memoryCost_ite_le (memoryCost_ite_le ((le_refl 1)) ((le_refl 1)))
+            (memoryCost_ite_le ((le_refl 1)) ((le_refl 1))))
+      exact le_trans (memoryCost_bind_le (mc_read _ t2) fun _ t3 =>
+        memoryCost_bind_le (mc_read _ t3) fun _ t4 =>
+          memoryCost_bind_le (mc_read _ t4) fun _ t5 =>
+            memoryCost_bind_le (mc_read _ t5) fun _ t6 =>
+              memoryCost_bind_le (mc_read _ t6) fun _ t7 =>
+                memoryCost_ite_le (memoryCost_bind_le (mc_write _ _ t7) fun _ t8 => hcol t8 _ _ _ _
+                  _)
+                  (memoryCost_bind_le (mc_write _ _ t7) fun _ t8 => hcol t8 _ _ _ _ _)) (by decide)
+    exact le_trans (memoryCost_bind_le (mc_read 0 t) fun _ t1 =>
+      memoryCost_bind_le (memoryCost_iterate_le_of commitStep 7 n hstep n 0 t1)
         fun _ t2 => mc_pure () t2) (by omega)
   unfold leafProg
   dsimp only
-  refine le_trans (mc_bind (hunp s) fun _ t1 =>
-    mc_bind (hchk t1) fun _ t2 =>
-      mc_ite (mc_bind (hterm t2) fun _ t3 =>
-        mc_bind (memoryCost_minSepProg_le (n, m) t3) fun _ t4 =>
-          mc_bind (hcdel t4) fun _ t5 =>
-            mc_ite (mc_bind (hcom t5) fun _ t6 => mc_pure 1 t6) (Nat.zero_le _))
+  refine le_trans (memoryCost_bind_le (hunp s) fun _ t1 =>
+    memoryCost_bind_le (hchk t1) fun _ t2 =>
+      memoryCost_ite_le (memoryCost_bind_le (hterm t2) fun _ t3 =>
+        memoryCost_bind_le (memoryCost_minSepProg_le (n, m) t3) fun _ t4 =>
+          memoryCost_bind_le (hcdel t4) fun _ t5 =>
+            memoryCost_ite_le (memoryCost_bind_le (hcom t5) fun _ t6 => mc_pure 1 t6) (Nat.zero_le
+              _))
         (Nat.zero_le _)) ?_
   dsimp only
   omega
@@ -2539,29 +2555,30 @@ private theorem memoryCost_compressProg_le {d : ((ℕ × ℕ) × ℕ) × ℕ} (h
     unfold incOdomProg
     have hstep : ∀ jc t2, memoryCost (incOdomStep (n, jc)) t2 ≤ 2 := fun jc t2 => by
       unfold incOdomStep
-      exact le_trans (mc_bind (mc_read _ t2) fun _ t3 =>
-        mc_ite (mc_ite (mc_map_write _ _ _ t3) (mc_map_write _ _ _ t3)) (Nat.zero_le _))
+      exact le_trans (memoryCost_bind_le (mc_read _ t2) fun _ t3 =>
+        memoryCost_ite_le (memoryCost_ite_le ((le_refl 1)) ((le_refl 1)))
+          (Nat.zero_le _))
         (by decide)
-    exact le_trans (mc_bind (mc_read 0 t') fun _ t1 =>
-      mc_bind (memoryCost_iterate_le_of incOdomStep 2 n hstep L (0, 1) t1)
+    exact le_trans (memoryCost_bind_le (mc_read 0 t') fun _ t1 =>
+      memoryCost_bind_le (memoryCost_iterate_le_of incOdomStep 2 n hstep L (0, 1) t1)
         fun _ t2 => mc_pure _ t2) (by omega)
   have hguess : ∀ st t, st.1 = 0 →
       memoryCost (guessStep ((((n, k), m), L), st)) t ≤ 214 * (n + 1) ^ 4 := by
     intro st t _
     dsimp only [guessStep]
-    refine le_trans (mc_bind (mc_read 0 t) fun _ t2 =>
-      mc_ite
-        (mc_bind (memoryCost_leafProg_le (d := (((n, k), m), L)) hL t2) fun _ t3 =>
-          mc_bind (hodom t3) fun _ t4 => mc_pure _ t4)
-        (le_trans (mc_bind (mc_pure st.2 t2) fun _ t3 =>
-          mc_bind (hodom t3) fun _ t4 => mc_pure _ t4)
+    refine le_trans (memoryCost_bind_le (mc_read 0 t) fun _ t2 =>
+      memoryCost_ite_le
+        (memoryCost_bind_le (memoryCost_leafProg_le (d := (((n, k), m), L)) hL t2) fun _ t3 =>
+          memoryCost_bind_le (hodom t3) fun _ t4 => mc_pure _ t4)
+        (le_trans (memoryCost_bind_le (mc_pure st.2 t2) fun _ t3 =>
+          memoryCost_bind_le (hodom t3) fun _ t4 => mc_pure _ t4)
           (by dsimp only; omega))) ?_
     dsimp only
     omega
   unfold compressProg
   dsimp only
-  refine le_trans (mc_bind (memoryCost_fillRange_le ((digitBase n, 0), L) s) fun _ t1 =>
-    mc_bind (memoryCost_boundedWhile_le_of (fun _ (st : ℕ × ℕ) => st.1 = 0) guessStep
+  refine le_trans (memoryCost_bind_le (memoryCost_fillRange_le ((digitBase n, 0), L) s) fun _ t1 =>
+    memoryCost_bind_le (memoryCost_boundedWhile_le_of (fun _ (st : ℕ × ℕ) => st.1 = 0) guessStep
       (214 * (n + 1) ^ 4) (((n, k), m), L) hguess (3 ^ L) (0, 0) t1)
       fun _ t2 => mc_pure _ t2) ?_
   dsimp only
@@ -2572,13 +2589,6 @@ private theorem memoryCost_compressProg_le {d : ((ℕ × ℕ) × ℕ) × ℕ} (h
 @[simp, client_simps]
 private theorem cr_map {α β : Type} (w : ℕ) (f : α → β) (p : Memory.Prog α) (s : Memory.State) :
     (Memory.spec w).clientResult s (f <$> p) = f ((Memory.spec w).clientResult s p) := by
-  induction p generalizing s with
-  | pure _ => rfl
-  | liftBind _ _ ih => exact ih _ _
-
-@[client_simps]
-private theorem cs_map {α β : Type} (w : ℕ) (f : α → β) (p : Memory.Prog α) (s : Memory.State) :
-    (Memory.spec w).clientState s (f <$> p) = (Memory.spec w).clientState s p := by
   induction p generalizing s with
   | pure _ => rfl
   | liftBind _ _ ih => exact ih _ _
@@ -2595,30 +2605,6 @@ private theorem cs_bind_pure {α β : Type} (w : ℕ) (s : Memory.State) (p : Me
       (Memory.spec w).clientState s p := by
   simp only [client_simps]
 
-private theorem cr_bind_read {α : Type} (w : ℕ) (s : Memory.State) (a : ℕ)
-    (k : ℕ → Memory.Prog α) :
-    (Memory.spec w).clientResult s (Memory.read a >>= k) =
-      (Memory.spec w).clientResult s (k (s.mem a)) :=
-  rfl
-
-private theorem cs_bind_read {α : Type} (w : ℕ) (s : Memory.State) (a : ℕ)
-    (k : ℕ → Memory.Prog α) :
-    (Memory.spec w).clientState s (Memory.read a >>= k) =
-      (Memory.spec w).clientState s (k (s.mem a)) :=
-  rfl
-
-private theorem cr_bind_write {α : Type} (w : ℕ) (s : Memory.State) (a v : ℕ)
-    (k : Unit → Memory.Prog α) :
-    (Memory.spec w).clientResult s (Memory.write a v >>= k) =
-      (Memory.spec w).clientResult ⟨Function.update s.mem a v, s.frontier⟩ (k ()) :=
-  rfl
-
-private theorem cs_bind_write {α : Type} (w : ℕ) (s : Memory.State) (a v : ℕ)
-    (k : Unit → Memory.Prog α) :
-    (Memory.spec w).clientState s (Memory.write a v >>= k) =
-      (Memory.spec w).clientState ⟨Function.update s.mem a v, s.frontier⟩ (k ()) :=
-  rfl
-
 private theorem fillRange_spec (base val len : ℕ) (s : Memory.State) :
     let s' := (Memory.spec 0).clientState s (fillRange ((base, val), len))
     (∀ i < len, s'.mem (base + i) = val) ∧
@@ -2633,7 +2619,8 @@ private theorem fillRange_spec (base val len : ℕ) (s : Memory.State) :
     (fun rem (idx : ℕ) t => idx + rem = len ∧ ∀ i < idx, t.mem (base + i) = val)
     (fun rem idx t ⟨hsum, hprev⟩ => by
       unfold fillStep
-      simp only [client_simps]
+      rw [clientResult_bind_write, clientState_bind_write, clientResult_pure, clientState_pure]
+      dsimp only
       refine ⟨by omega, fun i hi => ?_⟩
       by_cases h : i = idx
       · subst h; simp
@@ -2671,7 +2658,9 @@ private theorem copyRange_spec {srcB dstB len : ℕ} (hdisj : srcB + len ≤ dst
       (∀ i < idx, t.mem (dstB + i) = s.mem (srcB + i)))
     (fun rem idx t ⟨hsum, hsrc, hdst⟩ => by
       unfold copyStep
-      simp only [client_simps]
+      rw [clientResult_bind_read, clientState_bind_read, clientResult_bind_write,
+        clientState_bind_write, clientResult_pure, clientState_pure]
+      dsimp only
       refine ⟨by omega, fun i hi => ?_, fun i hi => ?_⟩
       · rw [Function.update_of_ne (by omega)]
         exact hsrc i hi
@@ -2779,28 +2768,28 @@ private theorem clientResult_readSplitCap {n : ℕ} {G : SimpleGraph (Fin n)} [D
     (Memory.spec 0).clientResult s (readSplitCap (((n, m), x.1), y.1)) =
       (splitNet G m s).cap x y ∧
     (Memory.spec 0).clientState s (readSplitCap (((n, m), x.1), y.1)) = s := by
-  refine ⟨?_, by unfold readSplitCap; simp_client⟩
+  refine ⟨?_, clientState_readSplitCap _ s⟩
   unfold readSplitCap splitNet
   dsimp only
-  rw [cr_bind_read]
+  rw [clientResult_bind_read]
   by_cases h1 : x.1 = 0
   · rw [ite_eq_left h1, ite_eq_left h1]
     by_cases h2 : 2 ≤ y.1 ∧ y.1 < n + 2
-    · rw [ite_eq_left h2, ite_eq_left h2, cr_bind_read]
+    · rw [ite_eq_left h2, ite_eq_left h2, clientResult_bind_read]
       split_ifs <;> simp only [client_simps]
     · rw [ite_eq_right h2, ite_eq_right h2]; rfl
   · rw [ite_eq_right h1, ite_eq_right h1]
     by_cases h2 : y.1 = 1
     · rw [ite_eq_left h2, ite_eq_left h2]
       by_cases h3 : n + 2 ≤ x.1 ∧ x.1 < splitCount n
-      · rw [ite_eq_left h3, ite_eq_left h3, cr_bind_read]
+      · rw [ite_eq_left h3, ite_eq_left h3, clientResult_bind_read]
         split_ifs <;> simp only [client_simps]
       · rw [ite_eq_right h3, ite_eq_right h3]; rfl
     · rw [ite_eq_right h2, ite_eq_right h2]
       by_cases h3 : 2 ≤ x.1 ∧ x.1 < n + 2
       · rw [ite_eq_left h3, ite_eq_left h3]
         by_cases h4 : y.1 = x.1 + n
-        · rw [ite_eq_left h4, ite_eq_left h4, cr_bind_read]
+        · rw [ite_eq_left h4, ite_eq_left h4, clientResult_bind_read]
           split_ifs <;> simp only [client_simps]
         · rw [ite_eq_right h4, ite_eq_right h4]; rfl
       · rw [ite_eq_right h3, ite_eq_right h3]
@@ -2811,7 +2800,7 @@ private theorem clientResult_readSplitCap {n : ℕ} {G : SimpleGraph (Fin n)} [D
           have hmem := hG u v
           dsimp only [u, v] at hmem
           by_cases hm : x.1 - (n + 2) < m ∧ y.1 - 2 < m
-          · rw [ite_eq_left hm, cr_bind_read, hmem]
+          · rw [ite_eq_left hm, clientResult_bind_read, hmem]
             by_cases hadj : G.Adj u v
             · have hp : (prefixGraph G m).Adj u v := ⟨hadj, hm.1, hm.2⟩
               change (Memory.spec 0).clientResult s
@@ -2834,17 +2823,6 @@ private def FlowStored {n : ℕ} {N : Network (Fin (splitCount n))}
     (f : N.Flow) (s : Memory.State) : Prop :=
   ∀ x y : Fin (splitCount n), s.mem (flowBase n + x.1 * splitCount n + y.1) = f x y
 
-private theorem fin_mul_add_inj {M : ℕ} {x₁ y₁ x₂ y₂ : Fin M}
-    (h : x₁.1 * M + y₁.1 = x₂.1 * M + y₂.1) : x₁ = x₂ ∧ y₁ = y₂ := by
-  have hM : 0 < M := Nat.zero_lt_of_lt x₁.2
-  have hd : (x₁.1 * M + y₁.1) / M = (x₂.1 * M + y₂.1) / M := congrArg (· / M) h
-  have hm : (x₁.1 * M + y₁.1) % M = (x₂.1 * M + y₂.1) % M := congrArg (· % M) h
-  rw [Nat.mul_comm x₁.1 M, Nat.mul_add_div hM, Nat.div_eq_of_lt y₁.2, add_zero,
-    Nat.mul_comm x₂.1 M, Nat.mul_add_div hM, Nat.div_eq_of_lt y₂.2, add_zero] at hd
-  rw [Nat.mul_comm x₁.1 M, Nat.mul_add_mod, Nat.mod_eq_of_lt y₁.2,
-    Nat.mul_comm x₂.1 M, Nat.mul_add_mod, Nat.mod_eq_of_lt y₂.2] at hm
-  exact ⟨Fin.ext hd, Fin.ext hm⟩
-
 private theorem clientResult_readResCap {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.Adj]
     {m : ℕ} {s₀ s : Memory.State} (hG : MatrixLoaded G s₀)
     (hlow : ∀ a < flowBase n, s.mem a = s₀.mem a)
@@ -2858,14 +2836,16 @@ private theorem clientResult_readResCap {n : ℕ} {G : SimpleGraph (Fin n)} [Dec
   unfold readResCap
   rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind, hcap_r, hcap_s]
   dsimp only
-  simp only [client_simps, hf x y, hf y x]
+  rw [clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
+    clientState_bind_read, hf x y, hf y x]
   have hc1 := cap_splitNet_le G m s₀ x y
   have hc2 := cap_splitNet_le G m s₀ y x
   have hle1 := f.le_cap x y
   have hle2 := f.le_cap y x
   have hcond : (splitNet G m s₀).cap x y ≤ n + 1 ∧ f x y ≤ (splitNet G m s₀).cap x y ∧
       f y x ≤ n + 1 := ⟨hc1, hle1, hle2.trans hc2⟩
-  simp [hcond, client_simps, Network.Flow.resCap]
+  rw [ite_eq_left hcond, clientResult_pure, clientState_pure]
+  exact ⟨rfl, rfl⟩
 
 private def BfsLayerInv {n : ℕ} {N : Network (Fin (splitCount n))}
     (f : N.Flow) (layer : ℕ) (t : Memory.State) : Prop :=
@@ -2912,7 +2892,7 @@ private theorem bfsMid_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.
       let uFin : Fin M := ⟨u, hu_lt⟩
       unfold bfsMidStep
       dsimp only
-      rw [cr_bind_read, cs_bind_read]
+      rw [clientResult_bind_read, clientState_bind_read]
       by_cases hdu : t'.mem (distBase n + u) = layer
       · rw [ite_eq_left hdu, cr_bind_pure, cs_bind_pure]
         have hres_u : f.resDist uFin = layer := by
@@ -2953,15 +2933,16 @@ private theorem bfsMid_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G.
             obtain ⟨hrc_r, hrc_s⟩ := clientResult_readResCap hG hlow'' hf'' uFin vFin
             unfold bfsInnerStep
             dsimp only
-            rw [cr_bind_read, cs_bind_read, clientResult_bind, clientState_bind]
+            rw [clientResult_bind_read, clientState_bind_read, clientResult_bind, clientState_bind]
             have hrc_r' : (Memory.spec 0).clientResult t'' (readResCap (((n, m), u), v)) =
                 f.resCap uFin vFin := hrc_r
             have hrc_s' : (Memory.spec 0).clientState t'' (readResCap (((n, m), u), v)) =
                 t'' := hrc_s
             rw [hrc_r', hrc_s']
             by_cases hcond : t''.mem (distBase n + v) = M ∧ 0 < f.resCap uFin vFin
-            · rw [ite_eq_left hcond, cr_bind_write, cs_bind_write, cr_bind_write,
-                cs_bind_write]
+            · rw [ite_eq_left hcond, clientResult_bind_write, clientState_bind_write,
+              clientResult_bind_write,
+                clientState_bind_write]
               simp only [client_simps]
               have hv_res : f.resDist vFin = layer + 1 := by
                 have htri := f.resDist_le_add_one_of_pos_resCap hcond.2
@@ -3124,7 +3105,7 @@ private theorem bfsProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G
       obtain ⟨_, hm_low, hm_inv⟩ := bfsMid_spec hG hlow f hf hlayer_lt hst_low hlinv
       unfold bfsLayerStep
       dsimp only
-      rw [cr_bind_read, cs_bind_read, cr_bind_pure, cs_bind_pure]
+      rw [clientResult_bind_read, clientState_bind_read, cr_bind_pure, cs_bind_pure]
       exact ⟨by omega, hm_low, hm_inv⟩)
     (n := M - 1) (a := 0) (s := s2) ⟨Nat.zero_add _, hs2_low, hinv0⟩
   obtain ⟨hsum_end, _, hinv_end⟩ := hlayers
@@ -3136,7 +3117,8 @@ private theorem bfsProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRel G
     change (Memory.spec 0).clientState s (bfsProg (n, m)) = s3
     unfold bfsProg
     dsimp only
-    rw [StateTransitionSpec.clientState_bind, cs_bind_write, cs_bind_write, cs_bind_pure]
+    rw [StateTransitionSpec.clientState_bind, clientState_bind_write, clientState_bind_write,
+      cs_bind_pure]
   rw [ht_eq]
   have hdist_all : ∀ x : Fin M, s3.mem (distBase n + x.1) = f.resDist x := by
     intro x
@@ -3270,23 +3252,26 @@ private theorem iterate_pushUnitStep_spec {n : ℕ} {G : SimpleGraph (Fin n)} [D
       refine ⟨?_, hlow1, hpar1, ?_⟩
       · unfold pushUnitStep
         dsimp only
-        rw [cr_bind_read, ite_eq_left cur.2, cr_bind_read, hpar_val, ite_eq_left (parOf cur).2,
-          cr_bind_read, hf_rev]
+        rw [clientResult_bind_read, ite_eq_left cur.2, clientResult_bind_read, hpar_val,
+          ite_eq_left (parOf cur).2,
+          clientResult_bind_read, hf_rev]
         by_cases hrev0 : 0 < f cur (parOf cur)
-        · rw [ite_eq_left hrev0, cr_bind_write]; rfl
+        · rw [ite_eq_left hrev0, clientResult_bind_write]; rfl
         · have hcap_le := cap_splitNet_le G m s₀ (parOf cur) cur
           have hf_lt_cap : f (parOf cur) cur ≤ n := by unfold Network.Flow.resCap at hrc_p; omega
-          rw [ite_eq_right hrev0, cr_bind_read, hf_fwd, ite_eq_left hf_lt_cap, cr_bind_write]; rfl
+          rw [ite_eq_right hrev0, clientResult_bind_read, hf_fwd, ite_eq_left hf_lt_cap,
+            clientResult_bind_write]; rfl
       · intro x y
         dsimp only [M] at x y ⊢
         change ((Memory.spec 0).clientState u_st (pushUnitStep (n, cur.1))).mem
           (flowBase n + x.1 * M + y.1) = _
         unfold pushUnitStep
         dsimp only
-        rw [cs_bind_read, ite_eq_left cur.2, cs_bind_read, hpar_val, ite_eq_left (parOf cur).2,
-          cs_bind_read, hf_rev]
+        rw [clientState_bind_read, ite_eq_left cur.2, clientState_bind_read, hpar_val,
+          ite_eq_left (parOf cur).2,
+          clientState_bind_read, hf_rev]
         by_cases hrev0 : 0 < f cur (parOf cur)
-        · rw [ite_eq_left hrev0, cs_bind_write]
+        · rw [ite_eq_left hrev0, clientState_bind_write]
           change Function.update u_st.mem (flowBase n + cur.1 * M + (parOf cur).1)
             (f cur (parOf cur) - 1) (flowBase n + x.1 * M + y.1) = _
           by_cases hxy : (x, y) = (parOf cur, cur)
@@ -3296,10 +3281,10 @@ private theorem iterate_pushUnitStep_spec {n : ℕ} {G : SimpleGraph (Fin n)} [D
             have hne_addr : flowBase n + (parOf cur).1 * M + cur.1 ≠
                 flowBase n + cur.1 * M + (parOf cur).1 := by
               intro h
-              dsimp only [M] at h
-              exact hne_pc
-                (fin_mul_add_inj (x₁ := parOf cur) (y₁ := cur) (x₂ := cur) (y₂ := parOf cur)
-                  (by omega)).1
+              have heq := finProdFinEquiv.injective
+                (a₁ := (parOf cur, cur)) (a₂ := (cur, parOf cur))
+                (Fin.ext (by dsimp only [M] at h; simp [finProdFinEquiv, Nat.mul_comm]; omega))
+              exact hne_pc (Prod.mk.inj heq).1
             have hmin1 : min 1 (f cur (parOf cur)) = 1 := min_eq_left hrev0
             rw [Function.update_of_ne hne_addr, hf_fwd, hmin1]
             omega
@@ -3314,9 +3299,10 @@ private theorem iterate_pushUnitStep_spec {n : ℕ} {G : SimpleGraph (Fin n)} [D
               have hne_addr : flowBase n + x.1 * M + y.1 ≠
                   flowBase n + cur.1 * M + (parOf cur).1 := by
                 intro h
-                dsimp only [M] at h
-                obtain ⟨hx, hy⟩ :=
-                  fin_mul_add_inj (x₁ := x) (y₁ := y) (x₂ := cur) (y₂ := parOf cur) (by omega)
+                have heq := finProdFinEquiv.injective
+                  (a₁ := (x, y)) (a₂ := (cur, parOf cur))
+                  (Fin.ext (by dsimp only [M] at h; simp [finProdFinEquiv, Nat.mul_comm]; omega))
+                obtain ⟨hx, hy⟩ := Prod.mk.inj heq
                 exact hyx (Prod.ext hy hx)
               exact Function.update_of_ne hne_addr _ _
         · have hrev_eq : f cur (parOf cur) = 0 := by omega
@@ -3324,7 +3310,8 @@ private theorem iterate_pushUnitStep_spec {n : ℕ} {G : SimpleGraph (Fin n)} [D
           have hf_lt_cap : f (parOf cur) cur ≤ n := by
             unfold Network.Flow.resCap at hrc_p
             omega
-          rw [ite_eq_right hrev0, cs_bind_read, hf_fwd, ite_eq_left hf_lt_cap, cs_bind_write]
+          rw [ite_eq_right hrev0, clientState_bind_read, hf_fwd, ite_eq_left hf_lt_cap,
+            clientState_bind_write]
           change Function.update u_st.mem (flowBase n + (parOf cur).1 * M + cur.1)
             (f (parOf cur) cur + 1) (flowBase n + x.1 * M + y.1) = _
           by_cases hxy : (x, y) = (parOf cur, cur)
@@ -3337,10 +3324,10 @@ private theorem iterate_pushUnitStep_spec {n : ℕ} {G : SimpleGraph (Fin n)} [D
             have hne_addr : flowBase n + x.1 * M + y.1 ≠
                 flowBase n + (parOf cur).1 * M + cur.1 := by
               intro h
-              dsimp only [M] at h
-              obtain ⟨hx, hy⟩ :=
-                fin_mul_add_inj (x₁ := x) (y₁ := y) (x₂ := parOf cur) (y₂ := cur) (by omega)
-              exact hxy (Prod.ext hx hy)
+              have heq := finProdFinEquiv.injective
+                (a₁ := (x, y)) (a₂ := (parOf cur, cur))
+                (Fin.ext (by dsimp only [M] at h; simp [finProdFinEquiv, Nat.mul_comm]; omega))
+              exact hxy heq
             rw [Function.update_of_ne hne_addr]
             by_cases hyx : (y, x) = (parOf cur, cur)
             · injection hyx with hy hx
@@ -3506,7 +3493,7 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
     (fun rem r st ⟨hrsum, hst_low, f, hf_st, hval_or⟩ => by
       unfold augRoundStep
       dsimp only
-      rw [clientResult_bind, clientState_bind, cr_bind_read, cs_bind_read]
+      rw [clientResult_bind, clientState_bind, clientResult_bind_read, clientState_bind_read]
       set tb := (Memory.spec 0).clientState st (bfsProg (n, m))
       obtain ⟨htb_low, htb_dist, htb_par⟩ := bfsProg_spec hG hst_low f hf_st
       have hd1_eq : tb.mem (distBase n + 1) = f.resDist N.t := htb_dist N.t
@@ -3627,13 +3614,15 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
           fun ⟨h1, h2, h3⟩ => ⟨h1, h2, by omega⟩⟩
       unfold extractSepStep
       dsimp only
-      rw [cr_bind_read, cs_bind_read, cr_bind_read, cs_bind_read, cr_bind_read, cs_bind_read,
+      rw [clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
+        clientState_bind_read, clientResult_bind_read, clientState_bind_read,
         hw_eq, hdin_eq, hdout_eq]
       by_cases hp : s.mem (wBase n + vc.1) = 0 ∧
           s3.mem (distBase n + (inIdx vFin).1) < M ∧
           s3.mem (distBase n + (outIdx vFin).1) = M
       · have hp' := hpred_iff.mp hp
-        rw [ite_eq_left hp, cr_bind_write, cs_bind_write, clientResult_pure, clientState_pure]
+        rw [ite_eq_left hp, clientResult_bind_write, clientState_bind_write, clientResult_pure,
+          clientState_pure]
         dsimp only
         refine ⟨by omega, fun a ha => ?_, fun u hu => ?_, ?_⟩
         · rw [Function.update_of_ne (by omega)]; exact hst_pre a ha
@@ -3660,7 +3649,8 @@ private theorem minSepProg_spec {n : ℕ} {G : SimpleGraph (Fin n)} [DecidableRe
           rw [hfilt, Finset.card_insert_of_notMem (by simp [vFin]), hcnt]
       · have hp' : ¬ (s.mem (wBase n + vc.1) = 0 ∧ inIdx vFin ∈ C ∧ outIdx vFin ∉ C) :=
           fun h => hp (hpred_iff.mpr h)
-        rw [ite_eq_right hp, cr_bind_write, cs_bind_write, clientResult_pure, clientState_pure]
+        rw [ite_eq_right hp, clientResult_bind_write, clientState_bind_write, clientResult_pure,
+          clientState_pure]
         dsimp only
         refine ⟨by omega, fun a ha => ?_, fun u hu => ?_, ?_⟩
         · rw [Function.update_of_ne (by omega)]; exact hst_pre a ha
@@ -3871,9 +3861,10 @@ private theorem buildWProg_spec {n m : ℕ} (hm : m < n) {s : Memory.State}
           _ = vL.1 := by simp
       unfold buildWListStep
       dsimp only
-      rw [cr_bind_read, cs_bind_read, hwv]
+      rw [clientResult_bind_read, clientState_bind_read, hwv]
       by_cases hvW : vFin ∈ Wset
-      · rw [ite_eq_left hvW, ite_eq_left rfl, cr_bind_write, cs_bind_write, clientResult_pure,
+      · rw [ite_eq_left hvW, ite_eq_left rfl, clientResult_bind_write, clientState_bind_write,
+        clientResult_pure,
           clientState_pure]
         dsimp only
         refine ⟨by omega, fun a ha => ?_, ?_, fun j hj => ?_,
@@ -3945,12 +3936,12 @@ private theorem buildWProg_spec {n m : ℕ} (hm : m < n) {s : Memory.State}
     change (Memory.spec 0).clientState s (buildWProg (n, m)) = s3
     unfold buildWProg
     dsimp only
-    rw [StateTransitionSpec.clientState_bind, cs_bind_write, cs_bind_pure]
+    rw [StateTransitionSpec.clientState_bind, clientState_bind_write, cs_bind_pure]
   have hL_eq : L = vL_end.2 := by
     change (Memory.spec 0).clientResult s (buildWProg (n, m)) = vL_end.2
     unfold buildWProg
     dsimp only
-    rw [StateTransitionSpec.clientResult_bind, cr_bind_write, cr_bind_pure]
+    rw [StateTransitionSpec.clientResult_bind, clientResult_bind_write, cr_bind_pure]
   rw [ht_eq, hL_eq]
   have hfilt_univ : (Wset.filter fun w => w.1 < n) = Wset :=
     Finset.filter_eq_self.mpr fun w _ => w.2
@@ -4011,8 +4002,9 @@ private theorem unpackGuessProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Me
       have hdg_le : s.mem (digitBase n + j) ≤ 2 := hdig j hj_lt
       unfold unpackStep
       dsimp only
-      rw [cr_bind_read, cs_bind_read, cr_bind_read, cs_bind_read, hwv_eq, hdg_eq,
-        ite_eq_left ⟨hwv_lt, hdg_le⟩, cr_bind_write, cs_bind_write]
+      rw [clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
+        clientState_bind_read, hwv_eq, hdg_eq,
+        ite_eq_left ⟨hwv_lt, hdg_le⟩, clientResult_bind_write, clientState_bind_write]
       simp only [client_simps]
       refine ⟨by omega, fun a ha => ?_, fun i hi => ?_, fun v hv => ?_, fun v => ?_⟩
       · rw [Function.update_of_ne (by omega)]; exact hst_low a ha
@@ -4062,7 +4054,7 @@ private theorem checkProperProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [De
     0 < s.mem (digitBase n + i.1) ∧ 0 < s.mem (digitBase n + j.1) ∧
       s.mem (digitBase n + i.1) = s.mem (digitBase n + j.1) ∧ (prefixGraph G m).Adj u v
   unfold checkProperProg
-  rw [cr_bind_read, cr_bind_pure]
+  rw [clientResult_bind_read, cr_bind_pure]
   have hout := iterate_invariant_of properOuterStep ((n, m), L)
     (fun rem (iok : ℕ × ℕ) st =>
       iok.1 + rem = L ∧
@@ -4074,7 +4066,8 @@ private theorem checkProperProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [De
       let uFin : Fin n := ⟨s.mem (wListBase n + iok.1), hW.entry_lt iok.1 hi_lt⟩
       unfold properOuterStep
       dsimp only
-      rw [cr_bind_read, cs_bind_read, cr_bind_read, cs_bind_read, hmem_eq, hmem_eq]
+      rw [clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
+        clientState_bind_read, hmem_eq, hmem_eq]
       by_cases hdu : 0 < s.mem (digitBase n + iok.1)
       · rw [ite_eq_left ⟨uFin.2, hdu⟩, cr_bind_pure, cs_bind_pure]
         have hinn := iterate_invariant_of properInnerStep
@@ -4090,14 +4083,15 @@ private theorem checkProperProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} [De
             let vFin : Fin n := ⟨s.mem (wListBase n + jok.1), hW.entry_lt jok.1 hj_lt⟩
             unfold properInnerStep
             dsimp only
-            rw [cr_bind_read, cs_bind_read, cr_bind_read, cs_bind_read, hmem', hmem']
+            rw [clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
+              clientState_bind_read, hmem', hmem']
             by_cases hcond : s.mem (wListBase n + iok.1) < n ∧
                 s.mem (wListBase n + jok.1) < n ∧
                 s.mem (wListBase n + iok.1) < m ∧
                 s.mem (wListBase n + jok.1) < m ∧
                 0 < s.mem (digitBase n + jok.1) ∧
                 s.mem (digitBase n + iok.1) = s.mem (digitBase n + jok.1)
-            · rw [ite_eq_left hcond, cr_bind_read, cs_bind_read, hmem']
+            · rw [ite_eq_left hcond, clientResult_bind_read, clientState_bind_read, hmem']
               have hmat := hG uFin vFin
               dsimp only [uFin, vFin] at hmat
               rw [hmat]
@@ -4269,7 +4263,8 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
         by_cases h : vFin ∈ Wset <;> simp [h]
       unfold termOuterStep
       dsimp only
-      rw [cr_bind_read, cs_bind_read, cr_bind_read, cs_bind_read, hzv_eq, hcv_eq]
+      rw [clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
+        clientState_bind_read, hzv_eq, hcv_eq]
       by_cases hcond : s.mem (wBase n + v) = 0 ∧ v < m
       · rw [ite_eq_left hcond, cr_bind_pure, cs_bind_pure]
         have hv_notW : vFin ∉ Wset := hzv_W.mp hcond.1
@@ -4298,12 +4293,13 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
             let uFin : Fin n := ⟨s.mem (wListBase n + j), hW.entry_lt j hj_lt⟩
             unfold termInnerStep
             dsimp only
-            rw [cr_bind_read, cs_bind_read, cr_bind_read, cs_bind_read,
+            rw [clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
+              clientState_bind_read,
               hi_low _ (by dsimp only [wListBase, keepBase]; have := hW.card_le_n; omega),
               hi_low _ (by dsimp only [digitBase, keepBase]; have := hW.card_le_n; omega)]
             by_cases hicond : s.mem (wListBase n + j) < n ∧ v < n ∧
                 s.mem (wListBase n + j) < m ∧ v < m ∧ 0 < s.mem (digitBase n + j)
-            · rw [ite_eq_left hicond, cr_bind_read, cs_bind_read,
+            · rw [ite_eq_left hicond, clientResult_bind_read, clientState_bind_read,
                 hi_low _ (by dsimp only [keepBase]; nlinarith [uFin.2, vFin.2])]
               have hmat := hG uFin vFin
               dsimp only [uFin, vFin] at hmat
@@ -4328,7 +4324,7 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
                     simp [hd, hc]
                 by_cases hsame : s.mem (digitBase n + j) - 1 = s.mem (colBase n + v)
                 · have hsame' := hcol_iff.mp hsame
-                  rw [ite_eq_left hsame, cr_bind_write, cs_bind_write]
+                  rw [ite_eq_left hsame, clientResult_bind_write, clientState_bind_write]
                   simp only [client_simps]
                   have hflip_succ : FlipBefore (j + 1) :=
                     ⟨jFin, by dsimp only [jFin]; omega, hicond.2.2.2.2, hp_adj, hsame'⟩
@@ -4351,7 +4347,7 @@ private theorem buildTerminalsProg_spec {n m L : ℕ} {G : SimpleGraph (Fin n)} 
                   · rw [Function.update_self]
                     exact ⟨le_rfl, ⟨fun _ => hflip_succ, fun _ => rfl⟩⟩
                 · have hdiff : guessCol n s uFin ≠ c₀ vFin := fun h => hsame (hcol_iff.mpr h)
-                  rw [ite_eq_right hsame, cr_bind_write, cs_bind_write]
+                  rw [ite_eq_right hsame, clientResult_bind_write, clientState_bind_write]
                   simp only [client_simps]
                   have hkeep_succ : KeepBefore (j + 1) :=
                     ⟨jFin, by dsimp only [jFin]; omega, hicond.2.2.2.2, hp_adj, hdiff⟩
@@ -4525,7 +4521,7 @@ private theorem countDelProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Memor
       s.mem (guessBase n + s.mem (wListBase n + j.1)) = s.mem (digitBase n + j.1)) :
     (Memory.spec 0).clientResult s (countDelProg (n, L)) = (delSet Wset s).card := by
   unfold countDelProg
-  rw [cr_bind_read, cr_bind_pure]
+  rw [clientResult_bind_read, cr_bind_pure]
   have hiter := iterate_invariant_of countDelStep n
     (fun rem (jc : ℕ × ℕ) st =>
       jc.1 + rem = L ∧
@@ -4537,7 +4533,7 @@ private theorem countDelProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Memor
       let jFin : Fin L := ⟨jc.1, hj_lt⟩
       unfold countDelStep
       dsimp only
-      rw [cr_bind_read, cs_bind_read, hmem_eq]
+      rw [clientResult_bind_read, clientState_bind_read, hmem_eq]
       by_cases h0 : s.mem (digitBase n + jc.1) = 0
       · rw [ite_eq_left h0, clientResult_pure, clientState_pure]
         dsimp only
@@ -4648,46 +4644,55 @@ private theorem commitLeafProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Mem
           (Memory.spec 0).clientResult st (commitStep (n, v)) = v + 1 := by
         unfold commitStep
         dsimp only [sepVal, NewCol]
-        rw [cs_bind_read, cr_bind_read, cs_bind_read, cr_bind_read, cs_bind_read, cr_bind_read,
-          cs_bind_read, cr_bind_read, cs_bind_read, cr_bind_read, hwv, hgv, hxv, hcv, hdout]
+        rw [clientState_bind_read, clientResult_bind_read, clientState_bind_read,
+          clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
+          clientState_bind_read, clientResult_bind_read, clientState_bind_read,
+            clientResult_bind_read, hwv, hgv, hxv, hcv, hdout]
         by_cases hux : (s.mem (wBase n + v) = 1 ∧ s.mem (guessBase n + v) = 0) ∨
             s.mem (sepOutBase n + v) = 1 <;>
           by_cases hw1 : s.mem (wBase n + v) = 1
-        · rw [ite_eq_left hux, ite_eq_left (hmem_UX.mp hux), cs_bind_write, cr_bind_write,
+        · rw [ite_eq_left hux, ite_eq_left (hmem_UX.mp hux), clientState_bind_write,
+          clientResult_bind_write,
             ite_eq_left hw1, ite_eq_left (hw_iff.mp hw1)]
           by_cases hg2 : s.mem (guessBase n + v) = 2
-          · rw [ite_eq_left hg2, ite_eq_left hg2, cs_bind_write, cr_bind_write]; exact ⟨rfl, rfl⟩
-          · rw [ite_eq_right hg2, ite_eq_right hg2, cs_bind_write, cr_bind_write]; exact ⟨rfl, rfl⟩
-        · rw [ite_eq_left hux, ite_eq_left (hmem_UX.mp hux), cs_bind_write, cr_bind_write,
+          · rw [ite_eq_left hg2, ite_eq_left hg2, clientState_bind_write, clientResult_bind_write]
+            exact ⟨rfl, rfl⟩
+          · rw [ite_eq_right hg2, ite_eq_right hg2, clientState_bind_write,
+            clientResult_bind_write]; exact ⟨rfl, rfl⟩
+        · rw [ite_eq_left hux, ite_eq_left (hmem_UX.mp hux), clientState_bind_write,
+          clientResult_bind_write,
             ite_eq_right hw1, ite_eq_right (fun h => hw1 (hw_iff.mpr h))]
           by_cases hd : s.mem (distBase n + (outIdx vFin).1) < splitCount n <;>
             by_cases hc1 : s.mem (colBase n + v) = 1
           · rw [ite_eq_left hd, ite_eq_left hd, ite_eq_left hc1, ite_eq_left hc1,
-              cs_bind_write, cr_bind_write]; exact ⟨rfl, rfl⟩
+              clientState_bind_write, clientResult_bind_write]; exact ⟨rfl, rfl⟩
           · rw [ite_eq_left hd, ite_eq_left hd, ite_eq_right hc1, ite_eq_right hc1,
-              cs_bind_write, cr_bind_write]; exact ⟨rfl, rfl⟩
+              clientState_bind_write, clientResult_bind_write]; exact ⟨rfl, rfl⟩
           · rw [ite_eq_right hd, ite_eq_right hd, ite_eq_left hc1, ite_eq_left hc1,
-              cs_bind_write, cr_bind_write]; exact ⟨rfl, rfl⟩
+              clientState_bind_write, clientResult_bind_write]; exact ⟨rfl, rfl⟩
           · rw [ite_eq_right hd, ite_eq_right hd, ite_eq_right hc1, ite_eq_right hc1,
-              cs_bind_write, cr_bind_write]; exact ⟨rfl, rfl⟩
+              clientState_bind_write, clientResult_bind_write]; exact ⟨rfl, rfl⟩
         · rw [ite_eq_right hux, ite_eq_right (fun h => hux (hmem_UX.mpr h)),
-            cs_bind_write, cr_bind_write, ite_eq_left hw1, ite_eq_left (hw_iff.mp hw1)]
+            clientState_bind_write, clientResult_bind_write, ite_eq_left hw1,
+              ite_eq_left (hw_iff.mp hw1)]
           by_cases hg2 : s.mem (guessBase n + v) = 2
-          · rw [ite_eq_left hg2, ite_eq_left hg2, cs_bind_write, cr_bind_write]; exact ⟨rfl, rfl⟩
-          · rw [ite_eq_right hg2, ite_eq_right hg2, cs_bind_write, cr_bind_write]; exact ⟨rfl, rfl⟩
+          · rw [ite_eq_left hg2, ite_eq_left hg2, clientState_bind_write, clientResult_bind_write]
+            exact ⟨rfl, rfl⟩
+          · rw [ite_eq_right hg2, ite_eq_right hg2, clientState_bind_write,
+            clientResult_bind_write]; exact ⟨rfl, rfl⟩
         · rw [ite_eq_right hux, ite_eq_right (fun h => hux (hmem_UX.mpr h)),
-            cs_bind_write, cr_bind_write, ite_eq_right hw1,
+            clientState_bind_write, clientResult_bind_write, ite_eq_right hw1,
             ite_eq_right (fun h => hw1 (hw_iff.mpr h))]
           by_cases hd : s.mem (distBase n + (outIdx vFin).1) < splitCount n <;>
             by_cases hc1 : s.mem (colBase n + v) = 1
           · rw [ite_eq_left hd, ite_eq_left hd, ite_eq_left hc1, ite_eq_left hc1,
-              cs_bind_write, cr_bind_write]; exact ⟨rfl, rfl⟩
+              clientState_bind_write, clientResult_bind_write]; exact ⟨rfl, rfl⟩
           · rw [ite_eq_left hd, ite_eq_left hd, ite_eq_right hc1, ite_eq_right hc1,
-              cs_bind_write, cr_bind_write]; exact ⟨rfl, rfl⟩
+              clientState_bind_write, clientResult_bind_write]; exact ⟨rfl, rfl⟩
           · rw [ite_eq_right hd, ite_eq_right hd, ite_eq_left hc1, ite_eq_left hc1,
-              cs_bind_write, cr_bind_write]; exact ⟨rfl, rfl⟩
+              clientState_bind_write, clientResult_bind_write]; exact ⟨rfl, rfl⟩
           · rw [ite_eq_right hd, ite_eq_right hd, ite_eq_right hc1, ite_eq_right hc1,
-              cs_bind_write, cr_bind_write]; exact ⟨rfl, rfl⟩
+              clientState_bind_write, clientResult_bind_write]; exact ⟨rfl, rfl⟩
       rw [hstep1.1, hstep1.2]
       dsimp only
       refine ⟨by omega, fun a ha => ?_, fun u hu => ?_, fun u hu => ?_⟩
@@ -4720,7 +4725,7 @@ private theorem commitLeafProg_spec {n L : ℕ} {Wset : Finset (Fin n)} {s : Mem
   have ht_eq : t = s1 := by
     change (Memory.spec 0).clientState s (commitLeafProg n) = s1
     unfold commitLeafProg
-    rw [cs_bind_read, cs_bind_pure]
+    rw [clientState_bind_read, cs_bind_pure]
   rw [ht_eq]
   refine ⟨fun v => (hdone_end v v.2).1, fun v => ?_, fun v hvW => ?_, fun v hvW => ?_⟩
   · rw [(hdone_end v v.2).2]
@@ -5412,31 +5417,30 @@ private theorem preservesAt_incOdomProg {a : ℕ} {d : ℕ × ℕ}
     refine preservesAt_ite _ ?_ ?_ <;>
       exact preservesAt_bind (preservesAt_write _ (by dsimp only at ha hj ⊢; omega))
         fun _ => preservesAt_pure _ _
-  · unfold incOdomStep
-    simp_client
+  · exact clientResult_incOdomStep_fst _ s
 
 private theorem incOdomProg_digits_le (n L : ℕ) {s : Memory.State}
     (hdig : ∀ j < L, s.mem (digitBase n + j) ≤ 2) :
     ∀ j < L, ((Memory.spec 0).clientState s (incOdomProg (n, L))).mem (digitBase n + j) ≤ 2 := by
   unfold incOdomProg
-  rw [cs_bind_read, cs_bind_pure]
+  rw [clientState_bind_read, cs_bind_pure]
   have hinv := iterate_invariant_of incOdomStep n
     (fun rem (jc : ℕ × ℕ) st =>
       jc.1 + rem = L ∧ ∀ i < L, st.mem (digitBase n + i) ≤ 2)
     (fun rem jc st ⟨hjsum, hle⟩ => by
       unfold incOdomStep
       dsimp only
-      rw [cr_bind_read, cs_bind_read]
+      rw [clientResult_bind_read, clientState_bind_read]
       by_cases hc : jc.2 = 1
       · rw [ite_eq_left hc]
         by_cases hlt : st.mem (digitBase n + jc.1) < 2
-        · rw [ite_eq_left hlt, cr_bind_write, cs_bind_write]
+        · rw [ite_eq_left hlt, clientResult_bind_write, clientState_bind_write]
           simp only [client_simps]
           refine ⟨by omega, fun i hi => ?_⟩
           by_cases hij : i = jc.1
           · subst hij; rw [Function.update_self]; omega
           · rw [Function.update_of_ne (by omega)]; exact hle i hi
-        · rw [ite_eq_right hlt, cr_bind_write, cs_bind_write]
+        · rw [ite_eq_right hlt, clientResult_bind_write, clientState_bind_write]
           simp only [client_simps]
           refine ⟨by omega, fun i hi => ?_⟩
           by_cases hij : i = jc.1
@@ -5552,7 +5556,7 @@ private theorem compressProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Dec
       · simp only [hg, ↓reduceIte]
         rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind]
         dsimp only [guessStep]
-        rw [cr_bind_read, cs_bind_read]
+        rw [clientResult_bind_read, clientState_bind_read]
         by_cases hst2_0 : st.2 = 0
         · rw [ite_eq_left hst2_0, clientResult_bind, clientState_bind, cr_bind_pure, cs_bind_pure]
           obtain ⟨_, _, _, hleaf_le, hlow', huW', hdig', hodom_pre, _, hleaf_0, hoct'⟩ :=
@@ -5654,7 +5658,7 @@ private theorem compressProg_spec {n k m L : ℕ} {G : SimpleGraph (Fin n)} [Dec
       · simp only [hg, ↓reduceIte]
         rw [StateTransitionSpec.clientResult_bind]
         dsimp only [guessStep]
-        rw [cr_bind_read, cs_bind_read]
+        rw [clientResult_bind_read, clientState_bind_read]
         by_cases hst2_0 : st.2 = 0
         · rw [ite_eq_left hst2_0, clientResult_bind, clientState_bind, cr_bind_pure, cs_bind_pure]
           obtain ⟨huG, hu_col01, hu_c0, hleaf_le, hlow', huW', hdig', hodom_pre, hbase_leaf,
@@ -5749,12 +5753,12 @@ private theorem memoryCost_buildWProg_le (d : ℕ × ℕ) (s : Memory.State) :
   dsimp only
   have hstep : ∀ vL t, memoryCost (buildWListStep (n, vL)) t ≤ 2 := fun vL t => by
     unfold buildWListStep
-    exact le_trans (mc_bind (mc_read _ t) fun _ t' =>
-      mc_ite (mc_map_write _ _ _ t') (Nat.zero_le _)) (by decide)
+    exact le_trans (memoryCost_bind_le (mc_read _ t) fun _ t' =>
+      memoryCost_ite_le ((le_refl 1)) (Nat.zero_le _)) (by decide)
   have hcopy := memoryCost_copyRange_le ((sepBase n, wBase n), n) s
-  exact le_trans (mc_bind hcopy fun _ t1 =>
-    mc_bind (mc_write _ _ t1) fun _ t2 =>
-      mc_bind (memoryCost_iterate_le_of buildWListStep 2 n hstep n (0, 0) t2)
+  exact le_trans (memoryCost_bind_le hcopy fun _ t1 =>
+    memoryCost_bind_le (mc_write _ _ t1) fun _ t2 =>
+      memoryCost_bind_le (memoryCost_iterate_le_of buildWListStep 2 n hstep n (0, 0) t2)
         fun _ t3 => mc_pure _ t3) (by dsimp only; omega)
 
 private theorem iterate_inv_and_cost {δ σ : Type} (body : δ × σ → Memory.Prog σ)
@@ -5894,7 +5898,7 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
         by_cases hLk : L ≤ k
         · rw [ite_eq_left hLk]
           have hw_mc : memoryCost (do Memory.write (sepBase n + m) 1; pure (m + 1, 1)) tW ≤ 1 :=
-            mc_map_write _ _ _ tW
+            (le_refl 1)
           nlinarith [hp1_4, hpow3]
         · rw [ite_eq_right hLk, ite_eq_left hL_le_n]
           have hcp := memoryCost_compressProg_le (d := (((n, k), m + 1), L)) hL_le_n tW
@@ -5902,7 +5906,7 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
           have hcp_map : memoryCost
               (do let ok ← compressProg (((n, k), m + 1), L); pure (m + 1, ok)) tW ≤
               215 * 3 ^ L * (n + 1) ^ 4 :=
-            le_trans (mc_bind hcp fun _ t' => mc_pure _ t') (by omega)
+            le_trans (memoryCost_bind_le hcp fun _ t' => mc_pure _ t') (by omega)
           have hL_eq : L = k + 1 := by omega
           have hpowL : 3 ^ L = 3 * 3 ^ k := by rw [hL_eq, pow_succ, Nat.mul_comm]
           rw [hpowL] at hcp_map
@@ -5910,11 +5914,13 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
       refine ⟨hcost_step, ?_⟩
       unfold octStep
       dsimp only
-      rw [cr_bind_read, cs_bind_read, ite_eq_left hal, clientResult_bind, clientState_bind]
+      rw [clientResult_bind_read, clientState_bind_read, ite_eq_left hal, clientResult_bind,
+        clientState_bind]
       change LoopInv rem ((Memory.spec 0).clientResult tW (if L ≤ k then _ else _))
         ((Memory.spec 0).clientState tW (if L ≤ k then _ else _))
       by_cases hLk : L ≤ k
-      · rw [ite_eq_left hLk, cr_bind_write, cs_bind_write, clientResult_pure, clientState_pure]
+      · rw [ite_eq_left hLk, clientResult_bind_write, clientState_bind_write, clientResult_pure,
+        clientState_pure]
         dsimp only [LoopInv]
         refine ⟨by omega, fun u v => ?_, by decide, fun _ => ?_, fun h0 => absurd h0 (by decide)⟩
         · dsimp only
@@ -5978,7 +5984,7 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
       refine ⟨hcost_dead, ?_⟩
       unfold octStep
       dsimp only
-      rw [cr_bind_read, cs_bind_read, ite_eq_right hal]
+      rw [clientResult_bind_read, clientState_bind_read, ite_eq_right hal]
       simp only [client_simps]
       dsimp only [LoopInv]
       exact ⟨by omega, hG_st, by decide, fun h => absurd h (by decide), fun _ => hal0 hal_eq0⟩
@@ -5993,12 +5999,14 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
   have hres_eq : res = ma_end.2 := by
     change (Memory.spec 0).clientResult s₀ (octProg ()) = ma_end.2
     unfold octProg
-    rw [cr_bind_read, cr_bind_read, hs₀_1, hs₀_2, clientResult_bind, clientResult_bind,
+    rw [clientResult_bind_read, clientResult_bind_read, hs₀_1, hs₀_2, clientResult_bind,
+      clientResult_bind,
       clientResult_bind, cr_bind_pure]
   have ht_eq : t = s_end := by
     change (Memory.spec 0).clientState s₀ (octProg ()) = s_end
     unfold octProg
-    rw [cs_bind_read, cs_bind_read, hs₀_1, hs₀_2, clientState_bind, clientState_bind,
+    rw [clientState_bind_read, clientState_bind_read, hs₀_1, hs₀_2, clientState_bind,
+      clientState_bind,
       clientState_bind, cs_bind_pure]
   have htotal_cost : memoryCost (octProg ()) s₀ ≤ 680 * 3 ^ k * (n + 1) ^ 5 := by
     unfold octProg
@@ -6032,7 +6040,7 @@ private theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
     dsimp only at hc_sep hc_col
     have hc_pure : memoryCost (do let res ← iterate octStep (n, k) n (0, 1); pure res.2) s_col ≤
         655 * 3 ^ k * (n + 1) ^ 4 * n :=
-      le_trans (mc_bind hiter_cost fun _ u => mc_pure _ u) (by omega)
+      le_trans (memoryCost_bind_le hiter_cost fun _ u => mc_pure _ u) (by omega)
     exact le_trans (by omega) (octProg_cost_arith n k)
   rw [hres_eq, ht_eq]
   refine ⟨htotal_cost, hal_end_le, ⟨fun h1 => ?_, fun hex => ?_⟩, hal_end_1⟩
