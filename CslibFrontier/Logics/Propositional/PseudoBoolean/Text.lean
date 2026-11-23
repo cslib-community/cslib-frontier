@@ -52,16 +52,20 @@ trivially true goals; the kernel format requires both (§6.1). The remaining ext
 and `rup` without hints, are described under **Steps**. So a proof accepted here need not be a
 kernel proof.
 
-**Variables.** Variable names follow VeriPB 3.0.2 (§3.3 of the documentation;
-`Cslib.Logic.PL.VeriPB.Text.isName`): at least two characters, an ASCII letter, `_` or `$` first,
-then letters, digits and `_ [ ] { } ^ -`. A standard name `xN`, with `N ≥ 1` written without
-leading zeros, is the variable `N - 1`, as in `Cslib.Logic.PL.Literal.ofDIMACS`, so a DIMACS
-variable and its name in the proof agree; `x01` is another name, as in VeriPB. The other names of
-an instance are numbered after its largest standard name, in order of first appearance
+**Variables.** Variable names follow VeriPB 3.0.2 (§3.3 of the documentation). An instance and an
+output formula have OPB names (`Cslib.Logic.PL.VeriPB.Text.isOPBName`): at least two characters,
+an ASCII letter or `_` first, then letters, digits and `_ [ ] { } ^ -`, the rule of
+`veripb-parser` 0.1.2, which VeriPB 3.0.2 locks. A proof may also name the auxiliary variables of
+an order `$a`, a `$` followed by those characters (§5.3; `Cslib.Logic.PL.VeriPB.Text.isName`), as
+VeriPB's proof lexer does; the parser of instances rejects them, as VeriPB does (CakePB accepts
+`1 $a >= 1 ;` in an instance). A standard name `xN`, with `N ≥ 1` written without leading zeros,
+is the variable `N - 1`, as in `Cslib.Logic.PL.Literal.ofDIMACS`, so a DIMACS variable and its
+name in the proof agree; `x01` is another name, as in VeriPB. The other names of an instance are
+numbered after its largest standard name, in order of first appearance
 (`Cslib.Logic.PL.VeriPB.Text.opbNames`), so an instance with standard names only has the variables
 `N - 1`, and one without them is numbered as VeriPB numbers it. The proof and the output text
-share these names: the names they add, the auxiliary variables `$a` of orders (§5.3) and the
-keywords of the proof included, are the next variables, in order of first appearance
+share these names: the names they add, the auxiliary variables and the keywords of the proof
+included, are the next variables, in order of first appearance
 (`Cslib.Logic.PL.VeriPB.Text.proofNames`). So a name the instance does not mention is always a
 fresh variable, as in VeriPB, where every rule may introduce one; the checker tests freshness
 where the rule requires it (witnesses, `fresh_right`, `fresh_aux_1`, `fresh_aux_2`). How the
@@ -132,6 +136,8 @@ value itself (`Cslib.Logic.PL.VeriPB.Text.not_satisfiable_of_checkOPB_printOPB` 
 * `Cslib.Logic.PL.VeriPB.Text.parseProof`: proofs in the supported fragment.
 * `Cslib.Logic.PL.VeriPB.Text.checkOPB`, `Cslib.Logic.PL.VeriPB.Text.checkOPBOutput`,
   `Cslib.Logic.PL.VeriPB.Text.checkDIMACS`: the checkers.
+* `Cslib.Logic.PL.VeriPB.Text.isOPBName`, `Cslib.Logic.PL.VeriPB.Text.isName`: the variable
+  names of an instance, and those of a proof, which may also name auxiliary variables `$a`.
 * `Cslib.Logic.PL.VeriPB.Text.Names`, `Cslib.Logic.PL.VeriPB.Text.opbNames`,
   `Cslib.Logic.PL.VeriPB.Text.proofNames`: variable names, those of an OPB text, and those of a
   proof and its output text.
@@ -241,14 +247,35 @@ of `_ [ ] { } ^ -`. -/
 def isNameChar (c : Char) : Bool :=
   c.isAlphanum || c == '_' || c == '[' || c == ']' || c == '{' || c == '}' || c == '^' || c == '-'
 
-/-- **A variable name** (§3.3 of the documentation, as VeriPB 3.0.2 reads it): at least two
-characters, the first an ASCII letter, `_`, or the `$` of an auxiliary variable (§5.3), the others
-name characters (`Cslib.Logic.PL.VeriPB.Text.isNameChar`). VeriPB also allows `-` after the first
-character, which the documentation does not list. -/
+/-- **An OPB variable name** (§3.3 of the documentation, as VeriPB 3.0.2 reads an instance): at
+least two characters, the first an ASCII letter or `_`, the others name characters
+(`Cslib.Logic.PL.VeriPB.Text.isNameChar`). This is the rule
+`[a-zA-Z_][_a-zA-Z0-9\-\^\[\]\{\}]+` of `OPBToken::Var` in `opb_token.rs` of `veripb-parser`
+0.1.2, the version VeriPB 3.0.2 locks. VeriPB also allows `-` after the first character, which
+the documentation does not list. -/
+def isOPBName (t : String) : Bool :=
+  match t.toList with
+  | c :: d :: cs => (c.isAlpha || c == '_') && (d :: cs).all isNameChar
+  | _ => false
+
+/-- **A variable name of a proof**: an OPB name (`Cslib.Logic.PL.VeriPB.Text.isOPBName`), or the
+name `$a` of an auxiliary variable of an order (§5.3), a `$` followed by name characters. VeriPB
+3.0.2 starts an identifier of a proof so (`is_start_of_identifier_symbol` and
+`is_identifier_symbol` in its `src/parser/lexer.rs`); an instance and an output formula have OPB
+names only. -/
 def isName (t : String) : Bool :=
   match t.toList with
   | c :: d :: cs => (c.isAlpha || c == '_' || c == '$') && (d :: cs).all isNameChar
   | _ => false
+
+/-- An OPB name is a name. -/
+theorem isName_of_isOPBName {t : String} (h : isOPBName t = true) : isName t = true := by
+  unfold isOPBName at h
+  unfold isName
+  split at h
+  · simp only [Bool.and_eq_true, Bool.or_eq_true] at h ⊢
+    exact ⟨.inl h.1, h.2⟩
+  · cases h
 
 /-- **The variable names of an instance and its proof.** A standard name `xN` with `N - 1` below
 `base` is the variable `N - 1`, as in `Cslib.Logic.PL.Literal.ofDIMACS`; the other names are the
@@ -312,8 +339,13 @@ def Names.lit? (N : Names) (t : String) : Option (Literal ℕ) :=
 /-- A token without the `~` of a negative literal. -/
 def bareName (t : String) : String := (dropChar? '~' t).getD t
 
+/-- A literal token `x` or `~x` of an instance, with `x` an OPB name
+(`Cslib.Logic.PL.VeriPB.Text.isOPBName`): not the name `$a` of an auxiliary variable. -/
+def Names.opbLit? (N : Names) (t : String) : Option (Literal ℕ) :=
+  if isOPBName (bareName t) then N.lit? t else none
+
 /-- The elements of `l` not in `acc`, after `acc`, each once, in order of first appearance. -/
-def addNew (acc : List String) : List String → List String
+private def addNew (acc : List String) : List String → List String
   | [] => acc
   | t :: ts => addNew (if acc.contains t then acc else acc ++ [t]) ts
 
@@ -333,10 +365,11 @@ def opbTokenLines (s : String) : List (List String) :=
     | some t => !startsWithChar '*' t
 
 /-- **The variable names of an OPB text**: the standard names `xN` are the variables `N - 1`, below
-one more than the largest of them, and the other names, in order of first appearance, the
-variables from there on. -/
+one more than the largest of them, and the other OPB names
+(`Cslib.Logic.PL.VeriPB.Text.isOPBName`), in order of first appearance, the variables from there
+on. A name `$a` of an auxiliary variable is not one of them. -/
 def opbNames (s : String) : Names :=
-  let ts := (opbTokenLines s).flatten
+  let ts := (opbTokenLines s).flatten.filter fun t => isOPBName (bareName t)
   (⟨[], ((ts.map bareName).filterMap stdVar?).foldr (fun v m => max (v + 1) m) 0⟩ : Names).extend
     ts
 
@@ -498,22 +531,40 @@ theorem Names.name_injOn {N : Names} (hN : N.WF) : Set.InjOn N.name {v | v < N.n
 private theorem isNameChar_of_isDigit {c : Char} (h : c.isDigit = true) : isNameChar c = true := by
   simp [isNameChar, Char.isAlphanum, h]
 
+/-- A standard name is an OPB name. -/
+private theorem isOPBName_std (n : ℕ) :
+    isOPBName (String.ofList ('x' :: Nat.toDecimal (n + 1))) = true := by
+  obtain ⟨d, ds, h, -⟩ := Nat.exists_toDecimal_eq_cons (n + 1)
+  rw [h, isOPBName, String.toList_ofList]
+  simp only [show ('x' : Char).isAlpha = true by decide, Bool.true_or, Bool.true_and,
+    List.all_eq_true]
+  intro c hc
+  exact isNameChar_of_isDigit (Nat.isDigit_of_mem_toDecimal (h ▸ hc))
+
+/-- The name of a variable below `next` is its standard name or one of the other names. -/
+private theorem Names.name_eq_or_mem {N : Names} {v : ℕ} (hv : v < N.next) :
+    N.name v = String.ofList ('x' :: Nat.toDecimal (v + 1)) ∨ N.name v ∈ N.others := by
+  unfold Names.name Names.nameChars
+  split
+  · exact .inl rfl
+  · have hi : v - N.base < N.others.length := by unfold Names.next at hv; omega
+    rw [List.getElem?_eq_getElem hi]
+    simp only [String.ofList_toList]
+    exact .inr (List.getElem_mem hi)
+
 /-- **The name of a variable below `next` is a name.** -/
 theorem Names.isName_name {N : Names} (hN : N.WF) {v : ℕ} (hv : v < N.next) :
     isName (N.name v) = true := by
-  unfold Names.name Names.nameChars
-  split
-  · obtain ⟨d, ds, h, hd⟩ := Nat.exists_toDecimal_eq_cons (v + 1)
-    rw [h, isName, String.toList_ofList]
-    simp only [show ('x' : Char).isAlpha = true by decide, Bool.true_or, Bool.true_and,
-      List.all_eq_true]
-    intro c hc
-    exact isNameChar_of_isDigit (Nat.isDigit_of_mem_toDecimal (h ▸ hc))
-  · rename_i hle
-    have hi : v - N.base < N.others.length := by unfold Names.next at hv; omega
-    rw [List.getElem?_eq_getElem hi]
-    simp only [String.ofList_toList]
-    exact hN.name_ok _ (List.getElem_mem hi)
+  rcases N.name_eq_or_mem hv with h | h
+  · exact h ▸ isName_of_isOPBName (isOPBName_std v)
+  · exact hN.name_ok _ h
+
+/-- **The name of a variable below `next` is an OPB name** when the other names are. -/
+theorem Names.isOPBName_name {N : Names} (hN : ∀ s ∈ N.others, isOPBName s = true) {v : ℕ}
+    (hv : v < N.next) : isOPBName (N.name v) = true := by
+  rcases N.name_eq_or_mem hv with h | h
+  · exact h ▸ isOPBName_std v
+  · exact hN _ h
 
 private theorem nameChars_of_le {N : Names} {v : ℕ} (hv : N.next ≤ v) :
     N.nameChars v = '#' :: Nat.toDecimal v := by
@@ -572,9 +623,10 @@ theorem Names.Extends.name_eq {N M : Names} (h : N.Extends M) {v : ℕ} (hv : v 
 
 /-- The terms `a ℓ` of a constraint or an objective, up to the relation, `;` or `:`, as an integer
 linear form and a constant: that contributed by negative literals (`a ¬x = a - a x`) and, in an
-objective, a final constant term. A constraint never ends in `;` or `:` before its relation, so
+objective, a final constant term, with the literals read by `lit` (`Names.lit?` in a proof,
+`Names.opbLit?` in an instance). A constraint never ends in `;` or `:` before its relation, so
 `constr` still rejects a constant there. -/
-private def terms (N : Names) :
+private def terms (lit : String → Option (Literal ℕ)) :
     ℕ → List String → List (ℕ × ℤ) → ℤ → Option (List (ℕ × ℤ) × ℤ × List String)
   | 0, _, _, _ => none
   | fuel + 1, t :: ts, L, k =>
@@ -589,16 +641,18 @@ private def terms (N : Names) :
         -- A coefficient before `;` or `:` is the constant of an objective.
         if (int? t).isSome && (u == ";" || u == ":") then some (L, k + a, u :: rest)
         else
-          match N.lit? u with
-          | some (v, true) => terms N fuel rest (PBConstr.insertCoeff v a L) k
-          | some (v, false) => terms N fuel rest (PBConstr.insertCoeff v (-a) L) (k + a)
+          match lit u with
+          | some (v, true) => terms lit fuel rest (PBConstr.insertCoeff v a L) k
+          | some (v, false) => terms lit fuel rest (PBConstr.insertCoeff v (-a) L) (k + a)
           | none => none
       | [] => none
   | _ + 1, [], _, _ => none
 
-/-- A constraint `∑ aᵢ ℓᵢ ⋈ A`: one or two constraints `≥` (`=` gives two), and the rest. -/
-private def constr (N : Names) (ts : List String) : Option (List PBConstr × List String) :=
-  match terms N (ts.length + 1) ts [] 0 with
+/-- A constraint `∑ aᵢ ℓᵢ ⋈ A`, its literals read by `lit`: one or two constraints `≥` (`=` gives
+two), and the rest. -/
+private def constr (lit : String → Option (Literal ℕ)) (ts : List String) :
+    Option (List PBConstr × List String) :=
+  match terms lit (ts.length + 1) ts [] 0 with
   | some (L, k, rel :: d :: rest) =>
     match int? d with
     | none => none
@@ -616,48 +670,52 @@ private def geq (N : Names) (ts : List String) : Option (PBConstr × List String
   match ts.head? with
   | none => none
   | some _ =>
-    match constr N ts with
+    match constr N.lit? ts with
     | some ([c], rest) => some (c, rest)
     | _ => none
 
 /-! ### Formulas -/
 
-/-- The constraints of OPB lines, given as token lists. -/
+/-- The constraints of OPB lines, given as token lists, with OPB names. -/
 private def opbLines (N : Names) : List (List String) → Option (List PBConstr)
   | [] => some []
   | [] :: ls => opbLines N ls
   | (t :: ts) :: ls =>
     if startsWithChar '*' t then opbLines N ls
     else
-      match constr N (t :: ts), opbLines N ls with
+      match constr N.opbLit? (t :: ts), opbLines N ls with
       | some (cs, [";"]), some F => some (cs ++ F)
       | _, _ => none
 
-/-- An objective `∑ wᵢ ℓᵢ [k]` with an optional constant `k`, up to `;` or `:`, and the rest from
-there: the OPB objective syntax, which `obju` reuses (§5.9). -/
-private def objTerms (N : Names) (ts : List String) : Option (Objective × List String) :=
-  match terms N (ts.length + 1) ts [] 0 with
+/-- An objective `∑ wᵢ ℓᵢ [k]` with an optional constant `k`, its literals read by `lit`, up to
+`;` or `:`, and the rest from there: the OPB objective syntax, which `obju` reuses (§5.9). -/
+private def objTerms (lit : String → Option (Literal ℕ)) (ts : List String) :
+    Option (Objective × List String) :=
+  match terms lit (ts.length + 1) ts [] 0 with
   | some (L, k, t :: rest) => if t == ";" || t == ":" then some (⟨L, k⟩, t :: rest) else none
   | _ => none
 
 /-- An objective line `min: ∑ wᵢ ℓᵢ [k];`, given its tokens after `min:`, with an optional
-constant `k`. -/
+constant `k` and OPB names. -/
 private def objective (N : Names) (ts : List String) : Option Objective :=
-  match objTerms N ts with
+  match objTerms N.opbLit? ts with
   | some (f, [";"]) => some f
   | _ => none
 
-/-- The variables of a `preserved:` line, up to `;`. -/
+/-- The variables of a `preserved:` line, up to `;`, with OPB names. -/
 private def presVars (N : Names) : List String → Option (List ℕ)
   | [";"] => some []
-  | t :: ts => (N.var? t).bind fun v => (presVars N ts).map (v :: ·)
+  | t :: ts =>
+    (if isOPBName t then N.var? t else none).bind fun v => (presVars N ts).map (v :: ·)
   | [] => none
 
 /-- **An OPB instance with the names `N`** (`Cslib.Logic.PL.VeriPB.Instance`): comment lines
 starting with `*`, an optional objective line `min: …;` and an optional preserved-set line
-`preserved: …;`, in either order, before the constraints, and one constraint per line. An input
-is read with its own names (`Cslib.Logic.PL.VeriPB.Text.parseOPB`), an output formula with the
-names of its proof. -/
+`preserved: …;`, in either order, before the constraints, and one constraint per line. Its
+variables have OPB names (`Cslib.Logic.PL.VeriPB.Text.isOPBName`, read by
+`Cslib.Logic.PL.VeriPB.Text.Names.opbLit?`), so a name `$a` of an auxiliary variable is
+rejected even when `N` knows it. An input is read with its own names
+(`Cslib.Logic.PL.VeriPB.Text.parseOPB`), an output formula with the names of its proof. -/
 def parseOPBWith (N : Names) (s : String) : Option Instance :=
   match opbTokenLines s with
   | ("min:" :: ts) :: ("preserved:" :: ps) :: ls
@@ -1033,7 +1091,7 @@ private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopS
   | "obju" :: kind :: ts =>
     (if kind == "new" then some false else if kind == "diff" then some true else none).bind
       fun diff =>
-        (objTerms N ts).bind fun (g, rest) =>
+        (objTerms N.lit? ts).bind fun (g, rest) =>
           (subproofTail "obju" N fuel rest).map fun (sub, rest) => ([.obju diff g sub], rest)
   | k@"preserved_add" :: x :: ":" :: ts | k@"preserved_rm" :: x :: ":" :: ts =>
     (N.var? x).bind fun v =>
@@ -1234,12 +1292,13 @@ private theorem le_foldr_max {α : Type} (g : α → ℕ) (b : ℕ) (l : List α
     exact ⟨ih.1.trans (le_max_right _ _), le_max_left _ _,
       fun y hy => (ih.2 y hy).trans (le_max_right _ _)⟩
 
-/-- **The names of an OPB text read each of its names**: a standard name as its number. -/
+/-- **The names of an OPB text read each of its OPB names**: a standard name as its number. -/
 theorem opbNames_var? {s t : String} (ht : t ∈ (opbTokenLines s).flatten)
-    (hn : isName (bareName t) = true) :
+    (hn : isOPBName (bareName t) = true) :
     ∃ w, (opbNames s).var? (bareName t) = some w ∧ ∀ v, stdVar? (bareName t) = some v → w = v := by
-  have hmem : bareName t ∈ (opbTokenLines s).flatten.map bareName := List.mem_map_of_mem ht
-  set ts := (opbTokenLines s).flatten.map bareName
+  have hmem : bareName t ∈ ((opbTokenLines s).flatten.filter fun t => isOPBName (bareName t)).map
+      bareName := List.mem_map_of_mem (List.mem_filter.2 ⟨ht, hn⟩)
+  set ts := ((opbTokenLines s).flatten.filter fun t => isOPBName (bareName t)).map bareName
   set b := (ts.filterMap stdVar?).foldr (fun v m => max (v + 1) m) 0
   have hb : (opbNames s).base = b := rfl
   cases hv : stdVar? (bareName t) with
@@ -1250,7 +1309,7 @@ theorem opbNames_var? {s t : String} (ht : t ∈ (opbTokenLines s).flatten)
   | none =>
     have hin : bareName t ∈ (opbNames s).others := by
       refine mem_addNew.2 (.inr (List.mem_filter.2 ⟨hmem, ?_⟩))
-      simp [hn, Names.var?, hv]
+      simp [isName_of_isOPBName hn, Names.var?, hv]
     obtain ⟨i, hi⟩ := Option.isSome_iff_exists.1
       (List.isSome_idxOf?.2 hin : ((opbNames s).others.idxOf? (bareName t)).isSome)
     exact ⟨(opbNames s).base + i, by simp [Names.var?, hv, hi], fun _ h => by cases h⟩

@@ -25,6 +25,10 @@ import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 * `x01` is not `x1`: VeriPB reads them as distinct variables, and so does the parser, so the
   instance `x1 >= 1`, `~x01 >= 1` is satisfiable and its "refutation" is rejected (VeriPB 3.0.2
   agrees).
+* The name `$a` of an auxiliary variable is a name of a proof but not of an instance: the
+  instance `$a >= 1` is rejected, as an output formula too, and names with `$a` do not cover an
+  instance for printing, while a proof introducing `$a` by `red` is accepted (VeriPB 3.0.2 agrees
+  on both texts).
 * Instances built in Lean with names are printed and read back, renumbered when their names are
   not in order of first appearance; the soundness theorems end to end apply to them.
 -/
@@ -135,6 +139,41 @@ end pseudo-Boolean proof;
 
 example : checkOPB leadOPB leadUnsat = none := by decide +kernel
 example : checkOPB leadOPB leadSat = some (.sat none) := by decide +kernel
+
+/-! ### Auxiliary names in instances and proofs -/
+
+/-- `$a >= 1`. The name `$a` of an auxiliary variable is not an OPB name, so VeriPB 3.0.2 rejects
+the instance ("Expected literal!"; CakePB accepts it). -/
+def auxOPB : String := "* #variable= 1 #constraint= 1
+1 $a >= 1 ;
+"
+
+example : opbNames auxOPB = ⟨[], 0⟩ := by decide +kernel
+example : parseOPB auxOPB = none := by decide +kernel
+
+/-- `x1 >= 1`. -/
+def x1OPB : String := "* #variable= 1 #constraint= 1
+1 x1 >= 1 ;
+"
+
+/-- A proof that introduces the auxiliary variable `$a` by `red`, then derives `$a + x1 >= 2`. -/
+def auxProof : String := "pseudo-Boolean proof version 3.0
+f 1;
+red 1 $a >= 1 : $a -> 1;
+rup 1 $a 1 x1 >= 2;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
+"
+
+-- A proof may name `$a`, a fresh variable after the keywords (VeriPB 3.0.2 accepts the proof).
+example : (proofNames x1OPB auxProof).var? "$a" = some 5 := by decide +kernel
+example : checkOPB x1OPB auxProof = some .noClaim := by decide +kernel
+-- An output formula may not, even read with the names of that proof.
+example : parseOPBWith (proofNames x1OPB auxProof) auxOPB = none := by decide +kernel
+-- Well-formed names with `$a` do not cover an instance, so `printOPB` never writes it.
+example : (⟨["$a"], 0⟩ : Names).WF := by decide
+example : ¬ (⟨["$a"], 0⟩ : Names).Covers ⟨[⟨[(1, (0, true))], 1⟩], none, none⟩ := by decide
 
 /-! ### Printing with names -/
 

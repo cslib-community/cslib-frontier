@@ -53,12 +53,13 @@ variable with a positive coefficient, in each objective one weight per variable;
 `Cslib.Logic.PL.VeriPB.Text.parseOPB_printOPB_of_normal`). DIMACS needs no hypothesis: every CNF
 formula is read back (`Cslib.Logic.PL.VeriPB.Text.parseDIMACS_toDIMACS`).
 
-**Names.** With other names, which must be well formed and name every variable
-(`Cslib.Logic.PL.VeriPB.Text.Names.Covers`), the parser numbers the names in order of first
-appearance in the text. So it reads back the instance renumbered by a map `π`, injective on its
-variables, that keeps every name (`Cslib.Logic.PL.VeriPB.Text.exists_parseOPB_printOPB`); `π` is
-the identity, and the instance read back is `reread I`, when the names read each variable as
-itself, which is decidable (`Cslib.Logic.PL.VeriPB.Text.parseOPB_printOPB_of_var?`), as for the
+**Names.** With other names, which must be well formed OPB names, not names `$a` of auxiliary
+variables, and name every variable (`Cslib.Logic.PL.VeriPB.Text.Names.Covers`), the parser
+numbers the names in order of first appearance in the text. So it reads back the instance
+renumbered by a map `π`, injective on its variables, that keeps every name
+(`Cslib.Logic.PL.VeriPB.Text.exists_parseOPB_printOPB`); `π` is the identity, and the instance
+read back is `reread I`, when the names read each variable as itself, which is decidable
+(`Cslib.Logic.PL.VeriPB.Text.parseOPB_printOPB_of_var?`), as for the
 standard names. Renumbering changes no conclusion (`Cslib.Logic.PL.VeriPB.Instance.valuesVia_eq`),
 so the soundness theorems end to end hold for every instance and every covering names; the
 assignment of `SAT : ρ` is translated through the names.
@@ -394,13 +395,13 @@ private theorem isWord_intToDecimal (a : ℤ) : IsWord (Int.toDecimal a) := by
   · exact isWord_cons (isWord_toDecimal _) (toDecimal_ne_semi _) (by decide)
   · exact isWord_toDecimal _
 
-/-- The variable `v` is printed with a name, which the names `M` read as `π v`. -/
+/-- The variable `v` is printed with an OPB name, which the names `M` read as `π v`. -/
 private def Reads (M N : Names) (π : ℕ → ℕ) (v : ℕ) : Prop :=
-  M.var? (N.name v) = some (π v) ∧ isName (N.name v) = true
+  M.var? (N.name v) = some (π v) ∧ isOPBName (N.name v) = true
 
 /-- No character of a name is whitespace, `;`, `%`, `:` or `~`. -/
 private theorem nameChar_ok {c : Char}
-    (h : isNameChar c = true ∨ (c.isAlpha || c == '_' || c == '$') = true) :
+    (h : isNameChar c = true ∨ (c.isAlpha || c == '_') = true) :
     c.isWhitespace = false ∧ c ≠ ';' ∧ c ≠ '%' ∧ c ≠ ':' ∧ c ≠ '~' := by
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · cases hw : c.isWhitespace
@@ -410,11 +411,11 @@ private theorem nameChar_ok {c : Char}
       rcases hw with ((rfl | rfl) | rfl) | rfl <;> revert h <;> decide
   all_goals rintro rfl; revert h; decide
 
-/-- A name has at least two characters, none of them whitespace, `;`, `%`, `:` or `~`. -/
-private theorem name_word {w : List Char} (h : isName (String.ofList w) = true) :
+/-- An OPB name has at least two characters, none of them whitespace, `;`, `%`, `:` or `~`. -/
+private theorem name_word {w : List Char} (h : isOPBName (String.ofList w) = true) :
     ∃ c d cs, w = c :: d :: cs ∧
       ∀ x ∈ w, x.isWhitespace = false ∧ x ≠ ';' ∧ x ≠ '%' ∧ x ≠ ':' ∧ x ≠ '~' := by
-  rw [isName, String.toList_ofList] at h
+  rw [isOPBName, String.toList_ofList] at h
   match w, h with
   | c :: d :: cs, h =>
     refine ⟨c, d, cs, rfl, fun x hx => ?_⟩
@@ -423,25 +424,37 @@ private theorem name_word {w : List Char} (h : isName (String.ofList w) = true) 
     · exact nameChar_ok (.inr h.1)
     · exact nameChar_ok (.inl (h.2 x hx))
 
-private theorem isWord_name {w : List Char} (h : isName (String.ofList w) = true) : IsWord w := by
+private theorem isWord_name {w : List Char} (h : isOPBName (String.ofList w) = true) :
+    IsWord w := by
   obtain ⟨c, d, cs, rfl, hw⟩ := name_word h
   exact isWord_of (by simp) fun x hx => ⟨(hw x hx).1, (hw x hx).2.1, (hw x hx).2.2.1⟩
 
-private theorem name_ne {w : List Char} (h : isName (String.ofList w) = true) :
+private theorem name_ne {w : List Char} (h : isOPBName (String.ofList w) = true) :
     String.ofList w ≠ ";" ∧ String.ofList w ≠ ":" := by
   obtain ⟨c, d, cs, rfl, hw⟩ := name_word h
   have hc := hw c List.mem_cons_self
   exact ⟨ofList_ne (by simpa [show (";" : String).toList = [';'] by decide] using hc.2.1.symm),
     ofList_ne (by simpa [show (":" : String).toList = [':'] by decide] using hc.2.2.2.1.symm)⟩
 
-private theorem dropChar?_name {w : List Char} (h : isName (String.ofList w) = true) :
+private theorem dropChar?_name {w : List Char} (h : isOPBName (String.ofList w) = true) :
     dropChar? '~' (String.ofList w) = none := by
   obtain ⟨c, d, cs, rfl, hw⟩ := name_word h
   rw [dropChar?_ofList]
   simp [(hw c List.mem_cons_self).2.2.2.2]
 
-private theorem lit?_litChars {M N : Names} {π : ℕ → ℕ} {v : ℕ} (h : Reads M N π v) (b : Bool) :
-    M.lit? (String.ofList (litChars N (v, b))) = some (π v, b) := by
+private theorem bareName_litChars {N : Names} {v : ℕ} (h : isOPBName (N.name v) = true)
+    (b : Bool) :
+    bareName (String.ofList (litChars N (v, b))) = N.name v := by
+  cases b
+  · rw [litChars, bareName, dropChar?_ofList]
+    rfl
+  · simp only [litChars, bareName]
+    rw [dropChar?_name h]
+    rfl
+
+private theorem opbLit?_litChars {M N : Names} {π : ℕ → ℕ} {v : ℕ} (h : Reads M N π v)
+    (b : Bool) : M.opbLit? (String.ofList (litChars N (v, b))) = some (π v, b) := by
+  rw [Names.opbLit?, bareName_litChars h.2, ite_eq_left h.2]
   cases b
   · rw [litChars, Names.lit?, dropChar?_ofList]
     simp only [beq_self_eq_true, ↓reduceIte, Option.map_eq_some_iff]
@@ -450,13 +463,13 @@ private theorem lit?_litChars {M N : Names} {π : ℕ → ℕ} {v : ℕ} (h : Re
     exact Option.map_eq_some_iff.2 ⟨_, h.1, rfl⟩
 
 /-- A literal word is neither `;` nor `:`. -/
-private theorem litChars_ne {N : Names} {v : ℕ} (h : isName (N.name v) = true) (b : Bool) :
+private theorem litChars_ne {N : Names} {v : ℕ} (h : isOPBName (N.name v) = true) (b : Bool) :
     String.ofList (litChars N (v, b)) ≠ ";" ∧ String.ofList (litChars N (v, b)) ≠ ":" := by
   cases b
   · exact ⟨ofList_ne (by decide), ofList_ne (by decide)⟩
   · exact name_ne h
 
-private theorem isWord_litChars {N : Names} {v : ℕ} (h : isName (N.name v) = true) (b : Bool) :
+private theorem isWord_litChars {N : Names} {v : ℕ} (h : isOPBName (N.name v) = true) (b : Bool) :
     IsWord (litChars N (v, b)) := by
   cases b
   · obtain ⟨c, d, cs, hw, -⟩ := name_word h
@@ -480,19 +493,19 @@ private theorem ne_keyword {d : Char} {ds : List Char} (hd : d = '-' ∨ d.isDig
 
 /-! #### Constraints and objectives -/
 
-private theorem terms_stop (N : Names) (fuel : ℕ) {t : String} (rest : List String)
-    (L : List (ℕ × ℤ)) (k : ℤ) (ht : t = ">=" ∨ t = ";") :
-    terms N (fuel + 1) (t :: rest) L k = some (L, k, t :: rest) := by
+private theorem terms_stop (lit : String → Option (Literal ℕ)) (fuel : ℕ) {t : String}
+    (rest : List String) (L : List (ℕ × ℤ)) (k : ℤ) (ht : t = ">=" ∨ t = ";") :
+    terms lit (fuel + 1) (t :: rest) L k = some (L, k, t :: rest) := by
   rcases ht with rfl | rfl <;> rfl
 
 /-- The parser reads a coefficient word `ct` of value `a` and a literal word `u`. -/
-private theorem terms_step (M : Names) (fuel : ℕ) {ct : List Char} {a : ℤ}
-    (hct : ∃ d ds, ct = d :: ds ∧ (d = '-' ∨ d.isDigit = true))
+private theorem terms_step (lit : String → Option (Literal ℕ)) (fuel : ℕ) {ct : List Char}
+    {a : ℤ} (hct : ∃ d ds, ct = d :: ds ∧ (d = '-' ∨ d.isDigit = true))
     (ha : int? (String.ofList ct) = some a) {u : String} {l : Literal ℕ}
-    (hu : M.lit? u = some l) (hne : u ≠ ";" ∧ u ≠ ":") (rest : List String)
+    (hu : lit u = some l) (hne : u ≠ ";" ∧ u ≠ ":") (rest : List String)
     (L : List (ℕ × ℤ)) (k : ℤ) :
-    terms M (fuel + 1) (String.ofList ct :: u :: rest) L k =
-      terms M fuel rest (insertCoeff l.1 (if l.2 then a else -a) L)
+    terms lit (fuel + 1) (String.ofList ct :: u :: rest) L k =
+      terms lit fuel rest (insertCoeff l.1 (if l.2 then a else -a) L)
         (k + if l.2 then 0 else a) := by
   obtain ⟨d, ds, rfl, hd⟩ := hct
   have hk : ∀ s ∈ [">=", "<=", "=", ";", ":", "min:", "preserved:"],
@@ -510,8 +523,8 @@ private theorem terms_step (M : Names) (fuel : ℕ) {ct : List Char} {a : ℤ}
 private theorem terms_terms (M N : Names) (π : ℕ → ℕ) (ts : List (ℕ × Literal ℕ))
     (h : ∀ t ∈ ts, Reads M N π (termVar t)) (fuel : ℕ) (rest : List String)
     (L : List (ℕ × ℤ)) (k : ℤ) :
-    terms M (fuel + ts.length) ((ts.flatMap (termWords N)).map String.ofList ++ rest) L k =
-      terms M fuel rest (linOf L (ts.map (Instance.renameTerm π)))
+    terms M.opbLit? (fuel + ts.length) ((ts.flatMap (termWords N)).map String.ofList ++ rest) L k =
+      terms M.opbLit? fuel rest (linOf L (ts.map (Instance.renameTerm π)))
         (negOf k (ts.map (Instance.renameTerm π))) := by
   induction ts generalizing L k fuel with
   | nil => rfl
@@ -522,19 +535,19 @@ private theorem terms_terms (M N : Names) (π : ℕ → ℕ) (ts : List (ℕ × 
     simp only [List.flatMap_cons, List.length_cons, termWords, List.map_cons, List.cons_append,
       List.nil_append]
     obtain ⟨d, ds, hdd, hd⟩ := Nat.exists_toDecimal_eq_cons a
-    rw [← Nat.add_assoc, terms_step M _ ⟨d, ds, hdd, .inr hd⟩ (int?_toDecimal a)
-      (lit?_litChars hv b) (litChars_ne hv.2 b), ih fun t ht => h t (List.mem_cons_of_mem _ ht)]
+    rw [← Nat.add_assoc, terms_step _ _ ⟨d, ds, hdd, .inr hd⟩ (int?_toDecimal a)
+      (opbLit?_litChars hv b) (litChars_ne hv.2 b), ih fun t ht => h t (List.mem_cons_of_mem _ ht)]
     cases b <;> rfl
 
 /-- The parser reads the weights of an objective, renamed. -/
 private theorem terms_weights (M N : Names) (π : ℕ → ℕ) (es : List (ℕ × ℤ))
     (h : ∀ e ∈ es, Reads M N π e.1) (fuel : ℕ) (rest : List String) (L : List (ℕ × ℤ))
     (k : ℤ) :
-    terms M (fuel + es.length)
+    terms M.opbLit? (fuel + es.length)
         ((es.flatMap fun e => [Int.toDecimal e.2, N.nameChars e.1]).map String.ofList ++ rest)
         L k =
-      terms M fuel rest ((es.map fun e => (π e.1, e.2)).foldl (fun L e => insertCoeff e.1 e.2 L)
-        L) k := by
+      terms M.opbLit? fuel rest
+        ((es.map fun e => (π e.1, e.2)).foldl (fun L e => insertCoeff e.1 e.2 L) L) k := by
   induction es generalizing L k fuel with
   | nil => rfl
   | cons e es ih =>
@@ -542,14 +555,14 @@ private theorem terms_weights (M N : Names) (π : ℕ → ℕ) (es : List (ℕ �
     simp only [List.flatMap_cons, List.length_cons, List.map_cons, List.cons_append,
       List.nil_append]
     rw [← Nat.add_assoc, show N.nameChars e.1 = litChars N (e.1, true) from rfl,
-      terms_step M _ (Int.exists_toDecimal_eq_cons e.2) (int?_intToDecimal e.2)
-        (lit?_litChars he true) (litChars_ne he.2 true),
+      terms_step _ _ (Int.exists_toDecimal_eq_cons e.2) (int?_intToDecimal e.2)
+        (opbLit?_litChars he true) (litChars_ne he.2 true),
       ih fun e he => h e (List.mem_cons_of_mem _ he)]
     simp
 
 private theorem constr_constrWords (M N : Names) (π : ℕ → ℕ) (c : PBConstr)
     (h : ∀ t ∈ c.terms, Reads M N π (termVar t)) :
-    constr M ((constrWords N c).map String.ofList) =
+    constr M.opbLit? ((constrWords N c).map String.ofList) =
       some ([rereadConstr (Instance.renameConstr π c)], [";"]) := by
   have hlen : ((constrWords N c).map String.ofList).length + 1 = (3 + 1 + c.terms.length) +
       c.terms.length := by
@@ -558,7 +571,7 @@ private theorem constr_constrWords (M N : Names) (π : ℕ → ℕ) (c : PBConst
   rw [constr, hlen, constrWords, List.map_append, terms_terms M N π _ h]
   simp only [List.map_cons, List.map_nil]
   rw [show 3 + 1 + c.terms.length = (3 + c.terms.length) + 1 by omega,
-    terms_stop M _ _ _ _ (.inl (by decide))]
+    terms_stop _ _ _ _ _ (.inl (by decide))]
   simp only [show String.ofList ['>', '='] = ">=" by decide, int?_toDecimal,
     show String.ofList [';'] = ";" by decide]
   simp [rereadConstr, Instance.renameConstr]
@@ -581,7 +594,7 @@ private theorem objective_objWords (M N : Names) (π : ℕ → ℕ) (f : Objecti
       List.length_cons, Nat.zero_add]
     rw [show 2 * f.lin.length + 1 + 1 = (f.lin.length + 1 + 1) + f.lin.length by omega,
       terms_weights M N π _ h, show String.ofList [';'] = ";" by decide,
-      terms_stop M _ _ _ _ (.inr rfl)]
+      terms_stop _ _ _ _ _ (.inr rfl)]
     simp [rereadObj, Instance.renameObj, hc]
   · obtain ⟨d, ds, hd, hd'⟩ := Int.exists_toDecimal_eq_cons f.const
     have hk : ∀ s ∈ [">=", "<=", "=", ";", ":", "min:", "preserved:"],
@@ -600,7 +613,8 @@ private theorem presVars_presWords (M N : Names) (π : ℕ → ℕ) (P : List �
   | nil => simp only [List.map_nil, List.nil_append, List.map_cons]; rfl
   | cons v P ih =>
     rw [List.map_cons, List.cons_append, List.map_cons, presVars,
-      show String.ofList (N.nameChars v) = N.name v from rfl, (h v List.mem_cons_self).1]
+      show String.ofList (N.nameChars v) = N.name v from rfl,
+      ite_eq_left (h v List.mem_cons_self).2, (h v List.mem_cons_self).1]
     · rw [Option.bind_some, ih fun v hv => h v (List.mem_cons_of_mem _ hv)]
       rfl
     · simp
@@ -656,7 +670,7 @@ private theorem mem_varList_pres {I : Instance} {P : List ℕ} (hP : I.preserved
   Instance.mem_allVars_of_preserved hP hv
 
 private theorem isWord_lines (I : Instance) (N : Names)
-    (hN : ∀ v ∈ I.varList, isName (N.name v) = true) :
+    (hN : ∀ v ∈ I.varList, isOPBName (N.name v) = true) :
     ∀ l ∈ headerWords I :: bodyLines N I, ∀ w ∈ l, IsWord w := by
   have hsemi : IsWord [';'] := .inl rfl
   have hconstr : ∀ c ∈ I.constraints, ∀ w ∈ constrWords N c, IsWord w := by
@@ -712,7 +726,8 @@ private theorem head_constrLines {N : Names} {I : Instance} {l : List String}
 
 /-- The token lines of a printed instance, after dropping the comments and empty lines. -/
 private theorem filter_lines (I : Instance) (N : Names)
-    (hN : ∀ v ∈ I.varList, isName (N.name v) = true) (p : List String → Bool) (hnil : p [] = false)
+    (hN : ∀ v ∈ I.varList, isOPBName (N.name v) = true) (p : List String → Bool)
+    (hnil : p [] = false)
     (hstar : ∀ t ts, startsWithChar '*' t = true → p (t :: ts) = false)
     (hpos : ∀ t ts, startsWithChar '*' t = false → p (t :: ts) = true) :
     ((lines (printOPB I N)).map tokens).filter p =
@@ -738,7 +753,7 @@ private theorem filter_lines (I : Instance) (N : Names)
 
 /-- **The token lines of a printed instance**, without the comments and empty lines. -/
 private theorem opbTokenLines_printOPB (I : Instance) (N : Names)
-    (hN : ∀ v ∈ I.varList, isName (N.name v) = true) :
+    (hN : ∀ v ∈ I.varList, isOPBName (N.name v) = true) :
     opbTokenLines (printOPB I N) =
       (I.objective.map fun f => "min:" :: (objTermWords N f ++ [[';']]).map String.ofList).toList ++
         (I.preserved.map fun P => "preserved:" :: (P.map N.nameChars ++ [[';']]).map
@@ -1085,17 +1100,21 @@ theorem parseDIMACS_toDIMACS (φ : CNF ℕ) : parseDIMACS φ.toDIMACS = some φ 
 
 /-! #### The round trips and the soundness theorems end to end -/
 
-/-- **Names for printing an instance**: well formed, and naming every variable of the instance
-below `next`, so that each is printed with a name. -/
+/-- **Names for printing an instance**: well formed, OPB names
+(`Cslib.Logic.PL.VeriPB.Text.isOPBName`), and naming every variable of the instance below
+`next`, so that each is printed with an OPB name. A name `$a` of an auxiliary variable is not
+one: an instance has none. -/
 structure Names.Covers (N : Names) (I : Instance) : Prop where
   /-- The names are well formed. -/
   wf : N.WF
+  /-- The other names are OPB names. -/
+  opb : ∀ s ∈ N.others, isOPBName s = true
   /-- Every variable of the instance is named. -/
   lt_next : ∀ v ∈ I.varList, v < N.next
 
 instance (N : Names) (I : Instance) : Decidable (N.Covers I) :=
-  decidable_of_iff (N.WF ∧ ∀ v ∈ I.varList, v < N.next)
-    ⟨fun ⟨a, b⟩ => ⟨a, b⟩, fun ⟨a, b⟩ => ⟨a, b⟩⟩
+  decidable_of_iff (N.WF ∧ (∀ s ∈ N.others, isOPBName s = true) ∧ ∀ v ∈ I.varList, v < N.next)
+    ⟨fun ⟨a, b, c⟩ => ⟨a, b, c⟩, fun ⟨a, b, c⟩ => ⟨a, b, c⟩⟩
 
 private theorem lt_foldr_max {l : List ℕ} {v : ℕ} (h : v ∈ l) :
     v < l.foldr (fun v m => max (v + 1) m) 0 := by
@@ -1109,25 +1128,16 @@ private theorem lt_foldr_max {l : List ℕ} {v : ℕ} (h : v ∈ l) :
 /-- The standard names cover the instance. -/
 theorem stdNames_covers (I : Instance) : (stdNames I).Covers I :=
   ⟨⟨List.nodup_nil, fun _ h => by simp [stdNames] at h, fun _ h => by simp [stdNames] at h⟩,
-    fun _ hv => by
+    fun _ h => by simp [stdNames] at h, fun _ hv => by
       simp only [Names.next, stdNames, List.length_nil, Nat.add_zero]
       exact lt_foldr_max hv⟩
-
-private theorem bareName_litChars {N : Names} {v : ℕ} (h : isName (N.name v) = true) (b : Bool) :
-    bareName (String.ofList (litChars N (v, b))) = N.name v := by
-  cases b
-  · rw [litChars, bareName, dropChar?_ofList]
-    rfl
-  · simp only [litChars, bareName]
-    rw [dropChar?_name h]
-    rfl
 
 /-- **Every variable of a printed instance is named in its text.** -/
 private theorem exists_token_name {I : Instance} {N : Names} (hN : N.Covers I) {v : ℕ}
     (hv : v ∈ I.varList) :
     ∃ t ∈ (opbTokenLines (printOPB I N)).flatten, bareName t = N.name v := by
-  have hname : ∀ v ∈ I.varList, isName (N.name v) = true := fun v hv =>
-    Names.isName_name hN.wf (hN.lt_next v hv)
+  have hname : ∀ v ∈ I.varList, isOPBName (N.name v) = true := fun v hv =>
+    Names.isOPBName_name hN.opb (hN.lt_next v hv)
   have hbare : bareName (N.name v) = N.name v := by
     rw [bareName, Names.name, dropChar?_name (hname v hv)]
     rfl
@@ -1174,7 +1184,7 @@ theorem exists_parseOPB_printOPB {I : Instance} {N : Names} (hN : N.Covers I) :
   have hread : ∀ v ∈ I.varList, ∃ w, M.var? (N.name v) = some w := fun v hv => by
     obtain ⟨t, ht, hbt⟩ := exists_token_name hN hv
     obtain ⟨w, hw, -⟩ := opbNames_var? ht
-      (hbt ▸ Names.isName_name hN.wf (hN.lt_next v hv))
+      (hbt ▸ Names.isOPBName_name hN.opb (hN.lt_next v hv))
     exact ⟨w, hbt ▸ hw⟩
   refine ⟨fun v => (M.var? (N.name v)).getD 0, ?_, fun v hv => ?_, fun v hv => ?_, ?_⟩
   · intro v hv w hw hvw
@@ -1188,7 +1198,7 @@ theorem exists_parseOPB_printOPB {I : Instance} {N : Names} (hN : N.Covers I) :
   · obtain ⟨a, ha⟩ := hread v hv
     simp only [ha, Option.getD_some]
     exact Names.name_of_var? ha
-  · refine parseOPBWith_printOPB fun v hv => ⟨?_, Names.isName_name hN.wf (hN.lt_next v hv)⟩
+  · refine parseOPBWith_printOPB fun v hv => ⟨?_, Names.isOPBName_name hN.opb (hN.lt_next v hv)⟩
     obtain ⟨a, ha⟩ := hread v hv
     exact (show M.var? (N.name v) = some ((M.var? (N.name v)).getD 0) by simp [ha])
 
@@ -1199,7 +1209,7 @@ theorem parseOPB_printOPB_of_var? {I : Instance} {N : Names} (hN : N.Covers I)
     (h : ∀ v ∈ I.varList, (opbNames (printOPB I N)).var? (N.name v) = some v) :
     parseOPB (printOPB I N) = some (reread I) := by
   have := parseOPBWith_printOPB (M := opbNames (printOPB I N)) (N := N) (π := id) (I := I)
-    fun v hv => ⟨h v hv, Names.isName_name hN.wf (hN.lt_next v hv)⟩
+    fun v hv => ⟨h v hv, Names.isOPBName_name hN.opb (hN.lt_next v hv)⟩
   rwa [Instance.rename_id] at this
 
 /-- **The parser reads back a printed instance**, normalized: for every instance `I`, the text
@@ -1213,7 +1223,7 @@ theorem parseOPB_printOPB (I : Instance) : parseOPB (printOPB I) = some (reread 
     simp only [Names.name, Names.nameChars, hb, ↓reduceIte]
   obtain ⟨t, ht, hbt⟩ := exists_token_name (stdNames_covers I) hv
   obtain ⟨w, hw, hwv⟩ := opbNames_var? ht
-    (hbt ▸ Names.isName_name (stdNames_covers I).wf hlt)
+    (hbt ▸ Names.isOPBName_name (stdNames_covers I).opb hlt)
   rw [hbt] at hw hwv
   rw [hw, hwv v (by rw [hstd, stdVar?_std])]
 
