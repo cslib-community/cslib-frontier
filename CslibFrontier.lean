@@ -194,6 +194,7 @@ public import CslibFrontier.Algorithms.Lean.Query.Arith.Karatsuba.Cost
 public import CslibFrontier.Algorithms.Lean.Query.Arith.Karatsuba.Defs
 public import CslibFrontier.Algorithms.Lean.Query.Arith.Lemmas
 public import CslibFrontier.Algorithms.Lean.Query.Arith.MatMul
+public import CslibFrontier.Algorithms.Lean.Query.BinarySearch
 public import CslibFrontier.Algorithms.Lean.Query.FreeM.CostHom
 public import CslibFrontier.Algorithms.Lean.Query.FreeM.FilterM
 public import CslibFrontier.Algorithms.Lean.Query.FreeM.MOfFn
@@ -605,6 +606,7 @@ public import CslibFrontier.Algorithms.WordRAM.LRAT.Program
 public import CslibFrontier.Algorithms.WordRAM.LRAT.Propagate
 public import CslibFrontier.Algorithms.WordRAM.LRAT.Scan
 public import CslibFrontier.Algorithms.WordRAM.LRAT.Steps
+public import CslibFrontier.Algorithms.WordRAM.Manacher
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.CyclicConvolution.Coefficient
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.CyclicConvolution.Exec
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.CyclicConvolution.Flat
@@ -2062,6 +2064,7 @@ public import CslibFrontier.Computability.Complexity.AffineDisperser.Li.ShoupPol
 public import CslibFrontier.Computability.Complexity.AffineDisperser.PolyTime
 public import CslibFrontier.Computability.Complexity.AffineDisperser.Program
 public import CslibFrontier.Computability.Complexity.AverageCase
+public import CslibFrontier.Computability.Complexity.BkSequencePolyTime
 public import CslibFrontier.Computability.Complexity.Classes.AWPP
 public import CslibFrontier.Computability.Complexity.Classes.AWPP.Amplification
 public import CslibFrontier.Computability.Complexity.Classes.AWPP.Closure
@@ -6437,8 +6440,8 @@ public import CslibFrontier.DataStructure.DisjointSet.Spec
 public import CslibFrontier.DataStructure.DisjointSet.UnionFind
 public import CslibFrontier.DataStructure.DynamicArray.WordRAM.Basic
 public import CslibFrontier.DataStructure.FenwickTree.Basic
-public import CslibFrontier.DataStructure.FenwickTree.Impl
 public import CslibFrontier.DataStructure.FenwickTree.Lowbit
+public import CslibFrontier.DataStructure.FenwickTree.WordRAM
 public import CslibFrontier.DataStructure.FusionTree.Capacity
 public import CslibFrontier.DataStructure.FusionTree.Compression
 public import CslibFrontier.DataStructure.FusionTree.Correction
@@ -6899,6 +6902,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Tribes
 public import CslibFrontier.Foundations.BooleanAnalysis.TribesInfluence
 public import CslibFrontier.Foundations.BooleanAnalysis.TribesJunta
 public import CslibFrontier.Foundations.BooleanAnalysis.Variance
+public import CslibFrontier.Foundations.Combinatorics.Additive.BkSequence
 public import CslibFrontier.Foundations.Combinatorics.Additive.SumsetCover
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.AffineSubspace
@@ -8202,6 +8206,7 @@ public import CslibFrontier.Languages.Probabilistic.QueriesWith
 public import CslibFrontier.Languages.Probabilistic.QueriesWith.Cost
 public import CslibFrontier.Languages.Probabilistic.QueryCount
 public import CslibFrontier.Languages.Probabilistic.QueryCount.Congr
+public import CslibFrontier.Languages.Probabilistic.QueryCount.Demand
 public import CslibFrontier.Languages.Probabilistic.QueryCount.Expected
 public import CslibFrontier.Languages.Probabilistic.QueryCount.Scale
 public import CslibFrontier.Languages.Probabilistic.QueryCount.Sum

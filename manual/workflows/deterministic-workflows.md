@@ -189,27 +189,28 @@ this plain fold certificate directly. Existing concrete clients are in
 [`Crypto/NaorYungUOWHF.lean`](../../CslibFrontierTests/Crypto/NaorYungUOWHF.lean); check them with
 `scripts/build.sh CslibFrontierTests.Crypto.NaorYungUOWHF`.
 
-To run the method of conditional expectations over non-Boolean finite product spaces or package the
-machine-level running-time transfer once, use
-[Algorithms/Lean/PessimisticEstimator.lean](../../CslibFrontier/Algorithms/Lean/PessimisticEstimator.lean)
-and [Computability/PolyTime/PessimisticEstimator.lean](../../CslibFrontier/Computability/PolyTime/PessimisticEstimator.lean).
-`ProductDerandomizer` executes coordinate fixing over general finite product distributions
-`PMF.pi p` (`derandomize_spec`, via `PMF.condExpect` in
-[Product/ConditionalExpectation.lean](../../CslibFrontier/Probability/Product/ConditionalExpectation.lean)).
-On multi-tape Turing machines, `PolyTimeGreedyInput` (`computableInPolyTime_run`,
-`computableInPolyTime_run_nat`, `run_polyTime_spec`) discharges `foldlWithInput_of_bounded_growth`
-from polynomial-time `rounds`, `init`, `branch` (on `encBranchInput`), `estimate`, order comparison
-on estimator values `M` (`hle`, supplied automatically for binary `ℕ` by
-`computableInPolyTime_run_nat`), and an additive per-round encoded-state growth bound;
-`PolyTimeChoiceGreedyInput` extends the same transfer to variable-length per-round candidate lists
-`choices x r : List A` (`encChoiceInput`). Weighted `MaxCut` instantiates the pure greedy bound in
-[MaxCut/Derandomized.lean](../../CslibFrontier/Algorithms/Lean/MaxCut/Derandomized.lean), its
-Turing polynomial-time certificate `computableInPolyTime_derandomizedCut` in
+To package the Turing-machine transfer once across rounds, use `PolyTimeGreedyInput` in
+[Computability/PolyTime/PessimisticEstimator.lean](../../CslibFrontier/Computability/PolyTime/PessimisticEstimator.lean).
+`computableInPolyTime_run`, `computableInPolyTime_run_nat` and `run_polyTime_spec` discharge
+`foldlWithInput_of_bounded_growth` from polynomial-time `rounds`, `init`, `branch` (on
+`encBranchInput`), `estimate`, order comparison on estimator values `M` (`hle`, supplied
+automatically for binary `ℕ` by `computableInPolyTime_run_nat`), and an additive per-round
+encoded-state growth bound; `PolyTimeChoiceGreedyInput` (`computableInPolyTime_run`, `run_spec`,
+`run_polyTime_spec`) extends the same transfer to variable-length per-round candidate lists
+`choices x r : List A` (`encChoiceInput`). Weighted `MaxCut` instantiates the greedy construction in
+[MaxCut/Derandomized.lean](../../CslibFrontier/Algorithms/Lean/MaxCut/Derandomized.lean),
+`PolyTimeGreedyInput` in
 [Problems/MaxCut/Derandomized.lean](../../CslibFrontier/Computability/Complexity/Problems/MaxCut/Derandomized.lean),
 and an explicit `O(|V| |E| + |V|)` word-RAM implementation (`maxCutCode_spec`,
 `maxCutProgram_spec`) in [WordRAM/MaxCut.lean](../../CslibFrontier/Algorithms/WordRAM/MaxCut.lean),
-establishing the deterministic `1 / 2`-approximation `cutWeight_le_two_mul_derandomizedCutSide`;
-see [FairBitRejectionAndCondExp.lean](../../CslibFrontierTests/FairBitRejectionAndCondExp.lean).
+proving the deterministic `1 / 2`-approximation `cutWeight_le_two_mul_derandomizedCutSide` and
+`computableInPolyTime_derandomizedCut`; see
+[FairBitRejectionAndCondExp.lean](../../CslibFrontierTests/FairBitRejectionAndCondExp.lean). For
+conditional expectations over general finite product distributions `PMF.pi p`, use `PMF.condExpect`
+in
+[Product/ConditionalExpectation.lean](../../CslibFrontier/Probability/Product/ConditionalExpectation.lean)
+together with the pure coordinate-fixing combinator `ProductDerandomizer` (`derandomize_spec`) in
+[Algorithms/Lean/PessimisticEstimator.lean](../../CslibFrontier/Algorithms/Lean/PessimisticEstimator.lean).
 
 When the averaging argument uses only `k`-wise independence, you can search a small sample
 space instead of fixing bits one by one. For satisfiability,

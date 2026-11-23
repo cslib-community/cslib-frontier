@@ -593,8 +593,7 @@ private theorem edgeWeight_sq_mul_sum_strictStepSet_le (hθ0 : 0 ≤ θ) (hθ1 :
             hsum_cov.trans (Finset.sum_le_sum hpiece_le)
         _ = (nb.card : ℝ) * ((θ ^ 2) ^ (r + 1) / (√((deg b : ℝ) - 1) * √2)) := by
             rw [Finset.sum_const, nsmul_eq_mul]
-        _ ≤ ((deg b : ℝ) - 1) * ((θ ^ 2) ^ (r + 1) / (√((deg b : ℝ) - 1) * √2)) :=
-            mul_le_mul_of_nonneg_right hcard_nb (by positivity)
+        _ ≤ ((deg b : ℝ) - 1) * ((θ ^ 2) ^ (r + 1) / (√((deg b : ℝ) - 1) * √2)) := by gcongr
     have hdb : (3 : ℝ) ≤ deg b := by exact_mod_cast hlo b
     have hda : (3 : ℝ) ≤ deg a := by exact_mod_cast hlo a
     have hsb_pos : 0 < √((deg b : ℝ) - 1) := sqrt_pos.mpr (by linarith)
@@ -603,8 +602,7 @@ private theorem edgeWeight_sq_mul_sum_strictStepSet_le (hθ0 : 0 ≤ θ) (hθ1 :
     calc edgeWeight deg θ a b ^ 2 *
           ∑ z ∈ strictStepSet H deg θ (r + 1) a b, bestWalkWeight H deg θ (r + 1) b z ^ 2
         ≤ edgeWeight deg θ a b ^ 2 *
-            (((deg b : ℝ) - 1) * ((θ ^ 2) ^ (r + 1) / (√((deg b : ℝ) - 1) * √2))) :=
-          mul_le_mul_of_nonneg_left hsum_nb (sq_nonneg _)
+            (((deg b : ℝ) - 1) * ((θ ^ 2) ^ (r + 1) / (√((deg b : ℝ) - 1) * √2))) := by gcongr
       _ = (θ ^ 2) ^ (r + 1 + 1) / (√((deg a : ℝ) - 1) * √2) := by
           rw [edgeWeight_sq, pow_succ' (θ ^ 2) (r + 1)]
           field_simp
@@ -654,8 +652,7 @@ private theorem sum_sq_strict_root_le {d : ℕ} (hθ0 : 0 ≤ θ) (hθ1 : θ < 1
     _ = ((H.neighborFinset u).card : ℝ) * ((θ ^ 2) ^ (r + 1) / (√((deg u : ℝ) - 1) * √2)) := by
         rw [Finset.sum_const, nsmul_eq_mul]
     _ ≤ (d : ℝ) * ((θ ^ 2) ^ (r + 1) / 2) :=
-        mul_le_mul hcard_u (div_le_div_of_nonneg_left (by positivity) (by norm_num) hprod)
-          (by positivity) (by positivity)
+        by gcongr
     _ = (d : ℝ) / 2 * (θ ^ 2) ^ (r + 1) := by ring
 
 /-- **Correlation of adjacent degree-weighted kernel rows.** For `R ≥ 1` and `θ ∈ [0, 1)`, if
