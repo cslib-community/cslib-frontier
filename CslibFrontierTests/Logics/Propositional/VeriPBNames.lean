@@ -26,9 +26,9 @@ import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
   instance `x1 >= 1`, `~x01 >= 1` is satisfiable and its "refutation" is rejected (VeriPB 3.0.2
   agrees).
 * The name `$a` of an auxiliary variable is a name of a proof but not of an instance: the
-  instance `$a >= 1` is rejected, as an output formula too, and names with `$a` do not cover an
-  instance for printing, while a proof introducing `$a` by `red` is accepted (VeriPB 3.0.2 agrees
-  on both texts).
+  instance `$a >= 1` is rejected, as an output formula too, and names that give a variable of an
+  instance the name `$a` do not cover it for printing, while a proof introducing `$a` by `red` is
+  accepted (VeriPB 3.0.2 agrees on both texts). Names with an unused `$a` still cover it.
 * Instances built in Lean with names are printed and read back, renumbered when their names are
   not in order of first appearance; the soundness theorems end to end apply to them.
 -/
@@ -171,9 +171,44 @@ example : (proofNames x1OPB auxProof).var? "$a" = some 5 := by decide +kernel
 example : checkOPB x1OPB auxProof = some .noClaim := by decide +kernel
 -- An output formula may not, even read with the names of that proof.
 example : parseOPBWith (proofNames x1OPB auxProof) auxOPB = none := by decide +kernel
--- Well-formed names with `$a` do not cover an instance, so `printOPB` never writes it.
+/-- `x₀ >= 1`, printed `1 x1 >= 1 ;` with the standard names. -/
+def x1I : Instance := ⟨[⟨[(1, (0, true))], 1⟩], none, none⟩
+
+-- `Covers` guarantees that `printOPB` writes an OPB name for every variable of the instance;
+-- `printOPB` itself takes any names. Well-formed names that give `x₀` the name `$a` do not
+-- cover `x1I`: with them `printOPB` writes `1 $a >= 1 ;`, which the parser rejects.
 example : (⟨["$a"], 0⟩ : Names).WF := by decide
-example : ¬ (⟨["$a"], 0⟩ : Names).Covers ⟨[⟨[(1, (0, true))], 1⟩], none, none⟩ := by decide
+example : ¬ (⟨["$a"], 0⟩ : Names).Covers x1I := by decide
+example : printOPB x1I ⟨["$a"], 0⟩ = "* #variable= 1 #constraint= 1 \n1 $a >= 1 ; \n" := by
+  decide +kernel
+example : parseOPB (printOPB x1I ⟨["$a"], 0⟩) = none := by decide +kernel
+
+/-- Names with `$a` for the variable `1`, which `x1I` does not use: `x₀` keeps `x1`. -/
+def auxN : Names := ⟨["$a"], 1⟩
+
+-- They cover `x1I`, so the round trip and the soundness theorems end to end apply.
+example : auxN.Covers x1I := by decide
+example : printOPB x1I auxN = "* #variable= 1 #constraint= 1 \n1 x1 >= 1 ; \n" := by
+  decide +kernel
+example : parseOPB (printOPB x1I auxN) = some x1I := by
+  rw [parseOPB_printOPB_of_var? (by decide) (by decide +kernel), reread_eq (by decide)]
+
+/-- A solution of `x1I`. -/
+def x1Proof : String := "pseudo-Boolean proof version 3.0
+f 1;
+sol x1;
+output NONE;
+conclusion SAT : x1;
+end pseudo-Boolean proof;
+"
+
+theorem x1_accepted : checkOPB (printOPB x1I auxN) x1Proof = some (.sat (some [(0, true)])) := by
+  decide +kernel
+
+/-- **`x1I` has a solution**, from the proof checked against its text printed with `auxN`. -/
+example : ∃ σ : ℕ → Bool, ∀ c ∈ x1I.constraints, c.Holds σ :=
+  exists_satisfies_of_checkOPB_printOPB (N := auxN) (by decide) (out := none)
+    (show (checkOPBOutput (printOPB x1I auxN) x1Proof).map (·.1) = _ from x1_accepted)
 
 /-! ### Printing with names -/
 

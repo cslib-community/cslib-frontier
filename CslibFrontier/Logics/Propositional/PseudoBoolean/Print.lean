@@ -53,8 +53,9 @@ variable with a positive coefficient, in each objective one weight per variable;
 `Cslib.Logic.PL.VeriPB.Text.parseOPB_printOPB_of_normal`). DIMACS needs no hypothesis: every CNF
 formula is read back (`Cslib.Logic.PL.VeriPB.Text.parseDIMACS_toDIMACS`).
 
-**Names.** With other names, which must be well formed OPB names, not names `$a` of auxiliary
-variables, and name every variable (`Cslib.Logic.PL.VeriPB.Text.Names.Covers`), the parser
+**Names.** With other names, which must be well formed, name every variable, and give each
+variable an OPB name, not a name `$a` of an auxiliary variable
+(`Cslib.Logic.PL.VeriPB.Text.Names.Covers`), the parser
 numbers the names in order of first appearance in the text. So it reads back the instance
 renumbered by a map `π`, injective on its variables, that keeps every name
 (`Cslib.Logic.PL.VeriPB.Text.exists_parseOPB_printOPB`); `π` is the identity, and the instance
@@ -1100,20 +1101,21 @@ theorem parseDIMACS_toDIMACS (φ : CNF ℕ) : parseDIMACS φ.toDIMACS = some φ 
 
 /-! #### The round trips and the soundness theorems end to end -/
 
-/-- **Names for printing an instance**: well formed, OPB names
-(`Cslib.Logic.PL.VeriPB.Text.isOPBName`), and naming every variable of the instance below
-`next`, so that each is printed with an OPB name. A name `$a` of an auxiliary variable is not
-one: an instance has none. -/
+/-- **Names for printing an instance**: well formed, naming every variable of the instance
+below `next`, and with an OPB name (`Cslib.Logic.PL.VeriPB.Text.isOPBName`) for each of them.
+A name `$a` of an auxiliary variable is not one, since an instance has none; names the
+instance does not use are not constrained. -/
 structure Names.Covers (N : Names) (I : Instance) : Prop where
   /-- The names are well formed. -/
   wf : N.WF
-  /-- The other names are OPB names. -/
-  opb : ∀ s ∈ N.others, isOPBName s = true
   /-- Every variable of the instance is named. -/
   lt_next : ∀ v ∈ I.varList, v < N.next
+  /-- Every variable of the instance has an OPB name. -/
+  opb : ∀ v ∈ I.varList, isOPBName (N.name v) = true
 
 instance (N : Names) (I : Instance) : Decidable (N.Covers I) :=
-  decidable_of_iff (N.WF ∧ (∀ s ∈ N.others, isOPBName s = true) ∧ ∀ v ∈ I.varList, v < N.next)
+  decidable_of_iff
+    (N.WF ∧ (∀ v ∈ I.varList, v < N.next) ∧ ∀ v ∈ I.varList, isOPBName (N.name v) = true)
     ⟨fun ⟨a, b, c⟩ => ⟨a, b, c⟩, fun ⟨a, b, c⟩ => ⟨a, b, c⟩⟩
 
 private theorem lt_foldr_max {l : List ℕ} {v : ℕ} (h : v ∈ l) :
@@ -1127,25 +1129,24 @@ private theorem lt_foldr_max {l : List ℕ} {v : ℕ} (h : v ∈ l) :
 
 /-- The standard names cover the instance. -/
 theorem stdNames_covers (I : Instance) : (stdNames I).Covers I :=
+  have hlt : ∀ v ∈ I.varList, v < (stdNames I).next := fun _ hv => by
+    simp only [Names.next, stdNames, List.length_nil, Nat.add_zero]
+    exact lt_foldr_max hv
   ⟨⟨List.nodup_nil, fun _ h => by simp [stdNames] at h, fun _ h => by simp [stdNames] at h⟩,
-    fun _ h => by simp [stdNames] at h, fun _ hv => by
-      simp only [Names.next, stdNames, List.length_nil, Nat.add_zero]
-      exact lt_foldr_max hv⟩
+    hlt, fun v hv => Names.isOPBName_name (fun _ h => by simp [stdNames] at h) (hlt v hv)⟩
 
 /-- **Every variable of a printed instance is named in its text.** -/
 private theorem exists_token_name {I : Instance} {N : Names} (hN : N.Covers I) {v : ℕ}
     (hv : v ∈ I.varList) :
     ∃ t ∈ (opbTokenLines (printOPB I N)).flatten, bareName t = N.name v := by
-  have hname : ∀ v ∈ I.varList, isOPBName (N.name v) = true := fun v hv =>
-    Names.isOPBName_name hN.opb (hN.lt_next v hv)
   have hbare : bareName (N.name v) = N.name v := by
-    rw [bareName, Names.name, dropChar?_name (hname v hv)]
+    rw [bareName, Names.name, dropChar?_name (hN.opb v hv)]
     rfl
-  rw [opbTokenLines_printOPB I N hname]
+  rw [opbTokenLines_printOPB I N hN.opb]
   simp only [List.flatten_append, List.mem_append, List.mem_flatten]
   simp only [Instance.varList, List.mem_append, List.mem_flatMap, List.mem_map] at hv
   rcases hv with (⟨c, hc, ⟨a, u, b⟩, ht, rfl⟩ | hv) | hv
-  · refine ⟨_, .inr ⟨_, List.mem_map_of_mem hc, ?_⟩, bareName_litChars (hname _
+  · refine ⟨_, .inr ⟨_, List.mem_map_of_mem hc, ?_⟩, bareName_litChars (hN.opb _
       (mem_varList_constr hc ht)) b⟩
     simp only [constrWords, termWords, List.map_append, List.mem_append, List.mem_map,
       List.mem_flatMap, List.mem_cons]
@@ -1183,8 +1184,7 @@ theorem exists_parseOPB_printOPB {I : Instance} {N : Names} (hN : N.Covers I) :
   set M := opbNames (printOPB I N)
   have hread : ∀ v ∈ I.varList, ∃ w, M.var? (N.name v) = some w := fun v hv => by
     obtain ⟨t, ht, hbt⟩ := exists_token_name hN hv
-    obtain ⟨w, hw, -⟩ := opbNames_var? ht
-      (hbt ▸ Names.isOPBName_name hN.opb (hN.lt_next v hv))
+    obtain ⟨w, hw, -⟩ := opbNames_var? ht (hbt ▸ hN.opb v hv)
     exact ⟨w, hbt ▸ hw⟩
   refine ⟨fun v => (M.var? (N.name v)).getD 0, ?_, fun v hv => ?_, fun v hv => ?_, ?_⟩
   · intro v hv w hw hvw
@@ -1198,7 +1198,7 @@ theorem exists_parseOPB_printOPB {I : Instance} {N : Names} (hN : N.Covers I) :
   · obtain ⟨a, ha⟩ := hread v hv
     simp only [ha, Option.getD_some]
     exact Names.name_of_var? ha
-  · refine parseOPBWith_printOPB fun v hv => ⟨?_, Names.isOPBName_name hN.opb (hN.lt_next v hv)⟩
+  · refine parseOPBWith_printOPB fun v hv => ⟨?_, hN.opb v hv⟩
     obtain ⟨a, ha⟩ := hread v hv
     exact (show M.var? (N.name v) = some ((M.var? (N.name v)).getD 0) by simp [ha])
 
@@ -1209,7 +1209,7 @@ theorem parseOPB_printOPB_of_var? {I : Instance} {N : Names} (hN : N.Covers I)
     (h : ∀ v ∈ I.varList, (opbNames (printOPB I N)).var? (N.name v) = some v) :
     parseOPB (printOPB I N) = some (reread I) := by
   have := parseOPBWith_printOPB (M := opbNames (printOPB I N)) (N := N) (π := id) (I := I)
-    fun v hv => ⟨h v hv, Names.isOPBName_name hN.opb (hN.lt_next v hv)⟩
+    fun v hv => ⟨h v hv, hN.opb v hv⟩
   rwa [Instance.rename_id] at this
 
 /-- **The parser reads back a printed instance**, normalized: for every instance `I`, the text
@@ -1222,8 +1222,7 @@ theorem parseOPB_printOPB (I : Instance) : parseOPB (printOPB I) = some (reread 
     have hb : v < (stdNames I).base := by simpa [Names.next, stdNames] using hlt
     simp only [Names.name, Names.nameChars, hb, ↓reduceIte]
   obtain ⟨t, ht, hbt⟩ := exists_token_name (stdNames_covers I) hv
-  obtain ⟨w, hw, hwv⟩ := opbNames_var? ht
-    (hbt ▸ Names.isOPBName_name (stdNames_covers I).opb hlt)
+  obtain ⟨w, hw, hwv⟩ := opbNames_var? ht (hbt ▸ (stdNames_covers I).opb v hv)
   rw [hbt] at hw hwv
   rw [hw, hwv v (by rw [hstd, stdVar?_std])]
 
