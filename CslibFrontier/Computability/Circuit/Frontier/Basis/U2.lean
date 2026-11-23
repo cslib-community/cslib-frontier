@@ -438,18 +438,8 @@ theorem eventually_agreement_le_u2 {p B_pair : ℝ} (hp : 0 < p) (hBp : 0 < B_pa
   have hξ : 0 < ξ := by positivity
   obtain ⟨C₀, hData⟩ := exists_u2PairData_of_u2CubicPairBound.{v} hp hBp_le hbound hδA hξ
   set K' : ℕ → ℕ := fun n => max (K n) 2
-  have hK'_log : (fun n : ℕ => Real.log (K' n)) =o[atTop] fun n => (n : ℝ) := by
-    refine IsBigO.trans_isLittleO (g := fun n => ‖Real.log (K n)‖ + Real.log 2) ?_
-      (hK.norm_left.add (isLittleO_const_id_atTop _).natCast_atTop)
-    refine IsBigO.of_bound' (Eventually.of_forall fun n => ?_)
-    have hK2 : (2 : ℝ) ≤ (K' n : ℕ) := by exact_mod_cast le_max_right (K n) 2
-    rw [Real.norm_of_nonneg (Real.log_nonneg (by linarith)),
-      Real.norm_of_nonneg (by positivity)]
-    rcases le_total (K n) 2 with h | h
-    · dsimp only [K']; rw [max_eq_right h]; push_cast; linarith [norm_nonneg (Real.log (K n))]
-    · dsimp only [K']; rw [max_eq_left h]; linarith [Real.le_norm_self (Real.log (K n))]
   have hK'_logb : (fun n : ℕ => Real.logb 2 (K' n)) =o[atTop] fun n => (n : ℝ) :=
-    (hK'_log.const_mul_left (1 / Real.log 2)).congr_left fun n => by simp only [Real.logb]; ring
+    isLittleO_logb_max_two hK 2
   have hV_o : (fun n : ℕ => (7 / Real.log 2) * Real.log (4 * |L_u2| * n + 4)) =o[atTop]
       fun n => (n : ℝ) :=
     (isLittleO_log_affine (by positivity) (by norm_num)).const_mul_left _
@@ -473,12 +463,7 @@ theorem eventually_agreement_le_u2 {p B_pair : ℝ} (hp : 0 < p) (hBp : 0 < B_pa
   have hb : 0 ≤ b n := hS.nonneg (by
     rw [Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin,
       Nat.card_eq_fintype_card (α := Bool), Fintype.card_bool]
-    have hn2 : (n : ℝ) ≤ 2 * (n / 2 : ℕ) + 1 := by
-      exact_mod_cast (show n ≤ 2 * (n / 2) + 1 by omega)
-    have hlogb : Real.logb 2 (K' n) ≤ (n / 2 : ℕ) := by linarith
-    have hr := (Real.logb_le_iff_le_rpow (by norm_num) hK_posR).mp hlogb
-    rw [Real.rpow_natCast] at hr
-    exact_mod_cast hr)
+    exact le_pow_half_of_logb one_lt_two (by omega) (by push_cast; linarith))
   by_cases hu : K' n ≤ Nat.card Bool ^ (network c I fun _ => Acc).readᶜ.ncard
   · have hunr := agreement_le_of_unread I Acc c hS hb (by omega) hu
     rw [Nat.card_eq_fintype_card (α := Bool), Fintype.card_bool, Nat.cast_ofNat] at hunr
