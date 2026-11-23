@@ -273,7 +273,8 @@ private theorem conditionalEntropy_endMem_le (withQueries : Bool) {U V n cells w
           HardKeyValSeed.modeOps withQueries := by
       funext s; dsimp only [Function.comp_apply, kvEndOfMem, endMem]
       rw [hdec_at s t_end ht_end, s.run_take_modeOps_fst withQueries ht_end]
-    rw [hfn, ← _root_.PMF.map_comp, map_modeOps_uniformOfFintype_hardKeyValSeed]
+    rw [hfn, ← _root_.PMF.map_comp,
+      map_modeOps_uniformOfFintype_hardKeyValSeed withQueries hU hV]
     cases withQueries
     · simpa only [modeDist_false, modeStride, Bool.false_eq_true, ↓reduceIte] using
         map_extractKeySetVals_insertDeleteDist hU hV ht_end hnU
