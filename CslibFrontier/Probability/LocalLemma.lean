@@ -7,12 +7,10 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Probability.Product
+public import CslibFrontier.Probability.Product.Event
 public import Mathlib.Analysis.SpecialFunctions.Exp
-public import Mathlib.Logic.Function.DependsOn
 public import Mathlib.MeasureTheory.Measure.Real
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpOneSubInvPow
-import CslibFrontier.Foundations.Probability.SecondMoment
 import Mathlib.Algebra.Order.BigOperators.GroupWithZero.Finset
 import Mathlib.Analysis.Complex.Exponential
 
@@ -54,8 +52,6 @@ satisfiability and coloring problems (`Cslib.Probability.PMF.prod_one_sub_le_pi_
   lemma for a probability measure.
 * `Cslib.Probability.pow_le_measureReal_iInter_compl`,
   `Cslib.Probability.measureReal_iInter_compl_pos`: the symmetric local lemma.
-* `Cslib.Probability.PMF.toOuterMeasure_pi_inter_eq_mul`: events on disjoint coordinates of a
-  product are independent.
 * `Cslib.Probability.PMF.prod_one_sub_le_pi_iInter_compl`,
   `Cslib.Probability.PMF.pi_iInter_compl_pos`: the asymmetric and symmetric local lemmas for events
   depending on sets of independent coordinates.
@@ -261,22 +257,6 @@ namespace PMF
 section Product
 
 variable {V : Type*} [Fintype V] {α : V → Type*} [∀ v, Finite (α v)]
-
-/-- **Events on disjoint coordinates are independent**: in an independent product, an event
-depending only on the coordinates in `S` and an event depending only on the coordinates in a
-disjoint set `T` are independent. This is the finite-PMF form of
-`ProbabilityTheory.indepSet_pi_of_dependsOn`. -/
-theorem toOuterMeasure_pi_inter_eq_mul (p : ∀ v, PMF (α v)) {S T : Set V}
-    (hST : Disjoint S T) {E F : Set (∀ v, α v)} (hE : DependsOn (· ∈ E) S)
-    (hF : DependsOn (· ∈ F) T) :
-    (pi p).toOuterMeasure (E ∩ F) = (pi p).toOuterMeasure E * (pi p).toOuterMeasure F := by
-  let (v : V) : MeasurableSpace (α v) := ⊤
-  have hmeas (B : Set (∀ v, α v)) : MeasurableSet B := (Set.to_countable B).measurableSet
-  have hind := indepSet_pi_of_dependsOn (μ := fun v => (p v).toMeasure) (hmeas E) (hmeas F)
-    hE hF hST
-  rw [← toMeasure_pi] at hind
-  simpa only [PMF.toMeasure_apply_eq_toOuterMeasure_apply _ (hmeas _)] using
-    (indepSet_iff_measure_inter_eq_mul (hmeas E) (hmeas F) _).1 hind
 
 /-- Under an independent product, an event `A i` depending only on the coordinates in `vbl i` is
 independent of the event that no `A j` occurs, for indices `j ∉ Γ i ∪ {i}` sharing no coordinate

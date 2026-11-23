@@ -50,7 +50,8 @@ ones used by Algorithms 1 and 3 in `CslibFrontier.Algorithms.Lean.AhoCorasick.Se
 * `Cslib.Algorithms.Lean.AhoCorasick.failure_append_singleton`: the failure recurrence of
   Algorithm 3.
 * `Cslib.Algorithms.Lean.AhoCorasick.mem_occurrences_iff`, `nodup_occurrences`,
-  `pairwise_occurrences` and `occurrences_append_singleton`.
+  `pairwise_occurrences`, `occurrences_append_singleton`, `length_occurrences_le` and
+  `occurrences_prefix_append`.
 
 ## References
 
@@ -413,5 +414,45 @@ theorem pairwise_occurrences (P : List (List α)) (t : List α) :
   · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hx
     obtain ⟨_, _, rfl⟩ := List.mem_map.mp hy
     exact Or.inl hij
+
+/-- There are at most `t.length * P.length` keyword occurrences in `t`. -/
+theorem length_occurrences_le (P : List (List α)) (t : List α) :
+    (occurrences P t).length ≤ t.length * P.length := by
+  let grid := (List.range' 1 t.length).flatMap fun i => P.map fun y => (i, y)
+  have hgrid_len : grid.length = t.length * P.length := by
+    have : ∀ m s : ℕ, ((List.range' s m).flatMap fun i => P.map fun y => (i, y)).length =
+        m * P.length := by
+      intro m
+      induction m with
+      | zero => simp
+      | succ m ih =>
+        intro s
+        simp only [List.range'_succ, List.flatMap_cons, List.length_append, List.length_map,
+          ih (s + 1), Nat.add_mul, Nat.one_mul]
+        omega
+    exact this t.length 1
+  have hsub : (occurrences P t).Subperm grid := by
+    refine List.subperm_of_subset (nodup_occurrences P t) fun ⟨i, y⟩ hmem => ?_
+    obtain ⟨hi_le, hy_ne, hy_P, hsuf⟩ := mem_occurrences_iff.mp hmem
+    have hy_pos : 0 < y.length := List.length_pos_iff.mpr hy_ne
+    have htake_le : y.length ≤ (t.take i).length := hsuf.length_le
+    have hi_pos : 1 ≤ i := by
+      have := List.length_take_le i t
+      omega
+    exact List.mem_flatMap.mpr ⟨i, List.mem_range'.mpr ⟨i - 1, by omega, by omega⟩,
+      List.mem_map.mpr ⟨y, hy_P, rfl⟩⟩
+  exact hgrid_len ▸ hsub.length_le
+
+/-- Occurrences in a prefix `p` form a prefix of the occurrences in `p ++ ts`. -/
+theorem occurrences_prefix_append (P : List (List α)) (p : List α) :
+    ∀ ts : List α, occurrences P p <+: occurrences P (p ++ ts)
+  | [] => by simp only [List.append_nil]; exact List.prefix_rfl
+  | a :: ts => by
+    have ih := occurrences_prefix_append P (p ++ [a]) ts
+    rw [List.append_assoc, List.singleton_append] at ih
+    have h1 : occurrences P p <+: occurrences P (p ++ [a]) := by
+      rw [occurrences_append_singleton]
+      exact List.prefix_append _ _
+    exact h1.trans ih
 
 end Cslib.Algorithms.Lean.AhoCorasick

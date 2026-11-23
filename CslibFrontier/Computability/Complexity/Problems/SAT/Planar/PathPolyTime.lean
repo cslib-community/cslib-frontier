@@ -48,24 +48,11 @@ namespace Cslib.Complexity.SAT.PlanarCompile
 open Cslib.Logic.PL Cslib.Logic.PL.CNF Orthogonal
 open Turing.MultiTapeTM
 
-/-- Pointwise binary integer addition is polynomial-time computable. -/
-theorem computable_intAdd {α : Type} {enc : α ↪ List Bool} {f g : α → ℤ}
-    (hf : ComputableInPolyTime f enc encIntBin)
-    (hg : ComputableInPolyTime g enc encIntBin) :
-    ComputableInPolyTime (fun a => f a + g a) enc encIntBin :=
-  (show ComputableInPolyTime (fun p : ℤ × ℤ => p.1 + p.2)
-    (encPair encIntBin encIntBin) encIntBin by fun_prop).comp (hf.prod hg)
-
-/-- Casting a unary natural number to a binary integer is polynomial-time computable. -/
-theorem computable_natCast :
-    ComputableInPolyTime (fun n : ℕ => (n : ℤ)) encUnary encIntBin :=
-  ComputableInPolyTime.intBin_natCast.comp ComputableInPolyTime.unary_to_binary
-
 private theorem computable_finVal :
     ComputableInPolyTime (fun s : Fin 3 => s.val) (encFinEnum (Fin 3)) encUnary :=
   ComputableInPolyTime.of_finite _
 
-attribute [local fun_prop] computable_intAdd computable_natCast computable_finVal
+attribute [local fun_prop] computable_finVal
 
 private theorem computable_incidencePort :
     ComputableInPolyTime (fun p : Graph × ℕ => p.1.incidencePort p.2)

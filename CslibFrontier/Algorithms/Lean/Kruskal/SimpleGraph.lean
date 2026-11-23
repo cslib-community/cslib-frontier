@@ -27,8 +27,7 @@ in `CslibFrontier.Algorithms.Lean.Kruskal.Basic` to Mathlib's `SimpleGraph`,
   collapsing parallel edges).
 * `graphEdges`: canonical computable enumeration (`u < v` with `G.Adj u v`) of the undirected edges
   of `G : SimpleGraph (Fin n)` weighted by `w : Sym2 (Fin n) → W`.
-* `kruskalGraph`, `kruskalGraphM`: pure and `TimeM Cost` Kruskal runners directly on a weighted
-  `SimpleGraph (Fin n)`.
+* `kruskalGraph`: pure Kruskal runner directly on a weighted `SimpleGraph (Fin n)`.
 
 ## Main results
 
@@ -52,18 +51,6 @@ in `CslibFrontier.Algorithms.Lean.Kruskal.Basic` to Mathlib's `SimpleGraph`,
   pp. 48–50][Kruskal1956] to disconnected simple graphs and ordered cancellative monoids), the
   minimum spanning forest (and minimum spanning tree when connected) is **unique as a
   `SimpleGraph (Fin n)`**.
-* `kruskalGraphM_comparisons_le`, `kruskalGraphM_ufSteps_le`, `kruskalGraphM_total_le`: explicit
-  sorting comparison and disjoint-set step bounds in terms of `m = G.edgeFinset.card` and `n`.
-
-## Cost model and limitations
-
-`kruskalGraphM G w := kruskalM (graphEdges G w)` charges only the `List.mergeSortM` weight
-comparisons (`Cost.comparisons`) and post-initialization `DisjointSet.UnionFind` forest steps
-(`Cost.ufSteps`) performed on the extracted `m`-edge list. The pure `graphEdges G w` enumeration
-pass (which inspects all `n²` ordered pairs in `List.finRange n`, evaluating `decide (G.Adj u v)`
-and `w s(u, v)` on matching edges) and `DisjointSet.UnionFind.init n` (`O(n)` initialization) carry
-`0` `TimeM Cost` charge; callers that already hold an explicit edge list should invoke `kruskalM`
-directly.
 
 ## References
 
@@ -669,48 +656,5 @@ theorem eq_toSimpleGraph_kruskalGraph_of_isTree_of_injOn {n : ℕ} {W : Type}
       rw [← SimpleGraph.edgeWeightSum_eq_sum_edgeFinset]
       exact hK.2 T' hT')⟩
   exact hTMST.eq_of_injOn hinj hK
-
-/-! ### `TimeM Cost` Kruskal runner on `SimpleGraph (Fin n)` -/
-
-/-- Execute Kruskal's algorithm in `TimeM Cost` on the canonical edge list `graphEdges G w`.
-Note that `Cost` charges sorting comparisons and post-initialization `UnionFind` forest steps on the
-extracted `m`-edge list; the pure `graphEdges G w` enumeration (`Θ(n²)` adjacency/weight checks) and
-`DisjointSet.UnionFind.init n` carry `0` `TimeM Cost` charge. -/
-@[expose] def kruskalGraphM {n : ℕ} {W : Type} [LE W] [DecidableLE W]
-    (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (w : Sym2 (Fin n) → W) :
-    TimeM Cost (Output n W) :=
-  kruskalM (graphEdges G w)
-
-@[simp]
-theorem kruskalGraphM_forest {n : ℕ} {W : Type} [LE W] [DecidableLE W]
-    (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (w : Sym2 (Fin n) → W) :
-    (kruskalGraphM G w).ret.forest = kruskalGraph G w :=
-  kruskalM_forest (graphEdges G w)
-
-/-- Sorting comparison bound for `kruskalGraphM` in terms of `m = G.edgeFinset.card`: at most
-`m * ⌈log₂ m⌉` weight comparisons. -/
-theorem kruskalGraphM_comparisons_le {n : ℕ} {W : Type} [LE W] [DecidableLE W]
-    (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (w : Sym2 (Fin n) → W) :
-    (kruskalGraphM G w).time.comparisons ≤
-      G.edgeFinset.card * Nat.clog 2 G.edgeFinset.card := by
-  simpa only [kruskalGraphM, length_graphEdges] using
-    kruskalM_comparisons_le (graphEdges G w)
-
-/-- Disjoint-set forest step bound for `kruskalGraphM` in terms of `m = G.edgeFinset.card` and `n`:
-at most `m * (2 * ⌊log₂ n⌋ + 3)` union-find steps. -/
-theorem kruskalGraphM_ufSteps_le {n : ℕ} {W : Type} [LE W] [DecidableLE W]
-    (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (w : Sym2 (Fin n) → W) :
-    (kruskalGraphM G w).time.ufSteps ≤ G.edgeFinset.card * (2 * Nat.log 2 n + 3) := by
-  simpa only [kruskalGraphM, length_graphEdges] using
-    kruskalM_ufSteps_le (graphEdges G w)
-
-/-- Combined bound on `(kruskalGraphM G w).time.total` in terms of `m = G.edgeFinset.card` and
-`n`. -/
-theorem kruskalGraphM_total_le {n : ℕ} {W : Type} [LE W] [DecidableLE W]
-    (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (w : Sym2 (Fin n) → W) :
-    (kruskalGraphM G w).time.total ≤
-      G.edgeFinset.card * Nat.clog 2 G.edgeFinset.card +
-        G.edgeFinset.card * (2 * Nat.log 2 n + 3) :=
-  Nat.add_le_add (kruskalGraphM_comparisons_le G w) (kruskalGraphM_ufSteps_le G w)
 
 end Cslib.Algorithms.Lean.Kruskal
