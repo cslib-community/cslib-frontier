@@ -6308,7 +6308,6 @@ public import CslibFrontier.Foundations.Combinatorics.PessimisticEstimator
 public import CslibFrontier.DataStructure.StateTransition.StepFunction
 public import CslibFrontier.Computability.WordRAM.Realization.WordEncoding.Equiv
 public import CslibFrontier.Foundations.Data.BitString.WordsOfLength
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.Reachability.Bounds
 public import CslibFrontier.Foundations.Data.Nat.CeilQuarter
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PrimeSelection.Header
 public import CslibFrontier.Computability.PointerMachine.Structured
