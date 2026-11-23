@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 module
+-- upstream: local-only (test)
 
 import CslibFrontier.Crypto.Computational.Encryption.MACThenEncrypt.RandomPads
 import CslibFrontierTests.Crypto.MACThenEncryptFixture
@@ -16,7 +17,7 @@ import CslibFrontier.Tactic.PolyTime
 
 An ordinary `module` client of
 `CslibFrontier.Crypto.Computational.Encryption.MACThenEncrypt.RandomPads`, which proves step (9.13)
-of the proof of Boneh–Shoup Theorem 9.3 and not the theorem.
+of the proof of Boneh–Shoup Theorem 9.3 and not the theorem (#640).
 
 * `mtePlaintextValid` on the echo MAC (`tag = msg`): a canonical tagged pair is accepted; a wrong
   tag, a wrong message length and the empty word are rejected; and the canonical-encoding check
@@ -110,10 +111,24 @@ example (adversary : CIAdversary) (Q : ℕ → ℕ) (n : ℕ)
         ((Q n).choose 2 : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ (3 * n + 1)) +
         ((ProbComp.eval (echoMAC.keyGen n)).bind fun km =>
           (ProbOracleComp.runWith (mteForgetfulOracle echoMAC n (3 * n + 1) km) (adversary n [])
-            ([], [])).bind (mteIdealFinal echoMAC n (3 * n + 1) km)) true :=
+            {}).bind (mteIdealFinal echoMAC n (3 * n + 1) km)) true :=
   eval_ciGame_macThenEncrypt_prfCipher_le_freshPads echoFamily echoFamily_polyTime
     (fun _ _ h => h) echoMAC _ echoLen_polyTime echoLen_strictMono (fun _ => rfl) echo_pairLen
     adversary Q n hq
+
+-- Named record and state fields of `MteRec` and `MteState` under ordinary `module` import.
+example :
+    let rec1 : MteRec := {
+      iv := [true, false, false, false]
+      pad := [false, false, false, false]
+      msg := [true]
+      tag := [true]
+    }
+    let st : MteState := { cache := [(rec1.iv, rec1.pad)], history := [rec1] }
+    st.history.map (MteRec.ct 4) =
+      [[true, false, false, false] ++
+        List.zipWith xor [false, false, false, false] (encPair encBits encBits ([true], [true]))] :=
+  rfl
 
 /-- Asks for encryptions of `0ⁿ` and `1ⁿ` and outputs the second ciphertext. -/
 def twoQueries : CIAdversary :=
@@ -137,7 +152,7 @@ example (n : ℕ) :
         (1 : ℝ≥0∞) / 2 ^ (3 * n + 1) +
         ((ProbComp.eval (echoMAC.keyGen n)).bind fun km =>
           (ProbOracleComp.runWith (mteForgetfulOracle echoMAC n (3 * n + 1) km) (twoQueries n [])
-            ([], [])).bind (mteIdealFinal echoMAC n (3 * n + 1) km)) true := by
+            {}).bind (mteIdealFinal echoMAC n (3 * n + 1) km)) true := by
   have h := eval_ciGame_macThenEncrypt_prfCipher_le_freshPads echoFamily echoFamily_polyTime
     (fun _ _ h => h) echoMAC _ echoLen_polyTime echoLen_strictMono (fun _ => rfl) echo_pairLen
     twoQueries (fun _ => 2) n (twoQueries_isQueryBounded n)
@@ -155,7 +170,7 @@ example (adversary : CIAdversary) (n : ℕ) (hq : (adversary n []).IsQueryBounde
           ℝ≥0∞) +
         ((ProbComp.eval (echoMAC.keyGen n)).bind fun km =>
           (ProbOracleComp.runWith (mteForgetfulOracle echoMAC n (3 * n + 1) km) (adversary n [])
-            ([], [])).bind (mteIdealFinal echoMAC n (3 * n + 1) km)) true := by
+            {}).bind (mteIdealFinal echoMAC n (3 * n + 1) km)) true := by
   have h := eval_ciGame_macThenEncrypt_prfCipher_le_freshPads echoFamily echoFamily_polyTime
     (fun _ _ h => h) echoMAC _ echoLen_polyTime echoLen_strictMono (fun _ => rfl) echo_pairLen
     adversary (fun _ => 0) n hq

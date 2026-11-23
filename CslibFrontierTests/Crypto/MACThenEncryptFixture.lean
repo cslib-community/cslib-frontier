@@ -5,6 +5,7 @@ Authors: Karn Seth, Samuel Schlesinger
 -/
 
 module
+-- upstream: local-only (test)
 
 public import CslibFrontier.Crypto.Computational.MAC
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Lookup
