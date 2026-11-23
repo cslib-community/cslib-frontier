@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.WordRAM.Notation
 import CslibFrontier.Computability.WordRAM.Allocation
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Foundations.Data.List.Fold
 import Mathlib.Data.List.GetD
 import Mathlib.Tactic.Ring
 
@@ -145,15 +146,6 @@ private theorem fits_of_le {G : Instance} {w x : ℕ} (hfit : Fits w G.wordBound
     (hle : x ≤ G.wordBound) : Fits w x :=
   hfit.of_le hle
 
-private theorem length_mem_le_sum {n : ℕ} :
-    ∀ {cs : CNF (Fin n)} {c : Clause (Fin n)}, c ∈ cs → c.length ≤ (cs.map List.length).sum
-  | _ :: _, _, hc => by
-    rcases List.mem_cons.1 hc with rfl | hmem
-    · simp
-    · have := length_mem_le_sum hmem
-      simp only [List.map_cons, List.sum_cons]
-      omega
-
 /-- Every word of `G.encode`, together with its length, fits in any word width admitting
 `G.wordBound`. -/
 theorem inputFits_encode (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
@@ -165,7 +157,7 @@ theorem inputFits_encode (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
   · exact hfit.of_le (by unfold wordBound; omega)
   · simp only [encodeClauseBy, List.mem_cons, List.mem_map] at hvc
     rcases hvc with rfl | ⟨ℓ, _, rfl⟩
-    · have hle : c.length ≤ G.totalLits := length_mem_le_sum hc
+    · have hle : c.length ≤ G.totalLits := List.le_sum_of_mem (List.mem_map_of_mem hc)
       exact hfit.of_le (by unfold wordBound; omega)
     · have hlt : litCodeBy Fin.val ℓ < 2 * G.n := by
         have := ℓ.1.isLt
@@ -1798,10 +1790,6 @@ private theorem card_visit_nil {V : Type*} [DecidableEq V] (adj : V → List V)
     simp [hvis x]
   rw [hunion, Finset.card_union_of_disjoint hdisj, List.toFinset_card_of_nodup hnd]
 
-private theorem outDegreeSum_append_local {V : Type*} (g : V → List V) (a b : List V) :
-    outDegreeSum g (a ++ b) = outDegreeSum g a + outDegreeSum g b := by
-  simp [outDegreeSum, List.map_append, List.sum_append]
-
 private def VisAt {N : ℕ} (vis : Finset (Fin N)) (visAddr : ℕ) (mem : ℕ → ℕ) : Prop :=
   ∀ w : Fin N, mem (visAddr + w.val) = (decide (w ∈ vis)).toNat
 
@@ -2329,12 +2317,6 @@ private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
         have hfold_cons : foldEmpty adj (k' + 1) (v :: es') vis =
             ⟨s₂.visited, s₂.finished ++ s₁.finished⟩ := by
           rw [← hs₂_def, ← hs₁_def]; exact foldEmpty_cons adj (k' + 1) v es' vis
-        have hes' : ∀ q (hq : q < es'.length), (adj u)[idx + 1 + q]'(by omega) = es'[q] := by
-          intro q hq
-          have h := hes (q + 1) (by simp only [List.length_cons]; omega)
-          have hcongr : (adj u)[idx + 1 + q]'(by omega) = (adj u)[idx + (q + 1)]'(by omega) := by
-            congr 1; omega
-          exact hcongr.trans (by simpa only [List.getElem_cons_succ] using h)
         have hcard_s₁ : s₁.visited.card = vis.card + s₁.finished.length := by
           rw [← hs₁_def]; exact card_visit_nil adj (k' + 1) v vis
         have hcard_s₁_le : s₁.visited.card ≤ N := by
@@ -2445,7 +2427,7 @@ private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
               ((adj v).length + outDegreeSum adj s_child.finished) := by
           rw [hfold_cons, hs₁_eq]
           dsimp only
-          rw [outDegreeSum_append_local]
+          rw [outDegreeSum_append]
           simp only [outDegreeSum, List.map_cons, List.sum_cons]
         have hlen_eq : (foldEmpty adj (k' + 1) (v :: es') vis).finished.length =
             s₂.finished.length + (1 + s_child.finished.length) := by
@@ -2742,7 +2724,7 @@ private theorem forwardDFSLoop_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Li
       by rw [hfold_cons]; dsimp only; rw [List.length_append]; omega,
       fun q hq => ?_, fun a ha => ?_, fun reg hreg => ?_⟩
     · rw [hfold_cons]; dsimp only
-      rw [List.length_cons, List.length_append, outDegreeSum_append_local]
+      rw [List.length_cons, List.length_append, outDegreeSum_append]
       omega
     · have hrev : (foldEmpty adj N (r :: rs) vis).finished.reverse =
           s₁.finished.reverse ++ s₂.finished.reverse := by
@@ -3968,16 +3950,6 @@ private theorem peelLoop_spec {N w : ℕ} (hN : 0 < N) (revAdj : Fin N → List 
         have hinc_i : ExecWithin w (ram[ iReg ← iReg + cOne ])
             (z₁.set compIdxReg (cIdx + 1)) y₂ 1 := by
           wram_exec [hz₁_i, hz₁_1, hf_i1]
-        have hfold_upd : ∀ (l : List (Fin N)) (g : Fin N → ℕ) (u : Fin N),
-            l.foldl (fun h v => Function.update h v cIdx) g u = if u ∈ l then cIdx else g u := by
-          intro l
-          induction l with
-          | nil => intro g u; simp
-          | cons v l ih =>
-            intro g u; rw [List.foldl_cons, ih]
-            by_cases huv : u = v
-            · subst huv; by_cases hul : u ∈ l <;> simp [hul]
-            · simp [huv]
         refine ⟨y₂, (hbr_ex.seq hinc_i).mono (by omega),
           by dsimp only [y₂]; wram_simp,
           by
@@ -3987,7 +3959,8 @@ private theorem peelLoop_spec {N w : ℕ} (hN : 0 < N) (revAdj : Fin N → List 
           by dsimp only [y₂, cIdx']; wram_simp; simp [hempty],
           fun u hu => ?_, fun a ha => hz₁_out a ha, fun reg hreg => ?_⟩
         · dsimp only [y₂, f']; mem_upd
-          simp only [hempty, Bool.false_eq_true, ↓reduceIte, hz₁_mem u, List.mem_reverse, hfold_upd]
+          simp only [hempty, Bool.false_eq_true, ↓reduceIte, hz₁_mem u, List.mem_reverse,
+            foldl_update_const]
           by_cases huf : u ∈ s.finished
           · simp [huf]
           · simp only [huf, ↓reduceIte]
@@ -4056,7 +4029,7 @@ private theorem peelLoop_spec {N w : ℕ} (hN : 0 < N) (revAdj : Fin N → List 
         simp only [List.length_cons]
         omega
       · simp only [List.length_cons, List.flatten_cons, List.length_append,
-          outDegreeSum_append_local]
+          outDegreeSum_append]
         omega
     · rw [peelSCCs, show visit revAdj N r ⟨vis, []⟩ = s from rfl] at hu ⊢
       split_ifs with he
@@ -4350,18 +4323,6 @@ def solver : Code .standard 28 :=
 
 /-- Flat standard-basis Word-RAM 2-SAT program returning `answerWords G` via `ExecutesList`. -/
 def program : Program .standard 28 := solver.program outBase
-
-private theorem mem_of_foldl_and_true {α : Type*} (p : α → Bool) :
-    ∀ (l : List α) (b : Bool),
-      l.foldl (fun acc x => acc && p x) b = true → b = true ∧ ∀ x ∈ l, p x = true
-  | [], b, h => ⟨h, fun _ hx => absurd hx List.not_mem_nil⟩
-  | a :: l, b, h => by
-    obtain ⟨hb, hl⟩ := mem_of_foldl_and_true p l (b && p a) h
-    rw [Bool.and_eq_true] at hb
-    refine ⟨hb.1, fun x hx => ?_⟩
-    rcases List.mem_cons.1 hx with rfl | hx
-    · exact hb.2
-    · exact hl x hx
 
 /-- Structured execution of `solver` computes `answerWords G` at `outAddrBase` within
 `512 * (G.n + G.φ.length + 1) - 1` instructions. -/
@@ -4774,9 +4735,10 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
             wram_exec [hs₈_nv, hs₈_1, hs₈_ob, hf_n1, hf_ob1]
           obtain ⟨ts, hts, hes⟩ := hpos_sat
           have hdist_all : ∀ v : Fin G.n, compIdx (v, true) ≠ compIdx (v, false) := by
-            have hall := (mem_of_foldl_and_true
-              (fun v => decide (compIdx (v, true) ≠ compIdx (v, false)))
-              (List.finRange G.n) true hok_all).2
+            have hall : (List.finRange G.n).foldl
+                (fun acc v => acc && decide (compIdx (v, true) ≠ compIdx (v, false))) true =
+                  true := hok_all
+            rw [foldl_and_eq_and_all, Bool.true_and, List.all_eq_true] at hall
             exact fun v => of_decide_eq_true (hall v (List.mem_finRange v))
           refine ⟨y_sat, ⟨ts + 1, by omega, Exec.branch_pos hcond_ok hes⟩,
             by dsimp only [y_sat]; wram_simp; exact hs₈_ob, ?_⟩
