@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
+import CslibFrontier.Tactic.OptionMatch
 
 /-!
 # Polynomial-time modular evaluation of term words
@@ -128,12 +129,9 @@ theorem evalTokenStack_polyTime {γ : Type} {enc : γ ↪ List Bool}
       (encPair stepEnc (encList encNat)) stackEnc :=
     evalTokenStep_polyTime (hp.comp hparam) (hx.comp hparam) (snd stepEnc (encList encNat)) htoken
   have hstep : ComputableInPolyTime (fun a => step a.1.1 a.1.2 a.2) stepEnc stackEnc := by
-    have h := optionElimWithInput
-      (body := fun a stack => evalTokenStep (modulus a.1.1) (point a.1.1) a.2 stack)
-      hstate (.const none) hbody
-    apply h.of_enc_eq
-    rintro ⟨⟨a, state⟩, token⟩
-    cases state <;> rfl
+    dsimp only [step]
+    option_match_to_elim
+    exact optionElimWithInput hstate (.const none) hbody
   have hwidth := ((PolyBounded.const 2).mul hp.polyBounded_length).add (.const 1)
   have hsize := (ht.polyBounded_length.mul hwidth).add (.const 1)
   have hfold := foldlWith (encA := encTermToken) (step := step) id'
@@ -266,17 +264,8 @@ theorem evalTermWord_polyTime {γ : Type} {enc : γ ↪ List Bool}
   have hresult := hstack.optionElimWithInput (body := fun _ stack =>
     if stack.tail.isEmpty then stack.head? else none) (.const none)
     (hsingle.comp (snd (encPair enc encTokens) encStack))
-  have h := (termTokensDecoder.computable.comp hw).optionElimWithInput
-    (body := fun a tokens => (evalTokenStack (modulus a) (point a) tokens []).elim none
-      (fun stack => if stack.tail.isEmpty then stack.head? else none))
-    (.const none) hresult
-  apply h.of_enc_eq
-  intro a
-  simp only [evalTermWord, Function.comp_apply, Option.bind_eq_bind]
-  cases termTokensDecoder.decode (word a) with
-  | none => rfl
-  | some tokens =>
-    simp only [Option.bind_some, Option.elim_some]
-    cases evalTokenStack (modulus a) (point a) tokens [] <;> rfl
+  unfold evalTermWord
+  option_match_to_elim
+  exact (termTokensDecoder.computable.comp hw).optionElimWithInput (.const none) hresult
 
 end Cslib.Logic.RealArithmetic.Term

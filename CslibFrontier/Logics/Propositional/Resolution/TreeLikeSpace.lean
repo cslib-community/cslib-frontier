@@ -277,9 +277,7 @@ private theorem exists_derivation_strahler_le_aux (φ : CNF V) (h : ¬ φ.Satisf
     · exact ⟨_, f₁, List.eq_nil_iff_forall_not_mem.2 fun l hl => hv₁ (h₁' l hl ▸ hl), by omega⟩
   · exact ⟨_, f₀, List.eq_nil_iff_forall_not_mem.2 fun l hl => hv₀ (h₀' l hl ▸ hl), by omega⟩
 termination_by #φ.vars.toFinset
-decreasing_by
-  · exact hlt false
-  · exact hlt true
+decreasing_by all_goals exact hlt _
 
 /-- An unsatisfiable formula on `n` variables has a tree-like refutation of Strahler number at most
 `n`. -/

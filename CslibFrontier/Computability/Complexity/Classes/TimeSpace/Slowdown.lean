@@ -16,7 +16,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Fun
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Basic
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OPrimitives
 import CslibFrontier.Foundations.Data.Nat.Doubling
@@ -90,25 +89,15 @@ theorem SigmaTwoTIME_subset_NTIME {t t' τ : ℕ → ℕ} (ht : TimeConstructibl
   intro A hA
   obtain ⟨V, c, hV, hmem⟩ := mem_SigmaTwoTIME_iff.mp hA
   -- the universal block, as a verifier on the framed instance followed by the certificate
-  have hunframe : ComputableInO (fun x : List Bool × List Bool => unframe x.1)
-      (encPair encBits encBits) encBits (fun x => (encPair encBits encBits x).length)
-      (fun x => (encPair encBits encBits x).length) :=
-    (ComputableInO.of_linear (ComputableInDegree.of_unframe fun _ => rfl)).comp_linear
-      (ComputableInO.fst encBits encBits)
-  have hdrop : ComputableInO (fun x : List Bool × List Bool => dropFrame x.1)
-      (encPair encBits encBits) encBits (fun x => (encPair encBits encBits x).length)
-      (fun x => (encPair encBits encBits x).length) :=
-    (ComputableInO.of_linear (ComputableInDegree.of_dropFrame fun _ => rfl)).comp_linear
-      (ComputableInO.fst encBits encBits)
-  have htriple := (hunframe.prod (hdrop.prod (ComputableInO.snd encBits encBits))).mono
-    (T' := fun x => (encPair encBits encBits x).length)
-    (S' := fun x => (encPair encBits encBits x).length) 3
-    (fun _ => by omega) fun _ => by omega
+  have htriple : ComputableInO
+      (fun x : List Bool × List Bool => (unframe x.1, dropFrame x.1, x.2))
+      (encPair encBits encBits) (encPair encBits (encPair encBits encBits))
+      (fun x => (encPair encBits encBits x).length)
+      fun x => (encPair encBits encBits x).length :=
+    .mono (by fun_prop) 3 (fun _ => by omega) fun _ => by omega
   have hW := (hV.comp_linear htriple).not'
   have hℓ : ComputableInO (fun z : List Bool => (dropFrame z).length) encBits encUnary
-      (fun z => z.length) fun z => z.length :=
-    ComputableInO.lengthUnary.comp_linear
-      (ComputableInO.of_linear (ComputableInDegree.of_dropFrame fun _ => rfl))
+      (fun z => z.length) fun z => z.length := by fun_prop
   have hB := setOf_exists_mem_NTIME (t := id) (C := 5) hℓ hW fun z v hv => by
     have := length_dropFrame_le z
     enc_len [id_eq] at hv ⊢

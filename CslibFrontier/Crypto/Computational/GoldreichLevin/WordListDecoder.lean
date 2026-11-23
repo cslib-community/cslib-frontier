@@ -887,6 +887,15 @@ theorem isOraclePPTOn_queryBatch :
   obtain ⟨reply, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
   simp
 
+/-- `queryBatch` composed with a polynomial-time query-list generator is uniform strict oracle
+PPT. -/
+@[fun_prop]
+theorem isOraclePPTOn_queryBatch_comp {α : Type} {input : α ↪ List Bool}
+    {queries : α → List (List Bool)}
+    (hqueries : ComputableInPolyTime queries input (encList encBits)) :
+    IsOraclePPTOn input encBits (fun a => queryBatch (queries a)) :=
+  isOraclePPTOn_queryBatch.preprocess hqueries
+
 /-- Stateless oracle handler on channel `Unit` that answers each query `q.2` with the 1-bit reply
 `[predictor q.2]`. -/
 noncomputable def predictorOracle (predictor : List Bool → Bool) :
@@ -959,58 +968,7 @@ noncomputable def oracleListDecode (p : ListDecodeParams) :
 @[fun_prop]
 theorem isOraclePPTOn_oracleListDecode :
     IsOraclePPTOn encListDecodeParams (encList encBits) oracleListDecode := by
-  unfold oracleListDecode
-  have hp0 : ComputableInPolyTime (fun p : ListDecodeParams => p)
-      encListDecodeParams encListDecodeParams := ComputableInPolyTime.id'
-  have hdim0 : ComputableInPolyTime ListDecodeParams.dimension encListDecodeParams encUnary :=
-    encListDecodeParams_dimension_polyTime hp0
-  have hprec0 : ComputableInPolyTime ListDecodeParams.precision encListDecodeParams encUnary :=
-    encListDecodeParams_precision_polyTime hp0
-  have hcount : ComputableInPolyTime
-      (fun p : ListDecodeParams => listMaskCount p.dimension p.precision * p.dimension)
-      encListDecodeParams encUnary :=
-    (polyTime_listMaskCount hdim0 hprec0).unary_mul' hdim0
-  refine hcount.sampleList.isOraclePPTOn.bind_with ?_
-  have h1 : ComputableInPolyTime (fun pm : ListDecodeParams × List Bool => pm.1)
-      (encPair encListDecodeParams encBits) encListDecodeParams :=
-    ComputableInPolyTime.fst _ _
-  have hdim : ComputableInPolyTime (fun pm : ListDecodeParams × List Bool => pm.1.dimension)
-      (encPair encListDecodeParams encBits) encUnary :=
-    encListDecodeParams_dimension_polyTime h1
-  have hprec : ComputableInPolyTime (fun pm : ListDecodeParams × List Bool => pm.1.precision)
-      (encPair encListDecodeParams encBits) encUnary :=
-    encListDecodeParams_precision_polyTime h1
-  have hmasks : ComputableInPolyTime (fun pm : ListDecodeParams × List Bool => pm.2)
-      (encPair encListDecodeParams encBits) encBits :=
-    ComputableInPolyTime.snd _ _
-  have hq : IsOraclePPTOn (encPair encListDecodeParams encBits) encBits
-      (fun pm => queryBatch (listDecodeQueries pm.1.dimension pm.1.precision pm.2)) :=
-    isOraclePPTOn_queryBatch.preprocess (polyTime_listDecodeQueries hdim hprec hmasks)
-  refine hq.map_with ?_
-  have hpm : ComputableInPolyTime
-      (fun pmr : (ListDecodeParams × List Bool) × List Bool => pmr.1)
-      (encPair (encPair encListDecodeParams encBits) encBits)
-      (encPair encListDecodeParams encBits) :=
-    ComputableInPolyTime.fst _ _
-  have hrep : ComputableInPolyTime
-      (fun pmr : (ListDecodeParams × List Bool) × List Bool => pmr.2)
-      (encPair (encPair encListDecodeParams encBits) encBits) encBits :=
-    ComputableInPolyTime.snd _ _
-  have hdim' := hdim.comp hpm
-  have hprec' := hprec.comp hpm
-  have hmasks' := hmasks.comp hpm
-  have hqueries' := polyTime_listDecodeQueries hdim' hprec' hmasks'
-  refine polyTime_wordListDecode ?_ hdim' hprec' hmasks'
-  have hbase : ComputableInPolyTime
-      (fun x : ((ListDecodeParams × List Bool) × List Bool) × List Bool => x.1)
-      (encPair (encPair (encPair encListDecodeParams encBits) encBits) encBits)
-      (encPair (encPair encListDecodeParams encBits) encBits) :=
-    ComputableInPolyTime.fst _ _
-  have hquery : ComputableInPolyTime
-      (fun x : ((ListDecodeParams × List Bool) × List Bool) × List Bool => x.2)
-      (encPair (encPair (encPair encListDecodeParams encBits) encBits) encBits) encBits :=
-    ComputableInPolyTime.snd _ _
-  exact polyTime_lookupReply (hqueries'.comp hbase) (hrep.comp hbase) hquery
+  ppt [oracleListDecode]
 
 /-- Uniform polynomial bounds on the number of oracle queries and the length of every oracle query
 made by `oracleListDecode`. -/
@@ -1076,80 +1034,7 @@ noncomputable def oracleListDecodePruned (p : ListDecodeParams) :
 @[fun_prop]
 theorem isOraclePPTOn_oracleListDecodePruned :
     IsOraclePPTOn encListDecodeParams (encList encBits) oracleListDecodePruned := by
-  unfold oracleListDecodePruned
-  have hp0 : ComputableInPolyTime (fun p : ListDecodeParams => p)
-      encListDecodeParams encListDecodeParams := ComputableInPolyTime.id'
-  have hdim0 : ComputableInPolyTime ListDecodeParams.dimension encListDecodeParams encUnary :=
-    encListDecodeParams_dimension_polyTime hp0
-  have hprec0 : ComputableInPolyTime ListDecodeParams.precision encListDecodeParams encUnary :=
-    encListDecodeParams_precision_polyTime hp0
-  have hmasks_count : ComputableInPolyTime
-      (fun p : ListDecodeParams => listMaskCount p.dimension p.precision * p.dimension)
-      encListDecodeParams encUnary :=
-    (polyTime_listMaskCount hdim0 hprec0).unary_mul' hdim0
-  refine hmasks_count.sampleList.isOraclePPTOn.bind_with ?_
-  have hp1 : ComputableInPolyTime (fun pm : ListDecodeParams × List Bool => pm.1)
-      (encPair encListDecodeParams encBits) encListDecodeParams :=
-    ComputableInPolyTime.fst _ _
-  have hdim1 : ComputableInPolyTime (fun pm : ListDecodeParams × List Bool => pm.1.dimension)
-      (encPair encListDecodeParams encBits) encUnary :=
-    encListDecodeParams_dimension_polyTime hp1
-  have hprec1 : ComputableInPolyTime (fun pm : ListDecodeParams × List Bool => pm.1.precision)
-      (encPair encListDecodeParams encBits) encUnary :=
-    encListDecodeParams_precision_polyTime hp1
-  have hmasks1 : ComputableInPolyTime (fun pm : ListDecodeParams × List Bool => pm.2)
-      (encPair encListDecodeParams encBits) encBits :=
-    ComputableInPolyTime.snd _ _
-  have hsamples_count : ComputableInPolyTime
-      (fun pm : ListDecodeParams × List Bool =>
-        pruneSampleCount pm.1.dimension pm.1.precision * pm.1.dimension)
-      (encPair encListDecodeParams encBits) encUnary :=
-    (polyTime_pruneSampleCount hdim1 hprec1).unary_mul' hdim1
-  refine hsamples_count.sampleList.isOraclePPTOn.bind_with ?_
-  have hpm2 : ComputableInPolyTime
-      (fun pms : (ListDecodeParams × List Bool) × List Bool => pms.1)
-      (encPair (encPair encListDecodeParams encBits) encBits)
-      (encPair encListDecodeParams encBits) :=
-    ComputableInPolyTime.fst _ _
-  have hsamples2 : ComputableInPolyTime
-      (fun pms : (ListDecodeParams × List Bool) × List Bool => pms.2)
-      (encPair (encPair encListDecodeParams encBits) encBits) encBits :=
-    ComputableInPolyTime.snd _ _
-  have hdim2 := hdim1.comp hpm2
-  have hprec2 := hprec1.comp hpm2
-  have hmasks2 := hmasks1.comp hpm2
-  have hq : IsOraclePPTOn (encPair (encPair encListDecodeParams encBits) encBits) encBits
-      (fun pms => queryBatch
-        (listDecodePrunedQueries pms.1.1.dimension pms.1.1.precision pms.1.2 pms.2)) :=
-    isOraclePPTOn_queryBatch.preprocess
-      (polyTime_listDecodePrunedQueries hdim2 hprec2 hmasks2 hsamples2)
-  refine hq.map_with ?_
-  have hpms3 : ComputableInPolyTime
-      (fun pmsr : ((ListDecodeParams × List Bool) × List Bool) × List Bool => pmsr.1)
-      (encPair (encPair (encPair encListDecodeParams encBits) encBits) encBits)
-      (encPair (encPair encListDecodeParams encBits) encBits) :=
-    ComputableInPolyTime.fst _ _
-  have hrep3 : ComputableInPolyTime
-      (fun pmsr : ((ListDecodeParams × List Bool) × List Bool) × List Bool => pmsr.2)
-      (encPair (encPair (encPair encListDecodeParams encBits) encBits) encBits) encBits :=
-    ComputableInPolyTime.snd _ _
-  have hdim3 := hdim2.comp hpms3
-  have hprec3 := hprec2.comp hpms3
-  have hmasks3 := hmasks2.comp hpms3
-  have hsamples3 := hsamples2.comp hpms3
-  have hqueries3 := polyTime_listDecodePrunedQueries hdim3 hprec3 hmasks3 hsamples3
-  refine polyTime_wordListDecodePruned ?_ hdim3 hprec3 hmasks3 hsamples3
-  have hbase : ComputableInPolyTime
-      (fun x : (((ListDecodeParams × List Bool) × List Bool) × List Bool) × List Bool => x.1)
-      (encPair (encPair (encPair (encPair encListDecodeParams encBits) encBits) encBits) encBits)
-      (encPair (encPair (encPair encListDecodeParams encBits) encBits) encBits) :=
-    ComputableInPolyTime.fst _ _
-  have hquery : ComputableInPolyTime
-      (fun x : (((ListDecodeParams × List Bool) × List Bool) × List Bool) × List Bool => x.2)
-      (encPair (encPair (encPair (encPair encListDecodeParams encBits) encBits) encBits) encBits)
-      encBits :=
-    ComputableInPolyTime.snd _ _
-  exact polyTime_lookupReply (hqueries3.comp hbase) (hrep3.comp hbase) hquery
+  ppt [oracleListDecodePruned]
 
 /-- Uniform polynomial bounds on the number of oracle queries and the length of every oracle query
 made by `oracleListDecodePruned`. -/

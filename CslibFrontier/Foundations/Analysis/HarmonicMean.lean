@@ -183,9 +183,8 @@ theorem concaveOn_harmonicMean : ConcaveOn ℝ (Set.Ici 0) (harmonicMean : (α �
     (fun x => add_nonneg (mul_nonneg ha (hf x)) (mul_nonneg hb (hg x)))
   rw [← he, smul_eq_mul, smul_eq_mul]
   calc
-    _ ≤ a * (𝔼 x, f x * w x ^ 2) + b * (𝔼 x, g x * w x ^ 2) :=
-      add_le_add (mul_le_mul_of_nonneg_left (harmonicMean_le_energy hf hw) ha)
-        (mul_le_mul_of_nonneg_left (harmonicMean_le_energy hg hw) hb)
+    _ ≤ a * (𝔼 x, f x * w x ^ 2) + b * (𝔼 x, g x * w x ^ 2) := by
+      gcongr <;> exact harmonicMean_le_energy ‹_› hw
     _ = _ := by
       simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, add_mul, mul_assoc,
         expect_add_distrib, ← mul_expect]

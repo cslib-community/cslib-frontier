@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.WordRAM.PrimeTrial
 public import Mathlib.NumberTheory.PrimeCounting
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
@@ -43,8 +44,7 @@ def trialRegisters (i : Fin 6) : Fin 15 := ⟨i.val, by omega⟩
 
 private theorem trial_injective : Function.Injective trialRegisters := by
   intro i j h
-  apply Fin.ext
-  exact congrArg (fun i : Fin 15 => i.val) h
+  exact Fin.ext (by simpa only [trialRegisters] using congrArg Fin.val h)
 
 /-- Current trial-division candidate. -/
 abbrev arg : Fin 15 := 0
@@ -89,53 +89,41 @@ def memory (mem : ℕ → ℕ) (base k : ℕ) : ℕ → ℕ :=
   fun a => if base ≤ a ∧ a < base + k then if (a - base).Prime then 1 else 0 else mem a
 
 private theorem memory_zero (mem : ℕ → ℕ) (base : ℕ) : memory mem base 0 = mem := by
-  funext a
-  simp [memory]
+  funext a; simp [memory]
 
 private theorem memory_succ (mem : ℕ → ℕ) (base k : ℕ) :
     memory mem base (k + 1) = Function.update (memory mem base k)
       (base + k) (if k.Prime then 1 else 0) := by
   funext a
   by_cases ha : a = base + k
-  · subst a
-    simp [memory]
+  · subst a; simp [memory]
   · rw [Function.update_of_ne ha]
-    have h : (base ≤ a ∧ a < base + (k + 1)) ↔ (base ≤ a ∧ a < base + k) := by omega
-    simp only [memory, h]
+    simp only [memory, show (base ≤ a ∧ a < base + (k + 1)) ↔ (base ≤ a ∧ a < base + k) by omega]
 
 private theorem exec_test {w m : ℕ} (x : Data 15) (htwo : x.regs two = 2)
     (hbound : x.regs cursor ≤ m) (hfit : Fits w (m + 3)) :
     ∃ y, ExecWithin w test x y (7 * m + 9) ∧
       y.regs flag = (if (x.regs cursor).Prime then 1 else 0) ∧ y.mem = x.mem ∧
       ∀ i, 6 ≤ i.val → y.regs i = x.regs i := by
-  by_cases hp : x.regs cursor < 2
+  unfold test
+  wram_exec [htwo]
   · have hnp : ¬(x.regs cursor).Prime := fun h => by have := h.two_le; omega
-    refine ⟨x.set flag 0, ?_, by simp [hnp], rfl, ?_⟩
-    · exact (ExecWithin.branch_pos (by simpa only [Cond.holds_lt, htwo] using hp)
-        (ExecWithin.const (fits_zero w))).mono (by omega)
-    · intro i hi
-      have hne : i ≠ flag := by intro h; subst i; change 6 ≤ 2 at hi; omega
-      simp only [Data.set_regs, Function.update_of_ne hne]
-  · let p := x.set arg (x.regs cursor)
-    have hcopy : ExecWithin (B := .standard) w (ram[ arg ← cursor ]) x p 1 :=
-      ExecWithin.copy
-    obtain ⟨y, ha, ⟨haf, _, ham⟩, hframe⟩ := ExecWithin.rename_post trial_injective
-      (PrimeTrial.exec (p.comap trialRegisters)
-        (by change 2 ≤ x.regs cursor; omega)
-        (hfit.of_le (by change x.regs cursor + 2 ≤ m + 3; omega)))
-    refine ⟨y, ?_, haf, ham, ?_⟩
-    · exact (ExecWithin.branch_neg (by simpa only [Cond.holds_lt, htwo] using hp)
-        (hcopy.seq ha)).mono (by
-          change 1 + (7 * (x.regs cursor - 2) + 6) + 2 ≤ 7 * m + 9
-          omega)
-    · intro i hi
-      have hne : i ≠ arg := by intro h; subst i; change 6 ≤ 0 at hi; omega
-      refine (hframe i ?_).trans (Function.update_of_ne hne _ _)
-      intro j hj
-      have hv := congrArg Fin.val hj
-      dsimp [trialRegisters] at hv
-      omega
-
+    wram_simp [hnp]
+    intro i hi
+    exact Data.set_regs_of_ne (fun h => absurd (h ▸ hi) (by decide)) _
+  · refine WP.of_spec (ExecWithin.rename_post trial_injective (PrimeTrial.exec _ ?_ ?_)) ?_
+    · dsimp only [Data.comap_regs, trialRegisters, PrimeTrial.arg]; wram_simp; omega
+    · dsimp only [Data.comap_regs, trialRegisters, PrimeTrial.arg]; wram_simp; fits
+    rintro y ⟨⟨hyf, _, hym⟩, hframe⟩
+    dsimp only [Data.comap_regs, Data.comap_mem, trialRegisters, PrimeTrial.arg,
+      PrimeTrial.flag] at hyf hym ⊢
+    wram_simp at hyf ⊢
+    refine ⟨by omega, hyf, hym, fun i hi => ?_⟩
+    refine (hframe i fun j hj => ?_).trans
+      (Data.set_regs_of_ne (fun h => absurd (h ▸ hi) (by decide)) _)
+    have hv := congrArg Fin.val hj
+    dsimp only [trialRegisters] at hv
+    omega
 
 /-- Write every primality bit through `m`, count exactly `Nat.primesLE m`, and preserve
 all cells outside the bitmap. Trial division gives the explicit quadratic bound
@@ -148,65 +136,36 @@ theorem exec {w : ℕ} (x : Data 15)
       y.regs count = #(Nat.primesLE (x.regs limit)) ∧
       y.regs limit = x.regs limit ∧ y.regs base = x.regs base := by
   let m := x.regs limit
+  unfold program
+  wram_exec
   let P (j : ℕ) (y : Data 15) : Prop := y.regs limit = m ∧ y.regs base = x.regs base ∧
     y.regs stop = m + 1 ∧ y.regs one = 1 ∧ y.regs zero = 0 ∧ y.regs two = 2 ∧
     y.regs count = Nat.primeCounting' j ∧ y.mem = memory x.mem (x.regs base) j
-  have hbody (y : Data 15) (hy : P (y.regs cursor) y) (hlt : y.regs cursor < m + 1) :
-      ∃ q, ExecWithin w body y q (7 * m + 13) ∧ P (y.regs cursor + 1) q ∧
-        q.regs cursor = y.regs cursor + 1 := by
-    obtain ⟨hl, hb, hs, ho, hz, ht, hcount, hm⟩ := hy
-    obtain ⟨z, he, hzf, hzm, hzr⟩ := exec_test y ht (show y.regs cursor ≤ m by omega) hfit
-    have hzb : z.regs base = x.regs base := by regs_frame
+  refine WP.of_spec
+    (ExecWithin.loop_count (N := m + 1) (T := 7 * m + 13) P (fun _ hy => hy.2.2.1) ?_ ?_ ?_) ?_
+  · rintro y ⟨hl, hb, hs, ho, hz, ht, hcount, hm⟩ hlt
+    unfold body
+    refine (WP.seq ?_).exists_execWithin
+    wram_call (exec_test y ht (by omega) hfit) with z ⟨hzf, hzm, hzr⟩
+    have hzb : z.regs base = x.regs base := (hzr base (by decide)).trans hb
     have hzi : z.regs cursor = y.regs cursor := hzr cursor (by decide)
-    have hzc : z.regs count = Nat.primeCounting' (y.regs cursor) := by regs_frame
-    have hzo : z.regs one = 1 := by regs_frame
+    have hzc : z.regs count = Nat.primeCounting' (y.regs cursor) :=
+      (hzr count (by decide)).trans hcount
+    have hzo : z.regs one = 1 := (hzr one (by decide)).trans ho
     have hzf_le : z.regs flag ≤ 1 := by rw [hzf]; split_ifs <;> omega
-    have ha : Fits w (z.regs base + z.regs cursor) := haddr.of_le (by rw [hzb, hzi]; omega)
-    have hn : Fits w (z.regs cursor + 1) := hfit.of_le (by rw [hzi]; change _ ≤ m + 3; omega)
-    have hct : Fits w (z.regs count + z.regs flag) := hfit.of_le (by
-      rw [hzc]
-      have hle : Nat.primeCounting' (y.regs cursor) ≤ y.regs cursor :=
-        Nat.count_le Nat.Prime
-      change _ ≤ m + 3
-      omega)
-    refine ⟨?q, ?run, ?inv, ?decrease⟩
-    case run =>
-      have htail : ExecWithin w (ram[ addr ← base + cursor; *addr ← flag;
-          count ← count + flag; cursor ← cursor + one ]) z ?q 4 := by
-        ram_eval [ha, hn, hct, hzo]
-      exact (he.seq htail).mono (by omega)
-    case inv =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-      · regs_frame
-      · regs_frame
-      · regs_frame
-      · regs_frame
-      · regs_frame
-      · regs_frame
-      · change z.regs count + z.regs flag = Nat.primeCounting' (y.regs cursor + 1)
-        rw [hzc, hzf]
-        simp only [Nat.primeCounting', Nat.count_succ]
-      · change Function.update z.mem (z.regs base + z.regs cursor) (z.regs flag) =
-          memory x.mem (x.regs base) (y.regs cursor + 1)
-        rw [hzm, hm, hzb, hzi, hzf, ← memory_succ]
-    case decrease =>
-      change z.regs cursor + 1 = y.regs cursor + 1
-      rw [hzi]
-  let x₀ := (((((x.set one 1).set zero 0).set two 2).set cursor 0).set count 0).set stop (m + 1)
-  have hx₀ : P (x₀.regs cursor) x₀ := by
-    simp +decide [P, x₀, m, limit, base, stop, one, zero, two, cursor, count,
-      Nat.primeCounting', Nat.count_zero, memory_zero]
-  obtain ⟨y, he, ⟨hl, hb, _, _, _, _, hcount, hm⟩, _⟩ := ExecWithin.loop_count P
-    (fun _ ⟨_, _, hstop, _⟩ => hstop) hbody (by simp +decide [x₀, cursor, count, stop]) hx₀
-  have hstop : Fits w (x.regs limit + 1) := hfit.of_le (by omega)
-  have hinit : ExecWithin (B := .standard) w
-      (ram[ one ← #1; zero ← #0; two ← #2; cursor ← #0; count ← #0;
-        stop ← limit + one ]) x x₀ 6 := by
-    ram_eval [x₀, m, hstop, limit, base, stop, one, zero, two, cursor, count, Fin.mk.injEq]
-  refine ⟨y, ?_, hm, ?_, hl, hb⟩
-  · have hi₀ : x₀.regs cursor = 0 := rfl
-    have hcost : 7 * m + 13 + 2 = 7 * m + 15 := by omega
-    exact (hinit.seq he).mono (by rw [hi₀, Nat.sub_zero, hcost]; dsimp only [m]; omega)
-  · rw [hcount, Nat.primesLE_card_eq_primeCounting, Nat.primeCounting]
+    have hcnt_le : Nat.primeCounting' (y.regs cursor) ≤ y.regs cursor := Nat.count_le _
+    wram_exec [hzb, hzi, hzc, hzo]
+    dsimp only [P]
+    wram_simp [hzb, hzi, hzm, hm, hzf]
+    exact ⟨(hzr limit (by decide)).trans hl, (hzr stop (by decide)).trans hs, hzo,
+      (hzr zero (by decide)).trans hz, (hzr two (by decide)).trans ht,
+      by simp only [Nat.primeCounting', Nat.count_succ],
+      (memory_succ x.mem (x.regs base) (y.regs cursor)).symm⟩
+  · wram_simp
+  · dsimp only [P, m]; wram_simp [Nat.primeCounting', Nat.count_zero, memory_zero]
+  · rintro y ⟨⟨hl, hb, _, _, _, _, hcount, hm⟩, _⟩
+    refine ⟨?_, hm, ?_, hl, hb⟩
+    · wram_simp; dsimp only [m]; exact le_rfl
+    · rw [hcount, Nat.primesLE_card_eq_primeCounting, Nat.primeCounting]
 
 end Cslib.Algorithms.WordRAM.PrimeTable
