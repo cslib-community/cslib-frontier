@@ -1031,7 +1031,7 @@ theorem exists_sparseCNFDeclaredCertificate_bounds (k N₀ : ℕ)
       dsimp only [greedyCellTime, gIn, assembleGreedyInput]
       refine hCandT R hR x hfast _ (by
         rw [List.length_append, List.length_singleton, length_greedyParityRowsAt]
-        exact (Nat.add_le_add (Nat.add_le_add hinit_len hi') (le_refl 1)).trans (by omega)) ?_
+        omega) ?_
       intro r hr; rcases List.mem_append.mp hr with hprev | hcand
       · exact (mem_greedyParityRowsAt _ hprev).elim (fun h0 => hinit_rows r h0) fun ⟨hrl, hrw⟩ =>
           ⟨hrl, hrw.trans hP_le⟩
@@ -1043,7 +1043,7 @@ theorem exists_sparseCNFDeclaredCertificate_bounds (k N₀ : ℕ)
       hCandT R hR x hfast finalRows
         (by
           dsimp only [finalRows]; rw [length_greedyParityRows]
-          exact (Nat.add_le_add_right hinit_len _).trans (by omega))
+          omega)
         fun r hr => (mem_greedyParityRowsAt _ hr).elim (fun h0 => hinit_rows r h0)
           fun ⟨hrl, hrw⟩ => ⟨hrl, hrw.trans hP_le⟩
     let K := (3 * NOf x.1 + 1) *

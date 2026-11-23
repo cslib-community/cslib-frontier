@@ -24,6 +24,7 @@ that receive `v` in binary cap it this way to bound it by the list.
 ## Main results
 
 * `List.getD_mem`: `l.getD i d ∈ l` for `i < l.length`.
+* `List.getD_map_of_lt`: `(l.map f).getD i d₁ = f (l.getD i d₀)` for `i < l.length`.
 * `List.getD_min_length_succ_sub_one`: capping the index at one past the end changes no lookup.
 -/
 
@@ -36,6 +37,13 @@ theorem getD_mem {α : Type*} (d : α) {l : List α} {i : ℕ} (hi : i < l.lengt
     l.getD i d ∈ l := by
   rw [getD_eq_getElem _ _ hi]
   exact getElem_mem hi
+
+/-- An in-range defaulted lookup on `l.map f` applies `f` to `l.getD i d₀`, whatever the
+defaults. -/
+theorem getD_map_of_lt {α β : Type*} (f : α → β) (l : List α) (d₀ : α) (d₁ : β)
+    {i : ℕ} (hi : i < l.length) :
+    (l.map f).getD i d₁ = f (l.getD i d₀) := by
+  rw [getD_eq_getElem _ _ (by simp [hi]), getElem_map, getD_eq_getElem _ _ hi]
 
 /-- Capping a wire number `v`, counted from `1`, at one past the end of the list changes no
 defaulted lookup: indices at or beyond the length all read the default. -/

@@ -1913,8 +1913,7 @@ private theorem integral_badCount_le_capAt {Q : Multigraph W F} (hloop : Q.Loopl
           Finset.sum_le_sum fun p _ => hp_bound p
       _ = 3 / (2 * π) * ∑ p ∈ s.offDiag, arccos ⟪edgeVector Q q R p.1, edgeVector Q q R p.2⟫ :=
           (Finset.mul_sum _ _ _).symm
-      _ ≤ 3 / (2 * π) * (6 * arccos ((1 + 3 * ρ₀) / 4)) :=
-          mul_le_mul_of_nonneg_left hjensen (by positivity)
+      _ ≤ 3 / (2 * π) * (6 * arccos ((1 + 3 * ρ₀) / 4)) := by gcongr
       _ = 6 * straddleBound ρ₀ := by unfold straddleBound; ring
   have hpart2 : P.real Conv ≤ 1 - √((1 + ρ₀) / 2) := by
     set Sconv : Set ((W → ℝ) × (W → ℝ)) :=
@@ -2309,8 +2308,7 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
       have h1 : capAt ρ₀ * (Q3.card : ℝ) + 2 * (Q12.card : ℝ) ≤
           2 * capAt ρ₀ * (G.cycleRank : ℝ) + 5 * (Q12.card : ℝ) := by
         have hm1 := mul_le_mul_of_nonneg_left hQ3_real hcap_nonneg
-        have hm2 : capAt ρ₀ * (Q12.card : ℝ) ≤ 3 * (Q12.card : ℝ) :=
-          mul_le_mul_of_nonneg_right hcap3 (Nat.cast_nonneg _)
+        have hm2 : capAt ρ₀ * (Q12.card : ℝ) ≤ 3 * (Q12.card : ℝ) := by gcongr
         linarith only [hm1, hm2]
       have h2 : 2 * capAt ρ₀ * (G.cycleRank : ℝ) ≤
           2 * threeWayCapCoefficient * (G.cycleRank : ℝ) +
@@ -2319,15 +2317,13 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
         have hm1 : 2 * capAt ρ₀ * (G.cycleRank : ℝ) ≤
             2 * (threeWayCapCoefficient + ξ / 4) * (G.cycleRank : ℝ) :=
           mul_le_mul_of_nonneg_right (by linarith only [hcap_le]) (Nat.cast_nonneg _)
-        have hm2 : ξ / 2 * (G.cycleRank : ℝ) ≤ ξ / 2 * (Nat.card V : ℝ) :=
-          mul_le_mul_of_nonneg_left hβ_real (by positivity)
+        have hm2 : ξ / 2 * (G.cycleRank : ℝ) ≤ ξ / 2 * (Nat.card V : ℝ) := by gcongr
         linarith only [hm1, hm2]
       have h3 : 5 / 3 * (Q12.card : ℝ) ≤ 16 / (M : ℝ) * (Nat.card V : ℝ) := by
         calc 5 / 3 * (Q12.card : ℝ) ≤ 2 * (Q12.card : ℝ) := by
               have : (0 : ℝ) ≤ Q12.card := Nat.cast_nonneg _
               linarith only [this]
-          _ ≤ 2 * (8 * (Nat.card V : ℝ) / (M : ℝ)) :=
-              mul_le_mul_of_nonneg_left hQ12_real zero_le_two
+          _ ≤ 2 * (8 * (Nat.card V : ℝ) / (M : ℝ)) := by gcongr
           _ = 16 / (M : ℝ) * (Nat.card V : ℝ) := by ring
       have hξV : 0 ≤ ξ * (Nat.card V : ℝ) := by positivity
       rw [hthird, add_mul]

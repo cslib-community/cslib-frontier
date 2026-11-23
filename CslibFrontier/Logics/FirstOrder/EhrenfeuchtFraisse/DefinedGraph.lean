@@ -110,19 +110,19 @@ variable {M : Type*} [LinearOrder M] [Language.order.Structure M]
 @[simp]
 theorem realize_covByFormula (v : α → M) (x y : α) :
     (covByFormula x y).Realize v ↔ v x ⋖ v y := by
-  simp [covByFormula, Formula.Realize, Fin.snoc, CovBy]
+  fo_simp [covByFormula, Formula.Realize, Term.realize_lt, not_and, CovBy]
 
 /-- `isBotFormula x` holds iff the value of `x` is the least element. -/
 @[simp]
 theorem realize_isBotFormula (v : α → M) (x : α) :
     (isBotFormula x).Realize v ↔ ∀ t, v x ≤ t := by
-  simp [isBotFormula, Formula.Realize, Fin.snoc]
+  fo_simp [isBotFormula, Term.realize_le]
 
 /-- `isTopFormula x` holds iff the value of `x` is the greatest element. -/
 @[simp]
 theorem realize_isTopFormula (v : α → M) (x : α) :
     (isTopFormula x).Realize v ↔ ∀ t, t ≤ v x := by
-  simp [isTopFormula, Formula.Realize, Fin.snoc]
+  fo_simp [isTopFormula, Term.realize_le]
 
 omit [LinearOrder M] [Language.order.Structure M] [Language.order.OrderedStructure M] in
 private theorem exists_fin_one {p : M → Prop} : (∃ i : Fin 1 → M, p (i 0)) ↔ ∃ z, p z :=
@@ -132,26 +132,21 @@ private theorem exists_fin_one {p : M → Prop} : (∃ i : Fin 1 → M, p (i 0))
 @[simp]
 theorem realize_twoAboveFormula (v : α → M) (x y : α) :
     (twoAboveFormula x y).Realize v ↔ ∃ z, v x ⋖ z ∧ z ⋖ v y := by
-  rw [twoAboveFormula, Formula.realize_iExs]
-  simp only [Formula.realize_inf, realize_covByFormula, Sum.elim_inl, Sum.elim_inr]
+  fo_simp [twoAboveFormula, realize_covByFormula]
   exact exists_fin_one (p := fun z => v x ⋖ z ∧ z ⋖ v y)
 
 /-- `isSecondFormula x` holds iff the value of `x` covers the least element. -/
 @[simp]
 theorem realize_isSecondFormula (v : α → M) (x : α) :
     (isSecondFormula x).Realize v ↔ ∃ z, (∀ t, z ≤ t) ∧ z ⋖ v x := by
-  rw [isSecondFormula, Formula.realize_iExs]
-  simp only [Formula.realize_inf, realize_covByFormula, realize_isBotFormula, Sum.elim_inl,
-    Sum.elim_inr]
+  fo_simp [isSecondFormula, realize_covByFormula, realize_isBotFormula]
   exact exists_fin_one (p := fun z => (∀ t, z ≤ t) ∧ z ⋖ v x)
 
 /-- `isPenultimateFormula x` holds iff the greatest element covers the value of `x`. -/
 @[simp]
 theorem realize_isPenultimateFormula (v : α → M) (x : α) :
     (isPenultimateFormula x).Realize v ↔ ∃ z, (∀ t, t ≤ z) ∧ v x ⋖ z := by
-  rw [isPenultimateFormula, Formula.realize_iExs]
-  simp only [Formula.realize_inf, realize_covByFormula, realize_isTopFormula, Sum.elim_inl,
-    Sum.elim_inr]
+  fo_simp [isPenultimateFormula, realize_covByFormula, realize_isTopFormula]
   exact exists_fin_one (p := fun z => (∀ t, t ≤ z) ∧ v x ⋖ z)
 
 end Realize

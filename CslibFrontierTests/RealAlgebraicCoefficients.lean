@@ -10,6 +10,9 @@ module
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoefficients
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledSigns
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoefficientEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.FormulaGateCoefficientEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.FormulaGateCoefficientSign
+import CslibFrontier.Computability.Complexity.RealAlgebraic.FormulaGateCoordinateEvaluation
 import Mathlib.Tactic.FinCases
 
 /-! Extraction covers zero variables, absent coefficients, mixed terms and actual certificates. -/
@@ -25,6 +28,34 @@ example : multivariateCoefficientResidue 5 0 [] (fun _ => 3) = 3 := by rfl
 -- The unary extractor recovers an ordinary nonzero coefficient and an index above the degree.
 example : coefficientResidue 5 1 (fun z => (2 * z + 3) % 5) = 2 := by rfl
 example : coefficientResidue 5 3 (fun z => (2 * z + 3) % 5) = 0 := by rfl
+
+-- Zero coordinate degrees allow radix one and the smallest prime.
+open Cslib.Logic.RealArithmetic in
+example (i j : ℕ) :
+    formulaWordGateCoefficientResidue [] 0 2 (formulaWordGateKroneckerRadix [] 0)
+      i j (fun _ => []) =
+    ((((formulaWordGatePolynomial [] 0 (fun _ => 0)).coeff j).coeff i : ℤ) : ZMod 2).val := by
+  let : Fact (Nat.Prime 2) := ⟨by decide⟩
+  obtain ⟨hradix, hdegree⟩ := formulaWordGateCoefficientPrimeCutoff_bounds [] 0 (fun _ => 0)
+    (inner := 0) (outer := 0) (p := 2) (fun k => Fin.elim0 k) (fun k => Fin.elim0 k)
+    (by decide)
+  exact formulaWordGateCoefficientResidue_eq_val [] 0 (fun _ => 0) i j (fun _ => [])
+    hradix hdegree (fun _ _ k => Fin.elim0 k)
+
+-- The sign certificate accepts a coordinate evaluator implemented by zero padding.
+open Cslib.Logic.RealArithmetic in
+example (a : ℕ) :
+    (fun word : List Bool => (((formulaWordGatePolynomial word 0 (fun _ => 0)).coeff 0).coeff
+      0).sign) ∈ CountingFunction (max (a + 1) 5 + 3) encBits encIntBin := by
+  exact formulaWordGateCoefficientSign_mem (a := a) Decoder.bits (fun _ _ => 0)
+    (inner := fun _ => 0) (outer := fun _ => 0) (massExponent := fun _ => 0)
+    (pointCutoff := fun _ => 0) (point := fun _ => [])
+    .id' (.const 0) (.const 0) (.const 0) (.const 0) (.const 0) (.const 0) (.const 0)
+    (CountingFunction.of_polyTime (.const [])) (by simp) (by simp) (by simp) (by simp)
+
+-- Radix eighteen gives the distinct field values two and four modulo five.
+example : (formulaWordGateKroneckerCoordinates (List.replicate 17 false) () 5 2 1
+    (fun q => q.innerValue + 2 * q.outerValue + q.index)).take 2 = [0, 1] := rfl
 
 -- Defaulting absent exponent entries to zero selects the constant term.
 example : multivariateCoefficientResidue 5 1 [] (fun z =>

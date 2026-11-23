@@ -67,7 +67,7 @@ import CslibFrontier.Algorithms.Lean.MaxDicut.GoemansWilliamson
 import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamson
 import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamsonMaxTwoSAT
 import CslibFrontier.Algorithms.Lean.TwoSAT
-import CslibFrontier.Algorithms.Lean.TrimmedYates
+import CslibFrontier.Algorithms.WordRAM.TrimmedYates
 import CslibFrontier.Algorithms.LinearAlgebra.BareissElimination
 import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.CSP
 import CslibFrontier.Algorithms.WordRAM.Schoening.Amplify
@@ -6004,37 +6004,59 @@ register_result "kosaraju-scc" where
     plus O(|V|) component-index lookup. Visited-set membership, insertion, and function-update \
     array steps are counted as unit-cost operations."
 
-register_result "selected-entries-subset-convolution-timem" where
+register_result "selected-entries-subset-convolution" where
   title := "Selected entries of ranked subset convolution by the trimmed fast zeta transform"
   topic := "algorithms"
   sources := [
     { paper := ChanItakuraMaYu2026, theorem := "Theorem 2.2",
-      locator := "Section 2.1, p. 5" }
+      locator := "STOC submission 1421 (Nov. 3, 2026 manuscript), §2.1 Problem 2.1 & \
+        Theorem 2.2, p. 5; recurrences and word-RAM footnote 7, pp. 5–6" }
   ]
   theorems := [
-    Cslib.Algorithms.Lean.TrimmedYates.ret_solveM,
-    Cslib.Algorithms.Lean.TrimmedYates.time_solveM
+    Cslib.Algorithms.WordRAM.TrimmedYates.exec_solveFromTries_subsetConvolution,
+    Cslib.Algorithms.WordRAM.TrimmedYates.computesListInTime_program,
+    Cslib.Algorithms.WordRAM.TrimmedYates.executesList_program
   ]
-  scope := "TimeM unit-cost model (one tick per table cell; enumeration and dictionary \
-    construction uncharged), not Word-RAM time. Inputs are look-up functions, so the paper's n \
-    term for storing the input sets is absent; the bound 3 (d + 1) (sum_{j <= s} (d choose j) + \
-    |queries| sum_{s <= j <= 2t} (2t choose j)) is exact. Weights in a commutative ring."
+  scope := "Standard unit-cost Word-RAM (Basis.standard) over signed integer weights at explicit \
+    word width w, charging sparse input insertion, bounded-cardinality enumeration, depth-d \
+    binary trie indexing, signed arithmetic, and halting. computesListInTime_program gives \
+    unconditional Program.ComputesListInTime for general coveringProduct on all queries under \
+    Instance.FitsWidth in 250 * (d + 1)^2 * (n + sum_{j <= s} (d choose j) + |queries| * \
+    max 1 (highPeak s queries)) instructions (covering #C < s directly from preprocessing). \
+    executesList_program (initialized from State.init inst.encode, 250 * (d + 1)^2 * (n + \
+    sum_{j <= s} (d choose j) + |queries| * sum_{s <= j <= t₁ + t₂} (t₁ + t₂ choose j))) and \
+    exec_solveFromTries_subsetConvolution (from pre-built input tries, 200 * (d + 1)^2 * \
+    (sum_{j <= s} (d choose j) + |Cs| * sum_{s <= j <= t₁ + t₂} (t₁ + t₂ choose j))) \
+    specialize to ranked integer subsetConvolution when entries with nonzero weight (for \
+    executesList_program) / sets with nonzero value (for exec_solveFromTries_subsetConvolution) \
+    have cardinalities t₁, t₂ (Theorem 2.2 sets t₁ = t₂ = t), every query C has size t₁ + t₂, and \
+    s <= t₁ + t₂. executesList_program requires Fits w (solveSpace ...) and Fits w \
+    (valueEnvelope inst.d inst.weightSum); exec_solveFromTries_subsetConvolution takes sound \
+    read-only trie representations (HoldsTrie) of f, g with a bound W on |f S|, |g S| \
+    (∀ S, (f S).natAbs ≤ W and (g S).natAbs ≤ W) and requires Fits w (solveSpace baseFree d s \
+    Cs.length (highCount (t₁ + t₂) s)) and Fits w (valueEnvelope d W). Pure commutative-ring \
+    correctness is in CslibFrontier.Algorithms.Lean.TrimmedYates; Theorem 2.3 (3SUM hashing) \
+    remains open (#4667)."
 
 register_result "twosat-linear-timem" where
-  title := "Aspvall–Plass–Tarjan linear-time 2-SAT solver and witness construction in TimeM"
+  title := "Aspvall–Plass–Tarjan implication-graph 2-SAT solver and witness construction"
   topic := "algorithms"
   sources := [
-    { paper := AspvallPlassTarjan1979, theorem := unverified, locator := unverified }
+    { paper := AspvallPlassTarjan1979, theorem := "Theorem 1 and \"Two-satisfiability algorithm\"",
+      locator := "1979 journal scan, printed p. 121 steps 1(i)–(ii) and p. 122" }
   ]
   theorems := [
     Cslib.Algorithms.Lean.TwoSAT.solve_eq_some,
     Cslib.Algorithms.Lean.TwoSAT.isSome_solve_iff,
-    Cslib.Algorithms.Lean.TwoSAT.time_solveFinM_le,
+    Cslib.Algorithms.Lean.TwoSAT.solveFin_eq_some,
     Cslib.Algorithms.Lean.TwoSAT.isSome_solveNat_iff
   ]
-  scope := "Linear-time 2-SAT decision and satisfying-assignment construction via Kosaraju SCCs \
-    of the implication graph in TimeM (at most 12 * n + 8 * |φ| + 1 steps on CNF (Fin n)), \
-    together with variable compaction connecting solveNat to Cslib.Complexity.TwoSAT."
+  scope := "Pure 2-SAT decision and satisfying-assignment construction on CNF V and CNF (Fin n), \
+    together with variable compaction connecting solveNat to Cslib.Complexity.TwoSAT. Implements \
+    the paper's implication-graph SCC characterization via Kosaraju's SCC pass (this \
+    formalization's own refinement; the paper uses Tarjan's SCC algorithm and also studies \
+    quantified 2-CNF). Linear-time standard-basis Word-RAM execution is registered separately in \
+    twosat-linear-wordram."
 
 register_result "twosat-polytime" where
   title := "Native multi-tape polynomial-time 2-SAT decision and witness construction"

@@ -64,36 +64,27 @@ private theorem height_le (n : ℕ) : ChanHe.height n ≤ Nat.log 2 n + 2 :=
   Nat.clog_le_of_le_pow Nat.lt_two_pow_self.le
 
 private theorem mPar_sq_le_budget (n U : ℕ) :
-    8 * ChanHe.mPar n (2 * U) ^ 2 ≤ budget n U :=
-  Nat.le_trans
-    (Nat.le_trans
-      (Nat.le_trans
-        (Nat.mul_le_mul_left 8
-          (Nat.pow_le_pow_left (Nat.le_add_right (ChanHe.mPar n (2 * U)) 1) 2))
-        (Nat.le_add_right _ _))
-      (Nat.le_add_right _ _))
-    (Nat.le_add_right _ _)
+    8 * ChanHe.mPar n (2 * U) ^ 2 ≤ budget n U := by
+  have := Nat.pow_le_pow_left (Nat.le_add_right (ChanHe.mPar n (2 * U)) 1) 2
+  unfold budget
+  omega
 
 private theorem mPar_le_budget (n U : ℕ) :
     ChanHe.mPar n (2 * U) ≤ budget n U := by
   have h1 : ChanHe.mPar n (2 * U) ≤ (ChanHe.mPar n (2 * U) + 1) ^ 2 := by
     rw [Nat.pow_two]
     exact Nat.le_trans (Nat.le_add_right _ 1) (Nat.le_mul_of_pos_right _ (Nat.succ_pos _))
-  exact Nat.le_trans
-    (Nat.le_trans
-      (Nat.le_trans (Nat.le_trans h1 (Nat.le_mul_of_pos_left _ (by decide : 0 < 8)))
-        (Nat.le_add_right _ _))
-      (Nat.le_add_right _ _))
-    (Nat.le_add_right _ _)
+  unfold budget
+  omega
 
-private theorem linear_le_budget (n U : ℕ) : 8 * U + 4 * n + 64 ≤ budget n U :=
-  Nat.add_le_add_right (Nat.add_le_add_right (Nat.le_add_left _ _) _) _
+private theorem linear_le_budget (n U : ℕ) : 8 * U + 4 * n + 64 ≤ budget n U := by
+  unfold budget; omega
 
-private theorem four_n_le_budget (n U : ℕ) : 4 * n + 64 ≤ budget n U :=
-  Nat.add_le_add_right (Nat.le_add_left _ _) _
+private theorem four_n_le_budget (n U : ℕ) : 4 * n + 64 ≤ budget n U := by
+  unfold budget; omega
 
-private theorem eight_U_le_budget (n U : ℕ) : 8 * U + 64 ≤ budget n U :=
-  Nat.add_le_add_right (Nat.le_trans (Nat.le_add_left _ _) (Nat.le_add_right _ _)) _
+private theorem eight_U_le_budget (n U : ℕ) : 8 * U + 64 ≤ budget n U := by
+  unfold budget; omega
 
 end Math
 
@@ -378,7 +369,7 @@ private theorem time_exec_le (κ n U : ℕ) :
     simp only [time, Nat.zero_add, Nat.add_assoc]
   have h2 : 20 ≤ time 0 n U := by
     simp only [time, Nat.zero_add, Nat.add_assoc]
-    exact Nat.le_trans (by decide : 20 ≤ 64) (Nat.le_add_right _ _)
+    omega
   omega
 
 /-- Read the native unsigned header and compute all parameters, preserving every memory cell.

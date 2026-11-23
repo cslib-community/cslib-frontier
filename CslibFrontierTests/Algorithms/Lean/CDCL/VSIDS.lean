@@ -15,9 +15,10 @@ import CslibFrontier.Algorithms.Lean.CDCL.VSIDS
 The kernel checks the activities: a fresh state picks the first unassigned variable; a bumped
 variable is picked first; a later bump outweighs an earlier one, because the increment grows;
 assigned variables are never picked; and an activity past the limit scales every activity down.
-It also runs the variable order: popping gives the most active unassigned variable, skipping
-assigned variables, variables no longer occurring in the database, and stale entries, and putting
-back an entry keyed above the activity with the current activity.
+It also runs the variable order, an indexed heap: inserting records each variable's position;
+popping gives the most active unassigned variable, skipping assigned variables and variables no
+longer occurring in the database, and breaks ties by variable; bumping moves a variable up, and
+past the limit rebuilds the heap; and with every variable assigned, popping empties the heap.
 -/
 
 set_option linter.privateModule false
@@ -68,66 +69,59 @@ example : ((Activity.init 1).bumpVar 0).get 0 = 2 ^ 40 := by decide
 /-- Activities `0, 5, 3, 0` for the variables `0` to `3`. -/
 private abbrev act : Activity := ⟨#[0, 5, 3, 0], 1⟩
 
-/-- The order with every variable at its activity, and its marks. -/
-private abbrev ordered : VarOrder × Array Bool :=
-  VarOrder.add Batteries.BinaryHeap.emptyF #[false, false, false, false] act [0, 1, 2, 3]
+/-- The order with every variable, with room for four. -/
+private abbrev order : VarOrder := (VarOrder.empty 4).addAll act [0, 1, 2, 3]
 
-private abbrev order : VarOrder := ordered.1
+/-- Inserting records the positions: the heap and the position of each variable, plus one. -/
+example : order.heap = #[1, 3, 2, 0] ∧ order.pos = #[4, 1, 3, 2] := by decide +kernel
 
-private abbrev marks : Array Bool := ordered.2
-
-/-- Inserting marks the variables inserted. -/
-example : marks = #[true, true, true, true] := by decide +kernel
+/-- A variable already in the heap, or without room, is not inserted again. -/
+example : (order.addAll act [1, 7]).heap.size = 4 := by decide +kernel
 
 /-- Every variable occurs in the database. -/
 private abbrev every : ℕ → Bool := fun _ => true
 
 /-- Popping gives the most active variable. -/
-example : (VarOrder.pop act ⟨#[]⟩ every 10 order marks).var = some 1 := by decide +kernel
+example : (VarOrder.pop act ⟨#[]⟩ every 10 order).var = some 1 := by decide +kernel
 
-/-- An assigned variable is skipped. -/
+/-- An assigned variable is skipped, and removed from the heap. -/
 example :
-    (VarOrder.pop act (Assign.ofTrail [⟨(1, true), true⟩]) every 10 order marks).var = some 2 := by
+    (VarOrder.pop act (Assign.ofTrail [⟨(1, true), true⟩]) every 10 order).var = some 2 ∧
+    (VarOrder.pop act (Assign.ofTrail [⟨(1, true), true⟩]) every 10 order).order.pos =
+      #[2, 0, 0, 1] := by
   decide +kernel
 
 /-- A variable that no longer occurs in the database is skipped. -/
-example : (VarOrder.pop act ⟨#[]⟩ (fun v => v != 1) 10 order marks).var = some 2 := by
+example : (VarOrder.pop act ⟨#[]⟩ (fun v => v != 1) 10 order).var = some 2 := by
   decide +kernel
 
-/-- A fresh entry has priority: variable `3`, inserted at activity `0`, now has activity `9` and
-is inserted again, and its fresh entry comes out first. (Its stale entry, at `0`, stays below; for
-an unassigned variable a stale entry is never on top of a covering heap, so this does not exercise
-discarding one.) -/
-example :
-    (VarOrder.pop ⟨#[0, 5, 3, 9], 1⟩ ⟨#[]⟩ every 10
-      (VarOrder.add order marks ⟨#[0, 5, 3, 9], 1⟩ [3]).1 marks).var = some 3 := by
+/-- Ties are broken by variable: with equal activities, the greatest variable comes first. -/
+example : (VarOrder.pop ⟨#[0, 0, 0, 0], 1⟩ ⟨#[]⟩ every 10
+    ((VarOrder.empty 4).addAll ⟨#[0, 0, 0, 0], 1⟩ [0, 1, 2, 3])).var = some 3 := by
   decide +kernel
 
-/-- An entry keyed above the variable's activity, as after a rescaling, is put back with the
-current activity: variable `1`, at `5` in the order, now has activity `2`, below variable `2`.
-Popping `2` leaves three entries, that of `1` among them. -/
-example : (VarOrder.pop ⟨#[0, 2, 3, 0], 1⟩ ⟨#[]⟩ every 10 order marks).var = some 2 ∧
-    (VarOrder.pop ⟨#[0, 2, 3, 0], 1⟩ ⟨#[]⟩ every 10 order marks).order.size = 3 := by
+/-- Bumping moves a variable up: variable `3`, at activity `0`, bumped by `9`, comes out first. -/
+example : (VarOrder.pop (VarOrder.bump ⟨#[0, 5, 3, 0], 9⟩ order [3]).1 ⟨#[]⟩ every 10
+    (VarOrder.bump ⟨#[0, 5, 3, 0], 9⟩ order [3]).2).var = some 3 := by
   decide +kernel
 
-/-- Popping unmarks the variable of each entry it removes: here the assigned variable `1`, skipped,
-and `2`, found. -/
-example : (VarOrder.pop act (Assign.ofTrail [⟨(1, true), true⟩]) every 10 order marks).marks =
-    #[true, false, false, true] := by
+/-- Bumping past the limit scales the activities down and rebuilds the heap: variable `1`, bumped
+to `2 ^ 60`, comes first, and every variable stays in the heap. -/
+example : (VarOrder.bump ⟨#[0, 2 ^ 60 - 1, 3, 0], 1⟩ order [1]).1.score = #[0, 2 ^ 40, 0, 0] ∧
+    (VarOrder.pop (VarOrder.bump ⟨#[0, 2 ^ 60 - 1, 3, 0], 1⟩ order [1]).1 ⟨#[]⟩ every 10
+      (VarOrder.bump ⟨#[0, 2 ^ 60 - 1, 3, 0], 1⟩ order [1]).2).var = some 1 ∧
+    (VarOrder.bump ⟨#[0, 2 ^ 60 - 1, 3, 0], 1⟩ order [1]).2.heap.size = 4 := by
   decide +kernel
 
-/-- `addMissing` inserts only the unmarked variables: after popping `1`, putting back `0` and `1`
-adds one entry, for `1`, and marks it again. -/
-example : (VarOrder.addMissing (VarOrder.pop act ⟨#[]⟩ every 10 order marks).order
-      (VarOrder.pop act ⟨#[]⟩ every 10 order marks).marks act [0, 1]).1.size = 4 ∧
-    (VarOrder.addMissing (VarOrder.pop act ⟨#[]⟩ every 10 order marks).order
-      (VarOrder.pop act ⟨#[]⟩ every 10 order marks).marks act [0, 1]).2 =
-      #[true, true, true, true] := by
+/-- Putting back the variables `0` and `1` after popping `1` inserts `1` only. -/
+example : ((VarOrder.pop act ⟨#[]⟩ every 10 order).order.addAll act [0, 1]).heap.size = 4 := by
   decide +kernel
 
-/-- Every variable assigned: nothing to pop. -/
+/-- Every variable assigned: nothing to pop, and the heap is emptied. -/
 example : (VarOrder.pop act (Assign.ofTrail [⟨(0, true), true⟩, ⟨(1, true), true⟩,
-    ⟨(2, true), true⟩, ⟨(3, true), true⟩]) every 10 order marks).var = none := by
+    ⟨(2, true), true⟩, ⟨(3, true), true⟩]) every 10 order).var = none ∧
+    (VarOrder.pop act (Assign.ofTrail [⟨(0, true), true⟩, ⟨(1, true), true⟩,
+    ⟨(2, true), true⟩, ⟨(3, true), true⟩]) every 10 order).order.heap.size = 0 := by
   decide +kernel
 
 /-- Unassigning a variable past the end of the assignment array leaves the array as it is: no

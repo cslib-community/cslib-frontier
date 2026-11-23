@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Complexity.Classes.Time.BoundedExists
 import CslibFrontier.Computability.Complexity.Classes.Time.Verifier
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.TwoPow
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -320,18 +321,13 @@ private theorem exists_computableInO_verifier (k : ℕ) :
         else cheap k p) S := by
   obtain ⟨D, hacc⟩ := exists_computableInO_accepts
   obtain ⟨K, hbrute⟩ := exists_computableInO_brute k
-  have hx := ComputableInO.fst encBits encBits
-  have hun : ComputableInO unframe encBits encBits (fun z => z.length) (fun z => z.length) :=
-    ComputableInO.of_linear (.of_unframe fun _ => rfl)
-  have hfr : ComputableInO frame encBits encBits (fun z => z.length) (fun z => z.length) :=
-    ComputableInO.of_linear (.of_frame fun _ => rfl)
-  have hw := hun.comp hx
-  have hbase := hfr.comp hw
   have hL : ComputableInPolyTime (fun z : List Bool => (k + 2) * (z.length + 1)) encBits
       encUnary := by
     fun_prop
   obtain ⟨CE, hE₀⟩ := hL.exists_computableInO_unary_two_pow
-  have hE := hE₀.comp hbase
+  have hE := hE₀.comp
+    (by fun_prop : ComputableInO (fun p : List Bool × List Bool => frame (unframe p.1))
+      (encPair encBits encBits) encBits _ _)
   -- the numeric facts about the tests
   have hfacts (p : List Bool × List Bool) : (encPair encBits encBits p).length + 1 ≤ cheap k p ∧
       (2 * (encPair encBits encBits p).length + 4 +
@@ -357,7 +353,7 @@ private theorem exists_computableInO_verifier (k : ℕ) :
     obtain ⟨hc, hq, ht⟩ := hfacts p
     have hu := length_unframe_le p.1
     have hn : p.1.length ≤ (encPair encBits encBits p).length := by enc_len
-    simp only [Function.comp_apply, length_frame, encBits_apply] at ⊢
+    simp only [length_frame, encBits_apply] at ⊢
     have he : (4 + 2 * CE) * (cheap k p + 1) =
         3 * cheap k p + (2 * CE + 1) * cheap k p + (4 + 2 * CE) := by ring
     omega
