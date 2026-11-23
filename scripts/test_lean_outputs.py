@@ -6,6 +6,8 @@ import hashlib
 import json
 import os
 import pathlib
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -125,6 +127,29 @@ class OutputCheckTests(unittest.TestCase):
         with self.assertRaises(SystemExit) as error:
             lo.load_ileans(self.reference, glob=lambda root: [])
         self.assertIn("CslibFrontier.ilean is missing (a root)", str(error.exception.code))
+
+    def test_library_only_roots_skip_test_outputs_and_glob(self) -> None:
+        self.write_ileans({"CslibFrontier": ["CslibFrontier.A"],
+                           "CslibFrontier.A": []})
+        self.write(self.reference, "CslibFrontierTests/T.ilean", "unreadable test ilean")
+        self.write(self.copy, "CslibFrontier/A.ilean",
+                   (self.reference / "CslibFrontier/A.ilean").read_text())
+        self.write(self.copy, "CslibFrontier.ilean",
+                   (self.reference / "CslibFrontier.ilean").read_text())
+        self.assertEqual(
+            list(lo.load_ileans(self.reference,
+                                glob=lambda root: (_ for _ in ()).throw(AssertionError(root)),
+                                roots=("CslibFrontier",))),
+            ["CslibFrontier.A"])
+        self.assertEqual(lo.output_differences(self.copy, self.reference, ("CslibFrontier",)), [])
+        self.assertIn("identical",
+                      lo.check_outputs(self.copy, False, current=lambda: True,
+                                       reference=self.reference, roots=("CslibFrontier",)))
+        with self.assertRaises(SystemExit) as error:
+            lo.check_outputs(self.reference, False, current=lambda: False,
+                             reference=self.reference, roots=("CslibFrontier",))
+        self.assertIn("run `lake build CslibFrontier`", str(error.exception.code))
+        self.assertNotIn("CslibFrontierTests", str(error.exception.code))
 
 
 class InventoryTests(unittest.TestCase):
@@ -336,6 +361,85 @@ class InventoryLakeTests(cache_tests.IsolatedLakeFixture):
         self.write("Demo/Base.lean", "def value : Nat := 3\n")
         self.assertTrue(lo.output_inventory_complete(self.build))
         self.assertFalse(lo.lake_outputs_current())
+
+
+@unittest.skipUnless(shutil.which("lake") and (lo.ROOT / ".lake/packages").is_dir(),
+                     "needs Lean and the repository's packages (skipped in Lean-free source-checks)")
+class CompiledConstantsTests(unittest.TestCase):
+    """Exercise `scripts/LeanOutputs.lean` on split `module` and classic `.olean` outputs."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        tmp = tempfile.TemporaryDirectory(prefix="lean-outputs-constants-")
+        cls.addClassCleanup(tmp.cleanup)
+        cls.root = pathlib.Path(tmp.name)
+        cls.build = cls.root / "build"
+        cls.build.mkdir()
+        sources = {
+            "SplitA": (
+                "module\npublic import Init\npublic section\n"
+                "@[expose] def ComputableTidilyProbe (n : Nat) : Prop := n = n\n"
+                "theorem dupThm (n : Nat) : n = n := rfl\n"
+                "@[expose] def dupDef (n : Nat) : Nat := n + 1\n"
+                "@[expose] def tidyAlias (n : Nat) : Prop := ComputableTidilyProbe n\n"
+                "private theorem hidden (n : Nat) : ComputableTidilyProbe n := rfl\n"
+                "end\n"
+            ),
+            "SplitB": (
+                "module\npublic import Init\npublic section\n"
+                "theorem dupThm2 (m : Nat) : m = m := rfl\n"
+                "@[expose] def dupDef2 (m : Nat) : Nat := m + 1\n"
+                "end\n"
+            ),
+            "ClassicC": (
+                "def classicVal : Nat := 7\n"
+                "private theorem classicHidden : classicVal = 7 := rfl\n"
+            ),
+        }
+        for mod, text in sources.items():
+            src = cls.root / f"{mod}.lean"
+            src.write_text(text)
+            subprocess.run(["lake", "env", "lean", f"--root={cls.root}", "-o",
+                            str(cls.build / f"{mod}.olean"), "-i",
+                            str(cls.build / f"{mod}.ilean"), str(src)],
+                           cwd=lo.ROOT, check=True, capture_output=True, text=True)
+        cls.modules = ["SplitA", "SplitB", "ClassicC"]
+        cls.full_constants, cls.full_dups = lo.load_constants(cls.build, cls.modules)
+
+    def test_exported_only_preserves_exported_surface_and_rejects_incomplete_splits(self) -> None:
+        self.assertEqual({row["k"] for row in self.full_dups}, {"thm", "def"})
+        constants, dups = lo.load_constants(self.build, self.modules, exported_only=True)
+        self.assertEqual(dups, [])
+        expected_names = {n for n, row in self.full_constants.items() if row["e"]}
+        self.assertEqual(set(constants), expected_names)
+        self.assertFalse(any("SplitA.0.hidden" in n for n in constants))
+        for name in expected_names:
+            full_row = self.full_constants[name]
+            exp_row = constants[name]
+            for key in ("n", "m", "e", "tidy", "tb", "r"):
+                self.assertEqual(exp_row[key], full_row[key], (name, key))
+            self.assertEqual(exp_row["k"], full_row["e"], name)
+        # Missing `.olean.private` must still fail under `--exported-only`.
+        with tempfile.TemporaryDirectory(prefix="lean-outputs-incomplete-") as incomplete_dir:
+            inc = pathlib.Path(incomplete_dir)
+            for p in self.build.glob("SplitB.*"):
+                if not p.name.endswith(".private"):
+                    shutil.copy2(p, inc / p.name)
+            proc = subprocess.run(
+                ["lake", "env", "lean", "--run", "scripts/LeanOutputs.lean",
+                 "--exported-only", str(inc)],
+                cwd=lo.ROOT, input="SplitB\n", text=True, capture_output=True)
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("incomplete split module outputs", proc.stderr)
+
+    def test_invalid_arguments_report_usage(self) -> None:
+        for bad in (["--unknown"], ["--no-duplicates"], ["--exported-only", "--exported-only"],
+                    ["dir1", "dir2"]):
+            proc = subprocess.run(
+                ["lake", "env", "lean", "--run", "scripts/LeanOutputs.lean", *bad],
+                cwd=lo.ROOT, input="", text=True, capture_output=True)
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("usage: LeanOutputs [--exported-only] [<lib-dir>]", proc.stderr)
 
 
 if __name__ == "__main__":
