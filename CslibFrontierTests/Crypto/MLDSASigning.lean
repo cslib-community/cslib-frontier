@@ -213,6 +213,30 @@ example : (interpret countTrials (expandSigningRetries toy 4 interleaved)).run 0
     sumHandler, interpret_bind, interpret_query, countTrials, StateT.run, bind_pure_comp]
   rfl
 
+-- Zero signing trials skip all requests for every response type. Direct calls still reach the
+-- digest oracle.
+example (P : Params) (Digest Reply : Type) (m : List Bool) :
+    expandSigningRetries P 0 (query (spec := SigningTrialSpec P Digest Reply) (.inl m)) =
+      pure none := by simp [expandSigningRetries, sumHandler]
+
+example (P : Params) (Digest Reply : Type) (x : SigningHashPoint P) :
+    expandSigningRetries P 0 (query (spec := SigningTrialSpec P Digest Reply) (.inr x)) =
+      query (spec := SigningTrialSpec P Digest Reply) (.inr x) := by
+  simp [expandSigningRetries, sumHandler]
+
+-- If all three attempts request a retry, the source receives exhaustion after exactly three
+-- calls, even when its terminal response type can represent a separate failure.
+example :
+    let handler : (q : List Bool ⊕ SigningHashPoint toy) →
+        StateM ℕ (SigningTrialSpec toy Bool (Option Unit) q) :=
+      sumHandler (fun _ n => (none, n + 1)) (fun _ n => (false, n))
+    (interpret handler (expandSigningRetries toy 3
+      (query (spec := SigningTrialSpec toy Bool (Option Unit)) (.inl [])))).run 0 = (none, 3) := by
+  have hr : List.range 3 = [0, 1, 2] := by decide
+  simp only [expandSigningRetries, hr, interpret_query, sumHandler, List.findSomeM?_cons,
+    List.findSomeM?_nil, interpret_bind, StateT.run]
+  rfl
+
 -- A failed digest expansion terminates immediately, even when the next trial would sign.
 -- A response rejection consumes one attempt and permits that second trial.
 private def partialTrials (fatal : Bool) : (q : List Bool ⊕ SigningHashPoint toy) →

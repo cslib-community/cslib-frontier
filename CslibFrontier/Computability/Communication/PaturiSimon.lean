@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.Communication.SignRank
 public import CslibFrontier.Computability.Communication.UnboundedError
 import CslibFrontier.Foundations.Data.BitString.Basic
+import CslibFrontier.Foundations.Data.Nat.Power
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rank
 
 /-!
 # The Paturi–Simon theorem
@@ -27,8 +29,14 @@ Bob's. Hence the signed vote `∑ s, ∑ t, ±1` of the protocol is a matrix of 
 of leaves (`Protocol.rank_sum_comp_run_le`), and when the error is less than `1 / 2` it
 sign-represents `f` (`PrivateCoin.errorProb_lt_half_iff`). So a protocol of depth `d` has
 `signRank f ≤ 2 ^ d` (`PrivateCoin.signRank_le_leafCount`,
-`PrivateCoin.clog_signRank_le_uppComplexityFun`). The lower bound needs only Bob's inputs to be
-finite.
+`PrivateCoin.clog_signRank_le_uppComplexityFun`). Moreover, because the output at each leaf is fixed
+by the transcript, every subtree of depth at most one depends on at most one player and contributes
+a matrix of rank at most one, sharpening the rank bound to `2 ^ (d - 1)`
+(`Protocol.rank_sum_comp_run_le_two_pow_sub_one`) and giving
+`⌈log₂ (signRank f)⌉ + 1 ≤ uppComplexityFun f` whenever `2 ≤ signRank f`
+(`PrivateCoin.clog_signRank_add_one_le_depth`,
+`PrivateCoin.clog_signRank_add_one_le_uppComplexityFun`). The lower bounds need only Bob's inputs
+to be finite.
 
 *Upper bound.* Take an integer sign-representation `U * V` through `r = signRank f` dimensions
 (`exists_int_mul_signRepresents`). Alice draws an index from `Option (Fin r)` with dyadic
@@ -40,25 +48,30 @@ many private random bits suffice; the lower bound holds for any finite number of
 
 As a consequence equality on a finite set `X`, which needs `⌈log₂ |X|⌉ + 1` bits deterministically
 when `|X| ≥ 2` (`ecomplexityFun_equality`), needs at most three with unbounded error
-(`PrivateCoin.uppComplexityFun_equality_le_three`).
+(`PrivateCoin.uppComplexityFun_equality_le_three`), and on three or more inputs it costs three bits
+(`PrivateCoin.uppComplexityFun_equality_eq_three`).
 
 The cost model is that of `PrivateCoin`: the depth of the protocol tree, with the output at the
 leaves known to both players and private random strings of finite, unbounded length. Sherstov and
-Wu allow unlimited private random bits; the bounds proved here are stated for protocols with
-finitely many.
+Wu allow unlimited private random bits and let Bob output locally without sending the final bit;
+the bounds proved here are stated for leaf-output protocols with finitely many random bits.
 
 ## Main results
 
-* `Cslib.Communication.Protocol.rank_sum_comp_run_le`: the rank bound for averaged protocols.
+* `Cslib.Communication.Protocol.rank_sum_comp_run_le`,
+  `Cslib.Communication.Protocol.rank_sum_comp_run_le_two_pow_sub_one`: the leaf and depth rank
+  bounds for averaged protocols.
 * `Cslib.Communication.PrivateCoin.errorProb_lt_half_iff`: unbounded-error correctness as a sign
   condition on the signed vote.
 * `Cslib.Communication.PrivateCoin.signRank_le_leafCount`,
-  `Cslib.Communication.PrivateCoin.clog_signRank_le_uppComplexityFun`: the lower bound.
+  `Cslib.Communication.PrivateCoin.clog_signRank_le_uppComplexityFun`,
+  `Cslib.Communication.PrivateCoin.clog_signRank_add_one_le_uppComplexityFun`: the lower bounds.
 * `Cslib.Communication.PrivateCoin.exists_solvesUnbounded_depth_le`,
   `Cslib.Communication.PrivateCoin.uppComplexityFun_le_log_signRank_add_two`: the upper bound.
 * `Cslib.Communication.PrivateCoin.clog_signRank_le_uppComplexityFun_le`: the Paturi–Simon theorem.
-* `Cslib.Communication.PrivateCoin.uppComplexityFun_equality_le_three`: equality costs at most
-  three bits with unbounded error.
+* `Cslib.Communication.PrivateCoin.uppComplexityFun_equality_le_three`,
+  `Cslib.Communication.PrivateCoin.uppComplexityFun_equality_eq_three`: equality with unbounded
+  error.
 
 ## References
 
@@ -103,6 +116,100 @@ theorem rank_sum_comp_run_le {S T : Type*} [Fintype S] [Fintype T] [Fintype Y]
       (sum_congr rfl fun i _ => sum_comm)
   rw [hUV]
   exact (rank_mul_le_left U V).trans ((rank_le_card_width U).trans_eq (Fintype.card_fin _))
+
+private theorem eq_output_of_depth_eq_zero {p : Protocol X' Y' Z} (h : p.depth = 0) :
+    ∃ z, p = .output z := by
+  cases p with
+  | output z => exact ⟨z, rfl⟩
+  | alice _ _ _ | bob _ _ _ => simp only [depth_alice, depth_bob] at h; omega
+
+private theorem rank_sum_mul_comp_run_le {S T : Type*} [Fintype S] [Fintype T] [Fintype Y]
+    (p : Protocol X' Y' Z) (α : X → S → X') (β : Y → T → Y')
+    (wA : X → S → ℝ) (wB : Y → T → ℝ) (g : Z → ℝ) :
+    (Matrix.of fun x y => ∑ s, ∑ t, wA x s * (wB y t * g (p.run (α x s) (β y t)))).rank ≤
+      2 ^ (p.depth - 1) := by
+  have rank_mul (u : X → ℝ) (v : Y → ℝ) : (Matrix.of fun x y => u x * v y).rank ≤ 1 :=
+    Matrix.rank_vecMulVec_le u v
+  induction p generalizing wA wB with
+  | output z =>
+    have heq : (Matrix.of fun x y =>
+          ∑ s, ∑ t, wA x s * (wB y t * g (run (.output z) (α x s) (β y t)))) =
+        Matrix.of fun x y => (∑ s, wA x s) * ∑ t, wB y t * g z := by
+      ext x y
+      simp only [Matrix.of_apply, run_output, ← mul_sum, ← sum_mul]
+    rw [heq]
+    exact (rank_mul _ _).trans Nat.one_le_two_pow
+  | alice send p₀ p₁ ih₀ ih₁ =>
+    by_cases hd : max p₀.depth p₁.depth = 0
+    · obtain ⟨z₀, rfl⟩ := eq_output_of_depth_eq_zero (by omega : p₀.depth = 0)
+      obtain ⟨z₁, rfl⟩ := eq_output_of_depth_eq_zero (by omega : p₁.depth = 0)
+      have heq : (Matrix.of fun x y => ∑ s, ∑ t,
+            wA x s * (wB y t * g (run (.alice send (.output z₀) (.output z₁)) (α x s) (β y t)))) =
+          Matrix.of fun x y =>
+            (∑ s, wA x s * g (cond (send (α x s)) z₁ z₀)) * ∑ t, wB y t := by
+        ext x y
+        simp only [Matrix.of_apply, run_alice, run_output]
+        calc ∑ s, ∑ t, wA x s * (wB y t * g (cond (send (α x s)) z₁ z₀))
+            = ∑ s, (wA x s * g (cond (send (α x s)) z₁ z₀)) * ∑ t, wB y t :=
+              sum_congr rfl fun s _ => by rw [mul_sum]; exact sum_congr rfl fun t _ => by ring
+          _ = (∑ s, wA x s * g (cond (send (α x s)) z₁ z₀)) * ∑ t, wB y t := (sum_mul ..).symm
+      rw [heq]
+      exact (rank_mul _ _).trans Nat.one_le_two_pow
+    · let wA₀ : X → S → ℝ := fun x s => if send (α x s) then 0 else wA x s
+      let wA₁ : X → S → ℝ := fun x s => if send (α x s) then wA x s else 0
+      have hsplit : (Matrix.of fun x y =>
+            ∑ s, ∑ t, wA x s * (wB y t * g (run (.alice send p₀ p₁) (α x s) (β y t)))) =
+          (Matrix.of fun x y => ∑ s, ∑ t, wA₀ x s * (wB y t * g (p₀.run (α x s) (β y t)))) +
+            Matrix.of fun x y => ∑ s, ∑ t, wA₁ x s * (wB y t * g (p₁.run (α x s) (β y t))) := by
+        ext x y
+        simp only [Matrix.of_apply, Matrix.add_apply, ← sum_add_distrib]
+        refine sum_congr rfl fun s _ => sum_congr rfl fun t _ => ?_
+        cases h : send (α x s) <;> simp [wA₀, wA₁, h]
+      rw [hsplit]
+      refine (Matrix.rank_add_le _ _).trans
+        ((Nat.add_le_two_pow_max_succ (ih₀ wA₀ wB) (ih₁ wA₁ wB)).trans_eq ?_)
+      simp only [depth_alice]
+      congr 1
+      omega
+  | bob send p₀ p₁ ih₀ ih₁ =>
+    by_cases hd : max p₀.depth p₁.depth = 0
+    · obtain ⟨z₀, rfl⟩ := eq_output_of_depth_eq_zero (by omega : p₀.depth = 0)
+      obtain ⟨z₁, rfl⟩ := eq_output_of_depth_eq_zero (by omega : p₁.depth = 0)
+      have heq : (Matrix.of fun x y => ∑ s, ∑ t,
+            wA x s * (wB y t * g (run (.bob send (.output z₀) (.output z₁)) (α x s) (β y t)))) =
+          Matrix.of fun x y =>
+            (∑ s, wA x s) * ∑ t, wB y t * g (cond (send (β y t)) z₁ z₀) := by
+        ext x y
+        simp only [Matrix.of_apply, run_bob, run_output, ← mul_sum, ← sum_mul]
+      rw [heq]
+      exact (rank_mul _ _).trans Nat.one_le_two_pow
+    · let wB₀ : Y → T → ℝ := fun y t => if send (β y t) then 0 else wB y t
+      let wB₁ : Y → T → ℝ := fun y t => if send (β y t) then wB y t else 0
+      have hsplit : (Matrix.of fun x y =>
+            ∑ s, ∑ t, wA x s * (wB y t * g (run (.bob send p₀ p₁) (α x s) (β y t)))) =
+          (Matrix.of fun x y => ∑ s, ∑ t, wA x s * (wB₀ y t * g (p₀.run (α x s) (β y t)))) +
+            Matrix.of fun x y => ∑ s, ∑ t, wA x s * (wB₁ y t * g (p₁.run (α x s) (β y t))) := by
+        ext x y
+        simp only [Matrix.of_apply, Matrix.add_apply, ← sum_add_distrib]
+        refine sum_congr rfl fun s _ => sum_congr rfl fun t _ => ?_
+        cases h : send (β y t) <;> simp [wB₀, wB₁, h]
+      rw [hsplit]
+      refine (Matrix.rank_add_le _ _).trans
+        ((Nat.add_le_two_pow_max_succ (ih₀ wA wB₀) (ih₁ wA wB₁)).trans_eq ?_)
+      simp only [depth_bob]
+      congr 1
+      omega
+
+/-- For a leaf-output protocol `p`, finite sets `S` and `T` of random choices, maps `α` and `β`
+into Alice's and Bob's inputs and a relabelling `g` of the outputs, the matrix with entry
+`∑ s, ∑ t, g (p.run (α x s) (β y t))` at `x` and `y` has rank at most `2 ^ (p.depth - 1)`: every
+subtree of depth at most one depends on at most one player, so it contributes a matrix of rank at
+most one. -/
+theorem rank_sum_comp_run_le_two_pow_sub_one {S T : Type*} [Fintype S] [Fintype T] [Fintype Y]
+    (p : Protocol X' Y' Z) (α : X → S → X') (β : Y → T → Y') (g : Z → ℝ) :
+    (Matrix.of fun x y => ∑ s, ∑ t, g (p.run (α x s) (β y t))).rank ≤ 2 ^ (p.depth - 1) := by
+  simpa only [one_mul] using
+    rank_sum_mul_comp_run_le p α β (fun _ _ => 1) (fun _ _ => 1) g
 
 end Protocol
 
@@ -245,6 +352,37 @@ theorem clog_signRank_le_uppComplexityFun [Fintype Y] (f : X → Y → Bool) :
     (Nat.clog 2 (signRank f) : ℕ∞) ≤ uppComplexityFun f :=
   le_uppComplexityFun_iff.mpr fun _ _ P hP => by exact_mod_cast clog_signRank_le_depth P hP
 
+/-- When `2 ≤ signRank f`, a private-coin protocol computing `f` with unbounded error sends at
+least `⌈log₂ (signRank f)⌉ + 1` bits: its signed vote matrix sign-represents `f` and has rank at
+most `2 ^ (P.depth - 1)` (`Protocol.rank_sum_comp_run_le_two_pow_sub_one`). -/
+theorem clog_signRank_add_one_le_depth [Fintype Y] {f : X → Y → Bool}
+    (P : PrivateCoin a b X Y Bool)
+    (hP : P.SolvesUnbounded (fun x y z => f x y = z) Set.univ Set.univ) (hf : 2 ≤ signRank f) :
+    Nat.clog 2 (signRank f) + 1 ≤ P.depth := by
+  have hle : signRank f ≤ 2 ^ (P.depth - 1) :=
+    (signRank_le_rank (A := Matrix.of fun x y => ∑ s, ∑ t,
+      BitString.signVal (P.run (x, s) (y, t))) fun x y =>
+        (errorProb_lt_half_iff P f x y).mp (hP x trivial y trivial)).trans
+      (Protocol.rank_sum_comp_run_le_two_pow_sub_one P (fun x s => (x, s))
+        (fun y t => (y, t)) BitString.signVal)
+  have hd : 1 ≤ P.depth := by
+    by_contra h0
+    have : P.depth - 1 = 0 := by omega
+    rw [this, pow_zero] at hle
+    omega
+  have hclog : Nat.clog 2 (signRank f) ≤ P.depth - 1 := Nat.clog_le_of_le_pow hle
+  omega
+
+/-- In the leaf-output `PrivateCoin` model, when `2 ≤ signRank f`, the unbounded-error complexity
+of `f` is at least `⌈log₂ (signRank f)⌉ + 1`. With `uppComplexityFun_le_log_signRank_add_two` this
+gives `uppComplexityFun f = ⌊log₂ (signRank f)⌋ + 2` whenever `signRank f` is not a power of two;
+`2 ≤ signRank f` is needed since a constant function has sign-rank `1` and complexity `0`. -/
+theorem clog_signRank_add_one_le_uppComplexityFun [Fintype Y] {f : X → Y → Bool}
+    (hf : 2 ≤ signRank f) :
+    (Nat.clog 2 (signRank f) + 1 : ℕ∞) ≤ uppComplexityFun f :=
+  le_uppComplexityFun_iff.mpr fun _ _ P hP =>
+    by exact_mod_cast clog_signRank_add_one_le_depth P hP hf
+
 /-! ### Upper bound -/
 
 /-- **Sampling with dyadic weights.** Weights `w` summing to `2 ^ α` are realized by a map from
@@ -364,6 +502,165 @@ theorem uppComplexityFun_equality_le_three [Finite X] [DecidableEq X] :
   have h4 : Nat.clog 2 (signRank (equality (X := X)) + 1) ≤ 2 :=
     Nat.clog_le_of_le_pow (by have := signRank_equality_le_three (Y := X); omega)
   exact_mod_cast hd.trans (by omega)
+
+private theorem not_alice_solvesUnbounded_equality_fin_three {a b : ℕ}
+    (send : Fin 3 × BitString a → Bool)
+    (p₀ p₁ : PrivateCoin a b (Fin 3) (Fin 3) Bool) (hp₀ : p₀.depth ≤ 1) (hp₁ : p₁.depth ≤ 1) :
+    ¬SolvesUnbounded (a := a) (b := b) (Protocol.alice send p₀ p₁)
+      (fun x y z => equality x y = z) Set.univ Set.univ := by
+  intro hP
+  let V : Fin 3 → Fin 3 → ℝ := fun x y =>
+    ∑ s, ∑ t, BitString.signVal ((Protocol.alice send p₀ p₁).run (x, s) (y, t))
+  have hsign : SignRepresents (Matrix.of V) equality := fun x y =>
+    (errorProb_lt_half_iff _ equality x y).mp (hP x trivial y trivial)
+  have hdiag (x : Fin 3) : V x x < 0 := hsign.neg_of_true (by simp [equality])
+  have hoff {x y : Fin 3} (hxy : x ≠ y) : 0 < V x y := hsign.pos_of_false (by simp [equality, hxy])
+  have sum_depth_le_one (q : PrivateCoin a b (Fin 3) (Fin 3) Bool) (hq : q.depth ≤ 1) :
+      (∃ g : Fin 3 → ℝ, ∀ x s y, ∑ t, BitString.signVal (q.run (x, s) (y, t)) = g y) ∨
+      (∃ h : Fin 3 → BitString a → ℝ,
+        ∀ x s y, ∑ t, BitString.signVal (q.run (x, s) (y, t)) = h x s) := by
+    rcases q with z | ⟨sA, q₀, q₁⟩ | ⟨sB, q₀, q₁⟩
+    · exact Or.inl ⟨fun _ => ∑ _t : BitString b, BitString.signVal z, fun _ _ _ => rfl⟩
+    · simp only [Protocol.depth_alice] at hq
+      obtain ⟨z₀, rfl⟩ := Protocol.eq_output_of_depth_eq_zero (by omega : q₀.depth = 0)
+      obtain ⟨z₁, rfl⟩ := Protocol.eq_output_of_depth_eq_zero (by omega : q₁.depth = 0)
+      exact Or.inr ⟨fun x s => ∑ _t : BitString b, BitString.signVal (cond (sA (x, s)) z₁ z₀),
+        fun _ _ _ => rfl⟩
+    · simp only [Protocol.depth_bob] at hq
+      obtain ⟨z₀, rfl⟩ := Protocol.eq_output_of_depth_eq_zero (by omega : q₀.depth = 0)
+      obtain ⟨z₁, rfl⟩ := Protocol.eq_output_of_depth_eq_zero (by omega : q₁.depth = 0)
+      exact Or.inl ⟨fun y => ∑ t : BitString b, BitString.signVal (cond (sB (y, t)) z₁ z₀),
+        fun _ _ _ => rfl⟩
+  have hV (x y : Fin 3) : V x y =
+      (∑ s with send (x, s) = false, ∑ t, BitString.signVal (p₀.run (x, s) (y, t))) +
+        ∑ s with send (x, s) = true, ∑ t, BitString.signVal (p₁.run (x, s) (y, t)) := by
+    classical
+    simp only [V, Protocol.run_alice]
+    rw [← sum_filter_add_sum_filter_not univ (fun s => send (x, s) = false)]
+    congr 1
+    · refine sum_congr rfl fun s hs => ?_
+      rw [(mem_filter.mp hs).2]; rfl
+    · refine sum_congr (by ext s; cases send (x, s) <;> simp) fun s hs => ?_
+      have hs' : send (x, s) = true := by
+        have := (mem_filter.mp hs).2; cases h : send (x, s) <;> simp_all
+      rw [hs']; rfl
+  have no_shift (q g w : Fin 3 → ℝ) (hq : ∀ x, 0 ≤ q x)
+      (heq : ∀ x y, V x y = q x * g y + w x) : False := by
+    have h00 := hdiag 0
+    have h01 := hoff (by decide : (0 : Fin 3) ≠ 1)
+    have h10 := hoff (by decide : (1 : Fin 3) ≠ 0)
+    have h11 := hdiag 1
+    rw [heq] at h00 h01 h10 h11
+    have d0 : 0 < q 0 * (g 1 - g 0) := by linarith
+    have d1 : 0 < q 1 * (g 0 - g 1) := by linarith
+    rcases eq_or_lt_of_le (hq 0) with hq0 | hq0
+    · rw [← hq0, zero_mul] at d0; exact lt_irrefl _ d0
+    · rcases eq_or_lt_of_le (hq 1) with hq1 | hq1
+      · rw [← hq1, zero_mul] at d1; exact lt_irrefl _ d1
+      · linarith [mul_pos hq1 d0, mul_pos hq0 d1,
+          show q 1 * (q 0 * (g 1 - g 0)) + q 0 * (q 1 * (g 0 - g 1)) = 0 by ring]
+  classical
+  let n₀ : Fin 3 → ℝ := fun x => #{s | send (x, s) = false}
+  let n₁ : Fin 3 → ℝ := fun x => #{s | send (x, s) = true}
+  have hn₀ (x : Fin 3) : 0 ≤ n₀ x := Nat.cast_nonneg _
+  have hn₁ (x : Fin 3) : 0 ≤ n₁ x := Nat.cast_nonneg _
+  rcases sum_depth_le_one p₀ hp₀ with ⟨g₀, hg₀⟩ | ⟨h₀, hh₀⟩ <;>
+    rcases sum_depth_le_one p₁ hp₁ with ⟨g₁, hg₁⟩ | ⟨h₁, hh₁⟩
+  · have hn_sum (x : Fin 3) : n₀ x + n₁ x = 2 ^ a := by
+      have hc := card_filter_add_card_filter_not (s := (univ : Finset (BitString a)))
+        fun s => send (x, s) = false
+      have heq_f : (univ.filter fun s : BitString a => ¬send (x, s) = false) =
+          univ.filter fun s => send (x, s) = true := by
+        ext s; cases send (x, s) <;> simp
+      rw [heq_f, card_univ, BitString.card] at hc
+      have hc' := congrArg (Nat.cast (R := ℝ)) hc
+      simpa [n₀, n₁] using hc'
+    have haff (x y : Fin 3) : V x y = (2 ^ a - n₁ x) * g₀ y + n₁ x * g₁ y := by
+      rw [hV]
+      simp only [hg₀, hg₁, sum_const, nsmul_eq_mul]
+      have hn0_eq : n₀ x = 2 ^ a - n₁ x := by linarith [hn_sum x]
+      change n₀ x * g₀ y + n₁ x * g₁ y = _
+      rw [hn0_eq]
+    have no_mid (i j k : Fin 3) (hij : i ≠ j) (hkj : k ≠ j)
+        (h₁ : n₁ i ≤ n₁ j) (h₂ : n₁ j ≤ n₁ k) : False := by
+      have hijV := hoff hij
+      have hkjV := hoff hkj
+      have hjjV := hdiag j
+      have hid : (n₁ k - n₁ j) * V i j + (n₁ j - n₁ i) * V k j = (n₁ k - n₁ i) * V j j := by
+        rw [haff i j, haff k j, haff j j]; ring
+      rcases eq_or_lt_of_le (h₁.trans h₂) with heq_n | hlt_n
+      · have hij_eq : n₁ i = n₁ j := by linarith
+        have : V i j = V j j := by rw [haff i j, haff j j, hij_eq]
+        linarith
+      · nlinarith
+    rcases le_total (n₁ 0) (n₁ 1) with h01 | h10 <;>
+      rcases le_total (n₁ 1) (n₁ 2) with h12 | h21 <;>
+      rcases le_total (n₁ 0) (n₁ 2) with h02 | h20
+    · exact no_mid 0 1 2 (by decide) (by decide) h01 h12
+    · exact no_mid 2 0 1 (by decide) (by decide) h20 h01
+    · exact no_mid 0 2 1 (by decide) (by decide) h02 h21
+    · exact no_mid 2 0 1 (by decide) (by decide) h20 h01
+    · exact no_mid 1 0 2 (by decide) (by decide) h10 h02
+    · exact no_mid 1 2 0 (by decide) (by decide) h12 h20
+    · exact no_mid 2 1 0 (by decide) (by decide) h21 h10
+    · exact no_mid 2 1 0 (by decide) (by decide) h21 h10
+  · refine no_shift n₀ g₀ (fun x => ∑ s with send (x, s) = true, h₁ x s) hn₀ fun x y => ?_
+    rw [hV]; simp only [hg₀, hh₁, sum_const, nsmul_eq_mul]; rfl
+  · refine no_shift n₁ g₁ (fun x => ∑ s with send (x, s) = false, h₀ x s) hn₁ fun x y => ?_
+    rw [hV, add_comm]; simp only [hh₀, hg₁, sum_const, nsmul_eq_mul]; rfl
+  · refine no_shift 0 0
+      (fun x => (∑ s with send (x, s) = false, h₀ x s) + ∑ s with send (x, s) = true, h₁ x s)
+      (fun _ => le_rfl) fun x y => ?_
+    rw [hV]; simp [hh₀, hh₁]
+
+/-- In the leaf-output `PrivateCoin` model, computing equality with unbounded error on a finite set
+with three or more elements costs three bits. For four or more inputs this follows at once from
+`signRank_equality_eq_three` and `clog_signRank_add_one_le_uppComplexityFun`; on three inputs
+`signRank` is two, and protocol-tree convexity rules out depth two. On two inputs two bits suffice
+(`Fintype.card X = 2`). -/
+theorem uppComplexityFun_equality_eq_three [Fintype X] [DecidableEq X] (hX : 2 < Fintype.card X) :
+    uppComplexityFun (equality (X := X)) = 3 := by
+  refine le_antisymm uppComplexityFun_equality_le_three ?_
+  obtain ⟨e⟩ : Nonempty (Fin 3 ↪ X) :=
+    Function.Embedding.nonempty_of_card_le (by rw [Fintype.card_fin]; omega)
+  have heq : (fun x y : Fin 3 => equality (e x) (e y)) = equality := by
+    ext x y; simp [equality, e.injective.eq_iff]
+  refine le_trans ?_ (heq ▸ uppComplexityFun_comap_le equality e e)
+  refine le_uppComplexityFun_iff.mpr fun a b P hP => ?_
+  by_contra! hd
+  have hd' : P.depth < 3 := by exact_mod_cast hd
+  have h2 : 2 ≤ P.depth := by
+    have hsr : 2 ≤ signRank (equality (X := Fin 3)) := two_le_signRank_equality (by decide)
+    have hc := clog_signRank_add_one_le_depth P hP hsr
+    have hpos : 1 ≤ Nat.clog 2 (signRank (equality (X := Fin 3))) := by
+      have := Nat.le_pow_clog one_lt_two (signRank (equality (X := Fin 3)))
+      by_contra h0
+      have h0' : Nat.clog 2 (signRank (equality (X := Fin 3))) = 0 := by omega
+      rw [h0', pow_zero] at this
+      omega
+    omega
+  rcases P with z | ⟨send, p₀, p₁⟩ | ⟨send, p₀, p₁⟩
+  · simp only [Protocol.depth_output] at h2; omega
+  · simp only [Protocol.depth_alice] at hd'
+    exact not_alice_solvesUnbounded_equality_fin_three send p₀ p₁ (by omega) (by omega) hP
+  · simp only [Protocol.depth_bob] at hd'
+    have hswap : SolvesUnbounded (a := b) (b := a) (Protocol.alice send p₀.swap p₁.swap)
+        (fun x y z => equality x y = z) Set.univ Set.univ := by
+      intro x _ y _
+      rw [errorProb_lt_half_iff (a := b) (b := a)]
+      have hyx := (errorProb_lt_half_iff (Protocol.bob send p₀ p₁) equality y x).mp
+        (hP y trivial x trivial)
+      have heq_s : signMatrix ℝ equality x y = signMatrix ℝ equality y x := by
+        simp [equality, eq_comm]
+      have heq_r : ∑ t, ∑ s,
+          BitString.signVal ((Protocol.alice send p₀.swap p₁.swap).run (x, t) (y, s)) =
+          ∑ s, ∑ t, BitString.signVal ((Protocol.bob send p₀ p₁).run (y, s) (x, t)) := by
+        rw [sum_comm]
+        exact sum_congr rfl fun s _ => sum_congr rfl fun t _ =>
+          congrArg BitString.signVal (Protocol.run_swap (Protocol.bob send p₀ p₁) (y, s) (x, t))
+      rwa [heq_s, heq_r]
+    exact not_alice_solvesUnbounded_equality_fin_three send p₀.swap p₁.swap
+      (by rw [Protocol.depth_swap]; omega) (by rw [Protocol.depth_swap]; omega) hswap
 
 end PrivateCoin
 

@@ -8,6 +8,7 @@ module
 -- upstream: candidate (addition to `Cslib/Probability/PMF.lean`)
 
 public import CslibFrontier.Probability.PMF
+import CslibFrontier.Probability.PMF.Event
 
 /-!
 # Markov's inequality for discrete distributions
@@ -22,6 +23,8 @@ form, and `Fintype.mul_dens_filter_le_expect` the uniform finite form.
 * `Cslib.Probability.PMF.mul_toOuterMeasure_le_tsum`: `t · Pr[t ≤ f] ≤ E[f]`.
 * `Cslib.Probability.PMF.toOuterMeasure_toReal_le_tsum_div`: `Pr[t ≤ f] ≤ E[f] / t` for a real
   score with values in `[0, 1]`.
+* `Cslib.Probability.PMF.toOuterMeasure_bind_le_tsum_nat`: one-step integer Markov bound when
+  `f = 0` absorbs away from `bad`.
 -/
 
 public section
@@ -67,5 +70,23 @@ theorem toOuterMeasure_toReal_le_tsum_div (p : PMF ι) {f : ι → ℝ} (hf₀ :
   simp only [ENNReal.toReal_mul, ENNReal.toReal_ofReal (hf₀ _)] at hreal
   rw [le_div_iff₀ ht, mul_comm]
   exact hreal
+
+/-- **One-step integer Markov bound**: if an integer potential `f : ι → ℕ` vanishes on supported
+states only where the next step `step` never lands in `bad`, then the probability of `bad` after
+`p.bind step` is at most the expected value of `f` under `p`. -/
+theorem toOuterMeasure_bind_le_tsum_nat {β : Type*} (p : PMF ι) (step : ι → PMF β)
+    (bad : Set β) (f : ι → ℕ)
+    (hzero : ∀ a ∈ p.support, f a = 0 → ∀ b ∈ (step a).support, b ∉ bad) :
+    (p.bind step).toOuterMeasure bad ≤ ∑' a, p a * (f a : ℝ≥0∞) := by
+  rw [PMF.toOuterMeasure_bind_apply]
+  refine tsum_le_tsum fun a => ?_
+  by_cases ha : a ∈ p.support
+  · rcases Nat.eq_zero_or_pos (f a) with h0 | hpos
+    · rw [h0, Nat.cast_zero, mul_zero,
+        (PMF.toOuterMeasure_apply_eq_zero_iff _ _).2 (Set.disjoint_left.2 (hzero a ha h0)),
+        mul_zero]
+    · gcongr
+      exact (toOuterMeasure_le_one _ _).trans (Nat.one_le_cast.2 hpos)
+  · simp [(PMF.apply_eq_zero_iff p a).2 ha]
 
 end Cslib.Probability.PMF

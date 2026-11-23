@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandEncode
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Every shared band, computed once
@@ -23,9 +24,6 @@ import CslibFrontier.Computability.WordRAM.CountingLoop
 public section
 
 namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation
-
--- Static preservation checks reduce the finite persistent-register set.
-set_option maxRecDepth 4096
 
 open Cslib.WordRAM Cslib.WordRAM.Signed
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
@@ -77,15 +75,7 @@ theorem exec_encodeBands {w L m N : ℕ} (hw : 0 < w) (side : Bool) (x : Data 96
         ¬(catalogueAddress L m N side 0 0 ≤ b ∧
           b < catalogueAddress L m N side (numBands L m N) 0) →
         y.mem b = x.mem b) := by
-  let start := x.set band 0
-  have hs : ExecWithin (B := .standard) (w + 2) (ram[ band ← #0 ]) x start 1 :=
-    ExecWithin.const (fits_zero _)
-  have hp : BandParameters L m N start := parameters_reframe hx (by
-    intro i hi
-    have hne : i ≠ band := by
-      have hp : ∀ i ∈ parameterRegisters, i ≠ band := by decide
-      exact hp i hi
-    simp only [start, Data.set_regs, Function.update_of_ne hne])
+  have hbfit : Fits (w + 2) (numBands L m N) := bands_fits hfit
   let P (j : ℕ) (y : Data 96) : Prop := BandParameters L m N y ∧
     (∀ β < j, ∀ p < 10 ^ L,
       y.mem (catalogueAddress L m N side β p) =
@@ -94,10 +84,6 @@ theorem exec_encodeBands {w L m N : ℕ} (hw : 0 < w) (side : Bool) (x : Data 96
       ¬(catalogueAddress L m N side 0 0 ≤ b ∧
         b < catalogueAddress L m N side (numBands L m N) 0) →
       y.mem b = x.mem b)
-  have hstart : P (start.regs band) start := by
-    refine ⟨hp, ?_, ?_⟩
-    · simp [start]
-    · intro b _ _; rfl
   have hbody (y : Data 96) (hy : P (y.regs band) y) (hc : y.regs band < numBands L m N) :
       ∃ z, ExecWithin (w + 2) (bandBody side) y z (bandTime L + 1) ∧
         P (y.regs band + 1) z ∧ z.regs band = y.regs band + 1 := by
@@ -108,8 +94,7 @@ theorem exec_encodeBands {w L m N : ℕ} (hw : 0 < w) (side : Bool) (x : Data 96
     have htable' (t : ℕ) (ht : t < 2 ^ L) :
         y.mem (inverseBase L m N + t) = MaskTable.lookup L m t := by
       rw [hy.2.2 _ (by unfold inverseBase; omega) (by
-        unfold catalogueBase tableBase at hcat
-        omega)]
+        unfold catalogueBase tableBase at hcat; omega)]
       exact htable t ht
     have hmat' (r : ℕ) (hr : r < N) (k : ℕ) (hk : k < D m) :
         y.mem (matrixAddress L m N side r k) = encode (matrix r k) := by
@@ -119,45 +104,39 @@ theorem exec_encodeBands {w L m N : ℕ} (hw : 0 < w) (side : Bool) (x : Data 96
         have := Nat.zero_le (2 ^ L)
         omega)]
       exact hmat r hr k hk
-    obtain ⟨t, he, htp, htb, hvalues, hframe⟩ := exec_band hw side β y hy.1 hβ rfl
-      htable' matrix hmat' A hA ha hmag hfit
-    let z := t.set band (β + 1)
-    have hz : ExecWithin (B := .standard) (w + 2) (ram[ band ← band + one ]) t z 1 := by
-      ram_eval [z, htb, htp.fixed.one, (bands_fits hfit).of_le (Nat.succ_le_of_lt hβ),
-        band, one, Fin.mk.injEq]
-    have hzb : z.regs band = β + 1 := by simp [z]
-    refine ⟨z, he.seq hz, ?_, hzb⟩
-    · refine ⟨parameters_reframe htp ?_, ?_, ?_⟩
-      · intro i hi
-        have hp : ∀ i ∈ parameterRegisters, i ≠ band := by decide
-        simp only [z, Data.set_regs, Function.update_of_ne (hp i hi)]
-      · intro γ hγ p hp
-        change t.mem _ = _
-        by_cases hγβ : γ = β
-        · subst γ; exact hvalues p hp
-        · have hγlt : γ < β := by omega
-          have hprior := catalogue_address_lt (m := m) (N := N) side hγlt hp
-          rw [hframe _ ?_ (by omega)]
-          · exact hy.2.1 γ hγlt p hp
-          · have haddr := catalogue_le_address L m N γ side
-            unfold catalogueAddress at haddr
-            have hsep : Encoding.scratchBase L + 10 ^ L ≤ catalogueBase L m N := by
-              unfold catalogueBase tableBase inverseBase
-              have := Nat.zero_le (2 ^ L)
-              omega
-            unfold catalogueAddress
+    refine WP.exists_execWithin ?_
+    unfold bandBody
+    wram_call (exec_band hw side β y hy.1 hβ rfl htable' matrix hmat' A hA ha hmag hfit)
+      with t ⟨htp, htb, hvalues, hframe⟩
+    wram_exec *
+    refine ⟨⟨by regs_frame, ?_, ?_⟩, by wram_simp; rfl⟩
+    · intro γ hγ p hp'
+      wram_simp
+      by_cases hγβ : γ = β
+      · subst γ; exact hvalues p hp'
+      · have hγlt : γ < β := by omega
+        have hprior := catalogue_address_lt (m := m) (N := N) side hγlt hp'
+        rw [hframe _ ?_ (by omega)]
+        · exact hy.2.1 γ hγlt p hp'
+        · have haddr := catalogue_le_address L m N γ side
+          unfold catalogueAddress at haddr
+          have hsep : Encoding.scratchBase L + 10 ^ L ≤ catalogueBase L m N := by
+            unfold catalogueBase tableBase inverseBase
+            have := Nat.zero_le (2 ^ L)
             omega
-      · intro b hb hc
-        change t.mem b = x.mem b
-        have hinside := catalogue_block_inside side hβ
-        rw [hframe b hb (by omega)]
-        exact hy.2.2 b hb hc
-  obtain ⟨y, he, hy, _⟩ := ExecWithin.loop_count P (fun _ hy => hy.1.bands)
-    hbody (by simp [start]) hstart
-  refine ⟨y, ?_, hy.1, hy.2.1, hy.2.2⟩
-  · apply (hs.seq he).mono
-    have hz : start.regs band = 0 := by simp [start]
-    simp only [hz, Nat.sub_zero, Nat.add_assoc, Nat.reduceAdd]
-    omega
+          unfold catalogueAddress
+          omega
+    · intro b hb hc'
+      wram_simp
+      have hinside := catalogue_block_inside side hβ
+      rw [hframe b hb (by omega)]
+      exact hy.2.2 b hb hc'
+  unfold encodeBands
+  wram_exec *
+  wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.bands) hbody
+    (by wram_simp; exact Nat.zero_le _)
+    ⟨by regs_frame, by wram_simp; nofun, fun _ _ _ => rfl⟩)
+    with y ⟨⟨hyp, hyval, hyframe⟩, hbnd⟩
+  exact ⟨by wram_simp [hbnd, Nat.add_assoc]; exact le_rfl, hyp, hyval, hyframe⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation

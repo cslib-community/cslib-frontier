@@ -15,6 +15,9 @@ public import CslibFrontier.Foundations.Data.BitString.List
 public import CslibFrontier.Languages.Probabilistic.BitString
 public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import CslibFrontier.Languages.Probabilistic.RandomOracle
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 
 /-!
@@ -44,9 +47,13 @@ queries and answers all have `n` bits.
 
 ## Main results
 
+* `Cslib.Crypto.computableInPolyTime_prfOracle_comp`: plain polynomial-time composition rule for
+  `prfOracle`.
 * `Cslib.Crypto.wordOracle_bitStrings`, `Cslib.Crypto.wordOracle_bitStrings_answer`: agreement of
   `OracleCodec.bitStrings` with `randomFunctionOracle` and `lazyRandomFunctionOracle`.
 * `Cslib.Crypto.prfIdealGame_eq_lazy`: an exact lazy implementation of the ideal experiment.
+* `Cslib.Crypto.PseudorandomFunctionOver.outLen_polyTime`: computing the unary output width
+  from the unary input width schedule.
 
 ## References
 
@@ -69,6 +76,31 @@ abbrev OracleDistinguisher := ℕ → List Bool → WordOracleComp Unit Bool
 /-- A keyed oracle rejects queries outside the declared domain. -/
 def prfOracle (family : List Bool → List Bool → List Bool) (n : ℕ) (key query : List Bool) :
     List Bool := if query.length = n then family key query else []
+
+/-- Evaluating `prfOracle family (n a) (key a) (query a)` is computable in plain polynomial time
+whenever `family`, the unary domain width `n`, `key`, and `query` are computable in plain
+polynomial time. -/
+@[fun_prop]
+theorem computableInPolyTime_prfOracle_comp {γ : Type} {encIn : γ ↪ List Bool}
+    {family : List Bool → List Bool → List Bool}
+    (hfamily : ComputableInPolyTime
+      (fun p : List Bool × List Bool => family p.1 p.2)
+      (encPair encBits encBits) encBits)
+    {n : γ → ℕ} {key query : γ → List Bool}
+    (hn : ComputableInPolyTime n encIn encUnary)
+    (hkey : ComputableInPolyTime key encIn encBits)
+    (hquery : ComputableInPolyTime query encIn encBits) :
+    ComputableInPolyTime
+      (fun a => prfOracle family (n a) (key a) (query a))
+      encIn encBits := by
+  have hfam : ComputableInPolyTime (fun a => family (key a) (query a)) encIn encBits :=
+    hfamily.comp (hkey.prod hquery)
+  have heq : (fun a => prfOracle family (n a) (key a) (query a)) =
+      (fun a => if (query a).length == n a then family (key a) (query a) else []) := by
+    funext a
+    simp [prfOracle]
+  rw [heq]
+  fun_prop
 
 /-- Read a fixed random table on `n`-bit inputs, rejecting malformed words before interpreting
 their bits. -/
@@ -189,6 +221,19 @@ structure PseudorandomFunctionOver (inLen outLen : ℕ → ℕ)
     (fun adversary n => ProbComp.eval (prfRealGame inLen family adversary n))
     (fun adversary n => ProbComp.eval (prfIdealGame inLen outLen adversary n))
     (IsOraclePPT encBool)
+
+/-- Evaluate the family at the all-zero key and a valid all-zero query to compute the output width
+in unary. -/
+theorem PseudorandomFunctionOver.outLen_polyTime {inLen outLen : ℕ → ℕ}
+    {family : List Bool → List Bool → List Bool} (h : PseudorandomFunctionOver inLen outLen family)
+    (hinLen : ComputableInPolyTime inLen encUnary encUnary) :
+    ComputableInPolyTime outLen encUnary encUnary := by
+  have hzeros := ComputableInPolyTime.bitsReplicate false
+  have heval := h.polyTime.comp (hzeros.prod (hzeros.comp hinLen))
+  refine (ComputableInPolyTime.length_bits.comp heval).of_enc_eq fun n => ?_
+  have hwidth := h.length_eq (List.replicate n false) (List.replicate (inLen n) false)
+    (by simp only [List.length_replicate])
+  simpa only [List.length_replicate, Function.comp_def] using congrArg encUnary hwidth.symm
 
 /-- A length-preserving pseudorandom function: `PseudorandomFunctionOver id id`, whose keys, valid
 queries and answers all have `n` bits ([BonehShoup2023], Attack Game 4.2 and Definition 4.2,

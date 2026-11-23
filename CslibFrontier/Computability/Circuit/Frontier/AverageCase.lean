@@ -80,6 +80,19 @@ membership in `T` agree, minus the fraction on which it differs. -/
 noncomputable def correlation (S T : Set (ι → U)) : ℝ :=
   agreement S T - agreement S Tᶜ
 
+/-- Complementing the first set negates the correlation. -/
+@[simp]
+theorem correlation_compl_left (S T : Set (ι → U)) : correlation Sᶜ T = -correlation S T := by
+  have hs₁ : {x : ι → U | x ∈ Sᶜ ↔ x ∈ T} = {x | x ∈ S ↔ x ∈ Tᶜ} := by
+    ext x
+    simp only [mem_compl_iff, mem_ofPred_eq]
+    tauto
+  have hs₂ : {x : ι → U | x ∈ Sᶜ ↔ x ∈ Tᶜ} = {x | x ∈ S ↔ x ∈ T} := by
+    ext x
+    simp only [mem_compl_iff, mem_ofPred_eq]
+    tauto
+  rw [correlation, correlation, agreement, agreement, hs₁, hs₂, ← agreement, ← agreement, neg_sub]
+
 /-- Complementing the second set negates the correlation. -/
 @[simp]
 theorem correlation_compl_right (S T : Set (ι → U)) : correlation S Tᶜ = -correlation S T := by
@@ -182,7 +195,7 @@ theorem agreement_le {ι U : Type*} [Finite ι] [Finite U] [Nonempty U] {S T : S
 
 /-- A count whose base-`q` logarithm is at most `(1 - μ) n` is at most an
 `exp (-μ log 2 · n)` fraction of `q ^ n`, for `q ≥ 2`. -/
-private theorem div_pow_le_exp {q R μ : ℝ} {n : ℕ} (hq : 2 ≤ q) (hR : 0 < R) (hμ : 0 ≤ μ)
+theorem div_pow_le_exp {q R μ : ℝ} {n : ℕ} (hq : 2 ≤ q) (hR : 0 < R) (hμ : 0 ≤ μ)
     (h : Real.logb q R ≤ (1 - μ) * n) : R / q ^ n ≤ Real.exp (-(μ * Real.log 2 * n)) := by
   have hq0 : 0 < q := by linarith
   have hlq : Real.log 2 ≤ Real.log q := Real.log_le_log two_pos hq
@@ -205,7 +218,7 @@ private theorem logb_residual {q K v : ℝ} (hq : 1 < q) (hK : 0 < K) (hv : 0 �
   ring
 
 /-- Raising a threshold to at least two keeps its logarithm sublinear. -/
-private theorem isLittleO_logb_max_two {K : ℕ → ℕ}
+theorem isLittleO_logb_max_two {K : ℕ → ℕ}
     (hK : (fun n => Real.log (K n)) =o[atTop] fun n => (n : ℝ)) (q : ℝ) :
     (fun n => Real.logb q (max (K n) 2 : ℕ)) =o[atTop] fun n => (n : ℝ) := by
   have hK' : (fun n => Real.log (max (K n) 2 : ℕ)) =o[atTop] fun n => (n : ℝ) := by
@@ -228,7 +241,7 @@ private theorem isLittleO_logb_max_two {K : ℕ → ℕ}
 
 /-- If `1 + 2 log_q K ≤ n / 2`, then half of `n` coordinates carry at least `K` assignments:
 `K ≤ q ^ ⌊n / 2⌋`. -/
-private theorem le_pow_half_of_logb {q K n : ℕ} (hq : 1 < q) (hK : 0 < K)
+theorem le_pow_half_of_logb {q K n : ℕ} (hq : 1 < q) (hK : 0 < K)
     (h : 1 + 2 * Real.logb q K ≤ (1 - 1 / 2) * n) : K ≤ q ^ (n / 2) := by
   have hn2 : (n : ℝ) ≤ 2 * (n / 2 : ℕ) + 1 := by
     exact_mod_cast (show n ≤ 2 * (n / 2) + 1 by omega)

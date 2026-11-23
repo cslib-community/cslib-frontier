@@ -316,25 +316,17 @@ theorem intBin_tmod' {α : Type} {input : α ↪ List Bool} {left right : α →
 theorem intBin_ediv :
     ComputableInPolyTime (fun p : ℤ × ℤ => p.1.ediv p.2)
       (encPair encIntBin encIntBin) encIntBin := by
-  have hb0 : ComputableInPolyTime (fun p : ℤ × ℤ => decide (p.2 = 0))
-      (encPair encIntBin encIntBin) encBool := by fun_prop
-  have ha_neg : ComputableInPolyTime (fun p : ℤ × ℤ => decide (p.1 < 0))
-      (encPair encIntBin encIntBin) encBool := by fun_prop
-  have hb_neg : ComputableInPolyTime (fun p : ℤ × ℤ => decide (p.2 < 0))
-      (encPair encIntBin encIntBin) encBool := by fun_prop
-  have hq_neg : ComputableInPolyTime
-      (fun p : ℤ × ℤ => (((p.1.natAbs - 1) / p.2.natAbs + 1 : ℕ) : ℤ))
+  have h : ComputableInPolyTime
+      (fun p : ℤ × ℤ =>
+        if p.2 = 0 then 0
+        else if p.1 < 0 then
+          if p.2 < 0 then (((p.1.natAbs - 1) / p.2.natAbs + 1 : ℕ) : ℤ)
+          else -(((p.1.natAbs - 1) / p.2.natAbs + 1 : ℕ) : ℤ)
+        else
+          if p.2 < 0 then -((p.1.natAbs / p.2.natAbs : ℕ) : ℤ)
+          else ((p.1.natAbs / p.2.natAbs : ℕ) : ℤ))
       (encPair encIntBin encIntBin) encIntBin := by fun_prop
-  have hq_nonneg : ComputableInPolyTime
-      (fun p : ℤ × ℤ => ((p.1.natAbs / p.2.natAbs : ℕ) : ℤ))
-      (encPair encIntBin encIntBin) encIntBin := by fun_prop
-  have hneg : ComputableInPolyTime (fun z : ℤ => -z) encIntBin encIntBin := by fun_prop
-  have h := hb0.ite (.const 0)
-    (ha_neg.ite
-      (hb_neg.ite hq_neg (hneg.comp hq_neg))
-      (hb_neg.ite (hneg.comp hq_nonneg) hq_nonneg))
-  refine h.of_enc_eq fun ⟨a, b⟩ => congrArg encIntBin ?_
-  simpa only [Function.comp_apply, decide_eq_true_eq] using Int.ediv_eq_signMagnitude a b
+  exact h.of_enc_eq fun ⟨a, b⟩ => congrArg encIntBin (Int.ediv_eq_signMagnitude a b)
 
 /-- Euclidean division (`Int.ediv`) of computed binary integers. -/
 @[fun_prop]
@@ -367,23 +359,17 @@ theorem intBin_emod :
   have hrem : ComputableInPolyTime (fun p : ℤ × ℤ => p.1.natAbs % p.2.natAbs)
       (encPair encIntBin encIntBin) encNat :=
     binary_mod' (by fun_prop) (by fun_prop)
-  have hb0 : ComputableInPolyTime (fun p : ℤ × ℤ => decide (p.2 = 0))
-      (encPair encIntBin encIntBin) encBool := by fun_prop
-  have ha_neg : ComputableInPolyTime (fun p : ℤ × ℤ => decide (p.1 < 0))
-      (encPair encIntBin encIntBin) encBool := by fun_prop
   have hnegRem : ComputableInPolyTime
       (fun p : ℤ × ℤ => (p.2.natAbs - p.1.natAbs % p.2.natAbs) % p.2.natAbs)
       (encPair encIntBin encIntBin) encNat :=
     binary_mod' (by fun_prop) (by fun_prop)
-  have hneg : ComputableInPolyTime
-      (fun p : ℤ × ℤ => (((p.2.natAbs - p.1.natAbs % p.2.natAbs) % p.2.natAbs : ℕ) : ℤ))
+  have h : ComputableInPolyTime
+      (fun p : ℤ × ℤ =>
+        if p.2 = 0 then p.1
+        else if p.1 < 0 then (((p.2.natAbs - p.1.natAbs % p.2.natAbs) % p.2.natAbs : ℕ) : ℤ)
+        else ((p.1.natAbs % p.2.natAbs : ℕ) : ℤ))
       (encPair encIntBin encIntBin) encIntBin := by fun_prop
-  have hnonneg : ComputableInPolyTime
-      (fun p : ℤ × ℤ => ((p.1.natAbs % p.2.natAbs : ℕ) : ℤ))
-      (encPair encIntBin encIntBin) encIntBin := by fun_prop
-  have h := hb0.ite (fst encIntBin encIntBin) (ha_neg.ite hneg hnonneg)
-  refine h.of_enc_eq fun ⟨a, b⟩ => congrArg encIntBin ?_
-  simpa only [Function.comp_apply, decide_eq_true_eq] using Int.emod_eq_signMagnitude a b
+  exact h.of_enc_eq fun ⟨a, b⟩ => congrArg encIntBin (Int.emod_eq_signMagnitude a b)
 
 /-- Euclidean remainder (`Int.emod`) of computed binary integers. -/
 @[fun_prop]
@@ -414,9 +400,8 @@ theorem intBin_mod' {α : Type} {input : α ↪ List Bool} {left right : α → 
 theorem intBin_modPowTwo :
     ComputableInPolyTime (fun p : ℤ × ℕ => p.1.modPowTwo p.2)
       (encPair encIntBin encUnary) encIntBin := by
-  have hpow : ComputableInPolyTime (fun p : ℤ × ℕ => ((2 : ℤ) ^ p.2))
-      (encPair encIntBin encUnary) encIntBin := by fun_prop
-  exact intBin_emod.comp ((fst encIntBin encUnary).prod hpow)
+  unfold Int.modPowTwo
+  fun_prop
 
 /-- Reduction `Int.modPowTwo (value a) (exponent a)` of a computed binary integer modulo a
 computed unary power of two. -/

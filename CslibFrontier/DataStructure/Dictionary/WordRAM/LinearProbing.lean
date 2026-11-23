@@ -12,8 +12,13 @@ public import CslibFrontier.DataStructure.Dictionary.Spec
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.KWise
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.LinearProbing.FiveWise
 public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
+import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
 public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.UpdateSimp
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -445,69 +450,50 @@ writes `used[p] ← 1`, `key[p] ← u`, and `val[p] ← v`. -/
       (keyBase base n_max + p.val) u)
     (valBase base n_max + p.val) v
 
-private theorem insertMem_of_ne {base n_max : ℕ} {mem : ℕ → ℕ}
-    {p : Fin (2 ^ tableLog n_max)} {u v a : ℕ}
-    (h0 : a ≠ usedBase base n_max + p.val) (h1 : a ≠ keyBase base n_max + p.val)
-    (h2 : a ≠ valBase base n_max + p.val) :
-    insertMem base n_max mem p u v a = mem a := by
-  simp only [insertMem, Function.update_of_ne h2, Function.update_of_ne h1,
-    Function.update_of_ne h0]
-
 private theorem insertMem_of_outside {base n_max : ℕ} {mem : ℕ → ℕ}
     {p : Fin (2 ^ tableLog n_max)} {u v a : ℕ}
     (ha : a < usedBase base n_max ∨ base + space n_max ≤ a) :
     insertMem base n_max mem p u v a = mem a := by
-  have hp := p.isLt
+  have := p.isLt
   dsimp only [usedBase, space, tableSize] at ha
-  exact insertMem_of_ne (by dsimp only [usedBase]; omega)
-    (by dsimp only [keyBase, usedBase, tableSize]; omega)
-    (by dsimp only [valBase, keyBase, usedBase, tableSize]; omega)
+  dsimp only [insertMem, usedBase, keyBase, valBase, tableSize]
+  update_simp
 
 theorem usedAt_insertMem (base n_max : ℕ) (mem : ℕ → ℕ)
     (p q : Fin (2 ^ tableLog n_max)) (u v : ℕ) :
     usedAt base n_max (insertMem base n_max mem p u v) q =
       if q = p then 1 else usedAt base n_max mem q := by
-  have hp := p.isLt; have hq := q.isLt
+  have := p.isLt; have := q.isLt
   by_cases hqp : q = p
-  · subst hqp
-    have h1 : usedBase base n_max + q.val ≠ valBase base n_max + q.val := by
-      dsimp only [valBase, keyBase, usedBase, tableSize]; omega
-    have h2 : usedBase base n_max + q.val ≠ keyBase base n_max + q.val := by
-      dsimp only [keyBase, usedBase, tableSize]; omega
-    simp only [usedAt, insertMem, ↓reduceIte, Function.update_of_ne h1, Function.update_of_ne h2,
-      Function.update_self]
+  · subst hqp; simp only [↓reduceIte, usedAt, insertMem, usedBase, keyBase, valBase, tableSize]
+    update_simp
   · have := Fin.val_ne_of_ne hqp
-    simp only [usedAt, hqp, ↓reduceIte]
-    exact insertMem_of_ne (by omega)
-      (by dsimp only [keyBase, usedBase, tableSize]; omega)
-      (by dsimp only [valBase, keyBase, usedBase, tableSize]; omega)
+    simp only [hqp, ↓reduceIte, usedAt, insertMem, usedBase, keyBase, valBase, tableSize]
+    update_simp
 
 theorem keyAt_insertMem (base n_max : ℕ) (mem : ℕ → ℕ)
     (p q : Fin (2 ^ tableLog n_max)) (u v : ℕ) :
     keyAt base n_max (insertMem base n_max mem p u v) q =
       if q = p then u else keyAt base n_max mem q := by
-  have hp := p.isLt; have hq := q.isLt
+  have := p.isLt; have := q.isLt
   by_cases hqp : q = p
-  · subst hqp
-    have h1 : keyBase base n_max + q.val ≠ valBase base n_max + q.val := by
-      dsimp only [valBase, keyBase, usedBase, tableSize]; omega
-    simp only [keyAt, insertMem, ↓reduceIte, Function.update_of_ne h1, Function.update_self]
+  · subst hqp; simp only [↓reduceIte, keyAt, insertMem, usedBase, keyBase, valBase, tableSize]
+    update_simp
   · have := Fin.val_ne_of_ne hqp
-    simp only [keyAt, hqp, ↓reduceIte]
-    exact insertMem_of_ne (by dsimp only [keyBase, usedBase, tableSize]; omega) (by omega)
-      (by dsimp only [valBase, keyBase, usedBase, tableSize]; omega)
+    simp only [hqp, ↓reduceIte, keyAt, insertMem, usedBase, keyBase, valBase, tableSize]
+    update_simp
 
 theorem valAt_insertMem (base n_max : ℕ) (mem : ℕ → ℕ)
     (p q : Fin (2 ^ tableLog n_max)) (u v : ℕ) :
     valAt base n_max (insertMem base n_max mem p u v) q =
       if q = p then v else valAt base n_max mem q := by
-  have hp := p.isLt; have hq := q.isLt
+  have := p.isLt; have := q.isLt
   by_cases hqp : q = p
-  · subst hqp; simp only [valAt, insertMem, ↓reduceIte, Function.update_self]
+  · subst hqp; simp only [↓reduceIte, valAt, insertMem, usedBase, keyBase, valBase, tableSize]
+    update_simp
   · have := Fin.val_ne_of_ne hqp
-    simp only [valAt, hqp, ↓reduceIte]
-    exact insertMem_of_ne (by dsimp only [valBase, keyBase, usedBase, tableSize]; omega)
-      (by dsimp only [valBase, keyBase, usedBase, tableSize]; omega) (by omega)
+    simp only [hqp, ↓reduceIte, valAt, insertMem, usedBase, keyBase, valBase, tableSize]
+    update_simp
 
 /-- Writing `(1, u.val, v)` at the stopping slot `p = probeSlot M (hashFn U n_max θ u) t`
 preserves `TableInv` for `Function.update s u (some v)` whenever `.insert u v` is admissible. -/
@@ -1057,15 +1043,6 @@ theorem Rep.supported {U V n_max w base : ℕ} {θ : Seed U n_max}
   dsimp only [space]
   exact ⟨hge, by omega⟩
 
-private theorem extend_kwiseMap_regs {y : Data 18} {x : Data 24} {j : Fin 24} (hj : 18 ≤ j.val) :
-    (y.extend kwiseMap x).regs j = x.regs j := by
-  change Function.extend kwiseMap y.regs x.regs j = x.regs j
-  apply Function.extend_apply'
-  rintro ⟨i, rfl⟩
-  have := i.isLt
-  dsimp only [kwiseMap, Fin.val_castLE] at hj
-  omega
-
 private theorem fits_max_U_add_one_of_hw {w U n_max : ℕ}
     (hw : 2 * trinomialDeg U (tableLog n_max) ≤ w) :
     Fits w (max U 2 + 1) := by
@@ -1147,49 +1124,37 @@ theorem initSetup_exec {U V n_max w base : ℕ} {x₁ : Data rLP}
   set s3 : Data 18 := ((x₀.set 1 n_max).set 2 U).set 3 (tableLog n_max)
   obtain ⟨dTab, hdTab_exec, htab, hdTab_0, hdTab_out⟩ :=
     KWise.initTableCode_execWithin (x := s3)
-      (by wram_simp [s3]; exact hb) (by wram_simp [s3]) (by wram_simp [s3]) (by wram_simp [s3])
-      hfit_kwise hfit_n hfit_U1 hfit_q
+      (by wram_simp [s3]; exact hb) (by wram_simp [s3]) (by wram_simp [s3])
+      (by wram_simp [s3]) hfit_kwise hfit_n hfit_U1 hfit_q
   set m := KWise.resampleComp base U (tableLog n_max) 5 dTab
-  have he_rand := KWise.resampleCode_execRand htab hdTab_0 hfit_end hfit_q
-  obtain ⟨m', he_rand', _, hsupp⟩ :=
-    KWise.resampleCode_execRandWithin htab hdTab_0 hfit_end hfit_q
-  obtain rfl := he_rand.unique he_rand'
-  have hexp_le : ProbComp.expect m (fun z => (z.2 : ℝ≥0∞)) ≤ 35 :=
-    (ProbComp.expect_mono_on_support fun z hz =>
-      Nat.cast_le.mpr (hsupp z hz).2).trans_eq (ProbComp.expect_const m 35)
-  have hdist_res : ExecCodeDist w (KWise.resampleCode 5) dTab (m.eval.map Prod.fst) 35 := by
-    simpa only [ProbComp.eval_map] using (ExecCodeDist.of_execRand he_rand).mono hexp_le
+  have hsupp := fun z (hz : z ∈ m.support) => KWise.mem_support_resampleComp htab hdTab_0 hz
+  have hdist_res : ExecCodeDist w (KWise.resampleCode 5) dTab (m.eval.map Prod.fst) 35 :=
+    ExecCodeDist.of_execRand_le (KWise.resampleCode_execRand htab hdTab_0 hfit_end hfit_q)
+      fun z hz => (hsupp z hz).2
   have hdist_18 : ExecCodeDist w (initSetup18 U n_max) x₀ (m.eval.map Prod.fst)
       (setupTime U n_max) := by
-    have h123 :=
-      (ExecCodeDist.of_exec (Exec.const (r := 18) (x := x₀) (d := 1) (v := n_max)
-        (by fits))).seq_pure <|
-        (ExecCodeDist.of_exec (Exec.const (r := 18) (x := x₀.set 1 n_max) (d := 2) (v := U)
-          (by fits))).seq_pure <|
-          (ExecCodeDist.of_exec (Exec.const (r := 18) (x := (x₀.set 1 n_max).set 2 U) (d := 3)
-            (v := tableLog n_max) hfit_M)).seq_pure <|
-            (ExecCodeDist.of_execWithin hdTab_exec).seq_pure hdist_res
-    exact h123.mono (by dsimp only [setupTime]; norm_cast; omega)
+    unfold initSetup18
+    wram_rand_exec [hfit_M]
+    wram_rand_call hdTab_exec
+    wram_rand_call hdist_res
+    refine ⟨rfl, ?_⟩
+    dsimp only [setupTime]; norm_cast; omega
   have hdist_24 := hdist_18.rename injective_kwiseMap
   refine ⟨m.eval.map fun z =>
     (KWise.extractSeeds base U (tableLog n_max) 5 z.1.mem, z.1.extend kwiseMap x₁),
     hdist_24.congr_dist (by rw [PMF.map_comp, PMF.map_comp]; rfl) le_rfl,
     fun θ => by
-      have hmap : (m.eval.map fun z =>
-          (KWise.extractSeeds base U (tableLog n_max) 5 z.1.mem,
-            z.1.extend kwiseMap x₁)).map Prod.fst = seedLaw U n_max := by
-        rw [PMF.map_comp]
-        exact KWise.map_extractSeeds_eval_resampleComp base U (tableLog n_max) 5 dTab
-      rw [hmap, one_mul],
+      rw [PMF.map_comp]; dsimp only [Function.comp_def]
+      rw [KWise.map_extractSeeds_eval_resampleComp base U (tableLog n_max) 5 dTab, one_mul]
+      exact le_rfl,
     fun p hp => ?_⟩
-  rw [PMF.mem_support_map_iff] at hp
-  obtain ⟨z, hz_eval, rfl⟩ := hp
+  supp_cases hp with ⟨z, hz_eval, rfl⟩
   have hz_supp : z ∈ m.support := by rwa [← ProbComp.support_eval m]
   obtain ⟨⟨hkrep, hz_0, hz_out⟩, _⟩ := hsupp z hz_supp
   have hp_mem : z.1.extend kwiseMap x₁ ∈
-      ((m.eval.map Prod.fst).map (·.extend kwiseMap x₁)).support := by
-    rw [PMF.mem_support_map_iff]
-    exact ⟨z.1, (PMF.mem_support_map_iff _ _ _).mpr ⟨z, hz_eval, rfl⟩, rfl⟩
+      ((m.eval.map Prod.fst).map (·.extend kwiseMap x₁)).support :=
+    (PMF.mem_support_map_iff _ _ _).mpr
+      ⟨z.1, (PMF.mem_support_map_iff _ _ _).mpr ⟨z, hz_eval, rfl⟩, rfl⟩
   have hmem_out : ∀ a, a < base ∨ base + KWise.space n_max 5 ≤ a → z.1.mem a = x₁.mem a := by
     intro a ha
     have : KWise.space n_max 5 = 8 + 5 + 2 ^ (2 * KWise.chunkBits n_max) := rfl
@@ -1201,8 +1166,8 @@ theorem initSetup_exec {U V n_max w base : ℕ} {x₁ : Data rLP}
     change z.1.mem (usedBase base n_max + j.val) = 0
     rw [hmem_out _ (.inr (by wram_omega))]
     exact hz _ (Block.mem_footprint.mpr ⟨by wram_omega, by wram_omega⟩)
-  refine ⟨by rw [extend_kwiseMap_regs (by decide), hfr],
-    ⟨hdist_24.bounded hx₁ _ hp_mem, ?_, hkrep, tableInv_empty U V n_max base _ hempty⟩,
+  refine ⟨by rw [Data.extend_regs_of_notMem _ _ (by decide : (18 : Fin 24) ∉ Set.range kwiseMap),
+    hfr], ⟨hdist_24.bounded hx₁ _ hp_mem, ?_, hkrep, tableInv_empty U V n_max base _ hempty⟩,
     le_rfl, Modifies.block_iff.mpr fun a ha => hmem_out a (by wram_omega)⟩
   change ((z.1.extend kwiseMap x₁).comap kwiseMap).regs 0 = base
   rw [Data.comap_extend injective_kwiseMap]; exact hz_0
@@ -1275,8 +1240,8 @@ theorem probeSetupCode_execWithin {U w base n_max : ℕ} (u : Fin U)
   have hvb : keyBase base n_max + tableSize n_max = valBase base n_max := rfl
   unfold probeSetupCode
   wram_exec (disch := first | fits | layout_omega) [h0, hub, hkb, hvb]
-  wram_call (probeCheckCode_execWithin u pos (by wram_simp [h0]) (by wram_simp [h1])
-    (by wram_simp [h2]) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
+  wram_call (probeCheckCode_execWithin u pos (by regs_frame) (by regs_frame)
+    (by regs_frame) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
     (by wram_simp) hfit_space) with y hy
   exact ⟨by omega, by wram_simp at hy; exact hy⟩
 
@@ -1317,9 +1282,9 @@ theorem probeBody_execWithin {U w base n_max : ℕ} (u : Fin U)
     Nat.and_two_pow_sub_one_eq_mod (pos.val + 1) (tableLog n_max)
   unfold probeBody
   wram_exec (disch := first | fits | layout_omega) [h2, h3, h10, hand_eq]
-  wram_call (probeCheckCode_execWithin u pos' (by wram_simp [h0]) (by wram_simp [h1])
-    (by wram_simp) (by wram_simp [h3]) (by wram_simp [h4]) (by wram_simp [h5]) (by wram_simp [h6])
-    (by wram_simp [h10]) hfit_space) with y hy
+  wram_call (probeCheckCode_execWithin u pos' (by regs_frame) (by regs_frame)
+    (by wram_simp) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+    (by regs_frame) hfit_space) with y hy
   exact ⟨by omega, by wram_simp at hy; exact hy⟩
 
 private theorem probeLoop_execWithin_aux {U V w base n_max : ℕ} {θ : Seed U n_max}
@@ -1504,64 +1469,54 @@ theorem opCode_execWithin {U V w base n_max : ℕ} {θ : Seed U n_max}
   have hx1_key : x.regs 1 = u.val := by cases o <;> exact harg.1
   refine WP.exists_execWithin (WP.bounded hrep.bounded ?_)
   unfold opCode
-  apply WP.seq
   wram_call (KWise.evalCode_execWithin u (x := x.comap kwiseMap) hrep.kwise_rep
     hrep.reg_base hx1_key hw (hfit_space.of_le (by wram_omega))) renamed injective_kwiseMap with
     x₁ ⟨⟨hx₁_0, hx₁_1, hx₁_2, hx₁_mem⟩, hx₁_frame⟩
-  apply WP.seq
   wram_call (probeSetupCode_execWithin u b (x := x₁) hx₁_0 hx₁_1 hx₁_2 hfit_space) with x₂
     ⟨hx₂_mem, hx₂_0, hx₂_1, hx₂_2, hx₂_3, hx₂_4, hx₂_5, hx₂_6, hx₂_7, hx₂_9, hx₂_10,
       hx₂_22, hx₂_23⟩
-  have hmem₂ : x₂.mem = x.mem := hx₂_mem.trans hx₁_mem
+  have hmem₂ : x₂.mem = x.mem := by mem_frame
   have ht₂ : (hmem₂.symm ▸ hrep.table_inv).probeLen u (hashFn U n_max θ u) = t :=
     TableInv.probeLen_congr (hmem₂.symm ▸ hrep.table_inv) hrep.table_inv hmem₂ u b
-  apply WP.seq
   wram_call (probeLoop_execWithin (hinv := hmem₂.symm ▸ hrep.table_inv) u
     hx₂_0 hx₂_1 hx₂_2 hx₂_3 hx₂_4 hx₂_5 hx₂_6
     (by simpa only [hx₁_mem, hmem₂] using hx₂_7)
     (by simpa only [hx₁_mem, hmem₂] using hx₂_9) hx₂_10 hfit_space) with x₃
     ⟨hx₃_mem, hx₃_0, hx₃_1, hx₃_2, hx₃_4, hx₃_5, hx₃_6, hx₃_9, hx₃_10, hx₃_22, hx₃_23⟩
-  have hmem₃ : x₃.mem = x.mem := hx₃_mem.trans hmem₂
-  have hnotMem (j : Fin 24) (hj : 18 ≤ j.val) : ∀ i : Fin 18, kwiseMap i ≠ j := by
-    intro i h; have := i.isLt; simp [kwiseMap, Fin.ext_iff] at h; omega
-  have hx₃_22_eq : x₃.regs 22 = x.regs 22 :=
-    hx₃_22.trans (hx₂_22.trans (hx₁_frame 22 (hnotMem 22 (by decide))))
-  have hx₃_23_eq : x₃.regs 23 = x.regs 23 :=
-    hx₃_23.trans (hx₂_23.trans (hx₁_frame 23 (hnotMem 23 (by decide))))
+  have hmem₃ : x₃.mem = x.mem := by mem_frame
+  have hx₃_22_eq : x₃.regs 22 = x.regs 22 := by regs_frame
+  have hx₃_23_eq : x₃.regs 23 = x.regs 23 := by regs_frame
   have hx₃_2' : x₃.regs 2 = p.val := by rwa [ht₂] at hx₃_2
   have hx₃_9' : x₃.regs 9 = usedAt base n_max x.mem p := by rwa [ht₂, hmem₂] at hx₃_9
   cases o with
   | query u₀ =>
     have ht₃ : (hmem₃.symm ▸ hrep.table_inv).probeLen u (hashFn U n_max θ u) = t :=
       TableInv.probeLen_congr (hmem₃.symm ▸ hrep.table_inv) hrep.table_inv hmem₃ u b
-    apply WP.branch_eq (hx₃_22_eq.trans harg.2) hx₃_10
-    · intro h; omega
-    · intro _
-      wram_call (queryFinishCode_execWithin (hinv := hmem₃.symm ▸ hrep.table_inv) u hx₃_0
-        (by rw [ht₃]; exact hx₃_2') hx₃_6
-        (by rw [ht₃, hmem₃]; exact hx₃_9')
-        hx₃_10 hfit_space hfit_V) with y ⟨hymem, hy0, hdec⟩
-      intro hbdd
-      have hmx : y.mem = x.mem := hymem.trans hmem₃
-      refine ⟨?_, hdec, ⟨hbdd, hy0, hmx ▸ hrep.kwise_rep, hmx ▸ hrep.table_inv⟩,
-        fun _ _ => hmx ▸ rfl⟩
-      rw [TableInv.probeLen_congr (hmem₂.symm ▸ hrep.table_inv) hrep.table_inv hmem₂ u _]; omega
+    wram_exec [hx₃_22_eq, harg.2, hx₃_10]
+    wram_call (queryFinishCode_execWithin (hinv := hmem₃.symm ▸ hrep.table_inv) u hx₃_0
+      (by rw [ht₃]; exact hx₃_2') hx₃_6
+      (by rw [ht₃, hmem₃]; exact hx₃_9')
+      hx₃_10 hfit_space hfit_V) with y ⟨hymem, hy0, hdec⟩
+    intro hbdd
+    have hmx : y.mem = x.mem := by mem_frame
+    refine ⟨?_, hdec, ⟨hbdd, hy0, hmx ▸ hrep.kwise_rep, hmx ▸ hrep.table_inv⟩,
+      fun _ _ => hmx ▸ rfl⟩
+    rw [TableInv.probeLen_congr (hmem₂.symm ▸ hrep.table_inv) hrep.table_inv hmem₂ u _]; omega
   | insert u₀ v =>
-    apply WP.branch_eq (hx₃_22_eq.trans harg.2.1) hx₃_10
-    · intro _
-      wram_call (insertFinishCode_execWithin u v p hx₃_0 hx₃_1 hx₃_2'
-        hx₃_4 hx₃_5 hx₃_6 hx₃_10 (hx₃_23_eq.trans harg.2.2) hfit_space) with y ⟨hymem, hy0, _⟩
-      intro hbdd
-      have hmx : y.mem = insertMem base n_max x.mem p u.val v := hymem.trans (by rw [hmem₃])
-      refine ⟨?_, rfl,
-        ⟨hbdd, hy0,
-          kwise_rep_congr hrep.kwise_rep fun a ha _ => hmx ▸ insertMem_of_outside (.inl ha),
-          hmx ▸ hrep.table_inv.insert_mem u₀ v hvalid⟩,
-        Modifies.block_iff.mpr fun a ha =>
-          hmx ▸ insertMem_of_outside (ha.imp (fun h => Nat.lt_of_lt_of_le h (Nat.le_add_right _ _))
-            id)⟩
-      rw [TableInv.probeLen_congr (hmem₂.symm ▸ hrep.table_inv) hrep.table_inv hmem₂ u _]; omega
-    · intro h; exact absurd rfl h
+    wram_exec [hx₃_22_eq, harg.2.1, hx₃_10]
+    wram_call (insertFinishCode_execWithin u v p hx₃_0 hx₃_1 hx₃_2'
+      hx₃_4 hx₃_5 hx₃_6 hx₃_10 (hx₃_23_eq.trans harg.2.2) hfit_space) with
+      y ⟨hymem, hy0, _⟩
+    intro hbdd
+    have hmx : y.mem = insertMem base n_max x.mem p u.val v := hymem.trans (by rw [hmem₃])
+    refine ⟨?_, rfl,
+      ⟨hbdd, hy0,
+        kwise_rep_congr hrep.kwise_rep fun a ha _ => hmx ▸ insertMem_of_outside (.inl ha),
+        hmx ▸ hrep.table_inv.insert_mem u₀ v hvalid⟩,
+      Modifies.block_iff.mpr fun a ha =>
+        hmx ▸ insertMem_of_outside (ha.imp (fun h => Nat.lt_of_lt_of_le h (Nat.le_add_right _ _))
+          id)⟩
+    rw [TableInv.probeLen_congr (hmem₂.symm ▸ hrep.table_inv) hrep.table_inv hmem₂ u _]; omega
 
 /-! ## Section 4: `Randomized.StateTransitionImpl` certificate and expected-time sequence theorem -/
 

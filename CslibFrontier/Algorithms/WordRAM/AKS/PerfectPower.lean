@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
 public import CslibFrontier.Algorithms.WordRAM.NatLog
 public import CslibFrontier.Algorithms.WordRAM.NatNthRoot
 public import CslibFrontier.Foundations.NumberTheory.AKS.PerfectPower
@@ -87,6 +88,15 @@ theorem rootMap_injective : rootMap.Injective := Fin.castLE_injective _
 theorem capMap_injective : capMap.Injective := by decide
 theorem logMap_injective : logMap.Injective := by decide
 
+@[local wram_simps] private theorem map_regs :
+    rootMap NatNthRoot.n = n ∧ rootMap NatNthRoot.k = k ∧ rootMap NatNthRoot.lo = lo ∧
+    rootMap NatNthRoot.one = one ∧ rootMap NatNthRoot.two = two ∧
+    capMap NatNthRoot.CapPow.m = lo ∧ capMap NatNthRoot.CapPow.k = k ∧
+    capMap NatNthRoot.CapPow.n = n ∧ capMap NatNthRoot.CapPow.p = p ∧
+    capMap NatNthRoot.CapPow.one = one ∧
+    logMap NatLog.arg = larg ∧ logMap NatLog.result = lres ∧
+    logMap NatLog.one = one ∧ logMap NatLog.two = two := by decide
+
 /-- Test one exponent: take the root, raise it back, and record equality with `n`. -/
 def body : Code .standard 14 :=
   .seq (NatNthRoot.program.rename rootMap) (.seq (NatNthRoot.CapPow.program.rename capMap)
@@ -116,9 +126,9 @@ theorem exec {w : ℕ} (x : Data 14) (hn : 2 ≤ x.regs n)
   obtain ⟨L, hL⟩ : ∃ L, Nat.log 2 N = L := ⟨_, rfl⟩
   have hLN : L < N := hL ▸ Nat.log_lt_self 2 (by omega)
   have hLpos : 1 ≤ L := hL ▸ Nat.le_log_of_pow_le one_lt_two (by omega)
-  have hfitN : Fits w N := hfit.of_le (by nlinarith)
-  have h2 : Fits w 2 := hfit.of_le (by nlinarith)
-  have h1 : Fits w 1 := hfit.of_le (by nlinarith)
+  have hfitN : Fits w N := hfit.of_le (by omega)
+  have h2 : Fits w 2 := hfit.of_le (by omega)
+  have h1 : Fits w 1 := hfit.of_le (by omega)
   let Good (b : ℕ) : Prop := ∃ c, 2 ≤ c ∧ c < b ∧ Nat.nthRoot c N ^ c = N
   let P (j : ℕ) (y : Data 14) : Prop := y.regs n = N ∧ y.regs one = 1 ∧ y.regs two = 2 ∧
     y.regs lim = L + 1 ∧ 2 ≤ j ∧
@@ -137,6 +147,8 @@ theorem exec {w : ℕ} (x : Data 14) (hn : 2 ≤ x.regs n)
     have hale : a ^ b ≤ N := Nat.pow_nthRoot_le_iff.mpr (Or.inl hb0)
     have ha1 : 1 ≤ a := (Nat.le_nthRoot_iff hb0).mpr (by rw [one_pow]; omega)
     have haN : a ≤ N := (Nat.le_self_pow hb0 a).trans hale
+    have hprod_le : N * a ≤ N * N + 2 * N + 2 :=
+      (Nat.mul_le_mul_left N haN).trans (by omega)
     have hgood : Good (b + 1) ↔ Good b ∨ a ^ b = N := by
       constructor
       · rintro ⟨c, hc2, hcb, hc⟩
@@ -146,81 +158,51 @@ theorem exec {w : ℕ} (x : Data 14) (hn : 2 ≤ x.regs n)
       · rintro (⟨c, hc2, hcb, hc⟩ | h)
         · exact ⟨c, hc2, by omega, hc⟩
         · exact ⟨b, hk2, by omega, h⟩
+    apply WP.exists_execWithin
     unfold body
-    wram_exec
-    wram_call (NatNthRoot.exec (y.comap rootMap) (by change 1 ≤ y.regs k; omega)
-      (by change Fits w (y.regs k); exact hb ▸ hbfit)
-      (by change Fits w (y.regs n * y.regs n + 2 * y.regs n + 2); exact hyn ▸ hfit))
-      renamed rootMap_injective with y₁ ⟨⟨hy₁lo, hy₁n, hy₁k, hy₁o, hy₁t, hy₁m⟩, hout₁⟩
-    have hy₁lo' : y₁.regs lo = a := by
-      change y₁.regs lo = Nat.nthRoot (y.regs k) (y.regs n) at hy₁lo
-      rwa [hb, hyn] at hy₁lo
-    have hy₁n' : y₁.regs n = N := (show y₁.regs n = y.regs n from hy₁n).trans hyn
-    have hy₁k' : y₁.regs k = b := (show y₁.regs k = y.regs k from hy₁k).trans hb
-    wram_exec
-    wram_call (NatNthRoot.CapPow.exec (y₁.comap capMap)
-      (by change 1 ≤ y₁.regs lo; exact hy₁lo' ▸ ha1) h1
-      (by change Fits w (y₁.regs k); exact hy₁k' ▸ hbfit)
-      (by change Fits w (y₁.regs n * y₁.regs lo); rw [hy₁n', hy₁lo']
-          exact hfit.of_le (by nlinarith)))
-      renamed capMap_injective with y₂ ⟨⟨-, hpeq, -, hy₂k, hy₂n, hy₂o, hy₂m⟩, hout₂⟩
-    have hy₂p : y₂.regs p = a ^ b := by
-      change y₁.regs lo ^ y₁.regs k ≤ y₁.regs n → y₂.regs p = y₁.regs lo ^ y₁.regs k at hpeq
-      rw [hy₁lo', hy₁k', hy₁n'] at hpeq
-      exact hpeq hale
-    have hy₂n' : y₂.regs n = N := (show y₂.regs n = y₁.regs n from hy₂n).trans hy₁n'
-    have hy₂k' : y₂.regs k = b := (show y₂.regs k = y₁.regs k from hy₂k).trans hy₁k'
-    have hy₂o' : y₂.regs one = 1 := hy₂o
-    have hy₂t : y₂.regs two = 2 := (hout₂ two (by decide)).trans hy₁t
-    have hy₂l : y₂.regs lim = L + 1 :=
-      (hout₂ lim (by decide)).trans ((hout₁ lim (by decide)).trans hyl)
-    have hy₂f : y₂.regs flag = if Good b then 1 else 0 :=
-      (hout₂ flag (by decide)).trans ((hout₁ flag (by decide)).trans hyf)
-    have hy₂m' : y₂.mem = x.mem := hy₂m.trans (hy₁m.trans hym)
+    wram_call (NatNthRoot.exec (w := w)) renamed rootMap_injective
+      [hb, hyn, show 1 ≤ b by omega, hbfit, hfit]
+      with y₁ ⟨⟨hy₁lo, hy₁n, hy₁k, hy₁o, hy₁t, hy₁m⟩, hout₁⟩
+    wram_simp [hb, hyn] at hy₁lo hy₁n hy₁k hy₁o hy₁t
+    wram_call (NatNthRoot.CapPow.exec (w := w)) renamed
+      [hy₁lo, hy₁k, hy₁n, ha1, h1, hbfit, hfit.of_le hprod_le]
+      with y₂ ⟨⟨-, hpeq, -, hy₂k, hy₂n, hy₂o, hy₂m⟩, hout₂⟩
+    wram_simp [hy₁lo, hy₁k, hy₁n] at hpeq hy₂k hy₂n hy₂o
+    have hy₂p : y₂.regs p = a ^ b := hpeq hale
+    have hy₂t : y₂.regs two = 2 := by regs_frame
+    have hy₂l : y₂.regs lim = L + 1 := by regs_frame
+    have hy₂f : y₂.regs flag = if Good b then 1 else 0 := by regs_frame
+    have hy₂m' : y₂.mem = x.mem := by mem_frame
     have hclog_le : Nat.clog 2 (N + 1) * (6 * b + 13) ≤ Nat.clog 2 (N + 1) * (6 * L + 13) :=
       Nat.mul_le_mul_left _ (by omega)
-    wram_exec [hy₂p, hy₂n', hy₂o', hy₂k'] <;>
-      { wram_simp [P, hT₀, hy₂n', hy₂o', hy₂t, hy₂l, hy₂f, hy₂m', hb, hgood]
-        rw [show rootMap NatNthRoot.n = n from rfl, show rootMap NatNthRoot.k = k from rfl,
-          show capMap NatNthRoot.CapPow.k = k from rfl, hyn, hb, hy₁k']
+    wram_exec [hy₂p, hy₂n, hy₂o, hy₂k] <;>
+      { wram_simp [P, hT₀, hy₁k, hy₂n, hy₂o, hy₂t, hy₂l, hy₂f, hy₂m', hb, hyn, hgood]
         simp [hc]; omega }
   unfold program
   wram_exec [hN]
-  refine WP.name fun x₁ hx₁ => ?_
-  have hx₁a : x₁.regs larg = N := by subst hx₁; wram_simp
-  wram_call (NatLog.exec (x₁.comap logMap) h2
-    (by change Fits w (x₁.regs larg); exact hx₁a ▸ hfitN)
-    (by change Fits w (Nat.log 2 (x₁.regs larg) + 1); rw [hx₁a, hL]
-        exact hfitN.of_le (by omega)))
-    renamed logMap_injective with y₁ ⟨⟨hy₁r, hy₁m, hy₁o, hy₁t⟩, hout₁⟩
-  have hy₁r' : y₁.regs lres = L := by
-    change y₁.regs lres = Nat.log 2 (x₁.regs larg) at hy₁r
-    rwa [hx₁a, hL] at hy₁r
-  have hy₁o' : y₁.regs one = 1 := hy₁o
-  have hy₁t' : y₁.regs two = 2 := hy₁t
-  have hy₁n : y₁.regs n = N := (hout₁ n (by decide)).trans (by subst hx₁; wram_simp [hN])
-  have hy₁m' : y₁.mem = x.mem := hy₁m.trans (by subst hx₁; rfl)
-  wram_exec [hy₁r', hy₁o']
-  refine WP.name fun x₂ hx₂ => ?_
-  have hk₂ : x₂.regs k = 2 := by subst hx₂; wram_simp
-  have hx₂P : P (x₂.regs k) x₂ := by
-    have hgood2 : ¬Good 2 := fun ⟨c, hc2, hc, _⟩ => by omega
-    subst hx₂
-    simp only [P]
-    wram_simp [hy₁n, hy₁o', hy₁t', hy₁m', hgood2]
-  obtain ⟨y, hrun₃, ⟨hyn, _, _, _, _, hyf, hym⟩, _⟩ := ExecWithin.loop_count P
-    (fun _ ⟨_, _, _, hlim, _⟩ => hlim) hbody (by omega) hx₂P
-  refine WP.of_execWithin hrun₃ ⟨?_, ?_, hyn, hym⟩
-  · have hx₂k : L + 1 - x₂.regs k ≤ L + 1 := by omega
-    have := Nat.mul_le_mul_right (T₀ + 2) hx₂k
-    rw [show logMap NatLog.arg = larg from rfl, hx₁a, hL]
-    simp only [time, hL, hT₀] at this ⊢
-    nlinarith
-  · have hiff : Good (L + 1) ↔ Cslib.AKS.IsPerfectPower N := by
-      rw [Cslib.AKS.isPerfectPower_iff_nthRoot hn]
-      exact ⟨fun ⟨c, hc2, hck, hc⟩ => ⟨c, by omega, hc2, hc⟩,
-        fun ⟨c, hcL, hc2, hc⟩ => ⟨c, hc2, by omega, hc⟩⟩
-    rw [hyf]
-    exact if_congr hiff rfl rfl
+  wram_call (NatLog.exec (w := w)) renamed
+    [hL, h2, hfitN, hfitN.of_le (by omega : L + 1 ≤ N)]
+    with y₁ ⟨⟨hy₁r, hy₁m, hy₁o, hy₁t⟩, hout₁⟩
+  wram_simp [hL] at hy₁r hy₁o hy₁t
+  have hy₁n : y₁.regs n = N := by regs_frame
+  have hy₁m' : y₁.mem = x.mem := by mem_frame
+  wram_exec [hy₁r, hy₁o]
+  wram_call (ExecWithin.loop_count P (fun _ ⟨_, _, _, hlim, _⟩ => hlim) hbody)
+    with y ⟨⟨hyn, _, _, _, _, hyf, hym⟩, _⟩
+  · wram_simp [hL]
+    refine ⟨?_, ?_, hyn, hym⟩
+    · have h1le := Nat.mul_le_mul_right (T₀ + 2) (show L + 1 - 2 ≤ L + 1 by omega)
+      have h2le := Nat.mul_le_mul_left (L + 1)
+        (show T₀ + 2 ≤ Nat.clog 2 (N + 1) * (6 * L + 13) + 6 * L + 22 by rw [hT₀]; omega)
+      simp only [time, hL] at h2le ⊢
+      omega
+    · have hiff : Good (L + 1) ↔ Cslib.AKS.IsPerfectPower N := by
+        rw [Cslib.AKS.isPerfectPower_iff_nthRoot hn]
+        exact ⟨fun ⟨c, hc2, hck, hc⟩ => ⟨c, by omega, hc2, hc⟩,
+          fun ⟨c, hcL, hc2, hc⟩ => ⟨c, hc2, by omega, hc⟩⟩
+      rw [hyf]
+      exact if_congr hiff rfl rfl
+  · have hgood2 : ¬Good 2 := fun ⟨c, hc2, hc, _⟩ => by omega
+    wram_simp [P, hy₁n, hy₁o, hy₁t, hy₁r, hy₁m', hgood2]
 
 end Cslib.Algorithms.WordRAM.AKS.PerfectPower
