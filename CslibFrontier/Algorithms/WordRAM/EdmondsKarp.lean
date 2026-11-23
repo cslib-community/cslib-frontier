@@ -1163,6 +1163,24 @@ private theorem preservesAt_augStep {a : ℕ} {d : (Ctx × ℕ) × ℕ}
     · exact preservesAt_pure _ _
   · exact preservesAt_pure _ _
 
+private theorem preservesAt_roundStep {a : ℕ} {d : (Ctx × (ℕ × ℕ)) × ℕ}
+    (hs : d.1.2.1 < d.1.1.1) (ha : a < d.1.1.2.2.1 ∨ d.1.1.2.2.1 + ekScratch d.1.1.1 ≤ a) :
+    PreservesAt a (roundStep d) := by
+  obtain ⟨⟨c, src, snk⟩, sv⟩ := d
+  dsimp only at hs ha
+  unfold roundStep
+  dsimp only
+  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
+  refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
+  refine preservesAt_bind (preservesAt_bfsProg (d := (c, src)) hs (by ek_omega)) fun _ => ?_
+  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
+  refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
+  refine preservesAt_bind (fun t => congrArg (fun st : Memory.State => st.mem a)
+    (clientState_iterate_eq_of _ _ (fun _ t' => bnStep_state _ t') _ _ t)) fun _ => ?_
+  exact preservesAt_bind
+    (preservesAt_iterate (fun _ => preservesAt_augStep (by ek_omega)) _ _)
+    fun _ => preservesAt_pure _ _
+
 theorem preservesAt_ekProg {a : ℕ} {d : Ctx × (ℕ × ℕ)} (hs : d.2.1 < d.1.1)
     (ha : a < d.1.2.2.1 ∨ d.1.2.2.1 + ekScratch d.1.1 ≤ a) : PreservesAt a (ekProg d) := by
   obtain ⟨c, src, snk⟩ := d
@@ -1170,22 +1188,11 @@ theorem preservesAt_ekProg {a : ℕ} {d : Ctx × (ℕ × ℕ)} (hs : d.2.1 < d.1
   unfold ekProg
   dsimp only
   refine preservesAt_bind (preservesAt_fillRange (by ek_omega)) fun _ => ?_
-  refine preservesAt_bind (preservesAt_iterate (fun st => ?_) _ _) fun _ => ?_
-  · unfold roundStep
-    dsimp only
-    refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-    refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
-    refine preservesAt_bind (preservesAt_bfsProg (d := (c, src)) hs (by ek_omega)) fun _ => ?_
-    refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-    refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
-    refine preservesAt_bind (fun t => congrArg (fun st : Memory.State => st.mem a)
-      (clientState_iterate_eq_of _ _ (fun _ t' => bnStep_state _ t') _ _ t)) fun _ => ?_
-    exact preservesAt_bind
-      (preservesAt_iterate (fun _ => preservesAt_augStep (by ek_omega)) _ _)
-      fun _ => preservesAt_pure _ _
-  · exact preservesAt_bind (fun t => congrArg (fun st : Memory.State => st.mem a)
-      (clientState_iterate_eq_of _ _ (fun _ t' => cutOuterStep_state _ t') _ _ t))
-      fun _ => preservesAt_pure _ _
+  refine preservesAt_bind (preservesAt_iterate
+    (fun sv => preservesAt_roundStep (d := ((c, (src, snk)), sv)) hs ha) _ _) fun _ => ?_
+  exact preservesAt_bind (fun t => congrArg (fun st : Memory.State => st.mem a)
+    (clientState_iterate_eq_of _ _ (fun _ t' => cutOuterStep_state _ t') _ _ t))
+    fun _ => preservesAt_pure _ _
 
 private theorem cutInnerStep_acc_le (d : (Ctx × ℕ) × (ℕ × ℕ)) (t : Memory.State)
     (h : d.2.2 ≤ d.1.1.1 * d.1.1.1 * d.1.1.2.2.2 + d.1.1.2.2.2) :
@@ -1263,7 +1270,7 @@ private theorem readResCap_spec (hB : ∀ u v, W u v ≤ B) {t : Memory.State}
     hf v u]
   have hc : W u v ≤ B ∧ f u v ≤ W u v ∧ f v u ≤ B :=
     ⟨hB u v, f.le_cap u v, (f.le_cap v u).trans (hB v u)⟩
-  rw [if_pos hc, StateTransitionSpec.clientResult_pure]
+  rw [ite_eq_left hc, StateTransitionSpec.clientResult_pure]
   rfl
 
 /-- Invariant after the layers below `layer`: distances up to `layer` are exact, the others still
@@ -1681,8 +1688,8 @@ private theorem iterate_bnStep_spec (hB : ∀ u v, W u v ≤ B) {t : Memory.Stat
         ((parOf cur).1, δ₁) := by
       unfold bnStep
       dsimp only
-      rw [clientResult_bind_read, if_pos cur.2, clientResult_bind_read, hpv,
-        if_pos (parOf cur).2, StateTransitionSpec.clientResult_bind,
+      rw [clientResult_bind_read, ite_eq_left cur.2, clientResult_bind_read, hpv,
+        ite_eq_left (parOf cur).2, StateTransitionSpec.clientResult_bind,
         readResCap_state, readResCap_spec hB hW hf (parOf cur) cur]
       rw [hδ₁]
       split_ifs <;> rfl
@@ -1729,13 +1736,13 @@ private theorem augStep_spec {c : Ctx} {δ cur p : ℕ} (hcur : cur < c.1) (hp :
   refine ⟨?_, ?_⟩
   · unfold augStep
     dsimp only
-    rw [clientResult_bind_read, if_pos hcur, clientResult_bind_read, hpred, if_pos hp,
-      clientResult_bind_read, clientResult_bind_read, if_pos ⟨hfB, hδ⟩]
+    rw [clientResult_bind_read, ite_eq_left hcur, clientResult_bind_read, hpred, ite_eq_left hp,
+      clientResult_bind_read, clientResult_bind_read, ite_eq_left ⟨hfB, hδ⟩]
     rfl
   · unfold augStep
     dsimp only
-    rw [clientState_bind_read, if_pos hcur, clientState_bind_read, hpred, if_pos hp,
-      clientState_bind_read, clientState_bind_read, if_pos ⟨hfB, hδ⟩]
+    rw [clientState_bind_read, ite_eq_left hcur, clientState_bind_read, hpred, ite_eq_left hp,
+      clientState_bind_read, clientState_bind_read, ite_eq_left ⟨hfB, hδ⟩]
     rfl
 
 section AugWalk
@@ -1795,13 +1802,13 @@ private theorem iterate_augStep_spec (hB : ∀ u v, W u v ≤ B) (f : (Network.m
       rw [hf_rev, hf_fwd]
       by_cases hxy : (x, y) = (parOf cur, cur)
       · obtain ⟨rfl, rfl⟩ := Prod.mk.inj hxy
-        rw [if_pos rfl, Function.update_self]
-      · rw [if_neg hxy, Function.update_of_ne (fun h => hxy (Prod.ext (haddr _ _ _ _ h).1
+        rw [ite_eq_left rfl, Function.update_self]
+      · rw [ite_eq_right hxy, Function.update_of_ne (fun h => hxy (Prod.ext (haddr _ _ _ _ h).1
           (haddr _ _ _ _ h).2))]
         by_cases hyx : (y, x) = (parOf cur, cur)
         · obtain ⟨rfl, rfl⟩ := Prod.mk.inj hyx
-          rw [if_pos rfl, Function.update_self]
-        · rw [if_neg hyx, Function.update_of_ne (fun h => hyx (Prod.ext (haddr _ _ _ _ h).2
+          rw [ite_eq_left rfl, Function.update_self]
+        · rw [ite_eq_right hyx, Function.update_of_ne (fun h => hyx (Prod.ext (haddr _ _ _ _ h).2
             (haddr _ _ _ _ h).1))]
     have hpar1 : ∀ x : Fin n, 0 < f.resDist x → f.resDist x < n →
         u1.mem (predAddr c x.1) = (parOf x).1 := fun x hx1 hx2 => by
@@ -1824,12 +1831,12 @@ private theorem iterate_augStep_spec (hB : ∀ u v, W u v ≤ B) (f : (Network.m
       · obtain ⟨_, hyc⟩ := hdisj x y hxy
         have h1 : (x, y) ≠ (parOf cur, cur) := fun h => hyc (Prod.mk.inj h).2
         have h2 : (y, x) ≠ (parOf cur, cur) := fun h => (hdisj x y hxy).1 (Prod.mk.inj h).2
-        rw [if_neg h1, if_neg h2]
+        rw [ite_eq_right h1, ite_eq_right h2]
         exact hf_sub x y (Or.inl (by rw [harcs_eq]; exact List.mem_append_left _ hxy))
       · obtain ⟨hxc, _⟩ := hdisj y x hyx
         have h1 : (x, y) ≠ (parOf cur, cur) := fun h => hxc (Prod.mk.inj h).2
         have h2 : (y, x) ≠ (parOf cur, cur) := fun h => (hdisj y x hyx).2 (Prod.mk.inj h).2
-        rw [if_neg h1, if_neg h2]
+        rw [ite_eq_right h1, ite_eq_right h2]
         exact hf_sub x y (Or.inr (by rw [harcs_eq]; exact List.mem_append_left _ hyx))
     have hih := iterate_augStep_spec hB f parOf hpar δ hδ rem (parOf cur) u1 (by omega) hp_rem
       hpar1 hf_sub1 x y
@@ -1838,21 +1845,21 @@ private theorem iterate_augStep_spec (hB : ∀ u v, W u v ≤ B) (f : (Network.m
     rw [StateTransitionSpec.clientState_bind, hres1, hih, hflow1 x y, harcs_eq]
     simp only [List.mem_append, List.mem_singleton]
     by_cases h1 : (x, y) ∈ pathArcs (buildPath parOf rem (parOf cur))
-    · rw [if_pos h1, if_pos (Or.inl h1)]
+    · rw [ite_eq_left h1, ite_eq_left (Or.inl h1)]
     · by_cases h2 : (x, y) = (parOf cur, cur)
       · have h3 : (y, x) ∉ pathArcs (buildPath parOf rem (parOf cur)) := fun h =>
           (hdisj y x h).1 (Prod.mk.inj h2).2
-        rw [if_neg h1, if_neg h3, if_pos h2, if_pos (Or.inr h2)]
+        rw [ite_eq_right h1, ite_eq_right h3, ite_eq_left h2, ite_eq_left (Or.inr h2)]
       · have h12 : ¬ ((x, y) ∈ pathArcs (buildPath parOf rem (parOf cur)) ∨
             (x, y) = (parOf cur, cur)) := not_or.mpr ⟨h1, h2⟩
-        rw [if_neg h1, if_neg h12]
+        rw [ite_eq_right h1, ite_eq_right h12]
         by_cases h3 : (y, x) ∈ pathArcs (buildPath parOf rem (parOf cur))
-        · rw [if_pos h3, if_pos (Or.inl h3)]
+        · rw [ite_eq_left h3, ite_eq_left (Or.inl h3)]
         · by_cases h4 : (y, x) = (parOf cur, cur)
-          · rw [if_neg h3, if_neg h2, if_pos h4, if_pos (Or.inr h4)]
+          · rw [ite_eq_right h3, ite_eq_right h2, ite_eq_left h4, ite_eq_left (Or.inr h4)]
           · have h34 : ¬ ((y, x) ∈ pathArcs (buildPath parOf rem (parOf cur)) ∨
                 (y, x) = (parOf cur, cur)) := not_or.mpr ⟨h3, h4⟩
-            rw [if_neg h3, if_neg h2, if_neg h4, if_neg h34]
+            rw [ite_eq_right h3, ite_eq_right h2, ite_eq_right h4, ite_eq_right h34]
 
 end AugWalk
 
@@ -1893,7 +1900,7 @@ private theorem roundStep_spec (hst : src ≠ snk) (hB : ∀ u v, W u v ≤ B)
     change (Memory.spec 0).clientResult t (roundStep ((c, (src.1, snk.1)), 0)) = _
     unfold roundStep
     dsimp only
-    rw [clientResult_bind_read, if_pos rfl, StateTransitionSpec.clientResult_bind]
+    rw [clientResult_bind_read, ite_eq_left rfl, StateTransitionSpec.clientResult_bind]
   have hred_s : t' = (Memory.spec 0).clientState tb
       (do
         let dt ← Memory.read (distAddr c snk.1)
@@ -1905,14 +1912,14 @@ private theorem roundStep_spec (hst : src ≠ snk) (hB : ∀ u v, W u v ≤ B)
     change (Memory.spec 0).clientState t (roundStep ((c, (src.1, snk.1)), 0)) = _
     unfold roundStep
     dsimp only
-    rw [clientState_bind_read, if_pos rfl, StateTransitionSpec.clientState_bind]
+    rw [clientState_bind_read, ite_eq_left rfl, StateTransitionSpec.clientState_bind]
   rw [clientResult_bind_read] at hred_r
   rw [clientState_bind_read] at hred_s
   have hdt : tb.mem (distAddr c snk.1) = f.resDist snk := hb_dist snk
   rw [hdt] at hred_r hred_s
   by_cases hreach : 0 < f.resDist snk ∧ f.resDist snk < c.1
   · right
-    rw [if_pos hreach] at hred_r hred_s
+    rw [ite_eq_left hreach] at hred_r hred_s
     refine ⟨?_, ?_⟩
     · rw [hred_r, StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
         StateTransitionSpec.clientResult_pure]
@@ -1977,7 +1984,7 @@ private theorem roundStep_spec (hst : src ≠ snk) (hB : ∀ u v, W u v ≤ B)
     rw [hflows x y, ← hδ_eq, hfb x y]
     rfl
   · left
-    rw [if_neg hreach] at hred_r hred_s
+    rw [ite_eq_right hreach] at hred_r hred_s
     have hk : f.resDist snk = n := by
       have hle : f.resDist snk ≤ n := by simpa [Fintype.card_fin] using f.resDist_le_card snk
       by_contra hne
@@ -1992,7 +1999,162 @@ private theorem roundStep_spec (hst : src ≠ snk) (hB : ∀ u v, W u v ≤ B)
 
 end Round
 
-/-! ### Interface (proofs in progress) -/
+
+/-! ### Semantics: the cut sum and the whole solver -/
+
+private theorem sum_filter_lt_succ {n u : ℕ} (hu : u < n) (P : Fin n → Prop) [DecidablePred P]
+    (g : Fin n → ℕ) :
+    ∑ x ∈ Finset.univ.filter (fun x : Fin n => x.1 < u + 1 ∧ P x), g x =
+      ∑ x ∈ Finset.univ.filter (fun x : Fin n => x.1 < u ∧ P x), g x +
+        if P ⟨u, hu⟩ then g ⟨u, hu⟩ else 0 := by
+  have h := Finset.sum_filter_add_sum_filter_not
+    (Finset.univ.filter fun x : Fin n => x.1 < u + 1 ∧ P x) (fun x : Fin n => x.1 = u) g
+  rw [Finset.filter_filter, Finset.filter_filter] at h
+  have e1 : (Finset.univ.filter fun x : Fin n => (x.1 < u + 1 ∧ P x) ∧ ¬ x.1 = u) =
+      Finset.univ.filter fun x : Fin n => x.1 < u ∧ P x := by
+    ext x
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+    exact ⟨fun ⟨⟨h1, h2⟩, h3⟩ => ⟨by omega, h2⟩, fun ⟨h1, h2⟩ => ⟨⟨by omega, h2⟩, by omega⟩⟩
+  have e2 : ∑ x ∈ Finset.univ.filter (fun x : Fin n => (x.1 < u + 1 ∧ P x) ∧ x.1 = u), g x =
+      if P ⟨u, hu⟩ then g ⟨u, hu⟩ else 0 := by
+    split_ifs with hP
+    · rw [Finset.sum_eq_single_of_mem ⟨u, hu⟩ (by simp [hP])]
+      intro x hx hxu
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hx
+      exact absurd (Fin.ext hx.2) hxu
+    · rw [Finset.sum_eq_zero]
+      intro x hx
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hx
+      have hxe : x = ⟨u, hu⟩ := Fin.ext hx.2
+      exact absurd (hxe ▸ hx.1.2) hP
+  rw [e1, e2] at h
+  omega
+
+private theorem sum_filter_lt_full {n : ℕ} (P : Fin n → Prop) [DecidablePred P]
+    (g : Fin n → ℕ) :
+    ∑ x ∈ Finset.univ.filter (fun x : Fin n => x.1 < n ∧ P x), g x =
+      ∑ x ∈ Finset.univ.filter P, g x := by
+  congr 1
+  ext x
+  simp [x.2]
+
+private theorem sum_sum_le_sq {n B : ℕ} {W : Fin n → Fin n → ℕ} (hB : ∀ u v, W u v ≤ B)
+    (S T : Finset (Fin n)) : ∑ x ∈ S, ∑ y ∈ T, W x y ≤ n * n * B := by
+  calc ∑ x ∈ S, ∑ y ∈ T, W x y ≤ ∑ x ∈ S, ∑ y ∈ T, B :=
+        Finset.sum_le_sum fun x _ => Finset.sum_le_sum fun y _ => hB x y
+    _ = S.card * (T.card * B) := by simp
+    _ ≤ n * (n * B) := Nat.mul_le_mul (by simpa using S.card_le_univ)
+          (Nat.mul_le_mul_right _ (by simpa using T.card_le_univ))
+    _ = n * n * B := by ring
+
+section Final
+
+variable {n mb sb B : ℕ} {W : Fin n → Fin n → ℕ}
+
+private theorem iterate_cutInner_spec (hB : ∀ u v, W u v ≤ B) {t : Memory.State}
+    (hW : MatLoaded n mb W t) (C : Finset (Fin n))
+    (hC : ∀ x : Fin n, (t.mem (distAddr (n, mb, sb, B) x.1) = n ↔ x ∉ C))
+    (u : Fin n) (acc : ℕ) (hacc : acc + ∑ y ∈ Finset.univ \ C, W u y ≤ n * n * B) :
+    ((Memory.spec 0).clientResult t
+      (iterate cutInnerStep ((n, mb, sb, B), u.1) n (0, acc))).2 =
+      acc + ∑ y ∈ Finset.univ \ C, W u y := by
+  have hinv := iterate_invariant_of cutInnerStep ((n, mb, sb, B), u.1)
+    (fun rem (va : ℕ × ℕ) t' => va.1 + rem = n ∧
+      va.2 = acc + ∑ y ∈ Finset.univ.filter (fun y : Fin n => y.1 < va.1 ∧ y ∉ C), W u y ∧
+      t' = t)
+    (fun rem va t' ⟨hsum, hacc', ht'⟩ => by
+      subst ht'
+      have hv : va.1 < n := by omega
+      set vFin : Fin n := ⟨va.1, hv⟩ with hvFin
+      have hpart_le : ∑ y ∈ Finset.univ.filter (fun y : Fin n => y.1 < va.1 ∧ y ∉ C), W u y ≤
+          ∑ y ∈ Finset.univ \ C, W u y := by
+        refine Finset.sum_le_sum_of_subset fun y hy => ?_
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hy
+        simp [hy.2]
+      have hres : (Memory.spec 0).clientResult t' (cutInnerStep (((n, mb, sb, B), u.1), va)) =
+          (va.1 + 1, if vFin ∉ C then va.2 + W u vFin else va.2) := by
+        unfold cutInnerStep
+        dsimp only
+        rw [clientResult_bind_read, clientResult_bind_read]
+        have hcap : t'.mem (capAddr (n, mb, sb, B) u.1 va.1) = W u vFin := hW u vFin
+        rw [hcap]
+        by_cases hvC : vFin ∈ C
+        · have hd : t'.mem (distAddr (n, mb, sb, B) va.1) ≠ n := fun h => (hC vFin).mp h hvC
+          rw [ite_eq_right (fun h => hd h.1), ite_eq_right (not_not.mpr hvC),
+            StateTransitionSpec.clientResult_pure]
+        · have hd := (hC vFin).mpr hvC
+          rw [ite_eq_left ⟨hd, hB u vFin, by omega⟩, ite_eq_left hvC, StateTransitionSpec.clientResult_pure]
+      refine ⟨?_, ?_, cutInnerStep_state _ t'⟩
+      · rw [hres]; dsimp only; omega
+      · rw [hres]
+        dsimp only
+        rw [sum_filter_lt_succ hv (fun y => y ∉ C), ← hvFin]
+        split_ifs <;> omega)
+    (n := n) (a := (0, acc)) (s := t) ⟨Nat.zero_add _, by simp, rfl⟩
+  obtain ⟨hsum_end, hacc_end, -⟩ := hinv
+  rw [hacc_end, show ((Memory.spec 0).clientResult t
+    (iterate cutInnerStep ((n, mb, sb, B), u.1) n (0, acc))).1 = n by omega,
+    sum_filter_lt_full]
+  congr 2
+  ext y
+  simp
+
+private theorem iterate_cutOuter_spec (hB : ∀ u v, W u v ≤ B) {t : Memory.State}
+    (hW : MatLoaded n mb W t) (C : Finset (Fin n))
+    (hC : ∀ x : Fin n, (t.mem (distAddr (n, mb, sb, B) x.1) = n ↔ x ∉ C))
+    (hC' : ∀ x : Fin n, (t.mem (distAddr (n, mb, sb, B) x.1) < n ↔ x ∈ C)) :
+    ((Memory.spec 0).clientResult t (iterate cutOuterStep (n, mb, sb, B) n (0, 0))).2 =
+      cutWeight W C := by
+  have hinv := iterate_invariant_of cutOuterStep (n, mb, sb, B)
+    (fun rem (ua : ℕ × ℕ) t' => ua.1 + rem = n ∧
+      ua.2 = ∑ x ∈ Finset.univ.filter (fun x : Fin n => x.1 < ua.1 ∧ x ∈ C),
+        ∑ y ∈ Finset.univ \ C, W x y ∧ t' = t)
+    (fun rem ua t' ⟨hsum, hacc', ht'⟩ => by
+      subst ht'
+      have hu : ua.1 < n := by omega
+      set uFin : Fin n := ⟨ua.1, hu⟩ with huFin
+      have hsplit := sum_filter_lt_succ hu (fun x => x ∈ C)
+        (fun x => ∑ y ∈ Finset.univ \ C, W x y)
+      have hres : (Memory.spec 0).clientResult t' (cutOuterStep ((n, mb, sb, B), ua)) =
+          (ua.1 + 1, if uFin ∈ C then ua.2 + ∑ y ∈ Finset.univ \ C, W uFin y else ua.2) := by
+        unfold cutOuterStep
+        dsimp only
+        rw [clientResult_bind_read]
+        by_cases huC : uFin ∈ C
+        · rw [ite_eq_left ((hC' uFin).mpr huC), ite_eq_left huC, StateTransitionSpec.clientResult_bind,
+            StateTransitionSpec.clientResult_pure]
+          congr 1
+          refine iterate_cutInner_spec hB hW C hC uFin ua.2 ?_
+          rw [hacc']
+          have := sum_sum_le_sq hB
+            (Finset.univ.filter (fun x : Fin n => x.1 < ua.1 + 1 ∧ x ∈ C)) (Finset.univ \ C)
+          rw [hsplit, ite_eq_left huC] at this
+          exact this
+        · rw [ite_eq_right (fun h => huC ((hC' uFin).mp h)), ite_eq_right huC,
+            StateTransitionSpec.clientResult_pure]
+      refine ⟨?_, ?_, cutOuterStep_state _ t'⟩
+      · rw [hres]; dsimp only; omega
+      · rw [hres]
+        dsimp only
+        rw [hsplit, ← huFin]
+        split_ifs <;> omega)
+    (n := n) (a := (0, 0)) (s := t) ⟨Nat.zero_add _, by simp, rfl⟩
+  obtain ⟨hsum_end, hacc_end, -⟩ := hinv
+  rw [hacc_end, show ((Memory.spec 0).clientResult t
+    (iterate cutOuterStep (n, mb, sb, B) n (0, 0))).1 = n by omega, sum_filter_lt_full,
+    show Finset.univ.filter (· ∈ C) = C by ext; simp]
+  rfl
+
+end Final
+
+
+private theorem roundStep_idle {d : (Ctx × (ℕ × ℕ)) × ℕ} (h : d.2 ≠ 0) (t : Memory.State) :
+    (Memory.spec 0).clientResult t (roundStep d) = 1 ∧
+      (Memory.spec 0).clientState t (roundStep d) = t := by
+  unfold roundStep
+  dsimp only
+  exact ⟨by rw [clientResult_bind_read, ite_eq_right h, StateTransitionSpec.clientResult_pure],
+    by rw [clientState_bind_read, ite_eq_right h, StateTransitionSpec.clientState_pure]⟩
 
 /-- **Correctness of dense Edmonds–Karp.** On a state holding the capacities `W ≤ B` at `mb`,
 `ekProg` leaves memory outside its scratch area unchanged, the set `C` of vertices whose final
@@ -2007,6 +2169,134 @@ theorem ekProg_spec {n mb sb B : ℕ} {W : Fin n → Fin n → ℕ} {s t : Fin n
     (∀ a, (a < sb ∨ sb + ekScratch n ≤ a) → st'.mem a = st.mem a) ∧
       IsMinCutBetween (cutWeight W) s t C ∧
       (Memory.spec 0).clientResult st (ekProg (c, (s.1, t.1))) = cutWeight W C := by
-  sorry
+  dsimp only
+  have hn : 0 < n := Nat.zero_lt_of_lt s.2
+  have hframe : ∀ a, (a < sb ∨ sb + ekScratch n ≤ a) →
+      ((Memory.spec 0).clientState st (ekProg ((n, mb, sb, B), (s.1, t.1)))).mem a = st.mem a :=
+    fun a ha => preservesAt_ekProg (d := ((n, mb, sb, B), (s.1, t.1))) s.2 ha st
+  let N : Network (Fin n) := Network.mk W s t
+  set s1 := (Memory.spec 0).clientState st (fillRange ((flowAddr (n, mb, sb, B) 0 0, 0), n * n))
+  have hs1 := fillRange_spec (flowAddr (n, mb, sb, B) 0 0) 0 (n * n) st
+  have hW1 : MatLoaded n mb W s1 := fun u v => by
+    rw [hs1.2 _ (Or.inl (by have := idx_lt_sq u.2 v.2; ek_omega))]
+    exact hW u v
+  have hf1 : FlowStored sb (Network.Flow.zero N) s1 := fun x y => by
+    have h := hs1.1 (x.1 * n + y.1) (idx_lt_sq x.2 y.2)
+    have he : flowAddr (n, mb, sb, B) 0 0 + (x.1 * n + y.1) = sb + x.1 * n + y.1 := by
+      dsimp only [flowAddr]; ring
+    rw [he] at h
+    exact h
+  have hloop := iterate_invariant_of roundStep ((n, mb, sb, B), (s.1, t.1))
+    (fun rem (sv : ℕ) tt => sv ≤ 1 ∧ MatLoaded n mb W tt ∧
+      ∃ (k : ℕ) (flows : ℕ → N.Flow) (paths : ℕ → List (Fin n)),
+        N.IsShortestAugmentingSeq k flows paths ∧ FlowStored sb (flows k) tt ∧
+        (sv = 0 → k + rem = n * n * n) ∧
+        (sv = 1 → (∀ x : Fin n, tt.mem (distAddr (n, mb, sb, B) x.1) = (flows k).resDist x) ∧
+          (flows k).resDist t = n))
+    (fun rem sv tt ⟨hsv, hWt, k, flows, paths, hseq, hft, h0, h1⟩ => by
+      have hWt' : ∀ tt', (∀ a, (a < sb ∨ sb + ekScratch n ≤ a) → tt'.mem a = tt.mem a) →
+          MatLoaded n mb W tt' := fun tt' hfr u v => by
+        rw [hfr _ (Or.inl (by have := idx_lt_sq u.2 v.2; omega))]
+        exact hWt u v
+      have hfr_round : ∀ a, (a < sb ∨ sb + ekScratch n ≤ a) →
+          ((Memory.spec 0).clientState tt (roundStep (((n, mb, sb, B), (s.1, t.1)), sv))).mem a =
+            tt.mem a :=
+        fun a ha => preservesAt_roundStep (d := (((n, mb, sb, B), (s.1, t.1)), sv)) s.2 ha tt
+      by_cases hsv0 : sv = 0
+      · subst hsv0
+        have hk := h0 rfl
+        rcases roundStep_spec (B := B) hst hB hlay hWt (flows k) hft with
+          ⟨hr, hf', hd, hrt⟩ | ⟨hr, p, hp, hf'⟩
+        · refine ⟨le_of_eq hr, hWt' _ hfr_round, k, flows, paths, hseq, hf',
+            fun h => absurd (hr.symm.trans h) one_ne_zero, fun _ => ⟨hd, hrt⟩⟩
+        · let flows' : ℕ → N.Flow := fun i =>
+            if i ≤ k then flows i else (flows k).augmentByBottleneck p hp.isAugmentingPath
+          let paths' : ℕ → List (Fin n) := fun i => if i = k then p else paths i
+          have hseq' : N.IsShortestAugmentingSeq (k + 1) flows' paths' := by
+            intro j hj
+            by_cases hjk : j = k
+            · subst hjk
+              simp only [flows', paths', ite_eq_left (le_refl j), ite_eq_right (show ¬ j + 1 ≤ j by omega),
+                ite_eq_left rfl]
+              exact ⟨hp, trivial⟩
+            · obtain ⟨hpj, hj'⟩ := hseq j (by omega)
+              simp only [flows', paths', ite_eq_left (show j ≤ k by omega),
+                ite_eq_left (show j + 1 ≤ k by omega), ite_eq_right hjk]
+              exact ⟨hpj, hj'⟩
+          have hf'' : FlowStored sb (flows' (k + 1))
+              ((Memory.spec 0).clientState tt (roundStep (((n, mb, sb, B), (s.1, t.1)), 0))) := by
+            simp only [flows', ite_eq_right (show ¬ k + 1 ≤ k by omega)]
+            exact hf'
+          refine ⟨by omega, hWt' _ hfr_round, k + 1, flows', paths', hseq', hf'',
+            fun _ => by omega, fun h => absurd (hr.symm.trans h) zero_ne_one⟩
+      · have hsv1 : sv = 1 := by omega
+        obtain ⟨hr, hs⟩ := roundStep_idle (d := (((n, mb, sb, B), (s.1, t.1)), sv)) hsv0 tt
+        rw [hr, hs]
+        exact ⟨le_rfl, hWt, k, flows, paths, hseq, hft, fun h => absurd h one_ne_zero,
+          fun _ => h1 hsv1⟩)
+    (n := n * n * n) (a := 0) (s := s1)
+    ⟨Nat.zero_le _, hW1, 0, fun _ => Network.Flow.zero N, fun _ => [],
+      fun j hj => absurd hj (Nat.not_lt_zero _), hf1, fun _ => by omega,
+      fun h => absurd h zero_ne_one⟩
+  set s2 := (Memory.spec 0).clientState s1
+    (iterate roundStep ((n, mb, sb, B), (s.1, t.1)) (n * n * n) 0)
+  obtain ⟨hsv, hW2, k, flows, paths, hseq, hf2, h0, h1⟩ := hloop
+  have hsv1 : (Memory.spec 0).clientResult s1
+      (iterate roundStep ((n, mb, sb, B), (s.1, t.1)) (n * n * n) 0) = 1 := by
+    by_contra hne
+    have hk := h0 (by omega)
+    have hb := N.shortestAugmentingSeq_length_le hst hseq
+    have hsym := N.card_symArcs_le_card_sq
+    rw [Fintype.card_fin] at hb hsym
+    have h2 : N.symArcs.card * (n / 2) ≤ n * n * (n / 2) := Nat.mul_le_mul_right _ hsym
+    have h3 : n * n * (n / 2) < n * n * n :=
+      Nat.mul_lt_mul_of_pos_left (Nat.div_lt_self hn (by norm_num)) (Nat.mul_pos hn hn)
+    omega
+  obtain ⟨hdist, hres_t⟩ := h1 hsv1
+  have hst_eq : (Memory.spec 0).clientState st (ekProg ((n, mb, sb, B), (s.1, t.1))) = s2 := by
+    unfold ekProg
+    dsimp only
+    rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
+      StateTransitionSpec.clientState_bind,
+      clientState_iterate_eq_of _ _ (fun _ t' => cutOuterStep_state _ t'),
+      StateTransitionSpec.clientState_pure]
+  have hres_eq : (Memory.spec 0).clientResult st (ekProg ((n, mb, sb, B), (s.1, t.1))) =
+      ((Memory.spec 0).clientResult s2 (iterate cutOuterStep (n, mb, sb, B) n (0, 0))).2 := by
+    unfold ekProg
+    dsimp only
+    rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
+      StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
+  rw [hst_eq, hres_eq]
+  rw [hst_eq] at hframe
+  refine ⟨hframe, ?_⟩
+  set f := flows k
+  set C : Finset (Fin n) := Finset.univ.filter fun x => s2.mem (distAddr (n, mb, sb, B) x.1) < n
+  have hle : ∀ x : Fin n, s2.mem (distAddr (n, mb, sb, B) x.1) ≤ n := fun x => by
+    rw [hdist x]; simpa [Fintype.card_fin] using f.resDist_le_card x
+  have hC' : ∀ x : Fin n, (s2.mem (distAddr (n, mb, sb, B) x.1) < n ↔ x ∈ C) := fun x => by
+    simp [C]
+  have hC : ∀ x : Fin n, (s2.mem (distAddr (n, mb, sb, B) x.1) = n ↔ x ∉ C) := fun x => by
+    rw [← hC' x]
+    have := hle x
+    omega
+  refine ⟨?_, iterate_cutOuter_spec hB hW2 C hC hC'⟩
+  have hno : ¬ ∃ p, f.IsAugmentingPath p := by
+    rw [f.exists_augmentingPath_iff_resReachable, ← f.resDist_lt_card_iff_resReachable,
+      Fintype.card_fin]
+    change ¬ f.resDist t < n
+    omega
+  have hC_eq : C = f.reachableCut := by
+    ext x
+    rw [f.mem_reachableCut_iff, ← f.resDist_lt_card_iff_resReachable, Fintype.card_fin,
+      ← hdist x, hC' x]
+  have hmin : N.IsMinCut f.reachableCut :=
+    f.isMinCut_of_value_eq_cutCapacity (f.reachableCut_isCut hno)
+      (f.value_eq_cutCapacity_reachableCut hno)
+  rw [hC_eq]
+  exact hmin.isMinCutBetween
+
+/-! ### Interface (proofs in progress) -/
+
+
 
 end Cslib.Algorithms.WordRAM.EdmondsKarp
