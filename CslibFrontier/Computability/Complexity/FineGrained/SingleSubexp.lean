@@ -525,8 +525,7 @@ theorem ComputableInSingleSubexpTime.of_uniformFamily {f : α → β} {μ : α �
       · have hMs : M ≤ sched a := hN a hμN
         have hdiv_le : (μ a : ℝ) / (sched a + 1) ≤ δ * μ a := by
           have h1 : (μ a : ℝ) / (sched a + 1) ≤ (μ a : ℝ) / (M + 1) :=
-            div_le_div_of_nonneg_left (Nat.cast_nonneg _) (by positivity)
-              (by exact_mod_cast Nat.add_le_add_right hMs 1)
+            by gcongr
           have h2 : (μ a : ℝ) / (M + 1) ≤ δ * μ a := by
             rw [show (μ a : ℝ) / (M + 1) = (1 / ((M : ℝ) + 1)) * μ a by ring]
             exact mul_le_mul_of_nonneg_right hM_rate (Nat.cast_nonneg _)
@@ -551,13 +550,10 @@ theorem ComputableInSingleSubexpTime.of_uniformFamily {f : α → β} {μ : α �
         exact pow_le_pow_right₀ hL1 (by omega)
       calc ((sched a : ℝ) + 1) ^ d * (2 ^ ((μ a : ℝ) / (sched a + 1)) * L1 ^ e)
           ≤ ((C_sched : ℝ) * L1 ^ (ds * d)) * (((2 ^ N : ℝ) * 2 ^ (δ * μ a)) * L1 ^ e) :=
-            mul_le_mul hsched_bound
-              (mul_le_mul_of_nonneg_right hexp_bound (by positivity))
-              (by positivity) (by positivity)
+            by gcongr
         _ = (C_sched * 2 ^ N : ℝ) * (2 ^ (δ * μ a) * (L1 ^ (ds * d) * L1 ^ e)) := by ring
         _ ≤ (C_sched * 2 ^ N : ℝ) * (2 ^ (δ * μ a) * L1 ^ (dp + ds * d + e)) :=
-            mul_le_mul_of_nonneg_left
-              (mul_le_mul_of_nonneg_left hL_grow (by positivity)) (by positivity)
+            by gcongr
     have hc_prod := mul_le_mul_of_nonneg_left hprod (Nat.cast_nonneg c : (0 : ℝ) ≤ c)
     have hX1 : (1 : ℝ) ≤ 2 ^ (δ * μ a) := Real.one_le_rpow (by norm_num) (by positivity)
     have hdp_le : L1 ^ dp ≤ 2 ^ (δ * μ a) * L1 ^ (dp + ds * d + e) :=

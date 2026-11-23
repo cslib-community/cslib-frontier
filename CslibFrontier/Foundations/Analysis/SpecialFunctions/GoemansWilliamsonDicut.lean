@@ -261,8 +261,7 @@ private theorem dicut_lower_second {θ : ℝ} (hθ : π / 2 ≤ θ) (hθ2 : θ <
       dsimp only [c₀]
       nlinarith only [hplo, hphi]
     have h1 : 3 * u ≤ 3 * (c₀ * π / 2) * sin u := by
-      calc 3 * u ≤ (3 * (c₀ * π / 2) * (1 - (π / 6) ^ 2 / 6)) * u :=
-            mul_le_mul_of_nonneg_right hcoeff hu0
+      calc 3 * u ≤ (3 * (c₀ * π / 2) * (1 - (π / 6) ^ 2 / 6)) * u := by gcongr
         _ = 3 * (c₀ * π / 2) * (u * (1 - (π / 6) ^ 2 / 6)) := by ring
         _ ≤ 3 * (c₀ * π / 2) * sin u := mul_le_mul_of_nonneg_left hsin_lin (by positivity)
     have hbase : c₀ * π / 2 ≤ π / 2 := by
@@ -521,8 +520,7 @@ private theorem dicutObj_nonneg_of_add_eq {a b c : ℝ} (hmem : (a, b, c) ∈ Di
   have hlin2 : goemansWilliamsonDicutConstant / 4 * (1 + cos a + cos b + cos c) ≤
       (0.39804 : ℝ) * cos x * (1 + cos x) := by
     calc goemansWilliamsonDicutConstant / 4 * (1 + cos a + cos b + cos c)
-        ≤ goemansWilliamsonDicutConstant / 4 * (2 * cos x * (1 + cos x)) :=
-          mul_le_mul_of_nonneg_left hcos_ub (by positivity)
+        ≤ goemansWilliamsonDicutConstant / 4 * (2 * cos x * (1 + cos x)) := by gcongr
       _ = (goemansWilliamsonDicutConstant / 2) * (cos x * (1 + cos x)) := by ring
       _ ≤ 0.39804 * (cos x * (1 + cos x)) :=
           mul_le_mul_of_nonneg_right (by linarith only [hβ_lt]) hprod0
