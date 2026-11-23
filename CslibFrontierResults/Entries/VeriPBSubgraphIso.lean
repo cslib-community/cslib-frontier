@@ -50,14 +50,14 @@ register_result "cakepb-subgraph-iso-of-check" where
   ]
   theorems := [
     Cslib.Logic.PL.VeriPB.Graph.isContained_iff_of_checkSubgraphIsoGraph,
-    Cslib.Logic.PL.VeriPB.Graph.isContained_iff_of_checkSubgraphIso,
-    Cslib.Logic.PL.VeriPB.Graph.adj_iff_of_parseLAD
+    Cslib.Logic.PL.VeriPB.Graph.isContained_iff_of_checkSubgraphIso
   ]
   scope := "Pure functional statements: if the Lean VeriPB checker accepts a proof text against \
     the printed OPB encoding of P and T (or of the graphs read from two LAD texts by parseLAD) \
     with the conclusion SAT, the result true, or UNSAT, the result false, then P.IsContained T \
-    holds exactly when the result is true; the simple graph of a LAD graph read has exactly the \
-    edges listed. This is check_unsat_3_sem, not CakePB's main_semantics, a theorem about the \
-    compiled x64 machine code, its file and command-line I/O and its output strings, none of \
-    which is covered. The LAD reader accepts exactly the texts CakePB's parse_lad and \
-    check_good_graph accept, except that it rejects a loop, which CakePB accepts."
+    holds exactly when the result is true. This is check_unsat_3_sem, not CakePB's \
+    main_semantics, a theorem about the compiled x64 machine code, its file and command-line \
+    I/O and its output strings, none of which is covered. The LAD reader accepts exactly the \
+    texts CakePB's parse_lad and check_good_graph accept, except that it rejects a loop, which \
+    CakePB accepts; the simple graph of a graph it reads has exactly the edges listed \
+    (adj_iff_of_parseLAD, in Graph/Lad.lean)."
