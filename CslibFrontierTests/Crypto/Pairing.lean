@@ -61,8 +61,7 @@ private abbrev primePairing : PairingGroupFamily :=
       have : NeZero p.1 := ⟨p.2.ne_zero⟩
       simp only [primePairEncoded, primeFields, self, ofBits_bits, ZMod.val_mul])
     (by
-      have hp := ComputableInPolyTime.id'
-        (encIn := encPair encPrime (encPair encBits encBits))
+      have hp := ComputableInPolyTime.id' (encIn := encDescBitsPair encPrime)
       exact (ComputableInPolyTime.binary_mod'
         (ComputableInPolyTime.binary_mul'
           (Decoder.nat.computableInPolyTime.comp hp.snd'.fst')

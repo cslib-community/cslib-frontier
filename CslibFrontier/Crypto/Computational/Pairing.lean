@@ -53,8 +53,6 @@ Diffie–Hellman key exchange ([BonehShoup2023], Sections 15.4–15.6 and 15.8) 
 
 ## Main definitions
 
-* `Cslib.Crypto.PrimeOrderGroupFamily.encDescBitsPair`: encoding of public group parameters paired
-  with two bit-string element words `(d, x, y)`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.Companion`: a further group of the same order over the
   parameters of a prime-order group family.
 * `Cslib.Crypto.PrimeOrderGroupFamily.Companion.toFamily`: a companion as a family of its own.
@@ -85,12 +83,6 @@ namespace Cslib.Crypto
 open Turing.MultiTapeTM
 
 namespace PrimeOrderGroupFamily
-
-/-- Public group parameters paired with two bit-string element words `(d, x, y)`: `d` is framed by
-`F.encDesc`, `x` is framed as a raw bit string, and `y` is the unframed tail. -/
-abbrev encDescBitsPair (F : PrimeOrderGroupFamily) :
-    (F.Desc × List Bool × List Bool) ↪ List Bool :=
-  encPair F.encDesc (encPair encBits encBits)
 
 /-- A further family of cyclic groups over the public parameters of `F`: for each `d : F.Desc` a
 group `Carrier d` of the same prime order `F.order d`, with its own generator, encoding and
@@ -126,7 +118,7 @@ structure Companion (F : PrimeOrderGroupFamily) where
     ComputableInPolyTime (fun d => encode d (generator d)) F.encDesc encBits
   /-- Addition is computable in polynomial time. -/
   computableInPolyTime_add :
-    ComputableInPolyTime add F.encDescBitsPair encBits
+    ComputableInPolyTime add (encDescBitsPair F.encDesc) encBits
   /-- Multiplication by a binary natural number is computable in polynomial time. -/
   computableInPolyTime_smul :
     ComputableInPolyTime smul (encPair F.encDesc (encPair encNat encBits)) encBits
@@ -299,9 +291,17 @@ structure PairingGroupFamily where
     pairEncoded (d, G₀.encode d u, G₁.encode d v) = GT.encode d (pair d u v)
   /-- The pairing is computable in polynomial time. -/
   computableInPolyTime_pairEncoded :
-    ComputableInPolyTime pairEncoded G₀.encDescBitsPair encBits
+    ComputableInPolyTime pairEncoded (encDescBitsPair G₀.encDesc) encBits
 
 namespace PairingGroupFamily
+
+private theorem pair_generator_of_smul {G₀ : PrimeOrderGroupFamily} {G₁ GT : G₀.Companion}
+    {pair : ∀ d, G₀.Carrier d → G₁.Carrier d → GT.Carrier d}
+    (hpair : ∀ d (α β : ZMod (G₀.order d)),
+      pair d (α • G₀.generator d) (β • G₁.generator d) = (α * β) • GT.generator d)
+    (d : G₀.Desc) :
+    pair d (G₀.generator d) (G₁.generator d) = GT.generator d := by
+  simpa only [one_smul, one_mul] using hpair d 1 1
 
 /-- Construct a `PairingGroupFamily` from a plain pairing function `pair` satisfying the generator
 product rule `pair d (α • g₀) (β • g₁) = (α * β) • gT` (after [BonehShoup2023], Section 15.4,
@@ -315,21 +315,17 @@ abbrev ofSmulGenerator (G₀ : PrimeOrderGroupFamily) (G₁ GT : G₀.Companion)
     (pairEncoded_encode : ∀ d u v,
       pairEncoded (d, G₀.encode d u, G₁.encode d v) = GT.encode d (pair d u v))
     (computableInPolyTime_pairEncoded :
-      ComputableInPolyTime pairEncoded G₀.encDescBitsPair encBits) :
+      ComputableInPolyTime pairEncoded (encDescBitsPair G₀.encDesc) encBits) :
     PairingGroupFamily where
   G₀ := G₀
   G₁ := G₁
   GT := GT
   pair d := bilinearOfSmulGenerator (G₀.smul_generator_surjective d)
     (G₁.toFamily.smul_generator_surjective d) (pair d) fun α β => by
-      have h1 := hpair d 1 1
-      simp only [one_smul, one_mul] at h1
       dsimp only [PrimeOrderGroupFamily.Companion.toFamily]
-      rw [hpair d α β, h1]
+      rw [hpair d α β, pair_generator_of_smul hpair d]
   pair_generator d := by
-    have h1 := hpair d 1 1
-    simp only [one_smul, one_mul] at h1
-    rw [bilinearOfSmulGenerator_apply, h1]
+    rw [bilinearOfSmulGenerator_apply, pair_generator_of_smul hpair d]
   pairEncoded := pairEncoded
   pairEncoded_encode d u v := by
     rw [bilinearOfSmulGenerator_apply]

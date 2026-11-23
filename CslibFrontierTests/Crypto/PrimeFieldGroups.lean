@@ -75,8 +75,7 @@ abbrev primeFields : PrimeOrderGroupFamily where
     exact (ComputableInPolyTime.binary_mod' (ComputableInPolyTime.const 1)
       computableInPolyTime_val).encoding_comp
   computableInPolyTime_add := by
-    have hp := ComputableInPolyTime.id'
-      (encIn := encPair encPrime (encPair encBits encBits))
+    have hp := ComputableInPolyTime.id' (encIn := encDescBitsPair encPrime)
     exact (ComputableInPolyTime.binary_mod'
       (ComputableInPolyTime.binary_add'
         (Decoder.nat.computableInPolyTime.comp hp.snd'.fst')
