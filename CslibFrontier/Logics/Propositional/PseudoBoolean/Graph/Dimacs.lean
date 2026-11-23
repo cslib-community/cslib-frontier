@@ -7,9 +7,10 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
-public import CslibFrontier.Logics.Propositional.CNF.Dimacs
-public import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
+public import CslibFrontier.Init
 public import Mathlib.Combinatorics.SimpleGraph.Basic
+import CslibFrontier.Logics.Propositional.CNF.Dimacs
+import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 
 /-! # Reading DIMACS graphs
 
@@ -29,7 +30,17 @@ undirected and mentions only vertices below `n`) holds by construction, and the 
 `Cslib.Logic.PL.VeriPB.Graph.DimacsGraph.graph` is a `SimpleGraph (Fin n)` with decidable
 adjacency. As in CakePB, an edge may be listed in either direction or both, repeated edges are
 allowed, and the edge count `m` of the header is not checked. A loop `e u u` is accepted and
-dropped, since a simple graph has none; it changes no clique. The words and numbers of a line are
+dropped, since a simple graph has none; it changes no clique.
+
+The reader accepts some files that `parse_dimacs` rejects, and reads them as CakePB reads the same
+file once the difference is removed:
+* blank lines are skipped, where CakePB keeps them and fails on them;
+* a line whose first word starts with `c` is a comment, where CakePB requires the word `c` itself
+  (`nocomment_line`);
+* the numbers may contain the digit separator `_` of `Cslib.Logic.PL.Dimacs.natOfChars?`, where
+  CakePB reads them with `fromNatString`.
+
+The words and numbers of a line are
 read by the DIMACS CNF reader's `Cslib.Logic.PL.Dimacs.words` and
 `Cslib.Logic.PL.Dimacs.natOfChars?`, and its lines split by the OPB lexer's
 `Cslib.Logic.PL.VeriPB.Text.splitChars`.
