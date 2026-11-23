@@ -302,13 +302,10 @@ private theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V 
             (Finset.univ.filter fun r : Fin m => r.val < k + 1).image b
             then some (s.kv u).val else none) := by
         funext u
-        have hIic : Finset.Iic r₀ = insert r₀ (Finset.Iio r₀) := by
-          ext x
-          simp only [Finset.mem_Iic, Finset.mem_insert, Finset.mem_Iio, le_iff_lt_or_eq, or_comm]
         have himg_succ (f : Fin m ↪ Fin U) :
             (Finset.univ.filter fun r : Fin m => r.val < k + 1).image f =
               insert (f r₀) ((Finset.univ.filter fun r : Fin m => r.val < k).image f) := by
-          rw [hflt_le, hflt_lt, hIic, Finset.image_insert]
+          rw [hflt_le, hflt_lt, ← Finset.insert_Iio, Finset.image_insert]
         have hD1 : (Finset.univ.filter fun r : Fin m => r.val < k + 1).image d =
             insert (d r₀) D_k := himg_succ d
         have hB1 : (Finset.univ.filter fun r : Fin m => r.val < k + 1).image b =
