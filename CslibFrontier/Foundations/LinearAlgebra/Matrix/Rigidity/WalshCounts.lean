@@ -20,6 +20,8 @@ public import Mathlib.Data.Fintype.Prod
 For fixed support x, a column is determined by its subsets inside and outside x.
 Grouping each part by cardinality gives the exact finite tail used in the
 Walsh–Hadamard construction of Alman–Williams, §3, arXiv:1611.05558.
+`Cslib.card_off_band_row` counts columns for one row and `Cslib.card_off_band_pair` counts
+ordered pairs.
 -/
 
 public section
@@ -58,7 +60,7 @@ private theorem sum_split {n : ℕ} (x : Finset (Fin n)) (f : ℕ → ℕ → �
     rw [← card_union_of_disjoint hd, hu]
 
 /-- Count central-weight columns whose overlap with a given row misses the interpolation band. -/
-theorem offBandRowCount (n lo hi k t : ℕ) (x : Finset (Fin n)) :
+theorem card_off_band_row (n lo hi k t : ℕ) (x : Finset (Fin n)) :
     (univ.filter fun y : Finset (Fin n) => lo ≤ y.card ∧ y.card ≤ hi ∧
       ((x ∩ y).card < k ∨ k + t ≤ (x ∩ y).card)).card =
     let a := x.card
@@ -80,7 +82,7 @@ theorem offBandRowCount (n lo hi k t : ℕ) (x : Finset (Fin n)) :
       simp [f, mul_ite]
 
 /-- Count ordered off-band pairs whose row and column both have central weight. -/
-theorem offBandPairCount (n lo hi k t : ℕ) :
+theorem card_off_band_pair (n lo hi k t : ℕ) :
     (univ.filter fun p : Finset (Fin n) × Finset (Fin n) =>
       lo ≤ p.1.card ∧ p.1.card ≤ hi ∧ lo ≤ p.2.card ∧ p.2.card ≤ hi ∧
       ((p.1 ∩ p.2).card < k ∨ k + t ≤ (p.1 ∩ p.2).card)).card =
@@ -104,7 +106,7 @@ theorem offBandPairCount (n lo hi k t : ℕ) :
       apply sum_congr rfl
       intro x _
       by_cases h : lo ≤ x.card ∧ x.card ≤ hi
-      · simpa [weight, h, h.1, h.2, row, ← sum_filter] using offBandRowCount n lo hi k t x
+      · simpa [weight, h, h.1, h.2, row, ← sum_filter] using card_off_band_row n lo hi k t x
       · by_cases l : lo ≤ x.card
         · have u : ¬x.card ≤ hi := fun hu => h ⟨l, hu⟩
           simp [weight, l, u]

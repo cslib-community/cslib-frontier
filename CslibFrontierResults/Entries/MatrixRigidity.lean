@@ -91,7 +91,7 @@ register_result "alman-williams-sylvester-finite" where
   sources := [{ paper := AlmanWilliams2017,
     theorem := "Finite construction in the proof of Theorem 1.1",
     locator := "Section 3, Corollary 3.1 and proof of Theorem 1.1" }]
-  theorems := [Cslib.sylvesterHadamardRigidityFinite]
+  theorems := [Matrix.rigidity_sylvesterHadamard_le]
   scope := "The rank budget includes the interpolation rank and the cost of correcting \
     exceptional rows and columns. The edit budget counts ordered central pairs off the \
     overlap band. All fields and natural band parameters. The asymptotic rate is outside \
@@ -103,7 +103,7 @@ register_result "alman-williams-sylvester-rows" where
   sources := [{ paper := AlmanWilliams2017,
     theorem := "Finite construction in the proof of Theorem 1.1",
     locator := "Section 3, Corollary 3.1 and proof of Theorem 1.1" }]
-  theorems := [Cslib.sylvesterHadamardRowWitness]
+  theorems := [Matrix.exists_rank_le_sylvesterHadamard_row_edits_le]
   scope := "Any uniform bound on the explicit central binomial row sums bounds every row \
     of one approximant and yields a total edit bound after multiplication by the side length. \
     All fields and natural band parameters. The asymptotic rate is outside this entry."

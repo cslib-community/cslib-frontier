@@ -17,6 +17,8 @@ import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.WalshCounts
 Correct the exceptional rows and columns of the interpolation matrix. All surviving
 disagreements lie on the counted central off-band pairs. Reindex by bit supports to
 obtain total and per-row budgets for the native Sylvester matrix over any field.
+The two bounds are `Matrix.rigidity_sylvesterHadamard_le` and
+`Matrix.exists_rank_le_sylvesterHadamard_row_edits_le`.
 
 See [Alman and Williams, §3][AlmanWilliams2017].
 -/
@@ -114,7 +116,7 @@ private theorem walshRigidityFinite : ∀ (K : Type*) [Field K] (n lo hi k t : �
   classical
   obtain ⟨B, hr, hloc⟩ := walshBandWitness K n lo hi k t
   apply (Matrix.rigidity_le (B := B) hr).trans
-  rw [Matrix.diffCount_eq_card_filter, ← offBandPairCount]
+  rw [Matrix.diffCount_eq_card_filter, ← card_off_band_pair]
   apply card_le_card
   intro ⟨x, y⟩ hp
   exact mem_filter.mpr ⟨mem_univ _, hloc x y (mem_filter.mp hp).2⟩
@@ -136,7 +138,7 @@ private theorem walshBandRowWitness (K : Type*) [Field K] (n lo hi k t edits : �
   refine ⟨B, hr, fun x => ?_⟩
   by_cases hx : lo ≤ x.card ∧ x.card ≤ hi
   · have h := hrow x.card (by simpa using x.card_le_univ) hx.1 hx.2
-    rw [← offBandRowCount n lo hi k t x] at h
+    rw [← card_off_band_row n lo hi k t x] at h
     apply le_trans _ h
     rw [← Set.ncard_coe_finset]
     refine Set.ncard_le_ncard ?_ (Finset.finite_toSet _)
@@ -198,7 +200,7 @@ private theorem exists_sylvester_reindex (K : Type*) [Field K] (n : ℕ) :
   rw [hs, prod_const]
 
 /-- Finite corrected rigidity bound on the binary indexing of the Sylvester matrix. -/
-theorem sylvesterHadamardRigidityFinite : ∀ (K : Type*) [Field K] (n lo hi k t : ℕ),
+theorem _root_.Matrix.rigidity_sylvesterHadamard_le : ∀ (K : Type*) [Field K] (n lo hi k t : ℕ),
   let H := Matrix.sylvesterHadamard K n
   let bad := ∑ a ∈ Finset.range (n + 1), if lo ≤ a ∧ a ≤ hi then 0 else n.choose a
   let r := (∑ j : Fin t, n.choose j) + 2 * bad
@@ -240,7 +242,8 @@ private theorem rigidity_le_of_row_edits {ι K : Type*} [Fintype ι] [Field K]
     _ = _ := by simp
 
 /-- A bound on each central row's binomial sum gives one low-rank native witness for all rows. -/
-theorem sylvesterHadamardRowWitness (K : Type*) [Field K] (n lo hi k t edits : ℕ)
+theorem _root_.Matrix.exists_rank_le_sylvesterHadamard_row_edits_le (K : Type*) [Field K]
+    (n lo hi k t edits : ℕ)
     (hrow : ∀ a ≤ n, lo ≤ a → a ≤ hi →
       (∑ j ∈ range (a + 1), ∑ b ∈ range (n - a + 1),
         if lo ≤ j + b ∧ j + b ≤ hi ∧ (j < k ∨ k + t ≤ j)
