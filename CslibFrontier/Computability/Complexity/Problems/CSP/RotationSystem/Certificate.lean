@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.PolyTime.Graph.RotationSystem
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Data.List.GetD
 
 /-!
@@ -96,9 +97,7 @@ private theorem nextPosition_finRotate {n : ℕ} (j : Fin n) :
   cases n with
   | zero => exact j.elim0
   | succ n =>
-    rw [coe_finRotate]
-    simp only [Fin.ext_iff, Fin.val_last]
-    split_ifs <;> omega
+    fin_index [coe_finRotate]
 
 /-- The native next-index calculation is precisely the existing cyclic argument successor. -/
 theorem argumentNextIndex_occurrence (o : F.Occurrence) :
@@ -283,10 +282,10 @@ actual constraint, scope and occurrence lists, independently of relation arities
       ((p.1.1, p.2.1.1), p.2.1.2.1)) (by unfold encOccurrenceRecord; fun_prop)
   apply ComputableInPolyTime.decide_eq'
   · exact ComputableInPolyTime.listGetDWithInput (hs.comp (by fun_prop)) hk 0
-  · exact .of_tidy (ComputableTidilyInPolyTime.unary_to_binary.comp
+  · exact (ComputableInPolyTime.unary_to_binary.comp
       (ComputableInPolyTime.unary_add'
         (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hnext)
-        (ComputableInPolyTime.const 1)).tidy)
+        (ComputableInPolyTime.const 1)))
 
 /-- Native polynomial-time verification of the supplied incidence rotation, componentwise
 numerical genus zero and the CSP's actual cyclic argument order. This supplies no solver or

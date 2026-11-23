@@ -49,10 +49,11 @@ For new bundled hypotheses, provide a satisfying instance; use a negative case w
 After adding a library file, run `lake exe mk_all` to regenerate the aggregate. New tests belong in `CslibFrontierTests/` and are included by a Lake glob. At a local validation checkpoint:
 
 ```bash
+scripts/check.sh --focused          # defer unchanged global Smoke/Axioms leaves to CI
 scripts/check.sh --quick --no-full-fallback
 ```
 
-Quick mode compares against the merge base with local `origin/main` without fetching by default. It includes committed, staged, unstaged and untracked changes and builds affected modules and importing clients when supported. It runs source hygiene on the changed files and the encoding readability and projection chain ratchets on changed library modules, then the declaration linters on the affected library modules, so an argument that a change leaves unused in a client is reported before CI. A changed ratchet baseline (`scripts/encoding_readability_baseline.json` or `scripts/projection_chains_baseline.json`) runs its ratchet. A library aggregate whose only edit is the import lines `lake exe mk_all` adds for new modules keeps the quick plan, which then builds the aggregate's importing clients. With `--no-full-fallback`, other non-Lean, unsupported or ambiguous changes, including deletions and renames, report the reason and exit with status 3: run focused checks for the changed files and use hosted CI for full validation. Omitting the flag retains the automatic full-check fallback. Quick success is development feedback, not full integration validation.
+Quick mode (`--quick` or `--focused`) compares against the merge base with local `origin/main` without fetching by default. It includes committed, staged, unstaged and untracked changes and builds affected modules and importing clients when supported (`--focused` defers unchanged `CslibFrontierTests.Smoke` and `CslibFrontierTests.Axioms` leaves to hosted CI so leaf edits do not build the full root aggregate). It runs source hygiene on the changed files and the encoding readability and projection chain ratchets on changed library modules, then the declaration linters on the affected library modules, so an argument that a change leaves unused in a client is reported before CI. A changed ratchet baseline (`scripts/encoding_readability_baseline.json` or `scripts/projection_chains_baseline.json`) runs its ratchet. A library aggregate whose only edit is the import lines `lake exe mk_all` adds for new modules keeps the quick plan, which then builds the aggregate's importing clients. With `--no-full-fallback` (implied by `--focused`), other non-Lean, unsupported or ambiguous changes, including deletions and renames, report the reason and exit with status 3: run focused checks for the changed files and use hosted CI for full validation. Omitting the flag retains the automatic full-check fallback. Quick success is development feedback, not full integration validation.
 
 Quick mode also runs the changed-file lints that read only sources: an `@[expose]` section with nothing to expose, and a new test file that only restates signatures. When building targets directly instead, run them with `python3 scripts/check_changed_files.py --source-only`; CI's changed-file step additionally checks module-doc names against build outputs.
 
@@ -71,35 +72,39 @@ lake exe checkInitImports
 
 This split overlaps work rather than removing it. It adds another checkout and runner plus the aggregator's scheduling time, and saves only source-check time that would otherwise extend the slower Lean path. Treat measured wall-time improvements as run-specific rather than a fixed reduction.
 
-## Update and review both manuals
+## Update procedure pages and registries
 
-Before handoff, identify the reader tasks affected in both manuals. Update the relevant
-workflows, model descriptions, assumptions, commands and examples in the same PR. If the
-manual remains accurate, record a specific reason for it in the PR’s manual-impact assessment.
-A proof-only edit preserving statements, imports and automation may need no prose change;
-a changed encoding or resource bound normally does. An edit that changes the number of lines
-in a file still moves the declarations below it, so repoint any manual links such as
-`File.lean#L120` to them (for `[Ns.name](File.lean#Ln)` links,
-`python3 scripts/check_operator_manual.py --fix-anchors` repoints unambiguous declaration
-headers automatically). The checker below reports a link that no longer starts a
-declaration, or whose text names a declaration of the linked file that it does not start.
+Explain a change in its docstrings and PR description. Edit the manual only in two cases: a
+change to a command, procedure or role updates the workflow or other procedure page that
+describes it, and a change to a fact recorded in the
+[assumptions inventory](../programs-crypto-and-probability/assumptions.md), the
+[bibliography](../sources.md) or the [results inventory](../../results/README.md) updates that
+registry. The reference chapters are frozen; do not update them
+([policy](../../CONTRIBUTING.md#maintaining-the-manuals)).
+
+An edit that changes the number of lines in a Lean file moves the declarations below it. When a
+procedure page or registry links one of them as `File.lean#L120`, repoint the link (for
+`[Ns.name](File.lean#Ln)` links, `python3 scripts/check_operator_manual.py --fix-anchors`
+repoints unambiguous declaration headers automatically). The checker reports such a link that
+no longer starts a declaration, or whose text names a declaration of the linked file that it
+does not start. It does not check or repoint the frozen chapters' source links.
 
 Run `python3 scripts/check_operator_manual.py` from the repository root, and check changed
-complete Lean clients as above. The coordinator must review both assessments and ensure independent review of affected
-reader paths against the final revision. Changes to agent roles, direction, permissions or
-intervention also require checking the [Agent Operator’s Manual](../AGENT_OPERATORS.md). The [maintenance procedure](../MAINTAINING.md)
+complete Lean clients as above. Changes to agent roles, direction, permissions or
+intervention update the [Agent Operator’s Manual](../AGENT_OPERATORS.md). The [maintenance procedure](../MAINTAINING.md)
 sets out the human acceptance test and distinguishes live checks from dated history.
 
 ## Check the statement readers will see
 
-Readers see the library statement itself: its module documentation, its declaration in the API documentation and any entry of the [results inventory](../../results/README.md) that lists it. When changing a named theorem's model, encoding, bound or hypotheses, update that documentation and the entry's scope note in [Entries.lean](../../CslibFrontierResults/Entries.lean). Inspect changed rendered pages and declaration links.
+Readers see the library statement itself: its module documentation, its declaration in the API documentation and any entry of the [results inventory](../../results/README.md) that lists it. Place new `register_result` entries in topic modules under `CslibFrontierResults/Entries/` and regenerate [CslibFrontierResults.lean](../../CslibFrontierResults.lean) with `lake exe mk_all` so concurrent pull requests do not collide on [Entries.lean](../../CslibFrontierResults/Entries.lean); when changing a named theorem's model, encoding, bound or hypotheses, update that documentation and the entry's scope note in whichever module under `CslibFrontierResults/` defines it. Inspect changed rendered pages and declaration links.
 
 The axiom audit checks allowed dependencies of declarations stored in imported CslibFrontier modules. The results registry checks that each listed theorem exists, is public and is a proposition. Neither replaces reading the model and comparing it to the advertised mathematics. See [assurance](../design-and-assurance/assurance.md).
 
 ## Make the handoff reviewable
 
-Before approval, inspect the CI **Parallel-definition**, **Duplicate-statement** and **Repeated-proof-block**
-notices for the reviewed revision. Follow the source links, compare both declarations or proof
+Before approval, inspect the CI **Parallel-definition**, **Duplicate-statement**,
+**Repeated-proof-block** and **High-fan-in module impact** notices for the reviewed revision.
+Follow the source links, compare both declarations or proof
 blocks, and record reuse, generalization or the concrete reason to retain both. Link existing
 resolutions instead of repeating them. Skipped or incomplete scans need an explicit coverage
 assessment and targeted source checks, following [the review cycle](../../AGENTS.md#review-cycle).
@@ -125,7 +130,7 @@ Link its task issue and source references, preserve contributor credit, and disc
 
 After fixes, request review of the affected delta. Changed reasoning, statement semantics and uncertain conflict resolutions require fresh review; a clean rebase may sometimes preserve existing approval. Integration requires maintainer authority as well as validation and review. State what is complete and what remains. When only a milestone is delivered, keep the broader objective visible and open or explicitly disposed of.
 
-Keep a source approval conditional while notices, rendered pages or other source questions still
+Keep a source approval conditional while notices or other source questions still
 need review. When releasing that hold, link the earlier proof/API/caller assessment and record
 which remaining questions were resolved; reuse unchanged evidence. The queue helper's `--wait`
 option queues automatically when CI passes, so finish any review of newly produced material

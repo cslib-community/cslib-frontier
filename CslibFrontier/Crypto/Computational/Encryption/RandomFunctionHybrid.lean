@@ -15,12 +15,12 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 public import CslibFrontier.Languages.Probabilistic.QueryCount
 public import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Crypto.Game.UntilBad
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
-import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
-import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Support
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -105,7 +105,6 @@ public section
 namespace Cslib.Crypto
 
 open Cslib.Probability
-open OracleComp (sumHandler)
 open scoped ENNReal NNReal
 
 variable {n : ℕ}
@@ -131,96 +130,66 @@ noncomputable def freshStep (x : BitString n) : StateT (FlagState n) PMF (BitStr
   fun s => (PMF.uniformOfFintype (BitString n)).map fun u =>
     (u, ((x, u) :: s.1, s.2 || (s.1.lookup x).isSome))
 
-private theorem flag_of_mem_support_pure {y : BitString n}
-    {c : List (BitString n × BitString n)} {z : BitString n × FlagState n}
-    (hz : z ∈ (PMF.pure (y, (c, true))).support) : z.2.2 = true := by
-  rw [PMF.mem_support_pure_iff] at hz
-  subst hz
-  rfl
-
-private theorem lazyStep_map_fst (x : BitString n) (s : FlagState n) :
-    (lazyStep x s).map (fun (a, s') => (a, s'.1)) =
-      memoize (fun _ => PMF.uniformOfFintype (BitString n)) x s.1 := by
+private theorem lazyStep_map_fst (x : BitString n) (c : List (BitString n × BitString n))
+    (b : Bool) :
+    (lazyStep x (c, b)).map (Prod.map id Prod.fst) =
+      memoize (fun _ => PMF.uniformOfFintype (BitString n)) x c := by
   unfold lazyStep
-  cases h : s.1.lookup x with
+  cases h : c.lookup x with
   | some y =>
     rw [memoize_of_some _ _ _ _ h]
-    simp only [PMF.pure_map, Probability.PMF.monad_pure_eq_pure]
+    simp only [PMF.pure_map, Probability.PMF.monad_pure_eq_pure, Prod.map_apply, id_eq]
   | none =>
     rw [memoize_of_none _ _ _ h]
     simp only [PMF.map, Function.comp_def, PMF.bind_bind, PMF.pure_bind,
-      Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure]
+      Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure,
+      Prod.map_apply, id_eq]
 
 private theorem runWith_memoize_eq {α : Type}
     (program : ProbOracleComp (fun _ : BitString n => BitString n) α) :
     (ProbOracleComp.runWith (memoize fun _ => PMF.uniformOfFintype (BitString n)) program
       []).map Prod.fst =
       (ProbOracleComp.runWith lazyStep program ([], false)).map Prod.fst := by
-  rw [← ProbOracleComp.runWith_map_state lazyStep
-    (memoize fun _ => PMF.uniformOfFintype (BitString n)) Prod.fst lazyStep_map_fst program
-    ([], false), PMF.map_comp]
+  rw [← ProbOracleComp.runWith_map_fst lazyStep
+    (memoize fun _ => PMF.uniformOfFintype (BitString n)) lazyStep_map_fst program [] false,
+    PMF.map_comp]
   exact congrArg (fun f => PMF.map f _) (funext fun ⟨_, _⟩ => rfl)
 
 private theorem identicalUntilBad_lazyStep_freshStep :
-    OracleComp.IdenticalUntilBad
-      (sumHandler (fun i => StateT.lift (ProbComp.unifOracle i)) (lazyStep (n := n)))
-      (sumHandler (fun i => StateT.lift (ProbComp.unifOracle i)) (freshStep (n := n)))
-      (fun s : FlagState n => s.2 = true) where
-  agree q s _ a s' hs' := by
-    cases q with
-    | inl i => rfl
-    | inr x =>
-      change lazyStep x s (a, s') = freshStep x s (a, s')
-      simp only [lazyStep, freshStep]
-      cases h : s.1.lookup x with
-      | none => simp only [Option.isSome_none, Bool.or_false]
-      | some y =>
-        simp only [Option.isSome_some, Bool.or_true]
-        have h1 : (PMF.pure (y, (s.1, true)) : PMF (BitString n × FlagState n)) (a, s') = 0 :=
-          (PMF.apply_eq_zero_iff _ _).2 fun hz => hs' (flag_of_mem_support_pure hz)
-        have h2 : ((PMF.uniformOfFintype (BitString n)).map fun u =>
-            (u, ((x, u) :: s.1, true))) (a, s') = 0 :=
-          (PMF.apply_eq_zero_iff _ _).2 fun hz =>
-            hs' (by
-              obtain ⟨_, -, h⟩ := (PMF.mem_support_map_iff _ _ _).1 hz
-              exact (congrArg (fun z => z.2.2) h).symm)
-        rw [h1, h2]
-  absorb_first q s hs x hx := by
-    have hs' : s.2 = true := hs
-    cases q with
-    | inl i =>
-      rw [PMF.snd_eq_of_mem_support_lift hx]
-      exact hs
-    | inr y =>
-      change x ∈ (lazyStep y s).support at hx
-      simp only [lazyStep] at hx
-      split at hx
-      · exact flag_of_mem_support_pure hx
-      · obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hx
-        exact hs'
-  absorb_second q s hs x hx := by
-    have hs' : s.2 = true := hs
-    cases q with
-    | inl i =>
-      rw [PMF.snd_eq_of_mem_support_lift hx]
-      exact hs
-    | inr y =>
-      change x ∈ (freshStep y s).support at hx
-      obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hx
-      simp [hs']
+    ProbOracleComp.IdenticalUntilBad (lazyStep (n := n)) (freshStep (n := n))
+      OracleComp.FlagBad := by
+  refine ProbOracleComp.IdenticalUntilBad.of_flag ?_ ?_ ?_
+  · intro x c z hz
+    simp only [lazyStep] at hz
+    split at hz
+    · obtain rfl := (PMF.mem_support_pure_iff _ _).1 hz
+      rfl
+    · obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hz
+      rfl
+  · intro x c z hz
+    obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hz
+    rfl
+  · intro x c a c'
+    simp only [lazyStep, freshStep, Bool.false_or]
+    cases h : c.lookup x with
+    | none => simp only [Option.isSome_none]
+    | some y =>
+      simp only [Option.isSome_some]
+      have h1 : (PMF.pure (y, (c, true)) : PMF (BitString n × FlagState n)) (a, (c', false)) = 0 :=
+        (PMF.apply_eq_zero_iff _ _).2 fun hz => by cases (PMF.mem_support_pure_iff _ _).1 hz
+      have h2 : ((PMF.uniformOfFintype (BitString n)).map fun u =>
+          (u, ((x, u) :: c, true))) (a, (c', false)) = 0 :=
+        (PMF.apply_eq_zero_iff _ _).2 fun hz => by
+          obtain ⟨_, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).1 hz
+          cases heq
+      rw [h1, h2]
 
 /-- `PRF.idealExperiment` against a uniform random function on `BitString n` equals the output of
 `ProbOracleComp.runWith lazyStep program ([], false)`. -/
 theorem idealExperiment_eq_runWith_lazyStep (program : PRF.Adversary (BitString n) (BitString n)) :
     ProbComp.eval (PRF.idealExperiment program) =
       (ProbOracleComp.runWith lazyStep program ([], false)).map Prod.fst := by
-  rw [← runWith_memoize_eq]
-  have h := RandomOracle.interpret_prob_eq_memoize
-    (fun _ : BitString n => PMF.uniformOfFintype (BitString n)) program
-  rw [← h]
-  simp only [PRF.idealExperiment, ProbOracleComp.run, ProbComp.eval_bind, ProbComp.eval_uniform,
-    ProbOracleComp.eval_interpret, ProbComp.eval_pure, PMF.pi_uniformOfFintype,
-    Probability.PMF.monad_bind_eq_bind]
+  rw [← runWith_memoize_eq, PRF.eval_idealExperiment_eq_runWith_memoize]
 
 /-- The advantage between `lazyStep` and `freshStep` is bounded by the probability of raising the
 repetition flag under `freshStep`. -/
@@ -232,7 +201,7 @@ theorem advantage_lazy_fresh_le (program : PRF.Adversary (BitString n) (BitStrin
   have h := identicalUntilBad_lazyStep_freshStep.advantage_le program ([], false)
     fun x => PMF.pure x.1
   rw [identicalUntilBad_lazyStep_freshStep.bad_eq] at h
-  exact h
+  simpa only [← PMF.bind_pure_comp, Function.comp_def] using h
 
 /-- The advantage between `PRF.idealExperiment` and fresh independent sampling `freshStep` is
 bounded by the probability of raising the repetition flag under `freshStep`. -/
@@ -431,8 +400,8 @@ theorem eval_blockModeIdealOracle (ℓ : ℕ) (q : BlockModeQuery n) :
     ProbComp.eval (blockModeIdealOracle ℓ q) =
       (PMF.uniformOfFintype (BitString n)).bind fun iv =>
         (uniformBlocks (n := n) (blockModeBlocks ℓ q)).map (iv, ·) := by
-  simp only [blockModeIdealOracle, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
-    uniformBlocks_eq, Function.comp_def, ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind]
+  simp only [blockModeIdealOracle, ProbComp.eval_uniform, uniformBlocks_eq, pmf_norm,
+    ← PMF.bind_pure_comp]
 
 private theorem map_unit_runWith_freshStep_blockModeQueryProgram
     (keystream : BitString n → ℕ →
@@ -447,13 +416,11 @@ private theorem map_unit_runWith_freshStep_blockModeQueryProgram
   have hpad := map_iv_uniformBlocks_zipWith (blockModeSelect ℓ b q)
   rw [length_blockModeSelect] at hpad
   rw [eval_blockModeIdealOracle, ← hpad]
-  simp only [blockModeQueryProgram, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-    ProbComp.eval_uniform, length_blockModeSelect, ProbOracleComp.runWith_pure,
-    PMF.map_bind, PMF.bind_map, Function.comp_def, PMF.pure_map]
+  simp only [blockModeQueryProgram, ProbComp.eval_uniform, length_blockModeSelect,
+    runWith_norm, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun iv _ => ?_
-  have hk := hks iv s
-  rw [← hk]
-  simp only [PMF.map_comp, Function.comp_def]
+  rw [← hks iv s]
+  simp only [pmf_norm]
   rfl
 
 /-- **Fresh sampling of a block-mode query program.** If every answer of `program`, under fresh
@@ -469,37 +436,12 @@ theorem freshGame_simulate_eq_blockModeIdealExperiment
     (ProbOracleComp.runWith freshStep
         (ProbOracleComp.simulate program adversary) ([], false)).map Prod.fst =
       ProbComp.eval (blockModeIdealExperiment ℓ adversary) := by
-  have hstate :
-      (ProbOracleComp.runWith (fun q => ProbOracleComp.runWith freshStep (program q))
-          adversary ([], false)).map (fun x => (x.1, ())) =
-        ProbOracleComp.runWith
-          (fun q (u : Unit) => (ProbComp.eval (blockModeIdealOracle ℓ q)).map (·, u))
-          adversary () :=
+  have hstate := congrArg (PMF.map Prod.fst) <|
     ProbOracleComp.runWith_map_state
       (fun q => ProbOracleComp.runWith freshStep (program q))
       (fun q (u : Unit) => (ProbComp.eval (blockModeIdealOracle ℓ q)).map (·, u))
-      (fun _ => ()) (fun q s => hprogram q s) adversary ([], false)
-  have hro :
-      ProbOracleComp.runWith
-          (fun q (u : Unit) => (ProbComp.eval (blockModeIdealOracle ℓ q)).map (·, u)) adversary () =
-        (OracleComp.interpret
-          (sumHandler ProbComp.unifOracle fun q => ProbComp.eval (blockModeIdealOracle ℓ q))
-          adversary).map (·, ()) :=
-    ProbOracleComp.runWith_readOnly (fun q _ => ProbComp.eval (blockModeIdealOracle ℓ q))
-      adversary ()
-  rw [ProbOracleComp.runWith_simulate]
-  calc
-    (ProbOracleComp.runWith (fun q => ProbOracleComp.runWith freshStep (program q))
-          adversary ([], false)).map Prod.fst
-        = ((ProbOracleComp.runWith (fun q => ProbOracleComp.runWith freshStep (program q))
-              adversary ([], false)).map fun x => (x.1, ())).map Prod.fst :=
-          (PMF.map_comp (fun x : Bool × FlagState n => (x.1, ())) _ Prod.fst).symm
-    _ = ((OracleComp.interpret
-            (sumHandler ProbComp.unifOracle fun q => ProbComp.eval (blockModeIdealOracle ℓ q))
-            adversary).map (·, ())).map Prod.fst := by rw [hstate, hro]
-    _ = ProbComp.eval (blockModeIdealExperiment ℓ adversary) := by
-          rw [(PMF.map_comp (·, ()) _ Prod.fst).trans (PMF.map_id _),
-            blockModeIdealExperiment, ProbOracleComp.eval_run]
+      (fun _ => ()) hprogram adversary ([], false)
+  simpa only [blockModeIdealExperiment, runWith_norm, pmf_norm] using hstate
 
 /-- Under fresh sampling, whenever the keystream program outputs uniform blocks on every query,
 `blockModeReduction` has the exact same output distribution as `blockModeIdealExperiment`. -/
@@ -534,7 +476,7 @@ private theorem toOuterMeasure_repeated_freshStep_simulate_le
     (ProbOracleComp.runWith freshStep (ProbOracleComp.simulate program adversary)
         ([], false)).toOuterMeasure {x | x.2.repeated = true} ≤
       ((K.choose 2 : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ := by
-  rw [ProbOracleComp.runWith_simulate]
+  rw [ProbOracleComp.runWith_simulate_eta]
   simpa using
     ProbOracleComp.toOuterMeasure_bad_choose_two_cost_le
       (handler := fun q => ProbOracleComp.runWith freshStep (program q))
@@ -572,12 +514,7 @@ theorem advantage_idealExperiment_simulate_le
       (K.choose 2 : ℝ) / 2 ^ n := by
   rw [← freshGame_simulate_eq_blockModeIdealExperiment program ℓ adversary hprogram]
   refine (advantage_idealExperiment_freshStep_le _).trans ?_
-  have hne : ((K.choose 2 : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _)
-      (ENNReal.inv_ne_top.2 (pow_ne_zero _ two_ne_zero))
-  refine (ENNReal.toReal_mono hne
-    (toOuterMeasure_repeated_freshStep_simulate_le program ℓ hbad hlen h)).trans (le_of_eq ?_)
-  simp only [ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_pow, ENNReal.toReal_natCast,
-    ENNReal.toReal_ofNat, div_eq_mul_inv]
+  rw [div_eq_mul_inv]
+  ennreal_to_real using toOuterMeasure_repeated_freshStep_simulate_le program ℓ hbad hlen h
 
 end Cslib.Crypto

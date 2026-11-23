@@ -88,7 +88,7 @@ private theorem randomBit_depth : randomBit.depth ≤ 1 := by
   classical
   refine RandomizedDecisionTree.depth_le_iff.mpr fun t ht => ?_
   obtain ⟨i, -, rfl⟩ := Finset.mem_image.mp
-    (Finsupp.mapDomain_support (by simpa [randomBit, StdSimplex.weights_map] using ht))
+    (Finsupp.mapDomain_support (by simpa only [randomBit, StdSimplex.weights_map] using ht))
   simp
 
 /-- Read as signs, majority of three bits has Fourier coefficient `-1/2` on all three
@@ -146,8 +146,7 @@ example {n : ℕ} (ε : ℝ≥0) (f : BooleanFunction n) (x : BitString n) :
     StdSimplex.exists_forall_sum_le_of_forall_exists_sum_le _ fun q => ?_⟩
   · refine ⟨le_antisymm ((randomizedComplexity_le_depth randomBit_computes).trans randomBit_depth)
       ?_, le_antisymm ((DecisionTree.complexity_le_card _).trans_eq (Fintype.card_fin 3)) ?_⟩
-    · have h := blockSensitivity_le_three_mul_randomizedComplexity (majority 3)
-      rw [show blockSensitivity (majority 3) = 2 by decide] at h
+    · have h := div_two_add_one_le_three_mul_randomizedComplexity_majority (n := 3) (by norm_num)
       omega
     · have h := card_le_degree_of_fourierCoeff_ne_zero (f := majority 3) (S := univ) (by
         rw [fourierCoeff_majority_three_univ]

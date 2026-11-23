@@ -12,6 +12,8 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Foundations.Control.Monad.Memoize
 import CslibFrontier.Languages.Probabilistic.Memoize
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Languages.Probabilistic.QueryCount
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
@@ -26,7 +28,7 @@ In the real experiment `multiKeyRealExperiment` the channels are `F (keys i)` fo
 uniform keys; in the ideal experiment `multiKeyIdealExperiment` they are `t` independent uniform
 functions `D → R`. This is the `t`-wise parallel composition of a PRF ([BonehShoup2023],
 Exercise 4.26), for finite key, input and output types, and the finite counterpart of the
-word-level `Cslib.Crypto.PseudorandomFunction.multiKey`.
+word-level `Cslib.Crypto.PseudorandomFunction.multiKey_constantCount`.
 
 The proof is the standard hybrid argument. In the `j`-th hybrid the channels below `j` are random
 and the others are keyed. The reduction `multiKeyReduction F j A` is one randomized PRF adversary:
@@ -55,6 +57,8 @@ averaging step.
 
 * `Cslib.Crypto.PRF.isQueryBounded_multiKeyReduction`: a reduction makes at most as many queries
   as the multi-key adversary.
+* `Cslib.Crypto.PRF.interpret_multiKeyReduction_eq_bind`: against a fixed function, a reduction
+  runs the adversary with eager uniform tables in place of its lazily sampled channels.
 * `Cslib.Crypto.PRF.multiKeyAdvantage_le_sum`: the multi-key advantage is at most the sum of the
   PRF advantages of the `t` hybrid reductions.
 
@@ -198,26 +202,20 @@ private theorem interpret_multiKeyReduction (F : Key → D → R) (j : ℕ)
         ((OracleComp.interpret
           (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
             (semanticHandler F j keys ext)) A).run []).map Prod.fst := by
-  simp only [multiKeyReduction, OracleComp.interpret_bind, ProbOracleComp.interpret_sample,
-    OracleComp.interpret_map]
-  rw [show OracleComp.interpret ProbComp.unifOracle (ProbComp.uniform (Fin t → Key)) =
-    ProbComp.eval (ProbComp.uniform (Fin t → Key)) from rfl, ProbComp.eval_uniform,
+  simp only [multiKeyReduction, interp_norm, ProbComp.eval_uniform,
     Probability.PMF.monad_bind_eq_bind]
   congr 1 with keys : 1
-  have hhom : IsMonadHom (ProbOracleComp (fun _ : D => R)) PMF
-      (OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
-        (fun x : D => PMF.pure (ext x)))) :=
-    OracleComp.isMonadHom_evalWith _
-  rw [OracleComp.map_run_interpret hhom, PMF.monad_map_eq_map]
+  rw [← OracleComp.evalWith_eq_interpret,
+    OracleComp.map_run_interpret (OracleComp.isMonadHom_evalWith _), PMF.monad_map_eq_map]
   congr 3 with q cache : 2
   rcases q with k | ⟨i, x⟩
-  · simp [StateT.lift, ProbOracleComp.interpret_sample, ProbComp.unifFin, PMF.map,
-      Function.comp_def]
+  · simp [StateT.lift, ProbOracleComp.evalWith_sumHandler_unifOracle_sample,
+      ProbComp.unifFin, ProbComp.eval, PMF.map, Function.comp_def]
   · simp only [OracleComp.sumHandler, multiKeyHandler, semanticHandler]
     split_ifs
-    · rw [ProbOracleComp.interpret_sample]
+    · rw [ProbOracleComp.evalWith_sumHandler_unifOracle_sample]
       exact (ProbComp.eval_memoize _ _ _).trans (by simp only [ProbComp.eval_uniform])
-    · simp [PMF.monad_map_eq_map]
+    · simp [ProbOracleComp.evalWith_sumHandler_query]
     · simp
 
 /-- The deterministic answers of the reduction when its random channels read eager tables. -/
@@ -248,8 +246,7 @@ private theorem run_semanticHandler (F : Key → D → R) (j : ℕ) (keys : Fin 
     funext ⟨i, x⟩ cache
     simp only [adapter, semanticHandler]
     split_ifs
-    · simp only [ProbOracleComp.runWith, OracleComp.runWith, ProbOracleComp.interpret_query]
-      rfl
+    · simp only [ProbOracleComp.runWith_query]
     all_goals simp [ProbOracleComp.runWith, OracleComp.runWith]
   have heager (table : Fin t × D → R) :
       (fun q => OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
@@ -260,8 +257,24 @@ private theorem run_semanticHandler (F : Key → D → R) (j : ℕ) (keys : Fin 
     split_ifs <;> simp [Function.curry]
   simp only [ProbOracleComp.interpret_simulate, hlazy, heager, PMF.pi_uniformOfFintype,
     Probability.PMF.monad_bind_eq_bind] at h
-  rw [ProbOracleComp.runWith, OracleComp.runWith] at h
-  rw [← h, ← PMF.uniformOfFintype_map_equiv (Equiv.curry (Fin t) D R), PMF.bind_map]
+  rw [← ProbOracleComp.runWith_eq_run_interpret, ← h,
+    ← PMF.uniformOfFintype_map_equiv (Equiv.curry (Fin t) D R), PMF.bind_map]
+  rfl
+
+/-- **The law of a hybrid reduction against a fixed function**: against a deterministic external
+oracle `ext`, the `j`-th reduction draws its `t` keys and `t` uniform tables, and runs `A` with
+the channels below `j` read from the tables, channel `j` answered by `ext`, and the channels above
+`j` keyed. The lazily sampled channels are thus eager uniform functions. -/
+theorem interpret_multiKeyReduction_eq_bind (F : Key → D → R) (j : ℕ)
+    (A : MultiKeyAdversary t D R) (ext : D → R) :
+    OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle (fun x => PMF.pure (ext x)))
+        (multiKeyReduction F j A) =
+      (PMF.uniformOfFintype (Fin t → Key)).bind fun keys =>
+        (PMF.uniformOfFintype (Fin t → D → R)).bind fun tables =>
+          OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle fun (i, x) =>
+            PMF.pure (if i.val < j then tables i x else if i.val = j then ext x
+              else F (keys i) x)) A := by
+  simp only [interpret_multiKeyReduction, run_semanticHandler]
   rfl
 
 /-- Against the real PRF experiment, the `j`-th reduction is the `j`-th hybrid. -/
@@ -311,10 +324,11 @@ private theorem eval_idealExperiment_multiKeyReduction (F : Key → D → R) {j 
     · have hlt' : ¬i.val < j + 1 := by omega
       simp only [hlt, heq, hlt', ↓reduceIte]
 
-/-- **Multi-key PRF hybrid** ([BonehShoup2023], Exercise 4.26): the multi-key advantage of `A` is at
-most the sum of the PRF advantages of the `t` hybrid reductions `multiKeyReduction F j A`. This is
-a concrete bound for one finite instance; running time is not modeled. The asymptotic word-level
-statement is `Cslib.Crypto.PseudorandomFunction.multiKey`. -/
+/-- Hybrid bound, a step toward [BonehShoup2023], Exercise 4.26, not the cited result: the
+multi-key advantage of `A` is at most the sum of the PRF advantages of the `t` hybrid reductions
+`multiKeyReduction F j A`. This is a concrete bound for one finite instance; running time is not
+modeled. The asymptotic word-level statement, for a constant number of keys, is
+`Cslib.Crypto.PseudorandomFunction.multiKey_constantCount`. -/
 theorem multiKeyAdvantage_le_sum (F : Key → D → R) (A : MultiKeyAdversary t D R) :
     multiKeyAdvantage F A ≤ ∑ j ∈ Finset.range t, advantage F (multiKeyReduction F j A) := by
   rw [multiKeyAdvantage, eval_multiKeyRealExperiment F A, eval_multiKeyIdealExperiment F A]

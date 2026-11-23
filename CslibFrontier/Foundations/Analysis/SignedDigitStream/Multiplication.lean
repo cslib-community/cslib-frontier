@@ -422,8 +422,7 @@ private theorem sum_floor_err_le (K : ℕ) :
     have hle := ten_add_two_mul_le_bandMargin k
     have hpow_le : (2 : ℝ) ^ (10 + 2 * k) ≤ (2 : ℝ) ^ bandMargin k :=
       pow_le_pow_right₀ (by norm_num) hle
-    have h1 : 1 / (2 : ℝ) ^ bandMargin k ≤ 1 / (2 : ℝ) ^ (10 + 2 * k) :=
-      one_div_le_one_div_of_le (by positivity) hpow_le
+    have h1 : 1 / (2 : ℝ) ^ bandMargin k ≤ 1 / (2 : ℝ) ^ (10 + 2 * k) := by gcongr
     have h2 : 1 / (2 : ℝ) ^ (10 + 2 * k) = (1 / 1024) * (1 / 4 : ℝ) ^ k := by
       have hp : (2 : ℝ) ^ (10 + 2 * k) = 1024 * (4 : ℝ) ^ k := by
         rw [pow_add, pow_mul]
@@ -516,9 +515,7 @@ private theorem sum_omitted_le {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy :
       have hy1 := hy.abs_cast_le p.2
       nlinarith [abs_nonneg (x p.1 : ℝ), abs_nonneg (y p.2 : ℝ)]
     calc (2 : ℝ) ^ t * (|(x p.1 : ℝ)| * |(y p.2 : ℝ)| / (2 : ℝ) ^ (p.1 + p.2))
-        ≤ (2 : ℝ) ^ t * (36 / (2 : ℝ) ^ (p.1 + p.2)) :=
-          mul_le_mul_of_nonneg_left (div_le_div_of_nonneg_right hprod (by positivity))
-            (by positivity)
+        ≤ (2 : ℝ) ^ t * (36 / (2 : ℝ) ^ (p.1 + p.2)) := by gcongr
       _ = (2 : ℝ) ^ t * 36 * (1 / (2 : ℝ) ^ (p.1 + p.2)) := by ring
   have homit_gt : ∀ p ∈ Sq \ retainedUnion t K,
       t + bandMargin (bandIdx (min p.1 p.2)) < p.1 + p.2 := by
@@ -647,10 +644,7 @@ private theorem sum_omitted_le {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy :
           have hm_le : (2 : ℝ) ^ (10 + 2 * k) ≤ (2 : ℝ) ^ bandMargin k :=
             pow_le_pow_right₀ (by norm_num) (ten_add_two_mul_le_bandMargin k)
           calc (bandWidth k : ℝ) * (72 / (2 : ℝ) ^ bandMargin k)
-              ≤ (2 : ℝ) ^ k * (72 / (2 : ℝ) ^ (10 + 2 * k)) :=
-                mul_le_mul hw_le
-                  (div_le_div_of_nonneg_left (by norm_num) (by positivity) hm_le)
-                  (by positivity) (by positivity)
+              ≤ (2 : ℝ) ^ k * (72 / (2 : ℝ) ^ (10 + 2 * k)) := by gcongr
             _ = (72 / 1024) * (1 / 2 : ℝ) ^ k := by
                 have hp : (2 : ℝ) ^ (10 + 2 * k) = 1024 * ((2 : ℝ) ^ k * (2 : ℝ) ^ k) := by
                   rw [pow_add, two_mul, pow_add]

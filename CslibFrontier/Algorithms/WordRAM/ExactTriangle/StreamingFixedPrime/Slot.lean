@@ -25,8 +25,6 @@ namespace Cslib.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime
 
 open Cslib.WordRAM Cslib.Matrix Cslib.Algorithms.ExactTriangle
 
--- The proof unfolds only finite delivered argument records and their six descriptor words.
-set_option maxRecDepth 4096 in
 /-- Write one logical instance at the fixed physical slot from an arbitrary dirty state.
 The destination is exactly one six-word descriptor followed by two raw matrices. The frame
 protects the shared queries and original weights for every later piece and prime pass. -/
@@ -129,7 +127,7 @@ theorem exec_construct {w n D g p : ℕ} (values : ℕ → ℤ)
   have argsL : InstancePair.leftArgs (Instances.pairInput x) =
       { RecordProduct.matrixArgs n D g p idx.residue.val idx.piece with
         src := x.regs Instances.srcLeft, dst := out + 6 } := by
-    simp +decide [InstancePair.leftArgs, Instances.pairInput, RecordProduct.matrixArgs,
+    simp [InstancePair.leftArgs, Instances.pairInput, RecordProduct.matrixArgs,
       cursor.size, cursor.dimension, cursor.modulus, cursor.pieceLength,
       hmod, hdiv, hdesc.1, hheap, out,
       InstancePair.srcLeft, InstancePair.base, InstancePair.size, InstancePair.dimension,
@@ -139,15 +137,14 @@ theorem exec_construct {w n D g p : ℕ} (values : ℕ → ℤ)
         src := x.regs Instances.srcRight, dst := out + 6 + n * D } := by
     unfold InstancePair.rightArgs
     rw [argsL]
-    simp +decide [Instances.pairInput, hheap, out, cursor.size, cursor.dimension,
+    simp [Instances.pairInput, hheap, out, cursor.size, cursor.dimension,
       InstancePair.srcRight, InstancePair.base, InstancePair.size, InstancePair.dimension]
   refine ⟨y, he, cursor.after_visit he, yi, ?_, ?_, ?_, ?_, ?_⟩
   · simpa only [hheap, cursor.stride] using yh
-  · rw [InstancePair.recordWords, argsL, argsR] at hdr
-    rw [hheap] at hdr
-    simpa +decide [Instances.pairInput,
-      hmod, hdiv, hdesc.1, hdesc.2.1, hdesc.2.2, InstancePair.rho, InstancePair.piece,
-      InstancePair.queries, InstancePair.count, hheap, out] using hdr
+  · rw [InstancePair.recordWords, argsL, argsR, hheap] at hdr
+    simpa [Instances.pairInput, hmod, hdiv, hdesc.1, hdesc.2.1, hdesc.2.2,
+      InstancePair.rho, InstancePair.piece, InstancePair.queries, InstancePair.count, out]
+      using hdr
   · rw [argsL] at hl
     exact hl
   · rw [argsR] at hr

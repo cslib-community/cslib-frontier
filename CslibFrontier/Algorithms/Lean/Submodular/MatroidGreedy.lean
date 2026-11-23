@@ -357,14 +357,11 @@ theorem submodularMatroidGreedy_eq_chain (f : Finset α → β) (indep : Finset 
 /-- The greedy loop only adds elements. -/
 theorem subset_submodularMatroidGreedyLoop (f : Finset α → β) (indep : Finset α → Bool)
     (u : List α) (k : ℕ) (S : Finset α) : S ⊆ submodularMatroidGreedyLoop f indep u k S := by
-  induction k generalizing S with
-  | zero => exact Finset.Subset.refl S
-  | succ k ih =>
-    simp only [submodularMatroidGreedyLoop]
-    rcases h : submodularMatroidGreedyStep f indep u S with _ | S'
-    · exact Finset.Subset.refl S
-    · obtain ⟨c, -, rfl, -⟩ := exists_of_submodularMatroidGreedyStep_eq_some h
-      exact (Finset.subset_insert c S).trans (ih _)
+  fun_induction submodularMatroidGreedyLoop f indep u k S with
+  | case1 | case2 => exact Finset.Subset.refl _
+  | case3 k S S' h ih =>
+    obtain ⟨c, -, rfl, -⟩ := exists_of_submodularMatroidGreedyStep_eq_some h
+    exact (Finset.subset_insert c S).trans ih
 
 theorem submodularMatroidGreedyChain_subset_succ (f : Finset α → β) (indep : Finset α → Bool)
     (u : List α) (t : ℕ) :

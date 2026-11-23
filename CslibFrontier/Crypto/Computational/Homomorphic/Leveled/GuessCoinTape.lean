@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Computational.Homomorphic.KeyChain.Reduction.
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Probability.BitString.UniformSplit
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -93,24 +94,9 @@ theorem eval_publicKeyGame_eq_map_coins (E : Scheme) (adversary : Encryption.Adv
     apply PMF.bind_congr_on_support
     exact hguess choice hchoice
   simp only [hchoose, hencrypt, PMF.bind_map, Function.comp_def]
-  rw [PMF.map]
-  change _ = (BitString.uniformList (chooseCoins + (encCoins + guessCoins))).bind
-    (fun tape => PMF.pure (publicKeyGameCoins evaluateChoose evaluateEncrypt evaluateGuess bit
-      chooseCoins encCoins (n, artifact) tape))
   unfold publicKeyGameCoins
-  rw [BitString.uniformList_bind_split _ _ (fun first rest => PMF.pure
-    (evaluateGuess (n, (evaluateChoose (n, encPublicKey artifact) first).2,
-      false :: evaluateEncrypt (n, artifact.1.getD 0 [],
-        if bit then (evaluateChoose (n, encPublicKey artifact) first).1.2
-        else (evaluateChoose (n, encPublicKey artifact) first).1.1) (rest.take encCoins))
-      (rest.drop encCoins)))]
-  congr 1 with first : 1
-  rw [BitString.uniformList_bind_split _ _ (fun second third => PMF.pure
-    (evaluateGuess (n, (evaluateChoose (n, encPublicKey artifact) first).2,
-      false :: evaluateEncrypt (n, artifact.1.getD 0 [],
-        if bit then (evaluateChoose (n, encPublicKey artifact) first).1.2
-        else (evaluateChoose (n, encPublicKey artifact) first).1.1) second) third))]
-  rfl
+  dsimp only
+  exact (BitString.uniformList_map_split3 _ _ _ _).symm
 
 /-- The concrete adaptive-game replay is native polynomial time in the public artifact,
 parameter, tape, and unary component budgets. -/
@@ -133,31 +119,7 @@ parameter, tape, and unary component budgets. -/
     (htape : ComputableInPolyTime tape input encBits) :
     ComputableInPolyTime (fun a => publicKeyGameCoins evaluateChoose evaluateEncrypt evaluateGuess
       bit (chooseCoins a) (encCoins a) (n a, artifact a) (tape a)) input encBool := by
-  have hpublic := hartifact.encoding_comp
-  have hchoice := hchoose.comp (show ComputableInPolyTime
-    (fun a => ((n a, encPublicKey (artifact a)), (tape a).take (chooseCoins a))) input
-      (encPair (encPair encUnary encBits) encBits) by fun_prop)
-  have hfirst := (ComputableInPolyTime.listGetD (encA := encBits) []).comp
-    (hartifact.fst'.prod (ComputableInPolyTime.const 0))
-  have hcipher := hencrypt.comp (show ComputableInPolyTime (fun a =>
-    ((n a, (artifact a).1.getD 0 [], if bit then
-      (evaluateChoose (n a, encPublicKey (artifact a)) ((tape a).take (chooseCoins a))).1.2
-      else (evaluateChoose (n a, encPublicKey (artifact a))
-        ((tape a).take (chooseCoins a))).1.1),
-      ((tape a).drop (chooseCoins a)).take (encCoins a))) input
-      (encPair (encPair encUnary (encPair encBits encBool)) encBits) by
-    cases bit <;> fun_prop)
-  unfold publicKeyGameCoins
-  exact hguess.comp (show ComputableInPolyTime (fun a =>
-    ((n a, (evaluateChoose (n a, encPublicKey (artifact a))
-      ((tape a).take (chooseCoins a))).2,
-      false :: evaluateEncrypt (n a, (artifact a).1.getD 0 [], if bit then
-        (evaluateChoose (n a, encPublicKey (artifact a)) ((tape a).take (chooseCoins a))).1.2
-        else (evaluateChoose (n a, encPublicKey (artifact a))
-          ((tape a).take (chooseCoins a))).1.1)
-        (((tape a).drop (chooseCoins a)).take (encCoins a))),
-      ((tape a).drop (chooseCoins a)).drop (encCoins a))) input
-      (encPair (encPair encUnary (encPair encBits encBits)) encBits) by fun_prop)
+  fun_prop [publicKeyGameCoins]
 
 end Cslib.Crypto.Homomorphic.Leveled
 
@@ -275,9 +237,6 @@ and tape; no validity restriction is needed for this total computational certifi
       (fun p seed => Leveled.publicKeyGameCoins evaluateChoose evaluateEncrypt evaluateGuess
         bit (chooseCoins p.1) (encCoins p.1) p seed) (n a) (encCoins (n a)) (capacity (n a))
         (state a) (challenge a) (tape a)) input encBool := by
-  apply computableInPolyTime_guessLinkCoins hencrypt
-  · apply Leveled.computableInPolyTime_publicKeyGameCoins hchoose hencrypt hguess bit
-    all_goals fun_prop
-  all_goals fun_prop
+  fun_prop
 
 end Cslib.Crypto.Homomorphic.Scheme

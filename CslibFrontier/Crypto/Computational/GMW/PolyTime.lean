@@ -14,13 +14,13 @@ public import CslibFrontier.Crypto.Computational.GMW.Protocol
 public import CslibFrontier.Crypto.Encoding
 public import CslibFrontier.Crypto.Game.Retry
 public import CslibFrontier.Logics.Propositional.CNF.Encoding
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
-import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 
 /-!
@@ -462,12 +462,12 @@ theorem isOraclePPTOn_gmwVerifier {α : Type} {enc : α ↪ List Bool}
     computableInPolyTime_totalLen hφ0
   dsimp only [gmwVerifier]
   apply IsOraclePPTOn.bind_with hm0.sampleList.isOraclePPTOn
-  apply IsOraclePPTOn.bind_with (IsOraclePPTOn.query_take' () (.snd e0 encBits)
+  apply IsOraclePPTOn.bind_with (IsOraclePPTOn.query_take () (.snd e0 encBits)
     ((hK0.comp (.fst e0 encBits)).unary_mul' (hm0.comp (.fst e0 encBits))))
   apply IsOraclePPTOn.bind_with (ComputableInPolyTime.const 3).sampleList.isOraclePPTOn
   have hp3_0 := ((ComputableInPolyTime.fst e2 encBits).fst').fst'
   simp only [bind_pure_comp]
-  apply IsOraclePPTOn.map_with' (IsOraclePPTOn.query_take' () (.snd e2 encBits)
+  apply IsOraclePPTOn.map_with (IsOraclePPTOn.query_take () (.snd e2 encBits)
     ((hK0.comp hp3_0).unary_mul' ((hs0.comp hp3_0).unary_add' (.const 1))))
   have hp4_3 := ComputableInPolyTime.fst e3 encBits; have hp4_2 := hp4_3.fst'
   have hp4_1 := hp4_2.fst'; have hp4_0 := hp4_1.fst'
@@ -588,8 +588,8 @@ theorem computableInPolyTime_firstSuccess {α β : Type} {input : α ↪ List Bo
     ComputableInPolyTime (fun a => firstSuccess (d a) (attempts a)) input enc :=
   let hfilt := (ComputableInPolyTime.headD (encA := encOption enc) none).comp'
     (ha.filterWithInput
-      (ComputableTidilyInPolyTime.snd input (encOption enc)).optionIsSome.computableInPolyTime)
-  (hfilt.tidy.optionGetDWithInput hd.tidy).computableInPolyTime
+      (ComputableInPolyTime.snd input (encOption enc)).optionIsSome)
+  (hfilt.optionGetDWithInput hd)
 
 @[fun_prop]
 theorem computableInPolyTime_acceptGuess {α β : Type} {input : α ↪ List Bool}

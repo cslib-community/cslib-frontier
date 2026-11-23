@@ -11,6 +11,8 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.FineGrained
 public import CslibFrontier.Computability.Complexity.Problems.Graph
 public import Mathlib.Combinatorics.SimpleGraph.Diam
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Foundations.Data.Nat.LogRpow
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streaming
@@ -848,9 +850,10 @@ theorem computableInO_parseRun {β : Type} {enc : β ↪ List Bool} {f : ℕ →
     have h₂ := Nat.mul_le_mul_left cE' (hpow x dE (by omega))
     simp only [M, Nat.add_mul, Nat.mul_assoc] at h₁ h₂ ⊢
     omega
-  refine ⟨dN + dE + 1, ComputableInO.of_bounds h.computableInTimeAndSpace
+  refine ⟨dN + dE + 1, ComputableInO.of_bounds
+    (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h)
     (c * (2 * cI + 2 + (2 * cF + 2) + M + 100)) (fun x => ?_) (fun x => ?_)
-    (fun x => (h.computableInTimeAndSpace.length_le x).trans ?_)⟩
+    (fun x => ((ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h).length_le x).trans ?_)⟩
   · rw [Nat.mul_assoc]
     apply Nat.mul_le_mul_left
     rw [encBits_apply]
@@ -963,8 +966,7 @@ theorem DecidableInTimeO.decidableInTimeO_OV_of_diameter {ε : ℝ} (hε : 0 < �
       rw [Real.rpow_add hX0, Real.rpow_one]
       have := hKb (encOV p).length
       push_cast at this
-      calc X * ((Nat.size (encOV p).length : ℝ) + 1) ^ D ≤ X * (K * X ^ (ε₀ / 4)) :=
-            mul_le_mul_of_nonneg_left this hX0.le
+      calc X * ((Nat.size (encOV p).length : ℝ) + 1) ^ D ≤ X * (K * X ^ (ε₀ / 4)) := by gcongr
         _ = K * (X * X ^ (ε₀ / 4)) := by ring
     -- the reduced instance has encoded length `O(X ^ (1 + δ))`
     have hLG : ((encGraph (toDiameter p)).length : ℝ) + 1 ≤ C₁ * X ^ (1 + ε₀ / 4) := by
@@ -1052,8 +1054,7 @@ theorem DecidableInTimeO.decidableInTimeO_OV_of_diameter {ε : ℝ} (hε : 0 < �
               have hNr : (0 : ℝ) ≤ ((p.1.length + p.2.length : ℕ) : ℝ) ^ r := by positivity
               calc 6 ^ r * (((p.1.length + p.2.length : ℕ) : ℝ) ^ r * ((OV.dim p : ℝ) + 1) ^ r)
                   ≤ 36 * (((p.1.length + p.2.length : ℕ) : ℝ) ^ r * ((OV.dim p : ℝ) + 1) ^ 2) :=
-                    mul_le_mul h6 (mul_le_mul_of_nonneg_left hd hNr) (by positivity)
-                      (by norm_num)
+                    by gcongr
                 _ = 36 * Y := rfl
           _ ≤ 36 * Y + 4 := by linarith
     have := hbound p

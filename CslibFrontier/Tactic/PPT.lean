@@ -21,7 +21,7 @@ public import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 
 `ppt` combines the proved closed and oracle PPT rules with deterministic `polytime` automation.
 Programs use ordinary `do` notation, captured inputs and conditionals with plain
-`ComputableInPolyTime` guards (`cond'`, `ite'`). Named and local certificates are reused, and
+`ComputableInPolyTime` guards (`cond`/`ite`). Named and local certificates are reused, and
 tuple arguments are prepared with the shared routine-call matcher. Closed proofs supply the
 uniform strict fair-coin machine contract of `IsPPTOn`; `IsPPT` goals and local certificates
 expose the standard unary-parameter/word encoding automatically.
@@ -32,13 +32,21 @@ original input are certified here. General loop invariants use `IsPPTOn.iterate_
 
 Strict oracle PPT goals (`IsOraclePPTOn`, `IsOraclePPT`) search with the `OraclePPT`, `PPT` and
 `PolyTime` Aesop rule sets while keeping `simp` disabled on oracle goals so charged reply prefixes
-(`List.take _ <$> ProbOracleComp.query _`) are never fused into surrounding maps or binds. Local
-and structure-field oracle routine calls prepare tuple arguments with `IsOraclePPTOn.preprocess'`;
-`pure`, `ProbOracleComp.sample` and `query_take'` bridge to deterministic `PolyTime`, closed `PPT`
+(`List.take _ <$> ProbOracleComp.query _`) are never fused into surrounding maps or binds. Closed
+PPT goals (`IsPPTOn`, `IsPPT`) likewise disable Aesop's built-in `norm simp`, while `PolyTime`'s
+`simp_all` rules turn `dsimp`, `proj`, `iota`, and `zeta` back on for closed PPT goals (only
+`zetaDelta` stays off, whereas all five were off before — needed so `CslibFrontierTests.MemoizePPT`
+does not time out at `whnf`) and erase the monad-map fusion lemmas (`bind_map_left`,
+`LawfulMonad.bind_pure_comp`, `Functor.map_map`, `LawfulMonad.map_map`, `map_bind`,
+`PFunctor.FreeM.bind_pure_comp`, `PFunctor.FreeM.map_bind`) so encoded samplers
+(`enc _ <$> sample _`) stay intact. Local
+and structure-field oracle routine calls prepare tuple arguments with `IsOraclePPTOn.preprocess`;
+`pure`, `ProbOracleComp.sample` and `IsOraclePPTOn.query_take` bridge to deterministic `PolyTime`,
+closed `PPT`
 and plain request/limit bounds; sequencing, captured maps, plain conditionals and bounded-growth
 `OracleComp.iterate` loops search jointly. Handler substitution and general adaptive loop
 invariants keep their explicit theorems (`IsOraclePPT.run_interpret_preprocess`,
-`IsOraclePPTOn.iterate_spec'`, `IsOraclePPTOn.iterateWith_spec'`).
+`IsOraclePPTOn.iterate_spec`, `IsOraclePPTOn.iterateWith_spec`).
 
 Before searching, `ppt [f, g]` unfolds the hinted definitions in the goal and inlines the `let`s
 they expose. Every form also unfolds local encoding `let`s and adds the certificates stored in
@@ -75,7 +83,7 @@ theorem Internal.oracleIterate_of_length_le {Operation α σ : Type} [DecidableE
       (stateEncoding next).length ≤ (stateEncoding state).length) :
     IsOraclePPTOn input stateEncoding
       (fun a => OracleComp.iterate (count a) step (initial a)) :=
-  IsOraclePPTOn.iterate_of_bounded_growth' hcount hinitial hstep (growth := 0)
+  IsOraclePPTOn.iterate_of_bounded_growth hcount hinitial hstep (growth := 0)
     (by simpa only [Nat.add_zero] using hshrink)
 
 attribute [aesop norm unfold (rule_sets := [PPT])] IsPPT
@@ -122,7 +130,7 @@ private meta partial def prepareOracleArgument (domain type : Expr) : MetaM Expr
   else
     mkFreshExprMVar (← mkArrow domain type)
 
-/-- Prepare local strict oracle PPT routine calls through `IsOraclePPTOn.preprocess'`, reading the
+/-- Prepare local strict oracle PPT routine calls through `IsOraclePPTOn.preprocess`, reading the
 input domain after the leading `Operation` parameter of `IsOraclePPTOn`. -/
 @[aesop unsafe 99% tactic (rule_sets := [OraclePPT])]
 private meta def oraclePptKnownCall : Aesop.RuleTac := fun input =>
@@ -159,7 +167,7 @@ private meta def oraclePptKnownCall : Aesop.RuleTac := fun input =>
             input.goal.assign decl.toExpr
             replaceMainGoal []
           else
-            applyWithArguments ``IsOraclePPTOn.preprocess'
+            applyWithArguments ``IsOraclePPTOn.preprocess
               #[(`prepare, argument), (`hprogram, decl.toExpr)]
             if ← (← getGoals).anyM (fun goal => do isDefEq (← goal.getType) target) then
               throwError "composition made no progress").run'
@@ -190,7 +198,7 @@ private meta def oracleCertificateForBody? (body : Expr) : MetaM (Option Name) :
     return some ``Cslib.Probability.IsPPTOn.isOraclePPTOn
   if body.isAppOfArity ``Functor.map 6 && body.getAppArgs[5]!.isAppOf ``ProbOracleComp.query then
     if ← isListTakeFn body.getAppArgs[4]! then
-      return some ``Cslib.Probability.IsOraclePPTOn.query_take'
+      return some ``Cslib.Probability.IsOraclePPTOn.query_take
   return none
 
 /-- Bridge pure values, sampled closed programs and charged `List.take` oracle queries to their
@@ -280,7 +288,7 @@ private meta def pptCaptured : TacticM Unit :=
 /-- Expose strict oracle probabilistic sequencing and plain captured maps. -/
 @[aesop unsafe 80% tactic (rule_sets := [OraclePPT])]
 private meta def oraclePptCaptured : TacticM Unit :=
-  applyCaptured ``IsOraclePPTOn ``IsOraclePPTOn.bind_with ``IsOraclePPTOn.map_with'
+  applyCaptured ``IsOraclePPTOn ``IsOraclePPTOn.bind_with ``IsOraclePPTOn.map_with
 
 /-- Only a syntactic conditional can use branch selection. Trying these theorems on arbitrary
 named programs can unfold their implementations during unification before certificate children
@@ -297,22 +305,22 @@ private meta def applyConditional (predicate rule : Name) : TacticM Unit :=
 /-- Closed Boolean branch selection with a plain polynomial-time condition. -/
 @[aesop unsafe 80% tactic (rule_sets := [PPT])]
 private meta def pptCond : TacticM Unit :=
-  applyConditional ``IsPPTOn ``IsPPTOn.cond'
+  applyConditional ``IsPPTOn ``IsPPTOn.cond
 
 /-- Closed proposition branch selection with a plain polynomial-time decision. -/
 @[aesop unsafe 80% tactic (rule_sets := [PPT])]
 private meta def pptIte : TacticM Unit :=
-  applyConditional ``IsPPTOn ``IsPPTOn.ite'
+  applyConditional ``IsPPTOn ``IsPPTOn.ite
 
 /-- Strict oracle Boolean branch selection with a plain polynomial-time condition. -/
 @[aesop unsafe 80% tactic (rule_sets := [OraclePPT])]
 private meta def oraclePptCond : TacticM Unit :=
-  applyConditional ``IsOraclePPTOn ``IsOraclePPTOn.cond'
+  applyConditional ``IsOraclePPTOn ``IsOraclePPTOn.cond
 
 /-- Strict oracle proposition branch selection with a plain polynomial-time decision. -/
 @[aesop unsafe 80% tactic (rule_sets := [OraclePPT])]
 private meta def oraclePptIte : TacticM Unit :=
-  applyConditional ``IsOraclePPTOn ``IsOraclePPTOn.ite'
+  applyConditional ``IsOraclePPTOn ``IsOraclePPTOn.ite
 
 /-- Loop rules inspect only an actual iteration, including reducible wrappers. Arbitrary named
 programs must not unfold during loop-rule unification before their certificate children run. -/
@@ -350,13 +358,13 @@ private meta def oraclePptIterateLength : TacticM Unit :=
 /-- Constant additive-growth strict oracle iteration. -/
 @[aesop unsafe 80% tactic (rule_sets := [OraclePPT])]
 private meta def oraclePptIterateGrowth : TacticM Unit :=
-  applyIterate ``IsOraclePPTOn ``IsOraclePPTOn.iterate_of_bounded_growth'
+  applyIterate ``IsOraclePPTOn ``IsOraclePPTOn.iterate_of_bounded_growth
 
 /-- Captured strict oracle iteration with a polynomially bounded input-dependent growth
 allowance. -/
 @[aesop unsafe 80% tactic (rule_sets := [OraclePPT])]
 private meta def oraclePptIterateCaptured : TacticM Unit :=
-  applyIterate ``IsOraclePPTOn ``IsOraclePPTOn.iterateWith_of_bounded_growth'
+  applyIterate ``IsOraclePPTOn ``IsOraclePPTOn.iterateWith_of_bounded_growth
 
 /-- Unfold parameterized oracle PPT (`IsOraclePPT`) to its encoded-input form in the goal and
 the hypotheses, and expose bundled `Finite Operation` facts from local `IsOraclePPTOn`
@@ -459,6 +467,14 @@ private meta def oraclePolyTimeEnvironment (env : Environment) : MetaM Environme
   unless matchedUnsafe.size == 1 do throwError "expected one PolyTime fallback simp rule"
   return modifyLocalRuleState ext env fun state => { state with normRules, unsafeRules }
 
+/-- Mark the PPT predicates irreducible in the search's environment copy. When a rule, certificate
+or hypothesis fails to match an `IsPPTOn` or `IsOraclePPTOn` goal on its arguments, unification
+otherwise compares the two machine-realization statements and unfolds their output distributions.
+Every other definition unfolds as before, so encodings and programs still match. -/
+private meta def foldedPredicateEnvironment (env : Environment) : Environment :=
+  modifyLocalRuleState reducibilityExtraExt env fun status =>
+    (status.insert ``IsPPTOn .irreducible).insert ``IsOraclePPTOn .irreducible
+
 /-- Certify a closed or oracle probabilistic program using proved sampling, composition and
 deterministic rules. Goals may be `IsPPTOn`, `IsPPT`, `IsOraclePPTOn` or `IsOraclePPT`.
 
@@ -469,7 +485,8 @@ syntax (name := pptTactic) "ppt" (" [" ident,* "]")? : tactic
 
 /-- Elaborate `ppt`: prepare the goal and unfold `IsOraclePPT` before and after exposing structure
 fields, then search with `[OraclePPT, PPT, PolyTime]` (preserving query syntax) on oracle goals or
-`[PPT, PolyTime]` on closed goals. -/
+`[PPT, PolyTime]` on closed goals (with built-in `norm simp` disabled so monad-map fusion does not
+rewrite encoded samplers). -/
 @[tactic pptTactic] meta def evalPPT : Tactic := fun stx => do
   let hints := match stx with
     | `(tactic| ppt [$hints,*]) => hints.getElems
@@ -480,8 +497,9 @@ fields, then search with `[OraclePPT, PPT, PolyTime]` (preserving query syntax) 
   let oracle := hasOraclePPTGoal (← instantiateMVars (← getMainTarget))
   Cslib.Tactic.PolyTime.Internal.withFailureHint "ppt" <|
       Cslib.Tactic.PolyTime.Internal.withPlainRuleCache do
+    let env := foldedPredicateEnvironment (← getEnv)
     if oracle then
-      let env ← oraclePolyTimeEnvironment (← getEnv)
+      let env ← oraclePolyTimeEnvironment env
       withEnv env do
         evalTactic (← `(tactic| solve |
           aesop
@@ -491,9 +509,14 @@ fields, then search with `[OraclePPT, PPT, PolyTime]` (preserving query syntax) 
                 assumptionTransparency := .reducible })
             (rule_sets := [OraclePPT, PPT, PolyTime])))
     else
-      evalTactic (← `(tactic| solve |
-        aesop (config := { terminal := true, assumptionTransparency := .reducible })
-          (rule_sets := [PPT, PolyTime])))
+      withEnv env do
+        evalTactic (← `(tactic| solve |
+          aesop
+            (config :=
+              { terminal := true
+                enableSimp := false
+                assumptionTransparency := .reducible })
+            (rule_sets := [PPT, PolyTime])))
 
 end Cslib.Tactic.PPT
 

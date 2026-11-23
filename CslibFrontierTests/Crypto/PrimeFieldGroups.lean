@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 module
+-- upstream: local-only (test)
 
 public import CslibFrontier.Crypto.Computational.DiscreteLog
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -70,16 +71,23 @@ binary. -/
       Nat.mod_mul_mod]
   computableInPolyTime_order := computableInPolyTime_val
   computableInPolyTime_generator := by
-    have := computableInPolyTime_val
     simp only [ZMod.val_one_eq_one_mod]
-    fun_prop
+    exact (ComputableInPolyTime.binary_mod' (ComputableInPolyTime.const 1)
+      computableInPolyTime_val).encoding_comp
   computableInPolyTime_add := by
-    have := computableInPolyTime_val
-    unfold primeAdd
-    fun_prop
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encPrime (encPair encBits encBits))
+    exact (ComputableInPolyTime.binary_mod'
+      (ComputableInPolyTime.binary_add'
+        (Decoder.nat.computableInPolyTime.comp hp.snd'.fst')
+        (Decoder.nat.computableInPolyTime.comp hp.snd'.snd'))
+      (computableInPolyTime_val.comp hp.fst')).encoding_comp
   computableInPolyTime_smul := by
-    have := computableInPolyTime_val
-    unfold primeSMul
-    fun_prop
+    have hp := ComputableInPolyTime.id'
+      (encIn := encPair encPrime (encPair encNat encBits))
+    exact (ComputableInPolyTime.binary_mod'
+      (ComputableInPolyTime.binary_mul' hp.snd'.fst'
+        (Decoder.nat.computableInPolyTime.comp hp.snd'.snd'))
+      (computableInPolyTime_val.comp hp.fst')).encoding_comp
 
 end CslibFrontierTests.Crypto.PrimeFieldGroups

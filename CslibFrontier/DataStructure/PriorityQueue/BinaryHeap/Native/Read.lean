@@ -41,7 +41,7 @@ theorem realizes_isEmpty :
     Realizes .exact (fun d : HeapLayout => Memory.isEmpty d.2) layoutWords boolWords
       (fun _ d s => d.2.size.length = 1 ∧ d.2.size.Allocated s) (fun _ _ => 0) := by
   realize
-  all_goals exact h.1 ▸ hwords 2
+  exact h.1 ▸ hwords 2
 
 /-- The original optional lookup on a runtime handle word. The bound is part of the explicit
 entry domain; it is not an input-dependent choice of code or an extra native check. -/

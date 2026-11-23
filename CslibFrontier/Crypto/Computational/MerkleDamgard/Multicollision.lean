@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.CollisionResistant.Birthday
 public import CslibFrontier.Crypto.Computational.MerkleDamgard
 public import CslibFrontier.Foundations.Data.BitString.Basic
-import CslibFrontier.Foundations.Data.BitString.ShortWords
+import CslibFrontier.Foundations.Data.BitString.WordsOfLength
 import CslibFrontier.Probability.IID.FunctionCollision
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.TotalProbability
@@ -46,6 +46,11 @@ success probability that holds for every compression function meeting a length c
   compression call per message bit. It treats `g` consecutive bits as one candidate, so its count
   `1 + 3 b s g` carries a factor `g ≥ n + 7` that the book's count does not
   (`isQueryBounded_merkleDamgardBitJouxFinder`, `merkleDamgardBitJouxFinder_success_half`).
+
+These are steps toward §8.4.1, not the cited result: the book finds a `2 ^ b`-collision "in time
+`O(b 2 ^ (n/2))`" and uses it to find a collision of `H₁(M) ‖ H₂(M)` in time `O(n 2 ^ (n/2))`,
+whereas the certificates here count compression evaluations, not running time, and the
+concatenated-hash attack is not formalized (#5293).
 
 **The cost measure.** The certificates are `ProbOracleComp.IsQueryBounded`, with the compression
 function as the oracle. They count evaluations of the compression function on every path,
@@ -101,7 +106,8 @@ compression function only through the oracle, and the success theorems run them 
   the generic finder.
 * `Cslib.Crypto.isQueryBounded_merkleDamgardJouxFinder`,
   `Cslib.Crypto.merkleDamgardJouxFinder_success`,
-  `Cslib.Crypto.merkleDamgardJouxFinder_success_half`: Joux's attack on `merkleDamgardChain`.
+  `Cslib.Crypto.merkleDamgardJouxFinder_success_half`: Joux's attack on `merkleDamgardChain`,
+  counted in compression evaluations (a step toward §8.4.1).
 * `Cslib.Crypto.isQueryBounded_merkleDamgardBitJouxFinder`,
   `Cslib.Crypto.merkleDamgardBitJouxFinder_success`,
   `Cslib.Crypto.merkleDamgardBitJouxFinder_success_half`: the same for `merkleDamgard`.
@@ -363,18 +369,6 @@ section MerkleDamgard
 
 variable {h : List Bool → List Bool → List Bool} {k : List Bool}
 
-/-- The `n`-bit strings, as lists. -/
-private noncomputable def digests (n : ℕ) : Finset (List Bool) :=
-  (List.finite_length_eq Bool n).toFinset
-
-private theorem mem_digests {n : ℕ} {t : List Bool} : t ∈ digests n ↔ t.length = n := by
-  simp [digests]
-
-private theorem card_digests (n : ℕ) : (digests n).card = 2 ^ n := by
-  have h := (List.finite_length_eq Bool n).encard_eq_coe_toFinset_card
-  rw [BitString.encard_setOf_length_eq] at h
-  exact_mod_cast h.symm
-
 /-- Joux's finder for a Merkle–Damgård chain with `ℓ`-bit blocks from `iv`, against the
 compression function as an oracle: at most `f` attempts of `s` uniform blocks for `b` stages, one
 compression call per block. -/
@@ -463,21 +457,24 @@ theorem merkleDamgardJouxFinder_success {n ℓ : ℕ}
   have key := jouxFinder_success (spec := fun _ : List Bool => List Bool)
     (stage := fun t (m : BitString ℓ) => ProbOracleComp.query (t ++ List.ofFn m))
     (h k) (fun t (m : BitString ℓ) => h k (t ++ List.ofFn m))
-    (fun t m => ProbOracleComp.run_query _ _) (digests n)
-    (fun t ht m => mem_digests.mpr (hlen _ (by simp [mem_digests.mp ht]))) s (ε := ε)
-    (by rw [card_digests, BitString.card]; push_cast; exact hε) f b (mem_digests.mpr hiv)
+    (fun t m => ProbOracleComp.run_query _ _) (BitString.wordsOfLength n)
+    (fun t ht m => BitString.mem_wordsOfLength.mpr
+      (hlen _ (by simp [BitString.mem_wordsOfLength.mp ht]))) s (ε := ε)
+    (by rw [BitString.card_wordsOfLength, BitString.card]; push_cast; exact hε) f b
+    (BitString.mem_wordsOfLength.mpr hiv)
   exact key.trans (ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
     (MeasureTheory.measure_mono (jouxSuccess_subset_multicollisionOutputs ℓ b iv)))
 
-/-- **Joux's attack on a chain with `O(b 2 ^ (n/2))` compression evaluations**
-([BonehShoup2023], §8.4.1, printed p. 299). Let `h k` map `n + ℓ`-bit inputs to `n`-bit outputs,
-let `iv` have `n` bits, and let blocks be at least seven bits longer than chaining values
-(`n + 7 ≤ ℓ`). With the sample count `s = ⌈2 √(2 ^ n)⌉ + 1` of Lemma 8.2 per attempt and a budget
-of `3 b` attempts, `merkleDamgardJouxFinder` makes at most `3 b s` compression evaluations
+/-- Joux's attack on a chain with `O(b 2 ^ (n/2))` compression evaluations, a step toward
+[BonehShoup2023], §8.4.1 (printed p. 299), not the cited result: the book finds a
+`2 ^ b`-collision "in time `O(b 2 ^ (n/2))`", whereas the count here is of compression evaluations
+only, not a running time (#5293). Let `h k` map `n + ℓ`-bit inputs to `n`-bit outputs, let `iv`
+have `n` bits, and let blocks be at least seven bits longer than chaining values (`n + 7 ≤ ℓ`).
+With the sample count `s = ⌈2 √(2 ^ n)⌉ + 1` of Lemma 8.2 per attempt and a budget of `3 b`
+attempts, `merkleDamgardJouxFinder` makes at most `3 b s` compression evaluations
 (`isQueryBounded_merkleDamgardJouxFinder`), and with probability at least `1/2` it outputs `b`
 pairs such that, for every common list of blocks `tail`, their `2 ^ b` selections, each followed by
-`tail`, are a `2 ^ b`-collision. The book states "time `O(b 2 ^ (n/2))`" and no success
-probability; the count here is of compression evaluations only, not a running time. -/
+`tail`, are a `2 ^ b`-collision. The book states no success probability. -/
 theorem merkleDamgardJouxFinder_success_half {n ℓ : ℕ}
     (hlen : ∀ x, x.length = n + ℓ → (h k x).length = n)
     {iv : List Bool} (hiv : iv.length = n) (hℓ : n + 7 ≤ ℓ) (b : ℕ) :
@@ -613,29 +610,35 @@ theorem merkleDamgardBitJouxFinder_success
     1 - 2 ^ b * ((1 + ε) / 2) ^ f / 2 ≤
       ((ProbComp.eval ((merkleDamgardBitJouxFinder k.length g s f b).run
         fun x => pure (h k x))).toOuterMeasure (bitMulticollisionOutputs h k g b)).toReal := by
-  have hD : ∀ t ∈ digests k.length, ∀ m : BitString g,
-      merkleDamgardChain h k t ((List.ofFn m).map (mdDataBlock k.length)) ∈ digests k.length :=
-    fun t ht m => mem_digests.mpr (length_merkleDamgardChain hlen (mem_digests.mp ht)
-      (by simp))
-  have ht₀ : h k (List.replicate k.length false ++ mdEndBlock k.length) ∈ digests k.length :=
-    mem_digests.mpr (hlen _ (by simp; ring))
+  have hD : ∀ t ∈ BitString.wordsOfLength k.length, ∀ m : BitString g,
+      merkleDamgardChain h k t ((List.ofFn m).map (mdDataBlock k.length)) ∈
+        BitString.wordsOfLength k.length :=
+    fun t ht m => BitString.mem_wordsOfLength.mpr
+      (length_merkleDamgardChain hlen (BitString.mem_wordsOfLength.mp ht) (by simp))
+  have ht₀ : h k (List.replicate k.length false ++ mdEndBlock k.length) ∈
+      BitString.wordsOfLength k.length :=
+    BitString.mem_wordsOfLength.mpr (hlen _ (by simp; ring))
   have key := jouxFinder_success (spec := fun _ : List Bool => List Bool)
     (stage := fun t (m : BitString g) => absorbBits k.length t (List.ofFn m))
     (h k) (fun t (m : BitString g) =>
       merkleDamgardChain h k t ((List.ofFn m).map (mdDataBlock k.length)))
-    (fun t m => run_absorbBits k.length t (List.ofFn m)) (digests k.length) hD s (ε := ε)
-    (by rw [card_digests, BitString.card]; push_cast; exact hε) f b ht₀
+    (fun t m => run_absorbBits k.length t (List.ofFn m)) (BitString.wordsOfLength k.length) hD s
+    (ε := ε)
+    (by rw [BitString.card_wordsOfLength, BitString.card]; push_cast; exact hε) f b ht₀
   rw [merkleDamgardBitJouxFinder, ProbOracleComp.run_bind, ProbOracleComp.run_query, pure_bind]
   refine key.trans (ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
     (MeasureTheory.measure_mono ?_))
   rintro _ ⟨pairs, rfl, rfl, hc⟩
   exact ⟨pairs, rfl, rfl, isMulticollision_merkleDamgard_of_chain hc⟩
 
-/-- **Joux's attack on `merkleDamgard` with the sample count of Lemma 8.2.** Let `h k` map
-`2 n`-bit inputs to `n`-bit outputs, where `n = k.length`, and let groups have `g` bits, at least
-seven more than a digest (`n + 7 ≤ g`). With `s = ⌈2 √(2 ^ n)⌉ + 1` samples per attempt and a
-budget of `3 b` attempts, `merkleDamgardBitJouxFinder` makes at most `1 + 3 b s g` compression
-evaluations (`isQueryBounded_merkleDamgardBitJouxFinder`) and outputs a `2 ^ b`-collision of
+/-- Joux's attack on `merkleDamgard` with the sample count of Lemma 8.2, a step after
+[BonehShoup2023], §8.4.1 (printed p. 299), not the cited result: it attacks the library's
+one-bit-per-block `merkleDamgard` rather than the book's chain, and it counts compression
+evaluations, not running time (#5293). Let `h k` map `2 n`-bit inputs to `n`-bit outputs, where
+`n = k.length`, and let groups have `g` bits, at least seven more than a digest (`n + 7 ≤ g`).
+With `s = ⌈2 √(2 ^ n)⌉ + 1` samples per attempt and a budget of `3 b` attempts,
+`merkleDamgardBitJouxFinder` makes at most `1 + 3 b s g` compression evaluations
+(`isQueryBounded_merkleDamgardBitJouxFinder`) and outputs a `2 ^ b`-collision of
 `merkleDamgard h k` with probability at least `1/2`. The factor `g ≥ n + 7` is the price of one
 compression call per message bit, so this count is not the book's `O(b 2 ^ (n/2))`. -/
 theorem merkleDamgardBitJouxFinder_success_half

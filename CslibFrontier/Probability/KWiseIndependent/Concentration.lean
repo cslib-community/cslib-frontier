@@ -378,9 +378,7 @@ theorem dens_abs_sum_sub_expect_le_two_pow {ι X Y : Type*} [Fintype ι] [Fintyp
   have hrat : 3 * (m : ℝ) * μ / a ^ 2 ≤ (1 : ℝ) / 2 := by
     rw [div_le_iff₀ (pow_pos ha 2)]
     linarith
-  exact (dens_abs_sum_sub_expect_le hm hh R g hg hmean hmμ ha).trans
-    (mul_le_mul_of_nonneg_left
-      (pow_le_pow_left₀ (by positivity) hrat m) (by norm_num))
+  exact (dens_abs_sum_sub_expect_le hm hh R g hg hmean hmμ ha).trans (by gcongr)
 
 /-- `2m`-th moment concentration for sums of `[0, 1]`-valued functions of pairwise disjoint hash
 restrictions `(B b).restrict (h θ)` of size `≤ K` under `(2 * m * K)`-wise independence. -/

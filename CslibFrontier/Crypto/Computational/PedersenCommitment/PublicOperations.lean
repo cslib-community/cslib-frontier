@@ -17,8 +17,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Words
 
 `PrimeOrderGroupFamily.pedersenPublicOperations` certifies deterministic commitment evaluation
 on supplied randomness and verification using exactly the public key bytes of `pedersenScheme`.
-It reuses `encodePedersenCommit` and its existing polynomial-time certificate. The ideal law
-of the randomness word is the canonical binary encoding of a uniform exponent in `ZMod q`;
+It reuses `encodePedersenCommit`, the encoded verifier `encodePedersenVerify` and their
+polynomial-time certificates from `CslibFrontier.Crypto.Computational.PedersenCommitment`. The ideal
+law of the randomness word is the canonical binary encoding of a uniform exponent in `ZMod q`;
 the exact map equation recovers `pedersenCommitPairLaw`.
 
 No executable randomness sampler, setup algorithm, or strict-PPT realization of the ideal
@@ -27,22 +28,8 @@ The security games and their existing hiding and binding claims are unchanged.
 
 ## Main definitions
 
-* `Cslib.Crypto.PrimeOrderGroupFamily.validPedersenMessageBool`: polynomial-time Boolean decision
-  procedure for `ValidPedersenMessage`.
-* `Cslib.Crypto.PrimeOrderGroupFamily.encodePedersenVerify`: verification on encoded public group
-  elements and message, commitment and opening words.
 * `Cslib.Crypto.PrimeOrderGroupFamily.pedersenPublicOperations`: efficient public deterministic
   operations with the exact ideal supplied-randomness law.
-
-## Main results
-
-* `Cslib.Crypto.PrimeOrderGroupFamily.validPedersenMessageBool_eq_true_iff`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_validPedersenMessageBool`: correctness
-  and polynomial-time certificate for `validPedersenMessageBool`.
-* `Cslib.Crypto.PrimeOrderGroupFamily.encodePedersenVerify_encode`: encoded verification agrees
-  with the existing semantic verifier.
-* `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_encodePedersenVerify`: the encoded
-  verifier is polynomial-time.
 -/
 
 @[expose] public section
@@ -52,60 +39,6 @@ namespace Cslib.Crypto.PrimeOrderGroupFamily
 open Probability Turing.MultiTapeTM
 
 variable (F : PrimeOrderGroupFamily)
-
-/-- Boolean decision procedure for `ValidPedersenMessage d m` (`ofBits m < F.order d` and
-`(ofBits m).bits = m`). -/
-def validPedersenMessageBool (d : F.Desc) (m : List Bool) : Bool :=
-  decide (ofBits m < F.order d) && decide ((ofBits m).bits = m)
-
-@[simp]
-theorem validPedersenMessageBool_eq_true_iff (d : F.Desc) (m : List Bool) :
-    F.validPedersenMessageBool d m = true ↔ F.ValidPedersenMessage d m := by
-  simp [validPedersenMessageBool, ValidPedersenMessage]
-
-/-- `validPedersenMessageBool` is computable in polynomial time from `(d, m)`. -/
-@[fun_prop]
-theorem computableInPolyTime_validPedersenMessageBool :
-    ComputableInPolyTime (fun p : F.Desc × List Bool => F.validPedersenMessageBool p.1 p.2)
-      (encPair F.encDesc encBits) encBool := by
-  have horder := F.computableInPolyTime_order
-  unfold validPedersenMessageBool
-  fun_prop
-
-/-- Composition rule for `validPedersenMessageBool`. -/
-@[fun_prop]
-theorem computableInPolyTime_validPedersenMessageBool_comp {γ : Type} {encIn : γ ↪ List Bool}
-    {d : γ → F.Desc} {m : γ → List Bool}
-    (hd : ComputableInPolyTime d encIn F.encDesc)
-    (hm : ComputableInPolyTime m encIn encBits) :
-    ComputableInPolyTime (fun a => F.validPedersenMessageBool (d a) (m a)) encIn encBool :=
-  F.computableInPolyTime_validPedersenMessageBool.comp (hd.prod hm)
-
-/-- Pedersen verification from `(description, encoded public element)`, message, commitment and
-opening words. The public element is already encoded; no discrete logarithm or semantic group
-value is supplied to this algorithm. -/
-def encodePedersenVerify
-    (input : (F.Desc × List Bool) × List Bool × List Bool × List Bool) : Bool :=
-  let ((d, h), m, c, o) := input
-  F.validPedersenMessageBool d m &&
-    decide (F.encodePedersenCommit (d, h, ofBits m, ofBits o) = c)
-
-/-- The encoded verifier computes exactly the verifier used by `pedersenScheme`. -/
-@[simp]
-theorem encodePedersenVerify_encode (d : F.Desc) (h : F.Carrier d) (m c o : List Bool) :
-    F.encodePedersenVerify ((d, F.encode d h), m, c, o) = F.pedersenVerify d h m c o := by
-  simp only [encodePedersenVerify, validPedersenMessageBool, pedersenVerify,
-    encodePedersenCommit_encode]
-
-/-- Encoded Pedersen verification is polynomial-time in all of its input words. -/
-theorem computableInPolyTime_encodePedersenVerify :
-    ComputableInPolyTime F.encodePedersenVerify
-      (encPair (encPair F.encDesc encBits) (encPair encBits (encPair encBits encBits)))
-      encBool := by
-  have horder := F.computableInPolyTime_order
-  have hcommit := F.computableInPolyTime_encodePedersenCommit
-  unfold encodePedersenVerify
-  fun_prop
 
 /-- Deterministic Pedersen commitment evaluation and verification from `pedersenScheme.encodeKey`,
 with the ideal randomness law given by the canonical bits of a uniform `ZMod q` exponent.

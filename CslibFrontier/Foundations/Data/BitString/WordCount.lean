@@ -62,8 +62,12 @@ represent sets of words.
   `Cslib.BitString.two_pow_mul_card_filter_forall_block_le`: independent blocks all satisfying a
   predicate are counted by a power, so half-density per block gives `2 ^ (-k)` density over `k`
   blocks.
+* `Cslib.BitString.card_filter_card_filter_block_le`: counting words by how many blocks pass a
+  test, as tuples of blocks.
 * `Cslib.BitString.two_pow_mul_card_filter_card_filter_block_le`: majority votes of `12 e` blocks
   err on at most a `2 ^ (-e)` fraction.
+* `Cslib.BitString.five_mul_card_filter_card_filter_block_le`: at advantage `1 / q`, majority votes
+  of `2 q ^ 2` blocks err on at most a fifth of the words.
 * `Cslib.BitString.card_filter_listRows_all`: counting words by a condition on each row.
 * `Cslib.BitString.not_any_ofFn_eq_true_iff`, `Cslib.BitString.card_filter_not_any`,
   `Cslib.BitString.card_filter_all`: the constant words.
@@ -165,6 +169,14 @@ theorem two_pow_mul_card_filter_forall_block_le {k m : ℕ} (g : BitString m →
   rw [card_filter_forall_block, ← mul_pow]
   exact (Nat.pow_le_pow_left hg k).trans_eq (by rw [← pow_mul, Nat.mul_comm])
 
+/-- **Counting words by how many blocks satisfy `g`**: along `blocksEquiv`, the words of `k` blocks
+of `m` bits with at most `R` blocks satisfying `g` correspond to the `k`-tuples of `m`-bit strings
+with at most `R` entries satisfying `g`. -/
+theorem card_filter_card_filter_block_le (k m R : ℕ) (g : BitString m → Prop) [DecidablePred g] :
+    #{x : BitString (k * m) | #{i | g (block x i)} ≤ R} =
+      #{ω : Fin k → BitString m | #{i | ω i ∈ univ.filter g} ≤ R} :=
+  card_equiv blocksEquiv fun x => by simp
+
 /-- **Majority votes of blocks.** If at least two thirds of the strings of `m` bits satisfy `g`,
 then at most a `2 ^ (-e)` fraction of the strings of `2 R = 12 e` blocks of `m` bits have at most
 `R` blocks satisfying `g`: the exponential-moment bound `Cslib.card_filter_card_filter_le_le`, with
@@ -172,17 +184,10 @@ then at most a `2 ^ (-e)` fraction of the strings of `2 R = 12 e` blocks of `m` 
 theorem two_pow_mul_card_filter_card_filter_block_le {m e R : ℕ} (hR : R = 6 * e)
     (g : BitString m → Prop) [DecidablePred g] (hg : 2 * 2 ^ m ≤ 3 * #{s | g s}) :
     2 ^ e * #{x : BitString (2 * R * m) | #{i | g (block x i)} ≤ R} ≤ 2 ^ (2 * R * m) := by
-  have hmaj := card_filter_card_filter_le_le (univ.filter g)
+  have hc := card_filter_card_filter_le_le (univ.filter g)
     (by simpa only [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool] using hg) R
-  rw [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool, ← pow_mul, Nat.mul_comm m] at hmaj
-  have hc : 9 ^ R * #{x : BitString (2 * R * m) | #{i | g (block x i)} ≤ R} ≤
-      8 ^ R * 2 ^ (2 * R * m) := by
-    refine (Nat.mul_le_mul_left _ ?_).trans hmaj
-    rw [← card_map blocksEquiv.toEmbedding]
-    refine card_le_card fun ω hω => ?_
-    obtain ⟨x, hx, rfl⟩ := mem_map.1 hω
-    refine mem_filter.2 ⟨mem_univ _, ?_⟩
-    simpa only [mem_filter, mem_univ, true_and, Equiv.coe_toEmbedding, blocksEquiv_apply] using hx
+  rw [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool, ← pow_mul, Nat.mul_comm m,
+    ← card_filter_card_filter_block_le] at hc
   have hq : 2 ^ e * 8 ^ R ≤ 9 ^ R := by
     subst hR
     simp only [pow_mul, ← mul_pow]
@@ -194,6 +199,19 @@ theorem two_pow_mul_card_filter_card_filter_block_le {m e R : ℕ} (hR : R = 6 *
     _ ≤ 2 ^ e * (8 ^ R * 2 ^ (2 * R * m)) := Nat.mul_le_mul_left _ hc
     _ = 2 ^ e * 8 ^ R * 2 ^ (2 * R * m) := by ring
     _ ≤ 9 ^ R * 2 ^ (2 * R * m) := Nat.mul_le_mul_right _ hq
+
+/-- **Majority votes of blocks at an inverse-polynomial advantage.** If the strings of `m` bits
+satisfying `g` have density at least `1 / 2 + 1 / q`, then at most a fifth of the strings of
+`2 q ^ 2` blocks of `m` bits have at most `q ^ 2` blocks satisfying `g`
+(`Cslib.five_mul_card_filter_card_filter_le_sq_le`). -/
+theorem five_mul_card_filter_card_filter_block_le {m q : ℕ} (g : BitString m → Prop)
+    [DecidablePred g] (hg : 2 * 2 ^ m ≤ q * (2 * #{s | g s} - 2 ^ m)) :
+    5 * #{x : BitString (2 * q ^ 2 * m) | #{i | g (block x i)} ≤ q ^ 2} ≤
+      2 ^ (2 * q ^ 2 * m) := by
+  have h := five_mul_card_filter_card_filter_le_sq_le (univ.filter g)
+    (by simpa only [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool] using hg)
+  rwa [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool, ← pow_mul, Nat.mul_comm m,
+    ← card_filter_card_filter_block_le] at h
 
 /-- **Counting words by their first bit.** -/
 theorem card_filter_ofFn_succ (n : ℕ) (g : List Bool → Prop) [DecidablePred g] :

@@ -49,18 +49,6 @@ namespace Cslib.Complexity.CircuitValue
 
 open Turing MultiTapeTM ComputableInSpace
 
-/-- Doubling the bits with framing markers uses linear work space. -/
-theorem doubled_inSpace :
-    ComputableInSpace doubled encBits encBits fun l => (encBits l).length :=
-  of_inO (.of_linear
-    (.of_transducer
-      { Encodings.frameT with final := fun _ => [], length_final_le := fun _ => by simp }
-      fun l => by
-        symm
-        induction l with
-        | nil => rfl
-        | cons b l ih => exact congrArg (true :: b :: ·) ih))
-
 /-- The read address of the writer: the markers `true` of the framed input while counting, the
 input bits while copying. -/
 def writerAddr (s : ℕ × ℕ × ℕ) : Option ℕ :=

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.Lean.GomoryHu.Gusfield
 public import CslibFrontier.Algorithms.Lean.GomoryHu.WeightedCut
 public import CslibFrontier.Algorithms.Lean.MaxFlow.EdmondsKarp
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Gomory–Hu trees with `n - 1` maximum flow computations
@@ -107,12 +108,8 @@ writing into `acc` and charging `1` tick per scanned vertex. -/
 
 @[simp]
 theorem rehangM_time (p : Vector (Fin n) n) (s t : Fin n) (X : Finset (Fin n)) :
-    ∀ (zs : List (Fin n)) (acc : Vector (Fin n) n), (rehangM p s t X zs acc).time = zs.length
-  | [], _ => rfl
-  | z :: zs, acc => by
-    simp only [rehangM, TimeM.time_bind, TimeM.time_tick, rehangM_time p s t X zs,
-      List.length_cons]
-    omega
+    ∀ (zs : List (Fin n)) (acc : Vector (Fin n) n), (rehangM p s t X zs acc).time = zs.length := by
+  time_spec rehangM
 
 theorem vget_rehangM (p : Vector (Fin n) n) (s t : Fin n) (X : Finset (Fin n)) :
     ∀ (zs : List (Fin n)) (acc : Vector (Fin n) n) (z : Fin n),
@@ -175,6 +172,7 @@ weight update from the maximum flow value (`fl[s] := val`, or on a swap `fl[s] :
   else
     pure { parent := vset (vset q t (vget p t)) s t, weight := vset fl s val }
 
+@[time_simps]
 theorem gusfieldStepM_time (W : Fin n → Fin n → ℕ) (adj : Fin n → List (Fin n))
     (p : Vector (Fin n) n) (fl : Vector ℕ n) (s : Fin n) :
     (gusfieldStepM W adj p fl s).time =
@@ -283,7 +281,7 @@ private theorem vget_gomoryHuM_spec (W : Fin n → Fin n → ℕ) (adj : Fin n �
         (gusfieldWithWeights (ekCut W adj) (ekValue W adj) r 0 (List.finRange n)).1 ∧
       vget (gomoryHuM W adj r).ret.weight =
         (gusfieldWithWeights (ekCut W adj) (ekValue W adj) r 0 (List.finRange n)).2 := by
-  simp only [gomoryHuM, TimeM.ret_bind, replicateM_ret, gusfieldWithWeights]
+  simp only [gomoryHuM, time_simps, gusfieldWithWeights]
   obtain ⟨hpar, hwt⟩ :=
     vget_gomoryHuLoopM W adj r (List.finRange n) (Vector.replicate n r) (Vector.replicate n 0)
   have hp : vget (Vector.replicate n r) = fun _ => r := funext (vget_replicate r)
@@ -369,13 +367,11 @@ theorem gomoryHuLoopM_time_le (W : Fin n → Fin n → ℕ) (adj : Fin n → Lis
     have ih := gomoryHuLoopM_time_le W adj r hB l
     by_cases hsr : s = r
     · rw [List.filter_cons_of_neg (by simp [hsr])]
-      simp only [gomoryHuLoopM, TimeM.time_bind, TimeM.time_tick, hsr, ↓reduceIte,
-        List.length_cons]
+      simp only [gomoryHuLoopM, time_simps, hsr, ↓reduceIte]
       have := ih p fl
       omega
     · rw [List.filter_cons_of_pos (by simp [hsr])]
-      simp only [gomoryHuLoopM, TimeM.time_bind, TimeM.time_tick, hsr, ↓reduceIte,
-        List.length_cons, gusfieldStepM_time]
+      simp only [gomoryHuLoopM, time_simps, hsr, ↓reduceIte]
       have h1 := ih (gusfieldStepM W adj p fl s).ret.parent (gusfieldStepM W adj p fl s).ret.weight
       have h2 := hB s (vget p s)
       rw [Nat.add_mul, Nat.one_mul]

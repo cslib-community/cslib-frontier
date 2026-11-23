@@ -9,16 +9,17 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BitBounds
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # End-to-End `TimeM`-Charged Rational Polynomial Preprocessing and Sturm Evaluation
 
 This module instruments every list, polynomial-division, Sturm-sequence, sign-variation, Cauchy
-bound, denominator-clearing, and Mignotte bisection-depth helper from `RatPoly.lean` in `TimeM ℕ`,
-charging every recursive list traversal, scalar arithmetic step, comparison, Euclidean remainder
-step, and base-4 ceiling-logarithm step (`clog4M`). Each instrumented operation returns the exact
-same pure value as its `RatPoly.lean` counterpart and carries an explicit polynomial `TimeM ℕ`
-operation-count upper bound.
+bound, denominator-clearing, and Mignotte bisection-depth helper from `Polynomial.CoeffList` and
+`RatPoly.lean` in `TimeM ℕ`, charging every recursive list traversal, scalar arithmetic step,
+comparison, Euclidean remainder step, and base-4 ceiling-logarithm step (`clog4M`). Each
+instrumented operation returns the exact same pure value as its `Polynomial.CoeffList` or
+`RatPoly.lean` counterpart and carries an explicit polynomial `TimeM ℕ` operation-count upper bound.
 
 **Cost model convention.** Primitive `ℚ` field operations (`+`, `-`, `*`, `/`, `abs`, comparisons,
 `SignType.sign`) and primitive `ℤ`/`ℕ` operations (`+`, `-`, `*`, `/`, `Nat.lcm`) count as `O(1)`
@@ -41,7 +42,7 @@ logarithm loops (`clog4M`) charge ticks proportional to their actual recursion l
 ## Main results
 
 * `*_ret` (`@[simp]`): every `TimeM ℕ` helper computes the identical pure value as its uncharged
-  counterpart in `RatPoly.lean`.
+  counterpart in `Polynomial.CoeffList` or `RatPoly.lean`.
 * `sturmSeqListM_time_le`, `sturmVariationsListM_time_le`, `cauchyBoundNatM_time_le`,
   `mignotteBisectionDepthM_time_le`: explicit `TimeM ℕ` operation-count upper bounds.
 
@@ -70,33 +71,26 @@ open Polynomial Cslib.Algorithms.Lean
     let n ← lengthM xs
     pure (n + 1)
 
-@[simp]
+@[simp, time_simps]
 theorem lengthM_ret {α : Type*} (xs : List α) : (lengthM xs).ret = xs.length := by
-  induction xs with
-  | nil => simp only [lengthM, TimeM.ret_bind, TimeM.ret_pure, List.length_nil]
-  | cons _ xs ih => simp only [lengthM, TimeM.ret_bind, TimeM.ret_pure, ih, List.length_cons]
+  time_spec lengthM
 
+@[time_simps]
 theorem lengthM_time {α : Type*} (xs : List α) : (lengthM xs).time = xs.length + 1 := by
-  induction xs with
-  | nil =>
-    simp only [lengthM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
-    omega
-  | cons _ xs ih =>
-    simp only [lengthM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
+  time_spec lengthM
 
 /-- `TimeM ℕ`-charged emptiness test (`1` tick). -/
 @[expose] def isEmptyM {α : Type*} (xs : List α) : TimeM ℕ Bool := do
   TimeM.tick 1
   pure xs.isEmpty
 
-@[simp]
+@[simp, time_simps]
 theorem isEmptyM_ret {α : Type*} (xs : List α) : (isEmptyM xs).ret = xs.isEmpty := by
-  simp only [isEmptyM, TimeM.ret_bind, TimeM.ret_pure]
+  time_spec isEmptyM
 
-@[simp]
+@[simp, time_simps]
 theorem isEmptyM_time {α : Type*} (xs : List α) : (isEmptyM xs).time = 1 := by
-  simp only [isEmptyM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, add_zero]
+  time_spec isEmptyM
 
 /-- `TimeM ℕ`-charged list append (`xs.length + 1` ticks). -/
 @[expose] def appendM {α : Type*} : List α → List α → TimeM ℕ (List α)
@@ -108,20 +102,13 @@ theorem isEmptyM_time {α : Type*} (xs : List α) : (isEmptyM xs).time = 1 := by
     let zs ← appendM xs ys
     pure (x :: zs)
 
-@[simp]
+@[simp, time_simps]
 theorem appendM_ret {α : Type*} (xs ys : List α) : (appendM xs ys).ret = xs ++ ys := by
-  induction xs with
-  | nil => simp only [appendM, TimeM.ret_bind, TimeM.ret_pure, List.nil_append]
-  | cons x xs ih => simp only [appendM, TimeM.ret_bind, TimeM.ret_pure, ih, List.cons_append]
+  time_spec appendM
 
+@[time_simps]
 theorem appendM_time {α : Type*} (xs ys : List α) : (appendM xs ys).time = xs.length + 1 := by
-  induction xs with
-  | nil =>
-    simp only [appendM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
-    omega
-  | cons _ xs ih =>
-    simp only [appendM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
+  time_spec appendM
 
 /-- `TimeM ℕ`-charged zero-padding list `List.replicate k 0` (`k + 1` ticks). -/
 @[expose] def replicateZeroM : ℕ → TimeM ℕ (List ℚ)
@@ -133,21 +120,13 @@ theorem appendM_time {α : Type*} (xs ys : List α) : (appendM xs ys).time = xs.
     let zs ← replicateZeroM k
     pure (0 :: zs)
 
-@[simp]
+@[simp, time_simps]
 theorem replicateZeroM_ret (k : ℕ) : (replicateZeroM k).ret = List.replicate k 0 := by
-  induction k with
-  | zero => simp only [replicateZeroM, TimeM.ret_bind, TimeM.ret_pure, List.replicate_zero]
-  | succ k ih =>
-    simp only [replicateZeroM, TimeM.ret_bind, TimeM.ret_pure, ih, List.replicate_succ]
+  time_spec replicateZeroM
 
+@[time_simps]
 theorem replicateZeroM_time (k : ℕ) : (replicateZeroM k).time = k + 1 := by
-  induction k with
-  | zero =>
-    simp only [replicateZeroM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
-    omega
-  | succ k ih =>
-    simp only [replicateZeroM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih]
-    omega
+  time_spec replicateZeroM
 
 /-- `TimeM ℕ`-charged `List.getLast?` (`≤ xs.length + 1` ticks). -/
 @[expose] def getLast?M {α : Type*} : List α → TimeM ℕ (Option α)
@@ -161,22 +140,17 @@ theorem replicateZeroM_time (k : ℕ) : (replicateZeroM k).time = k + 1 := by
     TimeM.tick 1
     getLast?M (y :: ys)
 
-@[simp]
-theorem getLast?M_ret {α : Type*} : ∀ (xs : List α), (getLast?M xs).ret = xs.getLast?
-  | [] => by simp only [getLast?M, TimeM.ret_bind, TimeM.ret_pure, List.getLast?_nil]
-  | [x] => by simp only [getLast?M, TimeM.ret_bind, TimeM.ret_pure, List.getLast?_singleton]
-  | _ :: y :: ys => by
-    simp only [getLast?M, TimeM.ret_bind, List.getLast?_cons_cons]
-    exact getLast?M_ret (y :: ys)
+@[simp, time_simps]
+theorem getLast?M_ret {α : Type*} : ∀ (xs : List α), (getLast?M xs).ret = xs.getLast? := by
+  time_spec getLast?M
 
 theorem getLast?M_time_le {α : Type*} : ∀ (xs : List α), (getLast?M xs).time ≤ xs.length + 1
   | [] => by
-    simp only [getLast?M, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
+    simp only [getLast?M, time_simps]
     omega
-  | [_] => by simp only [getLast?M, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-    List.length_singleton]; omega
+  | [_] => by simp only [getLast?M, time_simps, List.length_singleton]; omega
   | _ :: y :: ys => by
-    simp only [getLast?M, TimeM.time_bind, TimeM.time_tick, List.length_cons]
+    simp only [getLast?M, time_simps]
     have ih := getLast?M_time_le (y :: ys)
     simp only [List.length_cons] at ih
     omega
@@ -194,30 +168,24 @@ theorem getLast?M_time_le {α : Type*} : ∀ (xs : List α), (getLast?M xs).time
     let zs ← dropLastM (y :: ys)
     pure (x :: zs)
 
-@[simp]
-theorem dropLastM_ret {α : Type*} : ∀ (xs : List α), (dropLastM xs).ret = xs.dropLast
-  | [] => by simp only [dropLastM, TimeM.ret_bind, TimeM.ret_pure, List.dropLast_nil]
-  | [_] => rfl
-  | x :: y :: ys => by
-    simp only [dropLastM, TimeM.ret_bind, TimeM.ret_pure, List.dropLast_cons_of_ne_nil
-      (List.cons_ne_nil y ys)]
-    rw [dropLastM_ret (y :: ys)]
+@[simp, time_simps]
+theorem dropLastM_ret {α : Type*} : ∀ (xs : List α), (dropLastM xs).ret = xs.dropLast := by
+  time_spec dropLastM
 
 theorem dropLastM_time_le {α : Type*} : ∀ (xs : List α), (dropLastM xs).time ≤ xs.length + 1
   | [] => by
-    simp only [dropLastM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
+    simp only [dropLastM, time_simps]
     omega
-  | [_] => by simp only [dropLastM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-    List.length_singleton]; omega
+  | [_] => by simp only [dropLastM, time_simps, List.length_singleton]; omega
   | _ :: y :: ys => by
-    simp only [dropLastM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_cons]
+    simp only [dropLastM, time_simps]
     have ih := dropLastM_time_le (y :: ys)
     simp only [List.length_cons] at ih
     omega
 
 /-! ### `TimeM ℕ`-charged polynomial arithmetic and Sturm sequence -/
 
-/-- `TimeM ℕ`-charged `trim`. -/
+/-- `TimeM ℕ`-charged `CoeffList.trim`. -/
 @[expose] def trimM : List ℚ → TimeM ℕ (List ℚ)
   | [] => do
     TimeM.tick 1
@@ -232,23 +200,19 @@ theorem dropLastM_time_le {α : Type*} : ∀ (xs : List α), (dropLastM xs).time
     else
       pure (a :: t)
 
-@[simp]
-theorem trimM_ret (cs : List ℚ) : (trimM cs).ret = trim cs := by
+@[simp, time_simps]
+theorem trimM_ret (cs : List ℚ) : (trimM cs).ret = CoeffList.trim cs := by
   induction cs with
-  | nil => simp only [trimM, trim, TimeM.ret_bind, TimeM.ret_pure]
+  | nil => rfl
   | cons a as ih =>
-    simp only [trimM, trim, TimeM.ret_bind, isEmptyM_ret, ih]
-    split_ifs <;> simp only [TimeM.ret_bind, TimeM.ret_pure]
+    simp only [trimM, CoeffList.trim_cons, time_simps, ih]
+    cases h : (CoeffList.trim as).isEmpty
+    · simp
+    · rw [List.isEmpty_iff.mp h]
+      by_cases ha : a = 0 <;> simp [ha, time_simps]
 
 theorem trimM_time_le (cs : List ℚ) : (trimM cs).time ≤ 3 * cs.length + 1 := by
-  induction cs with
-  | nil =>
-    simp only [trimM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
-    omega
-  | cons a as ih =>
-    simp only [trimM, TimeM.time_bind, TimeM.time_tick, isEmptyM_time, isEmptyM_ret,
-      List.length_cons]
-    split_ifs <;> simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure] <;> omega
+  time_spec trimM
 
 /-- `TimeM ℕ`-charged pointwise coefficient-list addition. -/
 @[expose] def addListM : List ℚ → List ℚ → TimeM ℕ (List ℚ)
@@ -263,36 +227,35 @@ theorem trimM_time_le (cs : List ℚ) : (trimM cs).time ≤ 3 * cs.length + 1 :=
     let cs ← addListM as bs
     pure ((a + b) :: cs)
 
-@[simp]
-theorem addListM_ret (as bs : List ℚ) : (addListM as bs).ret = addList as bs := by
-  induction as generalizing bs with
-  | nil => simp only [addListM, addList, TimeM.ret_bind, TimeM.ret_pure]
-  | cons a as ih =>
-    cases bs with
-    | nil => simp only [addListM, addList, TimeM.ret_bind, TimeM.ret_pure]
-    | cons b bs => simp only [addListM, addList, TimeM.ret_bind, TimeM.ret_pure, ih]
-
 theorem addListM_time_le_right (as bs : List ℚ) : (addListM as bs).time ≤ bs.length + 1 := by
-  induction as generalizing bs with
-  | nil => simp only [addListM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]; omega
-  | cons a as ih =>
-    cases bs with
-    | nil =>
-      simp only [addListM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
-      omega
-    | cons b bs =>
-      simp only [addListM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_cons]
-      have h := ih bs
-      omega
+  time_spec addListM
 
-private theorem addList_length (as bs : List ℚ) :
-    (addList as bs).length = max as.length bs.length := by
-  induction as generalizing bs with
-  | nil => simp only [addList, List.length_nil, Nat.zero_max]
-  | cons a as ih =>
-    cases bs with
-    | nil => simp only [addList, List.length_nil, Nat.max_zero]
-    | cons b bs => simp only [addList, List.length_cons, ih, Nat.succ_max_succ]
+private theorem length_addListM_ret :
+    ∀ (as bs : List ℚ), (addListM as bs).ret.length = max as.length bs.length
+  | [], bs => by simp [addListM, time_simps]
+  | a :: as, [] => by simp [addListM, time_simps]
+  | a :: as, b :: bs => by
+    simp [addListM, time_simps, length_addListM_ret as bs, Nat.succ_max_succ]
+
+private theorem ofCoeffList_addListM_ret :
+    ∀ (as bs : List ℚ), ofCoeffList (addListM as bs).ret = ofCoeffList as + ofCoeffList bs
+  | [], bs => by simp [addListM, time_simps]
+  | a :: as, [] => by simp [addListM, time_simps]
+  | a :: as, b :: bs => by
+    simp only [addListM, time_simps, ofCoeffList_cons, ofCoeffList_addListM_ret as bs, C_add,
+      mul_add]
+    ring
+
+private theorem addListM_ret_replicate_append :
+    ∀ (xs : List ℚ) (d : ℕ) (c : ℚ), xs.length ≤ d →
+      (addListM xs (List.replicate d 0 ++ [c])).ret =
+        (xs ++ List.replicate (d - xs.length) 0) ++ [c]
+  | [], d, c, _ => by simp [addListM, time_simps]
+  | _ :: _, 0, _, hlen => absurd hlen (by simp)
+  | x :: xs, d + 1, c, hlen => by
+    have ih := addListM_ret_replicate_append xs d c (by simpa using hlen)
+    simp only [List.replicate_succ, List.cons_append, addListM, time_simps, add_zero, ih,
+      List.length_cons, Nat.succ_sub_succ_eq_sub]
 
 /-- `TimeM ℕ`-charged coefficient-list negation. -/
 @[expose] def negListM : List ℚ → TimeM ℕ (List ℚ)
@@ -304,35 +267,23 @@ private theorem addList_length (as bs : List ℚ) :
     let bs ← negListM as
     pure ((-a) :: bs)
 
-@[simp]
-theorem negListM_ret (as : List ℚ) : (negListM as).ret = negList as := by
-  induction as with
-  | nil => simp only [negListM, negList, List.map_nil, TimeM.ret_bind, TimeM.ret_pure]
-  | cons a as ih =>
-    simp only [negListM, negList, List.map_cons, TimeM.ret_bind, TimeM.ret_pure, ih]
+@[time_simps]
+private theorem negListM_ret (as : List ℚ) : (negListM as).ret = as.map (-·) := by
+  induction as <;> simp_all [negListM, time_simps]
 
+@[time_simps]
 theorem negListM_time (as : List ℚ) : (negListM as).time = as.length + 1 := by
-  induction as with
-  | nil =>
-    simp only [negListM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
-    omega
-  | cons _ as ih =>
-    simp only [negListM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
+  time_spec negListM
 
 /-- `TimeM ℕ`-charged coefficient-list subtraction. -/
 @[expose] def subListM (as bs : List ℚ) : TimeM ℕ (List ℚ) := do
   let nb ← negListM bs
   addListM as nb
 
-@[simp]
-theorem subListM_ret (as bs : List ℚ) : (subListM as bs).ret = subList as bs := by
-  simp only [subListM, subList, TimeM.ret_bind, negListM_ret, addListM_ret]
-
 theorem subListM_time_le (as bs : List ℚ) : (subListM as bs).time ≤ 2 * bs.length + 2 := by
-  simp only [subListM, TimeM.time_bind, negListM_time, negListM_ret]
-  have h := addListM_time_le_right as (negList bs)
-  have hlen : (negList bs).length = bs.length := List.length_map _
+  simp only [subListM, time_simps]
+  have h := addListM_time_le_right as (bs.map (-·))
+  rw [List.length_map] at h
   omega
 
 /-- `TimeM ℕ`-charged scalar multiplication of a coefficient list. -/
@@ -345,37 +296,29 @@ theorem subListM_time_le (as bs : List ℚ) : (subListM as bs).time ≤ 2 * bs.l
     let cs ← scaleListM c bs
     pure ((c * b) :: cs)
 
-@[simp]
-theorem scaleListM_ret (c : ℚ) (bs : List ℚ) : (scaleListM c bs).ret = scaleList c bs := by
-  induction bs with
-  | nil => simp only [scaleListM, scaleList, List.map_nil, TimeM.ret_bind, TimeM.ret_pure]
-  | cons b bs ih =>
-    simp only [scaleListM, scaleList, List.map_cons, TimeM.ret_bind, TimeM.ret_pure, ih]
+@[time_simps]
+private theorem scaleListM_ret (c : ℚ) (bs : List ℚ) : (scaleListM c bs).ret = bs.map (c * ·) := by
+  induction bs <;> simp_all [scaleListM, time_simps]
 
+@[time_simps]
 theorem scaleListM_time (c : ℚ) (bs : List ℚ) : (scaleListM c bs).time = bs.length + 1 := by
-  induction bs with
-  | nil =>
-    simp only [scaleListM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
-    omega
-  | cons _ bs ih =>
-    simp only [scaleListM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
+  time_spec scaleListM
 
-/-- `TimeM ℕ`-charged `shiftZero`. -/
+/-- `TimeM ℕ`-charged monomial zero-padding `List.replicate k 0 ++ bs`. -/
 @[expose] def shiftZeroM (k : ℕ) (bs : List ℚ) : TimeM ℕ (List ℚ) := do
   let zs ← replicateZeroM k
   appendM zs bs
 
-@[simp]
-theorem shiftZeroM_ret (k : ℕ) (bs : List ℚ) : (shiftZeroM k bs).ret = shiftZero k bs := by
-  simp only [shiftZeroM, shiftZero, TimeM.ret_bind, replicateZeroM_ret, appendM_ret]
+@[time_simps]
+private theorem shiftZeroM_ret (k : ℕ) (bs : List ℚ) :
+    (shiftZeroM k bs).ret = List.replicate k 0 ++ bs := by
+  time_spec shiftZeroM
 
+@[time_simps]
 theorem shiftZeroM_time (k : ℕ) (bs : List ℚ) : (shiftZeroM k bs).time = 2 * k + 2 := by
-  simp only [shiftZeroM, TimeM.time_bind, replicateZeroM_time, replicateZeroM_ret, appendM_time,
-    List.length_replicate]
-  omega
+  time_spec shiftZeroM [List.length_replicate]
 
-/-- `TimeM ℕ`-charged `derivAux`. -/
+/-- `TimeM ℕ`-charged shifted-derivative pass. -/
 @[expose] def derivAuxM (k : ℕ) : List ℚ → TimeM ℕ (List ℚ)
   | [] => do
     TimeM.tick 1
@@ -385,23 +328,28 @@ theorem shiftZeroM_time (k : ℕ) (bs : List ℚ) : (shiftZeroM k bs).time = 2 *
     let ds ← derivAuxM (k + 1) as
     pure (((k : ℚ) * a) :: ds)
 
-@[simp]
-theorem derivAuxM_ret (k : ℕ) (as : List ℚ) : (derivAuxM k as).ret = derivAux k as := by
-  induction as generalizing k with
-  | nil => simp only [derivAuxM, derivAux, TimeM.ret_bind, TimeM.ret_pure]
-  | cons a as ih => simp only [derivAuxM, derivAux, TimeM.ret_bind, TimeM.ret_pure, ih]
+private theorem length_derivAuxM_ret (k : ℕ) (as : List ℚ) :
+    (derivAuxM k as).ret.length = as.length := by
+  induction as generalizing k <;> simp_all [derivAuxM, time_simps]
 
+private theorem getElem_derivAuxM_ret :
+    ∀ (k : ℕ) (as : List ℚ) (i : ℕ) (hi : i < (derivAuxM k as).ret.length),
+      (derivAuxM k as).ret[i] = ((k + i : ℕ) : ℚ) * as[i]'(by rwa [length_derivAuxM_ret] at hi)
+  | _, [], _, hi => absurd hi (by simp [derivAuxM, time_simps])
+  | k, _ :: _, 0, _ => by simp [derivAuxM, time_simps]
+  | k, _ :: as, i + 1, hi => by
+    have hi' : i < (derivAuxM (k + 1) as).ret.length := by
+      simpa [derivAuxM, time_simps] using hi
+    simp only [derivAuxM, time_simps, List.getElem_cons_succ,
+      getElem_derivAuxM_ret (k + 1) as i hi']
+    push_cast
+    ring
+
+@[time_simps]
 theorem derivAuxM_time (k : ℕ) (as : List ℚ) : (derivAuxM k as).time = 2 * as.length + 1 := by
-  induction as generalizing k with
-  | nil =>
-    simp only [derivAuxM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
-    omega
-  | cons _ as ih =>
-    simp only [derivAuxM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih (k + 1),
-      List.length_cons]
-    omega
+  time_spec derivAuxM
 
-/-- `TimeM ℕ`-charged formal derivative `derivList`. -/
+/-- `TimeM ℕ`-charged formal derivative `CoeffList.deriv`. -/
 @[expose] def derivListM : List ℚ → TimeM ℕ (List ℚ)
   | [] => do
     TimeM.tick 1
@@ -411,24 +359,31 @@ theorem derivAuxM_time (k : ℕ) (as : List ℚ) : (derivAuxM k as).time = 2 * a
     let ds ← derivAuxM 1 as
     trimM ds
 
-@[simp]
-theorem derivListM_ret (cs : List ℚ) : (derivListM cs).ret = derivList cs := by
+@[simp, time_simps]
+theorem derivListM_ret (cs : List ℚ) : (derivListM cs).ret = CoeffList.deriv cs := by
   cases cs with
-  | nil => simp only [derivListM, derivList, TimeM.ret_bind, TimeM.ret_pure]
-  | cons _ as => simp only [derivListM, derivList, TimeM.ret_bind, derivAuxM_ret, trimM_ret]
+  | nil => simp [derivListM, CoeffList.deriv, time_simps]
+  | cons a₀ as =>
+    simp only [derivListM, CoeffList.deriv, List.length_cons, Nat.add_sub_cancel, time_simps]
+    congr 1
+    refine List.ext_getElem (by simp [length_derivAuxM_ret]) fun i hi1 hi2 => ?_
+    rw [getElem_derivAuxM_ret, List.getElem_map, List.getElem_range]
+    have hi_as : i < as.length := by simpa [length_derivAuxM_ret] using hi1
+    rw [List.getD_cons_succ, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi_as,
+      Option.getD_some]
+    push_cast
+    ring
 
 theorem derivListM_time_le (cs : List ℚ) : (derivListM cs).time ≤ 5 * cs.length + 3 := by
   cases cs with
-  | nil => simp only [derivListM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-    List.length_nil]; omega
+  | nil => simp only [derivListM, time_simps]; omega
   | cons _ as =>
-    simp only [derivListM, TimeM.time_bind, TimeM.time_tick, derivAuxM_time, derivAuxM_ret,
-      List.length_cons]
-    have htr := trimM_time_le (derivAux 1 as)
-    rw [derivAux_length 1 as] at htr
+    simp only [derivListM, time_simps]
+    have htr := trimM_time_le (derivAuxM 1 as).ret
+    rw [length_derivAuxM_ret] at htr
     omega
 
-/-- `TimeM ℕ`-charged fuel-bounded polynomial Euclidean division `divModAux`. -/
+/-- `TimeM ℕ`-charged fuel-bounded polynomial Euclidean division. -/
 @[expose] def divModAuxM : ℕ → List ℚ → List ℚ → TimeM ℕ (List ℚ × List ℚ)
   | 0, u, _ => do
     let u' ← trimM u
@@ -460,53 +415,80 @@ theorem derivListM_time_le (cs : List ℚ) : (derivListM cs).time ≤ 5 * cs.len
         TimeM.tick 1
         pure ([], u')
 
-@[simp]
-theorem divModAuxM_ret : ∀ (n : ℕ) (u v : List ℚ), (divModAuxM n u v).ret = divModAux n u v
-  | 0, u, v => by simp only [divModAuxM, divModAux, TimeM.ret_bind, trimM_ret, TimeM.ret_pure]
-  | n + 1, u, v => by
-    simp only [divModAuxM, divModAux, TimeM.ret_bind, trimM_ret, lengthM_ret]
+private theorem divModAuxM_spec {v : List ℚ} (hv : CoeffList.IsTrimmed v) (hv0 : v ≠ []) :
+    ∀ (n : ℕ) (u : List ℚ), (CoeffList.trim u).length ≤ n →
+      let res := (divModAuxM n u v).ret
+      CoeffList.IsTrimmed res.1 ∧
+        res.1.length ≤ (CoeffList.trim u).length + 1 - v.length ∧
+        CoeffList.IsTrimmed res.2 ∧
+        res.2.length < v.length ∧
+        ofCoeffList res.1 * ofCoeffList v + ofCoeffList res.2 = ofCoeffList u
+  | 0, u, hlen => by
+    have hu' : CoeffList.trim u = [] := List.eq_nil_of_length_eq_zero (Nat.eq_zero_of_le_zero hlen)
+    simp only [divModAuxM, time_simps]
+    exact ⟨CoeffList.isTrimmed_nil, by simp, CoeffList.isTrimmed_trim u,
+      hu' ▸ List.length_pos_of_ne_nil hv0, by simp⟩
+  | n + 1, u, hlen => by
+    simp only [divModAuxM, time_simps]
     split_ifs with hlt
     · simp only [TimeM.ret_pure]
-    · simp only [TimeM.ret_bind, getLast?M_ret]
-      cases v.getLast? with
-      | none => simp only [TimeM.ret_bind, TimeM.ret_pure]
-      | some lc =>
-        cases (trim u).getLast? with
-        | none => simp only [TimeM.ret_bind, TimeM.ret_pure]
-        | some lu =>
-          simp only [TimeM.ret_bind, shiftZeroM_ret, scaleListM_ret, subListM_ret, trimM_ret,
-            divModAuxM_ret n, addListM_ret, TimeM.ret_pure]
-
-private theorem divModAux_snd_length_le :
-    ∀ (n : ℕ) (u v : List ℚ), (divModAux n u v).2.length ≤ u.length
-  | 0, u, _ => trim_length_le u
-  | n + 1, u, v => by
-    simp only [divModAux]
-    split_ifs with hlt
-    · exact trim_length_le u
-    · cases v.getLast? with
-      | none => exact trim_length_le u
-      | some lc =>
-        cases (trim u).getLast? with
-        | none => exact trim_length_le u
-        | some lu =>
-          dsimp only
-          have huv : v.length ≤ (trim u).length := Nat.le_of_not_lt hlt
-          let sub := scaleList (lu / lc) (shiftZero ((trim u).length - v.length) v)
-          have hsub_len : sub.length = (trim u).length := by
-            simp only [sub, scaleList, List.length_map, shiftZero, List.length_append,
-              List.length_replicate]
-            omega
-          have hdiff_len : (subList (trim u) sub).length = (trim u).length := by
-            simp only [subList, addList_length, negList, List.length_map, hsub_len, max_self]
-          exact (divModAux_snd_length_le n _ v).trans
-            ((trim_length_le _).trans (hdiff_len.le.trans (trim_length_le u)))
+      exact ⟨CoeffList.isTrimmed_nil, by simp, CoeffList.isTrimmed_trim u, hlt, by simp⟩
+    · have huv : v.length ≤ (CoeffList.trim u).length := Nat.le_of_not_lt hlt
+      have hu0 : CoeffList.trim u ≠ [] :=
+        List.ne_nil_of_length_pos (lt_of_lt_of_le (List.length_pos_of_ne_nil hv0) huv)
+      obtain ⟨lv, lc, hlc0, hveq⟩ := hv.exists_append_singleton hv0
+      obtain ⟨lu_init, lu, hlu0, hueq⟩ :=
+        (CoeffList.isTrimmed_trim u).exists_append_singleton hu0
+      have hv_last : v.getLast? = some lc := by simp [hveq]
+      have hu_last : (CoeffList.trim u).getLast? = some lu := by simp [hueq]
+      have hv_lastD : v.getLastD 0 = lc := by rw [hveq, List.getLastD_concat]
+      have hu_lastD : (CoeffList.trim u).getLastD 0 = lu := by rw [hueq, List.getLastD_concat]
+      have hfac0 : lu / lc ≠ 0 := div_ne_zero hlu0 hlc0
+      simp only [TimeM.ret_bind, getLast?M_ret, hv_last, hu_last, time_simps]
+      set d := (CoeffList.trim u).length - v.length
+      set c := lu / lc
+      set diff := (subListM (CoeffList.trim u) ((List.replicate d 0 ++ v).map (c * ·))).ret
+      have hdiff_raw :
+          ofCoeffList diff =
+            ofCoeffList (CoeffList.trim u) - C c * (X ^ d * ofCoeffList v) := by
+        simp only [diff, subListM, TimeM.ret_bind, negListM_ret]
+        rw [ofCoeffList_addListM_ret, ofCoeffList_map_neg, ofCoeffList_map_mul,
+          ofCoeffList_append, ofCoeffList_replicate_zero, List.length_replicate, zero_add,
+          sub_eq_add_neg]
+      have huNext_eq :
+          CoeffList.trim diff =
+            CoeffList.sub (CoeffList.trim u) (CoeffList.smul c (CoeffList.shift d v)) := by
+        rw [← CoeffList.trim_sub]
+        exact CoeffList.trim_eq_of_ofCoeffList_eq (by
+          rw [hdiff_raw, CoeffList.ofCoeffList_sub, CoeffList.ofCoeffList_smul,
+            CoeffList.ofCoeffList_shift])
+      have huNext_lt : (CoeffList.trim diff).length < (CoeffList.trim u).length := by
+        rw [huNext_eq]
+        have hc_eq : c = (CoeffList.trim u).getLastD 0 / v.getLastD 0 := by rw [hu_lastD, hv_lastD]
+        rw [hc_eq]
+        exact CoeffList.length_sub_smul_shift_lt (CoeffList.isTrimmed_trim u) hv hv0 huv
+      have huNext_le : (CoeffList.trim (CoeffList.trim diff)).length ≤ n := by
+        rw [CoeffList.trim_trim]; omega
+      obtain ⟨hq1, hqlen, hr1, hrlt, halg⟩ :=
+        divModAuxM_spec hv hv0 n (CoeffList.trim diff) huNext_le
+      rw [CoeffList.trim_trim] at hqlen
+      set res := (divModAuxM n (CoeffList.trim diff) v).ret
+      have hres_le_d : res.1.length ≤ d := by omega
+      have hqNext_eq := addListM_ret_replicate_append res.1 d c hres_le_d
+      refine ⟨hqNext_eq ▸ CoeffList.isTrimmed_append_singleton _ hfac0,
+        by rw [hqNext_eq]; simp; omega, hr1, hrlt, ?_⟩
+      have hdiff_poly :
+          ofCoeffList (CoeffList.trim diff) = ofCoeffList u - C c * (X ^ d * ofCoeffList v) := by
+        rw [CoeffList.ofCoeffList_trim, hdiff_raw, CoeffList.ofCoeffList_trim]
+      rw [ofCoeffList_addListM_ret, ofCoeffList_append, ofCoeffList_replicate_zero,
+        List.length_replicate, zero_add, ofCoeffList_cons, ofCoeffList_nil, mul_zero, add_zero]
+      linear_combination halg + hdiff_poly
 
 theorem divModAuxM_time_le :
     ∀ (n : ℕ) (u v : List ℚ),
       (divModAuxM n u v).time ≤ (n + 1) * (20 * max u.length v.length + 20)
   | 0, u, v => by
-    simp only [divModAuxM, TimeM.time_bind, TimeM.time_pure, zero_add, one_mul]
+    simp only [divModAuxM, time_simps, one_mul]
     have htr := trimM_time_le u
     have hle : u.length ≤ max u.length v.length := le_max_left _ _
     omega
@@ -514,49 +496,48 @@ theorem divModAuxM_time_le :
     let M := max u.length v.length
     have hu_le : u.length ≤ M := le_max_left _ _
     have hv_le : v.length ≤ M := le_max_right _ _
-    have hu'_le : (trim u).length ≤ u.length := trim_length_le u
+    have hu'_le : (CoeffList.trim u).length ≤ u.length := CoeffList.length_trim_le u
     have htr_u := trimM_time_le u
-    simp only [divModAuxM, TimeM.time_bind, trimM_ret, lengthM_time, lengthM_ret, TimeM.time_tick]
+    simp only [divModAuxM, time_simps]
     split_ifs with hlt
     · simp only [TimeM.time_pure]
       have hpos : 0 ≤ (n + 1) * (20 * M + 20) := Nat.zero_le _
       rw [Nat.add_right_comm n 1 1, Nat.succ_mul]
       omega
-    · have huv : v.length ≤ (trim u).length := Nat.le_of_not_lt hlt
+    · have huv : v.length ≤ (CoeffList.trim u).length := Nat.le_of_not_lt hlt
       simp only [TimeM.time_bind, getLast?M_ret]
       have hgl_v := getLast?M_time_le v
-      have hgl_u := getLast?M_time_le (trim u)
+      have hgl_u := getLast?M_time_le (CoeffList.trim u)
       cases v.getLast? with
       | none =>
-        simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
+        simp only [time_simps]
         rw [Nat.add_right_comm n 1 1, Nat.succ_mul]
         omega
       | some lc =>
-        cases (trim u).getLast? with
+        cases (CoeffList.trim u).getLast? with
         | none =>
-          simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
+          simp only [time_simps]
           rw [Nat.add_right_comm n 1 1, Nat.succ_mul]
           omega
         | some lu =>
-          simp only [TimeM.time_bind, TimeM.time_tick, shiftZeroM_time, shiftZeroM_ret,
-            scaleListM_time, scaleListM_ret, subListM_ret, trimM_ret, divModAuxM_ret,
-            TimeM.time_pure]
-          let shift := (trim u).length - v.length
+          simp only [time_simps]
+          let shift := (CoeffList.trim u).length - v.length
           let factor := lu / lc
-          let shifted := shiftZero shift v
-          let subtrahend := scaleList factor shifted
-          let diff := subList (trim u) subtrahend
-          let uNext := trim diff
-          have hsh_len : shifted.length = (trim u).length := by
-            simp only [shifted, shiftZero, List.length_append, List.length_replicate, shift]
+          let shifted := List.replicate shift 0 ++ v
+          let subtrahend := shifted.map (factor * ·)
+          let diff := (subListM (CoeffList.trim u) subtrahend).ret
+          let uNext := CoeffList.trim diff
+          have hsh_len : shifted.length = (CoeffList.trim u).length := by
+            simp only [shifted, List.length_append, List.length_replicate, shift]
             omega
-          have hsub_len : subtrahend.length = (trim u).length := by
-            simp only [subtrahend, scaleList, List.length_map, hsh_len]
-          have hdiff_len : diff.length = (trim u).length := by
-            simp only [diff, subList, addList_length, negList, List.length_map, hsub_len, max_self]
+          have hsub_len : subtrahend.length = (CoeffList.trim u).length := by
+            simp only [subtrahend, List.length_map, hsh_len]
+          have hdiff_len : diff.length = (CoeffList.trim u).length := by
+            simp only [diff, subListM, time_simps, length_addListM_ret, List.length_map, hsub_len,
+              max_self]
           have huNext_len : uNext.length ≤ u.length :=
-            (trim_length_le diff).trans (hdiff_len.le.trans hu'_le)
-          have hsub_t := subListM_time_le (trim u) subtrahend
+            (CoeffList.length_trim_le diff).trans (hdiff_len.le.trans hu'_le)
+          have hsub_t := subListM_time_le (CoeffList.trim u) subtrahend
           rw [hsub_len] at hsub_t
           have htr_next := trimM_time_le diff
           rw [hdiff_len] at htr_next
@@ -565,11 +546,12 @@ theorem divModAuxM_time_le :
           have ih := (divModAuxM_time_le n uNext v).trans
             (Nat.mul_le_mul_left (n + 1) (by omega : 20 * max uNext.length v.length + 20 ≤
               20 * M + 20))
-          have hqTerm_len : (shiftZero shift [factor]).length = shift + 1 := by
-            simp only [shiftZero, List.length_append, List.length_replicate, List.length_singleton]
-          have hadd_t := addListM_time_le_right (divModAux n uNext v).1 (shiftZero shift [factor])
+          have hqTerm_len : (List.replicate shift 0 ++ [factor]).length = shift + 1 := by
+            simp only [List.length_append, List.length_replicate, List.length_singleton]
+          have hadd_t :=
+            addListM_time_le_right (divModAuxM n uNext v).ret.1 (List.replicate shift 0 ++ [factor])
           rw [hqTerm_len] at hadd_t
-          have hshift_le : shift ≤ (trim u).length := Nat.sub_le _ _
+          have hshift_le : shift ≤ (CoeffList.trim u).length := Nat.sub_le _ _
           dsimp only [M] at ih
           rw [hsh_len]
           have hsplit : (n + 1 + 1) * (20 * max u.length v.length + 20) =
@@ -579,66 +561,79 @@ theorem divModAuxM_time_le :
           dsimp only [uNext, diff, subtrahend, shifted, shift, factor] at hsub_t htr_next ih hadd_t
           omega
 
-/-- `TimeM ℕ`-charged Euclidean quotient and remainder `divModList`. -/
+/-- `TimeM ℕ`-charged Euclidean quotient and remainder `CoeffList.divMod`. -/
 @[expose] def divModListM (u v : List ℚ) : TimeM ℕ (List ℚ × List ℚ) := do
   let u' ← trimM u
   let v' ← trimM v
   let lu ← lengthM u'
   divModAuxM lu u' v'
 
-@[simp]
-theorem divModListM_ret (u v : List ℚ) : (divModListM u v).ret = divModList u v := by
-  simp only [divModListM, divModList, TimeM.ret_bind, trimM_ret, lengthM_ret, divModAuxM_ret]
+@[simp, time_simps]
+theorem divModListM_ret (u v : List ℚ) : (divModListM u v).ret = CoeffList.divMod u v := by
+  by_cases hv : ofCoeffList v = 0
+  · have hvt : CoeffList.trim v = [] := (CoeffList.trim_eq_nil_iff v).mpr hv
+    have hdiv0 : CoeffList.div u v = [] :=
+      (CoeffList.isTrimmed_div u v).eq_nil_iff.mpr (by simp [hv])
+    have hmod0 : CoeffList.mod u v = CoeffList.trim u :=
+      (CoeffList.isTrimmed_mod u v).eq_of_ofCoeffList_eq (CoeffList.isTrimmed_trim u) (by simp [hv])
+    have hrhs : CoeffList.divMod u v = ([], CoeffList.trim u) :=
+      Prod.ext hdiv0 hmod0
+    rw [hrhs]
+    simp only [divModListM, time_simps, hvt]
+    cases hlen : (CoeffList.trim u).length with
+    | zero => simp [divModAuxM, time_simps]
+    | succ n => simp [divModAuxM, time_simps]
+  · have hvt_ne : CoeffList.trim v ≠ [] := mt (CoeffList.trim_eq_nil_iff v).mp hv
+    obtain ⟨hq1, _, hr1, hrlt, halg⟩ :=
+      divModAuxM_spec (CoeffList.isTrimmed_trim v) hvt_ne (CoeffList.trim u).length
+        (CoeffList.trim u) (by simp)
+    rw [CoeffList.ofCoeffList_trim, CoeffList.ofCoeffList_trim] at halg
+    simpa only [divModListM, time_simps] using
+      CoeffList.eq_divMod_of_isTrimmed hv hq1 hr1 hrlt halg
 
 theorem divModListM_time_le (u v : List ℚ) :
     (divModListM u v).time ≤ (u.length + 2) * (20 * max u.length v.length + 26) := by
   let M := max u.length v.length
-  have hu_le : u.length ≤ M := le_max_left _ _
-  have hv_le : v.length ≤ M := le_max_right _ _
-  have hu'_le : (trim u).length ≤ u.length := trim_length_le u
-  have hv'_le : (trim v).length ≤ v.length := trim_length_le v
-  have hmax' : max (trim u).length (trim v).length ≤ M :=
-    max_le (hu'_le.trans hu_le) (hv'_le.trans hv_le)
-  simp only [divModListM, TimeM.time_bind, trimM_ret, lengthM_time, lengthM_ret]
+  have hu'_le := CoeffList.length_trim_le u
+  have hmax' : max (CoeffList.trim u).length (CoeffList.trim v).length ≤ M :=
+    max_le (hu'_le.trans (le_max_left _ _))
+      ((CoeffList.length_trim_le v).trans (le_max_right _ _))
+  have := le_max_left u.length v.length; have := le_max_right u.length v.length
+  simp only [divModListM, time_simps]
   have htu := trimM_time_le u
   have htv := trimM_time_le v
-  have haux := (divModAuxM_time_le (trim u).length (trim u) (trim v)).trans
+  have haux := (divModAuxM_time_le (CoeffList.trim u).length (CoeffList.trim u)
+    (CoeffList.trim v)).trans
     (Nat.mul_le_mul (Nat.add_le_add_right hu'_le 1)
-      (by omega : 20 * max (trim u).length (trim v).length + 20 ≤ 20 * M + 20))
-  calc (trimM u).time + ((trimM v).time + (((trim u).length + 1) +
-        (divModAuxM (trim u).length (trim u) (trim v)).time))
+      (by omega : 20 * max (CoeffList.trim u).length (CoeffList.trim v).length + 20 ≤ 20 * M + 20))
+  calc (trimM u).time + ((trimM v).time + (((CoeffList.trim u).length + 1) +
+        (divModAuxM (CoeffList.trim u).length (CoeffList.trim u) (CoeffList.trim v)).time))
       ≤ (3 * M + 1) + ((3 * M + 1) + ((M + 1) + (u.length + 1) * (20 * M + 20))) := by omega
     _ ≤ (20 * M + 26) + (u.length + 1) * (20 * M + 26) := by nlinarith
     _ = (u.length + 2) * (20 * M + 26) := by ring
 
-/-- `TimeM ℕ`-charged negated Euclidean remainder `negModList`. -/
+/-- `TimeM ℕ`-charged negated Euclidean remainder `CoeffList.negMod`. -/
 @[expose] def negModListM (u v : List ℚ) : TimeM ℕ (List ℚ) := do
   let nu ← negListM u
   let qr ← divModListM nu v
   TimeM.tick 1
   pure qr.2
 
-@[simp]
-theorem negModListM_ret (u v : List ℚ) : (negModListM u v).ret = negModList u v := by
-  simp only [negModListM, negModList, TimeM.ret_bind, negListM_ret, divModListM_ret,
-    TimeM.ret_pure]
+@[simp, time_simps]
+theorem negModListM_ret (u v : List ℚ) : (negModListM u v).ret = CoeffList.negMod u v := by
+  simp only [negModListM, time_simps]
+  change CoeffList.mod (u.map (-·)) v = CoeffList.negMod u v
+  exact (CoeffList.isTrimmed_mod _ _).eq_of_ofCoeffList_eq (CoeffList.isTrimmed_negMod u v)
+    (by rw [CoeffList.ofCoeffList_mod, ofCoeffList_map_neg, CoeffList.ofCoeffList_negMod])
 
 theorem negModListM_time_le (u v : List ℚ) :
     (negModListM u v).time ≤ (u.length + 2) * (20 * max u.length v.length + 28) := by
-  simp only [negModListM, TimeM.time_bind, negListM_time, negListM_ret, TimeM.time_tick,
-    TimeM.time_pure]
-  have hdiv := divModListM_time_le (negList u) v
-  have hnl : (negList u).length = u.length := List.length_map _
-  rw [hnl] at hdiv
+  simp only [negModListM, time_simps]
+  have hdiv := divModListM_time_le (u.map (-·)) v
+  rw [List.length_map] at hdiv
   have hadd : (u.length + 2) * (20 * max u.length v.length + 28) =
       (u.length + 2) * (20 * max u.length v.length + 26) + 2 * (u.length + 2) := by ring
   omega
-
-private theorem negModList_length_le (u v : List ℚ) : (negModList u v).length ≤ u.length := by
-  simp only [negModList, divModList]
-  have h := divModAux_snd_length_le (trim (negList u)).length (trim (negList u)) (trim v)
-  refine h.trans ((trim_length_le _).trans ?_)
-  simp only [negList, List.length_map, le_refl]
 
 /-- `TimeM ℕ`-charged fuel-bounded Sturm sequence `sturmSeqAux`. -/
 @[expose] def sturmSeqAuxM : ℕ → List ℚ → List ℚ → TimeM ℕ (List (List ℚ))
@@ -656,20 +651,17 @@ private theorem negModList_length_le (u v : List ℚ) : (negModList u v).length 
       TimeM.tick 1
       pure (p :: rest)
 
-@[simp]
+@[simp, time_simps]
 theorem sturmSeqAuxM_ret :
-    ∀ (n : ℕ) (p q : List ℚ), (sturmSeqAuxM n p q).ret = sturmSeqAux n p q
-  | 0, p, q => by simp only [sturmSeqAuxM, sturmSeqAux, TimeM.ret_bind, TimeM.ret_pure]
-  | n + 1, p, q => by
-    simp only [sturmSeqAuxM, sturmSeqAux, TimeM.ret_bind, isEmptyM_ret]
-    split_ifs <;> simp only [TimeM.ret_bind, negModListM_ret, sturmSeqAuxM_ret n, TimeM.ret_pure]
+    ∀ (n : ℕ) (p q : List ℚ), (sturmSeqAuxM n p q).ret = sturmSeqAux n p q := by
+  time_spec sturmSeqAuxM [sturmSeqAux]
 
 theorem sturmSeqAuxM_time_le :
     ∀ (n : ℕ) (p q : List ℚ),
       (sturmSeqAuxM n p q).time ≤
         (n + 1) * ((max p.length q.length + 2) * (20 * max p.length q.length + 30))
   | 0, p, q => by
-    simp only [sturmSeqAuxM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, zero_add, one_mul]
+    simp only [sturmSeqAuxM, time_simps, one_mul]
     calc 1 + 0 ≤ 2 * 30 := by decide
       _ ≤ (max p.length q.length + 2) * (20 * max p.length q.length + 30) :=
             Nat.mul_le_mul (Nat.le_add_left 2 _) (Nat.le_add_left 30 _)
@@ -677,23 +669,24 @@ theorem sturmSeqAuxM_time_le :
     let M := max p.length q.length
     have hp_le : p.length ≤ M := le_max_left _ _
     have hq_le : q.length ≤ M := le_max_right _ _
-    simp only [sturmSeqAuxM, TimeM.time_bind, isEmptyM_time, isEmptyM_ret]
+    simp only [sturmSeqAuxM, time_simps]
     rw [Nat.succ_mul (n + 1)]
     split_ifs with hemp
-    · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
+    · simp only [time_simps]
       have hpos : 0 ≤ (n + 1) * ((max p.length q.length + 2) *
         (20 * max p.length q.length + 30)) := Nat.zero_le _
       have h2 : 2 ≤ (max p.length q.length + 2) * (20 * max p.length q.length + 30) :=
         (by decide : 2 ≤ 2 * 30).trans
           (Nat.mul_le_mul (Nat.le_add_left 2 _) (Nat.le_add_left 30 _))
       omega
-    · simp only [TimeM.time_bind, negModListM_ret, TimeM.time_tick, TimeM.time_pure]
+    · simp only [time_simps]
       have hneg := negModListM_time_le p q
-      have hr_le : (negModList p q).length ≤ M := (negModList_length_le p q).trans hp_le
-      have hmax_qr : max q.length (negModList p q).length ≤ M := max_le hq_le hr_le
-      have hm1 : max q.length (negModList p q).length + 2 ≤ M + 2 := by omega
-      have hm2 : 20 * max q.length (negModList p q).length + 30 ≤ 20 * M + 30 := by omega
-      have ih := (sturmSeqAuxM_time_le n q (negModList p q)).trans
+      have hr_le : (CoeffList.negMod p q).length ≤ M :=
+        (CoeffList.length_negMod_le p q).trans hp_le
+      have hmax_qr : max q.length (CoeffList.negMod p q).length ≤ M := max_le hq_le hr_le
+      have hm1 : max q.length (CoeffList.negMod p q).length + 2 ≤ M + 2 := by omega
+      have hm2 : 20 * max q.length (CoeffList.negMod p q).length + 30 ≤ 20 * M + 30 := by omega
+      have ih := (sturmSeqAuxM_time_le n q (CoeffList.negMod p q)).trans
         (Nat.mul_le_mul_left (n + 1) (Nat.mul_le_mul hm1 hm2))
       have hstep : 1 + ((p.length + 2) * (20 * M + 28) + 1) ≤ (M + 2) * (20 * M + 30) := by
         have hmul : (p.length + 2) * (20 * M + 28) ≤ (M + 2) * (20 * M + 28) :=
@@ -714,31 +707,36 @@ theorem sturmSeqAuxM_time_le :
     let dpLen ← lengthM dp
     sturmSeqAuxM dpLen p dp
 
-@[simp]
+@[simp, time_simps]
 theorem sturmSeqListM_ret (cs : List ℚ) : (sturmSeqListM cs).ret = sturmSeqList cs := by
-  simp only [sturmSeqListM, sturmSeqList, TimeM.ret_bind, trimM_ret, isEmptyM_ret]
-  split_ifs <;> simp only [TimeM.ret_bind, TimeM.ret_pure, derivListM_ret, lengthM_ret,
-    sturmSeqAuxM_ret]
+  time_spec sturmSeqListM [sturmSeqList]
 
 /-- Cubic operation-count bound on `sturmSeqListM cs` in terms of `cs.length`. -/
 theorem sturmSeqListM_time_le (cs : List ℚ) :
     (sturmSeqListM cs).time ≤ (cs.length + 2) ^ 2 * (20 * cs.length + 35) := by
   let n := cs.length
-  have hp_le : (trim cs).length ≤ n := trim_length_le cs
+  have hp_le : (CoeffList.trim cs).length ≤ n := CoeffList.length_trim_le cs
   have htr := trimM_time_le cs
-  simp only [sturmSeqListM, TimeM.time_bind, trimM_ret, isEmptyM_time, isEmptyM_ret]
+  simp only [sturmSeqListM, time_simps]
   split_ifs with hemp
   · simp only [TimeM.time_pure]
     nlinarith
-  · simp only [TimeM.time_bind, derivListM_ret, lengthM_time, lengthM_ret]
-    have hdp_t := derivListM_time_le (trim cs)
-    have hdp_len : (derivList (trim cs)).length ≤ n :=
-      (derivList_length_le (trim cs)).trans ((Nat.sub_le _ _).trans hp_le)
-    have hmax : max (trim cs).length (derivList (trim cs)).length ≤ n := max_le hp_le hdp_len
-    have hm1 : max (trim cs).length (derivList (trim cs)).length + 2 ≤ n + 2 := by omega
-    have hm2 : 20 * max (trim cs).length (derivList (trim cs)).length + 30 ≤ 20 * n + 30 := by omega
-    have haux := (sturmSeqAuxM_time_le (derivList (trim cs)).length (trim cs)
-      (derivList (trim cs))).trans
+  · simp only [time_simps]
+    have hdp_t := derivListM_time_le (CoeffList.trim cs)
+    have hdp_len : (CoeffList.deriv (CoeffList.trim cs)).length ≤ n :=
+      (CoeffList.length_deriv_le (CoeffList.trim cs)).trans ((Nat.sub_le _ _).trans hp_le)
+    have hmax : max (CoeffList.trim cs).length (CoeffList.deriv (CoeffList.trim cs)).length ≤ n :=
+      max_le hp_le hdp_len
+    have hm1 :
+        max (CoeffList.trim cs).length (CoeffList.deriv (CoeffList.trim cs)).length + 2 ≤
+          n + 2 := by
+      omega
+    have hm2 :
+        20 * max (CoeffList.trim cs).length (CoeffList.deriv (CoeffList.trim cs)).length + 30 ≤
+          20 * n + 30 := by
+      omega
+    have haux := (sturmSeqAuxM_time_le (CoeffList.deriv (CoeffList.trim cs)).length
+      (CoeffList.trim cs) (CoeffList.deriv (CoeffList.trim cs))).trans
       (Nat.mul_le_mul (Nat.add_le_add_right hdp_len 1) (Nat.mul_le_mul hm1 hm2))
     nlinarith
 
@@ -754,24 +752,15 @@ theorem sturmSeqListM_time_le (cs : List ℚ) :
     TimeM.tick 2
     pure (a + z * acc)
 
-@[simp]
+@[simp, time_simps]
 theorem evalCoeffListM_ret (z : ℚ) (l : List ℚ) :
     (evalCoeffListM z l).ret = evalCoeffList z l := by
-  induction l with
-  | nil => simp only [evalCoeffListM, evalCoeffList_nil, TimeM.ret_bind, TimeM.ret_pure]
-  | cons a l ih =>
-    simp only [evalCoeffListM, evalCoeffList_cons, TimeM.ret_bind, TimeM.ret_pure, ih]
+  time_spec evalCoeffListM
 
+@[time_simps]
 theorem evalCoeffListM_time (z : ℚ) (l : List ℚ) :
     (evalCoeffListM z l).time = 2 * l.length + 1 := by
-  induction l with
-  | nil =>
-    simp only [evalCoeffListM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
-    omega
-  | cons _ l ih =>
-    simp only [evalCoeffListM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih,
-      List.length_cons]
-    omega
+  time_spec evalCoeffListM
 
 /-- `TimeM ℕ`-charged `List.map SignType.sign`. -/
 @[expose] def mapSignM : List ℚ → TimeM ℕ (List SignType)
@@ -783,19 +772,13 @@ theorem evalCoeffListM_time (z : ℚ) (l : List ℚ) :
     let ss ← mapSignM qs
     pure (SignType.sign q :: ss)
 
+@[time_simps]
 private theorem mapSignM_ret (qs : List ℚ) : (mapSignM qs).ret = qs.map SignType.sign := by
-  induction qs with
-  | nil => simp only [mapSignM, List.map_nil, TimeM.ret_bind, TimeM.ret_pure]
-  | cons q qs ih => simp only [mapSignM, List.map_cons, TimeM.ret_bind, TimeM.ret_pure, ih]
+  time_spec mapSignM
 
+@[time_simps]
 private theorem mapSignM_time (qs : List ℚ) : (mapSignM qs).time = qs.length + 1 := by
-  induction qs with
-  | nil =>
-    simp only [mapSignM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
-    omega
-  | cons _ qs ih =>
-    simp only [mapSignM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
+  time_spec mapSignM
 
 /-- `TimeM ℕ`-charged nonzero-sign filter. -/
 @[expose] def filterNonzeroSignM : List SignType → TimeM ℕ (List SignType)
@@ -807,6 +790,7 @@ private theorem mapSignM_time (qs : List ℚ) : (mapSignM qs).time = qs.length +
     let fs ← filterNonzeroSignM ss
     if decide (s ≠ 0) then pure (s :: fs) else pure fs
 
+@[time_simps]
 private theorem filterNonzeroSignM_ret (ss : List SignType) :
     (filterNonzeroSignM ss).ret = ss.filter (fun x => decide (x ≠ 0)) := by
   induction ss with
@@ -815,16 +799,10 @@ private theorem filterNonzeroSignM_ret (ss : List SignType) :
     simp only [filterNonzeroSignM, List.filter_cons, TimeM.ret_bind, ih]
     split_ifs <;> simp only [TimeM.ret_pure]
 
+@[time_simps]
 private theorem filterNonzeroSignM_time (ss : List SignType) :
     (filterNonzeroSignM ss).time = ss.length + 1 := by
-  induction ss with
-  | nil =>
-    simp only [filterNonzeroSignM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-      List.length_nil]
-    omega
-  | cons _ ss ih =>
-    simp only [filterNonzeroSignM, TimeM.time_bind, TimeM.time_tick, ih, List.length_cons]
-    split_ifs <;> simp only [TimeM.time_pure] <;> omega
+  time_spec filterNonzeroSignM
 
 /-- `TimeM ℕ`-charged `List.destutter' (· ≠ ·)`. -/
 @[expose] def destutterNeAuxM (b : SignType) : List SignType → TimeM ℕ (List SignType)
@@ -839,26 +817,21 @@ private theorem filterNonzeroSignM_time (ss : List SignType) :
     else
       destutterNeAuxM b l
 
+@[time_simps]
 private theorem destutterNeAuxM_ret (b : SignType) (l : List SignType) :
     (destutterNeAuxM b l).ret = List.destutter' (· ≠ ·) b l := by
   induction l generalizing b with
-  | nil => simp only [destutterNeAuxM, List.destutter'_nil, TimeM.ret_bind, TimeM.ret_pure]
+  | nil => simp only [destutterNeAuxM, List.destutter'_nil, time_simps]
   | cons a l ih =>
     simp only [destutterNeAuxM, TimeM.ret_bind]
     by_cases hne : b ≠ a
-    · simp only [eq_true hne, ↓reduceIte, TimeM.ret_bind, TimeM.ret_pure, ih a,
-        List.destutter'_cons_pos l hne]
+    · simp only [eq_true hne, ↓reduceIte, time_simps, ih a, List.destutter'_cons_pos l hne]
     · simp only [eq_false hne, ↓reduceIte, ih b, List.destutter'_cons_neg l hne]
 
+@[time_simps]
 private theorem destutterNeAuxM_time (b : SignType) (l : List SignType) :
     (destutterNeAuxM b l).time = l.length + 1 := by
-  induction l generalizing b with
-  | nil =>
-    simp only [destutterNeAuxM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
-    omega
-  | cons a l ih =>
-    simp only [destutterNeAuxM, TimeM.time_bind, TimeM.time_tick, List.length_cons]
-    split_ifs <;> simp only [TimeM.time_bind, TimeM.time_pure, ih] <;> omega
+  time_spec destutterNeAuxM
 
 /-- `TimeM ℕ`-charged `List.destutter (· ≠ ·)`. -/
 @[expose] def destutterNeM : List SignType → TimeM ℕ (List SignType)
@@ -869,22 +842,14 @@ private theorem destutterNeAuxM_time (b : SignType) (l : List SignType) :
     TimeM.tick 1
     destutterNeAuxM a l
 
+@[time_simps]
 private theorem destutterNeM_ret (l : List SignType) :
     (destutterNeM l).ret = List.destutter (· ≠ ·) l := by
-  cases l with
-  | nil => simp only [destutterNeM, List.destutter_nil, TimeM.ret_bind, TimeM.ret_pure]
-  | cons a l =>
-    simp only [destutterNeM, List.destutter_cons', TimeM.ret_bind, destutterNeAuxM_ret]
+  time_spec destutterNeM
 
 private theorem destutterNeM_time_le (l : List SignType) :
     (destutterNeM l).time ≤ l.length + 2 := by
-  cases l with
-  | nil => simp only [destutterNeM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-    List.length_nil]; omega
-  | cons a l =>
-    simp only [destutterNeM, TimeM.time_bind, TimeM.time_tick, destutterNeAuxM_time,
-      List.length_cons]
-    omega
+  time_spec destutterNeM
 
 /-- `TimeM ℕ`-charged `List.signVariations` (`≤ 4 * xs.length + 6` ticks). -/
 @[expose] def signVariationsM (xs : List ℚ) : TimeM ℕ ℕ := do
@@ -895,16 +860,13 @@ private theorem destutterNeM_time_le (l : List SignType) :
   TimeM.tick 1
   pure (len - 1)
 
-@[simp]
+@[simp, time_simps]
 theorem signVariationsM_ret (xs : List ℚ) : (signVariationsM xs).ret = xs.signVariations := by
-  simp only [signVariationsM, List.signVariations, TimeM.ret_bind, mapSignM_ret,
-    filterNonzeroSignM_ret, destutterNeM_ret, lengthM_ret, TimeM.ret_pure]
+  time_spec signVariationsM
 
 theorem signVariationsM_time_le (xs : List ℚ) :
     (signVariationsM xs).time ≤ 4 * xs.length + 6 := by
-  simp only [signVariationsM, TimeM.time_bind, mapSignM_time, mapSignM_ret,
-    filterNonzeroSignM_time, filterNonzeroSignM_ret, destutterNeM_ret, lengthM_time,
-    TimeM.time_tick, TimeM.time_pure, List.length_map]
+  simp only [signVariationsM, time_simps, List.length_map]
   let fs := (xs.map SignType.sign).filter (fun x => decide (x ≠ 0))
   have hfs_len : fs.length ≤ xs.length := by
     calc fs.length ≤ (xs.map SignType.sign).length := List.length_filter_le _ _
@@ -926,40 +888,29 @@ theorem signVariationsM_time_le (xs : List ℚ) :
     let vs ← mapEvalCoeffListM x fs
     pure (v :: vs)
 
+@[time_simps]
 private theorem mapEvalCoeffListM_ret (x : ℚ) (seq : List (List ℚ)) :
     (mapEvalCoeffListM x seq).ret = seq.map (evalCoeffList x) := by
-  induction seq with
-  | nil => simp only [mapEvalCoeffListM, List.map_nil, TimeM.ret_bind, TimeM.ret_pure]
-  | cons f fs ih =>
-    simp only [mapEvalCoeffListM, List.map_cons, TimeM.ret_bind, TimeM.ret_pure,
-      evalCoeffListM_ret, ih]
+  time_spec mapEvalCoeffListM
 
+@[time_simps]
 private theorem mapEvalCoeffListM_time (x : ℚ) (seq : List (List ℚ)) :
     (mapEvalCoeffListM x seq).time = 2 * (seq.map List.length).sum + 2 * seq.length + 1 := by
-  induction seq with
-  | nil =>
-    simp only [mapEvalCoeffListM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-      List.map_nil, List.sum_nil, List.length_nil]
-    omega
-  | cons f fs ih =>
-    simp only [mapEvalCoeffListM, TimeM.time_bind, TimeM.time_tick, evalCoeffListM_time,
-      TimeM.time_pure, ih, List.map_cons, List.sum_cons, List.length_cons]
-    omega
+  time_spec mapEvalCoeffListM
 
 /-- Fully step-charged Sturm sign-variation count `sturmVariationsList seq x`. -/
 @[expose] def sturmVariationsListM (seq : List (List ℚ)) (x : ℚ) : TimeM ℕ ℕ := do
   let vs ← mapEvalCoeffListM x seq
   signVariationsM vs
 
-@[simp]
+@[simp, time_simps]
 theorem sturmVariationsListM_ret (seq : List (List ℚ)) (x : ℚ) :
     (sturmVariationsListM seq x).ret = sturmVariationsList seq x := by
-  simp only [sturmVariationsListM, sturmVariationsList, TimeM.ret_bind, mapEvalCoeffListM_ret,
-    signVariationsM_ret]
+  time_spec sturmVariationsListM
 
 theorem sturmVariationsListM_time_le (seq : List (List ℚ)) (x : ℚ) :
     (sturmVariationsListM seq x).time ≤ 2 * (seq.map List.length).sum + 6 * seq.length + 7 := by
-  simp only [sturmVariationsListM, TimeM.time_bind, mapEvalCoeffListM_time, mapEvalCoeffListM_ret]
+  simp only [sturmVariationsListM, time_simps]
   have hsv := signVariationsM_time_le (seq.map (evalCoeffList x))
   simp only [List.length_map] at hsv
   omega
@@ -988,20 +939,13 @@ theorem sturmVariationsListM_sturmSeq_time_le (cs : List ℚ) (x : ℚ) :
     let m ← maxAbsListM as
     pure (max |a| m)
 
-@[simp]
+@[simp, time_simps]
 theorem maxAbsListM_ret (cs : List ℚ) : (maxAbsListM cs).ret = maxAbsList cs := by
-  induction cs with
-  | nil => simp only [maxAbsListM, maxAbsList, TimeM.ret_bind, TimeM.ret_pure]
-  | cons a as ih => simp only [maxAbsListM, maxAbsList, TimeM.ret_bind, TimeM.ret_pure, ih]
+  time_spec maxAbsListM
 
+@[time_simps]
 theorem maxAbsListM_time (cs : List ℚ) : (maxAbsListM cs).time = 2 * cs.length + 1 := by
-  induction cs with
-  | nil =>
-    simp only [maxAbsListM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
-    omega
-  | cons _ as ih =>
-    simp only [maxAbsListM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
+  time_spec maxAbsListM
 
 /-- `TimeM ℕ`-charged `cauchyBoundNat`. -/
 @[expose] def cauchyBoundNatM (cs : List ℚ) : TimeM ℕ ℕ := do
@@ -1019,25 +963,21 @@ theorem maxAbsListM_time (cs : List ℚ) : (maxAbsListM cs).time = 2 * cs.length
     let b := m / |lc| + 1
     pure (Int.natAbs b.num / b.den + 1)
 
-@[simp]
+@[simp, time_simps]
 theorem cauchyBoundNatM_ret (cs : List ℚ) : (cauchyBoundNatM cs).ret = cauchyBoundNat cs := by
-  simp only [cauchyBoundNatM, cauchyBoundNat, TimeM.ret_bind, trimM_ret, lengthM_ret]
-  split_ifs <;> simp only [TimeM.ret_bind, getLast?M_ret, dropLastM_ret, maxAbsListM_ret,
-    TimeM.ret_pure]
+  time_spec cauchyBoundNatM [cauchyBoundNat]
 
 theorem cauchyBoundNatM_time_le (cs : List ℚ) :
     (cauchyBoundNatM cs).time ≤ 8 * cs.length + 12 := by
-  have ht_le : (trim cs).length ≤ cs.length := trim_length_le cs
+  have ht_le : (CoeffList.trim cs).length ≤ cs.length := CoeffList.length_trim_le cs
   have htr := trimM_time_le cs
-  simp only [cauchyBoundNatM, TimeM.time_bind, trimM_ret, lengthM_time, lengthM_ret,
-    TimeM.time_tick]
+  simp only [cauchyBoundNatM, time_simps]
   split_ifs with hlen
   · simp only [TimeM.time_pure]
     omega
-  · simp only [TimeM.time_bind, dropLastM_ret, maxAbsListM_time, TimeM.time_tick, TimeM.time_pure,
-      List.length_dropLast]
-    have hgl := getLast?M_time_le (trim cs)
-    have hdl := dropLastM_time_le (trim cs)
+  · simp only [time_simps, List.length_dropLast]
+    have hgl := getLast?M_time_le (CoeffList.trim cs)
+    have hdl := dropLastM_time_le (CoeffList.trim cs)
     omega
 
 /-- `TimeM ℕ`-charged `lcmDens`. -/
@@ -1050,20 +990,13 @@ theorem cauchyBoundNatM_time_le (cs : List ℚ) :
     TimeM.tick 2
     pure (Nat.lcm q.den d)
 
-@[simp]
+@[simp, time_simps]
 theorem lcmDensM_ret (cs : List ℚ) : (lcmDensM cs).ret = lcmDens cs := by
-  induction cs with
-  | nil => simp only [lcmDensM, lcmDens, TimeM.ret_bind, TimeM.ret_pure]
-  | cons q qs ih => simp only [lcmDensM, lcmDens, TimeM.ret_bind, TimeM.ret_pure, ih]
+  time_spec lcmDensM
 
+@[time_simps]
 theorem lcmDensM_time (cs : List ℚ) : (lcmDensM cs).time = 2 * cs.length + 1 := by
-  induction cs with
-  | nil =>
-    simp only [lcmDensM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
-    omega
-  | cons _ qs ih =>
-    simp only [lcmDensM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
+  time_spec lcmDensM
 
 /-- `TimeM ℕ`-charged denominator-clearing pass with multiplier `D`. -/
 @[expose] def mapClearEntryM (D : ℕ) : List ℚ → TimeM ℕ (List ℤ)
@@ -1075,22 +1008,15 @@ theorem lcmDensM_time (cs : List ℚ) : (lcmDensM cs).time = 2 * cs.length + 1 :
     let ns ← mapClearEntryM D qs
     pure ((q.num * ((D / q.den : ℕ) : ℤ)) :: ns)
 
+@[time_simps]
 private theorem mapClearEntryM_ret (D : ℕ) (cs : List ℚ) :
     (mapClearEntryM D cs).ret = cs.map (fun q => q.num * ((D / q.den : ℕ) : ℤ)) := by
-  induction cs with
-  | nil => simp only [mapClearEntryM, List.map_nil, TimeM.ret_bind, TimeM.ret_pure]
-  | cons q qs ih => simp only [mapClearEntryM, List.map_cons, TimeM.ret_bind, TimeM.ret_pure, ih]
+  time_spec mapClearEntryM
 
+@[time_simps]
 private theorem mapClearEntryM_time (D : ℕ) (cs : List ℚ) :
     (mapClearEntryM D cs).time = 2 * cs.length + 1 := by
-  induction cs with
-  | nil =>
-    simp only [mapClearEntryM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
-    omega
-  | cons _ qs ih =>
-    simp only [mapClearEntryM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih,
-      List.length_cons]
-    omega
+  time_spec mapClearEntryM
 
 /-- `TimeM ℕ`-charged `clearDenomsList`. -/
 @[expose] def clearDenomsListM (cs : List ℚ) : TimeM ℕ (ℕ × List ℤ) := do
@@ -1098,17 +1024,15 @@ private theorem mapClearEntryM_time (D : ℕ) (cs : List ℚ) :
   let ns ← mapClearEntryM D cs
   pure (D, ns)
 
-@[simp]
+@[simp, time_simps]
 theorem clearDenomsListM_ret (cs : List ℚ) :
     (clearDenomsListM cs).ret = clearDenomsList cs := by
-  simp only [clearDenomsListM, clearDenomsList, TimeM.ret_bind, lcmDensM_ret, mapClearEntryM_ret,
-    TimeM.ret_pure]
+  time_spec clearDenomsListM
 
+@[time_simps]
 theorem clearDenomsListM_time (cs : List ℚ) :
     (clearDenomsListM cs).time = 4 * cs.length + 2 := by
-  simp only [clearDenomsListM, TimeM.time_bind, lcmDensM_time, lcmDensM_ret, mapClearEntryM_time,
-    TimeM.time_pure]
-  omega
+  time_spec clearDenomsListM
 
 /-- `TimeM ℕ`-charged accumulator fold for `sqNormList`. -/
 @[expose] def sqNormFoldM (acc : ℕ) : List ℤ → TimeM ℕ ℕ
@@ -1121,28 +1045,21 @@ theorem clearDenomsListM_time (cs : List ℚ) :
 
 private theorem sqNormFoldM_ret (acc : ℕ) (ns : List ℤ) :
     (sqNormFoldM acc ns).ret = ns.foldl (fun s a => s + Int.natAbs a ^ 2) acc := by
-  induction ns generalizing acc with
-  | nil => simp only [sqNormFoldM, List.foldl_nil, TimeM.ret_bind, TimeM.ret_pure]
-  | cons a ns ih => simp only [sqNormFoldM, List.foldl_cons, TimeM.ret_bind, ih]
+  time_spec sqNormFoldM
 
 private theorem sqNormFoldM_time (acc : ℕ) (ns : List ℤ) :
     (sqNormFoldM acc ns).time = 2 * ns.length + 1 := by
-  induction ns generalizing acc with
-  | nil =>
-    simp only [sqNormFoldM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, List.length_nil]
-    omega
-  | cons a ns ih =>
-    simp only [sqNormFoldM, TimeM.time_bind, TimeM.time_tick, ih, List.length_cons]
-    omega
+  time_spec sqNormFoldM
 
 /-- `TimeM ℕ`-charged `sqNormList`. -/
 @[expose] def sqNormListM (ns : List ℤ) : TimeM ℕ ℕ :=
   sqNormFoldM 0 ns
 
-@[simp]
+@[simp, time_simps]
 theorem sqNormListM_ret (ns : List ℤ) : (sqNormListM ns).ret = sqNormList ns :=
   sqNormFoldM_ret 0 ns
 
+@[time_simps]
 theorem sqNormListM_time (ns : List ℤ) : (sqNormListM ns).time = 2 * ns.length + 1 :=
   sqNormFoldM_time 0 ns
 
@@ -1156,20 +1073,13 @@ theorem sqNormListM_time (ns : List ℤ) : (sqNormListM ns).time = 2 * ns.length
     TimeM.tick 1
     pure (p * base)
 
-@[simp]
+@[simp, time_simps]
 theorem powNatM_ret (base exp : ℕ) : (powNatM base exp).ret = base ^ exp := by
-  induction exp with
-  | zero => simp only [powNatM, pow_zero, TimeM.ret_bind, TimeM.ret_pure]
-  | succ exp ih => simp only [powNatM, pow_succ, TimeM.ret_bind, TimeM.ret_pure, ih]
+  time_spec powNatM
 
+@[time_simps]
 theorem powNatM_time (base exp : ℕ) : (powNatM base exp).time = exp + 1 := by
-  induction exp with
-  | zero =>
-    simp only [powNatM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
-    omega
-  | succ exp ih =>
-    simp only [powNatM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih]
-    omega
+  time_spec powNatM
 
 /-- `TimeM ℕ`-charged base-4 ceiling logarithm `Nat.clog 4 n` (`Nat.clog 4 n + 1` ticks). -/
 @[expose] def clog4M (n : ℕ) : TimeM ℕ ℕ :=
@@ -1181,23 +1091,23 @@ theorem powNatM_time (base exp : ℕ) : (powNatM base exp).time = exp + 1 := by
     let r ← clog4M ((n + 3) / 4)
     pure (r + 1)
 termination_by n
-decreasing_by omega
 
-@[simp]
+@[simp, time_simps]
 theorem clog4M_ret (n : ℕ) : (clog4M n).ret = Nat.clog 4 n := by
   induction n using Nat.strongRecOn with
   | ind n ih =>
     unfold clog4M
     split_ifs with hle
-    · simp only [TimeM.ret_bind, TimeM.ret_pure]
+    · simp only [time_simps]
       have h0 : Nat.clog 4 n ≤ 0 := Nat.clog_le_of_le_pow (by simpa only [pow_zero] using hle)
       omega
-    · simp only [TimeM.ret_bind, TimeM.ret_pure]
+    · simp only [time_simps]
       have hlt : (n + 3) / 4 < n := by omega
       rw [ih _ hlt]
       have : (n + 3) / 4 = (n + 4 - 1) / 4 := by omega
       rw [this, ← Nat.clog_of_two_le (by decide : 2 ≤ 4) (by omega)]
 
+@[time_simps]
 theorem clog4M_time (n : ℕ) : (clog4M n).time = Nat.clog 4 n + 1 := by
   induction n using Nat.strongRecOn with
   | ind n ih =>
@@ -1232,20 +1142,17 @@ theorem clog4M_time (n : ℕ) : (clog4M n).time = Nat.clog 4 n + 1 := by
   TimeM.tick 1
   pure (p1 * p2)
 
-@[simp]
+@[simp, time_simps]
 theorem mignotteSepSqInvM_ret (cs : List ℚ) :
     (mignotteSepSqInvM cs).ret = mignotteSepSqInv cs := by
-  simp only [mignotteSepSqInvM, mignotteSepSqInv, TimeM.ret_bind, trimM_ret, lengthM_ret,
-    clearDenomsListM_ret, sqNormListM_ret, powNatM_ret, TimeM.ret_pure]
+  time_spec mignotteSepSqInvM
 
 theorem mignotteSepSqInvM_time_le (cs : List ℚ) :
     (mignotteSepSqInvM cs).time ≤ 12 * cs.length + 14 := by
-  have ht_le : (trim cs).length ≤ cs.length := trim_length_le cs
+  have ht_le : (CoeffList.trim cs).length ≤ cs.length := CoeffList.length_trim_le cs
   have htr := trimM_time_le cs
-  simp only [mignotteSepSqInvM, TimeM.time_bind, trimM_ret, lengthM_time, lengthM_ret,
-    clearDenomsListM_time, clearDenomsListM_ret, sqNormListM_time, sqNormListM_ret,
-    TimeM.time_tick, powNatM_time, TimeM.time_pure]
-  have hns_len : (clearDenomsList (trim cs)).2.length = (trim cs).length := by
+  simp only [mignotteSepSqInvM, time_simps]
+  have hns_len : (clearDenomsList (CoeffList.trim cs)).2.length = (CoeffList.trim cs).length := by
     simp only [clearDenomsList, List.length_map]
   rw [hns_len]
   omega
@@ -1263,25 +1170,20 @@ theorem mignotteSepSqInvM_time_le (cs : List ℚ) :
     TimeM.tick 4
     clog4M (4 * b ^ 2 * s / 3 + 1)
 
-@[simp]
+@[simp, time_simps]
 theorem mignotteBisectionDepthM_ret (cs : List ℚ) :
     (mignotteBisectionDepthM cs).ret = mignotteBisectionDepth cs := by
-  simp only [mignotteBisectionDepthM, mignotteBisectionDepth, TimeM.ret_bind, trimM_ret,
-    lengthM_ret]
-  split_ifs <;> simp only [TimeM.ret_bind, TimeM.ret_pure, cauchyBoundNatM_ret,
-    mignotteSepSqInvM_ret, clog4M_ret]
+  time_spec mignotteBisectionDepthM [mignotteBisectionDepth]
 
 theorem mignotteBisectionDepthM_time_le (cs : List ℚ) :
     (mignotteBisectionDepthM cs).time ≤ 24 * cs.length + mignotteBisectionDepth cs + 34 := by
-  have ht_le : (trim cs).length ≤ cs.length := trim_length_le cs
+  have ht_le : (CoeffList.trim cs).length ≤ cs.length := CoeffList.length_trim_le cs
   have htr := trimM_time_le cs
-  simp only [mignotteBisectionDepthM, TimeM.time_bind, trimM_ret, lengthM_time, lengthM_ret,
-    TimeM.time_tick]
+  simp only [mignotteBisectionDepthM, time_simps]
   split_ifs with hlen
   · simp only [TimeM.time_pure]
     omega
-  · simp only [TimeM.time_bind, cauchyBoundNatM_ret, mignotteSepSqInvM_ret, TimeM.time_tick,
-      clog4M_time]
+  · simp only [time_simps]
     have hcb := cauchyBoundNatM_time_le cs
     have hms := mignotteSepSqInvM_time_le cs
     have hdepth : mignotteBisectionDepth cs =

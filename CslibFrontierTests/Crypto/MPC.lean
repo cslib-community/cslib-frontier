@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+public import CslibFrontier.Crypto.Protocols.MPC.Advantage
 public import CslibFrontier.Crypto.Protocols.MPC.Basic
 public import CslibFrontier.Crypto.Protocols.MPC.CircuitEval
 public import CslibFrontier.Crypto.Protocols.MPC.Composition
@@ -54,6 +55,9 @@ Concrete tests for `CslibFrontier.Languages.Probabilistic.Sharing` and
 6. **Negative test 3 (`not_perfectSemiHonestPrivate_independentCoinProtocol`, output-correctness
    failure at `I = ∅`):** `coinBroadcastFunc` outputting `(b, b)` versus `independentCoinProtocol`
    where each party outputs its own independent random coin, refuted at `I = ∅`.
+7. **The semi-honest advantage (`semiHonestAdvantage`):** zero for the XOR protocol against every
+   distinguisher, and positive for some coalition, input and distinguisher against every simulator
+   for the leaky protocol.
 -/
 
 @[expose] public section
@@ -886,9 +890,8 @@ example :
     Turing.MultiTapeTM.ComputableInPolyTime.id'
     Turing.MultiTapeTM.ComputableInPolyTime.id'
     Turing.MultiTapeTM.ComputableInPolyTime.id'
-    (Turing.MultiTapeTM.ComputableInPolyTime.of_tidy
-      (Turing.MultiTapeTM.ComputableTidilyInPolyTime.bitsTail.comp
-        (Turing.MultiTapeTM.ComputableTidilyInPolyTime.snd
+    ((Turing.MultiTapeTM.ComputableInPolyTime.bitsTail.comp
+        (Turing.MultiTapeTM.ComputableInPolyTime.snd
           Turing.MultiTapeTM.encUnary Turing.MultiTapeTM.encBits)))
 
 /-! The family input records keep the former `Sigma` words. -/
@@ -907,5 +910,26 @@ example {α : Type} (enc : α ↪ List Bool) (m : ℕ) (n k : α → ℕ) (I : F
         (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits Turing.MultiTapeTM.encBits)
         (inp.index, (extendCoalitionBits I inp.inputs, extendCoalitionBits I inp.outputs)) :=
   rfl
+
+/-! ### The semi-honest advantage -/
+
+-- Perfect privacy gives advantage zero against every distinguisher.
+example (I : Finset (Fin 2)) (x : Fin 2 → Bool)
+    (D : ((i : I) → PartyView (fun _ => Bool) (fun _ => Unit) xorSchedule i) × (Fin 2 → Bool) →
+      ProbComp Bool) :
+    semiHonestAdvantage xorProtocol noOracleWorld (Functionality.ofDeterministic xorFunc) I
+      (xorSim I) x D = 0 :=
+  perfectSemiHonestPrivate_xorProtocol.semiHonestAdvantage_eq_zero I x D
+
+-- Against every simulator for the leaky protocol, some coalition, input and distinguisher have
+-- positive advantage.
+example (S : (I : Finset (Fin 2)) →
+      CoalitionSimulator leakySchedule (fun _ => Bool) (fun _ => Unit) (fun _ => Bool) I) :
+    ∃ I x D, semiHonestAdvantage leakyProtocol noOracleWorld
+      (Functionality.ofDeterministic constFalseFunc) I (S I) x D ≠ 0 := by
+  by_contra h
+  exact not_perfectSemiHonestPrivate_leakyProtocol S fun I x =>
+    (semiHonestAdvantage_eq_zero_iff _ _ _ _ _ x).mp fun D =>
+      not_not.mp fun hD => h ⟨I, x, D, hD⟩
 
 end CslibFrontierTests.Crypto.MPC

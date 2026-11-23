@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.RSATrapdoor
 public import CslibFrontier.Foundations.Data.Nat.ChineseRemainder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.ChineseRemainder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Gcd
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryPrimitives
 import CslibFrontier.Foundations.Data.ZMod.NatCast
@@ -94,7 +95,8 @@ book, where it is part of the precomputed key. `computableInPolyTime_crtQInv` co
 from `p` and `q` with the certificate `ComputableInPolyTime.binary_modInv'` of `Gcd.lean`, and
 `computableInPolyTime_crtKey_invert` composes it with `computableInPolyTime_crtKeyWith_invert`.
 
-Not formalized: the book's estimate that RSA-CRT is about four times faster, and FDH-RSA signing.
+Not formalized: the book's estimate that RSA-CRT is about four times faster, and RSA-CRT as the
+signer of a signature scheme (`Cslib.Crypto.rsaSignature` signs with `rsaInvert`).
 The certificates cover the computations; nothing is proved about an attacker as an adversary in a
 security game.
 
@@ -338,14 +340,8 @@ theorem computableInPolyTime_crtInvert {α : Type} {enc : α ↪ List Bool}
         RSACRTKey).invert (y a)) enc encNat := by
   have hxp := ComputableInPolyTime.binary_powMod hy hdp hp hp_pos
   have hxq := ComputableInPolyTime.binary_powMod hy hdq hq hq_pos
-  simp only [RSACRTKey.invert, RSACRTKey.combine, RSACRTKey.powP, RSACRTKey.powQ, crtCombine]
-  exact ComputableInPolyTime.binary_add' hxq
-    (ComputableInPolyTime.binary_mul' hq
-      (ComputableInPolyTime.binary_mod'
-        (ComputableInPolyTime.binary_mul'
-          (ComputableInPolyTime.binary_add' hxp
-            (ComputableInPolyTime.binary_sub' hp (ComputableInPolyTime.binary_mod' hxq hp)))
-          hqInv) hp))
+  simp only [RSACRTKey.invert, RSACRTKey.combine, RSACRTKey.powP, RSACRTKey.powQ]
+  exact .crtCombine' hq hp hxq hxp hqInv
 
 /-- RSA-CRT inversion with the key `RSADesc.crtKeyWith desc qInv` is computable in polynomial
 time whenever `p`, `q`, `d`, `q_inv` and the input are computable in polynomial time as natural

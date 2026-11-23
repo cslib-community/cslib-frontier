@@ -7,22 +7,16 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.IndexedSignature
 public import CslibFrontier.Computability.Probabilistic.PPT.Capture
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
-import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Sampling
-import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
-import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Event
 
 /-!
 # Doubling the capacity of an indexed signature scheme
@@ -47,6 +41,10 @@ probability `1 / 2`, losing at most a factor of `2` (`succProbability_indexedEuf
 In particular, doubling upgrades any capacity-`1` indexed signature scheme to the `2 ≤ capacity n`
 hypothesis of `IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_oneWay`.
 
+Both results are steps toward construction `(14.4)` (printed p. 597) and Exercise 13.2 (printed
+p. 575), not those results: the source takes any number `q` of keys, with loss `q`, and only
+`q = 2` is formalized here (#5293).
+
 ## Main definitions
 
 * `Cslib.Crypto.IndexedSignatureScheme.doubleKeyDecoder`: pair decoder for bundled public and secret
@@ -63,11 +61,12 @@ hypothesis of `IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_oneWay`.
 ## Main results
 
 * `Cslib.Crypto.IndexedSignatureScheme.succProbability_indexedEufCmaGame_double_le`: forging
-  probability against `S.double hcap` is at most `2` times that of `doubleForger` against `S`.
+  probability against `S.double hcap` is at most `2` times that of `doubleForger` against `S`
+  (a step).
 * `Cslib.Crypto.IndexedSignatureScheme.isOraclePPT_doubleForger`: `doubleForger` is uniformly strict
   oracle PPT.
 * `Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.double`: `IndexedEUFCMA` is preserved by
-  `S.double hcap`.
+  `S.double hcap` (a step).
 
 ## References
 
@@ -152,9 +151,9 @@ def double (S : IndexedSignatureScheme) (hcap : ∀ n, 1 ≤ S.capacity n) :
       funext p; simp only [doubleSign, beq_iff_eq]
     rw [heq]
     have h0msg := (ComputableInPolyTime.const (encOut := encUnary) 0).prod hmsg
-    exact IsPPTOn.cond' (ComputableInPolyTime.unary_beq' hu (.const 0))
+    exact IsPPTOn.cond (ComputableInPolyTime.unary_beq' hu (.const 0))
       (S.sign_ppt.preprocess (hdec.fst'.prod h0msg))
-      (IsPPTOn.cond' (ComputableInPolyTime.unary_beq' hu (.const 1))
+      (IsPPTOn.cond (ComputableInPolyTime.unary_beq' hu (.const 1))
         (S.sign_ppt.preprocess (hdec.snd'.prod h0msg))
         (ComputableInPolyTime.const []).isPPTOn)
   verify_polyTime := by
@@ -407,18 +406,23 @@ private theorem map_run_doubleJointOracle {S : IndexedSignatureScheme}
     simp only [indexedSigningOracle, capacity_double, hfresh, ↓reduceIte, pmf_norm]
 
 private theorem eval_indexedEufCmaGame_doubleForgerAt (S : IndexedSignatureScheme)
-    (bound : ℕ → ℕ → ℕ) (adversary : IndexedForger) (b : Bool) (n : ℕ) :
+    (bound : ℕ → ℕ → ℕ) (adversary : IndexedForger) (b : Bool) {n : ℕ}
+    (hcap : 1 ≤ S.capacity n) :
     ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary b) n) =
       (ProbComp.eval (S.keyGen n)).bind fun challenge =>
         (ProbComp.eval (S.keyGen n)).bind fun other =>
           (ProbOracleComp.runWith (doubleJointOracle S b challenge.2 other.2 bound n)
               (adversary n (doublePlantPk b challenge.1 other.1)) ([], [])).map fun r =>
               !r.2.2.contains (0, r.1.2.1) && S.verify challenge.1 0 r.1.2.1 r.1.2.2 := by
-  simp only [indexedEufCmaGame, doubleForgerAt, runWith_norm, pmf_norm]
+  simp only [indexedEufCmaGame, doubleForgerAt, runWith_norm, pmf_norm,
+    show 0 < S.capacity n from hcap, decide_true, Bool.true_and]
   rfl
 
-/-- **Plug-and-pray bound for `S.double hcap`** ([BonehShoup2023], Section 14.6.1, Exercise 13.2):
-for every indexed forger `adversary` and every security parameter `n`, when `bound n L` covers the
+/-- Plug-and-pray bound with loss `2` for `S.double hcap`: a step toward the `q`-key bound behind
+[BonehShoup2023], construction `(14.4)` and Exercise 13.2, not the cited result, which takes any
+number `q` of keys with loss `q`, where this fixes `q = 2` (#5293).
+
+For every indexed forger `adversary` and every security parameter `n`, when `bound n L` covers the
 length of every supported `S`-signature at index `0` on an `L`-bit message, the forging probability
 against `S.double hcap` is at most `2` times the forging probability of `S.doubleForger` against
 `S`. -/
@@ -474,7 +478,7 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
       ((ProbComp.eval (S.keyGen n)).bind fun k₀ =>
         (ProbComp.eval (S.keyGen n)).bind fun k₁ => slotEvent false k₀ k₁) true ≤
       (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary false) n)) true := by
-    rw [eval_indexedEufCmaGame_doubleForgerAt]
+    rw [eval_indexedEufCmaGame_doubleForgerAt _ _ _ _ (hcap n)]
     apply PMF.bind_apply_mono_on_support; intro k₀ hk₀
     apply PMF.bind_apply_mono_on_support; intro k₁ _
     obtain ⟨heq, hinv⟩ := map_run_doubleJointOracle hcap false (otherSk := k₁.2) (hbound k₀ hk₀)
@@ -488,7 +492,7 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
       ((ProbComp.eval (S.keyGen n)).bind fun k₀ =>
         (ProbComp.eval (S.keyGen n)).bind fun k₁ => slotEvent true k₀ k₁) true ≤
       (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary true) n)) true := by
-    rw [eval_indexedEufCmaGame_doubleForgerAt]
+    rw [eval_indexedEufCmaGame_doubleForgerAt _ _ _ _ (hcap n)]
     conv_rhs => rw [PMF.bind_comm]
     apply PMF.bind_apply_mono_on_support; intro k₀ _
     apply PMF.bind_apply_mono_on_support; intro k₁ hk₁
@@ -513,14 +517,20 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
     rw [← mul_add]
     refine mul_le_mul_right ?_ _
     dsimp only [slotEvent]
-    rw [show (fun x : (ℕ × List Bool × List Bool) × List (ℕ × List Bool) =>
-        PMF.pure (!x.2.contains (x.1.1, x.1.2.1) &&
+    -- `doubleVerify` already rejects every index `u ≥ 2`, so the capacity guard is redundant.
+    erw [show (fun x : (ℕ × List Bool × List Bool) × List (ℕ × List Bool) =>
+        PMF.pure (decide (x.1.1 < 2) && !x.2.contains (x.1.1, x.1.2.1) &&
           S.doubleVerify (encPair encBits encBits (k₀.1, k₁.1)) x.1.1 x.1.2.1 x.1.2.2)) =
       fun x => PMF.pure (!x.2.contains (x.1.1, x.1.2.1) &&
         ((x.1.1 == 0 && S.verify k₀.1 0 x.1.2.1 x.1.2.2) ||
           (x.1.1 == 1 && S.verify k₁.1 0 x.1.2.1 x.1.2.2))) by
       funext x
-      simp only [doubleVerify, doubleKeyDecoder.decode_enc]]
+      simp only [doubleVerify, doubleKeyDecoder.decode_enc]
+      by_cases hu : x.1.1 < 2
+      · simp only [hu, decide_true, Bool.true_and]
+      · have h0 : (x.1.1 == 0) = false := beq_false_of_ne (by omega)
+        have h1 : (x.1.1 == 1) = false := beq_false_of_ne (by omega)
+        simp only [hu, decide_false, Bool.false_and, h0, h1, Bool.or_self, Bool.and_false]]
     rw [← PMF.bind_pure_comp, ← PMF.bind_pure_comp, PMF.bind_apply, PMF.bind_apply, PMF.bind_apply,
       ← tsum_add]
     refine tsum_le_tsum fun out => ?_
@@ -641,10 +651,10 @@ private theorem isOraclePPTOn_doubleHandler (S : IndexedSignatureScheme) {bound 
           (fun sig => (sig, requestDecoder.decode pair.2.1.2 :: pair.2.2)) <$>
             ProbOracleComp.sample (S.sign pair.1.2.2 0 (requestDecoder.decode pair.2.1.2).2)
       else pure ([], pair.2.2))
-  refine IsOraclePPTOn.ite' hfreshDec (IsOraclePPTOn.ite' hslotDec ?_ ?_)
+  refine IsOraclePPTOn.ite hfreshDec (IsOraclePPTOn.ite hslotDec ?_ ?_)
     (((ComputableInPolyTime.const []).prod hsigned).isOraclePPTOn)
   · have hqword := ((ComputableInPolyTime.const (encOut := encUnary) 0).prod hr2).encoding_comp
-    exact (IsOraclePPTOn.query_take' () hqword hb).map_with' hconsLog
+    exact (IsOraclePPTOn.query_take () hqword hb).map_with hconsLog
   · have hsignLocal := (S.sign_ppt.preprocess
       (hotherSk.prod ((ComputableInPolyTime.const 0).prod hr2))).map_with
       (f := fun pair sig => (sig, requestDecoder.decode pair.2.1.2 :: pair.2.2)) hconsLog
@@ -751,11 +761,12 @@ theorem isOraclePPT_doubleForger (S : IndexedSignatureScheme) {bound : ℕ → �
       (encPair encUnary (encPair encBits encBits))
       (fun p : (ℕ × List Bool) × Bool => S.doubleForgerAt bound adversary p.2 p.1.1 p.1.2) := by
     let encP := encPair (encPair (encPair encUnary encBits) encBool) (encPair encBits encBits)
-    have hp := ComputableTidilyInPolyTime.id' (encIn := encP)
+    have hp := ComputableInPolyTime.id' (encIn := encP)
     have hb := hp.fst'.snd'
     have hvk := hp.fst'.fst'.snd'
     have hopk := hp.snd'.fst'
-    have hplant := hb.ite' (hopk.prod hvk).encoded (hvk.prod hopk).encoded
+    have hplant := hb.ite' (ComputableInPolyTime.encoding_comp (hopk.prod hvk))
+      (ComputableInPolyTime.encoding_comp (hvk.prod hopk))
     have hotherClosed : IsPPTOn (encPair (encPair encUnary encBits) encBool)
         encDoubleCaller
         (fun p : (ℕ × List Bool) × Bool =>
@@ -763,7 +774,7 @@ theorem isOraclePPT_doubleForger (S : IndexedSignatureScheme) {bound : ℕ → �
             S.keyGen p.1.1) :=
       (S.keyGen_ppt.preprocess
         (ComputableInPolyTime.fst (encPair encUnary encBits) encBool).fst').map_with
-        (.of_tidy ((hp.fst'.fst'.fst'.prod hb).prod (hplant.prod hp.snd'.snd')))
+        (((hp.fst'.fst'.fst'.prod hb).prod (hplant.prod hp.snd'.snd')))
     have hother : IsOraclePPTOn (Operation := Unit) (encPair (encPair encUnary encBits) encBool)
         encDoubleCaller
         (fun p : (ℕ × List Bool) × Bool =>
@@ -777,9 +788,13 @@ theorem isOraclePPT_doubleForger (S : IndexedSignatureScheme) {bound : ℕ → �
 
 /-! ### Security preservation -/
 
-/-- **Doubling preserves `IndexedEUFCMA`** ([BonehShoup2023], Section 14.6.1, construction `(14.4)`
-at `q = 2`): if `S` is indexed EUF-CMA secure with `∀ n, 1 ≤ S.capacity n`, then `S.double hcap`
-is indexed EUF-CMA secure of capacity `2`. -/
+/-- If `S` is indexed EUF-CMA secure with `∀ n, 1 ≤ S.capacity n`, then so is the capacity-`2`
+scheme `S.double hcap`: a step toward [BonehShoup2023], construction `(14.4)`, not the cited
+result, since it fixes `q = 2` where the source takes any `q` (#5293).
+
+The source gives construction `(14.4)` from a one-time signature (Section 14.6.1, printed p. 597)
+and proves it secure by the plug-and-pray argument of Exercise 13.2 (printed p. 575). Here the base
+scheme is any indexed scheme of capacity at least `1`, used at index `0`. -/
 theorem IndexedEUFCMA.double {S : IndexedSignatureScheme} (hS : S.IndexedEUFCMA)
     (hcap : ∀ n, 1 ≤ S.capacity n) :
     (S.double hcap).IndexedEUFCMA := by

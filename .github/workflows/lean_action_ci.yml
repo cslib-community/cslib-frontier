@@ -30,7 +30,26 @@ env:
   MATHLIB_NO_CACHE_ON_UPDATE: ${{ (vars.DISABLE_CACHE_RESTORE == 'true' || vars.DISABLE_CACHE_RESTORE == '1') && '1' || '0' }}
 
 jobs:
+  select-checks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      lean: ${{ steps.select.outputs.lean }}
+      origin: ${{ steps.select.outputs.origin }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          sparse-checkout: scripts/ci
+      - id: select
+        env:
+          FORCE_FULL_CI: ${{ vars.FORCE_FULL_CI }}
+        run: python3 -B scripts/ci/select_checks.py
+
   cache-origin-checks:
+    needs: select-checks
+    if: needs.select-checks.outputs.origin == 'true'
     name: HTTP cache origin
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -79,6 +98,12 @@ jobs:
         run: python3 -B scripts/check_operator_manual.py
       - name: "Source hygiene"
         run: python3 -B scripts/check_hygiene.py --check-simp
+      # TimeM annotations are trusted, so a TimeM bound puts the program text in the trusted base
+      # (policy/statements.md#running-time-claims; #7636, #6301). scripts/timem_baseline.json
+      # counts the remaining uses per file; a rise or a new file fails, a fall needs no baseline
+      # edit. Sources only: no Lean.
+      - name: "TimeM ratchet"
+        run: python3 -B scripts/check_timem.py --report
       # A compound encoding that three or more public statements of a module spell out needs a
       # name (#1656). The existing ones are counted per module in
       # scripts/encoding_readability_baseline.json, which only falls. Pull requests enforce it in
@@ -133,6 +158,21 @@ jobs:
           BASE=${BASE:-$RECORDED_BASE}
           git fetch --no-tags --depth=1 origin "$BASE"
           python3 -B scripts/proof_copies.py --base "$BASE" --github
+      # Advisory only: reports existing library modules modified by the pull request that have
+      # high transitive fan-in (>= 500 importers across `CslibFrontier` and `CslibFrontierTests`),
+      # reminding authors and reviewers when new helper lemmas may belong in a smaller topic module
+      # (AGENTS.md, "Placement and reuse"). Sources only; never fails the job.
+      - name: "High-fan-in module impact (advisory)"
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          RECORDED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          BASE=$(git cat-file -p HEAD | sed -n 's/^parent //p' | head -n 1)
+          BASE=${BASE:-$RECORDED_BASE}
+          git fetch --no-tags --depth=1 origin "$BASE"
+          python3 -B scripts/check_hub_impact.py --base "$BASE" --github
       # The API documentation (docbuild/) and the guide (guide/) are separate Lake projects that
       # share the library's toolchain and `.lake/packages`, so their lockfiles must follow the root
       # pins. Checking here makes a root cslib or Mathlib bump without matching lockfile updates
@@ -142,19 +182,30 @@ jobs:
         run: python3 -B scripts/check_docs.py --config-only
 
   lean-checks:
-    runs-on: ubuntu-24.04
+    needs: select-checks
+    if: needs.select-checks.outputs.lean == 'true'
+    # Pushes to `main` run on the runner named by MAIN_BUILD_RUNNER when set, and merge groups run
+    # on MERGE_GROUP_RUNNER when set; larger runners are billed even in public repositories. Pull
+    # requests, manual runs, and events whose variable is unset always use the standard runner.
+    # Delete either variable to return to `ubuntu-24.04` without a commit (scripts/cache/README.md).
+    runs-on: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.MAIN_BUILD_RUNNER || github.event_name == 'merge_group' && vars.MERGE_GROUP_RUNNER || 'ubuntu-24.04' }}
     outputs:
       publication: ${{ steps.upload-publication.outputs.artifact-id }}
     permissions:
       contents: read
-      # Main may download the exact landed revision's successful merge-group build artifact, and
-      # a merge group that of its nearest first-parent ancestor.
+      # Each consumer reads only successful main merge-group build artifacts.
       actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Reclaim unused hosted-runner SDK space
         continue-on-error: true
+        env:
+          SDK_CLEANUP_MIN_GIB: ${{ vars.SDK_CLEANUP_MIN_GIB }}
         run: scripts/ci/prepare-runner.sh
+      - name: Sample runner disk use
+        id: disk-sample
+        continue-on-error: true
+        run: python3 -B scripts/ci/runner_disk.py start
       # The steps below do what lean-action did, with bounded cache retries: install the toolchain,
       # restore and save `.lake` under the same Actions cache key, then build, test and lint.
       - name: Restore .lake from the Actions cache
@@ -231,6 +282,22 @@ jobs:
         run: |
           echo "::error title=Unconfirmed cache process shutdown::The ancestor handoff's history fetch may still be running; rerun the job."
           exit 125
+      # PR and merge-group reads precede the remote-cache top-up because a handoff
+      # replaces the root build as a unit. A PR uses only its merge commit's main parent.
+      - name: Restore PR base merge-group build outputs
+        if: >-
+          github.event_name == 'pull_request' && github.base_ref == 'main' &&
+          vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1' &&
+          vars.DISABLE_BUILD_HANDOFF != 'true' && vars.DISABLE_BUILD_HANDOFF != '1' &&
+          vars.DISABLE_PR_BUILD_HANDOFF != 'true' && vars.DISABLE_PR_BUILD_HANDOFF != '1'
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISABLE_BUILD_HANDOFF: ${{ vars.DISABLE_BUILD_HANDOFF }}
+          DISABLE_PR_BUILD_HANDOFF: ${{ vars.DISABLE_PR_BUILD_HANDOFF }}
+          RESTORED_LAKE_KEY: ${{ steps.lake-cache.outputs.cache-matched-key }}
+        run: python3 -B scripts/cache_handoff.py restore --pr-base
       # Download the outputs that `main` CI uploaded for the nearest uploaded ancestor of this
       # commit, skipping modules that `.lake` already has (scripts/cache/README.md). The script
       # deepens the depth-1 checkout to 100 generations to find that ancestor. Lake reuses an
@@ -262,7 +329,22 @@ jobs:
         run: lake build --wfail --iofail @cslib-frontier @/mk_all @/checkInitImports @mathlib/lint-style
       - name: "lake test"
         run: lake test --wfail --iofail
+      # On pull requests, lint only the affected library modules and their local importing clients
+      # (#5163), falling back to whole-library `lake lint` on deletions/renames, config/linter edits,
+      # ambiguous imports, or wide changes above quick_check.py's thresholds. Merge groups, pushes to
+      # `main`, and manual runs always run whole-library `lake lint`.
+      - name: "lake lint (affected modules)"
+        if: github.event_name == 'pull_request'
+        env:
+          RECORDED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -e
+          BASE=$(git cat-file -p HEAD | sed -n 's/^parent //p' | head -n 1)
+          BASE=${BASE:-$RECORDED_BASE}
+          git fetch --no-tags --depth=1 origin "$BASE"
+          python3 -B scripts/quick_check.py --lint-only --base "$BASE"
       - name: "lake lint"
+        if: github.event_name != 'pull_request'
         run: lake lint
       # Source hygiene that needs the build outputs: each module's count of public statements that
       # mention tidy computability (#862) must equal its baseline; proofs may use it. See
@@ -277,14 +359,15 @@ jobs:
           python3 -B scripts/check_tidy_surface.py
       # Security theorems may not assume anything about objects their proofs construct, from the
       # adversary or not (AGENTS.md, "Security theorems"; #5293). scripts/check_security_premises.py
-      # reads the built .olean files and compares the flagged premises with
-      # scripts/security_premises_baseline.json. Pull requests enforce it in the modules they
-      # change, or in every module when they change the checker or its baseline, and print other
-      # differences as a notice; merge groups and pushes only report, so a queued pull request is
-      # never ejected by a change elsewhere. Its compiled-fixture tests need Lean, so the Python
+      # reads the built .olean files and compares the flagged premises with the known ones in
+      # scripts/security_premises_baseline.json. It is an advisory search for the reviewer, not a
+      # gate: pull requests print the differences in the modules they change, or in every module
+      # when they change the checker or its baseline, with a notice, and merge groups and pushes
+      # print them all. A difference never fails the step; the checker's tests, a scan that cannot
+      # run and a malformed baseline do. Its compiled-fixture tests need Lean, so the Python
       # tests at the start skip them; they run here. The base is the first parent of the merge
       # commit, as for the changed-file lints below.
-      - name: "Security premise ratchet (changed modules)"
+      - name: "Security premise report (changed modules)"
         if: github.event_name == 'pull_request'
         env:
           RECORDED_BASE: ${{ github.event.pull_request.base.sha }}
@@ -294,7 +377,7 @@ jobs:
           BASE=${BASE:-$RECORDED_BASE}
           git fetch --no-tags --depth=1 origin "$BASE"
           python3 -B -m unittest scripts/test_check_security_premises.py
-          python3 -B scripts/check_security_premises.py --base "$BASE"
+          python3 -B scripts/check_security_premises.py --base "$BASE" --advisory
       - name: "Security premise report"
         if: github.event_name != 'pull_request'
         continue-on-error: true
@@ -302,12 +385,11 @@ jobs:
       # Each explicit reduction needs an efficiency witness (AGENTS.md, "Security theorems";
       # #5293). scripts/check_reduction_witnesses.py reads the built .olean files, finds the
       # reductions that public theorems state advantage bounds with, and compares those without
-      # an efficiency certificate with scripts/reduction_witnesses_baseline.json. Scope and events
-      # are as for the security premise ratchet above: pull requests enforce it in the modules they
-      # change, or in every module when they change the checker or its baseline; merge groups and
-      # pushes only report. Its compiled-fixture tests need Lean, so the Python tests at the start
-      # skip them; they run here.
-      - name: "Reduction witness ratchet (changed modules)"
+      # an efficiency certificate with the known ones in scripts/reduction_witnesses_baseline.json.
+      # It is advisory, with the scope, events and failure conditions of the security premise
+      # report above. Its compiled-fixture tests need Lean, so the Python tests at the start skip
+      # them; they run here.
+      - name: "Reduction witness report (changed modules)"
         if: github.event_name == 'pull_request'
         env:
           RECORDED_BASE: ${{ github.event.pull_request.base.sha }}
@@ -317,7 +399,7 @@ jobs:
           BASE=${BASE:-$RECORDED_BASE}
           git fetch --no-tags --depth=1 origin "$BASE"
           python3 -B -m unittest scripts/test_check_reduction_witnesses.py
-          python3 -B scripts/check_reduction_witnesses.py --base "$BASE"
+          python3 -B scripts/check_reduction_witnesses.py --base "$BASE" --advisory
       - name: "Reduction witness report"
         if: github.event_name != 'pull_request'
         continue-on-error: true
@@ -476,11 +558,17 @@ jobs:
           compression-level: 0
           retention-days: 2
           if-no-files-found: error
+      - name: Report runner disk use
+        if: >-
+          !cancelled() && steps.ancestor-handoff.outputs.exit-status != '125' &&
+          steps.disk-sample.outcome == 'success'
+        continue-on-error: true
+        run: python3 -B scripts/ci/runner_disk.py report
   # Keep the existing required-check context while source-only and Lean validation overlap. The
   # Lean job may prepare an unused publication artifact when source validation fails, but no
   # publisher consumes it unless this aggregator succeeds.
   ci-checks:
-    needs: [source-checks, lean-checks]
+    needs: [select-checks, source-checks, lean-checks]
     if: always()
     runs-on: ubuntu-latest
     permissions: {}
@@ -489,11 +577,14 @@ jobs:
     steps:
       - name: Require source and Lean validation
         env:
+          SELECTION_RESULT: ${{ needs.select-checks.result }}
+          EXPECTED_LEAN: ${{ github.event_name == 'pull_request' && needs.select-checks.outputs.lean == 'false' && 'skipped' || 'success' }}
           SOURCE_RESULT: ${{ needs.source-checks.result }}
           LEAN_RESULT: ${{ needs.lean-checks.result }}
         run: |
+          test "$SELECTION_RESULT" = success
           test "$SOURCE_RESULT" = success
-          test "$LEAN_RESULT" = success
+          test "$LEAN_RESULT" = "$EXPECTED_LEAN"
 
   publish-gcs-cache:
     needs: ci-checks

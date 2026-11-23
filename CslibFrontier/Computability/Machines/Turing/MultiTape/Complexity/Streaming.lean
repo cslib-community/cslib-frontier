@@ -7,13 +7,17 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Reverse
 import CslibFrontier.Foundations.Data.List.Fold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.StreamFold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.WordTransducers
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.WordMachines
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
 import Mathlib.Tactic.TypeStar
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 
 /-!
 # Quantitative streaming folds
@@ -43,7 +47,7 @@ contracts separate from invariant propagation.
   specialization.
 * `Turing.MultiTapeTM.ComputableTidilyInTimeAndSpace.foldl_bits_stream_spec`: an invariant
   supplies the bounds and a postcondition.
-* `Turing.MultiTapeTM.ComputableTidilyInO.foldl_bits_finite`: a fixed finite-state fold takes
+* `Turing.MultiTapeTM.ComputableInO.foldl_bits_finite`: a fixed finite-state fold takes
   linear time and constant work space, including a bound on its encoded final state.
 * `Turing.MultiTapeTM.ComputableTidilyInTimeAndSpace.map_bits`: a bitwise map emits its output
   as it scans, in linear time and zero work space.
@@ -204,28 +208,19 @@ theorem ComputableTidilyInTimeAndSpace.foldl_bits_stream_spec {σ : Type}
       (fun l => c * (l.length * (R l + B l + 1) + B l + 1))
       (fun l => c * (Q l + B l + 1))) ∧
       ∀ l, invariant l l.length (l.foldl step init) := by
-  obtain ⟨⟨c, h⟩, hpost⟩ := hstep.foldl_bits_stream_sum_spec init invariant hbase hpreserve
-    (R := fun l _ => R l + 2 * B l + 1) (Q := Q) (B := B)
-    (fun l i hi state hs => by
-      have hc := hcost l i hi state hs
-      have h₀ := hsize l i hi.le state hs
-      have h₁ := hsize l (i + 1) hi _ (hpreserve l i hi state hs)
-      exact ⟨by lia, hc.2⟩) hsize
-  refine ⟨⟨c * 2, h.mono (fun l => ?_) (fun l => ?_)⟩, hpost⟩
-  · simp only [Finset.sum_const, Finset.card_range, smul_eq_mul]
-    rw [Nat.mul_assoc]
-    apply Nat.mul_le_mul_left c
-    nlinarith
-  · rw [Nat.mul_assoc]
-    apply Nat.mul_le_mul_left c
-    lia
+  have htrace (l : List Bool) :=
+    List.foldl_take_invariant l step init (invariant l) (hbase l) (hpreserve l)
+  exact ⟨hstep.foldl_bits_stream init (fun l i hi => (hcost l i hi _ (htrace l i hi.le)).1)
+    (fun l i hi => (hcost l i hi _ (htrace l i hi.le)).2)
+    (fun l i hi => hsize l i hi _ (htrace l i hi)),
+    fun l => by simpa using htrace l l.length le_rfl⟩
 
 /-- A fold with a fixed finite state type takes linear time and constant work space. The constant
 may depend on the state type, its encoding and the transition function; this is not a uniform bound
 for a family of growing state types. The encoded final state is bounded as well. -/
-theorem ComputableTidilyInO.foldl_bits_finite {σ : Type} [Finite σ]
+theorem ComputableInO.foldl_bits_finite {σ : Type} [Finite σ]
     (enc : σ ↪ List Bool) (step : σ → Bool → σ) (init : σ) :
-    ComputableTidilyInO (fun l => l.foldl step init) encBits enc List.length (fun _ => 0) := by
+    ComputableInO (fun l => l.foldl step init) encBits enc List.length (fun _ => 0) := by
   classical
   let := Fintype.ofFinite σ
   let b := Finset.univ.sup (fun s => (enc s).length)
@@ -236,7 +231,8 @@ theorem ComputableTidilyInO.foldl_bits_finite {σ : Type} [Finite σ]
   obtain ⟨c, h⟩ := hk.computableTidilyInTimeAndSpace.foldl_bits_stream init
     (R := fun _ => 2 * k + 2) (Q := fun _ => 0) (B := fun _ => b)
     (fun _ _ _ => le_rfl) (fun _ _ _ => le_rfl) (fun _ _ _ => hb _)
-  refine ComputableTidilyInO.of_bounds h (c * (2 * k + 2 * b + 4) + b) ?_ ?_ ?_
+  refine ComputableInO.of_bounds (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h)
+    (c * (2 * k + 2 * b + 4) + b) ?_ ?_ ?_
   · intro l
     have hr : l.length * (2 * k + 2 + b + 1) + b + 1 ≤
         (2 * k + 2 * b + 4) * (l.length + 1) := by nlinarith
@@ -379,8 +375,8 @@ theorem ComputableTidilyInTimeAndSpace.iterate_unary_stream_sum {σ : Type} {enc
   -- each round reads its state from the stream state paired with the token bit
   obtain ⟨cfst, hfst⟩ := Internal.NormalForm.linear
     (PairEncoding.fst (enc₁ := enc) (enc₂ := encBool) (enc := encPair enc encBool))
-  obtain ⟨cN, hN⟩ := hnext.comp_linear hfst
-  obtain ⟨cE, hE⟩ := hemit.comp_linear hfst
+  obtain ⟨cN, hN⟩ := ComputableTidilyInTimeAndSpace.comp_linear hnext hfst
+  obtain ⟨cE, hE⟩ := ComputableTidilyInTimeAndSpace.comp_linear hemit hfst
   obtain ⟨D, hD⟩ : ∃ D, D = 6 * cfst + cN + cE + 2 := ⟨_, rfl⟩
   have hst (x : σ × ℕ) (j : ℕ) (hj : j ≤ x.2) :
       streamState x.1 (f ∘ Prod.fst) (List.replicate x.2 true) j = f^[j] x.1 :=
@@ -409,7 +405,8 @@ theorem ComputableTidilyInTimeAndSpace.iterate_unary_stream_sum {σ : Type} {enc
         _ ≤ _ := Finset.sum_le_sum fun i hi => by
           have := hcost x i (Finset.mem_range.mp hi)
           omega
-    refine ⟨c * (D + 4), h.mono (fun x => ?_) (fun x => ?_)⟩ <;>
+    refine ⟨c * (D + 4), h.mono (fun x => ?_)
+    (fun x => ?_)⟩ <;>
       simp only [List.length_replicate, hst x x.2 le_rfl, ← Finset.mul_sum, Nat.mul_assoc] <;>
       refine Nat.mul_le_mul_left c ?_
     · have h₀ := hstate x 0 (Nat.zero_le _)
@@ -512,7 +509,8 @@ theorem ComputableInTimeAndSpace.foldl_bits_stream_sum {σ : Type}
       nlinarith)
     (fun l i hi => Nat.mul_le_mul_left C (Nat.succ_le_succ (hspace l i hi)))
     hstate
-  refine ⟨c * (C + 1), h.computableInTimeAndSpace.mono (fun l => ?_)
+  have hplain := ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h
+  refine ⟨c * (C + 1), hplain.mono (fun l => ?_)
     (fun l => ?_)⟩
   · rw [← Finset.mul_sum, Nat.mul_assoc]
     apply Nat.mul_le_mul_left c
@@ -594,21 +592,12 @@ theorem ComputableInTimeAndSpace.foldl_bits_stream_spec {σ : Type}
       (fun l => c * (l.length * (R l + B l + 1) + B l + 1))
       (fun l => c * (Q l + B l + 1))) ∧
       ∀ l, invariant l l.length (l.foldl step init) := by
-  obtain ⟨⟨c, h⟩, hpost⟩ := hstep.foldl_bits_stream_sum_spec init invariant hbase hpreserve
-    (R := fun l _ => R l + 2 * B l + 1) (Q := Q) (B := B)
-    (fun l i hi state hs => by
-      have hc := hcost l i hi state hs
-      have h₀ := hsize l i hi.le state hs
-      have h₁ := hsize l (i + 1) hi _ (hpreserve l i hi state hs)
-      exact ⟨by lia, hc.2⟩) hsize
-  refine ⟨⟨c * 2, h.mono (fun l => ?_) (fun l => ?_)⟩, hpost⟩
-  · simp only [Finset.sum_const, Finset.card_range, smul_eq_mul]
-    rw [Nat.mul_assoc]
-    apply Nat.mul_le_mul_left c
-    nlinarith
-  · rw [Nat.mul_assoc]
-    apply Nat.mul_le_mul_left c
-    lia
+  have htrace (l : List Bool) :=
+    List.foldl_take_invariant l step init (invariant l) (hbase l) (hpreserve l)
+  exact ⟨hstep.foldl_bits_stream init (fun l i hi => (hcost l i hi _ (htrace l i hi.le)).1)
+    (fun l i hi => (hcost l i hi _ (htrace l i hi.le)).2)
+    (fun l i hi => hsize l i hi _ (htrace l i hi)),
+    fun l => by simpa using htrace l l.length le_rfl⟩
 
 /-- Normalize plain callbacks once and retain the cumulative streaming contract. -/
 theorem ComputableInTimeAndSpace.foldl_bits_pair_stream_sum {σ : Type}
@@ -638,7 +627,8 @@ theorem ComputableInTimeAndSpace.foldl_bits_pair_stream_sum {σ : Type}
       nlinarith)
     (fun p i hi => Nat.mul_le_mul_left C (Nat.succ_le_succ (hspace p i hi)))
     hstate
-  refine ⟨c * (C + 1), h.computableInTimeAndSpace.mono (fun p => ?_)
+  have hplain := ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h
+  refine ⟨c * (C + 1), hplain.mono (fun p => ?_)
     (fun p => ?_)⟩
   · rw [← Finset.mul_sum, Nat.mul_assoc]
     apply Nat.mul_le_mul_left c
@@ -718,7 +708,9 @@ theorem ComputableInTimeAndSpace.iterate_unary_stream_sum {σ : Type} {enc : σ 
       have hm := Nat.mul_le_mul_left D hs
       dsimp only [D] at hm ⊢
       nlinarith) hstate
-  refine ⟨c * (3 * D + 3), h.computableInTimeAndSpace.mono (fun x => ?_) (fun x => ?_)⟩
+  have hplain := ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h
+  refine ⟨c * (3 * D + 3), hplain.mono (fun x => ?_)
+    (fun x => ?_)⟩
   · rw [← Finset.mul_sum, Nat.mul_assoc]
     apply Nat.mul_le_mul_left c
     have hF : cF ≤ 3 * D + 3 := by dsimp [D]; omega

@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Crypto.Computational.LWE.Module
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
+import CslibFrontier.Crypto.Computational.SIS.Ell2
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PPT
@@ -15,7 +16,9 @@ import CslibFrontier.Tactic.PPT
 
 Concrete evaluations and nonvacuity checks for:
 1. `SIS.IsResidueSolution` over a composite modulus (`ZMod 6`), Ajtai collisions and their
-   short differences, and nonvacuity of `SIS`.
+   short differences, collisions of Ajtai's hash family on words, the side conditions of its
+   collision-resistance theorem for a polynomial family, nonvacuity of `SIS` and `SISEll2`, and a
+   zero-row family on which the family's collision resistance fails.
 2. Negacyclic convolution `negacyclicMul` and `rotMatrix` in `R[X] / (X^n + 1)`.
 3. `ModuleSIS.IsSolution`, `expandModuleMatrix`, `flattenPolyVec`,
    `ModuleSIS.isSolution_expandModuleMatrix_iff`, `ModuleLWE.flattenPolyVec_sample`, and
@@ -47,6 +50,46 @@ example : IsAjtaiCollision ajtaiMat 1 ![1, 1, 0] ![0, 0, 1] := by decide
 example : SIS.IsSolution ajtaiMat 1 (![1, 1, 0] - ![0, 0, 1]) :=
   IsAjtaiCollision.isSolution_sub (A := ajtaiMat) (β := 1) (by decide)
 
+/-- A family with the dimensions and modulus of `ajtaiMat` at every security parameter. -/
+def ajtaiToySIS : SISParams where
+  n _ := 1
+  m _ := 3
+  q _ := 6
+  β _ := 1
+  hq _ := inferInstance
+
+/-- Under the key `⟨0, ajtaiMat⟩`, the words `110` and `001` collide in Ajtai's hash family on
+words; their 0/1 vectors are the collision above. -/
+example : isCollisionFor (ajtaiWordHash ajtaiToySIS)
+    (fun _ d s => s.length == ajtaiToySIS.m d.secParam) 0 ⟨0, ajtaiMat⟩
+    [true, true, false] [false, false, true] = true := by
+  decide
+
+/-- The word `1100` has the same hash as `001` but lies outside the message space `{0,1}^3`, so
+the pair is not a collision. -/
+example : isCollisionFor (ajtaiWordHash ajtaiToySIS)
+    (fun _ d s => s.length == ajtaiToySIS.m d.secParam) 0 ⟨0, ajtaiMat⟩
+    [true, true, false, false] [false, false, true] = false := by
+  decide
+
+/-- A family with polynomial dimensions `n = κ + 1` and `m = (κ + 1)(κ + 3)`, modulus
+`q = (κ + 2)²` and bound `1`. -/
+def ajtaiPolySIS : SISParams where
+  n κ := κ + 1
+  m κ := (κ + 1) * (κ + 3)
+  q κ := (κ + 2) ^ 2
+  β _ := 1
+  hq _ := ⟨by positivity⟩
+
+/-- The side conditions of `SIS.collisionResistantForOn_ajtaiWordHash` hold for `ajtaiPolySIS`,
+so `SIS ajtaiPolySIS` gives collision resistance of Ajtai's hash family on words. -/
+example (hSIS : SIS ajtaiPolySIS) :
+    CollisionResistantForOn ajtaiPolySIS.encInput (ajtaiSetup ajtaiPolySIS)
+      (ajtaiWordHash ajtaiPolySIS) (fun _ d s => s.length == ajtaiPolySIS.m d.secParam) :=
+  hSIS.collisionResistantForOn_ajtaiWordHash
+    (show ComputableInPolyTime (fun κ => (κ + 1) * (κ + 3)) encUnary encUnary by fun_prop)
+    fun _ => le_rfl
+
 /-- Degenerate `SISParams` with `0` rows, `1` column, modulus `3` and bound `1`. -/
 def zeroRowSIS : SISParams where
   n _ := 0
@@ -70,6 +113,35 @@ theorem not_sis_zeroRowSIS : ¬SIS zeroRowSIS := fun h => by
       PMF.bind_const, Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one]
   refine not_negligible_const one_ne_zero ((h onesSolver ?_).congr hwin)
   exact (ComputableInPolyTime.const (SIS.encodeVec (1 : Fin 1 → ℤ))).isPPTOn.congr fun _ => rfl
+
+/-- At `m = 1`, `SISEll2.toSIS` reduces `SISEll2 zeroRowSIS` directly to `SIS zeroRowSIS`, so
+`SISEll2` is not vacuous. -/
+theorem not_sisEll2_zeroRowSIS : ¬SISEll2 zeroRowSIS := fun h =>
+  not_sis_zeroRowSIS <| h.toSIS (β₁ := zeroRowSIS.β) fun _ => by simp [zeroRowSIS]
+
+/-- The collision finder that always answers the words `0` and `1`. -/
+def zeroRowFinder : CollisionFinderFor zeroRowSIS.Input := fun _ _ => pure ([false], [true])
+
+/-- With zero rows, `zeroRowFinder` always finds a collision of Ajtai's hash family on words, so
+the conclusion of `SIS.collisionResistantForOn_ajtaiWordHash` can fail. -/
+theorem not_collisionResistantForOn_ajtaiWordHash_zeroRow :
+    ¬CollisionResistantForOn zeroRowSIS.encInput (ajtaiSetup zeroRowSIS)
+      (ajtaiWordHash zeroRowSIS) (fun _ d s => s.length == zeroRowSIS.m d.secParam) := by
+  refine not_collisionResistantForOn_of_le_succProbability one_ne_zero zeroRowFinder
+    (ComputableInPolyTime.const ([false], [true])).isPPTOn fun κ => le_of_eq ?_
+  have hcol (A : Matrix (Fin (zeroRowSIS.n κ)) (Fin (zeroRowSIS.m κ)) (ZMod (zeroRowSIS.q κ))) :
+      isCollisionFor (ajtaiWordHash zeroRowSIS)
+        (fun _ d s => s.length == zeroRowSIS.m d.secParam) κ ⟨κ, A⟩ [false] [true] = true :=
+    isCollisionFor_eq_true_iff.mpr ⟨rfl, rfl, by decide, funext fun i => i.elim0⟩
+  simp only [Game.succProbability, collisionGameFor, Game.withSetup, collisionExperiment,
+    ajtaiSetup, zeroRowFinder, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_map,
+    PMF.pure_bind, Function.comp_def, hcol, PMF.bind_const, PMF.pure_apply, ↓reduceIte,
+    ENNReal.toNNReal_one]
+
+/-- The headline therefore also refutes `SIS zeroRowSIS`, independently of `not_sis_zeroRowSIS`. -/
+example : ¬SIS zeroRowSIS := fun hSIS =>
+  not_collisionResistantForOn_ajtaiWordHash_zeroRow
+    (hSIS.collisionResistantForOn_ajtaiWordHash (ComputableInPolyTime.const 1) fun _ => le_rfl)
 
 /-! ### 2. Negacyclic polynomial arithmetic in `R[X] / (X^n + 1)` -/
 

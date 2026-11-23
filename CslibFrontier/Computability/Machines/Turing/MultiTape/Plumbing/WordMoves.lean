@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.RunsBetween
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Basic
 public import Mathlib.Data.Fin.VecNotation
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Run.FirstStep
 import Mathlib.Tactic.FinCases
 
 /-!
@@ -126,11 +127,6 @@ lemma tapeOfList_sub_one_sub (w : List Symbol) (o : ℤ) : tapeOfList w (o - 1 -
 
 namespace MultiTapeTM
 
-/-- A run of one more step, split after its first step. -/
-private lemma runFrom_succ_eq_step {k : ℕ} {State : Type*} (tm : MultiTapeTM k Symbol State)
-    (c : Cfg k Symbol State input) (n : ℕ) : tm.runFrom c (n + 1) = tm.runFrom (tm.step c) n := by
-  rw [Nat.add_comm, runFrom_add, runFrom_one]
-
 /-! ### Moving the head to the end of a word -/
 
 /-- Moves the head of its only tape right until it reads a blank. -/
@@ -155,7 +151,7 @@ theorem runFrom_seekEnd (w suf pre : List Symbol) (hw : w = pre ++ suf) (o : ℤ
       (fun _ => rfl) (fun _ => by simp)
     simp only [seekEnd, tr_ofTr, tapeOfList_add_length_sub]
   | cons x suf ih =>
-    rw [show (x :: suf).length + 1 = 1 + (suf.length + 1) by simp; omega, runFrom_add, runFrom_one,
+    rw [List.length_cons, runFrom_succ_eq_step,
       step_tapesCfg (a := ⟨0, fun _ => (none, 1), none, some ()⟩)
         (h' := fun _ => o + (pre ++ [x]).length) ?_ rfl rfl (fun _ => rfl)
         (fun _ => by simp; omega)]
@@ -212,7 +208,7 @@ theorem runFrom_copyBack_loop (w v u : List Symbol) (oA oB oB' : ℤ) (hu : u = 
       (fun i => by fin_cases i <;> rfl) (fun i => by fin_cases i <;> simp)
     simp only [copyBack, tr_ofTr, Matrix.cons_val_zero, tapeOfList_sub_one_sub]
   | append_singleton l x ih =>
-    rw [show (l ++ [x]).length + 1 = 1 + (l.length + 1) by simp; omega, runFrom_add, runFrom_one,
+    rw [show (l ++ [x]).length + 1 = l.length + 1 + 1 by simp, runFrom_succ_eq_step,
       step_tapesCfg (a := ⟨0, ![(some none, -1), (some (some x), -1)], none, some .loop⟩)
         (ws' := ![l, x :: v]) (o' := ![oA, oB - 1]) (h' := ![oA + l.length - 1, oB - 1 - 1])
         ?_ rfl rfl ?_ ?_]
@@ -240,7 +236,7 @@ theorem runsBetween_copyBack (w v : List Symbol) (oA oB : ℤ) (out : List Symbo
       (tapesCfg input ![[], w ++ v] ![oA, oB - w.length] ![oA, oB - w.length] out)
       (w.length + 2) (2 * (w.length + 2 + 1)) := by
   refine RunsBetween.of_runFrom ?_
-  rw [show w.length + 2 = 1 + (w.length + 1) by omega, runFrom_add, runFrom_one,
+  rw [runFrom_succ_eq_step,
     step_tapesCfg (a := ⟨0, fun _ => (none, -1), none, some .loop⟩)
       (ws' := ![w, v]) (o' := ![oA, oB]) (h' := ![oA + w.length - 1, oB - 1])
       (by simp only [copyBack, tr_ofTr, q₀_ofTr]) rfl rfl (fun i => by fin_cases i <;> rfl)

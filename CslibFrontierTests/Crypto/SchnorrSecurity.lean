@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 module
+-- upstream: local-only (test)
 
 import CslibFrontier.Crypto.Computational.SchnorrSignature.Security
 import CslibFrontier.Crypto.Computational.DiscreteLog.SchnorrGroup

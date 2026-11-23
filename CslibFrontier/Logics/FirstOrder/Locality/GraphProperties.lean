@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.BallPath
 public import CslibFrontier.Logics.FirstOrder.Locality.Hanf
 public import Mathlib.Combinatorics.SimpleGraph.Acyclic
 import CslibFrontier.Foundations.ModelTheory.Graph
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Connectivity, acyclicity and trees are not first-order: proofs by Hanf locality
@@ -239,11 +240,11 @@ private def pathCycleEquiv (a b r : ℕ) (hr : r ≤ a) : Fin (a + b) ≃ Fin a 
     · simp only [h, dite_true, ite_true]
     · by_cases h' : c.1 < r + b
       · simp only [h, h', dite_false, dite_true]
-        exact Fin.ext (by simp only; omega)
+        fin_index
       · simp only [h, h', dite_false]
         split_ifs with h''
         · omega
-        · exact Fin.ext (by simp only; omega)
+        · fin_index
   right_inv d := by
     rcases d with d | d
     · have := d.2
@@ -253,12 +254,12 @@ private def pathCycleEquiv (a b r : ℕ) (hr : r ≤ a) : Fin (a + b) ≃ Fin a 
         split_ifs with h₁ h₂
         · omega
         · omega
-        · exact congrArg Sum.inl (Fin.ext (by simp only; omega))
+        · exact congrArg Sum.inl (by fin_index)
     · have := d.2
       simp only
       split_ifs with h₁ h₂
       · omega
-      · exact congrArg Sum.inr (Fin.ext (by simp only; omega))
+      · exact congrArg Sum.inr (by fin_index)
       · omega
 
 /-- **The path `P_{a+b}` and `P_a ⊕ C_b` are Hanf-equivalent** at every radius `r` with `2r ≤ a`

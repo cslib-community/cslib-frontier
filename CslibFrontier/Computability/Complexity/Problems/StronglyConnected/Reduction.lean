@@ -122,11 +122,6 @@ private theorem entry_eq (a b : Fin (ofSTCON I).n) : (ofSTCON I).adj a b = entry
   by_cases hbs : b = I.s <;> by_cases hat : a = I.t <;>
     simp [ofSTCON, entry, Fin.ext_iff, ha, hb, hbs, hat]
 
-private theorem bounded5 {a₀ a₁ a₂ a₃ a₄ : ℕ} (h₀ : a₀ ≤ B) (h₁ : a₁ ≤ B) (h₂ : a₂ ≤ B)
-    (h₃ : a₃ ≤ B) (h₄ : a₄ ≤ B) : ∀ x ∈ [a₀, a₁, a₂, a₃, a₄], x ≤ B := by
-  simp only [List.mem_cons, List.not_mem_nil, or_false]
-  omega
-
 /-- Writing the entry `(u, v)` of the matrix. -/
 private theorem reachesOut_entry (hB : I.n ≤ B) {u v : ℕ} (hu : u < I.n) (hv : v < I.n) :
     writer.ReachesOut I.encode (writer.Active B)
@@ -134,7 +129,7 @@ private theorem reachesOut_entry (hB : I.n ≤ B) {u v : ℕ} (hu : u < I.n) (hv
   have hs := I.s.isLt
   have ht := I.t.isLt
   have hb : ∀ z ∈ [I.n, (I.s : ℕ), (I.t : ℕ), u, v], z ≤ B :=
-    bounded5 hB (by omega) (by omega) (by omega) (by omega)
+    I.regs_le hB (by omega) (by omega)
   have hone : writer.ReachesOut I.encode (writer.Active B) (23, [I.n, I.s, I.t, u, v])
       (16, [I.n, I.s, I.t, u, v]) [true] :=
     ReachesOut.emit (show writer.instr 23 = _ from rfl) hb (ReachesOut.refl _)
@@ -193,7 +188,7 @@ private theorem reachesOut_rows (hB : I.n ≤ B) {i₀ : ℕ} (hi₀ : i₀ ≤ 
   have hs := I.s.isLt
   have ht := I.t.isLt
   have hreg : ∀ {u v : ℕ}, u ≤ I.n → v ≤ I.n → ∀ z ∈ [I.n, (I.s : ℕ), (I.t : ℕ), u, v], z ≤ B :=
-    fun hu hv => bounded5 hB (by omega) (by omega) (hu.trans hB) (hv.trans hB)
+    fun hu hv => I.regs_le hB (hu.trans hB) (hv.trans hB)
   have hcode₁ : writer.CodeAt 11 (forCode 11 3 (reg 0) 14 24) := codeAt_of_prefix ⟨_, rfl⟩
   have hcode₂ : writer.CodeAt 14 (forCode 14 4 (reg 0) 17 13) := codeAt_of_prefix ⟨_, rfl⟩
   obtain ⟨regs, hreach, x, rfl, -, hx⟩ := reachesOut_forCode (w := I.encode) (N := I.n)
@@ -229,7 +224,7 @@ theorem computableInLogSpace_ofSTCON : ComputableInLogSpace ofSTCON encSTCON enc
   have ht := I.t.isLt
   have hreg : ∀ {u : ℕ}, u ≤ I.n →
       ∀ z ∈ [I.n, (I.s : ℕ), (I.t : ℕ), u, 0], z ≤ I.encode.length + 1 :=
-    fun hu => bounded5 hB (by omega) (by omega) (by omega) (Nat.zero_le _)
+    fun hu => I.regs_le hB (by omega) (Nat.zero_le _)
   -- the unary header `1^n`
   have hcode : writer.CodeAt 6 (forCode 6 3 (reg 0) 9 10) := codeAt_of_prefix ⟨_, rfl⟩
   obtain ⟨regs₁, hones, rfl, -⟩ := reachesOut_forCode (w := I.encode) (N := I.n)

@@ -107,15 +107,10 @@ def pattern : List IPMove → List AMMove
 
 theorem map_fst_shape (B Z : ℕ) (g : List (IPMove × ℕ)) :
     (shape B Z g).map Prod.fst = pattern (g.map Prod.fst) := by
-  induction g with
-  | nil => rfl
-  | cons x g ih =>
-    obtain ⟨_ | _, n⟩ := x <;> simp [shape, pattern, ih]
+  fun_induction shape B Z g <;> simp [pattern, *]
 
 theorem pattern_append (π σ : List IPMove) : pattern (π ++ σ) = pattern π ++ pattern σ := by
-  induction π with
-  | nil => rfl
-  | cons x π ih => cases x <;> simp [pattern, ih]
+  fun_induction pattern π <;> simp [pattern, *]
 
 /-- The polynomial public-coin shape emulating a polynomial private-coin shape. -/
 noncomputable def shapePoly (B Z : Polynomial ℕ) : List (IPMove × Polynomial ℕ) →
@@ -126,22 +121,15 @@ noncomputable def shapePoly (B Z : Polynomial ℕ) : List (IPMove × Polynomial 
 
 theorem evalShape_shapePoly (B Z : Polynomial ℕ) (G : List (IPMove × Polynomial ℕ)) (n : ℕ) :
     AMGame.evalShape (shapePoly B Z G) n = shape (B.eval n) (Z.eval n) (evalShape G n) := by
-  induction G with
-  | nil => rfl
-  | cons x G ih =>
-    obtain ⟨_ | _, p⟩ := x
-    · change _ = shape _ _ ((.verifier, p.eval n) :: evalShape G n)
-      simp only [shapePoly, AMGame.evalShape_cons, ih, shape, Polynomial.eval_add,
-        Polynomial.eval_mul]
-    · change _ = shape _ _ ((.prover, p.eval n) :: evalShape G n)
-      simp only [shapePoly, AMGame.evalShape_cons, ih, shape]
+  fun_induction shapePoly B Z G with
+  | case1 => rfl -- []
+  | _ => -- verifier or prover move
+    simp only [AMGame.evalShape_cons, evalShape, List.map_cons, shape, Polynomial.eval_add,
+      Polynomial.eval_mul, *]
 
 theorem map_fst_shapePoly (B Z : Polynomial ℕ) (G : List (IPMove × Polynomial ℕ)) :
     (shapePoly B Z G).map Prod.fst = pattern (G.map Prod.fst) := by
-  induction G with
-  | nil => rfl
-  | cons x G ih =>
-    obtain ⟨_ | _, n⟩ := x <;> simp [shapePoly, pattern, ih]
+  fun_induction shapePoly B Z G <;> simp [pattern, *]
 
 /-- The public-coin verifier emulating the count of the payoff `V` on the shape `g`, with current
 claim `κ` and transcript prefix `p`, on Arthur's and Merlin's messages `w`. At a verifier move of
