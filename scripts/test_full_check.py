@@ -254,16 +254,8 @@ class WorkflowParityTests(unittest.TestCase):
 
     def test_pr_and_full_lint_steps_are_complementary(self):
         lean = {step["name"]: step for step in self.named_by_job["lean-checks"]}
-        self.assertEqual(
-            lean["lake lint (affected modules)"]["if"],
-            "github.event_name == 'pull_request' || github.event_name == 'merge_group'")
-        self.assertEqual(
-            lean["lake lint"]["if"],
-            "github.event_name != 'pull_request' && github.event_name != 'merge_group'")
-        self.assertIn(
-            "RECORDED_BASE: ${{ github.event.pull_request.base.sha || "
-            "github.event.merge_group.base_sha }}",
-            lean["lake lint (affected modules)"]["env"])
+        self.assertEqual(lean["lake lint (affected modules)"]["if"], "github.event_name == 'pull_request'")
+        self.assertEqual(lean["lake lint"]["if"], "github.event_name != 'pull_request'")
         self.assertIn("python3 -B scripts/quick_check.py --lint-only --base \"$BASE\"",
                       lean["lake lint (affected modules)"]["run"])
         self.assertEqual(lean["lake lint"]["run"], "lake lint")

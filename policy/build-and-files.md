@@ -53,16 +53,16 @@ its Lean-fixture Python tooling unit tests on PR and merge-group diffs confined 
 result-entry Lean modules (excluding `CslibFrontierResults/Registry.lean`), `references.bib`,
 `prose_path` and `manual/` Markdown (`main` pushes and manual runs always run them, and
 `source-checks` always runs the non-Lean Python unit tests). Set the repository
-variable `FORCE_FULL_CI=1` to schedule full selection on every event. On `pull_request` and
-`merge_group` runs, `lean-checks` runs declaration linting scoped to affected library modules
-(`scripts/quick_check.py --lint-only`, falling back to whole-library `lake lint` when changes are
-unsupported or exceed thresholds; `#5163`). On `pull_request` runs, `source-checks` posts an
-advisory notice (`scripts/check_hub_impact.py`) when a PR modifies an existing module with `>= 500`
-transitive importers, and the `Guide` workflow (`scripts/ci/select_guide.py`) skips `.lake`
-restoration and compilation when a PR touches nothing in `CslibFrontierGuide`'s transitive import
-closure. Pushes to `main` and manual runs continue to run whole-library `lake lint`, and the
-whole-library advisory security-premise and reduction-witness reports run on `main` pushes (PRs
-check changed modules).
+variable `FORCE_FULL_CI=1` to schedule full selection on every event. On `pull_request` runs,
+`lean-checks` runs declaration linting scoped to affected library modules (`scripts/quick_check.py
+--lint-only`, falling back to whole-library `lake lint` when changes are unsupported or exceed
+thresholds; `#5163`), `source-checks` posts an advisory notice (`scripts/check_hub_impact.py`)
+when a PR modifies an existing module with `>= 500` transitive importers, and the `Guide` workflow
+(`scripts/ci/select_guide.py`) skips `.lake` restoration and compilation when a PR touches nothing
+in `CslibFrontierGuide`'s transitive import closure. Merge groups, pushes to `main`, and manual
+runs continue to run whole-library `lake lint` so non-local linters check the combined library
+environment, while the whole-library advisory security-premise and reduction-witness reports run on
+`main` pushes (PRs check changed modules).
 
 During development, check affected modules and representative clients before requesting review;
 a PR may use CI for the full run. For documentation-only changes, check consistency, links and

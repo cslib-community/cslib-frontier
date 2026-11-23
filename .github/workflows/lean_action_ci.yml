@@ -335,25 +335,23 @@ jobs:
       - name: "lake build"
         id: build
         run: lake build --wfail --iofail @cslib-frontier CslibFrontierTests @/mk_all @/checkInitImports @mathlib/lint-style
-      # On pull requests and merge groups, lint only the affected library modules and their local
-      # importing clients (#5163), falling back to whole-library `lake lint` on deletions/renames,
-      # config/linter edits, ambiguous imports, or wide changes above quick_check.py's thresholds.
-      # Pushes to `main` and manual runs always run whole-library `lake lint`.
+      # On pull requests, lint only the affected library modules and their local importing clients
+      # (#5163), falling back to whole-library `lake lint` on deletions/renames, config/linter edits,
+      # ambiguous imports, or wide changes above quick_check.py's thresholds. Merge groups, pushes to
+      # `main`, and manual runs always run whole-library `lake lint` so non-local linters (`simpNF`,
+      # `simpComm`) check the combined `CslibFrontier` environment before changes land on `main`.
       - name: "lake lint (affected modules)"
-        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        if: github.event_name == 'pull_request'
         env:
-          RECORDED_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          RECORDED_BASE: ${{ github.event.pull_request.base.sha }}
         run: |
           set -e
-          BASE=
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            BASE=$(git cat-file -p HEAD | sed -n 's/^parent //p' | head -n 1)
-          fi
+          BASE=$(git cat-file -p HEAD | sed -n 's/^parent //p' | head -n 1)
           BASE=${BASE:-$RECORDED_BASE}
           git fetch --no-tags --depth=1 origin "$BASE"
           python3 -B scripts/quick_check.py --lint-only --base "$BASE"
       - name: "lake lint"
-        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
+        if: github.event_name != 'pull_request'
         run: lake lint
       # Compiled-fixture unit tests for the post-build Python checkers. `source-checks` already runs
       # every non-Lean unit test on every event; this step runs the Lean-dependent fixture suites on

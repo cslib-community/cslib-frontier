@@ -144,7 +144,7 @@ CI_ONLY = {
     "High-fan-in module impact (advisory)":
         "advisory; never fails the job. Run `scripts/check_hub_impact.py --base REF` to see it",
     "lake lint (affected modules)":
-        "pull requests and merge groups (#5163); local full_check runs whole-library `lake lint` above",
+        "pull requests only (#5163); local full_check runs whole-library `lake lint` above",
     "Sample runner disk use": "hosted-runner disk telemetry",
     "Report runner disk use": "hosted-runner disk telemetry",
     "Reclaim unused hosted-runner SDK space": "hosted-runner disk cleanup",
