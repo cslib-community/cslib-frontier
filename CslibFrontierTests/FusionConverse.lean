@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 import CslibFrontier.Computability.Circuit.Fusion.Converse
+import Mathlib.Tactic.FinCases
 
 /-!
 # Semi-ultrafilter converse clients
@@ -17,6 +18,8 @@ sets, compressed labels for duplicate sets, and a nonconstant XOR function with 
 and a three-AND universal verifier using two auxiliary bits. Ordinary module imports exercise
 the exported compiler and certificate API.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.FusionConverse
 
@@ -134,8 +137,12 @@ example (y : Fin 2 → Bool) :
     have hy : y = compactPointLabels ([({false}, {true})] : List (Set Bool × Set Bool)) u := by
       funext i
       fin_cases i
-      · cases u <;> simpa [compactPointLabels, pointLabels, sets, left] using h₀
-      · cases u <;> simpa [compactPointLabels, pointLabels, sets, right] using h₁
+      · change y 0 = pointLabels ([({false}, {true})] : List (Set Bool × Set Bool))
+          u (left _ 0)
+        cases u <;> simpa [pointLabels] using h₀
+      · change y 1 = pointLabels ([({false}, {true})] : List (Set Bool × Set Bool))
+          u (right _ 0)
+        cases u <;> simpa [pointLabels] using h₁
     rw [← invalid_expandLabels_iff, hy, expandLabels_compactPointLabels]
     exact not_invalid_pointLabels _ _ _ u (fun i => i.elim0)
   cases h₀ : y 0 <;> cases h₁ : y 1
@@ -143,7 +150,9 @@ example (y : Fin 2 → Bool) :
     refine Or.inr (Or.inl ⟨0, h₀, Or.inr (Or.inl ⟨some (right _ 0), ?_, ?_⟩)⟩)
     · ext b
       cases b <;> simp
-    · simpa only [label, expandLabels_right] using h₁
+    · rw [label, expandLabels_right]
+      change y 1 = false
+      exact h₁
   · exact iff_of_false (hpoint true h₀ h₁) (by decide)
   · exact iff_of_false (hpoint false h₀ h₁) (by decide)
   · refine iff_of_true ?_ rfl
