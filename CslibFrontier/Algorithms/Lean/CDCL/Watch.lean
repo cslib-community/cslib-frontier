@@ -472,16 +472,13 @@ theorem findFree_none {A : Assign} {c : Array ℕ} :
         exact absurd hi h
     · omega
 
-/-- **Visiting a watcher**, of the clause at position `k` with the blocker of key `b`, when the
-watched literal of key `u` has become false under the assignment `A`: it is skipped if its blocker
-is true; otherwise its clause is read, by position. Everything is read on the keys
-(`Assign.holdsKey`, `Assign.isFalseKey`), and the literals are compared as numbers. Inlined, so
-that the outcome is matched on without being built. -/
+/-- `WatchStore.visit` directly on the array `codes` of clause arrays, so a loop holding `codes`
+apart from `watches` avoids packing a `WatchStore`. -/
 @[expose, inline]
-def WatchStore.visit (S : WatchStore) (A : Assign) (u k b : ℕ) : KeyVisit :=
+def visitCodes (codes : Array (Array ℕ)) (A : Assign) (u k b : ℕ) : KeyVisit :=
   if A.holdsKey b then .skip
-  else if hk : k < S.codes.size then
-    let c := S.codes[k]
+  else if hk : k < codes.size then
+    let c := codes[k]
     if h2 : 3 ≤ c.size then
       let w₁ := c[0]
       let w₂ := c[1]
@@ -498,6 +495,21 @@ def WatchStore.visit (S : WatchStore) (A : Assign) (u k b : ℕ) : KeyVisit :=
     else .drop
   else .drop
 
+/-- **Visiting a watcher**, of the clause at position `k` with the blocker of key `b`, when the
+watched literal of key `u` has become false under the assignment `A`: it is skipped if its blocker
+is true; otherwise its clause is read, by position. Everything is read on the keys
+(`Assign.holdsKey`, `Assign.isFalseKey`), and the literals are compared as numbers. Inlined, so
+that the outcome is matched on without being built. -/
+@[expose, inline]
+def WatchStore.visit (S : WatchStore) (A : Assign) (u k b : ℕ) : KeyVisit :=
+  visitCodes S.codes A u k b
+
+/-- Updating the clause at position `k` in `codes` when moving a watch from `u` to `x` at position
+`j`, with `o` as the other watched literal. -/
+@[expose, inline]
+def moveClause (codes : Array (Array ℕ)) (k j o x u : ℕ) : Array (Array ℕ) :=
+  codes.modify k (fun a => ((a.setIfInBounds 0 o).setIfInBounds 1 x).setIfInBounds j u)
+
 /-- **Moving a watch** of the clause at position `k`, from the literal of key `u` to the one of
 key `x` at position `j`, with the other watched literal, of key `o`, as blocker: as MiniSat does,
 the clause becomes `o`, `x`, then the others with `u` in place of `x`, written into its array in
@@ -511,8 +523,7 @@ The position `j` must be one of the clause's literals but the watched ones: `1 <
 @[expose] def WatchStore.moveTo (S : WatchStore) (k j o x u : ℕ) : WatchStore :=
   let codes := S.codes
   let watches := S.watches
-  ⟨codes.modify k (fun a => ((a.setIfInBounds 0 o).setIfInBounds 1 x).setIfInBounds j u),
-    addWatch watches x k o⟩
+  ⟨moveClause codes k j o x u, addWatch watches x k o⟩
 
 /-- **The clauses after moving a watch**, read back: the literals of the keys written, at positions
 before the clause's number. -/
@@ -521,7 +532,7 @@ theorem WatchStore.clauses_moveTo (S : WatchStore) (k j o x u : ℕ)
     (S.moveTo k j o x u).clauses = S.clauses.modify k (fun e => (e.1,
       ((e.2.setIfInBounds 0 (litOfKey o)).setIfInBounds 1 (litOfKey x)).setIfInBounds j
         (litOfKey u))) := by
-  simp only [moveTo, clauses]
+  simp only [moveTo, moveClause, clauses]
   apply Array.ext (by simp)
   intro i h₁ h₂
   simp only [Array.getElem_map, Array.getElem_modify]
@@ -575,7 +586,7 @@ watcher read back from the two numbers and the outcome read back from the keys. 
 theorem WatchStore.visit_spec (S : WatchStore) {A : Assign} {M : Trail} (hA : A.Agrees M)
     (u : Literal ℕ) (k b : ℕ) :
     VisitSpec S M u ⟨k, litOfKey b⟩ (S.visit A (litKey u) k b).lits := by
-  unfold visit
+  unfold visit visitCodes
   rw [Assign.holdsKey_eq]
   by_cases hb : A.holds (litOfKey b) = true
   · simp only [hb, ↓reduceIte, KeyVisit.lits, VisitSpec]

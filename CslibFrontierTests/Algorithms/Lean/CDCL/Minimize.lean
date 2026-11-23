@@ -46,7 +46,8 @@ private abbrev C : Clause ℕ := [(6, false), (4, false), (5, false), (2, false)
 /-- The minimized clause and the hints of its RUP step, as `Learned.minimize` builds them. -/
 private def minimized (recursive : Bool) : Clause ℕ × List ℕ :=
   let r := minimizeRedundant (LRATLog.init fx) T C (6, false) recursive 7
-  ((6, false) :: C.filter fun y => y != (6, false) && !r.1.contains y, derivedHints T r.2 ++ [6])
+  ((6, false) :: C.filter fun y => !Assign.litEq y (6, false) && !r.memo.holds (y.1, true),
+    derivedHints T r.memo ++ [6])
 
 /-- Basic minimization removes `¬e` and keeps `¬c`; the hints replay the root chain and `e`. -/
 example : minimized false = ([(6, false), (4, false), (2, false)], [1, 2, 5, 6]) := by

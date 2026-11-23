@@ -137,7 +137,9 @@ def Activity.bumpEach (A : Activity) (is : List ℕ) (decay : ℕ := 19) : Activ
 
 /-- The activities with room for the indices below `n`, the new ones `0`. -/
 def Activity.grow (A : Activity) (n : ℕ) : Activity :=
-  if A.score.size < n then ⟨A.score ++ Array.replicate (n - A.score.size) 0, A.inc⟩ else A
+  if A.score.size + 1 == n then ⟨A.score.push 0, A.inc⟩
+  else if A.score.size < n then ⟨A.score ++ Array.replicate (n - A.score.size) 0, A.inc⟩
+  else A
 
 /-- **The decision variable**: a variable of `vs` unassigned in `asg`, of greatest activity, the
 first one among ties. -/
@@ -1044,5 +1046,43 @@ theorem VarOrder.pop_spec {A : Activity} {asg : Assign} {M : Trail} {V : List �
           exact absurd this (by decide)
         · exact (hm' v).2 ⟨hcov v hv hvM hvo, fun e => hne (by rw [e])⟩
     · exact ⟨hwf, hp, rfl, fun _ h => absurd h (by simp), fun v hv hvM hvo _ => hcov v hv hvM hvo⟩
+
+/-- With more fuel than entries in the heap, `pop` returns `none` only when every admitted variable
+of `V` is assigned on `M`. -/
+theorem VarOrder.pop_none {A : Activity} {asg : Assign} {M : Trail} {V : List ℕ}
+    {occ : ℕ → Bool} (hasg : asg.Agrees M) :
+    ∀ {fuel : ℕ} {H : VarOrder}, H.heap.size < fuel → H.WF A → VarOrder.PosOK H.heap H.pos →
+    (∀ v ∈ V, v ∉ Trail.vars M → occ v = true → v ∈ H.heap) →
+    (VarOrder.pop A asg occ fuel H).var = none →
+    ∀ v ∈ V, occ v = true → v ∈ Trail.vars M
+  | 0, _, hlt, _, _, _, _ => absurd hlt (Nat.not_lt_zero _)
+  | fuel + 1, H, hlt, hwf, hp, hcov, hnone => by
+    unfold VarOrder.pop at hnone
+    split at hnone
+    · rename_i h
+      obtain ⟨hwf', hp', -, hm'⟩ := VarOrder.removeTop_spec A H h hp
+      dsimp only at hnone
+      split at hnone
+      · rename_i hskip
+        have hsize : (H.removeTop A h).heap.size < fuel := by
+          unfold VarOrder.removeTop
+          dsimp only
+          split <;> simp <;> omega
+        have hcov' : ∀ v ∈ V, v ∉ Trail.vars M → occ v = true → v ∈ (H.removeTop A h).heap := by
+          intro v hv hvM hvo
+          refine (hm' v).2 ⟨hcov v hv hvM hvo, fun e => ?_⟩
+          subst e
+          rcases Bool.or_eq_true_iff.1 hskip with h' | h'
+          · exact hvM ((hasg.assigned_iff _).1 h')
+          · simp [hvo] at h'
+        exact VarOrder.pop_none hasg hsize (hwf' hwf) hp' hcov' hnone
+      · simp at hnone
+    · rename_i h
+      intro v hv hvo
+      by_contra hvM
+      have hmem := hcov v hv hvM hvo
+      have : H.heap.size = 0 := by omega
+      obtain ⟨i, hi, -⟩ := Array.mem_iff_getElem.1 hmem
+      omega
 
 end Cslib.Algorithms.Lean.CDCL

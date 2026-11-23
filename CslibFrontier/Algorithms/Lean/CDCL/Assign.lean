@@ -56,13 +56,13 @@ namespace Assign
   | some false => 1
   | some true => 2
 
-/-- The value of a code: `0` is none, `1` is `false`, and any other code `true`. Irreducible, so
-that unification does not try to compute the code of an assignment it cannot evaluate; the kernel
-still runs it. -/
+/-- The value of a code: `1` is `false`, `2` is `true`, and any other code (`0` in particular) is
+`none`. Irreducible, so that unification does not try to compute the code of an assignment it
+cannot evaluate; the kernel still runs it. -/
 @[irreducible] def decode : ℕ → Option Bool
-  | 0 => none
   | 1 => some false
-  | _ => some true
+  | 2 => some true
+  | _ => none
 
 @[simp] theorem decode_zero : decode 0 = none := by unfold decode; rfl
 
@@ -74,17 +74,11 @@ def value (A : Assign) (v : ℕ) : Option Bool := decode (A.vals.getD v 0)
 
 /-- **Whether the literal `l` is true**, read on the code of its variable. -/
 @[inline] def holds (A : Assign) (l : Literal ℕ) : Bool :=
-  match A.vals.getD l.1 0 with
-  | 0 => false
-  | 1 => !l.2
-  | _ => l.2
+  A.vals.getD l.1 0 == if l.2 then 2 else 1
 
 /-- **Whether the literal `l` is false**: `holds` of its negation, without building the negation. -/
 @[inline] def isFalse (A : Assign) (l : Literal ℕ) : Bool :=
-  match A.vals.getD l.1 0 with
-  | 0 => false
-  | 1 => l.2
-  | _ => !l.2
+  A.vals.getD l.1 0 == if l.2 then 1 else 2
 
 /-- **Whether two literals are equal**, comparing the variables and the signs directly, without
 the generic calls of the instance on pairs. -/
@@ -93,33 +87,33 @@ def litEq (a b : Literal ℕ) : Bool := a.1 == b.1 && a.2 == b.2
 theorem litEq_eq_decide (a b : Literal ℕ) : litEq a b = decide (a = b) := by
   obtain ⟨_, _⟩ := a; obtain ⟨_, _⟩ := b; simp only [litEq, Prod.mk.injEq, Bool.decide_and]; rfl
 
-private theorem holds_eq_true (A : Assign) (l : Literal ℕ) :
+theorem holds_eq_true (A : Assign) (l : Literal ℕ) :
     A.holds l = true ↔ A.value l.1 = some l.2 := by
   unfold holds value
   obtain ⟨v, x⟩ := l
   generalize A.vals.getD v 0 = c
-  rcases c with _ | _ | c <;> cases x <;> simp [decode]
+  rcases c with _ | _ | _ | c <;> cases x <;> simp [decode]
 
 private theorem isFalse_eq_holds_negate (A : Assign) (l : Literal ℕ) :
     A.isFalse l = A.holds l.negate := by
   unfold isFalse holds
   obtain ⟨v, x⟩ := l
-  simp only [Std.Sat.Literal.negate]
-  generalize A.vals.getD v 0 = c
-  rcases c with _ | _ | c <;> cases x <;> rfl
+  cases x <;> rfl
 
 /-- **Whether the variable `v` is assigned.** -/
-@[inline] def assigned (A : Assign) (v : ℕ) : Bool := A.vals.getD v 0 != 0
+@[inline] def assigned (A : Assign) (v : ℕ) : Bool :=
+  let c := A.vals.getD v 0
+  1 ≤ c && c ≤ 2
 
 /-- A variable is assigned when it has a value. -/
 theorem assigned_eq_isSome (A : Assign) (v : ℕ) : A.assigned v = (A.value v).isSome := by
   unfold assigned value decode
   generalize A.vals.getD v 0 = c
-  rcases c with _ | _ | c <;> rfl
+  rcases c with _ | _ | _ | c <;> simp
 
 /-- Setting the value of `v` to `x`, growing the array if needed. -/
 @[inline] def set (A : Assign) (v : ℕ) (x : Option Bool) : Assign :=
-  if v < A.vals.size then ⟨A.vals.set! v (code x)⟩
+  if h : v < A.vals.size then ⟨A.vals.set v (code x) h⟩
   else ⟨(A.vals ++ Array.replicate (v - A.vals.size) 0).push (code x)⟩
 
 /-- Assigning the literal `l`. -/
@@ -153,10 +147,9 @@ private theorem getD_set (A : Assign) (v w : ℕ) (x : Option Bool) :
   unfold set
   split
   · rename_i hv
-    simp only [Array.set!_eq_setIfInBounds, Array.getD_eq_getD_getElem?,
-      Array.getElem?_setIfInBounds]
+    simp only [Array.getD_eq_getD_getElem?, Array.getElem?_set]
     by_cases hw : w = v
-    · subst hw; simp [hv]
+    · subst hw; simp
     · simp [hw, Ne.symm hw]
   · rename_i hv
     simp only [Array.getD_eq_getD_getElem?, Array.getElem?_push, Array.size_append,
@@ -242,6 +235,13 @@ theorem Agrees.not_assigned (h : A.Agrees M) {v : ℕ} (hv : v ∉ Trail.vars M)
   rw [← Bool.not_eq_true, h.assigned_iff]; exact hv
 
 theorem agrees_nil : (⟨#[]⟩ : Assign).Agrees [] := fun v b => by simp [value, Trail.lits]
+
+theorem value_replicate (n v : ℕ) : (⟨Array.replicate n 0⟩ : Assign).value v = none := by
+  simp only [value, Array.getD_eq_getD_getElem?, Array.getElem?_replicate]
+  split <;> simp
+
+theorem agrees_replicate (n : ℕ) : (⟨Array.replicate n 0⟩ : Assign).Agrees [] :=
+  fun v b => by simp [value_replicate, Trail.lits]
 
 /-- **Assigning a literal of an unassigned variable** keeps the agreement. -/
 theorem Agrees.cons (h : A.Agrees M) {l : Literal ℕ} (hl : l.1 ∉ Trail.vars M) (d : Bool) :
@@ -548,24 +548,40 @@ the key of exactly one literal. -/
 theorem litOfKey_negKey (l : Literal ℕ) : litOfKey (negKey l) = l.negate := by
   rw [← litKey_negate, litOfKey_litKey]
 
+/-- The key of the negation of the literal of key `c`, without building the literal. -/
+@[inline] def negKeyOf (c : ℕ) : ℕ := (c - (c &&& 1)) + (1 - (c &&& 1))
+
+theorem negKeyOf_eq (c : ℕ) : negKeyOf c = negKey (litOfKey c) := by
+  simp only [negKeyOf, negKey, litOfKey, Nat.and_one_is_mod]
+  rcases Nat.mod_two_eq_zero_or_one c with h | h <;> simp [h] <;> omega
+
 /-- **Whether the literal of the key `c` is true**, read on the key, without building the
 literal. -/
 @[inline] def Assign.holdsKey (A : Assign) (c : ℕ) : Bool :=
-  match A.vals.getD (c / 2) 0 with
-  | 0 => false
-  | 1 => !(c % 2 == 1)
-  | _ => c % 2 == 1
+  A.vals.getD (c / 2) 0 == (c &&& 1) + 1
 
 /-- **Whether the literal of the key `c` is false**, read on the key. -/
 @[inline] def Assign.isFalseKey (A : Assign) (c : ℕ) : Bool :=
-  match A.vals.getD (c / 2) 0 with
-  | 0 => false
-  | 1 => c % 2 == 1
-  | _ => !(c % 2 == 1)
+  A.vals.getD (c / 2) 0 == 2 - (c &&& 1)
 
-theorem Assign.holdsKey_eq (A : Assign) (c : ℕ) : A.holdsKey c = A.holds (litOfKey c) := rfl
+theorem Assign.holdsKey_eq (A : Assign) (c : ℕ) : A.holdsKey c = A.holds (litOfKey c) := by
+  simp only [holdsKey, holds, litOfKey, Nat.and_one_is_mod]
+  rcases Nat.mod_two_eq_zero_or_one c with h | h <;> simp [h]
 
-theorem Assign.isFalseKey_eq (A : Assign) (c : ℕ) : A.isFalseKey c = A.isFalse (litOfKey c) := rfl
+theorem Assign.isFalseKey_eq (A : Assign) (c : ℕ) : A.isFalseKey c = A.isFalse (litOfKey c) := by
+  simp only [isFalseKey, isFalse, litOfKey, Nat.and_one_is_mod]
+  rcases Nat.mod_two_eq_zero_or_one c with h | h <;> simp [h]
+
+/-- Assigning the literal of key `c`, without building the literal. -/
+@[inline] def Assign.assignKey (A : Assign) (c : ℕ) : Assign :=
+  let v := c / 2
+  let x := (c &&& 1) + 1
+  if h : v < A.vals.size then ⟨A.vals.set v x h⟩
+  else ⟨(A.vals ++ Array.replicate (v - A.vals.size) 0).push x⟩
+
+theorem Assign.assignKey_eq (A : Assign) (c : ℕ) : A.assignKey c = A.assign (litOfKey c) := by
+  simp only [assignKey, assign, set, litOfKey, code, Nat.and_one_is_mod]
+  rcases Nat.mod_two_eq_zero_or_one c with h | h <;> simp [h]
 
 /-- Removing repeated literals, in linear time. -/
 abbrev dedupLits (c : Clause ℕ) : Clause ℕ := dedupKey litKey c

@@ -240,6 +240,9 @@ theorem getD_popN : ∀ (k : ℕ) (a : Array ℕ) {i : ℕ}, i < a.size - k →
       Array.getD_eq_getD_getElem?, Array.getElem?_pop]
     simp only [show i < a.size - 1 by omega, ↓reduceIte]
 
+theorem popN_size {α : Type} (a : Array α) : popN a.size a = #[] :=
+  Array.ext (by simp [size_popN]) fun _ h₁ _ => by simp [size_popN] at h₁
+
 /-- Keeping the first `q` entries, by popping the others, in place if the arrays are not
 shared. -/
 @[inline] def shrink (T : ATrail) (q : ℕ) : ATrail :=
@@ -400,6 +403,27 @@ theorem toX_shrink (T : ATrail) {q : ℕ} (h : q ≤ T.size) : (T.shrink q).toX 
 theorem mem_toX {T : ATrail} {x : XEntry} : x ∈ T.toX ↔ ∃ i < T.size, T.entry i = x := by
   rw [toX, mem_seg]; simp
 
+/-- The reason code (`0` or `r + 1`) of `v` among the entries below position `p`, looked up in
+constant time through the hint array `vpos` (`vpos[v]` giving a candidate position). Whatever
+`vpos` holds, a non-zero answer `r + 1` certifies an implied entry on `v` with reason `r` in
+`T.seg 0 p` (`ATrail.mem_seg_of_reasonAt`). -/
+@[inline] def reasonAt (T : ATrail) (vpos : Array ℕ) (p v : ℕ) : ℕ :=
+  let i := vpos.getD v 0
+  if i < p && T.lits.getD i 0 / 2 == v then T.rsns.getD i 0 else 0
+
+theorem mem_seg_of_reasonAt (T : ATrail) (vpos : Array ℕ) {p v r : ℕ}
+    (h : T.reasonAt vpos p v = r + 1) : ∃ b, XEntry.implied (v, b) r ∈ T.seg 0 p := by
+  unfold reasonAt at h
+  dsimp only at h
+  split at h
+  · rename_i hi
+    simp only [Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at hi
+    have hlit : (T.lit (vpos.getD v 0)).1 = v := by simp only [lit, litOfKey]; exact hi.2
+    refine ⟨(T.lit (vpos.getD v 0)).2, mem_seg.2 ⟨vpos.getD v 0, Nat.zero_le _, by omega, ?_⟩⟩
+    rw [entry_of_rsn_succ h]
+    exact congrArg (fun l => XEntry.implied l r) (Prod.ext hlit rfl)
+  · simp at h
+
 end ATrail
 
 /-- Every implied literal of the trail has a reason clause in the log, containing it, whose other
@@ -532,8 +556,8 @@ structure Marks where
   /-- The variables seen, newest first. -/
   vars : List ℕ
 
-/-- Nothing seen, in an array of `n` slots, so that seeing a variable below `n` does not grow it. -/
-def Marks.start (n : ℕ) : Marks := ⟨⟨Array.replicate n 0⟩, [], 0, []⟩
+/-- Nothing seen, in a cleared assignment array `seen`. -/
+def Marks.ofClean (seen : Assign) : Marks := ⟨seen, [], 0, []⟩
 
 /-- **The analysed clause** of the state `m`, with the entries `Cur` of the current level still to
 pass: the literals of `out`, and the negations of the literals of `Cur` whose variables are seen.
@@ -582,19 +606,18 @@ structure Marks.Inv (m : Marks) (Cur M₀ : Trail) (V : List ℕ) : Prop where
   vars_nodup : m.vars.Nodup
   out_nodup : m.out.Nodup
 
-private theorem assigned_replicate (n v : ℕ) :
-    (⟨Array.replicate n 0⟩ : Assign).assigned v = false := by
-  simp only [Assign.assigned, Array.getD_eq_getD_getElem?, Array.getElem?_replicate]
-  split <;> simp
+private theorem assigned_of_value_none {s : Assign} (hs : ∀ v, s.value v = none) (v : ℕ) :
+    s.assigned v = false := by
+  rw [Assign.assigned_eq_isSome, hs v]; rfl
 
-theorem Marks.inv_start (n : ℕ) (Cur M₀ : Trail) (V : List ℕ) : (Marks.start n).Inv Cur M₀ V where
-  out_below := by simp [Marks.start]
-  out_seen := by simp [Marks.start]
-  below_out _ _ h := by simp [Marks.start, assigned_replicate] at h
-  path_eq := by
-    simp [Marks.start, assigned_replicate]
-  seen_iff _ := by simp [Marks.start, assigned_replicate]
-  vars_mem := by simp [Marks.start]
+theorem Marks.inv_ofClean {seen : Assign} (hseen : ∀ v, seen.value v = none)
+    (Cur M₀ : Trail) (V : List ℕ) : (Marks.ofClean seen).Inv Cur M₀ V where
+  out_below := by simp [Marks.ofClean]
+  out_seen := by simp [Marks.ofClean]
+  below_out _ _ h := by simp [Marks.ofClean, assigned_of_value_none hseen] at h
+  path_eq := by simp [Marks.ofClean, assigned_of_value_none hseen]
+  seen_iff _ := by simp [Marks.ofClean, assigned_of_value_none hseen]
+  vars_mem := by simp [Marks.ofClean]
   vars_nodup := List.nodup_nil
   out_nodup := List.nodup_nil
 
@@ -775,6 +798,9 @@ structure Learned (log : LRATLog φ) (A M₀ : Trail) where
   can clear it and use it again: it has values only for variables of `A`. -/
   marks : Assign
   marks_none : ∀ v, v ∉ Trail.vars A → marks.value v = none
+  /-- The `seen` array of the analysis, cleared of its marked variables so that minimization and
+  later conflicts reuse it without allocating. -/
+  seenMarks : {A : Assign // ∀ v, A.value v = none}
   /-- The learned clause has no repeated literal, so that the solver need not remove repetitions. -/
   nodup : clause.Nodup
   /-- The asserting literal comes first, the literal the watch store watches first. -/
@@ -838,6 +864,12 @@ def Marks.learned (log : LRATLog φ) {A M₀ Cur : Trail} (m : Marks) (l : Liter
   above := by simpa using hlA
   marks := cur
   marks_none := hcur
+  seenMarks := ⟨m.seen.unassign m.vars, Assign.value_unassign_eq_none fun v hv => by
+    cases h : m.seen.value v with
+    | none => rfl
+    | some _ =>
+      have ha : m.seen.assigned v = true := by rw [Assign.assigned_eq_isSome, h]; rfl
+      exact absurd ((hm.seen_iff v).1 ha) hv⟩
   nodup := List.nodup_cons.2 ⟨fun h => hlM (by
       simpa [Std.Sat.Literal.negate] using Trail.mem_vars_of_mem_lits (hm.out_below _ h)),
     hm.out_nodup⟩
@@ -1024,10 +1056,11 @@ level, adding the reasons of the entries whose variables are seen, until one see
 on the level, its first unique implication point, which is reached at the latest at the decision.
 The learned clause is never false at the current level elsewhere, and the hints, the reasons
 added, oldest first, and then the clause `i`, refute it by unit propagation. The variables seen are
-marked in an array of `n` slots, which grows only for variables beyond it: `n` affects the cost,
-not the result. -/
+marked in the cleared scratch array `seen`, which is cleared again and returned in
+`Learned.seenMarks`. -/
 def analyze (log : LRATLog φ) (T : ATrail) (p : ℕ) (cur : Assign)
-    (hcurA : cur.Agrees (T.level p)) (n : ℕ) (i : ℕ) (C : Clause ℕ)
+    (hcurA : cur.Agrees (T.level p)) (seen : {A : Assign // ∀ v, A.value v = none})
+    (i : ℕ) (C : Clause ℕ)
     (hC : log.clause? i = some C)
     (hreasons : Reasons log
       (T.seg (p + 1) (T.size - (p + 1)) ++ XEntry.decision (T.lit p) :: T.seg 0 p))
@@ -1044,9 +1077,10 @@ def analyze (log : LRATLog φ) (T : ATrail) (p : ℕ) (cur : Assign)
     rw [trail_level, lits_append, List.mem_append] at this
     exact this
   have hspec := Marks.absorb_spec hcurA (by rw [ATrail.level, ← trail_level]; exact hnd)
-    (Marks.start n) C (Marks.inv_start _ _ _ _) (LRATLog.vars_mem_of_clause? hC) fun y hy _ =>
-      hfalse' y hy
-  analyzeGo log T p (T.size - (p + 1)) (fun _ h => h) cur hcurA ((Marks.start n).absorb cur C)
+    (Marks.ofClean seen.1) C (Marks.inv_ofClean seen.2 _ _ _) (LRATLog.vars_mem_of_clause? hC)
+    fun y hy _ => hfalse' y hy
+  analyzeGo log T p (T.size - (p + 1)) (fun _ h => h) cur hcurA
+    ((Marks.ofClean seen.1).absorb cur C)
     hspec.1
     (by
       obtain ⟨y, hy, hyc⟩ := hcur
