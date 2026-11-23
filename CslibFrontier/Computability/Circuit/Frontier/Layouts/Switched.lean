@@ -150,8 +150,7 @@ theorem exists_parameters {ξ : ℝ} (hξ : 0 < ξ) :
     have hpi0 : 0 < π := Real.pi_pos
     have h1 : 3 / (4 * (4 : ℝ)) ≤ 3 / (4 * π) := by
       gcongr
-    have h2 : 3 / (4 * (4 : ℝ)) * (1 / 2) ≤ 3 / (4 * π) * arccos (5 / 6) :=
-      mul_le_mul h1 harc (by norm_num) (by positivity)
+    have h2 : 3 / (4 * (4 : ℝ)) * (1 / 2) ≤ 3 / (4 * π) * arccos (5 / 6) := by gcongr
     linarith
   refine ⟨q, R, ρ, T, ε, M, hq0, hq1, hρ_pos, hρ_lt.le, hdecay', hTpos, hεpos, hMpos, ?_⟩
   rw [switchedBound]

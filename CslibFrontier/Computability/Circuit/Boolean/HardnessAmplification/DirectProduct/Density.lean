@@ -203,8 +203,7 @@ theorem sum_sum_card_heavy_le (C' : (Fin k → U) → Fin k → V) (f : U → V)
           ring
   calc (n : ℝ) ^ (k - s) * ∑ P ∈ univ.powersetCard s,
         (#{y ∈ heavy | Disjoint (disagreements C' f y) P} : ℝ)
-      ≤ n ^ (k - s) * (n ^ k * k.choose s * Real.exp (-(α * s))) :=
-        mul_le_mul_of_nonneg_left hmiss (by positivity)
+      ≤ n ^ (k - s) * (n ^ k * k.choose s * Real.exp (-(α * s))) := by gcongr
     _ = _ := by ring
 
 /-- **Many good seeds.** If `C'` agrees with the direct product of `f` on a `δ` fraction of
@@ -365,8 +364,7 @@ theorem card_filter_seed_dpDecode_err_le_ge (C' : (Fin k → U) → Fin k → V)
       refine card_filter_dpDecode_err_le_ge C' f dflt P b₀ m hε hδ hε1 hδ1 (by omega) ?_ hm
         hdense htail
       rw [hPc]
-      calc 64 / ε * Real.log (4 / δ) ≤ 64 / ε * Real.log (512 / (ε * δ ^ 2)) :=
-            mul_le_mul_of_nonneg_left hlog (by positivity)
+      calc 64 / ε * Real.log (4 / δ) ≤ 64 / ε * Real.log (512 / (ε * δ ^ 2)) := by gcongr
         _ ≤ s := hs
         _ ≤ (k - s : ℕ) := by exact_mod_cast (by omega : s ≤ k - s)
   calc δ / 8 * k.choose s * Fintype.card U ^ k * Fintype.card (Trial U k) ^ m

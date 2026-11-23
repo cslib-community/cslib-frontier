@@ -11,7 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pr
 public import CslibFrontier.Computability.WordRAM.Heap
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Complete native accumulation over a distinct parent list
@@ -30,9 +30,6 @@ public section
 namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery
 
 open Cslib.WordRAM Cslib.WordRAM.Signed Finset
-
-private theorem accumulateLoop_preserves (i : Fin registers) :
-    ¬AccumulateStepLocal i → accumulateLoop.Preserves i := by decide +kernel +revert
 
 /-- This is the real indexed signed-add loop. The list's distinctness is its ordinary memory
 property, established by the preceding native timestamp scan, not a query-decision oracle. -/
@@ -64,17 +61,9 @@ theorem exec_accumulateLoop {w N capacity : ℕ} (x : Data registers) (input : �
     selected true (x.regs term) (input i)).image fun i => x.regs valueBase + input i)
   let newValue (a : ℕ) :=
     encode (V (a - x.regs valueBase) + B ((a - x.regs valueBase) / 10))
-  let x0 := x.set index 0
   let P (j : ℕ) (y : Data registers) : Prop :=
     y.mem = (written j).piecewise newValue x.mem ∧
     (∀ i, ¬AccumulateStepLocal i → y.regs i = x.regs i)
-  have hinit : P (x0.regs index) x0 := by
-    refine ⟨?_, ?_⟩
-    · funext a
-      simp [x0, written, Finset.piecewise]
-    · intro i hi
-      have hne : i ≠ index := by intro h; subst h; exact hi (by decide)
-      simp [x0, hne]
   have houtside (j : ℕ) (y : Data registers) (hj : j ≤ N) (hy : P j y) (a : ℕ)
       (ha : ¬(Block.mk (x.regs valueBase) capacity).Owns a) : y.mem a = x.mem a := by
     have hnot : a ∉ written j := by
@@ -145,17 +134,17 @@ theorem exec_accumulateLoop {w N capacity : ℕ} (x : Data registers) (input : �
         simp [hs, Finset.piecewise, newValue]
       · simp [hs, Finset.piecewise, he, newValue]
     · simp [hs, Finset.piecewise, newValue]
-  obtain ⟨y, hy, hIy, hindex⟩ := ExecWithin.loop_count P
-    (fun _ hy => (hy.2 count (by decide)).trans hN) hstep (by simp [x0]) hinit
-  have hsetup : ExecWithin (w + 2) (ram[ index ← #0 ] : Code .standard registers) x x0 1 := by
-    ram_eval [x0]
-  have hloop : ExecWithin (w + 2) (Code.loop (.lt index count) accumulateStep) x0 y
-      (31 * N + 2) := by
-    simpa only [x0, Data.set_regs, Function.update_self, Nat.sub_zero, Nat.mul_comm] using hy
-  have he : ExecWithin (w + 2) accumulateLoop x y (31 * N + 3) :=
-    (hsetup.seq hloop).mono (by omega)
-  exact ⟨y, he, hindex, hIy.1,
+  refine WP.exists_execWithin ?_
+  unfold accumulateLoop
+  wram_exec
+  wram_call (ExecWithin.loop_count P (fun _ hy => (hy.2 count (by decide)).trans hN) hstep
+    (by wram_simp; exact Nat.zero_le _)
+    ⟨by wram_simp; funext a; simp [written, Finset.piecewise], fun i hi => by
+      have hne : i ≠ index := fun h => by subst h; exact hi (by decide)
+      wram_simp [hne]⟩)
+    with y ⟨hIy, hindex⟩
+  exact ⟨by wram_simp; omega, hindex, hIy.1,
     fun a ha => houtside N y le_rfl hIy a (by simpa only [Block.mem_footprint] using ha),
-    hread N y le_rfl hIy, fun i hi => he.regs_eq (accumulateLoop_preserves i hi)⟩
+    hread N y le_rfl hIy, hIy.2⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

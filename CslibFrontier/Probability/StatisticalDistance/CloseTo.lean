@@ -47,8 +47,11 @@ distance.
 * `Cslib.Probability.CloseTo.bind`: combined first-stage and continuation error addition.
 * `Cslib.Probability.CloseTo.abs_toReal_sub_le`: closeness bounds the real probability difference
   on every event by `ε`.
-* `Cslib.Probability.CloseTo.of_le_apply`: a distribution pointwise dominating `(1 - ε) ν` is
+* `Cslib.Probability.CloseTo.of_one_sub_mul_le`,
+  `Cslib.Probability.CloseTo.of_le_apply`: a distribution pointwise dominating `(1 - ε) * ν` is
   `ε`-close to `ν`.
+* `Cslib.Probability.closeTo_pure_iff`: `CloseTo μ (PMF.pure b) ε` holds iff
+  `μ.toOuterMeasure {b}ᶜ ≤ ε`.
 * `Cslib.Probability.CloseTo.toReal_apply_le_of_uniformOfFintype`: a distribution `δ`-close to
   `PMF.uniformOfFintype α` assigns mass at most `1 / Fintype.card α + δ` to every atom.
 -/
@@ -182,12 +185,12 @@ theorem CloseTo.abs_toReal_sub_le {β : Type} {μ ν : PMF β} {ε : ℝ} (hε :
   rw [abs_le]
   constructor <;> linarith
 
-/-- A law dominating `(1 - ε) ν` pointwise is within statistical distance `ε` of `ν`. -/
-theorem CloseTo.of_le_apply {β : Type} {μ ν : PMF β} {ε : ℝ} (hε : 0 ≤ ε)
-    (h : ∀ b, ENNReal.ofReal (1 - ε) * ν b ≤ μ b) :
-    CloseTo μ ν (ENNReal.ofReal ε) := by
+/-- A law dominating `(1 - ε) * ν` pointwise in `ℝ≥0∞` is within statistical distance `ε` of `ν`. -/
+theorem CloseTo.of_one_sub_mul_le {β : Type} {μ ν : PMF β} {ε : ℝ≥0∞}
+    (h : ∀ b, (1 - ε) * ν b ≤ μ b) :
+    CloseTo μ ν ε := by
   refine CloseTo.symm fun E => ?_
-  have hle : ENNReal.ofReal (1 - ε) * ν.toOuterMeasure E ≤ μ.toOuterMeasure E := by
+  have hle : (1 - ε) * ν.toOuterMeasure E ≤ μ.toOuterMeasure E := by
     rw [PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_left]
     refine tsum_le_tsum fun b => ?_
     by_cases hb : b ∈ E
@@ -196,13 +199,39 @@ theorem CloseTo.of_le_apply {β : Type} {μ ν : PMF β} {ε : ℝ} (hε : 0 ≤
     · simp only [Set.indicator_of_notMem hb, mul_zero, le_refl]
   have hν := PMF.toOuterMeasure_le_one ν E
   rcases le_or_gt 1 ε with hε1 | hε1
-  · exact hν.trans ((ENNReal.one_le_ofReal.2 hε1).trans le_add_self)
+  · exact (hν.trans hε1).trans le_add_self
   calc ν.toOuterMeasure E
-      = ENNReal.ofReal (1 - ε) * ν.toOuterMeasure E + ENNReal.ofReal ε * ν.toOuterMeasure E := by
-        rw [← add_mul, ← ENNReal.ofReal_add (by linarith) hε, sub_add_cancel, ENNReal.ofReal_one,
-          one_mul]
-    _ ≤ μ.toOuterMeasure E + ENNReal.ofReal ε :=
+      = (1 - ε) * ν.toOuterMeasure E + ε * ν.toOuterMeasure E := by
+        rw [← add_mul, tsub_add_cancel_of_le hε1.le, one_mul]
+    _ ≤ μ.toOuterMeasure E + ε :=
         add_le_add hle (mul_le_of_le_one_right zero_le hν)
+
+/-- A law dominating `(1 - ε) ν` pointwise is within statistical distance `ε` of `ν`. -/
+theorem CloseTo.of_le_apply {β : Type} {μ ν : PMF β} {ε : ℝ} (hε : 0 ≤ ε)
+    (h : ∀ b, ENNReal.ofReal (1 - ε) * ν b ≤ μ b) :
+    CloseTo μ ν (ENNReal.ofReal ε) := by
+  refine CloseTo.of_one_sub_mul_le fun b => ?_
+  simpa only [ENNReal.ofReal_sub 1 hε, ENNReal.ofReal_one] using h b
+
+/-- `μ` is within statistical distance `ε` of `PMF.pure b` if and only if `{b}ᶜ` has `μ`-measure at
+most `ε`. -/
+theorem closeTo_pure_iff {β : Type} {μ : PMF β} {b : β} {ε : ℝ≥0∞} :
+    CloseTo μ (PMF.pure b) ε ↔ μ.toOuterMeasure {b}ᶜ ≤ ε := by
+  constructor
+  · intro h
+    have hc := h {b}ᶜ
+    rw [PMF.toOuterMeasure_pure_apply, Set.mem_compl_singleton_iff, ite_eq_right (not_not.mpr rfl),
+      zero_add] at hc
+    exact hc
+  · intro h E
+    by_cases hb : b ∈ E
+    · rw [PMF.toOuterMeasure_pure_apply, ite_eq_left hb]
+      exact (PMF.toOuterMeasure_le_one μ E).trans le_self_add
+    · rw [PMF.toOuterMeasure_pure_apply, ite_eq_right hb, zero_add]
+      refine (μ.toOuterMeasure.mono fun x hx => ?_).trans h
+      rw [Set.mem_compl_singleton_iff]
+      rintro rfl
+      exact hb hx
 
 /-- If `ν` is within statistical distance `δ` of the uniform distribution on a finite nonempty
 type `α`, every atom of `ν` has real probability at most `1 / Fintype.card α + δ`. -/

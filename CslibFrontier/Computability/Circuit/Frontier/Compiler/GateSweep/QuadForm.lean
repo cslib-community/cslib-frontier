@@ -879,9 +879,7 @@ theorem exists_eventually_abs_correlation_symmHardForm_le_log {r : ℕ} (hr : 2 
           |correlation {x | BitString.quadForm (symmHardForm n) x}
             {x | c.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) := by
   obtain ⟨k₀, hk₀1, hk₀_le⟩ := exists_log_sub_log_log_le_mul_quadFormGateSweepCoefficient hr
-  have hr1_pos : (0 : ℝ) < (r : ℝ) - 1 := by
-    have : (2 : ℝ) ≤ r := by exact_mod_cast hr
-    linarith
+  have hr1_pos : (0 : ℝ) < (r : ℝ) - 1 := sub_pos.mpr (by exact_mod_cast hr)
   obtain ⟨γ, hγ, H⟩ := exists_eventually_abs_correlation_symmHardForm_le_gateSweep.{v} hr hk₀1
     (ε := ε / (r - 1 : ℝ)) (div_pos hε hr1_pos)
   refine ⟨γ, hγ, ?_⟩

@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Cslib.Foundations.Semantics.LTS.Basic
 public import Mathlib.Data.Finset.Card
 public import Mathlib.Data.Fintype.Basic
+import Cslib.Foundations.Semantics.LTS.Execution
 import Mathlib.Data.Finset.Max
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -643,6 +644,9 @@ theorem remainingSteps_le_quad {P Data : Type*} [Fintype P] (ord : ScanOrder P)
       Nat.mul_le_mul_right _ hle
     cases st.phase <;> cases st.mode <;> dsimp only <;> nlinarith
 
+private def SnapshotEvent.actor {P Data : Type*} : SnapshotEvent P Data → P
+  | .invokeScan j | .invokeUpdate j _ | .step j => j
+
 private theorem stepSnapshot_invokeScan_eq {P Data : Type*} [Fintype P] [DecidableEq P]
     {ord : ScanOrder P} {dInit : Data} {s s' : SnapshotState P Data} {i : P}
     (h : stepSnapshot ord dInit s (.invokeScan i) = some s') :
@@ -655,13 +659,8 @@ private theorem stepSnapshot_invokeScan_eq {P Data : Type*} [Fintype P] [Decidab
            history := s.history ++ [⟨i, .scan, s.stepCount, .pending⟩]
            stepCount := s.stepCount + 1 } : SnapshotState P Data) = s') := by
   unfold stepSnapshot at h
-  cases hpi : s.proc i with
-  | idle =>
-    simp only [hpi] at h
-    injection h with hs'
-    exact ⟨rfl, hs'⟩
-  | readyToWrite _ _ _ => simp only [hpi] at h; nomatch h
-  | scanning _ => simp only [hpi] at h; nomatch h
+  cases hpi : s.proc i <;> simp only [hpi, Option.some.injEq, reduceCtorEq] at h
+  exact ⟨rfl, h⟩
 
 private theorem stepSnapshot_invokeUpdate_eq {P Data : Type*} [Fintype P] [DecidableEq P]
     {ord : ScanOrder P} {dInit : Data} {s s' : SnapshotState P Data} {i : P} {val : Data}
@@ -675,13 +674,80 @@ private theorem stepSnapshot_invokeUpdate_eq {P Data : Type*} [Fintype P] [Decid
            history := s.history ++ [⟨i, .update val, s.stepCount, .pending⟩]
            stepCount := s.stepCount + 1 } : SnapshotState P Data) = s') := by
   unfold stepSnapshot at h
-  cases hpi : s.proc i with
-  | idle =>
-    simp only [hpi] at h
-    injection h with hs'
-    exact ⟨rfl, hs'⟩
-  | readyToWrite _ _ _ => simp only [hpi] at h; nomatch h
-  | scanning _ => simp only [hpi] at h; nomatch h
+  cases hpi : s.proc i <;> simp only [hpi, Option.some.injEq, reduceCtorEq] at h
+  exact ⟨rfl, h⟩
+
+/-- Every transition `stepSnapshot ord dInit s ev = some s'` updates `proc` only at `ev.actor`,
+and either performs a `readyToWrite` register write or leaves `s.reg` unchanged while modifying
+`s.history` by at most appending a `.pending` record or completing a `.scan` record. -/
+private theorem stepSnapshot_effect {P Data : Type*} [Fintype P] [DecidableEq P]
+    {ord : ScanOrder P} {dInit : Data} {s s' : SnapshotState P Data} {ev : SnapshotEvent P Data}
+    (h : stepSnapshot ord dInit s ev = some s') :
+    (∃ ps, s'.proc = Function.update s.proc ev.actor ps) ∧
+      ((∃ j opId val snap,
+          ev = .step j ∧
+          s.proc j = .readyToWrite opId val snap ∧
+          s' = { reg := Function.update s.reg j ⟨val, (s.reg j).seq + 1, snap⟩
+                 proc := Function.update s.proc j .idle
+                 history := completeHistoryAt s.history opId (.doneUpdate s.stepCount)
+                 stepCount := s.stepCount + 1 }) ∨
+        ((¬∃ j opId val snap, ev = .step j ∧ s.proc j = .readyToWrite opId val snap) ∧
+          s'.reg = s.reg ∧
+          (s'.history = s.history ∨
+            (∃ rec, rec.status = .pending ∧ s'.history = s.history ++ [rec]) ∨
+            (∃ j st snap, ev = .step j ∧ s.proc j = .scanning st ∧ st.mode = .external ∧
+              s'.history =
+                completeHistoryAt s.history st.opId (.doneScan s.stepCount snap))))) := by
+  have finishScan_eff : ∀ {j : P} {st : ActiveScan P Data} (snap : P → Data)
+      (hscan : s.proc j = .scanning st) (hfin : finishScan s j st.mode st.opId snap = s'),
+      (∃ ps, s'.proc = Function.update s.proc j ps) ∧
+        s'.reg = s.reg ∧
+        (s'.history = s.history ∨
+          (∃ rec, rec.status = .pending ∧ s'.history = s.history ++ [rec]) ∨
+          (∃ j' st' snap', SnapshotEvent.step (Data := Data) j = .step j' ∧
+            s.proc j' = .scanning st' ∧ st'.mode = .external ∧
+            s'.history = completeHistoryAt s.history st'.opId (.doneScan s.stepCount snap'))) := by
+    intro j st snap hscan hfin
+    subst hfin
+    cases hm : st.mode with
+    | external =>
+      exact ⟨⟨.idle, rfl⟩, rfl, Or.inr (Or.inr ⟨j, st, snap, rfl, hscan, hm, rfl⟩)⟩
+    | embedded val =>
+      exact ⟨⟨.readyToWrite st.opId val snap, rfl⟩, rfl, Or.inl rfl⟩
+  rcases ev with j | ⟨j, val⟩ | j
+  · obtain ⟨-, rfl⟩ := stepSnapshot_invokeScan_eq h
+    exact ⟨⟨_, rfl⟩, Or.inr ⟨(by rintro ⟨_, _, _, _, h1, _⟩; cases h1), rfl,
+      Or.inr (Or.inl ⟨_, rfl, rfl⟩)⟩⟩
+  · obtain ⟨-, rfl⟩ := stepSnapshot_invokeUpdate_eq h
+    exact ⟨⟨_, rfl⟩, Or.inr ⟨(by rintro ⟨_, _, _, _, h1, _⟩; cases h1), rfl,
+      Or.inr (Or.inl ⟨_, rfl, rfl⟩)⟩⟩
+  · unfold stepSnapshot at h
+    cases hpj : s.proc j with
+    | idle => simp only [hpj] at h; nomatch h
+    | readyToWrite opId val snap =>
+      simp only [hpj, Option.some.injEq] at h
+      subst h
+      exact ⟨⟨.idle, rfl⟩, Or.inl ⟨j, opId, val, snap, rfl, hpj, rfl⟩⟩
+    | scanning st =>
+      simp only [hpj] at h
+      have hnw : ¬∃ j' opId val snap,
+          SnapshotEvent.step (Data := Data) j = .step j' ∧
+            s.proc j' = .readyToWrite opId val snap := by
+        rintro ⟨_, _, _, _, h1, h2⟩; cases h1; rw [hpj] at h2; cases h2
+      cases hph : st.phase <;> cases hrem : st.rem <;> simp only [hph, hrem] at h
+      · injection h with hs'; subst hs'; exact ⟨⟨_, rfl⟩, Or.inr ⟨hnw, rfl, Or.inl rfl⟩⟩
+      · injection h with hs'; subst hs'; exact ⟨⟨_, rfl⟩, Or.inr ⟨hnw, rfl, Or.inl rfl⟩⟩
+      · split_ifs at h with hclean
+        · injection h with hs'
+          obtain ⟨hp, hr, hh⟩ := finishScan_eff _ hpj hs'
+          exact ⟨hp, Or.inr ⟨hnw, hr, hh⟩⟩
+        · cases hfind : (ord.elems.find? fun k =>
+              decide ((st.collectAVal k).seq ≠ (st.collectBVal k).seq ∧ k ∈ st.moved)) <;>
+            simp only [hfind, Option.some.injEq] at h
+          · subst h; exact ⟨⟨_, rfl⟩, Or.inr ⟨hnw, rfl, Or.inl rfl⟩⟩
+          · obtain ⟨hp, hr, hh⟩ := finishScan_eff _ hpj h
+            exact ⟨hp, Or.inr ⟨hnw, hr, hh⟩⟩
+      · injection h with hs'; subst hs'; exact ⟨⟨_, rfl⟩, Or.inr ⟨hnw, rfl, Or.inl rfl⟩⟩
 
 /-- Unbounded sequence-numbered single-writer step for #7504 (after
 [Afek et al., Lemma 3.4, p. 10][AfekAttiyaDolevGafniMerrittShavit1993]): immediately after
@@ -691,8 +757,7 @@ theorem remainingRegOps_invokeScan {P Data : Type*} [Fintype P] [DecidableEq P] 
     (dInit : Data) {s s' : SnapshotState P Data} {i : P}
     (h : stepSnapshot ord dInit s (.invokeScan i) = some s') :
     remainingRegOps ord (s'.proc i) = 2 * Fintype.card P * (Fintype.card P + 1) := by
-  obtain ⟨-, hs'⟩ := stepSnapshot_invokeScan_eq h
-  subst hs'
+  obtain ⟨-, rfl⟩ := stepSnapshot_invokeScan_eq h
   simp only [Function.update_self, remainingRegOps, card_empty, Nat.sub_zero,
     ord.length_eq_card]
   ring
@@ -705,8 +770,7 @@ theorem remainingRegOps_invokeUpdate {P Data : Type*} [Fintype P] [DecidableEq P
     (ord : ScanOrder P) (dInit : Data) {s s' : SnapshotState P Data} {i : P} {val : Data}
     (h : stepSnapshot ord dInit s (.invokeUpdate i val) = some s') :
     remainingRegOps ord (s'.proc i) = 2 * Fintype.card P * (Fintype.card P + 1) + 1 := by
-  obtain ⟨-, hs'⟩ := stepSnapshot_invokeUpdate_eq h
-  subst hs'
+  obtain ⟨-, rfl⟩ := stepSnapshot_invokeUpdate_eq h
   simp only [Function.update_self, remainingRegOps, card_empty, Nat.sub_zero,
     ord.length_eq_card]
   ring
@@ -718,55 +782,13 @@ theorem proc_eq_of_other_event {P Data : Type*} [Fintype P] [DecidableEq P] (ord
     (hne : ev ≠ .invokeScan i ∧ (∀ v, ev ≠ .invokeUpdate i v) ∧ ev ≠ .step i)
     (h : stepSnapshot ord dInit s ev = some s') :
     s'.proc i = s.proc i := by
-  rcases ev with j | ⟨j, val⟩ | j
-  · have hij : i ≠ j := fun heq => hne.1 (heq ▸ rfl)
-    obtain ⟨-, hs'⟩ := stepSnapshot_invokeScan_eq h
-    subst hs'
-    exact Function.update_of_ne hij _ _
-  · have hij : i ≠ j := fun heq => hne.2.1 val (heq ▸ rfl)
-    obtain ⟨-, hs'⟩ := stepSnapshot_invokeUpdate_eq h
-    subst hs'
-    exact Function.update_of_ne hij _ _
-  · have hij : i ≠ j := fun heq => hne.2.2 (heq ▸ rfl)
-    unfold stepSnapshot at h
-    cases hpj : s.proc j with
-    | idle => simp only [hpj] at h; nomatch h
-    | readyToWrite opId val snap =>
-      simp only [hpj] at h
-      injection h with hs'
-      subst hs'
-      exact Function.update_of_ne hij _ _
-    | scanning st =>
-      simp only [hpj] at h
-      rcases hph : st.phase with _ | _ <;> rcases hrem : st.rem with _ | ⟨k, rest⟩ <;>
-        simp only [hph, hrem] at h
-      · injection h with hs'
-        subst hs'
-        exact Function.update_of_ne hij _ _
-      · injection h with hs'
-        subst hs'
-        exact Function.update_of_ne hij _ _
-      · split_ifs at h with hclean
-        · injection h with hs'
-          subst hs'
-          unfold finishScan
-          cases st.mode <;> exact Function.update_of_ne hij _ _
-        · cases hfind : (ord.elems.find? fun k =>
-              decide ((st.collectAVal k).seq ≠ (st.collectBVal k).seq ∧ k ∈ st.moved)) with
-          | some k =>
-            simp only [hfind] at h
-            injection h with hs'
-            subst hs'
-            unfold finishScan
-            cases st.mode <;> exact Function.update_of_ne hij _ _
-          | none =>
-            simp only [hfind] at h
-            injection h with hs'
-            subst hs'
-            exact Function.update_of_ne hij _ _
-      · injection h with hs'
-        subst hs'
-        exact Function.update_of_ne hij _ _
+  obtain ⟨⟨ps, hproc⟩, -⟩ := stepSnapshot_effect h
+  have hij : i ≠ ev.actor := by
+    rcases ev with j | ⟨j, v⟩ | j <;> intro heq <;> subst heq
+    · exact hne.1 rfl
+    · exact hne.2.1 v rfl
+    · exact hne.2.2 rfl
+  rw [hproc, Function.update_of_ne hij]
 
 theorem remainingSteps_eq_of_other {P Data : Type*} [Fintype P] [DecidableEq P] (ord : ScanOrder P)
     (dInit : Data) {s s' : SnapshotState P Data} {ev : SnapshotEvent P Data} {i : P}
@@ -973,36 +995,10 @@ theorem stateAt_step (τ : SnapshotTrace ord dInit) {t : ℕ} (ht : t < τ.event
 theorem of_mtr {tr : List (SnapshotEvent P Data)} {s : SnapshotState P Data}
     (hmtr : (snapshotLTS ord dInit).MTr (SnapshotState.init dInit) tr s) :
     ∃ τ : SnapshotTrace ord dInit, τ.events = tr ∧ τ.stateAt tr.length = s := by
-  suffices ∀ (s₀ s₁ : SnapshotState P Data) (tr : List (SnapshotEvent P Data)),
-      (snapshotLTS ord dInit).MTr s₀ tr s₁ →
-      ∃ (states : List (SnapshotState P Data)) (hlen : states.length = tr.length + 1),
-        (∀ h0 : 0 < states.length, states[0]'h0 = s₀) ∧
-        (∀ hlast : tr.length < states.length, states[tr.length]'hlast = s₁) ∧
-        (∀ t (ht : t < tr.length),
-          stepSnapshot ord dInit (states[t]'(by omega)) tr[t] =
-            some (states[t + 1]'(by omega))) by
-    obtain ⟨states, hlen, h0, hlast, hstep⟩ := this _ _ tr hmtr
-    refine ⟨⟨tr, states, hlen, h0 (by omega), hstep⟩, rfl, ?_⟩
-    have hlt : tr.length < states.length := by omega
-    simp only [stateAt, hlt, ↓reduceDIte, hlast hlt]
-  intro s₀ s₁ tr h
-  induction h with
-  | refl =>
-    exact ⟨[ _ ], rfl, fun _ => rfl, fun _ => rfl, fun _ ht => nomatch ht⟩
-  | @stepL s₀ ev s_mid tr s₁ hstep _ ih =>
-    obtain ⟨sts, hlen, h0, hlast, hvalid⟩ := ih
-    refine ⟨s₀ :: sts, by simp only [List.length_cons, hlen], fun _ => rfl, ?_, ?_⟩
-    · intro hl
-      simp only [List.length_cons, List.getElem_cons_succ]
-      exact hlast (by omega)
-    · intro t ht
-      cases t with
-      | zero =>
-        simp only [List.getElem_cons_zero, List.getElem_cons_succ, h0 (by omega)]
-        exact hstep
-      | succ t =>
-        simp only [List.getElem_cons_succ]
-        exact hvalid t (Nat.lt_of_succ_lt_succ ht)
+  obtain ⟨states, hex⟩ := Cslib.LTS.Execution.of_mTr hmtr
+  refine ⟨⟨tr, states, hex.length, hex.start, hex.trans⟩, rfl, ?_⟩
+  have hlt : tr.length < states.length := by have := hex.length; omega
+  simp only [stateAt, hlt, ↓reduceDIte, hex.last']
 
 /-- Predicate identifying when event `t < τ.events.length` is the atomic register write of
 `update_j` (`proc j = .readyToWrite ...` and `events[t] = .step j`). -/
@@ -1020,75 +1016,17 @@ private theorem reg_step_iff (τ : SnapshotTrace ord dInit) (j : P) {t : ℕ}
         (τ.stateAt t).proc j = .readyToWrite opId val snap ∧
         (τ.stateAt (t + 1)).reg j = ⟨val, ((τ.stateAt t).reg j).seq + 1, snap⟩ ∧
         (τ.stateAt (t + 1)).proc j = .idle := by
-  have hstep := τ.stateAt_step ht
-  rcases hev : τ.events[t] with i | ⟨i, v⟩ | i
-  · rw [hev] at hstep
-    obtain ⟨-, hs'⟩ := stepSnapshot_invokeScan_eq hstep
-    left
-    refine ⟨by rw [← hs'], ?_⟩
-    rintro ⟨_, _, _, _, h1, _⟩
-    rw [hev] at h1
-    cases h1
-  · rw [hev] at hstep
-    obtain ⟨-, hs'⟩ := stepSnapshot_invokeUpdate_eq hstep
-    left
-    refine ⟨by rw [← hs'], ?_⟩
-    rintro ⟨_, _, _, _, h1, _⟩
-    rw [hev] at h1
-    cases h1
-  · rw [hev] at hstep
-    unfold stepSnapshot at hstep
-    cases hpi : (τ.stateAt t).proc i with
-    | idle => simp only [hpi] at hstep; nomatch hstep
-    | readyToWrite opId val snap =>
-      simp only [hpi] at hstep
-      injection hstep with hs'
-      by_cases hij : j = i
-      · subst hij
-        right
-        refine ⟨opId, val, snap, rfl, hpi, ?_, ?_⟩
-        · rw [← hs']
-          exact Function.update_self _ _ _
-        · rw [← hs']
-          exact Function.update_self _ _ _
-      · left
-        refine ⟨by rw [← hs']; exact Function.update_of_ne hij _ _, ?_⟩
-        rintro ⟨_, _, _, _, h1, _⟩
-        rw [hev] at h1
-        injection h1 with hji
-        exact hij hji.symm
-    | scanning st =>
-      simp only [hpi] at hstep
-      have hnotw : ¬ τ.isWriteStep j t := by
-        rintro ⟨_, _, _, _, h1, h2⟩
-        rw [hev] at h1
-        injection h1 with hij
-        subst hij
-        rw [hpi] at h2
-        cases h2
-      left
-      refine ⟨?_, hnotw⟩
-      cases hph : st.phase <;> cases hrem : st.rem <;> simp only [hph, hrem] at hstep
-      · injection hstep with hs'
-        rw [← hs']
-      · injection hstep with hs'
-        rw [← hs']
-      · split_ifs at hstep with hclean
-        · injection hstep with hs'
-          rw [← hs']
-          unfold finishScan
-          cases st.mode <;> rfl
-        · cases hfind : (ord.elems.find? fun k =>
-              decide ((st.collectAVal k).seq ≠ (st.collectBVal k).seq ∧ k ∈ st.moved)) <;>
-            simp only [hfind] at hstep
-          · injection hstep with hs'
-            rw [← hs']
-          · injection hstep with hs'
-            rw [← hs']
-            unfold finishScan
-            cases st.mode <;> rfl
-      · injection hstep with hs'
-        rw [← hs']
+  rcases (stepSnapshot_effect (τ.stateAt_step ht)).2 with
+      ⟨i, opId, val, snap, hev, hpi, hs'⟩ | ⟨hnw, hreg, -⟩
+  · by_cases hij : j = i
+    · subst hij
+      right
+      refine ⟨opId, val, snap, hev, hpi, ?_, ?_⟩ <;> simp only [hs', Function.update_self]
+    · left
+      refine ⟨by simp only [hs', Function.update_of_ne hij], ?_⟩
+      rintro ⟨_, _, _, _, h1, _⟩
+      exact hij (SnapshotEvent.step.inj (h1.symm.trans hev))
+  · exact Or.inl ⟨congrFun hreg j, fun ⟨_, id, v, sn, he, hp⟩ => hnw ⟨j, id, v, sn, he, hp⟩⟩
 
 /-- Sequence numbers on `reg j` are monotone along any trace, and equal across `[t₁, t₂]` iff
 `reg j` is constant across `[t₁, t₂]`. -/
@@ -1359,6 +1297,377 @@ private theorem lastIdleStep_keep (τ : SnapshotTrace ord dInit) (i : P) {t : �
   · exact absurd ((ProcSnapshotState.isIdle_eq_true _).mp hid) h0
   · rfl
 
+/-- Per-actor frame lemma for `TraceInv`: given `TraceInv τ t`, if actor `i` transitions from `t`
+to `t + 1` leaving every other process `p ≠ i` unchanged and modifying `history` at most at a
+single index `modId` (either `modId = history.length` for an append/no-op, or an existing pending
+entry of `i`), then all frame obligations for `p ≠ i`, `id ≠ modId`, and `w < t` follow
+automatically from `TraceInv τ t`. -/
+private theorem TraceInv.of_actor_step {τ : SnapshotTrace ord dInit} {t : ℕ}
+    (inv : TraceInv τ t) (i : P) (modId : ℕ)
+    (hstepCount : (τ.stateAt (t + 1)).stepCount = t + 1)
+    (hproc_other : ∀ p, p ≠ i → (τ.stateAt (t + 1)).proc p = (τ.stateAt t).proc p)
+    (hhist_len : (τ.stateAt t).history.length ≤ (τ.stateAt (t + 1)).history.length)
+    (hbound_unchanged : ∀ id, id < (τ.stateAt (t + 1)).history.length → id ≠ modId →
+      id < (τ.stateAt t).history.length)
+    (hhist_unchanged : ∀ id (h₁ : id < (τ.stateAt (t + 1)).history.length)
+      (h₀ : id < (τ.stateAt t).history.length), id ≠ modId →
+        (τ.stateAt (t + 1)).history[id]'h₁ = (τ.stateAt t).history[id]'h₀)
+    (hmod_old : ∀ (h₀ : modId < (τ.stateAt t).history.length),
+      ((τ.stateAt t).history[modId]'h₀).caller = i ∧
+        ((τ.stateAt t).history[modId]'h₀).status = .pending)
+    (hreg_t : ∀ j, τ.isWriteStep j t →
+      ∃ v, τ.lastIdleStep j t + 1 ≤ v ∧ v ≤ t ∧
+        memSnapshot (τ.stateAt v).reg = ((τ.stateAt (t + 1)).reg j).view)
+    (hready_i : ∀ opId val snap,
+      (τ.stateAt (t + 1)).proc i = .readyToWrite opId val snap →
+      ∃ (hId : opId < (τ.stateAt (t + 1)).history.length),
+        (τ.stateAt (t + 1)).history[opId]'hId =
+          ⟨i, .update val, τ.lastIdleStep i (t + 1), .pending⟩ ∧
+        τ.lastIdleStep i (t + 1) < t + 1 ∧
+        ∃ v, τ.lastIdleStep i (t + 1) + 1 ≤ v ∧ v ≤ t + 1 ∧
+          memSnapshot (τ.stateAt v).reg = snap)
+    (hscan_i : ∀ st,
+      (τ.stateAt (t + 1)).proc i = .scanning st →
+      ∃ (hId : st.opId < (τ.stateAt (t + 1)).history.length),
+        (τ.stateAt (t + 1)).history[st.opId]'hId =
+          ⟨i, match st.mode with | .external => .scan | .embedded val => .update val,
+            τ.lastIdleStep i (t + 1), .pending⟩ ∧
+        τ.lastIdleStep i (t + 1) < t + 1 ∧
+        ∃ iterStart, τ.lastIdleStep i (t + 1) + 1 ≤ iterStart ∧ iterStart ≤ t + 1 ∧
+          (∀ k ∈ st.moved, ∃ w₁, τ.lastIdleStep i (t + 1) + 1 ≤ w₁ ∧ w₁ < iterStart ∧
+            τ.isWriteStep k w₁) ∧
+          (st.phase = .collectA →
+            ∀ k, k ∉ st.rem →
+              ∃ tA, iterStart ≤ tA ∧ tA ≤ t + 1 ∧ st.collectAVal k = (τ.stateAt tA).reg k) ∧
+          (st.phase = .collectB →
+            ∃ u, iterStart ≤ u ∧ u ≤ t + 1 ∧
+              (∀ k, ∃ tA, iterStart ≤ tA ∧ tA ≤ u ∧ st.collectAVal k = (τ.stateAt tA).reg k) ∧
+              (∀ k, k ∉ st.rem →
+                ∃ tB, u ≤ tB ∧ tB ≤ t + 1 ∧ st.collectBVal k = (τ.stateAt tB).reg k)))
+    (hpending_i : ∀ id (hId : id < (τ.stateAt (t + 1)).history.length),
+      (id = modId ∨ ((τ.stateAt (t + 1)).history[id]'hId).caller = i) →
+      ((τ.stateAt (t + 1)).history[id]'hId).status = .pending →
+      ((τ.stateAt (t + 1)).history[id]'hId).invStep =
+        τ.lastIdleStep ((τ.stateAt (t + 1)).history[id]'hId).caller (t + 1) ∧
+      ((τ.stateAt (t + 1)).history[id]'hId).invStep < t + 1 ∧
+        ((∃ st, (τ.stateAt (t + 1)).proc ((τ.stateAt (t + 1)).history[id]'hId).caller =
+            .scanning st ∧ st.opId = id) ∨
+         (∃ val snap, (τ.stateAt (t + 1)).proc ((τ.stateAt (t + 1)).history[id]'hId).caller =
+            .readyToWrite id val snap)))
+    (hdoneScan_mod : ∀ (hId : modId < (τ.stateAt (t + 1)).history.length) resp snap,
+      ((τ.stateAt (t + 1)).history[modId]'hId).status = .doneScan resp snap →
+      ((τ.stateAt (t + 1)).history[modId]'hId).kind = .scan ∧
+      ((τ.stateAt (t + 1)).history[modId]'hId).invStep < resp ∧ resp < t + 1 ∧
+        ∃ v, ((τ.stateAt (t + 1)).history[modId]'hId).invStep + 1 ≤ v ∧ v ≤ resp ∧
+          memSnapshot (τ.stateAt v).reg = snap)
+    (hdoneUpdate_mod : ∀ (hId : modId < (τ.stateAt (t + 1)).history.length) resp,
+      ((τ.stateAt (t + 1)).history[modId]'hId).status = .doneUpdate resp →
+      ∃ val, ((τ.stateAt (t + 1)).history[modId]'hId).kind = .update val ∧
+        ((τ.stateAt (t + 1)).history[modId]'hId).invStep < resp ∧ resp < t + 1 ∧
+        τ.isWriteStep ((τ.stateAt (t + 1)).history[modId]'hId).caller resp ∧
+        (τ.stateAt (resp + 1)).reg ((τ.stateAt (t + 1)).history[modId]'hId).caller =
+          ⟨val, ((τ.stateAt resp).reg ((τ.stateAt (t + 1)).history[modId]'hId).caller).seq + 1,
+            ((τ.stateAt (resp + 1)).reg ((τ.stateAt (t + 1)).history[modId]'hId).caller).view⟩)
+    (hwrite_t : ∀ j, τ.isWriteStep j t →
+      ∃ (id : ℕ) (hId : id < (τ.stateAt (t + 1)).history.length),
+        ((τ.stateAt (t + 1)).history[id]'hId).caller = j ∧
+        ((τ.stateAt (t + 1)).history[id]'hId).status = .doneUpdate t) :
+    TraceInv τ (t + 1) where
+  stepCount_eq := hstepCount
+  reg_view_valid j w hw hwrite := by
+    rcases Nat.lt_succ_iff_lt_or_eq.mp hw with hw' | rfl
+    · exact inv.reg_view_valid j w hw' hwrite
+    · exact hreg_t j hwrite
+  proc_ready p opId val snap hp := by
+    by_cases hpi : p = i
+    · subst hpi; exact hready_i opId val snap hp
+    · have hp_old : (τ.stateAt t).proc p = .readyToWrite opId val snap :=
+        (hproc_other p hpi) ▸ hp
+      have hkeep := τ.lastIdleStep_keep p (by rw [hp_old]; nofun) (by rw [hp]; nofun)
+      obtain ⟨hId₀, hrec₀, hlt₀, v, hv₁, hv₂, hsnap⟩ := inv.proc_ready p opId val snap hp_old
+      have hId₁ : opId < (τ.stateAt (t + 1)).history.length := lt_of_lt_of_le hId₀ hhist_len
+      have hne_mod : opId ≠ modId := by
+        intro heq; subst heq
+        exact hpi ((congrArg SnapshotOpRecord.caller hrec₀).symm.trans (hmod_old hId₀).1)
+      refine ⟨hId₁, ?_, by omega, v, by omega, by omega, hsnap⟩
+      rw [hhist_unchanged opId hId₁ hId₀ hne_mod, hkeep]
+      exact hrec₀
+  proc_scan p st hp := by
+    by_cases hpi : p = i
+    · subst hpi; exact hscan_i st hp
+    · have hp_old : (τ.stateAt t).proc p = .scanning st := (hproc_other p hpi) ▸ hp
+      have hkeep := τ.lastIdleStep_keep p (by rw [hp_old]; nofun) (by rw [hp]; nofun)
+      obtain ⟨hId₀, hrec₀, hlt₀, iterS, hi₁, hi₂, hm₀, ha₀, hb₀⟩ := inv.proc_scan p st hp_old
+      have hId₁ : st.opId < (τ.stateAt (t + 1)).history.length := lt_of_lt_of_le hId₀ hhist_len
+      have hne_mod : st.opId ≠ modId := by
+        intro heq
+        have hidx := getElem_congr_idx (τ.stateAt t).history heq hId₀ (heq ▸ hId₀)
+        exact hpi ((congrArg SnapshotOpRecord.caller (hrec₀.symm.trans hidx)).trans
+          (hmod_old (heq ▸ hId₀)).1)
+      refine ⟨hId₁, ?_, by omega, iterS, by omega, by omega, ?_, ?_, ?_⟩
+      · rw [hhist_unchanged st.opId hId₁ hId₀ hne_mod, hkeep]; exact hrec₀
+      · intro k hk; rw [hkeep]; exact hm₀ k hk
+      · intro hA k hk
+        obtain ⟨tA, a1, a2, a3⟩ := ha₀ hA k hk
+        exact ⟨tA, a1, by omega, a3⟩
+      · intro hB
+        obtain ⟨u, u1, u2, ha, hb⟩ := hb₀ hB
+        refine ⟨u, u1, by omega, ha, fun k hk => ?_⟩
+        obtain ⟨tB, b1, b2, b3⟩ := hb k hk
+        exact ⟨tB, b1, by omega, b3⟩
+  hist_pending id hId₁ hpend := by
+    by_cases hcase : id = modId ∨ ((τ.stateAt (t + 1)).history[id]'hId₁).caller = i
+    · exact hpending_i id hId₁ hcase hpend
+    · push Not at hcase
+      have hId₀ := hbound_unchanged id hId₁ hcase.1
+      have hrec_eq := hhist_unchanged id hId₁ hId₀ hcase.1
+      rw [hrec_eq] at hpend hcase ⊢
+      obtain ⟨hinv, hlt₀, hact_old⟩ := inv.hist_pending id hId₀ hpend
+      have hnot_old : (τ.stateAt t).proc ((τ.stateAt t).history[id]'hId₀).caller ≠ .idle := by
+        rcases hact_old with ⟨_, hp, -⟩ | ⟨_, _, hp⟩ <;> rw [hp] <;> nofun
+      have hproc_same := hproc_other _ hcase.2
+      have hkeep := τ.lastIdleStep_keep _ hnot_old (hproc_same ▸ hnot_old)
+      rw [hkeep, hproc_same]
+      exact ⟨hinv, by omega, hact_old⟩
+  hist_doneScan id hId₁ resp snap hdone := by
+    by_cases hid : id = modId
+    · subst hid; exact hdoneScan_mod hId₁ resp snap hdone
+    · have hId₀ := hbound_unchanged id hId₁ hid
+      rw [hhist_unchanged id hId₁ hId₀ hid] at hdone ⊢
+      obtain ⟨hk, hi, hr, v, hv⟩ := inv.hist_doneScan id hId₀ resp snap hdone
+      exact ⟨hk, hi, by omega, v, hv⟩
+  hist_doneUpdate id hId₁ resp hdone := by
+    by_cases hid : id = modId
+    · subst hid; exact hdoneUpdate_mod hId₁ resp hdone
+    · have hId₀ := hbound_unchanged id hId₁ hid
+      rw [hhist_unchanged id hId₁ hId₀ hid] at hdone ⊢
+      obtain ⟨val', hk, hi, hr, hw, hd⟩ := inv.hist_doneUpdate id hId₀ resp hdone
+      exact ⟨val', hk, hi, by omega, hw, hd⟩
+  writeStep_in_hist j w hw hwrite := by
+    rcases Nat.lt_succ_iff_lt_or_eq.mp hw with hw' | rfl
+    · obtain ⟨id, hId₀, hc, hs⟩ := inv.writeStep_in_hist j w hw' hwrite
+      have hId₁ : id < (τ.stateAt (t + 1)).history.length := lt_of_lt_of_le hId₀ hhist_len
+      have hne_mod : id ≠ modId := by
+        intro heq; subst heq
+        exact absurd ((hmod_old hId₀).2.symm.trans hs) nofun
+      refine ⟨id, hId₁, ?_, ?_⟩ <;> rw [hhist_unchanged id hId₁ hId₀ hne_mod]
+      · exact hc
+      · exact hs
+    · exact hwrite_t j hwrite
+
+/-- Specialization of `TraceInv.of_actor_step` for `.invokeScan i` and `.invokeUpdate i val`. -/
+private theorem TraceInv.of_invoke {τ : SnapshotTrace ord dInit} {t : ℕ}
+    (inv : TraceInv τ t) (i : P) (mode : ScanMode Data)
+    (hpi : (τ.stateAt t).proc i = .idle)
+    (hnow : ¬∃ j, τ.isWriteStep j t)
+    (hs₁ :
+      let opId := (τ.stateAt t).history.length
+      let dummy := fun _ : P => SnapshotReg.init (P := P) dInit
+      let st : ActiveScan P Data := ⟨mode, opId, ∅, .collectA, ord.elems, dummy, dummy⟩
+      let kind := match mode with | .external => .scan | .embedded v => .update v
+      ({ reg := (τ.stateAt t).reg
+         proc := Function.update (τ.stateAt t).proc i (.scanning st)
+         history := (τ.stateAt t).history ++ [⟨i, kind, (τ.stateAt t).stepCount, .pending⟩]
+         stepCount := (τ.stateAt t).stepCount + 1 } : SnapshotState P Data) =
+        τ.stateAt (t + 1)) :
+    TraceInv τ (t + 1) := by
+  let kind : SnapshotOpKind Data := match mode with | .external => .scan | .embedded v => .update v
+  let dummy := fun _ : P => SnapshotReg.init (P := P) dInit
+  let st_new : ActiveScan P Data :=
+    ⟨mode, (τ.stateAt t).history.length, ∅, .collectA, ord.elems, dummy, dummy⟩
+  have hlast_i : τ.lastIdleStep i (t + 1) = t := by
+    have hnot : (τ.stateAt (t + 1)).proc i ≠ .idle := by
+      rw [← hs₁]; simp only [Function.update_self]; nofun
+    rw [τ.lastIdleStep_eq_of_step_not_idle i hnot, (ProcSnapshotState.isIdle_eq_true _).mpr hpi]
+    simp only [↓reduceIte]
+  have hhist_eq : (τ.stateAt (t + 1)).history =
+      (τ.stateAt t).history ++ [⟨i, kind, t, .pending⟩] := by
+    rw [← hs₁, inv.stepCount_eq]; cases mode <;> rfl
+  have hlen1 : (τ.stateAt (t + 1)).history.length = (τ.stateAt t).history.length + 1 := by
+    rw [hhist_eq, List.length_append, List.length_singleton]
+  have hget_new : ∀ hId : (τ.stateAt t).history.length < (τ.stateAt (t + 1)).history.length,
+      (τ.stateAt (t + 1)).history[(τ.stateAt t).history.length]'hId = ⟨i, kind, t, .pending⟩ := by
+    intro hId
+    rw [getElem_of_eq hhist_eq hId (by rw [List.length_append, List.length_singleton]; omega)]
+    simp only [List.getElem_append_right (le_refl _), Nat.sub_self, List.getElem_singleton]
+  refine inv.of_actor_step i (τ.stateAt t).history.length
+    (by rw [← hs₁, inv.stepCount_eq])
+    (fun p hp => by rw [← hs₁]; exact Function.update_of_ne hp _ _)
+    (by omega)
+    (fun id h₁ hne => by omega)
+    (fun id h₁ h₀ _ => by
+      rw [getElem_of_eq hhist_eq h₁ (by rw [List.length_append]; omega),
+        List.getElem_append_left h₀])
+    (fun h₀ => absurd h₀ (lt_irrefl _))
+    (fun j hw => absurd ⟨j, hw⟩ hnow)
+    (fun _ _ _ hp => by rw [← hs₁] at hp; simp only [Function.update_self] at hp; cases hp)
+    ?_ ?_
+    (fun hId _ _ hdone => by rw [hget_new hId] at hdone; cases hdone)
+    (fun hId _ hdone => by rw [hget_new hId] at hdone; cases hdone)
+    (fun j hw => absurd ⟨j, hw⟩ hnow)
+  · intro st hp
+    rw [← hs₁] at hp
+    simp only [Function.update_self, ProcSnapshotState.scanning.injEq] at hp
+    subst hp
+    dsimp only [st_new]
+    refine ⟨by omega, ?_, by omega, t + 1, by omega, le_rfl,
+      fun k hk => absurd hk (notMem_empty k),
+      fun _ k hk => absurd (ord.complete k) hk, fun hph => by cases hph⟩
+    rw [hget_new (by omega), hlast_i]; cases mode <;> rfl
+  · intro id hId hcase hpend
+    by_cases hid : id = (τ.stateAt t).history.length
+    · subst hid
+      simp only [hget_new hId, hlast_i, Nat.lt_succ_self, true_and]
+      exact Or.inl ⟨st_new, by rw [← hs₁]; exact Function.update_self _ _ _, rfl⟩
+    · have hId₀ : id < (τ.stateAt t).history.length := by omega
+      have hrec_eq : (τ.stateAt (t + 1)).history[id]'hId = (τ.stateAt t).history[id]'hId₀ := by
+        rw [getElem_of_eq hhist_eq hId (by rw [List.length_append]; omega),
+          List.getElem_append_left hId₀]
+      have hci : ((τ.stateAt t).history[id]'hId₀).caller = i := hrec_eq ▸ hcase.resolve_left hid
+      rw [hrec_eq] at hpend
+      obtain ⟨-, -, hact_old⟩ := inv.hist_pending id hId₀ hpend
+      rcases hact_old with ⟨_, hp, -⟩ | ⟨_, _, hp⟩ <;> rw [hci, hpi] at hp <;> cases hp
+
+/-- Specialization of `TraceInv.of_actor_step` when active scan `st` of `i` transitions to a
+non-idle local state `ps_new` without modifying `reg` or `history`. -/
+private theorem TraceInv.of_local_active {τ : SnapshotTrace ord dInit} {t : ℕ}
+    (inv : TraceInv τ t) {i : P} {st : ActiveScan P Data}
+    (hpi : (τ.stateAt t).proc i = .scanning st)
+    (hnow : ¬∃ j, τ.isWriteStep j t)
+    (ps_new : ProcSnapshotState P Data) (hps_ne : ps_new ≠ .idle)
+    (hs_eq : { (τ.stateAt t) with
+                proc := Function.update (τ.stateAt t).proc i ps_new
+                stepCount := (τ.stateAt t).stepCount + 1 } = τ.stateAt (t + 1))
+    (hact_new : (∃ s0, ps_new = .scanning s0 ∧ s0.opId = st.opId) ∨
+      (∃ v0 sn0, ps_new = .readyToWrite st.opId v0 sn0))
+    (hready_i : ∀ id' v' sn', ps_new = .readyToWrite id' v' sn' →
+      ∃ (hId₁ : id' < (τ.stateAt (t + 1)).history.length),
+        (τ.stateAt (t + 1)).history[id']'hId₁ =
+          ⟨i, .update v', τ.lastIdleStep i (t + 1), .pending⟩ ∧
+        τ.lastIdleStep i (t + 1) < t + 1 ∧
+        ∃ v, τ.lastIdleStep i (t + 1) + 1 ≤ v ∧ v ≤ t + 1 ∧ memSnapshot (τ.stateAt v).reg = sn')
+    (hscan_i : ∀ st', ps_new = .scanning st' →
+      ∃ (hId₁ : st'.opId < (τ.stateAt (t + 1)).history.length),
+        (τ.stateAt (t + 1)).history[st'.opId]'hId₁ =
+          ⟨i, match st'.mode with | .external => .scan | .embedded val => .update val,
+            τ.lastIdleStep i (t + 1), .pending⟩ ∧
+        τ.lastIdleStep i (t + 1) < t + 1 ∧
+        ∃ iterS', τ.lastIdleStep i (t + 1) + 1 ≤ iterS' ∧ iterS' ≤ t + 1 ∧
+          (∀ k ∈ st'.moved, ∃ w₁, τ.lastIdleStep i (t + 1) + 1 ≤ w₁ ∧ w₁ < iterS' ∧
+            τ.isWriteStep k w₁) ∧
+          (st'.phase = .collectA →
+            ∀ k, k ∉ st'.rem →
+              ∃ tA, iterS' ≤ tA ∧ tA ≤ t + 1 ∧ st'.collectAVal k = (τ.stateAt tA).reg k) ∧
+          (st'.phase = .collectB →
+            ∃ u, iterS' ≤ u ∧ u ≤ t + 1 ∧
+              (∀ k, ∃ tA, iterS' ≤ tA ∧ tA ≤ u ∧ st'.collectAVal k = (τ.stateAt tA).reg k) ∧
+              (∀ k, k ∉ st'.rem →
+                ∃ tB, u ≤ tB ∧ tB ≤ t + 1 ∧ st'.collectBVal k = (τ.stateAt tB).reg k))) :
+    TraceInv τ (t + 1) := by
+  have hhist_eq : (τ.stateAt (t + 1)).history = (τ.stateAt t).history := by rw [← hs_eq]
+  refine inv.of_actor_step i (τ.stateAt t).history.length
+    (by rw [← hs_eq, inv.stepCount_eq])
+    (fun p hp => by rw [← hs_eq]; exact Function.update_of_ne hp _ _)
+    (by rw [hhist_eq])
+    (fun id h₁ _ => hhist_eq ▸ h₁)
+    (fun id h₁ h₀ _ => getElem_of_eq hhist_eq h₁ h₀)
+    (fun h₀ => absurd h₀ (lt_irrefl _))
+    (fun j hw => absurd ⟨j, hw⟩ hnow)
+    (fun id' v' sn' hp => hready_i id' v' sn' (by
+      rw [← hs_eq] at hp; dsimp only at hp; rwa [Function.update_self] at hp))
+    (fun st' hp => hscan_i st' (by
+      rw [← hs_eq] at hp; dsimp only at hp; rwa [Function.update_self] at hp))
+    ?_
+    (fun h₁ => absurd (hhist_eq ▸ h₁) (lt_irrefl _))
+    (fun h₁ => absurd (hhist_eq ▸ h₁) (lt_irrefl _))
+    (fun j hw => absurd ⟨j, hw⟩ hnow)
+  intro id hId₁ hcase hpend
+  have hId₀ : id < (τ.stateAt t).history.length := hhist_eq ▸ hId₁
+  have hrec_eq := getElem_of_eq hhist_eq hId₁ hId₀
+  have hci : ((τ.stateAt t).history[id]'hId₀).caller = i :=
+    hrec_eq ▸ hcase.resolve_left (Nat.ne_of_lt hId₀)
+  rw [hrec_eq] at hpend ⊢
+  obtain ⟨hinv, hlt₀, hact_old⟩ := inv.hist_pending id hId₀ hpend
+  have hid_eq : id = st.opId :=
+    active_opId_unique (hci ▸ hact_old) (Or.inl ⟨st, hpi, rfl⟩)
+  subst id
+  have hpi_new : (τ.stateAt (t + 1)).proc i = ps_new := by
+    rw [← hs_eq]; exact Function.update_self _ _ _
+  have hkeep := τ.lastIdleStep_keep i (by rw [hpi]; nofun) (hpi_new ▸ hps_ne)
+  rw [hci] at hinv ⊢
+  rw [hkeep, hpi_new]
+  exact ⟨hinv, by omega, hact_new⟩
+
+/-- Specialization of `TraceInv.of_actor_step` when active operation `activeId` of `i` completes
+(`newSt ≠ .pending`) and `proc i` returns to `.idle`. -/
+private theorem TraceInv.of_complete {τ : SnapshotTrace ord dInit} {t : ℕ}
+    (inv : TraceInv τ t) {i : P} {activeId : ℕ} (hId : activeId < (τ.stateAt t).history.length)
+    (oldKind : SnapshotOpKind Data) (newSt : SnapshotOpStatus P Data) (hnew_ne : newSt ≠ .pending)
+    (hrec_i : (τ.stateAt t).history[activeId]'hId = ⟨i, oldKind, τ.lastIdleStep i t, .pending⟩)
+    (hact_i : (∃ s0, (τ.stateAt t).proc i = .scanning s0 ∧ s0.opId = activeId) ∨
+      (∃ v0 sn0, (τ.stateAt t).proc i = .readyToWrite activeId v0 sn0))
+    (hstepCount : (τ.stateAt (t + 1)).stepCount = t + 1)
+    (hproc_eq : (τ.stateAt (t + 1)).proc = Function.update (τ.stateAt t).proc i .idle)
+    (hhist_upd : (τ.stateAt (t + 1)).history =
+      completeHistoryAt (τ.stateAt t).history activeId newSt)
+    (hreg_t : ∀ j, τ.isWriteStep j t →
+      ∃ v, τ.lastIdleStep j t + 1 ≤ v ∧ v ≤ t ∧
+        memSnapshot (τ.stateAt v).reg = ((τ.stateAt (t + 1)).reg j).view)
+    (hdoneScan_new : ∀ resp snap, newSt = .doneScan resp snap →
+      oldKind = .scan ∧ τ.lastIdleStep i t < resp ∧ resp < t + 1 ∧
+        ∃ v, τ.lastIdleStep i t + 1 ≤ v ∧ v ≤ resp ∧ memSnapshot (τ.stateAt v).reg = snap)
+    (hdoneUpdate_new : ∀ resp, newSt = .doneUpdate resp →
+      ∃ val, oldKind = .update val ∧ τ.lastIdleStep i t < resp ∧ resp < t + 1 ∧
+        τ.isWriteStep i resp ∧
+        (τ.stateAt (resp + 1)).reg i =
+          ⟨val, ((τ.stateAt resp).reg i).seq + 1, ((τ.stateAt (resp + 1)).reg i).view⟩)
+    (hwrite_t : ∀ j, τ.isWriteStep j t → j = i ∧ newSt = .doneUpdate t) :
+    TraceInv τ (t + 1) := by
+  have hget_op : (τ.stateAt t).history[activeId]? =
+      some ⟨i, oldKind, τ.lastIdleStep i t, .pending⟩ := by
+    rw [List.getElem?_eq_getElem hId, hrec_i]
+  have hset : (τ.stateAt (t + 1)).history =
+      (τ.stateAt t).history.set activeId ⟨i, oldKind, τ.lastIdleStep i t, newSt⟩ := by
+    rw [hhist_upd]; simp only [completeHistoryAt, hget_op]
+  have hlen_eq : (τ.stateAt (t + 1)).history.length = (τ.stateAt t).history.length := by
+    rw [hset, List.length_set]
+  have hnew_at : ∀ h₁ : activeId < (τ.stateAt (t + 1)).history.length,
+      (τ.stateAt (t + 1)).history[activeId]'h₁ = ⟨i, oldKind, τ.lastIdleStep i t, newSt⟩ := by
+    intro h₁
+    rw [getElem_of_eq hset h₁ (by simp only [List.length_set]; exact hId)]
+    exact List.getElem_set_self (by simp only [List.length_set]; exact hId)
+  have hunch : ∀ id (h₁ : id < (τ.stateAt (t + 1)).history.length)
+      (h₀ : id < (τ.stateAt t).history.length), id ≠ activeId →
+      (τ.stateAt (t + 1)).history[id]'h₁ = (τ.stateAt t).history[id]'h₀ := by
+    intro id h₁ h₀ hne
+    rw [getElem_of_eq hset h₁ (by simp only [List.length_set]; exact h₀)]
+    exact List.getElem_set_ne (Ne.symm hne) (by simp only [List.length_set]; exact h₀)
+  refine inv.of_actor_step i activeId hstepCount
+    (fun p hp => by rw [hproc_eq, Function.update_of_ne hp])
+    (by omega)
+    (fun id h₁ _ => hlen_eq ▸ h₁)
+    hunch
+    (fun h₀ => by rw [hrec_i]; exact ⟨rfl, rfl⟩)
+    hreg_t
+    (fun _ _ _ hp => by rw [hproc_eq, Function.update_self] at hp; cases hp)
+    (fun _ hp => by rw [hproc_eq, Function.update_self] at hp; cases hp)
+    ?_
+    (fun h₁ resp snap hdone => by rw [hnew_at h₁] at hdone ⊢; exact hdoneScan_new resp snap hdone)
+    (fun h₁ resp hdone => by rw [hnew_at h₁] at hdone ⊢; exact hdoneUpdate_new resp hdone)
+    (fun j hw => by
+      obtain ⟨rfl, hst⟩ := hwrite_t j hw
+      have h₁ : activeId < (τ.stateAt (t + 1)).history.length := hlen_eq.symm ▸ hId
+      exact ⟨activeId, h₁, by rw [hnew_at h₁], by rw [hnew_at h₁]; exact hst⟩)
+  intro id hId₁ hcase hpend
+  by_cases hid : id = activeId
+  · subst hid; rw [hnew_at hId₁] at hpend; exact absurd hpend hnew_ne
+  · have hId₀ : id < (τ.stateAt t).history.length := hlen_eq ▸ hId₁
+    have hrec_eq := hunch id hId₁ hId₀ hid
+    have hci : ((τ.stateAt t).history[id]'hId₀).caller = i := hrec_eq ▸ hcase.resolve_left hid
+    rw [hrec_eq] at hpend
+    obtain ⟨-, -, hact_old⟩ := inv.hist_pending id hId₀ hpend
+    exact absurd (active_opId_unique (hci ▸ hact_old) hact_i) hid
+
 /-- Key inductive proof of `TraceInv τ t` for every `t ≤ τ.events.length`. -/
 private theorem traceInv_holds (τ : SnapshotTrace ord dInit) :
     ∀ t ≤ τ.events.length, TraceInv τ t := by
@@ -1378,542 +1687,49 @@ private theorem traceInv_holds (τ : SnapshotTrace ord dInit) :
     have ht_lt : t < τ.events.length := Nat.lt_of_succ_le ht
     have inv := ih (Nat.le_of_succ_le ht)
     have hstep := τ.stateAt_step ht_lt
-    -- Helper: preserve `reg_view_valid` whenever no write occurs at step `t`
-    have reg_unchanged_valid :
-        ¬ (∃ j, τ.isWriteStep j t) →
-        ∀ j w, w < t + 1 → τ.isWriteStep j w →
-          ∃ v, τ.lastIdleStep j w + 1 ≤ v ∧ v ≤ w ∧
-            memSnapshot (τ.stateAt v).reg = ((τ.stateAt (w + 1)).reg j).view := by
-      intro hnow j w hw hwrite
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hw with hw' | rfl
-      · exact inv.reg_view_valid j w hw' hwrite
-      · exact absurd ⟨j, hwrite⟩ hnow
-    -- Shared helper for `.invokeScan i` and `.invokeUpdate i val`
-    have invoke_inv : ∀ (i : P) (mode : ScanMode Data),
-        (τ.stateAt t).proc i = .idle →
-        ¬ (∃ j, τ.isWriteStep j t) →
-        (let opId := (τ.stateAt t).history.length
-         let dummy := fun _ : P => SnapshotReg.init (P := P) dInit
-         let st : ActiveScan P Data := ⟨mode, opId, ∅, .collectA, ord.elems, dummy, dummy⟩
-         let kind := match mode with | .external => .scan | .embedded v => .update v
-         ({ reg := (τ.stateAt t).reg
-            proc := Function.update (τ.stateAt t).proc i (.scanning st)
-            history := (τ.stateAt t).history ++ [⟨i, kind, (τ.stateAt t).stepCount, .pending⟩]
-            stepCount := (τ.stateAt t).stepCount + 1 } : SnapshotState P Data) =
-          τ.stateAt (t + 1)) →
-        TraceInv τ (t + 1) := by
-      intro i mode hpi hnow hs₁
-      let kind : SnapshotOpKind Data :=
-        match mode with | .external => .scan | .embedded v => .update v
-      let dummy := fun _ : P => SnapshotReg.init (P := P) dInit
-      let st_new : ActiveScan P Data :=
-        ⟨mode, (τ.stateAt t).history.length, ∅, .collectA, ord.elems, dummy, dummy⟩
-      have hlast_i : τ.lastIdleStep i (t + 1) = t := by
-        have hnot : (τ.stateAt (t + 1)).proc i ≠ .idle := by
-          rw [← hs₁]; simp only [Function.update_self]; nofun
-        rw [τ.lastIdleStep_eq_of_step_not_idle i hnot,
-          (ProcSnapshotState.isIdle_eq_true _).mpr hpi]
-        simp only [↓reduceIte]
-      have hhist_eq : (τ.stateAt (t + 1)).history =
-          (τ.stateAt t).history ++ [⟨i, kind, t, .pending⟩] := by
-        rw [← hs₁, inv.stepCount_eq]
-        cases mode <;> rfl
-      refine ⟨by rw [← hs₁]; simp only [inv.stepCount_eq],
-        reg_unchanged_valid hnow, ?_, ?_, ?_, ?_, ?_, ?_⟩
-      · intro p opId v' snap hp
-        by_cases hpi' : p = i
-        · subst hpi'; rw [← hs₁] at hp; simp only [Function.update_self] at hp; cases hp
-        · have hp_old : (τ.stateAt t).proc p = .readyToWrite opId v' snap := by
-            rw [← hs₁] at hp; dsimp only at hp; rwa [Function.update_of_ne hpi'] at hp
-          have hkeep := τ.lastIdleStep_keep p (by rw [hp_old]; nofun) (by rw [hp]; nofun)
-          obtain ⟨hId, hrec, hlt_t, v, hv₁, hv₂, hsnap⟩ := inv.proc_ready p opId v' snap hp_old
-          have hId₁ : opId < (τ.stateAt (t + 1)).history.length := by
-            rw [hhist_eq, List.length_append]; omega
-          refine ⟨hId₁, ?_, by omega, v, by omega, by omega, hsnap⟩
-          rw [getElem_of_eq hhist_eq hId₁ (by rw [List.length_append]; omega),
-            List.getElem_append_left hId, hkeep]
-          exact hrec
-      · intro p st hp
-        by_cases hpi' : p = i
-        · subst hpi'
-          rw [← hs₁] at hp
-          simp only [Function.update_self, ProcSnapshotState.scanning.injEq] at hp
-          subst hp
-          have hId₁ : (τ.stateAt t).history.length < (τ.stateAt (t + 1)).history.length := by
-            rw [hhist_eq, List.length_append, List.length_singleton]; omega
-          refine ⟨hId₁, ?_, by omega, t + 1, by omega, le_rfl, ?_, ?_, ?_⟩
-          · rw [getElem_of_eq hhist_eq hId₁
-              (by rw [List.length_append, List.length_singleton]; omega)]
-            simp only [List.getElem_append_right (le_refl _), Nat.sub_self,
-              List.getElem_singleton, hlast_i]
-            cases mode <;> rfl
-          · intro k hk; exact absurd hk (notMem_empty k)
-          · intro _ k hk; exact absurd (ord.complete k) hk
-          · intro hph; cases hph
-        · have hp_old : (τ.stateAt t).proc p = .scanning st := by
-            rw [← hs₁] at hp; dsimp only at hp; rwa [Function.update_of_ne hpi'] at hp
-          have hkeep := τ.lastIdleStep_keep p (by rw [hp_old]; nofun) (by rw [hp]; nofun)
-          obtain ⟨hId, hrec, hlt_t, iterS, hi₁, hi₂, hmov, hcA, hcB⟩ :=
-            inv.proc_scan p st hp_old
-          have hId₁ : st.opId < (τ.stateAt (t + 1)).history.length := by
-            rw [hhist_eq, List.length_append]; omega
-          refine ⟨hId₁, ?_, by omega, iterS, by omega, by omega, ?_, ?_, ?_⟩
-          · rw [getElem_of_eq hhist_eq hId₁ (by rw [List.length_append]; omega),
-              List.getElem_append_left hId, hkeep]
-            exact hrec
-          · intro k hk; rw [hkeep]; exact hmov k hk
-          · intro hA k hk
-            obtain ⟨tA, h₁, h₂, h₃⟩ := hcA hA k hk
-            exact ⟨tA, h₁, by omega, h₃⟩
-          · intro hB
-            obtain ⟨u, hu₁, hu₂, ha, hb⟩ := hcB hB
-            refine ⟨u, hu₁, by omega, ha, fun k hk => ?_⟩
-            obtain ⟨tB, h₁, h₂, h₃⟩ := hb k hk
-            exact ⟨tB, h₁, by omega, h₃⟩
-      · intro id hId hpend
-        have hid_le : id ≤ (τ.stateAt t).history.length := by
-          rw [hhist_eq, List.length_append, List.length_singleton] at hId; omega
-        rcases Nat.lt_or_eq_of_le hid_le with hlt_id | rfl
-        · have hrec_eq :
-              (τ.stateAt (t + 1)).history[id]'hId = (τ.stateAt t).history[id]'hlt_id := by
-            rw [getElem_of_eq hhist_eq hId (by rw [List.length_append]; omega),
-              List.getElem_append_left hlt_id]
-          rw [hrec_eq] at hpend ⊢
-          obtain ⟨hinv, hlt_t, hact_old⟩ := inv.hist_pending id hlt_id hpend
-          have hne_i : ((τ.stateAt t).history[id]'hlt_id).caller ≠ i := by
-            intro heq
-            rcases hact_old with ⟨st, hp, -⟩ | ⟨v', sn', hp⟩ <;> rw [heq, hpi] at hp <;> cases hp
-          have hnot_old :
-              (τ.stateAt t).proc ((τ.stateAt t).history[id]'hlt_id).caller ≠ .idle := by
-            rcases hact_old with ⟨_, hp, -⟩ | ⟨_, _, hp⟩ <;> rw [hp] <;> nofun
-          have hproc_same : (τ.stateAt (t + 1)).proc ((τ.stateAt t).history[id]'hlt_id).caller =
-              (τ.stateAt t).proc ((τ.stateAt t).history[id]'hlt_id).caller := by
-            rw [← hs₁]; exact Function.update_of_ne hne_i _ _
-          have hkeep := τ.lastIdleStep_keep _ hnot_old (by rw [hproc_same]; exact hnot_old)
-          rw [hkeep, hproc_same]
-          exact ⟨hinv, by omega, hact_old⟩
-        · have hrec_new : (τ.stateAt (t + 1)).history[(τ.stateAt t).history.length]'hId =
-              ⟨i, kind, t, .pending⟩ := by
-            rw [getElem_of_eq hhist_eq hId
-              (by rw [List.length_append, List.length_singleton]; omega)]
-            simp only [List.getElem_append_right (le_refl _), Nat.sub_self,
-              List.getElem_singleton]
-          simp only [hrec_new, hlast_i, Nat.lt_succ_self, true_and]
-          refine Or.inl ⟨st_new, ?_, rfl⟩
-          rw [← hs₁]; exact Function.update_self _ _ _
-      · intro id hId resp snap hdone
-        have hlt_id : id < (τ.stateAt t).history.length := by
-          by_contra hge
-          have heq : id = (τ.stateAt t).history.length := by
-            rw [hhist_eq, List.length_append, List.length_singleton] at hId; omega
-          subst heq
-          rw [getElem_of_eq hhist_eq hId
-            (by rw [List.length_append, List.length_singleton]; omega)] at hdone
-          simp only [List.getElem_append_right (le_refl _), Nat.sub_self,
-            List.getElem_singleton] at hdone
-          cases hdone
-        have hrec_eq :
-            (τ.stateAt (t + 1)).history[id]'hId = (τ.stateAt t).history[id]'hlt_id := by
-          rw [getElem_of_eq hhist_eq hId (by rw [List.length_append]; omega),
-            List.getElem_append_left hlt_id]
-        rw [hrec_eq] at hdone ⊢
-        obtain ⟨hk, hi, hr, v, hv⟩ := inv.hist_doneScan id hlt_id resp snap hdone
-        exact ⟨hk, hi, by omega, v, hv⟩
-      · intro id hId resp hdone
-        have hlt_id : id < (τ.stateAt t).history.length := by
-          by_contra hge
-          have heq : id = (τ.stateAt t).history.length := by
-            rw [hhist_eq, List.length_append, List.length_singleton] at hId; omega
-          subst heq
-          rw [getElem_of_eq hhist_eq hId
-            (by rw [List.length_append, List.length_singleton]; omega)] at hdone
-          simp only [List.getElem_append_right (le_refl _), Nat.sub_self,
-            List.getElem_singleton] at hdone
-          cases hdone
-        have hrec_eq :
-            (τ.stateAt (t + 1)).history[id]'hId = (τ.stateAt t).history[id]'hlt_id := by
-          rw [getElem_of_eq hhist_eq hId (by rw [List.length_append]; omega),
-            List.getElem_append_left hlt_id]
-        rw [hrec_eq] at hdone ⊢
-        obtain ⟨val', hk, hi, hr, hw, hd⟩ := inv.hist_doneUpdate id hlt_id resp hdone
-        exact ⟨val', hk, hi, by omega, hw, hd⟩
-      · intro j w hw hwrite
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hw with hw' | rfl
-        · obtain ⟨id, hId, hc, hs⟩ := inv.writeStep_in_hist j w hw' hwrite
-          have hId₁ : id < (τ.stateAt (t + 1)).history.length := by
-            rw [hhist_eq, List.length_append]; omega
-          refine ⟨id, hId₁, ?_, ?_⟩ <;>
-            rw [getElem_of_eq hhist_eq hId₁ (by rw [List.length_append]; omega),
-              List.getElem_append_left hId]
-          · exact hc
-          · exact hs
-        · exact absurd ⟨j, hwrite⟩ hnow
     rcases hev : τ.events[t] with i | ⟨i, val⟩ | i
-    · -- Case 1: `.invokeScan i`
-      rw [hev] at hstep
+    · rw [hev] at hstep
       obtain ⟨hpi, hs₁⟩ := stepSnapshot_invokeScan_eq hstep
-      exact invoke_inv i .external hpi
+      exact inv.of_invoke i .external hpi
         (by rintro ⟨_, _, _, _, _, h1, _⟩; rw [hev] at h1; cases h1) hs₁
-    · -- Case 2: `.invokeUpdate i val`
-      rw [hev] at hstep
+    · rw [hev] at hstep
       obtain ⟨hpi, hs₁⟩ := stepSnapshot_invokeUpdate_eq hstep
-      exact invoke_inv i (.embedded val) hpi
+      exact inv.of_invoke i (.embedded val) hpi
         (by rintro ⟨_, _, _, _, _, h1, _⟩; rw [hev] at h1; cases h1) hs₁
-    · -- Case 3: `.step i`
-      rw [hev] at hstep
+    · rw [hev] at hstep
       unfold stepSnapshot at hstep
-      -- Shared preservation of `proc_ready`, `proc_scan`, and `hist_pending` whenever active
-      -- operation `activeId` of `i` completes (`newSt ≠ .pending`) and `proc i` returns to `.idle`!
-      have idleComplete_preserve :
-          ∀ (activeId : ℕ) (hId : activeId < (τ.stateAt t).history.length)
-            (oldKind : SnapshotOpKind Data) (newSt : SnapshotOpStatus P Data),
-          newSt ≠ .pending →
-          (τ.stateAt t).history[activeId]'hId = ⟨i, oldKind, τ.lastIdleStep i t, .pending⟩ →
-          ((∃ s0, (τ.stateAt t).proc i = .scanning s0 ∧ s0.opId = activeId) ∨
-            (∃ v0 sn0, (τ.stateAt t).proc i = .readyToWrite activeId v0 sn0)) →
-          (τ.stateAt (t + 1)).proc = Function.update (τ.stateAt t).proc i .idle →
-          (τ.stateAt (t + 1)).history =
-            completeHistoryAt (τ.stateAt t).history activeId newSt →
-          (∀ p, p ≠ i → ∀ k, (τ.stateAt (t + 1)).reg k = (τ.stateAt t).reg k ∨ True) →
-          (τ.stateAt (t + 1)).history.length = (τ.stateAt t).history.length ∧
-          (∀ id (h₁ : id < (τ.stateAt (t + 1)).history.length)
-              (h₀ : id < (τ.stateAt t).history.length),
-            (τ.stateAt (t + 1)).history[id]'h₁ =
-              if id = activeId then ⟨i, oldKind, τ.lastIdleStep i t, newSt⟩
-              else (τ.stateAt t).history[id]'h₀) ∧
-          (∀ p id' v' sn',
-            (τ.stateAt (t + 1)).proc p = .readyToWrite id' v' sn' →
-            ∃ (hId₁ : id' < (τ.stateAt (t + 1)).history.length),
-              (τ.stateAt (t + 1)).history[id']'hId₁ =
-                ⟨p, .update v', τ.lastIdleStep p (t + 1), .pending⟩ ∧
-              τ.lastIdleStep p (t + 1) < t + 1 ∧
-              ∃ v, τ.lastIdleStep p (t + 1) + 1 ≤ v ∧ v ≤ t + 1 ∧
-                memSnapshot (τ.stateAt v).reg = sn') ∧
-          (∀ p st',
-            (τ.stateAt (t + 1)).proc p = .scanning st' →
-            ∃ (hId₁ : st'.opId < (τ.stateAt (t + 1)).history.length),
-              (τ.stateAt (t + 1)).history[st'.opId]'hId₁ =
-                ⟨p, match st'.mode with | .external => .scan | .embedded val => .update val,
-                  τ.lastIdleStep p (t + 1), .pending⟩ ∧
-              τ.lastIdleStep p (t + 1) < t + 1 ∧
-              ∃ iterS', τ.lastIdleStep p (t + 1) + 1 ≤ iterS' ∧ iterS' ≤ t + 1 ∧
-                (∀ k ∈ st'.moved, ∃ w₁, τ.lastIdleStep p (t + 1) + 1 ≤ w₁ ∧ w₁ < iterS' ∧
-                  τ.isWriteStep k w₁) ∧
-                (st'.phase = .collectA →
-                  ∀ k, k ∉ st'.rem →
-                    ∃ tA, iterS' ≤ tA ∧ tA ≤ t + 1 ∧
-                      st'.collectAVal k = (τ.stateAt tA).reg k) ∧
-                (st'.phase = .collectB →
-                  ∃ u, iterS' ≤ u ∧ u ≤ t + 1 ∧
-                    (∀ k, ∃ tA, iterS' ≤ tA ∧ tA ≤ u ∧
-                      st'.collectAVal k = (τ.stateAt tA).reg k) ∧
-                    (∀ k, k ∉ st'.rem →
-                      ∃ tB, u ≤ tB ∧ tB ≤ t + 1 ∧
-                        st'.collectBVal k = (τ.stateAt tB).reg k))) ∧
-          (∀ id (hId' : id < (τ.stateAt (t + 1)).history.length),
-            ((τ.stateAt (t + 1)).history[id]'hId').status = .pending →
-            ((τ.stateAt (t + 1)).history[id]'hId').invStep =
-              τ.lastIdleStep ((τ.stateAt (t + 1)).history[id]'hId').caller (t + 1) ∧
-            ((τ.stateAt (t + 1)).history[id]'hId').invStep < t + 1 ∧
-              ((∃ st', (τ.stateAt (t + 1)).proc
-                  ((τ.stateAt (t + 1)).history[id]'hId').caller = .scanning st' ∧
-                  st'.opId = id) ∨
-               (∃ v' sn', (τ.stateAt (t + 1)).proc
-                  ((τ.stateAt (t + 1)).history[id]'hId').caller =
-                  .readyToWrite id v' sn'))) := by
-        intro activeId hId oldKind newSt hnew_ne hrec_i hact_i hproc_eq hhist_upd _
-        have hhist_len : (τ.stateAt (t + 1)).history.length = (τ.stateAt t).history.length := by
-          rw [hhist_upd]; exact length_completeHistoryAt _ _ _
-        have hhist_at : ∀ id (h₁ : id < (τ.stateAt (t + 1)).history.length)
-            (h₀ : id < (τ.stateAt t).history.length),
-            (τ.stateAt (t + 1)).history[id]'h₁ =
-              if id = activeId then ⟨i, oldKind, τ.lastIdleStep i t, newSt⟩
-              else (τ.stateAt t).history[id]'h₀ := by
-          intro id h₁ h₀
-          have hget_op : (τ.stateAt t).history[activeId]? =
-              some ⟨i, oldKind, τ.lastIdleStep i t, .pending⟩ := by
-            rw [List.getElem?_eq_getElem hId, hrec_i]
-          have hset : (τ.stateAt (t + 1)).history =
-              (τ.stateAt t).history.set activeId
-                ⟨i, oldKind, τ.lastIdleStep i t, newSt⟩ := by
-            rw [hhist_upd]; simp only [completeHistoryAt, hget_op]
-          rw [getElem_of_eq hset h₁ (by simp only [List.length_set]; exact h₀)]
-          split_ifs with heq
-          · subst id; exact List.getElem_set_self (by simp only [List.length_set]; exact h₀)
-          · exact List.getElem_set_ne (Ne.symm heq) (by simp only [List.length_set]; exact h₀)
-        refine ⟨hhist_len, hhist_at, ?_, ?_, ?_⟩
-        · intro p id' v' sn' hp
-          by_cases hpi' : p = i
-          · subst hpi'; rw [hproc_eq] at hp; simp only [Function.update_self] at hp; cases hp
-          · have hp_old : (τ.stateAt t).proc p = .readyToWrite id' v' sn' := by
-              rw [hproc_eq] at hp; rwa [Function.update_of_ne hpi'] at hp
-            have hkeep := τ.lastIdleStep_keep p (by rw [hp_old]; nofun) (by rw [hp]; nofun)
-            obtain ⟨hId', hrec', hlt', v, h1, h2, h3⟩ := inv.proc_ready p id' v' sn' hp_old
-            have hne_id : id' ≠ activeId := by
-              intro heq; subst id'
-              have := congrArg SnapshotOpRecord.caller (hrec'.symm.trans hrec_i)
-              exact hpi' this
-            refine ⟨by omega, ?_, by omega, v, by omega, by omega, h3⟩
-            rw [hhist_at id' (by omega) hId',
-              ite_eq_right_iff.mpr fun h => absurd h hne_id, hkeep]
-            exact hrec'
-        · intro p st' hp
-          by_cases hpi' : p = i
-          · subst hpi'; rw [hproc_eq] at hp; simp only [Function.update_self] at hp; cases hp
-          · have hp_old : (τ.stateAt t).proc p = .scanning st' := by
-              rw [hproc_eq] at hp; rwa [Function.update_of_ne hpi'] at hp
-            have hkeep := τ.lastIdleStep_keep p (by rw [hp_old]; nofun) (by rw [hp]; nofun)
-            obtain ⟨hId', hrec', hlt', iterS', h1, h2, hm', ha', hb'⟩ :=
-              inv.proc_scan p st' hp_old
-            have hne_id : st'.opId ≠ activeId := by
-              intro heq
-              have hidx := getElem_congr_idx (τ.stateAt t).history heq hId' hId
-              have := congrArg SnapshotOpRecord.caller (hrec'.symm.trans (hidx.trans hrec_i))
-              exact hpi' this
-            refine ⟨by omega, ?_, by omega, iterS', by omega, by omega, ?_, ?_, ?_⟩
-            · rw [hhist_at st'.opId (by omega) hId',
-                ite_eq_right_iff.mpr fun h => absurd h hne_id, hkeep]
-              exact hrec'
-            · intro k hk; rw [hkeep]; exact hm' k hk
-            · intro hA k hk
-              obtain ⟨tA, a1, a2, a3⟩ := ha' hA k hk
-              exact ⟨tA, a1, by omega, a3⟩
-            · intro hB
-              obtain ⟨u, u1, u2, ha, hb⟩ := hb' hB
-              refine ⟨u, u1, by omega, ha, fun k hk => ?_⟩
-              obtain ⟨tB, b1, b2, b3⟩ := hb k hk
-              exact ⟨tB, b1, by omega, b3⟩
-        · intro id hId' hpend
-          have hId0 : id < (τ.stateAt t).history.length := by omega
-          have hne_id : id ≠ activeId := by
-            intro heq; subst id
-            have hnew := hhist_at activeId hId' hId0
-            simp only [↓reduceIte] at hnew
-            rw [hnew] at hpend
-            exact hnew_ne hpend
-          have hrec_eq : (τ.stateAt (t + 1)).history[id]'hId' =
-              (τ.stateAt t).history[id]'hId0 := by
-            rw [hhist_at id hId' hId0, ite_eq_right_iff.mpr fun h => absurd h hne_id]
-          rw [hrec_eq] at hpend ⊢
-          obtain ⟨hinv, hlt', hact_old⟩ := inv.hist_pending id hId0 hpend
-          have hne_i : ((τ.stateAt t).history[id]'hId0).caller ≠ i := by
-            intro heq
-            rw [heq] at hact_old
-            exact hne_id (active_opId_unique hact_old hact_i)
-          have hnot_old :
-              (τ.stateAt t).proc ((τ.stateAt t).history[id]'hId0).caller ≠ .idle := by
-            rcases hact_old with ⟨_, hp, -⟩ | ⟨_, _, hp⟩ <;> rw [hp] <;> nofun
-          have hproc_same :
-              (τ.stateAt (t + 1)).proc ((τ.stateAt t).history[id]'hId0).caller =
-              (τ.stateAt t).proc ((τ.stateAt t).history[id]'hId0).caller := by
-            rw [hproc_eq]; exact Function.update_of_ne hne_i _ _
-          have hkeep := τ.lastIdleStep_keep _ hnot_old (by rw [hproc_same]; exact hnot_old)
-          rw [hkeep, hproc_same]
-          exact ⟨hinv, by omega, hact_old⟩
       cases hpi : (τ.stateAt t).proc i with
       | idle => simp only [hpi] at hstep; nomatch hstep
       | readyToWrite opId val snap =>
-        -- Subcase 3a: Atomic register write (`line 2` of `update_i` in Figure 3)
-        simp only [hpi] at hstep
-        injection hstep with hs₁
+        simp only [hpi, Option.some.injEq] at hstep
         obtain ⟨hId, hrec_i, hlt_t, v_snap, hv₁, hv₂, hsnap_eq⟩ :=
           inv.proc_ready i opId val snap hpi
-        obtain ⟨hhist_len, hhist_at, hpr_ready, hpr_scan, h_pend⟩ :=
-          idleComplete_preserve opId hId (.update val) (.doneUpdate t) (by nofun) hrec_i
-            (Or.inr ⟨val, snap, hpi⟩) (by rw [← hs₁])
-            (by rw [← hs₁]; simp only [inv.stepCount_eq]) (fun _ _ _ => Or.inr trivial)
-        refine ⟨by rw [← hs₁]; simp only [inv.stepCount_eq], ?_,
-          hpr_ready, hpr_scan, h_pend, ?_, ?_, ?_⟩
-        · intro j w hw hwrite
-          rcases Nat.lt_succ_iff_lt_or_eq.mp hw with hw' | rfl
-          · exact inv.reg_view_valid j w hw' hwrite
-          · have hji : j = i := by
-              obtain ⟨_, _, _, _, h1, _⟩ := hwrite
-              rw [hev] at h1; injection h1 with hji'; exact hji'.symm
-            subst hji
-            have hview_eq : ((τ.stateAt (w + 1)).reg j).view = snap := by
-              rw [← hs₁]; simp only [Function.update_self]
-            rw [hview_eq]
-            exact ⟨v_snap, hv₁, hv₂, hsnap_eq⟩
-        · intro id hId' resp sn hdone
-          have hId0 : id < (τ.stateAt t).history.length := by omega
-          have hne_id : id ≠ opId := by
-            intro heq; subst id
-            have hnew := hhist_at opId hId' hId0
-            simp only [↓reduceIte] at hnew
-            rw [hnew] at hdone
-            cases hdone
-          have hrec_eq : (τ.stateAt (t + 1)).history[id]'hId' = (τ.stateAt t).history[id]'hId0 := by
-            rw [hhist_at id hId' hId0, ite_eq_right_iff.mpr fun h => absurd h hne_id]
-          rw [hrec_eq] at hdone ⊢
-          obtain ⟨hk, hi, hr, v, hv⟩ := inv.hist_doneScan id hId0 resp sn hdone
-          exact ⟨hk, hi, by omega, v, hv⟩
-        · intro id hId' resp hdone
-          have hId0 : id < (τ.stateAt t).history.length := by omega
-          by_cases heq : id = opId
-          · subst id
-            have hrec_new := hhist_at opId hId' hId0
-            simp only [↓reduceIte] at hrec_new
-            rw [hrec_new] at hdone ⊢
-            injection hdone with hresp
-            subst resp
-            refine ⟨val, rfl, hlt_t, Nat.lt_succ_self t,
-              ⟨ht_lt, opId, val, snap, hev, hpi⟩, ?_⟩
-            rw [← hs₁]; simp only [Function.update_self]
-          · have hrec_eq : (τ.stateAt (t + 1)).history[id]'hId' =
-                (τ.stateAt t).history[id]'hId0 := by
-              rw [hhist_at id hId' hId0, ite_eq_right_iff.mpr fun h => absurd h heq]
-            rw [hrec_eq] at hdone ⊢
-            obtain ⟨val', hk, hi, hr, hw, hd⟩ := inv.hist_doneUpdate id hId0 resp hdone
-            exact ⟨val', hk, hi, by omega, hw, hd⟩
-        · intro j w hw hwrite
-          rcases Nat.lt_succ_iff_lt_or_eq.mp hw with hw' | rfl
-          · obtain ⟨id, hId0, hc, hs⟩ := inv.writeStep_in_hist j w hw' hwrite
-            have hne_id : id ≠ opId := by
-              intro heq; subst id; rw [hrec_i] at hs; cases hs
-            refine ⟨id, by omega, ?_, ?_⟩ <;>
-              rw [hhist_at id (by omega) hId0, ite_eq_right_iff.mpr fun h => absurd h hne_id]
-            · exact hc
-            · exact hs
-          · have hji : j = i := by
-              obtain ⟨_, _, _, _, h1, _⟩ := hwrite
-              rw [hev] at h1; injection h1 with hji'; exact hji'.symm
-            subst hji
-            refine ⟨opId, by omega, ?_, ?_⟩ <;>
-              simp only [hhist_at opId (by omega) hId, ↓reduceIte]
+        have hji_of_write : ∀ {j}, τ.isWriteStep j t → j = i := by
+          rintro j ⟨_, _, _, _, h1, _⟩
+          exact SnapshotEvent.step.inj (h1.symm.trans hev)
+        exact inv.of_complete hId (.update val) (.doneUpdate t) nofun hrec_i
+          (Or.inr ⟨val, snap, hpi⟩)
+          (by rw [← hstep, inv.stepCount_eq])
+          (by rw [← hstep])
+          (by rw [← hstep, inv.stepCount_eq])
+          (fun j hw => by
+            obtain rfl := hji_of_write hw
+            have hview_eq : ((τ.stateAt (t + 1)).reg j).view = snap := by
+              simp only [← hstep, Function.update_self]
+            exact ⟨v_snap, hv₁, hv₂, hsnap_eq.trans hview_eq.symm⟩)
+          (fun _ _ h => nomatch h)
+          (fun resp hdone => by
+            injection hdone with hresp; subst hresp
+            refine ⟨val, rfl, hlt_t, Nat.lt_succ_self t, ⟨ht_lt, opId, val, snap, hev, hpi⟩, ?_⟩
+            simp only [← hstep, Function.update_self])
+          (fun j hw => ⟨hji_of_write hw, rfl⟩)
       | scanning st =>
-        -- Subcase 3b: Step inside `scan_i`
         simp only [hpi] at hstep
-        have hnow : ¬ ∃ j, τ.isWriteStep j t := by
+        have hnow : ¬∃ j, τ.isWriteStep j t := by
           rintro ⟨j, _, _, _, _, h1, h2⟩
           rw [hev] at h1; injection h1 with hji; subst hji
           rw [hpi] at h2; cases h2
         obtain ⟨hId, hrec_i, hlt_t, iterS, hi₁, hi₂, hmov, hcA, hcB⟩ := inv.proc_scan i st hpi
-        -- Shared helper when `i` transitions from `.scanning st` to a non-idle `ps_new` without
-        -- modifying `reg` or `history`!
-        have localActive_inv : ∀ (ps_new : ProcSnapshotState P Data),
-            ps_new ≠ .idle →
-            ({ (τ.stateAt t) with
-                proc := Function.update (τ.stateAt t).proc i ps_new
-                stepCount := (τ.stateAt t).stepCount + 1 } = τ.stateAt (t + 1)) →
-            ((∃ s0, ps_new = .scanning s0 ∧ s0.opId = st.opId) ∨
-              (∃ v0 sn0, ps_new = .readyToWrite st.opId v0 sn0)) →
-            (∀ id' v' sn', ps_new = .readyToWrite id' v' sn' →
-              ∃ (hId₁ : id' < (τ.stateAt (t + 1)).history.length),
-                (τ.stateAt (t + 1)).history[id']'hId₁ =
-                  ⟨i, .update v', τ.lastIdleStep i (t + 1), .pending⟩ ∧
-                τ.lastIdleStep i (t + 1) < t + 1 ∧
-                ∃ v, τ.lastIdleStep i (t + 1) + 1 ≤ v ∧ v ≤ t + 1 ∧
-                  memSnapshot (τ.stateAt v).reg = sn') →
-            (∀ st', ps_new = .scanning st' →
-              ∃ (hId₁ : st'.opId < (τ.stateAt (t + 1)).history.length),
-                (τ.stateAt (t + 1)).history[st'.opId]'hId₁ =
-                  ⟨i, match st'.mode with | .external => .scan | .embedded val => .update val,
-                    τ.lastIdleStep i (t + 1), .pending⟩ ∧
-                τ.lastIdleStep i (t + 1) < t + 1 ∧
-                ∃ iterS', τ.lastIdleStep i (t + 1) + 1 ≤ iterS' ∧ iterS' ≤ t + 1 ∧
-                  (∀ k ∈ st'.moved, ∃ w₁, τ.lastIdleStep i (t + 1) + 1 ≤ w₁ ∧ w₁ < iterS' ∧
-                    τ.isWriteStep k w₁) ∧
-                  (st'.phase = .collectA →
-                    ∀ k, k ∉ st'.rem →
-                      ∃ tA, iterS' ≤ tA ∧ tA ≤ t + 1 ∧
-                        st'.collectAVal k = (τ.stateAt tA).reg k) ∧
-                  (st'.phase = .collectB →
-                    ∃ u, iterS' ≤ u ∧ u ≤ t + 1 ∧
-                      (∀ k, ∃ tA, iterS' ≤ tA ∧ tA ≤ u ∧
-                        st'.collectAVal k = (τ.stateAt tA).reg k) ∧
-                      (∀ k, k ∉ st'.rem →
-                        ∃ tB, u ≤ tB ∧ tB ≤ t + 1 ∧
-                          st'.collectBVal k = (τ.stateAt tB).reg k))) →
-            TraceInv τ (t + 1) := by
-          intro ps_new hps_ne hs_eq hact_new hready_i hscan_i
-          have hhist_eq : (τ.stateAt (t + 1)).history = (τ.stateAt t).history := by rw [← hs_eq]
-          refine ⟨by rw [← hs_eq]; simp only [inv.stepCount_eq],
-            reg_unchanged_valid hnow, ?_, ?_, ?_, ?_, ?_, ?_⟩
-          · intro p id' v' sn' hp
-            by_cases hpi' : p = i
-            · subst hpi'
-              rw [← hs_eq] at hp; dsimp only at hp; rw [Function.update_self] at hp
-              exact hready_i id' v' sn' hp
-            · have hp_old : (τ.stateAt t).proc p = .readyToWrite id' v' sn' := by
-                rw [← hs_eq] at hp; dsimp only at hp; rwa [Function.update_of_ne hpi'] at hp
-              have hkeep := τ.lastIdleStep_keep p (by rw [hp_old]; nofun) (by rw [hp]; nofun)
-              obtain ⟨hId', hrec', hlt', v, h1, h2, h3⟩ := inv.proc_ready p id' v' sn' hp_old
-              have hId₁ : id' < (τ.stateAt (t + 1)).history.length := hhist_eq ▸ hId'
-              refine ⟨hId₁, ?_, by omega, v, by omega, by omega, h3⟩
-              rw [getElem_of_eq hhist_eq hId₁ hId', hkeep]; exact hrec'
-          · intro p st' hp
-            by_cases hpi' : p = i
-            · subst hpi'
-              rw [← hs_eq] at hp; dsimp only at hp; rw [Function.update_self] at hp
-              exact hscan_i st' hp
-            · have hp_old : (τ.stateAt t).proc p = .scanning st' := by
-                rw [← hs_eq] at hp; dsimp only at hp; rwa [Function.update_of_ne hpi'] at hp
-              have hkeep := τ.lastIdleStep_keep p (by rw [hp_old]; nofun) (by rw [hp]; nofun)
-              obtain ⟨hId', hrec', hlt', iterS', h1, h2, hm', ha', hb'⟩ :=
-                inv.proc_scan p st' hp_old
-              have hId₁ : st'.opId < (τ.stateAt (t + 1)).history.length := hhist_eq ▸ hId'
-              refine ⟨hId₁, ?_, by omega, iterS', by omega, by omega, ?_, ?_, ?_⟩
-              · rw [getElem_of_eq hhist_eq hId₁ hId', hkeep]; exact hrec'
-              · intro k hk; rw [hkeep]; exact hm' k hk
-              · intro hA k hk
-                obtain ⟨tA, a1, a2, a3⟩ := ha' hA k hk
-                exact ⟨tA, a1, by omega, a3⟩
-              · intro hB
-                obtain ⟨u, u1, u2, ha, hb⟩ := hb' hB
-                refine ⟨u, u1, by omega, ha, fun k hk => ?_⟩
-                obtain ⟨tB, b1, b2, b3⟩ := hb k hk
-                exact ⟨tB, b1, by omega, b3⟩
-          · intro id hId' hpend
-            have hId0 : id < (τ.stateAt t).history.length := hhist_eq ▸ hId'
-            have hrec_eq := getElem_of_eq hhist_eq hId' hId0
-            rw [hrec_eq] at hpend ⊢
-            obtain ⟨hinv, hlt', hact_old⟩ := inv.hist_pending id hId0 hpend
-            by_cases hci : ((τ.stateAt t).history[id]'hId0).caller = i
-            · have hid_eq : id = st.opId := by
-                have hact_i : (∃ s0, (τ.stateAt t).proc i = .scanning s0 ∧ s0.opId = st.opId) ∨
-                    (∃ v0 sn0, (τ.stateAt t).proc i = .readyToWrite st.opId v0 sn0) :=
-                  Or.inl ⟨st, hpi, rfl⟩
-                rw [hci] at hact_old
-                exact active_opId_unique hact_old hact_i
-              subst id
-              have hpi_new : (τ.stateAt (t + 1)).proc i = ps_new := by
-                rw [← hs_eq]; exact Function.update_self _ _ _
-              have hkeep := τ.lastIdleStep_keep i (by rw [hpi]; nofun) (hpi_new ▸ hps_ne)
-              rw [hci] at hinv ⊢
-              rw [hkeep, hpi_new]
-              exact ⟨hinv, by omega, hact_new⟩
-            · have hnot_old :
-                  (τ.stateAt t).proc ((τ.stateAt t).history[id]'hId0).caller ≠ .idle := by
-                rcases hact_old with ⟨_, hp, -⟩ | ⟨_, _, hp⟩ <;> rw [hp] <;> nofun
-              have hproc_same :
-                  (τ.stateAt (t + 1)).proc ((τ.stateAt t).history[id]'hId0).caller =
-                  (τ.stateAt t).proc ((τ.stateAt t).history[id]'hId0).caller := by
-                rw [← hs_eq]; exact Function.update_of_ne hci _ _
-              have hkeep := τ.lastIdleStep_keep _ hnot_old (by rw [hproc_same]; exact hnot_old)
-              rw [hkeep, hproc_same]
-              exact ⟨hinv, by omega, hact_old⟩
-          · intro id hId' resp sn hdone
-            have hId0 : id < (τ.stateAt t).history.length := hhist_eq ▸ hId'
-            have hrec_eq := getElem_of_eq hhist_eq hId' hId0
-            rw [hrec_eq] at hdone ⊢
-            obtain ⟨hk, hi, hr, v, hv⟩ := inv.hist_doneScan id hId0 resp sn hdone
-            exact ⟨hk, hi, by omega, v, hv⟩
-          · intro id hId' resp hdone
-            have hId0 : id < (τ.stateAt t).history.length := hhist_eq ▸ hId'
-            have hrec_eq := getElem_of_eq hhist_eq hId' hId0
-            rw [hrec_eq] at hdone ⊢
-            obtain ⟨val', hk, hi, hr, hw, hd⟩ := inv.hist_doneUpdate id hId0 resp hdone
-            exact ⟨val', hk, hi, by omega, hw, hd⟩
-          · intro j w hw hwrite
-            rcases Nat.lt_succ_iff_lt_or_eq.mp hw with hw' | rfl
-            · obtain ⟨id, hId0, hc, hs⟩ := inv.writeStep_in_hist j w hw' hwrite
-              have hId₁ : id < (τ.stateAt (t + 1)).history.length := hhist_eq ▸ hId0
-              refine ⟨id, hId₁, ?_, ?_⟩ <;> rw [getElem_of_eq hhist_eq hId₁ hId0]
-              · exact hc
-              · exact hs
-            · exact absurd ⟨j, hwrite⟩ hnow
-        -- Common helper when `finishScan` completes the scan with a valid interval snapshot `snap`!
         have finishScan_inv : ∀ (snap : P → Data),
             (∃ v, τ.lastIdleStep i t + 1 ≤ v ∧ v ≤ t ∧ memSnapshot (τ.stateAt v).reg = snap) →
             finishScan (τ.stateAt t) i st.mode st.opId snap = τ.stateAt (t + 1) →
@@ -1925,66 +1741,29 @@ private theorem traceInv_holds (τ : SnapshotTrace ord dInit) :
             unfold finishScan at hfin
             have hhist_eq : (τ.stateAt (t + 1)).history = (τ.stateAt t).history := by rw [← hfin]
             have hnot1 : (τ.stateAt (t + 1)).proc i ≠ .idle := by
-              rw [← hfin]; simp only [Function.update_self]; nofun
+              simp only [← hfin, Function.update_self]; nofun
             have hkeep := τ.lastIdleStep_keep i (by rw [hpi]; nofun) hnot1
-            refine localActive_inv (.readyToWrite st.opId val snap) (by nofun) hfin
-              (Or.inr ⟨val, snap, rfl⟩) ?_ (fun _ h => by cases h)
+            refine inv.of_local_active hpi hnow (.readyToWrite st.opId val snap) nofun hfin
+              (Or.inr ⟨val, snap, rfl⟩) ?_ (fun _ h => nomatch h)
             intro id' v' sn' heq
-            injection heq with h1 h2 h3
-            subst h1 h2 h3
+            injection heq with h1 h2 h3; subst h1 h2 h3
             have hId₁ : st.opId < (τ.stateAt (t + 1)).history.length := hhist_eq ▸ hId
             refine ⟨hId₁, ?_, by omega, v_snap, by omega, by omega, hsnap_eq⟩
             rw [getElem_of_eq hhist_eq hId₁ hId, hkeep]; exact hrec_i
           | external =>
             rw [hm] at hfin hrec_i
             unfold finishScan at hfin
-            obtain ⟨hhist_len, hhist_at, hpr_ready, hpr_scan, h_pend⟩ :=
-              idleComplete_preserve st.opId hId .scan (.doneScan t snap) (by nofun) hrec_i
-                (Or.inl ⟨st, hpi, rfl⟩) (by rw [← hfin])
-                (by rw [← hfin]; simp only [inv.stepCount_eq]) (fun _ _ _ => Or.inr trivial)
-            refine ⟨by rw [← hfin]; simp only [inv.stepCount_eq],
-              reg_unchanged_valid hnow, hpr_ready, hpr_scan, h_pend, ?_, ?_, ?_⟩
-            · intro id hId' resp sn hdone
-              have hId0 : id < (τ.stateAt t).history.length := by omega
-              by_cases heq : id = st.opId
-              · subst id
-                have hrec_new := hhist_at st.opId hId' hId0
-                simp only [↓reduceIte] at hrec_new
-                rw [hrec_new] at hdone ⊢
-                injection hdone with hresp hsn
-                subst resp sn
-                exact ⟨rfl, hlt_t, Nat.lt_succ_self t, v_snap, hv₁, hv₂, hsnap_eq⟩
-              · have hrec_eq : (τ.stateAt (t + 1)).history[id]'hId' =
-                    (τ.stateAt t).history[id]'hId0 := by
-                  rw [hhist_at id hId' hId0, ite_eq_right_iff.mpr fun h => absurd h heq]
-                rw [hrec_eq] at hdone ⊢
-                obtain ⟨hk, hi, hr, v, hv⟩ := inv.hist_doneScan id hId0 resp sn hdone
-                exact ⟨hk, hi, by omega, v, hv⟩
-            · intro id hId' resp hdone
-              have hId0 : id < (τ.stateAt t).history.length := by omega
-              have hne_id : id ≠ st.opId := by
-                intro heq; subst id
-                have hnew := hhist_at st.opId hId' hId0
-                simp only [↓reduceIte] at hnew
-                rw [hnew] at hdone
-                cases hdone
-              have hrec_eq : (τ.stateAt (t + 1)).history[id]'hId' =
-                  (τ.stateAt t).history[id]'hId0 := by
-                rw [hhist_at id hId' hId0, ite_eq_right_iff.mpr fun h => absurd h hne_id]
-              rw [hrec_eq] at hdone ⊢
-              obtain ⟨val', hk, hi, hr, hw, hd⟩ := inv.hist_doneUpdate id hId0 resp hdone
-              exact ⟨val', hk, hi, by omega, hw, hd⟩
-            · intro j w hw hwrite
-              rcases Nat.lt_succ_iff_lt_or_eq.mp hw with hw' | rfl
-              · obtain ⟨id, hId0, hc, hs⟩ := inv.writeStep_in_hist j w hw' hwrite
-                have hne_id : id ≠ st.opId := by
-                  intro heq; subst id; rw [hrec_i] at hs; cases hs
-                refine ⟨id, by omega, ?_, ?_⟩ <;>
-                  rw [hhist_at id (by omega) hId0, ite_eq_right_iff.mpr fun h => absurd h hne_id]
-                · exact hc
-                · exact hs
-              · exact absurd ⟨j, hwrite⟩ hnow
-        -- Helper when `scan_i` stays in `.scanning st_next` without touching `reg` or `history`!
+            exact inv.of_complete hId .scan (.doneScan t snap) nofun hrec_i
+              (Or.inl ⟨st, hpi, rfl⟩)
+              (by rw [← hfin, inv.stepCount_eq])
+              (by rw [← hfin])
+              (by rw [← hfin, inv.stepCount_eq])
+              (fun j hw => absurd ⟨j, hw⟩ hnow)
+              (fun resp sn hdone => by
+                injection hdone with hresp hsn; subst hresp hsn
+                exact ⟨rfl, hlt_t, Nat.lt_succ_self t, v_snap, hv₁, hv₂, hsnap_eq⟩)
+              (fun _ h => nomatch h)
+              (fun j hw => absurd ⟨j, hw⟩ hnow)
         have continueScan_inv : ∀ (st_next : ActiveScan P Data),
             st_next.opId = st.opId → st_next.mode = st.mode →
             ({ (τ.stateAt t) with
@@ -2008,102 +1787,79 @@ private theorem traceInv_holds (τ : SnapshotTrace ord dInit) :
           intro st_next hop_eq hmode_eq hs_eq hnext
           have hhist_eq : (τ.stateAt (t + 1)).history = (τ.stateAt t).history := by rw [← hs_eq]
           have hnot1 : (τ.stateAt (t + 1)).proc i ≠ .idle := by
-            rw [← hs_eq]; simp only [Function.update_self]; nofun
+            simp only [← hs_eq, Function.update_self]; nofun
           have hkeep := τ.lastIdleStep_keep i (by rw [hpi]; nofun) hnot1
-          refine localActive_inv (.scanning st_next) (by nofun) hs_eq
-            (Or.inl ⟨st_next, rfl, hop_eq⟩) (fun _ _ _ h => by cases h) ?_
+          refine inv.of_local_active hpi hnow (.scanning st_next) nofun hs_eq
+            (Or.inl ⟨st_next, rfl, hop_eq⟩) (fun _ _ _ h => nomatch h) ?_
           intro st' heq
-          injection heq with h1
-          subst h1
+          injection heq with h1; subst h1
           have hId₁ : st_next.opId < (τ.stateAt (t + 1)).history.length := by
             rw [hhist_eq, hop_eq]; exact hId
-          refine ⟨hId₁, ?_, by omega, ?_⟩
-          · rw [getElem_of_eq hhist_eq hId₁ (hop_eq ▸ hId),
-              getElem_congr_idx _ hop_eq (hop_eq ▸ hId) hId, hkeep, hmode_eq]
-            exact hrec_i
-          · rw [hkeep]; exact hnext
-        -- Now dispatch the 4 subcases of `(st.phase, st.rem)`!
+          refine ⟨hId₁, ?_, by omega, hkeep ▸ hnext⟩
+          rw [getElem_of_eq hhist_eq hId₁ (hop_eq ▸ hId),
+            getElem_congr_idx _ hop_eq (hop_eq ▸ hId) hId, hkeep, hmode_eq]
+          exact hrec_i
         cases hph : st.phase with
         | collectA =>
           cases hrem : st.rem with
           | cons j rest =>
-            simp only [hph, hrem] at hstep
-            injection hstep with hs₁
+            simp only [hph, hrem, Option.some.injEq] at hstep
             refine continueScan_inv
               { st with phase := .collectA, rem := rest,
                         collectAVal := Function.update st.collectAVal j ((τ.stateAt t).reg j) }
-              rfl rfl hs₁ ⟨iterS, hi₁, by omega, hmov, ?_, ?_⟩
-            · intro _ k hk
-              dsimp only at hk ⊢
-              by_cases hkj : k = j
-              · subst hkj
-                exact ⟨t, hi₂, by omega, Function.update_self _ _ _⟩
-              · have hk_not : k ∉ j :: rest := by
-                  simp only [List.mem_cons, not_or]; exact ⟨hkj, hk⟩
-                obtain ⟨tA, a1, a2, a3⟩ := hcA hph k (hrem ▸ hk_not)
-                exact ⟨tA, a1, by omega, (Function.update_of_ne hkj _ _).trans a3⟩
-            · intro hB; cases hB
+              rfl rfl hstep ⟨iterS, hi₁, by omega, hmov, ?_, by intro hB; cases hB⟩
+            intro _ k hk
+            dsimp only at hk ⊢
+            by_cases hkj : k = j
+            · subst hkj; exact ⟨t, hi₂, by omega, Function.update_self _ _ _⟩
+            · have hk_not : k ∉ j :: rest := by simp only [List.mem_cons, not_or]; exact ⟨hkj, hk⟩
+              obtain ⟨tA, a1, a2, a3⟩ := hcA hph k (hrem ▸ hk_not)
+              exact ⟨tA, a1, by omega, (Function.update_of_ne hkj _ _).trans a3⟩
           | nil =>
-            simp only [hph, hrem] at hstep
-            injection hstep with hs₁
+            simp only [hph, hrem, Option.some.injEq] at hstep
             refine continueScan_inv { st with phase := .collectB, rem := ord.elems }
-              rfl rfl hs₁ ⟨iterS, hi₁, by omega, hmov, ?_, ?_⟩
-            · intro hA; cases hA
-            · intro _
-              refine ⟨t, hi₂, by omega, ?_, ?_⟩
-              · intro k
-                exact hcA hph k (by simp only [hrem, List.not_mem_nil, not_false_eq_true])
-              · intro k hk; exact absurd (ord.complete k) hk
+              rfl rfl hstep ⟨iterS, hi₁, by omega, hmov, (by intro hA; cases hA), fun _ => ?_⟩
+            refine ⟨t, hi₂, by omega,
+              fun k => hcA hph k (by simp only [hrem, List.not_mem_nil, not_false_eq_true]),
+              fun k hk => absurd (ord.complete k) hk⟩
         | collectB =>
           obtain ⟨u, hu₁, hu₂, ha_all, hb_rem⟩ := hcB hph
           cases hrem : st.rem with
           | cons j rest =>
-            simp only [hph, hrem] at hstep
-            injection hstep with hs₁
+            simp only [hph, hrem, Option.some.injEq] at hstep
             refine continueScan_inv
               { st with phase := .collectB, rem := rest,
                         collectBVal := Function.update st.collectBVal j ((τ.stateAt t).reg j) }
-              rfl rfl hs₁ ⟨iterS, hi₁, by omega, hmov, ?_, ?_⟩
-            · intro hA; cases hA
-            · intro _
-              refine ⟨u, hu₁, by omega, ha_all, fun k hk => ?_⟩
-              dsimp only at hk ⊢
-              by_cases hkj : k = j
-              · subst hkj
-                exact ⟨t, hu₂, by omega, Function.update_self _ _ _⟩
-              · have hk_not : k ∉ j :: rest := by
-                  simp only [List.mem_cons, not_or]; exact ⟨hkj, hk⟩
-                obtain ⟨tB, b1, b2, b3⟩ := hb_rem k (hrem ▸ hk_not)
-                exact ⟨tB, b1, by omega, (Function.update_of_ne hkj _ _).trans b3⟩
+              rfl rfl hstep ⟨iterS, hi₁, by omega, hmov, (by intro hA; cases hA), fun _ => ?_⟩
+            refine ⟨u, hu₁, by omega, ha_all, fun k hk => ?_⟩
+            dsimp only at hk ⊢
+            by_cases hkj : k = j
+            · subst hkj; exact ⟨t, hu₂, by omega, Function.update_self _ _ _⟩
+            · have hk_not : k ∉ j :: rest := by simp only [List.mem_cons, not_or]; exact ⟨hkj, hk⟩
+              obtain ⟨tB, b1, b2, b3⟩ := hb_rem k (hrem ▸ hk_not)
+              exact ⟨tB, b1, by omega, (Function.update_of_ne hkj _ _).trans b3⟩
           | nil =>
             simp only [hph, hrem] at hstep
             have hb_all : ∀ k, ∃ tB, u ≤ tB ∧ tB ≤ t ∧
                 st.collectBVal k = (τ.stateAt tB).reg k := fun k =>
               hb_rem k (by simp only [hrem, List.not_mem_nil, not_false_eq_true])
             split_ifs at hstep with hclean
-            · -- **Clean Double Collect (Lemma 3.1)!**
-              injection hstep with hs₁
+            · injection hstep with hs₁
               choose tA htA₁ htA₂ htA_eq using ha_all
               choose tB htB₁ htB₂ htB_eq using hb_all
               have hseq_eq : ∀ k,
-                  ((τ.stateAt (tA k)).reg k).seq = ((τ.stateAt (tB k)).reg k).seq := by
-                intro k
-                have := hclean k
-                rwa [htA_eq k, htB_eq k] at this
+                  ((τ.stateAt (tA k)).reg k).seq = ((τ.stateAt (tB k)).reg k).seq := fun k => by
+                have := hclean k; rwa [htA_eq k, htB_eq k] at this
               have hsnap_u : memSnapshot (τ.stateAt u).reg =
                   fun k => (st.collectBVal k).data := by
                 have h31 := τ.memSnapshot_eq_of_clean_double_collect htA₂ le_rfl htB₁
                   (fun k => le_trans (htB₂ k) (Nat.le_of_succ_le ht)) hseq_eq le_rfl le_rfl
-                rw [h31]
-                funext k
-                rw [htB_eq k]
+                rw [h31]; funext k; rw [htB_eq k]
               exact finishScan_inv _ ⟨u, le_trans hi₁ hu₁, hu₂, hsnap_u⟩ hs₁
-            · -- Unsuccessful double collect: check if some `k` moved twice (`Lemma 3.2`)!
-              cases hfind : (ord.elems.find? fun k =>
+            · cases hfind : (ord.elems.find? fun k =>
                   decide ((st.collectAVal k).seq ≠ (st.collectBVal k).seq ∧ k ∈ st.moved)) with
               | some k =>
-                simp only [hfind] at hstep
-                injection hstep with hs₁
+                simp only [hfind, Option.some.injEq] at hstep
                 have hk_bool := List.find?_some hfind
                 have hk_pred : (st.collectAVal k).seq ≠ (st.collectBVal k).seq ∧ k ∈ st.moved :=
                   of_decide_eq_true hk_bool
@@ -2111,12 +1867,10 @@ private theorem traceInv_holds (τ : SnapshotTrace ord dInit) :
                 obtain ⟨tA, htA₁, htA₂, htA_eq⟩ := ha_all k
                 obtain ⟨tB, htB₁, htB₂, htB_eq⟩ := hb_all k
                 have hseq_ne : ((τ.stateAt tA).reg k).seq ≠ ((τ.stateAt tB).reg k).seq := by
-                  have := hk_pred.1
-                  rwa [htA_eq, htB_eq] at this
+                  have := hk_pred.1; rwa [htA_eq, htB_eq] at this
                 obtain ⟨w₂, hw₂_lo, hw₂_hi, hw₂_write⟩ :=
                   τ.exists_writeStep_of_seq_ne k (le_trans htA₂ htB₁)
                     (le_trans htB₂ (Nat.le_of_succ_le ht)) hseq_ne
-                -- Hence `(τ.stateAt tB).reg k` has `.seq > 0`!
                 have hpos : 0 < ((τ.stateAt tB).reg k).seq := by
                   rcases τ.reg_step_iff (t := w₂) k (by omega) with
                       ⟨-, hnw⟩ | ⟨_, _, _, -, -, hreg', -⟩
@@ -2129,49 +1883,44 @@ private theorem traceInv_holds (τ : SnapshotTrace ord dInit) :
                 obtain ⟨w_star, hw_star_lt, hw_star_write, hw_star_reg, hnow_after⟩ :=
                   τ.exists_last_writeStep_of_seq_pos k
                     (le_trans htB₂ (Nat.le_of_succ_le ht)) hpos
-                -- Note `w₂ ≤ w_star` (otherwise `hnow_after w₂` contradicts `hw₂_write`!)
                 have hw₂_le_star : w₂ ≤ w_star := by
                   by_contra hlt_star
                   exact hnow_after w₂ (by omega) hw₂_hi hw₂_write
-                -- At `w₁ + 1`, `proc k = .idle` because `isWriteStep τ k w₁`!
                 have hidle_w₁ : (τ.stateAt (w₁ + 1)).proc k = .idle := by
                   rcases τ.reg_step_iff (t := w₁) k (by omega) with
                       ⟨-, hnw⟩ | ⟨_, _, _, -, -, -, hidle'⟩
                   · exact absurd hw₁_write hnw
                   · exact hidle'
-                have hw₁_lt_star : w₁ + 1 ≤ w_star := by omega
                 have hlast_ge : w₁ + 1 ≤ τ.lastIdleStep k w_star :=
-                  τ.le_lastIdleStep_of_idle k hw₁_lt_star hidle_w₁
+                  τ.le_lastIdleStep_of_idle k (by omega) hidle_w₁
                 obtain ⟨v_k, hv_k_lo, hv_k_hi, hv_k_snap⟩ :=
                   inv.reg_view_valid k w_star (by omega) hw_star_write
                 have hview_eq :
                     (st.collectBVal k).view = ((τ.stateAt (w_star + 1)).reg k).view := by
                   rw [htB_eq, hw_star_reg]
                 exact finishScan_inv _
-                  ⟨v_k, by omega, by omega, hv_k_snap.trans hview_eq.symm⟩ hs₁
+                  ⟨v_k, by omega, by omega, hv_k_snap.trans hview_eq.symm⟩ hstep
               | none =>
-                simp only [hfind] at hstep
-                injection hstep with hs₁
+                simp only [hfind, Option.some.injEq] at hstep
                 let changed := univ.filter fun k =>
                   (st.collectAVal k).seq ≠ (st.collectBVal k).seq
                 refine continueScan_inv
                   { st with moved := st.moved ∪ changed, phase := .collectA, rem := ord.elems }
-                  rfl rfl hs₁ ⟨t + 1, by omega, le_rfl, ?_, ?_, ?_⟩
-                · intro k hk
-                  dsimp only at hk
-                  rcases mem_union.mp hk with hk_old | hk_new
-                  · obtain ⟨w₁, h1, h2, h3⟩ := hmov k hk_old
-                    exact ⟨w₁, h1, by omega, h3⟩
-                  · have hne_k := (mem_filter.mp hk_new).2
-                    obtain ⟨tA, htA₁, htA₂, htA_eq⟩ := ha_all k
-                    obtain ⟨tB, htB₁, htB₂, htB_eq⟩ := hb_all k
-                    rw [htA_eq, htB_eq] at hne_k
-                    obtain ⟨w₁, hw₁_lo, hw₁_hi, hw₁_w⟩ :=
-                      τ.exists_writeStep_of_seq_ne k (le_trans htA₂ htB₁)
-                        (le_trans htB₂ (Nat.le_of_succ_le ht)) hne_k
-                    exact ⟨w₁, by omega, by omega, hw₁_w⟩
-                · intro _ k hk; exact absurd (ord.complete k) hk
-                · intro hB; cases hB
+                  rfl rfl hstep ⟨t + 1, by omega, le_rfl, ?_,
+                    fun _ k hk => absurd (ord.complete k) hk, by intro hB; cases hB⟩
+                intro k hk
+                dsimp only at hk
+                rcases mem_union.mp hk with hk_old | hk_new
+                · obtain ⟨w₁, h1, h2, h3⟩ := hmov k hk_old
+                  exact ⟨w₁, h1, by omega, h3⟩
+                · have hne_k := (mem_filter.mp hk_new).2
+                  obtain ⟨tA, htA₁, htA₂, htA_eq⟩ := ha_all k
+                  obtain ⟨tB, htB₁, htB₂, htB_eq⟩ := hb_all k
+                  rw [htA_eq, htB_eq] at hne_k
+                  obtain ⟨w₁, hw₁_lo, hw₁_hi, hw₁_w⟩ :=
+                    τ.exists_writeStep_of_seq_ne k (le_trans htA₂ htB₁)
+                      (le_trans htB₂ (Nat.le_of_succ_le ht)) hne_k
+                  exact ⟨w₁, by omega, by omega, hw₁_w⟩
 
 end SnapshotTrace
 
@@ -2199,6 +1948,27 @@ private theorem seqSnapshotMemAfter_append {P Data : Type*} [DecidableEq P] (mem
   | nil => rfl
   | cons _ _ ih => exact ih _
 
+private theorem getElem_completeHistoryAt_of_status_ne {P Data : Type*}
+    {hist : List (SnapshotOpRecord P Data)} {opId k : ℕ} {newSt st : SnapshotOpStatus P Data}
+    (hne : st ≠ newSt) (hk : k < (completeHistoryAt hist opId newSt).length)
+    (hst : ((completeHistoryAt hist opId newSt)[k]'hk).status = st) :
+    ∃ hk₀ : k < hist.length, (completeHistoryAt hist opId newSt)[k]'hk = hist[k]'hk₀ := by
+  have hk₀ : k < hist.length := (length_completeHistoryAt hist opId newSt) ▸ hk
+  refine ⟨hk₀, ?_⟩
+  by_cases hop : opId < hist.length
+  · have hset : completeHistoryAt hist opId newSt =
+        hist.set opId { hist[opId] with status := newSt } := by
+      simp only [completeHistoryAt, List.getElem?_eq_getElem hop]
+    rw [SnapshotTrace.getElem_of_eq hset hk (by simp only [List.length_set]; exact hk₀)] at hst ⊢
+    by_cases hko : k = opId
+    · subst hko
+      rw [List.getElem_set_self] at hst
+      exact absurd hst.symm hne
+    · rw [List.getElem_set_ne (Ne.symm hko)]
+  · have hset : completeHistoryAt hist opId newSt = hist := by
+      simp only [completeHistoryAt, List.getElem?_eq_none (Nat.le_of_not_lt hop)]
+    exact SnapshotTrace.getElem_of_eq hset hk hk₀
+
 /-- Distinct history entries never carry the same `.doneUpdate w` completion step. -/
 private theorem doneUpdate_inj_of_trace {P Data : Type*} [Fintype P] [DecidableEq P]
     {ord : ScanOrder P} {dInit : Data} (τ : SnapshotTrace ord dInit) :
@@ -2211,160 +1981,81 @@ private theorem doneUpdate_inj_of_trace {P Data : Type*} [Fintype P] [DecidableE
   intro t ht
   induction t with
   | zero =>
-    intro id₁ _ h₁
-    rw [SnapshotTrace.stateAt_zero] at h₁
-    cases h₁
+    intro id₁ _ h₁; rw [SnapshotTrace.stateAt_zero] at h₁; cases h₁
   | succ t ih =>
     have ht_lt : t < τ.events.length := Nat.lt_of_succ_le ht
     have inv := τ.traceInv_holds t (Nat.le_of_succ_le ht)
     have ih_t := ih (Nat.le_of_succ_le ht)
-    have hstep := τ.stateAt_step ht_lt
     intro id₁ id₂ h₁ h₂ w hst₁ hst₂
-    -- Helper when history appends one `.pending` record
-    have append_pending_case : ∀ rec_new,
-        rec_new.status = .pending →
-        (τ.stateAt (t + 1)).history = (τ.stateAt t).history ++ [rec_new] →
-        id₁ = id₂ := by
-      intro rec_new hpend hhist
-      have hlt₁ : id₁ < (τ.stateAt t).history.length := by
-        by_contra hge
-        have heq : id₁ = (τ.stateAt t).history.length := by
-          rw [hhist, List.length_append, List.length_singleton] at h₁; omega
-        subst heq
-        simp only [hhist, List.getElem_append_right (le_refl _), Nat.sub_self,
-          List.getElem_singleton] at hst₁
-        rw [hpend] at hst₁; cases hst₁
-      have hlt₂ : id₂ < (τ.stateAt t).history.length := by
-        by_contra hge
-        have heq : id₂ = (τ.stateAt t).history.length := by
-          rw [hhist, List.length_append, List.length_singleton] at h₂; omega
-        subst heq
-        simp only [hhist, List.getElem_append_right (le_refl _), Nat.sub_self,
-          List.getElem_singleton] at hst₂
-        rw [hpend] at hst₂; cases hst₂
-      simp only [hhist, List.getElem_append_left hlt₁] at hst₁
-      simp only [hhist, List.getElem_append_left hlt₂] at hst₂
-      exact ih_t id₁ id₂ hlt₁ hlt₂ w hst₁ hst₂
-    rcases hev : τ.events[t] with i | ⟨i, val⟩ | i
-    · rw [hev] at hstep
-      obtain ⟨-, hs₁⟩ := stepSnapshot_invokeScan_eq hstep
-      exact append_pending_case _ rfl (by rw [← hs₁])
-    · rw [hev] at hstep
-      obtain ⟨-, hs₁⟩ := stepSnapshot_invokeUpdate_eq hstep
-      exact append_pending_case _ rfl (by rw [← hs₁])
-    · rw [hev] at hstep; unfold stepSnapshot at hstep
-      cases hpi : (τ.stateAt t).proc i with
-      | idle => simp only [hpi] at hstep; nomatch hstep
-      | readyToWrite opId val snap =>
-        simp only [hpi] at hstep
-        injection hstep with hs₁
-        obtain ⟨hOp, hrec_i, -, -⟩ := inv.proc_ready i opId val snap hpi
-        have hget_op : (τ.stateAt t).history[opId]? =
-            some ⟨i, .update val, τ.lastIdleStep i t, .pending⟩ := by
-          rw [List.getElem?_eq_getElem hOp, hrec_i]
-        have hset : (τ.stateAt (t + 1)).history =
-            (τ.stateAt t).history.set opId
-              ⟨i, .update val, τ.lastIdleStep i t, .doneUpdate t⟩ := by
-          rw [← hs₁]; simp only [completeHistoryAt, hget_op, inv.stepCount_eq]
-        have hlen_eq : (τ.stateAt (t + 1)).history.length = (τ.stateAt t).history.length := by
-          rw [hset, List.length_set]
-        by_cases heq₁ : id₁ = opId <;> by_cases heq₂ : id₂ = opId
-        · exact heq₁.trans heq₂.symm
-        · subst id₁
-          rw [SnapshotTrace.getElem_of_eq hset h₁ (by simp only [List.length_set]; exact hOp),
-            List.getElem_set_self] at hst₁
-          injection hst₁ with hw_eq; subst w
-          rw [SnapshotTrace.getElem_of_eq hset h₂
-            (by simp only [List.length_set]; exact hlen_eq ▸ h₂),
-            List.getElem_set_ne (Ne.symm heq₂)] at hst₂
-          obtain ⟨_, -, -, hwt, -⟩ := inv.hist_doneUpdate id₂ (hlen_eq ▸ h₂) t hst₂
+    rcases (stepSnapshot_effect (τ.stateAt_step ht_lt)).2 with
+        ⟨i, opId, val, snap, -, hpi, hs₁⟩ |
+        ⟨-, -, hhist | ⟨rec, hpend, hhist⟩ | ⟨_, st, sn, -, -, -, hhist⟩⟩
+    · have hhist : (τ.stateAt (t + 1)).history =
+          completeHistoryAt (τ.stateAt t).history opId (.doneUpdate t) := by
+        rw [hs₁, inv.stepCount_eq]
+      by_cases hwt : w = t
+      · subst w
+        have eq_opId : ∀ {k} (hk : k < (τ.stateAt (t + 1)).history.length),
+            ((τ.stateAt (t + 1)).history[k]'hk).status = .doneUpdate t → k = opId := by
+          intro k hk hst
+          by_contra hne
+          have hk_c : k < (completeHistoryAt (τ.stateAt t).history opId (.doneUpdate t)).length :=
+            hhist ▸ hk
+          have hk₀ : k < (τ.stateAt t).history.length :=
+            (length_completeHistoryAt _ _ _) ▸ hk_c
+          obtain ⟨hOp, hrec_i, -, -⟩ := inv.proc_ready i opId val snap hpi
+          have hget_op : (τ.stateAt t).history[opId]? =
+              some ⟨i, .update val, τ.lastIdleStep i t, .pending⟩ := by
+            rw [List.getElem?_eq_getElem hOp, hrec_i]
+          have hset : (τ.stateAt (t + 1)).history =
+              (τ.stateAt t).history.set opId
+                ⟨i, .update val, τ.lastIdleStep i t, .doneUpdate t⟩ := by
+            rw [hhist]; simp only [completeHistoryAt, hget_op]
+          rw [SnapshotTrace.getElem_of_eq hset hk (by simp only [List.length_set]; exact hk₀),
+            List.getElem_set_ne (Ne.symm hne)] at hst
+          obtain ⟨_, -, -, hlt_w, -⟩ := inv.hist_doneUpdate k hk₀ t hst
           omega
-        · subst id₂
-          rw [SnapshotTrace.getElem_of_eq hset h₂ (by simp only [List.length_set]; exact hOp),
-            List.getElem_set_self] at hst₂
-          injection hst₂ with hw_eq; subst w
-          rw [SnapshotTrace.getElem_of_eq hset h₁
-            (by simp only [List.length_set]; exact hlen_eq ▸ h₁),
-            List.getElem_set_ne (Ne.symm heq₁)] at hst₁
-          obtain ⟨_, -, -, hwt, -⟩ := inv.hist_doneUpdate id₁ (hlen_eq ▸ h₁) t hst₁
-          omega
-        · rw [SnapshotTrace.getElem_of_eq hset h₁
-            (by simp only [List.length_set]; exact hlen_eq ▸ h₁),
-            List.getElem_set_ne (Ne.symm heq₁)] at hst₁
-          rw [SnapshotTrace.getElem_of_eq hset h₂
-            (by simp only [List.length_set]; exact hlen_eq ▸ h₂),
-            List.getElem_set_ne (Ne.symm heq₂)] at hst₂
-          exact ih_t id₁ id₂ (hlen_eq ▸ h₁) (hlen_eq ▸ h₂) w hst₁ hst₂
-      | scanning st =>
-        simp only [hpi] at hstep
-        have finish_case : ∀ snap,
-            finishScan (τ.stateAt t) i st.mode st.opId snap = τ.stateAt (t + 1) → id₁ = id₂ := by
-          intro snap hfin
-          unfold finishScan at hfin
-          cases hm : st.mode
-          · -- `.external`: sets `st.opId` to `.doneScan`, not `.doneUpdate`
-            rw [hm] at hfin
-            have hlen_eq : (τ.stateAt (t + 1)).history.length = (τ.stateAt t).history.length := by
-              rw [← hfin]; exact length_completeHistoryAt _ _ _
-            obtain ⟨hOp, hrec_i, -, -⟩ := inv.proc_scan i st hpi
-            rw [hm] at hrec_i
-            have hget_op : (τ.stateAt t).history[st.opId]? =
-                some ⟨i, .scan, τ.lastIdleStep i t, .pending⟩ := by
-              rw [List.getElem?_eq_getElem hOp, hrec_i]
-            have hset : (τ.stateAt (t + 1)).history =
-                (τ.stateAt t).history.set st.opId
-                  ⟨i, .scan, τ.lastIdleStep i t, .doneScan t snap⟩ := by
-              rw [← hfin]; simp only [completeHistoryAt, hget_op, inv.stepCount_eq]
-            have hne₁ : id₁ ≠ st.opId := by
-              intro heq; subst id₁
-              rw [SnapshotTrace.getElem_of_eq hset h₁ (by simp only [List.length_set]; exact hOp),
-                List.getElem_set_self] at hst₁
-              cases hst₁
-            have hne₂ : id₂ ≠ st.opId := by
-              intro heq; subst id₂
-              rw [SnapshotTrace.getElem_of_eq hset h₂ (by simp only [List.length_set]; exact hOp),
-                List.getElem_set_self] at hst₂
-              cases hst₂
-            rw [SnapshotTrace.getElem_of_eq hset h₁
-              (by simp only [List.length_set]; exact hlen_eq ▸ h₁),
-              List.getElem_set_ne (Ne.symm hne₁)] at hst₁
-            rw [SnapshotTrace.getElem_of_eq hset h₂
-              (by simp only [List.length_set]; exact hlen_eq ▸ h₂),
-              List.getElem_set_ne (Ne.symm hne₂)] at hst₂
-            exact ih_t id₁ id₂ (hlen_eq ▸ h₁) (hlen_eq ▸ h₂) w hst₁ hst₂
-          · -- `.embedded`: history unchanged
-            rw [hm] at hfin
-            have hhist : (τ.stateAt (t + 1)).history = (τ.stateAt t).history := by rw [← hfin]
-            exact ih_t id₁ id₂ (hhist ▸ h₁) (hhist ▸ h₂) w
-              (by rwa [SnapshotTrace.getElem_of_eq hhist h₁ (hhist ▸ h₁)] at hst₁)
-              (by rwa [SnapshotTrace.getElem_of_eq hhist h₂ (hhist ▸ h₂)] at hst₂)
-        cases hph : st.phase <;> cases hrem : st.rem <;> simp only [hph, hrem] at hstep
-        · injection hstep with hs₁
-          have hhist : (τ.stateAt (t + 1)).history = (τ.stateAt t).history := by rw [← hs₁]
-          exact ih_t id₁ id₂ (hhist ▸ h₁) (hhist ▸ h₂) w
-            (by rwa [SnapshotTrace.getElem_of_eq hhist h₁ (hhist ▸ h₁)] at hst₁)
-            (by rwa [SnapshotTrace.getElem_of_eq hhist h₂ (hhist ▸ h₂)] at hst₂)
-        · injection hstep with hs₁
-          have hhist : (τ.stateAt (t + 1)).history = (τ.stateAt t).history := by rw [← hs₁]
-          exact ih_t id₁ id₂ (hhist ▸ h₁) (hhist ▸ h₂) w
-            (by rwa [SnapshotTrace.getElem_of_eq hhist h₁ (hhist ▸ h₁)] at hst₁)
-            (by rwa [SnapshotTrace.getElem_of_eq hhist h₂ (hhist ▸ h₂)] at hst₂)
-        · split_ifs at hstep with hclean
-          · injection hstep with hs₁; exact finish_case _ hs₁
-          · cases hfind : (ord.elems.find? fun k =>
-                decide ((st.collectAVal k).seq ≠ (st.collectBVal k).seq ∧ k ∈ st.moved)) <;>
-              simp only [hfind] at hstep
-            · injection hstep with hs₁
-              have hhist : (τ.stateAt (t + 1)).history = (τ.stateAt t).history := by rw [← hs₁]
-              exact ih_t id₁ id₂ (hhist ▸ h₁) (hhist ▸ h₂) w
-                (by rwa [SnapshotTrace.getElem_of_eq hhist h₁ (hhist ▸ h₁)] at hst₁)
-                (by rwa [SnapshotTrace.getElem_of_eq hhist h₂ (hhist ▸ h₂)] at hst₂)
-            · injection hstep with hs₁; exact finish_case _ hs₁
-        · injection hstep with hs₁
-          have hhist : (τ.stateAt (t + 1)).history = (τ.stateAt t).history := by rw [← hs₁]
-          exact ih_t id₁ id₂ (hhist ▸ h₁) (hhist ▸ h₂) w
-            (by rwa [SnapshotTrace.getElem_of_eq hhist h₁ (hhist ▸ h₁)] at hst₁)
-            (by rwa [SnapshotTrace.getElem_of_eq hhist h₂ (hhist ▸ h₂)] at hst₂)
+        exact (eq_opId h₁ hst₁).trans (eq_opId h₂ hst₂).symm
+      · have hne_st : SnapshotOpStatus.doneUpdate (P := P) (Data := Data) w ≠ .doneUpdate t :=
+          fun h => hwt (SnapshotOpStatus.doneUpdate.inj h)
+        have h₁' := hhist ▸ h₁
+        have h₂' := hhist ▸ h₂
+        rw [SnapshotTrace.getElem_of_eq hhist h₁ h₁'] at hst₁
+        rw [SnapshotTrace.getElem_of_eq hhist h₂ h₂'] at hst₂
+        obtain ⟨hk₁, heq₁⟩ := getElem_completeHistoryAt_of_status_ne hne_st h₁' hst₁
+        obtain ⟨hk₂, heq₂⟩ := getElem_completeHistoryAt_of_status_ne hne_st h₂' hst₂
+        exact ih_t id₁ id₂ hk₁ hk₂ w (heq₁ ▸ hst₁) (heq₂ ▸ hst₂)
+    · exact ih_t id₁ id₂ (hhist ▸ h₁) (hhist ▸ h₂) w
+        (by rwa [SnapshotTrace.getElem_of_eq hhist h₁ (hhist ▸ h₁)] at hst₁)
+        (by rwa [SnapshotTrace.getElem_of_eq hhist h₂ (hhist ▸ h₂)] at hst₂)
+    · have lt_old : ∀ {k} (hk : k < (τ.stateAt (t + 1)).history.length),
+          ((τ.stateAt (t + 1)).history[k]'hk).status = .doneUpdate w →
+          ∃ hk₀ : k < (τ.stateAt t).history.length,
+            ((τ.stateAt t).history[k]'hk₀).status = .doneUpdate w := by
+        intro k hk hst
+        have hk₀ : k < (τ.stateAt t).history.length := by
+          by_contra hge
+          have heq : k = (τ.stateAt t).history.length := by
+            rw [hhist, List.length_append, List.length_singleton] at hk; omega
+          subst heq
+          rw [SnapshotTrace.getElem_of_eq hhist hk
+            (by rw [List.length_append, List.length_singleton]; omega)] at hst
+          simp only [List.getElem_append_right (le_refl _), Nat.sub_self,
+            List.getElem_singleton, hpend] at hst
+          cases hst
+        refine ⟨hk₀, ?_⟩
+        rwa [SnapshotTrace.getElem_of_eq hhist hk (by rw [List.length_append]; omega),
+          List.getElem_append_left hk₀] at hst
+      obtain ⟨hk₁, hs₁'⟩ := lt_old h₁ hst₁
+      obtain ⟨hk₂, hs₂'⟩ := lt_old h₂ hst₂
+      exact ih_t id₁ id₂ hk₁ hk₂ w hs₁' hs₂'
+    · have h₁' := hhist ▸ h₁
+      have h₂' := hhist ▸ h₂
+      rw [SnapshotTrace.getElem_of_eq hhist h₁ h₁'] at hst₁
+      rw [SnapshotTrace.getElem_of_eq hhist h₂ h₂'] at hst₂
+      obtain ⟨hk₁, heq₁⟩ := getElem_completeHistoryAt_of_status_ne (fun h => by cases h) h₁' hst₁
+      obtain ⟨hk₂, heq₂⟩ := getElem_completeHistoryAt_of_status_ne (fun h => by cases h) h₂' hst₂
+      exact ih_t id₁ id₂ hk₁ hk₂ w (heq₁ ▸ hst₁) (heq₂ ▸ hst₂)
 
 /-- Internal trace-level proof of `unbounded_snapshotLinearizable_of_reachable`. -/
 private theorem snapshotLinearizable_of_trace {P Data : Type*} [Fintype P] [DecidableEq P]
@@ -2374,9 +2065,6 @@ private theorem snapshotLinearizable_of_trace {P Data : Type*} [Fintype P] [Deci
   set T := τ.events.length
   have inv := τ.traceInv_holds T le_rfl
   have hinj := doneUpdate_inj_of_trace τ T le_rfl
-  -- Assign each completed operation `id < history.length` its trace block `blockOf id ≤ T`:
-  -- - completed scan: chosen serialization state `v` (`invStep + 1 ≤ v ≤ resp`)
-  -- - completed update: write step `w = resp` (`invStep < w < T`)
   let scanPoint (invStep resp : ℕ) (snap : P → Data) : ℕ :=
     if h : ∃ v, invStep + 1 ≤ v ∧ v ≤ resp ∧ memSnapshot (τ.stateAt v).reg = snap then
       Classical.choose h
@@ -2387,9 +2075,7 @@ private theorem snapshotLinearizable_of_trace {P Data : Type*} [Fintype P] [Deci
         scanPoint invStep resp snap ≤ resp ∧
         memSnapshot (τ.stateAt (scanPoint invStep resp snap)).reg = snap := by
     intro invStep resp snap hex
-    dsimp only [scanPoint]
-    simp only [hex, ↓reduceDIte]
-    exact Classical.choose_spec hex
+    dsimp only [scanPoint]; simp only [hex, ↓reduceDIte]; exact Classical.choose_spec hex
   let blockOf : ℕ → Option ℕ := fun id =>
     match (τ.stateAt T).history[id]? with
     | none => none
@@ -2410,7 +2096,47 @@ private theorem snapshotLinearizable_of_trace {P Data : Type*} [Fintype P] [Deci
           some (.doneUpdate w))
   let chunk : ℕ → List ℕ := fun t => scansAt t ++ updatesAt t
   let prefixSeq : ℕ → List ℕ := fun k => (List.range k).flatMap chunk
-  -- Properties of `scansAt t` and `updatesAt t`
+  have mem_scansAt_iff : ∀ t id, id ∈ scansAt t ↔
+      ∃ (hId : id < (τ.stateAt T).history.length) (r : ℕ) (sn : P → Data),
+        ((τ.stateAt T).history[id]'hId).status = .doneScan r sn ∧
+        scanPoint ((τ.stateAt T).history[id]'hId).invStep r sn = t := by
+    intro t id
+    dsimp only [scansAt]
+    simp only [List.mem_filter, List.mem_range, decide_eq_true_eq]
+    constructor
+    · rintro ⟨hId, hblk, r, sn, hmap⟩
+      have hget := List.getElem?_eq_getElem (l := (τ.stateAt T).history) hId
+      rw [hget, Option.map_some, Option.some.injEq] at hmap
+      dsimp only [blockOf] at hblk
+      simp only [hget, hmap, Option.some.injEq] at hblk
+      exact ⟨hId, r, sn, hmap, hblk⟩
+    · rintro ⟨hId, r, sn, hstat, hsp⟩
+      have hget := List.getElem?_eq_getElem (l := (τ.stateAt T).history) hId
+      refine ⟨hId, ?_, r, sn, by rw [hget, Option.map_some, hstat]⟩
+      dsimp only [blockOf]; simp only [hget, hstat, hsp]
+  have mem_updatesAt_iff : ∀ t id, id ∈ updatesAt t ↔
+      ∃ hId : id < (τ.stateAt T).history.length,
+        ((τ.stateAt T).history[id]'hId).status = .doneUpdate t := by
+    intro t id
+    dsimp only [updatesAt]
+    simp only [List.mem_filter, List.mem_range, decide_eq_true_eq]
+    constructor
+    · rintro ⟨hId, hblk, w, hmap⟩
+      have hget := List.getElem?_eq_getElem (l := (τ.stateAt T).history) hId
+      rw [hget, Option.map_some, Option.some.injEq] at hmap
+      dsimp only [blockOf] at hblk
+      simp only [hget, hmap, Option.some.injEq] at hblk
+      exact ⟨hId, hblk ▸ hmap⟩
+    · rintro ⟨hId, hstat⟩
+      have hget := List.getElem?_eq_getElem (l := (τ.stateAt T).history) hId
+      refine ⟨hId, ?_, t, by rw [hget, Option.map_some, hstat]⟩
+      dsimp only [blockOf]; simp only [hget, hstat]
+  have hchunk_blk : ∀ t x, x ∈ chunk t → blockOf x = some t := by
+    intro t x hx
+    rcases List.mem_append.mp hx with hx | hx <;>
+      dsimp only [scansAt, updatesAt] at hx <;>
+      simp only [List.mem_filter, decide_eq_true_eq] at hx <;>
+      exact hx.2.1
   have scansAt_valid : ∀ t ≤ T,
       seqSnapshotMemAfter (memSnapshot (τ.stateAt t).reg) (τ.stateAt T).history (scansAt t) =
         memSnapshot (τ.stateAt t).reg ∧
@@ -2425,28 +2151,19 @@ private theorem snapshotLinearizable_of_trace {P Data : Type*} [Fintype P] [Deci
         seqSnapshotMemAfter (memSnapshot (τ.stateAt t).reg) (τ.stateAt T).history xs =
           memSnapshot (τ.stateAt t).reg ∧
         seqSnapshotValid (memSnapshot (τ.stateAt t).reg) (τ.stateAt T).history xs by
-      apply this (scansAt t)
-      intro id hid
-      dsimp only [scansAt] at hid
-      simp only [List.mem_filter, List.mem_range, decide_eq_true_eq] at hid
-      obtain ⟨hId, hblk, r, sn, hmap⟩ := hid
-      have hget : (τ.stateAt T).history[id]? = some ((τ.stateAt T).history[id]'hId) :=
-        List.getElem?_eq_getElem hId
-      rw [hget, Option.map_some, Option.some.injEq] at hmap
-      dsimp only [blockOf] at hblk
-      simp only [hget, hmap, Option.some.injEq] at hblk
-      have hscan := inv.hist_doneScan id hId r sn hmap
+      refine this (scansAt t) fun id hid => ?_
+      obtain ⟨hId, r, sn, hstat, hsp⟩ := (mem_scansAt_iff t id).mp hid
+      have hscan := inv.hist_doneScan id hId r sn hstat
       have hv_spec := scanPoint_spec hscan.2.2.2
-      rw [hblk] at hv_spec
-      exact ⟨hId, r, sn, hscan.1, hmap, hv_spec.2.2.symm⟩
+      rw [hsp] at hv_spec
+      exact ⟨hId, r, sn, hscan.1, hstat, hv_spec.2.2.symm⟩
     intro xs hpred
     induction xs with
     | nil => exact ⟨rfl, trivial⟩
     | cons id rest ih_s =>
       obtain ⟨hId, resp, snap, hkind, hstat, hsnap⟩ := hpred id List.mem_cons_self
       obtain ⟨hm_rest, hv_rest⟩ := ih_s fun x hx => hpred x (List.mem_cons_of_mem id hx)
-      have hget : (τ.stateAt T).history[id]? = some ((τ.stateAt T).history[id]'hId) :=
-        List.getElem?_eq_getElem hId
+      have hget := List.getElem?_eq_getElem (l := (τ.stateAt T).history) hId
       simp only [seqSnapshotMemAfter, seqSnapshotValid, hget, hkind, hstat]
       exact ⟨hm_rest, hsnap, hv_rest⟩
   have updatesAt_valid : ∀ t < T,
@@ -2457,71 +2174,42 @@ private theorem snapshotLinearizable_of_trace {P Data : Type*} [Fintype P] [Deci
     by_cases hw : ∃ j, τ.isWriteStep j t
     · obtain ⟨j, hjw⟩ := hw
       obtain ⟨id₀, hId₀, hcaller₀, hstat₀⟩ := inv.writeStep_in_hist j t ht_lt hjw
-      have hget₀ : (τ.stateAt T).history[id₀]? = some ((τ.stateAt T).history[id₀]'hId₀) :=
-        List.getElem?_eq_getElem hId₀
+      have hget₀ := List.getElem?_eq_getElem (l := (τ.stateAt T).history) hId₀
       have hupd_eq : updatesAt t = [id₀] := by
-        have hmem_iff : ∀ x, x ∈ updatesAt t ↔ x = id₀ := by
-          intro x
-          dsimp only [updatesAt]
-          simp only [List.mem_filter, List.mem_range, decide_eq_true_eq]
-          constructor
-          · rintro ⟨hx, hblk, w, hmap⟩
-            have hgetx : (τ.stateAt T).history[x]? = some ((τ.stateAt T).history[x]'hx) :=
-              List.getElem?_eq_getElem hx
-            rw [hgetx, Option.map_some, Option.some.injEq] at hmap
-            dsimp only [blockOf] at hblk
-            simp only [hgetx, hmap, Option.some.injEq] at hblk
-            subst w
-            exact hinj x id₀ hx hId₀ t hmap hstat₀
-          · rintro rfl
-            refine ⟨hId₀, ?_, t, ?_⟩
-            · dsimp only [blockOf]; simp only [hget₀, hstat₀]
-            · rw [hget₀, Option.map_some, hstat₀]
+        have hmem_iff : ∀ x, x ∈ updatesAt t ↔ x = id₀ := fun x => by
+          rw [mem_updatesAt_iff]
+          exact ⟨fun ⟨hx, hs⟩ => hinj x id₀ hx hId₀ t hs hstat₀, fun h => h ▸ ⟨hId₀, hstat₀⟩⟩
         have hnd : (updatesAt t).Nodup := (List.nodup_range).filter _
         cases hlist : updatesAt t with
-        | nil =>
-          have := (hmem_iff id₀).mpr rfl
-          rw [hlist] at this; cases this
+        | nil => exact absurd (hlist ▸ (hmem_iff id₀).mpr rfl) List.not_mem_nil
         | cons a tl =>
-          have ha : a = id₀ := (hmem_iff a).mp (hlist ▸ List.mem_cons_self)
-          subst ha
+          obtain rfl : a = id₀ := (hmem_iff a).mp (hlist ▸ List.mem_cons_self)
           cases tl with
           | nil => rfl
           | cons b _ =>
-            have hb : b = a := (hmem_iff b).mp
+            obtain rfl : b = a := (hmem_iff b).mp
               (hlist ▸ List.mem_cons_of_mem a List.mem_cons_self)
-            subst hb
             rw [hlist, List.nodup_cons] at hnd
             exact absurd List.mem_cons_self hnd.1
       rw [hupd_eq]
       obtain ⟨val, hkind₀, -, -, -, hreg₀⟩ := inv.hist_doneUpdate id₀ hId₀ t hstat₀
-      refine ⟨?_, ?_⟩
-      · simp only [seqSnapshotMemAfter, hget₀, hkind₀, hcaller₀]
-        funext p
-        by_cases hpj : p = j
-        · subst hpj
-          have hreg_j := hcaller₀ ▸ hreg₀
-          rw [Function.update_self, memSnapshot, hreg_j]
-        · rw [Function.update_of_ne hpj, memSnapshot]
-          rcases τ.reg_step_iff p ht_lt with ⟨hreg_eq, -⟩ | ⟨_, _, _, hev_p, -, -, -⟩
-          · exact (congrArg SnapshotReg.data hreg_eq).symm
-          · obtain ⟨_, _, _, _, hev_j, -⟩ := hjw
-            rw [hev_p] at hev_j; injection hev_j with hpj'
-            exact absurd hpj' hpj
-      · simp only [seqSnapshotValid, hget₀, hkind₀, hstat₀]
+      refine ⟨?_, by simp only [seqSnapshotValid, hget₀, hkind₀, hstat₀]⟩
+      simp only [seqSnapshotMemAfter, hget₀, hkind₀, hcaller₀]
+      funext p
+      by_cases hpj : p = j
+      · subst hpj
+        have hreg_j := hcaller₀ ▸ hreg₀
+        rw [Function.update_self, memSnapshot, hreg_j]
+      · rw [Function.update_of_ne hpj, memSnapshot]
+        rcases τ.reg_step_iff p ht_lt with ⟨hreg_eq, -⟩ | ⟨_, _, _, hev_p, -, -, -⟩
+        · exact (congrArg SnapshotReg.data hreg_eq).symm
+        · obtain ⟨_, _, _, _, hev_j, -⟩ := hjw
+          exact absurd (SnapshotEvent.step.inj (hev_p.symm.trans hev_j)) hpj
     · have hupd_nil : updatesAt t = [] := by
         rw [List.eq_nil_iff_forall_not_mem]
         intro x hx
-        dsimp only [updatesAt] at hx
-        simp only [List.mem_filter, List.mem_range, decide_eq_true_eq] at hx
-        obtain ⟨hx_lt, hblk, w, hmap⟩ := hx
-        have hgetx : (τ.stateAt T).history[x]? = some ((τ.stateAt T).history[x]'hx_lt) :=
-          List.getElem?_eq_getElem hx_lt
-        rw [hgetx, Option.map_some, Option.some.injEq] at hmap
-        dsimp only [blockOf] at hblk
-        simp only [hgetx, hmap, Option.some.injEq] at hblk
-        subst w
-        obtain ⟨_, -, -, -, hw_x, -⟩ := inv.hist_doneUpdate x hx_lt t hmap
+        obtain ⟨hx_lt, hstat⟩ := (mem_updatesAt_iff t x).mp hx
+        obtain ⟨_, -, -, -, hw_x, -⟩ := inv.hist_doneUpdate x hx_lt t hstat
         exact hw ⟨_, hw_x⟩
       rw [hupd_nil]
       refine ⟨?_, trivial⟩
@@ -2533,18 +2221,9 @@ private theorem snapshotLinearizable_of_trace {P Data : Type*} [Fintype P] [Deci
   have updatesAt_T : updatesAt T = [] := by
     rw [List.eq_nil_iff_forall_not_mem]
     intro x hx
-    dsimp only [updatesAt] at hx
-    simp only [List.mem_filter, List.mem_range, decide_eq_true_eq] at hx
-    obtain ⟨hx_lt, hblk, w, hmap⟩ := hx
-    have hgetx : (τ.stateAt T).history[x]? = some ((τ.stateAt T).history[x]'hx_lt) :=
-      List.getElem?_eq_getElem hx_lt
-    rw [hgetx, Option.map_some, Option.some.injEq] at hmap
-    dsimp only [blockOf] at hblk
-    simp only [hgetx, hmap, Option.some.injEq] at hblk
-    subst w
-    obtain ⟨_, -, -, hw_lt, -⟩ := inv.hist_doneUpdate x hx_lt T hmap
+    obtain ⟨hx_lt, hstat⟩ := (mem_updatesAt_iff T x).mp hx
+    obtain ⟨_, -, -, hw_lt, -⟩ := inv.hist_doneUpdate x hx_lt T hstat
     omega
-  -- Inductive validity over `prefixSeq k` for `k ≤ T + 1`
   have prefix_valid : ∀ k ≤ T + 1,
       seqSnapshotValid (fun _ => dInit) (τ.stateAt T).history (prefixSeq k) ∧
       (k ≤ T → seqSnapshotMemAfter (fun _ => dInit) (τ.stateAt T).history (prefixSeq k) =
@@ -2560,60 +2239,40 @@ private theorem snapshotLinearizable_of_trace {P Data : Type*} [Fintype P] [Deci
     | succ k ih_k =>
       obtain ⟨hv_k, hm_k⟩ := ih_k (Nat.le_of_succ_le hk)
       have hk_le_T : k ≤ T := Nat.le_of_succ_le_succ hk
-      have hm_at_k := hm_k hk_le_T
       have hflat : prefixSeq (k + 1) = prefixSeq k ++ scansAt k ++ updatesAt k := by
         dsimp only [prefixSeq, chunk]
         simp only [List.range_succ, List.flatMap_append, List.flatMap_cons,
           List.flatMap_nil, List.append_nil, List.append_assoc]
       obtain ⟨hm_sc, hv_sc⟩ := scansAt_valid k hk_le_T
-      simp only [hflat, seqSnapshotValid_append, seqSnapshotMemAfter_append, hm_at_k, hm_sc]
+      simp only [hflat, seqSnapshotValid_append, seqSnapshotMemAfter_append, hm_k hk_le_T, hm_sc]
       rcases Nat.lt_or_eq_of_le hk_le_T with hk_lt | rfl
       · obtain ⟨hm_up, hv_up⟩ := updatesAt_valid k hk_lt
         exact ⟨⟨⟨hv_k, hv_sc⟩, hv_up⟩, fun _ => hm_up⟩
       · rw [updatesAt_T]
         exact ⟨⟨⟨hv_k, hv_sc⟩, trivial⟩, fun h => absurd h (by omega)⟩
-  -- Witness `seq := prefixSeq (T + 1)`!
   refine ⟨prefixSeq (T + 1), ?_, ?_, ?_, ?_, (prefix_valid (T + 1) le_rfl).1⟩
-  · -- 1. `Nodup` of `prefixSeq (T + 1)`
-    have hchunk_nd : ∀ t, (chunk t).Nodup := by
+  · have hchunk_nd : ∀ t, (chunk t).Nodup := by
       intro t
       dsimp only [chunk]
       rw [List.nodup_append]
       refine ⟨(List.nodup_range).filter _, (List.nodup_range).filter _, fun a ha b hb hab => ?_⟩
       subst hab
-      dsimp only [scansAt, updatesAt] at ha hb
-      simp only [List.mem_filter, decide_eq_true_eq] at ha hb
-      obtain ⟨r, sn, h1⟩ := ha.2.2
-      obtain ⟨w, h2⟩ := hb.2.2
-      have hcon := Option.some.inj (h1.symm.trans h2)
-      nomatch hcon
-    have hchunk_blk : ∀ t x, x ∈ chunk t → blockOf x = some t := by
-      intro t x hx
-      rcases List.mem_append.mp hx with hx | hx <;>
-        dsimp only [scansAt, updatesAt] at hx <;>
-        simp only [List.mem_filter, decide_eq_true_eq] at hx <;>
-        exact hx.2.1
+      obtain ⟨hId₁, _, _, hs₁, -⟩ := (mem_scansAt_iff t a).mp ha
+      obtain ⟨_, hs₂⟩ := (mem_updatesAt_iff t a).mp hb
+      exact absurd (hs₁.symm.trans hs₂) nofun
     dsimp only [prefixSeq]
     rw [List.nodup_flatMap]
-    refine ⟨fun t _ => hchunk_nd t, ?_⟩
-    refine List.Pairwise.imp (fun {t₁ t₂} hne x hx₁ hx₂ => ?_) (List.nodup_range)
-    have hb₁ := hchunk_blk t₁ x hx₁
-    have hb₂ := hchunk_blk t₂ x hx₂
-    rw [hb₁] at hb₂; injection hb₂ with heq
-    exact hne heq
-  · -- 2. `index_lt`: every `i ∈ prefixSeq (T + 1)` satisfies `i < history.length`
-    intro x hx
+    refine ⟨fun t _ => hchunk_nd t,
+      List.Pairwise.imp (fun {t₁ t₂} hne x hx₁ hx₂ => ?_) (List.nodup_range)⟩
+    exact hne (Option.some.inj ((hchunk_blk t₁ x hx₁).symm.trans (hchunk_blk t₂ x hx₂)))
+  · intro x hx
     dsimp only [prefixSeq] at hx
     simp only [List.mem_flatMap, List.mem_range] at hx
     obtain ⟨t, -, hxt⟩ := hx
-    rcases List.mem_append.mp hxt with hxt | hxt <;>
-      dsimp only [scansAt, updatesAt] at hxt <;>
-      simp only [List.mem_filter, List.mem_range] at hxt <;>
-      exact hxt.1
-  · -- 3. `complete`: every completed operation `i < history.length` belongs to `prefixSeq (T + 1)`
-    intro id hId hcomp
-    have hget : (τ.stateAt T).history[id]? = some ((τ.stateAt T).history[id]'hId) :=
-      List.getElem?_eq_getElem hId
+    rcases List.mem_append.mp hxt with hxt | hxt
+    · exact ((mem_scansAt_iff t x).mp hxt).1
+    · exact ((mem_updatesAt_iff t x).mp hxt).1
+  · intro id hId hcomp
     dsimp only [prefixSeq]
     simp only [List.mem_flatMap, List.mem_range]
     cases hst : ((τ.stateAt T).history[id]'hId).status with
@@ -2621,102 +2280,59 @@ private theorem snapshotLinearizable_of_trace {P Data : Type*} [Fintype P] [Deci
       simp only [SnapshotOpRecord.isCompleted, hst, Bool.false_eq_true] at hcomp
     | doneUpdate w =>
       obtain ⟨_, -, -, hw_lt, -⟩ := inv.hist_doneUpdate id hId w hst
-      refine ⟨w, by omega, List.mem_append_right _ ?_⟩
-      dsimp only [updatesAt]
-      simp only [List.mem_filter, List.mem_range, decide_eq_true_eq]
-      refine ⟨hId, ?_, w, ?_⟩
-      · dsimp only [blockOf]; simp only [hget, hst]
-      · rw [hget, Option.map_some, hst]
+      exact ⟨w, by omega, List.mem_append_right _ ((mem_updatesAt_iff w id).mpr ⟨hId, hst⟩)⟩
     | doneScan resp snap =>
       have hsc := inv.hist_doneScan id hId resp snap hst
       have hv_spec := scanPoint_spec hsc.2.2.2
-      refine ⟨scanPoint ((τ.stateAt T).history[id]'hId).invStep resp snap,
-        by have := hsc.2.2.1; omega, List.mem_append_left _ ?_⟩
-      dsimp only [scansAt]
-      simp only [List.mem_filter, List.mem_range, decide_eq_true_eq]
-      refine ⟨hId, ?_, resp, snap, ?_⟩
-      · dsimp only [blockOf]; simp only [hget, hst]
-      · rw [hget, Option.map_some, hst]
-  · -- 4. `realTime`: `respStep i ≤ invStep j` implies `blockOf i < blockOf j`
-    intro i hi j hj r hresp_i recJ hget_j hr_le
-    have hchunk_blk : ∀ t x, x ∈ chunk t → blockOf x = some t := by
-      intro t x hx
-      rcases List.mem_append.mp hx with hx | hx <;>
-        dsimp only [scansAt, updatesAt] at hx <;>
-        simp only [List.mem_filter, decide_eq_true_eq] at hx <;>
-        exact hx.2.1
+      exact ⟨scanPoint ((τ.stateAt T).history[id]'hId).invStep resp snap,
+        by have := hsc.2.2.1; omega,
+        List.mem_append_left _ ((mem_scansAt_iff _ id).mpr ⟨hId, resp, snap, hst, rfl⟩)⟩
+  · intro i hi j hj r hresp_i recJ hget_j hr_le
     obtain ⟨t₁, ht₁_lt, hi_chunk⟩ : ∃ t₁ < T + 1, i ∈ chunk t₁ := by
-      dsimp only [prefixSeq] at hi
-      simpa only [List.mem_flatMap, List.mem_range] using hi
+      dsimp only [prefixSeq] at hi; simpa only [List.mem_flatMap, List.mem_range] using hi
     obtain ⟨t₂, ht₂_lt, hj_chunk⟩ : ∃ t₂ < T + 1, j ∈ chunk t₂ := by
-      dsimp only [prefixSeq] at hj
-      simpa only [List.mem_flatMap, List.mem_range] using hj
+      dsimp only [prefixSeq] at hj; simpa only [List.mem_flatMap, List.mem_range] using hj
     have hb₁ := hchunk_blk t₁ i hi_chunk
     have hb₂ := hchunk_blk t₂ j hj_chunk
-    -- Show `t₁ ≤ r`!
     have ht₁_le_r : t₁ ≤ r := by
-      by_cases hId_i : i < (τ.stateAt T).history.length
-      · have hget_i : (τ.stateAt T).history[i]? = some ((τ.stateAt T).history[i]'hId_i) :=
-          List.getElem?_eq_getElem hId_i
-        rw [hget_i, Option.bind_some] at hresp_i
-        dsimp only [blockOf] at hb₁
-        simp only [hget_i] at hb₁
-        cases hst_i : ((τ.stateAt T).history[i]'hId_i).status with
-        | pending =>
-          simp only [hst_i] at hb₁; nomatch hb₁
-        | doneScan resp snap =>
-          simp only [hst_i, SnapshotOpRecord.respStep?] at hb₁ hresp_i
-          injection hb₁ with ht₁_eq; injection hresp_i with hr_eq
-          have hv_spec := scanPoint_spec (inv.hist_doneScan i hId_i resp snap hst_i).2.2.2
-          omega
-        | doneUpdate w =>
-          simp only [hst_i, SnapshotOpRecord.respStep?] at hb₁ hresp_i
-          injection hb₁ with ht₁_eq; injection hresp_i with hr_eq
-          omega
-      · have hget_i : (τ.stateAt T).history[i]? = none :=
-          List.getElem?_eq_none (Nat.le_of_not_lt hId_i)
-        dsimp only [blockOf] at hb₁
-        simp only [hget_i] at hb₁
-        nomatch hb₁
-    -- Show `recJ.invStep + 1 ≤ t₂`!
-    have hinv_lt_t₂ : recJ.invStep + 1 ≤ t₂ := by
-      have ⟨hId_j, hrecJ_eq⟩ := List.getElem?_eq_some_iff.mp hget_j
-      dsimp only [blockOf] at hb₂
-      simp only [hget_j] at hb₂
-      rw [← hrecJ_eq] at hb₂
-      cases hst_j : ((τ.stateAt T).history[j]'hId_j).status with
-      | pending =>
-        simp only [hst_j] at hb₂; nomatch hb₂
+      obtain ⟨recI, hget_i, hresp_eq⟩ := Option.bind_eq_some_iff.mp hresp_i
+      obtain ⟨hId_i, rfl⟩ := List.getElem?_eq_some_iff.mp hget_i
+      dsimp only [blockOf] at hb₁; simp only [hget_i] at hb₁
+      cases hst_i : ((τ.stateAt T).history[i]'hId_i).status with
+      | pending => simp only [hst_i] at hb₁; nomatch hb₁
       | doneScan resp snap =>
-        simp only [hst_j] at hb₂
-        injection hb₂ with ht₂_eq
-        have hv_spec := scanPoint_spec (inv.hist_doneScan j hId_j resp snap hst_j).2.2.2
-        rw [← hrecJ_eq]
+        simp only [hst_i, SnapshotOpRecord.respStep?, Option.some.injEq] at hb₁ hresp_eq
+        have hv_spec := scanPoint_spec (inv.hist_doneScan i hId_i resp snap hst_i).2.2.2
         omega
       | doneUpdate w =>
-        simp only [hst_j] at hb₂
-        injection hb₂ with ht₂_eq
+        simp only [hst_i, SnapshotOpRecord.respStep?, Option.some.injEq] at hb₁ hresp_eq
+        omega
+    have hinv_lt_t₂ : recJ.invStep + 1 ≤ t₂ := by
+      obtain ⟨hId_j, rfl⟩ := List.getElem?_eq_some_iff.mp hget_j
+      dsimp only [blockOf] at hb₂; simp only [hget_j] at hb₂
+      cases hst_j : ((τ.stateAt T).history[j]'hId_j).status with
+      | pending => simp only [hst_j] at hb₂; nomatch hb₂
+      | doneScan resp snap =>
+        simp only [hst_j, Option.some.injEq] at hb₂
+        have hv_spec := scanPoint_spec (inv.hist_doneScan j hId_j resp snap hst_j).2.2.2
+        omega
+      | doneUpdate w =>
+        simp only [hst_j, Option.some.injEq] at hb₂
         obtain ⟨_, -, hinv_lt, -⟩ := inv.hist_doneUpdate j hId_j w hst_j
-        rw [← hrecJ_eq]
         omega
     have ht₁_lt_t₂ : t₁ < t₂ := by omega
-    -- Split `List.range (T + 1)` at `t₂`: `i` lies in `(List.range t₂).flatMap chunk`, while `j` is
-    -- NOT in `(List.range t₂).flatMap chunk`!
     have hsplit_range : List.range (T + 1) = List.range t₂ ++ (List.range (T + 1)).drop t₂ :=
       (List.take_append_drop t₂ (List.range (T + 1))).symm.trans
         (by rw [List.take_range, Nat.min_eq_left (by omega)])
     have hseq_split : prefixSeq (T + 1) =
         (List.range t₂).flatMap chunk ++ ((List.range (T + 1)).drop t₂).flatMap chunk := by
-      dsimp only [prefixSeq]
-      conv_lhs => rw [hsplit_range]
-      exact List.flatMap_append
+      dsimp only [prefixSeq]; conv_lhs => rw [hsplit_range]; exact List.flatMap_append
     have hi_left : i ∈ (List.range t₂).flatMap chunk :=
       List.mem_flatMap.mpr ⟨t₁, List.mem_range.mpr ht₁_lt_t₂, hi_chunk⟩
     have hj_not_left : j ∉ (List.range t₂).flatMap chunk := by
       intro hj_in
       obtain ⟨t', ht'_lt, hj_t'⟩ := List.mem_flatMap.mp hj_in
-      have hb' := hchunk_blk t' j hj_t'
-      rw [hb₂] at hb'; injection hb' with heq
+      have := Option.some.inj ((hchunk_blk t' j hj_t').symm.trans hb₂)
       have := List.mem_range.mp ht'_lt
       omega
     rw [hseq_split, List.idxOf_append_of_mem hi_left, List.idxOf_append_of_notMem hj_not_left]

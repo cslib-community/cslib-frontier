@@ -773,9 +773,7 @@ private theorem relMap_lit_embedGroundModel (b : Bool)
           groundTagCode_injective Φ (matchBinaryTag_unique htag' htag)
         subst htt'
         simp only [tagBranch, hdom, ↓reduceIte, ProjectionFormula.realize_toFormula_branch] at hbr
-        rcases hbr with ⟨-, hact⟩ | ⟨hnpad, -⟩
-        · exact hact
-        · exact absurd hpad hnpad
+        grind
       · exact absurd htag (hall t (mem_allGroundTags Φ t))
     · intro hact
       refine Or.inl ⟨t, mem_allGroundTags Φ t, htag, ?_⟩

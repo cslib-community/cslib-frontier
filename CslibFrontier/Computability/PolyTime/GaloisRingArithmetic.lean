@@ -26,6 +26,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListMap
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLoops
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import Mathlib.Algebra.BigOperators.Intervals
 import Mathlib.Data.List.GetD
 import Mathlib.Data.Nat.Size
@@ -556,17 +557,16 @@ theorem computableInPolyTime_one {fl : α → List ℕ}
 theorem polyBounded_reducedLength {p : α → ℕ} {fl : α → List ℕ}
     (hp : ComputableInPolyTime p encIn encUnary)
     (hfl : ComputableInPolyTime fl encIn (encList encNat)) :
-    PolyBounded (fun x => (encIn x).length) (fun x => (fl x).length * (2 * p x + 1)) :=
-  (length_polyTime hfl).polyBounded.mul
-    (((PolyBounded.const 2).mul hp.polyBounded).add (PolyBounded.const 1))
+    PolyBounded (fun x => (encIn x).length) (fun x => (fl x).length * (2 * p x + 1)) := by
+  growth_poly
 
 /-- The length bound shared by the folds below: a pair of reduced lists. -/
 private theorem polyBounded_reduced {p : α → ℕ} {fl : α → List ℕ}
     (hp : ComputableInPolyTime p encIn encUnary)
     (hfl : ComputableInPolyTime fl encIn (encList encNat)) :
     PolyBounded (fun x => (encIn x).length)
-      (fun x => 3 * ((fl x).length * (2 * p x + 1)) + 1) :=
-  ((PolyBounded.const 3).mul (polyBounded_reducedLength hp hfl)).add (PolyBounded.const 1)
+      (fun x => 3 * ((fl x).length * (2 * p x + 1)) + 1) := by
+  growth_poly
 
 /-- **Multiplication is polynomial-time**, with the precision in unary. Every intermediate pair is
 reduced after its first step, so its length is bounded by the precision and the degree. -/
