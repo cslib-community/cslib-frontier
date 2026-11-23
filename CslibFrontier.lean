@@ -5828,6 +5828,7 @@ public import CslibFrontier.Crypto.Computational.Paillier.Algebra
 public import CslibFrontier.Crypto.Computational.Paillier.Finite
 public import CslibFrontier.Crypto.Computational.Paillier.Malleability
 public import CslibFrontier.Crypto.Computational.Paillier.Security
+public import CslibFrontier.Crypto.Computational.Paillier.Statistical
 public import CslibFrontier.Crypto.Computational.Pairing
 public import CslibFrontier.Crypto.Computational.PedersenCommitment
 public import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
