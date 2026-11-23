@@ -5232,6 +5232,7 @@ public import CslibFrontier.Computability.WordRAM.Randomized.Expected
 public import CslibFrontier.Computability.WordRAM.Randomized.Law
 public import CslibFrontier.Computability.WordRAM.Randomized.LoopSegment
 public import CslibFrontier.Computability.WordRAM.Randomized.LoopSegmentLaw
+public import CslibFrontier.Computability.WordRAM.Randomized.SampleBits
 public import CslibFrontier.Computability.WordRAM.Randomized.Structured
 public import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 public import CslibFrontier.Computability.WordRAM.Randomized.UniformLoopExit

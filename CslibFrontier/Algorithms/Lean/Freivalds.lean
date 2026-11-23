@@ -74,6 +74,7 @@ variable {R : Type} [Ring R] [DecidableEq R] {l m n : ℕ}
 
 /-- One deterministic Freivalds check: compute `B *ᵥ x`, `A *ᵥ (B *ᵥ x)` and `C *ᵥ x`, and
 compare `A *ᵥ (B *ᵥ x)` with `C *ᵥ x`. -/
+@[expose]
 def check (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
     (C : Matrix (Fin l) (Fin n) R) (x : Fin n → R) : Bool :=
   decide (A *ᵥ (B *ᵥ x) = C *ᵥ x)
