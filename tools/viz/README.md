@@ -66,7 +66,10 @@ python3 -m venv /tmp/viz-venv && /tmp/viz-venv/bin/pip install -r tools/viz/requ
 
 Pull request views need metadata from GitHub: `--fetch-prs` reads it with the token in
 `GITHUB_TOKEN` or `GH_TOKEN` (read-only; in CI the workflow's own token, with
-`pull-requests: read`), and `--prs-json FILE` reuses the `prs.json` an earlier run wrote.
+`pull-requests: read`), and `--prs-json FILE` reuses the `prs.json` an earlier run wrote. With
+`--prs-previous URL|FILE`, the fetch starts from that list and asks GitHub only for pull requests
+updated since (newest first), a page or two instead of the whole history; the nightly build
+passes the `prs.json` it published the night before.
 Without either, those views and the Pull requests page are skipped.
 
 Without `--lean-lib` the census views are skipped; the pull-request workflow builds no Lean, so

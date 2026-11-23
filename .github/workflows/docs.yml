@@ -85,6 +85,7 @@ jobs:
             --lean-lib .lake/build/lib/lean \
             --require-registry \
             --fetch-prs \
+            --prs-previous https://www.cslib.io/cslib-frontier/viz/prs.json \
             --lean-history https://www.cslib.io/cslib-frontier/viz/lean-history.json
       - name: Restore Guide dependencies
         id: guide-deps

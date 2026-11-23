@@ -335,6 +335,39 @@ class PullRequests(unittest.TestCase):
         self.assertEqual(rows[-1], {"Crypto/Primitives": 30, "Logics": 4})
 
 
+class PullRequestUpdates(unittest.TestCase):
+    def test_update_replaces_and_adds_until_older(self):
+        import github_prs as g
+        pr = lambda n, c, u, title="t": {"number": n, "createdAt": c, "updatedAt": u, "title": title}
+        previous = [pr(1, "2026-11-01", "2026-11-02"), pr(2, "2026-11-03", "2026-11-05", "old")]
+        pages = [[pr(3, "2026-11-06", "2026-11-07"), pr(2, "2026-11-03", "2026-11-06", "new")],
+                 [pr(1, "2026-11-01", "2026-11-02")],  # not newer: stop here
+                 [pr(9, "2026-10-01", "2026-10-02")]]  # never reached
+        seen = []
+
+        def fake_pages(query, repo, tok):
+            for page in pages:
+                seen.append(page)
+                yield page
+        orig = g._pages
+        g._pages = fake_pages
+        try:
+            out = g.update(previous, tok="x")
+        finally:
+            g._pages = orig
+        self.assertEqual([(p["number"], p["title"]) for p in out], [(1, "t"), (2, "new"), (3, "t")])
+        self.assertEqual(len(seen), 2)
+
+    def test_update_without_stamps_refetches(self):
+        import github_prs as g
+        orig = g.fetch
+        g.fetch = lambda repo, tok: ["full"]
+        try:
+            self.assertEqual(g.update([{"number": 1, "createdAt": "x"}], tok="x"), ["full"])
+        finally:
+            g.fetch = orig
+
+
 class Squarify(unittest.TestCase):
     def test_areas_are_proportional_and_inside(self):
         vals = [50, 20, 13, 10, 5, 1, 1]

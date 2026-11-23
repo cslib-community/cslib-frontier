@@ -185,6 +185,9 @@ def main() -> int:
                     help="fetch pull request metadata from GitHub (GITHUB_TOKEN or GH_TOKEN)")
     ap.add_argument("--prs-json", type=Path, default=None,
                     help="reuse pull request metadata saved by an earlier run (prs.json)")
+    ap.add_argument("--prs-previous", default=None,
+                    help="with --fetch-prs: URL or file of the previously published prs.json; "
+                         "only pull requests updated since are fetched")
     ap.add_argument("--lean-lib", type=Path, default=None,
                     help="build outputs (.lake/build/lib/lean) of the commit being visualized; "
                          "enables the Lean census views")
@@ -223,8 +226,10 @@ def main() -> int:
     elif args.fetch_prs:
         if github_prs.token():
             t = time.time()
-            raw_prs = github_prs.fetch()
-            print(f"pull requests: {len(raw_prs)} fetched ({time.time() - t:.1f}s)", flush=True)
+            prev = github_prs.load_previous(args.prs_previous) if args.prs_previous else []
+            raw_prs = github_prs.update(prev) if prev else github_prs.fetch()
+            how = f"updated from {len(prev)} published" if prev else "fetched"
+            print(f"pull requests: {len(raw_prs)} {how} ({time.time() - t:.1f}s)", flush=True)
         else:
             print("warning: no GITHUB_TOKEN or GH_TOKEN; pull request views are skipped",
                   file=sys.stderr, flush=True)
