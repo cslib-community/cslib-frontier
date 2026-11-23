@@ -45,8 +45,9 @@ rule is added.
   `⋀ R ∧ r ⇒ C ≥ A` and `⋀ R ∧ ¬r ⇒ C ≥ A'` by a `pbc` subproof: two cutting-planes steps and a
   RUP step with hints. Its acceptance is checked on examples, not proved in general.
 
-The knapsack proofs of the paper's milestone use these combinators: its layer states
-`S^i_{w,p}` reify sums by `reify`, and its transitions are guard resolutions and RUP steps.
+The certified knapsack of `CslibFrontier.Logics.Propositional.PseudoBoolean.Knapsack` reifies its
+layer states `S^i_{w,p}` and their partial sums by `reify`; its transitions add the halves of these
+reifications and close by RUP.
 
 ## Main definitions
 
