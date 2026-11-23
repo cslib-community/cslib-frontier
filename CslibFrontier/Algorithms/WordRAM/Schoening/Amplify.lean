@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Computability.WordRAM.MemoryView
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Havoc
+import CslibFrontier.Tactic.WramOmega
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Trial
@@ -67,7 +68,6 @@ trial.
 * `Cslib.Algorithms.WordRAM.Schoening.ampCode`, `Cslib.Algorithms.WordRAM.Schoening.ampProgram`:
   the amplified algorithm, structured and compiled.
 * `Cslib.Algorithms.WordRAM.Schoening.ampTime`: its instruction bound.
-* `Cslib.Algorithms.WordRAM.Schoening.cfgSuccess`: whether a halting run output `1`.
 
 ## Main results
 
@@ -94,6 +94,8 @@ namespace Cslib.Algorithms.WordRAM.Schoening
 
 open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL Cslib.Complexity.Schoening
 open Reg
+
+attribute [local wram_arith] trialCoreTime
 
 variable {n : ℕ}
 
@@ -214,19 +216,16 @@ def ampCode : Code .standard 24 := ram[ ⟪ampSetup⟫; ⟪countSetup⟫; flag �
 def ampProgram : Program .standard 24 := ampCode.program out
 
 /-- The instruction bound of the setup. -/
+@[wram_arith]
 def setupTime (k n c : ℕ) : ℕ :=
   (n + k) * (30 * counterLen k n c + 30) + 20 * counterLen k n c + 50
 
 /-- The instruction bound of Schöning's algorithm with confidence `c`, on `n` variables, clauses
 of at most `k` literals and an input of length `L`. -/
+@[wram_arith]
 noncomputable def ampTime (k n c L : ℕ) : ℕ :=
   schoeningTrials k n c * (36 * n * L + 66 * n + 12 * L + 43) + setupTime k n c +
     9 * counterLen k n c + 45
-
-/-- Whether a halting run output `1`. -/
-def cfgSuccess {r : ℕ} : RandCfg r → Bool
-  | .halted v _ => decide (v = 1)
-  | _ => false
 
 /-- **The running time** of Schöning's algorithm is `O((n + k + L) ^ 3 (2 - 2 / k) ^ n (c + 1))`:
 explicitly, at most `900 (n + k + L + 1) ^ 3 (2 (k - 1) / k) ^ n (c + 1)` instructions. For
@@ -280,8 +279,7 @@ theorem ampTime_le {k : ℕ} (hk : 3 ≤ k) (n c L : ℕ) :
         ((setupTime k n c + 9 * counterLen k n c + 45 : ℕ) : ℝ) := by
     simp only [ampTime]; push_cast; ring
   have hT : (schoeningTrials k n c : ℝ) * ((36 * n * L + 66 * n + 12 * L + 43 : ℕ) : ℝ) ≤
-      (9 * n + 4) * r * c * (66 * (n + 1) * (L + 1)) :=
-    mul_le_mul hR hPr (Nat.cast_nonneg _) (by positivity)
+      (9 * n + 4) * r * c * (66 * (n + 1) * (L + 1)) := by gcongr
   have hN0 : (0 : ℝ) ≤ (N : ℝ) ^ 3 := by positivity
   have hc0 : (0 : ℝ) ≤ c := Nat.cast_nonneg c
   rw [hexp]
@@ -395,7 +393,6 @@ private theorem SetupState.repeatCode {φ : CNF (Fin n)} {k c A w Tb j : ℕ} {l
       obtain ⟨y, hy, hyI⟩ := hbody i hi x hxI
       have hyo : y.regs outer = i := hy.regs_eq hbo
       have hyl : y.regs lim = j := (hy.regs_eq hbl).trans hxl
-      have : Fits w (i + 1) := hfit.of_le (by omega)
       have hinc : ExecWithin w (ram[ outer ← outer + one ] : Code .standard 24) y
           (y.set outer (i + 1)) 1 :=
         WP.execWithin (by wram_exec [hyo, hyI.frame.one_eq]; rfl)
@@ -415,8 +412,6 @@ private theorem SetupState.numStep₁ {φ : CNF (Fin n)} {k c A w : ℕ} {ds : L
       SetupState φ k c A (mulStep (2 * (k - 1)) ds) y := by
   unfold mulStep at hfit ⊢
   unfold Schoening.numStep₁
-  have : Fits w (k - 1) := hf.of_le (by omega)
-  have : Fits w (k - 1 + (k - 1)) := hf.of_le (by omega)
   refine WP.exists_execWithin ?_
   wram_exec [h.kReg_eq, h.frame.one_eq, h.frame.zero_eq]
   wram_call ((((h.set (by decide) _).set (by decide) _).set (by decide) _).mulAdd
@@ -446,7 +441,6 @@ private theorem SetupState.denStep₁ {φ : CNF (Fin n)} {k c A w : ℕ} {ds : L
   have hlen : (ceilStep k ds).length = (mulAddDigits 1 (k - 1) ds).length := by
     rw [ceilStep, length_divDigits]
   rw [hlen] at hfit ⊢
-  have : Fits w (k - 1) := hf.of_le (by omega)
   refine WP.exists_execWithin ?_
   unfold Schoening.denStep₁
   wram_exec [h.frame.one_eq, h.kReg_eq]
@@ -465,8 +459,6 @@ private theorem SetupState.denStep₂ {φ : CNF (Fin n)} {k c A w : ℕ} {ds : L
   have hlen : (ceilStep (k - 1) ds).length = (mulAddDigits 1 (k - 1 - 1) ds).length := by
     rw [ceilStep, length_divDigits]
   rw [hlen] at hfit ⊢
-  have : Fits w (k - 1) := hf.of_le (by omega)
-  have : Fits w (k - 1 - 1) := hf.of_le (by omega)
   refine WP.exists_execWithin ?_
   unfold Schoening.denStep₂
   wram_exec [h.frame.one_eq, h.kReg_eq]
@@ -486,11 +478,7 @@ theorem countSetup_exec {φ : CNF (Fin n)} {k c A w : ℕ} {x : Data 24} (hk : 3
   set ℓ := counterLen k n c with hℓ
   have hlast := length_counterDigits_le hk n c
   obtain ⟨hs1, hs2, hs3, hs4⟩ := length_stages_le k n c
-  have hfl {m : ℕ} (hm : m ≤ ℓ) : Fits w (A + n + m) := hfa.of_le (by omega)
   have hL₀ : (mulAddDigits 0 (3 * n + 1) []).length ≤ ℓ := (hs1 0 (Nat.zero_le _)).trans hlast
-  have : Fits w (n + n) := hfm.of_le (by omega)
-  have : Fits w (n + n + n) := hfm.of_le (by omega)
-  have : Fits w (n + n + n + 1) := hfm.of_le (by omega)
   refine WP.exists_execWithin ?_
   unfold countSetup countInit confStep
   -- the counter starts at `3 n + 1`
@@ -499,44 +487,44 @@ theorem countSetup_exec {φ : CNF (Fin n)} {k c A w : ℕ} {x : Data 24} (hk : 3
     (by decide) _).mulAdd (a := 0) (cy := 3 * n + 1) (Bd := 3 * n + 1) ..) framed with v₀ m₀ hS₀
   -- multiply by `2 (k - 1)`, `n` times
   refine WP.seq ?_
-  wram_call (hS₀.repeatCode (lim := nReg) (body := numStep₁) (j := n) (Tb := 10 * ℓ + 8)
+  wram_call (hS₀.repeatCode (w := w) (lim := nReg) (body := numStep₁) (j := n) (Tb := 10 * ℓ + 8)
     (by decide) (by decide) (by decide) (mulStep (2 * (k - 1))) (fun i hi z hz => by
       have hb := (hs1 (i + 1) hi).trans hlast
       rw [Function.iterate_succ_apply'] at hb ⊢
-      obtain ⟨y, hy, hyS⟩ := hz.numStep₁ hk (hfm.of_le (by omega)) (hfl hb)
+      obtain ⟨y, hy, hyS⟩ := hz.numStep₁ (w := w) hk (by fits) (by fits)
       exact ⟨y, hy.mono (by omega), hyS⟩)
-    (hfm.of_le (by omega)) hS₀.frame.nReg_eq)
+    (by fits) hS₀.frame.nReg_eq)
     with y₁ hS₁
   -- multiply by `k`, `k - 3` times
   refine WP.seq ?_
-  wram_call (hS₁.repeatCode (lim := kSub) (body := numStep₂) (j := k - 3) (Tb := 10 * ℓ + 8)
-    (by decide) (by decide) (by decide) (mulStep k) (fun i hi z hz => by
+  wram_call (hS₁.repeatCode (w := w) (lim := kSub) (body := numStep₂) (j := k - 3)
+    (Tb := 10 * ℓ + 8) (by decide) (by decide) (by decide) (mulStep k) (fun i hi z hz => by
       have hb := (hs2 (i + 1) hi).trans hlast
       rw [Function.iterate_succ_apply'] at hb ⊢
-      obtain ⟨y, hy, hyS⟩ := hz.numStep₂ (hfm.of_le (by omega)) (hfl hb)
+      obtain ⟨y, hy, hyS⟩ := hz.numStep₂ (w := w) (by fits) (by fits)
       exact ⟨y, hy.mono (by omega), hyS⟩)
-    (hfm.of_le (by omega)) hS₁.kSub_eq)
+    (by fits) hS₁.kSub_eq)
     with y₂ hS₂
   change SetupState φ k c A (numeratorDigits k n) y₂ at hS₂
   -- divide by `k`, `n` times
   refine WP.seq ?_
-  wram_call (hS₂.repeatCode (lim := nReg) (body := denStep₁) (j := n) (Tb := 20 * ℓ + 13)
+  wram_call (hS₂.repeatCode (w := w) (lim := nReg) (body := denStep₁) (j := n) (Tb := 20 * ℓ + 13)
     (by decide) (by decide) (by decide) (ceilStep k) (fun i hi z hz => by
       have hb := (hs3 (i + 1) hi).trans hlast
       rw [Function.iterate_succ_apply'] at hb ⊢
-      obtain ⟨y, hy, hyS⟩ := hz.denStep₁ hk (hfm.of_le (by omega)) (hfl hb)
+      obtain ⟨y, hy, hyS⟩ := hz.denStep₁ (w := w) hk (by fits) (by fits)
       exact ⟨y, hy.mono (by omega), hyS⟩)
-    (hfm.of_le (by omega)) hS₂.frame.nReg_eq)
+    (by fits) hS₂.frame.nReg_eq)
     with y₃ hS₃
   -- divide by `k - 1`, `k - 3` times
   refine WP.seq ?_
-  wram_call (hS₃.repeatCode (lim := kSub) (body := denStep₂) (j := k - 3) (Tb := 20 * ℓ + 13)
-    (by decide) (by decide) (by decide) (ceilStep (k - 1)) (fun i hi z hz => by
+  wram_call (hS₃.repeatCode (w := w) (lim := kSub) (body := denStep₂) (j := k - 3)
+    (Tb := 20 * ℓ + 13) (by decide) (by decide) (by decide) (ceilStep (k - 1)) (fun i hi z hz => by
       have hb := (hs4 (i + 1) hi).trans hlast
       rw [Function.iterate_succ_apply'] at hb ⊢
-      obtain ⟨y, hy, hyS⟩ := hz.denStep₂ hk (hfm.of_le (by omega)) (hfl hb)
+      obtain ⟨y, hy, hyS⟩ := hz.denStep₂ (w := w) hk (by fits) (by fits)
       exact ⟨y, hy.mono (by omega), hyS⟩)
-    (hfm.of_le (by omega)) hS₃.kSub_eq)
+    (by fits) hS₃.kSub_eq)
     with y₄ hS₄
   -- multiply by `c`
   wram_exec [hS₄.cReg_eq, hS₄.frame.zero_eq]
@@ -562,13 +550,6 @@ theorem ampSetup_exec (k c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
     (hw : Fits w ((k :: c :: encode φ).length + n + k + 4)) :
     ExecWithin w ampSetup (Data.init (k :: c :: encode φ)) (ampSetupData k c φ) 13 ∧
       SetupState φ k c ((k :: c :: encode φ).length + 1) [] (ampSetupData k c φ) := by
-  have : Fits w 1 := hw.of_le (by omega)
-  have : Fits w 2 := hw.of_le (by omega)
-  have : Fits w 3 := hw.of_le (by omega)
-  have : Fits w 4 := hw.of_le (by omega)
-  have : Fits w ((k :: c :: encode φ).length + 1) := hw.of_le (by omega)
-  have : Fits w ((k :: c :: encode φ).length + 1 + n) := hw.of_le (by omega)
-  have : Fits w (k - 3) := hw.of_le (by omega)
   have hm0 : (Data.init (k :: c :: encode φ) : Data 24).mem 0 = (k :: c :: encode φ).length :=
     rfl
   have hm1 : (Data.init (k :: c :: encode φ) : Data 24).mem 1 = k := rfl
@@ -733,13 +714,14 @@ theorem ampProgram_spec (k c : ℕ) (hk : 3 ≤ k) (φ : CNF (Fin n)) {w : ℕ}
         (v = 0 ∨ (v = 1 ∧
           φ.eval (assignmentAt d.mem ((k :: c :: encode φ).length + 1) n) = true))) ∧
     (evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map cfgSuccess = repeatTrial φ (schoeningTrials k n c) := by
+      (.init (k :: c :: encode φ))).map RandCfg.accepts =
+      repeatTrial φ (schoeningTrials k n c) := by
   set L := (k :: c :: encode φ).length with hL
   have hE : (encodeClauses φ).length ≤ L := by
     simp only [hL, List.length_cons, length_encode]; omega
-  obtain ⟨h₀, hS₀⟩ := ampSetup_exec k c φ (hw.of_le (by omega))
+  obtain ⟨h₀, hS₀⟩ := ampSetup_exec (w := w) k c φ (by fits)
   rw [← hL] at hS₀
-  obtain ⟨y₁, hy₁, hS₁⟩ := countSetup_exec hk hS₀ (hw.of_le (by omega)) (hw.of_le (by omega))
+  obtain ⟨y₁, hy₁, hS₁⟩ := countSetup_exec (w := w) hk hS₀ (by fits) (by fits)
   have hfl : ExecWithin w (ram[ flag ← one ] : Code .standard 24) y₁ (y₁.set flag 1) 1 :=
     WP.execWithin (by wram_exec [hS₁.frame.one_eq]; rfl)
   have hlen := length_counterDigits_le hk n c
@@ -752,21 +734,17 @@ theorem ampProgram_spec (k c : ℕ) (hk : 3 ≤ k) (φ : CNF (Fin n)) {w : ℕ}
       binary := hS₁.binary
       flag_eq := by wram_simp
       out_eq := by wram_simp [hS₁.out_eq] }
-  have hloop := ampLoop_law (φ := φ) (C := 4) (A := L + 1) (hw.of_le (by omega)) (by omega)
+  have hloop := ampLoop_law (w := w) (φ := φ) (C := 4) (A := L + 1) (by fits) (by omega)
     (schoeningTrials k n c) (counterDigits k n c) (y₁.set flag 1) hstate
-    (ofDigits_counterDigits hk n c) (hw.of_le (by omega))
+    (ofDigits_counterDigits hk n c) (by fits)
   have hall := ExecRandLaw.seq_det h₀ (ExecRandLaw.seq_det hy₁ (ExecRandLaw.seq_det hfl hloop))
   have hcount := List.count_le_length (a := 0) (l := counterDigits k n c)
   obtain ⟨hhalt, hcalls, hpost, hlaw⟩ := hall.program out (T' := ampTime k n c L)
     (by
-      simp only [ampTime, trialCoreTime]
-      have := Nat.mul_le_mul_left (schoeningTrials k n c)
-        (show 36 * n * (encodeClauses φ).length + 66 * n + 12 * (encodeClauses φ).length + 13 + 30
-          ≤ 36 * n * L + 66 * n + 12 * L + 43 by
-          have := Nat.mul_le_mul_left (36 * n) hE
-          omega)
-      omega)
-    cfgSuccess fun _ _ => rfl
+      wram_omega [Nat.mul_le_mul_left (schoeningTrials k n c)
+        (show trialCoreTime n (encodeClauses φ).length + 30 ≤ 36 * n * L + 66 * n + 12 * L + 43 by
+          wram_omega [Nat.mul_le_mul_left (36 * n) hE])])
+    RandCfg.accepts fun _ _ => rfl
   refine ⟨hhalt, hcalls, fun cfg hcfg => ?_, hlaw⟩
   obtain ⟨d, rfl, -, hd⟩ := hpost cfg hcfg
   exact ⟨_, d, rfl, hd⟩
@@ -777,7 +755,7 @@ probability of one trial. -/
 theorem ampProgram_failure_eq (k c : ℕ) (hk : 3 ≤ k) (φ : CNF (Fin n)) {w : ℕ}
     (hw : Fits w ((k :: c :: encode φ).length + 6 * n + 4 * k + 2 * c + counterLen k n c + 2)) :
     ((evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map cfgSuccess false).toReal =
+      (.init (k :: c :: encode φ))).map RandCfg.accepts false).toReal =
       (1 - succeedProb φ (trial φ)) ^ schoeningTrials k n c := by
   rw [(ampProgram_spec k c hk φ hw).2.2.2, repeatTrial_false_toReal]
 
@@ -788,7 +766,7 @@ theorem ampProgram_failure_le_exp {k c : ℕ} (hk : 3 ≤ k) {φ : CNF (Fin n)} 
     (hlen : ∀ cl ∈ φ, cl.length ≤ k) {w : ℕ}
     (hw : Fits w ((k :: c :: encode φ).length + 6 * n + 4 * k + 2 * c + counterLen k n c + 2)) :
     ((evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map cfgSuccess false).toReal ≤ Real.exp (-c) := by
+      (.init (k :: c :: encode φ))).map RandCfg.accepts false).toReal ≤ Real.exp (-c) := by
   rw [ampProgram_failure_eq k c hk φ hw]
   have hp := trial_success_of_length_le hk hφ hlen
   simp only [Fintype.card_fin] at hp

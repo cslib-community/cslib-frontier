@@ -238,7 +238,8 @@ section KosarajuProof
 variable [DecidableEq V] {adj : V → List V}
 
 omit [DecidableEq V] in
-private theorem outDegreeSum_append (g : V → List V) (a b : List V) :
+/-- `outDegreeSum` is additive over list concatenation. -/
+theorem outDegreeSum_append (g : V → List V) (a b : List V) :
     outDegreeSum g (a ++ b) = outDegreeSum g a + outDegreeSum g b := by
   simp [outDegreeSum, List.map_append, List.sum_append]
 
@@ -598,7 +599,8 @@ section IndexComponents
 
 variable [DecidableEq V] {adj : V → List V}
 
-private theorem foldl_update_const (idx : ℕ) :
+/-- Folding constant updates over `c` sets exactly the members of `c` to `idx`. -/
+theorem foldl_update_const (idx : ℕ) :
     ∀ (c : List V) (f : V → ℕ) (u : V),
       (c.foldl (fun f v => Function.update f v idx) f) u = if u ∈ c then idx else f u
   | [], f, u => by simp

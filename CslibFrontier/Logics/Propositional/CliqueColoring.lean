@@ -188,9 +188,7 @@ theorem exists_eval_clique_iff (x : Fin (edgeCount n) → Bool) :
     have hinj : Function.Injective f := by
       intro u v huv
       by_contra hne
-      rcases lt_or_gt_of_ne hne with h | h
-      · exact absurd (hf v) (by rw [← huv, hdist u v h _ (hf u)]; simp)
-      · exact absurd (hf u) (by rw [huv, hdist v u h _ (hf v)]; simp)
+      grind
     refine ⟨Finset.univ.image f, (SimpleGraph.isNClique_iff _).2 ⟨?_, ?_⟩⟩
     · intro i hi j hj hij
       simp only [Finset.coe_image, Finset.coe_univ, Set.image_univ, Set.mem_range] at hi hj
@@ -322,10 +320,7 @@ theorem exists_eval_coloring_iff (x : Fin (edgeCount n) → Bool) :
     choose c hc using hcol
     refine ⟨SimpleGraph.Coloring.mk c fun {i j} hij hcij => ?_⟩
     have hx := (graph_adj hij.ne).1 hij
-    rcases lt_or_gt_of_ne hij.ne with h | h
-    · exact absurd hx (by rw [hedge (c i) i j h (hc i) (hcij ▸ hc j)]; simp)
-    · rw [edge_comm] at hx
-      exact absurd hx (by rw [hedge (c i) j i h (hcij ▸ hc j) (hc i)]; simp)
+    grind [edge_comm]
   · rintro ⟨C⟩
     refine ⟨fun ⟨i, a⟩ => decide (C i = a), (eval_coloring_eq_true_iff _).2 ⟨?_, ?_, ?_⟩⟩
     · exact fun i => ⟨C i, by simp⟩

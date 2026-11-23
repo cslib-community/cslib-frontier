@@ -214,6 +214,46 @@ when `bucketBits N = 0`, `phys`; else `phys` on full slabs `< gm 0 * slabSize N`
 @[expose] def physOfDense (N : ℕ) (gm dt : ℕ → ℕ) (d : ℕ) : ℕ :=
   physByBase N (gm 0 * slabSize N) dt d
 
+private theorem mod_ne_of_mem_window {M b d₁ d₂ : ℕ} (hM : 0 < M)
+    (h₁lo : b ≤ d₁) (h₁hi : d₁ < b + M) (h₂lo : b ≤ d₂) (h₂hi : d₂ < b + M) (hne : d₁ ≠ d₂) :
+    d₁ % M ≠ d₂ % M := fun heq =>
+  hne ((denseOfCirc_mod_self hM h₁lo h₁hi).symm.trans (heq ▸ denseOfCirc_mod_self hM h₂lo h₂hi))
+
+private theorem winGrow_core_spec {M b₀ b n d_new : ℕ} {td dt : ℕ → ℕ}
+    (hw : WindowInv M b₀ n td dt) (hM : n + 1 ≤ M)
+    (htd_b : ∀ i, td i < M) (hdt_b : ∀ i, dt i < M)
+    (hd_new_lo : b ≤ d_new) (hd_new_hi : d_new < b + (n + 1))
+    (hdense : ∀ t < n, denseOfCirc M b (td t) < b + (n + 1) ∧ td t ≠ d_new % M)
+    (howner : ∀ d, b ≤ d → d < b + (n + 1) → d ≠ d_new → b₀ ≤ d ∧ d < b₀ + n) :
+    let c_new := d_new % M
+    let td' := Function.update td n c_new
+    let dt' := Function.update dt c_new n
+    WindowInv M b (n + 1) td' dt' ∧ (∀ i, td' i < M) ∧ (∀ i, dt' i < M) := by
+  intro c_new td' dt'
+  have hM_pos : 0 < M := by omega
+  have hc_lt : c_new < M := Nat.mod_lt d_new hM_pos
+  have hcirc_new : denseOfCirc M b c_new = d_new :=
+    denseOfCirc_mod_self hM_pos hd_new_lo (by omega)
+  refine ⟨⟨fun t ht => ?_, fun t ht => ?_, fun t ht => ?_, fun d hlo hhi => ?_⟩,
+    fun i => ?_, fun i => ?_⟩
+  · rcases Nat.lt_succ_iff_lt_or_eq.mp ht with ht' | rfl <;> dsimp only [td'] <;> update_simp
+    · exact hw.td_lt t ht'
+    · exact hc_lt
+  · rcases Nat.lt_succ_iff_lt_or_eq.mp ht with ht' | rfl <;> dsimp only [td'] <;> update_simp
+    · exact (hdense t ht').1
+    · rw [hcirc_new]; exact hd_new_hi
+  · rcases Nat.lt_succ_iff_lt_or_eq.mp ht with ht' | rfl <;> dsimp only [td', dt']
+    · have := (hdense t ht').2; update_simp; exact hw.dt_td t ht'
+    · update_simp
+  · by_cases hd : d = d_new <;> dsimp only [td', dt']
+    · subst hd; update_simp; exact ⟨Nat.lt_succ_self n, rfl⟩
+    · obtain ⟨hlo₀, hhi₀⟩ := howner d hlo hhi hd
+      have hown := hw.owner_valid d hlo₀ hhi₀
+      have : d % M ≠ c_new := by rw [← hown.2]; exact (hdense _ hown.1).2
+      have := hown.1; update_simp; exact ⟨by omega, hown.2⟩
+  · by_cases hi : i = n <;> dsimp only [td'] <;> update_simp <;> [exact hc_lt; exact htd_b i]
+  · by_cases hi : i = c_new <;> dsimp only [dt'] <;> update_simp <;> [omega; exact hdt_b i]
+
 /-- Grow the circular window `[b, b + n)` on the right by 1 to `[b, b + (n + 1))`. -/
 @[expose] def winGrowRight (M b n : ℕ) : (ℕ → ℕ) × (ℕ → ℕ) → (ℕ → ℕ) × (ℕ → ℕ)
   | (td, dt) =>
@@ -227,30 +267,12 @@ theorem winGrowRight_spec {M b n : ℕ} {td dt : ℕ → ℕ}
     | (td', dt') => WindowInv M b (n + 1) td' dt' ∧ (∀ i, td' i < M) ∧ (∀ i, dt' i < M) := by
   dsimp only [winGrowRight]
   have hM_pos : 0 < M := by omega
-  set c_new := (b + n) % M
-  have hc_lt : c_new < M := Nat.mod_lt (b + n) hM_pos
-  have hcirc_new : denseOfCirc M b c_new = b + n :=
+  have hcirc_new : denseOfCirc M b ((b + n) % M) = b + n :=
     denseOfCirc_mod_self hM_pos (by omega) (by omega)
-  have htd_ne : ∀ t < n, td t ≠ c_new := fun t ht heq => by
-    have := hw.dense_lt t ht; rw [heq, hcirc_new] at this; omega
-  refine ⟨⟨fun t ht => ?_, fun t ht => ?_, fun t ht => ?_, fun d hlo hhi => ?_⟩,
-    fun i => ?_, fun i => ?_⟩
-  · rcases Nat.lt_succ_iff_lt_or_eq.mp ht with ht' | rfl <;> update_simp
-    · exact hw.td_lt t ht'
-    · exact hc_lt
-  · rcases Nat.lt_succ_iff_lt_or_eq.mp ht with ht' | rfl <;> update_simp
-    · have := hw.dense_lt t ht'; omega
-    · rw [hcirc_new]; omega
-  · rcases Nat.lt_succ_iff_lt_or_eq.mp ht with ht' | rfl
-    · have := htd_ne t ht'; update_simp; exact hw.dt_td t ht'
-    · update_simp
-  · rcases Nat.lt_succ_iff_lt_or_eq.mp (show d < b + n + 1 by omega) with hd_lt | rfl
-    · have hown := hw.owner_valid d hlo hd_lt
-      have : d % M ≠ c_new := by rw [← hown.2]; exact htd_ne _ hown.1
-      have := hown.1; update_simp; exact ⟨by omega, hown.2⟩
-    · update_simp; exact ⟨Nat.lt_succ_self n, rfl⟩
-  · by_cases hi : i = n <;> update_simp <;> [exact hc_lt; exact htd_b i]
-  · by_cases hi : i = c_new <;> update_simp <;> [omega; exact hdt_b i]
+  refine winGrow_core_spec hw hM htd_b hdt_b (d_new := b + n) (by omega) (by omega)
+    (fun t ht => ⟨by have := hw.dense_lt t ht; omega, fun heq => ?_⟩)
+    (fun d hlo hhi hne => ⟨hlo, by omega⟩)
+  have := hw.dense_lt t ht; rw [heq, hcirc_new] at this; omega
 
 /-- Grow the circular window `[b + 1, b + 1 + n)` on the left by 1 to `[b, b + (n + 1))`. -/
 @[expose] def winGrowLeft (M b n : ℕ) : (ℕ → ℕ) × (ℕ → ℕ) → (ℕ → ℕ) × (ℕ → ℕ)
@@ -265,29 +287,11 @@ theorem winGrowLeft_spec {M b n : ℕ} {td dt : ℕ → ℕ}
     | (td', dt') => WindowInv M b (n + 1) td' dt' ∧ (∀ i, td' i < M) ∧ (∀ i, dt' i < M) := by
   dsimp only [winGrowLeft]
   have hM_pos : 0 < M := by omega
-  set c_new := b % M
-  have hc_lt : c_new < M := Nat.mod_lt b hM_pos
-  have hcirc_new : denseOfCirc M b c_new = b := denseOfCirc_mod_self hM_pos le_rfl (by omega)
-  have hpred : ∀ t < n, denseOfCirc M b (td t) = denseOfCirc M (b + 1) (td t) ∧ td t ≠ c_new :=
-    fun t ht => denseOfCirc_pred_of_lt hM_pos (hw.td_lt t ht) (by have := hw.dense_lt t ht; omega)
-  refine ⟨⟨fun t ht => ?_, fun t ht => ?_, fun t ht => ?_, fun d hlo hhi => ?_⟩,
-    fun i => ?_, fun i => ?_⟩
-  · rcases Nat.lt_succ_iff_lt_or_eq.mp ht with ht' | rfl <;> update_simp
-    · exact hw.td_lt t ht'
-    · exact hc_lt
-  · rcases Nat.lt_succ_iff_lt_or_eq.mp ht with ht' | rfl <;> update_simp
-    · rw [(hpred t ht').1]; have := hw.dense_lt t ht'; omega
-    · rw [hcirc_new]; omega
-  · rcases Nat.lt_succ_iff_lt_or_eq.mp ht with ht' | rfl
-    · have := (hpred t ht').2; update_simp; exact hw.dt_td t ht'
-    · update_simp
-  · rcases eq_or_lt_of_le hlo with rfl | hd_gt
-    · update_simp; exact ⟨Nat.lt_succ_self n, rfl⟩
-    · have hown := hw.owner_valid d hd_gt (by omega)
-      have : d % M ≠ c_new := by rw [← hown.2]; exact (hpred _ hown.1).2
-      have := hown.1; update_simp; exact ⟨by omega, hown.2⟩
-  · by_cases hi : i = n <;> update_simp <;> [exact hc_lt; exact htd_b i]
-  · by_cases hi : i = c_new <;> update_simp <;> [omega; exact hdt_b i]
+  refine winGrow_core_spec hw hM htd_b hdt_b (d_new := b) le_rfl (by omega)
+    (fun t ht => ?_) (fun d hlo hhi hne => ⟨by omega, by omega⟩)
+  obtain ⟨heq, hne⟩ := denseOfCirc_pred_of_lt (b := b) hM_pos (hw.td_lt t ht)
+    (by have := hw.dense_lt t ht; omega)
+  exact ⟨by rw [heq]; have := hw.dense_lt t ht; omega, hne⟩
 
 private theorem WindowInv.td_inj {M b n : ℕ} {td dt : ℕ → ℕ} (hw : WindowInv M b n td dt)
     {t₁ t₂ : ℕ} (ht₁ : t₁ < n) (ht₂ : t₂ < n) (heq : td t₁ = td t₂) : t₁ = t₂ := by
@@ -358,11 +362,8 @@ theorem winShrinkRight_spec {M b n : ℕ} {td dt : ℕ → ℕ}
       have hmod := (denseOfCirc_eq_self_iff hM_pos (hw.td_lt t ht) (by omega) (by omega)).mp hd
       exact hne (hw.td_inj ht hown_rem.1 (hmod.trans hown_rem.2.symm))
     omega
-  have hne_crem : ∀ d, b ≤ d → d < b + n → d % M ≠ (b + n) % M := fun d hlo hhi heq => by
-    have hd_eq := denseOfCirc_mod_self hM_pos hlo (by omega : d < b + M)
-    have hrem_eq := denseOfCirc_mod_self (base_tail := b) (d := b + n) hM_pos (by omega) (by omega)
-    rw [heq, hrem_eq] at hd_eq; omega
-  exact winShrink_core_spec hw htd_b hdt_b hown_rem hlt_bn hne_crem
+  exact winShrink_core_spec hw htd_b hdt_b hown_rem hlt_bn
+    (fun d hlo hhi => mod_ne_of_mem_window hM_pos hlo (by omega) (by omega) (by omega) (by omega))
     (fun d hlo hhi => hw.owner_valid d hlo (by omega))
 
 /-- Shrink the circular window `[b, b + (n + 1))` on the left by 1 to `[b + 1, b + 1 + n)`. -/
@@ -387,11 +388,9 @@ theorem winShrinkLeft_spec {M b n : ℕ} {td dt : ℕ → ℕ}
       have hne_c : td t ≠ b % M := fun hc =>
         hne (hw.td_inj ht hown_rem.1 (hc.trans hown_rem.2.symm))
       rw [denseOfCirc_succ_of_ne_mod hM_pos (hw.td_lt t ht) (by omega) hne_c]; omega
-  have hne_crem : ∀ d, b + 1 ≤ d → d < b + 1 + n → d % M ≠ b % M := fun d hlo hhi heq => by
-    have hd_eq := denseOfCirc_mod_self hM_pos (by omega) (by omega : d < b + M)
-    have hrem_eq := denseOfCirc_mod_self (base_tail := b) (d := b) hM_pos le_rfl (by omega)
-    rw [heq, hrem_eq] at hd_eq; omega
-  exact winShrink_core_spec hw htd_b hdt_b hown_rem hsucc hne_crem
+  exact winShrink_core_spec hw htd_b hdt_b hown_rem hsucc
+    (fun d hlo hhi => mod_ne_of_mem_window hM_pos (by omega) (by omega) le_rfl (by omega)
+      (by omega))
     (fun d hlo hhi => hw.owner_valid d (by omega) (by omega))
 
 theorem physByBase_winGrowRight {N b n : ℕ} {td dt : ℕ → ℕ}
@@ -408,10 +407,8 @@ theorem physByBase_winGrowRight {N b n : ℕ} {td dt : ℕ → ℕ}
   · simp only [physByBase, hb0, ↓reduceIte]
     split_ifs with hlt
     · rfl
-    · have hne : d % maxTailItems N ≠ (b + n) % maxTailItems N := fun heq => by
-        have h1 := denseOfCirc_mod_self hM_pos (by omega) (by omega : d < b + maxTailItems N)
-        have h2 := denseOfCirc_mod_self (base_tail := b) (d := b + n) hM_pos (by omega) (by omega)
-        rw [heq, h2] at h1; omega
+    · have : d % maxTailItems N ≠ (b + n) % maxTailItems N :=
+        mod_ne_of_mem_window (b := b) hM_pos (by omega) (by omega) (by omega) (by omega) (by omega)
       update_simp
 
 theorem physByBase_winGrowLeft {N b n : ℕ} {td dt : ℕ → ℕ}
@@ -429,10 +426,34 @@ theorem physByBase_winGrowLeft {N b n : ℕ} {td dt : ℕ → ℕ}
     by_cases hlt : d < b
     · simp only [hlt, show d < b + 1 by omega, ↓reduceIte]
     · simp only [hlt, show ¬d < b + 1 by omega, ↓reduceIte]
-      have hne_mod : d % maxTailItems N ≠ b % maxTailItems N := fun heq => by
-        have h1 := denseOfCirc_mod_self hM_pos (by omega) (by omega : d < b + maxTailItems N)
-        have h2 := denseOfCirc_mod_self (base_tail := b) (d := b) hM_pos le_rfl (by omega)
-        rw [heq, h2] at h1; exact hne h1.symm
+      have := mod_ne_of_mem_window hM_pos (by omega) (by omega) le_rfl (by omega) hne
+      update_simp
+
+private theorem physByBase_update_dt_last {N b b' n t_rem : ℕ} {td dt : ℕ → ℕ}
+    (hb_pos : 0 < bucketBits N) (hw : WindowInv (maxTailItems N) b (n + 1) td dt)
+    (hM : n + 1 ≤ maxTailItems N) :
+    let d_last := denseOfCirc (maxTailItems N) b (td n)
+    let dt' := Function.update dt (td n) t_rem
+    b ≤ d_last ∧ d_last < b + n + 1 ∧
+    (¬(d_last < b') → physByBase N b' dt' d_last = N - 1 - t_rem) ∧
+    (∀ d < b + n + 1, (d < b' ↔ d < b) → d ≠ d_last →
+      physByBase N b' dt' d = physByBase N b dt d) := by
+  set M := maxTailItems N
+  set d_last := denseOfCirc M b (td n)
+  have hb0 : bucketBits N ≠ 0 := hb_pos.ne'
+  have hM_pos : 0 < M := by omega
+  have hd_last_lt : d_last < b + n + 1 := hw.dense_lt n (Nat.lt_succ_self n)
+  have hd_last_ge : b ≤ d_last := denseOfCirc_ge M b (td n)
+  have hd_last_mod : d_last % M = td n :=
+    denseOfCirc_mod hM_pos (hw.td_lt n (Nat.lt_succ_self n))
+  refine ⟨hd_last_ge, hd_last_lt, fun hnot => ?_, fun d hd hiff hne => ?_⟩
+  · simp only [physByBase, hb0, hnot, ↓reduceIte]; update_simp
+  · simp only [physByBase, hb0, ↓reduceIte]
+    by_cases hlt : d < b
+    · simp only [hlt, hiff.mpr hlt, ↓reduceIte]
+    · simp only [hlt, mt hiff.mp hlt, ↓reduceIte]
+      have : d % M ≠ td n := hd_last_mod ▸
+        mod_ne_of_mem_window hM_pos (by omega) (by omega) hd_last_ge (by omega) hne
       update_simp
 
 theorem physByBase_winShrinkRight {N b n : ℕ} {td dt : ℕ → ℕ}
@@ -445,24 +466,10 @@ theorem physByBase_winShrinkRight {N b n : ℕ} {td dt : ℕ → ℕ}
       physByBase N b dt' d_last = physByBase N b dt (b + n) ∧
       (∀ d < b + n, d ≠ d_last → physByBase N b dt' d = physByBase N b dt d) := by
   dsimp only [winShrinkRight]
-  set M := maxTailItems N
-  set d_last := denseOfCirc M b (td n)
-  have hb0 : bucketBits N ≠ 0 := Nat.ne_of_gt hb_pos
-  have hM_pos : 0 < M := by omega
-  have hd_last_lt : d_last < b + n + 1 := hw.dense_lt n (Nat.lt_succ_self n)
-  have hd_last_ge : b ≤ d_last := denseOfCirc_ge M b (td n)
-  have hc_last_lt : td n < M := hw.td_lt n (Nat.lt_succ_self n)
-  have hd_last_mod : d_last % M = td n := denseOfCirc_mod hM_pos hc_last_lt
-  refine ⟨hd_last_lt, ?_, fun d hd hne => ?_⟩
-  · simp only [physByBase, hb0, show ¬d_last < b by omega, show ¬(b + n) < b by omega, ↓reduceIte]
-    update_simp
-  · simp only [physByBase, hb0, ↓reduceIte]
-    split_ifs with hlt
-    · rfl
-    · have hne_mod : d % M ≠ td n := fun heq => hne <| by
-        rw [← (denseOfCirc_eq_self_iff hM_pos hc_last_lt (by omega)
-          (by omega : d < b + M)).mpr heq.symm]
-      update_simp
+  obtain ⟨hge, hlt, hlast, hkeep⟩ := physByBase_update_dt_last (b' := b)
+    (t_rem := dt ((b + n) % maxTailItems N)) hb_pos hw hM
+  refine ⟨hlt, (hlast (by omega)).trans ?_, fun d hd hne => hkeep d (by omega) Iff.rfl hne⟩
+  simp only [physByBase, hb_pos.ne', show ¬(b + n) < b by omega, ↓reduceIte]
 
 theorem physByBase_winShrinkLeft {N b n : ℕ} {td dt : ℕ → ℕ}
     (hb_pos : 0 < bucketBits N) (hw : WindowInv (maxTailItems N) b (n + 1) td dt)
@@ -475,25 +482,10 @@ theorem physByBase_winShrinkLeft {N b n : ℕ} {td dt : ℕ → ℕ}
       (∀ d < b + 1 + n, d ≠ b → d ≠ d_last →
         physByBase N (b + 1) dt' d = physByBase N b dt d) := by
   dsimp only [winShrinkLeft]
-  set M := maxTailItems N
-  set d_last := denseOfCirc M b (td n)
-  have hb0 : bucketBits N ≠ 0 := Nat.ne_of_gt hb_pos
-  have hM_pos : 0 < M := by omega
-  have hd_last_lt : d_last < b + n + 1 := hw.dense_lt n (Nat.lt_succ_self n)
-  have hd_last_ge : b ≤ d_last := denseOfCirc_ge M b (td n)
-  have hc_last_lt : td n < M := hw.td_lt n (Nat.lt_succ_self n)
-  have hd_last_mod : d_last % M = td n := denseOfCirc_mod hM_pos hc_last_lt
-  refine ⟨hd_last_ge, hd_last_lt, fun hgt => ?_, fun d hd hneb hne => ?_⟩
-  · simp only [physByBase, hb0, show ¬d_last < b + 1 by omega, ↓reduceIte]
-    update_simp
-  · simp only [physByBase, hb0, ↓reduceIte]
-    by_cases hlt : d < b
-    · simp only [hlt, show d < b + 1 by omega, ↓reduceIte]
-    · simp only [hlt, show ¬d < b + 1 by omega, ↓reduceIte]
-      have hne_mod : d % M ≠ td n := fun heq => hne <| by
-        rw [← (denseOfCirc_eq_self_iff hM_pos hc_last_lt (by omega)
-          (by omega : d < b + M)).mpr heq.symm]
-      update_simp
+  obtain ⟨hge, hlt, hlast, hkeep⟩ := physByBase_update_dt_last (b' := b + 1)
+    (t_rem := dt (b % maxTailItems N)) hb_pos hw hM
+  exact ⟨hge, hlt, fun hgt => hlast (by omega),
+    fun d hd hneb hne => hkeep d (by omega) (by omega) hne⟩
 
 /-! ## Section 2: Direct $O(1)$ Bucket-Owner and Logical-Slot Inversion on Dense Indices -/
 

@@ -119,9 +119,7 @@ def subsingletonFormula (L : Language.{u, v}) (α : Type*) : L.Formula α :=
 @[simp]
 theorem realize_subsingletonFormula {L : Language.{u, v}} {α : Type*} {M : Type w}
     [L.Structure M] (v : α → M) : (subsingletonFormula L α).Realize v ↔ Subsingleton M := by
-  fo_simp [subsingletonFormula, Formula.Realize]
-  refine ⟨fun h => ⟨fun x y => ?_⟩, fun h x y => Subsingleton.elim _ _⟩
-  simpa [Fin.snoc] using h x y
+  fo_simp [subsingletonFormula, subsingleton_iff]
 
 namespace TaggedInterpretation
 
@@ -340,8 +338,7 @@ theorem realize_domainAt (t : T) (c : Coord T ι → M) :
     (I.domainAt t).Realize c ↔ c p ≠ c q ∧ (∀ t', c (tag t') = if t' = t then c q else c p) ∧
       (∀ σ : Σ t', ι t', σ.1 ≠ t → c (data σ) = c p) ∧
         (I.domain t).Realize fun i => c (data ⟨t, i⟩) := by
-  simp only [domainAt, Formula.realize_inf, Formula.realize_not, realize_varEq,
-    Formula.realize_iInf, Formula.realize_relabel, Function.comp_def, and_assoc]
+  fo_simp [domainAt, and_assoc]
   refine and_congr Iff.rfl (and_congr ?_ (and_congr ?_ Iff.rfl))
   · refine forall_congr' fun t' => ?_
     split_ifs <;> simp
@@ -355,8 +352,7 @@ theorem realize_relAt {n : ℕ} (R : L'.Relations n) (c : Fin n × Coord T ι �
     (I.relAt R).Realize c ↔ (∀ j j', c (j, p) = c (j', p) ∧ c (j, q) = c (j', q)) ∧
       ∃ ts : Fin n → T, (∀ j, c (j, tag (ts j)) = c (j, q)) ∧
         (I.rel R ts).Realize fun σ => c (σ.1, data ⟨ts σ.1, σ.2⟩) := by
-  simp only [relAt, Formula.realize_inf, Formula.realize_iInf, Formula.realize_iSup,
-    realize_varEq, Formula.realize_relabel, Function.comp_def, Prod.forall]
+  fo_simp [relAt, Prod.forall]
 
 variable (S : Interpretation L L' Unit)
 
@@ -364,9 +360,7 @@ variable (S : Interpretation L L' Unit)
 `S.domain` at coordinate `p`. -/
 theorem realize_toInterpretation_domain_of_subsingleton [Subsingleton M] (c : Coord T ι → M) :
     (I.toInterpretation S).domain.Realize c ↔ S.domain.Realize fun _ => c p := by
-  fo_simp [toInterpretation, realize_subsingletonFormula, Function.comp_def]
-  simp only [show Subsingleton M from inferInstance, true_and, not_true_eq_false, false_and,
-    or_false]
+  fo_simp [toInterpretation, realize_subsingletonFormula, show Subsingleton M from inferInstance]
 
 /-- On a nontrivial structure `M`, the domain formula of `I.toInterpretation S` holds iff
 `I.domainAt t` holds for some tag `t`. -/
@@ -379,9 +373,7 @@ to `S.rel R` at coordinate `p`. -/
 theorem realize_toInterpretation_rel_of_subsingleton [Subsingleton M] {n : ℕ}
     (R : L'.Relations n) (c : Fin n × Coord T ι → M) :
     ((I.toInterpretation S).rel R).Realize c ↔ (S.rel R).Realize fun x => c (x.1, p) := by
-  fo_simp [toInterpretation, realize_subsingletonFormula, Function.comp_def]
-  simp only [show Subsingleton M from inferInstance, true_and, not_true_eq_false, false_and,
-    or_false]
+  fo_simp [toInterpretation, realize_subsingletonFormula, show Subsingleton M from inferInstance]
 
 /-- On a nontrivial structure `M`, the relation formula of `I.toInterpretation S` for `R` reduces
 to `I.relAt R`. -/
@@ -618,11 +610,11 @@ theorem realize_formula [L.Structure M] {w : T} (x : ι t → M) (y : ι w → M
   unfold formula Holds
   by_cases h : τ.target = w
   · subst h
-    fo_simp [dite_true, Sum.elim_comp_inl, Sigma.mk.inj_iff, heq_eq_eq, exists_eq_left', Compat]
+    fo_simp [dite_true, Sigma.mk.inj_iff, heq_eq_eq, exists_eq_left', Compat]
     refine and_congr Iff.rfl (forall_congr' fun j => ?_)
     cases τ.map j <;> simp [eq_comm]
-  · simp only [h, dite_false, Formula.realize_bot, false_iff, not_and, not_exists]
-    intro _ y' he
+  · fo_simp [h, dite_false, false_iff, not_and, not_exists]
+    intro _ _ he
     exact absurd (congrArg Sigma.fst he).symm h
 
 /-- The disjunction of the formulas of a list of templates. -/

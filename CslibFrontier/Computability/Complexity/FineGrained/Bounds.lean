@@ -88,9 +88,7 @@ theorem one_le_two_rpow_mul_pow (hx : 0 ≤ x) : 1 ≤ (2 : ℝ) ^ x * ((L : ℝ
 /-- An exponential-times-polynomial envelope grows with its exponent and its degree. -/
 theorem two_rpow_mul_pow_le_two_rpow_mul_pow (hxy : x ≤ y) (hde : d ≤ e) :
     (2 : ℝ) ^ x * ((L : ℝ) + 1) ^ d ≤ 2 ^ y * ((L : ℝ) + 1) ^ e :=
-  mul_le_mul (Real.rpow_le_rpow_of_exponent_le (by norm_num) hxy)
-    (pow_le_pow_right₀ (le_add_of_nonneg_left (Nat.cast_nonneg L)) hde) (by positivity)
-    (by positivity)
+  by gcongr <;> simp
 
 /-- A polynomial of degree `d ≤ e` is below the envelope `2 ^ x * (L + 1) ^ e`, `x ≥ 0`. -/
 theorem pow_le_two_rpow_mul_pow (hx : 0 ≤ x) (hde : d ≤ e) :

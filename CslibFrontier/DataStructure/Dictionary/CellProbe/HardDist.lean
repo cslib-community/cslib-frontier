@@ -12,6 +12,7 @@ public import CslibFrontier.DataStructure.CellProbe.Randomized.ObliviousSequence
 public import CslibFrontier.DataStructure.Dictionary.Dynamic.Spec
 public import CslibFrontier.Probability.PMF.Uniform
 public import Mathlib.Data.Finset.Sort
+import CslibFrontier.Foundations.Data.List.RowMajor
 import Mathlib.Data.Fintype.CardEmbedding
 import Mathlib.Data.Fintype.Powerset
 import Mathlib.Data.Fintype.Sort
@@ -849,12 +850,6 @@ theorem not_isQuery_of_mem_insertDeleteSeq {U V n : ℕ}
 
 /-! ### Admissibility and sliding-window state evolution -/
 
-private theorem finRange_take_succ {n k : ℕ} (hk : k < n) :
-    (List.finRange n).take (k + 1) = (List.finRange n).take k ++ [⟨k, hk⟩] := by
-  have hlen : k < (List.finRange n).length := by simpa using hk
-  rw [List.take_add_one, List.getElem?_eq_getElem hlen, List.getElem_finRange]
-  rfl
-
 private theorem validHistory_run_initInsertSeq_take {U V n : ℕ}
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V) :
     ∀ {k : ℕ} (hk : k ≤ n),
@@ -869,7 +864,7 @@ private theorem validHistory_run_initInsertSeq_take {U V n : ℕ}
   | 0, _ => by simp [dictOfPrefix]
   | k + 1, hk => by
     obtain ⟨hvh, hrun⟩ := validHistory_run_initInsertSeq_take keys vals (Nat.le_of_succ_le hk)
-    rw [finRange_take_succ hk, List.map_append, List.map_cons, List.map_nil,
+    rw [List.take_succ_finRange hk, List.map_append, List.map_cons, List.map_nil,
       StateTransitionSpec.validHistory_append, StateTransitionSpec.run_append, hrun]
     set s_k := dictOfPrefix (windowEmb keys 0 (Nat.zero_le n))
       (windowVals vals 0 (Nat.zero_le n)) k (Nat.le_of_succ_le hk)
@@ -1036,7 +1031,7 @@ private theorem validHistory_run_metaPrefix {U V n : ℕ}
     have hconcat :
         initInsertSeq keys vals ++ ((List.finRange n).take (t + 1)).flatMap metaOp =
           pref ++ metaOp ⟨t, ht⟩ := by
-      rw [finRange_take_succ ht, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
+      rw [List.take_succ_finRange ht, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
         List.append_nil, List.append_assoc]
     rw [hconcat, StateTransitionSpec.validHistory_append,
       (Dynamic.spec U V n).run_append (Dictionary.empty U) pref (metaOp ⟨t, ht⟩), hrun]
@@ -1104,7 +1099,7 @@ private theorem drop_take_hardSeq {U V n : ℕ} (c : ℕ)
       metaOp j := by
   have htake := take_hardSeq c (j.1 + 1) keys vals metaOp hc
   have hidx : n + c * (j.1 + 1) = (n + c * j.1) + c := by ring
-  rw [hidx, finRange_take_succ j.2, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
+  rw [hidx, List.take_succ_finRange j.2, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
     List.append_nil, ← List.append_assoc] at htake
   refine drop_take_of_take_add htake ?_ (hc j)
   rw [List.length_append, length_initInsertSeq, length_flatMap_const c _ _ hc,

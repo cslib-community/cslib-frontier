@@ -176,18 +176,11 @@ theorem le_inc {P : Type*} [DecidableEq P] (p : P) (c : GCounter P) : c ≤ c.in
 
 theorem inc_comm {P : Type*} [DecidableEq P] (p q : P) (c : GCounter P) :
     (c.inc p).inc q = (c.inc q).inc p := by
-  ext r
-  simp only [inc]
-  by_cases hpq : p = q
-  · subst hpq; rfl
-  · by_cases hrp : r = p
-    · subst hrp
-      have hrq : r ≠ q := hpq
-      simp [Function.update_of_ne hrq]
-    · by_cases hrq : r = q
-      · subst hrq
-        simp [Function.update_of_ne (Ne.symm hpq)]
-      · simp [Function.update_of_ne hrp, Function.update_of_ne hrq]
+  rcases eq_or_ne p q with rfl | hpq
+  · rfl
+  · exact GCounter.ext (by
+      simp [inc, Function.update_of_ne hpq, Function.update_of_ne hpq.symm,
+        Function.update_comm hpq.symm])
 
 @[simp]
 theorem value_zero {P : Type*} [Fintype P] : (zero P).value = 0 := by
@@ -380,23 +373,11 @@ theorem value_sup_of_local_counts {P : Type*} [Fintype P] [Nonempty P]
     (hneg_le : ∀ q p, (rep q).neg.counts p ≤ decK p) :
     (Finset.univ.sup' Finset.univ_nonempty rep).value =
       ((∑ p : P, incK p : ℕ) : ℤ) - ((∑ p : P, decK p : ℕ) : ℤ) := by
-  have hsup_eq : Finset.univ.sup' Finset.univ_nonempty rep = ⟨⟨incK⟩, ⟨decK⟩⟩ := by
-    apply le_antisymm
-    · rw [Finset.sup'_le_iff]
-      exact fun q _ => ⟨fun p => hpos_le q p, fun p => hneg_le q p⟩
-    · refine ⟨fun p => ?_, fun p => ?_⟩
-      · have hp : (rep p).pos.counts p ≤
-            (Finset.univ.sup' Finset.univ_nonempty rep).pos.counts p :=
-          (Finset.le_sup' rep (Finset.mem_univ p)).1 p
-        change incK p ≤ (Finset.univ.sup' Finset.univ_nonempty rep).pos.counts p
-        rwa [← hpos_own p]
-      · have hp : (rep p).neg.counts p ≤
-            (Finset.univ.sup' Finset.univ_nonempty rep).neg.counts p :=
-          (Finset.le_sup' rep (Finset.mem_univ p)).2 p
-        change decK p ≤ (Finset.univ.sup' Finset.univ_nonempty rep).neg.counts p
-        rwa [← hneg_own p]
-  rw [hsup_eq]
-  rfl
+  rw [value, Finset.apply_sup'_eq_sup'_comp Finset.univ_nonempty PNCounter.pos (fun _ _ => rfl),
+    Finset.apply_sup'_eq_sup'_comp Finset.univ_nonempty PNCounter.neg (fun _ _ => rfl)]
+  dsimp only [Function.comp_def]
+  rw [GCounter.value_sup_of_local_counts _ incK hpos_own hpos_le,
+    GCounter.value_sup_of_local_counts _ decK hneg_own hneg_le]
 
 end PNCounter
 
