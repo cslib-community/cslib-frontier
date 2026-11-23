@@ -40,7 +40,6 @@ public import CslibFrontier.Algorithms.Lean.BinPacking.FirstFitWeight
 public import CslibFrontier.Algorithms.Lean.BinPacking.NextFit
 public import CslibFrontier.Algorithms.Lean.BinPacking.Online
 public import CslibFrontier.Algorithms.Lean.BinPacking.OnlineLowerBound
-public import CslibFrontier.Algorithms.Lean.BinarySearch
 public import CslibFrontier.Algorithms.Lean.BurrowsWheeler.Basic
 public import CslibFrontier.Algorithms.Lean.BurrowsWheeler.Decode
 public import CslibFrontier.Algorithms.Lean.CDCL.Assign
@@ -260,9 +259,6 @@ public import CslibFrontier.Algorithms.Lean.TSP.MSTTour
 public import CslibFrontier.Algorithms.Lean.TSP.PerfectMatching
 public import CslibFrontier.Algorithms.Lean.TSP.Shortcut
 public import CslibFrontier.Algorithms.Lean.TSP.Walk
-public import CslibFrontier.Algorithms.Lean.TimeM.Loops
-public import CslibFrontier.Algorithms.Lean.TimeM.Simps
-public import CslibFrontier.Algorithms.Lean.TimeM.Simps.Init
 public import CslibFrontier.Algorithms.Lean.TreeDecomposition.BagAssignment
 public import CslibFrontier.Algorithms.Lean.TreeDecomposition.BagMask
 public import CslibFrontier.Algorithms.Lean.TreeDecomposition.CSP
