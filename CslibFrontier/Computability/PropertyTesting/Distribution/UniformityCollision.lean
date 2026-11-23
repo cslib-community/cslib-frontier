@@ -186,12 +186,7 @@ private theorem far_arith {q w K ε : ℝ} (hq : 1 ≤ q) (hε : 0 < ε) (hε1 :
     calc 3200 * (24 * q ^ 2 * (1 + w ^ 2) + 48 * K * (w ^ 2 + q * w ^ 3))
         = 3 * (25600 * q ^ 2) + 12 * (6400 * q ^ 2 * w ^ 2) +
             960 * (160 * (K * w ^ 2)) + 1920 * (80 * (K * (q * w ^ 3))) := by ring
-      _ ≤ 3 * Z ^ 2 + 12 * Z ^ 2 + 960 * Z ^ 2 + 1920 * Z ^ 2 :=
-          add_le_add (add_le_add (add_le_add
-            (mul_le_mul_of_nonneg_left t1 (by norm_num))
-            (mul_le_mul_of_nonneg_left t2 (by norm_num)))
-            (mul_le_mul_of_nonneg_left t3 (by norm_num)))
-            (mul_le_mul_of_nonneg_left t4 (by norm_num))
+      _ ≤ 3 * Z ^ 2 + 12 * Z ^ 2 + 960 * Z ^ 2 + 1920 * Z ^ 2 := by gcongr
       _ = 2895 * Z ^ 2 := by ring
       _ ≤ 3200 * Z ^ 2 := mul_le_mul_of_nonneg_right (by norm_num) (sq_nonneg Z)
   rw [show K ^ 2 * w ^ 4 = Z ^ 2 by rw [hZ]; ring]

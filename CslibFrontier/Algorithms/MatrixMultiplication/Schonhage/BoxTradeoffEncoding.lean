@@ -162,8 +162,7 @@ theorem encodings_ninth_blocks (k N : ℕ) (hN : D (9 * k) ^ 18 ≤ N) :
     calc ((B : ℝ) * (10 : ℝ) ^ (189 * k)) ^ 2
         = (B : ℝ) ^ 2 * ((10 : ℝ) ^ (189 * k)) ^ 2 := mul_pow _ _ _
       _ ≤ (B : ℝ) ^ 2 * ((21 : ℝ) ^ (9 * k) * (N0' : ℝ) ^ 2 *
-          ((D (9 * k) ^ 18 : ℕ) : ℝ) ^ 2 * ((9 / 20 : ℝ) ^ k) ^ 2) :=
-        mul_le_mul_of_nonneg_left hT (by positivity)
+          ((D (9 * k) ^ 18 : ℕ) : ℝ) ^ 2 * ((9 / 20 : ℝ) ^ k) ^ 2) := by gcongr
       _ ≤ (B : ℝ) ^ 2 * ((21 : ℝ) ^ (9 * k) * (N0' : ℝ) ^ 2 *
           (N : ℝ) ^ 2 * ((9 / 20 : ℝ) ^ k) ^ 2) := by gcongr
       _ = ((B : ℝ) ^ 2 * (21 : ℝ) ^ (9 * k) * (N0' : ℝ) ^ 2) *
@@ -192,8 +191,7 @@ private theorem matrix_words_ninth_blocks (k N : ℕ) (hN : D (9 * k) ^ 18 ≤ N
     simpa only [mul_pow, ← pow_mul, mul_comm] using hpow
   have hNr : ((D (9 * k) ^ 18 : ℕ) : ℝ) ≤ (N : ℝ) := by exact_mod_cast hN
   calc (N : ℝ) * (D (9 * k) : ℝ)
-      ≤ (N : ℝ) * ((9 / 20 : ℝ) ^ k * ((D (9 * k) ^ 18 : ℕ) : ℝ)) :=
-        mul_le_mul_of_nonneg_left hD (Nat.cast_nonneg _)
+      ≤ (N : ℝ) * ((9 / 20 : ℝ) ^ k * ((D (9 * k) ^ 18 : ℕ) : ℝ)) := by gcongr
     _ ≤ (N : ℝ) * ((9 / 20 : ℝ) ^ k * (N : ℝ)) := by gcongr
     _ = _ := by ring
 

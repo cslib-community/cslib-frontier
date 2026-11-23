@@ -119,26 +119,22 @@ theorem cost_subList [Zero α] (p q : List α) :
 subtractions under every oracle. -/
 theorem cost_mulFit [Zero α] (n : ℕ) (p q : List α) :
     (mulFit n p q).cost o (weight ca cm) = cm * mulCount n + ca * addCount n := by
-  induction n using Nat.strong_induction_on generalizing p q with
-  | _ n ih =>
-    match n with
-    | 0 => simp [mulFit]
-    | 1 => simp [mulFit, doMul, weight]
-    | n + 2 =>
-      rw [mulFit, mulCount, addCount]
-      simp only [addAt, FreeM.cost_bind, FreeM.cost_pure, cost_addList, cost_subList,
-        length_eval_mulFit, length_eval_subList, List.takeD_length, List.length_drop,
-        List.length_append, List.length_cons]
-      rw [ih _ (by omega), ih _ (by omega), ih _ (by omega)]
-      obtain ⟨m, hm⟩ : ∃ m, (n + 2) / 2 = m + 1 := ⟨(n + 2) / 2 - 1, by omega⟩
-      obtain ⟨k, hk⟩ : ∃ k, n + 2 - (m + 1) = k + 1 := ⟨n + 2 - (m + 1) - 1, by omega⟩
-      have hkm : m ≤ k := by omega
-      have hn : n = m + k := by omega
-      rw [hm, hk]
-      subst hn
-      simp (disch := omega) only [Nat.min_eq_left, Nat.min_eq_right, Nat.max_eq_left,
-        show 2 * (m + 1) - 1 = 2 * m + 1 by omega, show 2 * (k + 1) - 1 = 2 * k + 1 by omega]
-      ring
+  fun_induction mulFit n p q with
+  | case1 => simp -- 0
+  | case2 => simp [doMul, weight] -- 1
+  | case3 n p q m' k' p₀ p₁ q₀ q₁ ih₀ ih₁ _ => -- n + 2: three half-size products
+    simp only [addAt, FreeM.cost_bind, FreeM.cost_pure, cost_addList, cost_subList, ih₀, ih₁,
+      mulCount, addCount, length_eval_mulFit, length_eval_subList, m', k', p₀, p₁, q₀, q₁,
+      List.takeD_length, List.length_drop, List.length_append, List.length_cons]
+    obtain ⟨m, hm⟩ : ∃ m, (n + 2) / 2 = m + 1 := ⟨(n + 2) / 2 - 1, by omega⟩
+    obtain ⟨k, hk⟩ : ∃ k, n + 2 - (m + 1) = k + 1 := ⟨n + 2 - (m + 1) - 1, by omega⟩
+    have hkm : m ≤ k := by omega
+    have hn : n = m + k := by omega
+    rw [hm, hk]
+    subst hn
+    simp (disch := omega) only [Nat.min_eq_left, Nat.min_eq_right, Nat.max_eq_left,
+      show 2 * (m + 1) - 1 = 2 * m + 1 by omega, show 2 * (k + 1) - 1 = 2 * k + 1 by omega]
+    ring
 
 /-! ### Closed forms at powers of two -/
 
@@ -213,40 +209,34 @@ theorem mulCount_add_addCount_le (n : ℕ) :
 
 /-- At least `3 ^ ⌊log₂ n⌋` multiplications for `n ≠ 0`. -/
 theorem pow_log_le_mulCount {n : ℕ} (hn : n ≠ 0) : 3 ^ Nat.log 2 n ≤ mulCount n := by
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-    rcases Nat.lt_or_ge n 2 with h | h
-    · obtain rfl : n = 1 := by omega
-      simp
-    · rw [mulCount_of_two_le h]
-      have h1 := ih (n / 2) (by omega) (by omega)
-      have h2 := ih (n - n / 2) (by omega) (by omega)
-      have hlog : Nat.log 2 n = Nat.log 2 (n / 2) + 1 := by
-        have := Nat.log_pos (b := 2) (by norm_num) h
-        rw [Nat.log_div_base]
-        omega
-      have hmono : 3 ^ Nat.log 2 (n / 2) ≤ 3 ^ Nat.log 2 (n - n / 2) :=
-        Nat.pow_le_pow_right (by norm_num) (Nat.log_mono_right (by omega))
-      rw [hlog, pow_succ]
+  fun_induction mulCount n with
+  | case1 => exact absurd rfl hn -- 0
+  | case2 => simp -- 1
+  | case3 n ih₁ ih₂ => -- n + 2
+    have h1 := ih₁ (by omega)
+    have h2 := ih₂ (by omega)
+    have hlog : Nat.log 2 (n + 2) = Nat.log 2 ((n + 2) / 2) + 1 := by
+      have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n + 2)
+      rw [Nat.log_div_base]
       omega
+    have hmono : 3 ^ Nat.log 2 ((n + 2) / 2) ≤ 3 ^ Nat.log 2 (n + 2 - (n + 2) / 2) :=
+      Nat.pow_le_pow_right (by norm_num) (Nat.log_mono_right (by omega))
+    rw [hlog, pow_succ]
+    omega
 
 /-- At most `n ^ 2` multiplications. -/
 theorem mulCount_le_sq (n : ℕ) : mulCount n ≤ n ^ 2 := by
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-    rcases Nat.lt_or_ge n 2 with h | h
-    · rcases (by omega : n = 0 ∨ n = 1) with rfl | rfl <;> simp
-    · rw [mulCount_of_two_le h]
-      have h1 := ih (n / 2) (by omega)
-      have h2 := ih (n - n / 2) (by omega)
-      obtain ⟨m, hm⟩ : ∃ m, n / 2 = m := ⟨_, rfl⟩
-      obtain ⟨k, hk⟩ : ∃ k, n - n / 2 = k := ⟨_, rfl⟩
-      rw [hk] at h2 ⊢
-      rw [hm] at h1 ⊢
-      have hn : n = m + k := by omega
-      have hkm : k ≤ m + 1 := by omega
-      subst hn
-      nlinarith
+  fun_induction mulCount n with
+  | case1 | case2 => simp -- 0, 1
+  | case3 n ih₁ ih₂ => -- n + 2
+    obtain ⟨m, hm⟩ : ∃ m, (n + 2) / 2 = m := ⟨_, rfl⟩
+    obtain ⟨k, hk⟩ : ∃ k, n + 2 - m = k := ⟨_, rfl⟩
+    rw [hm, hk] at ih₂ ⊢
+    rw [hm] at ih₁
+    have hkm : k ≤ m + 1 := by omega
+    have hm1 : 1 ≤ m := by omega
+    rw [show n.succ.succ = m + k by omega]
+    nlinarith
 
 /-- Fewer than the `n ^ 2` coefficient products of the schoolbook method, for `n ≥ 2`. -/
 theorem mulCount_lt_sq {n : ℕ} (hn : 2 ≤ n) : mulCount n < n ^ 2 := by

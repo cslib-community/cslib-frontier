@@ -157,7 +157,7 @@ namespace Cslib.Logic.PL.VeriPB.Text
 `decide` can check concrete texts. -/
 
 /-- The pieces of a list of characters between the characters satisfying `p`. -/
-private def splitChars (p : Char → Bool) : List Char → List (List Char)
+def splitChars (p : Char → Bool) : List Char → List (List Char)
   | [] => [[]]
   | c :: cs =>
     if p c then [] :: splitChars p cs

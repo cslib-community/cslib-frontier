@@ -1307,8 +1307,7 @@ theorem measureReal_stdGaussian_prod_convex_zero_le
       mul_le_mul_of_nonneg_right hcv_sq (normSq3_nonneg _)
     rw [← hid] at h1
     have h2 : normSq3 c * (dot3 vUnit (cross3 (proj3 q₁) (proj3 q₂))) ^ 2 ≤
-        1 * (dot3 vUnit (cross3 (proj3 q₁) (proj3 q₂))) ^ 2 :=
-      mul_le_mul_of_nonneg_right hc_norm (sq_nonneg _)
+        1 * (dot3 vUnit (cross3 (proj3 q₁) (proj3 q₂))) ^ 2 := by gcongr
     linarith only [h1, h2]
   calc ((stdGaussian (EuclideanSpace ℝ (Fin d ⊕ Fin 3))).prod
         (stdGaussian (EuclideanSpace ℝ (Fin d ⊕ Fin 3)))).real

@@ -201,8 +201,7 @@ theorem notMem_rankProperty_rankLength_of_computes {d x : ℕ}
     omega
   have htrade := two_mul_two_pow_le_size_of_mem_rankTest_sliceLevel hℓ hm hf hC hCd
   have hlt := five_mul_rankLength_lt d x
-  have : 5 * (rankLength d x + 1) * C.size ≤ 5 * (rankLength d x + 1) * 2 ^ x :=
-    Nat.mul_le_mul_left _ hCs
+  have : 5 * (rankLength d x + 1) * C.size ≤ 5 * (rankLength d x + 1) * 2 ^ x := by gcongr
   omega
 
 /-- **The input length is polylogarithmic in the size**: for `x ≥ 1`,

@@ -57,19 +57,14 @@ theorem emit_local_entry {w n : ℕ} (x : Data 128) (e : Entry) (hl : e.Loaded x
       (by simpa only [hl.2.1, hl.2.2] using hsrc)
       (by simpa only [hl.2.1, hl.2.2] using hs.input)
       (by intro j; simpa only [hl.2.2] using e.read_injOn j (hv.1 j))
-  have hbp (i : Fin 128) (hi : 64 ≤ i.val) (hne : i ≠ selected) :
-      b.regs i = x.regs i := by regs_frame
-  have hL : NodePacking.layout ((nodeState b).comap kernel) = recordLayout x M := by
-    rw [nodeState_layout, hb selected (by decide), hus]
-    exact recordLayout_congr x b M hbp
-  have hEnd : Fits (w + 2) ((recordLayout x M).endpoint) :=
-    (Signed.unsigned_fits_of_signed (hnode M hMpos hMle)).of_le
-      (recordLayout x M).bounds.1
-  have hEndEq : (recordLayout x M).endpoint = b.regs heap + 3 + 2 *
+  have hbL : recordLayout b (b.regs selected) = recordLayout x M := by
+    rw [hb selected (by decide), hus]
+    exact recordLayout_congr x b M fun i hi hne => by regs_frame
+  have hEnd : Fits (w + 2) (b.regs heap + 3 + 2 *
       (b.regs (slot 2) + b.regs (slot 4) + b.regs (slot 6)) +
-      4 * b.regs groups + b.regs selected := by
-    rw [← hL, nodeState_layout, recordLayout_endpoint]
-  rw [hEndEq] at hEnd
+      4 * b.regs groups + b.regs selected) := by
+    rw [← recordLayout_endpoint, hbL]
+    exact (Signed.unsigned_fits_of_signed (hnode M hMpos hMle)).of_le (recordLayout x M).bounds.1
   have hd := deliverLocal_exec b (by regs_frame) hEnd
   refine ⟨localDeliveryState b, (he.seq hd.within).mono ?_, ?_⟩
   · have ht := visit_cost_le x n (x.regs limit) (x.regs groups) M

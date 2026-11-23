@@ -151,8 +151,10 @@ private theorem finish_of_return (f : BitString n → BitString n) (x fallback :
   rw [he, Function.iterate_add_apply, hperiod.iterate_mod_apply,
     ← Function.iterate_add_apply, Nat.sub_add_cancel hT]
 
-private theorem injective_of_no_return (f : BitString n → BitString n) (x : BitString n)
-    (hret : ¬ ∃ j : Fin K, returnFlag f x j = true) :
+/-- If the state at time `K` has no positive return within `K` further steps, the initial
+prefix of `K` states is simple. -/
+theorem injective_of_no_return_period (f : BitString n → BitString n) (x : BitString n)
+    (hret : ¬ ∃ j : Fin K, f^[j.val + 1] (f^[K] x) = f^[K] x) :
     Function.Injective (fun i : Fin K => f^[i.val] x) := by
   have hlt {i j : Fin K} (hij : i.val < j.val) (he : f^[i.val] x = f^[j.val] x) : False := by
     have hperiod : Function.IsPeriodicPt f (j.val - i.val) (f^[i.val] x) := by
@@ -161,9 +163,9 @@ private theorem injective_of_no_return (f : BitString n → BitString n) (x : Bi
     have h := hperiod.apply_iterate (K - i.val)
     rw [← Function.iterate_add_apply, Nat.sub_add_cancel i.isLt.le] at h
     have hj := j.isLt
-    refine hret ⟨⟨j.val - i.val - 1, by lia⟩, decide_eq_true ?_⟩
-    change f^[j.val - i.val - 1 + 1 + K] x = f^[K] x
-    rw [show j.val - i.val - 1 + 1 = j.val - i.val by lia, Function.iterate_add_apply]
+    refine hret ⟨⟨j.val - i.val - 1, by lia⟩, ?_⟩
+    change f^[j.val - i.val - 1 + 1] (f^[K] x) = f^[K] x
+    rw [show j.val - i.val - 1 + 1 = j.val - i.val by lia]
     exact h
   intro i j he
   rcases lt_trichotomy i.val j.val with hij | hij | hij
@@ -242,7 +244,9 @@ theorem fixed_power_of_ranked_checkpoints (c : Circuit signature n n) (q : Circu
         obtain ⟨i, _, hi, hchosen⟩ := chooseRecord_spec (flags x) id first K ⟨j, j.isLt, hj⟩
         apply corrected_spec f _ d first (flags x) x T hT hd
         rw [hchosen]
-        exact hp (hcover x hx (injective_of_no_return f x hret) i (hmin i hi))
+        have hsimple := injective_of_no_return_period f x (K := K)
+          (by simpa only [returnFlag, decide_eq_true_eq, Function.iterate_add_apply] using hret)
+        exact hp (hcover x hx hsimple i (hmin i hi))
     · dsimp only [K]
       ring
   · refine ⟨c.iterate T, fun x _ => congrFun (c.eval_iterate interpretation T) x, ?_⟩

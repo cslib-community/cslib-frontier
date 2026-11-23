@@ -1863,15 +1863,16 @@ loop as a chain of distributions: `ProbComp.eval_iterate` for a closed loop and
 only the step laws agree, `ProbComp.eval_iterate_congr` gives equal loop laws directly.
 
 Then import [PMF/Coupling.lean](../../CslibFrontier/Probability/PMF/Coupling.lean).
-`PMF.map_iterate_bind_of_invariant` lifts a state representation that commutes with every step.
-`PMF.iterate_bind_comm_of_invariant` handles the case where the ideal chain first draws a hidden
-sample `k` and then runs on a smaller state. The link between the two chains is the law
-`(exp a).map (·, rep a)`, where `exp a` samples what the real state `a` has not yet fixed, as in
-lazy and eager sampling. The local step equation is needed only on states satisfying an invariant
-indexed by the round. Each lemma returns the lifted equation together with that invariant on the
-reachable states, so you can chain hops. `bind_bind_comm_of_invariant` and `map_bind_of_invariant`
-are the one-step forms for straight-line code, and `iterate_bind_invariant` gives only the
-invariant.
+`PMF.RepInv` bundles a state representation `d₁.map rep = d₂` with an invariant on `d₁.support`, and
+`PMF.RepInv.iterate` lifts a step-wise representation across a loop. `PMF.HiddenCoupling` handles
+the case where the ideal run first draws a hidden sample `k` from `exp₀` and then runs `d₂ k` on a
+smaller state. The link between the two runs is `(exp a).map (·, rep a)`, where `exp a` samples what
+the real state `a` has not yet fixed, as in lazy and eager sampling, and
+`PMF.HiddenCoupling.iterate` lifts it across a loop under an invariant indexed by the round. Both
+predicates infer intermediate distributions and continuations through dot-notation combinators
+(`.pure`, `.bind`, `.map`, `.iterate`, plus `RepInv.of_eq`, `HiddenCoupling.bind_pure`, and
+`HiddenCoupling.congr`), returning both the distribution equation and `support_inv` so you can chain
+hops. `PMF.iterate_bind_invariant` gives only the invariant.
 
 For an adaptive program with a query budget, import
 [Oracle/QueryBoundedSimulation.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/QueryBoundedSimulation.lean).
@@ -2058,6 +2059,23 @@ When two stateful oracle handlers agree until an internal collision or guessing 
 - **Two independent random oracles as two lists.** When a protocol calls two random oracles, such as a Merkle hash and a Fiat–Shamir challenge oracle, import [RandomOracle/Sum.lean](../../CslibFrontier/Languages/Probabilistic/RandomOracle/Sum.lean) and run it under `RandomOracle.memoizeSum dist₁ dist₂`, which keeps one association list per oracle. `RandomOracle.run_interpret_memoizeSum` shows that the two lists implement the lazy random oracle `RandomOracle.answer (sumHandler dist₁ dist₂)` on their joined cache `Cache.sum (ofList tr₁) (ofList tr₂)`, and `map_fst_run_interpret_memoizeSum_nil` gives the output distribution from empty lists. One call unfolds with `memoizeSum_inl`/`_inr` and inverts with `mem_support_memoizeSum_inl`/`_inr`; `run_interpret_memoizeSum_liftLeft`/`_liftRight` reduce a one-sided subprogram to ordinary `memoize`, and `mem_support_run_interpret_memoizeSum` carries per-list invariants (for example `mem_support_memoize_nodup`). Per-oracle query budgets of embedded subprograms come from `IsCostBounded.liftLeft`/`liftRight` and `liftLeft_of_cost_inl_eq_zero`/`liftRight_of_cost_inr_eq_zero` in [QueryCount/Sum.lean](../../CslibFrontier/Languages/Probabilistic/QueryCount/Sum.lean). `micaliMemoize` and `bcsMemoize` are the two instances.
 
 The [checked clients](../../CslibFrontierTests/Crypto/UntilBadROMFramework.lean) verify concrete sharpness of `toOuterMeasure_bad_choose_two_le` and `HasOutputCollision` at `q = 2` on `Bool` (`= 1 / 2`), exercise `ProbOracleComp.IdenticalUntilBad` and `withBadFlag` on a randomized 2-query client, check exact min-entropy list-key collision mass on `Fin 4`, and compare the nontrivial `3 / 4` sharpened programming bound against the vacuous `3 / 2` rectangular bound at `q_S = 2, q_H = 1, δ = 1 / 4`. Run `scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.UntilBadROMFramework`. These bounds depend only on pathwise query/cost budgets and PMF semantics; native `IsOraclePPTOn` / `IsPPTOn` runtime certificates remain separate obligations.
+
+## Transfer separate query budgets through a handler
+
+Import [QueryCount/Demand.lean](../../CslibFrontier/Languages/Probabilistic/QueryCount/Demand.lean).
+Assign each source query a natural-number charge on each channel and bound those charges with
+`OracleComp.IsCostBounded`. For each target channel, bound the implementation of one source call
+by the weighted sum of its source charges. `IsCostBounded.interpret_demand` gives the corresponding
+weighted sum of the source program’s budgets. The proof covers every answer branch, including
+one that stops the program early. A second handler composes the weights by matrix multiplication
+with `IsCostBounded.interpret_interpret_demand`.
+
+For example, expanding signing requests into at most `K` trials turns budgets of `S` signing calls
+and `H` direct digest calls into bounds of `S * K` trials and `H` direct calls. A terminal signing
+failure can stop before the bound. The [signing implementation](../../CslibFrontier/Crypto/Computational/MLDSA/SigningROM.lean)
+uses both bounds. The [two-channel example](../../CslibFrontierTests/OracleChannelDemand.lean)
+shows how to apply the same calculation when a call uses several target channels. Check the example
+with `scripts/build.sh CslibFrontierTests.OracleChannelDemand --wfail --iofail`.
 
 ## Derive adaptive decapsulation security
 

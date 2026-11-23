@@ -275,6 +275,17 @@ theorem ValidBufTrie.lookup_eq {cTab bChar rKey : ℕ} {tr : BufTrie}
     bufLookup cTab bChar tr rKey = mapFn rKey :=
   (hv.2.2.2.1 rKey hk).symm
 
+/-- Allocation and index-range projections of `ValidBufTrie` for Word-RAM packed-array safety. -/
+theorem ValidBufTrie.bounds {cTab bChar : ℕ} {tr : BufTrie}
+    {mapFn : ℕ → Option (ℕ × ℕ)} (hv : ValidBufTrie cTab bChar tr mapFn) :
+    1 ≤ tr.nodeAlloc ∧
+    (∀ u, tr.nodeAlloc ≤ u → tr.nodeLeafItem u = 0) ∧
+    (∀ v ch, tr.trieChild v ch ≠ 0 → tr.trieChild v ch < tr.nodeAlloc) ∧
+    (∀ u < tr.nodeAlloc, tr.nodeLeafItem u ≠ 0 → tr.nodeLeafItem u ≤ tr.itemAlloc) := by
+  obtain ⟨halloc, hzero, _, _, _, _, _, hiff, hleaf⟩ := hv
+  exact ⟨halloc, hzero, fun v ch hnz => ((hiff v ch).mp hnz).2.1,
+    fun u hu hnz => (hleaf u hu hnz).2.1⟩
+
 /-- Walk depth and injectivity lemma: under `ValidBufTrie`'s edge invariant, `bufWalk` from a node
 `cur < nodeAlloc` of depth `off` reaches a node `< nodeAlloc` of depth `off + rem`, and any two
 walks of length `rem` from depth `off` reaching the same node started at the same `cur` and read
@@ -908,6 +919,14 @@ theorem ValidBufTrie.toClearable {cTab bChar : ℕ} {tr : BufTrie}
   obtain ⟨halloc, hzero, _, _, _, _, hedge, hiff, _⟩ := hv
   exact ⟨halloc, hzero, fun u h1 h2 => ⟨(hedge u h1 h2).1, (hedge u h1 h2).2.2.2.2⟩,
     fun v ch hnz => (hiff v ch).mp hnz⟩
+
+/-- Allocation and parent-index projections of `ClearableBufTrie` for Word-RAM packed-array
+safety. -/
+theorem ClearableBufTrie.bounds {tr : BufTrie} (hc : ClearableBufTrie tr) :
+    1 ≤ tr.nodeAlloc ∧
+    (∀ u, 1 ≤ u → u < tr.nodeAlloc → tr.nodeParent u < u) := by
+  obtain ⟨halloc, _, hedge, _⟩ := hc
+  exact ⟨halloc, fun u h1 h2 => (hedge u h1 h2).1⟩
 
 /-- One step of `bufClearOne` preserves `ClearableBufTrie` and decrements `nodeAlloc` toward `1`. -/
 theorem ClearableBufTrie.clearOne_step {tr : BufTrie} (hc : ClearableBufTrie tr) :
