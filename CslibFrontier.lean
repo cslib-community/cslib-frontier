@@ -1505,6 +1505,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Tableau.ValueGame
 public import CslibFrontier.Computability.Circuit.Boolean.Threshold
 public import CslibFrontier.Computability.Circuit.Boolean.Threshold.Parity
 public import CslibFrontier.Computability.Circuit.Boolean.ThresholdNC1
+public import CslibFrontier.Computability.Circuit.Boolean.ThresholdReconstruction
 public import CslibFrontier.Computability.Circuit.Boolean.TopDown
 public import CslibFrontier.Computability.Circuit.Boolean.Tournament
 public import CslibFrontier.Computability.Circuit.Boolean.Tribes
