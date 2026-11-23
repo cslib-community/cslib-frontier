@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: candidate
+
 import CslibFrontier.Tactic.FirstOrder.Simp
 
 /-!
@@ -18,6 +21,8 @@ Exercises `CslibFrontier.Tactic.FirstOrder.Simp` across an ordinary `import` bou
   `Sum.inl` / `Sum.inr` relabelings, and `Function.comp_def` normalizing nested compositions
   produced by `relabel`.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.FirstOrderSimp
 
