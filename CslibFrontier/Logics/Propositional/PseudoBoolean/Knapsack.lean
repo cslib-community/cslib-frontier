@@ -202,7 +202,6 @@ private structure St where
   w : ℕ
   p : ℕ
   sel : List ℕ
-  deriving Inhabited
 
 /-- Add the state `s` to a list of states none of which dominates another: drop `s` if a state
 weighs no more and earns no less, and otherwise drop the states that `s` dominates. -/
@@ -221,7 +220,9 @@ private structure Node where
   pb : ℕ
   sf : ℕ
   sb : ℕ
-  deriving Inhabited
+
+/-- A placeholder node, never reached on the dynamic program's own layers. -/
+private def noNode : Node := ⟨⟨0, 0, []⟩, 0, 0, 0, 0, 0, 0, 0⟩
 
 /-- The numbers of the constraints of a node. -/
 private def Node.ids (u : Node) : List ℕ := [u.wf, u.wb, u.pf, u.pb, u.sf, u.sb]
@@ -270,7 +271,7 @@ private def mkLayer (pre : Pre) (e : Acc) (ss : List St) : Acc × List Node :=
 
 /-- The node of the layer `L` that dominates the state `(w, p)`. -/
 private def domNode (L : List Node) (w p : ℕ) : Node :=
-  (L.find? fun t => decide (t.st.w ≤ w) && decide (p ≤ t.st.p)).getD default
+  (L.find? fun t => decide (t.st.w ≤ w) && decide (p ≤ t.st.p)).getD noNode
 
 /-- The transition implication `S_u ∧ x ⇒ S_t` (equations (11)–(13) and (17)–(19)), with the
 numbers of the constraints it adds, the implication last. -/
@@ -348,7 +349,7 @@ optimum of the knapsack formula and objective. -/
 def certify (w p : Fin n → ℕ) (B : ℕ) : Certificate :=
   -- The solution is logged first, so its improving constraint is `2`; the rest starts at `3`.
   let (e, L₀) := mkLayer ⟨[], [], 0⟩ ⟨[], 3, n⟩ [⟨0, 0, []⟩]
-  let u₀ := L₀.headD default
+  let u₀ := L₀.headD noNode
   let (e, alo₀) := e.rup (clause [(u₀.S, true)]) [.neg, .id u₀.wb, .id u₀.pb, .id u₀.sb]
   let X := ((List.finRange n).map fun i => (i.val, w i, p i)).foldl (step B)
     ⟨L₀, alo₀, ⟨[], [], 0⟩, e⟩

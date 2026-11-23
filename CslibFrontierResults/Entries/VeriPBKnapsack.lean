@@ -39,6 +39,7 @@ register_result "demirovic-et-al-certified-knapsack" where
     paper gives a method, not a theorem: these statements are the guarantee its proofs carry \
     when checked by this library's checker, and they hold for any proof, not only those of the \
     dynamic program certify. That certify's proofs are always accepted is not proved; it is \
-    checked per run (decide +kernel on a six-item instance, compiled runs up to 40 items, \
-    VeriPB 3.0.2 and CakePB on printed texts). Dominated states are not created: the transition \
-    goes to the dominating state, a variant the paper allows, instead of equation (21)."
+    checked per run (decide +kernel on a six-item instance, evaluated runs up to 20 items in \
+    the tests and 30 out of band, VeriPB 3.0.2 and CakePB on printed texts). Dominated states \
+    are not created: the transition goes to the dominating state, a variant the paper allows, \
+    instead of equation (21)."
