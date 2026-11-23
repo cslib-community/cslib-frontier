@@ -13,6 +13,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCo
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficientSign
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
+import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import Mathlib.LinearAlgebra.Matrix.Charpoly.Coeff
 import Mathlib.Tactic.NormNum
@@ -26,9 +27,25 @@ namespace CslibFrontierTests.RealAlgebraicCriticalEvaluation
 
 open Cslib Cslib.Complexity Cslib.Complexity.RealAlgebraic
 open Turing.MultiTapeTM MvPolynomial MvPolynomial.CriticalSystem MvPolynomial.PurePower
+open scoped Topology
 
 private instance : Fact (Nat.Prime 7) := ⟨by decide⟩
 private instance : Fact (Nat.Prime 3) := ⟨by decide⟩
+
+-- Zero is a critical point of the deformation of X² at every parameter.
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0 ^ 2
+    let hF : F.totalDegree ≤ 2 := (totalDegree_pow (X (R := ℤ) (0 : Fin 1)) 2).trans
+      (by simpa only [mul_one] using Nat.mul_le_mul_left 2 (totalDegree_X_le (R := ℤ) (0 : Fin 1)))
+    Polynomial.eval₂ (Int.castRingHom ℝ) 0
+      (Polynomial.Bivariate.swap (parametricCoordinatePolynomial (by decide) F hF 0)).leadingCoeff =
+        0 := by
+  intro F hF
+  exact eval₂_coordinateLeadingCoeff_eq_zero_of_tendsto (by decide) F hF
+    (u := fun k : ℕ => (k : ℝ)) (x := fun _ _ => 0) tendsto_natCast_atTop_atTop
+    tendsto_const_nhds (Filter.Eventually.of_forall fun _ j => by
+      fin_cases j
+      simp [F, criticalLower]) 0
 
 -- First derivatives also work at prime 3; the larger cutoff belongs to second derivatives.
 example : (firstPartialResidue 3 1 0 [2] (fun z => z[0]?.getD 0) : ZMod 3) = 1 := by
