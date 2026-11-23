@@ -12,8 +12,6 @@ public import CslibFrontier.GameTheory.Bimatrix.Basic
 public import CslibFrontier.Computability.Complexity.Classes.TFNP
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Rat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
-public import CslibFrontier.Computability.PolyTime.Int.DotProduct
-public import CslibFrontier.Computability.PolyTime.Int.ExactDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -24,10 +22,14 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
+import CslibFrontier.Computability.PolyTime.Int.DotProduct
+import CslibFrontier.Computability.PolyTime.Int.ExactDiv
 import CslibFrontier.Computability.PolyTime.Int.Table
+import CslibFrontier.Foundations.Data.List.DotProduct
 import CslibFrontier.Foundations.Data.List.GetD
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Foundations.Data.List.OfFn
+import CslibFrontier.Foundations.Data.List.OfFnGetD
 import Mathlib.Data.List.GetD
 
 /-!
@@ -84,7 +86,7 @@ open Turing.MultiTapeTM ComputableInPolyTime
 
 /-- Encoding of a pair of lists of raw `(ℤ, ℕ)` rational numerator-denominator pairs: the first
 framed list of `encRatData` pairs followed by the second unframed list of `encRatData` pairs. -/
-abbrev encWitnessPairs : (List (ℤ × ℕ) × List (ℤ × ℕ)) ↪ List Bool :=
+private abbrev encWitnessPairs : (List (ℤ × ℕ) × List (ℤ × ℕ)) ↪ List Bool :=
   encPair (encList encRatData) (encList encRatData)
 
 /-- A pair of rational mixed strategy lists `(x, y)` for players 1 and 2. -/
@@ -171,25 +173,13 @@ theorem strategyVec_apply {n : ℕ} (x : List ℚ) (i : Fin n) :
       (∑ i : Fin c.rows, x.getD i.1 0 * c.toMatB i j) ≤
         ∑ i : Fin c.rows, ∑ b : Fin c.cols, x.getD i.1 0 * c.toMatB i b * y.getD b.1 0)
 
-theorem fin_sum_getD_eq_list_sum {α : Type*} [AddCommMonoid α] (l : List α)
-    (d : α) {n : ℕ} (hn : l.length = n) :
-    (∑ i : Fin n, l.getD i.1 d) = l.sum := by
-  subst hn
-  induction l with
-  | nil => simp
-  | cons a l ih =>
-    dsimp only [List.length_cons]
-    rw [Fin.sum_univ_succ]
-    simp only [List.sum_cons]
-    exact congrArg (a + ·) ih
-
 /-- A nonnegative rational list of length `n` summing to `1` is a mixed strategy on `Fin n`. -/
 theorem isMixedStrategy_strategyVec {n : ℕ} {x : List ℚ} (hlen : x.length = n)
     (hnn : ∀ q ∈ x, 0 ≤ q) (hsum : x.sum = 1) : IsMixedStrategy (strategyVec (n := n) x) := by
   refine isMixedStrategy_iff.2 ⟨fun i => Rat.cast_nonneg.2 (hnn _ ?_), ?_⟩
   · exact List.getD_mem 0 (by omega)
-  · simp only [strategyVec_apply, ← Rat.cast_sum, fin_sum_getD_eq_list_sum x 0 hlen, hsum,
-      Rat.cast_one]
+  · simp only [strategyVec_apply, ← Rat.cast_sum, ← List.sum_ofFn,
+      List.ofFn_getD_eq_of_length 0 hlen, hsum, Rat.cast_one]
 
 theorem IsRationalNash.toGame_isNash {c : BimatrixCode} {x y : List ℚ}
     (hn : c.IsRationalNash x y) : c.toGame.IsNash (strategyVec x) (strategyVec y) := by
@@ -326,11 +316,11 @@ private def witnessDecoder : Decoder encWitnessPairs :=
 
 /-- Check that `(num, den)` represents a canonical lowest-terms nonnegative rational (`0 ≤ num`,
 `0 < den`, `gcd |num| den = 1`). -/
-@[expose] def isCanonicalNonnegPair (pq : ℤ × ℕ) : Bool :=
+private def isCanonicalNonnegPair (pq : ℤ × ℕ) : Bool :=
   decide (0 ≤ pq.1) && decide (0 < pq.2) && decide (Nat.gcd pq.1.natAbs pq.2 = 1)
 
 /-- Rational value `(pq.1 : ℚ) / (pq.2 : ℚ)` of a numerator-denominator pair. -/
-@[expose] def mkRatOfPair (pq : ℤ × ℕ) : ℚ :=
+private def mkRatOfPair (pq : ℤ × ℕ) : ℚ :=
   (pq.1 : ℚ) / (pq.2 : ℚ)
 
 private lemma mkRatOfPair_num_den {pq : ℤ × ℕ} (hc : isCanonicalNonnegPair pq = true) :
@@ -556,7 +546,7 @@ private theorem verifiesBimatrixNash_polytime :
   exact hi.of_enc_eq (encD := encBool) fun p => by
     simp only [verifiesBimatrixNash, Function.comp_apply]
 
-theorem encWitness_eq_pairs (x y : List ℚ) :
+private lemma encWitness_eq_pairs (x y : List ℚ) :
     encWitness ⟨x, y⟩ =
       encWitnessPairs (x.map (fun q => (q.num, q.den)), y.map (fun q => (q.num, q.den))) := by
   have hmap : ∀ l : List ℚ,
@@ -568,10 +558,6 @@ theorem encWitness_eq_pairs (x y : List ℚ) :
       simp only [encList_cons, List.map_cons, ih, encRat_apply]
   rw [encWitness_apply]
   simp only [encPair_apply, hmap]
-
-theorem dotProduct_eq_fin_sum (k : ℕ) (a b : List ℤ) :
-    ListMatrix.dotProduct k a b = ∑ i : Fin k, a.getD i.1 0 * b.getD i.1 0 := by
-  rw [ListMatrix.dotProduct_eq_sum_map_range, List.sum_map_range]
 
 theorem clearScale_pos (c : BimatrixCode) : 0 < clearScale c := by
   have hprod : ∀ M : List (List ℚ),
@@ -620,11 +606,6 @@ theorem scaledEntry_cast {D : ℤ} {q : ℚ} (hdvd : (q.den : ℤ) ∣ D) :
   simp only [scaledEntry, htdiv, Int.cast_mul, hDk, hq]
   ring
 
-theorem list_getD_map_lt {α β : Type*} (f : α → β) (l : List α) (d₀ : α) (d₁ : β)
-    {i : ℕ} (hi : i < l.length) :
-    (l.map f).getD i d₁ = f (l.getD i d₀) := by
-  rw [List.getD_eq_getElem _ _ (by simpa using hi), List.getElem_map, List.getD_eq_getElem _ _ hi]
-
 private lemma clearMat_getD_cast {c : BimatrixCode} (hc : c.WellFormed)
     (i : Fin c.rows) (j : Fin c.cols) :
     (((clearMatA c).getD i.1 []).getD j.1 0 : ℚ) = (clearScale c : ℚ) * c.toMatA i j ∧
@@ -642,11 +623,11 @@ private lemma clearMat_getD_cast {c : BimatrixCode} (hc : c.WellFormed)
     have hqmem : (M.getD i.1 []).getD j.1 0 ∈ M.getD i.1 [] := List.getD_mem 0 hj
     have h1 : (clearMat (clearScale c) M).getD i.1 [] =
         (M.getD i.1 []).map (scaledEntry (clearScale c)) :=
-      list_getD_map_lt (List.map (scaledEntry (clearScale c))) M [] [] hi
+      List.getD_map_of_lt (List.map (scaledEntry (clearScale c))) M [] [] hi
     have h2 : ((clearMat (clearScale c) M).getD i.1 []).getD j.1 0 =
         scaledEntry (clearScale c) ((M.getD i.1 []).getD j.1 0) := by
       rw [h1]
-      exact list_getD_map_lt (scaledEntry (clearScale c)) (M.getD i.1 []) 0 0 hj
+      exact List.getD_map_of_lt (scaledEntry (clearScale c)) (M.getD i.1 []) 0 0 hj
     rw [h2]
     exact scaledEntry_cast (den_dvd_clearScale hM hrmem hqmem)
   exact ⟨aux c.matA (Or.inl rfl) rfl hr1, aux c.matB (Or.inr rfl) hl2 hr2⟩
@@ -683,9 +664,9 @@ private lemma scaleVecNum_getD_cast {v : List (ℤ × ℕ)} (hv : v.all isCanoni
     exact_mod_cast (by omega : (v.getD i.1 (0, 0)).2 ≠ 0)
   have hget1 : (scaleVecNum (vecProdDen v) v).getD i.1 0 =
       (v.getD i.1 (0, 0)).1 * (vecProdDen v).tdiv ((v.getD i.1 (0, 0)).2 : ℤ) :=
-    list_getD_map_lt _ v (0, 0) 0 hi
+    List.getD_map_of_lt _ v (0, 0) 0 hi
   have hget2 : (v.map mkRatOfPair).getD i.1 0 = mkRatOfPair (v.getD i.1 (0, 0)) :=
-    list_getD_map_lt mkRatOfPair v (0, 0) 0 hi
+    List.getD_map_of_lt mkRatOfPair v (0, 0) 0 hi
   rw [hget1, hget2]
   have htdiv : (vecProdDen v).tdiv ((v.getD i.1 (0, 0)).2 : ℤ) = t := by
     rw [ht, Int.mul_tdiv_cancel_left t hneZ]
@@ -701,7 +682,8 @@ private lemma rowPayoffs_scaleVecNum_getD_cast {m n : ℕ} {M_int : List (List �
     ((rowPayoffs M_int n (scaleVecNum (vecProdDen vl) vl)).getD i.1 0 : ℚ) =
       C * (vecProdDen vl : ℚ) * ∑ j : Fin n, entry i j * (vl.map mkRatOfPair).getD j.1 0 := by
   have hi : i.1 < M_int.length := hM_len ▸ i.2
-  rw [rowPayoffs, list_getD_map_lt _ M_int [] 0 hi, dotProduct_eq_fin_sum]
+  rw [rowPayoffs, List.getD_map_of_lt _ M_int [] 0 hi,
+    ListMatrix.dotProduct_eq_sum_map_range, List.sum_map_range]
   push_cast
   calc
     ∑ j : Fin n, ((M_int.getD i.1 []).getD j.1 0 : ℚ) *
@@ -758,7 +740,7 @@ private lemma bilinear_dotProduct_eq_cast {m n : ℕ} (xl yl : List (ℤ × ℕ)
       (vecProdDen xl : ℚ) * C * (vecProdDen yl : ℚ) *
         ∑ a : Fin m, ∑ j : Fin n,
           (xl.map mkRatOfPair).getD a.1 0 * M a j * (yl.map mkRatOfPair).getD j.1 0 := by
-  rw [dotProduct_eq_fin_sum]
+  rw [ListMatrix.dotProduct_eq_sum_map_range, List.sum_map_range]
   push_cast
   calc
     ∑ a : Fin m, ((scaleVecNum (vecProdDen xl) xl).getD a.1 0 : ℚ) * (pv.getD a.1 0 : ℚ)
@@ -801,7 +783,7 @@ private lemma mix2_eq_cast {c : BimatrixCode} (hc : c.WellFormed)
       Finset.sum_comm]
   refine congrArg _ (Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun b _ => by ring)
 
-theorem all_mkRatOfPair_nonneg {l : List (ℤ × ℕ)}
+private lemma all_mkRatOfPair_nonneg {l : List (ℤ × ℕ)}
     (hl : l.all isCanonicalNonnegPair = true) : ∀ q ∈ l.map mkRatOfPair, 0 ≤ q := by
   intro q hq
   rcases List.mem_map.1 hq with ⟨pq, hpq, rfl⟩
@@ -816,8 +798,8 @@ private lemma sum_map_mkRatOfPair_eq_one {n : ℕ} {l : List (ℤ × ℕ)}
   have hD : (0 : ℚ) < (vecProdDen l : ℚ) := by exact_mod_cast vecProdDen_pos hl_c
   have hsQ : ((scaleVecNum (vecProdDen l) l).sum : ℚ) = (vecProdDen l : ℚ) := by
     exact_mod_cast hsum
-  rw [← fin_sum_getD_eq_list_sum (scaleVecNum (vecProdDen l) l) 0
-    (n := n) (by simp [scaleVecNum, hl_len])] at hsQ
+  rw [← List.ofFn_getD_eq_of_length (n := n) (l := scaleVecNum (vecProdDen l) l) 0
+    (by simp [scaleVecNum, hl_len]), List.sum_ofFn] at hsQ
   push_cast at hsQ
   have hsum' : ∑ i : Fin n, (vecProdDen l : ℚ) * (l.map mkRatOfPair).getD i.1 0 =
       (vecProdDen l : ℚ) := by
@@ -828,25 +810,26 @@ private lemma sum_map_mkRatOfPair_eq_one {n : ℕ} {l : List (ℤ × ℕ)}
   rw [← Finset.mul_sum] at hsum'
   have hfin : ∑ i : Fin n, (l.map mkRatOfPair).getD i.1 0 = 1 :=
     mul_left_cancel₀ hD.ne' (by simpa only [mul_one] using hsum')
-  rw [← fin_sum_getD_eq_list_sum (l.map mkRatOfPair) 0 (n := n) (by simp [hl_len]), hfin]
+  rw [← List.ofFn_getD_eq_of_length (n := n) (l := l.map mkRatOfPair) 0 (by simp [hl_len]),
+    List.sum_ofFn, hfin]
 
 private lemma scaleVecNum_sum_eq_vecProdDen_of_sum_eq_one {n : ℕ} {l : List (ℤ × ℕ)}
     (hl_c : l.all isCanonicalNonnegPair = true) (hl_len : l.length = n)
     (hsum : (l.map mkRatOfPair).sum = 1) :
     (scaleVecNum (vecProdDen l) l).sum = vecProdDen l := by
   have hq : ((scaleVecNum (vecProdDen l) l).sum : ℚ) = (vecProdDen l : ℚ) := by
-    rw [← fin_sum_getD_eq_list_sum (scaleVecNum (vecProdDen l) l) 0
-      (n := n) (by simp [scaleVecNum, hl_len])]
+    rw [← List.ofFn_getD_eq_of_length (n := n) (l := scaleVecNum (vecProdDen l) l) 0
+      (by simp [scaleVecNum, hl_len]), List.sum_ofFn]
     push_cast
     have hsum' : ∑ i : Fin n, ((scaleVecNum (vecProdDen l) l).getD i.1 0 : ℚ) =
         (vecProdDen l : ℚ) * ∑ i : Fin n, (l.map mkRatOfPair).getD i.1 0 := by
       rw [Finset.mul_sum]
       refine Finset.sum_congr rfl fun i _ => scaleVecNum_getD_cast hl_c hl_len i
-    rw [hsum', fin_sum_getD_eq_list_sum (l.map mkRatOfPair) 0 (n := n) (by simp [hl_len]),
+    rw [hsum', ← List.sum_ofFn, List.ofFn_getD_eq_of_length 0 (n := n) (by simp [hl_len]),
       hsum, mul_one]
   exact_mod_cast hq
 
-theorem map_pair_mkRatOfPair_eq {l : List (ℤ × ℕ)}
+private lemma map_pair_mkRatOfPair_eq {l : List (ℤ × ℕ)}
     (hl : l.all isCanonicalNonnegPair = true) :
     (l.map mkRatOfPair).map (fun q => (q.num, q.den)) = l := by
   rw [List.map_map]
