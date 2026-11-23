@@ -382,6 +382,7 @@ public import CslibFrontier.Algorithms.WordRAM.AKS.PolyMul
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyPow
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick
 public import CslibFrontier.Algorithms.WordRAM.Arborescence
+public import CslibFrontier.Algorithms.WordRAM.Auction
 public import CslibFrontier.Algorithms.WordRAM.BellmanFord
 public import CslibFrontier.Algorithms.WordRAM.BinarySearch
 public import CslibFrontier.Algorithms.WordRAM.BurrowsWheeler
@@ -3541,6 +3542,7 @@ public import CslibFrontier.Computability.Distributed.PartialSynchrony.Basic
 public import CslibFrontier.Computability.Distributed.PartialSynchrony.Liveness
 public import CslibFrontier.Computability.Distributed.Paxos.Basic
 public import CslibFrontier.Computability.Distributed.Paxos.Liveness
+public import CslibFrontier.Computability.Distributed.Paxos.Quorums
 public import CslibFrontier.Computability.Distributed.RingElection.Anonymous
 public import CslibFrontier.Computability.Distributed.RingElection.ChangRoberts
 public import CslibFrontier.Computability.Distributed.RingElection.Peterson
@@ -3634,6 +3636,7 @@ public import CslibFrontier.Computability.Kolmogorov.UniversalMachine
 public import CslibFrontier.Computability.Languages.ChomskyNormalForm
 public import CslibFrontier.Computability.Languages.Copy
 public import CslibFrontier.Computability.Languages.DeterministicContextFree
+public import CslibFrontier.Computability.Languages.InnerProduct
 public import CslibFrontier.Computability.Languages.RegularLanguage
 public import CslibFrontier.Computability.Languages.Slice
 public import CslibFrontier.Computability.Languages.StarFree
@@ -4569,14 +4572,17 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Wi
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedInit
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedParts
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.BoundedCrossings
+public import CslibFrontier.Computability.Machines.Turing.SingleTape.Communication
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.Copy
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.CrossingSequence
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.Decision
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.FoolingSet
+public import CslibFrontier.Computability.Machines.Turing.SingleTape.InnerProduct
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.NLogNGap
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.Palindrome
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.Partrec
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.PostTuringMachine
+public import CslibFrontier.Computability.Machines.Turing.SingleTape.Rectangle
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.TM0Restrict
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.TM0Universal
 public import CslibFrontier.Computability.Machines.Turing.TM2.ConfigBound
@@ -6812,6 +6818,7 @@ public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BitBounds
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchCutoff
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.CoeffNormBound
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ConjugateProduct
+public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.DerivativeFingerprint
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.Isolation
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ParameterExclusion
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.RatPoly
@@ -7537,6 +7544,7 @@ public import CslibFrontier.Foundations.Data.List.IdxOfInjective
 public import CslibFrontier.Foundations.Data.List.IsSortedLT
 public import CslibFrontier.Foundations.Data.List.KeyedFlatMap
 public import CslibFrontier.Foundations.Data.List.Last
+public import CslibFrontier.Foundations.Data.List.LengthCounting
 public import CslibFrontier.Foundations.Data.List.Lex
 public import CslibFrontier.Foundations.Data.List.ListsUpTo
 public import CslibFrontier.Foundations.Data.List.Lookup
