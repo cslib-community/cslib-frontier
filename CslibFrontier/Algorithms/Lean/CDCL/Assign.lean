@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.CDCL.System
+public import CslibFrontier.Algorithms.WordRAM.ClauseCode
 
 /-! # Assignments indexed by variable
 
@@ -39,6 +40,7 @@ without repeated variables has an array agreeing with it (`Assign.agrees_ofTrail
 namespace Cslib.Algorithms.Lean.CDCL
 
 open Cslib.Logic.PL
+open Cslib.Algorithms.WordRAM.ClauseCode (litCode litCodeBy litCode_injective)
 
 /-- **An assignment indexed by variable**: the value of each variable, if it has one, stored as a
 small number (`Assign.code`): `0` for none, `1` for `false`, `2` for `true`. Small numbers are
@@ -441,29 +443,65 @@ theorem nodup_dedupKey {α : Type} {key : α → ℕ} (hkey : Function.Injective
     (dedupKey key xs).Nodup :=
   (dedupKey_spec hkey xs).2
 
-/-- **The index of a literal**: `2 * v + 1` for `v` and `2 * v` for `¬v`. It keys the removal of
-repeated literals (`dedupLits`) and indexes the watch lists. -/
-def litKey (l : Literal ℕ) : ℕ := 2 * l.1 + if l.2 then 1 else 0
+/-! The *key* of a literal is its word code `Cslib.Algorithms.WordRAM.ClauseCode.litCode`:
+`2 * v + 1` for `v` and `2 * v` for `¬v`. It keys the removal of repeated literals (`dedupLits`),
+indexes the watch lists, and is how the watch store holds literals. -/
 
 /-- The key of the negation of `l`, computed without building the negation. -/
 def negKey (l : Literal ℕ) : ℕ := 2 * l.1 + if l.2 then 0 else 1
 
-theorem litKey_negate (l : Literal ℕ) : litKey l.negate = negKey l := by
+theorem litCode_negate (l : Literal ℕ) : litCode l.negate = negKey l := by
   obtain ⟨v, b⟩ := l
   cases b <;> rfl
 
-theorem litKey_injective : Function.Injective litKey := by
-  intro ⟨v, x⟩ ⟨w, y⟩ h
-  simp only [litKey] at h
-  cases x <;> cases y <;> simp at h ⊢ <;> omega
+/-- **The literal of a key**: the variable is the key divided by two, and the literal is positive
+when the key is odd. It inverts `litCode` (`litOfKey_litCode`, `litCode_litOfKey`), so every number
+is the key of exactly one literal. -/
+def litOfKey (n : ℕ) : Literal ℕ := (n / 2, n % 2 == 1)
+
+@[simp] theorem litOfKey_litCode (l : Literal ℕ) : litOfKey (litCode l) = l := by
+  obtain ⟨v, b⟩ := l
+  cases b
+  · simp only [litOfKey, litCodeBy, id, Bool.toNat_false]
+    ext <;> simp
+  · simp only [litOfKey, litCodeBy, id, Bool.toNat_true]
+    ext <;> simp
+    omega
+
+@[simp] theorem litCode_litOfKey (n : ℕ) : litCode (litOfKey n) = n := by
+  simp only [litOfKey, litCodeBy, id]
+  rcases Nat.mod_two_eq_zero_or_one n with h | h <;> simp [h] <;> omega
+
+/-- The key of the negation of a literal is its key with the low bit flipped. -/
+theorem litOfKey_negKey (l : Literal ℕ) : litOfKey (negKey l) = l.negate := by
+  rw [← litCode_negate, litOfKey_litCode]
+
+/-- **Whether the literal of the key `c` is true**, read on the key, without building the
+literal. -/
+@[inline] def Assign.holdsKey (A : Assign) (c : ℕ) : Bool :=
+  match A.vals.getD (c / 2) 0 with
+  | 0 => false
+  | 1 => !(c % 2 == 1)
+  | _ => c % 2 == 1
+
+/-- **Whether the literal of the key `c` is false**, read on the key. -/
+@[inline] def Assign.isFalseKey (A : Assign) (c : ℕ) : Bool :=
+  match A.vals.getD (c / 2) 0 with
+  | 0 => false
+  | 1 => c % 2 == 1
+  | _ => !(c % 2 == 1)
+
+theorem Assign.holdsKey_eq (A : Assign) (c : ℕ) : A.holdsKey c = A.holds (litOfKey c) := rfl
+
+theorem Assign.isFalseKey_eq (A : Assign) (c : ℕ) : A.isFalseKey c = A.isFalse (litOfKey c) := rfl
 
 /-- Removing repeated literals, in linear time. -/
-abbrev dedupLits (c : Clause ℕ) : Clause ℕ := dedupKey litKey c
+abbrev dedupLits (c : Clause ℕ) : Clause ℕ := dedupKey litCode c
 
 /-- Removing repeated literals keeps as many as `List.dedup`. -/
 theorem length_dedupLits (c : Clause ℕ) : (dedupLits c).length = c.dedup.length :=
-  ((List.perm_ext_iff_of_nodup (nodup_dedupKey litKey_injective c) (List.nodup_dedup c)).2
-    fun _ => by rw [mem_dedupKey litKey_injective, List.mem_dedup]).length_eq
+  ((List.perm_ext_iff_of_nodup (nodup_dedupKey litCode_injective c) (List.nodup_dedup c)).2
+    fun _ => by rw [mem_dedupKey litCode_injective, List.mem_dedup]).length_eq
 
 /-- Removing repeated variables, in linear time. -/
 abbrev dedupVars (vs : List ℕ) : List ℕ := dedupKey id vs
