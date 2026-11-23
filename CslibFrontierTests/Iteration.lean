@@ -165,7 +165,7 @@ example (T : ℕ) : ∃ out : Circuit signature 6 6,
     rw [show (2 : ℝ) ^ 6 * 49 = 56 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]
   rw [hsqrt] at hsize
   norm_num at hsize
-  exact hsize
+  exact_mod_cast hsize
 
 /-! ### Universal step map, in-place machines, and sequential squaring -/
 
