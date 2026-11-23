@@ -262,7 +262,7 @@ theorem exists_modLinkAdversary_choose_coin_evaluator {E : Scheme}
       ComputableInPolyTime (fun ((n, pk), tape) =>
         chooseModLinkCoins evaluateKey n (coins n) (c * (n + 1) ^ d) (depth n) (capacity n)
           pk tape)
-        (encPair (encPair encUnary encBits) encBits) (Encryption.encChoiceOut encBool) ∧
+        Leveled.encChooseCoinsInput (Encryption.encChoiceOut encBool) ∧
       ∀ n pk,
         ProbComp.eval ((E.modLinkAdversary coins depth capacity test).choose n pk) =
           (BitString.uniformList (2 * coins n + depth n * (c * (n + 1) ^ d))).map

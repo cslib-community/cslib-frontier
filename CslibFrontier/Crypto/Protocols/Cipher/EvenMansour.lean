@@ -927,8 +927,7 @@ private theorem toOuterMeasure_any_any_le {K : Type*} (μ : PMF K)
         Finset.sum_le_card_nsmul _ _ _ fun x _ => hpair x.1 x.2
     _ ≤ (T_e.length : ℝ≥0∞) * T_π.length * ((c : ℝ≥0∞) * (Fintype.card G : ℝ≥0∞)⁻¹) := by
         rw [Finset.card_product, nsmul_eq_mul, Nat.cast_mul]
-        exact mul_le_mul' (mul_le_mul' (Nat.cast_le.mpr (List.toFinset_card_le T_e))
-          (Nat.cast_le.mpr (List.toFinset_card_le T_π))) le_rfl
+        gcongr <;> exact List.toFinset_card_le _
     _ = (c : ℝ≥0∞) * T_e.length * T_π.length * (Fintype.card G : ℝ≥0∞)⁻¹ := by ring
 
 omit [DecidableEq G] in

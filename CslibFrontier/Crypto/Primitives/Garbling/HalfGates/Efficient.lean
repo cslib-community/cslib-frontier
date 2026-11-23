@@ -68,10 +68,10 @@ variable (hash : List Bool → List Bool → List Bool)
 /-- A defaulted lookup in words of at most `k + 2` bits has at most `k + 2` bits. -/
 theorem length_getD_le {k : ℕ} {ws : List (List Bool)}
     (hws : ∀ w ∈ ws, w.length ≤ k + 2) (i : ℕ) : (ws.getD i []).length ≤ k + 2 := by
-  rw [List.getD_eq_getElem?_getD]
-  cases h : ws[i]? with
-  | none => simp
-  | some w => exact hws w (List.mem_of_getElem? h)
+  rcases List.getD_mem_or ws i [] with h | h
+  · exact hws _ h
+  · rw [h]
+    simp
 
 /-- The evaluator's AND gate writes at most `k + 2` bits. -/
 theorem length_andWord_le (k g : ℕ) (TG TE a b : List Bool) :
@@ -91,21 +91,18 @@ private theorem length_zeroGate_le (k g : ℕ) (Δ a b : List Bool) (isAnd : Boo
 /-- Every zero label word has at most `k + 2` bits. -/
 private theorem length_le_of_mem_zeroWords (k : ℕ) (f : ConventionalCircuit) (coins : List Bool)
     (s : ℕ) : ∀ w ∈ zeroWords hash k f coins s, w.length ≤ k + 2 := by
-  induction s with
-  | zero =>
+  fun_induction zeroWords hash k f coins s with
+  | case1 => -- 0: input words
     intro w hw
-    simp only [zeroWords, List.mem_ofFn] at hw
-    obtain ⟨i, rfl⟩ := hw
+    obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hw
     simp [inputWord]
-  | succ s ih =>
-    rw [zeroWords]
-    split
-    · intro w hw
-      rcases List.mem_append.mp hw with hw | hw
-      · exact ih w hw
-      · rw [List.mem_singleton.mp hw]
-        exact length_zeroGate_le hash _ _ _ _ _ _ (length_getD_le ih _)
-    · exact ih
+  | case2 s hsq ws ih => -- s + 1, s < f.q: append gate `s`
+    intro w hw
+    rcases List.mem_append.mp hw with hw | hw
+    · exact ih w hw
+    · rw [List.mem_singleton.mp hw]
+      exact length_zeroGate_le hash _ _ _ _ _ _ (length_getD_le ih _)
+  | case3 => assumption -- s + 1, ¬s < f.q: unchanged
 
 /-- The first `n + s` zero label words, for `s ≤ q`. -/
 private theorem length_zeroWords (k : ℕ) (f : ConventionalCircuit) (coins : List Bool) {s : ℕ}

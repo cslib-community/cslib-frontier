@@ -287,8 +287,7 @@ private theorem abs_recipTaylor_remainder_le {x : ℕ → ℤ} (hx : IsSignedStr
     pow_le_pow_right₀ (by norm_num) hexp
   have hnum : (2 : ℝ) ^ t * e ^ 2 ≤ 36 / (2 : ℝ) ^ (13 : ℕ) := by
     calc (2 : ℝ) ^ t * e ^ 2
-        ≤ (2 : ℝ) ^ t * (36 / (2 : ℝ) ^ (2 * recipCutoff t)) :=
-          mul_le_mul_of_nonneg_left he_sq (by positivity)
+        ≤ (2 : ℝ) ^ t * (36 / (2 : ℝ) ^ (2 * recipCutoff t)) := by gcongr
       _ ≤ (2 : ℝ) ^ t * (36 / (2 : ℝ) ^ (t + 13)) := by gcongr
       _ = 36 / (2 : ℝ) ^ (13 : ℕ) := by
           rw [pow_add]

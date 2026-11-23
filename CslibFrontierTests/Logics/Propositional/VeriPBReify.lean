@@ -6,26 +6,20 @@ Authors: Matthew Doty
 
 module
 
--- `import all`: the kernel evaluates `stepTop` and the text front end, whose bodies are not
--- exposed.
-import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
-import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
+import CslibFrontier.Logics.Propositional.CuttingPlanes.Reification
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Reification
 
-/-! The reification combinators of `CslibFrontier.Logics.Propositional.PseudoBoolean.Reification`
-on small proofs, checked by `decide +kernel`:
+/-! A client of the two reification modules through ordinary imports, without `import all`:
 
-* the reification `x3 ⇔ 2 x1 + x2 ≥ 2` of a fresh variable, under an objective, as
-  `runTop_reify` predicts, and its rejection for a variable that is not fresh;
-* `reifySteps`, which reifies `x3 ⇔ x1 + x2 ≥ 2`, wraps `x3` from the unit clauses `x1` and `x2`,
-  unwraps `x1 + x2 ≥ 2` and refutes `~x1 + ~x2 ≥ 1`;
-* `fusionSteps`, fusion resolution under the guard `x3`: from `x3 ∧ x2 ⇒ x1` and
-  `x3 ∧ ~x2 ⇒ x1`, derive `x3 ⇒ x1`.
-
-Both proofs are also written out as kernel text, `reifyText` and `fusionText`, as a small printer
-of the steps renders them (the printer is outside the test suite), and the text front end accepts
-them. VeriPB 3.0.2 and CakePB both report `s VERIFIED UNSATISFIABLE` on these texts with
-`F₁Text` and `F₂Text`. -/
+* two reifications in a row, `x3 ⇔ x1 + x2 ≥ 2` and then `x4 ⇔ x3 ≥ 1`, by `runTop_reify`, reading
+  the freshness of `x4`, the next number and the stored constraints from the resulting states;
+* wrapping `x3 ⇒ x1 + x2 ≥ 2` by the stored clause `x4 ⇒ x3` into `x4 ⇒ x1 + x2 ≥ 2`, and
+  unwrapping, by `runStep_resolveGuard_wrap` and `runStep_resolveGuard_unwrap`;
+* the guard lifting of `CslibFrontier.Logics.Propositional.CuttingPlanes.Reification` at an
+  assignment that makes the guard false: the counterexample `10 x̄₂ + x̄₁ ≥ 15` under `x1 ↦ 1`,
+  whose restriction has degree `15`, so that the coefficient `2` gives a false line while the
+  implication holds, and a coefficient at least the degree gives the implication; and the meaning
+  of a wrapped derivation. -/
 
 set_option linter.privateModule false
 
@@ -33,102 +27,139 @@ namespace CslibFrontierTests.Logics.Propositional.VeriPBReify
 
 open Cslib.Logic.PL Cslib.Logic.PL.VeriPB PBConstr
 
-/-! ### Reification of a fresh variable -/
+/-! ### Two reifications and a wrap -/
 
-/-- `2 x1 + x2 ≥ 2`. -/
-def C₀ : PBConstr := ⟨[(2, (0, true)), (1, (1, true))], 2⟩
-
-/-- `x1 + x2 ≥ 1`, with the objective `x1 - x2` and the preserved set `{x1}`. -/
-def F₀ : List PBConstr := [⟨[(1, (0, true)), (1, (1, true))], 1⟩]
-
-def f₀ : Objective := ⟨[(0, 1), (1, -1)], 0⟩
-
-def s₀ : State := State.init F₀ (some f₀) (some [0])
-
-example : s₀.fresh 2 = true := by decide +kernel
-
-/-- The reification of `x3` adds `x3 ⇒ C₀` and `C₀ ⇒ x3` at `3` and `5`, as `runTop_reify`
-predicts. -/
-example : runTop F₀ (some f₀) s₀ (reify 2 C₀) =
-    some ((s₀.addStrengthened 3 (impl [(2, true)] C₀)).addStrengthened 5
-      (impl [(2, false)] C₀.negate)) :=
-  runTop_reify (by decide +kernel) (by decide +kernel) (by decide +kernel)
-
-example : (runTop F₀ (some f₀) s₀ (reify 2 C₀)).isSome = true := by decide +kernel
-
-/-- `x2` is not fresh: it is in the formula, and the reification is rejected. -/
-example : runTop F₀ (some f₀) s₀ (reify 1 C₀) = none := by decide +kernel
-
-/-- With `x3` preserved, the witness may not touch it, and the reification is rejected. -/
-example : runTop F₀ none (State.init F₀ none (some [2])) [reifyFwd 2 C₀] = none := by
-  decide +kernel
-
-/-! ### Wrapping and unwrapping -/
-
-/-- `x1 ≥ 1`, `x2 ≥ 1`, `~x1 + ~x2 ≥ 1`. -/
-def F₁ : List PBConstr :=
+/-- `x1 ≥ 1`, `x2 ≥ 1`, `~x1 + ~x2 ≥ 1`, numbered `1` to `3`. -/
+def F : List PBConstr :=
   [⟨[(1, (0, true))], 1⟩, ⟨[(1, (1, true))], 1⟩, ⟨[(1, (0, false)), (1, (1, false))], 1⟩]
 
 /-- `x1 + x2 ≥ 2`. -/
 def C₁ : PBConstr := ⟨[(1, (0, true)), (1, (1, true))], 2⟩
 
-/-- Reify `x3 ⇔ C₁` (constraints `5` and `7`), wrap `x3` from `7` and the unit clauses `1` and
-`2` (`8`, `9`), unwrap `C₁` from `5` and `9` (`10`), and add `3` (`11`, a contradiction). -/
-def reifySteps : List TopStep :=
-  reify 2 C₁ ++ [.step (resolveGuard 7 1 1), .step (resolveGuard 8 2 1),
-    .step (resolveGuard 5 9 2), .step (.pol [.id 10, .id 3, .add])]
+/-- `x3 ≥ 1`. -/
+def C₂ : PBConstr := ⟨[(1, (2, true))], 1⟩
 
-example : checkRed F₁ none ⟨reifySteps, .unsat 11⟩ = true := by decide +kernel
+def s₀ : State := State.init F none none
 
-/-- The wrapped constraint `9` is `x3 ≥ 1`, and the unwrapped `10` is `C₁`. -/
-example : (runTop F₁ none (State.init F₁ none none) reifySteps).map
-    (fun s => (lookup s.db 9, lookup s.db 10)) =
-    some (some ⟨[(1, (2, true))], 1⟩, some C₁) := by decide +kernel
+/-- After `x3 ⇔ C₁`: `x3 ⇒ C₁` at `5` and `C₁ ⇒ x3` at `7`. -/
+def s₁ : State :=
+  (s₀.addStrengthened 5 (impl [(2, true)] C₁)).addStrengthened 7 (impl [(2, false)] C₁.negate)
 
-def reifyText : String :=
-  "pseudo-Boolean proof version 3.0\nf 3 ;\n" ++
-  "red 2 ~x3 1 x1 1 x2 >= 2 : x3 -> 0 : subproof\nqed ;\n" ++
-  "red 1 x3 1 ~x2 1 ~x1 >= 1 : x3 -> 1 : subproof\nqed ;\n" ++
-  "pol 7 1 1 * + ;\npol 8 2 1 * + ;\npol 5 9 2 * + ;\npol 10 3 + ;\n" ++
-  "output NONE ;\nconclusion UNSAT : 11 ;\nend pseudo-Boolean proof ;\n"
+/-- After `x4 ⇔ C₂`: `x4 ⇒ x3` at `9` and `x3 ⇒ x4` at `11`. -/
+def s₂ : State :=
+  (s₁.addStrengthened 9 (impl [(3, true)] C₂)).addStrengthened 11 (impl [(3, false)] C₂.negate)
 
+example : runTop F none s₀ (reify 2 C₁) = some s₁ :=
+  runTop_reify (by decide +kernel) (by decide +kernel) (by decide +kernel)
 
-def F₁Text : String :=
-  "* #variable= 2 #constraint= 3\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n1 ~x1 1 ~x2 >= 1 ;\n"
+example : s₁.next = 8 := rfl
 
-example : Text.checkOPB F₁Text reifyText = some (.unsat 11) := by decide +kernel
+example : s₁.fresh 3 = true := by decide +kernel
 
-/-! ### Fusion resolution under an implication -/
+/-- `x3` is not fresh after its own reification. -/
+example : s₁.fresh 2 = false := by decide +kernel
 
-/-- `x3 ∧ x2 ⇒ x1`, `x3 ∧ ~x2 ⇒ x1`, `x3`, `~x1`. -/
-def F₂ : List PBConstr :=
-  [impl [(2, true), (1, true)] ⟨[(1, (0, true))], 1⟩,
-    impl [(2, true), (1, false)] ⟨[(1, (0, true))], 1⟩, ⟨[(1, (2, true))], 1⟩,
-    ⟨[(1, (0, false))], 1⟩]
+example : runTop F none s₁ (reify 3 C₂) = some s₂ :=
+  runTop_reify (by decide +kernel) (by decide +kernel) (by decide +kernel)
 
-/-- Fuse `1` and `2` into `x3 ⇒ x1` (`9`, after the subproof `5` … `8`), unwrap `x1` with `3`
-(`10`), and add `4` (`11`). -/
-def fusionSteps : List TopStep :=
-  [.step (fusion [(2, true)] ⟨[(1, (0, true))], 1⟩ 1 2 1 1 5),
-    .step (resolveGuard 9 3 1), .step (.pol [.id 10, .id 4, .add])]
+example : s₂.next = 12 := rfl
 
-example : checkRed F₂ none ⟨fusionSteps, .unsat 11⟩ = true := by decide +kernel
+/-- The stored `x4 ⇒ x3` is the clause `~x4 ∨ x3`. -/
+example : lookup s₂.db 9 = some (Clause.toPB [(3, false), (2, true)]).normalize := by
+  decide +kernel
 
-/-- The fused constraint `9` is `x3 ⇒ x1`. -/
-example : (runTop F₂ none (State.init F₂ none none) fusionSteps).map (lookup ·.db 9) =
-    some (some (impl [(2, true)] ⟨[(1, (0, true))], 1⟩).normalize) := by decide +kernel
+/-- **Wrapping**: `x3 ⇒ C₁` (`5`) plus twice `x4 ⇒ x3` (`9`) is a constraint meaning
+`x4 ⇒ C₁`. -/
+example : ∃ d, runStep s₂.db s₂.next (resolveGuard 5 9 C₁.degree) =
+      some ((s₂.next, d) :: s₂.db, s₂.next + 1) ∧
+    ∀ σ, d.Holds σ ↔ (σ 3 = true → C₁.Holds σ) := by
+  obtain ⟨d, hrun, -, hd⟩ := runStep_resolveGuard_wrap (s := (3, true)) (z := 2)
+    (a := 5) (b := 9) (db := s₂.db) (n := s₂.next) (c := C₁) (by decide +kernel)
+    (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
+    (by decide +kernel)
+  refine ⟨d, hrun, fun σ => ?_⟩
+  rw [hd, holds_impl]
+  simp
 
-def fusionText : String :=
-  "pseudo-Boolean proof version 3.0\nf 4 ;\n" ++
-  "pbc 1 ~x3 1 x1 >= 1 : subproof\npol 1 5 + 1 d ;\npol 2 5 + 1 d ;\nrup >= 1 : 5 6 7 ;\n" ++
-  "qed : 8 ;\npol 9 3 1 * + ;\npol 10 4 + ;\n" ++
-  "output NONE ;\nconclusion UNSAT : 11 ;\nend pseudo-Boolean proof ;\n"
+/-- **Unwrapping**: `x3 ⇒ C₁` plus twice the unit clause `x3` is a constraint meaning `C₁`. -/
+example : ∃ d, runStep [(2, C₂.normalize), (1, (impl [(2, true)] C₁).normalize)] 3
+      (resolveGuard 1 2 C₁.degree) =
+      some ((3, d) :: [(2, C₂.normalize), (1, (impl [(2, true)] C₁).normalize)], 4) ∧
+    ∀ σ, d.Holds σ ↔ C₁.Holds σ := by
+  obtain ⟨d, hrun, -, hd⟩ := runStep_resolveGuard_unwrap (z := 2) (c := C₁) (a := 1) (b := 2)
+    (db := [(2, C₂.normalize), (1, (impl [(2, true)] C₁).normalize)]) (n := 3)
+    (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
+  exact ⟨d, hrun, hd⟩
 
+/-! ### Guard lifting at a false guard -/
 
-def F₂Text : String :=
-  "* #variable= 3 #constraint= 4\n1 ~x3 1 ~x2 1 x1 >= 1 ;\n1 ~x3 1 x2 1 x1 >= 1 ;\n1 x3 >= 1 ;\n" ++
-  "1 ~x1 >= 1 ;\n"
+open Ineq
 
-example : Text.checkOPB F₂Text fusionText = some (.unsat 11) := by decide +kernel
+/-- `10 x̄₂ + x̄₁ ≥ 15`, written `-10 x₂ - x₁ ≥ 4` (variables `1` and `0`). -/
+noncomputable def I₀ : Ineq ℕ := ⟨Finsupp.single 1 (-10) + Finsupp.single 0 (-1), 4⟩
+
+/-- The partial assignment `x1 ↦ 1`. -/
+def τ₀ : ℕ → Bool := fun _ => true
+
+/-- `x1 ↦ 0`, `x2 ↦ 1`: it falsifies the guard. -/
+def σ₀ : ℕ → Bool := fun v => v == 1
+
+theorem restrict_I₀ : I₀.restrict {0} τ₀ = ⟨Finsupp.single 1 (-10), 5⟩ := by
+  ext w
+  · rw [coeff_restrict]
+    by_cases h : w = 0 <;> simp [I₀, h, Finsupp.single_apply, eq_comm]
+  · simp [I₀, τ₀]
+
+theorem guard_τ₀ : guard {0} τ₀ = ⟨Finsupp.single 0 (-1), -1⟩ := by
+  ext w
+  · rw [coeff_guard]
+    by_cases h : w = 0 <;> simp [τ₀, h]
+  · simp [bound_guard, τ₀]
+
+/-- The restriction `10 x̄₂ ≥ 15` has degree `15`. -/
+theorem degree_restrict_I₀ : (I₀.restrict {0} τ₀).degree = 15 := by
+  refine le_antisymm (degree_le_iff.2 fun σ => ?_) ?_
+  · rw [restrict_I₀, lhs_mk_single]; cases σ 1 <;> simp
+  · have := bound_sub_lhs_le_degree σ₀ ⟨Finsupp.single 1 (-10), 5⟩
+    rw [lhs_mk_single, show (σ₀ 1).toInt = 1 from rfl] at this
+    rw [restrict_I₀]
+    dsimp only at this
+    omega
+
+/-- A false guard, so the implication `x1 ⇒ I₀` holds at `σ₀`. -/
+example : (∀ v ∈ ({0} : Finset ℕ), σ₀ v = τ₀ v) → I₀.Holds σ₀ := fun h =>
+  absurd (h 0 (Finset.mem_singleton_self 0)) (by decide)
+
+/-- With the coefficient `2`, below the degree, the lifted line fails at `σ₀`: `-10 ≥ 3`. -/
+example : ¬ (I₀.restrict {0} τ₀ + 2 • guard {0} τ₀).Holds σ₀ := by
+  rw [restrict_I₀, guard_τ₀]
+  unfold Ineq.Holds
+  rw [lhs_add, lhs_nsmul, lhs_mk_single, lhs_mk_single, bound_add, bound_nsmul]
+  simp [σ₀]
+
+/-- With a coefficient at least the degree, the lifted line holds at `σ₀`, as the implication
+does. -/
+example : (I₀.restrict {0} τ₀ + 15 • guard {0} τ₀).Holds σ₀ :=
+  (holds_restrict_add_guard degree_restrict_I₀.le).2 fun h =>
+    absurd (h 0 (Finset.mem_singleton_self 0)) (by decide)
+
+/-- `guardLiftBound` covers the degree. -/
+example : 15 ≤ guardLiftBound {0} τ₀ I₀ :=
+  degree_restrict_I₀ ▸ degree_restrict_le_guardLiftBound I₀
+
+/-- **A wrapped derivation means the implication**: if `D` follows from `C` and `z` is in
+neither, every assignment satisfying `z ⇒ C`, with a coefficient `K₀` at least the degree of `C`,
+satisfies `z ⇒ D`. -/
+example {C D : Ineq ℕ} {z s : ℕ} (hC : C.coeff z = 0) (hD : D.coeff z = 0) (K₀ : ℕ)
+    (hK₀ : C.degree ≤ K₀) (h : CuttingPlanes.DerivableInSize {C} D s) (σ : ℕ → Bool)
+    (hσ : σ z = true → C.Holds σ) : σ z = true → D.Holds σ := by
+  have hCr : C.restrict {z} (fun _ => true) = C := restrict_of_coeff_eq_zero (by simpa using hC)
+  have hDr : D.restrict {z} (fun _ => true) = D := restrict_of_coeff_eq_zero (by simpa using hD)
+  obtain ⟨K, hK, hd⟩ := h.wrap hC hD K₀
+  have hlift := hd.holds (σ := σ) fun J hJ => by
+    rw [Set.mem_singleton_iff.1 hJ, ← hCr]
+    exact (holds_restrict_add_guard (by rwa [hCr])).2 (by simpa using hσ)
+  rw [← hDr] at hlift
+  simpa using (holds_restrict_add_guard (by rwa [hDr])).1 hlift
 
 end CslibFrontierTests.Logics.Propositional.VeriPBReify

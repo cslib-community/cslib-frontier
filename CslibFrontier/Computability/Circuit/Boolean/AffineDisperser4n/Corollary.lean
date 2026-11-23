@@ -23,8 +23,9 @@ This module packages three families of consequences of `four_mul_le_cost_add` an
   `4 * N - 19332 * N ^ (4 / 5)` genuinely binary `B₂` gates (`binaryB2Cost`, with constants and
   negations free), and hence at least `4 * N - 19332 * N ^ (4 / 5)` total gates, for all
   sufficiently large `N` (`exists_mem_P_eventually_le_cost_primeDisperser`,
-  `exists_mem_P_eventually_le_size_primeDisperser`). Achieving `4n - O(log n)`
-  (`Theorem 1.1` per `#4322`) remains open pending an `O(log n)`-dimension disperser (`#4323`).
+  `exists_mem_P_eventually_le_size_primeDisperser`). Formalizing `4n - O(log n)`
+  ([MishraSanthanam2026Revision1], Theorem 1.1, p. 2) remains open pending an explicit
+  `O(log n)`-dimension disperser in Lean (`#4323`).
 * **Explicit `4N - O(N / log N)` lower bound via `explicitDisperser`**: instantiating at
   `explicitDisperser` improves the constant from `60 * N / (Nat.log 2 N + 1) + 10` to
   `54 * N / (Nat.log 2 N + 1) + 9` under both `binaryB2Cost` and `size`
@@ -35,7 +36,8 @@ This module packages three families of consequences of `four_mul_le_cost_add` an
     `α = β + 2` (`weight_lower_bounds_of_sub_eq_four`).
   - **Original `State`-grounded bigraded optimality** (`stratifiedPotential`,
     `StratifiedStepSound`, `stratifiedStepSound_uniform`, `stratified_weight_sub_le_four`,
-    `stratified_weight_lower_bounds_of_sub_eq_four`, not from `[MishraSanthanam2027]`): for any
+    `stratified_weight_lower_bounds_of_sub_eq_four`, extending the discussion in
+    [MishraSanthanam2026Revision1], Remark 4.3): for any
     bigraded `(gateChildren, eqnChildren)` potential on `State n` that is sound across the
     `AffineDisperser4n` transitions (equation-free/pair-free initial states, `moveAffine`,
     `PairInSystem` + `unitDelete`, `Case 5b` pair creation, and `Case 5a` `andOnPairStep`),
@@ -71,10 +73,10 @@ This module packages three families of consequences of `four_mul_le_cost_add` an
 ## References
 
 * [O. S. Mishra and R. Santhanam, *An Explicit 4n - O(log n) Size Lower Bound against General
-  Boolean Circuits*][MishraSanthanam2027] (submission PDF inaccessible with HTTP 1042; `#4322`
-  records `4n - 10d` with `(6, 4, 10)`, whereas `(5, 3, 9)`, `binaryB2Cost`, the
-  `Li.primeDisperser` instantiation, and the bigraded Farkas optimality theorems are original to
-  this formalization)
+  Boolean Circuits*][MishraSanthanam2026Revision1], ECCC TR26-260 revision 1, Theorem 4.1
+  (p. 21) and Remark 4.3 (p. 26). The `(5, 3, 9)` weights, `binaryB2Cost`, the
+  `Li.primeDisperser` instantiation, and the bigraded Farkas optimality theorems are refinements
+  of this formalization.
 * [V. Shoup, *New algorithms for finding irreducible polynomials over finite fields*][Shoup1990]
 * [X. Li, *Two source extractors for asymptotically optimal entropy, and (many) more*][Li2023]
 -/
@@ -89,9 +91,10 @@ open Cslib.Complexity Cslib.AffineDisperser
 
 /-! ### Rational LP optimality for `(α, β, c) = (5, 3, 9)` -/
 
-/-- Rational Farkas lemma on the `#4322` linear constraints (`Remark 4.3` unverified against
-[MishraSanthanam2027]): under `α ≤ β + 2` and `c ≤ 2 * α - β + 2`, the leading coefficient `c - α`
-cannot exceed `4`. -/
+/-- Rational Farkas lemma on the `#4322` linear constraints: under `α ≤ β + 2` and
+`c ≤ 2 * α - β + 2`, the leading coefficient `c - α` cannot exceed `4`. This is a formal
+algebraic refinement of the potential-reweighting discussion in [MishraSanthanam2026Revision1],
+Remark 4.3 (p. 26), which states optimality without listing these inequalities. -/
 theorem weight_sub_le_four {α β c : ℚ} (h₁ : α ≤ β + 2) (h₂ : c ≤ 2 * α - β + 2) :
     c - α ≤ 4 := by
   linarith

@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandInput
-import CslibFrontier.Computability.WordRAM.Width
+import CslibFrontier.Computability.WordRAM.PreservesMask
 
 /-!
 # Flat native preparation of every public band encoding
@@ -54,37 +54,12 @@ theorem catalogueValue_right {L m N : ℕ} (hm : m ≤ L)
 
 /-- One finite code-size bound for the 96-register program and its final halt. -/
 theorem program_length_le : (program.program catalogue).length ≤ 16384 := by
-  have hl := Encoding.program_length_le false
-  have hr := Encoding.program_length_le true
-  simp only [Code.program, List.length_append, Code.length_assemble,
-    List.length_cons, List.length_nil] at hl hr ⊢
-  have hpre : (Code.seq header (.seq saveInput (.seq countCode tablesCode))).size ≤ 512 := by
-    decide +kernel
-  have hpF : (prepareBand false).size ≤ 256 := by decide +kernel
-  have hpT : (prepareBand true).size ≤ 256 := by decide +kernel
-  have hcF : (collectBand false).size ≤ 64 := by decide +kernel
-  have hcT : (collectBand true).size ≤ 64 := by decide +kernel
-  have hrest : restoreInput.size ≤ 64 := by decide +kernel
-  simp only [program, encodeBands, bandBody, Code.size, Code.size_rename] at hpre ⊢
-  omega
+  simp only [Code.program, List.length_append, Code.length_assemble, List.length_singleton]
+  decide +kernel
 
 /-- The uniform program does not inspect its target word width. -/
-theorem not_readsWidth : ¬program.ReadsWidth := by
-  have hpre : ¬(Code.seq header (.seq saveInput (.seq countCode tablesCode))).ReadsWidth := by
-    decide +kernel
-  have henc (side : Bool) : ¬(encodeBands side).ReadsWidth := by
-    have hp : ¬(prepareBand side).ReadsWidth := by cases side <;> decide +kernel
-    have hc : ¬(collectBand side).ReadsWidth := by cases side <;> decide +kernel
-    have h0 : ¬(ram[ band ← #0 ] : Code .standard 96).ReadsWidth := by decide +kernel
-    have h1 : ¬(ram[ band ← band + one ] : Code .standard 96).ReadsWidth := by decide +kernel
-    have he := Encoding.program_readsWidth side
-    simp only [encodeBands, bandBody, Code.ReadsWidth, Code.readsWidth_rename]
-    tauto
-  have hrest : ¬restoreInput.ReadsWidth := by decide +kernel
-  have hf := henc false
-  have ht := henc true
-  simp only [program, Code.ReadsWidth] at hpre ⊢
-  tauto
+theorem not_readsWidth : ¬program.ReadsWidth :=
+  Code.not_readsWidth_of_readsWidthBool rfl
 
 /-- Every row and column band is encoded exactly once into its shared flat block. The
 actual input contains only the three scalar parameters and signed matrices. `w` is the signed

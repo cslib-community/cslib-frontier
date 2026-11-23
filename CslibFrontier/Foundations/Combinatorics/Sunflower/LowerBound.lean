@@ -116,8 +116,6 @@ contained in the core. -/
 theorem not_containsSunflower_graphFamily [Nonempty β] :
     ¬ ContainsSunflower (Fintype.card β + 1) (graphFamily ι β) := by
   rintro ⟨S, hSF, hS, K, hK⟩
-  have h2 : 2 ≤ #S := by have := Fintype.card_pos (α := β); omega
-  have hKsub : ∀ s ∈ S, K ⊆ s := fun s hs => hK.subset_of_mem h2 hs
   -- every set of `S` is the graph of `φ s`
   set φ : Finset (ι × β) → ι → β := Function.invFun functionGraph
   have hmem {s} (hs : s ∈ S) {y : ι × β} : y ∈ s ↔ φ s y.1 = y.2 := by
@@ -130,12 +128,14 @@ theorem not_containsSunflower_graphFamily [Nonempty β] :
       (t := (univ : Finset β)) (f := fun u => φ u x.1)
       (by rw [card_univ, hS]; omega) fun _ _ => mem_coe.2 (mem_univ _)
     have hK' : (x.1, φ u x.1) ∈ K := by
-      rw [← hK hu hu' hne]
+      rw [← hK.2 hu hu' hne]
       exact mem_inter.2 ⟨(hmem hu).2 rfl, (hmem hu').2 huu'.symm⟩
-    have hval : φ s x.1 = φ u x.1 := (hmem hs).1 (hKsub s hs hK')
+    have hval : φ s x.1 = φ u x.1 := (hmem hs).1 (hK.subset_of_mem hs hK')
     rwa [show x = (x.1, φ u x.1) from Prod.ext rfl (((hmem hs).1 hx).symm.trans hval)]
-  obtain ⟨s, hs, t, ht, hst⟩ := one_lt_card.1 (show 1 < #S by omega)
-  exact hst ((hsub s hs).trans (hKsub t ht) |>.antisymm ((hsub t ht).trans (hKsub s hs)))
+  have h1 : 1 < #S := by have := Fintype.card_pos (α := β); omega
+  obtain ⟨s, hs, t, ht, hst⟩ := one_lt_card.1 h1
+  exact hst ((hsub s hs).trans (hK.subset_of_mem ht) |>.antisymm
+    ((hsub t ht).trans (hK.subset_of_mem hs)))
 
 end Sunflower
 
@@ -162,7 +162,8 @@ theorem containsSunflower_iff_le_card {α : Type*} [DecidableEq α] {F : Finset 
     (hF : ∀ s ∈ F, #s ≤ 1) (p : ℕ) : ContainsSunflower p F ↔ p ≤ #F := by
   refine ⟨fun ⟨S, hSF, hS, _⟩ => hS ▸ card_le_card hSF, fun h => ?_⟩
   obtain ⟨S, hSF, hS⟩ := exists_subset_card_eq h
-  refine ⟨S, hSF, hS, ∅, fun s hs t ht hst => eq_empty_of_forall_notMem fun x hx => hst ?_⟩
+  refine ⟨S, hSF, hS, ∅, ⟨fun _ _ => empty_subset _,
+    fun s hs t ht hst => eq_empty_of_forall_notMem fun x hx => hst ?_⟩⟩
   obtain ⟨hxs, hxt⟩ := mem_inter.1 hx
   ext y
   exact ⟨fun hy => card_le_one.1 (hF s (hSF hs)) y hy x hxs ▸ hxt,
@@ -198,7 +199,7 @@ theorem not_containsSunflower_twoTriangles : ¬ ContainsSunflower 3 twoTriangles
   have ht : t ∈ ({s, t, u} : Finset (Finset (Fin 6))) := by simp
   have hu : u ∈ ({s, t, u} : Finset (Finset (Fin 6))) := by simp
   exact twoTriangles_triples s (hSF hs) t (hSF ht) u (hSF hu) hst hsu htu
-    ⟨(hK hs ht hst).trans (hK hs hu hsu).symm, (hK hs ht hst).trans (hK ht hu htu).symm⟩
+    ⟨(hK.2 hs ht hst).trans (hK.2 hs hu hsu).symm, (hK.2 hs ht hst).trans (hK.2 ht hu htu).symm⟩
 
 end Sunflower
 

@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Crypto.Computational.LinearSigmaProtocol
 public import CslibFrontier.Crypto.Computational.SchnorrProtocol
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
@@ -285,34 +284,7 @@ description and the encoded statement. -/
 theorem isPPTOn_chaumPedersenCommitWord :
     IsPPTOn (encPair F.chaumPedersenEncoding.index encBits) (encPair encBits encBits)
       F.chaumPedersenCommitWord := by
-  let encIn := encPair (encPair encUnary F.encDesc) encBits
-  have hn : ComputableInPolyTime (fun p : (ℕ × F.Desc) × List Bool => p.1.1)
-      encIn encUnary := by fun_prop
-  have hd : ComputableInPolyTime (fun p : (ℕ × F.Desc) × List Bool => p.1.2)
-      encIn F.encDesc := by fun_prop
-  change IsPPTOn encIn _ fun p => F.sampleExp p.1.1 p.1.2 >>= fun s =>
-    pure (encPair encBits encBits
-        (F.smul (p.1.2, s, F.encode p.1.2 (F.generator p.1.2)),
-          F.smul (p.1.2, s, unframe p.2)),
-      (s % F.order p.1.2).bits)
-  refine (F.isPPTOn_sampleExp hn hd).bind_with ?_
-  let encMid := encPair encIn encNat
-  have hd' : ComputableInPolyTime (fun p : ((ℕ × F.Desc) × List Bool) × ℕ => p.1.1.2)
-      encMid F.encDesc := by fun_prop
-  have hs : ComputableInPolyTime (fun p : ((ℕ × F.Desc) × List Bool) × ℕ => p.2)
-      encMid encNat := by fun_prop
-  have hy : ComputableInPolyTime (fun p : ((ℕ × F.Desc) × List Bool) × ℕ => p.1.2)
-      encMid encBits := by fun_prop
-  have hu := ComputableInPolyTime.unframe.comp hy
-  have hq := F.computableInPolyTime_order.comp hd'
-  have ht₁ := F.computableInPolyTime_smul.comp
-    (hd'.prod (hs.prod (F.computableInPolyTime_generator.comp hd')))
-  have ht₂ := F.computableInPolyTime_smul.comp (hd'.prod (hs.prod hu))
-  have hz : ComputableInPolyTime
-      (fun p : ((ℕ × F.Desc) × List Bool) × ℕ => (p.2 % F.order p.1.1.2).bits)
-      encMid encBits :=
-    (ComputableInPolyTime.binary_mod' hs hq).encoding_comp
-  exact ((ht₁.prod ht₂).encoding_comp.prod hz).isPPTOn
+  ppt [chaumPedersenCommitWord]
 
 /-- `schnorrRespondBits` (`computableInPolyTime_schnorrRespondBits`) computes the response step of
 `chaumPedersenProbFamily` on encodings. -/
@@ -338,8 +310,6 @@ theorem eval_chaumPedersenSimulateWord (i : ℕ × F.Desc)
         (Prod.map (F.chaumPedersenEncoding.commitment i) (F.chaumPedersenEncoding.response i)) := by
   obtain ⟨n, d⟩ := i
   obtain ⟨u, v, w⟩ := y
-  have hneg : ((F.order d - c.val % F.order d : ℕ) : ZMod (F.order d)) = -c := by
-    rw [ZMod.natCast_sub_mod_eq_neg, ZMod.natCast_zmod_val]
   rw [show (F.chaumPedersenEncoding.statement (n, d)) (u, v, w) =
       encPair (F.encodeEmbedding d) (encPair (F.encodeEmbedding d) (F.encodeEmbedding d))
         (u, v, w) from rfl,
@@ -347,8 +317,8 @@ theorem eval_chaumPedersenSimulateWord (i : ℕ × F.Desc)
     chaumPedersenSimulateWord, ProbComp.eval_bind, chaumPedersenSimulator, ProbComp.eval_map,
     ProbComp.eval_map, PMF.map_comp, PMF.map_comp]
   simp only [ProbComp.eval_pure, encNat_apply, ofBits_bits, unframe_encPair, dropFrame_encPair,
-    encodeEmbedding, Function.Embedding.coeFn_mk, F.smul_encode, F.add_encode, hneg, neg_smul,
-    ← sub_eq_add_neg]
+    encodeEmbedding, Function.Embedding.coeFn_mk, F.smul_encode, F.add_encode,
+    ZMod.natCast_sub_mod_eq_neg, ZMod.natCast_zmod_val, neg_smul, ← sub_eq_add_neg]
   rw [← PMF.bind_pure_comp]
   congr 1 with a : 1
   simp only [Function.comp_apply, Prod.map, chaumPedersenEncoding, encodeEmbedding, encScalar,
@@ -360,43 +330,7 @@ and the encoded statement and challenge. -/
 theorem isPPTOn_chaumPedersenSimulateWord :
     IsPPTOn (encPair (encPair encUnary F.encDesc) (encPair encBits encBits))
       (encPair encBits encBits) F.chaumPedersenSimulateWord := by
-  let encIn := encPair (encPair encUnary F.encDesc) (encPair encBits encBits)
-  have hn : ComputableInPolyTime (fun p : (ℕ × F.Desc) × List Bool × List Bool => p.1.1)
-      encIn encUnary := by fun_prop
-  have hd : ComputableInPolyTime (fun p : (ℕ × F.Desc) × List Bool × List Bool => p.1.2)
-      encIn F.encDesc := by fun_prop
-  change IsPPTOn encIn _ fun p => F.sampleExp p.1.1 p.1.2 >>= fun s =>
-    pure (encPair encBits encBits
-        (F.add (p.1.2, F.smul (p.1.2, s, F.encode p.1.2 (F.generator p.1.2)),
-          F.smul (p.1.2, F.order p.1.2 - ofBits p.2.2 % F.order p.1.2,
-            unframe (dropFrame p.2.1))),
-        F.add (p.1.2, F.smul (p.1.2, s, unframe p.2.1),
-          F.smul (p.1.2, F.order p.1.2 - ofBits p.2.2 % F.order p.1.2,
-            dropFrame (dropFrame p.2.1)))),
-      (s % F.order p.1.2).bits)
-  refine (F.isPPTOn_sampleExp hn hd).bind_with ?_
-  let encMid := encPair encIn encNat
-  have hd' : ComputableInPolyTime (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
-      p.1.1.2) encMid F.encDesc := by fun_prop
-  have hs : ComputableInPolyTime (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
-      p.2) encMid encNat := by fun_prop
-  have hy : ComputableInPolyTime (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
-      p.1.2.1) encMid encBits := by fun_prop
-  have hc : ComputableInPolyTime (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
-      p.1.2.2) encMid encBits := by fun_prop
-  have hu := ComputableInPolyTime.unframe.comp hy
-  have hvw := ComputableInPolyTime.dropFrame.comp hy
-  have hv := ComputableInPolyTime.unframe.comp hvw
-  have hw := ComputableInPolyTime.dropFrame.comp hvw
-  have hq := F.computableInPolyTime_order.comp hd'
-  have ht₁ := F.computableInPolyTime_add_smul_sub_mod hd' hs
-    (F.computableInPolyTime_generator.comp hd') hc hv
-  have ht₂ := F.computableInPolyTime_add_smul_sub_mod hd' hs hu hc hw
-  have hz : ComputableInPolyTime
-      (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
-        (p.2 % F.order p.1.1.2).bits) encMid encBits :=
-    (ComputableInPolyTime.binary_mod' hs hq).encoding_comp
-  exact ((ht₁.prod ht₂).encoding_comp.prod hz).isPPTOn
+  ppt [chaumPedersenSimulateWord]
 
 /-- `chaumPedersenSimulator` is uniform strict PPT, certified by `chaumPedersenSimulateWord`. -/
 theorem isPPT_chaumPedersenSimulator :

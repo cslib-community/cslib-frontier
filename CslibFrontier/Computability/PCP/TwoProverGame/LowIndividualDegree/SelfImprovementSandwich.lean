@@ -139,8 +139,7 @@ theorem abs_sandwichedPolynomial_score_sub_le (φ : AlgState A)
         (fun z => sum_nonneg fun g _ =>
           φ.re_apply_nonneg (star_left_conjugate_nonneg (T.nonneg g) (V z.1 z.2 g)))
   simp only [expect_add_distrib, ← mul_expect, Fintype.expect_const]
-  exact add_le_add (mul_le_mul_of_nonneg_left hcopy (by norm_num))
-    (mul_le_mul_of_nonneg_left hvar (by norm_num))
+  gcongr
 
 omit [DecidableEq F] in
 private theorem state_successfulMass_sandwichedPolynomial_eq (φ : AlgState A)
