@@ -124,6 +124,8 @@ structure EState where
   rootConflict : Option ℕ := none
   /-- The root level must be rebuilt before the next check. -/
   dirty : Bool := false
+  /-- Marks on variables, for the conflict analysis; all clear between analyses. -/
+  seen : ByteArray := .empty
 
 /-- The propagation engine: its state, as a mutable reference. -/
 structure Engine (σ : Type) where
@@ -324,11 +326,11 @@ private def propagatePB (s : EState) (c : ℕ) (sl : ℤ) : EState :=
 private def propagate (s : EState) : EState × Option ℕ :=
   match s with
   | ⟨varIdx, vars, cons, alive, lits, coeffs, watches, occ, roots, ⟨value, reason, tpos, trail⟩,
-      qhead, slack, rootReason, rootLen, rootConflict, dirty⟩ =>
+      qhead, slack, rootReason, rootLen, rootConflict, dirty, seen⟩ =>
     match propLoop cons alive coeffs qhead lits watches occ slack value reason tpos trail with
     | (qhead, occ, ⟨confl, _, lits, watches, slack, value, reason, tpos, trail⟩) =>
       (⟨varIdx, vars, cons, alive, lits, coeffs, watches, occ, roots, ⟨value, reason, tpos, trail⟩,
-        qhead, slack, rootReason, rootLen, rootConflict, dirty⟩, confl)
+        qhead, slack, rootReason, rootLen, rootConflict, dirty, seen⟩, confl)
 
 /-- Undo the trail from position `i` down to length `n`, restoring the slacks of the entries
 below `q`, which were processed. -/
@@ -349,11 +351,11 @@ where
 private def backtrack (s : EState) (n : ℕ) : EState :=
   match s with
   | ⟨varIdx, vars, cons, alive, lits, coeffs, watches, occ, roots, asg, qhead, slack, rootReason,
-      rootLen, rootConflict, dirty⟩ =>
+      rootLen, rootConflict, dirty, seen⟩ =>
     let size := asg.trail.size
     let (slack, asg) := undo occ qhead n size slack asg
     ⟨varIdx, vars, cons, alive, lits, coeffs, watches, occ, roots, asg, min qhead n, slack,
-      rootReason, rootLen, rootConflict, dirty⟩
+      rootReason, rootLen, rootConflict, dirty, seen⟩
 
 /-- Mark the reasons of the trail entries from `n` as root reasons. -/
 private def markRootReasons (s : EState) (n : ℕ) : EState := Id.run do
@@ -475,65 +477,72 @@ private def rebuild (s : EState) : EState := Id.run do
   s := { s with rootConflict := confl }
   return { s with dirty := false }
 
-/-- Push onto a binary max-heap. -/
-private def heapPush (h : Array ℕ) (x : ℕ) : Array ℕ := Id.run do
-  let mut h := h.push x
-  let mut i := h.size - 1
-  while 0 < i && h[(i - 1) / 2]! < h[i]! do
-    h := h.swapIfInBounds i ((i - 1) / 2)
-    i := (i - 1) / 2
-  return h
+/-- Restore the max-heap order of `h` above position `i`. -/
+private partial def siftUp (h : Array ℕ) (i : ℕ) : Array ℕ :=
+  if 0 < i && h[(i - 1) / 2]! < h[i]! then siftUp (h.swapIfInBounds i ((i - 1) / 2)) ((i - 1) / 2)
+  else h
 
-/-- Pop the maximum of a nonempty binary max-heap. -/
-private def heapPop (h : Array ℕ) : ℕ × Array ℕ := Id.run do
-  let top := h[0]!
-  let mut h := (h.swapIfInBounds 0 (h.size - 1)).pop
-  let mut i := 0
-  let mut go := true
-  while go do
-    let l := 2 * i + 1
-    let r := 2 * i + 2
-    let mut m := i
-    if l < h.size && h[m]! < h[l]! then m := l
-    if r < h.size && h[m]! < h[r]! then m := r
-    if m == i then go := false
-    else
-      h := h.swapIfInBounds i m
-      i := m
-  return (top, h)
+/-- Restore the max-heap order of `h` below position `i`. -/
+private partial def siftDown (h : Array ℕ) (i : ℕ) : Array ℕ :=
+  let l := 2 * i + 1
+  let r := 2 * i + 2
+  let m := if l < h.size && h[i]! < h[l]! then l else i
+  let m := if r < h.size && h[m]! < h[r]! then r else m
+  if m == i then h else siftDown (h.swapIfInBounds i m) m
+
+/-- Mark the variables of the false literals at positions `[q, e)` of `lits` assigned below the
+trail position `lim` and not marked yet (`seen`), pushing their trail positions onto the
+max-heap `heap`. -/
+private partial def markLits (lits tpos : Array ℕ) (value : ByteArray) (q e lim : ℕ)
+    (seen : ByteArray) (heap : Array ℕ) : ByteArray × Array ℕ :=
+  if q < e then
+    let l := lits[q]!
+    let v := l / 2
+    if litVal value l == 2 && tpos[v]! < lim && seen.get! v == 0 then
+      markLits lits tpos value (q + 1) e lim (seen.set! v 1) (siftUp (heap.push tpos[v]!) heap.size)
+    else markLits lits tpos value (q + 1) e lim seen heap
+  else (seen, heap)
+
+/-- Process the marked trail positions `heap`, latest first: record the reason of each (once for
+consecutive repeats) and mark the false literals of the reason assigned before it; unmark the
+variables processed. -/
+private partial def collect (cons : Array CRec) (lits tpos reason trail : Array ℕ)
+    (value : ByteArray) (seen : ByteArray) (heap out : Array ℕ) : ByteArray × Array ℕ :=
+  if h : 0 < heap.size then
+    let p := heap[0]
+    let heap := siftDown (heap.swapIfInBounds 0 (heap.size - 1)).pop 0
+    let v := trail[p]! / 2
+    let r := reason[v]!
+    let out := if out.size == 0 || out[out.size - 1]! != r then out.push r else out
+    let rc := cons[r]!
+    match markLits lits tpos value rc.start (rc.start + rc.size) p (seen.set! v 0) heap with
+    | (seen, heap) => collect cons lits tpos reason trail value seen heap out
+  else (seen, out)
 
 /-- The kernel hints of a conflict at the constraint `k`: the reasons of the needed literals, in
-trail order, a reason repeated on consecutive needed literals given once, then `k`. -/
-private def analyze (s : EState) (k : ℕ) : Array Hint := Id.run do
-  -- `marked` holds the trail positions of the needed literals, `heap` those not yet processed.
-  let mark (c : ℕ) (lim : ℕ) (st : Std.HashMap ℕ Unit × Array ℕ) :
-      Std.HashMap ℕ Unit × Array ℕ := Id.run do
-    let r := s.cons[c]!
-    let mut (marked, heap) := st
-    for q in [r.start:r.start + r.size] do
-      let l := s.lits[q]!
-      if litVal s.asg.value l == 2 then
-        let p := s.asg.tpos[l / 2]!
-        if p < lim && !marked.contains p then
-          marked := marked.insert p ()
-          heap := heapPush heap p
-    return (marked, heap)
-  let mut st := mark k s.asg.trail.size ({}, #[])
-  let mut out : Array ℕ := #[]
-  while !st.2.isEmpty do
-    let (p, heap) := heapPop st.2
-    st := (st.1, heap)
-    let r := s.asg.reason[s.asg.trail[p]! / 2]!
-    if out.back? != some r then out := out.push r
-    st := mark r p st
-  return (out.reverse.map (s.cons[·]!.hint)).push s.cons[k]!.hint
+trail order, a reason repeated on consecutive needed literals given once, then `k`. A literal is
+needed when it falsifies a term of `k`, or of the reason of a needed literal, earlier on the
+trail. The marks (`seen`) are clear again afterwards. -/
+private def analyze (s : EState) (k : ℕ) : EState × Array Hint :=
+  let seen := s.seen
+  let s := { s with seen := .empty }
+  let seen := if seen.size < s.vars.size then
+      ⟨seen.data ++ .replicate (s.vars.size - seen.size) 0⟩ else seen
+  let rk := s.cons[k]!
+  let a := s.asg
+  let (seen, heap) :=
+    markLits s.lits a.tpos a.value rk.start (rk.start + rk.size) a.trail.size seen #[]
+  let (seen, out) := collect s.cons s.lits a.tpos a.reason a.trail a.value seen heap #[]
+  ({ s with seen := seen }, (out.reverse.map (s.cons[·]!.hint)).push rk.hint)
 
 /-- **The hints of `rup C`**, given the negation `neg` of `C`: propagate the database and `neg`,
 and on a conflict return its hints (`Cslib.Logic.PL.VeriPB.Elab.EState.analyze`), `neg` being
 named `~`. Returns `none` when propagation reaches no conflict. The negation is removed again. -/
 def rupHints (s : EState) (neg : PBConstr) : EState × Option (Array Hint) := Id.run do
   let s := if s.dirty then s.rebuild else s
-  if let some k := s.rootConflict then return (s, some (s.analyze k))
+  if let some k := s.rootConflict then
+    let (s, h) := s.analyze k
+    return (s, some h)
   let rl := s.rootLen
   -- The negation, as a non-clause constraint of its own, the last one.
   let (s, ts) := s.codes neg
@@ -542,7 +551,9 @@ def rupHints (s : EState) (neg : PBConstr) : EState × Option (Array Hint) := Id
   let (s, confl) := match s.checkFresh i with
     | (s, some k) => (s, some k)
     | (s, none) => s.propagate
-  let res := confl.map s.analyze
+  let (s, res) := match confl with
+    | some k => let (s, h) := s.analyze k; (s, some h)
+    | none => (s, none)
   let mut s := s.backtrack rl
   -- Remove the negation: its occurrences are the last pair of each of its lists.
   if 0 < neg.degree then
