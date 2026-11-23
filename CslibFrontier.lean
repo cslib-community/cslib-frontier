@@ -3445,6 +3445,9 @@ public import CslibFrontier.Computability.Distributed.ChandyLamport.Snapshot
 public import CslibFrontier.Computability.Distributed.ClockSync.Basic
 public import CslibFrontier.Computability.Distributed.ClockSync.ByzantineSync
 public import CslibFrontier.Computability.Distributed.ClockSync.LundeliusLynch
+public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability
+public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Progress
+public import CslibFrontier.Computability.Distributed.ConcurrentObjects.TreiberStack
 public import CslibFrontier.Computability.Distributed.DijkstraScholten.Basic
 public import CslibFrontier.Computability.Distributed.DijkstraScholten.Correctness
 public import CslibFrontier.Computability.Distributed.FailureDetectors.Consensus
