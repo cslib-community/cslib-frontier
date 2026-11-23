@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Algorithms.Lean.DFS.SCC
 public import CslibFrontier.Algorithms.Lean.TwoSAT
+public import CslibFrontier.Algorithms.WordRAM.DFS
+public meta import CslibFrontier.Algorithms.WordRAM.DFS
 public import CslibFrontier.Algorithms.WordRAM.TwoSAT
 public meta import CslibFrontier.Algorithms.WordRAM.TwoSAT
 meta import CslibFrontier.Computability.WordRAM.Structured.FastEval
@@ -19,9 +21,9 @@ public import CslibFrontier.Computability.Complexity.Problems.HornSAT
 # Strongly connected components, linear-time 2-SAT, and polynomial-time 2-SAT/HornSAT tests
 
 Kernel-checked examples (zero `native_decide`) exercising:
-1. Kosaraju's strongly connected components (`Cslib.Algorithms.Lean.DFS.sccs`, `sccsM`,
-   `indexComponents`, `IsSCCCondensation`) on DAGs, cycles, and multi-component graphs with exact
-   `3 * (|V| + |E|)` tick counts;
+1. Kosaraju's strongly connected components (`Cslib.Algorithms.Lean.DFS.sccs`,
+   `indexComponents`, `IsSCCCondensation`) on DAGs, cycles, and multi-component graphs, and the
+   standard-basis word-RAM component indexing `Cslib.Algorithms.WordRAM.DFS.sccProgram`;
 2. Aspvall–Plass–Tarjan linear-time 2-SAT (`Cslib.Algorithms.Lean.TwoSAT` and standard-basis
    Word-RAM `Cslib.Algorithms.WordRAM.TwoSAT`);
 3. Native multi-tape Turing-machine polynomial-time `TwoSAT` decision and witness construction
@@ -42,7 +44,7 @@ open Cslib.WordRAM
 
 /-! ### 1. Kosaraju strongly connected components -/
 
-/-- Diamond DAG `0 → 1, 0 → 2, 1 → 3, 2 → 3`: four singleton SCCs and `3 * (4 + 4) = 24` ticks. -/
+/-- Diamond DAG `0 → 1, 0 → 2, 1 → 3, 2 → 3`: four singleton SCCs. -/
 def diamond : Fin 4 → List (Fin 4)
   | 0 => [1, 2]
   | 1 => [3]
@@ -51,9 +53,7 @@ def diamond : Fin 4 → List (Fin 4)
 
 example : sccs diamond (List.finRange 4) = [[0], [2], [1], [3]] := by decide +kernel
 
-example : (sccsM diamond (List.finRange 4)).time = 24 := by decide +kernel
-
-/-- Triangle `0 → 1 → 2 → 0`: one SCC of size `3` and `3 * (3 + 3) = 18` ticks. -/
+/-- Triangle `0 → 1 → 2 → 0`: one SCC of size `3`. -/
 def triangle : Fin 3 → List (Fin 3)
   | 0 => [1]
   | 1 => [2]
@@ -61,13 +61,11 @@ def triangle : Fin 3 → List (Fin 3)
 
 example : (sccs triangle (List.finRange 3)).length = 1 := by decide +kernel
 
-example : (sccsM triangle (List.finRange 3)).time = 18 := by decide +kernel
-
 example :
     let idx := indexComponents (sccs triangle (List.finRange 3))
     idx 0 = 0 ∧ idx 1 = 0 ∧ idx 2 = 0 := by decide +kernel
 
-/-- Two 2-cycles joined by a bridge `0 ↔ 1 → 2 ↔ 3`: `4` vertices, `5` edges, `27` ticks. -/
+/-- Two 2-cycles joined by a bridge `0 ↔ 1 → 2 ↔ 3`: `4` vertices and `5` edges. -/
 def twoCycles : Fin 4 → List (Fin 4)
   | 0 => [1]
   | 1 => [0, 2]
@@ -76,16 +74,121 @@ def twoCycles : Fin 4 → List (Fin 4)
 
 example : (sccs twoCycles (List.finRange 4)).length = 2 := by decide +kernel
 
-example : (sccsM twoCycles (List.finRange 4)).time = 27 := by decide +kernel
-
 example :
     let comps := sccs twoCycles (List.finRange 4)
     let idx := indexComponents comps
-    idx 0 = 0 ∧ idx 1 = 0 ∧ idx 2 = 1 ∧ idx 3 = 1 ∧ (indexComponentsM comps).time = 6 := by
+    idx 0 = 0 ∧ idx 1 = 0 ∧ idx 2 = 1 ∧ idx 3 = 1 := by
   decide +kernel
 
 example : IsSCCCondensation twoCycles (sccs twoCycles (List.finRange 4)) :=
   isSCCCondensation_sccs List.mem_finRange
+
+private meta def runSCC (G : Cslib.Algorithms.WordRAM.DFS.Graph) (w : ℕ) :
+    Option (List ℕ × Bool) :=
+  (Cslib.Algorithms.WordRAM.DFS.sccCode.eval w w (Data.init G.encodeCSR)).map fun (y, t) =>
+    (outputList y.mem (y.regs Cslib.Algorithms.WordRAM.DFS.Reg.outReg),
+      decide (t < 256 * (G.n + G.m + 1)))
+
+/-- Word-RAM component indices agree with `indexComponents ∘ sccs` on the diamond, the triangle,
+the bridged 2-cycles, `n = 1` with and without a self-loop, parallel arcs, a disconnected multi-SCC
+graph with cross/forward edges, and the empty graph, including tight word-width witnesses. -/
+abbrev twoCyclesG : Cslib.Algorithms.WordRAM.DFS.Graph := ⟨4, twoCycles⟩
+abbrev emptySCCG : Cslib.Algorithms.WordRAM.DFS.Graph := ⟨0, fun v => v.elim0⟩
+abbrev oneNoLoopG : Cslib.Algorithms.WordRAM.DFS.Graph := ⟨1, fun _ => []⟩
+abbrev oneSelfLoopG : Cslib.Algorithms.WordRAM.DFS.Graph := ⟨1, fun _ => [0]⟩
+abbrev parallelSCCG : Cslib.Algorithms.WordRAM.DFS.Graph :=
+  ⟨3, fun | 0 => [1, 1] | 1 => [0, 0] | 2 => [1, 1]⟩
+
+def multiSCC : Fin 6 → List (Fin 6)
+  | 0 => [1, 3, 4]
+  | 1 => [0, 2]
+  | 2 => [3]
+  | 3 => [3]
+  | 4 => []
+  | 5 => []
+
+abbrev multiSCCG : Cslib.Algorithms.WordRAM.DFS.Graph := ⟨6, multiSCC⟩
+
+example : ∃ n, ExecutesList 16 Cslib.Algorithms.WordRAM.DFS.sccProgram
+    (State.init twoCyclesG.encodeCSR) [0, 0, 1, 1] n ∧ n ≤ 256 * (4 + 5 + 1) := by
+  have h := Cslib.Algorithms.WordRAM.DFS.computesListInTime_sccProgram twoCyclesG 16
+    (by decide +kernel) (twoCyclesG.inputFits_encodeCSR (by decide +kernel))
+  have hw : Cslib.Algorithms.WordRAM.DFS.sccWords twoCyclesG = [0, 0, 1, 1] := by decide +kernel
+  have hm : twoCyclesG.m = 5 := by decide +kernel
+  dsimp only at h
+  rwa [hw, hm] at h
+
+/-- Tight word-width witness (`w = 5`, `wordBound = 16 < 2 ^ 5`) on the empty graph. -/
+example : ∃ n, ExecutesList 5 Cslib.Algorithms.WordRAM.DFS.sccProgram
+    (State.init emptySCCG.encodeCSR) [] n ∧ n ≤ 256 := by
+  have h := Cslib.Algorithms.WordRAM.DFS.computesListInTime_sccProgram emptySCCG 5
+    (by decide +kernel) (emptySCCG.inputFits_encodeCSR (by decide +kernel))
+  have hw : Cslib.Algorithms.WordRAM.DFS.sccWords emptySCCG = [] := by decide +kernel
+  have hm : emptySCCG.m = 0 := by decide +kernel
+  dsimp only at h
+  rwa [hw, hm] at h
+
+/-- Tight word-width witness (`w = 8`, `wordBound = 160 < 2 ^ 8`) on `twoCyclesG`. -/
+example : ∃ n, ExecutesList 8 Cslib.Algorithms.WordRAM.DFS.sccProgram
+    (State.init twoCyclesG.encodeCSR) [0, 0, 1, 1] n ∧ n ≤ 256 * (4 + 5 + 1) := by
+  have h := Cslib.Algorithms.WordRAM.DFS.computesListInTime_sccProgram twoCyclesG 8
+    (by decide +kernel) (twoCyclesG.inputFits_encodeCSR (by decide +kernel))
+  have hw : Cslib.Algorithms.WordRAM.DFS.sccWords twoCyclesG = [0, 0, 1, 1] := by decide +kernel
+  have hm : twoCyclesG.m = 5 := by decide +kernel
+  dsimp only at h
+  rwa [hw, hm] at h
+
+/-- `n = 1` without and with a self-loop on `sccProgram`. -/
+example : ∃ n, ExecutesList 16 Cslib.Algorithms.WordRAM.DFS.sccProgram
+    (State.init oneNoLoopG.encodeCSR) [0] n ∧ n ≤ 256 * (1 + 0 + 1) := by
+  have h := Cslib.Algorithms.WordRAM.DFS.computesListInTime_sccProgram oneNoLoopG 16
+    (by decide +kernel) (oneNoLoopG.inputFits_encodeCSR (by decide +kernel))
+  have hw : Cslib.Algorithms.WordRAM.DFS.sccWords oneNoLoopG = [0] := by decide +kernel
+  have hm : oneNoLoopG.m = 0 := by decide +kernel
+  dsimp only at h
+  rwa [hw, hm] at h
+
+example : ∃ n, ExecutesList 16 Cslib.Algorithms.WordRAM.DFS.sccProgram
+    (State.init oneSelfLoopG.encodeCSR) [0] n ∧ n ≤ 256 * (1 + 1 + 1) := by
+  have h := Cslib.Algorithms.WordRAM.DFS.computesListInTime_sccProgram oneSelfLoopG 16
+    (by decide +kernel) (oneSelfLoopG.inputFits_encodeCSR (by decide +kernel))
+  have hw : Cslib.Algorithms.WordRAM.DFS.sccWords oneSelfLoopG = [0] := by decide +kernel
+  have hm : oneSelfLoopG.m = 1 := by decide +kernel
+  dsimp only at h
+  rwa [hw, hm] at h
+
+/-- Parallel arcs (`transposeCSRCode` repeated cursor decrements) on `sccProgram`. -/
+example : ∃ n, ExecutesList 16 Cslib.Algorithms.WordRAM.DFS.sccProgram
+    (State.init parallelSCCG.encodeCSR) [1, 1, 0] n ∧ n ≤ 256 * (3 + 6 + 1) := by
+  have h := Cslib.Algorithms.WordRAM.DFS.computesListInTime_sccProgram parallelSCCG 16
+    (by decide +kernel) (parallelSCCG.inputFits_encodeCSR (by decide +kernel))
+  have hw : Cslib.Algorithms.WordRAM.DFS.sccWords parallelSCCG = [1, 1, 0] := by decide +kernel
+  have hm : parallelSCCG.m = 6 := by decide +kernel
+  dsimp only at h
+  rwa [hw, hm] at h
+
+/-- Disconnected / multi-SCC graph with cross and forward edges on `sccProgram`. -/
+example : ∃ n, ExecutesList 16 Cslib.Algorithms.WordRAM.DFS.sccProgram
+    (State.init multiSCCG.encodeCSR) [1, 1, 3, 4, 2, 0] n ∧ n ≤ 256 * (6 + 7 + 1) := by
+  have h := Cslib.Algorithms.WordRAM.DFS.computesListInTime_sccProgram multiSCCG 16
+    (by decide +kernel) (multiSCCG.inputFits_encodeCSR (by decide +kernel))
+  have hw : Cslib.Algorithms.WordRAM.DFS.sccWords multiSCCG = [1, 1, 3, 4, 2, 0] := by
+    decide +kernel
+  have hm : multiSCCG.m = 7 := by decide +kernel
+  dsimp only at h
+  rwa [hw, hm] at h
+
+/-- info: (some ([0, 2, 1, 3], true), some ([0, 0, 0], true)) -/
+#guard_msgs in
+#eval (runSCC ⟨4, diamond⟩ 16, runSCC ⟨3, triangle⟩ 16)
+
+/-- info: (some ([0, 0, 1, 1], true), some ([], true)) -/
+#guard_msgs in
+#eval (runSCC twoCyclesG 16, runSCC emptySCCG 5)
+
+/-- info: (some ([0], true), some ([0], true), some ([1, 1, 0], true), some ([1, 1, 3, 4, 2, 0], true)) -/
+#guard_msgs in
+#eval (runSCC oneNoLoopG 16, runSCC oneSelfLoopG 16, runSCC parallelSCCG 16, runSCC multiSCCG 16)
 
 /-! ### 2. Linear-time 2-SAT solver (pure & standard-basis Word-RAM) -/
 
