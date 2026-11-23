@@ -138,7 +138,7 @@ Scope relative to the paper: the weights are `ℤ ∪ {∞}`, with no `−∞` a
 
 ## Depth-first search, topological sort and Bellman–Ford
 
-These are pure Lean functions on adjacency lists, with `TimeM` cost models (as for Edmonds–Karp), not machine programs.
+These are pure Lean functions on adjacency lists, with `TimeM` cost models (as for Kruskal and Edmonds–Karp), not machine programs.
 
 - **Depth-first search.** Import `CslibFrontier.Algorithms.Lean.DFS.Basic` ([source](../../CslibFrontier/Algorithms/Lean/DFS/Basic.lean)). `dfs adj k roots` on `adj : V → List V` visits the roots in turn, with recursion budget `k`; `Fintype.card V ≤ k` suffices. `mem_dfs_visited_iff` and `mem_dfs_finished_iff` say that it discovers and finishes exactly the vertices reachable from the roots. `dfs_finished_order` says that for an edge `u → v` out of a finished vertex, `u` finishes after `v` unless `v` reaches `u`. This is the finishing-time argument in the proof of Theorem 22.12 of [Cormen et al.][clrs09], which rests on the no-back-edge lemma (Lemma 22.11 there). `time_dfsM` charges one unit per root and one per adjacency-list entry examined. The membership test, insertion and cons are treated as constant-time steps, not charged separately.
 - **Topological sort.** Import `CslibFrontier.Algorithms.Lean.DFS.TopologicalSort` ([source](../../CslibFrontier/Algorithms/Lean/DFS/TopologicalSort.lean)). `topologicalSort adj vs` lists the vertices in reverse finishing order. When `vs` lists every vertex, `isTopologicalOrder_topologicalSort_iff` says that the output is a topological order exactly when `Relation.Acyclic (Edge adj)` holds ([Cormen et al.][clrs09], Theorem 22.12). `time_topologicalSortM` gives the exact cost `|vs| + ∑ v, |adj v|`.

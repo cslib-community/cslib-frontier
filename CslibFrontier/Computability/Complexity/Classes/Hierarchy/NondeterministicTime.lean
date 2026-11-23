@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Complexity.Classes.Time.BoundedExists
 import CslibFrontier.Computability.Complexity.Classes.Time.Verifier
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
@@ -227,15 +228,10 @@ private theorem exists_computableInO_verifier (d : ℕ) :
         else cheap d p) S := by
   obtain ⟨D, hacc⟩ := exists_computableInO_accepts d
   obtain ⟨K, hbrute⟩ := exists_computableInO_brute d
-  have hx := ComputableInO.fst encBits encBits
-  have hun : ComputableInO unframe encBits encBits (fun z => z.length) (fun z => z.length) :=
-    ComputableInO.of_linear (.of_unframe fun _ => rfl)
-  have hfr : ComputableInO frame encBits encBits (fun z => z.length) (fun z => z.length) :=
-    ComputableInO.of_linear (.of_frame fun _ => rfl)
-  have hw := hun.comp hx
-  have hbase := hfr.comp hw
   have hE := (ComputableInO.natToUnary.mono_time 1 (T' := fun n => (n + 1) ^ 2)
-    fun n => by nlinarith).comp ((timeConstructible_succ_pow (d + 3)).computableInO.comp hbase)
+    fun n => by nlinarith).comp ((timeConstructible_succ_pow (d + 3)).computableInO.comp
+      (by fun_prop : ComputableInO (fun p : List Bool × List Bool => frame (unframe p.1))
+        (encPair encBits encBits) encBits _ _))
   -- the numeric facts about the tests
   set G := 2 ^ (d + 3)
   have hfacts (p : List Bool × List Bool) : (encPair encBits encBits p).length + 1 ≤ cheap d p ∧
@@ -280,13 +276,10 @@ input, since `n + 1 = 2 ^ ((P + 1) ^ (d + 3))` there. -/
 theorem lazyDiagonal_mem_NTIME (d : ℕ) :
     lazyDiagonal d ∈ NTIME encBits fun n => (n + 1) ^ (6 * d + 14) := by
   obtain ⟨D, K, S, hV⟩ := exists_computableInO_verifier d
-  have hsnoc : ComputableInO (fun x : List Bool => x ++ [false]) encBits encBits
-      (fun x => x.length + x.length) (fun x => x.length + x.length) :=
-    (ComputableInO.of_eq (f := fun x : List Bool => x) (encIn := encBits) (encMid := encBits)
-      fun _ => rfl).append (ComputableInO.const (encMid := encBits) [false]) fun _ => rfl
   have hℓ := ((ComputableInO.natToUnary.mono_time 1 (T' := fun n => (n + 1) ^ 2)
     fun n => by nlinarith).comp ((timeConstructible_succ_pow (d + 2)).computableInO.comp
-      hsnoc)).of_enc_eq (encC := encUnary) (g := fun x : List Bool => certLen d (x.length + 1))
+      (by fun_prop : ComputableInO (fun x : List Bool => x ++ [false]) encBits encBits _ _))
+    ).of_enc_eq (encC := encUnary) (g := fun x : List Bool => certLen d (x.length + 1))
       fun x => by simp [certLen]
   obtain ⟨CD, hCD⟩ := PolynomiallyBounded.exists_le_mul_two_pow (p := fun m => (m + 1) ^ D)
     (by fun_prop)
@@ -295,7 +288,7 @@ theorem lazyDiagonal_mem_NTIME (d : ℕ) :
   set A₂ := (CD + 3) ^ 4 * 2 ^ (6 * d + 14) with hA₂
   set A₃ := 7 * 2 ^ (2 * d + 4) with hA₃
   refine setOf_exists_mem_NTIME hℓ hV (C := 2 + A₃ + 4 * A₁ + A₂ + 2 ^ B₀) fun x v hv => ?_
-  clear hsnoc hℓ hV
+  clear hℓ hV
   simp only [encBits_apply]
   set n := x.length with hn
   have hv' : v.length = (n + 2) ^ (d + 2) := hv

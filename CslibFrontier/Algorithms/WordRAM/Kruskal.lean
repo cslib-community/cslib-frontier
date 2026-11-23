@@ -11,7 +11,6 @@ public import CslibFrontier.Algorithms.Lean.Kruskal.SimpleGraph
 public import CslibFrontier.Algorithms.WordRAM.MergeSort
 public import CslibFrontier.Computability.WordRAM.ListOutput
 
-import CslibFrontier.Computability.WordRAM.Allocation
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
@@ -39,9 +38,11 @@ standard Word-RAM input layout `State.init (encode es)` (`[n, m, u₀, v₀, w�
 
 Consequently `kruskalProgram` outputs `encodeEdges (kruskalEdges es)` via
 `Cslib.WordRAM.ExecutesList` within
-`52 * m * ⌈log₂ m⌉ + 16 * m * ⌊log₂ n⌋ + 69 * m + 7 * n + 34` instructions, so the pure
-spanning-forest, minimum-spanning-tree, and `SimpleGraph` theorems of
-`CslibFrontier.Algorithms.Lean.Kruskal.Basic` and
+`52 * m * ⌈log₂ m⌉ + 16 * m * ⌊log₂ n⌋ + 69 * m + 7 * n + 34` instructions at any word width `w`
+satisfying `Fits w (9 * m + 2 * n + 4)` (note that `InputFits w (encode es)` for `Data.Bounded w` /
+`Runs.bounded_init` additionally requires `∀ e ∈ es, Fits w e.weight`, as witnessed by
+`inputFits_encode`), so the pure spanning-forest, minimum-spanning-tree, and `SimpleGraph`
+theorems of `CslibFrontier.Algorithms.Lean.Kruskal.Basic` and
 `CslibFrontier.Algorithms.Lean.Kruskal.SimpleGraph` apply to its output.
 
 ## Main definitions
@@ -240,15 +241,6 @@ private theorem holdsEdges_init {n : ℕ} (es : List (WeightedEdge n ℕ)) :
     rw [show 3 + j.val = 1 + (j.val + 1 + 1) by omega]
     exact hj
   exact holdsEdges_of_holdsList hedges
-
-private theorem modifies_write {base k a v : ℕ} {m₀ m₁ : ℕ → ℕ}
-    (h : Modifies (Block.mk base k).footprint m₀ m₁) (ha : base ≤ a ∧ a < base + k) :
-    Modifies (Block.mk base k).footprint m₀ (Function.update m₁ a v) := by
-  rw [Modifies.block_iff] at h ⊢
-  intro c hc
-  dsimp only at hc
-  rw [Function.update_of_ne (by omega)]
-  exact h c (by dsimp only; omega)
 
 /-! ## Private Union-by-Rank Forest Invariant -/
 
@@ -583,11 +575,9 @@ private theorem kruskalSetup_exec {w n : ℕ} (es : List (WeightedEdge n ℕ))
       x₁.regs nVerts = n ∧ x₁.regs mEdges = es.length ∧
       x₁.regs edgeBase = 3 ∧ x₁.regs keyBase = 3 + 3 * es.length ∧
       x₁.regs permBase = 3 + 4 * es.length ∧ x₁.regs bufBase = 3 + 5 * es.length ∧
-      x₁.regs parBase = 3 + 6 * es.length ∧
-      x₁.regs rnkBase = 3 + 6 * es.length + n ∧
-      x₁.regs out = 3 + 6 * es.length + 2 * n := by
-  have hall : Block.HoldsList 1 (encode es) (Data.init (encode es) : Data 26).mem :=
-    (outputList_eq_iff.mp (outputList_init (encode es))).2
+      yS.regs parBase = 3 + 6 * es.length ∧
+      yS.regs rnkBase = 3 + 6 * es.length + n ∧
+      yS.regs out = 3 + 6 * es.length + 2 * n := by
   have hm1 : (Data.init (encode es) : Data 26).mem 1 = n := by
     simp [encode]
   have hm2 : (Data.init (encode es) : Data 26).mem 2 = es.length := by
@@ -638,7 +628,8 @@ private theorem keys_exec {w n kb : ℕ} (es : List (WeightedEdge n ℕ)) (x : D
         Function.update_of_ne h2, Function.update_of_ne h3, Function.update_of_ne h4]
       exact hfr r h1 h2 h3 h4
     · wram_simp [Data.write_mem]
-      exact modifies_write hmodK ⟨by omega, by omega⟩
+      simpa only [Finset.union_idempotent] using
+        hmodK.trans (Modifies.write_of_owns (base := kb) (n := es.length) ⟨by omega, by omega⟩ _)
     · intro j hj hj'
       wram_simp [Data.write_mem]
       by_cases hjeq : j = v.regs ctr
@@ -766,7 +757,10 @@ private theorem ufInit_exec {w n pb rb : ℕ} (x : Data 26)
         Function.update_of_ne h2]
       exact hfr r h1 h2
     · wram_simp [Data.write_mem]
-      exact modifies_write (modifies_write hmodU ⟨by omega, by omega⟩) ⟨by omega, by omega⟩
+      simpa only [Finset.union_idempotent] using
+        (hmodU.trans
+          (Modifies.write_of_owns (base := pb) (n := 2 * n) ⟨by omega, by omega⟩ _)).trans
+          (Modifies.write_of_owns (base := pb) (n := 2 * n) ⟨by omega, by omega⟩ _)
     · intro i hi
       wram_simp [Data.write_mem]
       rw [Function.update_of_ne (by omega)]
@@ -1035,9 +1029,16 @@ private theorem emitAndUnion_exec {w n m eb sb pb rb op s : ℕ}
           HoldsEdges (op + 1) (acc ++ [e]) M := by
       subst hM
       have := a.isLt
-      refine ⟨modifies_write (modifies_write (modifies_write (modifies_write hmod
-          ⟨by omega, by omega⟩) ⟨by omega, by omega⟩) ⟨by omega, by omega⟩) ⟨by omega, by omega⟩,
-        fun z => ?_, fun z => ?_, hacc_snoc _ fun c hc1 hc2 => ?_⟩
+      refine ⟨?_, fun z => ?_, fun z => ?_, hacc_snoc _ fun c hc1 hc2 => ?_⟩
+      · have h1 := hmod.trans (Modifies.write_of_owns (base := pb) (n := 2 * n + 1 + 3 * m)
+          (a := op + 1 + 3 * acc.length) ⟨by omega, by omega⟩ e.u.val)
+        have h2 := h1.trans (Modifies.write_of_owns (base := pb) (n := 2 * n + 1 + 3 * m)
+          (a := op + 1 + 3 * acc.length + 1) ⟨by omega, by omega⟩ e.v.val)
+        have h3 := h2.trans (Modifies.write_of_owns (base := pb) (n := 2 * n + 1 + 3 * m)
+          (a := op + 1 + 3 * acc.length + 2) ⟨by omega, by omega⟩ e.weight)
+        have h4 := h3.trans (Modifies.write_of_owns (base := pb) (n := 2 * n + 1 + 3 * m)
+          (a := pb + a.val) ⟨by omega, by omega⟩ b.val)
+        simpa only [Finset.union_idempotent] using h4
       · have := z.isLt
         by_cases hza : z = a
         · subst hza; simp
@@ -1083,7 +1084,9 @@ private theorem emitAndUnion_exec {w n m eb sb pb rb op s : ℕ}
           by wram_simp [hyow]; simp only [List.length_append, List.length_singleton]; omega,
           ?_, by simp [hrel_f]⟩
         · wram_simp [Data.write_mem]
-          exact modifies_write hL1 ⟨by omega, by omega⟩
+          simpa only [Finset.union_idempotent] using
+            hL1.trans
+              (Modifies.write_of_owns (base := pb) (n := 2 * n + 1 + 3 * m) ⟨by omega, by omega⟩ _)
         · intro x_v
           wram_simp [Data.write_mem]
           have := x_v.isLt
@@ -1297,7 +1300,10 @@ private theorem kruskalScan_exec {w n eb sb pb rb op : ℕ}
           16 * sorted.length * Nat.log 2 n + 53 * sorted.length := by ring
       omega
     · wram_simp [Data.write_mem]
-      exact modifies_write hmodS ⟨by omega, by omega⟩
+      simpa only [Finset.union_idempotent] using
+        hmodS.trans
+          (Modifies.write_of_owns (base := pb) (n := 2 * n + 1 + 3 * sorted.length)
+            ⟨by omega, by omega⟩ _)
     · wram_simp [Data.write_mem, hySop]
       rw [outputList_eq_iff, ← hscan_end, length_encodeEdges]
       refine ⟨Function.update_self _ _ _, ?_⟩
@@ -1366,12 +1372,13 @@ theorem kruskalCode_exec {w n : ℕ} (es : List (WeightedEdge n ℕ))
 /-- **`O(m log m + m log n + n)` Word-RAM Kruskal Minimum Spanning Forest Theorem**
 ([Kruskal1956]; [CLRS2009], Section 23.2, `MST-KRUSKAL`): on any weighted undirected multigraph
 `es : List (WeightedEdge n ℕ)` (`m = es.length`) encoded in `State.init (encode es)` at word width
-`w` satisfying `Fits w (9 * m + 2 * n + 4)`, `kruskalProgram` halts within
-`52 * m * Nat.clog 2 m + 16 * m * Nat.log 2 n + 69 * m + 7 * n + 34` instructions and outputs
-`encodeEdges (kruskalEdges es)` via `ExecutesList`, where `kruskalEdges es` is a minimum-weight
-spanning forest of `es` (`kruskalEdges_isMinSpanningForest`), a minimum spanning tree when
-`(edgePartition es).numComponents = 1` (`kruskalEdges_isMinSpanningTree`), and `encodeEdges` is
-injective (`encodeEdges_injective`). -/
+`w` satisfying `Fits w (9 * m + 2 * n + 4)` (with `∀ e ∈ es, Fits w e.weight` additionally
+needed for `InputFits w (encode es)` / `Data.Bounded w` via `inputFits_encode`), `kruskalProgram`
+halts within `52 * m * Nat.clog 2 m + 16 * m * Nat.log 2 n + 69 * m + 7 * n + 34` instructions
+and outputs `encodeEdges (kruskalEdges es)` via `ExecutesList`, where `kruskalEdges es` is a
+minimum-weight spanning forest of `es` (`kruskalEdges_isMinSpanningForest`), a minimum spanning
+tree when `(edgePartition es).numComponents = 1` (`kruskalEdges_isMinSpanningTree`), and
+`encodeEdges` is injective (`encodeEdges_injective`). -/
 theorem kruskalProgram_spec {w n : ℕ} (es : List (WeightedEdge n ℕ))
     (hfit : Fits w (9 * es.length + 2 * n + 4)) :
     ∃ steps : ℕ,
@@ -1390,10 +1397,11 @@ theorem kruskalProgram_spec {w n : ℕ} (es : List (WeightedEdge n ℕ))
     exact hex_code.executesList Reg.out hfit_out
   exact ⟨t_exact + 1, hex_list, by omega, kruskalEdges_isMinSpanningForest es⟩
 
-/-- **`SimpleGraph (Fin n)` Specialization of Word-RAM Kruskal**: on the canonical `|E|`-edge list
-`graphEdges G wt` (`|E| = G.edgeFinset.card`) of `G : SimpleGraph (Fin n)` weighted by
-`wt : Sym2 (Fin n) → ℕ`, at word width `w` satisfying `Fits w (9 * |E| + 2 * n + 4)`,
-`kruskalProgram` halts within
+/-- **`SimpleGraph (Fin n)` Specialization of Word-RAM Kruskal**: on the pre-encoded canonical
+`|E|`-edge list `encode (graphEdges G wt)` (`|E| = G.edgeFinset.card`) of `G : SimpleGraph (Fin n)`
+weighted by `wt : Sym2 (Fin n) → ℕ`, at word width `w` satisfying `Fits w (9 * |E| + 2 * n + 4)`
+(with `∀ e ∈ graphEdges G wt, Fits w e.weight` additionally needed for `InputFits` /
+`Data.Bounded w` via `inputFits_encode`), `kruskalProgram` halts within
 `52 * |E| * Nat.clog 2 |E| + 16 * |E| * Nat.log 2 n + 69 * |E| + 7 * n + 34` instructions
 outputting `encodeEdges (kruskalGraph G wt)`, whose spanned simple graph is a minimum spanning tree
 of `G` when `G.Connected`. -/

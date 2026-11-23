@@ -485,9 +485,8 @@ private lemma ofSnap_step_initiate [DecidableEq P] [DecidableRel sys.graph.Adj]
     rcases eq_or_ne u p with rfl | hu
     · exact sys.pre_post_emit_marker hinv hen' (by simp [S₂, stepSnap, applyInitiate])
         (by simp [S₂, stepSnap, applyInitiate])
-    · apply pre_post_congr
-      · dsimp only [S₂]; simp [stepSnap, applyInitiate, hu]
-      · dsimp only [S₂]; simp [stepSnap, applyInitiate, hu]
+    · exact pre_post_congr (by simp [S₂, stepSnap, applyInitiate, hu])
+        (by simp [S₂, stepSnap, applyInitiate, hu])
   refine ⟨hen', hproj, ?_, funext fun u => funext fun v => (hboth u v).1,
     funext fun u => funext fun v => (hboth u v).2, ?_⟩
   · funext r
@@ -525,9 +524,8 @@ private lemma ofSnap_step_recvMarker_none [DecidableEq P] [DecidableRel sys.grap
         exact pre_post_pop_marker hsrc_some
           (by simpa [S₂, stepSnap, applyRecvMarker, hdest, hud] using hsrc_some)
           ht_sd (by simp [S₂, stepSnap, applyRecvMarker, hdest, hud, ht_sd]) hnotm_tail
-      · apply pre_post_congr
-        · dsimp only [S₂]; simp [stepSnap, applyRecvMarker, hdest, hud]
-        · dsimp only [S₂]; simp [stepSnap, applyRecvMarker, hdest, hud, hsd]
+      · exact pre_post_congr (by simp [S₂, stepSnap, applyRecvMarker, hdest, hud])
+          (by simp [S₂, stepSnap, applyRecvMarker, hdest, hud, hsd])
   refine ⟨hdest, hproj, ?_, funext fun u => funext fun v => (hboth u v).1,
     funext fun u => funext fun v => (hboth u v).2, ?_⟩
   · funext r
@@ -547,10 +545,8 @@ private lemma ofSnap_step_recvMarker_some [DecidableEq P] [DecidableRel sys.grap
     ofSnap (sys.stepSnap S₁ (.recvMarker src dest)) = ofSnap S₁ := by
   obtain ⟨_, hsrc_some, t_sd, ht_sd, hnotm_tail⟩ := sys.enabledSnap_recvMarker_spec hinv hen
   let S₂ := sys.stepSnap S₁ (.recvMarker src dest)
-  have hsnap_unch : ∀ x, (S₂.proc x).snapState = (S₁.proc x).snapState := by
-    intro x
-    simp only [S₂, stepSnap, applyRecvMarker, hdest]
-    rcases eq_or_ne x dest with rfl | hx <;> simp_all
+  have hsnap_unch : ∀ x, (S₂.proc x).snapState = (S₁.proc x).snapState := fun x => by
+    by_cases hx : x = dest <;> simp_all [S₂, stepSnap, applyRecvMarker]
   have hproj := sys.snapTr_project (S₁ := S₁) (a := .recvMarker src dest) ⟨hen, rfl⟩
   simp only [SnapEvent.toAppEvent] at hproj
   have hboth : ∀ u v, preInFlight S₂ u v = preInFlight S₁ u v ∧
@@ -560,8 +556,8 @@ private lemma ofSnap_step_recvMarker_some [DecidableEq P] [DecidableRel sys.grap
     · rcases hsd with ⟨rfl, rfl⟩
       exact pre_post_pop_marker hsrc_some (by rw [hsnap_unch]; exact hsrc_some)
         ht_sd (by simp [S₂, stepSnap, applyRecvMarker, hdest, ht_sd]) hnotm_tail
-    · apply pre_post_congr (hsnap_unch u)
-      dsimp only [S₂]; simp [stepSnap, applyRecvMarker, hdest, hsd]
+    · exact pre_post_congr (hsnap_unch u)
+        (by simp [S₂, stepSnap, applyRecvMarker, hdest, hsd])
   apply CutState.ext hproj (funext hsnap_unch)
     (funext fun u => funext fun v => (hboth u v).1)
     (funext fun u => funext fun v => (hboth u v).2)
@@ -599,12 +595,10 @@ private lemma applyApp_snapState {P S M : Type*} [DecidableEq P]
     (S₁ : SnapGlobalState P S M) (e : Event P S M) (r : P) :
     ((S₁.applyApp e).proc r).snapState = (S₁.proc r).snapState := by
   cases e with
-  | internal p _ _ =>
-    simp only [SnapGlobalState.applyApp]
-    rcases eq_or_ne r p with rfl | hr <;> simp_all
-  | recv _ dest _ _ _ =>
-    simp only [SnapGlobalState.applyApp]
-    rcases eq_or_ne r dest with rfl | hr <;> simp_all
+  | internal p _ _ | recv _ p _ _ _ =>
+    rcases eq_or_ne r p with rfl | hr
+    · simp only [SnapGlobalState.applyApp, ↓reduceIte]
+    · simp only [SnapGlobalState.applyApp, hr, ↓reduceIte]
 
 private lemma applyApp_chan {P S M : Type*} [DecidableEq P]
     (S₁ : SnapGlobalState P S M) (e : Event P S M) (u v : P) :
@@ -637,17 +631,17 @@ private lemma ofSnap_step_app_pre [DecidableEq P] [DecidableRel sys.graph.Adj]
   obtain ⟨htr_proj, hsnap_eq⟩ := sys.applyApp_proj_snap hen
   change CutTr sys (ofSnap S₁) (.pre e) (ofSnap (S₁.applyApp e))
   have hrec_eq : (ofSnap (S₁.applyApp e)).recBuf = (ofSnap S₁).recBuf := by
-    funext u v
+    funext u v; simp only [ofSnap, applyApp_snapState]
     cases e with
-    | internal p st' sent =>
-      simp only [ofSnap, SnapGlobalState.applyApp]
-      rcases eq_or_ne v p with rfl | hv <;> simp_all
-    | recv src dest msg st' sent =>
+    | internal p _ _ =>
+      rcases eq_or_ne v p with rfl | hv
+      · simp only [SnapGlobalState.applyApp, ↓reduceIte]
+      · simp only [SnapGlobalState.applyApp, hv, ↓reduceIte]
+    | recv _ dest _ _ _ =>
       simp only [Event.actor] at hact
-      simp only [ofSnap, SnapGlobalState.applyApp]
       rcases eq_or_ne v dest with rfl | hv
-      · simp [hact]
-      · simp [hv]
+      · simp only [hact, Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
+      · simp only [SnapGlobalState.applyApp, hv, ↓reduceIte]
   have hpop_info : ∀ u v, e.popsFrom u v →
       ∃ msg ws, S₁.chan u v = .app msg :: ws ∧
         ∃ t_pre, preInFlight S₁ u v = msg :: t_pre := by
@@ -783,8 +777,7 @@ private lemma ofSnap_step_app_post [DecidableEq P] [DecidableRel sys.graph.Adj]
     intro u v
     cases e with
     | internal p st' sent =>
-      simp only [ofSnap, SnapGlobalState.applyApp, Event.popsFrom, ↓reduceIte]
-      rcases eq_or_ne v p with rfl | hv <;> simp_all
+      by_cases hv : v = p <;> simp [ofSnap, Event.popsFrom, SnapGlobalState.applyApp, hv]
     | recv src dest msg st' sent =>
       simp only [Event.actor] at hact
       have hpost_rec := sys.postRecv_records_iff_preInFlight hinv ⟨hen, rfl⟩ hact
@@ -803,9 +796,9 @@ private lemma ofSnap_step_app_post [DecidableEq P] [DecidableRel sys.graph.Adj]
           simp [heq_nil, hmsgs]
       · simp only [hsd, ↓reduceIte]
         rcases eq_or_ne v dest with rfl | hv
-        · have husrc : u ≠ src := fun h => hsd ⟨h, rfl⟩
-          simp [SnapGlobalState.applyApp, hact, husrc]
-        · simp [SnapGlobalState.applyApp, hv]
+        · have hu : u ≠ src := fun h => hsd ⟨h, rfl⟩
+          simp only [SnapGlobalState.applyApp, hact, hu, ↓reduceIte]
+        · simp only [SnapGlobalState.applyApp, hv, ↓reduceIte]
 
 /-! #### Adjacent inversion swaps in `CutMTr` -/
 
@@ -922,40 +915,35 @@ private lemma swap_post_pre [DecidableEq P] {C₀ C₁ C₂ : CutState P S M}
       recBuf := C₀.recBuf }
   refine ⟨C₁', ?_, ?_⟩
   · exact ⟨htr_e₂', hC₀_e₂_none, rfl, rfl, rfl, fun u v => ⟨hpre_pop₂ u v, rfl⟩⟩
-  · refine ⟨htr_e₁', he₁_some, hC₂snap.trans hC₁snap, ?_, ?_, ?_⟩
-    · intro u v
-      rw [(hC₂pre u v).2, hC₁pre u v]
-      dsimp only [C₁']
+  · have hmatch : ∀ (xs ys buf : List M), xs.head? = ys.head? →
+        (match xs with | [] => buf | msg :: _ => buf ++ [msg]) =
+          (match ys with | [] => buf | msg :: _ => buf ++ [msg]) := by
+      rintro (_ | _) (_ | _) _ h <;> simp_all
+    have hpre_shape : ∀ u v, e₁.popsFrom u v →
+        ¬ e₂.popsFrom u v ∧
+        (C₁'.preChan u v).tail =
+          (C₀.preChan u v).tail ++ (if u = e₂.actor then outgoingTo e₂.sent v else []) ∧
+        (C₁'.preChan u v = [] ↔ C₀.preChan u v = []) ∧
+        (C₁'.preChan u v).head? = (C₀.preChan u v).head? := by
+      intro u v hp₁
+      have hp₂ : ¬ e₂.popsFrom u v := fun hp₂ => hnot_both_pop u v ⟨hp₁, hp₂⟩
+      rcases eq_or_ne u e₂.actor with rfl | hu₂
+      · obtain ⟨h, t, hht⟩ := List.exists_cons_of_ne_nil (hpre_pop₁_from_q v hp₁)
+        simp [C₁', hp₂, hht]
+      · simp [C₁', hp₂, hu₂]
+    refine ⟨htr_e₁', he₁_some, hC₂snap.trans hC₁snap, ?_, ?_, ?_⟩
+    · intro u v; rw [(hC₂pre u v).2, hC₁pre u v]
       by_cases hp₁ : e₁.popsFrom u v
-      · have hp₂ : ¬ e₂.popsFrom u v := fun hp₂ => hnot_both_pop u v ⟨hp₁, hp₂⟩
-        simp only [hp₁, hp₂, ↓reduceIte]
-        rcases eq_or_ne u e₂.actor with rfl | hu₂
-        · obtain ⟨h, t, hht⟩ := List.exists_cons_of_ne_nil (hpre_pop₁_from_q v hp₁)
-          simp [hht]
-        · simp [hu₂]
-      · simp [hp₁]
-    · intro u v
-      rw [hC₂post, hC₁post u v]
-      dsimp only [C₁']
+      · obtain ⟨hp₂, htail, _, _⟩ := hpre_shape u v hp₁; simp [hp₁, hp₂, htail]
+      · simp [C₁', hp₁]
+    · intro u v; rw [hC₂post, hC₁post u v]
       by_cases hp₁ : e₁.popsFrom u v
-      · have hp₂ : ¬ e₂.popsFrom u v := fun hp₂ => hnot_both_pop u v ⟨hp₁, hp₂⟩
-        simp only [hp₁, hp₂, true_and, ↓reduceIte]
-        rcases eq_or_ne u e₂.actor with rfl | hu₂
-        · obtain ⟨h, t, hht⟩ := List.exists_cons_of_ne_nil (hpre_pop₁_from_q v hp₁)
-          simp [hht]
-        · simp [hu₂]
-      · simp [hp₁]
-    · intro u v
-      rw [hC₂rec, hC₁rec u v]
-      dsimp only [C₁']
+      · simp [C₁', hp₁, (hpre_shape u v hp₁).2.2.1]
+      · simp [C₁', hp₁]
+    · intro u v; rw [hC₂rec, hC₁rec u v]
       by_cases hp₁ : e₁.popsFrom u v
-      · have hp₂ : ¬ e₂.popsFrom u v := fun hp₂ => hnot_both_pop u v ⟨hp₁, hp₂⟩
-        simp only [hp₁, hp₂, ↓reduceIte]
-        rcases eq_or_ne u e₂.actor with rfl | hu₂
-        · obtain ⟨h, t, hht⟩ := List.exists_cons_of_ne_nil (hpre_pop₁_from_q v hp₁)
-          simp [hht]
-        · simp [hu₂]
-      · simp [hp₁]
+      · simp only [hp₁, ↓reduceIte]; exact hmatch _ _ _ (hpre_shape u v hp₁).2.2.2.symm
+      · simp [C₁', hp₁]
 
 /-! #### Pushing `cross` and `post` steps past `pre` and `cross` blocks -/
 

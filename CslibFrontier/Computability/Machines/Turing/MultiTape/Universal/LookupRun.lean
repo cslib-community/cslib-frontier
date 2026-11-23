@@ -10,10 +10,9 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bound
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCountedIteration
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Words
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunProp
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinaryNormalization
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeOptionPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OPrimitives
 
 /-!
@@ -119,18 +118,12 @@ theorem lookStep_inO {TL SL : π × ℕ → ℕ}
   have hctx := ((ComputableInO.const (encIn := encPair encP (encPair eCfg (encList encUnary)))
     (encMid := eDesc) d).prod hcfg).prod hsym
   have hsw := stepWith_inO.comp' hctx
-  have hem := hsw.snd'
-  have hsnoc := (ComputableInDegree.snoc encUnary).inO_one.comp_linear
-    (hout.prod (ComputableInO.optionGetD 0 hem))
-  have hnew := (ComputableInO.optionIsSome hem).ite hsnoc hout
-  refine ((hsw.fst'.prod hnew).mono 16 (fun q => ?_) fun q => ?_).of_enc_eq fun q => ?_
+  refine (hsw.fst'.prod (hout.listAppend' hsw.snd'.optionToList')).mono 16
+    (fun q => ?_) fun q => ?_
   all_goals
     have hw := length_eWCtx_le_wTime ((d, q.2.1), look (q.1, q.2.1.inputPos))
     dsimp only [lookStepTime, Function.comp_apply, WCtx.desc, WCtx.cfg, WCtx.sym] at hw ⊢
-  · split_ifs <;> omega
-  · split_ifs <;> omega
-  · rcases h : (stepWith d q.2.1 (look (q.1, q.2.1.inputPos))).2 with _ | e <;>
-      simp [lookStep, h]
+    omega
 
 /-! ### Runs from a configuration -/
 
