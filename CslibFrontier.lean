@@ -3454,6 +3454,7 @@ public import CslibFrontier.Computability.Distributed.FailureDetectors.Reduction
 public import CslibFrontier.Computability.Distributed.LocalGraph.Basic
 public import CslibFrontier.Computability.Distributed.LocalGraph.Coloring
 public import CslibFrontier.Computability.Distributed.LocalGraph.LubyMIS
+public import CslibFrontier.Computability.Distributed.MinimumSpanningTree.GHS
 public import CslibFrontier.Computability.Distributed.MutualExclusion.Bakery
 public import CslibFrontier.Computability.Distributed.MutualExclusion.FilterLock
 public import CslibFrontier.Computability.Distributed.OrientedCycle.Basic
@@ -4871,6 +4872,7 @@ public import CslibFrontier.Computability.Probabilistic.Internal.Oracle.Time
 public import CslibFrontier.Computability.Probabilistic.LinearHash
 public import CslibFrontier.Computability.Probabilistic.Memoize
 public import CslibFrontier.Computability.Probabilistic.Oracle
+public import CslibFrontier.Computability.Probabilistic.Oracle.CachedSampler
 public import CslibFrontier.Computability.Probabilistic.Oracle.Codec
 public import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 public import CslibFrontier.Computability.Probabilistic.Oracle.Memoize
@@ -7081,6 +7083,7 @@ public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Ne
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Realization
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Subdivision
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Tree
+public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MinimumSpanningTree
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MotzkinStraus
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.OddCycleTransversal
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.OrientedIncidence
@@ -8195,6 +8198,7 @@ public import CslibFrontier.Languages.Probabilistic.RandomOracle.ImageCollision
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Invariant
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Programming
+public import CslibFrontier.Languages.Probabilistic.RandomOracle.QueryHit
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Represented
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Sum
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Through

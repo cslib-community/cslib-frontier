@@ -3,6 +3,8 @@ import CslibFrontierResults.Entries.DeterminantalUniversality
 import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Entries.MatrixRigidity
+import CslibFrontierResults.Entries.MinimumSpanningTree
 import CslibFrontierResults.Entries.ODonnellStabilityDerivative
+import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.SergeevORComplement
 import CslibFrontierResults.Registry
