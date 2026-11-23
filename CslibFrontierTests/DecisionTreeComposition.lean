@@ -4,11 +4,15 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Computability.DecisionTree.FreeM.OracleComp
 import CslibFrontier.Computability.DecisionTree.Parity
 import Mathlib.Data.Fintype.BigOperators
 
 /-! Tests of decision-tree composition on parity of disjoint conjunctions. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.DecisionTreeComposition
 
@@ -180,10 +184,29 @@ example : ¬ OracleComp.IsCostBounded (fun _ => 1) unreachable.toFreeM 2 := by
   rw [← weightedDepth_le_iff_isCostBounded]
   decide
 
--- Returning a large result preserves every query branch after its output is discarded.
-example {β : Type 1} (t : DecisionTree Unit β) (w : Unit → ℕ) (n : ℕ) :
-    t.weightedDepth w ≤ n ↔
-      OracleComp.IsCostBounded w (PFunctor.FreeM.map (fun _ => ()) t.toFreeM) n :=
-  weightedDepth_le_iff_isCostBounded_map_unit t w n
+private def readCode : (PFunctor.monomial Unit Bool).FreeM Nat := do
+  let b ← PFunctor.FreeM.lift ()
+  if b then pure 7 else pure 91
+
+-- A bare request returns its answer. The two continuations of readCode return distinct numbers.
+example : ofFreeM (PFunctor.FreeM.lift (P := PFunctor.monomial Unit Bool) ()) =
+    node () (leaf false) (leaf true) := by simp
+
+example : equivFreeM.symm readCode = node () (leaf 91) (leaf 7) := by
+  simp [readCode]
+
+example (x : Unit → Bool) : (ofFreeM readCode).eval x = (if x () then 7 else 91) := by
+  rw [eval_ofFreeM]
+  cases h : x () <;> simp [readCode, h]
+
+-- These leaves return types in `Type 1`. Discarding them still charges the single query.
+private def typeQuery : DecisionTree Unit Type := node () (leaf ℕ) (leaf Bool)
+
+example :
+    OracleComp.IsCostBounded (fun _ => 1) (PFunctor.FreeM.map (fun _ => ()) typeQuery.toFreeM) 1 ∧
+    ¬ OracleComp.IsCostBounded (fun _ => 1)
+      (PFunctor.FreeM.map (fun _ => ()) typeQuery.toFreeM) 0 := by
+  simp only [← weightedDepth_le_iff_isCostBounded_map_unit]
+  decide
 
 end CslibFrontierTests.DecisionTreeComposition

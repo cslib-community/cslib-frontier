@@ -18,8 +18,18 @@ Each internal node asks for one Boolean reply. `equivFreeM` identifies decision 
 free programs of this query interface. Evaluating the tree on an assignment folds the free
 program by reading that assignment at each query.
 
-Ported from the PolyFunFrontier module `PFunctor.Free.DecisionTree` at
-`713d8857e49d20927c1447b3ba7397acc5537319`.
+Ported from the `PolyFunFrontier.PFunctor.Free.DecisionTree` module of `Verified-zkEVM/PolyFun`
+at revision `713d8857e49d20927c1447b3ba7397acc5537319`.
+
+## Main definitions
+
+* `Cslib.DecisionTree.toFreeM` and `Cslib.DecisionTree.ofFreeM` translate in both directions.
+* `Cslib.DecisionTree.equivFreeM` packages the translations as an equivalence.
+
+## Main results
+
+* `Cslib.DecisionTree.eval_toFreeM` identifies the fold of a translated tree with its evaluation.
+* `Cslib.DecisionTree.eval_ofFreeM` evaluates the tree obtained from a free program.
 -/
 
 public section
@@ -58,6 +68,16 @@ and continues with the branch for the answer. -/
     ofFreeM ((FreeM.lift (P := monomial ι Bool) i).bind
         (α := no_index (monomial ι Bool).B i) k) =
       node i (ofFreeM (k false)) (ofFreeM (k true)) :=
+  rfl
+
+@[simp] theorem ofFreeM_lift_bind' {β : Type} (i : ι) (k : Bool → (monomial ι Bool).FreeM β) :
+    ofFreeM (Bind.bind (α := Bool) (FreeM.lift (P := monomial ι Bool) i) k) =
+      node i (ofFreeM (k false)) (ofFreeM (k true)) :=
+  rfl
+
+@[simp] theorem ofFreeM_lift (i : ι) :
+    ofFreeM (β := Bool) (FreeM.lift (P := monomial ι Bool) i) =
+      node i (leaf false) (leaf true) :=
   rfl
 
 @[simp] theorem ofFreeM_toFreeM (t : DecisionTree ι β) : ofFreeM t.toFreeM = t := by

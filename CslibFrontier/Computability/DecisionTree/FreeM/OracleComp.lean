@@ -18,6 +18,14 @@ A bound on weighted structural depth is precisely an oracle cost bound. Both bou
 branches that answer a repeated variable inconsistently with previous replies. For trees returning
 a value in a higher universe, postprocessing the result to `Unit` retains the query structure and
 puts the result in the universe of the Boolean replies required by `OracleComp.IsCostBounded`.
+
+## Main results
+
+* `Cslib.DecisionTree.toFreeM_substitute` translates query substitution into oracle substitution.
+* `Cslib.DecisionTree.weightedDepth_le_iff_isCostBounded_map_unit` characterizes the query
+  budget after discarding the result, for every result universe.
+* `Cslib.DecisionTree.weightedDepth_le_iff_isCostBounded` gives the budget directly for
+  programs whose result is in the Boolean replies' universe.
 -/
 
 public section
