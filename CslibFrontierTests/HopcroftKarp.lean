@@ -289,8 +289,8 @@ example : ∃ steps,
       steps ≤ sparseTime 0 0 0 0 :=
   executesList_sparseMatching emptySparse (w := 4) (by decide)
 
-/-- Ordinary `module` client instantiations of `executesList_denseMatching` and
-`executes_denseCard`. -/
+/-- Ordinary `module` client instantiations of `executesList_denseMatching`, `executes_denseCard`,
+and the direct dense optimality and flat-word indexing bridge. -/
 example :
     (∃ steps, ExecutesList 16 denseMatchingProgram (.init trapDense.encode) [1, 0, 0, 1] steps ∧
       steps ≤ denseTime 2 2 2) ∧
@@ -305,38 +305,46 @@ example :
   rw [hc2] at h2
   exact ⟨h1, h2⟩
 
-private meta def stepFlatLoop {r : ℕ} (w : ℕ) (arr : Array (Instr .standard r)) :
-    ℕ → ℕ → FastData r → ℕ → Option (FastData r × ℕ × ℕ)
-  | 0, _, _, _ => none
-  | fuel + 1, pc, x, steps =>
-    match arr[pc]? with
-    | none => none
-    | some (.op o) =>
-      match o.evalFast w x with
-      | some x' => stepFlatLoop w arr fuel (pc + 1) x' (steps + 1)
-      | none => none
-    | some (.jump t) => stepFlatLoop w arr fuel t x (steps + 1)
-    | some (.branch c t) =>
-      stepFlatLoop w arr fuel (if c.holdsFast x then t else pc + 1) x (steps + 1)
-    | some (.halt i) => some (x, x.reg i, steps + 1)
-    | some (.rand _ _) => none
+/-- End-to-end semantic bridge: a caller runs `denseMatchingProgram` via
+`executesList_denseMatching`, extracts `inst.matchingPairs`, gets `IsMaxMatching inst.graph`
+directly, and reads each `(u_i, v_i)` at `matchingWords[2 * i]` / `matchingWords[2 * i + 1]`. -/
+example (inst : DenseInstance) (hw : Fits 16 inst.wordBound) :
+    IsMaxMatching inst.graph inst.matchingPairs.toFinset ∧
+      inst.matchingWords.length = 2 * inst.maxMatchingCard ∧
+      (∀ (i : ℕ) (hi : i < inst.matchingPairs.length),
+        inst.matchingWords[2 * i]'(by
+          rw [inst.length_matchingWords, ← inst.length_matchingPairs]; omega) =
+          (inst.matchingPairs[i]'hi).1.val ∧
+        inst.matchingWords[2 * i + 1]'(by
+          rw [inst.length_matchingWords, ← inst.length_matchingPairs]; omega) =
+          (inst.matchingPairs[i]'hi).2.val) ∧
+      ∃ steps, ExecutesList 16 denseMatchingProgram (.init inst.encode) inst.matchingWords steps ∧
+        steps ≤ denseTime inst.m inst.r inst.maxMatchingCard :=
+  ⟨inst.isMaxMatching_matchingPairs, inst.length_matchingWords,
+    fun _ hi => ⟨inst.getElem_matchingWords_even hi, inst.getElem_matchingWords_odd hi⟩,
+    executesList_denseMatching inst hw⟩
 
-private meta def evalFlatScalar {r : ℕ} (w fuel : ℕ) (prog : Program .standard r)
-    (input : List ℕ) : Option (ℕ × ℕ) :=
-  (stepFlatLoop w prog.toArray fuel 0 (FastData.ofData (Data.init input)) 0).map
-    fun (_, v, steps) => (v, steps)
-
-private meta def evalFlatList {r : ℕ} (w fuel : ℕ) (prog : Program .standard r)
-    (input : List ℕ) : Option (List ℕ × ℕ) :=
-  (stepFlatLoop w prog.toArray fuel 0 (FastData.ofData (Data.init input)) 0).map
-    fun (x, v, steps) => ((List.range (x.read v)).map (fun i => x.read (v + 1 + i)), steps)
+/-- Concrete sparse flat-word pair indexing via `SparseInstance.getElem_matchingWords_even` and
+`SparseInstance.getElem_matchingWords_odd`. -/
+example :
+    (∀ (i : ℕ) (hi : i < perfSparse.matchingPairs.length),
+      perfSparse.matchingWords[2 * i]'(by
+        rw [perfSparse.length_matchingWords, ← perfSparse.length_matchingPairs]; omega) =
+        (perfSparse.matchingPairs[i]'hi).1.val ∧
+      perfSparse.matchingWords[2 * i + 1]'(by
+        rw [perfSparse.length_matchingWords, ← perfSparse.length_matchingPairs]; omega) =
+        (perfSparse.matchingPairs[i]'hi).2.val) ∧
+    IsMaxMatching perfSparse.graph perfSparse.matchingPairs.toFinset ∧
+    IsMaxMatching starDense.graph starDense.matchingPairs.toFinset :=
+  ⟨fun _ hi => ⟨perfSparse.getElem_matchingWords_even hi, perfSparse.getElem_matchingWords_odd hi⟩,
+    perfSparse.isMaxMatching_matchingPairs, starDense.isMaxMatching_matchingPairs⟩
 
 private meta def checkSparse (w : ℕ) (inst : SparseInstance)
     (expectedWords : List ℕ) (expectedCard expectedPerf : ℕ) : Bool :=
   let budget := sparseTime inst.m inst.r inst.numEdges inst.maxMatchingCard
-  match evalFlatList w budget sparseMatchingProgram inst.encode,
-      evalFlatScalar w budget sparseCardProgram inst.encode,
-      evalFlatScalar w budget sparsePerfectProgram inst.encode with
+  match Program.runFastList w budget sparseMatchingProgram inst.encode,
+      Program.runFast w budget sparseCardProgram inst.encode,
+      Program.runFast w budget sparsePerfectProgram inst.encode with
   | some (words, s₁), some (card, s₂), some (perf, s₃) =>
     words == expectedWords && card == expectedCard && perf == expectedPerf &&
       s₁ ≤ budget && s₂ ≤ budget && s₃ ≤ budget
@@ -345,8 +353,8 @@ private meta def checkSparse (w : ℕ) (inst : SparseInstance)
 private meta def checkDense (w : ℕ) (inst : DenseInstance)
     (expectedWords : List ℕ) (expectedCard : ℕ) : Bool :=
   let budget := denseTime inst.m inst.r inst.maxMatchingCard
-  match evalFlatList w budget denseMatchingProgram inst.encode,
-      evalFlatScalar w budget denseCardProgram inst.encode with
+  match Program.runFastList w budget denseMatchingProgram inst.encode,
+      Program.runFast w budget denseCardProgram inst.encode with
   | some (words, s₁), some (card, s₂) =>
     words == expectedWords && card == expectedCard && s₁ ≤ budget && s₂ ≤ budget
   | _, _ => false
@@ -402,15 +410,15 @@ private meta def checkDense (w : ℕ) (inst : DenseInstance)
 -- Width invariance (`w = 16` vs `w = 64`).
 /-- info: true -/
 #guard_msgs in
-#eval decide (evalFlatList 16 10000 sparseMatchingProgram perfSparse.encode =
-    evalFlatList 64 10000 sparseMatchingProgram perfSparse.encode ∧
-  evalFlatList 16 20000 denseMatchingProgram starDense.encode =
-    evalFlatList 64 20000 denseMatchingProgram starDense.encode)
+#eval decide (Program.runFastList 16 10000 sparseMatchingProgram perfSparse.encode =
+    Program.runFastList 64 10000 sparseMatchingProgram perfSparse.encode ∧
+  Program.runFastList 16 20000 denseMatchingProgram starDense.encode =
+    Program.runFastList 64 20000 denseMatchingProgram starDense.encode)
 
 -- Narrow word width (`w = 2`) faults cleanly.
 /-- info: true -/
 #guard_msgs in
-#eval decide (evalFlatList 2 5000 sparseMatchingProgram trapSparse.encode = none ∧
-  evalFlatList 2 5000 denseMatchingProgram trapDense.encode = none)
+#eval decide (Program.runFastList 2 5000 sparseMatchingProgram trapSparse.encode = none ∧
+  Program.runFastList 2 5000 denseMatchingProgram trapDense.encode = none)
 
 end CslibFrontierTests.HopcroftKarp

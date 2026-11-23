@@ -9,8 +9,8 @@ module
 
 import CslibFrontier.Init
 import CslibFrontier.Algorithms.Lean.MaxFlow.ChainCover
-import CslibFrontier.Algorithms.WordRAM.HopcroftKarp
-meta import CslibFrontier.Algorithms.WordRAM.HopcroftKarp
+import CslibFrontier.Algorithms.WordRAM.ChainCover
+meta import CslibFrontier.Algorithms.WordRAM.ChainCover
 meta import CslibFrontier.Computability.WordRAM.Structured.FastEval
 import CslibFrontier.Foundations.Combinatorics.ErdosSzekeres
 import Mathlib.Data.Fintype.Powerset
@@ -21,7 +21,7 @@ import Mathlib.Data.Fintype.Powerset
 Kernel-checked examples (without `native_decide`) and Word-RAM execution checks for
 `CslibFrontier.Foundations.Order.Mirsky`, `CslibFrontier.Algorithms.Lean.MaxFlow.Dilworth`,
 `CslibFrontier.Algorithms.Lean.MaxFlow.ChainCover`,
-`CslibFrontier.Algorithms.WordRAM.HopcroftKarp`, and
+`CslibFrontier.Algorithms.WordRAM.ChainCover`, and
 `CslibFrontier.Foundations.Combinatorics.ErdosSzekeres`:
 
 1. **Divisibility on `{1, …, 12}`:** width `6` (the antichain `{7, …, 12}` and the chains
@@ -48,7 +48,7 @@ namespace CslibFrontierTests.Dilworth
 
 open Cslib.Algorithms.Lean.MaxFlow
 open Cslib.WordRAM
-open Cslib.Algorithms.WordRAM.HopcroftKarp
+open Cslib.Algorithms.WordRAM.ChainCover
 
 /-- Antichain check through explicit quantifiers over a `Finset`. -/
 theorem isAntichain_of_forall {α : Type*} [LE α] {s : Finset α}
@@ -270,32 +270,11 @@ example :
   rw [ha] at h2
   exact ⟨h1, h2, h3⟩
 
-private meta def stepFlatLoop {r : ℕ} (w : ℕ) (arr : Array (Instr .standard r)) :
-    ℕ → ℕ → FastData r → ℕ → Option (FastData r × ℕ × ℕ)
-  | 0, _, _, _ => none
-  | fuel + 1, pc, x, steps =>
-    match arr[pc]? with
-    | none => none
-    | some (.op o) =>
-      match o.evalFast w x with
-      | some x' => stepFlatLoop w arr fuel (pc + 1) x' (steps + 1)
-      | none => none
-    | some (.jump t) => stepFlatLoop w arr fuel t x (steps + 1)
-    | some (.branch c t) =>
-      stepFlatLoop w arr fuel (if c.holdsFast x then t else pc + 1) x (steps + 1)
-    | some (.halt i) => some (x, x.reg i, steps + 1)
-    | some (.rand _ _) => none
-
-private meta def evalFlatList {r : ℕ} (w fuel : ℕ) (prog : Program .standard r)
-    (input : List ℕ) : Option (List ℕ × ℕ) :=
-  (stepFlatLoop w prog.toArray fuel 0 (FastData.ofData (Data.init input)) 0).map
-    fun (x, v, steps) => ((List.range (x.read v)).map (fun i => x.read (v + 1 + i)), steps)
-
 private meta def checkPoset (w : ℕ) (inst : PosetInstance) (expectedNumChains : ℕ)
     (expectedAntichainLen : ℕ) : Bool :=
   let budget := chainCoverTime inst.n
-  match evalFlatList w budget chainLabelsProgram inst.encode,
-      evalFlatList w budget maxAntichainProgram inst.encode with
+  match Program.runFastList w budget chainLabelsProgram inst.encode,
+      Program.runFastList w budget maxAntichainProgram inst.encode with
   | some (labs, s₁), some (anti, s₂) =>
     labs == inst.chainLabelsList && anti == inst.antichainList &&
       labs.eraseDups.length == expectedNumChains && anti.length == expectedAntichainLen &&
@@ -325,9 +304,9 @@ private meta def checkPoset (w : ℕ) (inst : PosetInstance) (expectedNumChains 
 -- Width invariance (`w = 16` vs `w = 64`) and narrow-width fault (`w = 2`).
 /-- info: true -/
 #guard_msgs in
-#eval decide (evalFlatList 16 100000 chainLabelsProgram div6Poset.encode =
-    evalFlatList 64 100000 chainLabelsProgram div6Poset.encode ∧
-  evalFlatList 2 5000 chainLabelsProgram chain4Poset.encode = none)
+#eval decide (Program.runFastList 16 100000 chainLabelsProgram div6Poset.encode =
+    Program.runFastList 64 100000 chainLabelsProgram div6Poset.encode ∧
+  Program.runFastList 2 5000 chainLabelsProgram chain4Poset.encode = none)
 
 /-! ### 4. Erdős–Szekeres -/
 

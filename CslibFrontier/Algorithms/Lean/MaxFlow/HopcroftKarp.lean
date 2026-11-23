@@ -37,7 +37,7 @@ The matching is stored as a right-indexed mate table `mate : Vector (Option (Fin
 2. **Depth-first phase (`hkPhase`):** a depth-first search from every free left vertex along
    the layers, sharing one visited table over right vertices, collects vertex-disjoint shortest
    augmenting paths (`hkDfsRoots`). The collected edge list is an `IsLayeredFamily` admitting
-   no further layered path, hence an `IsMaximalLayeredAugmentation` (`hkDfsRoots_maximal`); the
+   no further layered path, hence an `IsMaximalLayeredAugmentation`; the
    mate table is then rematched along it (`hkPhase_spec`). The phase lemma
    `IsMaximalLayeredAugmentation.noShortAug_augment` and the phase bound
    `IsPhaseRun.le_two_mul_sqrt` give at most `2⌊√ν⌋` rounds that augment. This is slightly
@@ -343,7 +343,7 @@ theorem vecPotential_vset_add {α : Type*} {n : ℕ} {p : α → Prop} [Decidabl
   rw [vecPotential, hset, Finset.sum_erase_add _ c (by simp [hw])]
   rfl
 
-theorem vecPotential_vset_le {α : Type*} {n : ℕ} {p : α → Prop} [DecidablePred p]
+private theorem vecPotential_vset_le {α : Type*} {n : ℕ} {p : α → Prop} [DecidablePred p]
     {c : Fin n → ℕ} (t : Vector α n) (w : Fin n) {x : α} (hx : ¬ p x) :
     vecPotential p c (vset t w x) ≤ vecPotential p c t := by
   refine Finset.sum_le_sum_of_subset fun u hu => ?_
@@ -395,7 +395,7 @@ private theorem matchedLeft_foldl (mate : Vector (Option (Fin m)) r) (l : List (
     · simp
     · simp [h, vget_vset_ne _ _ h]
 
-theorem hkMatchedLeft_spec (mate : Vector (Option (Fin m)) r) (u : Fin m) :
+private theorem hkMatchedLeft_spec (mate : Vector (Option (Fin m)) r) (u : Fin m) :
     vget (hkMatchedLeft mate) u = true ↔ u ∈ matchedLeft (mateMatching mate) := by
   simp [hkMatchedLeft, matchedLeft_foldl, vget_replicate]
 
@@ -726,7 +726,7 @@ theorem hkBfs_spec (hadj : BipAdjValid G adj) :
     (bfsInit_nodup ml _ _ (List.nodup_finRange m) List.nodup_nil (by simp))
     (fun _ hj => absurd hj (Nat.not_lt_zero _)) (by omega)
 
-theorem hkBfsLoop_k_le (G : Fin m × Fin r → Bool) (adj : Fin m → List (Fin r))
+private theorem hkBfsLoop_k_le (G : Fin m × Fin r → Bool) (adj : Fin m → List (Fin r))
     (mate : Vector (Option (Fin m)) r) (fuel j : ℕ) (dist : Vector (Option ℕ) m)
     (frontier : List (Fin m)) :
     (hkBfsLoop G adj mate fuel j dist frontier).k ≤ j + fuel := by
@@ -761,7 +761,7 @@ theorem bfsInit_potential (ml : Vector Bool m) (c : Fin m → ℕ) (l : List (Fi
         List.sum_nil]
       omega
 
-theorem hkBfsStep_potential (G : Fin m × Fin r → Bool) (mate : Vector (Option (Fin m)) r)
+private theorem hkBfsStep_potential (G : Fin m × Fin r → Bool) (mate : Vector (Option (Fin m)) r)
     (c : Fin m → ℕ) (j : ℕ) (u : Fin m) (s : HKBfsState m) (v : Fin r) :
     vecPotential (· = none) c (hkBfsStep G mate j u s v).dist +
         ((hkBfsStep G mate j u s v).next.map c).sum =
@@ -1108,7 +1108,7 @@ private theorem hkDfsRoots_spec (hadj : BipAdjValid G adj)
           fun hyx => hmax y (fun h => (List.mem_cons.mp h).elim hyx hy) hyacc
 
 /-- The edge list found by one phase is a maximal layered augmentation. -/
-theorem hkDfsRoots_maximal (hadj : BipAdjValid G adj)
+private theorem hkDfsRoots_maximal (hadj : BipAdjValid G adj)
     (hM : IsMatching G (mateMatching mate))
     (hex : ∀ u i, i ≤ k → (vget dist u = some i ↔ IsLayer G (mateMatching mate) u i)) :
     IsLayeredFamily G (mateMatching mate) k

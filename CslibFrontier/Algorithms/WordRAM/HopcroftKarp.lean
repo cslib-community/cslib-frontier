@@ -7,8 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.Lean.MaxFlow.ChainCover
+public import CslibFrontier.Algorithms.Lean.MaxFlow.HopcroftKarp
 public import CslibFrontier.Computability.WordRAM.ListOutput
+import CslibFrontier.Computability.WordRAM.Allocation
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Computability.WordRAM.SymbolicExec
@@ -17,7 +18,7 @@ import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Tactic.Linarith
 
 /-!
-# Hopcroft–Karp maximum bipartite matching and Dilworth chain covers on the word RAM
+# Hopcroft–Karp maximum bipartite matching on the word RAM
 
 This file implements and proves machine-level running-time bounds on the standard-basis word RAM
 (`Basis.standard`) for:
@@ -32,40 +33,45 @@ This file implements and proves machine-level running-time bounds on the standar
    (`sparseCardProgram`), and balanced perfect-matching decision (`sparsePerfectProgram`).
 2. **Dense Hopcroft–Karp (`O((m + r)² √ν)`):** given an `m × r` `0/1` adjacency matrix
    (`DenseInstance`), converts the input matrix into exact CSR neighbour lists (`exactBipAdj`) in
-   `O(m + m r)` instructions and invokes `coreCode`, agreeing with `hopcroftKarpDense`.
-3. **Dilworth minimum chain cover and maximum antichain (`O(n^{5/2})`):** given an `n × n` strict
-   poset comparability matrix (`PosetInstance`, specialized to finite partial orders via
-   `PosetInstance.ofEnum`), runs dense Hopcroft–Karp on Fulkerson's bipartite graph, merges chain
-   labels in `O(n²)` instructions (`chainLabels_eq_foldl_rowMate`), and extracts the König
-   uncovered antichain in `O(n)` instructions (`foldl_uncoveredStep`), matching `minChainCover`.
+   `O(m + m r)` instructions (`buildCSRCode` / `matrixSetupCode`) and invokes `coreCode`, agreeing
+   with `hopcroftKarpDense`.
+
+The `O(n^{5/2})` Dilworth minimum chain cover and maximum antichain endpoints built on top of
+`matrixSetupCode` and `coreCode` live in `CslibFrontier.Algorithms.WordRAM.ChainCover`.
 
 ## Main definitions
 
 * `Cslib.Algorithms.WordRAM.HopcroftKarp.SparseInstance`,
-  `Cslib.Algorithms.WordRAM.HopcroftKarp.DenseInstance`,
-  `Cslib.Algorithms.WordRAM.HopcroftKarp.PosetInstance`: sparse CSR, dense matrix, and poset
-  comparability problem instances with their word encodings, word-width envelopes, and outputs.
+  `Cslib.Algorithms.WordRAM.HopcroftKarp.DenseInstance`: sparse CSR and dense matrix problem
+  instances with their word encodings, word-width envelopes, and outputs
+  (`SparseInstance.matchingPairs`, `DenseInstance.matchingPairs`, `matchingWords`).
 * `Cslib.Algorithms.WordRAM.HopcroftKarp.CSRMem`,
   `Cslib.Algorithms.WordRAM.HopcroftKarp.BaseRegs`: in-memory CSR layout and base-register frame
   for `coreCode`.
 * `Cslib.Algorithms.WordRAM.HopcroftKarp.coreCode`,
+  `Cslib.Algorithms.WordRAM.HopcroftKarp.buildCSRCode`,
+  `Cslib.Algorithms.WordRAM.HopcroftKarp.matrixSetupCode`,
   `Cslib.Algorithms.WordRAM.HopcroftKarp.sparseMatchingProgram`,
   `Cslib.Algorithms.WordRAM.HopcroftKarp.sparseCardProgram`,
   `Cslib.Algorithms.WordRAM.HopcroftKarp.sparsePerfectProgram`,
   `Cslib.Algorithms.WordRAM.HopcroftKarp.denseMatchingProgram`,
-  `Cslib.Algorithms.WordRAM.HopcroftKarp.denseCardProgram`,
-  `Cslib.Algorithms.WordRAM.HopcroftKarp.chainLabelsProgram`,
-  `Cslib.Algorithms.WordRAM.HopcroftKarp.maxAntichainProgram`: word-RAM programs.
+  `Cslib.Algorithms.WordRAM.HopcroftKarp.denseCardProgram`: word-RAM subroutines and programs.
 * `Cslib.Algorithms.WordRAM.HopcroftKarp.coreTime`,
   `Cslib.Algorithms.WordRAM.HopcroftKarp.sparseTime`,
   `Cslib.Algorithms.WordRAM.HopcroftKarp.sparseTimeSqrtMin`,
-  `Cslib.Algorithms.WordRAM.HopcroftKarp.denseTime`,
-  `Cslib.Algorithms.WordRAM.HopcroftKarp.chainCoverTime`: instruction bounds.
+  `Cslib.Algorithms.WordRAM.HopcroftKarp.denseTime`: instruction bounds.
 
 ## Main results
 
 * `Cslib.Algorithms.WordRAM.HopcroftKarp.core_exec`: in-memory CSR execution of Hopcroft–Karp in
   `O((m + r + |E|) (√ν + 1))` instructions.
+* `Cslib.Algorithms.WordRAM.HopcroftKarp.exec_buildCSRCode`,
+  `Cslib.Algorithms.WordRAM.HopcroftKarp.exec_matrixSetupCode`: dense/square `0/1`-matrix to CSR
+  conversion in `O(m + m r)` instructions.
+* `Cslib.Algorithms.WordRAM.HopcroftKarp.SparseInstance.getElem_matchingWords_even`,
+  `Cslib.Algorithms.WordRAM.HopcroftKarp.SparseInstance.getElem_matchingWords_odd`,
+  `Cslib.Algorithms.WordRAM.HopcroftKarp.DenseInstance.isMaxMatching_matchingPairs`: flat-word
+  pair indexing and dense maximum-matching optimality.
 * `Cslib.Algorithms.WordRAM.HopcroftKarp.executesList_sparseMatching`,
   `Cslib.Algorithms.WordRAM.HopcroftKarp.computesListInTime_sparseMatching`,
   `Cslib.Algorithms.WordRAM.HopcroftKarp.executes_sparseCard`,
@@ -74,18 +80,11 @@ This file implements and proves machine-level running-time bounds on the standar
 * `Cslib.Algorithms.WordRAM.HopcroftKarp.executesList_denseMatching`,
   `Cslib.Algorithms.WordRAM.HopcroftKarp.computesListInTime_denseMatching`,
   `Cslib.Algorithms.WordRAM.HopcroftKarp.executes_denseCard`: dense `O((m + r)² √ν)` endpoints.
-* `Cslib.Algorithms.WordRAM.HopcroftKarp.executesList_chainLabels`,
-  `Cslib.Algorithms.WordRAM.HopcroftKarp.computesListInTime_chainLabels`,
-  `Cslib.Algorithms.WordRAM.HopcroftKarp.executesList_maxAntichain`,
-  `Cslib.Algorithms.WordRAM.HopcroftKarp.computesListInTime_maxAntichain`: `O(n^{5/2})` minimum
-  chain cover and maximum antichain endpoints.
 
 ## References
 
 * [J. E. Hopcroft and R. M. Karp, *An n^{5/2} Algorithm for Maximum Matchings in Bipartite
   Graphs*][HopcroftKarp1973]
-* [D. R. Fulkerson, *Note on Dilworth's decomposition theorem for partially ordered
-  sets*][Fulkerson1956]
 * [T. H. Cormen, C. E. Leiserson, R. L. Rivest, and C. Stein,
   *Introduction to Algorithms*][CLRS2009]
 -/
@@ -213,7 +212,7 @@ theorem offset_add_lt_numEdges (inst : SparseInstance) (u : Fin inst.m) {i : ℕ
   simp only [List.length_map]
   omega
 
-theorem flatEdges_getElem (inst : SparseInstance) (u : Fin inst.m) {i : ℕ}
+private theorem flatEdges_getElem (inst : SparseInstance) (u : Fin inst.m) {i : ℕ}
     (hi : i < (inst.adj u).length) :
     inst.flatEdges[inst.offset u.val + i]'(by
       rw [inst.length_flatEdges]; exact inst.offset_add_lt_numEdges u hi) =
@@ -222,13 +221,13 @@ theorem flatEdges_getElem (inst : SparseInstance) (u : Fin inst.m) {i : ℕ}
     List.getElem_append_right (Nat.le_add_right _ _), Nat.add_sub_cancel_left]
   rw [List.getElem_append_left (by simp [hi]), List.getElem_map]
 
-theorem init_mem_m {reg : ℕ} (inst : SparseInstance) :
+private theorem init_mem_m {reg : ℕ} (inst : SparseInstance) :
     (Data.init inst.encode : Data reg).mem 1 = inst.m := rfl
 
-theorem init_mem_r {reg : ℕ} (inst : SparseInstance) :
+private theorem init_mem_r {reg : ℕ} (inst : SparseInstance) :
     (Data.init inst.encode : Data reg).mem 2 = inst.r := rfl
 
-theorem init_mem_offset {reg : ℕ} (inst : SparseInstance) {u : ℕ} (hu : u ≤ inst.m) :
+private theorem init_mem_offset {reg : ℕ} (inst : SparseInstance) {u : ℕ} (hu : u ≤ inst.m) :
     (Data.init inst.encode : Data reg).mem (3 + u) = inst.offset u := by
   have hreal := Data.init_realizes_append (r := reg) [inst.m, inst.r]
     ((List.range (inst.m + 1)).map inst.offset) inst.flatEdges
@@ -238,7 +237,7 @@ theorem init_mem_offset {reg : ℕ} (inst : SparseInstance) {u : ℕ} (hu : u �
   have h := hreal ⟨u, by simp; omega⟩
   simpa [Block.read] using h
 
-theorem init_mem_edge {reg : ℕ} (inst : SparseInstance) (u : Fin inst.m) {i : ℕ}
+private theorem init_mem_edge {reg : ℕ} (inst : SparseInstance) (u : Fin inst.m) {i : ℕ}
     (hi : i < (inst.adj u).length) :
     (Data.init inst.encode : Data reg).mem (inst.m + 4 + (inst.offset u.val + i)) =
       ((inst.adj u)[i]'hi).val := by
@@ -296,7 +295,7 @@ private theorem find_mate_eq (inst : SparseInstance) (v : Fin inst.r) :
       have hu₀ : (u₀, v) ∈ mateMatching mate := mem_mateMatching.mpr hm
       exact congrArg some (hM.2.2 u₁ u₀ v hu₁ hu₀)
 
-theorem matchingPairs_eq_mate_filterMap (inst : SparseInstance) :
+private theorem matchingPairs_eq_mate_filterMap (inst : SparseInstance) :
     inst.matchingPairs =
       (List.finRange inst.r).filterMap fun v =>
         match vget (hkLoop inst.graph inst.adj (inst.m + 1) 0
@@ -354,6 +353,36 @@ theorem length_matchingWords (inst : SparseInstance) :
     inst.matchingWords.length = 2 * inst.maxMatchingCard := by
   simp [matchingWords, List.length_flatMap, inst.length_matchingPairs, Nat.mul_comm]
 
+/-- Entry `2 * i` of `inst.matchingWords` is the left endpoint of the `i`-th matched edge. -/
+theorem getElem_matchingWords_even (inst : SparseInstance) {i : ℕ}
+    (hi : i < inst.matchingPairs.length) :
+    inst.matchingWords[2 * i]'(by
+      rw [inst.length_matchingWords, ← inst.length_matchingPairs]; omega) =
+      (inst.matchingPairs[i]'hi).1.val := by
+  have h := List.getElem?_flatMap_mul_add inst.matchingPairs
+    (fun e => [e.1.val, e.2.val]) 2 (fun _ _ => rfl) hi (show 0 < 2 by decide)
+  rw [Nat.mul_comm, Nat.add_zero] at h
+  have hget : inst.matchingWords[2 * i]? = some (inst.matchingPairs[i]'hi).1.val := by
+    simpa [matchingWords] using h
+  rw [List.getElem?_eq_getElem
+    (by rw [inst.length_matchingWords, ← inst.length_matchingPairs]; omega)] at hget
+  exact Option.some.inj hget
+
+/-- Entry `2 * i + 1` of `inst.matchingWords` is the right endpoint of the `i`-th matched edge. -/
+theorem getElem_matchingWords_odd (inst : SparseInstance) {i : ℕ}
+    (hi : i < inst.matchingPairs.length) :
+    inst.matchingWords[2 * i + 1]'(by
+      rw [inst.length_matchingWords, ← inst.length_matchingPairs]; omega) =
+      (inst.matchingPairs[i]'hi).2.val := by
+  have h := List.getElem?_flatMap_mul_add inst.matchingPairs
+    (fun e => [e.1.val, e.2.val]) 2 (fun _ _ => rfl) hi (show 1 < 2 by decide)
+  rw [Nat.mul_comm] at h
+  have hget : inst.matchingWords[2 * i + 1]? = some (inst.matchingPairs[i]'hi).2.val := by
+    simpa [matchingWords] using h
+  rw [List.getElem?_eq_getElem
+    (by rw [inst.length_matchingWords, ← inst.length_matchingPairs]; omega)] at hget
+  exact Option.some.inj hget
+
 end SparseInstance
 
 /-- A dense bipartite graph instance on `Fin m × Fin r` represented by an `m × r` `0/1` adjacency
@@ -383,6 +412,10 @@ namespace DenseInstance
 @[expose] def maxMatchingCard (inst : DenseInstance) : ℕ :=
   (hopcroftKarpDense inst.graph).matching.card
 
+/-- Ordered edge list of the maximum matching computed by dense Hopcroft–Karp on `inst.graph`. -/
+@[expose] def matchingPairs (inst : DenseInstance) : List (Fin inst.m × Fin inst.r) :=
+  inst.toSparse.matchingPairs
+
 /-- Flat output word list `[u₀, v₀, u₁, v₁, …]` of a maximum matching of `inst.graph`. -/
 @[expose] def matchingWords (inst : DenseInstance) : List ℕ :=
   inst.toSparse.matchingWords
@@ -403,6 +436,47 @@ theorem maxMatchingCard_eq_toSparse (inst : DenseInstance) :
     ← hopcroftKarp_exactBipAdj]
   rfl
 
+theorem toFinset_matchingPairs (inst : DenseInstance) :
+    inst.matchingPairs.toFinset = (hopcroftKarpDense inst.graph).matching := by
+  change inst.toSparse.matchingPairs.toFinset = _
+  rw [inst.toSparse.toFinset_matchingPairs, inst.toSparse_graph]
+  exact congrArg HopcroftKarpOutput.matching (hopcroftKarp_exactBipAdj inst.graph)
+
+/-- `inst.matchingPairs.toFinset` is a maximum matching of `inst.graph`. -/
+theorem isMaxMatching_matchingPairs (inst : DenseInstance) :
+    IsMaxMatching inst.graph inst.matchingPairs.toFinset := by
+  rw [inst.toFinset_matchingPairs]
+  exact (hopcroftKarpDense_correct inst.graph).1
+
+theorem nodup_matchingPairs (inst : DenseInstance) : inst.matchingPairs.Nodup :=
+  inst.toSparse.nodup_matchingPairs
+
+theorem length_matchingPairs (inst : DenseInstance) :
+    inst.matchingPairs.length = inst.maxMatchingCard := by
+  rw [inst.maxMatchingCard_eq_toSparse]
+  exact inst.toSparse.length_matchingPairs
+
+theorem length_matchingWords (inst : DenseInstance) :
+    inst.matchingWords.length = 2 * inst.maxMatchingCard := by
+  rw [inst.maxMatchingCard_eq_toSparse]
+  exact inst.toSparse.length_matchingWords
+
+/-- Entry `2 * i` of `inst.matchingWords` is the left endpoint of the `i`-th matched edge. -/
+theorem getElem_matchingWords_even (inst : DenseInstance) {i : ℕ}
+    (hi : i < inst.matchingPairs.length) :
+    inst.matchingWords[2 * i]'(by
+      rw [inst.length_matchingWords, ← inst.length_matchingPairs]; omega) =
+      (inst.matchingPairs[i]'hi).1.val :=
+  inst.toSparse.getElem_matchingWords_even hi
+
+/-- Entry `2 * i + 1` of `inst.matchingWords` is the right endpoint of the `i`-th matched edge. -/
+theorem getElem_matchingWords_odd (inst : DenseInstance) {i : ℕ}
+    (hi : i < inst.matchingPairs.length) :
+    inst.matchingWords[2 * i + 1]'(by
+      rw [inst.length_matchingWords, ← inst.length_matchingPairs]; omega) =
+      (inst.matchingPairs[i]'hi).2.val :=
+  inst.toSparse.getElem_matchingWords_odd hi
+
 theorem numEdges_toSparse_le (inst : DenseInstance) :
     inst.toSparse.numEdges ≤ inst.m * inst.r :=
   bipAdjSteps_exactBipAdj_le inst.graph
@@ -413,13 +487,13 @@ theorem encode_length (inst : DenseInstance) :
     List.map_const', List.sum_replicate, smul_eq_mul]
   omega
 
-theorem init_mem_m {reg : ℕ} (inst : DenseInstance) :
+private theorem init_mem_m {reg : ℕ} (inst : DenseInstance) :
     (Data.init inst.encode : Data reg).mem 1 = inst.m := rfl
 
-theorem init_mem_r {reg : ℕ} (inst : DenseInstance) :
+private theorem init_mem_r {reg : ℕ} (inst : DenseInstance) :
     (Data.init inst.encode : Data reg).mem 2 = inst.r := rfl
 
-theorem init_mem_entry {reg : ℕ} (inst : DenseInstance) (u : Fin inst.m) (v : Fin inst.r) :
+private theorem init_mem_entry {reg : ℕ} (inst : DenseInstance) (u : Fin inst.m) (v : Fin inst.r) :
     (Data.init inst.encode : Data reg).mem (3 + (u.val * inst.r + v.val)) =
       if inst.graph (u, v) then 1 else 0 := by
   let g : Fin inst.m → List ℕ := fun u' =>
@@ -442,107 +516,6 @@ theorem inputFits_encode {w : ℕ} (inst : DenseInstance) (hw : Fits w inst.word
   · split_ifs <;> exact hw.of_le (by unfold wordBound; nlinarith)
 
 end DenseInstance
-
-/-- An `n`-element strict comparability relation `lt : Fin n × Fin n → Bool` for computing a
-Dilworth minimum chain cover and maximum antichain on the word RAM. -/
-structure PosetInstance where
-  /-- Number of elements of the poset. -/
-  n : ℕ
-  /-- Strict comparability indicator `lt (i, j) = true` when element `i` is strictly below `j`. -/
-  lt : Fin n × Fin n → Bool
-
-namespace PosetInstance
-
-/-- Construct a `PosetInstance` from an enumerated poset `e : Fin n ≃ α`. -/
-@[expose] def ofEnum {α : Type*} {n : ℕ} [LT α] [DecidableLT α] (e : Fin n ≃ α) :
-    PosetInstance where
-  n := n
-  lt := enumLtGraph e
-
-/-- Underlying `n × n` dense bipartite instance on `inst.lt`. -/
-@[expose] def toDense (inst : PosetInstance) : DenseInstance where
-  m := inst.n
-  r := inst.n
-  graph := inst.lt
-
-/-- Row-major word encoding `n :: matrixWords` (`1 + n * n` words). -/
-@[expose] def encode (inst : PosetInstance) : List ℕ :=
-  inst.n :: (List.finRange inst.n).flatMap fun u =>
-    (List.finRange inst.n).map fun v => if inst.lt (u, v) then 1 else 0
-
-/-- Chain label list `[c₀, …, c_{n - 1}]` computed by Fulkerson's reduction on `inst.lt`. -/
-@[expose] def chainLabelsList (inst : PosetInstance) : List ℕ :=
-  let hk := hopcroftKarpDense inst.lt
-  let lab := chainLabels hk.matching (List.finRange inst.n ×ˢ List.finRange inst.n)
-    (Vector.ofFn id)
-  (List.finRange inst.n).map fun i => (vget lab i).val
-
-/-- Sorted index list of the König uncovered antichain of `inst.lt`. -/
-@[expose] def antichainList (inst : PosetInstance) : List ℕ :=
-  let hk := hopcroftKarpDense inst.lt
-  ((List.finRange inst.n).filter fun i => decide (i ∈ hk.cover.uncovered)).map Fin.val
-
-/-- Sufficient word-value envelope for `O(n^{5/2})` chain cover and antichain computation. -/
-@[expose] def wordBound (inst : PosetInstance) : ℕ :=
-  2 * inst.n * inst.n + 16 * inst.n + 16
-
-theorem chainLabelsList_ofEnum {α : Type*} {n : ℕ} [LT α] [DecidableLT α] (e : Fin n ≃ α) :
-    (ofEnum e).chainLabelsList =
-      (List.finRange n).map fun i => (vget (minChainCover e).labels i).val := rfl
-
-theorem antichainList_ofEnum {α : Type*} {n : ℕ} [LT α] [DecidableLT α] (e : Fin n ≃ α) :
-    (ofEnum e).antichainList =
-      ((List.finRange n).filter fun i => decide (i ∈ (minChainCover e).antichain)).map Fin.val := by
-  have heq : (ofEnum e).lt = enumLtGraph e := rfl
-  have hanti : (minChainCover e).antichain =
-      (hopcroftKarpDense (enumLtGraph e)).cover.uncovered := by
-    simp [minChainCover, foldl_uncoveredStep]
-  dsimp only [antichainList]
-  rw [heq]
-  congr 1
-  refine List.filter_congr fun i _ => ?_
-  exact decide_eq_decide.mpr (by rw [hanti]; rfl)
-
-theorem length_antichainList_ofEnum {α : Type*} {n : ℕ} [LT α] [DecidableLT α] (e : Fin n ≃ α) :
-    (ofEnum e).antichainList.length = (minChainCover e).antichain.card := by
-  rw [antichainList_ofEnum, List.length_map]
-  have hnd : ((List.finRange n).filter fun i => decide (i ∈ (minChainCover e).antichain)).Nodup :=
-    (List.nodup_finRange n).filter _
-  rw [← List.toFinset_card_of_nodup hnd]
-  congr 1
-  ext i
-  simp
-
-theorem encode_length (inst : PosetInstance) :
-    inst.encode.length = 1 + inst.n * inst.n := by
-  simp only [encode, List.length_cons, List.length_flatMap, List.length_map, List.length_finRange,
-    List.map_const', List.sum_replicate, smul_eq_mul]
-  omega
-
-theorem init_mem_n {reg : ℕ} (inst : PosetInstance) :
-    (Data.init inst.encode : Data reg).mem 1 = inst.n := rfl
-
-theorem init_mem_entry {reg : ℕ} (inst : PosetInstance) (u v : Fin inst.n) :
-    (Data.init inst.encode : Data reg).mem (2 + (u.val * inst.n + v.val)) =
-      if inst.lt (u, v) then 1 else 0 := by
-  let g : Fin inst.n → List ℕ := fun u' =>
-    (List.finRange inst.n).map fun v' => if inst.lt (u', v') then 1 else 0
-  have h := List.getElem?_flatMap_mul_add (List.finRange inst.n) g inst.n
-    (fun _ _ => by simp [g]) (show u.val < (List.finRange inst.n).length by simp) v.isLt
-  rw [show 2 + (u.val * inst.n + v.val) = (u.val * inst.n + v.val) + 1 + 1 by omega,
-    Data.init_mem_succ, encode, List.getD_cons_succ, List.getD_eq_getElem?_getD, h]
-  simp [g]
-
-theorem inputFits_encode {w : ℕ} (inst : PosetInstance) (hw : Fits w inst.wordBound) :
-    InputFits w inst.encode := by
-  refine ⟨hw.of_le (by rw [inst.encode_length]; unfold wordBound; nlinarith), fun x hx => ?_⟩
-  simp only [encode, List.mem_cons, List.mem_flatMap, List.mem_finRange, true_and,
-    List.mem_map] at hx
-  rcases hx with rfl | ⟨u, v, rfl⟩
-  · exact hw.of_le (by unfold wordBound; nlinarith)
-  · split_ifs <;> exact hw.of_le (by unfold wordBound; nlinarith)
-
-end PosetInstance
 
 /-! ## Registers and memory layout -/
 
@@ -677,7 +650,8 @@ structure BaseRegs (inst : SparseInstance) (bOff : ℕ) (x : Data 34) : Prop whe
   /-- `outBase = bWork + 4 * r + 6 * m + 6`. -/
   houtBase : x.regs outBase = bOff + inst.m + 1 + inst.numEdges + 4 * inst.r + 6 * inst.m + 6
 
-private theorem BaseRegs.of_eq {inst : SparseInstance} {bOff : ℕ} {x y : Data 34}
+/-- Transport `BaseRegs` across states that agree on registers `0 .. 18`. -/
+theorem BaseRegs.of_eq {inst : SparseInstance} {bOff : ℕ} {x y : Data 34}
     (hb : BaseRegs inst bOff x) (heq : ∀ i : Fin 34, i.val < 19 → y.regs i = x.regs i) :
     BaseRegs inst bOff y where
   hzero := (heq zero (by decide)).trans hb.hzero
@@ -749,11 +723,8 @@ private theorem exec_clearAt {w : ℕ} (baseReg lenReg : Fin 34)
     simp [st, Function.update_of_ne hia, hil]
   · simp [st, hs₁_addr, hs₁_lim]
 
-private def fillConstBody (baseReg valReg : Fin 34) : Code .standard 34 := ram[
-  addr ← baseReg + idx; *addr ← valReg; idx ← idx + one ]
-
-private def fillConst (baseReg lenReg valReg : Fin 34) : Code .standard 34 :=
-  .seq (ram[ idx ← #0 ]) (.loop (.lt idx lenReg) (fillConstBody baseReg valReg))
+private abbrev fillConst (baseReg lenReg valReg : Fin 34) : Code .standard 34 :=
+  Cslib.WordRAM.fillConst baseReg lenReg valReg one idx addr
 
 private theorem exec_fillConst {w : ℕ} (baseReg lenReg valReg : Fin 34)
     (hb_lt : baseReg.val < 28) (hl_lt : lenReg.val < 28) (hv_lt : valReg.val < 28)
@@ -764,41 +735,16 @@ private theorem exec_fillConst {w : ℕ} (baseReg lenReg valReg : Fin 34)
       (∀ i : Fin 34, i.val < 28 → y.regs i = x.regs i) ∧
       (∀ k < x.regs lenReg, y.mem (x.regs baseReg + k) = x.regs valReg) ∧
       (∀ a, ¬(x.regs baseReg ≤ a ∧ a < x.regs baseReg + x.regs lenReg) → y.mem a = x.mem a) := by
-  let b := x.regs baseReg
-  let N := x.regs lenReg
-  let v := x.regs valReg
-  let P (k : ℕ) (y : Data 34) : Prop :=
-    (∀ i : Fin 34, i.val < 28 → y.regs i = x.regs i) ∧
-      (∀ j < k, y.mem (b + j) = v) ∧
-      (∀ a, ¬(b ≤ a ∧ a < b + k) → y.mem a = x.mem a)
-  have h0 : ∃ s₀, ExecWithin w (ram[ idx ← #0 ] : Code .standard 34) x s₀ 1 ∧
-      s₀ = x.set idx 0 := by
-    refine WP.exists_execWithin ?_
-    wram_exec
-    rfl
-  obtain ⟨s₀, he₀, rfl⟩ := h0
-  have hbody (y : Data 34) (hy : P (y.regs idx) y) (hlt : y.regs idx < N) :
-      ∃ z, ExecWithin w (fillConstBody baseReg valReg) y z 3 ∧ P (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨hr, hm, hf⟩ := hy
-    have hby : y.regs baseReg = b := hr baseReg hb_lt
-    have hvy : y.regs valReg = v := hr valReg hv_lt
-    have hoy : y.regs one = 1 := (hr one (by decide)).trans h1
-    have hfa : Fits w (b + y.regs idx) := hfit_end.of_le (by omega)
-    have hfn : Fits w (y.regs idx + 1) := hfit_len.of_le (by omega)
-    have hstep : ∃ z, ExecWithin w (fillConstBody baseReg valReg) y z 3 ∧
-        z = ((y.set addr (b + y.regs idx)).write (b + y.regs idx) v).set idx (y.regs idx + 1) := by
-      refine WP.exists_execWithin ?_
-      unfold fillConstBody
-      wram_exec [hby, hvy, hoy, hfa, hfn]
-      rfl
-    obtain ⟨z, he, rfl⟩ := hstep
-    obtain ⟨hm', hf'⟩ := prefix_write_step hm hf (e := fun _ => v) rfl
-    refine ⟨_, he, ⟨fun i hi => by wram_simp [hr i hi], hm', hf'⟩, by wram_simp⟩
-  obtain ⟨y, hl, hPN, _⟩ := ExecWithin.loop_count P (fun y hy => hy.1 lenReg hl_lt) hbody
-    (x := x.set idx 0) (by simp) ⟨fun i hi => by wram_simp, fun _ hj => by simp at hj,
-      fun _ _ => rfl⟩
-  exact ⟨y, (he₀.seq hl).mono (by omega), hPN.1, hPN.2.1, hPN.2.2⟩
+  have hne : ∀ j : Fin 34, j.val < 28 → idx ≠ j ∧ addr ≠ j := fun j hj =>
+    ⟨fun h => by subst h; simp at hj, fun h => by subst h; simp at hj⟩
+  obtain ⟨y, he, hr, _, hmem⟩ := Cslib.WordRAM.fillConst_exec (w := w)
+    (base := baseReg) (len := lenReg) (val := valReg) (one := one) (idx := idx) (addr := addr)
+    (hne baseReg hb_lt).1 (hne lenReg hl_lt).1 (hne valReg hv_lt).1 (by decide)
+    (hne baseReg hb_lt).2 (hne lenReg hl_lt).2 (hne valReg hv_lt).2 (by decide) (by decide)
+    h1 hfit_end hfit_len
+  exact ⟨y, he.within, fun i hi => hr i (hne i hi).1.symm (hne i hi).2.symm,
+    fun k hk => by rw [hmem]; exact fill_of_owns ⟨Nat.le_add_right _ _, Nat.add_lt_add_left hk _⟩,
+    fun a ha => by rw [hmem]; exact fill_of_not_owns ha⟩
 
 /-! ## Section 2: Queue-based breadth-first layering (`bfsCode`) -/
 
@@ -3805,7 +3751,7 @@ theorem core_exec {w bOff : ℕ} (inst : SparseInstance) (x : Data 34)
   simp only [coreTime, roundTime] at hmul_le ⊢
   omega
 
-/-! ## Section 4: End-to-end `State.init` programs (sparse, dense, chain cover, antichain) -/
+/-! ## Section 4: End-to-end `State.init` programs (sparse and dense) -/
 
 /-- Populate `bEdgesReg .. outBase` from `zero, one, two, rm, rr, rE, bOffReg`. -/
 private def initBaseRegsFromCSR : Code .standard 34 := ram[
@@ -4289,14 +4235,17 @@ private def buildCSRRowBody : Code .standard 34 :=
     (.seq (.loop (.lt idx rr) buildCSRColBody)
       (ram[ qHead ← qHead + one ]))
 
-private def buildCSRCode (matBase : ℕ) : Code .standard 34 :=
+/-- Convert a row-major `m × r` `0/1` adjacency matrix stored starting at `matBase` into exact
+CSR arrays starting at `bOffReg`, then initialize all `BaseRegs` workspace pointers. -/
+def buildCSRCode (matBase : ℕ) : Code .standard 34 :=
   .seq (ram[ bEdgesReg ← bOffReg + rm; bEdgesReg ← bEdgesReg + one;
              rE ← #0; qHead ← #0; qTail ← #matBase ])
     (.seq (.loop (.lt qHead rm) buildCSRRowBody)
       (.seq (ram[ addr ← bOffReg + rm; *addr ← rE ])
         initBaseRegsFromCSR))
 
-private theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Bool) (x : Data 34)
+/-- Exact `O(m + m r)` matrix-to-CSR conversion and `BaseRegs` setup (`buildCSRCode`). -/
+theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Bool) (x : Data 34)
     (h0 : x.regs zero = 0) (h1 : x.regs one = 1) (h2 : x.regs two = 2)
     (hrm : x.regs rm = m) (hrr : x.regs rr = r) (hbOff : x.regs bOffReg = bOff)
     (hmat_le : matBase + m * r ≤ bOff)
@@ -4576,16 +4525,83 @@ private theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r
   refine ⟨z, (he₀.seq (hl_row.seq (he_last.seq he_init))).mono ?_, hbz, hcsrz⟩
   nlinarith
 
-private def denseSetupCode : Code .standard 34 :=
-  .seq (ram[
-    zero ← #0; one ← #1; two ← #2;
-    addr ← #1; rm ← *addr;
-    addr ← #2; rr ← *addr;
-    val ← rm * rr; bOffReg ← #3; bOffReg ← bOffReg + val ])
-  (buildCSRCode 3)
+/-- Read header dimensions (`m`, and `r` if `isSquare = false` else `r = m`) from input memory,
+compute `bOffReg := matBase + m * r` (with `matBase = 2` if `isSquare` else `3`), and convert
+the row-major `m × r` `0/1` adjacency matrix starting at `matBase` into exact CSR arrays. -/
+def matrixSetupCode (isSquare : Bool) : Code .standard 34 :=
+  .seq (ram[ zero ← #0; one ← #1; two ← #2; addr ← #1; rm ← *addr ])
+    (.seq (if isSquare then ram[ rr ← rm; val ← rm * rr; bOffReg ← two + val ]
+           else ram[ addr ← #2; rr ← *addr; val ← rm * rr;
+                     bOffReg ← #3; bOffReg ← bOffReg + val ])
+      (buildCSRCode (if isSquare then 2 else 3)))
+
+/-- Shared header-read and matrix-to-CSR conversion for dense (`isSquare = false`, header `[m, r]`)
+and square poset (`isSquare = true`, header `[n]`) encodings. -/
+theorem exec_matrixSetupCode {w m r : ℕ} (isSquare : Bool) (hsq : isSquare = true → m = r)
+    (G : Fin m × Fin r → Bool) (input : List ℕ)
+    (hm : (Data.init input : Data 34).mem 1 = m)
+    (hr : isSquare = false → (Data.init input : Data 34).mem 2 = r)
+    (hmat : ∀ (u : Fin m) (v : Fin r),
+      (Data.init input : Data 34).mem ((if isSquare then 2 else 3) + (u.val * r + v.val)) =
+        if G (u, v) then 1 else 0)
+    (hfit : Fits w ((if isSquare then 2 else 3) + m * r + 7 * m + 5 * r + m * r + 8)) :
+    ∃ y, ExecWithin w (matrixSetupCode isSquare) (Data.init input) y
+        (9 * m * r + 8 * m + (if isSquare then 33 else 35)) ∧
+      BaseRegs ⟨m, r, exactBipAdj G⟩ ((if isSquare then 2 else 3) + m * r) y ∧
+      CSRMem ⟨m, r, exactBipAdj G⟩ ((if isSquare then 2 else 3) + m * r) y.mem := by
+  have hf0 : Fits w 0 := hfit.of_le (by cases isSquare <;> omega)
+  have hf1 : Fits w 1 := hfit.of_le (by cases isSquare <;> omega)
+  have hf2 : Fits w 2 := hfit.of_le (by cases isSquare <;> omega)
+  have hf3 : Fits w 3 := hfit.of_le (by cases isSquare <;> omega)
+  have hfmr : Fits w (m * r) := hfit.of_le (by cases isSquare <;> omega)
+  have hs_pre : ∃ y₀, ExecWithin w
+      (ram[ zero ← #0; one ← #1; two ← #2; addr ← #1; rm ← *addr ] : Code .standard 34)
+      (Data.init input) y₀ 5 ∧
+      y₀.regs zero = 0 ∧ y₀.regs one = 1 ∧ y₀.regs two = 2 ∧
+      y₀.regs rm = m ∧ y₀.mem = (Data.init input : Data 34).mem := by
+    refine WP.exists_execWithin ?_
+    wram_exec [hm, hf0, hf1, hf2]
+    exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, rfl⟩
+  obtain ⟨y₀, he_pre, h0, h1, h2, hrm, hmem₀⟩ := hs_pre
+  cases isSquare with
+  | true =>
+    obtain rfl := hsq rfl
+    have hf2mm : Fits w (2 + m * m) := hfit.of_le (by omega)
+    have hs_dim : ∃ y₁, ExecWithin w
+        (ram[ rr ← rm; val ← rm * rr; bOffReg ← two + val ] : Code .standard 34) y₀ y₁ 3 ∧
+        y₁.regs zero = 0 ∧ y₁.regs one = 1 ∧ y₁.regs two = 2 ∧
+        y₁.regs rm = m ∧ y₁.regs rr = m ∧ y₁.regs bOffReg = 2 + m * m ∧
+        y₁.mem = (Data.init input : Data 34).mem := by
+      refine WP.exists_execWithin ?_
+      wram_exec [h2, hrm, hfmr, hf2mm]
+      exact ⟨by wram_simp [h0], by wram_simp [h1], by wram_simp [h2],
+        by wram_simp [hrm], by wram_simp, by wram_simp, hmem₀⟩
+    obtain ⟨y₁, he_dim, h0', h1', h2', hrm', hrr', hbOff', hmem₁⟩ := hs_dim
+    obtain ⟨z, he_csr, hbz, hcsrz⟩ := exec_buildCSRCode (m := m) (r := m) (matBase := 2)
+      (bOff := 2 + m * m) G y₁ h0' h1' h2' hrm' hrr' hbOff' (le_refl _)
+      (fun u v => by rw [hmem₁]; exact hmat u v) hfit
+    exact ⟨z, (he_pre.seq (he_dim.seq he_csr)).mono (by simp; omega), hbz, hcsrz⟩
+  | false =>
+    have hr_mem : y₀.mem 2 = r := by rw [hmem₀]; exact hr rfl
+    have hf3mr : Fits w (3 + m * r) := hfit.of_le (by omega)
+    have hs_dim : ∃ y₁, ExecWithin w
+        (ram[ addr ← #2; rr ← *addr; val ← rm * rr;
+              bOffReg ← #3; bOffReg ← bOffReg + val ] : Code .standard 34) y₀ y₁ 5 ∧
+        y₁.regs zero = 0 ∧ y₁.regs one = 1 ∧ y₁.regs two = 2 ∧
+        y₁.regs rm = m ∧ y₁.regs rr = r ∧ y₁.regs bOffReg = 3 + m * r ∧
+        y₁.mem = (Data.init input : Data 34).mem := by
+      refine WP.exists_execWithin ?_
+      wram_exec [hrm, hr_mem, hf2, hf3, hfmr, hf3mr]
+      exact ⟨by wram_simp [h0], by wram_simp [h1], by wram_simp [h2],
+        by wram_simp [hrm], by wram_simp, by wram_simp, hmem₀⟩
+    obtain ⟨y₁, he_dim, h0', h1', h2', hrm', hrr', hbOff', hmem₁⟩ := hs_dim
+    obtain ⟨z, he_csr, hbz, hcsrz⟩ := exec_buildCSRCode (m := m) (r := r) (matBase := 3)
+      (bOff := 3 + m * r) G y₁ h0' h1' h2' hrm' hrr' hbOff' (le_refl _)
+      (fun u v => by rw [hmem₁]; exact hmat u v) hfit
+    exact ⟨z, (he_pre.seq (he_dim.seq he_csr)).mono (by simp; omega), hbz, hcsrz⟩
 
 private def denseCode : Code .standard 34 :=
-  .seq denseSetupCode (.seq coreCode emitMatchingCode)
+  .seq (matrixSetupCode false) (.seq coreCode emitMatchingCode)
 
 /-- Standard-basis word-RAM program returning `inst.matchingWords` (`ExecutesList`) on a dense
 `m × r` `0/1` adjacency matrix `inst : DenseInstance`. -/
@@ -4610,33 +4626,10 @@ private theorem exec_denseCode {w : ℕ} (inst : DenseInstance) (hw : Fits w ins
       z.regs acc = inst.maxMatchingCard := by
   have hfit_all : Fits w ((3 + inst.m * inst.r) + 7 * inst.m + 6 * inst.r +
       inst.m * inst.r + 8) := hw.of_le (by unfold DenseInstance.wordBound; nlinarith)
-  have hf0 : Fits w 0 := hfit_all.of_le (by omega)
-  have hf1 : Fits w 1 := hfit_all.of_le (by omega)
-  have hf2 : Fits w 2 := hfit_all.of_le (by omega)
-  have hf3 : Fits w 3 := hfit_all.of_le (by omega)
-  have hfmr : Fits w (inst.m * inst.r) := hfit_all.of_le (by omega)
-  have hf3mr : Fits w (3 + inst.m * inst.r) := hfit_all.of_le (by omega)
-  have hm_mem : (Data.init inst.encode : Data 34).mem 1 = inst.m := inst.init_mem_m
-  have hr_mem : (Data.init inst.encode : Data 34).mem 2 = inst.r := inst.init_mem_r
-  have hs_pre : ∃ y₀, ExecWithin w (ram[
-      zero ← #0; one ← #1; two ← #2;
-      addr ← #1; rm ← *addr;
-      addr ← #2; rr ← *addr;
-      val ← rm * rr; bOffReg ← #3; bOffReg ← bOffReg + val ] : Code .standard 34)
-      (Data.init inst.encode) y₀ 10 ∧
-      y₀.regs zero = 0 ∧ y₀.regs one = 1 ∧ y₀.regs two = 2 ∧
-      y₀.regs rm = inst.m ∧ y₀.regs rr = inst.r ∧ y₀.regs bOffReg = 3 + inst.m * inst.r ∧
-      y₀.mem = (Data.init inst.encode : Data 34).mem := by
-    refine WP.exists_execWithin ?_
-    wram_exec [hm_mem, hr_mem, hf0, hf1, hf2, hf3, hfmr, hf3mr]
-    exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
-      by wram_simp, rfl⟩
-  obtain ⟨y₀, he_pre, h0, h1, h2, hrm, hrr, hbOff, hmem₀⟩ := hs_pre
-  obtain ⟨y₁, he_csr, hb₁, hcsr₁⟩ :=
-    exec_buildCSRCode (m := inst.m) (r := inst.r) (matBase := 3) (bOff := 3 + inst.m * inst.r)
-      inst.graph y₀ h0 h1 h2 hrm hrr hbOff
-      (le_refl _) (fun u v => by rw [hmem₀]; exact inst.init_mem_entry u v)
-      (hfit_all.of_le (by omega))
+  obtain ⟨y₁, he_setup, hb₁, hcsr₁⟩ :=
+    exec_matrixSetupCode (m := inst.m) (r := inst.r) false (fun h => by cases h)
+      inst.graph inst.encode inst.init_mem_m (fun _ => inst.init_mem_r)
+      (fun u v => inst.init_mem_entry u v) (hfit_all.of_le (by simp; omega))
   have hE_le : inst.toSparse.numEdges ≤ inst.m * inst.r := inst.numEdges_toSparse_le
   have hfit_core : Fits w ((3 + inst.m * inst.r) + 7 * inst.toSparse.m + 5 * inst.toSparse.r +
       inst.toSparse.numEdges + 8) := by
@@ -4658,10 +4651,10 @@ private theorem exec_denseCode {w : ℕ} (inst : DenseInstance) (hw : Fits w ins
     unfold coreTime
     refine Nat.add_le_add_right (Nat.add_le_add_right (Nat.mul_le_mul_left _ ?_) _) _
     nlinarith
-  refine ⟨z, ((he_pre.seq he_csr).seq (he_core.seq he_emit)).mono ?_,
+  refine ⟨z, (he_setup.seq (he_core.seq he_emit)).mono ?_,
     hout_z, hfit_out, hacc_z⟩
   unfold denseTime
-  change 10 + (9 * inst.m * inst.r + 8 * inst.m + 25) +
+  change (9 * inst.m * inst.r + 8 * inst.m + 35) +
       (coreTime inst.m inst.r inst.toSparse.numEdges inst.maxMatchingCard +
         (13 * inst.r + 7)) ≤ _
   omega
@@ -4697,920 +4690,5 @@ theorem computesInTime_denseCard :
       (fun inst _ => denseTime inst.m inst.r inst.maxMatchingCard)
       (fun inst w => Fits w inst.wordBound) DenseInstance.maxMatchingCard :=
   fun inst _ hw _ => executes_denseCard inst hw
-
-/-! ### 4C. Dilworth minimum chain cover and maximum antichain (`O(n^{5/2})`) -/
-
-private def posetSetupCode : Code .standard 34 :=
-  .seq (ram[
-    zero ← #0; one ← #1; two ← #2;
-    addr ← #1; rm ← *addr; rr ← rm;
-    val ← rm * rm; bOffReg ← two + val ])
-  (buildCSRCode 2)
-
-private def posetCoreCode : Code .standard 34 :=
-  .seq posetSetupCode coreCode
-
-private def scatterRowMateBody : Code .standard 34 := ram[
-  addr ← bColMateReg + idx; val ← *addr;
-  if val < rm then [ addr ← bMLReg + val; *addr ← idx ] else [ tmp ← zero ];
-  idx ← idx + one ]
-
-private def scatterRowMateCode : Code .standard 34 :=
-  .seq (fillConst bMLReg rm rm)
-    (.seq (ram[ idx ← #0 ]) (.loop (.lt idx rm) scatterRowMateBody))
-
-private def initLabelsBody : Code .standard 34 := ram[
-  addr ← outBase + one; addr ← addr + idx; *addr ← idx;
-  idx ← idx + one ]
-
-private def initLabelsCode : Code .standard 34 :=
-  .seq (ram[ addr ← outBase; *addr ← rm; idx ← #0 ])
-    (.loop (.lt idx rm) initLabelsBody)
-
-private def mergeInnerBody : Code .standard 34 := ram[
-  addr ← outBase + one; addr ← addr + idx; tmp ← *addr;
-  if tmp = val2 then [ *addr ← val ] else [ tmp ← zero ];
-  idx ← idx + one ]
-
-private def mergeBranchTrue : Code .standard 34 :=
-  .seq (ram[ addr ← outBase + one; addr ← addr + qHead; val ← *addr;
-             addr ← outBase + one; addr ← addr + qTail; val2 ← *addr;
-             idx ← #0 ])
-    (.loop (.lt idx rm) mergeInnerBody)
-
-private def mergeOuterBody : Code .standard 34 :=
-  .seq (ram[ addr ← bMLReg + qHead; qTail ← *addr ])
-    (.seq (.branch (.lt qTail rm) mergeBranchTrue (ram[ tmp ← zero ]))
-      (ram[ qHead ← qHead + one ]))
-
-private def mergeLabelsCode : Code .standard 34 :=
-  .seq (ram[ qHead ← #0 ]) (.loop (.lt qHead rm) mergeOuterBody)
-
-private def chainLabelsTail : Code .standard 34 :=
-  .seq scatterRowMateCode (.seq initLabelsCode mergeLabelsCode)
-
-private def maxAntichainBody : Code .standard 34 := ram[
-  addr ← bDistReg + idx; val ← *addr;
-  if zero < val then [
-    addr ← bColMateReg + idx; val2 ← *addr;
-    if val2 < rm then [
-      addr ← bDistReg + val2; tmp ← *addr
-    ] else [
-      tmp ← zero
-    ];
-    if tmp = zero then [
-      addr ← outBase + one; addr ← addr + acc; *addr ← idx;
-      acc ← acc + one
-    ] else [ tmp ← zero ]
-  ] else [ tmp ← zero ];
-  idx ← idx + one ]
-
-private def maxAntichainTail : Code .standard 34 :=
-  .seq (ram[ acc ← #0; idx ← #0 ])
-    (.seq (.loop (.lt idx rm) maxAntichainBody)
-      (ram[ addr ← outBase; *addr ← acc ]))
-
-/-- Standard-basis word-RAM program computing `inst.chainLabelsList` (`ExecutesList`) in
-`O(n^{5/2})` instructions via Fulkerson's bipartite matching reduction. -/
-def chainLabelsProgram : Program .standard 34 :=
-  (posetCoreCode.seq chainLabelsTail).program outBase
-
-/-- Standard-basis word-RAM program computing the König uncovered maximum antichain
-`inst.antichainList` (`ExecutesList`) in `O(n^{5/2})` instructions. -/
-def maxAntichainProgram : Program .standard 34 :=
-  (posetCoreCode.seq maxAntichainTail).program outBase
-
-/-- Instruction bound `O(n^{5/2})` for `chainLabelsProgram` and `maxAntichainProgram`. -/
-@[expose] def chainCoverTime (n : ℕ) : ℕ :=
-  (2 * Nat.sqrt n + 1) * (112 * n * n + 147 * n + 48) +
-    19 * n * n + 48 * n + 62
-
-private def rowMateOf {n : ℕ} (mate : Vector (Option (Fin n)) n) (i : Fin n) : Option (Fin n) :=
-  (List.finRange n).find? fun j => decide (vget mate j = some i)
-
-private theorem rowMateOf_eq_some_iff {n : ℕ} {G : Fin n × Fin n → Bool}
-    {mate : Vector (Option (Fin n)) n} (hM : IsMatching G (mateMatching mate))
-    (i j : Fin n) : rowMateOf mate i = some j ↔ (i, j) ∈ mateMatching mate := by
-  let p : Fin n → Bool := fun j' => decide (vget mate j' = some i)
-  change (List.finRange n).find? p = some j ↔ (i, j) ∈ mateMatching mate
-  constructor
-  · intro hf
-    have hp : p j = true := List.find?_some hf
-    exact mem_mateMatching.mpr (of_decide_eq_true hp)
-  · intro hm
-    have hvj : vget mate j = some i := mem_mateMatching.mp hm
-    cases hf : (List.finRange n).find? p with
-    | none =>
-      have hfalse := (List.find?_eq_none.mp hf) j (List.mem_finRange j)
-      simp [p, hvj] at hfalse
-    | some j₁ =>
-      have hp₁ : p j₁ = true := List.find?_some hf
-      have hvj₁ : vget mate j₁ = some i := of_decide_eq_true hp₁
-      exact congrArg some (hM.2.1 i j₁ j (mem_mateMatching.mpr hvj₁) hm)
-
-private abbrev posetSparse (inst : PosetInstance) : SparseInstance :=
-  { m := inst.n, r := inst.n, adj := exactBipAdj inst.lt }
-
-private abbrev posetLoopRes (inst : PosetInstance) :=
-  hkLoop (posetSparse inst).graph (posetSparse inst).adj (inst.n + 1) 0
-    (Vector.replicate inst.n none)
-
-private theorem exec_posetCoreCode {w : ℕ} (inst : PosetInstance) (hw : Fits w inst.wordBound) :
-    ∃ y, ExecWithin w posetCoreCode (Data.init inst.encode) y
-        ((2 * Nat.sqrt inst.n + 1) * (112 * inst.n * inst.n + 147 * inst.n + 48) +
-          9 * inst.n * inst.n + 13 * inst.n + 39) ∧
-      BaseRegs (posetSparse inst) (2 + inst.n * inst.n) y ∧
-      (∀ v : Fin inst.n,
-        y.mem ((2 + inst.n * inst.n) + inst.n + 1 + (posetSparse inst).numEdges + v.val) =
-          match vget (posetLoopRes inst).mate v with | some u => u.val | none => inst.n) ∧
-      (∀ u : Fin inst.n,
-        y.mem ((2 + inst.n * inst.n) + inst.n + 1 + (posetSparse inst).numEdges +
-            inst.n + inst.n + u.val) =
-          match vget (posetLoopRes inst).dist u with | none => 0 | some j => j + 1) := by
-  have hfit_all : Fits w ((2 + inst.n * inst.n) + 7 * inst.n + 6 * inst.n +
-      inst.n * inst.n + 8) := hw.of_le (by unfold PosetInstance.wordBound; nlinarith)
-  have hf0 : Fits w 0 := hfit_all.of_le (by omega)
-  have hf1 : Fits w 1 := hfit_all.of_le (by omega)
-  have hf2 : Fits w 2 := hfit_all.of_le (by omega)
-  have hfnn : Fits w (inst.n * inst.n) := hfit_all.of_le (by omega)
-  have hf2nn : Fits w (2 + inst.n * inst.n) := hfit_all.of_le (by omega)
-  have hn_mem : (Data.init inst.encode : Data 34).mem 1 = inst.n := inst.init_mem_n
-  have hs_pre : ∃ y₀, ExecWithin w (ram[
-      zero ← #0; one ← #1; two ← #2;
-      addr ← #1; rm ← *addr; rr ← rm;
-      val ← rm * rm; bOffReg ← two + val ] : Code .standard 34)
-      (Data.init inst.encode) y₀ 8 ∧
-      y₀.regs zero = 0 ∧ y₀.regs one = 1 ∧ y₀.regs two = 2 ∧
-      y₀.regs rm = inst.n ∧ y₀.regs rr = inst.n ∧ y₀.regs bOffReg = 2 + inst.n * inst.n ∧
-      y₀.mem = (Data.init inst.encode : Data 34).mem := by
-    refine WP.exists_execWithin ?_
-    wram_exec [hn_mem, hf0, hf1, hf2, hfnn, hf2nn]
-    exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
-      by wram_simp, rfl⟩
-  obtain ⟨y₀, he_pre, h0, h1, h2, hrm, hrr, hbOff, hmem₀⟩ := hs_pre
-  obtain ⟨y₁, he_csr, hb₁, hcsr₁⟩ :=
-    exec_buildCSRCode (m := inst.n) (r := inst.n) (matBase := 2) (bOff := 2 + inst.n * inst.n)
-      inst.lt y₀ h0 h1 h2 hrm hrr hbOff
-      (le_refl _) (fun u v => by rw [hmem₀]; exact inst.init_mem_entry u v)
-      (hfit_all.of_le (by omega))
-  have hE_le : (posetSparse inst).numEdges ≤ inst.n * inst.n := inst.toDense.numEdges_toSparse_le
-  have hnu_le : (posetSparse inst).maxMatchingCard ≤ inst.n := by
-    have := (posetSparse inst).maxMatchingCard_le_min
-    change (posetSparse inst).maxMatchingCard ≤ min inst.n inst.n at this
-    simpa using this
-  have hsqrt_le : Nat.sqrt (posetSparse inst).maxMatchingCard ≤ Nat.sqrt inst.n :=
-    Nat.sqrt_le_sqrt hnu_le
-  have hfit_core : Fits w ((2 + inst.n * inst.n) + 7 * (posetSparse inst).m +
-      5 * (posetSparse inst).r + (posetSparse inst).numEdges + 8) := by
-    change Fits w ((2 + inst.n * inst.n) + 7 * inst.n + 5 * inst.n +
-      (posetSparse inst).numEdges + 8)
-    exact hfit_all.of_le (by omega)
-  obtain ⟨y, he_core, hby, _, hmate_y, hdist_y, _⟩ :=
-    core_exec (posetSparse inst) y₁ hb₁ hcsr₁ hfit_core
-  have hcore_le : coreTime inst.n inst.n (posetSparse inst).numEdges
-      (posetSparse inst).maxMatchingCard ≤
-      (2 * Nat.sqrt inst.n + 1) *
-        (112 * inst.n * inst.n + 147 * inst.n + 48) + 5 * inst.n + 6 := by
-    unfold coreTime
-    refine Nat.add_le_add_right (Nat.add_le_add_right ?_ _) _
-    calc (2 * Nat.sqrt (posetSparse inst).maxMatchingCard + 1) *
-          (100 * inst.n + 47 * inst.n + 112 * (posetSparse inst).numEdges + 48)
-        ≤ (2 * Nat.sqrt inst.n + 1) *
-            (100 * inst.n + 47 * inst.n + 112 * (posetSparse inst).numEdges + 48) :=
-          Nat.mul_le_mul_right _ (by omega)
-      _ ≤ (2 * Nat.sqrt inst.n + 1) *
-            (112 * inst.n * inst.n + 147 * inst.n + 48) :=
-          Nat.mul_le_mul_left _ (by nlinarith)
-  refine ⟨y, ((he_pre.seq he_csr).seq he_core).mono ?_, hby,
-    fun v => by
-      have hv := hmate_y v
-      cases h : vget (posetLoopRes inst).mate v <;> simpa [h] using hv,
-    fun u => by
-      have hu := hdist_y u
-      cases h : vget (posetLoopRes inst).dist u <;> simpa [h] using hu⟩
-  change 8 + (9 * inst.n * inst.n + 8 * inst.n + 25) +
-      coreTime inst.n inst.n (posetSparse inst).numEdges
-        (posetSparse inst).maxMatchingCard ≤ _
-  omega
-
-private theorem exec_scatterRowMateCode {w bOff : ℕ} (inst : PosetInstance)
-    (mate : Vector (Option (Fin inst.n)) inst.n)
-    (hM : IsMatching (posetSparse inst).graph (mateMatching mate))
-    (x : Data 34) (hb : BaseRegs (posetSparse inst) bOff x)
-    (hmate : ∀ v : Fin inst.n,
-      x.mem (bOff + inst.n + 1 + (posetSparse inst).numEdges + v.val) =
-        encodeOptFin (vget mate v))
-    (hfit : Fits w (bOff + 7 * inst.n + 6 * inst.n + (posetSparse inst).numEdges + 8)) :
-    ∃ y, ExecWithin w scatterRowMateCode x y (13 * inst.n + 9) ∧
-      BaseRegs (posetSparse inst) bOff y ∧
-      (∀ i : Fin inst.n,
-        y.mem (bOff + inst.n + 1 + (posetSparse inst).numEdges + inst.n + i.val) =
-          encodeOptFin (rowMateOf mate i)) ∧
-      (∀ a, ¬(bOff + inst.n + 1 + (posetSparse inst).numEdges + inst.n ≤ a ∧
-          a < bOff + inst.n + 1 + (posetSparse inst).numEdges + inst.n + inst.n) →
-        y.mem a = x.mem a) := by
-  have hrm_eq : x.regs rm = inst.n := hb.hrm
-  have hbML_eq : x.regs bMLReg = bOff + inst.n + 1 + (posetSparse inst).numEdges + inst.n :=
-    hb.hbML
-  obtain ⟨y₁, he₁, hr₁, hfill₁, hf₁⟩ := exec_fillConst bMLReg rm rm
-    (by decide) (by decide) (by decide) x hb.hone
-    (by rw [hbML_eq, hrm_eq]; exact hfit.of_le (by omega))
-    (by rw [hrm_eq]; exact hfit.of_le (by omega))
-  rw [hrm_eq] at he₁ hfill₁ hf₁
-  rw [hbML_eq] at hfill₁ hf₁
-  have hb₁ : BaseRegs (posetSparse inst) bOff y₁ := hb.of_eq fun i hi => hr₁ i (by omega)
-  have hs₀ : ∃ s₀, ExecWithin w (ram[ idx ← #0 ] : Code .standard 34) y₁ s₀ 1 ∧
-      s₀ = y₁.set idx 0 := by
-    refine WP.exists_execWithin ?_; wram_exec; rfl
-  obtain ⟨s₀, he₀, rfl⟩ := hs₀
-  let P (t : ℕ) (y : Data 34) : Prop :=
-    t ≤ inst.n ∧
-      (∀ i : Fin 34, i.val < 19 → y.regs i = x.regs i) ∧
-      (∀ (j i : Fin inst.n), j.val < t → vget mate j = some i →
-        y.mem (bOff + inst.n + 1 + (posetSparse inst).numEdges + inst.n + i.val) = j.val) ∧
-      (∀ i : Fin inst.n, (∀ j : Fin inst.n, j.val < t → vget mate j ≠ some i) →
-        y.mem (bOff + inst.n + 1 + (posetSparse inst).numEdges + inst.n + i.val) = inst.n) ∧
-      (∀ a, ¬(bOff + inst.n + 1 + (posetSparse inst).numEdges + inst.n ≤ a ∧
-          a < bOff + inst.n + 1 + (posetSparse inst).numEdges + inst.n + inst.n) →
-        y.mem a = x.mem a)
-  have hP₀ : P 0 (y₁.set idx 0) :=
-    ⟨Nat.zero_le _, fun i hi => by wram_simp [hr₁ i (by omega)],
-      fun _ _ hj => absurd hj (Nat.not_lt_zero _),
-      fun i _ => hfill₁ i.val i.isLt,
-      fun a ha => hf₁ a ha⟩
-  have hbody (y : Data 34) (hy : P (y.regs idx) y) (hlt : y.regs idx < inst.n) :
-      ∃ z, ExecWithin w scatterRowMateBody y z 6 ∧ P (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨_, hr, hsome, hnone, hf⟩ := hy
-    have hby : BaseRegs (posetSparse inst) bOff y := hb.of_eq hr
-    let j₀ : Fin inst.n := ⟨y.regs idx, hlt⟩
-    have hj₀_lt := j₀.isLt
-    have hcm_j : y.mem (bOff + inst.n + 1 + (posetSparse inst).numEdges + y.regs idx) =
-        encodeOptFin (vget mate j₀) := by
-      rw [hf _ (by omega)]
-      exact hmate j₀
-    have hf_cm : Fits w (bOff + inst.n + 1 + (posetSparse inst).numEdges + y.regs idx) :=
-      hfit.of_le (by omega)
-    have hf_idx1 : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
-    have hby_cm : y.regs bColMateReg = bOff + inst.n + 1 + (posetSparse inst).numEdges :=
-      hby.hbColMate
-    have hby_rm : y.regs rm = inst.n := hby.hrm
-    have hby_ml : y.regs bMLReg =
-        bOff + inst.n + 1 + (posetSparse inst).numEdges + inst.n := hby.hbML
-    refine WP.exists_execWithin ?_
-    unfold scatterRowMateBody
-    cases hmj : vget mate j₀ with
-    | none =>
-      have henc : encodeOptFin (vget mate j₀) = inst.n := by simp [hmj, encodeOptFin]
-      wram_exec [hby_cm, hby_rm, hby.hzero, hby.hone, hcm_j, henc, hf_cm, hf_idx1]
-      refine ⟨⟨by omega, fun i hi => by wram_simp [hr i hi], fun j i hj hm => ?_,
-        fun i hall => ?_, fun a ha => ?_⟩, by wram_simp⟩
-      · by_cases hjj : j = j₀
-        · subst j; rw [hmj] at hm; cases hm
-        · have : j.val ≠ y.regs idx := fun h => hjj (Fin.ext h)
-          wram_simp
-          exact hsome j i (by omega) hm
-      · wram_simp
-        exact hnone i fun j hj => hall j (by omega)
-      · wram_simp; exact hf a ha
-    | some i₀ =>
-      have hi₀_lt := i₀.isLt
-      have henc : encodeOptFin (vget mate j₀) = i₀.val := by simp [hmj, encodeOptFin]
-      have hf_ml : Fits w (bOff + inst.n + 1 + (posetSparse inst).numEdges +
-          inst.n + i₀.val) := hfit.of_le (by omega)
-      wram_exec [hby_cm, hby_rm, hby_ml, hby.hone, hcm_j, henc, hi₀_lt,
-        hf_cm, hf_ml, hf_idx1]
-      refine ⟨⟨by omega, fun i hi => by wram_simp [hr i hi], fun j i hj hm => ?_,
-        fun i hall => ?_, fun a ha => ?_⟩, by wram_simp⟩
-      · by_cases hjj : j = j₀
-        · subst j
-          rw [hmj] at hm
-          obtain ⟨rfl⟩ := hm
-          dsimp only [j₀]
-          wram_simp
-        · have hj_lt : j.val < y.regs idx := by
-            have : j.val ≠ y.regs idx := fun h => hjj (Fin.ext h)
-            omega
-          have hii : i ≠ i₀ := fun h => by
-            subst i
-            exact hjj (hM.2.1 i₀ j j₀ (mem_mateMatching.mpr hm) (mem_mateMatching.mpr hmj))
-          have hne_val : i.val ≠ i₀.val := fun h => hii (Fin.ext h)
-          wram_simp
-          exact hsome j i hj_lt hm
-      · have hii : i ≠ i₀ := fun h => by subst i; exact hall j₀ (Nat.lt_succ_self _) hmj
-        have hne_val : i.val ≠ i₀.val := fun h => hii (Fin.ext h)
-        wram_simp
-        exact hnone i fun j hj => hall j (by omega)
-      · wram_simp
-        exact hf a ha
-  obtain ⟨y, hl, hPn, _⟩ := ExecWithin.loop_count P
-    (fun y hy => (hy.2.1 rm (by decide)).trans hrm_eq) hbody
-    (x := y₁.set idx 0) (by simp) (by simpa using hP₀)
-  obtain ⟨_, hr, hsome, hnone, hf⟩ := hPn
-  refine ⟨y, (he₁.seq (he₀.seq hl)).mono (by simp; omega), hb.of_eq hr, fun i => ?_, hf⟩
-  cases hrm_i : rowMateOf mate i with
-  | some j =>
-    have hm : vget mate j = some i :=
-      mem_mateMatching.mp ((rowMateOf_eq_some_iff hM i j).mp hrm_i)
-    simpa [encodeOptFin] using hsome j i j.isLt hm
-  | none =>
-    have hall : ∀ j : Fin inst.n, j.val < inst.n → vget mate j ≠ some i := fun j _ hm => by
-      have := (rowMateOf_eq_some_iff hM i j).mpr (mem_mateMatching.mpr hm)
-      rw [hrm_i] at this
-      cases this
-    simpa [encodeOptFin] using hnone i hall
-
-private theorem exec_chainLabelsTail {w : ℕ} (inst : PosetInstance)
-    (hw : Fits w inst.wordBound) (y : Data 34)
-    (hby : BaseRegs (posetSparse inst) (2 + inst.n * inst.n) y)
-    (hmate_y : ∀ v : Fin inst.n,
-      y.mem ((2 + inst.n * inst.n) + inst.n + 1 + (posetSparse inst).numEdges + v.val) =
-        match vget (posetLoopRes inst).mate v with
-        | some u => u.val
-        | none => inst.n) :
-    ∃ z, ExecWithin w chainLabelsTail y z (9 * inst.n * inst.n + 35 * inst.n + 17) ∧
-      outputList z.mem (z.regs outBase) = inst.chainLabelsList ∧
-      Fits w (z.regs outBase + inst.chainLabelsList.length) := by
-  have hE_le : (posetSparse inst).numEdges ≤ inst.n * inst.n := inst.toDense.numEdges_toSparse_le
-  have hfit_all : Fits w ((2 + inst.n * inst.n) + 7 * inst.n + 6 * inst.n +
-      (posetSparse inst).numEdges + 8) :=
-    hw.of_le (by unfold PosetInstance.wordBound; nlinarith)
-  have hM : IsMatching (posetSparse inst).graph (mateMatching (posetLoopRes inst).mate) := by
-    have hc := (hopcroftKarp_correct (posetSparse inst).bipAdjValid_graph).1.1
-    rwa [hopcroftKarp_matching_eq_mateMatching] at hc
-  have hmate_enc : ∀ v : Fin inst.n,
-      y.mem ((2 + inst.n * inst.n) + inst.n + 1 + (posetSparse inst).numEdges + v.val) =
-        encodeOptFin (vget (posetLoopRes inst).mate v) := fun v => by
-    have hv := hmate_y v
-    cases h : vget (posetLoopRes inst).mate v <;> simpa [encodeOptFin, h] using hv
-  obtain ⟨y₁, he_scat, hb₁, hrm_mem, _⟩ :=
-    exec_scatterRowMateCode inst (posetLoopRes inst).mate hM y hby hmate_enc hfit_all
-  -- Step B: initLabelsCode
-  let bOut := (2 + inst.n * inst.n) + inst.n + 1 + (posetSparse inst).numEdges +
-    4 * inst.n + 6 * inst.n + 6
-  let bML := (2 + inst.n * inst.n) + inst.n + 1 + (posetSparse inst).numEdges + inst.n
-  have hml_lt_out : bML + inst.n ≤ bOut := by dsimp only [bML, bOut]; omega
-  have hf_ob : Fits w bOut := hfit_all.of_le (by dsimp only [bOut]; omega)
-  have hb₁_ob : y₁.regs outBase = bOut := hb₁.houtBase
-  have hb₁_rm : y₁.regs rm = inst.n := hb₁.hrm
-  have hs_il₀ : ∃ s_il, ExecWithin w
-      (ram[ addr ← outBase; *addr ← rm; idx ← #0 ] : Code .standard 34) y₁ s_il 3 ∧
-      s_il = ((y₁.set addr bOut).write bOut inst.n).set idx 0 := by
-    refine WP.exists_execWithin ?_
-    wram_exec [hb₁_ob, hb₁_rm, hf_ob]
-    rfl
-  obtain ⟨s_il, he_il₀, rfl⟩ := hs_il₀
-  let s_il := ((y₁.set addr bOut).write bOut inst.n).set idx 0
-  let PI (t : ℕ) (w_st : Data 34) : Prop :=
-    t ≤ inst.n ∧
-      (∀ i : Fin 34, i.val < 19 → w_st.regs i = y₁.regs i) ∧
-      w_st.mem bOut = inst.n ∧
-      (∀ k : ℕ, k < t → w_st.mem (bOut + 1 + k) = k) ∧
-      (∀ a, ¬(bOut ≤ a ∧ a < bOut + 1 + t) → w_st.mem a = y₁.mem a)
-  have hPI₀ : PI 0 s_il :=
-    ⟨Nat.zero_le _, fun i hi => by dsimp only [s_il]; wram_simp,
-      by dsimp only [s_il]; wram_simp,
-      fun _ hk => absurd hk (Nat.not_lt_zero _),
-      fun a ha => by dsimp only [s_il]; wram_simp⟩
-  have hilBody (w_st : Data 34) (hw_st : PI (w_st.regs idx) w_st)
-      (hlt : w_st.regs idx < inst.n) :
-      ∃ w', ExecWithin w initLabelsBody w_st w' 4 ∧ PI (w_st.regs idx + 1) w' ∧
-        w'.regs idx = w_st.regs idx + 1 := by
-    obtain ⟨_, hr_i, hob_i, hlab_i, hf_i⟩ := hw_st
-    have hbw : BaseRegs (posetSparse inst) (2 + inst.n * inst.n) w_st := hb₁.of_eq hr_i
-    have hbw_ob : w_st.regs outBase = bOut := hbw.houtBase
-    have hf_o1 : Fits w (bOut + 1) := hfit_all.of_le (by dsimp only [bOut]; omega)
-    have hf_ok : Fits w ((bOut + 1) + w_st.regs idx) :=
-      hfit_all.of_le (by dsimp only [bOut]; omega)
-    have hf_idx1 : Fits w (w_st.regs idx + 1) := hfit_all.of_le (by omega)
-    refine WP.exists_execWithin ?_
-    unfold initLabelsBody
-    wram_exec [hbw_ob, hbw.hone, hf_o1, hf_ok, hf_idx1]
-    refine ⟨⟨by omega, fun i hi => by wram_simp [hr_i i hi],
-      by wram_simp [hob_i],
-      fun k hk => ?_, fun a ha => ?_⟩, by wram_simp⟩
-    · by_cases heq : k = w_st.regs idx
-      · subst heq; wram_simp
-      · wram_simp; exact hlab_i k (by omega)
-    · wram_simp; exact hf_i a (by omega)
-  have hsil_idx : s_il.regs idx = 0 := by dsimp only [s_il]; wram_simp
-  obtain ⟨y₂, hl_il, hPIn, _⟩ := ExecWithin.loop_count PI
-    (fun w_st hw_st => (hw_st.2.1 rm (by decide)).trans hb₁_rm) hilBody
-    (x := s_il) (by rw [hsil_idx]; exact Nat.zero_le _) (by rw [hsil_idx]; exact hPI₀)
-  rw [hsil_idx, Nat.sub_zero] at hl_il
-  obtain ⟨_, hr₂, hob₂, hlab₂, hf₂⟩ := hPIn
-  have hb₂ : BaseRegs (posetSparse inst) (2 + inst.n * inst.n) y₂ := hb₁.of_eq hr₂
-  have hb₂_rm : y₂.regs rm = inst.n := hb₂.hrm
-  -- Step C: mergeLabelsCode
-  let stepFn (lab : Vector (Fin inst.n) inst.n) (i : Fin inst.n) : Vector (Fin inst.n) inst.n :=
-    match rowMateOf (posetLoopRes inst).mate i with
-    | some j => mergeChains lab (i, j)
-    | none => lab
-  let labAt (k : ℕ) : Vector (Fin inst.n) inst.n :=
-    ((List.finRange inst.n).take k).foldl stepFn (Vector.ofFn id)
-  have hs_mg₀ : ∃ s_mg, ExecWithin w (ram[ qHead ← #0 ] : Code .standard 34) y₂ s_mg 1 ∧
-      s_mg = y₂.set qHead 0 := by
-    refine WP.exists_execWithin ?_; wram_exec; rfl
-  obtain ⟨s_mg, he_mg₀, rfl⟩ := hs_mg₀
-  let PM (k : ℕ) (w_st : Data 34) : Prop :=
-    k ≤ inst.n ∧
-      (∀ i : Fin 34, i.val < 19 → w_st.regs i = y₂.regs i) ∧
-      w_st.mem bOut = inst.n ∧
-      (∀ t : Fin inst.n, w_st.mem (bOut + 1 + t.val) = (vget (labAt k) t).val) ∧
-      (∀ a, ¬(bOut + 1 ≤ a ∧ a < bOut + 1 + inst.n) → w_st.mem a = y₂.mem a)
-  have hPM₀ : PM 0 (y₂.set qHead 0) :=
-    ⟨Nat.zero_le _, fun i hi => by wram_simp, hob₂,
-      fun t => by
-        simp only [Data.set, labAt, List.take_zero, List.foldl_nil, vget, Vector.getElem_ofFn, id]
-        exact hlab₂ t.val t.isLt,
-      fun _ _ => rfl⟩
-  have hmgOuter (w_st : Data 34) (hw_st : PM (w_st.regs qHead) w_st)
-      (hk_lt : w_st.regs qHead < inst.n) :
-      ∃ z_st, ExecWithin w mergeOuterBody w_st z_st (9 * inst.n + 14) ∧
-        PM (w_st.regs qHead + 1) z_st ∧ z_st.regs qHead = w_st.regs qHead + 1 := by
-    obtain ⟨_, hr_m, hob_m, hlab_m, hf_m⟩ := hw_st
-    have hbw : BaseRegs (posetSparse inst) (2 + inst.n * inst.n) w_st := hb₂.of_eq hr_m
-    have hbw_ml : w_st.regs bMLReg = bML := hbw.hbML
-    have hbw_rm : w_st.regs rm = inst.n := hbw.hrm
-    have hbw_ob : w_st.regs outBase = bOut := hbw.houtBase
-    let i₀ : Fin inst.n := ⟨w_st.regs qHead, hk_lt⟩
-    have hrm_i₀ : w_st.mem (bML + w_st.regs qHead) =
-        encodeOptFin (rowMateOf (posetLoopRes inst).mate i₀) := by
-      rw [hf_m _ (by omega), hf₂ _ (by omega)]
-      exact hrm_mem i₀
-    have hf_ml_i : Fits w (bML + w_st.regs qHead) :=
-      hfit_all.of_le (by dsimp only [bML]; omega)
-    have hf_qh1 : Fits w (w_st.regs qHead + 1) := hfit_all.of_le (by omega)
-    have hchk : ∃ w_chk, ExecWithin w
-        (ram[ addr ← bMLReg + qHead; qTail ← *addr ] : Code .standard 34) w_st w_chk 2 ∧
-        w_chk = (w_st.set addr (bML + w_st.regs qHead)).set qTail
-          (encodeOptFin (rowMateOf (posetLoopRes inst).mate i₀)) := by
-      refine WP.exists_execWithin ?_
-      wram_exec [hbw_ml, hrm_i₀, hf_ml_i]
-      rfl
-    obtain ⟨w_chk, he_chk, rfl⟩ := hchk
-    let w_chk := (w_st.set addr (bML + w_st.regs qHead)).set qTail
-      (encodeOptFin (rowMateOf (posetLoopRes inst).mate i₀))
-    have hlab_succ : labAt (w_st.regs qHead + 1) = stepFn (labAt (w_st.regs qHead)) i₀ := by
-      dsimp only [labAt]
-      rw [List.take_succ_finRange hk_lt, List.foldl_append, List.foldl_cons, List.foldl_nil]
-    cases hrmi : rowMateOf (posetLoopRes inst).mate i₀ with
-    | none =>
-      have hc_neg : ¬(Cond.lt qTail rm).Holds w_chk := by
-        simp [Cond.holds_lt, w_chk, hrmi, encodeOptFin, hbw_rm]
-      have hnop : ExecWithin w (ram[ tmp ← zero ] : Code .standard 34)
-          w_chk (w_chk.set tmp 0) 1 := by
-        refine WP.execWithin ?_
-        have hz_chk : w_chk.regs zero = 0 := by dsimp only [w_chk]; wram_simp [hbw.hzero]
-        wram_exec [hz_chk]; rfl
-      have hinc : ExecWithin w (ram[ qHead ← qHead + one ] : Code .standard 34)
-          (w_chk.set tmp 0) ((w_chk.set tmp 0).set qHead (w_st.regs qHead + 1)) 1 := by
-        refine WP.execWithin ?_
-        have hqh_chk : w_chk.regs qHead = w_st.regs qHead := by dsimp only [w_chk]; wram_simp
-        have hone_chk : w_chk.regs one = 1 := by dsimp only [w_chk]; wram_simp [hbw.hone]
-        wram_exec [hqh_chk, hone_chk, hf_qh1]; rfl
-      have he_br := hnop.branch_neg (pos := mergeBranchTrue) hc_neg
-      refine ⟨(w_chk.set tmp 0).set qHead (w_st.regs qHead + 1),
-        (he_chk.seq (he_br.seq hinc)).mono (by omega),
-        ⟨by omega, fun i hi => by dsimp only [w_chk]; wram_simp [hr_m i hi],
-          hob_m, fun t => by rw [hlab_succ]; dsimp only [stepFn]; rw [hrmi]; exact hlab_m t,
-          fun a ha => hf_m a ha⟩, by wram_simp⟩
-    | some j₀ =>
-      have hj₀_lt : j₀.val < inst.n := j₀.isLt
-      have hc_pos : (Cond.lt qTail rm).Holds w_chk := by
-        simp [Cond.holds_lt, w_chk, hrmi, encodeOptFin, hbw_rm]
-      let newV := (vget (labAt (w_st.regs qHead)) i₀).val
-      let oldV := (vget (labAt (w_st.regs qHead)) j₀).val
-      have hf_o1 : Fits w (bOut + 1) := hfit_all.of_le (by dsimp only [bOut]; omega)
-      have hf_oi : Fits w ((bOut + 1) + w_st.regs qHead) :=
-        hfit_all.of_le (by dsimp only [bOut]; omega)
-      have hf_oj : Fits w ((bOut + 1) + j₀.val) :=
-        hfit_all.of_le (by dsimp only [bOut]; omega)
-      have hmem_i : w_chk.mem ((bOut + 1) + w_st.regs qHead) = newV := by
-        simpa [w_chk, Nat.add_assoc] using hlab_m i₀
-      have hmem_j : w_chk.mem ((bOut + 1) + j₀.val) = oldV := by
-        simpa [w_chk, Nat.add_assoc] using hlab_m j₀
-      have hpre_br : ∃ w_in, ExecWithin w
-          (ram[ addr ← outBase + one; addr ← addr + qHead; val ← *addr;
-                addr ← outBase + one; addr ← addr + qTail; val2 ← *addr;
-                idx ← #0 ] : Code .standard 34) w_chk w_in 7 ∧
-          (∀ i : Fin 34, i.val < 23 → w_in.regs i = w_st.regs i) ∧
-          w_in.regs idx = 0 ∧ w_in.regs val = newV ∧ w_in.regs val2 = oldV ∧
-          w_in.mem = w_st.mem := by
-        refine WP.exists_execWithin ?_
-        have hob_chk : w_chk.regs outBase = bOut := by
-          dsimp only [w_chk]; wram_simp [hbw_ob]
-        have hone_chk : w_chk.regs one = 1 := by dsimp only [w_chk]; wram_simp [hbw.hone]
-        have hqh_chk : w_chk.regs qHead = w_st.regs qHead := by dsimp only [w_chk]; wram_simp
-        have hqt_chk : w_chk.regs qTail = j₀.val := by
-          dsimp only [w_chk]; wram_simp [hrmi, encodeOptFin]
-        wram_exec [hob_chk, hone_chk, hqh_chk, hqt_chk, hmem_i, hmem_j, hf_o1, hf_oi, hf_oj]
-        exact ⟨fun i hi => by dsimp only [w_chk]; wram_simp, by wram_simp,
-          by wram_simp, by wram_simp, rfl⟩
-      obtain ⟨w_in, he_pre_br, hr_in, hidx_in, hval_in, hval2_in, hmem_in⟩ := hpre_br
-      let PN (s : ℕ) (u_st : Data 34) : Prop :=
-        s ≤ inst.n ∧
-          (∀ i : Fin 34, i.val < 23 → u_st.regs i = w_st.regs i) ∧
-          u_st.regs val = newV ∧ u_st.regs val2 = oldV ∧
-          (∀ t : Fin inst.n, t.val < s →
-            u_st.mem (bOut + 1 + t.val) =
-              (vget (mergeChains (labAt (w_st.regs qHead)) (i₀, j₀)) t).val) ∧
-          (∀ t : Fin inst.n, s ≤ t.val →
-            u_st.mem (bOut + 1 + t.val) = (vget (labAt (w_st.regs qHead)) t).val) ∧
-          (∀ a, ¬(bOut + 1 ≤ a ∧ a < bOut + 1 + inst.n) → u_st.mem a = w_st.mem a)
-      have hPN₀ : PN 0 w_in :=
-        ⟨Nat.zero_le _, hr_in, hval_in, hval2_in,
-          fun _ ht => absurd ht (Nat.not_lt_zero _),
-          fun t _ => by rw [hmem_in]; exact hlab_m t,
-          fun _ _ => by rw [hmem_in]⟩
-      have hinnerBody (u_st : Data 34) (hu_st : PN (u_st.regs idx) u_st)
-          (hs_lt : u_st.regs idx < inst.n) :
-          ∃ u', ExecWithin w mergeInnerBody u_st u' 7 ∧ PN (u_st.regs idx + 1) u' ∧
-            u'.regs idx = u_st.regs idx + 1 := by
-        obtain ⟨_, hr_u, hv_u, hv2_u, hpre_u, hsuf_u, hf_u⟩ := hu_st
-        have hbu : BaseRegs (posetSparse inst) (2 + inst.n * inst.n) u_st :=
-          hb₂.of_eq fun i hi => (hr_u i (by omega)).trans (hr_m i hi)
-        have hbu_ob : u_st.regs outBase = bOut := hbu.houtBase
-        let t₀ : Fin inst.n := ⟨u_st.regs idx, hs_lt⟩
-        have ht₀_lt := t₀.isLt
-        have hmem_t₀ : u_st.mem ((bOut + 1) + u_st.regs idx) =
-            (vget (labAt (w_st.regs qHead)) t₀).val := by
-          simpa [Nat.add_assoc] using hsuf_u t₀ (le_refl _)
-        have hf_ot : Fits w ((bOut + 1) + u_st.regs idx) :=
-          hfit_all.of_le (by dsimp only [bOut]; omega)
-        have hf_s1 : Fits w (u_st.regs idx + 1) := hfit_all.of_le (by omega)
-        refine WP.exists_execWithin ?_
-        unfold mergeInnerBody
-        by_cases heq_v : (vget (labAt (w_st.regs qHead)) t₀).val = oldV
-        · have heq_fin : vget (labAt (w_st.regs qHead)) t₀ =
-              vget (labAt (w_st.regs qHead)) j₀ := Fin.ext heq_v
-          have hm_eq : vget (mergeChains (labAt (w_st.regs qHead)) (i₀, j₀)) t₀ =
-              vget (labAt (w_st.regs qHead)) i₀ :=
-            (Vector.getElem_ofFn t₀.isLt).trans (ite_eq_left heq_fin)
-          wram_exec [hbu_ob, hbu.hone, hv_u, hv2_u, hmem_t₀, heq_v, hf_o1, hf_ot, hf_s1]
-          refine ⟨⟨by omega, fun i hi => by wram_simp [hr_u i hi],
-            by wram_simp [hv_u], by wram_simp [hv2_u], fun t ht => ?_, fun t ht => ?_,
-            fun a ha => ?_⟩, by wram_simp⟩
-          · by_cases htt : t = t₀
-            · subst t
-              wram_simp
-              exact (congrArg Fin.val hm_eq).symm
-            · have : t.val ≠ u_st.regs idx := fun h => htt (Fin.ext h)
-              wram_simp
-              exact hpre_u t (by omega)
-          · wram_simp
-            exact hsuf_u t (by omega)
-          · wram_simp; exact hf_u a ha
-        · have hne_fin : vget (labAt (w_st.regs qHead)) t₀ ≠
-              vget (labAt (w_st.regs qHead)) j₀ := fun h => heq_v (congrArg Fin.val h)
-          have hm_eq : vget (mergeChains (labAt (w_st.regs qHead)) (i₀, j₀)) t₀ =
-              vget (labAt (w_st.regs qHead)) t₀ :=
-            (Vector.getElem_ofFn t₀.isLt).trans (ite_eq_right hne_fin)
-          wram_exec [hbu_ob, hbu.hone, hbu.hzero, hv2_u, hmem_t₀, heq_v,
-            hf_o1, hf_ot, hf_s1]
-          refine ⟨⟨by omega, fun i hi => by wram_simp [hr_u i hi],
-            by wram_simp [hv_u], by wram_simp [hv2_u], fun t ht => ?_, fun t ht => ?_,
-            fun a ha => ?_⟩, by wram_simp⟩
-          · by_cases htt : t = t₀
-            · subst t
-              wram_simp
-              rw [hsuf_u t₀ (le_refl _), hm_eq]
-            · have : t.val ≠ u_st.regs idx := fun h => htt (Fin.ext h)
-              wram_simp
-              exact hpre_u t (by omega)
-          · wram_simp; exact hsuf_u t (by omega)
-          · wram_simp; exact hf_u a ha
-      obtain ⟨w_out, hl_in, hPNn, _⟩ := ExecWithin.loop_count PN
-        (fun u_st hu_st =>
-          (hu_st.2.1 rm (by decide)).trans ((hr_m rm (by decide)).trans hb₂_rm))
-        hinnerBody (x := w_in) (by rw [hidx_in]; exact Nat.zero_le _)
-        (by rw [hidx_in]; exact hPN₀)
-      rw [hidx_in, Nat.sub_zero] at hl_in
-      obtain ⟨_, hr_out, _, _, hpre_out, _, hf_out⟩ := hPNn
-      have he_br :=
-        (he_pre_br.seq hl_in).branch_pos (neg := (ram[ tmp ← zero ] : Code .standard 34)) hc_pos
-      have hqh_out : w_out.regs qHead = w_st.regs qHead := hr_out qHead (by decide)
-      have hone_out : w_out.regs one = 1 :=
-        (hr_out one (by decide)).trans ((hr_m one (by decide)).trans hb₂.hone)
-      have hinc : ExecWithin w (ram[ qHead ← qHead + one ] : Code .standard 34)
-          w_out (w_out.set qHead (w_st.regs qHead + 1)) 1 := by
-        refine WP.execWithin ?_
-        wram_exec [hqh_out, hone_out, hf_qh1]; rfl
-      refine ⟨w_out.set qHead (w_st.regs qHead + 1),
-        (he_chk.seq (he_br.seq hinc)).mono (by omega),
-        ⟨by omega, fun i hi => by wram_simp [(hr_out i (by omega)).trans (hr_m i hi)],
-          by dsimp only [Data.set]; rw [hf_out _ (by omega)]; exact hob_m,
-          fun t => by
-            dsimp only [Data.set]
-            rw [hlab_succ]
-            dsimp only [stepFn]
-            rw [hrmi]
-            exact hpre_out t t.isLt,
-          fun a ha => (hf_out a ha).trans (hf_m a ha)⟩, by wram_simp⟩
-  obtain ⟨z, hl_mg, hPMn, _⟩ := ExecWithin.loop_count PM
-    (fun w_st hw_st => (hw_st.2.1 rm (by decide)).trans hb₂_rm) hmgOuter
-    (x := y₂.set qHead 0) (by simp) (by simpa using hPM₀)
-  obtain ⟨_, hrz, hobz, hlabz, _⟩ := hPMn
-  have hbz : BaseRegs (posetSparse inst) (2 + inst.n * inst.n) z := hb₂.of_eq hrz
-  have hbz_ob : z.regs outBase = bOut := hbz.houtBase
-  have hs_graph : (posetSparse inst).graph = inst.lt := inst.toDense.toSparse_graph
-  have hmatch_eq : (hopcroftKarpDense inst.lt).matching =
-      mateMatching (posetLoopRes inst).mate := by
-    rw [← hopcroftKarp_exactBipAdj inst.lt]
-    change (hopcroftKarp inst.lt (posetSparse inst).adj).matching = _
-    rw [← hs_graph]
-    exact hopcroftKarp_matching_eq_mateMatching
-  have hlab_full : labAt inst.n =
-      chainLabels (hopcroftKarpDense inst.lt).matching
-        (List.finRange inst.n ×ˢ List.finRange inst.n) (Vector.ofFn id) := by
-    dsimp only [labAt, stepFn]
-    rw [List.take_of_length_le (by simp), hmatch_eq,
-      chainLabels_eq_foldl_rowMate (rowMateOf (posetLoopRes inst).mate) (rowMateOf_eq_some_iff hM)]
-    congr 1
-    funext lab i
-    cases rowMateOf (posetLoopRes inst).mate i <;> rfl
-  have hcl_len : inst.chainLabelsList.length = inst.n := by
-    simp [PosetInstance.chainLabelsList]
-  have hout_z : outputList z.mem (z.regs outBase) = inst.chainLabelsList := by
-    rw [hbz_ob, outputList_eq_iff, hcl_len]
-    refine ⟨hobz, fun i => ?_⟩
-    have hi_val : i.val < inst.chainLabelsList.length := i.isLt
-    have hi_lt : i.val < inst.n := hi_val.trans_eq hcl_len
-    change z.mem (bOut + 1 + i.val) = inst.chainLabelsList[i.val]'hi_val
-    rw [hlabz ⟨i.val, hi_lt⟩, hlab_full]
-    simp [PosetInstance.chainLabelsList]
-  have hfit_out : Fits w (z.regs outBase + inst.chainLabelsList.length) := by
-    rw [hbz_ob, hcl_len]
-    exact hfit_all.of_le (by dsimp only [bOut]; omega)
-  have hqh0 : (y₂.set qHead 0).regs qHead = 0 := by simp
-  rw [hqh0, Nat.sub_zero] at hl_mg
-  exact ⟨z, (he_scat.seq ((he_il₀.seq hl_il).seq (he_mg₀.seq hl_mg))).mono (by nlinarith),
-    hout_z, hfit_out⟩
-
-private theorem exec_maxAntichainTail {w : ℕ} (inst : PosetInstance)
-    (hw : Fits w inst.wordBound) (y : Data 34)
-    (hby : BaseRegs (posetSparse inst) (2 + inst.n * inst.n) y)
-    (hmate_y : ∀ v : Fin inst.n,
-      y.mem ((2 + inst.n * inst.n) + inst.n + 1 + (posetSparse inst).numEdges + v.val) =
-        match vget (posetLoopRes inst).mate v with
-        | some u => u.val
-        | none => inst.n)
-    (hdist_y : ∀ u : Fin inst.n,
-      y.mem ((2 + inst.n * inst.n) + inst.n + 1 + (posetSparse inst).numEdges +
-          inst.n + inst.n + u.val) =
-        match vget (posetLoopRes inst).dist u with
-        | none => 0
-        | some j => j + 1) :
-    ∃ z, ExecWithin w maxAntichainTail y z (16 * inst.n + 6) ∧
-      outputList z.mem (z.regs outBase) = inst.antichainList ∧
-      Fits w (z.regs outBase + inst.antichainList.length) := by
-  have hE_le : (posetSparse inst).numEdges ≤ inst.n * inst.n := inst.toDense.numEdges_toSparse_le
-  have hfit_all : Fits w ((2 + inst.n * inst.n) + 7 * inst.n + 6 * inst.n +
-      (posetSparse inst).numEdges + 8) :=
-    hw.of_le (by unfold PosetInstance.wordBound; nlinarith)
-  let hk := hopcroftKarpDense inst.lt
-  have hs_graph : (posetSparse inst).graph = inst.lt := inst.toDense.toSparse_graph
-  have hhk_eq : hk = hopcroftKarp (posetSparse inst).graph (posetSparse inst).adj := by
-    change hopcroftKarpDense inst.lt = hopcroftKarp (posetSparse inst).graph (exactBipAdj inst.lt)
-    rw [← hopcroftKarp_exactBipAdj inst.lt, hs_graph]
-  have huncov_iff : ∀ i : Fin inst.n,
-      i ∈ hk.cover.uncovered ↔
-        vget (posetLoopRes inst).dist i ≠ none ∧
-          ∀ w₀ : Fin inst.n, vget (posetLoopRes inst).mate i = some w₀ →
-            vget (posetLoopRes inst).dist w₀ = none := by
-    intro i
-    rw [mem_uncovered, hhk_eq]
-    unfold hopcroftKarp posetLoopRes
-    simp only [mem_foldl_hkCoverLeftStep, mem_foldl_hkCoverRightStep, Finset.notMem_empty,
-      List.mem_finRange, true_and, false_or, not_exists, not_and, Classical.not_not]
-  let ac (t : ℕ) : List ℕ :=
-    (((List.finRange inst.n).take t).filter fun i => decide (i ∈ hk.cover.uncovered)).map Fin.val
-  have hac_len : ∀ t : ℕ, (ac t).length ≤ t := fun t => by
-    calc (ac t).length
-      _ = (((List.finRange inst.n).take t).filter _).length := List.length_map _
-      _ ≤ ((List.finRange inst.n).take t).length := List.length_filter_le _ _
-      _ ≤ t := List.length_take_le _ _
-  let bCol := (2 + inst.n * inst.n) + inst.n + 1 + (posetSparse inst).numEdges
-  let bDist := (2 + inst.n * inst.n) + inst.n + 1 + (posetSparse inst).numEdges + inst.n + inst.n
-  let bOut := (2 + inst.n * inst.n) + inst.n + 1 + (posetSparse inst).numEdges +
-    4 * inst.n + 6 * inst.n + 6
-  have hcol_lt_out : bCol + inst.n ≤ bOut := by dsimp only [bCol, bOut]; omega
-  have hdist_lt_out : bDist + inst.n ≤ bOut := by dsimp only [bDist, bOut]; omega
-  have hby_rm : y.regs rm = inst.n := hby.hrm
-  have hs₀ : ∃ s₀, ExecWithin w (ram[ acc ← #0; idx ← #0 ] : Code .standard 34) y s₀ 2 ∧
-      s₀ = (y.set acc 0).set idx 0 := by
-    refine WP.exists_execWithin ?_; wram_exec; rfl
-  obtain ⟨s₀, he₀, rfl⟩ := hs₀
-  let PA (t : ℕ) (w_st : Data 34) : Prop :=
-    t ≤ inst.n ∧
-      (∀ i : Fin 34, i.val < 19 → w_st.regs i = y.regs i) ∧
-      w_st.regs acc = (ac t).length ∧
-      (∀ k : ℕ, (hk_len : k < (ac t).length) → w_st.mem (bOut + 1 + k) = (ac t)[k]'hk_len) ∧
-      (∀ a, ¬(bOut + 1 ≤ a ∧ a < bOut + 1 + t) → w_st.mem a = y.mem a)
-  have hPA₀ : PA 0 ((y.set acc 0).set idx 0) :=
-    ⟨Nat.zero_le _, fun i hi => by wram_simp, by wram_simp; simp [ac],
-      fun _ hk_len => absurd hk_len (by simp [ac]), fun _ _ => rfl⟩
-  have hacBody (w_st : Data 34) (hw_st : PA (w_st.regs idx) w_st)
-      (hlt : w_st.regs idx < inst.n) :
-      ∃ w', ExecWithin w maxAntichainBody w_st w' 14 ∧ PA (w_st.regs idx + 1) w' ∧
-        w'.regs idx = w_st.regs idx + 1 := by
-    obtain ⟨_, hr_a, hacc_a, hblk_a, hf_a⟩ := hw_st
-    have hbw : BaseRegs (posetSparse inst) (2 + inst.n * inst.n) w_st := hby.of_eq hr_a
-    have hbw_dist : w_st.regs bDistReg = bDist := hbw.hbDist
-    have hbw_col : w_st.regs bColMateReg = bCol := hbw.hbColMate
-    have hbw_ob : w_st.regs outBase = bOut := hbw.houtBase
-    have hbw_rm : w_st.regs rm = inst.n := hbw.hrm
-    let i₀ : Fin inst.n := ⟨w_st.regs idx, hlt⟩
-    have hac_le : (ac (w_st.regs idx)).length ≤ w_st.regs idx := hac_len (w_st.regs idx)
-    have hdi₀ : w_st.mem (bDist + w_st.regs idx) =
-        match vget (posetLoopRes inst).dist i₀ with | none => 0 | some j => j + 1 := by
-      rw [hf_a _ (by omega)]
-      exact hdist_y i₀
-    have hmi₀ : w_st.mem (bCol + w_st.regs idx) =
-        match vget (posetLoopRes inst).mate i₀ with | some u => u.val | none => inst.n := by
-      rw [hf_a _ (by omega)]
-      exact hmate_y i₀
-    have hf_di : Fits w (bDist + w_st.regs idx) :=
-      hfit_all.of_le (by dsimp only [bDist]; omega)
-    have hf_mi : Fits w (bCol + w_st.regs idx) :=
-      hfit_all.of_le (by dsimp only [bCol]; omega)
-    have hf_o1 : Fits w (bOut + 1) := hfit_all.of_le (by dsimp only [bOut]; omega)
-    have hf_oa : Fits w ((bOut + 1) + (ac (w_st.regs idx)).length) :=
-      hfit_all.of_le (by dsimp only [bOut]; omega)
-    have hf_a1 : Fits w ((ac (w_st.regs idx)).length + 1) := hfit_all.of_le (by omega)
-    have hf_idx1 : Fits w (w_st.regs idx + 1) := hfit_all.of_le (by omega)
-    have hac_succ : ac (w_st.regs idx + 1) =
-        if i₀ ∈ hk.cover.uncovered then ac (w_st.regs idx) ++ [i₀.val]
-        else ac (w_st.regs idx) := by
-      dsimp only [ac]
-      rw [List.take_succ_finRange hlt, List.filter_append, List.map_append]
-      by_cases h : i₀ ∈ hk.cover.uncovered <;> simp [i₀, h]
-    have emit_proof (hunc : i₀ ∈ hk.cover.uncovered) :
-        ∀ (w' : Data 34),
-          (∀ i : Fin 34, i.val < 19 → w'.regs i = w_st.regs i) →
-          w'.regs acc = (ac (w_st.regs idx)).length + 1 →
-          w'.regs idx = w_st.regs idx + 1 →
-          w'.mem = Function.update w_st.mem
-            ((bOut + 1) + (ac (w_st.regs idx)).length) (w_st.regs idx) →
-          PA (w_st.regs idx + 1) w' ∧ w'.regs idx = w_st.regs idx + 1 := by
-      intro w' hr' hacc' hidx' hmem'
-      have hac_s : ac (w_st.regs idx + 1) = ac (w_st.regs idx) ++ [i₀.val] := by
-        rw [hac_succ, ite_eq_left hunc]
-      refine ⟨⟨by omega, fun i hi => (hr' i hi).trans (hr_a i hi),
-        by rw [hacc', hac_s, List.length_append, List.length_singleton],
-        fun k hk_len => ?_, fun a ha => ?_⟩, hidx'⟩
-      · have hk_lt1 : k < (ac (w_st.regs idx)).length + 1 := by
-          have hk' := hk_len
-          rwa [hac_s, List.length_append, List.length_singleton] at hk'
-        simp only [hac_s]
-        by_cases hk_old : k < (ac (w_st.regs idx)).length
-        · rw [List.getElem_append_left hk_old, hmem', Function.update_of_ne (by omega)]
-          exact hblk_a k hk_old
-        · have hk_eq : k = (ac (w_st.regs idx)).length := by omega
-          subst hk_eq
-          rw [List.getElem_append_right (le_refl _), hmem', Function.update_self]
-          simp [i₀]
-      · rw [hmem', Function.update_of_ne (by omega)]
-        exact hf_a a (by omega)
-    have skip_proof (hnunc : i₀ ∉ hk.cover.uncovered) :
-        ∀ (w' : Data 34),
-          (∀ i : Fin 34, i.val < 19 → w'.regs i = w_st.regs i) →
-          w'.regs acc = (ac (w_st.regs idx)).length →
-          w'.regs idx = w_st.regs idx + 1 →
-          w'.mem = w_st.mem →
-          PA (w_st.regs idx + 1) w' ∧ w'.regs idx = w_st.regs idx + 1 := by
-      intro w' hr' hacc' hidx' hmem'
-      have hac_s : ac (w_st.regs idx + 1) = ac (w_st.regs idx) := by
-        rw [hac_succ, ite_eq_right hnunc]
-      refine ⟨⟨by omega, fun i hi => (hr' i hi).trans (hr_a i hi),
-        by rw [hacc', hac_s], fun k hk_len => ?_,
-        fun a ha => by rw [hmem']; exact hf_a a (by omega)⟩, hidx'⟩
-      have hk' : k < (ac (w_st.regs idx)).length := by rwa [← hac_s]
-      rw [hmem']
-      simpa [hac_s] using hblk_a k hk'
-    refine WP.exists_execWithin ?_
-    unfold maxAntichainBody
-    cases hd_i : vget (posetLoopRes inst).dist i₀ with
-    | none =>
-      rw [hd_i] at hdi₀
-      have hnunc : i₀ ∉ hk.cover.uncovered := fun h => ((huncov_iff i₀).mp h).1 hd_i
-      wram_exec [hbw_dist, hbw.hzero, hbw.hone, hdi₀, hf_di, hf_idx1]
-      exact skip_proof hnunc _ (fun _ _ => by wram_simp) (by wram_simp [hacc_a])
-        (by wram_simp) rfl
-    | some j =>
-      rw [hd_i] at hdi₀
-      have hpos : 0 < j + 1 := Nat.succ_pos j
-      cases hm_i : vget (posetLoopRes inst).mate i₀ with
-      | none =>
-        rw [hm_i] at hmi₀
-        have hnl : ¬inst.n < inst.n := Nat.lt_irrefl _
-        have hunc : i₀ ∈ hk.cover.uncovered := (huncov_iff i₀).mpr ⟨by simp [hd_i],
-          fun _ hw₀ => by rw [hm_i] at hw₀; cases hw₀⟩
-        wram_exec [hbw_dist, hbw_col, hbw_ob, hbw_rm, hbw.hzero, hbw.hone,
-          hacc_a, hdi₀, hpos, hmi₀, hnl, hf_di, hf_mi, hf_o1, hf_oa, hf_a1, hf_idx1]
-        exact emit_proof hunc _ (fun _ _ => by wram_simp) (by wram_simp) (by wram_simp) rfl
-      | some w₀ =>
-        have hw₀_lt : w₀.val < inst.n := w₀.isLt
-        rw [hm_i] at hmi₀
-        have hdw₀ : w_st.mem (bDist + w₀.val) =
-            match vget (posetLoopRes inst).dist w₀ with | none => 0 | some j' => j' + 1 := by
-          rw [hf_a _ (by omega)]
-          exact hdist_y w₀
-        have hf_dw : Fits w (bDist + w₀.val) :=
-          hfit_all.of_le (by dsimp only [bDist]; omega)
-        cases hd_w : vget (posetLoopRes inst).dist w₀ with
-        | none =>
-          rw [hd_w] at hdw₀
-          have hunc : i₀ ∈ hk.cover.uncovered := (huncov_iff i₀).mpr ⟨by simp [hd_i],
-            fun w' hw' => by rw [hm_i] at hw'; obtain ⟨rfl⟩ := hw'; exact hd_w⟩
-          wram_exec [hbw_dist, hbw_col, hbw_ob, hbw_rm, hbw.hzero, hbw.hone,
-            hacc_a, hdi₀, hpos, hmi₀, hw₀_lt, hdw₀,
-            hf_di, hf_mi, hf_dw, hf_o1, hf_oa, hf_a1, hf_idx1]
-          exact emit_proof hunc _ (fun _ _ => by wram_simp) (by wram_simp) (by wram_simp) rfl
-        | some j' =>
-          rw [hd_w] at hdw₀
-          have hne0 : j' + 1 ≠ 0 := Nat.succ_ne_zero j'
-          have hnunc : i₀ ∉ hk.cover.uncovered := fun h => by
-            have := ((huncov_iff i₀).mp h).2 w₀ hm_i
-            rw [hd_w] at this
-            cases this
-          wram_exec [hbw_dist, hbw_col, hbw_rm, hbw.hzero, hbw.hone,
-            hdi₀, hpos, hmi₀, hw₀_lt, hdw₀, hne0, hf_di, hf_mi, hf_dw, hf_idx1]
-          exact skip_proof hnunc _ (fun _ _ => by wram_simp) (by wram_simp [hacc_a])
-            (by wram_simp) rfl
-  obtain ⟨y₁, hl_ac, hPAn, _⟩ := ExecWithin.loop_count PA
-    (fun w_st hw_st => (hw_st.2.1 rm (by decide)).trans hby_rm) hacBody
-    (x := (y.set acc 0).set idx 0) (by simp) (by simpa using hPA₀)
-  obtain ⟨_, hr₁, hacc₁, hblk₁, _⟩ := hPAn
-  have hb₁ : BaseRegs (posetSparse inst) (2 + inst.n * inst.n) y₁ := hby.of_eq hr₁
-  have hb₁_ob : y₁.regs outBase = bOut := hb₁.houtBase
-  have hac_full : ac inst.n = inst.antichainList := by
-    dsimp only [ac, PosetInstance.antichainList, hk]
-    rw [List.take_of_length_le (by simp)]
-  have hf_ob : Fits w bOut := hfit_all.of_le (by dsimp only [bOut]; omega)
-  have htail : ∃ z, ExecWithin w
-      (ram[ addr ← outBase; *addr ← acc ] : Code .standard 34) y₁ z 2 ∧
-      z = (y₁.set addr bOut).write bOut inst.antichainList.length := by
-    refine WP.exists_execWithin ?_
-    rw [hac_full] at hacc₁
-    wram_exec [hb₁_ob, hacc₁, hf_ob]
-    rfl
-  obtain ⟨z, he_tail, rfl⟩ := htail
-  let z := (y₁.set addr bOut).write bOut inst.antichainList.length
-  have hbz : BaseRegs (posetSparse inst) (2 + inst.n * inst.n) z :=
-    hb₁.of_eq fun i hi => by dsimp only [z]; wram_simp
-  have hbz_ob : z.regs outBase = bOut := hbz.houtBase
-  have hout_z : outputList z.mem (z.regs outBase) = inst.antichainList := by
-    rw [hbz_ob, outputList_eq_iff]
-    refine ⟨by dsimp only [z]; wram_simp, fun i => ?_⟩
-    have hi_val : i.val < inst.antichainList.length := i.isLt
-    have hi_ac : i.val < (ac inst.n).length := by rwa [hac_full]
-    change z.mem (bOut + 1 + i.val) = inst.antichainList[i.val]'hi_val
-    have hmem_i : z.mem (bOut + 1 + i.val) = y₁.mem (bOut + 1 + i.val) := by
-      dsimp only [z]; wram_simp
-    rw [hmem_i]
-    simpa [hac_full] using hblk₁ i.val hi_ac
-  have hac_le_n : inst.antichainList.length ≤ inst.n := by
-    rw [← hac_full]; exact hac_len inst.n
-  have hfit_out : Fits w (z.regs outBase + inst.antichainList.length) := by
-    rw [hbz_ob]
-    exact hfit_all.of_le (by dsimp only [bOut]; omega)
-  exact ⟨z, (he₀.seq (hl_ac.seq he_tail)).mono (by simp; omega), hout_z, hfit_out⟩
-
-/-- **`O(n^{5/2})` Word-RAM minimum chain cover labels (`ExecutesList`).** -/
-theorem executesList_chainLabels {w : ℕ} (inst : PosetInstance) (hw : Fits w inst.wordBound) :
-    ∃ steps, ExecutesList w chainLabelsProgram (.init inst.encode) inst.chainLabelsList steps ∧
-      steps ≤ chainCoverTime inst.n := by
-  obtain ⟨y, he_core, hby, hmate_y, _⟩ := exec_posetCoreCode inst hw
-  obtain ⟨z, he_tail, hout, hfit⟩ := exec_chainLabelsTail inst hw y hby hmate_y
-  obtain ⟨t, ht, hex⟩ := he_core.seq he_tail
-  refine ⟨t + 1, hout ▸ hex.executesList outBase (by rwa [hout]), ?_⟩
-  unfold chainCoverTime at *
-  nlinarith
-
-/-- **`Program.ComputesListInTime` form of `executesList_chainLabels`.** -/
-theorem computesListInTime_chainLabels :
-    chainLabelsProgram.ComputesListInTime (fun _ inst => inst.encode)
-      (fun inst _ => chainCoverTime inst.n) (fun inst w => Fits w inst.wordBound)
-      PosetInstance.chainLabelsList :=
-  fun inst _ hw _ => executesList_chainLabels inst hw
-
-/-- **`O(n^{5/2})` Word-RAM maximum antichain (`ExecutesList`).** -/
-theorem executesList_maxAntichain {w : ℕ} (inst : PosetInstance) (hw : Fits w inst.wordBound) :
-    ∃ steps, ExecutesList w maxAntichainProgram (.init inst.encode) inst.antichainList steps ∧
-      steps ≤ chainCoverTime inst.n := by
-  obtain ⟨y, he_core, hby, hmate_y, hdist_y⟩ := exec_posetCoreCode inst hw
-  obtain ⟨z, he_tail, hout, hfit⟩ := exec_maxAntichainTail inst hw y hby hmate_y hdist_y
-  obtain ⟨t, ht, hex⟩ := he_core.seq he_tail
-  refine ⟨t + 1, hout ▸ hex.executesList outBase (by rwa [hout]), ?_⟩
-  unfold chainCoverTime at *
-  nlinarith
-
-/-- **`Program.ComputesListInTime` form of `executesList_maxAntichain`.** -/
-theorem computesListInTime_maxAntichain :
-    maxAntichainProgram.ComputesListInTime (fun _ inst => inst.encode)
-      (fun inst _ => chainCoverTime inst.n) (fun inst w => Fits w inst.wordBound)
-      PosetInstance.antichainList :=
-  fun inst _ hw _ => executesList_maxAntichain inst hw
 
 end Cslib.Algorithms.WordRAM.HopcroftKarp
