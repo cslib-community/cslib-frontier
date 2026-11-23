@@ -388,6 +388,7 @@ public import CslibFrontier.Algorithms.WordRAM.CSR
 public import CslibFrontier.Algorithms.WordRAM.CYK
 public import CslibFrontier.Algorithms.WordRAM.ChainCover
 public import CslibFrontier.Algorithms.WordRAM.ClauseCode
+public import CslibFrontier.Algorithms.WordRAM.DFS
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Program
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Scan
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Solver
@@ -3622,6 +3623,7 @@ public import CslibFrontier.Computability.Kolmogorov.TimeBounded.PolyTime
 public import CslibFrontier.Computability.Kolmogorov.Uncomputability
 public import CslibFrontier.Computability.Kolmogorov.UniversalMachine
 public import CslibFrontier.Computability.Languages.ChomskyNormalForm
+public import CslibFrontier.Computability.Languages.Copy
 public import CslibFrontier.Computability.Languages.DeterministicContextFree
 public import CslibFrontier.Computability.Languages.RegularLanguage
 public import CslibFrontier.Computability.Languages.Slice
@@ -4557,8 +4559,10 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Wi
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedInit
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedParts
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.BoundedCrossings
+public import CslibFrontier.Computability.Machines.Turing.SingleTape.Copy
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.CrossingSequence
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.Decision
+public import CslibFrontier.Computability.Machines.Turing.SingleTape.FoolingSet
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.NLogNGap
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.Palindrome
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.Partrec

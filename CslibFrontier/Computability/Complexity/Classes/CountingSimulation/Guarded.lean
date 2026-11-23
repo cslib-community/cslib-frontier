@@ -30,6 +30,8 @@ Appendix D.4 then needs to be fast only on networks passing the guard.
 
 ## Main definitions
 
+* `Cslib.Complexity.CountingSimulation.encExplicitRowNetwork`: encoding of a row count paired with
+  an explicit tensor network.
 * `Cslib.Complexity.CountingSimulation.ContractionAlgorithm.ofGuarded`: the assembled algorithm.
 
 ## References
@@ -44,8 +46,10 @@ namespace Cslib.Complexity.CountingSimulation
 open Cslib.Circuits.Frontier Cslib.Circuits.Frontier.ExplicitTensorNetwork Cslib.GenericRAM
   Turing.MultiTapeTM
 
-/-- The encoding of an explicit network with its number of rows. -/
-local notation "encG" => encPair encNat encExplicitNetwork
+/-- Encoding of a row-indexed explicit tensor network `(r, G)`: the binary row count `r`
+(`encNat`), framed, followed by the unframed explicit network `G` (`encExplicitNetwork`). -/
+abbrev encExplicitRowNetwork : ℕ × ExplicitTensorNetwork ℕ ↪ List Bool :=
+  encPair encNat encExplicitNetwork
 
 /-- Absorb a constant factor and a smaller exponent: `c₁ (n + 1) ^ e₁ + c₂ (n + 1) ^ e₂ 2 ^ x ≤
 K (n + 1) ^ K 2 ^ x` for `c₁ + c₂ ≤ K` and `e₁, e₂ ≤ K`. -/
@@ -73,28 +77,30 @@ or to direct summation is a contraction algorithm. -/
 noncomputable def ContractionAlgorithm.ofGuarded
     {Adm : ℕ → ℕ → ℕ × ExplicitTensorNetwork ℕ → Prop}
     {guard : ℕ × ExplicitTensorNetwork ℕ → Bool}
-    (hguard : ComputableInPolyTime guard encG encBool)
+    (hguard : ComputableInPolyTime guard encExplicitRowNetwork encBool)
     {f : ℕ × (ℕ × ExplicitTensorNetwork ℕ) → ℕ}
-    (fast : NativeCertificate f (encPair encNat encG) encNat)
+    (fast : NativeCertificate f (encPair encNat encExplicitRowNetwork) encNat)
     (hcorrect : ∀ P G, guard G = true → f (P, G) = G.2.contraction % 2 ^ P)
     (hbound : ∀ C D : ℕ, ∃ K : ℕ, ∀ (s P : ℕ) (G : ℕ × ExplicitTensorNetwork ℕ), 2 ≤ s →
       1 ≤ P → P ≤ D * s → Adm C s G → guard G = true →
-      fast.time (P, G) ≤ K * ((encPair encNat encG (P, G)).length + 1) ^ K *
+      fast.time (P, G) ≤ K * ((encPair encNat encExplicitRowNetwork (P, G)).length + 1) ^ K *
           2 ^ (K * s / Nat.sqrt (Nat.log 2 s)) ∧
-        fast.space (P, G) ≤ K * ((encPair encNat encG (P, G)).length + 1) ^ K)
+        fast.space (P, G) ≤
+          K * ((encPair encNat encExplicitRowNetwork (P, G)).length + 1) ^ K)
     (hedges : ∀ C s G, Adm C s G → G.2.numEdges ≤ C * s)
     (hsmall : ∀ C, ∃ s₀, ∀ s G, Adm C s G → guard G = false → s ≤ s₀) :
-    ContractionAlgorithm encG (fun G => G.2.contraction) Adm where
+    ContractionAlgorithm encExplicitRowNetwork (fun G => G.2.contraction) Adm where
   certificate :=
     (NativeCertificate.branch
-      (NativeCertificate.ofPolyTime (hguard.comp (ComputableInPolyTime.snd encNat encG)))
+      (NativeCertificate.ofPolyTime
+        (hguard.comp (ComputableInPolyTime.snd encNat encExplicitRowNetwork)))
       fast directContractionBinaryCertificate).congr fun p => by
         split
         · next h => exact hcorrect p.1 p.2 h
         · rfl
   bound C D := by
     have ht := NativeCertificate.ofPolyTime_isPolynomial
-      (hguard.comp (ComputableInPolyTime.snd encNat encG))
+      (hguard.comp (ComputableInPolyTime.snd encNat encExplicitRowNetwork))
     obtain ⟨ct, dt, hct⟩ := ht.1.exists_le
     obtain ⟨cs, ds, hcs⟩ := ht.2.exists_le
     obtain ⟨K₁, hK₁⟩ := hbound C D
@@ -106,16 +112,19 @@ noncomputable def ContractionAlgorithm.ofGuarded
     have hcs' := hcs (P, G)
     obtain ⟨hdt, hds⟩ := hK₂ (P, G)
     have hfast : guard G = true →
-        fast.time (P, G) ≤ K₁ * ((encPair encNat encG (P, G)).length + 1) ^ K₁ *
+        fast.time (P, G) ≤ K₁ * ((encPair encNat encExplicitRowNetwork (P, G)).length + 1) ^ K₁ *
             2 ^ (K₁ * s / Nat.sqrt (Nat.log 2 s)) ∧
-          fast.space (P, G) ≤ K₁ * ((encPair encNat encG (P, G)).length + 1) ^ K₁ :=
+          fast.space (P, G) ≤
+            K₁ * ((encPair encNat encExplicitRowNetwork (P, G)).length + 1) ^ K₁ :=
       hK₁ s P G hs hP hPD hA
-    set n := (encPair encNat encG (P, G)).length
-    change (NativeCertificate.ofPolyTime (hguard.comp (ComputableInPolyTime.snd encNat encG))).time
-        (P, G) + (if guard G = true then fast.time (P, G)
+    set n := (encPair encNat encExplicitRowNetwork (P, G)).length
+    change (NativeCertificate.ofPolyTime
+        (hguard.comp (ComputableInPolyTime.snd encNat encExplicitRowNetwork))).time (P, G) +
+        (if guard G = true then fast.time (P, G)
           else directContractionBinaryCertificate.time (P, G)) ≤ _ ∧
-      (NativeCertificate.ofPolyTime (hguard.comp (ComputableInPolyTime.snd encNat encG))).space
-        (P, G) + (if guard G = true then fast.space (P, G)
+      (NativeCertificate.ofPolyTime
+        (hguard.comp (ComputableInPolyTime.snd encNat encExplicitRowNetwork))).space (P, G) +
+        (if guard G = true then fast.space (P, G)
           else directContractionBinaryCertificate.space (P, G)) ≤ _
     have hpowK {e : ℕ} (he : e ≤ K) : (n + 1) ^ e ≤ (n + 1) ^ K := by gcongr
     cases hg : guard G

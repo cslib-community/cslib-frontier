@@ -104,6 +104,11 @@ Noga Alon and Joel H. Spencer. *The Probabilistic Method*, 4th edition. Wiley, 2
 
 Noga Alon, Raphael Yuster, Uri Zwick. "Color-Coding." *Journal of the ACM* 42(4), 844–856, 1995. https://doi.org/10.1145/210332.210337 . Bibliographic data from the DOI record. The locator Lemma 3.1 (colorful paths by dynamic programming over color sets) was taken from secondary descriptions; the full text was not inspected in this pass.
 
+<a id="alrabiahgoodmanmosheiffribeiro2025"></a>
+## alrabiahgoodmanmosheiffribeiro2025
+
+Omar Alrabiah, Jesse Goodman, Jonathan Mosheiff and João Ribeiro. *Low-Degree Polynomials Are Good Extractors*. APPROX/RANDOM 2025. https://doi.org/10.4230/LIPIcs.APPROX/RANDOM.2025.38 . Locators follow ECCC TR24-093, revision 1, https://eccc.weizmann.ac.il/report/2024/093/revision/1/download/ . Checked directly on 2026-11-22: Theorem 2 (printed p. 8) gives random degree-`d` sumset extractors for `k ≥ C d (n / ε²)^(1/⌊d/2⌋)`; for `d = 4` and `ε = n^(-β)`, `β < 1/2`, its threshold is sublinear. Cited in `PolynomialWitness.lean` for prior existence; that module proves coordinate-rectangle estimates and frontier applications, not the full sumset theorem or a uniform construction.
+
 <a id="ambainis02"></a>
 ## ambainis02
 
@@ -1737,7 +1742,7 @@ Carsten Lund, Lance Fortnow, Howard Karloff and Noam Nisan. *Algebraic Methods f
 <a id="li2023"></a>
 ## li2023
 
-Xin Li. *Two Source Extractors for Asymptotically Optimal Entropy, and (Many) More*. FOCS 2023, 1271–1281. https://doi.org/10.1109/FOCS57990.2023.00075 . Bibliographic metadata checked; secondary search summaries indicate Definition 3.1 (affine sources), Lemma 3.9 (affine conditioning), Lemma 3.10 (block decomposition), Theorem 7.13 (sumset extractor), and Corollary 7.14 in preprint versions, while the full primary PDF was not read line by line, so individual numbered locators in `AffineSource.lean` remain unverified against the typeset FOCS version.
+Xin Li. *Two Source Extractors for Asymptotically Optimal Entropy, and (Many) More*. FOCS 2023, 1271–1281. https://doi.org/10.1109/FOCS57990.2023.00075 . `SumsetBridge.lean` uses ECCC TR23-023, revision 1, https://eccc.weizmann.ac.il/report/2023/023/revision/1/download/ , checked directly on 2026-11-22: Definition 1.1 (printed p. 1, explicit means polynomial-time computable) and Theorem 7.13 (printed p. 36, a one-bit sumset extractor at entropy `c(ε) log n` for every fixed error `ε > 0`). Formalizing that construction remains the [explicit frontier extractor objective](../roadmap/circuits.md). The fixed-error statement alone does not provide one family with vanishing error. Other numbered locators in `AffineSource.lean`, previously taken from secondary descriptions, remain unverified against the typeset FOCS version.
 
 <a id="lindell17"></a>
 ## lindell17
@@ -1924,10 +1929,15 @@ Ilya Mironov. "Rényi Differential Privacy." *2017 IEEE 30th Computer Security F
 
 L. Mirsky. "A Dual of Dilworth's Decomposition Theorem." *The American Mathematical Monthly* 78(8), 876–877, 1971. https://doi.org/10.1080/00029890.1971.11992886 . Bibliographic metadata from search summaries, checked on 2026-11-08; the paper is paywalled and was not inspected. The library attributes to it only the finite chain–antichain duality, whose formal statement and height-function proof follow [Schrijver's lecture notes](#schrijver17), Theorem 7.5.
 
+<a id="mishrasanthanam2026revision1"></a>
+## mishrasanthanam2026revision1
+
+Om Swostik Mishra and Rahul Santhanam. *An Explicit `4n - O(log n)` Size Lower Bound against General Boolean Circuits*. ECCC TR26-260, revision 1, 2026. https://eccc.weizmann.ac.il/report/2026/260/revision/1/download/ . Checked directly on 2026-11-22: Theorem 1.1 (printed p. 2, an explicit `P` lower bound), Theorem 4.1 (printed p. 21, the `4n - 10d` affine-disperser bound and a `poly(n, 2^d)` refuter for polynomial-time dispersers), and Remark 4.3 (printed p. 26, coefficient-`4` optimality for the paper's `s + βq + αI` potential estimates). The `4n - 9d`, binary-cost and bigraded-potential results in `AffineDisperser4n.lean` and `AffineDisperser4n/Corollary.lean` are local refinements, not the cited endpoints. This check does not identify the inaccessible STOC submission with this revision or verify every intermediate lemma attribution.
+
 <a id="mishrasanthanam2027"></a>
 ## mishrasanthanam2027
 
-Om Swostik Mishra and Rahul Santhanam. *An Explicit `4n - O(log n)` Size Lower Bound against General Boolean Circuits*. STOC 2027 submission 1241, 2027. https://stoc2027.sigact-ec.workers.dev/submissions/1241.pdf . The submission PDF was inaccessible in this pass (HTTP error 1042) and was not inspected directly; bibliographic details and cited labels (`Lemma 2.2`, `Theorem 4.1`, `Lemma 4.2`, `Remark 4.3`, and the `Theorem 1.1` target) come from repository issue `#4322` and remain unverified against the primary manuscript.
+Om Swostik Mishra and Rahul Santhanam. *An Explicit `4n - O(log n)` Size Lower Bound against General Boolean Circuits*. STOC 2027 submission 1241, 2027. https://stoc2027.sigact-ec.workers.dev/submissions/1241.pdf . The submission PDF was inaccessible in this pass (HTTP error 1042) and was not inspected directly; bibliographic details and cited labels (`Lemma 2.2`, `Theorem 4.1`, `Lemma 4.2`, `Remark 4.3`, and the `Theorem 1.1` target) come from repository issue `#4322` and remain unverified against that submission. The separately checked public revision is recorded in [mishrasanthanam2026revision1](#mishrasanthanam2026revision1).
 
 <a id="mishrasanthanam26"></a>
 ## mishrasanthanam26

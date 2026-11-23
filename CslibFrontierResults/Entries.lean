@@ -5985,23 +5985,43 @@ register_result "bareiss-rational-elimination-polytime" where
     rational elimination in binary input encoding size. Bounded milestone of Issue #3672 \
     (circulant spectra and fibre-sum bounds remain open there)."
 
-register_result "kosaraju-scc" where
-  title := "Kosaraju's linear-time strongly connected components and condensation order"
+register_result "topological-sort" where
+  title := "Depth-first-search topological sort iff acyclic"
   topic := "algorithms"
   sources := [
-    { paper := CLRS2009, theorem := unverified, locator := unverified }
+    { paper := CLRS2009, theorem := "§22.4 TOPOLOGICAL-SORT and Theorem 22.12",
+      locator := "3rd ed., §22.4 TOPOLOGICAL-SORT & cost paragraph (printed p. 613) and \
+        Theorem 22.12 (p. 614)" }
+  ]
+  theorems := [
+    Cslib.Algorithms.Lean.DFS.isTopologicalOrder_topologicalSort_iff,
+    Cslib.Algorithms.Lean.DFS.acyclic_iff_exists_isTopologicalOrder
+  ]
+  scope := "Pure reverse-DFS-finishing-order topological sort on adjacency lists adj : V → List V, \
+    requiring a supplied vertex list vs covering all vertices (∀ v, v ∈ vs). Whereas CLRS proves \
+    correctness on DAGs, Lean returns reverse DFS finishing order on every graph and proves it is \
+    a topological order if and only if the graph is acyclic. Linear-time standard-basis Word-RAM \
+    execution is registered separately in topological-sort-wordram."
+
+register_result "kosaraju-scc" where
+  title := "Kosaraju's strongly connected components and condensation order"
+  topic := "algorithms"
+  sources := [
+    { paper := CLRS2009, theorem := "§22.5 STRONGLY-CONNECTED-COMPONENTS and Theorem 22.16",
+      locator := "3rd ed., §22.5 STRONGLY-CONNECTED-COMPONENTS & cost paragraph (p. 617), \
+        Theorem 22.16 (pp. 619–620), and condensation-order paragraph (p. 620)" }
   ]
   theorems := [
     Cslib.Algorithms.Lean.DFS.isSCCCondensation_sccs,
-    Cslib.Algorithms.Lean.DFS.time_sccsM_of_nodup,
     Cslib.Algorithms.Lean.DFS.IsSCCCondensation.indexComponents_eq_iff,
     Cslib.Algorithms.Lean.DFS.IsSCCCondensation.indexComponents_le_of_edge
   ]
-  scope := "Two-pass Kosaraju SCC decomposition on adjacency lists adj : V → List V in TimeM, \
-    returning duplicate-free mutual-reachability components in forward condensation topological \
-    order at exact cost 3 * (|vs| + ∑ v, |adj v|) for duplicate-free vertex lists covering V, \
-    plus O(|V|) component-index lookup. Visited-set membership, insertion, and function-update \
-    array steps are counted as unit-cost operations."
+  scope := "Pure two-pass Kosaraju SCC decomposition on adjacency lists adj : V → List V, \
+    requiring the supplied vertex list vs to cover all vertices (∀ v, v ∈ vs), as required by \
+    isSCCCondensation_sccs. Returns duplicate-free mutual-reachability components in forward \
+    condensation topological order, together with the component-label partition and condensation \
+    monotonicity bridges (indexComponents_eq_iff, indexComponents_le_of_edge). Linear-time \
+    standard-basis Word-RAM execution is registered separately in kosaraju-scc-wordram."
 
 register_result "selected-entries-subset-convolution" where
   title := "Selected entries of ranked subset convolution by the trimmed fast zeta transform"
