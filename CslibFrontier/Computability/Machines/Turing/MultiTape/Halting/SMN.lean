@@ -26,6 +26,14 @@ this is the s-m-n theorem for native descriptions, the counterpart of
 `d` and from the symbols of `p` by the list operations of the polynomial-time calculus, which
 `fun_prop` assembles from the fields of keys, actions and descriptions, using the shared bit
 coding rules in `CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.PolyTime`.
+The exact framed unary length of the generated description and a concrete quadratic upper bound
+are proved separately in
+`CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.SMNBounds`. The transformation is
+offline; its runtime is not part of executing the generated description.
+
+## Main definitions
+
+* `Turing.MultiTapeTM.Universal.eTable`: the encoding of transition tables.
 
 ## Main results
 
@@ -36,7 +44,7 @@ coding rules in `CslibFrontier.Computability.Machines.Turing.MultiTape.Universal
 * [M. Sipser, *Introduction to the Theory of Computation*][Sipser2013]
 -/
 
-@[expose] public section
+public section
 
 namespace Turing.MultiTapeTM.Universal
 
@@ -46,9 +54,13 @@ variable {γ : Type} {encIn : γ ↪ List Bool}
 
 /-! ### Fields of keys, actions and descriptions -/
 
+/-- Transition tables, the `table` field of `eDesc`: the concatenation of the framed entries, each
+entry the framed `eKey` of its key followed by the `eAct` of its action. -/
+abbrev eTable : List (Key × Act) ↪ List Bool := encList (encPair eKey eAct)
+
 theorem computableInPolyTime_keyFields :
     ComputableInPolyTime (fun k : Key => (k.state, k.input, k.work)) eKey
-      (encPair encUnary (encPair eSym (encList eSym))) :=
+      eKeyFields :=
   of_eq fun _ => rfl
 
 @[fun_prop]
@@ -64,19 +76,9 @@ theorem computableInPolyTime_key_work :
     ComputableInPolyTime Key.work eKey (encList eSym) :=
   ((snd _ _).comp (snd _ _)).comp computableInPolyTime_keyFields
 
-@[fun_prop]
-theorem computableInPolyTime_key_mk {state : γ → ℕ} {input : γ → Option ℕ}
-    {work : γ → List (Option ℕ)} (hstate : ComputableInPolyTime state encIn encUnary)
-    (hinput : ComputableInPolyTime input encIn eSym)
-    (hwork : ComputableInPolyTime work encIn (encList eSym)) :
-    ComputableInPolyTime (fun x => (⟨state x, input x, work x⟩ : Key)) encIn eKey :=
-  (of_eq (f := fun t : ℕ × Option ℕ × List (Option ℕ) => (⟨t.1, t.2.1, t.2.2⟩ : Key))
-    (encIn := encPair encUnary (encPair eSym (encList eSym))) (encOut := eKey)
-    fun _ => rfl).comp (hstate.prod (hinput.prod hwork))
-
 theorem computableInPolyTime_actFields :
     ComputableInPolyTime (fun a : Act => (a.inputTape, a.workTapes, a.output, a.state)) eAct
-      (encPair encSign (encPair (encList eTA) (encPair eSym eSym))) :=
+      eActFields :=
   of_eq fun _ => rfl
 
 @[fun_prop]
@@ -97,23 +99,9 @@ theorem computableInPolyTime_act_output : ComputableInPolyTime Act.output eAct e
 theorem computableInPolyTime_act_state : ComputableInPolyTime Act.state eAct eSym :=
   (((snd _ _).comp (snd _ _)).comp (snd _ _)).comp computableInPolyTime_actFields
 
-@[fun_prop]
-theorem computableInPolyTime_act_mk {inputTape : γ → SignType}
-    {workTapes : γ → List TapeAct} {output state : γ → Option ℕ}
-    (hinputTape : ComputableInPolyTime inputTape encIn encSign)
-    (hworkTapes : ComputableInPolyTime workTapes encIn (encList eTA))
-    (houtput : ComputableInPolyTime output encIn eSym)
-    (hstate : ComputableInPolyTime state encIn eSym) :
-    ComputableInPolyTime (fun x => (⟨inputTape x, workTapes x, output x, state x⟩ : Act))
-      encIn eAct :=
-  (of_eq (f := fun t : SignType × List TapeAct × Option ℕ × Option ℕ =>
-    (⟨t.1, t.2.1, t.2.2.1, t.2.2.2⟩ : Act))
-    (encIn := encPair encSign (encPair (encList eTA) (encPair eSym eSym))) (encOut := eAct)
-    fun _ => rfl).comp (hinputTape.prod (hworkTapes.prod (houtput.prod hstate)))
-
 theorem computableInPolyTime_descFields :
     ComputableInPolyTime (fun d : Desc => (d.tapes, d.q₀, d.table)) eDesc
-      (encPair encUnary (encPair encUnary (encList (encPair eKey eAct)))) :=
+      eDescFields :=
   of_eq fun _ => rfl
 
 @[fun_prop]
@@ -127,18 +115,8 @@ theorem computableInPolyTime_desc_q₀ : ComputableInPolyTime Desc.q₀ eDesc en
 
 @[fun_prop]
 theorem computableInPolyTime_desc_table :
-    ComputableInPolyTime Desc.table eDesc (encList (encPair eKey eAct)) :=
+    ComputableInPolyTime Desc.table eDesc eTable :=
   ((snd _ _).comp (snd _ _)).comp computableInPolyTime_descFields
-
-@[fun_prop]
-theorem computableInPolyTime_desc_mk {tapes q₀ : γ → ℕ} {table : γ → List (Key × Act)}
-    (htapes : ComputableInPolyTime tapes encIn encUnary)
-    (hq₀ : ComputableInPolyTime q₀ encIn encUnary)
-    (htable : ComputableInPolyTime table encIn (encList (encPair eKey eAct))) :
-    ComputableInPolyTime (fun x => (⟨tapes x, q₀ x, table x⟩ : Desc)) encIn eDesc :=
-  (of_eq (f := fun t : ℕ × ℕ × List (Key × Act) => (⟨t.1, t.2.1, t.2.2⟩ : Desc))
-    (encIn := encPair encUnary (encPair encUnary (encList (encPair eKey eAct))))
-    (encOut := eDesc) fun _ => rfl).comp (htapes.prod (hq₀.prod htable))
 
 namespace Hardwire
 
@@ -160,10 +138,10 @@ theorem redirectEntry_hardwire (e : Key × Act) :
 
 theorem computableInPolyTime_writeEntries :
     ComputableInPolyTime (fun dp : Desc × List Bool => writeEntries dp.2 dp.1.tapes)
-      (encPair eDesc encBits) (encList (encPair eKey eAct)) := by
+      (encPair eDesc encBits) eTable := by
   have hz : ComputableInPolyTime (fun dp : Desc × List Bool => dp.2.reverse.zipIdx)
       (encPair eDesc encBits) (encList (encPair encBool encUnary)) :=
-    (ComputableTidilyInPolyTime.zipIdx encBool).computableInPolyTime.comp
+    (ComputableInPolyTime.zipIdx encBool).comp
       (bitsToList.comp (bitsReverse.comp (snd _ _)))
   have hlen : ComputableInPolyTime (fun dp : Desc × List Bool => dp.2.length)
       (encPair eDesc encBits) encUnary :=
@@ -171,19 +149,19 @@ theorem computableInPolyTime_writeEntries :
   have h1 : ComputableInPolyTime (fun dp : Desc × List Bool =>
       bitSyms.map (fun r => (⟨0, r, none :: List.replicate dp.1.tapes none⟩,
         (⟨.zero, [(some (some marker), .pos)], none, some (2 * dp.2.length + 4)⟩ : Act))))
-      (encPair eDesc encBits) (encList (encPair eKey eAct)) := by
+      (encPair eDesc encBits) eTable := by
     fun_prop
   have h2 : ComputableInPolyTime (fun dp : Desc × List Bool =>
       dp.2.reverse.zipIdx.flatMap fun bi => bitSyms.map fun r =>
         (⟨2 * bi.2 + 6, r, none :: List.replicate dp.1.tapes none⟩,
           (⟨.zero, [(some (some (eBit bi.1)), .pos)], none, some (2 * bi.2 + 4)⟩ : Act)))
-      (encPair eDesc encBits) (encList (encPair eKey eAct)) := by
+      (encPair eDesc encBits) eTable := by
     fun_prop
   exact listAppend' h1 h2
 
 theorem computableInPolyTime_redirect :
     ComputableInPolyTime (fun d : Desc => redirect (fun q => 2 * q + 1) none [] 0 id d.table)
-      eDesc (encList (encPair eKey eAct)) := by
+      eDesc eTable := by
   simp only [redirect, redirectEntry_hardwire, vlift_eq_elim, vmove]
   fun_prop
 
@@ -197,24 +175,24 @@ theorem computableInPolyTime_hardwire :
       (encPair eDesc encBits) eDesc := by
   have hw := computableInPolyTime_writeEntries
   have hcopy : ComputableInPolyTime (fun dp : Desc × List Bool => copyEntries dp.1.tapes)
-      (encPair eDesc encBits) (encList (encPair eKey eAct)) := by
+      (encPair eDesc encBits) eTable := by
     unfold copyEntries
     fun_prop
   have hrew1 : ComputableInPolyTime (fun dp : Desc × List Bool =>
       bitSyms.map (fun s =>
         (⟨2, none, s :: List.replicate dp.1.tapes none⟩,
           (⟨.zero, [(none, .neg)], none, some 2⟩ : Act))))
-      (encPair eDesc encBits) (encList (encPair eKey eAct)) := by
+      (encPair eDesc encBits) eTable := by
     fun_prop
   have hrew2 : ComputableInPolyTime (fun dp : Desc × List Bool =>
       [(⟨2, none, some marker :: List.replicate dp.1.tapes none⟩,
         (⟨.zero, [(none, .pos)], none, some (2 * dp.1.q₀ + 1)⟩ : Act))])
-      (encPair eDesc encBits) (encList (encPair eKey eAct)) := by
+      (encPair eDesc encBits) eTable := by
     fun_prop
   have hr := computableInPolyTime_redirect.comp (fst eDesc encBits)
   simp only [Function.comp_def] at hr
   unfold hardwire rewindEntries
-  exact computableInPolyTime_desc_mk (by fun_prop) (const 0)
+  exact eDesc_mk_polyTime (by fun_prop) (const 0)
     (listAppend' (listAppend' (listAppend' hw hcopy) (listAppend' hrew1 hrew2)) hr)
 
 end Turing.MultiTapeTM.Universal

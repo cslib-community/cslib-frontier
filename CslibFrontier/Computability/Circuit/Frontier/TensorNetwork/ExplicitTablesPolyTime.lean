@@ -23,7 +23,13 @@ The vertices of an explicit network written by a polynomial-time construction li
 binary and their tables as bounded tables. Ports computed in unary are rewritten in binary
 (`ExplicitTensorNetwork.ports_unary_to_binary`), and a bounded table is polynomial-time whenever
 each of its entries is, since it is a map over the first `2 ^ B` numbers, a constant list
-(`ExplicitTensorNetwork.computableInPolyTime_boundedTable`).
+(`ExplicitTensorNetwork.computableInPolyTime_boundedTable`). Such a vertex is written as
+`ExplicitTensorNetwork.encVertex`.
+
+## Main definitions
+
+* `Cslib.Circuits.Frontier.ExplicitTensorNetwork.encVertex`: the encoding of a vertex of an explicit
+  network over `ℕ`.
 
 ## Main results
 
@@ -39,6 +45,12 @@ namespace Cslib.Circuits.Frontier.ExplicitTensorNetwork
 
 open Turing.MultiTapeTM ComputableInPolyTime
 
+/-- The encoding of a vertex `(ports, table)` of an explicit network over `ℕ`: its list of ports,
+framed, then its table, the entries of both framed binary numbers (`encNat`). This is
+`DescribedNetwork.encVertex (encList encNat)`, named here so that clients need not import
+`DescribedContraction`. -/
+abbrev encVertex : List ℕ × List ℕ ↪ List Bool := encPair (encList encNat) (encList encNat)
+
 variable {α : Type} {inp : α ↪ List Bool}
 
 /-- A list of numbers computed in unary, such as the ports of a vertex, is computed in binary. -/
@@ -52,8 +64,6 @@ theorem computableInPolyTime_boundedTable (B : ℕ) {w : α → ℕ} {f : α →
     (hw : ComputableInPolyTime w inp encUnary)
     (hf : ∀ idx, ComputableInPolyTime (fun a => f a idx) inp encNat) :
     ComputableInPolyTime (fun a => boundedTable B (w a) (f a)) inp (encList encNat) := by
-  unfold boundedTable
-  exact mapFilterConst _ (fun idx _ => binary_lt' (const idx) (binary_pow' (const 2) hw))
-    fun idx _ => hf idx
+  fun_prop [boundedTable]
 
 end Cslib.Circuits.Frontier.ExplicitTensorNetwork

@@ -12,8 +12,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Nor
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelComp
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.ConditionalMachine
 
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
+public import Mathlib.Tactic.FunProp
+import Mathlib.Tactic.TypeStar
 
 /-!
 # Asymptotic composition with explicit intermediate storage
@@ -31,7 +31,7 @@ Adapted from #869 by worker-claude-tidyspike-c4b0c164.
 * `ComputableInO.ite`: pay for the test and the branch actually taken.
 -/
 
-@[expose] public section
+public section
 
 namespace Turing.MultiTapeTM
 
@@ -75,6 +75,8 @@ theorem ComputableInBigO.comp {f : β → γ} {g : α → β} {T₁ S₁ : α �
 end Turing.MultiTapeTM
 
 namespace Turing.MultiTapeTM.ComputableInO
+
+attribute [fun_prop] ComputableInO
 
 variable {α β γ : Type*} {encIn : α ↪ List Bool} {encMid : β ↪ List Bool}
   {encOut : γ ↪ List Bool}

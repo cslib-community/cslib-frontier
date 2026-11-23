@@ -17,8 +17,8 @@ A structure for Mathlib's language of graphs `FirstOrder.Language.graph` is a di
 possibly with loops. It is `n`-colorable (`graph.Colorable`) when its vertices can be colored with
 `n` colors so that the two ends of every edge have different colors; a loop makes it uncolorable,
 and on simple graphs this is `SimpleGraph.Colorable`. The classes `graph.ThreeColorable` of
-three-colorable finite graph structures (3COL, loops allowed) and `graph.SimpleThreeColorable` of
-three-colorable finite simple graphs (classical 3COL) are closed under isomorphism and invariant
+three-colorable graph structures (3COL, loops allowed) and `graph.SimpleThreeColorable` of
+three-colorable simple graphs (classical 3COL) are closed under isomorphism and invariant
 under disjoint copies. Their existential second-order definability is in
 `CslibFrontier.Logics.SecondOrder.Coloring`, and the machine-level problem, on graphs encoded as
 lists
@@ -61,6 +61,11 @@ def ThreeColorable : Set (Bundled.{w} Language.graph.Structure) :=
 /-- **Classical 3COL**: the class of three-colorable simple graphs. -/
 def SimpleThreeColorable : Set (Bundled.{w} Language.graph.Structure) :=
   {M | M ⊨ Theory.simpleGraph ∧ Colorable 3 M}
+
+/-- In a palette of three colors, excluding two distinct colors determines the third. -/
+theorem eq_third_color {x y z w : Fin 3} (hx : x ≠ w) (hy : y ≠ w) (hxy : x ≠ y)
+    (hzx : z ≠ x) (hzy : z ≠ y) : z = w := by
+  lia
 
 variable {J M N : Type*} [Language.graph.Structure M] [Language.graph.Structure N] {n : ℕ}
 

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.Homomorphic.Leveled.ModularCoinTape
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Probability.BitString.UniformSplit
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -72,7 +73,8 @@ the same layout. -/
       (depth input.1) (capacity input.1) (keyCoins input.1) (encCoins input.1) input.2 seed)
     n (coins n) (depth n) (capacity n) (keyCoins n) target.1 (remaining.take choiceBudget)
   let rest := remaining.drop choiceBudget
-  let challenge := evaluateEncrypt (n, target.1, if bit then choice.1.2 else choice.1.1)
+  let challenge := evaluateEncrypt (n, target.1,
+    if bit then Encryption.ChoiceOut.msg₁ choice else Encryption.ChoiceOut.msg₀ choice)
     (rest.take (encCoins n))
   modLeveledGuessCoins evaluateChoose evaluateEncrypt evaluateGuess n (capacity n)
     (encCoins n) (chooseCoins n) (guessCoins n) choice.2 challenge (rest.drop (encCoins n))
@@ -126,7 +128,8 @@ theorem eval_game_modLeveledAdversary_eq_map_coins (E : Scheme)
   let finish := fun (target : List Bool × List Bool) (chosen : (Bool × Bool) × List Bool)
       encSeed guessSeed => modLeveledGuessCoins evaluateChoose evaluateEncrypt evaluateGuess
         n (capacity n) (encCoins n) (chooseCoins n) (guessCoins n) chosen.2
-        (evaluateEncrypt (n, target.1, if bit then chosen.1.2 else chosen.1.1) encSeed) guessSeed
+        (evaluateEncrypt (n, target.1, if bit then Encryption.ChoiceOut.msg₁ chosen
+          else Encryption.ChoiceOut.msg₀ chosen) encSeed) guessSeed
   have hchoiceReplay (target) (htarget : target ∈ (ProbComp.eval (E.keyGen n)).support) :
       ProbComp.eval ((modLeveledAdversary E coins depth capacity adversary).choose n target.1) =
         (BitString.uniformList choiceBudget).map (chooseReplay target.1) := by
@@ -148,8 +151,8 @@ theorem eval_game_modLeveledAdversary_eq_map_coins (E : Scheme)
     intro target htarget
     trans (ProbComp.eval ((modLeveledAdversary E coins depth capacity adversary).choose n
       target.1)).bind (fun chosen =>
-        (ProbComp.eval (E.encrypt n target.1
-          (if bit then chosen.1.2 else chosen.1.1))).bind (fun challenge =>
+        (ProbComp.eval (E.encrypt n target.1 (if bit then Encryption.ChoiceOut.msg₁ chosen
+          else Encryption.ChoiceOut.msg₀ chosen))).bind (fun challenge =>
             (BitString.uniformList guessBudget).map
               (modLeveledGuessCoins evaluateChoose evaluateEncrypt evaluateGuess n (capacity n)
                 (encCoins n) (chooseCoins n) (guessCoins n) chosen.2 challenge)))
@@ -167,28 +170,16 @@ theorem eval_game_modLeveledAdversary_eq_map_coins (E : Scheme)
     rfl
   rw [hkey, PMF.bind_map]
   dsimp only [Function.comp_def]
-  change _ = (BitString.uniformList (keyCoins n + (choiceBudget +
-    (encCoins n + guessBudget)))).bind (fun tape => PMF.pure
-      (finish (evaluateKey n (tape.take (keyCoins n)))
-        (chooseReplay (evaluateKey n (tape.take (keyCoins n))).1
-          ((tape.drop (keyCoins n)).take choiceBudget))
-        (((tape.drop (keyCoins n)).drop choiceBudget).take (encCoins n))
-        (((tape.drop (keyCoins n)).drop choiceBudget).drop (encCoins n))))
-  rw [BitString.uniformList_bind_split (keyCoins n) (choiceBudget + (encCoins n + guessBudget))
-    (fun keys rest => PMF.pure (finish (evaluateKey n keys)
-      (chooseReplay (evaluateKey n keys).1 (rest.take choiceBudget))
-      ((rest.drop choiceBudget).take (encCoins n))
-      ((rest.drop choiceBudget).drop (encCoins n))))]
-  congr 1 with keys : 1
-  rw [BitString.uniformList_bind_split choiceBudget (encCoins n + guessBudget)
-    (fun chosen rest => PMF.pure (finish (evaluateKey n keys)
-      (chooseReplay (evaluateKey n keys).1 chosen) (rest.take (encCoins n))
-      (rest.drop (encCoins n))))]
-  congr 1 with chosen : 1
-  rw [BitString.uniformList_bind_split (encCoins n) guessBudget
-    (fun encSeed guessSeed => PMF.pure (finish (evaluateKey n keys)
-      (chooseReplay (evaluateKey n keys).1 chosen) encSeed guessSeed))]
-  rfl
+  trans (BitString.uniformList (keyCoins n)).bind fun keys =>
+    (BitString.uniformList (choiceBudget + (encCoins n + guessBudget))).map fun rest =>
+      finish (evaluateKey n keys) (chooseReplay (evaluateKey n keys).1 (rest.take choiceBudget))
+        ((rest.drop choiceBudget).take (encCoins n))
+        ((rest.drop choiceBudget).drop (encCoins n))
+  · congr 1 with keys : 1
+    exact (BitString.uniformList_map_split3 _ _ _ _).symm
+  · unfold modLeveledGameCoinBudget modLeveledGameCoins
+    dsimp only [choiceBudget, guessBudget, evaluateZero, chooseReplay, finish]
+    exact (BitString.uniformList_map_split _ _ _).symm
 
 /-- The complete replay is native polynomial time in the unary parameter and complete tape,
 for either fixed challenge world. This does not assert a multiplicative runtime ratio to the

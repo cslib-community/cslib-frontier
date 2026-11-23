@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Protocols.VOLE.MaskedMulCheck
 public import CslibFrontier.Computability.Interactive.StrategyEffect
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
+import CslibFrontier.Tactic.PMFSwap
 
 /-!
 # Masked VOLE views against adaptive receivers
@@ -132,8 +133,8 @@ private theorem uniform_maskedReply {α : Type} (left right output : ι → Fin 
       ring
   have he := congrArg
     (fun p => p.bind fun a => f (a, maskedMulCheckValue left right output delta q d r - a * delta))
-    (PMF.uniformOfFintype_map_equiv (Equiv.addLeft cross))
-  simpa only [pmf_norm, Equiv.coe_addLeft, hreply] using he
+    (PMF.uniformOfFintype_map_add_left cross)
+  simpa only [pmf_norm, hreply] using he
 
 /-- The full receiver view in one actual interaction. Receiver initialization runs after its
 setup share has been cached and before prover initialization; later effects run in protocol order.
@@ -149,9 +150,9 @@ noncomputable def maskedMulCheckReceiverView (left right output : ι → Fin n)
     let share ← ProbOracleComp.query (.inr ())
     let v ← liftVerifier (V z)
     let p ← liftProver ((maskedMulCheck left right output).prover () w)
-    let result ← runAgainst (maskedMulCheckSpec F ι n)
+    let (transcript, _, view) ← runAgainst (maskedMulCheckSpec F ι n)
       (ProverStrategy.hoist liftProver _ p) (VerifierStrategy.hoist liftVerifier _ v)
-    return (share, result.1, result.2.2)
+    return (share, transcript, view)
 
 /-- Simulate the private share and full public transcript, retaining all receiver effects and
 captured continuations. The constant share handler answers every later query identically; its
@@ -181,19 +182,6 @@ private noncomputable def receiverLaw (share : F × (Fin (n + 1) → F)) {α : T
     (program : ProbOracleComp (voleReceiverSpec F (n + 1)) α) : PMF α :=
   OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
     (fun _ => PMF.pure share)) program
-
-omit [CommRing F] [Fintype F] [DecidableEq F] in
-private theorem interpret_liftVerifier {α : Type} (c : VOLECorrelation F (n + 1))
-    (program : ProbOracleComp (voleReceiverSpec F (n + 1)) α) :
-    OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
-      (OracleComp.sumHandler (fun _ => PMF.pure (c.u, c.v))
-        (fun _ => PMF.pure c.receiverView)))
-      (liftVerifier (oP := voleSenderSpec F (n + 1)) program) =
-        receiverLaw c.receiverView program := by
-  rw [liftVerifier, OracleComp.interpret_interpret]
-  unfold receiverLaw
-  congr 1 with query : 1
-  cases query <;> simp [OracleComp.sumHandler, ProbOracleComp.query]
 
 private theorem maskedMulCheckReceiverView_eq (left right output : ι → Fin n)
     (V : Aux → ProbOracleComp (voleReceiverSpec F (n + 1))
@@ -225,10 +213,9 @@ private theorem maskedMulCheckReceiverView_eq (left right output : ι → Fin n)
   dsimp only [voleWorld]
   simp only [pmf_norm]
   congr 1 with c : 1
-  simp [OracleComp.interpret_bind, OracleComp.interpret_pure, interpret_liftVerifier,
-    maskedMulCheck, liftProver, ProbOracleComp.query, OracleComp.sumHandler,
-    runAgainst, ProverStrategy.hoist, VerifierStrategy.hoist, maskedMulCheckSpec,
-    SigmaProtocol.sigmaSpec, VOLECorrelation.senderView, PMF.map, Function.comp_def]
+  simp [interpret_liftVerifier, receiverLaw, maskedMulCheck, liftProver, ProbOracleComp.query,
+    OracleComp.sumHandler, runAgainst, ProverStrategy.hoist, VerifierStrategy.hoist,
+    maskedMulCheckSpec, threeMoveSpec, VOLECorrelation.senderView, PMF.map, Function.comp_def]
 
 omit [DecidableEq F] [DecidableEq ι] in
 private theorem maskedMulCheckReceiverSimulate_eq (left right output : ι → Fin n)
@@ -273,12 +260,7 @@ theorem maskedMulCheckReceiverView_eq_simulate (left right output : ι → Fin n
       ProbComp.eval (maskedMulCheckReceiverSimulate left right output V z) := by
   rw [maskedMulCheckReceiverView_eq, maskedMulCheckReceiverSimulate_eq]
   simp only [pmf_norm, voleIdealDist]
-  conv_lhs =>
-    arg 2
-    ext u
-    rw [PMF.bind_comm]
-  rw [PMF.bind_comm]
-  congr 1 with delta : 1
+  pmf_swap with delta
   have hprefix := uniform_maskedPrefix w delta (fun u v => do
     let c := voleSample u v delta
     let verifier ← receiverLaw c.receiverView (V z)
@@ -303,15 +285,7 @@ theorem maskedMulCheckReceiverView_eq_simulate (left right output : ι → Fin n
   simp_rw [hshare]
   dsimp only [voleSample]
   simp_rw [hcorr]
-  congr 1 with q : 1
-  conv_rhs => rw [PMF.bind_comm]
-  congr 1 with d : 1
-  rw [PMF.bind_comm]
-  congr 1 with v : 1
-  rw [PMF.bind_comm]
-  congr 1 with challenge : 1
-  rw [PMF.bind_comm]
-  congr 1 with pair : 1
+  pmf_swap with q v d challenge pair
   rcases pair with ⟨r, continuation⟩
   simpa only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure] using
     uniform_maskedReply left right output w delta q d r h (fun reply => do
@@ -326,17 +300,17 @@ theorem maskedMulCheckReceiverSimulate_accepts (left right output : ι → Fin n
     (V : Aux → ProbOracleComp (voleReceiverSpec F (n + 1))
       (VerifierStrategy (ProbOracleComp (voleReceiverSpec F (n + 1)))
         (maskedMulCheckSpec F ι n) View)) (z : Aux)
-    {result : (F × (Fin (n + 1) → F)) × Transcript (maskedMulCheckSpec F ι n) × View}
-    (hv : result ∈ (ProbComp.eval (maskedMulCheckReceiverSimulate left right output V z)).support) :
-    maskedMulCheckValue left right output result.1.1 result.1.2
-        result.2.1.1 result.2.1.2.1 =
-      result.2.1.2.2.1.1 * result.1.1 + result.2.1.2.2.1.2 := by
+    {share : F × (Fin (n + 1) → F)} {transcript : Transcript (maskedMulCheckSpec F ι n)}
+    {view : View}
+    (hv : (share, transcript, view) ∈
+      (ProbComp.eval (maskedMulCheckReceiverSimulate left right output V z)).support) :
+    MaskedMulCheckAccepts left right output share transcript := by
   rw [maskedMulCheckReceiverSimulate_eq] at hv
   simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hv
+    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hv
   rcases hv with ⟨delta, _, q, _, v, _, d, _, challenge, _, ⟨r, continuation⟩, _,
-    a, _, terminal, _, view, _, rfl⟩
-  dsimp
+    a, _, terminal, _, final, _, rfl, rfl, -⟩
+  dsimp only [MaskedMulCheckAccepts]
   ring
 
 end Cslib.Crypto.Protocols.VOLE

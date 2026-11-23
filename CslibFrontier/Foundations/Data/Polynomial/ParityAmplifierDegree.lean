@@ -45,7 +45,7 @@ of [OpenAI, *The Exponential Time Hypothesis is False*][OpenAI2026ETH].
 * [OpenAI, *The Exponential Time Hypothesis is False*][OpenAI2026ETH] (Lemma 5.2 and Section 5.3)
 -/
 
-@[expose] public noncomputable section
+public noncomputable section
 
 namespace Polynomial
 
@@ -173,7 +173,7 @@ theorem natDegree_coeff_prod_parityFactor_le [CommRing R] (I : Finset κ) (ℓ :
     intro s
     simp only [prod_empty, card_empty, zero_add]
     rcases eq_or_ne s 0 with rfl | hs
-    · simp only [coeff_one_zero, natDegree_one, zero_le]
+    · simp only [AddMonoidAlgebra.coeff_one_zero, natDegree_one, zero_le]
     · rw [coeff_one, ite_eq_right hs, natDegree_zero]
       exact Nat.zero_le _
   | insert a I ha ih =>

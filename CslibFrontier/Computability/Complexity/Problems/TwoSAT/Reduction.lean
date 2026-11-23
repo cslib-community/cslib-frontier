@@ -7,11 +7,12 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.Problems.STCON
+public import CslibFrontier.Computability.Complexity.Problems.STCON.Header
 public import CslibFrontier.Computability.Complexity.Problems.TwoSAT
 public import CslibFrontier.Computability.Complexity.Problems.TwoSAT.Layout
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Output
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Foundations.Data.Nat.Bits.Halving
 
 /-!
 # Unreachability as 2SAT
@@ -174,18 +175,6 @@ def literalCode (b r : ℕ) (sign : Bool) (exit : ℕ) : List Instr :=
 theorem length_literalCode (b r : ℕ) (sign : Bool) (exit : ℕ) :
     (literalCode b r sign exit).length = 23 := rfl
 
-/-- The binary digits of a positive number: its remainder by two, then those of its half. -/
-private theorem bits_of_pos {q : ℕ} (hq : 0 < q) : q.bits = decide (q % 2 = 1) :: (q / 2).bits := by
-  rcases Nat.mod_two_eq_zero_or_one q with h | h
-  · have hq' : q = 2 * (q / 2) := by omega
-    conv_lhs => rw [hq']
-    rw [Nat.bit0_bits _ (by omega), h]
-    rfl
-  · have hq' : q = 2 * (q / 2) + 1 := by omega
-    conv_lhs => rw [hq']
-    rw [Nat.bit1_bits, h]
-    rfl
-
 variable {P : CounterProgram} {w : List Bool} {B : ℕ}
 
 /-- The digit-writing loop of `literalCode`, writing the binary digits of `q` from register `5`. -/
@@ -213,7 +202,7 @@ private theorem reachesOut_literalCode_loop {b r exit : ℕ} {sign : Bool}
     rw [← hq, set_getD_self hlen]
     exact ReachesOut.refl _
   · simp only [eval_const, eval_reg, hq, hq0, ↓reduceIte]
-    rw [bits_of_pos hq0, List.flatMap_cons, List.append_assoc, List.singleton_append]
+    rw [Nat.bits_of_pos hq0, List.flatMap_cons, List.append_assoc, List.singleton_append]
     refine (hmarks regs' hB').trans ?_
     have hqB : q ≤ B := by
       rw [← hq, List.getD_eq_getElem _ _ hlen]
@@ -284,16 +273,11 @@ theorem encCNF_reachabilityFormula (I : STCONInstance) :
 /-- **The writer** of the encoded formula, on the encoded instance. Registers `0`, `1` and `2`
 receive the header values `n`, `s` and `t`; registers `3` and `4` run over the rows and columns
 of the matrix; register `5` holds the number whose digits are written. Labels `0` to `5` read the
-header, labels `6` to `53` write the unit clauses, the nested loops at labels `54` and `57` write
-the clause of every arc, and label `108` halts. -/
+header (`Cslib.Complexity.STCONInstance.headerCode`), labels `6` to `53` write the unit clauses,
+the nested loops at labels `54` and `57` write the clause of every arc, and label `108` halts. -/
 def writer : CounterProgram where
   code := List.flatten [
-    [read (reg 0) 1 2 2,
-     assign 0 (add (reg 0) (const 1)) 0,
-     read (add (add (reg 0) (const 1)) (reg 1)) 3 4 4,
-     assign 1 (add (reg 1) (const 1)) 2,
-     read (add (add (add (add (reg 0) (const 1)) (reg 1)) (const 1)) (reg 2)) 5 6 6,
-     assign 2 (add (reg 2) (const 1)) 4],
+    STCONInstance.headerCode 0,
     literalCode 6 1 true 29, [emit false 30],
     literalCode 30 2 false 53, [emit false 54],
     forCode 54 3 (reg 0) 57 108, forCode 57 4 (reg 0) 60 56,
@@ -309,32 +293,6 @@ private theorem bounded6 {a₀ a₁ a₂ a₃ a₄ a₅ : ℕ} (h₀ : a₀ ≤ 
     (h₃ : a₃ ≤ B) (h₄ : a₄ ≤ B) (h₅ : a₅ ≤ B) : ∀ x ∈ [a₀, a₁, a₂, a₃, a₄, a₅], x ≤ B := by
   simp only [List.mem_cons, List.not_mem_nil, or_false]
   omega
-
-/-- The header is read into registers `0`, `1` and `2`. -/
-private theorem reachesOut_header (hB : I.n ≤ B) :
-    writer.ReachesOut I.encode (writer.Active B) (0, [0, 0, 0, 0, 0, 0])
-      (6, [I.n, I.s, I.t, 0, 0, 0]) [] := by
-  have hs := I.s.isLt
-  have ht := I.t.isLt
-  have hn := reachesOut_count (w := I.encode) (B := B) (n := I.n) (u := 0)
-    (fun j => [j, 0, 0, 0, 0, 0])
-    (show writer.instr 0 = _ from rfl) (show writer.instr 1 = _ from rfl) (fun _ _ => by simp)
-    (fun j hj => bounded6 (hj.trans hB) (by omega) (by omega) (by omega) (by omega) (by omega))
-    (fun j hj => by simp [I.getElem?_encode_n hj.le, hj])
-    (by simp [I.getElem?_encode_n le_rfl]) 0 (Nat.zero_le _)
-  have hs' := reachesOut_count (w := I.encode) (B := B) (n := I.s) (u := 1)
-    (fun j => [I.n, j, 0, 0, 0, 0])
-    (show writer.instr 2 = _ from rfl) (show writer.instr 3 = _ from rfl) (fun _ _ => by simp)
-    (fun j hj => bounded6 hB (by omega) (by omega) (by omega) (by omega) (by omega))
-    (fun j hj => by simp [I.getElem?_encode_s hj.le, hj])
-    (by simp [I.getElem?_encode_s le_rfl]) 0 (Nat.zero_le _)
-  have ht' := reachesOut_count (w := I.encode) (B := B) (n := I.t) (u := 2)
-    (fun j => [I.n, I.s, j, 0, 0, 0])
-    (show writer.instr 4 = _ from rfl) (show writer.instr 5 = _ from rfl) (fun _ _ => by simp)
-    (fun j hj => bounded6 hB (by omega) (by omega) (by omega) (by omega) (by omega))
-    (fun j hj => by simp [I.getElem?_encode_t hj.le, hj])
-    (by simp [I.getElem?_encode_t le_rfl]) 0 (Nat.zero_le _)
-  exact (hn.trans (hs'.trans ht')).of_eq rfl
 
 /-- Writing the clause for entry `(u, v)` of the adjacency matrix when `arc I u v` holds. -/
 private theorem reachesOut_entry (hB : I.n ≤ B) {u v : ℕ} (hu : u < I.n) (hv : v < I.n) :
@@ -426,7 +384,8 @@ theorem computableInLogSpace_reachabilityFormula :
   simp only [List.set_cons_succ, List.set_cons_zero, List.getD_cons_succ,
     List.getD_cons_zero] at h₁ h₂
   obtain ⟨regs, hrows, hregs⟩ := reachesOut_rows I hB (i₀ := 0) (Nat.zero_le _)
-  have hchain := (reachesOut_header I hB).trans (h₁.trans (ReachesOut.emit
+  have hchain := (I.reachesOut_headerCode (P := writer) (codeAt_of_prefix ⟨_, rfl⟩) hB
+    (rest := [0, 0, 0]) (by simp)).trans (h₁.trans (ReachesOut.emit
     (show writer.instr 29 = _ from rfl) hb (h₂.trans (ReachesOut.emit
       (show writer.instr 53 = _ from rfl) hb hrows))))
   refine ⟨(108, regs), _, [], hchain, rfl, ?_, hregs⟩

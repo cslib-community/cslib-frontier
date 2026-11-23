@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.Quicksort
+import CslibFrontier.Computability.WordRAM.Randomized.LoopSegment
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import Mathlib.Data.List.Sort
 
@@ -112,33 +113,22 @@ private theorem four_mul_sum_max_le : ∀ m : ℕ,
     have ih := four_mul_sum_max_le m
     rw [Finset.sum_range_succ, Finset.sum_range_succ']
     have hmid : ∑ r ∈ Finset.range m, max (r + 1) (m + 2 - 1 - (r + 1)) =
-        (∑ r ∈ Finset.range m, max r (m - 1 - r)) + m := by
-      have hcongr : ∑ r ∈ Finset.range m, max (r + 1) (m + 2 - 1 - (r + 1)) =
-          ∑ r ∈ Finset.range m, (max r (m - 1 - r) + 1) := by
-        refine Finset.sum_congr rfl fun r hr => ?_
-        rw [Finset.mem_range] at hr
-        omega
-      rw [hcongr, Finset.sum_add_distrib, Finset.sum_const, Finset.card_range, smul_eq_mul,
-        mul_one]
-    have h0 : max 0 (m + 2 - 1 - 0) = m + 1 := by omega
-    have hlast : max (m + 1) (m + 2 - 1 - (m + 1)) = m + 1 := by omega
-    rw [hmid, h0, hlast]
-    have hsq : (m + 2) ^ 2 = m ^ 2 + 4 * m + 4 := by ring
-    rw [hsq]
+        (∑ r ∈ Finset.range m, max r (m - 1 - r)) + m :=
+      (Finset.sum_congr rfl fun r hr => by
+        rw [Finset.mem_range] at hr; omega :
+          ∑ r ∈ Finset.range m, max (r + 1) (m + 2 - 1 - (r + 1)) =
+            ∑ r ∈ Finset.range m, (max r (m - 1 - r) + 1)).trans
+        (by rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_range, smul_eq_mul, mul_one])
+    rw [hmid, show max 0 (m + 2 - 1 - 0) = m + 1 by omega,
+      show max (m + 1) (m + 2 - 1 - (m + 1)) = m + 1 by omega,
+      show (m + 2) ^ 2 = m ^ 2 + 4 * m + 4 by ring]
     omega
 
 /-- Linear expected-time potential `Φ(m) = 0` for `m < 2` and `80 * m` for `m ≥ 2`. -/
 private def expSubCost (m : ℕ) : ℕ :=
   if m < 2 then 0 else 80 * m
 
-private theorem expSubCost_of_lt_two {m : ℕ} (h : m < 2) : expSubCost m = 0 := by
-  simp only [expSubCost, h, ↓reduceIte]
-
 private theorem expSubCost_le (m : ℕ) : expSubCost m ≤ 80 * m := by
-  unfold expSubCost
-  split_ifs <;> omega
-
-private theorem expSubCost_mono {a b : ℕ} (hab : a ≤ b) : expSubCost a ≤ expSubCost b := by
   unfold expSubCost
   split_ifs <;> omega
 
@@ -147,38 +137,27 @@ private theorem expSubCost_mono {a b : ℕ} (hab : a ≤ b) : expSubCost a ≤ e
 private theorem countP_ge_succ_of_prefix {l : List ℕ} {k : ℕ} (hk : k < l.length) {p : ℕ → Bool}
     (h : ∀ i (hi : i < l.length), i ≤ k → p (l[i]'hi) = true) :
     k + 1 ≤ l.countP p := by
-  have hsplit : l.countP p = (l.take (k + 1)).countP p + (l.drop (k + 1)).countP p := by
-    conv_lhs => rw [← List.take_append_drop (k + 1) l]
-    exact List.countP_append
   have htake : (l.take (k + 1)).countP p = k + 1 := by
-    rw [List.countP_eq_length.mpr]
-    · simp only [List.length_take]
-      omega
-    · intro x hx
-      rw [List.mem_iff_getElem] at hx
-      obtain ⟨i, hi, rfl⟩ := hx
-      rw [List.getElem_take]
-      have hi_le : i ≤ k := by simp only [List.length_take] at hi; omega
-      exact h i (by omega) hi_le
-  omega
+    rw [List.countP_eq_length.mpr fun _ hx => by
+      obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hx
+      simp only [List.length_take] at hi
+      simpa only [List.getElem_take] using h i (by omega) (by omega), List.length_take]
+    omega
+  calc k + 1 = (l.take (k + 1)).countP p := htake.symm
+    _ ≤ (l.take (k + 1) ++ l.drop (k + 1)).countP p := by rw [List.countP_append]; omega
+    _ = l.countP p := by rw [List.take_append_drop]
 
 private theorem countP_le_of_suffix {l : List ℕ} (k : ℕ) {p : ℕ → Bool}
     (h : ∀ i (hi : i < l.length), k ≤ i → p (l[i]'hi) = false) :
     l.countP p ≤ k := by
-  have hsplit : l.countP p = (l.take k).countP p + (l.drop k).countP p := by
-    conv_lhs => rw [← List.take_append_drop k l]
-    exact List.countP_append
-  have hdrop : (l.drop k).countP p = 0 := by
-    rw [List.countP_eq_zero]
-    intro x hx
-    rw [List.mem_iff_getElem] at hx
-    obtain ⟨j, hj, rfl⟩ := hx
-    rw [List.getElem_drop]
-    have hkj : k + j < l.length := by simp only [List.length_drop] at hj; omega
-    simp only [h (k + j) hkj (by omega), Bool.false_eq_true, not_false_eq_true]
-  have htake : (l.take k).countP p ≤ k :=
-    List.countP_le_length.trans (by simp only [List.length_take]; exact Nat.min_le_left _ _)
-  omega
+  have hdrop : (l.drop k).countP p = 0 := List.countP_eq_zero.mpr fun _ hx => by
+    obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hx
+    simp only [List.length_drop] at hj
+    simp [List.getElem_drop, h (k + j) (by omega) (by omega)]
+  calc l.countP p = (l.take k ++ l.drop k).countP p := by rw [List.take_append_drop]
+    _ = (l.take k).countP p := by rw [List.countP_append, hdrop, add_zero]
+    _ ≤ (l.take k).length := List.countP_le_length
+    _ ≤ k := by simp
 
 /-- If `xs` is a permutation of `ys` partitioned around index `k < ys.length` so that
 `xs[i] ≤ xs[k]` for `i < k` and `xs[k] ≤ xs[i]` for `k < i < xs.length`, then `xs[k]` equals the
@@ -191,53 +170,36 @@ private theorem eq_mergeSort_getElem_of_perm_of_partitioned {xs ys : List ℕ} {
       xs[k]'(by have := hperm.length_eq; omega) ≤ xs[i]'hi) :
     xs[k]'(by rw [hperm.length_eq]; exact hk) =
       ys.mergeSort[k]'(by rw [List.length_mergeSort]; exact hk) := by
-  have hkx : k < xs.length := by rw [hperm.length_eq]; exact hk
-  have hks : k < ys.mergeSort.length := by rw [List.length_mergeSort]; exact hk
+  have hkx : k < xs.length := hperm.length_eq ▸ hk
+  have hks : k < ys.mergeSort.length := (List.length_mergeSort ys).symm ▸ hk
   have hp_sort : xs.Perm ys.mergeSort := hperm.trans (List.mergeSort_perm ys _).symm
   have hp_pw := List.pairwise_iff_getElem.mp (List.pairwise_mergeSort' (· ≤ ·) ys)
-  set v := xs[k]'hkx
-  set s := ys.mergeSort[k]'hks
-  apply Nat.le_antisymm
-  · by_contra hnot
-    have hlt : s < v := Nat.lt_of_not_ge hnot
-    have hge_sort : k + 1 ≤ ys.mergeSort.countP (· < v) := by
-      refine countP_ge_succ_of_prefix hks fun i hi hik => decide_eq_true ?_
-      rcases eq_or_lt_of_le hik with rfl | hik_lt
-      · exact hlt
-      · exact (hp_pw i k hi hks hik_lt).trans_lt hlt
-    have hle_xs : xs.countP (· < v) ≤ k := by
-      refine countP_le_of_suffix k fun i hi hki => decide_eq_false (Nat.not_lt.mpr ?_)
-      rcases eq_or_lt_of_le hki with rfl | hki_lt
-      · exact le_rfl
-      · exact hright i hki_lt hi
-    have heq := hp_sort.countP_eq (· < v)
-    omega
-  · by_contra hnot
-    have hlt : v < s := Nat.lt_of_not_ge hnot
-    have hge_xs : k + 1 ≤ xs.countP (· ≤ v) := by
-      refine countP_ge_succ_of_prefix hkx fun i hi hik => decide_eq_true ?_
-      rcases eq_or_lt_of_le hik with rfl | hik_lt
-      · exact le_rfl
-      · exact hleft i hik_lt
-    have hle_sort : ys.mergeSort.countP (· ≤ v) ≤ k := by
-      refine countP_le_of_suffix k fun i hi hki => decide_eq_false (Nat.not_le.mpr ?_)
-      rcases eq_or_lt_of_le hki with rfl | hki_lt
-      · exact hlt
-      · exact hlt.trans_le (hp_pw k i hks hi hki_lt)
-    have heq := hp_sort.countP_eq (· ≤ v)
-    omega
+  set v := xs[k]'hkx; set s := ys.mergeSort[k]'hks
+  apply Nat.le_antisymm <;> by_contra hnot
+  · have hlt : s < v := Nat.lt_of_not_ge hnot
+    have hge := countP_ge_succ_of_prefix (p := (· < v)) hks fun i hi hik => decide_eq_true <|
+      hik.eq_or_lt.elim (fun h => by subst h; exact hlt) fun h =>
+        (hp_pw i k hi hks h).trans_lt hlt
+    have hle := countP_le_of_suffix (p := (· < v)) k (l := xs) fun i hi hki =>
+      decide_eq_false <| Nat.not_lt.mpr <|
+        hki.eq_or_lt.elim (fun h => by subst h; exact le_rfl) fun h => hright i h hi
+    have := hp_sort.countP_eq (· < v); omega
+  · have hlt : v < s := Nat.lt_of_not_ge hnot
+    have hge := countP_ge_succ_of_prefix (p := (· ≤ v)) hkx fun i _ hik => decide_eq_true <|
+      hik.eq_or_lt.elim (fun h => by subst h; exact le_rfl) (hleft i)
+    have hle := countP_le_of_suffix (p := (· ≤ v)) k (l := ys.mergeSort) fun i hi hki =>
+      decide_eq_false <| Nat.not_le.mpr <|
+        hki.eq_or_lt.elim (fun h => by subst h; exact hlt) fun h =>
+          hlt.trans_le (hp_pw k i hks hi h)
+    have := hp_sort.countP_eq (· ≤ v); omega
 
 /-- `logWidth 2 n ≤ w` suffices to fit every address up to `n + 2` for all `n : ℕ`. -/
 private theorem fits_add_two {n w : ℕ} (hw : logWidth 2 n ≤ w) :
     Fits w (n + 2) := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · have hw2 : 2 ≤ w := by simpa only [logWidth, Nat.log_zero_right, zero_add, mul_one] using hw
-    exact Fits.mono (w := 2) (by decide) hw2
-  · have hsq : n + 2 < (n + 1) ^ 2 := by
-      have hexp : (n + 1) ^ 2 = n * n + 2 * n + 1 := by ring
-      rw [hexp]
-      nlinarith
-    exact (fits_of_lt_pow hsq).mono hw
+  · exact Fits.mono (w := 2) (by decide) (by simpa [logWidth] using hw)
+  · exact (fits_of_lt_pow (k := 2) (n := n)
+      (by rw [show (n + 1) ^ 2 = n * n + 2 * n + 1 by ring]; nlinarith)).mono hw
 
 /-! ## Structured WordRAM quickselect program (`r = 16`) -/
 
@@ -399,15 +361,12 @@ private theorem perm_global_of_sub {vbase n vlo vhi : ℕ} {mem₁ mem₂ : ℕ 
     (hperm : (memSlice vlo vhi mem₂).Perm (memSlice vlo vhi mem₁))
     (hmod : Modifies (Finset.Ico vlo vhi) mem₁ mem₂) :
     (memSlice vbase (vbase + n) mem₂).Perm (memSlice vbase (vbase + n) mem₁) := by
-  have hdecomp : ∀ m : ℕ → ℕ, memSlice vbase (vbase + n) m =
-      memSlice vbase vlo m ++ (memSlice vlo vhi m ++ memSlice vhi (vbase + n) m) := by
-    intro m
-    rw [memSlice_append (by omega) hhi, memSlice_append hlo hle, List.append_assoc]
-  have hleft_eq : memSlice vbase vlo mem₂ = memSlice vbase vlo mem₁ :=
-    memSlice_congr fun a _ ha2 => hmod a (by rw [Finset.mem_Ico]; omega)
-  have hright_eq : memSlice vhi (vbase + n) mem₂ = memSlice vhi (vbase + n) mem₁ :=
-    memSlice_congr fun a ha1 _ => hmod a (by rw [Finset.mem_Ico]; omega)
-  rw [hdecomp mem₂, hdecomp mem₁, hleft_eq, hright_eq]
+  have hsub (a b : ℕ) (ha : ∀ x, a ≤ x → x < b → ¬(vlo ≤ x ∧ x < vhi)) :
+      memSlice a b mem₂ = memSlice a b mem₁ :=
+    memSlice_congr fun x h1 h2 => hmod x (by rw [Finset.mem_Ico]; exact ha x h1 h2)
+  rw [memSlice_append hlo (by omega) mem₂, memSlice_append hle hhi mem₂,
+    memSlice_append hlo (by omega) mem₁, memSlice_append hle hhi mem₁,
+    hsub vbase vlo (fun _ _ _ => by omega), hsub vhi (vbase + n) (fun _ _ _ => by omega)]
   exact List.Perm.append_left _ (hperm.append_right _)
 
 private theorem cut_preserved_lo {vbase n vlo vhi : ℕ} {mem₁ mem₂ : ℕ → ℕ}
@@ -415,38 +374,26 @@ private theorem cut_preserved_lo {vbase n vlo vhi : ℕ} {mem₁ mem₂ : ℕ �
     (hperm : (memSlice vlo vhi mem₂).Perm (memSlice vlo vhi mem₁))
     (hmod : Modifies (Finset.Ico vlo vhi) mem₁ mem₂)
     (hcut : IsCut vbase n vlo mem₁) :
-    IsCut vbase n vlo mem₂ := by
-  intro a b ha1 ha2 hb1 hb2
-  have ha_eq : mem₂ a = mem₁ a := hmod a (by rw [Finset.mem_Ico]; omega)
-  rw [ha_eq]
+    IsCut vbase n vlo mem₂ := fun a b ha1 ha2 hb1 hb2 => by
+  rw [hmod a (by rw [Finset.mem_Ico]; omega)]
   by_cases hb_hi : b < vhi
-  · have hmem₂ : mem₂ b ∈ memSlice vlo vhi mem₂ :=
-      mem_memSlice_iff.mpr ⟨b, hb1, hb_hi, rfl⟩
-    obtain ⟨b', hb'1, hb'2, hb'_eq⟩ := mem_memSlice_iff.mp (hperm.mem_iff.mp hmem₂)
-    rw [← hb'_eq]
-    exact hcut a b' ha1 ha2 hb'1 (by omega)
-  · have hb_eq : mem₂ b = mem₁ b := hmod b (by rw [Finset.mem_Ico]; omega)
-    rw [hb_eq]
-    exact hcut a b ha1 ha2 hb1 hb2
+  · obtain ⟨b', hb'1, hb'2, heq⟩ := mem_memSlice_iff.mp <|
+      hperm.mem_iff.mp (mem_memSlice_iff.mpr ⟨b, hb1, hb_hi, rfl⟩)
+    exact heq ▸ hcut a b' ha1 ha2 hb'1 (by omega)
+  · rw [hmod b (by rw [Finset.mem_Ico]; omega)]; exact hcut a b ha1 ha2 hb1 hb2
 
 private theorem cut_preserved_hi {vbase n vlo vhi : ℕ} {mem₁ mem₂ : ℕ → ℕ}
     (hlo : vbase ≤ vlo)
     (hperm : (memSlice vlo vhi mem₂).Perm (memSlice vlo vhi mem₁))
     (hmod : Modifies (Finset.Ico vlo vhi) mem₁ mem₂)
     (hcut : IsCut vbase n vhi mem₁) :
-    IsCut vbase n vhi mem₂ := by
-  intro a b ha1 ha2 hb1 hb2
-  have hb_eq : mem₂ b = mem₁ b := hmod b (by rw [Finset.mem_Ico]; omega)
-  rw [hb_eq]
+    IsCut vbase n vhi mem₂ := fun a b ha1 ha2 hb1 hb2 => by
+  rw [hmod b (by rw [Finset.mem_Ico]; omega)]
   by_cases ha_lo : vlo ≤ a
-  · have hmem₂ : mem₂ a ∈ memSlice vlo vhi mem₂ :=
-      mem_memSlice_iff.mpr ⟨a, ha_lo, ha2, rfl⟩
-    obtain ⟨a', ha'1, ha'2, ha'_eq⟩ := mem_memSlice_iff.mp (hperm.mem_iff.mp hmem₂)
-    rw [← ha'_eq]
-    exact hcut a' b (by omega) ha'2 hb1 hb2
-  · have ha_eq : mem₂ a = mem₁ a := hmod a (by rw [Finset.mem_Ico]; omega)
-    rw [ha_eq]
-    exact hcut a b ha1 ha2 hb1 hb2
+  · obtain ⟨a', ha'1, ha'2, heq⟩ := mem_memSlice_iff.mp <|
+      hperm.mem_iff.mp (mem_memSlice_iff.mpr ⟨a, ha_lo, ha2, rfl⟩)
+    exact heq ▸ hcut a' b (by omega) ha'2 hb1 hb2
+  · rw [hmod a (by rw [Finset.mem_Ico]; omega)]; exact hcut a b ha1 ha2 hb1 hb2
 
 /-- Any boundary `t` inside `[vlt, vgt]` after 3-way partitioning `[vlo, vhi)` is a global cut of
 `[vbase, vbase + n)`. -/
@@ -457,20 +404,15 @@ private theorem cut_of_between_lt_gt {vbase n vlo vlt vgt vhi vpiv t : ℕ} {mem
     (hlt_z : ∀ a, vlo ≤ a → a < vlt → mem a < vpiv)
     (heq_z : ∀ a, vlt ≤ a → a < vgt → mem a = vpiv)
     (hgt_z : ∀ a, vgt ≤ a → a < vhi → vpiv < mem a) :
-    IsCut vbase n t mem := by
-  intro a b ha1 ha2 hb1 hb2
+    IsCut vbase n t mem := fun a b ha1 ha2 hb1 hb2 => by
   by_cases ha_lo : a < vlo
   · exact hcut_lo a b ha1 ha_lo (by omega) hb2
   · by_cases hb_hi : vhi ≤ b
     · exact hcut_hi a b ha1 (by omega) hb_hi hb2
-    · have ha_le : mem a ≤ vpiv := by
-        by_cases ha_lt : a < vlt
-        · exact Nat.le_of_lt (hlt_z a (by omega) ha_lt)
-        · exact Nat.le_of_eq (heq_z a (by omega) (by omega))
-      have hb_ge : vpiv ≤ mem b := by
-        by_cases hb_gt : b < vgt
-        · exact Nat.le_of_eq (heq_z b (by omega) hb_gt).symm
-        · exact Nat.le_of_lt (hgt_z b (by omega) (by omega))
+    · have ha_le : mem a ≤ vpiv := if h : a < vlt then (hlt_z a (by omega) h).le
+        else (heq_z a (by omega) (by omega)).le
+      have hb_ge : vpiv ≤ mem b := if h : b < vgt then (heq_z b (by omega) h).symm.le
+        else (hgt_z b (by omega) (by omega)).le
       exact ha_le.trans hb_ge
 
 /-- Deterministic execution of `narrowRange` after 3-way partition exit (`≤ 6` steps). -/
@@ -504,87 +446,59 @@ private theorem narrowRange_spec {w vbase n k vlo vlt vgt vhi vpiv : ℕ}
   all_goals first | assumption | omega | (refine hcut _ ?_ ?_ <;> omega)
 
 /-- Deterministic specification of `partitionAndNarrow` for a sampled pivot offset
-`off : Fin (x.regs hi - x.regs lo)` when `2 ≤ x.regs hi - x.regs lo`
+`off < x.regs hi - x.regs lo` when `2 ≤ x.regs hi - x.regs lo`
 (`≤ 11 * (x.regs hi - x.regs lo) + 13` steps). -/
 private theorem partitionAndNarrow_spec {w vbase n k : ℕ} {s₀ : List ℕ} {mem₀ : ℕ → ℕ} {x : Data 16}
     (hI : SelectInv w vbase n k s₀ mem₀ x) (hm2 : 2 ≤ x.regs hi - x.regs lo)
-    (off : Fin (x.regs hi - x.regs lo)) (htmp : x.regs tmp = off.val) :
+    {off : ℕ} (hoff : off < x.regs hi - x.regs lo) (htmp : x.regs tmp = off) :
     ∃ y t_pn, Exec w partitionAndNarrow x y t_pn ∧
       t_pn ≤ 11 * (x.regs hi - x.regs lo) + 13 ∧
       SelectInv w vbase n k s₀ mem₀ y ∧
-      let u := memSlice (x.regs lo) (x.regs hi) x.mem
-      let pivVal := u[off.val]'(by rw [length_memSlice]; exact off.isLt)
-      (y.regs hi - y.regs lo = u.countP (· < pivVal) ∨
+      (y.regs hi - y.regs lo =
+          (memSlice (x.regs lo) (x.regs hi) x.mem).countP (· < x.mem (x.regs lo + off)) ∨
        y.regs hi - y.regs lo = 1 ∨
-       y.regs hi - y.regs lo = u.countP (pivVal < ·)) ∧
+       y.regs hi - y.regs lo =
+          (memSlice (x.regs lo) (x.regs hi) x.mem).countP (x.mem (x.regs lo + off) < ·)) ∧
       y.regs hi - y.regs lo < x.regs hi - x.regs lo := by
-  obtain ⟨vlo, hlo⟩ : ∃ v, x.regs lo = v := ⟨_, rfl⟩
-  obtain ⟨vhi, hhi⟩ : ∃ v, x.regs hi = v := ⟨_, rfl⟩
-  have hoff_lt : off.val < vhi - vlo := hlo ▸ hhi ▸ off.isLt
-  have hfit_end := hI.fits_end
-  have hhi_end : vhi ≤ vbase + n := hhi ▸ hI.hi_le_end
-  have hbase_lo : vbase ≤ vlo := hlo ▸ hI.base_le_lo
-  -- 1. Run `Quicksort.partInit` (`5` steps) and establish `Quicksort.PartInv` for the loop
+  let vlo := x.regs lo; let vhi := x.regs hi
+  have hlo : x.regs Quicksort.Reg.lo = vlo := rfl
+  have hhi : x.regs Quicksort.Reg.hi = vhi := rfl
+  have hfit_end := hI.fits_end; have hhi_end := hI.hi_le_end; have hbase_lo := hI.base_le_lo
   unfold partitionAndNarrow Quicksort.partInit
   wram_exec [hlo, hhi, htmp]
   refine WP.Exact.name fun p₀ hp₀ => ?_
-  have hp₀_inv : Quicksort.PartInv w vlo vhi (x.mem (vlo + off.val)) p₀.mem p₀ := by
+  have hp₀_inv : Quicksort.PartInv w vlo vhi (x.mem (vlo + off)) p₀.mem p₀ := by
     subst hp₀
     refine ⟨?_, ?_, ?_, ?_, hfit_end.of_le hhi_end, ?_, ?_, ?_, ?_, .refl _, .refl _ _, ?_, ?_, ?_⟩
-    all_goals wram_simp [hI.one_eq]
+    all_goals wram_simp [hI.one_eq, hlo, hhi]
     all_goals omega
   obtain ⟨y_p, ⟨t_loop, ht_loop, e_loop⟩, hIp, hcg_eq⟩ := Quicksort.partLoop_spec hp₀_inv
     (by wram_simp [hp₀]) (by wram_simp [hp₀]) (by wram_simp [hp₀])
   rw [show p₀.mem = x.mem by subst hp₀; rfl] at hIp
   refine WP.Exact.of_exec e_loop ?_
-  have htarget_yp : y_p.regs target = vbase + k :=
-    (e_loop.regs_eq (by decide)).trans (by wram_simp [hp₀, hI.target_eq])
-  have hlo1_yp : y_p.regs lo1 = vlo + 1 :=
-    (e_loop.regs_eq (by decide)).trans (by wram_simp [hp₀, hI.lo1_eq, hlo])
-  -- 2. The partition at the loop exit
-  let vpiv := x.mem (vlo + off.val)
-  let vlt := y_p.regs lt
-  let vgt := y_p.regs gt
-  have heq_zone_gt : ∀ a, vlt ≤ a → a < vgt → y_p.mem a = vpiv := by
-    intro a ha1 ha2
-    exact hIp.eq_zone a ha1 (by rw [hcg_eq]; exact ha2)
-  have hpiv_in : vpiv ∈ memSlice vlo vhi x.mem :=
-    mem_memSlice_iff.mpr ⟨vlo + off.val, by omega, by omega, rfl⟩
-  have hbounds_p : vlo ≤ vlt ∧ vlt ≤ vgt ∧ vgt ≤ vhi :=
-    ⟨hIp.lo_le_lt, hIp.lt_le_cur.trans_eq hcg_eq, hIp.gt_le_hi⟩
-  obtain ⟨hlt_gt, hcnt_lt, hcnt_gt⟩ :=
-    partition_counts_and_lt hbounds_p hIp.perm hIp.lt_zone heq_zone_gt hIp.gt_zone hpiv_in
-  have hperm_yp : (memSlice vbase (vbase + n) y_p.mem).Perm s₀ :=
-    (perm_global_of_sub hbase_lo hhi_end (by omega) hIp.perm hIp.modifies).trans hI.perm
-  have hmod_yp : Modifies (Finset.Ico vbase (vbase + n)) mem₀ y_p.mem := by
-    intro a ha
+  have heq_gt : ∀ a, y_p.regs lt ≤ a → a < y_p.regs gt → y_p.mem a = x.mem (vlo + off) :=
+    fun a h1 h2 => hIp.eq_zone a h1 (hcg_eq ▸ h2)
+  obtain ⟨hlt_gt, hcnt_lt, hcnt_gt⟩ := partition_counts_and_lt
+    ⟨hIp.lo_le_lt, hIp.lt_le_cur.trans_eq hcg_eq, hIp.gt_le_hi⟩ hIp.perm hIp.lt_zone heq_gt
+    hIp.gt_zone (mem_memSlice_iff.mpr ⟨vlo + off, by omega, by omega, rfl⟩)
+  have hmod_yp : Modifies (Finset.Ico vbase (vbase + n)) mem₀ y_p.mem := fun a ha => by
     rw [Finset.mem_Ico] at ha
-    have ha_sub : a ∉ Finset.Ico vlo vhi := by rw [Finset.mem_Ico]; omega
-    exact (hIp.modifies a ha_sub).trans (hI.modifies a (by rw [Finset.mem_Ico]; exact ha))
-  have hcut_lo_yp : IsCut vbase n vlo y_p.mem :=
-    cut_preserved_lo hhi_end hIp.perm hIp.modifies (hlo ▸ hI.cut_lo)
-  have hcut_hi_yp : IsCut vbase n vhi y_p.mem :=
-    cut_preserved_hi hbase_lo hIp.perm hIp.modifies (hhi ▸ hI.cut_hi)
-  -- 3. Run `narrowRange` (`≤ 6` steps)
-  refine WP.Exact.mono (narrowRange_spec
-    hIp.one_eq htarget_yp hIp.lo_eq hlo1_yp hIp.hi_eq rfl rfl
-    hfit_end hbase_lo (hlo ▸ hI.lo_le_target) (hhi ▸ hI.target_lt_hi) hhi_end
-    ⟨hbounds_p.1, hlt_gt, hbounds_p.2.2⟩
-    hperm_yp hmod_yp hcut_lo_yp hcut_hi_yp hIp.lt_zone heq_zone_gt hIp.gt_zone) ?_
+    exact (hIp.modifies a (by rw [Finset.mem_Ico]; omega)).trans
+      (hI.modifies a (by rw [Finset.mem_Ico]; exact ha))
+  refine WP.Exact.mono (narrowRange_spec hIp.one_eq
+    ((e_loop.regs_eq (by decide)).trans (by wram_simp [hp₀, hI.target_eq]))
+    hIp.lo_eq ((e_loop.regs_eq (by decide)).trans (by wram_simp [hp₀, hI.lo1_eq]; rfl))
+    hIp.hi_eq rfl rfl hfit_end hbase_lo hI.lo_le_target hI.target_lt_hi hhi_end
+    ⟨hIp.lo_le_lt, hlt_gt, hIp.gt_le_hi⟩
+    ((perm_global_of_sub hbase_lo hhi_end (by omega) hIp.perm hIp.modifies).trans hI.perm) hmod_yp
+    (cut_preserved_lo hhi_end hIp.perm hIp.modifies hI.cut_lo)
+    (cut_preserved_hi hbase_lo hIp.perm hIp.modifies hI.cut_hi)
+    hIp.lt_zone heq_gt hIp.gt_zone) ?_
   rintro y t_nr ⟨ht_nr, hIy, hcases⟩
-  have hu_get : (memSlice (x.regs lo) (x.regs hi) x.mem)[off.val]'(by
-      rw [length_memSlice]; exact off.isLt) = x.mem (x.regs lo + off.val) :=
-    getElem_memSlice off.isLt
-  refine ⟨by omega, hIy, ?_, ?_⟩
-  · rw [hu_get]
-    simp only [hlo, hhi]
-    rw [← hcnt_lt, ← hcnt_gt]
-    exact hcases
-  · have hlo_lt : vlo ≤ vlt := hbounds_p.1
-    have hgt_hi : vgt ≤ vhi := hbounds_p.2.2
-    dsimp only [vlt, vgt, lt, gt, Quicksort.Reg.lt, Quicksort.Reg.gt]
-      at hlo_lt hgt_hi hlt_gt hcases ⊢
-    rcases hcases with h1 | h2 | h3 <;> omega
+  have h1 : vlo ≤ y_p.regs lt := hIp.lo_le_lt; have h2 : y_p.regs gt ≤ vhi := hIp.gt_le_hi
+  have hlt_gt' : y_p.regs lt < y_p.regs gt := hlt_gt
+  have hcl : y_p.regs lt - vlo = _ := hcnt_lt; have hcg : vhi - y_p.regs gt = _ := hcnt_gt
+  refine ⟨by omega, hIy, by rwa [← hcl, ← hcg], by rcases hcases with h | h | h <;> omega⟩
 
 /-- The loop condition `lo1 < hi` of `selectStep` leaves a window of at least two elements. -/
 private theorem two_le_hi_sub_lo {w vbase n k : ℕ} {s₀ : List ℕ} {mem₀ : ℕ → ℕ} {x : Data 16}
@@ -592,6 +506,31 @@ private theorem two_le_hi_sub_lo {w vbase n k : ℕ} {s₀ : List ℕ} {mem₀ :
     2 ≤ x.regs hi - x.regs lo := by
   have hlt : x.regs lo1 < x.regs hi := by simpa only [Cond.holds_lt] using hc
   rw [hI.lo1_eq] at hlt; omega
+
+/-- Execute `samplePivot` to sample a uniform offset `off : Fin (hi - lo - 1 + 1)` into `tmp`. -/
+private theorem samplePivot_spec {w : ℕ} {x : Data 16} (hlo1 : x.regs lo1 = x.regs lo + 1)
+    (hfit : Fits w (x.regs hi)) :
+    ExecRand w samplePivot x
+      ((fun off : Fin (x.regs hi - x.regs lo - 1 + 1) => (x.set tmp off.val, 2)) <$>
+        ProbComp.unifFin (x.regs hi - x.regs lo - 1)) := by
+  let s₁ := x.set tmp (x.regs hi - x.regs lo - 1)
+  have hsub : x.regs hi - (x.regs lo + 1) = x.regs hi - x.regs lo - 1 := by omega
+  have esub : Exec w (.op (.bin .sub tmp hi lo1)) x s₁ 1 := by
+    simpa only [s₁, hlo1, BinOp.eval, hsub] using
+      Exec.bin (w := w) (f := .sub) (d := tmp) (i := hi) (j := lo1) (x := x)
+        (hfit.of_le (by simp only [hlo1, BinOp.eval]; omega))
+  have hs₁_tmp : s₁.regs tmp = x.regs hi - x.regs lo - 1 := by simp [s₁]
+  have erand : ExecRand (B := .standard) w (.rand tmp tmp) s₁
+      (ProbComp.unifFin (x.regs hi - x.regs lo - 1) >>= fun off => pure (s₁.set tmp off.val, 1)) :=
+    hs₁_tmp ▸ ExecRand.rand (hfit.of_le (by rw [hs₁_tmp]; omega))
+  have heq : (fun z : Data 16 × ℕ => (z.1, 1 + z.2)) <$>
+      (ProbComp.unifFin (x.regs hi - x.regs lo - 1) >>= fun off => pure (s₁.set tmp off.val, 1)) =
+      (fun off : Fin (x.regs hi - x.regs lo - 1 + 1) => (x.set tmp off.val, 2)) <$>
+        ProbComp.unifFin (x.regs hi - x.regs lo - 1) := by
+    simp only [← bind_pure_comp, bind_assoc, pure_bind]
+    refine congrArg (ProbComp.unifFin _ >>= ·) (funext fun off => ?_)
+    exact congrArg pure (Prod.ext (Data.ext (by simp [s₁, Function.update_idem]) rfl) rfl)
+  simpa only [samplePivot, heq] using esub.seqRand erand
 
 /-- Randomized specification of `selectStep` when `lo1 < hi` holds (`2 ≤ hi - lo`). -/
 private theorem selectStep_spec {w vbase n k : ℕ} {s₀ : List ℕ} {mem₀ : ℕ → ℕ} {x : Data 16}
@@ -611,91 +550,24 @@ private theorem selectStep_spec {w vbase n k : ℕ} {s₀ : List ℕ} {mem₀ : 
           (y off).regs hi - (y off).regs lo = u.countP (pivVal < ·))) ∧
         (y off).regs hi - (y off).regs lo < x.regs hi - x.regs lo := by
   have hm2 := two_le_hi_sub_lo hI hc
-  let vlo := x.regs lo
-  let vhi := x.regs hi
-  let s₁ := x.set tmp (vhi - vlo - 1)
-  have hsub_eq : vhi - (vlo + 1) = vhi - vlo - 1 := by omega
-  have esub : Exec w (.op (.bin .sub tmp hi lo1)) x s₁ 1 := by
-    have hhi_le := hI.hi_le_end
-    simpa only [s₁, vhi, hI.lo1_eq, vlo, BinOp.eval, hsub_eq] using
-      Exec.bin (w := w) (f := .sub) (d := tmp) (i := hi) (j := lo1) (x := x)
-        (hI.fits_end.of_le (by simp only [hI.lo1_eq, BinOp.eval]; omega))
-  have hs₁_tmp : s₁.regs tmp = vhi - vlo - 1 := by
-    simp only [s₁, Data.set_regs, Function.update_self]
-  have hfit_rand : Fits w (s₁.regs tmp) :=
-    hI.fits_end.of_le (by rw [hs₁_tmp]; have := hI.hi_le_end; omega)
-  have erand : ExecRand (B := .standard) w (.rand tmp tmp) s₁
-      (do
-        let off ← ProbComp.unifFin (vhi - vlo - 1)
-        pure (s₁.set tmp off.val, 1)) := by
-    rw [← hs₁_tmp]
-    exact ExecRand.rand hfit_rand
-  have esamp_raw := esub.seqRand erand
-  have hsamp_eq :
-      ((fun z : Data 16 × ℕ => (z.1, 1 + z.2)) <$> (do
-        let off ← ProbComp.unifFin (vhi - vlo - 1)
-        pure (s₁.set tmp off.val, 1))) =
-      ((fun off : Fin (vhi - vlo - 1 + 1) => (x.set tmp off.val, 2)) <$>
-        ProbComp.unifFin (vhi - vlo - 1)) := by
-    simp only [← bind_pure_comp, bind_assoc, pure_bind]
-    refine congrArg (ProbComp.unifFin (vhi - vlo - 1) >>= ·) (funext fun off => ?_)
-    refine congrArg pure (Prod.ext (Data.ext ?_ rfl) rfl)
-    simp only [s₁, Data.set_regs, Function.update_idem]
-  rw [hsamp_eq] at esamp_raw
-  have hpn_all : ∀ off : Fin (vhi - vlo - 1 + 1),
-      ∃ y t_pn, Exec w partitionAndNarrow (x.set tmp off.val) y t_pn ∧
-        t_pn ≤ 11 * (vhi - vlo) + 13 ∧
-        SelectInv w vbase n k s₀ mem₀ y ∧
-        (let u := memSlice vlo vhi x.mem
-         let pivVal := u[off.val]'(by rw [length_memSlice]; have := off.isLt; omega)
-         (y.regs hi - y.regs lo = u.countP (· < pivVal) ∨
-          y.regs hi - y.regs lo = 1 ∨
-          y.regs hi - y.regs lo = u.countP (pivVal < ·))) ∧
-        y.regs hi - y.regs lo < vhi - vlo := by
-    intro off
-    have hI_off : SelectInv w vbase n k s₀ mem₀ (x.set tmp off.val) :=
-      ⟨hI.one_eq, hI.target_eq, hI.lo1_eq, hI.fits_end, hI.base_le_lo, hI.lo_le_target,
-       hI.target_lt_hi, hI.hi_le_end, hI.perm, hI.modifies, hI.cut_lo, hI.cut_hi⟩
-    have hhi_set : (x.set tmp off.val).regs hi = vhi := by
-      simp only [Data.set_regs, Function.update_of_ne (by decide : hi ≠ tmp)]
-      rfl
-    have hlo_set : (x.set tmp off.val).regs lo = vlo := by
-      simp only [Data.set_regs, Function.update_of_ne (by decide : lo ≠ tmp)]
-      rfl
-    obtain ⟨y, t_pn, hex, ht, hIy, hcases, hlt_m⟩ :=
-      partitionAndNarrow_spec hI_off (by rw [hhi_set, hlo_set]; exact hm2)
-        ⟨off.val, by rw [hhi_set, hlo_set]; have := off.isLt; omega⟩
-        (by simp only [Data.set_regs, Function.update_self])
-    simp only [hhi_set, hlo_set, Data.set_mem] at ht hcases hlt_m
-    exact ⟨y, t_pn, hex, ht, hIy, hcases, hlt_m⟩
+  have hpn_all (off : Fin (x.regs hi - x.regs lo - 1 + 1)) := by
+    have hI_off : SelectInv w vbase n k s₀ mem₀ (x.set tmp off.val) := by
+      refine ⟨?_, ?_, ?_, hI.fits_end, ?_, ?_, ?_, ?_, hI.perm, hI.modifies, ?_, ?_⟩
+      all_goals wram_simp [hI.one_eq, hI.target_eq, hI.lo1_eq, hI.base_le_lo, hI.lo_le_target,
+        hI.target_lt_hi, hI.hi_le_end, hI.cut_lo, hI.cut_hi]
+    exact partitionAndNarrow_spec hI_off (off := off.val) (by wram_simp; exact hm2)
+      (by wram_simp; have := off.isLt; omega) (by wram_simp)
   choose y t hspec using hpn_all
-  refine ⟨y, t, ?_, fun off => (hspec off).2⟩
-  let m₂_fn : Data 16 → ProbComp (Data 16 × ℕ) := fun d =>
-    if h : d.regs tmp < vhi - vlo - 1 + 1 then
-      pure (y ⟨d.regs tmp, h⟩, t ⟨d.regs tmp, h⟩)
-    else pure (d, 0)
-  have hseq := ExecRand.seq esamp_raw (m₂ := m₂_fn) fun z hz => by
-    obtain ⟨off, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-    have hreg : (x.set tmp off.val).regs tmp = off.val := by
-      simp only [Data.set_regs, Function.update_self]
-    dsimp only [m₂_fn]
-    simp only [hreg, off.isLt, ↓reduceDIte]
-    exact (hspec off).1.execRand
-  have hm_eq : (do
-      let z₁ ← (fun off : Fin (vhi - vlo - 1 + 1) => (x.set tmp off.val, 2)) <$>
-        ProbComp.unifFin (vhi - vlo - 1)
-      let z₂ ← m₂_fn z₁.1
-      pure (z₂.1, z₁.2 + z₂.2)) =
-      ((fun off : Fin (vhi - vlo - 1 + 1) => (y off, 2 + t off)) <$>
-        ProbComp.unifFin (vhi - vlo - 1)) := by
-    simp only [← bind_pure_comp, bind_assoc, pure_bind]
-    refine congrArg (ProbComp.unifFin (vhi - vlo - 1) >>= ·) (funext fun off => ?_)
-    have hreg : (x.set tmp off.val).regs tmp = off.val := by
-      simp only [Data.set_regs, Function.update_self]
-    dsimp only [m₂_fn]
-    simp only [hreg, off.isLt, ↓reduceDIte, pure_bind]
-  rw [selectStep, ← hm_eq]
-  exact hseq
+  refine ⟨y, t, execRand_seq_det_map (samplePivot_spec hI.lo1_eq
+    (hI.fits_end.of_le hI.hi_le_end)) fun off => (hspec off).1, fun off => ?_⟩
+  obtain ⟨-, ht_le, hIy, hcases, hlt⟩ := hspec off
+  have hhi_s : (x.set tmp off.val).regs hi = x.regs hi := by wram_simp
+  have hlo_s : (x.set tmp off.val).regs lo = x.regs lo := by wram_simp
+  rw [hhi_s, hlo_s] at ht_le hcases hlt
+  rw [Data.set_mem] at hcases
+  refine ⟨ht_le, hIy, ?_, hlt⟩
+  simpa only [getElem_memSlice (by have := off.isLt; omega : off.val < x.regs hi - x.regs lo)]
+    using hcases
 
 /-- Quadratic worst-case potential `0` for `m < 2` and `10 * m ^ 2` for `m ≥ 2`. -/
 private def stepPotential (x : Data 16) : ℕ :=
@@ -719,37 +591,30 @@ private theorem selectStep_worstCase {w vbase n k : ℕ} {s₀ : List ℕ} {mem�
   have hm2 := two_le_hi_sub_lo hI hc
   obtain ⟨y, t, hexec, hspec⟩ := selectStep_spec hI hc
   let m := x.regs hi - x.regs lo
-  refine ⟨11 * m + 15, 1, ⟨_, hexec, ?_, ?_⟩⟩
-  · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbComp.isQueryBounded_unifFin (m - 1))
-  · intro z hz
-    obtain ⟨off, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-    dsimp only
-    obtain ⟨ht_le, hIy, -, hm_lt⟩ := hspec off
-    let m' := (y off).regs hi - (y off).regs lo
-    have hstep_le : (11 * m + 15) + 2 + stepPotential (y off) ≤ stepPotential x := by
-      have hpot_x : stepPotential x = 10 * m ^ 2 := by
-        change (if m < 2 then 0 else 10 * m ^ 2) = 10 * m ^ 2
-        split_ifs <;> omega
-      rw [hpot_x]
-      by_cases hm'2 : m' < 2
-      · have hpot_y : stepPotential (y off) = 0 := by
-          change (if m' < 2 then 0 else 10 * m' ^ 2) = 0
-          simp only [hm'2, ↓reduceIte]
-        rw [hpot_y]
-        have hsq : 4 ≤ m ^ 2 := by nlinarith
-        nlinarith
-      · have hpot_y : stepPotential (y off) = 10 * m' ^ 2 := by
-          change (if m' < 2 then 0 else 10 * m' ^ 2) = 10 * m' ^ 2
-          simp only [hm'2, ↓reduceIte]
-        rw [hpot_y]
-        have hm3 : 3 ≤ m := by omega
-        obtain ⟨d, hd⟩ : ∃ d, m = d + 3 := ⟨m - 3, by omega⟩
-        have hm'_sq : m' ^ 2 ≤ (d + 2) ^ 2 := Nat.pow_le_pow_left (by omega) 2
-        rw [hd]
-        nlinarith
-    have hcall_le : 1 + callPotential (y off) ≤ callPotential x := by
-      simp only [callPotential]; omega
-    exact ⟨⟨hIy, hstep_le, hcall_le⟩, by omega⟩
+  refine ⟨11 * m + 15, 1, ⟨_, hexec,
+    (OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbComp.isQueryBounded_unifFin (m - 1)),
+    fun z hz => ?_⟩⟩
+  obtain ⟨off, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
+  obtain ⟨ht_le, hIy, -, hm_lt⟩ := hspec off
+  have hstep : 11 * m + 15 + 2 + stepPotential (y off) ≤ stepPotential x := by
+    change 11 * m + 15 + 2 + stepPotential (y off) ≤ if m < 2 then 0 else 10 * m ^ 2
+    simp only [show ¬m < 2 by omega, ↓reduceIte]
+    dsimp only [stepPotential]
+    split_ifs with hlt
+    · nlinarith
+    · have : ((y off).regs hi - (y off).regs lo) ^ 2 ≤ (m - 1) ^ 2 :=
+        Nat.pow_le_pow_left (by omega) 2
+      obtain ⟨d, hd⟩ : ∃ d, m = d + 3 := ⟨m - 3, by omega⟩
+      rw [hd] at this ⊢; nlinarith
+  exact ⟨⟨hIy, hstep, by simp only [callPotential]; omega⟩, by dsimp only; omega⟩
+
+private theorem sum_expCost_pivot_le (u : List ℕ) :
+    u.length * (20 * u.length) + 80 * ∑ off : Fin u.length,
+      max (u.countP (· < u[off.val])) (u.countP (u[off.val] < ·)) ≤
+      80 * u.length * u.length := by
+  have hpiv := sum_countP_pivot_le max (fun ha hb => max_le_max ha hb) u
+  have hfour := four_mul_sum_max_le u.length
+  nlinarith
 
 private theorem selectStep_drift {w vbase n k : ℕ} {s₀ : List ℕ} {mem₀ : ℕ → ℕ} {x : Data 16}
     (hI : SelectInv w vbase n k s₀ mem₀ x) (hc : (Cond.lt lo1 hi).Holds x) :
@@ -760,96 +625,42 @@ private theorem selectStep_drift {w vbase n k : ℕ} {s₀ : List ℕ} {mem₀ :
   have hm2 := two_le_hi_sub_lo hI hc
   obtain ⟨y, t, hexec, hspec⟩ := selectStep_spec hI hc
   let m := x.regs hi - x.regs lo
-  have hm_eq : x.regs hi - x.regs lo - 1 + 1 = m := by omega
-  refine ⟨_, hexec, ?_, ?_⟩
-  · intro z hz
-    obtain ⟨off, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-    dsimp only
+  let u := memSlice (x.regs lo) (x.regs hi) x.mem
+  have hlen_u : u.length = m := length_memSlice _ _ _
+  refine ⟨_, hexec, fun z hz => ?_, ?_⟩
+  · obtain ⟨off, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
     obtain ⟨-, hIy, -, hm_lt⟩ := hspec off
-    refine ⟨hIy, ?_⟩
-    simp only [callPotential]
-    omega
-  · rw [ProbComp.expect_map, ProbComp.expect_unifFin]
-    dsimp only
-    let u := memSlice (x.regs lo) (x.regs hi) x.mem
-    have hlen_u : u.length = m := length_memSlice _ _ _
-    have hterm_nat : ∀ off : Fin (x.regs hi - x.regs lo - 1 + 1),
-        (2 + t off) + 2 + expSubCost ((y off).regs hi - (y off).regs lo) ≤
-          20 * m + 80 *
-            max (u.countP (· < u[off.val]'(by rw [hlen_u]; have := off.isLt; omega)))
-                (u.countP (u[off.val]'(by rw [hlen_u]; have := off.isLt; omega) < ·)) := by
-      intro off
-      obtain ⟨ht_le, -, hcases, -⟩ := hspec off
-      let m₁ := u.countP (· < u[off.val]'(by rw [hlen_u]; have := off.isLt; omega))
-      let m₂ := u.countP (u[off.val]'(by rw [hlen_u]; have := off.isLt; omega) < ·)
-      have hcost_le : expSubCost ((y off).regs hi - (y off).regs lo) ≤ 80 * max m₁ m₂ := by
-        rcases hcases with h1 | h2 | h3
-        · rw [h1]
-          exact (expSubCost_mono (le_max_left m₁ m₂)).trans (expSubCost_le _)
-        · rw [h2, expSubCost_of_lt_two (by omega)]
-          exact Nat.zero_le _
-        · rw [h3]
-          exact (expSubCost_mono (le_max_right m₁ m₂)).trans (expSubCost_le _)
-      omega
-    have hsum_nat :
-        ∑ off : Fin (x.regs hi - x.regs lo - 1 + 1),
-          ((2 + t off) + 2 + expSubCost ((y off).regs hi - (y off).regs lo)) ≤
-        expSubCost m * m := by
-      have hfin_eq :
-          ∑ off : Fin (x.regs hi - x.regs lo - 1 + 1),
-            max (u.countP (· < u[off.val]'(by rw [hlen_u]; have := off.isLt; omega)))
-                (u.countP (u[off.val]'(by rw [hlen_u]; have := off.isLt; omega) < ·)) =
-          ∑ off : Fin u.length,
-            max (u.countP (· < u[off.val])) (u.countP (u[off.val] < ·)) :=
-        Fintype.sum_equiv (finCongr (hm_eq.trans hlen_u.symm)) _ _ fun _ => rfl
-      have hpiv_le :
-          ∑ off : Fin (x.regs hi - x.regs lo - 1 + 1),
-            max (u.countP (· < u[off.val]'(by rw [hlen_u]; have := off.isLt; omega)))
-                (u.countP (u[off.val]'(by rw [hlen_u]; have := off.isLt; omega) < ·)) ≤
-          ∑ r ∈ Finset.range m, max r (m - 1 - r) := by
-        rw [hfin_eq]
-        simpa only [hlen_u] using sum_countP_pivot_le max (fun ha hb => max_le_max ha hb) u
-      have hfour := four_mul_sum_max_le m
-      calc
-        ∑ off : Fin (x.regs hi - x.regs lo - 1 + 1),
-            ((2 + t off) + 2 + expSubCost ((y off).regs hi - (y off).regs lo))
-          ≤ ∑ off : Fin (x.regs hi - x.regs lo - 1 + 1),
-              (20 * m + 80 *
-                max (u.countP (· < u[off.val]'(by rw [hlen_u]; have := off.isLt; omega)))
-                    (u.countP (u[off.val]'(by rw [hlen_u]; have := off.isLt; omega) < ·))) :=
-            Finset.sum_le_sum fun off _ => hterm_nat off
-        _ = (x.regs hi - x.regs lo - 1 + 1) * (20 * m) +
-              80 * ∑ off : Fin (x.regs hi - x.regs lo - 1 + 1),
-                max (u.countP (· < u[off.val]'(by rw [hlen_u]; have := off.isLt; omega)))
-                    (u.countP (u[off.val]'(by rw [hlen_u]; have := off.isLt; omega) < ·)) := by
-            rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
-              smul_eq_mul, Finset.mul_sum]
-        _ ≤ m * (20 * m) + 80 * ∑ r ∈ Finset.range m, max r (m - 1 - r) :=
-            Nat.add_le_add (by rw [hm_eq]) (Nat.mul_le_mul_left 80 hpiv_le)
-        _ ≤ 80 * m * m := by nlinarith
-        _ = expSubCost m * m := by
-            change 80 * m * m = (if m < 2 then 0 else 80 * m) * m
-            split_ifs <;> omega
-    have hnum_eq :
-        (∑ off : Fin (x.regs hi - x.regs lo - 1 + 1),
-          (((2 + t off : ℕ) : ℝ≥0∞) + 2 + expPotential (y off))) =
-        ((∑ off : Fin (x.regs hi - x.regs lo - 1 + 1),
-          ((2 + t off) + 2 + expSubCost ((y off).regs hi - (y off).regs lo)) : ℕ) : ℝ≥0∞) := by
-      unfold expPotential
-      push_cast
-      rfl
-    have hden_eq : (((x.regs hi - x.regs lo - 1 : ℕ) : ℝ≥0∞) + 1) = (m : ℝ≥0∞) := by
-      norm_cast
-    rw [hnum_eq, hden_eq, expPotential]
-    calc
-      ((∑ off : Fin (x.regs hi - x.regs lo - 1 + 1),
-          ((2 + t off) + 2 + expSubCost ((y off).regs hi - (y off).regs lo)) : ℕ) : ℝ≥0∞) /
-          (m : ℝ≥0∞)
-        ≤ ((expSubCost m * m : ℕ) : ℝ≥0∞) / (m : ℝ≥0∞) := by gcongr
-      _ = (expSubCost m : ℝ≥0∞) * (m : ℝ≥0∞) / (m : ℝ≥0∞) := by
-          rw [Nat.cast_mul]
-      _ = (expSubCost m : ℝ≥0∞) :=
-          ENNReal.mul_div_cancel_right (by positivity) (ENNReal.natCast_ne_top m)
+    exact ⟨hIy, by simp only [callPotential]; omega⟩
+  · rw [ProbComp.expect_map, ProbComp.expect_unifFin, expPotential]
+    let pivMax (off : Fin (m - 1 + 1)) : ℕ :=
+      max (u.countP (· < u[off.val]'(by rw [hlen_u]; have := off.isLt; omega)))
+          (u.countP (u[off.val]'(by rw [hlen_u]; have := off.isLt; omega) < ·))
+    have hm_eq : m - 1 + 1 = u.length := by omega
+    have hsum : ∑ off : Fin (m - 1 + 1),
+        (2 + t off + 2 + expSubCost ((y off).regs hi - (y off).regs lo)) ≤ expSubCost m * m :=
+      calc _ ≤ ∑ off : Fin (m - 1 + 1), (20 * m + 80 * pivMax off) :=
+            Finset.sum_le_sum fun off _ => by
+              obtain ⟨ht_le, -, hcases, -⟩ := hspec off
+              rcases hcases with h | h | h <;> rw [h] <;>
+                simp only [expSubCost, pivMax, u] <;> split_ifs <;> omega
+        _ = (m - 1 + 1) * (20 * m) + 80 * ∑ off, pivMax off := by
+            simp only [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ,
+              Fintype.card_fin, smul_eq_mul, Finset.mul_sum]
+        _ ≤ 80 * m * m := by
+            rw [Fintype.sum_equiv (finCongr hm_eq) pivMax
+              (fun off => max (u.countP (· < u[off.val])) (u.countP (u[off.val] < ·)))
+              fun _ => rfl]
+            simpa only [hm_eq, hlen_u] using sum_expCost_pivot_le u
+        _ = expSubCost m * m := by simp only [expSubCost, show ¬m < 2 by omega, ↓reduceIte]
+    calc _ ≤ ((expSubCost m * m : ℕ) : ℝ≥0∞) / m := by
+          have : ∑ off : Fin (m - 1 + 1), (((2 + t off : ℕ) : ℝ≥0∞) + 2 + expPotential (y off)) =
+              ((∑ off : Fin (m - 1 + 1), (2 + t off + 2 +
+                expSubCost ((y off).regs hi - (y off).regs lo)) : ℕ) : ℝ≥0∞) := by
+            unfold expPotential; push_cast; rfl
+          dsimp only; rw [this, show ((m - 1 : ℕ) : ℝ≥0∞) + 1 = m by norm_cast; omega]; gcongr
+      _ = expSubCost m := by
+          rw [Nat.cast_mul]; exact ENNReal.mul_div_cancel_right (by positivity)
+            (ENNReal.natCast_ne_top m)
 
 /-- Deterministic `5`-step execution of `selectSetup`. -/
 private theorem selectSetup_spec {w : ℕ} {x : Data 16}
@@ -875,33 +686,22 @@ private theorem SelectInv.exit_post {w vbase n k : ℕ} {s₀ : List ℕ} {mem�
     y.mem (vbase + k) = s₀.mergeSort[k]'(by rw [List.length_mergeSort, hs₀_len]; exact hk) ∧
     (∀ i < k, y.mem (vbase + i) ≤ y.mem (vbase + k)) ∧
     (∀ i, k < i → i < n → y.mem (vbase + k) ≤ y.mem (vbase + i)) := by
-  have hnlt : ¬(y.regs lo + 1 < y.regs hi) := by
-    simpa only [Cond.holds_lt, hIy.lo1_eq] using hnc
-  have hlo_eq : y.regs lo = vbase + k := by
-    have := hIy.lo_le_target; have := hIy.target_lt_hi; omega
-  have hhi_eq : y.regs hi = vbase + k + 1 := by
-    have := hIy.lo_le_target; have := hIy.target_lt_hi; omega
-  have hleft : ∀ i < k, y.mem (vbase + i) ≤ y.mem (vbase + k) := by
-    intro i hik
-    exact hIy.cut_lo (vbase + i) (vbase + k) (by omega) (by rw [hlo_eq]; omega)
-      (by rw [hlo_eq]) (by omega)
-  have hright : ∀ i, k < i → i < n → y.mem (vbase + k) ≤ y.mem (vbase + i) := by
-    intro i hki hin
-    exact hIy.cut_hi (vbase + k) (vbase + i) (by omega) (by rw [hhi_eq]; omega)
-      (by rw [hhi_eq]; omega) (by omega)
-  have hval : y.mem (vbase + k) =
-      s₀.mergeSort[k]'(by rw [List.length_mergeSort, hs₀_len]; exact hk) := by
-    have hget_k : (memSlice vbase (vbase + n) y.mem)[k]'(by rw [length_memSlice]; omega) =
-        y.mem (vbase + k) := getElem_memSlice (by omega)
-    rw [← hget_k]
-    refine eq_mergeSort_getElem_of_perm_of_partitioned hIy.perm (by omega)
-      (fun i hik => ?_) (fun i hki hi_len => ?_)
-    · rw [getElem_memSlice (by omega), getElem_memSlice (by omega)]
-      exact hleft i hik
-    · rw [length_memSlice] at hi_len
-      rw [getElem_memSlice (by omega), getElem_memSlice hi_len]
-      exact hright i hki (by omega)
-  exact ⟨hval, hleft, hright⟩
+  have hnlt : ¬(y.regs lo + 1 < y.regs hi) := by simpa only [Cond.holds_lt, hIy.lo1_eq] using hnc
+  have := hIy.lo_le_target; have := hIy.target_lt_hi
+  have hlo_eq : y.regs lo = vbase + k := by omega
+  have hhi_eq : y.regs hi = vbase + k + 1 := by omega
+  have hleft : ∀ i < k, y.mem (vbase + i) ≤ y.mem (vbase + k) := fun i hik =>
+    hIy.cut_lo (vbase + i) (vbase + k) (by omega) (by omega) (by omega) (by omega)
+  have hright : ∀ i, k < i → i < n → y.mem (vbase + k) ≤ y.mem (vbase + i) := fun i hki hin =>
+    hIy.cut_hi (vbase + k) (vbase + i) (by omega) (by omega) (by omega) (by omega)
+  refine ⟨?_, hleft, hright⟩
+  rw [← getElem_memSlice (a := vbase) (b := vbase + n) (mem := y.mem) (i := k) (by omega)]
+  exact eq_mergeSort_getElem_of_perm_of_partitioned hIy.perm (by omega)
+    (fun i hik => by
+      rw [getElem_memSlice (by omega), getElem_memSlice (by omega)]; exact hleft i hik)
+    (fun i hki hi_len => by
+      rw [length_memSlice] at hi_len
+      rw [getElem_memSlice (by omega), getElem_memSlice hi_len]; exact hright i hki (by omega))
 
 /-- **Specification of `selectSlice` on an arbitrary slice `[vbase, vbase + n)`.**
 When `k = x.regs rk < x.regs len = n` and `Fits w (x.regs base + x.regs len)`:
@@ -928,72 +728,39 @@ theorem selectSlice_spec {w : ℕ} {x : Data 16}
       (10 * n ^ 2 + 8) (n - 1) ∧
     expectedCodeTime w selectSlice x ≤ ((80 * n + 8 : ℕ) : ℝ≥0∞) := by
   dsimp only
-  let vbase := x.regs base
-  let n := x.regs len
-  let k := x.regs rk
+  let vbase := x.regs base; let n := x.regs len; let k := x.regs rk
   let s₀ := memSlice vbase (vbase + n) x.mem
   obtain ⟨x_init, e_setup, _, hx_lo, hx_hi, hI_init⟩ := selectSetup_spec hk hfit
-  -- 1. Worst-case `ExecRandWithin`
-  have hloop_wc : ExecRandWithin w (ram[ while lo1 < hi do [ ⟪selectStep⟫ ] ]) x_init
-      (fun y => SelectInv w vbase n k s₀ x.mem y ∧ ¬(Cond.lt lo1 hi).Holds y)
-      (stepPotential x_init + 2) (callPotential x_init) :=
-    ExecRandWithin.loop_potential (SelectInv w vbase n k s₀ x.mem) stepPotential callPotential
-      (fun s hs hc => selectStep_worstCase hs hc) hI_init
   have hstep_init : stepPotential x_init ≤ 10 * n ^ 2 := by
-    unfold stepPotential
-    dsimp only
-    rw [hx_hi, hx_lo, Nat.add_sub_cancel_left]
-    split_ifs <;> nlinarith
-  have hcall_init : callPotential x_init ≤ n - 1 := by
-    simp only [callPotential, hx_hi, hx_lo, Nat.add_sub_cancel_left]
-    exact le_rfl
-  have hloop_wc' : ExecRandWithin w (ram[ while lo1 < hi do [ ⟪selectStep⟫ ] ]) x_init
-      (fun y => SelectInv w vbase n k s₀ x.mem y ∧ ¬(Cond.lt lo1 hi).Holds y)
-      (10 * n ^ 2 + 2) (n - 1) :=
-    hloop_wc.mono (fun _ h => h) (by omega) hcall_init
-  have hsetup_wc : ExecRandWithin w selectSetup x (· = x_init) 5 0 :=
-    e_setup.within.execRandWithin rfl
-  have hload_after : ∀ y : Data 16,
-      SelectInv w vbase n k s₀ x.mem y ∧ ¬(Cond.lt lo1 hi).Holds y →
-      ExecRandWithin (B := .standard) w (.op (.load ans target)) y
-        (fun z =>
-          z.regs ans = s₀.mergeSort[k]'(by rw [List.length_mergeSort, length_memSlice]; omega) ∧
-          (memSlice vbase (vbase + n) z.mem).Perm s₀ ∧
-          z.mem (vbase + k) =
-            s₀.mergeSort[k]'(by rw [List.length_mergeSort, length_memSlice]; omega) ∧
-          (∀ i < k, z.mem (vbase + i) ≤ z.mem (vbase + k)) ∧
-          (∀ i, k < i → i < n → z.mem (vbase + k) ≤ z.mem (vbase + i)) ∧
-          Modifies (Finset.Ico vbase (vbase + n)) x.mem z.mem) 1 0 := by
-    rintro y ⟨hIy, hnc⟩
-    obtain ⟨hval, hleft, hright⟩ := hIy.exit_post hnc (by simp only [s₀, length_memSlice]; omega) hk
-    refine (ExecWithin.load (w := w) (d := ans) (a := target) (x := y)).execRandWithin ?_
-    simp only [Data.set_regs, Function.update_self, Data.set_mem, hIy.target_eq]
-    exact ⟨hval, hIy.perm, hval, hleft, hright, hIy.modifies⟩
-  -- 2. Linear `expectedCodeTime`
+    simp only [stepPotential, hx_hi, hx_lo, Nat.add_sub_cancel_left]; split_ifs <;> nlinarith
+  have hloop_wc := (ExecRandWithin.loop_potential (SelectInv w vbase n k s₀ x.mem) stepPotential
+    callPotential (fun _ hs hc => selectStep_worstCase hs hc) hI_init).mono (fun _ h => h)
+    (by omega : stepPotential x_init + 2 ≤ 10 * n ^ 2 + 2)
+    (show callPotential x_init ≤ n - 1 by
+      simp only [callPotential, hx_hi, hx_lo, Nat.add_sub_cancel_left]; exact le_rfl)
+  refine ⟨((e_setup.within.execRandWithin rfl).seq fun _ hy => by
+      subst hy
+      exact hloop_wc.seq fun y ⟨hIy, hnc⟩ => by
+        obtain ⟨hval, hleft, hright⟩ := hIy.exit_post hnc (by simp [s₀]) hk
+        exact (ExecWithin.load (w := w) (d := ans) (a := target) (x := y)).execRandWithin
+          ⟨by wram_simp [hIy.target_eq, hval]; rfl,
+            hIy.perm, hval, hleft, hright, hIy.modifies⟩).mono
+    (fun _ h => h) (by dsimp [n]; omega) (by dsimp [n]; omega), ?_⟩
   obtain ⟨⟨m_loop, hm_loop⟩, hloop_exp⟩ := expectedCodeTime_loop_le_of_drift
     (SelectInv w vbase n k s₀ x.mem) callPotential expPotential hI_init
-    (fun s hs hc => selectStep_drift hs hc)
+    fun _ hs hc => selectStep_drift hs hc
   have hexp_init : expPotential x_init ≤ (80 * n : ℕ) := by
     simp only [expPotential, hx_hi, hx_lo, Nat.add_sub_cancel_left]
     exact_mod_cast expSubCost_le n
-  have hexp_slice : expectedCodeTime w selectSlice x ≤ ((80 * n + 8 : ℕ) : ℝ≥0∞) := by
-    rw [selectSlice, expectedCodeTime_seq_of_exec e_setup, expectedCodeTime_seq hm_loop]
-    have hload_exp : ProbComp.expect m_loop
-        (fun z => expectedCodeTime (B := .standard) w (.op (.load ans target)) z.1) = 1 := by
-      rw [← ProbComp.expect_const m_loop 1]
-      refine ProbComp.expect_congr_on_support fun z _ => ?_
-      exact expectedCodeTime_op rfl
-    rw [hload_exp]
-    calc
-      ((5 : ℕ) : ℝ≥0∞) + (expectedCodeTime w (ram[ while lo1 < hi do [ ⟪selectStep⟫ ] ]) x_init + 1)
-        ≤ ((5 : ℕ) : ℝ≥0∞) + (((80 * n : ℕ) : ℝ≥0∞) + 2 + 1) := by
-          gcongr
-          exact hloop_exp.trans (by gcongr)
-      _ = ((80 * n + 8 : ℕ) : ℝ≥0∞) := by
-          push_cast; ring
-  refine ⟨?_, hexp_slice⟩
-  have h12 := hsetup_wc.seq fun y hy => by subst hy; exact hloop_wc'.seq hload_after
-  exact h12.mono (fun _ h => h) (by dsimp only [n]; omega) (by dsimp only [n]; omega)
+  rw [selectSlice, expectedCodeTime_seq_of_exec e_setup, expectedCodeTime_seq hm_loop]
+  have hload_exp : ProbComp.expect m_loop
+      (fun z => expectedCodeTime (B := .standard) w (.op (.load ans target)) z.1) = 1 := by
+    rw [← ProbComp.expect_const m_loop 1]
+    exact ProbComp.expect_congr_on_support fun _ _ => expectedCodeTime_op rfl
+  rw [hload_exp]
+  calc ((5 : ℕ) : ℝ≥0∞) + (expectedCodeTime w _ x_init + 1)
+      ≤ ((5 : ℕ) : ℝ≥0∞) + ((80 * n : ℕ) + 2 + 1) := by gcongr; exact hloop_exp.trans (by gcongr)
+    _ = ((80 * n + 8 : ℕ) : ℝ≥0∞) := by push_cast; ring
 
 /-! ## Top-level `program` specifications on `State.init (k :: input)` -/
 
@@ -1047,19 +814,12 @@ theorem quickselect_out_of_range {w k : ℕ} {input : List ℕ}
     simpa only [program, State.init, hy_ans] using
       e_code.runRand_program ans (T := worstCaseTime input.length)
         (by simp only [worstCaseTime]; omega)
-  refine ⟨hexecutes, ?_, ?_, ?_, ?_⟩
-  · intro cfg hcfg
-    rw [hrun] at hcfg
-    cases OracleComp.eq_of_mem_supportWith_pure hcfg
-    exact ⟨0, y_out, rfl⟩
-  · rw [RandCallsBounded, hrun]
-    exact .pure _ 0
-  · intro cfg hcfg
-    have hbnd := runRand_bounded_init hfit hcfg
-    rw [hrun] at hcfg
-    cases OracleComp.eq_of_mem_supportWith_pure hcfg
+  refine ⟨hexecutes, fun cfg hcfg => ?_, by rw [RandCallsBounded, hrun]; exact .pure _ 0,
+    fun cfg hcfg => ?_, by simpa only [Nat.cast_ofNat] using hexecutes.expectedTime_eq⟩
+  · rw [hrun] at hcfg; cases OracleComp.eq_of_mem_supportWith_pure hcfg; exact ⟨0, y_out, rfl⟩
+  · have hbnd := runRand_bounded_init hfit hcfg
+    rw [hrun] at hcfg; cases OracleComp.eq_of_mem_supportWith_pure hcfg
     exact ⟨y_out, rfl, hbnd.2, hmem_out⟩
-  · simpa only [Nat.cast_ofNat] using hexecutes.expectedTime_eq
 
 /-- Structured `ExecRandWithin` and linear `expectedCodeTime` specification for `code` when
 `k < input.length`. -/
@@ -1079,73 +839,38 @@ theorem code_spec {w k : ℕ} {input : List ℕ}
     expectedCodeTime w code (Data.init (k :: input)) ≤
       ((80 * input.length + 14 : ℕ) : ℝ≥0∞) := by
   let n := input.length
-  have hfit_end : Fits w (2 + n) := by
-    rw [Nat.add_comm]
-    exact fits_add_two hw
+  have hfit_end : Fits w (2 + n) := Nat.add_comm 2 n ▸ fits_add_two hw
   obtain ⟨x_hdr, e_hdr, hmem_hdr, hone_hdr, hrk_hdr, hlen_hdr⟩ := loadHeader_spec hfit
   have hc_pos : (Cond.lt rk len).Holds x_hdr := by
-    simp only [Cond.holds_lt, hrk_hdr, hlen_hdr]
-    exact hk
+    simp only [Cond.holds_lt, hrk_hdr, hlen_hdr]; exact hk
   let x_base := x_hdr.set base 2
   have e_base : Exec w (.op (.bin .add base one one)) x_hdr x_base 1 := by
     simpa only [x_base, hone_hdr, BinOp.eval] using
       Exec.bin (w := w) (f := .add) (d := base) (i := one) (j := one) (x := x_hdr)
         (hfit_end.of_le (by simp only [hone_hdr, BinOp.eval]; omega))
-  have hrk_base : x_base.regs rk = k := by
-    simp only [x_base, Data.set_regs, Function.update_of_ne (by decide : rk ≠ base), hrk_hdr]
-  have hlen_base : x_base.regs len = n := by
-    simp only [x_base, Data.set_regs, Function.update_of_ne (by decide : len ≠ base), hlen_hdr]
-    rfl
-  have hbase_base : x_base.regs base = 2 := by
-    simp only [x_base, Data.set_regs, Function.update_self]
-  have hslice_init : memSlice 2 (n + 2) (Data.init (r := 16) (k :: input)).mem = input := by
-    refine List.ext_getElem (by simp only [length_memSlice]; dsimp only [n]; omega)
-      fun i h1 h2 => ?_
-    rw [getElem_memSlice (by omega), show 2 + i = (i + 1) + 1 by omega]
-    simp only [Data.init_mem_succ]
-    rw [List.getD_cons_succ, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h2,
-      Option.getD_some]
+  have hrk_b : x_base.regs rk = k := by wram_simp [x_base, hrk_hdr]
+  have hlen_b : x_base.regs len = n := by wram_simp [x_base, hlen_hdr]; rfl
+  have hbase_b : x_base.regs base = 2 := by wram_simp [x_base]
+  have hslice_init : memSlice 2 (n + 2) (Data.init (r := 16) (k :: input)).mem = input :=
+    List.ext_getElem (by simp [n]) fun i _ h2 => by
+      rw [getElem_memSlice (by omega), show 2 + i = (i + 1) + 1 by omega]
+      simp [Data.init_mem_succ, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h2]
   obtain ⟨hslice_wc, hslice_exp⟩ := selectSlice_spec (w := w) (x := x_base)
-    (by rw [hrk_base, hlen_base]; exact hk)
-    (by rw [hbase_base, hlen_base]; exact hfit_end)
-  have hthen_wc : ExecRandWithin w (ram[ base ← one + one; ⟪selectSlice⟫ ]) x_hdr
-      (fun y =>
-        y.regs ans = input.mergeSort[k]'(by rw [List.length_mergeSort]; exact hk) ∧
-        (memSlice 2 (n + 2) y.mem).Perm input ∧
-        y.mem (2 + k) = input.mergeSort[k]'(by rw [List.length_mergeSort]; exact hk) ∧
-        (∀ i < k, y.mem (2 + i) ≤ y.mem (2 + k)) ∧
-        (∀ i, k < i → i < n → y.mem (2 + k) ≤ y.mem (2 + i)) ∧
-        Modifies (Finset.Ico 2 (n + 2)) (Data.init (r := 16) (k :: input)).mem y.mem)
-      (10 * n ^ 2 + 9) (n - 1) := by
-    have hb_wc : ExecRandWithin w (.op (.bin .add base one one)) x_hdr (· = x_base) 1 0 :=
-      e_base.within.execRandWithin rfl
-    have hseq := hb_wc.seq fun y hy => by subst hy; exact hslice_wc
-    refine hseq.mono ?_ (by rw [hlen_base]; omega) (by rw [hlen_base]; omega)
-    intro y hy
-    have hx_mem : x_base.mem = (Data.init (r := 16) (k :: input)).mem := by
-      simp only [x_base, Data.set_mem, hmem_hdr]
-    simp only [hbase_base, hlen_base, hrk_base, hx_mem, Nat.add_comm 2 n, hslice_init] at hy
-    exact hy
-  have hcode_wc : ExecRandWithin w code (Data.init (k :: input))
-      (fun y =>
-        y.regs ans = input.mergeSort[k]'(by rw [List.length_mergeSort]; exact hk) ∧
-        (memSlice 2 (n + 2) y.mem).Perm input ∧
-        y.mem (2 + k) = input.mergeSort[k]'(by rw [List.length_mergeSort]; exact hk) ∧
-        (∀ i < k, y.mem (2 + i) ≤ y.mem (2 + k)) ∧
-        (∀ i, k < i → i < n → y.mem (2 + k) ≤ y.mem (2 + i)) ∧
-        Modifies (Finset.Ico 2 (n + 2)) (Data.init (r := 16) (k :: input)).mem y.mem)
-      (10 * n ^ 2 + 14) (n - 1) := by
-    have hhdr_wc : ExecRandWithin w loadHeader (Data.init (k :: input)) (· = x_hdr) 4 0 :=
-      e_hdr.within.execRandWithin rfl
-    have hbr_wc := ExecRandWithin.branch_pos (neg := ram[ ans ← #0 ]) hc_pos hthen_wc
-    have hseq := hhdr_wc.seq fun y hy => by subst hy; exact hbr_wc
-    exact hseq.mono (fun _ h => h) (by omega) (by omega)
-  refine ⟨hcode_wc, ?_⟩
+    (by rw [hrk_b, hlen_b]; exact hk) (by rw [hbase_b, hlen_b]; exact hfit_end)
+  have hthen_wc := ((e_base.within.execRandWithin rfl).seq fun _ hy => by
+      subst hy; exact hslice_wc).mono
+    (fun y hy => by
+      simpa only [hbase_b, hlen_b, hrk_b, x_base, Data.set_mem, hmem_hdr, Nat.add_comm 2 n,
+        hslice_init] using hy)
+    (by rw [hlen_b]; omega : 1 + (10 * x_base.regs len ^ 2 + 8) ≤ 10 * n ^ 2 + 9)
+    (by rw [hlen_b]; omega : 0 + (x_base.regs len - 1) ≤ n - 1)
+  refine ⟨((e_hdr.within.execRandWithin rfl).seq fun _ hy => by
+      subst hy; exact ExecRandWithin.branch_pos (neg := ram[ ans ← #0 ]) hc_pos hthen_wc).mono
+    (fun _ h => h) (by dsimp [n]; omega) (by dsimp [n]; omega), ?_⟩
   rw [code, expectedCodeTime_seq_of_exec e_hdr, expectedCodeTime_branch_pos hc_pos,
     expectedCodeTime_seq_of_exec e_base]
-  rw [hlen_base] at hslice_exp
-  calc
-    ((4 : ℕ) : ℝ≥0∞) + (((1 : ℕ) : ℝ≥0∞) + expectedCodeTime w selectSlice x_base + 1)
+  rw [hlen_b] at hslice_exp
+  calc ((4 : ℕ) : ℝ≥0∞) + (((1 : ℕ) : ℝ≥0∞) + expectedCodeTime w selectSlice x_base + 1)
       ≤ ((4 : ℕ) : ℝ≥0∞) + (((1 : ℕ) : ℝ≥0∞) + ((80 * n + 8 : ℕ) : ℝ≥0∞) + 1) := by gcongr
     _ = ((80 * n + 14 : ℕ) : ℝ≥0∞) := by push_cast; ring
 
@@ -1188,23 +913,13 @@ theorem quickselect_correct_and_bounds {w k : ℕ} {input : List ℕ}
   obtain ⟨hHalts, hCalls, hPost⟩ :=
     hcode_wc.program ans (T' := worstCaseTime input.length) (by simp only [worstCaseTime]; omega)
   obtain ⟨m_code, hm_code, -, -⟩ := hcode_wc
-  have hexp_total :
-      expectedTime w program (.init (k :: input)) ≤ (expectedTimeBound input.length : ℝ≥0∞) := by
-    rw [program, State.init, expectedCodeTime_program hm_code ans]
-    calc
-      expectedCodeTime w code (Data.init (k :: input)) + 1
-        ≤ ((80 * input.length + 14 : ℕ) : ℝ≥0∞) + 1 := by gcongr
-      _ = (expectedTimeBound input.length : ℝ≥0∞) := by
-          simp only [expectedTimeBound]
-          push_cast
-          ring
-  refine ⟨hHalts, hCalls, fun cfg hcfg => ?_, hexp_total⟩
-  obtain ⟨y, hcfg_eq, hy_ans, hperm, hy_k, hleft, hright, hmod⟩ := hPost cfg hcfg
-  rw [hy_ans] at hcfg_eq
-  have hbnd : y.Bounded w := by
-    have hb := runRand_bounded_init hfit hcfg
-    rw [hcfg_eq] at hb
-    exact hb.2
-  exact ⟨y, hcfg_eq, hbnd, hperm, hy_k, hleft, hright, hmod⟩
+  refine ⟨hHalts, hCalls, fun cfg hcfg => ?_, ?_⟩
+  · obtain ⟨y, hcfg_eq, hy_ans, hperm, hy_k, hleft, hright, hmod⟩ := hPost cfg hcfg
+    rw [hy_ans] at hcfg_eq
+    have hb := runRand_bounded_init hfit hcfg; rw [hcfg_eq] at hb
+    exact ⟨y, hcfg_eq, hb.2, hperm, hy_k, hleft, hright, hmod⟩
+  · rw [program, State.init, expectedCodeTime_program hm_code ans]
+    exact (add_le_add_left hcode_exp 1).trans_eq <| by
+      simp only [expectedTimeBound]; push_cast; ring
 
 end Cslib.Algorithms.WordRAM.Quickselect

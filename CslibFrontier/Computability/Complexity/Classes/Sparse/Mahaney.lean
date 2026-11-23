@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 import CslibFrontier.Foundations.Data.List.EraseDupsBy
 import Cslib.Foundations.Data.Polynomial.Monotone
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Mahaney's theorem
@@ -112,14 +113,13 @@ theorem disj_mem_SAT_iff {φ : CNF ℕ} {a b : List (Literal ℕ)} :
   · rintro ⟨σ, hσ⟩
     rw [disj, CNF.eval_append, Bool.and_eq_true, eval_cross] at hσ
     by_cases ha : ∀ l ∈ a, σ l.1 = l.2
-    · exact .inl ⟨σ, by rw [CNF.eval_append, Bool.and_eq_true, eval_units]; exact ⟨ha, hσ.2⟩⟩
+    · exact .inl ⟨σ, (eval_units_append ..).2 ⟨ha, hσ.2⟩⟩
     · push Not at ha
       obtain ⟨l, hl, hne⟩ := ha
-      refine .inr ⟨σ, ?_⟩
-      rw [CNF.eval_append, Bool.and_eq_true, eval_units]
-      exact ⟨fun m hm => (hσ.1 l hl m hm).resolve_left hne, hσ.2⟩
+      exact .inr ⟨σ, (eval_units_append ..).2
+        ⟨fun m hm => (hσ.1 l hl m hm).resolve_left hne, hσ.2⟩⟩
   · rintro (⟨σ, hσ⟩ | ⟨σ, hσ⟩) <;>
-      rw [CNF.eval_append, Bool.and_eq_true, eval_units] at hσ <;>
+      rw [eval_units_append] at hσ <;>
       refine ⟨σ, ?_⟩ <;>
       rw [disj, CNF.eval_append, Bool.and_eq_true, eval_cross]
     · exact ⟨fun l hl m _ => .inl (hσ.1 l hl), hσ.2⟩
@@ -394,9 +394,7 @@ theorem length_encCNF_disj_le {φ : CNF ℕ} {a b : List (Literal ℕ)} (ha : �
     obtain ⟨l, hl, m, hm, rfl⟩ := hc
     have h₁ := length_encNat_le_of_mem_vars (ha l hl)
     have h₂ := length_encNat_le_of_mem_vars (hb m hm)
-    simp only [encList_cons, encList_nil, List.append_nil, List.length_append, length_frame,
-      length_encPair, encBool_apply, List.length_singleton]
-    omega
+    enc_len [List.append_nil, List.length_singleton]
   have hcross := length_encList_le _ _ hclause
   have hlen : (a.flatMap fun l => b.map fun m => [l, m]).length = a.length * b.length := by
     simp [List.length_flatMap, List.sum_replicate, List.map_const']

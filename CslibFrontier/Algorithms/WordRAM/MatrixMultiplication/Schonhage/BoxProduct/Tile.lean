@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.Arguments
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.Charges
 public import CslibFrontier.Algorithms.MatrixMultiplication.Schonhage.Magnitude
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # One actual routed tile against shared box geometry
@@ -25,8 +26,6 @@ namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct
 
 open Cslib.WordRAM Cslib.Algorithms.MatrixMultiplication.Schonhage
 
-set_option maxRecDepth 4096 in
--- The fixed caller frame check unfolds the existing 32-member 160-register protocol.
 /-- One actual tile builds retained values, answers its real grouped span and delivers all
 signed matrix-product answers, retaining the one shared geometry and producer arrays. -/
 theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t ≤ m)
@@ -168,11 +167,8 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
   let u := z.extend boxBank arg
   have hu := hz.rename boxBank_injective
   have ur (i : Fin 160) (hi : 64 ≤ i.val) : u.regs i = arg.regs i := boxBank_extend_high z arg i hi
-  have up : QueriedProduct.Parameters L m N qs.length u := arp.reframe (fun i hi => ur i (by omega))
-  have ub : Parameters L m t N qs.length u := arb.extend z
-  have ulow (i : Fin 64) (hi : ¬BoxTable.TileLocal i) :
-      (u.comap boxBank).regs i = (arg.comap boxBank).regs i := by
-    simpa only [u, Data.comap_extend boxBank_injective] using zregs i hi
+  have up : QueriedProduct.Parameters L m N qs.length u := by regs_frame
+  have ub : Parameters L m t N qs.length u := by regs_frame
   have uread : BoxQuery.Readback m t D0 V pa pb encA encB u.mem := by
     change BoxQuery.Readback m t D0 V pa pb encA encB z.mem
     constructor
@@ -186,11 +182,7 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
       rw [zf _ (by dsimp only [D0, V]; unfold valueBase recordBase; omega), Data.comap_mem, arm]
       exact hgeom.directory s hs
     · exact zv
-  have ux : BoxBatch.Arguments L t pa pb D0 V K (u.comap boxBank) :=
-    ⟨(ulow _ (by decide)).trans arc.levels, (ulow _ (by decide)).trans arth,
-      (ulow _ (by decide)).trans arc.span, (ulow _ (by decide)).trans arA,
-      (ulow _ (by decide)).trans arB, (ulow _ (by decide)).trans arc.directory,
-      (ulow _ (by decide)).trans arV, (ulow _ (by decide)).trans arK⟩
+  have ux : BoxBatch.Arguments L t pa pb D0 V K (u.comap boxBank) := by regs_frame
   have uwanted (i : Fin wanted.length) : u.mem
       (QueriedProduct.codeBase L m N qs.length + a + i.val) =
         (PrunedQuery.queryIndex (wanted.get i)).val := by
@@ -200,14 +192,14 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
     simpa only [wanted, List.get_eq_getElem, List.getElem_ofFn, Nat.add_assoc] using
       hinput ⟨i.val, by simpa only [wanted, List.length_ofFn] using i.isLt⟩
   obtain ⟨q, hq, _, _, _, _, qv, _, qf⟩ := BoxBatch.exec_queryProgram wanted (u.comap boxBank)
-    ux ((ulow _ (by decide)).trans arq)
+    ux (by regs_frame)
     (by
       calc
         (u.comap boxBank).regs BoxBatch.Reg.stop = QueriedProduct.codeBase L m N qs.length + b := by
-          simpa only [b, Nat.add_assoc] using (ulow _ (by decide)).trans ars
+          regs_frame
         _ = (QueriedProduct.codeBase L m N qs.length + a) + wanted.length := by
           simp only [wanted, List.length_ofFn]
-          omega) ((ulow _ (by decide)).trans aro)
+          omega) (by regs_frame)
     encA encB haB hbB hinner uwanted rfl (by omega) (by omega)
     (by dsimp only [D0, V]; unfold valueBase recordBase; omega)
     (by simp only [wanted, List.length_ofFn]; omega) (by rfl) uread
@@ -220,40 +212,34 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
   let v := q.extend boxBank u
   have hv := hq.rename boxBank_injective
   have vr (i : Fin 160) (hi : 64 ≤ i.val) : v.regs i = u.regs i := boxBank_extend_high q u i hi
-  have vp : QueriedProduct.Parameters L m N qs.length v := up.reframe (fun i hi => vr i (by omega))
-  have vb : Parameters L m t N qs.length v := ub.extend q
+  have vp : QueriedProduct.Parameters L m N qs.length v := by regs_frame
+  have vb : Parameters L m t N qs.length v := by regs_frame
   have vd : v.regs QueriedProduct.Reg.destination =
-      QueriedProduct.groupedBase L m N qs.length + a :=
-    (vr _ (by decide)).trans ((ur _ (by decide)).trans ard)
-  have vl : v.regs QueriedProduct.Reg.length = b - a :=
-    (vr _ (by decide)).trans ((ur _ (by decide)).trans arlen)
+      QueriedProduct.groupedBase L m N qs.length + a := by regs_frame
+  have vl : v.regs QueriedProduct.Reg.length = b - a := by regs_frame
   let c := v.set QueriedProduct.Reg.source O
   have hc : ExecWithin (B := .standard) (w + 2)
-      (ram[QueriedProduct.Reg.source ← Reg.results]) v c 1 := by
-    ram_eval [c, vb.results, O]
-  have cp : QueriedProduct.Parameters L m N qs.length c :=
-    vp.set_work _ (by decide) _
+      (ram[QueriedProduct.Reg.source ← Reg.results]) v c 1 :=
+    WP.execWithin (by wram_exec [vb.results]; rfl)
+  have cp : QueriedProduct.Parameters L m N qs.length c := by regs_frame
   have cs : c.regs QueriedProduct.Reg.source = O := by simp [c]
   have cd : c.regs QueriedProduct.Reg.destination =
-      QueriedProduct.groupedBase L m N qs.length + a :=
-    (hc.regs_eq (by decide)).trans vd
-  have cl : c.regs QueriedProduct.Reg.length = b - a := (hc.regs_eq (by decide)).trans vl
+      QueriedProduct.groupedBase L m N qs.length + a := by regs_frame
+  have cl : c.regs QueriedProduct.Reg.length = b - a := by regs_frame
   obtain ⟨d, hd, dm, dr⟩ := QueriedProduct.exec_copyCall c
     (hfit.of_le (by unfold wordBudget; omega))
     (by rw [cs, cl]; apply allocated_fits hfit; dsimp only [O]; unfold memoryEnd; omega)
     (by rw [cd, cl]; apply allocated_fits hfit; unfold memoryEnd; dsimp only [O] at *; omega)
     (by rw [cs, cd, cl]; exact Or.inr (Or.inl (by omega)))
-  have dp : QueriedProduct.Parameters L m N qs.length d := cp.reframe (fun i hi => dr i (by omega))
-  have di : d.regs QueriedProduct.Reg.index = j :=
-    (dr _ (by decide)).trans ((hc.regs_eq (by decide)).trans
-      ((vr _ (by decide)).trans ((ur _ (by decide)).trans ari)))
+  have dp : QueriedProduct.Parameters L m N qs.length d := by regs_frame
+  have di : d.regs QueriedProduct.Reg.index = j := by regs_frame
   have fnext : Fits (w + 2) (j + 1) := index_fits hfit hj
   let y := d.set QueriedProduct.Reg.index (j + 1)
   have hy : ExecWithin (B := .standard) (w + 2)
       (ram[QueriedProduct.Reg.index ← QueriedProduct.Reg.index + QueriedProduct.Reg.one])
-      d y 1 := by
-    ram_eval [y, di, dp.one, fnext]
-  have yp : QueriedProduct.Parameters L m N qs.length y := dp.set_work _ (by decide) _
+      d y 1 :=
+    WP.execWithin (by wram_exec [di, dp.one, fnext]; rfl)
+  have yp : QueriedProduct.Parameters L m N qs.length y := by regs_frame
   have native : ExecWithin (w + 2) tileStep x y
       (328 * K + (b - a) * (batchUnit L m t + 7) + 63) := by
     apply (har.seq (hu.seq (hv.seq ((hc.seq hd).seq hy)))).mono
@@ -288,12 +274,7 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
       (hf : ¬(D0 ≤ p ∧ p < memoryEnd L m t N qs.length)) : y.mem p = x.mem p :=
     strongframe p ho (by omega)
   refine ⟨y, native, yp, ?_, by simp [y], ?_, ?_, ?_, ?_, frame⟩
-  · exact ⟨(native.regs_eq (by decide)).trans hb.threshold,
-      (native.regs_eq (by decide)).trans hb.directory,
-      (native.regs_eq (by decide)).trans hb.records,
-      (native.regs_eq (by decide)).trans hb.values,
-      (native.regs_eq (by decide)).trans hb.count,
-      (native.regs_eq (by decide)).trans hb.results⟩
+  · regs_frame
   · exact hg.reframe (fun p hp hbefore => frame p (by omega) (by omega))
   · exact he.reframe (fun p hp => frame p
       (by have h := band_before_grouped L m N qs.length; omega) (by omega))

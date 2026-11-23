@@ -72,7 +72,7 @@ mapped to a graph without arcs, where the first player loses
 * [T. J. Schaefer, *On the complexity of some two-person perfect-information games*][Schaefer1978]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Complexity
 
@@ -98,7 +98,7 @@ def chooserNode : ℕ := Nat.pair 3 0
 def clauseNode (i : ℕ) : ℕ := Nat.pair 4 i
 
 /-- The arcs of diamond `j`. -/
-def diamondArcs (j : ℕ) : List (ℕ × ℕ) :=
+private def diamondArcs (j : ℕ) : List (ℕ × ℕ) :=
   [(topNode j, valueNode j false), (topNode j, valueNode j true),
     (valueNode j false, bottomNode j), (valueNode j true, bottomNode j),
     (bottomNode j, topNode (j + 1))]
@@ -108,7 +108,7 @@ def lastIdx (xs : List ℕ) (x : ℕ) : ℕ := xs.length - 1 - xs.reverse.idxOf 
 
 /-- The arcs from the node of clause `i`: to the value node of `¬b` in the diamond of the last
 quantifier over `x`, for each literal `(x, b)` of the clause with a quantified variable. -/
-def literalArcs (xs : List ℕ) (i : ℕ) (c : Clause ℕ) : List (ℕ × ℕ) :=
+private def literalArcs (xs : List ℕ) (i : ℕ) (c : Clause ℕ) : List (ℕ × ℕ) :=
   (c.filter fun l => decide (l.1 ∈ xs)).map fun l =>
     (clauseNode i, valueNode (lastIdx xs l.1) (!l.2))
 
@@ -121,14 +121,14 @@ def formulaArcs (xs : List ℕ) (ψ : CNF ℕ) : List (ℕ × ℕ) :=
 /-- **The graph of a formula**: its arcs, and as vertices the top of the first diamond and the
 targets of the arcs. -/
 def formulaGraph (xs : List ℕ) (ψ : CNF ℕ) : Graph :=
-  (topNode 0 :: (formulaArcs xs ψ).map Prod.snd, formulaArcs xs ψ)
+  ⟨topNode 0 :: (formulaArcs xs ψ).map Prod.snd, formulaArcs xs ψ⟩
 
 /-- **The reduction from `TQBFCNF`**: the graph of the formula, from the top of the first diamond,
 when the formula is closed, and a graph without arcs otherwise. -/
-def reduce (x : List (ℕ × ℕ) × CNF ℕ) : Graph × ℕ :=
-  if x.2.all (fun c => c.all fun l => decide (l.1 ∈ QBF.roundVars x.1)) then
-    (formulaGraph (QBF.roundVars x.1) x.2, topNode 0)
-  else (([0], []), 0)
+def reduce (x : PrenexCNF) : GeneralizedGeographyInstance :=
+  if x.matrix.all (fun c => c.all fun l => decide (l.1 ∈ QBF.roundVars x.rounds)) then
+    ⟨formulaGraph (QBF.roundVars x.rounds) x.matrix, topNode 0⟩
+  else ⟨⟨[0], []⟩, 0⟩
 
 /-! ### The arcs -/
 
@@ -322,6 +322,7 @@ theorem geographyWins_formulaGraph_iff {vis : List ℕ} {v : ℕ} :
     (formulaGraph xs ψ).GeographyWins vis v ↔ ∃ w, (v, w) ∈ formulaArcs xs ψ ∧ w ∉ vis ∧
       ¬(formulaGraph xs ψ).GeographyWins (w :: vis) w := by
   rw [Graph.geographyWins_iff]
+  dsimp only [formulaGraph]
   refine exists_congr fun w => ⟨fun ⟨h, _, h'⟩ => ⟨h, h'⟩, fun ⟨h, h'⟩ => ⟨h, ?_, h'⟩⟩
   exact List.mem_cons_of_mem _ (List.mem_map_of_mem (f := Prod.snd) h)
 
@@ -511,17 +512,17 @@ theorem updates_eq_getD_lastIdx (σ : ℕ → Bool) :
 
 /-- **The reduction is correct**: the first player wins on the graph of an instance exactly when
 its formula is a true closed formula. -/
-theorem reduce_mem_iff (x : List (ℕ × ℕ) × CNF ℕ) :
+theorem reduce_mem_iff (x : PrenexCNF) :
     reduce x ∈ GeneralizedGeography ↔ x ∈ TQBFCNF := by
   obtain ⟨ps, ψ⟩ := x
-  unfold reduce
+  dsimp only [reduce]
   split_ifs with hall
   · have hvars : ∀ c ∈ ψ, ∀ l ∈ c, l.1 ∈ QBF.roundVars ps := by
       simpa only [List.all_eq_true, decide_eq_true_eq] using hall
     have hclosed := (QBF.closed_rounds_ofCNF_iff ps ψ).2 hvars
     have heven : Even (QBF.roundVars ps).length := ⟨ps.length, by rw [QBF.length_roundVars]; ring⟩
-    rw [mem_GeneralizedGeography, geographyWins_formulaGraph heven hvars, TQBFCNF,
-      Set.mem_ofPred_eq, mem_TQBF_iff_of_closed hclosed (fun _ => false),
+    rw [mem_GeneralizedGeography, geographyWins_formulaGraph heven hvars, mk_mem_TQBFCNF,
+      mem_TQBF_iff_of_closed hclosed (fun _ => false),
       QBF.eval_rounds_eq_true_iff, ← QBF.length_roundVars]
     refine alternation_congr_of_length fun z hz => ?_
     rw [sum_replicate_one] at hz
@@ -531,6 +532,7 @@ theorem reduce_mem_iff (x : List (ℕ × ℕ) × CNF ℕ) :
     obtain ⟨c, hc, hlc⟩ := List.mem_flatten.1 hl
     exact (updates_eq_getD_lastIdx _ _ z hz l.1 (hvars c hc l hlc)).symm
   · refine iff_of_false notMem_GeneralizedGeography_of_nil fun h => hall ?_
+    rw [mk_mem_TQBFCNF] at h
     simpa only [List.all_eq_true, decide_eq_true_eq] using
       (QBF.closed_rounds_ofCNF_iff ps ψ).1 h.1
 
@@ -568,24 +570,24 @@ theorem computableInPolyTime_clauseNode {i : γ → ℕ}
     ComputableInPolyTime (fun x => clauseNode (i x)) encIn encNat :=
   unary_to_binary.comp (show ComputableInPolyTime (fun x => Nat.pair 4 (i x)) _ _ by fun_prop)
 
-@[fun_prop]
-theorem computableInPolyTime_diamondArcs {j : γ → ℕ}
+private theorem computableInPolyTime_diamondArcs {j : γ → ℕ}
     (hj : ComputableInPolyTime j encIn encUnary) :
     ComputableInPolyTime (fun x => diamondArcs (j x)) encIn
       (encList (encPair encNat encNat)) := by
   unfold diamondArcs
   fun_prop
 
+attribute [local fun_prop] computableInPolyTime_diamondArcs
+
 @[fun_prop]
 theorem computableInPolyTime_lastIdx {xs : γ → List ℕ} {v : γ → ℕ}
     (hxs : ComputableInPolyTime xs encIn (encList encNat))
     (hv : ComputableInPolyTime v encIn encNat) :
     ComputableInPolyTime (fun x => lastIdx (xs x) (v x)) encIn encUnary := by
-  unfold lastIdx
+  dsimp only [lastIdx]
   fun_prop
 
-@[fun_prop]
-theorem computableInPolyTime_literalArcs {xs : γ → List ℕ} {i : γ → ℕ}
+private theorem computableInPolyTime_literalArcs {xs : γ → List ℕ} {i : γ → ℕ}
     {c : γ → Clause ℕ} (hxs : ComputableInPolyTime xs encIn (encList encNat))
     (hi : ComputableInPolyTime i encIn encUnary)
     (hc : ComputableInPolyTime c encIn (encList (encPair encNat encBool))) :
@@ -595,22 +597,27 @@ theorem computableInPolyTime_literalArcs {xs : γ → List ℕ} {i : γ → ℕ}
   simp only [List.decide_mem_eq_any]
   fun_prop
 
+attribute [local fun_prop] computableInPolyTime_literalArcs
+
 /-- The graph of a formula is polynomial-time in its quantified variables and its clauses. -/
 @[fun_prop]
 theorem computableInPolyTime_formulaGraph {xs : γ → List ℕ} {ψ : γ → CNF ℕ}
     (hxs : ComputableInPolyTime xs encIn (encList encNat))
     (hψ : ComputableInPolyTime ψ encIn encCNF) :
     ComputableInPolyTime (fun x => formulaGraph (xs x) (ψ x)) encIn encGraph := by
-  unfold formulaGraph formulaArcs encGraph
-  unfold encCNF at hψ
+  dsimp only [formulaGraph, formulaArcs]
   fun_prop
 
 /-- **The reduction is polynomial-time.** -/
 theorem computableInPolyTime_reduce :
-    ComputableInPolyTime reduce encPrenexCNF (encPair encGraph encNat) := by
-  unfold reduce QBF.roundVars encPrenexCNF
+    ComputableInPolyTime reduce encPrenexCNF encGeneralizedGeography := by
+  have hmat : ComputableInPolyTime (fun x : PrenexCNF => x.matrix) encPrenexCNF
+      (encList (encList (encPair encNat encBool))) :=
+    encPrenexCNF_matrix_polyTime id'
+  change ComputableInPolyTime (fun x => reduce x) encPrenexCNF encGeneralizedGeography
+  dsimp only [reduce]
   simp only [List.decide_mem_eq_any]
-  unfold encCNF
+  dsimp only [QBF.roundVars]
   fun_prop
 
 end PolyTime
@@ -622,13 +629,13 @@ open GeneralizedGeography Turing.MultiTapeTM
 /-- **`TQBFCNF` reduces to Generalized Geography** [Sipser, Theorem 8.14][Sipser2013]
 [LichtensteinSipser1980]. -/
 theorem polyTimeReducible_TQBFCNF_GeneralizedGeography :
-    PolyTimeReducible encPrenexCNF (encPair encGraph encNat) TQBFCNF GeneralizedGeography :=
+    PolyTimeReducible encPrenexCNF encGeneralizedGeography TQBFCNF GeneralizedGeography :=
   ⟨reduce, computableInPolyTime_reduce, fun x => (reduce_mem_iff x).symm⟩
 
 /-- **Generalized Geography is `PSPACE`-hard** [Sipser, Theorem 8.14][Sipser2013]
 [LichtensteinSipser1980]. -/
 theorem GeneralizedGeography_pspaceHard :
-    PSPACEHard (encPair encGraph encNat) GeneralizedGeography :=
+    PSPACEHard encGeneralizedGeography GeneralizedGeography :=
   TQBFCNF_pspaceHard.trans polyTimeReducible_TQBFCNF_GeneralizedGeography
 
 end Cslib.Complexity

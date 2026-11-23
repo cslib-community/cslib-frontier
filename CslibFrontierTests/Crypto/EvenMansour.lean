@@ -121,6 +121,45 @@ example :
    advantage_singleKeyEvenMansourRealGame_evenMansourIdealGame_le
     isCallBounded_sampleTwoSidedDistinguisher⟩
 
+/-- A concrete randomized (`ProbOracleComp`) two-sided distinguisher on `ZMod 7` that flips a
+private coin before querying the cipher and primitive permutation oracles. -/
+noncomputable def sampleProbTwoSidedDistinguisher :
+    ProbOracleComp (EvenMansourSpec (ZMod 7)) Bool := do
+  let x ← ProbOracleComp.sample (ProbComp.uniform (ZMod 7))
+  let y ← ProbOracleComp.query (spec := EvenMansourSpec (ZMod 7)) (Sum.inl (.forward x))
+  let u ← ProbOracleComp.query (spec := EvenMansourSpec (ZMod 7)) (Sum.inr (.inverse y))
+  return decide (u = x)
+
+theorem isProbCallBounded_sampleProbTwoSidedDistinguisher :
+    IsProbCallBounded sampleProbTwoSidedDistinguisher 1 1 := by
+  constructor
+  · simpa [sampleProbTwoSidedDistinguisher, cipherCost] using
+      (ProbOracleComp.isCostBounded_sample cipherCost (ProbComp.uniform (ZMod 7))).bind fun x =>
+        (ProbOracleComp.isCostBounded_query (spec := EvenMansourSpec (ZMod 7)) cipherCost
+          (Sum.inl (.forward x))).bind fun (y : ZMod 7) =>
+          (ProbOracleComp.isCostBounded_query (spec := EvenMansourSpec (ZMod 7)) cipherCost
+            (Sum.inr (.inverse y))).bind fun _ =>
+            OracleComp.IsCostBounded.pure _ 0
+  · simpa [sampleProbTwoSidedDistinguisher, permCost] using
+      (ProbOracleComp.isCostBounded_sample permCost (ProbComp.uniform (ZMod 7))).bind fun x =>
+        (ProbOracleComp.isCostBounded_query (spec := EvenMansourSpec (ZMod 7)) permCost
+          (Sum.inl (.forward x))).bind fun (y : ZMod 7) =>
+          (ProbOracleComp.isCostBounded_query (spec := EvenMansourSpec (ZMod 7)) permCost
+            (Sum.inr (.inverse y))).bind fun _ =>
+            OracleComp.IsCostBounded.pure _ 0
+
+example :
+    (Game.advantage (evenMansourProbRealGame sampleProbTwoSidedDistinguisher)
+      (evenMansourProbIdealGame sampleProbTwoSidedDistinguisher) : ℝ) ≤
+      2 * ((1 : ℕ) : ℝ) * ((1 : ℕ) : ℝ) / (Fintype.card (ZMod 7) : ℝ) ∧
+    (Game.advantage (singleKeyEvenMansourProbRealGame sampleProbTwoSidedDistinguisher)
+      (evenMansourProbIdealGame sampleProbTwoSidedDistinguisher) : ℝ) ≤
+      2 * ((1 : ℕ) : ℝ) * ((1 : ℕ) : ℝ) / (Fintype.card (ZMod 7) : ℝ) :=
+  ⟨advantage_evenMansourProbRealGame_evenMansourProbIdealGame_le
+     isProbCallBounded_sampleProbTwoSidedDistinguisher,
+   advantage_singleKeyEvenMansourProbRealGame_evenMansourProbIdealGame_le
+     isProbCallBounded_sampleProbTwoSidedDistinguisher⟩
+
 /-! ### Axiom guards for headline results -/
 
 /--

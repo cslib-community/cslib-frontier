@@ -35,7 +35,8 @@ open Classical in
   frameRetains P 4 Lt (σ t) (CopyPadding.identifier D suffix y)
 
 open Classical in
-/-- Sum of the raw-prefix row maxima, allowing a different maximizing endpoint at each prefix. -/
+/-- Weighted sum of the raw-prefix row maxima over the prefixes `j ≤ i < m`, with weight
+`28 ^ (m - i)`, allowing a different maximizing endpoint at each prefix. -/
 @[expose] noncomputable def meanRowTail (t : Fin J) (Lt : ℕ) (D : ZMod P) (suffix : List (ZMod P))
     (m j : ℕ) (μ : ℕ → Matrix (ZMod P) (ZMod P) ℝ)
     (σ : Environment P J) (x : ZMod P) : ℝ :=
@@ -43,7 +44,8 @@ open Classical in
     kthLargest 1 {y | retainedMask t Lt D suffix σ y} (fun y => |μ i x y|)
 
 open Classical in
-/-- A common deterministic endpoint envelope controls the sum of adaptively chosen row maxima. -/
+/-- A common deterministic endpoint envelope controls the weighted sum of adaptively chosen
+row maxima. -/
 lemma meanRowTail_le (t : Fin J) (Lt : ℕ) (D : ZMod P) (suffix : List (ZMod P))
     (m j : ℕ) (hj : j < m) (μ : ℕ → Matrix (ZMod P) (ZMod P) ℝ)
     (B : Matrix (ZMod P) (ZMod P) ℝ) (hB : ∀ x y, 0 ≤ B x y)
@@ -124,10 +126,7 @@ theorem integrated_mean_tail_capacity
   have hterm (j : ℕ) (hj : j < m) : vertexNormPow 4 N u X (f j) ≤
       (C * ε * (1 / 64 : ℝ) ^ dyadicSlack m j) ^ 4 := by
     let q := (2 + 256 * M / dyadicFloor η m j) / (n j : ℝ)
-    have hq : 0 ≤ q := by
-      have hf := dyadicFloor_pos hη m j
-      dsimp [q]
-      positivity
+    have hq : 0 ≤ q := by dsimp only [q]; positivity
     have hr (x y : ZMod P) :
         (#{σ : Environment P J | X σ x ∧ Yt σ y ∧ meanFirstEvent t D suffix k m j η G n K Δ raw σ
           x}:ℝ) ≤
@@ -175,10 +174,8 @@ theorem integrated_mean_tail_capacity
       (show 0 ≤ ((128 : ℝ) ^ dyadicSlack m j) ^ 4 by positivity))
     have hnum := mean_schedule_budget hη hM (ε := ε) m j
     have hncast : (2 : ℝ) ^ (64 * dyadicSlack m j) ≤ (n j : ℝ) := by exact_mod_cast hn j hj
-    have hqle : q ≤ (2 + 256 * M / dyadicFloor η m j) / (2 : ℝ) ^ (64 * dyadicSlack m j) := by
-      have hf := dyadicFloor_pos hη m j
-      apply div_le_div_of_nonneg_left _ (by positivity) hncast
-      positivity
+    have hqle : q ≤ (2 + 256 * M / dyadicFloor η m j) / (2 : ℝ) ^ (64 * dyadicSlack m j) :=
+      div_le_div_of_nonneg_left (by positivity) (by positivity) hncast
     calc
       _ ≤ ((128 : ℝ) ^ dyadicSlack m j) ^ 4 * (q * ε ^ 4) := hp.trans hb
       _ = q * (ε * 128 ^ dyadicSlack m j) ^ 4 := by ring

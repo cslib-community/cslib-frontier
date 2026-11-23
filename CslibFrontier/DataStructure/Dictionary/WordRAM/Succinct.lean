@@ -11,6 +11,7 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctDispatch
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Fixed-Capacity Succinct Dynamic Dictionary with Deletions on the Word-RAM
@@ -125,6 +126,7 @@ open Cslib.WordRAM Cslib.WordRAM.ExactLog Cslib.WordRAM.Realization
 open Cslib.DataStructure Cslib.DataStructure.Memory
 open Cslib.DataStructure.WordRAM Cslib.DataStructure.WordRAM.Randomized
 open Cslib.DataStructure.HashFamily.WordRAM
+open Cslib.DataStructure.HashFamily.WordRAM.ReducedKWise
 open Cslib.DataStructure.Dictionary.FeistelQuotient
 open Cslib.DataStructure.Dictionary.SuccinctBucket
 open Cslib.DataStructure.Dictionary.WordRAM.BitPackedArray
@@ -144,7 +146,6 @@ theorem span_exec_succinct {U V w n_max base : ℕ}
       x₁.regs baseReg = base ∧
       x₁.regs frontierReg = base + space U V w n_max ∧
       (∀ j : Fin 0, x₁.regs ((subroutineCode U V w n_max).initParams j) = Fin.elim0 j) := by
-  have hfit_sp : Fits w (space U V w n_max) := hfit.of_le (Nat.le_add_left _ _)
   let s₁ := x.set baseReg (x.regs frontierReg)
   let s₂ := s₁.set curReg (space U V w n_max)
   let s₃ := s₂.set frontierReg (base + space U V w n_max)
@@ -153,7 +154,7 @@ theorem span_exec_succinct {U V w n_max base : ℕ}
     ExecWithin.copy
   have e₂ : ExecWithin (B := .exact) w
       (.op (.const curReg (space U V w n_max))) s₁ s₂ 1 :=
-    ExecWithin.const hfit_sp
+    ExecWithin.const (by fits)
   have e₃ : ExecWithin (B := .exact) w
       (.op (.exactBin .add frontierReg frontierReg curReg)) s₂ s₃ 1 := by
     apply ExecWithin.op
@@ -189,8 +190,7 @@ theorem setup_exec_succinct {U V w n_max base : ℕ}
         Modifies (Block.mk base (space U V w n_max)).footprint x₁.mem p.2.mem := by
   have hfit_hash : Fits w (base + hashSpace U w n_max) := by
     refine hfit.of_le ?_
-    unfold space totalSpace offGM offLM offVal offQuot
-    omega
+    wram_omega
   have hc_le : 2 * reducedChunkBits
       (reducedTrinomialStep (qBits U n_max) (hashB n_max) (totalMicroBits n_max)) ≤ w :=
     le_of_lt (two_mul_reducedChunkBits_hash_lt hwf.2.1 (le_of_lt hwf.2.2.1) hfit)
@@ -298,8 +298,7 @@ theorem setup_exec_succinct {U V w n_max base : ℕ}
         simp only [Block.mem_footprint, Block.Owns]
         intro ⟨h1, h2⟩
         apply ha ⟨h1, lt_of_lt_of_le h2 ?_⟩
-        unfold space totalSpace offGM offLM offVal offQuot
-        omega
+        wram_omega
       have h1 : z.mem a = x₂.mem a := hq_mod a ha_not_hash
       have h2 : x₂.mem a = x₁.mem a := by
         apply hy_mod a
@@ -435,15 +434,15 @@ noncomputable def impl {U V w n_max base : ℕ}
       have hfit1 : Fits w 1 := hfit2.of_le (by decide)
       rcases of_decide_eq_true hi with rfl | rfl | rfl <;> cases o with
       | query u =>
-        all_goals dsimp only [encode]
-        all_goals split_ifs <;> first | exact hfit0 | exact u.isLt.trans hU
+        dsimp only [encode]
+        split_ifs <;> first | exact hfit0 | exact u.isLt.trans hU
       | insert u v =>
-        all_goals dsimp only [encode]
-        all_goals split_ifs <;>
+        dsimp only [encode]
+        split_ifs <;>
           first | exact hfit1 | exact u.isLt.trans hU | exact hval.2.trans hV | exact hfit0
       | delete u =>
-        all_goals dsimp only [encode]
-        all_goals split_ifs <;> first | exact hfit2 | exact u.isLt.trans hU | exact hfit0)
+        dsimp only [encode]
+        split_ifs <;> first | exact hfit2 | exact u.isLt.trans hU | exact hfit0)
     (encode_matches := by
       intro o regs
       cases o with
@@ -480,8 +479,8 @@ noncomputable def impl {U V w n_max base : ℕ}
         simp only [Block.mem_footprint, Block.Owns]
         exact ⟨by omega, ha2⟩
       exact ⟨hx'_bdd, hbase', hfr',
-        tableRep_congr hhash_eq htab,
-        seedRep_congr hhash_eq hseed,
+        tableRep_congr htab hhash_eq,
+        seedRep_congr hseed hhash_eq,
         dictStateInv_congr hw htab_eq hdict⟩)
     (potential_supported := by
       intro θ s x x' _ hmem _
@@ -644,8 +643,7 @@ theorem initTime_impl_le {U V w n_max base : ℕ}
   refine ⟨?_, by have := initSteps_le U n_max; omega⟩
   dsimp only [impl, Randomized.StateTransitionImpl.ofFn, Randomized.StateTransitionImpl.initTime]
   norm_cast
-  unfold initSteps
-  omega
+  wram_omega
 
 theorem totalCost_charge_eq (U V n_max : ℕ) (s₀ : Dictionary.State U)
     (ops : List (Dynamic.Op U)) :

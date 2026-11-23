@@ -4,8 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Logics.Propositional.Resolution.Interpolation.PolyTime
-import CslibFrontier.Computability.Circuit.Boolean.EvaluationTime
+module
+-- upstream: candidate
+
+public import CslibFrontier.Logics.Propositional.Resolution.Interpolation.PolyTime
+public import CslibFrontier.Computability.Circuit.Boolean.EvaluationTime
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 
 /-!
 # Tests: extracting interpolants from resolution refutations
@@ -29,12 +33,14 @@ decodes, but it computes the constant `true`, which is not an interpolant, since
 `¬x`.
 -/
 
+public section
+
 namespace CslibFrontierTests.ProofComplexity.InterpolationExtraction
 
 open Cslib Cslib.Circuits Cslib.Circuits.Boolean Cslib.Logic.PL Turing.MultiTapeTM
 
 /-- `A(x, y) = y ∧ (¬y ∨ x)`, which forces `x`. -/
-private def A : CNF (ℕ ⊕ Unit) := [[(.inr (), true)], [(.inr (), false), (.inl 0, true)]]
+def A : CNF (ℕ ⊕ Unit) := [[(.inr (), true)], [(.inr (), false), (.inl 0, true)]]
 
 /-- `B(x, z) = z ∧ (¬z ∨ ¬x)`, which forces `¬x`. -/
 private def B : CNF (ℕ ⊕ Unit) := [[(.inr (), true)], [(.inr (), false), (.inl 0, false)]]
@@ -59,6 +65,24 @@ private theorem isProof : (A.appendShared B).IsProof lines := by
     (by decide) (by decide) (by decide)
   exact h₆.resolvent (c₁ := [(x, true)]) (c₂ := [(x, false)]) x (by decide) (by decide)
     (by decide) (by decide)
+
+/-- The step search justifies `x` after the lines `y` and `¬y ∨ x` by resolving them on `y`, and
+names the premises by their positions. -/
+example : (Interpolant.findStep [[(y, true)], [(y, false), (x, true)]] [(x, true)]).map
+    Interpolant.Step.pivot = some y := by
+  decide
+
+example : (Interpolant.findStep [[(y, true)], [(y, false), (x, true)]] [(x, true)]).map
+    (fun t => (t.leftIndex, t.rightIndex)) = some (0, 1) := by
+  decide
+
+example : (Interpolant.findStep [[(y, true)], [(y, false), (x, true)]] [(x, true)]).map
+    Interpolant.Step.left = some [(y, true)] := by
+  decide
+
+example : (Interpolant.findStep [[(y, true)], [(y, false), (x, true)]] [(x, true)]).map
+    Interpolant.Step.right = some [(y, false), (x, true)] := by
+  decide
 
 /-- The extracted code: four gates per line. The clauses of `A` get `false`, those of `B` get
 `true`, the resolutions on `y` and `z` a disjunction and a conjunction, and the last line the
@@ -135,13 +159,13 @@ example : CNF.interpolantCode 1 A B [[]] =
 /-- Extracting the interpolant circuit of a refutation and evaluating it on an input is
 polynomial-time, with natural-number private variables in binary. -/
 example : ComputableInPolyTime
-    (fun p : (ℕ × (CNF (ℕ ⊕ ℕ) × CNF (ℕ ⊕ ℕ)) × List (Clause (ℕ ⊕ (ℕ ⊕ ℕ)))) × List Bool =>
-      evalOutput p.2 (CNF.interpolantCode p.1.1 p.1.2.1.1 p.1.2.1.2 p.1.2.2).1
-        ((CNF.interpolantCode p.1.1 p.1.2.1.1 p.1.2.1.2 p.1.2.2).2.headD 0))
+    (fun (((n, (A, B), ls), x) :
+        (ℕ × (CNF (ℕ ⊕ ℕ) × CNF (ℕ ⊕ ℕ)) × List (Clause (ℕ ⊕ (ℕ ⊕ ℕ)))) × List Bool) =>
+      let code := CNF.interpolantCode n A B ls
+      evalOutput x code.1 (code.2.headD 0))
     (encPair (encPair encUnary (encPair (encPair
-      (encList (encList (encPair (encSum encNat encNat) encBool)))
-      (encList (encList (encPair (encSum encNat encNat) encBool))))
-      (encList (encList (encPair (encSum encNat (encSum encNat encNat)) encBool))))) encBits)
+      (encCNFOver (encSum encNat encNat)) (encCNFOver (encSum encNat encNat)))
+      (encList (encClause (encSum encNat (encSum encNat encNat)))))) encBits)
     encBool := by
   have h := (CNF.computableInPolyTime_interpolantCode encNat encNat).comp
     (ComputableInPolyTime.fst _ encBits)
@@ -195,16 +219,8 @@ example : ∃ C : Circuit Monotone.signature 1 1,
 positively in it. -/
 private def A₂ : CNF (ℕ ⊕ Unit) := A ++ [[(.inl 1, false), (.inr (), true)]]
 
-private theorem isProof₂ : (A₂.appendShared B).IsProof lines := by
-  have h₄ : (A₂.appendShared B).IsProof
-      [[(z, false), (x, false)], [(z, true)], [(y, false), (x, true)], [(y, true)]] :=
-    (((CNF.IsProof.nil.mem (by decide)).mem (by decide)).mem (by decide)).mem (by decide)
-  have h₅ := h₄.resolvent (c₁ := [(y, true)]) (c₂ := [(y, false), (x, true)]) y (by decide)
-    (by decide) (by decide) (by decide)
-  have h₆ := h₅.resolvent (c₁ := [(z, true)]) (c₂ := [(z, false), (x, false)]) z (by decide)
-    (by decide) (by decide) (by decide)
-  exact h₆.resolvent (c₁ := [(x, true)]) (c₂ := [(x, false)]) x (by decide) (by decide)
-    (by decide) (by decide)
+private theorem isProof₂ : (A₂.appendShared B).IsProof lines :=
+  isProof.mono (by decide)
 
 /-- With two inputs and `A₂`, the last line gets the dual gate `(x₀ ∧ c₂) ∨ c₁`, and the code
 computes `x₀`. -/
@@ -241,9 +257,8 @@ example : ComputableInPolyTime
     (fun ((n, (A, B), ls) : ℕ × (CNF (ℕ ⊕ ℕ) × CNF (ℕ ⊕ ℕ)) × List (Clause (ℕ ⊕ (ℕ ⊕ ℕ)))) =>
       CNF.monotoneInterpolantCode n A B ls)
     (encPair encUnary (encPair (encPair
-      (encList (encList (encPair (encSum encNat encNat) encBool)))
-      (encList (encList (encPair (encSum encNat encNat) encBool))))
-      (encList (encList (encPair (encSum encNat (encSum encNat encNat)) encBool)))))
+      (encCNFOver (encSum encNat encNat)) (encCNFOver (encSum encNat encNat)))
+      (encList (encClause (encSum encNat (encSum encNat encNat))))))
     Monotone.encCode :=
   CNF.computableInPolyTime_monotoneInterpolantCode encNat encNat
 

@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.OneWay.CondEPPRG
 public import CslibFrontier.Crypto.Computational.OneWay.LiuPassConverse
 public import CslibFrontier.Computability.Complexity.AverageCase
 public import CslibFrontier.Computability.Kolmogorov.AverageCase
+import CslibFrontier.Computability.Kolmogorov.TimeBounded.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
@@ -18,6 +19,7 @@ import CslibFrontier.Foundations.Data.Nat.Asymptotics
 import CslibFrontier.Foundations.Data.Nat.Log
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # One-Way Functions and Average-Case Hardness of Time-Bounded Kolmogorov Complexity
@@ -218,7 +220,7 @@ private theorem computableInPolyTime_thresholdValue (γ d c : ℕ) :
     ComputableInPolyTime (thresholdValue γ d c) encUnary encUnary := by
   unfold thresholdValue
   have hlog : ComputableInPolyTime (Nat.log 2) encUnary encUnary :=
-    .of_tidy (ComputableTidilyInPolyTime.unary_log_const 2)
+    ComputableInPolyTime.binary_log_two.comp ComputableInPolyTime.unary_to_binary
   have hid : ComputableInPolyTime (fun n : ℕ => n) encUnary encUnary :=
     ComputableInPolyTime.id'
   have hc (k : ℕ) : ComputableInPolyTime (fun _ : ℕ => k) encUnary encUnary :=
@@ -236,7 +238,7 @@ private theorem computableInPolyTime_mul_log_two_succ (d : ℕ) :
   ComputableInPolyTime.unary_to_binary.comp
     (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const d)
       (ComputableInPolyTime.unary_add'
-        ((ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.unary_log_two).comp
+        ((ComputableInPolyTime.binary_log_two.comp ComputableInPolyTime.unary_to_binary).comp
           (ComputableInPolyTime.encoding_length encBits))
         (ComputableInPolyTime.const 1)))
 
@@ -253,7 +255,8 @@ private theorem isPPT_thresholdDistinguisher (γ d c : ℕ) {H : List Bool → P
       (fun v => decide (thresholdValue γ d c p.1 ≤ v)) <$>
         H (p.2.take (p.1 + γ * Nat.log 2 p.1 - c)))
   have hp1 := ComputableInPolyTime.fst encUnary encBits
-  have hlog := (ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.unary_log_two).comp hp1
+  have hlog :=
+    (ComputableInPolyTime.binary_log_two.comp ComputableInPolyTime.unary_to_binary).comp hp1
   have hprep : ComputableInPolyTime
       (fun p : ℕ × List Bool => p.2.take (p.1 + γ * Nat.log 2 p.1 - c))
       (encPair encUnary encBits) encBits :=
@@ -394,9 +397,7 @@ private theorem condEPPRG_real_threshold_accept_le
     have hy' : List.ofFn y ∈ (pG_dist.map List.ofFn).support :=
       (PMF.mem_support_map_iff _ _ _).mpr ⟨y, hy, rfl⟩
     rw [hpG_map] at hy'
-    obtain ⟨w, hw, hwy⟩ := (PMF.mem_support_map_iff _ _ _).mp hy'
-    obtain ⟨z, hz, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hw
-    obtain ⟨x, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hz
+    supp_cases hy' with ⟨_, ⟨_, ⟨x, -, rfl⟩, rfl⟩, hwy⟩
     have hlen_Gx : (G (List.ofFn x)).length = m₀ := by
       simpa [hm₀_def] using hG_len (List.ofFn x)
     have htrunc_eq : truncGen G (c, List.ofFn x) = List.ofFn y := by

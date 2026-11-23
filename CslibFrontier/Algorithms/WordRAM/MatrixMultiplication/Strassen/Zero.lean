@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.State
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.LeafStep
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Base case of the actual native Strassen traversal induction
@@ -69,16 +70,15 @@ theorem exec_ready_zero {w p A B a b out scratch frames frame : ℕ}
         intro h
         exact hq (Or.inl (by simpa only [pow_zero, Nat.one_mul] using h))
       exact outside q (by rw [hx.output_eq]; omega)
-    · exact (hyregs Reg.output (by decide) (by decide) (by decide) (by decide)).trans hx.output_eq
-    · exact (hyregs Reg.modulus (by decide) (by decide) (by decide) (by decide)).trans hx.modulus_eq
-    · exact (hyregs Reg.frames (by decide) (by decide) (by decide) (by decide)).trans hx.frames_eq
+    · regs_frame
+    · regs_frame
+    · regs_frame
     · simpa only [hx.frames_eq, hx.frame_eq] using hyframe
     · simpa only [hx.frames_eq, hx.frame_eq, hx.active_eq] using hyactive
-    · exact (hyregs Reg.zero (by decide) (by decide) (by decide) (by decide)).trans hx.zero_eq
-    · exact (hyregs Reg.one (by decide) (by decide) (by decide) (by decide)).trans hx.one_eq
-    · exact (hyregs Reg.four (by decide) (by decide) (by decide) (by decide)).trans hx.four_eq
-    · exact (hyregs Reg.frameWidth (by decide) (by decide) (by decide) (by decide)).trans
-        hx.frameWidth_eq
+    · regs_frame
+    · regs_frame
+    · regs_frame
+    · regs_frame
   · intro z T hz
     have hc : (Cond.lt Reg.zero Reg.active).Holds x := by
       simp only [Cond.holds_lt, hx.zero_eq, hx.active_eq]

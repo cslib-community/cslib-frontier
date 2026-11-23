@@ -12,7 +12,7 @@ public import Mathlib.Algebra.BigOperators.Expect
 public import Mathlib.Algebra.Order.Field.Basic
 public import Mathlib.Data.Finset.Density
 import CslibFrontier.Foundations.Data.Finset.Density
-import CslibFrontier.Foundations.Data.Finset.Expect
+import CslibFrontier.Foundations.Data.Finset.Expect.Chebyshev
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Data.Finset.Prod
@@ -67,7 +67,7 @@ is `1 / 8`.
   `Cslib.Probability.IsPairwiseIndependentHash.dens_filter_notMem_image_le`: the probability that
   `S` hits a target is at most `μ`, and that it misses it at most `1 / μ`.
 * `Cslib.Probability.IsPairwiseIndependentHash.three_quarters_mul_le_dens_filter_mem_image`: the
-  set lower bound protocol.
+  hashing bound in the analysis of the set lower bound protocol.
 * `Cslib.Probability.IsPairwiseIndependentHash.card_filter_mem_image_mul_le`,
   `Cslib.Probability.IsPairwiseIndependentHash.card_filter_notMem_image_mul_le`: the same two
   bounds in counts.
@@ -119,7 +119,7 @@ private theorem mem_image_iff_card_filter_pos (f : X → Y) (S : Finset X) (y : 
   rw [mem_image, card_pos, filter_nonempty_iff]
 
 /-- Inclusion–exclusion for a count `n`: `n - n (n - 1) / 2` is at most the indicator of `n ≠ 0`. -/
-private theorem natCast_sub_mul_sub_one_div_two_le [Field 𝕜] [LinearOrder 𝕜]
+theorem natCast_sub_mul_sub_one_div_two_le [Field 𝕜] [LinearOrder 𝕜]
     [IsStrictOrderedRing 𝕜] (n : ℕ) :
     (n : 𝕜) - n * (n - 1) / 2 ≤ if 0 < n then 1 else 0 := by
   rcases n with _ | _ | n
@@ -239,12 +239,9 @@ theorem dens_filter_le_abs_sub_le [Field 𝕜] [LinearOrder 𝕜] [IsStrictOrder
     (hh : IsPairwiseIndependentHash h) (S : Finset X) (y : Y) {ε : 𝕜} (hε : 0 < ε) :
     (dens {i | ε ≤ |(#{x ∈ S | h i x = y} : 𝕜) - #S / Fintype.card Y|} : 𝕜) ≤
       #S / Fintype.card Y / ε ^ 2 := by
-  have hmarkov := Fintype.mul_dens_filter_le_expect
-    (f := fun i => ((#{x ∈ S | h i x = y} : 𝕜) - #S / Fintype.card Y) ^ 2)
-    (fun _ => sq_nonneg _) (ε ^ 2)
-  simp only [sq_le_sq, abs_of_pos hε] at hmarkov
-  rw [le_div_iff₀ (by positivity), mul_comm]
-  exact hmarkov.trans (hh.expect_card_filter_sub_sq_le S y)
+  exact (Fintype.dens_le_abs_le_expect_sq_div_sq
+    (fun i => (#{x ∈ S | h i x = y} : 𝕜) - #S / Fintype.card Y) hε).trans
+      (div_le_div_of_nonneg_right (hh.expect_card_filter_sub_sq_le S y) (sq_nonneg ε))
 
 /-- **First moment bound**: `S` hits `y` with probability at most the mean cell size
 `#S / |Y|`. -/
@@ -364,9 +361,9 @@ theorem sub_le_dens_filter_mem_image [Field 𝕜] [LinearOrder 𝕜] [IsStrictOr
         exact natCast_sub_mul_sub_one_div_two_le _
     _ = _ := Fintype.expect_boole _
 
-/-- **The set lower bound protocol** of Goldwasser and Sipser: if `2 #S ≤ |Y|`, then `S` hits `y`
-with probability at least three quarters of the mean cell size `#S / |Y|`
-[Arora and Barak, Section 8.2][AroraBarak09]. -/
+/-- **The hashing bound in the analysis of the set lower bound protocol** of Goldwasser and Sipser:
+if `2 #S ≤ |Y|`, then `S` hits `y` with probability at least three quarters of the mean cell size
+`#S / |Y|` [Arora and Barak, Section 8.2][AroraBarak09]. -/
 theorem three_quarters_mul_le_dens_filter_mem_image (hh : IsPairwiseIndependentHash h)
     {S : Finset X} (y : Y) (hS : 2 * #S ≤ Fintype.card Y) :
     3 / 4 * (#S / Fintype.card Y : ℚ≥0) ≤ dens {i | y ∈ S.image (h i)} := by

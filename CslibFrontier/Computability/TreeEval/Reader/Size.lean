@@ -17,7 +17,7 @@ On the encoding of an instance of value length `ℓ` and height `H`, the space b
 that `Cslib.TreeEval.Reader.machine` reaches is `O((ℓ + H + 1) · log (ℓ + 2))`: residues
 below the prime `p ≤ 4ℓ + 2` have `O(log (ℓ + 2))` bits. The registers and the sums hold `ℓ`
 of them, the stack holds at most `H` frames with a residue each, and the counters have
-`O(ℓ + log (H + 2))` bits.
+`O(ℓ + H + 1)` bits.
 
 ## Main definitions
 
@@ -80,7 +80,7 @@ private theorem length_encMode_lt (m : Mode) : (encMode m).length < 7 := by
   exact this
 
 private theorem length_encTag_lt (t : Fin 7) : (encFinEnum (Fin 7) t).length < 7 := by
-  simpa using length_encFinEnum_lt t
+  simpa only [Nat.card_fin] using length_encFinEnum_lt t
 
 /-- The bounds on the components of a state that satisfies the invariant. -/
 structure Bounds (ℓ H : ℕ) (s : State) : Prop where

@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import Mathlib.Data.List.GetD
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Computability.Circuit.Boolean.Encoding.PolyTime
 
 /-!
 # Uniform polynomial-time evaluation of encrypted layers
@@ -40,7 +41,7 @@ are not used in these runtime certificates.
 * [C. Gentry, *Fully homomorphic encryption using ideal lattices*, Section 2][Gentry2009]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto.Homomorphic.Scheme
 
@@ -63,9 +64,7 @@ variable {E : Scheme} {secretWidth ciphertextWidth : ℕ → ℕ}
 include hD in
 private theorem computableInPolyTime_decryptionArity :
     ComputableInPolyTime (fun n => secretWidth n + ciphertextWidth n) encUnary encUnary := by
-  have hview : ComputableInPolyTime
-      (fun C : Σ m, Circuit Boolean.signature m 1 => (C.1, C.2.code))
-      (Boolean.encCircuit 1) (encPair encUnary Boolean.encCode) := .of_eq fun _ => rfl
+  have hview := Boolean.computableInPolyTime_arity_code 1
   exact (hview.comp hD).fst'
 
 include hencrypt hevaluate hD in
@@ -200,7 +199,7 @@ theorem isPPTOn_evaluateLayers
     (count := fun a => (layers a).length)
     (initial := fun a => (0, inputs a))
     (step := fun a => evaluateLayerStep D (n a) (publicKeys a) (encryptedKeys a) (layers a))
-    (by polytime) (by polytime) hstep hgrowth_poly
+    hcount hinit hstep hgrowth_poly
     (fun a state next hnext => ?_)
   · exact hloop.map (ComputableInPolyTime.snd encUnary (encList encBits))
   rw [evaluateLayerStep, ProbComp.eval_map, PMF.mem_support_map_iff] at hnext

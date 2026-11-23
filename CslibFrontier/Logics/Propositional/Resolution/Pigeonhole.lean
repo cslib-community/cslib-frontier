@@ -62,7 +62,7 @@ Let `P ⊆ Fin m` and `H ⊆ Fin n` be sets of remaining pigeons and holes with 
   clauses and pigeonhole formula on subsets `P` and `H`.
 * `Cslib.Logic.PL.Pigeonhole.matchPair`: the partial assignment matching a pigeon to a hole.
 * `Cslib.Logic.PL.Pigeonhole.satPairs`: the pairs in `P ×ˢ H` whose matching assignment satisfies a
-  clause (its monotone translation).
+  clause (its monotone translation, together with row-negation pairs).
 * `Cslib.Logic.PL.Pigeonhole.IsCrit`, `Cslib.Logic.PL.Pigeonhole.critAssign`,
   `Cslib.Logic.PL.Pigeonhole.falsifiedPigeons`: critical assignments and the missing pigeons of
   critical assignments falsifying a clause.
@@ -162,14 +162,6 @@ theorem matchPair_eq_none {i : Fin m} {j : Fin n} {v : Fin m × Fin n} :
   · push Not at h₂
     simp [h₂]
 
-private theorem matchPair_of_fst_eq_of_snd_ne {i : Fin m} {j j' : Fin n} (hj : j' ≠ j) :
-    matchPair i j (i, j') = some false := by
-  simp [matchPair, hj]
-
-private theorem matchPair_of_fst_ne_of_snd_eq {i i' : Fin m} {j : Fin n} (hi : i' ≠ i) :
-    matchPair i j (i', j) = some false := by
-  simp [matchPair, hi]
-
 /-- Restricting `pigeonholeOn P H` by matching `i₀` to `j₀ ∈ H` leaves clauses of
 `pigeonholeOn (P.erase i₀) (H.erase j₀)`. -/
 private theorem restrictBy_pigeonholeOn_subset {P : Finset (Fin m)} {H : Finset (Fin n)}
@@ -192,15 +184,14 @@ private theorem restrictBy_pigeonholeOn_subset {P : Finset (Fin m)} {H : Finset 
       rintro rfl
       by_cases hjj₀ : j = j₀
       · subst hjj₀
-        exact hsat ((i', j), false) (by simp [CNF.holeClause])
-          (matchPair_of_fst_ne_of_snd_eq hne.symm)
-      · exact hsat ((i, j), false) (by simp [CNF.holeClause]) (matchPair_of_fst_eq_of_snd_ne hjj₀)
+        exact hsat ((i', j), false) (by simp [CNF.holeClause]) (by simp [matchPair, hne.symm])
+      · exact hsat ((i, j), false) (by simp [CNF.holeClause]) (by simp [matchPair, hjj₀])
     have hjj₀ : j ≠ j₀ := by
       rintro rfl
-      exact hsat ((i, j), false) (by simp [CNF.holeClause]) (matchPair_of_fst_ne_of_snd_eq hii₀)
+      exact hsat ((i, j), false) (by simp [CNF.holeClause]) (by simp [matchPair, hii₀])
     have hi'i₀ : i' ≠ i₀ := by
       rintro rfl
-      exact hsat ((i', j), false) (by simp [CNF.holeClause]) (matchPair_of_fst_eq_of_snd_ne hjj₀)
+      exact hsat ((i', j), false) (by simp [CNF.holeClause]) (by simp [matchPair, hjj₀])
     refine mem_pigeonholeOn.2 (Or.inr ⟨i, mem_erase.2 ⟨hii₀, hi⟩, i', mem_erase.2 ⟨hi'i₀, hi'⟩,
       j, mem_erase.2 ⟨hjj₀, hj⟩, hii', ?_⟩)
     simp [CNF.holeClause, matchPair_eq_none, hii₀, hi'i₀, hjj₀]
@@ -498,7 +489,8 @@ private theorem card_falsifiedPigeons_mul_le_card_satPairs {P : Finset (Fin m)} 
 /-- **Every refutation of `pigeonholeOn P H` has a wide monotone line**
 [Beame and Pitassi, Lemma 4][BeamePitassi1996] [Jukna, Lemma 18.17][Jukna2012]. When
 `#P = #H + 1`, every resolution refutation of `pigeonholeOn P H` contains a line `c` with
-`2 (#H)² ≤ 9 #(satPairs P H c)`. -/
+`2 (#H)² ≤ 9 #(satPairs P H c)`, where `satPairs P H c` is the monotone translation of `c`
+together with row-negation pairs. -/
 theorem exists_le_card_satPairs {P : Finset (Fin m)} {H : Finset (Fin n)} (hP : #P = #H + 1)
     {ls : List (Clause (Fin m × Fin n))} (h : (pigeonholeOn P H).IsProof ls) (hnil : [] ∈ ls) :
     ∃ c ∈ ls, 2 * (#H) ^ 2 ≤ 9 * #(satPairs P H c) := by
@@ -655,8 +647,10 @@ namespace CNF
 
 variable {n : ℕ}
 
-/-- Every resolution refutation of `PHP^{n+1}_n` contains a line whose monotone translation has at
-least `2 n² / 9` variable pairs [Beame and Pitassi, Lemma 4][BeamePitassi1996]. -/
+/-- Every resolution refutation of `PHP^{n+1}_n` contains a line `c` with
+`2 n² ≤ 9 #(Pigeonhole.satPairs univ univ c)`, where `Pigeonhole.satPairs univ univ c` is the
+monotone translation of `c` together with row-negation pairs
+[Beame and Pitassi, Lemma 4][BeamePitassi1996]. -/
 theorem exists_le_card_satPairs_pigeonhole {ls : List (Clause (Fin (n + 1) × Fin n))}
     (h : (pigeonhole (n + 1) n).IsProof ls) (hnil : [] ∈ ls) :
     ∃ c ∈ ls, 2 * n ^ 2 ≤ 9 * #(Pigeonhole.satPairs univ univ c) := by

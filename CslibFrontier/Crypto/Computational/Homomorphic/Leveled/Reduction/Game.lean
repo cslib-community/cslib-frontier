@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.Homomorphic.Leveled.Reduction
 public import CslibFrontier.Crypto.Computational.Homomorphic.KeyChain.Reduction.Game
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.PMFSwap
 
 /-!
 # Exact chosen-message games of leveled encryption
@@ -28,6 +29,11 @@ therefore matching Gentry's Theorem 4 loss `ℓ(d + 1)` up to a constant factor 
 Section 2, Theorem 4, p. 171; the constant arises from the `2 * budget n` encrypted links, dyadic
 power-of-two index rounding, and the four-way branch selector with one inactive branch).
 
+## Main definitions
+
+* `Cslib.Crypto.Homomorphic.Leveled.leveledSelectorGame`: the free-program view of the four
+  branches of the unified base reduction.
+
 ## Main results
 
 * `Cslib.Crypto.Homomorphic.Leveled.eval_keyGen_public`: the exact serialized public marginal.
@@ -37,6 +43,8 @@ power-of-two index rounding, and the four-way branch selector with one inactive 
   chosen-message experiment, including depth zero.
 * `Cslib.Crypto.Homomorphic.Leveled.eval_leveledAdversary`: exact distributional decomposition of
   the unified base reduction `leveledAdversary`.
+* `Cslib.Crypto.Homomorphic.Leveled.succProbability_leveledSelectorGame`: the exact weighted
+  acceptance calculation for the selector experiment.
 * `Cslib.Crypto.Homomorphic.Leveled.gap_leveledAdversary`: signed telescoping identity relating the
   leveled scheme's chosen-message gap to `leveledAdversary`.
 * `Cslib.Crypto.Homomorphic.Leveled.advantage_game_eq_leveledAdversary`: exact unsigned advantage
@@ -50,7 +58,7 @@ power-of-two index rounding, and the four-way branch selector with one inactive 
 * [C. Gentry, *Fully homomorphic encryption using ideal lattices*, Section 2, Theorem 4][Gentry2009]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto.Homomorphic.Leveled
 
@@ -183,6 +191,32 @@ private theorem leveledAdversary_choose (E : Scheme) (depth capacity : ℕ → �
             (E.linkAdversary depth capacity (publicKeyGame E adversary false)).choose n
               challengePk) := rfl
 
+/-- The selector view of the base reduction: two fair bits choose a link game in either
+challenge world, the zero-link game with its dyadic weight, or rejection. The `true`-world
+link game swaps the challenge bit because the reduction swaps its two messages. -/
+@[expose] noncomputable def leveledSelectorGame (E : Scheme) (depth capacity : ℕ → ℕ)
+    (adversary : Encryption.Adversary) (bit : Bool) (n : ℕ) : ProbComp Bool := do
+  let first ← ProbComp.uniform Bool
+  let second ← ProbComp.uniform Bool
+  if first then
+    if second then
+      pure false
+    else
+      let keepLink ← sampleDyadicCoin (depth n) 1
+      if keepLink then
+        let keepBit ← sampleDyadicCoin (capacity n) 1
+        if keepBit then
+          Encryption.game E.keyGen E.encrypt (zeroLinkAdversary E depth adversary) bit n
+        else pure false
+      else pure false
+  else
+    if second then
+      Encryption.game E.keyGen E.encrypt
+        (E.linkAdversary depth capacity (publicKeyGame E adversary true)) (!bit) n
+    else
+      Encryption.game E.keyGen E.encrypt
+        (E.linkAdversary depth capacity (publicKeyGame E adversary false)) bit n
+
 /-- The unified base reduction's encryption game is the fair four-branch average over the
 `false`-world `linkAdversary`, the message-swapped `true`-world `linkAdversary`, the dyadically
 weighted `zeroLinkAdversary`, and an inactive rejecting branch. -/
@@ -190,35 +224,12 @@ theorem eval_leveledAdversary (E : Scheme) (depth capacity : ℕ → ℕ)
     (adversary : Encryption.Adversary) (bit : Bool) (n : ℕ) :
     ProbComp.eval (Encryption.game E.keyGen E.encrypt
       (leveledAdversary E depth capacity adversary) bit n) =
-    (PMF.uniformOfFintype Bool).bind fun first =>
-      (PMF.uniformOfFintype Bool).bind fun second =>
-        if first then
-          if second then
-            PMF.pure false
-          else
-            (ProbComp.eval (sampleDyadicCoin (depth n) 1)).bind fun keepLink =>
-              if keepLink then
-                (ProbComp.eval (sampleDyadicCoin (capacity n) 1)).bind fun keepBit =>
-                  if keepBit then
-                    ProbComp.eval (Encryption.game E.keyGen E.encrypt
-                      (zeroLinkAdversary E depth adversary) bit n)
-                  else
-                    PMF.pure false
-              else
-                PMF.pure false
-        else
-          if second then
-            ProbComp.eval (Encryption.game E.keyGen E.encrypt
-              (E.linkAdversary depth capacity (publicKeyGame E adversary true)) (!bit) n)
-          else
-            ProbComp.eval (Encryption.game E.keyGen E.encrypt
-              (E.linkAdversary depth capacity (publicKeyGame E adversary false)) bit n) := by
+      ProbComp.eval (leveledSelectorGame E depth capacity adversary bit n) := by
+  simp only [leveledSelectorGame, apply_ite (ProbComp.eval (α := Bool)),
+    ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
   dsimp only [Encryption.game, Encryption.gameOn]
   simp only [leveledAdversary_choose, bind_assoc, ProbComp.eval_bind, ProbComp.eval_uniform]
-  rw [PMF.bind_comm]
-  congr 1 with first : 1
-  rw [PMF.bind_comm]
-  congr 1 with second : 1
+  pmf_swap with first second
   cases first <;> cases second
   · simp only [Bool.false_eq_true, ↓reduceIte]
     simpa only [Encryption.game, Encryption.gameOn, ↓reduceIte, ProbComp.eval_bind] using
@@ -227,8 +238,7 @@ theorem eval_leveledAdversary (E : Scheme) (depth capacity : ℕ → ℕ)
     simpa only [Encryption.game, Encryption.gameOn, ↓reduceIte, ProbComp.eval_bind] using
       eval_tagLeveledChoice_false_true E depth capacity adversary bit n
   · simp only [Bool.false_eq_true, ↓reduceIte, ProbComp.eval_bind, PMF.bind_bind]
-    rw [PMF.bind_comm]
-    congr 1 with keepLink : 1
+    pmf_swap with keepLink
     cases keepLink
     · simp only [Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure, PMF.pure_bind]
       rw [← PMF.bind_const (ProbComp.eval (sampleDyadicCoin (capacity n) 1)) (PMF.pure false)]
@@ -237,8 +247,7 @@ theorem eval_leveledAdversary (E : Scheme) (depth capacity : ℕ → ℕ)
       simpa only [ProbComp.eval_bind] using
         eval_rejectLeveledChoice E depth capacity adversary bit n
     · simp only [↓reduceIte]
-      rw [PMF.bind_comm]
-      congr 1 with keepBit : 1
+      pmf_swap with keepBit
       cases keepBit
       · simp only [Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure, PMF.pure_bind]
         simpa only [ProbComp.eval_bind] using
@@ -270,14 +279,14 @@ private theorem succProbability_sampleDyadicCoin_one (bound : ℕ) (game : Game)
     hmin, Nat.cast_one, Game.coe_succProbability, one_div]
   rw [← mul_assoc, mul_inv_cancel₀ hpos, one_mul]
 
-/-- The exact scaled acceptance probability of `leveledAdversary` equals the sum of the two
+/-- The selector experiment's scaled acceptance probability is the sum of its two
 dyadic-grid-scaled `linkAdversary` acceptance probabilities and the `zeroLinkAdversary`
 acceptance probability. -/
-theorem succProbability_leveledAdversary (E : Scheme) (depth capacity : ℕ → ℕ)
+theorem succProbability_leveledSelectorGame (E : Scheme) (depth capacity : ℕ → ℕ)
     (adversary : Encryption.Adversary) (bit : Bool) (n : ℕ) :
     4 * (dyadicSize (depth n) : ℝ) * dyadicSize (capacity n) *
-      Game.succProbability (ProbComp.eval (Encryption.game E.keyGen E.encrypt
-        (leveledAdversary E depth capacity adversary) bit n)) =
+      Game.succProbability (ProbComp.eval
+        (leveledSelectorGame E depth capacity adversary bit n)) =
     (dyadicSize (depth n) : ℝ) * dyadicSize (capacity n) *
       Game.succProbability (ProbComp.eval (Encryption.game E.keyGen E.encrypt
         (E.linkAdversary depth capacity (publicKeyGame E adversary false)) bit n)) +
@@ -286,7 +295,9 @@ theorem succProbability_leveledAdversary (E : Scheme) (depth capacity : ℕ → 
         (E.linkAdversary depth capacity (publicKeyGame E adversary true)) (!bit) n)) +
     Game.succProbability (ProbComp.eval (Encryption.game E.keyGen E.encrypt
       (zeroLinkAdversary E depth adversary) bit n)) := by
-  rw [eval_leveledAdversary, succProbability_uniform_bool, succProbability_uniform_bool,
+  simp only [leveledSelectorGame, apply_ite (ProbComp.eval (α := Bool)),
+    ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
+  rw [succProbability_uniform_bool, succProbability_uniform_bool,
     succProbability_uniform_bool]
   simp only [Bool.false_eq_true, ↓reduceIte, Game.succProbability, PMF.pure_apply,
     Bool.true_eq_false, ENNReal.toNNReal_zero, NNReal.coe_zero, add_zero]
@@ -313,6 +324,23 @@ theorem succProbability_leveledAdversary (E : Scheme) (depth capacity : ℕ → 
     linear_combination (dyadicSize (capacity n) : ℝ) * hlink + hbit
   simp only [Game.succProbability] at hprod
   linarith
+
+/-- The unified base reduction has the selector experiment's exact weighted acceptance law. -/
+theorem succProbability_leveledAdversary (E : Scheme) (depth capacity : ℕ → ℕ)
+    (adversary : Encryption.Adversary) (bit : Bool) (n : ℕ) :
+    4 * (dyadicSize (depth n) : ℝ) * dyadicSize (capacity n) *
+      Game.succProbability (ProbComp.eval (Encryption.game E.keyGen E.encrypt
+        (leveledAdversary E depth capacity adversary) bit n)) =
+    (dyadicSize (depth n) : ℝ) * dyadicSize (capacity n) *
+      Game.succProbability (ProbComp.eval (Encryption.game E.keyGen E.encrypt
+        (E.linkAdversary depth capacity (publicKeyGame E adversary false)) bit n)) +
+    (dyadicSize (depth n) : ℝ) * dyadicSize (capacity n) *
+      Game.succProbability (ProbComp.eval (Encryption.game E.keyGen E.encrypt
+        (E.linkAdversary depth capacity (publicKeyGame E adversary true)) (!bit) n)) +
+    Game.succProbability (ProbComp.eval (Encryption.game E.keyGen E.encrypt
+      (zeroLinkAdversary E depth adversary) bit n)) := by
+  rw [eval_leveledAdversary]
+  exact succProbability_leveledSelectorGame E depth capacity adversary bit n
 
 /-- The signed chosen-message gap of the actual serialized leveled scheme equals the exact
 dyadic loss `4 * dyadicSize (2 * budget n) * dyadicSize (capacity n)` times the signed gap of

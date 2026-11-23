@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinarySizeFacts
 
 /-!
 # Powers of two in binary
@@ -22,7 +23,6 @@ without ever writing `2 ^ n` in unary.
 
 * `Turing.MultiTapeTM.encNat_two_pow`: the binary digits of `2 ^ n`.
 * `Turing.MultiTapeTM.ComputableInDegree.two_pow_length`: `2 ^ (encIn a).length` is linear.
-* `Turing.MultiTapeTM.ComputableTidilyInDegree.two_pow_length`: tidy counterpart.
 -/
 
 @[expose] public section
@@ -36,6 +36,16 @@ theorem encNat_two_pow (n : ℕ) : encNat (2 ^ n) = List.replicate n false ++ [t
   | succ n ih =>
     rw [encNat_apply, pow_succ, mul_comm, Nat.bit0_bits _ (by positivity), ← encNat_apply, ih,
       List.replicate_succ, List.cons_append]
+
+/-- The binary encoding of `2 ^ n` uses exactly `n + 1` digits. -/
+theorem length_encNat_two_pow (n : ℕ) : (encNat (2 ^ n)).length = n + 1 := by
+  rw [encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
+
+/-- A number at most `2 ^ n` uses at most `n + 1` binary digits. -/
+theorem length_encNat_le_of_le_two_pow {a n : ℕ} (h : a ≤ 2 ^ n) :
+    (encNat a).length ≤ n + 1 := by
+  rw [← length_encNat_two_pow n]
+  exact length_encNat_mono h
 
 /-- Replaces every symbol by `false` and appends `true`. -/
 def twoPowT : Transducer Bool Unit where
@@ -54,22 +64,15 @@ theorem twoPowT_run (w : List Bool) :
     rfl
 
 /-- **An exponential clock in binary.** `2 ^ (encIn a).length` is computable in linear time and
-zero work space, with linear output length, for every encoding of the input. -/
+work space, with linear output length, for every encoding of the input. -/
 theorem ComputableInDegree.two_pow_length {α : Type*} (encIn : α ↪ List Bool) :
     ComputableInDegree (fun a => 2 ^ (encIn a).length) encIn encNat 1 1 := by
   refine ⟨⟨fun a => 2 * (encIn a).length + 3, fun _ => 0,
     ⟨3, fun _ => by simp only [pow_one]; omega⟩, DegreeBounded.const 0,
     0, _, inferInstance, twoPowT.toTM, fun a => ?_⟩,
-    ⟨1, fun a => by dsimp only; rw [encNat_two_pow]; simp⟩⟩
+    ⟨1, fun a => by simpa only [pow_one, one_mul] using (length_encNat_two_pow _).le⟩⟩
   have heq : encNat (2 ^ (encIn a).length) = twoPowT.run twoPowT.q₀ (encIn a) := by
     rw [encNat_two_pow, show twoPowT.q₀ = () from rfl, twoPowT_run]
   simpa only [heq] using twoPowT.computesInTimeAndSpace_toTM (encIn a)
-
-/-- **An exponential clock in binary.** `2 ^ (encIn a).length` is tidily computable in linear time
-and space, for every encoding of the input. -/
-theorem ComputableTidilyInDegree.two_pow_length {α : Type*} (encIn : α ↪ List Bool) :
-    ComputableTidilyInDegree (fun a => 2 ^ (encIn a).length) encIn encNat 1 1 :=
-  .of_linear (twoPowT.computableTidilyInLinearTimeAndSpace fun a => by
-    rw [encNat_two_pow, twoPowT_run])
 
 end Turing.MultiTapeTM

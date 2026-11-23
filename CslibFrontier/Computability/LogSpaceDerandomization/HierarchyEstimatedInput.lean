@@ -135,7 +135,7 @@ theorem estimatedPositiveSample_abs_le
   let req := HierarchyTask.rawRequests (k := HP.k) l bin .residual source mid terminal (rate kb)
   let child := incomingChildren HP D id Kc cutoff raw prep maximum
   let CA := 2 * HP.Q HP.toHierarchyParams.atomCap
-  have hCA : 0 ≤ CA := mul_nonneg (by norm_num) (HP.Q_nonneg _)
+  have hCA : 0 ≤ CA := by positivity
   have hleft : ∀ a b, child req.left σ a b = correctionRequest D id req.left
       (polynomialAuxCutoff4 HP.θ) HP.incomingCutoff HP.ρ HP.toHierarchyParams.atomCutoff
       HP.γ HP.K Kc (raw req.left) (prep req.left) (maximum req.left) σ a b := by
@@ -336,8 +336,9 @@ theorem estimatedResidualInput_noise_le
       cutoff CB hCB hcut raw prep maximum precision) (by rw [pow_mul]; positivity))
 
 
-/-- Positive tolerance pays scaled centered RAW noise. In particular the second-envelope
-amplification is P * (|ζ| * (Lh + Lρ) / rate kt)^4; no RAW units are canceled. -/
+/-- Positive tolerance pays scaled centered RAW noise, for any factor `amplification ≥ 0` and at
+least `spectralWalkLength` steps. One admissible factor is the second-envelope amplification
+P * (|ζ| * (Lh + Lρ) / rate kt)^4, for any reals ζ, Lh and Lρ; no RAW units are canceled. -/
 theorem estimatedResidualInput_scaled_noise_le_dyadic
     (HP : FourthRootHierarchyParams 16 1 16 32 8) (hK : 0 < HP.K)
     (D : ZMod P) (R : RoleProfile J) (H : Horizon P)

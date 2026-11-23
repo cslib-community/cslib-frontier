@@ -17,7 +17,7 @@ rational encodings; and composed clients of `binary_div`, `binary_mod`, `binary_
 
 namespace CslibFrontierTests.RationalHitting.Encode
 
-open Turing MultiTapeTM ComputableTidilyInPolyTime
+open Turing MultiTapeTM ComputableInPolyTime
 open Cslib.Circuits.Rational
 
 /-! ### Binary long division -/
@@ -85,13 +85,13 @@ example : encodeRat (Rat.divInt 5 0) = [false, false, true, false, true] := by
 example : ComputableInPolyTime
     (fun p : ℕ × ℕ => encodeNat (Nat.gcd (p.1 / p.2) (p.1 % p.2)))
     (encPair encNat encNat) encBits := by
-  fun_prop
+  exact encodeNat_polytime.comp (binary_gcd.comp binary_divMod)
 
 example : ComputableInPolyTime
     (fun p : ℕ × ℕ => let qr := (p.1 / p.2, p.1 % p.2); encodeNat (qr.1 + qr.2))
     (encPair encNat encNat) encBits := by
   have hqr : ComputableInPolyTime (fun p : ℕ × ℕ => (p.1 / p.2, p.1 % p.2))
-      (encPair encNat encNat) (encPair encNat encNat) := .of_tidy binary_divMod
+      (encPair encNat encNat) (encPair encNat encNat) := binary_divMod
   have hadd : ComputableInPolyTime (fun qr : ℕ × ℕ => encodeNat (qr.1 + qr.2))
       (encPair encNat encNat) encBits := by fun_prop
   exact hadd.comp hqr
@@ -99,7 +99,7 @@ example : ComputableInPolyTime
 example : ComputableInPolyTime
     (fun p : ℤ × ℤ => encodeRat (Rat.divInt (p.1 + p.2) (p.1 * p.2 - 1)))
     (encPair encIntBin encIntBin) encBits := by
-  apply encodeDivInt_polytime' <;> exact .of_tidy (by fun_prop)
+  apply encodeDivInt_polytime' <;> fun_prop
 
 example : ComputableInPolyTime
     (fun p : ℤ × ℤ =>

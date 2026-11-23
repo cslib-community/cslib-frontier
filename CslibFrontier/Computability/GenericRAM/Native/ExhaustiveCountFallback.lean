@@ -17,12 +17,15 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.BitString.ZModTwo
+import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Logics.Propositional.CNF.PolyTime
 import CslibFrontier.Tactic.EncLen
 import Mathlib.Data.List.GetD
-import Mathlib.Data.Nat.Size
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 
 /-!
 # Streaming polynomial-space exhaustive counting and finite-threshold fallback absorption
@@ -123,13 +126,6 @@ def countStep {P : Type} (pred : P → List Bool → Bool)
     (s : (ℕ × List Bool) × ((ℕ × P) × ℕ)) : (ℕ × P) × ℕ :=
   (s.2.1, if pred s.2.1.2 s.1.2 then s.2.2 + 1 else s.2.2)
 
-private theorem ofFn_getD_false {n : ℕ} (σ : BitString n) (v : ℕ) :
-    (List.ofFn σ).getD v false = if h : v < n then σ ⟨v, h⟩ else false := by
-  by_cases h : v < n
-  · rw [dite_eq_left h, List.getD_eq_getElem _ _ (by simp only [List.length_ofFn]; exact h),
-      List.getElem_ofFn]
-  · rw [dite_eq_right h, List.getD_eq_default _ _ (by simp only [List.length_ofFn]; omega)]
-
 section StreamingCore
 
 variable {P : Type} {encP : P ↪ List Bool}
@@ -181,17 +177,9 @@ theorem computableInPolyTime_countStep {pred : P → List Bool → Bool}
     (hpred : ComputableInPolyTime (fun q : P × List Bool => pred q.1 q.2) (encPair encP encBits)
       encBool) :
     ComputableInPolyTime (countStep pred)
-      (encPair (encPair encUnary encBits) (encPair (encPair encUnary encP) encNat))
+      (BooleanFold.encCallbackInput (encPair (encPair encUnary encP) encNat))
       (encPair (encPair encUnary encP) encNat) := by
-  have hacc := snd (encPair encUnary encBits) (encPair (encPair encUnary encP) encNat)
-  have hx := (fst (encPair encUnary encP) encNat).comp hacc
-  have hp := (snd encUnary encP).comp hx
-  have hw := (snd encUnary encBits).comp
-    (fst (encPair encUnary encBits) (encPair (encPair encUnary encP) encNat))
-  have hz := (snd (encPair encUnary encP) encNat).comp hacc
-  have htest := hpred.comp (hp.prod hw)
-  have hinc := binary_add.comp (hz.prod (const 1))
-  exact hx.prod (htest.ite' hinc hz)
+  fun_prop [countStep]
 
 /-- Generic `NativeCertificate` for counting `n`-bit assignments satisfying `pred` via
 `BooleanFold.certificate` without materializing `enumList n`. -/
@@ -214,13 +202,7 @@ private theorem length_prefix_accumulator_le (pred : P → List Bool → Bool) (
   have hx_le : x.1 ≤ (encPair encUnary encP x).length := by enc_len
   have hz_le : (BooleanFold.runPrefix (countStep pred) x.1 j (x, 0)).2.2.2 ≤ 2 ^ x.1 :=
     (prefix_count_le_index pred x j).trans hj
-  have hlen_z :
-      (encNat (BooleanFold.runPrefix (countStep pred) x.1 j (x, 0)).2.2.2).length ≤ x.1 + 1 := by
-    have hm : (encNat (BooleanFold.runPrefix (countStep pred) x.1 j (x, 0)).2.2.2).length ≤
-        (encNat (2 ^ x.1)).length := by
-      simpa [Nat.size_eq_bits_len] using Nat.size_le_size hz_le
-    rw [BooleanFold.length_clock] at hm
-    exact hm
+  have hlen_z := length_encNat_le_of_le_two_pow hz_le
   enc_len [prefix_payload_eq]
 
 private theorem countPredicateCertificate_bounds {pred : P → List Bool → Bool}
@@ -328,12 +310,12 @@ private theorem monomialSum_equationToFinset_eq_zero_iff {n : ℕ} {eq : List (L
       · intro hj v hv
         have hvm : v ∈ m := List.mem_toFinset.mp hv
         have hvn : v < n := hvars m hm v hvm
-        rw [ofFn_getD_false, dite_eq_left hvn]
+        rw [List.getD_ofFn_of_lt σ hvn]
         exact hj ⟨v, hvn⟩ (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hvm⟩)
       · intro hv j hj
         have hjm : j.1 ∈ m := (Finset.mem_filter.mp hj).2
         have hget := hv j.1 (List.mem_toFinset.mpr hjm)
-        rwa [ofFn_getD_false, dite_eq_left j.isLt] at hget
+        rwa [List.getD_ofFn] at hget
     by_cases h1 : ∀ j ∈ f m, σ j = true
     · rw [ite_eq_left h1, ite_eq_left (hiff.mp h1)]
     · rw [ite_eq_right h1, ite_eq_right (fun h2 => h1 (hiff.mpr h2))]
@@ -529,13 +511,17 @@ theorem countCNFExhaustive_eq_modelCountOn_range (n : ℕ) (φ : CNF ℕ) :
   · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hσ ⊢
     convert hσ using 2
     funext v
-    rw [ofFn_getD_false]
-    by_cases hv : v < n <;> simp only [hv, ↓reduceDIte, Finset.mem_range]
+    by_cases hv : v < n
+    · simp only [List.getD_ofFn_of_lt _ hv, Finset.mem_range, hv, ↓reduceDIte]
+    · rw [List.getD_eq_default _ _ (by simp only [List.length_ofFn]; omega)]
+      simp only [Finset.mem_range, hv, ↓reduceDIte]
   · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hτ ⊢
     convert hτ using 2
     funext v
-    rw [ofFn_getD_false]
-    by_cases hv : v < n <;> simp only [hv, ↓reduceDIte, Finset.mem_range]
+    by_cases hv : v < n
+    · simp only [List.getD_ofFn_of_lt _ hv, Finset.mem_range, hv, ↓reduceDIte]
+    · rw [List.getD_eq_default _ _ (by simp only [List.length_ofFn]; omega)]
+      simp only [Finset.mem_range, hv, ↓reduceDIte]
 
 /-- When all occurring variables of `φ` satisfy `v < n`, `countCNFExhaustive (n, φ)` equals
 `2 ^ (n - φ.numVars) * φ.modelCount`, doubling for each unused declared variable `< n`. -/
@@ -571,7 +557,7 @@ theorem computableInPolyTime_evalCNF_word :
     ComputableInPolyTime (fun p : CNF ℕ × List Bool => p.1.eval (fun v => p.2.getD v false))
       (encPair encCNF encBits) encBool := by
   unfold encCNF
-  fun_prop [CNF.eval, Clause.eval, Literal.eval]
+  fun_prop
 
 /-- Native resource certificate for `countCNFExhaustive` over `(encUnary, encCNF) → encNat`. -/
 noncomputable def countCNFExhaustiveCertificate :
@@ -691,9 +677,7 @@ theorem polyBounded_branch_space {ok : α → Bool} {f_fast f_exhaust : α → �
     (hex : PolyBounded (fun x => (ei x).length) c_exhaust.space) :
     PolyBounded (fun x => (ei x).length)
       (NativeCertificate.branch c_ok c_fast c_exhaust).space := by
-  refine (hok.add (hfast.add hex)).mono fun x => ?_
-  simp only [NativeCertificate.branch_space]
-  split_ifs <;> omega
+  growth_poly
 
 /-- **Finite-threshold fallback time absorption on `NativeCertificate.branch`** (§5.5 p. 39,
 §6.4 p. 44): if `ok x = false → μ x < N₀` for a constant threshold `N₀` and `c_exhaust.time x ≤
@@ -717,8 +701,8 @@ theorem exists_branch_time_le_of_finite_threshold {ok : α → Bool} {f_fast f_e
       (if ok x then c_fast.time x else 0) + C * ((ei x).length + 1) ^ d := by
   refine ⟨polyBounded_branch_space c_ok c_fast c_exhaust hok.2 hs_fast hs_ex, ?_⟩
   have hpoly : PolyBounded (fun x => (ei x).length)
-      (fun x => c_ok.time x + ((2 ^ N₀ + 1) * P_ex x + Q_ex x)) :=
-    hok.1.add (((PolyBounded.const (2 ^ N₀ + 1)).mul hP).add hQ)
+      (fun x => c_ok.time x + ((2 ^ N₀ + 1) * P_ex x + Q_ex x)) := by
+    growth_poly
   obtain ⟨C, d, hCd⟩ := hpoly.exists_le
   refine ⟨C, d, fun x => ?_⟩
   simp only [NativeCertificate.branch_time]

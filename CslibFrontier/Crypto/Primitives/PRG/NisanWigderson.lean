@@ -12,8 +12,10 @@ public import CslibFrontier.Crypto.Primitives.PRG.NextBit
 public import Mathlib.Data.Finset.Sort
 public import Mathlib.Logic.Function.DependsOn
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF
+import CslibFrontier.Tactic.PMFSwap
 
 /-!
 # The Nisan–Wigderson generator and its reconstruction
@@ -215,13 +217,6 @@ private theorem Design.uniformOfFintype_bind_eq {β : Type*} (D : Design ℓ n a
   (uniformOfFintype_bind_bind_fst_equiv
     (Function.Involutive.toPerm _ (D.involutive_extend_restrict (α := α) i)) F).symm
 
-private theorem toReal_uniformOfFintype_map_decide_apply_true {β : Type*} [Fintype β]
-    [Nonempty β] (p : β → Prop) [DecidablePred p] :
-    (((uniformOfFintype β).map fun b => decide (p b)) true).toReal =
-      (#{b | p b} : ℝ) / Fintype.card β := by
-  rw [PMF.map_apply, tsum_fintype]
-  simp [sum_ite, div_eq_mul_inv]
-
 end Uniform
 
 /-- The Nisan–Wigderson generator of a design `D` and a function `f` on `n` bits
@@ -262,7 +257,8 @@ theorem predictionExperiment_generator (D : Design ℓ n a m) (f : (Fin n → Bo
       (do
         let w ← uniformOfFintype (Fin ℓ → Bool)
         hardwiredExperiment D f i w predictor) := by
-  simp only [Generator.predictionExperiment, Generator.outputDist, monad_bind_eq_bind, PMF.bind_map]
+  simp only [Generator.predictionExperiment_eq_bind, Generator.outputDist, monad_bind_eq_bind,
+    PMF.bind_map]
   rw [D.uniformOfFintype_bind_eq i]
   simp only [Function.comp_apply, generator_apply, Design.restrict_extend]
   rfl
@@ -309,10 +305,7 @@ theorem hardwiredExperiment_nextBitPredictor_pure (D : Design ℓ n a m)
   simp only [hardwiredExperiment, nextBitPredictor_pure, monad_bind_eq_bind, ← PMF.bind_pure_comp,
     PMF.bind_bind,
     Function.comp_apply, PMF.pure_bind]
-  rw [PMF.bind_comm]
-  congr 1 with r : 1
-  rw [PMF.bind_comm]
-  rfl
+  pmf_swap
 
 /-- **The Nisan–Wigderson reconstruction for deterministic tests**, with explicit hardwiring. If
 `0 < m` and a deterministic test accepts outputs of the generator with probability at least `ε`
@@ -333,7 +326,7 @@ theorem exists_half_add_div_le_card_nextBitGuess_eq (D : Design ℓ n a m)
   refine ⟨i, w, r, u, h.trans ?_⟩
   calc _ ≤ _ := ENNReal.toReal_mono (PMF.apply_ne_top _ _) (hr.trans hu)
     _ = _ := by
-      rw [toReal_uniformOfFintype_map_decide_apply_true]
+      rw [toReal_uniformOfFintype_map_apply_true, dens_eq_card_div_card]
       simp
 
 /-- **The Nisan–Wigderson reconstruction for deterministic tests**, as a statement about

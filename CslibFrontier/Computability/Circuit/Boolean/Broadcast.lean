@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Circuit.Wiring
 public import Mathlib.Order.PiLex
 import Mathlib.Order.Fin.Tuple
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Broadcast circuits for sorted records
@@ -141,14 +142,14 @@ private theorem eval_scans {count width : ℕ} (source : Fin width → BitString
   rw [scans, Circuit.eval_comp, Circuit.eval_replicate_apply]
   congr 2 with index : 1
   cases index using Fin.addCases <;>
-    simp [Circuit.eval_wiringOn, directProductInput,
+    simp [Circuit.eval_wiringOn, BitString.block,
       -finProdFinEquiv_symm_apply, -Fin.natAdd_eq_addNat]
 
 private theorem cost_scans (count width : ℕ) (cost : signature.Op → ℕ) :
     (scans count width).program.cost cost =
       width * (cost (.const false) + count * (cost .and + cost .or)) := by
-  simp only [scans, Circuit.cost_program_comp, Circuit.cost_program_replicate,
-    cost_program_propagateCircuit, Circuit.cost_program_wiringOn, Nat.zero_add]
+  simp only [circuit_simps, scans, Circuit.cost_program_replicate, cost_program_propagateCircuit,
+    Nat.zero_add]
 
 /-- Only false-tagged source records seed a value bit. -/
 def sources {input count width : ℕ} (tag : Fin count → Fin input)
@@ -168,8 +169,7 @@ private theorem eval_sources {input count width : ℕ} (tag : Fin count → Fin 
     (bit : Fin width) (record : Fin count) :
     (sources tag payload).eval interpretation x (finProdFinEquiv (bit, record)) =
       (!x (tag record) && x (payload record bit)) := by
-  simp only [sources, Circuit.eval_pi, Formula.eval_toCircuit, Equiv.symm_apply_apply,
-    Formula.eval_and, Formula.eval_not, Formula.eval_input]
+  simp only [circuit_simps, sources, Equiv.symm_apply_apply]
 
 private theorem cost_sources {input count width : ℕ} (tag : Fin count → Fin input)
     (payload : Fin count → Fin width → Fin input) (cost : signature.Op → ℕ) :
@@ -185,8 +185,7 @@ private theorem cost_values {input count keyWidth width : ℕ}
     (values key tag payload).program.cost cost =
       (adjacentEqualityCircuit key).program.cost cost + width *
         (cost (.const false) + count * (cost .not + 2 * cost .and + cost .or)) := by
-  simp only [values, Circuit.cost_program_comp, Circuit.cost_program_append,
-    cost_scans, cost_sources]
+  simp only [circuit_simps, values, cost_scans, cost_sources]
   ring
 
 private def inputKey {input count keyWidth : ℕ} (key : Fin count → Fin keyWidth → Fin input)
@@ -203,7 +202,7 @@ private theorem eval_links {input count keyWidth : ℕ} (key : Fin count → Fin
     (adjacentEqualityCircuit key).eval interpretation x record =
       BitString.keyLinks (fun i => toLex (inputKey key x i)) record.val := by
   by_cases h : 0 < record.val
-  · simp only [adjacentEqualityCircuit, Circuit.eval_pi, dite_eq_left h, Formula.eval_toCircuit]
+  · simp only [circuit_simps, adjacentEqualityCircuit, dite_eq_left h]
     apply Bool.eq_iff_iff.mpr
     rw [Formula.eval_equalBits_iff]
     simp only [BitString.keyLinks, ite_eq_right (by lia : record.val ≠ 0),
@@ -280,11 +279,11 @@ theorem eval_values_eq_true_iff {input count keyWidth width : ℕ}
 
 /-- Read the retained header of a row-major record array. -/
 def header {count headerWidth width : ℕ} (x : BitString (count * (headerWidth + width)))
-    (record : Fin count) : BitString headerWidth := directProductInput x record ∘ Fin.castAdd width
+    (record : Fin count) : BitString headerWidth := BitString.block x record ∘ Fin.castAdd width
 
 /-- Read the value field following the retained header. -/
 def value {count headerWidth width : ℕ} (x : BitString (count * (headerWidth + width)))
-    (record : Fin count) : BitString width := directProductInput x record ∘ Fin.natAdd headerWidth
+    (record : Fin count) : BitString width := BitString.block x record ∘ Fin.natAdd headerWidth
 
 /-- Keep every header wire and replace value wires by the corresponding scan outputs. -/
 def outputWire (count headerWidth width : ℕ) (index : Fin (count * (headerWidth + width))) :
@@ -319,9 +318,8 @@ theorem eval_broadcastCircuit_header {count headerWidth keyWidth width : ℕ}
     header ((broadcastCircuit key tag count width).eval interpretation x) record =
       header x record := by
   funext bit
-  simp only [header, directProductInput, Function.comp_apply, broadcastCircuit, Circuit.eval_comp,
-    Circuit.eval_wiring, Circuit.eval_append, Circuit.id, outputWire, Equiv.symm_apply_apply,
-    Fin.addCases_left, Fin.append_left, id_eq]
+  simp only [circuit_simps, header, BitString.block, broadcastCircuit, outputWire,
+    Equiv.symm_apply_apply, Fin.addCases_left, id_eq]
 
 /-- The value field is supplied by the shared scans. -/
 theorem eval_broadcastCircuit_value {count headerWidth keyWidth width : ℕ}
@@ -334,9 +332,8 @@ theorem eval_broadcastCircuit_value {count headerWidth keyWidth width : ℕ}
         (fun record bit => finProdFinEquiv (record, Fin.natAdd headerWidth bit))).eval
         interpretation x
         (finProdFinEquiv (bit, record)) := by
-  simp only [value, directProductInput, Function.comp_apply, broadcastCircuit, Circuit.eval_comp,
-    Circuit.eval_wiring, Circuit.eval_append, outputWire, Equiv.symm_apply_apply,
-    Fin.addCases_right, Fin.append_right]
+  simp only [circuit_simps, value, BitString.block, broadcastCircuit, outputWire,
+    Equiv.symm_apply_apply, Fin.addCases_right]
 
 /-- Each sorted destination receives the OR of all sources with its selected key. -/
 theorem eval_broadcastCircuit_value_eq_true_iff {count headerWidth keyWidth width : ℕ}
@@ -380,8 +377,7 @@ theorem cost_program_broadcastCircuit {headerWidth keyWidth : ℕ}
       (if count = 0 then 0 else cost (.const false) + (count - 1) *
         (cost (.const true) + keyWidth * (3 * cost .and + 2 * cost .not + cost .or))) +
       width * (cost (.const false) + count * (cost .not + 2 * cost .and + cost .or)) := by
-  simp only [broadcastCircuit, Circuit.cost_program_comp, Circuit.cost_program_append,
-    Circuit.id, Circuit.cost_program_wiring, Nat.zero_add, Nat.add_zero,
+  simp only [circuit_simps, broadcastCircuit, Nat.zero_add, Nat.add_zero,
     broadcastCircuit.cost_values, cost_program_adjacentEqualityCircuit]
 
 /-- Exact gate count, including constants and unused gates at empty dimensions. -/

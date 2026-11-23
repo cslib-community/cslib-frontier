@@ -7,8 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.ModelTheory.Graph
 public import CslibFrontier.Logics.FirstOrder.FiniteVariable.Hintikka
-public import CslibFrontier.Logics.FirstOrder.ZeroOneLaw.ExtensionAxiom
 public import Mathlib.Combinatorics.SimpleGraph.CycleGraph
 public import Mathlib.ModelTheory.Order
 import Mathlib.Data.Fin.Tuple.Reflection
@@ -27,8 +27,8 @@ import Mathlib.Tactic.FinCases
   separates them, so Spoiler wins the `3`-round `3`-pebble game, and the hard direction turns
   this back into a separating Hintikka sentence. Color refinement does not separate this pair
   either (`CslibFrontierTests/Foundations/Combinatorics/SimpleGraph/ColorRefinement.lean`); by
-  the Immerman–Lander theorem, still to be formalized, that is the counting-logic analogue of the
-  `2`-pebble result. -/
+  the Immerman–Lander theorem (`CslibFrontier.Logics.FirstOrder.FiniteVariable.ColorRefinement`),
+  that is the counting-logic analogue of the `2`-pebble result. -/
 
 @[expose] public section
 
@@ -48,7 +48,7 @@ instance (m : ℕ) : Language.order.OrderedStructure (Fin m) := ⟨fun _ => Iff.
 
 /-- `xᵢ < xⱼ`, as `¬ xⱼ ≤ xᵢ`. -/
 def lt (i j : Fin 2) : FiniteVariable.Formula Language.order 2 :=
-  (FiniteVariable.Formula.rel leSymb ![j, i]).not
+  (.rel leSymb ![j, i] : FiniteVariable.Formula Language.order 2).not
 
 /-- At least `m` elements lie strictly below `xᵢ`: there is `xⱼ < xᵢ` below which lie at least
 `m - 1` elements, where `j` is the other variable. The variable `i` is quantified again inside. -/
@@ -66,11 +66,12 @@ private theorem add_one_ne_self (i : Fin 2) : i + 1 ≠ i := by
 
 theorem realize_chain {n : ℕ} : ∀ (m : ℕ) (i : Fin 2) (a : Fin 2 → Fin n),
     (chain m i).Realize a ↔ m ≤ (a i).val
-  | 0, i, a => by simp only [chain, FiniteVariable.Formula.realize_top, Nat.zero_le]
+  | 0, i, a => by simp only [chain, FiniteVariable.GenFormula.realize_top, Nat.zero_le]
   | m + 1, i, a => by
-    simp only [chain, lt, FiniteVariable.Formula.realize_ex, FiniteVariable.Formula.realize_inf,
-      FiniteVariable.Formula.realize_not, FiniteVariable.Formula.realize_rel, realize_chain m,
-      comp_vec_two, relMap_leSymb, Matrix.cons_val_zero, Matrix.cons_val_one, Function.update_self,
+    simp only [chain, lt, FiniteVariable.GenFormula.realize_ex,
+      FiniteVariable.GenFormula.realize_inf, FiniteVariable.GenFormula.realize_not,
+      FiniteVariable.GenFormula.realize_rel, realize_chain m, comp_vec_two, relMap_leSymb,
+      Matrix.cons_val_zero, Matrix.cons_val_one, Function.update_self,
       Function.update_of_ne (add_one_ne_self i).symm, not_le, Fin.lt_def]
     constructor
     · rintro ⟨c, hc, hm⟩
@@ -79,19 +80,19 @@ theorem realize_chain {n : ℕ} : ∀ (m : ℕ) (i : Fin 2) (a : Fin 2 → Fin n
       exact ⟨⟨m, by omega⟩, by simp only; omega, le_rfl⟩
 
 theorem realize_atLeast {n m : ℕ} (a : Fin 2 → Fin n) : (atLeast m).Realize a ↔ m < n := by
-  simp only [atLeast, FiniteVariable.Formula.realize_ex, realize_chain, Function.update_self]
+  simp only [atLeast, FiniteVariable.GenFormula.realize_ex, realize_chain, Function.update_self]
   exact ⟨fun ⟨c, hc⟩ => by omega, fun h => ⟨⟨m, h⟩, le_rfl⟩⟩
 
 theorem quantifierRank_chain : ∀ (m : ℕ) (i : Fin 2), (chain m i).quantifierRank = m
-  | 0, _ => by simp only [chain, FiniteVariable.Formula.quantifierRank_top]
+  | 0, _ => by simp only [chain, FiniteVariable.GenFormula.quantifierRank_top]
   | m + 1, i => by
-    simp only [chain, lt, FiniteVariable.Formula.quantifierRank_ex,
-      FiniteVariable.Formula.quantifierRank_inf, FiniteVariable.Formula.quantifierRank_not,
-      FiniteVariable.Formula.quantifierRank_rel, quantifierRank_chain m, Nat.zero_max]
+    simp only [chain, lt, FiniteVariable.GenFormula.quantifierRank_ex,
+      FiniteVariable.GenFormula.quantifierRank_inf, FiniteVariable.GenFormula.quantifierRank_not,
+      FiniteVariable.GenFormula.quantifierRank_rel, quantifierRank_chain m, Nat.zero_max]
 
 /-- `atLeast m` has quantifier rank `m + 1` although it uses only two variables. -/
 theorem quantifierRank_atLeast (m : ℕ) : (atLeast m).quantifierRank = m + 1 := by
-  rw [atLeast, FiniteVariable.Formula.quantifierRank_ex, quantifierRank_chain]
+  rw [atLeast, FiniteVariable.GenFormula.quantifierRank_ex, quantifierRank_chain]
 
 private theorem freeVars_lt_subset (i : Fin 2) :
     ((Finset.univ.image ![i, i + 1]) ∪ {i + 1}).erase (i + 1) ⊆ {i} := by
@@ -99,16 +100,17 @@ private theorem freeVars_lt_subset (i : Fin 2) :
   decide
 
 theorem freeVars_chain_subset : ∀ (m : ℕ) (i : Fin 2), (chain m i).freeVars ⊆ {i}
-  | 0, _ => by simp only [chain, FiniteVariable.Formula.freeVars_top, Finset.empty_subset]
+  | 0, _ => by simp only [chain, FiniteVariable.GenFormula.freeVars_top, Finset.empty_subset]
   | m + 1, i => by
-    simp only [chain, lt, FiniteVariable.Formula.freeVars_ex, FiniteVariable.Formula.freeVars_inf,
-      FiniteVariable.Formula.freeVars_not, FiniteVariable.Formula.freeVars_rel]
+    simp only [chain, lt, FiniteVariable.GenFormula.freeVars_ex,
+      FiniteVariable.GenFormula.freeVars_inf, FiniteVariable.GenFormula.freeVars_not,
+      FiniteVariable.GenFormula.freeVars_rel]
     exact (Finset.erase_subset_erase _ (Finset.union_subset_union (subset_refl _)
       (freeVars_chain_subset m (i + 1)))).trans (freeVars_lt_subset i)
 
 /-- `atLeast m` is a sentence. -/
 theorem freeVars_atLeast (m : ℕ) : (atLeast m).freeVars = ∅ := by
-  rw [atLeast, FiniteVariable.Formula.freeVars_ex, Finset.erase_eq_empty_iff]
+  rw [atLeast, FiniteVariable.GenFormula.freeVars_ex, Finset.erase_eq_empty_iff]
   exact Finset.subset_singleton_iff.1 (freeVars_chain_subset m 0)
 
 /-- Spoiler wins the `(m + 1)`-round `2`-pebble game on `Fin (m + 1)` and `Fin m`, from any
@@ -173,19 +175,18 @@ private theorem eq_add_one_of_ne {i p : Fin 2} (h : p ≠ i) : p = i + 1 := by
   revert i p
   decide
 
-/-- The forth step of the `2`-pebble game on loopless symmetric graphs: if every pair `(c, x)` of
-`V` has a counterpart `(d, y)` in `W` with the same equality and adjacency type, Duplicator can
-answer any move while keeping a partial isomorphism. -/
-theorem forth_graph (hV : ∀ x : V, ¬ RelMap adj ![x, x]) (hW : ∀ y : W, ¬ RelMap adj ![y, y])
+/-- One move of the `2`-pebble game on loopless symmetric graphs: moving pebble `i` to `c` and `d`
+keeps a partial isomorphism when `c` and `d` have the same equality and adjacency type relative to
+the other pebble. -/
+theorem partialIsoOn_update_graph (hV : ∀ x : V, ¬ RelMap adj ![x, x])
+    (hW : ∀ y : W, ¬ RelMap adj ![y, y])
     (hVs : ∀ x y : V, RelMap adj ![x, y] → RelMap adj ![y, x])
     (hWs : ∀ x y : W, RelMap adj ![x, y] → RelMap adj ![y, x])
-    (hext : ∀ (c x : V) (y : W), ∃ d : W, (c = x ↔ d = y) ∧
-      (RelMap adj ![c, x] ↔ RelMap adj ![d, y]))
     {S : Set (Fin 2)} {a : Fin 2 → V} {b : Fin 2 → W} (h : PartialIsoOn Language.graph S a b)
-    (i : Fin 2) (c : V) : ∃ d : W,
-      PartialIsoOn Language.graph (insert i S) (Function.update a i c) (Function.update b i d) := by
-  obtain ⟨d, hdeq, hdadj⟩ := hext c (a (i + 1)) (b (i + 1))
-  refine ⟨d, partialIsoOn_graph_iff.2 fun p hp q hq => ?_⟩
+    (i : Fin 2) (c : V) (d : W) (hdeq : c = a (i + 1) ↔ d = b (i + 1))
+    (hdadj : RelMap adj ![c, a (i + 1)] ↔ RelMap adj ![d, b (i + 1)]) :
+    PartialIsoOn Language.graph (insert i S) (Function.update a i c) (Function.update b i d) := by
+  refine partialIsoOn_graph_iff.2 fun p hp q hq => ?_
   have hcases : ∀ p ∈ insert i S, p = i ∨ (p = i + 1 ∧ i + 1 ∈ S) := by
     intro p hp
     by_cases hpi : p = i
@@ -207,6 +208,32 @@ theorem forth_graph (hV : ∀ x : V, ¬ RelMap adj ![x, x]) (hW : ∀ y : W, ¬ 
   · rw [hupd_a, hupd_b]
     exact (partialIsoOn_graph_iff.1 h) _ hS _ hS
 
+/-- The forth step of the `2`-pebble game on loopless symmetric graphs: if every pair `(c, x)` of
+`V` has a counterpart `(d, y)` in `W` with the same equality and adjacency type, Duplicator can
+answer any move while keeping a partial isomorphism. -/
+theorem forth_graph (hV : ∀ x : V, ¬ RelMap adj ![x, x]) (hW : ∀ y : W, ¬ RelMap adj ![y, y])
+    (hVs : ∀ x y : V, RelMap adj ![x, y] → RelMap adj ![y, x])
+    (hWs : ∀ x y : W, RelMap adj ![x, y] → RelMap adj ![y, x])
+    (hext : ∀ (c x : V) (y : W), ∃ d : W, (c = x ↔ d = y) ∧
+      (RelMap adj ![c, x] ↔ RelMap adj ![d, y]))
+    {S : Set (Fin 2)} {a : Fin 2 → V} {b : Fin 2 → W} (h : PartialIsoOn Language.graph S a b)
+    (i : Fin 2) (c : V) : ∃ d : W,
+      PartialIsoOn Language.graph (insert i S) (Function.update a i c) (Function.update b i d) :=
+  let ⟨d, hdeq, hdadj⟩ := hext c (a (i + 1)) (b (i + 1))
+  ⟨d, partialIsoOn_update_graph hV hW hVs hWs h i c d hdeq hdadj⟩
+
+theorem irrefl_fin (x : Fin 6) : ¬ RelMap adj ![x, x] :=
+  relMap_adj_fin.not.2 (SimpleGraph.cycleGraph 6).irrefl
+
+theorem irrefl_twoTriangles (y : Bool × Fin 3) : ¬ RelMap adj ![y, y] :=
+  relMap_adj_twoTriangles.not.2 twoTriangles.irrefl
+
+theorem symm_fin (x y : Fin 6) (h : RelMap adj ![x, y]) : RelMap adj ![y, x] :=
+  relMap_adj_fin.2 (relMap_adj_fin.1 h).symm
+
+theorem symm_twoTriangles (x y : Bool × Fin 3) (h : RelMap adj ![x, y]) : RelMap adj ![y, x] :=
+  relMap_adj_twoTriangles.2 (relMap_adj_twoTriangles.1 h).symm
+
 /-- Every pair of vertices of `C₆` has a counterpart in `2C₃` with the same equality and adjacency
 type, and conversely. -/
 theorem extension_fin_twoTriangles : ∀ (c x : Fin 6) (y : Bool × Fin 3), ∃ d : Bool × Fin 3,
@@ -223,19 +250,12 @@ theorem extension_twoTriangles_fin : ∀ (c x : Bool × Fin 3) (y : Fin 6), ∃ 
 pebbles placed: being a partial isomorphism on the placed pebbles is a back-and-forth invariant. -/
 theorem pebbleWinsForever_fin_twoTriangles (a : Fin 2 → Fin 6) (b : Fin 2 → Bool × Fin 3) :
     PebbleWinsForever Language.graph ∅ a b := by
-  have hV : ∀ x : Fin 6, ¬ RelMap adj ![x, x] := fun _ =>
-    relMap_adj_fin.not.2 (SimpleGraph.cycleGraph 6).irrefl
-  have hW : ∀ y : Bool × Fin 3, ¬ RelMap adj ![y, y] := fun _ =>
-    relMap_adj_twoTriangles.not.2 twoTriangles.irrefl
-  have hVs : ∀ x y : Fin 6, RelMap adj ![x, y] → RelMap adj ![y, x] :=
-    fun _ _ h => relMap_adj_fin.2 (relMap_adj_fin.1 h).symm
-  have hWs : ∀ x y : Bool × Fin 3, RelMap adj ![x, y] → RelMap adj ![y, x] :=
-    fun _ _ h => relMap_adj_twoTriangles.2 (relMap_adj_twoTriangles.1 h).symm
   refine IsPebbleBackAndForth.pebbleWinsForever
     (I := fun S a b => PartialIsoOn Language.graph S a b)
     ⟨id, fun h i c => ?_, fun h i d => ?_⟩ (partialIsoOn_empty a b)
-  · exact forth_graph hV hW hVs hWs (fun c x y => extension_fin_twoTriangles c x y) h i c
-  · obtain ⟨c, hc⟩ := forth_graph hW hV hWs hVs
+  · exact forth_graph irrefl_fin irrefl_twoTriangles symm_fin symm_twoTriangles
+      (fun c x y => extension_fin_twoTriangles c x y) h i c
+  · obtain ⟨c, hc⟩ := forth_graph irrefl_twoTriangles irrefl_fin symm_twoTriangles symm_fin
       (fun c x y => extension_twoTriangles_fin c x y) h.symm i d
     exact ⟨c, hc.symm⟩
 
@@ -251,20 +271,20 @@ def triangle : FiniteVariable.Formula Language.graph 3 :=
   .ex 0 (.ex 1 (.ex 2 (.rel adj ![0, 1] ⊓ .rel adj ![1, 2] ⊓ .rel adj ![0, 2])))
 
 theorem quantifierRank_triangle : triangle.quantifierRank = 3 := by
-  simp only [triangle, FiniteVariable.Formula.quantifierRank_ex,
-    FiniteVariable.Formula.quantifierRank_inf, FiniteVariable.Formula.quantifierRank_rel,
+  simp only [triangle, FiniteVariable.GenFormula.quantifierRank_ex,
+    FiniteVariable.GenFormula.quantifierRank_inf, FiniteVariable.GenFormula.quantifierRank_rel,
     max_self]
 
 theorem freeVars_triangle : triangle.freeVars = ∅ := by
-  simp only [triangle, FiniteVariable.Formula.freeVars_ex, FiniteVariable.Formula.freeVars_inf,
-    FiniteVariable.Formula.freeVars_rel]
+  simp only [triangle, FiniteVariable.GenFormula.freeVars_ex,
+    FiniteVariable.GenFormula.freeVars_inf, FiniteVariable.GenFormula.freeVars_rel]
   decide
 
 theorem realize_triangle_iff (a : Fin 3 → V) :
     triangle.Realize a ↔ ∃ x y z : V,
       RelMap adj ![x, y] ∧ RelMap adj ![y, z] ∧ RelMap adj ![x, z] := by
-  simp only [triangle, FiniteVariable.Formula.realize_ex, FiniteVariable.Formula.realize_inf,
-    FiniteVariable.Formula.realize_rel, comp_vec_two, Function.update_self,
+  simp only [triangle, FiniteVariable.GenFormula.realize_ex, FiniteVariable.GenFormula.realize_inf,
+    FiniteVariable.GenFormula.realize_rel, comp_vec_two, Function.update_self,
     Function.update_of_ne (show (0 : Fin 3) ≠ 2 by decide),
     Function.update_of_ne (show (0 : Fin 3) ≠ 1 by decide),
     Function.update_of_ne (show (1 : Fin 3) ≠ 2 by decide), and_assoc]

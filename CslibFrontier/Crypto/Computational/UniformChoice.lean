@@ -13,6 +13,7 @@ import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.PPT
 
 /-!
@@ -82,8 +83,6 @@ theorem isPPTOn_test {α : Type} {input : α ↪ List Bool}
     (hchallenge : ComputableInPolyTime challenge input encBits) :
     IsPPTOn input encBool
       (fun a => test (bound a) (real a) (ideal a) (adversary a) (challenge a)) := by
-  have hbound := hbound.tidy
-  have hchallenge := hchallenge.tidy
   unfold test
   apply IsPPTOn.bind_with (left := encUnary)
   · fun_prop
@@ -98,10 +97,9 @@ theorem eval_bind_test (bound : ℕ) (real ideal source : ProbComp (List Bool))
         ProbComp.eval (calibratedTest (real >>= adversary index.val)
           (ideal >>= adversary index.val) (source >>= adversary index.val))) := by
   simp only [pmf_norm, test, eval_sampleDyadicIndex]
-  rw [PMF.bind_comm]
-  congr 1 with index : 1
+  pmf_swap with index
   simp only [calibratedTest, ProbComp.eval_bind, ProbComp.eval_map, map_bind]
-  rw [PMF.bind_comm]
+  pmf_swap
 
 /-- Averaging calibrated tests averages their squared advantages without sign cancellation. -/
 theorem advantage_eq (bound : ℕ) (real ideal : ProbComp (List Bool))
@@ -152,7 +150,6 @@ theorem ComputationallyIndistinguishable.uniform_bound
     ∃ ε : ℕ → ℝ≥0, Negligible ε ∧ ∀ n index, index ≤ bound n →
       Game.advantage (ProbComp.eval (real n >>= adversary n index))
         (ProbComp.eval (ideal n >>= adversary n index)) ≤ ε n := by
-  have hbound := hbound.tidy
   let reduction := fun n => UniformChoice.test (bound n) (real n) (ideal n) (adversary n)
   have hreduce : IsPPT encBool reduction := by
     unfold reduction
@@ -160,7 +157,7 @@ theorem ComputationallyIndistinguishable.uniform_bound
   have hnegligible : Negligible (fun n =>
       Game.advantage (ProbComp.eval (real n >>= reduction n))
         (ProbComp.eval (ideal n >>= reduction n))) := by
-    simpa only [distinguishingGame, PMF.monad_bind_eq_bind,
+    simpa only [distinguishingGame_eq_bind, PMF.monad_bind_eq_bind,
       ProbComp.eval_bind] using hsecure reduction hreduce
   have hscaled := hnegligible.polynomiallyBounded_mul
     (dyadicSize_polynomiallyBounded.comp hbound.polynomiallyBounded)

@@ -43,6 +43,7 @@ the pebble game, is a direct game argument and holds in every language.
 ## Main definitions
 
 * `Cslib.Logic.FO.AtomicIndex.toFiniteVariable`: an atomic index as a `k`-variable formula.
+* `Cslib.Logic.FO.pebbleAtoms`: the atomic facts about the placed pebbles.
 * `Cslib.Logic.FO.PebbleType`, `Cslib.Logic.FO.pebbleType`: `k`-variable rank-`n` types and the
   type of a position.
 * `Cslib.Logic.FO.pebbleAtomicDiagram`, `Cslib.Logic.FO.pebbleHintikka`: the defining formulas of
@@ -50,6 +51,8 @@ the pebble game, is a direct game argument and holds in every language.
 
 ## Main results
 
+* `Cslib.Logic.FO.pebbleAtoms_eq_iff`: equal atomic facts are exactly partial isomorphisms on the
+  placed pebbles.
 * `Cslib.Logic.FO.pebbleType_eq_iff`: equal types are exactly winning positions of the `n`-round
   `k`-pebble game.
 * `Cslib.Logic.FO.realize_pebbleHintikka`: the Hintikka formula of a type defines it.
@@ -92,14 +95,14 @@ def AtomicIndex.toFiniteVariable : AtomicIndex L k → FiniteVariable.Formula L 
 @[simp] theorem AtomicIndex.realize_toFiniteVariable (i : AtomicIndex L k) (a : Fin k → M) :
     i.toFiniteVariable.Realize a ↔ i.Holds a := by
   rcases i with ⟨⟨i, j⟩⟩ | ⟨⟨l, R⟩, f⟩
-  · rw [toFiniteVariable, FiniteVariable.Formula.realize_equal, holds_inl]
-  · rw [toFiniteVariable, FiniteVariable.Formula.realize_rel, holds_inr]
+  · rw [toFiniteVariable, FiniteVariable.GenFormula.realize_equal, holds_inl]
+  · rw [toFiniteVariable, FiniteVariable.GenFormula.realize_rel, holds_inr]
 
 @[simp] theorem AtomicIndex.quantifierRank_toFiniteVariable (i : AtomicIndex L k) :
     i.toFiniteVariable.quantifierRank = 0 := by
   rcases i with ⟨⟨i, j⟩⟩ | ⟨⟨l, R⟩, f⟩
-  · rw [toFiniteVariable, FiniteVariable.Formula.quantifierRank_equal]
-  · rw [toFiniteVariable, FiniteVariable.Formula.quantifierRank_rel]
+  · rw [toFiniteVariable, FiniteVariable.GenFormula.quantifierRank_equal]
+  · rw [toFiniteVariable, FiniteVariable.GenFormula.quantifierRank_rel]
 
 /-- The pebbles in `S` define a partial isomorphism exactly when both assignments satisfy the
 same atomic formulas whose variables lie in `S`. -/
@@ -108,25 +111,25 @@ theorem partialIsoOn_iff_holds {S : Set (Fin k)} {a : Fin k → M} {b : Fin k �
       ∀ i : AtomicIndex L k, ↑i.toFiniteVariable.freeVars ⊆ S → (i.Holds a ↔ i.Holds b) := by
   constructor
   · rintro ⟨heq, hrel⟩ (⟨⟨i, j⟩⟩ | ⟨⟨l, R⟩, f⟩) hS
-    · simp only [AtomicIndex.toFiniteVariable, FiniteVariable.Formula.freeVars_equal,
+    · simp only [AtomicIndex.toFiniteVariable, FiniteVariable.GenFormula.freeVars_equal,
         Finset.coe_insert, Finset.coe_singleton, Set.insert_subset_iff,
         Set.singleton_subset_iff] at hS
       rw [AtomicIndex.holds_inl, AtomicIndex.holds_inl]
       exact heq i hS.1 j hS.2
-    · simp only [AtomicIndex.toFiniteVariable, FiniteVariable.Formula.freeVars_rel,
+    · simp only [AtomicIndex.toFiniteVariable, FiniteVariable.GenFormula.freeVars_rel,
         Finset.coe_image, Finset.coe_univ, Set.image_univ, Set.range_subset_iff] at hS
       rw [AtomicIndex.holds_inr, AtomicIndex.holds_inr]
       exact hrel R f hS
   · intro h
     refine ⟨fun i hi j hj => ?_, fun R f hf => ?_⟩
     · have := h (.inl ⟨(i, j)⟩) (by
-        simp only [AtomicIndex.toFiniteVariable, FiniteVariable.Formula.freeVars_equal,
+        simp only [AtomicIndex.toFiniteVariable, FiniteVariable.GenFormula.freeVars_equal,
           Finset.coe_insert, Finset.coe_singleton, Set.insert_subset_iff,
           Set.singleton_subset_iff]
         exact ⟨hi, hj⟩)
       rwa [AtomicIndex.holds_inl, AtomicIndex.holds_inl] at this
     · have := h (.inr ⟨⟨_, R⟩, f⟩) (by
-        simp only [AtomicIndex.toFiniteVariable, FiniteVariable.Formula.freeVars_rel,
+        simp only [AtomicIndex.toFiniteVariable, FiniteVariable.GenFormula.freeVars_rel,
           Finset.coe_image, Finset.coe_univ, Set.image_univ, Set.range_subset_iff]
         exact hf)
       rwa [AtomicIndex.holds_inr, AtomicIndex.holds_inr] at this
@@ -137,6 +140,22 @@ theorem partialIsoOn_univ_iff {a : Fin k → M} {b : Fin k → N} :
     PartialIsoOn L Set.univ a b ↔ PartialIso L a b := by
   rw [partialIsoOn_iff_holds, partialIso_iff_holds]
   simp only [Set.subset_univ, forall_const]
+
+/-- The atomic facts about the pebbles in `S` that hold of `a`: the atomic formulas whose variables
+lie in `S` and that `a` satisfies. -/
+def pebbleAtoms (S : Set (Fin k)) (a : Fin k → M) : Set (AtomicIndex L k) :=
+  {i | ↑i.toFiniteVariable.freeVars ⊆ S ∧ i.Holds a}
+
+@[simp] theorem mem_pebbleAtoms {S : Set (Fin k)} {a : Fin k → M} {i : AtomicIndex L k} :
+    i ∈ pebbleAtoms S a ↔ ↑i.toFiniteVariable.freeVars ⊆ S ∧ i.Holds a :=
+  Iff.rfl
+
+/-- Two positions have the same atomic facts about the pebbles in `S` exactly when those pebbles
+define a partial isomorphism. -/
+theorem pebbleAtoms_eq_iff {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N} :
+    pebbleAtoms (L := L) S a = pebbleAtoms S b ↔ PartialIsoOn L S a b := by
+  rw [partialIsoOn_iff_holds, Set.ext_iff]
+  simp only [mem_pebbleAtoms, and_congr_right_iff]
 
 /-! ### Types of positions -/
 
@@ -159,16 +178,16 @@ instance PebbleType.finite [Finite (Σ l, L.Relations l)] (k : ℕ) : ∀ n, Fin
 /-- The `k`-variable rank-`n` type of the position `(S, a)`: the atomic facts about the placed
 pebbles and, for `n + 1`, the types reached by moving each pebble. -/
 def pebbleType : ∀ (n : ℕ), Set (Fin k) → (Fin k → M) → PebbleType L k n
-  | 0, S, a => {i | ↑i.toFiniteVariable.freeVars ⊆ S ∧ i.Holds a}
-  | n + 1, S, a => ({i | ↑i.toFiniteVariable.freeVars ⊆ S ∧ i.Holds a},
+  | 0, S, a => pebbleAtoms S a
+  | n + 1, S, a => (pebbleAtoms S a,
       fun j => Set.range fun c : M => pebbleType n (insert j S) (Function.update a j c))
 
 theorem pebbleType_zero (S : Set (Fin k)) (a : Fin k → M) :
-    pebbleType (L := L) 0 S a = {i | ↑i.toFiniteVariable.freeVars ⊆ S ∧ i.Holds a} := by
+    pebbleType (L := L) 0 S a = pebbleAtoms S a := by
   rw [pebbleType]
 
 theorem pebbleType_succ {n : ℕ} (S : Set (Fin k)) (a : Fin k → M) :
-    pebbleType (L := L) (n + 1) S a = ({i | ↑i.toFiniteVariable.freeVars ⊆ S ∧ i.Holds a},
+    pebbleType (L := L) (n + 1) S a = (pebbleAtoms S a,
       fun j => Set.range fun c : M => pebbleType n (insert j S) (Function.update a j c)) := by
   rw [pebbleType]
 
@@ -177,21 +196,16 @@ theorem PebbleType.succ_ext_iff {n : ℕ} {T T' : PebbleType L k (n + 1)} :
     T = T' ↔ T.1 = T'.1 ∧ ∀ j, T.2 j = T'.2 j :=
   Prod.ext_iff.trans (and_congr Iff.rfl funext_iff)
 
-private theorem atomic_eq_iff {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N} :
-    {i : AtomicIndex L k | ↑i.toFiniteVariable.freeVars ⊆ S ∧ i.Holds a} =
-        {i | ↑i.toFiniteVariable.freeVars ⊆ S ∧ i.Holds b} ↔ PartialIsoOn L S a b := by
-  rw [partialIsoOn_iff_holds, Set.ext_iff]
-  simp only [Set.mem_ofPred_eq, and_congr_right_iff]
-
 /-- Two positions have the same `k`-variable rank-`n` type exactly when Duplicator wins the
 `n`-round `k`-pebble game between them. -/
 theorem pebbleType_eq_iff : ∀ {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N},
     pebbleType (L := L) n S a = pebbleType n S b ↔ PebbleWins L n S a b
   | 0, S, a, b => by
     rw [pebbleWins_zero, pebbleType_zero, pebbleType_zero]
-    exact atomic_eq_iff
+    exact pebbleAtoms_eq_iff
   | n + 1, S, a, b => by
-    rw [pebbleWins_succ, PebbleType.succ_ext_iff, pebbleType_succ, pebbleType_succ, atomic_eq_iff]
+    rw [pebbleWins_succ, PebbleType.succ_ext_iff, pebbleType_succ, pebbleType_succ,
+      pebbleAtoms_eq_iff]
     simp only [Set.Subset.antisymm_iff, Set.range_subset_iff, Set.mem_range, forall_and]
     refine and_congr Iff.rfl (and_congr ?_ ?_)
     · refine forall_congr' fun j => forall_congr' fun c => exists_congr fun d => ?_
@@ -206,31 +220,30 @@ open scoped Classical in
 those not in `T`. Atomic facts in `T` that mention unplaced pebbles make the formula false. -/
 noncomputable def pebbleAtomicDiagram [Finite (Σ l, L.Relations l)] (S : Set (Fin k))
     (T : Set (AtomicIndex L k)) : FiniteVariable.Formula L k :=
-  FiniteVariable.Formula.iInf fun i : AtomicIndex L k =>
+  FiniteVariable.GenFormula.iInf fun i : AtomicIndex L k =>
     if ↑i.toFiniteVariable.freeVars ⊆ S then
       (if i ∈ T then i.toFiniteVariable else i.toFiniteVariable.not)
     else (if i ∈ T then ⊥ else ⊤)
 
 theorem realize_pebbleAtomicDiagram [Finite (Σ l, L.Relations l)] (S : Set (Fin k))
     (T : Set (AtomicIndex L k)) (a : Fin k → M) :
-    (pebbleAtomicDiagram S T).Realize a ↔
-      {i | ↑i.toFiniteVariable.freeVars ⊆ S ∧ i.Holds a} = T := by
+    (pebbleAtomicDiagram S T).Realize a ↔ pebbleAtoms S a = T := by
   classical
-  simp only [pebbleAtomicDiagram, FiniteVariable.Formula.realize_iInf, Set.ext_iff,
-    Set.mem_ofPred_eq]
+  simp only [pebbleAtomicDiagram, FiniteVariable.GenFormula.realize_iInf, Set.ext_iff,
+    mem_pebbleAtoms]
   refine forall_congr' fun i => ?_
   by_cases hS : ↑i.toFiniteVariable.freeVars ⊆ S <;> by_cases hT : i ∈ T <;> simp [hS, hT]
 
 theorem quantifierRank_pebbleAtomicDiagram [Finite (Σ l, L.Relations l)] (S : Set (Fin k))
     (T : Set (AtomicIndex L k)) : (pebbleAtomicDiagram S T).quantifierRank = 0 := by
   classical
-  refine Nat.le_zero.1 (FiniteVariable.Formula.quantifierRank_iInf_le fun i => ?_)
+  refine Nat.le_zero.1 (FiniteVariable.GenFormula.quantifierRank_iInf_le fun i => ?_)
   by_cases hS : ↑i.toFiniteVariable.freeVars ⊆ S <;> by_cases hT : i ∈ T <;> simp [hS, hT]
 
 theorem freeVars_pebbleAtomicDiagram_subset [Finite (Σ l, L.Relations l)] (S : Set (Fin k))
     (T : Set (AtomicIndex L k)) : ↑(pebbleAtomicDiagram S T).freeVars ⊆ S := by
   classical
-  refine FiniteVariable.Formula.freeVars_iInf_subset fun i => ?_
+  refine FiniteVariable.GenFormula.freeVars_iInf_subset fun i => ?_
   by_cases hS : ↑i.toFiniteVariable.freeVars ⊆ S <;> by_cases hT : i ∈ T <;> simp [hS, hT]
 
 /-- The `k`-variable Hintikka formula of a rank-`n` type of positions with placed pebbles `S`: a
@@ -242,9 +255,9 @@ noncomputable def pebbleHintikka [Finite (Σ l, L.Relations l)] :
     ∀ {n : ℕ}, Set (Fin k) → PebbleType L k n → FiniteVariable.Formula L k
   | 0, S, T => pebbleAtomicDiagram S T
   | _ + 1, S, T =>
-    pebbleAtomicDiagram S T.1 ⊓ FiniteVariable.Formula.iInf fun j : Fin k =>
-      FiniteVariable.Formula.iInf (fun T' : T.2 j => .ex j (pebbleHintikka (insert j S) T'.1)) ⊓
-        .all j (FiniteVariable.Formula.iSup fun T' : T.2 j => pebbleHintikka (insert j S) T'.1)
+    pebbleAtomicDiagram S T.1 ⊓ FiniteVariable.GenFormula.iInf fun j : Fin k =>
+      FiniteVariable.GenFormula.iInf (fun T' : T.2 j => .ex j (pebbleHintikka (insert j S) T'.1)) ⊓
+        .all j (FiniteVariable.GenFormula.iSup fun T' : T.2 j => pebbleHintikka (insert j S) T'.1)
 
 theorem realize_pebbleHintikka [Finite (Σ l, L.Relations l)] :
     ∀ {n : ℕ} (S : Set (Fin k)) (T : PebbleType L k n) (a : Fin k → M),
@@ -254,9 +267,9 @@ theorem realize_pebbleHintikka [Finite (Σ l, L.Relations l)] :
     exact realize_pebbleAtomicDiagram S T a
   | n + 1, S, T, a => by
     rw [PebbleType.succ_ext_iff, pebbleType_succ, pebbleHintikka]
-    simp only [FiniteVariable.Formula.realize_inf, FiniteVariable.Formula.realize_iInf,
-      FiniteVariable.Formula.realize_ex, FiniteVariable.Formula.realize_all,
-      FiniteVariable.Formula.realize_iSup, realize_pebbleHintikka, realize_pebbleAtomicDiagram,
+    simp only [FiniteVariable.GenFormula.realize_inf, FiniteVariable.GenFormula.realize_iInf,
+      FiniteVariable.GenFormula.realize_ex, FiniteVariable.GenFormula.realize_all,
+      FiniteVariable.GenFormula.realize_iSup, realize_pebbleHintikka, realize_pebbleAtomicDiagram,
       Subtype.forall, Subtype.exists, exists_prop, exists_eq_right', Set.range_eq_iff, forall_and]
     exact and_congr Iff.rfl and_comm
 
@@ -266,15 +279,15 @@ theorem quantifierRank_pebbleHintikka_le [Finite (Σ l, L.Relations l)] :
     rw [pebbleHintikka]
     exact (quantifierRank_pebbleAtomicDiagram S T).le
   | n + 1, S, T => by
-    rw [pebbleHintikka, FiniteVariable.Formula.quantifierRank_inf,
+    rw [pebbleHintikka, FiniteVariable.GenFormula.quantifierRank_inf,
       quantifierRank_pebbleAtomicDiagram, max_le_iff]
-    refine ⟨Nat.zero_le _, FiniteVariable.Formula.quantifierRank_iInf_le fun j => ?_⟩
-    rw [FiniteVariable.Formula.quantifierRank_inf, max_le_iff,
-      FiniteVariable.Formula.quantifierRank_all]
-    refine ⟨FiniteVariable.Formula.quantifierRank_iInf_le fun T' => ?_,
-      Nat.succ_le_succ (FiniteVariable.Formula.quantifierRank_iSup_le fun T' =>
+    refine ⟨Nat.zero_le _, FiniteVariable.GenFormula.quantifierRank_iInf_le fun j => ?_⟩
+    rw [FiniteVariable.GenFormula.quantifierRank_inf, max_le_iff,
+      FiniteVariable.GenFormula.quantifierRank_all]
+    refine ⟨FiniteVariable.GenFormula.quantifierRank_iInf_le fun T' => ?_,
+      Nat.succ_le_succ (FiniteVariable.GenFormula.quantifierRank_iSup_le fun T' =>
         quantifierRank_pebbleHintikka_le _ T'.1)⟩
-    rw [FiniteVariable.Formula.quantifierRank_ex]
+    rw [FiniteVariable.GenFormula.quantifierRank_ex]
     exact Nat.succ_le_succ (quantifierRank_pebbleHintikka_le _ T'.1)
 
 theorem freeVars_pebbleHintikka_subset [Finite (Σ l, L.Relations l)] :
@@ -283,17 +296,17 @@ theorem freeVars_pebbleHintikka_subset [Finite (Σ l, L.Relations l)] :
     rw [pebbleHintikka]
     exact freeVars_pebbleAtomicDiagram_subset S T
   | n + 1, S, T => by
-    rw [pebbleHintikka, FiniteVariable.Formula.freeVars_inf, Finset.coe_union,
+    rw [pebbleHintikka, FiniteVariable.GenFormula.freeVars_inf, Finset.coe_union,
       Set.union_subset_iff]
     refine ⟨freeVars_pebbleAtomicDiagram_subset S T.1,
-      FiniteVariable.Formula.freeVars_iInf_subset fun j => ?_⟩
-    rw [FiniteVariable.Formula.freeVars_inf, Finset.coe_union, Set.union_subset_iff,
-      FiniteVariable.Formula.freeVars_all, Finset.coe_erase, Set.sdiff_subset_iff,
+      FiniteVariable.GenFormula.freeVars_iInf_subset fun j => ?_⟩
+    rw [FiniteVariable.GenFormula.freeVars_inf, Finset.coe_union, Set.union_subset_iff,
+      FiniteVariable.GenFormula.freeVars_all, Finset.coe_erase, Set.sdiff_subset_iff,
       ← Set.insert_eq]
-    refine ⟨FiniteVariable.Formula.freeVars_iInf_subset fun T' => ?_,
-      FiniteVariable.Formula.freeVars_iSup_subset fun T' =>
+    refine ⟨FiniteVariable.GenFormula.freeVars_iInf_subset fun T' => ?_,
+      FiniteVariable.GenFormula.freeVars_iSup_subset fun T' =>
         freeVars_pebbleHintikka_subset _ T'.1⟩
-    rw [FiniteVariable.Formula.freeVars_ex, Finset.coe_erase, Set.sdiff_subset_iff,
+    rw [FiniteVariable.GenFormula.freeVars_ex, Finset.coe_erase, Set.sdiff_subset_iff,
       ← Set.insert_eq]
     exact freeVars_pebbleHintikka_subset _ T'.1
 

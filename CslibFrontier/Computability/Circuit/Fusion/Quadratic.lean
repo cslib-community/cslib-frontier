@@ -13,6 +13,7 @@ import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.List
 import Mathlib.Data.Finset.Card
 import Mathlib.Tactic.Linarith
+import CslibFrontier.Computability.Circuit.Simps
 
 /-!
 # Quadratic completeness of semifilter covers
@@ -190,11 +191,8 @@ noncomputable def stageCircuit (k : ℕ) :
 /-- Each propagation round charges one conjunction per listed pair. -/
 private theorem cost_stageCircuit (k : ℕ) :
     (stageCircuit target input pairs k).program.cost Monotone.andCost = k * pairs.length := by
-  rw [stageCircuit, Circuit.cost_program_comp, Circuit.cost_program_iterate,
-    roundCircuit, Circuit.cost_program_append, Circuit.cost_program_wiring, cost_updateCircuit,
-    initialCircuit, Circuit.cost_program_append, Circuit.id, Circuit.cost_program_wiring,
-    Circuit.cost_program_pi]
-  simp [Formula.cost_toCircuit, Monotone.const]
+  simp only [circuit_simps, stageCircuit, roundCircuit, cost_updateCircuit, initialCircuit,
+    Monotone.const, Monotone.andCost, add_zero, zero_add, mul_zero]
 
 /-- The unrolled program carries the intended pair values; the extra output is a free read
 from the preceding round and is ignored by all subsequent pair updates. -/
@@ -204,9 +202,7 @@ theorem eval_stageCircuit (k : ℕ) :
   induction k with
   | zero =>
     refine ⟨∅, ?_⟩
-    simp only [stageCircuit, Circuit.iterate, Circuit.eval_comp, Circuit.id,
-      Circuit.eval_wiring, Function.comp_id,
-      initialCircuit, Circuit.eval_append, Circuit.eval_pi, Formula.eval_toCircuit]
+    simp only [circuit_simps, stageCircuit, Circuit.iterate, Function.comp_id, initialCircuit]
     congr 1 with j : 1
     induction j using Fin.lastCases <;> simp [Monotone.const, stages]
   | succ k ih =>
@@ -218,8 +214,7 @@ theorem eval_stageCircuit (k : ℕ) :
       simp only [Function.comp_apply, Fin.lastCases_castSucc]
     simp only [stageCircuit, Circuit.iterate, Circuit.eval_comp] at houtput ⊢
     rw [houtput]
-    simp only [roundCircuit, Circuit.eval_append, Circuit.eval_wiring,
-      Fin.append_comp_castAdd, eval_updateCircuit, hrestrict, stages]
+    simp only [circuit_simps, roundCircuit, Fin.append_comp_castAdd, eval_updateCircuit, hrestrict]
     rfl
 
 /-- A union tree has one disjunction per argument and its seed constant. -/
@@ -228,8 +223,7 @@ theorem size_joinFormula {r : ℕ} (seed : Bool) (fs : List (Formula Monotone.si
   induction fs with
   | nil => simp [joinFormula, Monotone.const]
   | cons f fs ih =>
-    simp only [joinFormula, Monotone.or, Formula.size_gate, Fin.sum_univ_two, Matrix.cons_val_zero,
-      Matrix.cons_val_one, Matrix.cons_val_fin_one, ih, List.map_cons, List.sum_cons,
+    simp only [circuit_simps, joinFormula, Monotone.or, ih, List.map_cons, List.sum_cons,
       List.length_cons]
     lia
 

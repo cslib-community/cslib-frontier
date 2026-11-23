@@ -11,9 +11,10 @@ public import CslibFrontier.Probability.Product
 public import Mathlib.Algebra.BigOperators.Expect
 public import Mathlib.Analysis.SpecialFunctions.Exp
 import CslibFrontier.Probability.BoundedDifferences
+import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
-import CslibFrontier.Probability.PMF
+import CslibFrontier.Probability.PMF.UniformBridge
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -32,6 +33,10 @@ statements.
 * `Cslib.Probability.PMF.pi_sum_le_mean_sub`: lower-tail concentration of bounded scores.
 * `Cslib.Probability.PMF.pi_sum_ge_mean_add`: the corresponding upper-tail bound.
 * `Cslib.Probability.PMF.pi_sum_abs_sub_mean_ge`: the two-sided bound.
+* `Cslib.Probability.PMF.pi_sum_le_mean_sub_card_mul`,
+  `Cslib.Probability.PMF.pi_sum_ge_mean_add_card_mul` and
+  `Cslib.Probability.PMF.pi_sum_abs_sub_mean_ge_card_mul`: the three bounds for `[0, 1]`-valued
+  scores at deviation `card ι * γ`, with the exponent `-2 card ι γ²` already normalized.
 * `Cslib.Probability.PMF.pi_abs_sum_div_sub_sum_mul_ge_le`: the two-sided bound for the
   empirical average of a `[-1, 1]`-valued function at independent samples of any distribution.
 * `Cslib.Probability.PMF.uniform_abs_sum_div_sub_expect_ge_le`: its special case at independent
@@ -101,13 +106,8 @@ private theorem sum_pi_mul_sum_clampScore_eq [DecidableEq ι]
 omit [Fintype ι] [∀ i, Fintype (α i)] in
 private theorem toOuterMeasure_congr_on_support {β : Type*} (q : PMF β) {s t : Set β}
     (h : ∀ outcome ∈ q.support, outcome ∈ s ↔ outcome ∈ t) :
-    q.toOuterMeasure s = q.toOuterMeasure t := by
-  classical
-  rw [PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply]
-  refine tsum_congr fun outcome => ?_
-  by_cases ho : outcome ∈ q.support
-  · simp only [Set.indicator_apply, h outcome ho]
-  · simp [Set.indicator_apply, (q.apply_eq_zero_iff outcome).mpr ho]
+    q.toOuterMeasure s = q.toOuterMeasure t :=
+  q.toOuterMeasure_apply_eq_of_inter_support_eq <| Set.ext fun o => and_congr_left (h o)
 
 private theorem toOuterMeasure_pi_clampScore_eq [DecidableEq ι]
     (p : ∀ i, PMF (α i)) (score : ∀ i, α i → ℝ) (P : ℝ → ℝ → Prop) :
@@ -159,6 +159,48 @@ theorem pi_sum_abs_sub_mean_ge (p : ∀ i, PMF (α i)) (score : ∀ i, α i → 
   linarith [toOuterMeasure_abs_sub_ge_toReal_le (pi p)
     (fun outcome => ∑ i, score i (outcome i)) (∑ i, ∑ a, (p i a).toReal * score i a) ε,
     pi_sum_ge_mean_add p score hbound hscore hε, pi_sum_le_mean_sub p score hbound hscore hε]
+
+omit [∀ i, Fintype (α i)] in
+/-- The Hoeffding exponent at `bound = 1` and deviation `card ι * γ`, in normalized form. Both
+sides vanish when `ι` is empty. -/
+private theorem hoeffding_exponent_card_mul (γ : ℝ) :
+    -2 * ((Fintype.card ι : ℝ) * γ) ^ 2 / (Fintype.card ι * 1 ^ 2) =
+      -2 * Fintype.card ι * γ ^ 2 := by
+  rcases eq_or_ne (Fintype.card ι : ℝ) 0 with h | h
+  · simp [h]
+  · field_simp
+
+/-- `pi_sum_le_mean_sub` for `[0, 1]`-valued scores and deviation `card ι * γ`, with the exponent
+in normalized form: the sum falls `card ι * γ` below its mean with probability at most
+`exp (-2 card ι γ²)`. -/
+theorem pi_sum_le_mean_sub_card_mul (p : ∀ i, PMF (α i)) (score : ∀ i, α i → ℝ)
+    (hscore : ∀ i a, a ∈ (p i).support → score i a ∈ Set.Icc 0 1) {γ : ℝ} (hγ : 0 ≤ γ) :
+    ((pi p).toOuterMeasure {outcome | ∑ i, score i (outcome i) ≤
+      (∑ i, ∑ a, (p i a).toReal * score i a) - Fintype.card ι * γ}).toReal ≤
+        Real.exp (-2 * Fintype.card ι * γ ^ 2) := by
+  rw [← hoeffding_exponent_card_mul]
+  exact pi_sum_le_mean_sub p score zero_le_one hscore (by positivity)
+
+/-- `pi_sum_ge_mean_add` for `[0, 1]`-valued scores and deviation `card ι * γ`, with the exponent
+in normalized form. -/
+theorem pi_sum_ge_mean_add_card_mul (p : ∀ i, PMF (α i)) (score : ∀ i, α i → ℝ)
+    (hscore : ∀ i a, a ∈ (p i).support → score i a ∈ Set.Icc 0 1) {γ : ℝ} (hγ : 0 ≤ γ) :
+    ((pi p).toOuterMeasure {outcome | (∑ i, ∑ a, (p i a).toReal * score i a) +
+      Fintype.card ι * γ ≤ ∑ i, score i (outcome i)}).toReal ≤
+        Real.exp (-2 * Fintype.card ι * γ ^ 2) := by
+  rw [← hoeffding_exponent_card_mul]
+  exact pi_sum_ge_mean_add p score zero_le_one hscore (by positivity)
+
+/-- `pi_sum_abs_sub_mean_ge` for `[0, 1]`-valued scores and deviation `card ι * γ`, with the
+exponent in normalized form: the sum is `card ι * γ` away from its mean with probability at most
+`2 exp (-2 card ι γ²)`. -/
+theorem pi_sum_abs_sub_mean_ge_card_mul (p : ∀ i, PMF (α i)) (score : ∀ i, α i → ℝ)
+    (hscore : ∀ i a, a ∈ (p i).support → score i a ∈ Set.Icc 0 1) {γ : ℝ} (hγ : 0 ≤ γ) :
+    ((pi p).toOuterMeasure {outcome | Fintype.card ι * γ ≤
+      |(∑ i, score i (outcome i)) - ∑ i, ∑ a, (p i a).toReal * score i a|}).toReal ≤
+        2 * Real.exp (-2 * Fintype.card ι * γ ^ 2) := by
+  rw [← hoeffding_exponent_card_mul]
+  exact pi_sum_abs_sub_mean_ge p score zero_le_one hscore (by positivity)
 
 section Average
 
@@ -214,10 +256,7 @@ theorem uniform_abs_sum_div_sub_expect_ge_le {m : ℕ} {α : Type*} [Fintype α]
       {ω | γ ≤ |(∑ j, s (ω j)) / m - 𝔼 a, s a|} ≤
         ENNReal.ofReal (2 * Real.exp (-(m * γ ^ 2) / 2)) := by
   have h := pi_abs_sum_div_sub_sum_mul_ge_le (m := m) (PMF.uniformOfFintype α) s hs hγ
-  have hmean : ∑ a, ((PMF.uniformOfFintype α) a).toReal * s a = 𝔼 a, s a := by
-    simp only [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
-      expect_eq_sum_div_card, card_univ, inv_mul_eq_div, ← sum_div]
-  rwa [pi_uniformOfFintype, hmean] at h
+  rwa [pi_uniformOfFintype, sum_uniformOfFintype_toReal_mul] at h
 
 end Average
 

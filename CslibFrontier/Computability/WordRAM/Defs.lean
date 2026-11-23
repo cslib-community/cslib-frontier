@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.GenericRAM.Defs
 public import CslibFrontier.Computability.WordRAM.Basis
 public import Cslib.Foundations.Relation.RelatesInSteps
 public import Mathlib.Data.Fin.VecNotation
+public import CslibFrontier.Tactic.WramOmega.Init
 
 /-!
 # Word RAMs
@@ -177,6 +178,7 @@ variable {B : Basis} {r : ℕ}
 /-! ## Words -/
 
 /-- A number fits a `w`-bit word if it is below `2 ^ w`. -/
+@[wram_arith]
 def Fits (w v : ℕ) : Prop := v < 2 ^ w
 
 /-- Decidability of `Fits w v`. -/
@@ -191,6 +193,10 @@ theorem Fits.mono {w w' v : ℕ} (h : Fits w v) (hw : w ≤ w') : Fits w' v :=
 
 /-- Any value at most a `w`-bit word also fits in `w` bits. -/
 theorem Fits.of_le {w u v : ℕ} (h : Fits w v) (huv : u ≤ v) : Fits w u := huv.trans_lt h
+
+/-- If a `w`-bit word is at least `2 ^ k`, then `k < w`. -/
+theorem Fits.lt_of_pow_le {w k v : ℕ} (h : Fits w v) (hk : 2 ^ k ≤ v) : k < w :=
+  Nat.lt_of_not_le fun hle => Nat.not_lt.mpr ((Nat.pow_le_pow_right Nat.two_pos hle).trans hk) h
 
 /-- Zero fits in every word width `w`. -/
 @[simp]

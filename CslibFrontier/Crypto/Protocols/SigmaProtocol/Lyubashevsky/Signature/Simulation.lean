@@ -12,7 +12,9 @@ public import CslibFrontier.Crypto.Game.CloseTo.RandomOracle
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Lyubashevsky.Commitment
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Lyubashevsky.Signature.RandomOracle
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.PMFSwap
 
 /-!
 # Visible signing simulation
@@ -135,9 +137,7 @@ private theorem counterfactual_hit_le {Ω M α : Type} [DecidableEq M]
         let coin ← (lyubashevsky n m k q γ β).commit (S h) (A, T A h)
         return ((trace.2.2.map entryToPair).lookup (msg h, coin.1)).isSome) := by
     simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-    congr 1 with A : 1
-    congr 1 with h : 1
-    exact PMF.bind_comm _ _ _
+    pmf_swap
   rw [horder]
   simpa only [pmf_norm, history] using hb
 
@@ -193,8 +193,7 @@ private theorem hybrid_eq_simulate {Ω M α : Type} [DecidableEq M]
   simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   congr 1 with A : 1
   refine PMF.bind_congr_on_support (H A) _ _ fun h hh => ?_
-  rw [PMF.bind_comm]
-  congr 1 with c : 1
+  pmf_swap with c
   have heq := (lyubashevsky_nonAbortSpecialHVZK (n := n) (m := m) (k := k) (q := q)
     (γ := γ) (β := β) hβ hη).acceptedTranscript_eq (S h) (A, T A h) (hvalid A h hh) c
   rw [heq]
@@ -320,7 +319,7 @@ theorem lyubashevskySignVisibleProg_eq_pure {Ω M α : Type} [DecidableEq M]
       let sig := ((lyubashevsky n m k q γ β).respond (S h) (A, T A h) coin.2 c).map
         fun z => (coin.1, z)
       return (A, h, f A h sig) := by
-  simp only [pmf_norm, lyubashevskySignVisibleProg, interpret_pure, StateT.run_pure]
+  simp only [interp_norm, pmf_norm, lyubashevskySignVisibleProg]
 
 theorem lyubashevskySignVisibleSim_eq_pure {Ω M α : Type} [DecidableEq M]
     (n m k q : ℕ) [NeZero q] (γ β : ℕ)
@@ -335,7 +334,7 @@ theorem lyubashevskySignVisibleSim_eq_pure {Ω M α : Type} [DecidableEq M]
       let c ← PMF.uniformOfFintype (BitString k)
       let view ← lyubashevskySimulate n m k q γ β (A, T A h) c
       return (A, h, f A h view) := by
-  simp only [pmf_norm, lyubashevskySignVisibleSim, interpret_pure, StateT.run_pure]
+  simp only [interp_norm, pmf_norm, lyubashevskySignVisibleSim]
 
 /-- The visible programmed experiment runs `cont` from the final state of
 `lyubashevskySignFullProg`. -/
@@ -408,8 +407,7 @@ public theorem lyubashevskySignVisibleProg_eq_sim_of_pure {Ω M α : Type} [Deci
   simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   congr 1 with A : 1
   refine PMF.bind_congr_on_support (H A) _ _ fun h hh => ?_
-  rw [PMF.bind_comm]
-  congr 1 with c : 1
+  pmf_swap with c
   have heq := (lyubashevsky_nonAbortSpecialHVZK (n := n) (m := m) (k := k) (q := q)
     (γ := γ) (β := β) hβ hη).acceptedTranscript_eq (S h) (A, T A h) (hvalid A h hh) c
   rw [heq]
@@ -642,7 +640,7 @@ theorem lyubashevskySignAttemptsVisibleProg_one_eq {Ω M α : Type} [DecidableEq
   congr 1 with h : 1
   rw [show (1 : ℕ) = 0 + 1 from rfl, fiatShamirAbortSign_run_succ]
   simp only [pmf_norm, iid, fiatShamirAbortSign, interpret_pure, StateT.run_pure, PMF.map]
-  simp only [pmf_norm, interpret_map, interpret_query, StateT.run_map, PMF.map]
+  simp only [interp_norm, pmf_norm, PMF.map]
   simp only [StateT.run, PMF.bind_bind, PMF.pure_bind]
   congr 1 with coin : 1
   congr 1 with c : 1

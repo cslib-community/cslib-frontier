@@ -73,7 +73,7 @@ and `w = inputWord n s` (and `none` otherwise), and `hittingGenerator` emits
 ## References
 
 * Adapted from OpenAI's formalization [OpenAI2026RationalHitting] at revision
-  adc7f1241b42e322a6451854ab7e4b4c146bf787 (files
+  adc7f1241b42e322a6451854ab7e4b4c146bf78a (files
   lean/OAI/Computability/RationalHitting/GridEnumeration.lean and PolynomialTime.lean), via the
   complexitylib port [Schlesinger2026RationalHitting] at revision
   add0aca8ee0d71e68969f2cb45cf91554a50f787.
@@ -264,11 +264,7 @@ theorem computableInPolyTime_gridPointWords {n N M Dg H : α → ℕ}
     ComputableInPolyTime
       (fun x => gridPointWords (n x) (N x) (M x) (Dg x) (H x))
       encIn (encList encBits) := by
-  unfold gridPointWords
-  apply flatMapWithInput (range.comp hH)
-  apply flatMapWithInput (range.comp (by fun_prop))
-  apply flatMapWithInput (range.comp (by fun_prop))
-  apply computableInPolyTime_pointWords <;> fun_prop
+  fun_prop [gridPointWords]
 
 /-- Computing the complete output encoding `outputWord` is polynomial-time. -/
 @[fun_prop]
@@ -282,9 +278,10 @@ theorem computableInPolyTime_outputWord {n N M Dg H : α → ℕ}
       (fun x => outputWord (n x) (N x) (M x) (Dg x) (H x))
       encIn encBits := by
   have hwords := computableInPolyTime_gridPointWords hn hN hM hDg hH
-  have hdim := encodeNat_of_unary (unary_mul.comp (hM.prod hDg))
-  have hlen := encodeNat_of_unary ((length_list encBits).comp hwords)
-  exact (hdim.bitsAppend hlen).bitsAppend (bitsFlatten hwords)
+  exact bitsAppend
+    (bitsAppend (encodeNat_of_unary (unary_mul' hM hDg))
+      (encodeNat_of_unary ((length_list encBits).comp hwords)))
+    (bitsFlatten hwords)
 
 /-- Computing `hittingListWord` from unary `(n, s)` is polynomial-time. -/
 @[fun_prop]

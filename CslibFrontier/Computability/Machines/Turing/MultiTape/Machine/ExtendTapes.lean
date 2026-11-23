@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Halt
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapes
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Simulation
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Reserving work tapes for effectful machines
@@ -117,10 +118,7 @@ theorem Config.step_embed (cfg : Config k Symbol State Oracle input) (e : Fin k 
     (move : Oracle → SignType) :
     (cfg.embed e extraTapes extraPos).step (extendAction action e) symbol move =
       (cfg.step action symbol move).embed e extraTapes extraPos := by
-  refine Config.ext ?_ rfl
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;>
-    simp only [Config.step, Config.embed, extendAction, Turing.Action.apply, MultiTapeTM.embed] <;>
-    cases MultiTapeTM.partialInv e i <;> simp
+  tm_step [Config.step, Config.embed, extendAction, MultiTapeTM.embed]
 
 theorem Config.receive_embed [DecidableEq Oracle] (cfg : Config k Symbol State Oracle input)
     (e : Fin k ↪ Fin k') (extraTapes : Fin k' → ℤ → Option Symbol) (extraPos : Fin k' → ℤ)
@@ -167,10 +165,7 @@ omit hchoose [DecidableEq Oracle] in
 theorem initialConfig_extendTapes (input : List Symbol) :
     (machine.extendTapes e).initialConfig input =
       (machine.initialConfig input).embed e (fun _ _ => none) (fun _ => 0) := by
-  refine Config.ext ?_ rfl
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;>
-    simp only [initialConfig, Cfg.init, Config.embed, MultiTapeTM.embed] <;>
-    cases MultiTapeTM.partialInv e i <;> rfl
+  tm_step [initialConfig, Config.embed, MultiTapeTM.embed]
 
 /-- Reserving blank scratch tapes preserves the clocked output program. -/
 theorem run_extendTapes (fuel : ℕ) (input : List Symbol) :
@@ -193,8 +188,9 @@ omit hchoose in
 /-- In the effect-free deterministic case, tape extension is exactly upstream's compiler. -/
 theorem toTM_extendTapes (machine : MultiTapeMachine k Symbol State Empty Id) :
     (machine.extendTapes e).toTM = machine.toTM.extendTapes e := by
-  simp only [toTM, MultiTapeTM.extendTapes, MultiTapeTM.tr_ofTr, extendTapes]
+  simp only [toTM, MultiTapeTM.extendTapes, MultiTapeTM.adapt, extendTapes]
   congr 1 with state symbol work : 3
+  simp only [MultiTapeTM.adaptedTr, MultiTapeTM.tr_ofTr, Function.comp_def]
   cases machine.tr state symbol (fun i => work (e i)) Empty.elim with
   | step action symbol move => rfl
   | query oracle next => exact oracle.elim

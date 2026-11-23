@@ -15,17 +15,17 @@ import Mathlib.Tactic.Ring
 /-!
 # Total degree and Fourier degree on the Boolean cube
 
-Every function `f` on the cube `ι → Bool` with values in a commutative ring `R` is a unique
-`R`-linear combination of the monomials `∏_{i ∈ S} xᵢ`, its multilinear representation. Its
-*total degree* `BitString.totalDegree f` is the least `D` such that `f` is a combination of
-monomials of at most `D` coordinates, that is, the least `D` with `f ∈ BitString.lowDegree R ι D`
-(`BitString.totalDegree_le_iff_mem_lowDegree`); by `BitString.lowDegree_eq_map_restrictTotalDegree`
-it is also the least total degree of a polynomial that agrees with `f` on the cube.
+Every function `f` on the cube `ι → Bool` of finitely many coordinates, with values in a
+commutative ring `R`, is a unique `R`-linear combination of the monomials `∏_{i ∈ S} xᵢ`, its
+multilinear representation. Its *total degree* `BitString.totalDegree f` is the least `D` such that
+`f` is a combination of monomials of at most `D` coordinates, that is, the least `D` with
+`f ∈ BitString.lowDegree R ι D` (`BitString.totalDegree_le_iff_mem_lowDegree`); by
+`BitString.lowDegree_eq_map_restrictTotalDegree` it is also the least total degree of a polynomial
+that agrees with `f` on the cube.
 
 Over a field `F` in which `2` is invertible, the characters `chi F S` and the monomials of at most
-`D` coordinates span the same functions (`BitString.chi_mem_lowDegree`,
-`BitString.lowDegree_le_signSpan`). Over `ℝ`, low degree is therefore the vanishing of the Fourier
-coefficients on sets of more than `D` coordinates
+`D` coordinates span the same functions (`BitString.lowDegree_eq_signSpan`). Over `ℝ`, low degree
+is therefore the vanishing of the Fourier coefficients on sets of more than `D` coordinates
 (`BitString.mem_lowDegree_iff_fourierCoeff_eq_zero`), and the total degree is the largest size of a
 set with a nonzero Fourier coefficient (`BitString.totalDegree_le_iff_fourierCoeff_eq_zero`,
 `BitString.exists_card_eq_totalDegree_fourierCoeff_ne_zero`) [NisanSzegedy1994], [ODonnell2014].
@@ -37,11 +37,11 @@ set with a nonzero Fourier coefficient (`BitString.totalDegree_le_iff_fourierCoe
 
 ## Main results
 
-* `Cslib.BitString.chi_mem_lowDegree`, `Cslib.BitString.lowDegree_le_signSpan`: characters of at
-  most `H` coordinates and monomials of at most `H` coordinates span the same space when `2` is
-  invertible.
-* `Cslib.BitString.totalDegree_le_iff_mem_lowDegree`: the total degree is the least `D` with
-  `f ∈ lowDegree R ι D`.
+* `Cslib.BitString.chi_mem_lowDegree`, `Cslib.BitString.lowDegree_le_signSpan`,
+  `Cslib.BitString.lowDegree_eq_signSpan`: characters of at most `H` coordinates and monomials of
+  at most `H` coordinates span the same space when `2` is invertible.
+* `Cslib.BitString.totalDegree_le_iff_mem_lowDegree`: over finitely many coordinates, the total
+  degree is the least `D` with `f ∈ lowDegree R ι D`.
 * `Cslib.BitString.mem_lowDegree_iff_fourierCoeff_eq_zero`: over `ℝ`, low degree is the vanishing
   of the Fourier coefficients on larger sets.
 * `Cslib.BitString.totalDegree_le_iff_fourierCoeff_eq_zero`,
@@ -91,20 +91,15 @@ theorem signSpan_mono {H K : ℕ} (hHK : H ≤ K) : signSpan F ι H ≤ signSpan
 /-- Each monomial expands into characters of its subsets. -/
 theorem monomial_mem_signSpan [Invertible (2 : F)] (S : Finset ι) :
     monomial F S ∈ signSpan F ι #S := by
-  classical
   have hfun : monomial F S = ∑ T ∈ S.powerset,
       (⅟2 ^ #S * (-1) ^ #T : F) • chi F T := by
     funext x
-    simp only [monomial, Finset.sum_apply, Pi.smul_apply, smul_eq_mul, chi,
-      neg_one_pow_toNat_eq_one_sub_two_mul_bitVal]
-    have hsplit : ∏ i ∈ S, bitVal F (x i) = ∏ i ∈ S, (⅟2 * (-(1 - 2 * bitVal F (x i)) + 1)) :=
-      Finset.prod_congr rfl fun i _ => by
-        rw [show -(1 - 2 * bitVal F (x i)) + 1 = 2 * bitVal F (x i) by ring, ← mul_assoc,
-          invOf_mul_self, one_mul]
-    rw [hsplit, Finset.prod_mul_distrib, Finset.prod_const, Finset.prod_add, Finset.mul_sum]
-    refine Finset.sum_congr rfl fun T hT => ?_
-    rw [Finset.prod_const_one, mul_one, Finset.prod_neg]
-    ring
+    have h := sum_powerset_chi_mul_chi (R := F) S x fun _ => true
+    have hc (T : Finset ι) : chi F T (fun _ => true) = (-1) ^ #T := by simp [chi]
+    simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, mul_assoc, ← Finset.mul_sum,
+      monomial_apply]
+    rw [Finset.sum_congr rfl fun T _ => by rw [← hc, mul_comm], h]
+    split_ifs <;> simp
   rw [hfun]
   exact Submodule.sum_mem _ fun T hT => Submodule.smul_mem _ _
     (Submodule.subset_span ⟨T, Finset.card_le_card (Finset.mem_powerset.mp hT), rfl⟩)
@@ -116,6 +111,15 @@ theorem lowDegree_le_signSpan [Invertible (2 : F)] (H : ℕ) :
   rw [lowDegree, Submodule.span_le]
   rintro _ ⟨S, hS, rfl⟩
   exact signSpan_mono hS (monomial_mem_signSpan S)
+
+/-- **Degree in the `±1` basis.** When `2` is invertible in `F`, the functions of degree at most
+`H` are exactly the linear combinations of the characters `chi F S = ∏ i ∈ S, (-1) ^ xᵢ` with
+`#S ≤ H`. -/
+theorem lowDegree_eq_signSpan [Invertible (2 : F)] (H : ℕ) :
+    lowDegree F ι H = signSpan F ι H :=
+  le_antisymm (lowDegree_le_signSpan H) <| Submodule.span_le.2 <| by
+    rintro _ ⟨S, hS, rfl⟩
+    exact lowDegree_mono hS (chi_mem_lowDegree S)
 
 end SignSpan
 

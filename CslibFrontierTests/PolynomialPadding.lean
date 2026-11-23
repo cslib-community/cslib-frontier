@@ -7,17 +7,30 @@ Authors: Samuel Schlesinger
 module
 
 import CslibFrontier.Computability.Complexity.Classes.Padding.Polynomial
+import CslibFrontier.Computability.Complexity.Classes.Padding.Translation
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolynomialPadding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 
-/-! Concrete padding, decoding, acceptance/rejection by the padding guard, and the improved
-binary-to-unary resource bound. -/
+/-! Concrete padding, decoding, acceptance/rejection by the padding guard, the linear
+binary-to-unary resource bound, and instances of the translation lemma. -/
 
 public section
 
 namespace CslibFrontierTests.PolynomialPadding
 
 open Turing.MultiTapeTM
+
+-- Guard costs depend on the full input word, including malformed and insufficient padding.
+example (k : ℕ) :
+    ComputableInO
+      (fun x : List Bool => decide (((unframe x).length + 1) ^ k ≤ x.length))
+      encBits encBool (fun x => (x.length + 1) ^ 2) (fun x => x.length + 1) :=
+  computableInO_polynomialPaddingGuard k
+
+-- Zero exponent is valid for the guard, but is not a writer's k ≥ 1 hypothesis.
+example : decide (((unframe ([] : List Bool)).length + 1) ^ 0 ≤ 0) = false ∧
+    ¬ (1 ≤ (0 : ℕ)) := by decide
 
 private def cubePad (x : List Bool) : List Bool :=
   frame x ++ List.replicate ((x.length + 1) ^ 3) true
@@ -54,11 +67,26 @@ example :
   ⟨computableInO_roundedPolynomialPadding (k := 2) (by decide),
     by decide, by decide, by decide⟩
 
-/-- Binary-to-unary conversion now has a quadratic time bound and retains its linear space
-bound, including the zero and nonzero output encodings. -/
+/-- Binary-to-unary conversion has linear time and space bounds, including the zero and nonzero
+output encodings. -/
 theorem binaryToUnary_bound_and_values :
-    ComputableInO (fun n : ℕ => n) encNat encUnary (fun n => (n + 1) ^ 2) (fun n => n) ∧
+    ComputableInO (fun n : ℕ => n) encNat encUnary (fun n => n) (fun n => n) ∧
     encUnary 0 = [] ∧ encUnary 4 = [true, true, true, true] :=
   ⟨ComputableInO.natToUnary, rfl, rfl⟩
+
+open Cslib.Complexity in
+/-- The translation lemma along the padding function `2 * n + 1`: a collapse from quadratic to
+linear time would transfer to the doubled lengths. -/
+example (h : DTIME encBits (fun n => (n + 1) ^ 2) ⊆ DTIME encBits (fun n => n + 1)) :
+    DTIME encBits ((fun n => (n + 1) ^ 2) ∘ fun n => 2 * n + 1) ⊆
+      DTIME encBits ((fun n => n + 1) ∘ fun n => 2 * n + 1) :=
+  DTIME_comp_subset_of_subset (fun _ _ hmn => Nat.pow_le_pow_left (by omega) 2)
+    (fun n => by nlinarith) (fun n => by omega) (by fun_prop) (fun n => by omega) h
+
+open Cslib.Complexity in
+/-- Polynomial padding transfers collapses whose smaller degree is linear. -/
+example (h : DTIME encBits (fun n => (n + 1) ^ 2) ⊆ DTIME encBits (fun n => (n + 1) ^ 1)) :
+    DTIME encBits (fun n => (n + 1) ^ (2 * 3)) ⊆ DTIME encBits (fun n => (n + 1) ^ (1 * 3)) :=
+  DTIME_pow_mul_subset_of_subset le_rfl (by omega) (by omega) h
 
 end CslibFrontierTests.PolynomialPadding

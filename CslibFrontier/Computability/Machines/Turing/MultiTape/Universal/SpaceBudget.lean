@@ -8,9 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.InPlace
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
+import CslibFrontier.Tactic.Degree
 
 /-!
 # The universal machine within a space budget
@@ -27,10 +29,10 @@ It is computed by the in-place run of the universal machine
 (`Turing.MultiTapeTM.Universal.computableTidilyInTimeAndSpace_universal_inPlace`): the same
 multi-pass fold over the input, one pass per step, reading the symbol under the simulated input
 head by counting down the symbols of `x`, with the budget and the first two symbols of the output
-added to its state, and a budget test at the end of each pass. So it is tidily computable within
+added to its state, and a budget test at the end of each pass. So it is computable within
 space linear in `Turing.MultiTapeTM.Universal.budgetSpace`: the description, the budget, the
 number of steps and the length of `x` in binary, and the largest symbol of `x`
-(`Turing.MultiTapeTM.Universal.computableTidilyInO_budgetedUniversal`), never the length of `x`
+(`Turing.MultiTapeTM.Universal.computableInO_budgetedUniversal`), never the length of `x`
 itself or the space the described machine would use beyond the budget.
 
 Within the budget it agrees with the universal function
@@ -53,7 +55,7 @@ cells the machine visits, is within the budget
 * `Turing.MultiTapeTM.Universal.budgetedUniversal_eq_of_le`,
   `Turing.MultiTapeTM.Universal.budgetedUniversal_desc`: within the budget, the universal function.
 * `Turing.MultiTapeTM.Universal.computableTidilyInTimeAndSpace_budgetedUniversal`,
-  `Turing.MultiTapeTM.Universal.computableTidilyInO_budgetedUniversal`: it is tidily computable in
+  `Turing.MultiTapeTM.Universal.computableInO_budgetedUniversal`: it is computable in
   space linear in `budgetSpace`.
 * `Turing.MultiTapeTM.Universal.budgetSpace_le`: `budgetSpace` is linear in the description, the
   budget and the lengths of the number of steps and of the length of the input in binary, plus
@@ -103,16 +105,19 @@ public abbrev eInS : Desc × List ℕ × ℕ × ℕ ↪ List Bool :=
 
 variable (d : Desc) (x : List ℕ) (b : ℕ)
 
-lemma take_two_append_take_two (o e : List ℕ) : (o.take 2 ++ e).take 2 = (o ++ e).take 2 := by
+/-- Keeping the first two symbols before appending more keeps the first two symbols. -/
+public lemma take_two_append_take_two (o e : List ℕ) :
+    (o.take 2 ++ e).take 2 = (o ++ e).take 2 := by
   simp only [List.take_append, List.take_take, List.length_take]
   congr 2
   omega
 
-lemma stepOut_iterate_succ (j : ℕ) :
+/-- One more step of `stepOut` appends the optional output symbol of `step`. -/
+public lemma stepOut_iterate_succ (j : ℕ) :
     (stepOut d x)^[j + 1] (init d, []) =
       (run d x (j + 1), ((stepOut d x)^[j] (init d, [])).2 ++
         (step d x (run d x j)).2.toList) := by
-  rw [Function.iterate_succ_apply', run_succ']
+  rw [Function.iterate_succ_apply', run_succ]
   rfl
 
 /-- **The run within the budget** is the run of the simulation up to some step, with the first two
@@ -127,8 +132,8 @@ public theorem budgetStep_iterate (i : ℕ) : ∃ j ≤ i,
     rw [Function.iterate_succ_apply', heq, budgetStep]
     dsimp only
     split_ifs with h
-    · refine ⟨j + 1, by omega, ?_, Or.inr (by rwa [run_succ'])⟩
-      rw [stepOut_iterate_succ, take_two_append_take_two, run_succ']
+    · refine ⟨j + 1, by omega, ?_, Or.inr (by rwa [run_succ])⟩
+      rw [stepOut_iterate_succ, take_two_append_take_two, run_succ]
     · exact ⟨j, by omega, rfl, hb⟩
 
 /-- The run within the budget keeps at most two symbols of the output. -/
@@ -157,8 +162,8 @@ private theorem budgetStep_iterate_of_le {t : ℕ}
     dsimp only
     split_ifs with h
     · simp only [simulate]
-      rw [stepOut_iterate_succ, ← run_succ', take_two_append_take_two]
-    · exact absurd (by rw [← run_succ']; exact hb t (by omega)) h
+      rw [stepOut_iterate_succ, ← run_succ, take_two_append_take_two]
+    · exact absurd (by rw [← run_succ]; exact hb t (by omega)) h
 
 /-- **Within the budget, the universal function**: if every configuration of the simulation within
 `t` steps is encoded within `b` bits, `budgetedUniversal` returns the first two symbols of the
@@ -286,49 +291,39 @@ private lemma length_eSSt_le (t i j : ℕ) :
 
 /-! ### The parts of the fold, within bounds in the length of the state -/
 
-open ComputableTidilyInO
+open ComputableInO
 
 /-- The first two elements of a list, in linear time and space. -/
-lemma take_two_deg : ComputableTidilyInDegree (fun l : List ℕ => l.take 2) (encList encUnary)
+@[local fun_prop]
+lemma take_two_deg : ComputableInDegree (fun l : List ℕ => l.take 2) (encList encUnary)
     (encList encUnary) 1 1 := by
-  have hsingle : ComputableTidilyInDegree (fun n : ℕ => [n]) encUnary (encList encUnary) 1 1 :=
-    .of_linear (.of_frame fun n => by rw [encList_cons, encList_nil, List.append_nil])
-  have hhead := ComputableTidilyInDegree.headD (enc₁ := encUnary) (enc := encList encUnary) 0
-  have hempty := ComputableTidilyInDegree.isEmpty (enc₁ := encUnary) (enc := encList encUnary)
-  have htail := ComputableTidilyInDegree.tail (enc₁ := encUnary) (enc := encList encUnary)
-  have hone : ComputableTidilyInDegree (fun l : List ℕ => if l.isEmpty then [] else [l.headD 0])
-      (encList encUnary) (encList encUnary) 1 1 :=
-    (hempty.ite ((ComputableTidilyInDegree.const (encMid := encList encUnary) []).restrict _)
-      ((hsingle.comp hhead).restrict _)).mono
-  have hcons := (ComputableTidilyInDegree.cons encUnary).comp (hhead.prod (hone.comp htail))
-  refine ((hempty.ite ((ComputableTidilyInDegree.const (encMid := encList encUnary) []).restrict _)
-    (hcons.restrict _)).of_enc_eq fun l => ?_).mono
+  refine (by degree : ComputableInDegree
+    (fun l : List ℕ => match l.head? with
+      | none => []
+      | some a => a :: l.tail.head?.toList)
+    (encList encUnary) (encList encUnary) 1 1).of_enc_eq fun l => ?_
   rcases l with _ | ⟨a, _ | ⟨c, l⟩⟩ <;> rfl
 
 /-- The first two symbols of a list followed by an optional symbol, in linear time and space. -/
-lemma keepTwo_deg : ComputableTidilyInDegree
+lemma keepTwo_deg : ComputableInDegree
     (fun p : List ℕ × Option ℕ => (p.1 ++ p.2.toList).take 2)
     (encPair (encList encUnary) eSym) (encList encUnary) 1 1 := by
-  have hsingle : ComputableTidilyInDegree (fun n : ℕ => [n]) encUnary (encList encUnary) 1 1 :=
-    .of_linear (.of_frame fun n => by rw [encList_cons, encList_nil, List.append_nil])
-  have htoList : ComputableTidilyInDegree (fun e : Option ℕ => e.toList) eSym
-      (encList encUnary) 1 1 := by
-    refine (((ComputableTidilyInDegree.isSome encUnary).ite
-      ((hsingle.comp (ComputableTidilyInDegree.getD (enc₁ := encUnary) (enc := eSym) 0)).restrict
-        _) ((ComputableTidilyInDegree.const (encMid := encList encUnary) []).restrict _)).of_enc_eq
-      fun e => ?_).mono
-    cases e <;> rfl
-  have happ := (ComputableTidilyInDegree.listAppend encUnary).comp
-    ((ComputableTidilyInDegree.fst (encList encUnary) eSym).prod
-      (htoList.comp (ComputableTidilyInDegree.snd (encList encUnary) eSym)))
-  exact (take_two_deg.comp happ).mono
+  degree
+
+/-- The first two symbols of a list followed by an optional symbol, in time and space linear in the
+encoded input. -/
+public lemma keepTwo_inO : ComputableInO (fun p : List ℕ × Option ℕ => (p.1 ++ p.2.toList).take 2)
+    (encPair (encList encUnary) eSym) (encList encUnary)
+    (fun p => (encPair (encList encUnary) eSym p).length)
+    fun p => (encPair (encList encUnary) eSym p).length :=
+  keepTwo_deg.inO_one
 
 /-- The initial state, in the space of the description, the number of steps and the budget. -/
-private lemma foldInitS_inO : ComputableTidilyInO foldInitS eInS eSSt
+private lemma foldInitS_inO : ComputableInO foldInitS eInS eSSt
     (fun i => (eInS i).length +
       ((encPair eDesc (encPair encNat encUnary) (i.1, i.2.2)).length + 1) ^ 2)
     fun i => (encPair eDesc (encPair encNat encUnary) (i.1, i.2.2)).length + 1 := by
-  have hext := ComputableTidilyInO.of_transducer extractT (f := fun i : Desc × List ℕ × ℕ × ℕ =>
+  have hext := ComputableInO.of_transducer extractT (f := fun i : Desc × List ℕ × ℕ × ℕ =>
     (i.1, i.2.2)) (encIn := eInS) (encOut := encPair eDesc (encPair encNat encUnary)) fun i =>
     (extractT_run_frame (eDesc i.1) (encList encUnary i.2.1) (encPair encNat encUnary i.2.2)).symm
   have hd := fst eDesc (encPair encNat encUnary)
@@ -345,7 +340,7 @@ private lemma foldInitS_inO : ComputableTidilyInO foldInitS eInS eSSt
     nlinarith
 
 /-- A round of the countdown. -/
-private lemma foldNextS_inO : ComputableTidilyInO foldNextS (encPair eSSt encBool) eSSt
+private lemma foldNextS_inO : ComputableInO foldNextS (encPair eSSt encBool) eSSt
     (fun p => ((encPair eSSt encBool p).length + 1) ^ 2)
     fun p => (encPair eSSt encBool p).length + 1 := by
   have h₁ := fst eSSt encBool
@@ -358,7 +353,7 @@ private lemma foldNextS_inO : ComputableTidilyInO foldNextS (encPair eSSt encBoo
     nlinarith
 
 /-- Whether another pass follows. -/
-private lemma foldContS_inO : ComputableTidilyInO foldContS eSSt encBool
+private lemma foldContS_inO : ComputableInO foldContS eSSt encBool
     (fun s => ((eSSt s).length + 1) ^ 3) fun s => (eSSt s).length + 1 := by
   have h := foldCont_inO.comp (fst eSt (encPair encUnary (encList encUnary)))
   refine (h.of_enc_eq (g := foldContS) fun s => rfl).mono 2 (fun s => ?_) fun s => ?_
@@ -371,15 +366,14 @@ private lemma foldContS_inO : ComputableTidilyInO foldContS eSSt encBool
     omega
 
 /-- The result: the first two symbols of the output, and whether the machine has halted. -/
-private lemma foldFinishS_inO : ComputableTidilyInO foldFinishS eSSt eOut
+private lemma foldFinishS_inO : ComputableInO foldFinishS eSSt eOut
     (fun s => ((eSSt s).length + 1) ^ 3) fun s => (eSSt s).length + 1 := by
   have h₁ := fst eSt (encPair encUnary (encList encUnary))
   have h₂ := snd eSt (encPair encUnary (encList encUnary))
   -- bridge for #862: tidy client of the plain `state_inO`
-  have hst := state_inO.tidy.comp_linear h₁.fst'.snd'
-  have hnone := (ComputableTidilyInDegree.of_finite (encIn := encBool) (encMid := encBool)
-    fun b : Bool => !b).inO_one.comp_linear
-      ((ComputableTidilyInDegree.isSome encUnary).inO_one.comp_linear hst)
+  have hst := state_inO.comp_linear h₁.fst'.snd'
+  have hnone := (by degree : ComputableInDegree (fun o : Option ℕ => !o.isSome)
+    eSym encBool 1 0).inO_one.comp_linear hst
   refine ((h₂.snd'.prod hnone).of_enc_eq (g := foldFinishS) fun s => ?_).mono 2 (fun s => ?_)
     fun s => ?_
   · simp only [foldFinishS, Function.comp_apply]
@@ -396,7 +390,7 @@ lemma length_eSSt (s : SSt) : (eSSt s).length =
     List.length_replicate]
 
 /-- The budget test: whether the configuration the step reaches is encoded within the budget. -/
-lemma budgetTest_inO : ComputableTidilyInO
+lemma budgetTest_inO : ComputableInO
     (fun s : SSt => decide ((eCfg (stepAt s.1).1).length ≤ s.2.1))
     eSSt encBool (fun s => ((eSSt s).length + 1) ^ 3) fun s => (eSSt s).length + 1 := by
   have h₁ := fst eSt (encPair encUnary (encList encUnary))
@@ -404,7 +398,7 @@ lemma budgetTest_inO : ComputableTidilyInO
   have hword := (stepAt_inO.comp h₁).fst'.of_enc_eq (encOut := encBits)
     (g := fun s : SSt => eCfg (stepAt s.1).1) fun _ => rfl
   obtain ⟨cS, hcS⟩ := stepAt_inO.length_le
-  refine ((ComputableInO.unaryLe.tidy.comp ((ComputableInO.lengthUnary.tidy.comp
+  refine ((ComputableInO.unaryLe.comp ((ComputableInO.lengthUnary.comp
     hword).prod hbud)).of_enc_eq fun s => rfl).mono (3 * (4 * cS + 5) ^ 2 + 3) (fun s => ?_)
     fun s => ?_
   all_goals
@@ -445,7 +439,7 @@ lemma budgetTest_inO : ComputableTidilyInO
 
 /-- The end of a pass within the budget: the step of the in-place fold, the budget test on the
 length of the configuration it reaches, and either branch. -/
-private lemma foldEndS_inO : ComputableTidilyInO foldEndS eSSt eSSt
+private lemma foldEndS_inO : ComputableInO foldEndS eSSt eSSt
     (fun s => ((eSSt s).length + 1) ^ 3) fun s => (eSSt s).length + 1 := by
   have h₁ := fst eSt (encPair encUnary (encList encUnary))
   have h₂ := snd eSt (encPair encUnary (encList encUnary))
@@ -453,7 +447,7 @@ private lemma foldEndS_inO : ComputableTidilyInO foldEndS eSSt eSSt
       (eSSt s).length := rfl
   -- the step taken
   have hkeep := keepTwo_deg.inO_one.comp_linear (h₂.snd'.prod (stepAt_inO.comp h₁).snd')
-  have htaken : ComputableTidilyInO (fun s : SSt =>
+  have htaken : ComputableInO (fun s : SSt =>
       (foldEnd s.1, s.2.1, (s.2.2 ++ (stepAt s.1).2.toList).take 2)) eSSt eSSt
       (fun s => ((eSSt s).length + 1) ^ 3) fun s => (eSSt s).length + 1 := by
     refine ((foldEnd_inO.comp h₁).prod (h₂.fst'.prod hkeep)).mono 8 (fun s => ?_) fun s => ?_
@@ -469,10 +463,10 @@ private lemma foldEndS_inO : ComputableTidilyInO foldEndS eSSt eSSt
   have hpos := (h₁.fst'.snd'.of_enc_eq (encOut := eCfgFields)
     (g := fun s : SSt => (s.1.1.2.state, s.1.1.2.inputPos, s.1.1.2.workTapes))
     fun _ => rfl).snd'.fst'
-  have hstay : ComputableTidilyInO (fun s : SSt =>
+  have hstay : ComputableInO (fun s : SSt =>
       (((s.1.1.1, s.1.1.2), (s.1.2.1 - 1, s.1.1.2.inputPos, 0)), s.2)) eSSt eSSt
       (fun s => ((eSSt s).length + 1) ^ 3) fun s => (eSSt s).length + 1 := by
-    refine ((h₁.fst'.prod ((ComputableInO.natPred.tidy.comp h₁.snd'.fst').prod
+    refine ((h₁.fst'.prod ((ComputableInO.natPred.comp h₁.snd'.fst').prod
       (hpos.prod (const (encMid := encUnary) 0)))).prod h₂).mono 8 (fun s => ?_) fun s => ?_
     all_goals
       have e₁ := length_eSSt s
@@ -593,7 +587,7 @@ public theorem computableTidilyInTimeAndSpace_budgetedUniversal : ∃ c,
 
 /-- The initial configuration is encoded within `11 * descLen d + 6` bits: the initial state, the
 input head at `1` and blank work tapes. -/
-private lemma length_eCfg_init_le : (eCfg (init d)).length ≤ 11 * descLen d + 6 := by
+public lemma length_eCfg_init_le : (eCfg (init d)).length ≤ 11 * descLen d + 6 := by
   have hq : d.q₀ ≤ descLen d := by
     simp only [descLen, eDesc_apply, length_encPair, encUnary_apply, List.length_replicate]; omega
   have hk : d.tapes ≤ descLen d := by
@@ -632,12 +626,13 @@ public lemma length_eOut_budgetedUniversal_le (t : ℕ) :
 /-- **The universal machine within a space budget**, up to constants: within time
 `O((t + 1) * (n + 1) ^ 2 * (budgetSpace + 1) ^ 3)` on an encoded input of length `n` and space
 `O(budgetSpace)` (`Turing.MultiTapeTM.Universal.budgetSpace_le`). -/
-public theorem computableTidilyInO_budgetedUniversal :
-    ComputableTidilyInO budgetedUniversal eInS eOut
+public theorem computableInO_budgetedUniversal :
+    ComputableInO budgetedUniversal eInS eOut
       (fun i => (i.2.2.1 + 1) * ((eInS i).length + 1) ^ 2 * (budgetSpace i + 1) ^ 3)
       budgetSpace := by
   obtain ⟨c, h⟩ := computableTidilyInTimeAndSpace_budgetedUniversal
-  refine .of_bounds h (c + 1) (fun i => ?_) (fun i => ?_) fun i => ?_
+  refine .of_bounds (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h) (c + 1)
+    (fun i => ?_) (fun i => ?_) fun i => ?_
   · exact Nat.mul_le_mul (Nat.le_succ c) (Nat.le_succ _)
   · exact Nat.mul_le_mul (Nat.le_succ c) le_rfl
   · obtain ⟨d, x, t, b⟩ := i

@@ -33,13 +33,16 @@ These global placement and injectivity arguments are original.
 
 namespace Cslib.Complexity.SAT.ExactOne
 
+open Graph.OrthogonalDrawing
+
 open Cslib.Logic.PL Orthogonal
 
 /-- The common closed coordinate bounds of a local collared template. -/
 def InPositiveLocalBox (p : Point) : Prop :=
   0 ≤ p.1 ∧ p.1 ≤ 540000 ∧ 0 ≤ p.2 ∧ p.2 ≤ 540000
 
-/-- Affine placement sends every point of the inner square strictly inside the collar box. -/
+/-- Affine placement sends every point of the side-180000 template square into the closed collar
+box; `collarPoint_in_innerBox` gives the stronger inner-square bounds. -/
 theorem collarPoint_in_positiveBox (reflected : Bool) {p : Point}
     (hp : 0 ≤ p.1 ∧ p.1 ≤ 180000 ∧ 0 ≤ p.2 ∧ p.2 ≤ 180000) :
     InPositiveLocalBox (collarPoint reflected p) := by

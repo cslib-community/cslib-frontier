@@ -29,22 +29,19 @@ resource bound: the encoding and cost convention are part of the theorem.
 | Coordinate implementation and review | [Participant and reviewer procedures](workflows/agent-operations.md) |
 | Direct agents as their human operator | [Agent Operator's Manual](AGENT_OPERATORS.md) |
 
-The [reference index](index.md) covers models, major theorems, design choices and source
-credit. The [model map](model-map.md) provides 265 model and interface entries from the
-initial survey. Update the affected descriptions and routes when an interface, theorem
-contract or operating procedure changes; the index is not a claim that every mathematical
-declaration has been classified. The [existing guide](../guide/CslibFrontierGuide.lean) remains
-the home of its checked narrative examples, and [library source](../CslibFrontier/) and
+The [reference index](index.md) maps the library's areas to the reference chapters on models,
+major theorems, design choices and source credit, and the [model map](model-map.md) locates
+individual models and interfaces. The reference chapters are frozen and are not kept current;
+the Lean source, its docstrings and the API documentation are authoritative. The [guide](../guide/CslibFrontierGuide.lean)
+remains the home of its checked narrative examples, and [library source](../CslibFrontier/) and
 [tests](../CslibFrontierTests/) remain the authority for definitions and example bodies.
 
-## Maintain both manuals with the code
+## Maintain the procedure pages and registries
 
-Every change needs an impact assessment for both manuals under the
-[contribution policy](../CONTRIBUTING.md#maintaining-the-manuals). Update affected procedures,
-reference claims, source links and examples in the same change, or give a concrete no-impact
-reason for each manual. Coordinator review of both assessments is mandatory, with independent
-review of the affected content against the final revision. Read the [maintenance procedure](MAINTAINING.md) for
-what to inspect and how to validate it.
+Under the [contribution policy](../CONTRIBUTING.md#maintaining-the-manuals), a change to a
+procedure or role updates the page that describes it, and a change to a fact recorded in a
+registry updates the registry. Nothing else in a PR requires a manual edit. Read the
+[maintenance procedure](MAINTAINING.md) for what to inspect and how to validate it.
 
 ```bash
 python3 scripts/check_operator_manual.py
@@ -52,7 +49,8 @@ python3 scripts/test_operator_manual.py
 ```
 
 Run these commands from the repository root. The first checks local links, visual markup, the
-book's chapter lists and the identity of contextual Lean excerpts against the current source;
+book's chapter lists and the identity of contextual Lean excerpts against the current source
+(in frozen chapters, only their own markup and the links between them);
 the second exercises failure cases of that checker. Neither compiles Lean or establishes that
 the prose describes the right mathematics. Check affected complete clients through Lake as the
 workflows describe.
@@ -71,12 +69,9 @@ The [build instructions](BUILD.md) list optional publishing tools and output loc
 Book products live under ignored `manual/_build/`; optional research exports use
 `manual/_generated/`. Neither is maintained by hand.
 
-## Dated evidence
+## History
 
-The initial source survey and development measurements were taken at
-`13e6a31951bf1c89a1a6258c44f9444aecbbefd8` on 2 November 2026. The reference chapters retain
-pinned source evidence for that baseline; changes to their claims need current evidence.
-The [development record](development-history/index.md), census, transcript excerpts and
-historical audit data remain dated observations. Do not silently update their denominators
-or make old validation evidence support a new revision. Desktop conversation records are
-absent from that dataset. Raw private transcripts are not included.
+The [History](history/index.md) part keeps the dated record from the complexitylib period: the
+2 November 2026 source survey from which the reference chapters grew, and the study of the
+library's automated development. Its measurements stay fixed to their stated revision; they
+explain earlier decisions but do not describe the current library.

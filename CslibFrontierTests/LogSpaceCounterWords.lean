@@ -14,14 +14,14 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.L
 The logspace-to-polynomial-time bridge applied to the new list lookup.
 -/
 
-@[expose] public section
+public section
 
 namespace Turing.MultiTapeTM.Tests.LogSpaceCounterWords
 
-/-- Lookup in a list of bit strings is computable in polynomial time, by the (tidy)
+/-- Lookup in a list of bit strings is computable in polynomial time, by the plain
 logspace-to-polynomial-time bridge. -/
-example : ComputableTidilyInPolyTime (fun p : List (List Bool) × ℕ => p.1[p.2]?)
+example : ComputableInPolyTime (fun p : List (List Bool) × ℕ => p.1[p.2]?)
     (encPair (encList encBits) encUnary) (encOption encBits) :=
-  (ComputableInLogSpace.getElem? encBits).computableTidilyInPolyTime
+  (ComputableInLogSpace.getElem? encBits).computableInPolyTime
 
 end Turing.MultiTapeTM.Tests.LogSpaceCounterWords

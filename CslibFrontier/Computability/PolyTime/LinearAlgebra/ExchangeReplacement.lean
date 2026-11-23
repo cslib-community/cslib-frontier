@@ -23,8 +23,10 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Factorial
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.Int.Order
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Foundations.Data.List.OfFn
@@ -1023,7 +1025,7 @@ private theorem er_intBin_natCast_unary {n : α → ℕ} (hn : CPT n input encUn
   intBin_natCast.comp' (unary_to_binary.comp' hn)
 private theorem er_intBin_add {l r : α → ℤ} (hl : CPT l input encIntBin)
     (hr : CPT r input encIntBin) : CPT (fun a => l a + r a) input encIntBin :=
-  (of_tidy .intBin_add).comp' (hl.prod hr)
+  intBin_add' hl hr
 private theorem er_intBin_sub {l r : α → ℤ} (hl : CPT l input encIntBin)
     (hr : CPT r input encIntBin) : CPT (fun a => l a - r a) input encIntBin := by
   exact intBin_sub.comp' (hl.prod hr)
@@ -1073,7 +1075,7 @@ private theorem er_pairBasisNat {a d x y : α → ℕ} (ha : CPT a input encNat)
     (hr : ComputableInPolyTime r input encNat)
     (hu : ComputableInPolyTime u input encAuxDigits) :
     ComputableInPolyTime (fun a => encodeAuxDigits (r a) (u a)) input encNat := by
-  have hlist := (of_tidy (.listReverse encNat)).comp' (hu.fst'.listAppend' hu.snd')
+  have hlist := listReverseWithInput (hu.fst'.listAppend' hu.snd')
   have hstep : CPT (fun q : (ℕ × ℕ) × ℕ => q.2 + q.1.1 * q.1.2)
       (encPair (encPair encNat encNat) encNat) encNat :=
     binary_add.comp ((snd _ _).prod
@@ -1129,7 +1131,7 @@ theorem computableInPolyTime_commonDenom_int {Q R : α → ℕ}
   have hβ2 := (er_decodeAuxDigits_unary hQ2 hr2 (hp2.comp' hs1)).comp' ht1
   have hu2 := (er_decodeAuxDigits_unary hQ2 hr2 hs2).comp' ht1
   exact er_map hidx (er_map (unary_range' (hDlen.comp' hp1))
-    ((of_tidy .intBin_prod).comp' (er_map (unary_range' hQ2)
+    (intBin_prod.comp' (er_map (unary_range' hQ2)
       (er_pairBasisNat (listGetDWithInput hβ2.fst' ht2 0) (listGetDWithInput hβ2.snd' ht2 0)
         (listGetDWithInput hu2.fst' ht2 0) (listGetDWithInput hu2.snd' ht2 0)))))
 private theorem er_fallingOrbitWeights {m A₀ j : α → ℕ}
@@ -1155,11 +1157,8 @@ private theorem er_fallingOrbitWeights {m A₀ j : α → ℕ}
         (ite_decide (unary_lt' hp2 hm1)
           (intBin_mul' (er_intBin_natCast_unary (unary_sub' hm1 hp2))
             (listGetDWithInput hf1 (unary_add' hp2 (.const 1)) 0)) (.const 0)))
-  have pm := hm.polyBounded; have pA := hA₀.polyBounded; have pj := hj.polyBounded
   have hB : PolyBounded (fun a => (input a).length)
-      (fun a => (m a + 1) * (2 * (j a * (2 * (m a + A₀ a + j a)) + 2) + 1)) :=
-    (pm.add (.const 1)).mul (((PolyBounded.const 2).mul
-      ((pj.mul ((PolyBounded.const 2).mul ((pm.add pA).add pj))).add (.const 2))).add (.const 1))
+      (fun a => (m a + 1) * (2 * (j a * (2 * (m a + A₀ a + j a)) + 2) + 1)) := by growth_poly
   have hrep : CPT (fun a => List.replicate (m a) (0 : ℤ)) input (encList encIntBin) := by
     simpa only [Function.comp_def, List.map_const', List.length_range] using
       er_map (unary_range' hm) (.const (0 : ℤ))
@@ -1193,10 +1192,10 @@ private theorem er_m0ScaledIntDigits {Q A₀ R : α → ℕ}
   have hd := er_countP (unary_range' hQ) (decide_ne hy1s hu2s)
   have hfacR := er_binary_factorial (unary_sub' hR (.const 1))
   exact horb.ite'
-    ((of_tidy .intBin_sum).comp' (er_map (unary_range' hR)
+    (intBin_sum.comp' (er_map (unary_range' hR)
       (intBin_mul' (intBin_mul'
           (er_intBin_natCast (binary_div.comp' ((hfacR.comp' hp1).prod (er_binary_factorial hp2))))
-          ((of_tidy .intBin_pow).comp'
+          (intBin_pow.comp'
             ((const (-1 : ℤ)).prod (unary_add' (hA₀.comp' hp1) hp2))))
         (listGetDWithInput (er_fallingOrbitWeights (hm.comp' hp1) (hA₀.comp' hp1) hp2)
           (hd.comp' hp1) 0)))) (.const 0)
@@ -1226,11 +1225,8 @@ private theorem er_mismatchAnnihilatorCoeffsDigits {Q : α → ℕ}
         (er_intBin_sub (intBin_mul' (ht.comp' hk1) (listGetDWithInput (hp.comp' hk1) hk2 0))
           (ite_decide (unary_lt' (.const 0) hk2)
             (listGetDWithInput (hp.comp' hk1) (unary_sub' hk2 (.const 1)) 0) (.const 0))))
-  have pQ := hQ.polyBounded
   have hB : PolyBounded (fun a => (input a).length)
-      (fun a => (Q a + 1) * (2 * (Q a * Q a + Q a + 3) + 1)) :=
-    (pQ.add (.const 1)).mul
-      (((PolyBounded.const 2).mul (((pQ.mul pQ).add pQ).add (.const 3))).add (.const 1))
+      (fun a => (Q a + 1) * (2 * (Q a * Q a + Q a + 3) + 1)) := by growth_poly
   refine foldlWith (encP := encPair encAuxDigits encAuxDigits) (encA := encUnary)
     (encL := encList encUnary) (encB := encList encIntBin) (step := stepFn) (hu.prod hy)
     (range.comp hQ) (init := fun _ => [1]) (const [1]) hstep hB fun a i _ => ?_
@@ -1269,7 +1265,7 @@ private theorem er_mismatchAnnihilatorCoeffsDigits {Q : α → ℕ}
   have hc0 := intBin_mul' (er_intBin_natCast (er_binary_factorial hQ))
     (er_intBin_sub (heq.ite'
       (er_intBin_natCast (er_binary_factorial (unary_sub' hR (.const 1)))) (.const 0)) hm0)
-  exact er_map (unary_range' ((of_tidy .unary_max).comp' (hR.prod (.const 1))))
+  exact er_map (unary_range' (unary_max' hR (.const 1)))
     (er_intBin_add (ite_decide (hp2.decide_eq' (.const 0)) (hc0.comp' hp1) (.const 0))
       (intBin_mul' (hm0.comp' hp1) (listGetDWithInput (hphi.comp' hp1) hp2 0)))
 
@@ -1282,9 +1278,7 @@ unary `(Q, A₀, R)` and binary `(r, u_idx, y_idx)`. -/
     ComputableInPolyTime
       (fun a => auxReplacementRowCoeffsIdx (Q a) (r a) (A₀ a) (R a) (u_idx a) (y_idx a))
       input (encList encIntBin) := by
-  exact computableInPolyTime_auxReplacementRowCoeffsDigits hQ hA₀ hR
-    (computableInPolyTime_decodeAuxDigits hQ hr hu)
-    (computableInPolyTime_decodeAuxDigits hQ hr hy)
+  fun_prop [auxReplacementRowCoeffsIdx]
 
 /-- The `D_len × D_len × max R 1` auxiliary replacement table (`auxReplacementTableBounded`,
 with `D_len = min D_cap (r ^ (2 * Q))`, giving the full `D × D` table when `r ^ (2 * Q) ≤ D_cap`)

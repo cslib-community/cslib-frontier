@@ -446,4 +446,18 @@ theorem computableInPolyTime_carryLookaheadFinish :
   have h := computableInPolyTime_appendCode hn computableInPolyTime_carryLookaheadAdd hz
   simpa only [appendCode_code, carryLookaheadFinish] using h
 
+/-- `@[fun_prop]` rule for `carryLookahead` in typed circuit compositions. -/
+@[fun_prop] theorem computableCircuitCode_carryLookahead {α : Type} {enc : α ↪ List Bool}
+    {w : α → ℕ} (hw : ComputableInPolyTime w enc encUnary) :
+    Circuit.ComputableCircuitCode (fun a => carryLookahead (w a)) enc encOp :=
+  Circuit.computableCircuitCode_of_computableInPolyTime
+    (computableInPolyTime_carryLookahead.comp hw)
+
+/-- `@[fun_prop]` rule for `carryLookaheadAdd` in typed circuit compositions. -/
+@[fun_prop] theorem computableCircuitCode_carryLookaheadAdd {α : Type} {enc : α ↪ List Bool}
+    {w : α → ℕ} (hw : ComputableInPolyTime w enc encUnary) :
+    Circuit.ComputableCircuitCode (fun a => carryLookaheadAdd (w a)) enc encOp :=
+  Circuit.computableCircuitCode_of_computableInPolyTime
+    (computableInPolyTime_carryLookaheadAdd.comp hw)
+
 end Cslib.Circuits.Boolean

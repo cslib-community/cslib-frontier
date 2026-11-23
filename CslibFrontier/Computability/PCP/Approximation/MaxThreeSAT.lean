@@ -30,8 +30,8 @@ A binary constraint on labels written in `k` bits is a conjunction of clauses of
 excluding each pair of labels the constraint forbids [Arora and Barak, Chapter 11][AroraBarak09].
 `Graph.toCNF` writes a constraint graph this way, and splitting the clauses to width three
 (`Cslib.Complexity.toThreeSAT`) gives a gap-preserving reduction from MAX-2CSP to MAX-3SAT: every
-violated edge leaves a falsified clause, and each edge produces at most `|α| ^ 2 * (2 k - 2)`
-clauses.
+violated edge leaves a falsified clause, and each edge produces at most
+`|α| ^ 2 * max 1 (2 k - 2)` clauses.
 From the gap of Dinur's construction (`Cslib.Complexity.GapTwoCSP_npHard`) over `128 = 2 ^ 7`
 symbols, MAX-3SAT is NP-hard to approximate within `1 - 1 / (3 * 2 ^ 77)`: the loss is the factor
 `128 ^ 2 * 12 = 3 * 2 ^ 16`. That MAX-3SAT is NP-hard to approximate within some constant is due to
@@ -111,7 +111,7 @@ theorem eval_excludeClause_eq_true_iff (τ : ℕ → Bool) (u v : ℕ) (p : α �
     exacts [⟨_, Or.inl ⟨i, rfl⟩, hi⟩, ⟨_, Or.inr ⟨i, rfl⟩, hi⟩]
 
 /-- Every clause of `toCNF` has width `2 k`. -/
-private theorem length_of_mem_toCNF {g : Graph (α → α → Bool)} {c : Clause ℕ}
+theorem length_of_mem_toCNF {g : Graph (α → α → Bool)} {c : Clause ℕ}
     (hc : c ∈ toCNF e pairs g) :
     c.length = 2 * k := by
   obtain ⟨d, -, hc⟩ := List.mem_flatMap.1 hc
@@ -162,6 +162,16 @@ private theorem card_unsatEdges_le_countUnsat (hpairs : ∀ p, p ∈ pairs) (g :
       List.mem_map.2 ⟨_, List.mem_filter.2 ⟨hpairs _, hd⟩, rfl⟩, ?_⟩
   rw [Bool.not_eq_true', Bool.eq_false_iff, ne_eq, eval_excludeClause_eq_true_iff]
   simp
+
+/-- When `pairs` lists every pair of labels, the formula of a constraint graph is satisfiable
+exactly when the graph is. An assignment satisfying the formula writes a labelling that violates
+no edge. -/
+theorem satisfiable_toCNF_iff (hpairs : ∀ p, p ∈ pairs) {g : Graph (α → α → Bool)} :
+    (toCNF e pairs g).Satisfiable ↔ (g.toGraph id).Satisfiable := by
+  refine ⟨fun ⟨τ, hτ⟩ => ⟨readLabel e τ, ?_⟩, satisfiable_toCNF e pairs⟩
+  have h := card_unsatEdges_le_countUnsat e pairs hpairs g τ
+  rwa [CNF.countUnsat_eq_zero_iff.2 hτ, Nat.le_zero, Finset.card_eq_zero,
+    ConstraintGraph.unsatEdges_eq_empty_iff] at h
 
 /-- Splitting the clauses of `toCNF`, all of width `2 k`, gives `2 k - 2` clauses for each, and at
 least one. -/
@@ -296,8 +306,8 @@ theorem mem_no_GapThreeSAT (hs : s < 1) :
 
 /-- **MAX-2CSP reduces to MAX-3SAT**: for labels written in `k` bits along an equivalence `e`, the
 gap problem of MAX-2CSP with soundness `s < 1` reduces in polynomial time to that of MAX-3SAT with
-soundness `1 - (1 - s) / (|α| ^ 2 * (2 k - 2))`, through `Cslib.PCP.Encoded.Graph.toCNF` and
-splitting to width three. -/
+soundness `1 - (1 - s) / (|α| ^ 2 * max 1 (2 k - 2))`, through `Cslib.PCP.Encoded.Graph.toCNF`
+and splitting to width three. -/
 theorem polyTimeReducible_GapTwoCSP_GapThreeSAT {α : Type} [Fintype α] {k : ℕ}
     (e : α ≃ (Fin k → Bool)) (hs : s < 1) :
     PromiseProblem.PolyTimeReducible (Graph.encoding encConstraintTable) encCNF

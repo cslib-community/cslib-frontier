@@ -129,7 +129,7 @@ def hitRecord (index : ℕ) (payload : BitString n) : BitString (w + n + 1) :=
 
 /-- The time field of a hit record. -/
 def hitIndex (record : BitString (w + n + 1)) : BitVec w :=
-  word fun bit => record (Fin.castAdd n bit).succ
+  BitString.equivBitVec fun bit => record (Fin.castAdd n bit).succ
 
 /-- The payload field of a hit record. -/
 def hitPayload (record : BitString (w + n + 1)) : BitString n :=
@@ -143,7 +143,7 @@ def hitPayload (record : BitString (w + n + 1)) : BitString n :=
 @[simp] theorem hitIndex_hitRecord (index : ℕ) (payload : BitString n) :
     hitIndex (hitRecord (w := w) index payload) = BitVec.ofNat w index := by
   simpa only [hitIndex, hitRecord, Fin.cons_succ, Fin.append_left] using
-    word_getLsbD (BitVec.ofNat w index)
+    BitString.equivBitVec_getLsbD (BitVec.ofNat w index)
 
 /-- Reading `hitPayload` from `hitRecord index payload` recovers `payload`. -/
 @[simp] theorem hitPayload_hitRecord (index : ℕ) (payload : BitString n) :
@@ -199,7 +199,7 @@ theorem synthesis_finishHit (c : Circuit signature n n) (s : Set (BooleanFunctio
   · let src := s ∪ wires chosen
     have hi : ∀ bit : Fin w, (fun x => (hitIndex (chosen x)).getLsbD bit.val) ∈ src := by
       intro bit
-      simp only [hitIndex, getLsbD_word]
+      simp only [hitIndex, BitString.getLsbD_equivBitVec]
       exact Or.inr ⟨_, rfl⟩
     have hpay : wires (fun x => hitPayload (chosen x)) ⊆ src := by
       rintro _ ⟨bit, rfl⟩
@@ -224,31 +224,12 @@ theorem exists_repeat_power (c : Circuit signature n n) (T L : ℕ) (hL : 0 < L)
       (∀ x, FunctionalGraph.Repeats (c.eval interpretation) x L →
         out.eval interpretation x = (c.eval interpretation)^[T] x) ∧
       out.size ≤ 40000 * powerBudget n c.size 0 L := by
-  let d := Nat.clog 2 (2 * L + 1)
-  have hcap : 0 + (2 * L + 1) ≤ BitonicSort.arity d := by
-    simpa only [Nat.zero_add, BitonicSort.arity_eq_two_pow] using
-      Nat.le_pow_clog Nat.one_lt_two (2 * L + 1)
-  have hd : d ≤ n + 2 := by
-    apply Nat.clog_le_of_le_pow
-    simp only [Nat.pow_succ]
-    have := Nat.one_le_two_pow (n := n)
-    omega
-  have hpow : 2 ^ d ≤ 2 * (0 + 2 * L + 1) := by
-    have hp := Nat.pow_pred_clog_lt_self Nat.one_lt_two (show 1 < 2 * L + 1 by omega)
-    have hdpos : 0 < d := Nat.clog_pos (by decide) (by omega)
-    rw [show 2 ^ d = 2 ^ (d - 1) * 2 by rw [← Nat.pow_succ, show (d - 1).succ = d by omega]]
-    change 2 ^ (d - 1) < 2 * L + 1 at hp
-    omega
-  have hfit : 2 * L < 2 ^ (n + 2) := by grind
-  obtain ⟨out, hout, hs⟩ := exists_fixedOutput (w := n + 2) c T (2 * L) d (Fin.elim0 :
-    Fin 0 → BitString n)
-  refine ⟨out, fun x hx => ?_, ?_⟩
-  · rw [hout]
-    apply reconstruct_spec _ T (2 * L) _ x _ _ hfit hT
-    apply Record.detect_sorted_witness _ T (2 * L) d _ x hcap hfit
-    obtain ⟨i, j, hij, hj, he⟩ := hx
-    exact Or.inr ⟨i, j, hij, by omega, he⟩
-  · refine hs.trans ((construction_cost n c.size 0 L d hL hd hpow).trans ?_)
-    simp only [powerBudget, Nat.zero_div, le_refl]
+  obtain ⟨out, d, hout, hd, hR, hs⟩ := exists_computesOn_iterate_of_cover (w := n + 2) c T
+    (2 * L) {x | FunctionalGraph.Repeats (c.eval interpretation) x L} ∅ hT
+    (by rw [Finset.card_empty, Nat.pow_succ, Nat.pow_succ]; omega)
+    fun x ⟨i, j, hij, hj, he⟩ => Or.inl ⟨i, j, hij, by omega, he⟩
+  rw [Finset.card_empty] at hR
+  refine ⟨out, fun x hx => hout hx, hs.trans ((construction_cost n c.size 0 L d hL hd hR).trans ?_)⟩
+  simp only [powerBudget, Nat.zero_div, le_refl]
 
 end Cslib.Circuits.Boolean.Iteration

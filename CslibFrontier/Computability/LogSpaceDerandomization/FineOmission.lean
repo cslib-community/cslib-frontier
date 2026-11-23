@@ -180,9 +180,8 @@ theorem sum_fine_omission_norm_le {Γ Υ V : Type*}
       rw [mul_pow, hcost]
       exact hmass.trans (mul_le_mul_of_nonneg_right hconstant
         (pow_nonneg (div_nonneg (hb h hh).le ha.le) 3))
-    exact (Real.rpow_le_rpow (rowNormPow_nonneg (s := 4) (N := N) (u := u) (by positivity) _) hpower
-      (by positivity)).trans_eq (Real.pow_rpow_inv_natCast
-        (mul_nonneg hK (binNormCost_pos 4 _).le) (by decide : 4 ≠ 0))
+    exact (Real.rpow_le_rpow (by positivity) hpower (by positivity)).trans_eq
+      (Real.pow_rpow_inv_natCast (mul_nonneg hK (binNormCost_pos 4 _).le) (by decide : 4 ≠ 0))
   calc
     _ ≤ ∑ h ∈ S, K * binNormCost 4 (h : ℝ) := sum_le_sum hpoint
     _ = K * ∑ h ∈ S, binNormCost 4 (h : ℝ) := (mul_sum _ _ _).symm

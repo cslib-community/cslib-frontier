@@ -184,6 +184,14 @@ example :
   · rw [eval_andreevCircuit_eq_evalInt]
     exact andreevCircuitEvalInt_two_two_mixed.2
 
+-- Named `AndreevWindowedBottomIndex` fields (`subset`, `staircase`, `step`) and exact cardinality.
+example :
+    let idx : AndreevWindowedBottomIndex 2 1 4 :=
+      { subset := {0}, mem := by decide, staircase := true, step := 3 }
+    idx.subset = {0} ∧ idx.staircase = true ∧ idx.step = 3 ∧
+      Fintype.card (AndreevWindowedBottomIndex 2 1 4) = 32 :=
+  ⟨rfl, rfl, rfl, by rw [card_andreevWindowedBottomIndex_of_le (by decide)]; rfl⟩
+
 -- Windowed depth-two weighted threshold circuit and subcube correlation at `b = 2, m = 2, r = 1`:
 -- `andreevWindowedCircuit 2 2 1 4` uses `33` gates (`≤ 288` active wires) at depth at most `2`
 -- and matches `Boolean.andreev 2 2` on the mixed concrete truth-table inputs; at `B = 5` (`41`
@@ -212,14 +220,14 @@ example :
         (andreevWindowedCircuit 2 2 1 9).eval interpretation w 0 =
           Boolean.andreev 2 2 w} : ℝ) := by
   have hin (w : BitString (2 ^ 2 + 2 * 2)) : andreevInWindow 2 2 1 5 w := by
-    intro S hS σ
+    intro S hS τ
     have hcard : #S ≤ 1 :=
       (Finset.card_le_card ((mem_andreevPrefixSubsets S).mp hS)).trans
         (by rw [card_andreevPrefixCoords (by decide : 1 ≤ 2)])
     have hX := andreevTableScore_bounds 2 2 S w
     have ht := andreevBlockSum_bounds 2 2 S w
-    cases σ <;>
-      simp only [andreevWindowLower, andreevWindowCenter, andreevLinearForm, ↓reduceIte,
+    cases τ <;>
+      simp only [andreevWindowLower, andreevWindowCenter, andreevStairForm, ↓reduceIte,
         Bool.false_eq_true, Nat.cast_mul, Nat.cast_ofNat] <;>
       omega
   refine ⟨by rw [size_andreevWindowedCircuit (by decide)]; rfl,

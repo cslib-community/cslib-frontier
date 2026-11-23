@@ -24,14 +24,28 @@ Unbounded existential quantification of a computable predicate gives an r.e. pre
 functions (`REPred.comp`). A predicate is r.e. exactly when it is the domain of a code of
 `Nat.Partrec.Code`, evaluated at the encoded argument (`rePred_iff_exists_code`).
 
+The generic form of an incompleteness argument: if `p` is not r.e., then every r.e. predicate that
+implies `p` misses a point of `p` (`REPred.exists_not_of_not_rePred`), and every decidable relation
+`P a b` ("`b` is a proof of `a`") that is sound for `p` leaves a point of `p` without a proof
+(`ComputablePred.exists_forall_not_of_not_rePred`). The variants
+`REPred.exists_not_of_not_exists_rePred_iff` and
+`ComputablePred.exists_forall_not_of_not_exists_rePred_iff` only assume that no r.e. predicate
+agrees with `p` on a domain `D`, and find the point in `D`.
+
 ## Main results
 
 * `ComputablePred.and`, `ComputablePred.or`, `ComputablePred.imp`: Boolean closure.
 * `ComputablePred.comp`: substitution of a computable function.
 * `ComputablePred.nat_le`, `ComputablePred.nat_lt`: comparisons of computable functions.
 * `ComputablePred.forall_lt`, `ComputablePred.exists_lt`: bounded quantification.
+* `ComputablePred.exists_mem_list`: existential quantification over a computable list.
 * `ComputablePred.rePred_exists`: unbounded existential quantification gives an r.e. predicate.
 * `REPred.comp`: substitution of a computable function into an r.e. predicate.
+* `REPred.exists_not_of_not_rePred`, `REPred.exists_not_of_not_exists_rePred_iff`: an r.e.
+  predicate that implies a non-r.e. predicate misses one of its points.
+* `ComputablePred.exists_forall_not_of_not_rePred`,
+  `ComputablePred.exists_forall_not_of_not_exists_rePred_iff`: a decidable proof relation that is
+  sound for a non-r.e. predicate is incomplete.
 * `rePred_iff_exists_code`: r.e. predicates are the domains of codes.
 -/
 
@@ -117,6 +131,26 @@ theorem exists_lt {p : α → ℕ → Prop} (hp : ComputablePred (Function.uncur
   ((forall_lt (p := fun a i => ¬p a i) hp.not hf).not).of_eq fun _ => by
     simp only [not_forall, not_not, exists_prop]
 
+/-- Existential quantification over the members of a list preserves computability: if `p a b` is
+computable in `(a, b)` and the list `f a` is computable, then `∃ b ∈ f a, p a b` is computable.
+This is the computable analogue of Mathlib's `PrimrecRel.exists_mem_list`. -/
+theorem exists_mem_list {p : α → β → Prop} (hp : ComputablePred (Function.uncurry p))
+    {f : α → List β} (hf : Computable f) : ComputablePred fun a => ∃ b ∈ f a, p a b := by
+  obtain ⟨g, hg, hpg⟩ := computable_iff.1 hp
+  -- whether the entry of `f a` at position `i`, if there is one, satisfies `p a`
+  have hq : ComputablePred (Function.uncurry fun a i => ∃ b ∈ (f a)[i]?, p a b) :=
+    computable_iff.2 ⟨_, Computable.option_casesOn
+      (Computable.list_getElem?.comp (hf.comp Computable.fst) Computable.snd)
+      (Computable.const false)
+      (hg.comp ((Computable.fst.comp Computable.fst).pair Computable.snd)).to₂,
+      funext fun x => by
+        cases h : (f x.1)[x.2]? <;>
+          simp [Function.uncurry, h, show p x.1 _ = _ from congrFun hpg (x.1, _)]⟩
+  exact (exists_lt hq (Computable.list_length.comp hf)).of_eq fun a =>
+    ⟨fun ⟨i, _, b, hb, h⟩ => ⟨b, List.mem_of_getElem? hb, h⟩, fun ⟨b, hb, h⟩ =>
+      let ⟨i, hi, hib⟩ := List.getElem_of_mem hb
+      ⟨i, hi, b, by simp [hi, hib], h⟩⟩
+
 /-- Unbounded existential quantification of a computable predicate is r.e.: search for a witness
 by `Nat.rfind` over the codes of `β`. -/
 theorem rePred_exists {p : α → β → Prop} (hp : ComputablePred (Function.uncurry p)) :
@@ -147,6 +181,51 @@ end ComputablePred
 theorem REPred.comp {α β : Type*} [Primcodable α] [Primcodable β] {p : β → Prop}
     (hp : REPred p) {f : α → β} (hf : Computable f) : REPred fun a => p (f a) :=
   Partrec.comp hp hf
+
+/-- **An r.e. predicate that implies a non-r.e. one misses a point, relative to a domain.** If no
+r.e. predicate agrees with `p` on `D`, then every r.e. `S` that implies `p` misses some point of `D`
+where `p` holds. -/
+theorem REPred.exists_not_of_not_exists_rePred_iff {α : Type*} [Primcodable α] {D p S : α → Prop}
+    (hp : ¬∃ T : α → Prop, REPred T ∧ ∀ a, D a → (T a ↔ p a)) (hS : REPred S)
+    (hsound : ∀ a, S a → p a) : ∃ a, D a ∧ p a ∧ ¬S a := by
+  by_contra hne
+  exact hp ⟨S, hS, fun a ha => ⟨hsound a, fun h => by_contra fun hs => hne ⟨a, ha, h, hs⟩⟩⟩
+
+/-- **An r.e. predicate that implies a non-r.e. one misses a point.** If `p` is not r.e., every
+r.e. `S` that implies `p` misses some point where `p` holds. -/
+theorem REPred.exists_not_of_not_rePred {α : Type*} [Primcodable α] {p S : α → Prop}
+    (hp : ¬REPred p) (hS : REPred S) (hsound : ∀ a, S a → p a) : ∃ a, p a ∧ ¬S a := by
+  obtain ⟨a, -, h⟩ := hS.exists_not_of_not_exists_rePred_iff (D := fun _ => True)
+    (fun ⟨_, hT, hTp⟩ => hp (hT.of_eq fun a => hTp a trivial)) hsound
+  exact ⟨a, h⟩
+
+namespace ComputablePred
+
+variable {α β : Type*} [Primcodable α] [Primcodable β]
+
+/-- **A sound decidable proof relation for a non-r.e. predicate is incomplete, relative to a
+domain.** If no r.e. predicate agrees with `p` on `D`, and `P a b` ("`b` is a proof of `a`") is
+decidable and only points of `p` have proofs, then some point of `D` where `p` holds has no
+proof. -/
+theorem exists_forall_not_of_not_exists_rePred_iff {D p : α → Prop} {P : α → β → Prop}
+    (hP : ComputablePred (Function.uncurry P))
+    (hp : ¬∃ T : α → Prop, REPred T ∧ ∀ a, D a → (T a ↔ p a)) (hsound : ∀ a b, P a b → p a) :
+    ∃ a, D a ∧ p a ∧ ∀ b, ¬P a b := by
+  obtain ⟨a, ha, h, hS⟩ := (rePred_exists hP).exists_not_of_not_exists_rePred_iff hp
+    fun a ⟨b, hb⟩ => hsound a b hb
+  exact ⟨a, ha, h, fun b hb => hS ⟨b, hb⟩⟩
+
+/-- **A sound decidable proof relation for a non-r.e. predicate is incomplete.** If `p` is not
+r.e., and `P a b` ("`b` is a proof of `a`") is decidable and only points of `p` have proofs, then
+some point where `p` holds has no proof. -/
+theorem exists_forall_not_of_not_rePred {p : α → Prop} {P : α → β → Prop}
+    (hP : ComputablePred (Function.uncurry P)) (hp : ¬REPred p) (hsound : ∀ a b, P a b → p a) :
+    ∃ a, p a ∧ ∀ b, ¬P a b := by
+  obtain ⟨a, h, hS⟩ := (rePred_exists hP).exists_not_of_not_rePred hp
+    fun a ⟨b, hb⟩ => hsound a b hb
+  exact ⟨a, h, fun b hb => hS ⟨b, hb⟩⟩
+
+end ComputablePred
 
 /-- A predicate is r.e. exactly when it is the domain of a code: `p a` holds iff the code `c`
 halts on `encode a`. -/

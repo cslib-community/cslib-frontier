@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Option
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Tactic.OptionMatch
 
 /-! Tests of `option_match_to_elim` and of `fun_prop` on the resulting `Option.elim`. -/
@@ -41,20 +42,64 @@ example (o : Option ℕ) : (match o with | none => o | some x => o.map (· + x))
   option_match_to_elim
   rfl
 
--- `Option.map` and `Option.any` unfold to a `match`.
+-- `Option.map` unfolds to a `match`; `Option.any` and `Option.toList` rewrite directly.
 example (o : Option ℕ) (f : ℕ → ℕ) : o.map f = o.elim none fun x => some (f x) := by
   unfold Option.map
   option_match_to_elim
   rfl
 
 example (o : Option ℕ) (f : ℕ → Bool) : o.any f = o.elim false f := by
-  unfold Option.any
   option_match_to_elim
   rfl
 
--- `Option.bind`, with a nested use.
+example (o : Option ℕ) : o.toList = o.elim [] fun x => [x] := by
+  option_match_to_elim
+  rfl
+
+-- `Option.bind` and monadic `do` notation on `Option`, with nested uses.
 example (o p : Option ℕ) (f : ℕ → ℕ → Option ℕ) :
     (o.bind fun x => p.bind (f x)) = o.elim none fun x => p.elim none (f x) := by
+  option_match_to_elim
+  rfl
+
+example (o p : Option ℕ) :
+    (do let x ← o; let y ← p; some (x + y)) =
+      o.elim none fun x => p.elim none fun y => some (x + y) := by
+  option_match_to_elim
+  rfl
+
+-- Irrefutable tuple and structure payload patterns reduce to projections.
+structure PairNat where
+  left : ℕ
+  right : ℕ
+
+example (o : Option (ℕ × ℕ)) :
+    (match o with | some (a, b) => a + b | none => 0) = o.elim 0 fun p => p.1 + p.2 := by
+  option_match_to_elim
+  rfl
+
+example (o : Option ((ℕ × Bool) × PairNat)) :
+    (match o with | some ((a, _), ⟨x, y⟩) => a + x + y | none => 0) =
+      o.elim 0 fun p => p.1.1 + p.2.left + p.2.right := by
+  option_match_to_elim
+  rfl
+
+-- Multi-discriminant `Option` matches, including wildcard second discriminants on `none`.
+example (o₁ o₂ : Option ℕ) :
+    (match o₁, o₂ with
+      | none, none => 0
+      | none, some y => y
+      | some x, none => x
+      | some x, some y => x + y) =
+      o₁.elim (o₂.elim 0 fun y => y) (fun x => o₂.elim x fun y => x + y) := by
+  option_match_to_elim
+  rfl
+
+example (o₁ o₂ : Option ℕ) :
+    (match o₁, o₂ with
+      | some x, some y => x + y
+      | _, _ => 0) =
+      o₁.elim 0 fun x => o₂.elim 0 fun y => x + y := by
   option_match_to_elim
   rfl
 
@@ -63,12 +108,23 @@ example (o p : Option ℕ) (f : ℕ → ℕ → Option ℕ) :
 example (o : Option ℕ) (h : o.isSome) : (match o, h with | some x, _ => x) = o.get h := by
   option_match_to_elim
 
--- An alternative that takes its pattern apart is left unchanged.
+-- Alternatives that match refutable payload constructors are left unchanged.
 /-- error: option_match_to_elim: no option match in the goal -/
 #guard_msgs in
-example (o : Option (ℕ × ℕ)) :
-    (match o with | some (a, b) => a + b | none => 0) = o.elim 0 fun p => p.1 + p.2 := by
+example (o : Option Bool) : (match o with | some true => 1 | _ => 0) = 0 := by
   option_match_to_elim
+
+/-- error: option_match_to_elim: no option match in the goal -/
+#guard_msgs in
+example (o : Option (Unit × Bool)) : (match o with | some ((), true) => 1 | _ => 0) = 0 := by
+  option_match_to_elim
+
+-- End-to-end `fun_prop` certificate on an option match that destructures a pair payload.
+example : ComputableInPolyTime
+    (fun o : Option (Bool × Bool) => match o with | some (a, b) => a && b | none => false)
+    (encOption (encPair encBool encBool)) encBool := by
+  option_match_to_elim
+  fun_prop
 
 /-! A `match` is assembled by `fun_prop` with bounds up to constants, without an inhabitant of the
 payload type. -/
@@ -84,5 +140,23 @@ example {α : Type} (enc : α ↪ List Bool) :
     rcases p with ⟨_ | a, d⟩ <;>
       simp only [Option.elim_none, Option.elim_some, length_encPair, encOption_some,
         List.length_cons] <;> omega
+
+-- The optional callback retains the captured input as well as the payload.
+example : ComputableInPolyTime
+    (fun p : Option Bool × Bool => p.1.map (fun b => (p.2, b)))
+    (encPair (encOption encBool) encBool) (encOption (encPair encBool encBool)) := by
+  apply ComputableInPolyTime.optionMapWithInput
+    (ComputableInPolyTime.fst (encOption encBool) encBool)
+  exact ((ComputableInPolyTime.snd (encOption encBool) encBool).comp
+    (ComputableInPolyTime.fst (encPair (encOption encBool) encBool) encBool)).prod
+    (ComputableInPolyTime.snd (encPair (encOption encBool) encBool) encBool)
+
+-- Elimination remains available when the payload has no inhabitants.
+example (empty : Empty ↪ List Bool) : ComputableInPolyTime
+    (fun b : Bool => (none : Option Empty).elim b (fun e => Empty.elim e))
+    encBool encBool := by
+  apply ComputableInPolyTime.optionElimWithInput (encB := empty)
+    (ComputableInPolyTime.const none) ComputableInPolyTime.id'
+  exact ComputableInPolyTime.of_finite _
 
 end CslibFrontierTests.OptionMatch

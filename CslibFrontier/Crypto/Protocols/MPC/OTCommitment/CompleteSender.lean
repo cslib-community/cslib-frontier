@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.Session
 public import CslibFrontier.Computability.Probabilistic.Oracle
 public import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.EventBind
 
 /-!
 # Complete corrupted-sender executions
@@ -141,7 +141,7 @@ private theorem realSenderHandler_selected (k : ℕ) (choices : List Bool)
     simp only [realSenderHandler, Session.advance, ht, hc, Bool.true_or, Bool.false_or,
       Bool.false_eq_true, ite_false, ite_true]
   all_goals split <;> simp_all [ot14World, ot14Answer, selectedBits_append]
-  all_goals rfl
+  rfl
 
 private theorem idealSenderHandler_store (k : ℕ) (choices : List Bool)
     (request : SenderOperation × List Bool) (s : Session) :

@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Computability.PCP.Approximation.IndependentSet
 import CslibFrontier.Computability.Complexity.Classes.Space.GeneralizedGeography
 
@@ -17,6 +19,8 @@ vacuous. Small instances of Generalized Geography won and lost by the first play
 undeclared targets and revisits; members and non-members of `TQBFCNF`, including a formula with a
 free variable, and their images under the reduction to Generalized Geography.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.GapGraphsGeography
 
@@ -42,15 +46,15 @@ example :
 
 /-- Independence number, vertex cover number, and complement clique number on small graphs. -/
 example :
-    1 ≤ Graph.indepNum ([0], []) ∧
-    Graph.indepNum ([], []) = 0 ∧
-    Graph.vertexCoverNum ([], []) = 0 ∧
-    (Graph.compl ([0], [])).cliqueNum = Graph.indepNum ([0], []) := by
-  have h := Graph.indepNum_le_card ([], [])
+    1 ≤ Graph.indepNum ⟨[0], []⟩ ∧
+    Graph.indepNum ⟨[], []⟩ = 0 ∧
+    Graph.vertexCoverNum ⟨[], []⟩ = 0 ∧
+    (Graph.compl ⟨[0], []⟩).cliqueNum = Graph.indepNum ⟨[0], []⟩ := by
+  have h := Graph.indepNum_le_card ⟨[], []⟩
   simp only [List.toFinset_nil, Finset.card_empty, Nat.le_zero] at h
   exact ⟨Graph.le_indepNum_iff.2 ⟨{⟨0, by simp⟩}, by simp, rfl⟩,
     h, by rw [Graph.vertexCoverNum_eq_card_sub_indepNum, h]; rfl,
-    Graph.cliqueNum_compl ([0], [])⟩
+    Graph.cliqueNum_compl ⟨[0], []⟩⟩
 
 /-! ### Yes- and no-instances at the constants of the hardness theorems -/
 
@@ -101,14 +105,16 @@ example :
 /-! ### Generalized Geography -/
 
 /-- With one arc from the start, the first player moves and the second player is stuck. -/
-example : ((([0, 1], [(0, 1)]) : Graph), 0) ∈ GeneralizedGeography := by
+example : (⟨⟨[0, 1], [(0, 1)]⟩, 0⟩ : GeneralizedGeographyInstance) ∈ GeneralizedGeography := by
   rw [mem_GeneralizedGeography, Graph.geographyWins_iff]
   refine ⟨1, by simp, by simp, by simp, ?_⟩
   rw [Graph.geographyWins_iff]
   simp
 
 /-- On a path of two arcs, the second player makes the last move. -/
-example : ((([0, 1, 2], [(0, 1), (1, 2)]) : Graph), 0) ∉ GeneralizedGeography := by
+example :
+    (⟨⟨[0, 1, 2], [(0, 1), (1, 2)]⟩, 0⟩ : GeneralizedGeographyInstance) ∉
+      GeneralizedGeography := by
   rw [mem_GeneralizedGeography, Graph.not_geographyWins_iff]
   intro w hw _ _
   obtain rfl : w = 1 := by simpa using hw
@@ -118,41 +124,69 @@ example : ((([0, 1, 2], [(0, 1), (1, 2)]) : Graph), 0) ∉ GeneralizedGeography 
   simp
 
 /-- An arc to an undeclared vertex is not a move. -/
-example : ((([0], [(0, 1)]) : Graph), 0) ∉ GeneralizedGeography := by
+example : (⟨⟨[0], [(0, 1)]⟩, 0⟩ : GeneralizedGeographyInstance) ∉ GeneralizedGeography := by
   rw [mem_GeneralizedGeography, Graph.geographyWins_iff]
   simp
 
 /-- On a cycle of two arcs, the second player cannot return to the visited start. -/
-example : ((([0, 1], [(0, 1), (1, 0)]) : Graph), 0) ∈ GeneralizedGeography := by
+example :
+    (⟨⟨[0, 1], [(0, 1), (1, 0)]⟩, 0⟩ : GeneralizedGeographyInstance) ∈ GeneralizedGeography := by
   rw [mem_GeneralizedGeography, Graph.geographyWins_iff]
   refine ⟨1, by simp, by simp, by simp, ?_⟩
   rw [Graph.geographyWins_iff]
   simp
 
+-- `encPrenexCNF` preserves the exact encoded words of the former pair encoding.
+example (ps : List (ℕ × ℕ)) (ψ : CNF ℕ) :
+    encPrenexCNF ⟨ps, ψ⟩ = encPair (encList (encPair encNat encNat)) encCNF (ps, ψ) :=
+  rfl
+
+-- `encPrenexCNF` exposes scoped `fun_prop` rules for projections and constructor.
+example :
+    ComputableInPolyTime (fun x : PrenexCNF => (⟨x.rounds, x.matrix⟩ : PrenexCNF))
+      encPrenexCNF encPrenexCNF := by
+  fun_prop
+
 /-- `∃ x₀, ∀ x₁, x₀` is true. -/
 private theorem mem_TQBFCNF_ex :
-    (([(0, 1)], [[(0, true)]]) : List (ℕ × ℕ) × CNF ℕ) ∈ TQBFCNF := by
-  rw [TQBFCNF, Set.mem_ofPred_eq, mem_TQBF]
+    (⟨[(0, 1)], [[(0, true)]]⟩ : PrenexCNF) ∈ TQBFCNF := by
+  rw [mk_mem_TQBFCNF, mem_TQBF]
   decide
 
 /-- `∃ x₀, ∀ x₁, x₁` is false. -/
 private theorem notMem_TQBFCNF_all :
-    (([(0, 1)], [[(1, true)]]) : List (ℕ × ℕ) × CNF ℕ) ∉ TQBFCNF := by
-  rw [TQBFCNF, Set.mem_ofPred_eq, mem_TQBF]
+    (⟨[(0, 1)], [[(1, true)]]⟩ : PrenexCNF) ∉ TQBFCNF := by
+  rw [mk_mem_TQBFCNF, mem_TQBF]
   decide
 
 /-- `∃ x₀, ∀ x₁, x₂` has a free variable. -/
 private theorem notMem_TQBFCNF_free :
-    (([(0, 1)], [[(2, false)]]) : List (ℕ × ℕ) × CNF ℕ) ∉ TQBFCNF := by
-  rw [TQBFCNF, Set.mem_ofPred_eq, mem_TQBF]
+    (⟨[(0, 1)], [[(2, false)]]⟩ : PrenexCNF) ∉ TQBFCNF := by
+  rw [mk_mem_TQBFCNF, mem_TQBF]
   decide
 
 example :
-    GeneralizedGeography.reduce ([(0, 1)], [[(0, true)]]) ∈ GeneralizedGeography ∧
-    GeneralizedGeography.reduce ([(0, 1)], [[(1, true)]]) ∉ GeneralizedGeography ∧
-    GeneralizedGeography.reduce ([(0, 1)], [[(2, false)]]) ∉ GeneralizedGeography :=
+    GeneralizedGeography.reduce ⟨[(0, 1)], [[(0, true)]]⟩ ∈ GeneralizedGeography ∧
+    GeneralizedGeography.reduce ⟨[(0, 1)], [[(1, true)]]⟩ ∉ GeneralizedGeography ∧
+    GeneralizedGeography.reduce ⟨[(0, 1)], [[(2, false)]]⟩ ∉ GeneralizedGeography :=
   ⟨(GeneralizedGeography.reduce_mem_iff _).2 mem_TQBFCNF_ex,
     fun h => notMem_TQBFCNF_all ((GeneralizedGeography.reduce_mem_iff _).1 h),
     fun h => notMem_TQBFCNF_free ((GeneralizedGeography.reduce_mem_iff _).1 h)⟩
+
+/-- `encGeneralizedGeography` exposes global `fun_prop` lemmas for projections and constructor. -/
+example : ComputableInPolyTime (fun x : GeneralizedGeographyInstance => x.graph)
+    encGeneralizedGeography encGraph := by
+  fun_prop
+
+example : ComputableInPolyTime (fun x : GeneralizedGeographyInstance => x.start)
+    encGeneralizedGeography encNat := by
+  fun_prop
+
+example : ComputableInPolyTime
+    (fun p : Graph × ℕ => (⟨p.1, p.2⟩ : GeneralizedGeographyInstance))
+    (encPair encGraph encNat) encGeneralizedGeography := by
+  fun_prop
+
+example : (default : GeneralizedGeographyInstance) = ⟨default, default⟩ := rfl
 
 end CslibFrontierTests.GapGraphsGeography

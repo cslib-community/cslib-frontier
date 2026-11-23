@@ -7,15 +7,13 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.Signature
 public import CslibFrontier.Crypto.Encoding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Tidy
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Tactic.EncLen
@@ -39,10 +37,8 @@ The definition here differs from [BonehShoup2023], Definition 14.6, in four labe
 * Instead of forbidding the adversary to repeat an index, the signing oracle refuses a repeated
   index, and an index `u ≥ q`, by returning the empty word and recording nothing. Every oracle
   adversary is therefore admissible.
-* A forgery may name any index, whereas the source's message space is `{1, …, q} × M`. The
-  structure does not require verification to reject an index `u ≥ q`; the game does. The oracle
-  never signs at such an index, so a forger that finds a valid signature there wins. This
-  strengthens the source notion.
+* Indices run over `0, …, q - 1` instead of `1, …, q`. As in the source's message space
+  `{1, …, q} × M`, a forgery counts only at an index `u < q`.
 
 A request to the signing oracle is the word `encPair encUnary encBits (u, msg)`. The oracle reads
 every word with the total decoder `requestDecoder`.
@@ -51,6 +47,7 @@ every word with the total decoder `requestDecoder`.
 
 * `Cslib.Crypto.encIndexedSignedMessage`: the encoding of an indexed signed message
   `(u, msg, sig)`.
+* `Cslib.Crypto.encIndexedSignInput`: the encoding of an indexed signing input `(sk, u, msg)`.
 * `Cslib.Crypto.IndexedForger`: adaptive oracle adversary outputting `(u, msg, sig)`.
 * `Cslib.Crypto.IndexedSignatureScheme`: indexed signature scheme with capacity `q(n)`.
 * `Cslib.Crypto.IndexedSignatureScheme.requestDecoder`: the index and message of a request word.
@@ -60,6 +57,8 @@ every word with the total decoder `requestDecoder`.
 
 ## Main results
 
+* `Cslib.Crypto.IndexedSignatureScheme.exists_sign_length_bound`: a plain polynomial-time bound on
+  signature lengths in the security parameter and the message length.
 * `Cslib.Crypto.IndexedSignatureScheme.isPPTOn_run_indexedSigningOracle`,
   `Cslib.Crypto.IndexedSignatureScheme.isPPTOn_indexedEufCmaGame`: strict PPT certificates for
   running an oracle-PPT forger against the signing oracle, and for the whole game.
@@ -87,6 +86,11 @@ the message and the signature as bit words. The index and the message are framed
 abbrev encIndexedSignedMessage : ℕ × List Bool × List Bool ↪ List Bool :=
   encPair encUnary (encPair encBits encBits)
 
+/-- Indexed signing input `(sk, u, msg)`: the secret key as a bit word, the index `u` in unary,
+then the message as a bit word. The key and the index are framed. -/
+abbrev encIndexedSignInput : List Bool × ℕ × List Bool ↪ List Bool :=
+  encPair encBits (encPair encUnary encBits)
+
 /-- An adaptive indexed forger receives a unary security parameter and a public key, queries a
 signing oracle on request words `encPair encUnary encBits (u, msg)`, and outputs a candidate
 `(u, msg, sig)`. -/
@@ -110,8 +114,7 @@ structure IndexedSignatureScheme where
   /-- Key generation is uniformly strict PPT in the unary security parameter. -/
   keyGen_ppt : IsPPTOn encUnary (encPair encBits encBits) keyGen
   /-- Signing is uniformly strict PPT in the secret key, the unary index and the message. -/
-  sign_ppt : IsPPTOn (encPair encBits (encPair encUnary encBits)) encBits
-    (fun p => sign p.1 p.2.1 p.2.2)
+  sign_ppt : IsPPTOn encIndexedSignInput encBits (fun p => sign p.1 p.2.1 p.2.2)
   /-- Verification is computable in plain polynomial time on `(pk, u, msg, sig)`. -/
   verify_polyTime : ComputableInPolyTime
     (fun p : List Bool × ℕ × List Bool × List Bool => verify p.1 p.2.1 p.2.2.1 p.2.2.2)
@@ -125,6 +128,25 @@ structure IndexedSignatureScheme where
 namespace IndexedSignatureScheme
 
 attribute [program_certificate] capacity_polyTime keyGen_ppt sign_ppt verify_polyTime
+
+/-- Signatures have polynomially bounded length: some plain polynomial-time `bound n L` bounds
+every signature at an index below the capacity on a message of length `L`, under a key pair sampled
+at parameter `n`. -/
+theorem exists_sign_length_bound (S : IndexedSignatureScheme) :
+    ∃ bound : ℕ → ℕ → ℕ,
+      ComputableInPolyTime (fun p : ℕ × ℕ => bound p.1 p.2) (encPair encUnary encUnary) encUnary ∧
+      ∀ n, ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support, ∀ j < S.capacity n, ∀ msg sig,
+        sig ∈ (ProbComp.eval (S.sign keys.2 j msg)).support → sig.length ≤ bound n msg.length := by
+  obtain ⟨ck, dk, hlenk⟩ := S.keyGen_ppt.length_le
+  obtain ⟨cs, ds, hlens⟩ := S.sign_ppt.length_le
+  have hcap := S.capacity_polyTime
+  refine ⟨fun n L => cs * (2 * (ck * (n + 1) ^ dk) + 2 * S.capacity n + L + 3) ^ ds,
+    by fun_prop, fun n keys hkeys j hj msg sig hsig => ?_⟩
+  have hkeyLen := hlenk n keys hkeys
+  simp only [encUnary_apply, List.length_replicate, length_encPair, encBits_apply] at hkeyLen
+  have hsigLen := hlens (keys.2, j, msg) sig hsig
+  simp only [length_encPair, encBits_apply, encUnary_apply, List.length_replicate] at hsigLen
+  exact hsigLen.trans (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (by lia) ds))
 
 /-- The index and message of a request word: `encPair encUnary encBits (u, msg)` decodes to
 `(u, msg)`, and every other word decodes to some pair. -/
@@ -144,8 +166,8 @@ def indexedSigningOracle (S : IndexedSignatureScheme) (n : ℕ) (sk : List Bool)
       return ([], signed)
 
 /-- The indexed EUF-CMA experiment: sample `(pk, sk) ← keyGen n`, run the forger on `(n, pk)`
-with the indexed signing oracle, and accept a valid signature on a pair `(u, msg)` that was never
-signed. -/
+with the indexed signing oracle, and accept a valid signature on a pair `(u, msg)` with
+`u < capacity n` that was never signed. -/
 def indexedEufCmaGame (S : IndexedSignatureScheme) (adversary : IndexedForger) (n : ℕ) :
     ProbComp Bool := do
   let keys ← S.keyGen n
@@ -153,7 +175,7 @@ def indexedEufCmaGame (S : IndexedSignatureScheme) (adversary : IndexedForger) (
     (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
       (S.indexedSigningOracle n keys.2)) (adversary n keys.1)).run []
   let (u, msg, sig) := out.1
-  return !out.2.contains (u, msg) && S.verify keys.1 u msg sig
+  return decide (u < S.capacity n) && !out.2.contains (u, msg) && S.verify keys.1 u msg sig
 
 /-- Running an oracle-PPT indexed forger against `indexedSigningOracle` is uniformly strict PPT in
 the unary security parameter, the public key and the secret key. -/
@@ -215,7 +237,7 @@ theorem isPPTOn_run_indexedSigningOracle (S : IndexedSignatureScheme) {adversary
         Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by omega) d)
       dsimp only
       omega
-    · enc_len [encList_cons, encPair_apply]
+    · enc_len
   · simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
     subst hresult
     exact ⟨trivial, by simp, by lia⟩
@@ -227,11 +249,12 @@ theorem isPPTOn_indexedEufCmaGame (S : IndexedSignatureScheme) {adversary : Inde
     (hadversary : IsOraclePPT encIndexedSignedMessage adversary) :
     IsPPTOn encUnary encBool (S.indexedEufCmaGame adversary) := by
   have hrun := S.isPPTOn_run_indexedSigningOracle hadversary
-  have hverify := S.verify_polyTime.tidy
-  have hpost : ComputableTidilyInPolyTime
+  have hverify := S.verify_polyTime
+  have hpost : ComputableInPolyTime
       (fun pair : (ℕ × (List Bool × List Bool)) ×
           ((ℕ × List Bool × List Bool) × List (ℕ × List Bool)) =>
-        !pair.2.2.contains (pair.2.1.1, pair.2.1.2.1) &&
+        decide (pair.2.1.1 < S.capacity pair.1.1) &&
+          !pair.2.2.contains (pair.2.1.1, pair.2.1.2.1) &&
           S.verify pair.1.2.1 pair.2.1.1 pair.2.1.2.1 pair.2.1.2.2)
       (encPair (encPair encUnary (encPair encBits encBits))
         (encPair (encPair encUnary (encPair encBits encBits))
@@ -246,7 +269,7 @@ def IndexedEUFCMA (S : IndexedSignatureScheme) : Prop :=
   Game.Indistinguishable
     (fun adversary n => ProbComp.eval (S.indexedEufCmaGame adversary n))
     (fun _ _ => PMF.pure false)
-    (IsOraclePPT (encPair encUnary (encPair encBits encBits)))
+    (IsOraclePPT encIndexedSignedMessage)
 
 /-- Indexed EUF-CMA security gives negligible forging probability for every oracle-PPT forger. -/
 theorem IndexedEUFCMA.negligible {S : IndexedSignatureScheme} (h : S.IndexedEUFCMA)

@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.PolynomialTime
 public import CslibFrontier.Computability.MCSP.Basic
 public import CslibFrontier.Crypto.Primitives.PRG.Circuit
-import CslibFrontier.Computability.MCSP.Shannon
+import CslibFrontier.Computability.Circuit.Boolean.CountingBound
 import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.Sampling
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 
@@ -26,9 +26,9 @@ of size polynomial in `2 ^ n` (`Γ = P/poly`) [RazborovRudich1997]. It is *usefu
 proof against `Λ` exhibits a property useful against `Λ`, and Razborov and Rudich observe that
 the properties used by the known proofs are natural.
 
-**The natural proofs barrier.** If a property holds for no function of a keyed family, the test
-deciding it from truth tables never accepts the truth table of a member, but accepts that of a
-uniformly random function with probability the density of the property
+**The truth-table test in the natural proofs barrier.** If a property holds for no member of a
+keyed family, its test rejects every member’s truth table and accepts a uniformly random truth
+table with probability equal to the density of the property
 (`advantage_truthTableGenerator_truthTableTest`). A property decided by circuits with `t` gates
 and useful against circuits with `s` gates therefore distinguishes every keyed family of functions
 with `s` gates from uniformly random functions, by a circuit with `t` gates and with advantage its
@@ -37,9 +37,10 @@ useful against `P/poly` if some keyed family with members of polynomial circuit 
 *exponentially secure*, pseudorandom against circuits of size `2 ^ (c n)` with error `2 ^ (-c n)`
 for every `c` (`Cslib.Crypto.PRG.IsExponentiallySecure`, `not_isUseful_PPoly_of_isNatural`).
 
-Razborov and Rudich obtain such a family from a pseudorandom generator secure against circuits of
-size `2 ^ (k ^ ε)` on seeds of length `k`, by the construction of Goldreich, Goldwasser and Micali
-[GGM1986] with keys of length polynomial in `n`. That derivation, with its circuit-size analysis,
+The proof of [RazborovRudich1997, Theorem 4.1, pp. 30–31] constructs the keyed family from a
+pseudorandom generator secure against circuits of size `2 ^ (k ^ ε)` on seeds of length `k`.
+It uses the construction of Goldreich, Goldwasser and Micali [GGM1986] with keys of length
+polynomial in `n`. That derivation, with its circuit-size analysis,
 is `Cslib.Crypto.GGM.isExponentiallySecure_booleanFamily`, and the barrier from such a generator
 is `Cslib.Circuits.Boolean.not_isUseful_PPoly_of_isNatural_of_generator`
 (`CslibFrontier.Computability.Circuit.Boolean.NaturalProof.Generator`).
@@ -67,16 +68,23 @@ in `P/poly` (`truthTableLanguage_setOf_lt_complexity_notMem_PPoly`) [KabanetsCai
 
 ## Main results
 
+* `Cslib.Circuits.Boolean.NaturalProof.IsUseful.eventually_forall_not`: a property useful against
+  a class containing every language whose slices satisfy `P` eventually contains no function
+  satisfying `P`; usefulness against `SIZE s` and against constant-depth classes are instances.
 * `Cslib.Circuits.Boolean.isUseful_PPoly_iff`: usefulness against `P/poly` as a bound on the
   circuit complexity of every function with the property.
 * `Cslib.Circuits.Boolean.NaturalProof.IsNatural.PPoly_of_P`: `P`-natural properties, decided
   in time polynomial in the length of the truth table, are `P/poly`-natural.
+* `Cslib.Circuits.Boolean.truthTableLanguage_mem_PPoly_of_complexity_le`,
+  `Cslib.Circuits.Boolean.truthTableLanguage_mem_PPoly_of_synthesis`: a property whose tests have
+  circuit complexity, or are synthesised within a budget, polynomial in `2 ^ n` has its truth-table
+  language in `P/poly`.
 * `Cslib.Circuits.Boolean.advantage_truthTableGenerator_truthTableTest`: the advantage of the
   Razborov–Rudich distinguisher is the density of the property.
 * `Cslib.Circuits.Boolean.not_secure_truthTableGenerator`: the barrier for one input length,
   with explicit sizes and advantage.
-* `Cslib.Circuits.Boolean.not_isUseful_PPoly_of_isNatural`: the natural proofs barrier for
-  `P/poly`, assuming an exponentially secure keyed family.
+* `Cslib.Circuits.Boolean.not_isUseful_PPoly_of_isNatural`: the keyed-family step in the
+  natural proofs barrier for `P/poly`.
 * `Cslib.Circuits.Boolean.isLarge_setOf_lt_complexity`,
   `Cslib.Circuits.Boolean.isUseful_PPoly_setOf_lt_complexity`: the functions needing more than
   `2 ^ n / (5 n)` gates form a large property useful against `P/poly`.
@@ -138,6 +146,33 @@ theorem card_filter_truthTableTest (C : Set (BooleanFunction n)) :
   rw [Bool.eq_iff_iff, Language.slice_eq_true_iff, ofFn_mem_truthTableLanguage,
     truthTableTest_eq_true_iff]
 
+/-- A property whose truth-table tests have circuit complexity polynomially bounded in the length
+`2 ^ n` of the truth table has its truth-table language in `P/poly`. At lengths that are not
+powers of two the language has no words, so its slice is constant. -/
+theorem truthTableLanguage_mem_PPoly_of_complexity_le (C : ∀ n, Set (BooleanFunction n))
+    {cost : ℕ → ℕ} (hcost : PolynomiallyBounded cost)
+    (h : ∀ n, complexity interpretation (single (truthTableTest (C n))) ≤ cost (2 ^ n)) :
+    truthTableLanguage C ∈ PPoly := by
+  classical
+  refine (hcost.add (PolynomiallyBounded.const 1)).mono_of_le fun N => ?_
+  by_cases hN : ∃ n, N = 2 ^ n
+  · obtain ⟨n, rfl⟩ := hN
+    rw [slice_truthTableLanguage]
+    exact (h n).trans (Nat.le_add_right _ _)
+  · refine ((Synthesis.of_forall_eq_const false fun x => ?_).complexity_le).trans
+      (Nat.le_add_left _ _)
+    rw [Bool.eq_false_iff, ne_eq, Language.slice_eq_true_iff]
+    rintro ⟨m, hm, -⟩
+    exact hN ⟨m, by simpa only [List.length_ofFn] using hm⟩
+
+/-- A property whose truth-table tests are synthesised within a polynomial budget in the length
+`2 ^ n` of the truth table has its truth-table language in `P/poly`. -/
+theorem truthTableLanguage_mem_PPoly_of_synthesis (C : ∀ n, Set (BooleanFunction n))
+    {cost : ℕ → ℕ} (hcost : PolynomiallyBounded cost)
+    (h : ∀ n, Synthesis interpretation (inputs (2 ^ n)) {truthTableTest (C n)} (cost (2 ^ n))) :
+    truthTableLanguage C ∈ PPoly :=
+  truthTableLanguage_mem_PPoly_of_complexity_le C hcost fun n => (h n).complexity_le
+
 variable {Γ Γ' Λ Λ' : Set (Language Bool)} {C C' : ∀ n, Set (BooleanFunction n)}
 
 namespace NaturalProof
@@ -177,27 +212,38 @@ theorem IsUseful.anti (hC : IsUseful Λ C) (hΛ : Λ' ⊆ Λ) (h : ∀ n, C' n �
     IsUseful Λ' C' :=
   fun L hL => (hC L (hΛ hL)).mono fun _ hn hmem => hn (h _ hmem)
 
+/-- **Usefulness by patching**: if `Λ` contains every language whose slices all satisfy `P`, and
+`P` holds for some function at every input length, then a property useful against `Λ` eventually
+contains no function satisfying `P`. The language patched together from a function in `C n`
+satisfying `P`, wherever there is one, and from any function satisfying `P` elsewhere, lies in
+`Λ`, so its slices eventually leave `C`. -/
+theorem IsUseful.eventually_forall_not (hC : IsUseful Λ C) {P : ∀ n, BooleanFunction n → Prop}
+    (hΛ : ∀ g : ∀ n, BooleanFunction n, (∀ n, P n (g n)) → Language.ofSlices g ∈ Λ)
+    (hP : ∀ n, ∃ f, P n f) :
+    ∀ᶠ n in atTop, ∀ f ∈ C n, ¬ P n f := by
+  classical
+  -- wherever possible, a function in `C n` satisfying `P`
+  let g : ∀ n, BooleanFunction n := fun n =>
+    if h : ∃ f ∈ C n, P n f then h.choose else (hP n).choose
+  have hg : ∀ n, P n (g n) := fun n => by
+    by_cases h : ∃ f ∈ C n, P n f
+    · simpa only [g, dite_eq_left h] using h.choose_spec.2
+    · simpa only [g, dite_eq_right h] using (hP n).choose_spec
+  filter_upwards [hC _ (hΛ g hg)] with n hn f hf hPf
+  have h : ∃ f ∈ C n, P n f := ⟨f, hf, hPf⟩
+  rw [Language.slice_ofSlices] at hn
+  exact hn (by simpa only [g, dite_eq_left h] using h.choose_spec.1)
+
 /-- If `Λ` contains `SIZE s`, with `s` positive, a property useful against `Λ` eventually holds
 only for functions needing more than `s n` gates. -/
 theorem IsUseful.eventually_lt_complexity (hC : IsUseful Λ C) {s : ℕ → ℕ} (hΛ : SIZE s ⊆ Λ)
     (hs : ∀ n, 1 ≤ s n) :
     ∀ᶠ n in atTop, ∀ f ∈ C n, s n < complexity interpretation (single f) := by
-  classical
-  by_contra h
-  rw [not_eventually] at h
-  -- a language choosing, wherever possible, a function in `C n` with at most `s n` gates
-  let g : ∀ n, BooleanFunction n := fun n =>
-    if h : ∃ f ∈ C n, complexity interpretation (single f) ≤ s n then h.choose else fun _ => false
-  have hg : Language.ofSlices g ∈ SIZE s := fun n => by
-    rw [Language.slice_ofSlices]
-    by_cases h : ∃ f ∈ C n, complexity interpretation (single f) ≤ s n
-    · simpa only [g, dite_eq_left h] using h.choose_spec.2
-    · simpa only [g, dite_eq_right h] using (Synthesis.const false).complexity_le.trans (hs n)
-  obtain ⟨n, hn, hgn⟩ := (h.and_eventually (hC _ (hΛ hg))).exists
-  have hex : ∃ f ∈ C n, complexity interpretation (single f) ≤ s n := by
-    simpa only [not_forall, not_lt, exists_prop] using hn
-  rw [Language.slice_ofSlices] at hgn
-  exact hgn (by simpa only [g, dite_eq_left hex] using hex.choose_spec.1)
+  filter_upwards [hC.eventually_forall_not
+    (P := fun n f => complexity interpretation (single f) ≤ s n)
+    (fun g hg => hΛ fun n => by rw [Language.slice_ofSlices]; exact hg n)
+    fun n => ⟨fun _ => false, (Synthesis.const false).complexity_le.trans (hs n)⟩] with n hn f hf
+  exact not_le.1 (hn f hf)
 
 end NaturalProof
 
@@ -291,9 +337,9 @@ section Family
 
 variable {Key : ℕ → Type*} [∀ n, Fintype (Key n)] [∀ n, Nonempty (Key n)]
 
-/-- **The natural proofs barrier** for `P/poly` [RazborovRudich1997, Section 4]. Suppose that for
-each `n` a keyed family `F n` of Boolean functions on `n` inputs has members with at most `s n`
-gates, for a polynomially bounded `s`, and is exponentially secure: for every `c`, eventually no
+/-- The keyed-family step in the proof of [RazborovRudich1997, Theorem 4.1, equation (3),
+p. 31]. Suppose each member of the keyed family `F n` has at most `s n` gates, for a polynomially
+bounded `s`, and that the family is exponentially secure. For every `c`, eventually no
 circuit with at most `2 ^ (c n)` gates distinguishes the truth table of a member with a uniformly
 random key from a uniformly random truth table with advantage more than `2 ^ (-c n)`. Then no
 `P/poly`-natural property is useful against `P/poly`.
@@ -324,18 +370,19 @@ theorem not_isUseful_PPoly_of_isNatural {F : ∀ n, Key n → BooleanFunction n}
 /-! ### Hard functions -/
 
 /-- For `n ≥ 16`, at least half of the functions on `n` inputs need more than `2 ^ n / (5 n)`
-gates, by counting circuits (`MCSP.ncard_setOf_mem_le`). -/
+gates, by counting circuits (`card_computableFunctions_two_pow_div_five_mul_le`). -/
 theorem two_pow_two_pow_le_two_mul_ncard_setOf_lt_complexity (hn : 16 ≤ n) :
     2 ^ 2 ^ n ≤ 2 * {f : BooleanFunction n |
       2 ^ n / (5 * n) < complexity interpretation (single f)}.ncard := by
   set s := 2 ^ n / (5 * n)
-  have hyes : {T : BitString (2 ^ n) | ⟨n, T, s⟩ ∈ MCSP} =
-      truthTable n '' {f | complexity interpretation (single f) ≤ s} := by
-    ext T
-    obtain ⟨f, rfl⟩ := (truthTable n).surjective T
-    simp only [Set.mem_ofPred_eq, mk_truthTable_mem_iff, (truthTable n).injective.mem_set_image]
-  have hle := ncard_setOf_mem_le (n := n) hn
-  rw [hyes, Set.ncard_image_of_injective _ (truthTable n).injective] at hle
+  have hle : {f : BooleanFunction n | complexity interpretation (single f) ≤ s}.ncard ≤
+      2 ^ (2 ^ n / 4) := by
+    have h : {f : BooleanFunction n | complexity interpretation (single f) ≤ s} =
+        (computableFunctions n s : Set (BooleanFunction n)) := by
+      ext f
+      simp only [Set.mem_ofPred_eq, Finset.mem_coe, mem_computableFunctions_iff_complexity_le]
+    rw [h, Set.ncard_coe_finset]
+    exact card_computableFunctions_two_pow_div_five_mul_le hn
   have hsum := Set.ncard_add_ncard_compl {f : BooleanFunction n |
     complexity interpretation (single f) ≤ s}
   have hcompl : {f : BooleanFunction n | complexity interpretation (single f) ≤ s}ᶜ =
@@ -376,11 +423,11 @@ theorem isUseful_PPoly_setOf_lt_complexity :
     exact hn.le
   exact this.trans hf
 
-/-- Under the hypothesis of `not_isUseful_PPoly_of_isNatural`, the truth tables of the functions
-on `n` inputs that need more than `2 ^ n / (5 n)` gates, that is the no-instances
-`GapMCSP.noSet (fun n => 2 ^ n / (5 * n))`, do not form a language in `P/poly`
-[RazborovRudich1997], [KabanetsCai2000]. The property is large and useful against `P/poly`, so
-it is not `P/poly`-constructive. -/
+/-- If a keyed family of polynomial-size functions satisfies `IsExponentiallySecure`, the
+truth tables of the functions on `n` inputs needing more than `2 ^ n / (5 n)` gates, the
+no-instances `GapMCSP.noSet (fun n => 2 ^ n / (5 * n))`, do not form a language in `P/poly`.
+Largeness and usefulness against `P/poly` give a distinguishing test from any `P/poly`
+decision procedure for this property. -/
 theorem truthTableLanguage_setOf_lt_complexity_notMem_PPoly {F : ∀ n, Key n → BooleanFunction n}
     {s : ℕ → ℕ} (hs : PolynomiallyBounded s)
     (hF : ∀ n key, complexity interpretation (single (F n key)) ≤ s n)
@@ -390,9 +437,8 @@ theorem truthTableLanguage_setOf_lt_complexity_notMem_PPoly {F : ∀ n, Key n �
   not_isUseful_PPoly_of_isNatural hs hF hsecure
     ⟨_, fun _ => le_rfl, isLarge_setOf_lt_complexity, hmem⟩ isUseful_PPoly_setOf_lt_complexity
 
-/-- Under the hypothesis of `not_isUseful_PPoly_of_isNatural`, the property of needing more than
-`2 ^ n / (5 n)` gates is not `P/poly`-natural: it is useful against `P/poly`
-[RazborovRudich1997]. -/
+/-- If a keyed family of polynomial-size functions satisfies `IsExponentiallySecure`, usefulness
+of the property of needing more than `2 ^ n / (5 n)` gates rules out its `P/poly`-naturality. -/
 theorem not_isNatural_PPoly_setOf_lt_complexity {F : ∀ n, Key n → BooleanFunction n}
     {s : ℕ → ℕ} (hs : PolynomiallyBounded s)
     (hF : ∀ n key, complexity interpretation (single (F n key)) ≤ s n)

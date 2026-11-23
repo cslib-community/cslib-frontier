@@ -15,6 +15,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Mar
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Sequential
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.TransformsTapes
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Defs
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WordsCfg
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import CslibFrontier.Foundations.Data.Fin.Tuple
 
 /-!
@@ -72,12 +74,10 @@ public lemma inCfg_wordsCfg (mark : Symbol) {w : List Symbol} (q : Option State)
       ⟨q, 1, Fin.append (fun j => tapeOfList (ws j))
           ![tapeOfList w, Function.update (fun _ => none) (-1) (some mark)],
         fun _ => 0, o⟩ := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext l <;> cases l using Fin.addCases with
-  | left j => simp [inCfg, wordsCfg]
-  | right i => match i with | 0 | 1 => simp [inCfg, wordsCfg]
+  tm_step [inCfg]
 
 /-- Updating the flag tape of an appended family of tapes only changes the flag entry. -/
-private lemma update_append_flag {α : Type*} (ws₀ : Fin k → α) (a b c : α) :
+public lemma update_append_flag {α : Type*} (ws₀ : Fin k → α) (a b c : α) :
     Function.update (Fin.append ws₀ ![a, b]) (Fin.natAdd k 1) c = Fin.append ws₀ ![a, c] := by
   rw [← Fin.append_update_right]
   congr 1
@@ -92,7 +92,7 @@ private lemma oneTapeCfg_flag {input : List Symbol} (write : Option Symbol)
         (⟨some (markWork Symbol write).q₀, ip, Fin.append WS ![vip, flag], fun _ => 0, out⟩ :
           Cfg (k + 2) Symbol MarkWorkState input) =
       ⟨some (markWork Symbol write).q₀, ip, fun _ => flag, fun _ => 0, out⟩ := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext _ <;> simp [oneTapeCfg, Fin.append_right]
+  tm_step [oneTapeCfg]
 
 /-- In two steps, `markFlag k write` writes `write` to cell `-1` of the flag tape and changes
 nothing else: it runs `markWork write` on the flag tape. -/
@@ -117,17 +117,6 @@ private lemma exists_runPath_markFlag {input : List Symbol} (write : Option Symb
   · -- `markWork` takes two steps on one tape, every other tape stays where it is
     have : r.space ≤ 1 * (2 + 1) := r.space_le_mul_time_add_one
     exact (space_map_embedHom_le ..).trans (by omega)
-
-/-- A `wordsCfg` configuration whose last two words are `w` and the empty word, written out. -/
-private lemma wordsCfg_append_words {State' : Type*} {outer : List Symbol} (q : Option State')
-    (ws : Fin k → List Symbol) (w out : List Symbol) :
-    wordsCfg outer q (Fin.append ws ![w, []]) out =
-      ⟨q, 1, Fin.append (fun j => tapeOfList (ws j)) ![tapeOfList w, fun _ => none],
-        fun _ => 0, out⟩ := by
-  refine Cfg.ext rfl rfl
-    ((Fin.comp_append tapeOfList ws ![w, []]).trans (congrArg _ (funext fun i => ?_))) rfl rfl
-  match i with
-  | 0 | 1 => simp
 
 section Flag
 
@@ -160,7 +149,6 @@ private lemma exists_runPath_eraseFlag :
 
 end Flag
 
-open Sequential in
 /-- If `M`, run on the input `w` with work tapes `ws₀`, has a run path of at most `t` steps and `s`
 cells to the halting configuration with work tapes `ws₁`, every head back at its start, having
 emitted `e`, then `inputFromWord M mark` takes the work tapes `Fin.append ws₀ ![w, []]` to
@@ -183,11 +171,11 @@ public theorem transformsTapes_inputFromWord (mark : Symbol)
   have hl₁ : p₁.last = inCfg mark (wordsCfg w none ws₁ e) outer := by simp [p₁, hl]
   have hs₁ : p₁.space ≤ pM.space + 2 * (w.length + 2) := space_map_inCfgHom_le M mark outer pM
   obtain ⟨p₂, hh₂, hl₂, ht₂, hs₂⟩ := exists_runPath_eraseFlag (State := State) mark ws₁ w e outer
-  obtain ⟨p₁₂, hh₁₂, hl₁₂, ht₁₂, hs₁₂⟩ := exists_runPath_seq_space_le (p₀ := p₁) (p₁ := p₂)
-    (by rw [hl₁]; rfl) (by rw [hh₂, hl₁]) (by rw [hl₂]; rfl)
-  obtain ⟨p, hph, hpl, hpt, hps⟩ := exists_runPath_seq_space_le (p₀ := p₀) (p₁ := p₁₂)
-    (by rw [hl₀]; rfl) (by simp [hh₁₂, p₁, hh, hl₀]; rfl) (by rw [hl₁₂, hl₂]; rfl)
-  refine ⟨_, e, ⟨rfl, rfl⟩, p, by rw [hph, hh₀]; rfl, by simp [hpl, hl₁₂, hl₂, rightCfg], ?_, ?_⟩
+  obtain ⟨p₁₂, hh₁₂, hl₁₂, ht₁₂, hs₁₂, -⟩ := exists_runPath_seq (p₀ := p₁) (p₁ := p₂)
+    (by rw [hl₁]; rfl) (by rw [hh₂, hl₁])
+  obtain ⟨p, hph, hpl, hpt, hps, -⟩ := exists_runPath_seq (p₀ := p₀) (p₁ := p₁₂)
+    (by rw [hl₀]; rfl) (by simp [hh₁₂, p₁, hh, hl₀]; rfl)
+  refine ⟨_, e, ⟨rfl, rfl⟩, p, by rw [hph, hh₀]; rfl, by simp [hpl, hl₁₂, hl₂], ?_, ?_⟩
   · simp only [MultiTapeNTM.RunPath.time] at ht ht₀ ht₂ ⊢
     have : p₁.length = pM.length := rfl
     omega

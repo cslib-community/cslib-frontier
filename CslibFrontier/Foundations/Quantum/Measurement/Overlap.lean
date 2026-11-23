@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.Measurement
+import Mathlib.Algebra.Ring.Identities
 import Mathlib.Analysis.Real.Sqrt
 
 /-!
@@ -81,17 +82,21 @@ theorem norm_inner_sq_add_sq_measureProb_sub_le_one {ι : Type*} [Fintype ι]
   have ha' : a' ^ 2 = 1 - p := Real.sq_sqrt hp1'
   have hb : b ^ 2 = q := Real.sq_sqrt hq0
   have hb' : b' ^ 2 = 1 - q := Real.sq_sqrt hq1'
+  have hn : a ^ 2 + a' ^ 2 = 1 := by rw [ha, ha']; ring
+  have hm : b ^ 2 + b' ^ 2 = 1 := by rw [hb, hb']; ring
   have hsum : (a * b + a' * b') ^ 2 + (a * b' - a' * b) ^ 2 = 1 := by
-    nlinarith
-  have hcross : (a * b' + a' * b) ^ 2 ≤ 1 := by
-    nlinarith [sq_nonneg (a * b - a' * b')]
-  have hdiff : p - q = (a * b' - a' * b) * (a * b' + a' * b) := by
-    nlinarith
+    rw [add_comm, ← sq_add_sq_mul_sq_add_sq, hn, add_comm (b' ^ 2), hm, one_mul]
+  have hcross : (a * b' + a' * b) ^ 2 ≤ 1 := calc
+    _ ≤ (a * b - a' * b') ^ 2 + _ := le_add_of_nonneg_left (sq_nonneg _)
+    _ = 1 := by rw [← sq_add_sq_mul_sq_add_sq, hn, hm, one_mul]
+  have hdiff : p - q = (a * b' - a' * b) * (a * b' + a' * b) := calc
+    _ = p * (1 - q) - (1 - p) * q := by ring
+    _ = _ := by rw [← hb', ← ha', ← ha, ← hb]; ring
   have h₁ : ‖inner ℂ ψ φ‖ ^ 2 ≤ (a * b + a' * b') ^ 2 := by gcongr
   have h₂ : (p - q) ^ 2 ≤ (a * b' - a' * b) ^ 2 := by
     rw [hdiff, mul_pow]
-    nlinarith [sq_nonneg (a * b' - a' * b)]
-  linarith
+    exact mul_le_of_le_one_right (sq_nonneg _) hcross
+  exact (add_le_add h₁ h₂).trans_eq hsum
 
 /-- **Nearby states give nearby measurement probabilities**: for unit states `ψ` and `φ` and a set
 `S` of outcomes, `|P_ψ(S) - P_φ(S)| ≤ ‖ψ - φ‖`. By the overlap bound,
@@ -138,3 +143,13 @@ theorem one_sub_two_mul_sqrt_nonneg (ε : ℝ) : 0 ≤ 1 - 2 * √(ε * (1 - ε)
   linarith
 
 end Cslib.Quantum
+
+/-- Weighted AM–GM: for `w² ≤ a b` with `a, b, x, y ≥ 0`, `2 w (x y) ≤ a x² + b y²`. -/
+theorem two_mul_mul_le_of_sq_le_mul {w x y a b : ℝ}
+    (hx : 0 ≤ x) (hy : 0 ≤ y) (ha : 0 ≤ a) (hb : 0 ≤ b) (h : w ^ 2 ≤ a * b) :
+    2 * w * (x * y) ≤ a * x ^ 2 + b * y ^ 2 := by
+  have hw : w ≤ √a * √b := (Real.le_sqrt_of_sq_le h).trans_eq (Real.sqrt_mul ha b)
+  calc
+    2 * w * (x * y) ≤ 2 * (√a * x) * (√b * y) := by nlinarith [mul_nonneg hx hy]
+    _ ≤ (√a * x) ^ 2 + (√b * y) ^ 2 := two_mul_le_add_sq _ _
+    _ = a * x ^ 2 + b * y ^ 2 := by simp [mul_pow, Real.sq_sqrt ha, Real.sq_sqrt hb]

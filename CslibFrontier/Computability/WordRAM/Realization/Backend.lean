@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Realization.Witness
 public import CslibFrontier.DataStructure.StateTransition.Refinement
 public import CslibFrontier.DataStructure.StateTransition.Resource
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Native implementations of refinements, one realized body per operation constructor
@@ -43,7 +44,11 @@ selects the family, and no native code dispatches on it.
 
 As in `MemoryBackend`, the selected tag's arguments are installed in registers before its body
 runs, uncharged, as a calling convention; decoding the answer executes no instruction. Bounds
-count the body's instructions only.
+count the body's instructions only. The fields `arg` and `answer` are unrestricted: `arg` is any
+function of the operation and `answer` any function of the operation and the program's result.
+Nothing requires them to be computable or charges for evaluating them, and the answer need not be
+held in a register: `Backend.exec` requires it to be `answer` applied to a result whose encoding
+the result registers hold.
 
 Memory charges do not depend on the word width (`totalCost_width`, `memoryCost_eq_totalCost`),
 so `memoryCost`, which is taken at width zero, is the charge that refinements state at width `w`.
@@ -150,7 +155,8 @@ variable {B : Basis} {ι : Type}
 
 /-- How the operations of `D` run on the bodies of `C`: each operation selects a tag, passes
 arguments to the tag's program and reads its answer from that program's result. Only the tag
-selects code. -/
+selects code. The maps `arg` and `answer` are unrestricted: they need not be computable, and
+evaluating them is not charged. -/
 structure Backend (D : StateTransitionSpec.{0, 0, 0}) (C : ι → Certificate B) where
   /-- The tag of each operation, typically its constructor. -/
   tag : D.Op → ι
@@ -198,58 +204,38 @@ variable [Fintype ι] (C : ι → Certificate B)
 
 /-- Distinct argument coordinates use distinct source registers. -/
 theorem src_injective (i : ι) : Function.Injective (src C i) := by
-  intro a b h
-  apply Fin.ext
-  have := congrArg Fin.val h
-  simp only [src] at this
-  omega
+  fin_index [src]
 
 /-- Distinct result/scratch coordinates use distinct registers. -/
 theorem tmp_injective (i : ι) : Function.Injective (tmp C i) := by
-  intro a b h
-  apply Fin.ext
-  have := congrArg Fin.val h
-  simp only [tmp] at this
-  omega
+  fin_index [tmp]
 
 /-- Source coordinates at the same position agree across tags. -/
 theorem src_eq_of_val_eq (i i' : ι) {a : Fin (C i).k} {b : Fin (C i').k}
     (h : a.val = b.val) : src C i a = src C i' b := by
-  apply Fin.ext
-  simp only [src, h]
+  fin_index [src]
 
 /-- Result/scratch coordinates at the same position agree across tags. -/
 theorem tmp_eq_of_val_eq (i i' : ι)
     {a : Fin ((C i).l + (C i).realizes.scratchSize + 1)}
     {b : Fin ((C i').l + (C i').realizes.scratchSize + 1)}
     (h : a.val = b.val) : tmp C i a = tmp C i' b := by
-  apply Fin.ext
-  simp only [tmp, h]
+  fin_index [tmp]
 
 /-- No tag's argument register is used by any tag's result/scratch bank. -/
 theorem src_ne_tmp (i i' : ι) (a : Fin (C i).k)
     (b : Fin ((C i').l + (C i').realizes.scratchSize + 1)) : src C i a ≠ tmp C i' b := by
-  intro h
   have hk := Finset.le_sup (f := fun i => (C i).k) (Finset.mem_univ i)
-  have ha := a.isLt
-  have := congrArg Fin.val h
-  simp only [src, tmp, argWords] at this
-  omega
+  fin_index [src, tmp, argWords]
 
 /-- Argument installation never uses the frontier register. -/
 theorem src_ne_frontier (i : ι) (a : Fin (C i).k) : src C i a ≠ frontier C := by
-  intro h
-  have := congrArg Fin.val h
-  simp only [src, frontier] at this
-  omega
+  fin_index [src, frontier]
 
 /-- Native result/scratch writes never use the frontier register. -/
 theorem tmp_ne_frontier (i : ι) (a : Fin ((C i).l + (C i).realizes.scratchSize + 1)) :
     tmp C i a ≠ frontier C := by
-  intro h
-  have := congrArg Fin.val h
-  simp only [tmp, frontier] at this
-  omega
+  fin_index [tmp, frontier]
 
 /-- The static body of tag `i`. -/
 @[expose] noncomputable def code (i : ι) : Code B (registers C) :=
@@ -285,8 +271,7 @@ private theorem layout (i : ι) :
     Function.Injective (tmp C i) ∧ (∀ a b, src C i a ≠ tmp C i b) ∧
       (∀ b, tmp C i b ≠ frontier C) ∧ ∀ a, src C i a ≠ frontier C := by
   have hk := Finset.le_sup (f := fun i => (C i).k) (Finset.mem_univ i)
-  refine ⟨fun a b h => Fin.ext ?_, fun a b h => ?_, fun b h => ?_, fun a h => ?_⟩ <;>
-    have := congrArg Fin.val h <;> simp only [src, tmp, frontier, argWords] at * <;> omega
+  refine ⟨?_, ?_, ?_, ?_⟩ <;> fin_index [src, tmp, frontier, argWords]
 
 /-- Install arguments `d` of tag `i` in its argument registers. Installation is uncharged and
 leaves memory and the frontier unchanged. -/
@@ -316,9 +301,7 @@ theorem install_eq_self (i : ι) (d : (C i).Arg) (x : Data (registers C))
     by_cases hj : 0 < j.val ∧ j.val ≤ (C i).k
     · let a : Fin (C i).k := ⟨j.val - 1, by omega⟩
       have hsrc : src C i a = j := by
-        apply Fin.ext
-        simp only [src, a]
-        omega
+        fin_index [src, a]
       change (if h : 0 < j.val ∧ j.val ≤ (C i).k then
         (C i).input d ⟨j.val - 1, by omega⟩ else x.regs j) = _
       rw [dite_eq_left hj]

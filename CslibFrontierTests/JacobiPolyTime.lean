@@ -4,20 +4,29 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Jacobi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.PowMod
 import Mathlib.Tactic.NormNum.LegendreSymbol
 
-/-! Checked instances for the polynomial-time Jacobi symbol: the certificates, a composed client
-in the shape of the Solovay–Strassen comparison, and runs of the counted loop on concrete inputs,
-including an even modulus and the modulus `0`, checked against `norm_num`'s independent evaluation
-of `jacobiSym`. -/
+/-! Checked instances for the polynomial-time Jacobi symbol: the certificates, the `enc_structure`
+word-layout identity, a composed client in the shape of the Solovay–Strassen comparison, and runs of
+the counted loop on concrete inputs, including an even modulus and the modulus `0`, checked against
+`norm_num`'s independent evaluation of `jacobiSym`. -/
+
+-- This module contains only checked clients.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.JacobiPolyTime
 
 open NumberTheorySymbols Turing.MultiTapeTM Turing.MultiTapeTM.BinaryJacobi
 
-/-! ### Certificates -/
+/-! ### Encoding layout and certificates -/
+
+-- Encoded words are unchanged from the framed `(num, mod, flip)` tuple layout.
+example (s : BinaryJacobi.State) :
+    encState s = encPair encNat (encPair encNat encBool) (s.num, s.mod, s.flip) := rfl
 
 example : ComputableInPolyTime (fun p : ℕ × ℕ => J((p.1 : ℤ) | p.2))
     (encPair encNat encNat) encIntBin :=
@@ -43,6 +52,17 @@ example : ComputableInPolyTime
     ComputableInPolyTime.binary_powMod (by fun_prop) (by fun_prop) (by fun_prop)
       fun _ => Nat.succ_pos _
   fun_prop
+
+-- The total modular-power certificate also accepts an unconstrained, possibly zero modulus.
+example : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ => powMod p.2.2 p.1 p.2.1)
+    (encPair encNat (encPair encNat encNat)) encNat :=
+  computableInPolyTime_powMod (by fun_prop) (by fun_prop) (by fun_prop)
+
+example : powMod 0 7 5 = 1 := by decide +kernel
+
+example : powMod 1 7 0 = 0 := by decide +kernel
+
+example : powMod 13 7 5 = 11 := by decide +kernel
 
 /-! ### Runs of the loop -/
 

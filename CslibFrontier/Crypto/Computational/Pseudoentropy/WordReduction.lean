@@ -15,6 +15,7 @@ import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Notation
 
 import CslibFrontier.Computability.Probabilistic.UniformNat
+import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.PPT
 
 /-!
@@ -272,21 +273,15 @@ theorem eval_predictionGame {n imageLength : ℕ} {Image : Type*}
         let coins ← PMF.uniformOfFintype (BitString (coinBudget c d n imageLength))
         matrixPrediction finiteFunction (fixedPredictor encodeImage evaluate c d n imageLength
           coins)) := by
-  simp only [pmf_norm, predictionGame, eval_sample f finiteFunction encodeImage hf, joint, Seed,
-    ← PMF.uniformOfFintype_prod]
+  simp only [pmf_norm, predictionGame, predictionExperiment,
+    eval_sample f finiteFunction encodeImage hf, joint, Seed, ← PMF.uniformOfFintype_prod]
   rw [← PMF.uniformOfFintype_map_equiv (blocksEquiv (m := hashCount n) (k := n)).symm]
   simp only [PMF.bind_map, Function.comp_def, encodeObservation, prefixHash,
     Equiv.apply_symm_apply]
   simp_rw [← fixedPredictor_distribution encodeImage adversary evaluate c d hrealize n
     imageLength _ (hlength _), PMF.bind_map]
   simp only [Function.comp_def, matrixPrediction, PMF.map, PMF.monad_bind_eq_bind]
-  simp_rw [← PMF.bind_comm (PMF.uniformOfFintype (BitString (coinBudget c d n imageLength)))]
-  congr 1 with coins : 1
-  conv_rhs => rw [PMF.bind_comm]
-  congr 1 with index : 1
-  conv_rhs => rw [PMF.bind_comm]
-  congr 1 with rows : 1
-  rw [PMF.bind_comm]
+  pmf_swap
 
 /-- The word one-wayness game is the finite inversion experiment under the same
 image encoding. Success still means finding any preimage. -/
@@ -297,15 +292,14 @@ theorem eval_wordInversionGame {n imageLength : ℕ} {Image : Type*} [DecidableE
     (hlength : ∀ image, (encodeImage image).length = imageLength)
     (evaluate : (ℕ × List Bool) → List Bool → Bool) (c d degree : ℕ) :
     ProbComp.eval (inversionGame f (wordInverter f evaluate c d degree) n) =
-      inversionExperiment finiteFunction (fun image => do
+      inversionExperiment (PMF.uniformOfFintype _) finiteFunction (fun image => do
         let coins ← PMF.uniformOfFintype (BitString (coinBudget c d n imageLength))
         matrixInverter finiteFunction
           (fixedPredictor encodeImage evaluate c d n imageLength coins)
           (precision degree n) image) := by
-  simp only [pmf_norm, inversionGame, eval_sampleList, uniformList, hf]
+  simp only [pmf_norm, inversionGame, inversionExperiment, eval_sampleList, uniformList, hf]
   simp_rw [wordInverter_eval f finiteFunction encodeImage hf evaluate c d degree _ (hlength _)]
-  simp only [pmf_norm, inversionExperiment, PMF.map, hf, beq_eq_decide,
-    encodeImage.injective.eq_iff]
+  simp only [pmf_norm, PMF.map, hf, beq_eq_decide, encodeImage.injective.eq_iff]
 
 /-- Holenstein's entropy-versus-prediction bound for the executable word games. Every sampled
 bit and decoder query is included in the inverter certified by `isPPTOn_wordInverter`. -/

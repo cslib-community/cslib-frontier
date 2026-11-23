@@ -103,9 +103,8 @@ theorem length_indexStep_le (st : List Bool × List ℕ) (b : Block) :
     refine (Nat.size_le.mpr ((lsbValue_lt _).trans_le
       (Nat.pow_le_pow_right (by norm_num) ?_))).trans le_rfl
     exact (List.length_take_le _ _).trans (blockWires_le b)
-  simp only [indexStep, length_encPair, encBits_apply, length_encList, List.map_append,
-    List.sum_append, List.length_drop, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil]
-  omega
+  enc_len [indexStep, length_encList, List.map_append, List.sum_append, List.length_drop,
+    List.map_cons, List.map_nil, List.sum_cons, List.sum_nil]
 
 /-- **Reading the indices of the blocks is polynomial-time.** -/
 theorem blockIndices_polyTime :
@@ -141,7 +140,7 @@ theorem blockIndices_polyTime :
           exact List.length_le_sum_of_one_le _ fun x hx => by
             obtain ⟨a, -, rfl⟩ := List.mem_map.mp hx
             enc_len
-        enc_len [encBlock]
+        enc_len [encBlock, encIncidences]
       enc_len [encQ]
     omega
   have hfold := foldlWithInput_of_bounded_growth (encA := encBlock) (encL := encList encBlock)
@@ -155,7 +154,7 @@ theorem blockIndices_polyTime :
 /-- **Selecting the incidences of a block at an index is polynomial-time.** -/
 theorem selectBlock_polyTime :
     ComputableInPolyTime (fun q : Block × ℕ => selectBlock q.1 q.2)
-      (encPair encBlock encNat) (encList (encPair encNat encNat)) := by
+      (encPair encBlock encNat) encIncidences := by
   have hb := fst encBlock encNat
   have hι := snd encBlock encNat
   have hinc := (fst (encList (encPair encNat encNat)) encUnary).comp hb
@@ -175,7 +174,7 @@ theorem selectBlock_polyTime :
 /-- **The selected incidences are polynomial-time**, from the blocks and the indices. -/
 theorem selected_polyTime :
     ComputableInPolyTime (fun q : List Block × List ℕ => selected q.1 q.2)
-      (encPair (encList encBlock) (encList encNat)) (encList (encPair encNat encNat)) := by
+      (encPair (encList encBlock) (encList encNat)) encIncidences := by
   have hzip := zip encBlock encNat
   have hf := selectBlock_polyTime.comp
     (snd (encPair (encList encBlock) (encList encNat)) (encPair encBlock encNat))
@@ -198,8 +197,7 @@ theorem validIndices_polyTime :
 /-- The encoding of the context of a row: `P` and `ℓ` in unary, then the tests and the selected
 incidences. -/
 abbrev encRowCtx : RowCtx ↪ List Bool :=
-  encPair encUnary (encPair encUnary (encPair (encList (encList (encList encNat)))
-    (encList (encPair encNat encNat))))
+  encPair encUnary (encPair encUnary (encPair (encList (encList (encList encNat))) encIncidences))
 
 /-- **The context of a row is polynomial-time.** -/
 theorem rowContext_polyTime :
@@ -258,7 +256,7 @@ theorem factorCoeffs_polyTime :
 
 /-- The input of `monomialsIn`: the test, its position and the chosen incidences. -/
 abbrev encMonomialsIn : (List (List ℕ) × ℕ) × List (ℕ × ℕ) ↪ List Bool :=
-  encPair (encPair (encList (encList encNat)) encUnary) (encList (encPair encNat encNat))
+  encPair (encPair (encList (encList encNat)) encUnary) encIncidences
 
 /-- **Counting the monomials inside the chosen variables is polynomial-time**, in unary. -/
 theorem monomialsIn_polyTime :
@@ -287,8 +285,7 @@ theorem monomialsIn_polyTime :
 
 /-- The input of `rowTerm`: `P`, `ℓ` and the tests, then the chosen incidences. -/
 abbrev encRowTerm : (ℕ × ℕ × List (List (List ℕ))) × List (ℕ × ℕ) ↪ List Bool :=
-  encPair (encPair encUnary (encPair encUnary (encList (encList (encList encNat)))))
-    (encList (encPair encNat encNat))
+  encPair (encPair encUnary (encPair encUnary (encList (encList (encList encNat))))) encIncidences
 
 /-- `truncFl ℓ` is polynomial-time from `ℓ` in unary. -/
 theorem truncFl_polyTime : ComputableInPolyTime truncFl encUnary (encList encNat) :=
@@ -341,7 +338,7 @@ theorem rowTerm_polyTime :
 /-- **The incidences chosen by a word are polynomial-time.** -/
 theorem chosenBy_polyTime :
     ComputableInPolyTime (fun q : List (ℕ × ℕ) × List Bool => chosenBy q.1 q.2)
-      (encPair (encList (encPair encNat encNat)) encBits) (encList (encPair encNat encNat)) := by
+      (encPair encIncidences encBits) encIncidences := by
   have hzip := (zip (encPair encNat encNat) encBool).comp
     ((fst (encList (encPair encNat encNat)) encBits).prod
       (bitsToList.comp (snd (encList (encPair encNat encNat)) encBits)))

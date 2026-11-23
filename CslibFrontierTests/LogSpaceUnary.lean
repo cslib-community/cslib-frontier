@@ -51,15 +51,32 @@ example : ComputableInLogSpace (fun p : ℕ × ℕ => decide (p.1 * p.2 = p.2) &
 example : ComputableInLogSpace (fun p : ℕ × ℕ => p.1 * p.2) (encPair encUnary encUnary) encNat :=
   ComputableInLogSpace.unaryToBinary (by fun_prop)
 
+/-- A polynomial given directly as a counter-program expression, in unary. -/
+example : ComputableInLogSpace (fun p : ℕ × ℕ => p.1 * p.1 + p.2) (encPair encUnary encUnary)
+    encUnary :=
+  CounterProgram.Unary.computableInLogSpace_unary (F := fun a b => a * a + b)
+    (.add (.mul (.reg 0) (.reg 0)) (.reg 1)) fun _ _ => rfl
+
 /-- A polynomial given directly as a counter-program expression, in binary. -/
 example : ComputableInLogSpace (fun p : ℕ × ℕ => p.1 * p.1 + p.2) (encPair encUnary encUnary)
     encNat :=
   CounterProgram.Unary.computableInLogSpace_binary (F := fun a b => a * a + b)
-    (.add (.mul (.reg 0) (.reg 0)) (.reg 1)) 2 (fun _ _ => rfl) fun a b => by nlinarith
+    (.add (.mul (.reg 0) (.reg 0)) (.reg 1)) fun _ _ => rfl
 
 /-- Comparing the length of a list with its head. -/
 example : ComputableInLogSpace (fun l : List ℕ => decide (l.length * l.length ≤ l.headD 0))
     (encList encUnary) encBool := by
   fun_prop
+
+/-- Bit-word length, logarithm, size and fixed unary powers under `fun_prop`. -/
+example : ComputableInLogSpace
+    (fun p : List Bool × ℕ => (Nat.log2 p.1.length) ^ 3 + p.2.size ^ 2)
+    (encPair encBits encUnary) encUnary := by
+  fun_prop
+
+/-- `List.length` on `encBits` targets `encUnary`; binary output requires `unaryToBinary`. -/
+example : ComputableInLogSpace (fun w : List Bool => w.length ^ 2) encBits encNat := by
+  fail_if_success fun_prop
+  exact ComputableInLogSpace.unaryToBinary (by fun_prop)
 
 end CslibFrontierTests.LogSpaceUnary

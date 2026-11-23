@@ -117,7 +117,7 @@ theorem relative_bound {scale : ℝ} (hs : 0 < scale)
         C * prefixErrorBudget ε m := by
   let T := HP.toHierarchyParams.atomCap
   let R := 2 * HP.Q T ^ (4⁻¹ : ℝ)
-  have hR : 0 ≤ R := mul_nonneg (by norm_num) (Real.rpow_nonneg (HP.Q_nonneg _) _)
+  have hR : 0 ≤ R := by positivity
   have hsat (d d' v r : ℝ) (hd : T ≤ d) (hd' : T ≤ d') :
       output HP ζ d v r = output HP ζ d' v r := by
     rw [output_upperCapped HP ζ d, output_upperCapped HP ζ d']
@@ -356,7 +356,7 @@ theorem sharp_compression {scale : ℝ} (hs : 0 < scale) (hmargin : scale ≤ HP
   intro ι S n Δ raw truth m heavy hfirst hsecond hcapacity ε hε herr
     εfinal hεfinal herrfinal hfalse y hy
   exact le_of_noOverflow_of_firstOverflow S n (fun _ => HP.K) (dyadicFloor η m) Δ ⟨0, raw⟩ m
-    heavy ε (dyadicFloor_nonneg hη.le m) hε hεfinal hAt hCf hCt hfalse
+    heavy ε (fun _ => by positivity) hε hεfinal hAt hCf hCt hfalse
     (fun hnone => hn S n Δ raw truth m hnone hfirst ε hε
       (fun i hi z hz _ => herr i hi z hz) εfinal hεfinal herrfinal y hy)
     (fun j hjm hjover => ht S n Δ raw truth m j hjm hjover hfirst hsecond
@@ -371,11 +371,11 @@ theorem fixed_shape (HP : FourthRootHierarchyParams 16 1 16 32 8) :
       scale ≤ HP.toHierarchyParams.atomCap / 10000 ∧ 0 < ζ ∧
       ζ ≤ scale / 2 ∧ ζ ≤ HP.θ / 2 := by
   let scale := min (HP.η / 2) (HP.toHierarchyParams.atomCap / 20000)
-  have hs : 0 < scale := lt_min (half_pos HP.η_pos) (div_pos (cap_pos HP) (by norm_num))
+  have hs : 0 < scale := by dsimp only [scale]; positivity
   refine ⟨scale, min (scale / 4) (HP.θ / 4), hs, ?_, ?_, ?_, ?_, ?_⟩
   · exact (min_le_left _ _).trans (by linarith [HP.η_pos])
   · exact (min_le_right _ _).trans (by linarith [cap_pos HP])
-  · exact lt_min (by positivity) (by have := HP.θ_pos; positivity)
+  · positivity
   · exact (min_le_left _ _).trans (by linarith)
   · exact (min_le_right _ _).trans (by linarith [HP.θ_pos])
 

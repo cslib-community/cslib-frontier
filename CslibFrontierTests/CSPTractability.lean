@@ -4,10 +4,18 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Computability.Complexity.Problems.CSP.Constant
 import CslibFrontier.Computability.Complexity.Problems.CSP.Majority
 
-/-! Native tractability on concrete languages with inconsistent and empty-relation instances. -/
+/-!
+Native tractability on concrete languages with inconsistent and empty-relation instances.
+The private fixtures are shared with ordinary module clients through a test-only `import all`.
+-/
+
+-- The concrete language fixtures and their hypotheses intentionally remain private.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.CSPTractability
 
@@ -33,11 +41,11 @@ private theorem pins_majority : CSP.HasPolymorphism unary pin (majority 3) := by
 example : CSPSAT unary pin ∈ P (encCSP encBool encNat) :=
   CSPSAT.mem_P_of_majority encBool unary pin pins_majority
 
-example : [(true, [0]), (false, [1])] ∈ CSPSAT unary pin := by
+example : [⟨true, [0]⟩, ⟨false, [1]⟩] ∈ CSPSAT unary pin := by
   refine ⟨by decide, fun n => n == 0, ?_⟩
   decide
 
-example : [(true, [0]), (false, [0])] ∉ CSPSAT unary pin := by
+example : [⟨true, [0]⟩, ⟨false, [0]⟩] ∉ CSPSAT unary pin := by
   rintro ⟨_, σ, hσ⟩
   cases h : σ 0 <;> simp [CSP.eval, Constraint.eval, pin, h] at hσ
 
@@ -54,11 +62,11 @@ private theorem maybePin_true :
 example : CSPSAT unary maybePin ∈ P (encCSP encBool encNat) :=
   CSPSAT.mem_P_of_constant encBool unary maybePin true maybePin_true
 
-example : [(false, [2 ^ 80])] ∈ CSPSAT unary maybePin := by
+example : [⟨false, [2 ^ 80]⟩] ∈ CSPSAT unary maybePin := by
   refine ⟨by decide, fun _ => true, ?_⟩
   decide
 
-example : [(true, [0])] ∉ CSPSAT unary maybePin := by
+example : [⟨true, [0]⟩] ∉ CSPSAT unary maybePin := by
   rintro ⟨_, _, hσ⟩
   exact Bool.false_ne_true hσ
 

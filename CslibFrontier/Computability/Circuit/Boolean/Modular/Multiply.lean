@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.Modular.PartialProduct
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Logarithmic-depth modular multiplication
@@ -43,7 +44,7 @@ open scoped BigOperators
 variable {w : ℕ}
 
 /-- Reduce all shifted partial products and finish their sum with carry lookahead. -/
-def multiply (w : ℕ) : Circuit signature (w + w) w :=
+@[expose] def multiply (w : ℕ) : Circuit signature (w + w) w :=
   sumPairs (w + w) w (List.ofFn fun i : Fin w => pairWithZero (partialProduct w i))
 
 /-- The circuit computes the modular product of arbitrary input words. -/
@@ -73,6 +74,7 @@ theorem depth_multiply_le (w : ℕ) :
   exact h.trans (by omega)
 
 /-- Every partial product and every carry-save gate is charged. -/
+@[circuit_bound]
 theorem size_multiply_le (w : ℕ) : (multiply w).size ≤ 63 * (w + 1) ^ 2 := by
   have h := size_sumPairs_le (List.ofFn fun i : Fin w => pairWithZero (partialProduct w i))
   simp only [List.map_ofFn, Function.comp_def, size_pairWithZero, size_partialProduct,

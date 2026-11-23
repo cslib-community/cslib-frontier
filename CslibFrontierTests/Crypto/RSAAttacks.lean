@@ -1,0 +1,200 @@
+/-
+Copyright (c) 2026 Karn Seth. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Karn Seth
+-/
+
+module
+
+import CslibFrontier.Crypto.Computational.RSAAttacks
+import Mathlib.Tactic.NormNum.Prime
+
+/-!
+# Tests for the attacks on plain RSA
+-/
+
+set_option linter.privateModule false
+
+namespace CslibFrontierTests.Crypto.RSAAttacks
+
+open Cslib Cslib.Crypto
+open Turing.MultiTapeTM
+
+/-- Toy RSA instance `N = 3 * 11 = 33`, `e = 3`, `d = 7` (`3 * 7 ≡ 1 [MOD 20]`). -/
+def rsa33 : RSADesc :=
+  { p := 3, q := 11, e := 3, d := 7, hp := by norm_num, hq := by norm_num, hpq := by decide,
+    he := by decide, hed := by decide }
+
+/-! ### Malleability -/
+
+example : rsaEval 33 3 (4 * 5) = rsaEval 33 3 4 * rsaEval 33 3 5 % 33 := by decide
+
+example : rsaInvert 33 7 (rsaEval 33 3 4 * rsaEval 33 3 5 % 33) = 20 := by decide
+
+example : rsaInvert rsa33.modulus rsa33.d
+    (rsaEval rsa33.modulus rsa33.e 4 * rsaEval rsa33.modulus rsa33.e 5 % rsa33.modulus) = 20 :=
+  rsaInvert_rsaEval_mul rsa33 4 5
+
+/-! ### Common modulus -/
+
+/-- Encryptions of `5` under `N = 33` with the coprime exponents `3` and `7` reveal `5`. -/
+example : commonRoot 33 7 3 (rsaEval 33 3 5) (rsaEval 33 7 5) = 5 :=
+  commonRoot_rsaEval (by decide) (by decide)
+
+example : rsaEval 33 3 5 = 26 ∧ rsaEval 33 7 5 = 14 := by decide
+
+/-- The same recovery, evaluated on the ciphertexts `26` and `14`. -/
+example : commonRoot 33 7 3 26 14 = 5 := by
+  unfold commonRoot BinaryGcd.modInv
+  decide
+
+/-- Coprime exponents are needed: both encryptions of the unit `2` modulo `5` under `e₁ = e₂ = 2`
+are `4`, and the output is `4`, not `2`. -/
+example : Nat.Coprime 2 5 ∧ ¬ Nat.Coprime 2 2 ∧
+    commonRoot 5 2 2 (rsaEval 5 2 2) (rsaEval 5 2 2) ≠ 2 % 5 := by
+  refine ⟨by decide, by decide, ?_⟩
+  unfold commonRoot BinaryGcd.modInv
+  decide
+
+/-- A unit message is needed: `2` is not a unit modulo `4`, its encryptions under the coprime
+exponents `2` and `3` are both `0`, and the output is `0`, not `2`. -/
+example : Nat.Coprime 2 3 ∧ ¬ Nat.Coprime 2 4 ∧
+    commonRoot 4 3 2 (rsaEval 4 2 2) (rsaEval 4 3 2) ≠ 2 % 4 := by
+  refine ⟨by decide, by decide, ?_⟩
+  unfold commonRoot BinaryGcd.modInv
+  decide
+
+/-- The attack's certificate: `computableInPolyTime_commonRoot` for the program
+`commonRoot N e₂ e₁ c₁ c₂` on the ciphertext inputs `(N, e₁, e₂, c₁, c₂)`, read as nested pairs on
+`encNat`. -/
+example : ComputableInPolyTime
+    (fun p : ℕ × ℕ × ℕ × ℕ × ℕ => commonRoot p.1 p.2.2.1 p.2.1 p.2.2.2.1 p.2.2.2.2)
+    (encPair encNat (encPair encNat (encPair encNat (encPair encNat encNat)))) encNat :=
+  computableInPolyTime_commonRoot (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+    (by fun_prop)
+
+/-! ### Small messages and the broadcast attack -/
+
+/-- `4 ^ 3 = 64 < 77`, so the ciphertext of `4` under `(77, 3)` is `64` over the integers. -/
+example : rsaEval 77 3 4 = 64 := rsaEval_eq_pow_of_pow_lt (by decide)
+
+example {m' : ℕ} (h : m' ^ 3 = rsaEval 77 3 4) : m' = 4 :=
+  eq_of_pow_eq_rsaEval (by decide) (by decide) h
+
+/-- The moduli `5, 7, 11` of three receivers. -/
+def moduli : Fin 3 → ℕ := ![5, 7, 11]
+
+theorem moduli_pairwise : [0, 1, 2].Pairwise (Function.onFun Nat.Coprime moduli) := by
+  decide
+
+/-- Broadcasting `4` with `e = 3` to the moduli `5, 7, 11`: `4 ^ 3 = 64 < 385`, so the Chinese
+remainder combination of the three ciphertexts is `64`. -/
+example : (Nat.chineseRemainderOfList (fun i => rsaEval (moduli i) 3 4) moduli [0, 1, 2]
+    moduli_pairwise : ℕ) = 64 :=
+  chineseRemainderOfList_rsaEval_eq_pow _ moduli_pairwise (by decide) (by decide)
+
+/-! ### Factoring from secret data -/
+
+example : factorOfTotient 33 20 = (11, 3) := by
+  rw [factorOfTotient, show (33 + 1 - 20) ^ 2 - 4 * 33 = 8 * 8 from rfl, Nat.sqrt_eq]
+
+example : factorOfTotient rsa33.modulus rsa33.totient = (11, 3) := by
+  rw [RSADesc.factorOfTotient_eq]
+  decide
+
+example : 2 ^ (rsa33.e * rsa33.d - 1) ≡ 1 [MOD rsa33.modulus] :=
+  rsa33.pow_mul_sub_one_modEq_one (by decide)
+
+/-- `10 ^ 2 ≡ 1 [MOD 33]` and `10 ≢ ±1`, so `gcd(9, 33) = 3` and `gcd(11, 33) = 11` are proper
+factors. -/
+example : 1 < Nat.gcd (10 - 1) rsa33.modulus ∧ Nat.gcd (10 - 1) rsa33.modulus < rsa33.modulus :=
+  rsa33.gcd_sub_one_proper (by decide) (by decide) (by decide)
+
+example : 1 < Nat.gcd (10 + 1) rsa33.modulus ∧ Nat.gcd (10 + 1) rsa33.modulus < rsa33.modulus :=
+  rsa33.gcd_add_one_proper (by decide) (by decide) (by decide)
+
+/-- The general factoring lemma `gcd_sub_one_proper_of_sq_modEq_one` also applies to non-RSA
+composite moduli such as `N = 8` (`3 ^ 2 ≡ 1 [MOD 8]` and `3 ≢ ±1 [MOD 8]`) and `N = 45`
+(`19 ^ 2 ≡ 1 [MOD 45]`). -/
+example : 1 < Nat.gcd (3 - 1) 8 ∧ Nat.gcd (3 - 1) 8 < 8 :=
+  gcd_sub_one_proper_of_sq_modEq_one (by decide) (by decide) (by decide)
+
+example : 1 < Nat.gcd (19 - 1) 45 ∧ Nat.gcd (19 - 1) 45 < 45 ∧
+    1 < Nat.gcd (19 + 1) 45 ∧ Nat.gcd (19 + 1) 45 < 45 :=
+  ⟨(gcd_sub_one_proper_of_sq_modEq_one (by decide) (by decide) (by decide)).1,
+   (gcd_sub_one_proper_of_sq_modEq_one (by decide) (by decide) (by decide)).2,
+   (gcd_add_one_proper_of_sq_modEq_one (by decide) (by decide) (by decide)).1,
+   (gcd_add_one_proper_of_sq_modEq_one (by decide) (by decide) (by decide)).2⟩
+
+example : Nat.gcd (10 - 1) 33 = 3 := by decide
+
+/-- General square-congruence factoring (`x ^ 2 ≡ y ^ 2 [MOD N]`, Boneh–Shoup §16.4.1, p. 697):
+`14 ^ 2 ≡ 4 ^ 2 [MOD 45]` with `14 ≢ 4` and `14 + 4 ≢ 0 [MOD 45]` produces `gcd(10, 45) = 5` and
+`gcd(18, 45) = 9`, while non-coprime `12 ^ 2 ≡ 3 ^ 2 [MOD 45]` produces `gcd(9, 45) = 9` and
+`gcd(15, 45) = 15`. -/
+example : 1 < Nat.gcd (14 - 4) 45 ∧ Nat.gcd (14 - 4) 45 < 45 ∧
+    1 < Nat.gcd (14 + 4) 45 ∧ Nat.gcd (14 + 4) 45 < 45 :=
+  ⟨(gcd_sub_proper_of_sq_modEq (by decide) (by decide) (by decide) (by decide)).1,
+   (gcd_sub_proper_of_sq_modEq (by decide) (by decide) (by decide) (by decide)).2,
+   (gcd_add_proper_of_sq_modEq (by decide) (by decide) (by decide)).1,
+   (gcd_add_proper_of_sq_modEq (by decide) (by decide) (by decide)).2⟩
+
+example : 1 < Nat.gcd (12 - 3) 45 ∧ Nat.gcd (12 - 3) 45 < 45 ∧
+    1 < Nat.gcd (12 + 3) 45 ∧ Nat.gcd (12 + 3) 45 < 45 :=
+  ⟨(gcd_sub_proper_of_sq_modEq (by decide) (by decide) (by decide) (by decide)).1,
+   (gcd_sub_proper_of_sq_modEq (by decide) (by decide) (by decide) (by decide)).2,
+   (gcd_add_proper_of_sq_modEq (by decide) (by decide) (by decide)).1,
+   (gcd_add_proper_of_sq_modEq (by decide) (by decide) (by decide)).2⟩
+
+/-- When `x < y` (`2 ^ 2 ≡ 5 ^ 2 [MOD 21]`), `gcd_add_proper_of_sq_modEq` still gives the proper
+factor `gcd(2 + 5, 21) = 7`, whereas truncated `ℕ` subtraction `2 - 5 = 0` gives `gcd = 21` (so
+`y ≤ x` is needed in `gcd_sub_proper_of_sq_modEq`). -/
+example : 1 < Nat.gcd (2 + 5) 21 ∧ Nat.gcd (2 + 5) 21 < 21 :=
+  gcd_add_proper_of_sq_modEq (by decide) (by decide) (by decide)
+
+example : ¬ (1 < Nat.gcd (2 - 5) 21 ∧ Nat.gcd (2 - 5) 21 < 21) := by decide
+
+/-! ### Binary modular inverse and the RSA-to-factoring hierarchy -/
+
+/-- `BinaryGcd.modInv 3 20 = 7` since `3 * 7 = 21 ≡ 1 [MOD 20]`. -/
+example : BinaryGcd.modInv 3 20 = 7 := by
+  unfold BinaryGcd.modInv
+  decide
+
+example : 3 * BinaryGcd.modInv 3 20 ≡ 1 [MOD 20] :=
+  BinaryGcd.mul_modInv_modEq_one (by decide) (by decide)
+
+example : BinaryGcd.modInv 3 20 = ((3 : ZMod 20)⁻¹).val :=
+  BinaryGcd.modInv_eq_zmod_inv_val (by decide) (by decide)
+
+example (gen : RSAGen) :
+    TotientHard gen ↔ ModulusFactoringHard (fun n => (gen n).map RSADesc.modulus) :=
+  totientHard_iff_modulusFactoringHard gen
+
+example (gen : RSAGen) (h : RSAOneWay gen) : RSAKeyRecoveryHard gen :=
+  h.rsaKeyRecoveryHard
+
+example (gen : RSAGen) (h : RSAOneWay gen) : TotientHard gen :=
+  h.totientHard
+
+example (gen : RSAGen) (h : RSAOneWay gen) :
+    ModulusFactoringHard (fun n => (gen n).map RSADesc.modulus) :=
+  h.modulusFactoringHard
+
+/-- info: 'Cslib.Crypto.totientHard_iff_modulusFactoringHard' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Cslib.Crypto.totientHard_iff_modulusFactoringHard
+
+/-- info: 'Cslib.Crypto.RSAOneWay.rsaKeyRecoveryHard' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Cslib.Crypto.RSAOneWay.rsaKeyRecoveryHard
+
+/-- info: 'Cslib.Crypto.RSAOneWay.totientHard' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Cslib.Crypto.RSAOneWay.totientHard
+
+/-- info: 'Cslib.Crypto.RSAOneWay.modulusFactoringHard' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Cslib.Crypto.RSAOneWay.modulusFactoringHard
+
+end CslibFrontierTests.Crypto.RSAAttacks

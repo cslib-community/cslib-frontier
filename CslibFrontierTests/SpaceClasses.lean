@@ -42,9 +42,9 @@ example : oddOnes [true, false, true, true] = true ∧ oddOnes [true, true] = fa
 bit. -/
 private theorem setOf_oddOnes_mem_DSPACE :
     {w | oddOnes w = true} ∈ DSPACE encBits fun _ => 0 := by
-  obtain ⟨c, h, -⟩ := ComputableTidilyInO.foldl_bits_finite encBool (fun b x => b ^^ x) false
+  obtain ⟨c, h, -⟩ := ComputableInO.foldl_bits_finite encBool (fun b x => b ^^ x) false
   exact mem_DSPACE_iff.mpr ⟨0, c, _, decidableInTimeAndSpace_iff.mpr
-    ⟨oddOnes, h.computableInTimeAndSpace.mono (fun _ => le_rfl) fun _ => by simp,
+    ⟨oddOnes, h.mono (fun _ => le_rfl) fun _ => by simp,
       fun _ => Iff.rfl⟩⟩
 
 /-- Constant space is within linear time (by counting configurations), logarithmic space, and
@@ -65,7 +65,7 @@ example :
       (fun x => (x.length + 1) * (x.length + 1) ^ 2)
       (fun x => (x.length + 1) * (x.length + 1) ^ 2) :=
   ⟨(timeConstructible_two_pow.succ_mul fun _ => Nat.lt_two_pow_self.le).spaceConstructible,
-    ((timeConstructible_succ_pow (k := 2) (by decide)).succ_mul fun n =>
+    ((timeConstructible_succ_pow 2).succ_mul fun n =>
       (Nat.le_succ n).trans (Nat.le_self_pow (by decide) _)).computableInO⟩
 
 /-- `L` and `PSPACE` through `DSPACE`, instantiated on `Set.univ` and `oddOnes`. -/

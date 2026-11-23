@@ -10,9 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCountedIteration
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.IterateWhile
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Basic
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Bool
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Encoding
 import CslibFrontier.Tactic.Degree
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Option
@@ -64,23 +62,7 @@ copied each round; this bound does not implement the buffered Hennie–Stearns s
 
 namespace Turing.MultiTapeTM.Universal
 
-/-! ### Encodings -/
-
-/-- Symbols and blanks. -/
-public abbrev eSym : Option ℕ ↪ List Bool := encOption encUnary
-
-/-- Keys of transitions, as their fields. -/
-enc_structure eKey : Key where state : encUnary, input : eSym, work : (encList eSym)
-
-/-- An action on a work tape. -/
-public abbrev TapeAct := Option (Option ℕ) × SignType
-
-/-- Actions on a work tape. -/
-public abbrev eTA : Option (Option ℕ) × SignType ↪ List Bool := encPair (encOption eSym) encSign
-
-/-- Actions, as their fields. -/
-enc_structure eAct : Act where
-  inputTape : encSign, workTapes : (encList eTA), output : eSym, state : eSym
+/-! ### Description and configuration encodings -/
 
 /-- Descriptions, as their fields. -/
 enc_structure eDesc : Desc where
@@ -106,8 +88,7 @@ open ComputableInDegree
 /-- The symbol under the head. -/
 @[local fun_prop]
 public lemma read_deg : ComputableInDegree Tape.read eTape eSym 1 1 := by
-  unfold Tape.read
-  degree
+  degree [Tape.read]
 
 /-- A right move. -/
 @[local fun_prop]
@@ -141,16 +122,19 @@ lemma move_deg : ComputableInDegree (fun p : Tape × SignType => p.1.move p.2)
 @[local fun_prop]
 lemma apply_deg : ComputableInDegree (fun p : Tape × TapeAct =>
     p.1.apply p.2) (encPair eTape eTA) eTape 1 1 := by
-  unfold Tape.apply Tape.write
-  degree
+  degree [Tape.apply, Tape.write]
 
 /-! ### Applying actions to all work tapes -/
 
 /-- Applying an action to a work tape, if there is one. -/
 def applyOne (_ : Unit) (t : Tape) (a : Option TapeAct) : Option Tape := some (a.elim t t.apply)
 
-lemma applyTapes_nil_right (ts : List Tape) : applyTapes ts [] = ts := by
+/-- Applying no actions leaves the work tapes unchanged. -/
+public lemma applyTapes_nil_right (ts : List Tape) : applyTapes ts [] = ts := by
   cases ts <;> rfl
+
+/-- The action that neither writes nor moves leaves a work tape unchanged. -/
+public lemma Tape.apply_none_zero (t : Tape) : t.apply (none, 0) = t := rfl
 
 lemma zipFold_applyOne (ts : List Tape) (as : List TapeAct) :
     zipFold applyOne () ts as = applyTapes ts as := by
@@ -161,8 +145,7 @@ lemma zipFold_applyOne (ts : List Tape) (as : List TapeAct) :
 lemma applyOne_deg : ComputableInDegree (fun q : Unit × Tape × Option TapeAct =>
     applyOne q.1 q.2.1 q.2.2) (encPair encUnit (encPair eTape (encOption eTA)))
     (encOption eTape) 1 1 := by
-  unfold applyOne
-  degree
+  degree [applyOne]
 
 end Tape
 
@@ -191,8 +174,15 @@ lemma length_eTape_apply (t : Tape) (a : Option (Option ℕ) × SignType) :
       length_encPair, encList_cons, List.length_append, length_frame, encOption_some,
       List.length_cons, List.headD_cons, List.tail_cons] <;> omega
 
+/-- An integer's unary encoding is nonempty. Its natural home is the `Primitives` module, next to
+`length_encIntUnary`; it is stated here, in that namespace, because `Primitives` has about 2,400
+transitive importers against about 500 here. -/
+public lemma _root_.Turing.MultiTapeTM.one_le_length_encIntUnary (z : ℤ) :
+    1 ≤ (encIntUnary z).length := by
+  rw [length_encIntUnary]; split_ifs <;> omega
+
 lemma four_le_length_eTape (t : Tape) : 4 ≤ (eTape t).length := by
-  have : 1 ≤ (encIntUnary t.head).length := by rw [length_encIntUnary]; split_ifs <;> omega
+  have := one_le_length_encIntUnary t.head
   simp only [eTape_apply, length_encPair]
   omega
 
@@ -212,7 +202,7 @@ lemma length_applyTapes (ts : List Tape) (as : List TapeAct) :
       omega
 
 /-- The symbol under the head is no longer than the work tape. -/
-lemma length_read_le (t : Tape) : (eSym t.read).length ≤ (eTape t).length := by
+public lemma length_eSym_read_le (t : Tape) : (eSym t.read).length ≤ (eTape t).length := by
   have := length_eSym_headD_le t.right
   simp only [Tape.read, eTape_apply, length_encPair] at *
   omega
@@ -223,7 +213,7 @@ lemma length_encList_map_read_le (ts : List Tape) :
   induction ts with
   | nil => simp
   | cons t ts ih =>
-    have := length_read_le t
+    have := length_eSym_read_le t
     simp only [List.map_cons, encList_cons, List.length_append, length_frame] at *
     omega
 

@@ -6,7 +6,8 @@ Authors: Anton Kovsharov
 
 module
 
-public import CslibFrontier.Computability.PolyTime.CNF.GreedyParitySearch
+public import CslibFrontier.Computability.PolyTime.CNF.GreedyParityContext
+import CslibFrontier.Foundations.Data.BitString.List.Dot
 
 public section
 
@@ -55,7 +56,7 @@ example :
 private def twoVarViolations : List (List Bool) :=
   [[true, true], [true, false], [false, true], [false, false]]
 private def rowPassesList (row v : List Bool) : Bool :=
-  !((List.zipWith (· && ·) row v).foldl xor false)
+  !listDot row v
 private def twoVarCountSys (rows : List (List Bool)) : ℕ :=
   (twoVarViolations.filter fun v => rows.all fun r => rowPassesList r v).length
 

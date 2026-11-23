@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.BallPath
 public import CslibFrontier.Logics.FirstOrder.Locality.Hanf
+import CslibFrontier.Tactic.FirstOrder.Simp
 import Mathlib.Basic.Finite.Sum
 import Mathlib.Order.Interval.Finset.Fin
 import Mathlib.Order.SuccPred.Nat
@@ -53,8 +54,9 @@ graph, and `(Fin N, ⋖)` is the successor relation on `N` points.
   `distLE (k + 1)` (`exists_nbhdIso_realize_distLE`). So any radius that makes all formulas of rank
   `n` Gaifman-local on finite graphs is at least `2 ^ (n - 1)` (`two_pow_le_of_gaifman_radius`),
   against the upper bound `(3 ^ (n + 1) - 1) / 2` of [Libkin, Corollary 4.13][Libkin2004]. The
-  exact value `2 ^ n - 1` of [Libkin, Exercises 4.10 and 4.11 (pp. 63–64)][Libkin2004] is not
-  formalized here.
+  exact values `2 ^ (n - 1) - 1` and `2 ^ n - 1` of
+  [Libkin, Exercises 4.10 and 4.11 (pp. 63–64)][Libkin2004] are proved in
+  `CslibFrontier.Logics.FirstOrder.Locality.Sharp`.
 
 All formulas range over the pure graph vocabulary `FirstOrder.Language.graph`, with no built-in
 order or arithmetic. The constants come from Gaifman's radius; they are not claimed to be sharp.
@@ -329,12 +331,6 @@ theorem isNbhdIso_of_iso (e : G ≃g H) {k r : ℕ} {a : Fin k → V} {b : Fin k
     match l, R with
     | 2, .adj => exact e.map_adj_iff
 
-/-- The fold of `G ⊕g G` onto `G`. -/
-private def foldHom : G ⊕g G →g G where
-  toFun := Sum.elim id id
-  map_rel' {x y} h := by
-    cases x <;> cases y <;> simp_all
-
 /-- **Far-apart pairs in one copy look like pairs across two copies**: in `G ⊕g G`, if `u` and
 `v` are at distance more than `2r + 1` in `G`, then the radius-`r` neighborhoods of
 `(inl u, inl v)` and `(inl u, inr v)` are isomorphic. -/
@@ -346,8 +342,8 @@ theorem nbhdIso_sum {r : ℕ} {u v : V} (huv : ((2 * r + 1 : ℕ) : ℕ∞) < G.
     (c := Sum.inl v) (c' := Sum.inr v) (IsNbhdIso.refl r _)
     (isNbhdIso_of_iso (SimpleGraph.Iso.sumComm (G := G) (H := G)) (fun _ => rfl))
     (fun _ => by
-      rw [gaifmanGraph_structure]
-      exact huv.trans_le (foldHom.edist_le (.inl u) (.inl v)))
+      rw [gaifmanGraph_structure, SimpleGraph.edist_sum_inl]
+      exact huv)
     (fun _ => by
       rw [gaifmanGraph_structure, SimpleGraph.edist_eq_top_of_not_reachable
         (SimpleGraph.not_reachable_sum_inl_inr u v)]
@@ -442,15 +438,12 @@ def distLE : ℕ → Language.graph.Formula (Fin 2)
 
 theorem realize_distLE_zero {M : Type*} [Language.graph.Structure M] (x y : M) :
     (distLE 0).Realize ![x, y] ↔ x = y ∨ RelMap adj ![x, y] := by
-  simp only [distLE, Formula.realize_sup, Formula.realize_equal, Formula.realize_rel₂,
-    Term.realize_var]
-  rfl
+  fo_simp [distLE]
 
 theorem realize_distLE_succ {M : Type*} [Language.graph.Structure M] (k : ℕ) (x y : M) :
     (distLE (k + 1)).Realize ![x, y] ↔
       ∃ z, (distLE k).Realize ![x, z] ∧ (distLE k).Realize ![z, y] := by
-  simp only [distLE, Formula.Realize, BoundedFormula.realize_ex, BoundedFormula.realize_inf,
-    BoundedFormula.realize_relabel]
+  fo_simp [distLE, Formula.Realize]
   refine exists_congr fun z => and_congr ?_ ?_ <;>
   · apply iff_of_eq
     congr 1
@@ -505,7 +498,7 @@ theorem exists_nbhdIso_realize_distLE (k : ℕ) :
 quantifier rank at most `n` Gaifman-local on finite graphs (as `(3 ^ (n + 1) - 1) / 2` does,
 [Libkin, Corollary 4.13][Libkin2004]), then `ρ (k + 1) ≥ 2 ^ k`. This is Libkin's lower bound
 `lr(d_k) ≥ 2 ^ (k - 1)`; the exact Gaifman rank `2 ^ n - 1` ([Libkin, Exercise 4.11][Libkin2004])
-is not formalized. -/
+is proved in `CslibFrontier.Logics.FirstOrder.Locality.Sharp`. -/
 theorem two_pow_le_of_gaifman_radius {ρ : ℕ → ℕ}
     (hρ : ∀ (n : ℕ) (V : Type) [Finite V] (G : SimpleGraph V) (a b : Fin 2 → V)
       (φ : Language.graph.Formula (Fin 2)), quantifierRank φ ≤ n →

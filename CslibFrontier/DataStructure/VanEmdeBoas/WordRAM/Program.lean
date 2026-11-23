@@ -39,9 +39,9 @@ above the cached maximum before computing a descendant address.
   frame subroutines.
 * `program`: one fixed dispatch over native instructions.
 * `memberBody`, `memberLoop`: membership descent with a cached-maximum rejection.
-* `insertBody`, `insertLoop`: native insertion descent.
-* `successorDescentBody`, `successorDescent`, `successorUnwindBody`, `successorUnwind`:
-  native strict-successor descent and return-stack unwinding.
+* `insertTail`, `insertBody`, `insertLoop`: native insertion descent.
+* `successorDescentBody`, `successorDescent`, `successorUnwindBody`, `successorUnwind`,
+  `successorPhase`: native strict-successor descent and return-stack unwinding.
 
 ## Main results
 
@@ -148,6 +148,18 @@ def finishMax : Code .standard 32 := ram[
 def finishNone : Code .standard 32 := ram[
   out ← zero; found ← zero; runFlag ← zero ]
 
+/-- Continuation of `insertBody` after updating the local header's extrema and setting `x` to the
+displaced key: stop at depth zero, install into an empty destination cluster, or descend. -/
+def insertTail : Code .standard 32 := ram[
+  ⟪readAt addr q p three⟫;
+  if q = zero then [ runFlag ← zero ] else [
+    ⟪readAt addr t p four⟫; ⟪coordinates⟫; present ← *child;
+    if present = zero then [
+      *child ← one; ⟪writeAt addr child one low⟫; ⟪writeAt addr child two low⟫;
+      p ← p + five; x ← high
+    ] else [ p ← child; x ← low ]
+  ] ]
+
 /-- One native insertion iteration. Empty records and empty destination clusters install their
 first key directly in the three-word bounds area. -/
 def insertBody : Code .standard 32 := ram[
@@ -160,14 +172,7 @@ def insertBody : Code .standard 32 := ram[
       if x < mn then [ ⟪writeAt addr p one x⟫; x ← mn ] else [ x ← x ];
       ⟪readAt addr mx p two⟫;
       if mx < x then [ ⟪writeAt addr p two x⟫ ] else [ mx ← mx ];
-      ⟪readAt addr q p three⟫;
-      if q = zero then [ runFlag ← zero ] else [
-        ⟪readAt addr t p four⟫; ⟪coordinates⟫; present ← *child;
-        if present = zero then [
-          *child ← one; ⟪writeAt addr child one low⟫; ⟪writeAt addr child two low⟫;
-          p ← p + five; x ← high
-        ] else [ p ← child; x ← low ]
-      ]
+      ⟪insertTail⟫
     ]
   ] ]
 
@@ -253,13 +258,15 @@ def successorUnwindBody : Code .standard 32 := ram[
 def successorUnwind : Code .standard 32 := ram[
   while stackBase < sp do [ ⟪successorUnwindBody⟫ ] ]
 
+/-- Two-phase native strict-successor routine: descend with saved return frames, then unwind. -/
+def successorPhase : Code .standard 32 := ram[
+  ⟪successorDescent⟫; ⟪successorUnwind⟫ ]
+
 /-- One fixed dispatch program, independent of the universe, query, state and word width. -/
 def program : Code .standard 32 := ram[
   ⟪setup⟫;
   if tag = zero then [ ⟪insertLoop⟫ ] else [
-    if tag = one then [ ⟪memberLoop⟫ ] else [
-      ⟪successorDescent⟫; ⟪successorUnwind⟫
-    ]
+    if tag = one then [ ⟪memberLoop⟫ ] else [ ⟪successorPhase⟫ ]
   ] ]
 /-- The fixed dispatch has 212 instructions before the final compiled halt. -/
 theorem program_size : program.size = 212 := by decide

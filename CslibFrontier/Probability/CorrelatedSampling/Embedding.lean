@@ -22,8 +22,8 @@ knows `KY y`. Using correlated sampling, each samples from his own kernel with s
 statistical distance `2 ε₁ + 2 ε₂` of `(x, y, s, s)`, where `ε₁` and `ε₂` are the average distances
 of `KX x` and `KY y` from `K (x, y)` (`dist_embed_le`). With `K` the conditional distribution of
 `S` given `(X, Y)` and `KX`, `KY` the conditional distributions given `X` and `Y`, this is
-Holenstein's embedding lemma [Holenstein, Lemma 5.2][Holenstein2009]: `(X, Y)` is
-`1 - 2ε₁ - 2ε₂`-embeddable in `(XS, YS)`.
+Holenstein's embedding lemma [Holenstein, Lemma 5.2][Holenstein2009]: `(X, Y)` is embeddable in
+`(XS, YS)` with error `2 ε₁ + 2 ε₂`.
 
 ## Main definitions
 
@@ -113,8 +113,7 @@ theorem dist_embed_le (P : PMF (X × Y)) (KX : X → PMF S) (KY : Y → PMF S) (
   have h := dist_localSample_le KX KY K xy.1 xy.2
   have hp := ENNReal.toReal_nonneg (a := P xy)
   calc (P xy).toReal * dist (localSample KX KY K xy.1 xy.2) ((K xy).map fun s => (s, s))
-      ≤ (P xy).toReal * (2 * dist (KX xy.1) (K xy) + 2 * dist (KY xy.2) (K xy)) :=
-        mul_le_mul_of_nonneg_left h hp
+      ≤ (P xy).toReal * (2 * dist (KX xy.1) (K xy) + 2 * dist (KY xy.2) (K xy)) := by gcongr
     _ = _ := by ring
 
 end Cslib.Probability.CorrelatedSampling

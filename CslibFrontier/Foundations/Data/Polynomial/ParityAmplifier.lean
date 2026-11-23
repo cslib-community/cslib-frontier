@@ -808,7 +808,7 @@ theorem two_pow_dvd_coeff_prod_parityFactor {ι : Type*} (I : Finset ι) (ℓ : 
   | empty =>
     rw [prod_empty]
     rcases s with _ | s
-    · simp only [pow_zero, coeff_one_zero, dvd_refl]
+    · simp only [pow_zero, AddMonoidAlgebra.coeff_one_zero, dvd_refl]
     · rw [coeff_one, ite_eq_right (Nat.succ_ne_zero s)]
       exact dvd_zero _
   | insert a I ha ih =>
@@ -831,12 +831,15 @@ theorem sumCoeffsBelow_modEq_eval_one {P : ℤ[X]} {ℓ : ℕ}
   rw [mem_Ico] at hs
   exact (pow_dvd_pow (2 : ℤ) hs.1).trans (hP s)
 
-/-- **Lemma 5.2 (shared-`V` truncation congruence)**: for `ℓ ≥ 1` and integers `y i`,
-`S_ℓ(∏ i ∈ I, B_i(V)) ≡ ∏ i ∈ I, (if Even (y i) then 1 else 0) (mod 2 ^ ℓ)`. -/
-theorem sumCoeffsBelow_prod_parityFactor_modEq {ι : Type*} (I : Finset ι) {ℓ : ℕ} (hℓ : 1 ≤ ℓ)
+/-- **Lemma 5.2 (shared-`V` truncation congruence)**: for integers `y i`,
+`S_ℓ(∏ i ∈ I, B_i(V)) ≡ ∏ i ∈ I, (if Even (y i) then 1 else 0) (mod 2 ^ ℓ)`. At `ℓ = 0` the
+modulus is `1`. -/
+theorem sumCoeffsBelow_prod_parityFactor_modEq {ι : Type*} (I : Finset ι) (ℓ : ℕ)
     (y : ι → ℤ) [∀ i, Decidable (Even (y i))] :
     sumCoeffsBelow ℓ (∏ i ∈ I, parityFactor ℓ (y i)) ≡
       (∏ i ∈ I, if Even (y i) then (1 : ℤ) else 0) [ZMOD (2 : ℤ) ^ ℓ] := by
+  obtain rfl | hℓ := Nat.eq_zero_or_pos ℓ
+  · simp only [pow_zero, Int.modEq_one]
   refine (sumCoeffsBelow_modEq_eval_one (two_pow_dvd_coeff_prod_parityFactor I ℓ y)).trans ?_
   rw [eval_prod]
   have heval : (∏ i ∈ I, (parityFactor ℓ (y i)).eval 1) =
@@ -914,7 +917,7 @@ theorem totalDegree_coeff_prod_parityFactor_le {ι σ R : Type*} [CommRing R] (I
   | empty =>
     rw [prod_empty, card_empty, zero_add]
     rcases s with _ | s
-    · simp only [coeff_one_zero, MvPolynomial.totalDegree_one, zero_le]
+    · simp only [AddMonoidAlgebra.coeff_one_zero, MvPolynomial.totalDegree_one, zero_le]
     · rw [coeff_one, ite_eq_right (Nat.succ_ne_zero s), MvPolynomial.totalDegree_zero]
       exact Nat.zero_le _
   | insert a I ha ih =>

@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.Combinatorics.Multidigraph.Basic
 public import CslibFrontier.Foundations.Combinatorics.Digraph.MatrixTree
 import Mathlib.Data.Fintype.Pi
 import Mathlib.Data.Fintype.Sigma
@@ -18,9 +19,11 @@ A multidigraph on the vertices `V` with arcs `E`, parallel arcs and loops allowe
 the maps `src tgt : E → V` sending each arc to its source and its target. A *spanning
 in-arborescence rooted at `r`* chooses, for every vertex `v ≠ r`, an arc `f v` out of `v`, such
 that following the chosen arcs leads from every vertex to `r`
-(`Cslib.Multidigraph.IsInArborescence`). The chosen arcs form an oriented spanning tree with every
-arc directed towards `r`, and conversely, so arborescences that differ only in a parallel arc are
-counted separately.
+(`Cslib.Multidigraph.IsInArborescence`, defined in
+`CslibFrontier.Foundations.Combinatorics.Multidigraph.Basic`). On the arc multidigraph
+`(arcSrc G, arcTgt G)` of a simple digraph `G : Digraph V`, these correspond bijectively to the
+spanning in-arborescence subdigraphs `T ≤ G` (`Cslib.Multidigraph.arborescenceEquivSubdigraph`), and
+`arcMatrix` specializes to `G.adjMatrix` (`Cslib.Multidigraph.arcMatrix_arcSrc_arcTgt`).
 
 Their number is the determinant of the reduced Laplacian of the *arc-count matrix*, whose entry
 `(u, w)` is the number of arcs from `u` to `w` (`Cslib.Multidigraph.arcMatrix`). This is the
@@ -31,13 +34,17 @@ arborescences by the vertices `tgt (f v)` that their arcs reach.
 
 ## Main definitions
 
-* `Cslib.Multidigraph.IsInArborescence`: spanning in-arborescences of a multidigraph.
 * `Cslib.Multidigraph.arcMatrix`: the arc-count matrix of a multidigraph.
+* `Cslib.Multidigraph.arborescenceEquivSubdigraph`: bijection between multidigraph arborescences of
+  `(arcSrc G, arcTgt G)` and subdigraph arborescences `T ≤ G`.
 
 ## Main results
 
+* `Cslib.Multidigraph.arcMatrix_arcSrc_arcTgt`: `arcMatrix (arcSrc G) (arcTgt G) R = G.adjMatrix R`.
 * `Cslib.Multidigraph.det_laplacian_arcMatrix_submatrix_eq_natCard_isInArborescence`: the
   directed matrix-tree theorem for multidigraphs.
+* `Cslib.Multidigraph.natCard_isInArborescence_eq`: root independence of the spanning
+  in-arborescence count on balanced multidigraphs ([Stanley2013], Corollary 10.3).
 
 ## References
 
@@ -56,15 +63,6 @@ namespace Cslib.Multidigraph
 
 variable {V E : Type*} (src tgt : E → V)
 
-/-- `f` is a **spanning in-arborescence rooted at `r`** of the multidigraph `src tgt : E → V`: it
-chooses an arc `f v` out of every vertex `v ≠ r`, and following the chosen arcs leads from every
-vertex to `r`. -/
-structure IsInArborescence (r : V) (f : {v // v ≠ r} → E) : Prop where
-  /-- The arc chosen at `v` leaves `v`. -/
-  src_eq : ∀ v, src (f v) = v
-  /-- Following the chosen arcs leads from every vertex to the root. -/
-  reachable : ∀ v, Relation.ReflTransGen (fun v w => ∃ h : v ≠ r, tgt (f ⟨v, h⟩) = w) v r
-
 variable (R : Type*) [NatCast R] [Fintype E] [DecidableEq V] in
 /-- The **arc-count matrix** of a multidigraph: the entry `(u, w)` is the number of arcs from `u`
 to `w`. -/
@@ -76,6 +74,64 @@ def arcMatrix : Matrix V V R :=
 theorem arcMatrix_apply {R : Type*} [NatCast R] [Fintype E] [DecidableEq V] (u w : V) :
     arcMatrix src tgt R u w = ((Finset.univ.filter fun e => src e = u ∧ tgt e = w).card : R) := by
   rw [arcMatrix, Matrix.of_apply]
+
+omit E src tgt in
+/-- On the arc multidigraph of `G : Digraph V`, `arcMatrix` equals `G.adjMatrix`. -/
+theorem arcMatrix_arcSrc_arcTgt (R : Type*) [AddMonoidWithOne R] [Fintype V] [DecidableEq V]
+    (G : Digraph V) [DecidableRel G.Adj] :
+    arcMatrix (arcSrc G) (arcTgt G) R = G.adjMatrix R := by
+  ext u w
+  rw [arcMatrix_apply, Digraph.adjMatrix_apply]
+  split_ifs with huw
+  · have huniq : (Finset.univ.filter fun e : Arc G => arcSrc G e = u ∧ arcTgt G e = w) =
+        {⟨(u, w), huw⟩} := by
+      ext e
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton, arc_ext_iff,
+        arcSrc_mk, arcTgt_mk]
+    rw [huniq, Finset.card_singleton, Nat.cast_one]
+  · have hempty : (Finset.univ.filter fun e : Arc G => arcSrc G e = u ∧ arcTgt G e = w) = ∅ := by
+      ext e
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.notMem_empty, iff_false]
+      rintro ⟨rfl, rfl⟩
+      exact huw e.2
+    rw [hempty, Finset.card_empty, Nat.cast_zero]
+
+omit E src tgt in
+/-- Spanning in-arborescences of `(arcSrc G, arcTgt G)` correspond bijectively to spanning
+in-arborescence subdigraphs `T ≤ G`. -/
+noncomputable def arborescenceEquivSubdigraph (G : Digraph V) (r : V) :
+    {f : {v // v ≠ r} → Arc G // IsInArborescence (arcSrc G) (arcTgt G) r f} ≃
+      {T : Digraph V // T ≤ G ∧ T.IsInArborescence r} := by
+  classical
+  let mkSub (f : {v // v ≠ r} → Arc G) (hf : IsInArborescence (arcSrc G) (arcTgt G) r f) :
+      {T : Digraph V // T ≤ G ∧ T.IsInArborescence r} :=
+    ⟨{ Adj := fun v w => ∃ hv : v ≠ r, arcTgt G (f ⟨v, hv⟩) = w },
+      fun v w ⟨hv, hw⟩ => by
+        have hs : (f ⟨v, hv⟩).1.1 = v := hf.src_eq ⟨v, hv⟩
+        have ht : (f ⟨v, hv⟩).1.2 = w := hw
+        exact hs ▸ ht ▸ (f ⟨v, hv⟩).2,
+      ⟨fun w ⟨hr, _⟩ => hr rfl,
+        fun v hv => ⟨arcTgt G (f ⟨v, hv⟩), ⟨hv, rfl⟩, fun w ⟨_, hw⟩ => hw.symm⟩,
+        hf.reachable⟩⟩
+  have hrel (T : Digraph V) (hT : T.IsInArborescence r) :
+      T.Adj = fun x y => ∃ hx : x ≠ r, (hT.existsUnique_adj x hx).choose = y := by
+    ext x y
+    exact ⟨fun hxy =>
+      let hx : x ≠ r := fun h => hT.not_adj_root y (h ▸ hxy)
+      ⟨hx, (hT.existsUnique_adj x hx).unique (hT.existsUnique_adj x hx).choose_spec.1 hxy⟩,
+      fun ⟨hx, hy⟩ => hy ▸ (hT.existsUnique_adj x hx).choose_spec.1⟩
+  refine
+    { toFun := fun ⟨f, hf⟩ => mkSub f hf
+      invFun := fun ⟨T, hTG, hT⟩ =>
+        ⟨fun v => ⟨(v.1, (hT.existsUnique_adj v.1 v.2).choose),
+            hTG (hT.existsUnique_adj v.1 v.2).choose_spec.1⟩,
+          fun _ => rfl, fun v => hrel T hT ▸ hT.reachable v⟩
+      left_inv := fun ⟨f, hf⟩ => Subtype.ext <| funext fun v => by
+        apply Subtype.ext
+        refine Prod.ext (hf.src_eq v).symm ?_
+        obtain ⟨_, hw⟩ := ((mkSub f hf).2.2.existsUnique_adj v.1 v.2).choose_spec.1
+        exact hw.symm
+      right_inv := fun ⟨T, _, hT⟩ => Subtype.ext (Digraph.ext (hrel T hT).symm) }
 
 /-- **The directed matrix-tree theorem** for multidigraphs [Tutte1948] ([Stanley2013],
 Theorem 10.4). The determinant of the reduced Laplacian of the arc-count matrix, the out-degree
@@ -118,5 +174,47 @@ theorem det_laplacian_arcMatrix_submatrix_eq_natCard_isInArborescence (R : Type*
   refine Finset.sum_congr rfl fun g _ => ?_
   rw [Nat.cast_prod]
   exact Finset.prod_congr rfl fun i _ => arcMatrix_apply src tgt _ _
+
+private theorem card_filter_eq_sum_card_filter {V E : Type*} [DecidableEq V] [Fintype V]
+    [Fintype E] (φ ψ : E → V) (x : V) :
+    (Finset.univ.filter fun e => φ e = x).card =
+      ∑ y : V, (Finset.univ.filter fun e => φ e = x ∧ ψ e = y).card := by
+  classical
+  simpa only [Finset.filter_filter, Finset.mem_univ, and_true] using
+    (Finset.sum_card_fiberwise_eq_card_filter
+      (Finset.univ.filter fun e => φ e = x) Finset.univ ψ).symm
+
+/-- **Root independence of the arborescence count** ([Stanley2013], Corollary 10.3). In any finite
+balanced multidigraph (`∀ v, outdeg v = indeg v`), the number of spanning in-arborescences rooted
+at `u` equals that rooted at `v`. Connectivity and positive out-degree are not required. -/
+theorem natCard_isInArborescence_eq [DecidableEq V] [Fintype E]
+    (hbal : ∀ v, (Finset.univ.filter fun e => src e = v).card =
+      (Finset.univ.filter fun e => tgt e = v).card) (u v : V) :
+    Nat.card {f : {x // x ≠ u} → E // IsInArborescence src tgt u f} =
+      Nat.card {f : {x // x ≠ v} → E // IsInArborescence src tgt v f} := by
+  by_cases hfin : Finite V
+  · have := Fintype.ofFinite V
+    apply Nat.cast_injective (R := ℤ)
+    rw [← det_laplacian_arcMatrix_submatrix_eq_natCard_isInArborescence src tgt ℤ u,
+      ← det_laplacian_arcMatrix_submatrix_eq_natCard_isInArborescence src tgt ℤ v]
+    refine Matrix.det_laplacian_submatrix_eq (arcMatrix src tgt ℤ) (fun x => ?_) u v
+    have hrow : ∑ w : V, arcMatrix src tgt ℤ x w =
+        ((Finset.univ.filter fun e => src e = x).card : ℤ) := by
+      simp only [arcMatrix_apply, ← Nat.cast_sum, ← card_filter_eq_sum_card_filter src tgt x]
+    have hcol : ∑ z : V, arcMatrix src tgt ℤ z x =
+        ((Finset.univ.filter fun e => tgt e = x).card : ℤ) := by
+      simp only [arcMatrix_apply, ← Nat.cast_sum, Nat.cast_inj]
+      rw [card_filter_eq_sum_card_filter tgt src x]
+      exact Finset.sum_congr rfl fun z _ => congrArg Finset.card (by ext e; simp [and_comm])
+    rw [hrow, hcol, hbal x]
+  · obtain ⟨w, hw⟩ := @Infinite.exists_notMem_finset V (not_finite_iff_infinite.1 hfin)
+      ({u, v} ∪ Finset.univ.image src)
+    simp only [Finset.mem_union, Finset.mem_insert, Finset.mem_singleton, Finset.mem_image,
+      Finset.mem_univ, true_and, not_or, not_exists] at hw
+    have hempty : ∀ r : V, r ≠ w →
+        IsEmpty {f : {x // x ≠ r} → E // IsInArborescence src tgt r f} := fun r hr =>
+      ⟨fun ⟨f, hf⟩ => hw.2 (f ⟨w, hr.symm⟩) (hf.src_eq ⟨w, hr.symm⟩)⟩
+    rw [@Nat.card_of_isEmpty _ (hempty u (Ne.symm hw.1.1)),
+      @Nat.card_of_isEmpty _ (hempty v (Ne.symm hw.1.2))]
 
 end Cslib.Multidigraph

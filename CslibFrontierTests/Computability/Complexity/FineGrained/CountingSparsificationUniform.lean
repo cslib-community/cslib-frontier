@@ -7,7 +7,7 @@ Authors: OpenAI, Samuel Schlesinger
 module
 
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingSparsificationUniform
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
@@ -101,8 +101,8 @@ example : ∃ d e, ComputableInO (normalizeDeclaredLeaf Prod.snd declaredProbe) 
     PolyBounded (fun x : Context × CNF ℕ => (encInput x).length)
       (fun x => ((encInput x).length + 1) ^ d +
         ((encInput x).length + (encNat (declaredProbe x)).length + 1) ^ e) := by
-  obtain ⟨d, _, hd⟩ := declaredProbe_poly.tidy.exists_degree
-  have hh := (ComputableInO.of_tidy hd.inO).mono_le
+  obtain ⟨d, _, hd⟩ := declaredProbe_poly.exists_degree
+  have hh := hd.inO.mono_le
     (T' := fun x => 2 ^ x.1.2 * ((encInput x).length + 1) ^ d)
     (fun x => by
       simpa only [one_mul] using Nat.mul_le_mul_right (((encInput x).length + 1) ^ d)
@@ -201,8 +201,8 @@ example : ∃ d c e, ComputableInO
   have hp : ComputableInPolyTime occurringProbe encInput encNat := by
     unfold occurringProbe encInput encContext
     fun_prop
-  obtain ⟨d, _, hd⟩ := hp.tidy.exists_degree
-  have hcounter := (ComputableInO.of_tidy hd.inO).mono_le
+  obtain ⟨d, _, hd⟩ := hp.exists_degree
+  have hcounter := hd.inO.mono_le
     (T' := fun x => 2 ^ x.1.2 * ((encInput x).length + 1) ^ d)
     (fun x => by
       simpa only [one_mul] using Nat.mul_le_mul_right (((encInput x).length + 1) ^ d)

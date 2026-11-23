@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearPrim
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OPrimitives
 import CslibFrontier.Foundations.Data.Nat.Doubling
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # The slowdown lemma for two-quantifier alternating time
@@ -59,7 +60,7 @@ not only on the padded ones.
   `Σ₂TIME(t) ⊆ NTIME(τ)` whenever `n + t n + t'(O(n + t n)) = O(τ n)`.
 * `Cslib.Complexity.SigmaTwoTIME_succ_pow_subset_NTIME_succ_pow`: the polynomial form, for
   `t' m ^ q = O((m + 1) ^ p)` with `q > 0`: `Σ₂TIME((n + 1) ^ a) ⊆ NTIME((n + 1) ^ b)` whenever
-  `2 ≤ a ≤ b` and `a * p ≤ b * q`.
+  `1 ≤ a ≤ b` and `a * p ≤ b * q`.
 
 ## References
 
@@ -110,8 +111,7 @@ theorem SigmaTwoTIME_subset_NTIME {t t' τ : ℕ → ℕ} (ht : TimeConstructibl
       (ComputableInO.of_linear (ComputableInDegree.of_dropFrame fun _ => rfl))
   have hB := setOf_exists_mem_NTIME (t := id) (C := 5) hℓ hW fun z v hv => by
     have := length_dropFrame_le z
-    simp only [length_encPair, encBits_apply, id_eq] at hv ⊢
-    omega
+    enc_len [id_eq] at hv ⊢
   -- the universal block is decided deterministically within `t'`
   have hdec := computableInO_indicator_of_mem_DTIME (hN hB)
   have hV₂ := (hdec.of_encIn_eq (encD := encPair encBits encBits)
@@ -154,13 +154,12 @@ theorem SigmaTwoTIME_subset_NTIME {t t' τ : ℕ → ℕ} (ht : TimeConstructibl
 
 /-- **The slowdown lemma, polynomial form.** If nondeterministic linear time is in deterministic
 time `t'` with `t' m ^ q ≤ C * (m + 1) ^ p` for some `q > 0`, that is `t' m = O(m ^ (p / q))`, then
-`Σ₂TIME((n + 1) ^ a) ⊆ NTIME((n + 1) ^ b)` whenever `2 ≤ a ≤ b` and `a * p ≤ b * q`. The bound
-`2 ≤ a` makes `(n + 1) ^ a` time-constructible. -/
+`Σ₂TIME((n + 1) ^ a) ⊆ NTIME((n + 1) ^ b)` whenever `1 ≤ a ≤ b` and `a * p ≤ b * q`. -/
 theorem SigmaTwoTIME_succ_pow_subset_NTIME_succ_pow {t' : ℕ → ℕ} {p q a b C : ℕ}
     (hN : NTIME encBits id ⊆ DTIME encBits t') (ht' : ∀ m, t' m ^ q ≤ C * (m + 1) ^ p)
-    (hq : 0 < q) (ha : 2 ≤ a) (hab : a ≤ b) (hpq : a * p ≤ b * q) :
+    (hq : 0 < q) (ha : 1 ≤ a) (hab : a ≤ b) (hpq : a * p ≤ b * q) :
     SigmaTwoTIME encBits (fun n => (n + 1) ^ a) ⊆ NTIME encBits (fun n => (n + 1) ^ b) := by
-  refine SigmaTwoTIME_subset_NTIME (timeConstructible_succ_pow ha) hN fun C₁ => ?_
+  refine SigmaTwoTIME_subset_NTIME (timeConstructible_succ_pow a) hN fun C₁ => ?_
   set M := C * (3 * C₁ + 1) ^ p + 1
   refine ⟨M + 2, fun n m hm => ?_⟩
   beta_reduce at hm ⊢

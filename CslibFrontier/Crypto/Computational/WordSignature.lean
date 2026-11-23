@@ -11,13 +11,10 @@ public import CslibFrontier.Crypto.Computational.Signature
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
-import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
+import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PPT
@@ -44,10 +41,11 @@ any security parameter:
   Attack Game 13.1 and Definition 13.1).
 * **Restriction to `n`-bit messages (`WordSignatureScheme.toSignatureScheme`,
   `WordSignatureScheme.EUFCMA.toSignatureScheme`)**: every `WordSignatureScheme` restricts to a
-  `SignatureScheme` with the same `keyGen`, `sign`, and `verify`; because
-  `SignatureScheme.eufCmaGame` additionally requires `msg.length == n`, its forging probability is
-  pointwise at most that of `WordSignatureScheme.eufCmaGame`, so `WordSignatureScheme.EUFCMA`
-  implies `SignatureScheme.EUFCMA`.
+  `SignatureScheme` with the same `keyGen`, `sign`, and `verify`. `SignatureScheme.eufCmaGame`
+  signs and accepts only `n`-bit messages, so a forger in it succeeds at most as often as the
+  forger that refuses the other signing queries itself (`SignatureScheme.restrictQueries`) does in
+  `WordSignatureScheme.eufCmaGame`, and `WordSignatureScheme.EUFCMA` implies
+  `SignatureScheme.EUFCMA`.
 
 ## Main definitions
 
@@ -64,8 +62,8 @@ any security parameter:
 * `Cslib.Crypto.WordSignatureScheme.isPPTOn_run_signingOracle`,
   `Cslib.Crypto.WordSignatureScheme.isPPTOn_eufCmaGame`,
   `Cslib.Crypto.WordSignatureScheme.isPPT_eufCmaGame`: uniform strict PPT certificates for the
-  signing-oracle execution and full EUF-CMA experiment, proved directly in the plain polynomial-time
-  calculus.
+  signing-oracle execution and full EUF-CMA experiment, in the plain polynomial-time calculus. The
+  execution certificate is `SignatureScheme.isPPTOn_run_signingOracleOf` applied to `sign_ppt`.
 * `Cslib.Crypto.WordSignatureScheme.succProbability_toSignatureScheme_eufCmaGame_le`,
   `Cslib.Crypto.WordSignatureScheme.EUFCMA.toSignatureScheme`: `WordSignatureScheme.EUFCMA` implies
   `SignatureScheme.EUFCMA` on the induced `n`-bit `SignatureScheme`.
@@ -140,12 +138,11 @@ theorem computableInPolyTime_verify_comp (S : WordSignatureScheme)
 /-! ### Adaptive chosen-message security on unrestricted bit words (`EUFCMA`) -/
 
 /-- Stateful signing oracle that signs any requested `List Bool` message under `sk` and prepends
-the message to the list of queried messages. -/
+the message to the list of queried messages: `SignatureScheme.signingOracleOf` instantiated at
+`S.sign`. -/
 def signingOracle (S : WordSignatureScheme) (sk : List Bool)
     (request : Unit × List Bool) : StateT (List (List Bool)) ProbComp (List Bool) :=
-  fun queried => do
-    let sig ← S.sign sk request.2
-    return (sig, request.2 :: queried)
+  SignatureScheme.signingOracleOf S.sign sk request
 
 /-- The unrestricted-message EUF-CMA experiment: sample `(pk, sk) ← S.keyGen n`, run the adaptive
 forger on `(n, pk)` with oracle access to `S.signingOracle sk`, and accept when the forger outputs
@@ -169,63 +166,8 @@ theorem isPPTOn_run_signingOracle (S : WordSignatureScheme) {adversary : Forger}
       (fun ⟨n, pk, sk⟩ =>
         (OracleComp.interpret
           (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-            (S.signingOracle sk)) (adversary n pk)).run []) := by
-  obtain ⟨c, d, hlen⟩ := S.sign_ppt.length_le
-  let Caller := ℕ × (List Bool × List Bool)
-  let encCaller : Caller ↪ List Bool := encPair encUnary (encPair encBits encBits)
-  let HIn := Caller × ((Unit × List Bool) × List (List Bool))
-  let encHIn : HIn ↪ List Bool :=
-    encPair encCaller (encPair (encPair (encFinEnum Unit) encBits) (encList encBits))
-  have hhandler : IsPPTOn encHIn (encPair encBits (encList encBits))
-      (fun pair : HIn => S.signingOracle pair.1.2.2 pair.2.1 pair.2.2) := by
-    have hsk : ComputableInPolyTime (fun pair : HIn => pair.1.2.2) encHIn encBits :=
-      (ComputableInPolyTime.fst _ _).snd'.snd'
-    have hreq : ComputableInPolyTime (fun pair : HIn => pair.2.1.2) encHIn encBits :=
-      (ComputableInPolyTime.snd _ _).fst'.snd'
-    have hqueried : ComputableInPolyTime (fun pair : HIn => pair.2.2) encHIn (encList encBits) :=
-      (ComputableInPolyTime.snd _ _).snd'
-    have hsign := S.isPPTOn_sign_comp hsk hreq
-    have hpost : ComputableInPolyTime
-        (fun q : HIn × List Bool => (q.2, q.1.2.1.2 :: q.1.2.2))
-        (encPair encHIn encBits) (encPair encBits (encList encBits)) := by
-      have hqIn := ComputableInPolyTime.fst encHIn encBits
-      have hqSig := ComputableInPolyTime.snd encHIn encBits
-      exact hqSig.prod ((hqIn.trans hreq).cons' (hqIn.trans hqueried))
-    exact hsign.bind_with
-      (second := fun (pair : HIn) sig => pure (sig, pair.2.1.2 :: pair.2.2))
-      hpost.isPPTOn
-  have hprepare : ComputableInPolyTime (fun caller : Caller => (caller.1, caller.2.1))
-      encCaller (encPair encUnary encBits) :=
-    (ComputableInPolyTime.fst _ _).prod (ComputableInPolyTime.snd _ _).fst'
-  have hinitial : ComputableInPolyTime (fun _ : Caller => ([] : List (List Bool)))
-      encCaller (encList encBits) :=
-    ComputableInPolyTime.const []
-  have hresources : PolyBounded (fun pair => (encPair encCaller encBits pair).length)
-      (fun pair : Caller × List Bool =>
-        c * (2 * pair.1.2.2.length + pair.2.length + 2) ^ d + 2 * pair.2.length + 2) := by
-    growth_poly [(ComputableInPolyTime.fst encCaller encBits).snd'.snd',
-      ComputableInPolyTime.snd encCaller encBits]
-  refine ((hadversary.run_interpret_preprocess_open_of_polyBounded (External := Empty)
-    (handler := fun (caller : Caller) request state =>
-      ProbOracleComp.sample (S.signingOracle caller.2.2 request state))
-    (prepare := fun caller : Caller => (caller.1, caller.2.1))
-    (initial := fun _ : Caller => ([] : List (List Bool)))
-    (resources := fun (caller : Caller) query =>
-      c * (2 * caller.2.2.length + query.length + 2) ^ d + 2 * query.length + 2)
-    hprepare hhandler.isOraclePPTOn hinitial
-    (fun _ _ => True) (fun _ => trivial) hresources
-    (fun caller request queried _ result hresult => ?_)).congr
-      fun caller _ _ _ => ?_).isPPTOn
-  · have hsupp := (ProbOracleComp.support_sample _).subset hresult
-    simp only [signingOracle, ProbComp.eval_bind, ProbComp.eval_pure,
-      PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hsupp
-    obtain ⟨sig, hsig, rfl⟩ := hsupp
-    have hsigLen := hlen (caller.2.2, request.2) sig hsig
-    simp only [encBits_apply, length_encPair] at hsigLen
-    refine ⟨trivial, by lia, ?_⟩
-    simp only [encList_cons, List.length_append, length_frame, encBits_apply]
-    lia
-  · rw [ProbOracleComp.sample_run_interpret]
+            (S.signingOracle sk)) (adversary n pk)).run []) :=
+  SignatureScheme.isPPTOn_run_signingOracleOf S.sign_ppt hadversary
 
 /-- Run the complete unrestricted-message EUF-CMA experiment on its unary security parameter for
 any oracle-PPT forger. -/
@@ -269,7 +211,11 @@ theorem isPPT_eufCmaGame (S : WordSignatureScheme) {adversary : Forger}
   ((S.isPPTOn_eufCmaGame hadversary).preprocess (ComputableInPolyTime.fst _ _)).isPPT
 
 /-- Existential unforgeability under adaptive chosen-message attack (`EUFCMA`) on arbitrary
-`List Bool` messages against uniform strict oracle-PPT adversaries. -/
+`List Bool` messages against uniform strict oracle-PPT adversaries: [BonehShoup2023], Attack
+Game 13.1 and Definition 13.2 (pp. 529–530), with every bit string a message. The source's message
+space is a finite set of words of polynomially bounded length; a strict PPT forger queries and
+outputs only words of polynomially bounded length, so this is security on every such message space
+at once. -/
 def EUFCMA (S : WordSignatureScheme) : Prop :=
   Game.Indistinguishable
     (fun adversary n => ProbComp.eval (S.eufCmaGame adversary n))
@@ -313,39 +259,40 @@ def toSignatureScheme (S : WordSignatureScheme) : SignatureScheme where
 @[simp] theorem toSignatureScheme_verify (S : WordSignatureScheme) :
     S.toSignatureScheme.verify = S.verify := rfl
 
-@[simp] theorem toSignatureScheme_signingOracle (S : WordSignatureScheme) :
-    S.toSignatureScheme.signingOracle = S.signingOracle := rfl
-
-/-- Because `SignatureScheme.eufCmaGame` imposes the additional check `msg.length == n`, every
-forger's success probability against `S.toSignatureScheme` is at most its success probability
-against `S`. -/
+/-- A forger against `S.toSignatureScheme`, whose signing oracle signs `n`-bit messages only and
+which also checks `msg.length == n`, succeeds at most as often as the forger that refuses the other
+queries itself (`SignatureScheme.restrictQueries`) succeeds against `S`, whenever `bound` bounds
+signature lengths. -/
 theorem succProbability_toSignatureScheme_eufCmaGame_le (S : WordSignatureScheme)
+    {bound : ℕ → ℕ → ℕ}
+    (hbound : ∀ n, ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support, ∀ msg sig,
+      sig ∈ (ProbComp.eval (S.sign keys.2 msg)).support → sig.length ≤ bound n msg.length)
     (adversary : Forger) (n : ℕ) :
     Game.succProbability (ProbComp.eval (S.toSignatureScheme.eufCmaGame adversary n)) ≤
-      Game.succProbability (ProbComp.eval (S.eufCmaGame adversary n)) := by
-  unfold Game.succProbability
-  have hle :
-      (ProbComp.eval (S.toSignatureScheme.eufCmaGame adversary n)) true ≤
-        (ProbComp.eval (S.eufCmaGame adversary n)) true := by
-    simp only [SignatureScheme.eufCmaGame, eufCmaGame, toSignatureScheme_keyGen,
-      toSignatureScheme_signingOracle, toSignatureScheme_verify, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.bind_apply]
-    refine tsum_le_tsum fun keys => mul_le_mul_right ?_ _
-    refine tsum_le_tsum fun out => mul_le_mul_right ?_ _
-    rcases out with ⟨⟨msg, sig⟩, queried⟩
-    dsimp only
-    rw [PMF.pure_apply, PMF.pure_apply]
-    split_ifs <;> simp_all
-  exact ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) hle
+      Game.succProbability (ProbComp.eval (S.eufCmaGame
+        (SignatureScheme.restrictQueries (fun n m => m.length == n) bound adversary) n)) := by
+  apply Game.succProbability_mono
+  simp only [SignatureScheme.eufCmaGame, eufCmaGame, toSignatureScheme_keyGen,
+    toSignatureScheme_verify, ProbComp.eval_bind, ProbComp.eval_pure]
+  refine PMF.bind_apply_mono_on_support _ _ fun keys hkeys => ?_
+  rw [show S.signingOracle keys.2 = SignatureScheme.signingOracleOf S.sign keys.2 from rfl,
+    SignatureScheme.run_restrictQueries_eq_signingOracleOn _ S.sign bound n keys.1 keys.2
+      (hbound n keys hkeys)]
+  refine PMF.bind_apply_mono_on_support _ _ fun ⟨⟨msg, sig⟩, queried⟩ _ => ?_
+  dsimp only
+  cases msg.length == n <;> simp
 
 /-- Unrestricted-message `EUFCMA` security implies `SignatureScheme.EUFCMA` security on `n`-bit
 messages. -/
 theorem EUFCMA.toSignatureScheme {S : WordSignatureScheme} (h : S.EUFCMA) :
     S.toSignatureScheme.EUFCMA := by
+  obtain ⟨bound, hbound_poly, hbound⟩ := S.toSignatureScheme.exists_sign_length_bound
   apply SignatureScheme.EUFCMA.of_negligible
   intro adversary hadversary
-  exact negligible_of_le (h.negligible adversary hadversary)
-    (S.succProbability_toSignatureScheme_eufCmaGame_le adversary)
+  exact negligible_of_le (h.negligible _ (SignatureScheme.isOraclePPT_restrictQueries
+      (adm := fun n m => m.length == n) (by fun_prop)
+      hbound_poly hadversary))
+    (S.succProbability_toSignatureScheme_eufCmaGame_le hbound adversary)
 
 end WordSignatureScheme
 

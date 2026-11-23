@@ -14,7 +14,7 @@ import CslibFrontier.Computability.Complexity.Classes.Oracle.Deterministic
 import CslibFrontier.Computability.Complexity.Classes.Space.Closure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Replay.Simulation
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 
 /-!
 # Polynomial time relative to an oracle in polynomial space
@@ -51,7 +51,7 @@ bounded existential quantification (`Cslib.Complexity.setOf_exists_mem_PSPACE`).
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Complexity
 

@@ -10,6 +10,8 @@ module
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctValidHistory
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.ReducedKWise
 import CslibFrontier.Tactic.Realize
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Quotient Hashing, `DictStateInv`, and Feistel-Dispatched `Memory.Prog` Operations
@@ -77,7 +79,7 @@ def qBits (U n_max : ℕ) : ℕ :=
 
 /-- Reduction target bit-width parameter `totalMicroBits n_max + 1 = ⌊log₂ n_max⌋ + 1` passed to
 `ReducedKWise`, ensuring `n_max + 1 ≤ 2 ^ hashB n_max`. -/
-@[expose]
+@[expose, wram_arith]
 def hashB (n_max : ℕ) : ℕ :=
   totalMicroBits n_max + 1
 
@@ -88,14 +90,14 @@ def hashSpace (U w n_max : ℕ) : ℕ :=
 
 /-- Total Word-RAM footprint `totalSpace U V w n_max (hashSpace U w n_max)` of the succinct
 dictionary in `w`-bit words. -/
-@[expose]
+@[expose, wram_arith]
 def space (U V w n_max : ℕ) : ℕ :=
   totalSpace U V w n_max (hashSpace U w n_max)
 
 /-- Initialization instruction budget (`2` plus `ReducedKWise.initTableSteps` and
 `ReducedKWise.resampleSteps`; with `3` allocation instructions in `allocSpan`, the total
 initialization time is `initTime = initSteps U n_max + 1`). -/
-@[expose]
+@[expose, wram_arith]
 def initSteps (U n_max : ℕ) : ℕ :=
   2 + ReducedKWise.initTableSteps (qBits U n_max) (hashB n_max) (totalMicroBits n_max) +
     ReducedKWise.resampleSteps (qBits U n_max) (hashB n_max) (totalMicroBits n_max) 3
@@ -116,9 +118,7 @@ theorem qBits_le_of_le_pow {U w n_max : ℕ} (hw : 0 < w) (hU : U ≤ 2 ^ w) :
   exact max_le (quotientBits_le_of_le_pow hU) hw
 
 theorem totalMicroBits_le_three_mul_hashB (n_max : ℕ) :
-    totalMicroBits n_max ≤ 3 * hashB n_max := by
-  unfold hashB
-  omega
+    totalMicroBits n_max ≤ 3 * hashB n_max := by wram_omega
 
 theorem hashB_div_two_le_log (n_max : ℕ) :
     hashB n_max / 2 ≤ Nat.log 2 n_max := by
@@ -211,8 +211,7 @@ theorem two_mul_reducedChunkBits_hash_lt {U V w n_max base : ℕ}
   have hw2 := two_le_w_of_fits_space hfit
   have hfit_hash : Fits w (base + hashSpace U w n_max) := by
     refine hfit.of_le ?_
-    unfold space totalSpace offGM offLM offVal offQuot
-    omega
+    wram_omega
   exact ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space
     (two_mul_reducedChunkBits_hash_le hw2 hnU hU) hfit_hash
 
@@ -227,8 +226,7 @@ theorem tableWords_hash_le {U w n_max : ℕ} (hw : 0 < w) (hnU : n_max ≤ U) (h
       (totalMicroBits_le_of_le_pow hnU hU)
       hw2
     have hm := max_eight_two_pow_hashB_div_two_le n_max
-    have hdiv1 : 2 * max 8 (2 ^ (hashB n_max / 2)) / w ≤ (16 + 2 * n_max) / w :=
-      Nat.div_le_div_right (by omega)
+    have hdiv1 : 2 * max 8 (2 ^ (hashB n_max / 2)) / w ≤ (16 + 2 * n_max) / w := by gcongr; omega
     have hdiv2 : (16 + 2 * n_max) / w < 9 + (2 * n_max + w - 1) / w := by
       refine Nat.div_lt_of_lt_mul ?_
       have h2 := Nat.div_add_mod (2 * n_max + w - 1) w
@@ -288,7 +286,7 @@ theorem space_le_succinctWords {U V w n_max : ℕ}
     space U V w n_max ≤ Dynamic.succinctWords 81 213 U V w n_max := by
   have hh := hashSpace_le hw hnU hU
   have htab := totalSpace_le_succinctWords (U := U) (V := V) (w := w) (n_max := n_max)
-    (h_space := hashSpace U w n_max) hnU
+    (h_space := hashSpace U w n_max)
   have h12345 := div_add_packedWords_le
     (Dynamic.optBits U V n_max + 79 * n_max * Dynamic.logLogFactor n_max) 35
     (2 * n_max) 1 w
@@ -306,11 +304,8 @@ theorem space_le_succinctWords {U V w n_max : ℕ}
   have hdiv :
       (Dynamic.optBits U V n_max + 79 * n_max * Dynamic.logLogFactor n_max +
         (2 * n_max) * 1 + w - 1) / w ≤
-      (Dynamic.optBits U V n_max + 81 * n_max * Dynamic.logLogFactor n_max + w - 1) / w :=
-    Nat.div_le_div_right hnum
-  unfold space
-  unfold Dynamic.succinctWords at htab ⊢
-  omega
+      (Dynamic.optBits U V n_max + 81 * n_max * Dynamic.logLogFactor n_max + w - 1) / w := by gcongr
+  wram_omega [htab]
 
 /-! ## Section 2: Expected `probeExcess` bound (`≤ 5`) under `ReducedPolySeed` -/
 
@@ -403,8 +398,7 @@ theorem tsum_uniform_probeExcess_reducedPolyHash_le_five {U n_max : ℕ} (hnU : 
           (2 * 2 ^ (qBits U n_max - 1)) * 2 ^ (3 * hashB n_max) := by
       calc (#(univ \ G) * (2 * #(S.erase u))) * 2 ^ (3 * hashB n_max)
           = (#(univ \ G) * 2 ^ (3 * hashB n_max)) * (2 * #(S.erase u)) := by ring
-        _ ≤ ((#S_Q * (#S_Q - 1)) * 2 ^ (qBits U n_max - 1)) * (2 * #(S.erase u)) :=
-            Nat.mul_le_mul_right _ hunion
+        _ ≤ ((#S_Q * (#S_Q - 1)) * 2 ^ (qBits U n_max - 1)) * (2 * #(S.erase u)) := by gcongr
         _ = ((#S_Q * (#S_Q - 1)) * (2 * #(S.erase u))) * 2 ^ (qBits U n_max - 1) := by ring
         _ ≤ (2 * 2 ^ (3 * hashB n_max)) * 2 ^ (qBits U n_max - 1) :=
             Nat.mul_le_mul_right _ hprod_le
@@ -759,22 +753,14 @@ def queryWithHashGenProg (d : DictParams × ((ℕ × ℕ) × ℕ)) : Memory.Prog
 `b = (h_q &&& (2 ^ b_bits - 1)) ^^^ (u &&& (2 ^ b_bits - 1))`, `q = u >>> b_bits`, and
 `m = h_q >>> b_bits`, then runs `queryBodyProg`. -/
 @[expose]
-def queryWithHashProg (U V w₀ n_max : ℕ) (d : (ℕ × ℕ) × ℕ) : Memory.Prog (Option ℕ) := do
-  let b_bits ← pure (bucketBits n_max)
-  let b_mask ← pure (2 ^ bucketBits n_max - 1)
-  let u_low ← pure (d.1.2 &&& b_mask)
-  let h_low ← pure (d.2 &&& b_mask)
-  let b ← pure (h_low ^^^ u_low)
-  let q ← pure (d.1.2 >>> b_bits)
-  let m ← pure (d.2 >>> b_bits)
-  queryBodyProg U V w₀ n_max (hashSpace U w₀ n_max) (((d.1.1, b), q), m)
+def queryWithHashProg (U V w₀ n_max : ℕ) (d : (ℕ × ℕ) × ℕ) : Memory.Prog (Option ℕ) :=
+  queryWithHashGenProg (mkDictParams U V w₀ n_max (hashSpace U w₀ n_max), d)
 
 @[simp]
 theorem queryWithHashGenProg_mk (U V w₀ n_max : ℕ) (d : (ℕ × ℕ) × ℕ) :
     queryWithHashGenProg (mkDictParams U V w₀ n_max (hashSpace U w₀ n_max), d) =
       queryWithHashProg U V w₀ n_max d := by
-  simp only [queryWithHashGenProg, queryWithHashProg, p_bucketBits_mk, p_bucketMask_mk,
-    queryBodyGenProg_mk]
+  rfl
 
 /-- Precondition for `queryWithHashProg` in `Realizes`. -/
 @[expose]
@@ -823,12 +809,20 @@ theorem realizes_queryWithHashGen :
       (Nat.le_sub_one_of_lt (feistelBucket_lt (bucketBits n_max) (fun _ => d.2) d.1.2))
   · exact h.2.2.2
 
+section
+
+attribute [local irreducible] mkDictParams
+
 theorem validProg_queryWithHash {U V w n_max : ℕ}
     {d : (ℕ × ℕ) × ℕ} {s : Memory.State}
     (hpre : QueryWithHashPre U V w n_max w d s) :
     ValidProg w (dictFrontier U V w n_max (hashSpace U w n_max) d.1.1) s
       (queryWithHashProg U V w n_max d) := by
+  simp only [queryWithHashProg, queryWithHashGenProg, p_bucketBits_mk,
+    p_bucketMask_mk, pure_bind, queryBodyGenProg_mk]
   exact validProg_queryBody hpre.1.1 hpre.2.2.2
+
+end
 
 /-- Parameter-free Feistel-dispatched `insert` in `Memory.Prog`
 (`d = (dp, (((base, u), v_new), h_q))`). -/
@@ -845,22 +839,14 @@ def insertWithHashGenProg (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : M
 
 /-- Feistel-dispatched `insert` in `Memory.Prog` (`d = (((base, u), v_new), h_q)`). -/
 @[expose]
-def insertWithHashProg (U V w₀ n_max : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog Unit := do
-  let b_bits ← pure (bucketBits n_max)
-  let b_mask ← pure (2 ^ bucketBits n_max - 1)
-  let u_low ← pure (d.1.1.2 &&& b_mask)
-  let h_low ← pure (d.2 &&& b_mask)
-  let b ← pure (h_low ^^^ u_low)
-  let q ← pure (d.1.1.2 >>> b_bits)
-  let m ← pure (d.2 >>> b_bits)
-  insertBodyProg U V w₀ n_max (hashSpace U w₀ n_max) ((((d.1.1.1, b), q), d.1.2), m)
+def insertWithHashProg (U V w₀ n_max : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog Unit :=
+  insertWithHashGenProg (mkDictParams U V w₀ n_max (hashSpace U w₀ n_max), d)
 
 @[simp]
 theorem insertWithHashGenProg_mk (U V w₀ n_max : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) :
     insertWithHashGenProg (mkDictParams U V w₀ n_max (hashSpace U w₀ n_max), d) =
       insertWithHashProg U V w₀ n_max d := by
-  simp only [insertWithHashGenProg, insertWithHashProg, p_bucketBits_mk, p_bucketMask_mk,
-    insertBodyGenProg_mk]
+  rfl
 
 /-- Precondition for `insertWithHashProg` in `Realizes`. -/
 @[expose]
@@ -909,12 +895,20 @@ theorem realizes_insertWithHashGen :
       (Nat.le_sub_one_of_lt (feistelBucket_lt (bucketBits n_max) (fun _ => d.2) d.1.1.2))
   · exact h.2.2.2
 
+section
+
+attribute [local irreducible] mkDictParams
+
 theorem validProg_insertWithHash {U V w n_max : ℕ}
     {d : ((ℕ × ℕ) × ℕ) × ℕ} {s : Memory.State}
     (hpre : InsertWithHashPre U V w n_max w d s) :
     ValidProg w (dictFrontier U V w n_max (hashSpace U w n_max) d.1.1.1) s
       (insertWithHashProg U V w n_max d) := by
+  simp only [insertWithHashProg, insertWithHashGenProg, p_bucketBits_mk,
+    p_bucketMask_mk, pure_bind, insertBodyGenProg_mk]
   exact validProg_insertBody hpre.1.1 hpre.1.2.1 hpre.1.2.2.1 hpre.1.2.2.2 hpre.2.2.2
+
+end
 
 /-- Parameter-free Phase 1 of Feistel-dispatched `delete` in `Memory.Prog`
 (`d = (dp, ((base, u), h_q))`). -/
@@ -934,22 +928,14 @@ def deletePrepWithHashGenProg (d : DictParams × ((ℕ × ℕ) × ℕ)) :
 computes `(b, q, m)` from `(u, h_q)` and runs `deletePrepProg`. -/
 @[expose]
 def deletePrepWithHashProg (U V w₀ n_max : ℕ) (d : (ℕ × ℕ) × ℕ) :
-    Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) := do
-  let b_bits ← pure (bucketBits n_max)
-  let b_mask ← pure (2 ^ bucketBits n_max - 1)
-  let u_low ← pure (d.1.2 &&& b_mask)
-  let h_low ← pure (d.2 &&& b_mask)
-  let b ← pure (h_low ^^^ u_low)
-  let q ← pure (d.1.2 >>> b_bits)
-  let m ← pure (d.2 >>> b_bits)
-  deletePrepProg U V w₀ n_max (hashSpace U w₀ n_max) (((d.1.1, b), q), m)
+    Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) :=
+  deletePrepWithHashGenProg (mkDictParams U V w₀ n_max (hashSpace U w₀ n_max), d)
 
 @[simp]
 theorem deletePrepWithHashGenProg_mk (U V w₀ n_max : ℕ) (d : (ℕ × ℕ) × ℕ) :
     deletePrepWithHashGenProg (mkDictParams U V w₀ n_max (hashSpace U w₀ n_max), d) =
       deletePrepWithHashProg U V w₀ n_max d := by
-  simp only [deletePrepWithHashGenProg, deletePrepWithHashProg, p_bucketBits_mk, p_bucketMask_mk,
-    deletePrepGenProg_mk]
+  rfl
 
 /-- Parameter-free `Realizes .exact` certificate for `deletePrepWithHashGenProg`. -/
 theorem realizes_deletePrepWithHashGen :
@@ -971,12 +957,20 @@ theorem realizes_deletePrepWithHashGen :
       (Nat.le_sub_one_of_lt (feistelBucket_lt (bucketBits n_max) (fun _ => d.2) d.1.2))
   · exact h.2.2.2
 
+section
+
+attribute [local irreducible] mkDictParams
+
 theorem validProg_deletePrepWithHash {U V w n_max : ℕ}
     {d : (ℕ × ℕ) × ℕ} {s : Memory.State}
     (hpre : QueryWithHashPre U V w n_max w d s) :
     ValidProg w (dictFrontier U V w n_max (hashSpace U w n_max) d.1.1) s
       (deletePrepWithHashProg U V w n_max d) := by
+  simp only [deletePrepWithHashProg, deletePrepWithHashGenProg, p_bucketBits_mk,
+    p_bucketMask_mk, pure_bind, deletePrepGenProg_mk]
   exact validProg_deletePrep hpre.1.1 hpre.2.2.2
+
+end
 
 /-- Parameter-free Phase 2 of Feistel-dispatched `delete` in `Memory.Prog`
 (`d = (dp, ((((base, u), h_q), ((found, j_del), phys_del)), h_q_last))`). -/
@@ -999,24 +993,15 @@ computes `(b, m)` from `(u, h_q)` and `m_last = h_q_last >>> bucketBits n_max`, 
 `deleteFinishProg`. -/
 @[expose]
 def deleteFinishWithHashProg (U V w₀ n_max : ℕ)
-    (d : (((ℕ × ℕ) × ℕ) × ((ℕ × ℕ) × ℕ)) × ℕ) : Memory.Prog Unit := do
-  let b_bits ← pure (bucketBits n_max)
-  let b_mask ← pure (2 ^ bucketBits n_max - 1)
-  let u_low ← pure (d.1.1.1.2 &&& b_mask)
-  let h_low ← pure (d.1.1.2 &&& b_mask)
-  let b ← pure (h_low ^^^ u_low)
-  let m ← pure (d.1.1.2 >>> b_bits)
-  let m_last ← pure (d.2 >>> b_bits)
-  deleteFinishProg U V w₀ n_max (hashSpace U w₀ n_max)
-    (((((d.1.1.1.1, b), d.1.2.1), d.1.2.2), m), m_last)
+    (d : (((ℕ × ℕ) × ℕ) × ((ℕ × ℕ) × ℕ)) × ℕ) : Memory.Prog Unit :=
+  deleteFinishWithHashGenProg (mkDictParams U V w₀ n_max (hashSpace U w₀ n_max), d)
 
 @[simp]
 theorem deleteFinishWithHashGenProg_mk (U V w₀ n_max : ℕ)
     (d : (((ℕ × ℕ) × ℕ) × ((ℕ × ℕ) × ℕ)) × ℕ) :
     deleteFinishWithHashGenProg (mkDictParams U V w₀ n_max (hashSpace U w₀ n_max), d) =
       deleteFinishWithHashProg U V w₀ n_max d := by
-  simp only [deleteFinishWithHashGenProg, deleteFinishWithHashProg, p_bucketBits_mk,
-    p_bucketMask_mk, deleteFinishGenProg_mk]
+  rfl
 
 /-- Precondition for `deleteFinishWithHashProg` in `Realizes`. -/
 @[expose]
@@ -1070,12 +1055,25 @@ theorem realizes_deleteFinishWithHashGen :
       (Nat.le_sub_one_of_lt (feistelBucket_lt (bucketBits n_max) (fun _ => d.1.1.2) d.1.1.1.2))
   · exact h.2.2.2
 
+section
+
+attribute [local irreducible] mkDictParams
+
 theorem validProg_deleteFinishWithHash {U V w n_max : ℕ}
     {d : (((ℕ × ℕ) × ℕ) × ((ℕ × ℕ) × ℕ)) × ℕ} {s : Memory.State}
     (hpre : DeleteFinishWithHashPre U V w n_max w d s) :
     ValidProg w (dictFrontier U V w n_max (hashSpace U w n_max) d.1.1.1.1) s
       (deleteFinishWithHashProg U V w n_max d) := by
+  simp only [deleteFinishWithHashProg, deleteFinishWithHashGenProg, p_bucketBits_mk,
+    p_bucketMask_mk, pure_bind, deleteFinishGenProg_mk]
   exact validProg_deleteFinish hpre.1.1 hpre.1.2.1 hpre.1.2.2.1 hpre.1.2.2.2 hpre.2.2.2
+
+end
+
+section
+
+-- Keep the packed layout abstract when comparing dispatched programs and execution states.
+attribute [local irreducible] mkDictParams
 
 /-! ## Section 5: Dictionary-level `DictStateInv` + `probeExcess` transition specifications -/
 
@@ -1088,19 +1086,19 @@ private theorem dispatch_spec {U V w₀ n_max w base : ℕ}
     (henv : DictEnvGen w (mkDictParams U V w₀ n_max (hashSpace U w₀ n_max)) base)
     (θ : QuotHashSeed U n_max) {s_abs : Dictionary.State U} {s : Memory.State}
     (hinv : DictStateInv U V w₀ n_max base θ s_abs s) (u : Fin U) :
-    let h_q := hValOfSeed U n_max θ (keyQuotient (bucketBits n_max) u.val)
-    (h_q &&& (2 ^ bucketBits n_max - 1)) ^^^ (u.val &&& (2 ^ bucketBits n_max - 1)) =
-        feistelBucket (bucketBits n_max) (hValOfSeed U n_max θ) u.val ∧
-      u.val >>> bucketBits n_max = keyQuotient (bucketBits n_max) u.val ∧
-      h_q >>> bucketBits n_max = mOfSeed U n_max θ (keyQuotient (bucketBits n_max) u.val) ∧
-      feistelBucket (bucketBits n_max) (hValOfSeed U n_max θ) u.val < numBuckets n_max ∧
-      mOfSeed U n_max θ (keyQuotient (bucketBits n_max) u.val) < numMicroPerBucket n_max ∧
+    let q := keyQuotient (bucketBits n_max) u.val
+    let h_q := hValOfSeed U n_max θ q
+    let b := feistelBucket (bucketBits n_max) (hValOfSeed U n_max θ) u.val
+    let m := mOfSeed U n_max θ q
+    (h_q &&& (2 ^ bucketBits n_max - 1)) ^^^ (u.val &&& (2 ^ bucketBits n_max - 1)) = b ∧
+      u.val >>> bucketBits n_max = q ∧ h_q >>> bucketBits n_max = m ∧
+      b < numBuckets n_max ∧ m < numMicroPerBucket n_max ∧
       QueryWithHashPre U V w₀ n_max w ((base, u.val), h_q) s := by
-  intro h_q
+  intro q h_q b m
   obtain ⟨L, hb_inv⟩ := hinv.hbucket
   have hb_eq := and_mask_xor_eq_feistelBucket (bucketBits n_max) u.val h_q
   have hb_lt := feistelBucket_lt (bucketBits n_max) (hValOfSeed U n_max θ) u.val
-  have hm_lt := mOfSeed_lt U n_max θ (keyQuotient (bucketBits n_max) u.val)
+  have hm_lt := mOfSeed_lt U n_max θ q
   refine ⟨hb_eq, Nat.shiftRight_eq_div_pow u.val (bucketBits n_max), rfl, hb_lt, hm_lt, hwf,
     u.isLt, hValOfSeed_lt U n_max θ _, ?_⟩
   dsimp only
@@ -1131,9 +1129,8 @@ theorem queryWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
   let m := mOfSeed U n_max θ q
   obtain ⟨hb_eq, hq_eq, hm_eq, hb_lt, hm_lt, hpre⟩ := dispatch_spec (w := w) hwf henv θ hinv u
   have hprog_eq : prog = queryBodyProg U V w₀ n_max (hashSpace U w₀ n_max) (((base, b), q), m) := by
-    change queryBodyProg U V w₀ n_max (hashSpace U w₀ n_max)
-      (((base, (h_q &&& (2 ^ bucketBits n_max - 1)) ^^^ (u.val &&& (2 ^ bucketBits n_max - 1))),
-        u.val >>> bucketBits n_max), h_q >>> bucketBits n_max) = _
+    dsimp only [prog, d, queryWithHashProg, queryWithHashGenProg]
+    simp only [p_bucketBits_mk, p_bucketMask_mk, pure_bind, queryBodyGenProg_mk]
     rw [hb_eq, hq_eq, hm_eq]
   have hspec := queryBodyProg_bucket_spec hb_inv henv hb_lt (q_target := q) (m := m) rfl hm_lt
   have hprobe := (chain_and_overflow_le_probeExcess θ hb_inv u).2.2
@@ -1190,9 +1187,8 @@ theorem insertWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
     ⟨hwf, hu, hh_q, hsearch, hq_eq.trans_lt hq_lt, hv_lt⟩
   have hprog_eq : prog =
       insertBodyProg U V w₀ n_max (hashSpace U w₀ n_max) ((((base, b), q), v), m) := by
-    change insertBodyProg U V w₀ n_max (hashSpace U w₀ n_max)
-      ((((base, (h_q &&& (2 ^ bucketBits n_max - 1)) ^^^ (u.val &&& (2 ^ bucketBits n_max - 1))),
-        u.val >>> bucketBits n_max), v), h_q >>> bucketBits n_max) = _
+    dsimp only [prog, d, insertWithHashProg, insertWithHashGenProg]
+    simp only [p_bucketBits_mk, p_bucketMask_mk, pure_bind, insertBodyGenProg_mk]
     rw [hb_eq, hq_eq, hm_eq]
   have hs'_eq : s' = (Memory.spec 0).clientState s
       (insertBodyProg U V w₀ n_max (hashSpace U w₀ n_max) ((((base, b), q), v), m)) :=
@@ -1277,9 +1273,8 @@ theorem deleteWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
   obtain ⟨hb_eq, hq_eq, hm_eq, hb_lt, hm_lt, hpre_prep⟩ := dispatch_spec (w := w) hwf henv θ hinv u
   have hprep_eq : prog_prep =
       deletePrepProg U V w₀ n_max (hashSpace U w₀ n_max) (((base, b), q), m) := by
-    change deletePrepProg U V w₀ n_max (hashSpace U w₀ n_max)
-      (((base, (h_q &&& (2 ^ bucketBits n_max - 1)) ^^^ (u.val &&& (2 ^ bucketBits n_max - 1))),
-        u.val >>> bucketBits n_max), h_q >>> bucketBits n_max) = _
+    dsimp only [prog_prep, d_prep, deletePrepWithHashProg, deletePrepWithHashGenProg]
+    simp only [p_bucketBits_mk, p_bucketMask_mk, pure_bind, deletePrepGenProg_mk]
     rw [hb_eq, hq_eq, hm_eq]
   have hprep_spec := deletePrepProg_bucket_spec hb_inv henv hb_lt (q_target := q) (m := m) rfl hm_lt
   have hfin_spec := deleteFinishProg_bucket_spec hwf.1 hb_inv henv hb_lt (q_target := q) (m := m)
@@ -1295,9 +1290,8 @@ theorem deleteWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
   have hfin_eq : prog_fin =
       deleteFinishProg U V w₀ n_max (hashSpace U w₀ n_max)
         (((((base, b), (found, j_del)), phys_del), m), mOfSeed U n_max θ q_last) := by
-    change deleteFinishProg U V w₀ n_max (hashSpace U w₀ n_max)
-      (((((base, (h_q &&& (2 ^ bucketBits n_max - 1)) ^^^ (u.val &&& (2 ^ bucketBits n_max - 1))),
-        (found, j_del)), phys_del), h_q >>> bucketBits n_max), h_q_last >>> bucketBits n_max) = _
+    dsimp only [prog_fin, d_fin, deleteFinishWithHashProg, deleteFinishWithHashGenProg]
+    simp only [p_bucketBits_mk, p_bucketMask_mk, pure_bind, deleteFinishGenProg_mk]
     rw [hb_eq, hm_eq]
     rfl
   obtain ⟨hpre_fin_inner, hf, hout, ⟨L', hinv'⟩, htot', hcost_fin⟩ := hfin_spec
@@ -1346,5 +1340,7 @@ theorem deleteWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
   · rw [hcost_prep_eq, hcost_fin_eq, hgm'_eq]
     dsimp only [b, q, m, h1, gm₀] at hcost_prep hcost_fin hprobe ⊢
     omega
+
+end
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct

@@ -11,6 +11,8 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Zer
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Prepare
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Control
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Dispatch
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual positive-depth Strassen entry
@@ -65,18 +67,11 @@ theorem exec_stage_zero {w p k A B a b out scratch frames frame : ℕ}
   have houtside (d : ℕ) (hd : d < out ∨ out + 4 ^ (k + 1) * p ≤ d) : s.mem d = x.mem d := by
     rw [hm, hx.output_eq, hx.size_eq]
     exact WordRAM.clear_of_not_owns (by simp only [Block.Owns]; omega)
+  obtain ⟨hleft', hright'⟩ := hl.inputs_of_outside houtside
   obtain ⟨y, hy, ready, leftValues, rightValues, parentPhase, memory⟩ := exec_prepareChild 0
     s u v sh sc hl hu hv
-    (by
-      intro i hi
-      rw [houtside _ ?_]
-      · exact hleft i hi
-      · rcases hl.left_disjoint with h | h <;> omega)
-    (by
-      intro i hi
-      rw [houtside _ ?_]
-      · exact hright i hi
-      · rcases hl.right_disjoint with h | h <;> omega)
+    (fun i hi => (hleft' i hi).trans (hleft i hi))
+    (fun i hi => (hright' i hi).trans (hright i hi))
     hmag haddr
   refine ⟨y, (he.seq hy).mono (by rw [hx.size_eq, hsize]; omega), ready,
     leftValues, rightValues, ?_, parentPhase, ?_⟩
@@ -110,14 +105,17 @@ theorem exec_step_entry {w p k A B a b out scratch frames frame : ℕ}
       ∀ d, (d < out ∨ out + 4 ^ (k + 1) * p ≤ d) →
         (d < scratch ∨ scratch + 2 * (4 ^ k * p) ≤ d) →
         (d < frame + 6 ∨ frame + 14 ≤ d) → y.mem d = x.mem d := by
-  obtain ⟨s, hs, sm, sr⟩ := exec_loadCurrent x hx.one_eq
+  refine WP.exists_execWithin ?_
+  unfold step
+  refine WP.seq (WP.of_spec (exec_loadCurrent x hx.one_eq
     (by rw [hx.frame_eq]; exact haddr.of_le (by unfold addressBound; omega))
-    (by simpa only [hx.frame_eq] using hx.frame_words)
+    (by simpa only [hx.frame_eq] using hx.frame_words)) ?_)
+  rintro s ⟨sm, sr⟩
   have sh : NodeHeader p (k + 1) a b out scratch frames frame s :=
     hx.toNodeHeader.of_regs_eq_cursors (fun i hi _ => sr i hi)
-  obtain ⟨r, hr, rh, rc, rm, rr⟩ := exec_locateChild_header s sh hl haddr
-  have rphase : r.regs Reg.phase = 0 :=
-    (rr Reg.phase (by decide)).trans ((sr Reg.phase (by decide)).trans hx.phase_eq)
+  wram_exec [sh.depth_eq, sh.zero_eq]
+  wram_call (exec_locateChild_header s sh hl haddr) with r ⟨rh, rc, rm, rr⟩
+  have rphase : r.regs Reg.phase = 0 := by regs_frame
   obtain ⟨y, hy, ready, valuesA, valuesB, zeros, parentPhase, memory⟩ :=
     exec_stage_zero r u v rh rc hl hu hv
       (by simpa only [rm, sm] using hleft) (by simpa only [rm, sm] using hright) hmag haddr
@@ -125,15 +123,8 @@ theorem exec_step_entry {w p k A B a b out scratch frames frame : ℕ}
     exec_dispatch 0 r y rh.zero_eq rphase
       (haddr.of_le (by unfold addressBound; omega))
       (by simpa [dispatchState] using hy)
-  have hc : ¬(Cond.eq Reg.depth Reg.zero).Holds s := by
-    simp only [Cond.holds_eq, sh.depth_eq, sh.zero_eq]
-    omega
-  have he : ExecWithin (w + 2) step x y (68 * (4 ^ k * p) + 77) :=
-    (hs.seq (ExecWithin.branch_neg hc (hr.seq hd))).mono (by
-      norm_num [dispatchBudget]
-      omega)
-  refine ⟨y, he, ready, valuesA, valuesB, zeros, parentPhase, ?_⟩
-  intro d hd hds hdf
-  simpa only [rm, sm] using memory d hd hds hdf
+  refine WP.of_execWithin hd ⟨by norm_num [dispatchBudget], ready, valuesA, valuesB,
+    zeros, parentPhase, fun d hd' hds hdf => ?_⟩
+  simpa only [rm, sm] using memory d hd' hds hdf
 
 end Cslib.Algorithms.WordRAM.Strassen

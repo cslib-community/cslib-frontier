@@ -168,12 +168,8 @@ theorem conditionalTableMean_change_terminal {πa πb : ℝ} (hπb : 0 < πb)
         (fun σ x y => (πa / πb) * D σ x y) x y =
       conditionalTableMean (fun (σ : Γ × Υ) x => X σ.1 x)
         (fun (σ : Γ × Υ) y => Yb σ.2 y) D x y := by
-  have hT : ({τ | Yb τ y} : Finset Υ).Nonempty := by
-    apply dens_ne_zero.mp
-    intro hz
-    have hpos : (0 : ℝ) < dens {τ | Yb τ y} := by rw [hYbπ]; exact hπb
-    rw [hz] at hpos
-    norm_num at hpos
+  have hT : ({τ | Yb τ y} : Finset Υ).Nonempty :=
+    dens_pos.mp (by exact_mod_cast hπb.trans_eq (hYbπ y).symm)
   have hTS : ({τ | Yb τ y} : Finset Υ) ⊆ ({τ | Ya τ y} : Finset Υ) := by grind
   rw [conditionalTableMean_two_product, conditionalTableMean_two_product,
     expect_product, expect_product]
@@ -373,7 +369,7 @@ theorem rowNormPow_fineProductMean_le {Γ Υ : Type*} [Fintype Γ] [Fintype Υ]
       rowNormPow_fineMean_le X Ya Yb hs hNu (by positivity) hπa hπb hYaπ hYbπ hsub E hEsupport
     _ ≤ ((f / πf) ^ s * (Ca / cb) * (b / a) ^ (s - 1)) *
         rowNormPow s N u (fun σ x => X σ.1 x) (fun σ y => Yb σ.2 y) E :=
-      mul_le_mul_of_nonneg_right hscale (rowNormPow_nonneg hNu E)
+      mul_le_mul_of_nonneg_right hscale (by positivity)
     _ ≤ _ := mul_le_mul_of_nonneg_left
       (rowNormPow_product_sub_le hs hN hu hf hCF hCB hF hF' hB hB' hFbound hF'bound
         hBbound hB'bound hleft hleft' hrow hcol) (by positivity)

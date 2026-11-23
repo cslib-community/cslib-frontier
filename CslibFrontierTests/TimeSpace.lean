@@ -34,7 +34,7 @@ example : oddOnes [true, false, true, true] = true ∧ oddOnes [true, true] = fa
 /-- Parity is decided in linear time and constant work space simultaneously. -/
 theorem oddOnes_mem_TISP : {w | oddOnes w = true} ∈ TISP encBits id fun _ => 0 :=
   setOf_mem_TISP_of_computableInO
-    (ComputableTidilyInO.foldl_bits_finite encBool (fun b x => b ^^ x) false).computableInO
+    (ComputableInO.foldl_bits_finite encBool (fun b x => b ^^ x) false)
     (fun _ => le_rfl) fun _ => le_rfl
 
 example : {w | oddOnes w = true} ∈ DTIME encBits id := TISP_subset_DTIME oddOnes_mem_TISP
@@ -76,7 +76,7 @@ gives `Σ₂TIME((n + 1) ^ 2) ⊆ NTIME((n + 1) ^ 4)`. -/
 example (hN : NTIME encBits id ⊆ DTIME encBits fun m => (m + 1) ^ 2) :
     SigmaTwoTIME encBits (fun n => (n + 1) ^ 2) ⊆ NTIME encBits (fun n => (n + 1) ^ 4) :=
   SigmaTwoTIME_succ_pow_subset_NTIME_succ_pow (p := 2) (q := 1) (C := 1) hN
-    (fun m => by simp) (by omega) le_rfl (by omega) (by omega)
+    (fun m => by simp) (by omega) (by omega) (by omega) (by omega)
 
 /-- The Arora–Barak instance of the speedup on parity: from `TISP(n¹², n²)` to `Σ₂TIME(n⁸)`. -/
 example : {w | oddOnes w = true} ∈ SigmaTwoTIME encBits (fun n => (n + 1) ^ 8) :=

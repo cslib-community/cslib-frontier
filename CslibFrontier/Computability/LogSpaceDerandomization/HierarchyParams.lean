@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.LogSpaceDerandomization.DetectedStage
+public import CslibFrontier.Tactic.PositivityLemma
 import Mathlib.Algebra.Order.Floor.Semiring
 
 /-!
@@ -60,6 +61,8 @@ hypotheses are those on the input matrix and the channel interface.
 * `Matrix.HierarchyParams.stage_rates`: one stage satisfies the per-stage rates.
 * `Matrix.HierarchyParams.next_isStrictUpperTriangular`, `Matrix.HierarchyParams.next_nonneg`,
   `Matrix.HierarchyParams.next_mulVec_one_le`: the next stage is again a valid input.
+* `Matrix.HierarchyParams.residual_nonneg`, `Matrix.HierarchyParams.residual_le_mul`,
+  `Matrix.HierarchyParams.residual_sum_le_one`: entry and row-mass bounds on the residual.
 
 ## References
 
@@ -155,6 +158,8 @@ structure HierarchyParams (q cπ Cπ Cpair Cvar : ℝ) where
   R_var : 40 * Cvar ≤ cπ * R
 
 namespace HierarchyParams
+
+attribute [positivity_lemma] Q_nonneg θ_pos η_pos γ_nonneg
 
 variable {q cπ Cπ Cpair Cvar : ℝ}
 
@@ -319,6 +324,10 @@ theorem weight_eq : P.weight X Y f C = detectorWeight P.κ (P.pilot X Y f C) := 
 noncomputable def next : Matrix (Lex (V × Fin (P.m + 1))) (Lex (V × Fin (P.m + 1))) ℝ :=
   (copyStage (P.copyCutoff f) P.m (P.weight X Y f C) (P.residual X Y f C)).submatrix ofLex ofLex
 
+theorem next_eq : P.next X Y f C =
+    (copyStage (P.copyCutoff f) P.m (P.weight X Y f C) (P.residual X Y f C)).submatrix
+      ofLex ofLex := by rfl
+
 /-- **The projection** `P_r` from the copies to their parents, weighted by the copy weights. -/
 noncomputable def proj [DecidableEq V] : Matrix (Lex (V × Fin (P.m + 1))) V ℝ :=
   (copyWeight (P.weight X Y f C)).submatrix ofLex id
@@ -369,8 +378,6 @@ private theorem phi_le (hf : 0 < f) (y : V) (t : ℝ) :
 private theorem phi_mono (hf : 0 < f) (y : V) :
     Monotone fun t => P.cutoff f t * P.γ (P.pilot X Y f C y) :=
   (P.cutoff_mono hf).mul_const (P.γ_nonneg _)
-
-private theorem θf_nonneg (hf : 0 < f) : 0 ≤ P.θ * f := by have := P.θ_pos; positivity
 
 /-- **One stage with the bundled constants** [OpenAI2026LogSpace, Proposition 4.5]: at rate
 `f > 0`, for retention channels with the bundled constants and an input `C` that is strictly
@@ -428,13 +435,29 @@ theorem next_isStrictUpperTriangular [LinearOrder V] (hf : 0 < f)
   exact copyStage_isStrictUpperTriangular <|
     cutoffCorrection_residual_isStrictUpperTriangular
       (φ := fun y t => P.cutoff f t * P.γ (P.pilot X Y f C y)) (P.phi_nonneg hf) (P.phi_le hf)
-      (P.θf_nonneg hf) hC P.k
+      (by positivity) hC P.k
 
 theorem residual_nonneg (hf : 0 < f) (hC0 : ∀ x y, 0 ≤ C x y) (x y : V) :
     0 ≤ P.residual X Y f C x y := by
   unfold residual correction
   exact cutoffCorrection_residual_nonneg (φ := fun y t => P.cutoff f t * P.γ (P.pilot X Y f C y))
-    hC0 (P.phi_nonneg hf) (P.phi_le hf) (P.phi_mono hf) (P.θf_nonneg hf) P.k x y
+    hC0 (P.phi_nonneg hf) (P.phi_le hf) (P.phi_mono hf) (by positivity) P.k x y
+
+variable (X Y) in
+/-- Public application bound for the actual residual, from the finite correction sequence. -/
+theorem residual_le_mul (hf : 0 < f) (hC : ∀ x y, 0 ≤ C x y)
+    (hCf : ∀ x y, C x y ≤ f) (hC1 : C *ᵥ 1 ≤ 1) (x y : V) :
+    P.residual X Y f C x y ≤ ((P.k : ℝ) + 1) * f := by
+  exact cutoffCorrection_residual_le_mul hC (P.phi_nonneg hf) (P.phi_le hf)
+    (by positivity) hCf hf.le hC1 P.k x y
+
+variable (X Y) in
+/-- Actual residual row mass is at most one, directly from correction nonnegativity. -/
+theorem residual_sum_le_one (hf : 0 < f)
+    (hC1 : C *ᵥ 1 ≤ 1) (x : V) : ∑ y, P.residual X Y f C x y ≤ 1 := by
+  have hE := cutoffCorrectionIter_nonneg (C := C) (P.phi_nonneg (X := X) (Y := Y) (C := C) hf) P.k
+  have hm := (correction_mulVec_one_le hE hC1 x).trans (hC1 x)
+  simpa only [residual, correction, mulVec, dotProduct, Pi.one_apply, mul_one] using hm
 
 theorem weight_nonneg (j : Fin (P.m + 1)) (x : V) : 0 ≤ P.weight X Y f C j x := by
   unfold weight detectorWeight; split_ifs

@@ -8,7 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pi
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunProp
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
+public import Mathlib.Tactic.FunProp
 
 /-!
 # Parameterized resource bounds for finite tuples
@@ -33,7 +34,7 @@ The finite-family construction follows CslibFrontier/PolyTime/Pi.lean, which cre
 cslib `crypto` branch at `5ff69ca93402e7c947208dc56396d6d86203ccd8`.
 -/
 
-@[expose] public section
+public section
 
 namespace Turing.MultiTapeTM.ComputableInO
 

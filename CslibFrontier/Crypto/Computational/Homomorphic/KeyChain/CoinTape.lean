@@ -13,7 +13,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Languages.Probabilistic.Norm
-import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.BitString.UniformSplit
 
 /-!
 # Saved tapes for encrypted key links
@@ -47,8 +47,10 @@ one `capacity * encCoins`-bit row, including repeated keys and repeated plaintex
     (n encCoins capacity : ℕ) (zero : Bool) (keys : List (List Bool × List Bool))
     (tape : List Bool) : List (List (List Bool)) :=
   List.zipWith (fun adjacent row =>
-    let bits := if zero then List.replicate adjacent.1.2.length false else adjacent.1.2
-    encryptBitsCoins evaluate n encCoins adjacent.2.1 bits (row.take (bits.length * encCoins)))
+    let prev := adjacent.1
+    let next := adjacent.2
+    let bits := if zero then List.replicate prev.2.length false else prev.2
+    encryptBitsCoins evaluate n encCoins next.1 bits (row.take (bits.length * encCoins)))
     (keys.zip keys.tail) (BitString.listRows (keys.zip keys.tail).length (capacity * encCoins) tape)
 
 /-- Every surrounding link uses an independent padded row. Component laws are required only
@@ -154,26 +156,11 @@ theorem eval_spliceEncryptedKeyLink_eq_map_coins (E : Scheme)
         before.length * capacity + (capacity - 1) + after.length * capacity := by omega
     rw [hsub]
     ring
-  let front := encryptKeyLinksCoins evaluate n encCoins capacity false (before ++ [predecessor])
-  let middle := fun row : List Bool => spliceEncryptedBitCoins evaluate n encCoins next.1 cut
-    (predecessor.2.drop (cut + 1)) challenge
-    (row.take ((cut + (predecessor.2.drop (cut + 1)).length) * encCoins))
-  let back := encryptKeyLinksCoins evaluate n encCoins capacity true (next :: after)
-  rw [hsize, PMF.map]
-  change _ = (BitString.uniformList (before.length * (capacity * encCoins) +
-    ((capacity - 1) * encCoins + after.length * (capacity * encCoins)))).bind (fun tape =>
-      PMF.pure (front (tape.take (before.length * (capacity * encCoins))) ++
-        middle ((tape.drop (before.length * (capacity * encCoins))).take
-          ((capacity - 1) * encCoins)) ::
-        back ((tape.drop (before.length * (capacity * encCoins))).drop
-          ((capacity - 1) * encCoins))))
-  rw [BitString.uniformList_bind_split _ _ (fun first rest => PMF.pure
-    (front first ++ middle (rest.take ((capacity - 1) * encCoins)) ::
-      back (rest.drop ((capacity - 1) * encCoins))))]
   simp only [pmf_norm, spliceEncryptedKeyLink, hfront, hmiddle, hback]
-  congr 1 with first : 1
-  rw [BitString.uniformList_bind_split _ _ (fun second third =>
-    PMF.pure (front first ++ middle second :: back third))]
+  rw [hsize]
+  unfold spliceEncryptedKeyLinkCoins
+  simpa only [PMF.map, Function.comp_def] using
+    (BitString.uniformList_map_split3 _ _ _ _).symm
 
 /-- Real and zero link replay is native polynomial time in the keys, tape, unary capacity,
 and unary per-encryption seed budget. -/

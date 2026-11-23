@@ -11,10 +11,18 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Su
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Cases
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Bounds
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunProp
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
+public meta import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeLifts
 public meta import Lean.Elab.Command
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.RecursiveParser
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Partial
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.RecursiveChild
+public meta import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.InductiveRecursive
 
 /-!
-# Encodings of non-recursive inductive types
+# Encodings of inductive types
 
 `enc_inductive eT : T where | c₁ : e₁₁, e₁₂ | c₂ | …` declares the encoding of an inductive type
 whose constructors take explicit, non-recursive fields. A value is mapped to a right-nested sum
@@ -28,24 +36,81 @@ The command declares:
 * `eTPayload`, the encoding of the sum, and `eT_toSum`, the map from `T` to the sum;
 * `eT`, the encoding of `T`, and `eT_apply`, unfolding `eT x` to `eTPayload (eT_toSum x)`;
 * `eT_toSum_deg`, the linear map to the sum;
-* for each constructor `c`, the rule `eT_c_inO`, which adds up the bounds of its arguments;
+* for each constructor `c`, the rule `eT_c_inO`, which adds up the bounds of its arguments,
+  `eT_c_inSpace`, retaining their independent workspace bounds, and `eT_c_polyTime`;
 * `eT_elim`, case analysis by constructor on the payloads, and its rule `eT_elim_inO`, which
-  charges only the case taken.
+  charges only the case taken, together with `eT_elim_inSpace` at the same workspace bound
+  and `eT_elim_polyTime`;
+* for each constructor `c`, `eT_c_matches`, `eT_c_payload?`, and `eT_c_fieldJ?` for each
+  zero-based field index `J`, with `_deg`, `_inO`, `_inSpace` and `_polyTime` certificates.
+  Matchers have cost degree one and output degree zero; projections have degrees one/one.
+* `eT_c_matches_iff` characterizes the constructor range; `eT_c_payload?_eq_some_iff`
+  reconstructs the constructor from its payload, and `eT_c_payload?_range` characterizes
+  payload existence. These public facts apply to unknown input values without unfolding matches.
+
+The generated matcher and projection definitions retain the encoding/constructor prefix naming
+convention above, with a declaration-specific `defsWithUnderscore` exemption.
 
 The `toSum` and constructor rules are `scoped` `fun_prop` rules, as for `enc_structure`. The case
 rule is stated for an input paired with the value, as `ComputableInO.sumElimSnd` is.
 
-The command does not inspect the declaration for recursion, and it derives no recursive
-encodings: each field encoding must already be available as an ordinary term, and the generated
-certificates are relative to those encodings. A recursive field is accepted only when such an
-encoding is supplied, for example `encUnary` for the field of `Nat.succ`. Fields that are
-propositions, indices or implicit arguments are not supported.
+The original form preserves its sum-of-tuples words and all its rules. Supplying an existing
+encoding for a recursive field, such as `encUnary` for `Nat.succ`, retains this original behavior.
+Use `_` to request the flat recursive representation described below.
 
-Before declaring anything, the command checks that `T` is an inductive type without parameters or
+For the original form, the command checks that `T` is an inductive type without parameters or
 indices, that every constructor is listed once in declaration order, and that each has no
 implicit field and one encoding per field, of the field's type. A wrong type or constructor list
 is reported at `T`, with the expected list; a wrong field is reported at its constructor or
 encoding.
+
+## Direct recursion with uniform parameters
+
+Write explicit uniform parameters before the colon, as for `enc_structure`, apply the family to
+them, and mark directly recursive fields with `_`:
+
+```
+enc_inductive encTerm (n : ℕ) : Term n where
+  | const : encIntBin
+  | var : (encFinEnum (Fin n))
+  | add : _, _
+  | mul : _, _
+```
+
+The encoded value type currently lies in `Type`, as required by the native codec and loop APIs.
+Higher-universe phantom parameters are allowed when the value type stays small.
+Type parameters and their encodings are also explicit binders, for example `(α : Type)` and
+`(eα : α ↪ List Bool)`. Every generated declaration takes these arguments in the same order.
+Parameters select the family and scalar encodings; they are not serialized. Nonrecursive fields,
+including previously encoded families such as `Term n` inside `Formula n`, always name their
+chosen embeddings. No encoding or decoder is inferred from a typeclass.
+
+Each constructor contributes one token containing its nonrecursive fields in declaration order.
+The token uses a right-nested sum tag: constructor `i` of `c` has `i` leading `true` bits and a
+`false` bit unless it is last. Its scalar tuple frames every field except the last; an empty
+payload is `encUnit`. The preorder stream then lists the recursive children's streams in
+recursive-field order. `encList` frames each token once; entire child streams are never framed
+again. Zero-child constructors still contribute one token.
+
+`eT_tokens`, `eT_nodes`, and `eT_leafSize` expose the stream, constructor count, and sum of the
+chosen scalar word lengths. `eT_length` gives the exact sum of token-frame lengths.
+`eT_length_le` bounds bit size by `(2 * (c + m) + 1) * nodes + 4 * leafSize`, where `m` is the
+maximum number of scalar fields in one constructor. The bound counts scalar *words*, including
+a cross-family encoding's complete word, and is independent of recursive depth.
+
+Constructor equations and native assembly rules preserve separate argument time and charged
+workspace bounds. Recognition and field extraction operate on encoded values without scalar
+decoders. `eT_decodeTokens` parses typed tokens; strict bit-word decoding additionally requires
+explicit `PartialDecoder` witnesses for the scalar embeddings. These supply both decoding and
+native polynomial-time certificates, including output space, on malformed as well as valid words.
+An arbitrary field embedding supplies neither. No generated rule certifies arbitrary recursive
+functions, evaluation, folds, or induction hypotheses merely from the existence of the encoding.
+
+Preflight rejects genuine indices, fields depending on earlier constructor fields, proof or
+implicit fields, mutual recursion, nested recursion, and recursive fields with changed parameters,
+before emitting any declarations. Constructor arity is unrestricted; both empty constructors and
+multiple recursive fields mixed with scalar fields are supported.
+
 -/
 
 public meta section
@@ -59,6 +124,20 @@ type `T`: constructor `c₁` with fields encoded by `e₁` and `e₂`, and const
 fields. Constructors are listed in declaration order. -/
 syntax (name := encInductive) (docComment)? "enc_inductive " ident " : " ident " where"
   (" | " ident (" : " term:max,+)?)+ : command
+
+/-- Explicit uniform parameters and field encodings for a flat recursive inductive encoding.
+Write `_` for every directly recursive field. -/
+syntax (name := encInductiveParameterized) (docComment)? "enc_inductive " ident
+  (" (" ident " : " term ")")+ " : " term " where"
+  (" | " ident (" : " term:max,+)?)+ : command
+
+/-- Elaborate explicit uniform parameters and field choices through the recursive generator. -/
+@[command_elab encInductiveParameterized] def elabEncInductiveParameterized : CommandElab :=
+    fun stx => do
+  let `($[$doc:docComment]? enc_inductive $eT:ident $[($ps:ident : $pts:term)]* : $T:term where
+      $[ | $cs:ident $[: $ess,*]?]*) := stx | throwUnsupportedSyntax
+  let encss : Array (Array Term) := ess.map fun o => (o.map (·.getElems)).getD #[]
+  Internal.elabRecursiveInductive doc eT ps (pts.map (⟨·⟩)) T cs encss
 
 private def app (base : Name) (suffix : String) : Ident :=
   mkIdent (base.appendAfter suffix)
@@ -133,6 +212,20 @@ private partial def summands (t : Expr) : Nat → MetaM (Array Expr)
       throwError "enc_inductive: expected a sum type, got{indentExpr t}"
     return #[a] ++ (← summands b n)
 
+/-- Expose the three predicate views of a canonical linear degree certificate. -/
+private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Unit := do
+  let deg := app base "_deg"
+  let rule := app base "_inO"
+  let (linear, space, polynomial) ← liftMacroM <| Internal.linearDegreeViews deg
+  elabCommand (← `(@[scoped fun_prop] public theorem $rule:ident :
+    ComputableInO $fn $encIn $encOut (fun x => ($encIn x).length)
+      (fun x => ($encIn x).length) := $linear))
+  elabCommand (← `(@[scoped fun_prop] public theorem $(app base "_inSpace"):ident :
+    ComputableInSpace $fn $encIn $encOut (fun x => ($encIn x).length) :=
+      $space))
+  elabCommand (← `(@[scoped fun_prop] public theorem $(app base "_polyTime"):ident :
+    ComputableInPolyTime $fn $encIn $encOut := $polynomial))
+
 /-- Elaborate `enc_inductive`. -/
 @[command_elab encInductive] def elabEncInductive : CommandElab := fun stx => do
   let `($[$doc:docComment]? enc_inductive $eT:ident : $T:ident where
@@ -140,6 +233,8 @@ private partial def summands (t : Expr) : Nat → MetaM (Array Expr)
   let name := eT.getId
   let n := cs.size
   let encss : Array (Array Term) := ess.map fun o => (o.map (·.getElems)).getD #[]
+  if encss.any (·.any (·.raw.isOfKind ``Lean.Parser.Term.hole)) then
+    return ← Internal.elabRecursiveInductive doc eT #[] #[] (⟨T.raw⟩) cs encss
   checkConstructors T cs encss
   let payloads ← liftMacroM <| encss.mapM tupleEnc
   -- the encoding of the sum of the payloads
@@ -192,6 +287,16 @@ private partial def summands (t : Expr) : Nat → MetaM (Array Expr)
         {$encIn : $γ ↪ List Bool} :
         ComputableInO (fun _ : $γ => $ctor) $encIn $eT (fun $x => ($encIn $x).length)
           fun $x => ($encIn $x).length := ComputableInO.const _))
+      elabCommand (← `(@[scoped fun_prop] public theorem
+        $(app name s!"_{cs[i]!.getId}_inSpace"):ident {$γ : Type}
+        {$encIn : $γ ↪ List Bool} :
+        ComputableInSpace (fun _ : $γ => $ctor) $encIn $eT
+          (fun $x => ($encIn $x).length) := ComputableInSpace.of_inO $rule))
+      elabCommand (← `(@[scoped fun_prop] public theorem
+        $(app name s!"_{cs[i]!.getId}_polyTime"):ident {$γ : Type}
+        {$encIn : $γ ↪ List Bool} :
+        ComputableInPolyTime (fun _ : $γ => $ctor) $encIn $eT :=
+          ($rule).computableInPolyTime PolyBounded.self PolyBounded.self))
       continue
     let xN (j : Nat) := mkIdent (Name.mkSimple s!"x{j}")
     let hN (j : Nat) := mkIdent (Name.mkSimple s!"h{j}")
@@ -224,6 +329,171 @@ private partial def summands (t : Expr) : Nat → MetaM (Array Expr)
       {$encIn : $γ ↪ List Bool} $binders* :
       ComputableInO (fun $x => $appl) $encIn $eT (fun $x => $sumT) fun $x => $sumS :=
         ComputableInO.of_enc_eq $inj fun _ => rfl))
+    -- Space rules forget only the time witnesses, retaining independent workspace bounds.
+    let mut sb : TSyntaxArray ``Lean.Parser.Term.bracketedBinder := #[]
+    let mut unpack : TSyntaxArray `tactic := #[]
+    for j in [0:k] do
+      sb := sb.push (← `(bracketedBinder| {$(xN j) : $γ → _}))
+      sb := sb.push (← `(bracketedBinder| {$(SN j) : $γ → ℕ}))
+    for j in [0:k] do
+      sb := sb.push (← `(bracketedBinder|
+        ($(hN j) : ComputableInSpace $(xN j) $encIn $(es[j]!) $(SN j))))
+      unpack := unpack.push (← `(tactic| obtain ⟨$(TN j), $(hN j)⟩ := $(hN j).exists_inO))
+    let hs : Array Term := (Array.range k).map fun j => hN j
+    elabCommand (← `(@[scoped fun_prop] public theorem
+      $(app name s!"_{cs[i]!.getId}_inSpace"):ident {$γ : Type}
+      {$encIn : $γ ↪ List Bool} $sb* :
+      ComputableInSpace (fun $x => $appl) $encIn $eT (fun $x => $sumS) := by
+        $unpack:tactic*
+        exact ComputableInSpace.of_inO ($rule $hs*)))
+    -- Recover explicit clocks from the polynomial hypotheses, then lift the existing
+    -- arbitrary-resource constructor certificate. No constructor machine is rebuilt here.
+    let mut pb : TSyntaxArray ``Lean.Parser.Term.bracketedBinder := #[]
+    let mut clocks : TSyntaxArray `tactic := #[]
+    let boundBase : Term ← `(PolyBounded.self.add (PolyBounded.const 1))
+    let dN (j : Nat) := mkIdent (Name.mkSimple s!"d{j}")
+    let eN (j : Nat) := mkIdent (Name.mkSimple s!"e{j}")
+    let mut proofs : Array Term := #[]
+    for j in [0:k] do
+      pb := pb.push (← `(bracketedBinder| {$(xN j) : $γ → _}))
+    for j in [0:k] do
+      pb := pb.push (← `(bracketedBinder|
+        ($(hN j) : ComputableInPolyTime $(xN j) $encIn $(es[j]!))))
+      clocks := clocks.push (← `(tactic|
+        obtain ⟨$(dN j), $(eN j), $(hN j)⟩ := $(hN j).exists_degree))
+      proofs := proofs.push (← `($(hN j).inO))
+    let mut polyBound : Term ← `(($boundBase).pow $(dN last))
+    for j in (List.range last).reverse do
+      polyBound ← `((($boundBase).pow $(dN j)).add $polyBound)
+    elabCommand (← `(@[scoped fun_prop] public theorem
+      $(app name s!"_{cs[i]!.getId}_polyTime"):ident {$γ : Type}
+      {$encIn : $γ ↪ List Bool} $pb* :
+      ComputableInPolyTime (fun $x => $appl) $encIn $eT := by
+        $clocks:tactic*
+        exact ($rule $proofs*).computableInPolyTime $polyBound $polyBound))
+  let applyName := app name "_apply"
+  -- Match tags using finite Boolean operations on the encoded prefix. Payload and field
+  -- projections use the same matcher and the existing tail/frame streaming certificates.
+  for i in [0:n] do
+    let matcher := app name s!"_{cs[i]!.getId}_matches"
+    let mut mas : Array (TSyntax ``Lean.Parser.Term.matchAlt) := #[]
+    for j in [0:n] do
+      let xs := (Array.range encss[j]!.size).map fun k => mkIdent (Name.mkSimple s!"x{k}")
+      let pat : Term := Syntax.mkApp (mkIdent (T.getId ++ cs[j]!.getId)) xs
+      let b : Term ← if i == j then `(true) else `(false)
+      mas := mas.push (← `(Lean.Parser.Term.matchAltExpr| | $pat => $b))
+    elabCommand (← `(/-- Test whether the value has this constructor. -/
+      @[expose, nolint defsWithUnderscore]
+      public def $matcher:ident (v : $T) : Bool := match v with $mas:matchAlt*))
+    let mut raw : Term ← `(ComputableInDegree.of_eq (f := fun v : $T => $eT v)
+      (encIn := $eT) (encMid := encBits) (fun _ => rfl))
+    let mut test : Term ← `(ComputableInDegree.const (encIn := $eT) (encMid := encBool) true)
+    let tags := i + (if i + 1 < n then 1 else 0)
+    for j in [0:tags] do
+      let bit : Term ← `((ComputableInDegree.headD (enc₁ := encBool)
+        (enc := encBits) false).comp $raw)
+      let wanted ← if j < i then pure bit else
+        `((ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool) Bool.not).comp $bit)
+      test ← `((ComputableInDegree.of_finite (encIn := encPair encBool encBool)
+        (encMid := encBool) (fun p : Bool × Bool => p.1 && p.2)).comp (($test).prod $wanted))
+      raw ← `((ComputableInDegree.tail (enc₁ := encBool) (enc := encBits)).comp $raw)
+    if i == 0 && n > 1 then
+      test ← `((ComputableInO.isLeft_deg $(payloads[0]!) $(rests[1]!)).comp
+        $(app name "_toSum_deg"))
+    elabCommand (← `(@[scoped fun_prop] public theorem
+      $(app matcher.getId "_deg"):ident : ComputableInDegree $matcher $eT encBool 1 0 :=
+      (($test).mono (d' := 1) (e' := 0)).of_enc_eq (fun v => by
+        cases v <;> simp [$matcher:ident, $applyName:ident, $toSum:ident, encBits,
+          encBool, List.headD])))
+    linearViews matcher eT (← `(encBool)) matcher.getId
+    -- Include the complete payload and every individual field, without default inhabitants.
+    for field in [0:encss[i]!.size + 1] do
+      let projection := app name (if field == 0 then s!"_{cs[i]!.getId}_payload?"
+        else s!"_{cs[i]!.getId}_field{field - 1}?")
+      let out : Term := if field == 0 then payloads[i]! else (encss[i]!)[field - 1]!
+      let outTy ← if field == 0 then pure argTys[i]! else liftTermElabM do
+        let encoding ← Term.elabTerm out none
+        let ty ← whnfR (← instantiateMVars (← inferType encoding))
+        let some (α, _) := ty.app2? ``Function.Embedding |
+          throwError "enc_inductive: unexpected field encoding type{indentExpr ty}"
+        PrettyPrinter.delab α
+      let mut pas : Array (TSyntax ``Lean.Parser.Term.matchAlt) := #[]
+      for j in [0:n] do
+        let xs := (Array.range encss[j]!.size).map fun k => mkIdent (Name.mkSimple s!"x{k}")
+        let pat : Term := Syntax.mkApp (mkIdent (T.getId ++ cs[j]!.getId)) xs
+        let value ← if field == 0 then liftMacroM (tuple xs) else
+          pure (xs[field - 1]?.getD (mkIdent `unused) : Term)
+        let rhs ← if i == j then `(some $value) else `(none)
+        pas := pas.push (← `(Lean.Parser.Term.matchAltExpr| | $pat => $rhs))
+      elabCommand (← `(/-- Extract the constructor payload or field; return `none` otherwise. -/
+        @[expose, nolint defsWithUnderscore]
+        public def $projection:ident (v : $T) : Option $outTy :=
+          match v with $pas:matchAlt*))
+      elabCommand (← `(@[simp] public theorem $(app projection.getId "_isSome"):ident
+        (v : $T) : ($projection v).isSome = $matcher v := by cases v <;> rfl))
+      if field == 0 then
+        -- Reconstruct the constructor from its complete right-nested payload. Keep this
+        -- semantic interface independent of the encoded tag and frame layout.
+        let a := mkIdent `a
+        let ctor := mkIdent (T.getId ++ cs[i]!.getId)
+        let mut args : Array Term := #[]
+        let mut rest : Term := a
+        for j in [0:encss[i]!.size] do
+          if j + 1 < encss[i]!.size then
+            args := args.push (← `(($rest).1))
+            rest ← `(($rest).2)
+          else
+            args := args.push rest
+        let reconstructed := Syntax.mkApp ctor args
+        let valueIff := app projection.getId "_eq_some_iff"
+        let valueProof ← if encss[i]!.size > 1 then
+          `(tactic| cases v <;> simp [$projection:ident, Prod.ext_iff])
+        else
+          `(tactic| cases v <;> simp [$projection:ident])
+        elabCommand (← `(/-- The complete payload determines exactly this constructor value. -/
+          public theorem $valueIff:ident (v : $T) ($a : $(argTys[i]!)) :
+            $projection v = some $a ↔ v = $reconstructed := by $valueProof:tactic))
+        elabCommand (← `(/-- The matcher recognizes precisely the range of this constructor. -/
+          public theorem $(app matcher.getId "_iff"):ident (v : $T) :
+            $matcher v = true ↔ ∃ ($a:ident : $(argTys[i]!)), v = $reconstructed := by
+              rw [← $(app projection.getId "_isSome")]
+              simp only [Option.isSome_iff_exists, $valueIff:ident]))
+        elabCommand (← `(/-- A payload exists precisely when this constructor matches. -/
+          public theorem $(app projection.getId "_range"):ident (v : $T) :
+            (∃ ($a:ident : $(argTys[i]!)), $projection v = some $a) ↔ $matcher v = true := by
+              rw [← $(app projection.getId "_isSome")]
+              exact Option.isSome_iff_exists.symm))
+      let mut word := raw
+      if field > 0 then
+        for _ in [0:field - 1] do
+          word ← `((ComputableInDegree.of_dropFrame (f := dropFrame)
+            (encIn := encBits) (encMid := encBits) (fun _ => rfl)).comp $word)
+        if field < encss[i]!.size then
+          word ← `((ComputableInDegree.of_unframe (f := unframe)
+            (encIn := encBits) (encMid := encBits) (fun _ => rfl)).comp $word)
+      let someWord ← `((ComputableInDegree.const (encIn := $eT) (encMid := encBool) true).append
+        $word (fun _ => rfl))
+      if i == 0 && n > 1 && (field == 0 || encss[i]!.size == 1) then
+        elabCommand (← `(@[scoped fun_prop] public theorem
+          $(app projection.getId "_deg"):ident :
+          ComputableInDegree $projection $eT (encOption $out) 1 1 :=
+          ((ComputableInO.getLeft?_deg $(payloads[0]!) $(rests[1]!)).comp
+            $(app name "_toSum_deg")).of_enc_eq (fun v => by
+              cases v <;> rfl)))
+      else
+        elabCommand (← `(@[scoped fun_prop] public theorem
+          $(app projection.getId "_deg"):ident :
+          ComputableInDegree $projection $eT (encOption $out) 1 1 := by
+          have hn : ComputableInDegree (fun _ : $T => ([] : List Bool)) $eT encBits 1 1 :=
+            (ComputableInDegree.const (encMid := encBits) []).mono
+          exact ((($(app matcher.getId "_deg")).ite
+            (($someWord).restrict _) (hn.restrict _)).mono (d' := 1) (e' := 1)).of_enc_eq
+              (fun v => by
+                cases v <;>
+                  simp [$projection:ident, $matcher:ident, $applyName:ident, $toSum:ident,
+                    encBits, unframe_frame_append, dropFrame_frame_append]
+                all_goals rfl)))
+      linearViews projection eT (← `(encOption $out)) projection.getId
   -- case analysis on the payloads
   let elim := app name "_elim"
   let fN (i : Nat) := mkIdent (Name.mkSimple s!"f{i}")
@@ -263,7 +533,6 @@ private partial def summands (t : Expr) : Nat → MetaM (Array Expr)
   let mut nested : Term := hN (n - 1)
   for i in (List.range (n - 1)).reverse do
     nested ← `(ComputableInO.sumElimSnd $(hN i) $nested)
-  let applyName := app name "_apply"
   elabCommand (← `(public theorem $(app name "_elim_inO"):ident {π ε : Type}
       {$encP : π ↪ List Bool} {$encE : ε ↪ List Bool} $rb* :
       ComputableInO (fun $p : π × $T => $fnTerm) (encPair $encP $eT) $encE
@@ -276,5 +545,77 @@ private partial def summands (t : Expr) : Nat → MetaM (Array Expr)
       simp only [Function.comp_apply, $elim:ident, $toSum:ident, $applyName:ident, Sum.elim_inl,
         Sum.elim_inr, length_encPair, encSum_inl, encSum_inr, List.length_cons] <;>
       omega))
+  -- The case space contract charges precisely the selected branch's workspace. Its time
+  -- function is existential, independently for every branch.
+  let mut spaceBinders : TSyntaxArray ``Lean.Parser.Term.bracketedBinder := #[]
+  let mut unpack : TSyntaxArray `tactic := #[]
+  for i in [0:n] do
+    spaceBinders := spaceBinders.push (← `(bracketedBinder| {$(gN i) : π × $(argTys[i]!) → ε}))
+    spaceBinders := spaceBinders.push (← `(bracketedBinder| {$(SN i) : π × $(argTys[i]!) → ℕ}))
+  for i in [0:n] do
+    spaceBinders := spaceBinders.push (← `(bracketedBinder|
+      ($(hN i) : ComputableInSpace $(gN i) (encPair $encP $(payloads[i]!)) $encE $(SN i))))
+    unpack := unpack.push (← `(tactic| obtain ⟨$(TN i), $(hN i)⟩ := $(hN i).exists_inO))
+  let hs : Array Term := (Array.range n).map fun i => hN i
+  elabCommand (← `(public theorem $(app name "_elim_inSpace"):ident {π ε : Type}
+      {$encP : π ↪ List Bool} {$encE : ε ↪ List Bool} $spaceBinders* :
+      ComputableInSpace (fun $p : π × $T => $fnTerm) (encPair $encP $eT) $encE
+        (fun $p => $nLit * (encPair $encP $eT $p).length + $sTerm) := by
+    $unpack:tactic*
+    exact ComputableInSpace.of_inO ($(app name "_elim_inO") $hs*)))
+  -- Polynomial elimination reuses the arbitrary-resource case machine. Each branch clock is
+  -- bounded in the full input size before the finitely many envelopes are added.
+  let mut pb : TSyntaxArray ``Lean.Parser.Term.bracketedBinder := #[]
+  let mut clocks : TSyntaxArray `tactic := #[]
+  let mut estimates : TSyntaxArray `tactic := #[]
+  let mut facts : TSyntaxArray `tactic := #[]
+  let mut proofs : Array Term := #[]
+  let dN (i : Nat) := mkIdent (Name.mkSimple s!"d{i}")
+  let eN (i : Nat) := mkIdent (Name.mkSimple s!"e{i}")
+  let bN (i : Nat) := mkIdent (Name.mkSimple s!"bound{i}")
+  let mut clockFs : Array Term := #[]
+  let mut envelope : Term ← `((PolyBounded.const $nLit).mul PolyBounded.self)
+  for i in [0:n] do
+    pb := pb.push (← `(bracketedBinder| {$(gN i) : π × $(argTys[i]!) → ε}))
+  for i in [0:n] do
+    pb := pb.push (← `(bracketedBinder|
+      ($(hN i) : ComputableInPolyTime $(gN i) (encPair $encP $(payloads[i]!)) $encE)))
+    clocks := clocks.push (← `(tactic|
+      obtain ⟨$(dN i), $(eN i), $(hN i)⟩ := $(hN i).exists_degree))
+    proofs := proofs.push (← `($(hN i).inO))
+    clockFs := clockFs.push (← `(fun $a =>
+      ((encPair $encP $(payloads[i]!) ($p.1, $a)).length + 1) ^ $(dN i)))
+    let selectors ← (Array.range n).mapM fun j => do
+      if i == j then
+        `(fun $a => ((encPair $encP $(payloads[j]!) ($p.1, $a)).length + 1) ^ $(dN i))
+      else `(fun _ => (0 : ℕ))
+    let selected := Syntax.mkApp elim (#[← `($p.2)] ++ selectors)
+    estimates := estimates.push (← `(tactic|
+      have $(bN i) : ∀ $p : π × $T, $selected ≤
+          ((encPair $encP $eT $p).length + 1) ^ $(dN i) := by
+        rintro ⟨q, v⟩
+        cases v <;>
+          simp only [$elim:ident, $toSum:ident, $applyName:ident, Sum.elim_inl,
+            Sum.elim_inr, length_encPair, encSum_inl, encSum_inr, List.length_cons] <;>
+          first | omega | (apply Nat.pow_le_pow_left; omega)))
+    facts := facts.push (← `(tactic| have := $(bN i) (q, v)))
+    envelope ← `(($envelope).add
+      ((PolyBounded.self.add (PolyBounded.const 1)).pow $(dN i)))
+  let selectedClock := Syntax.mkApp elim (#[← `($p.2)] ++ clockFs)
+  elabCommand (← `(public theorem $(app name "_elim_polyTime"):ident {π ε : Type}
+      {$encP : π ↪ List Bool} {$encE : ε ↪ List Bool} $pb* :
+      ComputableInPolyTime (fun $p : π × $T => $fnTerm) (encPair $encP $eT) $encE := by
+    $clocks:tactic*
+    $estimates:tactic*
+    have hb : PolyBounded (fun $p : π × $T => (encPair $encP $eT $p).length)
+        (fun $p => $nLit * (encPair $encP $eT $p).length + $selectedClock) :=
+      ($envelope).mono (by
+      rintro ⟨q, v⟩
+      $facts:tactic*
+      cases v <;>
+        simp only [$elim:ident, $toSum:ident, $applyName:ident, Sum.elim_inl,
+          Sum.elim_inr, length_encPair, encSum_inl, encSum_inr, List.length_cons] at * <;>
+        omega)
+    exact ($(app name "_elim_inO") $proofs*).computableInPolyTime hb hb))
 
 end Turing.MultiTapeTM

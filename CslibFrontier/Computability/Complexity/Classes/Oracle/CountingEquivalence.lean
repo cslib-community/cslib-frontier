@@ -43,7 +43,7 @@ encoded classes. The result is a uniform polynomial-time simulation, not merely 
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09].
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Complexity
 
@@ -76,7 +76,7 @@ theorem PWithPPOracle_subset_PWithSharpPOracle :
   let handler : Unit × List Bool → WordQueryComp Unit (List Bool) :=
     fun q => List.take 1 <$> OracleComp.query ((), request q.2)
   refine ⟨β, encβ, f, hf, fun a => OracleComp.interpret handler (program a),
-    hprogram.interpret_bitQueries hrequest.tidy, fun A hA a => ?_⟩
+    hprogram.interpret_bitQueries hrequest, fun A hA a => ?_⟩
   let B' : Set (List Bool) := request ⁻¹' A
   have hB' : ∀ b, encβ b ∈ B' ↔ b ∈ B := fun b =>
     (hA b (p.eval (encβ b).length)).trans (hp b).symm

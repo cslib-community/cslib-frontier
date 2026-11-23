@@ -15,6 +15,7 @@ public import Mathlib.Algebra.Module.ZMod
 public import Mathlib.Algebra.Polynomial.Monic
 public import Mathlib.Data.ZMod.Basic
 public import Mathlib.LinearAlgebra.Dimension.Finrank
+import CslibFrontier.Foundations.Data.ZMod.NatCast
 import Mathlib.Algebra.CharP.Algebra
 import Mathlib.Algebra.CharP.Lemmas
 import Mathlib.Algebra.Polynomial.Degree.IsMonicOfDegree
@@ -396,7 +397,7 @@ theorem eq_zero_of_linearizedEval_eq_zero {n : ℕ} [NeZero n] {b : ZMod n → F
   · simp
 
 /-- If every element `y` of a subspace `W` satisfies `y ^ 2 ^ k = c * y` with `0 < k < n`, then
-`W` embeds into the proper subfield fixed by the `k`-th power of Frobenius. -/
+`W` has at most as many elements as some proper subfield of `F`. -/
 theorem exists_subfield_card_le [Finite F] {n k : ℕ} (hn : finrank (ZMod 2) F = n) (hk0 : 0 < k)
     (hkn : k < n) (W : Submodule (ZMod 2) F) (c : F) (h : ∀ y ∈ W, y ^ 2 ^ k = c * y) :
     ∃ K : Subfield F, K ≠ ⊤ ∧ Nat.card W ≤ Nat.card K := by
@@ -425,7 +426,7 @@ theorem exists_subfield_card_le [Finite F] {n k : ℕ} (hn : finrank (ZMod 2) F 
       let f : W → K := fun y => ⟨y / y₀, (hmem _).2 (by
         rw [div_pow, h y y.2, h y₀ hy₀W, mul_div_mul_left _ _ hc])⟩
       exact Nat.card_le_card_of_injective f fun y y' hyy' =>
-        Subtype.ext ((div_left_inj' hy₀).1 (congrArg Subtype.val hyy'))
+        Subtype.ext ((div_left_inj₀ hy₀).1 (congrArg Subtype.val hyy'))
     · push Not at hW
       have : Nat.card W = 1 := Nat.card_eq_one_iff_unique.2
         ⟨⟨fun y y' => Subtype.ext (by rw [hW y y.2, hW y' y'.2])⟩, ⟨0⟩⟩
@@ -491,7 +492,7 @@ private theorem coeffPattern_zero_ne [Finite F] {n d : ℕ} [NeZero n]
   intro h0
   set b : ZMod n → F := fun j => a (j - ((n - 1 : ℕ) : ZMod n)) ^ 2 ^ (n - 1)
   have hshift : ∀ j : ZMod n, j - ((n - 1 : ℕ) : ZMod n) = j + 1 := fun j => by
-    rw [Nat.cast_sub NeZero.one_le, ZMod.natCast_self, Nat.cast_one, zero_sub, sub_neg_eq_add]
+    rw [ZMod.natCast_self_sub_one, sub_neg_eq_add]
   have hb : ∀ j : ZMod n, n - d ≤ j.val → b j = 0 := by
     intro j hj
     simp only [b, hshift]
@@ -584,9 +585,9 @@ private theorem coeffPattern_gap [Finite F] {n s d : ℕ} [NeZero n]
   exact absurd ((Nat.pow_le_pow_iff_right (by norm_num)).1 this) (by omega)
 
 /-- **Structural lemma** [BenSassonKopparty2012, Lemma 3.10], for subspaces larger than every
-proper subfield: a subspace `W` of dimension greater than `s`, where every proper subfield
-has at most `2 ^ s` elements, is the image of a linearized function whose coefficient vector has
-the zero pattern `CoeffPattern`. -/
+proper subfield: a subspace `W` of dimension `d` greater than `s`, where every proper subfield
+has at most `2 ^ s` elements, contains the image of a linearized function whose coefficient
+vector has the zero pattern `CoeffPattern n d`. -/
 theorem exists_coeffPattern [Finite F] {n s : ℕ} [NeZero n] (hn : finrank (ZMod 2) F = n)
     (hs : ∀ K : Subfield F, K ≠ ⊤ → Nat.card K ≤ 2 ^ s) (W : Submodule (ZMod 2) F)
     (hsW : s < finrank (ZMod 2) W) :

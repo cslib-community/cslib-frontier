@@ -22,8 +22,9 @@ circuits.
 
 ## Main definitions
 
-* `Cslib.Circuits.Boolean.Iteration.inputLeft`: first `n`-bit state of a `(n + n)`-bit input.
-* `Cslib.Circuits.Boolean.Iteration.inputRight`: second `n`-bit state of a `(n + n)`-bit input.
+* `Cslib.Circuits.Boolean.Iteration.inputLeft`, `Cslib.Circuits.Boolean.Iteration.inputRight`: the
+  two `n`-bit states of a `(n + n)`-bit input, as abbreviations of `Cslib.BitString.fstBits` and
+  `Cslib.BitString.sndBits`, whose lemmas apply to them.
 
 ## Main results
 
@@ -49,28 +50,28 @@ attribute [local instance] lexOrder
 
 variable {n : ℕ}
 
-/-- The first `n`-bit state in a pair input. -/
-def inputLeft (z : BitString (n + n)) : BitString n :=
-  fun i => z (Fin.castAdd n i)
+/-- The first `n`-bit state in a pair input: `BitString.fstBits` at `a = b = n`. -/
+abbrev inputLeft (z : BitString (n + n)) : BitString n :=
+  BitString.fstBits z
 
-/-- The second `n`-bit state in a pair input. -/
-def inputRight (z : BitString (n + n)) : BitString n :=
-  fun i => z (Fin.natAdd n i)
+/-- The second `n`-bit state in a pair input: `BitString.sndBits` at `a = b = n`. -/
+abbrev inputRight (z : BitString (n + n)) : BitString n :=
+  BitString.sndBits z
 
 /-- Evaluate a depth circuit on an available state and widen its output to `n + 3` bits. -/
 theorem synthesis_depthWord (f : BitString n → BitString n)
     (depth : Circuit signature n (n + 2))
-    (hd : ∀ x, word (depth.eval interpretation x) =
+    (hd : ∀ x, BitString.equivBitVec (depth.eval interpretation x) =
       BitVec.ofNat (n + 2) (transientDepth f x))
     (s : Set (BooleanFunction (n + n))) (x : BitString (n + n) → BitString n)
     (hx : wires x ⊆ s) (hz : (fun _ => false) ∈ s) :
     Synthesis interpretation s (wordWires fun z => depthWord f (x z)) depth.size := by
   have hc := Synthesis.circuit (I := interpretation) (s := s) depth
     (fun i z => x z i) (fun bit => hx ⟨bit, rfl⟩)
-  let raw := fun z => word (depth.eval interpretation (x z))
+  let raw := fun z => BitString.equivBitVec (depth.eval interpretation (x z))
   have hraw : wordWires raw ⊆ s ∪ Set.range (fun j z => depth.eval interpretation (x z) j) := by
     rintro _ ⟨bit, rfl⟩
-    simp only [raw, getLsbD_word]
+    simp only [raw, BitString.getLsbD_equivBitVec]
     exact Or.inr ⟨bit, rfl⟩
   have hresize := wordWires_setWidth_subset (v := n + 3)
     (s := s ∪ Set.range (fun j z => depth.eval interpretation (x z) j))
@@ -112,14 +113,16 @@ theorem synthesis_label_parts (f : BitString n → BitString n)
     have h := congrArg (fun v => v.getLsbD bit.val)
       (labelLength_labelBits (canonicalCycle f (x z))
         (BitVec.ofNat (n + 3) (cycleLength f (x z))) (BitVec.ofNat (n + 3) (phase f (x z))))
-    simpa only [labelLength, canonicalLabel, lengthWord, hl (x z), getLsbD_word] using h
+    simpa only [labelLength, canonicalLabel, lengthWord, hl (x z),
+      BitString.getLsbD_equivBitVec] using h
   have hphase : wordWires (fun z => phaseWord f (x z)) ⊆ src := by
     rintro _ ⟨bit, rfl⟩
     refine Or.inr ⟨Fin.natAdd n (Fin.natAdd (n + 3) bit), funext fun z => ?_⟩
     have h := congrArg (fun v => v.getLsbD bit.val)
       (labelPhase_labelBits (canonicalCycle f (x z))
         (BitVec.ofNat (n + 3) (cycleLength f (x z))) (BitVec.ofNat (n + 3) (phase f (x z))))
-    simpa only [labelPhase, canonicalLabel, phaseWord, hl (x z), getLsbD_word] using h
+    simpa only [labelPhase, canonicalLabel, phaseWord, hl (x z),
+      BitString.getLsbD_equivBitVec] using h
   refine hc.trans (Synthesis.of_subset ?_)
   intro g hg
   rcases hg with (hg | hg) | hg

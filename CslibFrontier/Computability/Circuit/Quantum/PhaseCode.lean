@@ -132,6 +132,13 @@ end Gate
 noncomputable def PlacedGate.ctrlPhase (inv : Bool) {k : ℕ} (e : Fin k ↪ Fin m) : PlacedGate m :=
   ⟨k, bif inv then (Gate.ctrlPhase k)⁻¹ else Gate.ctrlPhase k, e⟩
 
+/-- Moving a controlled phase gate to a larger register composes its wire placement. -/
+@[simp] theorem PlacedGate.mapWires_ctrlPhase {N k : ℕ} (e : Fin m ↪ Fin N) (inv : Bool)
+    (A : Fin k ↪ Fin m) :
+    (PlacedGate.ctrlPhase inv A).mapWires e = PlacedGate.ctrlPhase inv (A.trans e) := by
+  unfold PlacedGate.ctrlPhase PlacedGate.mapWires
+  rfl
+
 /-- **The entries of a placed controlled phase gate**: it multiplies `|x⟩` by `i` (for `inv`, by
 `-i`) when every qubit of `e` is one. -/
 theorem PlacedGate.ctrlPhase_matrix_apply (inv : Bool) {k : ℕ} (e : Fin k ↪ Fin m)
@@ -235,7 +242,7 @@ namespace PhaseGateCode
 
 /-- The placed gate denoted by a gate code with phase gates on `m` qubits, or `none` when the code
 is not well formed. -/
-noncomputable def toPlacedGate? (m : ℕ) : PhaseGateCode → Option (PlacedGate m)
+@[expose] noncomputable def toPlacedGate? (m : ℕ) : PhaseGateCode → Option (PlacedGate m)
   | (false, g) => GateCode.toPlacedGate? m g
   | (true, inv, t, []) =>
     if h : t < m then
@@ -329,7 +336,7 @@ end PhaseGateCode
 
 /-- The circuit on `m` qubits denoted by a list of gate codes with phase gates, applied first to
 last. Codes that are not well formed are skipped. -/
-noncomputable def Circuit.ofPhaseCodes (m : ℕ) (gs : List PhaseGateCode) : Circuit m :=
+@[expose] noncomputable def Circuit.ofPhaseCodes (m : ℕ) (gs : List PhaseGateCode) : Circuit m :=
   gs.filterMap (PhaseGateCode.toPlacedGate? m)
 
 theorem Circuit.ofPhaseCodes_cons (c : PhaseGateCode) (gs : List PhaseGateCode) :
@@ -529,6 +536,12 @@ theorem Circuit.ofPhaseCodes_map (gs : List GateCode) :
   simp only [Circuit.ofPhaseCodes, Circuit.ofCodes, List.filterMap_map]
   rfl
 
+/-- Treating ordinary gate codes as phase-gate codes preserves acceptance probability. -/
+theorem PhaseGateCode.acceptProb_ofCodes (m : ℕ) (gs : List GateCode) (x : List Bool) :
+    PhaseGateCode.acceptProb m (gs.map fun g => (false, g)) x =
+      Cslib.Quantum.acceptProb m gs x := by
+  simp only [PhaseGateCode.acceptProb, Cslib.Quantum.acceptProb, Circuit.ofPhaseCodes_map]
+
 /-! ### Uniform families with phase gates -/
 
 /-- The encoding of gate codes with phase gates `(p, g)`: the phase flag, then the gate code `g`
@@ -604,9 +617,7 @@ none. -/
 
 @[simp] theorem acceptProb_toPhaseFamily (F : UniformCircuitFamily) (x : List Bool) :
     F.toPhaseFamily.acceptProb x = F.acceptProb x := by
-  simp only [UniformPhaseCircuitFamily.acceptProb, PhaseGateCode.acceptProb, toPhaseFamily,
-    Circuit.ofPhaseCodes_map]
-  rfl
+  exact PhaseGateCode.acceptProb_ofCodes _ _ _
 
 end UniformCircuitFamily
 

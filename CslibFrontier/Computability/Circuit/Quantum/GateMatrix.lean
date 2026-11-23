@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Quantum.Basic
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.UnitaryGroup
 public import CslibFrontier.Foundations.Quantum.Pauli
 
 /-!
@@ -17,10 +18,12 @@ The register gates of `CslibFrontier/Computability/Circuit/Quantum/Basic.lean` a
 strings `Fin k → Bool`. Small protocols are easier to state with one basis index per qubit, as
 `Bool` for one qubit and `Bool × Bool` for two. This file provides the `Bool × Bool`-indexed
 **CNOT** matrix `|a, b⟩ ↦ |a, b ⊕ a⟩` (`Cslib.Quantum.Gate.cnotMatrix`), the action of the
-Hadamard matrix `Cslib.Quantum.Gate.hadamardMatrix` on vectors, and the identifications of the
+Hadamard matrix `Cslib.Quantum.Gate.hadamardMatrix` on vectors, the identifications of the
 register gates `Cslib.Quantum.Gate.cnot` and `Cslib.Quantum.Gate.not` with `cnotMatrix` and the
 Pauli matrix `X` (`Cslib.Quantum.pauliX`) under the reindexings `Fin 2 → Bool ≃ Bool × Bool` and
-`Fin 1 → Bool ≃ Bool`, [de Wolf][deWolf2019], Section 1.4.
+`Fin 1 → Bool ≃ Bool` ([de Wolf][deWolf2019], Section 1.4), and the computational-basis column
+characterization `Cslib.Quantum.mem_unitaryGroup_iff_orthonormal_toEuclideanCLM_ket` of unitarity
+([Arora and Barak, Claim 20.11][AroraBarak07]).
 
 ## Main definitions
 
@@ -28,6 +31,9 @@ Pauli matrix `X` (`Cslib.Quantum.pauliX`) under the reindexings `Fin 2 → Bool 
 
 ## Main results
 
+* `Cslib.Quantum.toEuclideanCLM_ket`,
+  `Cslib.Quantum.mem_unitaryGroup_iff_orthonormal_toEuclideanCLM_ket`: a matrix maps `|j⟩` to its
+  `j`-th column, and is unitary iff the images `U |j⟩` of the computational basis are orthonormal.
 * `Cslib.Quantum.Gate.cnotMatrix_mem_unitaryGroup`: the CNOT matrix is unitary.
 * `Cslib.Quantum.Gate.cnotMatrix_mulVec`, `Cslib.Quantum.Gate.hadamardMatrix_mulVec`: the action
   of the CNOT and Hadamard matrices on vectors.
@@ -36,12 +42,31 @@ Pauli matrix `X` (`Cslib.Quantum.pauliX`) under the reindexings `Fin 2 → Bool 
 
 ## References
 
+* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak07]
 * [R. de Wolf, *Quantum Computing: Lecture Notes*][deWolf2019]
 -/
 
 public section
 
 namespace Cslib.Quantum
+
+open Matrix
+
+/-- A matrix maps the computational basis state `|j⟩` to its `j`-th column in Euclidean space. -/
+theorem toEuclideanCLM_ket {ι : Type*} [Fintype ι] [DecidableEq ι] (U : Matrix ι ι ℂ) (j : ι) :
+    toEuclideanCLM (n := ι) (𝕜 := ℂ) U (ket j) = WithLp.toLp 2 (fun i => U i j) := by
+  ext i
+  simp [ket, mulVec, dotProduct]
+
+/-- A square complex matrix is unitary if and only if the images `U |j⟩` of the computational basis
+vectors form an orthonormal family in `EuclideanSpace ℂ ι`
+[Arora and Barak, Claim 20.11][AroraBarak07]. -/
+theorem mem_unitaryGroup_iff_orthonormal_toEuclideanCLM_ket {ι : Type*} [Fintype ι] [DecidableEq ι]
+    (U : Matrix ι ι ℂ) :
+    U ∈ unitaryGroup ι ℂ ↔
+      Orthonormal ℂ (fun j : ι => toEuclideanCLM (n := ι) (𝕜 := ℂ) U (ket j)) := by
+  simp_rw [toEuclideanCLM_ket]
+  exact Matrix.mem_unitaryGroup_iff_orthonormal_cols U
 
 namespace Gate
 
@@ -75,9 +100,8 @@ theorem cnotMatrix_mul_self : cnotMatrix * cnotMatrix = 1 := by
   cases a <;> cases b <;> cases c <;> cases d <;>
     simp [Matrix.mul_apply, cnotMatrix_apply, Fintype.sum_prod_type]
 
-theorem cnotMatrix_mem_unitaryGroup : cnotMatrix ∈ unitaryGroup (Bool × Bool) ℂ := by
-  rw [mem_unitaryGroup_iff, star_eq_conjTranspose, cnotMatrix_isHermitian.eq,
-    cnotMatrix_mul_self]
+theorem cnotMatrix_mem_unitaryGroup : cnotMatrix ∈ unitaryGroup (Bool × Bool) ℂ :=
+  cnotMatrix_isHermitian.mem_unitaryGroup_of_mul_self cnotMatrix_mul_self
 
 theorem cnot_apply (y x : Fin 2 → Bool) :
     (cnot : Matrix (Fin 2 → Bool) (Fin 2 → Bool) ℂ) y x =

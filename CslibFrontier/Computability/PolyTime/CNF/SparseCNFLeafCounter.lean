@@ -16,10 +16,12 @@ public import CslibFrontier.Computability.PolyTime.CNF.GreedyParityContext
 public import CslibFrontier.Computability.PolyTime.CNF.SparsePolyCompile
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount.DenseRelabel
 public import CslibFrontier.Logics.Propositional.CNF.SparseParityCounter
+import CslibFrontier.Computability.PolyTime.CNF.DeclaredInput
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 import Mathlib.Data.List.GetD
 
@@ -29,7 +31,8 @@ import Mathlib.Data.List.GetD
 Implements the deterministic sparse `k`-CNF model-counting algorithm of Section 6.3 (equation
 (6.4), printed p. 43) of [OpenAI, *The Exponential Time Hypothesis is False*][OpenAI2026ETH] on
 native multi-tape Turing machines, parameterized over a sparse `𝔽₂` polynomial-system counter:
-- **Encoded procedures**: `Cslib.Logic.PL.CNF.validDeclaredInput`, `hasEmptyClause`, and
+- **Encoded procedures**: `Cslib.Logic.PL.CNF.validDeclaredInput` (by
+  `Cslib.Logic.PL.CNF.computableInPolyTime_validDeclaredInput`), `hasEmptyClause`, and
   `entersSparseFastPath` are `ComputableInPolyTime` guards; `compiledRowCounter`,
   `sparseCNFFastPath`, `sparseCNFDeclaredCounter`, `Cslib.Logic.PL.CNF.normalizeDeclaredLeaf`, and
   `sparseCNFLeafCounter` are certified by `sparseCNFDeclaredCertificate`,
@@ -447,7 +450,7 @@ variable {P : Type} {encP : P ↪ List Bool} {NOf BOf : P → ℕ}
 
 /-- Split Section 6.3 runtime upper bound: `poly L` outside `entersSparseFastPath`, and initial
 Tanner search plus `(3 * N + 1) * ((2 * m) ^ P + 1)` candidate system evaluations inside. -/
-def sparseCNFTimeBound (encP : P ↪ List Bool) (NOf BOf : P → ℕ) (k N₀ : ℕ)
+@[expose] def sparseCNFTimeBound (encP : P ↪ List Bool) (NOf BOf : P → ℕ) (k N₀ : ℕ)
     (poly qInit : ℕ → ℕ) (R : P × CNF ℕ → ℕ) (x : P × CNF ℕ) : ℕ :=
   let L := (encPair encP encCNF x).length; let N := NOf x.1; let B := BOf x.1; let m := x.2.length
   if entersSparseFastPath k N₀ N B x.2 then
@@ -457,7 +460,7 @@ def sparseCNFTimeBound (encP : P ↪ List Bool) (NOf BOf : P → ℕ) (k N₀ : 
 
 /-- Hypothesis bounding `cPoly.time (NOf x.1, sys) ≤ R x` on every compiled sparse system of at
 most `6 * NOf x.1` equations and polynomial encoded length produced on the Section 6.3 fast path. -/
-def ValidPolyTimeBound (encP : P ↪ List Bool) (NOf BOf : P → ℕ) (k N₀ : ℕ)
+@[expose] def ValidPolyTimeBound (encP : P ↪ List Bool) (NOf BOf : P → ℕ) (k N₀ : ℕ)
     {polyCounter : ℕ × List (List (List ℕ)) → ℕ}
     (cPoly : NativeCertificate polyCounter (encPair encUnary encSparseSystem) encNat)
     (polySys : ℕ → ℕ) (R : P × CNF ℕ → ℕ) : Prop :=
@@ -490,8 +493,8 @@ private theorem polyBounded_prod_space {α β γ : Type} {ei : α ↪ List Bool}
 
 private theorem polyBounded_pair_len {α β : Type} {ei : α ↪ List Bool} {eo : β ↪ List Bool}
     {f : α → β} (hf : PolyBounded (fun a => (ei a).length) (fun a => (eo (f a)).length)) :
-    PolyBounded (fun a => (ei a).length) (fun a => (encPair ei eo (a, f a)).length) :=
-  ((((PolyBounded.const 2).mul PolyBounded.self).add hf).add (.const 2)).mono fun a => by enc_len
+    PolyBounded (fun a => (ei a).length) (fun a => (encPair ei eo (a, f a)).length) := by
+  growth_poly
 
 private abbrev toSysInput (k : ℕ) (q : (ℕ × CNF ℕ) × List (List Bool)) :
     ℕ × List (List (List ℕ)) := (q.1.1, compileParitySystemBounded k q.1.2 q.2)
@@ -580,21 +583,6 @@ private theorem polyBounded_greedyBoundedCertificate_space (k : ℕ)
       fun a => hG.choose (encGreedyInput encCandCtx a).length := by
     unfold greedyBoundedCertificate; simp only [hSpace, ↓reduceDIte]
   rw [heq]; exact PolyBounded.of_polynomiallyBounded _ hG.choose_spec.1
-
-private theorem computableInPolyTime_validDeclaredInput (k : ℕ)
-    (hNOf : ComputableInPolyTime NOf encP encUnary) :
-    ComputableInPolyTime (fun x : P × CNF ℕ => validDeclaredInput k (NOf x.1) x.2)
-      (encPair encP encCNF) encBool := by
-  have hN_nat := unary_to_binary.comp' (hNOf.comp' (fst encP encCNF))
-  have h1 := allWithEncoding
-    (unary_le' (SAT.computableInPolyTime_clause_length
-      (snd (encPair encP encCNF) (encList (encPair encNat encBool)))) (.const k))
-    id' (snd encP (encList (encList (encPair encNat encBool))))
-  have h2 := allWithEncoding
-    (binary_lt' (snd (encPair encP encCNF) encNat)
-      (hN_nat.comp' (fst (encPair encP encCNF) encNat)))
-    id' (SAT.computableInPolyTime_vars.comp' (snd encP encCNF))
-  exact h1.bool_and' h2
 
 private theorem computableInPolyTime_isEmptyCNF :
     ComputableInPolyTime (fun x : P × CNF ℕ => x.2.isEmpty) (encPair encP encCNF) encBool :=
@@ -1155,10 +1143,8 @@ theorem exists_normalizeDeclaredLeafCertificate_bounds
         cLeaf.time x + poly (encPair encP encCNF x).length) := by
   have hNormSpace := polyBounded_normalizeDeclaredLeafCertificate_space hNOf cLeaf hSpace
   have hPairLen : PolyBounded (fun x : P × CNF ℕ => (encPair encP encCNF x).length)
-      (fun x => (encPair encNat encNat (h x, shiftAmount NOf x)).length) :=
-    ((((PolyBounded.const 2).mul (polyBounded_output_of_space cLeaf hSpace)).add
-      (computableInPolyTime_shiftAmount hNOf).polyBounded_length).add (.const 2)).mono fun x => by
-      enc_len
+      (fun x => (encPair encNat encNat (h x, shiftAmount NOf x)).length) := by
+    growth_poly [polyBounded_output_of_space cLeaf hSpace, computableInPolyTime_shiftAmount hNOf]
   have hShT := (NativeCertificate.ofPolyTime_isPolynomial (computableInPolyTime_shiftAmount hNOf)).1
   have hSrT := (NativeCertificate.ofPolyTime_isPolynomial
     ComputableInPolyTime.binary_shiftRight).1.comp hPairLen

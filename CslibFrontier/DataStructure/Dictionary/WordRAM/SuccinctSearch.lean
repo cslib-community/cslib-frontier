@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctMicroChain
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Succinct Dictionary Bucket Search and Query in `Memory.Prog` via `realize`
@@ -60,25 +61,18 @@ open Cslib.DataStructure.Dictionary.WordRAM.BitPackedArray
 `(j / K + 1) * K = j + 1`. -/
 private theorem div_succ_of_sub_mod_eq_zero {j K : ℕ} (hK : 0 < K) (hoff : (K - 1) - j % K = 0) :
     (j + 1) / K = j / K + 1 ∧ (j / K + 1) * K = j + 1 := by
-  have hmod_lt : j % K < K := Nat.mod_lt j hK
-  have hmod_eq : j % K = K - 1 := by omega
-  have hj_eq : j + 1 = (j / K + 1) * K := by
-    have hdiv := Nat.div_add_mod j K
-    calc j + 1 = K * (j / K) + j % K + 1 := by omega
-      _ = K * (j / K) + K := by omega
-      _ = (j / K + 1) * K := by ring
-  refine ⟨?_, hj_eq.symm⟩
-  rw [hj_eq, Nat.mul_div_cancel _ hK]
+  have hmod := Nat.mod_lt j hK
+  have hdiv := Nat.div_add_mod j K
+  have hj_eq : j + 1 = (j / K + 1) * K := by rw [Nat.add_one_mul, Nat.mul_comm _ K]; omega
+  exact ⟨by rw [hj_eq, Nat.mul_div_cancel _ hK], hj_eq.symm⟩
 
 /-- Arithmetic helper: when `(K - 1) - j % K ≠ 0` (`0 < K`), `(j + 1) / K = j / K`. -/
 private theorem div_succ_of_sub_mod_ne_zero {j K : ℕ} (hK : 0 < K) (hoff : (K - 1) - j % K ≠ 0) :
     (j + 1) / K = j / K := by
-  have hmod_lt : j % K < K := Nat.mod_lt j hK
-  have hrem_lt : j % K + 1 < K := by omega
-  have hj_eq : j + 1 = (j % K + 1) + K * (j / K) := by
-    have hdiv := Nat.div_add_mod j K
-    omega
-  rw [hj_eq, Nat.add_mul_div_left _ _ hK, Nat.div_eq_of_lt hrem_lt, Nat.zero_add]
+  have hmod := Nat.mod_lt j hK
+  have hdiv := Nat.div_add_mod j K
+  rw [show j + 1 = (j % K + 1) + K * (j / K) by omega,
+    Nat.add_mul_div_left _ _ hK, Nat.div_eq_of_lt (by omega), Nat.zero_add]
 
 /-- Parameter-free single-step overflow slot resolver (`d = ((dp, (base, b)), (j, p_cur))`),
 returning `(slotOf n_max gm b j, p_next)` where `p_next` advances along `slabAbove` at the end of
@@ -160,11 +154,9 @@ theorem clientState_resolveOvfStepProg (U V w n_max h_space : ℕ)
   unfold resolveOvfStepProg
   simp only [pure_bind]
   rw [StateTransitionSpec.clientState_bind, clientState_readGMProg]
-  split_ifs
-  · rw [StateTransitionSpec.clientState_bind, clientState_readGMProg]; rfl
-  · rfl
-  · rfl
-  · rw [StateTransitionSpec.clientState_bind, clientState_readGMProg]; rfl
+  split_ifs <;> first
+    | (rw [StateTransitionSpec.clientState_bind, clientState_readGMProg]; rfl)
+    | rfl
 
 theorem memoryCost_resolveOvfStepProg_le (U V w n_max h_space : ℕ)
     (d : (ℕ × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
@@ -173,36 +165,48 @@ theorem memoryCost_resolveOvfStepProg_le (U V w n_max h_space : ℕ)
   simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
   rw [memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg]
   split_ifs
-  · rw [memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg]
-    change 2 + (2 + 0) ≤ 4; omega
-  · change 2 + 0 ≤ 4; omega
-  · change 2 + 0 ≤ 4; omega
-  · rw [memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg]
-    change 2 + (2 + 0) ≤ 4; omega
+  · rw [memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg, memoryCost_pure]
+  · rw [memoryCost_pure]; omega
+  · rw [memoryCost_pure]; omega
+  · rw [memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg, memoryCost_pure]
 
 /-- Precondition for `resolveOvfStepProg` (`d = ((base, b), (j, p_cur))`). -/
 @[expose] def ResolveOvfStepPre (U V w₀ n_max h_space w : ℕ)
     (d : (ℕ × ℕ) × (ℕ × ℕ)) (s : Memory.State) : Prop :=
-  let gm := gmAt d.1.1 U V w₀ n_max h_space s.mem
-  DictEnvGen w (mkDictParams U V w₀ n_max h_space) d.1.1 ∧
-  d.1.2 < numBuckets n_max ∧
-  d.2.1 < bCount n_max gm d.1.2 ∧
+  let d1 := d.1
+  let base := d1.1
+  let b := d1.2
+  let d2 := d.2
+  let j := d2.1
+  let p_cur := d2.2
+  let gm := gmAt base U V w₀ n_max h_space s.mem
+  DictEnvGen w (mkDictParams U V w₀ n_max h_space) base ∧
+  b < numBuckets n_max ∧
+  j < bCount n_max gm b ∧
   SlotStoreInv n_max gm ∧
-  (d.2.1 < gm (gmQIdx d.1.2) * slabSize n_max →
-    d.2.2 = slabPtrOf n_max gm d.1.2 (d.2.1 / slabSize n_max)) ∧
+  (j < gm (gmQIdx b) * slabSize n_max →
+    p_cur = slabPtrOf n_max gm b (j / slabSize n_max)) ∧
   0 < bucketBits n_max
 
 /-- Parameter-free precondition for `resolveOvfStepGenProg`. -/
 @[expose] def ResolveOvfStepGenPre (w : ℕ)
     (d : (DictParams × (ℕ × ℕ)) × (ℕ × ℕ)) (s : Memory.State) : Prop :=
-  let gm := gmAt d.1.2.1 (dpU d.1.1) (dpV d.1.1) (dpW d.1.1) (dpNMax d.1.1) (dpHSpace d.1.1) s.mem
-  DictEnvGen w d.1.1 d.1.2.1 ∧
-  d.1.2.2 < numBuckets (dpNMax d.1.1) ∧
-  d.2.1 < bCount (dpNMax d.1.1) gm d.1.2.2 ∧
-  SlotStoreInv (dpNMax d.1.1) gm ∧
-  (d.2.1 < gm (gmQIdx d.1.2.2) * slabSize (dpNMax d.1.1) →
-    d.2.2 = slabPtrOf (dpNMax d.1.1) gm d.1.2.2 (d.2.1 / slabSize (dpNMax d.1.1))) ∧
-  0 < bucketBits (dpNMax d.1.1)
+  let d1 := d.1
+  let dp := d1.1
+  let d12 := d1.2
+  let base := d12.1
+  let b := d12.2
+  let d2 := d.2
+  let j := d2.1
+  let p_cur := d2.2
+  let gm := gmAt base (dpU dp) (dpV dp) (dpW dp) (dpNMax dp) (dpHSpace dp) s.mem
+  DictEnvGen w dp base ∧
+  b < numBuckets (dpNMax dp) ∧
+  j < bCount (dpNMax dp) gm b ∧
+  SlotStoreInv (dpNMax dp) gm ∧
+  (j < gm (gmQIdx b) * slabSize (dpNMax dp) →
+    p_cur = slabPtrOf (dpNMax dp) gm b (j / slabSize (dpNMax dp))) ∧
+  0 < bucketBits (dpNMax dp)
 
 @[simp]
 theorem resolveOvfStepGenPre_mk (U V w₀ n_max h_space w : ℕ)
@@ -230,55 +234,49 @@ theorem clientResult_resolveOvfStepProg {U V w n_max h_space : ℕ}
   have hK : 0 < slabSize n_max := slabSize_pos n_max
   have hq_lt : 4 + 3 * d.1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
   have hslab := hinv.multi_slab hb_pos
+  have hslot_slab : ∀ hj : d.2.1 < gmAt d.1.1 U V w n_max h_space s.mem (gmQIdx d.1.2) *
+        slabSize n_max,
+      d.2.2 * slabSize n_max + (slabSize n_max - 1 - d.2.1 % slabSize n_max) =
+        slotOf n_max (gmAt d.1.1 U V w n_max h_space s.mem) d.1.2 d.2.1 := fun hj => by
+    unfold slotOf; rw [ite_eq_right hb0, ite_eq_left hj, hp hj]
   unfold resolveOvfStepProg
   simp only [pure_bind]
   rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
     clientResult_readGMProg s hq_lt, show 4 + 3 * d.1.2 = gmQIdx d.1.2 from rfl]
   split_ifs with hj_slab hoff hj1_slab
-  · have hp_eq := hp hj_slab
-    have ⟨hdiv_eq, hmul_eq⟩ := div_succ_of_sub_mod_eq_zero hK hoff
-    have hs_lt : d.2.1 / slabSize n_max <
-        gmAt d.1.1 U V w n_max h_space s.mem (gmQIdx d.1.2) :=
-      (Nat.div_lt_iff_lt_mul hK).2 hj_slab
+  · have ⟨hdiv_eq, hmul_eq⟩ := div_succ_of_sub_mod_eq_zero hK hoff
+    have hs_lt := (Nat.div_lt_iff_lt_mul hK).2 hj_slab
     have hs1_lt : d.2.1 / slabSize n_max + 1 <
-        gmAt d.1.1 U V w n_max h_space s.mem (gmQIdx d.1.2) := by
-      have : (d.2.1 / slabSize n_max + 1) * slabSize n_max <
-          gmAt d.1.1 U V w n_max h_space s.mem (gmQIdx d.1.2) * slabSize n_max := by rwa [hmul_eq]
-      exact (Nat.mul_lt_mul_right hK).mp this
-    have hp_lt_max : d.2.2 < maxFullSlabs n_max := hp_eq ▸ hslab.ptr_lt_maxFullSlabs hb hs_lt
+        gmAt d.1.1 U V w n_max h_space s.mem (gmQIdx d.1.2) :=
+      (Nat.mul_lt_mul_right hK).mp (hmul_eq ▸ hj1_slab)
     have habove_lt : gmSlabMetaBase n_max + 4 * d.2.2 + 3 < globalMetaLen n_max :=
-      gmSlabAboveIdx_lt hb_pos hp_lt_max
+      gmSlabAboveIdx_lt hb_pos (hp hj_slab ▸ hslab.ptr_lt_maxFullSlabs hb hs_lt)
     rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
       clientResult_readGMProg s habove_lt]
-    refine ⟨?_, fun _ => ?_⟩
-    · unfold slotOf
-      rw [ite_eq_right hb0, ite_eq_left hj_slab, hp_eq]
-      rfl
-    · change gmAt d.1.1 U V w n_max h_space s.mem (gmSlabAboveIdx n_max d.2.2) = _
-      rw [hp_eq, hslab.above_eq d.1.2 hb _ hs_lt hs1_lt, hdiv_eq]
-  · have hp_eq := hp hj_slab
-    refine ⟨?_, fun h => (hj1_slab h).elim⟩
-    unfold slotOf
-    rw [ite_eq_right hb0, ite_eq_left hj_slab, hp_eq]
-    rfl
-  · have hp_eq := hp hj_slab
-    have hdiv_eq := div_succ_of_sub_mod_ne_zero hK hoff
-    refine ⟨?_, fun _ => by rw [hp_eq, hdiv_eq]; rfl⟩
-    unfold slotOf
-    rw [ite_eq_right hb0, ite_eq_left hj_slab, hp_eq]
-    rfl
+    refine ⟨hslot_slab hj_slab, fun _ => ?_⟩
+    change gmAt d.1.1 U V w n_max h_space s.mem (gmSlabAboveIdx n_max d.2.2) = _
+    rw [hp hj_slab, hslab.above_eq d.1.2 hb _ hs_lt hs1_lt, hdiv_eq]
+  · exact ⟨hslot_slab hj_slab, fun h => (hj1_slab h).elim⟩
+  · exact ⟨hslot_slab hj_slab, fun _ => by
+      rw [hp hj_slab, div_succ_of_sub_mod_ne_zero hK hoff]; rfl⟩
   · obtain ⟨-, hr_cap⟩ := hinv.tailOffset_lt hb_pos hb hj_bc hj_slab
-    have hptr_lt : gmTailPtrBase n_max +
-        (d.1.2 * tailCapPerBucket n_max +
-          (d.2.1 - gmAt d.1.1 U V w n_max h_space s.mem (gmQIdx d.1.2) * slabSize n_max)) <
-        globalMetaLen n_max :=
-      gmTailPtrIdx_lt hb_pos hb hr_cap
+    have hptr_lt : gmTailPtrBase n_max + (d.1.2 * tailCapPerBucket n_max +
+        (d.2.1 - gmAt d.1.1 U V w n_max h_space s.mem (gmQIdx d.1.2) * slabSize n_max)) <
+        globalMetaLen n_max := gmTailPtrIdx_lt hb_pos hb hr_cap
     rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
       clientResult_readGMProg s hptr_lt]
     refine ⟨?_, fun h => by omega⟩
-    unfold slotOf
-    rw [ite_eq_right hb0, ite_eq_right hj_slab]
-    rfl
+    unfold slotOf; rw [ite_eq_right hb0, ite_eq_right hj_slab]; rfl
+
+/-- Shared `gmSlabAboveIdx` bound for `realizes_resolveOvfStepGen` (word-fit and index-in-range). -/
+private theorem resolveOvfStep_aboveIdx_lt {n_max : ℕ} {gm : ℕ → ℕ} {b j p_cur : ℕ}
+    (hb_pos : 0 < bucketBits n_max) (hb : b < numBuckets n_max) (hinv : SlotStoreInv n_max gm)
+    (hp : j < gm (gmQIdx b) * slabSize n_max → p_cur = slabPtrOf n_max gm b (j / slabSize n_max))
+    (hj1 : j + 1 < gm (gmQIdx b) * slabSize n_max) :
+    gmSlabMetaBase n_max + 4 * p_cur + 3 < globalMetaLen n_max := by
+  have hj := Nat.lt_of_succ_lt hj1
+  have hs := (Nat.div_lt_iff_lt_mul (slabSize_pos n_max)).2 hj
+  exact gmSlabAboveIdx_lt hb_pos (hp hj ▸ (hinv.multi_slab hb_pos).ptr_lt_maxFullSlabs hb hs)
 
 theorem realizes_resolveOvfStepGen :
     Realizes .exact resolveOvfStepGenProg
@@ -286,113 +284,68 @@ theorem realizes_resolveOvfStepGen :
       (WordEncoding.encode (α := ℕ × ℕ))
       ResolveOvfStepGenPre
       (fun _ _ => 0) := by
-  have hrg := realizes_readGMGen
-  realize
+  realize [realizes_readGMGen]
   all_goals (
     rcases d with ⟨⟨dp, d1⟩, d2⟩
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1
     have hb_pos : 0 < bucketBits n_max := h.2.2.2.2.2
     have hK : 0 < slabSize n_max := slabSize_pos n_max
     simpDictParamsWith [resolveOvfStepGenPre_mk, ResolveOvfStepPre, resolveOvfStepGenProg_mk]
+    have hq_lt : 4 + 3 * d1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos h.2.1
   )
-  · exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU (le_of_lt (gmQIdx_lt hb_pos h.2.1))
+  · exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU hq_lt.le
   · exact fits_const_of_dictEnv h.1 (by decide)
   · exact h.1
-  · exact gmQIdx_lt hb_pos h.2.1
-  · have hq_lt : 4 + 3 * d1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos h.2.1
-    rw [clientResult_readGMProg _ hq_lt]
+  · exact hq_lt
+  · rw [clientResult_readGMProg _ hq_lt]
     have hbc := bCount_le_n_max h.2.2.2.1 d1.2
-    have hb0 : bucketBits n_max ≠ 0 := by omega
     unfold bCount at hbc
-    simp only [hb0, ↓reduceIte, h.2.1, gmQIdx] at hbc
+    simp only [Nat.ne_of_gt hb_pos, ↓reduceIte, h.2.1, gmQIdx] at hbc
     exact fits_of_le_max_n_one h.1 hw hnU hU (by omega)
   · exact Nat.ne_of_gt hK
   · have := Nat.mod_lt d2.1 hK; omega
-  · have hq_lt : 4 + 3 * d1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos h.2.1
-    have hqb := clientResult_readGMProg s (base := d1.1) (U := U) (V := V)
-      (w := w₀) (h_space := h_space) hq_lt
-    rw [hqb] at hc
-    have hp_eq := h.2.2.2.2.1 hc
+  · rw [clientResult_readGMProg s hq_lt] at hc
     have hslab := h.2.2.2.1.multi_slab hb_pos
-    have hs_lt : d2.1 / slabSize n_max <
-        gmAt d1.1 U V w₀ n_max h_space s.mem (gmQIdx d1.2) :=
-      (Nat.div_lt_iff_lt_mul hK).2 hc
     have hp_lt : d2.2 < gmAt d1.1 U V w₀ n_max h_space s.mem 0 := by
-      rw [hp_eq, hslab.nslabs_eq]
-      exact hslab.ptr_lt d1.2 h.2.1 _ hs_lt
-    have hmod_lt : d2.1 % slabSize n_max < slabSize n_max := Nat.mod_lt _ hK
-    have h1 : (d2.2 + 1) * slabSize n_max ≤
-        gmAt d1.1 U V w₀ n_max h_space s.mem 0 * slabSize n_max :=
-      Nat.mul_le_mul_right _ hp_lt
+      rw [h.2.2.2.2.1 hc, hslab.nslabs_eq]
+      exact hslab.ptr_lt d1.2 h.2.1 _ ((Nat.div_lt_iff_lt_mul hK).2 hc)
+    have h1 := Nat.mul_le_mul_right (slabSize n_max) hp_lt
     rw [Nat.add_one_mul] at h1
-    have htot := h.2.2.2.1.multi_total_le hb_pos
+    have := Nat.mod_lt d2.1 hK
+    have := h.2.2.2.1.multi_total_le hb_pos
     exact fits_of_le_max_n_one h.1 hw hnU hU (by omega)
-  · have hbc := bCount_le_n_max h.2.2.2.1 d1.2
-    have := h.2.2.1
+  · have hbc := bCount_le_n_max h.2.2.2.1 d1.2; have := h.2.2.1
     exact fits_of_le_max_n_one h.1 hw hnU hU (by omega)
-  · have hq_lt : 4 + 3 * d1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos h.2.1
-    have hqb := clientResult_readGMProg s (base := d1.1) (U := U) (V := V)
-      (w := w₀) (h_space := h_space) hq_lt
-    rw [hqb] at hc
-    have hj_lt : d2.1 < gmAt d1.1 U V w₀ n_max h_space s.mem (gmQIdx d1.2) * slabSize n_max :=
-      Nat.lt_of_succ_lt hc
-    have hs_lt : d2.1 / slabSize n_max <
-        gmAt d1.1 U V w₀ n_max h_space s.mem (gmQIdx d1.2) :=
-      (Nat.div_lt_iff_lt_mul hK).2 hj_lt
-    have hp_lt_max : d2.2 < maxFullSlabs n_max :=
-      h.2.2.2.2.1 hj_lt ▸ (h.2.2.2.1.multi_slab hb_pos).ptr_lt_maxFullSlabs h.2.1 hs_lt
+  · rw [clientResult_readGMProg s hq_lt] at hc
     exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU
-      (le_of_lt (gmSlabAboveIdx_lt hb_pos hp_lt_max))
+      (resolveOvfStep_aboveIdx_lt hb_pos h.2.1 h.2.2.2.1 h.2.2.2.2.1 hc).le
   · exact fits_const_of_dictEnv h.1 (by decide)
   · exact h.1
-  · have hq_lt : 4 + 3 * d1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos h.2.1
-    have hqb := clientResult_readGMProg s (base := d1.1) (U := U) (V := V)
-      (w := w₀) (h_space := h_space) hq_lt
-    rw [hqb] at hc
-    have hj_lt : d2.1 < gmAt d1.1 U V w₀ n_max h_space s.mem (gmQIdx d1.2) * slabSize n_max :=
-      Nat.lt_of_succ_lt hc
-    have hs_lt : d2.1 / slabSize n_max <
-        gmAt d1.1 U V w₀ n_max h_space s.mem (gmQIdx d1.2) :=
-      (Nat.div_lt_iff_lt_mul hK).2 hj_lt
-    have hp_lt_max : d2.2 < maxFullSlabs n_max :=
-      h.2.2.2.2.1 hj_lt ▸ (h.2.2.2.1.multi_slab hb_pos).ptr_lt_maxFullSlabs h.2.1 hs_lt
-    exact gmSlabAboveIdx_lt hb_pos hp_lt_max
+  · rw [clientResult_readGMProg s hq_lt] at hc
+    exact resolveOvfStep_aboveIdx_lt hb_pos h.2.1 h.2.2.2.1 h.2.2.2.2.1 hc
   · omega
-  · have hq_lt : 4 + 3 * d1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos h.2.1
-    have hqb := clientResult_readGMProg s (base := d1.1) (U := U) (V := V)
-      (w := w₀) (h_space := h_space) hq_lt
-    rw [hqb] at hc ⊢
-    obtain ⟨-, hr_cap⟩ := h.2.2.2.1.tailOffset_lt hb_pos h.2.1 h.2.2.1 hc
+  · rw [clientResult_readGMProg s hq_lt] at hc ⊢
     exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU
-      (le_of_lt (gmTailPtrIdx_lt hb_pos h.2.1 hr_cap))
+      (gmTailPtrIdx_lt hb_pos h.2.1
+        (h.2.2.2.1.tailOffset_lt hb_pos h.2.1 h.2.2.1 hc).2).le
   · exact h.1
-  · have hq_lt : 4 + 3 * d1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos h.2.1
-    have hqb := clientResult_readGMProg s (base := d1.1) (U := U) (V := V)
-      (w := w₀) (h_space := h_space) hq_lt
-    rw [hqb] at hc ⊢
-    obtain ⟨-, hr_cap⟩ := h.2.2.2.1.tailOffset_lt hb_pos h.2.1 h.2.2.1 hc
-    exact gmTailPtrIdx_lt hb_pos h.2.1 hr_cap
-  · have hq_lt : 4 + 3 * d1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos h.2.1
-    have hqb := clientResult_readGMProg s (base := d1.1) (U := U) (V := V)
-      (w := w₀) (h_space := h_space) hq_lt
-    rw [clientState_readGMProg]
-    rw [hqb] at hc ⊢
+  · rw [clientResult_readGMProg s hq_lt] at hc ⊢
+    exact gmTailPtrIdx_lt hb_pos h.2.1 (h.2.2.2.1.tailOffset_lt hb_pos h.2.1 h.2.2.1 hc).2
+  · rw [clientState_readGMProg]
+    rw [clientResult_readGMProg s hq_lt] at hc ⊢
     obtain ⟨hr_lt, hr_cap⟩ := h.2.2.2.1.tailOffset_lt hb_pos h.2.1 h.2.2.1 hc
     have hptr_lt : gmTailPtrBase n_max + (d1.2 * tailCapPerBucket n_max +
         (d2.1 - gmAt d1.1 U V w₀ n_max h_space s.mem (4 + 3 * d1.2) * slabSize n_max)) <
         globalMetaLen n_max := gmTailPtrIdx_lt hb_pos h.2.1 hr_cap
     rw [clientResult_readGMProg _ hptr_lt]
     have htail := h.2.2.2.1.multi_tail hb_pos
-    have ht_lt : gmAt d1.1 U V w₀ n_max h_space s.mem
-        (gmTailPtrIdx n_max d1.2
-          (d2.1 - gmAt d1.1 U V w₀ n_max h_space s.mem (4 + 3 * d1.2) * slabSize n_max)) <
+    have ht_lt : gmAt d1.1 U V w₀ n_max h_space s.mem (gmTailPtrIdx n_max d1.2
+        (d2.1 - gmAt d1.1 U V w₀ n_max h_space s.mem (4 + 3 * d1.2) * slabSize n_max)) <
         gmAt d1.1 U V w₀ n_max h_space s.mem 1 := by
-      rw [htail.ntails_eq]
-      exact htail.ptr_lt d1.2 h.2.1 _ hr_lt
+      rw [htail.ntails_eq]; exact htail.ptr_lt d1.2 h.2.1 _ hr_lt
     have htot := h.2.2.2.1.multi_total_le hb_pos
     have hn_pos := one_le_n_max_of_bucketBits_pos hb_pos
-    unfold gmTailPtrIdx gmTailPtrFlatIdx at ht_lt
-    omega
+    wram_omega [ht_lt]
 
 /-! ## Section 2: Phase 2 Overflow Search (`ovfStepProg`, `ovfLoopProg`, `searchOverflowProg`) -/
 
@@ -530,9 +483,7 @@ theorem realizes_ovfStepGen :
       (WordEncoding.encode (α := (((ℕ × ℕ) × ℕ) × ℕ) × ℕ))
       OvfStepGenPre
       (fun _ _ => 0) := by
-  have hres := realizes_resolveOvfStepGen
-  have hrq := realizes_readQuotGen
-  realize
+  realize [realizes_resolveOvfStepGen, realizes_readQuotGen]
   all_goals (
     rcases d with ⟨⟨dp, d1⟩, d2⟩
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1
@@ -566,11 +517,8 @@ theorem realizes_ovfStepGen :
 theorem iterate_ovfStepGenProg_mk (U V w n_max h_space : ℕ)
     (ctx : (ℕ × ℕ) × ℕ) (m : ℕ) (acc : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ) :
     iterate ovfStepGenProg (mkDictParams U V w n_max h_space, ctx) m acc =
-      iterate (ovfStepProg U V w n_max h_space) ctx m acc := by
-  induction m generalizing acc with
-  | zero => rfl
-  | succ m ih =>
-    simp only [iterate, ovfStepGenProg_mk, ih]
+      iterate (ovfStepProg U V w n_max h_space) ctx m acc :=
+  iterate_congr (fun a => ovfStepGenProg_mk U V w n_max h_space ctx a) m acc
 
 @[simp]
 theorem ovfLoopGenProg_mk (U V w n_max h_space : ℕ)
@@ -585,11 +533,9 @@ theorem iterationSafe_ovfStepGenProg_mk (U V w₀ n_max h_space w : ℕ)
     iterationSafe ovfStepGenProg OvfStepGenPre w
       (mkDictParams U V w₀ n_max h_space, ctx) m acc s ↔
     iterationSafe (ovfStepProg U V w₀ n_max h_space) (OvfStepPre U V w₀ n_max h_space)
-      w ctx m acc s := by
-  induction m generalizing acc s with
-  | zero => rfl
-  | succ m ih =>
-    simp only [iterationSafe, ovfStepGenPre_mk, ovfStepGenProg_mk, ih]
+      w ctx m acc s :=
+  iterationSafe_congr (fun a => ovfStepGenProg_mk U V w₀ n_max h_space ctx a)
+    (fun a t => ovfStepGenPre_mk U V w₀ n_max h_space w ctx a t) m acc s
 
 theorem realizes_ovfLoopGen :
     Realizes .exact ovfLoopGenProg
@@ -667,96 +613,47 @@ theorem iterate_ovfStepProg_spec {U V w₀ n_max h_space w base b q_target : ℕ
     set phys := slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b j
     set q_val := quotAt base U w₀ n_max h_space s.mem phys
     have hjm' : (j + 1) + m ≤ bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b := by omega
+    unfold iterate
+    rw [iterationSafe, StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
+      memoryCost_bind_of_clientState_eq hstep_st, hstep_st, hstep_res]
     by_cases hf0 : found = 0
-    · subst hf0
-      by_cases hmatch : q_val = q_target
-      · have hstep_eq : (Memory.spec 0).clientResult s
-            (ovfStepProg U V w₀ n_max h_space
-              (((base, b), q_target), ((((j, p_cur), 0), j_found), phys_found))) =
-            ((((j + 1, pair.2), 1), j), phys) := by
-          rw [hstep_res, ite_eq_left rfl, ite_eq_left hmatch]
+    · by_cases hmatch : q_val = q_target
+      · rw [ite_eq_left hf0, ite_eq_left hmatch]
         have hih := ih (j + 1) pair.2 1 j phys hjm' hp_next
-        refine ⟨?_, ?_, ?_, ?_⟩
-        · unfold iterate
-          rw [StateTransitionSpec.clientState_bind, hstep_st, hstep_eq]
-          exact hih.1
-        · unfold iterate
-          rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hstep_st, hstep_eq]
-          have := hih.2.1; omega
-        · rw [iterationSafe, hstep_st, hstep_eq]
-          exact ⟨hpre, hih.2.2.1⟩
-        · unfold iterate
-          rw [StateTransitionSpec.clientResult_bind, hstep_st, hstep_eq]
-          have hih_res := hih.2.2.2
-          rw [ite_eq_right (by decide : (1 : ℕ) ≠ 0)] at hih_res
-          rw [ite_eq_left rfl]
-          have hex : ∃ k, j ≤ k ∧ k < j + (m + 1) ∧
-              quotAt base U w₀ n_max h_space s.mem
-                (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b k) = q_target :=
-            ⟨j, le_rfl, by omega, hmatch⟩
-          rw [ite_eq_left hex]
-          exact ⟨hih_res.1, by rw [hih_res.2.1], by rw [hih_res.2.1]; omega,
-            by rw [hih_res.2.1]; exact hmatch, by rw [hih_res.2.1, hih_res.2.2]⟩
-      · have hstep_eq : (Memory.spec 0).clientResult s
-            (ovfStepProg U V w₀ n_max h_space
-              (((base, b), q_target), ((((j, p_cur), 0), j_found), phys_found))) =
-            ((((j + 1, pair.2), 0), j_found), phys_found) := by
-          rw [hstep_res, ite_eq_left rfl, ite_eq_right hmatch]
-        have hih := ih (j + 1) pair.2 0 j_found phys_found hjm' hp_next
-        refine ⟨?_, ?_, ?_, ?_⟩
-        · unfold iterate
-          rw [StateTransitionSpec.clientState_bind, hstep_st, hstep_eq]
-          exact hih.1
-        · unfold iterate
-          rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hstep_st, hstep_eq]
-          have := hih.2.1; omega
-        · rw [iterationSafe, hstep_st, hstep_eq]
-          exact ⟨hpre, hih.2.2.1⟩
-        · unfold iterate
-          rw [StateTransitionSpec.clientResult_bind, hstep_st, hstep_eq]
-          have hih_res := hih.2.2.2
-          rw [ite_eq_left rfl] at hih_res ⊢
-          by_cases hex' : ∃ k, j + 1 ≤ k ∧ k < j + 1 + m ∧
-              quotAt base U w₀ n_max h_space s.mem
-                (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b k) = q_target
-          · have hex : ∃ k, j ≤ k ∧ k < j + (m + 1) ∧
-                quotAt base U w₀ n_max h_space s.mem
-                  (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b k) = q_target := by
-              obtain ⟨k, hk1, hk2, hqk⟩ := hex'
-              exact ⟨k, by omega, by omega, hqk⟩
-            rw [ite_eq_left hex'] at hih_res
-            rw [ite_eq_left hex]
-            exact ⟨hih_res.1, by omega, by omega, hih_res.2.2.2.1, hih_res.2.2.2.2⟩
-          · have hno : ¬∃ k, j ≤ k ∧ k < j + (m + 1) ∧
-                quotAt base U w₀ n_max h_space s.mem
-                  (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b k) = q_target := by
-              rintro ⟨k, hk1, hk2, hqk⟩
-              rcases eq_or_lt_of_le hk1 with rfl | hlt
-              · exact hmatch hqk
-              · exact hex' ⟨k, by omega, by omega, hqk⟩
-            rw [ite_eq_right hex'] at hih_res
-            rw [ite_eq_right hno]
-            exact hih_res
-    · have hstep_eq : (Memory.spec 0).clientResult s
-          (ovfStepProg U V w₀ n_max h_space
-            (((base, b), q_target), ((((j, p_cur), found), j_found), phys_found))) =
-          ((((j + 1, pair.2), found), j_found), phys_found) := by
-        rw [hstep_res, ite_eq_right hf0]
-      have hih := ih (j + 1) pair.2 found j_found phys_found hjm' hp_next
-      refine ⟨?_, ?_, ?_, ?_⟩
-      · unfold iterate
-        rw [StateTransitionSpec.clientState_bind, hstep_st, hstep_eq]
-        exact hih.1
-      · unfold iterate
-        rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hstep_st, hstep_eq]
-        have := hih.2.1; omega
-      · rw [iterationSafe, hstep_st, hstep_eq]
-        exact ⟨hpre, hih.2.2.1⟩
-      · unfold iterate
-        rw [StateTransitionSpec.clientResult_bind, hstep_st, hstep_eq]
+        refine ⟨hih.1, by have := hih.2.1; omega, ⟨hpre, hih.2.2.1⟩, ?_⟩
         have hih_res := hih.2.2.2
-        rw [ite_eq_right hf0] at hih_res ⊢
-        exact hih_res
+        rw [ite_eq_right (by decide : (1 : ℕ) ≠ 0)] at hih_res
+        have hex : ∃ k, j ≤ k ∧ k < j + (m + 1) ∧ quotAt base U w₀ n_max h_space s.mem
+            (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b k) = q_target :=
+          ⟨j, le_rfl, by omega, hmatch⟩
+        rw [ite_eq_left hf0, ite_eq_left hex]
+        exact ⟨hih_res.1, by rw [hih_res.2.1], by rw [hih_res.2.1]; omega,
+          by rw [hih_res.2.1]; exact hmatch, by rw [hih_res.2.1, hih_res.2.2]⟩
+      · rw [ite_eq_left hf0, ite_eq_right hmatch]
+        have hih := ih (j + 1) pair.2 0 j_found phys_found hjm' hp_next
+        refine ⟨hih.1, by have := hih.2.1; omega, ⟨hpre, hih.2.2.1⟩, ?_⟩
+        have hih_res := hih.2.2.2
+        rw [ite_eq_left rfl] at hih_res
+        rw [ite_eq_left hf0]
+        split_ifs at hih_res with hex'
+        · obtain ⟨k, hk1, hk2, hqk⟩ := hex'
+          split_ifs with hex
+          · exact ⟨hih_res.1, by omega, by omega, hih_res.2.2.2.1, hih_res.2.2.2.2⟩
+          · exact (hex ⟨k, by omega, by omega, hqk⟩).elim
+        · have hno : ¬∃ k, j ≤ k ∧ k < j + (m + 1) ∧ quotAt base U w₀ n_max h_space s.mem
+              (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b k) = q_target := by
+            rintro ⟨k, hk1, hk2, hqk⟩
+            rcases eq_or_lt_of_le hk1 with rfl | hlt
+            · exact hmatch hqk
+            · exact hex' ⟨k, by omega, by omega, hqk⟩
+          rw [ite_eq_right hno]
+          exact hih_res
+    · rw [ite_eq_right hf0]
+      have hih := ih (j + 1) pair.2 found j_found phys_found hjm' hp_next
+      refine ⟨hih.1, by have := hih.2.1; omega, ⟨hpre, hih.2.2.1⟩, ?_⟩
+      have hih_res := hih.2.2.2
+      rw [ite_eq_right hf0] at hih_res ⊢
+      exact hih_res
 
 /-- Parameter-free helper initializing `(p_init, fuel)` for Phase 2 overflow search
 (`d = (dp, (base, b))`). -/
@@ -822,12 +719,10 @@ theorem clientState_initOvfSearchProg (U V w n_max h_space : ℕ)
   simp only [pure_bind]
   rw [StateTransitionSpec.clientState_bind, clientState_readGMProg,
     StateTransitionSpec.clientState_bind, clientState_readGMProg]
-  split_ifs
-  · rw [StateTransitionSpec.clientState_bind, clientState_readGMProg,
-      StateTransitionSpec.clientState_bind, clientState_readGMProg]
-    rfl
-  · rfl
-  · rfl
+  split_ifs <;> first
+    | (rw [StateTransitionSpec.clientState_bind, clientState_readGMProg,
+        StateTransitionSpec.clientState_bind, clientState_readGMProg]; rfl)
+    | rfl
 
 theorem memoryCost_initOvfSearchProg_le (U V w n_max h_space : ℕ)
     (d : ℕ × ℕ) (s : Memory.State) :
@@ -836,10 +731,10 @@ theorem memoryCost_initOvfSearchProg_le (U V w n_max h_space : ℕ)
   simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
   rw [memoryCost_bind, clientState_readGMProg, memoryCost_bind, clientState_readGMProg]
   split_ifs
-  · rw [memoryCost_bind, clientState_readGMProg, memoryCost_bind, clientState_readGMProg]
-    change 2 + (2 + (2 + (2 + 0))) ≤ 8; omega
-  · change 2 + (2 + 0) ≤ 8; omega
-  · change 2 + (2 + 0) ≤ 8; omega
+  · rw [memoryCost_bind, clientState_readGMProg, memoryCost_bind, clientState_readGMProg,
+      memoryCost_pure]; change 2 + (2 + (2 + (2 + 0))) ≤ 8; omega
+  · rw [memoryCost_pure]; change 2 + (2 + 0) ≤ 8; omega
+  · rw [memoryCost_pure]; change 2 + (2 + 0) ≤ 8; omega
 
 theorem dirSlabsPerBucket_pos_of_pos {n_max : ℕ} (hb : 0 < bucketBits n_max) :
     0 < dirSlabsPerBucket n_max := by
@@ -884,15 +779,14 @@ theorem clientResult_initOvfSearchProg {U V w n_max h_space : ℕ}
   intro gm res
   dsimp only [gm, res] at *
   have hb0 : bucketBits n_max ≠ 0 := by omega
-  have hK : 0 < slabSize n_max := slabSize_pos n_max
+  have hK := slabSize_pos n_max
   have hq_lt : 4 + 3 * d.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
   have hr_lt : 4 + 3 * d.2 + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos hb
   have hbc_eq : gmAt d.1 U V w n_max h_space s.mem (4 + 3 * d.2) * slabSize n_max +
       gmAt d.1 U V w n_max h_space s.mem (4 + 3 * d.2 + 1) =
       bCount n_max (gmAt d.1 U V w n_max h_space s.mem) d.2 := by
-    unfold bCount gmQIdx gmRIdx; simp [hb0, hb]
-  have hbc_le : bCount n_max (gmAt d.1 U V w n_max h_space s.mem) d.2 ≤ n_max :=
-    bCount_le_n_max hinv d.2
+    unfold bCount gmQIdx gmRIdx; simp only [hb0, ↓reduceIte, hb]
+  have hbc_le := bCount_le_n_max hinv d.2
   unfold initOvfSearchProg
   simp only [pure_bind]
   rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
@@ -905,27 +799,42 @@ theorem clientResult_initOvfSearchProg {U V w n_max h_space : ℕ}
     have hdir_lt_q : dirSlabsPerBucket n_max <
         gmAt d.1 U V w n_max h_space s.mem (4 + 3 * d.2) :=
       (Nat.mul_lt_mul_right hK).mp (by rwa [← hcap_dir])
-    obtain ⟨hdir_idx_lt, hp_prev_eq, hp_prev_lt_max⟩ :=
-      hinv.lastDirSlab_ptr hb_pos hb hcap_q.le
+    obtain ⟨hdir_lt, hp_eq, hp_lt⟩ := hinv.lastDirSlab_ptr hb_pos hb hcap_q.le
+    have habv_lt : gmSlabMetaBase n_max + 4 * slabPtrOf n_max (gmAt d.1 U V w n_max h_space s.mem)
+        d.2 (dirSlabsPerBucket n_max - 1) + 3 < globalMetaLen n_max :=
+      gmSlabAboveIdx_lt hb_pos hp_lt
     rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
-      clientResult_readGMProg s hdir_idx_lt, hp_prev_eq]
-    have habv_lt : gmSlabMetaBase n_max +
-        4 * slabPtrOf n_max (gmAt d.1 U V w n_max h_space s.mem) d.2
-          (dirSlabsPerBucket n_max - 1) + 3 < globalMetaLen n_max :=
-      gmSlabAboveIdx_lt hb_pos hp_prev_lt_max
-    rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
-      clientResult_readGMProg s habv_lt]
+      clientResult_readGMProg s hdir_lt, hp_eq, StateTransitionSpec.clientResult_bind,
+      clientState_readGMProg, clientResult_readGMProg s habv_lt]
     refine ⟨rfl, fun _ _ => ?_⟩
-    change gmAt d.1 U V w n_max h_space s.mem
-      (gmSlabAboveIdx n_max
-        (slabPtrOf n_max (gmAt d.1 U V w n_max h_space s.mem) d.2
-          (dirSlabsPerBucket n_max - 1))) = _
     have hdir_pos := dirSlabsPerBucket_pos_of_pos hb_pos
-    have hs_succ : (dirSlabsPerBucket n_max - 1) + 1 = dirSlabsPerBucket n_max := by omega
-    rw [(hinv.multi_slab hb_pos).above_eq d.2 hb _ (by unfold gmQIdx; omega)
-        (by unfold gmQIdx; omega), hs_succ, hcap_dir, Nat.mul_div_cancel _ hK]
-  · refine ⟨by change _ - _ = _ - _; omega, fun _ hq => by unfold gmQIdx at hq; omega⟩
+    change gmAt d.1 U V w n_max h_space s.mem (gmSlabAboveIdx n_max _) = _
+    rw [(hinv.multi_slab hb_pos).above_eq d.2 hb _ (by wram_omega) (by wram_omega),
+      Nat.sub_add_cancel hdir_pos, hcap_dir, Nat.mul_div_cancel _ hK]
+  · refine ⟨by change _ - _ = _ - _; omega, fun _ hq => by wram_omega [hq]⟩
   · refine ⟨by change 0 = _ - _; omega, fun hc _ => by omega⟩
+
+/-- Shared `gmSlabAboveIdx` bound on the last directory slab read by `initOvfSearchProg`. -/
+private theorem initOvfSearch_aboveIdx_lt {U V w₀ n_max h_space base b : ℕ} {s : Memory.State}
+    (hb_pos : 0 < bucketBits n_max) (hb : b < numBuckets n_max)
+    (hinv : SlotStoreInv n_max (gmAt base U V w₀ n_max h_space s.mem))
+    (hc : min n_max (effBucketCap n_max) <
+      (Memory.spec 0).clientResult s (readGMProg U V w₀ n_max h_space (base, 4 + 3 * b)) *
+        slabSize n_max) :
+    gmSlabMetaBase n_max + 4 * (Memory.spec 0).clientResult s
+        (readGMProg U V w₀ n_max h_space (base,
+          gmSlabDirBase n_max + b * dirSlabsPerBucket n_max + (dirSlabsPerBucket n_max - 1))) +
+        3 < globalMetaLen n_max := by
+  have hq_lt : 4 + 3 * b < globalMetaLen n_max := gmQIdx_lt hb_pos hb
+  rw [clientResult_readGMProg s hq_lt] at hc
+  have hbc := bCount_le_n_max hinv b
+  unfold bCount at hbc
+  simp only [Nat.ne_of_gt hb_pos, ↓reduceIte, hb, gmQIdx] at hbc
+  have hcap_le : effBucketCap n_max ≤
+      gmAt base U V w₀ n_max h_space s.mem (4 + 3 * b) * slabSize n_max := by omega
+  obtain ⟨hdir_lt, hp_eq, hp_lt⟩ := hinv.lastDirSlab_ptr hb_pos hb hcap_le
+  rw [clientResult_readGMProg s hdir_lt, hp_eq]
+  exact gmSlabAboveIdx_lt hb_pos hp_lt
 
 theorem realizes_initOvfSearchGen :
     Realizes .exact initOvfSearchGenProg
@@ -937,76 +846,40 @@ theorem realizes_initOvfSearchGen :
           (gmAt d.2.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem) ∧
         0 < bucketBits (dpNMax d.1))
       (fun _ _ => 0) := by
-  have hrg := realizes_readGMGen
-  realizeDictWith [initOvfSearchGenProg_mk]
-  · exact fits_of_le_globalMetaLen h.1 h.2.2.2 hw hnU hU (le_of_lt (gmQIdx_lt h.2.2.2 h.2.1))
-  · exact fits_const_of_dictEnv h.1 (by decide)
-  · exact h.1
-  · exact gmQIdx_lt h.2.2.2 h.2.1
-  · exact fits_of_le_globalMetaLen h.1 h.2.2.2 hw hnU hU (le_of_lt (gmRIdx_lt h.2.2.2 h.2.1))
-  · exact gmRIdx_lt h.2.2.2 h.2.1
-  · have hb_pos := h.2.2.2
-    have hb0 : bucketBits n_max ≠ 0 := by omega
-    have hq_lt : 4 + 3 * d.2 < globalMetaLen n_max := gmQIdx_lt hb_pos h.2.1
-    rw [clientResult_readGMProg _ hq_lt]
-    have hbc := bCount_le_n_max h.2.2.1 d.2
-    unfold bCount at hbc
-    simp only [hb0, ↓reduceIte, h.2.1, gmQIdx] at hbc
-    exact fits_of_le_max_n_one h.1 hw hnU hU (by omega)
-  · have hb_pos := h.2.2.2
-    have hb0 : bucketBits n_max ≠ 0 := by omega
+  realizeDictWith [initOvfSearchGenProg_mk] using [realizes_readGMGen]
+  all_goals (
+    have hb_pos := h.2.2.2
     have hq_lt : 4 + 3 * d.2 < globalMetaLen n_max := gmQIdx_lt hb_pos h.2.1
     have hr_lt : 4 + 3 * d.2 + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos h.2.1
-    rw [clientState_readGMProg, clientResult_readGMProg _ hq_lt, clientResult_readGMProg _ hr_lt]
+    have hdir_lt := gmSlabDirIdx_lt hb_pos h.2.1
+      (Nat.sub_lt (dirSlabsPerBucket_pos_of_pos hb_pos) Nat.zero_lt_one)
+  )
+  · exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU hq_lt.le
+  · exact fits_const_of_dictEnv h.1 (by decide)
+  · exact h.1
+  · exact hq_lt
+  · exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU hr_lt.le
+  · exact hr_lt
+  · rw [clientResult_readGMProg _ hq_lt]
     have hbc := bCount_le_n_max h.2.2.1 d.2
     unfold bCount at hbc
-    simp only [hb0, ↓reduceIte, h.2.1, gmQIdx, gmRIdx] at hbc
+    simp only [Nat.ne_of_gt hb_pos, ↓reduceIte, h.2.1, gmQIdx] at hbc
+    exact fits_of_le_max_n_one h.1 hw hnU hU (by omega)
+  · rw [clientState_readGMProg, clientResult_readGMProg _ hq_lt, clientResult_readGMProg _ hr_lt]
+    have hbc := bCount_le_n_max h.2.2.1 d.2
+    unfold bCount at hbc
+    simp only [Nat.ne_of_gt hb_pos, ↓reduceIte, h.2.1, gmQIdx, gmRIdx] at hbc
     exact fits_of_le_max_n_one h.1 hw hnU hU (by omega)
   · exact le_of_lt hc
-  · have hb_pos := h.2.2.2
-    have hdir_pos := dirSlabsPerBucket_pos_of_pos hb_pos
-    have hs_last_dir : dirSlabsPerBucket n_max - 1 < dirSlabsPerBucket n_max := by omega
-    exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU
-      (le_of_lt (gmSlabDirIdx_lt hb_pos h.2.1 hs_last_dir))
+  · exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU hdir_lt.le
   · exact h.1
-  · have hb_pos := h.2.2.2
-    have hdir_pos := dirSlabsPerBucket_pos_of_pos hb_pos
-    have hs_last_dir : dirSlabsPerBucket n_max - 1 < dirSlabsPerBucket n_max := by omega
-    exact gmSlabDirIdx_lt hb_pos h.2.1 hs_last_dir
-  · have hb_pos := h.2.2.2
-    have hb0 : bucketBits n_max ≠ 0 := by omega
-    have hq_lt : 4 + 3 * d.2 < globalMetaLen n_max := gmQIdx_lt hb_pos h.2.1
-    have hqb := clientResult_readGMProg s (base := d.1) (U := U) (V := V)
-      (w := w₀) (h_space := h_space) hq_lt
-    rw [hqb] at hc
-    have hcap_le : effBucketCap n_max ≤
-        gmAt d.1 U V w₀ n_max h_space s.mem (4 + 3 * d.2) * slabSize n_max := by
-      have hbc := bCount_le_n_max h.2.2.1 d.2
-      unfold bCount at hbc
-      simp only [hb0, ↓reduceIte, h.2.1, gmQIdx] at hbc
-      omega
-    obtain ⟨hdir_idx_lt, hp_prev_eq, hp_lt_max⟩ := h.2.2.1.lastDirSlab_ptr hb_pos h.2.1 hcap_le
-    repeat rw [clientState_readGMProg]
-    rw [clientResult_readGMProg _ hdir_idx_lt, hp_prev_eq]
+  · exact hdir_lt
+  · repeat rw [clientState_readGMProg]
     exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU
-      (le_of_lt (gmSlabAboveIdx_lt hb_pos hp_lt_max))
+      (initOvfSearch_aboveIdx_lt hb_pos h.2.1 h.2.2.1 hc).le
   · exact fits_const_of_dictEnv h.1 (by decide)
-  · have hb_pos := h.2.2.2
-    have hb0 : bucketBits n_max ≠ 0 := by omega
-    have hq_lt : 4 + 3 * d.2 < globalMetaLen n_max := gmQIdx_lt hb_pos h.2.1
-    have hqb := clientResult_readGMProg s (base := d.1) (U := U) (V := V)
-      (w := w₀) (h_space := h_space) hq_lt
-    rw [hqb] at hc
-    have hcap_le : effBucketCap n_max ≤
-        gmAt d.1 U V w₀ n_max h_space s.mem (4 + 3 * d.2) * slabSize n_max := by
-      have hbc := bCount_le_n_max h.2.2.1 d.2
-      unfold bCount at hbc
-      simp only [hb0, ↓reduceIte, h.2.1, gmQIdx] at hbc
-      omega
-    obtain ⟨hdir_idx_lt, hp_prev_eq, hp_lt_max⟩ := h.2.2.1.lastDirSlab_ptr hb_pos h.2.1 hcap_le
-    repeat rw [clientState_readGMProg]
-    rw [clientResult_readGMProg _ hdir_idx_lt, hp_prev_eq]
-    exact gmSlabAboveIdx_lt hb_pos hp_lt_max
+  · repeat rw [clientState_readGMProg]
+    exact initOvfSearch_aboveIdx_lt hb_pos h.2.1 h.2.2.1 hc
 
 /-- Parameter-free Phase 2 overflow search `searchOverflowGenProg`: scans overflow slots
 `j ∈ [effBucketCap n_max, bCount n_max gm b)` in bucket `b = d.2.1.2` for quotient
@@ -1050,17 +923,24 @@ theorem searchOverflowGenProg_mk (U V w n_max h_space : ℕ) (d : (ℕ × ℕ) �
 /-- Precondition for `searchOverflowProg` (`d = ((base, b), q_target)`). -/
 @[expose] def SearchOverflowPre (U V w₀ n_max h_space w : ℕ)
     (d : (ℕ × ℕ) × ℕ) (s : Memory.State) : Prop :=
-  DictEnvGen w (mkDictParams U V w₀ n_max h_space) d.1.1 ∧
-  d.1.2 < numBuckets n_max ∧
-  SlotStoreInv n_max (gmAt d.1.1 U V w₀ n_max h_space s.mem)
+  let bb := d.1
+  let base := bb.1
+  let b := bb.2
+  DictEnvGen w (mkDictParams U V w₀ n_max h_space) base ∧
+  b < numBuckets n_max ∧
+  SlotStoreInv n_max (gmAt base U V w₀ n_max h_space s.mem)
 
 /-- Parameter-free precondition for `searchOverflowGenProg`. -/
 @[expose] def SearchOverflowGenPre (w : ℕ)
     (d : DictParams × ((ℕ × ℕ) × ℕ)) (s : Memory.State) : Prop :=
-  DictEnvGen w d.1 d.2.1.1 ∧
-  d.2.1.2 < numBuckets (dpNMax d.1) ∧
-  SlotStoreInv (dpNMax d.1)
-    (gmAt d.2.1.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem)
+  let dp := d.1
+  let bb := d.2.1
+  let base := bb.1
+  let b := bb.2
+  DictEnvGen w dp base ∧
+  b < numBuckets (dpNMax dp) ∧
+  SlotStoreInv (dpNMax dp)
+    (gmAt base (dpU dp) (dpV dp) (dpW dp) (dpNMax dp) (dpHSpace dp) s.mem)
 
 @[simp]
 theorem searchOverflowGenPre_mk (U V w₀ n_max h_space w : ℕ)
@@ -1093,122 +973,45 @@ theorem searchOverflowProg_spec {U V w₀ n_max h_space w : ℕ}
        res.1.1 = 0) := by
   intro gm prog
   dsimp only [gm, prog] at *
+  have hbc_le := bCount_le_n_max hinv d.1.2
+  have hno_of (hle : bCount n_max (gmAt d.1.1 U V w₀ n_max h_space s.mem) d.1.2 ≤
+      effBucketCap n_max) : ¬∃ j, effBucketCap n_max ≤ j ∧
+      j < bCount n_max (gmAt d.1.1 U V w₀ n_max h_space s.mem) d.1.2 ∧
+      quotAt d.1.1 U w₀ n_max h_space s.mem
+        (slotOf n_max (gmAt d.1.1 U V w₀ n_max h_space s.mem) d.1.2 j) = d.2 :=
+    fun ⟨_, hj1, hj2, _⟩ => by omega
   rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
-  · have hbc_le : bCount n_max (gmAt d.1.1 U V w₀ n_max h_space s.mem) d.1.2 ≤ n_max :=
-      bCount_le_n_max hinv d.1.2
-    have hlt_cap : n_max < effBucketCap n_max := lt_effBucketCap_of_bucketBits_eq_zero hb0
-    have hno : ¬∃ j, effBucketCap n_max ≤ j ∧
-        j < bCount n_max (gmAt d.1.1 U V w₀ n_max h_space s.mem) d.1.2 ∧
-        quotAt d.1.1 U w₀ n_max h_space s.mem
-          (slotOf n_max (gmAt d.1.1 U V w₀ n_max h_space s.mem) d.1.2 j) = d.2 := by
-      rintro ⟨j, hj1, hj2, _⟩; omega
-    refine ⟨by simp [searchOverflowProg, hb0]; rfl,
-      by simp [searchOverflowProg, hb0],
-      fun h => by omega, ?_⟩
-    dsimp only [searchOverflowProg]
-    rw [ite_eq_left hb0, ite_eq_right hno]
-    rfl
-  · have hb0 : bucketBits n_max ≠ 0 := by omega
+  · have hlt_cap := lt_effBucketCap_of_bucketBits_eq_zero hb0
+    unfold searchOverflowProg; rw [ite_eq_left hb0]
+    simp only [pure_bind, memoryCost_pure]
+    exact ⟨rfl, by omega, fun h => by omega, by rw [ite_eq_right (hno_of (by omega))]; rfl⟩
+  · unfold searchOverflowProg ovfLoopProg
+    rw [ite_eq_right (Nat.ne_of_gt hb_pos)]
+    simp only [pure_bind]
+    rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
+      memoryCost_bind_of_clientState_eq (clientState_initOvfSearchProg ..),
+      clientState_initOvfSearchProg]
     have hinit := clientResult_initOvfSearchProg (d := d.1) s hb_pos hb hinv
+    have hcost_init := memoryCost_initOvfSearchProg_le U V w₀ n_max h_space d.1 s
     set init := (Memory.spec 0).clientResult s (initOvfSearchProg U V w₀ n_max h_space d.1)
     dsimp only at hinit
-    have hbc_le : bCount n_max (gmAt d.1.1 U V w₀ n_max h_space s.mem) d.1.2 ≤ n_max :=
-      bCount_le_n_max hinv d.1.2
-    by_cases hovf : effBucketCap n_max < bCount n_max (gmAt d.1.1 U V w₀ n_max h_space s.mem) d.1.2
-    · have hmin_eq : min n_max (effBucketCap n_max) = effBucketCap n_max := by omega
-      have hjm : effBucketCap n_max + init.2 ≤
-          bCount n_max (gmAt d.1.1 U V w₀ n_max h_space s.mem) d.1.2 := by
-        rw [hinit.1]; omega
-      have hjm_eq : effBucketCap n_max + init.2 =
-          bCount n_max (gmAt d.1.1 U V w₀ n_max h_space s.mem) d.1.2 := by
-        rw [hinit.1]; omega
-      have hp0 : effBucketCap n_max <
-          gmAt d.1.1 U V w₀ n_max h_space s.mem (gmQIdx d.1.2) * slabSize n_max →
-          init.1 = slabPtrOf n_max (gmAt d.1.1 U V w₀ n_max h_space s.mem) d.1.2
-            (effBucketCap n_max / slabSize n_max) :=
-        hinit.2 hovf
+    by_cases hovf : effBucketCap n_max <
+        bCount n_max (gmAt d.1.1 U V w₀ n_max h_space s.mem) d.1.2
+    · have hjm_eq : effBucketCap n_max + init.2 =
+          bCount n_max (gmAt d.1.1 U V w₀ n_max h_space s.mem) d.1.2 := by rw [hinit.1]; omega
       have hloop := iterate_ovfStepProg_spec (q_target := d.2) hb_pos henv hb hinv
-        init.2 (effBucketCap n_max) init.1 0 0 0 hjm hp0
-      dsimp only at hloop
-      refine ⟨?_, ?_, ?_, ?_⟩
-      · unfold searchOverflowProg ovfLoopProg
-        rw [ite_eq_right hb0]
-        simp only [pure_bind]
-        rw [StateTransitionSpec.clientState_bind, clientState_initOvfSearchProg,
-          StateTransitionSpec.clientState_bind, hmin_eq]
-        change (Memory.spec 0).clientState
-          ((Memory.spec 0).clientState s
-            (iterate (ovfStepProg U V w₀ n_max h_space) ((d.1.1, d.1.2), d.2) init.2
-              ((((effBucketCap n_max, init.1), 0), 0), 0))) _ = s
-        rw [hloop.1]
-        rfl
-      · unfold searchOverflowProg ovfLoopProg
-        rw [ite_eq_right hb0]
-        simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
-        rw [memoryCost_bind, clientState_initOvfSearchProg, memoryCost_bind, hmin_eq]
-        have h1 := memoryCost_initOvfSearchProg_le U V w₀ n_max h_space d.1 s
-        have h2 := hloop.2.1
-        change memoryCost (initOvfSearchProg U V w₀ n_max h_space d.1) s +
-          (memoryCost (iterate (ovfStepProg U V w₀ n_max h_space) ((d.1.1, d.1.2), d.2) init.2
-            ((((effBucketCap n_max, init.1), 0), 0), 0)) s + 0) ≤ _
-        rw [hinit.1] at h2
-        omega
-      · intro _
-        rw [hmin_eq]
-        exact hloop.2.2.1
-      · unfold searchOverflowProg ovfLoopProg
-        rw [ite_eq_right hb0]
-        simp only [pure_bind]
-        rw [StateTransitionSpec.clientResult_bind, clientState_initOvfSearchProg,
-          StateTransitionSpec.clientResult_bind, hmin_eq]
-        have hres := hloop.2.2.2
-        rw [ite_eq_left rfl, hjm_eq] at hres
-        exact hres
-    · have hfuel0 : init.2 = 0 := by rw [hinit.1]; omega
-      have hno : ¬∃ j, effBucketCap n_max ≤ j ∧
-          j < bCount n_max (gmAt d.1.1 U V w₀ n_max h_space s.mem) d.1.2 ∧
-          quotAt d.1.1 U w₀ n_max h_space s.mem
-            (slotOf n_max (gmAt d.1.1 U V w₀ n_max h_space s.mem) d.1.2 j) = d.2 := by
-        rintro ⟨j, hj1, hj2, _⟩; omega
-      refine ⟨?_, ?_, ?_, ?_⟩
-      · unfold searchOverflowProg ovfLoopProg
-        rw [ite_eq_right hb0]
-        simp only [pure_bind]
-        rw [StateTransitionSpec.clientState_bind, clientState_initOvfSearchProg]
-        change (Memory.spec 0).clientState s
-          (do
-            let res ← iterate (ovfStepProg U V w₀ n_max h_space) d init.2
-              ((((min n_max (effBucketCap n_max), init.1), 0), 0), 0)
-            pure ((res.1.1.2, res.1.2), res.2)) = s
-        rw [hfuel0, iterate]
-        rfl
-      · unfold searchOverflowProg ovfLoopProg
-        rw [ite_eq_right hb0]
-        simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
-        rw [memoryCost_bind, clientState_initOvfSearchProg]
-        change memoryCost (initOvfSearchProg U V w₀ n_max h_space d.1) s +
-          memoryCost (PFunctor.FreeM.bind
-            (iterate (ovfStepProg U V w₀ n_max h_space) d init.2
-              ((((min n_max (effBucketCap n_max), init.1), 0), 0), 0))
-            (fun res => pure ((res.1.1.2, res.1.2), res.2))) s ≤ _
-        rw [hfuel0, iterate]
-        have := memoryCost_initOvfSearchProg_le U V w₀ n_max h_space d.1 s
-        change memoryCost (initOvfSearchProg U V w₀ n_max h_space d.1) s + 0 ≤ _
-        omega
-      · intro _
-        rw [hfuel0]
-        trivial
-      · unfold searchOverflowProg ovfLoopProg
-        rw [ite_eq_right hb0, ite_eq_right hno]
-        simp only [pure_bind]
-        rw [StateTransitionSpec.clientResult_bind, clientState_initOvfSearchProg]
-        change ((Memory.spec 0).clientResult s
-          (do
-            let res ← iterate (ovfStepProg U V w₀ n_max h_space) d init.2
-              ((((min n_max (effBucketCap n_max), init.1), 0), 0), 0)
-            pure ((res.1.1.2, res.1.2), res.2))).1.1 = 0
-        rw [hfuel0, iterate]
-        rfl
+        init.2 (effBucketCap n_max) init.1 0 0 0 hjm_eq.le (hinit.2 hovf)
+      dsimp only [Prod.mk.eta] at hloop
+      rw [show min n_max (effBucketCap n_max) = effBucketCap n_max by omega,
+        StateTransitionSpec.clientState_bind, hloop.1, StateTransitionSpec.clientResult_bind,
+        memoryCost_bind_of_clientState_eq hloop.1]
+      have hres := hloop.2.2.2; rw [ite_eq_left rfl, hjm_eq] at hres
+      have hlc := hloop.2.1; rw [hinit.1] at hlc
+      exact ⟨rfl, by simp only [memoryCost_pure]; omega, fun _ => hloop.2.2.1, hres⟩
+    · rw [show init.2 = 0 by rw [hinit.1]; omega, iterate,
+        ite_eq_right (hno_of (Nat.le_of_not_lt hovf))]
+      simp only [pure_bind, memoryCost_pure]
+      exact ⟨rfl, by omega, fun _ => trivial, rfl⟩
 
 theorem realizes_searchOverflowGen :
     Realizes .exact searchOverflowGenProg
@@ -1218,17 +1021,6 @@ theorem realizes_searchOverflowGen :
       (fun _ _ => 0) := by
   have hinit := realizes_initOvfSearchGen
   have hloop := realizes_ovfLoopGen
-  refine Realizes.congr (p := fun d : DictParams × ((ℕ × ℕ) × ℕ) => do
-      let z0 ← pure 0
-      if dpBucketBits d.1 = z0 then
-        pure ((z0, z0), z0)
-      else
-        let init ← initOvfSearchGenProg (d.1, d.2.1)
-        let j0 ← pure (dpMinCap d.1)
-        let res ← ovfLoopGenProg
-          (((d.1, d.2), ((((j0, init.1), z0), z0), z0)), init.2)
-        pure ((res.1.1.2, res.1.2), res.2)) ?_
-    (fun d => by simp only [searchOverflowGenProg, ← PFunctor.FreeM.bind_eq_bind, pure_bind])
   realizeDictWith [searchOverflowGenPre_mk, SearchOverflowPre,
     initOvfSearchGenProg_mk, ovfLoopGenProg_mk, iterationSafe_ovfStepGenProg_mk]
   · exact h.1
@@ -1306,99 +1098,24 @@ theorem searchBucketProg_spec {U V w₀ n_max h_space w : ℕ}
   have h1 := searchMicroChainProg_spec henv hb hm hinv hchain hc_lt
   have h2 := searchOverflowProg_spec (d := d.1) henv hb hinv
   dsimp only at h1 h2
+  unfold searchBucketProg
+  simp only [pure_bind]
+  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
+    memoryCost_bind_of_clientState_eq h1.1, h1.1]
   set res1 := (Memory.spec 0).clientResult s (searchMicroChainProg U V w₀ n_max h_space d)
-  have hres1_spec := h1.2.2.2
-  by_cases hex1 : ∃ j ∈ L,
-      quotAt d.1.1.1 U w₀ n_max h_space s.mem
-        (slotOf n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 j) = d.1.2
-  · rw [ite_eq_left hex1] at hres1_spec
-    have hf1 : res1.1.1.2 = 1 := by rw [hres1_spec.1]
-    have hres_eq : (Memory.spec 0).clientResult s (searchBucketProg U V w₀ n_max h_space d) =
-        ((1, res1.1.2), res1.2) := by
-      unfold searchBucketProg
-      simp only [pure_bind]
-      rw [StateTransitionSpec.clientResult_bind, h1.1]
-      change (Memory.spec 0).clientResult s
-        (if res1.1.1.2 = 1 then pure ((1, res1.1.2), res1.2)
-         else searchOverflowProg U V w₀ n_max h_space d.1) = _
-      rw [ite_eq_left hf1]
-      rfl
-    refine ⟨?_, ?_, ?_⟩
-    · unfold searchBucketProg
-      simp only [pure_bind]
-      rw [StateTransitionSpec.clientState_bind, h1.1]
-      change (Memory.spec 0).clientState s
-        (if res1.1.1.2 = 1 then pure ((1, res1.1.2), res1.2)
-         else searchOverflowProg U V w₀ n_max h_space d.1) = s
-      rw [ite_eq_left hf1]
-      rfl
-    · unfold searchBucketProg
-      simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
-      rw [memoryCost_bind, h1.1]
-      change memoryCost (searchMicroChainProg U V w₀ n_max h_space d) s +
-        memoryCost (if res1.1.1.2 = 1 then pure ((1, res1.1.2), res1.2)
-          else searchOverflowProg U V w₀ n_max h_space d.1) s ≤ _
-      rw [ite_eq_left hf1]
-      have := h1.2.1
-      change memoryCost (searchMicroChainProg U V w₀ n_max h_space d) s + 0 ≤ _
-      omega
-    · rw [hres_eq, ite_eq_left (Or.inl hex1)]
-      exact ⟨rfl, hc_lt _ hres1_spec.2.1, Or.inl hres1_spec.2.1,
-        hres1_spec.2.2.1, hres1_spec.2.2.2⟩
-  · rw [ite_eq_right hex1] at hres1_spec
-    have hf0 : res1.1.1.2 = 0 := by rw [hres1_spec]
-    have hne1 : res1.1.1.2 ≠ 1 := by omega
-    have hres_eq : (Memory.spec 0).clientResult s (searchBucketProg U V w₀ n_max h_space d) =
-        (Memory.spec 0).clientResult s (searchOverflowProg U V w₀ n_max h_space d.1) := by
-      unfold searchBucketProg
-      simp only [pure_bind]
-      rw [StateTransitionSpec.clientResult_bind, h1.1]
-      change (Memory.spec 0).clientResult s
-        (if res1.1.1.2 = 1 then pure ((1, res1.1.2), res1.2)
-         else searchOverflowProg U V w₀ n_max h_space d.1) = _
-      rw [ite_eq_right hne1]
-    refine ⟨?_, ?_, ?_⟩
-    · unfold searchBucketProg
-      simp only [pure_bind]
-      rw [StateTransitionSpec.clientState_bind, h1.1]
-      change (Memory.spec 0).clientState s
-        (if res1.1.1.2 = 1 then pure ((1, res1.1.2), res1.2)
-         else searchOverflowProg U V w₀ n_max h_space d.1) = s
-      rw [ite_eq_right hne1]
-      exact h2.1
-    · unfold searchBucketProg
-      simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
-      rw [memoryCost_bind, h1.1]
-      change memoryCost (searchMicroChainProg U V w₀ n_max h_space d) s +
-        memoryCost (if res1.1.1.2 = 1 then pure ((1, res1.1.2), res1.2)
-          else searchOverflowProg U V w₀ n_max h_space d.1) s ≤ _
-      rw [ite_eq_right hne1]
-      have hc1 := h1.2.1
-      have hc2 := h2.2.1
-      omega
-    · rw [hres_eq]
-      have hres2_spec := h2.2.2.2
-      by_cases hex2 : ∃ j, effBucketCap n_max ≤ j ∧
-          j < bCount n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 ∧
-          quotAt d.1.1.1 U w₀ n_max h_space s.mem
-            (slotOf n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 j) = d.1.2
-      · rw [ite_eq_left hex2] at hres2_spec
-        rw [ite_eq_left (Or.inr hex2)]
-        exact ⟨hres2_spec.1, hres2_spec.2.2.1, Or.inr hres2_spec.2.1,
-          hres2_spec.2.2.2.1, hres2_spec.2.2.2.2⟩
-      · rw [ite_eq_right hex2] at hres2_spec
-        have hno : ¬((∃ j ∈ L,
-            quotAt d.1.1.1 U w₀ n_max h_space s.mem
-              (slotOf n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 j) = d.1.2) ∨
-          (∃ j, effBucketCap n_max ≤ j ∧
-            j < bCount n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 ∧
-            quotAt d.1.1.1 U w₀ n_max h_space s.mem
-              (slotOf n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 j) = d.1.2)) := by
-          rintro (h | h)
-          · exact hex1 h
-          · exact hex2 h
-        rw [ite_eq_right hno]
-        exact hres2_spec
+  have hres1 := h1.2.2.2
+  split_ifs at hres1 with hex1
+  · rw [ite_eq_left (by rw [hres1.1] : res1.1.1.2 = 1), ite_eq_left (Or.inl hex1)]
+    exact ⟨rfl, by have := h1.2.1; simp only [memoryCost_pure]; omega, rfl,
+      hc_lt _ hres1.2.1, Or.inl hres1.2.1, hres1.2.2.1, hres1.2.2.2⟩
+  · rw [ite_eq_right (by rw [hres1]; decide : res1.1.1.2 ≠ 1)]
+    refine ⟨h2.1, by have := h1.2.1; have := h2.2.1; omega, ?_⟩
+    have hres2 := h2.2.2.2
+    split_ifs at hres2 with hex2
+    · rw [ite_eq_left (Or.inr hex2)]
+      exact ⟨hres2.1, hres2.2.2.1, Or.inr hres2.2.1, hres2.2.2.2.1, hres2.2.2.2.2⟩
+    · rw [ite_eq_right (not_or.mpr ⟨hex1, hex2⟩)]
+      exact hres2
 
 theorem realizes_searchBucketGen :
     Realizes .exact searchBucketGenProg
@@ -1479,96 +1196,24 @@ theorem queryBodyProg_spec {U V w₀ n_max h_space w : ℕ}
   dsimp only [gm, prog] at *
   have hsb := searchBucketProg_spec henv hb hm hinv hchain hc_lt
   dsimp only at hsb
+  unfold queryBodyProg
+  simp only [pure_bind]
+  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
+    memoryCost_bind_of_clientState_eq hsb.1, hsb.1]
   set res := (Memory.spec 0).clientResult s (searchBucketProg U V w₀ n_max h_space d)
   have hsb_res := hsb.2.2
-  by_cases hex :
-      (∃ j ∈ L, quotAt d.1.1.1 U w₀ n_max h_space s.mem
-        (slotOf n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 j) = d.1.2) ∨
-      (∃ j, effBucketCap n_max ≤ j ∧
-        j < bCount n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 ∧
-        quotAt d.1.1.1 U w₀ n_max h_space s.mem
-          (slotOf n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 j) = d.1.2)
-  · rw [ite_eq_left hex] at hsb_res
-    have hf1 : res.1.1 = 1 := hsb_res.1
-    have hphys_lt : res.2 < n_max := by
-      rw [hsb_res.2.2.2.2]
-      exact (slotOf_lt_and_injective hinv).1 d.1.1.2 hb res.1.2 hsb_res.2.1
-    have hres_eq : (Memory.spec 0).clientResult s (queryBodyProg U V w₀ n_max h_space d) =
-        some (valAt d.1.1.1 U V w₀ n_max h_space s.mem res.2) := by
-      unfold queryBodyProg
-      simp only [pure_bind]
-      rw [StateTransitionSpec.clientResult_bind, hsb.1]
-      change (Memory.spec 0).clientResult s
-        (if res.1.1 = 1 then do
-          let v ← readValProg U V w₀ n_max h_space (d.1.1.1, res.2)
-          pure (some v)
-         else pure none) = _
-      rw [ite_eq_left hf1, StateTransitionSpec.clientResult_bind,
-        clientState_readValProg, clientResult_readValProg s hphys_lt]
-      rfl
-    refine ⟨?_, ?_, ?_⟩
-    · unfold queryBodyProg
-      simp only [pure_bind]
-      rw [StateTransitionSpec.clientState_bind, hsb.1]
-      change (Memory.spec 0).clientState s
-        (if res.1.1 = 1 then do
-          let v ← readValProg U V w₀ n_max h_space (d.1.1.1, res.2)
-          pure (some v)
-         else pure none) = s
-      rw [ite_eq_left hf1, StateTransitionSpec.clientState_bind, clientState_readValProg]
-      rfl
-    · unfold queryBodyProg
-      simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
-      rw [memoryCost_bind, hsb.1]
-      change memoryCost (searchBucketProg U V w₀ n_max h_space d) s +
-        memoryCost (if res.1.1 = 1 then
-          PFunctor.FreeM.bind (readValProg U V w₀ n_max h_space (d.1.1.1, res.2))
-            (fun v => pure (some v))
-          else pure none) s ≤ _
-      rw [ite_eq_left hf1, memoryCost_bind, memoryCost_readValProg]
-      have := hsb.2.1
-      change memoryCost (searchBucketProg U V w₀ n_max h_space d) s + (2 + 0) ≤ _
-      omega
-    · rw [hres_eq, ite_eq_left hex]
-      exact ⟨res.1.2, hsb_res.2.1, hsb_res.2.2.2.1, by rw [hsb_res.2.2.2.2]⟩
-  · rw [ite_eq_right hex] at hsb_res
-    have hne1 : res.1.1 ≠ 1 := by omega
-    have hres_eq : (Memory.spec 0).clientResult s (queryBodyProg U V w₀ n_max h_space d) =
-        none := by
-      unfold queryBodyProg
-      simp only [pure_bind]
-      rw [StateTransitionSpec.clientResult_bind, hsb.1]
-      change (Memory.spec 0).clientResult s
-        (if res.1.1 = 1 then do
-          let v ← readValProg U V w₀ n_max h_space (d.1.1.1, res.2)
-          pure (some v)
-         else pure none) = _
-      rw [ite_eq_right hne1]
-      rfl
-    refine ⟨?_, ?_, ?_⟩
-    · unfold queryBodyProg
-      simp only [pure_bind]
-      rw [StateTransitionSpec.clientState_bind, hsb.1]
-      change (Memory.spec 0).clientState s
-        (if res.1.1 = 1 then do
-          let v ← readValProg U V w₀ n_max h_space (d.1.1.1, res.2)
-          pure (some v)
-         else pure none) = s
-      rw [ite_eq_right hne1]
-      rfl
-    · unfold queryBodyProg
-      simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
-      rw [memoryCost_bind, hsb.1]
-      change memoryCost (searchBucketProg U V w₀ n_max h_space d) s +
-        memoryCost (if res.1.1 = 1 then
-          PFunctor.FreeM.bind (readValProg U V w₀ n_max h_space (d.1.1.1, res.2))
-            (fun v => pure (some v))
-          else pure none) s ≤ _
-      rw [ite_eq_right hne1]
-      have := hsb.2.1
-      change memoryCost (searchBucketProg U V w₀ n_max h_space d) s + 0 ≤ _
-      omega
-    · rw [hres_eq, ite_eq_right hex]
+  split_ifs at hsb_res with hex
+  · have hphys_lt : (slotOf n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 res.1.2) <
+        n_max := (slotOf_lt_and_injective hinv).1 d.1.1.2 hb res.1.2 hsb_res.2.1
+    rw [ite_eq_left hsb_res.1, ite_eq_left hex, StateTransitionSpec.clientState_bind,
+      StateTransitionSpec.clientResult_bind,
+      memoryCost_bind_of_clientState_eq (clientState_readValProg ..),
+      clientState_readValProg, memoryCost_readValProg, hsb_res.2.2.2.2,
+      clientResult_readValProg s hphys_lt]
+    exact ⟨rfl, by have := hsb.2.1; simp only [memoryCost_pure]; omega,
+      res.1.2, hsb_res.2.1, hsb_res.2.2.2.1, rfl⟩
+  · rw [ite_eq_right (by omega : res.1.1 ≠ 1), ite_eq_right hex]
+    exact ⟨rfl, by have := hsb.2.1; simp only [memoryCost_pure]; omega, rfl⟩
 
 theorem realizes_queryBodyGen :
     Realizes .exact queryBodyGenProg
@@ -1576,27 +1221,17 @@ theorem realizes_queryBodyGen :
       (WordEncoding.encode (α := Option ℕ))
       SearchMicroChainGenPre
       (fun _ _ => 0) := by
-  have hsb := realizes_searchBucketGen
-  have hrv := realizes_readValGen
-  realizeDictWith [searchMicroChainGenPre_mk, SearchMicroChainPre, searchBucketGenProg_mk]
+  realizeDictWith [searchMicroChainGenPre_mk, SearchMicroChainPre, searchBucketGenProg_mk] using
+    [realizes_searchBucketGen, realizes_readValGen]
   · exact h
   · exact fits_const_of_dictEnv h.1 (by decide)
   · exact h.1
   · obtain ⟨L, hchain, hc_lt⟩ := h.2.2.2.2
     have hspec := (searchBucketProg_spec h.1 h.2.1 h.2.2.1 h.2.2.2.1 hchain hc_lt).2.2
-    dsimp only at hspec
-    by_cases hex :
-        (∃ j ∈ L, quotAt d.1.1.1 U w₀ n_max h_space s.mem
-          (slotOf n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 j) = d.1.2) ∨
-        (∃ j, effBucketCap n_max ≤ j ∧
-          j < bCount n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 ∧
-          quotAt d.1.1.1 U w₀ n_max h_space s.mem
-            (slotOf n_max (gmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 j) = d.1.2)
-    · rw [ite_eq_left hex] at hspec
-      rw [hspec.2.2.2.2]
+    split_ifs at hspec
+    · rw [hspec.2.2.2.2]
       exact (slotOf_lt_and_injective h.2.2.2.1).1 d.1.1.2 h.2.1 _ hspec.2.1
-    · rw [ite_eq_right hex] at hspec
-      omega
+    · omega
   · exact fits_const_of_dictEnv h.1 (by decide)
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct

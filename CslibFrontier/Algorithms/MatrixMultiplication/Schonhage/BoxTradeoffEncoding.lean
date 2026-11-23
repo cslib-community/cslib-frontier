@@ -20,7 +20,8 @@ import Mathlib.Tactic.Ring
 # Rational saving for the actual shared encoding count
 
 At `m=9k`, `L=189k`, the size premise `D^18 ≤ N` makes a band fit the original
-outer dimension and bounds the total shared encoding length by
+outer dimension and bounds the shared encoding count `numBands * 10^L`, one
+encoding per band for one of the row-band and column-band families, by
 `4*N²*(9/20)^k`. Geometry construction happens once and can use this same bound.
 
 This is an original algebraic specialization of the encoding calculation in
@@ -101,8 +102,10 @@ theorem boxes_ninth_blocks_of_size (k N : ℕ) (hN : D (9 * k) ^ 18 ≤ N) :
   have h := (bandSize_twentyone_le (9 * k)).trans hN
   simpa only [show 21 * (9 * k) = 189 * k by omega] using h
 
-/-- All shared band encodings together retain the same finite saving as the boxes and
-queries. The size premise is on the original dimensions; no encoding-cost law is supplied. -/
+/-- One encoding of `10 ^ (189 * k)` entries for each of the `numBands (189 * k) (9 * k) N`
+bands retains the same finite saving as the boxes and queries. This counts one of the two
+band families; row bands and column bands together have twice this count. The size premise
+is on the original dimensions; no encoding-cost law is supplied. -/
 theorem encodings_ninth_blocks (k N : ℕ) (hN : D (9 * k) ^ 18 ≤ N) :
     (numBands (189 * k) (9 * k) N : ℝ) * (10 : ℝ) ^ (189 * k) ≤
       4 * (N : ℝ) ^ 2 * (9 / 20 : ℝ) ^ k := by
@@ -159,8 +162,7 @@ theorem encodings_ninth_blocks (k N : ℕ) (hN : D (9 * k) ^ 18 ≤ N) :
     calc ((B : ℝ) * (10 : ℝ) ^ (189 * k)) ^ 2
         = (B : ℝ) ^ 2 * ((10 : ℝ) ^ (189 * k)) ^ 2 := mul_pow _ _ _
       _ ≤ (B : ℝ) ^ 2 * ((21 : ℝ) ^ (9 * k) * (N0' : ℝ) ^ 2 *
-          ((D (9 * k) ^ 18 : ℕ) : ℝ) ^ 2 * ((9 / 20 : ℝ) ^ k) ^ 2) :=
-        mul_le_mul_of_nonneg_left hT (by positivity)
+          ((D (9 * k) ^ 18 : ℕ) : ℝ) ^ 2 * ((9 / 20 : ℝ) ^ k) ^ 2) := by gcongr
       _ ≤ (B : ℝ) ^ 2 * ((21 : ℝ) ^ (9 * k) * (N0' : ℝ) ^ 2 *
           (N : ℝ) ^ 2 * ((9 / 20 : ℝ) ^ k) ^ 2) := by gcongr
       _ = ((B : ℝ) ^ 2 * (21 : ℝ) ^ (9 * k) * (N0' : ℝ) ^ 2) *
@@ -189,8 +191,7 @@ private theorem matrix_words_ninth_blocks (k N : ℕ) (hN : D (9 * k) ^ 18 ≤ N
     simpa only [mul_pow, ← pow_mul, mul_comm] using hpow
   have hNr : ((D (9 * k) ^ 18 : ℕ) : ℝ) ≤ (N : ℝ) := by exact_mod_cast hN
   calc (N : ℝ) * (D (9 * k) : ℝ)
-      ≤ (N : ℝ) * ((9 / 20 : ℝ) ^ k * ((D (9 * k) ^ 18 : ℕ) : ℝ)) :=
-        mul_le_mul_of_nonneg_left hD (Nat.cast_nonneg _)
+      ≤ (N : ℝ) * ((9 / 20 : ℝ) ^ k * ((D (9 * k) ^ 18 : ℕ) : ℝ)) := by gcongr
     _ ≤ (N : ℝ) * ((9 / 20 : ℝ) ^ k * (N : ℝ)) := by gcongr
     _ = _ := by ring
 

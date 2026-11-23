@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.Homomorphic.Leveled.PolyTime
 import CslibFrontier.Computability.Circuit.Boolean.PolynomialTime
 import CslibFrontier.Computability.Complexity.Problems.CircuitValue.Compilation
+import CslibFrontier.Computability.Circuit.Boolean.Encoding.PolyTime
 
 /-!
 # Compact decryption for the leveled construction
@@ -43,7 +44,7 @@ a native polynomial-time circuit generator.
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, Section 6.1][AroraBarak09]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto.Homomorphic.Leveled
 
@@ -164,9 +165,7 @@ theorem exists_uniform_decrypt_circuits
             (BitString.ofList ((3 * secretWidth n + 1) + (ciphertextWidth n + 1))
               (sk ++ ciphertext)) 0 =
           (scheme D budget).decrypt n sk ciphertext := by
-  have hview : ComputableInPolyTime
-      (fun c : Σ m, Circuit Boolean.signature m 1 => (c.1, c.2.code))
-      (Boolean.encCircuit 1) (encPair encUnary Boolean.encCode) := .of_eq fun _ => rfl
+  have hview := Boolean.computableInPolyTime_arity_code 1
   have htotal : ComputableInPolyTime
       (fun n => secretWidth n + ciphertextWidth n) encUnary encUnary :=
     hview.fst'.comp hD

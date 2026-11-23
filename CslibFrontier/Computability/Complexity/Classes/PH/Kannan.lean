@@ -404,6 +404,8 @@ private theorem isAlternatingVerifier_verifier (k : ℕ) :
 
 /-! ### Polynomial time -/
 
+attribute [local irreducible] ComputableInPolyTime
+
 open ComputableInPolyTime in
 /-- The verifier for Kannan's language is polynomial-time. -/
 private theorem computableInPolyTime_verifier (k : ℕ) :
@@ -449,14 +451,11 @@ private theorem computableInPolyTime_verifier (k : ℕ) :
     MCSP.computableInPolyTime_tableValue.comp
       (hT.prod (bitsTakeWithInput (fst _ _) hm))
   unfold verifier
-  have hnotVerifier := bool_not.comp (MCSP.computableInPolyTime_tableVerifier.comp
+  have hnotVerifier := bool_not.comp' (MCSP.computableInPolyTime_tableVerifier.comp'
     ((hT.prod hs).prod hc))
-  have hlt := bool_not.comp (binary_lt.comp ((bitsBinaryValue.comp hT').prod
-    (bitsBinaryValue.comp hT)))
-  have hverifier' := MCSP.computableInPolyTime_tableVerifier.comp ((hT'.prod hs).prod hc')
-  have hor := bool_or.comp (hlt.prod hverifier')
-  have h := bool_and.comp ((bool_and.comp (hnotVerifier.prod hor)).prod hval)
-  exact h
+  have hlt := bool_not.comp' (binary_lt' (bitsBinaryValue.comp' hT') (bitsBinaryValue.comp' hT))
+  have hverifier' := MCSP.computableInPolyTime_tableVerifier.comp' ((hT'.prod hs).prod hc')
+  exact bool_and' (bool_and' hnotVerifier (bool_or' hlt hverifier')) hval
 
 /-- **Kannan's language is in `Σ₃`.** -/
 theorem language_mem_SigmaP_three (k : ℕ) :
@@ -484,8 +483,7 @@ theorem exists_mem_SigmaP_two_inter_PiP_two_notMem_SIZE (k : ℕ) :
     have hcompl : (language k : Set (List Bool))ᶜ ∈ SigmaP 2 encBits := by
       rw [← hPH]
       exact PiP_subset_PH 3 (compl_mem_PiP_of_mem_SigmaP h₃)
-    refine ⟨language k, ⟨?_, compl_compl (language k : Set (List Bool)) ▸
-      compl_mem_PiP_of_mem_SigmaP hcompl⟩, language_notMem_SIZE k⟩
+    refine ⟨language k, ⟨?_, compl_mem_SigmaP_iff.mp hcompl⟩, language_notMem_SIZE k⟩
     rw [← hPH]
     exact SigmaP_subset_PH 3 h₃
   · have hNP : encCNF '' SAT ∈ SigmaP 1 encBits := SigmaP_one ▸ image_SAT_mem_NP

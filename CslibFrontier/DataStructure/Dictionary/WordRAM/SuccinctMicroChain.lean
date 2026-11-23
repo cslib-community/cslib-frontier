@@ -126,12 +126,12 @@ def readLMHeadGenProg (d : DictParams × ((ℕ × ℕ) × ℕ)) : Memory.Prog �
 /-- Read `lmHead n_max lm b m` at `d = ((base, b), m)` in `Memory.Prog`. -/
 @[expose]
 def readLMHeadProg (U V w n_max h_space : ℕ) (d : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ :=
-  readLMProg U V w n_max h_space 0 (d.1.1, d.1.2 * numMicroPerBucket n_max + d.2)
+  readLMHeadGenProg (mkDictParams U V w n_max h_space, d)
 
 @[simp] theorem readLMHeadGenProg_mk (U V w n_max h_space : ℕ) (d : (ℕ × ℕ) × ℕ) :
     readLMHeadGenProg (mkDictParams U V w n_max h_space, d) =
       readLMHeadProg U V w n_max h_space d := by
-  simp only [readLMHeadGenProg, readLMHeadProg, readLMGenProg_mk, p_numMicro_mk]
+  rfl
 
 /-- Parameter-free `Memory.Prog` operation writing `val = d.2.2` to `lmHead n_max lm b m` at
 `d = (dp, (((base, b), m), val))`. -/
@@ -142,12 +142,12 @@ def writeLMHeadGenProg (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : Memo
 /-- Write `val = d.2` to `lmHead n_max lm b m` at `d = (((base, b), m), val)` in `Memory.Prog`. -/
 @[expose]
 def writeLMHeadProg (U V w n_max h_space : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog Unit :=
-  writeLMProg U V w n_max h_space 0 ((d.1.1.1, d.1.1.2 * numMicroPerBucket n_max + d.1.2), d.2)
+  writeLMHeadGenProg (mkDictParams U V w n_max h_space, d)
 
 @[simp] theorem writeLMHeadGenProg_mk (U V w n_max h_space : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) :
     writeLMHeadGenProg (mkDictParams U V w n_max h_space, d) =
       writeLMHeadProg U V w n_max h_space d := by
-  simp only [writeLMHeadGenProg, writeLMHeadProg, writeLMGenProg_mk, p_numMicro_mk]
+  rfl
 
 theorem clientState_readLMHeadProg (U V w n_max h_space : ℕ) (d : (ℕ × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (readLMHeadProg U V w n_max h_space d) = s := rfl
@@ -164,8 +164,9 @@ theorem memoryCost_writeLMHeadProg (U V w n_max h_space : ℕ) (d : ((ℕ × ℕ
 theorem clientResult_readLMHeadProg {U V w n_max h_space base b m : ℕ} (s : Memory.State)
     (hb : b < numBuckets n_max) (hm : m < numMicroPerBucket n_max) :
     (Memory.spec 0).clientResult s (readLMHeadProg U V w n_max h_space ((base, b), m)) =
-      lmHead n_max (lmAt base U V w n_max h_space s.mem) b m :=
-  clientResult_readLMProg s (by decide) (lmHeadIdx_lt hb hm)
+      lmHead n_max (lmAt base U V w n_max h_space s.mem) b m := by
+  simp only [readLMHeadProg, readLMHeadGenProg, p_numMicro_mk, readLMGenProg_mk]
+  exact clientResult_readLMProg s (by decide) (lmHeadIdx_lt hb hm)
 
 theorem realizes_readLMHeadGen :
     Realizes .exact readLMHeadGenProg
@@ -174,10 +175,6 @@ theorem realizes_readLMHeadGen :
         d.2.1.2 < numBuckets (dpNMax d.1) ∧ d.2.2 < numMicroPerBucket (dpNMax d.1))
       (fun _ _ => 0) := by
   have hrl := realizes_readLMGen ⟨0, by decide⟩
-  refine Realizes.congr (p := fun d : DictParams × ((ℕ × ℕ) × ℕ) => do
-      let idx ← pure (d.2.1.2 * dpNumMicro d.1 + d.2.2)
-      readLMGenProg ⟨0, by decide⟩ (d.1, (d.2.1.1, idx))) ?_
-    (fun _ => rfl)
   realizeDict
   · exact fits_of_le_totalMicroBuckets h.1 hw hnU hU (le_of_lt (lmHeadIdx_lt h.2.1 h.2.2))
   · exact h.1
@@ -191,10 +188,6 @@ theorem realizes_writeLMHeadGen :
         d.2.1.1.2 < numBuckets (dpNMax d.1) ∧ d.2.1.2 < numMicroPerBucket (dpNMax d.1))
       (fun _ _ => 0) := by
   have hwl := realizes_writeLMGen ⟨0, by decide⟩
-  refine Realizes.congr (p := fun d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ) => do
-      let idx ← pure (d.2.1.1.2 * dpNumMicro d.1 + d.2.1.2)
-      writeLMGenProg ⟨0, by decide⟩ (d.1, ((d.2.1.1.1, idx), d.2.2))) ?_
-    (fun _ => rfl)
   realizeDict
   · exact fits_of_le_totalMicroBuckets h.1 hw hnU hU (le_of_lt (lmHeadIdx_lt h.2.1 h.2.2))
   · exact h.1
@@ -414,6 +407,18 @@ theorem clientResult_readLMNextProg {U V w n_max h_space base b j : ℕ} (s : Me
       lmNext n_max (lmAt base U V w n_max h_space s.mem) b j :=
   clientResult_readLMMod4Prog s (by decide) hb hj
 
+local macro "lmMod4Side" : tactic => `(tactic| (
+  realizeDict
+  all_goals
+    have hpre : DictEnvGen _ _ _ ∧ _ < numBuckets _ ∧ _ < effBucketCap _ := ‹_›
+    first
+    | decide
+    | exact hpre.1
+    | exact lmSlotIdx_lt hpre.2.1 hpre.2.2
+    | exact fits_of_le_totalMicroBuckets hpre.1 ‹0 < _› ‹_ ≤ _› ‹_ < 2 ^ _›
+        (le_of_lt (lmSlotIdx_lt hpre.2.1 hpre.2.2))
+    | exact fits_const_of_dictEnv hpre.1 (by decide)))
+
 theorem realizes_readLMMod4Gen {c_base : ℕ} (hc : c_base + 3 < 9) :
     Realizes .exact (readLMMod4GenProg c_base hc)
       (WordEncoding.encode (α := DictParams × ((ℕ × ℕ) × ℕ))) (WordEncoding.encode (α := ℕ))
@@ -424,35 +429,7 @@ theorem realizes_readLMMod4Gen {c_base : ℕ} (hc : c_base + 3 < 9) :
   have hrl1 := realizes_readLMGen ⟨c_base + 1, by omega⟩
   have hrl2 := realizes_readLMGen ⟨c_base + 2, by omega⟩
   have hrl3 := realizes_readLMGen ⟨c_base + 3, by omega⟩
-  refine Realizes.congr (p := fun d : DictParams × ((ℕ × ℕ) × ℕ) => do
-      let idx ← pure (d.2.1.2 * dpNumMicro d.1 + d.2.2 / 4)
-      let r ← pure (d.2.2 % 4)
-      let c0 ← pure 0
-      let c1 ← pure 1
-      let c2 ← pure 2
-      if r = c0 then
-        readLMGenProg ⟨c_base, by omega⟩ (d.1, (d.2.1.1, idx))
-      else if r = c1 then
-        readLMGenProg ⟨c_base + 1, by omega⟩ (d.1, (d.2.1.1, idx))
-      else if r = c2 then
-        readLMGenProg ⟨c_base + 2, by omega⟩ (d.1, (d.2.1.1, idx))
-      else
-        readLMGenProg ⟨c_base + 3, by omega⟩ (d.1, (d.2.1.1, idx))) ?_
-    (fun _ => rfl)
-  realizeDict
-  · decide
-  · exact fits_of_le_totalMicroBuckets h.1 hw hnU hU (le_of_lt (lmSlotIdx_lt h.2.1 h.2.2))
-  · exact fits_const_of_dictEnv h.1 (by decide)
-  · exact fits_const_of_dictEnv h.1 (by decide)
-  · exact fits_const_of_dictEnv h.1 (by decide)
-  · exact h.1
-  · exact lmSlotIdx_lt h.2.1 h.2.2
-  · exact h.1
-  · exact lmSlotIdx_lt h.2.1 h.2.2
-  · exact h.1
-  · exact lmSlotIdx_lt h.2.1 h.2.2
-  · exact h.1
-  · exact lmSlotIdx_lt h.2.1 h.2.2
+  lmMod4Side
 
 theorem realizes_writeLMMod4Gen {c_base : ℕ} (hc : c_base + 3 < 9) :
     Realizes .exact (writeLMMod4GenProg c_base hc)
@@ -465,35 +442,7 @@ theorem realizes_writeLMMod4Gen {c_base : ℕ} (hc : c_base + 3 < 9) :
   have hwl1 := realizes_writeLMGen ⟨c_base + 1, by omega⟩
   have hwl2 := realizes_writeLMGen ⟨c_base + 2, by omega⟩
   have hwl3 := realizes_writeLMGen ⟨c_base + 3, by omega⟩
-  refine Realizes.congr (p := fun d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ) => do
-      let idx ← pure (d.2.1.1.2 * dpNumMicro d.1 + d.2.1.2 / 4)
-      let r ← pure (d.2.1.2 % 4)
-      let c0 ← pure 0
-      let c1 ← pure 1
-      let c2 ← pure 2
-      if r = c0 then
-        writeLMGenProg ⟨c_base, by omega⟩ (d.1, ((d.2.1.1.1, idx), d.2.2))
-      else if r = c1 then
-        writeLMGenProg ⟨c_base + 1, by omega⟩ (d.1, ((d.2.1.1.1, idx), d.2.2))
-      else if r = c2 then
-        writeLMGenProg ⟨c_base + 2, by omega⟩ (d.1, ((d.2.1.1.1, idx), d.2.2))
-      else
-        writeLMGenProg ⟨c_base + 3, by omega⟩ (d.1, ((d.2.1.1.1, idx), d.2.2))) ?_
-    (fun _ => rfl)
-  realizeDict
-  · decide
-  · exact fits_of_le_totalMicroBuckets h.1 hw hnU hU (le_of_lt (lmSlotIdx_lt h.2.1 h.2.2))
-  · exact fits_const_of_dictEnv h.1 (by decide)
-  · exact fits_const_of_dictEnv h.1 (by decide)
-  · exact fits_const_of_dictEnv h.1 (by decide)
-  · exact h.1
-  · exact lmSlotIdx_lt h.2.1 h.2.2
-  · exact h.1
-  · exact lmSlotIdx_lt h.2.1 h.2.2
-  · exact h.1
-  · exact lmSlotIdx_lt h.2.1 h.2.2
-  · exact h.1
-  · exact lmSlotIdx_lt h.2.1 h.2.2
+  lmMod4Side
 
 theorem realizes_readLMPrevGen :
     Realizes .exact readLMPrevGenProg
@@ -1050,6 +999,7 @@ theorem isDLChain_unlink {n_max head j_del : ℕ} {prev next : ℕ → ℕ} {L :
 
 /-- Parameter-free `Memory.Prog` operation prepending local slot `j_new = d.2.2` to micro-bucket
 chain `(b, m) = (d.2.1.1.2, d.2.1.2)` at `base = d.2.1.1.1`. -/
+@[expose]
 def lmPrependGenProg (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : Memory.Prog Unit := do
   let old_h ← readLMHeadGenProg (d.1, d.2.1)
   let z ← pure 0
@@ -1066,32 +1016,21 @@ def lmPrependGenProg (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : Memory
 /-- `Memory.Prog` operation prepending local slot `j_new = d.2` to micro-bucket chain
 `(b, m) = (d.1.1.2, d.1.2)` at `base = d.1.1.1`. -/
 @[expose]
-def lmPrependProg (U V w n_max h_space : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog Unit := do
-  let old_h ← readLMHeadProg U V w n_max h_space d.1
-  let z ← pure 0
-  let ptr_new ← pure (d.2 + 1)
-  writeLMPrevProg U V w n_max h_space ((d.1.1, d.2), z)
-  writeLMNextProg U V w n_max h_space ((d.1.1, d.2), old_h)
-  if z < old_h then do
-    let old_idx ← pure (old_h - 1)
-    writeLMPrevProg U V w n_max h_space ((d.1.1, old_idx), ptr_new)
-    writeLMHeadProg U V w n_max h_space (d.1, ptr_new)
-  else
-    writeLMHeadProg U V w n_max h_space (d.1, ptr_new)
+def lmPrependProg (U V w n_max h_space : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog Unit :=
+  lmPrependGenProg (mkDictParams U V w n_max h_space, d)
 
 @[simp]
 theorem lmPrependGenProg_mk (U V w n_max h_space : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) :
     lmPrependGenProg (mkDictParams U V w n_max h_space, d) =
       lmPrependProg U V w n_max h_space d := by
-  unfold lmPrependGenProg lmPrependProg
-  simp only [readLMHeadGenProg_mk, writeLMPrevGenProg_mk, writeLMNextGenProg_mk,
-    writeLMHeadGenProg_mk]
+  rfl
 
 @[simp]
 theorem memoryCost_lmPrependProg_le (U V w n_max h_space : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ)
     (s : Memory.State) :
     memoryCost (lmPrependProg U V w n_max h_space d) s ≤ 18 := by
-  unfold lmPrependProg
+  simp only [lmPrependProg, lmPrependGenProg, readLMHeadGenProg_mk, writeLMPrevGenProg_mk,
+    writeLMNextGenProg_mk, writeLMHeadGenProg_mk]
   simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
     memoryCost_readLMHeadProg, memoryCost_writeLMPrevProg, memoryCost_writeLMNextProg]
   split_ifs
@@ -1154,28 +1093,19 @@ theorem realizes_lmPrependGen :
   have hwn := realizes_writeLMNextGen
   realizeDictWith [lmPrependGenPre_mk, LMPrependPre, readLMHeadGenProg_mk, writeLMHeadGenProg_mk,
     writeLMPrevGenProg_mk, writeLMNextGenProg_mk]
-  · exact h.1
-  · exact h.2.1
-  · exact h.2.2.1
-  · exact fits_of_le_max_n_one h.1 hw hnU hU (by have := h.2.2.2.2.1; omega)
-  · exact h.1
-  · exact h.2.1
-  · exact h.2.2.2.1
-  · omega
-  · exact h.1
-  · exact h.2.1
-  · have hh : (Memory.spec 0).clientResult s (readLMHeadProg U V w₀ n_max h_space d.1) =
-        lmHead n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 d.1.2 :=
-      clientResult_readLMHeadProg s h.2.1 h.2.2.1
-    rw [hh] at hc ⊢
-    have := h.2.2.2.2.2
-    omega
-  · exact h.1
-  · exact h.2.1
-  · exact h.2.2.1
-  · exact h.1
-  · exact h.2.1
-  · exact h.2.2.1
+  all_goals first
+    | exact h.1
+    | exact h.2.1
+    | exact h.2.2.1
+    | exact h.2.2.2.1
+    | exact fits_of_le_max_n_one h.1 hw hnU hU (by have := h.2.2.2.2.1; omega)
+    | omega
+    | (have hh : (Memory.spec 0).clientResult s (readLMHeadProg U V w₀ n_max h_space d.1) =
+           lmHead n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 d.1.2 :=
+         clientResult_readLMHeadProg s h.2.1 h.2.2.1
+       rw [hh] at hc ⊢
+       have := h.2.2.2.2.2
+       omega)
 
 /-- Pure state effect of `lmPrependProg`. -/
 theorem lmPrependProg_effect {U V w n_max h_space base b m j_new : ℕ}
@@ -1237,7 +1167,8 @@ theorem lmPrependProg_effect {U V w n_max h_space base b m j_new : ℕ}
       (Memory.spec 0).clientState s₂
         (writeLMHeadProg U V w n_max h_space (((base, b), m), j_new + 1))) := by
     dsimp only [s', s₂, s₁, old_h]
-    unfold lmPrependProg
+    simp only [lmPrependProg, lmPrependGenProg, readLMHeadGenProg_mk, writeLMPrevGenProg_mk,
+      writeLMNextGenProg_mk, writeLMHeadGenProg_mk]
     simp only [pure_bind]
     rw [StateTransitionSpec.clientState_bind, clientState_readLMHeadProg,
       clientResult_readLMHeadProg _ hb hm,
@@ -1341,6 +1272,7 @@ theorem lmPrependProg_effect {U V w n_max h_space base b m j_new : ℕ}
 
 /-- Parameter-free `Memory.Prog` operation unlinking local slot `j_del = d.2.2` from micro-bucket
 chain `(b, m) = (d.2.1.1.2, d.2.1.2)` at `base = d.2.1.1.1`. -/
+@[expose]
 def lmUnlinkGenProg (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : Memory.Prog Unit := do
   let p ← readLMPrevGenProg (d.1, (d.2.1.1, d.2.2))
   let n ← readLMNextGenProg (d.1, (d.2.1.1, d.2.2))
@@ -1359,34 +1291,21 @@ def lmUnlinkGenProg (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : Memory.
 /-- `Memory.Prog` operation unlinking local slot `j_del = d.2` from micro-bucket chain
 `(b, m) = (d.1.1.2, d.1.2)` at `base = d.1.1.1`. -/
 @[expose]
-def lmUnlinkProg (U V w n_max h_space : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog Unit := do
-  let p ← readLMPrevProg U V w n_max h_space (d.1.1, d.2)
-  let n ← readLMNextProg U V w n_max h_space (d.1.1, d.2)
-  let z ← pure 0
-  if z < p then do
-    let p_idx ← pure (p - 1)
-    writeLMNextProg U V w n_max h_space ((d.1.1, p_idx), n)
-  else
-    writeLMHeadProg U V w n_max h_space (d.1, n)
-  if z < n then do
-    let n_idx ← pure (n - 1)
-    writeLMPrevProg U V w n_max h_space ((d.1.1, n_idx), p)
-  else
-    pure ()
+def lmUnlinkProg (U V w n_max h_space : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog Unit :=
+  lmUnlinkGenProg (mkDictParams U V w n_max h_space, d)
 
 @[simp]
 theorem lmUnlinkGenProg_mk (U V w n_max h_space : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) :
     lmUnlinkGenProg (mkDictParams U V w n_max h_space, d) =
       lmUnlinkProg U V w n_max h_space d := by
-  unfold lmUnlinkGenProg lmUnlinkProg
-  simp only [readLMPrevGenProg_mk, readLMNextGenProg_mk, writeLMNextGenProg_mk,
-    writeLMHeadGenProg_mk, writeLMPrevGenProg_mk]
+  rfl
 
 @[simp]
 theorem memoryCost_lmUnlinkProg_le (U V w n_max h_space : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ)
     (s : Memory.State) :
     memoryCost (lmUnlinkProg U V w n_max h_space d) s ≤ 12 := by
-  unfold lmUnlinkProg
+  simp only [lmUnlinkProg, lmUnlinkGenProg, readLMPrevGenProg_mk, readLMNextGenProg_mk,
+    writeLMNextGenProg_mk, writeLMHeadGenProg_mk, writeLMPrevGenProg_mk]
   simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
     memoryCost_readLMPrevProg, memoryCost_readLMNextProg]
   split_ifs <;>
@@ -1513,27 +1432,17 @@ theorem lmUnlinkProg_effect {U V w n_max h_space base b m j_del : ℕ}
     lmAt_lt base U V w n_max h_space s.mem (1 + j_del % 4, b * numMicroPerBucket n_max + j_del / 4)
   have hn_lt : n < 2 ^ effBucketPosBits n_max :=
     lmAt_lt base U V w n_max h_space s.mem (5 + j_del % 4, b * numMicroPerBucket n_max + j_del / 4)
-  have hs'_def : s' =
-      (if 0 < p then
-         if 0 < n then
-           (Memory.spec 0).clientState
-             ((Memory.spec 0).clientState s
-               (writeLMNextProg U V w n_max h_space (((base, b), p - 1), n)))
-             (writeLMPrevProg U V w n_max h_space (((base, b), n - 1), p))
-         else
-           (Memory.spec 0).clientState s
-             (writeLMNextProg U V w n_max h_space (((base, b), p - 1), n))
-       else
-         if 0 < n then
-           (Memory.spec 0).clientState
-             ((Memory.spec 0).clientState s
-               (writeLMHeadProg U V w n_max h_space (((base, b), m), n)))
-             (writeLMPrevProg U V w n_max h_space (((base, b), n - 1), p))
-         else
-           (Memory.spec 0).clientState s
-             (writeLMHeadProg U V w n_max h_space (((base, b), m), n))) := by
-    dsimp only [s', p, n]
-    unfold lmUnlinkProg
+  -- The two `if`s of `lmUnlinkProg` touch disjoint fields: the first relinks the predecessor
+  -- (or the micro-bucket head) to `n`, the second relinks the successor to `p`.
+  let s₁ := if 0 < p then
+      (Memory.spec 0).clientState s (writeLMNextProg U V w n_max h_space (((base, b), p - 1), n))
+    else (Memory.spec 0).clientState s (writeLMHeadProg U V w n_max h_space (((base, b), m), n))
+  have hs'_def : s' = if 0 < n then
+      (Memory.spec 0).clientState s₁ (writeLMPrevProg U V w n_max h_space (((base, b), n - 1), p))
+    else s₁ := by
+    dsimp only [s', s₁, p, n]
+    simp only [lmUnlinkProg, lmUnlinkGenProg, readLMPrevGenProg_mk, readLMNextGenProg_mk,
+      writeLMNextGenProg_mk, writeLMHeadGenProg_mk, writeLMPrevGenProg_mk]
     simp only [pure_bind]
     rw [StateTransitionSpec.clientState_bind, clientState_readLMPrevProg,
       clientResult_readLMPrevProg _ hb hj,
@@ -1542,126 +1451,94 @@ theorem lmUnlinkProg_effect {U V w n_max h_space base b m j_del : ℕ}
     split_ifs <;>
       rw [StateTransitionSpec.clientState_bind] <;>
       rfl
-  rw [hs'_def]
-  split_ifs with hp_pos hn_pos hn_pos
-  · have hp_idx : p - 1 < effBucketCap n_max := by omega
-    have hn_idx : n - 1 < effBucketCap n_max := by omega
-    let s₁ := (Memory.spec 0).clientState s
-      (writeLMNextProg U V w n_max h_space (((base, b), p - 1), n))
-    have eff₁ := writeLMNextProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
-      (h_space := h_space) (base := base) (b := b) (j := p - 1) (val := n) hw hb hp_idx hn_lt s
-    have eff₂ := writeLMPrevProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
-      (h_space := h_space) (base := base) (b := b) (j := n - 1) (val := p) hw hb hn_idx hp_lt s₁
-    refine ⟨by rw [eff₂.1, eff₁.1],
-      fun a ha => by rw [eff₂.2.1 a ha, eff₁.2.1 a ha],
-      by rw [eff₂.2.2.1, eff₁.2.2.1],
-      by rw [eff₂.2.2.2.1, eff₁.2.2.2.1],
-      by rw [eff₂.2.2.2.2.1, eff₁.2.2.2.2.1],
-      fun b' hb' m' hm' => ?_, fun b' hb' j' hj' => ?_, fun b' hb' j' hj' => ?_⟩
-    · rw [eff₂.2.2.2.2.2.1, eff₁.2.2.2.2.2.1]
-      split_ifs with hbm
-      · rcases hbm with ⟨rfl, rfl⟩; rfl
-      · rfl
-    · rw [eff₂.2.2.2.2.2.2.2.2]
-      by_cases hb_eq : b' = b
-      · subst hb_eq
-        rw [ite_eq_left rfl]
-        by_cases hj_p : j' = p - 1
-        · subst hj_p
-          rw [Function.update_self]
-          exact eff₁.2.2.2.2.2.2.2.1
-        · rw [Function.update_of_ne hj_p]
-          exact eff₁.2.2.2.2.2.2.2.2 b' hb' j' hj' (Or.inr hj_p)
-      · rw [ite_eq_right hb_eq]
-        exact eff₁.2.2.2.2.2.2.2.2 b' hb' j' hj' (Or.inl hb_eq)
-    · by_cases hb_eq : b' = b
-      · subst hb_eq
-        rw [ite_eq_left rfl]
-        by_cases hj_n : j' = n - 1
-        · subst hj_n
-          rw [Function.update_self]
-          exact eff₂.2.2.2.2.2.2.1
-        · rw [Function.update_of_ne hj_n, eff₂.2.2.2.2.2.2.2.1 b' hb' j' hj' (Or.inr hj_n),
-            eff₁.2.2.2.2.2.2.1]
-      · rw [ite_eq_right hb_eq, eff₂.2.2.2.2.2.2.2.1 b' hb' j' hj' (Or.inl hb_eq),
-          eff₁.2.2.2.2.2.2.1]
-  · have hp_idx : p - 1 < effBucketCap n_max := by omega
-    have eff₁ := writeLMNextProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
-      (h_space := h_space) (base := base) (b := b) (j := p - 1) (val := n) hw hb hp_idx hn_lt s
-    refine ⟨eff₁.1, eff₁.2.1, eff₁.2.2.1, eff₁.2.2.2.1, eff₁.2.2.2.2.1,
-      fun b' hb' m' hm' => ?_, fun b' hb' j' hj' => ?_, fun b' hb' j' hj' => ?_⟩
-    · rw [eff₁.2.2.2.2.2.1]
-      split_ifs with hbm
-      · rcases hbm with ⟨rfl, rfl⟩; rfl
-      · rfl
-    · by_cases hb_eq : b' = b
-      · subst hb_eq
-        rw [ite_eq_left rfl]
-        by_cases hj_p : j' = p - 1
-        · subst hj_p
-          rw [Function.update_self]
-          exact eff₁.2.2.2.2.2.2.2.1
-        · rw [Function.update_of_ne hj_p]
-          exact eff₁.2.2.2.2.2.2.2.2 b' hb' j' hj' (Or.inr hj_p)
-      · rw [ite_eq_right hb_eq]
-        exact eff₁.2.2.2.2.2.2.2.2 b' hb' j' hj' (Or.inl hb_eq)
-    · rw [eff₁.2.2.2.2.2.2.1]
-      split_ifs with hb_eq
-      · subst hb_eq; rfl
-      · rfl
-  · have hn_idx : n - 1 < effBucketCap n_max := by omega
-    let s₁ := (Memory.spec 0).clientState s
-      (writeLMHeadProg U V w n_max h_space (((base, b), m), n))
-    have eff₁ := writeLMHeadProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
-      (h_space := h_space) (base := base) (b := b) (m := m) (val := n) hw hb hm hn_lt s
-    have eff₂ := writeLMPrevProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
-      (h_space := h_space) (base := base) (b := b) (j := n - 1) (val := p) hw hb hn_idx hp_lt s₁
-    refine ⟨by rw [eff₂.1, eff₁.1],
-      fun a ha => by rw [eff₂.2.1 a ha, eff₁.2.1 a ha],
-      by rw [eff₂.2.2.1, eff₁.2.2.1],
-      by rw [eff₂.2.2.2.1, eff₁.2.2.2.1],
-      by rw [eff₂.2.2.2.2.1, eff₁.2.2.2.2.1],
-      fun b' hb' m' hm' => ?_, fun b' hb' j' hj' => ?_, fun b' hb' j' hj' => ?_⟩
-    · rw [eff₂.2.2.2.2.2.1]
-      by_cases hbm : b' = b ∧ m' = m
-      · rcases hbm with ⟨rfl, rfl⟩
-        rw [ite_eq_left ⟨rfl, rfl⟩]
-        exact eff₁.2.2.2.2.2.1
-      · rw [ite_eq_right hbm]
-        exact eff₁.2.2.2.2.2.2.1 b' hb' m' hm' (not_and_or.mp hbm)
-    · rw [eff₂.2.2.2.2.2.2.2.2, eff₁.2.2.2.2.2.2.2.2]
-      split_ifs with hb_eq
-      · subst hb_eq; rfl
-      · rfl
-    · by_cases hb_eq : b' = b
-      · subst hb_eq
-        rw [ite_eq_left rfl]
-        by_cases hj_n : j' = n - 1
-        · subst hj_n
-          rw [Function.update_self]
-          exact eff₂.2.2.2.2.2.2.1
-        · rw [Function.update_of_ne hj_n, eff₂.2.2.2.2.2.2.2.1 b' hb' j' hj' (Or.inr hj_n),
-            eff₁.2.2.2.2.2.2.2.1]
-      · rw [ite_eq_right hb_eq, eff₂.2.2.2.2.2.2.2.1 b' hb' j' hj' (Or.inl hb_eq),
-          eff₁.2.2.2.2.2.2.2.1]
-  · have eff₁ := writeLMHeadProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
-      (h_space := h_space) (base := base) (b := b) (m := m) (val := n) hw hb hm hn_lt s
-    refine ⟨eff₁.1, eff₁.2.1, eff₁.2.2.1, eff₁.2.2.2.1, eff₁.2.2.2.2.1,
-      fun b' hb' m' hm' => ?_, fun b' hb' j' hj' => ?_, fun b' hb' j' hj' => ?_⟩
-    · by_cases hbm : b' = b ∧ m' = m
-      · rcases hbm with ⟨rfl, rfl⟩
-        rw [ite_eq_left ⟨rfl, rfl⟩]
-        exact eff₁.2.2.2.2.2.1
-      · rw [ite_eq_right hbm]
-        exact eff₁.2.2.2.2.2.2.1 b' hb' m' hm' (not_and_or.mp hbm)
-    · rw [eff₁.2.2.2.2.2.2.2.2]
-      split_ifs with hb_eq
-      · subst hb_eq; rfl
-      · rfl
-    · rw [eff₁.2.2.2.2.2.2.2.1]
-      split_ifs with hb_eq
-      · subst hb_eq; rfl
-      · rfl
+  have h₁ : s₁.frontier = s.frontier ∧
+      (∀ a, ¬(base + offLM U V w n_max h_space ≤ a ∧ a < base + offGM U V w n_max h_space) →
+        s₁.mem a = s.mem a) ∧
+      quotAt base U w n_max h_space s₁.mem = quotAt base U w n_max h_space s.mem ∧
+      valAt base U V w n_max h_space s₁.mem = valAt base U V w n_max h_space s.mem ∧
+      gmAt base U V w n_max h_space s₁.mem = gmAt base U V w n_max h_space s.mem ∧
+      (∀ b' < numBuckets n_max, ∀ m' < numMicroPerBucket n_max,
+        lmHead n_max (lmAt base U V w n_max h_space s₁.mem) b' m' =
+          if b' = b ∧ m' = m then
+            if 0 < p then lmHead n_max (lmAt base U V w n_max h_space s.mem) b m else n
+          else lmHead n_max (lmAt base U V w n_max h_space s.mem) b' m') ∧
+      (∀ b' < numBuckets n_max, ∀ j' < effBucketCap n_max,
+        lmNext n_max (lmAt base U V w n_max h_space s₁.mem) b' j' =
+          if b' = b then
+            (if 0 < p then
+              Function.update (lmNext n_max (lmAt base U V w n_max h_space s.mem) b) (p - 1) n
+            else lmNext n_max (lmAt base U V w n_max h_space s.mem) b) j'
+          else lmNext n_max (lmAt base U V w n_max h_space s.mem) b' j') ∧
+      lmPrev n_max (lmAt base U V w n_max h_space s₁.mem) =
+        lmPrev n_max (lmAt base U V w n_max h_space s.mem) := by
+    by_cases hp_pos : 0 < p
+    · have eff₁ := writeLMNextProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
+        (h_space := h_space) (base := base) (b := b) (j := p - 1) (val := n) hw hb (by omega)
+        hn_lt s
+      simp only [s₁, hp_pos, ↓reduceIte]
+      refine ⟨eff₁.1, eff₁.2.1, eff₁.2.2.1, eff₁.2.2.2.1, eff₁.2.2.2.2.1,
+        fun b' hb' m' hm' => ?_, fun b' hb' j' hj' => ?_, eff₁.2.2.2.2.2.2.1⟩
+      · rw [eff₁.2.2.2.2.2.1]
+        split_ifs with hbm
+        · rcases hbm with ⟨rfl, rfl⟩; rfl
+        · rfl
+      · by_cases hb_eq : b' = b
+        · subst hb_eq
+          rw [ite_eq_left rfl]
+          by_cases hj_p : j' = p - 1
+          · subst hj_p
+            rw [Function.update_self]
+            exact eff₁.2.2.2.2.2.2.2.1
+          · rw [Function.update_of_ne hj_p]
+            exact eff₁.2.2.2.2.2.2.2.2 b' hb' j' hj' (Or.inr hj_p)
+        · rw [ite_eq_right hb_eq]
+          exact eff₁.2.2.2.2.2.2.2.2 b' hb' j' hj' (Or.inl hb_eq)
+    · have eff₁ := writeLMHeadProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
+        (h_space := h_space) (base := base) (b := b) (m := m) (val := n) hw hb hm hn_lt s
+      simp only [s₁, hp_pos, ↓reduceIte]
+      refine ⟨eff₁.1, eff₁.2.1, eff₁.2.2.1, eff₁.2.2.2.1, eff₁.2.2.2.2.1,
+        fun b' hb' m' hm' => ?_, fun b' hb' j' hj' => ?_, eff₁.2.2.2.2.2.2.2.1⟩
+      · by_cases hbm : b' = b ∧ m' = m
+        · rcases hbm with ⟨rfl, rfl⟩
+          rw [ite_eq_left ⟨rfl, rfl⟩]
+          exact eff₁.2.2.2.2.2.1
+        · rw [ite_eq_right hbm]
+          exact eff₁.2.2.2.2.2.2.1 b' hb' m' hm' (not_and_or.mp hbm)
+      · rw [eff₁.2.2.2.2.2.2.2.2]
+        split_ifs with hb_eq
+        · subst hb_eq; rfl
+        · rfl
+  by_cases hn_pos : 0 < n
+  · have eff₂ := writeLMPrevProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
+      (h_space := h_space) (base := base) (b := b) (j := n - 1) (val := p) hw hb (by omega)
+      hp_lt s₁
+    simp only [hs'_def, hn_pos, ↓reduceIte]
+    refine ⟨by rw [eff₂.1, h₁.1],
+      fun a ha => by rw [eff₂.2.1 a ha, h₁.2.1 a ha],
+      by rw [eff₂.2.2.1, h₁.2.2.1],
+      by rw [eff₂.2.2.2.1, h₁.2.2.2.1],
+      by rw [eff₂.2.2.2.2.1, h₁.2.2.2.2.1],
+      fun b' hb' m' hm' => by rw [eff₂.2.2.2.2.2.1]; exact h₁.2.2.2.2.2.1 b' hb' m' hm',
+      fun b' hb' j' hj' => by rw [eff₂.2.2.2.2.2.2.2.2]; exact h₁.2.2.2.2.2.2.1 b' hb' j' hj',
+      fun b' hb' j' hj' => ?_⟩
+    by_cases hb_eq : b' = b
+    · subst hb_eq
+      rw [ite_eq_left rfl]
+      by_cases hj_n : j' = n - 1
+      · subst hj_n
+        rw [Function.update_self]
+        exact eff₂.2.2.2.2.2.2.1
+      · rw [Function.update_of_ne hj_n, eff₂.2.2.2.2.2.2.2.1 b' hb' j' hj' (Or.inr hj_n),
+          h₁.2.2.2.2.2.2.2]
+    · rw [ite_eq_right hb_eq, eff₂.2.2.2.2.2.2.2.1 b' hb' j' hj' (Or.inl hb_eq),
+        h₁.2.2.2.2.2.2.2]
+  · simp only [hs'_def, hn_pos, ↓reduceIte]
+    refine ⟨h₁.1, h₁.2.1, h₁.2.2.1, h₁.2.2.2.1, h₁.2.2.2.2.1, h₁.2.2.2.2.2.1,
+      h₁.2.2.2.2.2.2.1, fun b' _ j' _ => ?_⟩
+    rw [h₁.2.2.2.2.2.2.2]
+    split_ifs with hb_eq
+    · subst hb_eq; rfl
+    · rfl
 
 /-! ## Section 4: Phase 1 micro-chain search (`searchMicroChainProg`) -/
 
@@ -1670,6 +1547,7 @@ given `x.1.1 = (dp, ((base, b), q_target))`, `x.1.2 = z0`, and
 `x.2 = (((ptr, found), j_found), phys_found)` with `0 < ptr`, inspects `j = ptr - 1`,
 resolves its physical slot `phys`, reads `quotAt phys`, and either stops with
 `(((0, 1), j), phys)` on match or advances to `next_ptr`. -/
+@[expose]
 def microStepGenProg
     (x : ((DictParams × ((ℕ × ℕ) × ℕ)) × ℕ) × (((ℕ × ℕ) × ℕ) × ℕ)) :
     Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) := do
@@ -1691,30 +1569,21 @@ and either stops with `(((0, 1), j), phys)` on match or advances to `next_ptr`. 
 @[expose]
 def microStepProg (U V w n_max h_space : ℕ)
     (x : (((ℕ × ℕ) × ℕ) × ℕ) × (((ℕ × ℕ) × ℕ) × ℕ)) :
-    Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) := do
-  let j ← pure (x.2.1.1.1 - 1)
-  let next_ptr ← readLMNextProg U V w n_max h_space (x.1.1.1, j)
-  let phys ← resolveIndexedSlotProg U V w n_max h_space (x.1.1.1, j)
-  let q_val ← readQuotProg U w n_max h_space (x.1.1.1.1, phys)
-  let z0 ← pure 0
-  let one ← pure 1
-  if q_val = x.1.1.2 then
-    return (((z0, one), j), phys)
-  else
-    return (((next_ptr, z0), x.2.1.2), x.2.2)
+    Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) :=
+  microStepGenProg (((mkDictParams U V w n_max h_space, x.1.1), x.1.2), x.2)
 
 @[simp]
 theorem microStepGenProg_mk (U V w n_max h_space : ℕ)
     (d1 : (ℕ × ℕ) × ℕ) (z0 : ℕ) (a : ((ℕ × ℕ) × ℕ) × ℕ) :
     microStepGenProg (((mkDictParams U V w n_max h_space, d1), z0), a) =
       microStepProg U V w n_max h_space ((d1, z0), a) := by
-  unfold microStepGenProg microStepProg
-  simp only [readLMNextGenProg_mk, resolveIndexedSlotGenProg_mk, readQuotGenProg_mk]
+  rfl
 
 theorem clientState_microStepProg (U V w n_max h_space : ℕ)
     (x : (((ℕ × ℕ) × ℕ) × ℕ) × (((ℕ × ℕ) × ℕ) × ℕ)) (s : Memory.State) :
     (Memory.spec 0).clientState s (microStepProg U V w n_max h_space x) = s := by
-  unfold microStepProg
+  simp only [microStepProg, microStepGenProg, readLMNextGenProg_mk, resolveIndexedSlotGenProg_mk,
+    readQuotGenProg_mk]
   simp only [pure_bind]
   rw [StateTransitionSpec.clientState_bind, clientState_readLMNextProg,
     StateTransitionSpec.clientState_bind, clientState_resolveIndexedSlotProg,
@@ -1735,7 +1604,8 @@ theorem memoryCost_microStepGenProg_pos
 theorem memoryCost_microStepProg_le (U V w n_max h_space : ℕ)
     (x : (((ℕ × ℕ) × ℕ) × ℕ) × (((ℕ × ℕ) × ℕ) × ℕ)) (s : Memory.State) :
     memoryCost (microStepProg U V w n_max h_space x) s ≤ 8 := by
-  unfold microStepProg
+  simp only [microStepProg, microStepGenProg, readLMNextGenProg_mk, resolveIndexedSlotGenProg_mk,
+    readQuotGenProg_mk]
   simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
     memoryCost_readLMNextProg, memoryCost_readQuotProg]
   have hres := memoryCost_resolveIndexedSlotProg_le (U := U) (V := V) (w := w)
@@ -1759,7 +1629,8 @@ theorem clientResult_microStepProg {U V w n_max h_space : ℕ}
   have hphys : slotOf n_max (gmAt x.1.1.1.1 U V w n_max h_space s.mem)
       x.1.1.1.2 (x.2.1.1.1 - 1) < n_max :=
     (slotOf_lt_and_injective hinv).1 x.1.1.1.2 hb (x.2.1.1.1 - 1) hj_bc
-  unfold microStepProg
+  simp only [microStepProg, microStepGenProg, readLMNextGenProg_mk, resolveIndexedSlotGenProg_mk,
+    readQuotGenProg_mk]
   simp only [pure_bind]
   rw [StateTransitionSpec.clientResult_bind, clientState_readLMNextProg,
     clientResult_readLMNextProg _ hb hj_cap,
@@ -1807,11 +1678,8 @@ theorem realizes_microStepGen :
       (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ))
       MicroStepGenPre
       (fun _ _ => 0) := by
-  have hrn := realizes_readLMNextGen
-  have hres := realizes_resolveIndexedSlotGen
-  have hrq := realizes_readQuotGen
   unfold microStepGenProg
-  realize
+  realize [realizes_readLMNextGen, realizes_resolveIndexedSlotGen, realizes_readQuotGen]
   all_goals (
     rcases d with ⟨⟨⟨dp, d1⟩, z0⟩, a⟩
     let d := ((d1, z0), a)
@@ -1824,7 +1692,6 @@ theorem realizes_microStepGen :
   · exact h.2.2.2.1
   · rw [clientState_readLMNextProg]; exact h.2.2.2.2.2
   · rw [clientState_readLMNextProg]; exact h.2.2.2.2.1
-  · exact h.1
   · rw [clientState_readLMNextProg,
       clientResult_resolveIndexedSlotProg (d1.1, a.1.1.1 - 1) s
         h.2.2.2.2.2 h.2.1 h.2.2.2.2.1 h.2.2.2.1]
@@ -1876,8 +1743,7 @@ def microLoopGenProg
 def microLoopProg (U V w n_max h_space : ℕ)
     (x : (((ℕ × ℕ) × ℕ) × ℕ) × (((ℕ × ℕ) × ℕ) × ℕ)) :
     Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) :=
-  boundedWhile microLoopGuard (microStepProg U V w n_max h_space)
-    x.1 (effBucketCap n_max) x.2
+  microLoopGenProg (((mkDictParams U V w n_max h_space, x.1.1), x.1.2), x.2)
 
 theorem boundedWhile_microStepGenProg_mk (U V w n_max h_space : ℕ)
     (d1 : (ℕ × ℕ) × ℕ) (z0 : ℕ) (k : ℕ) (a : ((ℕ × ℕ) × ℕ) × ℕ) :
@@ -1898,8 +1764,7 @@ theorem microLoopGenProg_mk (U V w n_max h_space : ℕ)
     (d1 : (ℕ × ℕ) × ℕ) (z0 : ℕ) (a : ((ℕ × ℕ) × ℕ) × ℕ) :
     microLoopGenProg (((mkDictParams U V w n_max h_space, d1), z0), a) =
       microLoopProg U V w n_max h_space ((d1, z0), a) := by
-  unfold microLoopGenProg microLoopProg
-  rw [p_nMax_mk, boundedWhile_microStepGenProg_mk]
+  rfl
 
 @[simp]
 theorem whileSafe_microStepGenProg_mk (U V w₀ n_max h_space w : ℕ)
@@ -1988,12 +1853,14 @@ theorem boundedWhile_microStep_spec {U V w₀ n_max h_space w base b q_target pr
       simp only [d, a, Nat.add_sub_cancel] at hstep_res
       have hstep_state := clientState_microStepProg U V w₀ n_max h_space (d, a) s
       have hstep_cost := memoryCost_microStepProg_le U V w₀ n_max h_space (d, a) s
+      unfold prog boundedWhile
+      rw [ite_eq_left hg, StateTransitionSpec.clientState_bind,
+        StateTransitionSpec.clientResult_bind, memoryCost_bind_of_clientState_eq hstep_state,
+        hstep_state]
+      simp only [whileSafe, hg, ↓reduceIte, hstep_state]
       by_cases hmatch : quotAt base U w₀ n_max h_space s.mem
           (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b j) = q_target
-      · have hres_eq : (Memory.spec 0).clientResult s (microStepProg U V w₀ n_max h_space (d, a)) =
-            (((0, 1), j), slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b j) := by
-          rw [hstep_res, ite_eq_left hmatch]
-        let a' := (((0, 1), j), slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b j)
+      · let a' := (((0, 1), j), slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b j)
         have hbw_nil : ∀ m,
             boundedWhile microLoopGuard (microStepProg U V w₀ n_max h_space) d m a' =
               pure a' := fun m => by
@@ -2001,64 +1868,28 @@ theorem boundedWhile_microStep_spec {U V w₀ n_max h_space w base b q_target pr
         have hws_nil : ∀ m, whileSafe microLoopGuard (microStepProg U V w₀ n_max h_space)
             (MicroStepPre U V w₀ n_max h_space) w d m a' s := fun m => by
           rcases m with _ | m' <;> simp [whileSafe, d, a']
-        refine ⟨?_, ?_, ?_, ?_⟩
-        · unfold prog boundedWhile
-          rw [ite_eq_left hg, StateTransitionSpec.clientState_bind, hstep_state, hres_eq, hbw_nil]
-          rfl
-        · unfold prog boundedWhile
-          rw [ite_eq_left hg, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hstep_state,
-            hres_eq, hbw_nil]
-          simp only [memoryCost_pure, List.length_cons]
+        rw [hstep_res, ite_eq_left hmatch, hbw_nil]
+        refine ⟨rfl, ?_, ⟨hpre, hws_nil n'⟩, ?_⟩
+        · simp only [memoryCost_pure, List.length_cons]
           omega
-        · simp only [whileSafe, hg, ↓reduceIte, hstep_state, hres_eq]
-          exact ⟨hpre, hws_nil n'⟩
-        · dsimp only
-          unfold prog boundedWhile
-          rw [ite_eq_left hg, StateTransitionSpec.clientResult_bind, hstep_state, hres_eq, hbw_nil]
-          change if ∃ x ∈ j :: rest, quotAt base U w₀ n_max h_space s.mem
-              (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b x) = q_target then
-              a'.1.1 = (0, 1) ∧ a'.1.2 ∈ j :: rest ∧
-              quotAt base U w₀ n_max h_space s.mem
-                (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b a'.1.2) = q_target ∧
-              a'.2 = slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b a'.1.2
-            else a'.1.1 = (0, if j :: rest = [] then found else 0)
-          have hex : ∃ x ∈ j :: rest, quotAt base U w₀ n_max h_space s.mem
-              (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b x) = q_target :=
-            ⟨j, List.mem_cons_self, hmatch⟩
-          rw [ite_eq_left hex]
+        · rw [ite_eq_left ⟨j, List.mem_cons_self, hmatch⟩]
           exact ⟨rfl, List.mem_cons_self, hmatch, rfl⟩
-      · have hres_eq : (Memory.spec 0).clientResult s (microStepProg U V w₀ n_max h_space (d, a)) =
-            (((lmNext n_max (lmAt base U V w₀ n_max h_space s.mem) b j, 0), j_found),
-              phys_found) := by
-          rw [hstep_res, ite_eq_right hmatch]
-        have hn' : rest.length ≤ n' := by simp only [List.length_cons] at hn; omega
+      · have hn' : rest.length ≤ n' := by simp only [List.length_cons] at hn; omega
         have hih := ih hrest hrest_c hn' hnj (found := 0) (j_found := j_found)
           (phys_found := phys_found)
-        refine ⟨?_, ?_, ?_, ?_⟩
-        · unfold prog boundedWhile
-          rw [ite_eq_left hg, StateTransitionSpec.clientState_bind, hstep_state, hres_eq]
-          exact hih.1
-        · unfold prog boundedWhile
-          rw [ite_eq_left hg, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hstep_state, hres_eq]
-          dsimp only [d] at hstep_cost ⊢
+        rw [hstep_res, ite_eq_right hmatch]
+        refine ⟨hih.1, ?_, ⟨hpre, hih.2.2.1⟩, ?_⟩
+        · dsimp only [d] at hstep_cost ⊢
           have := hih.2.1
           simp only [List.length_cons]
           omega
-        · simp only [whileSafe, hg, ↓reduceIte, hstep_state, hres_eq]
-          exact ⟨hpre, hih.2.2.1⟩
-        · dsimp only
-          unfold prog boundedWhile
-          rw [ite_eq_left hg, StateTransitionSpec.clientResult_bind, hstep_state, hres_eq]
-          have hih_res := hih.2.2.2
+        · have hih_res := hih.2.2.2
           dsimp only [d] at hih_res ⊢
           by_cases hex_rest : ∃ x ∈ rest, quotAt base U w₀ n_max h_space s.mem
               (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b x) = q_target
-          · have hex_cons : ∃ x ∈ j :: rest, quotAt base U w₀ n_max h_space s.mem
-                (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b x) = q_target := by
-              obtain ⟨x, hx, hqx⟩ := hex_rest
-              exact ⟨x, List.mem_cons_of_mem j hx, hqx⟩
-            rw [ite_eq_left hex_rest] at hih_res
-            rw [ite_eq_left hex_cons]
+          · obtain ⟨x, hx, hqx⟩ := hex_rest
+            rw [ite_eq_left ⟨x, hx, hqx⟩] at hih_res
+            rw [ite_eq_left ⟨x, List.mem_cons_of_mem j hx, hqx⟩]
             exact ⟨hih_res.1, List.mem_cons_of_mem j hih_res.2.1, hih_res.2.2.1, hih_res.2.2.2⟩
           · have hno_cons : ¬∃ x ∈ j :: rest, quotAt base U w₀ n_max h_space s.mem
                 (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b x) = q_target := by
@@ -2073,6 +1904,7 @@ theorem boundedWhile_microStep_spec {U V w₀ n_max h_space w base b q_target pr
 /-- Parameter-free Phase 1 micro-chain search `searchMicroChainGenProg`:
 reads `h0 = lmHead b m` (`d = (dp, (((base, b), q_target), m))`) and runs `microLoopGenProg`
 from `h0`. -/
+@[expose]
 def searchMicroChainGenProg
     (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) := do
   let h0 ← readLMHeadGenProg (d.1, (d.2.1.1, d.2.2))
@@ -2083,18 +1915,15 @@ def searchMicroChainGenProg
 reads `h0 = lmHead b m` (`d = (((base, b), q_target), m)`) and runs `microLoopProg` from `h0`. -/
 @[expose]
 def searchMicroChainProg (U V w n_max h_space : ℕ)
-    (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) := do
-  let h0 ← readLMHeadProg U V w n_max h_space (d.1.1, d.2)
-  let z0 ← pure 0
-  microLoopProg U V w n_max h_space ((d.1, z0), (((h0, z0), z0), z0))
+    (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) :=
+  searchMicroChainGenProg (mkDictParams U V w n_max h_space, d)
 
 @[simp]
 theorem searchMicroChainGenProg_mk (U V w n_max h_space : ℕ)
     (d : ((ℕ × ℕ) × ℕ) × ℕ) :
     searchMicroChainGenProg (mkDictParams U V w n_max h_space, d) =
       searchMicroChainProg U V w n_max h_space d := by
-  unfold searchMicroChainGenProg searchMicroChainProg
-  simp only [readLMHeadGenProg_mk, microLoopGenProg_mk]
+  rfl
 
 /-- Precondition for `searchMicroChainProg`: `d = (((base, b), q_target), m)` with a valid
 doubly-linked micro-bucket chain `L` at `(b, m)` whose slots are all `< bCount b`. -/
@@ -2174,13 +2003,17 @@ theorem searchMicroChainProg_spec {U V w₀ n_max h_space w : ℕ}
     (found := 0) (j_found := 0) (phys_found := 0)
     henv hb hinv hchain.2 hc_lt hchain.length_le hchain.1
   have hst : (Memory.spec 0).clientState s prog = s := by
-    unfold prog searchMicroChainProg microLoopProg
+    simp only [prog, searchMicroChainProg, searchMicroChainGenProg, readLMHeadGenProg_mk,
+      microLoopGenProg, p_nMax_mk,
+      boundedWhile_microStepGenProg_mk]
     simp only [pure_bind]
     rw [StateTransitionSpec.clientState_bind, clientState_readLMHeadProg,
       clientResult_readLMHeadProg _ hb hm]
     exact hbw.1
   have hcost : memoryCost prog s ≤ 2 + 8 * L.length := by
-    unfold prog searchMicroChainProg microLoopProg
+    simp only [prog, searchMicroChainProg, searchMicroChainGenProg, readLMHeadGenProg_mk,
+      microLoopGenProg, p_nMax_mk,
+      boundedWhile_microStepGenProg_mk]
     simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
     rw [memoryCost_bind, memoryCost_readLMHeadProg, clientState_readLMHeadProg,
       clientResult_readLMHeadProg _ hb hm]
@@ -2191,7 +2024,9 @@ theorem searchMicroChainProg_spec {U V w₀ n_max h_space w : ℕ}
         (boundedWhile microLoopGuard (microStepProg U V w₀ n_max h_space)
           (((base, b), q_target), 0) (effBucketCap n_max)
           (((lmHead n_max (lmAt base U V w₀ n_max h_space s.mem) b m, 0), 0), 0)) := by
-    unfold prog searchMicroChainProg microLoopProg
+    simp only [prog, searchMicroChainProg, searchMicroChainGenProg, readLMHeadGenProg_mk,
+      microLoopGenProg, p_nMax_mk,
+      boundedWhile_microStepGenProg_mk]
     simp only [pure_bind]
     rw [StateTransitionSpec.clientResult_bind, clientState_readLMHeadProg,
       clientResult_readLMHeadProg _ hb hm]

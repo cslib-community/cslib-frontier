@@ -14,6 +14,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Poly
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Tactic.Degree
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Word-RAM list outputs give Turing-machine polynomial time
@@ -144,30 +146,18 @@ abbrev readLoopEncoding : ((ℕ × SparseMemory ℕ ℕ) × (ℕ × List ℕ)) �
 
 /-- One reading round is cubic, with linear output: one sparse-memory scan and linear copying. -/
 theorem readRound_degree : ComputableInDegree readRound readLoopEncoding readLoopEncoding 3 1 := by
-  have hread : ComputableInDegree
-      (fun q : (ℕ × SparseMemory ℕ ℕ) × ℕ => SparseMemory.read q.2 q.1.1 q.1.2)
+  have hr : ComputableInDegree
+      (fun p : (ℕ × SparseMemory ℕ ℕ) × ℕ => SparseMemory.read p.2 p.1.1 p.1.2)
       (SparseMemory.readEncoding encNat encNat) encNat 3 1 :=
-    (SparseMemory.read_inO_cube encNat encNat).computableInDegree ⟨1, fun q => by simp⟩
-      ⟨1, fun q => by simp⟩ (by norm_num)
-  have harg : ComputableInDegree
+    (SparseMemory.read_inO_cube encNat encNat).computableInDegree ⟨1, fun p => by simp⟩
+      ⟨1, fun p => by simp⟩ (by norm_num)
+  have hread : ComputableInDegree
+      (fun q : (ℕ × SparseMemory ℕ ℕ) × (ℕ × List ℕ) => SparseMemory.read q.1.1 q.2.1 q.1.2)
+      readLoopEncoding encNat 3 1 :=
+    (hr.comp (by degree : ComputableInDegree
       (fun q : (ℕ × SparseMemory ℕ ℕ) × (ℕ × List ℕ) => ((q.2.1, q.1.2), q.1.1))
-      readLoopEncoding (SparseMemory.readEncoding encNat encNat) 1 1 :=
-    ((((ComputableInDegree.fst _ _).comp (ComputableInDegree.snd _ _)).prod
-      ((ComputableInDegree.snd _ _).comp (ComputableInDegree.fst _ _))).prod
-      ((ComputableInDegree.fst _ _).comp (ComputableInDegree.fst _ _))).mono
-  have hacc : ComputableInDegree (fun q : (ℕ × SparseMemory ℕ ℕ) × (ℕ × List ℕ) => q.2.2)
-      readLoopEncoding (encList encNat) 1 1 :=
-    ((ComputableInDegree.snd _ _).comp (ComputableInDegree.snd _ _)).mono
-  have hsnoc : ComputableInDegree
-      (fun q : (ℕ × SparseMemory ℕ ℕ) × (ℕ × List ℕ) =>
-        q.2.2 ++ [SparseMemory.read q.1.1 q.2.1 q.1.2])
-      readLoopEncoding (encList encNat) 3 1 :=
-    ((ComputableInDegree.snoc encNat).comp (hacc.prod (hread.comp harg))).mono
-  have hsucc : ComputableInDegree (fun q : (ℕ × SparseMemory ℕ ℕ) × (ℕ × List ℕ) => q.2.1 + 1)
-      readLoopEncoding encNat 1 1 :=
-    (ComputableInDegree.natSucc.comp
-      ((ComputableInDegree.fst _ _).comp (ComputableInDegree.snd _ _))).mono
-  exact ((ComputableInDegree.fst _ _).prod (hsucc.prod hsnoc)).mono
+      readLoopEncoding (SparseMemory.readEncoding encNat encNat) 1 1)).mono
+  degree [readRound]
 
 /-- The native certificate of one reading round, cubic in the encoded loop state. -/
 def readRoundCertificate : NativeCertificate readRound readLoopEncoding readLoopEncoding :=
@@ -227,15 +217,10 @@ theorem parkedOutputCertificate_isPolynomial (L : ℕ)
     (hlen : PolyBounded (fun a => (encIn a).length) (fun a => (parkedOutput L (s a)).length)) :
     (parkedOutputCertificate L c).IsPolynomial := by
   have hv := parkedRegisterCertificate_isPolynomial L c hc (List.finRange r)
-  have hS : PolyBounded (fun a => (encIn a).length)
-      (fun a => (FiniteState.encoding B.encoding (s a)).length) :=
-    (c.polyTime hc).polyBounded_length
   let bound : α → ℕ := fun a =>
     6 * (FiniteState.encoding B.encoding (s a)).length + 2 * W a + 4 +
       (parkedOutput L (s a)).length * (2 * W a + 1)
-  have hB : PolyBounded (fun a => (encIn a).length) bound := by
-    dsimp only [bound]
-    growth_poly
+  have hB : PolyBounded (fun a => (encIn a).length) bound := by growth_poly
   refine congr_isPolynomial _ _ (snd_isPolynomial _ (snd_isPolynomial _
     (iterate_isPolynomial _ _ _ (readCertificate_isPolynomial _ c _ hc hv)
       (prod_isPolynomial _ _ (prod_isPolynomial _ _ hc hc)
@@ -279,8 +264,7 @@ theorem parkedOutputCertificate_isPolynomial (L : ℕ)
       omega
     have hjL : j * (2 * W a + 1) ≤ (parkedOutput L (s a)).length * (2 * W a + 1) :=
       Nat.mul_le_mul_right _ (by rw [hlenEq]; exact hj)
-    simp only [length_encPair, List.nil_append, bound]
-    omega
+    enc_len [List.nil_append, bound]
 
 end Read
 
@@ -304,7 +288,7 @@ polynomially bounded in `|encIn a|`, then `f` is computable in polynomial time w
 `encList encNat`. -/
 theorem Program.ComputesListInTime.turingComputableInPolyTime_of_width
     (hop : ∀ op : B.Op, Turing.MultiTapeTM.ComputableInPolyTime (B.genericModel.checkedOp op)
-      (encPair encUnary (encPi encNat)) (encOption encNat))
+      encWidthOperands (encOption encNat))
     {p : Program B r} {encode : ℕ → α → List ℕ} {time : α → ℕ → ℕ}
     {allowed : α → ℕ → Prop} {f : α → List ℕ}
     (h : p.ComputesListInTime encode time allowed f) {width : α → ℕ}
@@ -376,7 +360,7 @@ computable in polynomial time from the bit string `encIn a`, and `size a` and th
 output `encList encNat`. -/
 theorem Program.ComputesListInTime.turingComputableInPolyTime
     (hop : ∀ op : B.Op, Turing.MultiTapeTM.ComputableInPolyTime (B.genericModel.checkedOp op)
-      (encPair encUnary (encPi encNat)) (encOption encNat))
+      encWidthOperands (encOption encNat))
     {p : Program B r} {encode : α → List ℕ} {size : α → ℕ} {f : α → List ℕ} {T : ℕ → ℕ}
     {k : ℕ} (hT : PolynomiallyBounded T) (hsize : PolyBounded (fun a => (encIn a).length) size)
     (hencode : Turing.MultiTapeTM.ComputableInPolyTime encode encIn (encList encNat))
@@ -385,7 +369,6 @@ theorem Program.ComputesListInTime.turingComputableInPolyTime
       (fun a w => logWidth k (size a) ≤ w) f) :
     Turing.MultiTapeTM.ComputableInPolyTime f encIn (encList encNat) := by
   have hlog : PolyBounded (fun a => (encIn a).length) (fun a => logWidth k (size a)) := by
-    unfold logWidth
     growth_poly
   obtain ⟨width, hwidth, hge⟩ := exists_unary_majorant
     (hlog.add (hencode.polyBounded_length (encMid := encList encNat)))
@@ -398,14 +381,14 @@ for a width-independent word encoding computable in polynomial time, a size meas
 length polynomially bounded in the encoded input length. -/
 theorem UniformComputableListInPolyTime.turingComputableInPolyTime
     (hop : ∀ op : B.Op, Turing.MultiTapeTM.ComputableInPolyTime (B.genericModel.checkedOp op)
-      (encPair encUnary (encPi encNat)) (encOption encNat))
+      encWidthOperands (encOption encNat))
     {encode : α → List ℕ} {size : α → ℕ} {f : α → List ℕ}
     (h : UniformComputableListInPolyTime B f (fun _ => encode) size)
     (hsize : PolyBounded (fun a => (encIn a).length) size)
     (hencode : Turing.MultiTapeTM.ComputableInPolyTime encode encIn (encList encNat))
     (hlen : PolyBounded (fun a => (encIn a).length) (fun a => (f a).length)) :
     Turing.MultiTapeTM.ComputableInPolyTime f encIn (encList encNat) := by
-  obtain ⟨T, hT, k, -, r, p, hp⟩ := h
+  obtain ⟨T, hT, k, -, r, p, hp, -⟩ := h
   exact hp.turingComputableInPolyTime hop hT hsize hencode hlen
 
 end Main

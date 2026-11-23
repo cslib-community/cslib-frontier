@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.Program
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Actual native query addends
@@ -35,9 +36,6 @@ instance (i : Fin registers) : Decidable (LeafLocal i) :=
     i = BoxTable.Reg.address ∨ i = BoxTable.Reg.accumulator ∨
     i = BoxTable.Reg.childRank ∨ i = Reg.temporary ∨ i = Reg.answer))
 
-private theorem leaf_preserves (i : Fin registers) :
-    ¬LeafLocal i → leaf.Preserves i := by decide +revert
-
 /-- The actual low-order addend costs at most twenty-one instructions and preserves memory. -/
 theorem exec_lowAddend {w : ℕ} {a b : ℤ} (x : Data registers)
     (ha : GenericRAM.Signed.Fits w a) (hb : GenericRAM.Signed.Fits w b)
@@ -49,24 +47,17 @@ theorem exec_lowAddend {w : ℕ} {a b : ℤ} (x : Data registers)
     ∃ y, ExecWithin (w + 2) lowAddend x y 21 ∧
       y.regs Signed.right = Signed.encode (a * b) ∧ y.mem = x.mem ∧
       (∀ i, ¬LeafLocal i → y.regs i = x.regs i) := by
-  let u := x.set BoxTable.Reg.completion (x.regs Reg.code)
-  have hu : ExecWithin (B := .standard) (w + 2)
-      (ram[ BoxTable.Reg.completion ← Reg.code ]) x u 1 := by ram_eval [u]
-  obtain ⟨v, hv, hprod, hmem, _⟩ := BoxTable.exec_leafProduct ha hb hab u
-    (by simpa [u, BoxTable.Reg.arrayA, BoxTable.Reg.completion] using hleft)
-    (by simpa [u, BoxTable.Reg.arrayB, BoxTable.Reg.completion] using hright)
-    (by simpa [u, BoxTable.Reg.arrayA, BoxTable.Reg.completion] using hp)
-    (by simpa [u, BoxTable.Reg.arrayB, BoxTable.Reg.completion] using hq)
-  let y := v.set Signed.right (Signed.encode (a * b))
-  have hy : ExecWithin (B := .standard) (w + 2)
-      (ram[ Signed.right ← BoxTable.Reg.accumulator ]) v y 1 := by
-    ram_eval [y, hprod]
-  have he : ExecWithin (w + 2) lowAddend x y 21 := (hu.seq hv).seq hy
-  refine ⟨y, he, by simp [y], hmem, ?_⟩
-  intro i hi
-  exact he.regs_eq (by
-    unfold LeafLocal at hi
-    decide +revert)
+  suffices ∃ y, ExecWithin (w + 2) lowAddend x y 21 ∧
+      y.regs Signed.right = Signed.encode (a * b) ∧ y.mem = x.mem by
+    obtain ⟨y, he, hr, hm⟩ := this
+    exact ⟨y, he, hr, hm, fun i hi => he.regs_eq (by unfold LeafLocal at hi; decide +revert)⟩
+  unfold lowAddend lowProduct
+  wram_exec
+  wram_call (BoxTable.exec_leafProduct ha hb hab _
+    (by wram_simp; exact hleft) (by wram_simp; exact hright)
+    (by wram_simp; exact hp) (by wram_simp; exact hq)) with v ⟨hprod, hmem, _⟩
+  wram_exec [hprod]
+  exact ⟨by wram_simp, by simpa only [Data.set_mem] using hmem⟩
 
 /-- The threshold addend is an actual offset-one directory lookup and stored signed load. -/
 theorem exec_boxAddend {w D V T c e r : ℕ} {a : ℤ} (x : Data registers)
@@ -78,24 +69,13 @@ theorem exec_boxAddend {w D V T c e r : ℕ} {a : ℤ} (x : Data registers)
     (hfit : Fits w (D + V + e * T + c + r + 10)) :
     ∃ y, ExecWithin w boxAddend x y 7 ∧ y.regs Signed.right = Signed.encode a ∧
       y.mem = x.mem ∧ (∀ i, ¬LeafLocal i → y.regs i = x.regs i) := by
-  have hf0 : Fits w (e * T) := hfit.of_le (by omega)
-  have hf1 : Fits w (e * T + c) := hfit.of_le (by omega)
-  have hfD : Fits w (D + (e * T + c)) := hfit.of_le (by omega)
-  have hfr : Fits w r := hfit.of_le (by omega)
-  have hfV : Fits w (V + r) := hfit.of_le (by omega)
-  let y := (((((((x.set Reg.temporary (e * T)).set Reg.temporary (e * T + c)).set
-    BoxTable.Reg.address (D + (e * T + c))).set BoxTable.Reg.childRank (r + 1)).set
-    BoxTable.Reg.childRank r).set BoxTable.Reg.address (V + r)).set
-      Signed.right (Signed.encode a))
-  have hy : ExecWithin w boxAddend x y 7 := by
-    ram_eval [boxAddend, y, hD, hV, hT, hc, he, h1, hrank, hvalue,
-      hf0, hf1, hfD, hfr, hfV, Reg.temporary, Reg.code, Reg.stars,
-      BoxTable.Reg.address, BoxTable.Reg.childRank, BoxTable.Reg.directory,
-      BoxTable.Reg.values, BoxTable.Reg.span, BoxTable.Reg.one, Signed.right,
-      Fin.mk.injEq, Nat.add_sub_cancel]
-  refine ⟨y, hy, by simp [y], rfl, ?_⟩
-  intro i hi
-  exact hy.regs_eq (by unfold LeafLocal at hi; decide +revert)
+  suffices ∃ y, ExecWithin w boxAddend x y 7 ∧ y.regs Signed.right = Signed.encode a ∧
+      y.mem = x.mem by
+    obtain ⟨y, hy, hr, hm⟩ := this
+    exact ⟨y, hy, hr, hm, fun i hi => hy.regs_eq (by unfold LeafLocal at hi; decide +revert)⟩
+  unfold boxAddend
+  wram_exec * [hrank, hvalue]
+  exact ⟨by wram_simp, rfl⟩
 
 /-- Canonical signed addition and delivery preserve all memory and every nonlocal register. -/
 theorem exec_addAnswer {w : ℕ} {a b : ℤ} (x : Data registers)
@@ -105,18 +85,16 @@ theorem exec_addAnswer {w : ℕ} {a b : ℤ} (x : Data registers)
     ∃ y, ExecWithin (w + 2) addAnswer x y 17 ∧
       y.regs Reg.answer = Signed.encode (a + b) ∧ y.mem = x.mem ∧
       (∀ i, ¬LeafLocal i → y.regs i = x.regs i) := by
-  let u := x.set Signed.left (Signed.encode a)
-  have hu : ExecWithin (B := .standard) (w + 2) (ram[ Signed.left ← Reg.answer ]) x u 1 := by
-    ram_eval [u, hacc]
-  obtain ⟨v, hv, hsum, hframe⟩ := Signed.exec_add (r := 55) ha hb u
-    (by simp [u]) (by simpa [u, Signed.left, Signed.right] using hadd)
-  let y := v.set Reg.answer (Signed.encode (a + b))
-  have hy : ExecWithin (B := .standard) (w + 2) (ram[ Reg.answer ← Signed.result ]) v y 1 := by
-    ram_eval [y, hsum]
-  have he : ExecWithin (w + 2) addAnswer x y 17 := hu.seq (hv.seq hy)
-  refine ⟨y, he, by simp [y], hframe.1, ?_⟩
-  intro i hi
-  exact he.regs_eq (by unfold LeafLocal at hi; decide +revert)
+  suffices ∃ y, ExecWithin (w + 2) addAnswer x y 17 ∧
+      y.regs Reg.answer = Signed.encode (a + b) ∧ y.mem = x.mem by
+    obtain ⟨y, he, hr, hm⟩ := this
+    exact ⟨y, he, hr, hm, fun i hi => he.regs_eq (by unfold LeafLocal at hi; decide +revert)⟩
+  unfold addAnswer
+  wram_exec [*]
+  wram_call (Signed.exec_add (r := 55) ha hb _ (by wram_simp) (by wram_simp [hadd]))
+    with v ⟨hsum, hframe⟩
+  wram_exec [hsum]
+  exact ⟨by wram_simp; rfl, by simpa only [Data.set_mem] using hframe.1⟩
 
 /-- The complete actual leaf branch charges direct products or stored-box lookup and addition. -/
 theorem exec_leaf {w D V AA BB T c e d t r : ℕ} {a b v z : ℤ} (x : Data registers)
@@ -143,21 +121,19 @@ theorem exec_leaf {w D V AA BB T c e d t r : ℕ} {a b v z : ℤ} (x : Data regi
       (by simpa only [hBB, hc] using (hlow hdt).2)
       (hfit.of_le (by rw [hAA, hc]; omega))
       (hfit.of_le (by rw [hBB, hc]; omega))
-    have hua : u.regs Reg.answer = Signed.encode z := by
-      exact (hu.regs_eq (by decide : lowAddend.Preserves Reg.answer)).trans hacc
+    have hua : u.regs Reg.answer = Signed.encode z := (hu.regs_eq (by decide)).trans hacc
     obtain ⟨y, hy, hya, hym, _⟩ := exec_addAnswer u hz hab hua hvu
-    have he : ExecWithin (w + 2) leaf x y 39 :=
+    have hex : ExecWithin (w + 2) leaf x y 39 :=
       ((hu.branch_pos (by simpa only [Cond.holds_lt, hd, ht] using hdt)).seq hy).mono (by omega)
-    exact ⟨y, he, by simpa only [ite_eq_left hdt] using hya, hym.trans hum,
-      fun i hi => he.regs_eq (leaf_preserves i hi)⟩
+    exact ⟨y, hex, by simpa only [ite_eq_left hdt] using hya, hym.trans hum,
+      fun i hi => hex.regs_eq (by unfold LeafLocal at hi; decide +revert)⟩
   · obtain ⟨u, hu, hvu, hum, _⟩ := exec_boxAddend x hD hV hT hc he h1
       (hhigh hdt).1 (hhigh hdt).2 (hfit.of_le (by omega))
-    have hua : u.regs Reg.answer = Signed.encode z := by
-      exact (hu.regs_eq (by decide : boxAddend.Preserves Reg.answer)).trans hacc
+    have hua : u.regs Reg.answer = Signed.encode z := (hu.regs_eq (by decide)).trans hacc
     obtain ⟨y, hy, hya, hym, _⟩ := exec_addAnswer u hz hv hua hvu
     have hex : ExecWithin (w + 2) leaf x y 39 :=
       ((hu.branch_neg (by simpa only [Cond.holds_lt, hd, ht] using hdt)).seq hy).mono (by omega)
     exact ⟨y, hex, by simpa only [ite_eq_right hdt] using hya, hym.trans hum,
-      fun i hi => hex.regs_eq (leaf_preserves i hi)⟩
+      fun i hi => hex.regs_eq (by unfold LeafLocal at hi; decide +revert)⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery

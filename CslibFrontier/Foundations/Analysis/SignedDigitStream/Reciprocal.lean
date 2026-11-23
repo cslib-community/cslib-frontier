@@ -201,8 +201,7 @@ private theorem recipProdStream_certificate {x : ℕ → ℤ} (hx : IsSignedStre
 theorem recipProdStream_isSignedStream {x : ℕ → ℤ} (hx : IsSignedStream x)
     (hx_mem : streamVal x ∈ Set.Icc (1 / 4 : ℝ) 1) (t : ℕ) :
     IsSignedStream (recipProdStream x t) :=
-  diffDigit_isSignedStream (recipProdStream_certificate hx hx_mem t).1
-    (recipProdStream_certificate hx hx_mem t).2
+  (recipProdStream_certificate hx hx_mem t).elim diffDigit_isSignedStream
 
 theorem streamVal_recipProdStream {x : ℕ → ℤ} (hx : IsSignedStream x)
     (hx_mem : streamVal x ∈ Set.Icc (1 / 4 : ℝ) 1) (t : ℕ) :
@@ -235,8 +234,7 @@ private theorem recipHalfStream_certificate {x : ℕ → ℤ} (hx : IsSignedStre
 theorem recipHalfStream_isSignedStream {x : ℕ → ℤ} (hx : IsSignedStream x)
     (hx_mem : streamVal x ∈ Set.Icc (1 / 4 : ℝ) 1) (t : ℕ) :
     IsSignedStream (recipHalfStream x t) :=
-  diffDigit_isSignedStream (recipHalfStream_certificate hx hx_mem t).1
-    (recipHalfStream_certificate hx hx_mem t).2
+  (recipHalfStream_certificate hx hx_mem t).elim diffDigit_isSignedStream
 
 theorem streamVal_recipHalfStream {x : ℕ → ℤ} (hx : IsSignedStream x)
     (hx_mem : streamVal x ∈ Set.Icc (1 / 4 : ℝ) 1) (t : ℕ) :
@@ -289,8 +287,7 @@ private theorem abs_recipTaylor_remainder_le {x : ℕ → ℤ} (hx : IsSignedStr
     pow_le_pow_right₀ (by norm_num) hexp
   have hnum : (2 : ℝ) ^ t * e ^ 2 ≤ 36 / (2 : ℝ) ^ (13 : ℕ) := by
     calc (2 : ℝ) ^ t * e ^ 2
-        ≤ (2 : ℝ) ^ t * (36 / (2 : ℝ) ^ (2 * recipCutoff t)) :=
-          mul_le_mul_of_nonneg_left he_sq (by positivity)
+        ≤ (2 : ℝ) ^ t * (36 / (2 : ℝ) ^ (2 * recipCutoff t)) := by gcongr
       _ ≤ (2 : ℝ) ^ t * (36 / (2 : ℝ) ^ (t + 13)) := by gcongr
       _ = 36 / (2 : ℝ) ^ (13 : ℕ) := by
           rw [pow_add]

@@ -15,7 +15,6 @@ public import CslibFrontier.Computability.LogSpaceDerandomization.DetectedHierar
 public import CslibFrontier.Foundations.Probability.ProductDensity
 public import CslibFrontier.Computability.LogSpaceDerandomization.PairwiseIndependentHash.AtomChannels
 public import Mathlib.Algebra.Order.Floor.Div
-import Mathlib.Tactic
 
 /-!
 # Full rank environments for finite hierarchy prefixes
@@ -93,6 +92,7 @@ structure Horizon (P : ℕ) where
   identifier_admissible : maxIdentifier < P
 
 /-- Every grid side is positive for a positive supplied modulus. -/
+@[positivity_lemma]
 theorem side_pos (P k : ℕ) (hP : 0 < P) : 0 < side P k := by
   have h := le_smul_ceilDiv (by positivity : 0 < (2: ℕ) ^ k) (b := P)
   by_contra hn
@@ -243,6 +243,7 @@ theorem grid_retains (D : ZMod P) (role : Fin J) (k : ℕ)
     semanticSide_grid, retains]
 
 /-- Every finite grid rate is positive. -/
+@[positivity_lemma]
 theorem rate_pos (k : ℕ) : 0 < rate k := by unfold rate; positivity
 
 /-- Increasing the exponent narrows the grid rate. -/
@@ -316,11 +317,9 @@ theorem mixed_pair_density (role : Fin J) (H : Horizon P) {k : ℕ}
   have hp := dens_eval_mem_and_eval_mem_le (P := P) (H := 4) (r := 1)
     (by decide) (side_le P k) hLt hwy
   have hq := one_div_two_le_frameDensity (P := P) (H := 4) (r := 1) (by decide)
-  have hq0 : 0 < frameDensity P 4 1 := by linarith
   have hh := side_div_pow_four_le H hk
   apply hp.trans
-  rw [div_le_iff₀ hq0]
-  have hr := rate_pos k
+  rw [div_le_iff₀ (by positivity)]
   have hπ : 0 ≤ ((Lt: ℝ) / P) ^ 4 := by positivity
   nlinarith [mul_le_mul_of_nonneg_right hh hπ,
     mul_le_mul_of_nonneg_left hq (show 0 ≤ 32 * rate k * ((Lt: ℝ) / P) ^ 4 by positivity)]
@@ -398,26 +397,6 @@ theorem raw_admissible {k : ℕ} (R : RoleProfile J) (l bin : ℕ)
     or_false] at hr
   rcases hr with (rfl | rfl | rfl) | rfl <;>
     simp [Admissible, gridChannel, hsm, hst, hmt]
-
-omit [Fact P.Prime] in
-/-- Every actual residual request stays on the natural-exponent grid; usage min
-is max of exponents, and does not allocate another role. -/
-theorem raw_grid {k : ℕ} (R : RoleProfile J) (l bin : ℕ)
-    (ks km kt kb : ℕ) (ss sm st : List (ZMod P))
-    (r : HierarchyTask.Request k (Fin J) (ZMod P))
-    (hr : r ∈ (HierarchyTask.rawRequests l bin .residual
-      (gridChannel R.source ks ss) (gridChannel R.midpoint km sm)
-      (gridChannel R.terminal kt st) (rate kb)).calls) :
-    ∃ es et eu, r.source.rate = rate es ∧ r.terminal.rate = rate et ∧
-      r.usage.rate = rate eu := by
-  simp only [HierarchyTask.rawRequests, HierarchyTask.RawRequests.calls,
-    Option.toList_some, List.mem_append, List.mem_cons, List.not_mem_nil,
-    or_false] at hr
-  rcases hr with (rfl | rfl | rfl) | rfl
-  · exact ⟨ks, kb, max kt kb, rfl, rfl, rate_min kt kb⟩
-  · exact ⟨ks, km, km, rfl, rfl, rfl⟩
-  · exact ⟨km, kb, max kt kb, rfl, rfl, rate_min kt kb⟩
-  · exact ⟨ks, km, max kt km, rfl, rfl, rate_min kt km⟩
 
 omit [Fact P.Prime] in
 /-- Copy source / terminal symbols prepend to the inherited suffix, on the actual
@@ -536,15 +515,11 @@ noncomputable def denseLaws (D : ZMod P) (hD : D ≠ 0) (role : Fin J)
     exact fun i => ((mem_retentionBox.1 hv) i).trans_le hLa
   usage_nonempty v := by
     classical
-    apply dens_ne_zero.mp
-    intro hz
-    have hh := density role Lt hLtP (CopyPadding.identifier D suffix v)
-    rw [hz] at hh
-    have hp : (0: ℝ) < P := by exact_mod_cast (Fact.out : P.Prime).pos
-    have hlt : (0: ℝ) < Lt := by exact_mod_cast hLt0
-    have : (0: ℝ) < ((Lt: ℝ) / P) ^ 4 := by positivity
-    rw [← hh] at this
-    norm_num at this
+    have hp : (0 : ℝ) < P := by exact_mod_cast (Fact.out : P.Prime).pos
+    have hlt : (0 : ℝ) < Lt := by exact_mod_cast hLt0
+    have h : (0 : ℝ) < ((Lt : ℝ) / P) ^ 4 := by positivity
+    rw [← density role Lt hLtP (CopyPadding.identifier D suffix v)] at h
+    exact dens_pos.mp (by exact_mod_cast h)
   support := hsupport
   gate_nonneg := hg0
   gate_le_one := hg1
@@ -655,8 +630,10 @@ theorem explicitDense_nonzero (D : ZMod P) (hD : D ≠ 0) (role : Fin J)
   simpa only [rate, pow_zero, inv_one, one_pow, Matrix.one_apply_eq, div_one, one_mul,
     cutoff, polynomialSwitch4_of_ge (by norm_num : (1: ℝ) / 2 < 1) le_rfl] using hh
 
-/-- Every valid natural padded identifier below the finite horizon stays below
-P before reduction, so modular equality does not identify distinct such integers. -/
+/-- For `N ≤ H.maxIdentifier + 1`, `D ≠ 0` and one fixed suffix, padding in `ZMod P` is injective
+on the naturals below `N`: these unpadded naturals are below `P`, so their casts are distinct, and
+`CopyPadding.identifier_injective` applies. That a padded natural stays below `P` is the separate
+`padNat_lt_prime`, under its own bound on the padded range. -/
 theorem bounded_identifier_injective (H : Horizon P) {N : ℕ} (hN : N ≤ H.maxIdentifier + 1)
     {D : ZMod P} (hD : D ≠ 0) (suffix : List (ZMod P)) :
     Function.Injective (fun x : Fin N => CopyPadding.identifier D suffix (x: ZMod P)) := by
@@ -890,8 +867,10 @@ theorem adjacent_rate_ratio (k : ℕ) : rate k / rate (k + 1) = 16 := by
   field_simp
 
 omit [Fact P.Prime] in
-/-- Raw call construction preserves a supplied finite exponent horizon. This
-is local call closure, not closure of every estimator guard / enumeration query. -/
+/-- Every actual residual request stays on the natural-exponent grid (the usage min is a max
+of exponents, and no other role is allocated), and raw call construction preserves a supplied
+finite exponent horizon. This is local call closure, not closure of every estimator guard /
+enumeration query. -/
 theorem raw_grid_bounded {k : ℕ} (R : RoleProfile J) (l bin K ks km kt kb : ℕ)
     (hs : ks ≤ K) (hm : km ≤ K) (ht : kt ≤ K) (hb : kb ≤ K)
     (ss sm st : List (ZMod P)) (r : HierarchyTask.Request k (Fin J) (ZMod P))

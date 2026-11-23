@@ -25,6 +25,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeNatFrontends
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimePrimitives
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # The fast contraction algorithm, assembled
@@ -48,7 +49,7 @@ admissible guarded inputs: a derivation of the root with polynomial depth, node 
 space, leaf time `poly(n) 2 ^ O(s / √⌊log₂ s⌋)`, and, from some size on, a node count within the
 clock. From it and polynomial-time components of the scheme, the fast machine meets the
 interface's bounds (`CountingSimulation.fastCertificate_le`), through
-`Cslib.GenericRAM.StackRecursion.Scheme.certificate_le`. Below the size threshold the run may not
+`Cslib.Algorithms.StackRecursion.Scheme.certificate_le`. Below the size threshold the run may not
 finish, and the machine falls back to direct summation, at a constant factor.
 
 The guard is polynomial-time (`CountingSimulation.fastGuard_polyTime`), with the rows-first test
@@ -225,7 +226,7 @@ theorem fuel_le {C D s P : ℕ} {G : ℕ × ExplicitTensorNetwork ℕ} (hA : Exp
 
 section Resources
 
-open FastContraction Cslib.GenericRAM Cslib.GenericRAM.StackRecursion Turing.MultiTapeTM
+open FastContraction Cslib.GenericRAM Cslib.Algorithms.StackRecursion Turing.MultiTapeTM
 
 variable (mk : Call (List ℕ) → ChildCursor.State → ℕ × DescribedNetwork (VertexDesc (List ℕ)))
 
@@ -255,7 +256,7 @@ whose leaves take time at most `TL` and space at most `SL`, with `H` open calls,
 
 /-- **The budget of a clocked run**, the arithmetic shared by the fast machines
 (`CountingSimulation.fastCertificate_le`, `CountingSimulation.exists_fastCore_le`). Take a run
-bounded as in `Cslib.GenericRAM.StackRecursion.Scheme.certificate_le` with constant `K₁`, whose
+bounded as in `Cslib.Algorithms.StackRecursion.Scheme.certificate_le` with constant `K₁`, whose
 derivation has open calls, node sizes and leaf space at most `Ka B ^ Ka`, leaf time at most
 `Ka B ^ Ka 2 ^ (Ka s / S)` and clock at most `2 ^ (kf s / S)`, for `B` above the input length
 `n`; let the steps `pre` before it and the fuel and root machines cost at most `c B ^ d`, and the
@@ -392,8 +393,7 @@ theorem le_of_le_encPair {γ β : Type} {encIn : γ ↪ List Bool} {encV : β �
   have hB1 : B ≤ B ^ (Ka + 1) := Nat.le_self_pow (by omega) _
   have hBK := Nat.mul_le_mul_left Ka
     (Nat.pow_le_pow_right (by omega : 1 ≤ B) (by omega : Ka ≤ Ka + 1))
-  simp only [length_encPair, add_mul]
-  omega
+  enc_len [add_mul]
 
 variable {mk}
 

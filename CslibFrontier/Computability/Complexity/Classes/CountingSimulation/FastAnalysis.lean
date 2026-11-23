@@ -30,9 +30,11 @@ The rest of the analysis is proved here:
   (`FastContraction.exists_eval_onSchedule`), which fit in the clock
   (`CountingSimulation.two_mul_sub_one_le_fuel`). The clock's fixed constant serves every precision
   because the call count's exponent is linear in `C'`;
-* **the sizes** (`CountingSimulation.fastSizes`): the reached calls, their frames and their values
-  are at most `2 ^ 55 (n + 1) ^ 24` long, from the structural shapes of the calls
-  (`FastContraction.Reach.shape`) and the encoded lengths of `FastContraction.Shape.length_le_pow`.
+* **the sizes** (`CountingSimulation.fastSizes`): for some constants `c` and `d`, the reached
+  calls, their frames and their values are at most `c (n + 1) ^ d` long on guarded admissible
+  inputs of length `n`. The proof takes `c = 2 ^ 55` and `d = 24`, from the structural shapes of
+  the calls (`FastContraction.Reach.shape`) and the encoded lengths of
+  `FastContraction.Shape.length_le_pow`.
 
 `CountingSimulation.reach_facts` collects what the leaf bounds may use about a reached call: its
 scale `m` with `s ≤ m ≤ C s`, at most `2 m` edges, and, from some size on, precision at most `m ^ 4`
@@ -67,7 +69,7 @@ public section
 namespace Cslib.Complexity.CountingSimulation
 
 open Cslib.Circuits.Frontier Cslib.Circuits.Frontier.ContractionSchedule
-  Cslib.Circuits.Frontier.FastContraction Cslib.GenericRAM Cslib.GenericRAM.StackRecursion
+  Cslib.Circuits.Frontier.FastContraction Cslib.GenericRAM Cslib.Algorithms.StackRecursion
   Turing.MultiTapeTM
 
 /-! ### The clock -/
@@ -187,8 +189,7 @@ theorem numEdges_lt_length_encInput (P : ℕ) (G : ℕ × ExplicitTensorNetwork 
     G.2.numEdges < (FastContraction.encInput (P, G)).length := by
   simp only [FastContraction.encInput, length_encPair, ExplicitTensorNetwork.encExplicitNetwork,
     encOfEquiv, Function.Embedding.trans_apply, Equiv.coe_toEmbedding]
-  simp only [DescribedNetwork.equivProd, Equiv.coe_fn_mk, encUnary_apply, List.length_replicate]
-  omega
+  enc_len [DescribedNetwork.equivProd, Equiv.coe_fn_mk]
 
 /-! ### The analysis from the sizes and the leaves -/
 
@@ -338,8 +339,10 @@ theorem length_vertices_le (G : ExplicitTensorNetwork ℕ) :
     have h2 := length_encPair (enc₁ := encList encNat) (enc₂ := encList encNat) v
     omega
 
-/-- **Polynomial sizes along the recursion**: every call reached from the root of a guarded input,
-its frames and its tagged value are at most `2 ^ 55 (n + 1) ^ 24` long. -/
+/-- **Polynomial sizes along the recursion**: `FastSizes` holds. For all `C` and `D` there are
+constants `c` and `d` such that, on the guarded admissible inputs of `FastSizes`, every call
+reached from the root, its frames and its tagged value are at most `c (n + 1) ^ d` long. The
+proof takes `c = 2 ^ 55` and `d = 24`. -/
 theorem fastSizes : FastSizes := by
   intro C D
   refine ⟨2 ^ 55, 24, fun s P G _ _ _ _ hg x hx => ?_⟩

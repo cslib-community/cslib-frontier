@@ -10,11 +10,14 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 public import Mathlib.Data.Nat.Log
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Pătrașcu Power-of-Two Spillover Representation
@@ -22,8 +25,8 @@ import Mathlib.Tactic.Ring
 This file formalizes the power-of-two spillover encoding of Mihai Pătrașcu, *Succincter*
 ([Patrascu2008, Lemma 3]), as specialized in Tianxiao Li, Jingxun Liang, Huacheng Yu, and Renfei
 Zhou, *Dynamic Dictionary with Subconstant Wasted Bits per Key* ([LiLiangYuZhou2024, Section 3.4,
-Lemma 3.8 and Footnote 4]; [arXiv:2310.20536v1](https://arxiv.org/abs/2310.20536v1), PDF p. 12 /
-printed p. 11).
+Lemma 3.8 and Footnote 4]; [arXiv:2310.20536v1](https://arxiv.org/abs/2310.20536v1), PDF p. 11 /
+printed p. 10).
 
 Given a finite payload universe `Fin X` (`1 ≤ X`) and spillover parameter `r_sp ≥ 1`, we set
 `M := memBits X r_sp` (`0` when `X ≤ r_sp`, and `⌊log₂(X / r_sp)⌋` otherwise) and
@@ -75,7 +78,7 @@ def memBits (X r_sp : ℕ) : ℕ :=
   Nat.log 2 (X / r_sp)
 
 /-- Spillover universe size `K = ⌈X / 2 ^ M⌉` for universe `X` and parameter `r_sp`. -/
-@[expose]
+@[expose, wram_arith]
 def spillUniv (X r_sp : ℕ) : ℕ :=
   (X + 2 ^ memBits X r_sp - 1) / 2 ^ memBits X r_sp
 
@@ -113,8 +116,7 @@ theorem spillUniv_mul_two_pow_lt (X r_sp : ℕ) :
     spillUniv X r_sp * 2 ^ memBits X r_sp < X + 2 ^ memBits X r_sp := by
   have hP : 0 < 2 ^ memBits X r_sp := Nat.two_pow_pos _
   have hle := Nat.div_mul_le_self (X + 2 ^ memBits X r_sp - 1) (2 ^ memBits X r_sp)
-  dsimp only [spillUniv]
-  omega
+  wram_omega
 
 theorem spillUniv_pos {X : ℕ} (hX : 1 ≤ X) (r_sp : ℕ) : 0 < spillUniv X r_sp := by
   by_contra h
@@ -297,7 +299,7 @@ theorem memBits_add_logb_spillUniv_le {X r_sp : ℕ} (hX : 1 ≤ X) (hr : 1 ≤ 
   have h2Mpos : (0 : ℝ) < (2 : ℝ) ^ memBits X r_sp := by positivity
   have hlhs : (memBits X r_sp : ℝ) + Real.logb 2 (spillUniv X r_sp) =
       Real.logb 2 ((spillUniv X r_sp : ℝ) * (2 : ℝ) ^ memBits X r_sp) := by
-    rw [Real.logb_mul hKpos.ne' h2Mpos.ne', Real.logb_pow, Real.logb_self_eq_one (by norm_num)]
+    rw [Real.logb_mul hKpos.ne' h2Mpos.ne', Real.logb_two_pow]
     ring
   have hprod_le : (spillUniv X r_sp : ℝ) * (2 : ℝ) ^ memBits X r_sp ≤
       X * (1 + 1 / (r_sp : ℝ)) := by

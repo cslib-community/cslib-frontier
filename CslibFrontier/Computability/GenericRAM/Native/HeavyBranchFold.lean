@@ -27,6 +27,7 @@ import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Data.List.GetD
 import Mathlib.Data.Nat.Size
 import Mathlib.Order.Interval.Finset.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 
 /-!
 # Heavy-variable branching and streaming common-zero accumulation
@@ -174,18 +175,13 @@ theorem toFinset_heavyVarList_eq_heavyVars (n b₀ : ℕ) (sys : List (List (Lis
   ext v; simp only [List.mem_toFinset, mem_heavyVarList_iff, heavyVars, Finset.mem_filter,
     Finset.mem_range, varIncidence_eq_varDegree]
 
-/-- **Markov heavy-variable bound (§5.5, p. 38)**: for `0 < b₀` and variables `< n`,
+/-- **Markov heavy-variable bound (§5.5, p. 38)**: for `0 < b₀`,
 `(heavyVarList n b₀ sys).length ≤ (sys.map fun eq => (equationVars eq).length).sum / b₀`. -/
-theorem length_heavyVarList_le_div {n b₀ : ℕ} {sys : List (List (List ℕ))}
-    (hb₀ : 0 < b₀) (hvars : ∀ eq ∈ sys, ∀ m ∈ eq, ∀ v ∈ m, v < n) :
+theorem length_heavyVarList_le_div (n : ℕ) (sys : List (List (List ℕ))) {b₀ : ℕ} (hb₀ : 0 < b₀) :
     (heavyVarList n b₀ sys).length ≤ (sys.map fun eq => (equationVars eq).length).sum / b₀ := by
   rw [← List.toFinset_card_of_nodup (nodup_heavyVarList n b₀ sys),
     toFinset_heavyVarList_eq_heavyVars]
-  have hU : ∀ i ∈ (Finset.univ : Finset (Fin sys.length)),
-      (equationVars sys[i]).toFinset ⊆ Finset.range n := fun i _ v hv => by
-    obtain ⟨m, hm, hvm⟩ := mem_equationVars.mp (List.mem_toFinset.mp hv)
-    exact Finset.mem_range.mpr (hvars sys[i] (List.getElem_mem i.2) m hm v hvm)
-  refine (card_heavyVars_le_div _ _ _ hb₀ hU).trans (Nat.div_le_div_right (le_of_eq ?_))
+  refine (card_heavyVars_le_div _ _ _ hb₀).trans (Nat.div_le_div_right (le_of_eq ?_))
   rw [totalIncidence, ← List.toFinset_finRange, List.sum_toFinset _ (List.nodup_finRange _)]
   conv_rhs => rw [← (List.ofFn_eq_map.symm.trans (List.ofFn_getElem (xs := sys))), List.map_map]
   exact congrArg List.sum (List.map_congr_left fun i _ => by simp only [Function.comp_apply,
@@ -554,9 +550,8 @@ private noncomputable def fiberEquiv {n : ℕ} {S : List ℕ} {vals : List Bool}
     simp only [mergeAssignment, u.2, ↓reduceDIte, Subtype.eta, Equiv.apply_symm_apply, u]
   right_inv := fun ⟨σ, hσ⟩ => by
     apply Subtype.ext; funext i; simp only [mergeAssignment]; split_ifs with hiS
-    · have hk : S.idxOf (i : ℕ) < S.length := List.idxOf_lt_length_of_mem hiS
-      rw [← hσ, List.getD_eq_getElem _ false (by rw [List.length_map]; exact hk)]
-      simp only [List.getElem_map, List.getElem_idxOf hk, extendAssignment_coe]
+    · rw [← hσ]
+      simp [List.getD_eq_getElem?_getD, hiS, extendAssignment_coe]
     · simp only [Equiv.symm_apply_apply]
 
 private theorem evalSystem_mergeAssignment {n : ℕ} {S : List ℕ} {vals : List Bool}
@@ -1071,7 +1066,7 @@ private theorem branchCountCertificate_bounds {solver : ℕ → List (List (List
 theorem computableInPolyTime_prepareStep :
     ComputableInPolyTime (fun p : PrepareStepInput =>
       prepareBranch p.inp.numVars p.inp.vars p.vals p.inp.system)
-      (encPair (encPair encUnary encBits) (encPair encBranchInput encNat)) encBranchOutcome := by
+      (BooleanFold.encCallbackInput (encPair encBranchInput encNat)) encBranchOutcome := by
   unfold encBranchInput; fun_prop
 private theorem computableInPolyTime_dim :
     ComputableInPolyTime (fun inp : BranchInput => inp.2.1.length) encBranchInput encUnary := by
@@ -1092,7 +1087,7 @@ noncomputable def branchBodyCertificate {solver : ℕ → List (List (List ℕ))
     (csolver : NativeCertificate (fun p : ℕ × List (List (List ℕ)) => solver p.1 p.2)
       (encPair encUnary encSparseSystem) encNat) :
     NativeCertificate (branchBody solver)
-      (encPair (encPair encUnary encBits) (encPair encBranchInput encNat))
+      (BooleanFold.encCallbackInput (encPair encBranchInput encNat))
       (encPair encBranchInput encNat) :=
   let cpay := NativeCertificate.payload (encPair encUnary encBits) (encPair encBranchInput encNat)
   (cpay.fst).prod
@@ -1102,7 +1097,7 @@ noncomputable def certificate {solver : ℕ → List (List (List ℕ)) → ℕ}
     (csolver : NativeCertificate (fun p : ℕ × List (List (List ℕ)) => solver p.1 p.2)
       (encPair encUnary encSparseSystem) encNat) :
     NativeCertificate (streamBranches solver)
-      encBranchInput (encPair encNat (encPair encUnary (encPair encBranchInput encNat))) :=
+      encBranchInput (BooleanFold.encStreamState (encPair encBranchInput encNat)) :=
   BooleanFold.certificate dimCert initAccCert (branchBodyCertificate csolver)
 /-- Full streaming native certificate for `countByBranching solver` (for a fixed `solver`). -/
 noncomputable def countCertificate {solver : ℕ → List (List (List ℕ)) → ℕ}
@@ -1245,9 +1240,8 @@ private theorem branch_step_bounds {solver : ℕ → List (List (List ℕ)) → 
       (Nat.mul_le_mul hj (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))).trans_eq
         (Nat.pow_add 2 _ _).symm
   have hlen_accSum : (encNat st.2.2.2).length ≤ L := by
-    have h : (encNat st.2.2.2).length ≤ (encNat (2 ^ (inp.2.1.length + inp.1))).length := by
-      simpa [Nat.size_eq_bits_len] using Nat.size_le_size hsum_le
-    rw [BooleanFold.length_clock] at h; omega
+    have h := length_encNat_le_of_le_two_pow hsum_le
+    omega
   have hlen_acc : (encPair encBranchInput encNat st.2.2).length ≤ 3 * L + 1 := by
     grind [length_encPair]
   have hst1 : st.1 = j := IndexFold.run_index _ _ _
@@ -1291,9 +1285,8 @@ private theorem branch_step_bounds {solver : ℕ → List (List (List ℕ)) → 
           (hn' ▸ Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _)),
         hR inp idx' hidx'_lt n' sys' hout, hQ inp idx' hidx'_lt n' sys' hout⟩
   have hlen_bc : (encNat (branchCountOracle solver o)).length ≤ L := by
-    have h : (encNat (branchCountOracle solver o)).length ≤ (encNat (2 ^ inp.1)).length := by
-      simpa [Nat.size_eq_bits_len] using Nat.size_le_size hbc_le
-    rw [BooleanFold.length_clock] at h; omega
+    have h := length_encNat_le_of_le_two_pow hbc_le
+    omega
   have hlen_add : (encPair encNat encNat (q.2.2, branchCountOracle solver o)).length ≤ 3 * L + 1 :=
     by rw [show q.2.2 = st.2.2.2 from rfl, length_encPair]; dsimp only; omega
   let hpv := NativeCertificate.ofPolyTime_isPolynomial
@@ -1349,7 +1342,7 @@ theorem streamBranches_computableInO {solver : ℕ → List (List (List ℕ)) �
         .reduced n' sys' →
       csolver.space (n', sys') ≤ Q_solver inp) :
     ComputableInO (streamBranches solver)
-      encBranchInput (encPair encNat (encPair encUnary (encPair encBranchInput encNat)))
+      encBranchInput (BooleanFold.encStreamState (encPair encBranchInput encNat))
       (fun inp =>
         stepOverhead (encBranchInput inp).length +
           (2 ^ inp.vars.length + 1) * (stepOverhead (encBranchInput inp).length + R_solver inp))
@@ -1365,10 +1358,11 @@ theorem streamBranches_computableInO {solver : ℕ → List (List (List ℕ)) �
     (fun inp j hj => (branch_step_bounds csolver hbound hR hQ inp hj).1)
   let hd := NativeCertificate.ofPolyTime_isPolynomial computableInPolyTime_dim
   refine hfold.mono_le (fun inp => ?_) (fun inp => ?_)
-  · let L := (encBranchInput inp).length
+  all_goals
+    let L := (encBranchInput inp).length
     have hL : 2 * inp.1 + 2 * inp.2.1.length + 2 ≤ L := length_le_encBranchInput inp
-    have hdT : dimCert.time inp ≤ monoPolyBound hd.1 L := le_monoPolyBound hd.1 inp le_rfl
-    have hclk := BooleanFold.length_clock inp.2.1.length
+    have hclk := length_encNat_two_pow inp.2.1.length
+  · have hdT : dimCert.time inp ≤ monoPolyBound hd.1 L := le_monoPolyBound hd.1 inp le_rfl
     have hsq : (inp.2.1.length + 1 + 1) ^ 2 ≤ (L + 2) ^ 2 := Nat.pow_le_pow_left (by omega) 2
     have hct : BooleanFold.clock.time inp.2.1.length = inp.2.1.length := by
       simp only [BooleanFold.clock, encUnary_apply, List.length_replicate]
@@ -1382,10 +1376,7 @@ theorem streamBranches_computableInO {solver : ℕ → List (List (List ℕ)) �
       dsimp only [stepOverhead, L] at hsq ⊢; omega
     have hprod := Nat.mul_le_mul_left (2 ^ inp.2.1.length + 1) hmul
     dsimp only [stepOverhead, L, BranchInput.vars, BranchInput.varSystem] at hdT hprod ⊢; omega
-  · let L := (encBranchInput inp).length
-    have hL : 2 * inp.1 + 2 * inp.2.1.length + 2 ≤ L := length_le_encBranchInput inp
-    have hdS : dimCert.space inp ≤ monoPolyBound hd.2 L := le_monoPolyBound hd.2 inp le_rfl
-    have hclk := BooleanFold.length_clock inp.2.1.length
+  · have hdS : dimCert.space inp ≤ monoPolyBound hd.2 L := le_monoPolyBound hd.2 inp le_rfl
     have hcs : BooleanFold.clock.space inp.2.1.length = inp.2.1.length := by
       simp only [BooleanFold.clock, encUnary_apply, List.length_replicate]
     simp only [NativeCertificate.comp_space, NativeCertificate.prod_space, initAccCert,

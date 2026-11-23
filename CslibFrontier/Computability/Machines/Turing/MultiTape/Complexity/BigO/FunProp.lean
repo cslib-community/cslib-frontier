@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeOptionPrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
 
 /-!
@@ -36,14 +36,13 @@ become rules in the same compositional form, for example `fun x => F (g x)` from
   the bounds of the option.
 -/
 
-@[expose] public section
+public section
 
 namespace Turing.MultiTapeTM.ComputableInO
 
 variable {α β γ : Type} {encIn : α ↪ List Bool} {encMid : β ↪ List Bool}
   {encOut : γ ↪ List Bool} {T S : α → ℕ}
 
-attribute [fun_prop] ComputableInO
 attribute [fun_prop] const prod fst' snd' ite
 
 /-- Copy an encoded value, within linear time and space. -/

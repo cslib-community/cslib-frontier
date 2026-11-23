@@ -8,9 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Kept
 public import CslibFrontier.Logics.FirstOrder.Basic
 public import CslibFrontier.Logics.FirstOrder.QuantifierRank
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Step
 
 /-!
 # Shared first-order counter-program control
@@ -177,8 +179,7 @@ private theorem reaches_formulaCodeWith_equal (hC : C.Correct w fv base val) {k 
     ∃ (res : Bool) (regs' : List ℕ),
       (res = true ↔ (BoundedFormula.equal t₁ t₂).Realize val xs) ∧
       P.Reaches w (P.Running B) (b, regs) (if res then T else F, regs') ∧
-      regs'.length = regs.length ∧ (∀ i < base + k, regs'.getD i 0 = regs.getD i 0) ∧
-      ∀ r ∈ regs', r ≤ B := by
+      Kept B (base + k) regs regs' := by
   simp only [formulaCodeWith, codeAt_cons] at hP
   obtain ⟨h₀, h₁, -⟩ := hP
   have e₁ := hC.term regs xs h0 hv hxs t₁
@@ -210,21 +211,18 @@ private theorem reaches_formulaCodeWith_imp (hbase : 0 < base) (hfv : ∀ x, fv 
       (∀ x, regs.getD (fv x) 0 = val x) → (∀ i : Fin k, regs.getD (base + i) 0 = xs i) →
       ∃ (res : Bool) (regs' : List ℕ), (res = true ↔ φ.Realize val xs) ∧
         P.Reaches w (P.Running B) (b, regs) (if res then T else F, regs') ∧
-        regs'.length = regs.length ∧ (∀ i < base + k, regs'.getD i 0 = regs.getD i 0) ∧
-        ∀ r ∈ regs', r ≤ B)
+        Kept B (base + k) regs regs')
     (ihψ : ∀ b T F (regs : List ℕ) (xs : Fin k → Fin n),
       P.CodeAt b (formulaCodeWith C base ψ b T F) →
       base + boundDepth ψ ≤ regs.length → regs.getD 0 0 = n → (∀ r ∈ regs, r ≤ B) →
       (∀ x, regs.getD (fv x) 0 = val x) → (∀ i : Fin k, regs.getD (base + i) 0 = xs i) →
       ∃ (res : Bool) (regs' : List ℕ), (res = true ↔ ψ.Realize val xs) ∧
         P.Reaches w (P.Running B) (b, regs) (if res then T else F, regs') ∧
-        regs'.length = regs.length ∧ (∀ i < base + k, regs'.getD i 0 = regs.getD i 0) ∧
-        ∀ r ∈ regs', r ≤ B) :
+        Kept B (base + k) regs regs') :
     ∃ (res : Bool) (regs' : List ℕ),
       (res = true ↔ (φ.imp ψ).Realize val xs) ∧
       P.Reaches w (P.Running B) (b, regs) (if res then T else F, regs') ∧
-      regs'.length = regs.length ∧ (∀ i < base + k, regs'.getD i 0 = regs.getD i 0) ∧
-      ∀ r ∈ regs', r ≤ B := by
+      Kept B (base + k) regs regs' := by
   simp only [formulaCodeWith, codeAt_append, length_formulaCodeWith] at hP
   have hd₁ : base + boundDepth φ ≤ regs.length :=
     (Nat.add_le_add_left (le_max_left _ _) base).trans hd
@@ -266,8 +264,7 @@ private theorem reaches_formulaCodeWith_all_loop (hnB : n ≤ B) (hbase : 0 < ba
       (∀ x, regs.getD (fv x) 0 = val x) → (∀ i : Fin (k + 1), regs.getD (base + i) 0 = xs' i) →
       ∃ (res : Bool) (regs' : List ℕ), (res = true ↔ φ.Realize val xs') ∧
         P.Reaches w (P.Running B) (b, regs) (if res then T else F, regs') ∧
-        regs'.length = regs.length ∧ (∀ i < base + (k + 1), regs'.getD i 0 = regs.getD i 0) ∧
-        ∀ r ∈ regs', r ≤ B) :
+        Kept B (base + (k + 1)) regs regs') :
     ∀ e m (hm : m < n) (regsm : List ℕ), n - m = e →
       regsm.length = regs.length → (∀ i < base + k, regsm.getD i 0 = regs.getD i 0) →
       regsm.getD (base + k) 0 = m → (∀ r ∈ regsm, r ≤ B) →
@@ -275,8 +272,7 @@ private theorem reaches_formulaCodeWith_all_loop (hnB : n ≤ B) (hbase : 0 < ba
       ∃ (res : Bool) (regs' : List ℕ),
         (res = true ↔ ∀ y : Fin n, φ.Realize val (Fin.snoc xs y)) ∧
         P.Reaches w (P.Running B) (b + 3, regsm) (if res then T else F, regs') ∧
-        regs'.length = regs.length ∧ (∀ i < base + k, regs'.getD i 0 = regs.getD i 0) ∧
-        ∀ r ∈ regs', r ≤ B
+        Kept B (base + k) regs regs'
   | 0, m, hm, _, he, _, _, _, _, _ => by omega
   | e + 1, m, hm, regsm, he, hlenm, hkeepm, hvm, hBm, hprev => by
     have hxs' (i : Fin (k + 1)) : regsm.getD (base + i) 0 =
@@ -307,15 +303,13 @@ private theorem reaches_formulaCodeWith_all_loop (hnB : n ≤ B) (hbase : 0 < ba
             (fun i hi => by rw [List.getD_set_ne (by omega), hkeep₁ i (by omega), hkeepm i hi])
             (List.getD_set_self (by rw [hlen₁, hlenm]; exact hk))
             (List.forall_mem_set_of_forall_mem hB₁ (by omega)) hprev'
-        refine ⟨r, regs', hr, hr₁'.trans (Reaches.lt hc₂ hB₁ ?_), hlen, hkeep, hB'⟩
-        simp only [eval_add, eval_reg, eval_const, hv₁, h0₁, hnext, ↓reduceIte]
-        exact Reaches.assign hc₃ hB₁
-          (by simpa only [eval_add, eval_reg, eval_const, hv₁] using hreach)
+        refine ⟨r, regs', hr, hr₁'.trans ?_, hlen, hkeep, hB'⟩
+        cp_step [hv₁, h0₁, hnext]
+        cp_step [hv₁]
       · refine ⟨true, regs₁, by simpa using fun y : Fin n => hprev' y (by omega),
-          hr₁'.trans (Reaches.lt hc₂ hB₁ ?_), hlen₁.trans hlenm,
+          hr₁'.trans ?_, hlen₁.trans hlenm,
           fun i hi => (hkeep₁ i (by omega)).trans (hkeepm i hi), hB₁⟩
-        simp only [eval_add, eval_reg, eval_const, hv₁, h0₁, hnext, ↓reduceIte]
-        exact Reaches.refl _
+        cp_step [hv₁, h0₁, hnext]
 
 private theorem reaches_formulaCodeWith_all (hnB : n ≤ B) (hbase : 0 < base)
     (hfv : ∀ x, fv x < base) {k : ℕ} (φ : L.BoundedFormula α (k + 1)) (b T F : ℕ)
@@ -330,13 +324,11 @@ private theorem reaches_formulaCodeWith_all (hnB : n ≤ B) (hbase : 0 < base)
       (∀ x, regs.getD (fv x) 0 = val x) → (∀ i : Fin (k + 1), regs.getD (base + i) 0 = xs' i) →
       ∃ (res : Bool) (regs' : List ℕ), (res = true ↔ φ.Realize val xs') ∧
         P.Reaches w (P.Running B) (b, regs) (if res then T else F, regs') ∧
-        regs'.length = regs.length ∧ (∀ i < base + (k + 1), regs'.getD i 0 = regs.getD i 0) ∧
-        ∀ r ∈ regs', r ≤ B) :
+        Kept B (base + (k + 1)) regs regs') :
     ∃ (res : Bool) (regs' : List ℕ),
       (res = true ↔ φ.all.Realize val xs) ∧
       P.Reaches w (P.Running B) (b, regs) (if res then T else F, regs') ∧
-      regs'.length = regs.length ∧ (∀ i < base + k, regs'.getD i 0 = regs.getD i 0) ∧
-      ∀ r ∈ regs', r ≤ B := by
+      Kept B (base + k) regs regs' := by
   simp only [formulaCodeWith, codeAt_append, codeAt_cons, List.length_cons, List.length_nil] at hP
   obtain ⟨⟨⟨hc₀, hc₁, hc₂, -⟩, hcφ⟩, hc₃, -⟩ := hP
   rw [show b + 1 + 1 = b + 2 by omega] at hc₂
@@ -354,13 +346,11 @@ private theorem reaches_formulaCodeWith_all (hnB : n ≤ B) (hbase : 0 < base)
         (List.forall_mem_set_of_forall_mem hB (Nat.zero_le _))
         (fun m' hm' => absurd hm' (Nat.not_lt_zero _))
     refine ⟨res, regs', by rw [hres, BoundedFormula.realize_all], ?_, hlen, hkeep, hB'⟩
-    refine Reaches.lt hc₀ hB ?_
-    simp only [eval_const, eval_reg, h0, hn, ↓reduceIte]
-    exact Reaches.assign hc₁ hB (by simpa using hreach)
+    cp_step [h0, hn]
+    cp_step
   · refine ⟨true, regs, ?_, ?_, rfl, fun _ _ => rfl, hB⟩
     · simp only [true_iff, BoundedFormula.realize_all]; exact fun y => absurd y.2 (by omega)
-    · refine Reaches.lt hc₀ hB ?_
-      simp only [eval_const, eval_reg, h0, hn, ↓reduceIte]; exact Reaches.refl _
+    · cp_step [h0, hn]
 
 end Reaches
 
@@ -377,8 +367,7 @@ theorem reaches_formulaCodeWith {P : CounterProgram} {w : List Bool} {n B : ℕ}
       ∃ (res : Bool) (regs' : List ℕ),
         (res = true ↔ φ.Realize val xs) ∧
         P.Reaches w (P.Running B) (b, regs) (if res then T else F, regs') ∧
-        regs'.length = regs.length ∧ (∀ i < base + k, regs'.getD i 0 = regs.getD i 0) ∧
-        ∀ r ∈ regs', r ≤ B
+        Kept B (base + k) regs regs'
   | _, .falsum, b, T, F, regs, xs, hP, _, _, hB, _, _ => by
     simp only [formulaCodeWith, codeAt_cons] at hP
     exact ⟨false, regs, by simp [BoundedFormula.Realize],

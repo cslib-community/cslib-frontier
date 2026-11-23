@@ -27,7 +27,7 @@ The trace is from [AlmanWilliams2026, Section 2.4.2] and Anthropic's formal-math
 `16a5ce41304fcdaea4e0be7c132e1c361dc26da5`, [pinned source](https://github.com/anthropics/formal-math/blob/16a5ce41304fcdaea4e0be7c132e1c361dc26da5/3sum-apsp/ThreeSumApsp/Sec2/Lemma10.lean).
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Algorithms.MatrixMultiplication.Schonhage
 
@@ -83,7 +83,7 @@ theorem Pruned.totalSize_succ {n : ℕ} (a b : Leaf (n + 1) → ℤ)
   by_cases h : (childSet S lam).Nonempty <;>
     simp only [Pruned.childCalls, h, ↓reduceIte, Multiset.map_map,
       Multiset.map_zero, Multiset.sum_zero]
-  all_goals rfl
+  rfl
 
 /-- A nonempty call carries at least one query, so the passed-set total pays for every call. -/
 theorem Pruned.card_calls_le_totalSize {n : ℕ} (a b : Leaf n → ℤ)

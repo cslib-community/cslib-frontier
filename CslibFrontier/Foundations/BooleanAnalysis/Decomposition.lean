@@ -41,7 +41,7 @@ on `{i}` is the average of its derivative in `i`
 * [R. O'Donnell, *Analysis of Boolean Functions*][ODonnell2014]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.BitString
 
@@ -103,9 +103,7 @@ theorem expect_update_false_add_update_true (φ : (ι → Bool) → ℝ) (i : ι
     cases hx : x i
     · rw [show update x i false = x from update_eq_self_iff.2 hx.symm, Bool.not_false]
     · rw [show update x i true = x from update_eq_self_iff.2 hx.symm, Bool.not_true, add_comm]
-  have hflip : 𝔼 x, φ (update x i (!x i)) = 𝔼 x, φ x :=
-    Fintype.expect_bijective _ (Involutive.bijective fun x => by simp) _ _ fun _ => rfl
-  simp only [hpt, expect_add_distrib, hflip]
+  simp only [hpt, expect_add_distrib, expect_update_not]
   ring
 
 /-- The Fourier coefficient of `f` on `{i}` is the average of the derivative of `f` in `i`. -/

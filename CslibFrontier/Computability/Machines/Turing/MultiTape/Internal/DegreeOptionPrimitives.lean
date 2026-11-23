@@ -17,7 +17,7 @@ Construction and fixed-default elimination reuse the encoding capability's degre
 The Boolean test retains its constant output degree. No higher tidy calculus is used.
 -/
 
-@[expose] public section
+public section
 namespace Turing.MultiTapeTM.ComputableInDegree
 open Internal.WordPredicates
 
@@ -40,5 +40,11 @@ theorem isSome (enc : β ↪ List Bool) :
     | some b =>
       change [true] = [true] ++ nonemptyT.run true (enc b)
       rw [nonemptyT_run_true, List.append_nil]
+
+/-- The option encoding determines the encoding used for the payload and fallback. -/
+@[fun_prop]
+theorem optionGetD {α : Type*} (enc : α ↪ List Bool) (fallback : α) :
+    ComputableInDegree (fun o => o.getD fallback) (encOption enc) enc 1 1 :=
+  getD (enc₁ := enc) fallback
 
 end Turing.MultiTapeTM.ComputableInDegree

@@ -36,7 +36,7 @@ are (without proving the multiplicative `poly(ℓ, d)` runtime factor relative t
 * [C. Gentry, *Fully homomorphic encryption using ideal lattices*, Section 2, Theorem 4][Gentry2009]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto.Homomorphic.Leveled
 
@@ -128,11 +128,7 @@ theorem computableInPolyTime_tagLeveledChoice (first second : Bool) :
     ComputableInPolyTime (tagLeveledChoice first second)
       (encPair (encPair encBool encBool) encBits)
       (encPair (encPair encBool encBool) encBits) := by
-  unfold tagLeveledChoice
-  exact (ComputableInPolyTime.fst _ _).prod
-    (ComputableInPolyTime.bitsCons (by fun_prop)
-      (ComputableInPolyTime.bitsCons (by fun_prop)
-        (ComputableInPolyTime.snd _ _)))
+  fun_prop [tagLeveledChoice]
 
 omit hencrypt hadversary in
 /-- Swapping the two chosen messages is polynomial time. -/

@@ -65,7 +65,7 @@ theorem inner_tri (e : Fin 3) : ⟪tri (triEnds e).1, tri (triEnds e).2⟫ = -1 
     Matrix.cons_val, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_fin_one,
     PiLp.inner_apply, RCLike.inner_apply, conj_trivial, Fin.sum_univ_two, one_mul, mul_one,
     mul_zero, zero_mul, neg_mul, mul_neg, neg_zero, add_zero]
-  all_goals nlinarith [sqrt3_sq]
+  nlinarith [sqrt3_sq]
 
 theorem sdpValue_tri : sdpValue triEnds triW tri = 9 / 4 := by
   simp only [sdpValue, inner_tri, triW, Fin.sum_univ_three]
@@ -140,11 +140,11 @@ example : ∃ v : Fin 3 → P, (∀ i, ‖v i‖ = 1) ∧
 /-! ### The bridge to `MaxCut.cutWeight` -/
 
 /-- A weighted path `0 - 1 - 2` with weights `3` and `5`, and a self-loop of weight `7`. -/
-def pathL : List ((ℕ × ℕ) × ℕ) := [((0, 1), 3), ((1, 2), 5), ((2, 2), 7)]
+def pathL : List Cslib.Complexity.MaxCut.WeightedEdge := [⟨0, 1, 3⟩, ⟨1, 2, 5⟩, ⟨2, 2, 7⟩]
 
 /-- Cutting off vertex `1` cuts both path edges but never the self-loop. -/
-example : cutValue (fun i : Fin pathL.length => pathL[i].1) (fun i => (pathL[i].2 : ℝ))
-    (fun n => decide (n = 1)) = 8 := by
+example : cutValue (fun i : Fin pathL.length => (pathL[i].u, pathL[i].v))
+    (fun i => (pathL[i].weight : ℝ)) (fun n => decide (n = 1)) = 8 := by
   rw [cutValue_eq_cutWeight,
     show Cslib.Complexity.MaxCut.cutWeight pathL (fun n => decide (n = 1)) = 8 by decide]
   norm_num

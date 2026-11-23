@@ -100,7 +100,7 @@ theorem initialPilotOuter_allocated
         (CopyPadding.identifier D ss) (CopyPadding.identifier D st))
         (fun _ _ => steps) A σ x y - rowSliceMean X Y A x y) ≤ ε^4 := by
   intro X Y A steps
-  have hNu : 0 ≤ (P : ℝ) * rate ks := mul_nonneg (Nat.cast_nonneg _) (rate_pos ks).le
+  have hNu : 0 ≤ (P : ℝ) * rate ks := by positivity
   have hrange := rowNormPow_fourth_le_expect_envelope hNu X Y A
     (fun _ => (2 * HP.Q HP.toHierarchyParams.atomCap)^4) (fun _ => by positivity)
     (fun σ x y _ _ => by
@@ -157,7 +157,7 @@ theorem initialPilotCompleted_error
         (4 * (2 * HP.Q HP.toHierarchyParams.atomCap)^((3 : ℝ)/4))^4 *
           rootDistPow 4 P (rate k) X Y A A') := by
   intro X Y A A' G target
-  have hNu : 0 ≤ (P : ℝ) * rate k := mul_nonneg (Nat.cast_nonneg _) (rate_pos k).le
+  have hNu : 0 ≤ (P : ℝ) * rate k := by positivity
   have hm : ∀ x y, rate k * rowSliceMean X Y A' x y = target x y :=
     initialTrueNormalized_mean HP D hD R H k hk ss st C hC hC1 hCf
   have hb := rowNormPow_sliceMean_sub_le_rootDistPow hNu X Y A A'
@@ -181,9 +181,10 @@ theorem initialPilotCompleted_error
 
 set_option backward.isDefEq.respectTransparency false in
 /-- Positive-tolerance accuracy toward the genuine canonical FIRST pilot correction.
-The outer range budget and length are fixed before invoking normalized-child allocation;
-its RAW and detector tolerances are in turn fixed before completing their actual calls.
-All regularity constants are selected for fixed HP before the prime and requests.
+The outer length is the explicit `initialPilotOuterSteps` at a tolerance depending only
+on ε, the rate exponent and HP. For each instance there exist positive RAW and detector
+lengths, with preparation parameter one, meeting the bound; they are quantified after
+every other argument, so they may depend on all of them.
 This proves an ordinary fourth-moment error in parent matrix units, for a common
 source/rank/usage rate and one covering dense bin. It is not recursive closure. -/
 theorem initialPilotCompleted_accuracy

@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Crypto.Computational.DiscreteLog.SchnorrGroup
 import CslibFrontier.Crypto.Computational.PedersenCommitment
+import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Tactic.PPT
 import Mathlib.Tactic.NormNum.Prime
@@ -49,9 +50,9 @@ example :
       ⟨d23, (3 : ZMod (schnorrGroups.order d23)) • schnorrGroups.generator d23⟩
       (Nat.bits 3, (Nat.bits 4, Nat.bits 5), (Nat.bits 2, Nat.bits 2)) = true := by decide
 
-/-- `pedersenExtractNat` recovers the secret discrete logarithm `α = 3` from the concrete collision
-`((4, 5), (2, 2))` modulo `11`. -/
-example : pedersenExtractNat 11 4 5 2 2 = 3 := by decide
+/-- `extractNat` recovers the secret discrete logarithm `α = 3` from the concrete collision
+`((4, 5), (2, 2))` modulo `11`: `α = (r₁ - r₀)⁻¹ (m₀ - m₁) = extractNat 11 r₁ m₀ r₀ m₁`. -/
+example : extractNat 11 2 4 5 2 = 3 := by decide
 
 /-- Additive homomorphism of Pedersen commitments on `d23`. -/
 example (h : schnorrGroups.Carrier d23) :
@@ -60,9 +61,47 @@ example (h : schnorrGroups.Carrier d23) :
   rw [← schnorrGroups.pedersenCommit_add]
   rfl
 
-/-- Unconditional hiding: for any (even computationally unbounded) `Encryption.WordAdversary` and
-any setup law over Schnorr groups of order at least `2 ^ n`, the hiding advantage in
-`schnorrGroups.pedersenScheme.hidingGame (schnorrGroups.pedersenKeyDist setup)` is negligible. -/
+/-! ### Typed Pedersen commitments on `d23` -/
+
+/-- Typed verification: under `h = 3 • g`, the opening `(m, r) = (4, 5)` opens the commitment
+`4 • g + 5 • h`. -/
+example (c : schnorrGroups.Carrier d23)
+    (hc : c = schnorrGroups.pedersenCommit d23
+      ((3 : ZMod (schnorrGroups.order d23)) • schnorrGroups.generator d23) 4 5) :
+    (schnorrGroups.pedersen d23).verify
+      ((3 : ZMod (schnorrGroups.order d23)) • schnorrGroups.generator d23) 4 c 5 = true := by
+  simp [hc]
+
+/-- `(4, 5)` and `(2, 2)` collide under `h = 3 • g`, since `4 + 5 * 3 ≡ 2 + 2 * 3 (mod 11)`, and the
+typed extraction `(r₁ - r₀)⁻¹ * (m₀ - m₁)` recovers `α = 3`. -/
+example : ((2 : ZMod (schnorrGroups.order d23)) - 5)⁻¹ * (4 - 2) = 3 :=
+  schnorrGroups.inv_mul_eq_of_pedersenCommit_eq (by decide)
+    ((schnorrGroups.pedersenCommit_smul_generator_eq_iff d23 3 4 5 2 2).mpr (by decide))
+
+/-- Typed fixed-group hiding: every adversary has advantage at most `1 / q` on `d23`, where
+`q = 11`. -/
+example {σ : Type}
+    (A : TwoStage (schnorrGroups.Carrier d23) (MessagePair (ZMod (schnorrGroups.order d23)))
+      (schnorrGroups.Carrier d23) Bool σ) :
+    Experiment.advantage ((schnorrGroups.pedersen d23).hidingExperiment A false)
+      ((schnorrGroups.pedersen d23).hidingExperiment A true) ≤
+        (schnorrGroups.order d23 : ℝ≥0)⁻¹ :=
+  schnorrGroups.advantage_pedersen_hidingExperiment_le d23 A
+
+/-- Typed fixed-group binding: breaking binding on `d23` is no easier than computing discrete
+logarithms there. -/
+example (A : schnorrGroups.Carrier d23 →
+      ProbComp (Commitment.BindingCollision (ZMod (schnorrGroups.order d23))
+        (schnorrGroups.Carrier d23) (ZMod (schnorrGroups.order d23)))) :
+    Experiment.succProbability ((schnorrGroups.pedersen d23).bindingExperiment A) ≤
+      dlAdvantage (schnorrGroups.order d23) (schnorrGroups.generator d23)
+        (schnorrGroups.pedersenToDL A) :=
+  schnorrGroups.succProbability_pedersen_bindingExperiment_le A
+
+/-- Unconditional hiding of the ideal-sampling game: for any (even computationally unbounded)
+`Encryption.WordAdversary` and any setup law over Schnorr groups of order at least `2 ^ n`, the
+hiding advantage in `schnorrGroups.pedersenScheme.hidingGame (schnorrGroups.pedersenKeyDist setup)`
+is negligible. -/
 example (setup : ℕ → PMF schnorrGroups.Desc)
     (adversary : Encryption.WordAdversary)
     (hsize : ∀ n, ∀ d ∈ (setup n).support, 2 ^ n ≤ schnorrGroups.order d) :
@@ -72,7 +111,7 @@ example (setup : ℕ → PMF schnorrGroups.Desc)
           (schnorrGroups.pedersenKeyDist setup) adversary false n)
         (schnorrGroups.pedersenScheme.hidingGame
           (schnorrGroups.pedersenKeyDist setup) adversary true n) :=
-  schnorrGroups.negligible_advantage_pedersenHidingGame setup adversary
+  schnorrGroups.negligible_advantage_pedersenHidingGame_ideal setup adversary
     Nat.two_pow_pos hsize
     (by
       simpa only [Nat.cast_pow, Nat.cast_ofNat, one_div, inv_pow] using
@@ -93,26 +132,28 @@ theorem isPPTOn_trivialBindingAdversary :
   ComputableInPolyTime.isPPTOn (ComputableInPolyTime.const _)
 
 /-- Under the discrete-logarithm assumption for Schnorr groups, `trivialBindingAdversary` succeeds
-in `schnorrGroups.pedersenScheme.bindingGame (schnorrGroups.pedersenKeyDist setup)` with negligible
-probability. -/
+in `schnorrGroups.pedersenScheme.bindingGame (schnorrGroups.pedersenKeyDistProb setup)`, under the
+fair-coin key law, with negligible probability. -/
 example (setup : ℕ → PMF schnorrGroups.Desc) (hDL : schnorrGroups.DiscreteLog setup) :
     Negligible fun n =>
       Game.succProbability
         (schnorrGroups.pedersenScheme.bindingGame
-          (schnorrGroups.pedersenKeyDist setup) trivialBindingAdversary n) :=
-  hDL.pedersenBinding trivialBindingAdversary isPPTOn_trivialBindingAdversary
+          (schnorrGroups.pedersenKeyDistProb setup) trivialBindingAdversary n) :=
+  hDL.pedersenScheme_binding_pedersenKeyDistProb trivialBindingAdversary
+    isPPTOn_trivialBindingAdversary
 
-/-- Packaged `CommitmentScheme.StatisticalHiding` and `CommitmentScheme.Binding` for
-`schnorrGroups.pedersenScheme`. -/
+/-- Packaged `CommitmentScheme.StatisticalHiding` for `schnorrGroups.pedersenScheme` under the ideal
+key law `schnorrGroups.pedersenKeyDist setup`, and `CommitmentScheme.Binding` under the fair-coin
+key law `schnorrGroups.pedersenKeyDistProb setup`. -/
 example (setup : ℕ → PMF schnorrGroups.Desc) (hDL : schnorrGroups.DiscreteLog setup)
     (hsize : ∀ n, ∀ d ∈ (setup n).support, 2 ^ n ≤ schnorrGroups.order d) :
     schnorrGroups.pedersenScheme.StatisticalHiding (schnorrGroups.pedersenKeyDist setup) ∧
-      schnorrGroups.pedersenScheme.Binding (schnorrGroups.pedersenKeyDist setup) :=
-  ⟨schnorrGroups.pedersenScheme_statisticalHiding setup Nat.two_pow_pos hsize
+      schnorrGroups.pedersenScheme.Binding (schnorrGroups.pedersenKeyDistProb setup) :=
+  ⟨schnorrGroups.pedersenScheme_statisticalHiding_ideal setup Nat.two_pow_pos hsize
       (by
         simpa only [Nat.cast_pow, Nat.cast_ofNat, one_div, inv_pow] using
           negligible_geometric (ratio := 2⁻¹) (by norm_num)),
-    hDL.pedersenScheme_binding⟩
+    hDL.pedersenScheme_binding_pedersenKeyDistProb⟩
 
 /-- Regression witness (`openScheme`): a scheme with empty commitment string and opening equal to
 the message is perfectly hiding, and is rejected by `CommitmentScheme.Binding`. -/

@@ -114,8 +114,7 @@ private theorem abs_two_pow_mul_sub_le_of_prefix {t : ℕ} {P Z : ℝ}
     (h : |P - Z| ≤ 6 / (2 : ℝ) ^ (t + 4)) :
     |(2 : ℝ) ^ t * P - (2 : ℝ) ^ t * Z| ≤ 3 / 8 := by
   rw [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t)]
-  calc (2 : ℝ) ^ t * |P - Z| ≤ (2 : ℝ) ^ t * (6 / (2 : ℝ) ^ (t + 4)) :=
-        mul_le_mul_of_nonneg_left h (by positivity)
+  calc (2 : ℝ) ^ t * |P - Z| ≤ (2 : ℝ) ^ t * (6 / (2 : ℝ) ^ (t + 4)) := by gcongr
     _ = 3 / 8 := by
         have hpow : (2 : ℝ) ^ (t + 4) = 16 * (2 : ℝ) ^ t := by ring
         rw [hpow]
@@ -449,8 +448,7 @@ theorem shiftClipApprox_isScaledApprox (v : ℤ) {x : ℕ → ℤ} (hx : IsSigne
     have hprod : |(2 : ℝ) ^ t * shiftClipVal v (streamVal x)| ≤ 3 / 8 := by
       rw [abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t)]
       calc (2 : ℝ) ^ t * |shiftClipVal v (streamVal x)|
-          ≤ (2 : ℝ) ^ t * |(2 : ℝ) ^ v * streamVal x| :=
-            mul_le_mul_of_nonneg_left hval_le (by positivity)
+          ≤ (2 : ℝ) ^ t * |(2 : ℝ) ^ v * streamVal x| := by gcongr
         _ = (2 : ℝ) ^ ((t : ℤ) + v) * |streamVal x| := by
             rw [abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ v),
               zpow_add₀ (by norm_num), zpow_natCast, mul_assoc]
@@ -503,8 +501,7 @@ theorem shiftClipApprox_isScaledApprox (v : ℤ) {x : ℕ → ℤ} (hx : IsSigne
         (2 : ℝ) ^ t * shiftClipVal v (streamVal x)| ≤ 3 / 8 := by
       rw [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t)]
       calc (2 : ℝ) ^ t * |shiftClipVal v (streamPrefix x K) - shiftClipVal v (streamVal x)|
-          ≤ (2 : ℝ) ^ t * |(2 : ℝ) ^ v * streamPrefix x K - (2 : ℝ) ^ v * streamVal x| :=
-            mul_le_mul_of_nonneg_left hlip (by positivity)
+          ≤ (2 : ℝ) ^ t * |(2 : ℝ) ^ v * streamPrefix x K - (2 : ℝ) ^ v * streamVal x| := by gcongr
         _ = (2 : ℝ) ^ t * ((2 : ℝ) ^ v * |streamPrefix x K - streamVal x|) := by
             rw [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ v)]
         _ ≤ (2 : ℝ) ^ t * ((2 : ℝ) ^ v * (6 / (2 : ℝ) ^ K)) := by gcongr
@@ -676,7 +673,7 @@ theorem cmpBuffered_pos_iff {s u : ℕ → ℤ} (hs : IsSignedStream s) (hu : Is
 
 /-- Truncation error of the buffered test at place `K = M + R + 7`, at scale `2 ^ M`: the
 scaled prefix is within the slack `(3 / 64) / 2 ^ R` of the scaled value. -/
-private theorem abs_two_pow_mul_streamPrefix_sub_le {M R : ℕ} {x : ℕ → ℤ}
+private theorem abs_two_pow_mul_streamPrefix_sub_le (M R : ℕ) {x : ℕ → ℤ}
     (hx : IsSignedStream x) :
     |(2 : ℝ) ^ M * streamPrefix x (M + R + 7) - (2 : ℝ) ^ M * streamVal x| ≤
       (3 / 64) / (2 : ℝ) ^ R := by
@@ -710,8 +707,8 @@ theorem bufferedTest_eq_true_of_two_mul_lt {M R : ℕ} {s u : ℕ → ℤ}
     bufferedTest M R s u = true := by
   unfold bufferedTest
   rw [decide_eq_true_eq, cmpBuffered_pos_iff hs hu]
-  have hs_err := abs_two_pow_mul_streamPrefix_sub_le (M := M) (R := R) hs
-  have hu_err := abs_two_pow_mul_streamPrefix_sub_le (M := M) (R := R) hu
+  have hs_err := abs_two_pow_mul_streamPrefix_sub_le M R hs
+  have hu_err := abs_two_pow_mul_streamPrefix_sub_le M R hu
   rw [← hsVal] at hs_err
   rw [← huVal] at hu_err
   have hscaled : (2 : ℝ) ^ M * (3 * streamPrefix u (M + R + 7)) <
@@ -731,8 +728,8 @@ theorem bufferedTest_eq_false_of_le {M R : ℕ} {s u : ℕ → ℤ}
   rw [decide_eq_false_iff_not]
   intro hlt_raw
   have hlt := (cmpBuffered_pos_iff hs hu (M + R + 7)).mp hlt_raw
-  have hs_err := abs_two_pow_mul_streamPrefix_sub_le (M := M) (R := R) hs
-  have hu_err := abs_two_pow_mul_streamPrefix_sub_le (M := M) (R := R) hu
+  have hs_err := abs_two_pow_mul_streamPrefix_sub_le M R hs
+  have hu_err := abs_two_pow_mul_streamPrefix_sub_le M R hu
   rw [← hsVal] at hs_err
   rw [← huVal] at hu_err
   have hmul_lt := mul_lt_mul_of_pos_left hlt (by positivity : (0 : ℝ) < (2 : ℝ) ^ M)

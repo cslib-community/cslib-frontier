@@ -21,7 +21,8 @@ act within one modulus, and a projection gate applies an arbitrary function
 `φ : ℤ_m → ℤ_n` between moduli. Wire sorts are drawn from a finite type `ι`; sort `i` has modulus
 `μ i` and wire labels of sort `i` are vectors of `ℤ_{μ i}^{ℓ i + 1}`, split as a key in
 `ℤ_{μ i}^{ℓ i}` and a colour, the last coordinate. In [BallMalkinRosulek2016] the key length is
-`λ_m = ⌈λ / log₂ m⌉` for security parameter `λ`.
+`λ_m = ⌈λ / log₂ m⌉` for security parameter `λ` (§4.1, p. 5). Page numbers here refer to the full
+version, ePrint 2016/969, dated October 6, 2016.
 
 A circuit is a typed straight-line program: `MixedModulusCircuit μ P Γ Θ` reads input wires of
 the sorts listed in `Γ`, appends one wire per gate, and outputs wires of the sorts listed in
@@ -35,16 +36,51 @@ The security of the garbling scheme rests on *mixed-modulus circular correlation
 of a tweakable hash `H` [BallMalkinRosulek2016, Definition 1]. A secret offset `Δ_i = (δ_i, 1)` is
 drawn for each sort, with uniform key part and colour `1`. The real oracle answers a query
 `(g, i, j, X, a, b)` of source sort `i` and target sort `j` with `H(g, X + a Δ_i) + b Δ_j`; the
-ideal oracle is a uniformly random function.
+ideal oracle is a uniformly random function. This file defines the two experiments and the
+advantage `ccrAdvantage` of one adversary against one hash. It states no assumption: an asymptotic
+assumption against efficient adversaries, and the privacy theorem of `BMR16` that would rest on it,
+are tracked in #6068.
 
-Definition 1 of [BallMalkinRosulek2016] quantifies over adversaries "that query their oracle on
-distinct `g` values and `a ≠ 0`". A simulation proof for a projection gate from modulus `m` makes
-`m - 1` queries under the tweak of that gate, which this condition forbids, so we use a relaxed
-legality condition: along every run, no query uses `a = 0`, and two queries that agree on the
-tweak, the source sort, `X` and `a` are equal (`CCRAdversary.IsLegal`). Every adversary legal for
-Definition 1 is legal here, so `MixedModulusCCR` is a *stronger* assumption than Definition 1 as
-literally stated. A run answers every call, private coin or oracle query, independently with an
-arbitrary reply (`IsRun`).
+Definition 1 of [BallMalkinRosulek2016] (§4.3, p. 7) quantifies over polynomial-time adversaries
+"that query their oracle on distinct `g` values and `a ≠ 0`". In the source's own scheme (Figure 1,
+p. 7) the `m - 1` ciphertexts of a projection gate from modulus `m` all use that gate's tweak, and
+the proof sketch of its Theorem 1 (pp. 7–8) replaces them using only the oracle of Definition 1,
+which takes `m - 1` queries under one tweak. So the source's argument needs more than Definition 1
+grants. We use a relaxed legality condition, which closes that gap: along every run, no query uses
+`a = 0`, and two queries that agree on the tweak, the source sort, `X` and `a` are equal
+(`CCRAdversary.IsLegal`). Every adversary legal for Definition 1 is legal here, so an assumption
+stated with this legality is *stronger* than Definition 1 as literally stated, and would be novel to
+this library. It is strictly stronger: if `H'` satisfies Definition 1, so does
+`H g i (k, c) j := H' g i (k, 0) j`, yet two queries under one tweak with labels `(k, 0)` and
+`(k, 1)`, `a = 1` and `b = 0` get equal real answers. A run answers every call, private coin or
+oracle query, independently with an arbitrary reply (`IsRun`).
+
+*Composite moduli.* [BallMalkinRosulek2016] does not restrict moduli to primes, and its gadgets
+use composite ones: `b + 1` for a fan-in-`b` AND gate (§5, p. 8), the output modulus `k + 1` of an
+equality test (§6.2, p. 11) and `p + q - 1` in comparisons (§6.3, pp. 12–13). When `μ i` is
+composite with least prime factor `p`, a nonzero multiplier can be a zero divisor, and
+`(μ i / p) • δ_i = 0` with probability `1 / p ^ ℓ i`. Let `r = μ i / p`, and fix a tweak `g`, a
+target sort `j`, a key `k` and a colour `c`. The queries with labels `(k, c)` and `(k, c - r)`,
+multipliers `a = 1` and `a' = 1 + r`, and `b = 0` have different `ccrKey`s and nonzero multipliers,
+and they hash the same input exactly when `r • δ_i = 0`. The adversary that asks both and compares
+the answers is legal, never evaluates `H`, and has `ccrAdvantage` at least
+`1 / p ^ ℓ i - 1 / μ j ^ (ℓ j + 1)` against every `H`; for `μ i = 2 ^ λ` with `λ ≥ 2` and
+`ℓ i = 1` that is `1 / 2 - 1 / μ j ^ (ℓ j + 1)`. The single query `(g, i, j, X, r, 0)`, compared
+with `H g i (X + (0, r)) j`, does as well and is legal for Definition 1 too, so the analogue of
+Definition 1 fails in the same way when the adversary can also evaluate the hash. These are
+arguments, not theorems stated here. The source does not address this collision: §4.3 has no
+analysis of zero divisors, and the only bound it states is `1 / 2 ^ λ` for authenticity (p. 8).
+This library documents the gap rather than excluding composite moduli, which would exclude the
+gadgets above. With the source's key length `⌈λ / log₂ (μ i)⌉` the probability is about
+`2 ^ (-λ log₂ p / log₂ (μ i))` (`2 ^ (-64)` for `μ i = 4` and `λ = 128`); bringing it down to
+`2 ^ (-λ)` needs `ℓ i ≥ ⌈λ / log₂ (Nat.minFac (μ i))⌉`, which is the source's length when `μ i`
+is prime. The definitions here and in `BMR16` take `ℓ` as a parameter, so this is a condition on
+the choice of `ℓ`, not on the definitions. In an asymptotic assumption (#6068) the collision
+probability at level `κ` is `p(κ) ^ (-ℓ(κ))`, where `p(κ)` is the least prime factor of the modulus
+at that level. For fixed moduli, or more generally a bounded least prime factor, it is negligible
+only if `ℓ` grows. With moduli that vary it can be negligible for fixed `ℓ`: for `μ κ = p(κ) ^ 2`
+with a prime `p(κ) ≥ 2 ^ κ` and `ℓ = 1` it is at most `2 ^ (-κ)`. So the collision argument alone
+does not force `ℓ` to grow; this observation does not prove security.
 
 ## Main definitions
 
@@ -52,11 +88,13 @@ arbitrary reply (`IsRun`).
   references and assignments of values to the wires of a context.
 * `Cslib.Crypto.Garbling.MixedModulus.MixedModulusCircuit`, `.eval`: mixed-modulus circuits with
   `Add_m`, `Mult_c` and `Proj_φ` gates and their evaluation.
+* `Cslib.Crypto.Garbling.MixedModulus.CCRInput`: a CCR query without its tweak, read through
+  `source`, `target`, `label`, `a` and `b`.
 * `Cslib.Crypto.Garbling.MixedModulus.ccrOracle`, `.ccrRealGame`, `.ccrIdealGame`, `.ccrAdvantage`:
   the mixed-modulus circular correlation robustness experiments.
 * `Cslib.Crypto.Garbling.MixedModulus.IsRun`: the runs of an oracle program.
-* `Cslib.Crypto.Garbling.MixedModulus.CCRAdversary.IsLegal`,
-  `Cslib.Crypto.Garbling.MixedModulus.MixedModulusCCR`: legal adversaries and the assumption.
+* `Cslib.Crypto.Garbling.MixedModulus.CCRAdversary.IsLegal`: legal adversaries, in a relaxed sense
+  that admits more adversaries than Definition 1 of [BallMalkinRosulek2016].
 
 ## References
 
@@ -228,8 +266,29 @@ variable (T : Type) (μ ℓ : ι → ℕ)
 `b ∈ ℤ_{μ j}`. -/
 abbrev CCRInput : Type := Σ i j : ι, Label μ ℓ i × ZMod (μ i) × ZMod (μ j)
 
+namespace CCRInput
+
+variable {μ ℓ}
+
+/-- The source sort `i`. -/
+abbrev source (r : CCRInput μ ℓ) : ι := r.1
+
+/-- The target sort `j`. -/
+abbrev target (r : CCRInput μ ℓ) : ι := r.2.1
+
+/-- The label `X` of the source sort. -/
+abbrev label (r : CCRInput μ ℓ) : Label μ ℓ r.source := r.2.2.1
+
+/-- The multiplier `a ∈ ℤ_{μ i}` of the source offset. -/
+abbrev a (r : CCRInput μ ℓ) : ZMod (μ r.source) := r.2.2.2.1
+
+/-- The multiplier `b ∈ ℤ_{μ j}` of the target offset. -/
+abbrev b (r : CCRInput μ ℓ) : ZMod (μ r.target) := r.2.2.2.2
+
+end CCRInput
+
 /-- The oracle interface: a query with tweak in `T` is answered by a label of its target sort. -/
-abbrev ccrSpec : T × CCRInput μ ℓ → Type := fun q => Label μ ℓ q.2.2.1
+abbrev ccrSpec : T × CCRInput μ ℓ → Type := fun q => Label μ ℓ q.2.target
 
 /-- A tweakable mixed-modulus hash `H(g, X)`: a tweak, a label of a source sort and a target
 sort give a label of the target sort. -/
@@ -243,18 +302,19 @@ variable {T μ ℓ}
 /-- The real mixed-modulus CCR oracle `𝒪_Δ(g, X, a, b) = H(g, X + a Δ_i) + b Δ_j`, for offsets
 `Δ_i = (δ_i, 1)`. -/
 def ccrOracle (H : MixedModulusHash T μ ℓ) (δ : ∀ i, Fin (ℓ i) → ZMod (μ i))
-    (q : T × CCRInput μ ℓ) : Label μ ℓ q.2.2.1 :=
-  H q.1 q.2.1 (q.2.2.2.1 + q.2.2.2.2.1 • offset δ q.2.1) q.2.2.1 + q.2.2.2.2.2 • offset δ q.2.2.1
+    (q : T × CCRInput μ ℓ) : Label μ ℓ q.2.target :=
+  H q.1 q.2.source (q.2.label + q.2.a • offset δ q.2.source) q.2.target +
+    q.2.b • offset δ q.2.target
 
 /-- The part of a query that must determine the whole query in a legal run: the tweak, the source
 sort, the label `X` and the multiplier `a`. -/
 def ccrKey (q : T × CCRInput μ ℓ) : T × Σ i : ι, Label μ ℓ i × ZMod (μ i) :=
-  (q.1, ⟨q.2.1, q.2.2.2.1, q.2.2.2.2.1⟩)
+  (q.1, ⟨q.2.source, q.2.label, q.2.a⟩)
 
 /-- A legal list of queries: no query has `a = 0`, and two queries with the same tweak, source
 sort, label and multiplier `a` are equal. -/
 def CCRLegal (qs : List (T × CCRInput μ ℓ)) : Prop :=
-  (∀ q ∈ qs, q.2.2.2.2.1 ≠ 0) ∧ ∀ q ∈ qs, ∀ q' ∈ qs, ccrKey q = ccrKey q' → q = q'
+  (∀ q ∈ qs, q.2.a ≠ 0) ∧ ∀ q ∈ qs, ∀ q' ∈ qs, ccrKey q = ccrKey q' → q = q'
 
 /-- A legal adversary makes a legal list of oracle queries along every run, whatever its private
 coins and the oracle's replies: the oracle queries are the right components of the requests. -/
@@ -271,7 +331,7 @@ noncomputable def ccrRealGame (H : MixedModulusHash T μ ℓ) (B : CCRAdversary 
 
 variable (T μ ℓ) in
 /-- A reply for each query with a fixed tweak. -/
-abbrev CCRTable : Type := (r : CCRInput μ ℓ) → Label μ ℓ r.2.1
+abbrev CCRTable : Type := (r : CCRInput μ ℓ) → Label μ ℓ r.target
 
 variable [Fintype T] [DecidableEq T]
 
@@ -289,16 +349,5 @@ noncomputable def ccrIdealGame (B : CCRAdversary T μ ℓ) : Game :=
 /-- The mixed-modulus CCR advantage of `B` against `H`. -/
 noncomputable abbrev ccrAdvantage (H : MixedModulusHash T μ ℓ) (B : CCRAdversary T μ ℓ) : ℝ≥0 :=
   Game.advantage (ccrRealGame H B) (ccrIdealGame B)
-
-/-- **Mixed-modulus circular correlation robustness** [BallMalkinRosulek2016, Definition 1], with
-the relaxed legality condition `CCRAdversary.IsLegal`: every legal adversary in the class `𝒟` has
-advantage at most `ε` against `H`. -/
-def MixedModulusCCR (H : MixedModulusHash T μ ℓ) (𝒟 : Set (CCRAdversary T μ ℓ)) (ε : ℝ≥0) : Prop :=
-  ∀ B ∈ 𝒟, B.IsLegal → ccrAdvantage H B ≤ ε
-
-/-- Every hash is mixed-modulus CCR with bound `1`. -/
-theorem MixedModulusCCR.one (H : MixedModulusHash T μ ℓ) (𝒟 : Set (CCRAdversary T μ ℓ)) :
-    MixedModulusCCR H 𝒟 1 :=
-  fun _ _ _ => Game.advantage_le_one _ _
 
 end Cslib.Crypto.Garbling.MixedModulus

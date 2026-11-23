@@ -100,8 +100,8 @@ def AL (enc : α ↪ List Bool) : Set (Set α) :=
   {A | ∃ (k : ℕ) (State : Type) (_ : Finite State) (atm : MultiTapeATM k Bool State) (c : ℕ),
     atm.DecidesInSpace enc A fun a => c * (Nat.log2 (enc a).length + 1)}
 
-/-- **`APSPACE` is the union of the classes `ASPACE (n ^ k)`** [Chandra, Kozen and
-Stockmeyer][ChandraKozenStockmeyer1981]. -/
+/-- **`APSPACE` is the union of the classes `ASPACE (n ^ k)`** [Chandra, Kozen and Stockmeyer,
+Section 3][ChandraKozenStockmeyer1981] [Sipser, Section 10.3][Sipser2013]. -/
 theorem mem_APSPACE_iff_exists_mem_ASPACE {A : Set α} :
     A ∈ APSPACE enc ↔ ∃ k, A ∈ ASPACE enc (· ^ k) := by
   constructor
@@ -112,8 +112,8 @@ theorem mem_APSPACE_iff_exists_mem_ASPACE {A : Set α} :
   · rintro ⟨d, k, State, hfin, atm, c₁, c₂, hA⟩
     exact ⟨k, State, hfin, atm, _, by growth_poly, hA⟩
 
-/-- **`AL` is `ASPACE(log₂ n)`**: the bounds `c * (log₂ n + 1)` and `c₁ * log₂ n + c₂` give the
-same problems. -/
+/-- **`AL` is `ASPACE(log₂ n)`** [Sipser, Section 10.3][Sipser2013]: the bounds `c * (log₂ n + 1)`
+and `c₁ * log₂ n + c₂` give the same problems. -/
 theorem AL_eq_ASPACE : AL enc = ASPACE enc Nat.log2 := by
   ext A
   constructor
@@ -153,10 +153,9 @@ theorem RecognizesInSpace.mem_P {c : ℕ}
     (h : atm.RecognizesInSpace enc A fun a => c * (Nat.log2 (enc a).length + 1)) :
     A ∈ P enc := by
   -- the number of reachable views is at most `N a`, a polynomial
-  set D := 2 * (8 + 2 * Nat.card (Option State) + 200 * k) * (c + 1)
-  set N : α → ℕ := fun a => 2 * (2 * ((enc a).length + 1)) ^ D
+  set N : α → ℕ := fun a => polyClock (MultiTapeNTM.logSpaceClockExponent k State c) (enc a).length
   have hN : ComputableInPolyTime N enc encUnary := by
-    simp only [N]
+    simp only [N, polyClock]
     fun_prop
   have hΨ := (computableInPolyTime_boundedAccepts (fun a => (h a).1)
     (polyBounded_log (fun a => (enc a).length) c)).comp (ComputableInPolyTime.id'.prod hN)

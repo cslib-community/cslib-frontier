@@ -51,8 +51,10 @@ encoded length bounds it.
 **The interface** (`EntryContractionAlgorithm`). One native certificate maps an input
 `(P, fl, r, G)`, with the precision `P` in unary and the coefficients `fl` of a modulus, to a
 coefficient list whose value in `A_P` at the modulus `FastContraction.modulus m`, for `m` the
-number of edges, is the contraction of the entries' values, on every input. On admissible inputs
-at that modulus and precision `P ≤ D s (⌊log₂ s⌋ + 1)`, for each fixed `D`, it runs in time
+number of edges, is the contraction of the entries' values, on every input. The admissibility
+predicate is a parameter; Theorem D.1 takes it to be `EntryAdmissible ce`. On the inputs the
+predicate selects at a size `s ≥ 2`, at that modulus and precision
+`1 ≤ P ≤ D s (⌊log₂ s⌋ + 1)`, for each fixed `D`, it runs in time
 `K (n + 1) ^ K 2 ^ (K s / √⌊log₂ s⌋)` and space `K (n + 1) ^ K`. The original linear-precision
 bound is a corollary (`EntryContractionAlgorithm.bound`). The input format is
 that of the truncation-order reduction's contractions of specialized networks.
@@ -75,7 +77,8 @@ summation with it is the contraction of the explicit network
 * `Cslib.Circuits.Frontier.ceilNineTenths`: `⌈s ^ (9/10)⌉`.
 * `Cslib.Circuits.Frontier.EntryContraction.encInput`: the encoding of an input.
 * `Cslib.Circuits.Frontier.EntryAdmissible`: Theorem D.1's hypotheses.
-* `Cslib.Circuits.Frontier.EntryContractionAlgorithm`: the interface.
+* `Cslib.Circuits.Frontier.EntryContractionAlgorithm`: the interface, for a given admissibility
+  predicate.
 * `Cslib.Circuits.Frontier.EntryContraction.directCore`: direct summation with an entry procedure.
 
 ## Main results
@@ -231,10 +234,12 @@ logarithmic root precision, with entries in `A_P`. A native certificate maps `(P
 coefficient list `core (P, fl, r, G)`. At
 the modulus `fl = FastContraction.modulus m`, for `m` the number of edges of `G`, its value in
 `A_P` is the contraction of the values of the entries, on every input. For all constants `C` and
-`D` there is `K` such that on every network admissible at a size `s ≥ 2` with constant `C`, and
+`D` there is `K` such that on every `(r, G)` with `Admissible C s (r, G)` at a size `s ≥ 2`, and
 every precision `1 ≤ P ≤ D s (⌊log₂ s⌋ + 1)`, at that modulus the certificate takes time at most
 `K (n + 1) ^ K 2 ^ (K s / √⌊log₂ s⌋)` and space at most `K (n + 1) ^ K`, for `n` the encoded length
-of the input. -/
+of the input. The predicate `Admissible` is a parameter; Theorem D.1's interface is the case
+`Admissible = EntryAdmissible ce` for a native certificate `ce` of the entry procedure, which
+`Cslib.Complexity.CountingSimulation.entryContractionAlgorithm` implements. -/
 structure EntryContractionAlgorithm (Admissible : ℕ → ℕ → ℕ × DescribedNetwork T → Prop) where
   /-- The output on an input `(P, fl, r, G)`. -/
   core : ℕ × List ℕ × ℕ × DescribedNetwork T → List ℕ
@@ -378,18 +383,17 @@ theorem directCore_le
       (hout (v.2, bs)).trans (Nat.mul_le_mul_left _ (by have := (hE v hv bs hbs).2; omega))⟩
   obtain ⟨hT, hS⟩ := hK₁ ((P, fl), G) E ES (c * (ES + 1)) (n * (2 * n + 3)) hEv hRv
   -- The argument of direct summation's polynomial against `W ^ 2`.
+  have hnW : n + 1 ≤ W := by omega
   have hA : (DescribedNetwork.encInput (encPair encUnary (encList encNat)) encT
       ((P, fl), G)).length + c * (ES + 1) + n * (2 * n + 3) + 1 ≤ (c + 6) * W ^ 2 := by
-    have h1 : c * (ES + 1) ≤ c * W := Nat.mul_le_mul_left _ (by omega)
-    have h2 : c * W ≤ c * W ^ 2 := Nat.mul_le_mul_left _ (by nlinarith)
-    have h3 : n * (2 * n + 3) + 2 * n + 1 ≤ 6 * W ^ 2 := by nlinarith
-    nlinarith
+    have hcW : c * (ES + 1) ≤ c * W ^ 2 := by
+      rw [sq]; exact Nat.mul_le_mul_left _ ((show ES + 1 ≤ W by omega).trans (Nat.le_mul_self W))
+    nlinarith only [hproj, hnW, hcW]
   have hpoly : K₁ * ((DescribedNetwork.encInput (encPair encUnary (encList encNat)) encT
       ((P, fl), G)).length + c * (ES + 1) + n * (2 * n + 3) + 1) ^ K₁ ≤
       c₁ * W ^ (2 * K₁) := by
     rw [hc₁, pow_mul, Nat.mul_assoc, ← Nat.mul_pow]
     exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hA _)
-  have hnW : n + 1 ≤ W := by omega
   have hit' : (NativeCertificate.ofPolyTime (sumInput_polyTime (encT := encT))).time
       (P, fl, r, G) ≤ ct * W ^ dt := by
     have h := hit (P, fl, r, G)

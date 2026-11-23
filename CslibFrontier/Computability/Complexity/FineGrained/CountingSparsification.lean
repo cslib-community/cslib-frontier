@@ -128,14 +128,6 @@ namespace CountingSparsify
 open ClauseSet.Sparsification (CountingBranchingRule)
 open Sparsify (rounds computableInPolyTime_rounds length_encNat_rounds rounds_add_one_le)
 
-/-! ### Auxiliary binary-encoding bound -/
-
-theorem length_encNat_le_of_le_two_pow {acc n : ℕ} (h : acc ≤ 2 ^ n) :
-    (encNat acc).length ≤ n + 1 := by
-  refine (show (encNat acc).length ≤ (encNat (2 ^ n)).length by
-    simpa only [encNat_apply, Nat.size_eq_bits_len] using Nat.size_le_size h).trans ?_
-  rw [encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
-
 /-! ### The counting-sparsification search -/
 
 /-- The states of the counting-sparsification search: the declared variable count `n` (in unary),
@@ -227,12 +219,9 @@ private theorem iterate_step_map (g : CNF ℕ → ℕ) (r n : ℕ)
         (stk, acc)
     exact ih stk' acc'
 
-private theorem step_nil (g : CNF ℕ → ℕ) (n acc : ℕ) :
-    step M K g (n, ([], acc)) = (n, ([], acc)) := rfl
-
 private theorem iterate_step_nil (g : CNF ℕ → ℕ) (r n acc : ℕ) :
     (step M K g)^[r] (n, ([], acc)) = (n, ([], acc)) :=
-  Function.iterate_fixed (step_nil g n acc) r
+  Function.iterate_fixed rfl r
 
 /-! ### The root -/
 
@@ -362,10 +351,13 @@ end Tree
 
 /-- The fixed-parameter quantitative depth and leaf-count hypotheses for the
 counting-sparsification tree (a library adaptation of Appendix A.2–A.3, Lemmas A.2–A.3, pp. 46–47
-[OpenAI2026ETH], open for `K ≥ 2`): from any `CountingNormalized K` root formula `ψ` whose
+[OpenAI2026ETH]): from any `CountingNormalized K` root formula `ψ` whose
 occurring variables lie in a finite set `declared` of size `N = declared.card`, every leaf word of
 `rule hM hK` has length at most `L_coeff * N`, and any finset of leaf words has cardinality at
-most `2 ^ (N / B + 1)`. -/
+most `2 ^ (N / B + 1)`. `countingTreeBound_of_budget` proves them with
+`L_coeff = countingDepthCoeff K M` for `2 ≤ M` and `1 ≤ B` under an integer parameter budget, and
+`countingTreeBound_countingThresholdBase` proves them, with the same `L_coeff`, at
+`M = countingThresholdBase K B` for every `1 ≤ B`. -/
 def CountingTreeBound (M K B L_coeff : ℕ) (hM : 1 ≤ M) (hK : 1 ≤ K) : Prop :=
   ∀ (ψ : {ψ : CNF ℕ // CountingNormalized K ψ}) (declared : Finset ℕ),
     (∀ C ∈ ψ.1, ∀ l ∈ C, l.1 ∈ declared) →

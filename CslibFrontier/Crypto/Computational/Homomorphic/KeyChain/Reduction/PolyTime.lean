@@ -35,7 +35,7 @@ test. No security, correctness or fixed-width hypothesis is used in these runtim
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*, Section 11.2][BonehShoup2023]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto.Homomorphic.Scheme
 
@@ -113,10 +113,22 @@ theorem isPPTOn_guessLink {n : α → ℕ} {state challengeCiphertext : α → L
         ((linkStateDecoder.decode (state a)).2.2.2.1,
           List.replicate (linkStateDecoder.decode (state a)).2.2.1.2.length false) ::
         (linkStateDecoder.decode (state a)).2.2.2.2.1).map Prod.fst)
-      input (encList encBits) := by fun_prop
+      input (encList encBits) := by
+    have hlist : ComputableInPolyTime
+        (fun a => (linkStateDecoder.decode (state a)).2.1 ++
+          (linkStateDecoder.decode (state a)).2.2.1 ::
+          ((linkStateDecoder.decode (state a)).2.2.2.1,
+            List.replicate (linkStateDecoder.decode (state a)).2.2.1.2.length false) ::
+          (linkStateDecoder.decode (state a)).2.2.2.2.1)
+        input (encList (encPair encBits encBits)) :=
+      (ComputableInPolyTime.listAppend (encPair encBits encBits)).comp
+        (hbefore.prod (ComputableInPolyTime.cons' hpredecessor
+          (ComputableInPolyTime.cons' htarget hafter)))
+    exact (ComputableInPolyTime.map
+      (ComputableInPolyTime.fst encBits encBits)).comp hlist
   unfold guessLink
   have hcond := hcontext.fst'
-  apply IsPPTOn.cond (by polytime)
+  apply IsPPTOn.cond hcond
   · apply hlinks.bind_with
     exact htest.preprocess
       ((hn.comp (ComputableInPolyTime.fst _ _)).prod

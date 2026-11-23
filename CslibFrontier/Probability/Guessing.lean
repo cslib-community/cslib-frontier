@@ -35,7 +35,7 @@ Adapted from Probability/Guessing.lean on the cslib `crypto` branch at
 `5ff69ca93402e7c947208dc56396d6d86203ccd8`, reusing the pinned finite-PMF distance.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Probability
 
@@ -93,8 +93,7 @@ theorem score_le_uniform_guess (real : PMF (Seed × (Prefix × Suffix))) (seed :
         field_simp
   calc
     _ ≤ ∑ pair, (real pair).toReal * best (pair.1, pair.2.1) :=
-      Finset.sum_le_sum (fun pair _ =>
-        mul_le_mul_of_nonneg_left (hbest _ _ _) ENNReal.toReal_nonneg)
+      by gcongr; exact hbest _ _ _
     _ = ∑ pair, ((real.map (fun (s, p, _) => (s, p))) pair).toReal * best pair := by
       rw [← hmap]
       exact (sum_map_mul _ _ _).symm

@@ -43,7 +43,7 @@ calls, for the loop rules adapted from Christian Reitwiessner's `Combinators/Ite
 (crei:crei/tidy-universal @7f7c0696).
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.ProbOracleComp
 
@@ -78,7 +78,11 @@ theorem mem_support_iff_exists [hne : ∀ q, Nonempty (spec q)] {program : ProbO
           (sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle) program).run s).support
     := by
   classical
-  refine ⟨fun h => ?_, fun ⟨State, oracle, s, s', h⟩ => mem_support_of_mem oracle h⟩
+  refine ⟨fun h => ?_, fun ⟨State, oracle, s, s', h⟩ =>
+    mem_support_of_mem (program := program) oracle (s := s) (s' := s') ?_⟩
+  swap
+  · rw [runWith_eq_run_interpret]
+    exact h
   induction program with
   | pure a =>
     refine ⟨Unit, fun q _ => PMF.pure (Classical.choice (hne q), ()), (), (), ?_⟩

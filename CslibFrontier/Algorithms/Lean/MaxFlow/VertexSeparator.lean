@@ -13,6 +13,7 @@ public import Mathlib.Data.Fintype.Sum
 public import Mathlib.Tactic.DeriveFintype
 import Mathlib.Algebra.BigOperators.Group.Finset.Sigma
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Minimum vertex separators by vertex splitting
@@ -206,8 +207,7 @@ private theorem ret_sep : (minSeparatorM G Z A B).ret.sep = (List.finRange n).fi
 
 private theorem vget_ret_side (v : Fin n) :
     vget (minSeparatorM G Z A B).ret.side v = decide (SplitNode.outV v ∈ minCut G Z A B) := by
-  simp only [minSeparatorM, TimeM.ret_bind, TimeM.ret_pure, vget, Vector.getElem_ofFn]
-  rfl
+  time_spec minSeparatorM [vget, Vector.getElem_ofFn]
 
 private theorem mem_sep_iff {v : Fin n} : v ∈ (minSeparatorM G Z A B).ret.sep ↔
     vget Z v = false ∧ SplitNode.inV v ∈ minCut G Z A B ∧ SplitNode.outV v ∉ minCut G Z A B := by
@@ -430,8 +430,7 @@ theorem minSeparatorM_length_sep_le {Y : Finset (Fin n)}
 /-- **Running time.** `minSeparatorM` takes at most `minSeparatorCost n` ticks. -/
 theorem time_minSeparatorM_le : (minSeparatorM G Z A B).time ≤ minSeparatorCost n := by
   have h := edmondsKarpDenseM_time_le ((vertexSplitNetwork G Z A B).reindex (SplitNode.equivFin n))
-  simp only [minSeparatorM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, Nat.add_zero,
-    minSeparatorCost]
+  simp only [minSeparatorM, time_simps, minSeparatorCost]
   exact Nat.add_le_add_right h _
 
 end Correctness

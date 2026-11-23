@@ -10,9 +10,13 @@ module
 public import CslibFrontier.Init
 public import Cslib.Crypto.Primitives.PRG.Defs
 public import Mathlib.Data.Fin.Tuple.Take
+public import CslibFrontier.Crypto.Game.Inversion
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.BindCompare
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF
+import CslibFrontier.Probability.PMF.Bool
+import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Product
 
 /-!
@@ -20,9 +24,13 @@ import CslibFrontier.Probability.Product
 
 A generator `G` with `m`-bit outputs is unpredictable when no predictor, shown the first `i` bits of
 a generated output, guesses bit `i` with probability much better than `1 / 2`
-[Boneh and Shoup, Attack Game 3.2 and Definition 3.3][BonehShoup2023]. This file proves that
-unpredictability is equivalent to security in the sense of Attack Game 3.1, up to a factor of `m` in
-the error. This is the next-bit theorem usually credited to Yao; the proof follows
+[Boneh and Shoup, Attack Game 3.2 and Definition 3.3][BonehShoup2023]. This file relates
+prediction to distinguishing for arbitrary tests and predictors: the test built from a predictor has
+exactly the advantage of the predictor, and the advantage of a test is at most the sum, over the
+positions, of the advantages of the predictors built from it. These are steps towards the next-bit
+theorem usually credited to Yao, [Boneh and Shoup, Theorems 3.4 and 3.6][BonehShoup2023], not that
+theorem: it is about efficient adversaries, and nothing here bounds the cost of the tests and
+predictors that the reductions build. The proof follows
 [Boneh and Shoup, Section 3.5][BonehShoup2023] (see also
 [Arora and Barak, Chapter 9][AroraBarak09]).
 
@@ -38,10 +46,9 @@ probability exactly `1 / 2` plus the `i`-th hybrid gap.
 
 Here the position `i` is a parameter of the prediction game, whereas the adversary of Attack Game
 3.2 chooses it. A predictor that chooses its position at random wins with the average of the
-fixed-position probabilities, so a bound for every fixed position also bounds it. As in the
-definition of `Cslib.Crypto.PRG.Generator.Secure`, admissible tests and predictors are given by
-caller-supplied predicates; the reductions between them are `Cslib.Crypto.PRG.nextBitPredictor`
-and `Cslib.Crypto.PRG.predictionTest`.
+fixed-position probabilities, so a bound for every fixed position also bounds it. The reductions
+between tests and predictors are `Cslib.Crypto.PRG.nextBitPredictor` and
+`Cslib.Crypto.PRG.predictionTest`.
 
 ## Main definitions
 
@@ -67,10 +74,10 @@ and `Cslib.Crypto.PRG.predictionTest`.
 * `Cslib.Crypto.PRG.Generator.advantage_le_sum_predictionAdvantage`,
   `Cslib.Crypto.PRG.Generator.exists_half_add_div_le_predictionExperiment`: a test with
   advantage `ε` yields a predictor for some position with success probability `1 / 2 + ε / m`.
-* `Cslib.Crypto.PRG.Generator.Unpredictable.secure`: unpredictability with error `δ` implies
-  security with error `m * δ`.
-* `Cslib.Crypto.PRG.Generator.Secure.unpredictable`: security with error `ε` implies
-  unpredictability with error `ε`.
+* `Cslib.Crypto.PRG.Generator.advantage_predictionTest`: the test built from a predictor has the
+  advantage of the predictor.
+
+The uniform next-bit theorem for strict-PPT adversaries is open (#5293).
 
 ## References
 
@@ -96,16 +103,10 @@ noncomputable def guessOfDistinguisher (d : Bool → PMF Bool) : PMF Bool := do
   let r ← uniformOfFintype Bool
   (d r).map fun a => if a then r else !r
 
-private theorem map_decide_eq_apply_true {α : Type*} [DecidableEq α] (q : PMF α) (c : α) :
-    (q.map fun a => decide (a = c)) true = q c := by
-  rw [PMF.map_apply]
-  simp
-
 /-- The distinguisher/predictor lemma for a single bit, without subtraction. -/
 private theorem guessOfDistinguisher_apply_add (d : Bool → PMF Bool) (b : Bool) :
     guessOfDistinguisher d b + (uniformOfFintype Bool).bind d true = d b true + 2⁻¹ := by
-  have hd (r : Bool) : d r true + d r false = 1 := by
-    simpa [tsum_bool] using (d r).tsum_coe
+  have hd (r : Bool) : d r true + d r false = 1 := apply_true_add_apply_false (d r)
   have h2 : (2⁻¹ : ℝ≥0∞) * 2 = 1 := ENNReal.inv_mul_cancel two_ne_zero ENNReal.ofNat_ne_top
   simp only [guessOfDistinguisher, monad_bind_eq_bind, PMF.bind_apply, PMF.map_apply, tsum_bool,
     uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat]
@@ -117,14 +118,6 @@ private theorem guessOfDistinguisher_apply_add (d : Bool → PMF Bool) (b : Bool
       zero_add, add_zero]
     calc _ = 2⁻¹ * 2 * d true true + 2⁻¹ * (d false true + d false false) := by ring
       _ = _ := by rw [hd, h2, one_mul, mul_one]
-
-private theorem bind_apply_add_of_forall {α β : Type*} (μ : PMF α) {f g h : α → PMF β} {b : β}
-    {c : ℝ≥0∞} (hfg : ∀ x, f x b + g x b = h x b + c) :
-    μ.bind f b + μ.bind g b = μ.bind h b + c := by
-  simp only [PMF.bind_apply]
-  rw [← tsum_add]
-  simp_rw [← mul_add, hfg, mul_add]
-  rw [tsum_add, ENNReal.tsum_mul_right, μ.tsum_coe, one_mul]
 
 /-- **The distinguisher/predictor lemma** [Boneh and Shoup, Lemma 3.5][BonehShoup2023]. Draw `x`
 from `μ`. The guess `guessOfDistinguisher (d x)` equals `target x` with probability `1 / 2`, plus
@@ -250,11 +243,19 @@ variable {Seed : Type*} [Fintype Seed] [Nonempty Seed] {m : ℕ}
 
 /-- Attack Game 3.2 of [BonehShoup2023] at the fixed position `i`: the predictor receives the
 first `i` bits of the generator's output on a uniform seed, and the experiment outputs `true`
-exactly when the predictor's guess is bit `i`. -/
+exactly when the predictor's guess is bit `i`. This is `Cslib.Crypto.predictionExperiment` on
+`G.outputDist`, observing the first `i` bits and hiding bit `i`. -/
 noncomputable def Generator.predictionExperiment (G : Generator Seed (Fin m → Bool))
-    (i : Fin m) (predictor : Adversary (Fin i → Bool)) : PMF Bool := do
-  let y ← G.outputDist
-  (predictor (Fin.take i i.isLt.le y)).map fun g => decide (g = y i)
+    (i : Fin m) (predictor : Adversary (Fin i → Bool)) : PMF Bool :=
+  Crypto.predictionExperiment G.outputDist (Fin.take i i.isLt.le) (fun y => y i) predictor
+
+/-- The prediction experiment maps the predictor's guess on each output to its correctness. -/
+theorem Generator.predictionExperiment_eq_bind (G : Generator Seed (Fin m → Bool))
+    (i : Fin m) (predictor : Adversary (Fin i → Bool)) :
+    G.predictionExperiment i predictor = (do
+      let y ← G.outputDist
+      (predictor (Fin.take i i.isLt.le y)).map fun g => decide (g = y i)) :=
+  rfl
 
 /-- The advantage of a predictor in Attack Game 3.2 of [BonehShoup2023]: the distance of its
 probability of guessing bit `i` correctly from `1 / 2`. -/
@@ -367,10 +368,11 @@ theorem Generator.exists_div_le_predictionAdvantage (G : Generator Seed (Fin m �
       exact G.advantage_le_sum_predictionAdvantage adversary)
   exact ⟨i, hi⟩
 
-/-- **The next-bit theorem** in the one-sided form of [Arora and Barak, Chapter 9.][AroraBarak09] If
-`0 < m` and a test accepts in the real experiment with probability at least `ε` more than in the
-ideal experiment, then for some position `i` the predictor built from the test guesses bit `i`
-correctly with probability at least `1 / 2 + ε / m`. -/
+/-- A step of the next-bit theorem, in the one-sided form of
+[Arora and Barak, Chapter 9][AroraBarak09], for an arbitrary test: if `0 < m` and a test accepts in
+the real experiment with probability at least `ε` more than in the ideal experiment, then for some
+position `i` the predictor built from the test guesses bit `i` correctly with probability at least
+`1 / 2 + ε / m`. The cost of the predictor is not bounded here. -/
 theorem Generator.exists_half_add_div_le_predictionExperiment
     (G : Generator Seed (Fin m → Bool)) (adversary : Adversary (Fin m → Bool)) (hm : 0 < m)
     {ε : ℝ} (hε : ε ≤ (G.realExperiment adversary true).toReal -
@@ -381,23 +383,6 @@ theorem Generator.exists_half_add_div_le_predictionExperiment
   refine ⟨i, ?_⟩
   rw [G.toReal_predictionExperiment_nextBitPredictor]
   linarith
-
-/-- **Unpredictability implies security** [Boneh and Shoup, Theorem 3.6][BonehShoup2023]. If every
-admissible predictor has advantage at most `δ`, and the predictors built from admissible tests are
-admissible, then every admissible test has advantage at most `m * δ`. -/
-theorem Generator.Unpredictable.secure {G : Generator Seed (Fin m → Bool)}
-    {Admissible : Adversary (Fin m → Bool) → Prop}
-    {AdmissiblePredictor : (i : Fin m) → Adversary (Fin i → Bool) → Prop} {δ : ℝ≥0}
-    (hG : G.Unpredictable AdmissiblePredictor δ)
-    (hred : ∀ adversary, Admissible adversary →
-      ∀ i, AdmissiblePredictor i (nextBitPredictor adversary i)) :
-    G.Secure Admissible (m * δ) := by
-  intro adversary ha
-  calc G.advantage adversary
-      ≤ ∑ i, G.predictionAdvantage i (nextBitPredictor adversary i) :=
-        G.advantage_le_sum_predictionAdvantage adversary
-    _ ≤ ∑ _i : Fin m, (δ : ℝ) := Finset.sum_le_sum fun i _ => hG i _ (hred adversary ha i)
-    _ = ((m * δ : ℝ≥0) : ℝ) := by simp
 
 /-- The test built from a predictor for bit `i`, following the proof of
 [Boneh and Shoup, Theorem 3.4][BonehShoup2023]: run the predictor on the first `i` bits and accept
@@ -435,18 +420,6 @@ theorem Generator.advantage_predictionTest (G : Generator Seed (Fin m → Bool))
   rw [Generator.advantage, realExperiment_predictionTest,
     idealExperiment_predictionTest_apply_true, Generator.predictionAdvantage]
   norm_num
-
-/-- **Security implies unpredictability** [Boneh and Shoup, Theorem 3.4][BonehShoup2023]. If every
-admissible test has advantage at most `ε`, and the tests built from admissible predictors are
-admissible, then every admissible predictor has advantage at most `ε`. -/
-theorem Generator.Secure.unpredictable {G : Generator Seed (Fin m → Bool)}
-    {Admissible : Adversary (Fin m → Bool) → Prop}
-    {AdmissiblePredictor : (i : Fin m) → Adversary (Fin i → Bool) → Prop} {ε : ℝ≥0}
-    (hG : G.Secure Admissible ε)
-    (hred : ∀ i predictor, AdmissiblePredictor i predictor →
-      Admissible (predictionTest i predictor)) :
-    G.Unpredictable AdmissiblePredictor ε := fun i predictor h =>
-  G.advantage_predictionTest i predictor ▸ hG _ (hred i predictor h)
 
 end Prediction
 

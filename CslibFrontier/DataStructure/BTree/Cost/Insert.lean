@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.BTree.Cost.Query
 public import CslibFrontier.DataStructure.BTree.Insert
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Node-visit cost of B-tree insertion
@@ -44,6 +45,8 @@ open Cslib.Algorithms.Lean.TimeM (tick)
 
 namespace Cslib.DataStructure.BTree
 
+open Cslib.SortedAssoc (leI)
+
 section NodeVisits
 
 variable {α β : Type} [LinearOrder α] {t : ℕ} {k : α} {v : β} {tr : BTree α β}
@@ -57,7 +60,7 @@ theorem insertT_def : insertT t k v tr = insertM t leT (tick 1) k v tr := (rfl)
 
 /-- The value of `insertT` is `insert`. -/
 @[simp] theorem ret_insertT : (insertT t k v tr).ret = insert t k v tr := by
-  simpa only [insert_def, insertT, leI, Id.run_pure, TimeM.ret_pure, TimeM.ret_tick] using
+  simpa only [insert_def, insertT, leI, Id.run_pure, time_simps] using
     Id.ext_iff.1 (TimeM.isMonadHom_pure_ret.map_insertM t leT (tick 1) k v tr)
 
 /-- Insertion visits exactly the nodes that the bottom-up insertion into the tree visits: growing
@@ -96,7 +99,7 @@ theorem time_insertOrSplitM_le (tr : BTree α β) :
     have h₃ := time_insertRestM_eq_zero_of_ret_eq_none (t := t) (k := k) (v := v) (rest := rest)
     have e : first.height + 1 ≤ (node first rest).height := height_first_succ_le
     rw [height_node] at e ⊢
-    simp only [insertOrSplitM_node, TimeM.time_bind, TimeM.time_tick]
+    simp only [insertOrSplitM_node, time_simps]
     split <;> simp_all <;> omega
 termination_by sizeOf tr
 

@@ -85,16 +85,11 @@ def efficiencyKey (statement : Expr) : MetaM (Name × Name × Bool) := do
   let some predicate := statement.getAppFn.constName?
     | throwError "expected an efficiency statement"
   unless predicate == `Turing.MultiTapeTM.ComputableInPolyTime ||
-      predicate == `Turing.MultiTapeTM.ComputableTidilyInPolyTime ||
       predicate == `Turing.MultiTapeTM.ComputableInLogSpace ||
-      predicate == `Cslib.Probability.IsPPTOn || predicate == `Cslib.Probability.IsPPT ||
-      predicate == `Cslib.WordRAM.Refines ||
-      predicate == `Cslib.WordRAM.ComputableInPolyTime ||
-      predicate == `Cslib.WordRAM.UniformComputableInPolyTime do
+      predicate == `Cslib.Probability.IsPPTOn || predicate == `Cslib.Probability.IsPPT do
     throwError "unsupported efficiency predicate `{predicate}` for `program_certificate`; \
-      expected TM polynomial time or logarithmic space, PPT, or a documented word-RAM certificate"
-  let argument := if predicate == `Turing.MultiTapeTM.ComputableTidilyInPolyTime ||
-      predicate == `Turing.MultiTapeTM.ComputableInLogSpace ||
+      expected TM polynomial time or logarithmic space, or PPT"
+  let argument := if predicate == `Turing.MultiTapeTM.ComputableInLogSpace ||
       predicate == `Turing.MultiTapeTM.ComputableInPolyTime then
     statement.getAppArgs[2]! else statement.getAppArgs.back!
   let program ← Core.betaReduce (← etaExpand argument)
@@ -148,12 +143,11 @@ private def hasGlobalFunProp (decl : Name) : CoreM Bool := do
     (← hasGlobalEntry transitionTheoremsExt (·.thmName) decl)
 
 /-- `@[program_certificate]` registers an efficiency certificate for `polytime`, `logspace`
-and `ppt`. Its conclusion must be a `ComputableInPolyTime`, `ComputableTidilyInPolyTime`,
-`ComputableInLogSpace`, `IsPPTOn` or `IsPPT` statement, or one of the word-RAM predicates
-`WordRAM.Refines`, `WordRAM.ComputableInPolyTime`,
-`WordRAM.UniformComputableInPolyTime` used by `Tactic.WordRAM`. The indexed argument must apply
+and `ppt`. Its conclusion must be a `ComputableInPolyTime`,
+`ComputableInLogSpace`, `IsPPTOn` or `IsPPT` statement. The indexed argument must apply
 a constant, possibly under an output encoding. Other predicates are rejected rather than indexed
-by an unrelated final argument.
+by an unrelated final argument. Word-RAM efficiency statements are `fun_prop` predicates; tag
+their certificates `@[fun_prop]` instead.
 Certificates are also registered with `fun_prop` for use in larger compositions, unless the same
 declaration already has a global registration.
 
@@ -174,8 +168,7 @@ initialize registerBuiltinAttribute {
       let key ← forallTelescope (← getConstInfo certificate).type fun _ conclusion =>
         efficiencyKey conclusion
       return (certificate, key)
-    if key.1 == `Turing.MultiTapeTM.ComputableTidilyInPolyTime ||
-        key.1 == `Turing.MultiTapeTM.ComputableInPolyTime ||
+    if key.1 == `Turing.MultiTapeTM.ComputableInPolyTime ||
         key.1 == `Turing.MultiTapeTM.ComputableInLogSpace ||
         key.1 == `Cslib.Probability.IsPPTOn then
       unless ← hasGlobalFunProp certificate do
@@ -206,7 +199,9 @@ def solveTagged (name : Name) : TacticM Unit := do
         (rule_sets := [LogSpace]))
   else
     `(tactic| solve |
-      aesop (config := { terminal := true, assumptionTransparency := .reducible })
+      aesop
+        (config :=
+          { terminal := true, enableSimp := false, assumptionTransparency := .reducible })
         (rule_sets := [PolyTime]))
   let remaining ← evalTacticAt tactic goal
   unless remaining.isEmpty do throwError "proof search did not discharge `{name}`"

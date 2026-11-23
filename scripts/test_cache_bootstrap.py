@@ -17,6 +17,14 @@ with open(os.environ["BOOTSTRAP_LOG"], "a") as log:
     log.write(json.dumps({"kind": "fetch", "cwd": os.getcwd()}) + "\n")
 sys.exit(int(os.environ.get("BOOTSTRAP_FETCH_EXIT", "0")))
 '''
+# Stands in for scripts/full_check.py, whose steps test_full_check.py covers: it records its
+# arguments and returns the status of one build, so a failing gate still fails check.sh.
+FAKE_FULL_CHECK = r'''#!/usr/bin/env python3
+import json, os, subprocess, sys
+with open(os.environ["BOOTSTRAP_LOG"], "a") as log:
+    log.write(json.dumps({"kind": "full", "args": sys.argv[1:]}) + "\n")
+sys.exit(1 if subprocess.run(["lake", "build", "--wfail", "--iofail"]).returncode else 0)
+'''
 FAKE_LAKE = r'''#!/usr/bin/env python3
 import json, os, pathlib, re, sys
 args = sys.argv[1:]
@@ -50,16 +58,20 @@ class CacheBootstrapTests(unittest.TestCase):
                          "BOOTSTRAP_LOG": str(self.log)})
         self.git("init", "-q")
         for name in ("scripts/build.sh", "scripts/check.sh", "scripts/quick_check.py",
+                     "scripts/check_progress.py", "scripts/ci/select_checks.py",
                      "scripts/cache/ensure.sh", "scripts/cache/bounded.py", "scripts/cache/restore.py", "scripts/cache/windows_job.py"):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(REPO / name, path)
         # These mini-checkouts exercise cache dispatch with only a Demo library. The real
-        # manual preflight and its failure behavior are covered in test_quick_check.py.
-        for name in ("scripts/check_operator_manual.py", "scripts/test_operator_manual.py"):
+        # manual preflight and its failure behavior are covered in test_quick_check.py, and the
+        # cache-restore audit in test_check_cache_restores.py.
+        for name in ("scripts/check_operator_manual.py", "scripts/test_operator_manual.py",
+                     "scripts/check_vm_map_count.py", "scripts/check_cache_restores.py"):
             self.write(name, "raise SystemExit(0)\n")
+        self.write("scripts/full_check.py", FAKE_FULL_CHECK)
         self.write("scripts/cache/get.sh", FAKE_FETCH).chmod(0o755)
-        self.write(".gitignore", ".lake/\n")
+        self.write(".gitignore", ".lake/\n__pycache__/\n")
         self.write("lean-toolchain", "leanprover/lean4:v4.36.0-rc1\n")
         self.write("lake-manifest.json", '{"packages": []}\n')
         self.write("lakefile.toml", 'name = "fixture"\n[[lean_lib]]\nname = "Demo"\n')
@@ -118,10 +130,9 @@ class CacheBootstrapTests(unittest.TestCase):
         self.assert_success(self.run_script("build.sh", "Demo.Client"))
         self.assert_success(self.run_script("check.sh"))
         self.assertEqual(self.fetch_count(), 1)
-        self.assertEqual([e["args"] for e in self.events() if e["kind"] == "lake"][-6:], [
-            ["build", "--wfail", "--iofail"], ["exe", "mk_all", "--check"],
-            ["test", "--wfail", "--iofail"], ["lint"], ["exe", "lint-style"],
-            ["exe", "checkInitImports"]])
+        self.assertEqual([(e["kind"], e["args"]) for e in self.events()
+                          if e["kind"] in ("full", "lake")][-2:], [
+            ("full", ["--base", "origin/main"]), ("lake", ["build", "--wfail", "--iofail"])])
 
     def test_quick_check_restores_before_lean_header_inspection_and_build(self):
         self.write("Demo/Base.lean", "def value := 2\n")
@@ -138,10 +149,9 @@ class CacheBootstrapTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("falls back", result.stdout)
         self.assertEqual(self.fetch_count(), 1)
-        commands = [e["args"] for e in self.events() if e["kind"] == "lake"]
-        self.assertEqual(len(commands), 6)
-        self.assertEqual(commands[0], ["build", "--wfail", "--iofail"])
-        self.assertEqual(commands[-1], ["exe", "checkInitImports"])
+        self.assertEqual([(e["kind"], e["args"]) for e in self.events()
+                          if e["kind"] in ("full", "lake")][-2:], [
+            ("full", ["--base", "origin/main"]), ("lake", ["build", "--wfail", "--iofail"])])
 
     def test_configuration_revision_endpoint_and_cache_directory_each_invalidate(self):
         self.assert_success(self.run_script("cache/ensure.sh"))
@@ -169,9 +179,17 @@ class CacheBootstrapTests(unittest.TestCase):
             self.assertEqual(self.fetch_count(), count)
 
     def test_working_proof_edits_do_not_trigger_another_download(self):
-        self.assert_success(self.run_script("cache/ensure.sh"))
+        initial = self.run_script("cache/ensure.sh")
+        self.assert_success(initial)
+        self.assertIn("attempting optional downloads", initial.stdout)
+        self.assertIn("attempt finished in", initial.stdout)
+        self.assertIn("does not certify a cache hit", initial.stdout)
         self.write("Demo/Base.lean", "def value := 2\n")
-        self.assert_success(self.run_script("cache/ensure.sh"))
+        repeated = self.run_script("cache/ensure.sh")
+        self.assert_success(repeated)
+        self.assertIn("skipping repeated attempt", repeated.stdout)
+        self.assertIn("previous fetch exit 0", repeated.stdout)
+        self.assertIn("does not certify a cache hit", repeated.stdout)
         self.assertEqual(self.fetch_count(), 1)
 
     def test_force_and_ten_minute_expiry_retry_same_checkout(self):
@@ -186,7 +204,10 @@ class CacheBootstrapTests(unittest.TestCase):
 
     def test_failed_fetch_falls_back_and_can_be_retried_explicitly(self):
         self.assert_success(self.run_script("build.sh", BOOTSTRAP_FETCH_EXIT="17"))
-        self.assert_success(self.run_script("build.sh", BOOTSTRAP_FETCH_EXIT="17"))
+        repeated = self.run_script("build.sh", BOOTSTRAP_FETCH_EXIT="17")
+        self.assert_success(repeated)
+        self.assertIn("previous fetch exit 17", repeated.stdout)
+        self.assertIn("does not certify a cache hit", repeated.stdout)
         self.assertEqual(self.fetch_count(), 1)
         self.assertEqual(json.loads(self.stamp.read_text())["fetch_exit_code"], 17)
         self.assert_success(self.run_script("cache/ensure.sh", "--refresh"))

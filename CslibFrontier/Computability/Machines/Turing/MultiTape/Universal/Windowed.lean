@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Machine
+import CslibFrontier.Foundations.Data.List.Lookup
+import Mathlib.Data.List.GetD
 
 /-!
 # Windowed simulation
@@ -129,24 +131,15 @@ private lemma getD_tail' (l : List (Option ℕ)) (m : ℕ) :
 
 private lemma getD_drop' (l : List (Option ℕ)) (k m : ℕ) :
     (l.drop k).getD m none = l.getD (k + m) none := by
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_drop]
+  rcases Nat.lt_or_ge (k + m) l.length with h | h
+  · rw [List.getD_eq_getElem _ _ (by simp; omega), List.getElem_drop, List.getD_eq_getElem _ _ h]
+  · rw [List.getD_eq_default _ _ (by simp; omega), List.getD_eq_default _ _ h]
 
 private lemma getD_take' (l : List (Option ℕ)) (k m : ℕ) :
     (l.take k).getD m none = if m < k then l.getD m none else none := by
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_take]
-  split_ifs <;> rfl
-
-private lemma getD_append_left' {A B : List (Option ℕ)} {m : ℕ} (h : m < A.length) :
-    (A ++ B).getD m none = A.getD m none := by
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_append_left h]
-
-private lemma getD_append_right' {A B : List (Option ℕ)} {m : ℕ} (h : A.length ≤ m) :
-    (A ++ B).getD m none = B.getD (m - A.length) none := by
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_append_right h]
-
-private lemma getD_eq_none' {l : List (Option ℕ)} {m : ℕ} (h : l.length ≤ m) :
-    l.getD m none = none := by
-  simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none h]
+  split_ifs with hmk
+  · simpa only [List.drop_zero, Nat.zero_add] using (List.getD_take_drop l 0 hmk none)
+  · exact List.getD_eq_default _ _ (by simp; omega)
 
 private lemma cellAt_of_nonneg (t : Tape) {i : ℤ} (h : 0 ≤ i) :
     cellAt t i = t.right.getD i.toNat none := by
@@ -209,8 +202,6 @@ private lemma cellAt_apply (t : Tape) (a : Option (Option ℕ) × SignType) (h z
   · simp
   · simp [cellAt_write, sub_eq_zero]
 
-private lemma apply_none_zero (t : Tape) : t.apply (none, 0) = t := rfl
-
 private lemma length_left_apply (t : Tape) (a : Option (Option ℕ) × SignType)
     (h : 1 ≤ t.left.length) : ((t.apply a).left.length : ℤ) = t.left.length + a.2 := by
   obtain ⟨_ | o, _ | _ | _⟩ := a <;>
@@ -236,24 +227,24 @@ private lemma getD_append_drop {A B : List (Option ℕ)} {k : ℕ} {s : ℤ}
     (A ++ B.drop k).getD m none =
       if (m : ℤ) + s < k then A.getD m none else B.getD (m + s).toNat none := by
   by_cases hm : m < A.length
-  · rw [getD_append_left' hm]
+  · rw [List.getD_append _ _ _ _ hm]
     split_ifs with h
     · rfl
     · rw [hA m (by omega)]
       by_cases hb : k ≤ B.length
       · have := hk hb
         omega
-      · rw [getD_eq_none' (by omega)]
-  · rw [getD_append_right' (by omega), getD_drop', getD_eq_none' (l := A) (by omega)]
+      · rw [List.getD_eq_default _ _ (by omega)]
+  · rw [List.getD_append_right _ _ _ _ (by omega), getD_drop', List.getD_eq_default A _ (by omega)]
     by_cases hb : k ≤ B.length
     · have := hk hb
       rw [ite_eq_right (by omega)]
       congr 1
       omega
-    · rw [getD_eq_none' (by omega)]
+    · rw [List.getD_eq_default _ _ (by omega)]
       split_ifs
       · rfl
-      · rw [getD_eq_none' (by omega)]
+      · rw [List.getD_eq_default _ _ (by omega)]
 
 private lemma cellAt_paste {r : ℕ} {O I : Tape} {h h' : ℤ} (h₁ : h - r ≤ h') (h₂ : h' ≤ h + r)
     (hL : r ≤ O.left.length → (I.left.length : ℤ) + h = r + h')
@@ -293,16 +284,13 @@ private def act (d : Desc) : Option ℕ → Option ℕ → List (Option ℕ) →
     | none => ⟨.zero, [], none, none⟩
     | some e => e.2
 
-private lemma applyTapes_nil' (ts : List Tape) : applyTapes ts [] = ts := by
-  cases ts <;> rfl
-
 private lemma getElem?_applyTapes (ts : List Tape) (as : List (Option (Option ℕ) × SignType))
     (k : ℕ) : (applyTapes ts as)[k]? = ts[k]?.map (·.apply (as.getD k (none, .zero))) := by
   induction ts generalizing as k with
   | nil => rfl
   | cons t ts ih =>
     cases as with
-    | nil => simp [applyTapes, apply_none_zero]
+    | nil => simp [applyTapes, Tape.apply_none_zero]
     | cons a as => cases k <;> simp [applyTapes, ih]
 
 private lemma stepWith_eq (d : Desc) (c : SCfg) (a : Option ℕ) :
@@ -311,9 +299,9 @@ private lemma stepWith_eq (d : Desc) (c : SCfg) (a : Option ℕ) :
       applyTapes c.workTapes (act d c.state a (c.workTapes.map Tape.read)).workTapes⟩,
       (act d c.state a (c.workTapes.map Tape.read)).output) := by
   obtain ⟨_ | q, p, ts⟩ := c
-  · simp [stepWith, act, moveInput, applyTapes_nil']
+  · simp [stepWith, act, moveInput, applyTapes_nil_right]
   · simp only [stepWith, act]
-    split <;> (rename_i h; simp [h, moveInput, applyTapes_nil'])
+    split <;> (rename_i h; simp [h, moveInput, applyTapes_nil_right])
 
 private lemma wstep_eq (d : Desc) (q : Option ℕ) (i : Tape) (ts : List Tape) :
     wstep d (q, i :: ts) =
@@ -504,21 +492,6 @@ private lemma tr_comp {n r s : ℕ} (hn : r + s = n) {W I J : Tape} {F F₁ F₂
 
 /-! ### Correctness of the windowed simulation -/
 
-private theorem sim_induction {motive : ℕ → Prop} (zero : motive 0) (one : motive 1)
-    (step : ∀ n, (∀ m < n + 2, motive m) → motive (n + 2)) (n : ℕ) : motive n := by
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-    match n, ih with
-    | 0, _ => exact zero
-    | 1, _ => exact one
-    | n + 2, ih => exact step n ih
-
-private lemma sim_zero (d : Desc) (w : Win) : sim d 0 w = (w, []) := by
-  rw [sim]
-
-private lemma sim_one (d : Desc) (w : Win) : sim d 1 w = ((wstep d w).1, (wstep d w).2.toList) := by
-  rw [sim]
-
 /-- The windowed simulation of `n + 2` steps: the first half on cut windows, pasted back, then the
 second half. -/
 theorem sim_add_two (d : Desc) (n : ℕ) (w : Win) :
@@ -598,17 +571,18 @@ private theorem sim_spec (d : Desc) (x : List ℕ) (n : ℕ) : ∀ (c : SCfg) (w
     ∀ (k : ℕ) W F W' F', w.2[k]? = some W → (view x c)[k]? = some F →
       (sim d n w).1.2[k]? = some W' →
       (view x (run d x n c).1)[k]? = some F' → Tr n W F W' F' := by
-  induction n using sim_induction with
-  | zero =>
-    intro c w hq _ hagr
-    rw [sim_zero]
+  intro c w
+  revert c
+  fun_induction sim d n w with
+  | case1 w => -- 0 steps
+    intro c hq _ hagr
     refine ⟨rfl, hq, rfl, fun k W F W' F' hW hF hW' hF' => ?_⟩
     change (view x c)[k]? = some F' at hF'
     obtain rfl : W' = W := Option.some.inj (hW'.symm.trans hW)
     obtain rfl : F' = F := Option.some.inj (hF'.symm.trans hF)
     exact tr_zero (hagr k W' F' hW hF)
-  | one =>
-    rintro ⟨q, p, ts⟩ ⟨st, _ | ⟨i, ws⟩⟩ hq hlen hagr
+  | case2 w => -- 1 step: `wstep`
+    obtain ⟨st, _ | ⟨i, ws⟩⟩ := w <;> rintro ⟨q, p, ts⟩ hq hlen hagr
     · simp [view] at hlen
     simp only at hq
     subst hq
@@ -649,7 +623,7 @@ private theorem sim_spec (d : Desc) (x : List ℕ) (n : ℕ) : ∀ (c : SCfg) (w
     have hrun : run d x 1 ⟨st, p, ts⟩ =
         ((step d x ⟨st, p, ts⟩).1, (step d x ⟨st, p, ts⟩).2.toList) := by
       simp [run, stepOut]
-    rw [sim_one, hw, hrun, hstep]
+    rw [hw, hrun, hstep]
     refine ⟨rfl, rfl, by simp [length_applyTapes_eq], fun k W F W' F' hW hF hW' hF' => ?_⟩
     rcases k with _ | k
     · simp only [List.getElem?_cons_zero, view, Option.some.injEq] at hW hF hW' hF'
@@ -669,15 +643,15 @@ private theorem sim_spec (d : Desc) (x : List ℕ) (n : ℕ) : ∀ (c : SCfg) (w
       cases ht''
       rw [realView_apply]
       exact tr_apply (hws k W t hW ht) _
-  | step n ih =>
-    intro c w hq hlen hagr
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
+    intro c hq hlen hagr
     have hrs : firstHalf (n + 2) + (n + 2) / 2 = n + 2 := by simp only [firstHalf]; omega
-    have hr : firstHalf (n + 2) < n + 2 := by simp only [firstHalf]; omega
-    have hs : (n + 2) / 2 < n + 2 := by omega
-    rw [sim_add_two]
-    generalize firstHalf (n + 2) = r at hrs hr ⊢
-    generalize (n + 2) / 2 = s at hrs hs ⊢
-    obtain ⟨o₁, q₁, l₁, t₁⟩ := ih r hr c (extract r w) hq (by simpa [extract] using hlen)
+    rw [show n.succ.succ = n + 2 from rfl] at hagr ⊢
+    simp only [r₂, w₁, r₁] at ih₂ ⊢
+    clear r₂ w₁ r₁
+    generalize firstHalf (n + 2) = r at hrs ih₁ ih₂ ⊢
+    generalize (n + 2) / 2 = s at hrs ih₂ ⊢
+    obtain ⟨o₁, q₁, l₁, t₁⟩ := ih₁ c hq (by simpa [extract] using hlen)
       (fun k W F hW hF => by
         simp only [extract, List.getElem?_map, Option.map_eq_some_iff] at hW
         obtain ⟨W₀, hW₀, rfl⟩ := hW
@@ -688,8 +662,7 @@ private theorem sim_spec (d : Desc) (x : List ℕ) (n : ℕ) : ∀ (c : SCfg) (w
       rw [hle]
       simp only [restore, List.length_zipWith, l₁, hle, length_view_run]
       omega
-    obtain ⟨o₂, q₂, l₂, t₂⟩ := ih s hs (run d x r c).1 (extract s (restore r w (sim d r
-      (extract r w)).1)) q₁ hlen₁ (fun k W F₁ hW hF₁ => by
+    obtain ⟨o₂, q₂, l₂, t₂⟩ := ih₂ (run d x r c).1 q₁ hlen₁ (fun k W F₁ hW hF₁ => by
         simp only [extract, restore, List.getElem?_map, Option.map_eq_some_iff,
           List.getElem?_zipWith_eq_some] at hW
         obtain ⟨_, ⟨W₀, I, hW₀, hI, rfl⟩, rfl⟩ := hW
@@ -713,13 +686,15 @@ private theorem sim_spec (d : Desc) (x : List ℕ) (n : ℕ) : ∀ (c : SCfg) (w
 private lemma cellAt_initWin_input (x : List ℕ) (z : ℤ) :
     cellAt ⟨0, [some 0], x.map fun a => some (a + 1)⟩ (z - (1 : ℕ)) = inCell x z := by
   rcases lt_trichotomy z 0 with hz | rfl | hz
-  · rw [cellAt_of_neg _ (by omega), getD_eq_none' (by simp; omega)]
+  · rw [cellAt_of_neg _ (by omega), List.getD_eq_default _ _ (by simp; omega)]
     simp [inCell, show z ≠ 0 by omega, show ¬0 < z by omega]
   · simp [cellAt, inCell]
   · rw [cellAt_of_nonneg _ (by omega)]
-    simp only [Nat.cast_one, Int.pred_toNat, List.getD_eq_getElem?_getD, List.getElem?_map,
-      inCell, show z ≠ 0 by omega, ↓reduceIte, hz]
-    cases x[z.toNat - 1]? <;> simp
+    simp only [Nat.cast_one, Int.pred_toNat, inCell, show z ≠ 0 by omega, ↓reduceIte, hz]
+    rcases Nat.lt_or_ge (z.toNat - 1) x.length with h | h
+    · rw [List.getD_eq_getElem _ _ (by simp [h]), List.getElem_map, List.getElem?_eq_getElem h,
+        Option.map_some]
+    · rw [List.getD_eq_default _ _ (by simp [h]), List.getElem?_eq_none h, Option.map_none]
 
 /-- **The windowed simulation computes the universal function**: started from the radius-`t`
 windows of the initial configuration, `t` windowed steps give the output and the halting status
@@ -769,17 +744,15 @@ private lemma act_cases (d : Desc) (q a : Option ℕ) (rs : List (Option ℕ)) :
 
 /-- The windowed simulation keeps the number of windows. -/
 theorem length_sim (d : Desc) (n : ℕ) (w : Win) : (sim d n w).1.2.length = w.2.length := by
-  induction n using sim_induction generalizing w with
-  | zero => rw [sim_zero]
-  | one =>
-    rw [sim_one]
+  fun_induction sim d n w with
+  | case1 => rfl -- 0 steps
+  | case2 w => -- 1 step: `wstep`
     obtain ⟨q, _ | ⟨i, ws⟩⟩ := w
     · rfl
     · simp [wstep_eq, length_applyTapes_eq]
-  | step n ih =>
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     have hle : ∀ r w, (extract r w).2.length = w.2.length := by simp [extract]
-    rw [sim_add_two, length_restore, ih _ (by omega), hle, length_restore, ih _ (by
-      simp only [firstHalf]; omega), hle]
+    simp only [r₂, w₁, r₁, length_restore, ih₁, ih₂, hle]
     omega
 
 private lemma length_apply_le (t : Tape) (a : Option (Option ℕ) × SignType) :
@@ -792,13 +765,12 @@ list, which holds the cell under the head, counts as at least one cell. -/
 theorem length_sim_le (d : Desc) (n : ℕ) (w : Win) {k : ℕ} {W W' : Tape}
     (hW : w.2[k]? = some W) (hW' : (sim d n w).1.2[k]? = some W') :
     W'.left.length ≤ W.left.length + n ∧ W'.right.length ≤ max W.right.length 1 + n := by
-  induction n using sim_induction generalizing w k W W' with
-  | zero =>
-    rw [sim_zero, hW, Option.some.injEq] at hW'
+  fun_induction sim d n w generalizing k W W' with
+  | case1 w => -- 0 steps
+    rw [hW, Option.some.injEq] at hW'
     subst hW'
     omega
-  | one =>
-    rw [sim_one] at hW'
+  | case2 w => -- 1 step: `wstep`
     obtain ⟨q, _ | ⟨i, ws⟩⟩ := w
     · simp at hW
     rw [wstep_eq] at hW'
@@ -815,15 +787,13 @@ theorem length_sim_le (d : Desc) (n : ℕ) (w : Win) {k : ℕ} {W W' : Tape}
         Option.some.injEq] at hW'
       subst hW'
       exact length_apply_le W _
-  | step n ih =>
-    rw [sim_add_two, getElem?_restore_eq_some] at hW'
-    obtain ⟨P, J, hP, hJ, rfl⟩ := hW'
-    rw [getElem?_restore_eq_some] at hP
-    obtain ⟨W₀, I, hW₀, hI, rfl⟩ := hP
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
+    obtain ⟨P, J, hP, hJ, rfl⟩ := getElem?_restore_eq_some.mp hW'
+    obtain ⟨W₀, I, hW₀, hI, rfl⟩ := getElem?_restore_eq_some.mp hP
     rw [hW, Option.some.injEq] at hW₀
     subst hW₀
-    have h₁ := ih _ (by simp only [firstHalf]; omega) _ (getElem?_extract hW) hI
-    have h₂ := ih _ (by omega) _ (getElem?_extract (getElem?_restore hW hI)) hJ
+    have h₁ := ih₁ (getElem?_extract hW) hI
+    have h₂ := ih₂ (getElem?_extract (getElem?_restore hW hI)) hJ
     simp only [cut, paste, firstHalf, List.length_append, List.length_drop,
       List.length_take] at h₁ h₂ ⊢
     omega
@@ -902,10 +872,9 @@ theorem sim_cells (d : Desc) (S : Option ℕ → Prop) (h0 : S none)
     ∀ W ∈ (sim d n w).1.2, ∀ o ∈ W.left ++ W.right, S o := by
   change ∀ W ∈ (sim d n w).1.2, Cells S W
   change ∀ W ∈ w.2, Cells S W at hw
-  induction n using sim_induction generalizing w with
-  | zero => rwa [sim_zero]
-  | one =>
-    rw [sim_one]
+  fun_induction sim d n w with
+  | case1 => exact hw -- 0 steps
+  | case2 w => -- 1 step: `wstep`
     obtain ⟨q, _ | ⟨i, ws⟩⟩ := w
     · exact hw
     rw [wstep_eq]
@@ -919,7 +888,7 @@ theorem sim_cells (d : Desc) (S : Option ℕ → Prop) (h0 : S none)
     · rcases act_cases d q (inSym i.read) (ws.map Tape.read) with h | ⟨e, he, h⟩ <;> rw [h]
       · simp
       · exact htable e he
-  | step n ih =>
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     have hr : ∀ r w, (∀ W ∈ w.2, Cells S W) → ∀ W ∈ (extract r w).2, Cells S W :=
       fun r w hw W hW => by
         simp only [extract, List.mem_map] at hW
@@ -930,36 +899,30 @@ theorem sim_cells (d : Desc) (S : Option ℕ → Prop) (h0 : S none)
       obtain ⟨k, hk⟩ := List.mem_iff_getElem?.1 hW
       obtain ⟨O, I, hO, hI, rfl⟩ := getElem?_restore_eq_some.1 hk
       exact cells_paste (ho O (List.mem_of_getElem? hO)) (hi I (List.mem_of_getElem? hI)) r
-    rw [sim_add_two]
-    have h₁ := hp (firstHalf (n + 2)) w _ hw (ih (firstHalf (n + 2))
-      (by simp only [firstHalf]; omega) _ (hr (firstHalf (n + 2)) w hw))
-    exact hp _ _ _ h₁ (ih ((n + 2) / 2) (by omega) _ (hr _ _ h₁))
+    have h₁ : ∀ W ∈ w₁.2, Cells S W := hp _ w _ hw (ih₁ (hr _ w hw))
+    exact hp _ _ _ h₁ (ih₂ (hr _ _ h₁))
 
 /-- The state after the windowed simulation is the state before it, the halting state, or the next
 state of a transition. -/
 theorem sim_state (d : Desc) (T : Option ℕ → Prop) (h0 : T none)
     (htable : ∀ e ∈ d.table, T e.2.state) (n : ℕ) (w : Win) (hw : T w.1) : T (sim d n w).1.1 := by
-  induction n using sim_induction generalizing w with
-  | zero => rwa [sim_zero]
-  | one =>
-    rw [sim_one]
+  fun_induction sim d n w with
+  | case1 => exact hw -- 0 steps
+  | case2 w => -- 1 step: `wstep`
     obtain ⟨q, _ | ⟨i, ws⟩⟩ := w
     · exact hw
     rw [wstep_eq]
     rcases act_cases d q (inSym i.read) (ws.map Tape.read) with h | ⟨e, he, h⟩ <;> rw [h]
     · exact h0
     · exact htable e he
-  | step n ih =>
-    rw [sim_add_two]
-    exact ih _ (by omega) _ (ih _ (by simp only [firstHalf]; omega) _ hw)
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => exact ih₂ (ih₁ hw) -- n + 2 steps: first half, then second half
 
 /-- Every symbol emitted by the windowed simulation is the output of a transition. -/
 theorem sim_output (d : Desc) (n : ℕ) (w : Win) :
     ∀ o ∈ (sim d n w).2, ∃ e ∈ d.table, e.2.output = some o := by
-  induction n using sim_induction generalizing w with
-  | zero => simp [sim_zero]
-  | one =>
-    rw [sim_one]
+  fun_induction sim d n w with
+  | case1 => simp -- 0 steps
+  | case2 w => -- 1 step: `wstep`
     obtain ⟨q, _ | ⟨i, ws⟩⟩ := w
     · simp [wstep]
     rw [wstep_eq]
@@ -967,11 +930,8 @@ theorem sim_output (d : Desc) (n : ℕ) (w : Win) :
     · simp
     · intro o ho
       exact ⟨e, he, by simpa using ho⟩
-  | step n ih =>
-    rw [sim_add_two]
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     intro o ho
-    rcases List.mem_append.1 ho with ho | ho
-    · exact ih _ (by simp only [firstHalf]; omega) _ o ho
-    · exact ih _ (by omega) _ o ho
+    exact (List.mem_append.1 ho).elim (ih₁ o) (ih₂ o)
 
 end Turing.MultiTapeTM.Universal.Windowed
