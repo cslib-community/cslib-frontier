@@ -6101,6 +6101,9 @@ public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordReduction
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordSecurity
 public import CslibFrontier.Crypto.Protocols.KEM.MLKEM
 public import CslibFrontier.Crypto.Protocols.MAC.CarterWegman
+public import CslibFrontier.Crypto.Protocols.MAC.CarterWegman.Instantiations
+public import CslibFrontier.Crypto.Protocols.MAC.CarterWegman.Nonce
+public import CslibFrontier.Crypto.Protocols.MAC.CarterWegman.RandomNonce
 public import CslibFrontier.Crypto.Protocols.MAC.GHASH
 public import CslibFrontier.Crypto.Protocols.MAC.OneTime
 public import CslibFrontier.Crypto.Protocols.MAC.PolynomialEvaluation
