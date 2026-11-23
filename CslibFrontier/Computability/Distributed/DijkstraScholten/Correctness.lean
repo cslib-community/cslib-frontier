@@ -345,21 +345,6 @@ theorem Reachable.attach_iff {P : Type*} [DecidableEq P] {root : P} {s : State P
   · rintro ⟨hdst, _, _, hpar⟩
     exact ⟨hdst, hpar⟩
 
-private theorem inFlightBasicFrom_cons {P : Type*} [DecidableEq P] (m : BasicMsg P)
-    (ms : Multiset (BasicMsg P)) (p : P) :
-    ((m ::ₘ ms).filter fun x => x.src = p).card =
-      (if m.src = p then 1 else 0) + (ms.filter fun x => x.src = p).card := by
-  by_cases h : m.src = p
-  · simp [Multiset.filter_cons_of_pos, h, Nat.add_comm]
-  · simp [Multiset.filter_cons_of_neg, h]
-
-private theorem inFlightSignalTo_cons {P : Type*} [DecidableEq P] (q : P)
-    (sigs : Multiset P) (p : P) :
-    (q ::ₘ sigs).count p = (if q = p then 1 else 0) + sigs.count p := by
-  by_cases h : q = p
-  · subst h; simp [Nat.add_comm]
-  · simp [Multiset.count_cons_of_ne (Ne.symm h), h]
-
 private theorem deficit_eq_of_update_same_deficit {P : Type*} [DecidableEq P] (s : State P)
     (u : P) (act : Bool) (par : Option P) (q : P) :
     (Function.update s.proc u { active := act, deficit := (s.proc u).deficit, parent := par }
@@ -436,8 +421,8 @@ private theorem trInv_deficit_conservation {P : Type*} [Fintype P] [DecidableEq 
     have hcons := hinv p
     have hbasic : (s.sendBasicState src dst).inFlightBasicFrom p =
         (if src = p then 1 else 0) + s.inFlightBasicFrom p := by
-      simpa [State.inFlightBasicFrom, State.sendBasicState] using
-        inFlightBasicFrom_cons ⟨src, dst⟩ s.basicMsgs p
+      simp only [State.inFlightBasicFrom, State.sendBasicState, Multiset.filter_cons,
+        Multiset.card_add, apply_ite Multiset.card, Multiset.card_singleton, Multiset.card_zero]
     have hchild : (s.sendBasicState src dst).children root p = s.children root p :=
       children_congr
         (parent_eq_of_update_same_parent s src (s.proc src).active ((s.proc src).deficit + 1))
@@ -455,7 +440,8 @@ private theorem trInv_deficit_conservation {P : Type*} [Fintype P] [DecidableEq 
         (if src = p then 1 else 0) +
           ((s.basicMsgs.erase ⟨src, dst⟩).filter fun m => m.src = p).card := by
       conv_lhs => rw [State.inFlightBasicFrom, ← Multiset.cons_erase hmem]
-      exact inFlightBasicFrom_cons ⟨src, dst⟩ (s.basicMsgs.erase ⟨src, dst⟩) p
+      simp only [Multiset.filter_cons, Multiset.card_add, apply_ite Multiset.card,
+        Multiset.card_singleton, Multiset.card_zero]
     simp only [State.recvBasicState]
     split_ifs with hatt
     · have hch := children_attach s src hatt.1 hatt.2 p
@@ -472,13 +458,14 @@ private theorem trInv_deficit_conservation {P : Type*} [Fintype P] [DecidableEq 
         s₁.inFlightBasicFrom p + s₁.inFlightSignalTo p + (s₁.children root p).card
       have hch : s₁.children root p = s.children root p :=
         children_congr (parent_eq_of_update_same_parent s dst true (s.proc dst).deficit) root p
-      have hsig : s₁.inFlightSignalTo p = (if src = p then 1 else 0) + s.inFlightSignalTo p :=
-        inFlightSignalTo_cons src s.signals p
+      have hsig : s₁.inFlightSignalTo p = s.inFlightSignalTo p + if p = src then 1 else 0 :=
+        Multiset.count_cons p src s.signals
       have hdef : (s₁.proc p).deficit = (s.proc p).deficit :=
         deficit_eq_of_update_same_deficit s dst true (s.proc dst).parent p
       have hb' : s₁.inFlightBasicFrom p =
           ((s.basicMsgs.erase ⟨src, dst⟩).filter fun m => m.src = p).card := rfl
       rw [hdef, hb', hsig, hch]
+      simp only [eq_comm (a := p)]
       omega
   | becomeIdle q =>
     obtain ⟨_, rfl⟩ := tr_becomeIdle_iff.mp htr
@@ -495,11 +482,9 @@ private theorem trInv_deficit_conservation {P : Type*} [Fintype P] [DecidableEq 
     let s₁ := s.recvSignalState q
     change (s₁.proc p).deficit =
       s₁.inFlightBasicFrom p + s₁.inFlightSignalTo p + (s₁.children root p).card
-    have hsig : s.inFlightSignalTo p =
-        (if q = p then 1 else 0) + s₁.inFlightSignalTo p := by
+    have hsig : s.inFlightSignalTo p = s₁.inFlightSignalTo p + if p = q then 1 else 0 := by
       simp only [State.inFlightSignalTo, s₁, State.recvSignalState]
-      conv_lhs => rw [← Multiset.cons_erase hmem]
-      exact inFlightSignalTo_cons q (s.signals.erase q) p
+      conv_lhs => rw [← Multiset.cons_erase hmem, Multiset.count_cons]
     have hch : s₁.children root p = s.children root p :=
       children_congr
         (parent_eq_of_update_same_parent s q (s.proc q).active ((s.proc q).deficit - 1)) root p
@@ -512,18 +497,19 @@ private theorem trInv_deficit_conservation {P : Type*} [Fintype P] [DecidableEq 
       omega
     · have hdef : (s₁.proc p).deficit = (s.proc p).deficit := by
         simp [s₁, State.recvSignalState, Function.update_of_ne hp]
-      simp only [Ne.symm hp, ↓reduceIte] at hsig
+      simp only [hp, ↓reduceIte] at hsig
       omega
   | detach q r =>
     obtain ⟨⟨hq, _, _, hpar⟩, rfl⟩ := tr_detach_iff.mp htr
     have hcons := hinv p
     have hch := children_detach s hq hpar p
     have hsig : (s.detachState q r).inFlightSignalTo p =
-        (if r = p then 1 else 0) + s.inFlightSignalTo p :=
-      inFlightSignalTo_cons r s.signals p
+        s.inFlightSignalTo p + if p = r then 1 else 0 :=
+      Multiset.count_cons p r s.signals
     have hdef : ((s.detachState q r).proc p).deficit = (s.proc p).deficit :=
       deficit_eq_of_update_same_deficit s q (s.proc q).active none p
     rw [hdef, show (s.detachState q r).inFlightBasicFrom p = s.inFlightBasicFrom p from rfl, hsig]
+    simp only [eq_comm (a := p)]
     omega
 
 /-- Exact per-process deficit conservation for the single-parent asynchronous overlay after
