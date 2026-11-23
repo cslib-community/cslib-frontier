@@ -575,9 +575,9 @@ private theorem kruskalSetup_exec {w n : ℕ} (es : List (WeightedEdge n ℕ))
       x₁.regs nVerts = n ∧ x₁.regs mEdges = es.length ∧
       x₁.regs edgeBase = 3 ∧ x₁.regs keyBase = 3 + 3 * es.length ∧
       x₁.regs permBase = 3 + 4 * es.length ∧ x₁.regs bufBase = 3 + 5 * es.length ∧
-      yS.regs parBase = 3 + 6 * es.length ∧
-      yS.regs rnkBase = 3 + 6 * es.length + n ∧
-      yS.regs out = 3 + 6 * es.length + 2 * n := by
+      x₁.regs parBase = 3 + 6 * es.length ∧
+      x₁.regs rnkBase = 3 + 6 * es.length + n ∧
+      x₁.regs out = 3 + 6 * es.length + 2 * n := by
   have hm1 : (Data.init (encode es) : Data 26).mem 1 = n := by
     simp [encode]
   have hm2 : (Data.init (encode es) : Data 26).mem 2 = es.length := by
