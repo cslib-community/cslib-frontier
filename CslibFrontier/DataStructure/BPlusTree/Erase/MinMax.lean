@@ -25,6 +25,15 @@ not stated here.
 * `eraseMinM`, `eraseMaxM`: removal of the least and the greatest entry, polymorphic.
 * `eraseMin?`, `eraseMax?`: the pure operations.
 
+## Main results
+
+* `map_eraseMinM`, `map_eraseMaxM`: a monad morphism commutes with the removals.
+* `eraseMin?_eq`, `eraseMax?_eq`: on a well-formed tree, the first or the last entry together
+  with the tree with its key erased.
+* `toList_of_eraseMin?_eq_some`, `toList_of_eraseMax?_eq_some`: the returned tree has the entries
+  after the first, or before the last.
+* `IsWF.of_eraseMin?_eq_some`, `IsWF.of_eraseMax?_eq_some`: the returned tree is well-formed.
+
 ## References
 
 * [D. Comer, *The Ubiquitous B-Tree*][Comer1979]
@@ -76,6 +85,31 @@ theorem eraseMaxM_def (t : ℕ) (le : α → α → m Bool) (visit : m Unit) (tr
 
 end Polymorphic
 
+section Transfer
+
+open Cslib (IsMonadHom)
+
+variable {α β : Type} {m n : Type → Type*} [Monad m] [Monad n]
+  {f : {γ : Type} → m γ → n γ}
+
+/-- A monad morphism commutes with the removal of the least entry. -/
+theorem map_eraseMinM (hf : IsMonadHom m n f) (t : ℕ) (le : α → α → m Bool) (visit : m Unit)
+    (tr : BPlusTree α β) :
+    f (eraseMinM t le visit tr) = eraseMinM t (fun a b => f (le a b)) (f visit) tr := by
+  simp only [eraseMinM_def, hf.map_bind, map_minM hf]
+  refine bind_congr fun o => ?_
+  cases o <;> simp [hf.map_bind, hf.map_pure, map_eraseM hf]
+
+/-- A monad morphism commutes with the removal of the greatest entry. -/
+theorem map_eraseMaxM (hf : IsMonadHom m n f) (t : ℕ) (le : α → α → m Bool) (visit : m Unit)
+    (tr : BPlusTree α β) :
+    f (eraseMaxM t le visit tr) = eraseMaxM t (fun a b => f (le a b)) (f visit) tr := by
+  simp only [eraseMaxM_def, hf.map_bind, map_maxM hf]
+  refine bind_congr fun o => ?_
+  cases o <;> simp [hf.map_bind, hf.map_pure, map_eraseM hf]
+
+end Transfer
+
 section Pure
 
 variable {α β : Type} [LinearOrder α] {t : ℕ} {tr : BPlusTree α β}
@@ -108,6 +142,79 @@ theorem eraseMax?_eq_map_max? : eraseMax? t tr = (max? tr).map fun p => (p, eras
   unfold eraseMax? eraseMaxM
   -- as in `eraseMin?_eq_map_min?`
   cases maxM (m := Id) (pure ()) tr <;> rfl
+
+/-- Model equation of `eraseMin?` on well-formed trees: the first entry and the tree with its key
+erased. -/
+theorem eraseMin?_eq (h : IsWF t tr) :
+    eraseMin? t tr = tr.toList.head?.map fun p => (p, erase t p.1 tr) := by
+  rw [eraseMin?_eq_map_min?, min?_eq h]
+
+/-- Model equation of `eraseMax?` on well-formed trees: the last entry and the tree with its key
+erased. -/
+theorem eraseMax?_eq (h : IsWF t tr) :
+    eraseMax? t tr = tr.toList.getLast?.map fun p => (p, erase t p.1 tr) := by
+  rw [eraseMax?_eq_map_max?, max?_eq h]
+
+/-- On a well-formed tree, `eraseMin?` returns `p` and `tr'` exactly when `p` is the first entry
+and `tr'` the tree with its key erased. -/
+theorem eraseMin?_eq_some_iff (h : IsWF t tr) {p : α × β} {tr' : BPlusTree α β} :
+    eraseMin? t tr = some (p, tr') ↔ tr.toList.head? = some p ∧ tr' = erase t p.1 tr := by
+  rw [eraseMin?_eq h, Option.map_eq_some_iff]
+  constructor
+  · rintro ⟨q, hq, hpq⟩
+    simp only [Prod.mk.injEq] at hpq
+    obtain ⟨rfl, rfl⟩ := hpq
+    exact ⟨hq, rfl⟩
+  · rintro ⟨hp, rfl⟩
+    exact ⟨p, hp, rfl⟩
+
+/-- On a well-formed tree, `eraseMax?` returns `p` and `tr'` exactly when `p` is the last entry
+and `tr'` the tree with its key erased. -/
+theorem eraseMax?_eq_some_iff (h : IsWF t tr) {p : α × β} {tr' : BPlusTree α β} :
+    eraseMax? t tr = some (p, tr') ↔ tr.toList.getLast? = some p ∧ tr' = erase t p.1 tr := by
+  rw [eraseMax?_eq h, Option.map_eq_some_iff]
+  constructor
+  · rintro ⟨q, hq, hpq⟩
+    simp only [Prod.mk.injEq] at hpq
+    obtain ⟨rfl, rfl⟩ := hpq
+    exact ⟨hq, rfl⟩
+  · rintro ⟨hp, rfl⟩
+    exact ⟨p, hp, rfl⟩
+
+/-- On a well-formed tree, the tree that `eraseMin?` returns has the entries after the first. -/
+theorem toList_of_eraseMin?_eq_some (h : IsWF t tr) {p : α × β} {tr' : BPlusTree α β}
+    (he : eraseMin? t tr = some (p, tr')) : tr'.toList = tr.toList.tail := by
+  obtain ⟨hq, rfl⟩ := (eraseMin?_eq_some_iff h).1 he
+  obtain ⟨l, hl⟩ : ∃ l, tr.toList = p :: l := by
+    cases hc : tr.toList with
+    | nil => simp [hc] at hq
+    | cons a l => simp only [hc, List.head?_cons, Option.some.injEq] at hq; exact ⟨l, hq ▸ rfl⟩
+  have hs := h.sorted
+  rw [hl, List.isSortedAssoc_cons_iff] at hs
+  rw [toList_erase h, hl, SortedAssoc.erase_cons]
+  simp only [↓reduceIte, List.tail_cons]
+  exact SortedAssoc.erase_of_forall_ne fun r hr => (hs.1 r hr).ne'
+
+/-- On a well-formed tree, the tree that `eraseMax?` returns has the entries before the last. -/
+theorem toList_of_eraseMax?_eq_some (h : IsWF t tr) {p : α × β} {tr' : BPlusTree α β}
+    (he : eraseMax? t tr = some (p, tr')) : tr'.toList = tr.toList.dropLast := by
+  obtain ⟨hq, rfl⟩ := (eraseMax?_eq_some_iff h).1 he
+  obtain ⟨l, hl⟩ := List.getLast?_eq_some_iff.1 hq
+  have hs := h.sorted
+  rw [hl, List.isSortedAssoc_append_iff] at hs
+  rw [toList_erase h, hl, SortedAssoc.erase_append,
+    SortedAssoc.erase_of_forall_ne fun r hr => (hs.2.2 r hr p (by simp)).ne]
+  simp [SortedAssoc.erase_cons]
+
+/-- On a well-formed tree, the tree that `eraseMin?` returns is well-formed. -/
+theorem IsWF.of_eraseMin?_eq_some (h : IsWF t tr) {p : α × β} {tr' : BPlusTree α β}
+    (he : eraseMin? t tr = some (p, tr')) : IsWF t tr' :=
+  ((eraseMin?_eq_some_iff h).1 he).2 ▸ h.erase _
+
+/-- On a well-formed tree, the tree that `eraseMax?` returns is well-formed. -/
+theorem IsWF.of_eraseMax?_eq_some (h : IsWF t tr) {p : α × β} {tr' : BPlusTree α β}
+    (he : eraseMax? t tr = some (p, tr')) : IsWF t tr' :=
+  ((eraseMax?_eq_some_iff h).1 he).2 ▸ h.erase _
 
 end Pure
 

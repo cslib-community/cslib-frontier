@@ -113,4 +113,57 @@ example : (eraseMax? 2 gap).map (fun p => (p.1, p.2.toList)) = some ((3, "c"), [
   rw [eraseMax?_eq_map_max?, h]
   decide
 
+/-! ### Theorem instances -/
+
+example : (erase 2 4 twoLevels).toList = SortedAssoc.erase 4 twoLevels.toList :=
+  toList_erase isWF_twoLevels 4
+
+example : IsWF 2 (erase 2 1 twoLevels) := isWF_twoLevels.erase 1
+
+example :
+    (erase 2 1 twoLevels).height = twoLevels.height ∨
+      (erase 2 1 twoLevels).height + 1 = twoLevels.height :=
+  height_erase isWF_twoLevels 1
+
+example : (erase 2 1 twoLevels).height ≤ twoLevels.height := height_erase_le isWF_twoLevels 1
+
+example : twoLevels.height ≤ (erase 2 1 twoLevels).height + 1 :=
+  height_le_height_erase_add_one isWF_twoLevels 1
+
+example :
+    (erase 2 1 twoLevels).size =
+      if (lookup 1 twoLevels).isSome then twoLevels.size - 1 else twoLevels.size :=
+  size_erase isWF_twoLevels 1
+
+example (hk : lookup 4 twoLevels = none) : (erase 2 4 twoLevels).toList = twoLevels.toList :=
+  toList_erase_of_lookup_eq_none isWF_twoLevels hk
+
+example {m n : Type → Type} [Monad m] [Monad n] {f : {γ : Type} → m γ → n γ}
+    (hf : IsMonadHom m n f) (le : ℕ → ℕ → m Bool) (visit : m Unit) :
+    f (eraseM 2 le visit 1 twoLevels) = eraseM 2 (fun a b => f (le a b)) (f visit) 1 twoLevels :=
+  map_eraseM hf 2 le visit 1 twoLevels
+
+example {m n : Type → Type} [Monad m] [Monad n] {f : {γ : Type} → m γ → n γ}
+    (hf : IsMonadHom m n f) (le : ℕ → ℕ → m Bool) (visit : m Unit) :
+    f (eraseMinM 2 le visit twoLevels) = eraseMinM 2 (fun a b => f (le a b)) (f visit) twoLevels ∧
+      f (eraseMaxM 2 le visit twoLevels) =
+        eraseMaxM 2 (fun a b => f (le a b)) (f visit) twoLevels :=
+  ⟨map_eraseMinM hf 2 le visit twoLevels, map_eraseMaxM hf 2 le visit twoLevels⟩
+
+example :
+    eraseMin? 2 twoLevels = twoLevels.toList.head?.map fun p => (p, erase 2 p.1 twoLevels) :=
+  eraseMin?_eq isWF_twoLevels
+
+example :
+    eraseMax? 2 twoLevels = twoLevels.toList.getLast?.map fun p => (p, erase 2 p.1 twoLevels) :=
+  eraseMax?_eq isWF_twoLevels
+
+example {p : ℕ × String} {tr' : BPlusTree ℕ String} (he : eraseMin? 2 twoLevels = some (p, tr')) :
+    tr'.toList = twoLevels.toList.tail ∧ IsWF 2 tr' :=
+  ⟨toList_of_eraseMin?_eq_some isWF_twoLevels he, isWF_twoLevels.of_eraseMin?_eq_some he⟩
+
+example {p : ℕ × String} {tr' : BPlusTree ℕ String} (he : eraseMax? 2 twoLevels = some (p, tr')) :
+    tr'.toList = twoLevels.toList.dropLast ∧ IsWF 2 tr' :=
+  ⟨toList_of_eraseMax?_eq_some isWF_twoLevels he, isWF_twoLevels.of_eraseMax?_eq_some he⟩
+
 end CslibFrontierTests.BPlusTreeErase
