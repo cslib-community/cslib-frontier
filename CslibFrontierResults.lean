@@ -7,6 +7,7 @@ import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.MinimumSpanningTree
 import CslibFrontierResults.Entries.ODonnellLowDegreePart
+import CslibFrontierResults.Entries.ODonnellNearlyConstantNoise
 import CslibFrontierResults.Entries.ODonnellStabilityDerivative
 import CslibFrontierResults.Entries.ODonnellUncertainty
 import CslibFrontierResults.Entries.RandomOracleKDF
