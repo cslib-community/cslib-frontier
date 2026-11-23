@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.BlumComplexity.Basic
 import CslibFrontier.Computability.BlumComplexity.Cancellation
+import CslibFrontier.Foundations.Computability.FunProp
 import Mathlib.Data.List.GetD
 import Mathlib.Order.Filter.Finite
 
@@ -356,14 +357,10 @@ private theorem computablePred_flagged {α : Type*} [Primcodable α] {i : α →
   refine ComputablePred.exists_lt (p := fun a y => Triggers Φ (i a) (e a) y (s a) ∧
     ∀ b, lastAct (l a) (e a) (s a) = some b → ¬Triggers Φ (i a) (e a) y b) ?_
     (Computable.succ.comp hs)
-  have hi' := hi.comp (Computable.fst (α := α) (β := ℕ))
-  have he' := he.comp (Computable.fst (α := α) (β := ℕ))
-  have hs' := hs.comp (Computable.fst (α := α) (β := ℕ))
-  refine (computablePred_triggers Φ hi' he' Computable.snd hs').and
-    (computablePred_forall_option (computable_lastAct (hl.comp Computable.fst) he' hs') ?_)
-  exact (computablePred_triggers Φ (hi.comp (Computable.fst.comp Computable.fst))
-    (he.comp (Computable.fst.comp Computable.fst)) (Computable.snd.comp Computable.fst)
-    Computable.snd).not
+  refine (computablePred_triggers Φ (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)).and
+    (computablePred_forall_option (computable_lastAct (by fun_prop) (by fun_prop) (by fun_prop))
+      ?_)
+  exact (computablePred_triggers Φ (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)).not
 
 private theorem computablePred_cand {α : Type*} [Primcodable α] {i : α → Code}
     {l : α → List (Option ℕ)} {x z e s : α → ℕ} (hi : Computable i) (hl : Computable l)
@@ -374,37 +371,27 @@ private theorem computablePred_cand {α : Type*} [Primcodable α] {i : α → Co
   refine ComputablePred.forall_lt (p := fun a e' => key (l a) e' (s a) < key (l a) (e a) (s a) →
     ¬Flagged Φ (i a) (l a) e' (s a) → Halts Φ (ofNat Code e') (x a) (z a)) ?_
     (computable_key hl he hs)
-  have hl' := hl.comp (Computable.fst (α := α) (β := ℕ))
-  have hs' := hs.comp (Computable.fst (α := α) (β := ℕ))
-  exact (ComputablePred.nat_lt (computable_key hl' Computable.snd hs')
-    (computable_key hl' (he.comp Computable.fst) hs')).imp
-    ((computablePred_flagged Φ (hi.comp Computable.fst) hl' Computable.snd hs').not.imp
-      (computablePred_halts Φ ((Computable.ofNat Code).comp Computable.snd)
-        (hx.comp Computable.fst) (hz.comp Computable.fst)))
+  exact (ComputablePred.nat_lt (computable_key (by fun_prop) (by fun_prop) (by fun_prop))
+    (computable_key (by fun_prop) (by fun_prop) (by fun_prop))).imp
+    ((computablePred_flagged Φ (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)).not.imp
+      (computablePred_halts Φ (by fun_prop) (by fun_prop) (by fun_prop)))
 
 private theorem computable_actor {α : Type*} [Primcodable α] {i : α → Code}
     {l : α → List (Option ℕ)} {x z s : α → ℕ} (hi : Computable i) (hl : Computable l)
     (hx : Computable x) (hz : Computable z) (hs : Computable s) :
     Computable fun a => actor Φ (i a) (l a) (x a) (z a) (s a) := by
-  have hi' := hi.comp (Computable.fst (α := α) (β := ℕ))
-  have hl' := hl.comp (Computable.fst (α := α) (β := ℕ))
-  have hx' := hx.comp (Computable.fst (α := α) (β := ℕ))
-  have hz' := hz.comp (Computable.fst (α := α) (β := ℕ))
-  have hs' := hs.comp (Computable.fst (α := α) (β := ℕ))
   have hp : ComputablePred fun q : α × ℕ => Cand Φ (i q.1) (l q.1) (x q.1) (z q.1) q.2 (s q.1) ∧
       ∀ e' < s q.1 + 1, Cand Φ (i q.1) (l q.1) (x q.1) (z q.1) e' (s q.1) →
         key (l q.1) q.2 (s q.1) ≤ key (l q.1) e' (s q.1) := by
-    refine (computablePred_cand Φ hi' hl' hx' hz' Computable.snd hs').and ?_
-    refine ComputablePred.forall_lt (p := fun q e' =>
+    refine (computablePred_cand Φ (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+      (by fun_prop) (by fun_prop)).and ?_
+    refine ComputablePred.forall_lt (p := fun (q : α × ℕ) e' =>
       Cand Φ (i q.1) (l q.1) (x q.1) (z q.1) e' (s q.1) →
-        key (l q.1) q.2 (s q.1) ≤ key (l q.1) e' (s q.1)) ?_ (Computable.succ.comp hs')
-    have hl'' := hl.comp (Computable.fst.comp (Computable.fst (α := α × ℕ) (β := ℕ)))
-    have hs'' := hs.comp (Computable.fst.comp (Computable.fst (α := α × ℕ) (β := ℕ)))
-    exact (computablePred_cand Φ (hi.comp (Computable.fst.comp Computable.fst)) hl''
-      (hx.comp (Computable.fst.comp Computable.fst)) (hz.comp (Computable.fst.comp Computable.fst))
-      Computable.snd hs'').imp (ComputablePred.nat_le
-        (computable_key hl'' (Computable.snd.comp Computable.fst) hs'')
-        (computable_key hl'' Computable.snd hs''))
+        key (l q.1) q.2 (s q.1) ≤ key (l q.1) e' (s q.1)) ?_ (by fun_prop)
+    exact (computablePred_cand Φ (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+      (by fun_prop) (by fun_prop)).imp (ComputablePred.nat_le
+        (computable_key (by fun_prop) (by fun_prop) (by fun_prop))
+        (computable_key (by fun_prop) (by fun_prop) (by fun_prop)))
   exact computable_bfind (@ComputablePred.decide _ _ _ (fun _ => Classical.dec _) hp).to₂
     (Computable.const 0) (Computable.succ.comp hs)
 

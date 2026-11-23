@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.FirstOrder.Raw.Basic
 public import Mathlib.Computability.Primrec.List
+import CslibFrontier.Foundations.Computability.FunProp
 
 /-!
 # Primitive recursive operations on raw formulas
@@ -97,32 +98,18 @@ theorem primrec₂_of_rec {σ : Type*} [Primcodable σ] (F : α → RawFormula �
       IH[q.unpair.1]?.bind fun s₁ => IH[q.unpair.2]?.map fun s₂ =>
         i a ((ofNat q.unpair.1, ofNat q.unpair.2), (s₁, s₂))
     else IH[q.unpair.2]?.map fun s => l a ((q.unpair.1, ofNat q.unpair.2), s)
-  have hq : Primrec fun p : (α × List σ) × ℕ => p.2 / 4 := nat_div.comp snd (const 4)
-  have hq1 := fst.comp (Primrec.unpair.comp hq)
-  have hq2 := snd.comp (Primrec.unpair.comp hq)
-  have hmod : Primrec fun p : (α × List σ) × ℕ => p.2 % 4 := nat_mod.comp snd (const 4)
-  have ha : Primrec fun p : (α × List σ) × ℕ => p.1.1 := fst.comp fst
-  have hIH : Primrec fun p : (α × List σ) × ℕ => p.1.2 := snd.comp fst
-  have hofNat : Primrec ofNat := Primrec.ofNat RawFormula
   have hG₁ : Primrec G₁ := by
-    refine Primrec.ite (Primrec.eq.comp hmod (const 0))
-      (option_some.comp (he.comp ha (Primrec.unpair.comp hq))) ?_
-    refine Primrec.ite (Primrec.eq.comp hmod (const 1))
-      (option_some.comp (hr.comp ha (Primrec.pair hq1 ((Primrec.ofNat (List ℕ)).comp hq2)))) ?_
-    refine Primrec.ite (Primrec.eq.comp hmod (const 2)) ?_ ?_
-    · refine option_bind (list_getElem?.comp hIH hq1) ?_
-      refine option_map ((list_getElem?.comp hIH hq2).comp fst) ?_
-      exact hi.comp (ha.comp (fst.comp fst))
-        (Primrec.pair (Primrec.pair (hofNat.comp (hq1.comp (fst.comp fst)))
-          (hofNat.comp (hq2.comp (fst.comp fst)))) (Primrec.pair (snd.comp fst) snd))
-    · refine option_map (list_getElem?.comp hIH hq2) ?_
-      exact hl.comp (ha.comp fst)
-        (Primrec.pair (Primrec.pair (hq1.comp fst) (hofNat.comp (hq2.comp fst))) snd)
+    have he : Primrec fun p : α × ℕ × ℕ => e p.1 p.2 := he
+    have hr : Primrec fun p : α × ℕ × List ℕ => r p.1 p.2 := hr
+    have hi : Primrec fun p : α × (RawFormula × RawFormula) × (σ × σ) => i p.1 p.2 := hi
+    have hl : Primrec fun p : α × (ℕ × RawFormula) × σ => l p.1 p.2 := hl
+    have hofNat : Primrec ofNat := Primrec.ofNat RawFormula
+    fun_prop
   let G : α → List σ → Option σ := fun a IH =>
     Nat.casesOn IH.length (some (z a)) fun m => G₁ ((a, IH), m)
-  have hG : Primrec₂ G :=
-    nat_casesOn (list_length.comp snd) (option_some.comp (hz.comp fst))
-      (hG₁.comp (Primrec.pair (Primrec.pair (fst.comp fst) (snd.comp fst)) snd)).to₂
+  have hG : Primrec₂ G := by
+    unfold Primrec₂
+    fun_prop
   have h := nat_strong_rec (fun a n => F a (ofNat n)) hG fun a n => by
     rcases n with _ | m
     · simp [G, Hz, ofNat_zero]

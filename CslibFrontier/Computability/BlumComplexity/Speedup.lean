@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.BlumComplexity.Basic
 import CslibFrontier.Computability.BlumComplexity.Cancellation
+import CslibFrontier.Foundations.Computability.FunProp
 import Mathlib.Data.Finset.Prod
 import Mathlib.Order.Filter.Finite
 
@@ -146,83 +147,48 @@ private theorem computable_vers {α : Type*} [Primcodable α] {e : α → Code} 
 private theorem computablePred_eligB (hr : Computable₂ r) :
     ComputablePred fun x : ((Code × ℕ) × ℕ) × ℕ => EligB Φ r x.1.1.1 x.1.1.2 x.1.2 x.2 := by
   -- x = (((e, B), i), y)
-  have he : Computable fun x : ((Code × ℕ) × ℕ) × ℕ => x.1.1.1 :=
-    Computable.fst.comp (Computable.fst.comp Computable.fst)
-  have hB : Computable fun x : ((Code × ℕ) × ℕ) × ℕ => x.1.1.2 :=
-    Computable.snd.comp (Computable.fst.comp Computable.fst)
-  have hi : Computable fun x : ((Code × ℕ) × ℕ) × ℕ => x.1.2 :=
-    Computable.snd.comp Computable.fst
-  have hy : Computable fun x : ((Code × ℕ) × ℕ) × ℕ => x.2 := Computable.snd
   refine ComputablePred.exists_lt (f := fun x : ((Code × ℕ) × ℕ) × ℕ => x.2 + 1)
     (p := fun x d => ∃ m < x.1.1.2 + 1, m ∈ Φ.cost (vers x.1.1.1 (x.1.2 + 1) d) x.2 ∧
-      ∃ m' < r x.2 m + 1, m' ∈ Φ.cost (ofNat Code x.1.2) x.2) ?_ (Computable.succ.comp hy)
+      ∃ m' < r x.2 m + 1, m' ∈ Φ.cost (ofNat Code x.1.2) x.2) ?_ (by fun_prop)
   refine ComputablePred.exists_lt
     (f := fun z : (((Code × ℕ) × ℕ) × ℕ) × ℕ => z.1.1.1.2 + 1)
     (p := fun z m => m ∈ Φ.cost (vers z.1.1.1.1 (z.1.1.2 + 1) z.2) z.1.2 ∧
-      ∃ m' < r z.1.2 m + 1, m' ∈ Φ.cost (ofNat Code z.1.1.2) z.1.2) ?_
-    (Computable.succ.comp (hB.comp Computable.fst))
+      ∃ m' < r z.1.2 m + 1, m' ∈ Φ.cost (ofNat Code z.1.1.2) z.1.2) ?_ (by fun_prop)
   -- w = (((((e, B), i), y), d), m)
-  have he' : Computable fun w : ((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => w.1.1.1.1.1 :=
-    he.comp (Computable.fst.comp Computable.fst)
-  have hi' : Computable fun w : ((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => w.1.1.1.2 :=
-    hi.comp (Computable.fst.comp Computable.fst)
-  have hy' : Computable fun w : ((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => w.1.1.2 :=
-    hy.comp (Computable.fst.comp Computable.fst)
-  have hd' : Computable fun w : ((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => w.1.2 :=
-    Computable.snd.comp Computable.fst
-  have hm' : Computable fun w : ((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => w.2 := Computable.snd
   refine ComputablePred.and ?_ ?_
   · exact Φ.computablePred_mem_cost_comp
-      (computable_vers he' (Computable.succ.comp hi') hd') hy' hm'
+      (computable_vers (by fun_prop) (by fun_prop) (by fun_prop)) (by fun_prop) (by fun_prop)
   · refine ComputablePred.exists_lt
       (f := fun w : ((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => r w.1.1.2 w.2 + 1)
       (p := fun w m' => m' ∈ Φ.cost (ofNat Code w.1.1.1.2) w.1.1.2) ?_
-      (Computable.succ.comp (hr.comp hy' hm'))
-    exact Φ.computablePred_mem_cost_comp ((Computable.ofNat Code).comp
-      (hi'.comp Computable.fst)) (hy'.comp Computable.fst) Computable.snd
+      (Computable.succ.comp (hr.comp (by fun_prop) (by fun_prop)))
+    exact Φ.computablePred_mem_cost_comp (by fun_prop) (by fun_prop) (by fun_prop)
 
 private theorem computablePred_costOK :
     ComputablePred fun x : ((Code × ℕ) × ℕ) × ℕ => CostOK Φ x.1.1.1 x.1.1.2 x.1.2 x.2 := by
   -- x = (((e, u), x), B)
-  have hx : Computable fun x : ((Code × ℕ) × ℕ) × ℕ => x.1.2 :=
-    Computable.snd.comp Computable.fst
   refine ComputablePred.forall_lt (f := fun x : ((Code × ℕ) × ℕ) × ℕ => x.1.2 + 1)
     (p := fun x i => ∀ y < x.1.2 + 1, ∀ d < y + 1, x.1.1.2 ≤ i → i ≤ y →
-      ∃ m < x.2 + 1, m ∈ Φ.cost (vers x.1.1.1 (i + 1) d) y) ?_ (Computable.succ.comp hx)
+      ∃ m < x.2 + 1, m ∈ Φ.cost (vers x.1.1.1 (i + 1) d) y) ?_ (by fun_prop)
   -- z = ((((e, u), x), B), i)
   refine ComputablePred.forall_lt
     (f := fun z : (((Code × ℕ) × ℕ) × ℕ) × ℕ => z.1.1.2 + 1)
     (p := fun z y => ∀ d < y + 1, z.1.1.1.2 ≤ z.2 → z.2 ≤ y →
-      ∃ m < z.1.2 + 1, m ∈ Φ.cost (vers z.1.1.1.1 (z.2 + 1) d) y) ?_
-    (Computable.succ.comp (hx.comp Computable.fst))
+      ∃ m < z.1.2 + 1, m ∈ Φ.cost (vers z.1.1.1.1 (z.2 + 1) d) y) ?_ (by fun_prop)
   -- w = (((((e, u), x), B), i), y)
   refine ComputablePred.forall_lt
     (f := fun w : ((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => w.2 + 1)
     (p := fun w d => w.1.1.1.1.2 ≤ w.1.2 → w.1.2 ≤ w.2 →
-      ∃ m < w.1.1.2 + 1, m ∈ Φ.cost (vers w.1.1.1.1.1 (w.1.2 + 1) d) w.2) ?_
-    (Computable.succ.comp Computable.snd)
+      ∃ m < w.1.1.2 + 1, m ∈ Φ.cost (vers w.1.1.1.1.1 (w.1.2 + 1) d) w.2) ?_ (by fun_prop)
   -- v = ((((((e, u), x), B), i), y), d)
-  have he : Computable fun v : (((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => v.1.1.1.1.1.1 :=
-    Computable.fst.comp (Computable.fst.comp (Computable.fst.comp (Computable.fst.comp
-      (Computable.fst.comp Computable.fst))))
-  have hu : Computable fun v : (((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => v.1.1.1.1.1.2 :=
-    Computable.snd.comp (Computable.fst.comp (Computable.fst.comp (Computable.fst.comp
-      (Computable.fst.comp Computable.fst))))
-  have hB : Computable fun v : (((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => v.1.1.1.2 :=
-    Computable.snd.comp (Computable.fst.comp (Computable.fst.comp Computable.fst))
-  have hi : Computable fun v : (((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => v.1.1.2 :=
-    Computable.snd.comp (Computable.fst.comp Computable.fst)
-  have hy : Computable fun v : (((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => v.1.2 :=
-    Computable.snd.comp Computable.fst
-  have hd : Computable fun v : (((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => v.2 := Computable.snd
-  refine (ComputablePred.nat_le hu hi).imp ((ComputablePred.nat_le hi hy).imp ?_)
+  refine (ComputablePred.nat_le (f := fun v : (((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ =>
+    v.1.1.1.1.1.2) (by fun_prop) (by fun_prop)).imp
+    ((ComputablePred.nat_le (by fun_prop) (by fun_prop)).imp ?_)
   refine ComputablePred.exists_lt
     (f := fun v : (((((Code × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ => v.1.1.1.2 + 1)
-    (p := fun v m => m ∈ Φ.cost (vers v.1.1.1.1.1.1 (v.1.1.2 + 1) v.2) v.1.2) ?_
-    (Computable.succ.comp hB)
-  exact Φ.computablePred_mem_cost_comp (computable_vers (he.comp Computable.fst)
-    (Computable.succ.comp (hi.comp Computable.fst)) (hd.comp Computable.fst))
-    (hy.comp Computable.fst) Computable.snd
+    (p := fun v m => m ∈ Φ.cost (vers v.1.1.1.1.1.1 (v.1.1.2 + 1) v.2) v.1.2) ?_ (by fun_prop)
+  exact Φ.computablePred_mem_cost_comp
+    (computable_vers (by fun_prop) (by fun_prop) (by fun_prop)) (by fun_prop) (by fun_prop)
 
 private theorem primrec_ovOf : Primrec₂ ovOf := by
   unfold ovOf
@@ -245,9 +211,7 @@ private theorem computable_canc_eligB (hr : Computable₂ r) :
     Computable fun q : (Code × ℕ × ℕ × ℕ) × ℕ =>
       canc (eligB Φ r q.1.1 q.2) (ovB q.1.2.2.1) q.1.2.1 q.1.2.2.2 := by
   refine computable_canc (E := fun q : (Code × ℕ × ℕ × ℕ) × ℕ => eligB Φ r q.1.1 q.2)
-    (ov := fun q => ovB q.1.2.2.1) ?_ ?_ (Computable.fst.comp (Computable.snd.comp
-      Computable.fst)) (Computable.snd.comp (Computable.snd.comp (Computable.snd.comp
-      Computable.fst)))
+    (ov := fun q => ovB q.1.2.2.1) ?_ ?_ (by fun_prop) (by fun_prop)
   · have h := (computable_eligB Φ r hr).comp (α := ((Code × ℕ × ℕ × ℕ) × ℕ) × ℕ × ℕ)
       (Computable.pair (Computable.pair (Computable.pair
       (Computable.fst.comp (Computable.fst.comp Computable.fst))
@@ -255,9 +219,7 @@ private theorem computable_canc_eligB (hr : Computable₂ r) :
       (Computable.snd.comp Computable.snd))
     exact h.of_eq fun _ => rfl
   · have h1 : Computable₂ ovB := (Primrec.option_isSome.comp primrec_ovOf).to_comp
-    have hd : Computable fun p : ((Code × ℕ × ℕ × ℕ) × ℕ) × ℕ => p.1.1.2.2.1 :=
-      Computable.fst.comp (Computable.snd.comp (Computable.snd.comp
-        (Computable.fst.comp Computable.fst)))
+    have hd : Computable fun p : ((Code × ℕ × ℕ × ℕ) × ℕ) × ℕ => p.1.1.2.2.1 := by fun_prop
     exact (h1.comp hd Computable.snd :)
 
 private theorem computable_selCode (hr : Computable₂ r) :
@@ -273,11 +235,7 @@ private theorem computable_post (hr : Computable₂ r) :
   unfold post
   have hov : Computable fun q : ((Code × ℕ × ℕ × ℕ) × ℕ) × ℕ =>
       ovOf q.1.1.2.2.1 q.1.1.2.2.2 :=
-    primrec_ovOf.to_comp.comp
-      (Computable.fst.comp (Computable.snd.comp (Computable.snd.comp
-        (Computable.fst.comp Computable.fst))))
-      (Computable.snd.comp (Computable.snd.comp (Computable.snd.comp
-        (Computable.fst.comp Computable.fst))))
+    primrec_ovOf.to_comp.comp (by fun_prop) (by fun_prop)
   exact Computable.option_getD hov (Computable.option_getD (Computable.option_map
     ((computable_canc_eligB Φ r hr).comp Computable.fst)
     (Primrec.nat_sub.to_comp.comp (Computable.const 1)
@@ -287,12 +245,7 @@ private theorem partrec₂_master (hr : Computable₂ r) : Partrec₂ (master Φ
   -- the arguments `(e, (u, (d, x)))` decoded from `(e, N)`
   have hq : Computable fun p : Code × ℕ =>
       (p.1, p.2.unpair.1.unpair.1, p.2.unpair.1.unpair.2, p.2.unpair.2) := by
-    refine Computable.pair Computable.fst (Computable.pair ?_ (Computable.pair ?_ ?_))
-    · exact Computable.fst.comp (Computable.unpair.comp (Computable.fst.comp
-        (Computable.unpair.comp Computable.snd)))
-    · exact Computable.snd.comp (Computable.unpair.comp (Computable.fst.comp
-        (Computable.unpair.comp Computable.snd)))
-    · exact Computable.snd.comp (Computable.unpair.comp Computable.snd)
+    fun_prop
   have hcost : Computable₂ fun (p : Code × ℕ) (B : ℕ) =>
       costOK Φ p.1 p.2.unpair.1.unpair.1 p.2.unpair.2 B := by
     have h := (computable_costOK Φ).comp (α := (Code × ℕ) × ℕ)
@@ -313,8 +266,7 @@ private theorem partrec₂_master (hr : Computable₂ r) : Partrec₂ (master Φ
       (Computable.pair (Computable.pair (hq.comp (Computable.fst.comp Computable.fst))
         (Computable.snd.comp Computable.fst)) Computable.snd)
     exact h.of_eq fun _ => rfl
-  have hx : Computable fun q : (Code × ℕ) × ℕ => q.1.2.unpair.2 :=
-    Computable.snd.comp (Computable.unpair.comp (Computable.snd.comp Computable.fst))
+  have hx : Computable fun q : (Code × ℕ) × ℕ => q.1.2.unpair.2 := by fun_prop
   have h := Partrec.bind (Partrec.rfind (hcost.partrec₂))
     (Partrec.map (Code.eval_part.comp hsel hx) hpost).to₂
   exact h.of_eq fun _ => rfl
