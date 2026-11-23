@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp
 public import CslibFrontier.Algorithms.WordRAM.Karger.Contract
 public import CslibFrontier.Computability.WordRAM.Time
 import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
+import CslibFrontier.Foundations.Data.List.RowMajor
 import CslibFrontier.Tactic.Realize
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -84,6 +85,7 @@ namespace Cslib.Algorithms.WordRAM.GomoryHu
 open Cslib.Algorithms.Lean.GomoryHu Cslib.WeightedCut SimpleGraph
 open Cslib.Algorithms.WordRAM.EdmondsKarp Cslib.Algorithms.WordRAM.Karger
 open Cslib.DataStructure Cslib.WordRAM Cslib.WordRAM.Realization
+open StateTransitionSpec (clientResult_bind clientResult_pure)
 
 /-! ### Input encoding and layout -/
 
@@ -111,42 +113,11 @@ private abbrev distBase (n : ℕ) : ℕ := 3 + n * n + 2 * n + n * n
 private abbrev ghScratch (n : ℕ) : ℕ := 2 * n + ekScratch n
 
 /-- Edmonds–Karp context: matrix at `3`, scratch area at `scrBase n`, capacity bound `B`. -/
-private abbrev ghCtx (n B : ℕ) : Ctx := (n, 3, scrBase n, B)
+private abbrev ghCtx (n B : ℕ) : Ctx := ⟨n, 3, scrBase n, B⟩
 
 private theorem input_add_ghScratch (n : ℕ) : 3 + n * n + ghScratch n = ghWorkspace n := by
   unfold ghWorkspace ghScratch ekScratch
   ring
-
-/-! ### Client reduction helpers -/
-
-attribute [local client_simps] runClient_read runClient_write runClient_ite
-
-local elab "simp_client" : tactic => do
-  Lean.Elab.Tactic.evalTactic
-    (← `(tactic| all_goals (dsimp -failIfUnchanged only;
-                            simp -failIfUnchanged only
-                              [*, ↓reduceIte, StateTransitionSpec.clientState,
-                               StateTransitionSpec.clientResult, client_simps])))
-  for _ in [:6] do
-    let gs ← Lean.Elab.Tactic.getGoals
-    if gs.isEmpty then break
-    let mut progress := false
-    let mut newGs : List Lean.MVarId := []
-    for g in gs do
-      Lean.Elab.Tactic.setGoals [g]
-      try
-        Lean.Elab.Tactic.evalTactic
-          (← `(tactic| (dsimp -failIfUnchanged only;
-                        split_ifs <;>
-                          simp -failIfUnchanged only
-                              [*, ↓reduceIte, StateTransitionSpec.clientState,
-                               StateTransitionSpec.clientResult, client_simps])))
-        progress := true
-        newGs := newGs ++ (← Lean.Elab.Tactic.getGoals)
-      catch _ =>
-        newGs := newGs ++ [g]
-    Lean.Elab.Tactic.setGoals newGs
-    if !progress then break
 
 /-! ### Programs -/
 
@@ -257,15 +228,16 @@ private theorem ghStep_realizes :
     dsimp -failIfUnchanged only [ghWorkspace, parBase, wtBase, scrBase, distBase] at *
     try omega
     try (apply hw.of_le; omega)
-  · exact ⟨by dsimp only [Ctx.matBase, Ctx.n, Ctx.scratchBase]; omega,
-      hw.of_le (by dsimp only [Ctx.scratchBase, Ctx.n, ekScratch]; omega), hB⟩
+  · exact ⟨by dsimp only [ghCtx]; omega,
+      hw.of_le (by dsimp only [ghCtx, ekScratch]; omega), hB⟩
   · refine iterationSafe_of_stepInv _ _ w _
       (fun rem (z : ℕ) _ => z + rem = d.1.1) ?_ (Nat.zero_add _)
     intro rem z t hsum
     dsimp only at hsum ⊢
     refine ⟨⟨hw, hs, by omega⟩, ?_⟩
-    dsimp -failIfUnchanged only [rehangStep]
-    simp_client <;> omega
+    dsimp only [rehangStep]
+    rw [clientResult_bind_read, clientResult_bind_read]
+    split_ifs <;> simp only [clientResult_bind_write, clientResult_pure] <;> omega
 
 /-- The maximum scan over `len` words from `base` returns an upper bound of those words, and it
 is below every common bound `B` of them. -/
@@ -319,8 +291,9 @@ private theorem ghMain_realizes :
     intro rem ia t hsum
     dsimp only at hsum ⊢
     refine ⟨⟨hw.of_le (by omega), hw.of_le (by omega), hw.of_le (by nlinarith)⟩, ?_⟩
-    dsimp -failIfUnchanged only [maxStep]
-    simp_client <;> omega
+    dsimp only [maxStep]
+    rw [clientResult_bind_read]
+    split_ifs <;> simp only [clientResult_pure] <;> omega
   · have hclr : ∀ i < d.1 * d.1,
         clear s.mem s.frontier (ghScratch d.1) (3 + i) ≤ B := fun i hi => by
       rw [clear_of_not_owns fun h => absurd h.1 (by change ¬s.frontier ≤ 3 + i; omega)]
@@ -332,8 +305,21 @@ private theorem ghMain_realizes :
     intro rem z t hsum
     dsimp only at hsum ⊢
     refine ⟨⟨hw, hwB.of_le (by unfold ekBound; gcongr), by omega⟩, ?_⟩
-    dsimp -failIfUnchanged only [ghStep]
-    simp_client <;> omega
+    dsimp only [ghStep]
+    rw [clientResult_bind_read]
+    split_ifs
+    · rw [clientResult_pure]; omega
+    · rw [clientResult_bind_read]
+      split_ifs
+      · rw [clientResult_bind, clientResult_bind, clientResult_bind_read]
+        split_ifs
+        · rw [clientResult_bind_read]
+          split_ifs
+          · rw [clientResult_bind_read, clientResult_bind_write, clientResult_bind_write,
+              clientResult_bind_write, clientResult_bind_write, clientResult_pure]; omega
+          · rw [clientResult_bind_write, clientResult_pure]; omega
+        · rw [clientResult_pure]; omega
+      · rw [clientResult_pure]; omega
 
 private theorem ghProg_realizes :
     Realizes .exact ghProg (WordEncoding.encode (α := Unit))
@@ -409,7 +395,21 @@ private theorem rehang_spec (n s t : ℕ) (st : Memory.State) :
 private theorem clientResult_ghStep (n r B k : ℕ) (st : Memory.State) :
     (Memory.spec 0).clientResult st (ghStep ((n, r, B), k)) = k + 1 := by
   unfold ghStep
-  simp_client
+  dsimp only
+  rw [clientResult_bind_read]
+  split_ifs
+  · rfl
+  · rw [clientResult_bind_read]
+    split_ifs
+    · rw [clientResult_bind, clientResult_bind, clientResult_bind_read]
+      split_ifs
+      · rw [clientResult_bind_read]
+        split_ifs
+        · rw [clientResult_bind_read, clientResult_bind_write, clientResult_bind_write,
+            clientResult_bind_write, clientResult_bind_write, clientResult_pure]
+        · rw [clientResult_bind_write, clientResult_pure]
+      · rfl
+    · rfl
 
 /-- State-level effect of one step of Gusfield's algorithm on a non-root vertex `k` with parent
 `t`, in terms of the state `st1` and value `v` left by the Edmonds–Karp run. -/
@@ -600,12 +600,6 @@ private def GusfieldAt {n : ℕ} (W : Fin n → Fin n → ℕ) (r : Fin n) (k : 
         s.mem (wtBase n + z.1) =
           (gusfieldWeightLoop C val r ((List.finRange n).take k) (fun _ => r) (fun _ => 0)).2 z
 
-private theorem take_finRange_succ {n k : ℕ} (hk : k < n) :
-    (List.finRange n).take (k + 1) = (List.finRange n).take k ++ [⟨k, hk⟩] := by
-  rw [List.take_add_one, List.getElem?_eq_getElem (by rw [List.length_finRange]; exact hk),
-    List.getElem_finRange]
-  rfl
-
 private theorem lt_of_mem_take_finRange {n k : ℕ} {x : Fin n}
     (hx : x ∈ (List.finRange n).take k) : x.1 < k := by
   obtain ⟨j, hj, rfl⟩ := List.mem_take_iff_getElem.mp hx
@@ -629,7 +623,7 @@ private theorem gusfieldAt_ghStep {n : ℕ} {W : Fin n → Fin n → ℕ} {r : F
       rfl
     rw [hst]
     refine ⟨hW, C, val, hC, hval, fun z => ?_⟩
-    rw [take_finRange_succ hk, gusfieldWeightLoop_append, hres,
+    rw [List.take_succ_finRange hk, gusfieldWeightLoop_append, hres,
       ite_eq_left (Fin.ext hkr : (⟨k, hk⟩ : Fin n) = r)]
     exact hmem z
   have hP : ∀ y : Fin n, st.mem (parBase n + y.1) = (res.1 y).1 := fun y => (hmem y).1
@@ -687,7 +681,7 @@ private theorem gusfieldAt_ghStep {n : ℕ} {W : Fin n → Fin n → ℕ} {r : F
       (fun _ => 0) =
         (gusfieldStep res.1 ⟨k, hk⟩ X, gusfieldStepWeight res.1 res.2 ⟨k, hk⟩ X
           ((Memory.spec 0).clientResult st (ekProg (ghCtx n M, (k, (res.1 ⟨k, hk⟩).1))))) := by
-    rw [take_finRange_succ hk, gusfieldWeightLoop_append, hpre, ite_eq_right hsr]
+    rw [List.take_succ_finRange hk, gusfieldWeightLoop_append, hpre, ite_eq_right hsr]
     simp only [C', val', and_self, ↓reduceIte]
   refine ⟨fun u v => ?_, C', val', hC', hval', fun z => ?_⟩
   · have huv : u.1 * n + v.1 < n * n := by nlinarith [u.2, v.2]
@@ -772,7 +766,8 @@ private theorem validHistory_maxScan {w n : ℕ} {st : Memory.State} (hs : MemRe
     refine validHistory_read_bind (by omega) ?_
     exact validHistory_ite (fun _ => validHistory_pure _ _ _) (fun _ => validHistory_pure _ _ _)
   · unfold maxStep
-    simp_client
+    rw [clientResult_bind_read]
+    split_ifs <;> rfl
 
 private theorem validHistory_rehang {w n s t : ℕ} {st : Memory.State} (hs : MemReady w n st)
     (hsn : s < n) :
@@ -788,12 +783,13 @@ private theorem validHistory_rehang {w n s t : ℕ} {st : Memory.State} (hs : Me
     refine validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
     exact validHistory_write_bind (by omega) (hfit.of_le (by omega)) (validHistory_pure _ _ _)
   · unfold rehangStep
-    simp_client
+    rw [clientResult_bind_read, clientResult_bind_read]
+    split_ifs <;> rfl
 
 private theorem ekProg_result_le_ekBound (n B k t : ℕ) (st : Memory.State) :
     (Memory.spec 0).clientResult st (ekProg (ghCtx n B, (k, t))) ≤ ekBound n B := by
   have h := ekProg_result_le (ghCtx n B) k t st
-  dsimp only [ghCtx, Ctx.n, Ctx.capBound] at h ⊢
+  dsimp only [ghCtx] at h ⊢
   have : n * n * (n + B) = n * n * n + n * n * B := Nat.mul_add _ _ _
   unfold ekBound
   omega
@@ -810,9 +806,9 @@ private theorem validHistory_ghStep {w n r B k : ℕ} {st : Memory.State} (hs : 
   refine validHistory_read_bind (by omega) ?_
   refine validHistory_ite (fun ht => ?_) (fun _ => validHistory_pure _ _ _)
   have hek := validHistory_ekProg (c := ghCtx n B) (src := k) (snk := st.mem (3 + n * n + k))
-    ⟨by dsimp only [ghCtx, Ctx.matBase, Ctx.n, Ctx.scratchBase, scrBase]; omega,
-      hfit.of_le (by dsimp only [ghCtx, Ctx.scratchBase, Ctx.n, ekScratch, scrBase]; omega), hB⟩
-    hk ht hs.1 (by dsimp only [ghCtx, Ctx.scratchBase, Ctx.n, ekScratch, scrBase]; omega)
+    ⟨by dsimp only [ghCtx, scrBase]; omega,
+      hfit.of_le (by dsimp only [ghCtx, ekScratch, scrBase]; omega), hB⟩
+    hk ht hs.1 (by dsimp only [ghCtx, ekScratch, scrBase]; omega)
   refine validHistory_bind_step hek ?_
   have hs1 := MonotoneMemInv.pres hs hek
   have hr := validHistory_rehang (t := st.mem (3 + n * n + k)) hs1 hk

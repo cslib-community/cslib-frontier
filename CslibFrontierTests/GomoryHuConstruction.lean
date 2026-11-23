@@ -4,7 +4,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Algorithms.Lean.GomoryHu.Construction
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.Algorithms.Lean.GomoryHu.Construction
 
 /-!
 # Tests for Gusfield's Gomory–Hu tree algorithm
@@ -23,6 +26,8 @@ computation per non-root vertex) on the weighted graph on `Fin 4` with edges `01
 * edge cases: one vertex, and an edgeless graph with empty adjacency lists.
 -/
 
+public section
+
 namespace CslibFrontierTests.GomoryHuConstruction
 
 open Cslib.WeightedCut Cslib.Algorithms.Lean Cslib.Algorithms.Lean.MaxFlow
@@ -30,7 +35,7 @@ open Cslib.WeightedCut Cslib.Algorithms.Lean Cslib.Algorithms.Lean.MaxFlow
 open SimpleGraph (parentGraph parentGraph_adj edgeSide edgeSide_eq_of_forall_adj)
 
 /-- The weighted graph on `Fin 4` with edges `01:4`, `12:2`, `23:3`, `02:1`, `13:1`. -/
-private def W : Fin 4 → Fin 4 → ℕ := fun u v =>
+def W : Fin 4 → Fin 4 → ℕ := fun u v =>
   match u.val, v.val with
   | 0, 1 => 4 | 1, 0 => 4
   | 1, 2 => 2 | 2, 1 => 2
