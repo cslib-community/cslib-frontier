@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Computability.WordRAM.Multiword.Arithmetic
 public import CslibFrontier.Computability.WordRAM.Multiword.Bank
 public import CslibFrontier.Computability.WordRAM.Multiword.Transfer
-import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Framed arithmetic on multiword register banks
@@ -45,7 +44,7 @@ other bank entry.
 namespace Cslib.WordRAM.Multiword.Bank
 
 open Workspace
-open Schoolbook (registers rowCost)
+open Schoolbook (registers registers_bounds nodup_registers rowCost)
 
 variable {n : ℕ}
 
@@ -63,25 +62,10 @@ private theorem length_productLow (n : ℕ) : (productLow n).length = 18 := by
 private theorem length_productHigh (n : ℕ) : (productHigh n).length = 18 := by
   simp [productHigh, registers]
 
-private theorem register_bounds {start len r : ℕ} {h : start + len ≤ r}
-    {i : Fin (r + 4)} (hi : i ∈ registers start len h) :
-    4 + start ≤ i.val ∧ i.val < 4 + start + len := by
-  obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hi
-  dsimp
-  omega
-
-private theorem register_nodup (start len r : ℕ) (h : start + len ≤ r) :
-    (registers start len h).Nodup := by
-  apply List.nodup_ofFn_ofInjective
-  fin_index
-
 private theorem product_bounds {i : Fin (capacity n + 4)}
     (hi : i ∈ productLow n ++ productHigh n) : 8 ≤ i.val ∧ i.val < 44 := by
-  rcases List.mem_append.mp hi with hi | hi
-  · have := register_bounds hi
-    omega
-  · have := register_bounds hi
-    omega
+  rcases List.mem_append.mp hi with hi | hi <;>
+    (have := registers_bounds hi; omega)
 
 private theorem product_digits : ∀ i ∈ productLow n ++ productHigh n, IsDigit i := by
   intro i hi
@@ -89,11 +73,11 @@ private theorem product_digits : ∀ i ∈ productLow n ++ productHigh n, IsDigi
 
 private theorem product_nodup : (productLow n ++ productHigh n).Nodup := by
   apply List.nodup_append.mpr
-  refine ⟨register_nodup _ _ _ _, register_nodup _ _ _ _, ?_⟩
+  refine ⟨nodup_registers _ _ _, nodup_registers _ _ _, ?_⟩
   intro i hl j hh he
   subst j
-  have := register_bounds hl
-  have := register_bounds hh
+  have := registers_bounds hl
+  have := registers_bounds hh
   omega
 
 private theorem product_disjoint (j : Fin n) :
