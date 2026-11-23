@@ -41,8 +41,10 @@ gates for each input, hence at most a factor five (`ComputedWithin.of_isAffinePr
 * `Cslib.Circuits.Circuit.map_eval_arith`: ring homomorphisms commute with evaluation.
 * `Cslib.Circuits.Circuit.polynomial_comp`, `Cslib.Circuits.Circuit.polynomial_mapOp_ringHom`: the
   polynomials of composed circuits and of circuits with mapped constants.
-* `Cslib.Circuits.Arithmetic.ComputedWithin.add`, `ComputedWithin.mul`, `ComputedWithin.sum`,
-  `ComputedWithin.prod`, `ComputedWithin.rename`, `ComputedWithin.map`: closure properties.
+* `Cslib.Circuits.Arithmetic.ComputedWithin.add`, `Cslib.Circuits.Arithmetic.ComputedWithin.mul`,
+  `Cslib.Circuits.Arithmetic.ComputedWithin.sum`, `Cslib.Circuits.Arithmetic.ComputedWithin.prod`,
+  `Cslib.Circuits.Arithmetic.ComputedWithin.rename`, `Cslib.Circuits.Arithmetic.ComputedWithin.map`:
+  closure properties.
 * `Cslib.Circuits.Arithmetic.ComputedWithin.of_isAffineProjection`: affine projections cost at
   most a factor five.
 * `Cslib.Circuits.Arithmetic.mem_VP_iff`: `VP` in terms of `ComputedWithin`.
@@ -144,6 +146,7 @@ namespace ComputedWithin
 
 variable {P Q : MvPolynomial σ K} {s t : ℕ}
 
+/-- A bound on the number of nodes may be raised. -/
 theorem mono (h : ComputedWithin P s) (hst : s ≤ t) : ComputedWithin P t :=
   let ⟨n, x, c, hs, hc⟩ := h
   ⟨n, x, c, hs.trans hst, hc⟩
@@ -216,10 +219,12 @@ namespace ComputedWithin
 
 variable {P Q : MvPolynomial σ K} {s t : ℕ}
 
+/-- A sum costs the nodes of both summands and one addition. -/
 theorem add (hP : ComputedWithin P s) (hQ : ComputedWithin Q t) :
     ComputedWithin (P + Q) (s + t + 1) :=
   computedWithin_gate hP hQ .add rfl
 
+/-- A product costs the nodes of both factors and one multiplication. -/
 theorem mul (hP : ComputedWithin P s) (hQ : ComputedWithin Q t) :
     ComputedWithin (P * Q) (s + t + 1) :=
   computedWithin_gate hP hQ .mul rfl

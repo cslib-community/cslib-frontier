@@ -76,10 +76,12 @@ theorem approximates_map_C (P : MvPolynomial σ K) : Approximates (map HahnSerie
   rw [coeff_map, HahnSeries.C_apply, HahnSeries.coeff_single]
   split_ifs <;> rfl
 
+/-- A polynomial computed within `s` nodes is approximated within `s` nodes. -/
 theorem ComputedWithin.approximatedWithin {P : MvPolynomial σ K} {s : ℕ}
     (h : ComputedWithin P s) : ApproximatedWithin P s :=
   ⟨_, approximates_map_C P, h.map _⟩
 
+/-- A bound on the number of nodes may be raised. -/
 theorem ApproximatedWithin.mono {P : MvPolynomial σ K} {s t : ℕ} (h : ApproximatedWithin P s)
     (hst : s ≤ t) : ApproximatedWithin P t :=
   let ⟨Q, hQ, hc⟩ := h
@@ -140,6 +142,7 @@ the p-families whose members are approximated within a polynomially bounded numb
 @[expose] def VPBar (K : Type u) [CommRing K] : Set (PolynomialFamily K) :=
   {f | f.IsPFamily ∧ ∃ b : ℕ → ℕ, PolynomiallyBounded b ∧ ∀ n, ApproximatedWithin (f.poly n) (b n)}
 
+/-- `VP` is contained in its closure. -/
 theorem VP_subset_VPBar : VP K ⊆ VPBar K := fun f hf => by
   obtain ⟨hp, b, hb, h⟩ := mem_VP_iff.1 hf
   exact ⟨hp, b, hb, fun n => (h n).approximatedWithin⟩

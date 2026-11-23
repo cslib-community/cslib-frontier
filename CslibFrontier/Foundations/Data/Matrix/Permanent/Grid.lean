@@ -558,8 +558,10 @@ theorem exists_permanent_eq_gridSum {R : Type*} [CommRing R] (h : R) (hh : h * 2
   obtain ⟨n', q'⟩ := d
   rcases q with _ | _ | _
   · left
-    rcases q' with _ | _ | _ <;> by_cases e1 : n' = n <;> by_cases e2 : n' = σ n <;>
-      simp [gridMatrix, ind, e1, e2, Prod.ext_iff] <;> simp_all
+    rcases q' with _ | _ | _ <;>
+      simp only [gridMatrix, ind, Prod.mk.injEq, reduceCtorEq, Option.some.injEq,
+        Bool.false_eq_true, Bool.true_eq_false, and_true, and_false, ite_false, add_zero, zero_add,
+        sub_zero] <;> split_ifs <;> simp [hh2]
   · refine Or.inr ⟨w n, ?_⟩
     have mem (m : N) (c₀ : N × Option Bool) (x r : Bool) (hm : w m = w n) :
         ind c₀ (W m x r) (n', q') ∈
@@ -571,7 +573,9 @@ theorem exists_permanent_eq_gridSum {R : Type*} [CommRing R] (h : R) (hh : h * 2
     exact add_mem (add_mem (add_mem (mem n _ _ _ rfl) (mem n _ _ _ rfl)) (mem _ _ _ _ (hρ n)))
       (mem _ _ _ _ (hρ n))
   · left
-    rcases q' with _ | _ | _ <;> by_cases e1 : n' = n <;> by_cases e2 : n' = σ n <;>
-      simp [gridMatrix, ind, e1, e2, Prod.ext_iff] <;> simp_all
+    rcases q' with _ | _ | _ <;>
+      simp only [gridMatrix, ind, Prod.mk.injEq, reduceCtorEq, Option.some.injEq,
+        Bool.false_eq_true, Bool.true_eq_false, and_true, and_false, ite_false, add_zero, zero_add,
+        sub_zero] <;> split_ifs <;> simp
 
 end Matrix

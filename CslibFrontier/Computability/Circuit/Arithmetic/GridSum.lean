@@ -63,14 +63,17 @@ the constants and `X i` for `o = some i`. -/
   | none => Submodule.span K {1}
   | some i => Submodule.span K {X i, 1}
 
+/-- The constant `1` is affine in every variable. -/
 theorem one_mem_affineIn (o : Option ι) : (1 : MvPolynomial ι K) ∈ affineIn o := by
   cases o
   · exact Submodule.subset_span rfl
   · exact Submodule.subset_span (by simp)
 
+/-- Constants are affine in every variable. -/
 theorem C_mem_affineIn (o : Option ι) (b : K) : (C b : MvPolynomial ι K) ∈ affineIn o := by
   simpa [smul_eq_C_mul] using (affineIn o).smul_mem b (one_mem_affineIn o)
 
+/-- A polynomial affine in one variable is affine. -/
 theorem IsAffine.of_mem_affineIn {o : Option ι} {P : MvPolynomial ι K} (h : P ∈ affineIn o) :
     IsAffine P := by
   cases o with

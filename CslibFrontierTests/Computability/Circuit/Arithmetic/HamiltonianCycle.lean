@@ -20,7 +20,7 @@ A polynomial is never computed within zero nodes, since the output of a circuit 
 gate, and a variable is computed within one node, its input.
 -/
 
-@[expose] public section
+public section
 
 namespace CslibFrontierTests.HamiltonianCycle
 

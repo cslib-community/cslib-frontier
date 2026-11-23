@@ -13,6 +13,7 @@ public import CslibFrontier.Foundations.Data.Matrix.HamiltonianCycle
 import CslibFrontier.Computability.Circuit.Arithmetic.ComputedWithin
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import Mathlib.Algebra.MvPolynomial.CommRing
+import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 
 /-!
 # The Hamiltonian cycle polynomial belongs to VNP
@@ -250,9 +251,6 @@ private theorem computedWithin_hcWitness :
     simp only [card_univ, Fintype.card_prod, Fintype.card_fin]
     nlinarith [Nat.zero_le (n ^ 3), Nat.zero_le (n ^ 2)]
   · exact (computedWithin_C 1).mono (by have := Nat.one_le_pow 4 (n + 1) (by omega); omega)
-
-private theorem totalDegree_X_le {σ : Type*} (i : σ) : (X i : MvPolynomial σ K).totalDegree ≤ 1 :=
-  (totalDegree_monomial_le _ _).trans (by simp)
 
 private theorem totalDegree_hcWitness_le :
     (hcWitness (K := K) n).totalDegree ≤ 40 * (n + 1) ^ 4 := by
