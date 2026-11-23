@@ -4,17 +4,21 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (test)
+
 import CslibFrontier.Computability.Circuit.Boolean.RepeatedSquaring
 
 /-!
 # Repeated Boolean matrix squaring
 
-Concrete checks of `Cslib.Circuits.Boolean.closureCircuit` on the reflexive path `0 → 1 → 2` on
-three vertices. One squaring adds the edge `0 → 2`; two squarings compute reachability, which
-`eval_closureCircuit_iff_reflTransGen` turns into reachability and non-reachability statements.
-The exact gate count and depth of the two-squaring circuit are computed as well, and the iterate
-with zero squarings is the input matrix.
+Concrete checks of `Cslib.Circuits.Boolean.closureCircuit` under module encapsulation: the reflexive
+path `0 → 1 → 2` on three vertices, the non-reflexive strict path `0 → 1 → 2`, the empty graph, a
+directed three-cycle without self-loops, and the four-vertex reflexive path `0 → 1 → 2 → 3` where
+the second squaring is needed to reach `3` from `0`.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.RepeatedSquaring
 
@@ -32,7 +36,8 @@ private def pathMatrix : BitString (3 * 3) :=
     false, true, true,
     false, false, true]
 
-private theorem pathMatrix_iff (i j : Fin 3) : pathMatrix (matrixIndex i j) = true ↔ pathRel i j := by
+private theorem pathMatrix_iff (i j : Fin 3) :
+    pathMatrix (matrixIndex i j) = true ↔ pathRel i j := by
   revert i j
   decide +kernel
 
@@ -78,5 +83,36 @@ example : ∀ i j : Fin 3,
 example : (closureCircuit 3 2).size = 72 := by simp
 
 example : (closureCircuit 3 2).depth = 4 := by decide +kernel
+
+-- Empty graph (`N = 0`): zero gates and zero depth.
+example : (closureCircuit 0 3).size = 0 ∧ (closureCircuit 0 3).depth = 0 := by
+  decide +kernel
+
+-- Directed 3-cycle `0 → 1 → 2 → 0` without self-loops: `2 ^ 2 = 4` steps advance by one edge
+-- (`0 → 1`) and do not stay at `0`.
+private def cycle3Matrix : BitString (3 * 3) :=
+  ![false, true, false,
+    false, false, true,
+    true, false, false]
+
+example :
+    (closureCircuit 3 2).eval Unbounded.interpretation cycle3Matrix (matrixIndex 0 1) = true ∧
+    (closureCircuit 3 2).eval Unbounded.interpretation cycle3Matrix (matrixIndex 0 0) = false := by
+  decide +kernel
+
+-- Four-vertex reflexive path `0 → 1 → 2 → 3`: `0 → 3` needs three edges, so one squaring (`2`
+-- steps) leaves `(0, 3)` false while two squarings (`4` steps) reach `3` from `0` without adding
+-- the reverse edge `3 → 0`.
+private def path4Matrix : BitString (4 * 4) :=
+  ![true, true, false, false,
+    false, true, true, false,
+    false, false, true, true,
+    false, false, false, true]
+
+example :
+    (closureCircuit 4 1).eval Unbounded.interpretation path4Matrix (matrixIndex 0 3) = false ∧
+    (closureCircuit 4 2).eval Unbounded.interpretation path4Matrix (matrixIndex 0 3) = true ∧
+    (closureCircuit 4 2).eval Unbounded.interpretation path4Matrix (matrixIndex 3 0) = false := by
+  decide +kernel
 
 end CslibFrontierTests.RepeatedSquaring
