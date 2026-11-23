@@ -51,13 +51,10 @@ theorem exec_step {w L m t AA BB D V K F A B : ℕ} (x : Data registers)
   have hT : 10 ^ L ≤ (L + 1) * 10 ^ L := Nat.le_mul_of_pos_left _ (by omega)
   have hquery := (PrunedQuery.queryIndex η).isLt
   have hVK : V + (boxes L m t).card ≤ F := by rw [← hK]; omega
-  obtain ⟨htask, hrest⟩ := hx.stack.pop
-  obtain ⟨u, hu, un, uk, uc, uu, ue, upow, um, uf⟩ := exec_pop
-    (F := F) (n := rest.length) x hp.stack (by simpa only [List.length_cons] using hx.top)
-    hp.five hp.one htask.depth htask.code htask.used htask.stars htask.power
-    (hfit.of_le (by unfold queryAddressBound; omega))
+  obtain ⟨u, hu, un, ustack, uk, uc, uu, ue, upow, um, uf⟩ :=
+    hx.stack.exec_pop hp.stack (by simpa only [List.length_cons] using hx.top)
+      hp.five hp.one (hfit.of_le (by unfold queryAddressBound; omega))
   have up := hp.after_pop hu
-  have ustack : StackMemory η F rest u.mem := by simpa only [um] using hrest
   have utable : Readback m t D V AA BB a b u.mem := by simpa only [um] using hx.table
   have uanswer : u.regs Reg.answer = Signed.encode
       ((finished.map (leafQueryValue m t η a b)).sum) := by regs_frame

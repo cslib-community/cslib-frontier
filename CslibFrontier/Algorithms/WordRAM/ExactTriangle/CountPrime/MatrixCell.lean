@@ -9,6 +9,9 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.MatrixResidue
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.Monomial
+import CslibFrontier.Computability.WordRAM.Record
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual native padded coefficient-matrix cell
@@ -58,104 +61,47 @@ theorem exec_matrixStep {w n p k source destination table i : ℕ}
         destination + Nat.Morton.index (i / 2 ^ k) (i % 2 ^ k) * p + p ≤ d) →
         y.mem d = x.mem d) ∧
       ∀ r, ¬MatrixLocal r → y.regs r = x.regs r := by
-  let N := 2 ^ k
-  let row := i / N
-  let col := i % N
-  let position := Nat.Morton.index row col
-  have hpos : 0 < N := by positivity
-  have hsquare : N * N = 4 ^ k := by dsimp only [N]; rw [← mul_pow]; rfl
-  have hrlt : row < N := (Nat.div_lt_iff_lt_mul hpos).mpr (by simpa only [hsquare] using hi)
-  have hclt : col < N := Nat.mod_lt i hpos
-  have hzlt : position < 4 ^ k := Nat.Morton.index_lt hrlt hclt
+  have hpos : 0 < 2 ^ k := by positivity
+  have hsquare : 2 ^ k * 2 ^ k = 4 ^ k := by rw [← mul_pow]; rfl
+  have hrlt : i / 2 ^ k < 2 ^ k :=
+    (Nat.div_lt_iff_lt_mul hpos).mpr (by simpa only [hsquare] using hi)
+  have hclt : i % 2 ^ k < 2 ^ k := Nat.mod_lt i hpos
+  have hzlt : Nat.Morton.index (i / 2 ^ k) (i % 2 ^ k) < 4 ^ k :=
+    Nat.Morton.index_lt hrlt hclt
   have hmul := Nat.mul_le_mul_right p (Nat.succ_le_of_lt hzlt)
   rw [Nat.succ_mul] at hmul
-  have fit (a : ℕ) (ha : a ≤ destination + 4 ^ k * p + table + 4 ^ k + N +
-      source + n * n + p + 16) : Fits w a := hw.of_le ha
-  let z := (x.set Reg.row row).set Reg.column col
-  have coordinates : ExecWithin (B := .standard) w
-      (ram[ Reg.row ← Reg.index / Reg.paddedSide; Reg.column ← Reg.index % Reg.paddedSide ])
-      x z 2 := by
-    ram_eval [z, row, col, hindex, hN, N, fit row (by omega), fit col (by omega),
-      Reg.row, Reg.column, Reg.index, Reg.paddedSide]
-  have zmeta (r : Fin 128) (hr : ¬MatrixLocal r) : z.regs r = x.regs r := by
-    simp only [z, Data.set,
-      Function.update_of_ne (show r ≠ Reg.row by intro he; subst r; exact hr (by decide)),
-      Function.update_of_ne (show r ≠ Reg.column by intro he; subst r; exact hr (by decide))]
-  obtain ⟨s, mortonRun, sm, spos, sr⟩ := exec_morton (k := k) z
-    ((zmeta Reg.two (by decide)).trans h2)
-    (by simpa +decide [z, Reg.row, Reg.column] using hrlt)
-    (by simpa +decide [z, Reg.column] using hclt)
-    (by simpa only [show z.mem = x.mem from rfl, zmeta Reg.spread (by decide), ht] using htable)
-    (by rw [zmeta Reg.spread (by decide), ht]; exact hw.of_le (by omega))
-  have smeta (r : Fin 128) (hr : ¬MatrixLocal r) : s.regs r = x.regs r :=
-    (sr r (by intro he; subst r; exact hr (by decide))
-      (by intro he; subst r; exact hr (by decide))
-      (by intro he; subst r; exact hr (by decide))
-      (by intro he; subst r; exact hr (by decide))).trans (zmeta r hr)
-  have sposition : s.regs Reg.position = position := by
-    simpa +decide [z, Reg.row, Reg.column] using spos
-  have srow : s.regs Reg.row = row :=
-    (sr Reg.row (by decide) (by decide) (by decide) (by decide)).trans (by
-      simp +decide [z, Reg.row, Reg.column])
-  have scol : s.regs Reg.column = col :=
-    (sr Reg.column (by decide) (by decide) (by decide) (by decide)).trans (by
-      simp +decide [z, Reg.column])
-  have sindex : s.regs Reg.index = i :=
-    (sr Reg.index (by decide) (by decide) (by decide) (by decide)).trans (by
-      simpa +decide [z, Reg.index, Reg.row, Reg.column] using hindex)
-  let block := destination + position * p
-  let t := (s.set Reg.block (position * p)).set Reg.block block
-  have blockRun : ExecWithin (B := .standard) w
-      (ram[ Reg.block ← Reg.position * Reg.modulus;
-        Reg.block ← Reg.destination + Reg.block ]) s t 2 := by
-    ram_eval [t, block, sposition, (smeta Reg.modulus (by decide)).trans hp,
-      (smeta Reg.destination (by decide)).trans hdst,
-      fit (position * p) (by omega), fit block (by dsimp [block]; omega),
-      Reg.block, Reg.position, Reg.modulus, Reg.destination]
-  have tmeta (r : Fin 128) (hr : ¬MatrixLocal r) : t.regs r = x.regs r := by
-    simpa only [t, Data.set,
-      Function.update_of_ne (show r ≠ Reg.block by intro he; subst r; exact hr (by decide))]
-      using smeta r hr
-  have trow : t.regs Reg.row = row := by simpa +decide [t, Reg.row, Reg.block] using srow
-  have tcol : t.regs Reg.column = col := by simpa +decide [t, Reg.column, Reg.block] using scol
-  have tindex : t.regs Reg.index = i := by simpa +decide [t, Reg.index, Reg.block] using sindex
-  have tm : t.mem = x.mem := sm
-  obtain ⟨r, selectRun, rm, key, rr⟩ := exec_matrixResidue transpose t (by
-    rw [tmeta Reg.residueSource (by decide), hsrc, tmeta Reg.side (by decide), hn,
-      tmeta Reg.modulus (by decide), hp]
-    exact hw.of_le (by omega))
-  have rmeta (j : Fin 128) (hj : ¬MatrixLocal j) : r.regs j = x.regs j :=
-    (rr j (by intro he; subst j; exact hj (by decide))
-      (by intro he; subst j; exact hj (by decide))
-      (by intro he; subst j; exact hj (by decide))).trans (tmeta j hj)
-  have rblock : r.regs Reg.block = block :=
-    (rr Reg.block (by decide) (by decide) (by decide)).trans (by simp [t])
-  have rindex : r.regs Reg.index = i :=
-    (rr Reg.index (by decide) (by decide) (by decide)).trans tindex
-  have rmod : r.regs Reg.modulus = p := (rmeta Reg.modulus (by decide)).trans hp
-  obtain ⟨s', writeRun, values, memory, regs⟩ := exec_writeCoefficients r
-    ((rmeta Reg.zero (by decide)).trans h0) ((rmeta Reg.one (by decide)).trans h1)
-    ((rmeta Reg.two (by decide)).trans h2)
-    (by rw [rblock, rmod]; exact fit _ (by dsimp [block]; omega))
-  have s'index : s'.regs Reg.index = i :=
-    (regs Reg.index (by decide) (by decide)).trans rindex
-  have s'one : s'.regs Reg.one = 1 :=
-    (regs Reg.one (by decide) (by decide)).trans ((rmeta Reg.one (by decide)).trans h1)
-  let y := s'.set Reg.index (i + 1)
-  have increment : ExecWithin (B := .standard) w
-      (ram[ Reg.index ← Reg.index + Reg.one ]) s' y 1 := by
-    ram_eval [y, s'index, s'one, fit (i + 1) (by omega)]
-  have he : ExecWithin w (matrixStep transpose) x y (7 * p + 22) :=
-    (coordinates.seq (mortonRun.seq (blockRun.seq (selectRun.seq (writeRun.seq increment))))).mono
-      (by rw [rmod]; omega)
-  refine ⟨y, he, ?_, ?_, ?_, fun j hj => he.regs_eq (matrixStep_preserves transpose j hj)⟩
-  · rfl
+  refine WP.exists_execWithin_preserves (fun j hj => matrixStep_preserves transpose j hj) ?_
+  unfold matrixStep
+  wram_exec [hindex, hN]
+  wram_call (exec_morton (k := k) _ (by wram_simp [h2]) (by wram_simp; exact hrlt)
+    (by wram_simp; exact hclt) (by wram_simp [ht]; exact htable)
+    (by wram_simp [ht]; exact hw.of_le (by omega))) with s ⟨sm, spos, sr⟩
+  wram_simp at sm spos
+  have smod : s.regs Reg.modulus = p := by regs_frame
+  have sdst : s.regs Reg.destination = destination := by regs_frame
+  wram_exec [spos, smod, sdst]
+  have tsrc : s.regs Reg.residueSource = source := by regs_frame
+  have tside : s.regs Reg.side = n := by regs_frame
+  have trow : s.regs Reg.row = i / 2 ^ k := by regs_frame
+  have tcol : s.regs Reg.column = i % 2 ^ k := by regs_frame
+  wram_call (exec_matrixResidue transpose _
+    (by wram_simp [tsrc, tside, smod]; exact hw.of_le (by omega))) with r ⟨rm, key, rr⟩
+  wram_simp [tsrc, tside, smod, trow, tcol, sm] at rm key
+  have rblock : r.regs Reg.block =
+      destination + Nat.Morton.index (i / 2 ^ k) (i % 2 ^ k) * p := by regs_frame
+  have rmod : r.regs Reg.modulus = p := by regs_frame
+  refine WP.seq ?_
+  wram_call (exec_writeCoefficients r (by regs_frame) (by regs_frame) (by regs_frame)
+    (by rw [rblock, rmod]; exact hw.of_le (by omega))) with s' ⟨values, memory, regs⟩
+  have s'index : s'.regs Reg.index = i := by regs_frame
+  have s'one : s'.regs Reg.one = 1 := by regs_frame
+  wram_exec [s'index, s'one]
+  intro hpres
+  refine ⟨by wram_simp, ?_, ?_, hpres⟩
   · intro j hj
     have hv := values j (by simpa only [rmod] using hj)
-    simpa only [y, Data.set_mem, rblock, block, key, trow, tcol,
-      tmeta Reg.side (by decide), hn, tmeta Reg.residueSource (by decide), hsrc,
-      tmeta Reg.modulus (by decide), hp, tm, rm] using hv
+    simpa only [Data.set_mem, rblock, key] using hv
   · intro d hd
-    exact (memory d (by simpa only [rblock, rmod, block] using hd)).trans (by rw [rm, tm])
+    exact (memory d (by simpa only [rblock, rmod] using hd)).trans (congrFun rm d)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

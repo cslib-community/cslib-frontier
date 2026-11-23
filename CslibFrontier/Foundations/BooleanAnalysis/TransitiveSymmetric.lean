@@ -39,7 +39,9 @@ automorphism `π` carries the influence of `i` and the coefficient on `S` to tho
 `π(S)` (`BitString.influence_apply_of_mem_aut`, `BitString.fourierCoeff_map_of_mem_aut`). Hence all
 coordinates of a transitive-symmetric function have the same influence and the same degree-one
 coefficient (`BitString.influence_signVal_eq_of_isPretransitive`,
-`BitString.fourierCoeff_singleton_signVal_eq_of_isPretransitive`). A monotone function on `n` bits
+`BitString.fourierCoeff_singleton_signVal_eq_of_isPretransitive`). Since permutations carry any
+set to any other of the same size, a function of the weight has the same Fourier coefficient on
+all sets of a given size (`BitString.fourierCoeff_eq_of_card_eq`). A monotone function on `n` bits
 has total influence at most `√n` (`BitString.totalInfluence_le_sqrt_card_of_monotone`), so a
 monotone transitive-symmetric function has every influence at most `1 / √n`
 (`BitString.influence_signVal_le_one_div_sqrt_card_of_monotone_of_isPretransitive`)
@@ -78,6 +80,8 @@ dictator on two bits is not transitive-symmetric.
   Boolean functions, are transitive-symmetric.
 * `Cslib.BitString.influence_apply_of_mem_aut`, `Cslib.BitString.fourierCoeff_map_of_mem_aut`:
   automorphisms preserve influences and Fourier coefficients.
+* `Cslib.BitString.fourierCoeff_eq_of_card_eq`: a function of the weight has the same Fourier
+  coefficient on all sets of a given size.
 * `Cslib.BitString.influence_signVal_eq_of_isPretransitive`,
   `Cslib.BitString.fourierCoeff_singleton_signVal_eq_of_isPretransitive`: all coordinates of a
   transitive-symmetric function have the same influence and degree-one coefficient.
@@ -183,6 +187,23 @@ coefficient of `g` on `S` to its coefficient on `π(S)`, by
 theorem fourierCoeff_map_of_mem_aut {g : (ι → Bool) → ℝ} {π : Equiv.Perm ι} (hπ : π ∈ aut g)
     (S : Finset ι) : fourierCoeff g (S.map π.toEmbedding) = fourierCoeff g S := by
   rw [← fourierCoeff_comp_arrowCongr π g S, comp_symm_of_mem_aut hπ]
+
+/-- A function of the weight has the same Fourier coefficient on any two sets of the same size,
+the observation O'Donnell uses to open Section 5.3 (after Exercise 1.30(a))
+[O'Donnell, Section 5.3][ODonnell2014]. A permutation matching `S` with `S'` and their complements
+with each other carries one set to the other, and every permutation is an automorphism. -/
+theorem fourierCoeff_eq_of_card_eq {f : (ι → Bool) → ℝ}
+    (hf : ∀ x y, weight x = weight y → f x = f y) {S S' : Finset ι} (h : #S = #S') :
+    fourierCoeff f S = fourierCoeff f S' := by
+  obtain ⟨e⟩ : Nonempty ({i // i ∈ S} ≃ {i // i ∈ S'}) := Fintype.card_eq.1 (by simpa using h)
+  obtain ⟨e'⟩ : Nonempty ({i // i ∉ S} ≃ {i // i ∉ S'}) := Fintype.card_eq.1 (by
+    rw [Fintype.card_subtype_compl, Fintype.card_subtype_compl]
+    simp [h])
+  set π := e.subtypeCongr e'
+  have hS : S.map π.toEmbedding = S' := eq_of_subset_of_card_le (fun y hy => by
+    obtain ⟨x, hx, rfl⟩ := mem_map.1 hy
+    simp [π, Equiv.subtypeCongr, Equiv.sumCompl_symm_apply_of_pos hx]) (by simp [h])
+  rw [← hS, fourierCoeff_map_of_mem_aut (aut_eq_top_of_forall_weight_eq hf ▸ Subgroup.mem_top π)]
 
 /-! ### Transitive-symmetric functions -/
 

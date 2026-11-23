@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.MonotoneCircuitValue
 public import CslibFrontier.Computability.Complexity.Problems.CircuitValue.Completeness
 public import CslibFrontier.Computability.Circuit.Monotone.DualRail
+import CslibFrontier.Computability.Circuit.Encoding.MapOp
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Doubled
 import CslibFrontier.Tactic.EncLen
 
@@ -60,7 +61,7 @@ its decider rather than by translating the given circuit directly.
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, Section 6.7][AroraBarak09]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Complexity.MonotoneCircuitValue
 
@@ -70,7 +71,7 @@ open Turing MultiTapeTM Circuits Circuits.Boolean ComputableInSpace CircuitValue
 
 /-- The operation of the gate translating a De Morgan operation positively (`b = true`) or
 negatively, read in the De Morgan basis. -/
-def dualOp (b : Bool) : Boolean.Op → Boolean.Op
+private def dualOp (b : Bool) : Boolean.Op → Boolean.Op
   | .const c => .const (if b then c else !c)
   | .not => .or
   | .and => if b then .and else .or
@@ -78,7 +79,7 @@ def dualOp (b : Bool) : Boolean.Op → Boolean.Op
 
 /-- The gate translating a De Morgan gate positively (`b = true`) or negatively
 (`Cslib.Circuits.Monotone.dualGates`), read in the De Morgan basis. -/
-def dualGateDM (b : Bool) (g : Boolean.Op × List ℕ) : Boolean.Op × List ℕ :=
+private def dualGateDM (b : Bool) (g : Boolean.Op × List ℕ) : Boolean.Op × List ℕ :=
   (dualOp b g.1, if decide (Boolean.signature.Arity g.1 = 0) then []
     else if decide (g.1 = .not) then
       [Monotone.railWire (!b) (g.2.getD 0 0), Monotone.railWire (!b) (g.2.getD 0 0)]
@@ -137,10 +138,11 @@ variable {k : ℕ} {State : Type} [Fintype State] [DecidableEq State]
 /-- **The instance of the monotone circuit value problem** for the input `w`: the dual-rail
 translation of the tableau circuit of `tm` for `timeBound C d |w|` steps on inputs of length
 `|w|`, with the dual-rail inputs of `w`. -/
-noncomputable def dualTableauInstance (w : List Bool) :
-    Σ n, Circuit Monotone.signature n 1 × BitString n :=
-  ⟨2 * w.length + 1, Monotone.dualRail (Tableau.circuit tm w.length (timeBound C d w.length)),
-    Monotone.railBitString fun i => w[i]⟩
+@[expose] noncomputable def dualTableauInstance (w : List Bool) :
+    MonotoneCircuitValueInstance where
+  arity := 2 * w.length + 1
+  circuit := Monotone.dualRail (Tableau.circuit tm w.length (timeBound C d w.length))
+  input := Monotone.railBitString fun i => w[i]
 
 /-- The dual-rail instance is a yes-instance exactly when the tableau instance is. -/
 theorem mem_dualTableauInstance_iff (w : List Bool) :
@@ -151,14 +153,14 @@ theorem mem_dualTableauInstance_iff (w : List Bool) :
   rw [Monotone.eval_dualRail]
 
 /-- The two translated gates of gate `j` of the tableau, as the writer emits them. -/
-noncomputable def dualChunk (n j : ℕ) : List Bool :=
+private noncomputable def dualChunk (n j : ℕ) : List Bool :=
   doubled (doubled (frame
     (encGate (dualGateDM true (Tableau.gateCode tm n (timeBound C d n) j))))) ++
     doubled (doubled (frame
       (encGate (dualGateDM false (Tableau.gateCode tm n (timeBound C d n) j)))))
 
 /-- **The writer of the dual-rail instances.** -/
-noncomputable def dualSpec : WriterSpec where
+private noncomputable def dualSpec : WriterSpec where
   countUnit := List.replicate 8 true
   countEnd := [true, true, true, true, true, false]
   numChunks n := Tableau.numGates k State (timeBound C d n)

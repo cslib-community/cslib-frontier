@@ -29,15 +29,15 @@ noncomputable def control : (Unit × Option Bool × Bool) ↪ ℕ :=
 /-- Feed the existing native framing machine through the full substitution compiler. The
 result frames the virtual word with no virtual word or output history stored in workspace. -/
 theorem native_frame : ∃ time c, ComputableInTimeAndSpace
-    (fun p : Simulation.Input => frame (word p.val.2 p.val.1.1 p.val.1.2.1))
+    (fun p : Simulation.Input => frame (word p.val.original p.val.data.cut p.val.data.suffix))
     Simulation.encInput encBits time
     (fun p => c * (Native.budget control Encodings.frameT.toTM
-      (word p.val.2 p.val.1.1 p.val.1.2.1).length 0 +
-        (encData p.val.1).length + Nat.log2 (Simulation.encInput p).length + 1)) := by
+      (word p.val.original p.val.data.cut p.val.data.suffix).length 0 +
+        (encData p.val.data).length + Nat.log2 (Simulation.encInput p).length + 1)) := by
   apply Native.computableInSpace_of_computes control Encodings.frameT.toTM encBits _ (fun _ => 0)
   · intro p
     have h := (Encodings.frameT.computesInTimeAndSpace_toTM
-      (word p.val.2 p.val.1.1 p.val.1.2.1)).1
+      (word p.val.original p.val.data.cut p.val.data.suffix)).1
     change Encodings.frameT.toTM.Computes _ (Encodings.frameT.run () _) at h
     simpa only [Encodings.frameT_run, encBits_apply] using h
   · intro p
@@ -46,11 +46,12 @@ theorem native_frame : ∃ time c, ComputableInTimeAndSpace
 /-- The unchanged ordinary logspace certificate also suffices, without an exposed native
 machine, component certificates or a first-halt clock supplied by the client. -/
 theorem ordinary_logspace_client : ∃ time c a C, ComputableInTimeAndSpace
-    (fun p : Simulation.Input => frame (word p.val.2 p.val.1.1 p.val.1.2.1))
+    (fun p : Simulation.Input => frame (word p.val.original p.val.data.cut p.val.data.suffix))
     Simulation.encInput encBits time
-    (fun p => c * (C * (a * (Nat.log2 (word p.val.2 p.val.1.1 p.val.1.2.1).length + 1) +
-      Nat.log2 (word p.val.2 p.val.1.1 p.val.1.2.1).length + 1) +
-      (encData p.val.1).length + Nat.log2 (Simulation.encInput p).length + 1)) := by
+    (fun p => c * (C * (a *
+      (Nat.log2 (word p.val.original p.val.data.cut p.val.data.suffix).length + 1) +
+      Nat.log2 (word p.val.original p.val.data.cut p.val.data.suffix).length + 1) +
+      (encData p.val.data).length + Nat.log2 (Simulation.encInput p).length + 1)) := by
   apply Native.of_logSpace
   exact Encodings.frameT.computableInLogSpace (fun w => (Encodings.frameT_run w).symm)
 

@@ -190,7 +190,7 @@ theorem ncard_le_cutRank_add_of_bisection {M : Matrix (Fin n) (Fin n) (ZMod 2)} 
   linarith [hM U hU]
 
 /-- A bound `y · 2^ρ ≤ 2 · 2^m` with `ρ ≥ r` gives `y ≤ 2^{1 + m - r}` in real exponents. -/
-private theorem le_rpow_of_mul_two_pow_le {y : ℝ} {ρ m : ℕ} {r : ℝ} (hy : y * 2 ^ ρ ≤ 2 * 2 ^ m)
+theorem le_rpow_of_mul_two_pow_le {y : ℝ} {ρ m : ℕ} {r : ℝ} (hy : y * 2 ^ ρ ≤ 2 * 2 ^ m)
     (hr : r ≤ ρ) : y ≤ (2 : ℝ) ^ (1 + m - r) := by
   have hpos : (0 : ℝ) < 2 ^ ρ := by positivity
   have h₁ : y ≤ 2 * 2 ^ m / 2 ^ ρ := (le_div_iff₀ hpos).mpr hy

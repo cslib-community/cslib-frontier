@@ -355,7 +355,7 @@ private theorem toReal_eval_smoothSlotCoins_some (P : Scheme ι S R Q A) [Fintyp
     PMF.pure_apply, reduceCtorEq, mul_zero, add_zero]
   change (_ * (((PMF.uniformOfFintype (Fin (smoothCopies P i₀ (s, q)))).map embed)
     (some j))).toReal = _
-  rw [ENNReal.toReal_mul]
+  ennreal_to_real
   rcases j with ⟨sq', idx'⟩
   by_cases hsq : sq' = (s, q)
   · subst hsq
@@ -368,7 +368,7 @@ private theorem toReal_eval_smoothSlotCoins_some (P : Scheme ι S R Q A) [Fintyp
       rw [PMF.apply_eq_zero_iff, PMF.support_map]
       rintro ⟨u, _, hu⟩
       exact hsq (congrArg Sigma.fst (Option.some.inj hu)).symm
-    rw [hz, ENNReal.toReal_zero, mul_zero]
+    simp [hz]
 
 private theorem eval_smoothSlotCoins_none (P : Scheme ι S R Q A) [Fintype S]
     [Fintype Q] [DecidableEq Q] (i₀ i : ι) (s : S) (q : Q) :
@@ -622,11 +622,7 @@ theorem toReal_decodeLaw_smoothDecoder_ge (P : Scheme ι S R Q A) [Fintype S]
         rw [hopt] at hk
         have hpos : (ProbComp.eval (smoothSlotCoins P i₀ i (eS.symm k) (rq.2 (eS.symm k)))
             (some (opt.get (hall k)))).toReal ≠ 0 := by
-          intro hz
-          have h0 : ProbComp.eval (smoothSlotCoins P i₀ i (eS.symm k) (rq.2 (eS.symm k)))
-              (some (opt.get (hall k))) = 0 := by
-            rw [← ENNReal.ofReal_toReal (PMF.apply_ne_top _ _), hz, ENNReal.ofReal_zero]
-          exact (PMF.mem_support_iff _ _).mp hk h0
+          ennreal_to_real using (PMF.mem_support_iff _ _).mp hk
         rw [toReal_eval_smoothSlotCoins_some] at hpos
         rcases pos : opt.get (hall k) with ⟨⟨s', q'⟩, idx'⟩
         rw [pos] at hpos
@@ -772,13 +768,13 @@ theorem toReal_decodeLaw_smoothDecoder_ge (P : Scheme ι S R Q A) [Fintype S]
       rw [PMF.toReal_false_eq_one_sub, mul_sub, mul_one, mul_keepProb_eq_min]
       by_cases hle : ProbComp.eval (P.serverQuery s i₀) q ≤ ProbComp.eval (P.serverQuery s i) q
       · rw [ENNReal.toReal_sub_of_le hle (PMF.apply_ne_top _ _),
-          min_eq_left (ENNReal.toReal_mono (PMF.apply_ne_top _ _) hle)]
+          min_eq_left (by ennreal_to_real using hle)]
       · rw [tsub_eq_zero_of_le (le_of_not_ge hle), ENNReal.toReal_zero,
-          min_eq_right (ENNReal.toReal_mono (PMF.apply_ne_top _ _) (le_of_not_ge hle)), sub_self]
-    simp only [hterm_eq]
-    rw [← ENNReal.toReal_sum fun _ _ => ENNReal.sub_ne_top (PMF.apply_ne_top _ _),
-      ← tsum_fintype (L := SummationFilter.unconditional _)]
-    exact ENNReal.toReal_le_of_le_ofReal hδ (closeTo_iff_tsum_tsub_le.mp (hpriv s i))
+          min_eq_right (by ennreal_to_real using le_of_not_ge hle), sub_self]
+    have hclose := closeTo_iff_tsum_tsub_le.mp (hpriv s i)
+    rw [tsum_fintype] at hclose
+    ennreal_to_real at hclose
+    simpa only [hterm_eq] using hclose
   -- Convert `hpir_ennreal` to `ℝ`:
   ennreal_to_real at hpir_ennreal
   have hsum_le :

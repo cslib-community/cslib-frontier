@@ -45,8 +45,9 @@ with the spanning in-arborescences `T ≤ Digraph.superRootDigraph G` rooted at 
 
 * `Digraph.isOutArborescence_iff`, `Digraph.isOutArborescence_outParentDigraph_iff`:
   characterizations of spanning out-arborescences.
-* `Digraph.isBranching_branchingDigraph_iff`, `Digraph.IsBranching.exists_branchingDigraph_eq`:
-  parent-map characterization of finite branchings.
+* `Digraph.isBranching_branchingDigraph_iff`, `Digraph.IsBranching.exists_branchingDigraph_eq`,
+  `Digraph.IsBranching.of_rank`, `Digraph.IsBranching.exists_rank`:
+  parent-map and topological-rank characterizations of branchings.
 * `Digraph.isBranching_iff_isInArborescence_superRootExtend`, `Digraph.restrictOption_spec`:
   bijection with spanning in-arborescences on `Option V` rooted at `none`.
 * `Digraph.IsBranching.card_arcs_le`, `Digraph.IsBranching.isOutArborescence_iff_card_arcs`:
@@ -157,6 +158,21 @@ theorem isBranching_bot (V : Type*) : (⊥ : Digraph V).IsBranching where
       | single h => simp at h
       | tail _ h => simp at h
     exact this _ _ h
+
+/-- A digraph whose arcs strictly increase some `ℕ`-valued rank and give each vertex at most one
+incoming arc is a branching. -/
+theorem IsBranching.of_rank {B : Digraph V} {rk : V → ℕ}
+    (hrank : ∀ ⦃u w : V⦄, B.Adj u w → rk u < rk w)
+    (hin : ∀ ⦃u₁ u₂ w : V⦄, B.Adj u₁ w → B.Adj u₂ w → u₁ = u₂) :
+    B.IsBranching where
+  in_unique := hin
+  acyclic _ hc := by
+    have hlt : ∀ {x y : V}, Relation.TransGen B.Adj x y → rk x < rk y := by
+      intro x y hxy
+      induction hxy with
+      | single h => exact hrank h
+      | tail _ h ih => exact ih.trans (hrank h)
+    exact Nat.lt_irrefl _ (hlt hc)
 
 /-- Helper: following a walk in `outParentDigraph` backward tracks iterates of `p`. -/
 private theorem transGen_outParentDigraph_iterate {r : V} {p : V → V} {x y : V}
@@ -297,6 +313,23 @@ theorem IsBranching.exists_branchingDigraph_eq {B : Digraph V} (hB : B.IsBranchi
         simpa only [p, dite_eq_left hv] using hv.choose_spec
       have hpeq : p v = u := hB.in_unique hspec huv
       exact ⟨hpeq ▸ hne, hpeq⟩
+
+/-- Every branching on a finite vertex type admits a strict root-distance ranking `rk : V → ℕ`
+that increases along every arc. -/
+theorem IsBranching.exists_rank [Finite V] {B : Digraph V} (hB : B.IsBranching) :
+    ∃ rk : V → ℕ, ∀ ⦃u w : V⦄, B.Adj u w → rk u < rk w := by
+  classical
+  obtain ⟨p, _, rfl⟩ := hB.exists_branchingDigraph_eq
+  have hfix := isBranching_branchingDigraph_iff.mp hB
+  refine ⟨fun v => Nat.find (hfix v), fun u w ⟨hne, hpu⟩ => ?_⟩
+  subst hpu
+  rcases hk : Nat.find (hfix w) with _ | m
+  · exact absurd (by simpa [hk] using Nat.find_spec (hfix w)) hne
+  · have hm : p (p^[m] (p w)) = p^[m] (p w) := by
+      simpa only [hk, Function.iterate_succ_apply] using Nat.find_spec (hfix w)
+    dsimp only
+    rw [hk]
+    exact Nat.lt_succ_of_le (Nat.find_min' (hfix (p w)) hm)
 
 /-! ### Super-root bijection on `Option V` -/
 

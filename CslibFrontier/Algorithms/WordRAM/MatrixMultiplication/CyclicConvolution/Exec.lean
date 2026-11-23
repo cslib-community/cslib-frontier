@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.CyclicConvolution.Coefficient
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native multiplication of cyclic coefficient arrays
@@ -93,7 +94,7 @@ theorem exec {w p A B : ℕ} (x : Data 32) (u v : ℕ → ℤ)
   let x₀ := (x.set Reg.coefficient 0).set Reg.one 1
   have h1 : Fits (w + 2) 1 := (show Fits 2 1 from by decide).mono (by omega)
   have hinit : ExecWithin (B := .standard) (w + 2)
-      (ram[ Reg.coefficient ← #0; Reg.one ← #1 ]) x x₀ 2 := by ram_eval [x₀, h1]
+      (ram[ Reg.coefficient ← #0; Reg.one ← #1 ]) x x₀ 2 := by wram_exec
   have hx₀ : P (x₀.regs Reg.coefficient) x₀ := by
     refine ⟨fun i hi => hinit.regs_eq (init_preserves i hi), ?_, ?_, ?_⟩
     · simp [x₀]
