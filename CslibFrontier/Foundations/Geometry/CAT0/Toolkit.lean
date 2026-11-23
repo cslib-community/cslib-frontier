@@ -136,6 +136,18 @@ theorem exists_isBarycenter {ι : Type*} [Fintype ι] [Nonempty Y] (w : ι → �
 
 /-! ### Points on geodesics (part (a)) -/
 
+/-- `t(1 − t)|xv|² ≤ (1 − t)|qx|² + t|qv|²` for every `q` and `t ∈ [0, 1]`: the triangle
+inequality, squared and weighted. -/
+omit [CAT0Space Y] in
+private theorem mul_one_sub_mul_dist_sq_le (x v q : Y) {t : ℝ} (h0 : 0 ≤ t) (h1 : t ≤ 1) :
+    t * (1 - t) * dist x v ^ 2 ≤ (1 - t) * dist q x ^ 2 + t * dist q v ^ 2 := by
+  have h2 := dist_triangle x q v
+  rw [dist_comm x q] at h2
+  have h3 : t * (1 - t) * dist x v ^ 2 ≤ t * (1 - t) * (dist q x + dist q v) ^ 2 := by
+    have : 0 ≤ t * (1 - t) := mul_nonneg h0 (by linarith)
+    gcongr
+  linarith [sq_nonneg ((1 - t) * dist q x - t * dist q v)]
+
 /-- For `t ∈ [0, 1]` some point satisfies the inequality of the point at fraction `t`: the
 barycenter of `x` and `v` with the weights `1 − t` and `t`. -/
 theorem exists_isPointAt (x v : Y) {t : ℝ} (h0 : 0 ≤ t) (h1 : t ≤ 1) :
@@ -146,12 +158,7 @@ theorem exists_isPointAt (x v : Y) {t : ℝ} (h0 : 0 ≤ t) (h1 : t ≤ 1) :
   refine ⟨b, fun z => ?_⟩
   have h := hb z
   simp only [Fintype.sum_bool, Bool.cond_true, Bool.cond_false] at h
-  have h2 := dist_triangle x b v
-  rw [dist_comm x b] at h2
-  have h3 : t * (1 - t) * dist x v ^ 2 ≤ t * (1 - t) * (dist b x + dist b v) ^ 2 := by
-    have : 0 ≤ t * (1 - t) := mul_nonneg h0 (by linarith)
-    gcongr
-  linarith [sq_nonneg ((1 - t) * dist b x - t * dist b v)]
+  linarith [mul_one_sub_mul_dist_sq_le x v b h0 h1]
 
 /-- **Part (a).** For `t ∈ [0, 1]` exactly one point has distances `t|xv|` and `(1 − t)|xv|`
 from `x` and `v`. By `isPointAt_of_dist` it satisfies the inequality of the point at
@@ -179,12 +186,9 @@ private theorem quadrilateral_aux (x v p p' : Y) {s t : ℝ} (hs0 : 0 ≤ s) (hs
   obtain ⟨q, hq⟩ := exists_isPointAt p p' hs0 hs1
   have h1 := mul_le_mul_of_nonneg_left (hq x) (show 0 ≤ 1 - t by linarith)
   have h2 := mul_le_mul_of_nonneg_left (hq v) ht0
-  have h3 := dist_triangle x q v
-  rw [dist_comm q v] at h3
-  have h4 : t * (1 - t) * dist x v ^ 2 ≤ t * (1 - t) * (dist x q + dist v q) ^ 2 := by
-    have : 0 ≤ t * (1 - t) := mul_nonneg ht0 (by linarith)
-    gcongr
-  linarith [sq_nonneg ((1 - t) * dist x q - t * dist v q)]
+  have h3 := mul_one_sub_mul_dist_sq_le x v q ht0 ht1
+  rw [dist_comm q x, dist_comm q v] at h3
+  linarith
 
 /-- **Part (b), the quadrilateral inequality.**
 `|xv|² + |yu|² ≤ |xu|² + |yv|² + 2|xy||uv|`. The proof applies `quadrilateral_aux` with
