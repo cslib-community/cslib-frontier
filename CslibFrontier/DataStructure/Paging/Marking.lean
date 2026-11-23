@@ -402,10 +402,7 @@ private theorem markingStep_on_union {k : ℕ} {M U : Finset α} {p : α}
   have hMU_card : (M ∪ U).card = k := by
     rw [Finset.card_union_of_disjoint hdisj, hcard]
   have hnotlt : ¬ (M ∪ U).card < k := by omega
-  have hnot_sub : ¬ M ∪ U ⊆ M := by
-    obtain ⟨x, hxU⟩ := hU
-    intro hsub
-    exact Finset.disjoint_left.mp hdisj (hsub (Finset.mem_union_right M hxU)) hxU
+  have hnot_sub : ¬ M ∪ U ⊆ M := by finset_card
   have hsdiff : (M ∪ U) \ M = U := Finset.union_sdiff_cancel_left hdisj
   by_cases hpU : p ∈ U
   · have hpMU : p ∈ M ∪ U := Finset.mem_union_right M hpU
@@ -747,9 +744,7 @@ private theorem cleanCount_active_bound {k : ℕ} (hk : 0 < k) {tr : MarkTracker
         · simp only [hp_off, ↓reduceIte, validStep_hit_eq hstep hp_off, B']
           exact hs_off_sub
         · simp only [hp_off, ↓reduceIte, B']
-          refine (validStep_miss_subset hstep hp_off).trans ?_
-          rw [Finset.union_insert]
-          exact Finset.insert_subset_insert p hs_off_sub
+          finset_card [validStep_miss_subset hstep hp_off]
       have hM_sub' : tr.marked ⊆ s_start ∪ B' := by
         refine hM_sub.trans (Finset.union_subset_union_right ?_)
         by_cases hp_off : p ∈ s_off <;> simp [hp_off, B', Finset.subset_insert]
@@ -787,11 +782,7 @@ private theorem cleanCount_active_bound {k : ℕ} (hk : 0 < k) {tr : MarkTracker
             · simp only [hp_off, ↓reduceIte, Finset.union_singleton, B_new]
               exact validStep_miss_subset hstep hp_off
           have hp_new : ({p} : Finset α) ⊆ s_off ∪ B_new := by
-            by_cases hp_off : p ∈ s_off
-            · simp only [hp_off, ↓reduceIte, Finset.union_empty, Finset.singleton_subset_iff,
-                B_new]
-            · simp only [hp_off, ↓reduceIte, Finset.union_singleton, Finset.singleton_subset_iff,
-                Finset.mem_insert_self, B_new]
+            by_cases hp_off : p ∈ s_off <;> simp only [hp_off, ↓reduceIte, B_new] <;> finset_card
           have hB_new_card : B_new.card = stepCost s_off p s_off' := by
             by_cases hp_off : p ∈ s_off <;> simp [hp_off, B_new]
           have htr_new : ValidTracker k ⟨{p}, tr.marked, k - 1⟩ := hstep_tr ▸ htr'

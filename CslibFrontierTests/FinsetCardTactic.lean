@@ -187,6 +187,17 @@ example {P : Type*} [Fintype P] [DecidableEq P] {t : ℕ} (Q₁ Q₂ F : Finset 
     ∃ p ∈ Q₁ ∩ Q₂, p ∉ F := by
   finset_card [isTwoThirds_iff, threshold_pos (Fintype.card P) t hn]
 
+/-- Unrelated `Fin 10` point disequalities and unrelated `Finset β` carriers exceeding `maxAtoms`
+do not trigger atom promotion or `maxAtoms` errors when solving a `Finset α` goal. -/
+example {α β : Type*} [Fintype α] [DecidableEq α] [DecidableEq β]
+    (Q₁ Q₂ : Finset α) (h₁ : Fintype.card α < 2 * Q₁.card) (h₂ : Fintype.card α < 2 * Q₂.card)
+    (k₁ k₂ k₃ k₄ k₅ k₆ k₇ : Fin 10)
+    (_hk₁ : k₁ ≠ k₂) (_hk₂ : k₂ ≠ k₃) (_hk₃ : k₃ ≠ k₄)
+    (_hk₄ : k₄ ≠ k₅) (_hk₅ : k₅ ≠ k₆) (_hk₆ : k₆ ≠ k₇)
+    (B₁ B₂ B₃ B₄ B₅ B₆ : Finset β) (_hB : (B₁ ∪ B₂ ∪ B₃ ∪ B₄ ∪ B₅ ∪ B₆).card ≤ 10) :
+    (Q₁ ∩ Q₂).Nonempty := by
+  finset_card
+
 /-! ### Diagnostic failure modes -/
 
 /--

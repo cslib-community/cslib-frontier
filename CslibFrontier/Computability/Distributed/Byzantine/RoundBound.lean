@@ -494,7 +494,7 @@ private theorem solvesByzantineAgreement_reindex {P Q S S' M M' : Type*}
     {π : Protocol Q S M} {t R : ℕ} (h : π.SolvesByzantineAgreement t R) :
     (reindex eP eS eM π).SolvesByzantineAgreement t R where
   agreement F hF adv x i hi j hj := by
-    have hF' : (F.map eP.toEmbedding).card ≤ t := by finset_card
+    have hF' : (F.map eP.toEmbedding).card ≤ t := by simpa only [Finset.card_map] using hF
     have hi' : eP i ∉ F.map eP.toEmbedding := by
       simpa only [Finset.mem_map_equiv, Equiv.symm_apply_apply] using hi
     have hj' : eP j ∉ F.map eP.toEmbedding := by
@@ -502,7 +502,7 @@ private theorem solvesByzantineAgreement_reindex {P Q S S' M M' : Type*}
     rw [reindex_decision, reindex_decision]
     exact h.agreement _ hF' _ _ (eP i) hi' (eP j) hj'
   validity F hF adv x v hv i hi := by
-    have hF' : (F.map eP.toEmbedding).card ≤ t := by finset_card
+    have hF' : (F.map eP.toEmbedding).card ≤ t := by simpa only [Finset.card_map] using hF
     have hi' : eP i ∉ F.map eP.toEmbedding := by
       simpa only [Finset.mem_map_equiv, Equiv.symm_apply_apply] using hi
     rw [reindex_decision]

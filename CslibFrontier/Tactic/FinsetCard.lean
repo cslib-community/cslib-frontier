@@ -240,18 +240,6 @@ protected theorem subset_denote_mp {α : Type u} [DecidableEq α] {U : Finset α
   rw [denote_eq_regionSet hU] at hemp
   exact (regionSet_eq_empty_iff _ U as).1 hemp
 
-/-- Translate `¬ (s ⊆ t)` into `0 < vennSum (s \ t)`. -/
-protected theorem not_subset_denote_mp {α : Type u} [DecidableEq α] {U : Finset α}
-    {as : List (Finset α)} (hU : FinsetCard.AllSubset U as) {e₁ e₂ : FinsetCard.SetExpr}
-    {s t : Finset α} (hs : s = e₁.denote U as) (ht : t = e₂.denote U as) (h : ¬ (s ⊆ t)) :
-    0 < FinsetCard.vennSum (fun bs => e₁.evalBool bs && !e₂.evalBool bs) U as := by
-  subst hs ht
-  refine Nat.pos_of_ne_zero fun h0 => h ?_
-  have hemp : (e₁.sdiff e₂).denote U as = ∅ := by
-    rw [denote_eq_regionSet hU]
-    exact (regionSet_eq_empty_iff _ U as).2 h0
-  exact Finset.sdiff_eq_empty_iff_subset.1 hemp
-
 /-- Translate `Disjoint s t` into `vennSum (s ∩ t) = 0`. -/
 protected theorem disjoint_denote_mp {α : Type u} [DecidableEq α] {U : Finset α}
     {as : List (Finset α)} (hU : FinsetCard.AllSubset U as) {e₁ e₂ : FinsetCard.SetExpr}
@@ -398,21 +386,6 @@ protected theorem filter_eq_true_union_filter_eq_false {α : Type u} [DecidableE
   simp only [Finset.mem_union, Finset.mem_filter]
   cases f x <;> simp
 
-/-- Filters by `p` and `¬ p` on any two finsets are disjoint. -/
-protected theorem disjoint_filter_not {α : Type u} {s₁ s₂ : Finset α} (p : α → Prop)
-    [d₁ : DecidablePred p] [d₂ : DecidablePred fun x => ¬ p x] :
-    Disjoint (@Finset.filter α p d₁ s₁) (@Finset.filter α (fun x => ¬ p x) d₂ s₂) :=
-  Finset.disjoint_iff_ne.2 fun _ hx _ hy hxy =>
-    (Finset.mem_filter.1 hy).2 (hxy ▸ (Finset.mem_filter.1 hx).2)
-
-/-- Filters by `p` and `¬ p` on the same finset `s` partition `s`. -/
-protected theorem filter_union_filter_not {α : Type u} [DecidableEq α] (s : Finset α)
-    (p : α → Prop) [d₁ : DecidablePred p] [d₂ : DecidablePred fun x => ¬ p x] :
-    @Finset.filter α p d₁ s ∪ @Finset.filter α (fun x => ¬ p x) d₂ s = s := by
-  ext x
-  simp only [Finset.mem_union, Finset.mem_filter]
-  by_cases hp : p x <;> simp [hp]
-
 end Cslib.Tactic.FinsetCard
 
 end
@@ -478,17 +451,15 @@ private partial def peekFinsetLet (e : Expr) (fuel : ℕ := 8) : MetaM Expr := d
 /-- Relational fact over `Finset α` harvested from the local context. -/
 private inductive SetRelFact
   | subset (s t pf : Expr)
-  | notSubset (s t pf : Expr)
   | disjoint (s t pf : Expr)
   | notDisjoint (s t pf : Expr)
   | eq (s t pf : Expr)
   | ne (s t pf : Expr)
 
-/-- Membership or point-comparison fact over `α` harvested from the local context. -/
+/-- Membership or point-disequality fact over `α` harvested from the local context. -/
 private inductive PointFact
   | mem (x s pf : Expr)
   | notMem (x s pf : Expr)
-  | eq (x y pf : Expr)
   | ne (x y pf : Expr)
 
 /-- Collected BAPA problem data for one carrier type `α`. -/
@@ -774,8 +745,7 @@ private partial def harvestHyp (ty pf : Expr)
     let cd := cs[idx]!
     ref.set (cs.set! idx { cd with setRels := cd.setRels.push r })
     let (s, dst) := match r with
-      | .subset a b _ | .notSubset a b _ | .disjoint a b _ | .notDisjoint a b _
-      | .eq a b _ | .ne a b _ => (a, b)
+      | .subset a b _ | .disjoint a b _ | .notDisjoint a b _ | .eq a b _ | .ne a b _ => (a, b)
     scanSetExprForMapImg s ref mapImgRef
     scanSetExprForMapImg dst ref mapImgRef
   let addPt (α : Expr) (u : Level) (p : PointFact) : MetaM Unit := do
@@ -786,9 +756,6 @@ private partial def harvestHyp (ty pf : Expr)
     let inner := t.appArg!.cleanupAnnotations
     let fn := inner.getAppFn
     let args := inner.getAppArgs
-    if (fn.isConstOf ``LE.le || fn.isConstOf ``HasSubset.Subset) && args.size == 4 then
-      if let some (α, u) := finsetCarrier? args[0]! then
-        addRel α u (.notSubset args[2]! args[3]! pf); return
     if fn.isConstOf ``Disjoint && args.size == 5 then
       if let some (α, u) := finsetCarrier? args[0]! then
         addRel α u (.notDisjoint args[3]! args[4]! pf); return
@@ -796,13 +763,9 @@ private partial def harvestHyp (ty pf : Expr)
       if let some (α, u) := finsetCarrier? args[0]! then
         addRel α u (.ne args[1]! args[2]! pf); return
       if let .sort (.succ u) ← whnf (← inferType args[0]!) then
-        if !(← isProp args[0]!) then
+        if !(← isProp args[0]!) && !args[0]!.cleanupAnnotations.isConstOf ``Nat &&
+            !args[0]!.cleanupAnnotations.isConstOf ``Int then
           addPt args[0]! u (.ne args[1]! args[2]! pf); return
-    if fn.isConstOf ``Finset.Nonempty && args.size == 2 && depth > 0 then
-      let α := args[0]!; let u := fn.constLevels![0]!; let s := args[1]!
-      let eqEmpPf ← mkAppOptM ``Iff.mp
-        #[none, none, some (mkApp2 (mkConst ``Finset.not_nonempty_iff_eq_empty [u]) α s), some pf]
-      harvestHyp (← inferType eqEmpPf) eqEmpPf ref mapImgRef (depth - 1); return
     if fn.isConstOf ``Membership.mem && args.size == 5 then
       if let some (α, u) := finsetCarrier? args[1]! then
         addPt α u (.notMem args[4]! args[3]! pf); return
@@ -826,10 +789,6 @@ private partial def harvestHyp (ty pf : Expr)
   if fn.isConstOf ``Eq && args.size == 3 then
     if let some (α, u) := finsetCarrier? args[0]! then
       addRel α u (.eq args[1]! args[2]! pf); return
-    if let .sort (.succ u) ← whnf (← inferType args[0]!) then
-      if !(← isProp args[0]!) && !args[0]!.cleanupAnnotations.isConstOf ``Nat &&
-          !args[0]!.cleanupAnnotations.isConstOf ``Int then
-        addPt args[0]! u (.eq args[1]! args[2]! pf); return
   if fn.isConstOf ``Ne && args.size == 3 then
     if let some (α, u) := finsetCarrier? args[0]! then
       addRel α u (.ne args[1]! args[2]! pf); return
@@ -872,11 +831,30 @@ private def matchFiberPred? (α p : Expr) : MetaM (Option (Expr × Expr × Expr)
         return some (args[0]!, ← mkLambdaFVars #[x] args[1]!, args[2]!)
     return none
 
-/-- Try reducing an existential nonemptiness or pigeonhole target to `0 < (...).card`. -/
-private def tryReduceExistentialTarget (g : MVarId) : MetaM MVarId := g.withContext do
+/-- Reduce subset (`s ⊆ t` → `s \ t = ∅`), nonemptiness, or pigeonhole targets before
+`falseOrByContra`. -/
+private def tryReduceTarget (g : MVarId) : MetaM MVarId := g.withContext do
   let target := (← instantiateMVars (← g.getType)).cleanupAnnotations
   let fn := target.getAppFn
   let args := target.getAppArgs
+  if (fn.isConstOf ``LE.le || fn.isConstOf ``HasSubset.Subset) && args.size == 4 then
+    if let some (α, u) := finsetCarrier? args[0]! then
+      let s := args[2]!; let t := args[3]!
+      let decEq := (← synthInstance? (mkApp (mkConst ``DecidableEq [u.succ]) α)).getD
+        (mkApp (mkConst ``Classical.typeDecidableEq [u.succ]) α)
+      let finsetTy := mkApp (mkConst ``Finset [u]) α
+      let sd := mkApp4 (mkConst ``SDiff.sdiff [u]) finsetTy
+        (mkApp2 (mkConst ``Finset.instSDiff [u]) α decEq) s t
+      let emp ← mkAppOptM ``EmptyCollection.emptyCollection #[some finsetTy, none]
+      let newTy ← mkEq sd emp
+      let m ← mkFreshExprSyntheticOpaqueMVar newTy
+      let pf ← mkAppOptM ``Iff.mp
+        #[none, none,
+          some (mkApp4 (mkConst ``Finset.sdiff_eq_empty_iff_subset [u]) α decEq s t),
+          some m]
+      if ← isDefEq (← inferType pf) target then
+        g.assign (← mkExpectedTypeHint pf target)
+        return m.mvarId!
   if fn.isConstOf ``Finset.Nonempty && args.size == 2 then
     let α := args[0]!; let u := fn.constLevels![0]!; let s := args[1]!
     let newTy ← mkAppM ``LT.lt #[mkNatLit 0, mkApp2 (mkConst ``Finset.card [u]) α s]
@@ -990,6 +968,36 @@ private partial def collectGoalFinsets (α goalTy : Expr) : MetaM (Array Expr) :
   go goalTy
   accRef.get
 
+/-- Check whether carrier `α` appears directly in `goalTy` (as `Finset α`, `Fintype.card α`, or
+point equality/membership on `α`). -/
+private partial def carrierInGoal (α goalTy : Expr) : MetaM Bool := do
+  let foundRef ← IO.mkRef false
+  let checkCand (cand : Expr) : MetaM Unit := do
+    if !(← foundRef.get) then
+      if ← withReducible (isDefEq cand α) then
+        foundRef.set true
+  let rec go (e : Expr) : MetaM Unit := do
+    if (← foundRef.get) || e.hasLooseBVars then return
+    let ec := e.cleanupAnnotations
+    let fn := ec.getAppFn
+    let args := ec.getAppArgs
+    if fn.isConstOf ``Finset && args.size == 1 then
+      checkCand args[0]!
+    else if fn.isConstOf ``Fintype.card && args.size == 2 then
+      checkCand args[0]!
+    else if (fn.isConstOf ``Eq || fn.isConstOf ``Ne) && args.size == 3 then
+      checkCand args[0]!
+    else if fn.isConstOf ``Membership.mem && args.size == 5 then
+      checkCand args[0]!
+    match ec with
+    | .app f a => go f; go a
+    | .forallE _ d b _ => go d; if !b.hasLooseBVars then go b
+    | .letE _ t v b _ => go t; go v; if !b.hasLooseBVars then go b
+    | .mdata _ inner => go inner
+    | _ => pure ()
+  go goalTy
+  foundRef.get
+
 /-- Process one `CarrierData` and return all derived arithmetic `Hypothesis` facts for `omega`
 (plus `atoms.size` for diagnostics). -/
 private def buildCarrierFacts (cd : CarrierData) (goalBeforeContra : Expr) :
@@ -1006,18 +1014,18 @@ private def buildCarrierFacts (cd : CarrierData) (goalBeforeContra : Expr) :
   for s in cd.cardTerms do collectExplicitSingletonPts α s atomPtsRef
   for r in cd.setRels do
     let (s, t) := match r with
-      | .subset a b _ | .notSubset a b _ | .disjoint a b _ | .notDisjoint a b _
-      | .eq a b _ | .ne a b _ => (a, b)
+      | .subset a b _ | .disjoint a b _ | .notDisjoint a b _ | .eq a b _ | .ne a b _ => (a, b)
     collectExplicitSingletonPts α s atomPtsRef
     collectExplicitSingletonPts α t atomPtsRef
+  let hasMemFact := cd.pointFacts.any fun
+    | .mem .. | .notMem .. => true
+    | .ne .. => false
   let hasFinsetOrUniv := !cd.cardTerms.isEmpty || !cd.setRels.isEmpty ||
-    !cd.fintypeCards.isEmpty || fintype?.isSome
+    !cd.fintypeCards.isEmpty || hasMemFact
   if hasFinsetOrUniv then
     for pf in cd.pointFacts do
-      match pf with
-      | .eq x y _ | .ne x y _ =>
+      if let .ne x y _ := pf then
         atomPtsRef.modify (fun a => pushUniqueExpr (pushUniqueExpr a x) y)
-      | _ => pure ()
   let atomPts ← atomPtsRef.get
 
   let mut cardTerms := cd.cardTerms
@@ -1068,13 +1076,6 @@ private def buildCarrierFacts (cd : CarrierData) (goalBeforeContra : Expr) :
             #[none, none, some (mkApp5 (mkConst ``Finset.mem_sdiff [u]) α decEq univ t x),
               some (← mkAppM ``And.intro #[memUniv, pf])]
           outFacts := outFacts.push (← mkCardPosOfMem x sd memSd)
-    | .eq x y pf =>
-      if atomPts.any (· == x) && atomPts.any (· == y) then
-        let singX := mkSingletonFinset α u x
-        let singY := mkSingletonFinset α u y
-        let eqPf ← mkCongrArg (mkApp3 (mkConst ``Singleton.singleton [u, u]) α finsetTy
-          (mkApp (mkConst ``Finset.instSingleton [u]) α)) pf
-        setRels := setRels.push (.eq singX singY eqPf)
     | .ne x y pf =>
       if atomPts.any (· == x) && atomPts.any (· == y) then
         let singX := mkSingletonFinset α u x
@@ -1114,11 +1115,10 @@ private def buildCarrierFacts (cd : CarrierData) (goalBeforeContra : Expr) :
     for r in setRels do
       match r with
       | .subset s t pf => pRels ← parseBin 0 s t pf pRels
-      | .notSubset s t pf => pRels ← parseBin 1 s t pf pRels
-      | .disjoint s t pf => pRels ← parseBin 2 s t pf pRels
-      | .notDisjoint s t pf => pRels ← parseBin 3 s t pf pRels
-      | .eq s t pf => pRels ← parseBin 4 s t pf pRels
-      | .ne s t pf => pRels ← parseBin 5 s t pf pRels
+      | .disjoint s t pf => pRels ← parseBin 1 s t pf pRels
+      | .notDisjoint s t pf => pRels ← parseBin 2 s t pf pRels
+      | .eq s t pf => pRels ← parseBin 3 s t pf pRels
+      | .ne s t pf => pRels ← parseBin 4 s t pf pRels
     return (pCards, pRels)
 
   let atomsRef ← IO.mkRef (#[] : Array Expr)
@@ -1127,7 +1127,7 @@ private def buildCarrierFacts (cd : CarrierData) (goalBeforeContra : Expr) :
   let mut parsedRels := pr0
 
   -- When unrelated outer hypotheses push `atoms` past `maxAtoms`, focus on the goal's connected
-  -- component of ≤ `maxAtoms` atomic finsets.
+  -- component of ≤ `maxAtoms` atomic finsets, or skip carriers absent from the goal.
   if (← atomsRef.get).size > maxAtoms then
     let goalSets ← collectGoalFinsets α goalBeforeContra
     let focusRef ← IO.mkRef (#[] : Array Expr)
@@ -1138,8 +1138,7 @@ private def buildCarrierFacts (cd : CarrierData) (goalBeforeContra : Expr) :
       for _ in [:2] do
         for r in setRels do
           let (s, t) := match r with
-            | .subset a b _ | .notSubset a b _ | .disjoint a b _ | .notDisjoint a b _
-            | .eq a b _ | .ne a b _ => (a, b)
+            | .subset a b _ | .disjoint a b _ | .notDisjoint a b _ | .eq a b _ | .ne a b _ => (a, b)
           let cur ← focusRef.get
           let rRef ← IO.mkRef (#[] : Array Expr)
           let _ ← parseSetExpr α u decEq fintype? true rRef s
@@ -1157,6 +1156,8 @@ private def buildCarrierFacts (cd : CarrierData) (goalBeforeContra : Expr) :
       let (pc, pr) ← parseAll false atomsRef
       parsedCards := pc
       parsedRels := pr
+    else if seedSize == 0 && !(← carrierInGoal α goalBeforeContra) then
+      return (outFacts, 0)
 
   let atoms ← atomsRef.get
   if atoms.size > maxAtoms then
@@ -1187,18 +1188,18 @@ private def buildCarrierFacts (cd : CarrierData) (goalBeforeContra : Expr) :
             let (idxA, idxB, sA, sB, predP, decP, decNotP) :=
               if isNeg₁₂ then (i, j, base₁, base₂, p₁, d₁, d₂)
               else (j, i, base₂, base₁, p₂, d₂, d₁)
-            let disjPf ← mkAppOptM ``FinsetCard.disjoint_filter_not
+            let disjPf ← mkAppOptM ``Finset.disjoint_filter_filter_not
               #[some α, some sA, some sB, some predP, some decP, some decNotP]
             parsedRels := parsedRels.push
-              ⟨2, .atom idxA, .atom idxB, disjPf, none, none, atoms[idxA]!, atoms[idxB]!⟩
+              ⟨1, .atom idxA, .atom idxB, disjPf, none, none, atoms[idxA]!, atoms[idxB]!⟩
             if sA == sB then
               if let some (eBase, pBase?) ← parseSetExpr α u decEq fintype? false atomsRef sA then
-                let partPf ← mkAppOptM ``FinsetCard.filter_union_filter_not
-                  #[some α, some decEq, some sA, some predP, some decP, some decNotP]
+                let partPf ← mkAppOptM ``Finset.filter_union_filter_not_eq
+                  #[some α, some predP, some decP, some decEq, some decNotP, some sA]
                 let lhs := mkApp4 (mkConst ``Max.max [u]) finsetTy
                   (mkApp2 (mkConst ``Finset.instMax [u]) α decEq) atoms[idxA]! atoms[idxB]!
                 parsedRels := parsedRels.push
-                  ⟨4, .union (.atom idxA) (.atom idxB), eBase, partPf, none, pBase?, lhs, sA⟩
+                  ⟨3, .union (.atom idxA) (.atom idxB), eBase, partPf, none, pBase?, lhs, sA⟩
           else if let some (β₁, fn₁, v₁) := fib₁? then
             if let some (β₂, fn₂, v₂) ← matchFiberPred? α p₂ then
               if (← withReducible (isDefEq β₁ β₂)) && (← withReducible (isDefEq fn₁ fn₂)) then
@@ -1207,7 +1208,7 @@ private def buildCarrierFacts (cd : CarrierData) (goalBeforeContra : Expr) :
                     #[some α, some β₁, some base₁, some base₂, some fn₁, some v₁, some v₂,
                       some d₁, some d₂, some hne]
                   parsedRels := parsedRels.push
-                    ⟨2, .atom i, .atom j, disjPf, none, none, atoms[i]!, atoms[j]!⟩
+                    ⟨1, .atom i, .atom j, disjPf, none, none, atoms[i]!, atoms[j]!⟩
                   if base₁ == base₂ && β₁.cleanupAnnotations.isConstOf ``Bool then
                     let v₁c := v₁.cleanupAnnotations; let v₂c := v₂.cleanupAnnotations
                     let isTF := v₁c.isConstOf ``Bool.true && v₂c.isConstOf ``Bool.false
@@ -1222,7 +1223,7 @@ private def buildCarrierFacts (cd : CarrierData) (goalBeforeContra : Expr) :
                         let lhs := mkApp4 (mkConst ``Max.max [u]) finsetTy
                           (mkApp2 (mkConst ``Finset.instMax [u]) α decEq) atoms[idxT]! atoms[idxF]!
                         parsedRels := parsedRels.push
-                          ⟨4, .union (.atom idxT) (.atom idxF), eB, partPf, none, pB?, lhs, base₁⟩
+                          ⟨3, .union (.atom idxT) (.atom idxF), eB, partPf, none, pB?, lhs, base₁⟩
 
   let atomsList := atoms.toList
   let asExpr := mkFinsetListExpr α u atomsList
@@ -1276,16 +1277,13 @@ private def buildCarrierFacts (cd : CarrierData) (goalBeforeContra : Expr) :
     if r.kind == 0 then
       outFacts := outFacts.push (← mkBinHyp `h_sub ``FinsetCard.subset_denote_mp (· && !·) false)
     else if r.kind == 1 then
-      outFacts := outFacts.push
-        (← mkBinHyp `h_nsub ``FinsetCard.not_subset_denote_mp (· && !·) true)
-    else if r.kind == 2 then
       outFacts := outFacts.push (← mkBinHyp `h_disj ``FinsetCard.disjoint_denote_mp (· && ·) false)
-    else if r.kind == 3 then
+    else if r.kind == 2 then
       outFacts := outFacts.push
         (← mkBinHyp `h_ndisj ``FinsetCard.not_disjoint_denote_mp (· && ·) true)
-    else if r.kind == 4 then
+    else if r.kind == 3 then
       outFacts := outFacts.push (← mkBinHyp `h_eq ``FinsetCard.eq_denote_mp (· != ·) false)
-    else if r.kind == 5 then
+    else if r.kind == 4 then
       outFacts := outFacts.push (← mkBinHyp `h_ne ``FinsetCard.ne_denote_mp (· != ·) true)
 
   return (outFacts, atoms.size)
@@ -1386,7 +1384,7 @@ elab_rules : tactic
       replaceMainGoal [g]
 
     let origGoal ← getMainGoal
-    let g ← tryReduceExistentialTarget origGoal
+    let g ← tryReduceTarget origGoal
     replaceMainGoal [g]
 
     let g ← getMainGoal
@@ -1416,7 +1414,10 @@ elab_rules : tactic
           let pf := mkApp (mkConst ``Fintype.card_fin) n
           derivedFacts := derivedFacts.push
             { userName := `h_card_fin, type := ← inferType pf, value := pf }
-          if !cd.cardTerms.isEmpty || !cd.setRels.isEmpty || !cd.pointFacts.isEmpty then
+          let hasFinsetAct := !cd.cardTerms.isEmpty || !cd.setRels.isEmpty ||
+            cd.pointFacts.any fun | .mem .. | .notMem .. => true | .ne .. => false
+          if hasFinsetAct || !cd.fintypeCards.isEmpty ||
+              (!cd.pointFacts.isEmpty && (← carrierInGoal cd.α goalBeforeContra)) then
             let fc := (← inferType pf).getAppArgs[1]!
             let ft := fc.appArg!
             let cd' := if cd.fintypeCards.any (fun (x, _) => x == fc) then cd

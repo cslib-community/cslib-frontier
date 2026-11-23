@@ -219,8 +219,8 @@ theorem IsThresholdDisseminationQuorumSystem.inter_nonempty
     (h : qs.IsThresholdDisseminationQuorumSystem b)
     {Q₁ Q₂ : Finset P} (hQ₁ : Q₁ ∈ qs.quorums) (hQ₂ : Q₂ ∈ qs.quorums) :
     (Q₁ ∩ Q₂).Nonempty := by
-  have := h.2 Q₁ hQ₁ Q₂ hQ₂ ∅ (Nat.zero_le b)
-  finset_card
+  have hd := h.2 Q₁ hQ₁ Q₂ hQ₂ ∅ (Nat.zero_le b)
+  simpa only [Finset.sdiff_empty] using hd
 
 /-- Exact cardinality characterization of `b`-threshold dissemination quorum systems: availability
 against `|F| ≤ b` together with pairwise intersection of size at least `b + 1`. -/
