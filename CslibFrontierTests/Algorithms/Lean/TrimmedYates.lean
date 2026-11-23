@@ -146,4 +146,132 @@ example : ∃ n, ExecutesList 64 program (.init shortQueryInst.encode)
   dsimp only at hrun
   rwa [hout, hbnd] at hrun
 
+/-- Nonzero downstream `module`-client composition check: build two nonzero depth-`4` tries via
+`exec_buildInputTrie`, frame the first across the second via `HoldsTrie.congr_below` and
+`HoldsTrie.mono_bound`, and evaluate `solveFromTries` via
+`exec_solveFromTries_subsetConvolution`. -/
+example :
+    let esF : List (Finset (Fin 4) × ℤ) := [({0}, 2), ({1}, 3)]
+    let esG : List (Finset (Fin 4) × ℤ) := [({1}, 5), ({2}, 7)]
+    let qs : List (Finset (Fin 4)) := [{0, 1}, {1, 2}]
+    let rawWords : List ℕ := encodeEntries esF ++ encodeEntries esG ++ qs.map setMask
+    let x₀ : Data numRegs :=
+      ((((((Data.init rawWords : Data numRegs).set Reg.dim 4).set Reg.thresh 1).set
+        Reg.entryPtr 1).set Reg.entryCount 2).set Reg.free 12).set Reg.queryCount 2
+    ∃ y, ExecWithin 64
+        (.seq buildInputTrie
+          (.seq (((Code.op (.copy Reg.trieF Reg.builtRoot)).seq
+              (.op (.const Reg.entryPtr 5))).seq
+            (.op (.const Reg.queryPtr 9)))
+            (.seq buildInputTrie
+              (.seq (.op (.copy Reg.trieG Reg.builtRoot)) solveFromTries))))
+        x₀ y 60000 ∧
+      outputList y.mem (y.regs Reg.outPtr) = [Signed.encode 10, Signed.encode 21] := by
+  intro esF esG qs rawWords x₀
+  have hx₀_f0 : x₀.mem 1 = setMask esF[0].1 ∧ x₀.mem 2 = Signed.encode esF[0].2 := by decide +kernel
+  have hx₀_f1 : x₀.mem 3 = setMask esF[1].1 ∧ x₀.mem 4 = Signed.encode esF[1].2 := by decide +kernel
+  have hmemF : ∀ p (hp : p < esF.length),
+      x₀.mem (1 + 2 * p) = setMask esF[p].1 ∧
+      x₀.mem (1 + 2 * p + 1) = Signed.encode esF[p].2 := by
+    intro p hp
+    rcases p with _ | _ | p
+    · exact hx₀_f0
+    · exact hx₀_f1
+    · simp [esF] at hp
+  have hx₀_mem5 : x₀.mem 5 = setMask esG[0].1 ∧ x₀.mem 6 = Signed.encode esG[0].2 := by
+    decide +kernel
+  have hx₀_mem7 : x₀.mem 7 = setMask esG[1].1 ∧ x₀.mem 8 = Signed.encode esG[1].2 := by
+    decide +kernel
+  have hx₀_q0 : x₀.mem 9 = setMask qs[0] := by decide +kernel
+  have hx₀_q1 : x₀.mem 10 = setMask qs[1] := by decide +kernel
+  have hx₀_dim : x₀.regs Reg.dim = 4 := by decide
+  have hx₀_thresh : x₀.regs Reg.thresh = 1 := by decide
+  have hx₀_ep : x₀.regs Reg.entryPtr = 1 := by decide
+  have hx₀_ec : x₀.regs Reg.entryCount = esF.length := by decide
+  have hx₀_fr : x₀.regs Reg.free = 12 := by decide
+  have hx₀_qc : x₀.regs Reg.queryCount = qs.length := by decide
+  obtain ⟨u₁, free₁, fnF, he₁, hsav₁, hfr₁, hlo₁, hhi₁, htrF, hf_eq, hframe₁, hreg₁⟩ :=
+    exec_buildInputTrie (w := 64) (d := 4) (entryPtr := 1) (free := 12) (W := 17) esF x₀
+      hx₀_dim hx₀_ep hx₀_ec hx₀_fr (by decide) (by decide) hmemF (by decide)
+      (by decide +kernel) (by decide +kernel)
+  let u₂ := ((u₁.set Reg.trieF (u₁.regs Reg.builtRoot)).set Reg.entryPtr 5).set Reg.queryPtr 9
+  have he_prep : ExecWithin (B := .standard) 64
+      (((Code.op (.copy Reg.trieF Reg.builtRoot)).seq
+        (.op (.const Reg.entryPtr 5))).seq
+        (.op (.const Reg.queryPtr 9))) u₁ u₂ 3 :=
+    ((Exec.copy.within.seq (Exec.const (by decide)).within).seq (Exec.const (by decide)).within)
+  have hmemG : ∀ p (hp : p < esG.length),
+      u₂.mem (5 + 2 * p) = setMask esG[p].1 ∧
+      u₂.mem (5 + 2 * p + 1) = Signed.encode esG[p].2 := by
+    intro p hp
+    have hlt12 : 5 + 2 * p + 1 < 12 := by simp [esG] at hp; omega
+    have hm1 : u₂.mem (5 + 2 * p) = x₀.mem (5 + 2 * p) :=
+      hframe₁ _ (Or.inl (by omega))
+    have hm2 : u₂.mem (5 + 2 * p + 1) = x₀.mem (5 + 2 * p + 1) :=
+      hframe₁ _ (Or.inl hlt12)
+    rw [hm1, hm2]
+    rcases p with _ | _ | p
+    · exact hx₀_mem5
+    · exact hx₀_mem7
+    · simp [esG] at hp
+  have hf_free₂ : Fits 64 (free₁ + 2 + 2 * 4 * esG.length) := by
+    have : free₁ + 2 + 2 * 4 * esG.length ≤ 50 := by simp [esF, esG] at hhi₁ ⊢; omega
+    exact (by decide : Fits 64 50).of_le this
+  obtain ⟨u₃, free₂, fnG, he₂, hsav₂, hfr₂, hlo₂, hhi₂, htrG, hg_eq, hframe₂, hreg₂⟩ :=
+    exec_buildInputTrie (w := 64) (d := 4) (entryPtr := 5) (free := free₁) (W := 17) esG u₂
+      (by simpa [u₂, hx₀_dim] using hreg₁ Reg.dim (by decide))
+      rfl
+      (by simpa [u₂, hx₀_ec, esF, esG] using hreg₁ Reg.entryCount (by decide))
+      (by simpa [u₂] using hfr₁)
+      (by omega)
+      (by simp [esG]; omega)
+      hmemG (by decide) (by decide +kernel) hf_free₂
+  let u₄ := u₃.set Reg.trieG (u₃.regs Reg.builtRoot)
+  have he_cpG : ExecWithin (B := .standard) 64 (.op (.copy Reg.trieG Reg.builtRoot)) u₃ u₄ 1 :=
+    Exec.copy.within
+  have htrF' : HoldsTrie u₄.mem free₂ 4 12 fnF :=
+    (htrF.congr_below fun a ha => hframe₂ a (Or.inl ha)).mono_bound (by omega)
+  have hq_mem : ∀ j (hj : j < qs.length), u₄.mem (9 + j) = setMask qs[j] := by
+    intro j hj
+    have hm : u₄.mem (9 + j) = x₀.mem (9 + j) := by
+      have hlt1 : 9 + j < 12 := by simp [qs] at hj; omega
+      exact (hframe₂ _ (Or.inl (by omega))).trans (hframe₁ _ (Or.inl hlt1))
+    rw [hm]
+    rcases j with _ | _ | j
+    · exact hx₀_q0
+    · exact hx₀_q1
+    · simp [qs] at hj
+  have hf_sp : Fits 64 (solveSpace free₂ 4 1 qs.length (highCount (1 + 1) 1)) := by
+    have hle : free₂ ≤ 50 := by simp [esF, esG] at hhi₁ hhi₂; omega
+    exact (by decide +kernel : Fits 64 (solveSpace 50 4 1 2 (highCount 2 1))).of_le
+      (by dsimp [solveSpace, qs]; omega)
+  obtain ⟨y, he_solve, hy_out, -, -⟩ :=
+    exec_solveFromTries_subsetConvolution (w := 64) (d := 4) (s := 1) (t₁ := 1) (t₂ := 1)
+      (baseFree := free₂) (rootF := 12) (rootG := free₁) (qPtr := 9) (W := 17)
+      (f := evalEntries esF) (g := evalEntries esG) (Cs := qs) u₄
+      (by simpa [u₄, u₂, hx₀_dim] using
+        (hreg₂ Reg.dim (by decide)).trans (hreg₁ Reg.dim (by decide)))
+      (by simpa [u₄, u₂, hx₀_thresh] using
+        (hreg₂ Reg.thresh (by decide)).trans (hreg₁ Reg.thresh (by decide)))
+      (by simpa [u₄] using hfr₂)
+      (by omega)
+      (by simpa [u₄, u₂, hsav₁] using hreg₂ Reg.trieF (by decide))
+      (by simp [u₄, hsav₂])
+      (by simpa [u₄, u₂] using hreg₂ Reg.queryPtr (by decide))
+      (by simpa [u₄, u₂, hx₀_qc] using
+        (hreg₂ Reg.queryCount (by decide)).trans (hreg₁ Reg.queryCount (by decide)))
+      (by simp [qs] at hlo₁ hlo₂ ⊢; omega)
+      hq_mem htrF' htrG hf_eq hg_eq
+      (fun S => (natAbs_evalEntries_le esF S).trans (by decide))
+      (fun S => (natAbs_evalEntries_le esG S).trans (by decide))
+      (evalEntries_ranked (by decide)) (evalEntries_ranked (by decide))
+      (by decide) (by decide) hf_sp (by decide +kernel)
+  have hconv : (qs.map (subsetConvolution (evalEntries esF) (evalEntries esG))).map
+      Signed.encode = [Signed.encode 10, Signed.encode 21] := by decide +kernel
+  have htime : 2 * (23 * 4 + 40) + 11 + (3 + (2 * (23 * 4 + 40) + 11 +
+      (1 + 200 * (4 + 1) ^ 2 * (lowCount 4 1 + qs.length * highCount (1 + 1) 1)))) ≤ 60000 := by
+    decide +kernel
+  exact ⟨y, (he₁.seq (he_prep.seq (he₂.seq (he_cpG.seq he_solve)))).mono htime,
+    hy_out.trans hconv⟩
+
 end CslibFrontierTests.Algorithms.Lean.TrimmedYates

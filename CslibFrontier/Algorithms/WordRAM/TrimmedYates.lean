@@ -47,13 +47,15 @@ Every operation left uncharged in a unit-cost cell model is implemented and char
   `valueEnvelope`: combinatorial table sizes and explicit word-width envelopes.
 * `Cslib.Algorithms.WordRAM.TrimmedYates.Instance`, `evalEntries`: sparse weighted set-function
   problem instances over `Fin d` and their mathematical semantics.
-* `Cslib.Algorithms.WordRAM.TrimmedYates.solveFromTries`, `program`: subroutine from pre-built
-  input tries and complete initialized flat `Program .standard 56`.
+* `Cslib.Algorithms.WordRAM.TrimmedYates.buildInputTrie`, `solveFromTries`, `program`: sparse
+  input-trie builder, subroutine from pre-built input tries, and complete initialized flat
+  `Program .standard 56`.
 
 ## Main results
 
-* `Cslib.Algorithms.WordRAM.TrimmedYates.exec_solveFromTries`,
-  `exec_solveFromTries_subsetConvolution`: from pre-built input tries, answers all queries within
+* `Cslib.Algorithms.WordRAM.TrimmedYates.exec_buildInputTrie`, `exec_solveFromTries`,
+  `exec_solveFromTries_subsetConvolution`: builds sparse input tries in `O(d · |es|)` instructions
+  and, from pre-built input tries, answers all queries within
   `O((d + 1)² · (∑_{j ≤ s} C(d, j) + |Cs| · ∑_{s ≤ j ≤ 2t} C(2t, j)))` instructions.
 * `Cslib.Algorithms.WordRAM.TrimmedYates.computesListInTime_program`, `executesList_program`:
   complete flat-program Theorem 2.2 bound
@@ -325,17 +327,20 @@ private theorem TrieRep.fresh_node {mem : ℕ → ℕ} (d : ℕ) {node : ℕ} (h
 def HoldsTrie (mem : ℕ → ℕ) (bound d root : ℕ) (fn : ℕ → ℕ) : Prop :=
   ∃ S ⊆ Set.Ico 1 bound, TrieRep mem d root S fn
 
-private theorem HoldsTrie.mono_bound {mem : ℕ → ℕ} {b b' d root : ℕ} {fn : ℕ → ℕ}
+/-- Enlarging the address bound preserves `HoldsTrie`. -/
+theorem HoldsTrie.mono_bound {mem : ℕ → ℕ} {b b' d root : ℕ} {fn : ℕ → ℕ}
     (h : HoldsTrie mem b d root fn) (hbb : b ≤ b') : HoldsTrie mem b' d root fn := by
   obtain ⟨S, hS, ht⟩ := h
   exact ⟨S, fun a ha => ⟨(hS ha).1, (hS ha).2.trans_le hbb⟩, ht⟩
 
-private theorem HoldsTrie.congr_below {mem mem' : ℕ → ℕ} {bound d root : ℕ} {fn : ℕ → ℕ}
+/-- Memory writes strictly at or above `bound` preserve `HoldsTrie`. -/
+theorem HoldsTrie.congr_below {mem mem' : ℕ → ℕ} {bound d root : ℕ} {fn : ℕ → ℕ}
     (h : HoldsTrie mem bound d root fn) (heq : ∀ a < bound, mem' a = mem a) :
     HoldsTrie mem' bound d root fn := by
   obtain ⟨S, hS, ht⟩ := h
   exact ⟨S, hS, ht.congr_mem fun a ha => heq a (hS ha).2⟩
 
+/-- Address `0` represents the identically zero depth-`d` table without allocating nodes. -/
 theorem HoldsTrie.zero_root (mem : ℕ → ℕ) (bound d : ℕ) :
     HoldsTrie mem bound d 0 (fun _ => 0) :=
   ⟨∅, Set.empty_subset _, TrieRep.zero_root mem d⟩
@@ -347,14 +352,22 @@ abbrev numRegs : ℕ := 56
 
 namespace Reg
 
-/-- Input register holding universe dimension `d` for `solveFromTries`. -/
+/-- Input register holding universe dimension `d` for `buildInputTrie` and `solveFromTries`. -/
 abbrev dim : Fin numRegs := ⟨11, by decide⟩
 /-- Input register holding trimming threshold `s` for `solveFromTries`. -/
 abbrev thresh : Fin numRegs := ⟨12, by decide⟩
-/-- Input/output register holding the bump-allocation pointer for `solveFromTries`. -/
+/-- Input/output register holding the bump-allocation pointer for `buildInputTrie` and
+`solveFromTries`. -/
 abbrev free : Fin numRegs := ⟨13, by decide⟩
 /-- Output register holding the length-prefixed answer array header address. -/
 abbrev outPtr : Fin numRegs := ⟨15, by decide⟩
+/-- Input register holding the base address of `(setMask S, Signed.encode v)` entry pairs for
+`buildInputTrie`. -/
+abbrev entryPtr : Fin numRegs := ⟨33, by decide⟩
+/-- Input register holding the number of sparse `(S, v)` entries for `buildInputTrie`. -/
+abbrev entryCount : Fin numRegs := ⟨34, by decide⟩
+/-- Output register receiving the allocated root address of `buildInputTrie`. -/
+abbrev builtRoot : Fin numRegs := ⟨43, by decide⟩
 /-- Input register holding the depth-`d` trie root for `f` (`0` for the identically zero table). -/
 abbrev trieF : Fin numRegs := ⟨44, by decide⟩
 /-- Input register holding the depth-`d` trie root for `g` (`0` for the identically zero table). -/
@@ -393,8 +406,8 @@ private abbrev rGenOldLen : Fin numRegs := ⟨30, by decide⟩
 private abbrev rGenBitMask : Fin numRegs := ⟨31, by decide⟩
 private abbrev rGenTmp : Fin numRegs := ⟨32, by decide⟩
 
-private abbrev rCurDomPtr : Fin numRegs := ⟨33, by decide⟩
-private abbrev rCurDomLen : Fin numRegs := ⟨34, by decide⟩
+private abbrev rCurDomPtr : Fin numRegs := Reg.entryPtr
+private abbrev rCurDomLen : Fin numRegs := Reg.entryCount
 private abbrev rStageCutoff : Fin numRegs := ⟨35, by decide⟩
 private abbrev rSignMode : Fin numRegs := ⟨36, by decide⟩
 private abbrev rRootsOut : Fin numRegs := ⟨37, by decide⟩
@@ -403,7 +416,7 @@ private abbrev rStageIdx : Fin numRegs := ⟨39, by decide⟩
 private abbrev rCellIdx : Fin numRegs := ⟨40, by decide⟩
 private abbrev rStageCurRoot : Fin numRegs := ⟨41, by decide⟩
 private abbrev rStageFbRoot : Fin numRegs := ⟨42, by decide⟩
-private abbrev rCellSaved : Fin numRegs := ⟨43, by decide⟩
+private abbrev rCellSaved : Fin numRegs := Reg.builtRoot
 
 private abbrev rTrieF : Fin numRegs := Reg.trieF
 private abbrev rTrieG : Fin numRegs := Reg.trieG
@@ -4463,7 +4476,7 @@ theorem evalEntries_ranked {d t : ℕ} {es : List (Finset (Fin d) × ℤ)}
 @[expose] def entryAbsSum {d : ℕ} (es : List (Finset (Fin d) × ℤ)) : ℕ :=
   (es.map fun p => p.2.natAbs).sum
 
-private theorem natAbs_evalEntries_le {d : ℕ} (es : List (Finset (Fin d) × ℤ))
+theorem natAbs_evalEntries_le {d : ℕ} (es : List (Finset (Fin d) × ℤ))
     (S : Finset (Fin d)) : (evalEntries es S).natAbs ≤ entryAbsSum es := by
   induction es using List.reverseRecOn with
   | nil => simp [evalEntries, entryAbsSum]
@@ -4637,20 +4650,29 @@ private def buildInputStep : Code .standard numRegs :=
     (.seq trieAdd
       (ram[ rCellIdx ← rCellIdx + rOne ]))
 
-private def buildInputTrie : Code .standard numRegs :=
-  .seq trieInit
-    (.seq (ram[ rCellSaved ← rTrieRoot; rCellIdx ← #0 ])
-      (.loop (.lt rCellIdx rCurDomLen) buildInputStep))
+/-- Build a depth-`d` binary trie accumulating the sparse `(S, v)` pairs stored as `2 * |es|` words
+`[setMask S₀, Signed.encode v₀, …]` starting at `Reg.entryPtr`, writing the allocated root to
+`Reg.builtRoot` and advancing `Reg.free`. -/
+def buildInputTrie : Code .standard numRegs :=
+  .seq (ram[ rZero ← #0; rOne ← #1 ])
+    (.seq trieInit
+      (.seq (ram[ rCellSaved ← rTrieRoot; rCellIdx ← #0 ])
+        (.loop (.lt rCellIdx rCurDomLen) buildInputStep)))
 
 private theorem buildInputTrie_preserves (i : Fin numRegs) :
-    ¬ IsTabMod i → buildInputTrie.Preserves i := by
+    ((11 ≤ i.val ∧ i.val ≤ 15 ∧ i ≠ Reg.free) ∨
+      (44 ≤ i.val ∧ i.val ≤ 55) ∨ i = Reg.entryPtr ∨ i = Reg.entryCount) →
+      buildInputTrie.Preserves i := by
   decide +kernel +revert
 
-private theorem exec_buildInputTrie {w d entryPtr free W : ℕ}
+/-- Build a depth-`d` `HoldsTrie` from `es.length` sparse `(S, v)` pairs in memory within
+`es.length * (23 * d + 40) + 11` standard-basis instructions, preserving caller registers and all
+memory outside `Ico free free'`. -/
+theorem exec_buildInputTrie {w d entryPtr free W : ℕ}
     (es : List (Finset (Fin d) × ℤ)) (x : Data numRegs)
-    (hz : x.regs rZero = 0) (ho : x.regs rOne = 1) (hd : x.regs rDim = d)
-    (hep : x.regs rCurDomPtr = entryPtr) (hel : x.regs rCurDomLen = es.length)
-    (hfree : x.regs rFree = free) (hfree_pos : 1 ≤ free)
+    (hd : x.regs Reg.dim = d)
+    (hep : x.regs Reg.entryPtr = entryPtr) (hel : x.regs Reg.entryCount = es.length)
+    (hfree : x.regs Reg.free = free) (hfree_pos : 1 ≤ free)
     (he_below : entryPtr + 2 * es.length ≤ free)
     (he_mem : ∀ p (hp : p < es.length),
       x.mem (entryPtr + 2 * p) = setMask es[p].1 ∧
@@ -4659,15 +4681,19 @@ private theorem exec_buildInputTrie {w d entryPtr free W : ℕ}
     (hfit_val : Fits w (valueEnvelope d W))
     (hfit_free : Fits w (free + 2 + 2 * d * es.length)) :
     ∃ y free' outFn,
-      ExecWithin w buildInputTrie x y (es.length * (23 * d + 40) + 9) ∧
-      y.regs rCellSaved = free ∧ y.regs rFree = free' ∧
+      ExecWithin w buildInputTrie x y (es.length * (23 * d + 40) + 11) ∧
+      y.regs Reg.builtRoot = free ∧ y.regs Reg.free = free' ∧
       free + 2 ≤ free' ∧ free' ≤ free + 2 + 2 * d * es.length ∧
       HoldsTrie y.mem free' d free outFn ∧
       (∀ S : Finset (Fin d), outFn (setMask S) = Signed.encode (evalEntries es S)) ∧
       (∀ a, a < free ∨ free' ≤ a → y.mem a = x.mem a) ∧
-      ∀ i : Fin numRegs, ¬ IsTabMod i → y.regs i = x.regs i := by
+      ∀ i : Fin numRegs,
+        ((11 ≤ i.val ∧ i.val ≤ 15 ∧ i ≠ Reg.free) ∨
+          (44 ≤ i.val ∧ i.val ≤ 55) ∨ i = Reg.entryPtr ∨ i = Reg.entryCount) →
+          y.regs i = x.regs i := by
   let B := 8 ^ d * (W + 1) ^ 2
   have hfit_B : Fits w (8 * B + 4) := hfit_val
+  have hfit_1 : Fits w 1 := hfit_B.of_le (by omega)
   have hfit_mask : Fits w (2 ^ d) := mask_fits_of_valueEnvelope hfit_val
   have hfit_d : Fits w d := hfit_mask.of_le Nat.lt_two_pow_self.le
   have hW_le_B : W ≤ B := by
@@ -4675,8 +4701,12 @@ private theorem exec_buildInputTrie {w d entryPtr free W : ℕ}
     have h1 : 1 ≤ 8 ^ d := Nat.one_le_pow _ _ (by decide)
     have hW : W ≤ (W + 1) ^ 2 := by rw [sq]; nlinarith
     exact hW.trans (Nat.le_mul_of_pos_left _ h1)
+  let x₀ := (x.set rZero 0).set rOne 1
+  have hinit_zo : ExecWithin (B := .standard) w (ram[ rZero ← #0; rOne ← #1 ]) x x₀ 2 := by
+    wram_exec
   obtain ⟨s₀, hinit0, hs₀_root, hs₀_free, hs₀_rep, hs₀_frame, hs₀_regs⟩ :=
-    exec_trieInit (d := d) x hz ho hfree (by omega) (hfit_free.of_le (by omega))
+    exec_trieInit (d := d) x₀ (by simp [x₀]) (by simp [x₀]) (by simpa [x₀] using hfree)
+      (by omega) (hfit_free.of_le (by omega))
   let s₁ := (s₀.set rCellSaved free).set rCellIdx 0
   have hinit1 : ExecWithin (B := .standard) w
       (ram[ rCellSaved ← rTrieRoot; rCellIdx ← #0 ]) s₀ s₁ 2 := by
@@ -4810,11 +4840,11 @@ private theorem exec_buildInputTrie {w d entryPtr free W : ℕ}
     dsimp only [P]
     have hs₁_idx : s₁.regs rCellIdx = 0 := by simp [s₁]
     rw [hs₁_idx, List.take_zero]
-    refine ⟨by simpa [s₁] using (hs₀_regs rZero (by decide)).trans hz,
-      by simpa [s₁] using (hs₀_regs rOne (by decide)).trans ho,
-      by simpa [s₁] using (hs₀_regs rDim (by decide)).trans hd,
-      by simpa [s₁] using (hs₀_regs rCurDomPtr (by decide)).trans hep,
-      by simpa [s₁] using (hs₀_regs rCurDomLen (by decide)).trans hel,
+    refine ⟨by simpa [s₁, x₀] using hs₀_regs rZero (by decide),
+      by simpa [s₁, x₀] using hs₀_regs rOne (by decide),
+      by simpa [s₁, x₀] using (hs₀_regs rDim (by decide)).trans (by simpa [x₀] using hd),
+      by simpa [s₁, x₀] using (hs₀_regs rCurDomPtr (by decide)).trans (by simpa [x₀] using hep),
+      by simpa [s₁, x₀] using (hs₀_regs rCurDomLen (by decide)).trans (by simpa [x₀] using hel),
       by simp [s₁],
       free + 2, {free, free + 1}, fun _ => 0,
       by simp [s₁, hs₀_free], le_rfl, by omega, ?_, hs₀_rep, by simp [entryAbsSum],
@@ -4830,8 +4860,8 @@ private theorem exec_buildInputTrie {w d entryPtr free W : ℕ}
     hyframe⟩ :=
     hyP
   rw [List.take_length] at hfnZ_eq
-  have htot : ExecWithin w buildInputTrie x y (es.length * (23 * d + 40) + 9) := by
-    refine (hinit0.seq (hinit1.seq hloop)).mono ?_
+  have htot : ExecWithin w buildInputTrie x y (es.length * (23 * d + 40) + 11) := by
+    refine (hinit_zo.seq (hinit0.seq (hinit1.seq hloop))).mono ?_
     have hs₁_idx : s₁.regs rCellIdx = 0 := by simp [s₁]
     rw [hs₁_idx, Nat.sub_zero]
     have h40 : 23 * d + 38 + 2 = 23 * d + 40 := by omega
@@ -4908,14 +4938,14 @@ private theorem input_bf_le {d nL nR nQ free₁ bf : ℕ}
   nlinarith
 
 private theorem input_total_time_le {d nL nR nQ L H : ℕ} (hL : 1 ≤ L) :
-    13 + (nL * (23 * d + 40) + 9 + (5 + (nR * (23 * d + 40) + 9 +
+    13 + (nL * (23 * d + 40) + 11 + (5 + (nR * (23 * d + 40) + 11 +
       (3 + 200 * (d + 1) ^ 2 * (L + nQ * H))))) ≤
       250 * (d + 1) ^ 2 * (nL + nR + L + nQ * H) - 1 := by
   obtain ⟨Lp, rfl⟩ : ∃ Lp, L = Lp + 1 := ⟨L - 1, (Nat.sub_add_cancel hL).symm⟩
   have hid :
-      (13 + (nL * (23 * d + 40) + 9 + (5 + (nR * (23 * d + 40) + 9 +
+      (13 + (nL * (23 * d + 40) + 11 + (5 + (nR * (23 * d + 40) + 11 +
         (3 + 200 * (d + 1) ^ 2 * ((Lp + 1) + nQ * H))))) + 1) +
-      ((nL + nR) * (250 * d ^ 2 + 477 * d + 210) + (50 * d ^ 2 + 100 * d + 10) +
+      ((nL + nR) * (250 * d ^ 2 + 477 * d + 210) + (50 * d ^ 2 + 100 * d + 6) +
         Lp * (50 * (d + 1) ^ 2) + nQ * H * (50 * (d + 1) ^ 2)) =
       250 * (d + 1) ^ 2 * (nL + nR + (Lp + 1) + nQ * H) := by ring
   omega
@@ -5054,7 +5084,7 @@ private theorem exec_inputCode (inst : Instance) {w : ℕ} (hw : inst.FitsWidth 
     rw [hnL_def]; exact hsp'.of_le hleft_sp
   obtain ⟨u₁, free₁, fnF, he_bL, hu₁_sav, hu₁_fr, hlo_L, hhi_L, htrF, hf_eq, hfr_L, hreg_L⟩ :=
     exec_buildInputTrie (W := inst.weightSum) inst.leftEntries u₀
-      hu₀z hu₀o hu₀d hu₀cdp hu₀cdl hu₀fr (by dsimp [initFree]; omega)
+      hu₀d hu₀cdp hu₀cdl hu₀fr (by dsimp [initFree]; omega)
       (by rw [hnL_def]; dsimp [initFree]; omega)
       (by rwa [hu₀mem]) (Nat.le_add_right _ _) hval hf_left
   -- Prepare right input trie
@@ -5091,8 +5121,6 @@ private theorem exec_inputCode (inst : Instance) {w : ℕ} (hw : inst.FitsWidth 
     exact hright_mem p hp
   obtain ⟨u₃, baseFree, fnG, he_bR, hu₃_sav, hu₃_fr, hlo_R, hhi_R, htrG, hg_eq, hfr_R, hreg_R⟩ :=
     exec_buildInputTrie (W := inst.weightSum) inst.rightEntries u₂
-      ((hreg_pR rZero (by decide)).trans ((hreg_L rZero (by decide)).trans hu₀z))
-      ((hreg_pR rOne (by decide)).trans ((hreg_L rOne (by decide)).trans hu₀o))
       ((hreg_pR rDim (by decide)).trans ((hreg_L rDim (by decide)).trans hu₀d))
       hu₂_cdp hu₂_cdl
       ((hreg_pR rFree (by decide)).trans hu₁_fr) (by dsimp [initFree] at hlo_L; omega)
