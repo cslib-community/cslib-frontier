@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Copyright (c) 2026 Erik Demaine, Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Erik Demaine, Samuel Schlesinger
 -/
 
 module
@@ -11,9 +11,11 @@ public import CslibFrontier.Algorithms.Lean.BurrowsWheeler.Basic
 public import CslibFrontier.Algorithms.Lean.BurrowsWheeler.Decode
 public import CslibFrontier.Computability.WordRAM.ListOutput
 public import CslibFrontier.Computability.WordRAM.Structured
+import CslibFrontier.Algorithms.WordRAM.Histogram
 import CslibFrontier.Computability.WordRAM.Copy
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import Mathlib.Data.List.GetD
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.NormNum
 
@@ -23,18 +25,20 @@ import Mathlib.Tactic.NormNum
 Linear-time implementation of Algorithm D of [BurrowsWheeler1994] (Sections 2 and 4.2) on the
 standard-basis Word-RAM (`Basis.standard`) for words over a bounded integer alphabet `[0, σ)`:
 
-1. **`buildTablesCode`** clears `σ` buckets at `cBase`, scans the last column `L` once to populate
-   both the rank array `P[0..|L|)` (`P[i] = (L.take i).count L[i]`) at `pBase` and per-symbol
+1. **`buildTablesCode`** clears `σ` buckets at `cBase` via `zeroFill`, scans the last column `L`
+   once to populate both the rank array `P[0..|L|)` (`rankTable L`) at `pBase` and per-symbol
    frequencies in `cBase`, and runs an exclusive prefix-sum scan over `[0, σ)` so that
-   `C[b] = L.countP (· < b)`, in `12 * σ + 11 * |L| + 12` machine instructions.
+   `C[b] = L.countP (· < b)`, in `11 * σ + 11 * |L| + 13` machine instructions.
 2. **`lfDecodeCode`** executes up to `|L|` table-driven LF steps `r ↦ P[r] + C[L[r]]` from row
    `I`, writing decoded symbols backwards into an output buffer so that halting returns
    `inverseBwt (L, I)` as a length-prefixed array without a post-copy pass, in `14 * |L| + 9`
    machine instructions.
 3. **`decodeCode` / `decodeProgram`** unpacks an encoded input `inp = ⟨L, I, σ⟩` (`[I, σ] ++ L`),
    places `C`, `P`, and the output buffer in disjoint regions after the input, and returns
-   `inverseBwt (L, I)` in at most `25 * |L| + 12 * σ + 33` instructions at any word width `w` with
-   `Fits w (3 * |L| + σ + 4)`. On `bwt u` (with `∀ c ∈ u, c < σ`), `decodeProgram_bwt` recovers
+   `inverseBwt (L, I)` in at most `25 * |L| + 11 * σ + 34` instructions at any word width `w` with
+   `Fits w (3 * |L| + σ + 4)` (and `InputFits w inp.encode` in `decodeProgram_computesListInTime`
+   to bound an arbitrary encoded starting row `I`). On `bwt u` (with `∀ c ∈ u, c < σ`),
+   `decodeProgram_bwt` discharges `InputFits` automatically from `bwtIndex u ≤ |u|` and recovers
    `u` in `O(|u| + σ)` instructions.
 
 ## Main definitions
@@ -46,15 +50,15 @@ standard-basis Word-RAM (`Basis.standard`) for words over a bounded integer alph
 
 ## Main results
 
-* `Cslib.Algorithms.WordRAM.BurrowsWheeler.buildTablesCode_exec`: builds `C` and `P` within
-  `12 * σ + 11 * |L| + 12` instructions.
+* `Cslib.Algorithms.WordRAM.BurrowsWheeler.buildTablesCode_exec`: builds `C` and `rankTable L`
+  within `11 * σ + 11 * |L| + 13` instructions.
 * `Cslib.Algorithms.WordRAM.BurrowsWheeler.lfDecodeCode_exec`: decodes `inverseBwt (L, I)` within
   `14 * |L| + 9` instructions.
 * `Cslib.Algorithms.WordRAM.BurrowsWheeler.decodeCode_exec`,
   `Cslib.Algorithms.WordRAM.BurrowsWheeler.decodeProgram_computesListInTime`: end-to-end
   `O(|L| + σ)` Word-RAM BWT inversion.
 * `Cslib.Algorithms.WordRAM.BurrowsWheeler.decodeProgram_bwt`: recovers `u` from `bwt u` within
-  `25 * |u| + 12 * σ + 33` instructions whenever `∀ c ∈ u, c < σ` and `Fits w (3 * |u| + σ + 4)`.
+  `25 * |u| + 11 * σ + 34` instructions whenever `∀ c ∈ u, c < σ` and `Fits w (3 * |u| + σ + 4)`.
 
 ## References
 
@@ -92,10 +96,6 @@ structure Input where
 
 @[simp] theorem length_encode (inp : Input) : inp.encode.length = inp.last.length + 2 := by
   simp [Input.encode]
-
-private theorem getD_eq_getElem (L : List ℕ) {i : ℕ} (hi : i < L.length) :
-    L.getD i 0 = L[i] := by
-  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi, Option.getD_some]
 
 private theorem countP_lt_succ : ∀ (L : List ℕ) (b : ℕ),
     L.countP (· < b + 1) = L.countP (· < b) + L.count b
@@ -158,15 +158,9 @@ open Reg
 
 /-! ## Word-RAM structured code -/
 
-/-- Clear one bucket of `cBase` and advance `idx`. -/
-private def clearCBody : Code .standard 16 := ram[
-  addr ← cBase + idx;
-  *addr ← zero;
-  idx ← idx + one ]
-
-/-- Zero `cBase[0..sigma)` and load constants `zero = 0`, `one = 1`. -/
+/-- Zero `cBase[0..sigma)` via `Histogram.clearBlock` and load constants `zero = 0`, `one = 1`. -/
 private def clearC : Code .standard 16 :=
-  .seq (ram[ zero ← #0; one ← #1; idx ← #0 ]) (.loop (.lt idx sigma) clearCBody)
+  Histogram.clearBlock cBase sigma idx addr zero one
 
 /-- One step of the combined rank-table and histogram pass over `L`. -/
 private def rankCountBody : Code .standard 16 := ram[
@@ -253,41 +247,6 @@ def decodeProgram : Program .standard 16 :=
 
 /-! ## Correctness and running time of `buildTablesCode` -/
 
-private theorem exec_clearC {w : ℕ} (x : Data 16) (h1 : Fits w 1)
-    (hc : Fits w (x.regs cBase + x.regs sigma)) :
-    ∃ y, ExecWithin w clearC x y (5 * x.regs sigma + 5) ∧
-      y.mem = Cslib.WordRAM.clear x.mem (x.regs cBase) (x.regs sigma) ∧
-      (∀ i : Fin 16, i.val ≤ 6 → y.regs i = x.regs i) ∧
-      y.regs zero = 0 ∧ y.regs one = 1 := by
-  let P (j : ℕ) (y : Data 16) : Prop :=
-    (∀ i : Fin 16, i.val ≤ 6 → y.regs i = x.regs i) ∧
-      y.regs zero = 0 ∧ y.regs one = 1 ∧
-      y.mem = Cslib.WordRAM.clear x.mem (x.regs cBase) j
-  have hbody (y : Data 16) (hy : P (y.regs idx) y) (hlt : y.regs idx < x.regs sigma) :
-      ∃ z, ExecWithin w clearCBody y z 3 ∧ P (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨hr, hz, ho, hm⟩ := hy
-    have hcb := hr cBase (by decide)
-    have ha : Fits w (y.regs cBase + y.regs idx) := hc.of_le (by rw [hcb]; omega)
-    have hn : Fits w (y.regs idx + 1) := hc.of_le (by omega)
-    refine WP.exists_execWithin ?_
-    unfold clearCBody
-    wram_exec [hz, ho, ha, hn]
-    refine ⟨⟨fun i hi => by
-      have hri := hr i hi
-      fin_cases i <;> norm_num at hi <;> wram_simp [hri],
-      by wram_simp [hz], by wram_simp [ho], ?_⟩, by wram_simp⟩
-    wram_simp
-    rw [hm, hcb, ← Cslib.WordRAM.clear_succ]
-  refine WP.exists_execWithin ?_
-  unfold clearC
-  wram_exec [h1]
-  wram_call (ExecWithin.loop_count P (fun y hy => hy.1 sigma (by decide)) hbody
-    (by wram_simp; omega) ⟨fun i hi => by fin_cases i <;> norm_num at hi <;> wram_simp,
-      by wram_simp, by wram_simp, by wram_simp [Cslib.WordRAM.clear_zero]⟩)
-    with y ⟨⟨hr, hz, ho, hm⟩, _⟩
-  exact ⟨by wram_simp; omega, hm, hr, hz, ho⟩
-
 private def rankCountMem (mem : ℕ → ℕ) (L : List ℕ) (cb σ pb j : ℕ) (a : ℕ) : ℕ :=
   if cb ≤ a ∧ a < cb + σ then (L.take j).count (a - cb)
   else if pb ≤ a ∧ a < pb + j then (L.take (a - pb)).count (L.getD (a - pb) 0)
@@ -314,7 +273,7 @@ private theorem rankCountMem_succ (mem : ℕ → ℕ) (L : List ℕ) (cb σ pb j
       rw [Function.update_self]
       have hnot_cb : ¬(cb ≤ pb + j ∧ pb + j < cb + σ) := by omega
       have hcond_pb : pb ≤ pb + j ∧ pb + j < pb + (j + 1) := by omega
-      have hget : L.getD j 0 = L[j] := getD_eq_getElem L hj
+      have hget : L.getD j 0 = L[j] := List.getD_eq_getElem L 0 hj
       simp only [rankCountMem, hnot_cb, ↓reduceIte, hcond_pb, and_self,
         Nat.add_sub_cancel_left, hget]
     · rw [Function.update_of_ne ha_pb]
@@ -332,7 +291,6 @@ private theorem exec_scanRankAndCount {w : ℕ} (x : Data 16) (L : List ℕ)
     (hs : Fits w (x.regs src + L.length))
     (hc : Fits w (x.regs cBase + x.regs sigma))
     (hp : Fits w (x.regs pBase + L.length))
-    (hn1 : Fits w (L.length + 1))
     (hdisj_sc : x.regs src + L.length ≤ x.regs cBase)
     (hdisj_cp : x.regs cBase + x.regs sigma ≤ x.regs pBase)
     (hvalid : ∀ c ∈ L, c < x.regs sigma)
@@ -377,8 +335,8 @@ private theorem exec_scanRankAndCount {w : ℕ} (x : Data 16) (L : List ℕ)
     have hf_src : Fits w (y.regs src + y.regs idx) := hs.of_le (by rw [hsrc]; omega)
     have hf_cb : Fits w (y.regs cBase + L[y.regs idx]) := hc.of_le (by rw [hcb]; omega)
     have hf_pb : Fits w (y.regs pBase + y.regs idx) := hp.of_le (by rw [hpb]; omega)
-    have hf_cnt1 : Fits w ((L.take (y.regs idx)).count L[y.regs idx] + 1) := hn1.of_le (by omega)
-    have hf_idx1 : Fits w (y.regs idx + 1) := hn1.of_le (by omega)
+    have hf_cnt1 : Fits w ((L.take (y.regs idx)).count L[y.regs idx] + 1) := hs.of_le (by omega)
+    have hf_idx1 : Fits w (y.regs idx + 1) := hs.of_le (by omega)
     refine WP.exists_execWithin ?_
     unfold rankCountBody
     wram_exec [hoy, hread_L, hread_C, hf_src, hf_cb, hf_pb, hf_cnt1, hf_idx1]
@@ -479,8 +437,8 @@ private theorem exec_prefixSumC {w : ℕ} (x : Data 16) (L : List ℕ)
     with y ⟨⟨hr, _, _, _, hm⟩, _⟩
   exact ⟨by wram_simp; omega, hm, hr⟩
 
-/-- `buildTablesCode` builds `C[0..sigma)` at `cBase` and `P[0..|L|)` at `pBase` within
-`12 * sigma + 11 * |L| + 12` instructions, preserving all other memory cells and the parameter
+/-- `buildTablesCode` builds `C[0..sigma)` at `cBase` and `rankTable L` at `pBase` within
+`11 * sigma + 11 * |L| + 13` instructions, preserving all other memory cells and the parameter
 registers `0..6`. -/
 theorem buildTablesCode_exec {w : ℕ} (x : Data 16) (L : List ℕ)
     (h1 : Fits w 1)
@@ -488,18 +446,23 @@ theorem buildTablesCode_exec {w : ℕ} (x : Data 16) (L : List ℕ)
     (hs : Fits w (x.regs src + L.length))
     (hc : Fits w (x.regs cBase + x.regs sigma))
     (hp : Fits w (x.regs pBase + L.length))
-    (hn1 : Fits w (L.length + 1))
     (hdisj_sc : x.regs src + L.length ≤ x.regs cBase)
     (hdisj_cp : x.regs cBase + x.regs sigma ≤ x.regs pBase)
     (hvalid : ∀ c ∈ L, c < x.regs sigma)
     (hinput : ∀ i (hi : i < L.length), x.mem (x.regs src + i) = L[i]) :
-    ∃ y, ExecWithin w buildTablesCode x y (12 * x.regs sigma + 11 * L.length + 12) ∧
+    ∃ y, ExecWithin w buildTablesCode x y (11 * x.regs sigma + 11 * L.length + 13) ∧
       (∀ b < x.regs sigma, y.mem (x.regs cBase + b) = L.countP (· < b)) ∧
-      (∀ i (hi : i < L.length), y.mem (x.regs pBase + i) = (L.take i).count L[i]) ∧
+      Block.HoldsList (x.regs pBase) (rankTable L) y.mem ∧
       (∀ a, ¬(x.regs cBase ≤ a ∧ a < x.regs cBase + x.regs sigma) →
         ¬(x.regs pBase ≤ a ∧ a < x.regs pBase + L.length) → y.mem a = x.mem a) ∧
       (∀ i : Fin 16, i.val ≤ 6 → y.regs i = x.regs i) := by
-  obtain ⟨y₁, he₁, hm₁, hr₁, hz₁, ho₁⟩ := exec_clearC x h1 hc
+  obtain ⟨y₁, he₁, hm₁, hr₁_raw, hz₁, ho₁⟩ :=
+    Histogram.exec_clearBlock cBase sigma idx addr zero one (by decide) x h1 hc
+  have hr₁ : ∀ i : Fin 16, i.val ≤ 6 → y₁.regs i = x.regs i := fun i hi =>
+    hr₁_raw i (by fin_cases i <;> norm_num at hi <;> decide)
+      (by fin_cases i <;> norm_num at hi <;> decide)
+      (by fin_cases i <;> norm_num at hi <;> decide)
+      (by fin_cases i <;> norm_num at hi <;> decide)
   have hsrc₁ := hr₁ src (by decide)
   have hlen₁ := hr₁ len (by decide)
   have hsig₁ := hr₁ sigma (by decide)
@@ -510,7 +473,6 @@ theorem buildTablesCode_exec {w : ℕ} (x : Data 16) (L : List ℕ)
     (by rwa [hsrc₁])
     (by rwa [hcb₁, hsig₁])
     (by rwa [hpb₁])
-    hn1
     (by rw [hsrc₁, hcb₁]; exact hdisj_sc)
     (by rw [hcb₁, hsig₁, hpb₁]; exact hdisj_cp)
     (by rwa [hsig₁])
@@ -531,7 +493,7 @@ theorem buildTablesCode_exec {w : ℕ} (x : Data 16) (L : List ℕ)
   have hsig₂ := (hr₂ sigma (by decide)).trans hsig₁
   obtain ⟨y₃, he₃, hm₃, hr₃⟩ := exec_prefixSumC y₂ L
     (by rwa [hcb₂, hsig₂])
-    (hn1.of_le (by omega))
+    (hs.of_le (by omega))
     (by
       intro b hb
       rw [hcb₂, hm₂, hcb₁, hsig₁]
@@ -548,14 +510,16 @@ theorem buildTablesCode_exec {w : ℕ} (x : Data 16) (L : List ℕ)
     have hcond : x.regs cBase ≤ x.regs cBase + b ∧
         x.regs cBase + b < x.regs cBase + x.regs sigma := by omega
     simp only [cTableMem, hcond, and_self, ↓reduceIte, Nat.add_sub_cancel_left]
-  · intro i hi
-    rw [hm₃, hcb₂, hsig₂]
+  · intro ⟨i, hi_rt⟩
+    have hi : i < L.length := by simpa only [length_rankTable] using hi_rt
+    change y₃.mem (x.regs pBase + i) = (rankTable L)[i]
+    rw [getElem_rankTable L hi, hm₃, hcb₂, hsig₂]
     have hnot_c : ¬(x.regs cBase ≤ x.regs pBase + i ∧
         x.regs pBase + i < x.regs cBase + x.regs sigma) := by omega
     simp only [cTableMem, hnot_c, ↓reduceIte, hm₂, hcb₁, hsig₁, hpb₁]
     have hcond_p : x.regs pBase ≤ x.regs pBase + i ∧
         x.regs pBase + i < x.regs pBase + L.length := by omega
-    have hget : L.getD i 0 = L[i] := getD_eq_getElem L hi
+    have hget : L.getD i 0 = L[i] := List.getD_eq_getElem L 0 hi
     simp only [rankCountMem, hnot_c, ↓reduceIte, hcond_p, and_self, Nat.add_sub_cancel_left, hget]
   · intro a hnc hnp
     rw [hm₃, hcb₂, hsig₂]
@@ -665,23 +629,9 @@ private theorem while_lfStepBody_spec {w : ℕ} (L : List ℕ) (σ : ℕ)
       have hz₁ := hfr zero (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl))))))
       have ho₁ := hfr one (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr rfl))))))
       have hhold₁ : Block.HoldsList (x₁.regs buf + k' + 1) (L[x.regs row] :: accList) x₁.mem := by
-        rw [hb₁, hx₁_mem]
-        intro ⟨j, hj⟩
-        cases j with
-        | zero =>
-          change Function.update x.mem (x.regs buf + (k' + 1)) L[x.regs row]
-            (x.regs buf + k' + 1 + 0) = L[x.regs row]
-          rw [Nat.add_zero, show x.regs buf + k' + 1 = x.regs buf + (k' + 1) by omega,
-            Function.update_self]
-        | succ j' =>
-          have hj' : j' < accList.length := by
-            simp only [List.length_cons] at hj
-            omega
-          change Function.update x.mem (x.regs buf + (k' + 1)) L[x.regs row]
-            (x.regs buf + k' + 1 + (j' + 1)) = accList[j']
-          rw [Function.update_of_ne (by omega)]
-          have hh := hhold.get j' hj'
-          rwa [show x.regs buf + k' + 1 + (j' + 1) = x.regs buf + (k' + 1) + 1 + j' by omega]
+        rw [hb₁, hx₁_mem, show x.regs buf + k' + 1 = x.regs buf + (k' + 1) by omega]
+        exact Block.holdsList_cons_iff.mpr ⟨Function.update_self _ _ _,
+          hhold.frame fun a ha _ => Function.update_of_ne (by omega) _ _⟩
       obtain ⟨y, hy, hy_acc, hy_le, hy_sum, hy_hold⟩ := ih x₁ (L[x.regs row] :: accList)
         (by rwa [hb₁]) (by rwa [hs₁]) (by rwa [hc₁]) (by rwa [hp₁])
         (by rw [hs₁, hb₁]; exact hd_sb)
@@ -796,11 +746,8 @@ theorem lfDecodeCode_exec {w : ℕ} (x : Data 16) (L : List ℕ) (σ : ℕ)
   obtain ⟨y, hfin, hy_out, hy_mem⟩ := hfin_spec
   refine ⟨y, (hinit.seq (hloop.seq hfin)).mono (by omega), ?_, ?_, ?_⟩
   · rw [hy_out, hy_mem, inverseBwt, outputList_eq_iff]
-    refine ⟨by rw [Function.update_self, hy₁_acc], ?_⟩
-    intro ⟨j, hj⟩
-    change Function.update y₁.mem (y₁.regs idx) (y₁.regs acc) (y₁.regs idx + 1 + j) = _
-    rw [Function.update_of_ne (by omega)]
-    exact hy₁_hold.get j hj
+    exact ⟨by rw [Function.update_self, hy₁_acc],
+      hy₁_hold.frame fun a ha _ => Function.update_of_ne (by omega) _ _⟩
   · rw [hy_out]
     exact hy₁_le
   · rw [hy_out, inverseBwt]
@@ -809,12 +756,12 @@ theorem lfDecodeCode_exec {w : ℕ} (x : Data 16) (L : List ℕ) (σ : ℕ)
 /-! ## End-to-end Word-RAM BWT decoder -/
 
 /-- `decodeCode` inverts `inp = ⟨L, I, σ⟩` from `Data.init inp.encode` within
-`25 * |L| + 12 * σ + 32` instructions at any fitting width `Fits w (3 * |L| + σ + 4)`. -/
+`25 * |L| + 11 * σ + 33` instructions at any fitting width `Fits w (3 * |L| + σ + 4)`. -/
 theorem decodeCode_exec (inp : Input) (w : ℕ)
     (hvalid : inp.Valid)
     (hw : Fits w (3 * inp.last.length + inp.alphabetSize + 4)) :
     ∃ y, ExecWithin w decodeCode (.init inp.encode) y
-        (25 * inp.last.length + 12 * inp.alphabetSize + 32) ∧
+        (25 * inp.last.length + 11 * inp.alphabetSize + 33) ∧
       outputList y.mem (y.regs out) = inverseBwt (inp.last, inp.index) ∧
       Fits w (y.regs out + (inverseBwt (inp.last, inp.index)).length) := by
   have h1 : Fits w 1 := hw.of_le (by omega)
@@ -835,7 +782,7 @@ theorem decodeCode_exec (inp : Input) (w : ℕ)
     have haddr : 3 + i = (i + 2) + 1 := by omega
     rw [haddr, Data.init_mem_succ]
     change (inp.index :: inp.alphabetSize :: inp.last).getD (i + 2) 0 = inp.last[i]
-    simpa only [List.getD_cons_succ] using getD_eq_getElem inp.last hi
+    simpa only [List.getD_cons_succ] using List.getD_eq_getElem inp.last 0 hi
   have hf_n : Fits w inp.last.length := hw.of_le (by omega)
   have hf_cb : Fits w (3 + inp.last.length) := hw.of_le (by omega)
   have hf_pb : Fits w (3 + inp.last.length + inp.alphabetSize) := hw.of_le (by omega)
@@ -870,7 +817,6 @@ theorem decodeCode_exec (inp : Input) (w : ℕ)
     (by rw [hs₁]; exact hw.of_le (by omega))
     (by rw [hcb₁, hsig₁]; exact hw.of_le (by omega))
     (by rw [hpb₁]; exact hw.of_le (by omega))
-    (hw.of_le (by omega))
     (by rw [hs₁, hcb₁])
     (by rw [hcb₁, hsig₁, hpb₁])
     (by rwa [hsig₁])
@@ -901,32 +847,34 @@ theorem decodeCode_exec (inp : Input) (w : ℕ)
       exact hC₂ b (by rwa [hsig₁]))
     (by
       intro i hi
-      rw [hpb₂, ← hpb₁]
-      exact hP₂ i hi)
+      rw [hpb₂, ← hpb₁, ← getElem_rankTable inp.last hi]
+      exact hP₂.get i (by rwa [length_rankTable]))
   rw [hr₂] at hout hy_end
   rw [hbuf₂] at hy_end
   refine ⟨y, (hsetup.seq (hbuild.seq hdec)).mono (by omega), hout, ?_⟩
   rw [hy_end]
   exact hw.of_le (by omega)
 
-/-- `decodeProgram` computes `inverseBwt (inp.last, inp.index)` in `25 * |L| + 12 * σ + 33`
-instructions at every fitting width with `Fits w (3 * |L| + σ + 4)`. -/
+/-- `decodeProgram` computes `inverseBwt (inp.last, inp.index)` in `25 * |L| + 11 * σ + 34`
+instructions at every fitting width with `inp.Valid`, `Fits w (3 * |L| + σ + 4)`, and
+`InputFits w inp.encode` (the `ComputesListInTime` input-fit hypothesis, which bounds an arbitrary
+encoded starting row `I`). -/
 theorem decodeProgram_computesListInTime :
     decodeProgram.ComputesListInTime
       (fun _ (inp : Input) => inp.encode)
-      (fun inp _ => 25 * inp.last.length + 12 * inp.alphabetSize + 33)
+      (fun inp _ => 25 * inp.last.length + 11 * inp.alphabetSize + 34)
       (fun inp w => inp.Valid ∧ Fits w (3 * inp.last.length + inp.alphabetSize + 4))
       (fun inp => inverseBwt (inp.last, inp.index)) :=
   decodeCode.computesListInTime_program out fun inp w ⟨hvalid, hw⟩ _ =>
     decodeCode_exec inp w hvalid hw
 
 /-- On `bwt u` over an integer alphabet `< σ`, `decodeProgram` recovers `u` within
-`25 * |u| + 12 * σ + 33` instructions at any word width `w` with `Fits w (3 * |u| + σ + 4)`. -/
+`25 * |u| + 11 * σ + 34` instructions at any word width `w` with `Fits w (3 * |u| + σ + 4)`. -/
 theorem decodeProgram_bwt (u : List ℕ) (σ w : ℕ)
     (hu : ∀ c ∈ u, c < σ)
     (hw : Fits w (3 * u.length + σ + 4)) :
     ∃ t, ExecutesList w decodeProgram (.init (Input.mk (bwtLast u) (bwtIndex u) σ).encode) u t ∧
-      t ≤ 25 * u.length + 12 * σ + 33 := by
+      t ≤ 25 * u.length + 11 * σ + 34 := by
   let inp : Input := ⟨bwtLast u, bwtIndex u, σ⟩
   have hvalid : inp.Valid := fun c hc => hu c ((bwtLast_perm u).subset hc)
   have hlen_last : (bwtLast u).length = u.length := length_bwtLast u

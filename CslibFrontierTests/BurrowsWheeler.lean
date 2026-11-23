@@ -87,22 +87,27 @@ private meta def evalDecode (w : ℕ) (inp : Input) : Option (List ℕ × ℕ) :
 -- "abraca" as `[0, 1, 3, 0, 2, 0]` over `σ = 4`: `bwt` is `([2, 0, 3, 0, 0, 1], 1)`.
 -- At width 5 (`2^5 = 32 > 3 * 6 + 4 + 4 = 26`).
 #guard match evalDecode 5 ⟨[2, 0, 3, 0, 0, 1], 1, 4⟩ with
-  | some (dec, steps) => dec == [0, 1, 3, 0, 2, 0] && steps ≤ 25 * 6 + 12 * 4 + 32
+  | some (dec, steps) => dec == [0, 1, 3, 0, 2, 0] && steps ≤ 25 * 6 + 11 * 4 + 33
   | none => false
 
 -- Periodic word "cancan" as `[1, 0, 2, 1, 0, 2]` over `σ = 3`: `bwt` is `([1, 1, 2, 2, 0, 0], 2)`.
 #guard match evalDecode 5 ⟨[1, 1, 2, 2, 0, 0], 2, 3⟩ with
-  | some (dec, steps) => dec == [1, 0, 2, 1, 0, 2] && steps ≤ 25 * 6 + 12 * 3 + 32
+  | some (dec, steps) => dec == [1, 0, 2, 1, 0, 2] && steps ≤ 25 * 6 + 11 * 3 + 33
+  | none => false
+
+-- Single-symbol alphabet `σ = 1` on a constant word `[0, 0, 0, 0]`.
+#guard match evalDecode 5 ⟨[0, 0, 0, 0], 0, 1⟩ with
+  | some (dec, steps) => dec == [0, 0, 0, 0] && steps ≤ 25 * 4 + 11 * 1 + 33
   | none => false
 
 -- Out-of-range starting row stops early cleanly (`inverseBwt ([2, 0, 1], 9) = []`).
 #guard match evalDecode 5 ⟨[2, 0, 1], 9, 3⟩ with
-  | some (dec, steps) => dec == [] && steps ≤ 25 * 3 + 12 * 3 + 32
+  | some (dec, steps) => dec == [] && steps ≤ 25 * 3 + 11 * 3 + 33
   | none => false
 
 -- Empty word at minimal valid width `w = 3` (`3 * 0 + 0 + 4 = 4 < 8`).
 #guard match evalDecode 3 ⟨[], 0, 0⟩ with
-  | some (dec, steps) => dec == [] && steps ≤ 32
+  | some (dec, steps) => dec == [] && steps ≤ 33
   | none => false
 
 /-! ## Non-vacuity of the main theorems -/
@@ -130,7 +135,7 @@ example :
 example : ∃ t, ExecutesList 6 decodeProgram
     (.init (Input.mk (bwtLast [3, 1, 4, 1, 5, 9, 2, 6])
       (bwtIndex [3, 1, 4, 1, 5, 9, 2, 6]) 10).encode)
-    [3, 1, 4, 1, 5, 9, 2, 6] t ∧ t ≤ 25 * 8 + 12 * 10 + 33 :=
+    [3, 1, 4, 1, 5, 9, 2, 6] t ∧ t ≤ 25 * 8 + 11 * 10 + 34 :=
   decodeProgram_bwt [3, 1, 4, 1, 5, 9, 2, 6] 10 6 (by decide) (by decide)
 
 end Cslib.Algorithms.Lean.BurrowsWheeler.Tests
