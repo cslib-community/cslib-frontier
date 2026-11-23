@@ -42,10 +42,10 @@ most `s` (`Cslib.Circuits.Boolean.card_computableFunctions_le_two_pow`).
 `M ≤ (s + 1) (2 L + 3) ≈ 8 (1 + 2 / P) θ λ`, while `c g θ ≈ g γ θ λ`. Since `A = O(log λ)` and
 `n ≤ N ≤ λ / λ₀`, the fraction is below `1 / 3` for large `λ` once
 `g (log 2 - H(δ₀)) > 8 (1 + 2 / P) log 2`, that is `g > 8 (1 + 2 / P) / (1 - H₂(δ₀))` for the
-binary entropy `H₂ = H / log 2` in bits. The design review of #4362 asked for the constant `4`;
-`8` comes from the crude count `card_computableFunctions_le_two_pow`, and `4` would need a
-Stirling-level count of circuits. The gap `g` is free in the NP-hardness of `GapCMMSA`, so the
-larger constant does not affect the reduction.
+binary entropy `H₂ = H / log 2` in bits. Here `8` comes from the crude count
+`card_computableFunctions_le_two_pow`; improving it to `4` would need a Stirling-level count of
+circuits. The gap `g` is free in the NP-hardness of `GapCMMSA`, so the larger constant does not
+affect the reduction.
 
 **Other families.** When `F` has at most `2 ^ (κ θ λ + C (N + 1))` members, the same analysis
 needs only `g (log 2 - H(δ₀)) > κ log 2` and `λ ≥ λ₀ (N + 1)`
@@ -325,8 +325,8 @@ and whose weights are at most `N`, and every `λ ≥ λ₀ (N + 1) ²`, at most 
 the functions `f` put the table `toInstance I Δ k λ P f` in partial MCSP.
 
 `λ₀` is existential and not computed: it comes from eventual bounds on `L / 2 ^ L`. The constant
-`8` comes from the crude circuit count `card_computableFunctions_le_two_pow`; the design review of
-#4362 has `4`, which needs a Stirling-level count. -/
+`8` comes from the crude circuit count `card_computableFunctions_le_two_pow`; improving it to `4`
+would need a Stirling-level count. -/
 theorem three_mul_card_toInstance_mem_PartialMCSP_le (Δ k P : ℕ) (hP : 0 < P) (hk : Odd k)
     {δ₀ g : ℝ} (hδ₀ : 0 ≤ δ₀) (hδ₀' : δ₀ ≤ 1 / 2) (hkδ : (1 - 2 * δ₀) ^ k ≤ 1 / (2 * Δ ^ 2))
     (hg : 8 * (1 + 2 / P) * Real.log 2 < g * (Real.log 2 - Real.binEntropy δ₀)) :

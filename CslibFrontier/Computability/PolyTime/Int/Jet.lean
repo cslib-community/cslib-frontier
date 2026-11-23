@@ -37,6 +37,8 @@ has exact length `J`.
 
 ## Main definitions and results
 
+* `Cslib.IntJet.encJet`: encoding of a truncated integer jet (`List ℤ`) as framed signed binary
+  integers (`encList encIntBin`).
 * `Cslib.IntJet.add`, `Cslib.IntJet.sub`, `Cslib.IntJet.subConst`: truncated length-`J` addition
   (via `Cslib.truncZJet` and `Cslib.polyAdd`) and subtraction on `List ℤ`.
 * `Cslib.IntJet.X_pow_dvd_truncZJet`, `Cslib.IntJet.X_pow_dvd_add`, `Cslib.IntJet.X_pow_dvd_sub`,
@@ -265,7 +267,11 @@ theorem length_encList_encIntBin_le_of_coeffNorm1 (a : List ℤ) :
 
 section PolyTime
 
-local notation "encJet" => encList encIntBin
+/-- Encoding of a truncated univariate integer jet (`List ℤ`): the concatenation (`encList`) of
+its framed coefficients encoded by `encIntBin` (sign bit `decide (z < 0)` followed by the
+little-endian binary digits `encNat z.natAbs`). -/
+abbrev encJet : List ℤ ↪ List Bool :=
+  encList encIntBin
 
 @[fun_prop] theorem computableInPolyTime_add' {γ : Type} {encIn : γ ↪ List Bool}
     {J : γ → ℕ} {a b : γ → List ℤ} (hJ : ComputableInPolyTime J encIn encUnary)
