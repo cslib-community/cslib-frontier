@@ -54,6 +54,7 @@ learned clause.
 namespace Cslib.Algorithms.Lean.CDCL
 
 open Cslib.Logic.PL Cslib.Logic.PL.CNF
+open Cslib.Algorithms.WordRAM.ClauseCode (litCode_injective)
 
 variable {φ : CNF ℕ}
 
@@ -522,7 +523,7 @@ theorem Learned.propagateHints_minimized {T : XTrail} (L : Learned log₀ A (XTr
       rcases hz' z hz hzl with hC | hm'
       · -- `z` is on a variable of the learned clause, hence one of its literals
         obtain ⟨y, hy, hyz⟩ := mem_of_clauseVars hC
-        have hyL := (mem_dedupKey litKey_injective).1 hy
+        have hyL := (mem_dedupKey litCode_injective).1 hy
         have hyl : y ≠ L.lit := fun h => L.undef (by
           rw [← h, hyz]
           simpa [Std.Sat.Literal.negate] using Trail.mem_vars_of_mem_lits hzT)
@@ -537,7 +538,7 @@ theorem Learned.propagateHints_minimized {T : XTrail} (L : Learned log₀ A (XTr
         obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hx
         by_cases hyl : y = L.lit
         · exact hτ _ (List.mem_map.2 ⟨y, hyl ▸ List.mem_cons_self, rfl⟩)
-        rcases hD y ((mem_dedupKey litKey_injective).2 hy) with h' | ⟨-, h'⟩
+        rcases hD y ((mem_dedupKey litCode_injective).2 hy) with h' | ⟨-, h'⟩
         · exact hτ _ (List.mem_map.2 ⟨y, h', rfl⟩)
         · refine hd _ ?_
           have hyT := L.false_below y hy hyl
@@ -573,7 +574,7 @@ def Learned.minimize {T : XTrail} (L : Learned log₀ A (XTrail.trail T)) (hreas
     have hsub : ∀ y ∈ D, y ∈ L.clause := fun y hy => by
       rcases List.mem_cons.1 hy with rfl | hy
       · exact L.mem
-      · exact (mem_dedupKey litKey_injective).1 (List.mem_filter.1 hy).1
+      · exact (mem_dedupKey litCode_injective).1 (List.mem_filter.1 hy).1
     { L with
       clause := D
       hints := derivedHints T r.2 ++ L.hints
