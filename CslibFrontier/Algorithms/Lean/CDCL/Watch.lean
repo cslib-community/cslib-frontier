@@ -269,6 +269,10 @@ structure WatchStore where
   /-- The watch lists, by `litCode`. -/
   watches : Watches
 
+/-- The empty watch store, which the solver's state holds while its store is taken out of it. A
+constant, so that taking the store out allocates nothing. -/
+@[expose] def WatchStore.empty : WatchStore := ⟨#[], #[]⟩
+
 /-- The number of a clause of the store: the last number of its array. -/
 @[expose] def clauseId (a : Array ℕ) : ℕ := a.getD (a.size - 1) 0
 
@@ -782,8 +786,9 @@ theorem WatchStore.Inv.addClause {F : List (ℕ × Clause ℕ)} {M : Trail} {Q :
 
 /-- The empty store. -/
 theorem WatchStore.inv_empty (M : Trail) (Q : List (Literal ℕ)) :
-    (⟨#[], #[]⟩ : WatchStore).Inv [] M Q :=
-  ⟨by simp [WatchStore.clauses], by simp [WatchStore.clauses], by simp [WatchStore.clauses],
+    WatchStore.empty.Inv [] M Q := by
+  unfold WatchStore.empty
+  exact ⟨by simp [WatchStore.clauses], by simp [WatchStore.clauses], by simp [WatchStore.clauses],
     fun e he => by simp at he, fun k hk => by simp [WatchStore.clauses] at hk,
     fun i x hx => by simp [watchList, unpackWatchers] at hx, by simp [WatchStore.clauses]⟩
 
@@ -970,7 +975,7 @@ theorem dedupWith_spec (m : Array Bool) (c : Clause ℕ)
 are returned cleared. -/
 @[expose] def WatchStore.buildWith (P : Array ℕ) (A : Assign) :
     List (ℕ × Clause ℕ) → Array Bool → WatchStore × Array Bool
-  | [], m => (⟨#[], #[]⟩, m)
+  | [], m => (WatchStore.empty, m)
   | e :: F, m =>
     let r := buildWith P A F m
     let d := dedupWith r.2 e.2
@@ -981,8 +986,9 @@ are returned cleared. -/
   F.foldl (fun n e => e.2.foldl (fun n l => max n (litCode l + 1)) n) 0
 
 /-- **The watch store** of the numbered clauses `F` under the assignment `A`: every clause with at
-least two different literals, without repetitions, watching its first two literals once those that
-are not false under `A` are put first. It adds the clauses with
+least two different literals, without repetitions, watching its first two literals once ordered by
+`watchOrderAt P A`: those that are not false under `A` first, then, if the second is false, the
+false literal whose variable has the greatest position `P` on the trail. It adds the clauses with
 `Cslib.Algorithms.Lean.CDCL.WatchStore.addClause`, as learning does, which leaves the store
 unchanged for fewer than two literals. Repetitions are removed with one array of marks for all the
 clauses (`Cslib.Algorithms.Lean.CDCL.dedupWith`). -/

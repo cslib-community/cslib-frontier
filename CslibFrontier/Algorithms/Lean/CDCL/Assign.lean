@@ -51,6 +51,9 @@ structure Assign where
 
 namespace Assign
 
+/-- The empty assignment, which the solver's state holds while its assignment is taken out of it. -/
+def empty : Assign := ⟨#[]⟩
+
 /-- The code of a value: `0` for none, `1` for `false`, `2` for `true`. -/
 @[inline] def code : Option Bool → ℕ
   | none => 0

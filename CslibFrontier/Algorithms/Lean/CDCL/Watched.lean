@@ -121,7 +121,8 @@ exceeds the conflicts any run can have, with Forget keeping the measure.
 
 * `Cslib.Algorithms.Lean.CDCL.WExec`, `Cslib.Algorithms.Lean.CDCL.WExec.Inv`: the state and its
   invariant.
-* `Cslib.Algorithms.Lean.CDCL.WExec.processFrom`: visiting a watch list.
+* `Cslib.Algorithms.Lean.CDCL.WExec.processFrom`, `Cslib.Algorithms.Lean.CDCL.WExec.processQueue`:
+  visiting a watch list, and processing the queue.
 * `Cslib.Algorithms.Lean.CDCL.Reduction`, `Cslib.Algorithms.Lean.CDCL.WExec.reduce`: the reduction
   of the learned clauses.
 * `Cslib.Algorithms.Lean.CDCL.WExec.simplify`: deleting the clauses satisfied at the root.
@@ -515,7 +516,7 @@ theorem lt_varSlots {φ : CNF ℕ} {v : ℕ} (hv : v ∈ φ.vars) : v < varSlots
 
 /-- The initial state, with the options `o`. -/
 @[expose] def WExec.init (φ : CNF ℕ) (o : Options) : WExec φ :=
-  ⟨Exec.init φ, ⟨#[]⟩, Assign.marks φ.vars, WatchStore.build #[] ⟨#[]⟩ φ.lratDB, 0,
+  ⟨Exec.init φ, Assign.empty, Assign.marks φ.vars, WatchStore.build #[] Assign.empty φ.lratDB, 0,
     φ.lratDB.filter fun e => e.2.dedup.length < 2,
     Activity.init (varSlots φ), WExec.initOrder φ o,
     Phases.init (varSlots φ), Reduction.init φ.length o.learntsDivisor, 0, 0, o, {},
@@ -1116,13 +1117,6 @@ theorem WExec.ProcInv.conflict_clause {S : WExec φ} {t : Literal ℕ} {w : Watc
       · exact h₂ ▸ hu'
     · exact hrest y hy
 
-/-- The empty watch store, which the state holds while its store is taken out of it. A constant,
-so that taking the store out allocates nothing. -/
-@[expose] def WatchStore.empty : WatchStore := ⟨#[], #[]⟩
-
-/-- The empty assignment, which the state holds while its assignment is taken out of it. -/
-@[expose] def Assign.empty : Assign := ⟨#[]⟩
-
 /-- **The state `S` with its parts**: the watch store `st`, the trail `tr`, the assignment `A`,
 the head of the queue `q` and the count `p` of propagations. While the queue is processed, these
 are arguments of the loops, held apart from the rest of the state, so that moving a watch,
@@ -1136,8 +1130,8 @@ of the loops are stated on `S.withParts st tr A q p`. -/
 
 /-- Propagating a literal of key `l` on the parts of the state: the trail and the assignment get
 it, with the clause numbered `id` as its reason. -/
-theorem WExec.withParts_propagateUnit (S : WExec φ) (st : WatchStore) (tr : ATrail) (A : Assign)
-    (q p l id : ℕ) :
+private theorem WExec.withParts_propagateUnit (S : WExec φ) (st : WatchStore) (tr : ATrail)
+    (A : Assign) (q p l id : ℕ) :
     (S.withParts st tr A q p).propagateUnit (litOfKey l) id =
       S.withParts st (tr.push l (id + 1)) (A.assign (litOfKey l)) q p := by
   simp only [WExec.propagateUnit, WExec.withParts, Exec.propagate, litCode_litOfKey]

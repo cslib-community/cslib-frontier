@@ -6,7 +6,6 @@ Authors: Matthew Doty
 import CslibFrontier.Algorithms.Lean.CDCL.Dimacs
 import CslibFrontier.Logics.Propositional.CNF.StdSat
 import Std.Tactic.BVDecide.LRAT.Checker
-import Std.Tactic.BVDecide.LRAT.Parser
 
 /-!
 # The CDCL solver on DIMACS files
