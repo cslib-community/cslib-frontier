@@ -58,11 +58,15 @@ abbrev WindowFn := ℕ → Bool → ℤ → ℤ → ℝ
 /-- The `n`-th window: two sheets, `0 ≤ i < n²`, `0 ≤ k < n`. -/
 @[expose] def window (n : ℕ) : Finset (Bool × ℕ × ℕ) := univ ×ˢ range (n ^ 2) ×ˢ range n
 
+/-- A function on the sheets, read at a point `(b, i, k)` of a window. -/
+@[expose] def atWindowPoint (f : Bool → ℤ → ℤ → ℝ) : Bool × ℕ × ℕ → ℝ
+  | (b, i, k) => f b i k
+
 /-- The mean over the `n`-th window, as `Finset.expect`. -/
 @[expose] noncomputable def windowAvg (n : ℕ) (f : Bool → ℤ → ℤ → ℝ) : ℝ :=
-  𝔼 p ∈ window n, f p.1 p.2.1 p.2.2
+  𝔼 p ∈ window n, atWindowPoint f p
 
-theorem mem_window {n : ℕ} {p : Bool × ℕ × ℕ} : p ∈ window n ↔ p.2.1 < n ^ 2 ∧ p.2.2 < n := by
+theorem mem_window {n : ℕ} {b : Bool} {i k : ℕ} : (b, i, k) ∈ window n ↔ i < n ^ 2 ∧ k < n := by
   simp [window]
 
 /-- The window mean as a normalized sum, for the telescoping arguments. -/
@@ -71,7 +75,7 @@ theorem windowAvg_eq_sum (n : ℕ) (f : Bool → ℤ → ℤ → ℝ) :
   rw [windowAvg, Finset.expect_eq_sum_div_card, window, Finset.sum_product, Finset.card_product,
     Finset.card_product, Finset.card_univ, Fintype.card_bool, Finset.card_range,
     Finset.card_range]
-  simp only [Finset.sum_product]
+  simp only [Finset.sum_product, atWindowPoint]
   push_cast
   ring
 
@@ -118,7 +122,7 @@ theorem windowAvg_smul (n : ℕ) (c : ℝ) (f : Bool → ℤ → ℤ → ℝ) :
 theorem windowAvg_mono {n : ℕ} {f g : Bool → ℤ → ℤ → ℝ}
     (h : ∀ b, ∀ i < n ^ 2, ∀ k < n, f b (i : ℕ) (k : ℕ) ≤ g b (i : ℕ) (k : ℕ)) :
     windowAvg n f ≤ windowAvg n g :=
-  Finset.expect_le_expect fun _ hp => h _ _ (mem_window.1 hp).1 _ (mem_window.1 hp).2
+  Finset.expect_le_expect fun ⟨_, _, _⟩ hp => h _ _ (mem_window.1 hp).1 _ (mem_window.1 hp).2
 
 theorem windowAvg_const {n : ℕ} (hn : n ≠ 0) (c : ℝ) : windowAvg n (fun _ _ _ => c) = c :=
   Finset.expect_const ⟨(true, 0, 0), mem_window.2 ⟨by positivity, Nat.pos_of_ne_zero hn⟩⟩ c
@@ -126,9 +130,11 @@ theorem windowAvg_const {n : ℕ} (hn : n ≠ 0) (c : ℝ) : windowAvg n (fun _ 
 /-- The inequality of Cauchy and Schwarz over one window. -/
 theorem windowAvg_mul_sq_le (n : ℕ) (f g : Bool → ℤ → ℤ → ℝ) :
     windowAvg n (f * g) ^ 2 ≤ windowAvg n (f * f) * windowAvg n (g * g) := by
-  simpa only [windowAvg, Pi.mul_apply, ← sq] using
-    Finset.expect_mul_sq_le_sq_mul_sq (window n) (fun p => f p.1 p.2.1 p.2.2)
-      (fun p => g p.1 p.2.1 p.2.2)
+  have h := Finset.expect_mul_sq_le_sq_mul_sq (window n) (atWindowPoint f) (atWindowPoint g)
+  have e : ∀ u v : Bool → ℤ → ℤ → ℝ, atWindowPoint (u * v) = fun p =>
+      atWindowPoint u p * atWindowPoint v p := fun u v => funext fun ⟨_, _, _⟩ => rfl
+  rw [windowAvg, windowAvg, windowAvg, e, e, e]
+  simpa only [sq] using h
 
 theorem abs_windowAvg_le {n : ℕ} {f : Bool → ℤ → ℤ → ℝ} {C : ℝ} (h : ∀ b i k, |f b i k| ≤ C) :
     |windowAvg n f| ≤ C := by
