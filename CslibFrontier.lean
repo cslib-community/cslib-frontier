@@ -6909,6 +6909,8 @@ public import CslibFrontier.Foundations.BooleanAnalysis.CoveringProduct
 public import CslibFrontier.Foundations.BooleanAnalysis.Decomposition
 public import CslibFrontier.Foundations.BooleanAnalysis.Degree
 public import CslibFrontier.Foundations.BooleanAnalysis.DegreeOneWeight
+public import CslibFrontier.Foundations.BooleanAnalysis.DerandomizedBLR
+public import CslibFrontier.Foundations.BooleanAnalysis.DeterministicEstimation
 public import CslibFrontier.Foundations.BooleanAnalysis.EdgeIsoperimetry
 public import CslibFrontier.Foundations.BooleanAnalysis.FiberWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.Fibers
@@ -6971,6 +6973,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.PolynomialCorrelation
 public import CslibFrontier.Foundations.BooleanAnalysis.PolynomialThreshold
 public import CslibFrontier.Foundations.BooleanAnalysis.PolynomialThresholdWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.QuadraticForm
+public import CslibFrontier.Foundations.BooleanAnalysis.Regularity
 public import CslibFrontier.Foundations.BooleanAnalysis.RelevantCoordinates
 public import CslibFrontier.Foundations.BooleanAnalysis.ReverseHypercontractivity
 public import CslibFrontier.Foundations.BooleanAnalysis.SignApproximation

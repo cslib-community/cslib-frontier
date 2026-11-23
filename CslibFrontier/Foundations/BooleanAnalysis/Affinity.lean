@@ -67,6 +67,10 @@ completeness and soundness (`BitString.anchoredAffinityAcceptance_xor_parityOn`,
 * `Cslib.BitString.affinityAcceptance_xor_parityOn`: completeness of the affinity test.
 * `Cslib.BitString.fourierCoeff_signVal_eq_signVal_mul`: the Fourier coefficients measure the
   distance to the affine functions.
+* `Cslib.BitString.exists_sum_fourierCoeff_signVal_pow_four_le`: the fourth spectral moment is at
+  most the largest squared coefficient.
+* `Cslib.BitString.exists_hammingDist_xor_parityOn_le_of_le_abs_fourierCoeff`: a large
+  coefficient gives a nearby affine function.
 * `Cslib.BitString.exists_hammingDist_xor_parityOn_le_of_le_affinityAcceptance`: soundness of the
   affinity test.
 * `Cslib.BitString.anchoredAffinityAcceptance_eq_blrAcceptance`,
@@ -179,6 +183,41 @@ theorem fourierCoeff_signVal_eq_signVal_mul (f : (ι → Bool) → Bool) (b : Bo
   rw [chi_eq_signVal_parityOn, signVal_xor]
   linear_combination (signVal (f x) * signVal (parityOn S x)) * (signVal_mul_self b).symm
 
+/-- **The fourth spectral moment of a Boolean function is at most its largest squared
+coefficient**: reading `f` as signs, some `S` has `∑_T F̂(T)⁴ ≤ F̂(S)²`, since
+`∑_T F̂(T)⁴ ≤ max_S F̂(S)² ∑_T F̂(T)²` and the squares sum to one by Parseval's identity. -/
+theorem exists_sum_fourierCoeff_signVal_pow_four_le (f : (ι → Bool) → Bool) :
+    ∃ S, ∑ T, fourierCoeff (fun x => signVal (f x)) T ^ 4 ≤
+      fourierCoeff (fun x => signVal (f x)) S ^ 2 := by
+  set c := fourierCoeff fun x => signVal (f x)
+  obtain ⟨S, -, hS⟩ := exists_max_image univ (fun S => c S ^ 2) univ_nonempty
+  refine ⟨S, ?_⟩
+  calc ∑ T, c T ^ 4 ≤ ∑ T, c S ^ 2 * c T ^ 2 := sum_le_sum fun T _ => by
+        rw [show c T ^ 4 = c T ^ 2 * c T ^ 2 by ring]
+        exact mul_le_mul_of_nonneg_right (hS T (mem_univ T)) (sq_nonneg _)
+    _ = c S ^ 2 := by rw [← mul_sum, sum_fourierCoeff_sq_signVal, mul_one]
+
+/-- **A large Fourier coefficient gives a nearby affine function**: if `t ≤ |F̂(S)|` for the
+Boolean function `f` read as signs, then `f` differs from `b ^^ parityOn S` on at most a
+`1/2 - t/2` fraction of the inputs for some bit `b`, namely `b = true` exactly when
+`F̂(S) < 0`. -/
+theorem exists_hammingDist_xor_parityOn_le_of_le_abs_fourierCoeff {f : (ι → Bool) → Bool}
+    {S : Finset ι} {t : ℝ} (h : t ≤ |fourierCoeff (fun x => signVal (f x)) S|) :
+    ∃ b, (hammingDist f (fun x => b ^^ parityOn S x) : ℝ) / 2 ^ Fintype.card ι ≤
+      1 / 2 - t / 2 := by
+  set c := fourierCoeff fun x => signVal (f x)
+  set b := decide (c S < 0)
+  have hb : signVal b * c S = |c S| := by
+    by_cases hneg : c S < 0
+    · simp [b, hneg, abs_of_neg hneg]
+    · simp [b, hneg, abs_of_nonneg (not_lt.1 hneg)]
+  refine ⟨b, ?_⟩
+  have key : c S = _ := fourierCoeff_signVal_eq_signVal_mul f b S
+  have hd : signVal b * c S =
+      1 - 2 * ((hammingDist f (fun x => b ^^ parityOn S x) : ℝ) / 2 ^ Fintype.card ι) := by
+    rw [key, ← mul_assoc, signVal_mul_self, one_mul, mul_div_assoc]
+  linarith
+
 /-- **Soundness of the affinity test**: if the test accepts `f` with probability at least
 `1 - ε`, then `f` differs from some affine function on at most an `ε` fraction of the inputs
 [O'Donnell, Exercise 1.29(c)][ODonnell2014]. -/
@@ -186,27 +225,15 @@ theorem exists_hammingDist_xor_parityOn_le_of_le_affinityAcceptance {f : (ι →
     {ε : ℝ} (h : 1 - ε ≤ affinityAcceptance f) :
     ∃ b S, (hammingDist f (fun x => b ^^ parityOn S x) : ℝ) / 2 ^ Fintype.card ι ≤ ε := by
   rw [affinityAcceptance_eq_sum_fourierCoeff_pow_four] at h
-  set c := fourierCoeff fun x => signVal (f x)
-  obtain ⟨S, -, hS⟩ := exists_max_image univ (fun S => c S ^ 2) univ_nonempty
-  have hc : ∑ T, c T ^ 4 ≤ c S ^ 2 := calc
-    ∑ T, c T ^ 4 ≤ ∑ T, c S ^ 2 * c T ^ 2 := sum_le_sum fun T _ => by
-        rw [show c T ^ 4 = c T ^ 2 * c T ^ 2 by ring]
-        exact mul_le_mul_of_nonneg_right (hS T (mem_univ T)) (sq_nonneg _)
-    _ = c S ^ 2 := by rw [← mul_sum, sum_fourierCoeff_sq_signVal, mul_one]
-  have hsq : c S ^ 2 ≤ |c S| := by
+  obtain ⟨S, hc⟩ := exists_sum_fourierCoeff_signVal_pow_four_le f
+  have hsq : fourierCoeff (fun x => signVal (f x)) S ^ 2 ≤
+      |fourierCoeff (fun x => signVal (f x)) S| := by
     rw [← sq_abs, sq]
     exact mul_le_of_le_one_left (abs_nonneg _) (abs_fourierCoeff_signVal_le_one f S)
-  set b := decide (c S < 0)
-  have hb : signVal b * c S = |c S| := by
-    by_cases hneg : c S < 0
-    · simp [b, hneg, abs_of_neg hneg]
-    · simp [b, hneg, abs_of_nonneg (not_lt.1 hneg)]
-  refine ⟨b, S, ?_⟩
-  have key : c S = _ := fourierCoeff_signVal_eq_signVal_mul f b S
-  have hd : signVal b * c S =
-      1 - 2 * ((hammingDist f (fun x => b ^^ parityOn S x) : ℝ) / 2 ^ Fintype.card ι) := by
-    rw [key, ← mul_assoc, signVal_mul_self, one_mul, mul_div_assoc]
-  linarith
+  obtain ⟨b, hb⟩ :=
+    exists_hammingDist_xor_parityOn_le_of_le_abs_fourierCoeff (f := f) (S := S)
+      (t := 1 - 2 * ε) (by linarith)
+  exact ⟨b, S, hb.trans_eq (by ring)⟩
 
 /-! ### The anchored affinity test -/
 
