@@ -887,11 +887,13 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Res
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.State
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Traversal
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Zero
+public import CslibFrontier.Algorithms.WordRAM.MaxCut
 public import CslibFrontier.Algorithms.WordRAM.NatClog
 public import CslibFrontier.Algorithms.WordRAM.NatGcd
 public import CslibFrontier.Algorithms.WordRAM.NatLog
 public import CslibFrontier.Algorithms.WordRAM.NatNthRoot
 public import CslibFrontier.Algorithms.WordRAM.NatSqrt
+public import CslibFrontier.Algorithms.WordRAM.OptimalBST
 public import CslibFrontier.Algorithms.WordRAM.PPSZ.Amplify
 public import CslibFrontier.Algorithms.WordRAM.PPSZ.Clauses
 public import CslibFrontier.Algorithms.WordRAM.PPSZ.Implied
@@ -5440,6 +5442,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.LoRCPA
 public import CslibFrontier.Crypto.Computational.Encryption.LoRCPA.FromSingle
 public import CslibFrontier.Crypto.Computational.Encryption.MACThenEncrypt
 public import CslibFrontier.Crypto.Computational.Encryption.MACThenEncrypt.EncForge
+public import CslibFrontier.Crypto.Computational.Encryption.MACThenEncrypt.RandomPads
 public import CslibFrontier.Crypto.Computational.Encryption.MessageRecovery
 public import CslibFrontier.Crypto.Computational.Encryption.Nested
 public import CslibFrontier.Crypto.Computational.Encryption.NonceBased
@@ -6321,6 +6324,7 @@ public import CslibFrontier.DataStructure.ApproximateMembership.QuotientFilter.P
 public import CslibFrontier.DataStructure.ApproximateMembership.Spec
 public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter
 public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.Cluster
+public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.Code
 public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.SlotArray
 public import CslibFrontier.DataStructure.BPlusTree.Basic
 public import CslibFrontier.DataStructure.BPlusTree.Height
@@ -9235,6 +9239,7 @@ public import CslibFrontier.Tactic.FOOperator.Init
 public import CslibFrontier.Tactic.FailureNote
 public import CslibFrontier.Tactic.FinIndex
 public import CslibFrontier.Tactic.FinIndex.Init
+public import CslibFrontier.Tactic.FinsetCard
 public import CslibFrontier.Tactic.FirstOrder
 public import CslibFrontier.Tactic.FirstOrder.Init
 public import CslibFrontier.Tactic.FirstOrder.Simp
