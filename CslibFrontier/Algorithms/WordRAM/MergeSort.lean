@@ -206,12 +206,6 @@ private theorem mergeSort_zipIdx_spec {α : Type*} (xs : List α) (key : α → 
         omega
       · rw [hms_zip, map_fst_merge_zip, hmapL, hmapR, hms_plain]
 
-private theorem filterMap_range_getElem? {α : Type*} (xs : List α) :
-    (List.range xs.length).filterMap (xs[·]?) = xs := by
-  induction xs with
-  | nil => rfl
-  | cons x xs ih => simp [List.range_succ_eq_map, ih]
-
 /-- Indexing `xs : List α` by any permutation `perm` of `List.range xs.length` ordered by
 `StableKeyOrder (xs.map key)` yields `xs.mergeSort (fun x y => decide (key x ≤ key y))`
 identically. -/
@@ -222,7 +216,7 @@ theorem filterMap_getElem?_eq_mergeSort {α : Type*} (xs : List α) (key : α �
   let Z := xs.zipIdx 0
   have hZ_len : Z.length = xs.length := by simp [Z]
   have hperm_Z : (perm.filterMap (Z[·]?)).Perm Z := by
-    conv_rhs => rw [← filterMap_range_getElem? Z, hZ_len]
+    conv_rhs => rw [← List.filterMap_range_getElem? (xs := Z), hZ_len]
     exact hperm.filterMap (Z[·]?)
   have hpw_Z : (perm.filterMap (Z[·]?)).Pairwise
       (fun p q => key p.1 < key q.1 ∨ (key p.1 = key q.1 ∧ p.2 < q.2)) := by
