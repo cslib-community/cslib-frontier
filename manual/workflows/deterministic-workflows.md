@@ -32,9 +32,10 @@ The [automation reference](../design-and-assurance/automation.md) explains regis
 
 For binary sign-magnitude integers, import
 `CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary`.
-The plain `ComputableInPolyTime.intBin_*` rules (sign and magnitude, ring operations,
-comparisons, list sums and products, unary powers) compose through `fun_prop`; `intBin_pow'` accepts computed
-base and unary exponent certificates. The complete
+The plain `ComputableInPolyTime.intBin_*` rules (sign and magnitude, binary and unary natural casts,
+ring operations, comparisons, list sums and products, unary powers) compose through `fun_prop`;
+`intBin_pow'` accepts computed base and unary exponent certificates, and `intBin_signMagnitude'`
+assembles a computed sign and binary magnitude. The complete
 [IntBinary client](../../CslibFrontierTests/RationalHitting/IntBinary.lean) checks composed ring operations, products, powers,
 magnitudes and signs. A binary exponent has a different output-size obligation: do not replace
 the unary exponent encoding merely to make a goal match.
@@ -43,8 +44,10 @@ For rational numbers `ℚ` encoded as `(q.num, q.den)` under
 `Turing.MultiTapeTM.encRat` ([Encodings/Rat.lean](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Rat.lean)),
 import
 `CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Rat`
-for `ComputableInPolyTime.rat_num`, `rat_den`, `rat_intCast`, `rat_divInt`, `rat_neg`, `rat_inv`,
-`rat_add`, `rat_sub`, `rat_mul`, `rat_div`, `rat_lt`, and `rat_le`.
+for `ComputableInPolyTime.rat_num`, `rat_den`, `rat_intCast`, `rat_natCast`, `rat_divInt`,
+`rat_neg`, `rat_inv`, `rat_add`, `rat_sub`, `rat_mul`, `rat_div`, `rat_pow`, `rat_isZero`,
+`rat_eq`, `rat_lt`, `rat_le`, `rat_floor`, and their primed `fun_prop` composition rules
+([PolyTimeRat client](../../CslibFrontierTests/PolyTimeRat.lean)).
 
 For a padded integer dot product, import
 [PolyTime/Int/DotProduct.lean](../../CslibFrontier/Computability/PolyTime/Int/DotProduct.lean)
@@ -98,7 +101,7 @@ Unused elements of a longer `right` are ignored, and retained outputs keep their
 
 Supply one joint certificate for `(p, a, b?) ↦ f p a b?`, with the parameter, left element
 and optional right element encoded together. Both cost rules require `Inhabited` for the
-right-element and output types. They also require a bound on **every encoded output prefix**:
+right-element type. They also require a bound on **every encoded output prefix**:
 the result of `zipFold f p (left.take i) right` for every `i`, not only the final list.
 Keep the parameter and element encodings explicit when applying the rule.
 
