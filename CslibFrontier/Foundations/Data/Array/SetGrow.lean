@@ -32,9 +32,13 @@ public section
 
 namespace Array
 
-/-- Write `x` at index `i`, first padding the array with `d` up to `i` if it is too short. -/
-def setGrow {α : Type*} (a : Array α) (i : ℕ) (d x : α) : Array α :=
-  if i < a.size then a.setIfInBounds i x else (a ++ Array.replicate (i - a.size) d).push x
+/-- Write `x` at index `i`, first padding the array with `d` up to `i` if it is too short. A write
+just past the end is a plain `push`, which allocates no padding. Exposed, so that the kernel
+evaluates its callers. -/
+@[expose] def setGrow {α : Type*} (a : Array α) (i : ℕ) (d x : α) : Array α :=
+  if i < a.size then a.setIfInBounds i x
+  else if i = a.size then a.push x
+  else (a ++ Array.replicate (i - a.size) d).push x
 
 theorem getD_setGrow {α : Type*} (a : Array α) (i j : ℕ) (d x : α) :
     (a.setGrow i d x).getD j d = if j = i then x else a.getD j d := by
@@ -46,7 +50,12 @@ theorem getD_setGrow {α : Type*} (a : Array α) (i j : ℕ) (d x : α) :
     · subst hj
       simp [hi]
     · simp [Ne.symm hj, hj]
-  · rename_i hi
+  split
+  · rename_i hi he
+    subst he
+    rw [Array.getElem?_push]
+    by_cases hj : j = a.size <;> simp [hj]
+  · rename_i hi he
     have hs : a.size + (i - a.size) = i := by omega
     rw [Array.getElem?_push, Array.size_append, Array.size_replicate, hs]
     by_cases hj : j = i
@@ -65,13 +74,17 @@ theorem getD_setIfInBounds_self {α : Type*} (a : Array α) (i j : ℕ) (d : α)
 theorem size_le_size_setGrow {α : Type*} (a : Array α) (i : ℕ) (d x : α) :
     a.size ≤ (a.setGrow i d x).size := by
   unfold setGrow
-  split <;> simp
+  split
+  · simp
+  · split <;> simp
 
 theorem lt_size_setGrow {α : Type*} (a : Array α) (i : ℕ) (d x : α) :
     i < (a.setGrow i d x).size := by
   unfold setGrow
   split
   · simpa
+  split
+  · simp_all
   · simp only [size_push, size_append, size_replicate]; omega
 
 end Array
