@@ -620,16 +620,12 @@ theorem computableInPolyTime_encryptEntry
   have hboolUnary : ComputableInPolyTime Bool.toNat encBool encUnary := of_finite Bool.toNat
   have hpad : ComputableInPolyTime
       (fun a => ((message a).toNat : ℤ) * 2 ^ (w a - 1)) input encIntBin :=
-    (show ComputableInPolyTime (fun p : ℤ × ℤ => p.1 * p.2)
-      (encPair encIntBin encIntBin) encIntBin by fun_prop).comp
-        ((intBin_natCast.comp (unary_to_binary.comp (hboolUnary.comp hmessage))).prod
-          (intBin_natCast.comp (binary_pow' (const 2) (by fun_prop))))
+    intBin_mul' (intBin_natCast_unary.comp (hboolUnary.comp hmessage))
+      (intBin_natCast.comp (binary_pow' (const 2) (by fun_prop)))
   have hzero : ComputableInPolyTime
       (fun a => (coins a).scalarError + ((message a).toNat : ℤ) * 2 ^ (w a - 1)) input
         encIntBin :=
-    (show ComputableInPolyTime (fun p : ℤ × ℤ => p.1 + p.2)
-      (encPair encIntBin encIntBin) encIntBin by fun_prop).comp
-        ((encSerializedEncCoins_scalarError_polyTime hcoins).prod hpad)
+    intBin_add' (encSerializedEncCoins_scalarError_polyTime hcoins) hpad
   have htail : ComputableInPolyTime
       (fun a => (coins a).error.getD (idx a - 1) 0) input encIntBin :=
     (listGetD (encA := encIntBin) 0).comp
@@ -638,9 +634,7 @@ theorem computableInPolyTime_encryptEntry
       (fun a => if idx a = 0 then (coins a).scalarError + ((message a).toNat : ℤ) * 2 ^ (w a - 1)
         else (coins a).error.getD (idx a - 1) 0) input encIntBin := by
     simpa only [Function.comp_apply, beq_iff_eq] using (beq hidx (const 0)).ite' hzero htail
-  have hadd := (show ComputableInPolyTime (fun p : ℤ × ℤ => p.1 + p.2)
-    (encPair encIntBin encIntBin) encIntBin by fun_prop).comp
-      ((intBin_natCast.comp hsum).prod herr)
+  have hadd := intBin_add' (intBin_natCast.comp hsum) herr
   simpa only [Function.comp_apply, Nat.cast_pow, Nat.cast_ofNat] using
     intBin_emodNat' hadd (binary_pow' (const 2) hw)
 

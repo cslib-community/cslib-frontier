@@ -12,6 +12,7 @@ public import Cslib.Foundations.Semantics.LTS.Basic
 public import Mathlib.Data.Finset.Card
 public import Mathlib.Data.Finset.Powerset
 public import Mathlib.Order.Prod.Lex.Basic
+import CslibFrontier.Tactic.FinsetCard
 
 /-!
 # Crash-Stop Single-Decree Synod Protocol Step
@@ -112,14 +113,9 @@ subsets of cardinality at least `|P| - t`. -/
     (ht : 2 * t < Fintype.card P) : QuorumSystem P where
   quorums := Finset.univ.powerset.filter fun Q => Fintype.card P - t ≤ Q.card
   nonempty := ⟨Finset.univ, Finset.mem_filter.mpr
-    ⟨Finset.mem_powerset.mpr (Finset.subset_univ _), by simp only [Finset.card_univ]; omega⟩⟩
-  inter_nonempty := by
-    intro Q₁ h₁ Q₂ h₂
-    have hcard₁ : Fintype.card P - t ≤ Q₁.card := (Finset.mem_filter.mp h₁).2
-    have hcard₂ : Fintype.card P - t ≤ Q₂.card := (Finset.mem_filter.mp h₂).2
-    have hunion : (Q₁ ∪ Q₂).card ≤ Fintype.card P := Finset.card_le_univ (Q₁ ∪ Q₂)
-    have hsum := Finset.card_union_add_card_inter Q₁ Q₂
-    exact Finset.card_pos.mp (by omega)
+    ⟨Finset.mem_powerset.mpr (Finset.subset_univ _), by finset_card⟩⟩
+  inter_nonempty := fun _ h₁ _ h₂ => by
+    finset_card [(Finset.mem_filter.mp h₁).2, (Finset.mem_filter.mp h₂).2]
 
 @[simp]
 theorem mem_majorityQuorums_iff {P : Type*} [Fintype P] [DecidableEq P] {t : ℕ}
