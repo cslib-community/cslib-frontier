@@ -8,9 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BitGame
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BitGame
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.ListSlice
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.AcceptCount
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ReplayVerdict
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.StateFlags
 

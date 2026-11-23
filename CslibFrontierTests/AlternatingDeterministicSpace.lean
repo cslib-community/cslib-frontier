@@ -7,9 +7,18 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test)
 
+import Cslib.Computability.Machines.Turing.MultiTape.Configuration
+import CslibFrontier.Computability.Complexity.Classes.Alternation
 import CslibFrontier.Computability.Complexity.Classes.Alternation.DeterministicSpace
+import CslibFrontier.Computability.Complexity.Classes.Space.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.DeterministicSpace
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Bool
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Nondeterministic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.StateFlags
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds
 
 /-!
 # Module client tests for alternating time within deterministic space

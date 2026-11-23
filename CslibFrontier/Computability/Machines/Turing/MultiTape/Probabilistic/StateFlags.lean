@@ -7,11 +7,15 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.AcceptCount
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ReplayInput
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Nondeterministic
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.ListSlice
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.AcceptCount
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ReplayInput
 
 /-!
 # Replaying the state of a fair-coin table
