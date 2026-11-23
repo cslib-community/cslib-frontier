@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.Simplex.Dantzig
 public import CslibFrontier.Algorithms.Lean.Simplex.LinearProgram
+import CslibFrontier.Foundations.Data.Nat.Bitwise.Carry
 import Mathlib.Algebra.Order.Field.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
@@ -161,50 +162,6 @@ def dict (N : ℕ) : Dictionary (Fin (n + n)) K where
 
 /-! ### Bits -/
 
-private theorem testBit_succ_of_lowest {N j : ℕ} (hj : N.testBit j = false)
-    (hlow : ∀ l < j, N.testBit l = true) (l : ℕ) :
-    (N + 1).testBit l = if l < j then false else if l = j then true else N.testBit l := by
-  induction j generalizing N l with
-  | zero =>
-    have h2 : N % 2 = 0 := by
-      have := Nat.testBit_zero N
-      rw [hj] at this
-      have h := Nat.mod_two_eq_zero_or_one N
-      rcases h with h | h
-      · exact h
-      · simp [h] at this
-    rcases l with _ | l
-    · simp only [Nat.testBit_zero, Nat.lt_irrefl, ↓reduceIte, decide_eq_true_eq]
-      omega
-    · simp only [Nat.not_lt_zero, ↓reduceIte, Nat.add_one_ne_zero, Nat.testBit_add_one]
-      congr 1
-      omega
-  | succ j ih =>
-    have h1 : N % 2 = 1 := by
-      have := Nat.testBit_zero N
-      rw [hlow 0 (Nat.zero_lt_succ j)] at this
-      simpa using this.symm
-    have hj' : (N / 2).testBit j = false := by rw [Nat.testBit_div_two]; exact hj
-    have hlow' : ∀ l < j, (N / 2).testBit l = true := fun l hl => by
-      rw [Nat.testBit_div_two]; exact hlow (l + 1) (by omega)
-    rcases l with _ | l
-    · simp only [Nat.testBit_zero, Nat.zero_lt_succ, ↓reduceIte, decide_eq_false_iff_not]
-      omega
-    · rw [Nat.testBit_add_one, show (N + 1) / 2 = N / 2 + 1 by omega, ih hj' hlow' l,
-        Nat.testBit_add_one]
-      simp only [Nat.add_lt_add_iff_right, Nat.add_right_cancel_iff]
-
-/-- Adding one to `N` complements the bits up to its lowest zero bit `j`. -/
-private theorem testBit_succ {N j : ℕ} (hj : N.testBit j = false)
-    (hlow : ∀ l < j, N.testBit l = true) (l : ℕ) :
-    (N + 1).testBit l = if l ≤ j then !N.testBit l else N.testBit l := by
-  rw [testBit_succ_of_lowest hj hlow]
-  rcases lt_trichotomy l j with h | h | h
-  · simp [h, h.le, hlow l h]
-  · subst h
-    simp [hj]
-  · simp [show ¬l < j by omega, show l ≠ j by omega, show ¬l ≤ j by omega]
-
 /-- A number below `2 ^ n - 1` has a zero bit below `n`; the lowest one. -/
 private theorem exists_lowest_zero {N : ℕ} (hN : N < 2 ^ n - 1) :
     ∃ j < n, N.testBit j = false ∧ ∀ l < j, N.testBit l = true := by
@@ -267,19 +224,19 @@ variable {N j : ℕ}
 private theorem bitSign_succ_of_le (hj : N.testBit j = false) (hlow : ∀ l < j, N.testBit l = true)
     {l : ℕ} (hl : l ≤ j) : (bitSign (N + 1) l : K) = -bitSign N l := by
   unfold bitSign
-  rw [testBit_succ hj hlow, ite_eq_left hl]
+  rw [Nat.testBit_add_one_of_lowest hj hlow, ite_eq_left hl]
   cases N.testBit l <;> simp
 
 private theorem bitSign_succ_of_gt (hj : N.testBit j = false) (hlow : ∀ l < j, N.testBit l = true)
     {l : ℕ} (hl : j < l) : (bitSign (N + 1) l : K) = bitSign N l := by
   unfold bitSign
-  rw [testBit_succ hj hlow, ite_eq_right (show ¬l ≤ j by omega)]
+  rw [Nat.testBit_add_one_of_lowest hj hlow, ite_eq_right (show ¬l ≤ j by omega)]
 
 private theorem flipped_succ (hj : N.testBit j = false) (hlow : ∀ l < j, N.testBit l = true)
     (k : ℕ) :
     flipped (N + 1) k = if k = j then !flipped N k else flipped N k := by
   unfold flipped
-  rw [testBit_succ hj hlow, testBit_succ hj hlow]
+  rw [Nat.testBit_add_one_of_lowest hj hlow, Nat.testBit_add_one_of_lowest hj hlow]
   rcases lt_trichotomy k j with h | h | h
   · rw [ite_eq_left h.le, ite_eq_left (show k + 1 ≤ j by omega), ite_eq_right h.ne]
     cases N.testBit k <;> cases N.testBit (k + 1) <;> rfl

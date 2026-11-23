@@ -20,8 +20,16 @@ argument. Clients supply the same encoded-input, fit, domain and memory-history 
 The real `Data.init` prefix, native body and trailing halt are all charged. Its positive
 next-free address must fit even for an empty input; this is not a width-zero initialization.
 
+## Main definitions
+
+* `Realization.stripRand`: replaces unreachable `.rand` instructions with no-op register copies so
+  a deterministic `Program B r` satisfies `Program.IsRandFree`.
+
 ## Main results
 
+* `Realization.isRandFree_stripRand`, `Realization.not_readsWidth_stripRand`,
+  `Realization.step_stripRand_of_halt`, `Realization.runs_stripRand`: `stripRand` produces a
+  rand-free program preserving `¬ReadsWidth`, halting steps, and deterministic `Runs`.
 * `Realizes.exists_standard_init_program_state_from_words`: one flat program for independent
   raw memory and register arguments, related by their input prefix.
 * `Realizes.exists_standard_basis_init_program_state_from_words`: standard-basis width-blind
@@ -44,6 +52,57 @@ and native `Code.program` compiler. It introduces no execution model or client l
 namespace Cslib.WordRAM.Realization
 
 open Cslib.DataStructure
+
+/-- Replace unreachable `.rand` instructions in `p` with no-op register copies so the resulting
+flat program satisfies `Program.IsRandFree` while preserving all deterministic runs. -/
+def stripRand {B : Basis} {r : ℕ} (p : Program B r) : Program B r :=
+  p.map fun
+    | .rand dst _ => .op (.copy dst dst)
+    | i => i
+
+/-- `stripRand p` contains no `.rand` instructions. -/
+theorem isRandFree_stripRand {B : Basis} {r : ℕ} (p : Program B r) :
+    (stripRand p).IsRandFree := by
+  intro i hi
+  obtain ⟨j, _, rfl⟩ := List.mem_map.mp hi
+  cases j <;> trivial
+
+/-- `stripRand` preserves width-blindness (`¬Program.ReadsWidth`). -/
+theorem not_readsWidth_stripRand {B : Basis} {r : ℕ} {p : Program B r}
+    (hp : ¬p.ReadsWidth) : ¬(stripRand p).ReadsWidth := by
+  rintro ⟨i, hi, hrw⟩
+  obtain ⟨j, hj, rfl⟩ := List.mem_map.mp hi
+  cases j with
+  | rand _ _ => exact hrw
+  | _ => exact hp ⟨_, hj, hrw⟩
+
+private theorem step_stripRand_of_ne_fault {B : Basis} {r w : ℕ} {p : Program B r}
+    {s : State r} (hne : step w p s ≠ .fault) :
+    step w (stripRand p) s = step w p s := by
+  unfold step at hne ⊢
+  rw [stripRand, List.getElem?_map]
+  cases hp : p[s.pc]? with
+  | none => simp [hp] at hne
+  | some ins =>
+    cases ins with
+    | rand _ _ => simp [hp] at hne
+    | _ => rfl
+
+/-- Halting steps of `p` transfer unchanged to `stripRand p`. -/
+theorem step_stripRand_of_halt {B : Basis} {r w v : ℕ} {p : Program B r} {s : State r}
+    (h : step w p s = .halt v) : step w (stripRand p) s = .halt v := by
+  rw [step_stripRand_of_ne_fault (by rw [h]; exact nofun), h]
+
+/-- Deterministic `Runs` of `p` transfer unchanged to `stripRand p`. -/
+theorem runs_stripRand {B : Basis} {r w : ℕ} {p : Program B r}
+    {s t : State r} {m : ℕ} (h : Runs w p s t m) : Runs w (stripRand p) s t m := by
+  induction h with
+  | refl => exact .refl _
+  | tail _ _ _ _ hstep ih =>
+    refine .tail _ _ _ _ ih ?_
+    unfold Next at hstep ⊢
+    rw [step_stripRand_of_ne_fault (by rw [hstep]; exact nofun)]
+    exact hstep
 
 private abbrev registers (k l n : ℕ) : ℕ := 1 + (k + (l + n + 1))
 
