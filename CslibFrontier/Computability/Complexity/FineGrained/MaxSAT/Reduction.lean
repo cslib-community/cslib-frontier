@@ -63,13 +63,14 @@ This module connects `MaxSAT` (`MaxSAT.thresholdCircuit`, `MaxSAT.optimum`) and 
    * *Query-model binary search and witness recovery (`SATQuery`, `optimumByBinarySearchQ`,
      `optimizeByBinarySearchQ`, `optimumMaxCSPByBinarySearchQ`):* bisection via
      `Cslib.Query.lowerBoundBy` followed by unit-clause prefix pinning (`pinnedClauses`,
-     `recoverBits`) recovers both the exact optimum and an optimal assignment in `FreeM SATQuery`
-     using at most `⌊log₂ m⌋ + 1` SAT queries for the value and `⌊log₂ m⌋ + 1 + n` SAT queries (all
-     3-CNFs of at most `thresholdVarBudget (workSize + 2 * n)` variables) for witness recovery, and
-     on an `s`-clause subsample of a width-`w` instance queries `k`-SAT only on formulas of at most
-     `thresholdVarBudget ((w + 1) * s + 2 * n)` variables while returning an assignment with at most
-     `2 * δ * m` optimality loss with probability at least `1 - 2 ^ (n + 1) * exp (-2 * s * δ ^ 2)`
-     (and `≥ 1 - η` under the `η` sample-size bound).
+     `StructInstance.recoverBits`) recovers both the exact optimum and an optimal assignment in
+     `FreeM SATQuery` using at most `⌊log₂ m⌋ + 1` SAT queries for the value and
+     `⌊log₂ m⌋ + 1 + n` SAT queries (all 3-CNFs of at most `thresholdVarBudget (workSize + 2 * n)`
+     variables) for witness recovery, and on an `s`-clause subsample of a width-`w` instance
+     queries `k`-SAT only on formulas of at most `thresholdVarBudget ((w + 1) * s + 2 * n)`
+     variables while returning an assignment with at most `2 * δ * m` optimality loss with
+     probability at least `1 - 2 ^ (n + 1) * exp (-2 * s * δ ^ 2)` (and `≥ 1 - η` under the `η`
+     sample-size bound).
 
 ## Main definitions
 
@@ -78,9 +79,9 @@ This module connects `MaxSAT` (`MaxSAT.thresholdCircuit`, `MaxSAT.optimum`) and 
 * `Cslib.Complexity.MaxSAT.thresholdToCNF`, `thresholdVarBudget`: polynomial-time 3-CNF threshold
   compilation and variable-count bound.
 * `Cslib.Complexity.MaxSAT.FixedWidthSATSolver`: supplied native `k`-SAT solver bundle.
-* `Cslib.Complexity.MaxSAT.pinnedClauses`, `recoverStep`, `recoverBits`, `optimizeWith`,
-  `maxCSPOptimizeBounded`: pure and native polynomial-time witness recovery by unit-clause prefix
-  pinning.
+* `Cslib.Complexity.MaxSAT.pinnedClauses`, `StructInstance.recoverStep`,
+  `StructInstance.recoverBits`, `optimizeWith`, `maxCSPOptimizeBounded`: pure and native
+  polynomial-time witness recovery by unit-clause prefix pinning.
 * `Cslib.Complexity.MaxSAT.SATQuery`, `optimumByBinarySearch`, `optimumByBinarySearchQ`,
   `optimizeByBinarySearch`, `optimizeByBinarySearchQ`, `optimumMaxCSPByBinarySearch`,
   `optimumMaxCSPByBinarySearchQ`: pure and `FreeM SATQuery` binary-search solvers.
@@ -959,42 +960,44 @@ private theorem eval_pinnedClauses_append_singleton {n : ℕ} (x : BitString n)
 /-- Single step of unit-clause prefix pinning on `(F, opt)`: extend `bits` at variable
 `bits.length` with `true` if `thresholdToCNF` remains satisfiable at cutoff
 `(bits.length + 1) + opt`, and `false` otherwise. -/
-@[expose] def recoverStep (solve : CNF ℕ → Bool) (F : StructInstance) (opt : ℕ)
+@[expose] def StructInstance.recoverStep (F : StructInstance) (solve : CNF ℕ → Bool) (opt : ℕ)
     (bits : List Bool) : List Bool :=
   let cand := pinnedClauses (bits ++ [true])
   let b := solve (thresholdToCNF ⟨⟨F.numVars, cand ++ F.clauses⟩, cand.length + opt⟩)
   bits ++ [b]
 
 /-- Recover `F.numVars` assignment bits at target optimum `opt` using `solve`. -/
-@[expose] def recoverBits (solve : CNF ℕ → Bool) (F : StructInstance) (opt : ℕ) : List Bool :=
-  (recoverStep solve F opt)^[F.numVars] []
+@[expose] def StructInstance.recoverBits (F : StructInstance) (solve : CNF ℕ → Bool) (opt : ℕ) :
+    List Bool :=
+  (F.recoverStep solve opt)^[F.numVars] []
 
-theorem length_iterate_recoverStep (solve : CNF ℕ → Bool) (F : StructInstance) (opt i : ℕ)
-    (bits : List Bool) :
-    ((recoverStep solve F opt)^[i] bits).length = bits.length + i := by
+private theorem StructInstance.length_iterate_recoverStep (F : StructInstance)
+    (solve : CNF ℕ → Bool) (opt i : ℕ) (bits : List Bool) :
+    ((F.recoverStep solve opt)^[i] bits).length = bits.length + i := by
   induction i generalizing bits with
   | zero => simp
   | succ i ih =>
     rw [Function.iterate_succ_apply, ih]
-    simp only [recoverStep, List.length_append, List.length_singleton]
+    simp only [StructInstance.recoverStep, List.length_append, List.length_singleton]
     omega
 
 @[simp]
-theorem length_recoverBits (solve : CNF ℕ → Bool) (F : StructInstance) (opt : ℕ) :
-    (recoverBits solve F opt).length = F.numVars := by
-  simp [recoverBits, length_iterate_recoverStep]
+theorem StructInstance.length_recoverBits (F : StructInstance) (solve : CNF ℕ → Bool) (opt : ℕ) :
+    (F.recoverBits solve opt).length = F.numVars := by
+  simp [StructInstance.recoverBits, StructInstance.length_iterate_recoverStep]
 
-/-- **Correctness of `recoverBits`:** at `opt = F.optimum`, `recoverBits` returns an `F.numVars`-bit
-list achieving `F.score (F.assignmentOfBits ...) = F.optimum` for any `k`-SAT decider (`3 ≤ k`). -/
-theorem recoverBits_score_eq_optimum {k : ℕ} (hk : 3 ≤ k) {solve : CNF ℕ → Bool}
+/-- **Correctness of `StructInstance.recoverBits`:** at `opt = F.optimum`, `F.recoverBits solve opt`
+returns an `F.numVars`-bit list achieving `F.score (F.assignmentOfBits ...) = F.optimum` for any
+`k`-SAT decider (`3 ≤ k`). -/
+theorem StructInstance.recoverBits_score_eq_optimum {k : ℕ} (hk : 3 ≤ k) {solve : CNF ℕ → Bool}
     (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → (solve φ = true ↔ φ.Satisfiable))
     (F : StructInstance) :
-    F.score (F.assignmentOfBits (recoverBits solve F F.optimum)) = F.optimum := by
+    F.score (F.assignmentOfBits (F.recoverBits solve F.optimum)) = F.optimum := by
   have hstep_inv : ∀ (bits : List Bool), bits.length < F.numVars →
       (∃ x : BitString F.numVars, F.score x = F.optimum ∧
         ∀ c ∈ pinnedClauses bits, Clause.eval (assignment F.numVars x) c = true) →
       ∃ x : BitString F.numVars, F.score x = F.optimum ∧
-        ∀ c ∈ pinnedClauses (recoverStep solve F F.optimum bits),
+        ∀ c ∈ pinnedClauses (F.recoverStep solve F.optimum bits),
           Clause.eval (assignment F.numVars x) c = true := by
     intro bits hlt hinv
     let cand := pinnedClauses (bits ++ [true])
@@ -1004,7 +1007,7 @@ theorem recoverBits_score_eq_optimum {k : ℕ} (hk : 3 ≤ k) {solve : CNF ℕ �
       rw [hspec _ (fun _ hcl => (length_clause_mem_thresholdToCNF _ hcl).trans hk),
         satisfiable_thresholdToCNF_iff]
       exact le_optimum_append_iff F cand
-    simp only [recoverStep]
+    simp only [StructInstance.recoverStep]
     set b := solve (thresholdToCNF ⟨⟨F.numVars, cand ++ F.clauses⟩, cand.length + F.optimum⟩)
     cases hb : b
     · obtain ⟨x, hx_opt, hx_bits⟩ := hinv
@@ -1016,7 +1019,7 @@ theorem recoverBits_score_eq_optimum {k : ℕ} (hk : 3 ≤ k) {solve : CNF ℕ �
     · exact hprobe.mp hb
   have hiter_inv : ∀ i ≤ F.numVars,
       ∃ x : BitString F.numVars, F.score x = F.optimum ∧
-        ∀ c ∈ pinnedClauses ((recoverStep solve F F.optimum)^[i] []),
+        ∀ c ∈ pinnedClauses ((F.recoverStep solve F.optimum)^[i] []),
           Clause.eval (assignment F.numVars x) c = true := by
     intro i hi
     induction i with
@@ -1025,14 +1028,14 @@ theorem recoverBits_score_eq_optimum {k : ℕ} (hk : 3 ≤ k) {solve : CNF ℕ �
       exact ⟨xStar, hxStar, fun _ hc => by simp [pinnedClauses] at hc⟩
     | succ i ih =>
       rw [Function.iterate_succ_apply']
-      exact hstep_inv _ (by simp [length_iterate_recoverStep]; omega) (ih (by omega))
+      exact hstep_inv _ (by simp [StructInstance.length_iterate_recoverStep]; omega) (ih (by omega))
   obtain ⟨x, hx_opt, hx_all⟩ := hiter_inv F.numVars le_rfl
-  have hlen : (recoverBits solve F F.optimum).length = F.numVars :=
-    length_recoverBits solve F F.optimum
+  have hlen : (F.recoverBits solve F.optimum).length = F.numVars :=
+    F.length_recoverBits solve F.optimum
   have hall := (eval_pinnedClauses_iff x hlen.le).mp hx_all
-  have hxeq : F.assignmentOfBits (recoverBits solve F F.optimum) = x := by
+  have hxeq : F.assignmentOfBits (F.recoverBits solve F.optimum) = x := by
     funext j
-    have hj : j.val < (recoverBits solve F F.optimum).length := by rw [hlen]; exact j.isLt
+    have hj : j.val < (F.recoverBits solve F.optimum).length := by rw [hlen]; exact j.isLt
     simp only [StructInstance.assignmentOfBits, List.getD_eq_getElem?_getD,
       List.getElem?_eq_getElem hj, Option.getD_some]
     simpa using (hall j.val hj).symm
@@ -1040,11 +1043,11 @@ theorem recoverBits_score_eq_optimum {k : ℕ} (hk : 3 ≤ k) {solve : CNF ℕ �
 
 /-- Native MAX-SAT optimization with witness recovery from a supplied SAT decider `solve`: computes
 `opt` from the `m + 2` threshold queries and recovers `F.numVars` assignment bits via
-`recoverBits solve F opt`. -/
+`F.recoverBits solve opt`. -/
 @[expose] def optimizeWith (solve : CNF ℕ → Bool) (F : StructInstance) : StructSolution :=
   let opt := optimumFromDecisions
     (((List.range (F.clauses.length + 2)).map fun q => thresholdToCNF ⟨F, q⟩).map solve)
-  ⟨opt, recoverBits solve F opt⟩
+  ⟨opt, F.recoverBits solve opt⟩
 
 /-- **Correctness of `optimizeWith`:** for any `k`-SAT decider (`3 ≤ k`), `optimizeWith solve F`
 returns `optValue = F.optimum` and an `F.numVars`-bit list scoring `F.optimum`. -/
@@ -1060,8 +1063,8 @@ theorem optimizeWith_spec {k : ℕ} (hk : 3 ≤ k) {solve : CNF ℕ → Bool}
       (((List.range (F.clauses.length + 2)).map fun q => thresholdToCNF ⟨F, q⟩).map solve) =
       F.optimum := by
     rw [hdec, optimumFromDecisions_threshold]
-  simp only [optimizeWith, hopt, length_recoverBits, true_and]
-  exact recoverBits_score_eq_optimum hk hspec F
+  simp only [optimizeWith, hopt, StructInstance.length_recoverBits, true_and]
+  exact F.recoverBits_score_eq_optimum hk hspec
 
 @[fun_prop]
 private theorem computableInPolyTime_pinnedClauses :
@@ -1076,10 +1079,10 @@ private theorem computableInPolyTime_pinnedClauses :
     cons' ((unary_to_binary.comp (snd encBool encUnary)).prod (fst encBool encUnary)) (const [])
   exact (ComputableInPolyTime.map hunit).comp hzip
 
-private theorem computableInPolyTime_recoverStep {solve : CNF ℕ → Bool}
+private theorem computableInPolyTime_structRecoverStep {solve : CNF ℕ → Bool}
     (hpoly : ComputableInPolyTime solve encCNF encBool) :
     ComputableInPolyTime
-      (fun p : (StructInstance × ℕ) × List Bool => recoverStep solve p.1.1 p.1.2 p.2)
+      (fun p : (StructInstance × ℕ) × List Bool => p.1.1.recoverStep solve p.1.2 p.2)
       (encPair (encPair encStructInstance encUnary) encBits) encBits := by
   let encPar := encPair encStructInstance encUnary
   have hF : ComputableInPolyTime (fun p : (StructInstance × ℕ) × List Bool => p.1.1)
@@ -1141,14 +1144,14 @@ theorem computableInPolyTime_optimizeWith_of_KSAT {solveKSAT : CNF ℕ → Bool}
     (unary_sub' hcnt (const 1)).comp hmap
   have hnv : ComputableInPolyTime StructInstance.numVars encStructInstance encUnary :=
     encStructInstance_numVars_polyTime ComputableInPolyTime.id'
-  have hrec : ComputableInPolyTime (fun F : StructInstance => recoverBits solveKSAT F (optFn F))
+  have hrec : ComputableInPolyTime (fun F : StructInstance => F.recoverBits solveKSAT (optFn F))
       encStructInstance encBits :=
     iterateWith (par := fun F : StructInstance => (F, optFn F))
       (count := StructInstance.numVars) (init := fun _ => ([] : List Bool))
-      (step := fun p bits => recoverStep solveKSAT p.1 p.2 bits)
+      (step := fun p bits => p.1.recoverStep solveKSAT p.2 bits)
       (ComputableInPolyTime.id'.prod hoptU) hnv (const [])
-      (computableInPolyTime_recoverStep hpoly) hnv.polyBounded
-      (fun F i hi => by simp [encBits_apply, length_iterate_recoverStep, hi])
+      (computableInPolyTime_structRecoverStep hpoly) hnv.polyBounded
+      (fun F i hi => by simp [encBits_apply, StructInstance.length_iterate_recoverStep, hi])
   exact encStructSolution_mk_polyTime (unary_to_binary.comp hoptU) hrec
 
 /-- **Class-level MAX-SAT witness optimization:** if `KSAT k ∈ P encCNF` (`3 ≤ k`), then both the
@@ -1322,12 +1325,12 @@ theorem sample_optimumByBinarySearch_spec {k w : ℕ} (hk : 3 ≤ k)
 theorem eval_recoverLoopQ (oracle : {ι : Type} → SATQuery ι → ι) (F : StructInstance)
     (opt rem : ℕ) (bits : List Bool) :
     (recoverLoopQ F opt rem bits).eval oracle =
-      (recoverStep (fun φ => oracle (.sat φ)) F opt)^[rem] bits := by
+      (F.recoverStep (fun φ => oracle (.sat φ)) opt)^[rem] bits := by
   induction rem generalizing bits with
   | zero => rfl
   | succ rem ih =>
     simp only [recoverLoopQ, FreeM.eval_bind, SATQuery.eval_ask, ih,
-      Function.iterate_succ_apply, recoverStep]
+      Function.iterate_succ_apply, StructInstance.recoverStep]
 
 private theorem cost_recoverLoopQ_le (oracle : {ι : Type} → SATQuery ι → ι)
     (weight : {ι : Type} → SATQuery ι → ℕ) (F : StructInstance) (opt : ℕ) {C : ℕ}
@@ -1361,11 +1364,11 @@ private theorem cost_recoverLoopQ_le (oracle : {ι : Type} → SATQuery ι → �
     omega
 
 /-- Pure exact MAX-SAT optimization with witness recovery: finds `opt = F.optimum` by bisection and
-constructs an assignment achieving `F.score xHat = F.optimum` via `recoverBits`. -/
+constructs an assignment achieving `F.score xHat = F.optimum` via `F.recoverBits`. -/
 @[expose] def optimizeByBinarySearch (solve : CNF ℕ → Bool) (F : StructInstance) :
     OptWitness F.numVars :=
   let opt := optimumByBinarySearch solve F
-  ⟨opt, F.assignmentOfBits (recoverBits solve F opt)⟩
+  ⟨opt, F.assignmentOfBits (F.recoverBits solve opt)⟩
 
 /-- `FreeM SATQuery` program finding `F.optimum` and an optimal `BitString F.numVars` assignment
 using at most `⌊log₂ m⌋ + 1 + n` SAT queries. -/
@@ -1379,7 +1382,7 @@ using at most `⌊log₂ m⌋ + 1 + n` SAT queries. -/
 theorem eval_optimizeByBinarySearchQ (oracle : {ι : Type} → SATQuery ι → ι) (F : StructInstance) :
     (optimizeByBinarySearchQ F).eval oracle =
       optimizeByBinarySearch (fun φ => oracle (.sat φ)) F := by
-  simp [optimizeByBinarySearchQ, optimizeByBinarySearch, recoverBits]
+  simp [optimizeByBinarySearchQ, optimizeByBinarySearch, StructInstance.recoverBits]
 
 /-- **Correctness of `optimizeByBinarySearch`:** returns `optValue = F.optimum` and `assignment`
 achieving `F.score assignment = F.optimum` (`3 ≤ k`). -/
@@ -1389,7 +1392,7 @@ theorem optimizeByBinarySearch_spec {k : ℕ} (hk : 3 ≤ k) {solve : CNF ℕ �
     (optimizeByBinarySearch solve F).optValue = F.optimum ∧
       F.score (optimizeByBinarySearch solve F).assignment = F.optimum := by
   simp only [optimizeByBinarySearch, optimumByBinarySearch_eq_optimum hk hspec F, true_and]
-  exact recoverBits_score_eq_optimum hk hspec F
+  exact F.recoverBits_score_eq_optimum hk hspec
 
 /-- **Weighted query-cost bound for `optimizeByBinarySearchQ`:** at most
 `C * (Nat.log 2 F.clauses.length + 1 + F.numVars)` cost when every 3-CNF of at most
@@ -1543,8 +1546,11 @@ theorem maxCSPOptimizeBounded_spec {Rel : Type} {w k : ℕ} (hk : 3 ≤ k)
       (optimizeWith solve (maxCSPToStruct w sem F)).assignmentBits) = F.optimum sem
   omega
 
-/-- **Polynomial-time exact bounded-arity Boolean `Max-CSP` value and witness optimization
-(`3 ≤ k`).** -/
+/-- **Polynomial-time bounded-arity Boolean `Max-CSP` value and witness optimization
+(`maxCSPOptimizeBounded`):** for any polynomial-time procedure `solveKSAT`,
+`maxCSPOptimizeBounded w sem solveKSAT` runs in polynomial time on multi-tape Turing machines (and
+when `solveKSAT` decides `k`-SAT for `3 ≤ k`, `maxCSPOptimizeBounded_spec` certifies exact
+optimality of both the returned value and witness assignment on width-`≤ w` instances). -/
 theorem computableInPolyTime_maxCSPOptimizeBounded_of_KSAT {Rel : Type} [Finite Rel]
     (encRel : Rel ↪ List Bool) (w : ℕ) (sem : Rel → List Bool → Bool) {solveKSAT : CNF ℕ → Bool}
     (hpoly : ComputableInPolyTime solveKSAT encCNF encBool) :
