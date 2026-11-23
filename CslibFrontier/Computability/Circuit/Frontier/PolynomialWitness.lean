@@ -66,10 +66,15 @@ every `β < 1 / 2` already at degree `4`).
    whenever `b_n = (n + 1) ^ (-β)` with `β < (p - 1) / 2`, instantiating `FanInTwo` and
    `Nondeterministic` gives `4.57597 n` worst-case and average-case bounds at degree `4` (`p = 2`).
 
-The low-degree `DenseRectangleFree` and `RectangleBias` witness constructions and downstream
-`4.57597 n` circuit lower bounds (via `layoutBound_switched` from [Gaspers2026]) are original to
-this library; the polynomial families are obtained nonconstructively by finite counting over the
-`O(n ^ (2 p))`-dimensional space `BitString.lowDegree (ZMod 2) (Fin n) (2 * p)`.
+Low-degree witness existence in this asymptotic regime already follows from the stronger sumset
+extraction theorem of [AlrabiahGoodmanMosheiffRibeiro2025], ECCC TR24-093 revision 1, Theorem 2
+(p. 8): degree `2 p` suffices at entropy `O(p (n / ε ^ 2) ^ (1 / p))`. Coordinate rectangles
+are special cases of sumset sources. This module supplies a direct finite-counting proof for
+coordinate rectangles, the explicit `polyThreshold` estimates, and the downstream `4.57597 n`
+frontier applications (via `layoutBound_switched` from [Gaspers2026]); it does not formalize the
+general sumset theorem. Its polynomial families are chosen nonconstructively from
+`BitString.lowDegree (ZMod 2) (Fin n) (2 * p)`, with `O(n ^ (2 p))` bits of description; no uniform
+polynomial-time construction or language in `P` is established here.
 
 ## Main definitions
 
@@ -102,6 +107,8 @@ this library; the polynomial families are obtained nonconstructively by finite c
 ## References
 
 * [N. Alon, J. H. Spencer, *The Probabilistic Method*][AlonSpencer2016]
+* [O. Alrabiah, J. Goodman, J. Mosheiff, J. Ribeiro, *Low-Degree Polynomials Are Good
+  Extractors*][AlrabiahGoodmanMosheiffRibeiro2025], ECCC TR24-093 revision 1, Theorem 2 (p. 8)
 * [S. Gaspers, *Path Decompositions of Sparse Graphs via Gaussian Sweeps and Faster
   Exponential Algorithms*][Gaspers2026]
 * [A. A. Razborov, *Lower bounds on the size of bounded depth circuits over a complete basis with

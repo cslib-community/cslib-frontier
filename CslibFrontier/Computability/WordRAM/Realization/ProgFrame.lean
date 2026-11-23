@@ -33,13 +33,18 @@ This module provides width-independent reasoning principles for `Memory.Prog` cl
 
 ## Main results
 
-* `clientState_read`, `clientResult_read`, `memoryCost_read`, `memoryCost_write`,
+* `clientState_read`, `clientResult_read`, `clientState_write`, `clientResult_write`,
+  `clientState_allocDirty`, `clientResult_allocDirty`,
+  `runClient_allocDirty`, `runClient_map`, `runClient_ite`,
+  `prog_clientResult_map`, `prog_clientState_ite`, `prog_clientResult_ite`,
+  `state_frontier_ite`, `state_mem_ite`, `memoryCost_read`, `memoryCost_write`,
   `memoryCost_alloc`, `memoryCost_allocDirty`, `memoryCost_ite`: primitive state, result, and cost
   equations.
 * `wellFormed_clientState`, `validHistory_pure`, `validHistory_read`, `validHistory_write`,
-  `validHistory_alloc`, `validHistory_allocDirty`, `validHistory_bind_step`,
-  `validHistory_read_bind`, `validHistory_write_bind`, `validHistory_ite`, `validHistory_dite`,
-  `validHistory_iterate_inv`, `validHistory_boundedWhile_inv`: monadic admissibility combinators.
+  `validHistory_alloc`, `validHistory_allocDirty`, `validHistory_allocDirty_bind`,
+  `validHistory_bind_step`, `validHistory_read_bind`, `validHistory_write_bind`,
+  `validHistory_ite`, `validHistory_dite`, `validHistory_iterate_inv`,
+  `validHistory_boundedWhile_inv`: monadic admissibility combinators.
 * `boundedWhile_invariant_of`, `iterate_invariant_of`, `iterationSafe_of_stepInv`,
   `clientState_iterate_eq_of`, `clientState_boundedWhile_eq_of`, `memoryCost_iterate_le_of`,
   `memoryCost_iterate_le_potential`: generic loop invariant and cost lemmas, including an amortized
@@ -64,8 +69,85 @@ open Cslib.DataStructure
 theorem clientState_read (w : ℕ) (s : Memory.State) (a : ℕ) :
     (Memory.spec w).clientState s (Memory.read a) = s := rfl
 
-theorem clientResult_read (w : ℕ) (s : Memory.State) (a : ℕ) :
-    (Memory.spec w).clientResult s (Memory.read a) = s.mem a := rfl
+@[simp, client_simps] theorem clientResult_read (w : ℕ) (s : Memory.State) (a : ℕ) :
+    (Memory.spec w).clientResult s (Memory.read a) = s.mem a := Eq.trans rfl rfl
+
+theorem clientState_write (w : ℕ) (s : Memory.State) (a v : ℕ) :
+    (Memory.spec w).clientState s (Memory.write a v) =
+      ⟨Function.update s.mem a v, s.frontier⟩ :=
+  Eq.trans rfl rfl
+
+@[simp, client_simps] theorem clientResult_write (w : ℕ) (s : Memory.State) (a v : ℕ) :
+    (Memory.spec w).clientResult s (Memory.write a v) = () :=
+  Eq.trans rfl rfl
+
+theorem clientState_allocDirty (w : ℕ) (s : Memory.State) (k : ℕ) :
+    (Memory.spec w).clientState s (Memory.allocDirty k) = ⟨s.mem, s.frontier + k⟩ :=
+  Eq.trans rfl rfl
+
+@[simp, client_simps] theorem clientResult_allocDirty (w : ℕ) (s : Memory.State) (k : ℕ) :
+    (Memory.spec w).clientResult s (Memory.allocDirty k) = s.frontier :=
+  Eq.trans rfl rfl
+
+/-- Running `Memory.allocDirty` advances the frontier by `k` and returns the old frontier. -/
+theorem runClient_allocDirty (w : ℕ) (s : (Memory.spec w).State) (k : ℕ) :
+    (Memory.spec w).runClient s (Memory.allocDirty k) =
+      (s.frontier, ⟨s.mem, s.frontier + k⟩, [Memory.Op.allocDirty k]) :=
+  rfl
+
+theorem runClient_map {α β : Type} (w : ℕ) (s : Memory.State) (g : α → β) (p : Memory.Prog α) :
+    (Memory.spec w).runClient s (g <$> p : Memory.Prog β) =
+      (g ((Memory.spec w).clientResult s p), (Memory.spec w).clientState s p,
+        (Memory.spec w).clientHistory s p) := by
+  induction p generalizing s with
+  | pure _ => rfl
+  | liftBind op k ih =>
+    change (Memory.spec w).runClient s (PFunctor.FreeM.liftBind op (fun x => g <$> k x)) = _
+    simp only [StateTransitionSpec.runClient, StateTransitionSpec.clientResult,
+      StateTransitionSpec.clientState, StateTransitionSpec.clientHistory, ih]
+
+theorem runClient_ite {α : Type} (w : ℕ) (c : Prop) [Decidable c]
+    (p₁ p₂ : Memory.Prog α) (s : Memory.State) :
+    (Memory.spec w).runClient s (if c then p₁ else p₂ : Memory.Prog α) =
+      if c then (Memory.spec w).runClient s p₁ else (Memory.spec w).runClient s p₂ := by
+  split_ifs <;> rfl
+
+@[client_simps] theorem prog_clientResult_map {α β : Type} (w : ℕ)
+    (s : Memory.State) (g : α → β) (p : Memory.Prog α) :
+    (Memory.spec w).clientResult s (g <$> p : Memory.Prog β) =
+      g ((Memory.spec w).clientResult s p) := by
+  simpa [StateTransitionSpec.clientResult] using congrArg Prod.fst (runClient_map w s g p)
+
+theorem prog_clientState_ite {α : Type} (w : ℕ)
+    (c : Prop) [Decidable c] (p₁ p₂ : Memory.Prog α) (s : Memory.State) :
+    (Memory.spec w).clientState s (if c then p₁ else p₂ : Memory.Prog α) =
+      if c then (Memory.spec w).clientState s p₁ else (Memory.spec w).clientState s p₂ := by
+  split_ifs <;> rfl
+
+@[simp, client_simps] theorem prog_clientResult_ite {α : Type} (w : ℕ)
+    (c : Prop) [Decidable c] (p₁ p₂ : Memory.Prog α) (s : Memory.State) :
+    (Memory.spec w).clientResult s (if c then p₁ else p₂ : Memory.Prog α) =
+      if c then (Memory.spec w).clientResult s p₁ else (Memory.spec w).clientResult s p₂ := by
+  split_ifs <;> rfl
+
+@[simp, client_simps] theorem state_frontier_ite
+    (c : Prop) [Decidable c] (s₁ s₂ : Memory.State) :
+    (if c then s₁ else s₂).frontier = if c then s₁.frontier else s₂.frontier := by
+  split_ifs <;> rfl
+
+@[simp, client_simps] theorem state_mem_ite
+    (c : Prop) [Decidable c] (s₁ s₂ : Memory.State) (x : ℕ) :
+    (if c then s₁ else s₂).mem x = if c then s₁.mem x else s₂.mem x := by
+  split_ifs <;> rfl
+
+/-- Split `ValidHistory` across `Memory.allocDirty k >>= q` directly in closed form. -/
+theorem validHistory_allocDirty_bind {α : Type} {w : ℕ} {s : Memory.State} {k : ℕ}
+    {q : ℕ → Memory.Prog α} (hk : Fits w (s.frontier + k))
+    (hq : (Memory.spec w).ValidHistory ⟨s.mem, s.frontier + k⟩
+      ((Memory.spec w).clientHistory ⟨s.mem, s.frontier + k⟩ (q s.frontier))) :
+    (Memory.spec w).ValidHistory s
+      ((Memory.spec w).clientHistory s (Memory.allocDirty k >>= q)) :=
+  ⟨hk, hq⟩
 
 @[simp, client_simps] theorem memoryCost_read (a : ℕ) (s : Memory.State) :
     memoryCost (Memory.read a) s = 1 := rfl

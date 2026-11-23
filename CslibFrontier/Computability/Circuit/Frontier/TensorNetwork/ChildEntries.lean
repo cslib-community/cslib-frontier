@@ -56,10 +56,8 @@ public section
 
 namespace Cslib.Circuits.Frontier
 
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
-
 open Finset GaloisRingArith NativePacket
+open scoped TensorNetwork
 
 /-! ### Port lists -/
 
