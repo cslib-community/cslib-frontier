@@ -110,19 +110,19 @@ theorem vget_rehang (p : Vector (Fin n) n) (s t : Fin n) (X : Finset (Fin n)) :
 source `s` and sink `t`. -/
 @[expose] def ekCut (W : Fin n → Fin n → ℕ) (adj : Fin n → List (Fin n)) (s t : Fin n) :
     Finset (Fin n) :=
-  (edmondsKarpM (Network.mk W s t) adj).ret.cut
+  (edmondsKarp (Network.mk W s t) adj).cut
 
 /-- The maximum flow value returned by the Edmonds–Karp solver on the network with capacities `W`,
 source `s` and sink `t`. -/
 @[expose] def ekValue (W : Fin n → Fin n → ℕ) (adj : Fin n → List (Fin n)) (s t : Fin n) : ℕ :=
-  (edmondsKarpM (Network.mk W s t) adj).ret.flow.value.toNat
+  (edmondsKarp (Network.mk W s t) adj).flow.value.toNat
 
 /-- The Edmonds–Karp cut is a minimum `s`–`t` cut of the cut function of `W`, for adjacency lists
 covering the edges of `W`. -/
 theorem isMinCutBetween_ekCut {W : Fin n → Fin n → ℕ} {adj : Fin n → List (Fin n)}
     (hadj : ∀ u v, u ≠ v → 0 < W u v + W v u → v ∈ adj u) {s t : Fin n} (hst : s ≠ t) :
     IsMinCutBetween (cutWeight W) s t (ekCut W adj s t) := by
-  obtain ⟨-, hmin, -⟩ := edmondsKarpM_correct (N := Network.mk W s t) (adj := adj) hadj hst
+  obtain ⟨-, hmin, -⟩ := edmondsKarp_correct (N := Network.mk W s t) (adj := adj) hadj hst
   exact hmin.isMinCutBetween
 
 /-- The Edmonds–Karp maximum flow value equals the weight of `ekCut W adj s t`, for adjacency lists
@@ -130,7 +130,7 @@ covering the edges of `W`. -/
 theorem ekValue_eq_cutWeight {W : Fin n → Fin n → ℕ} {adj : Fin n → List (Fin n)}
     (hadj : ∀ u v, u ≠ v → 0 < W u v + W v u → v ∈ adj u) {s t : Fin n} (hst : s ≠ t) :
     ekValue W adj s t = cutWeight W (ekCut W adj s t) := by
-  obtain ⟨-, -, hval, -⟩ := edmondsKarpM_correct (N := Network.mk W s t) (adj := adj) hadj hst
+  obtain ⟨-, -, hval, -⟩ := edmondsKarp_correct (N := Network.mk W s t) (adj := adj) hadj hst
   unfold ekValue ekCut
   rw [hval]
   rfl

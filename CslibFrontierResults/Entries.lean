@@ -340,7 +340,6 @@ import CslibFrontier.Crypto.Computational.OneWayToSignature
 import CslibFrontier.Crypto.Computational.PedersenCommitment
 import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.CircuitLowerBound
-import CslibFrontier.Crypto.Computational.PseudorandomFunction.HashThenPRF
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 import CslibFrontier.Crypto.Computational.SchnorrProtocol
@@ -5986,23 +5985,43 @@ register_result "bareiss-rational-elimination-polytime" where
     rational elimination in binary input encoding size. Bounded milestone of Issue #3672 \
     (circulant spectra and fibre-sum bounds remain open there)."
 
-register_result "kosaraju-scc" where
-  title := "Kosaraju's linear-time strongly connected components and condensation order"
+register_result "topological-sort" where
+  title := "Depth-first-search topological sort iff acyclic"
   topic := "algorithms"
   sources := [
-    { paper := CLRS2009, theorem := unverified, locator := unverified }
+    { paper := CLRS2009, theorem := "§22.4 TOPOLOGICAL-SORT and Theorem 22.12",
+      locator := "3rd ed., §22.4 TOPOLOGICAL-SORT & cost paragraph (printed p. 613) and \
+        Theorem 22.12 (p. 614)" }
+  ]
+  theorems := [
+    Cslib.Algorithms.Lean.DFS.isTopologicalOrder_topologicalSort_iff,
+    Cslib.Algorithms.Lean.DFS.acyclic_iff_exists_isTopologicalOrder
+  ]
+  scope := "Pure reverse-DFS-finishing-order topological sort on adjacency lists adj : V → List V, \
+    requiring a supplied vertex list vs covering all vertices (∀ v, v ∈ vs). Whereas CLRS proves \
+    correctness on DAGs, Lean returns reverse DFS finishing order on every graph and proves it is \
+    a topological order if and only if the graph is acyclic. Linear-time standard-basis Word-RAM \
+    execution is registered separately in topological-sort-wordram."
+
+register_result "kosaraju-scc" where
+  title := "Kosaraju's strongly connected components and condensation order"
+  topic := "algorithms"
+  sources := [
+    { paper := CLRS2009, theorem := "§22.5 STRONGLY-CONNECTED-COMPONENTS and Theorem 22.16",
+      locator := "3rd ed., §22.5 STRONGLY-CONNECTED-COMPONENTS & cost paragraph (p. 617), \
+        Theorem 22.16 (pp. 619–620), and condensation-order paragraph (p. 620)" }
   ]
   theorems := [
     Cslib.Algorithms.Lean.DFS.isSCCCondensation_sccs,
-    Cslib.Algorithms.Lean.DFS.time_sccsM_of_nodup,
     Cslib.Algorithms.Lean.DFS.IsSCCCondensation.indexComponents_eq_iff,
     Cslib.Algorithms.Lean.DFS.IsSCCCondensation.indexComponents_le_of_edge
   ]
-  scope := "Two-pass Kosaraju SCC decomposition on adjacency lists adj : V → List V in TimeM, \
-    returning duplicate-free mutual-reachability components in forward condensation topological \
-    order at exact cost 3 * (|vs| + ∑ v, |adj v|) for duplicate-free vertex lists covering V, \
-    plus O(|V|) component-index lookup. Visited-set membership, insertion, and function-update \
-    array steps are counted as unit-cost operations."
+  scope := "Pure two-pass Kosaraju SCC decomposition on adjacency lists adj : V → List V, \
+    requiring the supplied vertex list vs to cover all vertices (∀ v, v ∈ vs), as required by \
+    isSCCCondensation_sccs. Returns duplicate-free mutual-reachability components in forward \
+    condensation topological order, together with the component-label partition and condensation \
+    monotonicity bridges (indexComponents_eq_iff, indexComponents_le_of_edge). Linear-time \
+    standard-basis Word-RAM execution is registered separately in kosaraju-scc-wordram."
 
 register_result "selected-entries-subset-convolution" where
   title := "Selected entries of ranked subset convolution by the trimmed fast zeta transform"
@@ -6039,20 +6058,24 @@ register_result "selected-entries-subset-convolution" where
     remains open (#4667)."
 
 register_result "twosat-linear-timem" where
-  title := "Aspvall–Plass–Tarjan linear-time 2-SAT solver and witness construction in TimeM"
+  title := "Aspvall–Plass–Tarjan implication-graph 2-SAT solver and witness construction"
   topic := "algorithms"
   sources := [
-    { paper := AspvallPlassTarjan1979, theorem := unverified, locator := unverified }
+    { paper := AspvallPlassTarjan1979, theorem := "Theorem 1 and \"Two-satisfiability algorithm\"",
+      locator := "1979 journal scan, printed p. 121 steps 1(i)–(ii) and p. 122" }
   ]
   theorems := [
     Cslib.Algorithms.Lean.TwoSAT.solve_eq_some,
     Cslib.Algorithms.Lean.TwoSAT.isSome_solve_iff,
-    Cslib.Algorithms.Lean.TwoSAT.time_solveFinM_le,
+    Cslib.Algorithms.Lean.TwoSAT.solveFin_eq_some,
     Cslib.Algorithms.Lean.TwoSAT.isSome_solveNat_iff
   ]
-  scope := "Linear-time 2-SAT decision and satisfying-assignment construction via Kosaraju SCCs \
-    of the implication graph in TimeM (at most 12 * n + 8 * |φ| + 1 steps on CNF (Fin n)), \
-    together with variable compaction connecting solveNat to Cslib.Complexity.TwoSAT."
+  scope := "Pure 2-SAT decision and satisfying-assignment construction on CNF V and CNF (Fin n), \
+    together with variable compaction connecting solveNat to Cslib.Complexity.TwoSAT. Implements \
+    the paper's implication-graph SCC characterization via Kosaraju's SCC pass (this \
+    formalization's own refinement; the paper uses Tarjan's SCC algorithm and also studies \
+    quantified 2-CNF). Linear-time standard-basis Word-RAM execution is registered separately in \
+    twosat-linear-wordram."
 
 register_result "twosat-polytime" where
   title := "Native multi-tape polynomial-time 2-SAT decision and witness construction"
@@ -11078,27 +11101,6 @@ register_result "computational-universal-hash-single-to-multi-query" where
     accounts for exhaustion while preserving the Q²/2 loss. The reduction derives the polynomial \
     query bound from the setup and adversary certificates. The predicates express security for an \
     existing family and leave the hash algorithm's own efficiency requirements to the caller."
-
-register_result "hash-then-prf-computational-security" where
-  title := "Hash-then-PRF composition from a computational universal hash"
-  topic := "cryptography"
-  sources := [
-    { paper := BonehShoup2023, theorem := "Theorem 7.7",
-      locator := "v0.6, Section 7.3, printed pp. 262–265; equations (7.18)–(7.22)" }
-  ]
-  theorems := [
-    Cslib.Crypto.PRF.hashThenPRFWord_indistinguishable,
-    Cslib.Crypto.PRF.computableInPolyTime_hashThenPRFWord,
-    Cslib.Crypto.PRF.advantage_hashThenPRFWord_le_add_multiQuery,
-    Cslib.Crypto.PRF.advantage_hashThenPRFWord_le_add_collision
-  ]
-  scope := "Uniform strict oracle-PPT word adversaries. The hash and PRF keys are sampled \
-    independently at fixed widths computable from the unary security parameter. The message \
-    domain has a polynomial-time validity test and maps to the fixed-width input of the PRF. \
-    The ideal function consistently samples independent replies on valid messages. Repetitions \
-    are allowed, and malformed messages receive empty replies in both games. The explicit \
-    wrappers have strict PPT certificates and the single-pair bound uses bounded fair-bit \
-    rejection sampling."
 
 register_result "xor-hash-computational-universality" where
   title := "XOR-hash from a secure PRF is computationally universal"

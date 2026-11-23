@@ -47,10 +47,9 @@ coefficients `a x`, which vanish for `|x| > w`. The hypotheses are only required
 `2 w < n`, the range in which they are used.
 
 These forms agree with arXiv:1909.11929v1, which states both bounds for every `n` with no error
-term. An independent review of #4735 checked the specializations there. Saglam's `γ` is
-`H₂(ρ) / 2 - ψ(3, ρ)`, by Kirshner–Samorodnitsky Proposition 2.6 at `p = 3` with `t = 1 - 2 δ`,
-which gives Saglam's `1 - 2 u = √(ρ / (2 - 3 ρ))`. Saglam's integral is their tail exponent `τ`
-on `y ≤ 1 / 2 - √(ρ (1 - ρ))` (their §2.1.1–2.1.2).
+term. Saglam's `γ` is `H₂(ρ) / 2 - ψ(3, ρ)`, by Kirshner–Samorodnitsky Proposition 2.6 at `p = 3`
+with `t = 1 - 2 δ`, which gives Saglam's `1 - 2 u = √(ρ / (2 - 3 ρ))`. Saglam's integral is their
+tail exponent `τ` on `y ≤ 1 / 2 - √(ρ (1 - ρ))` (their §2.1.1–2.1.2).
 
 Everything else in Saglam's Appendix A is proved: `μ̂` has degree at most `w` and
 `𝔼 μ̂ ^ 2 = 1 / V` (`Cslib.Code.sum_charSum_sq`); `γ(ρ) ≥ c ρ` for `0 < ρ ≤ 1 / 2 - ε`

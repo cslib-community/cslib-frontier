@@ -70,9 +70,6 @@ public section
 
 namespace Cslib.Circuits.Frontier
 
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
-
 open GaloisRingArith NativePacket TensorNetwork Turing.MultiTapeTM Cslib.GenericRAM
 
 /-- **The entry procedure of tables**: the table entry at the bits on the ports, as a constant

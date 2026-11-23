@@ -25,7 +25,8 @@ directed walk from `inp j` to `out i`. Its *size* (complexity) is `#edges`, and 
 most `d`* (`HasDepthLE d`) when every directed walk in it has length at most `d` (which in
 particular forces acyclicity).
 
-`orComplexity A` (`OR(A) : ℕ`) is the minimum size of a finite rectifier circuit computing `A`, and
+For finite row and column types, `orComplexity A` (`OR(A) : ℕ`) is the minimum size of a finite
+rectifier circuit computing `A`, and
 `orDepthComplexity d A` (`OR_d(A) : ℕ∞`) is the minimum size over circuits of depth at most `d`
 (`⊤` at `d = 0` when `A` has a `true` entry).
 
@@ -425,9 +426,12 @@ theorem Computes.boolMatrixWeight_le_sq_pred_mul_size [Fintype α] [Fintype β]
 
 end RectifierCircuit
 
-/-- **Rectifier (`OR`) complexity** `OR(A)` of a Boolean matrix `A`: the minimum number of edges in
-a finite rectifier circuit computing `A` ([Sergeev2014ORComplement], p. 1). -/
-noncomputable def orComplexity (A : Matrix α β Bool) : ℕ :=
+/-- **Rectifier (`OR`) complexity** `OR(A)` of a finite Boolean matrix `A`: the minimum number of
+edges in a finite rectifier circuit computing `A` ([Sergeev2014ORComplement], p. 1).
+Finite row and column types ensure that a direct circuit exists, so the feasible set is nonempty. -/
+-- Finiteness restricts the public domain; `sInf` itself does not require it.
+@[nolint unusedArguments]
+noncomputable def orComplexity [Finite α] [Finite β] (A : Matrix α β Bool) : ℕ :=
   sInf {s : ℕ | ∃ (k : ℕ) (C : RectifierCircuit α β (Fin k)), C.Computes A ∧ C.size ≤ s}
 
 /-- **Bounded-depth rectifier (`OR`) complexity** `OR_d(A)` of a Boolean matrix `A`: the minimum
@@ -446,7 +450,7 @@ private theorem exists_fin_rectifierCircuit [Finite α] [Finite β] (A : Matrix 
     (RectifierCircuit.computes_direct A).reindexVertices _, le_rfl⟩
 
 /-- Any finite rectifier circuit `C` computing `A` bounds `orComplexity A` by `C.size`. -/
-theorem RectifierCircuit.Computes.orComplexity_le [Finite V]
+theorem RectifierCircuit.Computes.orComplexity_le [Finite α] [Finite β] [Finite V]
     {C : RectifierCircuit α β V} {A : Matrix α β Bool} (hC : C.Computes A) :
     orComplexity A ≤ C.size := by
   cases nonempty_fintype V
@@ -494,7 +498,7 @@ theorem orDepthComplexity_zero_eq_top {A : Matrix α β Bool} {i : α} {j : β}
   exact Nat.not_succ_le_zero q.length (hd (.cons he q))
 
 /-- Unrestricted `OR`-complexity never exceeds depth-`d` `OR`-complexity. -/
-theorem orComplexity_le_orDepthComplexity (d : ℕ) (A : Matrix α β Bool) :
+theorem orComplexity_le_orDepthComplexity [Finite α] [Finite β] (d : ℕ) (A : Matrix α β Bool) :
     (orComplexity A : ℕ∞) ≤ orDepthComplexity d A :=
   le_orDepthComplexity fun _ _ hC _ => Nat.cast_le.mpr hC.orComplexity_le
 
@@ -516,7 +520,7 @@ theorem orComplexity_le_boolMatrixWeight [Fintype α] [Fintype β] (A : Matrix �
   simpa only [RectifierCircuit.size_direct] using
     (RectifierCircuit.computes_direct A).orComplexity_le
 
-private theorem orComplexity_reindex_le [Finite α] [Finite β]
+private theorem orComplexity_reindex_le [Finite α] [Finite β] [Finite α'] [Finite β']
     (eα : α ≃ α') (eβ : β ≃ β') (A : Matrix α β Bool) :
     orComplexity (Matrix.reindex eα eβ A) ≤ orComplexity A :=
   le_orComplexity fun _ C hC => by
@@ -524,11 +528,9 @@ private theorem orComplexity_reindex_le [Finite α] [Finite β]
       (hC.reindexPoles eα eβ).orComplexity_le
 
 /-- Reindexing rows and columns preserves `orComplexity`. -/
-theorem orComplexity_reindex [Finite α] [Finite β]
+theorem orComplexity_reindex [Finite α] [Finite β] [Finite α'] [Finite β']
     (eα : α ≃ α') (eβ : β ≃ β') (A : Matrix α β Bool) :
     orComplexity (Matrix.reindex eα eβ A) = orComplexity A := by
-  have : Finite α' := Finite.of_equiv α eα
-  have : Finite β' := Finite.of_equiv β eβ
   refine le_antisymm (orComplexity_reindex_le eα eβ A) ?_
   simpa only [← Matrix.reindex_symm, Equiv.symm_apply_apply] using
     orComplexity_reindex_le eα.symm eβ.symm (Matrix.reindex eα eβ A)
