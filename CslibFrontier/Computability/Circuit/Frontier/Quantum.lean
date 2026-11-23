@@ -380,29 +380,31 @@ bounds sublinear deficiency `4 * (2 * ⌊√n⌋ + 1) + 6 = o(n)`, extracts a co
 combines `finite_bisection_supply_demand` with `step_contradiction_of_supply_demand`. -/
 private theorem eventually_compiledQuantumNet_contradiction {d : ℕ} {A : ℝ} (hA : 0 < A)
     (hlayout : LayoutBound d A) {w_nat c_slack : ℕ} (hw_pos : 1 ≤ w_nat)
-    {c_edge ε₀ γ_coeff : ℝ} (hc_edge : 0 < c_edge) (hε₀ : 0 < ε₀) (hγ_nn : 0 ≤ γ_coeff)
+    {c_edge ε γ_coeff : ℝ} (hc_edge : 0 < c_edge) (hε : 0 < ε) (hγ_nn : 0 ≤ γ_coeff)
     (hγ_le : 4 * γ_coeff ≤ (w_nat : ℝ) / 2)
-    (hγ_bound : ((w_nat : ℝ) + 2 * c_edge * A) * γ_coeff ≤ (w_nat : ℝ) * c_edge * A * ε₀ / 4)
+    (hγ_bound : ((w_nat : ℝ) + 2 * c_edge * A) * γ_coeff ≤
+      (w_nat : ℝ) * c_edge * A * min ε ((w_nat : ℝ) / (2 * c_edge * A)) / 4)
     (m_fn : ℕ → ℕ) (hm_eq : ∀ n, (m_fn n : ℝ) = (w_nat : ℝ) * n)
     (e_fn : ℕ → ℕ) (he_le : ∀ n, c_slack + e_fn n ≤ 4 * (2 * Nat.sqrt n + 1) + 6)
     (M_fn : ∀ n, Matrix (Fin (m_fn n)) (Fin (m_fn n)) (ZMod 2))
     (hbis_M : ∀ n (U : Set (Fin (m_fn n))), U.ncard = m_fn n / 2 →
       ((m_fn n / 2 : ℕ) : ℝ) ≤ (M_fn n).cutRank U + (e_fn n : ℝ)) :
     ∀ᶠ n in atTop, 24 ≤ n ∧ ∀ {N : ℕ} {e : Fin n ↪ Fin N} {q_out : Fin N} {C : Quantum.Circuit N}
-      (net : CompiledQuantumNet d e q_out C)
-      (leaf : Fin (m_fn n) ↪ net.V),
-      (twoQubitCount C : ℝ) ≤ (1 + (w_nat : ℝ) / (2 * c_edge * A) - ε₀) * n →
+      (net : CompiledQuantumNet d e q_out C) (leaf : Fin (m_fn n) ↪ net.V),
+      (twoQubitCount C : ℝ) ≤ (1 + (w_nat : ℝ) / (2 * c_edge * A) - ε) * n →
       (∀ P : Set net.V,
         ((M_fn n).cutRank {j | leaf j ∈ P} : ℝ) ≤
           c_edge * (net.G.edgeCut P).ncard + (γ_coeff * n + c_slack)) →
       (∀ Comp : Set net.V, net.G.edgeCut Comp = ∅ →
         Comp.ncard ≤ (net.G.touching Comp).ncard + 1 →
-        (w_nat : ℝ) * (net.G.cycleRankOn Comp : ℝ) + ({j | leaf j ∈ Comp}.ncard : ℝ) ≤
-          (w_nat : ℝ) * ((twoQubitCount C : ℝ) + 1)) →
+        w_nat * net.G.cycleRankOn Comp + {j | leaf j ∈ Comp}.ncard ≤
+          w_nat * (twoQubitCount C + 1)) →
       False := by
   set w_r : ℝ := (w_nat : ℝ)
   have hw_ge_one : 1 ≤ w_r := by dsimp only [w_r]; exact_mod_cast hw_pos
   have hw_pos_r : 0 < w_r := by linarith
+  set ε₀ : ℝ := min ε (w_r / (2 * c_edge * A))
+  have hε₀ : 0 < ε₀ := lt_min hε (by positivity)
   set Bcoef : ℝ := 7 * (1 + w_r / (2 * c_edge * A)) + 3
   set η : ℝ := min A (A * ε₀ / (4 * Bcoef))
   have hη : 0 < η := lt_min hA (by positivity)
@@ -421,7 +423,15 @@ private theorem eventually_compiledQuantumNet_contradiction {d : ℕ} {A : ℝ} 
   filter_upwards [herr_o.bound (show (0 : ℝ) < w_r * c_edge * A * ε₀ / 4 by positivity), hsmall_d]
     with n herrn ⟨hn24, hdn⟩
   simp only [Real.norm_eq_abs, Nat.abs_cast] at herrn
-  refine ⟨hn24, fun net leaf hsize hcr_bound hρ_comp => ?_⟩
+  refine ⟨hn24, fun {_ _ _ C} net leaf hsize_orig hcr_bound hρ_comp => ?_⟩
+  have hsize : (twoQubitCount C : ℝ) ≤ (1 + w_r / (2 * c_edge * A) - ε₀) * n :=
+    hsize_orig.trans (mul_le_mul_of_nonneg_right
+      (by linarith [min_le_left ε (w_r / (2 * c_edge * A))]) (Nat.cast_nonneg n))
+  have hρ_r (Comp : Set net.V) (hcut : net.G.edgeCut Comp = ∅)
+      (hconn : Comp.ncard ≤ (net.G.touching Comp).ncard + 1) :
+      w_r * (net.G.cycleRankOn Comp : ℝ) + ({j | leaf j ∈ Comp}.ncard : ℝ) ≤
+        w_r * ((twoQubitCount C : ℝ) + 1) := by
+    dsimp only [w_r]; exact_mod_cast hρ_comp Comp hcut hconn
   obtain ⟨lay, hlay⟩ := hC_lay net.V net.E net.G net.loopless net.maxDeg
   have hn24_r : (24 : ℝ) ≤ n := by exact_mod_cast hn24
   have hm_pos : 1 ≤ m_fn n := by
@@ -430,7 +440,7 @@ private theorem eventually_compiledQuantumNet_contradiction {d : ℕ} {A : ℝ} 
   have he_add_le : (c_slack : ℝ) + (e_fn n : ℝ) ≤ (defic n : ℝ) := by exact_mod_cast he_le n
   have hfin := finite_bisection_supply_demand (w_r := w_r) (e_defic := (e_fn n : ℝ)) net.G lay
     (by positivity) (fun t ht => hlay t ht t le_rfl (by omega)) hm_pos hw_pos_r leaf hc_edge
-    (hbis_M n) hcr_bound hρ_comp
+    (hbis_M n) hcr_bound hρ_r
     (by
       rw [hm_eq n]
       have hγn : 4 * (γ_coeff * n) ≤ w_r / 2 * n := by
@@ -459,15 +469,115 @@ private theorem eventually_compiledQuantumNet_contradiction {d : ℕ} {A : ℝ} 
       linarith)
     (by rw [hm_eq n] at hfin; linarith)
 
-private theorem one_add_inv_mul_two_switchedCoefficient (k : ℝ) (hk : k ≠ 0) :
-    1 + 1 / (k * (2 * Switched.switchedCoefficient)) =
-      1 + 2 * π / (3 * k * arccos (5 / 6)) := by
+private theorem switched_coeff_eq (k c_sw : ℝ) (hk : k ≠ 0)
+    (h : 1 + 2 * π / (3 * k * arccos (5 / 6)) = c_sw) :
+    c_sw = 1 + 1 / (k * (2 * Switched.switchedCoefficient)) := by
   have h1 := Switched.one_add_inv_two_mul_switchedCoefficient
   have h2 : 1 / (2 * Switched.switchedCoefficient) = 2 * π / (3 * arccos (5 / 6)) := by linarith
   have h3 : 1 / (k * (2 * Switched.switchedCoefficient)) =
       1 / (2 * Switched.switchedCoefficient) / k := by field_simp
-  rw [h3, h2]
+  rw [h3, h2, ← h]
   field_simp
+
+private theorem rat_sub_mul_le_switched {k c_sw c_rat ε : ℝ} (hk : 0 < k) (n : ℕ)
+    (hsw : 1 + 2 * π / (3 * k * arccos (5 / 6)) = c_sw)
+    (hrat : c_rat ≤ 1 + (457597 / 100000 - 1) / k) :
+    (c_rat - ε) * (n : ℝ) ≤ (c_sw - ε) * (n : ℝ) := by
+  refine mul_le_mul_of_nonneg_right ?_ (Nat.cast_nonneg n)
+  have h45 := Switched.circuitCoefficient_ge_457597
+  have hdiv : (457597 / 100000 - 1) / k ≤ (2 * π / (3 * arccos (5 / 6))) / k :=
+    div_le_div_of_nonneg_right (by linarith) hk.le
+  have hrew : 1 + (2 * π / (3 * arccos (5 / 6))) / k = c_sw := by
+    rw [← hsw, div_div, show 3 * arccos (5 / 6) * k = 3 * k * arccos (5 / 6) by ring]
+  linarith
+
+private theorem eventually_hardMatrix_contradiction {d : ℕ} {A : ℝ} (hA : 0 < A)
+    (hlayout : LayoutBound d A) {c_slack : ℕ} (hs : c_slack ≤ 4)
+    {c_edge ε γ_coeff : ℝ} (hc_edge : 0 < c_edge) (hε : 0 < ε) (hγ_nn : 0 ≤ γ_coeff)
+    (hγ_le : 4 * γ_coeff ≤ 1 / 2)
+    (hγ_bound : (1 + 2 * c_edge * A) * γ_coeff ≤
+      c_edge * A * min ε (1 / (2 * c_edge * A)) / 4) :
+    ∀ᶠ n in atTop, 24 ≤ n ∧ ∀ {N : ℕ} {e : Fin n ↪ Fin N} {q_out : Fin N} {C : Quantum.Circuit N}
+      (net : CompiledQuantumNet d e q_out C) (leaf : Fin n ↪ net.V),
+      (twoQubitCount C : ℝ) ≤ (1 + 1 / (2 * c_edge * A) - ε) * n →
+      (∀ P : Set net.V,
+        ((hardMatrix n + (hardMatrix n)ᵀ).cutRank {j | leaf j ∈ P} : ℝ) ≤
+          c_edge * (net.G.edgeCut P).ncard + (γ_coeff * n + c_slack)) →
+      (∀ Comp : Set net.V, net.G.edgeCut Comp = ∅ →
+        Comp.ncard ≤ (net.G.touching Comp).ncard + 1 →
+        net.G.cycleRankOn Comp + {j | leaf j ∈ Comp}.ncard ≤ twoQubitCount C + 1) →
+      False := by
+  have hev := eventually_compiledQuantumNet_contradiction hA hlayout (w_nat := 1)
+    (c_slack := c_slack) le_rfl (c_edge := c_edge) (ε := ε) (γ_coeff := γ_coeff)
+    hc_edge hε hγ_nn (by push_cast; exact hγ_le) (by push_cast; linarith)
+    (fun n => n) (fun n => by simp)
+    (fun n => 2 * (2 * Nat.sqrt (n / 2) + 1) + 1)
+    (fun n => by have := Nat.sqrt_le_sqrt (Nat.div_le_self n 2); omega)
+    (fun n => hardMatrix n + (hardMatrix n)ᵀ)
+    (fun n U hU => by exact_mod_cast half_le_cutRank_hardMatrix n hU)
+  filter_upwards [hev] with n ⟨hn24, hcontra⟩
+  exact ⟨hn24, fun net leaf hsize hcr hρ =>
+    hcontra net leaf (by simpa only [Nat.cast_one] using hsize) hcr
+      fun Comp hcut hconn => by simpa only [one_mul] using hρ Comp hcut hconn⟩
+
+/-- Shared exponential-decay driver on `hardMatrix n`: converts a single-cut inequality
+`val_sq * 2 ^ cutRank ≤ 4 * 2 ^ (c_edge * edgeCut)` and component cycle-rank bound into
+`val_sq ≤ 2 ^ (-γ_sq * n)` below `(1 + 1 / (2 * c_edge * A) - ε) * n` two-qubit gates. -/
+private theorem eventually_hardMatrix_sq_le_of_layoutBound {d : ℕ}
+    {A : ℝ} (hA : 0 < A) (hlayout : LayoutBound d A) {c_edge ε : ℝ}
+    (hc_edge : 0 < c_edge) (hε : 0 < ε) :
+    ∃ γ_sq : ℝ, 0 < γ_sq ∧ ∀ᶠ n in atTop, 24 ≤ n ∧
+      ∀ {N : ℕ} {e : Fin n ↪ Fin N} {q_out : Fin N} {C : Quantum.Circuit N}
+        (net : CompiledQuantumNet d e q_out C) (leaf : Fin n ↪ net.V) (val_sq : ℝ),
+        (twoQubitCount C : ℝ) ≤ (1 + 1 / (2 * c_edge * A) - ε) * n →
+        (∀ P : Set net.V,
+          val_sq * (2 : ℝ) ^ ((hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | leaf i ∈ P}) ≤
+            4 * (2 : ℝ) ^ (c_edge * ((net.G.edgeCut P).ncard : ℝ))) →
+        (∀ Comp : Set net.V, net.G.edgeCut Comp = ∅ →
+          Comp.ncard ≤ (net.G.touching Comp).ncard + 1 →
+          net.G.cycleRankOn Comp + {i | leaf i ∈ Comp}.ncard ≤ twoQubitCount C + 1) →
+        val_sq ≤ (2 : ℝ) ^ (-γ_sq * n) := by
+  set ε₀ := min ε (1 / (2 * c_edge * A))
+  have hε₀ : 0 < ε₀ := lt_min hε (by positivity)
+  set γ_sq : ℝ := c_edge * A * ε₀ / (4 * (1 + 2 * c_edge * A))
+  have hγ : 0 < γ_sq := by positivity
+  have hγ_le : γ_sq ≤ 1 / 8 := by
+    have hε0_le : ε₀ ≤ 1 / (2 * c_edge * A) := min_le_right _ _
+    have hAε : c_edge * A * ε₀ ≤ 1 / 2 := by
+      have := mul_le_mul_of_nonneg_left hε0_le (by positivity : (0 : ℝ) ≤ c_edge * A)
+      have heq : c_edge * A * (1 / (2 * c_edge * A)) = 1 / 2 := by field_simp
+      linarith
+    have hcA_pos : 0 < c_edge * A := mul_pos hc_edge hA
+    calc γ_sq = (c_edge * A * ε₀) / (4 * (1 + 2 * c_edge * A)) := rfl
+      _ ≤ (1 / 2) / (4 * 1) := div_le_div₀ (by norm_num) hAε (by norm_num) (by linarith)
+      _ = 1 / 8 := by norm_num
+  refine ⟨γ_sq, hγ, ?_⟩
+  have hev := eventually_hardMatrix_contradiction hA hlayout (c_slack := 2) (by norm_num)
+    hc_edge hε hγ.le (by linarith)
+    (by
+      have heq : (1 + 2 * c_edge * A) * γ_sq = c_edge * A * ε₀ / 4 := by
+        dsimp only [γ_sq]; field_simp
+      linarith)
+  filter_upwards [hev] with n ⟨hn24, hcontra⟩
+  refine ⟨hn24, fun net leaf val_sq hsize hcut_le hρ_le => ?_⟩
+  by_contra! hgt
+  refine hcontra net leaf hsize (fun P => ?_) hρ_le
+  have hlt : (2 : ℝ) ^ (-γ_sq * n) *
+      (2 : ℝ) ^ ((hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | leaf i ∈ P} : ℝ) <
+      4 * (2 : ℝ) ^ (c_edge * ((net.G.edgeCut P).ncard : ℝ)) := by
+    rw [Real.rpow_natCast]
+    exact lt_of_lt_of_le (mul_lt_mul_of_pos_right hgt (by positivity)) (hcut_le P)
+  have hlhs : (2 : ℝ) ^ (-γ_sq * n +
+      ((hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | leaf i ∈ P} : ℝ)) =
+      (2 : ℝ) ^ (-γ_sq * n) *
+        (2 : ℝ) ^ ((hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | leaf i ∈ P} : ℝ) :=
+    Real.rpow_add two_pos _ _
+  have hrhs : (4 : ℝ) * (2 : ℝ) ^ (c_edge * ((net.G.edgeCut P).ncard : ℝ)) =
+      (2 : ℝ) ^ (2 + c_edge * ((net.G.edgeCut P).ncard : ℝ)) := by
+    rw [show (4 : ℝ) = (2 : ℝ) ^ (2 : ℝ) by norm_num, ← Real.rpow_add two_pos]
+  rw [← hlhs, hrhs] at hlt
+  push_cast
+  linarith [(Real.rpow_lt_rpow_left_iff one_lt_two).mp hlt]
 
 /-! #### 1. `BQP` single-qubit measurement correlation decay (`1.893993 n` / `1.625 n`) -/
 
@@ -486,70 +596,28 @@ theorem eventually_abs_quantumCorrelation_hardForm_le_of_layoutBound {d : ℕ} (
       (twoQubitCount C : ℝ) ≤ (1 + 1 / (4 * A) - ε) * n →
         |quantumCorrelation {x | hardForm n x} (quantumAcceptProb C q_out e x₀)| ≤
           (2 : ℝ) ^ (-γ * n) := by
-  set ε₀ := min ε (1 / (4 * A))
-  have hε₀ : 0 < ε₀ := lt_min hε (by positivity)
-  set γ : ℝ := 2 * A * ε₀ / (8 * (1 + 4 * A))
-  have hγ : 0 < γ := by positivity
-  have h2γ_le : 2 * γ ≤ 1 / 8 := by
-    have hε0_le : ε₀ ≤ 1 / (4 * A) := min_le_right _ _
-    have hAε : 2 * A * ε₀ ≤ 1 / 2 := by
-      have := mul_le_mul_of_nonneg_left hε0_le (by positivity : (0 : ℝ) ≤ 2 * A)
-      have heq : 2 * A * (1 / (4 * A)) = 1 / 2 := by field_simp; norm_num
-      linarith
-    calc 2 * γ = (2 * A * ε₀) / (4 * (1 + 4 * A)) := by dsimp only [γ]; field_simp; ring
-      _ ≤ (1 / 2) / (4 * 1) := div_le_div₀ (by norm_num) hAε (by norm_num) (by linarith)
-      _ = 1 / 8 := by norm_num
-  refine ⟨γ, hγ, ?_⟩
-  have hev := eventually_compiledQuantumNet_contradiction hA hlayout (w_nat := 1) (c_slack := 2)
-    le_rfl (c_edge := 2) (ε₀ := ε₀) (γ_coeff := 2 * γ) (by norm_num) hε₀ (by positivity)
-    (by push_cast; linarith)
-    (by
-      push_cast
-      have heq : (1 + 2 * 2 * A) * (2 * γ) = 1 * 2 * A * ε₀ / 4 := by
-        dsimp only [γ]; field_simp; ring
-      linarith)
-    (fun n => n) (fun n => by simp)
-    (fun n => 2 * (2 * Nat.sqrt (n / 2) + 1) + 1)
-    (fun n => by have := Nat.sqrt_le_sqrt (Nat.div_le_self n 2); omega)
-    (fun n => hardMatrix n + (hardMatrix n)ᵀ)
-    (fun n U hU => by exact_mod_cast half_le_cutRank_hardMatrix n hU)
-  filter_upwards [hev] with n ⟨_, hcontra⟩ N e q_out x₀ C hmodel hsize_orig
+  obtain ⟨γ_sq, hγ_sq, hev⟩ :=
+    eventually_hardMatrix_sq_le_of_layoutBound hA hlayout (c_edge := 2) (by norm_num) hε
+  refine ⟨γ_sq / 2, by positivity, ?_⟩
+  filter_upwards [hev] with n ⟨_, hbound⟩ N e q_out x₀ C hmodel hsize
   obtain ⟨net⟩ := exists_compiledQuantumNet hd e q_out hmodel
-  by_contra! hcorr_gt
-  have hcorr_sq_gt : (2 : ℝ) ^ (-(2 * γ) * n) <
-      quantumCorrelation {x | hardForm n x} (quantumAcceptProb C q_out e x₀) ^ 2 := by
-    have h1 := pow_lt_pow_left₀ hcorr_gt (by positivity) (n := 2) (by norm_num)
-    rw [sq_abs, ← Real.rpow_natCast, ← Real.rpow_mul two_pos.le] at h1
-    push_cast at h1
-    convert h1 using 2; ring
-  refine hcontra net net.leafIn
-    (hsize_orig.trans (mul_le_mul_of_nonneg_right ?_ (Nat.cast_nonneg n)))
-    (fun P => ?_) (fun Comp hcut hconn => ?_)
-  · push_cast
-    have heq : (1 : ℝ) / (2 * 2 * A) = 1 / (4 * A) := by ring
-    linarith [min_le_left ε (1 / (4 * A))]
-  · have h1 := net.sq_quantumCorrelation_mul_le x₀ (hardMatrix n) P
-    have hlt : (2 : ℝ) ^ (-(2 * γ) * n) *
-        (2 : ℝ) ^ ((hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | net.leafIn i ∈ P} : ℝ) <
-        4 * (4 : ℝ) ^ ((net.G.edgeCut P).ncard : ℝ) := by
-      rw [Real.rpow_natCast, Real.rpow_natCast]
-      exact lt_of_lt_of_le (mul_lt_mul_of_pos_right hcorr_sq_gt (by positivity)) h1
-    have hlhs : (2 : ℝ) ^ (-(2 * γ) * n +
-        ((hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | net.leafIn i ∈ P} : ℝ)) =
-        (2 : ℝ) ^ (-(2 * γ) * n) *
-          (2 : ℝ) ^ ((hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | net.leafIn i ∈ P} : ℝ) :=
-      Real.rpow_add two_pos _ _
-    have hrhs : (4 : ℝ) * (4 : ℝ) ^ ((net.G.edgeCut P).ncard : ℝ) =
-        (2 : ℝ) ^ (2 + 2 * ((net.G.edgeCut P).ncard : ℝ)) := by
-      have h4 : (4 : ℝ) = (2 : ℝ) ^ (2 : ℝ) := by norm_num
-      rw [h4, ← Real.rpow_mul two_pos.le, ← Real.rpow_add two_pos]
-    rw [← hlhs, hrhs] at hlt
-    push_cast
-    linarith [(Real.rpow_lt_rpow_left_iff one_lt_two).mp hlt]
-  · push_cast
-    have hr : (net.G.cycleRankOn Comp : ℝ) + ({i | net.leafIn i ∈ Comp}.ncard : ℝ) ≤
-        (twoQubitCount C : ℝ) + 1 := by exact_mod_cast net.cycleRank_leafIn_le Comp hcut hconn
-    linarith
+  have hsq := hbound net net.leafIn
+    (quantumCorrelation {x | hardForm n x} (quantumAcceptProb C q_out e x₀) ^ 2)
+    (by convert hsize using 3; ring)
+    (fun P => by
+      have h4 : (4 : ℝ) ^ (net.G.edgeCut P).ncard =
+          (2 : ℝ) ^ ((2 : ℝ) * ((net.G.edgeCut P).ncard : ℝ)) := by
+        rw [← Real.rpow_natCast, show (4 : ℝ) = (2 : ℝ) ^ (2 : ℝ) by norm_num,
+          ← Real.rpow_mul two_pos.le]
+      rw [← h4]
+      exact net.sq_quantumCorrelation_mul_le x₀ (hardMatrix n) P)
+    net.cycleRank_leafIn_le
+  have hrhs_sq : (2 : ℝ) ^ (-γ_sq * n) = ((2 : ℝ) ^ (-(γ_sq / 2) * n)) ^ 2 := by
+    rw [← Real.rpow_natCast, ← Real.rpow_mul two_pos.le]
+    push_cast; congr 1; ring
+  rw [hrhs_sq, ← sq_abs] at hsq
+  by_contra! hgt
+  linarith [pow_lt_pow_left₀ hgt (by positivity) (n := 2) (by norm_num)]
 
 /-- **Median-switched `BQP` correlation decay (`1.893993 n`).** Below
 `(1 + π / (6 arccos (5 / 6)) - ε) n ≈ 1.893993 n` bond-rank-two two-qubit gates (with unlimited
@@ -562,15 +630,9 @@ theorem eventually_abs_quantumCorrelation_hardForm_le_switched {ε : ℝ} (hε :
       (twoQubitCount C : ℝ) ≤ (1 + π / (6 * arccos (5 / 6)) - ε) * n →
         |quantumCorrelation {x | hardForm n x} (quantumAcceptProb C q_out e x₀)| ≤
           (2 : ℝ) ^ (-γ * n) := by
-  obtain ⟨γ, hγ, hev⟩ := eventually_abs_quantumCorrelation_hardForm_le_of_layoutBound (Or.inl rfl)
+  rw [switched_coeff_eq 4 (1 + π / (6 * arccos (5 / 6))) (by norm_num) (by ring)]
+  exact eventually_abs_quantumCorrelation_hardForm_le_of_layoutBound (Or.inl rfl)
     (mul_pos two_pos Switched.switchedCoefficient_pos) layoutBound_switched hε
-  have hcoef : 1 + 1 / (4 * (2 * Switched.switchedCoefficient)) =
-      1 + π / (6 * arccos (5 / 6)) := by
-    rw [one_add_inv_mul_two_switchedCoefficient 4 (by norm_num)]
-    ring
-  refine ⟨γ, hγ, ?_⟩
-  filter_upwards [hev] with n hn N e q_out x₀ C hbond hsize
-  exact hn N e q_out x₀ C (by simpa) (by rwa [hcoef])
 
 /-- **Rational `(1.89399 - ε) n` `BQP` correlation decay** with `hardForm n`. -/
 theorem eventually_abs_quantumCorrelation_hardForm_le_189399 {ε : ℝ} (hε : 0 < ε) :
@@ -581,12 +643,8 @@ theorem eventually_abs_quantumCorrelation_hardForm_le_189399 {ε : ℝ} (hε : 0
         |quantumCorrelation {x | hardForm n x} (quantumAcceptProb C q_out e x₀)| ≤
           (2 : ℝ) ^ (-γ * n) := by
   obtain ⟨γ, hγ, hev⟩ := eventually_abs_quantumCorrelation_hardForm_le_switched hε
-  refine ⟨γ, hγ, ?_⟩
-  filter_upwards [hev] with n hn N e q_out x₀ C hbond hsize
-  refine hn N e q_out x₀ C hbond (hsize.trans (mul_le_mul_of_nonneg_right ?_ (Nat.cast_nonneg n)))
-  have h45 := Switched.circuitCoefficient_ge_457597
-  have hdiv : π / (6 * arccos (5 / 6)) = (2 * π / (3 * arccos (5 / 6))) / 4 := by ring
-  linarith
+  exact ⟨γ, hγ, hev.mono fun n hn N e q_out x₀ C hC hsize => hn N e q_out x₀ C hC
+    (hsize.trans (rat_sub_mul_le_switched (k := 4) (by norm_num) n (by ring) (by norm_num)))⟩
 
 /-- **Bounded-error `BQP` decision lower bound (`1.893993 n`).** Any bond-rank-two quantum circuit
 `C` deciding `hardForm n` with acceptance probability `≥ 2 / 3` on `true` inputs and `≤ 1 / 3` on
@@ -644,11 +702,9 @@ theorem eventually_abs_quantumCorrelation_hardForm_le_twoLocal_two_fifths {ε : 
       (twoQubitCount C : ℝ) ≤ (13 / 8 - ε) * n →
         |quantumCorrelation {x | hardForm n x} (quantumAcceptProb C q_out e x₀)| ≤
           (2 : ℝ) ^ (-γ * n) := by
-  obtain ⟨γ, hγ, hev⟩ := eventually_abs_quantumCorrelation_hardForm_le_of_layoutBound (Or.inr rfl)
-    (by norm_num) layoutBound_two_fifths_four hε
-  refine ⟨γ, hγ, ?_⟩
-  filter_upwards [hev] with n hn N e q_out x₀ C htwo hsize
-  exact hn N e q_out x₀ C (by simpa) (by convert hsize using 2; norm_num)
+  rw [show (13 / 8 : ℝ) = 1 + 1 / (4 * (2 / 5)) by norm_num]
+  exact eventually_abs_quantumCorrelation_hardForm_le_of_layoutBound (Or.inr rfl) (by norm_num)
+    layoutBound_two_fifths_four hε
 
 /-! #### 2. `UQP` unbounded-error sign-rank bounds (`1.446996 n` / `1.3125 n`) -/
 
@@ -665,57 +721,37 @@ theorem eventually_lt_twoQubitCount_uqp_hardForm_of_layoutBound {d : ℕ} (hd : 
       (∀ x, if hardForm n x then θ < quantumAcceptProb C q_out e x₀ x
         else quantumAcceptProb C q_out e x₀ x < θ) →
         (1 + 1 / (8 * A) - ε) * n < twoQubitCount C := by
-  set ε₀ := min ε (1 / (8 * A))
-  have hε₀ : 0 < ε₀ := lt_min hε (by positivity)
-  have hev := eventually_compiledQuantumNet_contradiction hA hlayout (w_nat := 1) (c_slack := 4)
-    le_rfl (c_edge := 4) (ε₀ := ε₀) (γ_coeff := 0) (by norm_num) hε₀ le_rfl
-    (by norm_num) (by rw [mul_zero]; positivity)
-    (fun n => n) (fun n => by simp)
-    (fun n => 2 * (2 * Nat.sqrt (n / 2) + 1) + 1)
-    (fun n => by have := Nat.sqrt_le_sqrt (Nat.div_le_self n 2); omega)
-    (fun n => hardMatrix n + (hardMatrix n)ᵀ)
-    (fun n U hU => by exact_mod_cast half_le_cutRank_hardMatrix n hU)
+  have hev := eventually_hardMatrix_contradiction hA hlayout (c_slack := 4) le_rfl (c_edge := 4)
+    (by norm_num) hε le_rfl (by norm_num) (by rw [mul_zero]; positivity)
   filter_upwards [hev] with n ⟨_, hcontra⟩ N e q_out x₀ θ C hmodel huqp
-  by_contra! hsize_orig
+  by_contra! hsize
   classical
   obtain ⟨net⟩ := exists_compiledQuantumNet hd e q_out hmodel
-  refine hcontra net net.leafIn
-    (hsize_orig.trans (mul_le_mul_of_nonneg_right ?_ (Nat.cast_nonneg n)))
-    (fun P => ?_) (fun Comp hcut hconn => ?_)
-  · push_cast
-    have heq : (1 : ℝ) / (2 * 4 * A) = 1 / (8 * A) := by ring
-    linarith [min_le_left ε (1 / (8 * A))]
-  · have hsr_up := net.signRank_uqp_le x₀ huqp P
-    change Communication.signRank
-      (fun a b => BitString.quadForm (hardMatrix n)
-        ((Equiv.piEquivPiSubtypeProd (· ∈ {i | net.leafIn i ∈ P}) fun _ => Bool).symm (a, b))) ≤
-      3 * 4 ^ (net.G.edgeCut P).ncard at hsr_up
-    have hsr_lo := Communication.two_pow_cutRank_le_signRank_quadForm_sq
-      (hardMatrix n) {i | net.leafIn i ∈ P}
-    have hpow : 2 ^ (hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | net.leafIn i ∈ P} ≤
-        2 ^ (4 * (net.G.edgeCut P).ncard + 4) := by
-      calc 2 ^ (hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | net.leafIn i ∈ P}
-          ≤ (3 * 4 ^ (net.G.edgeCut P).ncard) ^ 2 := hsr_lo.trans (Nat.pow_le_pow_left hsr_up 2)
-        _ = 9 * 2 ^ (4 * (net.G.edgeCut P).ncard) := by
-            have h4 : 4 ^ (net.G.edgeCut P).ncard = 2 ^ (2 * (net.G.edgeCut P).ncard) := by
-              rw [show (4 : ℕ) = 2 ^ 2 by norm_num, ← pow_mul]
-            rw [mul_pow, h4, ← pow_mul]
-            ring
-        _ ≤ 2 ^ 4 * 2 ^ (4 * (net.G.edgeCut P).ncard) := Nat.mul_le_mul_right _ (by norm_num)
-        _ = 2 ^ (4 * (net.G.edgeCut P).ncard + 4) := by rw [← pow_add, add_comm]
-    have hnat : (hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | net.leafIn i ∈ P} ≤
-        4 * (net.G.edgeCut P).ncard + 4 := by
-      by_contra! hgt
-      have := Nat.pow_lt_pow_right one_lt_two hgt
-      omega
-    have hr : ((hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | net.leafIn i ∈ P} : ℝ) ≤
-        4 * (net.G.edgeCut P).ncard + 4 := by exact_mod_cast hnat
-    push_cast
-    linarith
-  · push_cast
-    have hr : (net.G.cycleRankOn Comp : ℝ) + ({i | net.leafIn i ∈ Comp}.ncard : ℝ) ≤
-        (twoQubitCount C : ℝ) + 1 := by exact_mod_cast net.cycleRank_leafIn_le Comp hcut hconn
-    linarith
+  refine hcontra net net.leafIn (by convert hsize using 3; ring) (fun P => ?_)
+    net.cycleRank_leafIn_le
+  have hsr_up := net.signRank_uqp_le x₀ huqp P
+  change Communication.signRank
+    (fun a b => BitString.quadForm (hardMatrix n)
+      ((Equiv.piEquivPiSubtypeProd (· ∈ {i | net.leafIn i ∈ P}) fun _ => Bool).symm (a, b))) ≤
+    3 * 4 ^ (net.G.edgeCut P).ncard at hsr_up
+  have hsr_lo := Communication.two_pow_cutRank_le_signRank_quadForm_sq
+    (hardMatrix n) {i | net.leafIn i ∈ P}
+  have hpow : 2 ^ (hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | net.leafIn i ∈ P} ≤
+      2 ^ (4 * (net.G.edgeCut P).ncard + 4) := by
+    calc 2 ^ (hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | net.leafIn i ∈ P}
+        ≤ (3 * 4 ^ (net.G.edgeCut P).ncard) ^ 2 := hsr_lo.trans (Nat.pow_le_pow_left hsr_up 2)
+      _ = 9 * 2 ^ (4 * (net.G.edgeCut P).ncard) := by
+          rw [mul_pow, show (4 : ℕ) = 2 ^ 2 by norm_num, ← pow_mul, ← pow_mul]
+          ring
+      _ ≤ 2 ^ 4 * 2 ^ (4 * (net.G.edgeCut P).ncard) := Nat.mul_le_mul_right _ (by norm_num)
+      _ = 2 ^ (4 * (net.G.edgeCut P).ncard + 4) := by rw [← pow_add, add_comm]
+  have hnat : (hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | net.leafIn i ∈ P} ≤
+      4 * (net.G.edgeCut P).ncard + 4 := by
+    by_contra! hgt
+    have := Nat.pow_lt_pow_right one_lt_two hgt
+    omega
+  simp only [zero_mul, zero_add]
+  exact_mod_cast hnat
 
 /-- **Median-switched `UQP` unbounded-error lower bound (`1.446996 n`).** -/
 theorem eventually_lt_twoQubitCount_uqp_hardForm_switched {ε : ℝ} (hε : 0 < ε) :
@@ -724,15 +760,9 @@ theorem eventually_lt_twoQubitCount_uqp_hardForm_switched {ε : ℝ} (hε : 0 < 
       (∀ x, if hardForm n x then θ < quantumAcceptProb C q_out e x₀ x
         else quantumAcceptProb C q_out e x₀ x < θ) →
         (1 + π / (12 * arccos (5 / 6)) - ε) * n < twoQubitCount C := by
-  have hev := eventually_lt_twoQubitCount_uqp_hardForm_of_layoutBound (Or.inl rfl)
+  rw [switched_coeff_eq 8 (1 + π / (12 * arccos (5 / 6))) (by norm_num) (by ring)]
+  exact eventually_lt_twoQubitCount_uqp_hardForm_of_layoutBound (Or.inl rfl)
     (mul_pos two_pos Switched.switchedCoefficient_pos) layoutBound_switched hε
-  have hcoef : 1 + 1 / (8 * (2 * Switched.switchedCoefficient)) =
-      1 + π / (12 * arccos (5 / 6)) := by
-    rw [one_add_inv_mul_two_switchedCoefficient 8 (by norm_num)]
-    ring
-  filter_upwards [hev] with n hn N e q_out x₀ θ C hbond huqp
-  rw [← hcoef]
-  exact hn N e q_out x₀ θ C (by simpa) huqp
 
 /-- **Rational `(1.44699 - ε) n` `UQP` unbounded-error lower bound** on `hardForm n`. -/
 theorem eventually_lt_twoQubitCount_uqp_hardForm_144699 {ε : ℝ} (hε : 0 < ε) :
@@ -740,14 +770,10 @@ theorem eventually_lt_twoQubitCount_uqp_hardForm_144699 {ε : ℝ} (hε : 0 < ε
       (C : Quantum.Circuit N), AllBondRankTwo C →
       (∀ x, if hardForm n x then θ < quantumAcceptProb C q_out e x₀ x
         else quantumAcceptProb C q_out e x₀ x < θ) →
-        (144699 / 100000 - ε) * n < twoQubitCount C := by
-  filter_upwards [eventually_lt_twoQubitCount_uqp_hardForm_switched hε]
-    with n hn N e q_out x₀ θ C hbond huqp
-  refine lt_of_le_of_lt (mul_le_mul_of_nonneg_right ?_ (Nat.cast_nonneg n))
-    (hn N e q_out x₀ θ C hbond huqp)
-  have h45 := Switched.circuitCoefficient_ge_457597
-  have hdiv : π / (12 * arccos (5 / 6)) = (2 * π / (3 * arccos (5 / 6))) / 8 := by ring
-  linarith
+        (144699 / 100000 - ε) * n < twoQubitCount C :=
+  (eventually_lt_twoQubitCount_uqp_hardForm_switched hε).mono fun n hn N e q_out x₀ θ C hC huqp =>
+    (rat_sub_mul_le_switched (k := 8) (by norm_num) n (by ring) (by norm_num)).trans_lt
+      (hn N e q_out x₀ θ C hC huqp)
 
 /-- **Unconditional general two-local `U(4)` `UQP` lower bound (`(21 / 16 - ε) n = 1.3125 n`).** -/
 theorem eventually_lt_twoQubitCount_uqp_hardForm_twoLocal_two_fifths {ε : ℝ} (hε : 0 < ε) :
@@ -756,10 +782,9 @@ theorem eventually_lt_twoQubitCount_uqp_hardForm_twoLocal_two_fifths {ε : ℝ} 
       (∀ x, if hardForm n x then θ < quantumAcceptProb C q_out e x₀ x
         else quantumAcceptProb C q_out e x₀ x < θ) →
         (21 / 16 - ε) * n < twoQubitCount C := by
-  filter_upwards [eventually_lt_twoQubitCount_uqp_hardForm_of_layoutBound (Or.inr rfl)
-    (by norm_num) layoutBound_two_fifths_four hε] with n hn N e q_out x₀ θ C htwo huqp
-  convert hn N e q_out x₀ θ C (by simpa) huqp using 2
-  norm_num
+  rw [show (21 / 16 : ℝ) = 1 + 1 / (8 * (2 / 5)) by norm_num]
+  exact eventually_lt_twoQubitCount_uqp_hardForm_of_layoutBound (Or.inr rfl) (by norm_num)
+    layoutBound_two_fifths_four hε
 
 /-! #### 3. Quadratic phase-state preparation fidelity decay (`2.787986 n` / `2.25 n`) -/
 
@@ -775,64 +800,16 @@ theorem eventually_fidelity_phaseState_hardMatrix_le_of_layoutBound {d : ℕ} (h
       (if d = 3 then AllBondRankTwo C else TwoLocal C) →
       (twoQubitCount C : ℝ) ≤ (1 + 1 / (2 * A) - ε) * n →
         ‖inner ℂ (phaseState (hardMatrix n) e x₀) (C.run x₀)‖ ^ 2 ≤ (2 : ℝ) ^ (-γ * n) := by
-  set ε₀ := min ε (1 / (2 * A))
-  have hε₀ : 0 < ε₀ := lt_min hε (by positivity)
-  set γ : ℝ := A * ε₀ / (4 * (1 + 2 * A))
-  have hγ : 0 < γ := by positivity
-  have hγ_le : γ ≤ 1 / 8 := by
-    have hε0_le : ε₀ ≤ 1 / (2 * A) := min_le_right _ _
-    have hAε : A * ε₀ ≤ 1 / 2 := by
-      have := mul_le_mul_of_nonneg_left hε0_le hA.le
-      have heq : A * (1 / (2 * A)) = 1 / 2 := by field_simp
-      linarith
-    calc γ = (A * ε₀) / (4 * (1 + 2 * A)) := rfl
-      _ ≤ (1 / 2) / (4 * 1) := div_le_div₀ (by norm_num) hAε (by norm_num) (by linarith)
-      _ = 1 / 8 := by norm_num
+  obtain ⟨γ, hγ, hev⟩ :=
+    eventually_hardMatrix_sq_le_of_layoutBound hA hlayout (c_edge := 1) (by norm_num) hε
   refine ⟨γ, hγ, ?_⟩
-  have hev := eventually_compiledQuantumNet_contradiction hA hlayout (w_nat := 1) (c_slack := 2)
-    le_rfl (c_edge := 1) (ε₀ := ε₀) (γ_coeff := γ) (by norm_num) hε₀ hγ.le
-    (by push_cast; linarith)
-    (by
-      push_cast
-      have heq : (1 + 2 * 1 * A) * γ = 1 * 1 * A * ε₀ / 4 := by
-        dsimp only [γ]; field_simp
-      linarith)
-    (fun n => n) (fun n => by simp)
-    (fun n => 2 * (2 * Nat.sqrt (n / 2) + 1) + 1)
-    (fun n => by have := Nat.sqrt_le_sqrt (Nat.div_le_self n 2); omega)
-    (fun n => hardMatrix n + (hardMatrix n)ᵀ)
-    (fun n U hU => by exact_mod_cast half_le_cutRank_hardMatrix n hU)
-  filter_upwards [hev] with n ⟨hn24, hcontra⟩ N e x₀ C hmodel hsize_orig
+  filter_upwards [hev] with n ⟨hn24, hbound⟩ N e x₀ C hmodel hsize
   obtain ⟨net⟩ := exists_compiledQuantumNet hd e (e ⟨0, by omega⟩) hmodel
-  by_contra! hfid_gt
-  refine hcontra net net.leafOut
-    (hsize_orig.trans (mul_le_mul_of_nonneg_right ?_ (Nat.cast_nonneg n)))
-    (fun P => ?_) (fun Comp hcut hconn => ?_)
-  · push_cast
-    have heq : (1 : ℝ) / (2 * 1 * A) = 1 / (2 * A) := by ring
-    linarith [min_le_left ε (1 / (2 * A))]
-  · have h1 := net.sq_fidelity_phaseState_mul_le x₀ (hardMatrix n) P
-    have hlt : (2 : ℝ) ^ (-γ * n) *
-        (2 : ℝ) ^ ((hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | net.leafOut i ∈ P} : ℝ) <
-        4 * (2 : ℝ) ^ ((net.G.edgeCut P).ncard : ℝ) := by
-      rw [Real.rpow_natCast, Real.rpow_natCast]
-      exact lt_of_lt_of_le (mul_lt_mul_of_pos_right hfid_gt (by positivity)) h1
-    have hlhs : (2 : ℝ) ^ (-γ * n +
-        ((hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | net.leafOut i ∈ P} : ℝ)) =
-        (2 : ℝ) ^ (-γ * n) *
-          (2 : ℝ) ^ ((hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | net.leafOut i ∈ P} : ℝ) :=
-      Real.rpow_add two_pos _ _
-    have hrhs : (4 : ℝ) * (2 : ℝ) ^ ((net.G.edgeCut P).ncard : ℝ) =
-        (2 : ℝ) ^ (2 + ((net.G.edgeCut P).ncard : ℝ)) := by
-      have h4 : (4 : ℝ) = (2 : ℝ) ^ (2 : ℝ) := by norm_num
-      rw [h4, ← Real.rpow_add two_pos]
-    rw [← hlhs, hrhs] at hlt
-    push_cast
-    linarith [(Real.rpow_lt_rpow_left_iff one_lt_two).mp hlt]
-  · push_cast
-    have hr : (net.G.cycleRankOn Comp : ℝ) + ({i | net.leafOut i ∈ Comp}.ncard : ℝ) ≤
-        (twoQubitCount C : ℝ) + 1 := by exact_mod_cast net.cycleRank_leafOut_le Comp hcut hconn
-    linarith
+  exact hbound net net.leafOut _ (by convert hsize using 3; ring)
+    (fun P => by
+      rw [one_mul, Real.rpow_natCast]
+      exact net.sq_fidelity_phaseState_mul_le x₀ (hardMatrix n) P)
+    net.cycleRank_leafOut_le
 
 /-- **Median-switched quadratic phase-state preparation fidelity decay (`2.787986 n`).** -/
 theorem eventually_fidelity_phaseState_hardMatrix_le_switched {ε : ℝ} (hε : 0 < ε) :
@@ -840,15 +817,9 @@ theorem eventually_fidelity_phaseState_hardMatrix_le_switched {ε : ℝ} (hε : 
       (C : Quantum.Circuit N), AllBondRankTwo C →
       (twoQubitCount C : ℝ) ≤ (1 + π / (3 * arccos (5 / 6)) - ε) * n →
         ‖inner ℂ (phaseState (hardMatrix n) e x₀) (C.run x₀)‖ ^ 2 ≤ (2 : ℝ) ^ (-γ * n) := by
-  obtain ⟨γ, hγ, hev⟩ := eventually_fidelity_phaseState_hardMatrix_le_of_layoutBound (Or.inl rfl)
+  rw [switched_coeff_eq 2 (1 + π / (3 * arccos (5 / 6))) (by norm_num) (by ring)]
+  exact eventually_fidelity_phaseState_hardMatrix_le_of_layoutBound (Or.inl rfl)
     (mul_pos two_pos Switched.switchedCoefficient_pos) layoutBound_switched hε
-  have hcoef : 1 + 1 / (2 * (2 * Switched.switchedCoefficient)) =
-      1 + π / (3 * arccos (5 / 6)) := by
-    rw [one_add_inv_mul_two_switchedCoefficient 2 (by norm_num)]
-    ring
-  refine ⟨γ, hγ, ?_⟩
-  filter_upwards [hev] with n hn N e x₀ C hbond hsize
-  exact hn N e x₀ C (by simpa) (by rwa [hcoef])
 
 /-- **Rational `(2.78798 - ε) n` phase-state preparation fidelity decay.** -/
 theorem eventually_fidelity_phaseState_hardMatrix_le_278798 {ε : ℝ} (hε : 0 < ε) :
@@ -857,12 +828,8 @@ theorem eventually_fidelity_phaseState_hardMatrix_le_278798 {ε : ℝ} (hε : 0 
       (twoQubitCount C : ℝ) ≤ (278798 / 100000 - ε) * n →
         ‖inner ℂ (phaseState (hardMatrix n) e x₀) (C.run x₀)‖ ^ 2 ≤ (2 : ℝ) ^ (-γ * n) := by
   obtain ⟨γ, hγ, hev⟩ := eventually_fidelity_phaseState_hardMatrix_le_switched hε
-  refine ⟨γ, hγ, ?_⟩
-  filter_upwards [hev] with n hn N e x₀ C hbond hsize
-  refine hn N e x₀ C hbond (hsize.trans (mul_le_mul_of_nonneg_right ?_ (Nat.cast_nonneg n)))
-  have h45 := Switched.circuitCoefficient_ge_457597
-  have hdiv : π / (3 * arccos (5 / 6)) = (2 * π / (3 * arccos (5 / 6))) / 2 := by ring
-  linarith
+  exact ⟨γ, hγ, hev.mono fun n hn N e x₀ C hC hsize => hn N e x₀ C hC
+    (hsize.trans (rat_sub_mul_le_switched (k := 2) (by norm_num) n (by ring) (by norm_num)))⟩
 
 /-- **Unconditional general two-local `U(4)` phase-state fidelity decay
 (`(9 / 4 - ε) n = 2.25 n`).** -/
@@ -871,11 +838,9 @@ theorem eventually_fidelity_phaseState_hardMatrix_le_twoLocal_two_fifths {ε : �
       (C : Quantum.Circuit N), TwoLocal C →
       (twoQubitCount C : ℝ) ≤ (9 / 4 - ε) * n →
         ‖inner ℂ (phaseState (hardMatrix n) e x₀) (C.run x₀)‖ ^ 2 ≤ (2 : ℝ) ^ (-γ * n) := by
-  obtain ⟨γ, hγ, hev⟩ := eventually_fidelity_phaseState_hardMatrix_le_of_layoutBound (Or.inr rfl)
-    (by norm_num) layoutBound_two_fifths_four hε
-  refine ⟨γ, hγ, ?_⟩
-  filter_upwards [hev] with n hn N e x₀ C htwo hsize
-  exact hn N e x₀ C (by simpa) (by convert hsize using 2; norm_num)
+  rw [show (9 / 4 : ℝ) = 1 + 1 / (2 * (2 / 5)) by norm_num]
+  exact eventually_fidelity_phaseState_hardMatrix_le_of_layoutBound (Or.inr rfl) (by norm_num)
+    layoutBound_two_fifths_four hε
 
 /-! #### 4. Reversible and quantum linear synthesis (`4.575972 n` / `3.5 n`) -/
 
@@ -892,10 +857,8 @@ theorem eventually_lt_twoQubitCount_linear_of_layoutBound {d : ℕ} (hd : d = 3 
       (∀ x, C.run (Quantum.glue e x x₀) =
         Quantum.ket (Quantum.glue e (boolMulVec (robustBijectiveMatrix n) x) x₀)) →
         (1 + 1 / A - ε) * n < twoQubitCount C := by
-  set ε₀ := min ε (1 / A)
-  have hε₀ : 0 < ε₀ := lt_min hε (by positivity)
-  have hev := eventually_compiledQuantumNet_contradiction hA hlayout (w_nat := 2) (c_slack := 1)
-    (by norm_num) (c_edge := 1) (ε₀ := ε₀) (γ_coeff := 0) (by norm_num) hε₀ le_rfl
+  have hev := eventually_compiledQuantumNet_contradiction hA hlayout (w_nat := 2)
+    (c_slack := 1) (by norm_num) (c_edge := 1) (γ_coeff := 0) (by norm_num) hε le_rfl
     (by norm_num) (by rw [mul_zero]; positivity)
     (fun n => 2 * n) (fun n => by push_cast; rfl)
     (fun n => 2 * (2 * (2 * Nat.sqrt n + 1)) + 1)
@@ -905,25 +868,12 @@ theorem eventually_lt_twoQubitCount_linear_of_layoutBound {d : ℕ} (hd : d = 3 
     (fun n U hU => by
       exact_mod_cast half_le_cutRank_linBlockMatrix n (robustBijectiveMatrix_submatrixRobust n) hU)
   filter_upwards [hev] with n ⟨hn24, hcontra⟩ N e x₀ C hmodel hlin
-  by_contra! hsize_orig
+  by_contra! hsize
   obtain ⟨net⟩ := exists_compiledQuantumNet hd e (e ⟨0, by omega⟩) hmodel
-  refine hcontra net net.leaf2n
-    (hsize_orig.trans (mul_le_mul_of_nonneg_right ?_ (Nat.cast_nonneg n)))
-    (fun P => ?_) (fun Comp hcut hconn => ?_)
-  · push_cast
-    have heq : (2 : ℝ) / (2 * 1 * A) = 1 / A := by ring
-    linarith [min_le_left ε (1 / A)]
-  · have hr : ((linBlockMatrix n (robustBijectiveMatrix n) +
-        (linBlockMatrix n (robustBijectiveMatrix n))ᵀ).cutRank {k | net.leaf2n k ∈ P} : ℝ) ≤
-        (net.G.edgeCut P).ncard + 1 := by exact_mod_cast net.cutRank_linBlockMatrix_le x₀ hlin P
-    push_cast
-    linarith
-  · push_cast
-    have hr : (2 : ℝ) * (net.G.cycleRankOn Comp : ℝ) +
-        ({k : Fin (2 * n) | net.leaf2n k ∈ Comp}.ncard : ℝ) ≤
-        2 * ((twoQubitCount C : ℝ) + 1) := by
-      exact_mod_cast net.cycleRank_leaf2n_le Comp hcut hconn
-    linarith
+  refine hcontra net net.leaf2n (by convert hsize using 3; push_cast; field_simp) (fun P => ?_)
+    net.cycleRank_leaf2n_le
+  simp only [one_mul, zero_mul, zero_add, Nat.cast_one]
+  exact_mod_cast net.cutRank_linBlockMatrix_le x₀ hlin P
 
 /-- **Median-switched reversible and quantum linear synthesis lower bound (`4.575972 n`).**
 Synthesizing `boolMulVec (robustBijectiveMatrix n)` using bond-rank-two two-qubit gates (`CNOT`,
@@ -935,14 +885,9 @@ theorem eventually_lt_twoQubitCount_linear_switched {ε : ℝ} (hε : 0 < ε) :
       (∀ x, C.run (Quantum.glue e x x₀) =
         Quantum.ket (Quantum.glue e (boolMulVec (robustBijectiveMatrix n) x) x₀)) →
         (1 + 2 * π / (3 * arccos (5 / 6)) - ε) * n < twoQubitCount C := by
-  have hev := eventually_lt_twoQubitCount_linear_of_layoutBound (Or.inl rfl)
+  rw [← Switched.one_add_inv_two_mul_switchedCoefficient]
+  exact eventually_lt_twoQubitCount_linear_of_layoutBound (Or.inl rfl)
     (mul_pos two_pos Switched.switchedCoefficient_pos) layoutBound_switched hε
-  have hcoef : 1 + 1 / (2 * Switched.switchedCoefficient) =
-      1 + 2 * π / (3 * arccos (5 / 6)) := by
-    simpa using one_add_inv_mul_two_switchedCoefficient 1 one_ne_zero
-  filter_upwards [hev] with n hn N e x₀ C hbond hlin
-  rw [← hcoef]
-  exact hn N e x₀ C (by simpa) hlin
 
 /-- **Rational `(4.57597 - ε) n` reversible and quantum linear synthesis lower bound.** -/
 theorem eventually_lt_twoQubitCount_linear_457597 {ε : ℝ} (hε : 0 < ε) :
@@ -950,11 +895,10 @@ theorem eventually_lt_twoQubitCount_linear_457597 {ε : ℝ} (hε : 0 < ε) :
       (C : Quantum.Circuit N), AllBondRankTwo C →
       (∀ x, C.run (Quantum.glue e x x₀) =
         Quantum.ket (Quantum.glue e (boolMulVec (robustBijectiveMatrix n) x) x₀)) →
-        (457597 / 100000 - ε) * n < twoQubitCount C := by
-  filter_upwards [eventually_lt_twoQubitCount_linear_switched hε] with n hn N e x₀ C hbond hlin
-  refine lt_of_le_of_lt (mul_le_mul_of_nonneg_right ?_ (Nat.cast_nonneg n))
-    (hn N e x₀ C hbond hlin)
-  linarith [Switched.circuitCoefficient_ge_457597]
+        (457597 / 100000 - ε) * n < twoQubitCount C :=
+  (eventually_lt_twoQubitCount_linear_switched hε).mono fun n hn N e x₀ C hC hlin =>
+    (rat_sub_mul_le_switched (k := 1) one_pos n (by ring) (by norm_num)).trans_lt
+      (hn N e x₀ C hC hlin)
 
 /-- **Unconditional general two-local `U(4)` linear synthesis lower bound
 (`(7 / 2 - ε) n = 3.5 n`)** via `layoutBound_two_fifths_four` (`A₄ = 2 / 5`). -/
@@ -964,10 +908,9 @@ theorem eventually_lt_twoQubitCount_linear_twoLocal_two_fifths {ε : ℝ} (hε :
       (∀ x, C.run (Quantum.glue e x x₀) =
         Quantum.ket (Quantum.glue e (boolMulVec (robustBijectiveMatrix n) x) x₀)) →
         (7 / 2 - ε) * n < twoQubitCount C := by
-  filter_upwards [eventually_lt_twoQubitCount_linear_of_layoutBound (Or.inr rfl)
-    (by norm_num) layoutBound_two_fifths_four hε] with n hn N e x₀ C htwo hlin
-  convert hn N e x₀ C (by simpa) hlin using 2
-  norm_num
+  rw [show (7 / 2 : ℝ) = 1 + 1 / (2 / 5) by norm_num]
+  exact eventually_lt_twoQubitCount_linear_of_layoutBound (Or.inr rfl) (by norm_num)
+    layoutBound_two_fifths_four hε
 
 end MainBounds
 

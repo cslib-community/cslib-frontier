@@ -260,6 +260,30 @@ class WorkflowParityTests(unittest.TestCase):
                       lean["lake lint (affected modules)"]["run"])
         self.assertEqual(lean["lake lint"]["run"], "lake lint")
 
+    def test_fused_build_tooling_gates_and_push_only_advisory_reports(self):
+        select_header = "\n".join(job_lines(self.text, "select-checks"))
+        self.assertIn("tooling: ${{ steps.select.outputs.tooling }}", select_header)
+        source_header = "\n".join(
+            job_lines(self.text, "source-checks")[
+                :job_lines(self.text, "source-checks").index("    steps:")])
+        self.assertNotIn("needs:", source_header)
+        lean = {step["name"]: step for step in self.named_by_job["lean-checks"]}
+        self.assertIn("CslibFrontierTests", lean["lake build"]["run"])
+        self.assertNotIn("lake test", lean)
+        for name in (
+            "Test Lake build handoff reuse",
+            "Test real Lake interrupt cleanup",
+            "Test real Lake cache publication staging",
+            "Test post-build Python tooling",
+            "Test import generation with custom source directories",
+        ):
+            with self.subTest(step=name):
+                self.assertEqual(lean[name]["if"],
+                                 "needs.select-checks.outputs.tooling == 'true'")
+        for name in ("Security premise report", "Reduction witness report"):
+            with self.subTest(report=name):
+                self.assertEqual(lean[name]["if"], "github.event_name == 'push'")
+
     def test_local_steps_are_not_ci_steps(self):
         # A local step must neither pass for a mirror of a CI step nor hide one from the parity check.
         ci = {step["name"] for step in self.named}

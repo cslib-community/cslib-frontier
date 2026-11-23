@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.IntersectionParity
 import Mathlib.Dynamics.PeriodicPts.Lemmas
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Linear ranks and literal directed rotation intervals
@@ -303,6 +304,6 @@ theorem mem_rotationInterval_cyclic (a b c : Dart G)
   rw [r.mem_rotationInterval_iff_portRank a b c hab hbc hneab hnebc hneac,
     r.mem_rotationInterval_iff_portRank b c a hbc (hab.trans hbc).symm
       hnebc hneac.symm hneab.symm]
-  tauto
+  lrat_tauto
 
 end Cslib.Complexity.Graph.RotationSystem
