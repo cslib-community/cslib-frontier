@@ -178,7 +178,6 @@ public import CslibFrontier.Algorithms.Lean.MaxFlow.VertexSeparator
 public import CslibFrontier.Algorithms.Lean.MaxFlow.WeightedMatching
 public import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamson
 public import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamsonMaxTwoSAT
-public import CslibFrontier.Algorithms.Lean.MergeSort.Comparator
 public import CslibFrontier.Algorithms.Lean.OptimalBST.Basic
 public import CslibFrontier.Algorithms.Lean.OptimalBST.Knuth
 public import CslibFrontier.Algorithms.Lean.OptimalBST.Yao
@@ -387,6 +386,7 @@ public import CslibFrontier.Algorithms.WordRAM.BinarySearch
 public import CslibFrontier.Algorithms.WordRAM.BurrowsWheeler
 public import CslibFrontier.Algorithms.WordRAM.CSR
 public import CslibFrontier.Algorithms.WordRAM.CYK
+public import CslibFrontier.Algorithms.WordRAM.ChainCover
 public import CslibFrontier.Algorithms.WordRAM.ClauseCode
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Program
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Scan
@@ -608,6 +608,7 @@ public import CslibFrontier.Algorithms.WordRAM.Freivalds
 public import CslibFrontier.Algorithms.WordRAM.GomoryHu
 public import CslibFrontier.Algorithms.WordRAM.HeldKarp
 public import CslibFrontier.Algorithms.WordRAM.Histogram
+public import CslibFrontier.Algorithms.WordRAM.HopcroftKarp
 public import CslibFrontier.Algorithms.WordRAM.Huffman
 public import CslibFrontier.Algorithms.WordRAM.Hungarian
 public import CslibFrontier.Algorithms.WordRAM.KMP
@@ -6945,8 +6946,10 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Mobius
 public import CslibFrontier.Foundations.BooleanAnalysis.Monotone
 public import CslibFrontier.Foundations.BooleanAnalysis.MultilinearExtension
 public import CslibFrontier.Foundations.BooleanAnalysis.Noise
+public import CslibFrontier.Foundations.BooleanAnalysis.NoiseSensitivityInfluence
 public import CslibFrontier.Foundations.BooleanAnalysis.OddForm
 public import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
+public import CslibFrontier.Foundations.BooleanAnalysis.Peres
 public import CslibFrontier.Foundations.BooleanAnalysis.PolynomialCorrelation
 public import CslibFrontier.Foundations.BooleanAnalysis.PolynomialThreshold
 public import CslibFrontier.Foundations.BooleanAnalysis.PolynomialThresholdWeight
@@ -6971,6 +6974,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.TransitiveSymmetric
 public import CslibFrontier.Foundations.BooleanAnalysis.Tribes
 public import CslibFrontier.Foundations.BooleanAnalysis.TribesInfluence
 public import CslibFrontier.Foundations.BooleanAnalysis.TribesJunta
+public import CslibFrontier.Foundations.BooleanAnalysis.Unate
 public import CslibFrontier.Foundations.BooleanAnalysis.UncertaintyPrinciple
 public import CslibFrontier.Foundations.BooleanAnalysis.Variance
 public import CslibFrontier.Foundations.Combinatorics.Additive.BkSequence

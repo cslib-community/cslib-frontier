@@ -14,6 +14,7 @@ import CslibFrontierResults.Entries.MinimumSpanningTree
 import CslibFrontierResults.Entries.ODonnellLargeCoefficient
 import CslibFrontierResults.Entries.ODonnellLowDegreePart
 import CslibFrontierResults.Entries.ODonnellNearlyConstantNoise
+import CslibFrontierResults.Entries.ODonnellPeres
 import CslibFrontierResults.Entries.ODonnellStabilityDerivative
 import CslibFrontierResults.Entries.ODonnellTribes
 import CslibFrontierResults.Entries.ODonnellUncertainty
