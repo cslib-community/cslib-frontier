@@ -45,7 +45,7 @@ on the framed encoding of formulas, for any encoding of the variables [OpenAI202
 * [OpenAI, *The Exponential Time Hypothesis is False*, Appendix A.1][OpenAI2026ETH]
 -/
 
-@[expose] public section
+public section
 
 open Turing.MultiTapeTM ComputableInPolyTime
 

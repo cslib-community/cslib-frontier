@@ -62,7 +62,7 @@ parameter.
   complexity?*][ImpagliazzoPaturiZane2001]
 -/
 
-@[expose] public section
+public section
 
 open Turing.MultiTapeTM ComputableInPolyTime
 
