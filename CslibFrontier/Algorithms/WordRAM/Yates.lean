@@ -190,14 +190,6 @@ theorem natAbs_le_sumAbs (I : IntInstance) (k : Fin (2 ^ I.n)) :
   Finset.single_le_sum (f := fun j : Fin (2 ^ I.n) => I.entries[j.1].natAbs)
     (fun _ _ => Nat.zero_le _) (Finset.mem_univ k)
 
-private theorem fits_signedEncode (I : IntInstance) {w : ℕ} (hfit : I.FitsWidth w) {z : ℤ}
-    (hz : z.natAbs ≤ I.sumAbs) : Fits w (Cslib.WordRAM.Signed.encode z) := by
-  have hpow2 : 1 ≤ 2 ^ I.n := Nat.one_le_two_pow
-  have h : Cslib.WordRAM.Signed.encode z ≤ 2 * I.sumAbs + 1 := by
-    unfold Cslib.WordRAM.Signed.encode
-    split_ifs <;> omega
-  exact hfit.of_le (by unfold wordBound; omega)
-
 /-- Every width satisfying `I.FitsWidth w` admits the flat input `I.encode`. -/
 theorem inputFits (I : IntInstance) {w : ℕ} (hfit : I.FitsWidth w) : InputFits w I.encode := by
   have hpow2 : 1 ≤ 2 ^ I.n := Nat.one_le_two_pow
@@ -208,7 +200,9 @@ theorem inputFits (I : IntInstance) {w : ℕ} (hfit : I.FitsWidth w) : InputFits
   · have hn : I.n < 2 ^ I.n := Nat.lt_two_pow_self
     exact hfit.of_le (by unfold wordBound; omega)
   · obtain ⟨k, hk, rfl⟩ := Vector.mem_iff_getElem.mp hz
-    exact I.fits_signedEncode hfit (I.natAbs_le_sumAbs ⟨k, hk⟩)
+    have h := Cslib.WordRAM.Signed.encode_le_two_mul_add_one
+      (z := I.entries[k]) (I.natAbs_le_sumAbs ⟨k, hk⟩)
+    exact hfit.of_le (by unfold wordBound; omega)
 
 end IntInstance
 
@@ -975,47 +969,6 @@ private theorem foldl_int_eq_transform (I : IntInstance) (c : ℤ) (hc : c = 1 �
 
 /-! ## Lifting to deterministic standard-basis `Program .standard` -/
 
-private def stripRandInstr {B : Basis} {r : ℕ} : Instr B r → Instr B r
-  | .rand dst src => .op (.copy dst src)
-  | i => i
-
-private def stripRand {B : Basis} {r : ℕ} (p : Program B r) : Program B r :=
-  p.map stripRandInstr
-
-private theorem isRandFree_stripRand {B : Basis} {r : ℕ} (p : Program B r) :
-    (stripRand p).IsRandFree := by
-  intro i hi
-  obtain ⟨j, _, rfl⟩ := List.mem_map.mp hi
-  cases j <;> trivial
-
-private theorem not_readsWidth_stripRand {B : Basis} {r : ℕ} {p : Program B r}
-    (hp : ¬p.ReadsWidth) : ¬(stripRand p).ReadsWidth := by
-  rintro ⟨i, hi, hw⟩
-  obtain ⟨j, hj, rfl⟩ := List.mem_map.mp hi
-  cases j with
-  | op o => exact hp ⟨.op o, hj, hw⟩
-  | jump _ | branch _ _ | halt _ => cases hw
-  | rand _ _ => cases hw
-
-private theorem step_stripRand_of_ne_fault {B : Basis} {r w : ℕ} {p : Program B r} {s : State r}
-    (h : step w p s ≠ .fault) : step w (stripRand p) s = step w p s := by
-  unfold step stripRand
-  rw [List.getElem?_map]
-  cases hp : p[s.pc]? with
-  | none => rfl
-  | some i =>
-    cases i with
-    | rand dst src => exact False.elim (h (step_rand hp))
-    | op _ | jump _ | branch _ _ | halt _ => simp [stripRandInstr]
-
-private theorem runs_stripRand {B : Basis} {r w m : ℕ} {p : Program B r} {s t : State r}
-    (h : Runs w p s t m) : Runs w (stripRand p) s t m :=
-  h.map id fun _ _ hn => by
-    dsimp only [id]
-    unfold Next at hn ⊢
-    rw [step_stripRand_of_ne_fault (by rw [hn]; exact nofun)]
-    exact hn
-
 private theorem exists_yates_program_of_spec {Inst : Type}
     {opProg : ℕ × ℕ → Memory.Prog ℕ} {opSafe : ℕ → ℕ × ℕ → Memory.State → Prop}
     (hop : Realizes .exact opProg (appendWords wordWords wordWords) wordWords opSafe
@@ -1054,13 +1007,8 @@ private theorem exists_yates_program_of_spec {Inst : Type}
       y.mem = ((Memory.spec 0).clientState (Memory.State.init (encode I))
         (butterflyProg opProg (nOf I))).mem :=
     congrArg Memory.State.mem hmem
-  have hhalt' : step w (stripRand prog₀) ⟨pc, y⟩ =
-      .halt ((Memory.spec 0).clientResult (Memory.State.init (encode I))
-        (butterflyProg opProg (nOf I))) := by
-    rw [step_stripRand_of_ne_fault (by rw [hhalt]; exact nofun)]
-    exact hhalt
-  refine ⟨m + 1, ⟨⟨pc, y⟩, m, _, runs_stripRand hruns, hhalt', hymem ▸ hs.2.2.2.1,
-    hs.2.2.2.2, rfl⟩, ?_⟩
+  refine ⟨m + 1, ⟨⟨pc, y⟩, m, _, runs_stripRand hruns, step_stripRand_of_halt hhalt,
+    hymem ▸ hs.2.2.2.1, hs.2.2.2.2, rfl⟩, ?_⟩
   have hmc := hs.2.2.1
   have hpow1 : 1 ≤ 2 ^ nOf I := Nat.one_le_two_pow
   have hn_le : nOf I ≤ nOf I * 2 ^ nOf I := Nat.le_mul_of_pos_right _ hpow1
@@ -1227,8 +1175,7 @@ private theorem signed_butterfly_spec (isMobius : Bool) (I : IntInstance) {w : �
       have hcb : (c * zb).natAbs = zb.natAbs := by rw [Int.natAbs_mul, hc_abs, one_mul]
       have hab : (za + c * zb).natAbs ≤ za.natAbs + zb.natAbs := by
         have := Int.natAbs_add_le za (c * zb); omega
-      have henc : Cslib.WordRAM.Signed.encode (za + c * zb) ≤ 2 * (za.natAbs + zb.natAbs) + 1 := by
-        unfold Cslib.WordRAM.Signed.encode; split_ifs <;> omega
+      have henc := Cslib.WordRAM.Signed.encode_le_two_mul_add_one hab
       exact hfit.of_le (by unfold IntInstance.wordBound; omega)
     cases isMobius
     · dsimp only [opProg, opSafe, Bool.false_eq_true, ↓reduceIte]
@@ -1237,8 +1184,7 @@ private theorem signed_butterfly_spec (isMobius : Bool) (I : IntInstance) {w : �
         (clientResult_signedAddProg s za zb).trans (by simpa [c] using hop_w.symm), hfit_res⟩
     · dsimp only [opProg, opSafe, ↓reduceIte]
       have hb1 : Cslib.WordRAM.Signed.encode zb + 1 ≤ I.wordBound := by
-        have : Cslib.WordRAM.Signed.encode zb ≤ 2 * I.sumAbs + 1 := by
-          unfold Cslib.WordRAM.Signed.encode; split_ifs <;> omega
+        have := Cslib.WordRAM.Signed.encode_le_two_mul_add_one hzb
         unfold IntInstance.wordBound; omega
       exact ⟨⟨hfit_2, hfit.of_le hb1, hfit.of_le hdiv⟩, validHistory_signedSubProg w s _,
         memoryCost_signedSubProg _ s, clientState_signedSubProg s _,
