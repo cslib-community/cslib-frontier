@@ -13,6 +13,7 @@ import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Computability.WordRAM.Notation
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Foundations.Data.List.RowMajor
 import Mathlib.Data.Fintype.Prod
 import Mathlib.Data.Nat.Bitwise
 import Mathlib.Order.Bounds.Basic
@@ -113,53 +114,12 @@ theorem encode_length (I : Instance) :
   rw [encode, List.length_cons, length_flatMap_dist]
   omega
 
-private theorem getD_flatMap_same {α β : Type*} (xs : List α) (k : ℕ) (f : α → List β)
-    (hlen : ∀ x ∈ xs, (f x).length = k) (hk : 0 < k) (d : β) (idx : ℕ)
-    (hidx : idx < xs.length * k) :
-    haveI hdiv_lt : idx / k < xs.length := Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])
-    (xs.flatMap f).getD idx d = (f xs[idx / k]).getD (idx % k) d := by
-  induction xs generalizing idx with
-  | nil => simp at hidx
-  | cons x xs ih =>
-    rw [List.flatMap_cons]
-    have hxlen : (f x).length = k := hlen x (List.mem_cons_self ..)
-    simp only [List.getD_eq_getElem?_getD]
-    by_cases hlt : idx < k
-    · have h0 : idx / k = 0 := Nat.div_eq_of_lt hlt
-      rw [List.getElem?_append_left (by omega)]
-      simp [h0, Nat.mod_eq_of_lt hlt]
-    · rw [List.getElem?_append_right (by omega), hxlen]
-      have hdiv : idx / k = (idx - k) / k + 1 := by
-        conv_lhs => rw [show idx = (idx - k) + k by omega]
-        exact Nat.add_div_right (idx - k) hk
-      have hmod : idx % k = (idx - k) % k := by
-        conv_lhs => rw [show idx = (idx - k) + k by omega]
-        exact Nat.add_mod_right (idx - k) k
-      have hsub : idx - k < xs.length * k := by
-        simp only [List.length_cons, Nat.add_mul, one_mul] at hidx
-        omega
-      have ih' := ih (fun y hy => hlen y (List.mem_cons_of_mem _ hy)) (idx - k) hsub
-      simp only [List.getD_eq_getElem?_getD] at ih'
-      rw [ih', hmod]
-      simp [hdiv]
-
 private theorem init_mem_dist {r : ℕ} (I : Instance) (i j : Fin (I.n + 1)) :
     (Data.init I.encode : Data r).mem (2 + i.val * (I.n + 1) + j.val) = I.dist i j := by
-  have hpos : 0 < I.n + 1 := Nat.succ_pos _
-  have hidx : i.val * (I.n + 1) + j.val < (I.n + 1) * (I.n + 1) := by
-    nlinarith [i.isLt, j.isLt]
-  rw [show 2 + i.val * (I.n + 1) + j.val = ((i.val * (I.n + 1) + j.val) + 1) + 1 by omega,
-    Data.init_mem_succ, encode, List.getD_cons_succ]
-  rw [getD_flatMap_same (List.finRange (I.n + 1)) (I.n + 1) _ (by simp) hpos 0 _
-    (by simpa using hidx)]
-  have hdiv : (i.val * (I.n + 1) + j.val) / (I.n + 1) = i.val := by
-    rw [Nat.mul_comm i.val (I.n + 1), Nat.mul_add_div hpos, Nat.div_eq_of_lt j.isLt, Nat.add_zero]
-  have hmod : (i.val * (I.n + 1) + j.val) % (I.n + 1) = j.val := by
-    rw [Nat.mul_comm i.val (I.n + 1), Nat.mul_add_mod, Nat.mod_eq_of_lt j.isLt]
-  simp only [hdiv, hmod, List.getElem_finRange, Fin.cast_mk, Fin.eta]
-  rw [List.getD_eq_getElem?_getD,
-    List.getElem?_eq_getElem (by simp only [List.length_map, List.length_finRange]; exact j.isLt),
-    List.getElem_map, List.getElem_finRange]
+  rw [show 2 + i.val * (I.n + 1) + j.val = (i.val * (I.n + 1) + j.val + 1) + 1 by omega,
+    Data.init_mem_succ, encode, List.getD_cons_succ, List.getD_eq_getElem?_getD,
+    List.getElem?_flatMap_mul_add _ _ (I.n + 1) (by simp) (by simp [i.isLt]) j.isLt,
+    List.getElem?_map, List.getElem?_eq_getElem (by simp [j.isLt])]
   simp
 
 private theorem init_mem_n {r : ℕ} (I : Instance) :
@@ -855,214 +815,219 @@ private theorem exec_innerBitStep {w : ℕ} (I : Instance) (hw : I.FitsWidth w)
     wram_exec [hmask_reg, hbit_reg]
     rfl
   obtain ⟨s1, he_and, hs1⟩ := hand_step
-  by_cases hbit : mask.testBit k = true
-  · have hand_pos : 0 < mask &&& 2 ^ k := (and_two_pow_pos_iff mask k).2 hbit
-    have hbit_le : 2 ^ k ≤ mask := two_pow_le_of_testBit hbit
-    have hprev_lt : mask - 2 ^ k < mask := by
-      have := Nat.two_pow_pos k
-      omega
-    let ik : Fin I.n := ⟨k, hk⟩
-    have hprev_least := htab (mask - 2 ^ k) hprev_lt ik.succ
-    have hprev_val_le : s.mem (dp0 + (mask - 2 ^ k) * (I.n + 1) + (k + 1)) ≤ I.n * I.maxEntry := by
-      have hcard_le : (maskSet I.n (mask - 2 ^ k)).card + 1 ≤ I.n := by
-        rw [maskSet_sub_two_pow (i := ik) hbit, Finset.card_erase_of_mem (mem_maskSet.2 hbit)]
-        have hle_univ : (maskSet I.n mask).card ≤ Fintype.card (Fin I.n) := Finset.card_le_univ _
-        have hpos_card : 1 ≤ (maskSet I.n mask).card :=
-          Finset.card_pos.2 ⟨ik, mem_maskSet.2 hbit⟩
-        rw [Fintype.card_fin] at hle_univ
-        omega
-      exact (isLeast_walkCosts_le I hprev_least).trans (Nat.mul_le_mul_right _ hcard_le)
-    have hcand_le : cand ik ≤ (I.n + 1) * I.maxEntry := by
-      dsimp [cand, ik]
-      have hd_le := I.dist_le_maxEntry ⟨k + 1, by omega⟩ t
-      nlinarith only [hprev_val_le, hd_le]
-    have hload : ∃ s2, ExecWithin w relaxLoad s1 s2 7 ∧
-        s2.mem = s.mem ∧
-        (∀ r : Fin 18, r ≠ rTmp0 → r ≠ rTmp1 → s2.regs r = s.regs r) ∧
-        s2.regs rTmp0 = cand ik := by
-      have hm1 : s1.mem = s.mem := by simp [hs1]
-      have hmb1 : s1.regs rMaskBase = dp0 + mask * (I.n + 1) := by
-        rw [hs1, Data.set_regs_of_ne (by decide), hmb_reg]
-      have hbs1 : s1.regs rBitStride = 2 ^ k * (I.n + 1) := by
-        rw [hs1, Data.set_regs_of_ne (by decide), hbs_reg]
-      have hi1 : s1.regs rI = k := by
-        rw [hs1, Data.set_regs_of_ne (by decide), hi_reg]
-      have ho1 : s1.regs rOne = 1 := by
-        rw [hs1, Data.set_regs_of_ne (by decide), ho]
-      have hrd1 : s1.regs rRowDist = 2 + (k + 1) * (I.n + 1) := by
-        rw [hs1, Data.set_regs_of_ne (by decide), hrd_reg]
-      have ht1 : s1.regs rT = t.val := by
-        rw [hs1, Data.set_regs_of_ne (by decide), ht_reg]
-      have hdist1 : s1.mem (2 + (k + 1) * (I.n + 1) + t.val) = I.dist ik.succ t := by
-        rw [hm1]; exact hdist ik.succ t
-      have hcand1 : s1.mem (dp0 + (mask - 2 ^ k) * (I.n + 1) + (k + 1)) +
-          I.dist ik.succ t ≤ (I.n + 1) * I.maxEntry := by
-        rw [hm1]; exact hcand_le
-      obtain ⟨s2, he2, hm2, hr2, htmp2⟩ := exec_relaxLoad I ⟨hwS, hwV⟩ hk hbit_le hmask_lt t s1
-        hmb1 hbs1 hi1 ho1 hrd1 ht1 hdist1 hcand1
-      refine ⟨s2, he2, hm2.trans hm1, fun r hr0 hr1 => ?_, ?_⟩
-      · rw [hr2 r hr0 hr1, hs1]
-        simp [Data.set, hr0]
-      · rw [htmp2, hm1]; rfl
-    obtain ⟨s2, he_load, hm2, hr2, hcand2⟩ := hload
-    have hupd : ∃ s3, ExecWithin w relaxUpd s2 s3 6 ∧
-        s3.mem = s.mem ∧
-        (∀ r : Fin 18, r ≠ rBest → r ≠ rHasBest → r ≠ rTmp0 → r ≠ rTmp1 →
-          s3.regs r = s.regs r) ∧
+  have hs3_step : ∃ s3, ExecWithin w (.branch (.lt rZero rTmp0) relaxThen nop) s1 s3 14 ∧
+      s3.mem = s.mem ∧
+      FixedRegs I s3 ∧
+      s3.regs rMask = mask ∧
+      s3.regs rMaskBase = dp0 + mask * (I.n + 1) ∧
+      s3.regs rT = t.val ∧
+      s3.regs rI = k ∧
+      s3.regs rBit = 2 ^ k ∧
+      s3.regs rBitStride = 2 ^ k * (I.n + 1) ∧
+      s3.regs rRowDist = 2 + (k + 1) * (I.n + 1) ∧
+      (if (PrefixSet I mask (k + 1)).Nonempty then
         s3.regs rHasBest = 1 ∧
-        (∀ j ∈ PrefixSet I mask (k + 1), s3.regs rBest ≤ cand j) ∧
-        ∃ j ∈ PrefixSet I mask (k + 1), s3.regs rBest = cand j := by
-      have hz2 : s2.regs rZero = 0 := (hr2 rZero (by decide) (by decide)).trans hz
-      have hhb2 : s2.regs rHasBest = s.regs rHasBest := hr2 rHasBest (by decide) (by decide)
-      have hrb2 : s2.regs rBest = s.regs rBest := hr2 rBest (by decide) (by decide)
-      have hpow1 : 1 ≤ 2 ^ I.n := Nat.one_le_two_pow
-      have hfit1 : Fits w 1 := hwS.of_le (by rw [Instance.spaceBound]; omega)
-      have hik_mem : ik ∈ PrefixSet I mask (k + 1) := by
-        simp [PrefixSet, ik, hbit]
-      have hmem_split : ∀ j ∈ PrefixSet I mask (k + 1), j ∈ PrefixSet I mask k ∨ j = ik := by
-        intro j hj
-        simp only [PrefixSet, Finset.mem_filter, Finset.mem_univ, true_and] at hj ⊢
-        rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.1 hj.1) with hlt' | heq'
-        · exact Or.inl ⟨hlt', hj.2⟩
-        · exact Or.inr (Fin.ext heq')
-      by_cases hne : (PrefixSet I mask k).Nonempty
-      · simp only [hne, ↓reduceIte] at hbest_inv
-        obtain ⟨hhb_one, hle_prev, j₀, hj₀_mem, hj₀_eq⟩ := hbest_inv
-        have hcond_f : ¬Cond.Holds (.eq rHasBest rZero) s2 := by
-          simp [Cond.Holds, hhb2, hhb_one, hz2]
-        have hj₀_mem' : j₀ ∈ PrefixSet I mask (k + 1) := by
-          simp only [PrefixSet, Finset.mem_filter, Finset.mem_univ, true_and] at hj₀_mem ⊢
-          exact ⟨by omega, hj₀_mem.2⟩
-        by_cases hlt_c : cand ik < s.regs rBest
-        · have hcond_lt : Cond.Holds (.lt rTmp0 rBest) s2 := by
-            simp [Cond.Holds, hcand2, hrb2, hlt_c]
-          let setB : Code .standard 18 := ram[ rBest ← rTmp0 ]
-          have hstep_b : ∃ s3, ExecWithin w setB s2 s3 1 ∧ s3 = s2.set rBest (cand ik) := by
-            dsimp [setB]
+          (∀ j ∈ PrefixSet I mask (k + 1), s3.regs rBest ≤ cand j) ∧
+          ∃ j ∈ PrefixSet I mask (k + 1), s3.regs rBest = cand j
+      else
+        s3.regs rHasBest = 0) := by
+    by_cases hbit : mask.testBit k = true
+    · have hand_pos : 0 < mask &&& 2 ^ k := (and_two_pow_pos_iff mask k).2 hbit
+      have hbit_le : 2 ^ k ≤ mask := two_pow_le_of_testBit hbit
+      have hprev_lt : mask - 2 ^ k < mask := by
+        have := Nat.two_pow_pos k
+        omega
+      let ik : Fin I.n := ⟨k, hk⟩
+      have hprev_least := htab (mask - 2 ^ k) hprev_lt ik.succ
+      have hprev_val_le :
+          s.mem (dp0 + (mask - 2 ^ k) * (I.n + 1) + (k + 1)) ≤ I.n * I.maxEntry := by
+        have hcard_le : (maskSet I.n (mask - 2 ^ k)).card + 1 ≤ I.n := by
+          rw [maskSet_sub_two_pow (i := ik) hbit, Finset.card_erase_of_mem (mem_maskSet.2 hbit)]
+          have hle_univ : (maskSet I.n mask).card ≤ Fintype.card (Fin I.n) := Finset.card_le_univ _
+          have hpos_card : 1 ≤ (maskSet I.n mask).card :=
+            Finset.card_pos.2 ⟨ik, mem_maskSet.2 hbit⟩
+          rw [Fintype.card_fin] at hle_univ
+          omega
+        exact (isLeast_walkCosts_le I hprev_least).trans (Nat.mul_le_mul_right _ hcard_le)
+      have hcand_le : cand ik ≤ (I.n + 1) * I.maxEntry := by
+        dsimp [cand, ik]
+        have hd_le := I.dist_le_maxEntry ⟨k + 1, by omega⟩ t
+        nlinarith only [hprev_val_le, hd_le]
+      have hload : ∃ s2, ExecWithin w relaxLoad s1 s2 7 ∧
+          s2.mem = s.mem ∧
+          (∀ r : Fin 18, r ≠ rTmp0 → r ≠ rTmp1 → s2.regs r = s.regs r) ∧
+          s2.regs rTmp0 = cand ik := by
+        have hm1 : s1.mem = s.mem := by simp [hs1]
+        have hmb1 : s1.regs rMaskBase = dp0 + mask * (I.n + 1) := by
+          rw [hs1, Data.set_regs_of_ne (by decide), hmb_reg]
+        have hbs1 : s1.regs rBitStride = 2 ^ k * (I.n + 1) := by
+          rw [hs1, Data.set_regs_of_ne (by decide), hbs_reg]
+        have hi1 : s1.regs rI = k := by
+          rw [hs1, Data.set_regs_of_ne (by decide), hi_reg]
+        have ho1 : s1.regs rOne = 1 := by
+          rw [hs1, Data.set_regs_of_ne (by decide), ho]
+        have hrd1 : s1.regs rRowDist = 2 + (k + 1) * (I.n + 1) := by
+          rw [hs1, Data.set_regs_of_ne (by decide), hrd_reg]
+        have ht1 : s1.regs rT = t.val := by
+          rw [hs1, Data.set_regs_of_ne (by decide), ht_reg]
+        have hdist1 : s1.mem (2 + (k + 1) * (I.n + 1) + t.val) = I.dist ik.succ t := by
+          rw [hm1]; exact hdist ik.succ t
+        have hcand1 : s1.mem (dp0 + (mask - 2 ^ k) * (I.n + 1) + (k + 1)) +
+            I.dist ik.succ t ≤ (I.n + 1) * I.maxEntry := by
+          rw [hm1]; exact hcand_le
+        obtain ⟨s2, he2, hm2, hr2, htmp2⟩ := exec_relaxLoad I ⟨hwS, hwV⟩ hk hbit_le hmask_lt t s1
+          hmb1 hbs1 hi1 ho1 hrd1 ht1 hdist1 hcand1
+        refine ⟨s2, he2, hm2.trans hm1, fun r hr0 hr1 => ?_, ?_⟩
+        · rw [hr2 r hr0 hr1, hs1]
+          simp [Data.set, hr0]
+        · rw [htmp2, hm1]; rfl
+      obtain ⟨s2, he_load, hm2, hr2, hcand2⟩ := hload
+      have hupd : ∃ s3, ExecWithin w relaxUpd s2 s3 6 ∧
+          s3.mem = s.mem ∧
+          (∀ r : Fin 18, r ≠ rBest → r ≠ rHasBest → r ≠ rTmp0 → r ≠ rTmp1 →
+            s3.regs r = s.regs r) ∧
+          s3.regs rHasBest = 1 ∧
+          (∀ j ∈ PrefixSet I mask (k + 1), s3.regs rBest ≤ cand j) ∧
+          ∃ j ∈ PrefixSet I mask (k + 1), s3.regs rBest = cand j := by
+        have hz2 : s2.regs rZero = 0 := (hr2 rZero (by decide) (by decide)).trans hz
+        have hhb2 : s2.regs rHasBest = s.regs rHasBest := hr2 rHasBest (by decide) (by decide)
+        have hrb2 : s2.regs rBest = s.regs rBest := hr2 rBest (by decide) (by decide)
+        have hpow1 : 1 ≤ 2 ^ I.n := Nat.one_le_two_pow
+        have hfit1 : Fits w 1 := hwS.of_le (by rw [Instance.spaceBound]; omega)
+        have hik_mem : ik ∈ PrefixSet I mask (k + 1) := by
+          simp [PrefixSet, ik, hbit]
+        have hmem_split : ∀ j ∈ PrefixSet I mask (k + 1), j ∈ PrefixSet I mask k ∨ j = ik := by
+          intro j hj
+          simp only [PrefixSet, Finset.mem_filter, Finset.mem_univ, true_and] at hj ⊢
+          rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.1 hj.1) with hlt' | heq'
+          · exact Or.inl ⟨hlt', hj.2⟩
+          · exact Or.inr (Fin.ext heq')
+        by_cases hne : (PrefixSet I mask k).Nonempty
+        · simp only [hne, ↓reduceIte] at hbest_inv
+          obtain ⟨hhb_one, hle_prev, j₀, hj₀_mem, hj₀_eq⟩ := hbest_inv
+          have hcond_f : ¬Cond.Holds (.eq rHasBest rZero) s2 := by
+            simp [Cond.Holds, hhb2, hhb_one, hz2]
+          have hj₀_mem' : j₀ ∈ PrefixSet I mask (k + 1) := by
+            simp only [PrefixSet, Finset.mem_filter, Finset.mem_univ, true_and] at hj₀_mem ⊢
+            exact ⟨by omega, hj₀_mem.2⟩
+          by_cases hlt_c : cand ik < s.regs rBest
+          · have hcond_lt : Cond.Holds (.lt rTmp0 rBest) s2 := by
+              simp [Cond.Holds, hcand2, hrb2, hlt_c]
+            let setB : Code .standard 18 := ram[ rBest ← rTmp0 ]
+            have hstep_b : ∃ s3, ExecWithin w setB s2 s3 1 ∧ s3 = s2.set rBest (cand ik) := by
+              dsimp [setB]
+              wram_exec [hcand2]
+              rfl
+            obtain ⟨s3, he_b, rfl⟩ := hstep_b
+            refine ⟨s2.set rBest (cand ik),
+              (ExecWithin.branch_neg hcond_f (ExecWithin.branch_pos hcond_lt he_b)).mono (by omega),
+              hm2, fun r hrb hrh hr0 hr1 => by simp [Data.set, hrb, hr2 r hr0 hr1],
+              by rw [Data.set_regs_of_ne (by decide), hhb2, hhb_one],
+              fun j hj => ?_, ⟨ik, hik_mem, by simp⟩⟩
+            simp only [Data.set_regs_self]
+            rcases hmem_split j hj with hj_old | rfl
+            · exact hlt_c.le.trans (hle_prev j hj_old)
+            · exact le_rfl
+          · have hcond_nlt : ¬Cond.Holds (.lt rTmp0 rBest) s2 := by
+              simp [Cond.Holds, hcand2, hrb2, hlt_c]
+            refine ⟨s2,
+              (ExecWithin.branch_neg hcond_f
+                (ExecWithin.branch_neg hcond_nlt (exec_nop s2))).mono (by omega),
+              hm2, fun r _ _ hr0 hr1 => hr2 r hr0 hr1,
+              hhb2.trans hhb_one,
+              fun j hj => ?_, ⟨j₀, hj₀_mem', hrb2.trans hj₀_eq⟩⟩
+            rw [hrb2]
+            rcases hmem_split j hj with hj_old | rfl
+            · exact hle_prev j hj_old
+            · omega
+        · simp only [hne, ↓reduceIte] at hbest_inv
+          have hcond_t : Cond.Holds (.eq rHasBest rZero) s2 := by
+            simp [Cond.Holds, hhb2, hbest_inv, hz2]
+          let initB : Code .standard 18 := ram[ rBest ← rTmp0; rHasBest ← #1 ]
+          have hstep_t : ∃ s3, ExecWithin w initB s2 s3 2 ∧
+              s3 = (s2.set rBest (cand ik)).set rHasBest 1 := by
+            dsimp [initB]
             wram_exec [hcand2]
             rfl
-          obtain ⟨s3, he_b, rfl⟩ := hstep_b
-          refine ⟨s2.set rBest (cand ik),
-            (ExecWithin.branch_neg hcond_f (ExecWithin.branch_pos hcond_lt he_b)).mono (by omega),
-            hm2, fun r hrb hrh hr0 hr1 => by simp [Data.set, hrb, hr2 r hr0 hr1],
-            by rw [Data.set_regs_of_ne (by decide), hhb2, hhb_one],
-            fun j hj => ?_, ⟨ik, hik_mem, by simp⟩⟩
-          simp only [Data.set_regs_self]
+          obtain ⟨s3, he_t, rfl⟩ := hstep_t
+          refine ⟨_, (ExecWithin.branch_pos hcond_t he_t).mono (by omega),
+            hm2, fun r hrb hrh hr0 hr1 => by simp [Data.set, hrb, hrh, hr2 r hr0 hr1],
+            by simp,
+            fun j hj => ?_,
+            ⟨ik, hik_mem, by rw [Data.set_regs_of_ne (by decide), Data.set_regs_self]⟩⟩
           rcases hmem_split j hj with hj_old | rfl
-          · exact hlt_c.le.trans (hle_prev j hj_old)
-          · exact le_rfl
-        · have hcond_nlt : ¬Cond.Holds (.lt rTmp0 rBest) s2 := by
-            simp [Cond.Holds, hcand2, hrb2, hlt_c]
-          refine ⟨s2,
-            (ExecWithin.branch_neg hcond_f
-              (ExecWithin.branch_neg hcond_nlt (exec_nop s2))).mono (by omega),
-            hm2, fun r _ _ hr0 hr1 => hr2 r hr0 hr1,
-            hhb2.trans hhb_one,
-            fun j hj => ?_, ⟨j₀, hj₀_mem', hrb2.trans hj₀_eq⟩⟩
-          rw [hrb2]
-          rcases hmem_split j hj with hj_old | rfl
-          · exact hle_prev j hj_old
-          · omega
-      · simp only [hne, ↓reduceIte] at hbest_inv
-        have hcond_t : Cond.Holds (.eq rHasBest rZero) s2 := by
-          simp [Cond.Holds, hhb2, hbest_inv, hz2]
-        let initB : Code .standard 18 := ram[ rBest ← rTmp0; rHasBest ← #1 ]
-        have hstep_t : ∃ s3, ExecWithin w initB s2 s3 2 ∧
-            s3 = (s2.set rBest (cand ik)).set rHasBest 1 := by
-          dsimp [initB]
-          wram_exec [hcand2]
-          rfl
-        obtain ⟨s3, he_t, rfl⟩ := hstep_t
-        refine ⟨_, (ExecWithin.branch_pos hcond_t he_t).mono (by omega),
-          hm2, fun r hrb hrh hr0 hr1 => by simp [Data.set, hrb, hrh, hr2 r hr0 hr1],
-          by simp,
-          fun j hj => ?_,
-          ⟨ik, hik_mem, by rw [Data.set_regs_of_ne (by decide), Data.set_regs_self]⟩⟩
-        rcases hmem_split j hj with hj_old | rfl
-        · exact absurd ⟨j, hj_old⟩ hne
-        · rw [Data.set_regs_of_ne (by decide), Data.set_regs_self]
-    obtain ⟨s3, he_upd, hm3, hr3, hhb3, hle3, hex3⟩ := hupd
-    have hcond_outer : Cond.Holds (.lt rZero rTmp0) s1 := by
-      have hz1 : s1.regs rZero = 0 := by rw [hs1, Data.set_regs_of_ne (by decide), hz]
-      have htmp1 : s1.regs rTmp0 = mask &&& 2 ^ k := by simp [hs1]
-      simp [Cond.Holds, hz1, htmp1, hand_pos]
-    have he_ite : ExecWithin w (.branch (.lt rZero rTmp0) relaxThen nop) s1 s3 14 :=
-      (ExecWithin.branch_pos hcond_outer (he_load.seq he_upd)).mono (by omega)
-    have hpost : ∃ z, ExecWithin w innerBitPost s3 z 4 ∧
-        z.mem = s3.mem ∧
-        FixedRegs I z ∧
-        z.regs rMask = mask ∧
-        z.regs rMaskBase = dp0 + mask * (I.n + 1) ∧
-        z.regs rT = t.val ∧
-        z.regs rI = k + 1 ∧
-        z.regs rBit = 2 ^ (k + 1) ∧
-        z.regs rBitStride = 2 ^ (k + 1) * (I.n + 1) ∧
-        z.regs rRowDist = 2 + (k + 2) * (I.n + 1) ∧
-        z.regs rHasBest = s3.regs rHasBest ∧
-        z.regs rBest = s3.regs rBest := by
-      have hfix3 : FixedRegs I s3 :=
-        { zero := (hr3 rZero (by decide) (by decide) (by decide) (by decide)).trans hz
-          one := (hr3 rOne (by decide) (by decide) (by decide) (by decide)).trans ho
-          n_eq := (hr3 rn (by decide) (by decide) (by decide) (by decide)).trans hn
-          N_eq := (hr3 rN (by decide) (by decide) (by decide) (by decide)).trans hN
-          distB := (hr3 rDistBase (by decide) (by decide) (by decide) (by decide)).trans hdb
-          dpB := (hr3 rDpBase (by decide) (by decide) (by decide) (by decide)).trans hdp
-          powN := (hr3 rPowN (by decide) (by decide) (by decide) (by decide)).trans hpow }
-      exact exec_innerBitPost I hwS mask k hk t s3 hfix3
-        ((hr3 rMask (by decide) (by decide) (by decide) (by decide)).trans hmask_reg)
-        ((hr3 rMaskBase (by decide) (by decide) (by decide) (by decide)).trans hmb_reg)
-        ((hr3 rT (by decide) (by decide) (by decide) (by decide)).trans ht_reg)
-        ((hr3 rI (by decide) (by decide) (by decide) (by decide)).trans hi_reg)
-        ((hr3 rBit (by decide) (by decide) (by decide) (by decide)).trans hbit_reg)
-        ((hr3 rBitStride (by decide) (by decide) (by decide) (by decide)).trans hbs_reg)
-        ((hr3 rRowDist (by decide) (by decide) (by decide) (by decide)).trans hrd_reg)
-    obtain ⟨z, he_post, hmz, hfixz, hmz_r, hmbz_r, htz_r, hiz_r, hbitz_r, hbsz_r, hrdz_r,
-      hhbz, hrbz⟩ := hpost
-    have hne_next : (PrefixSet I mask (k + 1)).Nonempty :=
-      ⟨ik, by simp [PrefixSet, ik, hbit]⟩
-    refine ⟨z, (he_and.seq (he_ite.seq he_post)).mono (by omega),
-      hmz.trans hm3, hfixz, hmz_r, hmbz_r, htz_r, hiz_r, hbitz_r, hbsz_r, hrdz_r, ?_⟩
-    simp only [hne_next, ↓reduceIte, hmz.trans hm3, hhbz, hrbz]
-    exact ⟨hhb3, hle3, hex3⟩
-  · have hbit_f : mask.testBit k = false := by cases hm : mask.testBit k <;> simp_all
-    have hand_zero : mask &&& 2 ^ k = 0 := by
-      by_contra hnz
-      exact hbit ((and_two_pow_pos_iff mask k).1 (Nat.pos_of_ne_zero hnz))
-    have hcond_outer : ¬Cond.Holds (.lt rZero rTmp0) s1 := by
-      rw [hs1, Cond.Holds, Data.set_regs_of_ne (by decide), hz, Data.set_regs_self, hand_zero]
-      simp
-    have he_ite : ExecWithin w (.branch (.lt rZero rTmp0) relaxThen nop) s1 s1 3 :=
-      ExecWithin.branch_neg hcond_outer (exec_nop s1)
-    have hpref_eq : PrefixSet I mask (k + 1) = PrefixSet I mask k := by
-      ext j
-      simp only [PrefixSet, Finset.mem_filter, Finset.mem_univ, true_and]
-      constructor
-      · rintro ⟨hjlt, hjbit⟩
-        rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.1 hjlt) with hlt' | heq'
-        · exact ⟨hlt', hjbit⟩
-        · rw [heq', hbit_f] at hjbit; simp at hjbit
-      · rintro ⟨hjlt, hjbit⟩
-        exact ⟨by omega, hjbit⟩
-    have hpost : ∃ z, ExecWithin w innerBitPost s1 z 4 ∧
-        z.mem = s.mem ∧
-        FixedRegs I z ∧
-        z.regs rMask = mask ∧
-        z.regs rMaskBase = dp0 + mask * (I.n + 1) ∧
-        z.regs rT = t.val ∧
-        z.regs rI = k + 1 ∧
-        z.regs rBit = 2 ^ (k + 1) ∧
-        z.regs rBitStride = 2 ^ (k + 1) * (I.n + 1) ∧
-        z.regs rRowDist = 2 + (k + 2) * (I.n + 1) ∧
-        z.regs rHasBest = s.regs rHasBest ∧
-        z.regs rBest = s.regs rBest := by
+          · exact absurd ⟨j, hj_old⟩ hne
+          · rw [Data.set_regs_of_ne (by decide), Data.set_regs_self]
+      obtain ⟨s3, he_upd, hm3, hr3, hhb3, hle3, hex3⟩ := hupd
+      have hcond_outer : Cond.Holds (.lt rZero rTmp0) s1 := by
+        have hz1 : s1.regs rZero = 0 := by rw [hs1, Data.set_regs_of_ne (by decide), hz]
+        have htmp1 : s1.regs rTmp0 = mask &&& 2 ^ k := by simp [hs1]
+        simp [Cond.Holds, hz1, htmp1, hand_pos]
+      have hne_next : (PrefixSet I mask (k + 1)).Nonempty :=
+        ⟨ik, by simp [PrefixSet, ik, hbit]⟩
+      refine ⟨s3, (ExecWithin.branch_pos hcond_outer (he_load.seq he_upd)).mono (by omega),
+        hm3,
+        ⟨(hr3 rZero (by decide) (by decide) (by decide) (by decide)).trans hz,
+         (hr3 rOne (by decide) (by decide) (by decide) (by decide)).trans ho,
+         (hr3 rn (by decide) (by decide) (by decide) (by decide)).trans hn,
+         (hr3 rN (by decide) (by decide) (by decide) (by decide)).trans hN,
+         (hr3 rDistBase (by decide) (by decide) (by decide) (by decide)).trans hdb,
+         (hr3 rDpBase (by decide) (by decide) (by decide) (by decide)).trans hdp,
+         (hr3 rPowN (by decide) (by decide) (by decide) (by decide)).trans hpow⟩,
+        (hr3 rMask (by decide) (by decide) (by decide) (by decide)).trans hmask_reg,
+        (hr3 rMaskBase (by decide) (by decide) (by decide) (by decide)).trans hmb_reg,
+        (hr3 rT (by decide) (by decide) (by decide) (by decide)).trans ht_reg,
+        (hr3 rI (by decide) (by decide) (by decide) (by decide)).trans hi_reg,
+        (hr3 rBit (by decide) (by decide) (by decide) (by decide)).trans hbit_reg,
+        (hr3 rBitStride (by decide) (by decide) (by decide) (by decide)).trans hbs_reg,
+        (hr3 rRowDist (by decide) (by decide) (by decide) (by decide)).trans hrd_reg, ?_⟩
+      simpa only [hne_next, ↓reduceIte] using ⟨hhb3, hle3, hex3⟩
+    · have hbit_f : mask.testBit k = false := by cases hm : mask.testBit k <;> simp_all
+      have hand_zero : mask &&& 2 ^ k = 0 := by
+        by_contra hnz
+        exact hbit ((and_two_pow_pos_iff mask k).1 (Nat.pos_of_ne_zero hnz))
+      have hcond_outer : ¬Cond.Holds (.lt rZero rTmp0) s1 := by
+        rw [hs1, Cond.Holds, Data.set_regs_of_ne (by decide), hz, Data.set_regs_self, hand_zero]
+        simp
+      have hpref_eq : PrefixSet I mask (k + 1) = PrefixSet I mask k := by
+        ext j
+        simp only [PrefixSet, Finset.mem_filter, Finset.mem_univ, true_and]
+        constructor
+        · rintro ⟨hjlt, hjbit⟩
+          rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.1 hjlt) with hlt' | heq'
+          · exact ⟨hlt', hjbit⟩
+          · rw [heq', hbit_f] at hjbit; simp at hjbit
+        · rintro ⟨hjlt, hjbit⟩
+          exact ⟨by omega, hjbit⟩
       subst hs1
-      exact exec_innerBitPost I hwS mask k hk t (s.set rTmp0 (mask &&& 2 ^ k))
-        ⟨hz, ho, hn, hN, hdb, hdp, hpow⟩ hmask_reg hmb_reg ht_reg hi_reg hbit_reg hbs_reg hrd_reg
-    obtain ⟨z, he_post, hmz, hfixz, hmz_r, hmbz_r, htz_r, hiz_r, hbitz_r, hbsz_r, hrdz_r,
-      hhbz, hrbz⟩ := hpost
-    refine ⟨z, (he_and.seq (he_ite.seq he_post)).mono (by omega),
-      hmz, hfixz, hmz_r, hmbz_r, htz_r, hiz_r, hbitz_r, hbsz_r, hrdz_r, ?_⟩
-    simpa only [hpref_eq, hmz, hhbz, hrbz] using hbest_inv
+      have hfix1 : FixedRegs I (s.set rTmp0 (mask &&& 2 ^ k)) :=
+        { zero := by rw [Data.set_regs_of_ne (by decide), hz]
+          one := by rw [Data.set_regs_of_ne (by decide), ho]
+          n_eq := by rw [Data.set_regs_of_ne (by decide), hn]
+          N_eq := by rw [Data.set_regs_of_ne (by decide), hN]
+          distB := by rw [Data.set_regs_of_ne (by decide), hdb]
+          dpB := by rw [Data.set_regs_of_ne (by decide), hdp]
+          powN := by rw [Data.set_regs_of_ne (by decide), hpow] }
+      refine ⟨s.set rTmp0 (mask &&& 2 ^ k),
+        (ExecWithin.branch_neg hcond_outer (exec_nop _)).mono (by omega),
+        rfl, hfix1, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+      · rw [Data.set_regs_of_ne (by decide), hmask_reg]
+      · rw [Data.set_regs_of_ne (by decide), hmb_reg]
+      · rw [Data.set_regs_of_ne (by decide), ht_reg]
+      · rw [Data.set_regs_of_ne (by decide), hi_reg]
+      · rw [Data.set_regs_of_ne (by decide), hbit_reg]
+      · rw [Data.set_regs_of_ne (by decide), hbs_reg]
+      · rw [Data.set_regs_of_ne (by decide), hrd_reg]
+      · simpa only [hpref_eq, Data.set_regs_of_ne (by decide : rHasBest ≠ rTmp0),
+          Data.set_regs_of_ne (by decide : rBest ≠ rTmp0)] using hbest_inv
+  obtain ⟨s3, he_ite, hm3, hfix3, hms3, hmbs3, hts3, his3, hbits3, hbss3, hrds3, hbest3⟩ :=
+    hs3_step
+  obtain ⟨z, he_post, hmz, hfixz, hmz_r, hmbz_r, htz_r, hiz_r, hbitz_r, hbsz_r, hrdz_r,
+    hhbz, hrbz⟩ := exec_innerBitPost I hwS mask k hk t s3 hfix3 hms3 hmbs3 hts3 his3 hbits3
+      hbss3 hrds3
+  refine ⟨z, (he_and.seq (he_ite.seq he_post)).mono (by omega),
+    hmz.trans hm3, hfixz, hmz_r, hmbz_r, htz_r, hiz_r, hbitz_r, hbsz_r, hrdz_r, ?_⟩
+  simpa only [hmz, hm3, hhbz, hrbz] using hbest3
 
 private theorem fit_table_cell {w : ℕ} {I : Instance} (hwS : Fits w I.spaceBound)
     {mask t : ℕ} (hm : mask < 2 ^ I.n) (ht : t < I.n + 1) :
