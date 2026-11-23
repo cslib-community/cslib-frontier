@@ -88,7 +88,8 @@ private structure Asg where
   tpos : Array ℕ := #[]
   /-- The true literals, in order of assignment. -/
   trail : Array ℕ := #[]
-  deriving Inhabited
+
+private instance : Inhabited Asg := ⟨{}⟩
 
 /-- The state of the propagation engine. -/
 private structure EState where
@@ -133,6 +134,8 @@ private structure EState where
 
 /-- The propagation engine: its state, as a mutable reference. The state and its transitions are
 private; the engine is used through `new`, `add`, `kill`, `rupHints` and `extend`. -/
+-- `structureInType` cannot read a private field from outside this module and fails on it.
+@[nolint structureInType]
 structure Engine (σ : Type) where
   private mk ::
   /-- The state. -/
