@@ -267,9 +267,11 @@ private theorem link_aux {uf uf' : Batteries.UnionFind} (h : ValidRank uf)
     (hne : winner.val ≠ child.val) (hsize : uf'.size = uf.size)
     (hparent : ∀ i, uf'.parent i = if child.val = i then winner.val else uf.parent i)
     (hrank : ∀ i, uf'.rank i =
-      if uf.rank child.val = uf.rank winner.val ∧ winner.val = i then uf.rank winner.val + 1 else uf.rank i)
+      if uf.rank child.val = uf.rank winner.val ∧ winner.val = i then uf.rank winner.val + 1
+      else uf.rank i)
     (hroot_ex : ∃ r₀, (r₀ = winner ∨ r₀ = child) ∧ ∀ i,
-      uf'.rootD i = if uf.rootD i = winner.val ∨ uf.rootD i = child.val then r₀.val else uf.rootD i) :
+      uf'.rootD i =
+        if uf.rootD i = winner.val ∨ uf.rootD i = child.val then r₀.val else uf.rootD i) :
     ValidRank uf' := by
   obtain ⟨r₀, hr₀, hroot⟩ := hroot_ex
   have hchild_not_root : uf'.parent child.val ≠ child.val := by
@@ -417,7 +419,8 @@ private theorem findGo_fst_eq_findAux (uf : Batteries.UnionFind) :
       have hrank := uf.rank'_lt x.val x.isLt h
       have hmax := uf.lt_rankMax x.val
       have hfuel : uf.rankMax - uf.rank uf.arr[x.val].parent ≤ fuel := by omega
-      have ih := findGo_fst_eq_findAux uf fuel ⟨uf.arr[x.val].parent, uf.parent'_lt x.val x.isLt⟩ hfuel
+      have ih := findGo_fst_eq_findAux uf fuel
+        ⟨uf.arr[x.val].parent, uf.parent'_lt x.val x.isLt⟩ hfuel
       dsimp only
       simp only [ih]
 
@@ -732,7 +735,8 @@ private theorem step_correct {n : ℕ} {p : Partition n} {s : State n} (o : Op n
   have hbeq (x y : Fin n) :
       let x' : Fin s.uf.size := ⟨x.val, s.size_eq.symm ▸ x.isLt⟩
       let c₁ := compressWithSteps s.uf x'
-      let y' : Fin c₁.1.size := ⟨y.val, ((compressWithSteps_size s.uf x').trans s.size_eq).symm ▸ y.isLt⟩
+      let y' : Fin c₁.1.size :=
+        ⟨y.val, ((compressWithSteps_size s.uf x').trans s.size_eq).symm ▸ y.isLt⟩
       (c₁.2.1.val == (compressWithSteps c₁.1 y').2.1.val) = p.rel x y :=
     Bool.eq_iff_iff.mpr ((compressWithSteps_root_beq_iff s.uf _ _).trans (hrel x y).symm)
   cases o with

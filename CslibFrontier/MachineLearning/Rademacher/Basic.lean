@@ -286,7 +286,8 @@ theorem empiricalRademacherComplexity_nonneg {F : Set (Z → ℝ)} (hne : F.None
 theorem empiricalRademacherComplexity_mono {F G : Set (Z → ℝ)} (hFG : F ⊆ G) {B : ℝ}
     (hG : ∀ g ∈ G, ∀ z, |g z| ≤ B) {m : ℕ} (S : Fin m → Z) :
     empiricalRademacherComplexity F S ≤ empiricalRademacherComplexity G S :=
-  rademacherAverage_le_of_forall_exists (fun g _ => hG g g.property _) fun f => ⟨⟨f, hFG f.property⟩, rfl⟩
+  rademacherAverage_le_of_forall_exists (fun g _ => hG g g.property _) fun f =>
+    ⟨⟨f, hFG f.property⟩, rfl⟩
 
 /-- **Massart's lemma through restriction patterns** [MohriRostamizadehTalwalkar2018, Corollary
 3.8]: if the restrictions `(f (S 0), …, f (S (m - 1)))` of the functions `f ∈ F` to the sample

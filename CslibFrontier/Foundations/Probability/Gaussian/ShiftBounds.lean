@@ -155,7 +155,8 @@ theorem gaussianMass_le_gaussianMass_zero {E : Type*} [NormedAddCommGroup E]
   have hproj : gaussianMass L s c ≤ gaussianMass L s (cPar : E) := by
     refine Summable.tsum_le_tsum (fun z : L ↦ ?_)
       (summable_gaussianWeight L s hs c) (summable_gaussianWeight L s hs (cPar : E))
-    have hdiff : (z : E) - (cPar : E) ∈ V := V.sub_mem (Submodule.subset_span z.property) cPar.property
+    have hdiff : (z : E) - (cPar : E) ∈ V :=
+      V.sub_mem (Submodule.subset_span z.property) cPar.property
     have horth : c - (cPar : E) ∈ Vᗮ := V.sub_starProjection_mem_orthogonal c
     have hinner : ⟪(z : E) - (cPar : E), c - (cPar : E)⟫ = 0 :=
       (Submodule.mem_orthogonal V _).mp horth _ hdiff

@@ -107,7 +107,8 @@ theorem mem_KColoring_iff {k : ℕ} {G : Graph} :
     · simpa only [hv, dite_true] using hC ⟨v, hv⟩
     · simpa only [hu, hv, dite_true] using C.valid (v := ⟨u, hu⟩) (w := ⟨v, hv⟩) huv
   · rintro ⟨c, hc, hadj⟩
-    exact ⟨SimpleGraph.Coloring.mk (fun v => c v) fun {u v} huv => hadj u u.property v v.property huv,
+    exact ⟨SimpleGraph.Coloring.mk (fun v => c v) fun {u v} huv =>
+        hadj u u.property v v.property huv,
       fun v => hc v v.property⟩
 
 namespace KColoring

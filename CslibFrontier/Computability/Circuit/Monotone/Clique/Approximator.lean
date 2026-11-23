@@ -85,7 +85,8 @@ theorem contains_toFinset_iff {x : Fin (edgeCount n) → Bool} {e : Edge n} :
     Contains x e.val.toFinset ↔ x (edgeEquiv n e) = true := by
   refine ⟨fun h => h e subset_rfl, fun h e' he' => ?_⟩
   have heq : e'.val.toFinset = e.val.toFinset := eq_of_subset_of_card_le he' (by
-    rw [Sym2.card_toFinset_of_not_isDiag _ e.property, Sym2.card_toFinset_of_not_isDiag _ e'.property])
+    rw [Sym2.card_toFinset_of_not_isDiag _ e.property,
+      Sym2.card_toFinset_of_not_isDiag _ e'.property])
   have : e' = e := Subtype.ext (Sym2.ext fun v => by
     rw [← Sym2.mem_toFinset, heq, Sym2.mem_toFinset])
   rwa [this]

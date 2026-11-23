@@ -277,7 +277,8 @@ def powerEquiv (M : Type) [L.Structure M] {n : ℕ} (e : M ≃ Fin n) :
         rw [powerTableBitFormula, Formula.realize_inf,
           realize_highZeroFormula k e (v.arity idx) (har idx), relMap_powerTableBit]
         change (tupleIndex (e ∘ (x 0).val) < n ^ v.arity idx ∧
-            (v.table (v.encode M e) (v.symbol idx)).getD (tupleIndex (e ∘ (x 0).val)) false = true) ↔
+            (v.table (v.encode M e) (v.symbol idx)).getD
+              (tupleIndex (e ∘ (x 0).val)) false = true) ↔
           tupleIndex (e ∘ (x 0).val) < n ^ v.arity idx ∧
             RelMap (v.symbol idx).2 (fun j => (x 0).val (Fin.castLE (har idx) j))
         refine and_congr_right fun hlt => ?_

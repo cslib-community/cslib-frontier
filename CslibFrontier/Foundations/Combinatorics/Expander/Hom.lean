@@ -212,7 +212,8 @@ def restrict (S : Set V) (hS : ∀ v ∈ S, ∀ i, G.neighbor v i ∈ S) : Rotat
 /-- The rotation map of a restriction of `G` is the rotation map of `G`. -/
 @[simp]
 theorem rot_restrict (S : Set V) (hS : ∀ v ∈ S, ∀ i, G.neighbor v i ∈ S) (p : S × D) :
-    (G.restrict S hS).rot p = (⟨G.neighbor p.1 p.2, hS p.1 p.1.property p.2⟩, (G.rot (p.1, p.2)).2) :=
+    (G.restrict S hS).rot p =
+      (⟨G.neighbor p.1 p.2, hS p.1 p.1.property p.2⟩, (G.rot (p.1, p.2)).2) :=
   rfl
 
 /-- The inclusion of a restriction of `G` into `G` is a homomorphism. -/
@@ -324,7 +325,8 @@ theorem componentHom_apply (s : V) (v : {v | G.toSimpleGraph.Reachable s v}) :
 
 /-- The connected component of a vertex is connected. -/
 theorem preconnected_componentGraph (s : V) : (G.componentGraph s).toSimpleGraph.Preconnected :=
-  fun u v ↦ ((G.componentHom s).reachable_apply_iff Subtype.val_injective).1 (u.property.symm.trans v.property)
+  fun u v ↦ ((G.componentHom s).reachable_apply_iff Subtype.val_injective).1
+    (u.property.symm.trans v.property)
 
 /-- The connected component of `s` has the same edge multiplicities as `G`. -/
 @[simp]

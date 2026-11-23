@@ -186,7 +186,8 @@ theorem finrank_reedSolomon (hα : Function.Injective α) (hkn : k ≤ Fintype.c
     intro p q h
     refine Subtype.ext (eq_of_degree_sub_lt_of_eval_finset_eq (univ.image α) ?_ fun x hx => ?_)
     · rw [card_image_of_injective _ hα, card_univ]
-      exact (mem_degreeLT.1 ((degreeLT F k).sub_mem p.property q.property)).trans_le (by exact_mod_cast hkn)
+      exact (mem_degreeLT.1 ((degreeLT F k).sub_mem p.property q.property)).trans_le
+        (by exact_mod_cast hkn)
     · obtain ⟨i, -, rfl⟩ := mem_image.1 hx
       exact congrFun h i
   rw [reedSolomon, ← LinearMap.range_domRestrict, LinearMap.finrank_range_of_inj hinj,

@@ -465,7 +465,8 @@ theorem prepareBranch_reduced_varDegree_le {n b₀ : ℕ} {S : List ℕ} {vals :
   intro u' hu'; let i := (freeVarEquiv hS hSn).symm ⟨u', hu'⟩
   have hrel : relabelFreeVar S i.val = u' :=
     congrArg Fin.val ((freeVarEquiv hS hSn).apply_symm_apply ⟨u', hu'⟩)
-  rw [← hrel]; exact (varDegree_relabelFreeVar_le hS i.property hred).trans (hinc i.val i.val.isLt i.property)
+  rw [← hrel]; exact (varDegree_relabelFreeVar_le hS i.property hred).trans
+    (hinc i.val i.val.isLt i.property)
 
 /-! ### 4. Exact Common-Zero Count Preservation -/
 

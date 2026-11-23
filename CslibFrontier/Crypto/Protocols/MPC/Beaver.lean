@@ -433,7 +433,8 @@ theorem perfectSemiHonestPrivateProper_beaverMul (p m : ℕ) [NeZero p] :
           fun j => if hj : j ∈ I then b j else (xy j).2 - ((xy j).2 - b j)
         change baseTerm k.val (∑ j : Fin m, ((xy j).1 - a j, (xy j).2 - b j)) (a k.val) (b k.val) +
             cE k -
-          baseTerm k.val (∑ j : Fin m, ((xy j).1 - fa j, (xy j).2 - fb j)) (fa k.val) (fb k.val) = cE k
+          baseTerm k.val (∑ j : Fin m, ((xy j).1 - fa j, (xy j).2 - fb j)) (fa k.val) (fb k.val) =
+            cE k
         have hfa : fa = a := ha
         have hfb : fb = b := hb
         rw [hfa, hfb]

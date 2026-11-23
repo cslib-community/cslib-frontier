@@ -318,7 +318,8 @@ private theorem exists_perm_extend {n s : ℕ} (hs : s ≤ n) (φ : Fin s ↪ Fi
     ∃ ρ : Equiv.Perm (Fin n), ∀ i : Fin s, ρ (Fin.castLE hs i) = φ i := by
   classical
   let e₀ : {x : Fin n // x.val < s} ≃ Fin s :=
-    ⟨fun x => ⟨x.val.val, x.property⟩, fun i => ⟨Fin.castLE hs i, i.isLt⟩, fun _ => rfl, fun _ => rfl⟩
+    ⟨fun x => ⟨x.val.val, x.property⟩, fun i => ⟨Fin.castLE hs i, i.isLt⟩, fun _ => rfl,
+      fun _ => rfl⟩
   let e : {x : Fin n // x.val < s} ≃ {y : Fin n // y ∈ Set.range φ} :=
     e₀.trans (Equiv.ofInjective φ φ.injective)
   refine ⟨e.extendSubtype, fun i => ?_⟩

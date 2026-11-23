@@ -409,7 +409,8 @@ theorem continuousOn_R (hk : 3 ≤ k) : ContinuousOn (R k) (Icc 0 1) := by
   have hc1 := div_lt_one_of_three_le hk
   let f : Icc (0 : ℝ) 1 → Icc (0 : ℝ) 1 := fun r => ⟨R k r, R_mem_Icc r.property⟩
   have hf : Continuous f := by
-    refine Monotone.continuous_of_surjective (fun r s hrs => monotoneOn_R r.property s.property hrs) ?_
+    refine Monotone.continuous_of_surjective
+      (fun r s hrs => monotoneOn_R r.property s.property hrs) ?_
     rintro ⟨t, ht⟩
     rcases ht.2.lt_or_eq with ht1 | rfl
     · have hS := S_mem_Ico hk ⟨ht.1, ht1⟩

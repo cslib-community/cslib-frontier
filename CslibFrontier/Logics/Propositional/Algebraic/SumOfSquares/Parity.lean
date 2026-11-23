@@ -154,8 +154,8 @@ theorem totalDegree_parityPoly [Nontrivial R] (S : Finset σ) (b : Bool) :
     rw [← h, map_zero] at hdeg
     exact hS.card_pos.ne hdeg
   have hmem : (∑ i ∈ S, single i 1) ∈ (parityPoly R S b).support := by
-    rw [mem_support_iff, parityPoly, prod_X_eq_monomial, coeff_sub, coeff_monomial, coeff_C,
-      ite_eq_right_iff.2 fun h => absurd h hne]
+    rw [mem_support_iff, parityPoly, prod_X_eq_monomial, AddMonoidAlgebra.coeff_sub_apply,
+      coeff_monomial, coeff_C, ite_eq_right_iff.2 fun h => absurd h hne]
     simp
   refine le_trans (le_of_eq ?_) (le_totalDegree hmem)
   change #S = Finsupp.degree (∑ i ∈ S, single i 1)

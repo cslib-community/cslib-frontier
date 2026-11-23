@@ -538,7 +538,8 @@ theorem modelCountOn_cons_unit_eq_substLit {l : Literal V} {φ : CNF V} {U : Fin
             · subst hvl
               simpa only [ins, ↓reduceDIte] using hl_eq.symm
             · simp only [ins, hvl, ↓reduceDIte]
-          rw [eval_substLit, heval_ins (fun u => σ ⟨u.val, Finset.mem_of_mem_erase u.property⟩), hins]
+          rw [eval_substLit, heval_ins (fun u => σ ⟨u.val, Finset.mem_of_mem_erase u.property⟩),
+            hins]
           exact hσ.2⟩
       invFun := fun ⟨τ, hτ⟩ =>
         ⟨ins τ, by

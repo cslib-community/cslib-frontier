@@ -205,7 +205,8 @@ theorem codeword_injective (w n : ℕ) : Function.Injective (codeword (w := w) (
     (Finset.univ.image (Units.val : (BinaryField (fieldDegree w n))ˣ → _))
   · rw [Finset.card_image_of_injective _ Units.val_injective, Finset.card_univ,
       Fintype.card_units, BinaryField.card (fieldDegree_ne_zero w n)]
-    exact (mem_degreeLT.1 ((degreeLT _ _).sub_mem (message v).property (message v').property)).trans_le
+    exact (mem_degreeLT.1
+      ((degreeLT _ _).sub_mem (message v).property (message v').property)).trans_le
       (Nat.cast_le.2 (dimension_le _))
   · intro x hx
     obtain ⟨u, -, rfl⟩ := Finset.mem_image.1 hx

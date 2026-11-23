@@ -213,9 +213,11 @@ instance : LE I.Stable := ⟨fun μ ν => μ.propRanks ≤ ν.propRanks⟩
 
 instance : LT I.Stable := ⟨fun μ ν => μ.propRanks < ν.propRanks⟩
 
-instance : Max I.Stable := ⟨fun μ ν => ⟨I.propJoin μ.property ν.property, isStable_propJoin μ.property ν.property⟩⟩
+instance : Max I.Stable :=
+  ⟨fun μ ν => ⟨I.propJoin μ.property ν.property, isStable_propJoin μ.property ν.property⟩⟩
 
-instance : Min I.Stable := ⟨fun μ ν => ⟨I.propMeet μ.property ν.property, isStable_propMeet μ.property ν.property⟩⟩
+instance : Min I.Stable :=
+  ⟨fun μ ν => ⟨I.propMeet μ.property ν.property, isStable_propMeet μ.property ν.property⟩⟩
 
 @[simp] theorem coe_sup (μ ν : I.Stable) : (μ ⊔ ν).val = I.propJoin μ.property ν.property := rfl
 

@@ -773,7 +773,8 @@ private theorem odd_card_iisDoors_iff_panchromatic {U : Finset V} {inp : V → I
     (E : Fin R → ISSchedule U) :
     Odd #{k ∈ U | IsIISDoor U inp c q₀ E k} ↔ IsPanchromaticIIS U inp c E := by
   let f : U → U := fun x =>
-    ⟨c (iisRun inp E x.val), carrier_iisRun_subset inp E x.property (hc U Subset.rfl E x.val x.property)⟩
+    ⟨c (iisRun inp E x.val),
+      carrier_iisRun_subset inp E x.property (hc U Subset.rfl E x.val x.property)⟩
   let b₀ : U := ⟨q₀, hq₀⟩
   have hsperner := Cslib.Sperner.odd_card_doors_iff_surjective f b₀ rfl
   have hcard_eq : #{k : U | ∀ b ≠ b₀, ∃ j ≠ k, f j = b} =

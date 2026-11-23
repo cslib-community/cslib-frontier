@@ -396,7 +396,8 @@ theorem realize_toInterpretation_rel_of_nontrivial [Nontrivial M] {n : ℕ}
 `S`. -/
 def subsingletonEquiv [L'.IsRelational] [Subsingleton M] :
     (I.toInterpretation S).Model M ≃[L'] S.Model M where
-  toFun c := ⟨fun _ => c.val p, (realize_toInterpretation_domain_of_subsingleton S c.val).1 c.property⟩
+  toFun c := ⟨fun _ => c.val p,
+    (realize_toInterpretation_domain_of_subsingleton S c.val).1 c.property⟩
   invFun x := ⟨fun _ => x.val (), (realize_toInterpretation_domain_of_subsingleton S _).2 <| by
     simpa only [show (fun _ : Unit => x.val ()) = x.val from funext fun _ => rfl] using x.property⟩
   left_inv _ := Interpretation.Model.ext (funext fun _ => Subsingleton.elim _ _)

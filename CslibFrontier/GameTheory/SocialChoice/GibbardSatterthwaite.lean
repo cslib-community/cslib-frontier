@@ -376,7 +376,8 @@ private theorem isIIA_induced (r₀ : Ranking A) : (induced hf r₀).IsIIA := by
   rw [hf.apply_raise_congr (Set.mem_insert (a : A) _) a.property (P := extendProfile r₀ P)
     (Q := extendProfile r₀ Q) fun i x y hx hy => ?_]
   have hab : (r₀.extend (P i)).Prefers a b ↔ (r₀.extend (Q i)).Prefers a b := by
-    rw [r₀.extend_prefers_of_mem _ a.property b.property, r₀.extend_prefers_of_mem _ a.property b.property]
+    rw [r₀.extend_prefers_of_mem _ a.property b.property,
+      r₀.extend_prefers_of_mem _ a.property b.property]
     exact h i
   simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hx hy
   rcases hx with rfl | rfl <;> rcases hy with rfl | rfl

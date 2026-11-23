@@ -1052,7 +1052,8 @@ theorem getD_pullbackMeasurementRow_ofFn_eq_varMeasurementMatrix {M n h Q r A₀
     Cslib.LinearAlgebra.varMeasurementMatrix, Finset.sum_filter]
   refine Finset.sum_congr rfl fun e _ => ?_
   dsimp only
-  have hiff : ((place e).1.val = c.val ∧ (varOf e).val = v.val) ↔ ((place e).1 = c ∧ varOf e = v) := by
+  have hiff :
+      ((place e).1.val = c.val ∧ (varOf e).val = v.val) ↔ ((place e).1 = c ∧ varOf e = v) := by
     simp only [Fin.ext_iff]
   by_cases hm : (place e).1 = c ∧ varOf e = v
   · rw [ite_eq_left (hiff.mpr hm), ite_eq_left hm, hrow]

@@ -349,8 +349,8 @@ theorem restrictToFreeVars_extendFreeAssignment [Fintype ι] [DecidableEq ι] (S
     (e : ↥(univ \ S) ≃ ι') (y : ι' → Bool) :
     restrictToFreeVars S e (extendFreeAssignment S e y) = y := by
   ext w
-  simp only [restrictToFreeVars, extendFreeAssignment, (e.symm w).property, ↓reduceDIte, Subtype.coe_eta,
-    Equiv.apply_symm_apply]
+  simp only [restrictToFreeVars, extendFreeAssignment, (e.symm w).property, ↓reduceDIte,
+    Subtype.coe_eta, Equiv.apply_symm_apply]
 
 theorem extendFreeAssignment_mem_subproblemAssignments [Fintype ι] [DecidableEq ι]
     (S : Finset ι) (e : ↥(univ \ S) ≃ ι') (y : ι' → Bool) :

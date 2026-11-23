@@ -315,8 +315,10 @@ private theorem midpoint_witness_diff [Finite V] (W : WeightedGraph V)
   let e : W.graph.edgeSet := ⟨d.edge, d.edge_mem⟩
   have he : d.edge = (edgeDartOfSym2 e).edge := (edgeDartOfSym2_edge e).symm
   rcases (dart_edge_eq_iff d (edgeDartOfSym2 e)).mp he with hd | hsym
-  · have hsB : edgePoint (edgeDartOfSym2 e) s ∈ midpointPoints W := by rw [← hd, hs]; exact x.property
-    have htB : edgePoint (edgeDartOfSym2 e) t ∈ midpointPoints W := by rw [← hd, ht]; exact y.property
+  · have hsB : edgePoint (edgeDartOfSym2 e) s ∈ midpointPoints W := by
+      rw [← hd, hs]; exact x.property
+    have htB : edgePoint (edgeDartOfSym2 e) t ∈ midpointPoints W := by
+      rw [← hd, ht]; exact y.property
     have hno' : ∀ r : unitInterval, (s : ℝ) < r → (r : ℝ) < t →
         edgePoint (edgeDartOfSym2 e) r ∉ midpointPoints W := by
       intro r hr1 hr2; rw [← hd]; exact hno r hr1 hr2

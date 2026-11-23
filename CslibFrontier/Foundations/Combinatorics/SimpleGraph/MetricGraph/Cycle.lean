@@ -796,8 +796,8 @@ private lemma isCycle_min_arc_le_edge [DecidableEq V] {a w : V} {cₐ : W.graph.
     have hlen_lt := Walk.length_takeUntil_lt_length hw (Ne.symm haw)
     have hl3 := hcₐ.three_le_length
     have hlen_eq : (cₐ.takeUntil w hw).length = cₐ.length - 1 :=
-      hcₐ.getVert_injOn' (by simp only [Set.mem_ofPred_eq]; omega)
-        (by simp only [Set.mem_ofPred_eq]; omega)
+      hcₐ.getVert_injOn' (by simp only [Set.mem_Iio]; omega)
+        (by simp only [Set.mem_Iio]; omega)
         ((Walk.getVert_length_takeUntil hw).trans hpen_eq.symm)
     have hdrop_len : (cₐ.dropUntil w hw).length = 1 := by
       have h := congrArg Walk.length (cₐ.take_spec hw)
@@ -1157,7 +1157,8 @@ private lemma circleMap_append_cons_mul {v₀ : V} {c : W.graph.Walk v₀ v₀} 
     rw [walkLength_append, walkLength_cons] at h
     have hwe : W.weight s(d.fst, d.snd) = W.weight d.edge := rfl
     rw [hwe] at h
-    nlinarith [u.property.2, (W.dart_weight_pos d).le, walkLength_nonneg W.weight W.weight_nonneg q₂]
+    nlinarith [u.property.2, (W.dart_weight_pos d).le,
+      walkLength_nonneg W.weight W.weight_nonneg q₂]
   rw [circleMap_eq_walkPoint hc (add_nonneg (walkLength_nonneg _ W.weight_nonneg _) hw_le) hsl]
   conv_lhs => arg 1; rw [hc_eq]
   rw [walkPoint_append_of_ge _ _ hw_le]

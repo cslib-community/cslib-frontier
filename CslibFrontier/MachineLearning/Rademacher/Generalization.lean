@@ -134,7 +134,8 @@ private theorem ciSup_sub_le_sum (D : PMF Z) {m : ℕ} (hm : 0 < m) {F : Set (Z 
   have hbdd (S' : Fin m → Z) :
       BddAbove (Set.range fun g : F => 𝔼 i, ((g : Z → ℝ) (S' i) - (g : Z → ℝ) (S i))) :=
     Fintype.bddAbove_range_expect _ (B := B + B) fun g i =>
-      (le_abs_self _).trans ((abs_sub _ _).trans (by linarith [hF g g.property (S' i), hF g g.property (S i)]))
+      (le_abs_self _).trans ((abs_sub _ _).trans
+        (by linarith [hF g g.property (S' i), hF g g.property (S i)]))
   calc ∑ z, (D z).toReal * (f : Z → ℝ) z - 𝔼 i, (f : Z → ℝ) (S i)
       = ∑ S' : Fin m → Z, (P S').toReal * 𝔼 i, ((f : Z → ℝ) (S' i) - (f : Z → ℝ) (S i)) := by
         simp only [Finset.expect_sub_distrib, mul_sub, Finset.sum_sub_distrib,

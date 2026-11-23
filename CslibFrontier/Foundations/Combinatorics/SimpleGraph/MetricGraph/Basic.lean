@@ -1111,7 +1111,8 @@ theorem dist_edgePoint_eq_direct_of_vertexDist_eq [Finite V] {d : W.graph.Dart}
   rw [dist_edgePoint_edgePoint_same, vertexDist_self W.weight_nonneg,
     vertexDist_self W.weight_nonneg, hd, vertexDist_comm, hd]
   have hw := W.dart_weight_nonneg d
-  have hs0 := s.property.1; have hs1 := s.property.2; have ht0 := t.property.1; have ht1 := t.property.2
+  have hs0 := s.property.1; have hs1 := s.property.2
+  have ht0 := t.property.1; have ht1 := t.property.2
   rw [mul_comm (W.weight d.edge), min_eq_left]
   have hle1 : |(s : ℝ) - t| ≤ (s : ℝ) + t := abs_le.mpr ⟨by linarith, by linarith⟩
   have hle2 : |(s : ℝ) - t| ≤ (s : ℝ) + 1 + (1 - t) :=

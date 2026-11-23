@@ -177,7 +177,8 @@ private theorem exists_nonneg_int_mulVec_eq_le_fin {m n B : ℕ}
       change (∑ j, A i j * z j) = _
       rw [← Fintype.sum_subtype_add_sum_subtype (fun j => (K : ℤ) ≤ x j)]
       have hyes : ∀ j : J, z j.val = 0 := fun j => ite_eq_left j.property
-      have hno : ∀ j : {j : Fin n // ¬(K : ℤ) ≤ x j}, z j.val = x j.val := fun j => ite_eq_right j.property
+      have hno : ∀ j : {j : Fin n // ¬(K : ℤ) ≤ x j}, z j.val = x j.val := fun j =>
+        ite_eq_right j.property
       simp only [hyes, hno, mul_zero, Finset.sum_const_zero, zero_add]
     have hrow := congrFun hAx i
     change (∑ j : J, A i j.val * x j.val) = b i - (A *ᵥ z) i

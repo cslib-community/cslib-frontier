@@ -502,7 +502,8 @@ is `packetTensor`. -/
 @[expose] def child (β : M → ℕ) (g : G) :
     TensorNetwork R Bool ({v // S.group v = g} ⊕ P)
       ({e // S.group (N.src e) = g} ⊕ {e // S.group (N.tgt e) = g}) where
-  src := Sum.elim (fun e => .inl ⟨N.src e.val, e.property⟩) (fun e => .inl ⟨N.tgt e.val, e.property⟩)
+  src := Sum.elim (fun e => .inl ⟨N.src e.val, e.property⟩)
+    (fun e => .inl ⟨N.tgt e.val, e.property⟩)
   tgt := Sum.elim (fun e => .inr (S.packet e.val)) (fun e => .inr (S.packet e.val))
   tensor
     | .inl v, y =>
@@ -515,10 +516,12 @@ is `packetTensor`. -/
         (fun e => if h : S.group (N.tgt e) = g then y (.inr ⟨e, h⟩) else false)
   tensor_congr := by
     rintro (v | q) y y' h
-    · have hs : ∀ e (he : N.src e = v.val), y (.inl ⟨e, he ▸ v.property⟩) = y' (.inl ⟨e, he ▸ v.property⟩) := by
+    · have hs : ∀ e (he : N.src e = v.val),
+          y (.inl ⟨e, he ▸ v.property⟩) = y' (.inl ⟨e, he ▸ v.property⟩) := by
         intro e he
         exact h _ (Or.inl (congrArg Sum.inl (Subtype.ext he)))
-      have ht : ∀ e (he : N.tgt e = v.val), y (.inr ⟨e, he ▸ v.property⟩) = y' (.inr ⟨e, he ▸ v.property⟩) := by
+      have ht : ∀ e (he : N.tgt e = v.val),
+          y (.inr ⟨e, he ▸ v.property⟩) = y' (.inr ⟨e, he ▸ v.property⟩) := by
         intro e he
         exact h _ (Or.inl (congrArg Sum.inl (Subtype.ext he)))
       simp only

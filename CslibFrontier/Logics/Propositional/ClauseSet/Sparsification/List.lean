@@ -543,9 +543,11 @@ def rule {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ θ j) (k : ℕ) :
     BranchingRule θ V {ψ : CNF V // Normalized k ψ} where
   toClauseSet ψ := ψ.val.toClauseSet
   next ψ b := if hs : isSparse θ k ψ.val = true then ψ else
-    ⟨next θ k ψ.val b, normalized_next hθ ψ.property (fun h => hs ((isSparse_eq_true_iff hθ ψ.property).mpr h)) b⟩
+    ⟨next θ k ψ.val b, normalized_next hθ ψ.property
+      (fun h => hs ((isSparse_eq_true_iff hθ ψ.property).mpr h)) b⟩
   exists_choice_next ψ hns := by
-    have hs : ¬ isSparse θ k ψ.val = true := fun hs => hns ((isSparse_eq_true_iff hθ ψ.property).mp hs)
+    have hs : ¬ isSparse θ k ψ.val = true := fun hs =>
+      hns ((isSparse_eq_true_iff hθ ψ.property).mp hs)
     refine ⟨_, _, (choice_spec hθ ψ.property hns).1, fun b => ?_⟩
     simp only [hs]
     exact toClauseSet_next ψ.property b

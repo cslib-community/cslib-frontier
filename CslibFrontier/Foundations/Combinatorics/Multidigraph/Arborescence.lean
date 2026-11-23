@@ -153,7 +153,8 @@ theorem det_laplacian_arcMatrix_submatrix_eq_natCard_isInArborescence (R : Type*
       ∏ i : {v // v ≠ r}, (Finset.univ.filter fun e => src e = i ∧ tgt e = g.val i).card := by
     intro g
     let ψ : {f // φ f = g} ≃ ((i : {v // v ≠ r}) → {e // src e = i ∧ tgt e = g.val i}) :=
-      { toFun := fun f i => ⟨f.val.val i, f.val.property.src_eq i, congrFun (congrArg Subtype.val f.property) i⟩
+      { toFun := fun f i =>
+          ⟨f.val.val i, f.val.property.src_eq i, congrFun (congrArg Subtype.val f.property) i⟩
         invFun := fun h => ⟨⟨fun i => (h i).val, fun i => (h i).property.1, by
             have hg : (fun v => tgt (h v).val) = g.val := funext fun i => (h i).property.2
             have := g.property

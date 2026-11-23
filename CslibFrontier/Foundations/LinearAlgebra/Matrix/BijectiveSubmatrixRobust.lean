@@ -100,8 +100,7 @@ theorem exists_bijective_submatrixRobust (n : ℕ) :
           change (M.submatrix _ _ *ᵥ x) i = (M *ᵥ fun j => x ⟨j, trivial⟩) i.val
           simp only [Matrix.mulVec, dotProduct, Matrix.submatrix_apply]
           exact Fintype.sum_equiv (Equiv.Set.univ (Fin n)) _ _ fun _ => rfl
-      change Module.finrank (ZMod 2) (LinearMap.range _) ≤ _
-      rw [hfacU, LinearMap.range_comp]
+      rw [← Matrix.finrank_range_mulVecLin, hfacU, LinearMap.range_comp]
       exact (Submodule.finrank_map_le _ _).trans
         (Submodule.finrank_mono (LinearMap.range_comp_le_range _ _))
     have hrn := fM.finrank_range_add_finrank_ker
@@ -138,9 +137,7 @@ theorem exists_bijective_submatrixRobust (n : ℕ) :
           Finset.sum_eq_zero fun j _ => by simp [j.property]
         rw [h0, add_zero]
         exact Finset.sum_congr rfl fun j _ => by simp [j.property]
-    change Module.finrank (ZMod 2)
-      (LinearMap.range (E_mat.submatrix ((↑) : S_set → Fin n) ((↑) : T_set → Fin n)).mulVecLin) ≤ _
-    rw [hfac]
+    rw [← Matrix.finrank_range_mulVecLin, hfac]
     exact (Submodule.finrank_mono (LinearMap.range_comp_le_range _ _)).trans
       (LinearMap.finrank_range_le _)
   have hbr_M : M.blockRank S_set T_set ≤
@@ -159,9 +156,7 @@ theorem exists_bijective_submatrixRobust (n : ℕ) :
       have hmono := Submodule.finrank_mono hsup
       have hdim := Submodule.finrank_sup_add_finrank_inf_eq
         (LinearMap.range A_b.mulVecLin) (LinearMap.range B_b.mulVecLin)
-      change Module.finrank (ZMod 2) (LinearMap.range (A_b - B_b).mulVecLin) ≤
-        Module.finrank (ZMod 2) (LinearMap.range A_b.mulVecLin) +
-          Module.finrank (ZMod 2) (LinearMap.range B_b.mulVecLin)
+      simp only [← Matrix.finrank_range_mulVecLin]
       omega
     exact hrank_le.trans (Nat.add_le_add_left hE_sub_rank _)
   have hM_st := hM S_set T_set hST

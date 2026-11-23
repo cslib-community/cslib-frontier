@@ -143,6 +143,7 @@ theorem perm_relabel_tseitinClauses (A : Proposition (Fin n)) (k : ℕ) (acc : C
           List.getElem?_append_left (List.getElem?_eq_some_iff.1 hC).1]
         exact hC
     rw [tseitinClauses]
+    dsimp only
     generalize A.tseitinClauses k acc = a at *
     generalize B.tseitinClauses a.next a.clauses = b at *
     have hx := hlabel (A.tseitinLabels.length + B.tseitinLabels.length) _
@@ -183,6 +184,7 @@ theorem eval_tseitinClauses {σ : ℕ → Bool} (A : Proposition (Fin n)) (k : �
     exact ⟨h.2, h.1⟩
   | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
     rw [tseitinClauses] at h ⊢
+    dsimp only at h ⊢
     have ihA := ihA k acc
     have ihB := ihB (A.tseitinClauses k acc).next (A.tseitinClauses k acc).clauses
     generalize A.tseitinClauses k acc = a at *

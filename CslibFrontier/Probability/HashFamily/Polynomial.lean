@@ -426,7 +426,8 @@ theorem isUniversalHash_polyHash [Fintype F] (ℓ : ℕ) :
       _ ≤ (toPoly m.val - toPoly m'.val).roots.card := Multiset.toFinset_card_le _
       _ ≤ (toPoly m.val - toPoly m'.val).natDegree := card_roots' _
       _ ≤ ℓ := (natDegree_sub_le _ _).trans <| max_le
-          ((monic_toPoly m.val).2.trans_le m.property) ((monic_toPoly m'.val).2.trans_le m'.property)
+          ((monic_toPoly m.val).2.trans_le m.property)
+          ((monic_toPoly m'.val).2.trans_le m'.property)
 
 /-- For the hash of Equation 7.3 modulo `2^(n+1)`, the three-block messages
 `[2^n, -2^n, 0]` and `[0, 0, 0]` collide at every key. This gives the failure of

@@ -501,7 +501,8 @@ theorem eval_eq_result_of_remaining_nil [Semiring R] [DecidableEq V] (d : ℕ)
     Fintype.sum_unique]
   refine congrArg (s.scalar * List.prod ·) (List.map_congr_left fun f _ => ?_)
   rw [FactorTable.evalAt, show (fun v : V => if h : v ∈ (∅ : Finset V) then
-    ((default : (∅ : Finset V) → Fin d) ⟨v, h⟩).val else 0) = fun _ => 0 from funext fun _ => by simp,
+    ((default : (∅ : Finset V) → Fin d) ⟨v, h⟩).val else 0) = fun _ => 0 from
+      funext fun _ => by simp,
     ofDigits_map_zero]
 
 /-- If `order` covers all initial declared variables `init.remaining`, eliminating along `order`

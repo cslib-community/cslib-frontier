@@ -53,8 +53,10 @@ theorem exists_quantile (s : Finset α) (hs : s.Nonempty) (score : α → β)
   obtain ⟨_, ⟨p, rfl⟩, hlt, hle⟩ :=
     Cslib.Probability.PMF.exists_quantile (Cslib.Probability.PMF.uniformOfFintype s)
       (fun x : s => score x.val) ha ha₁
-  rw [Cslib.Probability.PMF.sum_subtype_uniformOfFintype_ite_toReal s (score · < score p.val)] at hlt
-  rw [Cslib.Probability.PMF.sum_subtype_uniformOfFintype_ite_toReal s (score · ≤ score p.val)] at hle
+  rw [Cslib.Probability.PMF.sum_subtype_uniformOfFintype_ite_toReal s (score · < score p.val)]
+    at hlt
+  rw [Cslib.Probability.PMF.sum_subtype_uniformOfFintype_ite_toReal s (score · ≤ score p.val)]
+    at hle
   have hpos : (0 : ℝ) < s.card := Nat.cast_pos.mpr hs.card_pos
   have hcompl : ((s.filter fun x => score x < score p.val).card : ℝ) +
       ((s.filter fun x => score p.val ≤ score x).card : ℝ) = s.card := by

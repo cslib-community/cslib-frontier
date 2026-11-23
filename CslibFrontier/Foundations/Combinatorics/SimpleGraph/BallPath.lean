@@ -239,7 +239,8 @@ vertices, the radius-`r` ball is the path `c - r, …, c + r` on `2r + 1` vertic
 theorem exists_isBallPath_cycleGraph {N r : ℕ} (hN : 2 * r + 2 ≤ N) (c : Fin N) :
     ∃ φ : ℤ → Fin N, φ 0 = c ∧ IsBallPath (cycleGraph N) r (-r) r φ := by
   have : NeZero N := ⟨by omega⟩
-  exact ⟨_, Fin.ext (by simp [Fin.val_add, Nat.mod_eq_of_lt c.isLt]), isBallPath_cycleGraph_add hN c⟩
+  exact ⟨_, Fin.ext (by simp [Fin.val_add, Nat.mod_eq_of_lt c.isLt]),
+    isBallPath_cycleGraph_add hN c⟩
 
 end Cycle
 

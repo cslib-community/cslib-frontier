@@ -122,8 +122,8 @@ theorem blockMonomial_injective (blk : σ → Fin d) (S : Finset (Fin d)) :
   funext i
   apply Subtype.ext
   have h := DFunLike.congr_fun hxy (x i : σ)
-  rw [blockMonomial_apply_of_eq x (x i).property, blockMonomial_apply_of_eq y (x i).property, ite_eq_left rfl]
-    at h
+  rw [blockMonomial_apply_of_eq x (x i).property, blockMonomial_apply_of_eq y (x i).property,
+    ite_eq_left rfl] at h
   by_contra hne
   rw [ite_eq_right fun h' => hne h'.symm] at h
   exact one_ne_zero h

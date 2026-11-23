@@ -43,7 +43,8 @@ open scoped unitInterval
 noncomputable def coin (p : I) : PMF Bool :=
   PMF.ofFintype (fun b => if b then ENNReal.ofReal p else ENNReal.ofReal (1 - p)) (by
     rw [Fintype.sum_bool, ite_eq_left rfl, ite_eq_right Bool.false_ne_true,
-      ← ENNReal.ofReal_add p.property.1 (sub_nonneg.mpr p.property.2), add_sub_cancel, ENNReal.ofReal_one])
+      ← ENNReal.ofReal_add p.property.1 (sub_nonneg.mpr p.property.2), add_sub_cancel,
+      ENNReal.ofReal_one])
 
 theorem coin_apply (p : I) (b : Bool) :
     coin p b = if b then ENNReal.ofReal p else ENNReal.ofReal (1 - p) := by

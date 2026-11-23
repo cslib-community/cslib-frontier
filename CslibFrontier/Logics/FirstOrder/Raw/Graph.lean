@@ -186,7 +186,8 @@ modules.) -/
 instance instFiniteTupleVertex [Finite M] : Finite (TupleVertex I K) := by
   have : Finite {l : List M // l.length ≤ K} := (List.finite_length_le M K).to_subtype
   refine Finite.of_injective (β := {l : List M // l.length ≤ K} × Fin (K + 1))
-    (fun q => (⟨q.val.1, q.property.1⟩, ⟨q.val.2, by have := q.property.1; have := q.property.2.1; omega⟩)) ?_
+    (fun q => (⟨q.val.1, q.property.1⟩,
+      ⟨q.val.2, by have := q.property.1; have := q.property.2.1; omega⟩)) ?_
   rintro ⟨⟨l, j⟩, h⟩ ⟨⟨l', j'⟩, h'⟩ he
   simp only [Prod.mk.injEq, Subtype.mk.injEq, Fin.mk.injEq] at he
   obtain ⟨rfl, rfl⟩ := he
@@ -216,7 +217,8 @@ theorem isTupleGadget_tupleGraph_iff {bs : List M} (h0 : 0 < bs.length) (hK : bs
     have hj0 : q0.val.2 = 0 := by
       by_contra hne
       have hv : q0.val.2 - 1 < q0.val.1.length := by have := q0.property.2.1; omega
-      refine g3 (.inr ⟨(q0.val.1, q0.val.2 - 1), q0.property.1, hv, q0.property.2.2⟩) (fun h => ?_) ?_
+      refine g3 (.inr ⟨(q0.val.1, q0.val.2 - 1), q0.property.1, hv, q0.property.2.2⟩)
+        (fun h => ?_) ?_
       · simp only [tupleGraph] at h; omega
       · rw [hq0]; exact ⟨rfl, by simp only; omega⟩
     have hchain : ∀ i < bs.length,

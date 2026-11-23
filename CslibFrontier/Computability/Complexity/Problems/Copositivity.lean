@@ -537,7 +537,8 @@ private theorem singleton_neg_nonCopositive :
     singletonSymRatMatrix (-1) ∈ NonCopositive := by
   intro hcop
   have h := hcop (fun _ => (1 : ℚ)) fun _ => zero_le_one
-  change 0 ≤ ∑ i : Fin 1, (1 : ℚ) * ∑ j : Fin 1, (([[(-1 : ℚ)]].getD i.val []).getD j.val 0) * 1 at h
+  change 0 ≤ ∑ i : Fin 1, (1 : ℚ) *
+    ∑ j : Fin 1, (([[(-1 : ℚ)]].getD i.val []).getD j.val 0) * 1 at h
   norm_num [Fin.sum_univ_one] at h
 
 private theorem singleton_pos_copositive :

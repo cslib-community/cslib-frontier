@@ -256,7 +256,8 @@ noncomputable def pebbleHintikka [Finite (Σ l, L.Relations l)] :
   | 0, S, T => pebbleAtomicDiagram S T
   | _ + 1, S, T =>
     pebbleAtomicDiagram S T.1 ⊓ FiniteVariable.GenFormula.iInf fun j : Fin k =>
-      FiniteVariable.GenFormula.iInf (fun T' : T.2 j => .ex j (pebbleHintikka (insert j S) T'.val)) ⊓
+      FiniteVariable.GenFormula.iInf
+          (fun T' : T.2 j => .ex j (pebbleHintikka (insert j S) T'.val)) ⊓
         .all j (FiniteVariable.GenFormula.iSup fun T' : T.2 j => pebbleHintikka (insert j S) T'.val)
 
 theorem realize_pebbleHintikka [Finite (Σ l, L.Relations l)] :

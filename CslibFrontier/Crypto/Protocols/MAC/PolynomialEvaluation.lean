@@ -287,7 +287,8 @@ private theorem coeff_fixedTopPoly (encodeLength : Fin ℓ → F) (m : Message F
   · rfl
 
 private theorem coeff_fixedTopPoly_length (encodeLength : Fin ℓ → F) (m : Message F ℓ) :
-    (fixedTopPoly encodeLength m).coeff (ℓ - m.val.length) = encodeLength ⟨m.val.length, m.property⟩ := by
+    (fixedTopPoly encodeLength m).coeff (ℓ - m.val.length) =
+      encodeLength ⟨m.val.length, m.property⟩ := by
   have hm := m.property
   rw [fixedTopPoly, coeff_X_pow_mul']
   simp only [show ℓ - (m.val.length + 1) ≤ ℓ - m.val.length by omega, ↓reduceIte,
@@ -296,7 +297,8 @@ private theorem coeff_fixedTopPoly_length (encodeLength : Fin ℓ → F) (m : Me
 /-- A longer message has a nonzero coefficient where a shorter one has none. -/
 private theorem fixedTopPoly_ne_of_lt {encodeLength : Fin ℓ → F}
     (hpos : ∀ d : Fin ℓ, d.val ≠ 0 → encodeLength d ≠ 0) {m m' : Message F ℓ}
-    (hlt : m.val.length < m'.val.length) : fixedTopPoly encodeLength m ≠ fixedTopPoly encodeLength m' :=
+    (hlt : m.val.length < m'.val.length) :
+    fixedTopPoly encodeLength m ≠ fixedTopPoly encodeLength m' :=
   fun h => by
     have hc := congrArg (·.coeff (ℓ - m'.val.length)) h
     have hm' := m'.property

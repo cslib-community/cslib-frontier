@@ -63,10 +63,12 @@ def superCliques (n k : ℕ) (s : Finset (Fin n)) : Finset (CliqueSet n k) :=
 theorem card_superCliques {s : Finset (Fin n)} (hs : s.card ≤ k) :
     (superCliques n k s).card = (n - s.card).choose (k - s.card) := by
   have e : superCliques n k s = (((univ : Finset (Fin n)).powersetCard k).filter (s ⊆ ·)).attach.map
-      ⟨fun c => ⟨c.val, (mem_filter.1 c.property).1⟩, fun a b h => Subtype.ext (by simpa using h)⟩ := by
+      ⟨fun c => ⟨c.val, (mem_filter.1 c.property).1⟩,
+        fun a b h => Subtype.ext (by simpa using h)⟩ := by
     ext c
     simp only [mem_superCliques, mem_map, mem_attach, true_and]
-    exact ⟨fun h => ⟨⟨c.val, mem_filter.2 ⟨c.property, h⟩⟩, rfl⟩, fun ⟨d, hd⟩ => hd ▸ (mem_filter.1 d.property).2⟩
+    exact ⟨fun h => ⟨⟨c.val, mem_filter.2 ⟨c.property, h⟩⟩, rfl⟩,
+      fun ⟨d, hd⟩ => hd ▸ (mem_filter.1 d.property).2⟩
   rw [e, card_map, card_attach]
   simpa using card_filter_powersetCard_subset s (univ : Finset (Fin n)) k (by simp) hs
 

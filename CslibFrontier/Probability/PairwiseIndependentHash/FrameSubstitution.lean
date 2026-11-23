@@ -160,7 +160,8 @@ theorem affineSubst_injective :
   have hF : A.2.val = A'.2.val := by
     have h2 := congrArg (fun A ↦ A.2.val) h
     funext j i
-    have hi : substMatrix α β *ᵥ (fun j ↦ A.2.val j i) = substMatrix α β *ᵥ (fun j ↦ A'.2.val j i) := by
+    have hi :
+        substMatrix α β *ᵥ (fun j ↦ A.2.val j i) = substMatrix α β *ᵥ (fun j ↦ A'.2.val j i) := by
       funext k
       have := congrFun (congrFun h2 k) i
       simpa [affineSubst, substColumns, mulVec, dotProduct, Finset.sum_apply] using this

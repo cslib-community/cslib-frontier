@@ -675,7 +675,8 @@ theorem bind_reduceWith_uniformOfFintype [Fintype T] [DecidableEq T] {β : Type}
     let t := tw k
     let W := A.get a
     let v := V.get a
-    let pt : {x : ZMod (μ i) // x ≠ v} → CCRInput μ ℓ := fun x => ⟨i, j, W, x.val - v, φ x.val - φ v⟩
+    let pt : {x : ZMod (μ i) // x ≠ v} → CCRInput μ ℓ := fun x =>
+      ⟨i, j, W, x.val - v, φ x.val - φ v⟩
     let G : CCRTable μ ℓ → ({c : ZMod (μ i) // c ≠ 0} → Label μ ℓ j) × Label μ ℓ j :=
       fun s => reduceRows (rowsWith (fun q => s q.2) H t W v φ) (W.2 - v)
     let Φ : ({c : ZMod (μ i) // c ≠ 0} → Label μ ℓ j) → PMF β := fun R =>

@@ -194,8 +194,8 @@ theorem card_filter_swapSamples_exists_le_abs_le {Z : Type*} {G : ConceptClass Z
           if g.val (z.2 i) ≠ g'.val (z.2 i) then 1 else 0) := by
       rw [← mul_sub, mul_pow, hs, one_mul]
       simp only [a]
-      cases g.val (z.1 i) <;> cases g'.val (z.1 i) <;> cases g.val (z.2 i) <;> cases g'.val (z.2 i) <;>
-        norm_num
+      cases g.val (z.1 i) <;> cases g'.val (z.1 i) <;> cases g.val (z.2 i) <;>
+        cases g'.val (z.2 i) <;> norm_num
     rcases Nat.eq_zero_or_pos m with rfl | hm
     · simp
     have hmR : (0 : ℝ) < m := Nat.cast_pos.2 hm

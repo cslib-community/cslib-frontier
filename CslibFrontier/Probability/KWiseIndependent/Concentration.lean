@@ -129,7 +129,8 @@ private theorem sum_prod_image_card_eq_le {X : Type*} [DecidableEq X]
     obtain ⟨item, -, rfl⟩ := mem_image.mp hqv
     refine mem_product.mpr ⟨mem_univ _, mem_piFinset.mpr fun k => ?_⟩
     have htR := mem_piFinset.mp (mem_filter.mp (mem_product.mp item.property).1).1
-    obtain ⟨j, -, hj⟩ := mem_image.mp ((eqvOf item.val.1 (htOf item)).symm (item.val.2.symm k)).property
+    obtain ⟨j, -, hj⟩ :=
+      mem_image.mp ((eqvOf item.val.1 (htOf item)).symm (item.val.2.symm k)).property
     simpa only [Ψ, ← hj] using htR j
   have hinj : Set.InjOn Ψ (Dom.attach : Set {pair // pair ∈ Dom}) := by
     intro item₁ _ item₂ _ heq

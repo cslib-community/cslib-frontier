@@ -448,7 +448,8 @@ private theorem realizesBounded_reduceAddStepGen :
       (hmem.mem_fits (hashBase + coeffOff + m)))
   all_goals try exact hmem.frontier_fits.of_le (by unfold ReducedKWise.space at hfr_h; omega)
   all_goals try exact Nat.xor_lt_two_pow (hmem.mem_fits _) (hmem.mem_fits _)
-  all_goals try exact Nat.xor_lt_two_pow (Nat.xor_lt_two_pow (hmem.mem_fits _) (hmem.mem_fits _)) (hmem.mem_fits _)
+  all_goals try exact Nat.xor_lt_two_pow (Nat.xor_lt_two_pow (hmem.mem_fits _)
+    (hmem.mem_fits _)) (hmem.mem_fits _)
   exact hxor3
 
 private theorem reduceAddLoop_spec {w w₀ b b' k hashBase scratchBase PVal : ℕ}

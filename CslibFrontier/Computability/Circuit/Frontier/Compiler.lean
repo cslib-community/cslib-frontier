@@ -127,7 +127,8 @@ theorem maxDegreeLE {r : ℕ} (hr : 2 ≤ r) (hfan : c.FanInAtMost r) :
     -- The first edge of the signal, and the edges delivering the slots of its gate.
     calc ((graph c).incidenceSet (.signal w)).ncard
         ≤ (insert (head w)
-            ((fun a => deliverEdge (.inl a)) '' {a : Slot c | Wire.gate a.val.1 = w.val})).ncard := by
+            ((fun a => deliverEdge (.inl a)) ''
+              {a : Slot c | Wire.gate a.val.1 = w.val})).ncard := by
           refine ncard_le_ncard (fun e he => ?_) (toFinite _)
           rcases he with he | he
           · exact Or.inl (eq_head_of_src_eq_signal he)
@@ -446,8 +447,8 @@ private theorem ncard_readIn_add_card_le (W : Set (Vertex c)) :
       fun i : {i // Reach c (.input i)} => Vertex.signal ⟨.input i.val, i.property⟩ ∈ W).symm
   rw [Nat.card_subtype_eq_add_of_equiv_sum signalEquiv, hread]
   refine Nat.add_le_add le_rfl ?_
-  exact Nat.card_le_card_of_injective (fun g => ⟨⟨g.val.val, g.val.property.1⟩, g.property⟩) fun _ _ h =>
-    Subtype.ext (Subtype.ext (congrArg (fun g => g.val.val) h))
+  exact Nat.card_le_card_of_injective (fun g => ⟨⟨g.val.val, g.val.property.1⟩, g.property⟩)
+    fun _ _ h => Subtype.ext (Subtype.ext (congrArg (fun g => g.val.val) h))
 
 /-- Whether a reachable inner gate in `W` has syntactic arity `1`. -/
 private def IsUnaryGateIn {W : Set (Vertex c)} : InnerGateIn c W → Prop

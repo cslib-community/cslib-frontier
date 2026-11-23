@@ -144,7 +144,8 @@ theorem computableInSpace_eval_log_mul_log_log : ∃ t, ComputableInBigO
   obtain ⟨t, c, k, State, hfinite, tm, htm⟩ := computableInSpace_eval
   have hN : ComputableInBigO (fun I : NontrivialInstance => List.ofFn I.val.tree.eval)
       encNontrivialInstance encBits (fun I => t I.val)
-      (fun I => spaceBound I.val.ell I.val.height + (encNat ((encInstance I.val).length + 1)).length) :=
+      (fun I => spaceBound I.val.ell I.val.height +
+        (encNat ((encInstance I.val).length + 1)).length) :=
     ⟨c, k, State, hfinite, tm, fun I => htm I.val⟩
   exact ⟨fun I => t I.val, hN.weaken (.refl _) (.of_le_linear 6 0 fun I => by
     simpa only [encNontrivialInstance_apply, Nat.add_zero] using

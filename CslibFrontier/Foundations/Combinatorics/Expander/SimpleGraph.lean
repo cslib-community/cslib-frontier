@@ -169,8 +169,8 @@ theorem exists_isSimple_toSimpleGraph_eq {H : SimpleGraph V} [H.LocallyFinite] {
   · exact H.ne_of_adj ((H.mem_neighborFinset _ _).1 (e v i).property) |>.symm
   · exact (e v).injective (Subtype.ext h)
   · ext u v
-    refine ⟨fun ⟨_, i, hi⟩ ↦ hi ▸ (H.mem_neighborFinset _ _).1 (e u i).property, fun h ↦ ⟨H.ne_of_adj h,
-      (e u).symm ⟨v, (H.mem_neighborFinset _ _).2 h⟩, ?_⟩⟩
+    refine ⟨fun ⟨_, i, hi⟩ ↦ hi ▸ (H.mem_neighborFinset _ _).1 (e u i).property,
+      fun h ↦ ⟨H.ne_of_adj h, (e u).symm ⟨v, (H.mem_neighborFinset _ _).2 h⟩, ?_⟩⟩
     simp [neighbor, rot]
 
 end Cslib.RotationMap

@@ -463,8 +463,8 @@ private theorem classify_subDart [Finite V] (W : WeightedGraph V)
   let e : W.graph.edgeSet := ⟨d.edge, d.edge_mem⟩
   rcases (dart_edge_eq_iff d (edgeDartOfSym2 e)).mp (edgeDartOfSym2_edge e).symm with h | h
   · rw [show (realizationSubdivision W).weight d'.edge = ((t : ℝ) - s) * W.weight e.val from hw_eq]
-    exact Or.inl (forwardSubDart_of_edgePoint W hst (h ▸ hs) d'.fst.property (h ▸ ht) d'.snd.property
-      fun r h1 h2 => h ▸ hno r h1 h2)
+    exact Or.inl (forwardSubDart_of_edgePoint W hst (h ▸ hs) d'.fst.property (h ▸ ht)
+      d'.snd.property fun r h1 h2 => h ▸ hno r h1 h2)
   · have hw_symm : (realizationSubdivision W).weight d'.edge =
         ((unitInterval.symm s : ℝ) - unitInterval.symm t) * W.weight e.val := by
       have : ((t : ℝ) - s) = (unitInterval.symm s : ℝ) - unitInterval.symm t := by
@@ -879,15 +879,17 @@ private noncomputable def realizationSubEquiv [Finite V] (W : WeightedGraph V) :
   have hf_le : ∀ x y, dist (f x) (f y) ≤ dist x y :=
     dist_map_le_of_edgePoint_dist_le f fun d s t => by
       rw [hf_e, hf_e]
-      refine (dist_edgePoint_self_le (W := realizationSubdivision W) ⟨d.toProd, d.adj⟩ s t).trans_eq ?_
+      refine (dist_edgePoint_self_le (W := realizationSubdivision W)
+        ⟨d.toProd, d.adj⟩ s t).trans_eq ?_
       rw [mul_comm, realizationEuclideanGraph_weight_eq W d.edge_mem]
       rfl
   have hg_le : ∀ x y, dist (g x) (g y) ≤ dist x y :=
     dist_map_le_of_edgePoint_dist_le g fun d s t => by
       rw [hg_e, hg_e]
-      refine (dist_edgePoint_self_le (W := realizationEuclideanGraph W) ⟨d.toProd, d.adj⟩ s t).trans_eq ?_
-      rw [mul_comm, show (⟨d.toProd, d.adj⟩ : (realizationEuclideanGraph W).graph.Dart).edge = d.edge from
-        rfl, realizationEuclideanGraph_weight_eq W d.edge_mem]
+      refine (dist_edgePoint_self_le (W := realizationEuclideanGraph W)
+        ⟨d.toProd, d.adj⟩ s t).trans_eq ?_
+      rw [mul_comm, show (⟨d.toProd, d.adj⟩ : (realizationEuclideanGraph W).graph.Dart).edge =
+        d.edge from rfl, realizationEuclideanGraph_weight_eq W d.edge_mem]
   exact IsometryEquiv.mk ⟨f, g, hgf, hfg⟩ (Isometry.of_dist_eq fun x y =>
     le_antisymm (hf_le x y) (by simpa only [hgf x, hgf y] using hg_le (f x) (f y)))
 

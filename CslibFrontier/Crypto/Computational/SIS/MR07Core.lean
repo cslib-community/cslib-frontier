@@ -847,8 +847,9 @@ noncomputable instance {n : ℕ} (B S : Matrix (Fin n) (Fin n) ℤ) :
     Fintype (SublatticeQuot B S) := by
   let M : Fin n → ℤ := fun i => ∑ j : Fin n, |S i j|
   have : Finite (SublatticeQuot B S) := Finite.of_injective
-    (fun v : SublatticeQuot B S => (fun i => ⟨v.val i, Finset.mem_Icc.mpr (abs_le.mp (v.property.1 i))⟩ :
-      ∀ i : Fin n, { x : ℤ // x ∈ Finset.Icc (-M i) (M i) }))
+    (fun v : SublatticeQuot B S =>
+      (fun i => ⟨v.val i, Finset.mem_Icc.mpr (abs_le.mp (v.property.1 i))⟩ :
+        ∀ i : Fin n, { x : ℤ // x ∈ Finset.Icc (-M i) (M i) }))
     fun _ _ h => Subtype.ext (funext fun i => congrArg Subtype.val (congrFun h i))
   exact Fintype.ofFinite (SublatticeQuot B S)
 

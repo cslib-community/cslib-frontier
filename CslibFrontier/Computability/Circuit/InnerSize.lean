@@ -216,7 +216,8 @@ private def liftDedupTag {U : Type*} {g' : ℕ} (p' : Program σ n g')
     (line' : Line σ n g') : DedupTag U p' → DedupTag U (p'.gate line')
   | .inl u => .inl u
   | .inr (.inl k, f) =>
-    .inr (.inl ⟨k.val.castSucc, (Program.mem_multiaryGates_gate_castSucc p' line' k.val).mpr k.property⟩, f)
+    .inr (.inl ⟨k.val.castSucc,
+      (Program.mem_multiaryGates_gate_castSucc p' line' k.val).mpr k.property⟩, f)
   | .inr (.inr i, f) => .inr (.inr i, f)
 
 private theorem evalDedupTag_lift {U : Type*} (I : Interpretation σ U) {g' : ℕ}

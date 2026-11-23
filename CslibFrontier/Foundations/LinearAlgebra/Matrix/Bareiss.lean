@@ -726,10 +726,11 @@ private theorem sum_mul_kernelBasisVec_nonPivot {A : Matrix (Fin m) (Fin n) K}
     {S : Fin k → Fin m} {C : Fin k → Fin n} (g : { j : Fin n // ∀ a : Fin k, C a ≠ j } → K)
     (c : { j : Fin n // ∀ a : Fin k, C a ≠ j }) :
     ∑ x, g x * kernelBasisVec A S C x.val c.val = g c := by
-  rw [Fintype.sum_eq_single c, kernelBasisVec_nonPivot S C c.val c.val c.property, ite_eq_left rfl, mul_one]
+  rw [Fintype.sum_eq_single c, kernelBasisVec_nonPivot S C c.val c.val c.property, ite_eq_left rfl,
+    mul_one]
   intro x hx
-  rw [kernelBasisVec_nonPivot S C x.val c.val c.property, ite_eq_right fun h => hx (Subtype.ext h.symm),
-    mul_zero]
+  rw [kernelBasisVec_nonPivot S C x.val c.val c.property,
+    ite_eq_right fun h => hx (Subtype.ext h.symm), mul_zero]
 
 /-- Every `kernelBasisVec` associated with a non-pivot column `j` lies in `ker A.mulVecLin`. -/
 theorem mulVec_kernelBasisVec {A : Matrix (Fin m) (Fin n) K}
@@ -747,7 +748,8 @@ theorem mulVec_kernelBasisVec {A : Matrix (Fin m) (Fin n) K}
     rw [rrefOfBareiss_pivot_dotProduct hΔ, kernelBasisVec_pivot hΔ, Fintype.sum_eq_single ⟨j, hj⟩,
       kernelBasisVec_nonPivot S C j j hj, ite_eq_left rfl, mul_one, neg_add_cancel]
     intro c hc
-    rw [kernelBasisVec_nonPivot S C j c.val c.property, ite_eq_right fun h => hc (Subtype.ext h), mul_zero]
+    rw [kernelBasisVec_nonPivot S C j c.val c.property, ite_eq_right fun h => hc (Subtype.ext h),
+      mul_zero]
   · rw [rrefOfBareiss_row_eq_zero (hterm i (not_exists.1 hrow)), zero_dotProduct]
 
 /-- The family of `kernelBasisVec` indexed by non-pivot columns is linearly independent. -/

@@ -462,9 +462,11 @@ theorem subtreeSatCount_join [Finite D] (sem : Rel → List D → Bool) {F : CSP
   refine Finset.card_bij
     (fun σ _ =>
       (fun x => σ ⟨x.val, Finset.mem_inter.2
-          ⟨Finset.mem_union_left _ (Finset.mem_inter.1 x.property).1, (Finset.mem_inter.1 x.property).2⟩⟩,
+          ⟨Finset.mem_union_left _ (Finset.mem_inter.1 x.property).1,
+            (Finset.mem_inter.1 x.property).2⟩⟩,
        fun x => σ ⟨x.val, Finset.mem_inter.2
-          ⟨Finset.mem_union_right _ (Finset.mem_inter.1 x.property).1, (Finset.mem_inter.1 x.property).2⟩⟩))
+          ⟨Finset.mem_union_right _ (Finset.mem_inter.1 x.property).1,
+            (Finset.mem_inter.1 x.property).2⟩⟩))
     ?_ ?_ ?_
   · intro σ hσ
     simp only [Finset.mem_product, mem_subtreeSatSet] at hσ ⊢
@@ -488,7 +490,8 @@ theorem subtreeSatCount_join [Finite D] (sem : Rel → List D → Bool) {F : CSP
     simp only [Finset.mem_product, mem_subtreeSatSet] at hpair
     rcases hpair with ⟨⟨hLB, hLF⟩, ⟨hRB, hRF⟩⟩
     let σ : ↑((S_L ∪ S_R) ∩ U) → D := fun x =>
-      if hxL : x.val ∈ S_L then σL ⟨x.val, Finset.mem_inter.2 ⟨hxL, (Finset.mem_inter.1 x.property).2⟩⟩
+      if hxL : x.val ∈ S_L then
+        σL ⟨x.val, Finset.mem_inter.2 ⟨hxL, (Finset.mem_inter.1 x.property).2⟩⟩
       else σR ⟨x.val, Finset.mem_inter.2
         ⟨(Finset.mem_union.1 (Finset.mem_inter.1 x.property).1).resolve_left hxL,
           (Finset.mem_inter.1 x.property).2⟩⟩

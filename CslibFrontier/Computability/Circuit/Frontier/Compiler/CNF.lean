@@ -399,10 +399,12 @@ theorem card_reachWiresCode_toFinset (c : Circuit σ n m) :
         List.mem_toFinset.mpr ((mem_reachWiresCode_iff c w.val.toNat).mpr ⟨w.val, rfl, w.property⟩)⟩
       invFun := fun i =>
         let hlt : i.val < n + c.size := by
-          obtain ⟨w, hw_eq, _⟩ := (mem_reachWiresCode_iff c i.val).mp (List.mem_toFinset.mp i.property)
+          obtain ⟨w, hw_eq, _⟩ :=
+            (mem_reachWiresCode_iff c i.val).mp (List.mem_toFinset.mp i.property)
           exact hw_eq ▸ w.toNat_lt
         ⟨Wire.ofNat i.val hlt, by
-          obtain ⟨w, hw_eq, hw⟩ := (mem_reachWiresCode_iff c i.val).mp (List.mem_toFinset.mp i.property)
+          obtain ⟨w, hw_eq, hw⟩ :=
+            (mem_reachWiresCode_iff c i.val).mp (List.mem_toFinset.mp i.property)
           have hof : Wire.ofNat i.val hlt = w := by
             apply Wire.toNat_injective
             simp [hw_eq]
@@ -687,13 +689,15 @@ theorem acceptCount_eq_two_pow_freeShift_mul_modelCount (c : Circuit σ n m)
       have hacc : ∀ o, c.eval I (extendR x₀) o ∈ accSet acc o := by grind [accepted_network]
       let τ : S → Bool := fun v =>
         let hlt : v.val < n + c.size := by
-          obtain ⟨w, hw_eq, _⟩ := (mem_reachWiresCode_iff c v.val).mp (List.mem_toFinset.mp v.property)
+          obtain ⟨w, hw_eq, _⟩ :=
+            (mem_reachWiresCode_iff c v.val).mp (List.mem_toFinset.mp v.property)
           exact hw_eq ▸ w.toNat_lt
         c.program.trace I (extendR x₀) (Wire.ofNat v.val hlt)
       have hτ_wire (w : Signal c) :
           extendS τ w.val.toNat = c.program.trace I (extendR x₀) w.val := by
         have hwS : w.val.toNat ∈ S :=
-          List.mem_toFinset.mpr ((mem_reachWiresCode_iff c w.val.toNat).mpr ⟨w.val, rfl, w.property⟩)
+          List.mem_toFinset.mpr
+            ((mem_reachWiresCode_iff c w.val.toNat).mpr ⟨w.val, rfl, w.property⟩)
         simp [extendS, hwS, τ]
       have htoR : toR τ = x₀ := by
         funext ⟨i, hi⟩

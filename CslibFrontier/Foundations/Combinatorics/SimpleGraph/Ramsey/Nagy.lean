@@ -83,12 +83,14 @@ theorem indepSetFree_nagyGraph : (nagyGraph α).IndepSetFree (Fintype.card α + 
     omega
   · have hne : i.val ≠ j.val := fun h => hij (Subtype.ext h)
     have hna : #(i.val.val ∩ j.val.val) ≠ 1 := ht.isIndepSet i.property j.property hne
-    have hle : #(i.val.val ∩ j.val.val) ≤ 3 := (card_le_card inter_subset_left).trans_eq i.val.property
+    have hle : #(i.val.val ∩ j.val.val) ≤ 3 :=
+      (card_le_card inter_subset_left).trans_eq i.val.property
     have hne3 : #(i.val.val ∩ j.val.val) ≠ 3 := by
       intro h3
       have hsub : i.val.val ⊆ j.val.val :=
         inter_eq_left.1 (eq_of_subset_of_card_le inter_subset_left (by rw [h3, i.val.property]))
-      exact hne (Subtype.ext (eq_of_subset_of_card_le hsub (by rw [i.val.property, j.val.property])))
+      exact hne (Subtype.ext
+        (eq_of_subset_of_card_le hsub (by rw [i.val.property, j.val.property])))
     rcases (by omega : #(i.val.val ∩ j.val.val) = 0 ∨ #(i.val.val ∩ j.val.val) = 2) with h0 | h2
     · rw [h0]; exact Even.zero
     · rw [h2]; exact even_two

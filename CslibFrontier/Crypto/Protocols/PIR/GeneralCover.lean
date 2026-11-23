@@ -358,7 +358,8 @@ theorem isCorrect_indexedScheme : (K.indexedScheme ι).IsCorrect := by
         fun l : diffCoords (K.code s) w => i l.val := by
       funext l
       have hcard : (diffCoords (K.code s) w).card ≤ 1 := K.hammingDist_assign_le_one w
-      have heq : l₀ = l.val := Finset.card_le_one.mp hcard l₀ (mem_diffCoords.mpr hl₀) l.val l.property
+      have heq : l₀ = l.val :=
+        Finset.card_le_one.mp hcard l₀ (mem_diffCoords.mpr hl₀) l.val l.property
       exact congrArg i heq
     rw [hfun, ← query_cube_eq_emulateCubeQuery h₀ (K.code s) w, answer_cube, answer_cube]
 

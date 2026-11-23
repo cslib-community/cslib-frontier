@@ -154,12 +154,14 @@ theorem exists_small_partitionGadget (γ : Type) [Fintype γ] (t : ℕ) :
     have hcard₁ : S₁.card ≤ t := by
       calc S₁.card ≤ (w₁.val.1.image (fun b => (b, true))).card +
               (w₁.val.2.image (fun b => (b, false))).card := Finset.card_union_le _ _
-        _ ≤ w₁.val.1.card + w₁.val.2.card := Nat.add_le_add Finset.card_image_le Finset.card_image_le
+        _ ≤ w₁.val.1.card + w₁.val.2.card :=
+          Nat.add_le_add Finset.card_image_le Finset.card_image_le
         _ ≤ t := w₁.property.2
     have hcard₂ : S₂.card ≤ t := by
       calc S₂.card ≤ (w₂.val.1.image (fun b => (b, true))).card +
               (w₂.val.2.image (fun b => (b, false))).card := Finset.card_union_le _ _
-        _ ≤ w₂.val.1.card + w₂.val.2.card := Nat.add_le_add Finset.card_image_le Finset.card_image_le
+        _ ≤ w₂.val.1.card + w₂.val.2.card :=
+          Nat.add_le_add Finset.card_image_le Finset.card_image_le
         _ ≤ t := w₂.property.2
     have hS : S₁ = S₂ := by
       ext ⟨b, flag⟩

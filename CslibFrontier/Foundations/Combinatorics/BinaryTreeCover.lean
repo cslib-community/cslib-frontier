@@ -256,7 +256,7 @@ theorem covers_cover {h : ℕ} (S : Finset (Fin (2 ^ h))) : Covers (cover S) S :
         apply hS
         ext k; fin_cases k; simpa using hmem
       subst hSemp
-      simp [cover]
+      simp [cover, (Finset.singleton_nonempty _).ne_empty.symm]
   | succ h ih =>
     by_cases hS : S = Finset.univ
     · rw [hS, cover_univ]

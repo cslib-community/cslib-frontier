@@ -152,6 +152,7 @@ theorem rhoFactorLoop_eq_none_iff (N : ℕ) (F : (ZMod N)ˣ → (ZMod N)ˣ) :
     omega
   | B + 1, x, y => by
     rw [rhoFactorLoop]
+    dsimp only
     split_ifs with h1
     · constructor
       · intro h; nomatch h

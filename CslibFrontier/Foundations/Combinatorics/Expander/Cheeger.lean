@@ -296,7 +296,8 @@ theorem le_edgeExpansion_iff [Nontrivial V] {c : ℝ} :
   obtain ⟨v⟩ := (inferInstance : Nonempty V)
   have : Nonempty {S : Finset V // S.Nonempty ∧ 2 * #S ≤ Fintype.card V} :=
     ⟨⟨{v}, singleton_nonempty v, by rw [card_singleton, mul_one]; exact Fintype.one_lt_card⟩⟩
-  exact le_ciInf fun S ↦ (le_div_iff₀ (Nat.cast_pos.2 S.property.1.card_pos)).2 (h S.val S.property.2)
+  exact le_ciInf fun S ↦
+    (le_div_iff₀ (Nat.cast_pos.2 S.property.1.card_pos)).2 (h S.val S.property.2)
 
 /-- On at most one vertex, `h(G) = 0` by convention. -/
 theorem edgeExpansion_eq_zero_of_subsingleton [Subsingleton V] : G.edgeExpansion = 0 := by

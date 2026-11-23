@@ -244,7 +244,8 @@ outcomes. -/
 theorem le_minEntropy_iff_exists_eq_bind_uniformOfFinset [Finite α] (p : PMF α) (k : ℕ) :
     (k : ℝ) ≤ minEntropy p ↔ ∃ mix : PMF {S : Finset α // S.card = 2 ^ k},
       p = mix.bind fun S =>
-        uniformOfFinset S.val (card_ne_zero.mp (S.property.trans_ne (pow_ne_zero k two_ne_zero))) := by
+        uniformOfFinset S.val
+          (card_ne_zero.mp (S.property.trans_ne (pow_ne_zero k two_ne_zero))) := by
   refine ⟨exists_eq_bind_uniformOfFinset_of_le_minEntropy p, ?_⟩
   rintro ⟨mix, rfl⟩
   refine le_minEntropy_bind _ _ fun S _ => ?_

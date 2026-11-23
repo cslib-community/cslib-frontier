@@ -272,8 +272,9 @@ def restrictModelsEquiv (φ : CNF V) (declared : Finset V) {v : V} (hv : v ∈ d
     ⟨fun u => τ.val ⟨u.val, Finset.mem_of_mem_erase u.property⟩, by
       have heval := eval_restrict_eq_eval_extendAt φ declared v hv b
         (fun u => τ.val ⟨u.val, Finset.mem_of_mem_erase u.property⟩)
-      have hext : extendAt declared v b (fun u => τ.val ⟨u.val, Finset.mem_of_mem_erase u.property⟩) =
-          τ.val := by
+      have hext :
+          extendAt declared v b (fun u => τ.val ⟨u.val, Finset.mem_of_mem_erase u.property⟩) =
+            τ.val := by
         funext u
         by_cases huv : u.val = v
         · have hu : u = ⟨v, hv⟩ := Subtype.ext huv
@@ -382,7 +383,8 @@ theorem restrictModelsEquiv_apply_val (φ : CNF V) (declared : Finset V) {v : V}
       (φ.restrict v b).eval (fun u => if h : u ∈ declared.erase v then σ ⟨u, h⟩ else false) =
         true})
     {u : ↥declared} (hu : u.val ≠ v) :
-    (restrictModelsEquiv φ declared hv b σ).val u = σ.val ⟨u.val, Finset.mem_erase.mpr ⟨hu, u.property⟩⟩ := by
+    (restrictModelsEquiv φ declared hv b σ).val u =
+      σ.val ⟨u.val, Finset.mem_erase.mpr ⟨hu, u.property⟩⟩ := by
   rw [restrictModelsEquiv_apply_val]
   exact dite_eq_right hu
 

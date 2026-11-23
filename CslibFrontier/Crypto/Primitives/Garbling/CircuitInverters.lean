@@ -270,7 +270,8 @@ def phiTopo : SideInfo ValidCircuit ValidTopo where
 /-- `Φ_size(f) = (n, m, q)`: side information revealing only the input count, output count and
 gate count ([BellareHoangRogaway2012], Section 3.3). -/
 def phiSize : SideInfo ValidCircuit ValidShape where
-  phi f := ⟨f.val.n, f.val.m, f.val.q, f.property.two_le_n, f.property.one_le_m, f.property.one_le_q, f.property.m_le_q⟩
+  phi f := ⟨f.val.n, f.val.m, f.val.q, f.property.two_le_n, f.property.one_le_m,
+    f.property.one_le_q, f.property.m_le_q⟩
   inLen s := s.n
   outLen s := s.m
   size s := s.q

@@ -154,7 +154,8 @@ theorem isNonuniformLearnable_of_countable [Nonempty (α → β)] {C : ConceptCl
     ext g
     simp
   rw [hU]
-  exact isNonuniformLearnable_iUnion (fun h => hasUniformConvergenceRate_singleton (hmeas h h.property))
+  exact isNonuniformLearnable_iUnion
+    (fun h => hasUniformConvergenceRate_singleton (hmeas h h.property))
     fun _ δ _ => tendsto_sqrt_log_div_two_mul_atTop (2 / δ)
 
 end Cslib.MachineLearning.PACLearning

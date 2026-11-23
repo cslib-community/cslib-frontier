@@ -758,7 +758,8 @@ private theorem ofCoeffList_mismatchAnnihilatorCoeffsDigits_eq_prod (Q : ℕ)
 private theorem eqAuxDigits_auxLabelToDigits {Q r : ℕ} (u y : AuxLabel Q r) :
     eqAuxDigits Q (auxLabelToDigits u) (auxLabelToDigits y) = decide (u = y) := by
   rw [Bool.eq_iff_iff, decide_eq_true_eq]; unfold eqAuxDigits; rw [List.all_eq_true]; constructor
-  · intro h; have hs : ∀ s : Fin Q, (u.1 s).val = (y.1 s).val ∧ (u.2 s).val = (y.2 s).val := fun s => by
+  · intro h
+    have hs : ∀ s : Fin Q, (u.1 s).val = (y.1 s).val ∧ (u.2 s).val = (y.2 s).val := fun s => by
       simpa only [auxLabelToDigits, List.getD_ofFn, decide_eq_true_eq] using
         h s.val (List.mem_range.2 s.isLt)
     exact Prod.ext (funext fun s => Fin.ext (hs s).1) (funext fun s => Fin.ext (hs s).2)

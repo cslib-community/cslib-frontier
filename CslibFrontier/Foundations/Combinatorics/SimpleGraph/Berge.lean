@@ -78,8 +78,8 @@ theorem Walk.IsPath.exists_ne_adj_toSubgraph {u v x a : V} {p : G.Walk u v}
   have hN := hp.neighborSet_toSubgraph_internal hi0 hil
   have hne : p.getVert (i - 1) ≠ p.getVert (i + 1) := by
     intro h
-    have := hp.getVert_injOn (by rw [Set.mem_ofPred_eq]; omega)
-      (by rw [Set.mem_ofPred_eq]; omega) h
+    have := hp.getVert_injOn (by rw [Set.mem_Iic]; omega)
+      (by rw [Set.mem_Iic]; omega) h
     omega
   have hmem : ∀ b, b ∈ ({p.getVert (i - 1), p.getVert (i + 1)} : Set V) →
       p.toSubgraph.Adj (p.getVert i) b := fun b hb => by

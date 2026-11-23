@@ -285,7 +285,8 @@ noncomputable def map {𝒜 ℬ : Type*} [Ring 𝒜] [StarRing 𝒜] [Algebra �
   mul_self v := by rw [← map_mul, X.mul_self, map_one]
   commute e u hu w hw := (X.commute e u hu w hw).map f
   prod_eq e := by
-    rw [← map_jointProd (fun v : L.support e => X.op v) (fun u w => X.commute e u u.property w w.property),
+    rw [← map_jointProd (fun v : L.support e => X.op v)
+        (fun u w => X.commute e u u.property w w.property),
       X.prod_eq e, map_smul, map_one]
 
 section MaxEntangled

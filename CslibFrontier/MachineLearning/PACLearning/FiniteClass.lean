@@ -189,7 +189,8 @@ theorem isPACLearnerFor_realizableDistributions_of_log_card_add_log_inv_le
     IsPACLearnerFor m ε δ (H : Set (α → β)) (realizableDistributions (H : Set (α → β))) := by
   rcases H.eq_empty_or_nonempty with rfl | hne
   · have hδ : 0 < Real.log (δ.val : ℝ)⁻¹ :=
-      Real.log_pos ((one_lt_inv₀ (by exact_mod_cast δ.property.1)).2 (by exact_mod_cast δ.property.2))
+      Real.log_pos ((one_lt_inv₀ (by exact_mod_cast δ.property.1)).2
+        (by exact_mod_cast δ.property.2))
     have hm0 : 0 < m := Nat.pos_of_ne_zero fun h => by
       subst h
       simp only [Finset.card_empty, Nat.cast_zero, Real.log_zero, zero_add, mul_zero] at hm

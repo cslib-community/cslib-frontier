@@ -41,7 +41,7 @@ theorem hasStrictFDerivAt_uncurry_of_hasDerivAt {f f₁ f₂ : ℝ → ℝ → �
     HasStrictFDerivAt (fun v : ℝ × ℝ => f v.1 v.2)
       (f₁ u.1 u.2 • ContinuousLinearMap.fst ℝ ℝ ℝ + f₂ u.1 u.2 • ContinuousLinearMap.snd ℝ ℝ ℝ)
       u := by
-  have hc := (ContinuousLinearMap.smulRightL ℝ ℝ ℝ 1).continuous
+  have hc := (StrongDual.smulRightL ℝ ℝ ℝ 1).continuous
   have h := hasStrictFDerivAt_uncurry_coprod
     (f₁ := fun x y => (1 : ℝ →L[ℝ] ℝ).smulRight (f₁ x y))
     (f₂ := fun x y => (1 : ℝ →L[ℝ] ℝ).smulRight (f₂ x y))

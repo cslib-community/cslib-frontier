@@ -95,7 +95,8 @@ theorem cliqueFree_franklWilsonGraph {p d : ℕ} [hp : Fact p.Prime] (hd : d % p
   set L : Finset (ZMod p) := univ.erase (d : ZMod p) with hL
   have hLc : #L = p - 1 := by rw [hL, card_erase_of_mem (mem_univ _), card_univ, ZMod.card]
   have h := Fintype.card_le_choose_of_card_inter_mem_zmod (ι := t) (fun s => s.val.val) L
-    (fun s => s.val.property) (fun i j hij => ?_) (by rw [hL]; exact notMem_erase _ _) (by rw [hLc, hd])
+    (fun s => s.val.property) (fun i j hij => ?_) (by rw [hL]; exact notMem_erase _ _)
+    (by rw [hLc, hd])
   · rw [Fintype.card_coe, ht.card_eq, hLc] at h
     omega
   · rw [hL, mem_erase]
@@ -117,9 +118,11 @@ theorem indepSetFree_franklWilsonGraph {p d : ℕ} (hp : 0 < p) :
   · rw [Fintype.card_coe, ht.card_eq, hLc] at h
     omega
   · have hne : i.val ≠ j.val := fun h' => hij (Subtype.ext h')
-    have hmod : #(i.val.val ∩ j.val.val) % p = d % p := not_ne_iff.1 (ht.isIndepSet i.property j.property hne)
+    have hmod : #(i.val.val ∩ j.val.val) % p = d % p :=
+      not_ne_iff.1 (ht.isIndepSet i.property j.property hne)
     have hlt : #(i.val.val ∩ j.val.val) < d := by
-      refine lt_of_le_of_ne ((card_le_card inter_subset_left).trans_eq i.val.property) fun h3 => hne ?_
+      refine lt_of_le_of_ne ((card_le_card inter_subset_left).trans_eq i.val.property)
+        fun h3 => hne ?_
       have hsub : i.val.val ⊆ j.val.val :=
         inter_eq_left.1 (eq_of_subset_of_card_le inter_subset_left (by rw [h3, i.val.property]))
       exact Subtype.ext (eq_of_subset_of_card_le hsub (by rw [i.val.property, j.val.property]))

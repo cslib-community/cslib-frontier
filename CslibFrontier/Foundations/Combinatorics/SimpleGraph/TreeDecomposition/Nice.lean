@@ -937,7 +937,8 @@ def contractStep {n : ℕ} (R : G.RootedTreeDecomposition (n + 1)) (c : Fin (n +
       have hreach := contractStep_reach R c hc0 hsub parent' (fun _ => rfl) hplt v htop_ne ht'
         fun k hk hnt => by by_contra hnot; exact hnt (R.isTop_iff_mem.2 ⟨hk, Or.inr hnot⟩)
       exact eq_of_preconnected_parentTree hp0 hplt
-        (fun a b => (hreach _ a.val rfl a.property).trans (hreach _ b.val rfl b.property).symm) hi hit hj hjt }
+        (fun a b => (hreach _ a.val rfl a.property).trans (hreach _ b.val rfl b.property).symm)
+        hi hit hj hjt }
 
 theorem contractStep_width_le {n : ℕ} (R : G.RootedTreeDecomposition (n + 1)) (c : Fin (n + 2))
     (hc0 : c ≠ 0) (hsub : R.bag c ⊆ R.bag (R.parent c)) :

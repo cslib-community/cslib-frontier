@@ -242,7 +242,8 @@ theorem card_neighborSet_le (v : {v // v ∈ G.vertices}) :
     simp only [f] at h'
     rw [h'] at hw
     have hne : (w.val : ℕ) ≠ v.val := fun h => G.induced.ne_of_adj w.property (Subtype.ext h).symm
-    have hne' : (w'.val : ℕ) ≠ v.val := fun h => G.induced.ne_of_adj w'.property (Subtype.ext h).symm
+    have hne' : (w'.val : ℕ) ≠ v.val := fun h =>
+      G.induced.ne_of_adj w'.property (Subtype.ext h).symm
     refine Subtype.ext (Subtype.ext ?_)
     rcases hw with hw | hw <;> rcases hw' with hw' | hw' <;> rw [hw] at hw' <;>
       simp only [Prod.mk.injEq] at hw' <;> omega

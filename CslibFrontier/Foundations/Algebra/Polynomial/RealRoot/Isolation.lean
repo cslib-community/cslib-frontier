@@ -741,13 +741,15 @@ theorem isolatedRoot_mem {cs : List ℚ} (hsep : (ofCoeffList cs).Separable)
     let I := (isolateRoots cs)[i]
     let r := (isolatedRoot hsep i).val
     (I.lower : ℝ) ≤ r ∧ r ≤ (I.upper : ℝ) :=
-  let hex := (isolateRoots_isIsolatingFor hsep (isolateRoots cs)[i] (List.getElem_mem i.isLt)).2.exists
+  let hex :=
+    (isolateRoots_isIsolatingFor hsep (isolateRoots cs)[i] (List.getElem_mem i.isLt)).2.exists
   ⟨(Classical.choose_spec hex).1, (Classical.choose_spec hex).2.1⟩
 
 /-- The isolated real roots are strictly increasing across `Fin (isolateRoots cs).length`. -/
 theorem isolatedRoot_strictMono {cs : List ℚ} (hsep : (ofCoeffList cs).Separable) :
     StrictMono (fun i : Fin (isolateRoots cs).length => (isolatedRoot hsep i).val) := fun i j hij =>
-  (List.pairwise_iff_getElem.mp (isolateRoots_intervalGapOk hsep) i.val j.val i.isLt j.isLt hij).lt_of_le
+  (List.pairwise_iff_getElem.mp
+    (isolateRoots_intervalGapOk hsep) i.val j.val i.isLt j.isLt hij).lt_of_le
     (isolatedRoot_mem hsep i).2 (isolatedRoot_mem hsep j).1 (isolatedRoot hsep i).property
 
 /-- Exact bijection between isolating interval indices `Fin (isolateRoots cs).length` and the set

@@ -390,7 +390,8 @@ private lemma exists_max_indep_cols {κ ι' : Type*} [Finite κ]
     have hnot' : (fun r => MK r j₀) ∉ Submodule.span K ((fun j r => MK r j) '' (C : Set κ)) := by
       rwa [Set.image_eq_range]
     have hC_on : LinearIndepOn K (fun j r => MK r j) (C : Set κ) := hC_li
-    have hli' : LinearIndependent K fun c : (insert j₀ C : Finset κ) => fun r : ι' => MK r c.val := by
+    have hli' :
+        LinearIndependent K fun c : (insert j₀ C : Finset κ) => fun r : ι' => MK r c.val := by
       have h := hC_on.insert hnot'
       rwa [← Finset.coe_insert] at h
     have hle := hC_max (insert j₀ C) (mem_filter.2 ⟨mem_univ _, hli'⟩)
@@ -466,7 +467,8 @@ private lemma exists_cramer_kernel_vec {κ ι' : Type*} [Fintype κ] [DecidableE
       rw [Finset.mul_sum, ← Finset.sum_neg_distrib]
       refine Finset.sum_congr rfl fun c _ => ?_
       have hne : c.val ≠ j₀ := fun h => hj₀ (h ▸ c.property)
-      simp only [x, hne, ↓reduceIte, c.property, ↓reduceDIte, map_neg, hcramer_eq c, MK, Matrix.map_apply]
+      simp only [x, hne, ↓reduceIte, c.property, ↓reduceDIte, map_neg, hcramer_eq c, MK,
+        Matrix.map_apply]
       rw [mul_neg, neg_inj, mul_comm (iK (M r c.val)), mul_assoc, mul_comm (w c)]
     have hrw := congrFun hw r
     simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] at hrw

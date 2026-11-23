@@ -96,7 +96,8 @@ abbrev Desc.generatorResidue (d : Desc) : ℕ := rawGeneratorResidue d.val
 def generatorUnit (d : Desc) : (ZMod d.modulus)ˣ :=
   ZMod.unitOfCoprime d.generatorResidue ((Nat.coprime_comm.mp
     ((d.property.prime_modulus.coprime_iff_not_dvd).mpr
-      (Nat.not_dvd_of_pos_of_lt (by have := d.property.one_lt_generator; lia) d.property.generator_lt))))
+      (Nat.not_dvd_of_pos_of_lt (by have := d.property.one_lt_generator; lia)
+        d.property.generator_lt))))
 
 /-- The Schnorr group of a description, written additively. -/
 abbrev Carrier (d : Desc) : Type := Additive (Subgroup.zpowers (generatorUnit d))

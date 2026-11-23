@@ -187,7 +187,8 @@ check feasibility, and materialize the parent vector `f`. -/
 private theorem ret_selectParentsM (a : AdjTable n) (c : CostTable β n) (r : Fin n) :
     let optFn : Fin n → Option (Fin n) := fun v =>
       if v = r then some r
-      else ((List.finRange n).filter fun w => a[v.val][w.val] && w != v).argmin (fun w => c[v.val][w.val])
+      else ((List.finRange n).filter fun w => a[v.val][w.val] && w != v).argmin
+        (fun w => c[v.val][w.val])
     (selectParentsM a c r).ret =
       { feasible := (List.finRange n).all (fun v => (optFn v).isSome)
       , parents := Vector.ofFn fun v => (optFn v).getD v } := by
@@ -350,7 +351,8 @@ private theorem cycleMask_loop_spec (f : ParentTable n) (x0 : Fin n) :
         ({ current := x0, mask := init } : CycleMaskState n)
       res.current = (fun i : Fin n => f[i.val])^[m] x0 ∧
         ∀ j : Fin n,
-          (res.mask[j.val] = true ↔ init[j.val] = true ∨ ∃ k < m, (fun i : Fin n => f[i.val])^[k] x0 = j)
+          (res.mask[j.val] = true ↔
+            init[j.val] = true ∨ ∃ k < m, (fun i : Fin n => f[i.val])^[k] x0 = j)
   | 0, init => by simp
   | m + 1, init => by
     rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
@@ -404,7 +406,8 @@ using subtraction (`≤ n ^ 2` ticks). -/
   Vector.ofFnM fun x : Fin n =>
     if inCycle[x.val] then
       (List.finRange n).foldlM
-        (fun acc y => do ✓ pure (if inCycle[y.val] && y != x then acc + c[y.val][f[y.val].val] else acc))
+        (fun acc y => do
+          ✓ pure (if inCycle[y.val] && y != x then acc + c[y.val][f[y.val].val] else acc))
         0
     else do ✓ pure 0
 
@@ -636,7 +639,8 @@ private theorem selectParentsM_spec {V : Type*} [FinEnum V]
   let e : V ≃ Fin (FinEnum.card V) := @FinEnum.equiv V _
   let optFn : Fin (FinEnum.card V) → Option (Fin (FinEnum.card V)) := fun v =>
     if v = e rV then some (e rV)
-    else ((List.finRange _).filter fun w => a[v.val][w.val] && w != v).argmin (fun w => c[v.val][w.val])
+    else ((List.finRange _).filter fun w => a[v.val][w.val] && w != v).argmin
+      (fun w => c[v.val][w.val])
   have hcand (v : Fin (FinEnum.card V)) :
       ((List.finRange _).filter fun w => a[v.val][w.val] && w != v).map e.symm =
         candidates aV (e.symm v) := by
@@ -801,12 +805,14 @@ private theorem contractAdjTableM_eq {V : Type*} [FinEnum V] {n : ℕ} (e : V �
   have hex : bExit[w.val].isSome =
       (FinEnum.toList V).any (fun x => decide (x ∈ C) && aV x (e.symm w)) :=
     (hbExit_isSome w).trans (hany _ _ fun x => by
-      have hx : inCycle[x.val] = decide (e.symm x ∈ C) := Bool.eq_iff_iff.mpr (by simpa using hmask x)
+      have hx : inCycle[x.val] = decide (e.symm x ∈ C) :=
+        Bool.eq_iff_iff.mpr (by simpa using hmask x)
       rw [hx, ha x w])
   have hen : bEntry[u.val].isSome =
       (FinEnum.toList V).any (fun y => decide (y ∈ C) && aV (e.symm u) y) :=
     (hbEntry_isSome u).trans (hany _ _ fun y => by
-      have hy : inCycle[y.val] = decide (e.symm y ∈ C) := Bool.eq_iff_iff.mpr (by simpa using hmask y)
+      have hy : inCycle[y.val] = decide (e.symm y ∈ C) :=
+        Bool.eq_iff_iff.mpr (by simpa using hmask y)
       rw [hy, ha u y])
   have hw_dec : inCycle[w.val] = decide (e.symm w ∈ C) :=
     Bool.eq_iff_iff.mpr (by simpa using hmask w)
@@ -1069,7 +1075,8 @@ private theorem time_edmondsTableAuxM_le_of_live {n : ℕ} (r : Fin n) :
         set bExit := (bestExitTableM a c inCycle other).ret
         set a' := (contractAdjTableM a inCycle bEntry bExit x0 r).ret
         set c' := (contractCostTableM c inCycle other bEntry bExit x0).ret
-        have ha'_func : (fun u w : Fin n => a'[u.val][w.val]) = contractAdj aV C x0 r := funext fun u =>
+        have ha'_func :
+            (fun u w : Fin n => a'[u.val][w.val]) = contractAdj aV C x0 r := funext fun u =>
           funext fun w => contractAdjTableM_eq (Equiv.refl (Fin n)) a inCycle bEntry bExit x0
             aV C r (fun _ _ => rfl) (fun y => by dsimp [inCycle, C, fV]; rw [ret_cycleMaskM,
               mem_cycleOf, FinEnum.card_fin])

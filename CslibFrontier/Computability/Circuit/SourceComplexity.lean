@@ -221,8 +221,8 @@ theorem ecomplexityFrom_comp_le (f : X → Fin m → U) (g : X → Fin p → U)
       ecomplexityFrom I cost f sources + ecomplexityFrom I cost g f := by
   conv_rhs => simp only [ecomplexityFrom, ENat.iInf_add, ENat.add_iInf]
   refine le_iInf fun d => le_iInf fun c => ?_
-  exact (ecomplexityFrom_le_of_computesFrom (cost := cost) (d.val.comp c.val) (c.property.comp d.property)).trans_eq
-    (by rw [Circuit.cost_program_comp, Nat.cast_add])
+  exact (ecomplexityFrom_le_of_computesFrom (cost := cost) (d.val.comp c.val)
+    (c.property.comp d.property)).trans_eq (by rw [Circuit.cost_program_comp, Nat.cast_add])
 
 /-- Computing two families from the same sources costs at most the sum of their complexities. -/
 theorem ecomplexityFrom_append_le (f : X → Fin m → U) (g : X → Fin p → U)

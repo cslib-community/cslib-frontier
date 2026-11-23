@@ -171,7 +171,8 @@ theorem synthesis_entryBits_stage {s : Set (BooleanFunction n)} (hA : entryBits 
   have h₁ : Synthesis interpretation s (Set.range (candFn A k)) (r * (c + 3)) := by
     refine (Synthesis.family (candFn A k) (fun _ => c + 3) fun i => ?_).mono Set.Subset.rfl
       Set.Subset.rfl (by simp)
-    refine (Synthesis.congr_iff ((Synthesis.exists_mem (univ.filter fun l : Fin c => l.val < k.val) _
+    refine (Synthesis.congr_iff ((Synthesis.exists_mem
+      (univ.filter fun l : Fin c => l.val < k.val) _
       (fun _ => 0) fun l _ => hentry i l).not.and (hentry i k)) fun x => by
         simp [candFn]).mono Set.Subset.rfl Set.Subset.rfl ?_
     simp only [sum_const, smul_eq_mul, zero_add, mul_one]

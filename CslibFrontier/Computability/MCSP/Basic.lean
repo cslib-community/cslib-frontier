@@ -155,14 +155,14 @@ theorem mem_of_le {T : BitString (2 ^ n)} (h : ⟨n, T, s⟩ ∈ MCSP) (hst : s 
 /-- There are as many yes-instances of arity `n` and threshold `s` as functions on `n` inputs
 computable with at most `s` gates. -/
 theorem ncard_setOf_mem (n s : ℕ) :
-    {T : BitString (2 ^ n) | ⟨n, T, s⟩ ∈ MCSP}.ncard = (computableFunctions n s).card := by
+    {T : BitString (2 ^ n) | ⟨n, T, s⟩ ∈ MCSP}.ncard = (computableFunctions n s).ncard := by
   have h : {T : BitString (2 ^ n) | ⟨n, T, s⟩ ∈ MCSP} =
-      truthTable n '' (computableFunctions n s : Set (BooleanFunction n)) := by
+      truthTable n '' computableFunctions n s := by
     ext T
     obtain ⟨f, rfl⟩ := (truthTable n).surjective T
-    simp only [Set.mem_ofPred_eq, mk_truthTable_mem_iff_mem, Set.mem_image, SetLike.mem_coe,
+    simp only [Set.mem_ofPred_eq, mk_truthTable_mem_iff_mem, Set.mem_image,
       EmbeddingLike.apply_eq_iff_eq, exists_eq_right]
-  rw [h, Set.ncard_image_of_injective _ (truthTable n).injective, Set.ncard_coe_finset]
+  rw [h, Set.ncard_image_of_injective _ (truthTable n).injective]
 
 end MCSP
 

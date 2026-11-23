@@ -326,7 +326,8 @@ private theorem mul_card_filter_ne_le_card_filter_isRight [DecidableEq α]
     exact Prod.ext (Subtype.ext h.1) h.2
   /- In each cloud, the disagreeing darts are many. -/
   have hcloud (v : V) : (1 - μ) * Fintype.card D * #{x : G.Cloud v | A x.val ≠ σ v} ≤ #(Dis v) := by
-    refine le_trans ?_ ((H v).mul_card_filter_ne_le_card_filter_ne_neighbor (fun x ↦ A x.val) (hσ v))
+    refine le_trans ?_
+      ((H v).mul_card_filter_ne_le_card_filter_ne_neighbor (fun x ↦ A x.val) (hσ v))
     gcongr
     linarith [hH v]
   /- The disagreeing darts of different clouds give different violated cloud-links. -/

@@ -532,7 +532,8 @@ private lemma coord_no_right_jump [DecidableEq ι] {f : (ι → Set.Icc a b) →
     ⟨hu₀_ge_a.trans (by linarith [hη_def, ht₀_eq]),
       (by linarith : (t₀ : ℝ) - η ≤ t₀).trans t₀.property.2⟩
   have hm2_mem : (t₀ : ℝ) + η ∈ Set.Icc a b :=
-    ⟨t₀.property.1.trans (by linarith), (by linarith [hη_def, ht₀_eq] : (t₀ : ℝ) + η ≤ v₀).trans hv₀_le_b⟩
+    ⟨t₀.property.1.trans (by linarith),
+      (by linarith [hη_def, ht₀_eq] : (t₀ : ℝ) + η ≤ v₀).trans hv₀_le_b⟩
   have hft_lo : (t₀ : ℝ) + 8 * η ≤ g ⟨(t₀ : ℝ) + η / 4, htplus_mem⟩ := by
     rw [show (t₀ : ℝ) + 8 * η = v₀ by linarith [hη_def, ht₀_eq]]
     exact csInf_le ⟨u₀ + ε, hS_lo⟩ ⟨⟨(t₀ : ℝ) + η / 4, htplus_mem⟩,
@@ -809,7 +810,8 @@ theorem moulinScheme_finTwo_eq {a b : ℝ} (E : MoulinScheme (Fin 2) a b)
   · exact (E.eval_le_branch x {1}).trans_eq (hmem 1)
   · exact (E.eval_le_branch x Finset.univ).trans_eq <| by
       rw [E.boundary_univ, hu, max_eq_right (le_max_of_le_left (x 0).property.1)]
-  · exact (min_le_right _ _).trans ((min_le_right _ _).trans (max_le (x 0).property.2 (x 1).property.2))
+  · exact (min_le_right _ _).trans
+      ((min_le_right _ _).trans (max_le (x 0).property.2 (x 1).property.2))
   · by_cases h0 : (0 : Fin 2) ∈ S <;> by_cases h1 : (1 : Fin 2) ∈ S
     · exact (min_le_right _ _).trans <| (min_le_right _ _).trans <| le_max_of_le_right <|
         max_le (mem_le_finMax a (fun i => (x i : ℝ)) h0)

@@ -289,8 +289,8 @@ private theorem dual_fiber_sum_eq
   let eqv := dualNeZeroFiberEquiv L hvL
   have hsum_ne : Summable (fun w : {w : D // ⟪(w : E), v⟫ ≠ 0} ↦ f w.val) :=
     hf.comp_injective Subtype.val_injective
-  have hsum_sigma : Summable (fun p : Σ j : {j : ℤ // j ≠ 0}, {w : D // ⟪(w : E), v⟫ = (j.val : ℝ)} ↦
-      f p.2.val) := by
+  have hsum_sigma : Summable (fun p : Σ j : {j : ℤ // j ≠ 0},
+      {w : D // ⟪(w : E), v⟫ = (j.val : ℝ)} ↦ f p.2.val) := by
     change Summable ((fun w : {w : D // ⟪(w : E), v⟫ ≠ 0} ↦ f w.val) ∘ eqv)
     exact eqv.summable_iff.mpr hsum_ne
   have hsum_fib (j : {j : ℤ // j ≠ 0}) :
@@ -356,7 +356,8 @@ private theorem dual_hyperplane_compl_le
     calc
       (∑' w : {w : D // ⟪(w : E), v⟫ ≠ 0}, gaussianWeight (1 / s) (w.val : E))
         = ∑' j : {j : ℤ // j ≠ 0},
-            ∑' w : {w : D // ⟪(w : E), v⟫ = (j.val : ℝ)}, gaussianWeight (1 / s) (w.val : E) := hne_eq
+            ∑' w : {w : D // ⟪(w : E), v⟫ = (j.val : ℝ)}, gaussianWeight (1 / s) (w.val : E) :=
+          hne_eq
       _ ≤ ∑' j : {j : ℤ // j ≠ 0},
             Real.exp (-Real.pi * (s / ‖v‖) ^ 2 * (j.val : ℝ) ^ 2) * gaussianMass P (1 / s) 0 :=
           Summable.tsum_le_tsum (fun j ↦ dual_hyperplane_fiber_le L hv0 hs j.val) hsum_outer

@@ -95,7 +95,8 @@ private theorem card_profile_le {S : Finset (Finset (Fin n))} {K : Finset (Fin n
     (hS : ∀ s ∈ S, s.card ≤ w) : Fintype.card (Profile S K) ≤ (w ^ 2) ^ S.card := by
   rw [Fintype.card_pi]
   calc ∏ s : S, Fintype.card (collisionPairs K s.val) ≤ ∏ _s : S, w ^ 2 :=
-        prod_le_prod fun s _ => (Fintype.card_coe _).trans_le (card_collisionPairs_le (hS s s.property))
+        prod_le_prod fun s _ =>
+          (Fintype.card_coe _).trans_le (card_collisionPairs_le (hS s s.property))
     _ = (w ^ 2) ^ S.card := by simp
 
 /-- The first vertices of the pairs of a profile. -/
@@ -113,7 +114,8 @@ theorem fst_injective {S : Finset (Finset (Fin n))} {K : Finset (Fin n)}
   have hst' : (π s).val.1 = (π t).val.1 := hst
   have hs := mem_collisionPairs.1 (π s).property
   have ht := mem_collisionPairs.1 (π t).property
-  exact hs.2.1 (hS s.property t.property (fun e => hne (Subtype.ext e)) (mem_inter.2 ⟨hs.1, hst' ▸ ht.1⟩))
+  exact hs.2.1 (hS s.property t.property (fun e => hne (Subtype.ext e))
+    (mem_inter.2 ⟨hs.1, hst' ▸ ht.1⟩))
 
 private theorem card_selected {S : Finset (Finset (Fin n))} {K : Finset (Fin n)}
     (hS : (S : Set (Finset (Fin n))).Pairwise fun s t => s ∩ t ⊆ K)

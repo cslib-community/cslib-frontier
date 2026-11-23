@@ -118,7 +118,8 @@ def withNeutralScopesIndexEquiv (scopes : List (List ℕ)) (n_free : ℕ) :
     Fin scopes.length ⊕ Fin n_free ≃ Fin (withNeutralScopesList scopes n_free).length :=
   finSumFinEquiv.trans (finCongr (length_withNeutralScopesList scopes n_free).symm)
 @[simp] theorem val_withNeutralScopesIndexEquiv_inl (scopes : List (List ℕ)) (n_free : ℕ)
-    (f : Fin scopes.length) : (withNeutralScopesIndexEquiv scopes n_free (Sum.inl f)).val = f.val := by
+    (f : Fin scopes.length) :
+    (withNeutralScopesIndexEquiv scopes n_free (Sum.inl f)).val = f.val := by
   simp only [withNeutralScopesIndexEquiv, Equiv.trans_apply, finSumFinEquiv_apply_left,
     finCongr_apply, Fin.val_cast, Fin.val_castAdd]
 @[simp] theorem val_withNeutralScopesIndexEquiv_inr (scopes : List (List ℕ)) (n_free : ℕ)
@@ -232,7 +233,8 @@ def finToScopeIncidence (n_free : ℕ) (scopes : List (List ℕ))
 theorem bijective_finToScopeIncidence (n_free : ℕ) (scopes : List (List ℕ)) :
     Function.Bijective (finToScopeIncidence n_free scopes) := by
   refine ⟨fun i j hij => Fin.ext (((nodup_scopeIncidencesList n_free scopes).getElem_inj_iff
-      (hi := i.isLt) (hj := j.isLt)).mp (Prod.ext (congrArg (·.1.val) hij) (congrArg (·.2.val.val) hij))),
+      (hi := i.isLt) (hj := j.isLt)).mp
+        (Prod.ext (congrArg (·.1.val) hij) (congrArg (·.2.val.val) hij))),
     fun ⟨f, ⟨v, hv⟩⟩ => ?_⟩
   have hmem : (f.val, v.val) ∈ scopeIncidencesList n_free scopes := by
     rw [mem_scopeIncidencesList, List.getD_eq_getElem _ _ f.isLt]
@@ -325,7 +327,8 @@ def factorAssignOfList {r : ℕ} (hr : 1 ≤ r) (n_free Q : ℕ) (scopes schedSc
       ((normalizeScopeSchedules n_free Q r scopes schedScope).getD f.val []).getD t.val 0 := by
   simp only [factorAssignOfList, normalizeScopeSchedules, List.getD_map_range _ [] f.isLt]
   split_ifs
-  · have ht : t.val < (List.replicate Q 0).length := by simp only [List.length_replicate]; exact t.isLt
+  · have ht : t.val < (List.replicate Q 0).length := by
+      simp only [List.length_replicate]; exact t.isLt
     rw [List.getD_eq_getElem _ _ ht, List.getElem_replicate, Nat.zero_mod]
   · simp only [normalizeScheduleWord, List.getD_map_range _ 0 t.isLt, Nat.max_eq_left hr,
       Nat.mod_eq_of_lt (Nat.mod_lt _ hr)]
@@ -335,7 +338,8 @@ theorem factorAssignOfList_of_empty {r : ℕ} (hr : 1 ≤ r) (n_free Q : ℕ)
     (factorAssignOfList hr n_free Q scopes schedScope f t).val = 0 := by
   rw [val_factorAssignOfList, normalizeScopeSchedules, List.getD_map_range _ [] f.isLt,
     ite_eq_left ((canonicalScopeVars_isEmpty_iff n_free scopes f).mpr hf)]
-  have ht : t.val < (List.replicate Q 0).length := by simp only [List.length_replicate]; exact t.isLt
+  have ht : t.val < (List.replicate Q 0).length := by
+    simp only [List.length_replicate]; exact t.isLt
   rw [List.getD_eq_getElem _ _ ht, List.getElem_replicate]
 
 /-- Executable list of packed auxiliary incidence labels `u_{f,v} < r ^ (2 * Q)`. -/
@@ -441,7 +445,8 @@ theorem balancedSchedule_iff_exec {r : ℕ} (hr : 1 ≤ r) (n_free Q : ℕ)
       hcard] at hu
   · rw [length_varGroupList_eq_occupancy hr n_free Q schedVar ⟨t, ht⟩ ⟨g, hg⟩]; exact hgrp _ _
   · rw [← count_incidenceLabelsList_eq_occupancy, hcard]; exact hinc _ (encodeAuxLabel_lt u)
-  · rw [← length_varGroupList_eq_occupancy hr n_free Q schedVar t g]; exact hgrp t.val t.isLt g.val g.isLt
+  · rw [← length_varGroupList_eq_occupancy hr n_free Q schedVar t g]
+    exact hgrp t.val t.isLt g.val g.isLt
 
 /-- **Lemma 4.5 schedule existence on executable scope lists**: under Lemma 4.7's size hypotheses,
 there exist executable schedule lists `(schedVar, schedScope)` satisfying `BalancedSchedule`. -/
@@ -470,9 +475,9 @@ theorem exists_balancedSchedule_of_scopes {n_free Q r b w : ℕ} (scopes : List 
   let schedScope := List.ofFn fun f : Fin scopes.length => List.ofFn fun t : Fin Q => (d f t).val
   have ha_eq : varAssignOfList hr n_free Q schedVar = a := by
     funext v t; apply Fin.ext
-    simp only [val_varAssignOfList, normalizeVarSchedules, List.getD_map_range _ [] v.isLt, schedVar,
-      List.getD_ofFn, normalizeScheduleWord, List.getD_map_range _ 0 t.isLt, Nat.max_eq_left hr,
-      Nat.mod_eq_of_lt (a v t).isLt]
+    simp only [val_varAssignOfList, normalizeVarSchedules, List.getD_map_range _ [] v.isLt,
+      schedVar, List.getD_ofFn, normalizeScheduleWord, List.getD_map_range _ 0 t.isLt,
+      Nat.max_eq_left hr, Nat.mod_eq_of_lt (a v t).isLt]
   have hd_eq : factorAssignOfList hr n_free Q scopes schedScope = d := by
     funext f t; apply Fin.ext; by_cases hemp : scope f = ∅
     · rw [factorAssignOfList_of_empty hr n_free Q scopes schedScope hemp t, hempty f hemp]
@@ -949,7 +954,8 @@ private theorem placements_eq_ofFn_placeFin {r : ℕ} (hr : 1 ≤ r) (n_free Q :
   rw [hlen] at hi
   have hl : i < labels.length := by simpa only [labels, length_incidenceLabelsList] using hi
   have hlbl : ∀ j : Fin labels.length, labels[j.val]'j.isLt = encodeAuxLabel
-      (plFin ⟨j.val, by simpa only [labels, length_incidenceLabelsList] using j.isLt⟩).2 := fun j => by
+      (plFin ⟨j.val,
+        by simpa only [labels, length_incidenceLabelsList] using j.isLt⟩).2 := fun j => by
     conv_lhs => simp only [hof, List.getElem_ofFn]
   rw [List.getElem_zip, List.getElem_ofFn, getElem_fiberRanks_eq_fiberRank labels ⟨i, hl⟩]
   refine Prod.ext ?_ (hlbl ⟨i, hl⟩)
@@ -959,7 +965,8 @@ private theorem placements_eq_ofFn_placeFin {r : ℕ} (hr : 1 ≤ r) (n_free Q :
       (⟨j.val, by simpa only [labels, length_incidenceLabelsList] using j.isLt⟩ :
         Fin (scopeIncidencesList n_free scopes).length))
     (fun j hj => ?_) (fun _ _ _ _ h => Fin.ext (Fin.mk.inj h))
-    (fun k hk => ⟨⟨k.val, by simpa only [labels, length_incidenceLabelsList] using k.isLt⟩, ?_, rfl⟩)
+    (fun k hk =>
+      ⟨⟨k.val, by simpa only [labels, length_incidenceLabelsList] using k.isLt⟩, ?_, rfl⟩)
   · simp only [mem_filter, mem_univ, true_and, Fin.lt_def] at hj ⊢
     exact ⟨hinj ((hlbl j).symm.trans (hj.1.trans (hlbl ⟨i, hl⟩))), hj.2⟩
   · simp only [mem_filter, mem_univ, true_and, Fin.lt_def] at hk ⊢
@@ -1103,7 +1110,8 @@ theorem buildReplacementDesignData_spec {n_free D_cap Q r A₀ R b : ℕ} {τ : 
   refine ⟨rfl, rfl, fun t g => ?_, fun f t => ?_, fun e => ?_, hker_iff,
     fun t g ξ hsupp hker_ctg e hg => ?_⟩
   · rw [hVtg_eq t g, length_varGroupList_eq_occupancy hr n_free Q schedVar t g]
-    exact ⟨nodup_varGroupList _ t.val g.val, (Nat.le_div_iff_mul_le hr).mpr (hbal.2 t g), hVtg_mem t g⟩
+    exact ⟨nodup_varGroupList _ t.val g.val, (Nat.le_div_iff_mul_le hr).mpr (hbal.2 t g),
+      hVtg_mem t g⟩
   · dsimp only [data, D, buildReplacementDesignData, constructedReplacementDesign]
     exact (val_factorAssignOfList hr n_free Q scopes schedScope f t).symm
   · dsimp only [scope]
@@ -1113,7 +1121,8 @@ theorem buildReplacementDesignData_spec {n_free D_cap Q r A₀ R b : ℕ} {τ : 
       dsimp only [ReplacementDesignData.lookupReplacementRow, data, buildReplacementDesignData, eqv]
       rw [← val_scopeIncidenceEquivFin_eq_idxOf n_free scopes e]
     have hrow_eq : data.replacementRows.getD (eqv e).val [] =
-        pullbackReplacementRow n_free R plsOf varsOf (eqv e).val (auxReplacementTable Q r A₀ R) := by
+        pullbackReplacementRow n_free R plsOf varsOf (eqv e).val
+          (auxReplacementTable Q r A₀ R) := by
       dsimp only [data, buildReplacementDesignData]
       rw [List.getD_map_range _ [] (eqv e).isLt, hpl_list, hinc_list, hbRepl_eq]
     rw [hlkp]

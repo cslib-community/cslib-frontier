@@ -176,7 +176,8 @@ theorem linearShare_smul (P : MonotoneSpanProgram F Party) (c : F) (k : LinearKe
 coalition `s` recovers `secret₁ + secret₂` (Remark 22.15, [BonehShoup2023], p. 982). -/
 theorem linearReconstruct_linearShare_add (P : MonotoneSpanProgram F Party)
     (k₁ k₂ : LinearKey P) (secret₁ secret₂ : F) {s : Finset Party} (hs : P.Accepts s) :
-    linearReconstruct P s (fun i => linearShare P k₁ secret₁ i.val + linearShare P k₂ secret₂ i.val) =
+    linearReconstruct P s
+        (fun i => linearShare P k₁ secret₁ i.val + linearShare P k₂ secret₂ i.val) =
       secret₁ + secret₂ := by
   have hcongr :
       (fun i : s => linearShare P k₁ secret₁ i.val + linearShare P k₂ secret₂ i.val) =

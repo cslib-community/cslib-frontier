@@ -180,7 +180,8 @@ theorem one_div_four_le_card_determines_div_card {a : Fin n → ZMod 2} (ha : a 
     · refine mem_filter.2 ⟨mem_univ _, fun i => mem_orth.1 (s.val i).property, fun w hw => ?_⟩
       refine eq_zero_or_eq_of_forall_mem_orth fun v hv => ?_
       have hspan := s.property.span_eq_top_of_card_eq_finrank' (by rw [Fintype.card_fin, hK])
-      have key : ∀ x ∈ Submodule.span (ZMod 2) (Set.range s.val), (x : Fin n → ZMod 2) ⬝ᵥ w = 0 := by
+      have key : ∀ x ∈ Submodule.span (ZMod 2) (Set.range s.val),
+          (x : Fin n → ZMod 2) ⬝ᵥ w = 0 := by
         intro x hx
         induction hx using Submodule.span_induction with
         | mem x hx =>

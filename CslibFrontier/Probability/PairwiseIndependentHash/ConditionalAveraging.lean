@@ -127,8 +127,7 @@ theorem coordMove_symm (g : SpecialLinearGroup (Fin H) ℤ) (c : Fin H → ℤ) 
         c)) i : ℤ) : ZMod L)) = -((SpecialLinearGroup.map (Int.castRingHom (ZMod L)) g⁻¹ :
           Matrix (Fin H) (Fin H) (ZMod L)) *ᵥ fun i ↦ (c i : ZMod L)) := by
       ext i
-      rw [Pi.neg_apply, Pi.neg_apply, Int.cast_neg, SpecialLinearGroup.map_apply_coe,
-        RingHom.mapMatrix_apply]
+      rw [Pi.neg_apply, Pi.neg_apply, Int.cast_neg, SpecialLinearGroup.map_apply_coe]
       exact congrArg Neg.neg (RingHom.map_mulVec (Int.castRingHom (ZMod L)) _ c i)
     simp only [coordMove, Equiv.prodCongr_apply, Prod.map_snd, affineSL_apply, hc, mulVec_add,
       mulVec_neg, mulVec_mulVec, ← SpecialLinearGroup.coe_mul, ← map_mul, mul_inv_cancel, map_one,
@@ -267,7 +266,7 @@ theorem variantMove_wrap_eq [NeZero L] (hL : L ≤ P) {y : ZMod P}
         A.val.eval y) i = ((((g : Matrix _ _ ℤ) *ᵥ fun j ↦ ((A.val.eval y j).val : ℤ)) i : ℤ) :
           ZMod P) := by
       conv_lhs => rw [hrep]
-      rw [SpecialLinearGroup.map_apply_coe, RingHom.mapMatrix_apply]
+      rw [SpecialLinearGroup.map_apply_coe]
       exact (RingHom.map_mulVec (Int.castRingHom (ZMod P)) _ _ i).symm
     have hLmod : (((SpecialLinearGroup.map (Int.castRingHom (ZMod L)) g : Matrix _ _ (ZMod L)) *ᵥ
         fun j ↦ (((A.val.eval y j).val : ℕ) : ZMod L)) i + (c i : ZMod L)) =
@@ -276,8 +275,7 @@ theorem variantMove_wrap_eq [NeZero L] (hL : L ≤ P) {y : ZMod P}
           Int.castRingHom (ZMod L) ∘ fun j ↦ ((A.val.eval y j).val : ℤ) := by
         ext j
         simp
-      rw [wrapTarget, Pi.add_apply, Int.cast_add, SpecialLinearGroup.map_apply_coe,
-        RingHom.mapMatrix_apply, hcast]
+      rw [wrapTarget, Pi.add_apply, Int.cast_add, SpecialLinearGroup.map_apply_coe, hcast]
       exact congrArg (· + (c i : ZMod L))
         (RingHom.map_mulVec (Int.castRingHom (ZMod L)) _ _ i).symm
     have hval : ((((wrapTarget g c (A.val.eval y) i : ℤ) : ZMod L).val : ℕ) : ZMod P) =

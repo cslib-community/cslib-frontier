@@ -584,7 +584,8 @@ theorem exists_maxCost_le_and_forall_errorProb_le {cost : α → ℕ} {Acc : α 
         exact b'.property
       refine ⟨⟨a, hc⟩, ?_⟩
       rwa [errorProb, PMF.toOuterMeasure_map_apply] at hp
-  refine ⟨μ.map Subtype.val, fun b hb => ?_, maxCost_map_le_of_le cost Subtype.val μ fun a _ => a.property⟩
+  refine ⟨μ.map Subtype.val, fun b hb => ?_,
+    maxCost_map_le_of_le cost Subtype.val μ fun a _ => a.property⟩
   rw [errorProb, PMF.toOuterMeasure_map_apply]
   exact hμ ⟨b, hb⟩
 

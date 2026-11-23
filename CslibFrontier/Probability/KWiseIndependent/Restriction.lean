@@ -177,7 +177,8 @@ theorem dens_le_of_hash_fiber {ι α Y : Type*} [Fintype ι] [Fintype Y] [Decida
     div_le_iff₀ (by exact_mod_cast hF_pos)] at hf
   rwa [show #{θ : {θ : ι // h θ x = v₀} | Bad θ.val} = #{θ : ι | Bad θ ∧ h θ x = v₀} from
     Finset.card_bij (fun θ _ => θ.val)
-      (fun θ hθ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, (Finset.mem_filter.mp hθ).2, θ.property⟩)
+      (fun θ hθ => Finset.mem_filter.mpr
+        ⟨Finset.mem_univ _, (Finset.mem_filter.mp hθ).2, θ.property⟩)
       (fun _ _ _ _ h => Subtype.ext h)
       (fun θ hθ => ⟨⟨θ, (Finset.mem_filter.mp hθ).2.2⟩,
         Finset.mem_filter.mpr ⟨Finset.mem_univ _, (Finset.mem_filter.mp hθ).2.1⟩, rfl⟩)] at hf

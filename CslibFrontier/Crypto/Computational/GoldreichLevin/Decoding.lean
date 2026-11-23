@@ -71,7 +71,7 @@ def nonemptySubsets (k : ℕ) : Finset (Finset (Fin k)) := Finset.univ.erase ∅
 /-- Every voting subset is nonempty. -/
 @[simp] theorem mem_nonemptySubsets {k : ℕ} (s : Finset (Fin k)) :
     s ∈ nonemptySubsets k ↔ s.Nonempty := by
-  simp [nonemptySubsets, Finset.nonempty_iff_ne_empty]
+  simp [nonemptySubsets]
 
 /-- There are `2 ^ k - 1` voting subsets of `k` base masks. -/
 @[simp] theorem card_nonemptySubsets (k : ℕ) :

@@ -77,7 +77,7 @@ theorem shareDist_linearUniformAccessScheme_mulRight (P : MonotoneSpanProgram F 
       (linearUniformAccessScheme P).shareDist (uniformOfFintype (LinearKey P)) secret := by
   have hhead : ∀ x : Fin (P.tailDim + 1) → F, (R *ᵥ x) 0 = x 0 := by
     intro x
-    rw [Matrix.mulVec, htop, single_one_dotProduct]
+    rw [Matrix.mulVec_apply, Matrix.row_apply', htop, single_one_dotProduct]
   let T : LinearKey P → LinearKey P := fun k => Fin.tail (R *ᵥ Fin.cons secret k)
   have hcons : ∀ k : LinearKey P, R *ᵥ Fin.cons secret k = Fin.cons secret (T k) := by
     intro k

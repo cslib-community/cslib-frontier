@@ -146,7 +146,8 @@ theorem tspPolytope_inter_subgraph_eq
   have htight (F : {F // IsTourEdgeSet F}) :
       c ⬝ᵥ tspVertex K F.val = 0 ↔ IsSubgraphTour G F.val := by
     rw [hdot, neg_eq_zero, Nat.cast_eq_zero, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-    exact ⟨fun h => ⟨F.property, fun e he => not_not.1 (h he)⟩, fun ⟨_, h⟩ e he => not_not.2 (h e he)⟩
+    exact ⟨fun h => ⟨F.property, fun e he => not_not.1 (h he)⟩,
+      fun ⟨_, h⟩ e he => not_not.2 (h e he)⟩
   rw [tspPolytope, convexHull_inter_dotProduct_eq fun F => by
     rw [hdot]; exact neg_nonpos.2 (Nat.cast_nonneg _)]
   congr 1
@@ -362,7 +363,8 @@ private theorem splitTo_of_block {W : Type*} [Fintype W] [DecidableEq W]
       else if r = 1 then .vMid (τ' t) ⟨0, splitMidLen_pos v₀ pad _⟩
       else .vOut (τ' t) := by
   have ht1 : 1 ≤ t.val := Nat.pos_of_ne_zero fun h => ht (Fin.ext h)
-  have ht_eq : (⟨(i.val - (pad + 3)) / 3 + 1, by have := i.isLt; omega⟩ : Fin (Fintype.card W)) = t :=
+  have ht_eq :
+      (⟨(i.val - (pad + 3)) / 3 + 1, by have := i.isLt; omega⟩ : Fin (Fintype.card W)) = t :=
     Fin.ext (by dsimp; omega)
   dsimp only [splitTo]
   rw [dite_eq_right (by omega), dite_eq_right (by omega), dite_eq_right (by omega),
@@ -801,7 +803,8 @@ theorem exists_dirTour_of_paddedSplitTour {W : Type*} [Fintype W] [Nonempty W] [
       by rw [show (0 + 1 : ℕ) = (1 : Fin M).val by rw [zero_add, fin_one_val (n := M) (by omega)],
         splitStep_fin]; change σ₁ ((k₁ - 1) + 1) = mid0; rw [sub_add_cancel]; exact hk₁_eq⟩
   let nextBlock (s : BlockState) :
-      {s' : BlockState // s'.val.1 = s.val.1 + 2 + splitMidLen v₀ pad s.val.2 ∧ adjD s.val.2 s'.val.2} :=
+      {s' : BlockState //
+        s'.val.1 = s.val.1 + 2 + splitMidLen v₀ pad s.val.2 ∧ adjD s.val.2 s'.val.2} :=
     let h := splitTour_block_walk v₀ pad adjD hM3 σ hadj s.val.1 s.val.2 s.property.1 s.property.2
     let hw' := Classical.choose_spec h.2.2
     ⟨⟨(s.val.1 + 2 + splitMidLen v₀ pad s.val.2, _), hw'.2.1,
@@ -923,7 +926,8 @@ theorem exists_dirTour_of_paddedSplitTour {W : Type*} [Fintype W] [Nonempty W] [
     have h1 := (splitTour_block_walk v₀ pad adjD hM3 σ hadj (pos t.val) (vert t.val)
       (seq t.val).property.1 (seq t.val).property.2).2.1
     have h2 : splitStep v₀ pad σ (i.val + 1) = .vIn (vert (t + 1).val) := by
-      rw [show i.val + 1 = pos (t.val + 1) by dsimp [i]; rw [(hseq_step t.val).1]; omega, hvert_succ]
+      rw [show i.val + 1 = pos (t.val + 1) by dsimp [i]; rw [(hseq_step t.val).1]; omega,
+        hvert_succ]
       exact (seq (t.val + 1)).property.1
     change s(splitStep v₀ pad σ i.val, splitStep v₀ pad σ (i.val + 1)) =
       s(SplitV.vOut (vert t.val), SplitV.vIn (vert (t + 1).val))

@@ -77,7 +77,7 @@ variable {V : Type*}
 `Cslib.Logic.PL.Clause.toPoly` with every literal variable replaced by its truth value. -/
 @[expose] noncomputable def Clause.toBoolPoly (R : Type*) [CommRing R] (c : Clause V) :
     MvPolynomial V R :=
-  bind₁ (Literal.truthPoly R) (c.toPoly R)
+  aeval (Literal.truthPoly R) (c.toPoly R)
 
 /-- The clause polynomials of a CNF formula in the original variables. -/
 @[expose] noncomputable def CNF.toBoolPolys (R : Type*) [CommRing R] (φ : CNF V) :
@@ -112,11 +112,13 @@ theorem Literal.eval_truthPoly (x : V → Bool) (l : Literal V) :
 when it is falsified. -/
 theorem Clause.eval_toBoolPoly (x : V → Bool) (c : Clause V) :
     MvPolynomial.eval (bitPoint x) (c.toBoolPoly R) = if c.eval x then 0 else 1 := by
-  refine (eval₂Hom_bind₁ (RingHom.id R) (bitPoint x) (Literal.truthPoly R) (c.toPoly R)).trans ?_
-  have h : (fun l => eval₂Hom (RingHom.id R) (bitPoint x) (Literal.truthPoly R l)) =
+  have h : (fun l => MvPolynomial.eval (bitPoint x) (Literal.truthPoly R l)) =
       Literal.toPolyAssignment R x :=
     funext fun l => Literal.eval_truthPoly x l
-  rw [h]
+  have hC : (MvPolynomial.eval (bitPoint x)).comp (algebraMap R (MvPolynomial V R)) =
+      RingHom.id R :=
+    RingHom.ext eval_C
+  rw [Clause.toBoolPoly, map_aeval, h, hC]
   exact Clause.eval_toPoly c x
 
 /-- A literal's truth polynomial has total degree at most one. -/

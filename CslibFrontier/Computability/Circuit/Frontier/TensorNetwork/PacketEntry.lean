@@ -310,7 +310,8 @@ theorem child_tensor_inl [DecidableEq V] (β : M → ℕ) (g : G) (v : {v // S.g
       if S.side v.val then
         N.tensor v.val fun e => if h : N.src e = v.val then y (.inl ⟨e, h ▸ v.property⟩) else false
       else
-        N.tensor v.val fun e => if h : N.tgt e = v.val then y (.inr ⟨e, h ▸ v.property⟩) else false :=
+        N.tensor v.val fun e =>
+          if h : N.tgt e = v.val then y (.inr ⟨e, h ▸ v.property⟩) else false :=
   rfl
 
 /-- A packet vertex of a child has the packet tensor at the bits of its ports. -/

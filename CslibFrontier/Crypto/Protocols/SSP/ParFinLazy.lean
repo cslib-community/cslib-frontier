@@ -375,7 +375,8 @@ theorem run_parFinLazy_eq_parFin {m : ℕ} {ιE : Type} {E : ιE → Type} {α :
     simpa [PMF.map_comp, Function.comp_def] using hfst
   have hParFin : ((parFin M).run program).eval =
       (Probability.PMF.pi initPMF).bind fun table =>
-        ((OracleComp.interpret oracleEClean program).run (fun j => (table j).val)).map Prod.fst := by
+        ((OracleComp.interpret oracleEClean program).run (fun j => (table j).val)).map
+          Prod.fst := by
     rw [eval_run (parFin M) program]
     change (ProbComp.eval (OracleComp.pi fun j => (M j).init)).bind _ = _
     rw [eval_pi_eq_pi_evalSupportPMF]

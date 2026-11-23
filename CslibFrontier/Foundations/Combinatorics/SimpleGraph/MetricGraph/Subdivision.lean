@@ -437,7 +437,8 @@ theorem vertexDist_subdivide [Finite V] {B : Finset (MetricGraph W)}
 
 private noncomputable def interpUnit (s t r : unitInterval) (hst : (s : ℝ) ≤ t) : unitInterval :=
   ⟨(1 - (r : ℝ)) * s + r * t,
-    add_nonneg (mul_nonneg (unitInterval.one_sub_nonneg r) s.property.1) (mul_nonneg r.property.1 t.property.1),
+    add_nonneg (mul_nonneg (unitInterval.one_sub_nonneg r) s.property.1)
+      (mul_nonneg r.property.1 t.property.1),
     by nlinarith [r.property.1, r.property.2, s.property.2, t.property.2]⟩
 
 private theorem interpUnit_zero (s t : unitInterval) (hst : (s : ℝ) ≤ t) :
@@ -562,9 +563,11 @@ private theorem subInterval_disjoint_of_edge_ne {B : Finset (MetricGraph W)}
   have hs1 : (subDartStart d₁' : ℝ) ≤ subDartStart d₂' :=
     (subInterval_outside_of_mem d₂' (heq ▸ hsp1.2.1 ▸ d₁'.fst.property)).resolve_right h2.not_ge
   have hs2 : (subDartStart d₂' : ℝ) ≤ subDartStart d₁' :=
-    (subInterval_outside_of_mem d₁' (heq.symm ▸ hsp2.2.1 ▸ d₂'.fst.property)).resolve_right h1.not_ge
+    (subInterval_outside_of_mem d₁'
+      (heq.symm ▸ hsp2.2.1 ▸ d₂'.fst.property)).resolve_right h1.not_ge
   have ht1 : (subDartEnd d₁' : ℝ) ≤ subDartEnd d₂' :=
-    (subInterval_outside_of_mem d₁' (heq.symm ▸ hsp2.2.2.1 ▸ d₂'.snd.property)).resolve_left h2.not_ge
+    (subInterval_outside_of_mem d₁'
+      (heq.symm ▸ hsp2.2.2.1 ▸ d₂'.snd.property)).resolve_left h2.not_ge
   have ht2 : (subDartEnd d₂' : ℝ) ≤ subDartEnd d₁' :=
     (subInterval_outside_of_mem d₂' (heq ▸ hsp1.2.2.1 ▸ d₁'.snd.property)).resolve_left h1.not_ge
   have hfst : d₁'.fst = d₂'.fst :=
@@ -580,7 +583,8 @@ private theorem subEdge_dist_fst_le {B : Finset (MetricGraph W)}
         subDartStart d') * W.weight (subDartOrigin d').edge := by
   rw [← edgePoint_zero d']
   refine (dist_edgePoint_self_le d' r 0).trans_eq ?_
-  rw [subDart_weight d', show ((0 : unitInterval) : ℝ) = 0 from rfl, sub_zero, abs_of_nonneg r.property.1]
+  rw [subDart_weight d', show ((0 : unitInterval) : ℝ) = 0 from rfl, sub_zero,
+    abs_of_nonneg r.property.1]
   dsimp only [interpUnit]; ring
 
 private theorem subEdge_dist_snd_le {B : Finset (MetricGraph W)}

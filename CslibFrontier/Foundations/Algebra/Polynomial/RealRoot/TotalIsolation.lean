@@ -1192,7 +1192,8 @@ theorem polyTotalIsolatedRoot_mem {p : ℚ[X]} (hsq : Squarefree p)
 /-- `polyTotalIsolatedRoot hsq` is strictly increasing across
 `Fin (isolatePolyRootsTotal p).length`. -/
 theorem polyTotalIsolatedRoot_strictMono {p : ℚ[X]} (hsq : Squarefree p) :
-    StrictMono (fun i : Fin (isolatePolyRootsTotal p).length => (polyTotalIsolatedRoot hsq i).val) :=
+    StrictMono (fun i : Fin (isolatePolyRootsTotal p).length =>
+      (polyTotalIsolatedRoot hsq i).val) :=
   totalIsolatedRoot_strictMono (polySeparable hsq)
 
 /-- For every squarefree `p : ℚ[X]`, `polyTotalIsolatedRoot hsq` is a bijection onto

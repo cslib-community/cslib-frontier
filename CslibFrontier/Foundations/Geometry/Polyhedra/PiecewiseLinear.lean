@@ -495,7 +495,8 @@ theorem IsPLOn.min {P : Set E} {f g : E → ℝ} (hf : IsPLOn P f) (hg : IsPLOn 
     simp only [Set.mem_iUnion, PolytopalComplex.mem_space_iff, Subtype.exists,
       Set.Finite.mem_toFinset, exists_prop]
   refine IsPLOn.of_finiteCover hcov fun Q => ?_
-  have hQpoly : IsPolytope (Q : Set E) := C.isPolytope_of_mem (C.finite_cells.mem_toFinset.1 Q.property)
+  have hQpoly : IsPolytope (Q : Set E) :=
+    C.isPolytope_of_mem (C.finite_cells.mem_toFinset.1 Q.property)
   rcases haff_f (Q : Set E) (C.finite_cells.mem_toFinset.1 Q.property) with ⟨a, ha⟩
   rcases haff_g (Q : Set E) (C.finite_cells.mem_toFinset.1 Q.property) with ⟨b, hb⟩
   let Q₁ := (Q : Set E) ∩ {x | ∀ m ∈ ({a - b} : Set (E →ᵃ[ℝ] ℝ)), m x ≤ 0}

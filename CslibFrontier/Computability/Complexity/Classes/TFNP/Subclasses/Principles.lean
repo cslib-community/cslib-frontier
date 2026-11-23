@@ -335,7 +335,8 @@ private theorem sum_undirectedEdge_eq {n : α → ℕ} {N₁ N₂ : α × List B
     (hN₂ : ∀ u, u.length = n a → (N₂ (a, u)).length = n a) (u : Vertex (n a)) :
     (∑ v : Vertex (n a), (undirectedEdge N₁ N₂ a u.val v.val).toNat) =
       (undirectedEdge N₁ N₂ a u.val (N₁ (a, u.val))).toNat +
-        (undirectedEdge N₁ N₂ a u.val (N₂ (a, u.val)) && decide (N₂ (a, u.val) ≠ N₁ (a, u.val))).toNat := by
+        (undirectedEdge N₁ N₂ a u.val (N₂ (a, u.val)) &&
+          decide (N₂ (a, u.val) ≠ N₁ (a, u.val))).toNat := by
   let v₁ : Vertex (n a) := ⟨N₁ (a, u.val), hN₁ u.val u.property⟩
   let v₂ : Vertex (n a) := ⟨N₂ (a, u.val), hN₂ u.val u.property⟩
   rw [← Finset.add_sum_erase _ _ (Finset.mem_univ v₁)]
@@ -369,7 +370,8 @@ private theorem sum_undirectedEdge_eq {n : α → ℕ} {N₁ N₂ : α × List B
 
 /-- The double sum of undirected edges over all ordered pairs is even. -/
 private theorem even_sum_undirectedEdge (n : α → ℕ) (N₁ N₂ : α × List Bool → List Bool) (a : α) :
-    (∑ u : Vertex (n a), ∑ v : Vertex (n a), (undirectedEdge N₁ N₂ a u.val v.val).toNat) % 2 = 0 := by
+    (∑ u : Vertex (n a), ∑ v : Vertex (n a),
+      (undirectedEdge N₁ N₂ a u.val v.val).toNat) % 2 = 0 := by
   let g (u v : Vertex (n a)) : ℕ :=
     if binaryValue u.val < binaryValue v.val then (undirectedEdge N₁ N₂ a u.val v.val).toNat else 0
   have hpt (u v : Vertex (n a)) :

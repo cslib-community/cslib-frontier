@@ -107,17 +107,11 @@ theorem argumentSuccessor_appendOccurrenceEquiv (F H : CSP Rel V)
     · rfl
     · simp only [argumentSuccessor, appendOccurrenceEquiv, Equiv.ofBijective_apply,
         appendOccurrence, Sum.map_inl, val_finRotate, List.getElem_append_left o.1.isLt]
-      change (if o.2.val + 1 = F[o.1.val].scope.length then 0 else o.2.val + 1) =
-        (finRotate _ o.2).val
-      rw [val_finRotate]
   | inr o =>
     apply Occurrence.eq_of_positions
     · rfl
     · simp only [argumentSuccessor, appendOccurrenceEquiv, Equiv.ofBijective_apply,
         appendOccurrence, Sum.map_inr, val_finRotate,
         List.getElem_append_right (Nat.le_add_right F.length o.1.val), Nat.add_sub_cancel_left]
-      change (if o.2.val + 1 = H[o.1.val].scope.length then 0 else o.2.val + 1) =
-        (finRotate _ o.2).val
-      rw [val_finRotate]
 
 end Cslib.Complexity.CSP

@@ -388,7 +388,8 @@ private theorem mem_DominatingSet_of_mem_VertexCover {G : Graph} {k : ℕ}
 private theorem exists_cover_of_mem_DominatingSet {G : Graph} {k : ℕ}
     (h : (⟨dominationGraph G, k + 1⟩ : DominatingSetInstance) ∈ DominatingSet) :
     ∃ S : Finset ℕ, (∀ v ∈ S, v ∈ G.vertices) ∧
-      (∀ u ∈ G.vertices, ∀ v ∈ G.vertices, G.toSimpleGraph.Adj u v → u ∈ S ∨ v ∈ S) ∧ S.card ≤ k := by
+      (∀ u ∈ G.vertices, ∀ v ∈ G.vertices, G.toSimpleGraph.Adj u v → u ∈ S ∨ v ∈ S) ∧
+        S.card ≤ k := by
   classical
   obtain ⟨D, hDV, hD, hcard⟩ := mem_DominatingSet_iff.1 h
   have hmem : ∀ w ∈ D, w ≠ 1 → w ≠ 3 → decodeVertex w ∈ G.vertices →

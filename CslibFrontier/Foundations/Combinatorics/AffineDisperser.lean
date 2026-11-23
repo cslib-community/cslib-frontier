@@ -364,7 +364,8 @@ theorem exists_traceSym_ne {n s r t : ℕ} (hn : finrank (ZMod 2) F = n)
     (fun i => Y i) (fun i => k i)
     (fun i => show 2 ≤ r + 1 - ((i : Fin r) : ℕ) by have := (i.val : Fin r).isLt; omega)
     (fun i => lt_of_le_of_lt ((Nat.sub_le _ _).trans (le_max_left _ _)) (hI₀big i i.property))
-    (fun i => lt_of_le_of_lt (le_max_right _ _) (hI₀big i i.property)) ⟨hI₀ne.choose, hI₀ne.choose_spec⟩
+    (fun i => lt_of_le_of_lt (le_max_right _ _) (hI₀big i i.property))
+    ⟨hI₀ne.choose, hI₀ne.choose_spec⟩
     (by
       rw [Finset.sum_coe_sort I₀ fun i => d i - k i]
       exact hI₀.trans_le (Nat.le_add_left _ _)) hμ

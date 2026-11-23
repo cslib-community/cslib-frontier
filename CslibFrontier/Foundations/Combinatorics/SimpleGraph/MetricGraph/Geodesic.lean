@@ -94,7 +94,8 @@ variable [Finite V] {x y : MetricGraph W} {γ : ℝ → MetricGraph W}
 
 theorem isometry (h : IsGeodesic x y γ) :
     Isometry (fun t : Set.Icc 0 (dist x y) => γ t) :=
-  Isometry.of_dist_eq fun s t => by rw [Subtype.dist_eq, Real.dist_eq, h.dist_eq s.property t.property]
+  Isometry.of_dist_eq fun s t => by
+    rw [Subtype.dist_eq, Real.dist_eq, h.dist_eq s.property t.property]
 
 theorem continuousOn (h : IsGeodesic x y γ) : ContinuousOn γ (Set.Icc 0 (dist x y)) :=
   continuousOn_iff_continuous_domRestrict.mpr h.isometry.continuous
@@ -626,7 +627,8 @@ theorem dist_edgePoint_edgePoint_of_abs_sub_le_half [Finite V] (d : W.graph.Dart
   have hw := W.dart_weight_nonneg d
   have h₁ := vertexDist_nonneg W.weight_nonneg (G := W.graph) d.fst d.snd
   have h₂ := vertexDist_nonneg W.weight_nonneg (G := W.graph) d.snd d.fst
-  have hs0 := s.property.1; have hs1 := s.property.2; have ht0 := t.property.1; have ht1 := t.property.2
+  have hs0 := s.property.1; have hs1 := s.property.2
+  have ht0 := t.property.1; have ht1 := t.property.2
   obtain ⟨hlo, hhi⟩ := abs_le.mp hst
   have key : ∀ k : ℝ, |(s : ℝ) - t| ≤ k →
       |(s : ℝ) - t| * W.weight d.edge ≤ k * W.weight d.edge :=

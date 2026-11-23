@@ -633,9 +633,11 @@ theorem natCard_isEulerianCircuit
     rw [Nat.card_eq_of_bijective Ψ ⟨?_, ?_⟩, Nat.card_pi]
     · exact Finset.prod_congr rfl fun v _ => natCard_fib src tgt a.property v
     · intro l₁ l₂ h
-      have hv : ∀ v, l₁.val.val.filter (fun e => src e = v) = l₂.val.val.filter (fun e => src e = v) :=
+      have hv : ∀ v, l₁.val.val.filter (fun e => src e = v) =
+          l₂.val.val.filter (fun e => src e = v) :=
         fun v => congrArg Subtype.val (congrFun h v)
-      exact Subtype.ext (Subtype.ext (IsEulerianCircuit.eq_of_filter_eq src tgt l₁.val.property l₂.val.property hv))
+      exact Subtype.ext (Subtype.ext
+        (IsEulerianCircuit.eq_of_filter_eq src tgt l₁.val.property l₂.val.property hv))
     · intro g
       have hhead : ((g (src e₀)).val).head? = some e₀ := by
         have := (g (src e₀)).property.2.2

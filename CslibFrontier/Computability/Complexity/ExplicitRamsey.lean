@@ -104,7 +104,8 @@ second. -/
 /-- The name of a vertex of `SimpleGraph.nagyGraph (Fin t)`: its three elements in increasing
 order. -/
 def nagyLabel {t : ℕ} (s : {s : Finset (Fin t) // #s = 3}) : ℕ × ℕ × ℕ :=
-  (s.val.orderEmbOfFin s.property 0, s.val.orderEmbOfFin s.property 1, s.val.orderEmbOfFin s.property 2)
+  (s.val.orderEmbOfFin s.property 0, s.val.orderEmbOfFin s.property 1,
+    s.val.orderEmbOfFin s.property 2)
 
 /-- Distinct vertices have distinct names. -/
 theorem nagyLabel_injective {t : ℕ} : Function.Injective (nagyLabel (t := t)) := by
@@ -146,7 +147,8 @@ theorem range_nagyLabel (t : ℕ) :
     rfl
 
 private theorem card_inter_eq_sum {t : ℕ} (s s' : {s : Finset (Fin t) // #s = 3}) :
-    #(s.val ∩ s'.val) = ∑ i : Fin 3, if s.val.orderEmbOfFin s.property i ∈ s'.val then 1 else 0 := by
+    #(s.val ∩ s'.val) =
+      ∑ i : Fin 3, if s.val.orderEmbOfFin s.property i ∈ s'.val then 1 else 0 := by
   rw [← filter_mem_eq_inter]
   conv_lhs => rw [← map_orderEmbOfFin_univ s.val s.property]
   rw [filter_map, card_map, card_filter]

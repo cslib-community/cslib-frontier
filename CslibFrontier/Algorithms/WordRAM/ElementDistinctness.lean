@@ -300,7 +300,8 @@ theorem decidesInTime_nodup :
 /-- **Element distinctness is uniformly in linear time** on the word RAM, for lists whose entries
 are below their length. -/
 theorem uniformLinearTime_nodup :
-    UniformLinearTime .standard {l : Input | l.val.Nodup} (fun _ l => l.val) (fun l => l.val.length) :=
+    UniformLinearTime .standard {l : Input | l.val.Nodup} (fun _ l => l.val)
+      (fun l => l.val.length) :=
   ⟨16, 2, by decide, _, _, decidesInTime_nodup, inputAdmissible_of_widthIndependent _ _⟩
 
 /-- Element distinctness also has a bounded nonuniform linear-time family. -/
@@ -321,7 +322,8 @@ theorem decidesInTime_nodup_additive :
 /-- **Element distinctness is uniformly in linear time over `Basis.additive`**, for lists whose
 entries are below their length. -/
 theorem uniformLinearTime_nodup_additive :
-    UniformLinearTime .additive {l : Input | l.val.Nodup} (fun _ l => l.val) (fun l => l.val.length) :=
+    UniformLinearTime .additive {l : Input | l.val.Nodup} (fun _ l => l.val)
+      (fun l => l.val.length) :=
   ⟨16, 2, by decide, _, _, decidesInTime_nodup_additive, inputAdmissible_of_widthIndependent _ _⟩
 
 /-- Element distinctness also has a bounded nonuniform linear-time family over `Basis.additive`. -/

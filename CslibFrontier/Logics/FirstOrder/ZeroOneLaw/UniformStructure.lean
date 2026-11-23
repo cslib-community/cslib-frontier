@@ -105,6 +105,7 @@ noncomputable def uniformStructure (n : ℕ) : PMF (L.Structure (Fin n)) :=
 theorem uniformStructure_eq_map (n : ℕ) [Fintype (Atom L n → Bool)] :
     uniformStructure n = (PMF.uniformOfFintype (Atom L n → Bool)).map atomStructure := by
   rw [uniformStructure]
+  dsimp only
   congr
   exact Subsingleton.elim _ _
 
