@@ -16,20 +16,12 @@ public import CslibFrontier.Languages.Probabilistic.BitString
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryLog
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.Oracle.Traverse
-import CslibFrontier.Computability.Probabilistic.PPT.Capture
-import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Crypto.Negligible.InversePolynomial
 import CslibFrontier.Computability.Probabilistic.Traverse
 import CslibFrontier.Foundations.Data.BitString.List.LowBits
@@ -40,7 +32,7 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 import CslibFrontier.Probability.BitString
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Tactic.PolyTime.Init
+import CslibFrontier.Tactic.PPT
 import Mathlib.Tactic.Positivity
 import CslibFrontier.Tactic.SuppCases
 
@@ -466,10 +458,7 @@ theorem computableInPolyTime_blockCount_comp {γ : Type} {encIn : γ ↪ List Bo
 theorem computableInPolyTime_messageBlock :
     ComputableInPolyTime (fun p : ℕ × List Bool × ℕ => messageBlock p.1 p.2.1 p.2.2)
       (encPair encUnary (encPair encBits encUnary)) encBits := by
-  open ComputableInPolyTime in
-  have hp := id' (encIn := encPair encUnary (encPair encBits encUnary))
-  exact bitsTakeWithInput (bitsAppend (bitsDropWithInput hp.snd'.fst'
-    (unary_mul' hp.snd'.snd' hp.fst')) ((bitsReplicate false).comp hp.fst')) hp.fst'
+  polytime [messageBlock]
 
 /-- Composition rule for `messageBlock`. -/
 @[fun_prop]
@@ -504,53 +493,40 @@ theorem IsPolyTimeEncoder.comp {E : Encoder} (hE : IsPolyTimeEncoder E)
   ComputableInPolyTime.comp hE (hw.prod (hL.prod (hr.prod (hlen.prod (hidx.prod hblock)))))
 
 private theorem isPolyTimeEncoder_of_prefix (k : ℕ)
-    (pref : ℕ → List Bool → ℕ → ℕ → List Bool)
+    (pref : List Bool → List Bool → List Bool → List Bool)
     (hpref : ComputableInPolyTime
-      (fun p : ℕ × ℕ × List Bool × ℕ × ℕ × List Bool =>
-        pref p.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1)
-      encEncoderInput encBits) :
+      (fun q : List Bool × List Bool × List Bool => pref q.1 q.2.1 q.2.2)
+      (encPair encBits (encPair encBits encBits)) encBits) :
     IsPolyTimeEncoder (fun w L r len idx block =>
-      pref w r len idx ++ block ++ List.replicate (L - k * w) false) := by
-  have hp := ComputableInPolyTime.id' (encIn := encEncoderInput)
-  exact ComputableInPolyTime.bitsAppend
-    (ComputableInPolyTime.bitsAppend hpref hp.snd'.snd'.snd'.snd'.snd')
-    ((ComputableInPolyTime.bitsReplicate false).comp
-      (ComputableInPolyTime.unary_sub' hp.snd'.fst'
-        (ComputableInPolyTime.unary_mul' (.const k) hp.fst')))
+      pref r (BitString.lowBits w len) (BitString.lowBits w idx) ++ block ++
+        List.replicate (L - k * w) false) := by
+  have hlen := ComputableInPolyTime.unary_to_binary.comp
+    (ComputableInPolyTime.id' (encIn := encEncoderInput)).snd'.snd'.snd'.fst'
+  have hidx := ComputableInPolyTime.unary_to_binary.comp
+    (ComputableInPolyTime.id' (encIn := encEncoderInput)).snd'.snd'.snd'.snd'.fst'
+  dsimp only [Function.comp_def] at hlen hidx
+  have hargs : ComputableInPolyTime
+      (fun p : ℕ × ℕ × List Bool × ℕ × ℕ × List Bool =>
+        (p.2.2.1, BitString.lowBits p.1 p.2.2.2.1, BitString.lowBits p.1 p.2.2.2.2.1))
+      encEncoderInput (encPair encBits (encPair encBits encBits)) := by polytime
+  have hp := hpref.comp hargs
+  polytime [IsPolyTimeEncoder]
 
-open ComputableInPolyTime in
 /-- `fullEncoder` is polynomial-time. -/
-theorem isPolyTimeEncoder_fullEncoder : IsPolyTimeEncoder fullEncoder := by
-  have hp := id' (encIn := encEncoderInput)
-  have hlen := bitsLow hp.fst' (unary_to_binary.comp hp.snd'.snd'.snd'.fst')
-  have hidx := bitsLow hp.fst' (unary_to_binary.comp hp.snd'.snd'.snd'.snd'.fst')
-  exact isPolyTimeEncoder_of_prefix 4 (fun w r len idx =>
-    r ++ BitString.lowBits w len ++ BitString.lowBits w idx)
-    (bitsAppend (bitsAppend hp.snd'.snd'.fst' hlen) hidx)
+theorem isPolyTimeEncoder_fullEncoder : IsPolyTimeEncoder fullEncoder :=
+  isPolyTimeEncoder_of_prefix 4 (fun r l i => r ++ l ++ i) (by polytime)
 
-open ComputableInPolyTime in
 /-- `noIdentifierEncoder` is polynomial-time. -/
-theorem isPolyTimeEncoder_noIdentifierEncoder : IsPolyTimeEncoder noIdentifierEncoder := by
-  have hp := id' (encIn := encEncoderInput)
-  have hlen := bitsLow hp.fst' (unary_to_binary.comp hp.snd'.snd'.snd'.fst')
-  have hidx := bitsLow hp.fst' (unary_to_binary.comp hp.snd'.snd'.snd'.snd'.fst')
-  exact isPolyTimeEncoder_of_prefix 3 (fun w _ len idx =>
-    BitString.lowBits w len ++ BitString.lowBits w idx) (bitsAppend hlen hidx)
+theorem isPolyTimeEncoder_noIdentifierEncoder : IsPolyTimeEncoder noIdentifierEncoder :=
+  isPolyTimeEncoder_of_prefix 3 (fun _ l i => l ++ i) (by polytime)
 
-open ComputableInPolyTime in
 /-- `noLengthEncoder` is polynomial-time. -/
-theorem isPolyTimeEncoder_noLengthEncoder : IsPolyTimeEncoder noLengthEncoder := by
-  have hp := id' (encIn := encEncoderInput)
-  exact isPolyTimeEncoder_of_prefix 3 (fun w r _ idx => r ++ BitString.lowBits w idx)
-    (bitsAppend hp.snd'.snd'.fst'
-      (bitsLow hp.fst' (unary_to_binary.comp hp.snd'.snd'.snd'.snd'.fst')))
+theorem isPolyTimeEncoder_noLengthEncoder : IsPolyTimeEncoder noLengthEncoder :=
+  isPolyTimeEncoder_of_prefix 3 (fun r _ i => r ++ i) (by polytime)
 
-open ComputableInPolyTime in
 /-- `noIndexEncoder` is polynomial-time. -/
-theorem isPolyTimeEncoder_noIndexEncoder : IsPolyTimeEncoder noIndexEncoder := by
-  have hp := id' (encIn := encEncoderInput)
-  exact isPolyTimeEncoder_of_prefix 3 (fun w r len _ => r ++ BitString.lowBits w len)
-    (bitsAppend hp.snd'.snd'.fst' (bitsLow hp.fst' (unary_to_binary.comp hp.snd'.snd'.snd'.fst')))
+theorem isPolyTimeEncoder_noIndexEncoder : IsPolyTimeEncoder noIndexEncoder :=
+  isPolyTimeEncoder_of_prefix 3 (fun r l _ => r ++ l) (by polytime)
 
 /-- `blockInputs E` is computable in polynomial time whenever `E` is polynomial-time. -/
 @[fun_prop]
@@ -582,17 +558,13 @@ theorem computableInPolyTime_blockInputs_comp {E : Encoder} (hE : IsPolyTimeEnco
   ComputableInPolyTime.comp (g := fun a => (L a, r a, m a))
     (computableInPolyTime_blockInputs hE) (hL.prod (hr.prod hm))
 
-open ComputableInPolyTime in
 /-- `authenticatedInputs E` is computable in polynomial time whenever `E` is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_authenticatedInputs {E : Encoder} (hE : IsPolyTimeEncoder E) :
     ComputableInPolyTime
       (fun p : ℕ × List (List Bool × Tag) => authenticatedInputs E p.1 p.2)
       (encPair encUnary encLog) (encList encBits) := by
-  have hp := id' (encIn := encPair (encPair encUnary encLog) encForgerOutput)
-  exact flatMapWithInput (snd encUnary encLog)
-    ((listReverse encBits).comp
-      (computableInPolyTime_blockInputs_comp hE hp.fst'.fst' hp.snd'.snd'.fst' hp.snd'.fst'))
+  polytime [authenticatedInputs]
 
 /-- Composition rule for `authenticatedInputs E`. -/
 @[fun_prop]
@@ -606,7 +578,6 @@ theorem computableInPolyTime_authenticatedInputs_comp {E : Encoder} (hE : IsPoly
   ComputableInPolyTime.comp (g := fun a => (L a, log a))
     (computableInPolyTime_authenticatedInputs hE) (hL.prod hlog)
 
-open ComputableInPolyTime in
 /-- `freshBlockPair E` is computable in polynomial time whenever `E` is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_freshBlockPair {E : Encoder} (hE : IsPolyTimeEncoder E) :
@@ -614,17 +585,9 @@ theorem computableInPolyTime_freshBlockPair {E : Encoder} (hE : IsPolyTimeEncode
       (fun p : ℕ × List (List Bool × Tag) × List Bool × Tag =>
         freshBlockPair E p.1 p.2.1 p.2.2.1 p.2.2.2)
       encFreshBlockInput (encPair encBits encBits) := by
-  have hp := id' (encIn := encFreshBlockInput)
-  have hq := id' (encIn := encPair encFreshBlockInput (encPair encBits encBits))
   unfold freshBlockPair
   simp only [List.contains_eq_mem]
-  refine optionGetDWithInput (findWithInput
-    ((zip encBits encBits).comp
-      ((computableInPolyTime_blockInputs_comp hE hp.fst' hp.snd'.snd'.snd'.fst'
-        hp.snd'.snd'.fst').prod hp.snd'.snd'.snd'.snd'))
-    (bool_not.comp (decide_mem
-      (computableInPolyTime_authenticatedInputs_comp hE hq.fst'.fst' hq.fst'.snd'.fst')
-      hq.snd'.fst'))) (.const ([], []))
+  polytime
 
 /-- Composition rule for `freshBlockPair E`. -/
 @[fun_prop]
@@ -1149,31 +1112,14 @@ theorem blockwiseGame_noIdentifier (n : ℕ) (hw : 3 ≤ fieldWidth (M.msgLen n)
 
 variable {E}
 
-open ComputableInPolyTime in
 /-- `blockwiseSign E` is strict PPT whenever `E` is a polynomial-time encoder. -/
 @[program_certificate]
 theorem isPPTOn_blockwiseSign (hE : IsPolyTimeEncoder E) :
     IsPPTOn encSignInput encTag
       (fun p : ℕ × List Bool × List Bool => M.blockwiseSign E p.1 p.2.1 p.2.2) := by
-  have hp := id' (encIn := encSignInput)
-  have hq := id' (encIn := encPair encSignInput encBits)
-  have hsample := sampleList (computableInPolyTime_fieldWidth_comp
-    (M.msgLen_polyTime.comp (g := fun p : ℕ × List Bool × List Bool => p.1) hp.fst'))
-  have hsign := M.sign_ppt.preprocess
-    (prepare := fun q : ((ℕ × List Bool × List Bool) × List Bool) × List Bool => (q.1.1.2.1, q.2))
-    ((fst _ encBits).fst'.snd'.fst'.prod (snd (encPair encSignInput encBits) encBits))
-  have htags := IsPPTOn.mapMWith (program := fun (q : (ℕ × List Bool × List Bool) × List Bool) x =>
-      M.sign q.1.2.1 x) hsign
-    (computableInPolyTime_blockInputs_comp hE
-      (M.msgLen_polyTime.comp (g := fun q => q.1.1) hq.fst'.fst') hq.snd' hq.fst'.snd'.snd')
-  have heq : (fun p : ℕ × List Bool × List Bool => M.blockwiseSign E p.1 p.2.1 p.2.2) =
-      fun p => BitString.sampleList (fieldWidth (M.msgLen p.1)) >>= fun r =>
-        (fun tags => (r, tags)) <$>
-          (blockInputs E (M.msgLen p.1) r p.2.2).mapM (M.sign p.2.1) := by
-    funext p; simp only [blockwiseSign, bind_pure_comp]
-  rw [heq]
-  exact hsample.bind_with (htags.map_with (f := fun q tags => (q.2, tags))
-    ((fst _ (encList encBits)).snd'.prod (snd (encPair encSignInput encBits) (encList encBits))))
+  have hM := M.msgLen_polyTime
+  have hsign := M.sign_ppt
+  ppt [blockwiseSign]
 
 /-- `blockwiseVerify E` is computable in polynomial time whenever `E` is a polynomial-time
 encoder. -/
@@ -1203,15 +1149,8 @@ theorem isPPTOn_blockwiseSigningOracle (hE : IsPolyTimeEncoder E) :
     IsPPTOn (encPair encSignInput encLog) (encPair encTag encLog)
       (fun p : (ℕ × List Bool × List Bool) × List (List Bool × Tag) =>
         M.blockwiseSigningOracle E p.1.1 p.1.2.1 p.1.2.2 p.2) := by
-  have hsign := (M.isPPTOn_blockwiseSign hE).preprocess
-    (input := encPair encSignInput encLog)
-    (prepare := fun p : (ℕ × List Bool × List Bool) × List (List Bool × Tag) => p.1)
-    (by fun_prop)
-  unfold blockwiseSigningOracle
-  simpa only [bind_pure_comp] using
-    hsign.map_with (f := fun p tag => (tag, (p.1.2.2, tag) :: p.2)) (by fun_prop)
+  ppt [blockwiseSigningOracle]
 
-open ComputableInPolyTime in
 /-- Every `MACScheme` and polynomial-time `Encoder` admits a plain polynomial-time bound
 `replyBound n ℓ` on the encoded length `(encTag tag).length` of every blockwise tag produced on an
 `ℓ`-bit message at security parameter `n`. -/
@@ -1224,15 +1163,8 @@ theorem exists_blockwiseSign_length_bound (hE : IsPolyTimeEncoder E) :
           (encTag tag).length ≤ replyBound n m.length := by
   obtain ⟨ck, dk, hlenk⟩ := M.keyGen_ppt.length_le
   obtain ⟨cs, ds, hlens⟩ := (M.isPPTOn_blockwiseSign hE).length_le
-  have hn := fst encUnary encUnary
-  have hℓ := snd encUnary encUnary
-  have hpoly := unary_mul' (.const cs) ((unary_pow ds).comp (unary_add'
-    (unary_add' (unary_mul' (.const 2) hn)
-      (unary_mul' (.const 2) (unary_add' (unary_add' (unary_mul' (.const 2)
-        (unary_mul' (.const ck) ((unary_pow dk).comp (unary_add' hn (.const 1))))) hℓ)
-        (.const 1)))) (.const 4)))
   refine ⟨fun n ℓ => cs * (2 * n + 2 * (2 * (ck * (n + 1) ^ dk) + ℓ + 1) + 4) ^ ds,
-    hpoly, fun n sk hsk m tag htag => ?_⟩
+    by polytime, fun n sk hsk m tag htag => ?_⟩
   have hkeyLen := hlenk n sk hsk
   simp only [encUnary_apply, List.length_replicate, encBits_apply] at hkeyLen
   have htagLen := hlens (n, sk, m) tag htag
@@ -1260,17 +1192,7 @@ theorem isPPTOn_blockwiseWordSigningOracle (hE : IsPolyTimeEncoder E) :
       (encPair encBits encLog)
       (fun call : (ℕ × List Bool) × (Unit × List Bool) × List (List Bool × Tag) =>
         M.blockwiseWordSigningOracle E call.1.1 call.1.2 call.2.1 call.2.2) := by
-  have hencode : ComputableInPolyTime encTag encTag encBits :=
-    ComputableInPolyTime.of_eq (fun _ => rfl)
-  have hsign := (M.isPPTOn_blockwiseSign hE).preprocess
-    (input := encPair (encPair encUnary encBits)
-      (encPair (encPair (encFinEnum Unit) encBits) encLog))
-    (prepare := fun call : (ℕ × List Bool) × (Unit × List Bool) × List (List Bool × Tag) =>
-      (call.1.1, call.1.2, call.2.1.2))
-    (by fun_prop)
-  unfold blockwiseWordSigningOracle
-  simpa only [bind_pure_comp] using
-    hsign.map_with (f := fun call tag => (encTag tag, (call.2.1.2, tag) :: call.2.2)) (by fun_prop)
+  ppt [blockwiseWordSigningOracle]
 
 private theorem run_interpret_blockwiseSigningOracle_toAdversary (F : BlockwiseMACForger)
     (n : ℕ) (sk : List Bool) (log : List (List Bool × Tag)) :
@@ -1301,7 +1223,6 @@ private theorem length_encLog_cons (m : List Bool) (tag : Tag) (log : List (List
     length_encPair, encBits_apply]
   omega
 
-open ComputableInPolyTime in
 /-- `blockwiseGame E F.toAdversary` is strict PPT on the security parameter `n` whenever `E` is
 a polynomial-time encoder and `F` is a strict oracle-PPT blockwise forger. -/
 @[program_certificate]
@@ -1309,13 +1230,9 @@ theorem isPPTOn_blockwiseGame (hE : IsPolyTimeEncoder E) {F : BlockwiseMACForger
     (hF : IsOraclePPT encForgerOutput F) :
     IsPPTOn encUnary encBool (M.blockwiseGame E F.toAdversary) := by
   obtain ⟨cs, ds, hlens⟩ := (M.isPPTOn_blockwiseSign hE).length_le
-  have hrp := id' (encIn := encPair (encPair encUnary encBits) encBits)
-  have hsignLen := length_bits.comp (of_eq (encIn := encSignInput) (fun _ => rfl) |>.comp
-    (hrp.fst'.fst'.prod (hrp.fst'.snd'.prod hrp.snd')))
-  have hres := unary_add' (unary_mul' (.const 2) (unary_add' (unary_add'
-    (unary_mul' (.const 2) (length_bits.comp hrp.snd'))
-    (unary_mul' (.const cs) ((unary_pow ds).comp (unary_add' hsignLen (.const 1)))))
-    (.const 1))) (.const 2)
+  have hsignIn : ComputableInPolyTime
+      (fun r : (ℕ × List Bool) × List Bool => encSignInput (r.1.1, r.1.2, r.2))
+      (encPair (encPair encUnary encBits) encBits) encBits := by polytime
   have hrun : IsPPTOn (encPair encUnary encBits) (encPair encForgerOutput encLog)
       (fun c : ℕ × List Bool =>
         (OracleComp.interpret
@@ -1326,23 +1243,24 @@ theorem isPPTOn_blockwiseGame (hE : IsPolyTimeEncoder E) {F : BlockwiseMACForger
       (initial := fun _ : ℕ × List Bool => ([] : List (List Bool × Tag)))
       (resources := fun c w =>
         2 * (2 * w.length + cs * ((encSignInput (c.1, c.2, w)).length + 1) ^ ds + 1) + 2)
-      ((fst encUnary encBits).prod (.const []))
+      (by polytime)
       (M.isPPTOn_blockwiseWordSigningOracle hE) (.const []) (fun _ _ => True)
-      (fun _ => trivial) hres fun c request log _ result hresult => by
+      (fun _ => trivial) (by polytime) fun c request log _ result hresult => by
         supp_cases hresult [blockwiseWordSigningOracle, ProbComp.eval_bind, ProbComp.eval_pure]
           with ⟨tag, htag, rfl⟩
         have := hlens (c.1, c.2, request.2) tag htag
         have := length_encLog_cons request.2 tag log
         dsimp only; exact ⟨trivial, by omega, by omega⟩
-  rw [show M.blockwiseGame E F.toAdversary = fun n => M.keyGen n >>= fun sk =>
-      (fun out : (List Bool × Tag) × List (List Bool × Tag) =>
-        !decide (out.1.1 ∈ out.2.map Prod.fst) && M.blockwiseVerify E n sk out.1.1 out.1.2) <$>
-        (OracleComp.interpret
-          (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-            (M.blockwiseWordSigningOracle E n sk)) (F n [])).run [] from
+  have hkeyGen := M.keyGen_ppt
+  rw [show M.blockwiseGame E F.toAdversary = fun n => do
+      let sk ← M.keyGen n
+      let out ← (OracleComp.interpret
+        (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
+          (M.blockwiseWordSigningOracle E n sk)) (F n [])).run []
+      return !decide (out.1.1 ∈ out.2.map Prod.fst) && M.blockwiseVerify E n sk out.1.1 out.1.2 from
     funext fun n => by simp only [blockwiseGame,
-      run_interpret_blockwiseSigningOracle_toAdversary, List.contains_eq_mem, bind_pure_comp]]
-  exact M.keyGen_ppt.bind_with (hrun.map_with (by fun_prop))
+      run_interpret_blockwiseSigningOracle_toAdversary, List.contains_eq_mem]]
+  ppt
 
 /-- `blockwiseGame E F.toAdversary` is strict PPT whenever `E` is a polynomial-time encoder and
 `F` is a strict oracle-PPT blockwise forger. -/
@@ -1405,27 +1323,20 @@ theorem isOraclePPTOn_blockwiseBoundedSimulator (hE : IsPolyTimeEncoder E)
       (encPair encBits encLog)
       (fun call : (ℕ × List Bool) × (Unit × List Bool) × List (List Bool × Tag) =>
         M.blockwiseBoundedSimulator E tagBound call.1.1 call.2.1 call.2.2) := by
-  have hencode : ComputableInPolyTime encTag encTag encBits :=
-    ComputableInPolyTime.of_eq (fun _ => rfl)
-  let encCall :=
-    encPair (encPair encUnary encBits) (encPair (encPair (encFinEnum Unit) encBits) encLog)
   have hmsgLen := M.msgLen_polyTime
-  have hsample : IsOraclePPTOn encCall encBits
-      (fun call : (ℕ × List Bool) × (Unit × List Bool) × List (List Bool × Tag) =>
-        ProbOracleComp.sample (BitString.sampleList (fieldWidth (M.msgLen call.1.1)))) :=
-    (ComputableInPolyTime.sampleList (by fun_prop)).isOraclePPTOn (Operation := Unit)
-  have htags : IsOraclePPTOn (encPair encCall encBits) (encList encBits)
-      (fun p : ((ℕ × List Bool) × (Unit × List Bool) × List (List Bool × Tag)) × List Bool =>
-        (blockInputs E (M.msgLen p.1.1.1) p.2 p.1.2.1.2).mapM fun x =>
-          List.take (tagBound p.1.1.1) <$>
-            (ProbOracleComp.query ((), x) : WordOracleComp Unit (List Bool))) :=
-    IsOraclePPTOn.mapM_query_take () (by fun_prop) (by fun_prop)
+  let encCall := encPair (encPair encUnary encBits)
+    (encPair (encPair (encFinEnum Unit) encBits) encLog)
+  have hq : IsOraclePPTOn (encPair encCall encBits) (encList encBits)
+      (fun p => (blockInputs E (M.msgLen p.1.1.1) p.2 p.1.2.1.2).mapM fun x =>
+        List.take (tagBound p.1.1.1) <$>
+          (ProbOracleComp.query ((), x) : WordOracleComp Unit (List Bool))) :=
+    IsOraclePPTOn.mapM_query_take () (by polytime) (by polytime)
   unfold blockwiseBoundedSimulator
   simpa only [bind_pure_comp] using
-    hsample.bind_with
-      (htags.map_with
+    ((ComputableInPolyTime.sampleList (by polytime)).isOraclePPTOn).bind_with
+      (hq.map_with (output := encPair encBits encLog)
         (f := fun p tags => (encTag (p.2, tags), (p.1.2.1.2, (p.2, tags)) :: p.1.2.2))
-        (by fun_prop))
+        (by polytime))
 
 private theorem blockwiseBoundedSimulator_bound {tagBound : ℕ → ℕ}
     (c : ℕ × List Bool) (request : Unit × List Bool) (log : List (List Bool × Tag))
@@ -1451,7 +1362,6 @@ private theorem blockwiseBoundedSimulator_bound {tagBound : ℕ → ℕ}
   dsimp only
   exact ⟨by omega, by omega⟩
 
-open ComputableInPolyTime in
 /-- `blockwiseBoundedReduction E tagBound F` is uniformly strict oracle PPT whenever `E` is a
 polynomial-time encoder, `tagBound` is polynomial-time, and `F` is a strict oracle-PPT blockwise
 forger. -/
@@ -1459,6 +1369,7 @@ theorem isOraclePPT_blockwiseBoundedReduction (hE : IsPolyTimeEncoder E)
     {tagBound : ℕ → ℕ} (htagBound : ComputableInPolyTime tagBound encUnary encUnary)
     {F : BlockwiseMACForger} (hF : IsOraclePPT encForgerOutput F) :
     IsOraclePPT (encPair encBits encBits) (M.blockwiseBoundedReduction E tagBound F) := by
+  have hmsgLen := M.msgLen_polyTime
   have heq : M.blockwiseBoundedReduction E tagBound F = fun n _ =>
       (fun out : (List Bool × Tag) × List (List Bool × Tag) =>
         freshBlockPair E (M.msgLen n) out.2 out.1.1 out.1.2) <$>
@@ -1467,14 +1378,6 @@ theorem isOraclePPT_blockwiseBoundedReduction (hE : IsPolyTimeEncoder E)
           (M.blockwiseBoundedSimulator E tagBound n)) (F n [])).run [] := by
     funext n aux; simp only [blockwiseBoundedReduction, bind_pure_comp]
   rw [heq]
-  have hrp := id' (encIn := encPair (encPair encUnary encBits) encBits)
-  have hwidth := (unary_div_const 4).comp (M.msgLen_polyTime.comp hrp.fst'.fst')
-  have hlength := length_bits.comp hrp.snd'
-  have htagSize := unary_add' (unary_add' (unary_mul' (.const 2) hwidth)
-    (unary_mul' hlength (unary_add' (unary_mul' (.const 2) (htagBound.comp hrp.fst'.fst'))
-      (.const 2)))) (.const 1)
-  have hres := unary_add' (unary_mul' (.const 2)
-    (unary_add' (unary_add' (unary_mul' (.const 2) hlength) htagSize) (.const 1))) (.const 2)
   have hr := hF.run_interpret_preprocess_open
     (input := encPair encUnary encBits)
     (prepare := fun c : ℕ × List Bool => (c.1, ([] : List Bool)))
@@ -1482,16 +1385,14 @@ theorem isOraclePPT_blockwiseBoundedReduction (hE : IsPolyTimeEncoder E)
     (resources := fun c w =>
       2 * (2 * w.length +
         (2 * fieldWidth (M.msgLen c.1) + w.length * (2 * tagBound c.1 + 2) + 1) + 1) + 2)
-    ((fst encUnary encBits).prod (.const []))
+    (by polytime)
     (M.isOraclePPTOn_blockwiseBoundedSimulator hE htagBound)
-    (.const []) (fun _ _ => True) (fun _ => trivial) hres
+    (.const []) (fun _ _ => True) (fun _ => trivial) (by polytime)
     (fun c request log _ _ h => ⟨trivial, M.blockwiseBoundedSimulator_bound c request log h⟩)
-  have hp := id' (encIn := encPair (encPair encUnary encBits) (encPair encForgerOutput encLog))
-  exact (hr.map_with (f := fun (c : ℕ × List Bool)
-      (out : (List Bool × Tag) × List (List Bool × Tag)) =>
+  exact (hr.map_with
+    (f := fun (c : ℕ × List Bool) (out : (List Bool × Tag) × List (List Bool × Tag)) =>
       freshBlockPair E (M.msgLen c.1) out.2 out.1.1 out.1.2)
-    (computableInPolyTime_freshBlockPair_comp hE (M.msgLen_polyTime.comp hp.fst'.fst')
-      hp.snd'.snd' hp.snd'.fst'.fst' hp.snd'.fst'.snd')).isOraclePPT
+    (by polytime)).isOraclePPT
 
 private theorem runWith_blockwiseBoundedSimulator (F : BlockwiseMACForger) (tagBound : ℕ → ℕ)
     (n : ℕ) (sk : List Bool)
@@ -1653,82 +1554,63 @@ private theorem isOraclePPTOn_repPairQuery {M : MACScheme} {replyBound : ℕ →
             ((), List.replicate (fieldWidth (M.msgLen p.1)) b₁ ++
               List.replicate (fieldWidth (M.msgLen p.1)) b₂) :
             WordOracleComp Unit (List Bool))) := by
-  open ComputableInPolyTime in
-  have hn := fst encUnary encBits
-  have hw := (unary_div_const 4).comp (M.msgLen_polyTime.comp hn)
-  have hreq := bitsAppend ((bitsReplicate b₁).comp hw) ((bitsReplicate b₂).comp hw)
-  exact IsOraclePPTOn.query_take () hreq (hbound.comp (hn.prod (length_bits.comp hreq)))
+  have hM := M.msgLen_polyTime
+  exact IsOraclePPTOn.query_take () (by polytime) (by polytime)
 
 variable (M) in
-open ComputableInPolyTime in
 /-- `M.swapBlocksAdversary.toForger replyBound` is strict oracle PPT for any polynomial-time
 `replyBound`. -/
 theorem isOraclePPT_toForger_swapBlocksAdversary {replyBound : ℕ → ℕ → ℕ}
     (hbound : ComputableInPolyTime (fun p : ℕ × ℕ => replyBound p.1 p.2)
       (encPair encUnary encUnary) encUnary) :
     IsOraclePPT encForgerOutput (M.swapBlocksAdversary.toForger replyBound) := by
-  have hp := id' (encIn := encPair (encPair encUnary encBits) encBits)
-  have hw := (unary_div_const 4).comp (M.msgLen_polyTime.comp hp.fst'.fst')
-  have htag := tagDecoder.computableInPolyTime.comp hp.snd'
-  have hres := (bitsAppend ((bitsReplicate true).comp hw) ((bitsReplicate false).comp hw)).prod
-    (htag.fst'.prod ((listReverse encBits).comp htag.snd'))
+  have hM := M.msgLen_polyTime
   refine show IsOraclePPTOn _ _ _ from ?_
   convert (isOraclePPTOn_repPairQuery (M := M) hbound false true).map_with
+    (output := encForgerOutput)
     (f := fun (p : ℕ × List Bool) (raw : List Bool) =>
       (List.replicate (fieldWidth (M.msgLen p.1)) true ++
         List.replicate (fieldWidth (M.msgLen p.1)) false,
-        ((tagDecoder.decode raw).1, (tagDecoder.decode raw).2.reverse))) hres using 1
+        ((tagDecoder.decode raw).1, (tagDecoder.decode raw).2.reverse))) (by polytime) using 1
   funext ⟨n, aux⟩
   simp only [BlockwiseMACAdversary.toForger, swapBlocksAdversary, ProbOracleComp.simulate_bind,
     ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, bind_assoc, pure_bind,
     map_eq_bind_pure_comp, Function.comp_def]
 
 variable (M) in
-open ComputableInPolyTime in
 /-- `M.truncateAdversary.toForger replyBound` is strict oracle PPT for any polynomial-time
 `replyBound`. -/
 theorem isOraclePPT_toForger_truncateAdversary {replyBound : ℕ → ℕ → ℕ}
     (hbound : ComputableInPolyTime (fun p : ℕ × ℕ => replyBound p.1 p.2)
       (encPair encUnary encUnary) encUnary) :
     IsOraclePPT encForgerOutput (M.truncateAdversary.toForger replyBound) := by
-  have hp := id' (encIn := encPair (encPair encUnary encBits) encBits)
-  have hw := (unary_div_const 4).comp (M.msgLen_polyTime.comp hp.fst'.fst')
-  have htag := tagDecoder.computableInPolyTime.comp hp.snd'
-  have hres := ((bitsReplicate false).comp hw).prod
-    (htag.fst'.prod (listTakeWithInput htag.snd' (.const 1)))
+  have hM := M.msgLen_polyTime
   refine show IsOraclePPTOn _ _ _ from ?_
   convert (isOraclePPTOn_repPairQuery (M := M) hbound false true).map_with
     (f := fun (p : ℕ × List Bool) (raw : List Bool) =>
       (List.replicate (fieldWidth (M.msgLen p.1)) false,
-        ((tagDecoder.decode raw).1, (tagDecoder.decode raw).2.take 1))) hres using 1
+        ((tagDecoder.decode raw).1, (tagDecoder.decode raw).2.take 1))) (by polytime) using 1
   funext ⟨n, aux⟩
   simp only [BlockwiseMACAdversary.toForger, truncateAdversary, ProbOracleComp.simulate_bind,
     ProbOracleComp.simulate_query, ProbOracleComp.simulate_pure, bind_assoc, pure_bind,
     map_eq_bind_pure_comp, Function.comp_def]
 
 variable (M) in
-open ComputableInPolyTime in
 /-- `M.mixBlocksAdversary.toForger replyBound` is strict oracle PPT for any polynomial-time
 `replyBound`. -/
 theorem isOraclePPT_toForger_mixBlocksAdversary {replyBound : ℕ → ℕ → ℕ}
     (hbound : ComputableInPolyTime (fun p : ℕ × ℕ => replyBound p.1 p.2)
       (encPair encUnary encUnary) encUnary) :
     IsOraclePPT encForgerOutput (M.mixBlocksAdversary.toForger replyBound) := by
-  have hq2 := (isOraclePPTOn_repPairQuery (M := M) hbound true true).preprocess
-    (fst (encPair encUnary encBits) encBits)
-  have hp := id' (encIn := encPair (encPair (encPair encUnary encBits) encBits) encBits)
-  have hw := (unary_div_const 4).comp (M.msgLen_polyTime.comp hp.fst'.fst'.fst')
-  have htag₁ := tagDecoder.computableInPolyTime.comp hp.fst'.snd'
-  have htag₂ := tagDecoder.computableInPolyTime.comp hp.snd'
-  have hres := (bitsAppend ((bitsReplicate false).comp hw) ((bitsReplicate true).comp hw)).prod
-    (htag₁.fst'.prod ((listAppend encBits).comp
-      ((listTakeWithInput htag₁.snd' (.const 1)).prod
-        (listDropWithInput htag₂.snd' (.const 1)))))
-  have hbody := hq2.map_with (f := fun (p : (ℕ × List Bool) × List Bool) (raw' : List Bool) =>
-    (List.replicate (fieldWidth (M.msgLen p.1.1)) false ++
-      List.replicate (fieldWidth (M.msgLen p.1.1)) true,
-      ((tagDecoder.decode p.2).1,
-        (tagDecoder.decode p.2).2.take 1 ++ (tagDecoder.decode raw').2.drop 1))) hres
+  have hM := M.msgLen_polyTime
+  have hbody := ((isOraclePPTOn_repPairQuery (M := M) hbound true true).preprocess
+    (ComputableInPolyTime.fst (encPair encUnary encBits) encBits)).map_with
+    (output := encForgerOutput)
+    (f := fun (p : (ℕ × List Bool) × List Bool) (raw' : List Bool) =>
+      (List.replicate (fieldWidth (M.msgLen p.1.1)) false ++
+        List.replicate (fieldWidth (M.msgLen p.1.1)) true,
+        ((tagDecoder.decode p.2).1,
+          (tagDecoder.decode p.2).2.take 1 ++ (tagDecoder.decode raw').2.drop 1))) (by polytime)
   refine show IsOraclePPTOn _ _ _ from ?_
   convert (isOraclePPTOn_repPairQuery (M := M) hbound false false).bind_with
     (second := fun (p : ℕ × List Bool) (raw : List Bool) =>
