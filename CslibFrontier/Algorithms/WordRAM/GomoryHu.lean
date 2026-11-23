@@ -199,13 +199,6 @@ private def ghProg (_ : Unit) : Memory.Prog ℕ := do
 
 /-! ### Realization -/
 
--- TEMP: to be replaced by the public lemmas of `EdmondsKarp.lean` (maxflow-ek, board #72).
-private theorem fillRange_realizes :
-    Realizes .exact fillRange (WordEncoding.encode (α := (ℕ × ℕ) × ℕ))
-      (WordEncoding.encode (α := Unit))
-      (fun w d _ => Fits w (d.1.1 + d.2)) (fun _ _ => 0) := by
-  sorry
-
 private theorem maxStep_realizes :
     Realizes .exact maxStep (WordEncoding.encode (α := ℕ × (ℕ × ℕ)))
       (WordEncoding.encode (α := ℕ × ℕ))
@@ -331,11 +324,6 @@ private theorem ghProg_realizes :
 
 /-! ### State-level effect of the loop steps -/
 
--- TEMP: `PreservesAt` is opaque outside `ProgFrame.lean` (board #79).
-private theorem preservesAt_apply {a : ℕ} {α : Type} {p : Memory.Prog α} (h : PreservesAt a p)
-    (s : Memory.State) : ((Memory.spec 0).clientState s p).mem a = s.mem a := by
-  sorry
-
 /-- The re-hanging scan re-hangs below `s` exactly the vertices `z ∉ {s, t}` with parent `t` whose
 distance word is below `n`, and changes no word outside the parent array. -/
 private theorem rehang_spec (n s t : ℕ) (st : Memory.State) :
@@ -419,7 +407,7 @@ private theorem ghStep_spec {n r B k t : ℕ} {st : Memory.State} (hk : k < n) (
   have ht : t < n := htdef ▸ hpar k hk
   have hpt : st.mem (parBase n + t) < n := hpar t ht
   have h1 : ∀ a < scrBase n, st1.mem a = st.mem a := fun a ha =>
-    preservesAt_apply (preservesAt_ekProg (d := (ghCtx n B, (k, t))) (Or.inl ha)) st
+    preservesAt_ekProg (d := (ghCtx n B, (k, t))) hk (Or.inl ha) st
   obtain ⟨h2fr, h2par⟩ := rehang_spec n k t st1
   have e1 : (Memory.spec 0).clientState st (ekProg (ghCtx n B, (k, t))) = st1 := rfl
   have e2 : (Memory.spec 0).clientResult st (ekProg (ghCtx n B, (k, t))) = v := rfl
@@ -445,9 +433,15 @@ private theorem ghStep_spec {n r B k t : ℕ} {st : Memory.State} (hk : k < n) (
     else ⟨Function.update st2.mem (wtBase n + k) v, st2.frontier⟩ := by
     show (Memory.spec 0).clientState st (ghStep ((n, r, B), k)) = _
     unfold ghStep
-    simp only [clientState_read, clientResult_read, hkr, htdef, ht, ↓reduceIte,
-      StateTransitionSpec.clientState_bind, e1, e2, hst2, hPt2, hpt, hD2, hW2 t ht,
-      clientState_bind_write, clientState_write, StateTransitionSpec.clientState_pure]
+    rw [clientState_bind_read, ite_eq_right hkr, clientState_bind_read, htdef, ite_eq_left ht,
+      StateTransitionSpec.clientState_bind, e1, e2, StateTransitionSpec.clientState_bind, hst2,
+      clientState_bind_read, hPt2, ite_eq_left hpt, clientState_bind_read, hD2]
+    by_cases hX : st1.mem (distBase n + st.mem (parBase n + t)) < n
+    · rw [ite_eq_left hX, ite_eq_left hX, clientState_bind_read, hW2 t ht, clientState_bind_write,
+        clientState_bind_write, clientState_bind_write, clientState_bind_write,
+        StateTransitionSpec.clientState_pure]
+    · rw [ite_eq_right hX, ite_eq_right hX, clientState_bind_write,
+        StateTransitionSpec.clientState_pure]
   refine ⟨fun a ha => ?_, fun z hz => ?_, fun z hz => ?_⟩
   · have hne : ∀ b, a ≠ parBase n + b := fun b => by omega
     have hne' : ∀ b, a ≠ wtBase n + b := fun b => by dsimp only [wtBase, parBase] at ha ⊢; omega
@@ -500,5 +494,188 @@ private theorem ghStep_spec {n r B k t : ℕ} {st : Memory.State} (hk : k < n) (
       simp only [Function.update_apply, hX, ↓reduceIte, hW2 z hz]
       simp only [parBase, wtBase] at *
       split_ifs <;> omega
+
+/-! ### Gusfield's algorithm on prefixes of the vertex order -/
+
+/-- Processing one more vertex `s` after the list `l`. -/
+private theorem gusfieldWeightLoop_append {V β : Type*} [DecidableEq V] (C : V → V → Finset V)
+    (val : V → V → β) (r : V) (l : List V) (s : V) (p : V → V) (w : V → β) :
+    gusfieldWeightLoop C val r (l ++ [s]) p w =
+      if s = r then gusfieldWeightLoop C val r l p w
+      else
+        ((gusfieldStep (gusfieldWeightLoop C val r l p w).1 s
+            (C s ((gusfieldWeightLoop C val r l p w).1 s))),
+          gusfieldStepWeight (gusfieldWeightLoop C val r l p w).1
+            (gusfieldWeightLoop C val r l p w).2 s
+            (C s ((gusfieldWeightLoop C val r l p w).1 s))
+            (val s ((gusfieldWeightLoop C val r l p w).1 s))) := by
+  induction l generalizing p w with
+  | nil => by_cases hs : s = r <;> simp only [List.nil_append, gusfieldWeightLoop, hs, ↓reduceIte]
+  | cons x l ih =>
+    by_cases hx : x = r <;> simp only [List.cons_append, gusfieldWeightLoop, hx, ↓reduceIte, ih]
+
+/-- The loop only queries the oracles at the vertices of the list. -/
+private theorem gusfieldWeightLoop_congr {V β : Type*} [DecidableEq V] {C C' : V → V → Finset V}
+    {val val' : V → V → β} (r : V) :
+    ∀ {l : List V}, (∀ a ∈ l, C a = C' a ∧ val a = val' a) → ∀ p w,
+      gusfieldWeightLoop C val r l p w = gusfieldWeightLoop C' val' r l p w
+  | [], _, _, _ => rfl
+  | x :: l, h, p, w => by
+    obtain ⟨hC, hv⟩ := h x (List.mem_cons_self ..)
+    have ih := gusfieldWeightLoop_congr r (l := l) fun a ha => h a (List.mem_cons_of_mem x ha)
+    by_cases hx : x = r <;> simp only [gusfieldWeightLoop, hx, ↓reduceIte, hC, hv, ih]
+
+/-- `gusfieldStep` in terms of word-level data: `P` reads the parent of a vertex, `D` decides
+membership in `X`, and `t` is the parent of `s`. -/
+private theorem val_gusfieldStep {n : ℕ} (p : Fin n → Fin n) (s : Fin n) (X : Finset (Fin n))
+    (P : ℕ → ℕ) (D : ℕ → Prop) [DecidablePred D] (t : ℕ) (hP : ∀ y : Fin n, P y.1 = (p y).1)
+    (hD : ∀ y : Fin n, y ∈ X ↔ D y.1) (ht : t = (p s).1) (z : Fin n) :
+    (gusfieldStep p s X z).1 =
+      if z.1 = s.1 then (if D (P t) then P t else t)
+      else if z.1 = t then (if D (P t) then s.1 else P t)
+      else if P z.1 = t ∧ D z.1 then s.1 else P z.1 := by
+  subst ht
+  rw [hP (p s), hP z]
+  simp only [← hD, Fin.val_inj]
+  unfold gusfieldStep
+  split_ifs <;> rfl
+
+/-- `gusfieldStepWeight` in terms of word-level data, as in `val_gusfieldStep`; `Wt` reads the
+weight of a vertex. -/
+private theorem gusfieldStepWeight_eq {n : ℕ} (p : Fin n → Fin n) (w : Fin n → ℕ) (s : Fin n)
+    (X : Finset (Fin n)) (v : ℕ) (P Wt : ℕ → ℕ) (D : ℕ → Prop) [DecidablePred D] (t : ℕ)
+    (hP : ∀ y : Fin n, P y.1 = (p y).1) (hW : ∀ y : Fin n, Wt y.1 = w y)
+    (hD : ∀ y : Fin n, y ∈ X ↔ D y.1) (ht : t = (p s).1) (z : Fin n) :
+    gusfieldStepWeight p w s X v z =
+      if D (P t) then (if z.1 = s.1 then Wt t else if z.1 = t then v else Wt z.1)
+      else if z.1 = s.1 then v else Wt z.1 := by
+  subst ht
+  rw [hP (p s), hW (p s), hW z]
+  simp only [← hD, Fin.val_inj]
+  unfold gusfieldStepWeight
+  split_ifs <;> rfl
+
+/-- The matrix `W` is stored row-major from address `3`. -/
+private def MatrixLoaded {n : ℕ} (W : Fin n → Fin n → ℕ) (s : Memory.State) : Prop :=
+  ∀ u v : Fin n, s.mem (3 + u.1 * n + v.1) = W u v
+
+/-- After processing the first `k` vertices, the parent and weight arrays hold the result of
+Gusfield's algorithm on them for some valid cut and value oracles. -/
+private def GusfieldAt {n : ℕ} (W : Fin n → Fin n → ℕ) (r : Fin n) (k : ℕ) (s : Memory.State) :
+    Prop :=
+  ∃ (C : Fin n → Fin n → Finset (Fin n)) (val : Fin n → Fin n → ℕ),
+    (∀ a b, a ≠ b → IsMinCutBetween (cutWeight W) a b (C a b)) ∧
+    (∀ a b, a ≠ b → val a b = cutWeight W (C a b)) ∧
+    ∀ z : Fin n,
+      s.mem (parBase n + z.1) =
+          ((gusfieldWeightLoop C val r ((List.finRange n).take k) (fun _ => r)
+            (fun _ => 0)).1 z).1 ∧
+        s.mem (wtBase n + z.1) =
+          (gusfieldWeightLoop C val r ((List.finRange n).take k) (fun _ => r) (fun _ => 0)).2 z
+
+private theorem take_finRange_succ {n k : ℕ} (hk : k < n) :
+    (List.finRange n).take (k + 1) = (List.finRange n).take k ++ [⟨k, hk⟩] := by
+  rw [List.take_add_one, List.getElem?_eq_getElem (by rw [List.length_finRange]; exact hk),
+    List.getElem_finRange]
+  rfl
+
+private theorem lt_of_mem_take_finRange {n k : ℕ} {x : Fin n}
+    (hx : x ∈ (List.finRange n).take k) : x.1 < k := by
+  obtain ⟨j, hj, rfl⟩ := List.mem_take_iff_getElem.mp hx
+  rw [List.getElem_finRange, Fin.val_cast]
+  exact lt_of_lt_of_le hj (min_le_left _ _)
+
+/-- One step of the program advances the invariant: the machine's Edmonds–Karp cut replaces the
+oracle at the queried pair, which the earlier steps never query. -/
+private theorem gusfieldAt_ghStep {n : ℕ} {W : Fin n → Fin n → ℕ} {r : Fin n} {M k : ℕ}
+    (hk : k < n) (hWM : ∀ u v, W u v ≤ M) {st : Memory.State} (hW : MatrixLoaded W st)
+    (hG : GusfieldAt W r k st) :
+    MatrixLoaded W ((Memory.spec 0).clientState st (ghStep ((n, r.1, M), k))) ∧
+      GusfieldAt W r (k + 1) ((Memory.spec 0).clientState st (ghStep ((n, r.1, M), k))) := by
+  obtain ⟨C, val, hC, hval, hmem⟩ := hG
+  generalize hres : gusfieldWeightLoop C val r ((List.finRange n).take k) (fun _ => r)
+    (fun _ => 0) = res at hmem
+  by_cases hkr : k = r.1
+  · have hst : (Memory.spec 0).clientState st (ghStep ((n, r.1, M), k)) = st := by
+      unfold ghStep
+      rw [clientState_bind_read, ite_eq_left hkr]
+      rfl
+    rw [hst]
+    refine ⟨hW, C, val, hC, hval, fun z => ?_⟩
+    rw [take_finRange_succ hk, gusfieldWeightLoop_append, hres,
+      ite_eq_left (Fin.ext hkr : (⟨k, hk⟩ : Fin n) = r)]
+    exact hmem z
+  have hP : ∀ y : Fin n, st.mem (parBase n + y.1) = (res.1 y).1 := fun y => (hmem y).1
+  have hWt : ∀ y : Fin n, st.mem (wtBase n + y.1) = res.2 y := fun y => (hmem y).2
+  have hpar : ∀ z < n, st.mem (parBase n + z) < n := fun z hz => (hP ⟨z, hz⟩) ▸ (res.1 _).2
+  have hsr : (⟨k, hk⟩ : Fin n) ≠ r := fun h => hkr (congrArg Fin.val h)
+  obtain ⟨hlow, hpar', hwt'⟩ := ghStep_spec (r := r.1) (B := M) hk hkr hpar (hP ⟨k, hk⟩)
+  set X : Finset (Fin n) := Finset.univ.filter fun x =>
+    ((Memory.spec 0).clientState st (ekProg (ghCtx n M, (k, (res.1 ⟨k, hk⟩).1)))).mem
+      (distBase n + x.1) < n with hX
+  have hmemX : ∀ x : Fin n, x ∈ X ↔
+      ((Memory.spec 0).clientState st (ekProg (ghCtx n M, (k, (res.1 ⟨k, hk⟩).1)))).mem
+        (distBase n + x.1) < n := fun x => by
+    rw [hX, Finset.mem_filter]
+    exact and_iff_right (Finset.mem_univ x)
+  have hspec : (⟨k, hk⟩ : Fin n) ≠ res.1 ⟨k, hk⟩ →
+      IsMinCutBetween (cutWeight W) ⟨k, hk⟩ (res.1 ⟨k, hk⟩) X ∧
+        (Memory.spec 0).clientResult st (ekProg (ghCtx n M, (k, (res.1 ⟨k, hk⟩).1))) =
+          cutWeight W X := fun hne =>
+    let h := ekProg_spec (mb := 3) (sb := scrBase n) hne hWM (by dsimp only [scrBase]; omega) hW
+    ⟨h.2.1, h.2.2⟩
+  let C' : Fin n → Fin n → Finset (Fin n) := fun a b =>
+    if a = ⟨k, hk⟩ ∧ b = res.1 ⟨k, hk⟩ then X else C a b
+  let val' : Fin n → Fin n → ℕ := fun a b =>
+    if a = ⟨k, hk⟩ ∧ b = res.1 ⟨k, hk⟩ then
+      (Memory.spec 0).clientResult st (ekProg (ghCtx n M, (k, (res.1 ⟨k, hk⟩).1)))
+    else val a b
+  have hC' : ∀ a b, a ≠ b → IsMinCutBetween (cutWeight W) a b (C' a b) := by
+    intro a b hab
+    by_cases h : a = ⟨k, hk⟩ ∧ b = res.1 ⟨k, hk⟩
+    · obtain ⟨rfl, rfl⟩ := h
+      simp only [C', and_self, ↓reduceIte]
+      exact (hspec hab).1
+    · simp only [C', h, ↓reduceIte]
+      exact hC a b hab
+  have hval' : ∀ a b, a ≠ b → val' a b = cutWeight W (C' a b) := by
+    intro a b hab
+    by_cases h : a = ⟨k, hk⟩ ∧ b = res.1 ⟨k, hk⟩
+    · obtain ⟨rfl, rfl⟩ := h
+      simp only [val', C', and_self, ↓reduceIte]
+      exact (hspec hab).2
+    · simp only [val', C', h, ↓reduceIte]
+      exact hval a b hab
+  have hpre : gusfieldWeightLoop C' val' r ((List.finRange n).take k) (fun _ => r)
+      (fun _ => 0) = res := by
+    rw [← hres]
+    refine (gusfieldWeightLoop_congr r (fun a ha => ⟨funext fun b => ?_, funext fun b => ?_⟩)
+      _ _).symm <;>
+    · have hlt := lt_of_mem_take_finRange ha
+      refine (ite_eq_right fun h => ?_).symm
+      have h1 := congrArg Fin.val h.1
+      dsimp only at h1
+      omega
+  have hnew : gusfieldWeightLoop C' val' r ((List.finRange n).take (k + 1)) (fun _ => r)
+      (fun _ => 0) =
+        (gusfieldStep res.1 ⟨k, hk⟩ X, gusfieldStepWeight res.1 res.2 ⟨k, hk⟩ X
+          ((Memory.spec 0).clientResult st (ekProg (ghCtx n M, (k, (res.1 ⟨k, hk⟩).1))))) := by
+    rw [take_finRange_succ hk, gusfieldWeightLoop_append, hpre, ite_eq_right hsr]
+    simp only [C', val', and_self, ↓reduceIte]
+  refine ⟨fun u v => ?_, C', val', hC', hval', fun z => ?_⟩
+  · have huv : u.1 * n + v.1 < n * n := by nlinarith [u.2, v.2]
+    rw [hlow _ (by dsimp only [parBase]; omega)]
+    exact hW u v
+  · rw [hnew]
+    refine ⟨(hpar' z.1 z.2).trans ?_, (hwt' z.1 z.2).trans ?_⟩
+    · exact (val_gusfieldStep res.1 ⟨k, hk⟩ X (fun y => st.mem (parBase n + y))
+        (fun y => ((Memory.spec 0).clientState st
+          (ekProg (ghCtx n M, (k, (res.1 ⟨k, hk⟩).1)))).mem (distBase n + y) < n)
+        ((res.1 ⟨k, hk⟩).1) hP hmemX rfl z).symm
+    · exact (gusfieldStepWeight_eq res.1 res.2 ⟨k, hk⟩ X _ (fun y => st.mem (parBase n + y))
+        (fun y => st.mem (wtBase n + y))
+        (fun y => ((Memory.spec 0).clientState st
+          (ekProg (ghCtx n M, (k, (res.1 ⟨k, hk⟩).1)))).mem (distBase n + y) < n)
+        ((res.1 ⟨k, hk⟩).1) hP hWt hmemX rfl z).symm
 
 end Cslib.Algorithms.WordRAM.GomoryHu
