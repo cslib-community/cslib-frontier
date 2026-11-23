@@ -30,7 +30,6 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation.Handler
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
-import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Tactic.EncLen
@@ -112,10 +111,7 @@ length-preserving keyed block-function family (`PseudorandomFunction`), completi
 
 * `cbcMacWord`, `cbcMacFamily`, `prependLengthWord`, `lengthPrependedCbcMacWord`,
   `lengthPrependedCbcMacFamily`: polynomial-time word-level basic and length-prepended CBC-MAC.
-* `cbcBlockValid`, `lpBlockValid`, `prfOracleOn`, `prfRealGameOn`, `prfIdealGameOn`,
-  `PseudorandomFunctionOn`: domain-restricted computational PRF games and security predicate.
-* `PrefixFreePseudorandomFunctionOn`: security against the shared prefix-free word-oracle
-  adversary class ([BonehShoup2023], Definition 4.5, p. 152).
+* `cbcBlockValid`, `lpBlockValid`: the word-level query domains for both forms of CBC-MAC.
 * `cbcInputCodec`, `lengthPrependedCodec`: `OracleCodec` bridges to `CBCOracleSpec` and
   `LengthPrependedSpec`.
 * `cbcMacStep`, `cbcMacQueries`, `cbcMacQuery`, `cbcMacToPrfDistinguisher`, `lengthPrependedQuery`,
@@ -427,7 +423,7 @@ private theorem cbcMacWord_eq_ofFn_cbcMacBlocks {n : ℕ} {f : List Bool → Lis
   rw [cbcMacWord, BitString.listRows_eq_map_ofFn_padBlocks, hzero]
   exact foldl_cbcStep_map_ofFn hfg 0 _
 
-/-! ### Section 2: Domain-Restricted PRF Games and Prefix-Free Adversaries -/
+/-! ### Section 2: CBC-MAC Query Domains -/
 
 /-- Nonempty whole-block messages of at most `ℓ n` blocks (`X_{>0}^{≤ ℓ n}` in
 [BonehShoup2023], Section 6.4, printed p. 226). At `n = 0`, `ℓ 0 * 0 = 0`, so every message is
@@ -459,152 +455,6 @@ theorem computableInPolyTime_lpBlockValid {L : ℕ → ℕ}
       (encPair encUnary encBits) encBool := by
   unfold lpBlockValid
   polytime
-
-/-- Keyed word oracle restricted to the message predicate `valid`: valid queries are evaluated
-under `key`, and invalid queries receive `[]`. -/
-@[expose]
-def prfOracleOn (valid : List Bool → Bool) (family : List Bool → List Bool → List Bool)
-    (key query : List Bool) : List Bool :=
-  if valid query then family key query else []
-
-/-- Real PRF experiment on the query domain `valid n` ([BonehShoup2023], Attack Game 4.2,
-printed p. 132): sample a uniform `n`-bit key and answer valid queries with `family key` and
-invalid queries with `[]`. -/
-@[expose]
-noncomputable def prfRealGameOn (valid : ℕ → List Bool → Bool)
-    (family : List Bool → List Bool → List Bool)
-    (adversary : OracleDistinguisher) (n : ℕ) : ProbComp Bool := do
-  let key ← BitString.sampleList n
-  (adversary n []).run fun request => pure (prfOracleOn (valid n) family key request.2)
-
-/-- Ideal PRF experiment on the query domain `valid n` with `outLen n`-bit outputs
-([BonehShoup2023], Attack Game 4.2, printed p. 132): answer valid queries with consistent lazy
-uniform `outLen n`-bit values and invalid queries with `[]`. -/
-@[expose]
-noncomputable def prfIdealGameOn (valid : ℕ → List Bool → Bool) (outLen : ℕ → ℕ)
-    (adversary : OracleDistinguisher) (n : ℕ) : ProbComp Bool :=
-  Prod.fst <$> (OracleComp.interpret
-    (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-      (fun request => cachedRandomFunctionOracle (valid n) (outLen n) request.2))
-    (adversary n [])).run []
-
-/-- On fixed `inLen n`-bit inputs, `prfRealGameOn` is identical in distribution to `prfRealGame`. -/
-theorem eval_prfRealGameOn_length_eq (inLen : ℕ → ℕ)
-    (family : List Bool → List Bool → List Bool) (adversary : OracleDistinguisher) (n : ℕ) :
-    ProbComp.eval (prfRealGameOn (fun m q => q.length == inLen m) family adversary n) =
-      ProbComp.eval (prfRealGame inLen family adversary n) := by
-  simp only [prfRealGameOn, prfRealGame, prfOracleOn, prfOracle, beq_iff_eq]
-
-private theorem eval_prfIdealGameOn_eq_eager_of_codec {Q : Type} [Fintype Q] [DecidableEq Q]
-    {valid : List Bool → Bool} {w : ℕ} (codec : OracleCodec Unit Q (fun _ => BitString w))
-    (hvalid : ∀ query : List Bool, valid query = (codec.decodeQuery ((), query)).isSome)
-    (hreply : ∀ q : Q, codec.encodeReply q = ⟨List.ofFn, List.ofFn_injective⟩)
-    (program : WordOracleComp Unit Bool) :
-    ProbComp.eval (Prod.fst <$> (OracleComp.interpret
-      (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-        (fun request => cachedRandomFunctionOracle valid w request.2))
-      program).run []) =
-    (PMF.uniformOfFintype (Q → BitString w)).bind fun table =>
-      ProbComp.eval ((codec.adapt program).run fun q => pure (table q)) := by
-  let keyMap : Q ↪ List Bool :=
-    ⟨fun q => (codec.encodeQuery q).2, fun q₁ q₂ h =>
-      codec.encodeQuery_injective (Prod.ext (Subsingleton.elim _ _) h)⟩
-  let adapter : List Bool → ProbOracleComp (fun _ : Q => List Bool) (List Bool) :=
-    fun query => match codec.decodeQuery ((), query) with
-      | some q => ProbOracleComp.query q
-      | none => pure []
-  have h := RandomOracle.interpret_prob_eq_memoize_map
-    keyMap List.ofFn
-    (fun _ => PMF.uniformOfFintype (BitString w)) (fun _ => BitString.uniformList w)
-    (fun _ => rfl)
-    (ProbOracleComp.simulate (fun request : Unit × List Bool => adapter request.2) program)
-  have hstep (query : List Bool) : OracleComp.interpret
-      (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
-        (fun key => memoize (fun _ => BitString.uniformList w) (keyMap key)))
-        (adapter query) =
-      fun cache => ProbComp.eval (cachedRandomFunctionOracle valid w query cache) := by
-    funext cache
-    rw [cachedRandomFunctionOracle, cachedSamplerOracle, hvalid query]
-    cases hdec : codec.decodeQuery ((), query) with
-    | none =>
-      simp only [adapter, hdec, Option.isSome_none, Bool.false_eq_true, ↓reduceIte,
-        OracleComp.interpret_pure, ProbComp.eval_pure]
-      rfl
-    | some q =>
-      have henc : (codec.encodeQuery q).2 = query :=
-        congrArg Prod.snd ((codec.decodeQuery_eq_some_iff ((), query) q).mp hdec)
-      simp only [adapter, hdec, Option.isSome_some, ↓reduceIte, ProbOracleComp.interpret_query,
-        ProbComp.eval_memoize, BitString.eval_sampleList]
-      change memoize (fun _ => BitString.uniformList w) (codec.encodeQuery q).2 cache = _
-      rw [henc]
-  have heager (table : Q → BitString w) (request : Unit × List Bool) : OracleComp.interpret
-      (OracleComp.sumHandler ProbComp.unifOracle (fun key => PMF.pure (List.ofFn (table key))))
-        (adapter request.2) =
-      codec.wordOracle (fun q => PMF.pure (table q)) request := by
-    rcases request with ⟨⟨⟩, query⟩
-    rw [OracleCodec.wordOracle]
-    cases hdec : codec.decodeQuery ((), query) with
-    | none => simp [adapter, hdec]
-    | some q =>
-      simp [adapter, hdec, hreply q]
-  rw [ProbComp.eval_map, ProbOracleComp.eval_run_interpret]
-  have hsymm := h.symm
-  simpa only [ProbOracleComp.interpret_simulate, hstep, heager, PMF.pi_uniformOfFintype,
-    PMF.monad_bind_eq_bind, ProbOracleComp.eval_run, ProbComp.eval_pure,
-    OracleCodec.interpret_adapt] using hsymm
-
-/-- On fixed `inLen n`-bit inputs, `prfIdealGameOn` is identical in distribution to
-`prfIdealGame`. -/
-theorem eval_prfIdealGameOn_length_eq (inLen outLen : ℕ → ℕ) (adversary : OracleDistinguisher)
-    (n : ℕ) :
-    ProbComp.eval (prfIdealGameOn (fun m q => q.length == inLen m) outLen adversary n) =
-      ProbComp.eval (prfIdealGame inLen outLen adversary n) := by
-  have heq := eval_prfIdealGameOn_eq_eager_of_codec
-    (valid := fun q => q.length == inLen n)
-    (OracleCodec.bitStrings (inLen n) (outLen n))
-    (fun query => by
-      by_cases hq : query.length = inLen n <;> simp [OracleCodec.bitStrings, hq])
-    (fun _ => rfl)
-    (adversary n [])
-  rw [prfIdealGameOn, heq]
-  simp only [prfIdealGame, ProbComp.eval_bind, ProbComp.eval_uniform, ProbOracleComp.eval_run,
-    ProbComp.eval_pure, ← PMF.monad_pure_eq_pure, OracleCodec.interpret_adapt,
-    wordOracle_bitStrings]
-
-/-- Uniform computational pseudorandom function over the parameter-indexed query domain `valid` with
-`n`-bit keys and `outLen n`-bit outputs ([BonehShoup2023], Attack Game 4.2 and Definitions 4.2 and
-4.4, printed pp. 132–133 and 139–141). -/
-structure PseudorandomFunctionOn (valid : ℕ → List Bool → Bool) (outLen : ℕ → ℕ)
-    (family : List Bool → List Bool → List Bool) : Prop where
-  /-- Deterministic polynomial-time evaluation from `(key, query)`. -/
-  polyTime : ComputableInPolyTime (fun pair => family pair.1 pair.2)
-    (encPair encBits encBits) encBits
-  /-- Valid queries under a key receive `outLen key.length`-bit answers. -/
-  length_eq : ∀ key query, valid key.length query = true →
-    (family key query).length = outLen key.length
-  /-- Indistinguishability of the real and ideal domain-restricted experiments. -/
-  secure : Game.Indistinguishable
-    (fun adversary n => ProbComp.eval (prfRealGameOn valid family adversary n))
-    (fun adversary n => ProbComp.eval (prfIdealGameOn valid outLen adversary n))
-    (IsOraclePPT encBool)
-
-/-- Prefix-free uniform computational pseudorandom function over `valid` ([BonehShoup2023],
-Section 4.6.1, Definition 4.5, printed p. 152, and Section 6.4, printed p. 226): deterministic
-polynomial-time evaluation, output length `outLen`, and indistinguishability against
-`IsPrefixFreeOraclePPT valid outLen`. -/
-structure PrefixFreePseudorandomFunctionOn (valid : ℕ → List Bool → Bool) (outLen : ℕ → ℕ)
-    (family : List Bool → List Bool → List Bool) : Prop where
-  /-- Deterministic polynomial-time evaluation from `(key, query)`. -/
-  polyTime : ComputableInPolyTime (fun pair => family pair.1 pair.2)
-    (encPair encBits encBits) encBits
-  /-- Valid queries under a key receive `outLen key.length`-bit answers. -/
-  length_eq : ∀ key query, valid key.length query = true →
-    (family key query).length = outLen key.length
-  /-- Indistinguishability against uniform strict oracle-PPT prefix-free distinguishers. -/
-  secure : Game.Indistinguishable
-    (fun adversary n => ProbComp.eval (prfRealGameOn valid family adversary n))
-    (fun adversary n => ProbComp.eval (prfIdealGameOn valid outLen adversary n))
-    (IsPrefixFreeOraclePPT valid outLen)
 
 /-! ### Section 3: Typed Codec Bridges to `CBCOracleSpec` and `LengthPrependedSpec` -/
 

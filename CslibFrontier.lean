@@ -5867,6 +5867,7 @@ public import CslibFrontier.Crypto.Computational.Pseudoentropy.WordSeedExtractio
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.CircuitLowerBound
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Coins
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Domain
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Finite
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.HashThenPRF
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Label

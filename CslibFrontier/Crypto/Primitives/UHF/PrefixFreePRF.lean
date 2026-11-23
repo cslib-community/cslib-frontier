@@ -9,10 +9,12 @@ module
 
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFree
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFreePair
-public import CslibFrontier.Crypto.Primitives.UHF.Finite
+public import CslibFrontier.Crypto.Primitives.UHF.Computational
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
+import CslibFrontier.Crypto.Game.CloseTo
+import CslibFrontier.Probability.PMF.Bind
 
 /-!
 # A prefix-free oracle wrapper for collision guesses
@@ -35,6 +37,8 @@ Theorem 7.3 provides this room by giving the PRF domain one extra block of capac
 
 * `Cslib.Crypto.UHF.isPrefixFreeOraclePPT_prefixFreeCollisionReduction`: the wrapper for a strict
   PPT guesser is strict oracle PPT and makes prefix-incomparable queries.
+* `Cslib.Crypto.UHF.succProbability_collisionGame_le_real_prefixFreeCollisionReduction`:
+  the real-game comparison (7.7) for an extendable family on the chosen domains.
 -/
 
 public section
@@ -42,6 +46,7 @@ public section
 namespace Cslib.Crypto.UHF
 
 open Probability Turing.MultiTapeTM
+open scoped ENNReal
 
 /-- Reject invalid and repeated guesses. On an accepted pair, append the same separating block
 to both words and compare the two oracle replies up to the declared reply width. -/
@@ -135,5 +140,62 @@ theorem isPrefixFreeOraclePPT_prefixFreeCollisionReduction {width outLen : ℕ �
     subst result
     intro x hx
     cases hx
+
+/-- The real-game step (7.7) in [BonehShoup2023], v0.6, Theorem 7.3 (printed p. 259).
+Valid words remain valid for the PRF after a one-block extension. If that extension
+preserves collisions, each winning collision guess also makes the real wrapper accept. -/
+theorem succProbability_collisionGame_le_real_prefixFreeCollisionReduction
+    {width outLen : ℕ → ℕ} {valid oracleValid : ℕ → List Bool → Bool}
+    (family : List Bool → List Bool → List Bool)
+    (guessPair : ℕ × ℕ → ProbComp (CollisionGuess (List Bool))) (n : ℕ)
+    (hDomain : ∀ {word block}, valid n word = true → block.length = width n →
+      oracleValid n (word ++ block) = true)
+    (hExtend : ∀ {key left right block}, key.length = n →
+      valid n left = true → valid n right = true → block.length = width n →
+      family key left = family key right →
+      family key (left ++ block) = family key (right ++ block)) :
+    Game.succProbability (collisionGame pure (fun _ d => valid d)
+      (fun _ d (key : BitString d) => family (List.ofFn key)) guessPair n) ≤
+    Game.succProbability (ProbComp.eval (prfRealGameOn oracleValid family
+      (prefixFreeCollisionReduction width outLen valid guessPair) n)) := by
+  let accept (key : List Bool) (guess : CollisionGuess (List Bool)) :=
+    if valid n guess.first && valid n guess.second && decide (guess.first ≠ guess.second) then
+      let block := PRF.separatingWordBlock (width n) guess.first guess.second
+      let reply := fun word =>
+        (prfOracleOn (oracleValid n) family key (word ++ block)).take (outLen n)
+      decide (reply guess.first = reply guess.second)
+    else false
+  have hRun (key : List Bool) :
+      (prefixFreeCollisionReduction width outLen valid guessPair n []).run
+        (fun req => pure (prfOracleOn (oracleValid n) family key req.2)) =
+      ((guessPair (n, n)) >>= fun guess => pure (accept key guess)) := by
+    simp only [prefixFreeCollisionReduction, ProbOracleComp.run_bind, ProbOracleComp.run_sample]
+    congr 1
+    funext guess
+    by_cases hg :
+        (valid n guess.first && valid n guess.second && decide (guess.first ≠ guess.second)) =
+          true
+    · simp only [accept, ite_eq_left hg, ProbOracleComp.run_bind, ProbOracleComp.run_map,
+        ProbOracleComp.run_query, ProbOracleComp.run_pure, pure_bind, map_pure]
+    · simp only [accept, ite_eq_right hg, ProbOracleComp.run_pure]
+  apply ENNReal.coe_le_coe.mp
+  simp only [Game.coe_succProbability_ennreal, collisionGame, Game.withSetup_pure,
+    prfRealGameOn, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
+    BitString.eval_sampleList, BitString.uniformList, PMF.bind_map, Function.comp_def, hRun]
+  rw [PMF.bind_comm (PMF.uniformOfFintype (BitString n)) (ProbComp.eval (guessPair (n, n)))]
+  apply PMF.bind_apply_mono_on_support _ true
+  intro guess _
+  apply PMF.bind_apply_mono_on_support _ true
+  intro key _
+  by_cases hWin : guess.first ≠ guess.second ∧ valid n guess.first = true ∧
+      valid n guess.second = true ∧
+      family (List.ofFn key) guess.first = family (List.ofFn key) guess.second
+  · obtain ⟨hne, hl, hr, hEq⟩ := hWin
+    have hBlock := PRF.length_separatingWordBlock (width n) guess.first guess.second
+    have hLeft := hDomain hl hBlock
+    have hRight := hDomain hr hBlock
+    have hTags := hExtend List.length_ofFn hl hr hBlock hEq
+    simp [accept, prfOracleOn, hne, hl, hr, hEq, hLeft, hRight, hTags]
+  · simp [hWin]
 
 end Cslib.Crypto.UHF
