@@ -566,8 +566,6 @@ private def ofFace (t : KuhnSimplex n) : KuhnSimplex (n + 1) :=
 private theorem rank_ofFace_zero (t : KuhnSimplex n) : (ofFace t).rank 0 = 0 :=
   Equiv.Perm.decomposeFin_symm_apply_zero _ _
 
-private theorem base_ofFace_zero (t : KuhnSimplex n) : (ofFace t).base 0 = 0 := rfl
-
 private theorem face_ofFace (t : KuhnSimplex n) : face (ofFace t) = t := by
   ext1
   · exact Fin.tail_cons (α := fun _ => ℕ) 0 t.base
@@ -727,7 +725,7 @@ theorem IsHypergridSperner.odd_card_isPanchromatic {n : ℕ} {N : Fin n → ℕ}
         simp only [D, coe_filter, mem_filter, mem_product, mem_univ, and_true,
           Set.mem_ofPred_eq] at ht ⊢
         exact ⟨⟨(ofFace_mem hN).mpr ht.1, (isDoor_ofFace_iff hc ht.1).mpr ht.2⟩,
-          not_isInteriorFacet_zero (rank_ofFace_zero t) (base_ofFace_zero t)⟩
+          not_isInteriorFacet_zero (rank_ofFace_zero t) rfl⟩
       · rintro ⟨s, k⟩ hp
         simp only [D, coe_filter, mem_filter, mem_product, mem_univ, and_true,
           Set.mem_ofPred_eq] at hp

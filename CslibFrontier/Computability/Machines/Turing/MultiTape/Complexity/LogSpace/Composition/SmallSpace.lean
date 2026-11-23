@@ -764,7 +764,6 @@ public theorem computableTidily_compose {α γ : Type} {encIn : α ↪ List Bool
         ≤ L a := hL a (show i + 1 ≤ ug a * (uf a + 1) by have := hpos a; omega) 0
     have h₃ := Nat.pow_le_pow_left (Nat.add_le_add_right h₁ 1) 3
     have h₄ := Nat.pow_le_pow_left (Nat.add_le_add_right h₂ 1) 3
-    refine (Nat.add_le_add (Nat.add_le_add h₃ h₃) h₄).trans ?_
     omega
   case refine_6 =>
     intro a i hi

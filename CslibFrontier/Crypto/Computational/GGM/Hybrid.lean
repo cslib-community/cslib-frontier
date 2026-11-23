@@ -108,8 +108,8 @@ theorem frontierOracle_self (generator : List Bool → List Bool) (n : ℕ) :
     frontierOracle generator n n = cachedRandomFunctionOracle (·.length == n) n := by
   funext query cache
   by_cases h : query.length = n
-  · simp [frontierOracle, cachedRandomFunctionOracle, ← h]
-  · simp [frontierOracle, cachedRandomFunctionOracle, h]
+  · simp [frontierOracle, cachedRandomFunctionOracle, cachedSamplerOracle, ← h]
+  · simp [frontierOracle, cachedRandomFunctionOracle, cachedSamplerOracle, h]
 
 /-- At the final level, the prefix hybrid is exactly the ideal PRF game. -/
 theorem hybridGame_self (generator : List Bool → List Bool) (adversary : OracleDistinguisher)

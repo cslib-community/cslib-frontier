@@ -26,6 +26,7 @@ import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
 import Mathlib.Data.List.GetD
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Multi-bit chosen-plaintext security of bitwise public-key encryption
@@ -671,11 +672,48 @@ theorem INDCPA.indcpaOn_bitwiseEncrypt
   intro adversary hadversary
   have hsingle := h (bitwiseToSingle valid encrypt maxLen adversary)
     (isPPT_bitwiseToSingle hvalid hencrypt hmax hadversary)
-  have hpolyDyadic : Cslib.PolynomiallyBounded (fun n => dyadicSize (maxLen n)) := by
-    have hmaxPoly : Cslib.PolynomiallyBounded maxLen := hmax.polynomiallyBounded
-    fun_prop
-  refine negligible_of_le (hsingle.polynomiallyBounded_mul hpolyDyadic) fun n => ?_
-  exact le_of_eq (advantage_bitwiseEncrypt_eq valid keyGen encrypt maxLen adversary n (hlen n))
+  negligible using fun n =>
+    (advantage_bitwiseEncrypt_eq valid keyGen encrypt maxLen adversary n (hlen n)).le
+
+/-- For any word encryption `encWord` and key generator `keyGen` whose supported public keys have
+polynomially bounded bit-length `pkBound n`, chosen-plaintext security on
+`validBoundedWords maxLen` for every unary polynomial-time length cap `maxLen : ℕ → ℕ` implies full
+`WordINDCPA keyGen encWord`. -/
+theorem wordINDCPA_of_indcpaOn_validBoundedWords
+    {keyGen : ℕ → ProbComp (List Bool × List Bool)}
+    {encWord : ℕ → List Bool → List Bool → ProbComp (List Bool)}
+    {pkBound : ℕ → ℕ}
+    (hpkBound : Cslib.PolynomiallyBounded pkBound)
+    (hpkLen : ∀ n keys, keys ∈ (ProbComp.eval (keyGen n)).support → keys.1.length ≤ pkBound n)
+    (hbounded : ∀ (maxLen : ℕ → ℕ), ComputableInPolyTime maxLen encUnary encUnary →
+      INDCPAOn (validBoundedWords maxLen) encBits keyGen encWord) :
+    WordINDCPA keyGen encWord := by
+  intro adversary hadversary
+  obtain ⟨ck, dk, hpkPoly⟩ := Cslib.polynomiallyBounded_iff_le.mp hpkBound
+  obtain ⟨ca, da, hchooseLen⟩ := hadversary.choose.on.length_le
+  let maxLen (n : ℕ) : ℕ := ca * (2 * n + 2 * (ck * (n + 1) ^ dk) + 4) ^ da
+  have hmax : ComputableInPolyTime maxLen encUnary encUnary := by
+    dsimp only [maxLen]; fun_prop
+  have hAdv := hbounded maxLen hmax adversary hadversary
+  have heqGame (bit : Bool) (n : ℕ) :
+      ProbComp.eval (gameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length) keyGen
+        encWord adversary bit n) =
+      ProbComp.eval (gameOn (validBoundedWords maxLen) keyGen
+        encWord adversary bit n) := by
+    simp only [gameOn, pmf_norm, apply_ite ProbComp.eval]
+    refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun keys hkeys =>
+      Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun choice hchoice => ?_
+    have hmsgLen : (ChoiceOut.msg₀ choice).length ≤ maxLen n := by
+      have hout := hchooseLen (n, keys.1) choice hchoice
+      have hk : keys.1.length ≤ ck * (n + 1) ^ dk := (hpkLen n keys hkeys).trans (hpkPoly n)
+      have hin : (encPair encUnary encBits (n, keys.1)).length + 1 ≤
+          2 * n + 2 * (ck * (n + 1) ^ dk) + 4 := by
+        enc_len
+      have hm₀ : (ChoiceOut.msg₀ choice).length ≤ (encChoiceOut encBits choice).length := by
+        dsimp only [ChoiceOut.msg₀, ChoiceOut.msgs]; enc_len
+      exact hm₀.trans (hout.trans (Nat.mul_le_mul_left ca (Nat.pow_le_pow_left hin da)))
+    simp only [validBoundedWords, decide_eq_true hmsgLen, Bool.and_true]
+  simpa only [heqGame] using hAdv
 
 /-- Public-key-bounded bitwise hybrid step: when every public key produced by `keyGen n` has bit
 length at most `pkBound n` for a polynomially bounded function `pkBound` (which need not be
@@ -690,36 +728,12 @@ theorem INDCPA.wordINDCPA_bitwiseEncrypt_of_publicKey_length_le
     (hpkLen : ∀ n keys, keys ∈ (ProbComp.eval (keyGen n)).support → keys.1.length ≤ pkBound n)
     (hencrypt : IsPPTOn (encKeyedInput encBool) encBits (fun ⟨n, k, b⟩ => encrypt n k b))
     (h : INDCPA keyGen encrypt) :
-    WordINDCPA keyGen (bitwiseEncrypt encrypt) := by
-  intro adversary hadversary
-  obtain ⟨ck, dk, hpkPoly⟩ := Cslib.polynomiallyBounded_iff_le.mp hpkBound
-  obtain ⟨ca, da, hchooseLen⟩ := hadversary.choose.on.length_le
-  let maxLen (n : ℕ) : ℕ := ca * (2 * n + 2 * (ck * (n + 1) ^ dk) + 4) ^ da
-  have hmax : ComputableInPolyTime maxLen encUnary encUnary := by
-    dsimp only [maxLen]; fun_prop
-  have hbounded := h.indcpaOn_bitwiseEncrypt (computableInPolyTime_validBoundedWords hmax) hencrypt
-    hmax (fun n _ _ m₀ m₁ hv => by
-      simp only [validBoundedWords, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hv
-      exact hv) adversary hadversary
-  have heqGame (bit : Bool) (n : ℕ) :
-      ProbComp.eval (gameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length) keyGen
-        (bitwiseEncrypt encrypt) adversary bit n) =
-      ProbComp.eval (gameOn (validBoundedWords maxLen) keyGen
-        (bitwiseEncrypt encrypt) adversary bit n) := by
-    simp only [gameOn, pmf_norm, apply_ite ProbComp.eval]
-    refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun keys hkeys =>
-      Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun choice hchoice => ?_
-    have hmsgLen : (ChoiceOut.msg₀ choice).length ≤ maxLen n := by
-      have hout := hchooseLen (n, keys.1) choice hchoice
-      have hk : keys.1.length ≤ ck * (n + 1) ^ dk := (hpkLen n keys hkeys).trans (hpkPoly n)
-      have hin : (encPair encUnary encBits (n, keys.1)).length + 1 ≤
-          2 * n + 2 * (ck * (n + 1) ^ dk) + 4 := by
-        enc_len
-      have hm₀ : (ChoiceOut.msg₀ choice).length ≤ (encChoiceOut encBits choice).length := by
-        dsimp only [ChoiceOut.msg₀, ChoiceOut.msgs]; enc_len
-      exact hm₀.trans (hout.trans (Nat.mul_le_mul_left ca (Nat.pow_le_pow_left hin da)))
-    simp only [validBoundedWords, decide_eq_true hmsgLen, Bool.and_true]
-  simpa only [heqGame] using hbounded
+    WordINDCPA keyGen (bitwiseEncrypt encrypt) :=
+  wordINDCPA_of_indcpaOn_validBoundedWords hpkBound hpkLen fun maxLen hmax =>
+    h.indcpaOn_bitwiseEncrypt (computableInPolyTime_validBoundedWords hmax) hencrypt hmax
+      fun _ _ _ _ _ hv => by
+        simp only [validBoundedWords, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hv
+        exact hv
 
 /-- Single-challenge bitwise reduction step (library infrastructure after [KatzLindell2020],
 Section 12.2.2, locator not verified, rather than Theorem 12.6's multi-encryption oracle endpoint;

@@ -150,6 +150,28 @@ set_option linter.hashCommand false in
     (formulaWordComparisonRequest word (2 ^ 80)).isNone &&
     (formulaWordComparisonRequest [] 0).isNone
 
+-- The term source copies comparison payloads and supplies a canonical zero at unused slots.
+set_option linter.hashCommand false in
+#guard
+  let word := encFormula 1 (.and (.eqZero (.var 0)) (.ltZero (.const (-2))))
+  formulaWordGateTermWord word 1 == encTerm 1 (.var 0) &&
+    formulaWordGateTermWord word 2 == encTerm 1 (.const (-2)) &&
+    formulaWordGateTermWord word 0 == encTerm 1 (.const 0) &&
+    formulaWordGateTermWord word (2 ^ 80) == encTerm 1 (.const 0) &&
+    formulaWordGateTermWord [] 0 == encTerm 0 (.const 0) &&
+    decide (0 < (formulaWordGateTermWord [] 0).length)
+
+-- The same comparison slots evaluate modulo a composite, with missing coordinates set to zero.
+set_option linter.hashCommand false in
+#guard
+  let word := encFormula 1 (.and (.eqZero (.var 0)) (.ltZero (.const (-2))))
+  formulaWordComparisonResidue word 1 8 [11] == some 3 &&
+    formulaWordComparisonResidue word 1 8 [] == some 0 &&
+    formulaWordComparisonResidue word 2 8 [] == some 6 &&
+    (formulaWordComparisonResidue word 0 8 []).isNone &&
+    (formulaWordComparisonResidue word (2 ^ 80) 8 []).isNone &&
+    (formulaWordComparisonResidue [] 0 8 []).isNone
+
 -- The left subtree stops at the right child of the conjunction.
 set_option linter.hashCommand false in
 #guard

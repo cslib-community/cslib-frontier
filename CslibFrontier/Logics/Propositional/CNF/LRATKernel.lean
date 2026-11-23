@@ -43,6 +43,12 @@ It agrees with `checkLRAT` on every formula and certificate
 `Cslib.Logic.PL.CNF.not_satisfiable_of_checkLRAT` and
 `Cslib.Algorithms.Lean.DPLL.exists_checkLRAT_iff` give its soundness and completeness.
 
+It is the checker for kernel reduction. In compiled and interpreted code the array-based
+`Cslib.Logic.PL.CNF.checkLRATFast` is faster, by 4.8 to 6.5 times compiled on SATLIB-scale
+certificates and by 1.8 to 4 times interpreted on `lrat_tauto`'s; in the kernel this checker is
+the faster by far (0.67 s against 62.8 s on `lrat_tauto`'s chain of 80 implications). The
+measurements are in the module docstring of `checkLRATFast`.
+
 ## Main definitions
 
 * `Cslib.Logic.PL.CNF.ClauseTrie`: the clause database.
@@ -309,7 +315,8 @@ def checkLRATKernelAux : ClauseTrie → List LRAT.IntAction → Bool
 /-- **The LRAT checker for kernel reduction**: it accepts exactly the certificates that
 `CNF.checkLRAT` accepts (`CNF.checkLRATKernel_eq_checkLRAT`), with the clauses of `φ` numbered from
 `1`. Clauses are looked up in a binary trie keyed by number, and the literals assumed true in a
-step are the bits set in a natural number. -/
+step are the bits set in a natural number. It is for kernel reduction (`decide`); compiled and
+interpreted code should use the faster `CNF.checkLRATFast`. -/
 def checkLRATKernel (φ : CNF ℕ) (cert : Array LRAT.IntAction) : Bool :=
   checkLRATKernelAux (ClauseTrie.ofList φ.lratDB) cert.toList
 

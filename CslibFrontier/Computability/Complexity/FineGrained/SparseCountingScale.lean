@@ -514,8 +514,7 @@ theorem eventually_poly_mul_two_pow_div_numGroups_le (d : ℕ) :
   calc
     ((n : ℝ) + (numGroups n : ℝ) + 1) ^ d * (2 : ℝ) ^ ((n : ℝ) / (numGroups n : ℝ))
         ≤ (2 : ℝ) ^ interpolationScale n * (2 : ℝ) ^ (16 * interpolationScale n) :=
-      mul_le_mul hpoly_le (Real.rpow_le_rpow_of_exponent_le one_le_two hdiv)
-        (by positivity) (by positivity)
+      by gcongr; norm_num
     _ = (2 : ℝ) ^ (17 * interpolationScale n) := by rw [← Real.rpow_add two_pos]; ring_nf
 
 /-- For any polynomial degree `d`, there exists `A_tree > 0` such that eventually the full
@@ -755,8 +754,7 @@ private theorem leaf_poly_le_input_poly {n m m_leaf B_n C_B β : ℕ} (d_leaf : 
     exact_mod_cast hnat
   calc
     ((n : ℝ) + (m_leaf : ℝ) + 1) ^ d_leaf
-        ≤ (((C_B + 1 : ℕ) : ℝ) * ((n : ℝ) + (m : ℝ) + 1) ^ (β + 1)) ^ d_leaf :=
-      pow_le_pow_left₀ (by positivity) hsum_real d_leaf
+        ≤ (((C_B + 1 : ℕ) : ℝ) * ((n : ℝ) + (m : ℝ) + 1) ^ (β + 1)) ^ d_leaf := by gcongr
     _ = (((C_B + 1) ^ d_leaf : ℕ) : ℝ) * ((n : ℝ) + (m : ℝ) + 1) ^ ((β + 1) * d_leaf) := by
       rw [mul_pow, ← pow_mul]; push_cast; rfl
 
@@ -766,8 +764,7 @@ private theorem rpow_two_mul_le_add_one {x A : ℝ} (n : ℕ)
       (2 : ℝ) ^ ((A + 1) * interpolationScale n) := by
   calc
     (2 : ℝ) ^ x * (2 : ℝ) ^ (A * interpolationScale n)
-        ≤ (2 : ℝ) ^ (1 * interpolationScale n) * (2 : ℝ) ^ (A * interpolationScale n) :=
-      mul_le_mul_of_nonneg_right hx (by positivity)
+        ≤ (2 : ℝ) ^ (1 * interpolationScale n) * (2 : ℝ) ^ (A * interpolationScale n) := by gcongr
     _ = (2 : ℝ) ^ ((A + 1) * interpolationScale n) := by rw [← Real.rpow_add two_pos]; ring_nf
 
 private theorem rpow_two_le_add_one {x A : ℝ} (n : ℕ) (hA : 0 ≤ A)

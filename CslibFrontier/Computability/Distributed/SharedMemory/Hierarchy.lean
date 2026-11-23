@@ -620,6 +620,59 @@ private structure TASInv {P R : Type*} {V : Type u} (regOf : P → R) (v₀ : V)
       (∀ p r, (c.proc p).state = .readWinner r → r = regOf w) ∧
       (∀ p v, (c.proc p).decided = some v → v = inp w)
 
+private theorem TASInv.of_proc_step {P R : Type*} {V : Type u} [DecidableEq P]
+    {regOf : P → R} {v₀ : V} {inp : P → V}
+    {c₁ : Config P (fun i => (tasKind R v₀ i).State) (TASState R V) V}
+    (hinv : TASInv regOf v₀ inp c₁) (q : P)
+    (mem' : ∀ i, (tasKind R v₀ i).State) (ps : ProcState (TASState R V) V)
+    (hno_wp : ∀ v, ps.state ≠ .writeProp v)
+    (hreg_q : mem' (.propReg (regOf q)) = inp q)
+    (hmem_ne : ∀ p, p ≠ q → mem' (.propReg (regOf p)) = c₁.mem (.propReg (regOf p)))
+    (hdone_q : ps.state = .done → ps.decided ≠ none)
+    (htas_f : (mem' .tas).down = false →
+      (c₁.mem .tas).down = false ∧
+      (∀ r, ps.state ≠ .readWinner r) ∧ ps.state ≠ .done ∧ ps.decided = none)
+    (htas_t : (mem' .tas).down = true →
+      ∃ w : P,
+        (if w = q then ps.state = .readWinner (regOf w) ∨ ps.state = .done
+         else (c₁.proc w).state = .readWinner (regOf w) ∨ (c₁.proc w).state = .done) ∧
+        (∀ r, ps.state = .readWinner r → r = regOf w) ∧
+        (∀ v, ps.decided = some v → v = inp w) ∧
+        (∀ p, p ≠ q → ∀ r, (c₁.proc p).state = .readWinner r → r = regOf w) ∧
+        (∀ p, p ≠ q → ∀ v, (c₁.proc p).decided = some v → v = inp w)) :
+    TASInv regOf v₀ inp { mem := mem', proc := Function.update c₁.proc q ps } where
+  writeProp_eq p v hv := by
+    rcases eq_or_ne p q with rfl | hpq
+    · simp only [Function.update_self] at hv; exact absurd hv (hno_wp v)
+    · simp only [Function.update_of_ne hpq] at hv; exact hinv.writeProp_eq p v hv
+  reg_eq p hno := by
+    rcases eq_or_ne p q with rfl | hpq
+    · exact hreg_q
+    · dsimp only
+      rw [hmem_ne p hpq]
+      exact hinv.reg_eq p fun v hv => hno v (by simpa only [Function.update_of_ne hpq] using hv)
+  done_not_active p hd := by
+    rcases eq_or_ne p q with rfl | hpq
+    · simp only [Config.Active, Function.update_self] at hd ⊢; exact hdone_q hd
+    · simp only [Config.Active, Function.update_of_ne hpq] at hd ⊢; exact hinv.done_not_active p hd
+  tas_false htf p := by
+    obtain ⟨htf₁, hps_f⟩ := htas_f htf
+    rcases eq_or_ne p q with rfl | hpq
+    · simpa only [Function.update_self] using hps_f
+    · simpa only [Function.update_of_ne hpq] using hinv.tas_false htf₁ p
+  tas_true htt := by
+    obtain ⟨w, hw_st, hps_rw, hps_dec, horw, hodec⟩ := htas_t htt
+    refine ⟨w, ?_, fun p r hpr => ?_, fun p v hpv => ?_⟩
+    · rcases eq_or_ne w q with rfl | hwq
+      · simpa only [↓reduceIte, Function.update_self] using hw_st
+      · simpa only [hwq, ↓reduceIte, Function.update_of_ne hwq] using hw_st
+    · rcases eq_or_ne p q with rfl | hpq
+      · simp only [Function.update_self] at hpr; exact hps_rw r hpr
+      · simp only [Function.update_of_ne hpq] at hpr; exact horw p hpq r hpr
+    · rcases eq_or_ne p q with rfl | hpq
+      · simp only [Function.update_self] at hpv; exact hps_dec v hpv
+      · simp only [Function.update_of_ne hpq] at hpv; exact hodec p hpq v hpv
+
 /-- **Correctness of `testAndSetProtocol`:** whenever `regOf : P → R` is injective and `other p`
 names the unique peer `q ≠ p` (`∀ p q, p ≠ q → other p = q`, which holds whenever
 `Fintype.card P ≤ 2`), `testAndSetProtocol` solves wait-free consensus. -/
@@ -633,255 +686,86 @@ theorem solvesWaitFreeConsensus_testAndSetProtocol {P R : Type*} {V : Type u}
   have hinv_reach : ∀ inp c, π.Reachable inp c → TASInv regOf v₀ inp c := by
     intro inp c hr
     refine hr.induction ?_ ?_
-    · refine
-        { writeProp_eq := fun p v hv => ?_
+    · exact
+        { writeProp_eq := fun _ _ hv => (TASState.writeProp.inj hv).symm
           reg_eq := fun p hno => absurd rfl (hno (inp p))
-          done_not_active := fun p hd => ?_
-          tas_false := fun _ p => ⟨fun _ h => ?_, ?_, rfl⟩
-          tas_true := fun htrue => ?_ }
-      · simp only [Protocol.initConfig, π, testAndSetProtocol, TASState.writeProp.injEq] at hv
-        exact hv.symm
-      · simp only [Protocol.initConfig, π, testAndSetProtocol, reduceCtorEq] at hd
-      · simp only [Protocol.initConfig, π, testAndSetProtocol, reduceCtorEq] at h
-      · exact fun h => nomatch h
-      · simp only [Protocol.initConfig, tasObjFamily, tasKind, TASRegKind.toObjSpec,
-          Bool.false_eq_true] at htrue
+          done_not_active := fun _ hd => (nomatch hd)
+          tas_false := fun _ _ => ⟨fun _ h => (nomatch h), fun h => (nomatch h), rfl⟩
+          tas_true := fun htrue => Bool.noConfusion htrue }
     · intro c₁ q hinit hact_q
       cases hsq : (c₁.proc q).state with
       | writeProp vq =>
-        have hvq : vq = inp q := hinit.writeProp_eq q vq hsq
-        subst hvq
-        have hstep_c : π.step q c₁ =
-            { mem := Function.update c₁.mem (.propReg (regOf q)) (inp q)
-              proc := Function.update c₁.proc q { state := .invokeTAS, decided := none } } := by
-          rw [π.step_of_active hact_q, hsq]
-          rfl
-        rw [hstep_c]
-        refine
-          { writeProp_eq := fun p v hv => ?_
-            reg_eq := fun p hno => ?_
-            done_not_active := fun p hd => ?_
-            tas_false := fun htf p => ?_
-            tas_true := fun htt => ?_ }
-        · by_cases hpq : p = q
-          · subst hpq
-            simp only [Function.update_self, reduceCtorEq] at hv
-          · simp only [Function.update_of_ne hpq] at hv
-            exact hinit.writeProp_eq p v hv
-        · by_cases hpq : p = q
-          · subst hpq
-            exact Function.update_self _ _ _
-          · have hreg_ne : TASObjId.propReg (regOf p) ≠ .propReg (regOf q) :=
-              fun heq => hpq (hreg (TASObjId.propReg.inj heq))
-            simp only [Function.update_of_ne hpq] at hno
-            simp only [Function.update_of_ne hreg_ne]
-            exact hinit.reg_eq p hno
-        · by_cases hpq : p = q
-          · subst hpq
-            simp only [Function.update_self, reduceCtorEq] at hd
-          · simp only [Config.Active, Function.update_of_ne hpq] at hd ⊢
-            exact hinit.done_not_active p hd
-        · simp only [Function.update_of_ne (fun h => nomatch h : TASObjId.tas ≠ .propReg (regOf q))]
-            at htf
-          by_cases hpq : p = q
-          · subst hpq
-            simp only [Function.update_self, and_true]
-            exact ⟨(fun _ h => nomatch h), (fun h => nomatch h)⟩
-          · simp only [Function.update_of_ne hpq]
-            exact hinit.tas_false htf p
-        · simp only [Function.update_of_ne (fun h => nomatch h : TASObjId.tas ≠ .propReg (regOf q))]
-            at htt
-          obtain ⟨w, hw_st, hw_rw, hw_dec⟩ := hinit.tas_true htt
-          have hwq : w ≠ q := by
-            rintro rfl
-            rcases hw_st with hrw | hd
-            · rw [hsq] at hrw; exact nomatch hrw
-            · rw [hsq] at hd; exact nomatch hd
-          refine ⟨w, ?_, fun p r hpr => ?_, fun p v hpv => ?_⟩
-          · simp only [Function.update_of_ne hwq]
-            exact hw_st
-          · by_cases hpq : p = q
-            · subst hpq
-              simp only [Function.update_self, reduceCtorEq] at hpr
-            · simp only [Function.update_of_ne hpq] at hpr
-              exact hw_rw p r hpr
-          · by_cases hpq : p = q
-            · subst hpq
-              simp only [Function.update_self, reduceCtorEq] at hpv
-            · simp only [Function.update_of_ne hpq] at hpv
-              exact hw_dec p v hpv
+        cases hinit.writeProp_eq q vq hsq
+        rw [π.step_of_active hact_q, hsq]
+        dsimp only [π, testAndSetProtocol, tasObjFamily, tasKind, TASRegKind.toObjSpec, registerObj]
+        refine hinit.of_proc_step q _ _ (fun _ h => (nomatch h)) (Function.update_self ..)
+          (fun p hpq => Function.update_of_ne (mt TASObjId.propReg.inj (hreg.ne hpq)) ..)
+          (fun h => (nomatch h))
+          (fun htf => ⟨by rwa [Function.update_of_ne (by nofun)] at htf,
+            fun _ h => (nomatch h), fun h => (nomatch h), rfl⟩)
+          fun htt => ?_
+        rw [Function.update_of_ne (by nofun)] at htt
+        obtain ⟨w, hw_st, hw_rw, hw_dec⟩ := hinit.tas_true htt
+        have hwq : w ≠ q := fun h => by
+          subst h; rcases hw_st with h | h <;> rw [hsq] at h <;> nomatch h
+        exact ⟨w, ⟨by simp only [hwq, ↓reduceIte]; exact hw_st,
+          fun _ h => (nomatch h), fun _ h => (nomatch h),
+          fun p _ => hw_rw p, fun p _ => hw_dec p⟩⟩
       | invokeTAS =>
         have hreg_q : c₁.mem (.propReg (regOf q)) = inp q :=
           hinit.reg_eq q fun _ hv => by rw [hsq] at hv; exact nomatch hv
         cases htas_cell : c₁.mem .tas with
         | up btas =>
-          let r_win := if btas then regOf (other q) else regOf q
-          have hstep_c : π.step q c₁ =
-              { mem := Function.update c₁.mem .tas (ULift.up true)
-                proc := Function.update c₁.proc q
-                  { state := .readWinner r_win, decided := none } } := by
-            rw [π.step_of_active hact_q, hsq]
-            dsimp only [π, testAndSetProtocol, tasObjFamily, tasKind, TASRegKind.toObjSpec]
-            rw [htas_cell]
-          rw [hstep_c]
-          refine
-            { writeProp_eq := fun p v hv => ?_
-              reg_eq := fun p hno => ?_
-              done_not_active := fun p hd => ?_
-              tas_false := fun htf => ?_
-              tas_true := fun _ => ?_ }
-          · by_cases hpq : p = q
-            · subst hpq
-              simp only [Function.update_self, reduceCtorEq] at hv
-            · simp only [Function.update_of_ne hpq] at hv
-              exact hinit.writeProp_eq p v hv
-          · simp only [Function.update_of_ne
-              (fun h => nomatch h : TASObjId.propReg (regOf p) ≠ .tas)]
-            by_cases hpq : p = q
-            · subst hpq
-              exact hreg_q
-            · simp only [Function.update_of_ne hpq] at hno
-              exact hinit.reg_eq p hno
-          · by_cases hpq : p = q
-            · subst hpq
-              simp only [Function.update_self, reduceCtorEq] at hd
-            · simp only [Config.Active, Function.update_of_ne hpq] at hd ⊢
-              exact hinit.done_not_active p hd
-          · dsimp only at htf
-            rw [Function.update_self] at htf
-            exact Bool.noConfusion htf
-          · cases btas with
-            | false =>
-              have htas_val : (c₁.mem .tas).down = false := by rw [htas_cell]
-              have hprev_f := hinit.tas_false htas_val
-              refine ⟨q, ?_, fun p r hpr => ?_, fun p v hpv => ?_⟩
-              · simp only [r_win, Bool.false_eq_true, ↓reduceIte, Function.update_self, true_or]
-              · by_cases hpq : p = q
-                · subst hpq
-                  simp only [r_win, Bool.false_eq_true, ↓reduceIte, Function.update_self,
-                    TASState.readWinner.injEq] at hpr
-                  exact hpr.symm
-                · simp only [Function.update_of_ne hpq] at hpr
-                  exact absurd hpr ((hprev_f p).1 r)
-              · by_cases hpq : p = q
-                · subst hpq
-                  simp only [Function.update_self, reduceCtorEq] at hpv
-                · simp only [Function.update_of_ne hpq] at hpv
-                  rw [(hprev_f p).2.2] at hpv
-                  exact nomatch hpv
-            | true =>
-              have htas_val : (c₁.mem .tas).down = true := by rw [htas_cell]
-              obtain ⟨w, hw_st, hw_rw, hw_dec⟩ := hinit.tas_true htas_val
-              have hqw : q ≠ w := by
-                rintro rfl
-                rcases hw_st with hrw | hd
-                · rw [hsq] at hrw; exact nomatch hrw
-                · rw [hsq] at hd; exact nomatch hd
-              have hother_eq : other q = w := hother q w hqw
-              refine ⟨w, ?_, fun p r hpr => ?_, fun p v hpv => ?_⟩
-              · simp only [Function.update_of_ne hqw.symm]
-                exact hw_st
-              · by_cases hpq : p = q
-                · subst hpq
-                  simp only [r_win, ↓reduceIte, hother_eq, Function.update_self,
-                    TASState.readWinner.injEq] at hpr
-                  exact hpr.symm
-                · simp only [Function.update_of_ne hpq] at hpr
-                  exact hw_rw p r hpr
-              · by_cases hpq : p = q
-                · subst hpq
-                  simp only [Function.update_self, reduceCtorEq] at hpv
-                · simp only [Function.update_of_ne hpq] at hpv
-                  exact hw_dec p v hpv
+          rw [π.step_of_active hact_q, hsq]
+          dsimp only [π, testAndSetProtocol, tasObjFamily, tasKind, TASRegKind.toObjSpec]
+          rw [htas_cell]
+          refine hinit.of_proc_step q _ _ (fun _ h => (nomatch h))
+            (by rw [Function.update_of_ne (by nofun), hreg_q])
+            (fun _ _ => Function.update_of_ne (by nofun) ..) (fun h => (nomatch h))
+            (fun htf => by rw [Function.update_self] at htf; exact Bool.noConfusion htf) fun _ => ?_
+          cases btas with
+          | false =>
+            have hprev_f := hinit.tas_false (by rw [htas_cell])
+            exact ⟨q, ⟨by simp, fun _ h => (TASState.readWinner.inj h).symm,
+              fun _ h => (nomatch h), fun p _ r h => absurd h ((hprev_f p).1 r),
+              fun p _ _ h => by rw [(hprev_f p).2.2] at h; exact nomatch h⟩⟩
+          | true =>
+            obtain ⟨w, hw_st, hw_rw, hw_dec⟩ := hinit.tas_true (by rw [htas_cell])
+            have hwq : w ≠ q := fun h => by
+              subst h; rcases hw_st with h | h <;> rw [hsq] at h <;> nomatch h
+            exact ⟨w, ⟨by simp only [hwq, ↓reduceIte]; exact hw_st,
+              fun _ h => (TASState.readWinner.inj h).symm.trans (by simp [hother q w hwq.symm]),
+              fun _ h => (nomatch h), fun p _ => hw_rw p, fun p _ => hw_dec p⟩⟩
       | readWinner r =>
         have htas_true_eq : (c₁.mem .tas).down = true := by
           cases ht : (c₁.mem .tas).down with
           | false => exact absurd hsq ((hinit.tas_false ht q).1 r)
           | true => rfl
         obtain ⟨w, hw_st, hw_rw, hw_dec⟩ := hinit.tas_true htas_true_eq
-        have hr_eq : r = regOf w := hw_rw q r hsq
-        subst hr_eq
-        have hmem_w : c₁.mem (.propReg (regOf w)) = inp w := by
-          apply hinit.reg_eq w
-          intro v hv
-          rcases hw_st with hrw | hd
-          · rw [hrw] at hv; exact nomatch hv
-          · rw [hd] at hv; exact nomatch hv
-        have hstep_c : π.step q c₁ =
-            { mem := Function.update c₁.mem (.propReg (regOf w)) (inp w)
-              proc := Function.update c₁.proc q
-                { state := .done, decided := some (inp w) } } := by
-          rw [π.step_of_active hact_q, hsq]
-          dsimp only [π, testAndSetProtocol, tasObjFamily, tasKind, TASRegKind.toObjSpec,
-            registerObj]
-          rw [hmem_w]
-        rw [hstep_c]
-        have hupd_id : Function.update c₁.mem (.propReg (regOf w)) (inp w) = c₁.mem := by
-          have heq_mem : c₁.mem (.propReg (regOf w)) = inp w := hmem_w
-          rw [← heq_mem]
-          exact Function.update_eq_self (.propReg (regOf w)) c₁.mem
-        rw [hupd_id]
-        refine
-          { writeProp_eq := fun p v hv => ?_
-            reg_eq := fun p hno => ?_
-            done_not_active := fun p hd => ?_
-            tas_false := fun htf => ?_
-            tas_true := fun _ => ?_ }
-        · by_cases hpq : p = q
-          · subst hpq
-            simp only [Function.update_self, reduceCtorEq] at hv
-          · simp only [Function.update_of_ne hpq] at hv
-            exact hinit.writeProp_eq p v hv
-        · by_cases hpq : p = q
-          · subst hpq
-            exact hinit.reg_eq p fun v hv => by rw [hsq] at hv; exact nomatch hv
-          · simp only [Function.update_of_ne hpq] at hno
-            exact hinit.reg_eq p hno
-        · by_cases hpq : p = q
-          · subst hpq
-            simp only [Config.Active, Function.update_self, reduceCtorEq, not_false_eq_true]
-          · simp only [Config.Active, Function.update_of_ne hpq] at hd ⊢
-            exact hinit.done_not_active p hd
-        · rw [htas_true_eq] at htf
-          exact Bool.noConfusion htf
-        · refine ⟨w, ?_, fun p r' hpr => ?_, fun p v hpv => ?_⟩
-          · by_cases hwq : w = q
-            · subst hwq
-              simp only [Function.update_self, or_true]
-            · simp only [Function.update_of_ne hwq]
-              exact hw_st
-          · by_cases hpq : p = q
-            · subst hpq
-              simp only [Function.update_self, reduceCtorEq] at hpr
-            · simp only [Function.update_of_ne hpq] at hpr
-              exact hw_rw p r' hpr
-          · by_cases hpq : p = q
-            · subst hpq
-              simp only [Function.update_self, Option.some.injEq] at hpv
-              exact hpv.symm
-            · simp only [Function.update_of_ne hpq] at hpv
-              exact hw_dec p v hpv
+        cases hw_rw q r hsq
+        have hmem_w : c₁.mem (.propReg (regOf w)) = inp w :=
+          hinit.reg_eq w fun _ hv => by rcases hw_st with h | h <;> rw [h] at hv <;> nomatch hv
+        rw [π.step_of_active hact_q, hsq]
+        dsimp only [π, testAndSetProtocol, tasObjFamily, tasKind, TASRegKind.toObjSpec, registerObj]
+        rw [Function.update_eq_self, hmem_w]
+        refine hinit.of_proc_step q _ _ (fun _ h => (nomatch h))
+          (hinit.reg_eq q fun _ hv => by rw [hsq] at hv; exact nomatch hv)
+          (fun _ _ => rfl) (fun _ h => (nomatch h))
+          (fun htf => Bool.noConfusion (htas_true_eq.symm.trans htf)) fun _ =>
+          ⟨w, ⟨by split_ifs <;> [exact Or.inr rfl; exact hw_st],
+            fun _ h => (nomatch h), fun _ h => (Option.some.inj h).symm,
+            fun p _ => hw_rw p, fun p _ => hw_dec p⟩⟩
       | done =>
         exact absurd hact_q (hinit.done_not_active q hsq)
-  refine ⟨hwf, ?_, ?_⟩
-  · rintro inp c hr v₁ v₂ ⟨p₁, hp₁⟩ ⟨p₂, hp₂⟩
-    have hinv := hinv_reach inp c hr
+  refine ⟨hwf, fun inp c hr v₁ v₂ ⟨p₁, hp₁⟩ ⟨p₂, hp₂⟩ => ?_, fun inp c v hr ⟨p, hp⟩ => ?_⟩
+  · have hinv := hinv_reach inp c hr
     cases ht : (c.mem .tas).down with
-    | false =>
-      rw [(hinv.tas_false ht p₁).2.2] at hp₁
-      exact nomatch hp₁
-    | true =>
-      obtain ⟨w, _, _, hw_dec⟩ := hinv.tas_true ht
-      rw [hw_dec p₁ v₁ hp₁, hw_dec p₂ v₂ hp₂]
-  · rintro inp c v hr ⟨p, hp⟩
-    have hinv := hinv_reach inp c hr
+    | false => rw [(hinv.tas_false ht p₁).2.2] at hp₁; nomatch hp₁
+    | true => obtain ⟨w, _, _, hw_dec⟩ := hinv.tas_true ht; rw [hw_dec p₁ v₁ hp₁, hw_dec p₂ v₂ hp₂]
+  · have hinv := hinv_reach inp c hr
     cases ht : (c.mem .tas).down with
-    | false =>
-      rw [(hinv.tas_false ht p).2.2] at hp
-      exact nomatch hp
-    | true =>
-      obtain ⟨w, _, _, hw_dec⟩ := hinv.tas_true ht
-      exact ⟨w, (hw_dec p v hp).symm⟩
+    | false => rw [(hinv.tas_false ht p).2.2] at hp; nomatch hp
+    | true => obtain ⟨w, _, _, hw_dec⟩ := hinv.tas_true ht; exact ⟨w, (hw_dec p v hp).symm⟩
 
 private theorem exists_other_of_card_le_two {P : Type*} [Fintype P]
     (hcard : Fintype.card P ≤ 2) : ∃ other : P → P, ∀ p q : P, p ≠ q → other p = q := by
