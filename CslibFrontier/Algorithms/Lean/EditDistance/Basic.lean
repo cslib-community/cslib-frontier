@@ -53,7 +53,6 @@ to it.
   `EditScript.src`, `EditScript.tgt` and `EditScript.cost`.
 * `Cslib.Algorithms.Lean.EditDistance.editDist`: the Wagner–Fischer table entry.
 * `Cslib.Algorithms.Lean.EditDistance.optScript`: an optimal script, by traceback.
-* `Cslib.Algorithms.Lean.EditDistance.editDistM`: the algorithm in `TimeM`.
 
 ## Main results
 
@@ -63,9 +62,9 @@ to it.
   `optScript C x y` is a script from `x` to `y` of cost `editDist C x y`.
 * `Cslib.Algorithms.Lean.EditDistance.isLeast_editDist`: `editDist C x y` is the least cost of a
   script from `x` to `y`.
-* `Cslib.Algorithms.Lean.EditDistance.ret_editDistM`, `time_editDistM`: `editDistM` returns
-  `editDist C x y` and costs exactly `(|x| + 1) (|y| + 1)`, one unit per table entry (see the cost
-  model of `Cslib.Algorithms.Lean.EditDistance.GridDP.valueM`).
+
+Word-RAM running-time bounds for Wagner–Fischer edit distance are proved in
+`CslibFrontier.Algorithms.WordRAM.EditDistance`.
 
 ## References
 
@@ -203,10 +202,6 @@ open EditScript
 /-- The edit distance from `x` to `y` under the costs `C`: the Wagner–Fischer table entry. -/
 @[expose] def editDist (C : Costs α) (x y : List α) : ℕ :=
   (wagnerFischer C).value x y
-
-/-- The Wagner–Fischer algorithm in `TimeM`, charging one unit per table entry. -/
-@[expose] def editDistM (C : Costs α) (x y : List α) : TimeM ℕ ℕ :=
-  (wagnerFischer C).valueM x y
 
 variable (C : Costs α)
 
@@ -355,13 +350,5 @@ theorem isLeast_editDist (x y : List α) :
   refine ⟨⟨optScript C x y, src_optScript C x y, tgt_optScript C x y, cost_optScript C x y⟩, ?_⟩
   rintro c ⟨s, rfl, rfl, rfl⟩
   exact editDist_le_cost C s
-
-/-- `editDistM` computes the edit distance. -/
-@[simp] theorem ret_editDistM (x y : List α) : (editDistM C x y).ret = editDist C x y :=
-  (wagnerFischer C).ret_valueM x y
-
-/-- The Wagner–Fischer algorithm costs exactly `(|x| + 1) (|y| + 1)`, one unit per table entry. -/
-theorem time_editDistM (x y : List α) : (editDistM C x y).time = (x.length + 1) * (y.length + 1) :=
-  (wagnerFischer C).time_valueM x y
 
 end Cslib.Algorithms.Lean.EditDistance
