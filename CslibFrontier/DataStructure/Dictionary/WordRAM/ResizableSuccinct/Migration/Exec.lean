@@ -304,622 +304,286 @@ private theorem factor_wStreamAll_le : wStreamAll.factor ≤ migFactor :=
   le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
     (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_right _ _)))))))
 
-/-! ## Section 2: Register-Wiring Combinators and Low-Level Helpers on `Fin rResize` -/
-
-private abbrev mReg1 (reg : Fin rResize) : Fin 1 → Fin rResize := fun _ => reg
-
-private abbrev mPairSrc {k₁ k₂ : ℕ} (s₁ : Fin k₁ → Fin rResize) (s₂ : Fin k₂ → Fin rResize) :
-    Fin (k₁ + k₂) → Fin rResize :=
-  Fin.append s₁ s₂
-
-private def MRegsEncode {α : Type} [WordEncoding α] {k : ℕ} (x : RData rResize)
-    (s : Fin k → Fin rResize) (a : α) : Prop :=
-  ∃ hk : k = WordEncoding.width α,
-    ∀ i : Fin k, x.regs (s i) = WordEncoding.encode a (Fin.cast hk i)
-
-private theorem MRegsEncode.eq {α : Type} [WordEncoding α] {x : RData rResize}
-    {s : Fin (WordEncoding.width α) → Fin rResize} {a : α} (h : MRegsEncode x s a) :
-    x.regs ∘ s = WordEncoding.encode a := by
-  obtain ⟨hk, hf⟩ := h
-  have hk_rfl : hk = rfl := Subsingleton.elim _ _
-  subst hk_rfl
-  exact funext hf
-
-private theorem mRegs_reg1_eq {x : RData rResize} (reg : Fin rResize) {v : ℕ}
-    (hv : x.regs reg = v) : MRegsEncode x (mReg1 reg) v :=
-  ⟨rfl, fun i => by fin_cases i; exact hv⟩
-
-private theorem mRegs_hp_eq {x : RData rResize} {s : Fin 19 → Fin rResize} {hp : HashParams}
-    (h : ∀ i : Fin 19, x.regs (s i) = hp i) : MRegsEncode x s hp := ⟨rfl, h⟩
-
-private theorem mRegs_cp_eq {x : RData rResize} {s : Fin 36 → Fin rResize} {cp : CompParams}
-    (h : ∀ i : Fin 36, x.regs (s i) = cp i) : MRegsEncode x s cp := ⟨rfl, h⟩
-
-private theorem mRegs_pairSrc {α β : Type} [WordEncoding α] [WordEncoding β]
-    {k₁ k₂ : ℕ} {x : RData rResize}
-    {s₁ : Fin k₁ → Fin rResize} {s₂ : Fin k₂ → Fin rResize} {a : α} {b : β}
-    (h₁ : MRegsEncode x s₁ a) (h₂ : MRegsEncode x s₂ b) :
-    MRegsEncode x (mPairSrc s₁ s₂) (a, b) := by
-  obtain ⟨rfl, hf₁⟩ := h₁
-  obtain ⟨rfl, hf₂⟩ := h₂
-  refine ⟨rfl, fun i => i.addCases (fun j => ?_) (fun j => ?_)⟩
-  · change x.regs (Fin.append s₁ s₂ (Fin.castAdd _ j)) =
-      Fin.append (WordEncoding.encode a) (WordEncoding.encode b) (Fin.castAdd _ j)
-    rw [Fin.append_left, Fin.append_left]; exact hf₁ j
-  · change x.regs (Fin.append s₁ s₂ (Fin.natAdd _ j)) =
-      Fin.append (WordEncoding.encode a) (WordEncoding.encode b) (Fin.natAdd _ j)
-    rw [Fin.append_right, Fin.append_right]; exact hf₂ j
-
-private theorem mPairSrc_forall {P : Fin rResize → Prop} {k₁ k₂ : ℕ}
-    {s₁ : Fin k₁ → Fin rResize} {s₂ : Fin k₂ → Fin rResize}
-    (h₁ : ∀ i, P (s₁ i)) (h₂ : ∀ j, P (s₂ j)) :
-    ∀ i, P (mPairSrc s₁ s₂ i) := fun i =>
-  i.addCases
-    (fun j => by dsimp only [mPairSrc]; rw [Fin.append_left]; exact h₁ j)
-    (fun j => by dsimp only [mPairSrc]; rw [Fin.append_right]; exact h₂ j)
-
-private theorem mPairSrc_lt_160 {k₁ k₂ : ℕ} {s₁ : Fin k₁ → Fin rResize}
-    {s₂ : Fin k₂ → Fin rResize}
-    (h₁ : ∀ i, (s₁ i).val < 160) (h₂ : ∀ j, (s₂ j).val < 160) :
-    ∀ i, (mPairSrc s₁ s₂ i).val < 160 :=
-  mPairSrc_forall (P := fun r => r.val < 160) h₁ h₂
-
-private theorem mPairSrc_ne_mFr {k₁ k₂ : ℕ} {s₁ : Fin k₁ → Fin rResize}
-    {s₂ : Fin k₂ → Fin rResize}
-    (h₁ : ∀ i, s₁ i ≠ mFr) (h₂ : ∀ j, s₂ j ≠ mFr) :
-    ∀ i, mPairSrc s₁ s₂ i ≠ mFr :=
-  mPairSrc_forall (P := fun r => r ≠ mFr) h₁ h₂
-
-private theorem mPairSrc_ne_outs {k₁ k₂ l : ℕ} {s₁ : Fin k₁ → Fin rResize}
-    {s₂ : Fin k₂ → Fin rResize} {outs : Fin l → Fin rResize}
-    (h₁ : ∀ i a, s₁ i ≠ outs a) (h₂ : ∀ j a, s₂ j ≠ outs a) :
-    ∀ i a, mPairSrc s₁ s₂ i ≠ outs a :=
-  mPairSrc_forall (P := fun r => ∀ a, r ≠ outs a) h₁ h₂
-
-private noncomputable def mkMigTmp {l s : ℕ} (outs : Fin l → Fin rResize)
-    (hb : l + s + 1 ≤ scratchMigrate) (j : Fin (l + s + 1)) : Fin rResize :=
-  if h : j.val < l then outs ⟨j.val, h⟩
-  else ⟨160 + j.val, by
-    have := j.isLt
-    have hmax : 160 + scratchMigrate ≤ rResize := le_max_right _ _
-    omega⟩
-
-private theorem mkMigTmp_castAdd {l s : ℕ} (outs : Fin l → Fin rResize)
-    (hbnd : l + s + 1 ≤ scratchMigrate) (i : Fin l) :
-    mkMigTmp outs hbnd (Fin.castAdd (s + 1) i) = outs i := by
-  dsimp only [mkMigTmp, Fin.val_castAdd]
-  exact dite_eq_left i.isLt
-
-private theorem mkMigTmp_injective {l s : ℕ} {outs : Fin l → Fin rResize}
-    (hbnd : l + s + 1 ≤ scratchMigrate) (hinj : Function.Injective outs)
-    (houts : ∀ i, (outs i).val < 160) :
-    Function.Injective (mkMigTmp outs hbnd) := by
-  intro a b hab
-  dsimp only [mkMigTmp] at hab
-  by_cases ha : a.val < l <;> by_cases hb' : b.val < l
-  · rw [dite_eq_left ha, dite_eq_left hb'] at hab
-    exact Fin.ext (congrArg (fun x : Fin l => x.val) (hinj hab))
-  · rw [dite_eq_left ha, dite_eq_right hb'] at hab
-    exfalso; have := houts ⟨a.val, ha⟩; have hv := congrArg Fin.val hab; dsimp only at hv; omega
-  · rw [dite_eq_right ha, dite_eq_left hb'] at hab
-    exfalso; have := houts ⟨b.val, hb'⟩; have hv := congrArg Fin.val hab; dsimp only at hv; omega
-  · rw [dite_eq_right ha, dite_eq_right hb'] at hab
-    exact Fin.ext (by have hv := congrArg Fin.val hab; dsimp only at hv; omega)
-
-private theorem src_ne_mkMigTmp {k l s : ℕ} {src : Fin k → Fin rResize}
-    {outs : Fin l → Fin rResize} (hb : l + s + 1 ≤ scratchMigrate)
-    (hsrc : ∀ i, (src i).val < 160) (hne : ∀ i a, src i ≠ outs a) :
-    ∀ i j, src i ≠ mkMigTmp outs hb j := by
-  intro i j
-  dsimp only [mkMigTmp]
-  split_ifs with hj
-  · exact hne i ⟨j.val, hj⟩
-  · intro heq; have := hsrc i; have hv := congrArg Fin.val heq; dsimp only at hv; omega
-
-private theorem mkMigTmp_ne_reg {l s : ℕ} {outs : Fin l → Fin rResize}
-    (hb : l + s + 1 ≤ scratchMigrate) {reg : Fin rResize} (h160 : reg.val < 160)
-    (hne : ∀ a, outs a ≠ reg) :
-    ∀ j, mkMigTmp outs hb j ≠ reg := by
-  intro j
-  dsimp only [mkMigTmp]
-  split_ifs with hj
-  · exact hne ⟨j.val, hj⟩
-  · intro heq; have hv := congrArg Fin.val heq; dsimp only at hv; omega
-
-private theorem mOuts1_inj (reg : Fin rResize) : Function.Injective ![reg] := by
-  intro a b _; fin_cases a; fin_cases b; rfl
-
-private theorem mOuts2_inj {r0 r1 : Fin rResize} (h : r0 ≠ r1) :
-    Function.Injective ![r0, r1] := by
-  intro a b heq
-  fin_cases a <;> fin_cases b
-  · rfl
-  · exact absurd heq h
-  · exact absurd heq.symm h
-  · rfl
-
-private theorem execMigWitness {k l : ℕ} {δ α : Type}
-    {p : δ → Memory.Prog α} {input : δ ↪ (Fin k → ℕ)} {output : α ↪ (Fin l → ℕ)}
-    {safe : ℕ → δ → Memory.State → Prop}
-    (W : RealizesBounded.Witness .exact p input output safe (fun _ _ => 0))
-    (hfac : W.factor ≤ migFactor)
-    (src : Fin k → Fin rResize) (tmp : Fin (l + W.scratchSize + 1) → Fin rResize)
-    (hi : Function.Injective tmp) (hd : ∀ i j, src i ≠ tmp j)
-    (hf : ∀ j, tmp j ≠ mFr) (hs : ∀ i, src i ≠ mFr)
-    {w L_peak : ℕ} (d : δ) {x : RData rResize}
-    (hx : x.Bounded w) (hL_peak : x.frontier ≤ L_peak)
-    (hin : x.regs ∘ src = input d)
-    (hsafe : safe w d (memoryState mFr x.toData))
-    (hv : (Memory.spec w).ValidHistory (memoryState mFr x.toData)
-      ((Memory.spec w).clientHistory (memoryState mFr x.toData) (p d)))
-    (hnoalloc : ((Memory.spec 0).clientState
-      (memoryState mFr x.toData) (p d)).frontier ≤ x.frontier) :
-    ∃ y : RData rResize,
-      RDemonicExec w L_peak (RCode.ofCode (W.code mFr src tmp)) x
-        (migFactor * (memoryCost (p d) (memoryState mFr x.toData) + 1)) (· = y) ∧
-      y.Bounded w ∧
-      y.frontier = x.frontier ∧
-      memoryState mFr y.toData = (Memory.spec 0).clientState (memoryState mFr x.toData) (p d) ∧
-      (∀ i : Fin l, y.regs (tmp (Fin.castAdd (W.scratchSize + 1) i)) =
-        output ((Memory.spec 0).clientResult (memoryState mFr x.toData) (p d)) i) ∧
-      ∀ reg, reg ≠ mFr → (∀ j, tmp j ≠ reg) → y.regs reg = x.regs reg := by
-  obtain ⟨_, hrun⟩ := W.code_spec mFr src tmp hi hd hf hs
-  obtain ⟨yd, hy_eb, hm, hout, hframe⟩ := hrun w d x.toData hx.1 hin hsafe hv
-  rw [clientState_width] at hm
-  rw [clientResult_width] at hout
-  have hy_fr : yd.regs mFr ≤ x.frontier := by
-    have hm_fr := congrArg Memory.State.frontier hm
-    change yd.regs mFr = _ at hm_fr
-    omega
-  obtain ⟨n_st, hn_st, hy_ex⟩ := hy_eb
-  have hy_bdd : (⟨yd.regs, yd.mem, x.frontier⟩ : RData rResize).Bounded w :=
-    ⟨hy_ex.bounded hx.1, hx.2.1, fun a ha =>
-      (execBoundedExact_mem_eq_of_ge hy_ex (hy_fr.trans ha)).trans (hx.zero_above ha)⟩
-  have hT : W.factor * (memoryCost (p d) (memoryState mFr x.toData) + 0 + 1) ≤
-      migFactor * (memoryCost (p d) (memoryState mFr x.toData) + 1) :=
-    Nat.mul_le_mul_right _ hfac
-  refine ⟨⟨yd.regs, yd.mem, x.frontier⟩,
-    (RDemonicExec.of_execBounded hL_peak hy_fr ⟨n_st, hn_st, hy_ex⟩).mono hT (fun _ h => h),
-    hy_bdd, rfl, hm, hout, hframe⟩
-
-/-- Load `mem (regs mBase + off)` into `rDst` using `mCur` as scratch (`3` instructions). -/
-noncomputable def loadAtOffMigCode (rDst : Fin rResize) (off : ℕ) : RCode .exact rResize :=
-  .seq (.op (.const mCur off))
-  (.seq (.op (.exactBin .add mCur mBase mCur))
-        (.op (.load rDst mCur)))
-
-/-- Store `regs rSrc` into `mem (regs mBase + off)` using `mCur` as scratch (`3` instructions). -/
-noncomputable def storeAtOffMigCode (rSrc : Fin rResize) (off : ℕ) : RCode .exact rResize :=
-  .seq (.op (.const mCur off))
-  (.seq (.op (.exactBin .add mCur mBase mCur))
-        (.op (.store mCur rSrc)))
-
-private noncomputable def loadMigBlockUpTo {m : ℕ} (dst : Fin m → Fin rResize) (startOff : ℕ) :
-    (k : ℕ) → k < m → RCode .exact rResize
-  | 0, hk => loadAtOffMigCode (dst ⟨0, hk⟩) startOff
-  | k + 1, hk =>
-    .seq (loadMigBlockUpTo dst startOff k (by omega))
-         (loadAtOffMigCode (dst ⟨k + 1, hk⟩) (startOff + (k + 1)))
-
-theorem not_readsWidth_loadAtOffMigCode (rDst : Fin rResize) (off : ℕ) :
-    ¬(loadAtOffMigCode rDst off).ReadsWidth := by
-  simp [loadAtOffMigCode, RCode.ReadsWidth, Op.ReadsWidth, Op.exactBin]
-
-theorem not_readsWidth_storeAtOffMigCode (rSrc : Fin rResize) (off : ℕ) :
-    ¬(storeAtOffMigCode rSrc off).ReadsWidth := by
-  simp [storeAtOffMigCode, RCode.ReadsWidth, Op.ReadsWidth, Op.exactBin]
-
-private theorem not_readsWidth_loadMigBlockUpTo {m : ℕ} (dst : Fin m → Fin rResize) (startOff : ℕ) :
-    ∀ (k : ℕ) (hk : k < m), ¬(loadMigBlockUpTo dst startOff k hk).ReadsWidth
-  | 0, _ => not_readsWidth_loadAtOffMigCode _ _
-  | k + 1, hk => by
-    simp only [loadMigBlockUpTo, RCode.ReadsWidth, not_or]
-    exact ⟨not_readsWidth_loadMigBlockUpTo dst startOff k (by omega),
-      not_readsWidth_loadAtOffMigCode _ _⟩
-
-theorem loadAtOffMigCode_exec {w L_peak base off : ℕ} {rDst : Fin rResize} {x : RData rResize}
-    (hx : x.Bounded w) (hL : x.frontier ≤ L_peak)
-    (hbase : x.regs mBase = base) (hoff_fit : Fits w off)
-    (hlt : base + off < x.frontier) :
-    let y := (x.set mCur (base + off)).set rDst (x.mem (base + off))
-    RDemonicExec w L_peak (loadAtOffMigCode rDst off) x 3 (· = y) ∧
-    y.Bounded w := by
-  have hadd_fit : Fits w (base + off) := hx.frontier_fits.of_le hlt.le
-  have s1 := RDemonicExec.const (B := .exact) (d := mCur) (x := x) hL hoff_fit
-  have s2 := RDemonicExec.exactBin (f := .add) (d := mCur) (i := mBase) (j := mCur)
-    (w := w) (L_peak := L_peak) (x := x.set mCur off) hL (v := base + off)
-    (by simp [BinOp.evalExact, hbase]) hadd_fit
-  have hx2 : (x.set mCur off).set mCur (base + off) = x.set mCur (base + off) := by
-    ext j <;> simp [RData.set]
-  rw [hx2] at s2
-  have s3 := RDemonicExec.load (B := .exact) (d := rDst) (a := mCur) (w := w)
-    (L_peak := L_peak) (x := x.set mCur (base + off)) hL (by simp [hlt])
-  have hmem_eq : (x.set mCur (base + off)).mem ((x.set mCur (base + off)).regs mCur) =
-      x.mem (base + off) := by simp
-  rw [hmem_eq] at s3
-  exact ⟨(s1.seq_eq (s2.seq_eq s3)).mono le_rfl (fun _ h => h),
-    (hx.set hadd_fit).set (hx.mem_fits (base + off))⟩
-
-theorem storeAtOffMigCode_exec {w L_peak base off val : ℕ} {rSrc : Fin rResize}
-    {x : RData rResize}
-    (hx : x.Bounded w) (hL : x.frontier ≤ L_peak)
-    (hs_ne_cur : rSrc ≠ mCur)
-    (hbase : x.regs mBase = base) (hsrc : x.regs rSrc = val)
-    (hoff_fit : Fits w off) (hlt : base + off < x.frontier) :
-    let y := (x.set mCur (base + off)).write (base + off) val
-    RDemonicExec w L_peak (storeAtOffMigCode rSrc off) x 3 (· = y) ∧
-    y.Bounded w := by
-  have hadd_fit : Fits w (base + off) := hx.frontier_fits.of_le hlt.le
-  have hval_fit : Fits w val := hsrc ▸ hx.regs_fits rSrc
-  have s1 := RDemonicExec.const (B := .exact) (d := mCur) (x := x) hL hoff_fit
-  have s2 := RDemonicExec.exactBin (f := .add) (d := mCur) (i := mBase) (j := mCur)
-    (w := w) (L_peak := L_peak) (x := x.set mCur off) hL (v := base + off)
-    (by simp [BinOp.evalExact, hbase]) hadd_fit
-  have hx2 : (x.set mCur off).set mCur (base + off) = x.set mCur (base + off) := by
-    ext j <;> simp [RData.set]
-  rw [hx2] at s2
-  have s3 := RDemonicExec.store (B := .exact) (a := mCur) (s := rSrc) (w := w)
-    (L_peak := L_peak) (x := x.set mCur (base + off)) hL (by simp [hlt])
-  have haddr : (x.set mCur (base + off)).regs mCur = base + off := by simp
-  have hv_eq : (x.set mCur (base + off)).regs rSrc = val := by
-    simp [Function.update_of_ne hs_ne_cur, hsrc]
-  rw [haddr, hv_eq] at s3
-  exact ⟨(s1.seq_eq (s2.seq_eq s3)).mono le_rfl (fun _ h => h),
-    (hx.set hadd_fit).write hlt hval_fit⟩
-
-private theorem loadMigBlockUpTo_exec {m w L_peak base : ℕ}
-    (dst : Fin m → Fin rResize) (hinj : Function.Injective dst)
-    (hne_base : ∀ i, dst i ≠ mBase) (hne_cur : ∀ i, dst i ≠ mCur)
-    (startOff k : ℕ) (hk : k < m) {x : RData rResize}
-    (hx : x.Bounded w) (hL : x.frontier ≤ L_peak)
-    (hbase : x.regs mBase = base)
-    (hbound : base + startOff + (k + 1) ≤ x.frontier) :
-    ∃ y : RData rResize,
-      RDemonicExec w L_peak (loadMigBlockUpTo dst startOff k hk) x (3 * (k + 1)) (· = y) ∧
-      y.Bounded w ∧ y.mem = x.mem ∧ y.frontier = x.frontier ∧
-      (∀ i : Fin m, i.val ≤ k → y.regs (dst i) = x.mem (base + startOff + i.val)) ∧
-      ∀ reg, reg ≠ mCur → (∀ i : Fin m, dst i ≠ reg) → y.regs reg = x.regs reg := by
-  induction k with
-  | zero =>
-    have hlt : base + startOff < x.frontier := by omega
-    have hoff_fit : Fits w startOff := hx.frontier_fits.of_le (by omega)
-    obtain ⟨hex, hyb⟩ := loadAtOffMigCode_exec (rDst := dst ⟨0, hk⟩) hx hL hbase hoff_fit hlt
-    refine ⟨_, hex, hyb, rfl, rfl, fun i hi => ?_, fun reg hrc hrd => ?_⟩
-    · have hi0 : i = ⟨0, hk⟩ := Fin.ext (Nat.eq_zero_of_le_zero hi)
-      subst hi0; simp [RData.set]
-    · simp [RData.set, Function.update_of_ne (hrd ⟨0, hk⟩).symm, Function.update_of_ne hrc]
-  | succ k ih =>
-    obtain ⟨y₁, hex₁, hy₁b, hy₁m, hy₁f, hy₁d, hy₁r⟩ := ih (by omega) (by omega)
-    have hy₁_base : y₁.regs mBase = base :=
-      (hy₁r mBase (mReg_ne (by decide)) (fun i => hne_base i)).trans hbase
-    have hlt : base + (startOff + (k + 1)) < y₁.frontier := by omega
-    have hoff_fit : Fits w (startOff + (k + 1)) := hy₁b.frontier_fits.of_le (by omega)
-    obtain ⟨hex₂, hy₂b⟩ := loadAtOffMigCode_exec (rDst := dst ⟨k + 1, hk⟩) hy₁b (hy₁f.le.trans hL)
-      hy₁_base hoff_fit hlt
-    refine ⟨_, (hex₁.seq_eq hex₂).mono (by omega) (fun _ h => h),
-      hy₂b, hy₁m, hy₁f, fun i hi => ?_, fun reg hrc hrd => ?_⟩
-    · by_cases hik : i.val = k + 1
-      · have hieq : i = ⟨k + 1, hk⟩ := Fin.ext hik
-        subst hieq
-        simp only [RData.set_regs, Function.update_self, hy₁m]
-        congr 1; omega
-      · have hne_d : dst i ≠ dst ⟨k + 1, hk⟩ := fun h => hik (congrArg Fin.val (hinj h))
-        simp only [RData.set_regs, Function.update_of_ne hne_d,
-          Function.update_of_ne (hne_cur i)]
-        exact hy₁d i (by omega)
-    · simp only [RData.set_regs, Function.update_of_ne (hrd ⟨k + 1, hk⟩).symm,
-        Function.update_of_ne hrc]
-      exact hy₁r reg hrc hrd
-
-private theorem mGrowZeroPost_bounded {w : ℕ} {x : RData rResize}
-    (hx : x.Bounded w) (h1 : Fits w 1) (hfit : Fits w (x.frontier + x.regs mK)) :
-    (growZeroPost mK mRes mCur mIdx mZero mOne x).Bounded w := by
-  refine ⟨⟨fun j => ?_, hx.mem_fits⟩, hfit, fun a ha => hx.zero_above ?_⟩
-  · dsimp only [growZeroPost, RData.toData]
-    by_cases hj1 : j = mCur
-    · subst hj1; simp only [Function.update_self]; exact fits_zero w
-    by_cases hj2 : j = mIdx
-    · subst hj2; simp only [Function.update_of_ne hj1, Function.update_self]; exact hx.regs_fits mK
-    by_cases hj3 : j = mRes
-    · subst hj3
-      simp only [Function.update_of_ne hj1, Function.update_of_ne hj2, Function.update_self]
-      split_ifs <;> [exact hx.regs_fits mRes; exact hx.frontier_fits]
-    by_cases hj4 : j = mOne
-    · subst hj4
-      simp only [Function.update_of_ne hj1, Function.update_of_ne hj2, Function.update_of_ne hj3,
-        Function.update_self]
-      exact h1
-    by_cases hj5 : j = mZero
-    · subst hj5
-      simp only [Function.update_of_ne hj1, Function.update_of_ne hj2, Function.update_of_ne hj3,
-        Function.update_of_ne hj4, Function.update_self]
-      exact fits_zero w
-    simp only [Function.update_of_ne hj1, Function.update_of_ne hj2, Function.update_of_ne hj3,
-      Function.update_of_ne hj4, Function.update_of_ne hj5]
-    exact hx.regs_fits j
-  · dsimp only [growZeroPost] at ha; omega
-
-private theorem mShrinkPost_bounded {w : ℕ} {x : RData rResize}
-    (hx : x.Bounded w) (h1 : Fits w 1) (hk_le : x.regs mK ≤ x.frontier) :
-    (shrinkPost mK mIdx mZero mOne x).Bounded w :=
-  (((hx.shrink hk_le).set (i := mZero) (fits_zero w)).set (i := mOne) h1).set (i := mIdx)
-    (hx.regs_fits mK)
-
 /-! ## Section 3: Witness Register Arrays (`src*`, `tmp*`) and Disjointness Proofs -/
 
-private noncomputable def srcOldIw := mPairSrc mOldCp (mReg1 mCnt)
+private theorem migTmpHb {n : ℕ} (hb : n ≤ scratchMigrate) : 160 + n ≤ rResize :=
+  (Nat.add_le_add_left hb 160).trans (le_max_right _ _)
+
+private noncomputable def srcOldIw := pairSrc mOldCp (reg1 mCnt)
 private noncomputable def tmpOldIw :=
-  mkMigTmp ![mIwOld] (by dsimp [scratchMigrate]; exact le_max_left _ _)
+  mkTmp (baseOff := 160) ![mIwOld] (migTmpHb (by dsimp [scratchMigrate]; exact le_max_left _ _))
 
-private noncomputable def srcNewIw := mPairSrc mNewCp (mReg1 mCnt)
+private noncomputable def srcNewIw := pairSrc mNewCp (reg1 mCnt)
 private noncomputable def tmpNewIw :=
-  mkMigTmp ![mIwNew] (by dsimp [scratchMigrate]; exact le_max_left _ _)
+  mkTmp (baseOff := 160) ![mIwNew] (migTmpHb (by dsimp [scratchMigrate]; exact le_max_left _ _))
 
-private noncomputable def srcTargetCap := mPairSrc (mReg1 mBase) (mReg1 mCnt)
+private noncomputable def srcTargetCap := pairSrc (reg1 mBase) (reg1 mCnt)
 private noncomputable def tmpTargetCap :=
-  mkMigTmp ![mNNew] (by dsimp [scratchMigrate]; exact le_max_of_le_right (le_max_left _ _))
+  mkTmp (baseOff := 160) ![mNNew]
+    (migTmpHb (by dsimp [scratchMigrate]; exact le_max_of_le_right (le_max_left _ _)))
 
 private noncomputable def srcWriteParams :=
-  mPairSrc (mPairSrc (mReg1 mBase) (mReg1 mTmpA))
-    (mPairSrc (mReg1 mNNew) (mPairSrc (mReg1 mCnt) (mReg1 mCnt)))
+  pairSrc (pairSrc (reg1 mBase) (reg1 mTmpA))
+    (pairSrc (reg1 mNNew) (pairSrc (reg1 mCnt) (reg1 mCnt)))
 private noncomputable def tmpWriteParams :=
-  mkMigTmp ![mOffNew, mHSpaceNew]
-    (by dsimp [scratchMigrate]; exact le_max_of_le_right (le_max_of_le_right (le_max_left _ _)))
+  mkTmp (baseOff := 160) ![mOffNew, mHSpaceNew]
+    (migTmpHb (by
+      dsimp [scratchMigrate]; exact le_max_of_le_right (le_max_of_le_right (le_max_left _ _))))
 
 private noncomputable def srcCopyRight :=
-  mPairSrc (mPairSrc (mReg1 mNewMeta) (mReg1 mOldItemDst)) (mReg1 mIwOld)
+  pairSrc (pairSrc (reg1 mNewMeta) (reg1 mOldItemDst)) (reg1 mIwOld)
 private noncomputable def tmpCopyRight :=
-  mkMigTmp ![] (by
+  mkTmp (baseOff := 160) ![] (migTmpHb (by
     dsimp [scratchMigrate]
-    exact le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_left _ _))))
+    exact le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_left _ _)))))
 
 private noncomputable def srcCopyLeft :=
-  mPairSrc (mPairSrc (mReg1 mTmpA) (mReg1 mTmpB)) (mReg1 mCur)
+  pairSrc (pairSrc (reg1 mTmpA) (reg1 mTmpB)) (reg1 mCur)
 private noncomputable def tmpCopyLeft :=
-  mkMigTmp ![] (by
+  mkTmp (baseOff := 160) ![] (migTmpHb (by
     dsimp [scratchMigrate]
     exact le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
-      (le_max_of_le_right (le_max_left _ _)))))
+      (le_max_of_le_right (le_max_left _ _))))))
 
 private noncomputable def srcInitNewMeta :=
-  mPairSrc (mPairSrc mNewHp mNewCp) (mReg1 mTmpA)
+  pairSrc (pairSrc mNewHp mNewCp) (reg1 mTmpA)
 private noncomputable def tmpInitNewMeta :=
-  mkMigTmp ![] (by
+  mkTmp (baseOff := 160) ![] (migTmpHb (by
     dsimp [scratchMigrate]
     exact le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
-      (le_max_of_le_right (le_max_of_le_right (le_max_left _ _))))))
+      (le_max_of_le_right (le_max_of_le_right (le_max_left _ _)))))))
 
 private noncomputable def srcReadOldKV :=
-  mPairSrc (mPairSrc (mPairSrc mOldHp mOldCp) (mPairSrc (mReg1 mBase) (mReg1 mItemBase)))
-    (mReg1 mZero)
+  pairSrc (pairSrc (pairSrc mOldHp mOldCp) (pairSrc (reg1 mBase) (reg1 mItemBase)))
+    (reg1 mZero)
 private noncomputable def tmpReadOldKV :=
-  mkMigTmp ![mU0, mV0] (by
+  mkTmp (baseOff := 160) ![mU0, mV0] (migTmpHb (by
     dsimp [scratchMigrate]
     exact le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
-      (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_left _ _)))))))
-
-private noncomputable def srcStreamIns :=
-  mPairSrc (mPairSrc (mPairSrc mNewHp mNewCp) (mPairSrc (mReg1 mBase) (mReg1 mItemBase)))
-    (mPairSrc (mReg1 mArgU) (mReg1 mArgV))
-private noncomputable def tmpStreamIns :=
-  mkMigTmp ![] (by
-    dsimp [scratchMigrate]
-    exact le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
       (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_left _ _))))))))
 
-private noncomputable def srcStreamAll :=
-  mPairSrc
-    (mPairSrc
-      (mPairSrc
-        (mPairSrc (mPairSrc mOldHp mOldCp) (mPairSrc (mReg1 mBase) (mReg1 mOldItemDst)))
-        (mPairSrc (mPairSrc mNewHp mNewCp) (mPairSrc (mReg1 mNewMeta) (mReg1 mArena))))
-      (mReg1 mZero))
-    (mReg1 mCnt)
-private noncomputable def tmpStreamAll :=
-  mkMigTmp ![mCur] (by
+private noncomputable def srcStreamIns :=
+  pairSrc (pairSrc (pairSrc mNewHp mNewCp) (pairSrc (reg1 mBase) (reg1 mItemBase)))
+    (pairSrc (reg1 mArgU) (reg1 mArgV))
+private noncomputable def tmpStreamIns :=
+  mkTmp (baseOff := 160) ![] (migTmpHb (by
     dsimp [scratchMigrate]
     exact le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
-      (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_right _ _))))))))
+      (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_left _ _)))))))))
+
+private noncomputable def srcStreamAll :=
+  pairSrc
+    (pairSrc
+      (pairSrc
+        (pairSrc (pairSrc mOldHp mOldCp) (pairSrc (reg1 mBase) (reg1 mOldItemDst)))
+        (pairSrc (pairSrc mNewHp mNewCp) (pairSrc (reg1 mNewMeta) (reg1 mArena))))
+      (reg1 mZero))
+    (reg1 mCnt)
+private noncomputable def tmpStreamAll :=
+  mkTmp (baseOff := 160) ![mCur] (migTmpHb (by
+    dsimp [scratchMigrate]
+    exact le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
+      (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_right _ _)))))))))
 
 private theorem tmpOldIw_inj : Function.Injective tmpOldIw :=
-  mkMigTmp_injective _ (mOuts1_inj mIwOld) (fun i => by fin_cases i; exact mReg_lt_160 _)
+  mkTmp_injective _ (outs1_inj mIwOld) (fun i => by fin_cases i; exact mReg_lt_160 _)
 private theorem srcOldIw_ne_tmp : ∀ i j, srcOldIw i ≠ tmpOldIw j :=
-  src_ne_mkMigTmp _ (mPairSrc_lt_160 mOldCp_lt_160 (fun _ => mReg_lt_160 _)) <|
-    mPairSrc_ne_outs (fun i a => by fin_cases a; exact mOldCp_ne_mReg i (Or.inr (by decide)))
+  src_ne_mkTmp _ (pairSrc_lt mOldCp_lt_160 (fun _ => mReg_lt_160 _)) <|
+    pairSrc_ne_outs (fun i a => by fin_cases a; exact mOldCp_ne_mReg i (Or.inr (by decide)))
       (fun _ a => by fin_cases a; exact mReg_ne (by decide))
 private theorem tmpOldIw_ne_mFr : ∀ j, tmpOldIw j ≠ mFr :=
-  mkMigTmp_ne_reg _ (mReg_lt_160 _) (fun a => by fin_cases a; exact mReg_ne (by decide))
+  mkTmp_ne_reg _ (mReg_lt_160 _) (fun a => by fin_cases a; exact mReg_ne (by decide))
 private theorem srcOldIw_ne_mFr : ∀ i, srcOldIw i ≠ mFr :=
-  mPairSrc_ne_mFr (fun i => mOldCp_ne_mReg i (Or.inl (by decide))) (fun _ => mReg_ne (by decide))
+  pairSrc_ne_reg (fun i => mOldCp_ne_mReg i (Or.inl (by decide))) (fun _ => mReg_ne (by decide))
 
 private theorem tmpNewIw_inj : Function.Injective tmpNewIw :=
-  mkMigTmp_injective _ (mOuts1_inj mIwNew) (fun i => by fin_cases i; exact mReg_lt_160 _)
+  mkTmp_injective _ (outs1_inj mIwNew) (fun i => by fin_cases i; exact mReg_lt_160 _)
 private theorem srcNewIw_ne_tmp : ∀ i j, srcNewIw i ≠ tmpNewIw j :=
-  src_ne_mkMigTmp _ (mPairSrc_lt_160 mNewCp_lt_160 (fun _ => mReg_lt_160 _)) <|
-    mPairSrc_ne_outs (fun i a => by fin_cases a; exact mNewCp_ne_mReg i (Or.inr (by decide)))
+  src_ne_mkTmp _ (pairSrc_lt mNewCp_lt_160 (fun _ => mReg_lt_160 _)) <|
+    pairSrc_ne_outs (fun i a => by fin_cases a; exact mNewCp_ne_mReg i (Or.inr (by decide)))
       (fun _ a => by fin_cases a; exact mReg_ne (by decide))
 private theorem tmpNewIw_ne_mFr : ∀ j, tmpNewIw j ≠ mFr :=
-  mkMigTmp_ne_reg _ (mReg_lt_160 _) (fun a => by fin_cases a; exact mReg_ne (by decide))
+  mkTmp_ne_reg _ (mReg_lt_160 _) (fun a => by fin_cases a; exact mReg_ne (by decide))
 private theorem srcNewIw_ne_mFr : ∀ i, srcNewIw i ≠ mFr :=
-  mPairSrc_ne_mFr (fun i => mNewCp_ne_mReg i (Or.inl (by decide))) (fun _ => mReg_ne (by decide))
+  pairSrc_ne_reg (fun i => mNewCp_ne_mReg i (Or.inl (by decide))) (fun _ => mReg_ne (by decide))
 
 private theorem tmpTargetCap_inj : Function.Injective tmpTargetCap :=
-  mkMigTmp_injective _ (mOuts1_inj mNNew) (fun i => by fin_cases i; exact mReg_lt_160 _)
+  mkTmp_injective _ (outs1_inj mNNew) (fun i => by fin_cases i; exact mReg_lt_160 _)
 private theorem srcTargetCap_ne_tmp : ∀ i j, srcTargetCap i ≠ tmpTargetCap j :=
-  src_ne_mkMigTmp _ (mPairSrc_lt_160 (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _)) <|
-    mPairSrc_ne_outs (fun _ a => by fin_cases a; exact mReg_ne (by decide))
+  src_ne_mkTmp _ (pairSrc_lt (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _)) <|
+    pairSrc_ne_outs (fun _ a => by fin_cases a; exact mReg_ne (by decide))
       (fun _ a => by fin_cases a; exact mReg_ne (by decide))
 private theorem tmpTargetCap_ne_mFr : ∀ j, tmpTargetCap j ≠ mFr :=
-  mkMigTmp_ne_reg _ (mReg_lt_160 _) (fun a => by fin_cases a; exact mReg_ne (by decide))
+  mkTmp_ne_reg _ (mReg_lt_160 _) (fun a => by fin_cases a; exact mReg_ne (by decide))
 private theorem srcTargetCap_ne_mFr : ∀ i, srcTargetCap i ≠ mFr :=
-  mPairSrc_ne_mFr (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide))
+  pairSrc_ne_reg (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide))
 
 private theorem tmpWriteParams_inj : Function.Injective tmpWriteParams :=
-  mkMigTmp_injective _ (mOuts2_inj (mReg_ne (by decide)))
+  mkTmp_injective _ (outs2_inj (mReg_ne (by decide)))
     (fun i => by fin_cases i <;> exact mReg_lt_160 _)
 private theorem srcWriteParams_ne_tmp : ∀ i j, srcWriteParams i ≠ tmpWriteParams j :=
-  src_ne_mkMigTmp _
-    (mPairSrc_lt_160 (mPairSrc_lt_160 (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _))
-      (mPairSrc_lt_160 (fun _ => mReg_lt_160 _)
-        (mPairSrc_lt_160 (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _)))) <|
-    mPairSrc_ne_outs
-      (mPairSrc_ne_outs (fun _ a => by fin_cases a <;> exact mReg_ne (by decide))
+  src_ne_mkTmp _
+    (pairSrc_lt (pairSrc_lt (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _))
+      (pairSrc_lt (fun _ => mReg_lt_160 _)
+        (pairSrc_lt (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _)))) <|
+    pairSrc_ne_outs
+      (pairSrc_ne_outs (fun _ a => by fin_cases a <;> exact mReg_ne (by decide))
         (fun _ a => by fin_cases a <;> exact mReg_ne (by decide)))
-      (mPairSrc_ne_outs (fun _ a => by fin_cases a <;> exact mReg_ne (by decide))
-        (mPairSrc_ne_outs (fun _ a => by fin_cases a <;> exact mReg_ne (by decide))
+      (pairSrc_ne_outs (fun _ a => by fin_cases a <;> exact mReg_ne (by decide))
+        (pairSrc_ne_outs (fun _ a => by fin_cases a <;> exact mReg_ne (by decide))
           (fun _ a => by fin_cases a <;> exact mReg_ne (by decide))))
 private theorem tmpWriteParams_ne_mFr : ∀ j, tmpWriteParams j ≠ mFr :=
-  mkMigTmp_ne_reg _ (mReg_lt_160 _) (fun a => by fin_cases a <;> exact mReg_ne (by decide))
+  mkTmp_ne_reg _ (mReg_lt_160 _) (fun a => by fin_cases a <;> exact mReg_ne (by decide))
 private theorem srcWriteParams_ne_mFr : ∀ i, srcWriteParams i ≠ mFr :=
-  mPairSrc_ne_mFr
-    (mPairSrc_ne_mFr (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide)))
-    (mPairSrc_ne_mFr (fun _ => mReg_ne (by decide))
-      (mPairSrc_ne_mFr (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide))))
+  pairSrc_ne_reg
+    (pairSrc_ne_reg (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide)))
+    (pairSrc_ne_reg (fun _ => mReg_ne (by decide))
+      (pairSrc_ne_reg (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide))))
 
 private theorem tmpCopyRight_inj : Function.Injective tmpCopyRight :=
-  mkMigTmp_injective _ (fun a => Fin.elim0 a) (fun a => Fin.elim0 a)
+  mkTmp_injective _ (fun a => Fin.elim0 a) (fun a => Fin.elim0 a)
 private theorem srcCopyRight_ne_tmp : ∀ i j, srcCopyRight i ≠ tmpCopyRight j :=
-  src_ne_mkMigTmp _
-    (mPairSrc_lt_160 (mPairSrc_lt_160 (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _))
+  src_ne_mkTmp _
+    (pairSrc_lt (pairSrc_lt (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _))
       (fun _ => mReg_lt_160 _))
     (fun _ a => Fin.elim0 a)
 private theorem tmpCopyRight_ne_mFr : ∀ j, tmpCopyRight j ≠ mFr :=
-  mkMigTmp_ne_reg _ (mReg_lt_160 _) (fun a => Fin.elim0 a)
+  mkTmp_ne_reg _ (mReg_lt_160 _) (fun a => Fin.elim0 a)
 private theorem srcCopyRight_ne_mFr : ∀ i, srcCopyRight i ≠ mFr :=
-  mPairSrc_ne_mFr (mPairSrc_ne_mFr (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide)))
+  pairSrc_ne_reg (pairSrc_ne_reg (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide)))
     (fun _ => mReg_ne (by decide))
 
 private theorem tmpCopyLeft_inj : Function.Injective tmpCopyLeft :=
-  mkMigTmp_injective _ (fun a => Fin.elim0 a) (fun a => Fin.elim0 a)
+  mkTmp_injective _ (fun a => Fin.elim0 a) (fun a => Fin.elim0 a)
 private theorem srcCopyLeft_ne_tmp : ∀ i j, srcCopyLeft i ≠ tmpCopyLeft j :=
-  src_ne_mkMigTmp _
-    (mPairSrc_lt_160 (mPairSrc_lt_160 (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _))
+  src_ne_mkTmp _
+    (pairSrc_lt (pairSrc_lt (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _))
       (fun _ => mReg_lt_160 _))
     (fun _ a => Fin.elim0 a)
 private theorem tmpCopyLeft_ne_mFr : ∀ j, tmpCopyLeft j ≠ mFr :=
-  mkMigTmp_ne_reg _ (mReg_lt_160 _) (fun a => Fin.elim0 a)
+  mkTmp_ne_reg _ (mReg_lt_160 _) (fun a => Fin.elim0 a)
 private theorem srcCopyLeft_ne_mFr : ∀ i, srcCopyLeft i ≠ mFr :=
-  mPairSrc_ne_mFr (mPairSrc_ne_mFr (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide)))
+  pairSrc_ne_reg (pairSrc_ne_reg (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide)))
     (fun _ => mReg_ne (by decide))
 
 private theorem tmpInitNewMeta_inj : Function.Injective tmpInitNewMeta :=
-  mkMigTmp_injective _ (fun a => Fin.elim0 a) (fun a => Fin.elim0 a)
+  mkTmp_injective _ (fun a => Fin.elim0 a) (fun a => Fin.elim0 a)
 private theorem srcInitNewMeta_ne_tmp : ∀ i j, srcInitNewMeta i ≠ tmpInitNewMeta j :=
-  src_ne_mkMigTmp _
-    (mPairSrc_lt_160 (mPairSrc_lt_160 mNewHp_lt_160 mNewCp_lt_160) (fun _ => mReg_lt_160 _))
+  src_ne_mkTmp _
+    (pairSrc_lt (pairSrc_lt mNewHp_lt_160 mNewCp_lt_160) (fun _ => mReg_lt_160 _))
     (fun _ a => Fin.elim0 a)
 private theorem tmpInitNewMeta_ne_mFr : ∀ j, tmpInitNewMeta j ≠ mFr :=
-  mkMigTmp_ne_reg _ (mReg_lt_160 _) (fun a => Fin.elim0 a)
+  mkTmp_ne_reg _ (mReg_lt_160 _) (fun a => Fin.elim0 a)
 private theorem srcInitNewMeta_ne_mFr : ∀ i, srcInitNewMeta i ≠ mFr :=
-  mPairSrc_ne_mFr
-    (mPairSrc_ne_mFr (fun i => mNewHp_ne_mReg i (Or.inl (by decide)))
+  pairSrc_ne_reg
+    (pairSrc_ne_reg (fun i => mNewHp_ne_mReg i (Or.inl (by decide)))
       (fun i => mNewCp_ne_mReg i (Or.inl (by decide))))
     (fun _ => mReg_ne (by decide))
 
 private theorem tmpReadOldKV_inj : Function.Injective tmpReadOldKV :=
-  mkMigTmp_injective _ (mOuts2_inj (mReg_ne (by decide)))
+  mkTmp_injective _ (outs2_inj (mReg_ne (by decide)))
     (fun i => by fin_cases i <;> exact mReg_lt_160 _)
 private theorem srcReadOldKV_ne_tmp : ∀ i j, srcReadOldKV i ≠ tmpReadOldKV j :=
-  src_ne_mkMigTmp _
-    (mPairSrc_lt_160
-      (mPairSrc_lt_160 (mPairSrc_lt_160 mOldHp_lt_160 mOldCp_lt_160)
-        (mPairSrc_lt_160 (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _)))
+  src_ne_mkTmp _
+    (pairSrc_lt
+      (pairSrc_lt (pairSrc_lt mOldHp_lt_160 mOldCp_lt_160)
+        (pairSrc_lt (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _)))
       (fun _ => mReg_lt_160 _)) <|
-    mPairSrc_ne_outs
-      (mPairSrc_ne_outs
-        (mPairSrc_ne_outs
+    pairSrc_ne_outs
+      (pairSrc_ne_outs
+        (pairSrc_ne_outs
           (fun i a => by fin_cases a <;> exact mOldHp_ne_mReg i (Or.inr (by decide)))
           (fun i a => by fin_cases a <;> exact mOldCp_ne_mReg i (Or.inr (by decide))))
-        (mPairSrc_ne_outs (fun _ a => by fin_cases a <;> exact mReg_ne (by decide))
+        (pairSrc_ne_outs (fun _ a => by fin_cases a <;> exact mReg_ne (by decide))
           (fun _ a => by fin_cases a <;> exact mReg_ne (by decide))))
       (fun _ a => by fin_cases a <;> exact mReg_ne (by decide))
 private theorem tmpReadOldKV_ne_mFr : ∀ j, tmpReadOldKV j ≠ mFr :=
-  mkMigTmp_ne_reg _ (mReg_lt_160 _) (fun a => by fin_cases a <;> exact mReg_ne (by decide))
+  mkTmp_ne_reg _ (mReg_lt_160 _) (fun a => by fin_cases a <;> exact mReg_ne (by decide))
 private theorem srcReadOldKV_ne_mFr : ∀ i, srcReadOldKV i ≠ mFr :=
-  mPairSrc_ne_mFr
-    (mPairSrc_ne_mFr
-      (mPairSrc_ne_mFr (fun i => mOldHp_ne_mReg i (Or.inl (by decide)))
+  pairSrc_ne_reg
+    (pairSrc_ne_reg
+      (pairSrc_ne_reg (fun i => mOldHp_ne_mReg i (Or.inl (by decide)))
         (fun i => mOldCp_ne_mReg i (Or.inl (by decide))))
-      (mPairSrc_ne_mFr (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide))))
+      (pairSrc_ne_reg (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide))))
     (fun _ => mReg_ne (by decide))
 
 private theorem tmpStreamIns_inj : Function.Injective tmpStreamIns :=
-  mkMigTmp_injective _ (fun a => Fin.elim0 a) (fun a => Fin.elim0 a)
+  mkTmp_injective _ (fun a => Fin.elim0 a) (fun a => Fin.elim0 a)
 private theorem srcStreamIns_ne_tmp : ∀ i j, srcStreamIns i ≠ tmpStreamIns j :=
-  src_ne_mkMigTmp _
-    (mPairSrc_lt_160
-      (mPairSrc_lt_160 (mPairSrc_lt_160 mNewHp_lt_160 mNewCp_lt_160)
-        (mPairSrc_lt_160 (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _)))
-      (mPairSrc_lt_160 (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _)))
+  src_ne_mkTmp _
+    (pairSrc_lt
+      (pairSrc_lt (pairSrc_lt mNewHp_lt_160 mNewCp_lt_160)
+        (pairSrc_lt (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _)))
+      (pairSrc_lt (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _)))
     (fun _ a => Fin.elim0 a)
 private theorem tmpStreamIns_ne_mFr : ∀ j, tmpStreamIns j ≠ mFr :=
-  mkMigTmp_ne_reg _ (mReg_lt_160 _) (fun a => Fin.elim0 a)
+  mkTmp_ne_reg _ (mReg_lt_160 _) (fun a => Fin.elim0 a)
 private theorem srcStreamIns_ne_mFr : ∀ i, srcStreamIns i ≠ mFr :=
-  mPairSrc_ne_mFr
-    (mPairSrc_ne_mFr
-      (mPairSrc_ne_mFr (fun i => mNewHp_ne_mReg i (Or.inl (by decide)))
+  pairSrc_ne_reg
+    (pairSrc_ne_reg
+      (pairSrc_ne_reg (fun i => mNewHp_ne_mReg i (Or.inl (by decide)))
         (fun i => mNewCp_ne_mReg i (Or.inl (by decide))))
-      (mPairSrc_ne_mFr (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide))))
-    (mPairSrc_ne_mFr (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide)))
+      (pairSrc_ne_reg (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide))))
+    (pairSrc_ne_reg (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide)))
 
 private theorem tmpStreamAll_inj : Function.Injective tmpStreamAll :=
-  mkMigTmp_injective _ (mOuts1_inj mCur) (fun i => by fin_cases i; exact mReg_lt_160 _)
+  mkTmp_injective _ (outs1_inj mCur) (fun i => by fin_cases i; exact mReg_lt_160 _)
 private theorem srcStreamAll_ne_tmp : ∀ i j, srcStreamAll i ≠ tmpStreamAll j :=
-  src_ne_mkMigTmp _
-    (mPairSrc_lt_160
-      (mPairSrc_lt_160
-        (mPairSrc_lt_160
-          (mPairSrc_lt_160 (mPairSrc_lt_160 mOldHp_lt_160 mOldCp_lt_160)
-            (mPairSrc_lt_160 (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _)))
-          (mPairSrc_lt_160 (mPairSrc_lt_160 mNewHp_lt_160 mNewCp_lt_160)
-            (mPairSrc_lt_160 (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _))))
+  src_ne_mkTmp _
+    (pairSrc_lt
+      (pairSrc_lt
+        (pairSrc_lt
+          (pairSrc_lt (pairSrc_lt mOldHp_lt_160 mOldCp_lt_160)
+            (pairSrc_lt (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _)))
+          (pairSrc_lt (pairSrc_lt mNewHp_lt_160 mNewCp_lt_160)
+            (pairSrc_lt (fun _ => mReg_lt_160 _) (fun _ => mReg_lt_160 _))))
         (fun _ => mReg_lt_160 _))
       (fun _ => mReg_lt_160 _)) <|
-    mPairSrc_ne_outs
-      (mPairSrc_ne_outs
-        (mPairSrc_ne_outs
-          (mPairSrc_ne_outs
-            (mPairSrc_ne_outs
+    pairSrc_ne_outs
+      (pairSrc_ne_outs
+        (pairSrc_ne_outs
+          (pairSrc_ne_outs
+            (pairSrc_ne_outs
               (fun i a => by fin_cases a; exact mOldHp_ne_mReg i (Or.inl (by decide)))
               (fun i a => by fin_cases a; exact mOldCp_ne_mReg i (Or.inl (by decide))))
-            (mPairSrc_ne_outs (fun _ a => by fin_cases a; exact mReg_ne (by decide))
+            (pairSrc_ne_outs (fun _ a => by fin_cases a; exact mReg_ne (by decide))
               (fun _ a => by fin_cases a; exact mReg_ne (by decide))))
-          (mPairSrc_ne_outs
-            (mPairSrc_ne_outs
+          (pairSrc_ne_outs
+            (pairSrc_ne_outs
               (fun i a => by fin_cases a; exact mNewHp_ne_mReg i (Or.inl (by decide)))
               (fun i a => by fin_cases a; exact mNewCp_ne_mReg i (Or.inl (by decide))))
-            (mPairSrc_ne_outs (fun _ a => by fin_cases a; exact mReg_ne (by decide))
+            (pairSrc_ne_outs (fun _ a => by fin_cases a; exact mReg_ne (by decide))
               (fun _ a => by fin_cases a; exact mReg_ne (by decide)))))
         (fun _ a => by fin_cases a; exact mReg_ne (by decide)))
       (fun _ a => by fin_cases a; exact mReg_ne (by decide))
 private theorem tmpStreamAll_ne_mFr : ∀ j, tmpStreamAll j ≠ mFr :=
-  mkMigTmp_ne_reg _ (mReg_lt_160 _) (fun a => by fin_cases a; exact mReg_ne (by decide))
+  mkTmp_ne_reg _ (mReg_lt_160 _) (fun a => by fin_cases a; exact mReg_ne (by decide))
 private theorem srcStreamAll_ne_mFr : ∀ i, srcStreamAll i ≠ mFr :=
-  mPairSrc_ne_mFr
-    (mPairSrc_ne_mFr
-      (mPairSrc_ne_mFr
-        (mPairSrc_ne_mFr
-          (mPairSrc_ne_mFr (fun i => mOldHp_ne_mReg i (Or.inl (by decide)))
+  pairSrc_ne_reg
+    (pairSrc_ne_reg
+      (pairSrc_ne_reg
+        (pairSrc_ne_reg
+          (pairSrc_ne_reg (fun i => mOldHp_ne_mReg i (Or.inl (by decide)))
             (fun i => mOldCp_ne_mReg i (Or.inl (by decide))))
-          (mPairSrc_ne_mFr (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide))))
-        (mPairSrc_ne_mFr
-          (mPairSrc_ne_mFr (fun i => mNewHp_ne_mReg i (Or.inl (by decide)))
+          (pairSrc_ne_reg (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide))))
+        (pairSrc_ne_reg
+          (pairSrc_ne_reg (fun i => mNewHp_ne_mReg i (Or.inl (by decide)))
             (fun i => mNewCp_ne_mReg i (Or.inl (by decide))))
-          (mPairSrc_ne_mFr (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide)))))
+          (pairSrc_ne_reg (fun _ => mReg_ne (by decide)) (fun _ => mReg_ne (by decide)))))
       (fun _ => mReg_ne (by decide)))
     (fun _ => mReg_ne (by decide))
 
 private theorem tmpOldIw_out :
-    tmpOldIw (Fin.castAdd (wItemWords.scratchSize + 1) 0) = mIwOld := mkMigTmp_castAdd _ _ 0
+    tmpOldIw (Fin.castAdd (wItemWords.scratchSize + 1) 0) = mIwOld := mkTmp_castAdd _ _ 0
 private theorem tmpNewIw_out :
-    tmpNewIw (Fin.castAdd (wItemWords.scratchSize + 1) 0) = mIwNew := mkMigTmp_castAdd _ _ 0
+    tmpNewIw (Fin.castAdd (wItemWords.scratchSize + 1) 0) = mIwNew := mkTmp_castAdd _ _ 0
 private theorem tmpTargetCap_out :
-    tmpTargetCap (Fin.castAdd (wTargetCap.scratchSize + 1) 0) = mNNew := mkMigTmp_castAdd _ _ 0
+    tmpTargetCap (Fin.castAdd (wTargetCap.scratchSize + 1) 0) = mNNew := mkTmp_castAdd _ _ 0
 private theorem tmpWriteParams_out_0 :
     tmpWriteParams (Fin.castAdd (wWriteParams.scratchSize + 1) 0) = mOffNew :=
-  mkMigTmp_castAdd _ _ 0
+  mkTmp_castAdd _ _ 0
 private theorem tmpReadOldKV_out_0 :
-    tmpReadOldKV (Fin.castAdd (wReadOldKV.scratchSize + 1) 0) = mU0 := mkMigTmp_castAdd _ _ 0
+    tmpReadOldKV (Fin.castAdd (wReadOldKV.scratchSize + 1) 0) = mU0 := mkTmp_castAdd _ _ 0
 
 attribute [local irreducible]
   wTargetCap wWriteParams wCopyRight wCopyLeft
@@ -931,9 +595,9 @@ attribute [local irreducible]
 /-- Load `n`, `oldHp`, `oldCp`, evaluate `iwOld`, reconstruct `mNewMeta = base + offOld` and
 `mFr = x.frontier`, and evaluate `mNNew = targetCap U n`. -/
 private noncomputable def migrateLoadOldCode : RCode .exact rResize :=
-  .seq (loadAtOffMigCode mCnt 6) <|
-  .seq (loadMigBlockUpTo mOldHp offHashParams 18 (by decide)) <|
-  .seq (loadMigBlockUpTo mOldCp offCompParams 35 (by decide)) <|
+  .seq (loadAtOffCode mBase mCnt mCur 6) <|
+  .seq (loadBlockUpTo mBase mCur mOldHp offHashParams 18 (by decide)) <|
+  .seq (loadBlockUpTo mBase mCur mOldCp offCompParams 35 (by decide)) <|
   .seq (.op (.const mFr 0)) <|
   .seq (RCode.ofCode (wItemWords.code mFr srcOldIw tmpOldIw)) <|
   .seq (.op (.exactBin .add mNewMeta mBase (mOldCp ⟨34, by decide⟩))) <|
@@ -961,8 +625,8 @@ private noncomputable def migrateSetupParamsCode : RCode .exact rResize :=
   .seq (.op (.const mCur 63)) <|
   .seq (.op (.exactBin .add mTmpA mBase mCur)) <|
   .seq (RCode.ofCode (wWriteParams.code mFr srcWriteParams tmpWriteParams)) <|
-  .seq (loadMigBlockUpTo mNewHp (63 + offHashParams) 18 (by decide)) <|
-  .seq (loadMigBlockUpTo mNewCp (63 + offCompParams) 35 (by decide)) <|
+  .seq (loadBlockUpTo mBase mCur mNewHp (63 + offHashParams) 18 (by decide)) <|
+  .seq (loadBlockUpTo mBase mCur mNewCp (63 + offCompParams) 35 (by decide)) <|
   .seq (RCode.ofCode (wItemWords.code mFr srcNewIw tmpNewIw))
        migrateComputeArenaCode
 
@@ -1041,10 +705,10 @@ private theorem not_readsWidth_migrateLoadOldCode : ¬migrateLoadOldCode.ReadsWi
     rw [RCode.readsWidth_ofCode]
     exact (wTargetCap.code_spec mFr srcTargetCap tmpTargetCap
       tmpTargetCap_inj srcTargetCap_ne_tmp tmpTargetCap_ne_mFr srcTargetCap_ne_mFr).1
-  have hb1 := not_readsWidth_loadMigBlockUpTo mOldHp offHashParams 18 (by decide)
-  have hb2 := not_readsWidth_loadMigBlockUpTo mOldCp offCompParams 35 (by decide)
+  have hb1 := not_readsWidth_loadBlockUpTo mBase mCur mOldHp offHashParams 18 (by decide)
+  have hb2 := not_readsWidth_loadBlockUpTo mBase mCur mOldCp offCompParams 35 (by decide)
   simp [migrateLoadOldCode, RCode.ReadsWidth, Op.ReadsWidth, Op.exactBin,
-    not_readsWidth_loadAtOffMigCode, hb1, hb2, h1, h2]
+    not_readsWidth_loadAtOffCode, hb1, hb2, h1, h2]
 
 private theorem not_readsWidth_migrateComputeArenaCode : ¬migrateComputeArenaCode.ReadsWidth := by
   simp [migrateComputeArenaCode, RCode.ReadsWidth, Op.ReadsWidth, Op.exactBin]
@@ -1062,8 +726,8 @@ private theorem not_readsWidth_migrateSetupCode : ¬migrateSetupCode.ReadsWidth 
     rw [RCode.readsWidth_ofCode]
     exact (wCopyRight.code_spec mFr srcCopyRight tmpCopyRight
       tmpCopyRight_inj srcCopyRight_ne_tmp tmpCopyRight_ne_mFr srcCopyRight_ne_mFr).1
-  have hb1 := not_readsWidth_loadMigBlockUpTo mNewHp (63 + offHashParams) 18 (by decide)
-  have hb2 := not_readsWidth_loadMigBlockUpTo mNewCp (63 + offCompParams) 35 (by decide)
+  have hb1 := not_readsWidth_loadBlockUpTo mBase mCur mNewHp (63 + offHashParams) 18 (by decide)
+  have hb2 := not_readsWidth_loadBlockUpTo mBase mCur mNewCp (63 + offCompParams) 35 (by decide)
   simp [migrateSetupCode, migrateSetupParamsCode, migrateSetupShiftCode,
     RCode.ReadsWidth, Op.ReadsWidth, Op.exactBin,
     not_readsWidth_migrateLoadOldCode, not_readsWidth_migrateComputeArenaCode,
@@ -1203,14 +867,15 @@ private theorem migrateLoadOldCode_exec {U V w N_old n n_init base L_peak : ℕ}
   have hfit_fr : Fits w x.frontier := hx.frontier_fits
   have hfit6 : Fits w 6 := hfit_fr.of_le (by rw [hfr, hce_old]; omega)
   have hfit1 : Fits w 1 := hfit6.of_le (by decide)
-  obtain ⟨hex_ldn, hx₁b⟩ := loadAtOffMigCode_exec (rDst := mCnt) hx hL hbase hfit6
+  obtain ⟨hex_ldn, hx₁b⟩ := loadAtOffCode_exec (rAddr := mBase) (rDst := mCnt) (rTmp := mCur)
+    hx hL (mReg_ne (by decide)) hbase hfit6
     (by rw [hfr, hce_old]; omega)
   set x₁ := (x.set mCur (base + 6)).set mCnt (x.mem (base + 6))
   have hx₁_cnt : x₁.regs mCnt = n :=
     (by simp [x₁, RData.set] : x₁.regs mCnt = x.mem (base + 6)).trans hsplit.root_hdr.hdr_n
   have hx₁_base : x₁.regs mBase = base := by simp [x₁, RData.set, hbase]
   obtain ⟨x₂, hex_hp, hx₂b, hx₂m, hx₂f, hx₂_hp, hx₂_r⟩ :=
-    loadMigBlockUpTo_exec mOldHp mOldHp_inj
+    loadBlockUpTo_exec mBase mCur (mReg_ne (by decide)) mOldHp mOldHp_inj
       (fun i => mOldHp_ne_mReg i (Or.inl (by decide)))
       (fun i => mOldHp_ne_mReg i (Or.inl (by decide)))
       offHashParams 18 (by decide) hx₁b hL hx₁_base
@@ -1219,7 +884,7 @@ private theorem migrateLoadOldCode_exec {U V w N_old n n_init base L_peak : ℕ}
     (hx₂_r mBase (mReg_ne (by decide)) (fun i => mOldHp_ne_mReg i (Or.inl (by decide)))).trans
       hx₁_base
   obtain ⟨x₃, hex_cp, hx₃b, hx₃m, hx₃f, hx₃_cp, hx₃_r⟩ :=
-    loadMigBlockUpTo_exec mOldCp mOldCp_inj
+    loadBlockUpTo_exec mBase mCur (mReg_ne (by decide)) mOldCp mOldCp_inj
       (fun i => mOldCp_ne_mReg i (Or.inl (by decide)))
       (fun i => mOldCp_ne_mReg i (Or.inl (by decide)))
       offCompParams 35 (by decide) hx₂b (hx₂f.le.trans hL) hx₂_base
@@ -1249,7 +914,7 @@ private theorem migrateLoadOldCode_exec {U V w N_old n n_init base L_peak : ℕ}
     (hx₃f_eq.le.trans hL) (fits_zero w)
   have hx₄b : x₄.Bounded w := hx₃b.set (fits_zero w)
   have hin_iw : x₄.regs ∘ srcOldIw = WordEncoding.encode (mkCompParams U V w N_old, n) := by
-    refine (mRegs_pairSrc (mRegs_cp_eq fun i => ?_) (mRegs_reg1_eq mCnt ?_)).eq
+    refine (regs_pairSrc (regs_cp_eq fun i => ?_) (regs_reg1_eq mCnt ?_)).eq
     · dsimp only [x₄, RData.set]
       rw [Function.update_of_ne (mOldCp_ne_mReg i (c := 1) (Or.inl (by decide)))]
       exact hx₃_cp_all i
@@ -1264,7 +929,7 @@ private theorem migrateLoadOldCode_exec {U V w N_old n n_init base L_peak : ℕ}
       (compItemWordsGenProg (mkCompParams U V w N_old, n))).frontier ≤ x₄.frontier := by
     rw [clientState_compItemWordsGenProg]; change 0 ≤ x₄.frontier; omega
   obtain ⟨x₅, hex_iw, hx₅b, hx₅f, hm_iw, hout_iw, hframe_iw⟩ :=
-    execMigWitness wItemWords factor_mItemWords_le srcOldIw tmpOldIw
+    execWitness wItemWords factor_mItemWords_le mFr srcOldIw tmpOldIw
       tmpOldIw_inj srcOldIw_ne_tmp tmpOldIw_ne_mFr srcOldIw_ne_mFr
       (mkCompParams U V w N_old, n) hx₄b (hx₃f_eq.le.trans hL) hin_iw hsafe_iw hv_iw hnoalloc_iw
   rw [memoryCost_compItemWordsGenProg, zero_add, mul_one] at hex_iw
@@ -1277,7 +942,7 @@ private theorem migrateLoadOldCode_exec {U V w N_old n n_init base L_peak : ℕ}
   have hx₅_keep : ∀ reg, reg ≠ mFr → reg.val < 160 → reg ≠ mIwOld → x₅.regs reg = x₃.regs reg :=
     fun reg hfr' h160 hiw =>
       (hframe_iw reg hfr'
-        (mkMigTmp_ne_reg _ h160 (fun a => by fin_cases a; exact hiw.symm))).trans
+        (mkTmp_ne_reg _ h160 (fun a => by fin_cases a; exact hiw.symm))).trans
       (by simp [x₄, RData.set, Function.update_of_ne hfr'])
   have hx₅_base : x₅.regs mBase = base :=
     (hx₅_keep mBase (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))).trans
@@ -1316,7 +981,7 @@ private theorem migrateLoadOldCode_exec {U V w N_old n n_init base L_peak : ℕ}
       Function.update_of_ne (mReg_ne (by decide) : mCnt ≠ mNewMeta)]
     exact (hx₅_keep mCnt (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))).trans hx₃_cnt
   have hin_tc : x₇.regs ∘ srcTargetCap = WordEncoding.encode (base, n) :=
-    (mRegs_pairSrc (mRegs_reg1_eq mBase hx₇_base) (mRegs_reg1_eq mCnt hx₇_cnt)).eq
+    (regs_pairSrc (regs_reg1_eq mBase hx₇_base) (regs_reg1_eq mCnt hx₇_cnt)).eq
   obtain ⟨hpre_tc, hv_tc, hst_tc, hres_tc, hc_tc⟩ :=
     computeTargetCapProg_spec (s := ⟨x.mem, x.frontier⟩) hsplit.root_hdr
       (by change base < x.frontier; rw [hfr, hce_old]; omega) hnU hfit1
@@ -1324,7 +989,7 @@ private theorem migrateLoadOldCode_exec {U V w N_old n n_init base L_peak : ℕ}
       (computeTargetCapProg (base, n))).frontier ≤ x₇.frontier := by
     rw [hms₇, hst_tc, hx₇f]
   obtain ⟨y, hex_tc, hyb, hyf, hm_tc, hout_tc, hframe_tc⟩ :=
-    execMigWitness wTargetCap factor_wTargetCap_le srcTargetCap tmpTargetCap
+    execWitness wTargetCap factor_wTargetCap_le mFr srcTargetCap tmpTargetCap
       tmpTargetCap_inj srcTargetCap_ne_tmp tmpTargetCap_ne_mFr srcTargetCap_ne_mFr
       (base, n) hx₇b (hx₇f.le.trans hL) hin_tc (hms₇ ▸ hpre_tc) (hms₇ ▸ hv_tc) hnoalloc_tc
   rw [hms₇, hst_tc] at hm_tc
@@ -1335,7 +1000,7 @@ private theorem migrateLoadOldCode_exec {U V w N_old n n_init base L_peak : ℕ}
     have h0 := hout_tc 0; rwa [tmpTargetCap_out] at h0
   have hy_keep : ∀ reg, reg ≠ mFr → reg.val < 160 → reg ≠ mNNew → y.regs reg = x₇.regs reg :=
     fun reg hfr' h160 hnn =>
-      hframe_tc reg hfr' (mkMigTmp_ne_reg _ h160 (fun a => by fin_cases a; exact hnn.symm))
+      hframe_tc reg hfr' (mkTmp_ne_reg _ h160 (fun a => by fin_cases a; exact hnn.symm))
   have hf1 := one_le_migFactor
   have hcost_tc : migFactor * (memoryCost (computeTargetCapProg (base, n))
       (memoryState mFr x₇.toData) + 1) ≤ 2 * migFactor := by
@@ -1701,10 +1366,10 @@ private theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
       exact hs₁_fr)
   have hin_wp1 : s₃.regs ∘ srcWriteParams =
       WordEncoding.encode (((base, base + 63), (N_new, (n, n)))) := by
-    refine (mRegs_pairSrc
-      (mRegs_pairSrc (mRegs_reg1_eq mBase ?_) (mRegs_reg1_eq mTmpA ?_))
-      (mRegs_pairSrc (mRegs_reg1_eq mNNew ?_)
-        (mRegs_pairSrc (mRegs_reg1_eq mCnt ?_) (mRegs_reg1_eq mCnt ?_)))).eq
+    refine (regs_pairSrc
+      (regs_pairSrc (regs_reg1_eq mBase ?_) (regs_reg1_eq mTmpA ?_))
+      (regs_pairSrc (regs_reg1_eq mNNew ?_)
+        (regs_pairSrc (regs_reg1_eq mCnt ?_) (regs_reg1_eq mCnt ?_)))).eq
     · simp [s₃, s₂, RData.set, hs₁_base]
     · simp [s₃, RData.set]
     · simp [s₃, s₂, RData.set, hs₁_nn, N_new]
@@ -1720,7 +1385,7 @@ private theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
       (by change (base + 63) + 63 ≤ x.frontier; rw [hfr, hce_old]; omega)
       hfit_dst1
   obtain ⟨s₄, hex_wp1, hs₄b, hs₄f, hm_wp1, hout_wp1, hframe_reg_wp1⟩ :=
-    execMigWitness wWriteParams factor_wWriteParams_le srcWriteParams tmpWriteParams
+    execWitness wWriteParams factor_wWriteParams_le mFr srcWriteParams tmpWriteParams
       tmpWriteParams_inj srcWriteParams_ne_tmp tmpWriteParams_ne_mFr srcWriteParams_ne_mFr
       ((base, base + 63), (N_new, (n, n))) hs₃b (hs₁f.le.trans hfr_le_peak)
       hin_wp1 (hms₃ ▸ hpre_wp1) (hms₃ ▸ hv_wp1)
@@ -1745,12 +1410,12 @@ private theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
   have hs₄_keep : ∀ reg, reg ≠ mFr → reg.val < 160 → reg ≠ mOffNew → reg ≠ mHSpaceNew →
       s₄.regs reg = s₃.regs reg := fun reg hfr' h160 ho hh =>
     hframe_reg_wp1 reg hfr'
-      (mkMigTmp_ne_reg _ h160 (fun a => by fin_cases a <;> [exact ho.symm; exact hh.symm]))
+      (mkTmp_ne_reg _ h160 (fun a => by fin_cases a <;> [exact ho.symm; exact hh.symm]))
   have hs₄_base : s₄.regs mBase = base :=
     (hs₄_keep mBase (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))
       (mReg_ne (by decide))).trans (by simp [s₃, s₂, RData.set, hs₁_base])
   obtain ⟨s₅, hex_nhp, hs₅b, hs₅m, hs₅f, hs₅_nhp, hs₅_r⟩ :=
-    loadMigBlockUpTo_exec mNewHp mNewHp_inj
+    loadBlockUpTo_exec mBase mCur (mReg_ne (by decide)) mNewHp mNewHp_inj
       (fun i => mNewHp_ne_mReg i (Or.inl (by decide)))
       (fun i => mNewHp_ne_mReg i (Or.inl (by decide)))
       (63 + offHashParams) 18 (by decide) hs₄b (hs₄f_eq.le.trans hfr_le_peak) hs₄_base
@@ -1759,7 +1424,7 @@ private theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
     (hs₅_r mBase (mReg_ne (by decide)) (fun i => mNewHp_ne_mReg i (Or.inl (by decide)))).trans
       hs₄_base
   obtain ⟨s₆, hex_ncp, hs₆b, hs₆m, hs₆f, hs₆_ncp, hs₆_r⟩ :=
-    loadMigBlockUpTo_exec mNewCp mNewCp_inj
+    loadBlockUpTo_exec mBase mCur (mReg_ne (by decide)) mNewCp mNewCp_inj
       (fun i => mNewCp_ne_mReg i (Or.inl (by decide)))
       (fun i => mNewCp_ne_mReg i (Or.inl (by decide)))
       (63 + offCompParams) 35 (by decide) hs₅b ((hs₅f.trans hs₄f_eq).le.trans hfr_le_peak) hs₅_base
@@ -1789,7 +1454,7 @@ private theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
   have hs₆_fr_reg : s₆.regs mFr = x.frontier :=
     (hs₆_keep4 (c := 1) (Or.inl (by decide)) (by decide)).trans hs₄_fr_reg
   have hin_niw : s₆.regs ∘ srcNewIw = WordEncoding.encode (mkCompParams U V w N_new, n) :=
-    (mRegs_pairSrc (mRegs_cp_eq hs₆_ncp_all) (mRegs_reg1_eq mCnt hs₆_cnt)).eq
+    (regs_pairSrc (regs_cp_eq hs₆_ncp_all) (regs_reg1_eq mCnt hs₆_cnt)).eq
   have hfit_niw4 : Fits w (4 + iwNew) :=
     hfit_ar.of_le (by rw [haw_def]; dsimp only [arenaB]; omega)
   have hsafe_niw : CompItemWordsPre w (mkCompParams U V w N_new, n) (memoryState mFr s₆.toData) :=
@@ -1798,7 +1463,7 @@ private theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
     (memoryState mFr s₆.toData)
     ⟨wellFormed_memoryState hs₆b.1, Nat.zero_le _⟩
   obtain ⟨s₇, hex_niw, hs₇b, hs₇f, hm_niw, hout_niw, hframe_niw⟩ :=
-    execMigWitness wItemWords factor_mItemWords_le srcNewIw tmpNewIw
+    execWitness wItemWords factor_mItemWords_le mFr srcNewIw tmpNewIw
       tmpNewIw_inj srcNewIw_ne_tmp tmpNewIw_ne_mFr srcNewIw_ne_mFr
       (mkCompParams U V w N_new, n) hs₆b (hs₆f_eq.le.trans hfr_le_peak)
       hin_niw hsafe_niw hv_niw
@@ -1813,7 +1478,7 @@ private theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
     have h0 := hout_niw 0; rwa [tmpNewIw_out, clientResult_compItemWordsGenProg hw] at h0
   have hs₇_keep6 : ∀ reg, reg ≠ mFr → reg.val < 160 → reg ≠ mIwNew → s₇.regs reg = s₆.regs reg :=
     fun reg h1 h160 hiw => hframe_niw reg h1
-      (mkMigTmp_ne_reg _ h160 (fun a => by fin_cases a; exact hiw.symm))
+      (mkTmp_ne_reg _ h160 (fun a => by fin_cases a; exact hiw.symm))
   have hs₇_nm : s₇.regs mNewMeta = newMeta :=
     (hs₇_keep6 mNewMeta (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))).trans <|
     (hs₆_keep4 (c := 146) (Or.inr (by decide)) (by decide)).trans <|
@@ -2042,7 +1707,7 @@ private theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
     hs₈b mGrow_nodup hfit1 hsum_grow.le (hsum_grow ▸ hfit_peak)
   rw [hs₈_k] at hex_gz
   set s₉ := growZeroPost mK mRes mCur mIdx mZero mOne s₈
-  have hs₉b : s₉.Bounded w := mGrowZeroPost_bounded hs₈b hfit1 (hsum_grow ▸ hfit_peak)
+  have hs₉b : s₉.Bounded w := growZeroPost_bounded hs₈b hfit1 (hsum_grow ▸ hfit_peak)
   have hs₉m_eq : s₉.mem = s₈.mem := rfl
   have hs₉f_eq : s₉.frontier = peakF := hsum_grow
   have hs₉_keep8 : ∀ reg, reg ∉ ([mRes, mCur, mIdx, mZero, mOne] : List (Fin rResize)) →
@@ -2079,15 +1744,15 @@ private theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
     (hs₉_keep8 mIwOld
       (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hs₈_iwo
   have hin_cr : s₁₀.regs ∘ srcCopyRight = WordEncoding.encode ((newMeta, oldItemDst), iwOld) :=
-    (mRegs_pairSrc (mRegs_pairSrc (mRegs_reg1_eq mNewMeta hs₁₀_nm)
-      (mRegs_reg1_eq mOldItemDst hs₁₀_oid)) (mRegs_reg1_eq mIwOld hs₁₀_iwo)).eq
+    (regs_pairSrc (regs_pairSrc (regs_reg1_eq mNewMeta hs₁₀_nm)
+      (regs_reg1_eq mOldItemDst hs₁₀_oid)) (regs_reg1_eq mIwOld hs₁₀_iwo)).eq
   obtain ⟨hpre_cr, hv_cr, hc_cr, hfr_cr, hcp_cr, hout_cr⟩ :=
     copyRightwardProg_spec (w := w) (srcBase := newMeta) (dstBase := oldItemDst) (len := iwOld)
       (s₀ := ⟨s₈.mem, peakF⟩) (fun a _ => hs₈b.mem_fits a)
       (by dsimp only [oldItemDst, arenaB]; linarith only [h225_new])
       (by change oldItemDst + iwOld ≤ peakF; rw [hdst_end, hpeak_eq]) hfit1
   obtain ⟨s₁₁, hex_cr, hs₁₁b, hs₁₁f, hm_cr, _, hframe_reg_cr⟩ :=
-    execMigWitness wCopyRight factor_wCopyRight_le srcCopyRight tmpCopyRight
+    execWitness wCopyRight factor_wCopyRight_le mFr srcCopyRight tmpCopyRight
       tmpCopyRight_inj srcCopyRight_ne_tmp tmpCopyRight_ne_mFr srcCopyRight_ne_mFr
       ((newMeta, oldItemDst), iwOld) hs₁₀b hs₉f_eq.le
       hin_cr (hms₁₀ ▸ hpre_cr) (hms₁₀ ▸ hv_cr)
@@ -2100,7 +1765,7 @@ private theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
       (copyRightwardProg ((newMeta, oldItemDst), iwOld))).mem :=
     congrArg Memory.State.mem hm_cr
   have hs₁₁_keep10 : ∀ reg, reg ≠ mFr → reg.val < 160 → s₁₁.regs reg = s₁₀.regs reg :=
-    fun reg h1 h160 => hframe_reg_cr reg h1 (mkMigTmp_ne_reg _ h160 (fun a => Fin.elim0 a))
+    fun reg h1 h160 => hframe_reg_cr reg h1 (mkTmp_ne_reg _ h160 (fun a => Fin.elim0 a))
   -- 9. `mTmpA := mNewMeta; wWriteParams` #2 at `dstMetaBase = newMeta`
   set s₁₂ := s₁₁.set mTmpA newMeta
   have hs₁₁_nm : s₁₁.regs mNewMeta = newMeta :=
@@ -2138,11 +1803,11 @@ private theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
       (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hs₈_nn
   have hin_wp2 : s₁₂.regs ∘ srcWriteParams =
       WordEncoding.encode (((base, newMeta), (N_new, (n, n)))) := by
-    refine (mRegs_pairSrc
-      (mRegs_pairSrc (mRegs_reg1_eq mBase hs₁₂_base)
-        (mRegs_reg1_eq mTmpA (by simp [s₁₂, RData.set])))
-      (mRegs_pairSrc (mRegs_reg1_eq mNNew hs₁₂_nn)
-        (mRegs_pairSrc (mRegs_reg1_eq mCnt hs₁₂_cnt) (mRegs_reg1_eq mCnt hs₁₂_cnt)))).eq
+    refine (regs_pairSrc
+      (regs_pairSrc (regs_reg1_eq mBase hs₁₂_base)
+        (regs_reg1_eq mTmpA (by simp [s₁₂, RData.set])))
+      (regs_pairSrc (regs_reg1_eq mNNew hs₁₂_nn)
+        (regs_pairSrc (regs_reg1_eq mCnt hs₁₂_cnt) (regs_reg1_eq mCnt hs₁₂_cnt)))).eq
   have hnm_le_oid : newMeta ≤ oldItemDst := by
     dsimp only [oldItemDst, arenaB]; linarith only [h225_new]
   have hhdr₁₁ : RootHeaderValid U V w N_old n n_init base s₁₁.mem :=
@@ -2161,7 +1826,7 @@ private theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
       (by change newMeta + 63 ≤ peakF; rw [hpeak_eq]; dsimp only [arenaB]; linarith only [h225_new])
       hfit_dst2
   obtain ⟨s₁₃, hex_wp2, hs₁₃b, hs₁₃f, hm_wp2, hout_wp2, hframe_reg_wp2⟩ :=
-    execMigWitness wWriteParams factor_wWriteParams_le srcWriteParams tmpWriteParams
+    execWitness wWriteParams factor_wWriteParams_le mFr srcWriteParams tmpWriteParams
       tmpWriteParams_inj srcWriteParams_ne_tmp tmpWriteParams_ne_mFr srcWriteParams_ne_mFr
       ((base, newMeta), (N_new, (n, n))) hs₁₂b hs₁₁f_eq.le
       hin_wp2 (hms₁₂ ▸ hpre_wp2) (hms₁₂ ▸ hv_wp2)
@@ -2179,7 +1844,7 @@ private theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
   have hs₁₃_keep12 : ∀ reg, reg ≠ mFr → reg.val < 160 → reg ≠ mOffNew → reg ≠ mHSpaceNew →
       s₁₃.regs reg = s₁₂.regs reg := fun reg h1 h160 ho hh =>
     hframe_reg_wp2 reg h1
-      (mkMigTmp_ne_reg _ h160 (fun a => by fin_cases a <;> [exact ho.symm; exact hh.symm]))
+      (mkTmp_ne_reg _ h160 (fun a => by fin_cases a <;> [exact ho.symm; exact hh.symm]))
   -- 10. `mCur := 225; mHashBase := mNewMeta + mCur`
   set s₁₄ := s₁₃.set mCur 225
   have hex_c225 := RDemonicExec.const (B := .exact) (d := mCur) (v := 225) (x := s₁₃)
@@ -2486,17 +2151,17 @@ private theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
         Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mTmpA)]
       exact hz₄_fr_reg)
   have hin_cl1 : z₇.regs ∘ srcCopyLeft = WordEncoding.encode ((newMeta, base), offNew) :=
-    (mRegs_pairSrc
-      (mRegs_pairSrc (mRegs_reg1_eq mTmpA (by simp [z₇, z₆, z₅, RData.set]))
-        (mRegs_reg1_eq mTmpB (by simp [z₇, z₆, RData.set])))
-      (mRegs_reg1_eq mCur (by simp [z₇, RData.set]))).eq
+    (regs_pairSrc
+      (regs_pairSrc (regs_reg1_eq mTmpA (by simp [z₇, z₆, z₅, RData.set]))
+        (regs_reg1_eq mTmpB (by simp [z₇, z₆, RData.set])))
+      (regs_reg1_eq mCur (by simp [z₇, RData.set]))).eq
   obtain ⟨hpre_cl1, hv_cl1, hc_cl1, hfr_cl1, hcp_cl1, hout_cl1⟩ :=
     copyLeftwardProg_spec (w := w) (srcBase := newMeta) (dstBase := base) (len := offNew)
       (s₀ := ⟨z₄.mem, peakF⟩) (fun a _ => hz₄b.mem_fits a)
       (Nat.le_add_right _ _)
       (by change newMeta + offNew ≤ peakF; rw [hpeak_ar]; exact Nat.le_add_right _ _) hfit1
   obtain ⟨z₈, hex_cl1, hz₈b, hz₈f, hm_cl1, _, hframe_reg_cl1⟩ :=
-    execMigWitness wCopyLeft factor_wCopyLeft_le srcCopyLeft tmpCopyLeft
+    execWitness wCopyLeft factor_wCopyLeft_le mFr srcCopyLeft tmpCopyLeft
       tmpCopyLeft_inj srcCopyLeft_ne_tmp tmpCopyLeft_ne_mFr srcCopyLeft_ne_mFr
       ((newMeta, base), offNew) hz₇b hz₄f_eq.le
       hin_cl1 (hms₇ ▸ hpre_cl1) (hms₇ ▸ hv_cl1)
@@ -2508,7 +2173,7 @@ private theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
       (copyLeftwardProg ((newMeta, base), offNew))).mem :=
     congrArg Memory.State.mem hm_cl1
   have hz₈_keep7 : ∀ reg, reg ≠ mFr → reg.val < 160 → z₈.regs reg = z₇.regs reg :=
-    fun reg h1 h160 => hframe_reg_cl1 reg h1 (mkMigTmp_ne_reg _ h160 (fun a => Fin.elim0 a))
+    fun reg h1 h160 => hframe_reg_cl1 reg h1 (mkTmp_ne_reg _ h160 (fun a => Fin.elim0 a))
   -- Leftward copy #2: `[arenaB, arenaB + iwNew)` -> `[base + offNew, base + offNew + iwNew)`
   have hz₈_base : z₈.regs mBase = base :=
     (hz₈_keep7 mBase (mReg_ne (by decide)) (mReg_lt_160 _)).trans
@@ -2558,10 +2223,10 @@ private theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
         Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mItemBase)]
       exact hz₈_fr_reg)
   have hin_cl2 : z₁₂.regs ∘ srcCopyLeft = WordEncoding.encode ((arenaB, base + offNew), iwNew) :=
-    (mRegs_pairSrc
-      (mRegs_pairSrc (mRegs_reg1_eq mTmpA (by simp [z₁₂, z₁₁, z₁₀, RData.set]))
-        (mRegs_reg1_eq mTmpB (by simp [z₁₂, z₁₁, RData.set])))
-      (mRegs_reg1_eq mCur (by simp [z₁₂, RData.set]))).eq
+    (regs_pairSrc
+      (regs_pairSrc (regs_reg1_eq mTmpA (by simp [z₁₂, z₁₁, z₁₀, RData.set]))
+        (regs_reg1_eq mTmpB (by simp [z₁₂, z₁₁, RData.set])))
+      (regs_reg1_eq mCur (by simp [z₁₂, RData.set]))).eq
   obtain ⟨hpre_cl2, hv_cl2, hc_cl2, hfr_cl2, hcp_cl2, hout_cl2⟩ :=
     copyLeftwardProg_spec (w := w) (srcBase := arenaB) (dstBase := base + offNew) (len := iwNew)
       (s₀ := ⟨z₈.mem, peakF⟩) (fun a _ => hz₈b.mem_fits a)
@@ -2569,7 +2234,7 @@ private theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
       (by change arenaB + iwNew ≤ peakF; rw [hpeak_ar]; exact Nat.add_le_add_left hiwn_le_aw _)
       hfit1
   obtain ⟨z₁₃, hex_cl2, hz₁₃b, hz₁₃f, hm_cl2, _, hframe_reg_cl2⟩ :=
-    execMigWitness wCopyLeft factor_wCopyLeft_le srcCopyLeft tmpCopyLeft
+    execWitness wCopyLeft factor_wCopyLeft_le mFr srcCopyLeft tmpCopyLeft
       tmpCopyLeft_inj srcCopyLeft_ne_tmp tmpCopyLeft_ne_mFr srcCopyLeft_ne_mFr
       ((arenaB, base + offNew), iwNew) hz₁₂b hz₈f_eq.le
       hin_cl2 (hms₁₂ ▸ hpre_cl2) (hms₁₂ ▸ hv_cl2)
@@ -2580,7 +2245,7 @@ private theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
       (copyLeftwardProg ((arenaB, base + offNew), iwNew))).mem :=
     congrArg Memory.State.mem hm_cl2
   have hz₁₃_keep12 : ∀ reg, reg ≠ mFr → reg.val < 160 → z₁₃.regs reg = z₁₂.regs reg :=
-    fun reg h1 h160 => hframe_reg_cl2 reg h1 (mkMigTmp_ne_reg _ h160 (fun a => Fin.elim0 a))
+    fun reg h1 h160 => hframe_reg_cl2 reg h1 (mkTmp_ne_reg _ h160 (fun a => Fin.elim0 a))
   -- Shrink `[frNew, peakF)`
   have hz₁₃_ib : z₁₃.regs mItemBase = base + offNew :=
     (hz₁₃_keep12 mItemBase (mReg_ne (by decide)) (mReg_lt_160 _)).trans
@@ -2616,7 +2281,7 @@ private theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
     hz₁₅b mShrink_nodup hfit1 hz₁₃f_eq.le hsub_le_z15
   rw [hz₁₅_k] at hex_sh
   set z := shrinkPost mK mIdx mZero mOne z₁₅
-  have hzb : z.Bounded w := mShrinkPost_bounded hz₁₅b hfit1 hsub_le_z15
+  have hzb : z.Bounded w := shrinkPost_bounded hz₁₅b hfit1 hsub_le_z15
   have hce_new : compactedEpochWords U V w N_new n = offNew + iwNew := by
     unfold compactedEpochWords; rw [ite_eq_right (Nat.ne_of_gt hn)]
   have hzf : z.frontier = base + compactedEpochWords U V w N_new n := by
@@ -2861,8 +2526,8 @@ private theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
   have hin_im : z₁.regs ∘ srcInitNewMeta =
       WordEncoding.encode ((mkHashParams w (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3,
         mkCompParams U V w N_new), newMeta) :=
-    (mRegs_pairSrc (mRegs_pairSrc (mRegs_hp_eq hz₁_nhp) (mRegs_cp_eq hz₁_ncp))
-      (mRegs_reg1_eq mTmpA (by simp [z₁, RData.set]))).eq
+    (regs_pairSrc (regs_pairSrc (regs_hp_eq hz₁_nhp) (regs_cp_eq hz₁_ncp))
+      (regs_reg1_eq mTmpA (by simp [z₁, RData.set]))).eq
   obtain ⟨hpre_im, hv_im, hc_im, hfr_im, hrep_new_im, _, hpot_im, h_empty_im, hframe_im⟩ :=
     initNewEpochMetaProg_spec (w := w) (U := U) (V := V) (N := N_new) (newMetaBase := newMeta)
       (arenaBase := arenaB) (θ_new := θ_new) (s₀ := ⟨y_rs.mem, peakF⟩)
@@ -2870,7 +2535,7 @@ private theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
       (by change newMeta + offNew ≤ peakF; rw [hpeak_eq]; exact Nat.le_add_right _ _)
       hfit_nm hrs_seed
   obtain ⟨z₂, hex_im, hz₂b, hz₂f, hm_im, _, hframe_reg_im⟩ :=
-    execMigWitness wInitNewMeta factor_wInitNewMeta_le srcInitNewMeta tmpInitNewMeta
+    execWitness wInitNewMeta factor_wInitNewMeta_le mFr srcInitNewMeta tmpInitNewMeta
       tmpInitNewMeta_inj srcInitNewMeta_ne_tmp tmpInitNewMeta_ne_mFr srcInitNewMeta_ne_mFr
       ((mkHashParams w (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3,
         mkCompParams U V w N_new), newMeta) hz₁b hz₀f.le
@@ -2884,7 +2549,7 @@ private theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
         mkCompParams U V w N_new), newMeta))).mem :=
     congrArg Memory.State.mem hm_im
   have hz₂_keep1 : ∀ reg, reg ≠ mFr → reg.val < 160 → z₂.regs reg = z₁.regs reg :=
-    fun reg h1 h160 => hframe_reg_im reg h1 (mkMigTmp_ne_reg _ h160 (fun a => Fin.elim0 a))
+    fun reg h1 h160 => hframe_reg_im reg h1 (mkTmp_ne_reg _ h160 (fun a => Fin.elim0 a))
   set z₃ := z₂.set mZero 0
   have hex_z3 := RDemonicExec.const (B := .exact) (d := mZero) (v := 0) (x := z₂) hz₂f_eq.le
     (fits_zero w)
@@ -2911,17 +2576,17 @@ private theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
     ((mkHashParams w (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3,
       mkCompParams U V w N_new), (newMeta, arenaB))), 0), n)
   have hin_sa : z₃.regs ∘ srcStreamAll = WordEncoding.encode d_sa := by
-    refine (mRegs_pairSrc
-      (mRegs_pairSrc
-        (mRegs_pairSrc
-          (mRegs_pairSrc
-            (mRegs_pairSrc (mRegs_hp_eq fun i => ?_) (mRegs_cp_eq fun i => ?_))
-            (mRegs_pairSrc (mRegs_reg1_eq mBase ?_) (mRegs_reg1_eq mOldItemDst ?_)))
-          (mRegs_pairSrc
-            (mRegs_pairSrc (mRegs_hp_eq fun i => ?_) (mRegs_cp_eq fun i => ?_))
-            (mRegs_pairSrc (mRegs_reg1_eq mNewMeta ?_) (mRegs_reg1_eq mArena ?_))))
-        (mRegs_reg1_eq mZero (by simp [z₃, RData.set])))
-      (mRegs_reg1_eq mCnt ?_)).eq
+    refine (regs_pairSrc
+      (regs_pairSrc
+        (regs_pairSrc
+          (regs_pairSrc
+            (regs_pairSrc (regs_hp_eq fun i => ?_) (regs_cp_eq fun i => ?_))
+            (regs_pairSrc (regs_reg1_eq mBase ?_) (regs_reg1_eq mOldItemDst ?_)))
+          (regs_pairSrc
+            (regs_pairSrc (regs_hp_eq fun i => ?_) (regs_cp_eq fun i => ?_))
+            (regs_pairSrc (regs_reg1_eq mNewMeta ?_) (regs_reg1_eq mArena ?_))))
+        (regs_reg1_eq mZero (by simp [z₃, RData.set])))
+      (regs_reg1_eq mCnt ?_)).eq
     · refine (hkeep_set_to_3 (mOldHp i) (mOldHp_lt_160 i) ?_).trans (hr_ohp i)
       simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
       exact ⟨mOldHp_ne_mReg i (Or.inl (by decide)), mOldHp_ne_mReg i (Or.inr (by decide)),
@@ -3021,7 +2686,7 @@ private theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
     rw [hms₃] at hwf₃ ⊢
     exact hvp_sa ⟨hwf₃, Nat.zero_le _⟩
   obtain ⟨z₄, hex_sa, hz₄b, hz₄f, hm_sa, _, hframe_reg_sa⟩ :=
-    execMigWitness wStreamAll factor_wStreamAll_le srcStreamAll tmpStreamAll
+    execWitness wStreamAll factor_wStreamAll_le mFr srcStreamAll tmpStreamAll
       tmpStreamAll_inj srcStreamAll_ne_tmp tmpStreamAll_ne_mFr srcStreamAll_ne_mFr
       d_sa hz₃b hz₂f_eq.le hin_sa (hms₃ ▸ hpre_sa) hv_sa
       (by rw [hms₃, hfr_sa]; exact hz₂f_eq.symm.le)
@@ -3033,7 +2698,7 @@ private theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
     congrArg Memory.State.mem hm_sa
   have hz₄_keep3 : ∀ reg, reg ≠ mFr → reg.val < 160 → reg ≠ mCur → z₄.regs reg = z₃.regs reg :=
     fun reg h1 h160 hcur => hframe_reg_sa reg h1
-      (mkMigTmp_ne_reg _ h160 (fun a => by fin_cases a; exact hcur.symm))
+      (mkTmp_ne_reg _ h160 (fun a => by fin_cases a; exact hcur.symm))
   have hz₄_nm : z₄.regs mNewMeta = newMeta :=
     (hz₄_keep3 mNewMeta (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))).trans <|
     (hkeep_set_to_3 mNewMeta (mReg_lt_160 _)
@@ -3116,91 +2781,82 @@ private theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
       hbelow_set addr haddr
   · nlinarith only [hsa_pot, hc_back, hn, hf1]
 
-/-- **Distributional Single-Tape `1 · OPT` Rebuild (`migrateActiveCode_execRCodeDist`):**
-From any active compacted epoch `(N_old, n, n_init_old)` (`1 ≤ n`, `EpochValid U n N_old`),
-`migrateActiveCode` resamples a fresh uniform `QuotHashSeed U (targetCap U n)` and streams all `n`
-entries into `(targetCap U n, n, n)` at `base` without ever exceeding hardware frontier
-`base + migratePeakWords U V w N_old n` (`≤ base + Dynamic.succinctWords 2699 888 U V w n`),
-bounding expected instructions plus post-migration `inEpochPotential` by `migLinearFactor * n`. -/
-theorem migrateActiveCode_execRCodeDist {U V w N_old n n_init base : ℕ}
-    {θ_old : QuotHashSeed U N_old} {s_abs : Dictionary.State U} {x : RData rResize}
-    (hx : x.Bounded w) (hn : 1 ≤ n) (hev : EpochValid U n N_old)
-    (hfr : x.frontier = base + compactedEpochWords U V w N_old n)
-    (hfit_peak : Fits w (base + migratePeakWords U V w N_old n))
-    (hsplit : CompactedSplitRep base (base + offCompItems U w N_old) U V w N_old n n_init θ_old
-      s_abs ⟨x.mem, x.frontier⟩)
-    (hbase : x.regs mBase = base) :
-    let N_new := targetCap U n
-    let peakF := base + migratePeakWords U V w N_old n
-    ∃ (zOf : QuotHashSeed U N_new → RData rResize) (T_mig : ℝ≥0∞),
-      ExecRCodeDist w migrateActiveCode x
-        ((PMF.uniformOfFintype (QuotHashSeed U N_new)).map zOf) T_mig peakF ∧
-      (∀ θ_new,
-        (zOf θ_new).Bounded w ∧
-        (zOf θ_new).frontier = base + compactedEpochWords U V w N_new n ∧
-        CompactedSplitRep base (base + offCompItems U w N_new) U V w N_new n n θ_new s_abs
-          ⟨(zOf θ_new).mem, (zOf θ_new).frontier⟩ ∧
-        (zOf θ_new).regs mBase = base ∧
-        (zOf θ_new).regs mTag = x.regs mTag ∧
-        (zOf θ_new).regs mArgU = x.regs mArgU ∧
-        (zOf θ_new).regs mArgV = x.regs mArgV ∧
-        (∀ addr < base, (zOf θ_new).mem addr = x.mem addr)) ∧
-      T_mig + (∑' θ_new, (PMF.uniformOfFintype (QuotHashSeed U N_new)) θ_new *
-          (inEpochPotential U w N_new base (zOf θ_new) : ℝ≥0∞)) ≤
-        ((migLinearFactor * n : ℕ) : ℝ≥0∞) := by
-  intro N_new peakF
-  obtain ⟨hw, hU, hV⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
-  have hNU_old : N_old ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
-  have hn_old : n ≤ N_old := by rcases hev with ⟨rfl, _⟩ | ⟨_, hnN, _, _⟩ <;> omega
-  have hnU : n ≤ U := hn_old.trans hNU_old
-  obtain ⟨hN_new_pos, _, _, hNU_new⟩ := targetCap_bounds_of_pos hn hnU
-  obtain ⟨y_set, steps_set, hex_set, hc_set, hy_set_b, hy_set_fr, habi_set, hbelow_set,
-      hhdr_set, hpar_set, hrep_old, hcpl_old,
-      hr_base, hr_cnt, hr_fr, hr_nm, hr_off, hr_iwn, hr_ar, hr_pf, hr_oid, hr_hb,
-      hr_ohp, hr_ocp, hr_nhp, hr_ncp⟩ :=
-    migrateSetupCode_exec hx hn hev hfr hfit_peak hsplit hbase
-  set newMeta := base + offCompItems U w N_old
-  set offNew := offCompItems U w N_new
-  have hpeak_def : base + migratePeakWords U V w N_old n =
-      newMeta + offNew + migrateArenaWords U V w N_old N_new n := by
-    unfold migratePeakWords; dsimp only [newMeta, offNew, N_new]; omega
-  have hpeak_raw : peakF = newMeta + offNew + migrateArenaWords U V w N_old N_new n := hpeak_def
-  have hfit_nm : Fits w (newMeta + offNew) := hfit_peak.of_le (by rw [hpeak_def]; omega)
+private theorem exec_setup_resample_finish
+    {U w N_new metaBase base peakF steps_set finBound : ℕ}
+    {setupCode finishCleanCode : RCode .exact rResize} {x y_set : RData rResize}
+    {P : QuotHashSeed U N_new → RData rResize → Prop}
+    (hw : 0 < w) (hU : U < 2 ^ w) (hNU : N_new ≤ U)
+    (hex_set : RDemonicExec w peakF setupCode x steps_set (· = y_set))
+    (hy_set_b : y_set.Bounded w) (hy_set_fr : y_set.frontier = peakF)
+    (hfit_nm : Fits w (metaBase + offCompItems U w N_new))
+    (hnm_le_peak : metaBase + offCompItems U w N_new ≤ peakF)
+    (hr_hb : y_set.regs mHashBase = metaBase + epochHdrWords)
+    (hr_nhp : ∀ j : Fin 19, y_set.regs (mNewHp j) =
+      mkHashParams w (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3 j)
+    (hfin_spec : ∀ (θ : QuotHashSeed U N_new) (y_rs : RData rResize),
+      y_rs.frontier = y_set.frontier →
+      ReducedKWise.SeedRep (metaBase + epochHdrWords) (qBits U N_new) (hashB N_new)
+        (totalMicroBits N_new) 3 θ y_rs.mem →
+      (∀ a, a < metaBase + epochHdrWords ∨
+          metaBase + epochHdrWords +
+            ReducedKWise.seedWords (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3 ≤ a →
+          y_rs.mem a = y_set.mem a) →
+      (∀ j : Fin rResize, j ∉ ([mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) →
+          y_rs.regs j = y_set.regs j) →
+      ∃ (z : RData rResize) (stepsClean : ℕ),
+        RDemonicExec w peakF finishCleanCode
+          (((((y_rs.set mCur 0).set mIdx 0).set mK 0).set mOne 0).set mRes 0)
+          stepsClean (· = z) ∧
+        P θ z ∧
+        (5 + stepsClean) + inEpochPotential U w N_new base z ≤ finBound) :
+    ∃ (zOf : QuotHashSeed U N_new → RData rResize) (T_all : ℝ≥0∞),
+      ExecRCodeDist w
+        (.seq setupCode <|
+          .seq (resampleHashCode mHashBase (mNewHp ⟨3, by decide⟩) (mNewHp ⟨2, by decide⟩)
+                 (mNewHp ⟨10, by decide⟩) mCur mIdx mK mOne mRes)
+               (.seq zeroResampleRegsCode finishCleanCode))
+        x ((PMF.uniformOfFintype (QuotHashSeed U N_new)).map zOf) T_all peakF ∧
+      (∀ θ, P θ (zOf θ)) ∧
+      T_all + (∑' θ, (PMF.uniformOfFintype (QuotHashSeed U N_new)) θ *
+          (inEpochPotential U w N_new base (zOf θ) : ℝ≥0∞)) ≤
+        ((steps_set + 826 + finBound : ℕ) : ℝ≥0∞) := by
   have h225_fit : Fits w 225 := fits_const_of_offCompItems hfit_nm le_rfl
   have hw2 : 2 ≤ w := by
     by_contra hlt2; have hw1 : w ≤ 1 := by omega
     have := Nat.pow_le_pow_right two_pos hw1
     change 225 < 2 ^ w at h225_fit; omega
-  have hlm_le_new : offCompLM U w N_new ≤ offNew := by
-    dsimp only [offNew]; unfold offCompItems offDenseToTail offTailToDense offCompGM; omega
-  have hsp_le_new : 225 + ReducedKWise.space w (qBits U N_new) (hashB N_new)
-      (totalMicroBits N_new) 3 ≤ offNew := by
+  have hlm_le : offCompLM U w N_new ≤ offCompItems U w N_new := by
+    unfold offCompItems offDenseToTail offTailToDense offCompGM; omega
+  have hsp_le : 225 + ReducedKWise.space w (qBits U N_new) (hashB N_new)
+      (totalMicroBits N_new) 3 ≤ offCompItems U w N_new := by
     dsimp only [offCompLM, epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits, hashB]
-      at hlm_le_new ⊢
-    exact hlm_le_new
+      at hlm_le ⊢
+    exact hlm_le
   have hsw_le_sp : ReducedKWise.seedWords (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3 ≤
       ReducedKWise.space w (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3 :=
     Nat.le_add_right _ _
-  have hfit_h_new : Fits w ((newMeta + epochHdrWords) +
+  have hfit_h : Fits w ((metaBase + epochHdrWords) +
       ReducedKWise.space w (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3) :=
     hfit_nm.of_le (by unfold epochHdrWords; omega)
-  have hc_lt_new : 2 * reducedChunkBits
+  have hc_lt : 2 * reducedChunkBits
       (reducedTrinomialStep (qBits U N_new) (hashB N_new) (totalMicroBits N_new)) < w :=
     ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space
-      (two_mul_reducedChunkBits_hash_le hw2 hNU_new hU.le) hfit_h_new
+      (two_mul_reducedChunkBits_hash_le hw2 hNU hU.le) hfit_h
+  have hsw_le_fr : metaBase + epochHdrWords +
+      ReducedKWise.seedWords (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3 ≤
+      y_set.frontier := by
+    rw [hy_set_fr]; unfold epochHdrWords; omega
   obtain ⟨μ_rs, hex_rs, hmap_unif, hrs_supp⟩ :=
     resampleHashCode_execRCodeDist (w := w) (L_peak := peakF)
       (w₀ := qBits U N_new) (b := hashB N_new) (b' := totalMicroBits N_new) (k := 3)
-      (hashBase := newMeta + epochHdrWords) (x := y_set)
-      mResample_nodup (qBits_le_of_le_pow hw hU.le) hc_lt_new hy_set_fr.le
-      (by rw [hy_set_fr, hpeak_def]; unfold epochHdrWords; omega)
-      (hfit_h_new.of_le (by omega))
-      hr_hb
+      (hashBase := metaBase + epochHdrWords) (x := y_set)
+      mResample_nodup (qBits_le_of_le_pow hw hU.le) hc_lt hy_set_fr.le hsw_le_fr
+      (hfit_h.of_le (by omega)) hr_hb
       (by rw [hr_nhp ⟨3, by decide⟩]; rfl)
       (by rw [hr_nhp ⟨2, by decide⟩]; rfl)
       (by rw [hr_nhp ⟨10, by decide⟩]; rfl)
   let extSeed (y : RData rResize) : QuotHashSeed U N_new :=
-    ReducedKWise.extractSeed (newMeta + epochHdrWords) (qBits U N_new) (hashB N_new)
+    ReducedKWise.extractSeed (metaBase + epochHdrWords) (qBits U N_new) (hashB N_new)
       (totalMicroBits N_new) 3 y.mem
   have hcanon_z₀ : ∀ {y₁ y₂ : RData rResize}, y₁ ∈ μ_rs.support → y₂ ∈ μ_rs.support →
       extSeed y₁ = extSeed y₂ →
@@ -3237,8 +2893,8 @@ theorem migrateActiveCode_execRCodeDist {U V w N_old n n_init base : ℕ}
     · funext a
       dsimp only [RData.set]
       by_cases ha_out :
-          a < newMeta + epochHdrWords ∨
-            newMeta + epochHdrWords +
+          a < metaBase + epochHdrWords ∨
+            metaBase + epochHdrWords +
               ReducedKWise.seedWords (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3 ≤ a
       · exact (hmem₁ a ha_out).trans (hmem₂ a ha_out).symm
       · rw [not_or, not_lt, not_le] at ha_out
@@ -3248,51 +2904,46 @@ theorem migrateActiveCode_execRCodeDist {U V w N_old n n_init base : ℕ}
             (reducedTrinomialStep (qBits U N_new) (hashB N_new) (totalMicroBits N_new))
           have hsw : ReducedKWise.seedWords (qBits U N_new) (hashB N_new)
               (totalMicroBits N_new) 3 = 1 + 3 * L := rfl
-          have hoff_lt : a - (newMeta + epochHdrWords + 1) < 3 * L := by omega
+          have hoff_lt : a - (metaBase + epochHdrWords + 1) < 3 * L := by omega
           have hL_pos : 0 < L := by omega
-          let m : Fin L := ⟨(a - (newMeta + epochHdrWords + 1)) % L, Nat.mod_lt _ hL_pos⟩
-          let j : Fin 3 := ⟨(a - (newMeta + epochHdrWords + 1)) / L,
+          let m : Fin L := ⟨(a - (metaBase + epochHdrWords + 1)) % L, Nat.mod_lt _ hL_pos⟩
+          let j : Fin 3 := ⟨(a - (metaBase + epochHdrWords + 1)) / L,
             Nat.div_lt_of_lt_mul (by rw [Nat.mul_comm]; exact hoff_lt)⟩
-          have haddr : newMeta + epochHdrWords + 1 + (m.val + L * j.val) = a := by
-            have hmod := Nat.mod_add_div (a - (newMeta + epochHdrWords + 1)) L
+          have haddr : metaBase + epochHdrWords + 1 + (m.val + L * j.val) = a := by
+            have hmod := Nat.mod_add_div (a - (metaBase + epochHdrWords + 1)) L
             dsimp only [m, j]; omega
           rw [← haddr]
           exact (hseed₁.2 j m).trans (hseed₂.2 j m).symm
     · exact hfr₁.trans hfr₂.symm
-  have hex_rep : ∀ θ_new : QuotHashSeed U N_new,
-      ∃ y_rs ∈ μ_rs.support, extSeed y_rs = θ_new := fun θ_new => by
-    have hmem_u : θ_new ∈ (PMF.uniformOfFintype (QuotHashSeed U N_new)).support :=
-      Cslib.Probability.PMF.mem_support_uniformOfFintype θ_new
+  have hex_rep : ∀ θ : QuotHashSeed U N_new,
+      ∃ y_rs ∈ μ_rs.support, extSeed y_rs = θ := fun θ => by
+    have hmem_u : θ ∈ (PMF.uniformOfFintype (QuotHashSeed U N_new)).support :=
+      Cslib.Probability.PMF.mem_support_uniformOfFintype θ
     rw [← hmap_unif, PMF.mem_support_map_iff] at hmem_u
     exact hmem_u
   choose yRep hyRep_supp hyRep_seed using hex_rep
-  have hfin_rep := fun θ_new =>
-    migrateFinishCode_exec hn hev hsplit.card_eq hsplit.vals_lt hfit_peak
-      hy_set_b hy_set_fr habi_set hbelow_set hhdr_set hpar_set hrep_old hcpl_old
-      hr_base hr_cnt hr_fr hr_nm hr_off hr_iwn hr_ar hr_pf hr_oid hr_ohp hr_ocp hr_nhp hr_ncp
-      (hrs_supp _ (hyRep_supp θ_new)).1
+  have hfin_rep := fun θ =>
+    hfin_spec θ (yRep θ) (hrs_supp _ (hyRep_supp θ)).1
       (by
-        have hs := (hrs_supp _ (hyRep_supp θ_new)).2.1
-        change ReducedKWise.SeedRep _ _ _ _ _ (extSeed (yRep θ_new)) _ at hs
-        rw [hyRep_seed θ_new] at hs
+        have hs := (hrs_supp _ (hyRep_supp θ)).2.1
+        change ReducedKWise.SeedRep _ _ _ _ _ (extSeed (yRep θ)) _ at hs
+        rw [hyRep_seed θ] at hs
         exact hs)
-      (hrs_supp _ (hyRep_supp θ_new)).2.2.1
-      (hrs_supp _ (hyRep_supp θ_new)).2.2.2
-  choose zOf stepsClean hfin_spec using hfin_rep
+      (hrs_supp _ (hyRep_supp θ)).2.2.1
+      (hrs_supp _ (hyRep_supp θ)).2.2.2
+  choose zOf stepsClean hfin_res using hfin_rep
   have hfin_any : ∀ y_rs ∈ μ_rs.support,
-      ExecRCodeDist w migrateFinishCode y_rs (PMF.pure (zOf (extSeed y_rs)))
-        ((5 + stepsClean (extSeed y_rs) : ℕ) : ℝ≥0∞) peakF := by
+      ExecRCodeDist w (.seq zeroResampleRegsCode finishCleanCode) y_rs
+        (PMF.pure (zOf (extSeed y_rs))) ((5 + stepsClean (extSeed y_rs) : ℕ) : ℝ≥0∞) peakF := by
     intro y_rs hy_rs
     obtain ⟨hfr_y, hseed_y, hmem_y, hreg_y⟩ := hrs_supp y_rs hy_rs
     obtain ⟨z₀, hz₀_def, hex_zr, _, _, _, _⟩ :=
       zeroResampleRegsCode_exec hy_set_b hfr_y hy_set_fr.le
-        (qBits_le_of_le_pow hw hU.le) hc_lt_new
-        (by rw [hy_set_fr, hpeak_def]; unfold epochHdrWords; omega)
-        hseed_y hmem_y hreg_y
+        (qBits_le_of_le_pow hw hU.le) hc_lt hsw_le_fr hseed_y hmem_y hreg_y
     have hz₀_eq : z₀ =
         ((((( (yRep (extSeed y_rs)).set mCur 0).set mIdx 0).set mK 0).set mOne 0).set mRes 0) :=
       hz₀_def.trans (hcanon_z₀ hy_rs (hyRep_supp (extSeed y_rs)) (hyRep_seed (extSeed y_rs)).symm)
-    have hex_cl := hz₀_eq ▸ (hfin_spec (extSeed y_rs)).1
+    have hex_cl := hz₀_eq ▸ (hfin_res (extSeed y_rs)).1
     exact ExecRCodeDist.of_demonicExec (hex_zr.seq_eq hex_cl)
   have hex_tail := hex_rs.seq hfin_any
   have hmu_eq : μ_rs.bind (fun y_rs => PMF.pure (zOf (extSeed y_rs))) =
@@ -3300,67 +2951,122 @@ theorem migrateActiveCode_execRCodeDist {U V w N_old n n_init base : ℕ}
     have h1 : μ_rs.bind (fun y_rs => PMF.pure (zOf (extSeed y_rs))) =
         μ_rs.map (zOf ∘ extSeed) := rfl
     rw [h1, ← PMF.map_comp, hmap_unif]
-  have hex_full :=
-    (ExecRCodeDist.of_demonicExec hex_set).seq_pure (hmu_eq ▸ hex_tail)
+  have hex_full := (ExecRCodeDist.of_demonicExec hex_set).seq_pure (hmu_eq ▸ hex_tail)
   set μ_u := PMF.uniformOfFintype (QuotHashSeed U N_new)
   have htsum_fin : (∑' y_rs, μ_rs y_rs * ((5 + stepsClean (extSeed y_rs) : ℕ) : ℝ≥0∞)) =
-      ∑' θ_new, μ_u θ_new * ((5 + stepsClean θ_new : ℕ) : ℝ≥0∞) := by
+      ∑' θ, μ_u θ * ((5 + stepsClean θ : ℕ) : ℝ≥0∞) := by
     rw [← Cslib.Probability.PMF.tsum_map_mul μ_rs extSeed
       (fun θ => ((5 + stepsClean θ : ℕ) : ℝ≥0∞)), hmap_unif]
   have hsw_le_163 :
       ReducedKWise.seedWords (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3 ≤ 163 :=
     (ReducedKWise.seedWords_le _ _ _ 3).trans (by decide)
-  have hf1 := one_le_migFactor
-  have hpt_bound : ∀ θ_new,
-      ((5 + stepsClean θ_new : ℕ) : ℝ≥0∞) +
-        (inEpochPotential U w N_new base (zOf θ_new) : ℝ≥0∞) ≤
-        (((93500 * migFactor + 10000) * n : ℕ) : ℝ≥0∞) := fun θ_new => by
+  have hpt_bound : ∀ θ,
+      ((5 + stepsClean θ : ℕ) : ℝ≥0∞) +
+        (inEpochPotential U w N_new base (zOf θ) : ℝ≥0∞) ≤ (finBound : ℝ≥0∞) := fun θ => by
     rw [← Nat.cast_add]
-    exact (Nat.cast_le (α := ℝ≥0∞)).mpr (hfin_spec θ_new).2.2.2.2.2.2
+    exact (Nat.cast_le (α := ℝ≥0∞)).mpr (hfin_res θ).2.2
   have hsum_fin_pot :
-      (∑' θ_new, μ_u θ_new * ((5 + stepsClean θ_new : ℕ) : ℝ≥0∞)) +
-        (∑' θ_new, μ_u θ_new * (inEpochPotential U w N_new base (zOf θ_new) : ℝ≥0∞)) ≤
-        (((93500 * migFactor + 10000) * n : ℕ) : ℝ≥0∞) := by
+      (∑' θ, μ_u θ * ((5 + stepsClean θ : ℕ) : ℝ≥0∞)) +
+        (∑' θ, μ_u θ * (inEpochPotential U w N_new base (zOf θ) : ℝ≥0∞)) ≤
+        (finBound : ℝ≥0∞) := by
     rw [← CompleteLattice.summable.tsum_add CompleteLattice.summable]
-    calc (∑' θ_new, (μ_u θ_new * ((5 + stepsClean θ_new : ℕ) : ℝ≥0∞) +
-            μ_u θ_new * (inEpochPotential U w N_new base (zOf θ_new) : ℝ≥0∞)))
-        = ∑' θ_new, μ_u θ_new * (((5 + stepsClean θ_new : ℕ) : ℝ≥0∞) +
-            (inEpochPotential U w N_new base (zOf θ_new) : ℝ≥0∞)) :=
+    calc (∑' θ, (μ_u θ * ((5 + stepsClean θ : ℕ) : ℝ≥0∞) +
+            μ_u θ * (inEpochPotential U w N_new base (zOf θ) : ℝ≥0∞)))
+        = ∑' θ, μ_u θ * (((5 + stepsClean θ : ℕ) : ℝ≥0∞) +
+            (inEpochPotential U w N_new base (zOf θ) : ℝ≥0∞)) :=
           tsum_congr fun _ => (mul_add _ _ _).symm
-      _ ≤ ∑' θ_new, μ_u θ_new * (((93500 * migFactor + 10000) * n : ℕ) : ℝ≥0∞) :=
-          tsum_le_tsum fun θ_new => mul_le_mul_right (hpt_bound θ_new) _
-      _ = (((93500 * migFactor + 10000) * n : ℕ) : ℝ≥0∞) := by
+      _ ≤ ∑' θ, μ_u θ * (finBound : ℝ≥0∞) :=
+          tsum_le_tsum fun θ => mul_le_mul_right (hpt_bound θ) _
+      _ = (finBound : ℝ≥0∞) := by
           rw [ENNReal.tsum_mul_right, μ_u.tsum_coe, one_mul]
-  refine ⟨zOf, _, hex_full, fun θ_new => ?_, ?_⟩
-  · obtain ⟨_, hzb, hzf, hsp, habi, hbel, _⟩ := hfin_spec θ_new
-    exact ⟨hzb, hzf, hsp, habi.1.trans hbase, habi.2.1, habi.2.2.1, habi.2.2.2, hbel⟩
-  · rw [htsum_fin, add_assoc, add_assoc]
-    have h_sr : (steps_set : ℝ≥0∞) +
-        ((5 * ReducedKWise.seedWords (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3 +
-            11 : ℕ) : ℝ≥0∞) ≤
-        (((265 * migFactor + 13226) * n : ℕ) : ℝ≥0∞) := by
-      rw [← Nat.cast_add]
-      refine (Nat.cast_le (α := ℝ≥0∞)).mpr ?_
-      have hsw_n : 5 * ReducedKWise.seedWords (qBits U N_new) (hashB N_new)
-          (totalMicroBits N_new) 3 + 11 ≤ 826 * n := by omega
-      linarith only [hc_set, hsw_n]
-    calc (steps_set : ℝ≥0∞) +
-          (((5 * ReducedKWise.seedWords (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3 +
-              11 : ℕ) : ℝ≥0∞) +
-            ((∑' θ_new, μ_u θ_new * ((5 + stepsClean θ_new : ℕ) : ℝ≥0∞)) +
-              (∑' θ_new, μ_u θ_new * (inEpochPotential U w N_new base (zOf θ_new) : ℝ≥0∞))))
-        ≤ ((steps_set : ℝ≥0∞) +
-            ((5 * ReducedKWise.seedWords (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3 +
-                11 : ℕ) : ℝ≥0∞)) +
-          (((93500 * migFactor + 10000) * n : ℕ) : ℝ≥0∞) := by
-          rw [← add_assoc]; gcongr
-      _ ≤ (((265 * migFactor + 13226) * n : ℕ) : ℝ≥0∞) +
-          (((93500 * migFactor + 10000) * n : ℕ) : ℝ≥0∞) := by gcongr
-      _ ≤ ((migLinearFactor * n : ℕ) : ℝ≥0∞) := by
-          rw [← Nat.cast_add]
-          refine (Nat.cast_le (α := ℝ≥0∞)).mpr ?_
-          unfold migLinearFactor
-          nlinarith only [hn, hf1]
+  refine ⟨zOf, _, hex_full, fun θ => (hfin_res θ).2.1, ?_⟩
+  rw [htsum_fin, add_assoc, add_assoc]
+  have hsw_b : ((5 * ReducedKWise.seedWords (qBits U N_new) (hashB N_new)
+      (totalMicroBits N_new) 3 + 11 : ℕ) : ℝ≥0∞) ≤ ((826 : ℕ) : ℝ≥0∞) :=
+    (Nat.cast_le (α := ℝ≥0∞)).mpr (by omega)
+  calc (steps_set : ℝ≥0∞) +
+        (((5 * ReducedKWise.seedWords (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3 +
+            11 : ℕ) : ℝ≥0∞) +
+          ((∑' θ, μ_u θ * ((5 + stepsClean θ : ℕ) : ℝ≥0∞)) +
+            (∑' θ, μ_u θ * (inEpochPotential U w N_new base (zOf θ) : ℝ≥0∞))))
+      ≤ (steps_set : ℝ≥0∞) + (((826 : ℕ) : ℝ≥0∞) + (finBound : ℝ≥0∞)) := by gcongr
+    _ = ((steps_set + 826 + finBound : ℕ) : ℝ≥0∞) := by push_cast; ring
+
+/-- **Distributional Single-Tape `1 · OPT` Rebuild (`migrateActiveCode_execRCodeDist`):**
+From any active compacted epoch `(N_old, n, n_init_old)` (`1 ≤ n`, `EpochValid U n N_old`),
+`migrateActiveCode` resamples a fresh uniform `QuotHashSeed U (targetCap U n)` and streams all `n`
+entries into `(targetCap U n, n, n)` at `base` without ever exceeding hardware frontier
+`base + migratePeakWords U V w N_old n` (`≤ base + Dynamic.succinctWords 2699 888 U V w n`),
+bounding expected instructions plus post-migration `inEpochPotential` by `migLinearFactor * n`. -/
+theorem migrateActiveCode_execRCodeDist {U V w N_old n n_init base : ℕ}
+    {θ_old : QuotHashSeed U N_old} {s_abs : Dictionary.State U} {x : RData rResize}
+    (hx : x.Bounded w) (hn : 1 ≤ n) (hev : EpochValid U n N_old)
+    (hfr : x.frontier = base + compactedEpochWords U V w N_old n)
+    (hfit_peak : Fits w (base + migratePeakWords U V w N_old n))
+    (hsplit : CompactedSplitRep base (base + offCompItems U w N_old) U V w N_old n n_init θ_old
+      s_abs ⟨x.mem, x.frontier⟩)
+    (hbase : x.regs mBase = base) :
+    let N_new := targetCap U n
+    let peakF := base + migratePeakWords U V w N_old n
+    ∃ (zOf : QuotHashSeed U N_new → RData rResize) (T_mig : ℝ≥0∞),
+      ExecRCodeDist w migrateActiveCode x
+        ((PMF.uniformOfFintype (QuotHashSeed U N_new)).map zOf) T_mig peakF ∧
+      (∀ θ_new,
+        (zOf θ_new).Bounded w ∧
+        (zOf θ_new).frontier = base + compactedEpochWords U V w N_new n ∧
+        CompactedSplitRep base (base + offCompItems U w N_new) U V w N_new n n θ_new s_abs
+          ⟨(zOf θ_new).mem, (zOf θ_new).frontier⟩ ∧
+        (zOf θ_new).regs mBase = base ∧
+        (zOf θ_new).regs mTag = x.regs mTag ∧
+        (zOf θ_new).regs mArgU = x.regs mArgU ∧
+        (zOf θ_new).regs mArgV = x.regs mArgV ∧
+        (∀ addr < base, (zOf θ_new).mem addr = x.mem addr)) ∧
+      T_mig + (∑' θ_new, (PMF.uniformOfFintype (QuotHashSeed U N_new)) θ_new *
+          (inEpochPotential U w N_new base (zOf θ_new) : ℝ≥0∞)) ≤
+        ((migLinearFactor * n : ℕ) : ℝ≥0∞) := by
+  intro N_new peakF
+  obtain ⟨hw, hU, _⟩ := rootHeaderValid_bounds hx hsplit.root_hdr
+  have hNU_old : N_old ≤ U := by rcases hev with ⟨rfl, _⟩ | ⟨_, _, _, hNU⟩ <;> omega
+  have hn_old : n ≤ N_old := by rcases hev with ⟨rfl, _⟩ | ⟨_, hnN, _, _⟩ <;> omega
+  have hnU : n ≤ U := hn_old.trans hNU_old
+  obtain ⟨_, _, _, hNU_new⟩ := targetCap_bounds_of_pos hn hnU
+  obtain ⟨y_set, steps_set, hex_set, hc_set, hy_set_b, hy_set_fr, habi_set, hbelow_set,
+      hhdr_set, hpar_set, hrep_old, hcpl_old,
+      hr_base, hr_cnt, hr_fr, hr_nm, hr_off, hr_iwn, hr_ar, hr_pf, hr_oid, hr_hb,
+      hr_ohp, hr_ocp, hr_nhp, hr_ncp⟩ :=
+    migrateSetupCode_exec hx hn hev hfr hfit_peak hsplit hbase
+  set newMeta := base + offCompItems U w N_old
+  have hpeak_def : peakF =
+      newMeta + offCompItems U w N_new + migrateArenaWords U V w N_old N_new n := by
+    dsimp only [peakF, newMeta, N_new]; unfold migratePeakWords; omega
+  have hnm_le : newMeta + offCompItems U w N_new ≤ peakF := by rw [hpeak_def]; omega
+  obtain ⟨zOf, T_mig, hex_full, hpost, hcost⟩ :=
+    exec_setup_resample_finish (metaBase := newMeta) (base := base)
+      (finBound := (93500 * migFactor + 10000) * n)
+      (finishCleanCode := migrateFinishCleanCode)
+      (P := fun θ_new z =>
+        z.Bounded w ∧
+        z.frontier = base + compactedEpochWords U V w N_new n ∧
+        CompactedSplitRep base (base + offCompItems U w N_new) U V w N_new n n θ_new s_abs
+          ⟨z.mem, z.frontier⟩ ∧
+        z.regs mBase = base ∧
+        z.regs mTag = x.regs mTag ∧
+        z.regs mArgU = x.regs mArgU ∧
+        z.regs mArgV = x.regs mArgV ∧
+        (∀ addr < base, z.mem addr = x.mem addr))
+      hw hU hNU_new hex_set hy_set_b hy_set_fr (hfit_peak.of_le hnm_le) hnm_le hr_hb hr_nhp
+      (fun θ_new y_rs hfr_y hseed_y hmem_y hreg_y => by
+        obtain ⟨z, stepsClean, hex_cl, hzb, hzf, hsp, habi, hbel, hbd⟩ :=
+          migrateFinishCode_exec hn hev hsplit.card_eq hsplit.vals_lt hfit_peak
+            hy_set_b hy_set_fr habi_set hbelow_set hhdr_set hpar_set hrep_old hcpl_old
+            hr_base hr_cnt hr_fr hr_nm hr_off hr_iwn hr_ar hr_pf hr_oid hr_ohp hr_ocp hr_nhp hr_ncp
+            hfr_y hseed_y hmem_y hreg_y
+        exact ⟨z, stepsClean, hex_cl,
+          ⟨hzb, hzf, hsp, habi.1.trans hbase, habi.2.1, habi.2.2.1, habi.2.2.2, hbel⟩, hbd⟩)
+  refine ⟨zOf, T_mig, hex_full, hpost, hcost.trans ((Nat.cast_le (α := ℝ≥0∞)).mpr ?_)⟩
+  have hf1 := one_le_migFactor
+  unfold migLinearFactor
+  nlinarith only [hc_set, hn, hf1]
 
 /-! ## Section 5: First-Epoch Creation (`initFirstEpochCode`) and Singleton Delete
 (`deleteLastOneCode`) -/
@@ -3386,8 +3092,8 @@ private noncomputable def initFirstParamsCode : RCode .exact rResize :=
   .seq (.op (.exactBin .add mFr mBase mCur)) <|
   .seq (.op (.copy mTmpA mBase)) <|
   .seq (RCode.ofCode (wWriteParams.code mFr srcWriteParams tmpWriteParams)) <|
-  .seq (loadMigBlockUpTo mNewHp offHashParams 18 (by decide)) <|
-  .seq (loadMigBlockUpTo mNewCp offCompParams 35 (by decide))
+  .seq (loadBlockUpTo mBase mCur mNewHp offHashParams 18 (by decide)) <|
+  .seq (loadBlockUpTo mBase mCur mNewCp offCompParams 35 (by decide))
        (RCode.ofCode (wItemWords.code mFr srcNewIw tmpNewIw))
 
 private noncomputable def initFirstGrowCode : RCode .exact rResize :=
@@ -3420,8 +3126,8 @@ noncomputable def initFirstEpochCode : RCode .exact rResize :=
        initFirstFinishCode
 
 private noncomputable def deleteLastReadCode : RCode .exact rResize :=
-  .seq (loadMigBlockUpTo mOldHp offHashParams 18 (by decide)) <|
-  .seq (loadMigBlockUpTo mOldCp offCompParams 35 (by decide)) <|
+  .seq (loadBlockUpTo mBase mCur mOldHp offHashParams 18 (by decide)) <|
+  .seq (loadBlockUpTo mBase mCur mOldCp offCompParams 35 (by decide)) <|
   .seq (.op (.const mCnt 1)) <|
   .seq (.op (.const mFr 0)) <|
   .seq (RCode.ofCode (wItemWords.code mFr srcOldIw tmpOldIw)) <|
@@ -3432,9 +3138,9 @@ private noncomputable def deleteLastReadCode : RCode .exact rResize :=
 
 private noncomputable def deleteLastHitTailCode : RCode .exact rResize :=
   .seq (.op (.const mZero 0)) <|
-  .seq (storeAtOffMigCode mZero 5) <|
-  .seq (storeAtOffMigCode mZero 6) <|
-  .seq (storeAtOffMigCode mZero 7) <|
+  .seq (storeAtOffCode mBase mZero mCur 5) <|
+  .seq (storeAtOffCode mBase mZero mCur 6) <|
+  .seq (storeAtOffCode mBase mZero mCur 7) <|
   .seq (.op (.const mCur 8)) <|
   .seq (.op (.exactBin .add mCur mBase mCur)) <|
   .seq (.op (.exactBin .sub mK mFr mCur))
@@ -3462,8 +3168,8 @@ private theorem not_readsWidth_initFirstSetupCode : ¬initFirstSetupCode.ReadsWi
     rw [RCode.readsWidth_ofCode]
     exact (wItemWords.code_spec mFr srcNewIw tmpNewIw
       tmpNewIw_inj srcNewIw_ne_tmp tmpNewIw_ne_mFr srcNewIw_ne_mFr).1
-  have hb1 := not_readsWidth_loadMigBlockUpTo mNewHp offHashParams 18 (by decide)
-  have hb2 := not_readsWidth_loadMigBlockUpTo mNewCp offCompParams 35 (by decide)
+  have hb1 := not_readsWidth_loadBlockUpTo mBase mCur mNewHp offHashParams 18 (by decide)
+  have hb2 := not_readsWidth_loadBlockUpTo mBase mCur mNewCp offCompParams 35 (by decide)
   simp [initFirstSetupCode, initFirstParamsCode, initFirstGrowCode,
     RCode.ReadsWidth, Op.ReadsWidth, Op.exactBin, growZeroCode_not_readsWidth,
     htc, hwp, hiw, hb1, hb2]
@@ -3494,14 +3200,14 @@ private theorem not_readsWidth_deleteLastReadCode : ¬deleteLastReadCode.ReadsWi
     rw [RCode.readsWidth_ofCode]
     exact (wReadOldKV.code_spec mFr srcReadOldKV tmpReadOldKV
       tmpReadOldKV_inj srcReadOldKV_ne_tmp tmpReadOldKV_ne_mFr srcReadOldKV_ne_mFr).1
-  have hb1 := not_readsWidth_loadMigBlockUpTo mOldHp offHashParams 18 (by decide)
-  have hb2 := not_readsWidth_loadMigBlockUpTo mOldCp offCompParams 35 (by decide)
+  have hb1 := not_readsWidth_loadBlockUpTo mBase mCur mOldHp offHashParams 18 (by decide)
+  have hb2 := not_readsWidth_loadBlockUpTo mBase mCur mOldCp offCompParams 35 (by decide)
   simp [deleteLastReadCode, RCode.ReadsWidth, Op.ReadsWidth, Op.exactBin, hiw, hro, hb1, hb2]
 
 /-- `deleteLastOneCode` does not inspect the ambient word width `w` (`¬ReadsWidth`). -/
 theorem not_readsWidth_deleteLastOneCode : ¬deleteLastOneCode.ReadsWidth := by
   simp [deleteLastOneCode, deleteLastHitTailCode, RCode.ReadsWidth, Op.ReadsWidth, Op.exactBin,
-    not_readsWidth_deleteLastReadCode, not_readsWidth_storeAtOffMigCode,
+    not_readsWidth_deleteLastReadCode, not_readsWidth_storeAtOffCode,
     shrinkCode_not_readsWidth]
 
 private theorem initFirstParamsCode_exec {U V w base : ℕ} {x : RData rResize}
@@ -3563,13 +3269,13 @@ private theorem initFirstParamsCode_exec {U V w base : ℕ} {x : RData rResize}
       rw [Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mCnt), Function.update_self]
       exact hfr.symm)
   have hin_tc : s₃.regs ∘ srcTargetCap = WordEncoding.encode (base, 1) :=
-    (mRegs_pairSrc (mRegs_reg1_eq mBase (by simp [s₃, s₂, s₁, RData.set, hbase]))
-      (mRegs_reg1_eq mCnt (by simp [s₃, RData.set]))).eq
+    (regs_pairSrc (regs_reg1_eq mBase (by simp [s₃, s₂, s₁, RData.set, hbase]))
+      (regs_reg1_eq mCnt (by simp [s₃, RData.set]))).eq
   obtain ⟨hpre_tc, hv_tc, hst_tc, hres_tc, hc_tc⟩ :=
     computeTargetCapProg_spec (s := ⟨x.mem, x.frontier⟩) hhdr
       (by change base < x.frontier; rw [hfr]; omega) hhdr.pos_U hfit1
   obtain ⟨s₄, hex_tc, hs₄b, hs₄f, hm_tc, hout_tc, hframe_tc⟩ :=
-    execMigWitness wTargetCap factor_wTargetCap_le srcTargetCap tmpTargetCap
+    execWitness wTargetCap factor_wTargetCap_le mFr srcTargetCap tmpTargetCap
       tmpTargetCap_inj srcTargetCap_ne_tmp tmpTargetCap_ne_mFr srcTargetCap_ne_mFr
       (base, 1) hs₃b hfr_le hin_tc (hms₃ ▸ hpre_tc) (hms₃ ▸ hv_tc)
       (by rw [hms₃, hst_tc]; exact le_rfl)
@@ -3582,7 +3288,7 @@ private theorem initFirstParamsCode_exec {U V w base : ℕ} {x : RData rResize}
     have h0 := hout_tc 0; rwa [tmpTargetCap_out] at h0
   have hs₄_keep3 : ∀ reg, reg ≠ mFr → reg.val < 160 → reg ≠ mNNew → s₄.regs reg = s₃.regs reg :=
     fun reg h1 h160 hnn =>
-      hframe_tc reg h1 (mkMigTmp_ne_reg _ h160 (fun a => by fin_cases a; exact hnn.symm))
+      hframe_tc reg h1 (mkTmp_ne_reg _ h160 (fun a => by fin_cases a; exact hnn.symm))
   -- 2. `mK := 55; growZeroCode` (`frontier = base + 63`)
   set s₅ := s₄.set mK 55
   have hex₅ := RDemonicExec.const (B := .exact) (L_peak := fr₁) (d := mK) (v := 55) (x := s₄)
@@ -3598,7 +3304,7 @@ private theorem initFirstParamsCode_exec {U V w base : ℕ} {x : RData rResize}
     hs₅b mGrow_nodup hfit1 (hsum_55.le.trans h63_le) (hsum_55 ▸ hfit_b63)
   rw [hs₅_k] at hex_gz1
   set s₆ := growZeroPost mK mRes mCur mIdx mZero mOne s₅
-  have hs₆b : s₆.Bounded w := mGrowZeroPost_bounded hs₅b hfit1 (hsum_55 ▸ hfit_b63)
+  have hs₆b : s₆.Bounded w := growZeroPost_bounded hs₅b hfit1 (hsum_55 ▸ hfit_b63)
   have hs₆m : s₆.mem = x.mem := hs₄m
   have hs₆f : s₆.frontier = base + 63 := hsum_55
   have hs₆_keep5 : ∀ reg, reg ∉ ([mRes, mCur, mIdx, mZero, mOne] : List (Fin rResize)) →
@@ -3653,18 +3359,18 @@ private theorem initFirstParamsCode_exec {U V w base : ℕ} {x : RData rResize}
     simp [s₅, RData.set, hs₄_nn]
   have hin_wp : s₆c.regs ∘ srcWriteParams =
       WordEncoding.encode (((base, base), (N₁, (1, 1)))) :=
-    (mRegs_pairSrc
-      (mRegs_pairSrc (mRegs_reg1_eq mBase (by simp [s₆c, s₆b, s₆a, RData.set, hs₆_base]))
-        (mRegs_reg1_eq mTmpA (by simp [s₆c, RData.set])))
-      (mRegs_pairSrc (mRegs_reg1_eq mNNew hs₆c_nn)
-        (mRegs_pairSrc (mRegs_reg1_eq mCnt hs₆c_cnt) (mRegs_reg1_eq mCnt hs₆c_cnt)))).eq
+    (regs_pairSrc
+      (regs_pairSrc (regs_reg1_eq mBase (by simp [s₆c, s₆b, s₆a, RData.set, hs₆_base]))
+        (regs_reg1_eq mTmpA (by simp [s₆c, RData.set])))
+      (regs_pairSrc (regs_reg1_eq mNNew hs₆c_nn)
+        (regs_pairSrc (regs_reg1_eq mCnt hs₆c_cnt) (regs_reg1_eq mCnt hs₆c_cnt)))).eq
   obtain ⟨hpre_wp, hv_wp, hres_wp, hfr_wp, hhdr_wp, hpar_wp, hframe_wp, hc_wp⟩ :=
     writeEpochParamsGenProg_spec (s := ⟨x.mem, base + 63⟩) (dstMetaBase := base)
       (N := N₁) (n_cur := 1) (n_init_new := 1)
       hw hN₁_pos hN₁U hV hfit1 hfit1 hhdr
       (by change base + 5 ≤ base + 63; omega) le_rfl hfit_off
   obtain ⟨s₇, hex_wp, hs₇b, hs₇f, hm_wp, hout_wp, hframe_reg_wp⟩ :=
-    execMigWitness wWriteParams factor_wWriteParams_le srcWriteParams tmpWriteParams
+    execWitness wWriteParams factor_wWriteParams_le mFr srcWriteParams tmpWriteParams
       tmpWriteParams_inj srcWriteParams_ne_tmp tmpWriteParams_ne_mFr srcWriteParams_ne_mFr
       ((base, base), (N₁, (1, 1))) hs₆cb (hs₆f.le.trans h63_le)
       hin_wp (hms₆c ▸ hpre_wp) (hms₆c ▸ hv_wp)
@@ -3682,13 +3388,13 @@ private theorem initFirstParamsCode_exec {U V w base : ℕ} {x : RData rResize}
   have hs₇_keep6c : ∀ reg, reg ≠ mFr → reg.val < 160 → reg ≠ mOffNew → reg ≠ mHSpaceNew →
       s₇.regs reg = s₆c.regs reg := fun reg h1 h160 ho hh =>
     hframe_reg_wp reg h1
-      (mkMigTmp_ne_reg _ h160 (fun a => by fin_cases a <;> [exact ho.symm; exact hh.symm]))
+      (mkTmp_ne_reg _ h160 (fun a => by fin_cases a <;> [exact ho.symm; exact hh.symm]))
   -- 4. Load `mNewHp`, `mNewCp`, and run `wItemWords`
   have hs₇_base : s₇.regs mBase = base :=
     (hs₇_keep6c mBase (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))
       (mReg_ne (by decide))).trans (by simp [s₆c, s₆b, s₆a, RData.set, hs₆_base])
   obtain ⟨s₈, hex_nhp, hs₈b, hs₈m, hs₈f, hs₈_nhp, hs₈_r⟩ :=
-    loadMigBlockUpTo_exec mNewHp mNewHp_inj
+    loadBlockUpTo_exec mBase mCur (mReg_ne (by decide)) mNewHp mNewHp_inj
       (fun i => mNewHp_ne_mReg i (Or.inl (by decide)))
       (fun i => mNewHp_ne_mReg i (Or.inl (by decide)))
       offHashParams 18 (by decide) hs₇b (hs₇f_eq.le.trans h63_le) hs₇_base
@@ -3697,7 +3403,7 @@ private theorem initFirstParamsCode_exec {U V w base : ℕ} {x : RData rResize}
     (hs₈_r mBase (mReg_ne (by decide)) (fun i => mNewHp_ne_mReg i (Or.inl (by decide)))).trans
       hs₇_base
   obtain ⟨s₉, hex_ncp, hs₉b, hs₉m, hs₉f, hs₉_ncp, hs₉_r⟩ :=
-    loadMigBlockUpTo_exec mNewCp mNewCp_inj
+    loadBlockUpTo_exec mBase mCur (mReg_ne (by decide)) mNewCp mNewCp_inj
       (fun i => mNewCp_ne_mReg i (Or.inl (by decide)))
       (fun i => mNewCp_ne_mReg i (Or.inl (by decide)))
       offCompParams 35 (by decide) hs₈b ((hs₈f.trans hs₇f_eq).le.trans h63_le) hs₈_base
@@ -3724,7 +3430,7 @@ private theorem initFirstParamsCode_exec {U V w base : ℕ} {x : RData rResize}
   have hs₉_fr_reg : s₉.regs mFr = base + 63 :=
     (hs₉_keep7 (c := 1) (Or.inl (by decide)) (by decide)).trans hs₇_fr_reg
   have hin_niw : s₉.regs ∘ srcNewIw = WordEncoding.encode (mkCompParams U V w N₁, 1) :=
-    (mRegs_pairSrc (mRegs_cp_eq hs₉_ncp_all) (mRegs_reg1_eq mCnt hs₉_cnt)).eq
+    (regs_pairSrc (regs_cp_eq hs₉_ncp_all) (regs_reg1_eq mCnt hs₉_cnt)).eq
   have hfit_iw4 : Fits w (4 + iw₁) :=
     hfit_peak.of_le (by rw [hce₁]; linarith only [h225_le])
   have hsafe_niw : CompItemWordsPre w (mkCompParams U V w N₁, 1) (memoryState mFr s₉.toData) :=
@@ -3732,7 +3438,7 @@ private theorem initFirstParamsCode_exec {U V w base : ℕ} {x : RData rResize}
   have hv_niw := validProg_compItemWordsGen (mkCompParams U V w N₁, 1)
     (memoryState mFr s₉.toData) ⟨wellFormed_memoryState hs₉b.1, Nat.zero_le _⟩
   obtain ⟨s₁₀, hex_niw, hs₁₀b, hs₁₀f, hm_niw, hout_niw, hframe_niw⟩ :=
-    execMigWitness wItemWords factor_mItemWords_le srcNewIw tmpNewIw
+    execWitness wItemWords factor_mItemWords_le mFr srcNewIw tmpNewIw
       tmpNewIw_inj srcNewIw_ne_tmp tmpNewIw_ne_mFr srcNewIw_ne_mFr
       (mkCompParams U V w N₁, 1) hs₉b (hs₉f_eq.le.trans h63_le)
       hin_niw hsafe_niw hv_niw
@@ -3747,7 +3453,7 @@ private theorem initFirstParamsCode_exec {U V w base : ℕ} {x : RData rResize}
     have h0 := hout_niw 0; rwa [tmpNewIw_out, clientResult_compItemWordsGenProg hw] at h0
   have hs₁₀_keep9 : ∀ reg, reg ≠ mFr → reg.val < 160 → reg ≠ mIwNew → s₁₀.regs reg = s₉.regs reg :=
     fun reg h1 h160 hiw => hframe_niw reg h1
-      (mkMigTmp_ne_reg _ h160 (fun a => by fin_cases a; exact hiw.symm))
+      (mkTmp_ne_reg _ h160 (fun a => by fin_cases a; exact hiw.symm))
   have hs₁₀_abi_of : ∀ reg : Fin rResize, reg.val < 5 → reg ≠ mFr →
       s₁₀.regs reg = x.regs reg := fun reg h5 hne_fr => by
     have h160 : reg.val < 160 := by omega
@@ -3884,7 +3590,7 @@ private theorem initFirstGrowCode_exec {U V w base : ℕ} {x s₁₀ : RData rRe
     hy₃b mGrow_nodup hfit1 hsum_fr₁.le (hsum_fr₁ ▸ hfit_peak)
   rw [hy₃_k] at hex_gz
   set y₄ := growZeroPost mK mRes mCur mIdx mZero mOne y₃
-  have hy₄b : y₄.Bounded w := mGrowZeroPost_bounded hy₃b hfit1 (hsum_fr₁ ▸ hfit_peak)
+  have hy₄b : y₄.Bounded w := growZeroPost_bounded hy₃b hfit1 (hsum_fr₁ ▸ hfit_peak)
   have hy₄m : y₄.mem = s₁₀.mem := rfl
   have hy₄f : y₄.frontier = fr₁ := hsum_fr₁
   have hy₄_keep3 : ∀ reg, reg ∉ ([mRes, mCur, mIdx, mZero, mOne] : List (Fin rResize)) →
@@ -4111,8 +3817,8 @@ private theorem initFirstFinishCode_exec {U V w base : ℕ} (u : Fin U) (v : ℕ
   have hin_im : z₁.regs ∘ srcInitNewMeta =
       WordEncoding.encode ((mkHashParams w (qBits U N₁) (hashB N₁) (totalMicroBits N₁) 3,
         mkCompParams U V w N₁), base) :=
-    (mRegs_pairSrc (mRegs_pairSrc (mRegs_hp_eq hz₁_nhp) (mRegs_cp_eq hz₁_ncp))
-      (mRegs_reg1_eq mTmpA (by simp [z₁, RData.set]))).eq
+    (regs_pairSrc (regs_pairSrc (regs_hp_eq hz₁_nhp) (regs_cp_eq hz₁_ncp))
+      (regs_reg1_eq mTmpA (by simp [z₁, RData.set]))).eq
   obtain ⟨hpre_im, hv_im, hc_im, hfr_im, hrep_im, htot_im, hpot_im, ⟨s_fix₀, hinv₀, hcpl₀⟩,
       hframe_im⟩ :=
     initNewEpochMetaProg_spec (w := w) (U := U) (V := V) (N := N₁) (newMetaBase := base)
@@ -4121,7 +3827,7 @@ private theorem initFirstFinishCode_exec {U V w base : ℕ} (u : Fin U) (v : ℕ
       (by change base + off₁ ≤ fr₁; rw [hfr₁_eq]; exact Nat.le_add_right _ _)
       hfit_off hrs_seed
   obtain ⟨z₂, hex_im, hz₂b, hz₂f, hm_im, _, hframe_reg_im⟩ :=
-    execMigWitness wInitNewMeta factor_wInitNewMeta_le srcInitNewMeta tmpInitNewMeta
+    execWitness wInitNewMeta factor_wInitNewMeta_le mFr srcInitNewMeta tmpInitNewMeta
       tmpInitNewMeta_inj srcInitNewMeta_ne_tmp tmpInitNewMeta_ne_mFr srcInitNewMeta_ne_mFr
       ((mkHashParams w (qBits U N₁) (hashB N₁) (totalMicroBits N₁) 3,
         mkCompParams U V w N₁), base) hz₁b hz₀f.le
@@ -4136,7 +3842,7 @@ private theorem initFirstFinishCode_exec {U V w base : ℕ} (u : Fin U) (v : ℕ
     congrArg Memory.State.mem hm_im
   have hms₂ : memoryState mFr z₂.toData = ⟨z₂.mem, fr₁⟩ := Memory.State.ext rfl hz₂_fr_reg
   have hz₂_keep1 : ∀ reg, reg ≠ mFr → reg.val < 160 → z₂.regs reg = z₁.regs reg :=
-    fun reg h1 h160 => hframe_reg_im reg h1 (mkMigTmp_ne_reg _ h160 (fun a => Fin.elim0 a))
+    fun reg h1 h160 => hframe_reg_im reg h1 (mkTmp_ne_reg _ h160 (fun a => Fin.elim0 a))
   have hkeep_set_2 : ∀ reg : Fin rResize, reg.val < 160 →
       reg ∉ ([mFr, mTmpA, mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) →
       z₂.regs reg = y_set.regs reg := fun reg h160 hnot => by
@@ -4151,25 +3857,25 @@ private theorem initFirstFinishCode_exec {U V w base : ℕ} (u : Fin U) (v : ℕ
   let d_si := (((mkHashParams w (qBits U N₁) (hashB N₁) (totalMicroBits N₁) 3,
     mkCompParams U V w N₁), (base, base + off₁)), (u.val, v))
   have hin_si : z₂.regs ∘ srcStreamIns = WordEncoding.encode d_si := by
-    refine (mRegs_pairSrc
-      (mRegs_pairSrc
-        (mRegs_pairSrc
-          (mRegs_hp_eq fun i => (hz₂_keep1 (mNewHp i) (mNewHp_ne_mReg i (Or.inl (by decide)))
+    refine (regs_pairSrc
+      (regs_pairSrc
+        (regs_pairSrc
+          (regs_hp_eq fun i => (hz₂_keep1 (mNewHp i) (mNewHp_ne_mReg i (Or.inl (by decide)))
             (mNewHp_lt_160 i)).trans (hz₁_nhp i))
-          (mRegs_cp_eq fun i => (hz₂_keep1 (mNewCp i) (mNewCp_ne_mReg i (Or.inl (by decide)))
+          (regs_cp_eq fun i => (hz₂_keep1 (mNewCp i) (mNewCp_ne_mReg i (Or.inl (by decide)))
             (mNewCp_lt_160 i)).trans (hz₁_ncp i)))
-        (mRegs_pairSrc
-          (mRegs_reg1_eq mBase ((hkeep_set_2 mBase (mReg_lt_160 _)
+        (regs_pairSrc
+          (regs_reg1_eq mBase ((hkeep_set_2 mBase (mReg_lt_160 _)
             (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans
             hr_base))
-          (mRegs_reg1_eq mItemBase ((hkeep_set_2 mItemBase (mReg_lt_160 _)
+          (regs_reg1_eq mItemBase ((hkeep_set_2 mItemBase (mReg_lt_160 _)
             (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans
             hr_ib))))
-      (mRegs_pairSrc
-        (mRegs_reg1_eq mArgU ((hkeep_set_2 mArgU (mReg_lt_160 _)
+      (regs_pairSrc
+        (regs_reg1_eq mArgU ((hkeep_set_2 mArgU (mReg_lt_160 _)
           (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans
           (habi_set.2.2.1.trans hr_u)))
-        (mRegs_reg1_eq mArgV ((hkeep_set_2 mArgV (mReg_lt_160 _)
+        (regs_reg1_eq mArgV ((hkeep_set_2 mArgV (mReg_lt_160 _)
           (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans
           (habi_set.2.2.2.trans hr_v))))).eq
   have hs₂_st_eq : ({ mem := z₂.mem, frontier := fr₁ } : Memory.State) =
@@ -4193,7 +3899,7 @@ private theorem initFirstFinishCode_exec {U V w base : ℕ} (u : Fin U) (v : ℕ
     rw [hms₂] at hwf₂ ⊢
     exact hvp_si ⟨hwf₂, Nat.zero_le _⟩
   obtain ⟨z, hex_si, hzb, hzf, hm_si, _, hframe_reg_si⟩ :=
-    execMigWitness wStreamIns factor_wStreamIns_le srcStreamIns tmpStreamIns
+    execWitness wStreamIns factor_wStreamIns_le mFr srcStreamIns tmpStreamIns
       tmpStreamIns_inj srcStreamIns_ne_tmp tmpStreamIns_ne_mFr srcStreamIns_ne_mFr
       d_si hz₂b hz₂f_eq.le hin_si (hms₂ ▸ hpre_si) hv_si
       (by rw [hms₂, hfr_si]; exact hz₂f_eq.symm.le)
@@ -4235,7 +3941,7 @@ private theorem initFirstFinishCode_exec {U V w base : ℕ} (u : Fin U) (v : ℕ
       (Function.update (Dictionary.empty U) u (some v)) ⟨z.mem, z.frontier⟩ :=
     ⟨hhdr_z, hpar_z, hz_mem_eq ▸ hrep_si, hcard₁, hvals₁, s_fix₁, hinv₁, htot_z, hcpl_z⟩
   have hz_keep2 : ∀ reg, reg ≠ mFr → reg.val < 160 → z.regs reg = z₂.regs reg :=
-    fun reg h1 h160 => hframe_reg_si reg h1 (mkMigTmp_ne_reg _ h160 (fun a => Fin.elim0 a))
+    fun reg h1 h160 => hframe_reg_si reg h1 (mkTmp_ne_reg _ h160 (fun a => Fin.elim0 a))
   have habi_set_z : abiPreserved y_set z :=
     ⟨(hz_keep2 mBase (mReg_ne (by decide)) (mReg_lt_160 _)).trans
         (hkeep_set_2 mBase (mReg_lt_160 _)
@@ -4314,205 +4020,34 @@ theorem initFirstEpochCode_execRCodeDist {U V w base : ℕ} (u : Fin U) (v : ℕ
       hs₁₀_base hs₁₀_fr hs₁₀_off hs₁₀_iw hs₁₀_nhp hs₁₀_ncp
   have hex_set : RDemonicExec w fr₁ initFirstSetupCode x (steps_p + steps_g) (· = y_set) :=
     hex_p.seq_eq hex_g
-  set off₁ := offCompItems U w N₁
-  have hce₁ : compactedEpochWords U V w N₁ 1 = off₁ + compactedItemWords U V w N₁ 1 := by
-    unfold compactedEpochWords; simp [off₁]
-  have hfr₁_def : fr₁ = base + off₁ + compactedItemWords U V w N₁ 1 := by
-    dsimp only [fr₁]; rw [hce₁, Nat.add_assoc]
-  have hfit_off : Fits w (base + off₁) := hfit_peak.of_le (by rw [hce₁]; omega)
-  have h225_fit : Fits w 225 := fits_const_of_offCompItems hfit_off le_rfl
-  have hw2 : 2 ≤ w := by
-    by_contra hlt2; have hw1 : w ≤ 1 := by omega
-    have := Nat.pow_le_pow_right two_pos hw1
-    change 225 < 2 ^ w at h225_fit; omega
-  have hlm_le : offCompLM U w N₁ ≤ off₁ := by
-    dsimp only [off₁]; unfold offCompItems offDenseToTail offTailToDense offCompGM; omega
-  have hsp_le :
-      225 + ReducedKWise.space w (qBits U N₁) (hashB N₁) (totalMicroBits N₁) 3 ≤ off₁ := by
-    dsimp only [offCompLM, epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits, hashB]
-      at hlm_le ⊢
-    exact hlm_le
-  have hsw_le_sp : ReducedKWise.seedWords (qBits U N₁) (hashB N₁) (totalMicroBits N₁) 3 ≤
-      ReducedKWise.space w (qBits U N₁) (hashB N₁) (totalMicroBits N₁) 3 :=
-    Nat.le_add_right _ _
-  have hfit_h : Fits w ((base + epochHdrWords) +
-      ReducedKWise.space w (qBits U N₁) (hashB N₁) (totalMicroBits N₁) 3) :=
-    hfit_off.of_le (by unfold epochHdrWords; omega)
-  have hc_lt : 2 * reducedChunkBits
-      (reducedTrinomialStep (qBits U N₁) (hashB N₁) (totalMicroBits N₁)) < w :=
-    ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space
-      (two_mul_reducedChunkBits_hash_le hw2 hN₁U hU.le) hfit_h
-  obtain ⟨μ_rs, hex_rs, hmap_unif, hrs_supp⟩ :=
-    resampleHashCode_execRCodeDist (w := w) (L_peak := fr₁)
-      (w₀ := qBits U N₁) (b := hashB N₁) (b' := totalMicroBits N₁) (k := 3)
-      (hashBase := base + epochHdrWords) (x := y_set)
-      mResample_nodup (qBits_le_of_le_pow hw hU.le) hc_lt hy_set_fr.le
-      (by rw [hy_set_fr]; change _ ≤ fr₁; rw [hfr₁_def]; unfold epochHdrWords; omega)
-      (hfit_h.of_le (by omega))
-      hr_hb
-      (by rw [hr_nhp ⟨3, by decide⟩]; rfl)
-      (by rw [hr_nhp ⟨2, by decide⟩]; rfl)
-      (by rw [hr_nhp ⟨10, by decide⟩]; rfl)
-  let extSeed (y : RData rResize) : QuotHashSeed U N₁ :=
-    ReducedKWise.extractSeed (base + epochHdrWords) (qBits U N₁) (hashB N₁)
-      (totalMicroBits N₁) 3 y.mem
-  have hcanon_z₀ : ∀ {y₁ y₂ : RData rResize}, y₁ ∈ μ_rs.support → y₂ ∈ μ_rs.support →
-      extSeed y₁ = extSeed y₂ →
-      (((((y₁.set mCur 0).set mIdx 0).set mK 0).set mOne 0).set mRes 0) =
-      (((((y₂.set mCur 0).set mIdx 0).set mK 0).set mOne 0).set mRes 0) := by
-    intro y₁ y₂ hy₁ hy₂ heq_seed
-    obtain ⟨hfr₁_y, hseed₁, hmem₁, hreg₁⟩ := hrs_supp y₁ hy₁
-    obtain ⟨hfr₂_y, hseed₂, hmem₂, hreg₂⟩ := hrs_supp y₂ hy₂
-    change ReducedKWise.SeedRep _ _ _ _ _ (extSeed y₁) y₁.mem at hseed₁
-    change ReducedKWise.SeedRep _ _ _ _ _ (extSeed y₂) y₂.mem at hseed₂
-    rw [heq_seed] at hseed₁
-    apply RData.ext
-    · funext j
-      dsimp only [RData.set]
-      by_cases h1 : j = mRes
-      · subst h1; rw [Function.update_self, Function.update_self]
-      rw [Function.update_of_ne h1, Function.update_of_ne h1]
-      by_cases h2 : j = mOne
-      · subst h2; rw [Function.update_self, Function.update_self]
-      rw [Function.update_of_ne h2, Function.update_of_ne h2]
-      by_cases h3 : j = mK
-      · subst h3; rw [Function.update_self, Function.update_self]
-      rw [Function.update_of_ne h3, Function.update_of_ne h3]
-      by_cases h4 : j = mIdx
-      · subst h4; rw [Function.update_self, Function.update_self]
-      rw [Function.update_of_ne h4, Function.update_of_ne h4]
-      by_cases h5 : j = mCur
-      · subst h5; rw [Function.update_self, Function.update_self]
-      rw [Function.update_of_ne h5, Function.update_of_ne h5]
-      have hj_not : j ∉ ([mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) := by
-        simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-        exact ⟨h5, h4, h3, h2, h1⟩
-      rw [hreg₁ j hj_not, hreg₂ j hj_not]
-    · funext a
-      dsimp only [RData.set]
-      by_cases ha_out :
-          a < base + epochHdrWords ∨
-            base + epochHdrWords +
-              ReducedKWise.seedWords (qBits U N₁) (hashB N₁) (totalMicroBits N₁) 3 ≤ a
-      · exact (hmem₁ a ha_out).trans (hmem₂ a ha_out).symm
-      · rw [not_or, not_lt, not_le] at ha_out
-        rcases eq_or_lt_of_le ha_out.1 with rfl | ha_gt
-        · exact hseed₁.1.trans hseed₂.1.symm
-        · set L := reducedLimbCount
-            (reducedTrinomialStep (qBits U N₁) (hashB N₁) (totalMicroBits N₁))
-          have hsw : ReducedKWise.seedWords (qBits U N₁) (hashB N₁) (totalMicroBits N₁) 3 =
-              1 + 3 * L := rfl
-          have hoff_lt : a - (base + epochHdrWords + 1) < 3 * L := by omega
-          have hL_pos : 0 < L := by omega
-          let m : Fin L := ⟨(a - (base + epochHdrWords + 1)) % L, Nat.mod_lt _ hL_pos⟩
-          let j : Fin 3 := ⟨(a - (base + epochHdrWords + 1)) / L,
-            Nat.div_lt_of_lt_mul (by rw [Nat.mul_comm]; exact hoff_lt)⟩
-          have haddr : base + epochHdrWords + 1 + (m.val + L * j.val) = a := by
-            have hmod := Nat.mod_add_div (a - (base + epochHdrWords + 1)) L
-            dsimp only [m, j]; omega
-          rw [← haddr]
-          exact (hseed₁.2 j m).trans (hseed₂.2 j m).symm
-    · exact hfr₁_y.trans hfr₂_y.symm
-  have hex_rep : ∀ θ : QuotHashSeed U N₁, ∃ y_rs ∈ μ_rs.support, extSeed y_rs = θ := fun θ => by
-    have hmem_u : θ ∈ (PMF.uniformOfFintype (QuotHashSeed U N₁)).support :=
-      Cslib.Probability.PMF.mem_support_uniformOfFintype θ
-    rw [← hmap_unif, PMF.mem_support_map_iff] at hmem_u
-    exact hmem_u
-  choose yRep hyRep_supp hyRep_seed using hex_rep
-  have hfin_rep := fun θ =>
-    initFirstFinishCode_exec u v hv_lt hfit_peak hy_set_b hy_set_fr habi_set hbelow_set
-      hhdr_set hpar_set hr_base hr_fr hr_ib hu_reg hv_reg hr_nhp hr_ncp
-      (hrs_supp _ (hyRep_supp θ)).1
-      (by
-        have hs := (hrs_supp _ (hyRep_supp θ)).2.1
-        change ReducedKWise.SeedRep _ _ _ _ _ (extSeed (yRep θ)) _ at hs
-        rw [hyRep_seed θ] at hs
-        exact hs)
-      (hrs_supp _ (hyRep_supp θ)).2.2.1
-      (hrs_supp _ (hyRep_supp θ)).2.2.2
-  choose zOf stepsClean hfin_spec using hfin_rep
-  have hfin_any : ∀ y_rs ∈ μ_rs.support,
-      ExecRCodeDist w initFirstFinishCode y_rs (PMF.pure (zOf (extSeed y_rs)))
-        ((5 + stepsClean (extSeed y_rs) : ℕ) : ℝ≥0∞) fr₁ := by
-    intro y_rs hy_rs
-    obtain ⟨hfr_y, hseed_y, hmem_y, hreg_y⟩ := hrs_supp y_rs hy_rs
-    obtain ⟨z₀, hz₀_def, hex_zr, _, _, _, _⟩ :=
-      zeroResampleRegsCode_exec hy_set_b hfr_y hy_set_fr.le
-        (qBits_le_of_le_pow hw hU.le) hc_lt
-        (by rw [hy_set_fr]; change _ ≤ fr₁; rw [hfr₁_def]; unfold epochHdrWords; omega)
-        hseed_y hmem_y hreg_y
-    have hz₀_eq : z₀ =
-        ((((( (yRep (extSeed y_rs)).set mCur 0).set mIdx 0).set mK 0).set mOne 0).set mRes 0) :=
-      hz₀_def.trans (hcanon_z₀ hy_rs (hyRep_supp (extSeed y_rs)) (hyRep_seed (extSeed y_rs)).symm)
-    have hex_cl := hz₀_eq ▸ (hfin_spec (extSeed y_rs)).1
-    exact ExecRCodeDist.of_demonicExec (hex_zr.seq_eq hex_cl)
-  have hex_tail := hex_rs.seq hfin_any
-  have hmu_eq : μ_rs.bind (fun y_rs => PMF.pure (zOf (extSeed y_rs))) =
-      (PMF.uniformOfFintype (QuotHashSeed U N₁)).map zOf := by
-    have h1 : μ_rs.bind (fun y_rs => PMF.pure (zOf (extSeed y_rs))) =
-        μ_rs.map (zOf ∘ extSeed) := rfl
-    rw [h1, ← PMF.map_comp, hmap_unif]
-  have hex_full :=
-    (ExecRCodeDist.of_demonicExec hex_set).seq_pure (hmu_eq ▸ hex_tail)
-  set μ_u := PMF.uniformOfFintype (QuotHashSeed U N₁)
-  have htsum_fin : (∑' y_rs, μ_rs y_rs * ((5 + stepsClean (extSeed y_rs) : ℕ) : ℝ≥0∞)) =
-      ∑' θ, μ_u θ * ((5 + stepsClean θ : ℕ) : ℝ≥0∞) := by
-    rw [← Cslib.Probability.PMF.tsum_map_mul μ_rs extSeed
-      (fun θ => ((5 + stepsClean θ : ℕ) : ℝ≥0∞)), hmap_unif]
-  have hsw_le_163 :
-      ReducedKWise.seedWords (qBits U N₁) (hashB N₁) (totalMicroBits N₁) 3 ≤ 163 :=
-    (ReducedKWise.seedWords_le _ _ _ 3).trans (by decide)
+  have hce₁ : compactedEpochWords U V w N₁ 1 =
+      offCompItems U w N₁ + compactedItemWords U V w N₁ 1 := by
+    unfold compactedEpochWords; simp
+  have hnm_le : base + offCompItems U w N₁ ≤ fr₁ := by
+    dsimp only [fr₁]; rw [hce₁]; omega
+  obtain ⟨zOf, T_init, hex_full, hpost, hcost⟩ :=
+    exec_setup_resample_finish (metaBase := base) (base := base)
+      (finBound := 46350 * migFactor + 6)
+      (finishCleanCode := initFirstFinishCleanCode)
+      (P := fun θ z =>
+        z.Bounded w ∧
+        z.frontier = fr₁ ∧
+        CompactedSplitRep base (base + offCompItems U w N₁) U V w N₁ 1 1 θ
+          (Function.update (Dictionary.empty U) u (some v))
+          ⟨z.mem, z.frontier⟩ ∧
+        z.regs mBase = base ∧
+        (∀ addr < base, z.mem addr = x.mem addr))
+      hw hU hN₁U hex_set hy_set_b hy_set_fr (hfit_peak.of_le hnm_le) hnm_le hr_hb hr_nhp
+      (fun θ y_rs hfr_y hseed_y hmem_y hreg_y => by
+        obtain ⟨z, stepsClean, hex_cl, hzb, hzf, hsp, habi, hbel, hbd⟩ :=
+          initFirstFinishCode_exec u v hv_lt hfit_peak hy_set_b hy_set_fr habi_set hbelow_set
+            hhdr_set hpar_set hr_base hr_fr hr_ib hu_reg hv_reg hr_nhp hr_ncp
+            hfr_y hseed_y hmem_y hreg_y
+        exact ⟨z, stepsClean, hex_cl, ⟨hzb, hzf, hsp, habi.1.trans hbase, hbel⟩, hbd⟩)
+  refine ⟨zOf, T_init, hex_full, hpost, hcost.trans ((Nat.cast_le (α := ℝ≥0∞)).mpr ?_)⟩
   have hf1 := one_le_migFactor
-  have hpt_bound : ∀ θ,
-      ((5 + stepsClean θ : ℕ) : ℝ≥0∞) +
-        (inEpochPotential U w N₁ base (zOf θ) : ℝ≥0∞) ≤
-        ((46350 * migFactor + 6 : ℕ) : ℝ≥0∞) := fun θ => by
-    rw [← Nat.cast_add]
-    exact (Nat.cast_le (α := ℝ≥0∞)).mpr (hfin_spec θ).2.2.2.2.2.2
-  have hsum_fin_pot :
-      (∑' θ, μ_u θ * ((5 + stepsClean θ : ℕ) : ℝ≥0∞)) +
-        (∑' θ, μ_u θ * (inEpochPotential U w N₁ base (zOf θ) : ℝ≥0∞)) ≤
-        ((46350 * migFactor + 6 : ℕ) : ℝ≥0∞) := by
-    rw [← CompleteLattice.summable.tsum_add CompleteLattice.summable]
-    calc (∑' θ, (μ_u θ * ((5 + stepsClean θ : ℕ) : ℝ≥0∞) +
-            μ_u θ * (inEpochPotential U w N₁ base (zOf θ) : ℝ≥0∞)))
-        = ∑' θ, μ_u θ * (((5 + stepsClean θ : ℕ) : ℝ≥0∞) +
-            (inEpochPotential U w N₁ base (zOf θ) : ℝ≥0∞)) :=
-          tsum_congr fun _ => (mul_add _ _ _).symm
-      _ ≤ ∑' θ, μ_u θ * ((46350 * migFactor + 6 : ℕ) : ℝ≥0∞) :=
-          tsum_le_tsum fun θ => mul_le_mul_right (hpt_bound θ) _
-      _ = ((46350 * migFactor + 6 : ℕ) : ℝ≥0∞) := by
-          rw [ENNReal.tsum_mul_right, μ_u.tsum_coe, one_mul]
-  refine ⟨zOf, _, hex_full, fun θ => ?_, ?_⟩
-  · obtain ⟨_, hzb, hzf, hsp, habi, hbel, _⟩ := hfin_spec θ
-    exact ⟨hzb, hzf, hsp, habi.1.trans hbase, hbel⟩
-  · rw [htsum_fin, add_assoc, add_assoc]
-    have h_sr : ((steps_p + steps_g : ℕ) : ℝ≥0∞) +
-        ((5 * ReducedKWise.seedWords (qBits U N₁) (hashB N₁) (totalMicroBits N₁) 3 + 11 : ℕ) :
-          ℝ≥0∞) ≤
-        ((126 * migFactor + 6100 : ℕ) : ℝ≥0∞) := by
-      rw [← Nat.cast_add]
-      refine (Nat.cast_le (α := ℝ≥0∞)).mpr ?_
-      have hsw_b : 5 * ReducedKWise.seedWords (qBits U N₁) (hashB N₁) (totalMicroBits N₁) 3 + 11 ≤
-          826 := by omega
-      linarith only [hc_p, hc_g, hsw_b]
-    calc ((steps_p + steps_g : ℕ) : ℝ≥0∞) +
-          (((5 * ReducedKWise.seedWords (qBits U N₁) (hashB N₁) (totalMicroBits N₁) 3 + 11 : ℕ) :
-              ℝ≥0∞) +
-            ((∑' θ, μ_u θ * ((5 + stepsClean θ : ℕ) : ℝ≥0∞)) +
-              (∑' θ, μ_u θ * (inEpochPotential U w N₁ base (zOf θ) : ℝ≥0∞))))
-        ≤ (((steps_p + steps_g : ℕ) : ℝ≥0∞) +
-            ((5 * ReducedKWise.seedWords (qBits U N₁) (hashB N₁) (totalMicroBits N₁) 3 + 11 : ℕ) :
-              ℝ≥0∞)) +
-          ((46350 * migFactor + 6 : ℕ) : ℝ≥0∞) := by
-          rw [← add_assoc]; gcongr
-      _ ≤ ((126 * migFactor + 6100 : ℕ) : ℝ≥0∞) +
-          ((46350 * migFactor + 6 : ℕ) : ℝ≥0∞) := by gcongr
-      _ ≤ (initFirstCharge : ℝ≥0∞) := by
-          rw [← Nat.cast_add]
-          refine (Nat.cast_le (α := ℝ≥0∞)).mpr ?_
-          unfold initFirstCharge
-          linarith only [hf1]
+  unfold initFirstCharge
+  linarith only [hc_p, hc_g, hf1]
 
 private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
     {θ : QuotHashSeed U N} {s_abs : Dictionary.State U} {x : RData rResize}
@@ -4548,7 +4083,7 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
   have hfit_off : Fits w (base + off) := hfit_fr.of_le (by rw [hfr_eq]; linarith only)
   have hfit1 : Fits w 1 := hfit_off.of_le (by linarith only [h225])
   obtain ⟨x₁, hex_hp, hx₁b, hx₁m, hx₁f, hx₁_hp, hx₁_r⟩ :=
-    loadMigBlockUpTo_exec mOldHp mOldHp_inj
+    loadBlockUpTo_exec mBase mCur (mReg_ne (by decide)) mOldHp mOldHp_inj
       (fun i => mOldHp_ne_mReg i (Or.inl (by decide)))
       (fun i => mOldHp_ne_mReg i (Or.inl (by decide)))
       offHashParams 18 (by decide) hx le_rfl hbase
@@ -4556,7 +4091,7 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
   have hx₁_base : x₁.regs mBase = base :=
     (hx₁_r mBase (mReg_ne (by decide)) (fun i => mOldHp_ne_mReg i (Or.inl (by decide)))).trans hbase
   obtain ⟨x₂, hex_cp, hx₂b, hx₂m, hx₂f, hx₂_cp, hx₂_r⟩ :=
-    loadMigBlockUpTo_exec mOldCp mOldCp_inj
+    loadBlockUpTo_exec mBase mCur (mReg_ne (by decide)) mOldCp mOldCp_inj
       (fun i => mOldCp_ne_mReg i (Or.inl (by decide)))
       (fun i => mOldCp_ne_mReg i (Or.inl (by decide)))
       offCompParams 35 (by decide) hx₁b hx₁f.le hx₁_base
@@ -4577,7 +4112,7 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
     hx₂f_eq.le (fits_zero w)
   have hx₃b : x₃.Bounded w := (hx₂b.set hfit1).set (fits_zero w)
   have hin_iw : x₃.regs ∘ srcOldIw = WordEncoding.encode (mkCompParams U V w N, 1) := by
-    refine (mRegs_pairSrc (mRegs_cp_eq fun i => ?_) (mRegs_reg1_eq mCnt ?_)).eq
+    refine (regs_pairSrc (regs_cp_eq fun i => ?_) (regs_reg1_eq mCnt ?_)).eq
     · dsimp only [x₃, RData.set]
       rw [Function.update_of_ne (mOldCp_ne_mReg i (c := 1) (Or.inl (by decide))),
         Function.update_of_ne (mOldCp_ne_mReg i (c := 13) (Or.inl (by decide)))]
@@ -4589,7 +4124,7 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
   have hv_iw := validProg_compItemWordsGen (mkCompParams U V w N, 1)
     (memoryState mFr x₃.toData) ⟨wellFormed_memoryState hx₃b.1, Nat.zero_le _⟩
   obtain ⟨x₄, hex_iw, hx₄b, hx₄f, hm_iw, hout_iw, hframe_iw⟩ :=
-    execMigWitness wItemWords factor_mItemWords_le srcOldIw tmpOldIw
+    execWitness wItemWords factor_mItemWords_le mFr srcOldIw tmpOldIw
       tmpOldIw_inj srcOldIw_ne_tmp tmpOldIw_ne_mFr srcOldIw_ne_mFr
       (mkCompParams U V w N, 1) hx₃b hx₂f_eq.le hin_iw hsafe_iw hv_iw
       (by rw [clientState_compItemWordsGenProg]; change 0 ≤ x₃.frontier; omega)
@@ -4601,7 +4136,7 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
     have h0 := hout_iw 0; rwa [tmpOldIw_out, clientResult_compItemWordsGenProg hw] at h0
   have hx₄_keep3 : ∀ reg, reg ≠ mFr → reg.val < 160 → reg ≠ mIwOld → x₄.regs reg = x₃.regs reg :=
     fun reg h1 h160 hiw => hframe_iw reg h1
-      (mkMigTmp_ne_reg _ h160 (fun a => by fin_cases a; exact hiw.symm))
+      (mkTmp_ne_reg _ h160 (fun a => by fin_cases a; exact hiw.symm))
   have hx₄_base : x₄.regs mBase = base :=
     (hx₄_keep3 mBase (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))).trans <|
     (by simp [x₃, RData.set] : x₃.regs mBase = x₂.regs mBase).trans <|
@@ -4637,12 +4172,12 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
   let d_ro := (((mkHashParams w (qBits U N) (hashB N) (totalMicroBits N) 3,
     mkCompParams U V w N), (base, base + off)), 0)
   have hin_ro : x₇.regs ∘ srcReadOldKV = WordEncoding.encode d_ro := by
-    refine (mRegs_pairSrc
-      (mRegs_pairSrc
-        (mRegs_pairSrc (mRegs_hp_eq fun i => ?_) (mRegs_cp_eq fun i => ?_))
-        (mRegs_pairSrc (mRegs_reg1_eq mBase (by simp [x₇, x₆, x₅, RData.set, hx₄_base]))
-          (mRegs_reg1_eq mItemBase (by simp [x₇, x₆, x₅, RData.set]))))
-      (mRegs_reg1_eq mZero (by simp [x₇, RData.set]))).eq
+    refine (regs_pairSrc
+      (regs_pairSrc
+        (regs_pairSrc (regs_hp_eq fun i => ?_) (regs_cp_eq fun i => ?_))
+        (regs_pairSrc (regs_reg1_eq mBase (by simp [x₇, x₆, x₅, RData.set, hx₄_base]))
+          (regs_reg1_eq mItemBase (by simp [x₇, x₆, x₅, RData.set]))))
+      (regs_reg1_eq mZero (by simp [x₇, RData.set]))).eq
     · dsimp only [x₇, x₆, x₅, RData.set]
       rw [Function.update_of_ne (mOldHp_ne_mReg i (c := 11) (Or.inl (by decide))),
         Function.update_of_ne (mOldHp_ne_mReg i (c := 1) (Or.inl (by decide))),
@@ -4684,7 +4219,7 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
     rw [hms₇] at hwf₇ ⊢
     exact hvp_ro ⟨hwf₇, Nat.zero_le _⟩
   obtain ⟨y, hex_ro, hyb, hyf, hm_ro, hout_reg_ro, hframe_ro⟩ :=
-    execMigWitness wReadOldKV factor_wReadOldKV_le srcReadOldKV tmpReadOldKV
+    execWitness wReadOldKV factor_wReadOldKV_le mFr srcReadOldKV tmpReadOldKV
       tmpReadOldKV_inj srcReadOldKV_ne_tmp tmpReadOldKV_ne_mFr srcReadOldKV_ne_mFr
       d_ro hx₇b hx₄f_eq.le hin_ro (hms₇ ▸ hpre_ro) hv_ro
       (by rw [hms₇, hfr_ro]; exact hx₄f_eq.symm.le)
@@ -4697,7 +4232,7 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
   have hy_keep7 : ∀ reg, reg ≠ mFr → reg.val < 160 → reg ≠ mU0 → reg ≠ mV0 →
       y.regs reg = x₇.regs reg := fun reg h1 h160 hu0 hv0 =>
     hframe_ro reg h1
-      (mkMigTmp_ne_reg _ h160 (fun a => by fin_cases a <;> [exact hu0.symm; exact hv0.symm]))
+      (mkTmp_ne_reg _ h160 (fun a => by fin_cases a <;> [exact hu0.symm; exact hv0.symm]))
   have hy_argu : y.regs mArgU = x.regs mArgU := by
     rw [hy_keep7 mArgU (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))
       (mReg_ne (by decide))]
@@ -4760,19 +4295,19 @@ private theorem deleteLastHitTailCode_exec {U V w N n_init base : ℕ} {x y : RD
   have hex_z0 := RDemonicExec.const (B := .exact) (d := mZero) (v := 0) (x := y) hyf.le
     (fits_zero w)
   have hy₁b : y₁.Bounded w := hyb.set (fits_zero w)
-  obtain ⟨hex_st5, hy₂b⟩ := storeAtOffMigCode_exec (base := base) (rSrc := mZero) (off := 5)
-    (val := 0) hy₁b hyf.le (mReg_ne (by decide)) (by simp [y₁, RData.set, hy_base])
-    (by simp [y₁, RData.set]) (hfit8.of_le (by decide))
+  obtain ⟨hex_st5, hy₂b⟩ := storeAtOffCode_exec (rAddr := mBase) (rSrc := mZero) (rTmp := mCur)
+    (base := base) (off := 5) (val := 0) hy₁b hyf.le (mReg_ne (by decide)) (mReg_ne (by decide))
+    (by simp [y₁, RData.set, hy_base]) (by simp [y₁, RData.set]) (hfit8.of_le (by decide))
     (by change base + 5 < y.frontier; rw [hyf, hfr_eq]; omega)
   set y₂ := (y₁.set mCur (base + 5)).write (base + 5) 0
-  obtain ⟨hex_st6, hy₃b⟩ := storeAtOffMigCode_exec (base := base) (rSrc := mZero) (off := 6)
-    (val := 0) hy₂b hyf.le (mReg_ne (by decide))
+  obtain ⟨hex_st6, hy₃b⟩ := storeAtOffCode_exec (rAddr := mBase) (rSrc := mZero) (rTmp := mCur)
+    (base := base) (off := 6) (val := 0) hy₂b hyf.le (mReg_ne (by decide)) (mReg_ne (by decide))
     (by simp [y₂, y₁, RData.set, RData.write, hy_base])
     (by simp [y₂, y₁, RData.set, RData.write])
     (hfit8.of_le (by decide)) (by change base + 6 < y.frontier; rw [hyf, hfr_eq]; omega)
   set y₃ := (y₂.set mCur (base + 6)).write (base + 6) 0
-  obtain ⟨hex_st7, hy₄b⟩ := storeAtOffMigCode_exec (base := base) (rSrc := mZero) (off := 7)
-    (val := 0) hy₃b hyf.le (mReg_ne (by decide))
+  obtain ⟨hex_st7, hy₄b⟩ := storeAtOffCode_exec (rAddr := mBase) (rSrc := mZero) (rTmp := mCur)
+    (base := base) (off := 7) (val := 0) hy₃b hyf.le (mReg_ne (by decide)) (mReg_ne (by decide))
     (by simp [y₃, y₂, y₁, RData.set, RData.write, hy_base])
     (by simp [y₃, y₂, y₁, RData.set, RData.write])
     (hfit8.of_le (by decide)) (by change base + 7 < y.frontier; rw [hyf, hfr_eq]; omega)
@@ -4809,7 +4344,7 @@ private theorem deleteLastHitTailCode_exec {U V w N n_init base : ℕ} {x y : RD
     hy₇b mShrink_nodup hfit1 hyf.le hk_le_fr
   rw [hy₇_k] at hex_sh
   set z := shrinkPost mK mIdx mZero mOne y₇
-  have hzb : z.Bounded w := mShrinkPost_bounded hy₇b hfit1 hk_le_fr
+  have hzb : z.Bounded w := shrinkPost_bounded hy₇b hfit1 hk_le_fr
   have hzf : z.frontier = base + 8 := hfr_sub
   have hz_lt8 : ∀ a < base + 8, z.mem a = y₄.mem a := fun a ha => by
     change clear y₄.mem (y₇.frontier - y₇.regs mK) (y₇.regs mK) a = y₄.mem a

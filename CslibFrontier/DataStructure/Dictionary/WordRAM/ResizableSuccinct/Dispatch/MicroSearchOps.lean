@@ -2552,6 +2552,32 @@ def compSearchBucketGenProg :
     else
       compSearchOverflowGenProg (((cp, (metaBase, itemBase)), (b, q_target)))
 
+private theorem fixedCoupled_bucketSearch_inv
+    {metaBase itemBase U V w N b m : ℕ} {L : List ℕ} {s_fix s : Memory.State}
+    (hcpl : FixedCoupled metaBase itemBase U V w N s_fix s)
+    (hslot : SlotStoreInv N (compGmAt metaBase U w N s.mem))
+    (hchain : IsDLChain N (lmHead N (compLmAt metaBase U w N s.mem) b m)
+      (lmPrev N (compLmAt metaBase U w N s.mem) b)
+      (lmNext N (compLmAt metaBase U w N s.mem) b) L)
+    (hc_lt : ∀ j ∈ L, j < bCount N (compGmAt metaBase U w N s.mem) b) :
+    SlotStoreInv N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) ∧
+    IsDLChain N
+      (lmHead N (lmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b m)
+      (lmPrev N (lmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b)
+      (lmNext N (lmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b) L ∧
+    (∀ j ∈ L, j < bCount N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b) := by
+  refine ⟨?_, ?_, ?_⟩
+  · change SlotStoreInv N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem)
+    rw [← hcpl.gm_eq]; exact hslot
+  · change IsDLChain N
+      (lmHead N (lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b m)
+      (lmPrev N (lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b)
+      (lmNext N (lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b) L
+    rw [← hcpl.lm_eq]; exact hchain
+  · change ∀ j ∈ L,
+      j < bCount N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b
+    rw [← hcpl.gm_eq]; exact hc_lt
+
 theorem compSearchBucketGenProg_spec
     {metaBase itemBase U V w N m_items b q_target m : ℕ} {L : List ℕ} {s_fix s : Memory.State}
     (henv : CompEpochEnv U V w N metaBase itemBase m_items s)
@@ -2576,24 +2602,8 @@ theorem compSearchBucketGenProg_spec
     (q_target := q_target) henv hcpl hslot hm_items hb hm hchain hc_lt
   obtain ⟨hst2, hres2, hcost2, _⟩ := compSearchOverflowGenProg_spec
     (q_target := q_target) henv hcpl hslot hm_items hb
-  have hslot_fix : SlotStoreInv N
-      (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) := by
-    change SlotStoreInv N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem)
-    rw [← hcpl.gm_eq]; exact hslot
-  have hchain_fix : IsDLChain N
-      (lmHead N (lmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b m)
-      (lmPrev N (lmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b)
-      (lmNext N (lmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b) L := by
-    change IsDLChain N
-      (lmHead N (lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b m)
-      (lmPrev N (lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b)
-      (lmNext N (lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b) L
-    rw [← hcpl.lm_eq]; exact hchain
-  have hc_lt_fix : ∀ j ∈ L,
-      j < bCount N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b := by
-    change ∀ j ∈ L,
-      j < bCount N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b
-    rw [← hcpl.gm_eq]; exact hc_lt
+  obtain ⟨hslot_fix, hchain_fix, hc_lt_fix⟩ :=
+    fixedCoupled_bucketSearch_inv hcpl hslot hchain hc_lt
   have hst1_fix :
       (Memory.spec 0).clientState s_fix
         (searchMicroChainProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
@@ -2753,24 +2763,8 @@ theorem searchBucket_found_slotOf
           (((0, b), q_target), m)) :=
     (compSearchBucketGenProg_spec (q_target := q_target)
       henv hcpl hslot hm_items hb hm hchain hc_lt).2.1
-  have hslot_fix : SlotStoreInv N
-      (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) := by
-    change SlotStoreInv N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem)
-    rw [← hcpl.gm_eq]; exact hslot
-  have hchain_fix : IsDLChain N
-      (lmHead N (lmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b m)
-      (lmPrev N (lmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b)
-      (lmNext N (lmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b) L := by
-    change IsDLChain N
-      (lmHead N (lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b m)
-      (lmPrev N (lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b)
-      (lmNext N (lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b) L
-    rw [← hcpl.lm_eq]; exact hchain
-  have hc_lt_fix : ∀ j ∈ L,
-      j < bCount N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b := by
-    change ∀ j ∈ L,
-      j < bCount N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b
-    rw [← hcpl.gm_eq]; exact hc_lt
+  obtain ⟨hslot_fix, hchain_fix, hc_lt_fix⟩ :=
+    fixedCoupled_bucketSearch_inv hcpl hslot hchain hc_lt
   have hres_spec := (searchBucketProg_spec
     (d := (((0, b), q_target), m))
     (ghostDictEnvGen henv.pos_w henv.le_U henv.lt_pow_U henv.le_pow_V)
@@ -2828,24 +2822,8 @@ theorem compQueryBodyGenProg_spec
     (q_target := q_target) henv hcpl hslot hm_items hb hm hchain hc_lt
   have hfnd := searchBucket_found_slotOf (q_target := q_target)
     henv hcpl hslot hm_items hb hm hchain hc_lt
-  have hslot_fix : SlotStoreInv N
-      (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) := by
-    change SlotStoreInv N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem)
-    rw [← hcpl.gm_eq]; exact hslot
-  have hchain_fix : IsDLChain N
-      (lmHead N (lmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b m)
-      (lmPrev N (lmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b)
-      (lmNext N (lmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b) L := by
-    change IsDLChain N
-      (lmHead N (lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b m)
-      (lmPrev N (lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b)
-      (lmNext N (lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b) L
-    rw [← hcpl.lm_eq]; exact hchain
-  have hc_lt_fix : ∀ j ∈ L,
-      j < bCount N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b := by
-    change ∀ j ∈ L,
-      j < bCount N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b
-    rw [← hcpl.gm_eq]; exact hc_lt
+  obtain ⟨hslot_fix, hchain_fix, hc_lt_fix⟩ :=
+    fixedCoupled_bucketSearch_inv hcpl hslot hchain hc_lt
   have hst_sb_fix :
       (Memory.spec 0).clientState s_fix
         (searchBucketProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)

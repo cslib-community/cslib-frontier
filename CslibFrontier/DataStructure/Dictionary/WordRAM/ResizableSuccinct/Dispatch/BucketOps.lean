@@ -96,9 +96,6 @@ attribute [local simp] prog_memoryCost_write
 /-- Found flag (`1` on hit, `0` on miss) of a bucket-search result `((found, j), phys)`. -/
 abbrev sbFound (res : (ℕ × ℕ) × ℕ) : ℕ := res.1.1
 
-/-- Bucket-local logical slot index `j` of a bucket-search result `((found, j), phys)`. -/
-abbrev sbSlotIdx (res : (ℕ × ℕ) × ℕ) : ℕ := res.1.2
-
 /-- Feistel bucket coordinate `b` of a `compFeistelCoordsProg` result `((b, q), m)`. -/
 private abbrev fcBucket (c : (ℕ × ℕ) × ℕ) : ℕ := c.1.1
 
@@ -1426,6 +1423,83 @@ private theorem memoryCost_compDeleteSwapGenProg_le
   dsimp only [s₁, s₂] at h2 h3 ⊢
   omega
 
+private theorem compDeleteSwap_stages
+    {metaBase itemBase U V w N m_cap b j_del m_last j_last : ℕ}
+    {L : ℕ → ℕ → List ℕ} {s_fix s : Memory.State}
+    (henv : CompEpochEnv U V w N metaBase itemBase m_cap s)
+    (hcpl : FixedCoupled metaBase itemBase U V w N s_fix s)
+    (hslot : SlotStoreInv N (compGmAt metaBase U w N s.mem))
+    (hm_cap : epochTotalSlots N (compGmAt metaBase U w N s.mem) ≤ m_cap)
+    (hb : b < numBuckets N) (hm_last : m_last < numMicroPerBucket N)
+    (hj_lt : j_del < j_last)
+    (hj_last_bc : j_last < bCount N (compGmAt metaBase U w N s.mem) b)
+    (hval : AllChainsValid N (lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) L)
+    (hmem_last : j_last < effBucketCap N → j_last ∈ L b m_last) :
+    let phys_del := slotOf N (compGmAt metaBase U w N s.mem) b j_del
+    let s₁ := (Memory.spec 0).clientState s
+      (compUnlinkIfIndexedGenProg (((mkCompParams U V w N, metaBase), (b, m_last)), j_last))
+    let sf₁ := (Memory.spec 0).clientState s_fix
+      (unlinkIfIndexedProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
+        (((0, b), m_last), j_last))
+    let s₂ := (Memory.spec 0).clientState s₁
+      (compCopyLastPayloadGenProg (((mkCompParams U V w N, (metaBase, itemBase)), b), phys_del))
+    let sf₂ := (Memory.spec 0).clientState sf₁
+      (copyLastPayloadProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) ((0, b), phys_del))
+    CompOpFrame metaBase itemBase U V w N m_cap s s₁ ∧
+    CompOpFrame metaBase itemBase U V w N m_cap s₁ s₂ ∧
+    FixedCoupled metaBase itemBase U V w N sf₂ s₂ ∧
+    lmHead N (compLmAt metaBase U w N s₂.mem) b m_last ≤ effBucketCap N ∧
+    CompUnlinkIfIndexedPre w (((mkCompParams U V w N, metaBase), (b, m_last)), j_last) s ∧
+    CompCopyLastPayloadPre w (((mkCompParams U V w N, (metaBase, itemBase)), b), phys_del) s₁ ∧
+    CompPrependIfIndexedPre w (((mkCompParams U V w N, metaBase), (b, m_last)), j_del) s₂ := by
+  intro phys_del s₁ sf₁ s₂ sf₂
+  have hwg : 0 < ghostW w := by unfold ghostW; omega
+  have hj_del_bc : j_del < bCount N (compGmAt metaBase U w N s.mem) b := lt_trans hj_lt hj_last_bc
+  have hj_last_n : j_last < N := lt_of_lt_of_le hj_last_bc (bCount_le_n_max hslot b)
+  have hphys_del_lt : phys_del < N := (slotOf_lt_and_injective hslot).1 b hb j_del hj_del_bc
+  have hbounds : j_last < effBucketCap N →
+      lmPrev N (compLmAt metaBase U w N s.mem) b j_last ≤ effBucketCap N ∧
+      lmNext N (compLmAt metaBase U w N s.mem) b j_last ≤ effBucketCap N := fun hj_cap => by
+    rw [hcpl.lm_eq]
+    exact ⟨(hval.1 b hb m_last hm_last).prev_le_cap (hmem_last hj_cap),
+      (hval.1 b hb m_last hm_last).next_le_cap (hmem_last hj_cap)⟩
+  obtain ⟨hfr1, hcpl1⟩ := compUnlinkIfIndexedGenProg_effect
+    (m_cap := m_cap) henv.pos_w henv.meta_le_item hcpl hb hm_last hbounds
+  have eff_u := unlinkIfIndexedProg_allChainsValid (U := U) (V := V) (w := ghostW w)
+    (n_max := N) (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b)
+    (m := m_last) (j_del := j_last) hwg hb hm_last hj_last_n hval hmem_last
+  have hgm1 : compGmAt metaBase U w N s₁.mem = compGmAt metaBase U w N s.mem :=
+    hcpl1.gm_eq.trans (eff_u.2.2.2.2.1.trans hcpl.gm_eq.symm)
+  have henv1 := henv.of_mem_eq (s' := s₁) (by rw [hfr1.frontier_eq])
+  have hslot1 : SlotStoreInv N (compGmAt metaBase U w N s₁.mem) := hgm1.symm ▸ hslot
+  have hm_cap1 : epochTotalSlots N (compGmAt metaBase U w N s₁.mem) ≤ m_cap := hgm1.symm ▸ hm_cap
+  have hj_del_bc1 : j_del < bCount N (compGmAt metaBase U w N s₁.mem) b := hgm1.symm ▸ hj_del_bc
+  obtain ⟨hfr2, hcpl2⟩ :=
+    compCopyLastPayloadGenProg_effect henv1 hcpl1 hslot1 hm_cap1 hb hj_del_bc1
+  have hphys_eq1 : slotOf N (compGmAt metaBase U w N s₁.mem) b j_del = phys_del := by rw [hgm1]
+  rw [hphys_eq1] at hfr2 hcpl2
+  have hslot_sf1 : SlotStoreInv N
+      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem) := by
+    rw [eff_u.2.2.2.2.1, ← hcpl.gm_eq]; exact hslot
+  have hbc_sf1 : 1 ≤ bCount N
+      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem) b := by
+    rw [eff_u.2.2.2.2.1, ← hcpl.gm_eq]; omega
+  have eff_c := copyLastPayloadProg_effect (U := U) (V := V) (w := ghostW w) (n_max := N)
+    (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b) (phys_del := phys_del)
+    hwg hslot_sf1 hb hbc_sf1 hphys_del_lt
+  obtain ⟨L₁, hval₁, _⟩ := eff_u.2.2.2.2.2
+  have hold2 : lmHead N (compLmAt metaBase U w N s₂.mem) b m_last ≤ effBucketCap N := by
+    rw [hcpl2.lm_eq, eff_c.2.2.2.2.1]
+    exact (hval₁.1 b hb m_last hm_last).head_le_cap
+  refine ⟨hfr1, hfr2, hcpl2, hold2,
+    ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V,
+      rfl, henv.meta_le_frontier, hb, hm_last, hbounds⟩,
+    ⟨U, V, N, m_cap, sf₁, j_del, rfl, henv1, hcpl1, hslot1, hm_cap1, hb, hj_del_bc1,
+      hphys_eq1.symm⟩,
+    ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V,
+      rfl, ?_, hb, hm_last, hold2⟩⟩
+  rw [hfr2.frontier_eq, hfr1.frontier_eq]; exact henv.meta_le_frontier
+
 private theorem compDeleteSwapGenProg_effect
     {metaBase itemBase U V w N m_cap b j_del m_last j_last : ℕ}
     {L : ℕ → ℕ → List ℕ} {s_fix s : Memory.State}
@@ -1448,63 +1522,27 @@ private theorem compDeleteSwapGenProg_effect
     CompOpFrame metaBase itemBase U V w N m_cap s s' ∧
     FixedCoupled metaBase itemBase U V w N s_fix' s' := by
   intro phys_del d s' s_fix'
-  have hwg : 0 < ghostW w := by unfold ghostW; omega
-  have hj_del_bc : j_del < bCount N (compGmAt metaBase U w N s.mem) b := lt_trans hj_lt hj_last_bc
-  have hj_last_n : j_last < N := lt_of_lt_of_le hj_last_bc (bCount_le_n_max hslot b)
-  have hphys_del_lt : phys_del < N := (slotOf_lt_and_injective hslot).1 b hb j_del hj_del_bc
-  have hbounds : j_last < effBucketCap N →
-      lmPrev N (compLmAt metaBase U w N s.mem) b j_last ≤ effBucketCap N ∧
-      lmNext N (compLmAt metaBase U w N s.mem) b j_last ≤ effBucketCap N := fun hj_cap => by
-    rw [hcpl.lm_eq]
-    exact ⟨(hval.1 b hb m_last hm_last).prev_le_cap (hmem_last hj_cap),
-      (hval.1 b hb m_last hm_last).next_le_cap (hmem_last hj_cap)⟩
-  obtain ⟨hfr1, hcpl1⟩ := compUnlinkIfIndexedGenProg_effect
-    (m_cap := m_cap) henv.pos_w henv.meta_le_item hcpl hb hm_last hbounds
-  have eff_u := unlinkIfIndexedProg_allChainsValid (U := U) (V := V) (w := ghostW w)
-    (n_max := N) (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b)
-    (m := m_last) (j_del := j_last) hwg hb hm_last hj_last_n hval hmem_last
-  set s₁ := (Memory.spec 0).clientState s
-    (compUnlinkIfIndexedGenProg (((mkCompParams U V w N, metaBase), (b, m_last)), j_last))
-  set sf₁ := (Memory.spec 0).clientState s_fix
-    (unlinkIfIndexedProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
-      (((0, b), m_last), j_last))
-  have hgm1 : compGmAt metaBase U w N s₁.mem = compGmAt metaBase U w N s.mem :=
-    hcpl1.gm_eq.trans (eff_u.2.2.2.2.1.trans hcpl.gm_eq.symm)
-  have henv1 := henv.of_mem_eq (s' := s₁) (by rw [hfr1.frontier_eq])
-  have hslot1 : SlotStoreInv N (compGmAt metaBase U w N s₁.mem) := hgm1.symm ▸ hslot
-  have hm_cap1 : epochTotalSlots N (compGmAt metaBase U w N s₁.mem) ≤ m_cap := hgm1.symm ▸ hm_cap
-  have hj_del_bc1 : j_del < bCount N (compGmAt metaBase U w N s₁.mem) b := hgm1.symm ▸ hj_del_bc
-  obtain ⟨hfr2, hcpl2⟩ :=
-    compCopyLastPayloadGenProg_effect henv1 hcpl1 hslot1 hm_cap1 hb hj_del_bc1
-  have hphys_eq1 : slotOf N (compGmAt metaBase U w N s₁.mem) b j_del = phys_del := by rw [hgm1]
-  rw [hphys_eq1] at hfr2 hcpl2
-  have hslot_sf1 : SlotStoreInv N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem) := by
-    rw [eff_u.2.2.2.2.1, ← hcpl.gm_eq]; exact hslot
-  have hbc_sf1 : 1 ≤ bCount N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem) b := by
-    rw [eff_u.2.2.2.2.1, ← hcpl.gm_eq]; omega
-  have eff_c := copyLastPayloadProg_effect (U := U) (V := V) (w := ghostW w) (n_max := N)
-    (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b) (phys_del := phys_del)
-    hwg hslot_sf1 hb hbc_sf1 hphys_del_lt
-  obtain ⟨L₁, hval₁, _⟩ := eff_u.2.2.2.2.2
-  set s₂ := (Memory.spec 0).clientState s₁
-    (compCopyLastPayloadGenProg (((mkCompParams U V w N, (metaBase, itemBase)), b), phys_del))
-  have hold2 : lmHead N (compLmAt metaBase U w N s₂.mem) b m_last ≤ effBucketCap N := by
-    rw [hcpl2.lm_eq, eff_c.2.2.2.2.1]
-    exact (hval₁.1 b hb m_last hm_last).head_le_cap
+  obtain ⟨hfr1, hfr2, hcpl2, hold2, _, _, _⟩ :=
+    compDeleteSwap_stages henv hcpl hslot hm_cap hb hm_last hj_lt hj_last_bc hval hmem_last
   obtain ⟨hfr3, hcpl3⟩ := compPrependIfIndexedGenProg_effect
     (m_cap := m_cap) (j_new := j_del) henv.pos_w henv.meta_le_item hcpl2 hb hm_last hold2
-  have hs'_eq : s' = (Memory.spec 0).clientState s₂
+  have hs'_eq : s' = (Memory.spec 0).clientState
+      ((Memory.spec 0).clientState
+        ((Memory.spec 0).clientState s
+          (compUnlinkIfIndexedGenProg (((mkCompParams U V w N, metaBase), (b, m_last)), j_last)))
+        (compCopyLastPayloadGenProg (((mkCompParams U V w N, (metaBase, itemBase)), b), phys_del)))
       (compPrependIfIndexedGenProg (((mkCompParams U V w N, metaBase), (b, m_last)), j_del)) := by
-    dsimp only [s', d, compDeleteSwapGenProg, compDeleteSwapCopyProg, s₂, s₁]
+    dsimp only [s', d, compDeleteSwapGenProg, compDeleteSwapCopyProg]
     repeat rw [StateTransitionSpec.clientState_bind]
   have hs_fix'_eq : s_fix' = (Memory.spec 0).clientState
-      ((Memory.spec 0).clientState sf₁
+      ((Memory.spec 0).clientState
+        ((Memory.spec 0).clientState s_fix
+          (unlinkIfIndexedProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
+            (((0, b), m_last), j_last)))
         (copyLastPayloadProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) ((0, b), phys_del)))
       (prependIfIndexedProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
         (((0, b), m_last), j_del)) := by
-    dsimp only [s_fix', sf₁]; unfold deleteSwapProg deleteSwapGenProg
+    dsimp only [s_fix']; unfold deleteSwapProg deleteSwapGenProg
     simp only [unlinkIfIndexedGenProg_mk, copyLastPayloadGenProg_mk, prependIfIndexedGenProg_mk]
     repeat rw [StateTransitionSpec.clientState_bind]
   rw [hs'_eq, hs_fix'_eq]
@@ -1524,70 +1562,16 @@ private theorem realizesBounded_compDeleteSwapGen :
       hb, hm_last, hj_lt, hj_last_bc, rfl, hval, hmem_last⟩ := h)
   · exact ⟨j_del, U, V, N, m_cap, s_fix, L, rfl, henv, hcpl, hslot, hm_cap,
       hb, hm_last, hj_lt, hj_last_bc, rfl, hval, hmem_last⟩
-  · have hwg : 0 < ghostW w := by unfold ghostW; omega
-    have hj_del_bc : j_del < bCount N (compGmAt metaBase U w N s.mem) b := lt_trans hj_lt hj_last_bc
-    have hj_last_n : j_last < N := lt_of_lt_of_le hj_last_bc (bCount_le_n_max hslot b)
-    have hphys_del_lt : slotOf N (compGmAt metaBase U w N s.mem) b j_del < N :=
-      (slotOf_lt_and_injective hslot).1 b hb j_del hj_del_bc
-    have hbounds : j_last < effBucketCap N →
-        lmPrev N (compLmAt metaBase U w N s.mem) b j_last ≤ effBucketCap N ∧
-        lmNext N (compLmAt metaBase U w N s.mem) b j_last ≤ effBucketCap N := fun hj_cap => by
-      rw [hcpl.lm_eq]
-      exact ⟨(hval.1 b hb m_last hm_last).prev_le_cap (hmem_last hj_cap),
-        (hval.1 b hb m_last hm_last).next_le_cap (hmem_last hj_cap)⟩
-    obtain ⟨hfr1, hcpl1⟩ := compUnlinkIfIndexedGenProg_effect
-      (m_cap := m_cap) henv.pos_w henv.meta_le_item hcpl hb hm_last hbounds
-    have eff_u := unlinkIfIndexedProg_allChainsValid (U := U) (V := V) (w := ghostW w)
-      (n_max := N) (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b)
-      (m := m_last) (j_del := j_last) hwg hb hm_last hj_last_n hval hmem_last
-    set s₁ := (Memory.spec 0).clientState s
-      (compUnlinkIfIndexedGenProg (((mkCompParams U V w N, metaBase), (b, m_last)), j_last))
-    set sf₁ := (Memory.spec 0).clientState s_fix
-      (unlinkIfIndexedProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
-        (((0, b), m_last), j_last))
-    have hgm1 : compGmAt metaBase U w N s₁.mem = compGmAt metaBase U w N s.mem :=
-      hcpl1.gm_eq.trans (eff_u.2.2.2.2.1.trans hcpl.gm_eq.symm)
-    have henv1 := henv.of_mem_eq (s' := s₁) (by rw [hfr1.frontier_eq])
-    have hslot1 : SlotStoreInv N (compGmAt metaBase U w N s₁.mem) := hgm1.symm ▸ hslot
-    have hm_cap1 : epochTotalSlots N (compGmAt metaBase U w N s₁.mem) ≤ m_cap := hgm1.symm ▸ hm_cap
-    have hj_del_bc1 : j_del < bCount N (compGmAt metaBase U w N s₁.mem) b := hgm1.symm ▸ hj_del_bc
-    obtain ⟨hfr2, hcpl2⟩ :=
-      compCopyLastPayloadGenProg_effect henv1 hcpl1 hslot1 hm_cap1 hb hj_del_bc1
-    have hphys_eq1 : slotOf N (compGmAt metaBase U w N s₁.mem) b j_del =
-        slotOf N (compGmAt metaBase U w N s.mem) b j_del := by rw [hgm1]
-    rw [hphys_eq1] at hfr2 hcpl2
-    have hslot_sf1 : SlotStoreInv N
-        (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem) := by
-      rw [eff_u.2.2.2.2.1, ← hcpl.gm_eq]; exact hslot
-    have hbc_sf1 : 1 ≤ bCount N
-        (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem) b := by
-      rw [eff_u.2.2.2.2.1, ← hcpl.gm_eq]; omega
-    have eff_c := copyLastPayloadProg_effect (U := U) (V := V) (w := ghostW w) (n_max := N)
-      (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b)
-      (phys_del := slotOf N (compGmAt metaBase U w N s.mem) b j_del)
-      hwg hslot_sf1 hb hbc_sf1 hphys_del_lt
-    obtain ⟨L₁, hval₁, _⟩ := eff_u.2.2.2.2.2
-    have hst_sc : (Memory.spec 0).clientState s
-        (compDeleteSwapCopyProg
-          (((((mkCompParams U V w N, (metaBase, itemBase)), b),
-            slotOf N (compGmAt metaBase U w N s.mem) b j_del), (m_last, j_last)))) =
-        (Memory.spec 0).clientState s₁
-          (compCopyLastPayloadGenProg
-            (((mkCompParams U V w N, (metaBase, itemBase)), b),
-              slotOf N (compGmAt metaBase U w N s.mem) b j_del)) := by
-      dsimp only [compDeleteSwapCopyProg, s₁]
-      rw [StateTransitionSpec.clientState_bind]
+  · obtain ⟨_, _, _, _, _, _, hpre_p⟩ :=
+      compDeleteSwap_stages henv hcpl hslot hm_cap hb hm_last hj_lt hj_last_bc hval hmem_last
     change CompPrependIfIndexedPre w _
       ((Memory.spec 0).clientState s
         (compDeleteSwapCopyProg
           (((((mkCompParams U V w N, (metaBase, itemBase)), b),
             slotOf N (compGmAt metaBase U w N s.mem) b j_del), (m_last, j_last)))))
-    rw [hst_sc]
-    refine ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V,
-      rfl, ?_, hb, hm_last, ?_⟩
-    · rw [hfr2.frontier_eq, hfr1.frontier_eq]; exact henv.meta_le_frontier
-    · rw [hcpl2.lm_eq, eff_c.2.2.2.2.1]
-      exact (hval₁.1 b hb m_last hm_last).head_le_cap
+    dsimp only [compDeleteSwapCopyProg]
+    rw [StateTransitionSpec.clientState_bind]
+    exact hpre_p
 
 private theorem validProg_compDeleteSwapGen {w : ℕ}
     {d : (((CompParams × (ℕ × ℕ)) × (ℕ × ℕ)) × ℕ) × (ℕ × ℕ)} {s : Memory.State}
@@ -1595,65 +1579,13 @@ private theorem validProg_compDeleteSwapGen {w : ℕ}
   rcases d with ⟨⟨⟨⟨cp, ⟨metaBase, itemBase⟩⟩, ⟨b, j_del⟩⟩, phys_del⟩, ⟨m_last, j_last⟩⟩
   obtain ⟨U, V, N, m_cap, s_fix, L, rfl, henv, hcpl, hslot, hm_cap,
     hb, hm_last, hj_lt, hj_last_bc, rfl, hval, hmem_last⟩ := h
-  have hwg : 0 < ghostW w := by unfold ghostW; omega
-  have hj_del_bc : j_del < bCount N (compGmAt metaBase U w N s.mem) b := lt_trans hj_lt hj_last_bc
-  have hj_last_n : j_last < N := lt_of_lt_of_le hj_last_bc (bCount_le_n_max hslot b)
-  have hphys_del_lt : slotOf N (compGmAt metaBase U w N s.mem) b j_del < N :=
-    (slotOf_lt_and_injective hslot).1 b hb j_del hj_del_bc
-  have hbounds : j_last < effBucketCap N →
-      lmPrev N (compLmAt metaBase U w N s.mem) b j_last ≤ effBucketCap N ∧
-      lmNext N (compLmAt metaBase U w N s.mem) b j_last ≤ effBucketCap N := fun hj_cap => by
-    rw [hcpl.lm_eq]
-    exact ⟨(hval.1 b hb m_last hm_last).prev_le_cap (hmem_last hj_cap),
-      (hval.1 b hb m_last hm_last).next_le_cap (hmem_last hj_cap)⟩
-  obtain ⟨hfr1, hcpl1⟩ := compUnlinkIfIndexedGenProg_effect
-    (m_cap := m_cap) henv.pos_w henv.meta_le_item hcpl hb hm_last hbounds
-  have eff_u := unlinkIfIndexedProg_allChainsValid (U := U) (V := V) (w := ghostW w)
-    (n_max := N) (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b)
-    (m := m_last) (j_del := j_last) hwg hb hm_last hj_last_n hval hmem_last
-  set s₁ := (Memory.spec 0).clientState s
-    (compUnlinkIfIndexedGenProg (((mkCompParams U V w N, metaBase), (b, m_last)), j_last))
-  set sf₁ := (Memory.spec 0).clientState s_fix
-    (unlinkIfIndexedProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
-      (((0, b), m_last), j_last))
-  have hgm1 : compGmAt metaBase U w N s₁.mem = compGmAt metaBase U w N s.mem :=
-    hcpl1.gm_eq.trans (eff_u.2.2.2.2.1.trans hcpl.gm_eq.symm)
-  have henv1 := henv.of_mem_eq (s' := s₁) (by rw [hfr1.frontier_eq])
-  have hslot1 : SlotStoreInv N (compGmAt metaBase U w N s₁.mem) := hgm1.symm ▸ hslot
-  have hm_cap1 : epochTotalSlots N (compGmAt metaBase U w N s₁.mem) ≤ m_cap := hgm1.symm ▸ hm_cap
-  have hj_del_bc1 : j_del < bCount N (compGmAt metaBase U w N s₁.mem) b := hgm1.symm ▸ hj_del_bc
-  obtain ⟨hfr2, hcpl2⟩ :=
-    compCopyLastPayloadGenProg_effect henv1 hcpl1 hslot1 hm_cap1 hb hj_del_bc1
-  have hphys_eq1 : slotOf N (compGmAt metaBase U w N s₁.mem) b j_del =
-      slotOf N (compGmAt metaBase U w N s.mem) b j_del := by rw [hgm1]
-  rw [hphys_eq1] at hfr2 hcpl2
-  have hslot_sf1 : SlotStoreInv N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem) := by
-    rw [eff_u.2.2.2.2.1, ← hcpl.gm_eq]; exact hslot
-  have hbc_sf1 : 1 ≤ bCount N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem) b := by
-    rw [eff_u.2.2.2.2.1, ← hcpl.gm_eq]; omega
-  have eff_c := copyLastPayloadProg_effect (U := U) (V := V) (w := ghostW w) (n_max := N)
-    (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b)
-    (phys_del := slotOf N (compGmAt metaBase U w N s.mem) b j_del)
-    hwg hslot_sf1 hb hbc_sf1 hphys_del_lt
-  obtain ⟨L₁, hval₁, _⟩ := eff_u.2.2.2.2.2
+  obtain ⟨_, _, _, _, hpre_u, hpre_c, hpre_p⟩ :=
+    compDeleteSwap_stages henv hcpl hslot hm_cap hb hm_last hj_lt hj_last_bc hval hmem_last
   dsimp only [compDeleteSwapGenProg, compDeleteSwapCopyProg]
   simp only [bind_assoc]
-  refine validProg_bind
-    (validProg_compUnlinkIfIndexedGen
-      ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V,
-        rfl, henv.meta_le_frontier, hb, hm_last, hbounds⟩) ?_
-  refine validProg_bind
-    (validProg_compCopyLastPayloadGen
-      ⟨U, V, N, m_cap, sf₁, j_del, rfl, henv1, hcpl1, hslot1, hm_cap1, hb, hj_del_bc1,
-        hphys_eq1.symm⟩) ?_
-  refine validProg_compPrependIfIndexedGen
-    ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V,
-      rfl, ?_, hb, hm_last, ?_⟩
-  · rw [hfr2.frontier_eq, hfr1.frontier_eq]; exact henv.meta_le_frontier
-  · rw [hcpl2.lm_eq, eff_c.2.2.2.2.1]
-    exact (hval₁.1 b hb m_last hm_last).head_le_cap
+  exact validProg_bind (validProg_compUnlinkIfIndexedGen hpre_u) <|
+    validProg_bind (validProg_compCopyLastPayloadGen hpre_c) <|
+      validProg_compPrependIfIndexedGen hpre_p
 
 private theorem compGmAt_compDeleteSwapGenProg
     {metaBase itemBase U V w N m_cap b j_del m_last j_last : ℕ}
@@ -2331,8 +2263,8 @@ theorem compInsertSearchWithHashGenProg_dict_spec {metaBase itemBase U V w N m_i
     (Memory.spec 0).clientResult s prog = ((sbFound res_sb, res_sb.2), (b, m)) ∧
     (sbFound res_sb = 1 ↔ (s_abs u).isSome) ∧
     (sbFound res_sb = 1 →
-      sbSlotIdx res_sb < bCount N (compGmAt metaBase U w N s.mem) b ∧
-      res_sb.2 = slotOf N (compGmAt metaBase U w N s.mem) b (sbSlotIdx res_sb)) ∧
+      ∃ j < bCount N (compGmAt metaBase U w N s.mem) b,
+        res_sb.2 = slotOf N (compGmAt metaBase U w N s.mem) b j) ∧
     memoryCost prog s ≤
       32 + 12 * probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2 (Dictionary.dom s_abs) u := by
   intro q h_q b m d prog res_sb
@@ -2393,7 +2325,7 @@ theorem compInsertSearchWithHashGenProg_dict_spec {metaBase itemBase U V w N m_i
           slotOf N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b
             res_sb.1.2 := hphys_eq
       rw [hcpl.gm_eq]
-      exact ⟨hj_lt', hphys_eq'⟩
+      exact ⟨res_sb.1.2, hj_lt', hphys_eq'⟩
     · rw [ite_eq_right hex] at hres_branch
       change sbFound res_sb = 0 at hres_branch
       omega
@@ -2496,7 +2428,7 @@ theorem compInsertHit_dict_spec {metaBase itemBase U V w N m_items : ℕ}
   have hsrch := compInsertSearchWithHashGenProg_dict_spec henv hfit_off hinv hcpl hm_items u
   obtain ⟨_, _, _, hf_iff, hf_slot, _⟩ := hsrch
   have hsome : (s_abs u).isSome := hf_iff.mp hfound
-  obtain ⟨hj_bc, hphys_eq⟩ := hf_slot hfound
+  obtain ⟨j_hit, hj_bc, hphys_eq⟩ := hf_slot hfound
   obtain ⟨L, hb_inv⟩ := hinv.hbucket
   have hb_lt : b < numBuckets N := feistelBucket_lt (bucketBits N) (hValOfSeed U N θ) u.val
   have hm_lt : m < numMicroPerBucket N := mOfSeed_lt U N θ q
@@ -2521,15 +2453,15 @@ theorem compInsertHit_dict_spec {metaBase itemBase U V w N m_items : ℕ}
       (Nat.shiftRight_eq_div_pow u.val (bucketBits N)) rfl res_sb rfl hst_sb_fix hfound
   obtain ⟨hfr_wv, hcpl_wv⟩ :=
     compWritePhysValGenProg_effect henv hcpl hslot hm_items hb_lt hj_bc hv_lt
-  have hphys_lt : slotOf N (compGmAt metaBase U w N s.mem) b (sbSlotIdx res_sb) < N :=
-    (slotOf_lt_and_injective hslot).1 b hb_lt (sbSlotIdx res_sb) hj_bc
+  have hphys_lt : slotOf N (compGmAt metaBase U w N s.mem) b j_hit < N :=
+    (slotOf_lt_and_injective hslot).1 b hb_lt j_hit hj_bc
   have eff_wv_fix := writeValProg_effect (base := 0) (U := U) (V := V) (w := ghostW w) (n_max := N)
     (h_space := epochHashSpace U (ghostW w) N) hwf.1 hphys_lt hv_lt s_fix
   have hgm'_eq : compGmAt metaBase U w N s'.mem = compGmAt metaBase U w N s.mem := by
     dsimp only [s', d_wv]
     rw [hphys_eq]
     exact hcpl_wv.gm_eq.trans (eff_wv_fix.2.2.2.2.2.trans hcpl.gm_eq.symm)
-  refine ⟨⟨U, V, N, m_items, s_fix, b, sbSlotIdx res_sb, rfl, henv, hcpl, hslot, hm_items,
+  refine ⟨⟨U, V, N, m_items, s_fix, b, j_hit, rfl, henv, hcpl, hslot, hm_items,
       hb_lt, hj_bc, hphys_eq⟩,
     ?_, hgm'_eq, memoryCost_compWritePhysValGenProg_le _ s, s_fix', hins_fix.2.2.2.1, ?_⟩
   · dsimp only [s', d_wv]; rw [hphys_eq]; exact hfr_wv

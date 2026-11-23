@@ -214,8 +214,8 @@ private noncomputable abbrev mTmpA : Fin rResize := mReg 156
 private noncomputable abbrev mTmpB : Fin rResize := mReg 157
 
 private noncomputable def resizableInsertActiveCode : RCode .exact rResize :=
-  .seq (loadAtOffMigCode mNNew 5) <|
-  .seq (loadAtOffMigCode mTmpA 0) <|
+  .seq (loadAtOffCode mBase mNNew mCur 5) <|
+  .seq (loadAtOffCode mBase mTmpA mCur 0) <|
   .branch (.eq mCnt mNNew)
     (.branch (.lt mTmpA mNNew)
       (inEpochOpCode.rename epochEmb)
@@ -223,7 +223,7 @@ private noncomputable def resizableInsertActiveCode : RCode .exact rResize :=
     (inEpochOpCode.rename epochEmb)
 
 private noncomputable def resizableDeleteGeTwoCode : RCode .exact rResize :=
-  .seq (loadAtOffMigCode mNNew 5) <|
+  .seq (loadAtOffCode mBase mNNew mCur 5) <|
   .seq (.op (.exactBin .sub mTmpA mCnt mOne)) <|
   .seq (.op (.exactBin .sub mTmpB mNNew mOne)) <|
   .seq (.op (.const mCur 2)) <|
@@ -235,7 +235,7 @@ private noncomputable def resizableDeleteGeTwoCode : RCode .exact rResize :=
 /-- Unified parameter-free operational dispatcher (`RCode .exact rResize`) for `query`, `insert`,
 and `delete` across empty, in-epoch, `0 → 1`, `1 → 0`, and capacity-doubling/halving states. -/
 noncomputable def resizableOpCode : RCode .exact rResize :=
-  .seq (loadAtOffMigCode mCnt 6) <|
+  .seq (loadAtOffCode mBase mCnt mCur 6) <|
   .seq (.op (.const mZero 0)) <|
   .seq (.op (.const mOne 1)) <|
   .branch (.eq mCnt mZero)
@@ -259,7 +259,7 @@ theorem not_readsWidth_resizableOpCode : ¬resizableOpCode.ReadsWidth := by
     rw [RCode.readsWidth_rename]; exact not_readsWidth_inEpochOpCode
   simp [resizableOpCode, resizableInsertActiveCode, resizableDeleteGeTwoCode,
     RCode.ReadsWidth, Op.ReadsWidth, Op.exactBin,
-    not_readsWidth_loadAtOffMigCode, not_readsWidth_initFirstEpochCode,
+    not_readsWidth_loadAtOffCode, not_readsWidth_initFirstEpochCode,
     not_readsWidth_deleteLastOneCode, not_readsWidth_migrateActiveCode, hin]
 
 /-! ## Section 3: Epoch Trajectory, `1 · OPT` Peak Space, Potential, and Charges -/
@@ -940,32 +940,6 @@ private theorem delete_mig_le_two_dist {U n N n_init : ℕ}
   have hlt : 4 * (n - 1) < 2 * n_init := lt_of_lt_of_le hmig hN_2ni
   unfold Nat.dist; omega
 
-private theorem extractSeed_of_seedRep {base w₀ b b' k : ℕ}
-    {θ : ReducedPolySeed w₀ b b' k} {mem : ℕ → ℕ}
-    (hseed : ReducedKWise.SeedRep base w₀ b b' k θ mem) :
-    ReducedKWise.extractSeed base w₀ b b' k mem = θ := by
-  unfold ReducedKWise.extractSeed
-  obtain ⟨h0, hlimb⟩ := hseed
-  refine Prod.ext (Fin.ext ?_) (funext fun j => Fin.ext ?_)
-  · dsimp only
-    rw [ReducedKWise.extractTop_val, h0]
-    exact Cslib.WordRAM.wordOfNat_val_of_lt θ.1.isLt
-  · dsimp only
-    set t := reducedTrinomialStep w₀ b b'
-    set c := reducedChunkBits t
-    set L := reducedLimbCount t
-    have hc : 0 < c := reducedChunkBits_pos t
-    have hpow : L * c = 2 * 3 ^ t := reducedLimbCount_mul_chunkBits t
-    have ha : (ReducedKWise.extractBot base w₀ b b' k mem j).val < 2 ^ (L * c) :=
-      hpow.symm ▸ (ReducedKWise.extractBot base w₀ b b' k mem j).isLt
-    have hb : (θ.2 j).val < 2 ^ (L * c) := hpow.symm ▸ (θ.2 j).isLt
-    rw [← packLimbs_getLimb hc L ha, ← packLimbs_getLimb hc L hb]
-    refine packLimbs_congr fun m hm => ?_
-    have hm' := ReducedKWise.getLimb_extractBot_val base w₀ b b' k mem j ⟨m, hm⟩
-    dsimp only at hm'
-    rw [hm', hlimb j ⟨m, hm⟩]
-    exact Cslib.WordRAM.wordOfNat_val_of_lt (getLimb_lt c (θ.2 j).val m)
-
 /-- Execute `migrateActiveCode` followed by `inEpochOpCode.rename epochEmb` when an active insert
 or delete triggers single-tape `1 · OPT` capacity migration. -/
 private theorem exec_migrate_then_inEpoch {U V w base overhead : ℕ}
@@ -1052,7 +1026,7 @@ private theorem exec_migrate_then_inEpoch {U V w base overhead : ℕ}
   have hext_id : ∀ θ_new : QuotHashSeed U N_new,
       ReducedKWise.extractSeed (base + epochHdrWords) (qBits U N_new) (hashB N_new)
         (totalMicroBits N_new) 3 (zMid θ_new).mem = θ_new :=
-    fun θ_new => extractSeed_of_seedRep (hmid_all θ_new).2.2.1.hash_rep.2
+    fun θ_new => ReducedKWise.extractSeed_of_seedRep (hmid_all θ_new).2.2.1.hash_rep.2
   let extMid (y : RData rResize) : QuotHashSeed U N_new :=
     ReducedKWise.extractSeed (base + epochHdrWords) (qBits U N_new) (hashB N_new)
       (totalMicroBits N_new) 3 y.mem
@@ -1325,6 +1299,77 @@ private theorem execRCodeDist_of_demonic_outcome {U : ℕ} {α : Type*} {w L_pea
     ExecRCodeDist w c x ((PMF.pure q_out).map StepROutcome.data) steps L_peak :=
   (ExecRCodeDist.of_demonicExec h).congr_dist (by simp) le_rfl
 
+private theorem package_active_inEpoch_step {U V w base overhead stepsOp : ℕ}
+    {st : EpochState U} {ls : LatentSeed U} {o : Dynamic.Op U} {x : RData rResize}
+    {q_out : StepROutcome (LatentSeed U) o.Result rResize}
+    (hn_pos : 1 ≤ (Dictionary.dom st.dict).card)
+    (hcap_same : (st.step V o).cap = st.cap)
+    (hex_all : RDemonicExec w (base + stepExactPeakWords V w st.cap st.dict o)
+      resizableOpCode x (overhead + stepsOp) (· = q_out.data))
+    (hqls : q_out.latent = ls)
+    (hqrep : EpochRep U V w base (st.step V o) q_out.latent q_out.data)
+    (hqres : q_out.result = ((Dynamic.spec U V U).stepFn st.dict o).2)
+    (hqdec : resizableDecode o q_out.data.regs = some q_out.result)
+    (hqbel : ∀ addr < base, q_out.data.mem addr = x.mem addr)
+    (hqcost : (overhead + stepsOp) +
+        resizablePotential U w (st.step V o).cap (Dictionary.dom (st.step V o).dict).card
+          (st.step V o).initCount base q_out.data ≤
+        resizablePotential U w st.cap (Dictionary.dom st.dict).card st.initCount base x +
+          resizableBaseCharge +
+          12 * inEpochFactor *
+            probeExcess st.cap (qStage1 U st.cap (ls.seedAt st.cap).1)
+              (polyStage2 U st.cap) (ls.seedAt st.cap).2 (Dictionary.dom st.dict) (opKey o)) :
+    let n := (Dictionary.dom st.dict).card
+    let st' := st.step V o
+    let n' := (Dictionary.dom st'.dict).card
+    let L_peak := base + stepExactPeakWords V w st.cap st.dict o
+    let θ := ls.seedAt st.cap
+    ∃ (μ_out : PMF (StepROutcome (LatentSeed U) o.Result rResize)) (T_out : ℝ≥0∞),
+      ExecRCodeDist w resizableOpCode x (μ_out.map StepROutcome.data) T_out L_peak ∧
+      (∀ q ∈ μ_out.support,
+        EpochRep U V w base st' q.latent q.data ∧
+        q.result = ((Dynamic.spec U V U).stepFn st.dict o).2 ∧
+        resizableDecode o q.data.regs = some q.result ∧
+        (∀ addr < base, q.data.mem addr = x.mem addr)) ∧
+      (0 < n' →
+        if st'.cap = st.cap then
+          0 < n ∧ μ_out.map (fun q => q.latent.seedAt st.cap) = PMF.pure θ
+        else
+          μ_out.map (fun q => q.latent.seedAt st'.cap) =
+            PMF.uniformOfFintype (QuotHashSeed U st'.cap)) ∧
+      T_out + (∑' q, μ_out q *
+          (resizablePotential U w st'.cap n' st'.initCount base q.data : ℝ≥0∞)) ≤
+        (resizablePotential U w st.cap n st.initCount base x : ℝ≥0∞) +
+          ((resizableBaseCharge : ℝ≥0∞) +
+            if 0 < n then
+              (12 * inEpochFactor : ℝ≥0∞) *
+                (probeExcess st.cap (qStage1 U st.cap θ.1) (polyStage2 U st.cap) θ.2
+                  (Dictionary.dom st.dict) (opKey o) : ℝ≥0∞)
+            else 0) := by
+  refine ⟨PMF.pure q_out, _, execRCodeDist_of_demonic_outcome q_out hex_all,
+    fun q hq => ?_, fun _ => ?_, ?_⟩
+  · rw [PMF.support_pure, Set.mem_singleton_iff] at hq; subst hq
+    exact ⟨hqrep, hqres, hqdec, hqbel⟩
+  · rw [ite_eq_left hcap_same]; exact ⟨hn_pos, by simp [hqls]⟩
+  · rw [ite_eq_left (show 0 < (Dictionary.dom st.dict).card from hn_pos),
+      tsum_eq_single q_out (fun b hb => by simp [PMF.pure_apply, hb])]
+    simp only [PMF.pure_apply_self, one_mul]
+    have hc := (Nat.cast_le (α := ℝ≥0∞)).mpr hqcost
+    simp only [Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat] at hc
+    calc ((overhead + stepsOp : ℕ) : ℝ≥0∞) +
+          (resizablePotential U w (st.step V o).cap (Dictionary.dom (st.step V o).dict).card
+            (st.step V o).initCount base q_out.data : ℝ≥0∞)
+        = ((overhead : ℝ≥0∞) + (stepsOp : ℝ≥0∞)) +
+          (resizablePotential U w (st.step V o).cap (Dictionary.dom (st.step V o).dict).card
+            (st.step V o).initCount base q_out.data : ℝ≥0∞) := by push_cast; ring
+      _ ≤ (resizablePotential U w st.cap (Dictionary.dom st.dict).card st.initCount base x : ℝ≥0∞) +
+          (resizableBaseCharge : ℝ≥0∞) +
+          (12 * inEpochFactor : ℝ≥0∞) *
+            (probeExcess st.cap (qStage1 U st.cap (ls.seedAt st.cap).1)
+              (polyStage2 U st.cap) (ls.seedAt st.cap).2
+              (Dictionary.dom st.dict) (opKey o) : ℝ≥0∞) := hc
+      _ = _ := by ac_rfl
+
 /-- **Pointwise Distributional Step Certificate (`resizableOpCode_step_pointwise`):**
 From any state `(ls, x)` satisfying `EpochRep U V w base st ls x` and `resizableArgMatch o x.regs`,
 `resizableOpCode` executes under `ExecRCodeDist` within `base + stepExactPeakWords`, establishes
@@ -1425,9 +1470,9 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
               Nat.max_eq_left (card_dom_delete_bounds st.dict u).2
             dsimp only [inEpochPeakWords, Dynamic.spec, StateTransitionSpec.stepFn, Dynamic.step]
             rw [hmax_n]
-  -- Prefix: `loadAtOffMigCode mCnt 6; mZero := 0; mOne := 1` (5 steps)
-  obtain ⟨hex_ldn, hx₁b⟩ := loadAtOffMigCode_exec (rDst := mCnt) (off := 6) hx hL_x hbase hfit6
-    (by rw [hfr]; omega)
+  -- Prefix: `loadAtOffCode mBase mCnt mCur 6; mZero := 0; mOne := 1` (5 steps)
+  obtain ⟨hex_ldn, hx₁b⟩ := loadAtOffCode_exec (rAddr := mBase) (rDst := mCnt) (rTmp := mCur)
+    (off := 6) hx hL_x (mReg_ne (by decide)) hbase hfit6 (by rw [hfr]; omega)
   set x₁ := (x.set mCur (base + 6)).set mCnt (x.mem (base + 6))
   set x₂ := (x₁.set mZero 0).set mOne 1
   have hex_z0 := RDemonicExec.const (B := .exact) (d := mZero) (v := 0) (x := x₁) hL_x (fits_zero w)
@@ -1645,42 +1690,22 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
         (hex_ldn.seq_eq <| hex_z0.seq_eq <| hex_o1.seq_eq <|
           RDemonicExec.branch_neg hnc_n0 (RDemonicExec.branch_pos hc_t0 hex_op)).mono
           (by omega) (fun _ h => h)
-      refine ⟨PMF.pure q_out, _, execRCodeDist_of_demonic_outcome q_out hex_all, fun q hq => ?_,
-        fun _ => ?_, ?_⟩
-      · rw [PMF.support_pure, Set.mem_singleton_iff] at hq; subst hq
-        exact ⟨hqrep, hqres, hqdec, hqbel⟩
-      · have hcap_same : st'.cap = st.cap := rfl
-        rw [ite_eq_left hcap_same]
-        exact ⟨hn_pos, by simp [hqls, θ]⟩
-      · rw [ite_eq_left (show 0 < n from hn_pos),
-          tsum_eq_single q_out (fun b hb => by simp [PMF.pure_apply, hb])]
-        simp only [PMF.pure_apply_self, one_mul]
-        have hc := (Nat.cast_le (α := ℝ≥0∞)).mpr hqcost
-        simp only [Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat] at hc
-        calc ((8 + stepsOp : ℕ) : ℝ≥0∞) +
-              (resizablePotential U w st'.cap n' st'.initCount base q_out.data : ℝ≥0∞)
-            = ((8 : ℝ≥0∞) + (stepsOp : ℝ≥0∞)) +
-              (resizablePotential U w st'.cap n' st'.initCount base q_out.data : ℝ≥0∞) := by
-                push_cast; ring
-          _ ≤ (resizablePotential U w st.cap n st.initCount base x : ℝ≥0∞) +
-              (resizableBaseCharge : ℝ≥0∞) +
-              (12 * inEpochFactor : ℝ≥0∞) *
-                (probeExcess st.cap (qStage1 U st.cap θ.1) (polyStage2 U st.cap) θ.2
-                  (Dictionary.dom st.dict) (opKey (.query u)) : ℝ≥0∞) := hc
-          _ = _ := by ac_rfl
+      exact package_active_inEpoch_step hn_pos rfl hex_all hqls hqrep hqres hqdec hqbel hqcost
     | insert u v =>
       have hnc_t0 : ¬(Cond.eq mTag mZero).Holds x₂.toData := by
         change x₂.regs mTag ≠ x₂.regs mZero; rw [hx₂_arg.1, hx₂_z]; decide
       have hc_t1 : (Cond.eq mTag mOne).Holds x₂.toData := by
         change x₂.regs mTag = x₂.regs mOne; rw [hx₂_arg.1, hx₂_o]
       -- Load `N` from `base + 5` and `U - 1` from `base + 0` (6 steps)
-      obtain ⟨hex_ldN, hx₃b⟩ := loadAtOffMigCode_exec (rDst := mNNew) (off := 5) hx₂b hL_x
-        hx₂_base (hfit6.of_le (by decide)) (by change base + 5 < x.frontier; rw [hfr]; omega)
+      obtain ⟨hex_ldN, hx₃b⟩ := loadAtOffCode_exec (rAddr := mBase) (rDst := mNNew) (rTmp := mCur)
+        (off := 5) hx₂b hL_x (mReg_ne (by decide)) hx₂_base (hfit6.of_le (by decide))
+        (by change base + 5 < x.frontier; rw [hfr]; omega)
       set x₃ := (x₂.set mCur (base + 5)).set mNNew (x.mem (base + 5))
       have hx₃_base : x₃.regs mBase = base := by
         rw [show x₃.regs mBase = x₂.regs mBase by simp [x₃, RData.set], hx₂_base]
-      obtain ⟨hex_ldU, hx₄b⟩ := loadAtOffMigCode_exec (rDst := mTmpA) (off := 0) hx₃b hL_x
-        hx₃_base (fits_zero w) (by change base + 0 < x.frontier; rw [hfr]; omega)
+      obtain ⟨hex_ldU, hx₄b⟩ := loadAtOffCode_exec (rAddr := mBase) (rDst := mTmpA) (rTmp := mCur)
+        (off := 0) hx₃b hL_x (mReg_ne (by decide)) hx₃_base (fits_zero w)
+        (by change base + 0 < x.frontier; rw [hfr]; omega)
       set x₄ := (x₃.set mCur (base + 0)).set mTmpA (x.mem (base + 0))
       have hx₄_cnt : x₄.regs mCnt = n := by
         rw [show x₄.regs mCnt = x₂.regs mCnt by simp [x₄, x₃, RData.set], hx₂_cnt]
@@ -1744,27 +1769,8 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
               RDemonicExec.branch_neg hnc_n0
                 (RDemonicExec.branch_neg hnc_t0 (RDemonicExec.branch_pos hc_t1 hex_ins))).mono
               (by omega) (fun _ h => h)
-          refine ⟨PMF.pure q_out, _, execRCodeDist_of_demonic_outcome q_out hex_all,
-            fun q hq => ?_, fun _ => ?_, ?_⟩
-          · rw [PMF.support_pure, Set.mem_singleton_iff] at hq; subst hq
-            exact ⟨hqrep, hqres, hqdec, hqbel⟩
-          · rw [ite_eq_left hcap_same]; exact ⟨hn_pos, by simp [hqls, θ]⟩
-          · rw [ite_eq_left (show 0 < n from hn_pos),
-              tsum_eq_single q_out (fun b hb => by simp [PMF.pure_apply, hb])]
-            simp only [PMF.pure_apply_self, one_mul]
-            have hc := (Nat.cast_le (α := ℝ≥0∞)).mpr hqcost
-            simp only [Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat] at hc
-            calc ((18 + stepsOp : ℕ) : ℝ≥0∞) +
-                  (resizablePotential U w st'.cap n' st'.initCount base q_out.data : ℝ≥0∞)
-                = ((18 : ℝ≥0∞) + (stepsOp : ℝ≥0∞)) +
-                  (resizablePotential U w st'.cap n' st'.initCount base q_out.data : ℝ≥0∞) := by
-                    push_cast; ring
-              _ ≤ (resizablePotential U w st.cap n st.initCount base x : ℝ≥0∞) +
-                  (resizableBaseCharge : ℝ≥0∞) +
-                  (12 * inEpochFactor : ℝ≥0∞) *
-                    (probeExcess st.cap (qStage1 U st.cap θ.1) (polyStage2 U st.cap) θ.2
-                      (Dictionary.dom st.dict) (opKey (.insert u v)) : ℝ≥0∞) := hc
-              _ = _ := by ac_rfl
+          exact package_active_inEpoch_step hn_pos hcap_same hex_all hqls hqrep hqres hqdec hqbel
+            hqcost
         · -- `n = st.cap < U`: capacity-doubling migration!
           have hnc_lt : ¬(Cond.lt mTmpA mNNew).Holds x₄.toData := by
             change ¬(x₄.regs mTmpA < x₄.regs mNNew); rw [hx₄_u1, hx₄_nn]; exact hU_lt
@@ -1861,27 +1867,8 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
             RDemonicExec.branch_neg hnc_n0
               (RDemonicExec.branch_neg hnc_t0 (RDemonicExec.branch_pos hc_t1 hex_ins))).mono
             (by omega) (fun _ h => h)
-        refine ⟨PMF.pure q_out, _, execRCodeDist_of_demonic_outcome q_out hex_all, fun q hq => ?_,
-          fun _ => ?_, ?_⟩
-        · rw [PMF.support_pure, Set.mem_singleton_iff] at hq; subst hq
-          exact ⟨hqrep, hqres, hqdec, hqbel⟩
-        · rw [ite_eq_left hcap_same]; exact ⟨hn_pos, by simp [hqls, θ]⟩
-        · rw [ite_eq_left (show 0 < n from hn_pos),
-            tsum_eq_single q_out (fun b hb => by simp [PMF.pure_apply, hb])]
-          simp only [PMF.pure_apply_self, one_mul]
-          have hc := (Nat.cast_le (α := ℝ≥0∞)).mpr hqcost
-          simp only [Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat] at hc
-          calc ((18 + stepsOp : ℕ) : ℝ≥0∞) +
-                (resizablePotential U w st'.cap n' st'.initCount base q_out.data : ℝ≥0∞)
-              = ((18 : ℝ≥0∞) + (stepsOp : ℝ≥0∞)) +
-                (resizablePotential U w st'.cap n' st'.initCount base q_out.data : ℝ≥0∞) := by
-                  push_cast; ring
-            _ ≤ (resizablePotential U w st.cap n st.initCount base x : ℝ≥0∞) +
-                (resizableBaseCharge : ℝ≥0∞) +
-                (12 * inEpochFactor : ℝ≥0∞) *
-                  (probeExcess st.cap (qStage1 U st.cap θ.1) (polyStage2 U st.cap) θ.2
-                    (Dictionary.dom st.dict) (opKey (.insert u v)) : ℝ≥0∞) := hc
-            _ = _ := by ac_rfl
+        exact package_active_inEpoch_step hn_pos hcap_same hex_all hqls hqrep hqres hqdec hqbel
+          hqcost
     | delete u =>
       have hnc_t0 : ¬(Cond.eq mTag mZero).Holds x₂.toData := by
         change x₂.regs mTag ≠ x₂.regs mZero; rw [hx₂_arg.1, hx₂_z]; decide
@@ -2005,9 +1992,10 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
         change n - 1 ≤ n' at hn1_le_n'
         change n' ≤ n at hn'_le_n
         have hdist_del : Nat.dist n n' ≤ 1 := by unfold Nat.dist; omega
-        -- 1. `loadAtOffMigCode mNNew 5` (3 steps)
-        obtain ⟨hex_ldN, hx₃b⟩ := loadAtOffMigCode_exec (rDst := mNNew) (off := 5) hx₂b hL_x
-          hx₂_base (hfit6.of_le (by decide)) (by change base + 5 < x.frontier; rw [hfr]; omega)
+        -- 1. `loadAtOffCode mBase mNNew mCur 5` (3 steps)
+        obtain ⟨hex_ldN, hx₃b⟩ := loadAtOffCode_exec (rAddr := mBase) (rDst := mNNew)
+          (rTmp := mCur) (off := 5) hx₂b hL_x (mReg_ne (by decide)) hx₂_base
+          (hfit6.of_le (by decide)) (by change base + 5 < x.frontier; rw [hfr]; omega)
         set x₃ := (x₂.set mCur (base + 5)).set mNNew (x.mem (base + 5))
         have hx₃_cnt : x₃.regs mCnt = n := by
           rw [show x₃.regs mCnt = x₂.regs mCnt by simp [x₃, RData.set], hx₂_cnt]
@@ -2151,27 +2139,8 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
                   (RDemonicExec.branch_neg hnc_t1
                     (RDemonicExec.branch_neg hnc_n1 hex_ge2)))).mono
               (by omega) (fun _ h => h)
-          refine ⟨PMF.pure q_out, _, execRCodeDist_of_demonic_outcome q_out hex_all,
-            fun q hq => ?_, fun _ => ?_, ?_⟩
-          · rw [PMF.support_pure, Set.mem_singleton_iff] at hq; subst hq
-            exact ⟨hqrep, hqres, hqdec, hqbel⟩
-          · rw [ite_eq_left hcap_same]; exact ⟨hn_pos, by simp [hqls, θ]⟩
-          · rw [ite_eq_left (show 0 < n from hn_pos),
-              tsum_eq_single q_out (fun b hb => by simp [PMF.pure_apply, hb])]
-            simp only [PMF.pure_apply_self, one_mul]
-            have hc := (Nat.cast_le (α := ℝ≥0∞)).mpr hqcost
-            simp only [Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat] at hc
-            calc ((21 + stepsOp : ℕ) : ℝ≥0∞) +
-                  (resizablePotential U w st'.cap n' st'.initCount base q_out.data : ℝ≥0∞)
-                = ((21 : ℝ≥0∞) + (stepsOp : ℝ≥0∞)) +
-                  (resizablePotential U w st'.cap n' st'.initCount base q_out.data : ℝ≥0∞) := by
-                    push_cast; ring
-              _ ≤ (resizablePotential U w st.cap n st.initCount base x : ℝ≥0∞) +
-                  (resizableBaseCharge : ℝ≥0∞) +
-                  (12 * inEpochFactor : ℝ≥0∞) *
-                    (probeExcess st.cap (qStage1 U st.cap θ.1) (polyStage2 U st.cap) θ.2
-                      (Dictionary.dom st.dict) (opKey (.delete u)) : ℝ≥0∞) := hc
-              _ = _ := by ac_rfl
+          exact package_active_inEpoch_step hn_pos hcap_same hex_all hqls hqrep hqres hqdec hqbel
+            hqcost
 
 /-! ## Section 5: Multi-Step Trajectory-Relative Expected Amortized Execution -/
 

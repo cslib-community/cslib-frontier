@@ -425,14 +425,6 @@ theorem realizesBounded_initNewEpochMeta :
     dsimp only [offCompLM, epochHdrWords] at hlm_le
     omega
 
-private theorem readPacked_all_zero {base k w idx : ℕ} {mem : ℕ → ℕ}
-    (hz : mem (base + wordOffset k w idx) = 0 ∧ mem (base + wordOffset k w idx + 1) = 0) :
-    readPacked base k w mem idx = 0 := by
-  unfold readPacked readBitSlice
-  dsimp only
-  rw [hz.1, hz.2]
-  simp
-
 theorem initNewEpochMetaProg_spec {w U V N newMetaBase arenaBase : ℕ}
     {θ_new : QuotHashSeed U N} {s₀ : Memory.State}
     (hw : 0 < w) (hN : 1 ≤ N) (hNU : N ≤ U) (hU : Fits w U) (hV : V ≤ 2 ^ w)
@@ -515,33 +507,33 @@ theorem initNewEpochMetaProg_spec {w U V N newMetaBase arenaBase : ℕ}
     rw [compLmAt_congr hw (fun a ha => hz_range a ⟨ha.1, by omega⟩)]
     funext ⟨c, idx⟩; unfold compLmAt; dsimp only
     split_ifs with hc
-    · exact readPacked_all_zero ⟨rfl, rfl⟩
+    · exact BitPackedArray.readPacked_zero rfl rfl
     · rfl
   have hgm_z : compGmAt newMetaBase U w N s'.mem = fun _ => 0 := by
     rw [compGmAt_congr hw (fun a ha => hz_range a ⟨by omega, by omega⟩)]
     funext idx; unfold compGmAt
     split_ifs with hidx
-    · exact readPacked_all_zero ⟨rfl, rfl⟩
+    · exact BitPackedArray.readPacked_zero rfl rfl
     · rfl
   have htd_z : compTDAt newMetaBase U w N s'.mem = fun _ => 0 := by
     rw [compTDAt_congr hw (fun a ha => hz_range a ⟨by omega, by omega⟩)]
     funext t; unfold compTDAt
     split_ifs with ht
-    · exact readPacked_all_zero ⟨rfl, rfl⟩
+    · exact BitPackedArray.readPacked_zero rfl rfl
     · rfl
   have hdt_z : compDTAt newMetaBase U w N s'.mem = fun _ => 0 := by
     rw [compDTAt_congr hw (fun a ha => hz_range a ⟨by omega, ha.2⟩)]
     funext r; unfold compDTAt
     split_ifs with hr
-    · exact readPacked_all_zero ⟨rfl, rfl⟩
+    · exact BitPackedArray.readPacked_zero rfl rfl
     · rfl
   let s_fix₀ : Memory.State := ⟨fun _ => 0, 0⟩
   have hgm_fix₀ : gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix₀.mem = fun _ => 0 := by
     funext i; unfold gmAt
-    split_ifs <;> first | exact readPacked_all_zero (mem := s_fix₀.mem) ⟨rfl, rfl⟩ | rfl
+    split_ifs <;> first | exact BitPackedArray.readPacked_zero (mem := s_fix₀.mem) rfl rfl | rfl
   have hlm_fix₀ : lmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix₀.mem = fun _ => 0 := by
     funext ⟨c, idx⟩; unfold lmAt; dsimp only
-    split_ifs <;> first | exact readPacked_all_zero (mem := s_fix₀.mem) ⟨rfl, rfl⟩ | rfl
+    split_ifs <;> first | exact BitPackedArray.readPacked_zero (mem := s_fix₀.mem) rfl rfl | rfl
   obtain ⟨hinv₀, hpot₀⟩ := dictStateInv_of_zero (U := U) (V := V) (w₀ := ghostW w)
     (n_max := N) (base := 0) θ_new (s := s_fix₀)
     (fun i => congrFun hgm_fix₀ i) (fun p => congrFun hlm_fix₀ p)

@@ -354,7 +354,7 @@ private theorem inEpochInsertMissTailCode_exec {U V w N n n_init base L_peak : �
   have hfit_iw1 : Fits w (4 + compactedItemWords U V w N (n + 1)) :=
     fits_four_add_compactedItemWords (Nat.succ_pos n) hfit_peak
   have hin_gd : x₅.regs ∘ srcGrowDelta = WordEncoding.encode (mkCompParams U V w N, n) :=
-    (regs_pairSrc (regs_cpReg_eq hx₅_cp) (regs_reg1_eq rCnt hx₅_cnt)).eq
+    (regs_pairSrc (regs_cp_eq hx₅_cp) (regs_reg1_eq rCnt hx₅_cnt)).eq
   have hsafe_gd : CompGrowDeltaPre w (mkCompParams U V w N, n) (memoryState rFr x₅.toData) :=
     ⟨U, V, N, henv₃.pos_w, hn_lt_N, henv₃.le_U, henv₃.lt_pow_U, henv₃.le_pow_V, rfl, hfit_iw1⟩
   have hv_gd : (Memory.spec w).ValidHistory (memoryState rFr x₅.toData)
@@ -365,7 +365,7 @@ private theorem inEpochInsertMissTailCode_exec {U V w N n n_init base L_peak : �
       (compGrowDeltaGenProg (mkCompParams U V w N, n))).frontier ≤ x₅.frontier := by
     rw [clientState_compGrowDeltaGenProg]; exact hx₅_fr.le
   obtain ⟨x₆, hex_gd, hx₆b, hx₆f, hm_gd, hout_gd, hframe_gd⟩ :=
-    execWitness wGrowDelta factor_wGrowDelta_le srcGrowDelta tmpGrowDelta
+    execWitness wGrowDelta factor_wGrowDelta_le rFr srcGrowDelta tmpGrowDelta
       tmpGrowDelta_inj srcGrowDelta_ne_tmp tmpGrowDelta_ne_rFr srcGrowDelta_ne_rFr
       (mkCompParams U V w N, n) hx₅b (hx₅_ff.le.trans hL)
       hin_gd hsafe_gd hv_gd hnoalloc_gd
@@ -465,7 +465,7 @@ private theorem inEpochInsertMissTailCode_exec {U V w N n n_init base L_peak : �
   have hin_app : x₈.regs ∘ srcInsAppend = WordEncoding.encode d_app :=
     (regs_pairSrc
       (regs_pairSrc
-        (regs_pairSrc (regs_cpReg_eq hx₈_cp)
+        (regs_pairSrc (regs_cp_eq hx₈_cp)
           (regs_pairSrc (regs_reg1_eq rBase hx₈_base) (regs_reg1_eq rItemBase hx₈_item)))
         (regs_pairSrc (regs_reg1_eq rBucket hx₈_b) (regs_reg1_eq rMicro hx₈_m)))
       (regs_pairSrc (regs_reg1_eq rArgU hx₈_u) (regs_reg1_eq rArgV hx₈_v))).eq
@@ -478,7 +478,7 @@ private theorem inEpochInsertMissTailCode_exec {U V w N n n_init base L_peak : �
       (compInsertAppendNewGenProg d_app)).frontier ≤ x₈.frontier := by
     rw [hms₈, hfr_app.frontier_eq, hx₈_ff]
   obtain ⟨x₉, hex_app, hx₉b, hx₉f, hm_app, _, hframe_app⟩ :=
-    execWitness wInsAppend factor_wInsAppend_le srcInsAppend tmpInsAppend
+    execWitness wInsAppend factor_wInsAppend_le rFr srcInsAppend tmpInsAppend
       tmpInsAppend_inj srcInsAppend_ne_tmp tmpInsAppend_ne_rFr srcInsAppend_ne_rFr
       d_app hx₈b (hx₈_ff.le.trans hL_peak) hin_app
       (hms₈ ▸ hpre_app) hv_app hnoalloc_app
@@ -506,14 +506,14 @@ private theorem inEpochInsertMissTailCode_exec {U V w N n n_init base L_peak : �
     (v := n + 1)
     (by simp [BinOp.evalExact, x₁₀, RData.set, hx₉_cnt])
     hfit_n1
-  have hx₁₁b : x₁₁.Bounded w := bounded_set rCnt _ (bounded_set rOne _ hx₉b hfit1) hfit_n1
+  have hx₁₁b : x₁₁.Bounded w := (hx₉b.set hfit1).set hfit_n1
   have hx₁₁_base : x₁₁.regs rBase = base := by
     simp [x₁₁, x₁₀, RData.set, hx₉_base]
   have h8_1 : 8 ≤ compactedEpochWords U V w N (n + 1) :=
     eight_le_compactedEpochWords U V w N (n + 1)
-  obtain ⟨hex_st, hyb⟩ := storeAtOffCode_exec (rSrc := rCnt) (val := n + 1) hx₁₁b
-    (show x₁₁.frontier ≤ L_peak from hx₉_ff.le.trans hL_peak)
-    (eReg_ne (by decide)) hx₁₁_base (by simp [x₁₁, RData.set]) hfit6
+  obtain ⟨hex_st, hyb⟩ := storeAtOffCode_exec (rAddr := rBase) (rSrc := rCnt) (rTmp := rCur)
+    (val := n + 1) hx₁₁b (show x₁₁.frontier ≤ L_peak from hx₉_ff.le.trans hL_peak)
+    (eReg_ne (by decide)) (eReg_ne (by decide)) hx₁₁_base (by simp [x₁₁, RData.set]) hfit6
     (by simp only [x₁₁, x₁₀, RData.set_frontier, hx₉_ff]; omega)
   set y := (x₁₁.set rCur (base + 6)).write (base + 6) (n + 1)
   have hy_ff : y.frontier = base + compactedEpochWords U V w N (n + 1) := hx₉_ff
@@ -583,8 +583,8 @@ private theorem inEpochQueryCode_active_exec {U V w N n n_init base L_peak : ℕ
             probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2 (Dictionary.dom s_abs) u := by
   have h8 : 8 ≤ compactedEpochWords U V w N n := eight_le_compactedEpochWords U V w N n
   have hfit6 : Fits w 6 := hx.frontier_fits.of_le (by omega)
-  obtain ⟨hex_ld, hx₁b⟩ := loadAtOffCode_exec (rDst := rCnt) hx hL
-    (eReg_ne (by decide)) (eReg_ne (by decide)) hbase hfit6 (by omega)
+  obtain ⟨hex_ld, hx₁b⟩ := loadAtOffCode_exec (rAddr := rBase) (rDst := rCnt) (rTmp := rCur) hx hL
+    (eReg_ne (by decide)) hbase hfit6 (by omega)
   set x₁ := (x.set rCur (base + 6)).set rCnt (x.mem (base + 6))
   have hx₁_cnt : x₁.regs rCnt = n := by
     simp only [x₁, RData.set_regs, Function.update_self]
@@ -632,7 +632,7 @@ private theorem inEpochQueryCode_active_exec {U V w N n n_init base L_peak : ℕ
       (cpReg_ne_eReg i (by decide)) (cpReg_ne_eReg i (by decide))).trans (hx₃_cp i)
   have hin_q : x₄.regs ∘ srcKeyHashOp = WordEncoding.encode d_q :=
     (regs_pairSrc
-      (regs_pairSrc (regs_cpReg_eq hx₄_cp)
+      (regs_pairSrc (regs_cp_eq hx₄_cp)
         (regs_pairSrc (regs_reg1_eq rBase hx₄_base) (regs_reg1_eq rItemBase hx₄_item)))
       (regs_pairSrc (regs_reg1_eq rArgU hx₄_u) (regs_reg1_eq rHashOut hx₄_hout))).eq
   have hv_q : (Memory.spec w).ValidHistory (memoryState rFr x₄.toData)
@@ -643,7 +643,7 @@ private theorem inEpochQueryCode_active_exec {U V w N n n_init base L_peak : ℕ
       (compQueryWithHashGenProg d_q)).frontier ≤ x₄.frontier := by
     rw [hms₄, hst_q]
   obtain ⟨y, hex_q, hyb, hyf, hm_q, hout_q, hframe_q⟩ :=
-    execWitness wQuery factor_wQuery_le srcKeyHashOp tmpQuery
+    execWitness wQuery factor_wQuery_le rFr srcKeyHashOp tmpQuery
       tmpQuery_inj srcKeyHashOp_ne_tmpQuery tmpQuery_ne_rFr srcKeyHashOp_ne_rFr
       d_q hx₄b ((hx₄f.trans hx₃f).le.trans hL) hin_q (hms₄ ▸ hpre_q) hv_q hnoalloc_q
   rw [hms₄, hst_q] at hm_q
@@ -720,8 +720,8 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
   have h8 : 8 ≤ compactedEpochWords U V w N n := eight_le_compactedEpochWords U V w N n
   have hfit1 : Fits w 1 := hx.frontier_fits.of_le (by omega)
   have hfit6 : Fits w 6 := hx.frontier_fits.of_le (by omega)
-  obtain ⟨hex_ld, hx₁b⟩ := loadAtOffCode_exec (rDst := rCnt) hx hL
-    (eReg_ne (by decide)) (eReg_ne (by decide)) hbase hfit6 (by omega)
+  obtain ⟨hex_ld, hx₁b⟩ := loadAtOffCode_exec (rAddr := rBase) (rDst := rCnt) (rTmp := rCur) hx hL
+    (eReg_ne (by decide)) hbase hfit6 (by omega)
   set x₁ := (x.set rCur (base + 6)).set rCnt (x.mem (base + 6))
   have hx₁_base : x₁.regs rBase = base := by
     simp [x₁, RData.set, hbase]
@@ -774,7 +774,7 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
       (cpReg_ne_eReg i (by decide)) (cpReg_ne_eReg i (by decide))).trans (hx₂_cp i)
   have hin_sr : x₃.regs ∘ srcKeyHashOp = WordEncoding.encode d_sr :=
     (regs_pairSrc
-      (regs_pairSrc (regs_cpReg_eq hx₃_cp)
+      (regs_pairSrc (regs_cp_eq hx₃_cp)
         (regs_pairSrc (regs_reg1_eq rBase hx₃_base) (regs_reg1_eq rItemBase hx₃_item)))
       (regs_pairSrc (regs_reg1_eq rArgU hx₃_u) (regs_reg1_eq rHashOut hx₃_hout))).eq
   have hv_sr : (Memory.spec w).ValidHistory (memoryState rFr x₃.toData)
@@ -786,7 +786,7 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
       (compInsertSearchWithHashGenProg d_sr)).frontier ≤ x₃.frontier := by
     rw [hms₃, hst_sr]
   obtain ⟨x₄, hex_sr, hx₄b, hx₄f, hm_sr, hout_sr, hframe_sr⟩ :=
-    execWitness wInsSearch factor_wInsSearch_le srcKeyHashOp tmpInsSearch
+    execWitness wInsSearch factor_wInsSearch_le rFr srcKeyHashOp tmpInsSearch
       tmpInsSearch_inj srcKeyHashOp_ne_tmpInsSearch tmpInsSearch_ne_rFr srcKeyHashOp_ne_rFr
       d_sr hx₃b ((hx₃f.trans hx₂f).le.trans hL) hin_sr (hms₃ ▸ hpre_sr) hv_sr hnoalloc_sr
   rw [hms₃, hst_sr] at hm_sr
@@ -887,7 +887,7 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
     have hin_wv : x₅.regs ∘ srcWriteVal = WordEncoding.encode d_wv :=
       (regs_pairSrc
         (regs_pairSrc
-          (regs_pairSrc (regs_cpReg_eq hx₅_cp)
+          (regs_pairSrc (regs_cp_eq hx₅_cp)
             (regs_pairSrc (regs_reg1_eq rBase hx₅_base) (regs_reg1_eq rItemBase hx₅_item)))
           (regs_reg1_eq rPhys hp₅))
         (regs_reg1_eq rArgV hx₅_v)).eq
@@ -900,7 +900,7 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
         (compWritePhysValGenProg d_wv)).frontier ≤ x₅.frontier := by
       rw [hms₅, hfr_wv.frontier_eq]; exact (hx₃_ff.trans hx₅_ff.symm).le
     obtain ⟨y, hex_wv, hyb, hyf, hm_wv, _, hframe_wv⟩ :=
-      execWitness wWriteVal factor_wWriteVal_le srcWriteVal tmpWriteVal
+      execWitness wWriteVal factor_wWriteVal_le rFr srcWriteVal tmpWriteVal
         tmpWriteVal_inj srcWriteVal_ne_tmp tmpWriteVal_ne_rFr srcWriteVal_ne_rFr
         d_wv hx₅b ((hx₅_ff.trans hfr.symm).le.trans hL) hin_wv (hms₅ ▸ hpre_wv) hv_wv hnoalloc_wv
     rw [hms₅] at hm_wv
@@ -1034,7 +1034,7 @@ private theorem inEpochDeleteHitTailCode_exec {U V w N n n' n_init base L_peak :
   have hfit_iw0 : Fits w (4 + compactedItemWords U V w N n) :=
     fits_four_add_compactedItemWords hn (by rw [← hx₉_ff]; exact hx₉b.frontier_fits)
   have hin_sd : x₉.regs ∘ srcShrinkDelta = WordEncoding.encode (mkCompParams U V w N, n) :=
-    (regs_pairSrc (regs_cpReg_eq hx₉_cp) (regs_reg1_eq rCnt hx₉_cnt)).eq
+    (regs_pairSrc (regs_cp_eq hx₉_cp) (regs_reg1_eq rCnt hx₉_cnt)).eq
   have hsafe_sd : CompShrinkDeltaPre w (mkCompParams U V w N, n) (memoryState rFr x₉.toData) :=
     ⟨U, V, N, hw, hn, hNU, hltU, hleV, rfl, hfit_iw0⟩
   have hv_sd : (Memory.spec w).ValidHistory (memoryState rFr x₉.toData)
@@ -1045,7 +1045,7 @@ private theorem inEpochDeleteHitTailCode_exec {U V w N n n' n_init base L_peak :
       (compShrinkDeltaGenProg (mkCompParams U V w N, n))).frontier ≤ x₉.frontier := by
     rw [clientState_compShrinkDeltaGenProg]; exact hx₉_fr.le
   obtain ⟨x₁₀, hex_sd, hx₁₀b, hx₁₀f, hm_sd, hout_sd, hframe_sd⟩ :=
-    execWitness wShrinkDelta factor_wShrinkDelta_le srcShrinkDelta tmpShrinkDelta
+    execWitness wShrinkDelta factor_wShrinkDelta_le rFr srcShrinkDelta tmpShrinkDelta
       tmpShrinkDelta_inj srcShrinkDelta_ne_tmp tmpShrinkDelta_ne_rFr srcShrinkDelta_ne_rFr
       (mkCompParams U V w N, n) hx₉b (hx₉_ff.le.trans hL)
       hin_sd hsafe_sd hv_sd hnoalloc_sd
@@ -1072,11 +1072,7 @@ private theorem inEpochDeleteHitTailCode_exec {U V w N n n' n_init base L_peak :
     rw [hx₁₀_k, hx₁₀_ff, hce_n]; dsimp only [Δ]; omega
   have hex_sh := shrinkCode_exec hx₁₀b rShrink_nodup hfit1 (hx₁₀_ff.le.trans hL) hk_le_fr
   set x₁₁ := shrinkPost rK rIdx rZero rOne x₁₀
-  have hx₁₁b : x₁₁.Bounded w :=
-    bounded_set rIdx (x₁₀.regs rK)
-      (bounded_set rOne 1
-        (bounded_set rZero 0 (hx₁₀b.shrink hk_le_fr) (fits_zero w)) hfit1)
-      (hx₁₀b.regs_fits rK)
+  have hx₁₁b : x₁₁.Bounded w := shrinkPost_bounded hx₁₀b hfit1 hk_le_fr
   have hx₁₁_ff : x₁₁.frontier = base + compactedEpochWords U V w N n' := by
     change x₁₀.frontier - x₁₀.regs rK = _
     rw [hx₁₀_k, hfr_sub_Δ]
@@ -1107,12 +1103,13 @@ private theorem inEpochDeleteHitTailCode_exec {U V w N n n' n_init base L_peak :
     (w := w) (L_peak := L_peak) (x := x₁₂) hL_sh (v := n')
     (by simp [BinOp.evalExact, x₁₂, RData.set, hx₁₁_cnt, hn1, hn'_eq])
     hfit_n'
-  have hx₁₃b : x₁₃.Bounded w := bounded_set rCnt _ (bounded_set rOne _ hx₁₁b hfit1) hfit_n'
+  have hx₁₃b : x₁₃.Bounded w := (hx₁₁b.set hfit1).set hfit_n'
   have hx₁₃_base : x₁₃.regs rBase = base := by
     simp [x₁₃, x₁₂, RData.set, hx₁₁_base]
   have h8_n' : 8 ≤ compactedEpochWords U V w N n' := eight_le_compactedEpochWords U V w N n'
-  obtain ⟨hex_st, hyb⟩ := storeAtOffCode_exec (rSrc := rCnt) (val := n') hx₁₃b hL_sh
-    (eReg_ne (by decide)) hx₁₃_base (by simp [x₁₃, RData.set]) hfit6
+  obtain ⟨hex_st, hyb⟩ := storeAtOffCode_exec (rAddr := rBase) (rSrc := rCnt) (rTmp := rCur)
+    (val := n') hx₁₃b hL_sh (eReg_ne (by decide)) (eReg_ne (by decide)) hx₁₃_base
+    (by simp [x₁₃, RData.set]) hfit6
     (by simp only [x₁₃, x₁₂, RData.set_frontier, hx₁₁_ff]; omega)
   set y := (x₁₃.set rCur (base + 6)).write (base + 6) n'
   have hy_ff : y.frontier = base + compactedEpochWords U V w N n' := hx₁₁_ff
@@ -1238,8 +1235,8 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
   have h8 : 8 ≤ compactedEpochWords U V w N n := eight_le_compactedEpochWords U V w N n
   have hfit1 : Fits w 1 := hx.frontier_fits.of_le (by omega)
   have hfit6 : Fits w 6 := hx.frontier_fits.of_le (by omega)
-  obtain ⟨hex_ld, hx₁b⟩ := loadAtOffCode_exec (rDst := rCnt) hx hL
-    (eReg_ne (by decide)) (eReg_ne (by decide)) hbase hfit6 (by omega)
+  obtain ⟨hex_ld, hx₁b⟩ := loadAtOffCode_exec (rAddr := rBase) (rDst := rCnt) (rTmp := rCur) hx hL
+    (eReg_ne (by decide)) hbase hfit6 (by omega)
   set x₁ := (x.set rCur (base + 6)).set rCnt (x.mem (base + 6))
   have hx₁_cnt : x₁.regs rCnt = n := by
     simp only [x₁, RData.set_regs, Function.update_self]
@@ -1319,7 +1316,7 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
       (cpReg_ne_eReg i (by decide)) (cpReg_ne_eReg i (by decide))).trans (hx₃_cp i)
   have hin_prep : x₅.regs ∘ srcDelPrep = WordEncoding.encode d_prep :=
     (regs_pairSrc
-      (regs_pairSrc (regs_cpReg_eq hx₅_cp)
+      (regs_pairSrc (regs_cp_eq hx₅_cp)
         (regs_pairSrc (regs_reg1_eq rBase hx₅_base) (regs_reg1_eq rItemBase hx₅_item)))
       (regs_pairSrc (regs_reg1_eq rArgU hx₅_u) (regs_reg1_eq rHq hx₅_hq))).eq
   have hv_prep : (Memory.spec w).ValidHistory (memoryState rFr x₅.toData)
@@ -1331,7 +1328,7 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
       (compDeletePrepWithHashGenProg d_prep)).frontier ≤ x₅.frontier := by
     rw [hms₅, hst_prep]; exact le_rfl
   obtain ⟨x₆, hex_prep, hx₆b, hx₆f, hm_prep, hout_prep, hframe_prep⟩ :=
-    execWitness wDelPrep factor_wDelPrep_le srcDelPrep tmpDelPrep
+    execWitness wDelPrep factor_wDelPrep_le rFr srcDelPrep tmpDelPrep
       tmpDelPrep_inj srcDelPrep_ne_tmp tmpDelPrep_ne_rFr srcDelPrep_ne_rFr
       d_prep hx₅b ((hx₅_ff.trans hfr.symm).le.trans hL) hin_prep
       (hms₅ ▸ hpre_prep) hv_prep hnoalloc_prep
@@ -1432,7 +1429,7 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
     (regs_pairSrc
       (regs_pairSrc
         (regs_pairSrc
-          (regs_pairSrc (regs_cpReg_eq hx₇_cp)
+          (regs_pairSrc (regs_cp_eq hx₇_cp)
             (regs_pairSrc (regs_reg1_eq rBase hx₇_base) (regs_reg1_eq rItemBase hx₇_item)))
           (regs_pairSrc (regs_reg1_eq rArgU hx₇_u) (regs_reg1_eq rHq hx₇_hq)))
         (regs_pairSrc
@@ -1448,7 +1445,7 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
       (compDeleteFinishWithHashGenProg d_fin)).frontier ≤ x₇.frontier := by
     rw [hms₇, hfr_fin.frontier_eq]
   obtain ⟨x₈, hex_fin, hx₈b, hx₈f, hm_fin, _, hframe_fin⟩ :=
-    execWitness wDelFin factor_wDelFin_le srcDelFin tmpDelFin
+    execWitness wDelFin factor_wDelFin_le rFr srcDelFin tmpDelFin
       tmpDelFin_inj srcDelFin_ne_tmp tmpDelFin_ne_rFr srcDelFin_ne_rFr
       d_fin hx₇b ((hx₇_ff.trans hfr.symm).le.trans hL) hin_fin (hms₇ ▸ hpre_fin) hv_fin hnoalloc_fin
   rw [hms₇] at hm_fin
@@ -1652,7 +1649,7 @@ theorem inEpochOpCode_active_demonicExec {U V w N n n_init base : ℕ}
   set x₁ := (x.set rZero 0).set rOne 1
   have s_z0 := RDemonicExec.const (B := .exact) (d := rZero) (x := x) hL (fits_zero w)
   have s_o1 := RDemonicExec.const (B := .exact) (d := rOne) (x := x.set rZero 0) hL hfit1
-  have hx₁b : x₁.Bounded w := bounded_set rOne _ (bounded_set rZero _ hx (fits_zero w)) hfit1
+  have hx₁b : x₁.Bounded w := (hx.set (fits_zero w)).set hfit1
   have hx₁_base : x₁.regs rBase = base := by
     simp [x₁, RData.set, hbase]
   have hpot1 : inEpochPotential U w N base x₁ = inEpochPotential U w N base x := rfl
@@ -1751,7 +1748,7 @@ theorem inEpochOpCode_demonicExec {U V w N n n_init base : ℕ}
     set x₁ := (x.set rZero 0).set rOne 1
     have s_z0 := RDemonicExec.const (B := .exact) (d := rZero) (x := x) hL (fits_zero w)
     have s_o1 := RDemonicExec.const (B := .exact) (d := rOne) (x := x.set rZero 0) hL hfit1
-    have hx₁b : x₁.Bounded w := bounded_set rOne _ (bounded_set rZero _ hx (fits_zero w)) hfit1
+    have hx₁b : x₁.Bounded w := (hx.set (fits_zero w)).set hfit1
     have hx₁_base : x₁.regs rBase = base := by
       simp [x₁, RData.set, hbase]
     cases o with
@@ -1760,8 +1757,8 @@ theorem inEpochOpCode_demonicExec {U V w N n n_init base : ℕ}
       have hc0 : (Cond.eq rTag rZero).Holds x₁.toData := by
         change x₁.regs rTag = x₁.regs rZero
         simp [x₁, RData.set, htag]
-      obtain ⟨hex_ld, hx₂b⟩ := loadAtOffCode_exec (rDst := rCnt) hx₁b hL
-        (eReg_ne (by decide)) (eReg_ne (by decide)) hx₁_base hfit6
+      obtain ⟨hex_ld, hx₂b⟩ := loadAtOffCode_exec (rAddr := rBase) (rDst := rCnt) (rTmp := rCur)
+        hx₁b hL (eReg_ne (by decide)) hx₁_base hfit6
         (by simp only [x₁, RData.set_frontier, hrep.frontier_eq]; omega)
       set x₂ := (x₁.set rCur (base + 6)).set rCnt (x₁.mem (base + 6))
       set x₃ := x₂.set rZero 0
@@ -1773,10 +1770,7 @@ theorem inEpochOpCode_demonicExec {U V w N n n_init base : ℕ}
       have hex_out :=
         (RDemonicExec.const (B := .exact) (d := rOutTag) (x := x₃) hL (fits_zero w)).seq_eq
         (RDemonicExec.const (B := .exact) (d := rOutVal) (x := x₃.set rOutTag 0) hL (fits_zero w))
-      have hyb : y.Bounded w :=
-        bounded_set rOutVal _
-          (bounded_set rOutTag _ (bounded_set rZero _ hx₂b (fits_zero w)) (fits_zero w))
-          (fits_zero w)
+      have hyb : y.Bounded w := ((hx₂b.set (fits_zero w)).set (fits_zero w)).set (fits_zero w)
       have hex_q : RDemonicExec w L_peak inEpochQueryCode x₁ _ (· = y) :=
         hex_ld.seq_eq (hex_z.seq_eq (RDemonicExec.branch_pos hc_cnt hex_out))
       have hn'_eq : n' = 0 := hrep.card_eq
@@ -1803,8 +1797,8 @@ theorem inEpochOpCode_demonicExec {U V w N n n_init base : ℕ}
       have hnc1 : ¬(Cond.eq rTag rOne).Holds x₁.toData := by
         change x₁.regs rTag ≠ x₁.regs rOne
         simp [x₁, RData.set, htag]
-      obtain ⟨hex_ld, hx₂b⟩ := loadAtOffCode_exec (rDst := rCnt) hx₁b hL
-        (eReg_ne (by decide)) (eReg_ne (by decide)) hx₁_base hfit6
+      obtain ⟨hex_ld, hx₂b⟩ := loadAtOffCode_exec (rAddr := rBase) (rDst := rCnt) (rTmp := rCur)
+        hx₁b hL (eReg_ne (by decide)) hx₁_base hfit6
         (by simp only [x₁, RData.set_frontier, hrep.frontier_eq]; omega)
       set x₂ := (x₁.set rCur (base + 6)).set rCnt (x₁.mem (base + 6))
       set x₃ := x₂.set rZero 0
@@ -1815,8 +1809,8 @@ theorem inEpochOpCode_demonicExec {U V w N n n_init base : ℕ}
       set y := x₃.set rZero (x₃.regs rZero)
       have hex_nop := RDemonicExec.copy (B := .exact) (w := w) (d := rZero) (s := rZero)
         (x := x₃) hL
-      have hx₃b : x₃.Bounded w := bounded_set rZero _ hx₂b (fits_zero w)
-      have hyb : y.Bounded w := bounded_set rZero _ hx₃b (hx₃b.regs_fits rZero)
+      have hx₃b : x₃.Bounded w := hx₂b.set (fits_zero w)
+      have hyb : y.Bounded w := hx₃b.set (hx₃b.regs_fits rZero)
       have hex_d : RDemonicExec w L_peak inEpochDeleteCode x₁ _ (· = y) :=
         hex_ld.seq_eq (hex_z.seq_eq (RDemonicExec.branch_pos hc_cnt hex_nop))
       have hs_eq : s_abs' = s_abs := by

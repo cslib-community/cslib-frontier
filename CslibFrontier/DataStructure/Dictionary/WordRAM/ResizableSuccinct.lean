@@ -22,9 +22,12 @@ This module packages the resizable succinct dynamic dictionary supporting `inser
 
 ## Mathematical and algorithmic design
 
-This implementation combines the bucket partition and fingerprint-indexed buckets of
-[Bender, Farach-Colton, J. Kuszmaul, and W. Kuszmaul, SOSA 2024,
-Sections 3–4 and 6][BenderFarachColtonKuszmaulKuszmaul2024] with one-round Feistel quotienting
+This synthesis—combining expected amortized `O(1)` oblivious instructions, explicit stored 3-wise
+independent quotient hashing, and strict `1 · OPT(U, V, n)` single-tape resting and migration-peak
+space on the Resizable Word RAM—is **original to this formalization** (deamortized high-probability
+bounds remain open under `#3167`). It draws on the bucket partition and fingerprint-indexed buckets
+of [Bender, Farach-Colton, J. Kuszmaul, and W. Kuszmaul, SOSA 2024,
+Sections 3–4 and 6][BenderFarachColtonKuszmaulKuszmaul2024], one-round Feistel quotienting
 ([Arbitman, Naor, and Segev, FOCS 2010, Claim 5.7][ArbitmanNaorSegev2010];
 [Bender, Conway, Farach-Colton, Kuszmaul, and Tagliavini, *J. ACM* 2023,
 Section 7][BenderConwayFarachColtonKuszmaulTagliavini2023]), fixed-width full slabs with a shared
@@ -51,8 +54,9 @@ and 6.1, Lemma 24][BenderFarachColtonKuszmaulKuszmaulLiu2022]), and word-granula
      `migrateActiveCode`, which shifts the existing `[0, n_t)` packed item stream into a shared
      upper arena, initializes fresh metadata for `N' = targetCap U n_t = min (2 * n_t) U`, samples
      a fresh uniform 3-wise independent quotient-hash seed (`QuotHashSeed U N'`) in place via
-     `resampleHashCode` (`Op.rand`), streams all `n_t` items left-to-right into `[0, n_t)` without
-     holding two separate item arrays, and shrinks any trailing arena slack via `shrinkCode`.
+     `resampleHashCode` (`RInstr.rand`), streams all `n_t` items left-to-right into `[0, n_t)`
+     without holding two separate item arrays, and shrinks any trailing arena slack via
+     `shrinkCode`.
    * Across every intermediate machine step—both in-epoch and during capacity migrations—the active
      hardware frontier above `base` never exceeds
      `Dynamic.succinctWords 2699 888 U V w (max n_t n_{t+1})` words (`1 · OPT`, never `2 · OPT`),
@@ -148,11 +152,11 @@ open scoped ENNReal
 def initSteps : ℕ := 68
 
 private noncomputable def initStoreConstCode (off val : ℕ) : RCode .exact rResize :=
-  .seq (.op (.const mRes val)) (storeAtOffMigCode mRes off)
+  .seq (.op (.const mRes val)) (storeAtOffCode mBase mRes mCur off)
 
 private theorem not_readsWidth_initStoreConstCode (off val : ℕ) :
     ¬(initStoreConstCode off val).ReadsWidth := by
-  simp [initStoreConstCode, RCode.ReadsWidth, Op.ReadsWidth, not_readsWidth_storeAtOffMigCode]
+  simp [initStoreConstCode, RCode.ReadsWidth, Op.ReadsWidth, not_readsWidth_storeAtOffCode]
 
 private theorem initStoreConstCode_exec {w L_peak base off val : ℕ} {x : RData rResize}
     (hx : x.Bounded w) (hL : x.frontier ≤ L_peak) (hbase : x.regs mBase = base)
@@ -168,8 +172,9 @@ private theorem initStoreConstCode_exec {w L_peak base off val : ℕ} {x : RData
   have hx1b : (x.set mRes val).Bounded w := hx.set hval_fit
   have hbase1 : (x.set mRes val).regs mBase = base := by
     rw [RData.set_regs, Function.update_of_ne (mReg_ne (by decide))]; exact hbase
-  obtain ⟨hs2, hyb⟩ := storeAtOffMigCode_exec (rSrc := mRes) (off := off) (val := val)
-    hx1b hL (mReg_ne (by decide)) hbase1 (by simp [RData.set]) hoff_fit hlt
+  obtain ⟨hs2, hyb⟩ := storeAtOffCode_exec (rAddr := mBase) (rSrc := mRes) (rTmp := mCur)
+    (off := off) (val := val) hx1b hL (mReg_ne (by decide)) (mReg_ne (by decide)) hbase1
+    (by simp [RData.set]) hoff_fit hlt
   let y := ((x.set mRes val).set mCur (base + off)).write (base + off) val
   have hy_base : y.regs mBase = base := by
     simp only [y, RData.write, RData.set_regs,
@@ -243,32 +248,8 @@ theorem initCode_demonicExec {U V w base : ℕ} {x₀ : RData rResize}
       rw [Function.update_of_ne (show mRes ≠ mCur from mReg_ne (by decide)),
         Function.update_of_ne (show mRes ≠ mIdx from mReg_ne (by decide)),
         Function.update_self]
-    have hz₂b : z₂.Bounded w := by
-      refine ⟨⟨fun i => ?_, fun a => ?_⟩, hz₂_fr ▸ hfit₈, fun a ha => ?_⟩
-      · dsimp only [z₂, growZeroPost, RData.toData]
-        by_cases h1 : i = mCur
-        · subst h1; simp [fits_zero w]
-        · rw [Function.update_of_ne h1]
-          by_cases h2 : i = mIdx
-          · subst h2; rw [Function.update_self, hx₁_k]; exact hfit8_const
-          · rw [Function.update_of_ne h2]
-            by_cases h3 : i = mRes
-            · subst h3; rw [Function.update_self, hx₁_k, hx₁_fr]
-              simp only [show (8 : ℕ) ≠ 0 by decide, ↓reduceIte]
-              exact hfit₈.of_le (Nat.le_add_right base 8)
-            · rw [Function.update_of_ne h3]
-              by_cases h4 : i = mOne
-              · subst h4; rw [Function.update_self]; exact hfit1
-              · rw [Function.update_of_ne h4]
-                by_cases h5 : i = mZero
-                · subst h5; rw [Function.update_self]; exact fits_zero w
-                · rw [Function.update_of_ne h5]; exact hx₁b.regs_fits i
-      · dsimp only [z₂, growZeroPost, RData.toData]
-        rw [hx₁_mem]
-        exact hx₀.mem_fits a
-      · dsimp only [z₂, growZeroPost, RData.toData]
-        rw [hx₁_mem]
-        exact hx₀.zero_above (by rw [hfr₀]; rw [hz₂_fr] at ha; omega)
+    have hz₂b : z₂.Bounded w :=
+      growZeroPost_bounded hx₁b hfit1 (by rw [hx₁_fr, hx₁_k]; exact hfit₈)
     exact ⟨z₂, hs_gz0.mono (by rw [hx₁_k]) (fun _ h => h), hz₂b, hz₂_fr, hz₂_res, hx₁_mem⟩
   -- Step 3: `mBase := mRes` (1 step)
   obtain ⟨x₃, hs_cp, hx₃b, hx₃_fr, hx₃_base, hx₃_mem⟩ :

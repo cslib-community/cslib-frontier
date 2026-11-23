@@ -110,16 +110,6 @@ theorem div_add_div_le {a b w : ℕ} (hw : 0 < w) :
   have hb := Nat.mul_div_le b w
   exact (Nat.le_div_iff_mul_le hw).mpr (by nlinarith)
 
-private theorem div_add_le_div_add_div_succ {a b w : ℕ} (hw : 0 < w) :
-    (a + b) / w ≤ a / w + b / w + 1 := by
-  have ha := Nat.div_add_mod a w
-  have hb := Nat.div_add_mod b w
-  have hma : a % w < w := Nat.mod_lt a hw
-  have hmb : b % w < w := Nat.mod_lt b hw
-  have hlt : a + b < (a / w + b / w + 2) * w := by nlinarith
-  have hdiv := Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm] at hlt)
-  omega
-
 /-- **Shared-Arena Non-Overlap (`newItemEnd_le_oldItemNextWord`):**
 For every `j ≤ n` (`j = i + 1` after inserting item `i`), the end word offset
 `compactedItemWords U V w N_new j` of the first `j` new items is at most the word offset
@@ -166,7 +156,7 @@ theorem newItemEnd_le_oldItemNextWord {U V w N_old N_new n j : ℕ}
     have hdiv1 := div_add_div_le (a := j * S_new) (b := n * S_old) hw
     have hdiv2 : (j * S_new + n * S_old) / w ≤ (n * S_new + j * S_old) / w :=
       Nat.div_le_div_right hconv
-    have hdiv3 := div_add_le_div_add_div_succ (a := n * S_new) (b := j * S_old) hw
+    have hdiv3 := Nat.add_div_le_div_add_div_add_one (n * S_new) (j * S_old) w
     have hmax : compactedItemWords U V w N_new n ≤
         max (compactedItemWords U V w N_old n) (compactedItemWords U V w N_new n) :=
       le_max_right _ _

@@ -5318,6 +5318,62 @@ private theorem realizesBounded_compPopBackFinish :
   dsimp only at *
   exact h.2 ‹r_b_new = 0› ‹0 < q_b›
 
+private theorem compDemoteSlabPre_of_removeTail {metaBase itemBase U V w N m_cap b : ℕ}
+    {s_fix s : Memory.State}
+    (henv : CompEpochEnv U V w N metaBase itemBase m_cap s)
+    (hb_pos : 0 < bucketBits N)
+    (hcpl : FixedCoupled metaBase itemBase U V w N s_fix s)
+    (hslot : SlotStoreInv N (compGmAt metaBase U w N s.mem))
+    (hb : b < numBuckets N) (hr_pos : 1 ≤ compGmAt metaBase U w N s.mem (gmRIdx b))
+    (hm_cap : totalSlots N (compGmAt metaBase U w N s.mem) ≤ m_cap)
+    (hr0_eq : compGmAt metaBase U w N
+      ((Memory.spec 0).clientState s
+        (compRemoveLastTailItemGenProg ((mkCompParams U V w N, (metaBase, itemBase)), b))).mem
+      (gmRIdx b) = 0)
+    (hq_pos_eq : 0 < compGmAt metaBase U w N
+      ((Memory.spec 0).clientState s
+        (compRemoveLastTailItemGenProg ((mkCompParams U V w N, (metaBase, itemBase)), b))).mem
+      (gmQIdx b)) :
+    CompDemoteSlabPre w ((mkCompParams U V w N, (metaBase, itemBase)), b)
+      ((Memory.spec 0).clientState s
+        (compRemoveLastTailItemGenProg ((mkCompParams U V w N, (metaBase, itemBase)), b))) := by
+  have hb0 : bucketBits N ≠ 0 := Nat.ne_of_gt hb_pos
+  have hwg : 0 < ghostW w := by unfold ghostW; omega
+  obtain ⟨hfr1, hcpl1⟩ := compRemoveLastTailItem_effect henv hb_pos hcpl hslot hb hr_pos hm_cap
+  set s₁ := (Memory.spec 0).clientState s
+    (compRemoveLastTailItemGenProg ((mkCompParams U V w N, (metaBase, itemBase)), b))
+  have hslot_fix : SlotStoreInv N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N)
+      s_fix.mem) := slotStoreInv_of_gm_eq hcpl.gm_eq.symm hslot
+  obtain ⟨_, _, _, _, _, hgm_f1⟩ :=
+    removeLastTailItemProg_effect (base := 0) (U := U) (V := V) (w := ghostW w) (n_max := N)
+      (h_space := epochHashSpace U (ghostW w) N) hwg hb_pos hb s_fix
+      (hslot_fix.multi_tail hb_pos) (by rw [← hcpl.gm_eq]; exact hr_pos)
+  set s_fix₁ := (Memory.spec 0).clientState s_fix
+    (removeLastTailItemProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (0, b))
+  have hgm1_eq : compGmAt metaBase U w N s₁.mem =
+      gmRemoveTail N (compGmAt metaBase U w N s.mem) b :=
+    hcpl1.gm_eq.trans (hgm_f1.trans (congrArg (fun g => gmRemoveTail N g b) hcpl.gm_eq.symm))
+  have htail₀ := hslot.multi_tail hb_pos
+  have hslab₀ := hslot.multi_slab hb_pos
+  have hpres1 := gmRemoveTail_preserves_nonTail hb hr_pos htail₀
+  have htail1 := tailBijection_gmRemoveTail hb hr_pos htail₀
+  have ⟨_, hslab1⟩ := slabBijection_gmRemoveTail hb hr_pos htail₀ hslab₀
+  have hSN0 := hslot.multi_total_le hb_pos
+  have hpre_dem : DemoteSlabInv U V (ghostW w) N (epochHashSpace U (ghostW w) N) 0 b s_fix₁ := by
+    refine ⟨hb, ?_, ?_, ?_, ?_, fun b' hb' hne => ?_, ?_⟩
+    · rw [← hcpl1.gm_eq, hgm1_eq]; exact htail1
+    · rw [← hcpl1.gm_eq, hgm1_eq]; exact hslab1
+    · rw [← hcpl1.gm_eq]; exact hr0_eq
+    · rw [← hcpl1.gm_eq]; exact hq_pos_eq
+    · rw [← hcpl1.gm_eq, hgm1_eq, hpres1.2.2.2.1 b' hb' hne, hpres1.2.2.2.2.1 b' hb']
+      exact hslot.multi_r_bounds hb_pos b' hb'
+    · rw [← hcpl1.gm_eq, hgm1_eq, hpres1.1, hpres1.2.1]; omega
+  have hm_cap1 : totalSlots N (compGmAt metaBase U w N s₁.mem) ≤ m_cap := by
+    unfold totalSlots at hm_cap ⊢; rw [ite_eq_right hb0] at hm_cap ⊢
+    rw [hgm1_eq, hpres1.1, hpres1.2.1]; omega
+  exact ⟨U, V, N, m_cap, s_fix₁, rfl, henv.of_mem_eq (by rw [hfr1.frontier_eq]),
+    hb_pos, hpre_dem, hcpl1, hm_cap1⟩
+
 private theorem realizesBounded_compPopBackMultiGen :
     RealizesBounded .exact compPopBackMultiGenProg
       (WordEncoding.encode (α := (CompParams × (ℕ × ℕ)) × ℕ))
@@ -5349,45 +5405,12 @@ private theorem realizesBounded_compPopBackMultiGen :
     exact ⟨(henv.of_mem_eq (by
       rw [clientState_readCompGMGenProg, hfr1.frontier_eq])).compMetaEnv,
       by simp only [cpN_mk, hq_eq]; exact hq_lt⟩
-  · obtain ⟨hfr1, hcpl1⟩ := compRemoveLastTailItem_effect henv hb_pos hcpl hslot hb hr_pos hm_cap
-    set s₁ : Memory.State := (Memory.spec 0).clientState s
-      (compRemoveLastTailItemGenProg ((mkCompParams U V w N, (metaBase, itemBase)), b))
+  · obtain ⟨hfr1, _⟩ := compRemoveLastTailItem_effect henv hb_pos hcpl hslot hb hr_pos hm_cap
     simp only [hq_eq, hr_eq]
     rw [clientResult_readCompGMGenProg hr_lt, clientState_readCompGMGenProg,
       clientResult_readCompGMGenProg hq_lt, clientState_readCompGMGenProg]
-    refine ⟨(henv.of_mem_eq (by rw [hfr1.frontier_eq])).compMetaEnv, fun hr0_eq hq_pos_eq => ?_⟩
-    have hwg : 0 < ghostW w := by unfold ghostW; omega
-    have hslot_fix : SlotStoreInv N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N)
-        s_fix.mem) := slotStoreInv_of_gm_eq hcpl.gm_eq.symm hslot
-    obtain ⟨_, _, _, _, _, hgm_f1⟩ :=
-      removeLastTailItemProg_effect (base := 0) (U := U) (V := V) (w := ghostW w) (n_max := N)
-        (h_space := epochHashSpace U (ghostW w) N) hwg hb_pos hb s_fix
-        (hslot_fix.multi_tail hb_pos) (by rw [← hcpl.gm_eq]; exact hr_pos)
-    set s_fix₁ := (Memory.spec 0).clientState s_fix
-      (removeLastTailItemProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (0, b))
-    have hgm1_eq : compGmAt metaBase U w N s₁.mem =
-        gmRemoveTail N (compGmAt metaBase U w N s.mem) b :=
-      hcpl1.gm_eq.trans (hgm_f1.trans (congrArg (fun g => gmRemoveTail N g b) hcpl.gm_eq.symm))
-    have htail₀ := hslot.multi_tail hb_pos
-    have hslab₀ := hslot.multi_slab hb_pos
-    have hpres1 := gmRemoveTail_preserves_nonTail hb hr_pos htail₀
-    have htail1 := tailBijection_gmRemoveTail hb hr_pos htail₀
-    have ⟨_, hslab1⟩ := slabBijection_gmRemoveTail hb hr_pos htail₀ hslab₀
-    have hSN0 := hslot.multi_total_le hb_pos
-    have hpre_dem : DemoteSlabInv U V (ghostW w) N (epochHashSpace U (ghostW w) N) 0 b s_fix₁ := by
-      refine ⟨hb, ?_, ?_, ?_, ?_, fun b' hb' hne => ?_, ?_⟩
-      · rw [← hcpl1.gm_eq, hgm1_eq]; exact htail1
-      · rw [← hcpl1.gm_eq, hgm1_eq]; exact hslab1
-      · rw [← hcpl1.gm_eq]; exact hr0_eq
-      · rw [← hcpl1.gm_eq]; exact hq_pos_eq
-      · rw [← hcpl1.gm_eq, hgm1_eq, hpres1.2.2.2.1 b' hb' hne, hpres1.2.2.2.2.1 b' hb']
-        exact hslot.multi_r_bounds hb_pos b' hb'
-      · rw [← hcpl1.gm_eq, hgm1_eq, hpres1.1, hpres1.2.1]; omega
-    have hm_cap1 : totalSlots N (compGmAt metaBase U w N s₁.mem) ≤ m_cap := by
-      unfold totalSlots at hm_cap ⊢; rw [ite_eq_right hb0] at hm_cap ⊢
-      rw [hgm1_eq, hpres1.1, hpres1.2.1]; omega
-    exact ⟨U, V, N, m_cap, s_fix₁, rfl, henv.of_mem_eq (by rw [hfr1.frontier_eq]),
-      hb_pos, hpre_dem, hcpl1, hm_cap1⟩
+    exact ⟨(henv.of_mem_eq (by rw [hfr1.frontier_eq])).compMetaEnv, fun hr0_eq hq_pos_eq =>
+      compDemoteSlabPre_of_removeTail henv hb_pos hcpl hslot hb hr_pos hm_cap hr0_eq hq_pos_eq⟩
 
 private def CompPopBackSinglePre (w : ℕ) : CompParams × ℕ → Memory.State → Prop
   | (cp, metaBase), s =>
@@ -5474,36 +5497,7 @@ theorem validProg_compPopBackSlotGen {w : ℕ} {d : (CompParams × (ℕ × ℕ))
     rw [clientState_readCompGMGenProg, clientResult_readCompGMGenProg hq_lt]
     refine validProg_ite (fun hr0_eq => ?_) (fun _ => validProg_pure ())
     refine validProg_ite (fun hq_pos_eq => ?_) (fun _ => validProg_pure ())
-    have hslot_fix : SlotStoreInv N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N)
-        s_fix.mem) := slotStoreInv_of_gm_eq hcpl.gm_eq.symm hslot
-    obtain ⟨_, _, _, _, _, hgm_f1⟩ :=
-      removeLastTailItemProg_effect (base := 0) (U := U) (V := V) (w := ghostW w) (n_max := N)
-        (h_space := epochHashSpace U (ghostW w) N) hwg hb_pos hb s_fix
-        (hslot_fix.multi_tail hb_pos) (by rw [← hcpl.gm_eq]; exact hr_pos)
-    set s_fix₁ := (Memory.spec 0).clientState s_fix
-      (removeLastTailItemProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (0, b))
-    have hgm1_eq : compGmAt metaBase U w N s₁.mem =
-        gmRemoveTail N (compGmAt metaBase U w N s.mem) b :=
-      hcpl1.gm_eq.trans (hgm_f1.trans (congrArg (fun g => gmRemoveTail N g b) hcpl.gm_eq.symm))
-    have htail₀ := hslot.multi_tail hb_pos
-    have hslab₀ := hslot.multi_slab hb_pos
-    have hpres1 := gmRemoveTail_preserves_nonTail hb hr_pos htail₀
-    have htail1 := tailBijection_gmRemoveTail hb hr_pos htail₀
-    have ⟨_, hslab1⟩ := slabBijection_gmRemoveTail hb hr_pos htail₀ hslab₀
-    have hSN0 := hslot.multi_total_le hb_pos
-    have hpre_dem : DemoteSlabInv U V (ghostW w) N (epochHashSpace U (ghostW w) N) 0 b s_fix₁ := by
-      refine ⟨hb, ?_, ?_, ?_, ?_, fun b' hb' hne => ?_, ?_⟩
-      · rw [← hcpl1.gm_eq, hgm1_eq]; exact htail1
-      · rw [← hcpl1.gm_eq, hgm1_eq]; exact hslab1
-      · rw [← hcpl1.gm_eq]; exact hr0_eq
-      · rw [← hcpl1.gm_eq]; exact hq_pos_eq
-      · rw [← hcpl1.gm_eq, hgm1_eq, hpres1.2.2.2.1 b' hb' hne, hpres1.2.2.2.2.1 b' hb']
-        exact hslot.multi_r_bounds hb_pos b' hb'
-      · rw [← hcpl1.gm_eq, hgm1_eq, hpres1.1, hpres1.2.1]; omega
-    have hm_cap1 : totalSlots N (compGmAt metaBase U w N s₁.mem) ≤ m_cap := by
-      unfold totalSlots at hm_cap ⊢; rw [ite_eq_right hb0] at hm_cap ⊢
-      rw [hgm1_eq, hpres1.1, hpres1.2.1]; omega
-    exact validProg_compDemoteSlabGen ⟨U, V, N, m_cap, s_fix₁, rfl, henv1, hb_pos, hpre_dem,
-      hcpl1, hm_cap1⟩
+    exact validProg_compDemoteSlabGen
+      (compDemoteSlabPre_of_removeTail henv hb_pos hcpl hslot hb hr_pos hm_cap hr0_eq hq_pos_eq)
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
