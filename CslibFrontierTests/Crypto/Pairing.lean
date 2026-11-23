@@ -7,12 +7,12 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test)
 
+import CslibFrontier.Crypto.Computational.DiffieHellman
 import CslibFrontier.Crypto.Computational.Pairing
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
-import Mathlib.LinearAlgebra.BilinearMap
 import Mathlib.Tactic.NormNum.Prime
 import CslibFrontierTests.Crypto.PrimeFieldGroups
 
@@ -22,16 +22,17 @@ import CslibFrontierTests.Crypto.PrimeFieldGroups
 An ordinary `module` client of `CslibFrontier.Crypto.Computational.Pairing` over the shared
 `ZMod p` fixture `CslibFrontierTests.Crypto.PrimeFieldGroups`.
 
-1. **Nonvacuity of `PairingGroupFamily`:** `primePairing` instantiates a symmetric pairing over the
-   additive groups `ZMod p` of prime order `p` (with generator `1` in all three groups) via field
-   multiplication `LinearMap.mul (ZMod p) (ZMod p)`, discharging every algebraic, encoding and
-   polynomial-time field without `sorry` or hardness assumptions.
-2. **Bilinearity characterization (`biadditive_iff_apply_smul_generator`):** checks both directions
-   over any `PairingGroupFamily`, a concrete non-biadditive map (`u + v` on `ZMod 5`) rejected via
-   (15.7), and a boundary witness (`g₀ = 0` on `ZMod 2`) showing that generator surjectivity is
-   needed.
-3. **Interface equations & `fun_prop` automation:** exercises `pair_smul_smul`,
-   `pair_smul_generator_smul_generator` (including the symmetric-pairing DDH check
+1. **Nonvacuity and bilinear constructor (`PairingGroupFamily.ofSmulGenerator`):** `primePairing`
+   instantiates a symmetric pairing over the additive groups `ZMod p` of prime order `p` (with
+   generator `1` in all three groups) from the plain multiplication map `(u, v) ↦ u * v` via
+   `PairingGroupFamily.ofSmulGenerator` (and `bilinearOfSmulGenerator`), discharging every
+   algebraic, encoding and polynomial-time field without `sorry` or hardness assumptions.
+2. **Supporting bilinearity characterization (`biadditive_iff_apply_smul_generator`):** checks both
+   directions over any `PairingGroupFamily`, a concrete non-biadditive map (`u + v` on `ZMod 5`)
+   rejected via (15.7), and a boundary witness (`g₀ = 0` on `ZMod 3`) showing that generator
+   surjectivity is needed.
+3. **Interface equations & `fun_prop` automation:** exercises `bilinearOfSmulGenerator_apply`,
+   `pair_smul_smul`, `pair_smul_generator_smul_generator` (including the symmetric-pairing DDH check
    `e(α • g₀, β • g₀) = e(g₀, γ • g₀) ↔ α * β = γ` of Boneh–Shoup (15.8)),
    `pair_generator_ne_zero`, companion `DecidableEq`, `Companion`'s `fun_prop` rules and
    `computableInPolyTime_encode_pair`.
@@ -49,27 +50,32 @@ private def primePairEncoded : PrimeDesc × List Bool × List Bool → List Bool
   | (p, x, y) => ((ofBits x * ofBits y) % p.1).bits
 
 /-- The symmetric pairing `(α, β) ↦ α * β` on the additive groups `ZMod p` of prime order `p`,
-with generator `1` in `G₀`, `G₁` and `GT`. -/
-private abbrev primePairing : PairingGroupFamily where
-  G₀ := primeFields
-  G₁ := primeFields.self
-  GT := primeFields.self
-  pair p := LinearMap.mul (ZMod p.1) (ZMod p.1)
-  pair_generator _ := mul_one 1
-  pairEncoded := primePairEncoded
-  pairEncoded_encode p u v := by
-    have : NeZero p.1 := ⟨p.2.ne_zero⟩
-    simp only [primePairEncoded, primeFields, self, ofBits_bits, LinearMap.mul_apply', ZMod.val_mul]
-  computableInPolyTime_pairEncoded := by
-    have hp := ComputableInPolyTime.id'
-      (encIn := encPair encPrime (encPair encBits encBits))
-    exact (ComputableInPolyTime.binary_mod'
-      (ComputableInPolyTime.binary_mul'
-        (Decoder.nat.computableInPolyTime.comp hp.snd'.fst')
-        (Decoder.nat.computableInPolyTime.comp hp.snd'.snd'))
-      (computableInPolyTime_val.comp hp.fst')).encoding_comp
+with generator `1` in `G₀`, `G₁` and `GT`, constructed from the plain multiplication function via
+`PairingGroupFamily.ofSmulGenerator` (and `bilinearOfSmulGenerator`). -/
+private abbrev primePairing : PairingGroupFamily :=
+  PairingGroupFamily.ofSmulGenerator primeFields primeFields.self primeFields.self
+    (fun _ u v => u * v)
+    (fun _ α β => by simp [primeFields, self])
+    primePairEncoded
+    (fun p u v => by
+      have : NeZero p.1 := ⟨p.2.ne_zero⟩
+      simp only [primePairEncoded, primeFields, self, ofBits_bits, ZMod.val_mul])
+    (by
+      have hp := ComputableInPolyTime.id'
+        (encIn := encPair encPrime (encPair encBits encBits))
+      exact (ComputableInPolyTime.binary_mod'
+        (ComputableInPolyTime.binary_mul'
+          (Decoder.nat.computableInPolyTime.comp hp.snd'.fst')
+          (Decoder.nat.computableInPolyTime.comp hp.snd'.snd'))
+        (computableInPolyTime_val.comp hp.fst')).encoding_comp)
 
 private abbrev d7 : PrimeDesc := ⟨7, by norm_num⟩
+
+-- `bilinearOfSmulGenerator_apply` reduces `primePairing.pair` to field multiplication across
+-- `module` boundaries: in `ZMod 7`, `3 * 5 = 1`.
+example : primePairing.pair d7 3 5 = 1 := by
+  simp only [primePairing, PairingGroupFamily.ofSmulGenerator, bilinearOfSmulGenerator_apply]
+  decide
 
 -- Concrete encoded pairing evaluation: in `ZMod 7`, `3 * 5 = 15 ≡ 1 (mod 7)`, encoded as `[true]`.
 example :
