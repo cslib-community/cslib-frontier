@@ -114,8 +114,7 @@ private theorem abs_two_pow_mul_sub_le_of_prefix {t : ℕ} {P Z : ℝ}
     (h : |P - Z| ≤ 6 / (2 : ℝ) ^ (t + 4)) :
     |(2 : ℝ) ^ t * P - (2 : ℝ) ^ t * Z| ≤ 3 / 8 := by
   rw [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t)]
-  calc (2 : ℝ) ^ t * |P - Z| ≤ (2 : ℝ) ^ t * (6 / (2 : ℝ) ^ (t + 4)) :=
-        mul_le_mul_of_nonneg_left h (by positivity)
+  calc (2 : ℝ) ^ t * |P - Z| ≤ (2 : ℝ) ^ t * (6 / (2 : ℝ) ^ (t + 4)) := by gcongr
     _ = 3 / 8 := by
         have hpow : (2 : ℝ) ^ (t + 4) = 16 * (2 : ℝ) ^ t := by ring
         rw [hpow]
@@ -449,8 +448,7 @@ theorem shiftClipApprox_isScaledApprox (v : ℤ) {x : ℕ → ℤ} (hx : IsSigne
     have hprod : |(2 : ℝ) ^ t * shiftClipVal v (streamVal x)| ≤ 3 / 8 := by
       rw [abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t)]
       calc (2 : ℝ) ^ t * |shiftClipVal v (streamVal x)|
-          ≤ (2 : ℝ) ^ t * |(2 : ℝ) ^ v * streamVal x| :=
-            mul_le_mul_of_nonneg_left hval_le (by positivity)
+          ≤ (2 : ℝ) ^ t * |(2 : ℝ) ^ v * streamVal x| := by gcongr
         _ = (2 : ℝ) ^ ((t : ℤ) + v) * |streamVal x| := by
             rw [abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ v),
               zpow_add₀ (by norm_num), zpow_natCast, mul_assoc]
@@ -503,8 +501,7 @@ theorem shiftClipApprox_isScaledApprox (v : ℤ) {x : ℕ → ℤ} (hx : IsSigne
         (2 : ℝ) ^ t * shiftClipVal v (streamVal x)| ≤ 3 / 8 := by
       rw [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t)]
       calc (2 : ℝ) ^ t * |shiftClipVal v (streamPrefix x K) - shiftClipVal v (streamVal x)|
-          ≤ (2 : ℝ) ^ t * |(2 : ℝ) ^ v * streamPrefix x K - (2 : ℝ) ^ v * streamVal x| :=
-            mul_le_mul_of_nonneg_left hlip (by positivity)
+          ≤ (2 : ℝ) ^ t * |(2 : ℝ) ^ v * streamPrefix x K - (2 : ℝ) ^ v * streamVal x| := by gcongr
         _ = (2 : ℝ) ^ t * ((2 : ℝ) ^ v * |streamPrefix x K - streamVal x|) := by
             rw [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ v)]
         _ ≤ (2 : ℝ) ^ t * ((2 : ℝ) ^ v * (6 / (2 : ℝ) ^ K)) := by gcongr

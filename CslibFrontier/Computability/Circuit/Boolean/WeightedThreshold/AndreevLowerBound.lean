@@ -531,8 +531,7 @@ theorem excess_ge_of_three_mul_div_sqrt_le {b M : ℕ} (hM : 1 ≤ M) {ε : ℝ}
   have hβ : 3 * (((b : ℝ) + 2) * Real.sqrt ((2 : ℝ) ^ b)) ≤ (2 : ℝ) ^ b * ε := by
     calc 3 * (((b : ℝ) + 2) * Real.sqrt ((2 : ℝ) ^ b))
         = 3 * ((b : ℝ) + 2) * Real.sqrt ((2 : ℝ) ^ b) := by ring
-      _ ≤ ε * Real.sqrt ((2 : ℝ) ^ b) * Real.sqrt ((2 : ℝ) ^ b) :=
-          mul_le_mul_of_nonneg_right hε' hs.le
+      _ ≤ ε * Real.sqrt ((2 : ℝ) ^ b) * Real.sqrt ((2 : ℝ) ^ b) := by gcongr
       _ = (2 : ℝ) ^ b * ε := by rw [mul_assoc, ← sq, hsq, mul_comm]
   have ht' : 3 * andreevWeightTail b M (andreevWeightScale b M)
       (((b : ℝ) + 2) * Real.sqrt ((2 : ℝ) ^ b)) ≤ ε := by
@@ -747,8 +746,7 @@ theorem size_ge_of_card_eval_eq_andreev_ge_of_le_two_pow {b m : ℕ} (hm : 0 < m
     have h1 : 1 ≤ (2 : ℝ) ^ b * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) :=
       one_le_mul_of_one_le_of_one_le hN1 hs1
     calc (m : ℝ) ≤ (2 : ℝ) ^ b * 1 := by rw [mul_one]; exact hmN'
-      _ ≤ (2 : ℝ) ^ b * ((2 : ℝ) ^ b * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ)) :=
-          mul_le_mul_of_nonneg_left h1 (by positivity)
+      _ ≤ (2 : ℝ) ^ b * ((2 : ℝ) ^ b * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ)) := by gcongr
       _ = (2 : ℝ) ^ b * (2 : ℝ) ^ b * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := by ring
   exact resource_bound_of_log_bound b c.size (Nat.cast_nonneg m) (by positivity) hA hε hε1
     (size_ge_of_card_eval_eq_andreev_ge_of_le_eps hm hε c hd o hcorr)

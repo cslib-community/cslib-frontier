@@ -139,8 +139,7 @@ theorem eventually_lt_of_demand {A : ℝ} (hA : 0 < A) {κ : ℝ} (hκ : 0 ≤ �
     have h1 := (hlog1.trans (le_abs_self _)).trans hlogn
     have h2 := mul_le_mul_of_nonneg_left h1 (by linarith : 0 ≤ κ + 1)
     rw [← mul_assoc, mul_div_cancel₀ _ (by linarith : κ + 1 ≠ 0)] at h2
-    have h3 : κ * Real.log (v + 1) ≤ (κ + 1) * Real.log (v + 1) :=
-      mul_le_mul_of_nonneg_right (by linarith) hlog0
+    have h3 : κ * Real.log (v + 1) ≤ (κ + 1) * Real.log (v + 1) := by gcongr; linarith
     linarith
   -- The error term of the problem.
   have hE : (A + η + 1) * |e n| ≤ δ * n := by

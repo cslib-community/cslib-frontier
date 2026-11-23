@@ -120,15 +120,12 @@ theorem initData_mem (w₀ : ℕ) (d : Data 5) (k : ℕ) :
 `ProbComp` semantics `initComp w₀ d`. -/
 theorem initCode_execRand {w₀ w : ℕ} (hw : w₀ ≤ w) (d : Data 5) :
     ExecRand w (initCode w₀) d (initComp w₀ d) := by
-  have hfit : Fits w (2 ^ (w₀ - 1) - 1) := by
-    fits [Nat.pow_le_pow_right two_pos (show w₀ - 1 ≤ w by omega)]
-  have h1 : Exec w (.op (.const regT1 (2 ^ (w₀ - 1) - 1)) : Code .exact 5) d
-      (d.set regT1 (2 ^ (w₀ - 1) - 1)) 1 := Exec.const hfit
+  have hfit : Fits w (2 ^ (w₀ - 1) - 1) := by fits
   have h2 := ExecRand.rand (B := .exact) (w := w) (dst := regB) (src := regT1)
     (x := d.set regT1 (2 ^ (w₀ - 1) - 1)) (by rwa [Data.set_regs_self])
   rw [Data.set_regs_self] at h2
   simpa only [initCode, initComp, initData, ← bind_pure_comp, bind_assoc, pure_bind] using
-    h1.seqRand h2
+    (Exec.const hfit).seqRand h2
 
 /-- Hoare-style specification for `initCode w₀`: runs in `2` steps and `1` `rand` call, placing a
 seed `< 2 ^ (w₀ - 1)` in `regB` while preserving `regX`, `regOut`, and memory. -/
@@ -138,16 +135,13 @@ theorem initCode_execRandWithin {w₀ w : ℕ} (hw : w₀ ≤ w) (d : Data 5) :
         d'.regs regX = d.regs regX ∧
         d'.regs regOut = d.regs regOut ∧
         d'.mem = d.mem) 2 1 := by
-  refine ⟨initComp w₀ d, initCode_execRand hw d, ?_, ?_⟩
-  · simpa only [initComp, Nat.add_zero] using
-      (ProbComp.isQueryBounded_unifFin (2 ^ (w₀ - 1) - 1)).bind fun _ => .pure _ 0
-  · intro z hz
-    dsimp only [initComp] at hz
-    supp_cases hz with ⟨k, rfl⟩
-    exact ⟨⟨by
-      rw [initData_regs_b]
-      exact Nat.lt_of_lt_of_le k.isLt (Nat.sub_add_cancel Nat.one_le_two_pow).le,
-      by simp, by simp, rfl⟩, le_rfl⟩
+  refine ⟨initComp w₀ d, initCode_execRand hw d,
+    by simpa only [initComp, Nat.add_zero] using
+      (ProbComp.isQueryBounded_unifFin (2 ^ (w₀ - 1) - 1)).bind fun _ => .pure _ 0, ?_⟩
+  intro z hz
+  dsimp only [initComp] at hz
+  supp_cases hz with ⟨k, rfl⟩
+  exact ⟨⟨by rw [initData_regs_b]; fits, by simp, by simp, rfl⟩, le_rfl⟩
 
 /-- Extracting the seed `< 2 ^ (w₀ - 1)` from register `regB` of a machine state `d'`, defaulting to
 `0` outside the valid range. -/
@@ -237,26 +231,6 @@ theorem evalData_mem (w₀ M : ℕ) (d : Data 5) :
 theorem evalCode_exec {w₀ M w : ℕ} (hw₀ : 0 < w₀) (hw : 2 * w₀ ≤ w)
     {d : Data 5} (hb : d.regs regB < 2 ^ (w₀ - 1)) (hx : d.regs regX < 2 ^ w₀) :
     Exec w (evalCode w₀ M) d (evalData w₀ M d) 9 := by
-  have hpow_w₀ : 2 ^ w₀ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos (by omega)
-  have h2b1_lt : 2 * d.regs regB + 1 < 2 ^ w₀ := by
-    have : 2 * 2 ^ (w₀ - 1) = 2 ^ w₀ := by
-      rw [← pow_succ', Nat.sub_add_cancel hw₀]
-    omega
-  have hfit_prod : Fits w ((2 * d.regs regB + 1) * d.regs regX) := by
-    rw [fits_iff]
-    calc (2 * d.regs regB + 1) * d.regs regX < 2 ^ w₀ * 2 ^ w₀ :=
-          Nat.mul_lt_mul_of_lt_of_lt h2b1_lt hx
-      _ = 2 ^ (2 * w₀) := by rw [two_mul, pow_add]
-      _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hw
-  have hfit_2 : Fits w 2 := by
-    fits [show 2 ^ 2 ≤ 2 ^ w from Nat.pow_le_pow_right two_pos (by omega)]
-  have hfit_mask : Fits w (2 ^ w₀ - 1) := by fits [hpow_w₀]
-  have hfit_2b1 : Fits w (2 * d.regs regB + 1) := by fits [hpow_w₀]
-  have hfit_low : Fits w (((2 * d.regs regB + 1) * d.regs regX) &&& (2 ^ w₀ - 1)) :=
-    hfit_mask.of_le Nat.and_le_right
-  have hfit_shift : Fits w (w₀ - M) := by fits [Nat.lt_two_pow_self (n := w₀), hpow_w₀]
-  have hfit_out : Fits w ((((2 * d.regs regB + 1) * d.regs regX) &&& (2 ^ w₀ - 1)) >>> (w₀ - M)) :=
-    hfit_low.of_le (Nat.shiftRight_le _ _)
   unfold evalCode
   wram_exec
   ext i : 2

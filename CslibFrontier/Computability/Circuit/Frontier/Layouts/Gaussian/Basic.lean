@@ -18,6 +18,8 @@ import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Metric
 import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
 import CslibFrontier.Foundations.Probability.Gaussian.Sheppard
 import CslibFrontier.Foundations.Probability.SecondMoment
+import CslibFrontier.Foundations.Probability.UnionBound
+import CslibFrontier.Foundations.Probability.WeightedSecondMoment
 
 /-!
 # Shared estimates of the Gaussian layouts
@@ -33,7 +35,11 @@ edge scores.
   most `vertexOverlap d R` of the balls around the vertices, and as many around the sources of
   the edges.
 * **Concentration.** The number of local events that occur deviates from its mean by `c` with
-  probability `O(|events| / c ^ 2)` (`measureReal_deviation_le`).
+  probability `O(|events| / c ^ 2)` (`measureReal_deviation_le`); so does a weighted count of local
+  events under any product of probability measures (`measureReal_weightedDeviation_le`). At
+  `c = η h` such a bound `a h / c ^ 2` is below one once `h > a / η ^ 2`
+  (`mul_div_mul_sq_lt_one`), and the union bound then gives a sample outside every deviation
+  event.
 * **Projections.** The product of standard Gaussians on `V → ℝ` is carried to the standard
   Gaussian measure of `EuclideanSpace ℝ V`, so a unit projection lands in a window of width `δ`
   with probability at most `δ / √(2π)` (`measureReal_window_le`), beyond `T` with probability at
@@ -50,6 +56,8 @@ edge scores.
 * `Cslib.Circuits.Frontier.Gaussian.vertexOverlap`: the overlap bound of the balls.
 * `Cslib.Circuits.Frontier.Gaussian.deviation`: the event that a count of events deviates from
   its mean.
+* `Cslib.Circuits.Frontier.Gaussian.weightedDeviation`: the event that a weighted count of events
+  deviates from its mean.
 * `Cslib.Circuits.Frontier.Gaussian.vertexCorrelation`: the limiting correlation of adjacent
   kernel rows in maximum degree `d`.
 
@@ -60,8 +68,9 @@ edge scores.
   distance one.
 * `Cslib.Circuits.Frontier.Gaussian.card_not_disjoint_closedBall_le`,
   `Cslib.Circuits.Frontier.Gaussian.card_not_disjoint_closedBall_src_le`: overlapping balls.
-* `Cslib.Circuits.Frontier.Gaussian.measureReal_deviation_le`: concentration of counts of local
-  events.
+* `Cslib.Circuits.Frontier.Gaussian.measureReal_deviation_le`,
+  `Cslib.Circuits.Frontier.Gaussian.measureReal_weightedDeviation_le`: concentration of counts and
+  weighted counts of local events.
 * `Cslib.Circuits.Frontier.Gaussian.measureReal_window_le`,
   `Cslib.Circuits.Frontier.Gaussian.measureReal_le_abs_le`,
   `Cslib.Circuits.Frontier.Gaussian.measureReal_mem_uIoc_le`: windows, tails and crossings.
@@ -197,13 +206,8 @@ theorem exists_sample_of_grid_bounds {Ω : Type*} [MeasurableSpace Ω] {P : Meas
     simpa only [Finset.sum_const, Finset.card_range, nsmul_eq_mul] using
       Finset.sum_le_sum (fun i hi => (measureReal_union_le _ _).trans
         (add_le_add (hA i (Finset.mem_range.mp hi)) (hB i (Finset.mem_range.mp hi))))
-  have hbad : ∃ ω, ω ∉ bad := by
-    by_contra! hall
-    have hlt := hbound.trans_lt hsmall
-    rw [Set.eq_univ_of_forall hall, probReal_univ] at hlt
-    exact lt_irrefl _ hlt
   simpa only [bad, mem_union, mem_iUnion, Finset.mem_range, not_or, not_exists,
-    and_assoc] using hbad
+    and_assoc] using exists_notMem_of_measureReal_lt_one (hbound.trans_lt hsmall)
 
 variable {V : Type*} [Fintype V]
 
@@ -236,6 +240,42 @@ theorem measureReal_deviation_le {A : κ → Set (V → ℝ)} (hA : ∀ k, Measu
   rwa [Finset.card_univ] at h
 
 end Deviations
+
+section WeightedDeviations
+
+variable {κ : Type*}
+
+/-- The event that the weighted count `∑ k ∈ F, w k 1_{A k}` of the events `A k`, `k ∈ F`,
+deviates from its mean under `P` by at least `c`. -/
+def weightedDeviation {Ω : Type*} [MeasurableSpace Ω] (P : Measure Ω) (F : Finset κ)
+    (w : κ → ℝ) (A : κ → Set Ω) (c : ℝ) : Set Ω :=
+  {ω | c ≤ |∑ k ∈ F, w k * (A k).indicator (1 : Ω → ℝ) ω - ∑ k ∈ F, w k * P.real (A k)|}
+
+open Classical in
+/-- **Concentration of weighted local events.** Under a product of probability measures, if each
+event `A k`, `k ∈ F`, depends only on the coordinates in `S k`, each `S k` meets at most `D` of
+the sets `S l`, `l ∈ F`, and `0 ≤ w k ≤ W`, then the weighted count of the events that occur
+deviates from its mean by at least `c > 0` with probability at most `|F| W ^ 2 D / c ^ 2`. -/
+theorem measureReal_weightedDeviation_le {ι : Type*} [Fintype ι] {Ω : ι → Type*}
+    [∀ i, MeasurableSpace (Ω i)] {μ : ∀ i, Measure (Ω i)} [∀ i, IsProbabilityMeasure (μ i)]
+    (F : Finset κ) {A : κ → Set (Π i, Ω i)} (hA : ∀ k ∈ F, MeasurableSet (A k)) {w : κ → ℝ}
+    {W : ℝ} (hw0 : ∀ k ∈ F, 0 ≤ w k) (hwW : ∀ k ∈ F, w k ≤ W) (S : κ → Set ι)
+    (hAS : ∀ k ∈ F, DependsOn (· ∈ A k) (S k)) {D : ℕ}
+    (hD : ∀ k ∈ F, (F.filter fun l => ¬Disjoint (S k) (S l)).card ≤ D) {c : ℝ} (hc : 0 < c) :
+    (Measure.pi μ).real (weightedDeviation (Measure.pi μ) F w A c) ≤
+      F.card * W ^ 2 * D / c ^ 2 := by
+  rcases F.eq_empty_or_nonempty with rfl | ⟨k, hk⟩
+  · simp [weightedDeviation, hc.not_ge]
+  exact measureReal_pi_le_abs_sum_weighted_indicator_sub_le F hA
+    ((hw0 k hk).trans (hwW k hk)) hw0 hwW S hAS _ (fun _ _ _ _ h => not_not.mp h) hD hc
+
+/-- **The second-moment step.** A deviation bound `a h / c ^ 2` at `c = η h` is below one once
+`h` exceeds `a / η ^ 2`. -/
+theorem mul_div_mul_sq_lt_one {a η h : ℝ} (hη : η ≠ 0) (hh : 0 < h) (ha : a / η ^ 2 < h) :
+    a * h / (η * h) ^ 2 < 1 := by
+  rwa [show a * h / (η * h) ^ 2 = a / η ^ 2 / h by field_simp, div_lt_one hh]
+
+end WeightedDeviations
 
 /-! ### Projections of the sample -/
 

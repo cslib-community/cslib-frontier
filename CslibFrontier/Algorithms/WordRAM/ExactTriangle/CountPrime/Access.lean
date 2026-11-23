@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.Spread
+import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Tactic.StrideOmega
 
 /-!
 # Charged native modular-counter matrix accesses
@@ -37,25 +39,11 @@ theorem exec_morton {w k : ℕ} (x : Data 128) (h2 : x.regs Reg.two = 2)
   have hreadr := htable _ hr
   have hreadc := htable _ hc
   have hi := Nat.Morton.index_lt hr hc
-  have hsum : Fits w
-      (Nat.Morton.spread (x.regs Reg.row) * 2 + Nat.Morton.spread (x.regs Reg.column)) :=
-    hw.of_le (by unfold Nat.Morton.index at hi; omega)
-  have hprod : Fits w (Nat.Morton.spread (x.regs Reg.row) * 2) := hw.of_le (by
-    unfold Nat.Morton.index at hi
-    omega)
-  have haddrR : Fits w (x.regs Reg.spread + x.regs Reg.row) := hw.of_le (by omega)
-  have haddrC : Fits w (x.regs Reg.spread + x.regs Reg.column) := hw.of_le (by omega)
-  refine ⟨?y, ?run, ?mem, ?position, ?regs⟩
-  case run =>
-    ram_eval [morton, h2, hreadr, hreadc, hsum, hprod, haddrR, haddrC,
-      Reg.address, Reg.spread, Reg.rowSpread, Reg.columnSpread, Reg.position,
-      Reg.row, Reg.column, Reg.two]
-  case mem => rfl
-  case position => simp only [Data.set, Function.update_self, Nat.Morton.index, Nat.mul_comm]
-  case regs =>
-    intro i ha hr hc hp
-    simp only [Data.set, Function.update_of_ne ha, Function.update_of_ne hr,
-      Function.update_of_ne hc, Function.update_of_ne hp]
+  unfold Nat.Morton.index at hi
+  unfold morton
+  wram_exec [h2, hreadr, hreadc]
+  exact ⟨rfl, by wram_simp [Nat.Morton.index, Nat.mul_comm],
+    fun i ha hr hc hp => by wram_simp [ha, hr, hc, hp]⟩
 
 /-- Four actual instructions perform an admitted original-matrix residue read. The
 transpose is fixed code selection, while both coordinates and the pointer are runtime data. -/
@@ -67,41 +55,10 @@ theorem exec_readResidue {w : ℕ} (transpose : Bool) (x : Data 128)
         if transpose then x.regs Reg.column * x.regs Reg.side + x.regs Reg.row
         else x.regs Reg.row * x.regs Reg.side + x.regs Reg.column) ∧
       ∀ i, i ≠ Reg.address → i ≠ Reg.temporary → i ≠ Reg.residue → y.regs i = x.regs i := by
-  have hrow := Nat.mul_le_mul_right (x.regs Reg.side) (Nat.succ_le_of_lt hr)
-  have hcol := Nat.mul_le_mul_right (x.regs Reg.side) (Nat.succ_le_of_lt hc)
-  rw [Nat.succ_mul] at hrow hcol
-  have hpr : Fits w (x.regs Reg.row * x.regs Reg.side) := hw.of_le (by omega)
-  have hpc : Fits w (x.regs Reg.column * x.regs Reg.side) := hw.of_le (by omega)
-  have hir : Fits w (x.regs Reg.row * x.regs Reg.side + x.regs Reg.column) :=
-    hw.of_le (by omega)
-  have hic : Fits w (x.regs Reg.column * x.regs Reg.side + x.regs Reg.row) :=
-    hw.of_le (by omega)
-  have har : Fits w (x.regs Reg.residueSource +
-      (x.regs Reg.row * x.regs Reg.side + x.regs Reg.column)) := hw.of_le (by omega)
-  have hac : Fits w (x.regs Reg.residueSource +
-      (x.regs Reg.column * x.regs Reg.side + x.regs Reg.row)) := hw.of_le (by omega)
-  cases transpose with
-  | false =>
-    refine ⟨?y, ?run, ?mem, ?residue, ?regs⟩
-    case run =>
-      ram_eval [readResidue, hpr, hir, har, Reg.row, Reg.column,
-        Reg.side, Reg.residueSource, Reg.address, Reg.temporary, Reg.residue]
-    case mem => rfl
-    case residue => rfl
-    case regs =>
-      intro i ha ht hr
-      simp only [Data.set, Function.update_of_ne ha, Function.update_of_ne ht,
-        Function.update_of_ne hr]
-  | true =>
-    refine ⟨?yTrue, ?runTrue, ?memTrue, ?residueTrue, ?regsTrue⟩
-    case runTrue =>
-      ram_eval [readResidue, hpc, hic, hac, Reg.row, Reg.column,
-        Reg.side, Reg.residueSource, Reg.address, Reg.temporary, Reg.residue]
-    case memTrue => rfl
-    case residueTrue => rfl
-    case regsTrue =>
-      intro i ha ht hr
-      simp only [Data.set, Function.update_of_ne ha, Function.update_of_ne ht,
-        Function.update_of_ne hr]
+  cases transpose <;>
+    (simp only [readResidue, Bool.false_eq_true, ↓reduceIte]
+     wram_exec
+     · exact ⟨rfl, by wram_simp, fun i ha ht hr => by wram_simp [ha, ht, hr]⟩
+     all_goals stride_omega)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

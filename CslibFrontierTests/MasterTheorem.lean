@@ -6,15 +6,16 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Foundations.Data.Nat.MasterTheoremAsymptotics
 import CslibFrontier.Algorithms.Lean.Query.Arith.Karatsuba.Cost
-import Cslib.Algorithms.Lean.MergeSort.MergeSort
+import CslibFrontier.Algorithms.Lean.Query.Sort.Merge.CountBound
 
 /-!
 # Tests for the master theorem
 
-Each case of the master theorem applied to a concrete recurrence: cslib's merge-sort comparison
-count (case 2), Karatsuba's multiplication count (case 1 with `d = 0`), a Strassen-shaped
-recurrence (case 1, `O(n ^ log₂ 7)`), a binary-search recurrence (case 2 with `d = 0`) and a
-base-`3` recurrence (case 3). A function that violates the hypothesis shows it is not vacuous.
+Each case of the master theorem applied to a concrete recurrence: merge sort's query comparison
+bound `Cslib.Query.mergeSortCountBound` (case 2), Karatsuba's multiplication count (case 1 with
+`d = 0`), a Strassen-shaped recurrence (case 1, `O(n ^ log₂ 7)`), a binary-search recurrence
+(case 2 with `d = 0`) and a base-`3` recurrence (case 3). A function that violates the hypothesis
+shows it is not vacuous.
 -/
 
 namespace CslibFrontierTests.MasterTheorem
@@ -23,30 +24,28 @@ open Nat
 
 /-! ### Merge sort: case 2 -/
 
-theorem mergeSort_bound : DivideConquerBound Cslib.Algorithms.Lean.TimeM.timeMergeSortRec
+theorem mergeSort_bound : DivideConquerBound Cslib.Query.mergeSortCountBound
     2 2 1 0 fun n => 1 * n ^ 1 := by
   refine ⟨fun n hn => ?_, fun n hn S hS => ?_⟩
-  · rcases (by omega : n = 0 ∨ n = 1) with rfl | rfl <;>
-      simp [Cslib.Algorithms.Lean.TimeM.timeMergeSortRec]
+  · rcases (by omega : n = 0 ∨ n = 1) with rfl | rfl <;> simp
   · obtain ⟨k, rfl⟩ : ∃ k, n = k + 2 := ⟨n - 2, by omega⟩
-    have e : Cslib.Algorithms.Lean.TimeM.timeMergeSortRec (k + 2) =
-        Cslib.Algorithms.Lean.TimeM.timeMergeSortRec ((k + 2) / 2) +
-          Cslib.Algorithms.Lean.TimeM.timeMergeSortRec ((k + 2 - 1) / 2 + 1) + (k + 2) := by
-      rw [Cslib.Algorithms.Lean.TimeM.timeMergeSortRec]
+    have e := Cslib.Query.mergeSortCountBound_add_two k
     have h1 := hS ((k + 2) / 2) (by omega)
     have h2 := hS ((k + 2 - 1) / 2 + 1) (by omega)
-    rw [e, pow_one, one_mul]
+    rw [show (k + 2 - 1) / 2 + 1 = (k + 3) / 2 by omega] at h2
+    rw [pow_one, one_mul]
     omega
 
-/-- Merge sort makes at most `2 n ⌈log₂ n⌉` comparisons. cslib's `timeMergeSortRec_le` has the
-sharper `n ⌈log₂ n⌉`; the generic theorem loses the factor `b` from `b ^ ⌈log_b n⌉ ≤ b n`. -/
+/-- Merge sort makes at most `2 n ⌈log₂ n⌉` comparisons from the generic master theorem
+(`Cslib.Query.mergeSortCountBound_le_mul_clog` in `CountBound.lean` gives the sharp `n ⌈log₂ n⌉`
+by strong induction; the generic theorem loses the factor `b` from `b ^ ⌈log_b n⌉ ≤ b n`). -/
 example (n : ℕ) (hn : n ≠ 0) :
-    Cslib.Algorithms.Lean.TimeM.timeMergeSortRec n ≤ 2 * n * clog 2 n := by
+    Cslib.Query.mergeSortCountBound n ≤ 2 * n * clog 2 n := by
   have := mergeSort_bound.le_mul_pow_mul_clog (by norm_num) (by norm_num) le_rfl (by norm_num) hn
   simp only [pow_one, one_mul, zero_add] at this
   linarith
 
-example : (fun n => (Cslib.Algorithms.Lean.TimeM.timeMergeSortRec n : ℝ)) =O[Filter.atTop]
+example : (fun n => (Cslib.Query.mergeSortCountBound n : ℝ)) =O[Filter.atTop]
     fun n => (n : ℝ) ^ 1 * Real.log n :=
   mergeSort_bound.isBigO_pow_mul_log (by norm_num) le_rfl (by norm_num)
 
@@ -85,7 +84,6 @@ def strassenT : ℕ → ℕ
   | 1 => 1
   | n + 2 => 7 * strassenT ((n + 3) / 2) + (n + 2) ^ 2
 termination_by n => n
-decreasing_by omega
 
 example : strassenT 4 = 93 := by simp [strassenT]
 
@@ -122,7 +120,6 @@ def bsT : ℕ → ℕ
   | 1 => 0
   | n + 2 => bsT ((n + 3) / 2) + 1
 termination_by n => n
-decreasing_by omega
 
 theorem bsT_bound : DivideConquerBound bsT 1 2 1 0 fun n => 1 * n ^ 0 := by
   refine ⟨fun n hn => ?_, fun n hn S hS => ?_⟩
@@ -144,7 +141,6 @@ def t3 : ℕ → ℕ
   | 1 => 1
   | n + 2 => 2 * t3 ((n + 4) / 3) + (n + 2)
 termination_by n => n
-decreasing_by omega
 
 theorem t3_bound : DivideConquerBound t3 2 3 1 1 fun n => 1 * n ^ 1 := by
   refine ⟨fun n hn => ?_, fun n hn S hS => ?_⟩
