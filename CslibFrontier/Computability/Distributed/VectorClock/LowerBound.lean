@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Distributed.VectorClock.Clocks
+import Mathlib.Tactic.Order
 
 /-!
 # Crown-execution clock-dimension lower-bound step for unicast executions
@@ -444,8 +445,7 @@ theorem crownFin_dim_lower_bound {n : ℕ} (hn : 2 ≤ n) {α : Type v} [LinearO
         (coord p₁)
     have hlt₂ := heq ▸ hcoord p₂
     have hlt₁ := hcoord p₁
-    exact lt_irrefl (f (crownPhase1 hn p₁) (coord p₁))
-      (lt_trans (lt_of_le_of_lt hle₁₂ hlt₂) (lt_of_le_of_lt hle₂₁ hlt₁))
+    order
   simpa only [Fintype.card_fin] using Fintype.card_le_of_injective coord hinj
 
 /-- Single-execution dimension lower-bound step over finite unicast traces `Execution P` (toward

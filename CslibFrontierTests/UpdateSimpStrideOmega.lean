@@ -36,8 +36,9 @@ open Cslib.DataStructure.Dictionary.WordRAM.BitPackedArray
 
 /-! ## 1. `stride_omega`: 2D strided bounds, trichotomy, `2 ^ k`, and `div`/`mod` -/
 
-/-- Tagged layout helpers for testing `@[wram_arith]` unfolding inside `stride_omega`. -/
+/-- Tagged layout helper for testing `@[wram_arith]` unfolding inside `stride_omega`. -/
 @[wram_arith, expose] def bucketBase (base b S : ℕ) : ℕ := base + b * S
+/-- End offset helper for testing `@[wram_arith]` unfolding inside `stride_omega`. -/
 @[wram_arith, expose] def totalEnd (base B S : ℕ) : ℕ := base + B * S
 
 section StrideOmegaTests
@@ -179,6 +180,64 @@ example (f : ℕ → ℕ) (i : ℕ) :
       Function.update f (i + 2) 7 i = 4 + f i := by
   simp only [reduceUpdate]
 
+/-! ### Structure-projection frames, curried maps, and non-arithmetic `[DecidableEq]` guards -/
+
+private structure InnerState where
+  slot : ℕ
+  log : List ℕ
+
+private structure NodeState (P : Type*) where
+  app : ℕ
+  snap : Option ℕ
+  inner : InnerState
+  chanRec : P → List ℕ
+
+private structure NetState (P : Type*) where
+  proc : P → NodeState P
+  chan : P → P → List ℕ
+
+private def sampleNetStep {P : Type*} [DecidableEq P] (s : NetState P) (src dst : P) (m : ℕ) :
+    NetState P :=
+  let cur := s.proc dst
+  let newRec : P → List ℕ :=
+    if cur.snap.isSome then fun q => if q = src then cur.chanRec src ++ [m] else cur.chanRec q
+    else cur.chanRec
+  { proc r := if r = dst then ⟨m, cur.snap, ⟨cur.inner.slot, m :: cur.inner.log⟩, newRec⟩
+              else s.proc r
+    chan u v := if u = src ∧ v = dst then (s.chan u v).tail else s.chan u v }
+
+private def sampleUpdateStep {P : Type*} [DecidableEq P] (s : NetState P) (p : P) (m : ℕ) :
+    NetState P :=
+  let dest := p
+  { s with proc := Function.update s.proc dest { s.proc dest with app := m } }
+
+-- Unchanged single/nested structure projections across `ite` & `let` without splitting `r = dst`
+example {P : Type*} [DecidableEq P] (s : NetState P) (src dst r : P) (m : ℕ) :
+    ((sampleNetStep s src dst m).proc r).snap = (s.proc r).snap ∧
+    ((sampleNetStep s src dst m).proc r).inner.slot = (s.proc r).inner.slot := by
+  constructor <;> update_simp [sampleNetStep]
+
+-- Unchanged structure projection across `Function.update` under local `let` binding
+example {P : Type*} [DecidableEq P] (s : NetState P) (p r : P) (m : ℕ) :
+    ((sampleUpdateStep s p m).proc r).snap = (s.proc r).snap := by
+  update_simp [sampleUpdateStep]
+
+-- Non-arithmetic `[DecidableEq P]` disequality through `let` binding peels modified field cleanly
+example {P : Type*} [DecidableEq P] (s : NetState P) (p r : P) (m : ℕ) (hne : p ≠ r) :
+    ((sampleUpdateStep s p m).proc r).app = (s.proc r).app := by
+  update_simp [sampleUpdateStep]
+
+-- Nested map projection `((s'.proc v).chanRec) u` collapses when `u ≠ src` without splitting `dst`
+example {P : Type*} [DecidableEq P] (s : NetState P) (src dst u v : P) (m : ℕ) (hu : u ≠ src) :
+    ((sampleNetStep s src dst m).proc v).chanRec u = (s.proc v).chanRec u := by
+  update_simp [sampleNetStep]
+
+-- Curried 2-argument channel map `(s'.chan u) v` with conjunctive `And` / `¬ And` guard discharge
+example {P : Type*} [DecidableEq P] (s : NetState P) (src dst u v : P) (m : ℕ) (h : u ≠ src) :
+    (sampleNetStep s src dst m).chan u v = s.chan u v ∧
+    (sampleNetStep s src dst m).chan src dst = (s.chan src dst).tail := by
+  constructor <;> update_simp [sampleNetStep]
+
 end UpdateSimpTests
 
 /-! ## 3. `PackedSlice`: concrete nonvacuous instances and disjoint slice views -/
@@ -227,6 +286,14 @@ error: update_simp: made no progress on target
 -/
 #guard_msgs in
 example (f : ℕ → ℕ) (a k : ℕ) : Function.update f a 1 k = f k := by
+  update_simp
+
+/--
+error: update_simp: made no progress on target
+-/
+#guard_msgs in
+example {P : Type*} [DecidableEq P] (s : NetState P) (p r : P) (v : NodeState P) :
+    (Function.update s.proc p v r).app = (s.proc r).app := by
   update_simp
 
 -- Failed calls restore state cleanly
