@@ -151,7 +151,7 @@ theorem exists_isPointAt (x v : Y) {t : ℝ} (h0 : 0 ≤ t) (h1 : t ≤ 1) :
   have h3 : t * (1 - t) * dist x v ^ 2 ≤ t * (1 - t) * (dist b x + dist b v) ^ 2 := by
     have : 0 ≤ t * (1 - t) := mul_nonneg h0 (by linarith)
     gcongr
-  nlinarith [sq_nonneg ((1 - t) * dist b x - t * dist b v)]
+  linarith [sq_nonneg ((1 - t) * dist b x - t * dist b v)]
 
 /-- **Part (a).** For `t ∈ [0, 1]` exactly one point has distances `t|xv|` and `(1 − t)|xv|`
 from `x` and `v`. By `isPointAt_of_dist` it satisfies the inequality of the point at
@@ -184,7 +184,7 @@ private theorem quadrilateral_aux (x v p p' : Y) {s t : ℝ} (hs0 : 0 ≤ s) (hs
   have h4 : t * (1 - t) * dist x v ^ 2 ≤ t * (1 - t) * (dist x q + dist v q) ^ 2 := by
     have : 0 ≤ t * (1 - t) := mul_nonneg ht0 (by linarith)
     gcongr
-  nlinarith [sq_nonneg ((1 - t) * dist x q - t * dist v q)]
+  linarith [sq_nonneg ((1 - t) * dist x q - t * dist v q)]
 
 /-- **Part (b), the quadrilateral inequality.**
 `|xv|² + |yu|² ≤ |xu|² + |yv|² + 2|xy||uv|`. The proof applies `quadrilateral_aux` with
@@ -217,7 +217,7 @@ theorem dist_sq_add_dist_sq_le_sides (x v y u : Y) :
     dist x v ^ 2 + dist y u ^ 2 ≤ dist x y ^ 2 + dist y v ^ 2 + dist v u ^ 2 + dist x u ^ 2 := by
   have h := dist_sq_add_dist_sq_le x v y u
   rw [dist_comm u v] at h
-  nlinarith [sq_nonneg (dist x y - dist v u)]
+  linarith [sq_nonneg (dist x y - dist v u)]
 
 /-- **Part (b).** If the squared diagonals of a quadrangle add up to its squared sides,
 opposite sides are equal. -/
@@ -230,8 +230,8 @@ theorem sides_eq_of_dist_sq_add_dist_sq_eq {x v y u : Y}
   rw [dist_comm u v] at h1
   rw [dist_comm u y, dist_comm u v] at h2
   constructor
-  · nlinarith [(sq_nonpos_iff (dist x y - dist v u)).1 (by nlinarith)]
-  · nlinarith [(sq_nonpos_iff (dist y v - dist x u)).1 (by nlinarith)]
+  · linarith [(sq_nonpos_iff (dist x y - dist v u)).1 (by linarith)]
+  · linarith [(sq_nonpos_iff (dist y v - dist x u)).1 (by linarith)]
 
 /-! ### Barycenters (part (c)) -/
 
@@ -256,7 +256,7 @@ theorem IsBarycenter.sum_mul_dist_le {ι : Type*} [Fintype ι] {w : ι → ℝ} 
   have h5 := Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => h3 i
   simp only [Finset.sum_add_distrib, ← Finset.mul_sum] at h5
   refine le_of_mul_le_mul_left (a := dist b b') ?_ h0
-  nlinarith
+  linarith
 
 /-- **Part (c).** For `n ≥ 1` points, the barycenter with unit weights is the unique minimizer
 of `y ↦ ∑ |yxᵢ|²`. -/
@@ -266,7 +266,7 @@ theorem isBarycenter_one_iff {n : ℕ} (hn : 0 < n) (x : Fin n → Y) (b : Y) :
   have : Nonempty Y := ⟨x ⟨0, hn⟩⟩
   simp only [IsBarycenter, one_mul, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
     nsmul_eq_mul, mul_one]
-  refine ⟨fun h y => by nlinarith [h y, sq_nonneg (dist y b)], fun h => ?_⟩
+  refine ⟨fun h y => by linarith [h y, mul_nonneg hn'.le (sq_nonneg (dist y b))], fun h => ?_⟩
   obtain ⟨b₀, h₀⟩ := exists_isBarycenter (fun _ : Fin n => (1 : ℝ)) (fun _ => zero_le_one) x
   simp only [IsBarycenter, one_mul, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
     nsmul_eq_mul, mul_one] at h₀
@@ -293,7 +293,7 @@ theorem exists_proj (F : Set Y) (hF : IsClosed F) (hne : F.Nonempty)
     rw [dist_comm q P] at this
     linarith
   exact ⟨P, hP, fun q hq => (pow_le_pow_iff_left₀ dist_nonneg dist_nonneg two_ne_zero).1
-    (by nlinarith [h' q hq]), h'⟩
+    (by linarith [h' q hq, sq_nonneg (dist P q)]), h'⟩
 
 /-! ### Flat rectangles (part (f))
 
@@ -329,7 +329,7 @@ private theorem flat_parts (hp : dist x u = h) (hp' : dist y v = h) (hq : dist u
   rw [e1, e4] at f2
   rw [e2, e3] at f3
   rw [e2, e4, hq] at f4
-  nlinarith
+  linarith
 
 /-- The case `s = t`: then `|ab| = δ`, and `|xb|²`, `|ay|²` take the largest values that the
 inequality of the point at fraction `s` allows. -/
@@ -346,7 +346,7 @@ private theorem flat_same (hp : dist x u = h) (hp' : dist y v = h) (hq : dist u 
   rw [hp'] at e3
   rw [e1, e3, hq', dist_comm y a] at h2
   have h4 : dist a b = δ := by
-    nlinarith [(sq_nonpos_iff (dist a b - δ)).1 (by nlinarith)]
+    linarith [(sq_nonpos_iff (dist a b - δ)).1 (by linarith)]
   have h5 := hb x
   have h6 := ha y
   rw [hp', hq'] at h5
@@ -357,7 +357,7 @@ private theorem flat_same (hp : dist x u = h) (hp' : dist y v = h) (hq : dist u 
   have h8 : dist x v ^ 2 + dist u y ^ 2 = 2 * h ^ 2 + 2 * δ ^ 2 := le_antisymm (by linarith) hd
   have h9 : s * dist x v ^ 2 + s * dist u y ^ 2 = s * (2 * h ^ 2 + 2 * δ ^ 2) := by
     rw [← mul_add, h8]
-  constructor <;> nlinarith
+  constructor <;> linarith
 
 /-- **Part (f), flat rectangles**, with `a` and `b` given by the inequality of the point at
 fraction `s`, `t`, and lower bounds for the diagonals: `|ab|² = δ² + (s − t)²h²`. -/

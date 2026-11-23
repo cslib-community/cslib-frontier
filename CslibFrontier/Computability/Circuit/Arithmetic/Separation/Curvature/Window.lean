@@ -162,7 +162,7 @@ theorem le_of_second_diff_le {f : ℕ → ℝ} {φ ω : ℝ} (h0 : f 1 + φ ≤ 
     | succ j ih => have := h j; push_cast; linarith
   induction A with
   | zero => simp
-  | succ A ih => have := key A; push_cast; nlinarith
+  | succ A ih => have := key A; push_cast; linarith
 
 /-- Squaring `|r n²(L' − L) + aL'| ≤ W`, with `1 − r ≤ 2θ` and `n²(L'² − L²) ≤ K`:
 `W² ≥ a²L'² + a n²(L'² − L²) − 2aθK`. -/
@@ -175,6 +175,6 @@ theorem sq_le_of_abs_le {n L' L0 r a θ K W : ℝ} (hr0 : 0 ≤ r) (hr2 : 0 ≤ 
     (mul_le_mul_of_nonneg_left hZ hr2).trans (mul_le_mul_of_nonneg_right hr1 hK)
   have Z4 : 0 ≤ a * r * (n ^ 2 * (L' - L0) ^ 2) := by positivity
   have Z5 := mul_le_mul_of_nonneg_left Z2 ha
-  nlinarith [sq_nonneg (r * (n ^ 2 * (L' - L0)))]
+  linarith [sq_nonneg (r * (n ^ 2 * (L' - L0)))]
 
 end Cslib.Circuits.Arithmetic.Separation

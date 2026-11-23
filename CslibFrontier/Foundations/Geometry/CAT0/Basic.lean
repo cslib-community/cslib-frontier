@@ -86,7 +86,7 @@ theorem IsPointAt.eq_of_dist {x v b b' : X} {t : ℝ} (h : IsPointAt x v t b)
     (h2 : dist x b' = t * dist x v) (h3 : dist b' v = (1 - t) * dist x v) : b' = b := by
   have h4 := h b'
   rw [dist_comm b' x, h2, h3] at h4
-  exact dist_eq_zero.1 ((sq_nonpos_iff _).1 (by nlinarith))
+  exact dist_eq_zero.1 ((sq_nonpos_iff _).1 (by linarith))
 
 end CAT0
 
@@ -185,7 +185,7 @@ theorem le_two_mul_of_forall {S a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b)
     have h1 := h (ε / (b ^ 2 + 1)) (by positivity)
     have h2 : ε / (b ^ 2 + 1) * b ^ 2 < ε := by
       rw [div_mul_eq_mul_div, div_lt_iff₀ (by positivity)]
-      nlinarith
+      linarith
     simp only [ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, zero_div, add_zero] at h1
     linarith
   rcases hb.eq_or_lt with rfl | hb
@@ -194,7 +194,7 @@ theorem le_two_mul_of_forall {S a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b)
     have h1 := h ((a ^ 2 + 1) / ε) (by positivity)
     have h2 : a ^ 2 / ((a ^ 2 + 1) / ε) < ε := by
       rw [div_div_eq_mul_div, div_lt_iff₀ (by positivity)]
-      nlinarith
+      linarith
     simp only [ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, mul_zero, zero_add]
       at h1
     linarith
