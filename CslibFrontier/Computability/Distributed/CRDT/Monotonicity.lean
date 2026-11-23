@@ -618,13 +618,8 @@ theorem not_semilatticeCoordinationFreeConsistent_gcounterExactCount
   let c₂ : GCounter Q := c₁.inc q₀
   have hc₁_val : c₁.value = k := by
     simp only [GCounter.value, c₁]
-    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ q₀)]
-    simp only [Function.update_self]
-    have hzero : ∑ x ∈ Finset.univ.erase q₀, Function.update (0 : Q → ℕ) q₀ k x = 0 := by
-      apply Finset.sum_eq_zero
-      intro x hx
-      simp [Function.update_of_ne (Finset.ne_of_mem_erase hx)]
-    omega
+    rw [Finset.sum_eq_single q₀ (fun x _ hx => Function.update_of_ne hx ..) (by simp),
+      Function.update_self]
   have hc₂_val : c₂.value = k + 1 := by
     simp [c₂, GCounter.value_inc, hc₁_val]
   have hle : c₁ ≤ c₂ := GCounter.le_inc q₀ c₁
