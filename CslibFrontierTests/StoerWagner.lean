@@ -7,11 +7,10 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
--- `import all` is used only so the brute-force `decide` checks below can unfold the unexposed pure
--- definitions `cutWeight`, `attachWeight`, `maSearch`, `contractMatrix`, `contractPart`, `run`,
--- and `stoerWagner`; the tested `WordRAM.StoerWagner` API is imported ordinarily.
-import all CslibFrontier.Foundations.Combinatorics.WeightedCut
-import all CslibFrontier.Foundations.Combinatorics.WeightedCut.Contraction
+-- `import all` is used only so the brute-force `decide` checks below can unfold the unexposed
+-- definitions `attachWeight` and `IsMAOrderingFrom` (`WeightedCut.MAOrdering`) and `run` and
+-- `lastTwo` (`StoerWagner.Basic`); `WeightedCut`, `WeightedCut.Contraction`, and the tested
+-- `WordRAM.StoerWagner` API are imported ordinarily.
 import all CslibFrontier.Foundations.Combinatorics.WeightedCut.MAOrdering
 import all CslibFrontier.Algorithms.Lean.StoerWagner.Basic
 import CslibFrontier.Algorithms.WordRAM.StoerWagner
@@ -228,10 +227,13 @@ example : singletonInput.expectedOutput = [0, 0] := by decide
 example : emptyInput.expectedOutput = [0] := by decide
 
 example :
-    IsNonTrivialCut (stoerWagner G8Input.W).side ∧
-      cutWeight G8Input.W (stoerWagner G8Input.W).side = minCut G8Input.W ∧
-      (stoerWagner G8Input.W).weight = minCut G8Input.W :=
-  (G8Input.expectedOutput_spec (by decide)).2
+    let out := G8Input.expectedOutput
+    let side : Finset (Fin 8) := Finset.univ.filter fun v : Fin 8 => out[v.1 + 1]? = some 1
+    out.length = 9 ∧
+      out.head? = some (minCut G8Input.W) ∧
+      IsNonTrivialCut side ∧
+      cutWeight G8Input.W side = minCut G8Input.W :=
+  G8Input.expectedOutput_spec (by decide)
 
 example : ∃ r C : ℕ, ∃ prog : Program .standard r, ¬prog.ReadsWidth ∧
     (∃ t₁, ExecutesList 64 prog (State.init G4Input.encode) [3, 0, 0, 1, 1] t₁ ∧
