@@ -5862,6 +5862,7 @@ public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Finite
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.HashThenPRF
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Label
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.MultiKey
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFreePair
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.TruthTable

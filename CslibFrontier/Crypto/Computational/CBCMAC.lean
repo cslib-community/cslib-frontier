@@ -734,40 +734,6 @@ private theorem cbcInputBlocks_injective {n ℓ : ℕ} :
   subst hk
   exact congrArg (Sigma.mk k) (List.ofFn_injective h)
 
-private theorem isPrefix_encodeBlockList_iff {n : ℕ} (hn : 0 < n) (bs₁ bs₂ : List (BitString n)) :
-    (encodeBlockList bs₁).IsPrefix (encodeBlockList bs₂) ↔ bs₁.IsPrefix bs₂ := by
-  constructor
-  · rintro ⟨rest, hrest⟩
-    have hlen : bs₁.length ≤ bs₂.length := by
-      have hbits : (encodeBlockList bs₁).length ≤ (encodeBlockList bs₂).length := by
-        rw [← hrest, List.length_append]
-        exact Nat.le_add_right _ _
-      rw [length_encodeBlockList, length_encodeBlockList] at hbits
-      exact Nat.le_of_mul_le_mul_right hbits hn
-    have hsplit : bs₂ = bs₂.take bs₁.length ++ bs₂.drop bs₁.length :=
-      (List.take_append_drop bs₁.length bs₂).symm
-    have hflat : encodeBlockList bs₂ =
-        encodeBlockList (bs₂.take bs₁.length) ++ encodeBlockList (bs₂.drop bs₁.length) := by
-      unfold encodeBlockList
-      conv_lhs => rw [hsplit]
-      exact List.flatMap_append
-    have htakeLen : (encodeBlockList (bs₂.take bs₁.length)).length =
-        (encodeBlockList bs₁).length := by
-      rw [length_encodeBlockList, length_encodeBlockList, List.length_take_of_le hlen]
-    have hboth : encodeBlockList bs₁ ++ rest =
-        encodeBlockList (bs₂.take bs₁.length) ++ encodeBlockList (bs₂.drop bs₁.length) :=
-      hrest.trans hflat
-    have heqEnc : encodeBlockList bs₁ = encodeBlockList (bs₂.take bs₁.length) := by
-      have ht := congrArg (List.take (encodeBlockList bs₁).length) hboth
-      rwa [List.take_left, List.take_left' htakeLen] at ht
-    have hbs : bs₁ = bs₂.take bs₁.length := by
-      have hcongr := congrArg (fun u => BitString.padBlocks n u.length u) heqEnc
-      rwa [padBlocks_encodeBlockList hn, padBlocks_encodeBlockList hn] at hcongr
-    rw [hbs]
-    exact List.take_prefix bs₁.length bs₂
-  · rintro ⟨rest, rfl⟩
-    exact ⟨encodeBlockList rest, by simp [encodeBlockList]⟩
-
 private def decodeCBCWord (n ℓ : ℕ) (w : List Bool) : Option (CBCInput n ℓ) :=
   let blocks := BitString.padBlocks n w.length w
   if h : blocks.length - 1 < ℓ ∧ 0 < blocks.length ∧ w.length = blocks.length * n then
@@ -1159,7 +1125,7 @@ private theorem cbcAdmissible_fixCoins_adapt {ℓ : ℕ → ℕ} {n Q : ℕ} (hn
       ((cbcInputCodec n (ℓ n) hn).encodeQuery y).2 := fun heq =>
     hxy ((cbcInputCodec n (ℓ n) hn).encodeQuery_injective (Prod.ext rfl heq))
   exact hwordPf _ (hsub x hx) hxValid _ (hsub y hy) hyValid hneWord
-    ((isPrefix_encodeBlockList_iff hn _ _).mpr hpre)
+    (hpre.flatMap List.ofFn)
 
 /-! ### Section 4: Certified PRF Reductions and Concrete & Asymptotic PRF Security -/
 
