@@ -30,8 +30,9 @@ import Mathlib.Tactic.Ring
 /-!
 # Additive matrix synthesis and multiplicative-to-total complexity over `{⊕, ∧, 1}`
 
-This file formalizes Igor S. Sergeev's tight relation between multiplicative and total circuit
-complexity over the Zhegalkin basis `{⊕, ∧, 1}` [Sergeev2013AdditiveMultiplicative]:
+This file formalizes the constructive upper bounds of Igor S. Sergeev on additive matrix synthesis
+and total-from-multiplicative circuit complexity over the Zhegalkin basis `{⊕, ∧, 1}`
+[Sergeev2013AdditiveMultiplicative]:
 
 1. **Active-square additive matrix synthesis**
    ([Sergeev, Lemma 1, pp. 2–3][Sergeev2013AdditiveMultiplicative], reformulating a special case of
@@ -43,11 +44,12 @@ complexity over the Zhegalkin basis `{⊕, ∧, 1}` [Sergeev2013AdditiveMultipli
    `0 < s ≤ Nat.log 2 m + 1` and `0 < p` (`Additive.exists_circuit_matrix_le_bound`), hence
    asymptotically `A.activeSquare / (2 * Real.logb 2 m) + ε * (m + n) ^ 2 / Real.logb 2 m`
    (`Additive.exists_circuit_matrix_le`).
-2. **Total vs. multiplicative complexity over `{⊕, ∧, 1}`**
-   ([Sergeev, Theorem 1, pp. 1, 3][Sergeev2013AdditiveMultiplicative]): every `n`-variable Boolean
-   function computed by a `{⊕, ∧, 1}`-circuit with at most `M` conjunction (`∧`) gates can be
-   computed by an acyclic `{⊕, ∧, 1}`-circuit using no more `∧`-gates and total gate count at most
-   `Zhegalkin.totalBound n M s p` (`Zhegalkin.exists_circuit_of_andCost_le_bound`), giving
+2. **Multiplicative-to-total complexity upper bound over `{⊕, ∧, 1}`**
+   ([Sergeev, Theorem 1 (upper bound), pp. 1, 3][Sergeev2013AdditiveMultiplicative]): every
+   `n`-variable Boolean function computed by a `{⊕, ∧, 1}`-circuit with at most `M` conjunction
+   (`∧`) gates can be computed by an acyclic `{⊕, ∧, 1}`-circuit using no more `∧`-gates and total
+   gate count at most `Zhegalkin.totalBound n M s p`
+   (`Zhegalkin.exists_circuit_of_andCost_le_bound`), giving
    `(1 / 2 + ε) * M * (M + 2 * n) / Real.logb 2 M` uniformly in `n` for all sufficiently large `M`
    (`Zhegalkin.exists_circuit_of_andCost_le`,
    `Zhegalkin.complexity_le_of_multiplicativeComplexity_le`).
@@ -69,8 +71,8 @@ preceding a gate are added directly with `O(M s)` XOR gates.
 * `Cslib.Circuits.Boolean.Zhegalkin.andCost`,
   `Cslib.Circuits.Boolean.Zhegalkin.multiplicativeComplexity`: conjunction-gate cost and
   multiplicative complexity `L_∧(f)`.
-* `Cslib.Circuits.Boolean.Zhegalkin.totalBound`: explicit `(n, M, s, p)` total gate budget of
-  Theorem 1.
+* `Cslib.Circuits.Boolean.Zhegalkin.totalBound`: explicit `(n, M, s, p)` total gate budget for the
+  upper bound of Theorem 1.
 
 ## Main results
 
@@ -81,11 +83,11 @@ preceding a gate are added directly with `O(M s)` XOR gates.
   ([Sergeev, Lemma 1, p. 2][Sergeev2013AdditiveMultiplicative]).
 * `Cslib.Circuits.Boolean.Zhegalkin.exists_circuit_of_andCost_le_bound`: explicit staged acyclic
   `{⊕, ∧, 1}`-circuit synthesis bound preserving conjunction count
-  ([Sergeev, Theorem 1, p. 3][Sergeev2013AdditiveMultiplicative]).
+  ([Sergeev, Theorem 1 (upper bound), p. 3][Sergeev2013AdditiveMultiplicative]).
 * `Cslib.Circuits.Boolean.Zhegalkin.exists_circuit_of_andCost_le`,
   `Cslib.Circuits.Boolean.Zhegalkin.complexity_le_of_multiplicativeComplexity_le`: asymptotic
-  `(1 / 2 + ε) * M * (M + 2 * n) / log₂ M` total complexity bound from multiplicative complexity
-  ([Sergeev, Theorem 1, p. 1][Sergeev2013AdditiveMultiplicative]).
+  `(1 / 2 + ε) * M * (M + 2 * n) / log₂ M` total complexity upper bound from multiplicative
+  complexity ([Sergeev, Theorem 1 (upper bound), p. 1][Sergeev2013AdditiveMultiplicative]).
 
 ## References
 
@@ -1787,7 +1789,7 @@ theorem exists_circuit_matrix_le {ε : ℝ} (hε : 0 < ε) :
 
 end Additive
 
-/-! ### The Zhegalkin Boolean basis `{⊕, ∧, 1}` and Theorem 1 -/
+/-! ### The Zhegalkin Boolean basis `{⊕, ∧, 1}` and Theorem 1 (upper bound) -/
 
 namespace Boolean.Zhegalkin
 
@@ -1987,7 +1989,7 @@ theorem multiplicativeComplexity_le_complexity {n m : ℕ} (f : (Fin n → Bool)
   exact (multiplicativeComplexity_le_of_computes c hc).trans (c.program.cost_le_mul (b := 1)
     (fun op => by cases op <;> decide) |>.trans_eq (by simp [hsize]))
 
-/-- Explicit total gate budget over `{⊕, ∧, 1}` in [Sergeev, Theorem 1, p. 3]
+/-- Explicit total gate budget over `{⊕, ∧, 1}` for the upper bound of [Sergeev, Theorem 1, p. 3]
 [Sergeev2013AdditiveMultiplicative] for an `n`-input Boolean function of multiplicative complexity
 at most `M`, with block/stage width `s` and horizontal section height `p`. -/
 @[expose] def totalBound (n M s p : ℕ) : ℕ :=
@@ -3095,7 +3097,7 @@ private theorem sum_outParts_eq (d : PaddedDecomp f M k) (x : Fin n → Bool) :
   rfl
 
 /-- **Explicit staged multiplicative-to-total synthesis bound over `{⊕, ∧, 1}`**
-([Sergeev, Theorem 1, p. 3][Sergeev2013AdditiveMultiplicative]):
+([Sergeev, Theorem 1 (upper bound), p. 3][Sergeev2013AdditiveMultiplicative]):
 every `n`-input Boolean function `f` computed by a `{⊕, ∧, 1}`-circuit `c` with at most `M`
 conjunction gates (`c.program.cost andCost ≤ M`) can be computed by an acyclic `{⊕, ∧, 1}`-circuit
 `c'` using no more conjunction gates (`c'.program.cost andCost ≤ c.program.cost andCost`) and total
@@ -3273,7 +3275,7 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
 
 end ZhegalkinSynthesis
 
-/-! #### Asymptotic deduction of Theorem 1 -/
+/-! #### Asymptotic deduction of Theorem 1 (upper bound) -/
 
 private theorem zhegRem_mul_sq_le (n M : ℕ)
     (hL8 : 8 ≤ Nat.log 2 M)
@@ -3365,17 +3367,16 @@ private theorem zhegRem_mul_sq_le (n M : ℕ)
         Nat.add_le_add (Nat.add_le_add (Nat.add_le_add ht1 ht2) ht3) ht4
     _ = 88 * (M * (M + 2 * n)) := by ring
 
-/-- **Asymptotic multiplicative-to-total circuit synthesis over `{⊕, ∧, 1}`**
-([Sergeev, Theorem 1, p. 1][Sergeev2013AdditiveMultiplicative]):
+/-- **Asymptotic multiplicative-to-total circuit synthesis upper bound over `{⊕, ∧, 1}`**
+([Sergeev, Theorem 1 (upper bound), p. 1][Sergeev2013AdditiveMultiplicative]):
 for every `ε > 0`, there exists `M₀` such that for all `M ≥ M₀`, all `n : ℕ`, and every Boolean
 function `f : BooleanFunction n` computed by a `{⊕, ∧, 1}`-circuit `c` with at most `M` conjunction
 gates, `f` is computed by a `{⊕, ∧, 1}`-circuit `c'` with no more conjunction gates than `c` and
 total gate count at most `(1 / 2 + ε) * M * (M + 2 * n) / Real.logb 2 M`.
 
-Sergeev states Theorem 1 under `M = Ω(n)` because his text applies Lemma 1's coarse
-`o((m + n)² / log m)` remainder with `m = 2 M` and `n' = M + n + 1`; evaluating the explicit
-`(s, p)` budget `totalBound n M s p` directly is linear in `n` and therefore holds uniformly for all
-`n : ℕ` (including `M = Ω(n)`). -/
+Sergeev states Theorem 1 under `M = Ω(n)` and separately notes asymptotic optimality on pp. 1–2;
+bounding the explicit `(s, p)` synthesis budget `totalBound n M s p` directly gives a uniform
+threshold in `M` for all `n : ℕ` and recovers the published upper bound when `M = Ω(n)`. -/
 theorem exists_circuit_of_andCost_le {ε : ℝ} (hε : 0 < ε) :
     ∃ M₀ : ℕ, 2 ≤ M₀ ∧ ∀ {n M : ℕ}, M₀ ≤ M →
       ∀ {f : BooleanFunction n} (c : Circuit signature n 1),
@@ -3420,8 +3421,8 @@ theorem exists_circuit_of_andCost_le {ε : ℝ} (hε : 0 < ε) :
   rw [hW_cast]
   ring
 
-/-- **Total vs. multiplicative complexity over `{⊕, ∧, 1}`**
-([Sergeev, Theorem 1, p. 1][Sergeev2013AdditiveMultiplicative]):
+/-- **Multiplicative-to-total complexity upper bound over `{⊕, ∧, 1}`**
+([Sergeev, Theorem 1 (upper bound), p. 1][Sergeev2013AdditiveMultiplicative]):
 for every `ε > 0`, there exists `M₀` such that for all `M ≥ M₀`, all `n : ℕ`, and every
 `n`-variable Boolean function `f` of multiplicative complexity at most `M`
 (`multiplicativeComplexity (single f) ≤ M`), the total `{⊕, ∧, 1}` circuit complexity satisfies

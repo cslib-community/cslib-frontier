@@ -39,7 +39,7 @@ register_result "sergeev-2013-theorem-1-zhegalkin-complexity" where
   topic := "circuit complexity"
   sources := [
     { paper := Sergeev2013AdditiveMultiplicative,
-      theorem := "Theorem 1",
+      theorem := "Theorem 1 (upper bound)",
       locator := "pp. 1, 3" }
   ]
   theorems := [
@@ -47,12 +47,11 @@ register_result "sergeev-2013-theorem-1-zhegalkin-complexity" where
     Cslib.Circuits.Boolean.Zhegalkin.exists_circuit_of_andCost_le,
     Cslib.Circuits.Boolean.Zhegalkin.complexity_le_of_multiplicativeComplexity_le
   ]
-  scope := "Constructs an acyclic straight-line circuit over Cslib.Circuits.Boolean.Zhegalkin \
-    ({⊕, ∧, 1}) using no more conjunction gates than the input circuit \
-    (c'.program.cost andCost ≤ c.program.cost andCost) and at most totalBound n M s p total \
-    gates for any 0 < s and 0 < p, yielding (1 / 2 + ε) * M * (M + 2 * n) / Real.logb 2 M \
-    uniformly for all n : ℕ and all sufficiently large M (strictly generalizing Sergeev's \
-    M = Ω(n) hypothesis, which in the paper arose only from applying Lemma 1's coarse \
-    o((m + n)² / log m) remainder as a black box). Sergeev's tightness remark on pp. 1–2 cites \
-    counting lower bounds of Nechiporuk (1962) and Lupanov (1958) without proving them in the \
-    note and is outside this entry."
+  scope := "Proves the constructive upper bound of Theorem 1: constructs an acyclic straight-line \
+    circuit over Cslib.Circuits.Boolean.Zhegalkin ({⊕, ∧, 1}) using no more conjunction gates \
+    than the input circuit (c'.program.cost andCost ≤ c.program.cost andCost) and at most \
+    totalBound n M s p total gates for any 0 < s and 0 < p, and bounds that explicit synthesis \
+    cost directly to obtain (1 / 2 + ε) * M * (M + 2 * n) / Real.logb 2 M with a uniform \
+    threshold in M for all n : ℕ (recovering Sergeev's published upper bound under M = Ω(n)). \
+    Theorem 1's asymptotic-optimality assertion on pp. 1–2 (via counting bounds citing \
+    Nechiporuk 1962 and Lupanov 1958) is outside this entry."
