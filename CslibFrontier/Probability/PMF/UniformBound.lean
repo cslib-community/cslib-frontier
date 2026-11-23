@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Probability.PMF
 public import Mathlib.Data.Finset.Density
+import CslibFrontier.Probability.PMF.BindFailure
+import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Data.List.Dedup
 import Mathlib.Tactic.Positivity
@@ -157,58 +159,11 @@ theorem toOuterMeasure_uniformOfFintype_cond_le {α β γ : Type*}
     (hbot : ∀ a : α, G a →
       (PMF.uniformOfFintype β).toOuterMeasure {b | Bad (e.symm (a, b))} ≤ p_bot) :
     (PMF.uniformOfFintype γ).toOuterMeasure {z | Bad z} ≤ p_top + p_bot := by
-  classical
-  have hsub : {z : γ | Bad z} ⊆ {z : γ | ¬ G (e z).1} ∪ {z : γ | G (e z).1 ∧ Bad z} := by
-    intro z hz
-    by_cases hGz : G (e z).1
-    · exact Or.inr ⟨hGz, hz⟩
-    · exact Or.inl hGz
-  refine (MeasureTheory.measure_mono hsub).trans ?_
-  refine (MeasureTheory.measure_union_le _ _).trans ?_
-  rw [toOuterMeasure_uniformOfFintype_fst e (fun a => ¬ G a)]
-  refine add_le_add htop ?_
-  let F : Finset γ := Finset.univ.filter fun z => G (e z).1 ∧ Bad z
-  have hsF : {z : γ | G (e z).1 ∧ Bad z} = (F : Set γ) := by
-    ext z; simp [F]
-  rw [hsF, PMF.toOuterMeasure_apply_finset]
-  simp only [PMF.uniformOfFintype_apply, Finset.sum_const, nsmul_eq_mul, ← div_eq_mul_inv]
-  have hcγ_ne : (Fintype.card γ : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_pos.ne'
-  have hcγ_top : (Fintype.card γ : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
-  rw [ENNReal.div_le_iff_le_mul (Or.inl hcγ_ne) (Or.inl hcγ_top)]
-  have hcardF : F.card =
-      ∑ a ∈ Finset.univ.filter G, (Finset.univ.filter fun b => Bad (e.symm (a, b))).card := by
-    have heq : F.card = (Finset.univ.filter fun p : α × β => G p.1 ∧ Bad (e.symm p)).card :=
-      Finset.card_equiv e fun z => by simp [F]
-    rw [heq, Finset.card_filter, Fintype.sum_prod_type, Finset.sum_filter]
-    refine Fintype.sum_congr _ _ fun a => ?_
-    by_cases hGa : G a
-    · simp only [hGa, true_and, ↓reduceIte, Finset.card_filter]
-    · simp only [hGa, false_and, ↓reduceIte, Finset.sum_const_zero]
-  have hcardγ : (Fintype.card γ : ℝ≥0∞) =
-      (Fintype.card α : ℝ≥0∞) * (Fintype.card β : ℝ≥0∞) := by
-    rw [Fintype.card_congr e, Fintype.card_prod, Nat.cast_mul]
-  have hcβ_ne : (Fintype.card β : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_pos.ne'
-  have hcβ_top : (Fintype.card β : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
-  have hfiber : ∀ a ∈ Finset.univ.filter G,
-      ((Finset.univ.filter fun b => Bad (e.symm (a, b))).card : ℝ≥0∞) ≤
-        p_bot * (Fintype.card β : ℝ≥0∞) := by
-    intro a ha
-    have hba := hbot a (Finset.mem_filter.mp ha).2
-    let Fb : Finset β := Finset.univ.filter fun b => Bad (e.symm (a, b))
-    have hsFb : {b : β | Bad (e.symm (a, b))} = (Fb : Set β) := by
-      ext b; simp [Fb]
-    rw [hsFb, PMF.toOuterMeasure_apply_finset] at hba
-    simp only [PMF.uniformOfFintype_apply, Finset.sum_const, nsmul_eq_mul, ← div_eq_mul_inv] at hba
-    exact (ENNReal.div_le_iff_le_mul (Or.inl hcβ_ne) (Or.inl hcβ_top)).mp hba
-  rw [hcardF, Nat.cast_sum, hcardγ]
-  calc (∑ a ∈ Finset.univ.filter G,
-          ((Finset.univ.filter fun b => Bad (e.symm (a, b))).card : ℝ≥0∞))
-      ≤ ∑ _a ∈ Finset.univ.filter G, p_bot * (Fintype.card β : ℝ≥0∞) := Finset.sum_le_sum hfiber
-    _ = ((Finset.univ.filter G).card : ℝ≥0∞) * (p_bot * (Fintype.card β : ℝ≥0∞)) := by
-        rw [Finset.sum_const, nsmul_eq_mul]
-    _ ≤ (Fintype.card α : ℝ≥0∞) * (p_bot * (Fintype.card β : ℝ≥0∞)) := by
-        gcongr
-        exact_mod_cast Finset.card_filter_le _ _
-    _ = p_bot * ((Fintype.card α : ℝ≥0∞) * (Fintype.card β : ℝ≥0∞)) := by ring
+  rw [← PMF.uniformOfFintype_map_equiv e.symm, PMF.toOuterMeasure_map_apply,
+    ← uniformOfFintype_prod]
+  refine (toOuterMeasure_bind_le_add _ _ {a | ¬ G a} _ p_bot ?_).trans (add_le_add htop le_rfl)
+  intro a _ ha
+  rw [PMF.toOuterMeasure_map_apply]
+  exact hbot a (not_not.mp ha)
 
 end Cslib.Probability.PMF

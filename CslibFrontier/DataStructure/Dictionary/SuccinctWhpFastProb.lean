@@ -40,8 +40,6 @@ transition machine `whpRunPure` / `whpStepPure` (`SuccinctWhpModelTick`):
 
 ## Main definitions
 
-* `Cslib.DataStructure.Dictionary.SuccinctWhp.stageWorkRemaining`, `stageWorkMax`: monotone
-  epoch-rebuild remaining-work potential across Stages `0 .. 5`.
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.IsFastStepHit`: predicate indicating that
   `whpStepPure` takes the fast branch (`.small` or `.fast` hit).
 
@@ -66,7 +64,7 @@ open scoped BigOperators ENNReal
 
 /-- In any `CoreFastInv` state, `fs.bktCount b` equals the exact number of keys in
 `Dictionary.dom dict` hashing to Feistel bucket `b`. -/
-theorem CoreFastInv.bktCount_eq_card_filter {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
+private theorem CoreFastInv.bktCount_eq_card_filter {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs : FastState} {dict : State U} (hc : CoreFastInv c U V n_max θ fs dict)
     {b : ℕ} (hb : b < numBucketsWhp n_max) :
     fs.bktCount b =
@@ -109,7 +107,8 @@ theorem CoreFastInv.bktCount_eq_card_filter {c U V n_max : ℕ} {θ : SeedWhp c 
 
 /-- When `fs.fpAt c U n_max θ fs.rebCandSalt b` is injective on all active Stage-2 coordinates of
 bucket `b`, `rebScanSteps` never sets `rebCollision` to non-zero. -/
-theorem rebScanSteps_rebCollision_eq_zero_of_inj {c U n_max b : ℕ} (hth : whpThreshold c ≤ n_max)
+private theorem rebScanSteps_rebCollision_eq_zero_of_inj {c U n_max b : ℕ}
+    (hth : whpThreshold c ≤ n_max)
     (θ : SeedWhp c U n_max) (rem : ℕ) (fs : FastState)
     (hcoll0 : fs.rebCollision = 0)
     (hcnt_le : fs.bktCount b ≤ 3 * (slabScale n_max) ^ 12)
@@ -203,7 +202,7 @@ theorem rebScanSteps_rebCollision_eq_zero_of_inj {c U n_max b : ℕ} (hth : whpT
         rwa [hmin1, ← hmin0]
 
 /-- `bufClearSteps k` on a `ClearableBufTrie` sets `nodeAlloc = max 1 (tr.nodeAlloc - k)`. -/
-theorem ClearableBufTrie.clearSteps_nodeAlloc_eq :
+private theorem ClearableBufTrie.clearSteps_nodeAlloc_eq :
     ∀ (k : ℕ) {tr : BufTrie}, ClearableBufTrie tr →
       (bufClearSteps k tr).nodeAlloc = max 1 (tr.nodeAlloc - k)
   | 0, tr, hc => by
@@ -218,31 +217,31 @@ theorem ClearableBufTrie.clearSteps_nodeAlloc_eq :
     omega
 
 /-- Maximum Stage-4 remaining work `1 + cTabWhp c * (2 * sMaxWhp c n_max)`. -/
-@[expose] def stage4Max (c n_max : ℕ) : ℕ :=
+private def stage4Max (c n_max : ℕ) : ℕ :=
   1 + cTabWhp c * (2 * sMaxWhp c n_max)
 
 /-- Maximum Stage-3 remaining work. -/
-@[expose] def stage3Max (c n_max : ℕ) : ℕ :=
+private def stage3Max (c n_max : ℕ) : ℕ :=
   (2 * sMaxWhp c n_max + 2) + stage4Max c n_max
 
 /-- Per-dirty-bucket Stage-2 work budget `sMaxWhp c n_max * (3 * L ^ 12 + 1)`. -/
-@[expose] def bktWorkUnit (c n_max : ℕ) : ℕ :=
+private def bktWorkUnit (c n_max : ℕ) : ℕ :=
   sMaxWhp c n_max * (3 * (slabScale n_max) ^ 12 + 1)
 
 /-- Maximum Stage-2 remaining work across `≤ 2 * sMaxWhp c n_max` dirty buckets. -/
-@[expose] def stage2Max (c n_max : ℕ) : ℕ :=
+private def stage2Max (c n_max : ℕ) : ℕ :=
   (2 * sMaxWhp c n_max) * bktWorkUnit c n_max + 1 + stage3Max c n_max
 
 /-- Maximum Stage-1 remaining work. -/
-@[expose] def stage1Max (c n_max : ℕ) : ℕ :=
+private def stage1Max (c n_max : ℕ) : ℕ :=
   (2 * sMaxWhp c n_max + 2) + stage2Max c n_max
 
 /-- Maximum Stage-0..4 remaining background rebuild work per epoch. -/
-@[expose] def stageWorkMax (c n_max : ℕ) : ℕ :=
+private def stageWorkMax (c n_max : ℕ) : ℕ :=
   (2 * sMaxWhp c n_max + 2) + stage1Max c n_max
 
 /-- Monotone remaining-work potential for `epochTick` across Stages `0 .. 5`. -/
-@[expose] def stageWorkRemaining (c n_max : ℕ) (fs : FastState) : ℕ :=
+private def stageWorkRemaining (c n_max : ℕ) (fs : FastState) : ℕ :=
   let r2 := 2 * sMaxWhp c n_max
   let L12_3 := 3 * (slabScale n_max) ^ 12
   if fs.rebStage = 0 then
@@ -260,7 +259,7 @@ theorem ClearableBufTrie.clearSteps_nodeAlloc_eq :
   else 0
 
 /-- `stageWorkMax c n_max + 1 ≤ qEpochWhp n_max` whenever `whpThreshold c ≤ n_max`. -/
-theorem stageWorkMax_add_one_le_qEpoch {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) :
+private theorem stageWorkMax_add_one_le_qEpoch {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) :
     stageWorkMax c n_max + 1 ≤ qEpochWhp n_max := by
   set L := slabScale n_max
   have hL := cEff_add_four_le_scaleWhp hth
@@ -301,7 +300,7 @@ theorem stageWorkMax_add_one_le_qEpoch {c n_max : ℕ} (hth : whpThreshold c ≤
     _ = qEpochWhp n_max := by unfold qEpochWhp; ring
 
 /-- Every valid `FastState` has `stageWorkRemaining c n_max fs ≤ stageWorkMax c n_max`. -/
-theorem stageWorkRemaining_le_max {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
+private theorem stageWorkRemaining_le_max {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs : FastState} {dict : State U}
     (hc : CoreFastInv c U V n_max θ fs dict)
     (hstg : ValidEpochStage c U n_max θ fs) :
@@ -377,7 +376,7 @@ private theorem CoreFastInv.mem_dom_of_loc {c U V n_max : ℕ} {θ : SeedWhp c U
   exact ((hc.dict_map u).2 _).mpr ⟨loc, hfb.symm ▸ hloc, hfb.symm ▸ hq_eq.symm, hfb.symm ▸ rfl⟩
 
 /-- Active Stage-2 salt search bound: candidate salt has not yet passed the collision-free salt. -/
-@[expose] def SaltBoundAt (c U n_max : ℕ) (θ : SeedWhp c U n_max) (W_keys : Finset (Fin U))
+private def SaltBoundAt (c U n_max : ℕ) (θ : SeedWhp c U n_max) (W_keys : Finset (Fin U))
     (fs : FastState) : Prop :=
   fs.rebStage = 2 → fs.dirtyIdx < fs.dirtyCount →
     ∃ s_opt : Fin (sMaxWhp c n_max),
@@ -846,7 +845,7 @@ private theorem tickStage4_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
 /-- Under bounded remaining rebuild work and collision-free window salts `< sMaxWhp c n_max`,
 `epochTick` always returns `some fs'`, preserves the work bound and Stage-2 salt invariant, and
 either leaves `fs'.buf fs'.curEp` untouched or rolls over to `itemAlloc = 0`. -/
-theorem epochTick_some_of_work_bound {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
+private theorem epochTick_some_of_work_bound {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     {W_keys : Finset (Fin U)} {fs : FastState} {dict : State U}
     (hc : CoreFastInv c U V n_max θ fs dict)
     (hom : ∀ b < numBucketsWhp n_max, OvermarsBucketInv c U n_max θ fs b)
@@ -1064,7 +1063,7 @@ private theorem ValidBufTrie.everPresent_of_map_some {cTab bChar k b loc : ℕ} 
     · simp [hz]
 
 /-- Clean-epoch fast-mode invariant along the trailing window `(W_keys, BadIns)`. -/
-structure CleanWindowFast (c U V n_max : ℕ) (θ : SeedWhp c U n_max)
+private structure CleanWindowFast (c U V n_max : ℕ) (θ : SeedWhp c U n_max)
     (W_keys BadIns : Finset (Fin U)) (fs : FastState) (dict : State U) : Prop where
   valid : ValidFastState c U V n_max θ fs dict
   buf_alloc :
@@ -1075,7 +1074,7 @@ structure CleanWindowFast (c U V n_max : ℕ) (θ : SeedWhp c U n_max)
   work_le : fs.epochClock + stageWorkRemaining c n_max fs + 1 ≤ qEpochWhp n_max
   salt_bound : SaltBoundAt c U n_max θ W_keys fs
 
-theorem CleanWindowFast.of_clean_fast {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
+private theorem CleanWindowFast.of_clean_fast {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     {W_keys BadIns : Finset (Fin U)} {fs : FastState} {dict : State U}
     (hv : ValidFastState c U V n_max θ fs dict)
     (hia0 : (fs.buf fs.curEp).itemAlloc = 0)
@@ -1343,6 +1342,107 @@ private theorem fastDelete_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_m
               · rw [ite_eq_right hkr]; exact hev1 k hk
             · rw [ite_eq_right hsl3]; exact ⟨hia1, hev1⟩
       · rw [ite_eq_right hlt_dl]; exact ⟨hia1, hev1⟩
+    have hno_reb_coll : ∀ {prev_loc : ℕ} {s_opt : Fin (sMaxWhp c n_max)},
+        fs.rebStage = 2 →
+        fs.dirtyBuckets fs.dirtyIdx = b →
+        fs.rebCandSalt < sMaxWhp c n_max →
+        ¬(loc_last < fs1.rebScanCursor) →
+        loc_del < fs1.rebScanCursor →
+        Set.InjOn (fpHash c U n_max θ.2 s_opt)
+          (W_keys.filter (fun w =>
+            feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) w.val =
+              fs.dirtyBuckets fs.dirtyIdx) : Set (Fin U)) →
+        btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
+          ((fastDeleteMoveSlices n_max b loc_del loc_last
+            (fs1.fpAt c U n_max θ (fs1.bktSalt b) b loc_last) fs1).1 (fs1.rebSliceIdx b))
+          (fs1.fpAt c U n_max θ fs1.rebCandSalt b loc_last) = some prev_loc →
+        fs.rebCandSalt ≠ s_opt.val := by
+      intro prev_loc s_opt hs2 hdb_eq hcs_lt hll_sc hld_sc hs_opt_inj hlk heq_s
+      have hstg := hv.stage_valid
+      dsimp only [ValidEpochStage] at hstg
+      rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_left hs2] at hstg
+      obtain ⟨_, _, _, _, _, _, hreb⟩ := hstg
+      rw [hdb_eq] at hreb
+      obtain ⟨hcur_r, _, rm0, hvr0, hrr0⟩ := hreb hcs_lt
+      have hroles1 : fs1.liveRole b < 3 ∧ fs1.overmarsRole b < 3 ∧
+          fs1.liveRole b ≠ fs1.overmarsRole b := hc.roles_valid b hb
+      rw [fastDeleteMoveSlices_rebSliceIdx n_max b loc_del loc_last _ fs1 hroles1] at hlk
+      have hr_eq1 : fs1.rebSliceIdx b = fs.rebSliceIdx b := rfl
+      have hfp_eq1 : fs1.fpAt c U n_max θ fs1.rebCandSalt b loc_last =
+          fs.fpAt c U n_max θ fs.rebCandSalt b loc_last := rfl
+      rw [hr_eq1, hfp_eq1] at hlk
+      have hins_le8 : fs.rebInsCount ≤ 8 * (slabScale n_max) ^ 12 := by
+        have hcnt3 := (hc.bktCount_le b hb).trans totalLocalCoordsWhp_le_three_mul
+        have hL2 := two_le_slabScale n_max
+        have : 4096 ≤ (slabScale n_max) ^ 12 := by
+          calc 4096 = 2 ^ 12 := by norm_num
+            _ ≤ (slabScale n_max) ^ 12 := Nat.pow_le_pow_left hL2 12
+        rcases hcur_r with ⟨_, hi0⟩ | ⟨_, _, hins_le⟩ <;> omega
+      have hfp_cl_lt : fs.fpAt c U n_max θ fs.rebCandSalt b loc_last <
+          2 ^ fpBitsWhp n_max := by
+        dsimp only [FastState.fpAt]
+        by_cases hs : fs.rebCandSalt < sMaxWhp c n_max
+        · rw [dite_eq_left hs]
+          by_cases hu : fs.keyValAt c U n_max θ.1 b loc_last < U
+          · rw [dite_eq_left hu]; exact fpHash_lt c U n_max θ.2 ⟨_, hs⟩ ⟨_, hu⟩
+          · rw [dite_eq_right hu]; exact Nat.two_pow_pos _
+        · rw [dite_eq_right hs]; exact Nat.two_pow_pos _
+      have hrm_prev : rm0 (fs.fpAt c U n_max θ fs.rebCandSalt b loc_last) =
+          some prev_loc := by
+        dsimp only [fs1] at hlk
+        rw [fastDeleteRemove_rebSliceIdx _ _ _ _ _ _ _ _ (hc.roles_valid b hb)] at hlk
+        split_ifs at hlk
+        · have hfp_d_lt : fpOfSalt c U n_max θ.2 fs.rebCandSalt u < 2 ^ fpBitsWhp n_max := by
+            dsimp only [fpOfSalt]
+            by_cases hs : fs.rebCandSalt < sMaxWhp c n_max
+            · rw [dite_eq_left hs]; exact fpHash_lt c U n_max θ.2 ⟨_, hs⟩ u
+            · rw [dite_eq_right hs]; exact Nat.two_pow_pos _
+          have hvd := hvr0.delete_spec hc.hth hins_le8 hfp_d_lt
+          rw [hvd.lookup_eq hc.hth hins_le8 hfp_cl_lt] at hlk
+          by_cases heq_fp : fs.fpAt c U n_max θ fs.rebCandSalt b loc_last =
+              fpOfSalt c U n_max θ.2 fs.rebCandSalt u
+          · change Function.update rm0 (fpOfSalt c U n_max θ.2 fs.rebCandSalt u) none
+              (fs.fpAt c U n_max θ fs.rebCandSalt b loc_last) = some prev_loc at hlk
+            rw [heq_fp, Function.update_self] at hlk; cases hlk
+          · change Function.update rm0 (fpOfSalt c U n_max θ.2 fs.rebCandSalt u) none
+              (fs.fpAt c U n_max θ fs.rebCandSalt b loc_last) = some prev_loc at hlk
+            rwa [Function.update_of_ne heq_fp] at hlk
+        · rwa [hvr0.lookup_eq hc.hth hins_le8 hfp_cl_lt] at hlk
+      obtain ⟨hprev_min, _, hfp_prev⟩ := (hrr0.2 _ prev_loc).mp hrm_prev
+      have hprev_lt_sc : prev_loc < fs.rebScanCursor :=
+        hprev_min.trans_le (Nat.min_le_right _ _)
+      have hprev_lt_cnt : prev_loc < fs.bktCount b :=
+        hprev_min.trans_le (Nat.min_le_left _ _)
+      obtain ⟨hm₁, hfb₁⟩ := hc.mem_dom_of_loc hb hprev_lt_cnt
+      obtain ⟨hm₂, hfb₂⟩ := hc.mem_dom_of_loc hb hloc_last
+      let u₁ : Fin U :=
+        ⟨fs.keyValAt c U n_max θ.1 b prev_loc, (hc.active_item b hb prev_loc hprev_lt_cnt).1⟩
+      let u₂ : Fin U :=
+        ⟨fs.keyValAt c U n_max θ.1 b loc_last, (hc.active_item b hb loc_last hloc_last).1⟩
+      have hw₁ : u₁ ∈ W_keys.filter (fun w =>
+          feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) w.val =
+            fs.dirtyBuckets fs.dirtyIdx) :=
+        mem_filter.mpr ⟨hdom_sub hm₁, hfb₁.trans hdb_eq.symm⟩
+      have hw₂ : u₂ ∈ W_keys.filter (fun w =>
+          feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) w.val =
+            fs.dirtyBuckets fs.dirtyIdx) :=
+        mem_filter.mpr ⟨hdom_sub hm₂, hfb₂.trans hdb_eq.symm⟩
+      have hf₁ : fs.fpAt c U n_max θ fs.rebCandSalt b prev_loc =
+          fpHash c U n_max θ.2 s_opt u₁ := by
+        dsimp only [FastState.fpAt]; simp [heq_s, s_opt.isLt, u₁.isLt, u₁]
+      have hf₂ : fs.fpAt c U n_max θ fs.rebCandSalt b loc_last =
+          fpHash c U n_max θ.2 s_opt u₂ := by
+        dsimp only [FastState.fpAt]; simp [heq_s, s_opt.isLt, u₂.isLt, u₂]
+      have hu_eq : u₁ = u₂ := hs_opt_inj hw₁ hw₂ (hf₁.symm.trans (hfp_prev.trans hf₂))
+      have hkv_eq : fs.keyValAt c U n_max θ.1 b prev_loc =
+          fs.keyValAt c U n_max θ.1 b loc_last := congrArg Fin.val hu_eq
+      have hq₁ := (hc.active_item b hb prev_loc hprev_lt_cnt).2.2.1
+      have hq₂ := (hc.active_item b hb loc_last hloc_last).2.2.1
+      have hl_eq := hc.quot_inj b hb prev_loc hprev_lt_cnt loc_last hloc_last
+        (hq₁.symm.trans (hkv_eq ▸ hq₂))
+      change loc_del < fs.rebScanCursor at hld_sc
+      change ¬(loc_last < fs.rebScanCursor) at hll_sc
+      omega
     have hbuf3_eq : fs3.buf = fs2.buf := rfl
     refine ⟨h1.trans hclk_eq, h2.trans hep_eq,
       by rw [h3, hbuf3_eq, h2, hep_eq]; exact hbuf2_c.1,
@@ -1458,97 +1558,8 @@ private theorem fastDelete_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_m
                   simp only [hs4, ↓reduceIte]; exact le_rfl
                 | some prev_loc =>
                   obtain ⟨s_opt, hs_opt_inj, hc_le_s⟩ := hsalt_cur hs2 hd2
-                  have hne_s : fs.rebCandSalt ≠ s_opt.val := by
-                    intro heq_s
-                    have hstg := hv.stage_valid
-                    dsimp only [ValidEpochStage] at hstg
-                    rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_left hs2] at hstg
-                    obtain ⟨_, _, _, _, _, _, hreb⟩ := hstg
-                    rw [hdb_eq] at hreb
-                    obtain ⟨hcur_r, _, rm0, hvr0, hrr0⟩ := hreb hcs_lt
-                    have hroles1 : fs1.liveRole b < 3 ∧ fs1.overmarsRole b < 3 ∧
-                        fs1.liveRole b ≠ fs1.overmarsRole b := hc.roles_valid b hb
-                    rw [fastDeleteMoveSlices_rebSliceIdx n_max b loc_del loc_last _ fs1 hroles1]
-                      at hlk
-                    have hr_eq1 : fs1.rebSliceIdx b = fs.rebSliceIdx b := rfl
-                    have hfp_eq1 : fs1.fpAt c U n_max θ fs1.rebCandSalt b loc_last =
-                        fs.fpAt c U n_max θ fs.rebCandSalt b loc_last := rfl
-                    rw [hr_eq1, hfp_eq1] at hlk
-                    have hins_le8 : fs.rebInsCount ≤ 8 * (slabScale n_max) ^ 12 := by
-                      have hcnt3 := (hc.bktCount_le b hb).trans totalLocalCoordsWhp_le_three_mul
-                      have hL2 := two_le_slabScale n_max
-                      have : 4096 ≤ (slabScale n_max) ^ 12 := by
-                        calc 4096 = 2 ^ 12 := by norm_num
-                          _ ≤ (slabScale n_max) ^ 12 := Nat.pow_le_pow_left hL2 12
-                      rcases hcur_r with ⟨_, hi0⟩ | ⟨_, _, hins_le⟩ <;> omega
-                    have hfp_cl_lt : fs.fpAt c U n_max θ fs.rebCandSalt b loc_last <
-                        2 ^ fpBitsWhp n_max := by
-                      dsimp only [FastState.fpAt]
-                      by_cases hs : fs.rebCandSalt < sMaxWhp c n_max
-                      · rw [dite_eq_left hs]
-                        by_cases hu : fs.keyValAt c U n_max θ.1 b loc_last < U
-                        · rw [dite_eq_left hu]; exact fpHash_lt c U n_max θ.2 ⟨_, hs⟩ ⟨_, hu⟩
-                        · rw [dite_eq_right hu]; exact Nat.two_pow_pos _
-                      · rw [dite_eq_right hs]; exact Nat.two_pow_pos _
-                    have hrm_prev : rm0 (fs.fpAt c U n_max θ fs.rebCandSalt b loc_last) =
-                        some prev_loc := by
-                      dsimp only [fs1] at hlk
-                      rw [fastDeleteRemove_rebSliceIdx _ _ _ _ _ _ _ _ (hc.roles_valid b hb)] at hlk
-                      split_ifs at hlk
-                      · have hfp_d_lt : fpOfSalt c U n_max θ.2 fs.rebCandSalt u <
-                            2 ^ fpBitsWhp n_max := by
-                          dsimp only [fpOfSalt]
-                          by_cases hs : fs.rebCandSalt < sMaxWhp c n_max
-                          · rw [dite_eq_left hs]; exact fpHash_lt c U n_max θ.2 ⟨_, hs⟩ u
-                          · rw [dite_eq_right hs]; exact Nat.two_pow_pos _
-                        have hvd := hvr0.delete_spec hc.hth hins_le8 hfp_d_lt
-                        rw [hvd.lookup_eq hc.hth hins_le8 hfp_cl_lt] at hlk
-                        by_cases heq_fp : fs.fpAt c U n_max θ fs.rebCandSalt b loc_last =
-                            fpOfSalt c U n_max θ.2 fs.rebCandSalt u
-                        · change Function.update rm0 (fpOfSalt c U n_max θ.2 fs.rebCandSalt u) none
-                            (fs.fpAt c U n_max θ fs.rebCandSalt b loc_last) = some prev_loc at hlk
-                          rw [heq_fp, Function.update_self] at hlk; cases hlk
-                        · change Function.update rm0 (fpOfSalt c U n_max θ.2 fs.rebCandSalt u) none
-                            (fs.fpAt c U n_max θ fs.rebCandSalt b loc_last) = some prev_loc at hlk
-                          rwa [Function.update_of_ne heq_fp] at hlk
-                      · rwa [hvr0.lookup_eq hc.hth hins_le8 hfp_cl_lt] at hlk
-                    obtain ⟨hprev_min, _, hfp_prev⟩ := (hrr0.2 _ prev_loc).mp hrm_prev
-                    have hprev_lt_sc : prev_loc < fs.rebScanCursor :=
-                      hprev_min.trans_le (Nat.min_le_right _ _)
-                    have hprev_lt_cnt : prev_loc < fs.bktCount b :=
-                      hprev_min.trans_le (Nat.min_le_left _ _)
-                    obtain ⟨hm₁, hfb₁⟩ := hc.mem_dom_of_loc hb hprev_lt_cnt
-                    obtain ⟨hm₂, hfb₂⟩ := hc.mem_dom_of_loc hb hloc_last
-                    let u₁ : Fin U :=
-                      ⟨fs.keyValAt c U n_max θ.1 b prev_loc,
-                       (hc.active_item b hb prev_loc hprev_lt_cnt).1⟩
-                    let u₂ : Fin U :=
-                      ⟨fs.keyValAt c U n_max θ.1 b loc_last,
-                       (hc.active_item b hb loc_last hloc_last).1⟩
-                    have hw₁ : u₁ ∈ W_keys.filter (fun w =>
-                        feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) w.val =
-                          fs.dirtyBuckets fs.dirtyIdx) :=
-                      mem_filter.mpr ⟨hdom_sub hm₁, hfb₁.trans hdb_eq.symm⟩
-                    have hw₂ : u₂ ∈ W_keys.filter (fun w =>
-                        feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) w.val =
-                          fs.dirtyBuckets fs.dirtyIdx) :=
-                      mem_filter.mpr ⟨hdom_sub hm₂, hfb₂.trans hdb_eq.symm⟩
-                    have hf₁ : fs.fpAt c U n_max θ fs.rebCandSalt b prev_loc =
-                        fpHash c U n_max θ.2 s_opt u₁ := by
-                      dsimp only [FastState.fpAt]; simp [heq_s, s_opt.isLt, u₁.isLt, u₁]
-                    have hf₂ : fs.fpAt c U n_max θ fs.rebCandSalt b loc_last =
-                        fpHash c U n_max θ.2 s_opt u₂ := by
-                      dsimp only [FastState.fpAt]; simp [heq_s, s_opt.isLt, u₂.isLt, u₂]
-                    have hu_eq : u₁ = u₂ := hs_opt_inj hw₁ hw₂ (hf₁.symm.trans (hfp_prev.trans hf₂))
-                    have hkv_eq : fs.keyValAt c U n_max θ.1 b prev_loc =
-                        fs.keyValAt c U n_max θ.1 b loc_last := congrArg Fin.val hu_eq
-                    have hq₁ := (hc.active_item b hb prev_loc hprev_lt_cnt).2.2.1
-                    have hq₂ := (hc.active_item b hb loc_last hloc_last).2.2.1
-                    have hl_eq := hc.quot_inj b hb prev_loc hprev_lt_cnt loc_last hloc_last
-                      (hq₁.symm.trans (hkv_eq ▸ hq₂))
-                    change loc_del < fs.rebScanCursor at hld_sc
-                    change ¬(loc_last < fs.rebScanCursor) at hll_sc
-                    omega
+                  have hne_s : fs.rebCandSalt ≠ s_opt.val :=
+                    hno_reb_coll hs2 hdb_eq hcs_lt hll_sc hld_sc hs_opt_inj hlk
                   dsimp only [stageWorkRemaining]
                   simp only [h1_meta.1, h1_meta.2.2.1, h1_meta.2.2.2.1, h1_meta.2.2.2.2.1, hs2,
                     show ¬(2 = 0) by decide, show ¬(2 = 1) by decide, ↓reduceIte, Nat.min_zero]
@@ -1603,99 +1614,11 @@ private theorem fastDelete_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_m
           | none => exact hc_le_s
           | some prev_loc =>
             dsimp only
-            by_contra hgt
-            push Not at hgt
-            have heq_s : fs.rebCandSalt = s_opt.val := by
-              change s_opt.val < fs.rebCandSalt + 1 at hgt; omega
             obtain ⟨hra_t, _⟩ := Bool.and_eq_true_iff.mp hreb_act
             rw [decide_eq_true_iff] at hra_t
             obtain ⟨_, _, hdb_eq, hcs_lt, _⟩ := hra_t
-            have hstg := hv.stage_valid
-            dsimp only [ValidEpochStage] at hstg
-            rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_left hs2] at hstg
-            obtain ⟨_, _, _, _, _, _, hreb⟩ := hstg
-            rw [hdb_eq] at hreb
-            obtain ⟨hcur_r, _, rm0, hvr0, hrr0⟩ := hreb hcs_lt
-            have hroles1 : fs1.liveRole b < 3 ∧ fs1.overmarsRole b < 3 ∧
-                fs1.liveRole b ≠ fs1.overmarsRole b := hc.roles_valid b hb
-            rw [fastDeleteMoveSlices_rebSliceIdx n_max b loc_del loc_last _ fs1 hroles1] at hlk
-            have hr_eq1 : fs1.rebSliceIdx b = fs.rebSliceIdx b := rfl
-            have hfp_eq1 : fs1.fpAt c U n_max θ fs1.rebCandSalt b loc_last =
-                fs.fpAt c U n_max θ fs.rebCandSalt b loc_last := rfl
-            rw [hr_eq1, hfp_eq1] at hlk
-            have hins_le8 : fs.rebInsCount ≤ 8 * (slabScale n_max) ^ 12 := by
-              have hcnt3 := (hc.bktCount_le b hb).trans totalLocalCoordsWhp_le_three_mul
-              have hL2 := two_le_slabScale n_max
-              have : 4096 ≤ (slabScale n_max) ^ 12 := by
-                calc 4096 = 2 ^ 12 := by norm_num
-                  _ ≤ (slabScale n_max) ^ 12 := Nat.pow_le_pow_left hL2 12
-              rcases hcur_r with ⟨_, hi0⟩ | ⟨_, _, hins_le⟩ <;> omega
-            have hfp_cl_lt : fs.fpAt c U n_max θ fs.rebCandSalt b loc_last <
-                2 ^ fpBitsWhp n_max := by
-              dsimp only [FastState.fpAt]
-              by_cases hs : fs.rebCandSalt < sMaxWhp c n_max
-              · rw [dite_eq_left hs]
-                by_cases hu : fs.keyValAt c U n_max θ.1 b loc_last < U
-                · rw [dite_eq_left hu]; exact fpHash_lt c U n_max θ.2 ⟨_, hs⟩ ⟨_, hu⟩
-                · rw [dite_eq_right hu]; exact Nat.two_pow_pos _
-              · rw [dite_eq_right hs]; exact Nat.two_pow_pos _
-            have hrm_prev : rm0 (fs.fpAt c U n_max θ fs.rebCandSalt b loc_last) =
-                some prev_loc := by
-              dsimp only [fs1] at hlk
-              rw [fastDeleteRemove_rebSliceIdx _ _ _ _ _ _ _ _ (hc.roles_valid b hb)] at hlk
-              split_ifs at hlk
-              · have hfp_d_lt : fpOfSalt c U n_max θ.2 fs.rebCandSalt u < 2 ^ fpBitsWhp n_max := by
-                  dsimp only [fpOfSalt]
-                  by_cases hs : fs.rebCandSalt < sMaxWhp c n_max
-                  · rw [dite_eq_left hs]; exact fpHash_lt c U n_max θ.2 ⟨_, hs⟩ u
-                  · rw [dite_eq_right hs]; exact Nat.two_pow_pos _
-                have hvd := hvr0.delete_spec hc.hth hins_le8 hfp_d_lt
-                rw [hvd.lookup_eq hc.hth hins_le8 hfp_cl_lt] at hlk
-                by_cases heq_fp : fs.fpAt c U n_max θ fs.rebCandSalt b loc_last =
-                    fpOfSalt c U n_max θ.2 fs.rebCandSalt u
-                · change Function.update rm0 (fpOfSalt c U n_max θ.2 fs.rebCandSalt u) none
-                    (fs.fpAt c U n_max θ fs.rebCandSalt b loc_last) = some prev_loc at hlk
-                  rw [heq_fp, Function.update_self] at hlk; cases hlk
-                · change Function.update rm0 (fpOfSalt c U n_max θ.2 fs.rebCandSalt u) none
-                    (fs.fpAt c U n_max θ fs.rebCandSalt b loc_last) = some prev_loc at hlk
-                  rwa [Function.update_of_ne heq_fp] at hlk
-              · rwa [hvr0.lookup_eq hc.hth hins_le8 hfp_cl_lt] at hlk
-            obtain ⟨hprev_min, _, hfp_prev⟩ := (hrr0.2 _ prev_loc).mp hrm_prev
-            have hprev_lt_sc : prev_loc < fs.rebScanCursor :=
-              hprev_min.trans_le (Nat.min_le_right _ _)
-            have hprev_lt_cnt : prev_loc < fs.bktCount b :=
-              hprev_min.trans_le (Nat.min_le_left _ _)
-            obtain ⟨hm₁, hfb₁⟩ := hc.mem_dom_of_loc hb hprev_lt_cnt
-            obtain ⟨hm₂, hfb₂⟩ := hc.mem_dom_of_loc hb hloc_last
-            let u₁ : Fin U :=
-              ⟨fs.keyValAt c U n_max θ.1 b prev_loc,
-               (hc.active_item b hb prev_loc hprev_lt_cnt).1⟩
-            let u₂ : Fin U :=
-              ⟨fs.keyValAt c U n_max θ.1 b loc_last,
-               (hc.active_item b hb loc_last hloc_last).1⟩
-            have hw₁ : u₁ ∈ W_keys.filter (fun w =>
-                feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) w.val =
-                  fs.dirtyBuckets fs.dirtyIdx) :=
-              mem_filter.mpr ⟨hdom_sub hm₁, hfb₁.trans hdb_eq.symm⟩
-            have hw₂ : u₂ ∈ W_keys.filter (fun w =>
-                feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) w.val =
-                  fs.dirtyBuckets fs.dirtyIdx) :=
-              mem_filter.mpr ⟨hdom_sub hm₂, hfb₂.trans hdb_eq.symm⟩
-            have hf₁ : fs.fpAt c U n_max θ fs.rebCandSalt b prev_loc =
-                fpHash c U n_max θ.2 s_opt u₁ := by
-              dsimp only [FastState.fpAt]; simp [heq_s, s_opt.isLt, u₁.isLt, u₁]
-            have hf₂ : fs.fpAt c U n_max θ fs.rebCandSalt b loc_last =
-                fpHash c U n_max θ.2 s_opt u₂ := by
-              dsimp only [FastState.fpAt]; simp [heq_s, s_opt.isLt, u₂.isLt, u₂]
-            have hu_eq : u₁ = u₂ := hs_opt_inj hw₁ hw₂ (hf₁.symm.trans (hfp_prev.trans hf₂))
-            have hkv_eq : fs.keyValAt c U n_max θ.1 b prev_loc =
-                fs.keyValAt c U n_max θ.1 b loc_last := congrArg Fin.val hu_eq
-            have hq₁ := (hc.active_item b hb prev_loc hprev_lt_cnt).2.2.1
-            have hq₂ := (hc.active_item b hb loc_last hloc_last).2.2.1
-            have hl_eq := hc.quot_inj b hb prev_loc hprev_lt_cnt loc_last hloc_last
-              (hq₁.symm.trans (hkv_eq ▸ hq₂))
-            change loc_del < fs.rebScanCursor at hld_sc
-            change ¬(loc_last < fs.rebScanCursor) at hll_sc
+            have hne_s := hno_reb_coll hs2 hdb_eq hcs_lt hll_sc hld_sc hs_opt_inj hlk
+            change fs.rebCandSalt + 1 ≤ s_opt.val
             omega
         · exact hc_le_s
         · exact hc_le_s
@@ -2013,7 +1936,7 @@ private theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWh
 /-- Inside the trailing window under `GoodSeedOnWindow`, every admissible operation `op` from a
 `CleanWindowFast` state succeeds with `fastStepPure = some (fs', res)` and preserves
 `CleanWindowFast`. -/
-theorem CleanWindowFast.step {c U V n_max : ℕ} (hnU : n_max ≤ U) {θ : SeedWhp c U n_max}
+private theorem CleanWindowFast.step {c U V n_max : ℕ} (hnU : n_max ≤ U) {θ : SeedWhp c U n_max}
     {W_keys W_ins BadIns : Finset (Fin U)} {fs : FastState} {dict : State U}
     (hcw : CleanWindowFast c U V n_max θ W_keys BadIns fs dict)
     {op : Dynamic.Op U} (hval : Dynamic.valid V n_max dict op)

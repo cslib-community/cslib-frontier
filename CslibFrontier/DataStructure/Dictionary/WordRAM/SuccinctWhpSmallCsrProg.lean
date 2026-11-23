@@ -1068,21 +1068,7 @@ private theorem csr_seg_disjoint (c U V w n_max : ℕ) :
     offValWhp c U w n_max + packedWords n_max (valBits V) w ≤
       offFbStart c U V w n_max := by
   have hseg := WhpLargeEnv.seg_end_le c U V w n_max
-  have h0 : offHashBkt = 32 := rfl
-  have h1 : offHashFp c w n_max = offHashBkt + bktHashWords c w n_max := rfl
-  have h2 : offQuotWhp c w n_max = offHashFp c w n_max + fpHashWords c w n_max := rfl
-  have h3 : offValWhp c U w n_max =
-      offQuotWhp c w n_max + packedWords n_max (quotBitsWhp U n_max) w := rfl
-  have h4 : offPermAct c U V w n_max =
-      offValWhp c U w n_max + packedWords n_max (valBits V) w := rfl
-  have h5 : offLocState c U V w n_max =
-      offPermAct c U V w n_max + packedWords n_max (12 * logLogFactor n_max + 4) w := rfl
-  have h6 : offBktMeta c U V w n_max =
-      offLocState c U V w n_max +
-        packedWords (numBucketsWhp n_max * totalLocalCoordsWhp n_max) 2 w := rfl
-  have h7 : offFbStart c U V w n_max =
-      offBktMeta c U V w n_max +
-        packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w := rfl
+  have hch := largeOffsetChain c U V w n_max
   exact ⟨hseg.1, hseg.2.1, hseg.2.2.2.2.2.1, by omega, by omega, by omega, by omega⟩
 
 private theorem numBuckets_lt_n_max {c U V w n_max base : ℕ}

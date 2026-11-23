@@ -41,9 +41,8 @@ and every admissible oblivious operation prefix `ops : List (Dynamic.Op U)`,
 
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.BktSeed`, `FpSeed`, `SeedWhp`, `seedLawWhp`:
   combined static seed type and uniform distribution.
-* `Cslib.DataStructure.Dictionary.SuccinctWhp.bktHash`, `fpReducedKey`, `fpHash`,
-  `fpHashFromReduced`: pure Feistel-bucket hash, Stage-1 reduced key, and Stage-2 salted
-  fingerprint hash.
+* `Cslib.DataStructure.Dictionary.SuccinctWhp.bktHash`, `fpReducedKey`, `fpHash`:
+  pure Feistel-bucket hash, Stage-1 reduced key, and Stage-2 salted fingerprint hash.
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.BalancedBuckets`, `GoodSeedOnState`,
   `GoodSeedOnWindow`: deterministic load-balance, Stage-1 injectivity, collision-free salt
   existence, and epoch salt-collision count conditions.
@@ -142,36 +141,6 @@ theorem fpHash_lt (c U n_max : ℕ) (θ₂ : FpSeed c U n_max)
     (s : Fin (sMaxWhp c n_max)) (u : Fin U) :
     fpHash c U n_max θ₂ s u < 2 ^ fpBitsWhp n_max :=
   (evalSalted _ _ _ _ _ _ _ _ θ₂ (s, u)).isLt
-
-/-- Stage-2 salted fingerprint evaluation directly from `(salt, rKey)`
-(`rKey = fpReducedKey θ₂ u`). -/
-@[expose] def fpHashFromReduced (c U n_max : ℕ) (θ₂ : FpSeed c U n_max) (salt rKey : ℕ) : ℕ :=
-  let (_α, (t₁, t₂)) := θ₂
-  let sFin : Fin (sMaxWhp c n_max) := ⟨salt % sMaxWhp c n_max, Nat.mod_lt _ (sMaxWhp_pos c n_max)⟩
-  let rFin : Fin (2 ^ min (w0Whp U) (rRedWhp c n_max)) :=
-    ⟨rKey % 2 ^ min (w0Whp U) (rRedWhp c n_max), Nat.mod_lt _ (Nat.two_pow_pos _)⟩
-  (simpleTabEval t₂ (simpleTabTuple t₁ (saltedChars (cTabWhp c) (bCharWhp n_max) sFin rFin))).val
-
-theorem fpHashFromReduced_lt (c U n_max : ℕ) (θ₂ : FpSeed c U n_max) (salt rKey : ℕ) :
-    fpHashFromReduced c U n_max θ₂ salt rKey < 2 ^ fpBitsWhp n_max :=
-  (simpleTabEval θ₂.2.2 _).isLt
-
-theorem fpHashFromReduced_fpReducedKey_eq (c U n_max : ℕ) (θ₂ : FpSeed c U n_max)
-    (s : Fin (sMaxWhp c n_max)) (u : Fin U) :
-    fpHashFromReduced c U n_max θ₂ s.val (fpReducedKey c U n_max θ₂ u) =
-      fpHash c U n_max θ₂ s u := by
-  unfold fpHashFromReduced fpReducedKey fpHash evalSalted
-  dsimp only
-  have hs_fin :
-      (⟨s.val % sMaxWhp c n_max, Nat.mod_lt _ (sMaxWhp_pos c n_max)⟩ : Fin (sMaxWhp c n_max)) =
-        s := Fin.ext (Nat.mod_eq_of_lt s.isLt)
-  have hr_fin :
-      (⟨(multiplyShiftReduced U (w0Whp U) (rRedWhp c n_max) θ₂.1 u).val %
-          2 ^ min (w0Whp U) (rRedWhp c n_max), Nat.mod_lt _ (Nat.two_pow_pos _)⟩ :
-        Fin (2 ^ min (w0Whp U) (rRedWhp c n_max))) =
-        multiplyShiftReduced U (w0Whp U) (rRedWhp c n_max) θ₂.1 u :=
-    Fin.ext (Nat.mod_eq_of_lt (multiplyShiftReduced _ _ _ θ₂.1 u).isLt)
-  rw [hs_fin, hr_fin]
 
 /-! ## Section 2: Trailing window, `BalancedBuckets`, `GoodSeedOnState`, and `GoodSeedOnWindow` -/
 
@@ -299,14 +268,14 @@ theorem card_dom_le_of_validHistory {U V n_max : ℕ} {s₀ : State U}
 @[expose] def windowSuffix (U n_max : ℕ) (ops : List (Dynamic.Op U)) : List (Dynamic.Op U) :=
   ops.drop (ops.length - windowLenWhp n_max)
 
-theorem spec_run_window_eq (U V n_max : ℕ) (ops : List (Dynamic.Op U)) :
+private theorem spec_run_window_eq (U V n_max : ℕ) (ops : List (Dynamic.Op U)) :
     ((Dynamic.spec U V n_max).run (windowStartState U n_max ops) (windowSuffix U n_max ops)).1 =
       ((Dynamic.spec U V n_max).run (Dictionary.empty U) ops).1 := by
   unfold windowStartState windowSuffix
   rw [spec_run_fst_irrel (V₁ := 0) (n₁ := 0) (V₂ := V) (n₂ := n_max) (Dictionary.empty U),
     ← spec_run_fst_append, List.take_append_drop]
 
-theorem length_windowSuffix_le (U n_max : ℕ) (ops : List (Dynamic.Op U)) :
+private theorem length_windowSuffix_le (U n_max : ℕ) (ops : List (Dynamic.Op U)) :
     (windowSuffix U n_max ops).length ≤ windowLenWhp n_max := by
   unfold windowSuffix
   simp only [List.length_drop]
@@ -405,7 +374,7 @@ theorem cEff_add_four_le_scaleWhp {c n_max : ℕ} (hth : whpThreshold c ≤ n_ma
     (cEff_add_four_le_bMinWhp c).trans (hm.trans hlogL)⟩
 
 /-- When `whpThreshold c ≤ n_max`, `(slabScale n_max) ^ 10 ≤ deltaWhp n_max`. -/
-theorem scaleWhp_pow10_le_deltaWhp {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) :
+private theorem scaleWhp_pow10_le_deltaWhp {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) :
     (slabScale n_max) ^ 10 ≤ deltaWhp n_max := by
   have hM_L12 := numBucketsWhp_mul_scale_pow12_le hth
   have hM_pos : 0 < numBucketsWhp n_max := by unfold numBucketsWhp; positivity
@@ -560,7 +529,7 @@ private theorem toOuterMeasure_not_goodTop_seed_le {c U n_max M_out : ℕ}
 
 /-- Under `BalancedBuckets`, any set `S` of size `≤ n_max` puts at most `3 * (slabScale n_max) ^ 12`
 keys into each Feistel bucket. -/
-theorem card_bucket_le_of_balanced {c U n_max : ℕ} (_hth : whpThreshold c ≤ n_max)
+private theorem card_bucket_le_of_balanced {c U n_max : ℕ} (_hth : whpThreshold c ≤ n_max)
     {h1 : ℕ → ℕ} {S : Finset (Fin U)} (hS : #S ≤ n_max)
     (hbal : BalancedBuckets U n_max h1 S) (b : Fin (numBucketsWhp n_max)) :
     #(S.filter fun u => feistelBucket (bWhp n_max) h1 u.val = b.val) ≤
@@ -584,7 +553,7 @@ theorem card_bucket_le_of_balanced {c U n_max : ℕ} (_hth : whpThreshold c ≤ 
 
 /-- Union of two `BalancedBuckets` sets of size `≤ n_max` has at most `6 * (slabScale n_max) ^ 12`
 keys in every Feistel bucket. -/
-theorem card_union_bucket_le_of_balanced {c U n_max : ℕ} (hth : whpThreshold c ≤ n_max)
+private theorem card_union_bucket_le_of_balanced {c U n_max : ℕ} (hth : whpThreshold c ≤ n_max)
     {h1 : ℕ → ℕ} {S₁ S₂ : Finset (Fin U)} (hS₁ : #S₁ ≤ n_max) (hS₂ : #S₂ ≤ n_max)
     (hb₁ : BalancedBuckets U n_max h1 S₁) (hb₂ : BalancedBuckets U n_max h1 S₂)
     (b : Fin (numBucketsWhp n_max)) :
@@ -599,7 +568,7 @@ theorem card_union_bucket_le_of_balanced {c U n_max : ℕ} (hth : whpThreshold c
     _ = 6 * (slabScale n_max) ^ 12 := by ring
 
 /-- Map each key `u : Fin U` to its quotient `< U` packaged in `Fin U`. -/
-@[expose] def keyQuotientFin {U : ℕ} (b : ℕ) (u : Fin U) : Fin U :=
+private def keyQuotientFin {U : ℕ} (b : ℕ) (u : Fin U) : Fin U :=
   ⟨keyQuotient b u.val, (Nat.div_le_self u.val (2 ^ b)).trans_lt u.isLt⟩
 
 /-- Per-quotient `[0, 1]` bucket indicator `g` for Feistel bucket `b` on `S`, together with its
@@ -833,7 +802,7 @@ private theorem toOuterMeasure_not_balancedBucket_single_le {c U n_max : ℕ}
 
 /-- Conditional bottom-table tail bound for `BalancedBuckets` on a single set `S` (`#S ≤ n_max`)
 whose quotients lie in `W_quot`, given `GoodTop` on `W_quot`. -/
-theorem toOuterMeasure_not_balancedBuckets_bot_le {c U n_max : ℕ}
+private theorem toOuterMeasure_not_balancedBuckets_bot_le {c U n_max : ℕ}
     (hth : whpThreshold c ≤ n_max) (W_quot : Finset (Fin U))
     {α₁ : Fin (2 ^ (w0Whp U - 1))}
     {T₁ : DoubleTabTopSeed (cTabWhp c + 1) (dTabWhp c) (bCharWhp n_max)}
@@ -885,7 +854,7 @@ private theorem exp_three_mul_rIndepWhp_ge (c n_max : ℕ) (hth : whpThreshold c
 
 /-- Conditional bottom-table tail bound for multi-salt intra-bucket collision-freedom across all
 `M` window buckets when each window bucket has size `≤ 6 * (slabScale n_max) ^ 12`. -/
-theorem toOuterMeasure_not_salt_inj_bot_le {c U n_max : ℕ}
+private theorem toOuterMeasure_not_salt_inj_bot_le {c U n_max : ℕ}
     (hth : whpThreshold c ≤ n_max) (h1 : ℕ → ℕ) (W_keys : Finset (Fin U))
     (hbkt : ∀ b : Fin (numBucketsWhp n_max),
       #(W_keys.filter fun u => feistelBucket (bWhp n_max) h1 u.val = b.val) ≤
@@ -1018,7 +987,7 @@ theorem toOuterMeasure_not_salt_inj_bot_le {c U n_max : ℕ}
 
 /-- Conditional bottom-table tail bound on the number of keys in `W_ins` that ever collide with
 another key in their window bucket under any salt `< sMaxWhp c n_max`. -/
-theorem toOuterMeasure_salt_coll_count_bot_le {c U n_max : ℕ}
+private theorem toOuterMeasure_salt_coll_count_bot_le {c U n_max : ℕ}
     (hth : whpThreshold c ≤ n_max) (h1 : ℕ → ℕ)
     (W_ins W_keys : Finset (Fin U)) (hsub_ins : W_ins ⊆ W_keys)
     (hW_ins : #W_ins ≤ 3 * (slabScale n_max) ^ 18)
@@ -1201,6 +1170,20 @@ theorem toOuterMeasure_not_goodSeedOnWindow_le {c U V n_max : ℕ}
       _ ≤ n_max + n_max := Nat.add_le_add hdom_start hW_ins_n
       _ = 2 * n_max := by ring
   have hW_quot_2n : #W_quot ≤ 2 * n_max := card_image_le.trans hW_keys_2n
+  have hsum_frac : (4 : ℝ≥0∞)⁻¹ + ((8 : ℝ≥0∞)⁻¹ + (8 : ℝ≥0∞)⁻¹) = (2 : ℝ≥0∞)⁻¹ := by
+    have h8_ne : (8 : ℝ≥0∞) ≠ 0 := by norm_num
+    have h8_top : (8 : ℝ≥0∞) ≠ ⊤ := by norm_num
+    have h4_ne : (4 : ℝ≥0∞) ≠ 0 := by norm_num
+    have h4_top : (4 : ℝ≥0∞) ≠ ⊤ := by norm_num
+    have h2_ne : (2 : ℝ≥0∞) ≠ 0 := by norm_num
+    have h2_top : (2 : ℝ≥0∞) ≠ ⊤ := by norm_num
+    apply ENNReal.mul_right_inj h8_ne h8_top |>.mp
+    rw [mul_add, mul_add, ENNReal.mul_inv_cancel h8_ne h8_top,
+      show (8 : ℝ≥0∞) * (4 : ℝ≥0∞)⁻¹ = 2 * ((4 : ℝ≥0∞) * (4 : ℝ≥0∞)⁻¹) by ring,
+      ENNReal.mul_inv_cancel h4_ne h4_top,
+      show (8 : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ = 4 * ((2 : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹) by ring,
+      ENNReal.mul_inv_cancel h2_ne h2_top]
+    norm_num
   let G₁ (θ₁ : BktSeed c U n_max) : Prop :=
     (∀ s ∈ stateSeq s_start suf,
       BalancedBuckets U n_max (bktHash c U n_max θ₁) (Dictionary.dom s)) ∧
@@ -1326,21 +1309,6 @@ theorem toOuterMeasure_not_goodSeedOnWindow_le {c U V n_max : ℕ}
       htop₁ hbot₁).trans (le_of_eq ?_)
     rw [← add_mul]
     congr 1
-    have hsum_frac : (4 : ℝ≥0∞)⁻¹ + ((8 : ℝ≥0∞)⁻¹ + (8 : ℝ≥0∞)⁻¹) = (2 : ℝ≥0∞)⁻¹ := by
-      have h8_ne : (8 : ℝ≥0∞) ≠ 0 := by norm_num
-      have h8_top : (8 : ℝ≥0∞) ≠ ⊤ := by norm_num
-      have h4_ne : (4 : ℝ≥0∞) ≠ 0 := by norm_num
-      have h4_top : (4 : ℝ≥0∞) ≠ ⊤ := by norm_num
-      have h2_ne : (2 : ℝ≥0∞) ≠ 0 := by norm_num
-      have h2_top : (2 : ℝ≥0∞) ≠ ⊤ := by norm_num
-      apply ENNReal.mul_right_inj h8_ne h8_top |>.mp
-      rw [mul_add, mul_add, ENNReal.mul_inv_cancel h8_ne h8_top,
-        show (8 : ℝ≥0∞) * (4 : ℝ≥0∞)⁻¹ = 2 * ((4 : ℝ≥0∞) * (4 : ℝ≥0∞)⁻¹) by ring,
-        ENNReal.mul_inv_cancel h4_ne h4_top,
-        show (8 : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ = 4 * ((2 : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹) by ring,
-        ENNReal.mul_inv_cancel h2_ne h2_top]
-      norm_num
-    exact hsum_frac
   have hfp_cond : ∀ θ₁ : BktSeed c U n_max, G₁ θ₁ →
       (PMF.uniformOfFintype (FpSeed c U n_max)).toOuterMeasure
         {θ₂ | ¬ GoodSeedOnWindow c U n_max ops (θ₁, θ₂)} ≤
@@ -1420,21 +1388,6 @@ theorem toOuterMeasure_not_goodSeedOnWindow_le {c U V n_max : ℕ}
       (fun θ₂ => ¬ GoodSeedOnWindow c U n_max ops (θ₁, θ₂)) htop₂ hbot₂).trans (le_of_eq ?_)
     rw [← add_mul]
     congr 1
-    have hsum_frac : (4 : ℝ≥0∞)⁻¹ + ((8 : ℝ≥0∞)⁻¹ + (8 : ℝ≥0∞)⁻¹) = (2 : ℝ≥0∞)⁻¹ := by
-      have h8_ne : (8 : ℝ≥0∞) ≠ 0 := by norm_num
-      have h8_top : (8 : ℝ≥0∞) ≠ ⊤ := by norm_num
-      have h4_ne : (4 : ℝ≥0∞) ≠ 0 := by norm_num
-      have h4_top : (4 : ℝ≥0∞) ≠ ⊤ := by norm_num
-      have h2_ne : (2 : ℝ≥0∞) ≠ 0 := by norm_num
-      have h2_top : (2 : ℝ≥0∞) ≠ ⊤ := by norm_num
-      apply ENNReal.mul_right_inj h8_ne h8_top |>.mp
-      rw [mul_add, mul_add, ENNReal.mul_inv_cancel h8_ne h8_top,
-        show (8 : ℝ≥0∞) * (4 : ℝ≥0∞)⁻¹ = 2 * ((4 : ℝ≥0∞) * (4 : ℝ≥0∞)⁻¹) by ring,
-        ENNReal.mul_inv_cancel h4_ne h4_top,
-        show (8 : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ = 4 * ((2 : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹) by ring,
-        ENNReal.mul_inv_cancel h2_ne h2_top]
-      norm_num
-    exact hsum_frac
   refine (toOuterMeasure_uniformOfFintype_cond_le (Equiv.refl _) G₁
     (fun θ => ¬ GoodSeedOnWindow c U n_max ops θ) hbkt_bad hfp_cond).trans (le_of_eq ?_)
   rw [← add_mul]

@@ -40,7 +40,8 @@ the pure state machine `WhpDictState` of `SuccinctWhpModel`.
 ## Main results
 
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.smallOffsets_eq`,
-  `largeOffsets_eq`: exact segment accounting matching `smallSpaceWhp` and `largeSpaceWhp`.
+  `largeOffsets_eq`, `largeOffsetChain`: exact segment accounting and adjacent offset chain matching
+  `smallSpaceWhp` and `largeSpaceWhp`.
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.fits_mkWhpParams`: every word of
   `mkWhpParams` fits in `w` bits whenever `0 < w`, `n_max ≤ U`, `Fits w U`, `Fits w V`, and
   `Fits w (base + whpSpace c U V w n_max)`.
@@ -240,6 +241,79 @@ theorem largeOffsets_eq (c U V w n_max : ℕ) :
     offHashFp, offHashBkt, bktHashWords, fpHashWords, trieChildEntriesWhp, totalLocalCoordsWhp,
     largeSpaceWhp]
   ring
+
+/-- Complete adjacent segment-offset chain for `largeSpaceWhp`, allowing `omega` to discharge
+cross-segment disjointness and footprint bounds without unfolding the individual `off*`
+definitions. -/
+theorem largeOffsetChain (c U V w n_max : ℕ) :
+    offHashBkt = 32 ∧
+    0 < bktHashWords c w n_max ∧
+    bktHashWords c w n_max =
+      BitPackedDoubleTabulation.space w (cTabWhp c) (dTabWhp c) (bCharWhp n_max) (bWhp n_max) ∧
+    fpHashWords c w n_max =
+      BitPackedDoubleTabulation.space w (cTabWhp c) (dTabWhp c) (bCharWhp n_max)
+        (fpBitsWhp n_max) ∧
+    offHashFp c w n_max = offHashBkt + bktHashWords c w n_max ∧
+    offQuotWhp c w n_max = offHashFp c w n_max + fpHashWords c w n_max ∧
+    offValWhp c U w n_max =
+      offQuotWhp c w n_max + packedWords n_max (quotBitsWhp U n_max) w ∧
+    offPermAct c U V w n_max =
+      offValWhp c U w n_max + packedWords n_max (valBits V) w ∧
+    offLocState c U V w n_max =
+      offPermAct c U V w n_max + packedWords n_max (12 * logLogFactor n_max + 4) w ∧
+    offBktMeta c U V w n_max =
+      offLocState c U V w n_max +
+        packedWords (numBucketsWhp n_max * totalLocalCoordsWhp n_max) 2 w ∧
+    offFbStart c U V w n_max =
+      offBktMeta c U V w n_max +
+        packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w ∧
+    offBackPtr c U V w n_max =
+      offFbStart c U V w n_max +
+        packedWords (numBucketsWhp n_max + 1) (globalPtrBits n_max) w ∧
+    offBackAux c U V w n_max =
+      offBackPtr c U V w n_max +
+        packedWords (numBucketsWhp n_max * capBackWhp n_max) (globalPtrBits n_max) w ∧
+    offPoolFreeStack c U V w n_max =
+      offBackAux c U V w n_max +
+        packedWords (numBucketsWhp n_max * capBackWhp n_max) (12 * logLogFactor n_max + 4) w ∧
+    offPoolOwner c U V w n_max =
+      offPoolFreeStack c U V w n_max +
+        packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w ∧
+    offBtMeta c U V w n_max =
+      offPoolOwner c U V w n_max +
+        packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w ∧
+    offBtKeys c U V w n_max =
+      offBtMeta c U V w n_max +
+        packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w ∧
+    offBtVals c U V w n_max =
+      offBtKeys c U V w n_max +
+        packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w ∧
+    offTrieChild0 c U V w n_max =
+      offBtVals c U V w n_max +
+        packedWords (totalBTreeNodesWhp n_max) (valsWordBitsWhp n_max) w ∧
+    offTrieChild1 c U V w n_max =
+      offTrieChild0 c U V w n_max +
+        packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w ∧
+    offTrieMeta0 c U V w n_max =
+      offTrieChild1 c U V w n_max +
+        packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w ∧
+    offTrieMeta1 c U V w n_max =
+      offTrieMeta0 c U V w n_max +
+        packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w ∧
+    offTrieItems0 c U V w n_max =
+      offTrieMeta1 c U V w n_max +
+        packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w ∧
+    offTrieItems1 c U V w n_max =
+      offTrieItems0 c U V w n_max +
+        packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w ∧
+    offTrieItems1 c U V w n_max +
+        packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w =
+      largeSpaceWhp c U V w n_max := by
+  have hb_pos : 0 < bktHashWords c w n_max := by
+    unfold bktHashWords BitPackedDoubleTabulation.space
+    omega
+  exact ⟨rfl, hb_pos, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
+    rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, largeOffsets_eq c U V w n_max⟩
 
 /-! ## Section 2: Threshold, bit-width, and word-fit inequalities -/
 
@@ -514,15 +588,7 @@ theorem SeedWhpMemRep.congr_hash {base c U w n_max : ℕ} {θ : SeedWhp c U n_ma
     (heq : ∀ a, base + offHashBkt ≤ a → a < base + offQuotWhp c w n_max → mem₁ a = mem₂ a)
     (hseed : SeedWhpMemRep base c U w n_max θ mem₁) :
     SeedWhpMemRep base c U w n_max θ mem₂ := by
-  have hoff_eq : offQuotWhp c w n_max =
-      offHashBkt + bktHashWords c w n_max + fpHashWords c w n_max := rfl
-  have hfp_eq : offHashFp c w n_max = offHashBkt + bktHashWords c w n_max := rfl
-  have hb_eq : bktHashWords c w n_max =
-      BitPackedDoubleTabulation.space w (cTabWhp c) (dTabWhp c) (bCharWhp n_max) (bWhp n_max) :=
-    rfl
-  have hfs_eq : fpHashWords c w n_max =
-      BitPackedDoubleTabulation.space w (cTabWhp c) (dTabWhp c) (bCharWhp n_max)
-        (fpBitsWhp n_max) := rfl
+  have hch := largeOffsetChain c U 0 w n_max
   exact ⟨BitPackedDoubleTabulation.seedRep_congr_mem hw hseed.1
       (fun a ha1 ha2 => (heq a ha1 (by omega)).symm),
     BitPackedDoubleTabulation.seedRep_congr_mem hw hseed.2
@@ -533,24 +599,7 @@ private theorem bufTrieMemRep_congr {base c U V w n_max ep : ℕ} {tr : BufTrie}
     (hmem : ∀ a, base ≤ a → a < base + largeSpaceWhp c U V w n_max → mem₂ a = mem₁ a)
     (hrep : BufTrieMemRep base c U V w n_max ep tr mem₁) :
     BufTrieMemRep base c U V w n_max ep tr mem₂ := by
-  have hend := largeOffsets_eq c U V w n_max
-  have hhdr_le : 32 ≤ largeSpaceWhp c U V w n_max := by
-    dsimp only [largeSpaceWhp]; omega
-  have hc01 : offTrieChild1 c U V w n_max =
-      offTrieChild0 c U V w n_max +
-        packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w := rfl
-  have hm0 : offTrieMeta0 c U V w n_max =
-      offTrieChild1 c U V w n_max +
-        packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w := rfl
-  have hm1 : offTrieMeta1 c U V w n_max =
-      offTrieMeta0 c U V w n_max +
-        packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w := rfl
-  have hi0 : offTrieItems0 c U V w n_max =
-      offTrieMeta1 c U V w n_max +
-        packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w := rfl
-  have hi1 : offTrieItems1 c U V w n_max =
-      offTrieItems0 c U V w n_max +
-        packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w := rfl
+  have hch := largeOffsetChain c U V w n_max
   let rp := @readPacked_eq_of_mem_eq base (largeSpaceWhp c U V w n_max)
   dsimp only [BufTrieMemRep] at hrep ⊢
   obtain ⟨hna, hia, hhdr_na, hhdr_ia, hch, hpar, hleaf, hitems⟩ := hrep
@@ -621,61 +670,7 @@ theorem WhpMemRep.congr_footprint {base c U V w n_max : ℕ} {θ : SeedWhp c U n
   have hmem : ∀ a, base ≤ a → a < base + whpSpace c U V w n_max → mem₂ a = mem₁ a :=
     fun a h1 h2 => heq a (by simp only [Block.mem_footprint, Block.Owns]; exact ⟨h1, h2⟩)
   -- Shared layout chain for large regime
-  have hendL := largeOffsets_eq c U V w n_max
-  have hl_hb : offHashBkt = 32 := rfl
-  have hl_hf : offHashFp c w n_max = offHashBkt + bktHashWords c w n_max := rfl
-  have hl_q : offQuotWhp c w n_max = offHashFp c w n_max + fpHashWords c w n_max := rfl
-  have hl_v : offValWhp c U w n_max =
-      offQuotWhp c w n_max + packedWords n_max (quotBitsWhp U n_max) w := rfl
-  have hl_pa : offPermAct c U V w n_max =
-      offValWhp c U w n_max + packedWords n_max (valBits V) w := rfl
-  have hl_ls : offLocState c U V w n_max =
-      offPermAct c U V w n_max + packedWords n_max (12 * logLogFactor n_max + 4) w := rfl
-  have hl_bm : offBktMeta c U V w n_max =
-      offLocState c U V w n_max +
-        packedWords (numBucketsWhp n_max * totalLocalCoordsWhp n_max) 2 w := rfl
-  have hl_fb : offFbStart c U V w n_max =
-      offBktMeta c U V w n_max +
-        packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w := rfl
-  have hl_bp : offBackPtr c U V w n_max =
-      offFbStart c U V w n_max +
-        packedWords (numBucketsWhp n_max + 1) (globalPtrBits n_max) w := rfl
-  have hl_ba : offBackAux c U V w n_max =
-      offBackPtr c U V w n_max +
-        packedWords (numBucketsWhp n_max * capBackWhp n_max) (globalPtrBits n_max) w := rfl
-  have hl_ps : offPoolFreeStack c U V w n_max =
-      offBackAux c U V w n_max +
-        packedWords (numBucketsWhp n_max * capBackWhp n_max) (12 * logLogFactor n_max + 4) w := rfl
-  have hl_po : offPoolOwner c U V w n_max =
-      offPoolFreeStack c U V w n_max +
-        packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w := rfl
-  have hl_btm : offBtMeta c U V w n_max =
-      offPoolOwner c U V w n_max +
-        packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w := rfl
-  have hl_btk : offBtKeys c U V w n_max =
-      offBtMeta c U V w n_max +
-        packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w := rfl
-  have hl_btv : offBtVals c U V w n_max =
-      offBtKeys c U V w n_max +
-        packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w := rfl
-  have hl_tc0 : offTrieChild0 c U V w n_max =
-      offBtVals c U V w n_max +
-        packedWords (totalBTreeNodesWhp n_max) (valsWordBitsWhp n_max) w := rfl
-  have hl_tc1 : offTrieChild1 c U V w n_max =
-      offTrieChild0 c U V w n_max +
-        packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w := rfl
-  have hl_tm0 : offTrieMeta0 c U V w n_max =
-      offTrieChild1 c U V w n_max +
-        packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w := rfl
-  have hl_tm1 : offTrieMeta1 c U V w n_max =
-      offTrieMeta0 c U V w n_max +
-        packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w := rfl
-  have hl_ti0 : offTrieItems0 c U V w n_max =
-      offTrieMeta1 c U V w n_max +
-        packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w := rfl
-  have hl_ti1 : offTrieItems1 c U V w n_max =
-      offTrieItems0 c U V w n_max +
-        packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w := rfl
+  have hch := largeOffsetChain c U V w n_max
   cases st with
   | small sm =>
     obtain ⟨hsm, hm0, hfields⟩ := hrep
@@ -907,77 +902,146 @@ large-regime entries (`10 .. 67`) are `0` so every entry fits in `w` bits for al
       BitPackedDoubleTabulation.mkHashParams w (w0Whp U) (rRedWhp c n_max)
         (cTabWhp c) (dTabWhp c) (bCharWhp n_max) (fpBitsWhp n_max)))
 
+/-- Bucket-hash runtime parameter block in `WhpParams`. -/
 abbrev wpHash1 (wp : WhpParams) : BitPackedDoubleTabulation.HashParams := wp.2.1
+/-- Fingerprint-hash runtime parameter block in `WhpParams`. -/
 abbrev wpHash2 (wp : WhpParams) : BitPackedDoubleTabulation.HashParams := wp.2.2
 
 /-! ### Named projections on `WhpCoreParams` -/
 
+/-- Small-regime flag (`1` if `n_max < whpThreshold c`, `0` otherwise) in `WhpCoreParams`. -/
 @[expose] def wpIsSmall (cp : WhpCoreParams) : ℕ := cp ⟨0, by decide⟩
+/-- Word width `w` in `WhpCoreParams`. -/
 @[expose] def wpW (cp : WhpCoreParams) : ℕ := cp ⟨1, by decide⟩
+/-- Maximum capacity `n_max` in `WhpCoreParams`. -/
 @[expose] def wpNMax (cp : WhpCoreParams) : ℕ := cp ⟨2, by decide⟩
+/-- Key universe bound `U` in `WhpCoreParams`. -/
 @[expose] def wpU (cp : WhpCoreParams) : ℕ := cp ⟨3, by decide⟩
+/-- Value universe bound `V` in `WhpCoreParams`. -/
 @[expose] def wpV (cp : WhpCoreParams) : ℕ := cp ⟨4, by decide⟩
+/-- Small-regime key bit-width `keyBitsWhp U` in `WhpCoreParams`. -/
 @[expose] def wpKeyBits (cp : WhpCoreParams) : ℕ := cp ⟨5, by decide⟩
+/-- Value bit-width `valBitsWhp V` in `WhpCoreParams`. -/
 @[expose] def wpValBits (cp : WhpCoreParams) : ℕ := cp ⟨6, by decide⟩
+/-- Small-regime presence bitmap word offset in `WhpCoreParams`. -/
 @[expose] def wpOffSmallPres (cp : WhpCoreParams) : ℕ := cp ⟨7, by decide⟩
+/-- Small-regime packed key array word offset in `WhpCoreParams`. -/
 @[expose] def wpOffSmallKeys (cp : WhpCoreParams) : ℕ := cp ⟨8, by decide⟩
+/-- Small-regime packed value array word offset in `WhpCoreParams`. -/
 @[expose] def wpOffSmallVals (cp : WhpCoreParams) : ℕ := cp ⟨9, by decide⟩
+/-- Bucket index bit-width `bWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpBWhp (cp : WhpCoreParams) : ℕ := cp ⟨10, by decide⟩
+/-- Number of buckets `numBucketsWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpM (cp : WhpCoreParams) : ℕ := cp ⟨11, by decide⟩
+/-- Bucket index bitmask `numBucketsWhp n_max - 1` in `WhpCoreParams`. -/
 @[expose] def wpMaskBkt (cp : WhpCoreParams) : ℕ := cp ⟨12, by decide⟩
+/-- Feistel quotient bit-width `quotBitsWhp U n_max` in `WhpCoreParams`. -/
 @[expose] def wpQuotBits (cp : WhpCoreParams) : ℕ := cp ⟨13, by decide⟩
+/-- Bucket fingerprint bit-width `fpBitsWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpFpBits (cp : WhpCoreParams) : ℕ := cp ⟨14, by decide⟩
+/-- Fingerprint radix `2 ^ fpBitsWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpPowFp (cp : WhpCoreParams) : ℕ := cp ⟨15, by decide⟩
+/-- Double-tabulation character bit-width `bCharWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpBChar (cp : WhpCoreParams) : ℕ := cp ⟨16, by decide⟩
+/-- Character radix `2 ^ bCharWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpPowBChar (cp : WhpCoreParams) : ℕ := cp ⟨17, by decide⟩
+/-- Character bitmask `2 ^ bCharWhp n_max - 1` in `WhpCoreParams`. -/
 @[expose] def wpMaskBChar (cp : WhpCoreParams) : ℕ := cp ⟨18, by decide⟩
+/-- Character chunk count `cTabWhp c` in `WhpCoreParams`. -/
 @[expose] def wpCTab (cp : WhpCoreParams) : ℕ := cp ⟨19, by decide⟩
+/-- Salt domain bound `sMaxWhp c n_max` in `WhpCoreParams`. -/
 @[expose] def wpSMax (cp : WhpCoreParams) : ℕ := cp ⟨20, by decide⟩
+/-- Buffer-trie item capacity `2 * sMaxWhp c n_max` in `WhpCoreParams`. -/
 @[expose] def wpBufItemCap (cp : WhpCoreParams) : ℕ := cp ⟨21, by decide⟩
+/-- Epoch operation length `qEpochWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpQEpoch (cp : WhpCoreParams) : ℕ := cp ⟨22, by decide⟩
+/-- Front-yard slack parameter `deltaWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpDelta (cp : WhpCoreParams) : ℕ := cp ⟨23, by decide⟩
+/-- Per-bucket front-yard capacity `capFrontWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpCapFront (cp : WhpCoreParams) : ℕ := cp ⟨24, by decide⟩
+/-- Per-bucket backyard capacity `capBackWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpCapBack (cp : WhpCoreParams) : ℕ := cp ⟨25, by decide⟩
+/-- Total per-bucket local coordinate count `totalLocalCoordsWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpTotalLoc (cp : WhpCoreParams) : ℕ := cp ⟨26, by decide⟩
+/-- Total front-yard slot count `numBucketsWhp n_max * capFrontWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpFrontTotal (cp : WhpCoreParams) : ℕ := cp ⟨27, by decide⟩
+/-- Backyard pool size `poolSizeWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpPoolSize (cp : WhpCoreParams) : ℕ := cp ⟨28, by decide⟩
+/-- Overmars local rebuild threshold `5 * (slabScale n_max) ^ 12` in `WhpCoreParams`. -/
 @[expose] def wpOvermarsThresh (cp : WhpCoreParams) : ℕ := cp ⟨29, by decide⟩
+/-- Global slot pointer bit-width `globalPtrBits n_max` in `WhpCoreParams`. -/
 @[expose] def wpGlobalPtrBits (cp : WhpCoreParams) : ℕ := cp ⟨30, by decide⟩
+/-- In-place permutation activity bit-width `permActBits n_max` in `WhpCoreParams`. -/
 @[expose] def wpPermActBits (cp : WhpCoreParams) : ℕ := cp ⟨31, by decide⟩
+/-- Per-trie child-pointer entry count in `WhpCoreParams`. -/
 @[expose] def wpTrieChildEntries (cp : WhpCoreParams) : ℕ := cp ⟨32, by decide⟩
+/-- Per-trie maximum node count `maxTrieNodesWhp c n_max` in `WhpCoreParams`. -/
 @[expose] def wpMaxTrieNodes (cp : WhpCoreParams) : ℕ := cp ⟨33, by decide⟩
+/-- Maximum SWAR B+-tree height `hMaxBTreeWhp` in `WhpCoreParams`. -/
 @[expose] def wpHMaxBTree (cp : WhpCoreParams) : ℕ := cp ⟨34, by decide⟩
+/-- Minimum SWAR B+-tree branching parameter `tMinWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpTMin (cp : WhpCoreParams) : ℕ := cp ⟨35, by decide⟩
+/-- SWAR B+-tree node lane capacity `2 * tMinWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpCapLanes (cp : WhpCoreParams) : ℕ := cp ⟨36, by decide⟩
+/-- Full-node key count `2 * tMinWhp n_max - 1` in `WhpCoreParams`. -/
 @[expose] def wpFullKeys (cp : WhpCoreParams) : ℕ := cp ⟨37, by decide⟩
+/-- SWAR key lane bit-width `keyLaneBitsWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpWKey (cp : WhpCoreParams) : ℕ := cp ⟨38, by decide⟩
+/-- SWAR key lane bitmask `2 ^ keyLaneBitsWhp n_max - 1` in `WhpCoreParams`. -/
 @[expose] def wpMaskWKey (cp : WhpCoreParams) : ℕ := cp ⟨39, by decide⟩
+/-- Packed SWAR all-ones pattern over `2 * tMinWhp n_max` key lanes in `WhpCoreParams`. -/
 @[expose] def wpSwarOnesCap (cp : WhpCoreParams) : ℕ := cp ⟨40, by decide⟩
+/-- Packed B+-tree value-word bit-width `valsWordBitsWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpValsWordBits (cp : WhpCoreParams) : ℕ := cp ⟨41, by decide⟩
+/-- Packed B+-tree key-word bit-width `keysWordBitsWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpKeysWordBits (cp : WhpCoreParams) : ℕ := cp ⟨42, by decide⟩
+/-- SWAR value lane bit-width `valLaneBitsWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpWVal (cp : WhpCoreParams) : ℕ := cp ⟨43, by decide⟩
+/-- SWAR value lane bitmask `2 ^ valLaneBitsWhp n_max - 1` in `WhpCoreParams`. -/
 @[expose] def wpMaskWVal (cp : WhpCoreParams) : ℕ := cp ⟨44, by decide⟩
+/-- B+-tree node metadata bit-width `nodeMetaBitsWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpNodeMetaBits (cp : WhpCoreParams) : ℕ := cp ⟨45, by decide⟩
+/-- Per-slice B+-tree node budget `nodesPerSliceWhp n_max` in `WhpCoreParams`. -/
 @[expose] def wpNSlice (cp : WhpCoreParams) : ℕ := cp ⟨46, by decide⟩
+/-- Word offset `offHashBkt` of the bucket hash seed in `WhpCoreParams`. -/
 @[expose] def wpOffHashBkt (cp : WhpCoreParams) : ℕ := cp ⟨47, by decide⟩
+/-- Word offset `offHashFp` of the fingerprint hash seed in `WhpCoreParams`. -/
 @[expose] def wpOffHashFp (cp : WhpCoreParams) : ℕ := cp ⟨48, by decide⟩
+/-- Word offset `offQuotWhp` of the packed quotient array in `WhpCoreParams`. -/
 @[expose] def wpOffQuot (cp : WhpCoreParams) : ℕ := cp ⟨49, by decide⟩
+/-- Word offset `offValWhp` of the packed value array in `WhpCoreParams`. -/
 @[expose] def wpOffVal (cp : WhpCoreParams) : ℕ := cp ⟨50, by decide⟩
+/-- Word offset `offPermAct` of the permutation activity array in `WhpCoreParams`. -/
 @[expose] def wpOffPermAct (cp : WhpCoreParams) : ℕ := cp ⟨51, by decide⟩
+/-- Word offset `offLocState` of the local slot-state array in `WhpCoreParams`. -/
 @[expose] def wpOffLocState (cp : WhpCoreParams) : ℕ := cp ⟨52, by decide⟩
+/-- Word offset `offBktMeta` of the bucket metadata array in `WhpCoreParams`. -/
 @[expose] def wpOffBktMeta (cp : WhpCoreParams) : ℕ := cp ⟨53, by decide⟩
+/-- Word offset `offFbStart` of the CSR bucket-prefix array in `WhpCoreParams`. -/
 @[expose] def wpOffFbStart (cp : WhpCoreParams) : ℕ := cp ⟨54, by decide⟩
+/-- Word offset `offBackPtr` of the backyard pointer array in `WhpCoreParams`. -/
 @[expose] def wpOffBackPtr (cp : WhpCoreParams) : ℕ := cp ⟨55, by decide⟩
+/-- Word offset `offPoolFreeStack` of the backyard free stack in `WhpCoreParams`. -/
 @[expose] def wpOffPoolFreeStack (cp : WhpCoreParams) : ℕ := cp ⟨56, by decide⟩
+/-- Word offset `offPoolOwner` of the backyard pool-owner array in `WhpCoreParams`. -/
 @[expose] def wpOffPoolOwner (cp : WhpCoreParams) : ℕ := cp ⟨57, by decide⟩
+/-- Word offset `offBtMeta` of the B+-tree node metadata array in `WhpCoreParams`. -/
 @[expose] def wpOffBtMeta (cp : WhpCoreParams) : ℕ := cp ⟨58, by decide⟩
+/-- Word offset `offBtKeys` of the B+-tree packed key-lane array in `WhpCoreParams`. -/
 @[expose] def wpOffBtKeys (cp : WhpCoreParams) : ℕ := cp ⟨59, by decide⟩
+/-- Word offset `offBtVals` of the B+-tree packed value-lane array in `WhpCoreParams`. -/
 @[expose] def wpOffBtVals (cp : WhpCoreParams) : ℕ := cp ⟨60, by decide⟩
+/-- Word offset `offTrieChild0` of epoch-`0` `BufTrie` child pointers in `WhpCoreParams`. -/
 @[expose] def wpOffTrieChild0 (cp : WhpCoreParams) : ℕ := cp ⟨61, by decide⟩
+/-- Word offset `offTrieChild1` of epoch-`1` `BufTrie` child pointers in `WhpCoreParams`. -/
 @[expose] def wpOffTrieChild1 (cp : WhpCoreParams) : ℕ := cp ⟨62, by decide⟩
+/-- Word offset `offTrieMeta0` of epoch-`0` `BufTrie` node metadata in `WhpCoreParams`. -/
 @[expose] def wpOffTrieMeta0 (cp : WhpCoreParams) : ℕ := cp ⟨63, by decide⟩
+/-- Word offset `offTrieMeta1` of epoch-`1` `BufTrie` node metadata in `WhpCoreParams`. -/
 @[expose] def wpOffTrieMeta1 (cp : WhpCoreParams) : ℕ := cp ⟨64, by decide⟩
+/-- Word offset `offTrieItems0` of epoch-`0` `BufTrie` item records in `WhpCoreParams`. -/
 @[expose] def wpOffTrieItems0 (cp : WhpCoreParams) : ℕ := cp ⟨65, by decide⟩
+/-- Word offset `offTrieItems1` of epoch-`1` `BufTrie` item records in `WhpCoreParams`. -/
 @[expose] def wpOffTrieItems1 (cp : WhpCoreParams) : ℕ := cp ⟨66, by decide⟩
 
 /-- Both `HashParams` vectors satisfy `BitPackedDoubleTabulation.HashEnv` in the large regime. -/
@@ -1126,61 +1190,7 @@ theorem fits_mkWhpParams {base c U V w n_max : ℕ}
     have hM_le_n : numBucketsWhp n_max ≤ n_max := by
       have hL12 : 1 ≤ (slabScale n_max) ^ 12 := Nat.one_le_pow 12 _ (slabScale_pos n_max)
       exact (Nat.le_mul_of_pos_right _ hL12).trans (numBucketsWhp_mul_scale_pow12_le hth)
-    have hl_hb : offHashBkt = 32 := rfl
-    have hl_hf : offHashFp c w n_max = offHashBkt + bktHashWords c w n_max := rfl
-    have hl_q : offQuotWhp c w n_max = offHashFp c w n_max + fpHashWords c w n_max := rfl
-    have hl_v : offValWhp c U w n_max =
-        offQuotWhp c w n_max + packedWords n_max (quotBitsWhp U n_max) w := rfl
-    have hl_pa : offPermAct c U V w n_max =
-        offValWhp c U w n_max + packedWords n_max (valBits V) w := rfl
-    have hl_ls : offLocState c U V w n_max =
-        offPermAct c U V w n_max + packedWords n_max (12 * logLogFactor n_max + 4) w := rfl
-    have hl_bm : offBktMeta c U V w n_max =
-        offLocState c U V w n_max +
-          packedWords (numBucketsWhp n_max * totalLocalCoordsWhp n_max) 2 w := rfl
-    have hl_fb : offFbStart c U V w n_max =
-        offBktMeta c U V w n_max +
-          packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w := rfl
-    have hl_bp : offBackPtr c U V w n_max =
-        offFbStart c U V w n_max +
-          packedWords (numBucketsWhp n_max + 1) (globalPtrBits n_max) w := rfl
-    have hl_ba : offBackAux c U V w n_max =
-        offBackPtr c U V w n_max +
-          packedWords (numBucketsWhp n_max * capBackWhp n_max) (globalPtrBits n_max) w := rfl
-    have hl_ps : offPoolFreeStack c U V w n_max =
-        offBackAux c U V w n_max +
-          packedWords (numBucketsWhp n_max * capBackWhp n_max) (12 * logLogFactor n_max +
-            4) w := rfl
-    have hl_po : offPoolOwner c U V w n_max =
-        offPoolFreeStack c U V w n_max +
-          packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w := rfl
-    have hl_btm : offBtMeta c U V w n_max =
-        offPoolOwner c U V w n_max +
-          packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w := rfl
-    have hl_btk : offBtKeys c U V w n_max =
-        offBtMeta c U V w n_max +
-          packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w := rfl
-    have hl_btv : offBtVals c U V w n_max =
-        offBtKeys c U V w n_max +
-          packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w := rfl
-    have hl_tc0 : offTrieChild0 c U V w n_max =
-        offBtVals c U V w n_max +
-          packedWords (totalBTreeNodesWhp n_max) (valsWordBitsWhp n_max) w := rfl
-    have hl_tc1 : offTrieChild1 c U V w n_max =
-        offTrieChild0 c U V w n_max +
-          packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w := rfl
-    have hl_tm0 : offTrieMeta0 c U V w n_max =
-        offTrieChild1 c U V w n_max +
-          packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w := rfl
-    have hl_tm1 : offTrieMeta1 c U V w n_max =
-        offTrieMeta0 c U V w n_max +
-          packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w := rfl
-    have hl_ti0 : offTrieItems0 c U V w n_max =
-        offTrieMeta1 c U V w n_max +
-          packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w := rfl
-    have hl_ti1 : offTrieItems1 c U V w n_max =
-        offTrieItems0 c U V w n_max +
-          packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w := rfl
+    have hch := largeOffsetChain c U V w n_max
     refine ⟨fun i => ?_, fun j => ?_⟩
     · dsimp only [mkWhpCoreParams]
       rw [ite_eq_right hsm]

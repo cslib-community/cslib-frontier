@@ -74,7 +74,7 @@ private theorem backPrefix_spec (M cf : ℕ) (fbStart : ℕ → ℕ) :
   have hadj : ∀ b < M,
       buildBackPrefix M cf fbStart (b + 1) =
         buildBackPrefix M cf fbStart b + ((fbStart (b + 1) - fbStart b) - cf) := fun b hb => by
-    dsimp only [buildBackPrefix, buildBackPrefix.go]; simp only [hb, ↓reduceIte]
+    dsimp only [buildBackPrefix]; simp only [hb, ↓reduceIte]
   refine ⟨rfl, hadj, fun k hk => ?_, fbStart_mono_of_adj fun b hb => by
     rw [hadj b hb]; exact Nat.le_add_right _ _⟩
   induction k with
@@ -4847,12 +4847,10 @@ private theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
     (writeHealHdrsAndTrieMetaProg
       ((rt, (offTrieMeta0 c U V w n_max, offTrieMeta1 c U V w n_max)), freeTop))
   -- Offset bounds for framing `s_fin` back to `s_ffm` / `s_bab` / `s_ras` / `s`
-  have hseg := WhpLargeEnv.seg_end_le c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   have hbm_b : base + offBktMeta c U V w n_max + packedWords (16 * M) gBits w ≤
-      base + largeSpaceWhp c U V w n_max := by
-    rw [Nat.add_assoc]; exact Nat.add_le_add_left hseg.2.2.2.2.1 _
-  have h32_q : 32 ≤ offQuotWhp c w n_max := by
-    change offHashBkt ≤ _; unfold offQuotWhp offHashFp; omega
+      base + largeSpaceWhp c U V w n_max := by dsimp only [M, gBits]; omega
+  have h32_q : 32 ≤ offQuotWhp c w n_max := by omega
   have hq_bm : offQuotWhp c w n_max + packedWords n_max (quotBitsWhp U n_max) w ≤
       offValWhp c U w n_max ∧
       offValWhp c U w n_max + packedWords n_max (valBits V) w ≤ offLocState c U V w n_max ∧
@@ -4868,38 +4866,9 @@ private theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
       offBtMeta c U V w n_max ≤ offTrieChild0 c U V w n_max ∧
       offTrieChild0 c U V w n_max ≤ offTrieMeta0 c U V w n_max ∧
       offTrieItems0 c U V w n_max ≤ largeSpaceWhp c U V w n_max := by
-    have h1 : offValWhp c U w n_max =
-      offQuotWhp c w n_max + packedWords n_max (quotBitsWhp U n_max) w := rfl
-    have h2 : offPermAct c U V w n_max =
-      offValWhp c U w n_max + packedWords n_max (valBits V) w := rfl
-    have h3 : offLocState c U V w n_max =
-      offPermAct c U V w n_max + packedWords n_max (12 * logLogFactor n_max + 4) w := rfl
-    have h4 : offBktMeta c U V w n_max =
-      offLocState c U V w n_max + packedWords (M * totalLocalCoordsWhp n_max) 2 w := rfl
-    have h5 : offFbStart c U V w n_max =
-      offBktMeta c U V w n_max + packedWords (16 * M) gBits w := rfl
-    have h6 : offBackPtr c U V w n_max =
-      offFbStart c U V w n_max + packedWords (M + 1) gBits w := rfl
-    have h7 : offBackAux c U V w n_max =
-      offBackPtr c U V w n_max + packedWords (M * cb) gBits w := rfl
-    have h8 : offPoolFreeStack c U V w n_max =
-      offBackAux c U V w n_max + packedWords (M * cb) (12 * logLogFactor n_max + 4) w := rfl
-    have h9 : offPoolOwner c U V w n_max =
-      offPoolFreeStack c U V w n_max + packedWords (poolSizeWhp n_max) gBits w := rfl
-    have h10 : offBtMeta c U V w n_max =
-      offPoolOwner c U V w n_max + packedWords (poolSizeWhp n_max) gBits w := rfl
-    have h11 : offTrieChild0 c U V w n_max = offBtVals c U V w n_max +
-      packedWords (totalBTreeNodesWhp n_max) (valsWordBitsWhp n_max) w := rfl
-    have h12 : offBtVals c U V w n_max = offBtKeys c U V w n_max +
-      packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w := rfl
-    have h13 : offBtKeys c U V w n_max = offBtMeta c U V w n_max +
-      packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w := rfl
-    have h14 : offTrieMeta0 c U V w n_max = offTrieChild1 c U V w n_max +
-      packedWords (trieChildEntriesWhp c n_max) gBits w := rfl
-    have h15 : offTrieChild1 c U V w n_max = offTrieChild0 c U V w n_max +
-      packedWords (trieChildEntriesWhp c n_max) gBits w := rfl
-    exact ⟨by omega, by omega, rfl, rfl, by omega, by omega, rfl, rfl, by omega, by omega,
-      (Nat.le_add_right _ _).trans hseg.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1⟩
+    dsimp only [M, gBits, cb]
+    exact ⟨by omega, by omega, by omega, by omega, by omega, by omega, by omega, by omega,
+      by omega, by omega, by omega⟩
   have hfin_to_ffm : ∀ a, base + 16 ≤ a → a < base + offTrieChild0 c U V w n_max →
       s_fin.mem a = s_ffm.mem a := fun a ha1 ha2 =>
     (hout_whd a (Or.inr (Or.inl ⟨ha1, by omega⟩))).trans (hout_ztc a (Or.inl ha2))

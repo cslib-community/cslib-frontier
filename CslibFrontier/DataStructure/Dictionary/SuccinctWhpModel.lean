@@ -59,7 +59,8 @@ Sections 3–5][BenderFarachColtonKuszmaulKuszmaul2024]).
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.fastToCsr`, `csrToFast`, `trySelfHeal`: in-place
   mode transitions via `permuteByTarget`.
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.whpInitPure`, `whpStepPure`, `whpRunPure`,
-  `ValidFastState`, `ValidWhpState`: top-level pure transitions and representation invariants.
+  `OvermarsBucketInv`, `ValidFastState`, `ValidWhpState`: top-level pure transitions and
+  representation invariants.
 
 ## Main results
 
@@ -854,11 +855,9 @@ fallback guard fires. -/
 /-! ## Section 3: In-place `fastToCsr`, `csrToFast`, `trySelfHeal`, and `whpStepPure` -/
 
 /-- Prefix sums `0, bktCount 0, bktCount 0 + bktCount 1, …` up to `M`. -/
-@[expose] def buildFbStart (M : ℕ) (bktCount : ℕ → ℕ) : ℕ → ℕ :=
-  let rec go : ℕ → ℕ
-    | 0 => 0
-    | k + 1 => go k + (if k < M then bktCount k else 0)
-  go
+@[expose] def buildFbStart (M : ℕ) (bktCount : ℕ → ℕ) : ℕ → ℕ
+  | 0 => 0
+  | k + 1 => buildFbStart M bktCount k + (if k < M then bktCount k else 0)
 
 /-- Convert `FastState` in place via `permuteByTarget` into an equivalent `CsrState`. -/
 @[expose] def fastToCsr (n_max : ℕ) (fs : FastState) : CsrState :=
@@ -902,11 +901,10 @@ fallback guard fires. -/
   ⟨fb, pv.1, pv.2⟩
 
 /-- Prefix sums of backyard excesses `∑_{b' < k} ((fbStart (b' + 1) - fbStart b') - capFront)`. -/
-@[expose] def buildBackPrefix (M cf : ℕ) (fbStart : ℕ → ℕ) : ℕ → ℕ :=
-  let rec go : ℕ → ℕ
-    | 0 => 0
-    | k + 1 => go k + (if k < M then (fbStart (k + 1) - fbStart k) - cf else 0)
-  go
+@[expose] def buildBackPrefix (M cf : ℕ) (fbStart : ℕ → ℕ) : ℕ → ℕ
+  | 0 => 0
+  | k + 1 =>
+    buildBackPrefix M cf fbStart k + (if k < M then (fbStart (k + 1) - fbStart k) - cf else 0)
 
 /-- Build a fresh `BTreeSlice` for bucket `b` inserting coordinates `0 .. rem - 1` under `salt`. -/
 @[expose] def buildBucketSlice (c U n_max : ℕ) (θ : SeedWhp c U n_max)
@@ -1143,6 +1141,21 @@ theorem BufMapRel.empty_of_not (M tag : ℕ) (bktCnt : ℕ → ℕ) (locSt rKeyO
   else
     True
 
+/-- Per-bucket Overmars shadow-rebuild invariant in `ValidFastState`. -/
+@[expose] def OvermarsBucketInv (c U n_max : ℕ) (θ : SeedWhp c U n_max)
+    (fs : FastState) (b : ℕ) : Prop :=
+  (fs.overmarsActive b = 0 ∧ fs.liveInsCount b < 5 * (slabScale n_max) ^ 12) ∨
+  (fs.overmarsActive b = 1 ∧
+    16 ≤ fs.overmarsCursor b ∧
+    fs.overmarsCursor b < fs.bktCount b ∧
+    16 * (fs.liveInsCount b - 5 * (slabScale n_max) ^ 12) ≤ fs.overmarsCursor b ∧
+    16 * fs.overmarsInsCount b + 16 ≤ 17 * fs.overmarsCursor b ∧
+    ∃ omMap,
+      ValidWhpSlice n_max (fs.overmarsInsCount b) (fs.slices (fs.overmarsSliceIdx b)) omMap ∧
+      SliceMapRel (fs.fpAt c U n_max θ (fs.bktSalt b) b)
+        (fun loc => inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc) = true)
+        (fs.overmarsCursor b) omMap)
+
 /-- Complete deterministic invariant of `FastState` valid for **every** static seed `θ`. -/
 structure ValidFastState (c U V n_max : ℕ) (θ : SeedWhp c U n_max)
     (fs : FastState) (dict : State U) : Prop where
@@ -1202,18 +1215,7 @@ structure ValidFastState (c U V n_max : ℕ) (θ : SeedWhp c U n_max)
       SliceMapRel (fs.fpAt c U n_max θ (fs.bktSalt b) b)
         (fun loc => inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc) = true)
         (fs.bktCount b) liveMap
-  overmars_valid : ∀ b < numBucketsWhp n_max,
-    (fs.overmarsActive b = 0 ∧ fs.liveInsCount b < 5 * (slabScale n_max) ^ 12) ∨
-    (fs.overmarsActive b = 1 ∧
-      16 ≤ fs.overmarsCursor b ∧
-      fs.overmarsCursor b < fs.bktCount b ∧
-      16 * (fs.liveInsCount b - 5 * (slabScale n_max) ^ 12) ≤ fs.overmarsCursor b ∧
-      16 * fs.overmarsInsCount b + 16 ≤ 17 * fs.overmarsCursor b ∧
-      ∃ omMap,
-        ValidWhpSlice n_max (fs.overmarsInsCount b) (fs.slices (fs.overmarsSliceIdx b)) omMap ∧
-        SliceMapRel (fs.fpAt c U n_max θ (fs.bktSalt b) b)
-          (fun loc => inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc) = true)
-          (fs.overmarsCursor b) omMap)
+  overmars_valid : ∀ b < numBucketsWhp n_max, OvermarsBucketInv c U n_max θ fs b
   rKey_buf_inj : ∀ b₁ < numBucketsWhp n_max, ∀ l₁ < fs.bktCount b₁,
     ∀ b₂ < numBucketsWhp n_max, ∀ l₂ < fs.bktCount b₂,
       2 ≤ fs.locState b₁ l₁ → 2 ≤ fs.locState b₂ l₂ →
@@ -1555,13 +1557,13 @@ private theorem buildFbStart_props (M : ℕ) (cnt : ℕ → ℕ) :
     (∀ b < M, buildFbStart M cnt (b + 1) = buildFbStart M cnt b + cnt b) ∧
     (∀ k ≤ M, buildFbStart M cnt k = ∑ b ∈ range k, cnt b) := by
   refine ⟨rfl, fun b hb => ?_, fun k hk => ?_⟩
-  · simp [buildFbStart, buildFbStart.go, hb]
+  · simp [buildFbStart, hb]
   · induction k with
-    | zero => simp [buildFbStart, buildFbStart.go]
+    | zero => simp [buildFbStart]
     | succ k ih =>
       have hk_lt : k < M := Nat.lt_of_succ_le hk
       rw [Finset.sum_range_succ, ← ih (Nat.le_of_succ_le hk)]
-      simp [buildFbStart, buildFbStart.go, hk_lt]
+      simp [buildFbStart, hk_lt]
 
 private theorem buildBackPrefix_props (M cf : ℕ) (fb : ℕ → ℕ) :
     buildBackPrefix M cf fb 0 = 0 ∧
@@ -1570,13 +1572,13 @@ private theorem buildBackPrefix_props (M cf : ℕ) (fb : ℕ → ℕ) :
     (∀ k ≤ M, buildBackPrefix M cf fb k =
       ∑ b ∈ range k, ((fb (b + 1) - fb b) - cf)) := by
   refine ⟨rfl, fun b hb => ?_, fun k hk => ?_⟩
-  · simp [buildBackPrefix, buildBackPrefix.go, hb]
+  · simp [buildBackPrefix, hb]
   · induction k with
-    | zero => simp [buildBackPrefix, buildBackPrefix.go]
+    | zero => simp [buildBackPrefix]
     | succ k ih =>
       have hk_lt : k < M := Nat.lt_of_succ_le hk
       rw [Finset.sum_range_succ, ← ih (Nat.le_of_succ_le hk)]
-      simp [buildBackPrefix, buildBackPrefix.go, hk_lt]
+      simp [buildBackPrefix, hk_lt]
 
 private theorem fb_offset_inj {M : ℕ} {fb cnt : ℕ → ℕ}
     (hadj : ∀ b < M, fb (b + 1) = fb b + cnt b)

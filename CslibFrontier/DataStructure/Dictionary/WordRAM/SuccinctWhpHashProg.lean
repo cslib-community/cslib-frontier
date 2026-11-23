@@ -404,6 +404,7 @@ abbrev HashRt : Type :=
 
 private def hrHpBkt (hrt : HashRt) : HashParams := hrt.1.1
 private def hrHpFp (hrt : HashRt) : HashParams := hrt.1.2
+/-- Base word address extracted from `HashRt`. -/
 @[expose] def hrBase (hrt : HashRt) : ℕ := hrt.2.1.1
 private def hrULim (hrt : HashRt) : ℕ := hrt.2.1.2
 private def hrBBits (hrt : HashRt) : ℕ := hrt.2.2.1.1
@@ -476,63 +477,7 @@ private theorem hashRt_segments_le {c U V w n_max base : ℕ} :
     base + offHashFp c w n_max < base + largeSpaceWhp c U V w n_max := by
   have hsp2 := BitPackedDoubleTabulation.space_pos w (cTabWhp c) (dTabWhp c)
     (bCharWhp n_max) (fpBitsWhp n_max)
-  have hend := largeOffsets_eq c U V w n_max
-  have h1 : offHashBkt = 32 := rfl
-  have h2 : offHashFp c w n_max = offHashBkt + bktHashWords c w n_max := rfl
-  have h3 : offQuotWhp c w n_max = offHashFp c w n_max + fpHashWords c w n_max := rfl
-  have h4 : offValWhp c U w n_max =
-      offQuotWhp c w n_max + packedWords n_max (quotBitsWhp U n_max) w := rfl
-  have h5 : offPermAct c U V w n_max =
-      offValWhp c U w n_max + packedWords n_max (valBits V) w := rfl
-  have h6 : offLocState c U V w n_max =
-      offPermAct c U V w n_max + packedWords n_max (12 * logLogFactor n_max + 4) w := rfl
-  have h7 : offBktMeta c U V w n_max =
-      offLocState c U V w n_max +
-        packedWords (numBucketsWhp n_max * totalLocalCoordsWhp n_max) 2 w := rfl
-  have h8 : offFbStart c U V w n_max =
-      offBktMeta c U V w n_max +
-        packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w := rfl
-  have h9 : offBackPtr c U V w n_max =
-      offFbStart c U V w n_max +
-        packedWords (numBucketsWhp n_max + 1) (globalPtrBits n_max) w := rfl
-  have h10 : offBackAux c U V w n_max =
-      offBackPtr c U V w n_max +
-        packedWords (numBucketsWhp n_max * capBackWhp n_max) (globalPtrBits n_max) w := rfl
-  have h11 : offPoolFreeStack c U V w n_max =
-      offBackAux c U V w n_max +
-        packedWords (numBucketsWhp n_max * capBackWhp n_max) (12 * logLogFactor n_max + 4) w := rfl
-  have h12 : offPoolOwner c U V w n_max =
-      offPoolFreeStack c U V w n_max +
-        packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w := rfl
-  have h13 : offBtMeta c U V w n_max =
-      offPoolOwner c U V w n_max +
-        packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w := rfl
-  have h14 : offBtKeys c U V w n_max =
-      offBtMeta c U V w n_max +
-        packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w := rfl
-  have h15 : offBtVals c U V w n_max =
-      offBtKeys c U V w n_max +
-        packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w := rfl
-  have h16 : offTrieChild0 c U V w n_max =
-      offBtVals c U V w n_max +
-        packedWords (totalBTreeNodesWhp n_max) (valsWordBitsWhp n_max) w := rfl
-  have h17 : offTrieChild1 c U V w n_max =
-      offTrieChild0 c U V w n_max +
-        packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w := rfl
-  have h18 : offTrieMeta0 c U V w n_max =
-      offTrieChild1 c U V w n_max +
-        packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w := rfl
-  have h19 : offTrieMeta1 c U V w n_max =
-      offTrieMeta0 c U V w n_max +
-        packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w := rfl
-  have h20 : offTrieItems0 c U V w n_max =
-      offTrieMeta1 c U V w n_max +
-        packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w := rfl
-  have h21 : offTrieItems1 c U V w n_max =
-      offTrieItems0 c U V w n_max +
-        packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w := rfl
-  unfold bktHashWords at h2
-  unfold fpHashWords at h3
+  have hch := largeOffsetChain c U V w n_max
   exact ⟨by omega, by omega, by omega⟩
 
 /-! ## Section 3: Certified `bktHash`, Feistel Split/Reconstruct, `fpReducedKey`, `fpOfSalt` -/

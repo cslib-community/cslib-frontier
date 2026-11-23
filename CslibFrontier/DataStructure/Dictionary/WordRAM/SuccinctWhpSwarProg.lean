@@ -591,43 +591,7 @@ theorem seg_end_le (c U V w₀ n_max : ℕ) :
     offTrieItems1 c U V w₀ n_max +
         packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w₀ ≤
       largeSpaceWhp c U V w₀ n_max := by
-  have hend := largeOffsets_eq c U V w₀ n_max
-  have h1 : offValWhp c U w₀ n_max =
-      offQuotWhp c w₀ n_max + packedWords n_max (quotBitsWhp U n_max) w₀ := rfl
-  have h2 : offPermAct c U V w₀ n_max =
-      offValWhp c U w₀ n_max + packedWords n_max (valBits V) w₀ := rfl
-  have h3 : offLocState c U V w₀ n_max =
-      offPermAct c U V w₀ n_max + packedWords n_max (12 * logLogFactor n_max + 4) w₀ := rfl
-  have h4 : offBktMeta c U V w₀ n_max = offLocState c U V w₀ n_max +
-      packedWords (numBucketsWhp n_max * totalLocalCoordsWhp n_max) 2 w₀ := rfl
-  have h5 : offFbStart c U V w₀ n_max = offBktMeta c U V w₀ n_max +
-      packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w₀ := rfl
-  have h6 : offBackPtr c U V w₀ n_max = offFbStart c U V w₀ n_max +
-      packedWords (numBucketsWhp n_max + 1) (globalPtrBits n_max) w₀ := rfl
-  have h7 : offBackAux c U V w₀ n_max = offBackPtr c U V w₀ n_max +
-      packedWords (numBucketsWhp n_max * capBackWhp n_max) (globalPtrBits n_max) w₀ := rfl
-  have h8 : offPoolFreeStack c U V w₀ n_max = offBackAux c U V w₀ n_max +
-      packedWords (numBucketsWhp n_max * capBackWhp n_max) (12 * logLogFactor n_max + 4) w₀ := rfl
-  have h9 : offPoolOwner c U V w₀ n_max = offPoolFreeStack c U V w₀ n_max +
-      packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w₀ := rfl
-  have h10 : offBtMeta c U V w₀ n_max = offPoolOwner c U V w₀ n_max +
-      packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w₀ := rfl
-  have h11 : offBtKeys c U V w₀ n_max = offBtMeta c U V w₀ n_max +
-      packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w₀ := rfl
-  have h12 : offBtVals c U V w₀ n_max = offBtKeys c U V w₀ n_max +
-      packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w₀ := rfl
-  have h13 : offTrieChild0 c U V w₀ n_max = offBtVals c U V w₀ n_max +
-      packedWords (totalBTreeNodesWhp n_max) (valsWordBitsWhp n_max) w₀ := rfl
-  have h14 : offTrieChild1 c U V w₀ n_max = offTrieChild0 c U V w₀ n_max +
-      packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w₀ := rfl
-  have h15 : offTrieMeta0 c U V w₀ n_max = offTrieChild1 c U V w₀ n_max +
-      packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w₀ := rfl
-  have h16 : offTrieMeta1 c U V w₀ n_max = offTrieMeta0 c U V w₀ n_max +
-      packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w₀ := rfl
-  have h17 : offTrieItems0 c U V w₀ n_max = offTrieMeta1 c U V w₀ n_max +
-      packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w₀ := rfl
-  have h18 : offTrieItems1 c U V w₀ n_max = offTrieItems0 c U V w₀ n_max +
-      packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w₀ := rfl
+  have hch := largeOffsetChain c U V w₀ n_max
   exact ⟨by omega, by omega, by omega, by omega, by omega, by omega, by omega, by omega,
     by omega, by omega, by omega, by omega, by omega, by omega, by omega, by omega,
     by omega, by omega⟩
@@ -1289,27 +1253,6 @@ theorem writeSliceAllocGenProg_spec {c U V w n_max base sIdx newAlloc : ℕ}
   simp only [wp_large_offBktMeta hth, wp_large_globalPtrBits hth, wp_large_w hth, pure_bind]
   exact ⟨rfl, rfl, validProg_writePacked hw (globalPtrBits_le_w hnU hU) hidxA hba_le⟩
 
-theorem realizes_writeSliceAllocGen :
-    Realizes .exact writeSliceAllocGenProg
-      (WordEncoding.encode (α := ((WhpCoreParams × ℕ) × ℕ) × ℕ))
-      (WordEncoding.encode (α := Unit))
-      (fun w (((cp, base), sIdx), _) _ => WhpLargeEnvGen w cp base ∧ sIdx < 3 * wpM cp)
-      (fun _ _ => 0) := by
-  have hwp := realizes_writePackedGen
-  realize
-  all_goals
-    rcases d with ⟨⟨⟨cp, base⟩, sIdx⟩, newAlloc⟩
-    obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hsIdx⟩ := h
-    have hth := henv.2.2.2.1
-    have h16M := sixteen_mul_numBuckets_le_n_max hth
-    simp only [wp_large_M hth, wp_large_offBktMeta hth, wp_large_globalPtrBits hth,
-      wp_large_w hth] at hsIdx ⊢
-    first
-    | decide
-    | exact henv.fits_const (by decide)
-    | exact henv.fits_of_le_n_max (by omega)
-    | exact henv.bktMeta_safe (by omega)
-
 /-- Reset slice `sIdx = d.2` to `zeroBTreeSlice` (`alloc := 0`, `root := 0`). -/
 @[expose] def resetBTreeSliceGenProg : (WhpCoreParams × ℕ) × ℕ → Memory.Prog Unit
   | ((cp, base), sIdx) => do
@@ -1343,12 +1286,10 @@ theorem resetBTreeSliceGenProg_spec {c U V w n_max base sIdx : ℕ}
         readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem idx) ∧
     (∀ a, a < base + offBktMeta c U V w n_max ∨ base + offFbStart c U V w n_max ≤ a →
       s'.mem a = s.mem a) := by
-  have hseg := (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.1
+  have hch := largeOffsetChain c U V w n_max
   have hba_le : base + offBktMeta c U V w n_max +
       packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w ≤
-      base + largeSpaceWhp c U V w n_max := by rw [Nat.add_assoc]; exact Nat.add_le_add_left hseg _
-  have hfb : offFbStart c U V w n_max = offBktMeta c U V w n_max +
-      packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w := rfl
+      base + largeSpaceWhp c U V w n_max := by omega
   have hgk : globalPtrBits n_max ≤ w := globalPtrBits_le_w hnU hU
   have hg_pos : 0 < globalPtrBits n_max := globalPtrBits_pos_of_large hth
   have h0_lt : 0 < 2 ^ globalPtrBits n_max := Nat.two_pow_pos _
@@ -1405,23 +1346,6 @@ theorem resetBTreeSliceGenProg_spec {c U V w n_max base sIdx : ℕ}
             Nat.add_lt_add_left hu_ns _
         _ = (sIdx' + 1) * nSliceWhp n_max := by ring
         _ ≤ (3 * numBucketsWhp n_max) * nSliceWhp n_max := Nat.mul_le_mul_right _ hsIdx'
-    have hbt_ge : offFbStart c U V w n_max ≤ offBtMeta c U V w n_max := by
-      have h6 : offBackPtr c U V w n_max = offFbStart c U V w n_max +
-          packedWords (numBucketsWhp n_max + 1) (globalPtrBits n_max) w := rfl
-      have h7 : offBackAux c U V w n_max = offBackPtr c U V w n_max +
-          packedWords (numBucketsWhp n_max * capBackWhp n_max) (globalPtrBits n_max) w := rfl
-      have h8 : offPoolFreeStack c U V w n_max = offBackAux c U V w n_max +
-          packedWords (numBucketsWhp n_max * capBackWhp n_max) (12 * logLogFactor n_max +
-            4) w := rfl
-      have h9 : offPoolOwner c U V w n_max = offPoolFreeStack c U V w n_max +
-          packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w := rfl
-      have h10 : offBtMeta c U V w n_max = offPoolOwner c U V w n_max +
-          packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w := rfl
-      omega
-    have hbtk : offBtKeys c U V w n_max = offBtMeta c U V w n_max +
-        packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w := rfl
-    have hbtv : offBtVals c U V w n_max = offBtKeys c U V w n_max +
-        packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w := rfl
     exact ⟨(readPacked_congr hw (hidx := hidx_n) fun a ⟨ha1, _⟩ => hout a (Or.inr (by omega))).trans
         (hrep'.2.2.2 u hu).1,
       (readPacked_congr hw (hidx := hidx_n) fun a ⟨ha1, _⟩ => hout a (Or.inr (by omega))).trans
@@ -1598,13 +1522,8 @@ theorem writeBTreeNodeGenProg_spec {c U V w n_max base sIdx u : ℕ} {nd : BTree
       s'.mem a = s.mem a) := by
   have hth := henv.2.2.2.1
   have hw := henv.2.1
+  have hch := largeOffsetChain c U V w n_max
   have hseg := (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.2.2.2.2.2
-  have hbtk : offBtKeys c U V w n_max = offBtMeta c U V w n_max +
-      packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w := rfl
-  have hbtv : offBtVals c U V w n_max = offBtKeys c U V w n_max +
-      packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w := rfl
-  have htc0 : offTrieChild0 c U V w n_max = offBtVals c U V w n_max +
-      packedWords (totalBTreeNodesWhp n_max) (valsWordBitsWhp n_max) w := rfl
   have hnm_le : nodeMetaBitsWhp n_max ≤ w := by
     have h1 := log_ge_mul_ell hth
     have h2 := one_le_logLogFactor n_max
@@ -1718,23 +1637,6 @@ theorem writeBTreeNodeGenProg_spec {c U V w n_max base sIdx u : ℕ} {nd : BTree
           ((hrV_M _ hidx_v).trans p3)⟩
   · intro sIdx' hsIdx' hne sl' hrep'
     dsimp only at hrep' ⊢
-    have hbm_lt : offBktMeta c U V w n_max +
-        packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w ≤
-        offBtMeta c U V w n_max := by
-      have h5 : offFbStart c U V w n_max = offBktMeta c U V w n_max +
-          packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w := rfl
-      have h6 : offBackPtr c U V w n_max = offFbStart c U V w n_max +
-          packedWords (numBucketsWhp n_max + 1) (globalPtrBits n_max) w := rfl
-      have h7 : offBackAux c U V w n_max = offBackPtr c U V w n_max +
-          packedWords (numBucketsWhp n_max * capBackWhp n_max) (globalPtrBits n_max) w := rfl
-      have h8 : offPoolFreeStack c U V w n_max = offBackAux c U V w n_max +
-          packedWords (numBucketsWhp n_max * capBackWhp n_max) (12 * logLogFactor n_max +
-            4) w := rfl
-      have h9 : offPoolOwner c U V w n_max = offPoolFreeStack c U V w n_max +
-          packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w := rfl
-      have h10 : offBtMeta c U V w n_max = offPoolOwner c U V w n_max +
-          packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w := rfl
-      omega
     have hbm_eq : ∀ i < 16 * numBucketsWhp n_max,
         readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w mem₃ i =
           readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem i :=

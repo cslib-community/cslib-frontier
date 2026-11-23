@@ -1664,7 +1664,7 @@ using only division and remainder `< max (N + 1) M`. -/
   let lb := if rN == 0 then qN - δ else (qN + 1) - δ
   decide (X_b ≤ qN + δ) && decide (lb ≤ X_b)
 
-theorem checkBalancedBucketNat_eq_true_iff {M δ N X_b : ℕ} (hM : 0 < M) :
+private theorem checkBalancedBucketNat_eq_true_iff {M δ N X_b : ℕ} (hM : 0 < M) :
     checkBalancedBucketNat M δ N X_b = true ↔
       (M * X_b ≤ N + M * δ ∧ N ≤ M * X_b + M * δ) := by
   unfold checkBalancedBucketNat

@@ -2599,20 +2599,10 @@ private theorem stage2CollisionResetProg_fastStep {c U V w n_max base b : ℕ}
 @[irreducible] private def stage2SwapRolesProg :
     (WhpCoreParams × ℕ) × ℕ → Memory.Prog ℕ
   | ((cp, base), b) => do
-    let z0 ← pure 0
-    let z3 ← pure 3
+    let ro ← readRebAndOmRoleGenProg ((cp, base), b)
     let f2 ← pure 2
-    let f4 ← pure 4
-    let lr ← readBktFieldGenProg (((cp, base), b), f2)
-    let omRole ← readBktFieldGenProg (((cp, base), b), f4)
-    let oldReb ←
-      if lr ≤ z3 then
-        let rem ← pure (z3 - lr)
-        if omRole ≤ rem then pure (rem - omRole) else pure z0
-      else
-        pure z0
-    writeBktFieldGenProg ((((cp, base), b), f2), oldReb)
-    pure omRole
+    writeBktFieldGenProg ((((cp, base), b), f2), ro.1)
+    pure ro.2
 
 private theorem realizes_stage2SwapRoles :
     Realizes .exact stage2SwapRolesProg
@@ -2621,7 +2611,7 @@ private theorem realizes_stage2SwapRoles :
       (fun w ((cp, base), b) _ => WhpLargeEnvGen w cp base ∧ b < wpM cp)
       (fun _ _ => 0) := by
   unfold stage2SwapRolesProg
-  have hrb := realizes_readBktFieldGen
+  have hro := realizes_readRebAndOmRoleGen
   have hwb := realizes_writeBktFieldGen
   realize
   all_goals (
@@ -2630,13 +2620,12 @@ private theorem realizes_stage2SwapRoles :
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hb⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
-    rw [wp_large_M hth] at hb
+    simp only [wp_large_M hth] at *
     first
     | decide
-    | omega
+    | exact hb
     | exact henv.fits_const (by decide)
     | exact ⟨c, U, V, w, n_max, henv, rfl⟩
-    | (rw [wp_large_M hth]; exact hb)
   )
 
 private theorem stage2SwapRolesProg_fastStep {c U V w n_max base b : ℕ}
@@ -2657,14 +2646,10 @@ private theorem stage2SwapRolesProg_fastStep {c U V w n_max base b : ℕ}
   have h3_le : 3 ≤ n_max := by
     have := henv.numBuckets_le_n_max; have := (large_bounds_lt_n_max hth).1; omega
   set cp := mkWhpCoreParams c U V w n_max
-  obtain ⟨h2_st, h2_res, h2_mc, h2_vp⟩ :=
-    readBktFieldGenProg_spec henv hb (by decide : 2 < 10) hrep (s := s)
-  obtain ⟨h4_st, h4_res, h4_mc, h4_vp⟩ :=
-    readBktFieldGenProg_spec henv hb (by decide : 4 < 10) hrep (s := s)
-  simp only [getBktField] at h2_res h4_res
-  have hlr_le : fs.liveRole b ≤ 3 := by omega
-  have hom_le : fs.overmarsRole b ≤ 3 - fs.liveRole b := by omega
-  have hrr_eq : 3 - fs.liveRole b - fs.overmarsRole b = fs.rebRole b := rfl
+  obtain ⟨hro_st, hro_res, hro_mc, hro_vp⟩ :=
+    readRebAndOmRoleGenProg_spec henv hb hrep (s := s)
+  have hcond : fs.liveRole b ≤ 3 ∧ fs.overmarsRole b ≤ 3 - fs.liveRole b := ⟨by omega, by omega⟩
+  rw [ite_eq_left hcond] at hro_res
   obtain ⟨hw1_mc, hw1_vp, hw1_step⟩ :=
     writeBktFieldGenProg_fastStep henv hb (by decide : 2 < 10)
       (by dsimp [FastState.rebRole]; omega) hseed hrep (val := fs.rebRole b) (s := s)
@@ -2672,19 +2657,14 @@ private theorem stage2SwapRolesProg_fastStep {c U V w n_max base b : ℕ}
   dsimp only
   unfold stage2SwapRolesProg; simp only [pure_bind]
   refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientResult_bind, h2_st, h2_res, clientResult_bind, h4_st, h4_res,
-      ite_eq_left hlr_le, ite_eq_left hom_le, hrr_eq, clientResult_bind]; rfl
+  · rw [clientResult_bind, hro_st, hro_res, clientResult_bind]; rfl
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [h2_st, h2_res, h2_mc, h4_st, h4_res, h4_mc, ite_eq_left hlr_le, ite_eq_left hom_le]
-    simp only [memoryCost_bind, memoryCost_pure, hrr_eq]
+    rw [hro_st, hro_res, hro_mc]
+    simp only [memoryCost_pure]
     dsimp only [cp] at hw1_mc ⊢; omega
-  · refine validProg_bind h2_vp ?_; rw [h2_st, h2_res]
-    refine validProg_bind h4_vp ?_
-    rw [h4_st, h4_res, ite_eq_left hlr_le, ite_eq_left hom_le, hrr_eq]
+  · refine validProg_bind hro_vp ?_; rw [hro_st, hro_res]
     exact validProg_bind hw1_vp (validProg_pure _)
-  · rw [clientState_bind, h2_st, h2_res, clientState_bind, h4_st, h4_res,
-      ite_eq_left hlr_le, ite_eq_left hom_le, hrr_eq,
-      clientState_bind, clientState_pure_whp]
+  · rw [clientState_bind, hro_st, hro_res, clientState_bind, clientState_pure_whp]
     exact hw1_step
 
 @[irreducible] private def stage2SwapCountsProg :

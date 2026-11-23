@@ -1521,7 +1521,7 @@ private theorem step_of_inLiveTree_eq {c U V n_max clk₀ : ℕ} {θ : SeedWhp c
   exact ⟨hc', hom', hstg_valid, hclk_eq⟩
 
 /-- Specification of `rebScanSteps c U n_max θ b rem fs` starting from `fs.rebCollision = 0`. -/
-theorem rebScanSteps_spec {c U n_max b : ℕ} (hth : whpThreshold c ≤ n_max)
+private theorem rebScanSteps_spec {c U n_max b : ℕ} (hth : whpThreshold c ≤ n_max)
     (θ : SeedWhp c U n_max) (rem : ℕ) (fs : FastState)
     (hcoll0 : fs.rebCollision = 0)
     (hcnt_le : fs.bktCount b ≤ 3 * (slabScale n_max) ^ 12)

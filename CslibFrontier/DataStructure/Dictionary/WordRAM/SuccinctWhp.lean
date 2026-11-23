@@ -73,6 +73,14 @@ addressable universe/value/footprint bounds `Fits w U`, `Fits w V`, and
      families are explicitly sampled and stored inside `whpSpace c U V w n_max` via salted
      bit-packed double tabulation [Thorup2013], and below the `c`-only threshold `whpThreshold c`
      (`bMinWhp c = Θ(c^6)`) operations use a deterministic bit-packed array in `O_c(1)` time.
+   * **High-probability vs. deterministic query time**: SOSA 2024 (Theorem 1.1, Lemma 4.3 on PDF
+     p. 5, and Section 5 on PDF pp. 6–7) achieves deterministic worst-case `O(1)` queries alongside
+     w.h.p. `O(1)` updates by resampling colliding bucket fingerprints from its random hash oracle
+     until injective. Because `SuccinctWhp` samples a static seed pair once during `initSetupCode`
+     (`0` runtime `rand` calls) and routes rare bad seeds to deterministic `CsrState` (`O(n_max)`
+     scan), `query` here runs in `O_c(1)` worst-case time with high probability
+     `≥ 1 - (max n_max 1 : ℝ≥0∞)⁻¹ ^ c` (`reachable_step_whp`) rather than deterministic
+     worst-case `O(1)` on bad seeds.
    * **Width independence (`not_readsWidth_subroutineCode`)**: none of `initFresh`, `initClear`, or
      `code` inspects the ambient word width `w` (`¬ReadsWidth`).
 

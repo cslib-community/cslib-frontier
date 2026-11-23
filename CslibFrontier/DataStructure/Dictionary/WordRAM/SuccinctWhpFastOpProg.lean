@@ -54,9 +54,9 @@ open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 attribute [local simp] clientResult_pure_whp clientState_pure_whp
 /-! ## Section 6: Fast-Mode Deletion (`fastDeleteGenProg`) -/
 
-/-- Read `fs.rebSliceIdx b = 3 * b + (3 - fs.liveRole b - fs.overmarsRole b)`
+/-- Read `(fs.rebRole b, fs.overmarsRole b)` from bucket `b` metadata fields `2` and `4`
 (`d = ((cp, base), b)`). -/
-@[irreducible] def readRebSliceIdxGenProg : (WhpCoreParams × ℕ) × ℕ → Memory.Prog ℕ
+@[irreducible] def readRebAndOmRoleGenProg : (WhpCoreParams × ℕ) × ℕ → Memory.Prog (ℕ × ℕ)
   | ((cp, base), b) => do
     let z0 ← pure 0
     let z3 ← pure 3
@@ -68,15 +68,15 @@ attribute [local simp] clientResult_pure_whp clientState_pure_whp
         if orl ≤ rem then pure (rem - orl) else pure z0
       else
         pure z0
-    pure (3 * b + rRole)
+    pure (rRole, orl)
 
-theorem realizes_readRebSliceIdxGen :
-    Realizes .exact readRebSliceIdxGenProg
+theorem realizes_readRebAndOmRoleGen :
+    Realizes .exact readRebAndOmRoleGenProg
       (WordEncoding.encode (α := (WhpCoreParams × ℕ) × ℕ))
-      (WordEncoding.encode (α := ℕ))
+      (WordEncoding.encode (α := ℕ × ℕ))
       (fun w ((cp, base), b) _ => WhpLargeEnvGen w cp base ∧ b < wpM cp)
       (fun _ _ => 0) := by
-  unfold readRebSliceIdxGenProg
+  unfold readRebAndOmRoleGenProg
   have hrb := realizes_readBktFieldGen
   realize
   all_goals (
@@ -85,25 +85,24 @@ theorem realizes_readRebSliceIdxGen :
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hb⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
-    have h16M := sixteen_mul_numBuckets_le_n_max hth
-    have h3M := (large_index_bounds hth).2.2.2.2.1
     simp only [wp_large_M hth] at *
     first
     | decide
     | omega
     | exact henv.fits_const (by decide)
-    | exact henv.fits_of_le_n_max (by omega)
     | exact ⟨c, U, V, w, n_max, henv, rfl⟩
   )
 
-theorem readRebSliceIdxGenProg_spec {c U V w n_max base b : ℕ} {fs : FastState}
+theorem readRebAndOmRoleGenProg_spec {c U V w n_max base b : ℕ} {fs : FastState}
     {s : Memory.State}
     (henv : WhpLargeEnv c U V w n_max w base)
     (hb : b < numBucketsWhp n_max)
     (hrep : FastMemRep base c U V w n_max fs s.mem) :
-    let prog := readRebSliceIdxGenProg ((mkWhpCoreParams c U V w n_max, base), b)
+    let prog := readRebAndOmRoleGenProg ((mkWhpCoreParams c U V w n_max, base), b)
     (Memory.spec 0).clientState s prog = s ∧
-    (Memory.spec 0).clientResult s prog = fs.rebSliceIdx b ∧
+    (Memory.spec 0).clientResult s prog =
+      (if fs.liveRole b ≤ 3 ∧ fs.overmarsRole b ≤ 3 - fs.liveRole b
+       then fs.rebRole b else 0, fs.overmarsRole b) ∧
     memoryCost prog s = 4 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
   obtain ⟨h2_st, h2_res, h2_mc, h2_vp⟩ :=
@@ -111,7 +110,7 @@ theorem readRebSliceIdxGenProg_spec {c U V w n_max base b : ℕ} {fs : FastState
   obtain ⟨h4_st, h4_res, h4_mc, h4_vp⟩ :=
     readBktFieldGenProg_spec henv hb (by decide : 4 < 10) hrep (s := s)
   simp only [getBktField] at h2_res h4_res
-  unfold readRebSliceIdxGenProg FastState.rebSliceIdx FastState.rebRole
+  unfold readRebAndOmRoleGenProg FastState.rebRole
   simp only [pure_bind]
   refine ⟨?_, ?_, ?_, ?_⟩
   · rw [clientState_bind, h2_st, h2_res, clientState_bind, h4_st, h4_res]
@@ -120,11 +119,10 @@ theorem readRebSliceIdxGenProg_spec {c U V w n_max base b : ℕ} {fs : FastState
     · simp only [hlr3, ↓reduceIte]; rfl
   · rw [clientResult_bind, h2_st, h2_res, clientResult_bind, h4_st, h4_res]
     by_cases hlr3 : fs.liveRole b ≤ 3
-    · simp only [hlr3, ↓reduceIte]
-      by_cases hor3 : fs.overmarsRole b ≤ 3 - fs.liveRole b
-      · simp only [hor3, ↓reduceIte, clientResult_pure_whp]
-      · simp only [hor3, ↓reduceIte, clientResult_pure_whp]; omega
-    · simp only [hlr3, ↓reduceIte, clientResult_pure_whp]; omega
+    · simp only [hlr3, ↓reduceIte, true_and]
+      by_cases hor3 : fs.overmarsRole b ≤ 3 - fs.liveRole b <;>
+        simp only [hor3, ↓reduceIte, clientResult_pure_whp]
+    · simp only [hlr3, ↓reduceIte, false_and, clientResult_pure_whp]
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
     rw [h2_st, h2_res, h2_mc, h4_st, h4_res, h4_mc]
     by_cases hlr3 : fs.liveRole b ≤ 3
@@ -139,6 +137,67 @@ theorem readRebSliceIdxGenProg_spec {c U V w n_max base b : ℕ} {fs : FastState
       by_cases hor3 : fs.overmarsRole b ≤ 3 - fs.liveRole b <;>
         (simp only [hor3, ↓reduceIte]; exact validProg_pure _)
     · simp only [hlr3, ↓reduceIte]; exact validProg_pure _
+
+private theorem readRebAndOmRoleGenProg_fst_le (cp : WhpCoreParams) (base b : ℕ)
+    (s : Memory.State) :
+    ((Memory.spec 0).clientResult s (readRebAndOmRoleGenProg ((cp, base), b))).1 ≤ 3 := by
+  unfold readRebAndOmRoleGenProg
+  simp only [pure_bind, clientResult_bind]
+  split_ifs <;> simp only [clientResult_pure_whp] <;> omega
+
+/-- Read `fs.rebSliceIdx b = 3 * b + (3 - fs.liveRole b - fs.overmarsRole b)`
+(`d = ((cp, base), b)`). -/
+@[irreducible] def readRebSliceIdxGenProg : (WhpCoreParams × ℕ) × ℕ → Memory.Prog ℕ
+  | ((cp, base), b) => do
+    let ro ← readRebAndOmRoleGenProg ((cp, base), b)
+    pure (3 * b + ro.1)
+
+theorem realizes_readRebSliceIdxGen :
+    Realizes .exact readRebSliceIdxGenProg
+      (WordEncoding.encode (α := (WhpCoreParams × ℕ) × ℕ))
+      (WordEncoding.encode (α := ℕ))
+      (fun w ((cp, base), b) _ => WhpLargeEnvGen w cp base ∧ b < wpM cp)
+      (fun _ _ => 0) := by
+  unfold readRebSliceIdxGenProg
+  have hro := realizes_readRebAndOmRoleGen
+  realize
+  all_goals (
+    rcases d with ⟨⟨cp, base⟩, b⟩
+    dsimp only at *
+    obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hb⟩ := h
+    have hw_eq := henv.2.2.1; subst hw_eq
+    have hth := henv.2.2.2.1
+    have h3M := (large_index_bounds hth).2.2.2.2.1
+    have hfst := readRebAndOmRoleGenProg_fst_le (mkWhpCoreParams c U V w n_max) base b s
+    simp only [wp_large_M hth] at *
+    first
+    | exact hb
+    | exact ⟨c, U, V, w, n_max, henv, rfl⟩
+    | exact henv.fits_const (by decide)
+    | exact henv.fits_of_le_n_max (by omega)
+  )
+
+theorem readRebSliceIdxGenProg_spec {c U V w n_max base b : ℕ} {fs : FastState}
+    {s : Memory.State}
+    (henv : WhpLargeEnv c U V w n_max w base)
+    (hb : b < numBucketsWhp n_max)
+    (hrep : FastMemRep base c U V w n_max fs s.mem) :
+    let prog := readRebSliceIdxGenProg ((mkWhpCoreParams c U V w n_max, base), b)
+    (Memory.spec 0).clientState s prog = s ∧
+    (Memory.spec 0).clientResult s prog = fs.rebSliceIdx b ∧
+    memoryCost prog s = 4 ∧
+    ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
+  obtain ⟨hro_st, hro_res, hro_mc, hro_vp⟩ :=
+    readRebAndOmRoleGenProg_spec henv hb hrep (s := s)
+  unfold readRebSliceIdxGenProg FastState.rebSliceIdx
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rw [clientState_bind, hro_st]; rfl
+  · rw [clientResult_bind, hro_st, hro_res, clientResult_pure_whp]
+    dsimp only [FastState.rebRole]
+    split_ifs <;> omega
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+    rw [hro_st, hro_mc]; simp
+  · refine validProg_bind hro_vp ?_; rw [hro_st]; exact validProg_pure _
 
 /-- Extract buffer and slice invariants on bucket `b` from `ValidFastState`. -/
 private theorem validFastState_delete_bounds {c U V n_max b : ℕ} {θ : SeedWhp c U n_max}

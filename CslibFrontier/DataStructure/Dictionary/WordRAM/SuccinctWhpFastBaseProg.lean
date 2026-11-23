@@ -61,71 +61,6 @@ open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 attribute [local simp] clientResult_pure_whp clientState_pure_whp
 
-/-- Ordered segment offset chain for `largeSpaceWhp`, allowing `omega` to discharge segment
-disjointness in one step. -/
-private theorem large_offset_chain (c U V w n_max : ℕ) :
-    32 = offHashBkt ∧
-    offHashBkt < offQuotWhp c w n_max ∧
-    offQuotWhp c w n_max + packedWords n_max (quotBitsWhp U n_max) w = offValWhp c U w n_max ∧
-    offValWhp c U w n_max + packedWords n_max (valBits V) w = offPermAct c U V w n_max ∧
-    offPermAct c U V w n_max ≤ offLocState c U V w n_max ∧
-    offLocState c U V w n_max +
-        packedWords (numBucketsWhp n_max * totalLocalCoordsWhp n_max) 2 w =
-      offBktMeta c U V w n_max ∧
-    offBktMeta c U V w n_max + packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w =
-      offFbStart c U V w n_max ∧
-    offFbStart c U V w n_max ≤ offBackPtr c U V w n_max ∧
-    offBackPtr c U V w n_max +
-        packedWords (numBucketsWhp n_max * capBackWhp n_max) (globalPtrBits n_max) w =
-      offBackAux c U V w n_max ∧
-    offBackAux c U V w n_max ≤ offPoolFreeStack c U V w n_max ∧
-    offPoolFreeStack c U V w n_max + packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w =
-      offPoolOwner c U V w n_max ∧
-    offPoolOwner c U V w n_max + packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w =
-      offBtMeta c U V w n_max ∧
-    offBtMeta c U V w n_max +
-        packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w =
-      offBtKeys c U V w n_max ∧
-    offBtKeys c U V w n_max +
-        packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w =
-      offBtVals c U V w n_max ∧
-    offBtVals c U V w n_max +
-        packedWords (totalBTreeNodesWhp n_max) (valsWordBitsWhp n_max) w =
-      offTrieChild0 c U V w n_max ∧
-    offTrieChild0 c U V w n_max +
-        packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w =
-      offTrieChild1 c U V w n_max ∧
-    offTrieChild1 c U V w n_max +
-        packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w =
-      offTrieMeta0 c U V w n_max ∧
-    offTrieMeta0 c U V w n_max +
-        packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w =
-      offTrieMeta1 c U V w n_max ∧
-    offTrieMeta1 c U V w n_max +
-        packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w =
-      offTrieItems0 c U V w n_max ∧
-    offTrieItems0 c U V w n_max +
-        packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w =
-      offTrieItems1 c U V w n_max ∧
-    offTrieItems1 c U V w n_max +
-        packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w =
-      largeSpaceWhp c U V w n_max := by
-  have hb_pos : 0 < bktHashWords c w n_max := by
-    unfold bktHashWords Cslib.DataStructure.HashFamily.WordRAM.BitPackedDoubleTabulation.space
-    omega
-  have h1 : offQuotWhp c w n_max = offHashBkt + bktHashWords c w n_max + fpHashWords c w n_max :=
-    rfl
-  have h3 : offLocState c U V w n_max =
-      offPermAct c U V w n_max + packedWords n_max (12 * logLogFactor n_max + 4) w := rfl
-  have h4 : offBackPtr c U V w n_max =
-      offFbStart c U V w n_max + packedWords (numBucketsWhp n_max + 1) (globalPtrBits n_max) w :=
-    rfl
-  have h5 : offPoolFreeStack c U V w n_max =
-      offBackAux c U V w n_max +
-        packedWords (numBucketsWhp n_max * capBackWhp n_max) (12 * logLogFactor n_max + 4) w := rfl
-  refine ⟨rfl, by omega, rfl, rfl, by omega, rfl, rfl, by omega, rfl, by omega, rfl, rfl,
-    rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, largeOffsets_eq c U V w n_max⟩
-
 /-- Auxiliary index bounds in the large regime (`whpThreshold c ≤ n_max`). -/
 theorem large_index_bounds {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) :
     numBucketsWhp n_max * capBackWhp n_max ≤ n_max ∧
@@ -226,7 +161,7 @@ theorem bTreeSliceMemRep_congr {base c U V w n_max sIdx : ℕ} {sl : BTreeSlice}
       mem₂ a = mem₁ a)
     (hrep : BTreeSliceMemRep base c U V w n_max sIdx sl mem₁) :
     BTreeSliceMemRep base c U V w n_max sIdx sl mem₂ := by
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   obtain ⟨ha_le, ha_r, hr_r, hnd⟩ := hrep
   refine ⟨ha_le, hbm.1.trans ha_r, hbm.2.trans hr_r, fun u hu => ?_⟩
   have hidx : sIdx * nSliceWhp n_max + u < totalBTreeNodesWhp n_max := by
@@ -253,7 +188,7 @@ private theorem bufTrieMemRep_congr_nonBuf {base c U V w n_max ep : ℕ} {tr : B
       a < base + largeSpaceWhp c U V w n_max → mem₂ a = mem₁ a)
     (hrep : BufTrieMemRep base c U V w n_max ep tr mem₁) :
     BufTrieMemRep base c U V w n_max ep tr mem₂ := by
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   dsimp only [BufTrieMemRep] at hrep ⊢
   obtain ⟨hna, hia, hhdr_na, hhdr_ia, hchild, hpar, hleaf, hitems⟩ := hrep
   rcases hep with rfl | rfl
@@ -317,7 +252,7 @@ theorem fastStep_of_bufEpFrame {base c U V w n_max ep : ℕ} {θ : SeedWhp c U n
     (hbfr : BufEpFrame base c U V w n_max ep s.mem s'.mem) :
     FastStateStep base c U V w n_max θ
       { fs with buf := Function.update fs.buf ep tr' } s s' := by
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   have hpre_tc0 : ∀ a < base + offTrieChild0 c U V w n_max,
       (∀ h, 12 ≤ h → h < 16 → a ≠ base + h) → s'.mem a = s.mem a := by
     intro a ha hne
@@ -424,7 +359,7 @@ private theorem fastStep_of_sliceUpdate {base c U V w n_max sIdx : ℕ} {θ : Se
       s'.mem a = s.mem a) :
     FastStateStep base c U V w n_max θ
       { fs with slices := Function.update fs.slices sIdx sl' } s s' := by
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   have hout : ∀ a, (a < base ∨ base + largeSpaceWhp c U V w n_max ≤ a) → s'.mem a = s.mem a := by
     intro a ha
     rcases ha with hlt | hge
@@ -562,7 +497,7 @@ private theorem fastStep_nonSliceNonBuf {base c U V w n_max : ℕ} {θ : SeedWhp
       readPacked (base + offTrieItems0 c U V w n_max) (globalPtrBits n_max) w s'.mem
         (3 * qEpochWhp n_max + j) = fs'.dirtyBuckets j) :
     FastStateStep base c U V w n_max θ fs' s s' := by
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   have hout : ∀ a, (a < base ∨ base + largeSpaceWhp c U V w n_max ≤ a) → s'.mem a = s.mem a := by
     intro a ha
     rcases ha with hlt | hge
@@ -609,7 +544,7 @@ theorem resetBTreeSliceGenProg_fastStep {c U V w n_max base sIdx : ℕ} {θ : Se
     FastStateStep base c U V w n_max θ
       { fs with slices := Function.update fs.slices sIdx (resetBTreeSlice (fs.slices sIdx)) }
       s s' := by
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   obtain ⟨hfr, hmc, hvp, hsl0, hoth, hbm, hout⟩ :=
     resetBTreeSliceGenProg_spec henv.2.2.2.1 henv.2.1 henv.2.2.2.2.1 henv.2.2.2.2.2.1 hsIdx (s := s)
   have hsl_reset : BTreeSliceMemRep base c U V w n_max sIdx
@@ -641,7 +576,7 @@ theorem btreeDeleteGenProg_fastStep {c U V w n_max base sIdx insCount q : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ
       { fs with slices := Function.update fs.slices sIdx sl' } s s' := by
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   have hsl_rep := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 sIdx hsIdx
   obtain ⟨hfr, hmc, hvp, hsl', hoth, hout⟩ :=
     btreeDeleteGenProg_spec henv hsIdx hins hsl_rep hv hq (s := s)
@@ -671,7 +606,7 @@ theorem btreeUpdateGenProg_fastStep {c U V w n_max base sIdx insCount q newVal :
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ
       { fs with slices := Function.update fs.slices sIdx sl' } s s' := by
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   have hsl_rep := hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 sIdx hsIdx
   obtain ⟨hfr, hmc, hvp, hsl', hoth, hout⟩ :=
     btreeUpdateGenProg_spec henv hsIdx hins hsl_rep hv hq hval (s := s)
@@ -849,7 +784,7 @@ theorem writeHdrProg_fastStep {c U V w n_max base hdrOff val : ℕ} {θ : SeedWh
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ (updateFastHdr fs hdrOff val) s s' := by
   have hw := henv.2.1
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
   unfold writeHdrProg
   simp only [pure_bind]
@@ -1112,7 +1047,7 @@ theorem writeBktFieldGenProg_fastStep {c U V w n_max base b field val : ℕ}
     FastStateStep base c U V w n_max θ (setBktField fs b field val) s s' := by
   have hth := henv.2.2.2.1
   have hw := henv.2.1
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
   have hval_g : val < 2 ^ globalPtrBits n_max := lt_two_pow_globalPtrBits_of_le_n_max hval_le
   have hseg := (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.1
@@ -1272,7 +1207,7 @@ private theorem fastStep_pureArray {base c U V w n_max offW NW kW idxW valW : �
         fs'.poolOwner j) :
     FastStateStep base c U V w n_max θ fs' s
       { mem := writePacked (base + offW) kW w s.mem idxW valW, frontier := s.frontier } := by
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   set m' := writePacked (base + offW) kW w s.mem idxW valW
   have houtW : ∀ a, (a < base + offW ∨ base + offW + packedWords NW kW w ≤ a) → m' a = s.mem a :=
     fun a ha => writePacked_outside hw _ hidxW _ (by cases ha <;> omega)
@@ -1417,7 +1352,7 @@ theorem writeFastLocGenProg_fastStep {c U V w n_max base b loc tag : ℕ}
       s s' := by
   have hth := henv.2.2.2.1
   have hw := henv.2.1
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   obtain ⟨hst, hmc, hvp⟩ := writeLocStateGenProg_spec henv hb hloc (val := tag) (s := s)
   unfold writeFastLocGenProg
   simp only [wp_large_offLocState hth, wp_large_totalLoc hth, wp_large_w hth]
@@ -1533,7 +1468,7 @@ theorem writeQuotGenProg_fastStep {c U V w n_max base p q_val : ℕ}
       { fs with quotArr := Function.update fs.quotArr p q_val } s s' := by
   have hth := henv.2.2.2.1
   have hw := henv.2.1
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   have hqb : quotBitsWhp U n_max ≤ w := (Nat.sub_le _ _).trans (keyBits_le_w henv.2.2.2.2.2.1)
   have hseg := (WhpLargeEnv.seg_end_le c U V w n_max).1
   have hle : base + offQuotWhp c w n_max + packedWords n_max (quotBitsWhp U n_max) w ≤
@@ -1642,7 +1577,7 @@ theorem writeValGenProg_fastStep {c U V w n_max base p v_val : ℕ}
       { fs with valArr := Function.update fs.valArr p v_val } s s' := by
   have hth := henv.2.2.2.1
   have hw := henv.2.1
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   have hvb : valBits V ≤ w := valBits_le_w henv.2.2.2.2.2.2.1
   have hseg := (WhpLargeEnv.seg_end_le c U V w n_max).2.1
   have hle : base + offValWhp c U w n_max + packedWords n_max (valBits V) w ≤
@@ -1778,7 +1713,7 @@ theorem writeBackPtrGenProg_fastStep {c U V w n_max base b k pSlot : ℕ}
       s s' := by
   have hth := henv.2.2.2.1
   have hw := henv.2.1
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
   have hp_g : pSlot < 2 ^ globalPtrBits n_max := lt_two_pow_globalPtrBits_of_le_n_max hp_le
   set idxW := b * capBackWhp n_max + k
@@ -1906,7 +1841,7 @@ theorem writePoolFreeStackGenProg_fastStep {c U V w n_max base j pSlot : ℕ}
       { fs with poolFreeStack := Function.update fs.poolFreeStack j pSlot } s s' := by
   have hth := henv.2.2.2.1
   have hw := henv.2.1
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
   have hp_g : pSlot < 2 ^ globalPtrBits n_max := lt_two_pow_globalPtrBits_of_le_n_max hp_le
   have hseg := (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.2.2.2.1
@@ -1979,7 +1914,7 @@ theorem writePoolOwnerGenProg_fastStep {c U V w n_max base j enc : ℕ}
       { fs with poolOwner := Function.update fs.poolOwner j enc } s s' := by
   have hth := henv.2.2.2.1
   have hw := henv.2.1
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
   have henc_g : enc < 2 ^ globalPtrBits n_max := lt_two_pow_globalPtrBits_of_le_n_max henc_le
   have hseg := (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.2.2.2.2.1
@@ -2132,7 +2067,7 @@ theorem pushDirtyBucketGenProg_fastStep {c U V w n_max base b : ℕ}
         dirtyCount := fs.dirtyCount + 1 } s s' := by
   have hth := henv.2.2.2.1
   have hw := henv.2.1
-  have hch := large_offset_chain c U V w n_max
+  have hch := largeOffsetChain c U V w n_max
   have h6q := (large_index_bounds hth).2.2.2.2.2
   have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
   have hb_g : b < 2 ^ globalPtrBits n_max :=

@@ -562,6 +562,7 @@ abbrev PermRt : Type :=
       (((ℕ × ℕ) × (ℕ × ℕ)) ×
         ((ℕ × ℕ) × ((ℕ × ℕ) × (ℕ × (ℕ × ℕ))))))
 
+/-- Base word address extracted from `PermRt`. -/
 @[expose] def prBase (p : PermRt) : ℕ := p.1.1.1
 private def prW (p : PermRt) : ℕ := p.1.1.2
 private def prNMax (p : PermRt) : ℕ := p.1.2.1
@@ -2592,7 +2593,7 @@ private theorem fbPrefixLoop_spec {c U V w n_max base : ℕ} {bktCount : ℕ →
     intro b₀ s hle hfb hout
     have hb_lt : b₀ < M := by omega
     have hfb_next_eq : fb (b₀ + 1) = fb b₀ + bktCount b₀ := by
-      dsimp only [fb, buildFbStart, buildFbStart.go]
+      dsimp only [fb, buildFbStart]
       simp [hb_lt]
     have hfb1_le : fb (b₀ + 1) ≤ n_max := hsum_le (b₀ + 1) hb_lt
     have hfb1_pow : fb (b₀ + 1) < 2 ^ globalPtrBits n_max :=
@@ -2715,7 +2716,7 @@ theorem fastToCsrGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max
     (hfb_mono x M hx le_rfl).trans hcsr.2.2.1
   have hfb_adj : ∀ b < M, fb (b + 1) = fb b + fs.bktCount b := by
     intro b hb
-    dsimp only [fb, buildFbStart, buildFbStart.go]
+    dsimp only [fb, buildFbStart]
     simp [hb]
   obtain ⟨hmk_st, hmk_res, _, hmk_vp⟩ := mkPermRtGenProg_spec (c := c) (U := U) (V := V)
     (w := w) (n_max := n_max) (base := base) hth s

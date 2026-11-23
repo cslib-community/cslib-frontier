@@ -603,60 +603,13 @@ theorem initFastGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max}
   have hw3 := WhpLargeEnv.three_le_w henv
   obtain ⟨hq_end, hv_end, _, hls_end, _, _, hbp_end, _, hpo_end, _, _, _, htc0_end, htc1_end,
     htm0_end, htm1_end, _, _⟩ := WhpLargeEnv.seg_end_le c U V w n_max
-  have hendL := largeOffsets_eq c U V w n_max
-  have h32_q : 32 ≤ offQuotWhp c w n_max := by
-    change offHashBkt ≤ _; unfold offQuotWhp offHashFp; omega
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have hch := largeOffsetChain c U V w n_max
   set M := numBucketsWhp n_max
   set ps := poolSizeWhp n_max
   set rt := mkInitFastRt c U V w n_max base
   obtain ⟨hmk_st, hmk_res, hmk_mc, hmk_vp⟩ :=
     mkInitFastRtGenProg_spec (c := c) (U := U) (V := V) (w := w) (n_max := n_max)
       (base := base) hth s
-  -- Offset order facts
-  have hl_v : offValWhp c U w n_max =
-      offQuotWhp c w n_max + packedWords n_max (quotBitsWhp U n_max) w := rfl
-  have hl_pa : offPermAct c U V w n_max =
-      offValWhp c U w n_max + packedWords n_max (valBits V) w := rfl
-  have hl_ls : offLocState c U V w n_max =
-      offPermAct c U V w n_max + packedWords n_max (12 * logLogFactor n_max + 4) w := rfl
-  have hl_bm : offBktMeta c U V w n_max =
-      offLocState c U V w n_max + packedWords (M * totalLocalCoordsWhp n_max) 2 w := rfl
-  have hl_fb : offFbStart c U V w n_max =
-      offBktMeta c U V w n_max + packedWords (16 * M) (globalPtrBits n_max) w := rfl
-  have hl_bp : offBackPtr c U V w n_max =
-      offFbStart c U V w n_max + packedWords (M + 1) (globalPtrBits n_max) w := rfl
-  have hl_ba : offBackAux c U V w n_max =
-      offBackPtr c U V w n_max + packedWords (M * capBackWhp n_max) (globalPtrBits n_max) w := rfl
-  have hl_ps : offPoolFreeStack c U V w n_max =
-      offBackAux c U V w n_max +
-        packedWords (M * capBackWhp n_max) (12 * logLogFactor n_max + 4) w := rfl
-  have hl_po : offPoolOwner c U V w n_max =
-      offPoolFreeStack c U V w n_max + packedWords ps (globalPtrBits n_max) w := rfl
-  have hl_btm : offBtMeta c U V w n_max =
-      offPoolOwner c U V w n_max + packedWords ps (globalPtrBits n_max) w := rfl
-  have hl_btk : offBtKeys c U V w n_max =
-      offBtMeta c U V w n_max + packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w :=
-    rfl
-  have hl_btv : offBtVals c U V w n_max =
-      offBtKeys c U V w n_max + packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w :=
-    rfl
-  have hl_tc0 : offTrieChild0 c U V w n_max =
-      offBtVals c U V w n_max + packedWords (totalBTreeNodesWhp n_max) (valsWordBitsWhp n_max) w :=
-    rfl
-  have hl_tc1 : offTrieChild1 c U V w n_max = offTrieChild0 c U V w n_max +
-      packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w := rfl
-  have hl_tm0 : offTrieMeta0 c U V w n_max = offTrieChild1 c U V w n_max +
-      packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w := rfl
-  have hl_tm1 : offTrieMeta1 c U V w n_max =
-      offTrieMeta0 c U V w n_max +
-        packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w := rfl
-  have hl_ti0 : offTrieItems0 c U V w n_max =
-      offTrieMeta1 c U V w n_max +
-        packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w := rfl
-  have hl_ti1 : offTrieItems1 c U V w n_max =
-      offTrieItems0 c U V w n_max +
-        packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w := rfl
   -- Step 1: `initOmRoleLoopProg`
   have hbm0 : ∀ idx < 16 * M,
       readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem idx =

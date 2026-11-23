@@ -16,9 +16,9 @@ import Mathlib.Tactic.Ring
 # Shadow-Rebuild and Deletion Invariants for the Pure WHP Succinct Dynamic Dictionary
 
 This module establishes the map-correspondence combinators (`SliceMapRel`, `BufMapRel`),
-core/pre-tick invariants (`CoreFastInv`, `OvermarsBucketInv`, `PreOvermarsBucketInv`,
-`ValidEpochStagePreTick`), and step preservation for `overmarsStep` and `fastDelete` in
-`SuccinctWhpModel` for **every** static seed `θ` and capacity `n_max ≤ U`
+core/pre-tick invariants (`CoreFastInv`, `PreOvermarsBucketInv`, `ValidEpochStagePreTick`),
+and step preservation for `overmarsStep` and `fastDelete` in `SuccinctWhpModel` for **every**
+static seed `θ` and capacity `n_max ≤ U`
 ([Bender, Farach-Colton, J. Kuszmaul, and W. Kuszmaul, SOSA 2024,
 Sections 3–5][BenderFarachColtonKuszmaulKuszmaul2024]). Insertion, global epoch ticks, and
 full sequence refinement are proved in `SuccinctWhpModelTick`.
@@ -53,7 +53,7 @@ theorem sliceIdx_inj {b₁ r₁ b₂ r₂ : ℕ} (hr₁ : r₁ < 3) (hr₂ : r�
     (heq : 3 * b₁ + r₁ = 3 * b₂ + r₂) : b₁ = b₂ ∧ r₁ = r₂ :=
   ⟨by omega, by omega⟩
 
-theorem rebRole_props {r₁ r₂ : ℕ} (hr₁ : r₁ < 3) (hr₂ : r₂ < 3) (hne : r₁ ≠ r₂) :
+private theorem rebRole_props {r₁ r₂ : ℕ} (hr₁ : r₁ < 3) (hr₂ : r₂ < 3) (hne : r₁ ≠ r₂) :
     3 - r₁ - r₂ < 3 ∧ 3 - r₁ - r₂ ≠ r₁ ∧ 3 - r₁ - r₂ ≠ r₂ :=
   ⟨by omega, by omega, by omega⟩
 
@@ -118,7 +118,7 @@ theorem SliceMapRel.step_false {f : ℕ → ℕ} {P : ℕ → Prop} {cur : ℕ} 
     · exact ⟨hlt', hpl, heq⟩
     · exact absurd hpl hnp
 
-theorem SliceMapRel.delete_last {f : ℕ → ℕ} {P : ℕ → Prop} {X : ℕ} {m : ℕ → Option ℕ}
+private theorem SliceMapRel.delete_last {f : ℕ → ℕ} {P : ℕ → Prop} {X : ℕ} {m : ℕ → Option ℕ}
     (hrel : SliceMapRel f P (X + 1) m) (hp : P X)
     (hinj : ∀ loc < X, P loc → f loc ≠ f X) :
     SliceMapRel f P X (Function.update m (f X) none) := by
@@ -143,7 +143,7 @@ theorem SliceMapRel.delete_last {f : ℕ → ℕ} {P : ℕ → Prop} {X : ℕ} {
         ⟨Nat.lt_of_le_of_ne (Nat.le_of_lt_succ hlt) (fun h => hfp (h ▸ heq.symm)), hpl, heq⟩,
         fun ⟨hlt, hpl, heq⟩ => ⟨Nat.lt_succ_of_lt hlt, hpl, heq⟩⟩
 
-theorem SliceMapRel.skip_last {f : ℕ → ℕ} {P : ℕ → Prop} {X : ℕ} {m : ℕ → Option ℕ}
+private theorem SliceMapRel.skip_last {f : ℕ → ℕ} {P : ℕ → Prop} {X : ℕ} {m : ℕ → Option ℕ}
     (hrel : SliceMapRel f P (X + 1) m) (hnp : ¬P X) :
     SliceMapRel f P X m := by
   refine ⟨fun fp => ?_, fun fp loc => ?_⟩
@@ -160,7 +160,7 @@ theorem SliceMapRel.skip_last {f : ℕ → ℕ} {P : ℕ → Prop} {X : ℕ} {m 
 
 /-- Relocating `loc_last` into `loc_del < loc_last` across a full slice `0 .. loc_last` (`loc_last +
 1 → loc_last`). -/
-theorem SliceMapRel.relocate_full {f f' : ℕ → ℕ} {P P' : ℕ → Prop} [DecidablePred P]
+private theorem SliceMapRel.relocate_full {f f' : ℕ → ℕ} {P P' : ℕ → Prop} [DecidablePred P]
     {loc_del loc_last : ℕ} {m0 : ℕ → Option ℕ}
     (hrel : SliceMapRel f P (loc_last + 1) m0)
     (hlt_del : loc_del < loc_last)
@@ -264,7 +264,7 @@ theorem SliceMapRel.relocate_full {f f' : ℕ → ℕ} {P P' : ℕ → Prop} [De
 
 /-- Relocating `loc_last` into `loc_del < cur ≤ loc_last` across a prefix `0 .. cur - 1`, assuming
 no collision between `f loc_last` and any remaining active item `< cur \ {loc_del}`. -/
-theorem SliceMapRel.relocate_prefix {f f' : ℕ → ℕ} {P P' : ℕ → Prop} [DecidablePred P]
+private theorem SliceMapRel.relocate_prefix {f f' : ℕ → ℕ} {P P' : ℕ → Prop} [DecidablePred P]
     {loc_del cur loc_last : ℕ} {m0 : ℕ → Option ℕ}
     (hrel : SliceMapRel f P cur m0)
     (hlt_cur : loc_del < cur)
@@ -432,7 +432,7 @@ theorem BufMapRel.insert_fresh {M tag b₀ : ℕ} {bktCnt : ℕ → ℕ}
 
 /-- Deleting `loc_last` when `bktCnt b₀ = loc_last + 1` shrinks to `loc_last` (case `loc_del =
 loc_last`). -/
-theorem BufMapRel.delete_last {M tag b₀ loc_last : ℕ} {bktCnt : ℕ → ℕ}
+private theorem BufMapRel.delete_last {M tag b₀ loc_last : ℕ} {bktCnt : ℕ → ℕ}
     {locSt locSt' rKeyOf rKeyOf' : ℕ → ℕ → ℕ} {m0 : ℕ → Option (ℕ × ℕ)}
     (hrel : BufMapRel M tag bktCnt locSt rKeyOf m0)
     (hb₀ : b₀ < M) (hcnt₀ : bktCnt b₀ = loc_last + 1)
@@ -487,7 +487,7 @@ theorem BufMapRel.delete_last {M tag b₀ loc_last : ℕ} {bktCnt : ℕ → ℕ}
     · exact h0s
 
 /-- Relocating `(b₀, loc_last)` into `(b₀, loc_del)` (`loc_del < loc_last`) in `BufMapRel`. -/
-theorem BufMapRel.relocate_last {M tag b₀ loc_del loc_last : ℕ} {bktCnt : ℕ → ℕ}
+private theorem BufMapRel.relocate_last {M tag b₀ loc_del loc_last : ℕ} {bktCnt : ℕ → ℕ}
     {locSt locSt' rKeyOf rKeyOf' : ℕ → ℕ → ℕ} {m0 : ℕ → Option (ℕ × ℕ)}
     (hrel : BufMapRel M tag bktCnt locSt rKeyOf m0)
     (hb₀ : b₀ < M) (hcnt₀ : bktCnt b₀ = loc_last + 1) (hlt_del : loc_del < loc_last)
@@ -704,21 +704,6 @@ structure CoreFastInv (c U V n_max : ℕ) (θ : SeedWhp c U n_max)
       ValidBufTrie (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) (fun _ => none) ∧
       (fs.buf fs.oldEp).nodeAlloc = 1 ∧
       (fs.buf fs.oldEp).itemAlloc = 0
-
-/-- Per-bucket Overmars invariant in `ValidFastState`. -/
-@[expose] def OvermarsBucketInv (c U n_max : ℕ) (θ : SeedWhp c U n_max)
-    (fs : FastState) (b : ℕ) : Prop :=
-  (fs.overmarsActive b = 0 ∧ fs.liveInsCount b < 5 * (slabScale n_max) ^ 12) ∨
-  (fs.overmarsActive b = 1 ∧
-    16 ≤ fs.overmarsCursor b ∧
-    fs.overmarsCursor b < fs.bktCount b ∧
-    16 * (fs.liveInsCount b - 5 * (slabScale n_max) ^ 12) ≤ fs.overmarsCursor b ∧
-    16 * fs.overmarsInsCount b + 16 ≤ 17 * fs.overmarsCursor b ∧
-    ∃ omMap,
-      ValidWhpSlice n_max (fs.overmarsInsCount b) (fs.slices (fs.overmarsSliceIdx b)) omMap ∧
-      SliceMapRel (fs.fpAt c U n_max θ (fs.bktSalt b) b)
-        (fun loc => inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc) = true)
-        (fs.overmarsCursor b) omMap)
 
 /-- Relaxed per-bucket Overmars invariant immediately prior to `overmarsStep` on bucket `b`. -/
 @[expose] def PreOvermarsBucketInv (c U n_max : ℕ) (θ : SeedWhp c U n_max)
@@ -937,7 +922,7 @@ theorem OvermarsBucketInv.of_eq_lt {c U n_max : ℕ} {θ : SeedWhp c U n_max}
       exact hrel.congr (fun loc hlt => hfp loc (hlt.trans hcur))
         (fun loc hlt => by rw [hls loc (hlt.trans hcur)])
 
-theorem ValidEpochStage.of_rebSlice_eq {c U n_max : ℕ} {θ : SeedWhp c U n_max}
+private theorem ValidEpochStage.of_rebSlice_eq {c U n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs fs' : FastState}
     (h : ValidEpochStage c U n_max θ fs)
     (hq : fs'.quotArr = fs.quotArr) (hbp : fs'.backPtr = fs.backPtr)
@@ -966,7 +951,7 @@ theorem ValidEpochStage.of_rebSlice_eq {c U n_max : ℕ} {θ : SeedWhp c U n_max
     rwa [hsl _ hbc]
   · exact h
 
-theorem ValidEpochStagePreTick.of_rebSlice_eq {c U n_max : ℕ} {θ : SeedWhp c U n_max}
+private theorem ValidEpochStagePreTick.of_rebSlice_eq {c U n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs fs' : FastState}
     (h : ValidEpochStagePreTick c U n_max θ fs)
     (hq : fs'.quotArr = fs.quotArr) (hbp : fs'.backPtr = fs.backPtr)
@@ -996,7 +981,7 @@ theorem ValidEpochStagePreTick.of_rebSlice_eq {c U n_max : ℕ} {θ : SeedWhp c 
   · exact h
 
 /-- Bounded-fuel invariant for `overmarsScanSteps` over `rem` coordinates of bucket `b`. -/
-theorem overmarsScanSteps_spec {c U n_max b : ℕ} (hth : whpThreshold c ≤ n_max)
+private theorem overmarsScanSteps_spec {c U n_max b : ℕ} (hth : whpThreshold c ≤ n_max)
     (θ : SeedWhp c U n_max) (rem : ℕ) (fs : FastState)
     (hcnt_le : fs.bktCount b ≤ 3 * (slabScale n_max) ^ 12)
     (hinj : ∀ l₁ < fs.bktCount b, ∀ l₂ < fs.bktCount b,
@@ -1132,6 +1117,195 @@ theorem overmarsScanSteps_spec {c U n_max b : ℕ} (hth : whpThreshold c ≤ n_m
       dsimp only [omIdx, FastState.overmarsSliceIdx]
       rw [Function.update_idem]
 
+private theorem overmarsStep_post_scan {c U V n_max b cur1 ins1 : ℕ}
+    {θ : SeedWhp c U n_max} {fs : FastState} {dict : State U}
+    {sl1 : BTreeSlice} {omMap1 : ℕ → Option ℕ}
+    (hc : CoreFastInv c U V n_max θ fs dict)
+    (hb : b < numBucketsWhp n_max)
+    (hom_other : ∀ b' < numBucketsWhp n_max, b' ≠ b → OvermarsBucketInv c U n_max θ fs b')
+    (hins_lt5 : ins1 < 5 * (slabScale n_max) ^ 12)
+    (h16_cur : 16 ≤ cur1)
+    (hlin_cur : 16 * (fs.liveInsCount b - 5 * (slabScale n_max) ^ 12) ≤ cur1)
+    (hins_cur : 16 * ins1 + 16 ≤ 17 * cur1)
+    (hv1 : ValidWhpSlice n_max ins1 sl1 omMap1)
+    (hrel1 : SliceMapRel (fs.fpAt c U n_max θ (fs.bktSalt b) b)
+      (fun loc => inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc) = true)
+      (min (fs.bktCount b) cur1) omMap1) :
+    let fs1 : FastState :=
+      { fs with
+        overmarsActive := Function.update fs.overmarsActive b 1
+        overmarsCursor := Function.update fs.overmarsCursor b cur1
+        overmarsInsCount := Function.update fs.overmarsInsCount b ins1
+        slices := Function.update fs.slices (fs.overmarsSliceIdx b) sl1 }
+    let fs' : FastState :=
+      if fs1.bktCount b ≤ fs1.overmarsCursor b then
+        { fs1 with
+          liveRole := Function.update fs1.liveRole b (fs1.overmarsRole b)
+          overmarsRole := Function.update fs1.overmarsRole b (fs1.liveRole b)
+          liveInsCount := Function.update fs1.liveInsCount b (fs1.overmarsInsCount b)
+          overmarsActive := Function.update fs1.overmarsActive b 0
+          overmarsCursor := Function.update fs1.overmarsCursor b 0
+          overmarsInsCount := Function.update fs1.overmarsInsCount b 0 }
+      else fs1
+    CoreFastInv c U V n_max θ fs' dict ∧
+    (∀ b' < numBucketsWhp n_max, OvermarsBucketInv c U n_max θ fs' b') ∧
+    (ValidEpochStage c U n_max θ fs → ValidEpochStage c U n_max θ fs') ∧
+    (ValidEpochStagePreTick c U n_max θ fs → ValidEpochStagePreTick c U n_max θ fs') ∧
+    fs'.curEp = fs.curEp ∧
+    fs'.epochClock = fs.epochClock ∧
+    fs'.rebStage = fs.rebStage ∧
+    fs'.buf = fs.buf := by
+  obtain ⟨hlr_lt, hor_lt, hro_ne⟩ := hc.roles_valid b hb
+  dsimp only
+  set fs1 : FastState :=
+    { fs with
+      overmarsActive := Function.update fs.overmarsActive b 1
+      overmarsCursor := Function.update fs.overmarsCursor b cur1
+      overmarsInsCount := Function.update fs.overmarsInsCount b ins1
+      slices := Function.update fs.slices (fs.overmarsSliceIdx b) sl1 }
+  have hne_lo : fs.overmarsSliceIdx b ≠ fs.liveSliceIdx b := by
+    dsimp only [FastState.overmarsSliceIdx, FastState.liveSliceIdx]; omega
+  have hne_reb_all : ∀ b' < numBucketsWhp n_max, fs.overmarsSliceIdx b ≠ fs.rebSliceIdx b' := by
+    intro b' hb'
+    obtain ⟨hlr', hor', hne'⟩ := hc.roles_valid b' hb'
+    dsimp only [FastState.overmarsSliceIdx, FastState.rebSliceIdx, FastState.rebRole]
+    by_cases hbb : b' = b
+    · subst hbb; omega
+    · intro heq
+      have hrr : 3 - fs.liveRole b' - fs.overmarsRole b' < 3 := by omega
+      exact hbb (sliceIdx_inj hor_lt hrr heq).1.symm
+  by_cases hdone : fs1.bktCount b ≤ fs1.overmarsCursor b
+  · rw [ite_eq_left hdone]
+    dsimp only [fs1] at hdone
+    rw [Function.update_self] at hdone
+    rw [Nat.min_eq_left hdone] at hrel1
+    have hreb_eq : ∀ bc < numBucketsWhp n_max,
+        ({ fs1 with
+            liveRole := Function.update fs1.liveRole b (fs1.overmarsRole b)
+            overmarsRole := Function.update fs1.overmarsRole b (fs1.liveRole b)
+            liveInsCount := Function.update fs1.liveInsCount b (fs1.overmarsInsCount b)
+            overmarsActive := Function.update fs1.overmarsActive b 0
+            overmarsCursor := Function.update fs1.overmarsCursor b 0
+            overmarsInsCount := Function.update fs1.overmarsInsCount b 0 } :
+            FastState).slices
+          (({ fs1 with
+              liveRole := Function.update fs1.liveRole b (fs1.overmarsRole b)
+              overmarsRole := Function.update fs1.overmarsRole b (fs1.liveRole b)
+              liveInsCount := Function.update fs1.liveInsCount b (fs1.overmarsInsCount b)
+              overmarsActive := Function.update fs1.overmarsActive b 0
+              overmarsCursor := Function.update fs1.overmarsCursor b 0
+              overmarsInsCount := Function.update fs1.overmarsInsCount b 0 } :
+              FastState).rebSliceIdx bc) = fs.slices (fs.rebSliceIdx bc) := by
+      intro bc hbc
+      have hridx_eq : ({ fs1 with
+          liveRole := Function.update fs1.liveRole b (fs1.overmarsRole b)
+          overmarsRole := Function.update fs1.overmarsRole b (fs1.liveRole b)
+          liveInsCount := Function.update fs1.liveInsCount b (fs1.overmarsInsCount b)
+          overmarsActive := Function.update fs1.overmarsActive b 0
+          overmarsCursor := Function.update fs1.overmarsCursor b 0
+          overmarsInsCount := Function.update fs1.overmarsInsCount b 0 } :
+          FastState).rebSliceIdx bc = fs.rebSliceIdx bc := by
+        dsimp only [FastState.rebSliceIdx, FastState.rebRole, fs1]
+        by_cases hbb : bc = b
+        · subst hbb; simp only [Function.update_self]; omega
+        · simp [hbb]
+      rw [hridx_eq]
+      dsimp only [fs1]
+      exact Function.update_of_ne (hne_reb_all bc hbc).symm _ _
+    refine ⟨?_, ?_,
+      fun hst => hst.of_rebSlice_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
+        rfl rfl hreb_eq,
+      fun hst => hst.of_rebSlice_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
+        rfl rfl hreb_eq,
+      rfl, rfl, rfl, rfl⟩
+    · refine { hc with
+        roles_valid := fun b' hb' => by
+          by_cases hbb : b' = b
+          · subst hbb; dsimp only [fs1]; simp [hor_lt, hlr_lt, Ne.symm hro_ne]
+          · dsimp only [fs1]; simp [hbb, hc.roles_valid b' hb']
+        live_valid := fun b' hb' => by
+          by_cases hbb : b' = b
+          · subst hbb
+            refine ⟨omMap1, ?_, hrel1⟩
+            dsimp only [FastState.liveSliceIdx, fs1, FastState.overmarsSliceIdx]
+            simp only [Function.update_self]
+            exact hv1
+          · obtain ⟨lm, hvl, hrl⟩ := hc.live_valid b' hb'
+            refine ⟨lm, ?_, hrl⟩
+            have hne_s : 3 * b' + fs.liveRole b' ≠ fs.overmarsSliceIdx b := by
+              dsimp only [FastState.overmarsSliceIdx]
+              intro heq
+              exact hbb (sliceIdx_inj (hc.roles_valid b' hb').1 hor_lt heq).1
+            dsimp only [FastState.liveSliceIdx, fs1]
+            simp only [Function.update_of_ne hbb, Function.update_of_ne hne_s]
+            exact hvl }
+    · intro b' hb'
+      by_cases hbb : b' = b
+      · subst hbb
+        left
+        dsimp only [fs1]
+        simp only [Function.update_self]
+        exact ⟨trivial, hins_lt5⟩
+      · have hne_om : 3 * b' + fs.overmarsRole b' ≠ fs.overmarsSliceIdx b := by
+          dsimp only [FastState.overmarsSliceIdx]
+          intro heq
+          exact hbb (sliceIdx_inj (hc.roles_valid b' hb').2.1 hor_lt heq).1
+        refine (hom_other b' hb' hbb).of_eq_on (fpAt_eq_of_fields rfl rfl _ _) rfl rfl rfl rfl
+          rfl ?_ ?_ ?_ ?_ ?_
+        · dsimp only [fs1]; exact Function.update_of_ne hbb _ _
+        · dsimp only [fs1]; simp only [Function.update_of_ne hbb]
+        · dsimp only [fs1]; simp only [Function.update_of_ne hbb]
+        · dsimp only [fs1]; simp only [Function.update_of_ne hbb]
+        · dsimp only [FastState.overmarsSliceIdx, fs1] at hne_om ⊢
+          simp only [Function.update_of_ne hbb]
+          exact Function.update_of_ne hne_om _ _
+  · rw [ite_eq_right hdone]
+    dsimp only [fs1] at hdone
+    rw [Function.update_self] at hdone
+    have hcur_lt_b : cur1 < fs.bktCount b := Nat.lt_of_not_le hdone
+    rw [Nat.min_eq_right hcur_lt_b.le] at hrel1
+    have hreb_eq : ∀ bc < numBucketsWhp n_max,
+        fs1.slices (fs1.rebSliceIdx bc) = fs.slices (fs.rebSliceIdx bc) := by
+      intro bc hbc
+      dsimp only [fs1, FastState.rebSliceIdx, FastState.rebRole]
+      exact Function.update_of_ne (hne_reb_all bc hbc).symm _ _
+    refine ⟨?_, ?_,
+      fun hst => hst.of_rebSlice_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
+        rfl rfl hreb_eq,
+      fun hst => hst.of_rebSlice_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
+        rfl rfl hreb_eq,
+      rfl, rfl, rfl, rfl⟩
+    · refine { hc with
+        live_valid := fun b' hb' => by
+          obtain ⟨lm, hvl, hrl⟩ := hc.live_valid b' hb'
+          refine ⟨lm, ?_, hrl⟩
+          have hne_s : fs.liveSliceIdx b' ≠ fs.overmarsSliceIdx b := by
+            by_cases hbb : b' = b
+            · subst hbb; exact hne_lo.symm
+            · dsimp only [FastState.liveSliceIdx, FastState.overmarsSliceIdx]
+              intro heq
+              exact hbb (sliceIdx_inj (hc.roles_valid b' hb').1 hor_lt heq).1
+          dsimp only [fs1, FastState.liveSliceIdx] at hne_s ⊢
+          rwa [Function.update_of_ne hne_s] }
+    · intro b' hb'
+      by_cases hbb : b' = b
+      · subst hbb
+        right
+        dsimp only [fs1, FastState.overmarsSliceIdx]
+        simp only [Function.update_self]
+        exact ⟨trivial, h16_cur, hcur_lt_b, hlin_cur, hins_cur, omMap1, hv1, hrel1⟩
+      · have hne_om : 3 * b' + fs.overmarsRole b' ≠ fs.overmarsSliceIdx b := by
+          dsimp only [FastState.overmarsSliceIdx]
+          intro heq
+          exact hbb (sliceIdx_inj (hc.roles_valid b' hb').2.1 hor_lt heq).1
+        refine (hom_other b' hb' hbb).of_eq_on (fpAt_eq_of_fields rfl rfl _ _) rfl rfl rfl rfl
+          rfl rfl ?_ ?_ ?_ ?_
+        · dsimp only [fs1]; exact Function.update_of_ne hbb _ _
+        · dsimp only [fs1]; exact Function.update_of_ne hbb _ _
+        · dsimp only [fs1]; exact Function.update_of_ne hbb _ _
+        · dsimp only [FastState.overmarsSliceIdx, fs1]
+          exact Function.update_of_ne hne_om _ _
+
 /-- `overmarsStep` on bucket `b < numBucketsWhp n_max` restores `OvermarsBucketInv` on `b` while
 preserving `CoreFastInv`, `OvermarsBucketInv` on all `b' ≠ b`, `ValidEpochStage`, and
 `ValidEpochStagePreTick`. -/
@@ -1156,18 +1330,11 @@ theorem overmarsStep_spec {c U V n_max b : ℕ} {θ : SeedWhp c U n_max}
       _ ≤ (slabScale n_max) ^ 12 := Nat.pow_le_pow_left hL2 12
   have hcnt_3L : fs.bktCount b ≤ 3 * (slabScale n_max) ^ 12 :=
     (hc.bktCount_le b hb).trans totalLocalCoordsWhp_le_three_mul
-  obtain ⟨hlr_lt, hor_lt, hro_ne⟩ := hc.roles_valid b hb
-  -- Helper: any update confined to `(liveRole b, overmarsRole b)` as a swap (or identity) and
-  -- `slices` at `overmarsSliceIdx b` leaves `rebSliceIdx b'` and `slices (rebSliceIdx b')`
-  -- untouched for EVERY `b'`!
   unfold overmarsStep overmarsAfterActivate
   dsimp only
-  -- Case split on whether `overmarsStep` is completely idle (`overmarsActive b = 0 ∧ liveInsCount b
-  -- < 5 * L ^ 12`) vs active after `fs0`!
   rcases hom_b with ⟨ha0, hlic_le⟩ | ⟨ha1, h16, hcur_le, hlin, hins_le, omMap0, hv0, hrel0⟩
   · by_cases htrig : 5 * (slabScale n_max) ^ 12 ≤ fs.liveInsCount b
-    · -- Triggers activation: `fs0` resets `overmarsSliceIdx b` and sets `overmarsActive b = 1`!
-      have hcond0 : fs.overmarsActive b = 0 ∧ 5 * (slabScale n_max) ^ 12 ≤ fs.liveInsCount b :=
+    · have hcond0 : fs.overmarsActive b = 0 ∧ 5 * (slabScale n_max) ^ 12 ≤ fs.liveInsCount b :=
         ⟨ha0, htrig⟩
       rw [ite_eq_left hcond0]
       set fs0 : FastState :=
@@ -1203,175 +1370,29 @@ theorem overmarsStep_spec {c U V n_max b : ℕ} {θ : SeedWhp c U n_max}
       rw [hfp0, hold0] at hrel1
       dsimp only [fs0] at hcur1 hins1 hrel1
       rw [Function.update_self] at hcur1 hins1
-      -- Simplify stacked `Function.update`s in `fs1`
-      let fs1 : FastState :=
-        { fs with
-          overmarsActive := Function.update fs.overmarsActive b 1
-          overmarsCursor := Function.update fs.overmarsCursor b cur1
-          overmarsInsCount := Function.update fs.overmarsInsCount b ins1
-          slices := Function.update fs.slices (fs.overmarsSliceIdx b) sl1 }
       have hfs1_eq :
           ({ fs0 with
               slices := Function.update fs0.slices (fs0.overmarsSliceIdx b) sl1
               overmarsCursor := Function.update fs0.overmarsCursor b cur1
               overmarsInsCount := Function.update fs0.overmarsInsCount b ins1 } : FastState) =
-            fs1 := by
-        dsimp only [fs0, fs1, FastState.overmarsSliceIdx]
+            { fs with
+              overmarsActive := Function.update fs.overmarsActive b 1
+              overmarsCursor := Function.update fs.overmarsCursor b cur1
+              overmarsInsCount := Function.update fs.overmarsInsCount b ins1
+              slices := Function.update fs.slices (fs.overmarsSliceIdx b) sl1 } := by
+        dsimp only [fs0, FastState.overmarsSliceIdx]
         rw [Function.update_idem, Function.update_idem, Function.update_idem]
       rw [hfs1_eq]
-      have hne_lo : fs.overmarsSliceIdx b ≠ fs.liveSliceIdx b := by
-        dsimp only [FastState.overmarsSliceIdx, FastState.liveSliceIdx]; omega
-      have hne_reb_all : ∀ b' < numBucketsWhp n_max, fs.overmarsSliceIdx b ≠ fs.rebSliceIdx b' := by
-        intro b' hb'
-        obtain ⟨hlr', hor', hne'⟩ := hc.roles_valid b' hb'
-        dsimp only [FastState.overmarsSliceIdx, FastState.rebSliceIdx, FastState.rebRole]
-        by_cases hbb : b' = b
-        · subst hbb; omega
-        · intro heq
-          have hrr : 3 - fs.liveRole b' - fs.overmarsRole b' < 3 := by omega
-          exact hbb (sliceIdx_inj hor_lt hrr heq).1.symm
-      by_cases hdone : fs1.bktCount b ≤ fs1.overmarsCursor b
-      · rw [ite_eq_left hdone]
-        dsimp only [fs1] at hdone
-        rw [Function.update_self] at hdone
-        have hmin_eq : min (fs.bktCount b) cur1 = fs.bktCount b := Nat.min_eq_left hdone
-        rw [hmin_eq] at hrel1
-        have hreb_eq : ∀ bc < numBucketsWhp n_max,
-            ({ fs1 with
-                liveRole := Function.update fs1.liveRole b (fs1.overmarsRole b)
-                overmarsRole := Function.update fs1.overmarsRole b (fs1.liveRole b)
-                liveInsCount := Function.update fs1.liveInsCount b (fs1.overmarsInsCount b)
-                overmarsActive := Function.update fs1.overmarsActive b 0
-                overmarsCursor := Function.update fs1.overmarsCursor b 0
-                overmarsInsCount := Function.update fs1.overmarsInsCount b 0 } :
-                FastState).slices
-              (({ fs1 with
-                  liveRole := Function.update fs1.liveRole b (fs1.overmarsRole b)
-                  overmarsRole := Function.update fs1.overmarsRole b (fs1.liveRole b)
-                  liveInsCount := Function.update fs1.liveInsCount b (fs1.overmarsInsCount b)
-                  overmarsActive := Function.update fs1.overmarsActive b 0
-                  overmarsCursor := Function.update fs1.overmarsCursor b 0
-                  overmarsInsCount := Function.update fs1.overmarsInsCount b 0 } :
-                  FastState).rebSliceIdx bc) = fs.slices (fs.rebSliceIdx bc) := by
-          intro bc hbc
-          have hridx_eq : ({ fs1 with
-              liveRole := Function.update fs1.liveRole b (fs1.overmarsRole b)
-              overmarsRole := Function.update fs1.overmarsRole b (fs1.liveRole b)
-              liveInsCount := Function.update fs1.liveInsCount b (fs1.overmarsInsCount b)
-              overmarsActive := Function.update fs1.overmarsActive b 0
-              overmarsCursor := Function.update fs1.overmarsCursor b 0
-              overmarsInsCount := Function.update fs1.overmarsInsCount b 0 } :
-              FastState).rebSliceIdx bc = fs.rebSliceIdx bc := by
-            dsimp only [FastState.rebSliceIdx, FastState.rebRole, fs1]
-            by_cases hbb : bc = b
-            · subst hbb; simp only [Function.update_self]; omega
-            · simp [hbb]
-          rw [hridx_eq]
-          dsimp only [fs1]
-          exact Function.update_of_ne (hne_reb_all bc hbc).symm _ _
-        refine ⟨?_, ?_,
-          fun hst => hst.of_rebSlice_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
-            rfl rfl hreb_eq,
-          fun hst => hst.of_rebSlice_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
-            rfl rfl hreb_eq,
-          rfl, rfl, rfl, rfl⟩
-        · refine { hc with
-            roles_valid := fun b' hb' => by
-              by_cases hbb : b' = b
-              · subst hbb; dsimp only [fs1]; simp [hor_lt, hlr_lt, Ne.symm hro_ne]
-              · dsimp only [fs1]; simp [hbb, hc.roles_valid b' hb']
-            live_valid := fun b' hb' => by
-              by_cases hbb : b' = b
-              · subst hbb
-                refine ⟨omMap1, ?_, hrel1⟩
-                dsimp only [FastState.liveSliceIdx, fs1, FastState.overmarsSliceIdx]
-                simp only [Function.update_self]
-                exact hv1
-              · obtain ⟨lm, hvl, hrl⟩ := hc.live_valid b' hb'
-                refine ⟨lm, ?_, hrl⟩
-                have hne_s : 3 * b' + fs.liveRole b' ≠ fs.overmarsSliceIdx b := by
-                  dsimp only [FastState.overmarsSliceIdx]
-                  intro heq
-                  exact hbb (sliceIdx_inj (hc.roles_valid b' hb').1 hor_lt heq).1
-                dsimp only [FastState.liveSliceIdx, fs1]
-                simp only [Function.update_of_ne hbb, Function.update_of_ne hne_s]
-                exact hvl }
-        · intro b' hb'
-          by_cases hbb : b' = b
-          · subst hbb
-            left
-            dsimp only [fs1]
-            simp only [Function.update_self]
-            exact ⟨trivial, by omega⟩
-          · have hne_om : 3 * b' + fs.overmarsRole b' ≠ fs.overmarsSliceIdx b := by
-              dsimp only [FastState.overmarsSliceIdx]
-              intro heq
-              exact hbb (sliceIdx_inj (hc.roles_valid b' hb').2.1 hor_lt heq).1
-            refine (hom_other b' hb' hbb).of_eq_on (fpAt_eq_of_fields rfl rfl _ _) rfl rfl rfl rfl
-              rfl ?_ ?_ ?_ ?_ ?_
-            · dsimp only [fs1]; exact Function.update_of_ne hbb _ _
-            · dsimp only [fs1]; simp only [Function.update_of_ne hbb]
-            · dsimp only [fs1]; simp only [Function.update_of_ne hbb]
-            · dsimp only [fs1]; simp only [Function.update_of_ne hbb]
-            · dsimp only [FastState.overmarsSliceIdx, fs1] at hne_om ⊢
-              simp only [Function.update_of_ne hbb]
-              exact Function.update_of_ne hne_om _ _
-      · rw [ite_eq_right hdone]
-        dsimp only [fs1] at hdone
-        rw [Function.update_self] at hdone
-        have hcur_lt_b : cur1 < fs.bktCount b := Nat.lt_of_not_le hdone
-        rw [Nat.min_eq_right hcur_lt_b.le] at hrel1
-        have hreb_eq : ∀ bc < numBucketsWhp n_max,
-            fs1.slices (fs1.rebSliceIdx bc) = fs.slices (fs.rebSliceIdx bc) := by
-          intro bc hbc
-          dsimp only [fs1, FastState.rebSliceIdx, FastState.rebRole]
-          exact Function.update_of_ne (hne_reb_all bc hbc).symm _ _
-        refine ⟨?_, ?_,
-          fun hst => hst.of_rebSlice_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
-            rfl rfl hreb_eq,
-          fun hst => hst.of_rebSlice_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
-            rfl rfl hreb_eq,
-          rfl, rfl, rfl, rfl⟩
-        · refine { hc with
-            live_valid := fun b' hb' => by
-              obtain ⟨lm, hvl, hrl⟩ := hc.live_valid b' hb'
-              refine ⟨lm, ?_, hrl⟩
-              have hne_s : fs.liveSliceIdx b' ≠ fs.overmarsSliceIdx b := by
-                by_cases hbb : b' = b
-                · subst hbb; exact hne_lo.symm
-                · dsimp only [FastState.liveSliceIdx, FastState.overmarsSliceIdx]
-                  intro heq
-                  exact hbb (sliceIdx_inj (hc.roles_valid b' hb').1 hor_lt heq).1
-              dsimp only [fs1, FastState.liveSliceIdx] at hne_s ⊢
-              rwa [Function.update_of_ne hne_s] }
-        · intro b' hb'
-          by_cases hbb : b' = b
-          · subst hbb
-            right
-            dsimp only [fs1, FastState.overmarsSliceIdx]
-            simp only [Function.update_self]
-            exact ⟨trivial, by omega, hcur_lt_b, by omega, by omega, omMap1, hv1, hrel1⟩
-          · have hne_om : 3 * b' + fs.overmarsRole b' ≠ fs.overmarsSliceIdx b := by
-              dsimp only [FastState.overmarsSliceIdx]
-              intro heq
-              exact hbb (sliceIdx_inj (hc.roles_valid b' hb').2.1 hor_lt heq).1
-            refine (hom_other b' hb' hbb).of_eq_on (fpAt_eq_of_fields rfl rfl _ _) rfl rfl rfl rfl
-              rfl rfl ?_ ?_ ?_ ?_
-            · dsimp only [fs1]; exact Function.update_of_ne hbb _ _
-            · dsimp only [fs1]; exact Function.update_of_ne hbb _ _
-            · dsimp only [fs1]; exact Function.update_of_ne hbb _ _
-            · dsimp only [FastState.overmarsSliceIdx, fs1]
-              exact Function.update_of_ne hne_om _ _
-    · -- Stays completely inactive (`fs' = fs`)!
-      have hncond0 : ¬(fs.overmarsActive b = 0 ∧ 5 * (slabScale n_max) ^ 12 ≤ fs.liveInsCount b) :=
+      exact overmarsStep_post_scan hc hb hom_other (by omega) (by omega) (by omega) (by omega)
+        hv1 hrel1
+    · have hncond0 : ¬(fs.overmarsActive b = 0 ∧ 5 * (slabScale n_max) ^ 12 ≤ fs.liveInsCount b) :=
         fun ⟨_, h⟩ => htrig h
       rw [ite_eq_right hncond0, ite_eq_right (by omega : ¬(fs.overmarsActive b = 1))]
       refine ⟨hc, fun b' hb' => ?_, id, id, rfl, rfl, rfl, rfl⟩
       by_cases hbb : b' = b
       · subst hbb; exact Or.inl ⟨ha0, Nat.lt_of_not_le htrig⟩
       · exact hom_other b' hb' hbb
-  · -- Already active (`overmarsActive b = 1`)!
-    have hncond0 : ¬(fs.overmarsActive b = 0 ∧ 5 * (slabScale n_max) ^ 12 ≤ fs.liveInsCount b) :=
+  · have hncond0 : ¬(fs.overmarsActive b = 0 ∧ 5 * (slabScale n_max) ^ 12 ≤ fs.liveInsCount b) :=
       by omega
     rw [ite_eq_right hncond0, ite_eq_left ha1]
     have hins_ub : fs.overmarsInsCount b + 16 ≤ 8 * (slabScale n_max) ^ 12 := by omega
@@ -1379,152 +1400,22 @@ theorem overmarsStep_spec {c U V n_max b : ℕ} {θ : SeedWhp c U n_max}
       overmarsScanSteps_spec hc.hth θ 16 fs hcnt_3L (hc.live_fp_inj b hb) hins_ub
         ⟨omMap0, hv0, hrel0⟩
     rw [hscan_eq]
-    set fs1 : FastState :=
-      { fs with
-        slices := Function.update fs.slices (fs.overmarsSliceIdx b) sl1
-        overmarsCursor := Function.update fs.overmarsCursor b cur1
-        overmarsInsCount := Function.update fs.overmarsInsCount b ins1 }
-    have hne_lo : fs.overmarsSliceIdx b ≠ fs.liveSliceIdx b := by
-      dsimp only [FastState.overmarsSliceIdx, FastState.liveSliceIdx]; omega
-    have hne_reb_all : ∀ b' < numBucketsWhp n_max, fs.overmarsSliceIdx b ≠ fs.rebSliceIdx b' := by
-      intro b' hb'
-      obtain ⟨hlr', hor', hne'⟩ := hc.roles_valid b' hb'
-      dsimp only [FastState.overmarsSliceIdx, FastState.rebSliceIdx, FastState.rebRole]
-      by_cases hbb : b' = b
-      · subst hbb; omega
-      · intro heq
-        have hrr : 3 - fs.liveRole b' - fs.overmarsRole b' < 3 := by omega
-        exact hbb (sliceIdx_inj hor_lt hrr heq).1.symm
-    by_cases hdone : fs1.bktCount b ≤ fs1.overmarsCursor b
-    · rw [ite_eq_left hdone]
-      dsimp only [fs1] at hdone
-      rw [Function.update_self] at hdone
-      rw [Nat.min_eq_left hdone] at hrel1
-      have hreb_eq : ∀ bc < numBucketsWhp n_max,
-          ({ fs1 with
-              liveRole := Function.update fs1.liveRole b (fs1.overmarsRole b)
-              overmarsRole := Function.update fs1.overmarsRole b (fs1.liveRole b)
-              liveInsCount := Function.update fs1.liveInsCount b (fs1.overmarsInsCount b)
-              overmarsActive := Function.update fs1.overmarsActive b 0
-              overmarsCursor := Function.update fs1.overmarsCursor b 0
-              overmarsInsCount := Function.update fs1.overmarsInsCount b 0 } :
-              FastState).slices
-            (({ fs1 with
-                liveRole := Function.update fs1.liveRole b (fs1.overmarsRole b)
-                overmarsRole := Function.update fs1.overmarsRole b (fs1.liveRole b)
-                liveInsCount := Function.update fs1.liveInsCount b (fs1.overmarsInsCount b)
-                overmarsActive := Function.update fs1.overmarsActive b 0
-                overmarsCursor := Function.update fs1.overmarsCursor b 0
-                overmarsInsCount := Function.update fs1.overmarsInsCount b 0 } :
-                FastState).rebSliceIdx bc) = fs.slices (fs.rebSliceIdx bc) := by
-        intro bc hbc
-        have hridx_eq : ({ fs1 with
-            liveRole := Function.update fs1.liveRole b (fs1.overmarsRole b)
-            overmarsRole := Function.update fs1.overmarsRole b (fs1.liveRole b)
-            liveInsCount := Function.update fs1.liveInsCount b (fs1.overmarsInsCount b)
-            overmarsActive := Function.update fs1.overmarsActive b 0
-            overmarsCursor := Function.update fs1.overmarsCursor b 0
-            overmarsInsCount := Function.update fs1.overmarsInsCount b 0 } :
-            FastState).rebSliceIdx bc = fs.rebSliceIdx bc := by
-          dsimp only [FastState.rebSliceIdx, FastState.rebRole, fs1]
-          by_cases hbb : bc = b
-          · subst hbb; simp only [Function.update_self]; omega
-          · simp [hbb]
-        rw [hridx_eq]
-        dsimp only [fs1]
-        exact Function.update_of_ne (hne_reb_all bc hbc).symm _ _
-      refine ⟨?_, ?_,
-        fun hst => hst.of_rebSlice_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
-          rfl rfl hreb_eq,
-        fun hst => hst.of_rebSlice_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
-          rfl rfl hreb_eq,
-        rfl, rfl, rfl, rfl⟩
-      · refine { hc with
-          roles_valid := fun b' hb' => by
-            by_cases hbb : b' = b
-            · subst hbb; dsimp only [fs1]; simp [hor_lt, hlr_lt, Ne.symm hro_ne]
-            · dsimp only [fs1]; simp [hbb, hc.roles_valid b' hb']
-          live_valid := fun b' hb' => by
-            by_cases hbb : b' = b
-            · subst hbb
-              refine ⟨omMap1, ?_, hrel1⟩
-              dsimp only [FastState.liveSliceIdx, fs1, FastState.overmarsSliceIdx]
-              simp only [Function.update_self]
-              exact hv1
-            · obtain ⟨lm, hvl, hrl⟩ := hc.live_valid b' hb'
-              refine ⟨lm, ?_, hrl⟩
-              have hne_s : 3 * b' + fs.liveRole b' ≠ fs.overmarsSliceIdx b := by
-                dsimp only [FastState.overmarsSliceIdx]
-                intro heq
-                exact hbb (sliceIdx_inj (hc.roles_valid b' hb').1 hor_lt heq).1
-              dsimp only [FastState.liveSliceIdx, fs1]
-              simp only [Function.update_of_ne hbb, Function.update_of_ne hne_s]
-              exact hvl }
-      · intro b' hb'
-        by_cases hbb : b' = b
-        · subst hbb
-          left
-          dsimp only [fs1]
-          simp only [Function.update_self]
-          exact ⟨trivial, by omega⟩
-        · have hne_om : 3 * b' + fs.overmarsRole b' ≠ fs.overmarsSliceIdx b := by
-            dsimp only [FastState.overmarsSliceIdx]
-            intro heq
-            exact hbb (sliceIdx_inj (hc.roles_valid b' hb').2.1 hor_lt heq).1
-          refine (hom_other b' hb' hbb).of_eq_on (fpAt_eq_of_fields rfl rfl _ _) rfl rfl rfl rfl
-            rfl ?_ ?_ ?_ ?_ ?_
-          · dsimp only [fs1]; exact Function.update_of_ne hbb _ _
-          · dsimp only [fs1]; simp only [Function.update_of_ne hbb]
-          · dsimp only [fs1]; simp only [Function.update_of_ne hbb]
-          · dsimp only [fs1]; simp only [Function.update_of_ne hbb]
-          · dsimp only [FastState.overmarsSliceIdx, fs1] at hne_om ⊢
-            simp only [Function.update_of_ne hbb]
-            exact Function.update_of_ne hne_om _ _
-    · rw [ite_eq_right hdone]
-      dsimp only [fs1] at hdone
-      rw [Function.update_self] at hdone
-      have hcur_lt_b : cur1 < fs.bktCount b := Nat.lt_of_not_le hdone
-      rw [Nat.min_eq_right hcur_lt_b.le] at hrel1
-      have hreb_eq : ∀ bc < numBucketsWhp n_max,
-          fs1.slices (fs1.rebSliceIdx bc) = fs.slices (fs.rebSliceIdx bc) := by
-        intro bc hbc
-        dsimp only [fs1, FastState.rebSliceIdx, FastState.rebRole]
-        exact Function.update_of_ne (hne_reb_all bc hbc).symm _ _
-      refine ⟨?_, ?_,
-        fun hst => hst.of_rebSlice_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
-          rfl rfl hreb_eq,
-        fun hst => hst.of_rebSlice_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
-          rfl rfl hreb_eq,
-        rfl, rfl, rfl, rfl⟩
-      · refine { hc with
-          live_valid := fun b' hb' => by
-            obtain ⟨lm, hvl, hrl⟩ := hc.live_valid b' hb'
-            refine ⟨lm, ?_, hrl⟩
-            have hne_s : fs.liveSliceIdx b' ≠ fs.overmarsSliceIdx b := by
-              by_cases hbb : b' = b
-              · subst hbb; exact hne_lo.symm
-              · dsimp only [FastState.liveSliceIdx, FastState.overmarsSliceIdx]
-                intro heq
-                exact hbb (sliceIdx_inj (hc.roles_valid b' hb').1 hor_lt heq).1
-            dsimp only [fs1, FastState.liveSliceIdx] at hne_s ⊢
-            rwa [Function.update_of_ne hne_s] }
-      · intro b' hb'
-        by_cases hbb : b' = b
-        · subst hbb
-          right
-          dsimp only [fs1, FastState.overmarsSliceIdx]
-          simp only [Function.update_self]
-          exact ⟨ha1, by omega, hcur_lt_b, by omega, by omega, omMap1, hv1, hrel1⟩
-        · have hne_om : 3 * b' + fs.overmarsRole b' ≠ fs.overmarsSliceIdx b := by
-            dsimp only [FastState.overmarsSliceIdx]
-            intro heq
-            exact hbb (sliceIdx_inj (hc.roles_valid b' hb').2.1 hor_lt heq).1
-          refine (hom_other b' hb' hbb).of_eq_on (fpAt_eq_of_fields rfl rfl _ _) rfl rfl rfl rfl
-            rfl rfl rfl ?_ ?_ ?_
-          · dsimp only [fs1]; exact Function.update_of_ne hbb _ _
-          · dsimp only [fs1]; exact Function.update_of_ne hbb _ _
-          · dsimp only [FastState.overmarsSliceIdx, fs1]
-            exact Function.update_of_ne hne_om _ _
+    have hfs1_eq :
+        ({ fs with
+            slices := Function.update fs.slices (fs.overmarsSliceIdx b) sl1
+            overmarsCursor := Function.update fs.overmarsCursor b cur1
+            overmarsInsCount := Function.update fs.overmarsInsCount b ins1 } : FastState) =
+          { fs with
+            overmarsActive := Function.update fs.overmarsActive b 1
+            overmarsCursor := Function.update fs.overmarsCursor b cur1
+            overmarsInsCount := Function.update fs.overmarsInsCount b ins1
+            slices := Function.update fs.slices (fs.overmarsSliceIdx b) sl1 } := by
+      have hact : Function.update fs.overmarsActive b 1 = fs.overmarsActive :=
+        Function.update_eq_self_iff.mpr ha1.symm
+      rw [hact]
+    rw [hfs1_eq]
+    exact overmarsStep_post_scan hc hb hom_other (by omega) (by omega) (by omega) (by omega)
+      hv1 hrel1
 
 /-! ## Section 3: Fast-mode deletion (`ValidFastState.fastDelete_spec`) -/
 
@@ -1896,7 +1787,7 @@ private theorem ValidBufTrie.insert_same_bucket_checkSlot_some {cTab bChar rKey 
   have hbeq : b₁ = b' := by rw [← hb₁, ← hupd_ib, hb']
   rwa [← hbeq]
 
-theorem rKeyAt_lt {c U n_max : ℕ} (θ : SeedWhp c U n_max) (fs : FastState)
+private theorem rKeyAt_lt {c U n_max : ℕ} (θ : SeedWhp c U n_max) (fs : FastState)
     (b loc : ℕ) : fs.rKeyAt c U n_max θ b loc < 2 ^ (cTabWhp c * bCharWhp n_max) := by
   dsimp only [FastState.rKeyAt]
   split_ifs with h
