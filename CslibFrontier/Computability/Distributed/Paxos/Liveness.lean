@@ -2013,6 +2013,34 @@ private lemma netToSynod_acc_recv_sim {P V : Type*} [LinearOrder P] [DecidableEq
       exact heq
     · exact ⟨ho, Or.inl heq⟩
 
+private lemma netToSynod_prop_recv_sim {P V : Type*} [LinearOrder P] [DecidableEq V]
+    (qs : QuorumSystem P)
+    (s : NetState P (SynodNodeState P V) (Msg P P V) V)
+    (hout : ∀ q, (s.proc q).out = (s.proc q).state.learn.learned)
+    (src dest a : P) (crashed : Bool)
+    (res : StepResult P (SynodNodeState P V) (Msg P P V) V)
+    (sact : SynodAction P P P V)
+    (hen_live : crashed = false → synodEnabled (netToSynod s) sact)
+    (hres :
+      (∀ q, ((AsyncQuorumProtocol.applyResult dest res s).proc q).out =
+        ((AsyncQuorumProtocol.applyResult dest res s).proc q).state.learn.learned) ∧
+      netToSynod (AsyncQuorumProtocol.applyResult dest res s) =
+        synodStep qs (netToSynod s) sact) :
+    let u := AsyncQuorumProtocol.applyResult dest
+      (if crashed = false ∧ src = a then res
+       else { nextState := (s.proc dest).state, outgoing := ∅, decideVal := none }) s
+    (∀ q, (u.proc q).out = (u.proc q).state.learn.learned) ∧
+      (netToSynod u = netToSynod s ∨
+        ∃ sact', (synodLts qs).Tr (netToSynod s) sact' (netToSynod u)) := by
+  by_cases hguard : crashed = false ∧ src = a
+  · dsimp only []
+    rw [ite_eq_left hguard]
+    exact ⟨hres.1, Or.inr ⟨sact, ⟨hen_live hguard.1, hres.2⟩⟩⟩
+  · dsimp only []
+    rw [ite_eq_right hguard]
+    obtain ⟨ho, heq⟩ := applyResult_noop_sim hout dest
+    exact ⟨ho, Or.inl heq⟩
+
 private lemma netToSynod_step {P V : Type*} [Fintype P] [LinearOrder P] [DecidableEq V]
     (qs : QuorumSystem P)
     {s s' : NetState P (SynodNodeState P V) (Msg P P V) V}
@@ -2033,6 +2061,7 @@ private lemma netToSynod_step {P V : Type*} [Fintype P] [LinearOrder P] [Decidab
     have hbody_mem : pkt.body ∈ (netToSynod s).msgs :=
       Finset.mem_image.mpr ⟨pkt, hpkt_mem, rfl⟩
     rcases pkt with ⟨src, dest, body⟩
+    dsimp only [synodQuorumProtocol]
     cases body with
     | phase1a b =>
       exact netToSynod_acc_recv_sim qs s hout dest
@@ -2044,52 +2073,31 @@ private lemma netToSynod_step {P V : Type*} [Fintype P] [LinearOrder P] [Decidab
         (fun hlive => ⟨hlive, hbody_mem⟩) rfl
         (union_image_singleton_pair s.msgs dest b.proposer _)
     | phase1b a b mv =>
-      dsimp only [synodQuorumProtocol]
-      by_cases hguard : (s.proc dest).state.prop.crashed = false ∧ src = a
-      · rw [ite_eq_left hguard]
-        have hprop_ns : (netToSynod s).proposers dest = (s.proc dest).state.prop := rfl
-        cases hround : (s.proc dest).state.prop.round with
-        | none =>
-          obtain ⟨ho, heq⟩ := applyResult_noop_sim hout dest
-          refine ⟨ho, Or.inr ⟨.recvPhase1b dest a b mv, ⟨⟨hguard.1, hbody_mem⟩, ?_⟩⟩⟩
-          dsimp only [synodStep, synodStepCore]
-          rw [hprop_ns, hround]
-          exact heq
-        | some r =>
-          dsimp only []
-          by_cases hnew : b = ⟨r, dest⟩ ∧ a ∉ (s.proc dest).state.prop.promised
-          · rw [ite_eq_left hnew]
-            by_cases hq_cond : (!(s.proc dest).state.prop.proposed &&
-                decide (∃ Q ∈ qs.quorums, Q ⊆ insert a (s.proc dest).state.prop.promised)) = true
-            · rw [ite_eq_left hq_cond]
-              refine ⟨out_preserved_of_nonlearn hout rfl,
-                Or.inr ⟨.recvPhase1b dest a b mv, ⟨⟨hguard.1, hbody_mem⟩, ?_⟩⟩⟩
-              dsimp only [synodStep, synodStepCore]
-              rw [hprop_ns, hround]
-              dsimp only []
-              rw [ite_eq_left hnew, ite_eq_left hq_cond]
-              exact netToSynod_prop_update s dest _ _ _
-                (union_image_broadcastPairs s.msgs dest _)
-            · rw [ite_eq_right hq_cond]
-              refine ⟨out_preserved_of_nonlearn hout rfl,
-                Or.inr ⟨.recvPhase1b dest a b mv, ⟨⟨hguard.1, hbody_mem⟩, ?_⟩⟩⟩
-              dsimp only [synodStep, synodStepCore]
-              rw [hprop_ns, hround]
-              dsimp only []
-              rw [ite_eq_left hnew, ite_eq_right hq_cond]
-              exact netToSynod_prop_update s dest _ _ _
-                (by simp only [netToSynod, Finset.image_empty, Finset.union_empty])
-          · rw [ite_eq_right hnew]
-            obtain ⟨ho, heq⟩ := applyResult_noop_sim hout dest
-            refine ⟨ho, Or.inr ⟨.recvPhase1b dest a b mv, ⟨⟨hguard.1, hbody_mem⟩, ?_⟩⟩⟩
-            dsimp only [synodStep, synodStepCore]
-            rw [hprop_ns, hround]
-            dsimp only []
-            rw [ite_eq_right hnew]
-            exact heq
-      · rw [ite_eq_right hguard]
-        obtain ⟨ho, heq⟩ := applyResult_noop_sim hout dest
-        exact ⟨ho, Or.inl heq⟩
+      refine netToSynod_prop_recv_sim qs s hout src dest a
+        (s.proc dest).state.prop.crashed _ (.recvPhase1b dest a b mv)
+        (fun hlive => ⟨hlive, hbody_mem⟩) ?_
+      have hprop_ns : (netToSynod s).proposers dest = (s.proc dest).state.prop := rfl
+      dsimp only [synodStep, synodStepCore]
+      rw [hprop_ns]
+      cases hround : (s.proc dest).state.prop.round with
+      | none => exact applyResult_noop_sim hout dest
+      | some r =>
+        dsimp only []
+        by_cases hnew : b = ⟨r, dest⟩ ∧ a ∉ (s.proc dest).state.prop.promised
+        · rw [ite_eq_left hnew, ite_eq_left hnew]
+          by_cases hq_cond : (!(s.proc dest).state.prop.proposed &&
+              decide (∃ Q ∈ qs.quorums, Q ⊆ insert a (s.proc dest).state.prop.promised)) = true
+          · rw [ite_eq_left hq_cond, ite_eq_left hq_cond]
+            exact ⟨out_preserved_of_nonlearn hout rfl,
+              netToSynod_prop_update s dest _
+                (Finset.univ.image fun q => (q, Msg.phase2a ⟨r, dest⟩ _)) _
+                (union_image_broadcastPairs s.msgs dest _)⟩
+          · rw [ite_eq_right hq_cond, ite_eq_right hq_cond]
+            exact ⟨out_preserved_of_nonlearn hout rfl,
+              netToSynod_prop_update s dest _ ∅ _
+                (by simp only [Finset.image_empty, Finset.union_empty]; rfl)⟩
+        · rw [ite_eq_right hnew, ite_eq_right hnew]
+          exact applyResult_noop_sim hout dest
     | phase2a b v =>
       exact netToSynod_acc_recv_sim qs s hout dest
         (allowsVote (s.proc dest).state.acc.maxBal b)
@@ -2100,24 +2108,20 @@ private lemma netToSynod_step {P V : Type*} [Fintype P] [LinearOrder P] [Decidab
         (fun hlive => ⟨hlive, hbody_mem⟩) rfl
         (union_image_broadcastPairs s.msgs dest _)
     | phase2b a b v =>
-      dsimp only [synodQuorumProtocol]
-      by_cases hguard : (s.proc dest).state.learn.crashed = false ∧ src = a
-      · rw [ite_eq_left hguard]
-        refine ⟨fun q => ?_, Or.inr ⟨.recvPhase2b dest a b v, ⟨⟨hguard.1, hbody_mem⟩, ?_⟩⟩⟩
-        · dsimp only [AsyncQuorumProtocol.applyResult]
-          rcases eq_or_ne q dest with rfl | hqd
-          · simp only [↓reduceIte]; rw [hout q]; cases (s.proc q).state.learn.learned <;> rfl
-          · simp only [hqd, ↓reduceIte]; exact hout q
-        · rw [netToSynod_applyResult s dest ⟨_, ∅, _⟩ (netToSynod s).msgs
-            (by simp only [netToSynod, Finset.image_empty, Finset.union_empty])]
-          refine SynodState.ext rfl (ite_self_field _ dest rfl) (ite_self_field _ dest rfl)
-            (funext fun x => ?_)
-          dsimp only [synodStep, synodStepCore, netToSynod]
-          by_cases hxd : x = dest <;> simp only [hxd, ↓reduceIte]
-          congr
-      · rw [ite_eq_right hguard]
-        obtain ⟨ho, heq⟩ := applyResult_noop_sim hout dest
-        exact ⟨ho, Or.inl heq⟩
+      refine netToSynod_prop_recv_sim qs s hout src dest a
+        (s.proc dest).state.learn.crashed _ (.recvPhase2b dest a b v)
+        (fun hlive => ⟨hlive, hbody_mem⟩) ⟨fun q => ?_, ?_⟩
+      · dsimp only [AsyncQuorumProtocol.applyResult]
+        rcases eq_or_ne q dest with rfl | hqd
+        · simp only [↓reduceIte]; rw [hout q]; cases (s.proc q).state.learn.learned <;> rfl
+        · simp only [hqd, ↓reduceIte]; exact hout q
+      · rw [netToSynod_applyResult s dest ⟨_, ∅, _⟩ (netToSynod s).msgs
+          (by simp only [Finset.image_empty, Finset.union_empty]; rfl)]
+        refine SynodState.ext rfl (ite_self_field _ dest rfl) (ite_self_field _ dest rfl)
+          (funext fun x => ?_)
+        dsimp only [synodStep, synodStepCore, netToSynod]
+        by_cases hxd : x = dest <;> simp only [hxd, ↓reduceIte]
+        congr
   | stutter =>
     obtain rfl := htr
     exact ⟨hout, Or.inl rfl⟩
@@ -2173,59 +2177,67 @@ private lemma deliver_fanout_acc {P V : Type*} [Fintype P] [LinearOrder P] [Deci
       (∀ a ∈ as, (u'.proc a).state.acc = ast ∧
         (⟨a, p₀, reply a⟩ : Packet P (Msg P P V)) ∈ u'.msgs) := by
   let π := synodQuorumProtocol (V := V) qs
-  have ⟨hmtr, _⟩ := π.mTr_map_deliver (fun a => ⟨p₀, a, msg⟩) (fun x hx => (hall x hx).1)
-  refine ⟨hmtr, ?_⟩
-  have hstate : ∀ (as : List P), as.Nodup →
-      ∀ (u : NetState P (SynodNodeState P V) (Msg P P V) V),
-      (∀ x ∈ as, (u.proc x).state.acc = acc₀) →
-      let u' := as.foldl (fun w a => π.deliverStep w ⟨p₀, a, msg⟩) u
-      (∀ q, (u'.proc q).state.prop = (u.proc q).state.prop ∧
-        (u'.proc q).state.learn = (u.proc q).state.learn) ∧
-      (∀ x ∉ as, (u'.proc x).state.acc = (u.proc x).state.acc) ∧
-      (∀ a ∈ as, (u'.proc a).state.acc = ast ∧
-        (⟨a, p₀, reply a⟩ : Packet P (Msg P P V)) ∈ u'.msgs) := by
-    intro bs hnd
-    induction bs with
-    | nil =>
-      exact fun _ _ => ⟨fun _ => ⟨rfl, rfl⟩, fun _ _ => rfl, fun _ h => absurd h List.not_mem_nil⟩
-    | cons a rest ih =>
-      obtain ⟨ha_not, hnd_r⟩ := List.nodup_cons.mp hnd
-      intro w hw
-      obtain ⟨out, hon, hrep_mem⟩ := hrecv a (w.proc a) (hw a List.mem_cons_self)
-      let w1 := π.deliverStep w ⟨p₀, a, msg⟩
-      have hw1_pl : ∀ q, (w1.proc q).state.prop = (w.proc q).state.prop ∧
-          (w1.proc q).state.learn = (w.proc q).state.learn := by
-        intro q
-        dsimp only [w1, AsyncQuorumProtocol.deliverStep, AsyncQuorumProtocol.applyResult]
-        rw [hon]
-        by_cases hqa : q = a <;> simp only [hqa, ↓reduceIte, and_self]
-      have hw1_other : ∀ x, x ≠ a → (w1.proc x).state.acc = (w.proc x).state.acc := by
-        intro x hxa
-        dsimp only [w1, AsyncQuorumProtocol.deliverStep, AsyncQuorumProtocol.applyResult]
-        simp only [hxa, ↓reduceIte]
-      have hw1_a : (w1.proc a).state.acc = ast ∧
-          (⟨a, p₀, reply a⟩ : Packet P (Msg P P V)) ∈ w1.msgs := by
-        dsimp only [w1, AsyncQuorumProtocol.deliverStep, AsyncQuorumProtocol.applyResult]
-        rw [hon, ite_eq_left rfl]
-        exact ⟨rfl, Finset.mem_union_right _ (Finset.mem_image.mpr ⟨(p₀, reply a), hrep_mem, rfl⟩)⟩
-      have hsub_r : ∀ (xs : List P) (z₀ : NetState P (SynodNodeState P V) (Msg P P V) V),
-          z₀.msgs ⊆ (xs.foldl (fun z x => π.deliverStep z ⟨p₀, x, msg⟩) z₀).msgs := by
-        intro xs
-        induction xs with
-        | nil => exact fun _ => Finset.Subset.rfl
-        | cons x xs' ihx =>
-          intro z₀
-          exact Finset.subset_union_left.trans (ihx (π.deliverStep z₀ ⟨p₀, x, msg⟩))
-      obtain ⟨hpl_r, hnot_r, hin_r⟩ := ih hnd_r w1 fun x hx =>
-        (hw1_other x (fun h => ha_not (h ▸ hx))).trans (hw x (List.mem_cons_of_mem a hx))
-      refine ⟨fun q => ⟨(hpl_r q).1.trans (hw1_pl q).1, (hpl_r q).2.trans (hw1_pl q).2⟩,
-        fun x hx => (hnot_r x fun h => hx (List.mem_cons_of_mem a h)).trans
-          (hw1_other x fun h => hx (h ▸ List.mem_cons_self)),
-        fun x hx => ?_⟩
-      rcases List.mem_cons.mp hx with rfl | hx_r
-      · exact ⟨(hnot_r x ha_not).trans hw1_a.1, hsub_r rest w1 hw1_a.2⟩
-      · exact hin_r x hx_r
-  exact hstate as hnodup u (fun x hx => (hall x hx).2)
+  refine ⟨(π.mTr_map_deliver (fun a => ⟨p₀, a, msg⟩) (fun x hx => (hall x hx).1)).1, ?_⟩
+  induction hnodup generalizing u with
+  | nil => exact ⟨fun _ => ⟨rfl, rfl⟩, fun _ _ => rfl, fun _ h => absurd h List.not_mem_nil⟩
+  | @cons a rest ha_not _ ih =>
+    have ha_not' : a ∉ rest := fun h => ha_not a h rfl
+    obtain ⟨out, hon, hrep_mem⟩ := hrecv a (u.proc a) (hall a List.mem_cons_self).2
+    let w1 := π.deliverStep u ⟨p₀, a, msg⟩
+    have hw1_pl : ∀ q, (w1.proc q).state.prop = (u.proc q).state.prop ∧
+        (w1.proc q).state.learn = (u.proc q).state.learn := by
+      intro q
+      dsimp only [w1, AsyncQuorumProtocol.deliverStep, AsyncQuorumProtocol.applyResult]
+      rw [hon]
+      by_cases hqa : q = a <;> simp only [hqa, ↓reduceIte, and_self]
+    have hw1_other : ∀ x, x ≠ a → (w1.proc x).state.acc = (u.proc x).state.acc := by
+      intro x hxa
+      dsimp only [w1, AsyncQuorumProtocol.deliverStep, AsyncQuorumProtocol.applyResult]
+      simp only [hxa, ↓reduceIte]
+    have hw1_a : (w1.proc a).state.acc = ast ∧
+        (⟨a, p₀, reply a⟩ : Packet P (Msg P P V)) ∈ w1.msgs := by
+      dsimp only [w1, AsyncQuorumProtocol.deliverStep, AsyncQuorumProtocol.applyResult]
+      rw [hon, ite_eq_left rfl]
+      exact ⟨rfl, Finset.mem_union_right _ (Finset.mem_image.mpr ⟨(p₀, reply a), hrep_mem, rfl⟩)⟩
+    have hall_r : ∀ x ∈ rest, (⟨p₀, x, msg⟩ : Packet P (Msg P P V)) ∈ w1.msgs ∧
+        (w1.proc x).state.acc = acc₀ := fun x hx =>
+      ⟨Finset.subset_union_left (hall x (List.mem_cons_of_mem a hx)).1,
+        (hw1_other x fun h => ha_not' (h ▸ hx)).trans (hall x (List.mem_cons_of_mem a hx)).2⟩
+    have ⟨_, hsub_r⟩ := π.mTr_map_deliver (u := w1) (fun x => ⟨p₀, x, msg⟩)
+      (fun x hx => (hall_r x hx).1)
+    obtain ⟨hpl_r, hnot_r, hin_r⟩ := ih hall_r
+    refine ⟨fun q => ⟨(hpl_r q).1.trans (hw1_pl q).1, (hpl_r q).2.trans (hw1_pl q).2⟩,
+      fun x hx => (hnot_r x fun h => hx (List.mem_cons_of_mem a h)).trans
+        (hw1_other x fun h => hx (h ▸ List.mem_cons_self)),
+      fun x hx => ?_⟩
+    rcases List.mem_cons.mp hx with rfl | hx_r
+    · exact ⟨(hnot_r x ha_not').trans hw1_a.1, hsub_r hw1_a.2⟩
+    · exact hin_r x hx_r
+
+private lemma deliver_fanin_leader {P V : Type*} [Fintype P] [LinearOrder P] [DecidableEq V]
+    (qs : QuorumSystem P) (p₀ : P) (msg : P → Msg P P V)
+    (Inv : Finset P → NetState P (SynodNodeState P V) (Msg P P V) V → Prop)
+    (hstep : ∀ (w : NetState P (SynodNodeState P V) (Msg P P V) V) (S : Finset P) (a : P),
+      Inv S w → Inv (insert a S) ((synodQuorumProtocol (V := V) qs).deliverStep w ⟨a, p₀, msg a⟩))
+    {as : List P} {u : NetState P (SynodNodeState P V) (Msg P P V) V} {S₀ : Finset P}
+    (hmem : ∀ a ∈ as, (⟨a, p₀, msg a⟩ : Packet P (Msg P P V)) ∈ u.msgs)
+    (hinv₀ : Inv S₀ u) :
+    let π := synodQuorumProtocol (V := V) qs
+    let u' := as.foldl (fun w a => π.deliverStep w ⟨a, p₀, msg a⟩) u
+    π.lts.MTr u (as.map fun a => .deliver ⟨a, p₀, msg a⟩) u' ∧
+      ∃ S', S₀ ⊆ S' ∧ (∀ a ∈ as, a ∈ S') ∧ Inv S' u' := by
+  let π := synodQuorumProtocol (V := V) qs
+  refine ⟨(π.mTr_map_deliver (fun a => ⟨a, p₀, msg a⟩) hmem).1, ?_⟩
+  induction as generalizing u S₀ with
+  | nil => exact ⟨S₀, Finset.Subset.rfl, fun _ h => absurd h List.not_mem_nil, hinv₀⟩
+  | cons a rest ih =>
+    obtain ⟨S', hsub, hin, hinv'⟩ :=
+      ih (fun x hx => Finset.subset_union_left (hmem x (List.mem_cons_of_mem a hx)))
+        (hstep u S₀ a hinv₀)
+    refine ⟨S', (Finset.subset_insert a S₀).trans hsub, fun x hx => ?_, hinv'⟩
+    rcases List.mem_cons.mp hx with rfl | hx_r
+    · exact hsub (Finset.mem_insert_self x S₀)
+    · exact hin x hx_r
 
 /-- Crash-stop step for co-located `synodQuorumProtocol` (a crash-stop step towards [Lamport1998]
 §2 and [Lamport2001] §2, not the crash-recovery cited protocol): for every quorum system
@@ -2298,80 +2310,57 @@ theorem synodQuorumProtocol_safeSingleQuorum_crashStop {P V : Type*} [Fintype P]
         Q₀.nodup_toList hs₁_as
     set s₂ := qList.foldl (fun w a => π.deliverStep w ⟨p₀, a, .phase1a b⟩) s₁
     -- Phase 1b fan-in to `p₀` across `qList`:
-    have hstep_1b : ∀ (u : NetState P (SynodNodeState P V) (Msg P P V) V) (S : Finset P) (a : P),
-        (u.proc p₀).state.prop = propOf S →
-        (decide (∃ Q ∈ qs.quorums, Q ⊆ S) = true →
-          ∀ x : P, (⟨p₀, x, Msg.phase2a b v⟩ : Packet P (Msg P P V)) ∈ u.msgs) →
-        let u1 := π.deliverStep u ⟨a, p₀, .phase1b a b none⟩
-        (∀ x : P, (u1.proc x).state.acc = (u.proc x).state.acc ∧
-          (u1.proc x).state.learn = (u.proc x).state.learn) ∧
-        (u1.proc p₀).state.prop = propOf (insert a S) ∧
-        (decide (∃ Q ∈ qs.quorums, Q ⊆ insert a S) = true →
-          ∀ x : P, (⟨p₀, x, Msg.phase2a b v⟩ : Packet P (Msg P P V)) ∈ u1.msgs) := by
-      intro u S a hpS h2a
-      dsimp only [AsyncQuorumProtocol.deliverStep, AsyncQuorumProtocol.applyResult, π,
-        synodQuorumProtocol]
-      have hg : (u.proc p₀).state.prop.crashed = false ∧ a = a := ⟨by rw [hpS], rfl⟩
-      rw [ite_eq_left hg, hpS]
-      dsimp only [propOf, mergeVote]
-      by_cases haS : a ∈ S
-      · rw [ite_eq_right (fun h : b = ⟨0, p₀⟩ ∧ a ∉ S => h.2 haS), Finset.insert_eq_of_mem haS]
-        exact ⟨fun x => by by_cases hx : x = p₀ <;> simp only [hx, ↓reduceIte, and_self],
-          by rw [ite_eq_left rfl]; exact hpS,
-          fun hq x => Finset.mem_union_left _ (h2a hq x)⟩
-      · rw [ite_eq_left (⟨rfl, haS⟩ : b = ⟨0, p₀⟩ ∧ a ∉ S)]
-        by_cases hqS : ∃ Q ∈ qs.quorums, Q ⊆ S
-        · have hdS : decide (∃ Q ∈ qs.quorums, Q ⊆ S) = true := decide_eq_true hqS
-          have hd_ins : decide (∃ Q ∈ qs.quorums, Q ⊆ insert a S) = true := by
-            obtain ⟨Q, hQ, hsub⟩ := hqS
-            exact decide_eq_true ⟨Q, hQ, hsub.trans (Finset.subset_insert a S)⟩
-          simp only [hdS, hd_ins, Bool.not_true, Bool.false_and, Bool.false_eq_true, ↓reduceIte]
-          exact ⟨fun x => by by_cases hx : x = p₀ <;> simp only [hx, ↓reduceIte, and_self],
-            trivial, fun _ x => Finset.mem_union_left _ (h2a hdS x)⟩
-        · have hdS : decide (∃ Q ∈ qs.quorums, Q ⊆ S) = false := decide_eq_false hqS
-          by_cases hq_ins : ∃ Q ∈ qs.quorums, Q ⊆ insert a S
-          · have hd_ins : decide (∃ Q ∈ qs.quorums, Q ⊆ insert a S) = true :=
-              decide_eq_true hq_ins
-            simp only [hdS, hd_ins, Bool.not_false, Bool.true_and, ↓reduceIte]
-            exact ⟨fun x => by by_cases hx : x = p₀ <;> simp only [hx, ↓reduceIte, and_self],
-              trivial,
-              fun _ x => Finset.mem_union_right _ (Finset.mem_image.mpr ⟨(x, .phase2a b v),
-                Finset.mem_image.mpr ⟨x, Finset.mem_univ x, rfl⟩, rfl⟩)⟩
-          · have hd_ins : decide (∃ Q ∈ qs.quorums, Q ⊆ insert a S) = false :=
-              decide_eq_false hq_ins
-            simp only [hdS, hd_ins, Bool.not_false, Bool.true_and, Bool.false_eq_true, ↓reduceIte]
-            exact ⟨fun x => by by_cases hx : x = p₀ <;> simp only [hx, ↓reduceIte, and_self],
-              trivial, nofun⟩
-    have hloop_1b : ∀ (as : List P) (u : NetState P (SynodNodeState P V) (Msg P P V) V)
-        (S : Finset P),
-        (u.proc p₀).state.prop = propOf S →
-        (decide (∃ Q ∈ qs.quorums, Q ⊆ S) = true →
-          ∀ x : P, (⟨p₀, x, Msg.phase2a b v⟩ : Packet P (Msg P P V)) ∈ u.msgs) →
-        let u' := as.foldl (fun w a => π.deliverStep w ⟨a, p₀, .phase1b a b none⟩) u
-        let S' := as.foldl (fun acc a => insert a acc) S
-        (∀ x : P, (u'.proc x).state.acc = (u.proc x).state.acc ∧
-          (u'.proc x).state.learn = (u.proc x).state.learn) ∧
-        S ⊆ S' ∧ (∀ a ∈ as, a ∈ S') ∧
-        (decide (∃ Q ∈ qs.quorums, Q ⊆ S') = true →
-          ∀ x : P, (⟨p₀, x, Msg.phase2a b v⟩ : Packet P (Msg P P V)) ∈ u'.msgs) := by
-      intro as
-      induction as with
-      | nil =>
-        exact fun _ _ _ h2a =>
-          ⟨fun _ => ⟨rfl, rfl⟩, Finset.Subset.rfl, fun _ h => absurd h List.not_mem_nil, h2a⟩
-      | cons a rest ih =>
-        intro u S hpS h2a
-        obtain ⟨hal1, hp1, h2a1⟩ := hstep_1b u S a hpS h2a
-        obtain ⟨hal_r, hsub_r, hmem_r, h2a_r⟩ := ih _ (insert a S) hp1 h2a1
-        refine ⟨fun x => ⟨(hal_r x).1.trans (hal1 x).1, (hal_r x).2.trans (hal1 x).2⟩,
-          (Finset.subset_insert a S).trans hsub_r, fun x hx => ?_, h2a_r⟩
-        rcases List.mem_cons.mp hx with rfl | hx_r
-        · exact hsub_r (Finset.mem_insert_self x S)
-        · exact hmem_r x hx_r
-    have ⟨hmtr_1b, _⟩ := π.mTr_map_deliver (u := s₂) (fun a => ⟨a, p₀, .phase1b a b none⟩)
-      (fun x hx => (hs₂_in x hx).2)
-    obtain ⟨hs₃_al, _, hs₃_mem, hs₃_2a_imp⟩ := hloop_1b qList s₂ ∅
-      ((hs₂_pl p₀).1.trans hs₁_prop) (by rw [hempty_no_q]; exact nofun)
+    obtain ⟨hmtr_1b, S₃, _, hs₃_mem, hs₃_al, _, hs₃_2a_imp⟩ :=
+      deliver_fanin_leader qs p₀ (fun a => .phase1b a b none)
+        (fun S u =>
+          (∀ x : P, (u.proc x).state.acc = (s₂.proc x).state.acc ∧
+            (u.proc x).state.learn = (s₂.proc x).state.learn) ∧
+          (u.proc p₀).state.prop = propOf S ∧
+          (decide (∃ Q ∈ qs.quorums, Q ⊆ S) = true →
+            ∀ x : P, (⟨p₀, x, Msg.phase2a b v⟩ : Packet P (Msg P P V)) ∈ u.msgs))
+        (fun u S a ⟨hal, hpS, h2a⟩ => by
+          dsimp only [AsyncQuorumProtocol.deliverStep, AsyncQuorumProtocol.applyResult, π,
+            synodQuorumProtocol]
+          have hg : (u.proc p₀).state.prop.crashed = false ∧ a = a := ⟨by rw [hpS], rfl⟩
+          rw [ite_eq_left hg, hpS]
+          dsimp only [propOf, mergeVote]
+          have hal' (np : NodeProcState (SynodNodeState P V) V)
+              (ha : np.state.acc = (u.proc p₀).state.acc)
+              (hl : np.state.learn = (u.proc p₀).state.learn) (x : P) :
+              (if x = p₀ then np else u.proc x).state.acc = (s₂.proc x).state.acc ∧
+              (if x = p₀ then np else u.proc x).state.learn = (s₂.proc x).state.learn := by
+            rcases eq_or_ne x p₀ with rfl | hx
+            · simp only [↓reduceIte, ha, hl]; exact hal _
+            · simp only [hx, ↓reduceIte]; exact hal x
+          by_cases haS : a ∈ S
+          · rw [ite_eq_right (fun h : b = ⟨0, p₀⟩ ∧ a ∉ S => h.2 haS), Finset.insert_eq_of_mem haS]
+            exact ⟨hal' _ rfl rfl,
+              by rw [ite_eq_left rfl]; exact hpS,
+              fun hq x => Finset.mem_union_left _ (h2a hq x)⟩
+          · rw [ite_eq_left (⟨rfl, haS⟩ : b = ⟨0, p₀⟩ ∧ a ∉ S)]
+            by_cases hqS : ∃ Q ∈ qs.quorums, Q ⊆ S
+            · have hdS : decide (∃ Q ∈ qs.quorums, Q ⊆ S) = true := decide_eq_true hqS
+              have hd_ins : decide (∃ Q ∈ qs.quorums, Q ⊆ insert a S) = true := by
+                obtain ⟨Q, hQ, hsub⟩ := hqS
+                exact decide_eq_true ⟨Q, hQ, hsub.trans (Finset.subset_insert a S)⟩
+              simp only [hdS, hd_ins, Bool.not_true, Bool.false_and, Bool.false_eq_true, ↓reduceIte]
+              exact ⟨hal' _ rfl rfl, trivial, fun _ x => Finset.mem_union_left _ (h2a hdS x)⟩
+            · have hdS : decide (∃ Q ∈ qs.quorums, Q ⊆ S) = false := decide_eq_false hqS
+              by_cases hq_ins : ∃ Q ∈ qs.quorums, Q ⊆ insert a S
+              · have hd_ins : decide (∃ Q ∈ qs.quorums, Q ⊆ insert a S) = true :=
+                  decide_eq_true hq_ins
+                simp only [hdS, hd_ins, Bool.not_false, Bool.true_and, ↓reduceIte]
+                exact ⟨hal' _ rfl rfl, trivial,
+                  fun _ x => Finset.mem_union_right _ (Finset.mem_image.mpr ⟨(x, .phase2a b v),
+                    Finset.mem_image.mpr ⟨x, Finset.mem_univ x, rfl⟩, rfl⟩)⟩
+              · have hd_ins : decide (∃ Q ∈ qs.quorums, Q ⊆ insert a S) = false :=
+                  decide_eq_false hq_ins
+                simp only [hdS, hd_ins, Bool.not_false, Bool.true_and, Bool.false_eq_true,
+                  ↓reduceIte]
+                exact ⟨hal' _ rfl rfl, trivial, nofun⟩)
+        (as := qList) (u := s₂) (S₀ := ∅)
+        (fun x hx => (hs₂_in x hx).2)
+        ⟨fun _ => ⟨rfl, rfl⟩, (hs₂_pl p₀).1.trans hs₁_prop, by rw [hempty_no_q]; exact nofun⟩
     set s₃ := qList.foldl (fun w a => π.deliverStep w ⟨a, p₀, .phase1b a b none⟩) s₂
     have hs₃_2a_msgs : ∀ x : P, (⟨p₀, x, Msg.phase2a b v⟩ : Packet P (Msg P P V)) ∈ s₃.msgs :=
       hs₃_2a_imp (decide_eq_true ⟨Q₀, hQ₀, fun a haQ => hs₃_mem a (Finset.mem_toList.mpr haQ)⟩)
@@ -2395,36 +2384,25 @@ theorem synodQuorumProtocol_safeSingleQuorum_crashStop {P V : Type*} [Fintype P]
       rw [(hs₄_pl p₀).2, (hs₃_al p₀).2, (hs₂_pl p₀).2]
       exact hs₁_learn
     -- Phase 2b fan-in to `p₀` across `qList`:
-    have ⟨hmtr_2b, _⟩ := π.mTr_map_deliver (u := s₄) (fun a => ⟨a, p₀, .phase2b a b v⟩)
-      (fun x hx => (hs₄_in x hx).2)
-    set s₅ := qList.foldl (fun w a => π.deliverStep w ⟨a, p₀, .phase2b a b v⟩) s₄
-    have hs₅_recv : ∀ a ∈ qList, ⟨a, b, v⟩ ∈ (s₅.proc p₀).state.learn.received := by
-      suffices h2b : ∀ (as : List P) (u : NetState P (SynodNodeState P V) (Msg P P V) V),
-          (u.proc p₀).state.learn.crashed = false →
-          let u' := as.foldl (fun w a => π.deliverStep w ⟨a, p₀, .phase2b a b v⟩) u
-          (u.proc p₀).state.learn.received ⊆ (u'.proc p₀).state.learn.received ∧
-            ∀ a ∈ as, ⟨a, b, v⟩ ∈ (u'.proc p₀).state.learn.received from
-        (h2b qList s₄ hs₄_learn).2
-      intro as
-      induction as with
-      | nil => exact fun _ _ => ⟨Finset.Subset.rfl, fun _ h => absurd h List.not_mem_nil⟩
-      | cons a rest ih =>
-        intro u hl
-        let u1 := π.deliverStep u ⟨a, p₀, .phase2b a b v⟩
-        have hstep_2b : (u1.proc p₀).state.learn.crashed = false ∧
-            insert ⟨a, b, v⟩ (u.proc p₀).state.learn.received =
-              (u1.proc p₀).state.learn.received := by
-          dsimp only [u1, AsyncQuorumProtocol.deliverStep, AsyncQuorumProtocol.applyResult, π,
+    obtain ⟨hmtr_2b, S₅, _, hs₅_mem, _, hs₅_recv_S⟩ :=
+      deliver_fanin_leader qs p₀ (fun a => .phase2b a b v)
+        (fun S u => (u.proc p₀).state.learn.crashed = false ∧
+          ∀ a ∈ S, ⟨a, b, v⟩ ∈ (u.proc p₀).state.learn.received)
+        (fun u S a ⟨hl, hrec⟩ => by
+          dsimp only [AsyncQuorumProtocol.deliverStep, AsyncQuorumProtocol.applyResult, π,
             synodQuorumProtocol]
           rw [ite_eq_left (⟨hl, rfl⟩ : (u.proc p₀).state.learn.crashed = false ∧ a = a)]
           simp only [↓reduceIte, hl, true_and]
-        obtain ⟨hsub_r, hin_r⟩ := ih u1 hstep_2b.1
-        have hsub_all : insert ⟨a, b, v⟩ (u.proc p₀).state.learn.received ⊆ _ :=
-          hstep_2b.2 ▸ hsub_r
-        refine ⟨(Finset.subset_insert _ _).trans hsub_all, fun x hx => ?_⟩
-        rcases List.mem_cons.mp hx with rfl | hx_r
-        · exact hsub_all (Finset.mem_insert_self _ _)
-        · exact hin_r x hx_r
+          intro x hx
+          rcases Finset.mem_insert.mp hx with rfl | hxS
+          · exact Finset.mem_insert_self _ _
+          · exact Finset.mem_insert_of_mem (hrec x hxS))
+        (as := qList) (u := s₄) (S₀ := ∅)
+        (fun x hx => (hs₄_in x hx).2)
+        ⟨hs₄_learn, fun _ hm => False.elim (Finset.notMem_empty _ hm)⟩
+    set s₅ := qList.foldl (fun w a => π.deliverStep w ⟨a, p₀, .phase2b a b v⟩) s₄
+    have hs₅_recv : ∀ a ∈ qList, ⟨a, b, v⟩ ∈ (s₅.proc p₀).state.learn.received :=
+      fun a ha => hs₅_recv_S a (hs₅_mem a ha)
     let xl : List (NetAction P ℕ (Msg P P V)) :=
       [act₀] ++
         (qList.map fun a => NetAction.deliver (L := ℕ) ⟨p₀, a, Msg.phase1a b⟩) ++

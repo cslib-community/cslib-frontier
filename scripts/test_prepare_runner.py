@@ -34,7 +34,7 @@ class PrepareRunnerTests(unittest.TestCase):
                              'if [ "$1" = "-Pk" ]; then\n'
                              '  printf "Filesystem 1024-blocks Used Available Capacity Mounted on\\n"\n'
                              '  printf "/dev/root 304087040 62914560 %s 21%% /\\n" '
-                             '"${CLEANUP_TEST_FREE_KIB:-92274688}"\n'
+                             '"${CLEANUP_TEST_FREE_KIB:-52428800}"\n'
                              '  exit "${CLEANUP_TEST_DF_EXIT:-0}"\n'
                              'fi\n')
                 stub.write_text(body)
@@ -63,8 +63,8 @@ class PrepareRunnerTests(unittest.TestCase):
                                    "df -h /"])
 
     def test_free_space_threshold(self):
-        threshold = 100 * 1024 * 1024
-        for free_kib in (threshold - 1, threshold, 231 * 1024 * 1024):
+        threshold = 60 * 1024 * 1024
+        for free_kib in (threshold - 1, threshold, 92274688, 231 * 1024 * 1024):
             with self.subTest(free_kib=free_kib):
                 result, commands = self.run_cleanup(CLEANUP_TEST_FREE_KIB=str(free_kib))
                 self.assertEqual(result.returncode, 0, result.stderr)
@@ -75,12 +75,16 @@ class PrepareRunnerTests(unittest.TestCase):
                     self.assertTrue(any(command.startswith("sudo ") for command in commands))
 
     def test_operator_threshold_and_invalid_override(self):
-        for override, skip in (("75", True), ("", False), ("0", False), ("07", False),
+        for override, skip in (("45", True), ("", False), ("0", False), ("07", False),
                                ("invalid", False)):
             with self.subTest(override=override):
                 result, commands = self.run_cleanup(SDK_CLEANUP_MIN_GIB=override)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(any(cmd.startswith("sudo ") for cmd in commands), not skip)
+        result, commands = self.run_cleanup(SDK_CLEANUP_MIN_GIB="100",
+                                            CLEANUP_TEST_FREE_KIB="92274688")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(any(cmd.startswith("sudo ") for cmd in commands))
 
     def test_unavailable_space_measurement_keeps_cleanup(self):
         for override in ({"CLEANUP_TEST_FREE_KIB": "unknown"},
