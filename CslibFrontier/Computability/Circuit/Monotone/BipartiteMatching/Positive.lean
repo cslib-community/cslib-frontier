@@ -173,8 +173,6 @@ theorem card_exceptions_le (hr : 2 ≤ r) (op : Op)
   | and => exact card_largeUnions_le hr (A 0) (A 1)
   | const | or => simp [exceptions]
 
-variable [Fact (2 ≤ r)]
-
 /-- Away from its exceptions, a gate is positively correct on perfect matchings. -/
 theorem gate_correct (op : Op) (A : Fin (signature.Arity op) → Approximator n r s)
     (σ : Equiv.Perm (Fin n)) (hσ : σ ∉ exceptions op A) :
@@ -207,6 +205,8 @@ theorem gate_correct (op : Op) (A : Fin (signature.Arity op) → Approximator n 
     · refine absurd (mem_biUnion.2 ⟨(X, Y), mem_filter.2 ⟨mem_product.2 ⟨hX, hY⟩, ?_⟩,
         mem_filter.2 ⟨mem_univ σ, hσXY⟩⟩) hσ
       exact not_le.1 hXY
+
+variable [Fact (2 ≤ r)]
 
 /-- **Positive errors.** The approximation scheme on the perfect matchings of permutations: the
 approximate value is at least the exact one away from the exceptions of the conjunctions. -/

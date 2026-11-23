@@ -632,8 +632,7 @@ private theorem computableInO_of_declared_localMap_bounds {β : Type*} {encOut :
     have hTq : T q ≤ c * (N * Y ^ e) + c := by
       have h := hT q
       have h1 : X * (((encLocalMapQuery q).length : ℝ) + 1) ^ e ≤
-          (N : ℝ) * (((encLocalMapQuery q).length : ℝ) + 1) ^ e :=
-        mul_le_mul_of_nonneg_right hXN (by positivity)
+          (N : ℝ) * (((encLocalMapQuery q).length : ℝ) + 1) ^ e := by gcongr
       have h2 := mul_le_mul_of_nonneg_left h1 (Nat.cast_nonneg c)
       have : (T q : ℝ) ≤ (c * (N * Y ^ e) + c : ℕ) := by
         dsimp only [Y]

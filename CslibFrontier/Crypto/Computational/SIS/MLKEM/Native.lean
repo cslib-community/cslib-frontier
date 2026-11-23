@@ -362,15 +362,7 @@ theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.cbdValue {η : α → ℕ
     {bits : α → List Bool} (hη : ComputableInPolyTime η input encUnary)
     (hbits : ComputableInPolyTime bits input encBits) :
     ComputableInPolyTime (fun x => cbdValue (η x) (bits x)) input encIntBin := by
-  unfold Cslib.Crypto.MLKEM.cbdValue
-  have hcount (word : α → List Bool) (hword : ComputableInPolyTime word input encBits) :
-      ComputableInPolyTime (fun x => ((word x).count true : ℤ)) input encIntBin := by
-    have h := ComputableInPolyTime.intBin_natCast.comp (ComputableInPolyTime.unary_to_binary.comp
-      (ComputableInPolyTime.bitsCountWithInput hword (ComputableInPolyTime.const true)))
-    simpa only [Function.comp_def] using h
-  exact ComputableInPolyTime.intBin_sub'
-    (hcount _ (ComputableInPolyTime.bitsTakeWithInput hbits hη))
-    (hcount _ (ComputableInPolyTime.bitsDropWithInput hbits hη))
+  fun_prop [Cslib.Crypto.MLKEM.cbdValue]
 
 /-- `SamplePolyCBD_η` on a computed word, with computed unary degree and width and binary
 modulus. -/

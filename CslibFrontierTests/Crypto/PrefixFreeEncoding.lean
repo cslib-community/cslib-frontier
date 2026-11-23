@@ -85,6 +85,22 @@ example {K M X : Type*} (seed : PMF K) {pf : M → List X} (h : IsPrefixFreeEnco
         (fun hpre => hne ((IsPrefixFreeEncoding.iff_forall_prefix.mp h).2 m₁ m₀ hpre).symm)
   simp [hempty]
 
+/-- The longer query's next block is avoided, including when the shorter query is empty. -/
+example : separatingBlock false true ([] : List Bool) [false] = true := by decide
+
+/-- Reversing a proper-prefix pair still gives two prefix-incomparable queries. -/
+example :
+    let c := separatingBlock false true [true, false] [true]
+    (¬ [true, false] ++ [c] <+: [true] ++ [c]) ∧
+      (¬ [true] ++ [c] <+: [true, false] ++ [c]) :=
+  separatingBlock_prefix_incomparable (by decide) (by decide)
+
+/-- Equal-length distinct queries are also separated by the common extension. -/
+example :
+    let c := separatingBlock false true [true] [false]
+    (¬ [true] ++ [c] <+: [false] ++ [c]) ∧ (¬ [false] ++ [c] <+: [true] ++ [c]) :=
+  separatingBlock_prefix_incomparable (by decide) (by decide)
+
 /-- info: 'Cslib.Crypto.PRF.isPrefixFreeEncoding_stopBitEncode' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms isPrefixFreeEncoding_stopBitEncode

@@ -125,9 +125,16 @@ private theorem codeRange_add (start first second : ℕ) :
   simp only [codeRange, List.range_add, List.map_append, List.map_map, Function.comp_def,
     Nat.add_assoc]
 
+private theorem find?_codeRange_split_none {p : ℕ → Bool} {res : Option ℕ}
+    (start first second : ℕ)
+    (hfirst : (codeRange start first).find? p = none)
+    (hrest : (codeRange (start + first) second).find? p = res) :
+    (codeRange start (first + second)).find? p = res := by
+  rw [codeRange_add, List.find?_append, hfirst, Option.none_or, hrest]
+
 private theorem leastIrreducibleCode_eight : leastIrreducibleCode 512 8 = 283 := by
-  have hlow :
-      (List.range 256).find? (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
+  let pred : ℕ → Bool := fun m => Nat.log 2 m == 8 && isIrreducibleCode m
+  have hlow : (List.range 256).find? pred = none := by
     rw [List.find?_eq_none]
     intro m hm hpred
     have hm_lt : m < 256 := List.mem_range.mp hm
@@ -136,35 +143,8 @@ private theorem leastIrreducibleCode_eight : leastIrreducibleCode 512 8 = 283 :=
       · norm_num
       · exact ne_of_lt (Nat.log_lt_of_lt_pow hm0 (by simpa using hm_lt))
     have hpred' : Nat.log 2 m = 8 ∧ isIrreducibleCode m = true := by
-      simpa only [Bool.and_eq_true, beq_iff_eq] using hpred
+      simpa only [pred, Bool.and_eq_true, beq_iff_eq] using hpred
     exact hlog hpred'.1
-  have h256 : (codeRange 256 4).find?
-      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
-    decide
-  have h260 : (codeRange 260 4).find?
-      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
-    decide
-  have h264 : (codeRange 264 4).find?
-      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
-    decide
-  have h268 : (codeRange 268 4).find?
-      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
-    decide
-  have h272 : (codeRange 272 4).find?
-      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
-    decide
-  have h276 : (codeRange 276 4).find?
-      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
-    decide
-  have h280 : (codeRange 280 1).find?
-      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
-    decide
-  have h281 : (codeRange 281 1).find?
-      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
-    decide
-  have h282 : (codeRange 282 1).find?
-      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
-    decide
   have h283_log : Nat.log 2 283 = 8 := by
     decide
   have h283_irreducible : isIrreducibleCode 283 = true := by
@@ -183,24 +163,19 @@ private theorem leastIrreducibleCode_eight : leastIrreducibleCode 512 8 = 283 :=
         Nat.le_log_of_pow_le one_lt_two (by norm_num; omega)
       norm_num
       omega
-  have h283 : (codeRange 283 1).find?
-      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = some 283 := by
-    simp [codeRange, h283_irreducible, h283_log]
-  have hwindow :
-      (codeRange 256 28).find?
-          (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = some 283 := by
-    rw [codeRange_add 256 4 24, List.find?_append, h256, Option.none_or,
-      codeRange_add 260 4 20, List.find?_append, h260, Option.none_or,
-      codeRange_add 264 4 16, List.find?_append, h264, Option.none_or,
-      codeRange_add 268 4 12, List.find?_append, h268, Option.none_or,
-      codeRange_add 272 4 8, List.find?_append, h272, Option.none_or,
-      codeRange_add 276 4 4, List.find?_append, h276, Option.none_or,
-      codeRange_add 280 1 3, List.find?_append, h280, Option.none_or,
-      codeRange_add 281 1 2, List.find?_append, h281, Option.none_or,
-      codeRange_add 282 1 1, List.find?_append, h282, Option.none_or, h283]
-  have hhigh :
-      (codeRange 256 256).find?
-          (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = some 283 := by
+  have h283 : (codeRange 283 1).find? pred = some 283 := by
+    simp [pred, codeRange, h283_irreducible, h283_log]
+  have hwindow : (codeRange 256 28).find? pred = some 283 :=
+    find?_codeRange_split_none 256 4 24 (by decide) <|
+    find?_codeRange_split_none 260 4 20 (by decide) <|
+    find?_codeRange_split_none 264 4 16 (by decide) <|
+    find?_codeRange_split_none 268 4 12 (by decide) <|
+    find?_codeRange_split_none 272 4 8 (by decide) <|
+    find?_codeRange_split_none 276 4 4 (by decide) <|
+    find?_codeRange_split_none 280 1 3 (by decide) <|
+    find?_codeRange_split_none 281 1 2 (by decide) <|
+    find?_codeRange_split_none 282 1 1 (by decide) h283
+  have hhigh : (codeRange 256 256).find? pred = some 283 := by
     rw [codeRange_add 256 28 228, List.find?_append, hwindow, Option.some_or]
   unfold leastIrreducibleCode
   rw [show List.range 512 =

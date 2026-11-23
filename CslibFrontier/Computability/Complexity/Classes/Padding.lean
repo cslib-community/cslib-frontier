@@ -289,8 +289,7 @@ theorem NTIME_subset_iUnion_DTIME_of_agree_padded {t T : ℕ → ℕ}
       _ ≤ (c' + 2) ^ d * X ^ (d + 1) :=
           Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hX (Nat.le_succ d))
   have h₂ : n + T n ≤ X ^ (d + 1) := (Nat.le_succ _).trans (Nat.le_self_pow (by omega) X)
-  calc n + T n + (2 * n + 1 + t n) ^ d ≤ X ^ (d + 1) + (c' + 2) ^ d * X ^ (d + 1) :=
-        Nat.add_le_add h₂ h₁
+  calc n + T n + (2 * n + 1 + t n) ^ d ≤ X ^ (d + 1) + (c' + 2) ^ d * X ^ (d + 1) := by gcongr
     _ = ((c' + 2) ^ d + 1) * X ^ (d + 1) := by ring
     _ ≤ _ := Nat.le_add_right _ _
 

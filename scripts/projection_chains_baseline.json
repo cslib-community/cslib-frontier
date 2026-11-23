@@ -239,6 +239,7 @@
  "CslibFrontier/Computability/WordRAM/Heap.lean": 2,
  "CslibFrontier/Computability/WordRAM/Realization/Absorb.lean": 4,
  "CslibFrontier/Computability/WordRAM/Realization/Loop.lean": 12,
+ "CslibFrontier/Computability/WordRAM/SymbolicExec/MemFrame.lean": 2,
  "CslibFrontier/Crypto/Computational/Encryption/CCA.lean": 6,
  "CslibFrontier/Crypto/Computational/GMW/Sequential.lean": 20,
  "CslibFrontier/Crypto/Computational/HashAndSign.lean": 6,

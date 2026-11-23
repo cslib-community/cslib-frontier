@@ -259,7 +259,6 @@ actual constraint, scope and occurrence lists, independently of relation arities
       verifyArgumentOrder p.1 p.2) (encCSPRotationCertificate encRel encV) encBool := by
   have ho := computableInPolyTime_occurrences encRel encV
   have hn := argumentNextIndex_polyTime encRel encV
-  have hs := Graph.RotationCertificate.computableInPolyTime_successor
   unfold verifyArgumentOrder
   have hz : ComputableInPolyTime (fun p : CSP Rel V × Graph.RotationCertificate =>
       p.1.occurrences.zipIdx) (encCSPRotationCertificate encRel encV)
@@ -281,11 +280,9 @@ actual constraint, scope and occurrence lists, independently of relation arities
     hn.comp (g := fun p : (CSP Rel V × Graph.RotationCertificate) × ((ℕ × ℕ × V) × ℕ) =>
       ((p.1.1, p.2.1.1), p.2.1.2.1)) (by unfold encOccurrenceRecord; fun_prop)
   apply ComputableInPolyTime.decide_eq'
-  · exact ComputableInPolyTime.listGetDWithInput (hs.comp (by fun_prop)) hk 0
-  · exact (ComputableInPolyTime.unary_to_binary.comp
-      (ComputableInPolyTime.unary_add'
-        (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hnext)
-        (ComputableInPolyTime.const 1)))
+  · unfold encCSPRotationCertificate
+    fun_prop
+  · exact ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
 
 /-- Native polynomial-time verification of the supplied incidence rotation, componentwise
 numerical genus zero and the CSP's actual cyclic argument order. This supplies no solver or
@@ -294,10 +291,9 @@ recognizer on a bare instance. -/
     (encV : V ↪ List Bool) :
     ComputableInPolyTime (fun p : CSP Rel V × Graph.RotationCertificate =>
       verifyRotationCertificate p.1 p.2) (encCSPRotationCertificate encRel encV) encBool := by
-  unfold verifyRotationCertificate
-  apply ComputableInPolyTime.bool_and'
-  · exact Graph.RotationCertificate.computableInPolyTime_verifyGenusZero.comp
-      (((computableInPolyTime_incidenceGraph encRel encV).comp (by fun_prop)).prod (by fun_prop))
-  · exact computableInPolyTime_verifyArgumentOrder encRel encV
+  have hg := computableInPolyTime_incidenceGraph encRel encV
+  have ho := computableInPolyTime_verifyArgumentOrder encRel encV
+  unfold verifyRotationCertificate encCSPRotationCertificate at ho ⊢
+  fun_prop
 
 end Cslib.Complexity.CSP

@@ -102,7 +102,7 @@ noncomputable def uppComplexity (R : X → Y → Z → Prop) (A : Set X) (B : Se
 
 /-- The unbounded-error communication complexity of computing `f`: `uppComplexity` of the
 relation `f x y = z` on all inputs. -/
-noncomputable def uppComplexityFun (f : X → Y → Z) : ℕ∞ :=
+@[expose] noncomputable def uppComplexityFun (f : X → Y → Z) : ℕ∞ :=
   uppComplexity (fun x y z => f x y = z) Set.univ Set.univ
 
 variable {P : PrivateCoin a b X Y Z} {R : X → Y → Z → Prop} {A A' : Set X} {B B' : Set Y}
