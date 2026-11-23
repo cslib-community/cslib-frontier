@@ -17,7 +17,7 @@ Checked clients and counterexamples for
 * Display (2.5) obtained as `.le` of
   `messageRecoveryAdvantage_eq_advantage_messageRecoveryReduction`.
 * A uniform word guesser is PPT and achieves negligible message-recovery advantage against any
-  `DEMOneTimeKeyWordINDCPA` cipher.
+  cipher that is semantically secure on its message space `{0, 1}^{msgLen n}`.
 * Counterexamples showing `hvalid` (concrete) and `hA_len` (word-level) are both necessary.
 -/
 
@@ -42,10 +42,12 @@ example {K M C : Type} (E : Cipher K M C) [Fintype M] [Nonempty M] [DecidableEq 
   (messageRecoveryAdvantage_eq_advantage_messageRecoveryReduction E sampleKey hvalid A).le
 
 /-- Positive word-level client: uniformly guessing a `msgLen n`-bit string has negligible
-message-recovery advantage against any `DEMOneTimeKeyWordINDCPA` cipher. -/
+message-recovery advantage against any cipher that is semantically secure on `msgLen n`-bit
+messages. -/
 example {msgLen keyLen : ℕ → ℕ}
     {encryptSym : ℕ → List Bool → List Bool → ProbComp (List Bool)}
-    (hsec : DEMOneTimeKeyWordINDCPA keyLen encryptSym)
+    (hsec : DEMOneTimeKeyINDCPAOn
+      (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n) encBits keyLen encryptSym)
     (hmsgLen : ComputableInPolyTime msgLen encUnary encUnary) :
     Negligible (messageRecoveryWordAdvantage msgLen keyLen encryptSym
       (fun n _ => BitString.sampleList (msgLen n))) := by
@@ -113,9 +115,11 @@ theorem cex_messageRecoveryWord_bad_length :
     let A : ℕ → List Bool → ProbComp (List Bool) := fun _ _ => pure []
     messageRecoveryWordAdvantage msgLen keyLen encryptSym A 0 = (1 : ℝ≥0) / 2 ∧
       Game.advantage
-        (ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
+        (ProbComp.eval (demKeyGameOn
+          (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n)
           keyLen encryptSym (messageRecoveryWordToDEMAdversary msgLen A) false 0))
-        (ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
+        (ProbComp.eval (demKeyGameOn
+          (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n)
           keyLen encryptSym (messageRecoveryWordToDEMAdversary msgLen A) true 0)) = 0 := by
   intro msgLen keyLen encryptSym A
   constructor
@@ -142,9 +146,11 @@ theorem cex_messageRecoveryWord_bad_length :
     apply NNReal.coe_injective
     rw [coe_nndist, NNReal.dist_eq]
     norm_num [msgLen, abs_of_neg]
-  · have heq : ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
+  · have heq : ProbComp.eval (demKeyGameOn
+        (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n)
         keyLen encryptSym (messageRecoveryWordToDEMAdversary msgLen A) false 0) =
-      ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
+      ProbComp.eval (demKeyGameOn
+        (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n)
         keyLen encryptSym (messageRecoveryWordToDEMAdversary msgLen A) true 0) := by
       simp only [demKeyGameOn, messageRecoveryWordToDEMAdversary, ChoiceOut.msg₀, ChoiceOut.msg₁,
         Bool.false_eq_true, ↓reduceIte, encryptSym, A, ProbComp.eval_bind, ProbComp.eval_pure,
@@ -152,17 +158,19 @@ theorem cex_messageRecoveryWord_bad_length :
     rw [heq, Game.advantage_self]
 
 /-- Dropping `hA_len` also falsifies the conclusion of
-`DEMOneTimeKeyWordINDCPA.negligible_messageRecoveryWordAdvantage`: `A = fun _ _ => pure []`
+`DEMOneTimeKeyINDCPAOn.negligible_messageRecoveryWordAdvantage`: `A = fun _ _ => pure []`
 against `otpKeyWordEncrypt keyLen` has constant message-recovery advantage `1/2` at every `n`. -/
 theorem cex_messageRecoveryWord_not_negligible (keyLen : ℕ → ℕ) :
     let msgLen : ℕ → ℕ := fun _ => 1
     let A : ℕ → List Bool → ProbComp (List Bool) := fun _ _ => pure []
-    DEMOneTimeKeyWordINDCPA keyLen (otpKeyWordEncrypt keyLen) ∧
+    DEMOneTimeKeyINDCPAOn (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n)
+        encBits keyLen (otpKeyWordEncrypt keyLen) ∧
       ComputableInPolyTime msgLen encUnary encUnary ∧
       IsPPTOn (encPair encUnary encBits) encBits (fun ⟨n, ct⟩ => A n ct) ∧
       ¬ Negligible (messageRecoveryWordAdvantage msgLen keyLen (otpKeyWordEncrypt keyLen) A) := by
   intro msgLen A
-  refine ⟨demOneTimeKeyWordINDCPA_otpKeyWordEncrypt keyLen, ?_, ?_, ?_⟩
+  refine ⟨(demOneTimeKeyINDCPA_otpKeyWordEncrypt keyLen).demOneTimeKeyINDCPAOn ?_, ?_, ?_, ?_⟩
+  · ppt
   · ppt
   · ppt
   · have hadv : ∀ n, messageRecoveryWordAdvantage msgLen keyLen

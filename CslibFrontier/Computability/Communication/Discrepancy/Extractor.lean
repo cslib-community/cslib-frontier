@@ -169,8 +169,7 @@ private theorem rpow_minEntropy_mul_discrepancy_le [Nonempty X]
       discrepancy (PMF.uniformOfFintype (X × X)) g ≤ 2 ^ (-s) := by
   calc
     _ ≤ (2 : ℝ) ^ (-PMF.minEntropy p - PMF.minEntropy q) *
-        (Fintype.card X * Fintype.card X) * 2 ^ (-η * b) :=
-      mul_le_mul_of_nonneg_left hdisc (by positivity)
+        (Fintype.card X * Fintype.card X) * 2 ^ (-η * b) := by gcongr
     _ = (2 : ℝ) ^ (-PMF.minEntropy p - PMF.minEntropy q + 2 * b - η * b) := by
       rw [hcard]
       push_cast

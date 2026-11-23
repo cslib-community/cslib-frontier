@@ -5,16 +5,18 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Crypto.Computational.TCRSignature
+import CslibFrontierTests.Crypto.KeyedHashFixture
 
 /-!
 # Tests for `IndexedSignatureScheme.double` and `TCRSignature`
 
 Provides concrete execution checks for `IndexedSignatureScheme.double`, `TCRSignature.otsMsg`,
-`TCRSignature.otsMsg_inj`, and `TCRSignature.scheme`, proves that `TCRSignature.scheme S constHash`
-is never `IndexedEUFCMA` for a constant hash family `constHash` via an explicit 1-query strict
-oracle-PPT indexed forger winning with probability `1` at every security parameter `n` (confirming
-that `H.TargetCollisionResistant` is essential even when `S` is `OneTimeEUFCMA`), and checks the
-public security endpoints through `OneWayPermutation.exists_eufCMA`.
+`TCRSignature.otsMsg_inj`, and `TCRSignature.scheme`, proves that
+`TCRSignature.scheme S zeroKeyedHashFamily` is never `IndexedEUFCMA` for a constant hash family
+`zeroKeyedHashFamily` via an explicit 1-query strict oracle-PPT indexed forger winning with
+probability `1` at every security parameter `n` (confirming that `H.TargetCollisionResistant` is
+essential even when `S` is `OneTimeEUFCMA`), and checks the public security endpoints through
+`OneWayPermutation.exists_eufCMA`.
 -/
 
 namespace CslibFrontierTests.Crypto.TCRSignature
@@ -94,25 +96,6 @@ example : lengthIdxTwo.verify sampleDoublePk 2 [true] [false, true] = false := b
 
 /-! ### Concrete checks for `TCRSignature` -/
 
-/-- Constant `KeyedHashFamily` with `keyLen n = n` and `digestLen n = n + 1` mapping every input to
-`0^{n+1}`. -/
-def constHash : KeyedHashFamily where
-  keyLen n := n
-  digestLen n := n + 1
-  eval n _ _ := List.replicate (n + 1) false
-  keyLen_polyTime := .id'
-  digestLen_polyTime := ComputableInPolyTime.id'.unary_add' (.const 1)
-  le_digestLen _ := Nat.le_succ _
-  polyTime :=
-    (((ComputableInPolyTime.fst encUnary (encPair encBits encBits)).unary_add' (.const 1)).trans
-      (ComputableInPolyTime.bitsReplicate false)).of_enc_eq fun _ => rfl
-  length_eq _ _ _ _ := List.length_replicate
-
-@[simp] theorem constHash_keyLen (n : ℕ) : constHash.keyLen n = n := rfl
-
-@[simp] theorem constHash_eval (n : ℕ) (k msg : List Bool) :
-    constHash.eval n k msg = List.replicate (n + 1) false := rfl
-
 /-- Toy deterministic one-time signature scheme checking `pk.length == msg.length` and
 `sig.length == msg.length`. -/
 noncomputable def lengthOneTime : SignatureScheme where
@@ -141,60 +124,64 @@ noncomputable def lengthOneTime : SignatureScheme where
 example :
     ([true, false] : List Bool) = [true, false] ∧
       ([false, true, true] : List Bool) = [false, true, true] :=
-  TCRSignature.otsMsg_inj constHash (n := 2)
+  TCRSignature.otsMsg_inj zeroKeyedHashFamily (n := 2)
     (k₁ := [true, false]) (k₂ := [true, false])
     (d₁ := [false, true, true]) (d₂ := [false, true, true])
     rfl rfl rfl rfl rfl
 
-/-- Sample public key at `n = 2` for `TCRSignature.scheme lengthOneTime constHash`. -/
+/-- Sample public key at `n = 2` for `TCRSignature.scheme lengthOneTime zeroKeyedHashFamily`. -/
 def sampleTcrPk : List Bool :=
-  encPair encUnary encBits (2, List.replicate (TCRSignature.otsParam constHash 2) false)
+  encPair encUnary encBits
+    (2, List.replicate (TCRSignature.otsParam zeroKeyedHashFamily 2) false)
 
 /-- Sample signature at `n = 2` with hash key `[true, false]` under `lengthOneTime` and
-`constHash`. -/
+`zeroKeyedHashFamily`. -/
 def sampleTcrSig : List Bool :=
-  let m := TCRSignature.otsMsg constHash 2 [true, false] [false, false, false]
+  let m := TCRSignature.otsMsg zeroKeyedHashFamily 2 [true, false] [false, false, false]
   encPair encBits encBits ([true, false], m)
 
 -- Messages `[]`, `[true]`, and `[true, false, true, true, false]` verify at `u = 0`:
 example :
-    (TCRSignature.scheme lengthOneTime constHash).verify sampleTcrPk 0 [] sampleTcrSig = true := by
+    (TCRSignature.scheme lengthOneTime zeroKeyedHashFamily).verify
+      sampleTcrPk 0 [] sampleTcrSig = true := by
   decide +kernel
 
 example :
-    (TCRSignature.scheme lengthOneTime constHash).verify sampleTcrPk 0 [true] sampleTcrSig =
-      true := by
+    (TCRSignature.scheme lengthOneTime zeroKeyedHashFamily).verify
+      sampleTcrPk 0 [true] sampleTcrSig = true := by
   decide +kernel
 
 example :
-    (TCRSignature.scheme lengthOneTime constHash).verify sampleTcrPk 0
+    (TCRSignature.scheme lengthOneTime zeroKeyedHashFamily).verify sampleTcrPk 0
       [true, false, true, true, false] sampleTcrSig = true := by
   decide +kernel
 
 -- Rejected at index `u = 1`:
 example :
-    (TCRSignature.scheme lengthOneTime constHash).verify sampleTcrPk 1 [true] sampleTcrSig =
-      false := by
+    (TCRSignature.scheme lengthOneTime zeroKeyedHashFamily).verify
+      sampleTcrPk 1 [true] sampleTcrSig = false := by
   decide +kernel
 
--- Rejected when the hash key length differs from `constHash.keyLen 2 = 2`:
+-- Rejected when the hash key length differs from `zeroKeyedHashFamily.keyLen 2 = 2`:
 example :
-    (TCRSignature.scheme lengthOneTime constHash).verify sampleTcrPk 0 [true]
+    (TCRSignature.scheme lengthOneTime zeroKeyedHashFamily).verify sampleTcrPk 0 [true]
       (encPair encBits encBits
-        ([true], TCRSignature.otsMsg constHash 2 [true, false] [false, false, false])) = false := by
+        ([true],
+          TCRSignature.otsMsg zeroKeyedHashFamily 2 [true, false] [false, false, false])) =
+      false := by
   decide +kernel
 
 -- Rejected when the inner one-time signature is empty:
 example :
-    (TCRSignature.scheme lengthOneTime constHash).verify sampleTcrPk 0 [true]
+    (TCRSignature.scheme lengthOneTime zeroKeyedHashFamily).verify sampleTcrPk 0 [true]
       (encPair encBits encBits ([true, false], [])) = false := by
   decide +kernel
 
 /-! ### Necessity of `H.TargetCollisionResistant` -/
 
-/-- Explicit 1-query indexed forger against `TCRSignature.scheme S constHash`: asks the signing
-oracle to sign `[false]` at index `0` (truncating the reply to `replyBound n`) and reuses that
-signature to forge `(0, [true], sig)`. -/
+/-- Explicit 1-query indexed forger against `TCRSignature.scheme S zeroKeyedHashFamily`: asks the
+signing oracle to sign `[false]` at index `0` (truncating the reply to `replyBound n`) and reuses
+that signature to forge `(0, [true], sig)`. -/
 def constHashForger (replyBound : ℕ → ℕ) : IndexedForger :=
   fun n _ => do
     let sig ← List.take (replyBound n) <$>
@@ -212,7 +199,7 @@ theorem isOraclePPT_constHashForger {replyBound : ℕ → ℕ}
   have hquery : IsOraclePPTOn (Operation := Unit) encIn encBits
       (fun p : In => List.take (replyBound p.1) <$>
         ProbOracleComp.query ((), encPair encUnary encBits (0, [false]))) :=
-    IsOraclePPTOn.query_take' () (.const (encPair encUnary encBits (0, [false]))) (hn.trans hbound)
+    IsOraclePPTOn.query_take () (.const (encPair encUnary encBits (0, [false]))) (hn.trans hbound)
   have hpost : ComputableInPolyTime (fun q : In × List Bool => (0, [true], q.2))
       (encPair encIn encBits) (encPair encUnary (encPair encBits encBits)) :=
     ((ComputableInPolyTime.const 0).prod
@@ -223,13 +210,14 @@ theorem isOraclePPT_constHashForger {replyBound : ℕ → ℕ}
 
 /-- Target collision resistance of `H` is essential in
 `SignatureScheme.OneTimeEUFCMA.indexedEUFCMA_tcrSignature`: for **every** signature scheme `S`
-(even a `OneTimeEUFCMA` one), instantiating `TCRSignature.scheme S constHash` with the constant hash
-family allows `constHashForger` to win `indexedEufCmaGame` with probability `1` at every `n`. -/
+(even a `OneTimeEUFCMA` one), instantiating `TCRSignature.scheme S zeroKeyedHashFamily` with the
+constant hash family allows `constHashForger` to win `indexedEufCmaGame` with probability `1` at
+every `n`. -/
 theorem not_indexedEUFCMA_tcrSignature_constHash (S : SignatureScheme) :
-    ¬ (TCRSignature.scheme S constHash).IndexedEUFCMA := by
+    ¬ (TCRSignature.scheme S zeroKeyedHashFamily).IndexedEUFCMA := by
   intro hsec
   obtain ⟨_, _, sigBound, hsigBoundPoly, _, hsigBoundLe⟩ :=
-    TCRSignature.exists_ots_bounds S constHash
+    TCRSignature.exists_ots_bounds S zeroKeyedHashFamily
   let replyBound (n : ℕ) : ℕ := 2 * n + 1 + sigBound n
   have hreplyBoundPoly : ComputableInPolyTime replyBound encUnary encUnary :=
     (((ComputableInPolyTime.const 2).unary_mul' .id').unary_add' (.const 1)).unary_add'
@@ -239,13 +227,13 @@ theorem not_indexedEUFCMA_tcrSignature_constHash (S : SignatureScheme) :
   have hone : ∀ n,
       Game.succProbability
         (ProbComp.eval
-          ((TCRSignature.scheme S constHash).indexedEufCmaGame (constHashForger replyBound) n)) =
-        1 := by
+          ((TCRSignature.scheme S zeroKeyedHashFamily).indexedEufCmaGame
+            (constHashForger replyBound) n)) = 1 := by
     intro n
     have heval :
         ProbComp.eval
-          ((TCRSignature.scheme S constHash).indexedEufCmaGame (constHashForger replyBound) n) =
-          PMF.pure true := by
+          ((TCRSignature.scheme S zeroKeyedHashFamily).indexedEufCmaGame
+            (constHashForger replyBound) n) = PMF.pure true := by
       simp only [IndexedSignatureScheme.indexedEufCmaGame, TCRSignature.scheme_keyGen,
         TCRSignature.scheme_verify, TCRSignature.keyGen, constHashForger, bind_map_left,
         ProbComp.eval_bind, ProbComp.eval_pure, OracleComp.interpret_bind,
@@ -253,13 +241,14 @@ theorem not_indexedEUFCMA_tcrSignature_constHash (S : SignatureScheme) :
         ProbOracleComp.interpret_query, PMF.bind_bind, PMF.pure_bind]
       have horacle : ∀ otsk : List Bool,
           ProbComp.eval
-            (((TCRSignature.scheme S constHash).indexedSigningOracle n
+            (((TCRSignature.scheme S zeroKeyedHashFamily).indexedSigningOracle n
               (encPair encUnary encBits (n, otsk))
               ((), encPair encUnary encBits (0, [false]))).run []) =
           (BitString.uniformList n).bind fun k =>
             (ProbComp.eval
               (S.sign otsk
-                (TCRSignature.otsMsg constHash n k (List.replicate (n + 1) false)))).bind
+                (TCRSignature.otsMsg zeroKeyedHashFamily n k
+                  (List.replicate (n + 1) false)))).bind
               fun ots => PMF.pure (encPair encBits encBits (k, ots), [(0, [false])]) := by
         intro otsk
         simp only [StateT.run, IndexedSignatureScheme.indexedSigningOracle,
@@ -267,10 +256,10 @@ theorem not_indexedEUFCMA_tcrSignature_constHash (S : SignatureScheme) :
           TCRSignature.scheme_sign, Nat.zero_lt_one, List.map_nil, List.not_mem_nil,
           not_false_eq_true, and_self, ↓reduceIte, TCRSignature.sign,
           TCRSignature.keyDecoder.decode_enc, ProbComp.eval_bind, ProbComp.eval_pure,
-          BitString.eval_sampleList, PMF.bind_bind, PMF.pure_bind, constHash_keyLen,
-          constHash_eval]
+          BitString.eval_sampleList, PMF.bind_bind, PMF.pure_bind, zeroKeyedHashFamily_keyLen,
+          zeroKeyedHashFamily_eval]
       calc
-        _ = (ProbComp.eval (S.keyGen (TCRSignature.otsParam constHash n))).bind
+        _ = (ProbComp.eval (S.keyGen (TCRSignature.otsParam zeroKeyedHashFamily n))).bind
               (fun _ => PMF.pure true) := by
               refine PMF.bind_congr_on_support _ _ _ fun keys hkeys => ?_
               rw [horacle keys.2]
@@ -282,15 +271,15 @@ theorem not_indexedEUFCMA_tcrSignature_constHash (S : SignatureScheme) :
                       calc
                         _ = (ProbComp.eval
                               (S.sign keys.2
-                                (TCRSignature.otsMsg constHash n k
+                                (TCRSignature.otsMsg zeroKeyedHashFamily n k
                                   (List.replicate (n + 1) false)))).bind
                               (fun _ => PMF.pure true) := by
                               refine PMF.bind_congr_on_support _ _ _ fun ots hots => ?_
                               have hmsgLen :
-                                  (TCRSignature.otsMsg constHash n k
+                                  (TCRSignature.otsMsg zeroKeyedHashFamily n k
                                     (List.replicate (n + 1) false)).length =
-                                    TCRSignature.otsParam constHash n :=
-                                TCRSignature.length_otsMsg constHash n k _
+                                    TCRSignature.otsParam zeroKeyedHashFamily n :=
+                                TCRSignature.length_otsMsg zeroKeyedHashFamily n k _
                               have hotsLen : ots.length ≤ sigBound n :=
                                 hsigBoundLe n keys hkeys _ hmsgLen ots hots
                               have hsigLen :
@@ -303,10 +292,10 @@ theorem not_indexedEUFCMA_tcrSignature_constHash (S : SignatureScheme) :
                                 List.take_of_length_le hsigLen
                               have hv :
                                   S.verify keys.1
-                                    (TCRSignature.otsMsg constHash n k
+                                    (TCRSignature.otsMsg zeroKeyedHashFamily n k
                                       (List.replicate (n + 1) false)) ots = true :=
-                                S.verify_sign (TCRSignature.otsParam constHash n) keys hkeys _
-                                  hmsgLen ots hots
+                                S.verify_sign (TCRSignature.otsParam zeroKeyedHashFamily n) keys
+                                  hkeys _ hmsgLen ots hots
                               have hnotContains :
                                   ([(0, [false])] : List (ℕ × List Bool)).contains (0, [true]) =
                                     false := by
@@ -314,7 +303,9 @@ theorem not_indexedEUFCMA_tcrSignature_constHash (S : SignatureScheme) :
                               simp only [htake, hnotContains, Bool.not_false, TCRSignature.verify,
                                 TCRSignature.keyDecoder.decode_enc,
                                 TCRSignature.sigDecoder.decode_enc, beq_self_eq_true,
-                                constHash_keyLen, constHash_eval, hkLen, hv, Bool.and_self]
+                                zeroKeyedHashFamily_keyLen, zeroKeyedHashFamily_eval, hkLen, hv,
+                                TCRSignature.scheme_capacity, Nat.zero_lt_one, decide_true,
+                                Bool.and_self]
                         _ = PMF.pure true := PMF.bind_const _ _
                 _ = PMF.pure true := PMF.bind_const _ _
         _ = PMF.pure true := PMF.bind_const _ _

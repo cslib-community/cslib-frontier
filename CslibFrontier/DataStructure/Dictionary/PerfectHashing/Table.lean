@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Languages.Probabilistic.QueryCount
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # The Fredman–Komlós–Szemerédi two-level table
@@ -311,12 +312,12 @@ theorem runLookup_eq (mem : ℕ → Cell F) (x : X) :
           | _ => false
         | _ => false
       | _ => false := by
-  simp only [runLookup, lookup, OracleComp.interpret_bind, OracleComp.interpret_query, pure_bind]
+  simp only [runLookup, lookup, interp_norm, pure_bind]
   rcases mem 0 with h₀ | _ | _ | _
-  · simp only [OracleComp.interpret_bind, OracleComp.interpret_query, pure_bind]
+  · simp only [interp_norm, pure_bind]
     rcases mem (1 + (h₀.apply x : ℕ)) with _ | ⟨off, g⟩ | _ | _
     · rfl
-    · simp only [OracleComp.interpret_bind, OracleComp.interpret_query, pure_bind]
+    · simp only [interp_norm, pure_bind]
       rcases mem (off + (g.apply x : ℕ)) with _ | _ | y | _ <;> rfl
     · rfl
     · rfl

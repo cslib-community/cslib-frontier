@@ -4,9 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Vincent Liew
 -/
 
-import CslibFrontier.Foundations.Analysis.Calculus.LipschitzSmoothing
-import CslibFrontier.Foundations.BooleanAnalysis.InvarianceNoise
-import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLipschitz
+module
+
+public import CslibFrontier.Foundations.Analysis.Calculus.LipschitzSmoothing
+public import CslibFrontier.Foundations.BooleanAnalysis.InvarianceNoise
+public import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLipschitz
 
 /-! # Tests for invariance with Lipschitz tests and noise-smoothed functions
 
@@ -17,6 +19,8 @@ below the trivial bound `1`, and its form (11.31) on the cube; the monotonicity 
 influences in the rate and under noise; and Corollary 11.69, for a linear form plus a scaled
 parity (a high-degree tail) and for `T_{1-δ}` of linear forms, where the normalized sum of
 `m = 100⁶⁰` signs with `δ = 1/20` gives the bound `0.15`. -/
+
+public section
 
 namespace CslibFrontierTests.InvarianceLipschitz
 
@@ -92,12 +96,10 @@ example : ContDiff ℝ 4 ((Real.movingAverage (1 / 4))^[4] fun u : ℝ => |u|) �
   refine ⟨Real.contDiff_iterate_movingAverage continuous_abs 4, fun s => ?_, fun s => ?_⟩
   · have h := lipschitzWith_abs.abs_iterate_movingAverage_sub_le (by norm_num : (0 : ℝ) < 1 / 4)
       4 s
-    norm_num at h
-    exact h
+    exact h.trans_eq (by norm_num)
   · have h := lipschitzWith_abs.abs_iteratedDeriv_iterate_movingAverage_le
       (by norm_num : (0 : ℝ) < 1 / 4) (k := 3) (m := 4) (by norm_num) s
-    norm_num at h
-    exact h
+    exact h.trans_eq (by norm_num)
 
 /-- A moving average of the `1`-Lipschitz function `|·|` is `1`-Lipschitz. -/
 example : LipschitzWith 1 (Real.movingAverage (1 / 4) fun u : ℝ => |u|) :=

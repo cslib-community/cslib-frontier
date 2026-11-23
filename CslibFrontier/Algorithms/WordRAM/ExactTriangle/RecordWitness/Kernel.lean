@@ -8,9 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordWitness.Spec
+import CslibFrontier.Computability.WordRAM.PreservesMask
 import CslibFrontier.Computability.WordRAM.RegisterFrame
 
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Real coordinate delivery, verifier calls and witness returns
@@ -31,15 +33,12 @@ private abbrev Stable (i : Fin 400) : Prop :=
   i.val < 326 ∨ i = Reg.one ∨ i = Reg.zero ∨
     (345 ≤ i.val ∧ i.val ≤ 348) ∨ (351 ≤ i.val ∧ i.val ≤ 352)
 
--- These closed checks enumerate only the finite caller bank and loop-free delivery/return code.
-set_option maxRecDepth 4096 in
-private theorem deliverPair_preserves : ∀ i : Fin 400, Stable i → deliverPair.Preserves i := by
-  decide
+private theorem deliverPair_preserves : ∀ i : Fin 400, Stable i → deliverPair.Preserves i :=
+  Code.preserves_of_preservesAllPred rfl
 
--- The same finite controller-frame check, without unfolding the verifier program.
-set_option maxRecDepth 4096 in
 private theorem receiveWitness_preserves : ∀ i : Fin 400, Stable i →
-    receiveWitness.Preserves i := by decide
+    receiveWitness.Preserves i :=
+  Code.preserves_of_preservesAllPred rfl
 
 private theorem scanBank_injective : Function.Injective scanBank := by
   intro i j h
@@ -87,21 +86,7 @@ theorem exec_scan {w U n first length out queries count a b : ℕ}
     exact he.regs_eq (Code.preserves_rename_of_offset _ _ (fun _ => rfl) i hi)
   obtain ⟨sab, sbc, sac, sn, sa', sb', sfirst, slength⟩ := sa
   refine ⟨y, he, ?_, sm, sa', sb', ?_, ?_, ?_, frame⟩
-  · exact
-      { output := (frame _ (by decide)).trans hx.output
-        queries := (frame _ (by decide)).trans hx.queries
-        count := (frame _ (by decide)).trans hx.count
-        size := (frame _ (by decide)).trans hx.size
-        first := (frame _ (by decide)).trans hx.first
-        length := (frame _ (by decide)).trans hx.length
-        one := (frame _ (by decide)).trans hx.one
-        zero := (frame _ (by decide)).trans hx.zero
-        ab := sab
-        bc := sbc
-        ac := sac
-        scanSize := sn
-        scanFirst := sfirst
-        scanLength := slength }
+  · regs_frame
   · exact sf
   · exact si
   · exact sw
@@ -138,7 +123,7 @@ theorem exec_deliverPair {W n first length out queries count i scans a b : ℕ} 
   · rfl
   · rfl
   · rfl
-  · exact (he.regs_eq (by decide)).trans hi
+  · regs_frame
   · exact he.regs_eq (by decide)
 
 /-- Copy back only a genuinely reported verifier success and its actual original coordinates.

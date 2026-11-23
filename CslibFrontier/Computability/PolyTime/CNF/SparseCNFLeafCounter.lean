@@ -21,6 +21,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 import Mathlib.Data.List.GetD
 
@@ -492,8 +493,8 @@ private theorem polyBounded_prod_space {α β γ : Type} {ei : α ↪ List Bool}
 
 private theorem polyBounded_pair_len {α β : Type} {ei : α ↪ List Bool} {eo : β ↪ List Bool}
     {f : α → β} (hf : PolyBounded (fun a => (ei a).length) (fun a => (eo (f a)).length)) :
-    PolyBounded (fun a => (ei a).length) (fun a => (encPair ei eo (a, f a)).length) :=
-  ((((PolyBounded.const 2).mul PolyBounded.self).add hf).add (.const 2)).mono fun a => by enc_len
+    PolyBounded (fun a => (ei a).length) (fun a => (encPair ei eo (a, f a)).length) := by
+  growth_poly
 
 private abbrev toSysInput (k : ℕ) (q : (ℕ × CNF ℕ) × List (List Bool)) :
     ℕ × List (List (List ℕ)) := (q.1.1, compileParitySystemBounded k q.1.2 q.2)
@@ -1142,10 +1143,8 @@ theorem exists_normalizeDeclaredLeafCertificate_bounds
         cLeaf.time x + poly (encPair encP encCNF x).length) := by
   have hNormSpace := polyBounded_normalizeDeclaredLeafCertificate_space hNOf cLeaf hSpace
   have hPairLen : PolyBounded (fun x : P × CNF ℕ => (encPair encP encCNF x).length)
-      (fun x => (encPair encNat encNat (h x, shiftAmount NOf x)).length) :=
-    ((((PolyBounded.const 2).mul (polyBounded_output_of_space cLeaf hSpace)).add
-      (computableInPolyTime_shiftAmount hNOf).polyBounded_length).add (.const 2)).mono fun x => by
-      enc_len
+      (fun x => (encPair encNat encNat (h x, shiftAmount NOf x)).length) := by
+    growth_poly [polyBounded_output_of_space cLeaf hSpace, computableInPolyTime_shiftAmount hNOf]
   have hShT := (NativeCertificate.ofPolyTime_isPolynomial (computableInPolyTime_shiftAmount hNOf)).1
   have hSrT := (NativeCertificate.ofPolyTime_isPolynomial
     ComputableInPolyTime.binary_shiftRight).1.comp hPairLen

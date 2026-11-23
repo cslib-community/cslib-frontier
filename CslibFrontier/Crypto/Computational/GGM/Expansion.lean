@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.GGM.Hybrid
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
@@ -17,7 +18,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.BitString
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
-import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Tactic.SuppCases
 
@@ -109,7 +109,6 @@ theorem expansionOracle_bounds (generator : List Bool → List Bool) (sample : P
   · supp_cases hresult [expansionOracle, hquery]
     exact ⟨hcache, by simp, by dsimp; lia⟩
 
-attribute [local fun_prop] ComputableInPolyTime.tidy in
 /-- Expansion handlers compose a certified sampler with ordinary cache and tree code. Every
 argument may depend on the caller's captured input, including the entire initial cache. -/
 @[fun_prop]
@@ -124,12 +123,7 @@ theorem isPPTOn_expansionOracle {α : Type} {input : α ↪ List Bool}
     (hcache : ComputableInPolyTime cache input cacheEncoding) :
     IsPPTOn input (encPair encBits cacheEncoding) (fun a =>
       expansionOracle generator (sample a) (width a) (depth a) (query a) (cache a)) := by
-  have hgenerator := hgenerator.tidy
-  have hwidth := hwidth.tidy
-  have hdepth := hdepth.tidy
-  have hquery := hquery.tidy
-  have hcache := hcache.tidy
-  have heval := (computableInPolyTime_eval (.of_tidy hgenerator)).tidy
+  have heval := (computableInPolyTime_eval (hgenerator))
   unfold expansionOracle cacheEncoding
   fun_prop
 

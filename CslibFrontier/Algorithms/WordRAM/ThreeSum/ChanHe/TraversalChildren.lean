@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalProgram
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Native preparation of the three Chan–He child records
@@ -68,18 +69,20 @@ theorem length_childWords (x : Data 128) (j : Fin 3) : (childWords x j).length =
 theorem prepareThird_exec {w : ℕ} (x : Data 128) (hx : x.Bounded w) (hone : x.regs one = 1) :
     Exec w prepareThird x (thirdState x) 7 := by
   have hfit : Fits w (x.regs (slot 0) - 1) := (hx.1 (slot 0)).of_le (Nat.sub_le _ _)
-  dsimp only [slot, one] at hfit hone
-  ram_eval [prepareThird, thirdState, slot, one, original, heavyBase, heavyLength, hone, hfit]
+  unfold prepareThird thirdState
+  wram_exec [hone]
 
 /-- Restoring the third column and replacing the second costs four native copies. -/
 theorem prepareSecond_exec {w : ℕ} (x : Data 128) :
     Exec w prepareSecond x (secondState x) 4 := by
-  ram_eval [prepareSecond, secondState, slot, original, heavyBase, heavyLength]
+  unfold prepareSecond secondState
+  wram_exec
 
 /-- Restoring the second column and replacing the first costs four native copies. -/
 theorem prepareFirst_exec {w : ℕ} (x : Data 128) :
     Exec w prepareFirst x (firstState x) 4 := by
-  ram_eval [prepareFirst, firstState, slot, original, heavyBase, heavyLength]
+  unfold prepareFirst firstState
+  wram_exec
 
 private theorem thirdState_comap (x : Data 128) :
     (thirdState x).comap registers = x.comap registers := by
@@ -101,7 +104,7 @@ private theorem firstState_comap (x : Data 128) :
 
 /-- Child pushes preserve every persistent controller parameter outside the record and stack. -/
 theorem pushChildren_preserves : ∀ i : Fin 128,
-    ((71 ≤ i.val ∧ i.val < 96) ∨ 109 ≤ i.val) → pushChildren.Preserves i := by decide
+    ((71 ≤ i.val ∧ i.val < 96) ∨ 109 ≤ i.val) → pushChildren.Preserves i := by decide +kernel
 
 private def words (x : Data 128) : List ℕ :=
   [x.regs (slot 0), x.regs (slot 1), x.regs (slot 2), x.regs (slot 3),

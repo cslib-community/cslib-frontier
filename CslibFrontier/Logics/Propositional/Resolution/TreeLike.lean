@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import Cslib.Foundations.Logic.InferenceSystem
+public import Cslib.Foundations.Logic.InferenceSystem.Defs
 public import CslibFrontier.Logics.Propositional.Resolution.Proof
 public import CslibFrontier.Computability.DecisionTree.Leaves
 import CslibFrontier.Logics.Propositional.CNF.Eval
@@ -61,6 +61,8 @@ nodes, so by induction its restriction is refutable in width `k + b - 1`, and th
   `Cslib.Logic.PL.CNF.derives_iff_derivable`: `φ.Derives c` is equivalent to
   `Nonempty (φ.Derivation c)` and to `InferenceSystem.DerivableIn` / `InferenceSystem.Derivable`.
 * `Cslib.Logic.PL.CNF.Derivation.restrict`: restricting a tree-like derivation.
+* `Cslib.Logic.PL.CNF.Derivation.exists_size_eq_of_relabel`: a tree-like refutation of a formula
+  relabelled along an injective map gives one of the formula with the same number of nodes.
 * `Cslib.Logic.PL.CNF.Derivation.findsFalsifiedClause_toDecisionTree`,
   `Cslib.DecisionTree.FindsFalsifiedClause.exists_derivation`: tree-like refutations and decision
   trees finding falsified clauses convert into each other;
@@ -185,6 +187,36 @@ theorem restrict (v : V) (b : Bool) (d : φ.Derivation c) (hvc : (v, b) ∉ c) :
       rw [size_resolvent]
       omega
 
+/-- **Relabelling back a tree-like derivation.** Along an injective map `f`, a tree-like derivation
+from `φ.relabel f` is a relabelled tree-like derivation from `φ` with the same number of nodes:
+every variable it mentions is `f` of a variable of `φ`, and resolving on `f u` is resolving on
+`u`. -/
+theorem exists_of_relabel {W : Type*} [DecidableEq W] {f : V → W} (hf : Function.Injective f) :
+    {c : Clause W} → (d : (φ.relabel f).Derivation c) →
+      ∃ (c' : Clause V) (d' : φ.Derivation c'), c'.relabel f = c ∧ d'.size = d.size
+  | _, mem hc => by
+    obtain ⟨c', hc', rfl⟩ := List.mem_map.1 hc
+    exact ⟨c', .mem hc', rfl, rfl⟩
+  | _, resolvent v d₁ d₂ hv₁ hv₂ => by
+    obtain ⟨c₁, d₁', rfl, hs₁⟩ := exists_of_relabel hf d₁
+    obtain ⟨c₂, d₂', rfl, hs₂⟩ := exists_of_relabel hf d₂
+    obtain ⟨⟨u, b⟩, hu₁, hub⟩ := List.mem_map.1 hv₁
+    obtain ⟨⟨u', b'⟩, hu₂, hub'⟩ := List.mem_map.1 hv₂
+    simp only [Prod.map, id, Prod.mk.injEq] at hub hub'
+    obtain ⟨rfl, rfl⟩ := hub
+    obtain ⟨hu', rfl⟩ := hub'
+    obtain rfl : u = u' := (hf hu').symm
+    exact ⟨_, .resolvent u d₁' d₂' hu₁ hu₂, Clause.relabel_resolvent hf .., by simp [hs₁, hs₂]⟩
+
+/-- A tree-like refutation of `φ.relabel f`, for injective `f`, gives a tree-like refutation of `φ`
+with the same number of nodes. -/
+theorem exists_size_eq_of_relabel {W : Type*} [DecidableEq W] {f : V → W}
+    (hf : Function.Injective f) (d : (φ.relabel f).Derivation []) :
+    ∃ d' : φ.Derivation [], d'.size = d.size := by
+  obtain ⟨c', d', hc', hs⟩ := exists_of_relabel hf d
+  obtain rfl : c' = [] := List.map_eq_nil_iff.1 hc'
+  exact ⟨d', hs⟩
+
 /-! ### Decision trees -/
 
 /-- The decision tree of a tree-like derivation: a leaf for each clause of the formula used, and a
@@ -203,6 +235,13 @@ theorem two_mul_leafCount_toDecisionTree :
     have h₂ := d₂.two_mul_leafCount_toDecisionTree
     simp only [toDecisionTree, DecisionTree.leafCount, size_resolvent]
     omega
+
+/-- A tree-like derivation has at most as many leaves as nodes. -/
+theorem leafCount_toDecisionTree_le_size {c : Clause V} (d : φ.Derivation c) :
+    d.toDecisionTree.leafCount ≤ d.size := by
+  have := d.two_mul_leafCount_toDecisionTree
+  have := d.size_pos
+  omega
 
 /-- On an assignment falsifying the conclusion of a tree-like derivation, its decision tree reaches
 a clause of the formula falsified by the assignment. -/
@@ -284,6 +323,17 @@ theorem Derivation.findsFalsifiedClause_toDecisionTree (d : φ.Derivation []) :
     d.toDecisionTree.FindsFalsifiedClause φ :=
   fun _ => d.eval_toDecisionTree rfl
 
+omit [DecidableEq V] in
+/-- If the negation of `l` is among `(u, s) :: π` and `l` is not `(u, !s)`, it is among `π`. -/
+theorem _root_.Cslib.Logic.PL.Literal.negate_mem_of_mem_cons {π : List (Literal V)} {u : V}
+    {s : Bool} {l : Literal V} (h : Std.Sat.Literal.negate l ∈ (u, s) :: π) (hne : l ≠ (u, !s)) :
+    Std.Sat.Literal.negate l ∈ π := by
+  rcases List.mem_cons.1 h with h | h
+  · obtain ⟨a, b⟩ := l
+    simp only [Std.Sat.Literal.negate, Prod.mk.injEq] at h
+    exact absurd (by rw [← h.1, ← h.2, Bool.not_not]) hne
+  · exact h
+
 /-- The induction behind `DecisionTree.FindsFalsifiedClause.exists_derivation`: if `t` finds a
 falsified clause of `φ` on the assignments extending the consistent literals `π`, then it
 gives a tree-like derivation of a clause falsified by `π`, with at most twice as many nodes as `t`
@@ -350,18 +400,10 @@ private theorem exists_derivation_of_eval (φ : CNF V) :
         have hσu : σ u = true := hσ _ List.mem_cons_self
         simpa [DecisionTree.eval, hσu] using ht σ fun l hl => hσ l (List.mem_cons_of_mem _ hl)
     -- a literal of `c₀` other than `(u, true)` is falsified by `π`, and likewise for `c₁`
-    have hc₀' : ∀ l ∈ c₀, l ≠ (u, true) → (l.1, !l.2) ∈ π := fun l hl hne => by
-      rcases List.mem_cons.1 (hc₀ l hl) with h | h
-      · obtain ⟨l₁, l₂⟩ := l
-        simp only [Prod.mk.injEq, Bool.not_eq_eq_eq_not, Bool.not_false] at h
-        exact absurd (by rw [h.1, h.2]) hne
-      · exact h
-    have hc₁' : ∀ l ∈ c₁, l ≠ (u, false) → (l.1, !l.2) ∈ π := fun l hl hne => by
-      rcases List.mem_cons.1 (hc₁ l hl) with h | h
-      · obtain ⟨l₁, l₂⟩ := l
-        simp only [Prod.mk.injEq, Bool.not_eq_eq_eq_not, Bool.not_true] at h
-        exact absurd (by rw [h.1, h.2]) hne
-      · exact h
+    have hc₀' : ∀ l ∈ c₀, l ≠ (u, true) → (l.1, !l.2) ∈ π := fun l hl hne =>
+      Literal.negate_mem_of_mem_cons (s := false) (hc₀ l hl) hne
+    have hc₁' : ∀ l ∈ c₁, l ≠ (u, false) → (l.1, !l.2) ∈ π := fun l hl hne =>
+      Literal.negate_mem_of_mem_cons (s := true) (hc₁ l hl) hne
     by_cases hv₀ : (u, true) ∈ c₀
     · by_cases hv₁ : (u, false) ∈ c₁
       · refine ⟨_, .resolvent u d₀ d₁ hv₀ hv₁, fun l hl => ?_, ?_,

@@ -377,7 +377,9 @@ theorem dens_routerRound_outside_bounds_le (hcr : P.ConcentrationReady) {ℓ : �
     have hbase := FeistelPerm.dens_childRouter_bucketLoad_outside_le_of_threshold
       (hcr.gap_bound ℓ hℓ) S hthresh hconc
     have h4S : (P.nFloor ℓ : ℝ) ^ 2 ≤ 4 * (#S : ℝ) ^ 2 := by
-      have hnat : (P.nFloor ℓ) ^ 2 ≤ 4 * #S ^ 2 := by nlinarith
+      have hnat : (P.nFloor ℓ) ^ 2 ≤ 4 * #S ^ 2 := by
+        calc (P.nFloor ℓ) ^ 2 ≤ (2 * #S) ^ 2 := Nat.pow_le_pow_left h2m 2
+          _ = 4 * #S ^ 2 := by rw [Nat.mul_pow, show (2 : ℕ) ^ 2 = 4 by decide]
       exact_mod_cast hnat
     exact ((NNRat.cast_le.mpr (dens_le_dens hsub)).trans hbase).trans
       (one_div_le_one_div_of_le (sq_pos_of_pos hnF_pos) h4S)
@@ -391,7 +393,7 @@ theorem dens_routerRound_outside_bounds_le (hcr : P.ConcentrationReady) {ℓ : �
     have hS_pos : 1 ≤ #S := by
       have h1 : 1 ≤ 2 ^ s * (150 * m_hi) ^ 3 := Nat.mul_pos (Nat.two_pow_pos s) (by positivity)
       omega
-    have hμ_pos : 0 < μ := by dsimp only [μ]; positivity
+    have hμ_pos : 0 < μ := div_pos (Nat.cast_pos.mpr hS_pos) (pow_pos two_pos s)
     let u : ℝ := μ ^ ((1 : ℝ) / 3)
     have hu_pos : 0 < u := Real.rpow_pos_of_pos hμ_pos _
     have hu3 : u ^ 3 = μ := by
@@ -405,20 +407,28 @@ theorem dens_routerRound_outside_bounds_le (hcr : P.ConcentrationReady) {ℓ : �
     have h150_cube : (150 * (m_hi : ℝ)) ^ 3 ≤ u ^ 3 := by
       rw [hu3]
       dsimp only [μ]
-      rw [le_div_iff₀ (by positivity), mul_comm]
+      rw [le_div_iff₀ (pow_pos two_pos s), mul_comm]
       exact_mod_cast hconc_hi
     have h150 : 150 * (m_hi : ℝ) ≤ u :=
-      (pow_le_pow_iff_left₀ (by positivity) hu_pos.le (by decide : 3 ≠ 0)).mp h150_cube
-    have ha_pos : 0 < a := by dsimp only [a]; positivity
+      (pow_le_pow_iff_left₀ (mul_nonneg (by norm_num) (Nat.cast_nonneg _)) hu_pos.le
+        (by decide : 3 ≠ 0)).mp h150_cube
+    have ha_pos : 0 < a := mul_pos (by norm_num) (Real.rpow_pos_of_pos hμ_pos _)
     have hm_real : (4 : ℝ) ≤ m_hi := by exact_mod_cast hm4
     have hmμ : 2 * (m_hi : ℝ) ≤ 3 * μ := by
       rw [← hu3]
-      nlinarith [sq_nonneg u]
+      have hu1 : (1 : ℝ) ≤ u := by linarith only [h150, hm_real]
+      have hu_le : u ≤ u ^ 3 := le_self_pow₀ hu1 (by norm_num)
+      linarith only [h150, hu_le]
     have hrat : 3 * (m_hi : ℝ) * μ / a ^ 2 ≤ (1 : ℝ) / 2 := by
       rw [div_le_iff₀ (pow_pos ha_pos 2)]
       have ha2 : a ^ 2 = ((1 : ℝ) / 25) * u ^ 4 := by dsimp only [a]; rw [hu2]; ring
       rw [ha2, ← hu3]
-      nlinarith [pow_pos hu_pos 3]
+      calc 3 * (m_hi : ℝ) * u ^ 3
+          = ((1 : ℝ) / 50) * (150 * (m_hi : ℝ) * u ^ 3) := by ring
+        _ ≤ ((1 : ℝ) / 50) * (u * u ^ 3) :=
+            mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right h150 (pow_nonneg hu_pos.le 3))
+              (by norm_num)
+        _ = (1 : ℝ) / 2 * (((1 : ℝ) / 25) * u ^ 4) := by ring
     have hkw : IsKWiseIndependentHash (2 * m_hi)
         (trinomialPolyHash (trinomialStep T s) (2 * m_hi) T s) :=
       isKWiseIndependentHash_trinomialPolyHash (le_two_pow_trinomialDeg T s) (le_trinomialDeg T s)
@@ -438,7 +448,7 @@ theorem dens_routerRound_outside_bounds_le (hcr : P.ConcentrationReady) {ℓ : �
       simp only [not_exists, not_le] at hno
       refine hseed (hwin_imp _ fun b => ?_)
       have hb := abs_lt.mp (hno b)
-      exact ⟨by linarith, by linarith⟩
+      exact ⟨by linarith only [hb.1], by linarith only [hb.2]⟩
     have htail := FeistelPerm.dens_exists_bucketLoad_sub_ge_le hm1 hkw S hmμ ha_pos
     have h2s_le : 2 ^ s ≤ 2 ^ L_hi := by
       calc 2 ^ s ≤ 2 ^ s * (150 * m_hi) ^ 3 :=
@@ -465,12 +475,14 @@ theorem dens_routerRound_outside_bounds_le (hcr : P.ConcentrationReady) {ℓ : �
             Nat.pow_le_pow_right Nat.two_pos (by omega)
     have hpow_real : (2 ^ (s + 1) : ℝ) * ((1 : ℝ) / 2) ^ m_hi ≤
         1 / (P.nFloor ℓ : ℝ) ^ 2 := by
-      rw [one_div_pow, mul_one_div, div_le_div_iff₀ (by positivity) (sq_pos_of_pos hnF_pos),
+      rw [one_div_pow, mul_one_div, div_le_div_iff₀ (pow_pos two_pos m_hi) (sq_pos_of_pos hnF_pos),
         one_mul]
       exact_mod_cast hpow_nat
+    have hrat_nonneg : (0 : ℝ) ≤ 3 * (m_hi : ℝ) * μ / a ^ 2 :=
+      div_nonneg (mul_nonneg (mul_nonneg (by norm_num) (Nat.cast_nonneg _)) hμ_pos.le) (sq_nonneg a)
     exact (((NNRat.cast_le.mpr (dens_le_dens hsub)).trans htail).trans
-      (mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (by positivity) hrat m_hi)
-        (by positivity))).trans hpow_real
+      (mul_le_mul_of_nonneg_left (pow_le_pow_left₀ hrat_nonneg hrat m_hi)
+        (pow_nonneg (by norm_num) _))).trans hpow_real
 
 /-! ## Section 2: Grouped per-node hash seeds `g_u` and unified `3 / n_ℓ ^ 2` bound -/
 
@@ -742,12 +754,21 @@ theorem card_isGoodNodeSeed_ge (hcr : P.ConcentrationReady) {ℓ : ℕ} (hℓ : 
   have hpart_real : (#{g : P.NodeSeed ℓ | P.IsGoodNodeSeed ℓ g S} : ℝ) +
       (#{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S} : ℝ) =
       (Fintype.card (P.NodeSeed ℓ) : ℝ) := by exact_mod_cast hpart
-  have h36 : 36 ≤ (P.nFloor ℓ) ^ 2 := by nlinarith
+  have h36 : 36 ≤ (P.nFloor ℓ) ^ 2 := by rw [sq]; exact Nat.mul_le_mul hnF6 hnF6
   have hsub_ge : 3 ≤ (P.nFloor ℓ) ^ 2 := by omega
   have hgoal_real : (((P.nFloor ℓ) ^ 2 - 3 : ℕ) : ℝ) * (Fintype.card (P.NodeSeed ℓ) : ℝ) ≤
       ((P.nFloor ℓ : ℝ) ^ 2) * (#{g : P.NodeSeed ℓ | P.IsGoodNodeSeed ℓ g S} : ℝ) := by
     rw [Nat.cast_sub hsub_ge, Nat.cast_pow, Nat.cast_ofNat]
-    nlinarith
+    have hmul_part : (P.nFloor ℓ : ℝ) ^ 2 * (#{g : P.NodeSeed ℓ | P.IsGoodNodeSeed ℓ g S} : ℝ) +
+        (P.nFloor ℓ : ℝ) ^ 2 * (#{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S} : ℝ) =
+        (P.nFloor ℓ : ℝ) ^ 2 * (Fintype.card (P.NodeSeed ℓ) : ℝ) := by
+      rw [← mul_add, hpart_real]
+    have hsub_mul : ((P.nFloor ℓ : ℝ) ^ 2 - 3) * (Fintype.card (P.NodeSeed ℓ) : ℝ) =
+        (P.nFloor ℓ : ℝ) ^ 2 * (Fintype.card (P.NodeSeed ℓ) : ℝ) -
+          3 * (Fintype.card (P.NodeSeed ℓ) : ℝ) := sub_mul ..
+    have hbad_comm : (#{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S} : ℝ) * (P.nFloor ℓ : ℝ) ^ 2 =
+        (P.nFloor ℓ : ℝ) ^ 2 * (#{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S} : ℝ) := mul_comm ..
+    linarith only [hbad, hmul_part, hsub_mul, hbad_comm]
   exact_mod_cast hgoal_real
 
 /-- Every valid primitive-ID set `S` (`nLow ℓ ≤ #S ≤ nHigh ℓ`) admits at least one good seed
@@ -758,7 +779,7 @@ theorem exists_isGoodNodeSeed (hcr : P.ConcentrationReady) {ℓ : ℕ} (hℓ : �
   classical
   have hge := P.card_isGoodNodeSeed_ge hcr hℓ S hlo hhi
   have hnF6 := hcr.six_le_nFloor ℓ hℓ
-  have h36 : 36 ≤ (P.nFloor ℓ) ^ 2 := by nlinarith
+  have h36 : 36 ≤ (P.nFloor ℓ) ^ 2 := by rw [sq]; exact Nat.mul_le_mul hnF6 hnF6
   have hcard_pos : 0 < Fintype.card (P.NodeSeed ℓ) := Fintype.card_pos
   have hgood_pos : 0 < #{g : P.NodeSeed ℓ | P.IsGoodNodeSeed ℓ g S} := by
     have h33 : 33 ≤ (P.nFloor ℓ) ^ 2 - 3 := by omega
@@ -800,7 +821,7 @@ theorem exists_isGoodNodeSeed_pair (hcr : P.ConcentrationReady) {ℓ : ℕ} (h�
     rw [← Finset.card_univ]
     exact (card_le_card huniv).trans (card_union_le _ _)
   have hnF6 := hcr.six_le_nFloor ℓ hℓ
-  have h36 : 36 ≤ (P.nFloor ℓ) ^ 2 := by nlinarith
+  have h36 : 36 ≤ (P.nFloor ℓ) ^ 2 := by rw [sq]; exact Nat.mul_le_mul hnF6 hnF6
   have hc_pos : 0 < Fintype.card (P.NodeSeed ℓ) := Fintype.card_pos
   have hsub : ((P.nFloor ℓ) ^ 2 - 3) * Fintype.card (P.NodeSeed ℓ) +
       3 * Fintype.card (P.NodeSeed ℓ) = (P.nFloor ℓ) ^ 2 * Fintype.card (P.NodeSeed ℓ) := by
@@ -825,7 +846,8 @@ theorem exists_isGoodNodeSeed_pair (hcr : P.ConcentrationReady) {ℓ : ℕ} (h�
       _ = (P.nFloor ℓ) ^ 2 * #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S₁} +
             (P.nFloor ℓ) ^ 2 * #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S₂} := Nat.mul_add ..
       _ ≤ 6 * Fintype.card (P.NodeSeed ℓ) := by omega
-  nlinarith
+  have hle6 : (P.nFloor ℓ) ^ 2 ≤ 6 := Nat.le_of_mul_le_mul_right htot hc_pos
+  omega
 
 end TreeSchedule
 

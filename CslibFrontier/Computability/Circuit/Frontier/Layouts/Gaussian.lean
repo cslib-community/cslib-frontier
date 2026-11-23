@@ -25,6 +25,8 @@ cubic layout coefficient (`Cslib.Circuits.Frontier.Gaussian.cubicLayoutBound_gau
 through the cubic quotient of a subcubic multigraph, `2p ≈ 0.2807` is a layout coefficient for
 maximum degree three (`Cslib.Circuits.Frontier.layoutBound_gaussian`).
 
+These layout bounds are original to this library.
+
 **The random layout.** Give each vertex `v` its unit kernel row `x_v`
 (`Cslib.Circuits.Frontier.Gaussian.unitKernelRow`): the normalized vector of distance weights
 `q ^ dist(v, z)`, truncated at radius `R`. Give each edge `uv` the unit vector `y_uv` in the
@@ -173,7 +175,7 @@ theorem exists_width_le_gaussianCoefficient {ξ : ℝ} (hξ : 0 < ξ) :
 
 /-- **Gaussian layouts of cubic graphs.** For every `ξ > 0`, every large enough cubic graph on
 `h` vertices has a layout of width at most `(gaussianCoefficient + ξ) h`, where
-`gaussianCoefficient = (3 / (2π)) arccos ((1 + 2√2)/4)`. -/
+`gaussianCoefficient = (3 / (2π)) arccos ((1 + 2√2)/4)`. Original to this library. -/
 theorem cubicLayoutBound_gaussian : CubicLayoutBound gaussianCoefficient := fun _ hξ =>
   (exists_width_le_gaussianCoefficient hξ).imp fun _ h V E _ _ G hloop _ h3 hN =>
     h V E G hloop h3 hN
@@ -200,7 +202,7 @@ namespace Cslib.Circuits.Frontier
 
 /-- **Gaussian layouts.** Connected, loopless multigraphs of maximum degree three have layouts of
 width `(2p + o(1)) β₁ + o(|V|)`, where `β₁` is the cycle rank and
-`p = (3 / (2π)) arccos ((1 + 2√2)/4)`, so `2p ≈ 0.2807`. -/
+`p = (3 / (2π)) arccos ((1 + 2√2)/4)`, so `2p ≈ 0.2807`. Original to this library. -/
 theorem layoutBound_gaussian : LayoutBound 3 (2 * Gaussian.gaussianCoefficient) :=
   LayoutBound.of_cubic Gaussian.gaussianCoefficient_pos.le Gaussian.cubicLayoutBound_gaussian
 

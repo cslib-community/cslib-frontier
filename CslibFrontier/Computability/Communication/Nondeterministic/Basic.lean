@@ -177,7 +177,7 @@ theorem isCover_fun_iff {κ : Type*} {C : κ → Set X × Set Y} :
 
 /-- A cover by `2 ^ k` rectangles bounds the complexity by `k`. -/
 theorem HasCover.ecomplexity_le (h : HasCover z R A B k) : ecomplexity z R A B ≤ k :=
-  iInf_le (fun k : {k : ℕ // HasCover z R A B k} => (k.1 : ℕ∞)) ⟨k, h⟩
+  ENat.iInf_subtype_natCast_le (d := id) h
 
 /-- A cover by `2 ^ j` rectangles gives one by `2 ^ k` rectangles for `j ≤ k`: ignore the extra
 guessed bits. -/
@@ -191,15 +191,14 @@ theorem HasCover.mono_bits (hjk : j ≤ k) (h : HasCover z R A B j) : HasCover z
 /-- Lower bounds on nondeterministic complexity are lower bounds on the number of guessed bits of
 every cover. -/
 theorem le_ecomplexity_iff {c : ℕ∞} :
-    c ≤ ecomplexity z R A B ↔ ∀ k, HasCover z R A B k → c ≤ k := by
-  simp [ecomplexity, le_iInf_iff, Subtype.forall]
+    c ≤ ecomplexity z R A B ↔ ∀ k, HasCover z R A B k → c ≤ k :=
+  ENat.le_iInf_subtype_natCast_iff (d := id)
 
 /-- `R` has nondeterministic complexity at most `k` exactly when it has a `z`-cover by `2 ^ k`
 rectangles. -/
-theorem ecomplexity_le_iff : ecomplexity z R A B ≤ k ↔ HasCover z R A B k := by
-  refine ⟨fun h => ?_, HasCover.ecomplexity_le⟩
-  obtain ⟨⟨j, hj⟩, hjk⟩ := ENat.iInf_natCast_le_natCast_iff.mp h
-  exact hj.mono_bits hjk
+theorem ecomplexity_le_iff : ecomplexity z R A B ≤ k ↔ HasCover z R A B k :=
+  (ENat.iInf_subtype_natCast_le_natCast_iff (d := id)).trans
+    ⟨fun ⟨_, hj, hjk⟩ => hj.mono_bits hjk, fun h => ⟨k, h, le_rfl⟩⟩
 
 /-- `ecomplexity_le_iff` for functions. -/
 theorem ecomplexityFun_le_iff :
@@ -230,7 +229,7 @@ theorem HasCover.of_imp (hR : ∀ x y b, R x y b → R' x y b) (h : HasCover z R
 /-- Nondeterministic complexity is monotone in the domain. -/
 theorem ecomplexity_mono (hA : A' ⊆ A) (hB : B' ⊆ B) :
     ecomplexity z R A' B' ≤ ecomplexity z R A B :=
-  le_ecomplexity_iff.mpr fun _ hk => (hk.mono hA hB).ecomplexity_le
+  ENat.iInf_subtype_natCast_mono (d := id) fun _ hk => hk.mono hA hB
 
 /-- `ecomplexity_mono` for functions. -/
 theorem ecomplexityFun_mono (hA : A' ⊆ A) (hB : B' ⊆ B) :
@@ -240,7 +239,7 @@ theorem ecomplexityFun_mono (hA : A' ⊆ A) (hB : B' ⊆ B) :
 /-- A weaker relation is no harder. -/
 theorem ecomplexity_le_of_imp (hR : ∀ x y b, R x y b → R' x y b) :
     ecomplexity z R' A B ≤ ecomplexity z R A B :=
-  le_ecomplexity_iff.mpr fun _ hk => (hk.of_imp hR).ecomplexity_le
+  ENat.iInf_subtype_natCast_mono (d := id) fun _ hk => hk.of_imp hR
 
 /-! ### Negation -/
 
@@ -353,7 +352,7 @@ theorem _root_.Cslib.Communication.Protocol.Solves.hasCover {p : Protocol X Y Bo
 /-- **Nondeterministic complexity is at most deterministic complexity.** -/
 theorem ecomplexity_le_protocol (z : Bool) :
     ecomplexity z R A B ≤ Protocol.ecomplexity R A B :=
-  le_iInf fun p => (p.2.hasCover z).ecomplexity_le
+  Protocol.le_ecomplexity_iff.mpr fun _ hp => (hp.hasCover z).ecomplexity_le
 
 /-- `ecomplexity_le_protocol` for functions on all inputs. -/
 theorem ecomplexityFun_le_protocol (z : Bool) :

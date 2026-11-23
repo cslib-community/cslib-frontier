@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Program
 public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 import CslibFrontier.Tactic.SuppCases
 
 /-!
@@ -89,7 +90,7 @@ classical word is unused; the device keeps all three qubits throughout the run. 
 
 /-- The phase subroutine's native machine branches only on its one-bit classical address. -/
 theorem isOraclePPTOn_phase : IsOraclePPTOn encBool encBool phase := by
-  apply IsOraclePPTOn.finite_cases' (branch := fun address _ => phase address)
+  apply IsOraclePPTOn.finite_cases (branch := fun address _ => phase address)
     ComputableInPolyTime.id'
   intro address
   unfold phase
@@ -105,7 +106,7 @@ theorem isOraclePPTOn_round : IsOraclePPTOn encBool encBool round :=
 /-- One native machine generates the entire adaptive loop. The encoded classical loop state has
 length exactly one under every possible word reply, so its growth allowance is zero. -/
 theorem isOraclePPTOn_walk : IsOraclePPTOn encUnary encBool walk := by
-  refine IsOraclePPTOn.iterate_of_bounded_growth' (growth := 0)
+  refine IsOraclePPTOn.iterate_of_bounded_growth (growth := 0)
     ComputableInPolyTime.id' (.const false) isOraclePPTOn_round ?_
   intro address next _
   simp only [encBool_apply, List.length_singleton, Nat.add_zero, le_refl]
@@ -121,7 +122,7 @@ theorem isOraclePPT_program : IsOraclePPT encBool program := by
   apply IsOraclePPTOn.isOraclePPT
   unfold program
   apply (isOraclePPTOn_prepare (encPair encUnary encBits)).bind_with
-  apply (isOraclePPTOn_walk.preprocess' (by fun_prop)).bind
+  apply (isOraclePPTOn_walk.preprocess (by fun_prop)).bind
   exact (isOraclePPTOn_gate encBool _).bind
     (isOraclePPTOn_requestBit encUnit (.inl .measure) (.const (encUnary 0)))
 
