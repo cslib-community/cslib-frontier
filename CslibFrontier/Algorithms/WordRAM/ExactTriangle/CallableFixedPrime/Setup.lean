@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime.Properties
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Computed modulus and normalized source bank
@@ -63,36 +64,23 @@ theorem exec_setup {W : ℕ} (x : Data 640)
   have fit : Fits W (b + 4 * windowSize n D g p total + 1024) := hfit
   obtain ⟨-, hS, -, -⟩ := setup_fits fit
   have hsize : Fits W S := fit.of_le (by omega)
-  have hND : Fits W (n + D) := hsize.of_le (by dsimp only [S]; omega)
-  have hNDg : Fits W (n + D + g) := hsize.of_le (by dsimp only [S]; omega)
-  have hNDgp : Fits W (n + D + g + p) := hsize.of_le (by dsimp only [S]; omega)
-  have hNDgpt : Fits W (n + D + g + p + total) := hsize.of_le (by dsimp only [S]; omega)
-  obtain ⟨s, hs, sval, smem, sbase⟩ :
-      ∃ s, ExecWithin W sizeArgument x s 7 ∧ s.regs (powerBank 0) = S ∧
-        s.mem = x.mem ∧ s.regs Reg.base = b := by
-    refine ⟨?s, ?run, ?value, ?mem, ?base⟩
-    case run => ram_eval [sizeArgument, clogBank, n, D, g, p, total, S, hND, hNDg,
-      hNDgp, hNDgpt, hsize, Reg.n, Reg.dimension, Reg.groups, Reg.prime, Reg.total,
-      Fin.mk.injEq]
-    case value => simp +decide [S, n, D, g, p, total, powerBank]
-    case mem => rfl
-    case base => simp +decide [b, Reg.base]
   have hpow_inj : Function.Injective powerBank := fun i j h =>
     Fin.ext (by simpa only [powerBank] using Nat.add_left_cancel (congrArg Fin.val h))
   have hbase_ne (k : Fin 5) : powerBank k ≠ Reg.base := fun hk => by
-    have := k.isLt
-    have hv := congrArg Fin.val hk
-    dsimp only [powerBank, Reg.base] at hv
-    omega
+    have := k.isLt; have hv := congrArg Fin.val hk; dsimp only [powerBank, Reg.base] at hv; omega
+  obtain ⟨s, hs, sval, smem, sbase⟩ :
+      ∃ s, ExecWithin W sizeArgument x s 7 ∧ s.regs (powerBank 0) = S ∧
+        s.mem = x.mem ∧ s.regs Reg.base = b := by
+    unfold sizeArgument
+    wram_exec
+    exact ⟨by wram_simp; rfl, rfl, by wram_simp; rfl⟩
   obtain ⟨y, hy, ymem, ymatch, ybound, -⟩ :=
     MemoryWindow.exec_dynamicSetupBank (r := 416) sourceBank_injective hpow_inj hbase_ne
       (by decide) (by decide : 1 ≤ 6166) (by dsimp only [S]; omega)
       s sbase sval (fit.of_le (Nat.le_add_right _ 1024))
   have he : ExecWithin W setup x y (24669 * Nat.clog 2 S + 439) :=
     (hs.seq hy).mono (by omega)
-  refine ⟨y, he, ymem.trans smem, ymatch.base_eq, ymatch.modulus_eq, fun i => ybound.1 i, ?_⟩
-  intro j hj
-  obtain ⟨-, hj', -, -⟩ := program_preserves j hj
-  exact he.regs_eq hj'
+  refine ⟨y, he, ymem.trans smem, ymatch.base_eq, ymatch.modulus_eq, fun i => ybound.1 i,
+    fun j hj => he.regs_eq (program_preserves j hj).2.1⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime

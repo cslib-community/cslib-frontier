@@ -66,15 +66,11 @@ open Cslib.SortedAssoc (leI)
 private theorem induction_children {α β : Type} {motive : BTree α β → Prop} (leaf : motive .leaf)
     (node : ∀ (first : BTree α β) (rest : List (Triple α β)),
       (∀ c ∈ (node first rest).children, motive c) → motive (.node first rest)) :
-    ∀ tr, motive tr := by
-  intro tr
-  induction tr with
-  | leaf => exact leaf
-  | node first rest ih₁ ih₂ =>
-    refine node first rest fun c hc => ?_
-    simp only [children_node, List.mem_cons, List.mem_map] at hc
-    rcases hc with rfl | ⟨e, he, rfl⟩
-    exacts [ih₁, ih₂ e he]
+    ∀ tr, motive tr
+  | .leaf => leaf
+  | .node first rest => node first rest fun c _ => induction_children leaf node c
+termination_by tr => sizeOf tr
+decreasing_by exact sizeOf_lt_of_mem_children ‹_›
 
 section Polymorphic
 
@@ -231,6 +227,15 @@ theorem _root_.Cslib.IsMonadHom.map_slotBinM (hf : IsMonadHom m n f) (le : α �
         ih _ (by simp only [List.length_take]; omega) ((e :: l).take ((l.length + 1) / 2)) rfl,
         ih _ (by simp only [List.length_drop]; omega) (l.drop ((l.length + 1) / 2)) rfl]
 
+private theorem map_childOpt {γ : Type} (hf : IsMonadHom m n f) (d : γ)
+    {g₁ : BTree α β → m γ} {g₂ : BTree α β → n γ} {first : BTree α β}
+    {rest : List (Triple α β)} (ih : ∀ c ∈ (node first rest).children, f (g₁ c) = g₂ c) (i : ℕ) :
+    f (match (node first rest).children[i]? with | some c => g₁ c | none => pure d) =
+      match (node first rest).children[i]? with | some c => g₂ c | none => pure d := by
+  rcases hc : (node first rest).children[i]? with _ | c
+  · exact hf.map_pure d
+  · exact ih c (List.mem_of_getElem? hc)
+
 /-- A monad morphism commutes with lookup by binary in-node search. -/
 theorem _root_.Cslib.IsMonadHom.map_lookupBinM (hf : IsMonadHom m n f) (le : α → α → m Bool)
     (visit : m Unit) (k : α) (tr : BTree α β) :
@@ -240,10 +245,9 @@ theorem _root_.Cslib.IsMonadHom.map_lookupBinM (hf : IsMonadHom m n f) (le : α 
   | node first rest ih =>
     simp only [lookupBinM_node, hf.map_bind, hf.map_slotBinM]
     refine bind_congr fun _ => bind_congr fun i => ?_
-    rcases hc : (node first rest).children[i]? with _ | c
-    · rcases hi : rest[i]? with _ | e <;> simp [hf.map_pure, apply_ite f]
-    · have := ih c (List.mem_of_getElem? hc)
-      rcases hi : rest[i]? with _ | e <;> simp [hf.map_pure, apply_ite f, this]
+    rcases rest[i]? with _ | e <;>
+      simp only [hf.map_pure, apply_ite f, Option.map_none, Option.map_some,
+        map_childOpt hf none ih]
 
 /-- A monad morphism commutes with rank by binary in-node search. -/
 theorem _root_.Cslib.IsMonadHom.map_rankBinM (hf : IsMonadHom m n f) (le : α → α → m Bool)
@@ -252,11 +256,7 @@ theorem _root_.Cslib.IsMonadHom.map_rankBinM (hf : IsMonadHom m n f) (le : α �
   induction tr using induction_children with
   | leaf => simp [rankBinM_leaf, hf.map_pure]
   | node first rest ih =>
-    simp only [rankBinM_node, hf.map_bind, hf.map_slotBinM]
-    refine bind_congr fun _ => bind_congr fun i => ?_
-    rcases hc : (node first rest).children[i]? with _ | c
-    · simp [hf.map_pure]
-    · simp [hf.map_pure, ih c (List.mem_of_getElem? hc)]
+    simp only [rankBinM_node, hf.map_bind, hf.map_pure, hf.map_slotBinM, map_childOpt hf 0 ih]
 
 end Transfer
 
@@ -322,58 +322,47 @@ theorem slotBin_eq_slot (k : α) {rest : List (Triple α β)}
   | _ n ih =>
     rcases hrest : rest with _ | ⟨e₀, l⟩
     · simp [slotBin]
-    · have hlt : rest.length / 2 < rest.length := by
-        rw [hrest, List.length_cons]
-        omega
+    · have hlt : rest.length / 2 < rest.length := by rw [hrest, List.length_cons]; omega
       have hstep : slotBin k rest = if k ≤ rest[rest.length / 2].1 then
           slotBin k (rest.take (rest.length / 2))
           else slotBin k (rest.drop (rest.length / 2 + 1)) + (rest.length / 2 + 1) := by
-        subst hrest
-        rw [slotBin, slotBinM_cons]
-        by_cases hk : k ≤ ((e₀ :: l)[(l.length + 1) / 2]'(by
-          simp only [List.length_cons]; omega)).1 <;> simp [slotBin, leI, hk]
-      have hsplit : rest = rest.take (rest.length / 2) ++
-          rest[rest.length / 2] :: rest.drop (rest.length / 2 + 1) := by
-        simp
+        subst hrest; rw [slotBin, slotBinM_cons]
+        by_cases hk : k ≤ ((e₀ :: l)[(l.length + 1) / 2]'(by simp; omega)).1 <;>
+          simp [slotBin, leI, hk]
+      have hsplit : rest =
+          rest.take (rest.length / 2) ++ rest[rest.length / 2] :: rest.drop (rest.length / 2 + 1) :=
+        by simp
       rw [← hrest, hstep, slot_eq_findIdx]
-      generalize hl₁ : rest.take (rest.length / 2) = l₁ at hsplit ⊢
-      generalize hl₂ : rest.drop (rest.length / 2 + 1) = l₂ at hsplit ⊢
-      generalize rest[rest.length / 2] = e at hsplit ⊢
-      have hlen₁ : l₁.length = rest.length / 2 := by rw [← hl₁, List.length_take]; omega
-      have hlen₂ : l₂.length < rest.length := by rw [← hl₂, List.length_drop]; omega
-      have hs' := hs
-      rw [hsplit] at hs'
-      simp only [List.map_append, List.map_cons, List.pairwise_append, List.pairwise_cons]
-        at hs'
-      obtain ⟨h₁, ⟨-, h₂⟩, h₁₂⟩ := hs'
+      set l₁ := rest.take (rest.length / 2)
+      set l₂ := rest.drop (rest.length / 2 + 1)
+      set e := rest[rest.length / 2]
+      have hlen₁ : l₁.length = rest.length / 2 := by simp [l₁, Nat.min_eq_left hlt.le]
+      have hlen₂ : l₂.length < rest.length := by simp [l₂]; omega
+      rw [hsplit] at hs
+      simp only [List.map_append, List.map_cons, List.pairwise_append, List.pairwise_cons] at hs
+      obtain ⟨h₁, ⟨-, h₂⟩, h₁₂⟩ := hs
       conv_rhs => rw [hsplit, List.findIdx_append, List.findIdx_cons]
       by_cases hk : k ≤ e.1
-      · simp only [hk, decide_true, ↓reduceIte]
-        rw [ih _ (by omega) h₁ rfl, slot_eq_findIdx]
+      · simp only [hk, decide_true, ↓reduceIte, ih _ (by omega) h₁ rfl, slot_eq_findIdx]
         have := List.findIdx_le_length (p := fun e => decide (k ≤ e.1)) (xs := l₁)
         split <;> omega
-      · simp only [hk, decide_false, Bool.false_eq_true, ↓reduceIte]
-        rw [ih _ (by omega) h₂ rfl, slot_eq_findIdx]
-        have hnone : l₁.findIdx (fun e => decide (k ≤ e.1)) = l₁.length :=
+      · have hnone : l₁.findIdx (fun e => decide (k ≤ e.1)) = l₁.length :=
           List.findIdx_eq_length.2 fun x hx => by
-            have := h₁₂ x.1 (List.mem_map_of_mem hx) e.1 (by simp)
-            simpa using this.trans (lt_of_not_ge hk)
-        simp only [hnone, lt_irrefl, ↓reduceIte]
+            simpa using (h₁₂ x.1 (List.mem_map_of_mem hx) e.1 (by simp)).trans (lt_of_not_ge hk)
+        simp only [hk, decide_false, Bool.false_eq_true, ↓reduceIte, ih _ (by omega) h₂ rfl,
+          slot_eq_findIdx, hnone, lt_irrefl]
         omega
 
 /-- The keys of a node with sorted entries are strictly increasing. -/
 private theorem pairwise_keys_of_isSortedAssoc {first : BTree α β} {rest : List (Triple α β)}
     (h : (node first rest).toList.IsSortedAssoc) : (rest.map (·.1)).Pairwise (· < ·) := by
-  have hsub : ∀ rest : List (Triple α β),
-      (rest.map fun e => (e.1, e.val)).Sublist (toListRest rest) := fun rest => by
-    induction rest with
-    | nil => simp
-    | cons e rest ih =>
-      obtain ⟨k', v, c⟩ := e
-      rw [toListRest_cons]
-      exact (ih.trans (List.sublist_append_right _ _)).cons_cons _
-  have := h.sublist ((hsub rest).trans (List.sublist_append_right _ _))
-  simpa [List.isSortedAssoc_iff_pairwise, Function.comp_def] using this
+  have hsub : ∀ l : List (Triple α β), (l.map fun e => (e.1, e.val)).Sublist (toListRest l) :=
+    fun l => by
+      induction l with
+      | nil => exact .slnil
+      | cons _ _ ih => exact (ih.trans (List.sublist_append_right _ _)).cons_cons _
+  simpa [List.isSortedAssoc_iff_pairwise, Function.comp_def] using
+    h.sublist ((hsub rest).trans (List.sublist_append_right _ _))
 
 /-- Linear lookup at a node, through the position found by the within-node search. -/
 private theorem lookup_node_eq_slot (k : α) (first : BTree α β) (rest : List (Triple α β)) :
@@ -403,30 +392,35 @@ private theorem rank_node_eq_slot (k : α) (first : BTree α β) (rest : List (T
     · simp [hk, ih c]
       omega
 
+private theorem eq_of_isSortedAssoc_slot {γ : Type} {f g : BTree α β → γ} (k : α)
+    (hleaf : f .leaf = g .leaf)
+    (hnode : ∀ first rest, slotBin k rest = slot k rest →
+      (∀ (i : ℕ), ∀ c ∈ (node first rest).children[i]?, f c = g c) →
+      f (.node first rest) = g (.node first rest))
+    (h : tr.toList.IsSortedAssoc) : f tr = g tr := by
+  induction tr using induction_children with
+  | leaf => exact hleaf
+  | node first rest ih =>
+    refine hnode first rest (slotBin_eq_slot k (pairwise_keys_of_isSortedAssoc h)) fun _ c hc => ?_
+    have hmem := List.mem_of_getElem? hc
+    exact ih c hmem (h.sublist (toList_sublist_of_mem_children hmem))
+
 /-- On a tree with sorted entries, lookup by binary in-node search is lookup. -/
 theorem lookupBin_eq_lookup (h : tr.toList.IsSortedAssoc) (k : α) :
-    lookupBin k tr = lookup k tr := by
-  induction tr using induction_children with
-  | leaf => simp
-  | node first rest ih =>
-    rw [lookupBin_node, lookup_node_eq_slot, slotBin_eq_slot k (pairwise_keys_of_isSortedAssoc h)]
-    congr 1
+    lookupBin k tr = lookup k tr :=
+  eq_of_isSortedAssoc_slot k (by simp) (fun first rest hs ih => by
+    rw [lookupBin_node, lookup_node_eq_slot, hs]
     rcases hc : (node first rest).children[slot k rest]? with _ | c
     · rfl
-    · have hmem := List.mem_of_getElem? hc
-      simpa using ih c hmem (h.sublist (toList_sublist_of_mem_children hmem))
+    · simp [ih _ c hc]) h
 
 /-- On a tree with sorted entries, rank by binary in-node search is rank. -/
-theorem rankBin_eq_rank (h : tr.toList.IsSortedAssoc) (k : α) : rankBin k tr = rank k tr := by
-  induction tr using induction_children with
-  | leaf => simp
-  | node first rest ih =>
-    rw [rankBin_node, rank_node_eq_slot, slotBin_eq_slot k (pairwise_keys_of_isSortedAssoc h)]
-    congr 2
+theorem rankBin_eq_rank (h : tr.toList.IsSortedAssoc) (k : α) : rankBin k tr = rank k tr :=
+  eq_of_isSortedAssoc_slot k (by simp) (fun first rest hs ih => by
+    rw [rankBin_node, rank_node_eq_slot, hs]
     rcases hc : (node first rest).children[slot k rest]? with _ | c
     · rfl
-    · have hmem := List.mem_of_getElem? hc
-      simpa using ih c hmem (h.sublist (toList_sublist_of_mem_children hmem))
+    · simp [ih _ c hc]) h
 
 end Pure
 

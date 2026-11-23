@@ -14,6 +14,7 @@ public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Efficient
 public import CslibFrontier.Crypto.Primitives.Garbling.LabelWord
 public import CslibFrontier.Computability.Probabilistic.PPT
 import CslibFrontier.Probability.BitString.List
+import CslibFrontier.Foundations.Data.BitString.List.LowBits
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -101,6 +102,38 @@ theorem rowIndex_lt_four {r : ℕ} (hr : r = 2) (colours : Fin r → Bool) : row
   rw [rowIndex_of_eq_two hr]
   split_ifs <;> omega
 
+/-- Row numbers determine the colours of a binary gate. -/
+theorem rowIndex_injective_of_eq_two {r : ℕ} (hr : r = 2) :
+    Function.Injective (rowIndex (r := r)) := fun ρ ρ' h => by
+  rw [← testBit_rowIndex_of_eq_two hr ρ, ← testBit_rowIndex_of_eq_two hr ρ', h]
+
+/-- **Distinct slots have distinct tweaks** while `8 q ≤ 2 ^ k`: slot `a` of row `ρ` of gate `g`
+has the tweak `8 g + 2 rowIndex ρ + a`, which is below `2 ^ k`. -/
+theorem slotTweak_injective (k : ℕ) (f : ValidCircuit) (hk : 8 * f.1.q ≤ 2 ^ k) :
+    Function.Injective (slotTweak (toCircuit f).topology k) := by
+  have hbound : ∀ p : Slot (toCircuit f).topology,
+      8 * p.1.1 + 2 * rowIndex p.1.2 + p.2 < 2 ^ k := by
+    rintro ⟨⟨g, ρ⟩, a⟩
+    have hg : g.val < f.1.q := size_toCircuit f ▸ g.isLt
+    have hρ := rowIndex_lt_four (arity_topology_toCircuit f g) ρ
+    have ha : a.val < 2 := a.isLt.trans_eq (arity_topology_toCircuit f g)
+    dsimp only; omega
+  rintro ⟨⟨g, ρ⟩, a⟩ ⟨⟨g', ρ'⟩, a'⟩ h
+  have h' := congrArg List.ofFn h
+  simp only [slotTweak, ofFn_ofList_tweak] at h'
+  dsimp only [tweak] at h'
+  have heq := BitString.lowBits_injective_of_lt (hbound ⟨⟨g, ρ⟩, a⟩) (hbound ⟨⟨g', ρ'⟩, a'⟩) h'
+  dsimp only at heq
+  have hρ := rowIndex_lt_four (arity_topology_toCircuit f g) ρ
+  have hρ' := rowIndex_lt_four (arity_topology_toCircuit f g') ρ'
+  have ha : a.val < 2 := a.isLt.trans_eq (arity_topology_toCircuit f g)
+  have ha' : a'.val < 2 := a'.isLt.trans_eq (arity_topology_toCircuit f g')
+  obtain rfl : g = g' := Fin.ext (by omega)
+  obtain rfl := rowIndex_injective_of_eq_two (arity_topology_toCircuit f g)
+    (show rowIndex ρ = rowIndex ρ' by omega)
+  obtain rfl : a = a' := Fin.ext (by omega)
+  rfl
+
 /-- The position of each wire's label and each row's filler label among the simulator's coins. -/
 private def simIndex (τ : Circuit.Topology n m s) (hτ : ∀ g, τ.arity g = 2) :
     Wire n s ⊕ Row τ → Fin (n + s + s * 4)
@@ -119,12 +152,8 @@ private theorem simIndex_bijective (τ : Circuit.Topology n m s) (hτ : ∀ g, �
     · have := w'.toNat_lt; omega
     · have hi := rowIndex_lt_four (hτ g) ρ
       have hi' := rowIndex_lt_four (hτ g') ρ'
-      have hg : g = g' := Fin.ext (by omega)
-      subst hg
-      have hρ : rowIndex ρ = rowIndex ρ' := by omega
-      have : ρ = ρ' := by
-        rw [← testBit_rowIndex_of_eq_two (hτ g) ρ, ← testBit_rowIndex_of_eq_two (hτ g) ρ', hρ]
-      subst this
+      obtain rfl : g = g' := Fin.ext (by omega)
+      obtain rfl := rowIndex_injective_of_eq_two (hτ g) (show rowIndex ρ = rowIndex ρ' by omega)
       rfl
   · rw [Fintype.card_sum, Fintype.card_congr (Wire.equivFin n s), Fintype.card_fin,
       Fintype.card_sigma]
@@ -455,23 +484,15 @@ private theorem simViewWord_polyTime :
       simViewWord family p.1.1 p.1.2.1 p.1.2.2.1 p.2) (encPair encSimInput encBits)
       encPrvView := by
   let E' := encPair encSimInput encBits
-  have hfst : ComputableInPolyTime (fun p : (ℕ × List Bool × ValidTopo) × List Bool => p.1) E'
-      encSimInput := ComputableInPolyTime.fst _ _
-  have hk' : ComputableInPolyTime (fun p : (ℕ × List Bool × ValidTopo) × List Bool => p.1.1) E'
-      encUnary := (ComputableInPolyTime.fst _ _).comp hfst
-  have hy' : ComputableInPolyTime (fun p : (ℕ × List Bool × ValidTopo) × List Bool => p.1.2.1) E'
-      encBits := (ComputableInPolyTime.snd _ _).fst'.comp hfst
-  have hn' : ComputableInPolyTime (fun p : (ℕ × List Bool × ValidTopo) × List Bool =>
-      p.1.2.2.1.n) E' encUnary := simTopoData_polyTime.fst'.comp hfst
-  have hm' : ComputableInPolyTime (fun p : (ℕ × List Bool × ValidTopo) × List Bool =>
-      p.1.2.2.1.m) E' encUnary := simTopoData_polyTime.snd'.fst'.comp hfst
-  have hg' : ComputableInPolyTime (fun p : (ℕ × List Bool × ValidTopo) × List Bool =>
-      p.1.2.2.1.gateList) E' (encList (encPair encNat encNat)) :=
-    simTopoData_polyTime.snd'.snd'.comp hfst
-  have hq' : ComputableInPolyTime (fun p : (ℕ × List Bool × ValidTopo) × List Bool =>
-      p.1.2.2.1.gateList.length) E' encUnary := simGateCount_polyTime.comp hfst
-  have hc' : ComputableInPolyTime (fun p : (ℕ × List Bool × ValidTopo) × List Bool => p.2) E'
-      encBits := ComputableInPolyTime.snd _ _
+  have hfst := ComputableInPolyTime.fst encSimInput encBits
+  have hk' := hfst.fst'
+  have hy' := hfst.snd'.fst'
+  have hd := simTopoData_polyTime.comp hfst
+  have hn' := hd.fst'
+  have hm' := hd.snd'.fst'
+  have hg' := hd.snd'.snd'
+  have hq' := simGateCount_polyTime.comp hfst
+  have hc' := ComputableInPolyTime.snd encSimInput encBits
   have hx := ComputableInPolyTime.fst E' (encPair encUnary (encPair encUnary
     (encPair encUnary encUnary)))
   have hrest := ComputableInPolyTime.snd E' (encPair encUnary (encPair encUnary
