@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Crypto.Encoding
 public import CslibFrontier.Crypto.Computational.Homomorphic.Leveled.ExactSecurity
 public import CslibFrontier.Crypto.Computational.Homomorphic.KeyChain.Reduction.CoinTape
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
@@ -25,6 +26,8 @@ state and ciphertext; it is not the multiplicative runtime ratio in Gentry's sou
 
 ## Main definitions
 
+* `Cslib.Crypto.Homomorphic.Leveled.encChooseCoinsInput`: encoding of seeded message-selection
+  inputs `((1ⁿ, pk), tape)`.
 * `Cslib.Crypto.Homomorphic.Leveled.publicKeyGameCoins`: replay the adaptive public-key game.
 
 ## Main results
@@ -98,6 +101,12 @@ theorem eval_publicKeyGame_eq_map_coins (E : Scheme) (adversary : Encryption.Adv
   dsimp only
   exact (BitString.uniformList_map_split3 _ _ _ _).symm
 
+/-- Seeded input `((1ⁿ, pk), tape)` of a message-selection evaluator: the unary security parameter
+`n` is framed before the public-key word `pk`, the pair `(1ⁿ, pk)` is framed again, and the raw
+coin tape `tape` follows unframed, with no tag bits. -/
+abbrev encChooseCoinsInput : (ℕ × List Bool) × List Bool ↪ List Bool :=
+  encPair (encPair encUnary encBits) encBits
+
 /-- The concrete adaptive-game replay is native polynomial time in the public artifact,
 parameter, tape, and unary component budgets. -/
 @[fun_prop] theorem computableInPolyTime_publicKeyGameCoins
@@ -105,11 +114,11 @@ parameter, tape, and unary component budgets. -/
     {evaluateEncrypt : (ℕ × List Bool × Bool) → List Bool → List Bool}
     {evaluateGuess : (ℕ × List Bool × List Bool) → List Bool → Bool}
     (hchoose : ComputableInPolyTime (fun (input, tape) => evaluateChoose input tape)
-      (encPair (encPair encUnary encBits) encBits) (encPair (encPair encBool encBool) encBits))
+      encChooseCoinsInput (Encryption.encChoiceOut encBool))
     (hencrypt : ComputableInPolyTime (fun (input, tape) => evaluateEncrypt input tape)
-      (encPair (encPair encUnary (encPair encBits encBool)) encBits) encBits)
+      (encPair (encKeyedInput encBool) encBits) encBits)
     (hguess : ComputableInPolyTime (fun (input, tape) => evaluateGuess input tape)
-      (encPair (encPair encUnary (encPair encBits encBits)) encBits) encBool)
+      (encPair Encryption.encGuessInput encBits) encBool)
     (bit : Bool) {α : Type} {input : α ↪ List Bool} {n chooseCoins encCoins : α → ℕ}
     {artifact : α → List (List Bool) × List (List (List Bool))} {tape : α → List Bool}
     (hn : ComputableInPolyTime n input encUnary)
@@ -218,11 +227,11 @@ and tape; no validity restriction is needed for this total computational certifi
     {evaluateEncrypt : (ℕ × List Bool × Bool) → List Bool → List Bool}
     {evaluateGuess : (ℕ × List Bool × List Bool) → List Bool → Bool}
     (hchoose : ComputableInPolyTime (fun (input, tape) => evaluateChoose input tape)
-      (encPair (encPair encUnary encBits) encBits) (encPair (encPair encBool encBool) encBits))
+      Leveled.encChooseCoinsInput (Encryption.encChoiceOut encBool))
     (hencrypt : ComputableInPolyTime (fun (input, tape) => evaluateEncrypt input tape)
-      (encPair (encPair encUnary (encPair encBits encBool)) encBits) encBits)
+      (encPair (encKeyedInput encBool) encBits) encBits)
     (hguess : ComputableInPolyTime (fun (input, tape) => evaluateGuess input tape)
-      (encPair (encPair encUnary (encPair encBits encBits)) encBits) encBool)
+      (encPair Encryption.encGuessInput encBits) encBool)
     (bit : Bool) {chooseCoins encCoins capacity : ℕ → ℕ}
     (hchooseCoins : ComputableInPolyTime chooseCoins encUnary encUnary)
     (hencCoins : ComputableInPolyTime encCoins encUnary encUnary)
