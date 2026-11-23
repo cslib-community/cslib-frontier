@@ -17,7 +17,8 @@ register_result "polynomial-hash-birthday-lower-bound" where
   topic := "cryptography"
   sources := [
     { paper := BonehShoup2023, theorem := "Exercise 7.26(a)",
-      locator := "v0.6, printed p. 284; equation (7.3), printed p. 255; Remark 7.2, printed p. 263" }
+      locator := "v0.6, printed p. 284; equation (7.3), printed p. 255; \
+        Remark 7.2, printed p. 263" }
   ]
   theorems := [Cslib.Probability.one_eighth_le_polyHash_twoBlock_collision]
   scope := "For any fixed key, floor(sqrt(card F)) independent uniform two-block messages \
