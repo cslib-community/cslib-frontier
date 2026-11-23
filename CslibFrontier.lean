@@ -4146,6 +4146,7 @@ public import CslibFrontier.Computability.Interactive.AuxZK
 public import CslibFrontier.Computability.Interactive.Basic
 public import CslibFrontier.Computability.Interactive.Bundle
 public import CslibFrontier.Computability.Interactive.Debate
+public import CslibFrontier.Computability.Interactive.Debate.Machine
 public import CslibFrontier.Computability.Interactive.Efficient
 public import CslibFrontier.Computability.Interactive.GKR.Layered
 public import CslibFrontier.Computability.Interactive.GKR.Protocol
