@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficientSign
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
@@ -237,5 +238,21 @@ example (j : ℕ) :
 example : ComputableInPolyTime (fun b => parametricCoordinateCoeffNormExponent 1 2 b)
     encNat encNat :=
   parametricCoordinateCoeffNormExponent_polyTime (.const 1) (.const 2) ComputableInPolyTime.id'
+
+-- A single certificate covers both binary indices for the controlled source F = X.
+example :
+    (fun w : ℕ × ℕ =>
+      let F : MvPolynomial (Fin 1) ℤ := X 0
+      let P := parametricCoordinatePolynomial (by decide : 1 ≤ 2) F
+        ((totalDegree_X_le 0).trans (by decide)) 0
+      (((Polynomial.Bivariate.swap P).coeff w.1).coeff w.2).sign) ∈
+        CountingFunction 15 (encPair encNat encNat) encIntBin := by
+  let C : Controlled (fun _ : ℕ × ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
+      (encPair encNat encNat) 0 :=
+    Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+  exact C.criticalCoordinateCandidateCoefficientSign_mem (d := fun _ => 1)
+    (Decoder.pair Decoder.nat Decoder.nat) (fun _ => 0) (fun _ => by decide)
+    (fun _ => (totalDegree_X_le 0).trans (by decide)) (.const 1) (.const 0)
+    (ComputableInPolyTime.fst _ _) (ComputableInPolyTime.snd _ _)
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
