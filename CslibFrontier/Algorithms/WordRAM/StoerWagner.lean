@@ -23,8 +23,11 @@ import CslibFrontier.Tactic.Realize
 
 This module implements the dense `O(n³)` array version of the Stoer–Wagner deterministic global
 minimum cut algorithm [StoerWagner1997] on the deterministic width-blind standard-basis Word-RAM
-(`Cslib.WordRAM.Basis.standard`, `¬prog.ReadsWidth`), proving a uniform `O(n³)` instruction-count
-bound (`Program.ComputesListInTime`) at polynomial word width.
+(`Cslib.WordRAM.Basis.standard`, `¬prog.ReadsWidth`), proving a uniform `C * (I.n + 1) ^ 3`
+instruction-count bound (`Program.ComputesListInTime`) at any word width `w` satisfying
+`Fits w I.wordBound` (i.e., `I.wordBound < 2 ^ w`, where `I.wordBound` is a polynomial bound on
+word values and addresses, so a bit width `w` of order
+`log (I.n + 2) + log (totalDoubledWeight I.W + 2)` suffices).
 
 On input `I.encode = I.n :: Karger.flattenMatrix I.W` for any weighted multigraph
 `I : StoerWagnerInput` (`I.isMultigraph : Cslib.WeightedCut.IsMultigraph I.W`), the algorithm
@@ -35,8 +38,9 @@ cut buffer directly in the output list layout
 Across all `n - 1` contraction phases, `totalDoubledWeight` is nonincreasing
 (`Cslib.WeightedCut.totalDoubledWeight_contractMatrix`), so every intermediate matrix entry,
 merged edge sum `W s j + W t j`, attachment key, and cut weight stays at most
-`totalDoubledWeight I.W`. Any word width `w` fitting `I.wordBound = max (workspaceBound I.n)
-(totalDoubledWeight I.W)` (`w = Ω(log n + log W_max)`) therefore executes without overflow.
+`totalDoubledWeight I.W`. Any word width `w` with `Fits w I.wordBound`, where
+`I.wordBound = max (workspaceBound I.n) (totalDoubledWeight I.W)` bounds all word values and
+addresses (`I.wordBound < 2 ^ w`), therefore executes without overflow.
 
 The dense `O(n³)` array Word-RAM program and word-width bound are original over [StoerWagner1997]
 (which states the algorithm at the high level using a priority queue in `O(n m + n² log n)` time).
@@ -1582,7 +1586,7 @@ private theorem mergeRowColProg_spec {w : ℕ} (a : MergeArgs)
                   have hrs := hread_s; have hrt := hread_t
                   simp only [hkv, ↓reduceIte] at hrs hrt
                   rw [← hs, hrs, hrt]
-                  simp [kFin, ht, hsk, htk, mergePair, hne_sv.symm, hne_tv, hst]
+                  simp [kFin, hs, ht, Ne.symm hsk, htk, mergePair, hne_sv.symm, hne_tv, hst]
             · by_cases hjs : i = kFin ∧ j = sv
               · rcases hjs with ⟨hi_eq, hj_eq⟩
                 subst i; subst j
@@ -1601,7 +1605,7 @@ private theorem mergeRowColProg_spec {w : ℕ} (a : MergeArgs)
                     have hrs := hread_s; have hrt := hread_t
                     simp only [hkv, ↓reduceIte] at hrs hrt
                     rw [← hs, hrs, hrt]
-                    simp [kFin, hs, ht, hsk, htk, mergePair, hne_sv, hne_tv,
+                    simp [kFin, hs, ht, hsk, htk, mergePair, hne_sv, hne_tv, hst,
                       hW.1 sv kFin, hW.1 tv kFin]
               · rw [Function.update_of_ne (fun h => hjs (by
                     have ⟨h1, h2⟩ := hinj i.1 j.1 k sv.1 i.isLt j.isLt hk sv.isLt
@@ -1983,6 +1987,59 @@ private word_enc_structure encPhaseState : PhaseState where
 
 private instance : WordEncoding PhaseState := ⟨3, encPhaseState⟩
 
+private structure UpdateBestArgs where
+  pb : ℕ
+  ob : ℕ
+  n : ℕ
+  last : ℕ
+  lastKey : ℕ
+  better : ℕ
+  bestWeight : ℕ
+
+private word_enc_structure encUpdateBestArgs : UpdateBestArgs where
+  pb : wordWords, ob : wordWords, n : wordWords, last : wordWords,
+  lastKey : wordWords, better : wordWords, bestWeight : wordWords
+
+private instance : WordEncoding UpdateBestArgs := ⟨7, encUpdateBestArgs⟩
+
+private def updateBestProg (a : UpdateBestArgs) : Memory.Prog ℕ :=
+  if a.better = 1 then do
+    Memory.write (a.ob + 1) a.lastKey
+    let _ ← writeSideProg ⟨a.pb, a.ob + 2, a.n, a.last⟩
+    pure a.lastKey
+  else
+    pure a.bestWeight
+
+private abbrev UpdateBestSafe (w : ℕ) (a : UpdateBestArgs) (s : Memory.State) : Prop :=
+  Fits w (a.ob + 2) ∧ Fits w 1 ∧
+    (a.better = 1 →
+      iterationSafe writeSideStep WriteSideStepSafe w ⟨a.pb, a.ob + 2, a.n, a.last⟩ a.n 0
+        ⟨Function.update s.mem (a.ob + 1) a.lastKey, s.frontier⟩)
+
+private theorem updateBestProg_realizes :
+    Realizes .exact updateBestProg encUpdateBestArgs wordWords
+      UpdateBestSafe (fun _ _ => 0) := by
+  unfold updateBestProg
+  realize [writeSideProg_realizes]
+  all_goals first
+    | exact h.1
+    | exact h.2.1
+    | exact h.1.of_le (by omega)
+    | exact h.2.2 ‹_›
+
+private def compactIfProg (a : CompactArgs) : Memory.Prog ℕ :=
+  if a.t < a.lastIdx then compactRowColProg a else pure 0
+
+private abbrev CompactIfSafe (w : ℕ) (a : CompactArgs) (s : Memory.State) : Prop :=
+  Fits w 1 ∧ (a.t < a.lastIdx → iterationSafe compactStep CompactStepSafe w a a.lastIdx 0 s)
+
+private theorem compactIfProg_realizes :
+    Realizes .exact compactIfProg encCompactArgs wordWords
+      CompactIfSafe (fun _ _ => 0) := by
+  unfold compactIfProg
+  realize [compactRowColProg_realizes]
+  exact h.2 ‹_›
+
 private def phaseStep (q : PhaseArgs × PhaseState) : Memory.Prog PhaseState := do
   let a := Prod.fst q
   let st := Prod.snd q
@@ -1995,21 +2052,11 @@ private def phaseStep (q : PhaseArgs × PhaseState) : Memory.Prog PhaseState := 
   let _ ← initMAProg ⟨kb, ub, st.m⟩
   let ord ← maOrderProg ⟨mb, kb, ub, a.n, st.m⟩
   let better := if st.hasBest = 0 then 1 else if ord.lastKey ≤ st.bestWeight then 1 else 0
-  let newBestW ←
-    if better = 1 then do
-      Memory.write (ob + 1) ord.lastKey
-      let _ ← writeSideProg ⟨pb, ob + 2, a.n, ord.last⟩
-      pure ord.lastKey
-    else
-      pure st.bestWeight
+  let newBestW ← updateBestProg ⟨pb, ob, a.n, ord.last, ord.lastKey, better, st.bestWeight⟩
   if 2 < st.m then do
     let _ ← mergeRowColProg ⟨mb, a.n, st.m, ord.prev, ord.last⟩
     let lastIdx := st.m - 1
-    let _ ←
-      if ord.last < lastIdx then
-        compactRowColProg ⟨mb, a.n, lastIdx, ord.last⟩
-      else
-        pure 0
+    let _ ← compactIfProg ⟨mb, a.n, lastIdx, ord.last⟩
     let _ ← contractPartProg ⟨pb, a.n, lastIdx, ord.prev, ord.last⟩
     pure ⟨st.m - 1, 1, newBestW⟩
   else
@@ -2027,17 +2074,12 @@ private abbrev PhaseStepSafe (w : ℕ) (q : PhaseArgs × PhaseState) (s₀ : Mem
   let ord := (Memory.spec 0).clientResult s1 (maOrderProg ⟨mb, kb, ub, a.n, st.m⟩)
   let s2 := (Memory.spec 0).clientState s1 (maOrderProg ⟨mb, kb, ub, a.n, st.m⟩)
   let better := if st.hasBest = 0 then 1 else if ord.lastKey ≤ st.bestWeight then 1 else 0
+  let uargs : UpdateBestArgs := ⟨pb, ob, a.n, ord.last, ord.lastKey, better, st.bestWeight⟩
   let s2w : Memory.State := ⟨Function.update s2.mem (ob + 1) ord.lastKey, s2.frontier⟩
-  let s3 :=
-    if better = 1 then
-      (Memory.spec 0).clientState s2w (writeSideProg ⟨pb, ob + 2, a.n, ord.last⟩)
-    else s2
+  let s3 := (Memory.spec 0).clientState s2 (updateBestProg uargs)
   let s4 := (Memory.spec 0).clientState s3 (mergeRowColProg ⟨mb, a.n, st.m, ord.prev, ord.last⟩)
   let lastIdx := st.m - 1
-  let s5 :=
-    if ord.last < lastIdx then
-      (Memory.spec 0).clientState s4 (compactRowColProg ⟨mb, a.n, lastIdx, ord.last⟩)
-    else s4
+  let s5 := (Memory.spec 0).clientState s4 (compactIfProg ⟨mb, a.n, lastIdx, ord.last⟩)
   Fits w (ob + a.n + 2) ∧ Fits w 4 ∧ 1 ≤ st.m ∧
     iterationSafe initMAStep InitMAStepSafe w ⟨kb, ub, st.m⟩ st.m 0 s₀ ∧
     iterationSafe maOrderStep MAOrderStepSafe w ⟨mb, kb, ub, a.n, st.m⟩ st.m ⟨0, 0, 0⟩ s1 ∧
@@ -2054,21 +2096,22 @@ private theorem phaseStep_realizes :
     Realizes .exact phaseStep (appendWords encPhaseArgs encPhaseState) encPhaseState
       PhaseStepSafe (fun _ _ => 0) := by
   unfold phaseStep
-  realize [initMAProg_realizes, maOrderProg_realizes, writeSideProg_realizes,
-    mergeRowColProg_realizes, compactRowColProg_realizes, contractPartProg_realizes]
+  realize [initMAProg_realizes, maOrderProg_realizes, updateBestProg_realizes,
+    mergeRowColProg_realizes, compactIfProg_realizes, contractPartProg_realizes]
   all_goals
     obtain ⟨hfit, hfit4, hm1, hinit, hord, hws, hgt2⟩ := h
     first
     | exact hinit
     | exact hord
-    | exact hws ‹_›
+    | exact ⟨hfit.of_le (by dsimp only [outBase] at hfit ⊢; omega),
+        hfit4.of_le (by omega), hws⟩
+    | exact (hgt2 ‹_›).1
+    | exact ⟨hfit4.of_le (by omega), (hgt2 ‹_›).2.1⟩
+    | exact (hgt2 ‹_›).2.2
     | exact hfit4.of_le (by omega)
     | exact hfit.of_le (by
         dsimp only [matBase, partBase, keyBase, usedBase, outBase] at hfit ⊢
         nlinarith)
-    | (have hm := (hgt2 ‹_›).1; simp_all [client_simps]; done)
-    | (have hc := (hgt2 ‹_›).2.1 ‹_›; simp_all [client_simps]; done)
-    | (have hp := (hgt2 ‹_›).2.2; simp_all [client_simps, StateTransitionSpec.clientState]; done)
     | omega
 
 private def phasesLoop (a : PhaseArgs) : Memory.Prog PhaseState :=
@@ -2124,8 +2167,7 @@ private theorem stoerWagnerProg_realizes :
     first
     | exact (hge2 ‹_›).1
     | exact (hge2 ‹_›).2.1
-    | (refine ⟨by omega, hfit4.of_le (by omega), ?_⟩
-       simpa only [client_simps] using (hge2 ‹_›).2.2)
+    | exact (hge2 ‹_›).2.2
     | exact hfit4.of_le (by omega)
     | exact hfit.of_le (by dsimp only [wsSize, matBase, partBase, outBase] at hfit ⊢; nlinarith)
     | omega
@@ -2165,6 +2207,12 @@ private theorem phase_run_step {n m q l : ℕ}
   dsimp only [Fin.cast_refl]
   exact run_succ W part hma hst
 
+private theorem run_congr_step {n k₁ k₂ m : ℕ} (hk : k₁ = k₂) (hm1 : m = k₁ + 2)
+    (hm2 : m = k₂ + 2) (W : Fin m → Fin m → ℕ) (part : Fin n → Fin m) :
+    run k₁ (fun i j => W (i.cast hm1.symm) (j.cast hm1.symm)) (fun v => (part v).cast hm1) =
+      run k₂ (fun i j => W (i.cast hm2.symm) (j.cast hm2.symm)) (fun v => (part v).cast hm2) := by
+  subst hk; rfl
+
 private theorem phase_run_zero {n m : ℕ}
     (W : Fin m → Fin m → ℕ) (part : Fin n → Fin m)
     {pref : List (Fin m)} {sv tv : Fin m}
@@ -2174,7 +2222,12 @@ private theorem phase_run_zero {n m : ℕ}
   subst hm2
   rw [maOrder_fin_two W] at hma
   have hnil : pref = [] := by
-    have := congrArg List.length hma; simp at this; exact this
+    cases pref with
+    | nil => rfl
+    | cons _ _ =>
+      have hlen := congrArg List.length hma
+      simp only [List.length_cons, List.length_nil, List.length_append] at hlen
+      omega
   subst hnil
   have htv : tv = 1 := by
     have := congrArg (fun l => l[1]?) hma.symm
@@ -2236,14 +2289,10 @@ private theorem phaseContract_spec {w n ws fr₀ p m prev last newBestW : ℕ}
     let pb := partBase ws n
     let lastIdx := m - 1
     let s4 := (Memory.spec 0).clientState s3 (mergeRowColProg ⟨mb, n, m, prev, last⟩)
-    let s5 :=
-      if last < lastIdx then
-        (Memory.spec 0).clientState s4 (compactRowColProg ⟨mb, n, lastIdx, last⟩)
-      else s4
+    let s5 := (Memory.spec 0).clientState s4 (compactIfProg ⟨mb, n, lastIdx, last⟩)
     let prog : Memory.Prog PhaseState := do
       let _ ← mergeRowColProg ⟨mb, n, m, prev, last⟩
-      let _ ←
-        if last < lastIdx then compactRowColProg ⟨mb, n, lastIdx, last⟩ else pure 0
+      let _ ← compactIfProg ⟨mb, n, lastIdx, last⟩
       let _ ← contractPartProg ⟨pb, n, lastIdx, prev, last⟩
       pure ⟨lastIdx, 1, newBestW⟩
     let s6 := (Memory.spec 0).clientState s3 prog
@@ -2262,6 +2311,7 @@ private theorem phaseContract_spec {w n ws fr₀ p m prev last newBestW : ℕ}
     have h1 := Nat.mul_le_mul_right n hx
     rw [Nat.succ_mul] at h1
     omega
+  have hmn_sq : m * n ≤ n * n := Nat.mul_le_mul_right n hmn
   have hW : IsMultigraph W := hC.multigraph
   have hfit_W : Fits w (totalDoubledWeight W) := hfit_tot.of_le htotW
   let mb := matBase ws
@@ -2297,63 +2347,60 @@ private theorem phaseContract_spec {w n ws fr₀ p m prev last newBestW : ℕ}
     contractMatrix (fun i j => W (i.cast hm_succ) (j.cast hm_succ)) sv' tv'
   let part' : Fin n → Fin lastIdx :=
     contractPart (fun v => (part v).cast hm_succ.symm) sv' tv' hst'
-  let s5 :=
-    if last < lastIdx then
-      (Memory.spec 0).clientState s4 (compactRowColProg ⟨mb, n, lastIdx, last⟩)
-    else s4
-  have hs5_eq : (Memory.spec 0).clientState s4
-      (if last < lastIdx then compactRowColProg ⟨mb, n, lastIdx, last⟩
-      else pure 0) = s5 := by
-    dsimp only [s5]; split_ifs <;> simp [client_simps]
+  let s5 := (Memory.spec 0).clientState s4 (compactIfProg ⟨mb, n, lastIdx, last⟩)
   have hcomp_spec :
       (last < lastIdx →
         iterationSafe compactStep CompactStepSafe w ⟨mb, n, lastIdx, last⟩ lastIdx 0 s4) ∧
       (Memory.spec w).ValidHistory s4
-        ((Memory.spec w).clientHistory s4
-          (if last < lastIdx then compactRowColProg ⟨mb, n, lastIdx, last⟩ else pure 0)) ∧
-      memoryCost (if last < lastIdx then compactRowColProg ⟨mb, n, lastIdx, last⟩
-        else pure 0) s4 ≤ 3 * lastIdx ∧
+        ((Memory.spec w).clientHistory s4 (compactIfProg ⟨mb, n, lastIdx, last⟩)) ∧
+      memoryCost (compactIfProg ⟨mb, n, lastIdx, last⟩) s4 ≤ 3 * lastIdx ∧
       s5.frontier = fr₀ ∧
       (∀ addr, ¬(mb ≤ addr ∧ addr < mb + m * n) → s5.mem addr = s3.mem addr) ∧
       (∀ i j : Fin lastIdx, s5.mem (mb + i.1 * n + j.1) = W' i j) := by
     by_cases hlt_last : last < lastIdx
     · have hcomp := compactRowColProg_spec ⟨mb, n, lastIdx, last⟩ hM_multi tv'
-        hlast (by simpa [tv', hlast] using hlt_last) (by omega) s4
+        hlast (by simpa [tv', hlast] using hlt_last) (by dsimp only; omega) s4
         (by rw [hs4_fr]; dsimp only [mb, matBase, wsSize] at hf ⊢; nlinarith)
         (hfit_top.of_le (by dsimp only [mb, matBase, wsSize]; nlinarith))
         hM_fit (fun i j => by
           simpa [M] using hmerge.2.2.2.2.2 (i.cast hm_succ) (j.cast hm_succ))
+      have hcif : compactIfProg ⟨mb, n, lastIdx, last⟩ =
+          compactRowColProg ⟨mb, n, lastIdx, last⟩ := by
+        unfold compactIfProg; exact ite_eq_left hlt_last
       refine ⟨fun _ => hcomp.1, ?_, ?_, ?_, ?_, ?_⟩
-      · rw [ite_eq_left hlt_last]; exact hcomp.2.1
-      · rw [memoryCost_ite, ite_eq_left hlt_last]; exact hcomp.2.2.1
-      · dsimp only [s5]; rw [ite_eq_left hlt_last]; exact hcomp.2.2.2.1.trans hs4_fr
+      · rw [hcif]; exact hcomp.2.1
+      · rw [hcif]; exact hcomp.2.2.1
+      · dsimp only [s5]; rw [hcif]; exact hcomp.2.2.2.1.trans hs4_fr
       · intro addr haddr
-        dsimp only [s5]; rw [ite_eq_left hlt_last]
-        rw [hcomp.2.2.2.2.1 addr (by dsimp only; nlinarith),
+        dsimp only [s5]; rw [hcif]
+        have hln : lastIdx * n ≤ m * n := Nat.mul_le_mul_right n (by omega)
+        rw [hcomp.2.2.2.2.1 addr (fun hc => haddr ⟨hc.1, by dsimp only at hc; omega⟩),
           hmerge.2.2.2.2.1 addr (by dsimp only; exact haddr)]
       · intro i j
-        dsimp only [s5]; rw [ite_eq_left hlt_last]
+        dsimp only [s5]; rw [hcif]
         rw [hcomp.2.2.2.2.2 i j]
         unfold W' contractMatrix M mergePair
         simp [sv', tv', Fin.ext_iff]
-    · refine ⟨fun h => absurd h hlt_last, ?_, ?_, ?_, ?_, ?_⟩
-      · rw [ite_eq_right hlt_last]; exact validHistory_pure w _ _
-      · rw [memoryCost_ite, ite_eq_right hlt_last]; simp [client_simps]
-      · dsimp only [s5]; rw [ite_eq_right hlt_last]; exact hs4_fr
+    · have hcif : compactIfProg ⟨mb, n, lastIdx, last⟩ = pure 0 := by
+        unfold compactIfProg; exact ite_eq_right hlt_last
+      refine ⟨fun h => absurd h hlt_last, ?_, ?_, ?_, ?_, ?_⟩
+      · rw [hcif]; exact validHistory_pure w _ _
+      · rw [hcif]; simp [client_simps]
+      · dsimp only [s5]; rw [hcif]; exact hs4_fr
       · intro addr haddr
-        dsimp only [s5]; rw [ite_eq_right hlt_last]
+        dsimp only [s5]; rw [hcif]
         exact hmerge.2.2.2.2.1 addr (by dsimp only; exact haddr)
       · intro i j
-        dsimp only [s5]; rw [ite_eq_right hlt_last]
+        dsimp only [s5]; rw [hcif]
         have htv_eq : tv.1 = lastIdx := by omega
-        have hti : i.1 ≠ tv'.1 := by dsimp only [tv']; omega
-        have htj : j.1 ≠ tv'.1 := by dsimp only [tv']; omega
+        have hti : i.1 ≠ tv'.1 := by simp only [tv', Fin.val_cast]; omega
+        have htj : j.1 ≠ tv'.1 := by simp only [tv', Fin.val_cast]; omega
         have he1 : embedCompact tv' i = i.castSucc := by simp [embedCompact, hti]
         have he2 : embedCompact tv' j = j.castSucc := by simp [embedCompact, htj]
         unfold W' contractMatrix
         rw [he1, he2]
         have hmij := hmerge.2.2.2.2.2 (i.castSucc.cast hm_succ) (j.castSucc.cast hm_succ)
-        simpa [mergePair, sv', tv', Fin.ext_iff] using hmij
+        simpa [client_simps, mergePair, sv', tv', Fin.ext_iff] using hmij
   obtain ⟨hsafe_c, hvh_c, hmc_c, hs5_fr, hs5_mod, hs5_mat⟩ := hcomp_spec
   have hcp := contractPartProg_spec ⟨pb, n, lastIdx, prev, last⟩
     (fun v => (part v).cast hm_succ.symm) hst'
@@ -2362,7 +2409,7 @@ private theorem phaseContract_spec {w n ws fr₀ p m prev last newBestW : ℕ}
     (hfit_top.of_le (by dsimp only [pb, partBase, wsSize]; omega))
     (hfit_top.of_le (by dsimp only [wsSize]; omega))
     (fun v => by
-      rw [hs5_mod _ (by dsimp only [mb, pb, matBase, partBase]; nlinarith)]
+      rw [hs5_mod _ (fun hc => by dsimp only [mb, pb, matBase, partBase] at hc; omega)]
       exact hs3_part v)
   let s6 := (Memory.spec 0).clientState s5 (contractPartProg ⟨pb, n, lastIdx, prev, last⟩)
   have hC_cast : IsContractionOf W₀ (fun v => (part v).cast hm_succ.symm)
@@ -2372,34 +2419,31 @@ private theorem phaseContract_spec {w n ws fr₀ p m prev last newBestW : ℕ}
   have htotW' : totalDoubledWeight W' ≤ totalDoubledWeight W₀ := by
     have hdec := totalDoubledWeight_contractMatrix hC_cast.multigraph hst'
     rw [totalDoubledWeight_cast hm_succ.symm W] at hdec
-    exact hdec.trans htotW
-  refine ⟨⟨hmerge.1, hsafe_c, hcp.1⟩, ?_, ?_, ?_, ?_, ?_⟩
-  · refine validHistory_bind_step hmerge.2.1 (validHistory_bind_step hvh_c ?_)
-    rw [hs5_eq]
-    exact validHistory_bind_step hcp.2.1 (validHistory_pure w _ _)
-  · rw [memoryCost_bind', memoryCost_bind', hs5_eq, memoryCost_bind']
-    have c4 := hmerge.2.2.1
-    have c5 := hmc_c
-    have c6 := hcp.2.2.1
-    dsimp only at c4 c6
-    simp only [client_simps]
+    dsimp only [W']
     omega
+  refine ⟨⟨hmerge.1, hsafe_c, hcp.1⟩, ?_, ?_, ?_, ?_, ?_⟩
+  · exact validHistory_bind_step hmerge.2.1 (validHistory_bind_step hvh_c
+      (validHistory_bind_step hcp.2.1 (validHistory_pure w _ _)))
+  · rw [memoryCost_bind', memoryCost_bind', memoryCost_bind', memoryCost_pure]
+    have c4 : memoryCost (mergeRowColProg ⟨mb, n, m, prev, last⟩) s3 ≤ 6 * m := hmerge.2.2.1
+    have c5 : memoryCost (compactIfProg ⟨mb, n, lastIdx, last⟩) s4 ≤ 3 * lastIdx := hmc_c
+    have c6 : memoryCost (contractPartProg ⟨pb, n, lastIdx, prev, last⟩) s5 ≤ 2 * n := hcp.2.2.1
+    exact le_trans (Nat.add_le_add c4 (Nat.add_le_add c5 (Nat.add_le_add_right c6 0))) (by omega)
   · simp only [client_simps]
-    rw [hs5_eq]
     exact hcp.2.2.2.1.trans hs5_fr
   · intro addr haddr
     simp only [client_simps]
-    rw [hs5_eq]
-    rw [hcp.2.2.2.2.1 addr (by
-        dsimp only [mb, pb, ob, matBase, partBase, outBase] at haddr ⊢; omega),
-      hs5_mod addr (by dsimp only [mb, ob, matBase, outBase] at haddr ⊢; nlinarith)]
+    rw [hcp.2.2.2.2.1 addr (fun hc => haddr (by
+        dsimp only [mb, pb, ob, matBase, partBase, outBase] at hc ⊢; omega)),
+      hs5_mod addr (fun hc => haddr (by
+        dsimp only [mb, ob, matBase, outBase] at hc ⊢; omega))]
   · simp only [client_simps]
-    rw [hs5_eq]
     have hlast_eq : lastIdx = n - (p + 1) := by omega
     have hk' : n - (p + 1) = (n - 2 - (p + 1)) + 2 := by omega
     have hs6_out : ∀ addr, ob ≤ addr → s6.mem addr = s3.mem addr := fun addr ha => by
-      rw [hcp.2.2.2.2.1 addr (by dsimp only [pb, ob, partBase, outBase] at ha ⊢; omega),
-        hs5_mod addr (by dsimp only [mb, ob, matBase, outBase] at ha ⊢; nlinarith)]
+      rw [hcp.2.2.2.2.1 addr (fun hc => by
+          dsimp only [pb, ob, partBase, outBase] at ha hc; omega),
+        hs5_mod addr (fun hc => by dsimp only [mb, ob, matBase, outBase] at ha hc; omega)]
     have hrun_step :
         run (n - 2 - p) (fun i j => W (i.cast hk.symm) (j.cast hk.symm))
           (fun v => (part v).cast hk) =
@@ -2408,17 +2452,9 @@ private theorem phaseContract_spec {w n ws fr₀ p m prev last newBestW : ℕ}
             (fun i j => W' (i.cast (by omega)) (j.cast (by omega)))
             (fun v => (part' v).cast (by omega))) := by
       have hq_succ : n - 2 - p = (n - 2 - (p + 1)) + 1 := by omega
-      generalize hq_def : n - 2 - (p + 1) = q
-      rw [hq_def] at hq_succ
-      have hk_q : m = (q + 1) + 2 := by omega
-      have hl_q : lastIdx = q + 2 := by omega
-      have hlhs :
-          run (n - 2 - p) (fun i j => W (i.cast hk.symm) (j.cast hk.symm))
-            (fun v => (part v).cast hk) =
-          run (q + 1) (fun i j => W (i.cast hk_q.symm) (j.cast hk_q.symm))
-            (fun v => (part v).cast hk_q) := by
-        cases hq_succ; rfl
-      rw [hlhs]
+      have hk_q : m = ((n - 2 - (p + 1)) + 1) + 2 := by omega
+      have hl_q : lastIdx = (n - 2 - (p + 1)) + 2 := by omega
+      rw [run_congr_step hq_succ hk hk_q W part]
       exact phase_run_step W part hma_eq hst_ne hm_succ hk_q hl_q
     refine ⟨hcp.2.2.2.1.trans hs5_fr, (hs6_out ob le_rfl).trans hs3_outl, by omega,
       Or.inr (Or.inl ⟨Nat.succ_pos p, by omega, rfl, newBest,
@@ -2447,6 +2483,52 @@ private theorem phaseContract_spec {w n ws fr₀ p m prev last newBestW : ℕ}
     rcases hnewBest_rel with ⟨rfl, hrun0⟩ | ⟨best, rfl, hch0⟩
     · rw [← hrun_step]; exact hrun0
     · rw [chooseCut_assoc, ← hrun_step]; exact hch0
+
+private theorem seq_phase_spec {α β γ δ : Type} {w : ℕ} {s s1 s2 s3 : Memory.State}
+    {p1 : Memory.Prog α} {p2 : Memory.Prog β} {p3 : β → Memory.Prog γ}
+    {p4 : β → γ → Memory.Prog δ} {ord : β} {v : γ} {c1 c2 c3 c4 C : ℕ}
+    {P : δ → Memory.State → Prop} {Mod : ℕ → Prop}
+    (hs0 : 0 < s.frontier)
+    (hvh1 : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s p1))
+    (hs1 : (Memory.spec 0).clientState s p1 = s1)
+    (hmc1 : memoryCost p1 s ≤ c1)
+    (hvh2 : (Memory.spec w).ValidHistory s1 ((Memory.spec w).clientHistory s1 p2))
+    (hord : (Memory.spec 0).clientResult s1 p2 = ord)
+    (hs2 : (Memory.spec 0).clientState s1 p2 = s2)
+    (hmc2 : memoryCost p2 s1 ≤ c2)
+    (hvh3 : (Memory.spec w).ValidHistory s2 ((Memory.spec w).clientHistory s2 (p3 ord)))
+    (hv : (Memory.spec 0).clientResult s2 (p3 ord) = v)
+    (hs3 : (Memory.spec 0).clientState s2 (p3 ord) = s3)
+    (hmc3 : memoryCost (p3 ord) s2 ≤ c3)
+    (hvh4 : (Memory.spec w).ValidHistory s3 ((Memory.spec w).clientHistory s3 (p4 ord v)))
+    (hmc4 : memoryCost (p4 ord v) s3 ≤ c4)
+    (hfr : ((Memory.spec 0).clientState s3 (p4 ord v)).frontier = s.frontier)
+    (hmod : ∀ addr, ¬Mod addr → ((Memory.spec 0).clientState s3 (p4 ord v)).mem addr = s.mem addr)
+    (hP : P ((Memory.spec 0).clientResult s3 (p4 ord v))
+      ((Memory.spec 0).clientState s3 (p4 ord v)))
+    (hsum : 1 + c1 + c2 + c3 + c4 ≤ C) :
+    let prog : Memory.Prog δ := do
+      let _ ← Memory.read 0
+      let _ ← p1
+      let b ← p2
+      let c ← p3 b
+      p4 b c
+    let s' := (Memory.spec 0).clientState s prog
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s prog) ∧
+      memoryCost prog s ≤ C ∧
+      s'.frontier = s.frontier ∧
+      (∀ addr, ¬Mod addr → s'.mem addr = s.mem addr) ∧
+      P ((Memory.spec 0).clientResult s prog) s' := by
+  subst hs1; subst hord; subst hs2; subst hv; subst hs3
+  refine ⟨validHistory_read_bind hs0 (validHistory_bind_step hvh1
+      (validHistory_bind_step hvh2 (validHistory_bind_step hvh3 hvh4))), ?_, ?_, ?_, ?_⟩
+  · rw [memoryCost_bind', memoryCost_read, clientState_read, memoryCost_bind',
+      memoryCost_bind', memoryCost_bind']
+    omega
+  · simpa only [client_simps] using hfr
+  · intro addr haddr
+    simpa only [client_simps] using hmod addr haddr
+  · simpa only [client_simps] using hP
 
 private theorem phaseStep_spec {w n ws fr₀ : ℕ} (hn : 2 ≤ n) {W₀ : Fin n → Fin n → ℕ}
     (hW₀ : IsMultigraph W₀) (hf : ws + wsSize n ≤ fr₀)
@@ -2546,6 +2628,9 @@ private theorem phaseStep_spec {w n ws fr₀ : ℕ} (hn : 2 ≤ n) {W₀ : Fin n
   let s2 := (Memory.spec 0).clientState s1 (maOrderProg ⟨mb, kb, ub, n, st.m⟩)
   obtain ⟨hsafe_o, hvh_o, hmc_o, hs2_fr, hs2_mod, pref, sv, tv, hma_eq, hst_ne,
     hord_prev, hord_last, hord_key⟩ := hord
+  change ord.prev = sv.1 at hord_prev
+  change ord.last = tv.1 at hord_last
+  change ord.lastKey = rowDeg W tv at hord_key
   have hs2_fr0 : s2.frontier = fr₀ := hs2_fr.trans (hs1_fr.trans hfr)
   have hs2_out : ∀ addr, ob ≤ addr → s2.mem addr = s.mem addr := fun addr ha => by
     rw [hs2_mod addr (by dsimp only [ob, kb, ub, outBase, keyBase, usedBase] at ha ⊢; omega),
@@ -2570,27 +2655,22 @@ private theorem phaseStep_spec {w n ws fr₀ : ℕ} (hn : 2 ≤ n) {W₀ : Fin n
     (hfit_top.of_le (by dsimp only [ob, outBase, wsSize]; omega))
     hfit1
   let phase : CutResult n := ⟨pullbackCut part {tv}, rowDeg W tv⟩
-  let s3 :=
-    if better = 1 then
-      (Memory.spec 0).clientState s2w (writeSideProg ⟨pb, ob + 2, n, ord.last⟩)
-    else s2
+  let uargs : UpdateBestArgs := ⟨pb, ob, n, ord.last, ord.lastKey, better, st.bestWeight⟩
+  let s3 := (Memory.spec 0).clientState s2 (updateBestProg uargs)
   let newBestW := if better = 1 then ord.lastKey else st.bestWeight
-  have hres_eq : (Memory.spec 0).clientState s2
-      (if better = 1 then
-        Memory.write (ob + 1) ord.lastKey >>= fun _ =>
-          writeSideProg ⟨pb, ob + 2, n, ord.last⟩ >>= fun _ => pure ord.lastKey
-      else pure st.bestWeight) = s3 := by
-    dsimp only [s3]; split_ifs <;> simp [client_simps, s2w]
-  have hval_res : (Memory.spec 0).clientResult s2
-      (if better = 1 then
-        Memory.write (ob + 1) ord.lastKey >>= fun _ =>
-          writeSideProg ⟨pb, ob + 2, n, ord.last⟩ >>= fun _ => pure ord.lastKey
-      else pure st.bestWeight) = newBestW := by
-    dsimp only [newBestW]; split_ifs <;> simp [client_simps]
+  have hs3_eq : s3 =
+      if better = 1 then
+        (Memory.spec 0).clientState s2w (writeSideProg ⟨pb, ob + 2, n, ord.last⟩)
+      else s2 := by
+    dsimp only [s3, updateBestProg, uargs]
+    split_ifs <;> simp [client_simps, s2w]
+  have hval_res : (Memory.spec 0).clientResult s2 (updateBestProg uargs) = newBestW := by
+    dsimp only [updateBestProg, uargs, newBestW]
+    split_ifs <;> simp [client_simps]
   have hs3_outside : ∀ addr, ¬(matBase ws ≤ addr ∧ addr < outBase ws n + n + 2) →
       s3.mem addr = s.mem addr := by
     intro addr haddr
-    dsimp only [s3]
+    rw [hs3_eq]
     split_ifs
     · rw [hws.2.2.2.2.1 addr (by dsimp only [mb, ob, matBase, outBase] at haddr ⊢; omega)]
       dsimp only [s2w]
@@ -2635,8 +2715,9 @@ private theorem phaseStep_spec {w n ws fr₀ : ℕ} (hn : 2 ≤ n) {W₀ : Fin n
         exact (Function.update_self (ob + 1) ord.lastKey s2.mem).trans hord_key
       · intro v
         rw [hws.2.2.2.2.2 v.1 v.isLt]
-        have hne_p : pb + v.1 ≠ ob + 1 := by dsimp only [pb, ob, partBase, outBase]; omega
+        dsimp only
         dsimp only [s2w]
+        have hne_p : pb + v.1 ≠ ob + 1 := by dsimp only [pb, ob, partBase, outBase]; omega
         simp only [Function.update_of_ne hne_p, hs2_part v, hord_last]
         have hiff : (part v).1 = tv.1 ↔ v ∈ pullbackCut part {tv} := by
           simp [pullbackCut, Fin.ext_iff]
@@ -2659,7 +2740,7 @@ private theorem phaseStep_spec {w n ws fr₀ : ℕ} (hn : 2 ≤ n) {W₀ : Fin n
     rcases hbest_inv with ⟨hhb0, hrun0⟩ | ⟨hhb1, best, hbw, hob1, hob2, hch0⟩
     · have hbet1 : better = 1 := by simp [better, hhb0]
       have hs3_w : s3 = (Memory.spec 0).clientState s2w
-          (writeSideProg ⟨pb, ob + 2, n, ord.last⟩) := by simp only [s3, hbet1, ↓reduceIte]
+          (writeSideProg ⟨pb, ob + 2, n, ord.last⟩) := by rw [hs3_eq]; simp only [hbet1, ↓reduceIte]
       have hnb_w : newBestW = ord.lastKey := by simp only [newBestW, hbet1, ↓reduceIte]
       exact ⟨phase, hs3_w ▸ hw_fr, hs3_w ▸ hw_ob, hnb_w.trans hord_key, hs3_w ▸ hw_ob1,
         fun v => hs3_w ▸ hw_side v, fun i j => hs3_w ▸ hw_mat i j, fun v => hs3_w ▸ hw_part v,
@@ -2669,7 +2750,8 @@ private theorem phaseStep_spec {w n ws fr₀ : ℕ} (hn : 2 ≤ n) {W₀ : Fin n
           dsimp only [better]; rw [hhb1, hord_key, hbw]; simp [hle]
         have hch_eq : chooseCut best phase = phase := by simp [chooseCut, phase, hle]
         have hs3_w : s3 = (Memory.spec 0).clientState s2w
-            (writeSideProg ⟨pb, ob + 2, n, ord.last⟩) := by simp only [s3, hbet1, ↓reduceIte]
+            (writeSideProg ⟨pb, ob + 2, n, ord.last⟩) := by
+          rw [hs3_eq]; simp only [hbet1, ↓reduceIte]
         have hnb_w : newBestW = ord.lastKey := by simp only [newBestW, hbet1, ↓reduceIte]
         exact ⟨phase, hs3_w ▸ hw_fr, hs3_w ▸ hw_ob, hnb_w.trans hord_key, hs3_w ▸ hw_ob1,
           fun v => hs3_w ▸ hw_side v, fun i j => hs3_w ▸ hw_mat i j, fun v => hs3_w ▸ hw_part v,
@@ -2677,7 +2759,7 @@ private theorem phaseStep_spec {w n ws fr₀ : ℕ} (hn : 2 ≤ n) {W₀ : Fin n
       · have hbet0 : better = 0 := by
           dsimp only [better]; rw [hhb1, hord_key, hbw]; simp [hle]
         have hch_eq : chooseCut best phase = best := by simp [chooseCut, phase, hle]
-        have hs3_w : s3 = s2 := by simp only [s3, hbet0, Nat.zero_ne_one, ↓reduceIte]
+        have hs3_w : s3 = s2 := by rw [hs3_eq]; simp only [hbet0, Nat.zero_ne_one, ↓reduceIte]
         have hnb_w : newBestW = st.bestWeight := by
           simp only [newBestW, hbet0, Nat.zero_ne_one, ↓reduceIte]
         exact ⟨best, hs3_w ▸ hs2_fr0, hs3_w ▸ (hs2_out ob le_rfl).trans hout_l, hnb_w.trans hbw,
@@ -2689,21 +2771,15 @@ private theorem phaseStep_spec {w n ws fr₀ : ℕ} (hn : 2 ≤ n) {W₀ : Fin n
     hnewBest_rel⟩ := hbetter_spec
   have hvh_better :
       (Memory.spec w).ValidHistory s2
-        ((Memory.spec w).clientHistory s2
-          (if better = 1 then
-            Memory.write (ob + 1) ord.lastKey >>= fun _ =>
-              writeSideProg ⟨pb, ob + 2, n, ord.last⟩ >>= fun _ => pure ord.lastKey
-          else pure st.bestWeight)) := by
+        ((Memory.spec w).clientHistory s2 (updateBestProg uargs)) := by
+    unfold updateBestProg
     refine validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure w _ _)
     refine validHistory_write_bind
-      (by rw [hs2_fr0]; dsimp only [ob, outBase, wsSize] at hf ⊢; omega)
-      (by rw [hord_key]; exact hfit_W.of_le (rowDeg_le_totalDoubledWeight W tv))
+      (by rw [hs2_fr0]; dsimp only [uargs, ob, outBase, wsSize] at hf ⊢; omega)
+      (by dsimp only [uargs]; rw [hord_key]; exact hfit_W.of_le (rowDeg_le_totalDoubledWeight W tv))
       (validHistory_bind_step hws.2.1 (validHistory_pure w _ _))
-  have hmc_better :
-      memoryCost (if better = 1 then
-        Memory.write (ob + 1) ord.lastKey >>= fun _ =>
-          writeSideProg ⟨pb, ob + 2, n, ord.last⟩ >>= fun _ => pure ord.lastKey
-      else pure st.bestWeight) s2 ≤ 2 * n + 1 := by
+  have hmc_better : memoryCost (updateBestProg uargs) s2 ≤ 2 * n + 1 := by
+    unfold updateBestProg
     rw [memoryCost_ite]
     split_ifs
     · rw [memoryCost_bind', memoryCost_write, memoryCost_bind']
@@ -2714,103 +2790,96 @@ private theorem phaseStep_spec {w n ws fr₀ : ℕ} (hn : 2 ≤ n) {W₀ : Fin n
       rw [memoryCost_pure]
       omega
     · simp [client_simps]
+  have hmc_init : memoryCost (initMAProg ⟨kb, ub, st.m⟩) s ≤ 2 * st.m := hinit.2.2.1
+  have hmc_ord : memoryCost (maOrderProg ⟨mb, kb, ub, n, st.m⟩) s1 ≤
+      (6 * st.m + 2) * st.m := hmc_o
+  let p3f : MAOrderState → Memory.Prog ℕ := fun o =>
+    let bet := if st.hasBest = 0 then 1 else if o.lastKey ≤ st.bestWeight then 1 else 0
+    updateBestProg ⟨pb, ob, n, o.last, o.lastKey, bet, st.bestWeight⟩
+  let p4f : MAOrderState → ℕ → Memory.Prog PhaseState := fun o nbw =>
+    if 2 < st.m then do
+      let _ ← mergeRowColProg ⟨mb, n, st.m, o.prev, o.last⟩
+      let lastIdx := st.m - 1
+      let _ ← compactIfProg ⟨mb, n, lastIdx, o.last⟩
+      let _ ← contractPartProg ⟨pb, n, lastIdx, o.prev, o.last⟩
+      pure ⟨st.m - 1, 1, nbw⟩
+    else
+      pure ⟨st.m - 1, 1, nbw⟩
   by_cases hgt2 : 2 < st.m
   · have hcon := phaseContract_spec hgt2 hm_eq hk hmn hC htotW hma_eq hst_ne
       hord_prev hord_last hf hfit_top hfit_tot s3 hs3_fr hs3_outl hnbW hs3_ob1 hs3_ob2
       hs3_mat hs3_part hnewBest_rel
     obtain ⟨hcon_safe, hcon_vh, hcon_mc, hcon_fr, hcon_mod, hcon_inv⟩ := hcon
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-    · exact ⟨hfit_ob2, hfit4, by omega, hinit.1, hsafe_o, fun _ => hws.1, fun _ => hcon_safe⟩
-    · unfold phaseStep
-      dsimp only
-      refine validHistory_read_bind (by omega)
-        (validHistory_bind_step hinit.2.1 (validHistory_bind_step hvh_o
-          (validHistory_bind_step hvh_better ?_)))
-      rw [hres_eq, hval_res, ite_eq_left hgt2]
-      exact hcon_vh
-    · unfold phaseStep
-      dsimp only
-      rw [memoryCost_bind', memoryCost_read, clientState_read, memoryCost_bind',
-        memoryCost_bind', memoryCost_bind', hres_eq, hval_res, memoryCost_ite, ite_eq_left hgt2]
-      have c1 := hinit.2.2.1
-      have c2 := hmc_o
-      have c3 := hmc_better
-      have c4 := hcon_mc
-      dsimp only at c1 c2 c4
-      nlinarith
-    · unfold phaseStep
-      dsimp only
-      simp only [client_simps]
-      rw [hres_eq, hval_res, ite_eq_left hgt2]
-      exact hcon_fr.trans hfr.symm
-    · intro addr haddr
-      unfold phaseStep
-      dsimp only
-      simp only [client_simps]
-      rw [hres_eq, hval_res, ite_eq_left hgt2]
-      exact (hcon_mod addr haddr).trans (hs3_outside addr haddr)
-    · unfold phaseStep
-      dsimp only
-      simp only [client_simps]
-      rw [hres_eq, hval_res, ite_eq_left hgt2]
-      exact hcon_inv
+    have hp4_eq : p4f ord newBestW = (do
+        let _ ← mergeRowColProg ⟨mb, n, st.m, ord.prev, ord.last⟩
+        let lastIdx := st.m - 1
+        let _ ← compactIfProg ⟨mb, n, lastIdx, ord.last⟩
+        let _ ← contractPartProg ⟨pb, n, lastIdx, ord.prev, ord.last⟩
+        pure ⟨st.m - 1, 1, newBestW⟩) := by
+      dsimp only [p4f]; exact ite_eq_left hgt2
+    have hbudget : 1 + 2 * st.m + (6 * st.m + 2) * st.m + (2 * n + 1) +
+        (6 * st.m + 3 * (st.m - 1) + 2 * n) ≤ 23 * n ^ 2 := by
+      have hst_le : st.m - 1 ≤ n := by omega
+      nlinarith only [hn, hmn, hst_le]
+    have hseq := seq_phase_spec (p1 := initMAProg ⟨kb, ub, st.m⟩)
+      (p2 := maOrderProg ⟨mb, kb, ub, n, st.m⟩) (p3 := p3f) (p4 := p4f)
+      (s1 := s1) (s2 := s2) (s3 := s3) (ord := ord) (v := newBestW)
+      (c1 := 2 * st.m) (c2 := (6 * st.m + 2) * st.m) (c3 := 2 * n + 1)
+      (c4 := 6 * st.m + 3 * (st.m - 1) + 2 * n) (C := 23 * n ^ 2)
+      (P := PhaseInv ws fr₀ W₀ (p + 1))
+      (Mod := fun addr => matBase ws ≤ addr ∧ addr < outBase ws n + n + 2)
+      (by rw [hfr]; exact hf_pos) hinit.2.1 rfl hmc_init
+      hvh_o rfl rfl hmc_ord hvh_better hval_res rfl hmc_better
+      (hp4_eq ▸ hcon_vh) (hp4_eq ▸ hcon_mc) (hp4_eq ▸ hcon_fr.trans hfr.symm)
+      (fun addr haddr => hp4_eq ▸ (hcon_mod addr haddr).trans (hs3_outside addr haddr))
+      (hp4_eq ▸ hcon_inv) hbudget
+    exact ⟨⟨hfit_ob2, hfit4, by dsimp only; omega, hinit.1, hsafe_o, fun _ => hws.1,
+        fun _ => hcon_safe⟩, hseq⟩
   · -- Final phase (`st.m = 2`, `p + 1 = n - 1`).
-    have hm_two : st.m = 2 := by omega
-    have hp_last : p + 1 = n - 1 := by omega
+    have hm_two : st.m = 2 :=
+      (by omega : ∀ {m : ℕ}, 2 ≤ m → ¬2 < m → m = 2) hm2 hgt2
+    have hp_last : p + 1 = n - 1 :=
+      (by omega : ∀ {n p m : ℕ}, 2 ≤ n → p < n - 1 → m = n - p → m = 2 → p + 1 = n - 1)
+        hn hp hm_eq hm_two
+    have hm_end : st.m - 1 = n - (p + 1) :=
+      (by omega : ∀ {n p m : ℕ}, 2 ≤ n → p < n - 1 → m = n - p → m = 2 → m - 1 = n - (p + 1))
+        hn hp hm_eq hm_two
     have hrun0_eq :
         run (n - 2 - p) (fun i j => W (i.cast hk.symm) (j.cast hk.symm))
           (fun v => (part v).cast hk) = phase := by
-      have hzero : n - 2 - p = 0 := by omega
-      have hlhs :
-          run (n - 2 - p) (fun i j => W (i.cast hk.symm) (j.cast hk.symm))
-            (fun v => (part v).cast hk) =
-          run 0 (fun i j : Fin 2 => W (i.cast hm_two.symm) (j.cast hm_two.symm))
-            (fun v => (part v).cast hm_two) := by
-        cases hzero; rfl
-      rw [hlhs]
+      have hzero : n - 2 - p = 0 :=
+        (by omega : ∀ {n p : ℕ}, 2 ≤ n → p + 1 = n - 1 → n - 2 - p = 0) hn hp_last
+      rw [run_congr_step hzero hk hm_two W part]
       exact phase_run_zero W part hma_eq hm_two
     have hnewBest_eq : newBest = stoerWagner W₀ := by
       rcases hnewBest_rel with ⟨rfl, hrun0⟩ | ⟨best, rfl, hch0⟩
       · exact hrun0_eq.symm.trans hrun0
       · rw [← hrun0_eq]; exact hch0
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-    · exact ⟨hfit_ob2, hfit4, by omega, hinit.1, hsafe_o, fun _ => hws.1, fun h => absurd h hgt2⟩
-    · unfold phaseStep
-      dsimp only
-      refine validHistory_read_bind (by omega)
-        (validHistory_bind_step hinit.2.1 (validHistory_bind_step hvh_o
-          (validHistory_bind_step hvh_better ?_)))
-      rw [ite_eq_right hgt2]
-      exact validHistory_pure w _ _
-    · unfold phaseStep
-      dsimp only
-      rw [memoryCost_bind', memoryCost_read, clientState_read, memoryCost_bind',
-        memoryCost_bind', memoryCost_bind', memoryCost_ite, ite_eq_right hgt2]
-      have c1 := hinit.2.2.1
-      have c2 := hmc_o
-      have c3 := hmc_better
-      dsimp only at c1 c2
-      simp only [client_simps]
-      nlinarith
-    · unfold phaseStep
-      dsimp only
-      simp only [client_simps]
-      rw [hres_eq, ite_eq_right hgt2]
-      exact hs3_fr.trans hfr.symm
-    · intro addr haddr
-      unfold phaseStep
-      dsimp only
-      simp only [client_simps]
-      rw [hres_eq, ite_eq_right hgt2]
-      exact hs3_outside addr haddr
-    · unfold phaseStep
-      dsimp only
-      simp only [client_simps]
-      rw [hres_eq, ite_eq_right hgt2]
-      simp only [client_simps]
-      refine ⟨hs3_fr, hs3_outl, by omega, Or.inr (Or.inr ⟨hp_last, rfl,
+    have hp4_eq : p4f ord newBestW = pure ⟨st.m - 1, 1, newBestW⟩ := by
+      dsimp only [p4f]; exact ite_eq_right hgt2
+    have hinv_end : PhaseInv ws fr₀ W₀ (p + 1) ⟨st.m - 1, 1, newBestW⟩ s3 :=
+      ⟨hs3_fr, hs3_outl, hm_end, Or.inr (Or.inr ⟨hp_last, rfl,
         hs3_ob1.trans (congrArg CutResult.weight hnewBest_eq),
         fun v => by simpa [hnewBest_eq] using hs3_ob2 v⟩)⟩
+    have hbudget : 1 + 2 * st.m + (6 * st.m + 2) * st.m + (2 * n + 1) + 0 ≤ 23 * n ^ 2 := by
+      nlinarith only [hn, hmn]
+    have hseq := seq_phase_spec (p1 := initMAProg ⟨kb, ub, st.m⟩)
+      (p2 := maOrderProg ⟨mb, kb, ub, n, st.m⟩) (p3 := p3f) (p4 := p4f)
+      (s1 := s1) (s2 := s2) (s3 := s3) (ord := ord) (v := newBestW)
+      (c1 := 2 * st.m) (c2 := (6 * st.m + 2) * st.m) (c3 := 2 * n + 1)
+      (c4 := 0) (C := 23 * n ^ 2)
+      (P := PhaseInv ws fr₀ W₀ (p + 1))
+      (Mod := fun addr => matBase ws ≤ addr ∧ addr < outBase ws n + n + 2)
+      (by rw [hfr]; exact hf_pos) hinit.2.1 rfl hmc_init
+      hvh_o rfl rfl hmc_ord hvh_better hval_res rfl hmc_better
+      (by rw [hp4_eq]; exact validHistory_pure w _ _)
+      (by rw [hp4_eq, memoryCost_pure])
+      (by rw [hp4_eq]; simp only [client_simps]; exact hs3_fr.trans hfr.symm)
+      (fun addr haddr => by rw [hp4_eq]; simp only [client_simps]; exact hs3_outside addr haddr)
+      (by rw [hp4_eq]; simp only [client_simps]; exact hinv_end)
+      hbudget
+    exact ⟨⟨hfit_ob2, hfit4, by dsimp only; omega, hinit.1, hsafe_o, fun _ => hws.1,
+        fun h => absurd h hgt2⟩, hseq⟩
 
 private theorem phasesLoop_spec {w n ws : ℕ} (hn : 2 ≤ n) {W₀ : Fin n → Fin n → ℕ}
     (hW₀ : IsMultigraph W₀) (s₀ : Memory.State)
@@ -2900,24 +2969,28 @@ private theorem stoerWagnerProg_spec {w : ℕ} (I : StoerWagnerInput)
           stoerWagner, List.finRange_zero, List.map_nil]
         rw [outputList_eq_iff]
         refine ⟨by rw [Function.update_of_ne (by omega), Function.update_self]; rfl, fun i => ?_⟩
-        have hi : i.1 = 0 := by have := i.isLt; simp at this; omega
-        change (Function.update (Function.update s₀.mem ob 1) (ob + 1) 0) (ob + 1 + i.1) = _
-        rw [hi]
+        rcases i with ⟨i, hi⟩
+        dsimp only at hi
+        have hi0 : i = 0 := by simp only [List.length_cons, List.length_nil] at hi; omega
+        subst hi0
+        change (Function.update (Function.update s₀.mem ob 1) (ob + 1) 0) (ob + 1 + 0) = _
         simp
       · simp only [↓reduceIte, client_simps, StoerWagnerInput.expectedOutput, stoerWagner]
         rw [outputList_eq_iff]
         refine ⟨by
           rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
             Function.update_self]; rfl, fun i => ?_⟩
-        have hi : i.1 < 2 := by simpa using i.isLt
+        rcases i with ⟨i, hi⟩
+        dsimp only at hi
+        have hi2 : i < 2 := by simpa using hi
         change (Function.update (Function.update (Function.update s₀.mem ob 2) (ob + 1) 0)
-            (ob + 2) 0) (ob + 1 + i.1) = _
-        rcases (show i.1 = 0 ∨ i.1 = 1 by omega) with h0 | h1
-        · rw [h0, show ob + 1 + 0 = ob + 1 by omega, Function.update_of_ne (by omega),
+            (ob + 2) 0) (ob + 1 + i) = _
+        rcases (show i = 0 ∨ i = 1 by omega) with rfl | rfl
+        · rw [show ob + 1 + 0 = ob + 1 by omega, Function.update_of_ne (by omega),
             Function.update_self]
-          simp [h0]
-        · rw [h1, show ob + 1 + 1 = ob + 2 by omega, Function.update_self]
-          simp [h1]
+          rfl
+        · rw [show ob + 1 + 1 = ob + 2 by omega, Function.update_self]
+          rfl
     · simp only [client_simps, ite_eq_left hn2]
       split_ifs <;> simpa [client_simps] using hfit_ob_len
   · have hge2 : 2 ≤ n := Nat.le_of_not_lt hn2
@@ -3016,11 +3089,13 @@ public section
 There is a single uniform deterministic width-blind standard-basis Word-RAM program
 (`Program .standard r`, `¬prog.ReadsWidth`) that, on input
 `I.encode = I.n :: Karger.flattenMatrix I.W`
-for any weighted multigraph `I : StoerWagnerInput` at any word width `w` fitting
-`I.wordBound = max (workspaceBound I.n) (totalDoubledWeight I.W)` (`w = Ω(log n + log W_max)`),
-outputs `I.expectedOutput` within `O(n³)` instructions (`Program.ComputesListInTime`). For all
-`2 ≤ I.n`, `StoerWagnerInput.expectedOutput_spec` identifies this output with a non-trivial global
-minimum cut and its weight `minCut I.W`. -/
+for any weighted multigraph `I : StoerWagnerInput` at any word width `w` satisfying
+`Fits w I.wordBound` (i.e., `I.wordBound < 2 ^ w`, where
+`I.wordBound = max (workspaceBound I.n) (totalDoubledWeight I.W)` bounds all word values and
+addresses, so a bit width `w` of order `log (I.n + 2) + log (totalDoubledWeight I.W + 2)` suffices),
+outputs `I.expectedOutput` within `C * (I.n + 1) ^ 3` instructions (`Program.ComputesListInTime`).
+For all `2 ≤ I.n`, `StoerWagnerInput.expectedOutput_spec` identifies this output with a non-trivial
+global minimum cut and its weight `minCut I.W`. -/
 theorem exists_stoerWagner_program :
     ∃ r C : ℕ, ∃ prog : Program .standard r, ¬prog.ReadsWidth ∧
       prog.ComputesListInTime (fun _ I => I.encode) (fun I _ => C * (I.n + 1) ^ 3)
