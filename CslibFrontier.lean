@@ -1856,6 +1856,8 @@ public import CslibFrontier.Computability.Circuit.Parallel
 public import CslibFrontier.Computability.Circuit.Pebbling
 public import CslibFrontier.Computability.Circuit.Pi
 public import CslibFrontier.Computability.Circuit.Pointwise
+public import CslibFrontier.Computability.Circuit.Prefix.Basic
+public import CslibFrontier.Computability.Circuit.Prefix.ConsistentTree
 public import CslibFrontier.Computability.Circuit.Prefix.OptimalDepth
 public import CslibFrontier.Computability.Circuit.Program
 public import CslibFrontier.Computability.Circuit.Quantum.AcceptOperator
