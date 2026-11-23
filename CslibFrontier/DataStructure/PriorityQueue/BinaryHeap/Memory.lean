@@ -168,7 +168,6 @@ def siftUp (k : ℕ) : Prog Unit :=
     else pure ()
   else pure ()
 termination_by k
-decreasing_by omega
 
 /-- One step of sift-down: if the child entry `(vc, kc)` at position `c` has higher priority than
 the entry `(vk, kk)` at position `k`, swap them and continue with `next`. -/
@@ -196,7 +195,6 @@ def siftDown (S k : ℕ) : Prog Unit :=
     else sink L k (2 * k) vk kk vl kl (siftDown S (2 * k))
   else pure ()
 termination_by S + 1 - k
-decreasing_by all_goals omega
 
 /-- Test for emptiness: read the size. -/
 def isEmpty : Prog Bool := do
@@ -376,7 +374,6 @@ theorem siftUp_triple (hn : Fits w n) {S : ℕ} {s : Memory.State} {k : ℕ}
         IndexedMinPQ.not_rawPrioLT_iff_rawPrioLE.mp hlt⟩, Rearranges.refl s⟩
   · exact Triple.pure ⟨⟨hshape, hord.ordered fun h => absurd h h2⟩, Rearranges.refl s⟩
 termination_by k
-decreasing_by omega
 
 /-- One step of sift-down: a swap with the child when it has higher priority, then `next`. -/
 theorem sink_triple {s : Memory.State} {k c vk kk vc kc cost : ℕ} {next : Prog Unit}
@@ -448,7 +445,6 @@ theorem siftDown_triple (hn : Fits w n) {S : ℕ} {s : Memory.State} {k : ℕ}
     exact Triple.pure ⟨⟨hshape, hord.ordered fun i hi hiS hia => absurd hiS (by omega)⟩,
       Rearranges.refl s⟩
 termination_by S + 1 - k
-decreasing_by omega
 
 /-! ## The abstraction -/
 

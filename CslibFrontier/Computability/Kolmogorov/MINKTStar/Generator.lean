@@ -188,8 +188,7 @@ private theorem length_enc_ofSat_le (hwf : I.WellFormed Δ) (hlam : 1 ≤ lam) {
     omega
   have hm := CMMSAInstance.length_formulas_le I
   have hn := CMMSAInstance.length_weights_le I
-  have hΔm : I.formulas.length * Δ ≤ (CMMSAInstance.encoding I).length * Δ :=
-    Nat.mul_le_mul_right _ hm
+  have hΔm : I.formulas.length * Δ ≤ (CMMSAInstance.encoding I).length * Δ := by gcongr
   have hwl : I.weight S * lam ≤ I.threshold * lam := Nat.mul_le_mul_right _ hw
   simp only [enc_apply, encFields, length_encPair, encUnary_apply, List.length_replicate, ofSat]
   unfold sizeBound

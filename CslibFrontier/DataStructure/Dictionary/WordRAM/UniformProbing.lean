@@ -16,8 +16,10 @@ public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
 import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.UpdateSimp
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -1088,15 +1090,6 @@ private def insertSlotMem (base c_exp n_max : ℕ) (mem : ℕ → ℕ)
   Function.update (Function.update (Function.update mem (sBase + slot.val) 1)
     (sBase + m + slot.val) u) (sBase + 2 * m + slot.val) v
 
-private theorem insertSlotMem_of_ne {base c_exp n_max : ℕ} {mem : ℕ → ℕ}
-    {slot : Fin (numBuckets n_max)} {u v a : ℕ}
-    (h0 : a ≠ base + slotOffset c_exp n_max + slot.val)
-    (h1 : a ≠ base + slotOffset c_exp n_max + numBuckets n_max + slot.val)
-    (h2 : a ≠ base + slotOffset c_exp n_max + 2 * numBuckets n_max + slot.val) :
-    insertSlotMem base c_exp n_max mem slot u v a = mem a := by
-  simp only [insertSlotMem, Function.update_of_ne h2, Function.update_of_ne h1,
-    Function.update_of_ne h0]
-
 private theorem insertSlotMem_eq_self_of_ne {base c_exp n_max : ℕ} {mem : ℕ → ℕ}
     {slot j : Fin (numBuckets n_max)} {u v : ℕ} (hjs : j ≠ slot) :
     let sBase := base + slotOffset c_exp n_max
@@ -1106,9 +1099,8 @@ private theorem insertSlotMem_eq_self_of_ne {base c_exp n_max : ℕ} {mem : ℕ 
     mem' (sBase + m + j.val) = mem (sBase + m + j.val) ∧
     mem' (sBase + 2 * m + j.val) = mem (sBase + 2 * m + j.val) := by
   have := slot.isLt; have := j.isLt; have := Fin.val_ne_of_ne hjs
-  exact ⟨insertSlotMem_of_ne (by omega) (by omega) (by omega),
-    insertSlotMem_of_ne (by omega) (by omega) (by omega),
-    insertSlotMem_of_ne (by omega) (by omega) (by omega)⟩
+  exact ⟨by update_simp [insertSlotMem], by update_simp [insertSlotMem],
+    by update_simp [insertSlotMem]⟩
 
 private theorem insertSlotMem_self {base c_exp n_max : ℕ} {mem : ℕ → ℕ}
     {slot : Fin (numBuckets n_max)} {u v : ℕ} :
@@ -1118,16 +1110,9 @@ private theorem insertSlotMem_self {base c_exp n_max : ℕ} {mem : ℕ → ℕ}
     mem' (sBase + slot.val) = 1 ∧
     mem' (sBase + m + slot.val) = u ∧
     mem' (sBase + 2 * m + slot.val) = v := by
-  have hm := numBuckets_pos n_max
-  refine ⟨?_, ?_, by simp [insertSlotMem]⟩
-  · simp [insertSlotMem,
-      Function.update_of_ne (show base + slotOffset c_exp n_max + slot.val ≠
-        base + slotOffset c_exp n_max + 2 * numBuckets n_max + slot.val by omega),
-      Function.update_of_ne (show base + slotOffset c_exp n_max + slot.val ≠
-        base + slotOffset c_exp n_max + numBuckets n_max + slot.val by omega)]
-  · simp [insertSlotMem,
-      Function.update_of_ne (show base + slotOffset c_exp n_max + numBuckets n_max + slot.val ≠
-        base + slotOffset c_exp n_max + 2 * numBuckets n_max + slot.val by omega)]
+  have := numBuckets_pos n_max
+  exact ⟨by update_simp [insertSlotMem], by update_simp [insertSlotMem],
+    by update_simp [insertSlotMem]⟩
 
 private theorem slotArrayWF_insertSlotMem {base c_exp U n_max : ℕ} {mem : ℕ → ℕ}
     (hwf : SlotArrayWF base c_exp U n_max mem) (slot : Fin (numBuckets n_max))
@@ -1208,7 +1193,7 @@ private theorem finishInsertCode_execWithin {w base c_exp U V n_max : ℕ} {θ :
     simp only [Data.set_mem, Data.write_mem, hmem]; rfl
   have hbelow : ∀ a < base + slotOffset c_exp n_max,
       insertSlotMem base c_exp n_max x.mem slot u.val v a = x.mem a :=
-    fun a h => insertSlotMem_of_ne (by omega) (by omega) (by omega)
+    fun a h => by update_simp [insertSlotMem]
   refine ⟨by wram_simp [hbase], by wram_simp, ?_, ?_, ?_, ?_,
     Dictionary.card_dom_step_le_of_valid (V := V) hrep.dom_le (o := .insert u v) hvalid,
     Dictionary.valuesBounded_step_of_valid (n_max := n_max) hrep.vals_bounded
@@ -1221,8 +1206,9 @@ private theorem finishInsertCode_execWithin {w base c_exp U V n_max : ℕ} {θ :
   · rw [hmem_eq, extractSlots_insertSlotMem hrep.slot_wf slot u v,
       ← tableInsert_eq_update_targetSlot (numBuckets_pos n_max) (probePerm θ) _ u v hO]
     exact hrep.table_rep.tableInsert (numBuckets_pos n_max) u v hO
-  · rw [hmem_eq]; exact Modifies.block_iff.mpr fun a ha =>
-      insertSlotMem_of_ne (by wram_omega) (by wram_omega) (by wram_omega)
+  · rw [hmem_eq]; exact Modifies.block_iff.mpr fun a ha => by
+      dsimp only [space] at ha
+      update_simp [insertSlotMem]
 
 /-- Complete operation body `opCode c_exp n_max` for both `query` and `insert`. -/
 def opCode (c_exp n_max : ℕ) : Code .exact 16 :=
@@ -1295,41 +1281,36 @@ theorem opCode_execWithin {w base c_exp U V n_max : ℕ} {θ : Seed c_exp n_max}
       (lt_of_le_of_lt hrep.dom_le (lt_numBuckets n_max))
   refine WP.exists_execWithin (WP.bounded hrep.bounded ?_)
   unfold opCode
-  apply WP.seq
   wram_call (opEvalHashesCode_execWithin hS hrep (opKey op) hu_fit hu) with d1
     ⟨hd1_mem, hd1_base, hd1_slot, hd1_sbase, hd1_mask, hd1_stride, hd1_m,
       hd1_zero, hd1_op, hd1_u, hd1_v⟩
-  apply WP.seq
   wram_call (probeCheckCode_execWithin hS (hd1_mem.symm ▸ hrep.slot_wf) (opKey op)
     (probePerm θ (opKey op) ⟨0, numBuckets_pos n_max⟩)
     hd1_sbase hd1_slot hd1_m hd1_zero hd1_u) with d2 ⟨hd2_mem, hd2_cond, hd2_regs⟩
-  apply WP.seq
   wram_call (probeLoop_execWithin_aux θ hS hrep.slot_wf (opKey op) hO _ 0 (numBuckets_pos n_max) d2
-    (zero_add _) (hd2_mem.trans hd1_mem) (by regs_frame) (by regs_frame) (by regs_frame)
+    (zero_add _) (by mem_frame) (by regs_frame) (by regs_frame) (by regs_frame)
     (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by rwa [hd1_mem] at hd2_cond))
     with d3 ⟨hd3_mem, hd3_slot, hd3_regs⟩
+  have hd3_op : d3.regs regOp = opTag op := by regs_frame
+  have hd3_zero : d3.regs regZero = 0 := by regs_frame
   cases op with
   | query u₀ =>
-    apply WP.branch_eq (by regs_frame) (by regs_frame)
-    · intro _
-      wram_call (finishQueryCode_execWithin hS hV hrep u₀ hO hd3_mem (by regs_frame)
-        (by regs_frame) hd3_slot (by regs_frame) (by regs_frame)) with y ⟨hy_mem, hy_base, hy_op⟩
-      intro hbdd
-      exact ⟨by dsimp only [opPathSteps, probeCount, unsuccessfulProbes, opKey]; omega,
-        hrep.congr hbdd (hy_base.trans hrep.regs_base.symm) fun a _ => by rw [hy_mem],
-        hy_op, fun a _ => hy_mem ▸ rfl⟩
-    · intro hne; exact absurd (by simp [opTag]) hne
+    wram_exec [hd3_op, hd3_zero, opTag]
+    wram_call (finishQueryCode_execWithin hS hV hrep u₀ hO hd3_mem (by regs_frame)
+      (by regs_frame) hd3_slot (by regs_frame) (by regs_frame)) with y ⟨hy_mem, hy_base, hy_op⟩
+    intro hbdd
+    exact ⟨by dsimp only [opPathSteps, probeCount, unsuccessfulProbes, opKey]; omega,
+      hrep.congr hbdd (hy_base.trans hrep.regs_base.symm) fun a _ => by rw [hy_mem],
+      hy_op, fun a _ => hy_mem ▸ rfl⟩
   | insert u₀ v₀ =>
     have hv₀ : x.regs regV = v₀ := hv u₀ v₀ rfl
-    apply WP.branch_eq (by regs_frame) (by regs_frame)
-    · intro heq; exact absurd heq (by simp [opTag])
-    · intro _
-      wram_call (finishInsertCode_execWithin hS hrep u₀ v₀ hvalid hO hd3_mem (by regs_frame)
-        (by regs_frame) hd3_slot (by regs_frame) (by regs_frame) (by regs_frame))
-        with y ⟨hy_base, hy_op, hy_prim, hy_str, hy_wf, hy_trep, hy_dom, hy_vals, hy_mod⟩
-      intro hbdd
-      exact ⟨by dsimp only [opPathSteps, probeCount, unsuccessfulProbes, opKey]; omega,
-        ⟨hbdd, hy_base, hy_prim, hy_str, hy_wf, hy_trep, hy_dom, hy_vals⟩, hy_op, hy_mod⟩
+    wram_exec [hd3_op, hd3_zero, opTag]
+    wram_call (finishInsertCode_execWithin hS hrep u₀ v₀ hvalid hO hd3_mem (by regs_frame)
+      (by regs_frame) hd3_slot (by regs_frame) (by regs_frame) (by regs_frame))
+      with y ⟨hy_base, hy_op, hy_prim, hy_str, hy_wf, hy_trep, hy_dom, hy_vals, hy_mod⟩
+    intro hbdd
+    exact ⟨by dsimp only [opPathSteps, probeCount, unsuccessfulProbes, opKey]; omega,
+      ⟨hbdd, hy_base, hy_prim, hy_str, hy_wf, hy_trep, hy_dom, hy_vals⟩, hy_op, hy_mod⟩
 
 /-! ## Section 5: `SubroutineCode`, `StateTransitionImpl`, and Expected Probe / Collision Bounds -/
 

@@ -531,8 +531,7 @@ theorem ncard_edgeCut_sub_active_le_weightedMatchingCost [Finite V] [Finite E]
   have hS₂_mul : (1 - lam) * (S₂.ncard : ℝ) ≤ (S₂.ncard : ℝ) := by
     nlinarith [Nat.cast_nonneg (α := ℝ) S₂.ncard]
   have hS₁_mul : (1 - lam) * (S₁.ncard : ℝ) ≤
-      (1 - lam) * ((G.activeCleanPairs M M_clean score P).ncard : ℝ) :=
-    mul_le_mul_of_nonneg_left hS₁_le h1lam
+      (1 - lam) * ((G.activeCleanPairs M M_clean score P).ncard : ℝ) := by gcongr
   have hsplit_mul : (1 - lam) * (S_both.ncard : ℝ) =
       (1 - lam) * (S₁.ncard : ℝ) + (1 - lam) * (S₂.ncard : ℝ) := by
     rw [← hS_partR, mul_add]
