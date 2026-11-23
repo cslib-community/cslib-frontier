@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CubicMatching
 import CslibFrontier.Computability.Circuit.Frontier.Layouts.Support
 import CslibFrontier.Foundations.Data.Nat.Card
+import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -51,8 +52,10 @@ equal-key `PairNode` layout (`exists_u2_pairNode_layout`) are original to this l
 
 ## Main results
 
-* `Cslib.Circuits.Frontier.Multigraph.exists_isMatching_mul_eight_ge`: `7/8` vertex-coverage
-  matching on loopless edge-simple cubic multigraphs.
+* `Cslib.Circuits.Frontier.Multigraph.exists_isMatching_mul_eight_ge`,
+  `Cslib.Circuits.Frontier.Multigraph.ncard_matchedVertices_eq_two_mul`,
+  `Cslib.Circuits.Frontier.Multigraph.exists_isMatching_seven_eighths`: `7/8` vertex-coverage and
+  `7/16` edge-count matching bounds on loopless edge-simple cubic multigraphs.
 * `Cslib.Circuits.Frontier.Multigraph.ncard_edgeCut_add_inactive_le_matchingCost`,
   `Cslib.Circuits.Frontier.Multigraph.ncard_edgeCut_sub_active_le_weightedMatchingCost`:
   natural-number prefix slack and real effective-cut bounds.
@@ -135,6 +138,56 @@ theorem exists_isMatching_mul_eight_ge [Finite V] (hloop : G.Loopless)
       · exact ⟨e, by change M_sg.Adj _ _; rw [hs, ht]; exact M_sg.symm.symm _ _ hvw, Or.inr ht⟩
   rw [← hverts] at h78
   exact ⟨M, hM, h78⟩
+
+/-- A matching `M` in a finite loopless multigraph covers `2 * M.ncard` vertices. -/
+theorem ncard_matchedVertices_eq_two_mul [Finite V] [Finite E] (hloop : G.Loopless)
+    {M : Set E} (hM : G.IsMatching M) :
+    (G.matchedVertices M).ncard = 2 * M.ncard := by
+  classical
+  have := Fintype.ofFinite V
+  have := Fintype.ofFinite E
+  let Mfin : Finset E := Finset.univ.filter (· ∈ M)
+  have hMcard : M.ncard = Mfin.card := by
+    have : M = (Mfin : Set E) := by ext e; simp [Mfin]
+    rw [this, ncard_coe_finset]
+  have hbi : Finset.univ.filter (· ∈ G.matchedVertices M) =
+      Mfin.biUnion fun e => ({G.src e, G.tgt e} : Finset V) := by
+    ext v
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, matchedVertices, mem_ofPred_eq,
+      Finset.mem_biUnion, Finset.mem_insert, Finset.mem_singleton, mem_incidenceSet, Mfin]
+    constructor
+    · rintro ⟨e, he, h | h⟩ <;> exact ⟨e, he, by simp [h]⟩
+    · rintro ⟨e, he, h | h⟩ <;> exact ⟨e, he, by simp [h]⟩
+  have hdisj : (Mfin : Set E).PairwiseDisjoint
+      (fun e => ({G.src e, G.tgt e} : Finset V)) := by
+    intro e he f hf hne
+    exact Finset.disjoint_left.mpr fun u hu hv => by
+      have heM : e ∈ M := by simpa [Mfin] using he
+      have hfM : f ∈ M := by simpa [Mfin] using hf
+      exact disjoint_left.mp (hM heM hfM hne) (by simpa using hu) (by simpa using hv)
+  have hVcard : (G.matchedVertices M).ncard =
+      (Finset.univ.filter (· ∈ G.matchedVertices M)).card := by
+    rw [ncard_eq_toFinset_card']
+    congr 1; ext v; simp
+  rw [hVcard, hMcard, hbi, Finset.card_biUnion hdisj]
+  calc ∑ e ∈ Mfin, ({G.src e, G.tgt e} : Finset V).card
+      = ∑ _e ∈ Mfin, 2 := Finset.sum_congr rfl fun e _ => Finset.card_pair (hloop e)
+    _ = 2 * Mfin.card := by rw [Finset.sum_const, smul_eq_mul, mul_comm]
+
+/-- **The `7 / 8` matching bound for simple cubic multigraphs.** Every finite loopless multigraph
+without parallel edges in which every vertex has degree three has a matching `M` covering at least
+`7 / 8` of the vertices (`7 * Nat.card V ≤ 8 * (G.matchedVertices M).ncard`, equivalently
+`7 * Nat.card V ≤ 16 * M.ncard`). -/
+theorem exists_isMatching_seven_eighths [Finite V] [Finite E]
+    (hloop : G.Loopless) (hinj : Function.Injective G.ends)
+    (h3 : ∀ v, (G.incidenceSet v).ncard = 3) :
+    ∃ M : Set E, G.IsMatching M ∧
+      7 * Nat.card V ≤ 8 * (G.matchedVertices M).ncard ∧
+      7 * Nat.card V ≤ 16 * M.ncard := by
+  obtain ⟨M, hM, h78⟩ := G.exists_isMatching_mul_eight_ge hloop hinj h3
+  refine ⟨M, hM, h78, ?_⟩
+  rw [G.ncard_matchedVertices_eq_two_mul hloop hM] at h78
+  omega
 
 end CubicMatching
 
