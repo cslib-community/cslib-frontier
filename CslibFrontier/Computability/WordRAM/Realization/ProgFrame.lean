@@ -322,4 +322,195 @@ theorem memoryCost_iterate_le_of {δ σ : Type} (body : δ × σ → Memory.Prog
     rw [Nat.mul_succ]
     omega
 
+/-- Amortized `memoryCost` bound for `iterate`: if every step from a state satisfying `Inv`
+costs at most `c` plus the drop of the potential `Φ`, and preserves `Inv`, then `m` steps cost at
+most `c * m` plus the initial potential. -/
+theorem memoryCost_iterate_le_potential {δ σ : Type} (body : δ × σ → Memory.Prog σ) (d : δ)
+    (Inv : σ → Memory.State → Prop) (Φ : σ → Memory.State → ℕ) (c : ℕ)
+    (hstep : ∀ a s, Inv a s →
+      Inv ((Memory.spec 0).clientResult s (body (d, a)))
+          ((Memory.spec 0).clientState s (body (d, a))) ∧
+        memoryCost (body (d, a)) s +
+            Φ ((Memory.spec 0).clientResult s (body (d, a)))
+              ((Memory.spec 0).clientState s (body (d, a))) ≤
+          c + Φ a s)
+    (m : ℕ) (a : σ) (s : Memory.State) (hi : Inv a s) :
+    memoryCost (iterate body d m a) s ≤ c * m + Φ a s := by
+  induction m generalizing a s with
+  | zero => simp [iterate]
+  | succ m ih =>
+    change memoryCost (body (d, a) >>= iterate body d m) s ≤ c * (m + 1) + Φ a s
+    rw [memoryCost_bind']
+    obtain ⟨hi', h1⟩ := hstep a s hi
+    have h2 := ih _ _ hi'
+    rw [Nat.mul_succ]
+    omega
+
+/-- Constant upper bound on `memoryCost` of a `boundedWhile` loop: each guarded step costs at
+most `c`. -/
+theorem memoryCost_boundedWhile_le_of {δ σ : Type}
+    (guard : δ → σ → Prop) [∀ d a, Decidable (guard d a)]
+    (body : δ × σ → Memory.Prog σ) (c : ℕ) (d : δ)
+    (hstep : ∀ a s, guard d a → memoryCost (body (d, a)) s ≤ c)
+    (m : ℕ) (a : σ) (s : Memory.State) :
+    memoryCost (boundedWhile guard body d m a) s ≤ c * m := by
+  induction m generalizing a s with
+  | zero => simp [boundedWhile]
+  | succ m ih =>
+    unfold boundedWhile
+    by_cases hg : guard d a
+    · rw [ite_eq_left hg, memoryCost_bind']
+      have h1 := hstep a s hg
+      have h2 := ih ((Memory.spec 0).clientResult s (body (d, a)))
+        ((Memory.spec 0).clientState s (body (d, a)))
+      rw [Nat.mul_succ]
+      omega
+    · rw [ite_eq_right hg]
+      simp
+
+/-! ## Reductions through `read`, `write`, `map`, and cost combinators -/
+
+theorem clientResult_bind_read {α : Type} (w : ℕ) (s : Memory.State) (a : ℕ)
+    (k : ℕ → Memory.Prog α) :
+    (Memory.spec w).clientResult s (Memory.read a >>= k) =
+      (Memory.spec w).clientResult s (k (s.mem a)) :=
+  rfl
+
+theorem clientState_bind_read {α : Type} (w : ℕ) (s : Memory.State) (a : ℕ)
+    (k : ℕ → Memory.Prog α) :
+    (Memory.spec w).clientState s (Memory.read a >>= k) =
+      (Memory.spec w).clientState s (k (s.mem a)) :=
+  rfl
+
+theorem clientResult_bind_write {α : Type} (w : ℕ) (s : Memory.State) (a v : ℕ)
+    (k : Unit → Memory.Prog α) :
+    (Memory.spec w).clientResult s (Memory.write a v >>= k) =
+      (Memory.spec w).clientResult ⟨Function.update s.mem a v, s.frontier⟩ (k ()) :=
+  rfl
+
+theorem clientState_bind_write {α : Type} (w : ℕ) (s : Memory.State) (a v : ℕ)
+    (k : Unit → Memory.Prog α) :
+    (Memory.spec w).clientState s (Memory.write a v >>= k) =
+      (Memory.spec w).clientState ⟨Function.update s.mem a v, s.frontier⟩ (k ()) :=
+  rfl
+
+theorem clientResult_map {α β : Type} (w : ℕ) (f : α → β) (p : Memory.Prog α)
+    (s : Memory.State) :
+    (Memory.spec w).clientResult s (f <$> p) = f ((Memory.spec w).clientResult s p) := by
+  induction p generalizing s with
+  | pure _ => rfl
+  | liftBind _ _ ih => exact ih _ _
+
+theorem clientState_map {α β : Type} (w : ℕ) (f : α → β) (p : Memory.Prog α)
+    (s : Memory.State) :
+    (Memory.spec w).clientState s (f <$> p) = (Memory.spec w).clientState s p := by
+  induction p generalizing s with
+  | pure _ => rfl
+  | liftBind _ _ ih => exact ih _ _
+
+theorem memoryCost_map {α β : Type} (f : α → β) (p : Memory.Prog α) (s : Memory.State) :
+    memoryCost (f <$> p) s = memoryCost p s := by
+  induction p generalizing s with
+  | pure _ => rfl
+  | liftBind o cont ih => exact congrArg (Memory.charge s o + ·) (ih _ _)
+
+theorem memoryCost_bind_le {α β : Type} {p : Memory.Prog α} {q : α → Memory.Prog β}
+    {s : Memory.State} {k₁ k₂ : ℕ} (h₁ : memoryCost p s ≤ k₁)
+    (h₂ : ∀ x t, memoryCost (q x) t ≤ k₂) :
+    memoryCost (p >>= q) s ≤ k₁ + k₂ := by
+  rw [memoryCost_bind']
+  have := h₂ ((Memory.spec 0).clientResult s p) ((Memory.spec 0).clientState s p)
+  omega
+
+theorem memoryCost_ite_le {α : Type} {c : Prop} [Decidable c]
+    {p₁ p₂ : Memory.Prog α} {s : Memory.State} {k : ℕ}
+    (h₁ : memoryCost p₁ s ≤ k) (h₂ : memoryCost p₂ s ≤ k) :
+    memoryCost (if c then p₁ else p₂) s ≤ k := by
+  rw [memoryCost_ite]
+  split_ifs <;> assumption
+
+/-- `ValidHistory` of a counting `iterate` loop whose step returns its index plus one. -/
+theorem validHistory_iterate_nat {w : ℕ} {Inv : Memory.State → Prop} [MonotoneMemInv w Inv]
+    {δ : Type} {body : δ × ℕ → Memory.Prog ℕ} {d : δ}
+    (m i₀ : ℕ) (hstep : ∀ i, i < i₀ + m → ∀ t, Inv t →
+      (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t (body (d, i))) ∧
+        (Memory.spec 0).clientResult t (body (d, i)) = i + 1)
+    {s : Memory.State} (hinv : Inv s) :
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (iterate body d m i₀)) := by
+  induction m generalizing i₀ s with
+  | zero => exact validHistory_pure w s i₀
+  | succ m ih =>
+    obtain ⟨hv, hr⟩ := hstep i₀ (by omega) s hinv
+    refine validHistory_bind_step hv ?_
+    rw [hr]
+    exact ih (i₀ + 1) (fun i hi => hstep i (by omega)) (MonotoneMemInv.pres hinv hv)
+
+/-- `ValidHistory` of an `iterate` loop whose state carries a counter in its first component. -/
+theorem validHistory_iterate_fst {w : ℕ} {Inv : Memory.State → Prop} [MonotoneMemInv w Inv]
+    {δ β : Type} {body : δ × (ℕ × β) → Memory.Prog (ℕ × β)} {d : δ}
+    (m i₀ : ℕ) (b₀ : β) (hstep : ∀ i, i < i₀ + m → ∀ b t, Inv t →
+      (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t (body (d, (i, b)))) ∧
+        ((Memory.spec 0).clientResult t (body (d, (i, b)))).1 = i + 1)
+    {s : Memory.State} (hinv : Inv s) :
+    (Memory.spec w).ValidHistory s
+      ((Memory.spec w).clientHistory s (iterate body d m (i₀, b₀))) := by
+  induction m generalizing i₀ b₀ s with
+  | zero => exact validHistory_pure w s (i₀, b₀)
+  | succ m ih =>
+    obtain ⟨hv, hr⟩ := hstep i₀ (by omega) b₀ s hinv
+    refine validHistory_bind_step hv ?_
+    have hpair : (Memory.spec 0).clientResult s (body (d, (i₀, b₀))) =
+        (i₀ + 1, ((Memory.spec 0).clientResult s (body (d, (i₀, b₀)))).2) :=
+      Prod.ext hr rfl
+    rw [hpair]
+    exact ih (i₀ + 1) _ (fun i hi => hstep i (by omega)) (MonotoneMemInv.pres hinv hv)
+
+/-! ## Single-address frames -/
+
+/-- `p` leaves memory address `a` unchanged from every starting state. -/
+def PreservesAt (a : ℕ) {α : Type} (p : Memory.Prog α) : Prop :=
+  ∀ s, ((Memory.spec 0).clientState s p).mem a = s.mem a
+
+theorem preservesAt_pure (a : ℕ) {α : Type} (x : α) :
+    PreservesAt a (pure x : Memory.Prog α) :=
+  fun _ => rfl
+
+theorem preservesAt_read (a b : ℕ) : PreservesAt a (Memory.read b) :=
+  fun _ => rfl
+
+theorem preservesAt_write {a b : ℕ} (v : ℕ) (hne : a ≠ b) :
+    PreservesAt a (Memory.write b v) := fun s => by
+  change Function.update s.mem b v a = s.mem a
+  exact Function.update_of_ne hne v s.mem
+
+theorem preservesAt_bind {a : ℕ} {α β : Type} {p : Memory.Prog α} {k : α → Memory.Prog β}
+    (hp : PreservesAt a p) (hk : ∀ x, PreservesAt a (k x)) :
+    PreservesAt a (p >>= k) := fun s => by
+  rw [StateTransitionSpec.clientState_bind, hk, hp]
+
+theorem preservesAt_map {a : ℕ} {α β : Type} (f : α → β) {p : Memory.Prog α}
+    (hp : PreservesAt a p) : PreservesAt a (f <$> p) := fun s => by
+  rw [clientState_map, hp]
+
+theorem preservesAt_ite {a : ℕ} {α : Type} (c : Prop) [Decidable c]
+    {p₁ p₂ : Memory.Prog α} (h₁ : PreservesAt a p₁) (h₂ : PreservesAt a p₂) :
+    PreservesAt a (if c then p₁ else p₂) := by
+  split_ifs
+  · exact h₁
+  · exact h₂
+
+theorem preservesAt_iterate {a : ℕ} {δ σ : Type} {body : δ × σ → Memory.Prog σ} {d : δ}
+    (hstep : ∀ st, PreservesAt a (body (d, st))) (m : ℕ) (st₀ : σ) :
+    PreservesAt a (iterate body d m st₀) := fun s =>
+  iterate_invariant_of body d (fun _ _ t => t.mem a = s.mem a)
+    (fun _ st t ht => (hstep st t).trans ht) rfl
+
+theorem preservesAt_boundedWhile {a : ℕ} {δ σ : Type}
+    (guard : δ → σ → Prop) [∀ d a, Decidable (guard d a)]
+    {body : δ × σ → Memory.Prog σ} {d : δ}
+    (hstep : ∀ st, guard d st → PreservesAt a (body (d, st))) (m : ℕ) (st₀ : σ) :
+    PreservesAt a (boundedWhile guard body d m st₀) := fun s =>
+  boundedWhile_invariant_of guard body d (fun _ t => t.mem a = s.mem a)
+    (fun st t ht hg => (hstep st hg t).trans ht) m st₀ s rfl
+
 end Cslib.WordRAM.Realization
