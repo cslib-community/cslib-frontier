@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import Mathlib.Analysis.Real.Sqrt
 public import Mathlib.Order.Filter.Cofinite
 public import Mathlib.Topology.Instances.Real.Lemmas
 import CslibFrontier.Foundations.Geometry.CAT0.Basic
@@ -52,13 +53,13 @@ namespace Cslib.Circuits.Arithmetic.Separation
 abbrev WindowFn := ℕ → Bool → ℤ → ℤ → ℝ
 
 /-- The mean over the `n`-th window: two sheets, `0 ≤ i < n²`, `0 ≤ k < n`. -/
-noncomputable def windowAvg (n : ℕ) (f : Bool → ℤ → ℤ → ℝ) : ℝ :=
+@[expose] noncomputable def windowAvg (n : ℕ) (f : Bool → ℤ → ℤ → ℝ) : ℝ :=
   (∑ b, ∑ i ∈ range (n ^ 2), ∑ k ∈ range n, f b i k) / (2 * n ^ 3)
 
 namespace WindowFn
 
 /-- Bounded window functions. -/
-def Bounded (f : WindowFn) : Prop := ∃ C, ∀ n b i k, |f n b i k| ≤ C
+@[expose] def Bounded (f : WindowFn) : Prop := ∃ C, ∀ n b i k, |f n b i k| ≤ C
 
 theorem Bounded.add {f g : WindowFn} (hf : Bounded f) (hg : Bounded g) : Bounded (f + g) := by
   obtain ⟨C, hC⟩ := hf
@@ -353,7 +354,7 @@ theorem mean_steps {F : WindowFn}
 /-! ### Cauchy and Schwarz -/
 
 /-- The root of the mean square. -/
-noncomputable def rms (f : WindowFn) : ℝ := √(mean (f * f))
+@[expose] noncomputable def rms (f : WindowFn) : ℝ := √(mean (f * f))
 
 theorem rms_nonneg (f : WindowFn) : 0 ≤ rms f := Real.sqrt_nonneg _
 
