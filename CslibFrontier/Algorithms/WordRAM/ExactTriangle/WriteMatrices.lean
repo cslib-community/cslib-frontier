@@ -188,9 +188,8 @@ private theorem exec_indices {w q : ℕ} (side : Bool) (A : Args) (x : Data 17)
   cases side <;>
     (simp only [indices, Bool.false_eq_true, ↓reduceIte]
      wram_exec [hq, hx.size, hx.dimension, hx.modulus]
-     · exact ⟨by regs_frame, by wram_simp [hq], by wram_simp, by wram_simp, by wram_simp,
-         by wram_simp, by wram_simp, rfl⟩
-     all_goals stride_omega)
+     exact ⟨by regs_frame, by wram_simp [hq], by wram_simp, by wram_simp, by wram_simp,
+       by wram_simp, by wram_simp, rfl⟩)
 
 private theorem exec_readLabel {w row v : ℕ} (side : Bool) (A : Args) (R : ℕ → ℕ)
     (x : Data 17) (hx : Entry A x)
@@ -208,8 +207,7 @@ private theorem exec_readLabel {w row v : ℕ} (side : Bool) (A : Args) (R : ℕ
   cases side <;>
     (simp only [readLabel, Bool.false_eq_true, ↓reduceIte]
      wram_exec [hrow, hv, hx.size, hx.first, hx.src, hx.modulus, hx.rho, hinput _ hpoint]
-     · exact ⟨by wram_simp, fun i ha hval => by wram_simp [ha, hval], rfl⟩
-     stride_omega)
+     exact ⟨by wram_simp, fun i ha hval => by wram_simp [ha, hval], rfl⟩)
 
 private theorem body_preserves (side : Bool) : ∀ i : Fin 17,
     (i.val < 8 ∨ i = area ∨ i = one ∨ i = zero) → (body side).Preserves i := by
