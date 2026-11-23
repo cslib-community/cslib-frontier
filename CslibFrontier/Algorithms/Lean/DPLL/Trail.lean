@@ -560,7 +560,6 @@ theorem run_add_nodes (φ : CNF ℕ) : (fuel : ℕ) → (t : Trail) → (k : ℕ
         | some π => rfl
         | none => simp only [after, backtrack_cons_true]
   termination_by fuel => fuel
-  decreasing_by all_goals omega
 
 /-- The answer of the search without skipping. -/
 def answer (φ : CNF ℕ) : Answer :=

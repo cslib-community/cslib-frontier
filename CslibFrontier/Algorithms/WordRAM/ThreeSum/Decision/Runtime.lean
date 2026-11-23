@@ -176,8 +176,7 @@ theorem preprocessing_eventually_le_rpow (κ : ℕ) {a : ℝ} (ha : 3 / 2 < a) :
       _ = (6 * ChanHe.Preprocessing.costCoefficient κ) * n * t *
           (Nat.log 2 (n + 2) + 1) ^ 13 := by ring
       _ ≤ K * n * t * (Nat.log 2 (n + 2) + 1) ^ 13 :=
-        Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _
-          (show 6 * ChanHe.Preprocessing.costCoefficient κ ≤ K from Nat.le_succ _)))
+        by gcongr; exact Nat.le_succ _
   have hpR := (Nat.cast_le (α := ℝ)).mpr hp'
   have hm := mul_le_mul_of_nonneg_left hlog (show (0 : ℝ) ≤ (n : ℝ) * t by positivity)
   have hp'' : (ChanHe.Preprocessing.cost κ n : ℝ) ≤

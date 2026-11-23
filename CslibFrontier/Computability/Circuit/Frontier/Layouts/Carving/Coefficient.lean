@@ -194,6 +194,17 @@ private theorem le_arccos_edgeCorr :
         (arccos_cos (by norm_num) (by linarith [pi_gt_three])).symm
     _ ≤ arccos ((1 + 2 * √2) / 4) := arccos_le_arccos hcos
 
+/-- A function vanishing at `0` whose derivative is nonnegative on `[0, ∞)` is nonnegative there. -/
+private theorem nonneg_of_hasDerivAt_of_nonneg {f g : ℝ → ℝ} (hd : ∀ t, HasDerivAt f (g t) t)
+    (hg : ∀ t ≥ 0, 0 ≤ g t) (h0 : f 0 = 0) : ∀ t ≥ 0, 0 ≤ f t := by
+  have hmono : MonotoneOn f (Ici 0) :=
+    monotoneOn_of_hasDerivWithinAt_nonneg (convex_Ici 0)
+      (fun x _ => (hd x).continuousAt.continuousWithinAt)
+      (fun x _ => (hd x).hasDerivWithinAt)
+      (fun x hx => hg x (interior_subset hx))
+  intro t ht
+  exact h0 ▸ hmono (le_rfl : (0 : ℝ) ∈ Ici 0) ht ht
+
 /-- Alternating degree-`4` Taylor upper bound `exp (-y) ≤ 1 - y + y^2/2 - y^3/6 + y^4/24` for
 `0 ≤ y`. -/
 private theorem exp_neg_le_quartic {y : ℝ} (hy : 0 ≤ y) :
@@ -211,15 +222,8 @@ private theorem exp_neg_le_quartic {y : ℝ} (hy : 0 ≤ y) :
         ((hasDerivAt_pow 2 t).div_const 2))
       exact this.congr_deriv (by ring)
     exact (hp.sub (hexp_d t)).congr_deriv (by dsimp [f₁]; ring)
-  have hf₂ : ∀ t ≥ 0, 0 ≤ f₂ t := by
-    have hmono : MonotoneOn f₂ (Ici 0) :=
-      monotoneOn_of_hasDerivWithinAt_nonneg (convex_Ici 0)
-        (fun x _ => (hd₂ x).continuousAt.continuousWithinAt)
-        (fun x _ => (hd₂ x).hasDerivWithinAt)
-        (fun x hx => hf₁ x (interior_subset hx))
-    intro t ht
-    have h0 : f₂ 0 = 0 := by simp [f₂]
-    exact h0 ▸ hmono (le_rfl : (0 : ℝ) ∈ Ici 0) ht ht
+  have hf₂ : ∀ t ≥ 0, 0 ≤ f₂ t :=
+    nonneg_of_hasDerivAt_of_nonneg hd₂ hf₁ (by simp [f₂])
   let f₃ : ℝ → ℝ := fun t => exp (-t) - (1 - t + t ^ 2 / 2 - t ^ 3 / 6)
   have hd₃ : ∀ t, HasDerivAt f₃ (f₂ t) t := fun t => by
     have hp : HasDerivAt (fun x => 1 - x + x ^ 2 / 2 - x ^ 3 / 6) (-1 + t - t ^ 2 / 2) t := by
@@ -227,15 +231,8 @@ private theorem exp_neg_le_quartic {y : ℝ} (hy : 0 ≤ y) :
         ((hasDerivAt_pow 2 t).div_const 2)).sub ((hasDerivAt_pow 3 t).div_const 6))
       exact this.congr_deriv (by ring)
     exact ((hexp_d t).sub hp).congr_deriv (by dsimp [f₂]; ring)
-  have hf₃ : ∀ t ≥ 0, 0 ≤ f₃ t := by
-    have hmono : MonotoneOn f₃ (Ici 0) :=
-      monotoneOn_of_hasDerivWithinAt_nonneg (convex_Ici 0)
-        (fun x _ => (hd₃ x).continuousAt.continuousWithinAt)
-        (fun x _ => (hd₃ x).hasDerivWithinAt)
-        (fun x hx => hf₂ x (interior_subset hx))
-    intro t ht
-    have h0 : f₃ 0 = 0 := by simp [f₃]
-    exact h0 ▸ hmono (le_rfl : (0 : ℝ) ∈ Ici 0) ht ht
+  have hf₃ : ∀ t ≥ 0, 0 ≤ f₃ t :=
+    nonneg_of_hasDerivAt_of_nonneg hd₃ hf₂ (by simp [f₃])
   let f₄ : ℝ → ℝ := fun t => (1 - t + t ^ 2 / 2 - t ^ 3 / 6 + t ^ 4 / 24) - exp (-t)
   have hd₄ : ∀ t, HasDerivAt f₄ (f₃ t) t := fun t => by
     have hp : HasDerivAt (fun x => 1 - x + x ^ 2 / 2 - x ^ 3 / 6 + x ^ 4 / 24)
@@ -245,13 +242,7 @@ private theorem exp_neg_le_quartic {y : ℝ} (hy : 0 ≤ y) :
         ((hasDerivAt_pow 4 t).div_const 24))
       exact this.congr_deriv (by ring)
     exact (hp.sub (hexp_d t)).congr_deriv (by dsimp [f₃]; ring)
-  have hmono : MonotoneOn f₄ (Ici 0) :=
-    monotoneOn_of_hasDerivWithinAt_nonneg (convex_Ici 0)
-      (fun x _ => (hd₄ x).continuousAt.continuousWithinAt)
-      (fun x _ => (hd₄ x).hasDerivWithinAt)
-      (fun x hx => hf₃ x (interior_subset hx))
-  have h0 : f₄ 0 = 0 := by simp [f₄]
-  have hge := h0 ▸ hmono (le_rfl : (0 : ℝ) ∈ Ici 0) hy hy
+  have hge := nonneg_of_hasDerivAt_of_nonneg hd₄ hf₃ (by simp [f₄]) y hy
   dsimp [f₄] at hge
   linarith
 
@@ -473,15 +464,8 @@ private theorem exp_neg_ge_septic {y : ℝ} (hy : 0 ≤ y) :
         ((hasDerivAt_pow 4 t).div_const 24)).sub ((hasDerivAt_pow 5 t).div_const 120))
       exact this.congr_deriv (by ring)
     exact ((hexp_d t).sub hp).congr_deriv (by dsimp [f₄]; ring)
-  have hf₅ : ∀ t ≥ 0, 0 ≤ f₅ t := by
-    have hmono : MonotoneOn f₅ (Ici 0) :=
-      monotoneOn_of_hasDerivWithinAt_nonneg (convex_Ici 0)
-        (fun x _ => (hd₅ x).continuousAt.continuousWithinAt)
-        (fun x _ => (hd₅ x).hasDerivWithinAt)
-        (fun x hx => hf₄ x (interior_subset hx))
-    intro t ht
-    have h0 : f₅ 0 = 0 := by simp [f₅]
-    exact h0 ▸ hmono (le_rfl : (0 : ℝ) ∈ Ici 0) ht ht
+  have hf₅ : ∀ t ≥ 0, 0 ≤ f₅ t :=
+    nonneg_of_hasDerivAt_of_nonneg hd₅ hf₄ (by simp [f₅])
   let f₆ : ℝ → ℝ := fun t =>
     (1 - t + t ^ 2 / 2 - t ^ 3 / 6 + t ^ 4 / 24 - t ^ 5 / 120 + t ^ 6 / 720) - exp (-t)
   have hd₆ : ∀ t, HasDerivAt f₆ (f₅ t) t := fun t => by
@@ -494,15 +478,8 @@ private theorem exp_neg_ge_septic {y : ℝ} (hy : 0 ≤ y) :
         ((hasDerivAt_pow 6 t).div_const 720))
       exact this.congr_deriv (by ring)
     exact (hp.sub (hexp_d t)).congr_deriv (by dsimp [f₅]; ring)
-  have hf₆ : ∀ t ≥ 0, 0 ≤ f₆ t := by
-    have hmono : MonotoneOn f₆ (Ici 0) :=
-      monotoneOn_of_hasDerivWithinAt_nonneg (convex_Ici 0)
-        (fun x _ => (hd₆ x).continuousAt.continuousWithinAt)
-        (fun x _ => (hd₆ x).hasDerivWithinAt)
-        (fun x hx => hf₅ x (interior_subset hx))
-    intro t ht
-    have h0 : f₆ 0 = 0 := by simp [f₆]
-    exact h0 ▸ hmono (le_rfl : (0 : ℝ) ∈ Ici 0) ht ht
+  have hf₆ : ∀ t ≥ 0, 0 ≤ f₆ t :=
+    nonneg_of_hasDerivAt_of_nonneg hd₆ hf₅ (by simp [f₆])
   let f₇ : ℝ → ℝ := fun t =>
     exp (-t) -
       (1 - t + t ^ 2 / 2 - t ^ 3 / 6 + t ^ 4 / 24 - t ^ 5 / 120 + t ^ 6 / 720 - t ^ 7 / 5040)
@@ -517,13 +494,7 @@ private theorem exp_neg_ge_septic {y : ℝ} (hy : 0 ≤ y) :
         ((hasDerivAt_pow 6 t).div_const 720)).sub ((hasDerivAt_pow 7 t).div_const 5040))
       exact this.congr_deriv (by ring)
     exact ((hexp_d t).sub hp).congr_deriv (by dsimp [f₆]; ring)
-  have hmono : MonotoneOn f₇ (Ici 0) :=
-    monotoneOn_of_hasDerivWithinAt_nonneg (convex_Ici 0)
-      (fun x _ => (hd₇ x).continuousAt.continuousWithinAt)
-      (fun x _ => (hd₇ x).hasDerivWithinAt)
-      (fun x hx => hf₆ x (interior_subset hx))
-  have h0 : f₇ 0 = 0 := by simp [f₇]
-  have hge := h0 ▸ hmono (le_rfl : (0 : ℝ) ∈ Ici 0) hy hy
+  have hge := nonneg_of_hasDerivAt_of_nonneg hd₇ hf₆ (by simp [f₇]) y hy
   dsimp [f₇] at hge
   linarith
 

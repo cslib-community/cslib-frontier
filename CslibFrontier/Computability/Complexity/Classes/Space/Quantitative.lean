@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.Space.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Bounds
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
 /-!
@@ -29,6 +30,8 @@ machine within the space bound halts within its number of configurations
   `DSPACE enc s` is computable within some time and space `O(s n)`.
 * `Cslib.Complexity.setOf_mem_DSPACE_of_computableInO`: a Boolean function computable within space
   `O(s n)` decides a problem in `DSPACE enc s`.
+* `Cslib.Complexity.setOf_mem_DSPACE_of_computableInSpace`: the same from a workspace certificate
+  `Turing.MultiTapeTM.ComputableInSpace`, which names no time bound.
 -/
 
 public section
@@ -63,5 +66,13 @@ theorem setOf_mem_DSPACE_of_computableInO {f : α → Bool} {T S : α → ℕ} {
   have := Nat.mul_le_mul_left c (hS a)
   rw [Nat.mul_add, Nat.mul_one]
   omega
+
+/-- A Boolean function computable within a workspace budget (`Turing.MultiTapeTM.ComputableInSpace`)
+that is a function of the length of the encoded instance decides a problem within that space. -/
+theorem setOf_mem_DSPACE_of_computableInSpace {f : α → Bool} {S : α → ℕ} {s : ℕ → ℕ}
+    (h : ComputableInSpace f enc encBool S) (hS : ∀ a, S a ≤ s (enc a).length) :
+    {a | f a = true} ∈ DSPACE enc s :=
+  let ⟨_, h⟩ := h.exists_inO
+  setOf_mem_DSPACE_of_computableInO h hS
 
 end Cslib.Complexity

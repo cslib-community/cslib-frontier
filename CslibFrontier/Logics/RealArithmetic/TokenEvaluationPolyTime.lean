@@ -51,9 +51,10 @@ private def combineResidues (op : ℕ × ℕ → ℕ) (p : ℕ) (stack : List �
   if stack.tail.isEmpty then none
   else some (op (stack.headD 0, stack.tail.headD 0) % p :: stack.tail.tail)
 
+@[local fun_prop]
 private theorem combineResidues_polyTime {γ : Type} {enc : γ ↪ List Bool}
-    {op : ℕ × ℕ → ℕ} (hop : ComputableInPolyTime op (encPair encNat encNat) encNat)
-    {modulus : γ → ℕ} {stack : γ → List ℕ}
+    {op : ℕ × ℕ → ℕ} {modulus : γ → ℕ} {stack : γ → List ℕ}
+    (hop : ComputableInPolyTime op (encPair encNat encNat) encNat)
     (hp : ComputableInPolyTime modulus enc encNat)
     (hs : ComputableInPolyTime stack enc (encList encNat)) :
     ComputableInPolyTime (fun a => combineResidues op (modulus a) (stack a)) enc
@@ -76,34 +77,28 @@ theorem evalTokenStep_polyTime {γ : Type} {enc : γ ↪ List Bool}
     (ht : ComputableInPolyTime token enc encTermToken) :
     ComputableInPolyTime (fun a => evalTokenStep (modulus a) (point a) (token a) (stack a))
       enc (encOption (encList encNat)) := by
-  have hz := snd enc encIntBin
-  have hc := pushResidue_polyTime (intBin_emodNat' hz (hp.comp (fst enc encIntBin)))
+  have hc := pushResidue_polyTime
+    (intBin_emodNat' (snd enc encIntBin) (hp.comp (fst enc encIntBin)))
     (hs.comp (fst enc encIntBin))
-  have hcoord := listGetDWithInput (hx.comp (fst enc encUnary)) (snd enc encUnary) 0
-  have hv := pushResidue_polyTime (binary_mod' hcoord (hp.comp (fst enc encUnary)))
-    (hs.comp (fst enc encUnary))
-  have hpUnit := hp.comp (fst enc encUnit)
-  have hsUnit := hs.comp (fst enc encUnit)
-  let add (a : γ) (_ : Unit) := combineResidues (fun p => p.1 + p.2) (modulus a) (stack a)
-  let mul (a : γ) (_ : Unit) := combineResidues (fun p => p.1 * p.2) (modulus a) (stack a)
-  let op (a : γ) (tag : Unit ⊕ Unit) := tag.elim (add a) (mul a)
-  let var (a : γ) (i : ℕ) := some ((point a).getD i 0 % modulus a :: stack a)
-  let varOrOp (a : γ) (tag : ℕ ⊕ Unit ⊕ Unit) := tag.elim (var a) (op a)
-  have ho := sumElimSnd (left := add) (right := mul)
-    (combineResidues_polyTime binary_add hpUnit hsUnit)
-    (combineResidues_polyTime binary_mul hpUnit hsUnit)
-  have hvarOrOp := sumElimSnd (left := var) (right := op) hv ho
-  have h := sumElimWithInput
-    (left := fun a z => some ((z % (modulus a : ℤ)).toNat :: stack a)) (right := varOrOp)
-    ht hc hvarOrOp
-  apply h.of_enc_eq
-  intro a
-  apply congrArg (encOption (encList encNat))
+  let encVar := encPair (encPair enc (encSum encUnary (encSum encUnit encUnit))) encUnary
+  have hp1 := (fst enc (encSum encUnary (encSum encUnit encUnit))).comp
+    (fst (encPair enc (encSum encUnary (encSum encUnit encUnit))) encUnary)
+  have hvar := pushResidue_polyTime (enc := encVar)
+    (binary_mod' (listGetDWithInput (hx.comp hp1) (snd _ encUnary) 0) (hp.comp hp1))
+    (hs.comp hp1)
+  have h : ComputableInPolyTime (fun a => (token a).elim
+      (fun z => some ((z % (modulus a : ℤ)).toNat :: stack a))
+      (fun tag => tag.elim
+        (fun i => some ((point a).getD i 0 % modulus a :: stack a))
+        (fun op => op.elim
+          (fun _ => combineResidues (fun p => p.1 + p.2) (modulus a) (stack a))
+          (fun _ => combineResidues (fun p => p.1 * p.2) (modulus a) (stack a)))))
+      enc (encOption (encList encNat)) := by fun_prop
+  refine h.of_enc_eq fun a => congrArg (encOption (encList encNat)) ?_
   rcases token a with z | (i | (_ | _))
   · rfl
-  · simp only [evalTokenStep, Sum.elim_inr, Sum.elim_inl, List.getD_eq_getElem?_getD, var, varOrOp]
+  · simp only [evalTokenStep, Sum.elim_inr, Sum.elim_inl, List.getD_eq_getElem?_getD]
   all_goals
-    dsimp only [varOrOp, op, add, mul, Sum.elim]
     rcases stack a with _ | ⟨l, _ | ⟨r, rest⟩⟩ <;> rfl
 
 /-- Starting with an empty stack, evaluate a framed stream of constructor tokens from right

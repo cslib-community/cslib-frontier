@@ -201,20 +201,17 @@ private theorem splitUntilHalted_spec (i : Fin k) (body : MultiTapePTM k Bool St
       (repeatUntilBlank i body).runClosedConfigFromCoins pair.1 (RepeatUntilBlank.runConfig c) =
         RepeatUntilBlank.runConfig (body.runClosedConfigFromCoins pair.1 c) ∧
       (pair.2 = [] ∨ (body.runClosedConfigFromCoins pair.1 c).tapes.state = none) := by
-  induction coins generalizing c with
-  | nil =>
-    simp only [splitUntilHalted, List.nil_append, runClosedConfigFromCoins, List.foldl_nil,
-      true_or, and_self]
-  | cons bit rest ih =>
-    by_cases hhalt : c.tapes.state = none
-    · simp only [splitUntilHalted, hhalt, ↓reduceIte, List.nil_append, runClosedConfigFromCoins,
-        List.foldl_nil, or_true, and_self]
-    · simp only [splitUntilHalted, hhalt, ↓reduceIte]
-      obtain ⟨happ, hrep, hpost⟩ := ih ((body.withCoin bit).step c)
-      refine ⟨congrArg (bit :: ·) happ, ?_, hpost⟩
-      simp only [runClosedConfigFromCoins, List.foldl_cons]
-      rw [step_withCoin_repeatUntilBlank_live i body bit c hhalt]
-      exact hrep
+  fun_induction splitUntilHalted body c coins with
+  | case1 => -- no coins
+    simp only [List.nil_append, runClosedConfigFromCoins, List.foldl_nil, true_or, and_self]
+  | case2 c bit rest hhalt => -- halted
+    simp only [hhalt, List.nil_append, runClosedConfigFromCoins, List.foldl_nil, or_true, and_self]
+  | case3 c bit rest hhalt pair ih => -- running: step, then recurse
+    obtain ⟨happ, hrep, hpost⟩ := ih
+    refine ⟨congrArg (bit :: ·) happ, ?_, hpost⟩
+    simp only [runClosedConfigFromCoins, List.foldl_cons]
+    rw [step_withCoin_repeatUntilBlank_live i body bit c hhalt]
+    exact hrep
 
 /-- With a fixed coin, the blank test on an empty word halts. -/
 theorem step_withCoin_repeatUntilBlank_check_nil (i : Fin k)

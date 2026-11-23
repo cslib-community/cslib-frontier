@@ -498,14 +498,10 @@ def assignOn : List ℕ → List Bool → (ℕ → Bool) → ℕ → Bool
 
 private theorem assignOn_of_not_mem {ks : List ℕ} {j : ℕ} (h : j ∉ ks) (bs : List Bool)
     (d : ℕ → Bool) : assignOn ks bs d j = d j := by
-  induction ks generalizing bs with
-  | nil => cases bs <;> rfl
-  | cons k ks ih =>
-    cases bs with
-    | nil => rfl
-    | cons b bs =>
-      simp only [List.mem_cons, not_or] at h
-      simp [assignOn, h.1, ih h.2]
+  fun_induction assignOn ks bs d j with
+  | case1 => exact absurd List.mem_cons_self h -- j = k
+  | case2 k ks b bs d j hjk ih => exact ih (mt (List.mem_cons_of_mem k) h) -- j ≠ k: recurse
+  | case3 => rfl -- a list is exhausted
 
 private theorem assignOn_congr {ks : List ℕ} {bs : List Bool} {j : ℕ} (h : j ∈ ks)
     (hl : ks.length ≤ bs.length) (d d' : ℕ → Bool) : assignOn ks bs d j = assignOn ks bs d' j := by
