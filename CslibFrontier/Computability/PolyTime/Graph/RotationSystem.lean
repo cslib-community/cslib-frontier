@@ -145,16 +145,18 @@ theorem range_binary :
     (ComputableInPolyTime.map ComputableInPolyTime.unary_to_binary).comp
       ComputableInPolyTime.range
 
-/-- Enumerating `List.range (n x)` with binary-encoded entries from a computed unary count. -/
-@[fun_prop] theorem range_binary' {α : Type} {enc : α ↪ List Bool} {n : α → ℕ}
+/-- Enumerating `List.range (n x)` with binary-encoded entries from a computed unary count,
+scoped to `Cslib.Complexity.Graph.RotationCertificate` so unary `List.range` callers incur no
+extra `fun_prop` search branch. -/
+@[scoped fun_prop] theorem range_binary' {α : Type} {enc : α ↪ List Bool} {n : α → ℕ}
     (hn : ComputableInPolyTime n enc encUnary) :
     ComputableInPolyTime (fun x => List.range (n x)) enc (encList encNat) := by
   simpa only [Function.comp_def] using range_binary.comp hn
 
 /-- Testing whether a computed list enumerates every vertex of another computed list once is
 native polynomial-time. -/
-@[fun_prop] theorem computableInPolyTime_enumeratesBool_comp {α : Type} {enc : α ↪ List Bool}
-    {V p : α → List ℕ}
+@[fun_prop] theorem _root_.Cslib.Complexity.Graph.computableInPolyTime_enumeratesBool_comp
+    {α : Type} {enc : α ↪ List Bool} {V p : α → List ℕ}
     (hV : ComputableInPolyTime V enc (encList encNat))
     (hp : ComputableInPolyTime p enc (encList encNat)) :
     ComputableInPolyTime (fun x => enumeratesBool (V x) (p x)) enc encBool := by

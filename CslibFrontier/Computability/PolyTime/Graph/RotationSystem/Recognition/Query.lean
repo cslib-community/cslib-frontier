@@ -142,27 +142,11 @@ private theorem moveLabels_polyTime' {α : Type} {enc : α ↪ List Bool}
     ComputableInPolyTime (fun x => moveLabels (n x) (i x) (e x) (f x)) enc (encList encNat) := by
   simpa only [Function.comp_def] using moveLabels_polyTime.comp ((hn.prod hi).prod (he.prod hf))
 
-private theorem between_polyTime : ComputableInPolyTime
-    (fun p : (List ℕ × (ℕ × ℕ)) × ℕ => between p.1.1 p.1.2 p.2)
-    (encPair (encPair (encList encNat) (encPair encNat encNat)) encNat) encBool := by
-  unfold between
-  fun_prop
-
-private theorem between_polyTime' {α : Type} {enc : α ↪ List Bool}
-    {order : α → List ℕ} {e : α → ℕ × ℕ} {v : α → ℕ}
-    (ho : ComputableInPolyTime order enc (encList encNat))
-    (he : ComputableInPolyTime e enc (encPair encNat encNat))
-    (hv : ComputableInPolyTime v enc encNat) :
-    ComputableInPolyTime (fun x => between (order x) (e x) (v x)) enc encBool := by
-  simpa only [Function.comp_def] using between_polyTime.comp ((ho.prod he).prod hv)
-
-attribute [local fun_prop] between_polyTime'
-
 private theorem crossing_polyTime : ComputableInPolyTime
     (fun p : (List ℕ × (ℕ × ℕ)) × (ℕ × ℕ) => crossing p.1.1 p.1.2 p.2)
     (encPair (encPair (encList encNat) (encPair encNat encNat)) (encPair encNat encNat))
     encBool := by
-  unfold crossing
+  unfold crossing between
   fun_prop
 
 private theorem crossing_polyTime' {α : Type} {enc : α ↪ List Bool}
@@ -208,12 +192,5 @@ theorem compile_polyTime :
 existing certified sparse Gaussian elimination. No topological criterion is used. -/
 theorem query_polyTime : ComputableInPolyTime query encFixedRotationInput encBool :=
   validate_polyTime.bool_and' (XORSAT.computableInPolyTime_solve.comp compile_polyTime)
-
-/-- Evaluating the native parity query on a computed fixed/free rotation input is
-native polynomial-time. -/
-@[fun_prop] theorem query_polyTime' {α : Type} {enc : α ↪ List Bool}
-    {I : α → FixedRotationInput} (hI : ComputableInPolyTime I enc encFixedRotationInput) :
-    ComputableInPolyTime (fun x => query (I x)) enc encBool := by
-  simpa only [Function.comp_def] using query_polyTime.comp hI
 
 end Cslib.Complexity.Graph.RotationRecognition

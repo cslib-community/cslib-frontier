@@ -4,9 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Erik Demaine
 -/
 
+module
 -- upstream: candidate
 
 import CslibFrontier.Computability.PolyTime.Graph.RotationSystem
+
+set_option linter.privateModule false
 
 /-! # Finite rotation and componentwise Euler regression cases -/
 

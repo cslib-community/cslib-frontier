@@ -291,11 +291,9 @@ recognizer on a bare instance. -/
     (encV : V ↪ List Bool) :
     ComputableInPolyTime (fun p : CSP Rel V × Graph.RotationCertificate =>
       verifyRotationCertificate p.1 p.2) (encCSPRotationCertificate encRel encV) encBool := by
-  unfold verifyRotationCertificate
-  refine ComputableInPolyTime.bool_and' ?_ (computableInPolyTime_verifyArgumentOrder encRel encV)
-  have hg := (computableInPolyTime_incidenceGraph encRel encV).comp
-    (ComputableInPolyTime.fst (encCSP encRel encV) Graph.encRotationCertificate)
-  unfold encCSPRotationCertificate
+  have hg := computableInPolyTime_incidenceGraph encRel encV
+  have ho := computableInPolyTime_verifyArgumentOrder encRel encV
+  unfold verifyRotationCertificate encCSPRotationCertificate at ho ⊢
   fun_prop
 
 end Cslib.Complexity.CSP
