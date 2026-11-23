@@ -137,7 +137,9 @@ network. Subsequent calls only pass the lookup to the older trace. -/
         retained f f.vertices + origin.index]?).map Prod.snd
     else older.birthDescriptor origin
 
-private theorem retained_eq_count {f : Frame} {rows : ℕ}
+/-- When a frame has the exact parent size and matching labels, its retained prefix rank
+equals the count in the actual native child's group word. -/
+theorem retained_eq_count {f : Frame} {rows : ℕ}
     {D : DescribedNetwork (VertexDesc T)}
     {packing : (List (List ℕ) × List (List ℕ)) × ℕ × List (ℕ × ℕ)}
     (hsize : f.vertices = D.vertices.length)

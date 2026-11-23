@@ -16,6 +16,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Wor
 
 Each child receives the designated tape at the same cursor, even when their tape counts and
 designated tape numbers differ. A universal state checks both child verdicts in one extra step.
+`rewind_spec` prepares a stored word for a child that starts at its first cell, charging the
+cursor rewind separately and preserving the host input.
 -/
 
 public section
@@ -41,6 +43,21 @@ theorem start_eq_workTape {k : ℕ} {S : Type} (atm : MultiTapeATM (k + 2) Bool 
       simp [start, WordGameLeaf.config, blank, WorkTapePredicate.config, tapesCfg, hi]
   · funext i
     simp [start, WordGameLeaf.config, blank, WorkTapePredicate.config, tapesCfg]
+
+/-- Prepend a physical rewind to a machine on one stored word. The same word and host input
+reach the child at cursor zero, and the complete added clock is the original cursor plus two. -/
+theorem rewind_spec {K : ℕ} {S : Type} (src : Fin K) (leaf : MultiTapeATM K Bool S)
+    (host word : List Bool) (pos t : ℕ) (hpos : pos ≤ word.length)
+    (hhalt : leaf.HaltsWithin t (start src leaf host word 0)) :
+    let atm := prependTM (rewind src) leaf
+    let cfg := start src atm host word pos
+    atm.HaltsWithin (pos + 2 + t) cfg ∧
+      (atm.AcceptsWithin (pos + 2 + t) cfg ↔
+        leaf.AcceptsWithin t (start src leaf host word 0)) := by
+  have hr := runs_rewind src word (blank K host) pos hpos
+  exact prependTM_spec (rewind src) leaf
+    (WordGameLeaf.config src none word pos (blank K host))
+    (WordGameLeaf.config src none word 0 (blank K host)) (pos + 2) t hr.1 hhalt
 
 private theorem view_start {k K : ℕ} {S : Type} (atm : MultiTapeATM k Bool S)
     (emb : Fin k ↪ Fin K) (src : Fin k) (input word : List Bool) (pos : ℕ) :

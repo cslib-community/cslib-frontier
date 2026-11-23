@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance.Initialize
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.SharedWordFork
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.SkipFrame
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Envelope
 
 /-!
@@ -60,60 +59,19 @@ theorem exists_prepend_work {flags : Public → List Bool} {d : ℕ}
           let time := C * (p.1.raw.length + shortSize p ^ E + 1) + t
           atm.HaltsWithin time start ∧
             (atm.AcceptsWithin time start ↔ leaf.AcceptsWithin t target) := by
-  let emb : Fin K ↪ Fin (K + 1) := Fin.castSuccEmb
-  let i := emb tape
-  let j := Fin.last K
-  have hij : i ≠ j := Fin.castSucc_ne_last _
-  let skip := SkipFrame.machine i
-  let child := leaf.extendTapes emb
-  let stage := prependTM skip child
-  have hnil := (ComputableInDegree.const (encIn := RootBalanceRequest.encInput)
-    (encMid := encBits) ([] : List Bool)).inO_one.comp_linear hd
-  obtain ⟨U, src, Q, hQ, atm, c, h⟩ := TwoWordLoad.exists_load_from hd hnil i j hij stage
+  obtain ⟨U, src, Q, hQ, atm, c, h⟩ := FramedPrefixInput.exists_prepend_work hd tape leaf
   obtain ⟨C, E, hc⟩ := rewind_clock c d
   refine ⟨U, src, Q, hQ, atm, C, E, ?_⟩
   intro host p pos hpos t
   dsimp only
   intro hh
-  let pre := frame (encPublic p)
-  let word := pre ++ flags p
-  let start := TwoWordInput.ready i j host word []
-  let finish : Cfg (K + 1) Bool Unit host := {start with
-    workTapePos := Function.update start.workTapePos i (pre.length : ℤ)}
-  have hs : skip.runFrom (start.withState (some skip.q₀)) pre.length = finish.withState none :=
-    SkipFrame.runFrom i (encPublic p) (flags p) start
-      (by simp [start, TwoWordInput.ready, TwoWordInput.words, wordsCfg, word, pre]) rfl
-  have hv : viewCfg emb (finish.withState (some child.toPTM.initial)) =
-      WordGameLeaf.config tape (some leaf.toPTM.initial) word pre.length
-        (TwoWordLoad.blank K host) := by
-    apply Cfg.ext <;> try rfl
-    · funext l z
-      by_cases hl : l = tape
-      · subst l
-        simp [finish, start, TwoWordInput.ready, TwoWordInput.words, wordsCfg, viewCfg,
-          Cfg.withState, WordGameLeaf.config, i]
-      · simp [finish, start, TwoWordInput.ready, TwoWordInput.words, wordsCfg, viewCfg,
-          Cfg.withState, WordGameLeaf.config, i, hl, TwoWordLoad.blank,
-          tapesCfg]
-    · funext l
-      by_cases hl : l = tape <;>
-        simp [finish, start, TwoWordInput.ready, wordsCfg, viewCfg, Cfg.withState,
-          WordGameLeaf.config, i, hl, TwoWordLoad.blank, tapesCfg]
-  have ht : child.HaltsWithin t (finish.withState (some child.toPTM.initial)) :=
-    (leaf.haltsWithin_extendTapes_iff emb t _).2 (hv ▸ hh)
-  obtain ⟨hs', ha⟩ := prependTM_spec skip child start finish pre.length t hs ht
-  obtain ⟨hh', hacc⟩ := h host p pos hpos _ hs'
-  have hb : pos + c * (p.1.raw.length + shortSize p ^ d + 1) + 8 + (pre.length + t) ≤
+  obtain ⟨hh', ha⟩ := h host p pos hpos t hh
+  have hb : pos + c * (p.1.raw.length + shortSize p ^ d + 1) + 8 +
+      ((frame (encPublic p)).length + t) ≤
       C * (p.1.raw.length + shortSize p ^ E + 1) + t := by
     have hz := hc p
-    change _ + pre.length ≤ _ at hz
     omega
-  have hac : child.AcceptsWithin t (finish.withState (some child.toPTM.initial)) ↔
-      leaf.AcceptsWithin t (WordGameLeaf.config tape (some leaf.toPTM.initial)
-        word pre.length (TwoWordLoad.blank K host)) := by
-    exact (leaf.acceptsWithin_extendTapes_iff emb t _).trans (by rw [hv])
-  have hiff := hacc.trans (ha.trans hac)
-  exact ⟨hh'.mono hb, ⟨fun hx => hiff.mp (hx.of_halted_stepCoins hh'),
-    fun hx => (hiff.mpr hx).mono hb⟩⟩
+  exact ⟨hh'.mono hb, ⟨fun hx => ha.mp (hx.of_halted_stepCoins hh'),
+    fun hx => (ha.mpr hx).mono hb⟩⟩
 
 end Turing.MultiTapeATM.RootPackingBalance.Initialize

@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.QuantifiedWord
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TwoWordLoad
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TwoWordPredicate
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.FramedPrefixInput
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.QuantifiedWord.Fields
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Bounds
 
@@ -27,6 +29,8 @@ for the two-word checker. Its input context is preserved throughout all quantifi
   arbitrary runtime flag word, with the input context on a separate protected tape.
 * `Turing.MultiTapeATM.QuantifiedWord.exists_evaluator`: construct the flags and evaluate the
   quantified program from one stored encoded input, with a complete polynomial clock.
+* `Turing.MultiTapeATM.QuantifiedWord.exists_of_terminal`: prepare flags from a stored input and
+  invoke a supplied alternating terminal once per branch, preserving both clock components.
 -/
 
 public section
@@ -176,5 +180,41 @@ theorem exists_evaluator {α : Type} (enc : α ↪ List Bool) (players : α → 
   have htime := hbound a
   exact ⟨h.1.mono htime, ⟨fun hacc => he.2.mp (h.2.mp (hacc.of_halted_stepCoins h.1)),
     fun hacc => (h.2.mpr (he.2.mpr hacc)).mono htime⟩⟩
+
+/-- Prepare a flag word from one stored input and run any finite alternating terminal on the
+completed encoded pair. The terminal budget is charged once, independently of the quantifier
+pattern. This version preserves a sharp native preparation clock instead of replacing it by a
+polynomial in the full context length. -/
+theorem exists_of_terminal {α : Type} {enc : α ↪ List Bool} {flags : α → List Bool}
+    {T : α → ℕ}
+    (hflags : ComputableInO (fun a => (a, flags a)) enc (encPair enc encBits) T T)
+    {K : ℕ} {S : Type} [Finite S] (source : Fin K) (terminal : MultiTapeATM K Bool S) :
+    ∃ (U : ℕ) (src : Fin U) (Q : Type) (_ : Finite Q) (atm : MultiTapeATM U Bool Q) (c : ℕ),
+      ∀ (host : List Bool) (a : α) (pos : ℕ), pos ≤ (enc a).length →
+        ∀ (t : ℕ) (P : List Bool → Prop),
+        (∀ xs, xs.length = (flags a).length →
+          let word := encPair enc encBits (a, xs)
+          let cfg := SharedWordFork.start source terminal host word word.length
+          terminal.HaltsWithin t cfg ∧ (terminal.AcceptsWithin t cfg ↔ P xs)) →
+        let start := SharedWordFork.start src atm host (enc a) pos
+        let time := pos + c * (T a + 1) + 8 +
+          ((frame (enc a)).length + (t + 2 * (flags a).length + 1))
+        atm.HaltsWithin time start ∧ (atm.AcceptsWithin time start ↔ plays P [] (flags a)) := by
+  let game := machine terminal source
+  obtain ⟨U, src, Q, hQ, atm, c, hprepare⟩ :=
+    FramedPrefixInput.exists_prepend_work hflags source game
+  refine ⟨U, src, Q, hQ, atm, c, ?_⟩
+  intro host a pos hpos t P hterminal
+  let pre := frame (enc a)
+  have hgame := spec terminal source t (TwoWordLoad.blank K host)
+    (fun word => P (word.drop pre.length)) pre (flags a) (by
+      intro xs hxs
+      have ht := hterminal xs hxs
+      simpa only [encPair_apply, encBits_apply, List.drop_left, SharedWordFork.start] using ht)
+  rw [← machine_initial terminal source] at hgame
+  have hp := hprepare host a pos hpos _ hgame.1
+  have hplay := plays_append_prefix (fun word => P (word.drop pre.length)) pre [] (flags a)
+  simp only [List.append_nil, List.drop_left] at hplay
+  exact ⟨hp.1, hp.2.trans (hgame.2.trans hplay)⟩
 
 end Turing.MultiTapeATM.QuantifiedWord

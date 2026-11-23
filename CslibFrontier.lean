@@ -3572,6 +3572,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.DescendantEndpointGround
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.DescendantEndpointTerminal
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.DescendantEndpointTime
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.DescendantPorts
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.DescendantVertex
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Deterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.DeterministicPhase
@@ -3590,6 +3591,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.NewtonCorrection
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.NewtonProduct
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.OuterRootLeafRunner
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.PortAssignment
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Prepend
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ProtectedWordGame
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.QuantifiedWord
@@ -3663,9 +3665,13 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ConcreteSupplier
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ConcreteSupplierCorrect
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ConcreteSupplierSpace
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantBirth
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantBirthTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantEndpoint
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantEndpointBounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantEndpointCorrect
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantPorts
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantPortsInput
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantVertex
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantVertexCorrect
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantVertexGame
@@ -3714,6 +3720,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.OuterSearchCorrect
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.OuterSearchParameters
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.OuterSearchSpace
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.PortAssignment
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplay
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplayAccess
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplayAssignments
@@ -3825,6 +3832,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Transducer.Copy
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.ZipTransducer
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.BinarySlice
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Bounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Cases
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
@@ -3998,6 +4006,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Lex
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List.AdjacentTrace
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List.Pairwise
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List.Sublist
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.ListsUpTo
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Matrix.Binary

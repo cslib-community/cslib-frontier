@@ -7,7 +7,7 @@ Authors: Sam McGuire
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.WordGameLeaf
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.SharedWordFork
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Prepend
@@ -24,7 +24,8 @@ import Mathlib.Data.Fin.Tuple.Embedding
 A deterministic machine computes the encoded pair of the public data and its suffix word.
 Output redirection places the pair on one chosen work tape. After restoring the external input
 head to its left blank, a two-state machine skips the frame. The continuation then owns exactly
-its chosen work tape, initially positioned at the suffix.
+its chosen work tape, initially positioned at the suffix. The stored-input version preserves
+an arbitrary host input and charges its source rewind separately.
 -/
 
 public section
@@ -132,5 +133,71 @@ theorem exists_prepend {α : Type} {enc : α ↪ List Bool} {suffix : α → Lis
     rwa [MultiTapeATM.acceptsWithin_extendTapes_iff, hv'] at ha
   · apply (h.2.mpr ?_).mono hb
     rwa [MultiTapeATM.acceptsWithin_extendTapes_iff, hv']
+
+/-- Compute a framed context and suffix from one stored word, then start a continuation at
+its first suffix cell. The native preparation clock is retained, and the original cursor's
+rewind and the new frame's scan are charged explicitly. The host input is preserved. -/
+theorem exists_prepend_work {α : Type} {enc : α ↪ List Bool} {suffix : α → List Bool}
+    {T : α → ℕ}
+    (hd : ComputableInO (fun a => (a, suffix a)) enc (encPair enc encBits) T T)
+    {K : ℕ} {L : Type} [Finite L] (tape : Fin K) (leaf : MultiTapeATM K Bool L) :
+    ∃ (U : ℕ) (src : Fin U) (Q : Type) (_ : Finite Q) (atm : MultiTapeATM U Bool Q) (c : ℕ),
+      ∀ (host : List Bool) (p : α) (pos : ℕ), pos ≤ (enc p).length → ∀ (t : ℕ),
+        let pre := frame (enc p)
+        let target := WordGameLeaf.config tape (some leaf.toPTM.initial)
+          (pre ++ suffix p) pre.length (TwoWordLoad.blank K host)
+        let start := SharedWordFork.start src atm host (enc p) pos
+        leaf.HaltsWithin t target →
+          let time := pos + c * (T p + 1) + 8 + (pre.length + t)
+          atm.HaltsWithin time start ∧
+            (atm.AcceptsWithin time start ↔ leaf.AcceptsWithin t target) := by
+  let emb : Fin K ↪ Fin (K + 1) := Fin.castSuccEmb
+  let i := emb tape
+  let j := Fin.last K
+  have hij : i ≠ j := Fin.castSucc_ne_last _
+  let skip := SkipFrame.machine i
+  let child := leaf.extendTapes emb
+  let stage := prependTM skip child
+  have hnil := (ComputableInDegree.const (encIn := (encPair enc encBits))
+    (encMid := encBits) ([] : List Bool)).inO_one.comp_linear hd
+  obtain ⟨U, src, Q, hQ, atm, c, h⟩ := TwoWordLoad.exists_load_from hd hnil i j hij stage
+  refine ⟨U, src, Q, hQ, atm, c, ?_⟩
+  intro host p pos hpos t
+  dsimp only
+  intro hh
+  let pre := frame (enc p)
+  let word := pre ++ suffix p
+  let start := TwoWordInput.ready i j host word []
+  let finish : Cfg (K + 1) Bool Unit host := {start with
+    workTapePos := Function.update start.workTapePos i (pre.length : ℤ)}
+  have hs : skip.runFrom (start.withState (some skip.q₀)) pre.length = finish.withState none :=
+    SkipFrame.runFrom i (enc p) (suffix p) start
+      (by simp [start, TwoWordInput.ready, TwoWordInput.words, wordsCfg, word, pre]) rfl
+  have hv : viewCfg emb (finish.withState (some child.toPTM.initial)) =
+      WordGameLeaf.config tape (some leaf.toPTM.initial) word pre.length
+        (TwoWordLoad.blank K host) := by
+    apply Cfg.ext <;> try rfl
+    · funext l z
+      by_cases hl : l = tape
+      · subst l
+        simp [finish, start, TwoWordInput.ready, TwoWordInput.words, wordsCfg, viewCfg,
+          Cfg.withState, WordGameLeaf.config, i]
+      · simp [finish, start, TwoWordInput.ready, TwoWordInput.words, wordsCfg, viewCfg,
+          Cfg.withState, WordGameLeaf.config, i, hl, TwoWordLoad.blank,
+          tapesCfg]
+    · funext l
+      by_cases hl : l = tape <;>
+        simp [finish, start, TwoWordInput.ready, wordsCfg, viewCfg, Cfg.withState,
+          WordGameLeaf.config, i, hl, TwoWordLoad.blank, tapesCfg]
+  have ht : child.HaltsWithin t (finish.withState (some child.toPTM.initial)) :=
+    (leaf.haltsWithin_extendTapes_iff emb t _).2 (hv ▸ hh)
+  obtain ⟨hs', ha⟩ := prependTM_spec skip child start finish pre.length t hs ht
+  obtain ⟨hh', hacc⟩ := h host p pos hpos _ hs'
+  have hac : child.AcceptsWithin t (finish.withState (some child.toPTM.initial)) ↔
+      leaf.AcceptsWithin t (WordGameLeaf.config tape (some leaf.toPTM.initial)
+        word pre.length (TwoWordLoad.blank K host)) := by
+    exact (leaf.acceptsWithin_extendTapes_iff emb t _).trans (by rw [hv])
+  have hiff := hacc.trans (ha.trans hac)
+  exact ⟨hh', hiff⟩
 
 end Turing.MultiTapeATM.FramedPrefixInput

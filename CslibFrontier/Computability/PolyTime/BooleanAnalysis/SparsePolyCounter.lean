@@ -17,6 +17,7 @@ public import CslibFrontier.Computability.PolyTime.FineGrained.ParameterCheck
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseReplacementDesign
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List.Pairwise
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -110,12 +111,11 @@ def checkVarsLt (n : ℕ) (sys : List (List (List ℕ))) : Bool :=
 
 /-- Check that a monomial `m : List ℕ` is strictly increasing (`IsCanonicalMonomial m`). -/
 def checkCanonicalMonomial (m : List ℕ) : Bool :=
-  (List.range m.length).all fun i => (List.range i).all fun j => decide (m.getD j 0 < m.getD i 0)
+  decide (m.Pairwise (· < ·))
 
 /-- Check that `eq` has duplicate-free strictly increasing monomials (`IsCanonicalEquation eq`). -/
 def checkCanonicalEquation (eq : List (List ℕ)) : Bool :=
-  ((List.range eq.length).all fun i => (List.range i).all fun j =>
-    !decide (eq.getD j [] = eq.getD i [])) && eq.all checkCanonicalMonomial
+  decide eq.Nodup && eq.all checkCanonicalMonomial
 
 /-- Check that every equation in `sys` satisfies `IsCanonicalEquation`. -/
 def checkCanonicalSystem (sys : List (List (List ℕ))) : Bool := sys.all checkCanonicalEquation
@@ -353,22 +353,12 @@ theorem checkVarsLt_eq_true_iff {n : ℕ} {sys : List (List (List ℕ))} :
 
 theorem checkCanonicalMonomial_eq_true_iff {m : List ℕ} :
     checkCanonicalMonomial m = true ↔ IsCanonicalMonomial m := by
-  unfold checkCanonicalMonomial IsCanonicalMonomial; rw [List.pairwise_iff_getElem]
-  simp only [List.all_eq_true, List.mem_range, decide_eq_true_eq]
-  refine ⟨fun h j i hj hi hji => ?_, fun h i hi j hji => ?_⟩
-  · simpa only [List.getD_eq_getElem m 0 hj, List.getD_eq_getElem m 0 hi] using h i hi j hji
-  · rw [List.getD_eq_getElem m 0 (lt_trans hji hi), List.getD_eq_getElem m 0 hi]
-    exact h j i (lt_trans hji hi) hi hji
+  simp only [checkCanonicalMonomial, IsCanonicalMonomial, decide_eq_true_eq]
 
 theorem checkCanonicalEquation_eq_true_iff {eq : List (List ℕ)} :
     checkCanonicalEquation eq = true ↔ IsCanonicalEquation eq := by
-  unfold checkCanonicalEquation IsCanonicalEquation; rw [List.Nodup, List.pairwise_iff_getElem]
-  simp only [Bool.and_eq_true, List.all_eq_true, List.mem_range, Bool.not_eq_true',
-    decide_eq_false_iff_not, checkCanonicalMonomial_eq_true_iff]
-  refine and_congr_left fun _ => ⟨fun h j i hj hi hji => ?_, fun h i hi j hji => ?_⟩
-  · simpa only [List.getD_eq_getElem eq [] hj, List.getD_eq_getElem eq [] hi] using h i hi j hji
-  · rw [List.getD_eq_getElem eq [] (lt_trans hji hi), List.getD_eq_getElem eq [] hi]
-    exact h j i (lt_trans hji hi) hi hji
+  simp only [checkCanonicalEquation, IsCanonicalEquation, Bool.and_eq_true,
+    decide_eq_true_eq, List.all_eq_true, checkCanonicalMonomial_eq_true_iff]
 
 theorem checkCanonicalSystem_eq_true_iff {sys : List (List (List ℕ))} :
     checkCanonicalSystem sys = true ↔ ∀ eq ∈ sys, IsCanonicalEquation eq := by
@@ -631,25 +621,17 @@ theorem computableInPolyTime_checkVarsLt :
     (snd (encPair encUnary encSys) encEq))) id' (snd encUnary encSys)
 
 private theorem computableInPolyTime_checkCanonicalMonomial :
-    ComputableInPolyTime checkCanonicalMonomial (encList encNat) encBool := by
-  let encM := encList encNat; let encP1 := encPair encM encUnary
-  have hget := listGetD (encA := encNat) (encL := encM) 0; have hfst := (fst encP1 encUnary).fst'
-  have h1 := hget.comp' (hfst.prod (snd encP1 encUnary))
-  have h2 := hget.comp' (hfst.prod (fst encP1 encUnary).snd')
-  have hr1 := range.comp' (snd encM encUnary); have hr0 := range.comp' (length_list encNat)
-  exact allWithEncoding (allWithEncoding (binary_lt' h1 h2) id' hr1) id' hr0
+    ComputableInPolyTime checkCanonicalMonomial (encList encNat) encBool :=
+  ComputableInPolyTime.pairwise encNat (· < ·) binary_lt
 
 private theorem computableInPolyTime_checkCanonicalEquation :
     ComputableInPolyTime checkCanonicalEquation (encList (encList encNat)) encBool := by
-  let encM := encList encNat; let encEq := encList encM; let encP1 := encPair encEq encUnary
-  have hget := listGetD (encA := encM) (encL := encEq) []; have hfst := (fst encP1 encUnary).fst'
-  have h1 := hget.comp' (hfst.prod (snd encP1 encUnary))
-  have h2 := hget.comp' (hfst.prod (fst encP1 encUnary).snd')
-  have hneq := bool_not.comp' (decide_eq' h1 h2); have hr1 := range.comp' (snd encEq encUnary)
-  have hr0 := range.comp' (length_list encM)
-  have hmon := computableInPolyTime_checkCanonicalMonomial.comp' (snd encEq encM)
-  exact bool_and' (allWithEncoding (allWithEncoding hneq id' hr1) id' hr0)
-    (allWithEncoding hmon id' id')
+  let encM := encList encNat
+  have hne : ComputableInPolyTime (fun p : List ℕ × List ℕ => decide (p.1 ≠ p.2))
+      (encPair encM encM) encBool := decide_not (decide_eq' (fst _ _) (snd _ _))
+  have hnodup := ComputableInPolyTime.pairwise encM (· ≠ ·) hne
+  exact bool_and' hnodup (allWithEncoding
+    (computableInPolyTime_checkCanonicalMonomial.comp (snd (encList encM) encM)) id' id')
 
 @[fun_prop]
 theorem computableInPolyTime_checkCanonicalSystem :
