@@ -1529,10 +1529,6 @@ theorem WExec.Inv.dropMarks {S : WExec φ} (h : S.Inv) : S.dropMarks.Inv :=
 
 /-! ### The backjump on the arrays of the trail -/
 
-/-- The variable of a literal is its key halved, and its sign the low bit. -/
-theorem litCode_mod_two (l : Literal ℕ) : (litCode l % 2 == 1) = l.2 :=
-  congrArg Prod.snd (litOfKey_litCode l)
-
 /-- The marks for the backjump, read from the arrays of the trail: `jumpMarks` of the split at the
 newest decision `p` (`jumpMarksAt_eq`). -/
 @[expose] def jumpMarksAt {log : LRATLog φ} (T : ATrail) (p : ℕ)
@@ -1549,49 +1545,6 @@ theorem jumpMarksAt_eq {log : LRATLog φ} (T : ATrail) (p : ℕ)
     litCode_div_two]
   rfl
 
-/-- Unassigning the variables of the entries from position `q` up, read from the arrays:
-`Assign.unassignEntries` of them (`ATrail.unassignFrom_eq`). -/
-@[expose] def ATrail.unassignFrom (T : ATrail) (q : ℕ) (A : Assign) : Assign :=
-  T.foldDown (fun A c _ => A.clear (c / 2)) q (T.size - q) A
-
-theorem ATrail.unassignFrom_eq (T : ATrail) (q : ℕ) (A : Assign) :
-    T.unassignFrom q A = A.unassignEntries (T.seg q (T.size - q)) := by
-  simp only [unassignFrom, foldDown_eq, Assign.unassignEntries, litCode_div_two]
-
-/-- `reorderedWith` of the entries from position `q` up, read from the arrays. -/
-@[expose] def reorderedFrom (o : Options) (H : VarOrder) (A : Activity) (T : ATrail) (q : ℕ) :
-    VarOrder :=
-  if o.vsids then T.foldDown (fun H c _ => H.insert A (c / 2)) q (T.size - q) H else H
-
-theorem reorderedFrom_eq (o : Options) (H : VarOrder) (A : Activity) (T : ATrail) (q : ℕ) :
-    reorderedFrom o H A T q = reorderedWith o H A (T.seg q (T.size - q)) := by
-  simp only [reorderedFrom, reorderedWith, ATrail.foldDown_eq, litCode_div_two]
-
-/-- `savedWith` of the entries from position `q` up, read from the arrays. -/
-@[expose] def savedFrom (o : Options) (P : Phases) (T : ATrail) (q : ℕ) : Phases :=
-  if o.phaseSaving then T.foldDown (fun P c _ => P.set (c / 2) (c % 2 == 1)) q (T.size - q) P
-  else P
-
-theorem savedFrom_eq (o : Options) (P : Phases) (T : ATrail) (q : ℕ) :
-    savedFrom o P T q = savedWith o P (T.seg q (T.size - q)) := by
-  simp only [savedFrom, savedWith, ATrail.foldDown_eq, Phases.saveEntries, litCode_div_two,
-    litCode_mod_two]
-
-/-- The decisions among the entries from position `q` up, counted on the arrays. -/
-@[expose] def ATrail.decisionsFrom (T : ATrail) (q : ℕ) : ℕ :=
-  T.foldDown (fun n _ r => if r == 0 then n + 1 else n) q (T.size - q) 0
-
-private theorem foldl_countDecisions : ∀ (U : XTrail) (k : ℕ),
-    U.foldl (fun n e => if e.rsnCode == 0 then n + 1 else n) k = k + U.countP XEntry.isDecision
-  | [], _ => rfl
-  | e :: U, k => by
-    rw [List.foldl_cons, foldl_countDecisions U, List.countP_cons]
-    cases e <;> simp [XEntry.rsnCode, XEntry.isDecision]; omega
-
-theorem ATrail.decisionsFrom_eq (T : ATrail) (q : ℕ) :
-    T.decisionsFrom q = (T.seg q (T.size - q)).countP XEntry.isDecision := by
-  rw [decisionsFrom, foldDown_eq, foldl_countDecisions, Nat.zero_add]
-
 /-- What undoing the entries of a backjump leaves (`ATrail.undoGo`). -/
 structure Undone where
   /-- The assignment with the variables undone unassigned. -/
@@ -1605,8 +1558,8 @@ structure Undone where
 
 /-- **Undoing the `k` entries from position `lo` up**, newest first, in one loop over the arrays:
 their variables are unassigned, put back in the variable order with VSIDS, their phases saved with
-phase saving, and the decisions among them counted. Each part is the fold of its own
-(`ATrail.undoGo_assign`, `ATrail.undoGo_order`, `ATrail.undoGo_phase`,
+phase saving, and the decisions among them counted. Each part is the backjump's operation on the
+entries `T.seg lo k` (`ATrail.undoGo_assign`, `ATrail.undoGo_order`, `ATrail.undoGo_phase`,
 `ATrail.undoGo_decisions`). -/
 @[expose] def ATrail.undoGo (T : ATrail) (o : Options) (act : Activity) (lo : ℕ) :
     ℕ → Assign → VarOrder → Phases → ℕ → Undone
@@ -1619,34 +1572,44 @@ phase saving, and the decisions among them counted. Each part is the fold of its
 
 theorem ATrail.undoGo_assign (T : ATrail) (o : Options) (act : Activity) (lo : ℕ) :
     ∀ (k : ℕ) (A : Assign) (H : VarOrder) (P : Phases) (n : ℕ),
-      (T.undoGo o act lo k A H P n).assign = T.foldDown (fun A c _ => A.clear (c / 2)) lo k A
+      (T.undoGo o act lo k A H P n).assign = A.unassignEntries (T.seg lo k)
   | 0, _, _, _, _ => rfl
-  | k + 1, A, H, P, n => by rw [undoGo, ATrail.undoGo_assign T o act lo k]; rfl
+  | k + 1, A, H, P, n => by
+    rw [undoGo, ATrail.undoGo_assign T o act lo k, seg_succ, Assign.unassignEntries,
+      Assign.unassignEntries, List.foldl_cons, entry_lit]
+    rfl
 
 theorem ATrail.undoGo_order (T : ATrail) (o : Options) (act : Activity) (lo : ℕ) :
     ∀ (k : ℕ) (A : Assign) (H : VarOrder) (P : Phases) (n : ℕ),
-      (T.undoGo o act lo k A H P n).order =
-        if o.vsids then T.foldDown (fun H c _ => H.insert act (c / 2)) lo k H else H
-  | 0, _, _, _, _ => by split <;> rfl
+      (T.undoGo o act lo k A H P n).order = reorderedWith o H act (T.seg lo k)
+  | 0, _, _, _, _ => by unfold reorderedWith; split <;> rfl
   | k + 1, A, H, P, n => by
-    rw [undoGo, ATrail.undoGo_order T o act lo k]
-    cases o.vsids <;> rfl
+    rw [undoGo, ATrail.undoGo_order T o act lo k, seg_succ]
+    unfold reorderedWith
+    cases o.vsids
+    · rfl
+    · rw [List.foldl_cons, entry_lit]; rfl
 
 theorem ATrail.undoGo_phase (T : ATrail) (o : Options) (act : Activity) (lo : ℕ) :
     ∀ (k : ℕ) (A : Assign) (H : VarOrder) (P : Phases) (n : ℕ),
-      (T.undoGo o act lo k A H P n).phase =
-        if o.phaseSaving then T.foldDown (fun P c _ => P.set (c / 2) (c % 2 == 1)) lo k P else P
-  | 0, _, _, _, _ => by split <;> rfl
+      (T.undoGo o act lo k A H P n).phase = savedWith o P (T.seg lo k)
+  | 0, _, _, _, _ => by unfold savedWith; split <;> rfl
   | k + 1, A, H, P, n => by
-    rw [undoGo, ATrail.undoGo_phase T o act lo k]
-    cases o.phaseSaving <;> rfl
+    rw [undoGo, ATrail.undoGo_phase T o act lo k, seg_succ]
+    unfold savedWith
+    cases o.phaseSaving
+    · rfl
+    · rw [Phases.saveEntries, Phases.saveEntries, List.foldl_cons, entry_lit]; rfl
 
 theorem ATrail.undoGo_decisions (T : ATrail) (o : Options) (act : Activity) (lo : ℕ) :
     ∀ (k : ℕ) (A : Assign) (H : VarOrder) (P : Phases) (n : ℕ),
-      (T.undoGo o act lo k A H P n).decisions =
-        T.foldDown (fun n _ r => if r == 0 then n + 1 else n) lo k n
+      (T.undoGo o act lo k A H P n).decisions = n + (T.seg lo k).countP XEntry.isDecision
   | 0, _, _, _, _ => rfl
-  | k + 1, A, H, P, n => by rw [undoGo, ATrail.undoGo_decisions T o act lo k]; rfl
+  | k + 1, A, H, P, n => by
+    rw [undoGo, ATrail.undoGo_decisions T o act lo k, seg_succ, List.countP_cons,
+      isDecision_entry]
+    split <;> simp_all
+    omega
 
 /-- **Backjump and Learn with watches**, at the newest decision, at position `p` of the trail: the
 state after the conflict, with the learned clause in the store, watching its asserting literal, or
@@ -1829,8 +1792,7 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
   dsimp only
   rw [show (jumpMarksAt S.exec.tr p L).assigned = jumpMarked (S.exec.tr.splitAt p) L by
       rw [jumpMarksAt_eq]; rfl, ← hqdef, ATrail.undoGo_assign, ATrail.undoGo_order,
-    ← ATrail.unassignFrom, ← reorderedFrom, ATrail.unassignFrom_eq, reorderedFrom_eq, ← hUdef,
-    ← hEdef, Assign.markLits_eq]
+    ← hUdef, ← hEdef, Assign.markLits_eq]
   split
   · rename_i hlen
     obtain ⟨y, rest, hc⟩ : ∃ y rest, L.clause = L.lit :: y :: rest := by
