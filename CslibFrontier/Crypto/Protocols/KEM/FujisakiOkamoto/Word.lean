@@ -15,6 +15,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.St
 public import CslibFrontier.Languages.Probabilistic.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
+import CslibFrontier.Tactic.OptionMatch
 import CslibFrontier.Tactic.PPT
 
 /-!
@@ -335,6 +336,19 @@ theorem isOraclePPTOn_encaps (hP : P.IsEfficient)
   have ⟨hmsgLen, hcoinLen, _, _, hencDet, _⟩ := hP
   ppt [encaps]
 
+@[local fun_prop]
+private theorem isOraclePPTOn_optionElim {α β γ : Type} [Inhabited β]
+    {input : α ↪ List Bool} {encB : β ↪ List Bool} {output : γ ↪ List Bool}
+    {opt : α → Option β} {no : α → WordOracleComp RO γ} {yes : α → β → WordOracleComp RO γ}
+    (hopt : ComputableInPolyTime opt input (encOption encB))
+    (hno : IsOraclePPTOn input output no)
+    (hyes : IsOraclePPTOn (encPair input encB) output (fun p => yes p.1 p.2)) :
+    IsOraclePPTOn input output (fun a => (opt a).elim (no a) (yes a)) := by
+  refine (IsOraclePPTOn.cond (ComputableInPolyTime.optionIsSome hopt)
+    (hyes.preprocess (ComputableInPolyTime.id'.prod
+      (hopt.optionGetDWithInput (.const default)))) hno).congr fun a _ _ _ => ?_
+  cases opt a <;> rfl
+
 /-- Decryption of the bundle, `dec` filtered to messages of length `msgLen n`, as an optional
 elimination. -/
 private noncomputable def toExplicitCoinDec (P : WordPKE) (n : ℕ) (sk c : List Bool) :
@@ -365,6 +379,36 @@ private theorem computableInPolyTime_toExplicitCoinDec (hP : P.IsEfficient)
     exact ComputableInPolyTime.optionElimWithInput hdec (.const none) (by polytime)
   exact hbase.comp (hn.prod (hsk.prod hc))
 
+/-- Shared word-level `T[PKE, G]` derandomized decryption with re-encryption check. -/
+private noncomputable def wordDecTM (P : WordPKE) (n : ℕ) (pk sk c : List Bool) :
+    WordOracleComp RO (Option (List Bool)) :=
+  decTM (P.toExplicitCoin n) (P.queryG n) pk sk c
+
+private theorem decTM_toExplicitCoin (n : ℕ) (pk sk c : List Bool) :
+    decTM (P.toExplicitCoin n) (P.queryG n) pk sk c = wordDecTM P n pk sk c :=
+  rfl
+
+private theorem wordDecTM_eq (n : ℕ) (pk sk c : List Bool) :
+    wordDecTM P n pk sk c =
+      (toExplicitCoinDec P n sk c).elim (return none) fun m' => do
+        let r' ← P.queryG n m'
+        return if P.encDet n pk m' r' = c then some m' else none := by
+  simp only [wordDecTM, decTM, toExplicitCoinDec]
+  cases (P.toExplicitCoin n).dec sk c <;> rfl
+
+@[local fun_prop]
+private theorem isOraclePPTOn_wordDecTM (hP : P.IsEfficient)
+    {α : Type} {input : α ↪ List Bool} {n : α → ℕ} {pk sk c : α → List Bool}
+    (hn : ComputableInPolyTime n input encUnary)
+    (hpk : ComputableInPolyTime pk input encBits)
+    (hsk : ComputableInPolyTime sk input encBits)
+    (hc : ComputableInPolyTime c input encBits) :
+    IsOraclePPTOn input (encOption encBits)
+      (fun a => wordDecTM P (n a) (pk a) (sk a) (c a)) := by
+  simp only [wordDecTM_eq]
+  have ⟨_, hcoinLen, _, _, hencDet, _⟩ := hP
+  ppt
+
 /-- Native `FO-notbot` decapsulation is uniform strict oracle PPT on `(1ⁿ, dk, c)`, for every pair
 of external oracles `G` and `H`. -/
 theorem isOraclePPTOn_decapsNotBot (hP : P.IsEfficient)
@@ -372,37 +416,11 @@ theorem isOraclePPTOn_decapsNotBot (hP : P.IsEfficient)
     IsOraclePPTOn encDecapsNotBotInput (encOption encBits)
       (fun (n, dk, c) => P.decapsNotBot keyLen n dk c) := by
   change IsOraclePPTOn encDecapsNotBotInput _ (fun x => P.decapsNotBot keyLen x.1 x.2.1 x.2.2)
-  have ⟨_, hcoinLen, hctLen, _, hencDet, _⟩ := hP
-  have hall : IsOraclePPTOn encDecapsNotBotInput (encOption encBits)
-      (fun x =>
-        if x.2.2.length ≤ P.ctLen x.1 then
-          if (toExplicitCoinDec P x.1 x.2.1.sk x.2.2).isSome then do
-            let r ← P.queryG x.1 ((toExplicitCoinDec P x.1 x.2.1.sk x.2.2).getD [])
-            if P.encDet x.1 x.2.1.pk ((toExplicitCoinDec P x.1 x.2.1.sk x.2.2).getD []) r =
-                x.2.2 then
-              some <$> queryH keyLen x.1
-                ((toExplicitCoinDec P x.1 x.2.1.sk x.2.2).getD [], x.2.2)
-            else some <$> queryH keyLen x.1 (x.2.1.fallback, x.2.2)
-          else some <$> queryH keyLen x.1 (x.2.1.fallback, x.2.2)
-        else pure none) := by
-    ppt
-  refine hall.congr fun x _ _ _ => ?_
-  obtain ⟨n, dk, c⟩ := x
-  congr 1
-  dsimp only [decapsNotBot]
-  refine if_congr Iff.rfl ?_ rfl
-  rw [Scheme.decapsNotBotM_eq]
-  dsimp only [scheme]
-  cases h : toExplicitCoinDec P n dk.sk c with
-  | none =>
-    rw [show (P.toExplicitCoin n).dec dk.sk c = none from h]
-    rfl
-  | some m =>
-    rw [show (P.toExplicitCoin n).dec dk.sk c = some m from h]
-    simp only [Option.isSome_some, ↓reduceIte, Option.getD_some, toExplicitCoin,
-      ← bind_pure_comp, bind_assoc]
-    congr 1 with r
-    by_cases hc : P.encDet n dk.pk m r = c <;> simp [hc]
+  dsimp only [decapsNotBot, Scheme.decapsNotBotM, scheme]
+  simp only [decTM_toExplicitCoin]
+  option_match_to_elim
+  have ⟨_, _, hctLen, _, _, _⟩ := hP
+  ppt
 
 /-- Native `FO^⊥` decapsulation is uniform strict oracle PPT on `(1ⁿ, pk, sk, c)`, for every pair
 of external oracles `G` and `H`. -/
@@ -411,36 +429,11 @@ theorem isOraclePPTOn_decapsBot (hP : P.IsEfficient)
     IsOraclePPTOn encDecapsBotInput (encOption encBits)
       (fun (n, pk, sk, c) => P.decapsBot keyLen n pk sk c) := by
   change IsOraclePPTOn encDecapsBotInput _ (fun x => P.decapsBot keyLen x.1 x.2.1 x.2.2.1 x.2.2.2)
-  have ⟨_, hcoinLen, hctLen, _, hencDet, _⟩ := hP
-  have hall : IsOraclePPTOn encDecapsBotInput (encOption encBits)
-      (fun x =>
-        if x.2.2.2.length ≤ P.ctLen x.1 then
-          if (toExplicitCoinDec P x.1 x.2.2.1 x.2.2.2).isSome then do
-            let r ← P.queryG x.1 ((toExplicitCoinDec P x.1 x.2.2.1 x.2.2.2).getD [])
-            if P.encDet x.1 x.2.1 ((toExplicitCoinDec P x.1 x.2.2.1 x.2.2.2).getD []) r =
-                x.2.2.2 then
-              some <$> queryH keyLen x.1
-                ((toExplicitCoinDec P x.1 x.2.2.1 x.2.2.2).getD [], x.2.2.2)
-            else pure none
-          else pure none
-        else pure none) := by
-    ppt
-  refine hall.congr fun x _ _ _ => ?_
-  obtain ⟨n, pk, sk, c⟩ := x
-  congr 1
-  dsimp only [decapsBot]
-  refine if_congr Iff.rfl ?_ rfl
-  rw [Scheme.decapsBotM_eq]
-  dsimp only [scheme]
-  cases h : toExplicitCoinDec P n sk c with
-  | none =>
-    rw [show (P.toExplicitCoin n).dec sk c = none from h]
-    rfl
-  | some m =>
-    rw [show (P.toExplicitCoin n).dec sk c = some m from h]
-    simp only [Option.isSome_some, ↓reduceIte, Option.getD_some, toExplicitCoin,
-      ← bind_pure_comp]
-    congr 1 with r
+  dsimp only [decapsBot, Scheme.decapsBotM, scheme]
+  simp only [decTM_toExplicitCoin]
+  option_match_to_elim
+  have ⟨_, _, hctLen, _, _, _⟩ := hP
+  ppt
 
 end IsEfficient
 

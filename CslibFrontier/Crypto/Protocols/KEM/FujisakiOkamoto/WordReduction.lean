@@ -241,7 +241,6 @@ noncomputable def romBotCpaReductionWord (A : ℕ → List Bool → WordOracleCo
   P.romFilterCpaReductionWord keyLen (fun n => Scheme.simBotCheck (P.toExplicitCoin n)) A
 
 /-- The domain test of `H` requests is polynomial-time on `(1ⁿ, w)`. -/
-@[fun_prop]
 theorem IsEfficient.computableInPolyTime_isHQuery {P : WordPKE} (hP : P.IsEfficient) :
     ComputableInPolyTime (fun (n, w) => P.isHQuery n w) (encPair encUnary encBits) encBool := by
   change ComputableInPolyTime (fun x : ℕ × List Bool =>

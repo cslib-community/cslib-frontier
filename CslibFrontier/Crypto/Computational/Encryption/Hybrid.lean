@@ -1077,23 +1077,19 @@ theorem otpDecrypt_otpEncrypt (n : ℕ) (k : List Bool) (bit : Bool) :
 /-- One-time pad encryption is uniform strict PPT. -/
 @[fun_prop]
 theorem isPPTOn_otpEncrypt :
-    IsPPTOn (encKeyedInput encBool) encBits (fun ⟨n, k, bit⟩ => otpEncrypt n k bit) :=
-  let hp2 := ComputableInPolyTime.snd encUnary (encPair encBits encBool)
-  (ComputableInPolyTime.bitsCons
-    (ComputableInPolyTime.bool_xor.comp'
-      (((ComputableInPolyTime.headD false).comp' hp2.fst').prod hp2.snd'))
-    (.const [])).isPPTOn
+    IsPPTOn (encKeyedInput encBool) encBits (fun ⟨n, k, bit⟩ => otpEncrypt n k bit) := by
+  change IsPPTOn _ _ (fun p : ℕ × List Bool × Bool => otpEncrypt p.1 p.2.1 p.2.2)
+  ppt [otpEncrypt]
 
 /-- One-time pad decryption is computable in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_otpDecrypt :
     ComputableInPolyTime
       (fun ⟨n, k, ct⟩ => otpDecrypt n k ct)
-      (encKeyedInput encBits) encBool :=
-  let hp2 := ComputableInPolyTime.snd encUnary (encPair encBits encBits)
-  ComputableInPolyTime.bool_xor.comp'
-    (((ComputableInPolyTime.headD false).comp' hp2.fst').prod
-      ((ComputableInPolyTime.headD false).comp' hp2.snd'))
+      (encKeyedInput encBits) encBool := by
+  change ComputableInPolyTime
+    (fun p : ℕ × List Bool × List Bool => otpDecrypt p.1 p.2.1 p.2.2) _ _
+  polytime [otpDecrypt]
 
 /-- For `1 ≤ n`, a uniform `n`-bit key masks the challenge bit perfectly in `demGame otpEncrypt`,
 so the `false` and `true` experiment distributions are identical. -/
@@ -1165,10 +1161,9 @@ time in unary. -/
 @[fun_prop]
 theorem isPPTOn_otpKeyWordEncrypt {keyLen : ℕ → ℕ}
     (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary) :
-    IsPPTOn (encKeyedInput encBits) encBits (fun p => otpKeyWordEncrypt keyLen p.1 p.2.1 p.2.2) :=
-  let hp1 := ComputableInPolyTime.fst encUnary (encPair encBits encBits)
-  let hp2 := ComputableInPolyTime.snd encUnary (encPair encBits encBits)
-  ((hkeyLen.comp' hp1).bitsXorWithInput (hp2.fst'.cons' (hp2.snd'.cons' (.const [])))).isPPTOn
+    IsPPTOn (encKeyedInput encBits) encBits
+      (fun p => otpKeyWordEncrypt keyLen p.1 p.2.1 p.2.2) := by
+  ppt [otpKeyWordEncrypt]
 
 /-- `otpKeyWordDecrypt keyLen` is computable in polynomial time whenever `keyLen` is computable in
 polynomial time in unary. -/
@@ -1178,10 +1173,8 @@ theorem computableInPolyTime_otpKeyWordDecrypt {keyLen : ℕ → ℕ}
     ComputableInPolyTime
       (fun p : ℕ × List Bool × List Bool =>
         otpKeyWordDecrypt keyLen p.1 p.2.1 p.2.2)
-      (encKeyedInput encBits) encBits :=
-  let hp1 := ComputableInPolyTime.fst encUnary (encPair encBits encBits)
-  let hp2 := ComputableInPolyTime.snd encUnary (encPair encBits encBits)
-  (hkeyLen.comp' hp1).bitsXorWithInput (hp2.fst'.cons' (hp2.snd'.cons' (.const [])))
+      (encKeyedInput encBits) encBits := by
+  polytime [otpKeyWordDecrypt]
 
 /-- A uniform `keyLen n`-bit key masks any challenge word perfectly in
 `demKeyGame keyLen (otpKeyWordEncrypt keyLen)`, so the `false` and `true` experiment distributions
