@@ -8,8 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Communication.FoolingSet
-public import CslibFrontier.Computability.Machines.Turing.SingleTape.CrossingSequence
+public import CslibFrontier.Computability.Machines.Turing.SingleTape.Communication
 public import Mathlib.Data.Nat.Log
+import CslibFrontier.Foundations.Data.List.LengthCounting
 import Mathlib.Tactic.Ring
 
 /-!
@@ -55,34 +56,6 @@ namespace Cslib.Turing.SingleTapeTM
 variable {Symbol : Type} [Inhabited Symbol] [Fintype Symbol] {tm : SingleTapeTM Symbol}
   {α : Type*} {ι : α → Symbol} {A : Language α} {yes : Symbol} {T : ℕ → ℕ}
 
-/-- Splicing two runs with the same crossing sequence and Boolean verdict preserves that
-verdict, including when neither final scanned symbol is the accepting symbol. -/
-private theorem splice_verdict (hdec : tm.DecidesByHeadInTime ι A yes T)
-    {u₁ v₁ u₂ v₂ : List α} (hu : u₁ = [] ↔ u₂ = []) {z : Bool}
-    (h₁ : u₁ ++ v₁ ∈ A ↔ z = true) (h₂ : u₂ ++ v₂ ∈ A ↔ z = true)
-    (hc : (tm.absInit ((u₁ ++ v₁).map ι)).crossings u₁.length (T (u₁ ++ v₁).length) =
-      (tm.absInit ((u₂ ++ v₂).map ι)).crossings u₂.length (T (u₂ ++ v₂).length)) :
-    u₁ ++ v₂ ∈ A ↔ z = true := by
-  obtain ⟨hL, hLy⟩ := hdec.absRun (u₁ ++ v₁)
-  obtain ⟨hR, hRy⟩ := hdec.absRun (u₂ ++ v₂)
-  obtain ⟨hM, hMy⟩ := hdec.absRun (u₁ ++ v₂)
-  simp only [List.map_append] at hL hLy hR hRy hM hMy hc
-  have hu' : u₁.map ι = [] ↔ u₂.map ι = [] := by
-    simpa only [List.map_eq_nil_iff] using hu
-  have hc' : (tm.absInit (u₁.map ι ++ v₁.map ι)).crossings (u₁.map ι).length
-      (T (u₁ ++ v₁).length) =
-      (tm.absInit (u₂.map ι ++ v₂.map ι)).crossings (u₂.map ι).length
-        (T (u₂ ++ v₂).length) := by
-    simpa only [List.length_map] using hc
-  obtain ⟨hC, -, -, hhead⟩ := cut_and_paste_run hu' hL hR hc'
-  rw [AbsCfg.run_eq_of_halted _ hC hM] at hhead
-  rw [← hMy]
-  rcases hhead with h | h
-  · rw [h]
-    exact hLy.trans h₁
-  · rw [h]
-    exact hRy.trans h₂
-
 variable {X Y : Type*} {f : X → Y → Bool} {z : Bool} {S : Finset (X × Y)}
   (hdec : tm.DecidesByHeadInTime ι A yes T) (hS : Communication.IsFoolingSet f z S)
   (leftWord : X → List α) (middle : List α) (rightWord : Y → List α)
@@ -99,38 +72,13 @@ theorem crossings_injOn_of_isFoolingSet {i : ℕ} (hi : i ≤ middle.length) :
       (tm.absInit ((leftWord p.1 ++ middle ++ rightWord p.2).map ι)).crossings
         ((m + i : ℕ) : ℤ) (T (leftWord p.1 ++ middle ++ rightWord p.2).length))
       (S : Set (X × Y)) := by
-  have hsplit (x : X) (y : Y) :
-      (leftWord x ++ middle.take i) ++ (middle.drop i ++ rightWord y) =
-        leftWord x ++ middle ++ rightWord y := by
-    simp only [List.append_assoc]
-    rw [← List.append_assoc (middle.take i), List.take_append_drop]
-  have hlen (p : X × Y) (hp : p ∈ S) : (leftWord p.1 ++ middle.take i).length = m + i := by
-    simp [hprefix p hp, List.length_take, Nat.min_eq_left hi]
-  have hmix (p q : X × Y) (hp : p ∈ S) (hq : q ∈ S)
-      (hc : (tm.absInit ((leftWord p.1 ++ middle ++ rightWord p.2).map ι)).crossings
-          ((m + i : ℕ) : ℤ) (T (leftWord p.1 ++ middle ++ rightWord p.2).length) =
-        (tm.absInit ((leftWord q.1 ++ middle ++ rightWord q.2).map ι)).crossings
-          ((m + i : ℕ) : ℤ) (T (leftWord q.1 ++ middle ++ rightWord q.2).length)) :
-      f p.1 q.2 = z := by
-    have hu : leftWord p.1 ++ middle.take i = [] ↔ leftWord q.1 ++ middle.take i = [] := by
-      rw [← List.length_eq_zero_iff, ← List.length_eq_zero_iff, hlen p hp, hlen q hq]
-    have hcolor (a : X × Y) (ha : a ∈ S) :
-        (leftWord a.1 ++ middle.take i) ++ (middle.drop i ++ rightWord a.2) ∈ A ↔ z = true := by
-      rw [hsplit, hA, hS.1 a ha]
-    have hc' : (tm.absInit (((leftWord p.1 ++ middle.take i) ++
-          (middle.drop i ++ rightWord p.2)).map ι)).crossings
-          (leftWord p.1 ++ middle.take i).length
-          (T ((leftWord p.1 ++ middle.take i) ++ (middle.drop i ++ rightWord p.2)).length) =
-        (tm.absInit (((leftWord q.1 ++ middle.take i) ++
-          (middle.drop i ++ rightWord q.2)).map ι)).crossings
-          (leftWord q.1 ++ middle.take i).length
-          (T ((leftWord q.1 ++ middle.take i) ++ (middle.drop i ++ rightWord q.2)).length) := by
-      simpa only [hsplit, hlen p hp, hlen q hq] using hc
-    have h := splice_verdict hdec hu (hcolor p hp) (hcolor q hq) hc'
-    rw [hsplit, hA] at h
-    exact Bool.eq_iff_iff.mpr h
   intro p hp q hq hc
-  exact hS.2 p hp q hq (hmix p q hp hq hc) (hmix q p hq hp hc.symm)
+  have hz : f p.1 p.2 = f q.1 q.2 := (hS.1 p hp).trans (hS.1 q hq).symm
+  have hpq := crossings_splice_verdict hdec leftWord middle rightWord hA hi
+    (hprefix p hp) (hprefix q hq) hz hc
+  have hqp := crossings_splice_verdict hdec leftWord middle rightWord hA hi
+    (hprefix q hq) (hprefix p hp) hz.symm hc.symm
+  exact hS.2 p hp q hq (hpq.trans (hS.1 p hp)) (hqp.trans (hS.1 q hq))
 
 variable (hlength : ∀ p ∈ S, (leftWord p.1 ++ middle ++ rightWord p.2).length = n)
 
@@ -149,24 +97,19 @@ theorem crossing_foolingSet_bound (L : ℕ) :
     intro p hp q hq hc
     apply crossings_injOn_of_isFoolingSet hdec hS leftWord middle rightWord hA hprefix hi hp hq
     simpa only [cs, hlength p hp, hlength q hq] using hc
-  have hgood (i : ℕ) (hi : i ≤ middle.length) :
-      (S.card - (Fintype.card (Option tm.State) + 1) ^ L) * L ≤ ∑ p ∈ S, (cs i p).length :=
-    card_sub_pow_mul_le_sum_length (hinj i hi) L
-  have hupper (p : X × Y) :
-      ∑ i ∈ Finset.range (middle.length + 1), (cs i p).length ≤ T n := by
-    have h := AbsCfg.sum_length_crossings_le
-      ((Finset.range (middle.length + 1)).image fun i : ℕ => ((m + i : ℕ) : ℤ))
-      (tm.absInit ((leftWord p.1 ++ middle ++ rightWord p.2).map ι)) (T n)
-    rwa [Finset.sum_image fun i _ j _ hij => by omega] at h
-  calc (middle.length + 1) * (S.card - (Fintype.card (Option tm.State) + 1) ^ L) * L
-      = ∑ _i ∈ Finset.range (middle.length + 1),
-          (S.card - (Fintype.card (Option tm.State) + 1) ^ L) * L := by simp [Nat.mul_assoc]
-    _ ≤ ∑ i ∈ Finset.range (middle.length + 1), ∑ p ∈ S, (cs i p).length :=
-      Finset.sum_le_sum fun i hi =>
-        hgood i (by simpa only [Finset.mem_range, Nat.lt_succ_iff] using hi)
-    _ = ∑ p ∈ S, ∑ i ∈ Finset.range (middle.length + 1), (cs i p).length := Finset.sum_comm
-    _ ≤ ∑ _p ∈ S, T n := Finset.sum_le_sum fun p _ => hupper p
-    _ = S.card * T n := by simp
+  let K := (Finset.range (middle.length + 1)).image fun i : ℕ => ((m + i : ℕ) : ℤ)
+  have hcard : K.card = middle.length + 1 := by
+    dsimp only [K]
+    rw [Finset.card_image_of_injective _ (fun i j h => by omega), Finset.card_range]
+  have h := AbsCfg.card_mul_le_sum_time
+    (fun p : X × Y => tm.absInit ((leftWord p.1 ++ middle ++ rightWord p.2).map ι))
+    (fun _ => T n) S K
+    (b := (S.card - (Fintype.card (Option tm.State) + 1) ^ L) * L) ?_
+  · simpa only [hcard, Finset.sum_const, smul_eq_mul, Nat.mul_assoc] using h
+  · intro k hk
+    obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hk
+    exact Finset.card_sub_pow_mul_le_sum_length
+      (hinj i (by simpa only [Finset.mem_range, Nat.lt_succ_iff] using hi)) L
 
 /-- If the short crossing sequences can cover at most half the fooling set, the machine spends
 at least `L / 2` steps per boundary of the common middle word, averaged over the hard inputs. -/
