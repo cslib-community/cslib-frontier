@@ -1417,6 +1417,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Layered.Size
 public import CslibFrontier.Computability.Circuit.Boolean.Lookup
 public import CslibFrontier.Computability.Circuit.Boolean.MachineSimulation
 public import CslibFrontier.Computability.Circuit.Boolean.Majority
+public import CslibFrontier.Computability.Circuit.Boolean.MajorityNonlinear
 public import CslibFrontier.Computability.Circuit.Boolean.MassProduction.Basic
 public import CslibFrontier.Computability.Circuit.Boolean.MassProduction.ConstantCopies
 public import CslibFrontier.Computability.Circuit.Boolean.MassProduction.Fine
@@ -6956,6 +6957,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.FourierDegree
 public import CslibFrontier.Foundations.BooleanAnalysis.FourierRestriction
 public import CslibFrontier.Foundations.BooleanAnalysis.FriedgutJunta
 public import CslibFrontier.Foundations.BooleanAnalysis.FriedgutKalaiNaor
+public import CslibFrontier.Foundations.BooleanAnalysis.Granularity
 public import CslibFrontier.Foundations.BooleanAnalysis.GreedyFixing
 public import CslibFrontier.Foundations.BooleanAnalysis.Hadamard
 public import CslibFrontier.Foundations.BooleanAnalysis.HadamardRectangles
@@ -7655,6 +7657,7 @@ public import CslibFrontier.Foundations.Data.Nat.ChineseRemainder
 public import CslibFrontier.Foundations.Data.Nat.Choose
 public import CslibFrontier.Foundations.Data.Nat.Choose.Central
 public import CslibFrontier.Foundations.Data.Nat.Choose.Entropy
+public import CslibFrontier.Foundations.Data.Nat.Choose.Factorization
 public import CslibFrontier.Foundations.Data.Nat.Choose.Multichoose
 public import CslibFrontier.Foundations.Data.Nat.Choose.PrimePowerDvd
 public import CslibFrontier.Foundations.Data.Nat.Choose.Ratio

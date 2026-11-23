@@ -622,6 +622,11 @@ Xi Chen and Xiaotie Deng. "On the Complexity of 2D Discrete Fixed Point Problem.
 
 Lijie Chen, Shuichi Hirahara, Igor C. Oliveira, Ján Pich, Ninad Rajgopal and Rahul Santhanam. *Beyond Natural Proofs: Hardness Magnification and Locality*. ITCS 2020, LIPIcs 151. https://doi.org/10.4230/LIPIcs.ITCS.2020.70 ; full version ECCC TR19-168. Checked against the ECCC full version on 2026-11-11: Definition 3 (learning by circuits with non-adaptive membership queries, Section 2.2, p. 12), Lemma 34 (its use of a non-adaptive learner with the seed fixed by Adleman's trick, pp. 25–27), Definition 11 (local circuit classes `[q, ℓ, a]–C[s]`, Section 2.5, p. 13) and the MCSP `[OS18]` and `[MMW19]` bullets of Proposition 63 (Appendix A.2, p. 52). Theorem numbers follow the ECCC numbering.
 
+<a id="chistopolskayapodolskii2018"></a>
+## chistopolskayapodolskii2018
+
+Anastasiya Chistopolskaya and Vladimir V. Podolskii. *Parity Decision Tree Complexity is Greater Than Granularity*. ECCC TR18-174, revision 2, 26 October 2018; arXiv:1810.08668v2. [Pinned report](https://eccc.weizmann.ac.il/report/2018/174/revision/2/download/). Read on 2026-11-23: §2.3, Lemma 5, printed pp. 7–8 (parity decision-tree depth at most the AND count plus one); §3, Theorem 6, pp. 8–9 (depth at least granularity plus one for a nonconstant function); §4, Lemma 9, p. 11 (majority granularity `n − B(n)`) and Corollary 11, p. 12 (multiplicative complexity at least `n − B(n)`). Here `B(n)` is the binary digit sum and majority returns true on a tie, matching the report's threshold `⌊(n + 1)/2⌋`. The circuit formalization proves a direct joint-workspace denominator invariant, permitting arbitrary binary Boolean operations while charging exactly the nonaffine ones; the Zhegalkin specialization uses the existing `{XOR, AND, 1}` minimum-cost definition. The source's decision-tree simulation and exact decision-tree complexity are not asserted by this circuit result.
+
 <a id="christofides76"></a>
 ## christofides76
 
