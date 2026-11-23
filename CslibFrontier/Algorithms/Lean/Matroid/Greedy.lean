@@ -28,7 +28,7 @@ independence test `Finset α → m Bool` and purely over `Finset α → Bool`) a
 and weighted optimality guarantees against `Mathlib.Combinatorics.Matroid`.
 
 The monadic formulation `greedySelectM` instantiates with `Id` to recover the pure algorithm
-`greedySelect`, with `TimeM` for step-annotated analyses, and with `FreeM (IndepQuery α)` in
+`greedySelect`, and with `FreeM (IndepQuery α)` in
 `CslibFrontier.Algorithms.Lean.Query.Matroid.Greedy` to count independence-oracle queries
 explicitly.
 
