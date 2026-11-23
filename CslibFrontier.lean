@@ -3540,6 +3540,7 @@ public import CslibFrontier.Computability.Distributed.PartialSynchrony.Basic
 public import CslibFrontier.Computability.Distributed.PartialSynchrony.Liveness
 public import CslibFrontier.Computability.Distributed.Paxos.Basic
 public import CslibFrontier.Computability.Distributed.Paxos.Liveness
+public import CslibFrontier.Computability.Distributed.Paxos.Quorums
 public import CslibFrontier.Computability.Distributed.RingElection.Anonymous
 public import CslibFrontier.Computability.Distributed.RingElection.ChangRoberts
 public import CslibFrontier.Computability.Distributed.RingElection.Peterson
