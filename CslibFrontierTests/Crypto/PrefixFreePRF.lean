@@ -13,13 +13,14 @@ import CslibFrontier.Crypto.Primitives.UHF.PrefixFreePRF
 # Tests for the prefix-free collision wrapper
 
 Use a proper-prefix pair in the CBC word domain with a two-block cap. Its queries use the
-three-block domain. The real-game comparison follows from the CBC chaining identity.
+three-block domain. The advantage bound uses the CBC chaining identity for its real game.
 A repeated valid guess makes no external query.
 -/
 
 set_option linter.privateModule false
 
 open Cslib Cslib.Crypto Cslib.Crypto.UHF Cslib.Probability Turing.MultiTapeTM
+open scoped NNReal
 
 private def properPrefixGuess : CollisionGuess (List Bool) :=
   ⟨[true, false], [true, false, false, false]⟩
@@ -61,11 +62,13 @@ example (family : List Bool → List Bool → List Bool) :
     Game.succProbability (collisionGame pure (fun _ => cbcBlockValid (fun _ => 2))
       (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key))
       (fun _ => pure properPrefixGuess) 2) ≤
-    Game.succProbability (ProbComp.eval (prfRealGameOn (cbcBlockValid (fun _ => 3))
-      (cbcMacFamily family)
-      (prefixFreeCollisionReduction id id (cbcBlockValid (fun _ => 2))
-        (fun _ => pure properPrefixGuess)) 2)) := by
-  apply succProbability_collisionGame_le_real_prefixFreeCollisionReduction
+    let reduction := prefixFreeCollisionReduction id id (cbcBlockValid (fun _ => 2))
+      (fun _ => pure properPrefixGuess)
+    Game.advantage
+      (ProbComp.eval (prfRealGameOn (cbcBlockValid (fun _ => 3)) (cbcMacFamily family) reduction 2))
+      (ProbComp.eval (prfIdealGameOn (cbcBlockValid (fun _ => 3)) id reduction 2)) +
+      ((2 : ℝ≥0) ^ 2)⁻¹ := by
+  apply succProbability_collisionGame_le_prefixFreeCollisionReduction
   · intro word block hWord hBlock
     simp only [cbcBlockValid, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at hWord ⊢
     obtain ⟨⟨hPos, hMod⟩, hCap⟩ := hWord

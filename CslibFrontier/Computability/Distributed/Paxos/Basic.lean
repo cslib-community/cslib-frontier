@@ -7,19 +7,17 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Init
+public import CslibFrontier.Computability.Distributed.Paxos.Quorums
 public import Cslib.Foundations.Semantics.LTS.Basic
-public import Mathlib.Data.Finset.Card
-public import Mathlib.Data.Finset.Powerset
 public import Mathlib.Order.Prod.Lex.Basic
-import CslibFrontier.Tactic.FinsetCard
 
 /-!
 # Crash-Stop Single-Decree Synod Protocol Step
 
 This module formalizes a **crash-stop intermediate step** towards Lamport's Single-Decree Synod
 consensus protocol (§2 of [Lamport1998]; §2 of [Lamport2001]), and **not** the crash-recovery cited
-results of those papers. Over abstract intersecting quorum systems (`QuorumSystem`), we model the
+results of those papers. Over separate prepare and accept quorum families (`QuorumSystem`) with
+cross-phase intersection, we model the
 four Synod phases (`Phase1a`/`1b`/`2a`/`2b`) as a ghost-free asynchronous message-passing labelled
 transition system (`Cslib.LTS`) allowing arbitrary message reordering, duplication, packet
 loss/omission, and permanent **crash-stop** node failures (`crashed : Bool`).
@@ -30,7 +28,11 @@ storage (`lastTried`, `maxBal`, `maxVoted`) while losing volatile per-round stat
 permanent (`crashed : Bool`), while `.prepare p r` resets per-round proposer fields (`proposed`,
 `promised`, `maxVote`). Phase 2b uses [Lamport2001] §2.2's `mb ≤ b` voting guard (`allowsVote`,
 updating `maxBal := some b`) rather than [Lamport1998] §2.3 step (4)'s `b = nextBal[q]`. Section 3
-Multi-Paxos state-machine / ledger replication also remains open.
+Multi-Paxos state-machine / ledger replication also remains open under issue #7207. The quorum
+generalization implements the cross-phase condition of [HowardMalkhiSpiegelman2017], §5 Eq. (3),
+in this crash-stop kernel: prepare quorums need not intersect each other, and accept quorums need
+not intersect each other. Only an earlier accept quorum and a later prepare quorum are intersected
+in the agreement proof. This does not add persistent-storage recovery or dynamic reconfiguration.
 
 The protocol state (`SynodState`) is completely ghost-free: proposers, acceptors, and learners store
 only the operational registers read by protocol transitions, and packet drops genuinely erase
@@ -41,10 +43,6 @@ states via network monotonicity.
 
 ## Main definitions
 
-* `Cslib.Distributed.Paxos.QuorumSystem`: finite family of quorums over acceptors `P` that is
-  nonempty and pairwise intersecting.
-* `Cslib.Distributed.Paxos.majorityQuorums`: crash-tolerant strict-majority quorum system
-  (`Fintype.card P - t ≤ Q.card` when `2 * t < Fintype.card P`).
 * `Cslib.Distributed.Paxos.Ballot`: lexicographically ordered `(round, proposer)` ballot numbers
   uniquely owned by `proposer`.
 * `Cslib.Distributed.Paxos.Vote`: `(ballot, value)` pair accepted in Phase 2b and reported in
@@ -81,6 +79,7 @@ states via network monotonicity.
 
 * [L. Lamport, *The Part-Time Parliament*][Lamport1998]
 * [L. Lamport, *Paxos Made Simple*][Lamport2001]
+* [H. Howard, D. Malkhi, and A. Spiegelman, *Flexible Paxos*][HowardMalkhiSpiegelman2017]
 -/
 
 public section
@@ -88,40 +87,6 @@ public section
 namespace Cslib.Distributed.Paxos
 
 open Cslib
-
-/-! ### Quorum systems and strict-majority instantiation -/
-
-/-- A quorum system over processes/acceptors `P`: a nonempty finite collection of subsets whose
-members pairwise intersect ([Lamport1998]; [Lamport2001]). -/
-structure QuorumSystem (P : Type*) [DecidableEq P] where
-  /-- Finite family of quorum subsets of `P`. -/
-  quorums : Finset (Finset P)
-  /-- At least one quorum exists. -/
-  nonempty : quorums.Nonempty
-  /-- Every pair of quorums shares at least one member. -/
-  inter_nonempty : ∀ Q₁ ∈ quorums, ∀ Q₂ ∈ quorums, (Q₁ ∩ Q₂).Nonempty
-
-/-- Every quorum in a `QuorumSystem` is nonempty, by intersecting it with itself. -/
-theorem QuorumSystem.quorum_nonempty {P : Type*} [DecidableEq P] (qs : QuorumSystem P)
-    {Q : Finset P} (hQ : Q ∈ qs.quorums) : Q.Nonempty := by
-  have hinter := qs.inter_nonempty Q hQ Q hQ
-  simpa only [Finset.inter_self] using hinter
-
-/-- Crash-tolerant strict-majority quorums over a finite acceptor set `P` when `2 * t < |P|`:
-subsets of cardinality at least `|P| - t`. -/
-@[expose] def majorityQuorums {P : Type*} [Fintype P] [DecidableEq P] {t : ℕ}
-    (ht : 2 * t < Fintype.card P) : QuorumSystem P where
-  quorums := Finset.univ.powerset.filter fun Q => Fintype.card P - t ≤ Q.card
-  nonempty := ⟨Finset.univ, Finset.mem_filter.mpr
-    ⟨Finset.mem_powerset.mpr (Finset.subset_univ _), by finset_card⟩⟩
-  inter_nonempty := fun _ h₁ _ h₂ => by
-    finset_card [(Finset.mem_filter.mp h₁).2, (Finset.mem_filter.mp h₂).2]
-
-@[simp]
-theorem mem_majorityQuorums_iff {P : Type*} [Fintype P] [DecidableEq P] {t : ℕ}
-    (ht : 2 * t < Fintype.card P) (Q : Finset P) :
-    Q ∈ (majorityQuorums ht).quorums ↔ Fintype.card P - t ≤ Q.card := by
-  simp only [majorityQuorums, Finset.mem_filter, Finset.mem_powerset, Finset.subset_univ, true_and]
 
 /-! ### Proposer-owned ballots and protocol messages -/
 
@@ -391,7 +356,7 @@ instance instDecidableSynodEnabled {Proposer Acceptor Learner V : Type*}
       if b = ⟨r, p⟩ ∧ a ∉ st.promised then
         let promised' := insert a st.promised
         let maxVote' := mergeVote st.maxVote mv
-        if !st.proposed && decide (∃ Q ∈ qs.quorums, Q ⊆ promised') then
+        if !st.proposed && decide (∃ Q ∈ qs.prepareQuorums, Q ⊆ promised') then
           let val := match maxVote' with
             | some vt => vt.value
             | none => st.input
@@ -418,7 +383,7 @@ instance instDecidableSynodEnabled {Proposer Acceptor Learner V : Type*}
     let st := s.learners l
     let received' := insert ⟨a, b, v⟩ st.received
     let learned' :=
-      if st.learned.isNone && decide (∃ Q ∈ qs.quorums, ∀ a' ∈ Q, ⟨a', b, v⟩ ∈ received') then
+      if st.learned.isNone && decide (∃ Q ∈ qs.acceptQuorums, ∀ a' ∈ Q, ⟨a', b, v⟩ ∈ received') then
         some v
       else st.learned
     { s with
@@ -494,18 +459,18 @@ theorem Reachable.trans {Proposer Acceptor Learner V : Type*}
   (xl.foldl (synodStepCore false qs) s₀).msgs
 
 /-- Value `v` is *chosen at ballot `b`* relative to packet set `msgs` when every acceptor in some
-quorum `Q ∈ qs.quorums` has emitted `Phase2b(a, b, v)`. -/
+quorum `Q ∈ qs.acceptQuorums` has emitted `Phase2b(a, b, v)`. -/
 @[expose] def ChosenAt {Proposer Acceptor V : Type*} [DecidableEq Acceptor]
     (qs : QuorumSystem Acceptor) (msgs : Finset (Msg Proposer Acceptor V))
     (b : Ballot Proposer) (v : V) : Prop :=
-  ∃ Q ∈ qs.quorums, ∀ a ∈ Q, Msg.phase2b a b v ∈ msgs
+  ∃ Q ∈ qs.acceptQuorums, ∀ a ∈ Q, Msg.phase2b a b v ∈ msgs
 
 /-- Learner `l` has learned value `v` at ballot `b` in state `s` when `l` has received
-`Phase2b(a, b, v)` from every acceptor in some quorum `Q ∈ qs.quorums`. -/
+`Phase2b(a, b, v)` from every acceptor in some quorum `Q ∈ qs.acceptQuorums`. -/
 @[expose] def SynodState.LearnedAt {Proposer Acceptor Learner V : Type*} [DecidableEq Acceptor]
     (qs : QuorumSystem Acceptor) (s : SynodState Proposer Acceptor Learner V)
     (l : Learner) (b : Ballot Proposer) (v : V) : Prop :=
-  ∃ Q ∈ qs.quorums, ∀ a ∈ Q, ⟨a, b, v⟩ ∈ (s.learners l).received
+  ∃ Q ∈ qs.acceptQuorums, ∀ a ∈ Q, ⟨a, b, v⟩ ∈ (s.learners l).received
 
 /-! ### Shadow non-dropping simulation -/
 
@@ -622,12 +587,13 @@ private lemma proposerPromiseInv_mono {m₁ m₂ : Finset (Msg Proposer Acceptor
       let ⟨mv, hm, hb⟩ := hp.2.2 a ha
       ⟨mv, hsub hm, hb⟩⟩
 
-/-- Lamport's condition P2c: every emitted `Phase2a(b, v)` is backed by a quorum `Q ∈ qs.quorums` of
+/-- Lamport's condition P2c: every emitted `Phase2a(b, v)` is backed by a prepare quorum
+`Q ∈ qs.prepareQuorums` of
 `Phase1b` promises for `b`, either all carrying `none` or bounded by a prior vote `(vt.ballot, v)`
 at `vt.ballot < b`. -/
 private def Phase2aQuorumWitness (msgs : Finset (Msg Proposer Acceptor V))
     (b : Ballot Proposer) (v : V) : Prop :=
-  ∃ Q ∈ qs.quorums,
+  ∃ Q ∈ qs.prepareQuorums,
     (∀ a ∈ Q, Msg.phase1b a b none ∈ msgs) ∨
       ∃ vt : Vote Proposer V, vt.value = v ∧ vt.ballot < b ∧
         Msg.phase2a vt.ballot vt.value ∈ msgs ∧
@@ -1183,8 +1149,9 @@ private lemma phase2aBelow_card_lt {msgs : Finset (Msg Proposer Acceptor V)}
 
 /-- Crash-stop intermediate step towards the inductive ballot-choice invariant of [Lamport1998]
 §2.1 (Lemma) and [Lamport2001] §2.2 (`P2^b`–`P2^c`), and **not** the crash-recovery cited result:
-along any crash-stop `synodLts` execution, if a quorum `Q ∈ qs.quorums` has voted `(b, v)` in Phase
-2b, then every `Phase2a(b', v')` emitted in the trace with `b ≤ b'` satisfies `v' = v`. -/
+along any crash-stop `synodLts` execution, if an accept quorum `Q ∈ qs.acceptQuorums` has voted
+`(b, v)` in Phase 2b, then every `Phase2a(b', v')` emitted in the trace with `b ≤ b'`
+satisfies `v' = v`. -/
 theorem chosenAt_implies_higher_phase2a_eq_crashStop {inputs : Proposer → V}
     {xl : List (SynodAction Proposer Acceptor Learner V)}
     {s : SynodState Proposer Acceptor Learner V}
@@ -1206,13 +1173,13 @@ theorem chosenAt_implies_higher_phase2a_eq_crashStop {inputs : Proposer → V}
     intro b' v' hcard h2a' hle'
     obtain ⟨Q₀, hQ₀, hall₀⟩ := hchosen
     rcases eq_or_lt_of_le hle' with rfl | hlt
-    · obtain ⟨a₀, ha₀⟩ := qs.quorum_nonempty hQ₀
+    · obtain ⟨a₀, ha₀⟩ := qs.acceptQuorum_nonempty hQ₀
       have h2a₀ := (hinv.phase2b_inv a₀ b v (hall₀ a₀ ha₀)).2
       exact hinv.phase2a_unique b v' v h2a' h2a₀
     · obtain ⟨Q, hQ, hcases⟩ := hinv.phase2a_witness b' v' h2a'
-      obtain ⟨a_star, ha_inter⟩ := qs.inter_nonempty Q₀ hQ₀ Q hQ
-      have ha₀ : a_star ∈ Q₀ := (Finset.mem_inter.mp ha_inter).1
-      have haQ : a_star ∈ Q := (Finset.mem_inter.mp ha_inter).2
+      obtain ⟨a_star, ha_inter⟩ := qs.inter_nonempty Q hQ Q₀ hQ₀
+      have ha₀ : a_star ∈ Q₀ := (Finset.mem_inter.mp ha_inter).2
+      have haQ : a_star ∈ Q := (Finset.mem_inter.mp ha_inter).1
       have h2b_star := hall₀ a_star ha₀
       rcases hcases with hnone | ⟨vt, rfl, hvt_lt, hvt_2a, hall_p⟩
       · have h1b_none := hnone a_star haQ
@@ -1238,7 +1205,7 @@ private lemma chosenAt_and_phase2a_of_learnedAt {inputs : Proposer → V}
   obtain ⟨Q, hQ, hall⟩ := hl
   have h2b : ∀ a ∈ Q, Msg.phase2b a b v ∈ traceMsgs qs (initState inputs) xl :=
     fun a ha => hinv.learner_recv l ⟨a, b, v⟩ (hl_eq ▸ hall a ha)
-  obtain ⟨a₀, ha₀⟩ := qs.quorum_nonempty hQ
+  obtain ⟨a₀, ha₀⟩ := qs.acceptQuorum_nonempty hQ
   exact ⟨⟨Q, hQ, h2b⟩, (hinv.phase2b_inv a₀ b v (h2b a₀ ha₀)).2⟩
 
 /-- Crash-stop intermediate step towards Single-Decree Synod agreement in [Lamport1998] §2.1
@@ -1270,7 +1237,7 @@ private lemma learnerRegInv_init (inputs : Proposer → V) :
   intro l
   refine ⟨fun v hv => ?_, fun _ b w ⟨Q, hQ, hall⟩ => ?_⟩
   · simp only [initState] at hv; cases hv
-  · obtain ⟨a, ha⟩ := qs.quorum_nonempty hQ
+  · obtain ⟨a, ha⟩ := qs.acceptQuorum_nonempty hQ
     exact Finset.notMem_empty _ (hall a ha)
 
 private lemma learnerRegInv_tr :

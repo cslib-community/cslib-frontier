@@ -14,7 +14,10 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Crypto.Game.CloseTo
+import CslibFrontier.Crypto.Game.Order
+import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.UniformPoint
 
 /-!
 # A prefix-free oracle wrapper for collision guesses
@@ -39,6 +42,10 @@ Theorem 7.3 provides this room by giving the PRF domain one extra block of capac
   PPT guesser is strict oracle PPT and makes prefix-incomparable queries.
 * `Cslib.Crypto.UHF.succProbability_collisionGame_le_real_prefixFreeCollisionReduction`:
   the real-game comparison (7.7) for an extendable family on the chosen domains.
+* `Cslib.Crypto.UHF.eval_prfIdealGameOn_prefixFreeCollisionReduction_le`:
+  the ideal-game bound corresponding to (7.8).
+* `Cslib.Crypto.UHF.succProbability_collisionGame_le_prefixFreeCollisionReduction`:
+  the concrete advantage inequality (7.6) in the word model.
 -/
 
 public section
@@ -46,7 +53,7 @@ public section
 namespace Cslib.Crypto.UHF
 
 open Probability Turing.MultiTapeTM
-open scoped ENNReal
+open scoped ENNReal NNReal
 
 /-- Reject invalid and repeated guesses. On an accepted pair, append the same separating block
 to both words and compare the two oracle replies up to the declared reply width. -/
@@ -197,5 +204,96 @@ theorem succProbability_collisionGame_le_real_prefixFreeCollisionReduction
     have hTags := hExtend List.length_ofFn hl hr hBlock hEq
     simp [accept, prfOracleOn, hne, hl, hr, hEq, hLeft, hRight, hTags]
   · simp [hWin]
+
+/-- The ideal-game step of [BonehShoup2023], v0.6, Theorem 7.3, printed p. 259, (7.8).
+Every accepted guess makes two distinct valid queries and their uniform replies are independent.
+The probability is bounded above because invalid or repeated guesses are rejected. -/
+theorem eval_prfIdealGameOn_prefixFreeCollisionReduction_le
+    {width outLen : ℕ → ℕ} {valid oracleValid : ℕ → List Bool → Bool}
+    (guessPair : ℕ × ℕ → ProbComp (CollisionGuess (List Bool))) (n : ℕ)
+    (hDomain : ∀ {word block}, valid n word = true → block.length = width n →
+      oracleValid n (word ++ block) = true) :
+    ProbComp.eval (prfIdealGameOn oracleValid outLen
+      (prefixFreeCollisionReduction width outLen valid guessPair) n) true ≤
+      ((2 : ℝ≥0∞) ^ outLen n)⁻¹ := by
+  simp only [prfIdealGameOn, ProbComp.eval_map, ProbOracleComp.eval_run_interpret_eq_runWith,
+    cachedRandomFunctionOracle, eval_cachedSamplerOracle, BitString.eval_sampleList,
+    prefixFreeCollisionReduction, ProbOracleComp.runWith_sample_bind, PMF.map_bind]
+  apply PMF.bind_apply_le_on_support
+  intro guess _
+  by_cases hg :
+      (valid n guess.first && valid n guess.second && decide (guess.first ≠ guess.second)) = true
+  · have hg' := hg
+    simp only [Bool.and_eq_true, decide_eq_true_eq] at hg'
+    obtain ⟨⟨hl, hr⟩, hne⟩ := hg'
+    let block := PRF.separatingWordBlock (width n) guess.first guess.second
+    let left := guess.first ++ block
+    let right := guess.second ++ block
+    have hBlock : block.length = width n := PRF.length_separatingWordBlock _ _ _
+    have hLeft : oracleValid n left = true := hDomain hl hBlock
+    have hRight : oracleValid n right = true := hDomain hr hBlock
+    have hDistinct : left ≠ right := fun h => hne (List.append_cancel_right h)
+    let dist := BitString.uniformList (outLen n)
+    have hFresh {request : List Bool} {cache : List (List Bool × List Bool)}
+        (hValid : oracleValid n request = true) (hMiss : cache.lookup request = none) :
+        cachedDistOracle (oracleValid n) dist request cache =
+          dist.map (fun reply => (reply, (request, reply) :: cache)) := by
+      simp [cachedDistOracle, hValid, memoize, hMiss, PMF.map, Function.comp_def]
+    have hFirst := hFresh (cache := []) hLeft rfl
+    have hSecond (reply : List Bool) :
+        cachedDistOracle (oracleValid n) dist right [(left, reply)] =
+          dist.map (fun other => (other, [(right, other), (left, reply)])) := by
+      apply hFresh hRight
+      simp [List.lookup_cons, beq_eq_false_iff_ne.mpr hDistinct.symm]
+    simp only [ite_eq_left hg, map_eq_bind_pure_comp, bind_assoc, pure_bind, Function.comp_def,
+      ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure]
+    change ((cachedDistOracle (oracleValid n) dist left []).bind (fun a =>
+      (cachedDistOracle (oracleValid n) dist right a.2).bind (fun b =>
+        PMF.pure (decide (a.1.take (outLen n) = b.1.take (outLen n)), b.2)))).map Prod.fst true ≤ _
+    simp only [hFirst, PMF.bind_map, Function.comp_def, hSecond, PMF.map_bind, PMF.pure_map]
+    apply PMF.bind_apply_le_on_support
+    intro reply hReply
+    rw [PMF.bind_congr_on_support dist _ (fun other => PMF.pure (decide (reply = other)))
+      (fun other hOther => by
+        rw [List.take_of_length_le (BitString.length_of_mem_support_uniformList hReply).le,
+          List.take_of_length_le (BitString.length_of_mem_support_uniformList hOther).le]),
+      PMF.bind_pure_decide_eq_apply_true]
+    simpa only [one_div] using BitString.uniformList_apply_le (outLen n) reply
+  · simp only [ite_eq_right hg, ProbOracleComp.runWith_pure, PMF.pure_map]
+    simp
+
+/-- The concrete bound (7.6) from [BonehShoup2023], v0.6, Theorem 7.3 (printed pp. 258–259)
+for the word wrapper. Collision success is at most its PRF advantage plus the inverse
+size of the output space. One full block is appended to every accepted pair. -/
+theorem succProbability_collisionGame_le_prefixFreeCollisionReduction
+    {width outLen : ℕ → ℕ} {valid oracleValid : ℕ → List Bool → Bool}
+    (family : List Bool → List Bool → List Bool)
+    (guessPair : ℕ × ℕ → ProbComp (CollisionGuess (List Bool))) (n : ℕ)
+    (hDomain : ∀ {word block}, valid n word = true → block.length = width n →
+      oracleValid n (word ++ block) = true)
+    (hExtend : ∀ {key left right block}, key.length = n →
+      valid n left = true → valid n right = true → block.length = width n →
+      family key left = family key right →
+      family key (left ++ block) = family key (right ++ block)) :
+    Game.succProbability (collisionGame pure (fun _ d => valid d)
+      (fun _ d (key : BitString d) => family (List.ofFn key)) guessPair n) ≤
+    Game.advantage
+      (ProbComp.eval (prfRealGameOn oracleValid family
+        (prefixFreeCollisionReduction width outLen valid guessPair) n))
+      (ProbComp.eval (prfIdealGameOn oracleValid outLen
+        (prefixFreeCollisionReduction width outLen valid guessPair) n)) +
+      ((2 : ℝ≥0) ^ outLen n)⁻¹ := by
+  let I : Game := ProbComp.eval (prfIdealGameOn oracleValid outLen
+    (prefixFreeCollisionReduction width outLen valid guessPair) n)
+  have hIdeal : I.succProbability ≤ ((2 : ℝ≥0) ^ outLen n)⁻¹ := by
+    apply ENNReal.coe_le_coe.mp
+    rw [Game.coe_succProbability_ennreal, ENNReal.coe_inv (pow_ne_zero _ two_ne_zero),
+      ENNReal.coe_pow, ENNReal.coe_ofNat]
+    exact eval_prfIdealGameOn_prefixFreeCollisionReduction_le guessPair n hDomain
+  refine (succProbability_collisionGame_le_real_prefixFreeCollisionReduction
+    (outLen := outLen) family guessPair n hDomain hExtend).trans
+    ((Game.succProbability_le_add_of_advantage_le (g₁ := I) le_rfl).trans ?_)
+  rw [add_comm I.succProbability]
+  exact add_le_add le_rfl hIdeal
 
 end Cslib.Crypto.UHF

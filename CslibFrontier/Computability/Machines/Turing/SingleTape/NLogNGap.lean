@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.BoundedCrossings
 public import Mathlib.Analysis.Asymptotics.Defs
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import CslibFrontier.Foundations.Data.List.LengthCounting
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.FieldSimp
@@ -168,7 +169,7 @@ private lemma card_mul_le_of_injOn (a : tm.AbsCfg) (t : ℕ) {S : Finset ℕ}
     rwa [Finset.sum_image fun i _ j _ hij => by exact_mod_cast hij] at h
   obtain ⟨m, hm⟩ : ∃ m, m = S.card := ⟨_, rfl⟩
   obtain ⟨L, hL⟩ : ∃ L, L = (Nat.log 2 m - 1) / d := ⟨_, rfl⟩
-  have hcnt := card_sub_pow_mul_le_sum_length hS L
+  have hcnt := Finset.card_sub_pow_mul_le_sum_length hS L
   rw [← hm] at hcnt ⊢
   rw [← hL]
   have hpow : Fintype.card (Option tm.State) + 1 ≤ 2 ^ d := by

@@ -31,7 +31,7 @@ import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ShiftedLabel
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseIntegerRootLabel
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootDeterminant
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootProduct
-import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ThomSign
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.DerivativeFingerprint
 import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomial
 import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomialBounds
 import CslibFrontier.Foundations.Analysis.Complex.ConjugateProduct
@@ -603,13 +603,15 @@ example : ∃ x : Fin 1 → ℝ, x 0 = 2 ∧ aeval x (X 0 : MvPolynomial (Fin 1)
     simpa only [r, aeval_C, Algebra.algebraMap_self_apply, pow_one] using (hx 0).symm
   exact ⟨x, hx₀, hv⟩
 
--- One derivative sign test suffices to select one of the two roots of x² − 1.
+-- A single test selects one root of x² − 1. The fingerprint distinguishes both.
 open scoped Classical in
 example :
     let p : Polynomial ℝ := Polynomial.X ^ 2 - 1
     let S : Finset ℝ := {-1, 1}
-    ∃ L : List (Fin 2 × SignType), L.length ≤ 1 ∧
-      ∃ x ∈ S, ∀ y ∈ S, (∀ c ∈ L, p.derivativeSign y (c.1.val + 1) = c.2) ↔ y = x := by
+    (∃ L : List (Fin 2 × SignType), L.length ≤ 1 ∧
+      ∃ x ∈ S, ∀ y ∈ S, (∀ c ∈ L, p.derivativeSign y (c.1.val + 1) = c.2) ↔ y = x) ∧
+    ∃ m t : ℕ, m.Prime ∧ 2 < m ∧ m ≤ 20 ∧ t < m ∧
+      p.derivativeFingerprint 2 m t (-1) ≠ p.derivativeFingerprint 2 m t 1 := by
   intro p S
   have hc : p.coeff 2 = 1 := by
     simp [p, Polynomial.coeff_X_pow, Polynomial.coeff_one]
@@ -619,7 +621,11 @@ example :
   have hroots (x : ℝ) (hx : x ∈ S) : p.IsRoot x := by
     simp only [S, Finset.mem_insert, Finset.mem_singleton] at hx
     rcases hx with rfl | rfl <;> norm_num [p, Polynomial.IsRoot.def]
-  exact p.exists_short_derivativeSign_selector hp hD (by decide) hS hroots
+  refine ⟨p.exists_short_derivativeSign_selector hp hD (by decide) hS hroots, ?_⟩
+  obtain ⟨m, t, hm, hmlo, hmhi, ht, hinj⟩ := p.exists_derivativeFingerprint_injOn_roots hp hD
+  refine ⟨m, t, hm, hmlo, hmhi, ht, fun he => ?_⟩
+  have h := hinj (hroots (-1) (by simp [S])) (hroots 1 (by simp [S])) he
+  norm_num at h
 
 -- A nonmonic source with a double root at 1 gives a degree-two resultant with root 3.
 example :
