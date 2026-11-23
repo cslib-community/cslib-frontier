@@ -8,14 +8,15 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.DFS.TopologicalSort
-import CslibFrontier.Algorithms.Lean.TimeM.Loops
+import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
 
 /-!
 # Strongly connected components
 
-Kosaraju's linear-time algorithm for the strongly connected components of a directed graph given by
-adjacency lists `adj : V → List V`, together with their condensation topological order, following
-[Cormen et al.][CLRS2009] (see also [Tarjan][Tarjan1972]).
+Kosaraju's algorithm for the strongly connected components of a directed graph given by adjacency
+lists `adj : V → List V`, together with their condensation topological order, following
+[Cormen et al.][CLRS2009] (see also [Tarjan][Tarjan1972]). Linear-time iterative execution on the
+standard-basis word RAM is proved in `CslibFrontier.Algorithms.WordRAM.DFS`.
 
 From a vertex list `vs` covering `V`, `Cslib.Algorithms.Lean.DFS.sccs adj vs`:
 1. computes the finishing order `ord = topologicalSort adj vs` of depth-first search on `adj`;
@@ -34,19 +35,18 @@ condensation DAG: every edge `u → v` goes from a component of index `i` to a c
 
 * `Cslib.Algorithms.Lean.DFS.IsSCCCondensation`: specification of a duplicate-free partition of `V`
   into nonempty `StronglyConnected` classes ordered topologically.
-* `Cslib.Algorithms.Lean.DFS.transposeAdj`, `Cslib.Algorithms.Lean.DFS.transposeAdjM`: transpose
-  adjacency lists, pure and in `TimeM`.
-* `Cslib.Algorithms.Lean.DFS.sccs`, `Cslib.Algorithms.Lean.DFS.sccsM`: Kosaraju's algorithm, pure
-  and in `TimeM`.
-* `Cslib.Algorithms.Lean.DFS.indexComponents`, `Cslib.Algorithms.Lean.DFS.indexComponentsM`: map
-  each vertex to its component's topological index in `O(|V|)` steps.
+* `Cslib.Algorithms.Lean.DFS.transposeAdj`: transpose adjacency lists.
+* `Cslib.Algorithms.Lean.DFS.peelSCCs`, `Cslib.Algorithms.Lean.DFS.sccs`: Kosaraju's second pass
+  and two-pass SCC decomposition.
+* `Cslib.Algorithms.Lean.DFS.indexComponentsAux`, `Cslib.Algorithms.Lean.DFS.indexComponents`: map
+  each vertex to its component's topological index.
 
 ## Main results
 
+* `Cslib.Algorithms.Lean.DFS.sum_length_transposeAdj`: total length of transpose adjacency lists
+  equals `outDegreeSum adj vs`.
 * `Cslib.Algorithms.Lean.DFS.isSCCCondensation_sccs`: when `vs` lists every vertex, `sccs adj vs`
   satisfies `IsSCCCondensation adj`.
-* `Cslib.Algorithms.Lean.DFS.time_sccsM`, `Cslib.Algorithms.Lean.DFS.time_sccsM_of_nodup`: exact
-  linear `TimeM` cost (`3 * (|vs| + ∑ v, |adj v|)` when `vs` is duplicate-free).
 * `Cslib.Algorithms.Lean.DFS.IsSCCCondensation.indexComponents_eq_iff`,
   `Cslib.Algorithms.Lean.DFS.IsSCCCondensation.indexComponents_le_of_edge`: component-index
   equivalence and condensation monotonicity.
@@ -63,7 +63,6 @@ condensation DAG: every edge `u → v` goes from a component of index `i` to a c
 namespace Cslib.Algorithms.Lean.DFS
 
 open scoped List
-open TimeM
 
 variable {V : Type*}
 
@@ -90,14 +89,6 @@ structure IsSCCCondensation (adj : V → List V) (comps : List (List V)) : Prop 
 /-- Reverse every adjacency-list arc emanating from `vs`. -/
 def transposeAdj [DecidableEq V] (adj : V → List V) (vs : List V) : V → List V :=
   vs.foldl (fun rev u => (adj u).foldl (fun rev v => Function.update rev v (u :: rev v)) rev)
-    (fun _ => [])
-
-/-- `transposeAdj` in `TimeM`, charging one unit per vertex of `vs` and one per arc scanned. -/
-def transposeAdjM [DecidableEq V] (adj : V → List V) (vs : List V) : TimeM ℕ (V → List V) :=
-  vs.foldlM
-    (fun rev u => do
-      ✓
-      (adj u).foldlM (fun rev v => do ✓ return Function.update rev v (u :: rev v)) rev)
     (fun _ => [])
 
 section Transpose
@@ -153,14 +144,6 @@ theorem reflTransGen_edge_transposeAdj_iff {vs : List V} (hvs : ∀ v, v ∈ vs)
     funext fun a => funext fun b => propext (edge_transposeAdj_iff hvs)
   rw [hrel, Relation.reflTransGen_swap]
 
-theorem ret_transposeAdjM (adj : V → List V) (vs : List V) :
-    (transposeAdjM adj vs).ret = transposeAdj adj vs := by
-  time_spec transposeAdjM
-
-theorem time_transposeAdjM (adj : V → List V) (vs : List V) :
-    (transposeAdjM adj vs).time = vs.length + outDegreeSum adj vs := by
-  time_spec transposeAdjM [List.sum_map_add, outDegreeSum, Nat.mul_one]
-
 omit [DecidableEq V] in
 /-- Consing onto one adjacency-list entry increases the total adjacency-list length by `1`. -/
 theorem sum_length_update_cons {α β : Type*} [DecidableEq α] [Fintype α] (f : α → List β)
@@ -174,6 +157,7 @@ theorem sum_length_update_cons {α β : Type*} [DecidableEq α] [Fintype α] (f 
   rw [List.length_cons]
   rw [Finset.erase_eq]
   omega
+
 private theorem sum_length_foldl_update [Fintype V] (u : V) :
     ∀ (l : List V) (rev : V → List V),
       (∑ w, ((l.foldl (fun rev v => Function.update rev v (u :: rev v)) rev) w).length) =
@@ -201,6 +185,11 @@ theorem sum_length_transposeAdj [Fintype V] (adj : V → List V) (vs : List V) :
 
 end Transpose
 
+/-- `outDegreeSum` is additive over list concatenation. -/
+theorem outDegreeSum_append (g : V → List V) (a b : List V) :
+    outDegreeSum g (a ++ b) = outDegreeSum g a + outDegreeSum g b := by
+  simp [outDegreeSum, List.map_append, List.sum_append]
+
 /-! ### Kosaraju's second pass -/
 
 /-- Peel strongly connected components in `revAdj` along finishing order `rs`. -/
@@ -212,61 +201,14 @@ def peelSCCs [DecidableEq V] (revAdj : V → List V) (k : ℕ) :
     if s.finished.isEmpty then peelSCCs revAdj k s.visited rs
     else s.finished :: peelSCCs revAdj k s.visited rs
 
-/-- `peelSCCs` in `TimeM`. -/
-def peelSCCsM [DecidableEq V] (revAdj : V → List V) (k : ℕ) :
-    Finset V → List V → TimeM ℕ (List (List V))
-  | _, [] => return []
-  | vis, r :: rs => do
-    let s ← visitM revAdj k r ⟨vis, []⟩
-    let rest ← peelSCCsM revAdj k s.visited rs
-    if s.finished.isEmpty then return rest
-    else return s.finished :: rest
-
 /-- **Kosaraju's algorithm**: compute strongly connected components in condensation topological
 order from a vertex list `vs`. -/
 def sccs [DecidableEq V] (adj : V → List V) (vs : List V) : List (List V) :=
   peelSCCs (transposeAdj adj vs) vs.length ∅ (topologicalSort adj vs)
 
-/-- Kosaraju's algorithm in `TimeM`. -/
-def sccsM [DecidableEq V] (adj : V → List V) (vs : List V) : TimeM ℕ (List (List V)) := do
-  let ord ← topologicalSortM adj vs
-  let revAdj ← transposeAdjM adj vs
-  peelSCCsM revAdj vs.length ∅ ord
-
 section KosarajuProof
 
 variable [DecidableEq V] {adj : V → List V}
-
-omit [DecidableEq V] in
-/-- `outDegreeSum` is additive over list concatenation. -/
-theorem outDegreeSum_append (g : V → List V) (a b : List V) :
-    outDegreeSum g (a ++ b) = outDegreeSum g a + outDegreeSum g b := by
-  simp [outDegreeSum, List.map_append, List.sum_append]
-
-private theorem peelSCCsM_spec (revAdj : V → List V) (k : ℕ) :
-    ∀ (vis : Finset V) (rs : List V),
-      (peelSCCsM revAdj k vis rs).ret = peelSCCs revAdj k vis rs ∧
-      (peelSCCsM revAdj k vis rs).time =
-        rs.length + outDegreeSum revAdj (peelSCCs revAdj k vis rs).flatten
-  | vis, [] => by simp [peelSCCsM, peelSCCs, outDegreeSum]
-  | vis, r :: rs => by
-    have hv_ret : (visitM revAdj k r ⟨vis, []⟩).ret = visit revAdj k r ⟨vis, []⟩ :=
-      ret_visitM k r ⟨vis, []⟩
-    have hv_time : (visitM revAdj k r ⟨vis, []⟩).time =
-        1 + outDegreeSum revAdj (visit revAdj k r ⟨vis, []⟩).finished := by
-      have ht := time_visitM (adj := revAdj) k r ⟨vis, []⟩
-      simpa [outDegreeSum] using ht
-    obtain ⟨hr_ret, hr_time⟩ :=
-      peelSCCsM_spec revAdj k (visit revAdj k r ⟨vis, []⟩).visited rs
-    rw [peelSCCsM, peelSCCs]
-    simp only [TimeM.ret_bind, TimeM.time_bind, hv_ret, hv_time, hr_ret, hr_time, List.length_cons]
-    split_ifs with he
-    · have hnil : (visit revAdj k r ⟨vis, []⟩).finished = [] := List.isEmpty_iff.1 he
-      simp only [TimeM.ret_pure, TimeM.time_pure, hnil, outDegreeSum, List.map_nil, List.sum_nil,
-        true_and]
-      omega
-    · simp only [TimeM.ret_pure, TimeM.time_pure, List.flatten_cons, outDegreeSum_append, true_and]
-      omega
 
 omit [DecidableEq V] in
 private theorem reach_of_closed {g : V → List V} {vis : Finset V}
@@ -521,54 +463,6 @@ theorem isSCCCondensation_sccs {vs : List V} (hvs : ∀ v, v ∈ vs) :
       obtain ⟨r, hr⟩ := hscc c hc
       exact ⟨c, hc, hu, (hr v).2 (((hr u).1 hu).trans huv)⟩
 
-@[time_simps]
-theorem ret_sccsM (adj : V → List V) (vs : List V) :
-    (sccsM adj vs).ret = sccs adj vs := by
-  simp only [sccsM, sccs, TimeM.ret_bind, ret_topologicalSortM, ret_transposeAdjM,
-    (peelSCCsM_spec _ _ _ _).1]
-
-/-- **Exact `TimeM` cost of `sccsM`** from a covering vertex list `vs`. -/
-theorem time_sccsM [Fintype V] {vs : List V} (hvs : ∀ v, v ∈ vs) :
-    (sccsM adj vs).time =
-      2 * vs.length + Fintype.card V + (∑ v, (adj v).length) + 2 * outDegreeSum adj vs := by
-  have hcond := isSCCCondensation_sccs (adj := adj) hvs
-  have hord_len : (topologicalSort adj vs).length = Fintype.card V := by
-    have hnd := nodup_topologicalSort (adj := adj) hvs
-    have hm := mem_topologicalSort (adj := adj) hvs
-    rw [← List.toFinset_card_of_nodup hnd]
-    congr 1
-    ext v
-    simp [hm v]
-  have hout_rev :
-      outDegreeSum (transposeAdj adj vs) (sccs adj vs).flatten = outDegreeSum adj vs := by
-    rw [outDegreeSum, ← List.sum_toFinset _ hcond.nodup_flatten]
-    have huniv : (sccs adj vs).flatten.toFinset = Finset.univ := by
-      ext v
-      simp [hcond.mem_flatten v]
-    rw [huniv, sum_length_transposeAdj]
-  simp only [sccsM, TimeM.time_bind, ret_topologicalSortM, ret_transposeAdjM,
-    time_topologicalSortM hvs, time_transposeAdjM, (peelSCCsM_spec _ _ _ _).2]
-  change (vs.length + ∑ v, (adj v).length) +
-    ((vs.length + outDegreeSum adj vs) +
-      ((topologicalSort adj vs).length +
-        outDegreeSum (transposeAdj adj vs) (sccs adj vs).flatten)) = _
-  rw [hord_len, hout_rev]
-  omega
-
-/-- When `vs` lists every vertex without repetition, `sccsM adj vs` costs exactly
-`3 * (vs.length + ∑ v, (adj v).length)`. -/
-theorem time_sccsM_of_nodup [Fintype V] {vs : List V} (hvs : ∀ v, v ∈ vs) (hnd : vs.Nodup) :
-    (sccsM adj vs).time = 3 * (vs.length + ∑ v, (adj v).length) := by
-  have huniv : vs.toFinset = Finset.univ := by
-    ext v
-    simp [hvs v]
-  have hcard : Fintype.card V = vs.length := by
-    rw [← List.toFinset_card_of_nodup hnd, huniv, Finset.card_univ]
-  have hout : outDegreeSum adj vs = ∑ v, (adj v).length := by
-    rw [outDegreeSum, ← List.sum_toFinset _ hnd, huniv]
-  rw [time_sccsM hvs, hcard, hout]
-  omega
-
 end KosarajuProof
 
 /-! ### Component-index table -/
@@ -582,18 +476,6 @@ def indexComponentsAux [DecidableEq V] : ℕ → List (List V) → (V → ℕ) �
 /-- Map every vertex to the topological index of its component in `comps`. -/
 def indexComponents [DecidableEq V] (comps : List (List V)) : V → ℕ :=
   indexComponentsAux 0 comps (fun _ => 0)
-
-/-- `indexComponentsAux` in `TimeM`, charging one unit per component and one per vertex entry. -/
-def indexComponentsAuxM [DecidableEq V] : ℕ → List (List V) → (V → ℕ) → TimeM ℕ (V → ℕ)
-  | _, [], f => return f
-  | idx, c :: cs, f => do
-    ✓
-    let f' ← c.foldlM (fun f v => do ✓ return Function.update f v idx) f
-    indexComponentsAuxM (idx + 1) cs f'
-
-/-- `indexComponents` in `TimeM`. -/
-def indexComponentsM [DecidableEq V] (comps : List (List V)) : TimeM ℕ (V → ℕ) :=
-  indexComponentsAuxM 0 comps (fun _ => 0)
 
 section IndexComponents
 
@@ -644,36 +526,6 @@ theorem indexComponents_eq_of_mem {comps : List (List V)} (hnd : comps.flatten.N
     {i : ℕ} (hi : i < comps.length) {u : V} (hu : u ∈ comps[i]) :
     indexComponents comps u = i := by
   simpa [indexComponents] using indexComponentsAux_getElem 0 comps (fun _ => 0) hnd hi hu
-
-private theorem indexComponentsAuxM_spec :
-    ∀ (idx : ℕ) (cs : List (List V)) (f : V → ℕ),
-      (indexComponentsAuxM idx cs f).ret = indexComponentsAux idx cs f ∧
-      (indexComponentsAuxM idx cs f).time = cs.length + cs.flatten.length
-  | _, [], f => by simp [indexComponentsAuxM, indexComponentsAux]
-  | idx, c :: cs, f => by
-    have hr₁ :
-        (c.foldlM (fun f v => do ✓ return Function.update f v idx) f).ret =
-          c.foldl (fun f v => Function.update f v idx) f := by
-      simp [TimeM.ret_foldlM]
-    have ht₁ :
-        (c.foldlM (fun f v => do ✓ return Function.update f v idx) f).time = c.length := by
-      simpa using TimeM.time_foldlM_of_time_eq
-        (fun (f : V → ℕ) v => do ✓ return Function.update f v idx) c f (c := 1) (fun _ _ => rfl)
-    obtain ⟨hr₂, ht₂⟩ := indexComponentsAuxM_spec (idx + 1) cs
-      (c.foldl (fun f v => Function.update f v idx) f)
-    simp only [indexComponentsAuxM, indexComponentsAux, TimeM.ret_bind, TimeM.time_bind,
-      TimeM.time_tick, hr₁, hr₂, ht₁, ht₂, List.length_cons, List.flatten_cons, List.length_append,
-      true_and]
-    omega
-
-@[time_simps]
-theorem ret_indexComponentsM (comps : List (List V)) :
-    (indexComponentsM comps).ret = indexComponents comps :=
-  (indexComponentsAuxM_spec 0 comps (fun _ => 0)).1
-
-theorem time_indexComponentsM (comps : List (List V)) :
-    (indexComponentsM comps).time = comps.length + comps.flatten.length :=
-  (indexComponentsAuxM_spec 0 comps (fun _ => 0)).2
 
 namespace IsSCCCondensation
 

@@ -128,6 +128,8 @@ open Cslib.OracleComp
 open Cslib.Crypto.Protocols.BCS
 open Cslib.Probability
 
+/-! ### Smooth Parameter and Domain Helpers -/
+
 section SmoothParamHelpers
 
 variable {F : Type} [Field F]
@@ -195,6 +197,8 @@ theorem FRISmoothParams.two_mul_div_add_dim_le (params : FRISmoothParams F) {e :
 
 end SmoothParamHelpers
 
+/-! ### Shared Transcript Accessors (`prefOracle`, `prefFoldScalar`, `prefQueryIdxs`) -/
+
 section SharedTranscriptAccessors
 
 variable {F : Type} [Field F]
@@ -230,22 +234,27 @@ abbrev prefFinalQueryIdxs (params : FRIParams F)
     Fin params.q → Fin (2 ^ params.d) :=
   prefQueryIdxs pref params.m
 
+/-- Reading oracle `k < pref.length` from `pref ++ extra` matches reading it from `pref`. -/
 theorem prefOracle_append_left {d q : ℕ}
     (pref extra : List (OracleTable d F × FRIChal F d q)) {k : ℕ} (hk : k < pref.length) :
     prefOracle (pref ++ extra) k = prefOracle pref k := by
   simp only [prefOracle, List.getElem?_append_left hk]
 
+/-- Reading the newly appended oracle at index `pref.length` returns `π`. -/
 theorem prefOracle_append_self {d q : ℕ}
     (pref : List (OracleTable d F × FRIChal F d q)) (π : OracleTable d F) (c : FRIChal F d q) :
     prefOracle (pref ++ [(π, c)]) pref.length = π := by
   simp only [prefOracle, List.getElem?_append_right le_rfl, Nat.sub_self,
     List.getElem?_cons_zero]
 
+/-- Reading folding scalar `k < pref.length` from `pref ++ extra` matches reading it from `pref`.
+-/
 theorem prefFoldScalar_append_left {d q : ℕ}
     (pref extra : List (OracleTable d F × FRIChal F d q)) {k : ℕ} (hk : k < pref.length) :
     prefFoldScalar (pref ++ extra) k = prefFoldScalar pref k := by
   simp only [prefFoldScalar, List.getElem?_append_left hk]
 
+/-- Reading the newly appended folding scalar at index `pref.length` returns `c.foldScalar`. -/
 theorem prefFoldScalar_append_self {d q : ℕ}
     (pref : List (OracleTable d F × FRIChal F d q)) (π : OracleTable d F) (c : FRIChal F d q) :
     prefFoldScalar (pref ++ [(π, c)]) pref.length = c.foldScalar := by
@@ -260,6 +269,8 @@ private theorem prefQueryIdxs_append_self {m d q : ℕ}
   simp only [prefQueryIdxs, ← hlen, List.getElem?_append_right le_rfl, Nat.sub_self,
     List.getElem?_cons_zero]
 
+/-- Reading the final round's query starting indices after appending `(π, c)` at index `m` returns
+`c.queryIdxs`. -/
 theorem prefFinalQueryIdxs_append_self (params : FRIParams F)
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
     (hlen : pref.length = params.m) (π : OracleTable params.d F)
@@ -267,12 +278,16 @@ theorem prefFinalQueryIdxs_append_self (params : FRIParams F)
     prefFinalQueryIdxs params (pref ++ [(π, c)]) = c.queryIdxs :=
   prefQueryIdxs_append_self pref hlen π c
 
+/-- Reading oracle `k < m + 1` from a transcript built with `List.ofFn` yields `oracles ⟨k, hk⟩`.
+-/
 theorem prefOracle_ofFn {m d q : ℕ}
     (oracles : Fin (m + 1) → OracleTable d F) (chals : Fin (m + 1) → FRIChal F d q)
     {k : ℕ} (hk : k < m + 1) :
     prefOracle (List.ofFn fun j : Fin (m + 1) => (oracles j, chals j)) k = oracles ⟨k, hk⟩ := by
   simp only [prefOracle, List.getElem?_ofFn, hk, ↓reduceDIte]
 
+/-- Reading folding scalar `k < m + 1` from a transcript built with `List.ofFn` yields
+`(chals ⟨k, hk⟩).foldScalar`. -/
 theorem prefFoldScalar_ofFn {m d q : ℕ}
     (oracles : Fin (m + 1) → OracleTable d F) (chals : Fin (m + 1) → FRIChal F d q)
     {k : ℕ} (hk : k < m + 1) :
@@ -287,6 +302,8 @@ private theorem prefQueryIdxs_ofFn {m d q : ℕ}
       (chals (Fin.last m)).queryIdxs := by
   simp only [prefQueryIdxs, List.getElem?_ofFn, Nat.lt_succ_self, ↓reduceDIte, Fin.last]
 
+/-- Reading the final round's query starting indices from a full `List.ofFn` transcript yields
+`(chals (Fin.last params.m)).queryIdxs`. -/
 theorem prefFinalQueryIdxs_ofFn (params : FRIParams F)
     (oracles : Fin (params.m + 1) → OracleTable params.d F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
@@ -308,6 +325,8 @@ theorem prefFinalQueryIdxs_ofFn (params : FRIParams F)
   right_inv _ := rfl
 
 end SharedTranscriptAccessors
+
+/-! ### Smooth Transcript State, Target Words, and Weight Filters -/
 
 section SmoothTranscriptState
 
@@ -524,6 +543,8 @@ theorem sum_agree_friSmoothOracleFilterWeight_le [DecidableEq F] (params : FRISm
 
 end SmoothTranscriptState
 
+/-! ### Smooth Starting-Point Counting -/
+
 section SmoothStartingPointCounting
 
 variable {F : Type} [Field F]
@@ -566,6 +587,7 @@ index `s : Fin (2 ^ d)`. -/
   πFinal (friSmoothFinalIdx params s) =
     friSmoothFinalCodeword params πFinal (friSmoothFinalFin params s)
 
+/-- Decidability of the smooth prefix-acceptance predicate `friSmoothPrefixPasses`. -/
 instance instDecidableFriSmoothPrefixPasses [DecidableEq F] (params : FRISmoothParams F)
     (stmt : OracleTable params.d F)
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
@@ -574,6 +596,7 @@ instance instDecidableFriSmoothPrefixPasses [DecidableEq F] (params : FRISmoothP
   unfold friSmoothPrefixPasses
   infer_instance
 
+/-- Decidability of the final-round smooth acceptance predicate `friSmoothFinalPasses`. -/
 instance instDecidableFriSmoothFinalPasses [DecidableEq F] (params : FRISmoothParams F)
     (stmt : OracleTable params.d F)
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
@@ -811,6 +834,8 @@ theorem card_filter_friSmoothFinalPasses_le [DecidableEq F] (params : FRISmoothP
 
 end SmoothStartingPointCounting
 
+/-! ### Smooth Round-by-Round Predicates and Query-Round Escape -/
+
 section SmoothRoundByRoundSoundness
 
 variable {F : Type} [Field F]
@@ -974,6 +999,8 @@ theorem friSmoothQueryRound_escape_le [Fintype F] [DecidableEq F] (params : FRIS
       _ ≤ B ^ params.q * (Fintype.card F * (2 ^ params.d) ^ params.q) :=
           Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hcard _)
   · simp only [Nat.cast_pow, Nat.cast_ofNat, div_eq_mul_inv, mul_pow, ENNReal.inv_pow]
+
+/-! ### Weighted Curve Gap / Escape Contracts and Commit-Round Bounds -/
 
 /-- **Polymorphic per-round weighted degree-`(l⁽ⁱ⁾ - 1)` curve proximity-gap contract** across all
 `m` smooth FRI folding rounds at agreement threshold `B` and per-round exceptional-scalar budgets
@@ -1156,6 +1183,8 @@ theorem friSmoothCommitRound_escape_le_of_weightedCurveGap [Fintype F] [Decidabl
       (B_commit : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) :=
   friSmoothCommitRound_escape_le_of_weightedCurveGapPerRound params hgap stmt pref hpm π hdoomed
 
+/-! ### Smooth Error Budgets, Interactive Game, and Summed IOP Soundness -/
+
 /-- Per-round escape budget vector for single-word `(m + 1)`-round `friSmoothIOP`: `ε_commit i` in
 folding rounds `0 ≤ i < m`, and `((2 ^ d - e - 1) / 2 ^ d) ^ q` in the final query round `m`. -/
 @[expose] noncomputable def friSmoothRoundEscape (params : FRISmoothParams F) (e : ℕ)
@@ -1172,6 +1201,7 @@ folding rounds `0 ≤ i < m`, and `((2 ^ d - e - 1) / 2 ^ d) ^ q` in the final q
   (∑ i : Fin params.m, ε_commit i) +
     (((2 ^ params.d - e - 1 : ℕ) : ℝ≥0∞) / (2 ^ params.d : ℝ≥0∞)) ^ params.q
 
+/-- The sum of `friSmoothRoundEscape` over all `m + 1` rounds equals `friSmoothSumError`. -/
 theorem sum_friSmoothRoundEscape_eq_friSmoothSumError (params : FRISmoothParams F) (e : ℕ)
     (ε_commit : Fin params.m → ℝ≥0∞) :
     (∑ j : Fin (params.m + 1), friSmoothRoundEscape params e ε_commit j) =
@@ -1195,6 +1225,8 @@ theorem sum_friSmoothRoundEscape_eq_friSmoothSumError (params : FRISmoothParams 
   max ((B_commit : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞))
     ((((2 ^ params.d - e - 1 : ℕ) : ℝ≥0∞) / (2 ^ params.d : ℝ≥0∞)) ^ params.q)
 
+/-- For a uniform commit-round error `B_commit / |F|`, `friSmoothSupRBRError` is bounded above by
+`friSmoothRBRError`. -/
 theorem friSmoothSupRBRError_const_le_friSmoothRBRError [Fintype F] (params : FRISmoothParams F)
     (e B_commit : ℕ) :
     friSmoothSupRBRError params e (fun _ => (B_commit : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) ≤
@@ -1345,6 +1377,8 @@ theorem friSmoothIOP_interactiveGame_le_of_weightedCurveGapPerRound [Fintype F] 
 
 end SmoothRoundByRoundSoundness
 
+/-! ### Smooth Unique-Decoding Curve-Gap Upgrade -/
+
 section SmoothUniqueDecodingUpgrade
 
 variable {F : Type} [Field F]
@@ -1448,6 +1482,8 @@ theorem weightedCurveGapBound_of_uniqueCurveGap [DecidableEq F]
     params.arity_sub_one_mul_domainSize_le_first
 
 end SmoothUniqueDecodingUpgrade
+
+/-! ### Smooth BCS-FRI Random-Oracle Soundness Composition -/
 
 section SmoothBCSROMComposition
 
@@ -1595,6 +1631,8 @@ end SmoothBCSROMComposition
 
 /-! ### Binary 2-to-1 Specialization & Preserved `FRIParams` Soundness API -/
 
+/-! #### Binary State, RBR Predicates, and Line-Gap Contracts -/
+
 section BinaryTranscriptAndBridges
 
 variable {F : Type} [Field F]
@@ -1691,6 +1729,7 @@ index `s : Fin (2 ^ d)`. -/
       (friRoundPosIdx params k s)) ∧
   πFinal (friFinalIdx params s) = friFinalCodeword params πFinal (friFinalFin params s)
 
+/-- Decidability of the binary prefix-acceptance predicate `friPrefixPasses`. -/
 instance instDecidableFriPrefixPasses [DecidableEq F] (params : FRIParams F)
     (stmt : OracleTable params.d F)
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
@@ -1699,6 +1738,7 @@ instance instDecidableFriPrefixPasses [DecidableEq F] (params : FRIParams F)
   unfold friPrefixPasses
   infer_instance
 
+/-- Decidability of the final-round binary acceptance predicate `friFinalPasses`. -/
 instance instDecidableFriFinalPasses [DecidableEq F] (params : FRIParams F)
     (stmt : OracleTable params.d F)
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
@@ -1834,6 +1874,8 @@ Theorem 4.1]). -/
       ∃ v₀ ∈ params.rsCode (i.val + 1), ∃ v₁ ∈ params.rsCode (i.val + 1),
         2 ^ (params.d - (i.val + 1)) - e / 2 ^ (i.val + 1) ≤ D'.card ∧
         ∀ j ∈ D', u₀ j = v₀ j ∧ u₁ j = v₁ j
+
+/-! #### Binary-to-Smooth State and Game Bridges -/
 
 private def toSmoothDomEquiv (params : FRIParams F) {i : ℕ} (hi : i ≤ params.m) :
     Fin (2 ^ (params.d - i)) ≃ Fin (params.toSmooth.domainSize i) :=
@@ -2079,6 +2121,8 @@ theorem friCommitGame_eq_friSmoothCommitGame [Fintype F] (params : FRIParams F) 
   rw [@filter_friFinalPasses_eq F _ params stmt pref πFinal
     (Classical.decPred _) (Classical.decPred _)]
 
+/-! #### Binary-to-Smooth Line/Curve Proximity-Gap Bridges -/
+
 private theorem forall_fin_toSmooth_arity_iff (params : FRIParams F) (i : Fin params.m)
     (P : Fin (params.toSmooth.arity i) → Prop) :
     (∀ r : Fin (params.toSmooth.arity i), P r) ↔ P ⟨0, by simp⟩ ∧ P ⟨1, by simp⟩ :=
@@ -2251,10 +2295,13 @@ private theorem uniqueLineGapHypothesis_to_smooth [DecidableEq F] (params : FRIP
 
 end BinaryTranscriptAndBridges
 
+/-! #### Binary Transcript-State, Weight, and Counting Corollaries -/
+
 section BinaryCorollaries
 
 variable {F : Type} [Field F]
 
+/-- Appending suffix rounds `extra` preserves `friTargetWord` at round `i ≤ pref.length`. -/
 theorem friTargetWord_append (params : FRIParams F) (stmt : OracleTable params.d F)
     (pref extra : List (OracleTable params.d F × FRIChal F params.d params.q))
     {i : ℕ} (hi : i ≤ params.m) (hlen : i ≤ pref.length) :
@@ -2263,6 +2310,7 @@ theorem friTargetWord_append (params : FRIParams F) (stmt : OracleTable params.d
   rw [friTargetWord_apply_eq_smooth, friTargetWord_apply_eq_smooth,
     friSmoothTargetWord_append params.toSmooth stmt pref extra hi hlen]
 
+/-- Appending suffix rounds `extra` does not change `friPreWeight` at round `i ≤ pref.length`. -/
 theorem friPreWeight_append [DecidableEq F] (params : FRIParams F)
     (stmt : OracleTable params.d F)
     (pref extra : List (OracleTable params.d F × FRIChal F params.d params.q))
@@ -2272,6 +2320,7 @@ theorem friPreWeight_append [DecidableEq F] (params : FRIParams F)
   rw [friPreWeight_apply_eq_smooth, friPreWeight_apply_eq_smooth,
     friSmoothPreWeight_append params.toSmooth stmt pref extra hi hlen]
 
+/-- One-step folding update for `friTargetWord` after appending round `(π, c)`. -/
 theorem friTargetWord_append_step (params : FRIParams F) (stmt : OracleTable params.d F)
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
     (hpm : pref.length < params.m) (π : OracleTable params.d F)
@@ -2284,6 +2333,7 @@ theorem friTargetWord_append_step (params : FRIParams F) (stmt : OracleTable par
         c.foldScalar := by
   simp only [friTargetWord, prefOracle_append_self, prefFoldScalar_append_self]
 
+/-- One-step update for `friPreWeight` after appending round `(π, c)` equals `friNextWeight`. -/
 theorem friPreWeight_append_step [DecidableEq F] (params : FRIParams F)
     (stmt : OracleTable params.d F)
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
@@ -2295,6 +2345,7 @@ theorem friPreWeight_append_step [DecidableEq F] (params : FRIParams F)
   rw [friPreWeight_apply_eq_smooth, friNextWeight_apply_eq_smooth,
     friSmoothPreWeight_append_step params.toSmooth stmt pref hpm π c]
 
+/-- Oracle-filtered weight is bounded pointwise by `friPreWeight`. -/
 theorem friOracleFilterWeight_le [DecidableEq F] (params : FRIParams F)
     (stmt : OracleTable params.d F)
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
@@ -2374,6 +2425,8 @@ theorem sum_agree_friOracleFilterWeight_le [DecidableEq F] (params : FRIParams F
       (friPreWeight_apply_eq_smooth params stmt pref i hi)]
   exact sum_agree_friSmoothOracleFilterWeight_le params.toSmooth stmt pref i hi π (c ∘ e.symm)
 
+/-- On a complete transcript `pref ++ [(πFinal, c)]`, `friTranscriptSingleAccepts` coincides with
+`friFinalPasses`. -/
 theorem friTranscriptSingleAccepts_append_iff (params : FRIParams F)
     (stmt : OracleTable params.d F)
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q))
@@ -2384,6 +2437,7 @@ theorem friTranscriptSingleAccepts_append_iff (params : FRIParams F)
   rw [friTranscriptSingleAccepts_iff_smooth, friFinalPasses_iff_friSmoothFinalPasses]
   exact friSmoothTranscriptSingleAccepts_append_iff params.toSmooth stmt pref hlen πFinal c s
 
+/-- On a `List.ofFn` transcript, `friTranscriptSingleAccepts` coincides with `friSingleAccepts`. -/
 theorem friTranscriptSingleAccepts_ofFn_iff (params : FRIParams F)
     (stmt : OracleTable params.d F)
     (oracles : Fin (params.m + 1) → OracleTable params.d F)
@@ -2440,6 +2494,8 @@ theorem card_filter_friFinalPasses_le [DecidableEq F] (params : FRIParams F)
     (fun j => by rw [friTargetWord_apply_eq_smooth, hcw])
     (friPreWeight_apply_eq_smooth params stmt pref params.m le_rfl)]
   exact card_filter_friSmoothFinalPasses_le params.toSmooth stmt pref hlen πFinal
+
+/-! #### Binary RBR Soundness, Escape Bounds, and Interactive Game Corollaries -/
 
 /-- **Unconditional round-by-round soundness invariant for binary `friIOP`** (corollary of
 `friSmoothIOP_rbrSound`). -/
@@ -2542,12 +2598,15 @@ theorem friCommitRound_escape_le_of_weightedLineGap [Fintype F] [DecidableEq F]
       (B_commit : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) :=
   friCommitRound_escape_le_of_weightedLineGapPerRound params hgap stmt pref hpm π hdoomed
 
+/-- The sum of `friRoundEscape` over all `m + 1` rounds equals `friSumError`. -/
 theorem sum_friRoundEscape_eq_friSumError (params : FRIParams F) (e : ℕ)
     (ε_commit : Fin params.m → ℝ≥0∞) :
     (∑ j : Fin (params.m + 1), friRoundEscape params e ε_commit j) =
       friSumError params e ε_commit :=
   sum_friSmoothRoundEscape_eq_friSmoothSumError params.toSmooth e ε_commit
 
+/-- For a uniform commit-round error `B_commit / |F|`, `friSupRBRError` is bounded above by
+`friRBRError`. -/
 theorem friSupRBRError_const_le_friRBRError [Fintype F] (params : FRIParams F)
     (e B_commit : ℕ) :
     friSupRBRError params e (fun _ => (B_commit : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) ≤
@@ -2654,6 +2713,8 @@ theorem friIOP_interactiveGame_le_of_weightedLineGapPerRound [Fintype F] [Decida
   friIOP_interactiveGame_le_of_weightedLineEscapePerRound params
     (weightedLineEscapePerRound_of_gapPerRound params hgap) hfar P
 
+/-! #### Binary Parameter Helpers & Unique-Decoding Line-Gap Upgrade -/
+
 /-- Fiber-size product identity `2 ^ (i + 1) * 2 ^ (d - (i + 1)) = 2 ^ d` for a folding round
 `i : Fin params.m`. -/
 theorem FRIParams.fiber_mul_domainSize (params : FRIParams F) (i : Fin params.m) :
@@ -2730,6 +2791,8 @@ theorem weightedLineGapBound_of_uniqueLineGap [DecidableEq F]
 
 end BinaryCorollaries
 
+/-! #### `ZMod` Symbol Encoding (`encZMod`, `decZMod`) -/
+
 section SymbolEncoding
 
 /-- Computable unsigned little-endian binary symbol encoding for `ZMod p` via `Nat.bits`,
@@ -2743,12 +2806,15 @@ preserving the minimal bit-list word layout `Nat.bits x.val` (distinct from the 
 @[expose] def decZMod (p : ℕ) (bs : List Bool) : ZMod p :=
   (Turing.MultiTapeTM.ofBits bs : ZMod p)
 
+/-- Round-trip inversion: `decZMod p` is a left inverse to `encZMod`. -/
 theorem leftInverse_decZMod_encZMod (p : ℕ) [NeZero p] :
     Function.LeftInverse (decZMod p) (encZMod (p := p)) := by
   intro x
   simp only [decZMod, encZMod, Turing.MultiTapeTM.ofBits_bits, ZMod.natCast_zmod_val]
 
 end SymbolEncoding
+
+/-! #### Binary BCS-FRI Random-Oracle Soundness Composition -/
 
 section BCSROMComposition
 

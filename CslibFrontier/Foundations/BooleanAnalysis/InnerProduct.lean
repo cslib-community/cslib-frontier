@@ -1,70 +1,44 @@
 /-
-Copyright (c) 2026 Vincent Liew. All rights reserved.
+Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Vincent Liew
+Authors: Samuel Schlesinger
 -/
 
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.BooleanAnalysis.PolynomialThreshold
+public import CslibFrontier.Foundations.BooleanAnalysis.Fourier
+public import CslibFrontier.Foundations.Data.BitString.Basic
+import CslibFrontier.Foundations.Data.BitString.Parity.DotProduct
+import CslibFrontier.Foundations.Data.BitString.Sign.BigOperators
 import CslibFrontier.Foundations.Data.Finset.Expect
+import CslibFrontier.Foundations.Data.Finset.ExpectPi
+import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import Mathlib.Tactic.Positivity
 
 /-!
-# The Fourier spectrum of the inner product
+# The Fourier spectrum of the inner product modulo two
 
-The inner product modulo two of two `n`-bit strings, as a function on the cube over `ι ⊕ ι`
-(`BitString.innerProduct`), has the flattest possible Fourier spectrum: read as signs, its
-coefficient on a set `S` is `(-1) ^ |S_L ∩ S_R| / 2 ^ n`, where `S_L` and `S_R` are the parts of
-`S` in the two halves (`BitString.fourierCoeff_signVal_innerProduct`), so every coefficient has
-absolute value `2 ^ (-n)` (`BitString.abs_fourierCoeff_signVal_innerProduct`)
-[O'Donnell, Exercise 1.1(g)][ODonnell2014]. Splitting a string into its halves `x` and `y`, the
-character of `S` is the product of the characters of `S_L` and `S_R` (`BitString.chi_sumElim`),
-and `(-1) ^ (x ⬝ᵥ y)` is the character of the support of `x` at `y`
-(`BitString.signVal_dotProduct`), so by orthogonality averaging `(-1) ^ (x ⬝ᵥ y) χ_{S_R}(y)` over
-`y` leaves only `x = 1_{S_R}`.
+The sign of the inner product of two `n`-bit strings has every Fourier coefficient equal to
+`±2⁻ⁿ`: it is a bent function. Here the two strings are the two halves of one `2n`-bit input,
+using `BitString.fstBits`, `BitString.sndBits`, and the Boolean-ring inner product `⬝ᵥ`.
+The sign of the coefficient at a Fourier mask is the inner product of the mask's two halves.
 
-Since every coefficient is `2 ^ (-n)` in absolute value, a polynomial threshold representation of
-the inner product over a family `T` of monomials has `|T| 2 ^ (-n) ≥ 1` by Theorem 5.10, so it uses
-at least `2 ^ n` monomials [O'Donnell, Corollary 5.11][ODonnell2014]. This holds for every nonzero
-`p` that is `≥ 0` where the inner product is `false` and `≤ 0` where it is `true`, which covers the
-book's representations `f = sgn(p)` with `sgn(0) = 1`
-(`BitString.two_pow_le_card_innerProduct_of_nonneg_mul`), and for nowhere-vanishing ones
-(`BitString.IsPTFOn.two_pow_le_card_innerProduct`).
-
-## Usage
-
-Open `Cslib` and `Cslib.BitString`. `IsPTFOn T f`, from
-`CslibFrontier.Foundations.BooleanAnalysis.PolynomialThreshold`, says that `f`, read as signs, is
-the sign of a nowhere-zero real polynomial whose Fourier coefficients vanish outside the family `T`
-of monomials. A string on `ι ⊕ ι` with halves `x` and `y` is `Sum.elim x y`, on which
-`innerProduct_sumElim` evaluates the inner product as `x ⬝ᵥ y`; `S.toLeft` and `S.toRight` are the
-parts `S_L` and `S_R` of a set `S`, and `chi_sumElim` splits a character along them. Use
-`IsPTFOn.two_pow_le_card_innerProduct` for nowhere-vanishing representations, and
-`two_pow_le_card_innerProduct_of_nonneg_mul` when `p` may vanish: it asks only that `p ≠ 0` and
-that `signVal (innerProduct z) * p z` is never negative, so it covers `f = sgn(p)` with
-`sgn(0) = 1` (its docstring explains why `p ≠ 0` is needed). The checked client checks that the
-inner product of one pair is `AND`, computes coefficients on one and two pairs of bits and a
-character of a set on `ι ⊕ ι`, shows that the inner product of two pairs is a threshold function
-over all `16` sets but not over the constant term and the two monomials `x₀ y₀`, `x₁ y₁`, and
-checks both remarks on `p ≠ 0`, in
-[`CslibFrontierTests/BooleanAnalysisInnerProduct.lean`](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisInnerProduct.lean).
-
-## Main definitions
-
-* `Cslib.BitString.innerProduct`: the inner product modulo two of the two halves of a string.
+Plancherel's identity then bounds correlation with an arbitrary real function `g` by `2⁻ⁿ` times
+the spectral norm of `g`. Keeping the products on a set `S` of coordinate pairs gives correlation
+exactly `2 ^ |S| / 2 ^ n` with the full inner product. In particular, this includes the empty set
+and all coordinate pairs. The formulas are proved directly in the library's existing Fourier
+normalization.
 
 ## Main results
 
-* `Cslib.BitString.fourierCoeff_signVal_innerProduct`,
-  `Cslib.BitString.abs_fourierCoeff_signVal_innerProduct`: its Fourier coefficients
-  (Exercise 1.1(g)).
-* `Cslib.BitString.two_pow_le_card_innerProduct_of_nonneg_mul`,
-  `Cslib.BitString.IsPTFOn.two_pow_le_card_innerProduct`: Corollary 5.11.
+* `Cslib.BitString.fourierCoeff_signVal_dotProduct_fstBits_sndBits`: the exact spectrum.
+* `Cslib.BitString.abs_fourierCoeff_signVal_dotProduct_fstBits_sndBits`: flatness of the spectrum.
+* `Cslib.BitString.abs_expect_signVal_dotProduct_mul_le`: correlation is bounded by the spectral
+  norm divided by `2 ^ n`.
+* `Cslib.BitString.expect_signVal_dotProduct_mul_signVal_sum`: the exact correlation obtained by
+  keeping an arbitrary set of coordinate pairs.
 
-## References
-
-* [R. O'Donnell, *Analysis of Boolean Functions*][ODonnell2014]
 -/
 
 public section
@@ -74,76 +48,102 @@ namespace Cslib.BitString
 open Finset
 open scoped BigOperators
 
-variable {ι : Type*} [Fintype ι] [DecidableEq ι]
+private theorem expect_append {a b : ℕ} (f : BitString (a + b) → ℝ) :
+    (𝔼 z, f z) = 𝔼 x : BitString a, 𝔼 y : BitString b, f (Fin.append x y) := by
+  rw [← Fintype.expect_prod_type (fun p : BitString a × BitString b =>
+    f (Fin.append p.1 p.2))]
+  exact (Fintype.expect_equiv (Fin.appendEquiv a b) _ f fun _ => rfl).symm
 
-/-- The inner product modulo two of the two halves of a string on `ι ⊕ ι`. Read as signs, it is
-the book's `IP_{2n}(x, y) = (-1) ^ (x · y)` [O'Donnell, Exercise 1.1(g)][ODonnell2014]. -/
-def innerProduct (z : ι ⊕ ι → Bool) : Bool :=
-  (z ∘ Sum.inl) ⬝ᵥ (z ∘ Sum.inr)
+private theorem expect_prod_bools {ι : Type*} [Fintype ι] [DecidableEq ι]
+    (f : ι → Bool → Bool → ℝ) :
+    (𝔼 x : ι → Bool, 𝔼 y : ι → Bool, ∏ i, f i (x i) (y i)) =
+      ∏ i, 𝔼 a, 𝔼 b, f i a b := by
+  simp_rw [← Fintype.prod_expect]
+  exact (Fintype.prod_expect (fun i a => 𝔼 b, f i a b)).symm
 
-omit [DecidableEq ι] in
-/-- The inner product of the string with halves `x` and `y` is `x ⬝ᵥ y`. -/
-@[simp] theorem innerProduct_sumElim (x y : ι → Bool) : innerProduct (Sum.elim x y) = x ⬝ᵥ y := by
-  simp only [innerProduct, Sum.elim_comp_inl, Sum.elim_comp_inr]
+private theorem expect_dotProduct_affineSigns {ι : Type*} [Fintype ι] [DecidableEq ι]
+    (a b : ι → Bool) :
+    (𝔼 x : ι → Bool, 𝔼 y : ι → Bool,
+      signVal (x ⬝ᵥ y) * signVal (a ⬝ᵥ x) * signVal (b ⬝ᵥ y)) =
+      signVal (a ⬝ᵥ b) / (2 : ℝ) ^ Fintype.card ι := by
+  simp only [dotProduct, signVal_sum, ← prod_mul_distrib]
+  rw [expect_prod_bools (fun i x y =>
+    signVal (x * y) * signVal (a i * x) * signVal (b i * y))]
+  have h (i : ι) :
+      (𝔼 x : Bool, 𝔼 y : Bool,
+        signVal (x * y) * signVal (a i * x) * signVal (b i * y)) =
+        signVal (a i * b i) / 2 := by
+    simp only [Fintype.expect_bool]
+    cases a i <;> cases b i <;> norm_num [Bool.mul_eq_and]
+  simp only [h, prod_div_distrib, prod_const, card_univ]
 
-/-- **The Fourier coefficients of the inner product** [O'Donnell, Exercise 1.1(g)][ODonnell2014]:
-read as signs, the inner product modulo two on `ι ⊕ ι` has coefficient
-`(-1) ^ |S_L ∩ S_R| / 2 ^ |ι|` on `S`, with `S_L`, `S_R` the parts of `S` in the two halves. -/
-theorem fourierCoeff_signVal_innerProduct (S : Finset (ι ⊕ ι)) :
-    fourierCoeff (fun z => signVal (innerProduct z)) S =
-      (-1) ^ #(S.toLeft ∩ S.toRight) / 2 ^ Fintype.card ι := by
-  have hx (x : ι → Bool) :
-      ({i | x i} : Finset ι) = S.toRight ↔ x = fun i => decide (i ∈ S.toRight) := by
-    simp only [Finset.ext_iff, funext_iff, mem_filter, mem_univ, true_and, mem_toRight]
-    exact forall_congr' fun i => by cases x i <;> simp
-  -- first the coefficient is `χ_{S_L}(1_{S_R}) / 2 ^ |ι|`
-  have hchi : fourierCoeff (fun z => signVal (innerProduct z)) S =
-      chi ℝ S.toLeft (fun i => decide (i ∈ S.toRight)) / 2 ^ Fintype.card ι := by
-    rw [fourierCoeff, Fintype.expect_sumElim]
-    simp only [innerProduct_sumElim, chi_sumElim, signVal_dotProduct,
-      mul_left_comm _ (chi ℝ S.toLeft _), ← mul_expect, expect_chi_mul_chi, hx, mul_ite,
-      mul_one, mul_zero]
-    rw [Fintype.expect_eq_sum_div_card, sum_ite_eq', ite_eq_left (mem_univ _), Fintype.card_fun,
-      Fintype.card_bool]
-    push_cast
-    rfl
-  rw [hchi, chi_eq_prod_signVal]
-  simp only [signVal, decide_eq_true_eq, prod_ite_mem, prod_const]
+private theorem chi_eq_signVal_dotProduct {ι : Type*} [Fintype ι] [DecidableEq ι]
+    (S : Finset ι) (x : ι → Bool) :
+    chi ℝ S x = signVal ((fun i => decide (i ∈ S)) ⬝ᵥ x) := by
+  rw [dotProduct_comm, dotProduct_eq_parityOn]
+  simp [chi_eq_signVal_parityOn]
 
-/-- Every Fourier coefficient of the inner product has absolute value `2 ^ (-|ι|)`
-[O'Donnell, Exercise 1.1(g)][ODonnell2014]. -/
-theorem abs_fourierCoeff_signVal_innerProduct (S : Finset (ι ⊕ ι)) :
-    |fourierCoeff (fun z => signVal (innerProduct z)) S| = 1 / 2 ^ Fintype.card ι := by
-  rw [fourierCoeff_signVal_innerProduct, abs_div, abs_pow, abs_neg, abs_one, one_pow,
-    abs_of_pos (by positivity)]
+variable {n : ℕ}
 
-/-- Theorem 5.10's bound `1 ≤ ∑_{S ∈ T} |ÎP(S)|` gives `2 ^ |ι| ≤ |T|`. -/
-private theorem two_pow_le_card_of_one_le_sum_abs {T : Finset (Finset (ι ⊕ ι))}
-    (h : 1 ≤ ∑ S ∈ T, |fourierCoeff (fun z => signVal (innerProduct z)) S|) :
-    2 ^ Fintype.card ι ≤ #T := by
-  simp only [abs_fourierCoeff_signVal_innerProduct, sum_const, nsmul_eq_mul, mul_one_div,
-    le_div_iff₀ (by positivity : (0 : ℝ) < 2 ^ Fintype.card ι), one_mul] at h
-  exact_mod_cast h
+/-- The Fourier coefficient of the sign of the inner product is `2⁻ⁿ`, with sign given by the
+inner product of the Fourier mask's two halves. -/
+theorem fourierCoeff_signVal_dotProduct_fstBits_sndBits (S : Finset (Fin (n + n))) :
+    fourierCoeff (fun z : BitString (n + n) => signVal (fstBits z ⬝ᵥ sndBits z)) S =
+      signVal ((fun i : Fin n => decide (Fin.castAdd n i ∈ S)) ⬝ᵥ
+        (fun i : Fin n => decide (Fin.natAdd n i ∈ S))) / (2 : ℝ) ^ n := by
+  have hchi (x y : BitString n) :
+      chi ℝ S (Fin.append x y) =
+        signVal ((fun i : Fin n => decide (Fin.castAdd n i ∈ S)) ⬝ᵥ x) *
+          signVal ((fun i : Fin n => decide (Fin.natAdd n i ∈ S)) ⬝ᵥ y) := by
+    rw [chi_eq_signVal_dotProduct, dotProduct, Fin.sum_univ_add]
+    simp only [Fin.append_left, Fin.append_right, Bool.add_eq_xor, signVal_xor, dotProduct]
+  rw [fourierCoeff, expect_append]
+  simp only [fstBits_append, sndBits_append, hchi, ← mul_assoc]
+  simpa only [Fintype.card_fin] using expect_dotProduct_affineSigns
+    (fun i : Fin n => decide (Fin.castAdd n i ∈ S))
+    (fun i : Fin n => decide (Fin.natAdd n i ∈ S))
 
-/-- **Threshold representations of the inner product that may vanish need at least `2 ^ n`
-monomials** [O'Donnell, Corollary 5.11][ODonnell2014]: if a nonzero `p` satisfies
-`IP(z) p(z) ≥ 0` for every `z`, with the inner product read as signs, and the Fourier coefficients
-of `p` vanish outside `T`, then `|T| ≥ 2 ^ n`. Taking `T` the support of `p̂`, the sparsity of `p`
-is at least `2 ^ n`. This covers the book's `f = sgn(p)` with `sgn(0) = 1`, and more: where `p = 0`
-the inner product may take either value. The hypothesis `p ≠ 0` is needed for every `n`, since
-`p = 0` and `T = ∅` meet the others. The book leaves `p ≢ 0` implicit; for its representations
-this matters only at `n = 0`, where `IP_0 = 1 = sgn(0)` is represented by `p = 0`. -/
-theorem two_pow_le_card_innerProduct_of_nonneg_mul {T : Finset (Finset (ι ⊕ ι))}
-    {p : (ι ⊕ ι → Bool) → ℝ} (hpT : ∀ S ∉ T, fourierCoeff p S = 0) (hp₀ : p ≠ 0)
-    (hp : ∀ z, 0 ≤ signVal (innerProduct z) * p z) : 2 ^ Fintype.card ι ≤ #T :=
-  two_pow_le_card_of_one_le_sum_abs (one_le_sum_abs_fourierCoeff_of_nonneg_mul hpT hp₀ hp)
+/-- All Fourier coefficients of the sign of the `n`-pair inner product have magnitude `2⁻ⁿ`.
+The case `n = 0` is included. -/
+theorem abs_fourierCoeff_signVal_dotProduct_fstBits_sndBits (S : Finset (Fin (n + n))) :
+    |fourierCoeff (fun z : BitString (n + n) => signVal (fstBits z ⬝ᵥ sndBits z)) S| =
+      1 / (2 : ℝ) ^ n := by
+  rw [fourierCoeff_signVal_dotProduct_fstBits_sndBits, abs_div, abs_signVal,
+    abs_of_pos (by positivity : (0 : ℝ) < 2 ^ n)]
 
-/-- **Nowhere-vanishing threshold representations of the inner product need at least `2 ^ n`
-monomials** [O'Donnell, Corollary 5.11][ODonnell2014]: a nowhere-vanishing polynomial threshold
-representation (`IsPTFOn`) of the inner product modulo two of two `n`-bit strings over a family
-`T` of monomials has `|T| ≥ 2 ^ n`. -/
-theorem IsPTFOn.two_pow_le_card_innerProduct {T : Finset (Finset (ι ⊕ ι))}
-    (h : IsPTFOn T innerProduct) : 2 ^ Fintype.card ι ≤ #T :=
-  two_pow_le_card_of_one_le_sum_abs h.one_le_sum_abs_fourierCoeff
+/-- Correlation with the inner product is at most the spectral norm divided by `2 ^ n`.
+This applies to arbitrary real functions, with no boundedness assumption. -/
+theorem abs_expect_signVal_dotProduct_mul_le (g : BitString (n + n) → ℝ) :
+    |𝔼 z, signVal (fstBits z ⬝ᵥ sndBits z) * g z| ≤
+      (∑ S, |fourierCoeff g S|) / (2 : ℝ) ^ n := by
+  rw [expect_mul_eq_sum_fourierCoeff_mul]
+  calc
+    _ ≤ ∑ S, |fourierCoeff (fun z : BitString (n + n) =>
+        signVal (fstBits z ⬝ᵥ sndBits z)) S * fourierCoeff g S| := abs_sum_le_sum_abs _ _
+    _ = _ := by
+      simp only [abs_mul, abs_fourierCoeff_signVal_dotProduct_fstBits_sndBits,
+        div_eq_mul_inv, one_mul, ← mul_sum, mul_comm]
+
+/-- Keeping the products on `S` gives correlation exactly `2 ^ |S| / 2 ^ n` with the full
+inner product. In particular, retaining no pairs gives `2⁻ⁿ` and retaining every pair gives one. -/
+theorem expect_signVal_dotProduct_mul_signVal_sum (S : Finset (Fin n)) :
+    (𝔼 z : BitString (n + n), signVal (fstBits z ⬝ᵥ sndBits z) *
+      signVal (∑ i ∈ S, fstBits z i * sndBits z i)) = (2 : ℝ) ^ S.card / 2 ^ n := by
+  rw [expect_append]
+  simp only [fstBits_append, sndBits_append]
+  have hsum (x y : BitString n) :
+      (∑ i ∈ S, x i * y i) = ∑ i, if i ∈ S then x i * y i else 0 := by simp
+  simp only [hsum, dotProduct, signVal_sum, ← prod_mul_distrib]
+  rw [expect_prod_bools (fun i x y =>
+    signVal (x * y) * signVal (if i ∈ S then x * y else 0))]
+  have h (i : Fin n) :
+      (𝔼 x : Bool, 𝔼 y : Bool,
+        signVal (x * y) * signVal (if i ∈ S then x * y else 0)) =
+        (if i ∈ S then 2 else 1 : ℝ) / 2 := by
+    by_cases hi : i ∈ S
+    · simp [hi, signVal_mul_self]
+    · simp only [Fintype.expect_bool]
+      norm_num [hi, Bool.mul_eq_and, signVal]
+  simp only [h, prod_div_distrib, prod_ite_mem_eq, prod_const, card_univ, Fintype.card_fin]
 
 end Cslib.BitString
