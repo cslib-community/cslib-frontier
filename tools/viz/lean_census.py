@@ -46,27 +46,36 @@ GROUPS = ["Theorems", "Definitions", "Instances", "Types", "Axioms"]
 
 
 _registry: list[dict] | None = None
+_registry_ok: bool = False
 
 
-def registered_results(repo: Path) -> list[dict]:
+def registered_results(repo: Path, *, require: bool = False) -> list[dict]:
     """The results registry (`scripts/results_registry.py --json`), or `[]` when it cannot be
-    exported: the exporter needs a current build of `CslibFrontierResults`, which pull-request
-    and local builds without Lean do not have. `registry_available` says which happened."""
-    global _registry
+    exported (unless `require` is set): the exporter needs a current build of
+    `CslibFrontierResults`, which pull-request and local builds without Lean do not have.
+    `registry_available` says which happened."""
+    global _registry, _registry_ok
     if _registry is None:
         proc = subprocess.run(["python3", "-B", "scripts/results_registry.py", "--json"],
                               cwd=repo, capture_output=True, text=True)
         if proc.returncode:
+            if require:
+                raise SystemExit(
+                    f"the results registry could not be exported:\n{proc.stderr or proc.stdout}")
             print("warning: the results registry could not be exported (build "
                   "CslibFrontierResults first); registry views are left empty", file=sys.stderr)
             _registry = []
+            _registry_ok = False
         else:
             _registry = json.loads(proc.stdout)["results"]
+            _registry_ok = True
+    elif require and not _registry_ok:
+        raise SystemExit("the results registry could not be exported")
     return _registry
 
 
 def registry_available() -> bool:
-    return bool(_registry)
+    return _registry_ok
 
 
 def compile_census(repo: Path, lake: str = "lake") -> Path:
@@ -85,6 +94,9 @@ def compile_census(repo: Path, lake: str = "lake") -> Path:
     subprocess.run([lake, "env", "lean", "-c", str(c_file), str(src)], cwd=repo, check=True)
     subprocess.run([str(Path(prefix) / "bin" / "leanc"), "-O2", "-o", str(exe), str(c_file)],
                    check=True)
+    for old in exe.parent.glob("viz_census-*"):
+        if old != exe:
+            old.unlink(missing_ok=True)
     return exe
 
 
@@ -150,14 +162,15 @@ def extend(entries: list[dict], commit: h.Commit, summary: dict) -> list[dict]:
     return kept
 
 
-def collect(H: h.History, lib_dir: Path, previous: str | None, out: Path, lake: str = "lake"):
+def collect(H: h.History, lib_dir: Path, previous: str | None, out: Path, lake: str = "lake",
+            require_registry: bool = False):
     """Run the census for the head of `H`, write the report and the extended series."""
     tree = H.head()
     modules = sorted(h.module_of(p) for p in tree if h.is_library(p))
     # Run Lake in the workspace that owns the build outputs, so its toolchain and packages apply.
     workspace = lib_dir.parents[3] if lib_dir.parts[-4:] == (".lake", "build", "lib", "lean") \
         else H.repo
-    results = registered_results(H.repo)
+    results = registered_results(H.repo, require=require_registry or bool(previous))
     report = run(workspace, lib_dir, modules, results, lake)
     report["results"] = {r["id"]: {k: r.get(k) for k in ("title", "topic", "module", "theorems")}
                          for r in results}

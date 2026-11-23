@@ -197,8 +197,11 @@ const V = (() => {
   function getHash() {
     const out = {};
     location.hash.slice(1).split("&").filter(Boolean).forEach((kv) => {
-      const [k, v] = kv.split("=");
-      out[decodeURIComponent(k)] = decodeURIComponent(v || "");
+      const i = kv.indexOf("=");
+      const k = i < 0 ? kv : kv.slice(0, i), v = i < 0 ? "" : kv.slice(i + 1);
+      try {
+        out[decodeURIComponent(k)] = decodeURIComponent(v);
+      } catch (e) { /* ignore malformed percent-encoding */ }
     });
     return out;
   }

@@ -5,9 +5,14 @@
 
 from __future__ import annotations
 
+import csv
+import io
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -66,6 +71,38 @@ class Paths(unittest.TestCase):
         self.assertEqual(h.subarea_of("CslibFrontier/Crypto/Primitives/A.lean"), "Crypto/Primitives")
         self.assertEqual(h.subarea_of("CslibFrontier/Probability/A.lean"), "Probability")
 
+    def test_root_rename_commit_when_new_prefix_precedes_old(self):
+        import site_data as sd
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            repo = tmp / "repo"
+            repo.mkdir()
+            git = lambda *args: subprocess.run(
+                ["git", "-C", str(repo), *args], check=True, capture_output=True, text=True,
+                env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@e",
+                     "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@e",
+                     "HOME": tmpdir, "PATH": "/usr/bin:/bin"})
+            git("init", "-q")
+            (repo / "CslibFrontier" / "Crypto").mkdir(parents=True)
+            (repo / "CslibFrontier" / "Crypto" / "A.lean").write_text("theorem t : True := trivial\n")
+            git("add", ".")
+            git("commit", "-q", "-m", "feat: add A (#1)")
+            (repo / "Cslib" / "Crypto").mkdir(parents=True)
+            git("mv", "CslibFrontier/Crypto/A.lean", "Cslib/Crypto/A.lean")
+            git("commit", "-q", "-m", "chore: rename root (#2)")
+            # "Cslib/" < "CslibFrontier/", so git --raw emits the addition before the deletion.
+            with mock.patch.object(h, "RENAMES", [("CslibFrontier", "Cslib")]), \
+                 mock.patch.object(h, "LIBRARY_ROOT", "Cslib/"):
+                H = h.History(repo, cache=tmp / "blobs.json")
+                self.assertEqual(len(H.commits[1].changes), 1)
+                self.assertEqual(H.commits[1].changes[0][0], "Cslib/Crypto/A.lean")
+                self.assertIsNotNone(H.commits[1].changes[0][1])
+                self.assertEqual(set(H.head()), {"Cslib/Crypto/A.lean"})
+                self.assertEqual(H.touches()["Cslib/Crypto/A.lean"], 2)
+                mods = sd.modules(H, None)
+                commits_idx = mods["fields"].index("commits")
+                self.assertEqual(mods["rows"][0][commits_idx], 2)
+
 
 class Graphs(unittest.TestCase):
     def test_longest_chain(self):
@@ -102,6 +139,25 @@ class Census(unittest.TestCase):
         self.assertEqual(lc.load_previous(None), [])
         self.assertEqual(lc.load_previous("/nonexistent/lean-history.json"), [])
 
+    def test_registry_fails_closed_when_required(self):
+        import lean_census as lc
+        failed = subprocess.CompletedProcess(["python3"], 1, stdout="", stderr="missing build")
+        saved = (lc._registry, lc._registry_ok)
+        try:
+            lc._registry, lc._registry_ok = None, False
+            with mock.patch.object(lc.subprocess, "run", return_value=failed), \
+                 mock.patch("sys.stderr", io.StringIO()):
+                self.assertEqual(lc.registered_results(Path("."), require=False), [])
+                self.assertFalse(lc.registry_available())
+                with self.assertRaises(SystemExit):
+                    lc.registered_results(Path("."), require=True)
+            lc._registry, lc._registry_ok = None, False
+            with mock.patch.object(lc.subprocess, "run", return_value=failed):
+                with self.assertRaises(SystemExit):
+                    lc.registered_results(Path("."), require=True)
+        finally:
+            lc._registry, lc._registry_ok = saved
+
 
 class Audits(unittest.TestCase):
     def test_dispositions(self):
@@ -127,17 +183,65 @@ class Audits(unittest.TestCase):
 
 class UnusedImports(unittest.TestCase):
     def test_imports_through_dependencies_count_as_used(self):
-        from plots_lean import unused_imports
+        from plots_lean import checked_imports, unused_imports
         # 0 = Lib.A imports 1 = Lib.B (which imports 3 = Mathlib.X) and 2 = Lib.C; A uses only a
         # Mathlib.X constant, so B is needed (through its own import) and C is not.
         report = {"moduleGraph": {"names": ["Lib.A", "Lib.B", "Lib.C", "Mathlib.X"],
                                   "imports": [[1, 2], [3], [], []],
                                   "used": [[3], [3], []]}}
         self.assertEqual(unused_imports(report), {"Lib.A": ["Lib.C"]})
-        # An umbrella that declares nothing imports to re-export, and is not reported.
+        self.assertEqual(checked_imports(report), 3)
+        # An umbrella that declares nothing imports to re-export, and is not reported or counted.
         report["modules"] = {"Lib.A": {"kinds": {}}, "Lib.B": {"kinds": {"def": 1}},
                              "Lib.C": {"kinds": {}}}
         self.assertEqual(unused_imports(report), {})
+        self.assertEqual(checked_imports(report), 1)
+
+    def test_deduplicates_phases_and_ignores_init(self):
+        from plots_lean import checked_imports, unused_imports
+        report = {
+            "modules": {"Lib.A": {"kinds": {"theorem": 1}}, "Lib.B": {"kinds": {"def": 1}}},
+            "moduleGraph": {
+                "names": ["Lib.A", "Lib.B", "Init"],
+                "imports": [[2, 2, 1, 1], [2, 2], []],
+                "used": [[], []],
+            },
+        }
+        self.assertEqual(checked_imports(report), 1)
+        self.assertEqual(unused_imports(report), {"Lib.A": ["Lib.B"]})
+
+
+class LeanPlots(unittest.TestCase):
+    def test_empty_registry_empty_series_and_small_top(self):
+        import plots_lean
+        import style
+        H = type("FakeHistory", (), {})()
+        H.blobs = {"a": h.BlobInfo(4, 2, (), {"theorem": 1})}
+        H.head = lambda: {"CslibFrontier/Foundations/A.lean": "a"}
+        base_report = {
+            "modules": {"CslibFrontier.Foundations.A": {"kinds": {"theorem": 1, "def": 1},
+                                                        "generated": 2, "uses": []}},
+            "cones": {},
+            "results": {},
+            "top": [{"name": "Cslib.foo", "module": "CslibFrontier.Foundations.A",
+                     "kind": "def", "refs": 3}],
+            "unused": [{"name": 'Cslib."quoted",bar', "module": "CslibFrontier.Foundations.A",
+                        "kind": "def"}],
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = Path(tmpdir)
+            for theme in (style.LIGHT, style.DARK):
+                style.setup(theme)
+                plots_lean.declarations(H, out, (base_report, []))
+                plots_lean.result_cones(H, out, (base_report, []))
+                plots_lean.load_bearing(H, out, (base_report, []))
+                plots_lean.load_bearing(H, out, ({**base_report, "top": []}, []))
+                plots_lean.unused_definitions(H, out, (base_report, []))
+            style.setup(style.LIGHT)
+            with open(out / "unused-definitions.csv", newline="") as f:
+                rows = list(csv.reader(f))
+            self.assertEqual(rows, [["name", "kind", "module"],
+                                    ['Cslib."quoted",bar', "def", "CslibFrontier.Foundations.A"]])
 
 
 class PageData(unittest.TestCase):

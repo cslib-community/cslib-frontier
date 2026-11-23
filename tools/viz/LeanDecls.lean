@@ -137,6 +137,17 @@ structure Node where
   usesSorry : Bool
   deriving Inhabited
 
+/-- Direct module imports, without implicit `Init` or duplicate phase entries. -/
+def directImports (d : ModuleData) : Array Name := Id.run do
+  let mut seen : NameSet := {}
+  let mut out : Array Name := #[]
+  for imp in d.imports do
+    let m := imp.module
+    if m != `Init && !seen.contains m then
+      seen := seen.insert m
+      out := out.push m
+  return out
+
 def jsonDecl (mods : Array String) (n : Node) (extra : List (String × Json) := []) : Json :=
   Json.mkObj ([("name", toJson (privateToUserName n.name).toString),
     ("module", toJson mods[n.module]!), ("kind", toJson n.kind)] ++ extra)
@@ -183,7 +194,7 @@ unsafe def main (args : List String) : IO UInt32 := do
   for h : i in [:allMods.size] do modIdx := modIdx.insert allMods[i] i
   let mut modImports : Array (Array Nat) := #[]
   let mut queue : Array Name := #[]
-  let mut pendingImports : Array (Array Name) := datas.map fun (_, d) => d.imports.map (·.module)
+  let mut pendingImports : Array (Array Name) := datas.map fun (_, d) => directImports d
   for imps in pendingImports do
     for i in imps do unless modIdx.contains i do queue := queue.push i
   let mut extOwner : Std.HashMap Name Nat := {}
@@ -197,7 +208,7 @@ unsafe def main (args : List String) : IO UInt32 := do
     let (data, region) ← readModuleData (← findOLean mod)
     regions := regions.push region
     for n in data.constNames do extOwner := extOwner.insert n mi
-    let imps := data.imports.map (·.module)
+    let imps := directImports data
     pendingImports := pendingImports.push imps
     for i in imps do unless modIdx.contains i do queue := queue.push i
   modImports := pendingImports.map (·.filterMap (modIdx[·]?))
@@ -281,8 +292,9 @@ unsafe def main (args : List String) : IO UInt32 := do
   -- quadratic, so first find the count threshold from a histogram and sort only what clears it.
   let mut histogram : Std.HashMap Nat Nat := {}
   for h : i in [:nodes.size] do
-    if nodes[i].kind.isSome then
-      histogram := histogram.insert refCount[i]! (histogram.getD refCount[i]! 0 + 1)
+    let c := refCount[i]!
+    if nodes[i].kind.isSome && c > 0 then
+      histogram := histogram.insert c (histogram.getD c 0 + 1)
   let mut threshold := 0
   let mut seenCount := 0
   for (c, k) in histogram.toArray.qsort (fun a b => a.1 > b.1) do

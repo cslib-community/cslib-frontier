@@ -156,6 +156,8 @@ def main() -> int:
                     help="reuse a lean-census.json written by an earlier run (for page work)")
     ap.add_argument("--lean-history", default=None,
                     help="URL or file of the previously published lean-history.json to extend")
+    ap.add_argument("--require-registry", action="store_true",
+                    help="fail if the results registry cannot be exported (implied by --lean-history)")
     ap.add_argument("--repo-url", default="https://github.com/cslib-community/cslib-frontier",
                     help="links the commit in the report; empty to omit")
     args = ap.parse_args()
@@ -164,6 +166,8 @@ def main() -> int:
     H = h.History(args.repo, args.ref)
     print(f"history: {len(H.commits)} commits, {len(H.blobs.data)} blobs "
           f"({time.time() - t0:.1f}s)", flush=True)
+    if args.require_registry:
+        lean_census.registered_results(H.repo, require=True)
     census = None
     if args.lean_census:
         report = json.loads(args.lean_census.read_text())
@@ -173,7 +177,8 @@ def main() -> int:
         print(f"lean census: reused {args.lean_census}", flush=True)
     elif args.lean_lib:
         t = time.time()
-        census = lean_census.collect(H, args.lean_lib.resolve(), args.lean_history, args.out)
+        census = lean_census.collect(H, args.lean_lib.resolve(), args.lean_history, args.out,
+                                     require_registry=args.require_registry)
         print(f"lean census: {len(census[0]['modules'])} modules, series of {len(census[1])} "
               f"({time.time() - t:.1f}s)", flush=True)
     names = args.only or [c.name for c in CHARTS if not (args.no_video and c.name == "evolution")]

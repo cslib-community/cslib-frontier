@@ -207,23 +207,6 @@ def import_depth(H: h.History, out):
     head = snaps[-1][2]
     g = h.import_graph(H.blobs, head)
     n, chain = h.longest_chain(g)
-    # Depth of every module = longest chain beneath it.
-    memo: dict[str, int] = {}
-
-    def dep(m):
-        stack = [m]
-        while stack:
-            x = stack[-1]
-            pend = [y for y in g[x] if y not in memo]
-            if pend:
-                stack.extend(pend)
-            else:
-                stack.pop()
-                memo[x] = 1 + max((memo[y] for y in g[x]), default=0)
-        return memo[m]
-
-    for m in g:
-        dep(m)
     T = s.theme()
     fig, (ax, ax2) = plt.subplots(1, 2, figsize=(13, 6), width_ratios=[1.4, 1])
     fig.subplots_adjust(left=0.06, right=0.98, top=0.82, bottom=0.12, wspace=0.18)
@@ -236,7 +219,7 @@ def import_depth(H: h.History, out):
     ax.set_ylabel("Modules on the longest chain")
     _date_axis(ax)
     s.clean_axes(ax)
-    vals = np.array(list(memo.values()))
+    vals = np.array(list(h.depths(g).values()))
     ax2.hist(vals, bins=np.arange(0.5, vals.max() + 1.5), color=T.series[0],
              edgecolor=T.surface, linewidth=0.6)
     ax2.set_title("Depth of each module today", loc="left", fontsize=11.5)

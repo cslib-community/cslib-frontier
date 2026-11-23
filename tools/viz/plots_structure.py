@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import datetime as dt
-import math
 from collections import Counter, defaultdict
 
 import matplotlib.pyplot as plt
@@ -328,30 +327,7 @@ def hubs(H: h.History, out):
     tree = H.head()
     g = h.import_graph(H.blobs, tree)
     mods = list(g)
-    idx = {m: i for i, m in enumerate(mods)}
-    importers: dict[str, list[str]] = defaultdict(list)
-    for m, deps in g.items():
-        for d in deps:
-            importers[d].append(m)
-    # Reverse topological order: importers before the modules they import.
-    indeg = {m: len(importers[m]) for m in mods}
-    order = []
-    stack = [m for m in mods if indeg[m] == 0]
-    while stack:
-        m = stack.pop()
-        order.append(m)
-        for d in g[m]:
-            indeg[d] -= 1
-            if indeg[d] == 0:
-                stack.append(d)
-    desc: dict[str, int] = {}
-    for m in order:
-        bits = 0
-        for i in importers[m]:
-            bits |= desc[i] | (1 << idx[i])
-        desc[m] = bits
-    reach = {m: desc[m].bit_count() for m in mods}
-    paths = {h.module_of(p): p for p in tree}
+    reach = h.reach(g)
     top = sorted(mods, key=lambda m: -reach[m])
     top = [m for m in top if m != "CslibFrontier.Init"][:28]
     T = s.theme()
@@ -369,7 +345,6 @@ def hubs(H: h.History, out):
     ax.set_xlabel("Share of library modules that import it, directly or transitively")
     s.clean_axes(ax, grid_axis="x")
     ax.spines["bottom"].set_visible(False)
-    del paths
     s.titles(fig, ax, "Hub modules: the blast radius of an edit",
              f"Changing one of these forces a rebuild of the share shown · {len(mods)} modules "
              f"(CslibFrontier.Init, imported by everything, omitted)")

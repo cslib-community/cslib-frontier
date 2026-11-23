@@ -14,7 +14,6 @@ their current spelling, so a file keeps one identity across the rename.
 
 from __future__ import annotations
 
-import bisect
 import dataclasses
 import datetime as dt
 import hashlib
@@ -86,7 +85,7 @@ def is_library(path: str) -> bool:
 def area_of(path: str) -> str:
     """Top-level library area of a path (`CslibFrontier/<Area>/...`), folded to `AREAS`."""
     parts = path.split("/")
-    if len(parts) < 3 or parts[0] != "CslibFrontier":
+    if len(parts) < 3 or not is_library(path):
         return OTHER
     return parts[1] if parts[1] in AREAS else OTHER
 
@@ -191,14 +190,32 @@ def _git(repo: Path, *args: str) -> str:
                           text=True).stdout
 
 
+def merge_changes(raw: list[tuple[str, str | None]]) -> list[tuple[str, str | None]]:
+    """Normalize and merge raw `(path, blob)` entries within one commit.
+
+    A root-rename commit (`--no-renames`) emits both deletion of the old path and addition of the
+    new one; keeping a live blob over `None` regardless of lexicographic path order preserves the
+    file in `replay` and counts the commit once in `touches`."""
+    merged: dict[str, str | None] = {}
+    for path, blob in raw:
+        p = normalize_path(path)
+        if p not in merged or (blob is not None and (merged[p] is None or path == p)):
+            merged[p] = blob
+    return list(merged.items())
+
+
 def read_commits(repo: Path, ref: str = "HEAD") -> list[Commit]:
     """First-parent commits touching `.lean` files, oldest first."""
     out = _git(repo, "log", "--reverse", "--first-parent", "--diff-merges=first-parent",
                "--no-renames", "--raw", "--no-abbrev", "--format=C%x00%H%x00%ct%x00%an%x00%s",
                ref, "--", "*.lean")
     commits: list[Commit] = []
+    raw: list[tuple[str, str | None]] = []
     for line in out.splitlines():
         if line.startswith("C\x00"):
+            if commits:
+                commits[-1].changes = merge_changes(raw)
+                raw = []
             _, sha, ct, an, subject = line.split("\x00", 4)
             commits.append(Commit(sha, int(ct), an, subject, []))
         elif line.startswith(":"):
@@ -208,7 +225,9 @@ def read_commits(repo: Path, ref: str = "HEAD") -> list[Commit]:
             if fields[1] == "160000" or not path.endswith(".lean"):
                 continue
             blob = None if status == "D" or set(new_sha) == {"0"} else new_sha
-            commits[-1].changes.append((normalize_path(path), blob))
+            raw.append((path, blob))
+    if commits:
+        commits[-1].changes = merge_changes(raw)
     return commits
 
 
@@ -246,6 +265,7 @@ class BlobCache:
             body = proc.stdout.read(size)
             proc.stdout.read(1)
             self.data[header[0].decode()] = scan_blob(body)
+        proc.stdout.close()
         proc.wait()
         self.save()
 
@@ -308,42 +328,6 @@ def import_graph(blobs: BlobCache, tree: dict[str, str], library_only: bool = Tr
     return {m: {i for i in blobs[b].imports if i in mods} for m, b in mods.items()}
 
 
-def longest_chain(graph: dict[str, set[str]]) -> tuple[int, list[str]]:
-    """Length (in modules) and one witness of the longest import chain in a DAG."""
-    memo: dict[str, tuple[int, str | None]] = {}
-    order: list[str] = []
-    state: dict[str, int] = {}
-    for root in graph:
-        if root in state:
-            continue
-        stack = [(root, iter(graph[root]))]
-        state[root] = 1
-        while stack:
-            node, it = stack[-1]
-            nxt = next(it, None)
-            if nxt is None:
-                stack.pop()
-                state[node] = 2
-                order.append(node)
-            elif nxt not in state:
-                state[nxt] = 1
-                stack.append((nxt, iter(graph[nxt])))
-    for node in order:  # dependencies first
-        best = max(((memo[d][0], d) for d in graph[node] if d in memo), default=(0, None))
-        memo[node] = (best[0] + 1, best[1])
-    if not memo:
-        return 0, []
-    start = max(memo, key=lambda m: memo[m][0])
-    chain = [start]
-    while memo[chain[-1]][1] is not None:
-        chain.append(memo[chain[-1]][1])
-    return memo[start][0], chain
-
-
-def date_index(dates: list[dt.date], day: dt.date) -> int:
-    return bisect.bisect_right(dates, day) - 1
-
-
 def topo_order(graph: dict[str, set[str]]) -> list[str]:
     """Modules with every import before its importers."""
     order: list[str] = []
@@ -364,6 +348,21 @@ def topo_order(graph: dict[str, set[str]]) -> list[str]:
                 state[nxt] = 1
                 stack.append((nxt, iter(graph[nxt])))
     return order
+
+
+def longest_chain(graph: dict[str, set[str]]) -> tuple[int, list[str]]:
+    """Length (in modules) and one witness of the longest import chain in a DAG."""
+    memo: dict[str, tuple[int, str | None]] = {}
+    for node in topo_order(graph):
+        best = max(((memo[d][0], d) for d in graph[node] if d in memo), default=(0, None))
+        memo[node] = (best[0] + 1, best[1])
+    if not memo:
+        return 0, []
+    start = max(memo, key=lambda m: memo[m][0])
+    chain = [start]
+    while memo[chain[-1]][1] is not None:
+        chain.append(memo[chain[-1]][1])
+    return memo[start][0], chain
 
 
 def depths(graph: dict[str, set[str]]) -> dict[str, int]:

@@ -128,8 +128,7 @@ def build(out: Path, H: h.History, census, charts: list[dict], sections: list[st
                 groups[g] = groups.get(g, 0) + n
         headline["theorems"] = groups.get("Theorems", 0)
         headline["definitions"] = groups.get("Definitions", 0)
-        g = report["moduleGraph"]
-        headline["imports"] = sum(len(i) for i in g["imports"][:len(g["used"])])
+        headline["imports"] = plots_lean.checked_imports(report)
         headline["unused_imports"] = sum(len(v) for v in plots_lean.unused_imports(report).values())
     payloads = {
         "index": {"daily": daily, "rolling": sd.rolling(H),
