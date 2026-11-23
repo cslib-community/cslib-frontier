@@ -22,9 +22,7 @@ theorem applies over `K = ℚ` with `B = ℤ_(2)`: its hypotheses are met by exa
 namespace CslibFrontierTests.Computability.Circuit.Frontier.TensorNetwork.TaperedRecovery
 
 open Cslib.Circuits.Frontier Polynomial
-
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
+open scoped Cslib.Circuits.Frontier.TensorNetwork
 
 example : recoveryNodes 1 = {-2, -1, 1} := by decide
 
