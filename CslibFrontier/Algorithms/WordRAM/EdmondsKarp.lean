@@ -1856,6 +1856,142 @@ private theorem iterate_augStep_spec (hB : ∀ u v, W u v ≤ B) (f : (Network.m
 
 end AugWalk
 
+
+/-! ### Semantics: one round -/
+
+section Round
+
+variable {n mb sb B : ℕ} {W : Fin n → Fin n → ℕ} {src snk : Fin n}
+
+/-- One running round from a state storing the flow `f`: either `t` is not reached, and the
+round leaves the flow alone and stores the residual distances, or it pushes the bottleneck along
+a shortest augmenting path. -/
+private theorem roundStep_spec (hst : src ≠ snk) (hB : ∀ u v, W u v ≤ B)
+    (hlay : mb + n * n ≤ sb) {t : Memory.State} (hW : MatLoaded n mb W t)
+    (f : (Network.mk W src snk).Flow) (hf : FlowStored sb f t) :
+    let r := (Memory.spec 0).clientResult t (roundStep (((n, mb, sb, B), (src.1, snk.1)), 0))
+    let t' := (Memory.spec 0).clientState t (roundStep (((n, mb, sb, B), (src.1, snk.1)), 0))
+    (r = 1 ∧ FlowStored sb f t' ∧
+        (∀ x : Fin n, t'.mem (distAddr (n, mb, sb, B) x.1) = f.resDist x) ∧ f.resDist snk = n) ∨
+      (r = 0 ∧ ∃ (p : List (Fin n)) (hp : f.IsShortestAugmentingPath p),
+        FlowStored sb (f.augmentByBottleneck p hp.isAugmentingPath) t') := by
+  intro r t'
+  set c : Ctx := (n, mb, sb, B)
+  obtain ⟨hb_low, hb_dist, hb_par⟩ := bfsProg_spec (B := B) (src := src) (snk := snk) hB hlay hW
+    f hf
+  set tb := (Memory.spec 0).clientState t (bfsProg (c, src.1))
+  have hfb : FlowStored sb f tb := hf.congr hb_low
+  have hWb : MatLoaded n mb W tb := hW.congr hlay hb_low
+  have hred_r : r = (Memory.spec 0).clientResult tb
+      (do
+        let dt ← Memory.read (distAddr c snk.1)
+        if 0 < dt ∧ dt < c.1 then
+          let r ← iterate bnStep c dt (snk.1, 2 * c.2.2.2)
+          let _ ← iterate augStep (c, r.2) dt snk.1
+          pure 0
+        else pure 1) := by
+    change (Memory.spec 0).clientResult t (roundStep ((c, (src.1, snk.1)), 0)) = _
+    unfold roundStep
+    dsimp only
+    rw [clientResult_bind_read, if_pos rfl, StateTransitionSpec.clientResult_bind]
+  have hred_s : t' = (Memory.spec 0).clientState tb
+      (do
+        let dt ← Memory.read (distAddr c snk.1)
+        if 0 < dt ∧ dt < c.1 then
+          let r ← iterate bnStep c dt (snk.1, 2 * c.2.2.2)
+          let _ ← iterate augStep (c, r.2) dt snk.1
+          pure 0
+        else pure 1) := by
+    change (Memory.spec 0).clientState t (roundStep ((c, (src.1, snk.1)), 0)) = _
+    unfold roundStep
+    dsimp only
+    rw [clientState_bind_read, if_pos rfl, StateTransitionSpec.clientState_bind]
+  rw [clientResult_bind_read] at hred_r
+  rw [clientState_bind_read] at hred_s
+  have hdt : tb.mem (distAddr c snk.1) = f.resDist snk := hb_dist snk
+  rw [hdt] at hred_r hred_s
+  by_cases hreach : 0 < f.resDist snk ∧ f.resDist snk < c.1
+  · right
+    rw [if_pos hreach] at hred_r hred_s
+    refine ⟨?_, ?_⟩
+    · rw [hred_r, StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
+        StateTransitionSpec.clientResult_pure]
+    let parOf : Fin n → Fin n := fun x =>
+      if h : tb.mem (predAddr c x.1) < n then ⟨tb.mem (predAddr c x.1), h⟩ else x
+    have hpar_spec : ∀ x : Fin n, 0 < f.resDist x → f.resDist x < n →
+        tb.mem (predAddr c x.1) = (parOf x).1 ∧
+          f.resDist (parOf x) + 1 = f.resDist x ∧ 0 < f.resCap (parOf x) x := by
+      intro x hx1 hx2
+      obtain ⟨u, hu1, hu2, hu3⟩ := hb_par x hx1 hx2
+      have hlt : tb.mem (predAddr c x.1) < n := by rw [hu1]; exact u.2
+      have hpu : parOf x = u := by
+        simp only [parOf, dif_pos hlt]
+        exact Fin.ext hu1
+      exact ⟨by rw [hpu, hu1], by rw [hpu]; exact hu2, by rw [hpu]; exact hu3⟩
+    have hpar : ∀ x : Fin n, 0 < f.resDist x → f.resDist x < n →
+        f.resDist (parOf x) + 1 = f.resDist x ∧ 0 < f.resCap (parOf x) x :=
+      fun x h1 h2 => (hpar_spec x h1 h2).2
+    have hp_mem : ∀ x : Fin n, 0 < f.resDist x → f.resDist x < n →
+        tb.mem (predAddr c x.1) = (parOf x).1 := fun x h1 h2 => (hpar_spec x h1 h2).1
+    set k := f.resDist snk
+    let p := buildPath parOf k snk
+    obtain ⟨hhead, -, hnd, harcs⟩ := buildPath_props f parOf hpar k snk hreach.2 rfl
+    have hp : f.IsShortestAugmentingPath p :=
+      ⟨⟨hnd, hhead, buildPath_getLast? parOf k snk, fun e he => harcs e he⟩,
+        length_pathArcs_buildPath parOf k snk⟩
+    refine ⟨p, hp, ?_⟩
+    -- the bottleneck
+    obtain ⟨hδ1, hδ2, hδ3⟩ := iterate_bnStep_spec hB hWb f hfb parOf hpar hp_mem k snk
+      (2 * B) hreach.2 rfl
+    set δ := ((Memory.spec 0).clientResult tb (iterate bnStep c k (snk.1, 2 * B))).2
+    have hne : pathArcs p ≠ [] := by
+      intro h
+      have := length_pathArcs_buildPath parOf k snk
+      rw [show buildPath parOf k snk = p from rfl, h] at this
+      simp at this
+      omega
+    have hδ_eq : δ = f.bottleneck p := by
+      obtain ⟨e₀, he₀, hbe₀⟩ := f.exists_mem_pathArcs_resCap_eq_bottleneck hne
+      refine le_antisymm ((hδ2 e₀ he₀).trans hbe₀.le) ?_
+      rcases hδ3 with h | ⟨e, he, h⟩
+      · rw [h]
+        refine (f.bottleneck_le_resCap he₀).trans ?_
+        have := f.resCap_le_cap_add_cap e₀.1 e₀.2
+        have h1 := hB e₀.1 e₀.2
+        have h2 := hB e₀.2 e₀.1
+        change f.resCap e₀.1 e₀.2 ≤ W e₀.1 e₀.2 + W e₀.2 e₀.1 at this
+        omega
+      · rw [h]
+        exact f.bottleneck_le_resCap he
+    have hδB : δ ≤ 2 * B := hδ1
+    -- the augmentation
+    have hflows := iterate_augStep_spec (mb := mb) (sb := sb) hB f parOf hpar δ hδB k snk tb
+      hreach.2 rfl hp_mem (fun x y _ => hfb x y)
+    have hst_eq : t' = (Memory.spec 0).clientState tb (iterate augStep (c, δ) k snk.1) := by
+      rw [hred_s, StateTransitionSpec.clientState_bind,
+        clientState_iterate_eq_of _ _ (fun _ t'' => bnStep_state _ t''),
+        StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
+    intro x y
+    rw [hst_eq]
+    change _ = Network.Flow.augmentFun f p (f.bottleneck p) x y
+    rw [hflows x y, ← hδ_eq, hfb x y]
+    rfl
+  · left
+    rw [if_neg hreach] at hred_r hred_s
+    have hk : f.resDist snk = n := by
+      have hle : f.resDist snk ≤ n := by simpa [Fintype.card_fin] using f.resDist_le_card snk
+      by_contra hne
+      have hpos : 0 < f.resDist snk := by
+        by_contra h0
+        exact hst (f.eq_source_of_resDist_eq_zero (by omega)).symm
+      exact hreach ⟨hpos, by change _ < n; omega⟩
+    rw [StateTransitionSpec.clientState_pure] at hred_s
+    rw [StateTransitionSpec.clientResult_pure] at hred_r
+    rw [hred_s]
+    exact ⟨hred_r, hfb, hb_dist, hk⟩
+
+end Round
+
 /-! ### Interface (proofs in progress) -/
 
 /-- **Correctness of dense Edmonds–Karp.** On a state holding the capacities `W ≤ B` at `mb`,
