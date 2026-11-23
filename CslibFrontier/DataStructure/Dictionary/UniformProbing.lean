@@ -198,12 +198,7 @@ def unsuccessfulProbes {m : ℕ} (O : Finset (Fin m)) (σ : Equiv.Perm (Fin m)) 
 
 theorem missedProbesFrom_le {m : ℕ} (O : Finset (Fin m)) (σ : Equiv.Perm (Fin m))
     (rem idx : ℕ) : missedProbesFrom O σ rem idx ≤ rem := by
-  induction rem generalizing idx with
-  | zero => simp [missedProbesFrom]
-  | succ rem ih =>
-    have := ih (idx + 1)
-    simp only [missedProbesFrom]
-    split_ifs <;> omega
+  fun_induction missedProbesFrom O σ rem idx <;> omega
 
 theorem missedProbes_le {m : ℕ} (O : Finset (Fin m)) (σ : Equiv.Perm (Fin m)) :
     missedProbes O σ ≤ m :=
@@ -212,37 +207,30 @@ theorem missedProbes_le {m : ℕ} (O : Finset (Fin m)) (σ : Equiv.Perm (Fin m))
 theorem mem_of_lt_missedProbesFrom {m : ℕ} {O : Finset (Fin m)} {σ : Equiv.Perm (Fin m)}
     {rem idx t : ℕ} (hrem : idx + rem ≤ m) (ht : t < missedProbesFrom O σ rem idx) :
     ∃ h : idx + t < m, σ ⟨idx + t, h⟩ ∈ O := by
-  induction rem generalizing idx t with
-  | zero => simp [missedProbesFrom] at ht
-  | succ rem ih =>
-    have hidx : idx < m := by omega
-    simp only [missedProbesFrom, hidx, ↓reduceDIte] at ht
-    split_ifs at ht with hmem
-    · cases t with
-      | zero => exact ⟨hidx, hmem⟩
-      | succ t =>
-        obtain ⟨h', hmem'⟩ := ih (idx := idx + 1) (t := t) (by omega) (by omega)
-        have heq : (⟨idx + (t + 1), by omega⟩ : Fin m) = ⟨idx + 1 + t, h'⟩ :=
-          Fin.ext (Nat.add_right_comm idx t 1)
-        exact ⟨by omega, heq ▸ hmem'⟩
-    · omega
+  fun_induction missedProbesFrom O σ rem idx generalizing t with
+  | case2 rem idx hidx hmem ih => -- slot idx occupied: 1 + recurse at idx + 1
+    cases t with
+    | zero => exact ⟨hidx, hmem⟩
+    | succ t =>
+      obtain ⟨h', hmem'⟩ := ih (t := t) (by omega) (by omega)
+      have heq : (⟨idx + (t + 1), by omega⟩ : Fin m) = ⟨idx + 1 + t, h'⟩ :=
+        Fin.ext (Nat.add_right_comm idx t 1)
+      exact ⟨by omega, heq ▸ hmem'⟩
+  | _ => omega -- rem = 0, slot idx free, or idx ≥ m: no missed probes
 
 theorem notMem_at_missedProbesFrom {m : ℕ} {O : Finset (Fin m)} {σ : Equiv.Perm (Fin m)}
     {rem idx : ℕ} (hrem : idx + rem ≤ m) (hlt : missedProbesFrom O σ rem idx < rem) :
     ∃ h : idx + missedProbesFrom O σ rem idx < m,
       σ ⟨idx + missedProbesFrom O σ rem idx, h⟩ ∉ O := by
-  induction rem generalizing idx with
-  | zero => omega
-  | succ rem ih =>
-    have hidx : idx < m := by omega
-    simp only [missedProbesFrom, hidx, ↓reduceDIte] at hlt ⊢
-    split_ifs at hlt ⊢ with hmem
-    · obtain ⟨h', hnot⟩ := ih (idx := idx + 1) (by omega) (by omega)
-      have heq : (⟨idx + (1 + missedProbesFrom O σ rem (idx + 1)), by omega⟩ : Fin m) =
-          ⟨idx + 1 + missedProbesFrom O σ rem (idx + 1), h'⟩ :=
-        Fin.ext (Nat.add_assoc idx 1 _).symm
-      exact ⟨by omega, heq ▸ hnot⟩
-    · exact ⟨hidx, hmem⟩
+  fun_induction missedProbesFrom O σ rem idx with
+  | case2 rem idx hidx hmem ih => -- slot idx occupied: 1 + recurse at idx + 1
+    obtain ⟨h', hnot⟩ := ih (by omega) (by omega)
+    have heq : (⟨idx + (1 + missedProbesFrom O σ rem (idx + 1)), by omega⟩ : Fin m) =
+        ⟨idx + 1 + missedProbesFrom O σ rem (idx + 1), h'⟩ :=
+      Fin.ext (Nat.add_assoc idx 1 _).symm
+    exact ⟨by omega, heq ▸ hnot⟩
+  | case3 rem idx hidx hmem => exact ⟨hidx, hmem⟩ -- slot idx free
+  | _ => omega -- rem = 0, or idx ≥ m
 
 /-- For any `k ≤ m`, at least `k` probes miss (`k ≤ missedProbes O σ`) if and only if the first `k`
 slots of `σ` all belong to `O`. -/

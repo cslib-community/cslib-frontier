@@ -229,16 +229,15 @@ theorem ret_prefixSumM {α : Type*} [AddCommMonoid α] (t : FenwickTree α) (len
 private theorem prefixSumLoopM_time_eq {α : Type*} [AddCommMonoid α]
     (tree : Array α) {m : ℕ} (hm : m ≤ tree.size) (acc : α) :
     (prefixSumLoopM tree m acc).time = (downChain m).length := by
-  induction m using Nat.strongRecOn generalizing acc with
-  | ind m ih =>
-    rw [prefixSumLoopM, downChain]
-    rcases Nat.eq_zero_or_pos m with rfl | hpos
-    · simp only [Nat.lt_irrefl, false_and, ↓reduceDIte, TimeM.time_pure, List.length_nil]
-    · simp only [hpos, hm, and_self, ↓reduceDIte, TimeM.time_bind, TimeM.time_tick,
-        List.length_cons]
-      have hlt : m - lowbit m < m := Nat.sub_lt hpos (lowbit_pos hpos)
-      have hsub := ih (m - lowbit m) hlt (by omega) (acc + tree[m - 1]'(by omega))
-      omega
+  fun_induction prefixSumLoopM tree m acc with
+  | case1 m acc hguard ih => -- 0 < m ∧ m ≤ tree.size: visit node m
+    rw [downChain]
+    simp only [hguard.1, ↓reduceDIte, TimeM.time_bind, TimeM.time_tick, List.length_cons]
+    have := ih (by omega)
+    omega
+  | case2 m acc hguard => -- otherwise: return acc
+    rw [show m = 0 by omega, downChain_zero]
+    simp only [TimeM.time_pure, List.length_nil]
 
 theorem prefixSumM_time_eq_downChain {α : Type*} [AddCommMonoid α]
     (t : FenwickTree α) (len : ℕ) :
@@ -274,22 +273,19 @@ private theorem prefixSumLoopM_ret {α : Type*} [AddCommMonoid α]
     {t : FenwickTree α} {s : List α} (hv : Valid t s)
     {m : ℕ} (hms : m ≤ s.length) (acc : α) :
     (prefixSumLoopM t.tree m acc).ret = acc + (s.take m).sum := by
-  induction m using Nat.strongRecOn generalizing acc with
-  | ind m ih =>
-    rw [prefixSumLoopM]
-    rcases Nat.eq_zero_or_pos m with rfl | hpos
-    · simp only [Nat.lt_irrefl, false_and, ↓reduceDIte, TimeM.ret_pure, List.take_zero,
-        List.sum_nil, add_zero]
-    · have hmt : m ≤ t.tree.size := hv.1 ▸ hms
-      simp only [hpos, hmt, and_self, ↓reduceDIte, TimeM.ret_bind]
-      have hlt : m - lowbit m < m := Nat.sub_lt hpos (lowbit_pos hpos)
-      rw [ih (m - lowbit m) hlt (by omega) (acc + t.tree[m - 1]'(by omega)),
-        hv.2 m hpos hmt]
-      have hsplit : s.take m = s.take (m - lowbit m) ++ (s.take m).drop (m - lowbit m) := by
-        have h := (List.take_append_drop (m - lowbit m) (s.take m)).symm
-        rwa [List.take_take, Nat.min_eq_left (Nat.le_of_lt hlt)] at h
-      conv_rhs => rw [hsplit, List.sum_append]
-      rw [add_assoc, add_comm ((s.take m).drop (m - lowbit m)).sum]
+  fun_induction prefixSumLoopM t.tree m acc with
+  | case1 m acc hguard ih => -- 0 < m ∧ m ≤ tree.size: visit node m
+    simp only [TimeM.ret_bind]
+    have hlt : m - lowbit m < m := Nat.sub_lt hguard.1 (lowbit_pos hguard.1)
+    rw [ih (by omega), hv.2 m hguard.1 hguard.2]
+    have hsplit : s.take m = s.take (m - lowbit m) ++ (s.take m).drop (m - lowbit m) := by
+      have h := (List.take_append_drop (m - lowbit m) (s.take m)).symm
+      rwa [List.take_take, Nat.min_eq_left (Nat.le_of_lt hlt)] at h
+    conv_rhs => rw [hsplit, List.sum_append]
+    rw [add_assoc, add_comm ((s.take m).drop (m - lowbit m)).sum]
+  | case2 m acc hguard => -- otherwise: return acc
+    obtain rfl : m = 0 := by have := hv.1; omega
+    simp only [TimeM.ret_pure, List.take_zero, List.sum_nil, add_zero]
 
 /-- Functional correctness of `prefixSum` (`[Fenwick1994]`, "THE CUMULATIVE FREQUENCY", Figure 4,
 p. 330): on any valid tree for `s`, `prefixSum t len` equals `(s.take len).sum` for all
@@ -347,17 +343,14 @@ theorem ret_addM {α : Type*} [AddCommMonoid α]
 private theorem addLoopM_time_eq {α : Type*} [AddCommMonoid α]
     (n m : ℕ) (δ : α) (tree : Array α) :
     (addLoopM n m δ tree).time = (upChain n m).length := by
-  generalize hrem : n + 1 - m = rem
-  induction rem using Nat.strongRecOn generalizing m tree with
-  | ind rem ih =>
-    rw [addLoopM, upChain]
-    split_ifs with hm
-    · simp only [time_simps]
-      have hlb_pos : 0 < lowbit m := lowbit_pos hm.1
-      have hsub := @ih (n + 1 - (m + lowbit m)) (by omega) (m + lowbit m)
-        (tree.modify (m - 1) (· + δ)) rfl
-      omega
-    · simp only [time_simps]
+  fun_induction addLoopM n m δ tree with
+  | case1 m tree hguard ih => -- 0 < m ∧ m ≤ n: update node m
+    rw [upChain]
+    simp only [hguard, and_self, ↓reduceDIte, time_simps]
+    omega
+  | case2 m tree hguard => -- otherwise: return tree
+    rw [upChain]
+    simp only [hguard, ↓reduceDIte, time_simps]
 
 /-- Exact tick count of `addM`: `(upChain t.size (pos + 1)).length` in bounds, `0` out of
 bounds. -/
@@ -563,17 +556,12 @@ private theorem buildLoopM_spec {α : Type*} [AddCommMonoid α]
     (s : List α) (m : ℕ) {tree : Array α}
     (hm1 : 1 ≤ m) (hmn : m ≤ s.length + 1) (hinv : BuildInv s m tree) :
     BuildInv s (s.length + 1) (buildLoopM s.length m tree).ret := by
-  generalize hrem : s.length + 1 - m = rem
-  induction rem generalizing m tree with
-  | zero =>
-    have hmeq : m = s.length + 1 := by omega
-    subst hmeq
-    rw [buildLoopM]
-    have hnot : ¬ (1 ≤ s.length + 1 ∧ s.length + 1 ≤ s.length ∧ tree.size = s.length) := by omega
-    simp only [hnot, ↓reduceDIte, TimeM.ret_pure]
+  fun_induction buildLoopM s.length m tree with
+  | case2 m tree hguard => -- loop guard fails: return tree
+    obtain rfl : m = s.length + 1 := by have := hinv.size_eq; omega
     exact hinv
-  | succ rem ih =>
-    have hms : m ≤ s.length := by omega
+  | case1 m tree hguard _ _ ih => -- 1 ≤ m ≤ n: propagate node m into its parent
+    have hms : m ≤ s.length := hguard.2.1
     have hmt : m ≤ tree.size := hinv.size_eq ▸ hms
     have hm_val : tree[m - 1]'(by omega) =
         ∑ i ∈ Finset.Ico (m - lowbit m) m, s.getD i 0 := by
@@ -655,9 +643,7 @@ private theorem buildLoopM_spec {α : Type*} [AddCommMonoid α]
             · rintro ⟨hc, hlt⟩
               exact ⟨hc, by omega⟩
           rw [hfilt_eq]
-    rw [buildLoopM]
-    simp only [hm1, hms, hinv.size_eq, and_self, ↓reduceDIte, TimeM.ret_bind]
-    exact ih (m + 1) (by omega) (by omega) hinv' (by omega)
+    exact ih (by omega) (by omega) hinv'
 
 /-- `ofArray a` constructs a valid Fenwick tree representing `a.toList`. -/
 theorem valid_ofArray {α : Type*} [AddCommMonoid α] (a : Array α) :
