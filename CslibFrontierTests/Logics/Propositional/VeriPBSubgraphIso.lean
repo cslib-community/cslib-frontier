@@ -26,7 +26,7 @@ open Cslib.Logic.PL Cslib.Logic.PL.VeriPB Cslib.Logic.PL.VeriPB.Graph
 /-! ### LAD graphs -/
 
 /-- The path `0 - 1 - 2` as neighbour lists, as `parseLAD "3\n1 1\n2 0 2\n1 1\n"` reads it. -/
-def p3 : LADGraph := ⟨3, [[1], [0, 2], [1]]⟩
+abbrev p3 : LADGraph := ⟨3, [[1], [0, 2], [1]]⟩
 
 example : p3.graph.Adj 0 1 ∧ p3.graph.Adj 2 1 ∧ ¬ p3.graph.Adj 0 2 := by decide
 
