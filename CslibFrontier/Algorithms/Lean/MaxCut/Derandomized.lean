@@ -7,10 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.Lean.PessimisticEstimator
 public import CslibFrontier.Computability.Complexity.Problems.MaxCut
+public import CslibFrontier.Foundations.Combinatorics.PessimisticEstimator
 public import CslibFrontier.Foundations.Data.List.EraseDupsBy
-import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Deterministic `1/2`-approximation for weighted `MaxCut` via conditional expectations
@@ -26,17 +25,15 @@ edge weight by `2` eliminates fractions:
   `scaledUncut edges (assignVertex z true s) + scaledUncut edges (assignVertex z false s) =
     2 * scaledUncut edges s` (`scaledUncut_assignVertex_add`);
 * greedily choosing the smaller scaled uncut weight over `distinctVertices edges` via
-  `Cslib.PessimisticEstimator.greedy` (`derandomizedCut`) or its `TimeM ℕ`-costed counterpart
-  `Cslib.Algorithms.Lean.PessimisticEstimator.CostedGreedy` (`derandomizedCutM`) produces a cut
-  crossing at least half the total non-loop weight
-  (`nonLoopWeight_le_two_mul_cutWeight_derandomizedCutSide`), hence a deterministic
-  `1 / 2`-approximation against every cut `σ : ℕ → Bool`
-  (`cutWeight_le_two_mul_derandomizedCutSide`), in at most
-  `(distinctVertices edges).length * (2 * edges.length + 3)` ticks (`derandomizedCutM_spec`).
+  `Cslib.PessimisticEstimator.greedy` (`derandomizedCut`) produces a cut crossing at least half the
+  total non-loop weight (`nonLoopWeight_le_two_mul_cutWeight_derandomizedCutSide`), hence a
+  deterministic `1 / 2`-approximation against every cut `σ : ℕ → Bool`
+  (`cutWeight_le_two_mul_derandomizedCutSide`).
 
-Plain multi-tape Turing polynomial-time computability (`ComputableInPolyTime`) of
-`derandomizedCut` is proved in
-`CslibFrontier.Computability.Complexity.Problems.MaxCut.Derandomized`.
+Plain multi-tape Turing polynomial-time computability (`ComputableInPolyTime`) of `derandomizedCut`
+is proved in `CslibFrontier.Computability.Complexity.Problems.MaxCut.Derandomized`, and an explicit
+`O(|V| |E| + |V|)` instruction-count word-RAM implementation is certified in
+`CslibFrontier.Algorithms.WordRAM.MaxCut`.
 
 ## Main definitions
 
@@ -50,8 +47,6 @@ Plain multi-tape Turing polynomial-time computability (`ComputableInPolyTime`) o
 * `Cslib.Algorithms.Lean.MaxCut.derandomizedCutState`,
   `Cslib.Algorithms.Lean.MaxCut.derandomizedCut`,
   `Cslib.Algorithms.Lean.MaxCut.derandomizedCutSide`: deterministic conditional-expectations cut.
-* `Cslib.Algorithms.Lean.MaxCut.maxCutCostedGreedy`,
-  `Cslib.Algorithms.Lean.MaxCut.derandomizedCutM`: `TimeM ℕ`-costed conditional-expectations cut.
 
 ## Main results
 
@@ -62,9 +57,6 @@ Plain multi-tape Turing polynomial-time computability (`ComputableInPolyTime`) o
 * `Cslib.Algorithms.Lean.MaxCut.cutWeight_le_nonLoopWeight`,
   `Cslib.Algorithms.Lean.MaxCut.cutWeight_le_two_mul_derandomizedCutSide`: deterministic
   `1 / 2`-approximation against every cut `σ : ℕ → Bool`.
-* `Cslib.Algorithms.Lean.MaxCut.ret_derandomizedCutM`,
-  `Cslib.Algorithms.Lean.MaxCut.derandomizedCutM_spec`: agreement with `derandomizedCut` and
-  explicit `TimeM ℕ` bound `(distinctVertices edges).length * (2 * edges.length + 3)`.
 
 ## References
 
@@ -78,7 +70,6 @@ public section
 namespace Cslib.Algorithms.Lean.MaxCut
 
 open Cslib.Complexity Cslib.Complexity.MaxCut Cslib.PessimisticEstimator
-open Cslib.Algorithms.Lean.PessimisticEstimator
 
 /-- Partial 2-coloring of vertices maintained during greedy `MaxCut` derandomization. -/
 structure PartialCut where
@@ -501,80 +492,5 @@ theorem cutWeight_le_two_mul_derandomizedCutSide (edges : List WeightedEdge) (σ
     cutWeight edges σ ≤ 2 * cutWeight edges (derandomizedCutSide edges) :=
   (cutWeight_le_nonLoopWeight edges σ).trans
     (nonLoopWeight_le_two_mul_cutWeight_derandomizedCutSide edges)
-
-/-! ### `TimeM ℕ`-costed conditional-expectations MaxCut via `CostedGreedy` -/
-
-/-- Assign vertex `v` to side `b` in `TimeM ℕ`, charging `1` tick. -/
-@[expose] def assignVertexM (v : ℕ) (b : Bool) (s : PartialCut) : TimeM ℕ PartialCut := do
-  ✓[1] pure (assignVertex v b s)
-
-/-- Evaluate `scaledUncut edges s` in `TimeM ℕ`, charging `1` tick per edge inspected. -/
-@[expose] def scaledUncutM (edges : List WeightedEdge) (s : PartialCut) : TimeM ℕ ℕ :=
-  edges.foldlM (fun acc e => do ✓[1] pure (acc + edgeScaledUncut s e)) 0
-
-@[simp] theorem ret_scaledUncutM (edges : List WeightedEdge) (s : PartialCut) :
-    (scaledUncutM edges s).ret = scaledUncut edges s := by
-  time_spec scaledUncutM [scaledUncut, List.sum_eq_foldl, List.foldl_map]
-
-@[simp] theorem time_scaledUncutM (edges : List WeightedEdge) (s : PartialCut) :
-    (scaledUncutM edges s).time = edges.length := by
-  rw [scaledUncutM, TimeM.time_foldlM_of_time_eq (c := 1) _ edges 0 fun _ _ => rfl, Nat.mul_one]
-
-/-- `CostedGreedy` instance for weighted `MaxCut`, charging `1` tick per vertex update, `1` tick per
-edge during conditional-expectation evaluation, and `1` tick per branch comparison. -/
-@[expose] def maxCutCostedGreedy (edges : List WeightedEdge) :
-    CostedGreedy ℕ PartialCut ℕ where
-  branchM := assignVertexM
-  estimateM := scaledUncutM edges
-  compareCost := 1
-
-/-- Costed conditional-expectations `MaxCut` algorithm in `TimeM ℕ`. -/
-@[expose] def derandomizedCutM (edges : List WeightedEdge) : TimeM ℕ (List ℕ) :=
-  PartialCut.trueSide <$>
-    (maxCutCostedGreedy edges).runM (distinctVertices edges) PartialCut.empty
-
-@[simp] theorem ret_derandomizedCutM (edges : List WeightedEdge) :
-    (derandomizedCutM edges).ret = derandomizedCut edges := by
-  have hbr : (maxCutCostedGreedy edges).branch = assignVertex := rfl
-  have hest : (maxCutCostedGreedy edges).estimate = scaledUncut edges := by
-    funext s
-    exact ret_scaledUncutM edges s
-  simp only [derandomizedCutM, TimeM.ret_map, CostedGreedy.ret_runM, hbr, hest, derandomizedCut,
-    derandomizedCutState]
-
-/-- Combined approximation and explicit `TimeM ℕ` cost specification for `derandomizedCutM`. -/
-theorem derandomizedCutM_spec (edges : List WeightedEdge) :
-    nonLoopWeight edges ≤
-        2 * cutWeight edges (fun u => decide (u ∈ (derandomizedCutM edges).ret)) ∧
-      (derandomizedCutM edges).time ≤
-        (distinctVertices edges).length * (2 * edges.length + 3) := by
-  have hbr : (maxCutCostedGreedy edges).branch = assignVertex := rfl
-  have hest : (maxCutCostedGreedy edges).estimate = scaledUncut edges := by
-    funext s
-    exact ret_scaledUncutM edges s
-  obtain ⟨_, _, htime⟩ :=
-    (maxCutCostedGreedy edges).runM_spec_of_add_le (CutInv edges)
-      (fun _ => 1) (fun _ => edges.length)
-      (by
-        intro r rs s b hs
-        rw [hbr]
-        exact cutInv_branch r rs s b hs)
-      (by
-        intro r rs s hs
-        rw [hbr, hest]
-        exact cutInv_avg r rs s hs)
-      (fun _ _ _ _ _ => le_rfl)
-      (by
-        intro _ _ s b _
-        change (scaledUncutM edges _).time ≤ edges.length
-        rw [time_scaledUncutM])
-      (distinctVertices edges) PartialCut.empty (cutInv_init edges)
-  refine ⟨?_, ?_⟩
-  · rw [ret_derandomizedCutM]
-    exact nonLoopWeight_le_two_mul_cutWeight_derandomizedCutSide edges
-  · simp only [derandomizedCutM, TimeM.time_map]
-    refine htime.trans ?_
-    simp only [maxCutCostedGreedy, List.map_const', List.sum_replicate, smul_eq_mul]
-    exact Nat.mul_le_mul_left _ (by omega)
 
 end Cslib.Algorithms.Lean.MaxCut
