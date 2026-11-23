@@ -135,8 +135,7 @@ theorem card_introducedOfCard_le_pow (P : Path (threshold k α) V)
       rw [threshold_of_one_le (by omega)]
       have hIh := ih h hhc hh1 (by omega)
       calc 2 * (α * X ^ (2 * (c' + 1 - h) - 1)) * (P.introducedOfCard h).card
-          ≤ 2 * (α * X ^ (2 * (c' + 1 - h) - 1)) * (U.card * X ^ (2 * h - 1)) :=
-            Nat.mul_le_mul_left _ hIh
+          ≤ 2 * (α * X ^ (2 * (c' + 1 - h) - 1)) * (U.card * X ^ (2 * h - 1)) := by gcongr
         _ = 2 * α * U.card * X ^ ((2 * (c' + 1 - h) - 1) + (2 * h - 1)) := by
           rw [pow_add]; ring
         _ = 2 * α * U.card * X ^ (2 * c') := by congr 2; omega

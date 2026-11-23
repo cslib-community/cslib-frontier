@@ -2059,6 +2059,23 @@ When two stateful oracle handlers agree until an internal collision or guessing 
 
 The [checked clients](../../CslibFrontierTests/Crypto/UntilBadROMFramework.lean) verify concrete sharpness of `toOuterMeasure_bad_choose_two_le` and `HasOutputCollision` at `q = 2` on `Bool` (`= 1 / 2`), exercise `ProbOracleComp.IdenticalUntilBad` and `withBadFlag` on a randomized 2-query client, check exact min-entropy list-key collision mass on `Fin 4`, and compare the nontrivial `3 / 4` sharpened programming bound against the vacuous `3 / 2` rectangular bound at `q_S = 2, q_H = 1, δ = 1 / 4`. Run `scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.UntilBadROMFramework`. These bounds depend only on pathwise query/cost budgets and PMF semantics; native `IsOraclePPTOn` / `IsPPTOn` runtime certificates remain separate obligations.
 
+## Transfer separate query budgets through a handler
+
+Import [QueryCount/Demand.lean](../../CslibFrontier/Languages/Probabilistic/QueryCount/Demand.lean).
+Assign each source query a natural-number charge on each channel and bound those charges with
+`OracleComp.IsCostBounded`. For each target channel, bound the implementation of one source call
+by the weighted sum of its source charges. `IsCostBounded.interpret_demand` gives the corresponding
+weighted sum of the source program’s budgets. The proof covers every answer branch, including
+one that stops the program early. A second handler composes the weights by matrix multiplication
+with `IsCostBounded.interpret_interpret_demand`.
+
+For example, expanding signing requests into at most `K` trials turns budgets of `S` signing calls
+and `H` direct digest calls into bounds of `S * K` trials and `H` direct calls. A terminal signing
+failure can stop before the bound. The [signing implementation](../../CslibFrontier/Crypto/Computational/MLDSA/SigningROM.lean)
+uses both bounds. The [two-channel example](../../CslibFrontierTests/OracleChannelDemand.lean)
+shows how to apply the same calculation when a call uses several target channels. Check the example
+with `scripts/build.sh CslibFrontierTests.OracleChannelDemand --wfail --iofail`.
+
 ## Derive adaptive decapsulation security
 
 Import [`KEMFromPKE/CCA.lean`](../../CslibFrontier/Crypto/Computational/Encryption/KEMFromPKE/CCA.lean) when the starting assumption is `WordINDCCA2 keyGen encrypt decrypt`. Apply `WordINDCCA2.indistinguishable_encryptKeyEncaps` with the unary polynomial-time certificate for `keyLen`. It proves security of the actual `encryptKeyEncaps` constructor against adaptive postchallenge queries, with exact loss one. The [complete checked client](../../CslibFrontierTests/Crypto/KEMFromPKECCA.lean) uses `keyLen n = 2 * n` and keeps `n` as the security parameter.

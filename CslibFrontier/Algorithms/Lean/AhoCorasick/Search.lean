@@ -139,20 +139,19 @@ termination_by u.length
 theorem ret_stepM {P : List (List α)} {f : List α → List α} {u : List α} (a : α)
     (hf : ∀ v, IsNode P v → v.length ≤ u.length → f v = failure P v) (hu : IsNode P u) :
     (stepM P f u a).ret = nextMove P u a := by
-  induction h : u.length using Nat.strongRecOn generalizing u with
-  | ind n ih =>
-    rw [stepM]
-    split_ifs with hnode hnil hlt
-    · rw [nextMove_of_isNode hnode]
-      rfl
-    · rw [nextMove_of_not_isNode_of_eq_nil hnode hnil]
-      rfl
-    · rw [nextMove_of_not_isNode hnode hnil]
-      have hfu : f u = failure P u := hf u hu (Nat.le_refl _)
-      simp only [TimeM.ret_bind]
-      rw [hfu] at hlt ⊢
-      exact ih _ (h ▸ hlt) (fun v hv hvl => hf v hv (by omega)) (isNode_failure P u) rfl
-    · exact absurd (hf u hu (Nat.le_refl _) ▸ length_failure_lt P hnil) hlt
+  fun_induction stepM P f u a with
+  | case1 u hnode => -- goto transition
+    rw [nextMove_of_isNode hnode]
+    rfl
+  | case2 hnode => -- no goto from the start state
+    rw [nextMove_of_not_isNode_of_eq_nil hnode rfl]
+    rfl
+  | case3 u hnode hnil hlt ih => -- failure transition
+    have hfu : f u = failure P u := hf u hu (Nat.le_refl _)
+    rw [nextMove_of_not_isNode hnode hnil, ← hfu]
+    exact ih (fun v hv hvl => hf v hv (by omega)) (hfu ▸ isNode_failure P u)
+  -- failure state not shorter: stop
+  | case4 u hnode hnil hlt => exact absurd (hf u hu (Nat.le_refl _) ▸ length_failure_lt P hnil) hlt
 
 /-- Amortized cost of one operating cycle with potential the depth of the state. -/
 theorem time_stepM_le (P : List (List α)) (f : List α → List α) (u : List α) (a : α) :
