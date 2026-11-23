@@ -391,7 +391,6 @@ import CslibFrontier.DataStructure.NearNeighbor.PStable
 import CslibFrontier.DataStructure.Paging.Marking
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.RootBound
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.Sturm
-import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.TotalIsolation
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CFI
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.ColorRefinement
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.WeisfeilerLeman
@@ -6281,47 +6280,6 @@ register_result "mahler-mignotte-root-separation" where
     separable integer and cleared-denominator rational polynomials of degree d >= 2, combining \
     Mahler's discriminant/Mahler-measure inequality with |discr p| >= 1 and Landau's l^2 bound."
 
-register_result "certified-real-root-isolation" where
-  title := "Certified Sturm-bisection real-root isolation with Mignotte depth"
-  topic := "algorithms"
-  sources := [
-    { paper := BasuPollackRoy2006,
-      theorem := "Theorem 2.50 (Sturm counting ingredient; Algorithm 10.4 related work)",
-      locator := "printed p. 52; §10.2, pp. 373–374 (related work)" },
-    { paper := Mahler1964, theorem := unverified, locator := "pp. 257–262" },
-    { paper := Mignotte1982,
-      theorem := "Theorem 3 and Theorem 5 with integral corollary (root-separation ingredients)",
-      locator := "pp. 260–262" }
-  ]
-  theorems := [
-    Cslib.RealRoot.isolateRootsTotal_isIsolatingFor,
-    Cslib.RealRoot.isolateRootsTotal_pairwise_disjoint,
-    Cslib.RealRoot.isolateRootsTotal_bijective_of_squarefree,
-    Cslib.RealRoot.isolateRootsTotal_endpoint_bounds_of_bitBound,
-    Cslib.RealRoot.isolateRootsTotal_spec_of_eq,
-    Cslib.RealRoot.isolatePolyRootsTotal_bijective
-  ]
-  scope := "Library's own executable Sturm-bisection real-root isolators isolateRoots and \
-    isolateRootsTotal on List ℚ (with noncomputable Polynomial ℚ wrappers isolatePolyRoots and \
-    isolatePolyRootsTotal via p.coeffsBelow (p.natDegree + 1)) and polynomial-time multi-tape \
-    Turing-machine certification in CslibFrontier.Computability.Complexity.RealAlgebraic.\
-    RootIsolation. Whereas isolateRoots can return touching intervals (I₁.upper ≤ I₂.lower), on \
-    squarefree input isolateRootsTotal (and isolatePolyRootsTotal) certifies strict \
-    closed-interval separation J₁.upper < J₂.lower, pairwise disjoint closed intervals \
-    Set.Icc (J.lower : ℝ) (J.upper : ℝ), and a strictly monotone bijection onto \
-    {x : ℝ // aeval x p = 0}. The dyadic endpoint numerator/denominator bound \
-    (isolateRootsTotal_endpoint_bounds_of_bitBound, isolateRootsTotal_spec_of_eq) adds \
-    HasCoeffBitBound B cs, while both polynomial-time certificates \
-    (isolateRoots_computableInPolyTime, isolateRootsTotal_computableInPolyTime) hold \
-    unconditionally for all encRatPoly-encoded rational coefficient lists. Mathematical \
-    ingredients: Basu–Pollack–Roy Theorem 2.50 (p. 52, counting distinct roots in an open \
-    interval over a real closed field; adapted in Sturm.lean to finite real endpoints on (a, b] \
-    over ℝ, with §10.2 Algorithm 10.4 on pp. 373–374—integer coefficients, Bernstein coefficient \
-    variation, open rational intervals and singleton rational roots—as related work rather than \
-    the formalized algorithm), Mahler (1964, pp. 257–262, internal equation locator unverified), \
-    and Mignotte (1982, Theorem 3 on pp. 260–261 and Theorem 5 with its integral corollary on \
-    p. 262, supplying the Landau norm comparison and root-separation ingredients distinct from \
-    the end-to-end computation claim)."
 register_result "yap-collapse" where
   title := "Yap's theorem: coNP in NP/poly collapses the polynomial hierarchy to Σ₃"
   topic := "structural complexity"
