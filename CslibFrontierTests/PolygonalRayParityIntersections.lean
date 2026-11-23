@@ -576,4 +576,33 @@ example :
     have hre := congrArg Complex.re h
     norm_num at hre
 
+-- A closed excursion based away from the observations gives the specified parity
+-- and avoids all three marked points, including the one whose bit it flips.
+example :
+    ∃ p : Route, p.start = 0 ∧ p.finish = 0 ∧
+      (⟨2, 3⟩ : ℂ) ∉ p.support ∧
+      p.rayParity 1 ⟨2, 3⟩ = true ∧ p.rayParity 1 ⟨1, 3⟩ = false ∧
+      p.rayParity 1 ⟨3, 3⟩ = false := by
+  classical
+  let points : Finset ℂ := {⟨1, 3⟩, ⟨3, 3⟩}
+  have hne₀ : ∀ z ∈ points, (0 : ℂ) ≠ z := by
+    intro z hz heq
+    have hre := congrArg Complex.im heq
+    simp only [points, Finset.mem_insert, Finset.mem_singleton] at hz
+    rcases hz with rfl | rfl <;> norm_num at hre
+  have ha : (0 : ℂ) ∉ points := fun h => hne₀ _ h rfl
+  have hac : (0 : ℂ) ≠ ⟨2, 3⟩ := by
+    intro h
+    have hre := congrArg Complex.im h
+    norm_num at hre
+  obtain ⟨p, hstart, hfinish, hs, hodd, heven⟩ :=
+    Route.exists_rayParity_isolating_excursion (U := Set.univ) isOpen_univ
+      isPathConnected_univ points (Set.mem_univ 0) (Set.mem_univ ⟨2, 3⟩) ha hac
+  refine ⟨p, hstart, hfinish, fun hz => (hs hz).2 (by simp), hodd,
+    heven _ (by simp [points]) ?_, heven _ (by simp [points]) ?_⟩
+  all_goals
+    intro h
+    have hre := congrArg Complex.re h
+    norm_num at hre
+
 end CslibFrontierTests.PolygonalRayParityIntersections
