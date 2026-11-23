@@ -26,8 +26,8 @@ Uniform samples on the closed unit interval give actual finite routes with exact
 Uniform continuity confines sufficiently fine chords to any prescribed open thickening of
 the original image. For a finite family with disjoint images, one mesh works for every pair.
 An affine increase in radius and a Lipschitz bound also ensure that sufficiently fine
-segments satisfy the outward chord inequality. Sampling also realizes a continuous path in an open set
-by a finite polygonal route with the same endpoints.
+segments satisfy the outward chord inequality. Sampling also realizes a continuous path
+in an open set by a finite polygonal route with the same endpoints.
 -/
 
 public section
