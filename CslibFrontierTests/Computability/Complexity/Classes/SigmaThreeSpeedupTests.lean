@@ -305,4 +305,111 @@ example : lastBitLanguage ∈ SigmaThreeTIME encBits id := by
     omega
   exact remaining_lemmas_imply_containment (fun _ => le_rfl) hA hB'
 
+private def constHeadRAATM (out : Option Bool → Bool) : RAATM 2 Unit where
+  q₀ := ()
+  univ _ := false
+  tr _ _ _ inSym _ :=
+    { nextState := none
+      outBit := out inSym
+      idxWrite := none
+      idxMove := 0
+      workWrite _ := none
+      workMove _ := 0 }
+
+private theorem constHeadRAATM_det (out : Option Bool → Bool) :
+    (constHeadRAATM out).IsDeterministic :=
+  ⟨fun _ => rfl, fun _ _ _ _ _ _ => rfl⟩
+
+private theorem raComputableBound_zero : RAComputableBound (fun _ => 1) (fun _ => 0) := by
+  refine ⟨0, 1, 2, Unit, inferInstance, constHeadRAATM (fun _ => false),
+    constHeadRAATM_det _, fun x => ⟨1, by omega, rfl, rfl⟩⟩
+
+private theorem radetVerify_constHeadRAATM (out : Option Bool → Bool) (x aux : List Bool) :
+    RADetVerify (constHeadRAATM out) x aux 1 = out x[0]? := rfl
+
+private theorem headBit_compression :
+    RASwitchCompression (fun _ => 1) (fun _ => 1)
+      ({x : List Bool | x[0]? = some true} : Set (List Bool)) (fun _ => 0) (fun _ _ => False) := by
+  refine ⟨0, 0, 0, 1, 1, fun _ => 0, Unit, inferInstance,
+    constHeadRAATM (fun inSym => inSym == some true), constHeadRAATM_det _,
+    raComputableBound_zero, fun _ => by simp, raComputableBound_zero, fun _ => by simp,
+    fun _ _ _ _ _ _ _ _ _ => rfl, fun x => ?_⟩
+  constructor
+  · intro hx
+    refine ⟨[], le_rfl, ⟨[], le_rfl, fun _ _ => ⟨[], le_rfl, ?_⟩⟩, False.elim⟩
+    dsimp only
+    rw [show 0 * 1 + 1 = 1 from rfl, radetVerify_constHeadRAATM]
+    simpa using hx
+  · rintro ⟨_, _, ⟨_, _, hw⟩, _⟩
+    obtain ⟨_, _, hx⟩ := hw [] (by simp)
+    dsimp only at hx
+    rw [show 0 * 1 + 1 = 1 from rfl, radetVerify_constHeadRAATM] at hx
+    simpa using hx
+
+private theorem headBit_rejection :
+    RATwoBlockRejection (fun _ => 1) (fun _ => 1) (fun _ => 0) (fun _ _ => False) := by
+  refine ⟨0, 0, 1, 1, fun _ => 0, Unit, inferInstance, constHeadRAATM (fun _ => false),
+    constHeadRAATM_det _, raComputableBound_zero, fun _ => by simp,
+    fun _ _ _ _ _ _ _ => rfl, fun _ _ _ => ?_⟩
+  refine ⟨False.elim, fun ⟨_, _, hq⟩ => ?_⟩
+  have h := hq [] (by simp)
+  dsimp only at h
+  rw [show 0 * 1 + 1 = 1 from rfl, radetVerify_constHeadRAATM] at h
+  exact Bool.false_ne_true h
+
+/-- Non-vacuous `RA_remaining_lemmas_imply_containment` client verifying `headBitLanguage`
+`{x | x[0]? = some true}` satisfies both `RASwitchCompression` and `RATwoBlockRejection`
+(including `RAComputableBound`) at `T = F = 1`, `s = ℓE = ℓB = 0`. -/
+example :
+    RASwitchCompression (fun _ => 1) (fun _ => 1)
+      ({x : List Bool | x[0]? = some true} : Set (List Bool)) (fun _ => 0) (fun _ _ => False) ∧
+      RATwoBlockRejection (fun _ => 1) (fun _ => 1) (fun _ => 0) (fun _ _ => False) :=
+  ⟨headBit_compression, headBit_rejection⟩
+
+example :
+    ∃ (Cs KE cE₁ cE₂ kE KB cB₁ cB₂ kB : ℕ) (ℓE ℓB : ℕ → ℕ)
+      (StateE : Type) (_ : Finite StateE) (ME : RAATM (kE + 1) StateE)
+      (StateB : Type) (_ : Finite StateB) (MB : RAATM (kB + 1) StateB),
+      ME.IsDeterministic ∧ MB.IsDeterministic ∧
+      RAComputableBound (fun _ => 1) (fun _ => 0) ∧
+      (∀ _n : ℕ, 0 ≤ Cs * 1 + Cs) ∧
+      RAComputableBound (fun _ => 1) ℓE ∧
+      (∀ n : ℕ, ℓE n ≤ KE * 1 + KE) ∧
+      RAComputableBound (fun _ => 1) ℓB ∧
+      (∀ n : ℕ, ℓB n ≤ KB * 1 + KB) ∧
+      (∀ (x c u v w : List Bool), c.length ≤ 0 → u.length ≤ ℓE x.length →
+        v.length ≤ ℓE x.length → w.length ≤ ℓE x.length →
+        (ME.runCoins x (RACfg.initWithAux ME.q₀ (Nat.succ_pos kE)
+          (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits encSigmaThreeWitness
+            (c, ⟨u, v, w⟩)))
+          (List.replicate (cE₁ * 1 + cE₂) false)).state = none) ∧
+      (∀ (x c p q : List Bool), c.length ≤ 0 → p.length ≤ ℓB x.length →
+        q.length ≤ ℓB x.length →
+        (MB.runCoins x (RACfg.initWithAux MB.q₀ (Nat.succ_pos kB)
+          (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits
+            (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits Turing.MultiTapeTM.encBits)
+            (c, (p, q))))
+          (List.replicate (cB₁ * 1 + cB₂) false)).state = none) ∧
+      ∀ x : List Bool, x ∈ ({x | x[0]? = some true} : Set (List Bool)) ↔
+        ∃ cu : {c : List Bool // c.length ≤ 0} × {u : List Bool // u.length ≤ ℓE x.length},
+          ∀ svp : (side : Bool) × cond side {p : List Bool // p.length ≤ ℓB x.length}
+              {v : List Bool // v.length ≤ ℓE x.length},
+            ∃ wq : cond svp.1 {q : List Bool // q.length ≤ ℓB x.length}
+                {w : List Bool // w.length ≤ ℓE x.length},
+              selectorEval
+                (fun (_ : Unit) (cs : {c : List Bool // c.length ≤ 0}) u v w =>
+                  RADetVerify ME x
+                    (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits encSigmaThreeWitness
+                      (cs.1, ⟨u.1, v.1, w.1⟩))
+                    (cE₁ * 1 + cE₂))
+                (fun (_ : Unit) (cs : {c : List Bool // c.length ≤ 0}) p q =>
+                  RADetVerify MB x
+                    (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits
+                      (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits
+                        Turing.MultiTapeTM.encBits)
+                      (cs.1, (p.1, q.1)))
+                    (cB₁ * 1 + cB₂))
+                Unit.unit cu svp wq :=
+  RA_remaining_lemmas_imply_containment headBit_compression headBit_rejection
+
 end CslibFrontierTests.SigmaThreeSpeedup

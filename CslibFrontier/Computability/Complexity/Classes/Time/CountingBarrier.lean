@@ -46,7 +46,7 @@ missing lemmas would imply it:
      `tB ≤ O(n + F n)` on short pairs,
    and proving `remaining_lemmas_imply_containment` via `mem_SigmaThreeTIME_of_composition_of_le`
    that (A) and (B) together place `A ∈ Σ₃TIME(F)`. We also formalize the clocked `RAATM`
-   selector-bit counterpart (`RASwitchCompression`, `RATwoBlockRejection`,
+   selector-bit counterpart (`RAComputableBound`, `RASwitchCompression`, `RATwoBlockRejection`,
    `RA_remaining_lemmas_imply_containment`) for random-access bounds where `F(T) < n`.
 
 ## Main results
@@ -66,8 +66,9 @@ missing lemmas would imply it:
 * `Cslib.Complexity.remaining_lemmas_imply_containment`: conditional proof that switch-state
   compression (`HasSwitchCompression`) plus two-block rejection (`HasTwoBlockRejection`) yields
   `A ∈ SigmaThreeTIME enc F`.
-* `Cslib.Complexity.RA_remaining_lemmas_imply_containment`: clocked finite-state `RAATM`
-  selector-bit composition under `RASwitchCompression` and `RATwoBlockRejection`.
+* `Cslib.Complexity.RAComputableBound`, `Cslib.Complexity.RA_remaining_lemmas_imply_containment`:
+  clocked finite-state `RAATM` selector-bit composition under `RASwitchCompression` and
+  `RATwoBlockRejection` with `RAATM`-computable witness/challenge length bounds.
 
 ## References
 
@@ -338,16 +339,28 @@ theorem remaining_lemmas_imply_containment {α : Type} {enc : α ↪ List Bool}
     (x aux : List Bool) (t : ℕ) : Bool :=
   (M.runCoins x (RACfg.initWithAux M.q₀ (Nat.succ_pos k) aux) (List.replicate t false)).accept
 
+/-- A length bound `b : ℕ → ℕ` is computable within budget `Bnd` by a clocked deterministic
+`RAATM` outputting `b x.length` on `idxTape` (`RACfg.addr`) upon halting. -/
+@[expose] def RAComputableBound (Bnd b : ℕ → ℕ) : Prop :=
+  ∃ (c₁ c₂ k : ℕ) (State : Type) (_ : Finite State) (M : RAATM k State),
+    M.IsDeterministic ∧
+    ∀ x : List Bool, ∃ t ≤ c₁ * Bnd x.length + c₂,
+      let cf := M.runCoins x (RACfg.init M.q₀) (List.replicate t false)
+      cf.state = none ∧ cf.addr = b x.length
+
 /-- **Remaining Lemma A (Random-Access `RAATM` form)**:
-Every compressed switch `c` has length `|c| ≤ s |x| = O(F(T |x|))`, and reachability is decided
-by a single finite-state deterministic `RAATM` `ME` running in `O(F(T |x|))` steps on bounded
-bit-string blocks `u, v, w` of length `≤ ℓE |x| = O(F(T |x|))`. -/
+Every compressed switch `c` has `RAATM`-computable length `|c| ≤ s |x| = O(F(T |x|))`, and
+reachability is decided by a single finite-state deterministic `RAATM` `ME` running in
+`O(F(T |x|))` steps on bounded bit-string blocks `u, v, w` of `RAATM`-computable length
+`≤ ℓE |x| = O(F(T |x|))`. -/
 @[expose] def RASwitchCompression (T F : ℕ → ℕ) (L : Set (List Bool)) (s : ℕ → ℕ)
     (B : List Bool → List Bool → Prop) : Prop :=
   ∃ (Cs KE cE₁ cE₂ kE : ℕ) (ℓE : ℕ → ℕ) (StateE : Type) (_ : Finite StateE)
     (ME : RAATM (kE + 1) StateE),
     ME.IsDeterministic ∧
+    RAComputableBound (fun n => F (T n)) s ∧
     (∀ n, s n ≤ Cs * F (T n) + Cs) ∧
+    RAComputableBound (fun n => F (T n)) ℓE ∧
     (∀ n, ℓE n ≤ KE * F (T n) + KE) ∧
     (∀ (x c u v w : List Bool), c.length ≤ s x.length → u.length ≤ ℓE x.length →
       v.length ≤ ℓE x.length → w.length ≤ ℓE x.length →
@@ -368,13 +381,14 @@ bit-string blocks `u, v, w` of length `≤ ℓE |x| = O(F(T |x|))`. -/
 
 /-- **Remaining Lemma B (Random-Access `RAATM` form)**:
 Continuation rejection `B x c` from a switch summary `c` is decided by a finite-state
-deterministic `RAATM` `MB` running in `O(F(T |x|))` steps on bounded blocks `p, q` of length
-`≤ ℓB |x| = O(F(T |x|))`. -/
+deterministic `RAATM` `MB` running in `O(F(T |x|))` steps on bounded blocks `p, q` of
+`RAATM`-computable length `≤ ℓB |x| = O(F(T |x|))`. -/
 @[expose] def RATwoBlockRejection (T F s : ℕ → ℕ)
     (B : List Bool → List Bool → Prop) : Prop :=
   ∃ (KB cB₁ cB₂ kB : ℕ) (ℓB : ℕ → ℕ) (StateB : Type) (_ : Finite StateB)
     (MB : RAATM (kB + 1) StateB),
     MB.IsDeterministic ∧
+    RAComputableBound (fun n => F (T n)) ℓB ∧
     (∀ n, ℓB n ≤ KB * F (T n) + KB) ∧
     (∀ (x c p q : List Bool), c.length ≤ s x.length → p.length ≤ ℓB x.length →
       q.length ≤ ℓB x.length →
@@ -395,8 +409,8 @@ deterministic `RAATM` `MB` running in `O(F(T |x|))` steps on bounded blocks `p, 
 /-- **Conditional Random-Access Speedup Theorem (`RASwitchCompression + RATwoBlockRejection`)**:
 Combining resource-bounded RA switch compression and RA two-block rejection via
 `selectorBit_composition` places `L` into an explicit 3-block `∃ ∀ ∃` protocol with
-`O(F(T |x|))`-bit witnesses/challenges evaluated by clocked finite-state deterministic `RAATM`
-verifiers halting in `O(F(T |x|))` steps. -/
+`RAATM`-computable `O(F(T |x|))`-bit witnesses/challenges evaluated by clocked finite-state
+deterministic `RAATM` verifiers halting in `O(F(T |x|))` steps. -/
 theorem RA_remaining_lemmas_imply_containment {T F s : ℕ → ℕ} {L : Set (List Bool)}
     {B : List Bool → List Bool → Prop}
     (hA : RASwitchCompression T F L s B) (hB : RATwoBlockRejection T F s B) :
@@ -404,8 +418,11 @@ theorem RA_remaining_lemmas_imply_containment {T F s : ℕ → ℕ} {L : Set (Li
       (StateE : Type) (_ : Finite StateE) (ME : RAATM (kE + 1) StateE)
       (StateB : Type) (_ : Finite StateB) (MB : RAATM (kB + 1) StateB),
       ME.IsDeterministic ∧ MB.IsDeterministic ∧
+      RAComputableBound (fun n => F (T n)) s ∧
       (∀ n, s n ≤ Cs * F (T n) + Cs) ∧
+      RAComputableBound (fun n => F (T n)) ℓE ∧
       (∀ n, ℓE n ≤ KE * F (T n) + KE) ∧
+      RAComputableBound (fun n => F (T n)) ℓB ∧
       (∀ n, ℓB n ≤ KB * F (T n) + KB) ∧
       (∀ (x c u v w : List Bool), c.length ≤ s x.length → u.length ≤ ℓE x.length →
         v.length ≤ ℓE x.length → w.length ≤ ℓE x.length →
@@ -441,11 +458,13 @@ theorem RA_remaining_lemmas_imply_containment {T F s : ℕ → ℕ} {L : Set (Li
                       (cs.1, (p.1, q.1)))
                     (cB₁ * F (T x.length) + cB₂))
                 Unit.unit cu svp wq := by
-  rcases hA with ⟨Cs, KE, cE₁, cE₂, kE, ℓE, StateE, hfinE, ME, hMEdet, hs_le, hℓE_le,
-    hMEhalt, hAspec⟩
-  rcases hB with ⟨KB, cB₁, cB₂, kB, ℓB, StateB, hfinB, MB, hMBdet, hℓB_le, hMBhalt, hBspec⟩
+  rcases hA with ⟨Cs, KE, cE₁, cE₂, kE, ℓE, StateE, hfinE, ME, hMEdet, hs_comp, hs_le,
+    hℓE_comp, hℓE_le, hMEhalt, hAspec⟩
+  rcases hB with ⟨KB, cB₁, cB₂, kB, ℓB, StateB, hfinB, MB, hMBdet, hℓB_comp, hℓB_le,
+    hMBhalt, hBspec⟩
   refine ⟨Cs, KE, cE₁, cE₂, kE, KB, cB₁, cB₂, kB, ℓE, ℓB, StateE, hfinE, ME, StateB, hfinB, MB,
-    hMEdet, hMBdet, hs_le, hℓE_le, hℓB_le, hMEhalt, hMBhalt, fun x => ?_⟩
+    hMEdet, hMBdet, hs_comp, hs_le, hℓE_comp, hℓE_le, hℓB_comp, hℓB_le, hMEhalt, hMBhalt,
+    fun x => ?_⟩
   let A₀ : Set Unit := Set.ofPred (fun _ : Unit => x ∈ L)
   have hiff : ∀ u₀ : Unit, u₀ ∈ A₀ ↔
       ∃ cs : {c : List Bool // c.length ≤ s x.length},
