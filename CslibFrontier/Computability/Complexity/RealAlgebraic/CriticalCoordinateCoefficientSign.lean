@@ -9,6 +9,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.Controlled
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
+import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.BoundedSearch
 import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.ResidueSign
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 
@@ -23,8 +24,9 @@ from the residues at a fixed counting level over the controlled source evaluator
 This composes the coordinate evaluator adapted from lean-canny
 `970f28a5ecefc1327402ade16c068aa4b1b2c183` with the coefficient extraction and sign recovery
 in [OpenAI2026CountingHierarchy], Lemma 2.4 and Proposition 2.6, for the polynomial in
-Proposition 6.3, equation (6.11). Highest nonzero deformation coefficient selection and real
-coordinate coverage remain open in
+Proposition 6.3, equation (6.11). The natural degree in the deformation parameter counts
+the thresholds strictly below its highest nonzero coefficient index. Real coordinate
+coverage remains open in
 [#6560](https://github.com/cslib-community/cslib-frontier/issues/6560).
 -/
 
@@ -147,5 +149,101 @@ theorem criticalCoordinateCandidateCoefficientSign_mem {α : Type} {n : α → �
     ⟨h.1, h.2.1⟩)
   have hmax : max (a + 12) 5 = a + 12 := max_eq_left (by omega)
   simpa only [hmax, Nat.add_assoc] using hsign
+
+open Classical in
+/-- The natural degree in the deformation parameter has a binary counting-function
+certificate at level `a + 18` from a controlled source at level `a`. It is the highest
+nonzero coefficient index, with zero as the natural degree of the zero polynomial. -/
+theorem criticalCoordinateParameterNatDegree_mem {α : Type} {n : α → ℕ}
+    {enc : α ↪ List Bool} {a : ℕ} {F : (w : α) → MvPolynomial (Fin (n w)) ℤ}
+    (C : Controlled F enc a) (E : Decoder enc) {d : α → ℕ}
+    (i : (w : α) → Fin (n w)) (hdpos : ∀ w, 1 ≤ d w)
+    (hF : ∀ w, (F w).totalDegree ≤ d w + 1) (hd : ComputableInPolyTime d enc encNat)
+    (hi : ComputableInPolyTime (fun w => (i w).val) enc encNat) :
+    (fun w => (Polynomial.Bivariate.swap (parametricCoordinatePolynomial
+      (by omega : 1 ≤ d w + 1) (F w) (hF w) (i w))).natDegree) ∈
+        CountingFunction (a + 18) enc encNat := by
+  let P (w : α) := parametricCoordinatePolynomial (by omega : 1 ≤ d w + 1) (F w) (hF w) (i w)
+  let Q (w : α) := Polynomial.Bivariate.swap (P w)
+  let encAddr := encPair enc encNat
+  let encCoeff := encPair encAddr encNat
+  let decAddr := Decoder.pair E Decoder.nat
+  let decCoeff := Decoder.pair decAddr Decoder.nat
+  let rowEnd (w : α) := (d w + 1) ^ n w + 1
+  let degreeBound (w : α) := coordinateParameterDegreeBound (n w) (d w)
+  have hrowEnd : ComputableInPolyTime rowEnd enc encNat :=
+    binary_add' (binary_pow' (binary_add' hd (.const 1)) C.arity_computable) (.const 1)
+  have hbound : ComputableInPolyTime degreeBound enc encNat :=
+    coordinateParameterDegreeBound_polyTime C.arity_computable hd
+  have hw := fst enc encNat
+  have haddr := fst encAddr encNat
+  have hbase := hw.comp haddr
+  let C' := C.preprocess (fun q : (α × ℕ) × ℕ => q.1.1) hbase
+  have hsign := C'.criticalCoordinateCandidateCoefficientSign_mem
+    (d := fun q : (α × ℕ) × ℕ => d q.1.1) decCoeff
+    (fun ((w, _), _) => i w) (fun ((w, _), _) => hdpos w) (fun ((w, _), _) => hF w)
+    (hd.comp hbase) (hi.comp hbase) ((snd enc encNat).comp haddr) (snd encAddr encNat)
+  have hnonzero : (fun ((w, j), k) => decide (((Q w).coeff j).coeff k ≠ 0)) ∈
+      CountingFunction (a + 15) encCoeff encBool := by
+    have htest : ComputableInPolyTime (fun x : ℤ => decide (0 < x.natAbs)) encIntBin encBool :=
+      binary_lt' (.const 0) intBin_natAbs
+    have hsignNonzero (x : ℤ) : 0 < x.sign.natAbs ↔ x ≠ 0 :=
+      Int.natAbs_pos.trans (not_congr Int.sign_eq_zero_iff_zero)
+    simpa only [Function.comp_apply, hsignNonzero, Q, P] using CountingFunction.map hsign htest
+  let rowNonzero (q : α × ℕ) :=
+    decide (∃ k < rowEnd q.1, decide (((Q q.1).coeff q.2).coeff k ≠ 0) = true)
+  have hrow : rowNonzero ∈ CountingFunction (a + 16) encAddr encBool :=
+    CountingFunction.exists_range decAddr hnonzero (hrowEnd.comp hw)
+  have hrowEq (w : α) (j : ℕ) : rowNonzero (w, j) = true ↔ (Q w).coeff j ≠ 0 := by
+    simp only [rowNonzero, decide_eq_true_eq]
+    constructor
+    · rintro ⟨k, _, hk⟩ hzero
+      exact hk (by rw [hzero, Polynomial.coeff_zero])
+    · intro hj
+      have hdeg := Polynomial.Bivariate.natDegree_coeff_le_natDegree_swap (Q w) j
+      rw [show Polynomial.Bivariate.swap (Q w) = P w from
+        Polynomial.Bivariate.swap_swap_apply (P w),
+        parametricCoordinatePolynomial_natDegree] at hdeg
+      exact ⟨_, Nat.lt_succ_of_le hdeg, by
+        rwa [Polynomial.coeff_natDegree, Polynomial.leadingCoeff_ne_zero]⟩
+  let above (q : (α × ℕ) × ℕ) := decide (q.1.2 < q.2) && rowNonzero (q.1.1, q.2)
+  have habove : above ∈ CountingFunction (a + 16) encCoeff encBool := by
+    have hlt := binary_lt' ((snd enc encNat).comp haddr) (snd encAddr encNat)
+    have hquery : ComputableInPolyTime (fun q : (α × ℕ) × ℕ => (q.1.1, q.2))
+        encCoeff encAddr := hbase.prod (snd encAddr encNat)
+    exact CountingFunction.map
+      (CountingFunction.prod (CountingFunction.of_polyTime hlt)
+        (CountingFunction.preprocess hrow hquery)) bool_and
+  let hasAbove (q : α × ℕ) := decide (∃ j < degreeBound q.1 + 1, above (q, j) = true)
+  have hhas : hasAbove ∈ CountingFunction (a + 17) encAddr encBool :=
+    CountingFunction.exists_range decAddr habove ((binary_add' hbound (.const 1)).comp hw)
+  have hdegBound (w : α) : (Q w).natDegree ≤ degreeBound w :=
+    parametricCoordinatePolynomial_natDegree_swap_le _ (hdpos w) _ _ _
+  have hhasEq (w : α) (t : ℕ) : hasAbove (w, t) = true ↔ t < (Q w).natDegree := by
+    simp only [hasAbove, above, decide_eq_true_eq, Bool.and_eq_true, hrowEq]
+    constructor
+    · rintro ⟨j, _, ht, hj⟩
+      exact ht.trans_le (Polynomial.le_natDegree_of_ne_zero hj)
+    · intro ht
+      have hQ : Q w ≠ 0 := fun h => by simp [h] at ht
+      exact ⟨_, Nat.lt_succ_of_le (hdegBound w), ht, by
+        rwa [Polynomial.coeff_natDegree, Polynomial.leadingCoeff_ne_zero]⟩
+  have hsum := CountingFunction.sum_range E
+    (CountingFunction.map hhas (ComputableInPolyTime.of_finite Bool.toNat)) hbound
+  convert hsum using 1
+  funext w
+  have hval (t : ℕ) : (hasAbove (w, t)).toNat = if t < (Q w).natDegree then 1 else 0 := by
+    by_cases ht : t < (Q w).natDegree
+    · simp [ht, (hhasEq w t).mpr ht]
+    · have hf : hasAbove (w, t) = false :=
+        Bool.eq_false_iff.mpr (fun h => ht ((hhasEq w t).mp h))
+      simp [ht, hf]
+  change (Q w).natDegree = ∑ t ∈ Finset.range (degreeBound w), (hasAbove (w, t)).toNat
+  simp only [hval]
+  rw [← Finset.sum_subset (Finset.range_mono (hdegBound w))]
+  · rw [Finset.sum_congr rfl (fun t ht => ite_eq_left (Finset.mem_range.mp ht))]
+    simp
+  · intro t _ ht
+    exact ite_eq_right (fun h => ht (Finset.mem_range.mpr h))
 
 end Cslib.Complexity.RealAlgebraic.Controlled

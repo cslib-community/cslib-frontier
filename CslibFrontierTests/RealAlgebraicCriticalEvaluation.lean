@@ -255,4 +255,19 @@ example :
     (fun _ => (totalDegree_X_le 0).trans (by decide)) (.const 1) (.const 0)
     (ComputableInPolyTime.fst _ _) (ComputableInPolyTime.snd _ _)
 
+-- The deformation degree certificate can be used with a varying binary degree parameter.
+example :
+    (fun d : ℕ =>
+      let F : MvPolynomial (Fin 1) ℤ := X 0
+      let P := parametricCoordinatePolynomial (by omega : 1 ≤ (d + 1) + 1) F
+        ((totalDegree_X_le 0).trans (by omega)) 0
+      (Polynomial.Bivariate.swap P).natDegree) ∈
+        CountingFunction 18 encNat encNat := by
+  let C : Controlled (fun _ : ℕ => (X 0 : MvPolynomial (Fin 1) ℤ)) encNat 0 :=
+    Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+  exact C.criticalCoordinateParameterNatDegree_mem (d := fun d => d + 1)
+    Decoder.nat (fun _ => 0) (fun _ => by omega)
+    (fun _ => (totalDegree_X_le 0).trans (by omega))
+    (ComputableInPolyTime.binary_add' ComputableInPolyTime.id' (.const 1)) (.const 0)
+
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
