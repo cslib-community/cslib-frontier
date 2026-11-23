@@ -39,8 +39,8 @@ gates for each input, hence at most a factor five (`ComputedWithin.of_isAffinePr
 ## Main results
 
 * `Cslib.Circuits.Circuit.map_eval_arith`: ring homomorphisms commute with evaluation.
-* `Cslib.Circuits.Circuit.polynomial_comp`, `Cslib.Circuits.Circuit.polynomial_mapOp_ringHom`: the
-  polynomials of composed circuits and of circuits with mapped constants.
+* `Cslib.Circuits.Circuit.polynomial_mapOp_ringHom`: mapping the constants of a circuit maps the
+  coefficients of its polynomials.
 * `Cslib.Circuits.Arithmetic.ComputedWithin.add`, `Cslib.Circuits.Arithmetic.ComputedWithin.mul`,
   `Cslib.Circuits.Arithmetic.ComputedWithin.sum`, `Cslib.Circuits.Arithmetic.ComputedWithin.prod`,
   `Cslib.Circuits.Arithmetic.ComputedWithin.rename`, `Cslib.Circuits.Arithmetic.ComputedWithin.map`:
@@ -71,14 +71,6 @@ variable {K : Type u} [CommSemiring K] {n m k p : ℕ}
 /-- The polynomial at output `j` is the circuit evaluated at the variables. -/
 private theorem Circuit.polynomial_def (c : Circuit (arithSignature K) n m) (j : Fin m) :
     c.polynomial j = c.eval (arithInterpretationWith K C) X j :=
-  rfl
-
-/-- The polynomial computed by a composed circuit substitutes the polynomials of the inner
-circuit into those of the outer one. -/
-theorem Circuit.polynomial_comp (d : Circuit (arithSignature K) m p)
-    (c : Circuit (arithSignature K) n m) (j : Fin p) :
-    (d.comp c).polynomial j = aeval c.polynomial (d.polynomial j) := by
-  rw [Circuit.aeval_polynomial_mvPolynomial, Circuit.polynomial_def, Circuit.eval_comp]
   rfl
 
 /-- Renaming the variables of the polynomial computed by a circuit is evaluating the circuit at
