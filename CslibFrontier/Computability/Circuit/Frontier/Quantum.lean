@@ -454,8 +454,7 @@ private theorem eventually_compiledQuantumNet_contradiction {d : ℕ} {A : ℝ} 
     hγ_bound
     (by
       have hsub : (w_r + 2 * c_edge * A) * ((c_slack : ℝ) + (e_fn n : ℝ)) ≤
-          (w_r + 2 * c_edge * A) * (defic n : ℝ) :=
-        mul_le_mul_of_nonneg_left he_add_le (by positivity)
+          (w_r + 2 * c_edge * A) * (defic n : ℝ) := by gcongr
       have herr_le := le_trans (le_abs_self _) herrn
       linarith)
     (by rw [hm_eq n] at hfin; linarith)

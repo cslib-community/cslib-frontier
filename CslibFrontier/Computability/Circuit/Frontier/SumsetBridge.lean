@@ -158,8 +158,7 @@ theorem denseRectangleFree_of_eventually_rectangleBias {U : Type u} [Finite U] [
       have hS_lower : (1 / 2 - c') * (q : ℝ) ^ n ≤ (S n).ncard := by
         have h1 : (q : ℝ) ^ n / 2 - (S n).ncard ≤ b n * (q : ℝ) ^ n :=
           (neg_sub ((S n).ncard : ℝ) _ ▸ le_abs.mpr (Or.inr le_rfl)).trans hbias_n
-        have h2 : b n * (q : ℝ) ^ n ≤ c' * (q : ℝ) ^ n :=
-          mul_le_mul_of_nonneg_right hb_le hqn_pos.le
+        have h2 : b n * (q : ℝ) ^ n ≤ c' * (q : ℝ) ^ n := by gcongr
         linarith
       have hS_pos : (0 : ℝ) < (S n).ncard := lt_of_lt_of_le (by positivity) hS_lower
       have hS_upper : ((S n).ncard : ℝ) ≤ (q : ℝ) ^ n := by
