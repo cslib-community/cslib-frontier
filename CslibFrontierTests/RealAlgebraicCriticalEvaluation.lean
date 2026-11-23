@@ -13,6 +13,8 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCo
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficientSign
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
+import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
+import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import Mathlib.LinearAlgebra.Matrix.Charpoly.Coeff
 import Mathlib.Tactic.NormNum
@@ -26,9 +28,40 @@ namespace CslibFrontierTests.RealAlgebraicCriticalEvaluation
 
 open Cslib Cslib.Complexity Cslib.Complexity.RealAlgebraic
 open Turing.MultiTapeTM MvPolynomial MvPolynomial.CriticalSystem MvPolynomial.PurePower
+open scoped Topology
 
 private instance : Fact (Nat.Prime 7) := ⟨by decide⟩
 private instance : Fact (Nat.Prime 3) := ⟨by decide⟩
+
+-- A closed half-line retains a convergent subsequence of constrained minima of the deformation.
+example :
+    let F : MvPolynomial (Fin 1) ℝ := X 0 ^ 2
+    let S : Set (Fin 1 → ℝ) := Set.Ici 0
+    ∃ (y : ℕ → Fin 1 → ℝ) (z : Fin 1 → ℝ) (φ : ℕ → ℕ),
+      (∀ k : ℕ, IsMinOn (fun x => eval x (deformedPolynomial 3 0 (k : ℝ) F)) S (y k)) ∧
+      StrictMono φ ∧ Filter.Tendsto (y ∘ φ) Filter.atTop (𝓝 z) ∧ z ∈ S ∧ eval z F = 0 := by
+  intro F S
+  obtain ⟨y, z, φ, _, hmin, hφ, hlim, hz, hzero⟩ :=
+    exists_deformedPolynomial_minimizers_subseq 3 (by decide) (by decide) 0 (fun _ => le_rfl)
+      F (fun x => by simpa only [F, map_pow] using sq_nonneg (eval x (X 0)))
+      (S := S) isClosed_Ici (x₀ := 0) (by simp [S]) (by simp [F])
+      (u := fun k => (k : ℝ)) (fun _ => Nat.cast_nonneg _) tendsto_natCast_atTop_atTop
+  exact ⟨y, z, φ, hmin, hφ, hlim, hz, hzero⟩
+
+-- Zero is a critical point of the deformation of X² at every parameter.
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0 ^ 2
+    let hF : F.totalDegree ≤ 2 := (totalDegree_pow (X (R := ℤ) (0 : Fin 1)) 2).trans
+      (by simpa only [mul_one] using Nat.mul_le_mul_left 2 (totalDegree_X_le (R := ℤ) (0 : Fin 1)))
+    Polynomial.eval₂ (Int.castRingHom ℝ) 0
+      (Polynomial.Bivariate.swap (parametricCoordinatePolynomial (by decide) F hF 0)).leadingCoeff =
+        0 := by
+  intro F hF
+  exact eval₂_coordinateLeadingCoeff_eq_zero_of_tendsto (by decide) F hF
+    (u := fun k : ℕ => (k : ℝ)) (x := fun _ _ => 0) tendsto_natCast_atTop_atTop
+    tendsto_const_nhds (Filter.Eventually.of_forall fun _ j => by
+      fin_cases j
+      simp [F, criticalLower]) 0
 
 -- First derivatives also work at prime 3; the larger cutoff belongs to second derivatives.
 example : (firstPartialResidue 3 1 0 [2] (fun z => z[0]?.getD 0) : ZMod 3) = 1 := by

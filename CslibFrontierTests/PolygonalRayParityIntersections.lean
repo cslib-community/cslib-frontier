@@ -641,4 +641,28 @@ example : ∃ p : Route, p.start = 0 ∧ p.finish = 0 ∧
   · rw [hparity _ (by simp [points])]
     exact decide_eq_false heven
 
+-- Inserting an excursion on a two-leg route preserves its endpoint germs.
+example :
+    let p := Route.line 0 ⟨0, 1⟩
+    let q := Route.line ⟨0, 1⟩ ⟨0, 2⟩
+    ∃ r : Route, (∀ b, r.germ b = (p.concat q).germ b) ∧
+      r.rayParity 1 ⟨1, 1⟩ = (p.concat q).rayParity 1 ⟨1, 1⟩ + true := by
+  classical
+  dsimp only
+  let p := Route.line 0 ⟨0, 1⟩
+  let q := Route.line ⟨0, 1⟩ ⟨0, 2⟩
+  let c : ℂ := ⟨1, 1⟩
+  have hconn : IsPathConnected (Set.univ : Set ℂ) :=
+    (convex_univ : Convex ℝ (Set.univ : Set ℂ)).isPathConnected ⟨0, Set.mem_univ 0⟩
+  have ha : p.finish ∉ ({c} : Finset ℂ) := by
+    intro h
+    have he : p.finish = c := Finset.mem_singleton.mp h
+    have hr := congrArg Complex.re he
+    norm_num [p, c] at hr
+  obtain ⟨r, -, hgerm, -, -, hray⟩ :=
+    Route.exists_concat_add_rayParity isOpen_univ hconn {c} {c} (fun _ h => h)
+      (fun z _ => Set.mem_univ z) p q rfl (Set.mem_univ p.finish) ha
+  have h := hray c (Finset.mem_singleton_self c)
+  exact ⟨r, hgerm, by simpa only [Finset.mem_singleton_self, decide_true] using h⟩
+
 end CslibFrontierTests.PolygonalRayParityIntersections
