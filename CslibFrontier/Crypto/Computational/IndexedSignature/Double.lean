@@ -457,12 +457,6 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
       apply PMF.bind_apply_mono_on_support; intro k₀ _
       apply PMF.bind_apply_mono_on_support; intro k₁ hk₁
       exact hslot_pair true k₁ k₀ hk₁
-  have hbind_add {α : Type} (p : PMF α) (h f g : α → PMF Bool)
-      (hle : ∀ a, h a true ≤ f a true + g a true) :
-      (p.bind h) true ≤ (p.bind f) true + (p.bind g) true := by
-    simp only [PMF.bind_apply, ← tsum_add]
-    refine tsum_le_tsum fun a => ?_
-    rw [← mul_add]; gcongr; exact hle a
   have hgame :
       (ProbComp.eval ((S.double hcap).indexedEufCmaGame adversary n)) true ≤
         ((ProbComp.eval (S.keyGen n)).bind fun k₀ =>
@@ -470,7 +464,9 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
         ((ProbComp.eval (S.keyGen n)).bind fun k₀ =>
           (ProbComp.eval (S.keyGen n)).bind fun k₁ => slotEvent true k₀ k₁) true := by
     simp only [indexedEufCmaGame, double, doubleKeyGen, slotEvent, ← PMF.bind_pure_comp, pmf_norm]
-    refine hbind_add _ _ _ _ fun k₀ => hbind_add _ _ _ _ fun k₁ => hbind_add _ _ _ _ fun out => ?_
+    refine PMF.bind_apply_le_add_on_support _ true fun k₀ _ =>
+      PMF.bind_apply_le_add_on_support _ true fun k₁ _ =>
+        PMF.bind_apply_le_add_on_support _ true fun out _ => ?_
     dsimp only [Function.comp_def, doubleVerify]
     cases !out.2.contains (out.1.1, out.1.2.1)
     · simp

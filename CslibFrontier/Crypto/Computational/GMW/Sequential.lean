@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Co
 public import CslibFrontier.Computability.Probabilistic.Realization.OpenOracleSimulation
 public import CslibFrontier.Crypto.Computational.GMW.Simulator
 public import CslibFrontier.Crypto.Computational.GMW.Soundness
+public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Configuration
@@ -779,49 +780,30 @@ theorem mem_support_sessionStep {k : ℕ} {Control : Type}
     full hfull
   exact hinv
 
-/-- Run a `WordOracleComp Unit` program answering every oracle query with `[]`. -/
-def runEmptyOracle {α : Type} (prog : WordOracleComp Unit α) : ProbComp α :=
-  Prod.fst <$>
-    (OracleComp.interpret (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifFin n))
-      (fun _ (_ : Unit) => pure ([], ()))) prog).run ()
-
 /-- Running `runSeq` from the exhausted prover state `(false, [])` answers every query with `[]`,
 independently of `generator`, `s`, `m`, and `φ`. -/
 theorem runSeq_nil_fst {α : Type} (generator : List Bool → List Bool) (s m : ℕ) (φ : CNF ℕ)
     (prog : WordOracleComp Unit α) :
-    Prod.fst <$> runSeq generator s m φ prog (false, []) = runEmptyOracle prog := by
-  unfold runSeq runEmptyOracle
+    Prod.fst <$> runSeq generator s m φ prog (false, []) = prog.run (fun _ => pure []) := by
+  rw [runSeq, ProbOracleComp.run]
   induction prog with
   | pure a => rfl
   | liftBind q cont ih =>
     cases q with
     | inl d =>
       change Prod.fst <$> ((StateT.lift (ProbComp.unifFin d)).run (false, []) >>= _) =
-        Prod.fst <$> ((StateT.lift (ProbComp.unifFin d)).run () >>= _)
+        ProbComp.unifFin d >>= _
       simp only [StateT.run_lift, bind_assoc, pure_bind, map_bind]
       exact congrArg (Bind.bind _) (funext ih)
     | inr q => exact ih []
-
-private theorem runEmptyOracle_eq_run {α : Type} (prog : WordOracleComp Unit α) :
-    runEmptyOracle prog = prog.run (fun _ => pure []) := by
-  rw [runEmptyOracle, ProbOracleComp.run,
-    show (fun (_ : Unit × List Bool) (_ : Unit) => (pure ([], ()) : ProbComp (List Bool × Unit))) =
-      fun _ s => (fun r => (r, s)) <$> pure [] by funext _ s; cases s; simp,
-    OracleComp.run_interpret_sumHandler_readOnly]
-  simp
-
-/-- Any `IsOraclePPTOn` program remains `IsPPTOn` when interpreted under `runEmptyOracle`. -/
-theorem isPPTOn_runEmptyOracle {α β : Type} {input : α ↪ List Bool} {output : β ↪ List Bool}
-    {prog : α → WordOracleComp Unit β} (h : IsOraclePPTOn input output prog) :
-    IsPPTOn input output (fun a => runEmptyOracle (prog a)) := by
-  simpa only [runEmptyOracle_eq_run] using h.isPPTOn_runEmptyOracle
 
 /-- Complete any remaining steps of a sliced machine run against the exhausted prover state
 `(false, [])` and return the final output tape. -/
 noncomputable def finishSessionRun {k : ℕ} {Control : Type}
     (machine : _root_.Turing.MultiTapePTM k Bool Control Unit) (limit : ℕ)
     (st : ℕ × FiniteConfig k Bool Control Unit) : ProbComp (List Bool) :=
-  runEmptyOracle ((fun p => p.2.tapes.output) <$> sessionStep machine limit st.1 limit st.2)
+  ((fun p => p.2.tapes.output) <$> sessionStep machine limit st.1 limit st.2).run
+    (fun _ => pure [])
 
 /-- `finishSessionRun` is uniform strict PPT. -/
 theorem isPPTOn_finishSessionRun {k : ℕ} {Control : Type} [Finite Control]
@@ -829,7 +811,7 @@ theorem isPPTOn_finishSessionRun {k : ℕ} {Control : Type} [Finite Control]
     IsPPTOn (encPair encUnary (encPair encUnary encFiniteConfig)) encBits
       (fun p => finishSessionRun machine p.1 p.2) := by
   have := isOraclePPTOn_sessionStep machine
-  exact isPPTOn_runEmptyOracle (by ppt)
+  exact IsOraclePPTOn.isPPTOn_runEmptyOracle (by ppt)
 
 private theorem runSeq_sessionStep_split {k : ℕ} {Control : Type}
     (machine : _root_.Turing.MultiTapePTM k Bool Control Unit)
@@ -875,22 +857,6 @@ private theorem runSeq_sessionStep_split {k : ℕ} {Control : Type}
             Prod.map, id_eq, Nat.reduceBEq, Bool.false_eq_true,
             sessionStep_zero_q, runTwoRound_pure, map_pure, pure_bind]
 
-/-- Splitting a `(Q + 2)`-query `sessionStep` run under `runSeq` into a single two-query session
-under `runTwoRound` followed by the remaining `Q`-query `sessionStep` run under `runSeq`. -/
-theorem runSeq_sessionStep_two_add {k : ℕ} {Control : Type}
-    (machine : _root_.Turing.MultiTapePTM k Bool Control Unit)
-    (generator : List Bool → List Bool) (s m limit : ℕ) (φ : CNF ℕ)
-    (rem Q : ℕ) (cfg : FiniteConfig k Bool Control Unit)
-    (coins : ProverCoins) (rest : List ProverCoins) :
-    Prod.fst <$> runSeq generator s m φ
-        (sessionStep machine limit rem (Q + 2) cfg) (false, coins :: rest) =
-      (runTwoRound (honestReply1 generator m φ coins) (honestReply2 s φ coins)
-        (sessionStep machine limit rem 2 cfg) .init >>= fun ((rem', cfg'), _) =>
-        Prod.fst <$> runSeq generator s m φ
-          (sessionStep machine limit rem' Q cfg') (false, rest)) :=
-  runSeq_sessionStep_split machine generator s m limit φ false rem Q cfg coins rest
-    [false, false, false]
-
 /-- Any result in the support of `runTwoRound` lies in `OracleComp.support prog`. -/
 theorem mem_support_runTwoRound {β : Type} (f1 f2 : List Bool → List Bool)
     (prog : WordOracleComp Unit β) (s s' : TwoRoundState) {result : β}
@@ -935,11 +901,6 @@ theorem mem_support_gmwRealWithPads {β : Type} (generator : List Bool → List 
   obtain ⟨ch_guess, -, m₀, -, m₁, -, m₂, -, seeds, -, h⟩ := h
   exact mem_support_acceptGuess_runTwoRound _ _ prog ch_guess _ h
 
-theorem mem_support_of_mem_replicate {α : Type} {n : ℕ} {g : ProbComp α} {xs : List α}
-    (hxs : xs ∈ (ProbComp.eval (OracleComp.replicate n g)).support) {x : α} (hx : x ∈ xs) :
-    x ∈ (ProbComp.eval g).support :=
-  ((ProbComp.mem_support_replicate_iff n g xs).mp hxs).2 x hx
-
 /-- One session of the honest sequential execution on `(rem, cfg)` with fresh prover coins. -/
 noncomputable def realSessionStep {k : ℕ} {Control : Type}
     (machine : _root_.Turing.MultiTapePTM k Bool Control Unit)
@@ -962,7 +923,7 @@ noncomputable def simSessionStep {k : ℕ} {Control : Type}
       (gmwSimAttempt generator s m φ (sessionStep machine limit st.1 2 st.2))
 
 /-- Peeling `K` sessions of `runSeq` on `sessionStep` into `OracleComp.iterate K realSessionStep`
-followed by `runEmptyOracle`. -/
+followed by running against `fun _ => pure []`. -/
 theorem eval_replicate_runSeq_sessionStep {k : ℕ} {Control : Type}
     (machine : _root_.Turing.MultiTapePTM k Bool Control Unit)
     (generator : List Bool → List Bool) (s m limit : ℕ) (φ : CNF ℕ) (w : List Bool)
@@ -973,14 +934,17 @@ theorem eval_replicate_runSeq_sessionStep {k : ℕ} {Control : Type}
         (sessionStep machine limit st.1 (limit + 2 * K) st.2) (false, coinsList)) =
     ProbComp.eval (do
       let st' ← OracleComp.iterate K (realSessionStep machine generator s m limit φ w) st
-      runEmptyOracle (sessionStep machine limit st'.1 limit st'.2)) := by
+      (sessionStep machine limit st'.1 limit st'.2).run (fun _ => pure [])) := by
   induction K generalizing st with
   | zero => simp [runSeq_nil_fst]
   | succ K ih =>
     have hadd : limit + 2 * (K + 1) = (limit + 2 * K) + 2 := by omega
+    have htwo := fun c r => runSeq_sessionStep_split machine generator s m limit φ false st.1
+      (limit + 2 * K) st.2 c r [false, false, false]
+    dsimp only [Bool.cond_false] at htwo
     rw [hadd, OracleComp.replicate_succ, OracleComp.iterate_succ_bind]
-    simp only [realSessionStep, bind_assoc, bind_map_left, runSeq_sessionStep_two_add,
-      ProbComp.eval_bind, ProbComp.eval_map]
+    simp only [realSessionStep, bind_assoc, bind_map_left, htwo, ProbComp.eval_bind,
+      ProbComp.eval_map]
     refine congrArg (PMF.bind _) (funext fun coins => ?_)
     rw [PMF.bind_comm]
     refine congrArg (PMF.bind _) (funext fun p => ?_)
@@ -1001,7 +965,7 @@ theorem eval_gmwSeqInteract_runOracle_eq_iterate_realSessionStep {k : ℕ} {Cont
   have h := congrArg (PMF.map fun p : ℕ × FiniteConfig k Bool Control Unit => p.2.tapes.output)
     (eval_replicate_runSeq_sessionStep machine generator s m T φ w K
       (T, FiniteConfig.init machine.initial word))
-  simpa only [pmf_norm, gmwSeqInteract, finishSessionRun, runEmptyOracle, runSeq_map,
-    OracleComp.interpret_map, StateT.run_map, Functor.map_map, Prod.map_fst, bind_pure_comp] using h
+  simpa only [pmf_norm, gmwSeqInteract, finishSessionRun, ProbOracleComp.run_map, runSeq_map,
+    Functor.map_map, Prod.map_fst, bind_pure_comp] using h
 
 end Cslib.Crypto.GMW

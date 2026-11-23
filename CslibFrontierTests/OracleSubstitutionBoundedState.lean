@@ -4,11 +4,17 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Probabilistic.Oracle.SubstitutionGrowth
+import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Tactic.PPT
 
 /-! Checked clients for the bounded-state, `ProbOracleComp.run`, and empty-oracle wrappers in
 `CslibFrontier.Computability.Probabilistic.Oracle.SubstitutionGrowth`. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.OracleSubstitutionBoundedState
 
