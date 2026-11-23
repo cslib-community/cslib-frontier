@@ -14,6 +14,7 @@ public import CslibFrontier.Algorithms.Lean.CDCL.Phase
 public import CslibFrontier.Algorithms.Lean.CDCL.Luby
 public import CslibFrontier.Logics.Propositional.CNF.DenseRenaming
 public import CslibFrontier.Logics.Propositional.CNF.LRATRelabel
+import CslibFrontier.Foundations.Data.List.Fold
 import Mathlib.Tactic.Linarith
 
 /-! # A CDCL solver with watched literals and LRAT certificates
@@ -2345,11 +2346,6 @@ cache holds. -/
 
 /-- **Simplification happens at the root**: either nothing happens, or the trail has no
 decision. -/
-private theorem foldl_and_eq {α : Type} (p : α → Bool) :
-    ∀ (l : List α) (b : Bool), l.foldl (fun b e => b && p e) b = (b && l.all p)
-  | [], b => by simp
-  | e :: l, b => by rw [List.foldl_cons, foldl_and_eq p l, List.all_cons, Bool.and_assoc]
-
 theorem WExec.maybeSimplify_root (S : WExec φ) :
     S.maybeSimplify = S ∨ ∀ x ∈ S.exec.trail, x.entry.decision = false := by
   unfold WExec.maybeSimplify
@@ -2357,7 +2353,7 @@ theorem WExec.maybeSimplify_root (S : WExec φ) :
   · rename_i h
     simp only [Bool.and_eq_true] at h
     have hall := h.2
-    rw [ATrail.foldDown_eq, foldl_and_eq] at hall
+    rw [ATrail.foldDown_eq, foldl_and_eq_and_all] at hall
     simp only [Bool.true_and, List.all_eq_true, bne_iff_ne, ne_eq] at hall
     refine .inr fun x hx => ?_
     have := hall x hx
