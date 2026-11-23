@@ -363,8 +363,7 @@ theorem sq_sum_mul_signMatrix_quadForm_le_card_of_mul {ι κ : Type*} [Fintype �
   have hF_nn : 0 ≤ ∑ a, ∑ b, P_mat a b ^ 2 :=
     Finset.sum_nonneg fun _ _ => Finset.sum_nonneg fun _ _ => sq_nonneg _
   calc (∑ a, ∑ b, M a b * P_mat a b) ^ 2 * (2 : ℝ) ^ (Q + Qᵀ).cutRank X
-      ≤ (L ^ 2 * (r : ℝ) * ∑ a, ∑ b, P_mat a b ^ 2) * (2 : ℝ) ^ (Q + Qᵀ).cutRank X :=
-        mul_le_mul_of_nonneg_right hsq (by positivity)
+      ≤ (L ^ 2 * (r : ℝ) * ∑ a, ∑ b, P_mat a b ^ 2) * (2 : ℝ) ^ (Q + Qᵀ).cutRank X := by gcongr
     _ = (r : ℝ) * (L ^ 2 * (2 : ℝ) ^ (Q + Qᵀ).cutRank X) * ∑ a, ∑ b, P_mat a b ^ 2 := by ring
     _ = (r : ℝ) * (2 : ℝ) ^ Fintype.card ι * ∑ a, ∑ b, P_mat a b ^ 2 := by rw [hL_sq]
     _ ≤ (Fintype.card κ : ℝ) * (2 : ℝ) ^ Fintype.card ι * ∑ a, ∑ b, P_mat a b ^ 2 :=

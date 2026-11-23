@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.Swit
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.SwitchedLayout
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Metric
 import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
+import CslibFrontier.Foundations.Probability.UnionBound
 
 /-!
 # One sample controls every frontier of the median-switched layout
@@ -731,18 +732,13 @@ theorem exists_good_labeling {n : ℕ} (H : SimpleGraph (Fin n)) (hdeg : ∀ v, 
     have hu2 := measureReal_union_le (μ := P) (badNeg ∪ badPos) badConst
     have hu3 := measureReal_union_le (μ := P) (badNeg ∪ badPos ∪ badConst) badInj
     have hsum : (M : ℝ) * (2 * pBound) + (M : ℝ) * (2 * pBound) + 6 * pBound < 1 := by
-      have hmul : (M : ℝ) * (2 * pBound) + (M : ℝ) * (2 * pBound) + 6 * pBound =
-          ((4 * M + 6 : ℕ) : ℝ) * (D : ℝ) / (ε ^ 2 * n) := by
-        simp only [pBound]; push_cast; ring
-      rw [hmul, div_lt_one (by positivity)]
-      rw [div_lt_iff₀ (by positivity)] at hlarge
-      simpa only [mul_comm (n : ℝ) (ε ^ 2)] using hlarge
+      convert mul_div_mul_sq_lt_one hε.ne' hn0 hlarge using 1
+      simp only [pBound, D]
+      field_simp
+      push_cast
+      ring
     linarith
-  have ⟨ω, hω⟩ : ∃ ω, ω ∉ bad := by
-    by_contra! hall
-    have hlt := hPbad
-    rw [Set.eq_univ_of_forall hall, probReal_univ] at hlt
-    exact lt_irrefl _ hlt
+  have ⟨ω, hω⟩ := exists_notMem_of_measureReal_lt_one hPbad
   simp only [bad, badNeg, badPos, badConst, badInj, mem_union, mem_iUnion, Finset.mem_range,
     not_or, not_exists, mem_ofPred_eq, not_not] at hω
   obtain ⟨⟨⟨hneg, hpos⟩, ⟨⟨⟨⟨⟨htLo, htHi⟩, hin0⟩, hcrHi⟩, hout0⟩, hcrLo⟩⟩, hinj⟩ := hω

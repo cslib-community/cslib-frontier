@@ -419,7 +419,8 @@ For Lean, dependency or build changes, all of these and the other CI checks must
 final revision before integration. A successful hosted run for that revision supplies full
 validation; run `scripts/check.sh` locally only when asked or when hosted coverage is
 unavailable. During development, check affected modules and representative clients;
-`scripts/check.sh --quick --no-full-fallback [--base REF]` is the local checkpoint, and exit
+`scripts/check.sh --focused [--base REF]` (deferring unchanged global `Smoke`/`Axioms` leaves to
+CI) or `scripts/check.sh --quick --no-full-fallback [--base REF]` is the local checkpoint, and exit
 status 3 means "run focused checks and leave the full run to CI". Documentation-only changes need
 consistency and link checks, not a rebuild. `lake exe mk_all` regenerates `CslibFrontier.lean`
 after adding a file; new tests go in `CslibFrontierTests/`. Details and what each mode covers:
