@@ -404,8 +404,7 @@ private theorem exists_threeTensorHard_eventually (K : Type*) [Field K] {U : Typ
     push_cast
     calc 3 * (r : ℝ) * (q : ℝ) ^ (n / 3 + 2 : ℕ)
         ≤ 3 * (q : ℝ) ^ ((2 / 3 - δ) * (n : ℝ)) * ((q : ℝ) ^ 2 * (q : ℝ) ^ ((n : ℝ) / 3)) := by
-          refine mul_le_mul (mul_le_mul_of_nonneg_left hr_le (by norm_num)) hqn3
-            (by positivity) (by positivity)
+          gcongr
       _ = 3 * (q : ℝ) ^ 2 * ((q : ℝ) ^ ((2 / 3 - δ) * (n : ℝ)) * (q : ℝ) ^ ((n : ℝ) / 3)) := by
           ring
       _ = 3 * (q : ℝ) ^ 2 * ((q : ℝ) ^ n / b ^ n) := by rw [hprod_rpow]

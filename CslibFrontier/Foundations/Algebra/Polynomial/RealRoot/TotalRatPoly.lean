@@ -1091,7 +1091,6 @@ theorem powNatM_time (base exp : ℕ) : (powNatM base exp).time = exp + 1 := by
     let r ← clog4M ((n + 3) / 4)
     pure (r + 1)
 termination_by n
-decreasing_by omega
 
 @[simp, time_simps]
 theorem clog4M_ret (n : ℕ) : (clog4M n).ret = Nat.clog 4 n := by

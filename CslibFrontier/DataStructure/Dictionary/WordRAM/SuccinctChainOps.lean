@@ -581,14 +581,10 @@ theorem clientResult_readTotalSlotsProg (U V w n_max h_space : ℕ) (base : ℕ)
       totalSlots n_max (gmAt base U V w n_max h_space s.mem) := by
   simp only [readTotalSlotsProg, totalSlots, readTotalSlotsGenProg, readGMGenProg_mk,
     ite_bucketBits_mk, p_slabSize_mk]
-  have h0_lt : 0 < globalMetaLen n_max := by
-    unfold globalMetaLen
-    exact Nat.lt_of_lt_of_le (by decide : 0 < 4) (Nat.le_add_right 4 _)
+  have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
   by_cases hb0 : bucketBits n_max = 0
   · simp only [hb0, ↓reduceIte, pure_bind, clientResult_readGMProg s h0_lt]
-  · have h1_lt : 1 < globalMetaLen n_max := by
-      unfold globalMetaLen
-      exact Nat.lt_of_lt_of_le (by decide : 1 < 4) (Nat.le_add_right 4 _)
+  · have h1_lt : 1 < globalMetaLen n_max := by unfold globalMetaLen; omega
     simp only [hb0, ↓reduceIte, pure_bind]
     rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
       clientResult_readGMProg s h0_lt,

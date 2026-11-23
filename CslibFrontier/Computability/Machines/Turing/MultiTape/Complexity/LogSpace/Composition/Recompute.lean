@@ -154,12 +154,7 @@ theorem comp_logSpace_of_length_log {α β γ : Type}
   calc cf * L + cg * ((encMid (f a)).length + 1) +
           (encNat ((encIn a).length + 1)).length +
           (encNat ((encMid (f a)).length + 1)).length + 1
-      ≤ cf * L + cg * (C + 1) * L + 2 * L + (C + 1) * L + L :=
-        Nat.add_le_add
-          (Nat.add_le_add
-            (Nat.add_le_add (Nat.add_le_add le_rfl hsg) hn_bits)
-            hm_bits)
-          hL
+      ≤ cf * L + cg * (C + 1) * L + 2 * L + (C + 1) * L + L := by omega
     _ = (cf + cg * (C + 1) + 2 + (C + 1) + 1) * L := by ring
 
 /-- A linear-space `ComputableInSpace` function preserves logarithmic encoded-output length. -/
