@@ -460,27 +460,65 @@ theorem logAdv_liftAdversary_isPPT :
       (WordInterface.exec windowPartyPort msgPort) :=
   logAdv_isPPT.liftAdversary
 
-/-- On `liftAdversary (logAdv κ C)`, a party query is forwarded on the left channel leaving state
-untouched, and at the word level the lifted certificate normalizes the state word on the forwarded
-party branch. -/
-theorem logAdv_liftAdversary_forwards_party_and_normalizes (κ : ℕ) (C : Finset (Fin 2))
-    (q : Fin 2 × Bool) (p : PPTParam 2) (w sw : List Bool) :
-    (liftAdversary (In := Bool) (Out := List Bool) (logAdv κ C)).handle (Sum.inl q) =
-      StateT.lift (ProbOracleComp.query
-        (spec := protocolSpec 2 Bool (List Bool) (List Bool) (List Bool)) (Sum.inl q)) ∧
-    wordHandle (fun κ C => liftAdversary (In := Bool) (Out := List Bool) (logAdv κ C))
-        (WordInterface.protocol windowPartyPort msgPort)
-        (WordInterface.exec windowPartyPort msgPort)
-        (logAdvCert.liftAdversary windowPartyPort).codec p (Sum.inl (), w) sw =
-      (fun r => (windowPartyPort.reply r, encUnary (Decoder.unary.decode sw))) <$>
-        ProbOracleComp.lowerWith (WordInterface.protocol windowPartyPort msgPort) p.replyBound
-          (ProbOracleComp.query
-            (spec := protocolSpec 2 Bool (List Bool) (List Bool) (List Bool))
-            (Sum.inl (windowPartyPort.queryDecoder.decode w))) := by
-  refine ⟨rfl, ?_⟩
-  simp only [wordHandle, liftAdversary, Machine.liftRight, PPTCertificate.liftAdversary,
-    PPTCertificate.liftRight, logAdvCert, StateT.run, ProbOracleComp.lowerWith]
-  rfl
+/-- On `liftAdversary (logAdv κ C)`, a party-channel word activation forwards on the left channel
+and re-encodes even an off-image state word `[false]` into `Set.range encUnary` (`≠ [false]`). -/
+theorem logAdv_liftAdversary_forwards_party_and_normalizes (p : PPTParam 2) (w : List Bool) :
+    let cert := logAdvCert.liftAdversary windowPartyPort
+    let iIn := WordInterface.protocol windowPartyPort msgPort
+    let iOut := WordInterface.exec windowPartyPort msgPort
+    let noneOracle : iIn.Channel × List Bool → StateT Unit PMF (List Bool) :=
+      fun _ _ => PMF.pure (windowPartyPort.reply none, ())
+    (∀ sw : List Bool,
+      wordHandle (fun κ C => liftAdversary (In := Bool) (Out := List Bool) (logAdv κ C))
+          iIn iOut cert.codec p (.inl (), w) sw =
+        (fun r => (windowPartyPort.reply r, encUnary (Decoder.unary.decode sw))) <$>
+          ProbOracleComp.lowerWith iIn p.replyBound
+            (ProbOracleComp.query
+              (spec := protocolSpec 2 Bool (List Bool) (List Bool) (List Bool))
+              (.inl (windowPartyPort.queryDecoder.decode w)))) ∧
+    (encUnary (Decoder.unary.decode [false]) ≠ [false] ∧
+      ProbOracleComp.runWith noneOracle
+        (wordHandle (fun κ C => liftAdversary (In := Bool) (Out := List Bool) (logAdv κ C))
+          iIn iOut cert.codec ⟨p.secParam, 1, p.corrupted⟩ (.inl (), w) [false]) () =
+      PMF.pure ((windowPartyPort.reply none, encUnary (Decoder.unary.decode [false])), ())) := by
+  have hfwd : ∀ (q : PPTParam 2) (sw : List Bool),
+      wordHandle (fun κ C => liftAdversary (In := Bool) (Out := List Bool) (logAdv κ C))
+          (WordInterface.protocol windowPartyPort msgPort)
+          (WordInterface.exec windowPartyPort msgPort)
+          (logAdvCert.liftAdversary windowPartyPort).codec q (.inl (), w) sw =
+        (fun r => (windowPartyPort.reply r, encUnary (Decoder.unary.decode sw))) <$>
+          ProbOracleComp.lowerWith (WordInterface.protocol windowPartyPort msgPort) q.replyBound
+            (ProbOracleComp.query
+              (spec := protocolSpec 2 Bool (List Bool) (List Bool) (List Bool))
+              (.inl (windowPartyPort.queryDecoder.decode w))) := by
+    intro q sw
+    simp only [wordHandle, liftAdversary, Machine.liftRight, PPTCertificate.liftAdversary,
+      PPTCertificate.liftRight, logAdvCert, StateT.run, ProbOracleComp.lowerWith]
+    rfl
+  refine ⟨hfwd p, ?_, ?_⟩
+  · intro h
+    have hmem : false ∈ ([false] : List Bool) := by simp
+    rw [← h, encUnary_apply] at hmem
+    simp at hmem
+  · have htake : List.take 1 (windowPartyPort.reply (none : Option (List Bool))) =
+        windowPartyPort.reply none := by
+      rw [List.take_of_length_le]
+      simp [windowPartyPort, WordPort.party, encOption_none]
+    have hfwd2 := hfwd ⟨p.secParam, 1, p.corrupted⟩ [false]
+    dsimp only at hfwd2
+    change ProbOracleComp.runWith _
+        (wordHandle (fun κ C => liftAdversary (In := Bool) (Out := List Bool) (logAdv κ C))
+          (WordInterface.protocol windowPartyPort msgPort)
+          (WordInterface.exec windowPartyPort msgPort)
+          (logAdvCert.liftAdversary windowPartyPort).codec ⟨p.secParam, 1, p.corrupted⟩
+          (.inl (), w) [false]) () = _
+    rw [hfwd2, ProbOracleComp.lowerWith, ProbOracleComp.simulate_query, WordInterface.lowerQuery]
+    rw [ProbOracleComp.runWith_map, ProbOracleComp.runWith_map, ProbOracleComp.runWith_map,
+      ProbOracleComp.runWith_query]
+    rw [PMF.pure_map, PMF.pure_map, PMF.pure_map]
+    simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net,
+      htake, windowPartyPort.replyDecoder.decode_enc]
+    rfl
 
 end LiftAdversaryWitness
 
