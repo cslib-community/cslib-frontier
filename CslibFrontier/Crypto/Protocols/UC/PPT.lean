@@ -339,9 +339,9 @@ in this library's word model for party port `party` and backdoor port `back` whe
 UC environment `Z` against `wordHandle` starting from an already-encoded machine state `state`. -/
 @[expose] def wordRunFrom
     {n : ℕ} {ιI : Type} {I : ιI → Type} {In Out AdvQ AdvR : Type}
-    {party : WordPort (Fin n × In) (Option Out)} {adv : WordPort AdvQ AdvR}
     (M : ℕ → Finset (Fin n) → Machine I (execSpec n In Out AdvQ AdvR))
-    (iI : WordInterface I) (codec : StateCodec M)
+    (iI : WordInterface I) (party : WordPort (Fin n × In) (Option Out))
+    (adv : WordPort AdvQ AdvR) (codec : StateCodec M)
     (Z : Environment n In Out AdvQ AdvR)
     (C : Finset (Fin n)) (e : EnvParam) (state : List Bool) :
     WordOracleComp iI.Channel (Bool × List Bool) :=
@@ -364,7 +364,7 @@ through `wordHandle`. -/
     (Z : Environment n In Out AdvQ AdvR) (C : Finset (Fin n)) (e : EnvParam) :
     WordOracleComp iI.Channel Bool := do
   let s0 ← ProbOracleComp.sample ((codec e.secParam C).enc <$> (M e.secParam C).init)
-  Prod.fst <$> wordRunFrom (party := party) (adv := adv) M iI codec Z C e s0
+  Prod.fst <$> wordRunFrom M iI party adv codec Z C e s0
 
 /-- Library infrastructure (no cited result): running a strict-PPT environment against any machine
 family equipped with a `PPTCertificate` via `wordRun` (sampling the initial encoded state via
@@ -411,7 +411,7 @@ theorem Environment.IsPPT.isOraclePPTOn_run_wordHandle
     rfl
   have hstep : IsOraclePPTOn (Operation := iI.Channel)
       encValid (encPair encBool encBits) fun x =>
-        wordRunFrom (party := party) (adv := adv) M iI cert.codec Z C x.1.1 x.1.2 := by
+        wordRunFrom M iI party adv cert.codec Z C x.1.1 x.1.2 := by
     have hprepare : ComputableInPolyTime (fun x : ValidState => x.1.1) encValid encEnvParam :=
       (ComputableInPolyTime.fst encEnvParam encBits).comp hval
     have hparam : ComputableInPolyTime
@@ -456,7 +456,7 @@ theorem Environment.IsPPT.isOraclePPTOn_run_wordHandle
         Prod.fst <$> (ProbOracleComp.sample
           ((fun s => (⟨(e, (cert.codec e.secParam C).enc s), ⟨s, rfl⟩⟩ : ValidState)) <$>
             (M e.secParam C).init) >>= fun x =>
-          wordRunFrom (party := party) (adv := adv) M iI cert.codec Z C x.1.1 x.1.2) :=
+          wordRunFrom M iI party adv cert.codec Z C x.1.1 x.1.2) :=
     (hinitValid.isOraclePPTOn.bind hstep).map (ComputableInPolyTime.fst encBool encBits)
   refine hcombined.congr fun e State oracle s => ?_
   simp only [wordRun, ProbOracleComp.runWith_map, ProbOracleComp.runWith_bind,
