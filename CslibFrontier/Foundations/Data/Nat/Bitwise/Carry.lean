@@ -20,6 +20,9 @@ fixed widths has, in each window of bits, the bits of the corresponding field.
 ## Main results
 
 * `Nat.testBit_add_one_eq_xor`, `Nat.testBit_sub_one_eq_xor`: the bits of `c + 1` and `c - 1`.
+* `Nat.testBit_succ_of_lowest`, `Nat.testBit_add_one_of_lowest`,
+  `Nat.testBit_add_one_eq_ite_forall`: carry propagation relative to the lowest zero bit or
+  lower-bit prefix.
 * `Nat.testBit_sub_two_pow`, `Nat.eq_two_pow_of_testBit`: removing a set bit, and the numbers
   with a single set bit.
 * `Nat.testBit_add_four_mul`: the bits of a two-bit tag followed by a payload.
@@ -135,5 +138,89 @@ theorem eq_two_pow_of_testBit {m a : ℕ} (h : ∀ c, m.testBit c = true ↔ c =
       simpa using (h c).2 rfl
     · rw [decide_eq_false (Ne.symm hc)]
       exact Bool.eq_false_iff.2 fun h' => hc ((h c).1 h')
+
+/-- Bit `q` of `c + 1` relative to its lowest zero bit `j`: bits `< j` clear to `false`, bit `j`
+sets to `true`, and bits `> j` are unchanged. -/
+theorem testBit_succ_of_lowest {N j : ℕ} (hj : N.testBit j = false)
+    (hlow : ∀ l < j, N.testBit l = true) (l : ℕ) :
+    (N + 1).testBit l = if l < j then false else if l = j then true else N.testBit l := by
+  induction j generalizing N l with
+  | zero =>
+    have h2 : N % 2 = 0 := by
+      have := Nat.testBit_zero N
+      rw [hj] at this
+      rcases Nat.mod_two_eq_zero_or_one N with h | h
+      · exact h
+      · simp [h] at this
+    rcases l with _ | l
+    · simp only [Nat.testBit_zero, Nat.lt_irrefl, ↓reduceIte, decide_eq_true_eq]
+      omega
+    · simp only [Nat.not_lt_zero, ↓reduceIte, Nat.add_one_ne_zero, Nat.testBit_add_one]
+      congr 1
+      omega
+  | succ j ih =>
+    have h1 : N % 2 = 1 := by
+      have := Nat.testBit_zero N
+      rw [hlow 0 (Nat.zero_lt_succ j)] at this
+      simpa using this.symm
+    have hj' : (N / 2).testBit j = false := by rw [Nat.testBit_div_two]; exact hj
+    have hlow' : ∀ l < j, (N / 2).testBit l = true := fun l hl => by
+      rw [Nat.testBit_div_two]; exact hlow (l + 1) (by omega)
+    rcases l with _ | l
+    · simp only [Nat.testBit_zero, Nat.zero_lt_succ, ↓reduceIte, decide_eq_false_iff_not]
+      omega
+    · rw [Nat.testBit_add_one, show (N + 1) / 2 = N / 2 + 1 by omega, ih hj' hlow' l,
+        Nat.testBit_add_one]
+      simp only [Nat.add_lt_add_iff_right, Nat.add_right_cancel_iff]
+
+/-- Adding one to `N` complements the bits up to and including its lowest zero bit `j`. -/
+theorem testBit_add_one_of_lowest {N j : ℕ} (hj : N.testBit j = false)
+    (hlow : ∀ l < j, N.testBit l = true) (l : ℕ) :
+    (N + 1).testBit l = if l ≤ j then !N.testBit l else N.testBit l := by
+  rw [testBit_succ_of_lowest hj hlow]
+  rcases Nat.lt_trichotomy l j with h | rfl | h
+  · simp [h, h.le, hlow l h]
+  · simp [hj]
+  · simp [show ¬l < j by omega, show l ≠ j by omega, show ¬l ≤ j by omega]
+
+/-- Bit `u` of `k + 1` flips iff all lower bits `j < u` of `k` are `true`. -/
+theorem testBit_add_one_eq_ite_forall (k u : ℕ) :
+    (k + 1).testBit u =
+      if ∀ j < u, k.testBit j = true then !(k.testBit u) else k.testBit u := by
+  have hprefix : ∀ m : ℕ,
+      (∃ j < m, k.testBit j = false ∧ ∀ l < j, k.testBit l = true) ∨
+        (∀ j < m, k.testBit j = true) := by
+    intro m
+    induction m with
+    | zero => exact Or.inr fun _ h => absurd h (Nat.not_lt_zero _)
+    | succ m ih =>
+      rcases ih with ⟨j, hj, h0, hlow⟩ | hall
+      · exact Or.inl ⟨j, Nat.lt_succ_of_lt hj, h0, hlow⟩
+      · by_cases hm : k.testBit m = false
+        · exact Or.inl ⟨m, Nat.lt_succ_self m, hm, hall⟩
+        · refine Or.inr fun j hj => ?_
+          rcases Nat.lt_succ_iff_lt_or_eq.1 hj with h | rfl
+          · exact hall j h
+          · exact Bool.eq_true_of_not_eq_false hm
+  have hex : ∃ j, k.testBit j = false ∧ ∀ l < j, k.testBit l = true := by
+    rcases hprefix (k + u + 2) with ⟨j, _, hj, hlow⟩ | hall
+    · exact ⟨j, hj, hlow⟩
+    · have hlt : k < 2 ^ (k + u + 1) :=
+        Nat.lt_two_pow_self.trans_le (Nat.pow_le_pow_right (by omega) (by omega))
+      have hfalse := Nat.testBit_lt_two_pow hlt
+      have htrue := hall (k + u + 1) (by omega)
+      rw [htrue] at hfalse
+      contradiction
+  rcases hex with ⟨j, hj, hlow⟩
+  rw [testBit_add_one_of_lowest hj hlow u]
+  rcases Nat.lt_trichotomy u j with hlt | rfl | hgt
+  · have hall : ∀ m < u, k.testBit m = true := fun m hm => hlow m (hm.trans hlt)
+    rw [ite_eq_left hlt.le, ite_eq_left hall]
+  · rw [ite_eq_left (Nat.le_refl u), ite_eq_left hlow]
+  · have hnot : ¬ ∀ m < u, k.testBit m = true := fun h => by
+      have := h j hgt
+      rw [hj] at this
+      exact Bool.false_ne_true this
+    rw [ite_eq_right (show ¬ u ≤ j by omega), ite_eq_right hnot]
 
 end Nat

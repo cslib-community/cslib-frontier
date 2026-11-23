@@ -44,9 +44,10 @@ Subsets `S ⊆ Fin n` are enumerated by their bitmasks `k : Fin (2 ^ n)` via `Fi
 (`walkCountFrom`, `rounds`), summed across starting vertices, and accumulated with sign
 `(-1) ^ (n - #(maskSet n k))` (`countHamPaths`).
 
-For the checked `O((n³ + 1) · 2 ^ n)` standard-basis word-RAM realization (using `O(n²)` words of
-working memory via an in-place binary odometer at word widths fitting the `n^n`-scale walk counts),
-see `CslibFrontier.Algorithms.WordRAM.HamiltonianCount`.
+For the checked `O((n³ + 1) · 2 ^ n)` instruction-count realization on a width-blind
+standard-basis word RAM (reading `n² + 1` flat input words and allocating `3 * n` working words
+for an in-place binary odometer at word widths fitting the `n^n`-scale walk counts), see
+`CslibFrontier.Algorithms.WordRAM.HamiltonianCount`.
 
 ## Main definitions
 

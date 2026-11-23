@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.MaxFlow.ChainCover
 public import CslibFrontier.Algorithms.WordRAM.HopcroftKarp
+import CslibFrontier.Algorithms.WordRAM.BoolMatrixInput
 import CslibFrontier.Computability.WordRAM.Allocation
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.SymbolicExec
@@ -163,12 +164,10 @@ private theorem init_mem_entry {reg : ℕ} (inst : PosetInstance) (u v : Fin ins
 
 theorem inputFits_encode {w : ℕ} (inst : PosetInstance) (hw : Fits w inst.wordBound) :
     InputFits w inst.encode := by
-  refine ⟨hw.of_le (by rw [inst.encode_length]; unfold wordBound; nlinarith), fun x hx => ?_⟩
-  simp only [encode, List.mem_cons, List.mem_flatMap, List.mem_finRange, true_and,
-    List.mem_map] at hx
-  rcases hx with rfl | ⟨u, v, rfl⟩
-  · exact hw.of_le (by unfold wordBound; nlinarith)
-  · split_ifs <;> exact hw.of_le (by unfold wordBound; nlinarith)
+  simp only [PosetInstance.encode, ← List.ofFn_eq_map]
+  exact inputFits_boolMatrix (fun u v => inst.lt (u, v)) hw
+    (by unfold wordBound; nlinarith) (by unfold wordBound; nlinarith)
+    (by unfold wordBound; nlinarith)
 
 end PosetInstance
 

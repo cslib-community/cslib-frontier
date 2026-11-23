@@ -10,11 +10,13 @@ module
 public import CslibFrontier.Algorithms.Lean.TSP.HamiltonianCount
 public import CslibFrontier.Computability.WordRAM.Function
 public import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
+import CslibFrontier.Algorithms.WordRAM.BoolMatrixInput
 import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.Computability.WordRAM.Realization.Structure
 import CslibFrontier.DataStructure.StateTransition
 import CslibFrontier.Foundations.Data.List.RowMajor
 import CslibFrontier.Foundations.Data.Matrix.PairChunks
+import CslibFrontier.Foundations.Data.Nat.Bitwise.Carry
 import CslibFrontier.Tactic.Realize
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.Linarith
@@ -83,74 +85,44 @@ open Cslib.WordRAM
 open Cslib.WordRAM.Realization
 open Finset
 
-attribute [local client_simps] runClient_read runClient_write runClient_allocDirty runClient_ite
+attribute [local client_simps] StateTransitionSpec.clientState
+  StateTransitionSpec.runClient_pure'
+  runClient_read runClient_write runClient_allocDirty runClient_ite runClient_map
   prog_clientState_ite
 
-@[local client_simps] private theorem local_fst_snd_read (w : ℕ) (s : Memory.State) (a : ℕ) :
-    ((Memory.spec w).runClient s (Memory.read a)).2.1 = s := by
-  rw [runClient_read]
+private def finPrefSum {n : ℕ} (f : Fin n → ℕ) (k : ℕ) : ℕ :=
+  ∑ v : Fin n, if v.1 < k then f v else 0
 
-@[local client_simps] private theorem local_fst_snd_write (w : ℕ) (s : Memory.State) (a v : ℕ) :
-    ((Memory.spec w).runClient s (Memory.write a v)).2.1 =
-      ⟨Function.update s.mem a v, s.frontier⟩ := by
-  rw [runClient_write]
+private theorem finPrefSum_zero {n : ℕ} (f : Fin n → ℕ) : finPrefSum f 0 = 0 := by
+  simp [finPrefSum]
 
-@[local client_simps] private theorem local_fst_snd_allocDirty (w : ℕ) (s : Memory.State) (k : ℕ) :
-    ((Memory.spec w).runClient s (Memory.allocDirty k)).2.1 = ⟨s.mem, s.frontier + k⟩ := by
-  rw [runClient_allocDirty]
+private theorem finPrefSum_eq_sum {n : ℕ} (f : Fin n → ℕ) :
+    finPrefSum f n = ∑ v : Fin n, f v :=
+  Finset.sum_congr rfl fun v _ => by simp [v.isLt]
 
-@[local client_simps] private theorem local_fst_snd_map {α β : Type} (w : ℕ)
-    (s : Memory.State) (g : α → β) (p : Memory.Prog α) :
-    ((Memory.spec w).runClient s (g <$> p : Memory.Prog β)).2.1 =
-      (Memory.spec w).clientState s p := by
-  rw [runClient_map]
+private theorem finPrefSum_mono {n : ℕ} (f : Fin n → ℕ) {k₁ k₂ : ℕ} (h : k₁ ≤ k₂) :
+    finPrefSum f k₁ ≤ finPrefSum f k₂ := by
+  refine Finset.sum_le_sum fun v _ => ?_
+  split_ifs <;> first | exact le_rfl | exact Nat.zero_le _ | omega
 
-@[local client_simps] private theorem local_fst_snd_ite {α : Type} (w : ℕ)
-    (c : Prop) [Decidable c] (p₁ p₂ : Memory.Prog α) (s : Memory.State) :
-    ((Memory.spec w).runClient s (if c then p₁ else p₂ : Memory.Prog α)).2.1 =
-      if c then (Memory.spec w).clientState s p₁ else (Memory.spec w).clientState s p₂ := by
-  rw [runClient_ite]; split_ifs <;> rfl
-
-@[local client_simps] private theorem local_fst_read (w : ℕ) (s : Memory.State) (a : ℕ) :
-    ((Memory.spec w).runClient s (Memory.read a)).1 = s.mem a := by
-  rw [runClient_read]
-
-@[local client_simps] private theorem local_fst_write (w : ℕ) (s : Memory.State) (a v : ℕ) :
-    ((Memory.spec w).runClient s (Memory.write a v)).1 = () := by
-  rw [runClient_write]
-
-@[local client_simps] private theorem local_fst_allocDirty (w : ℕ) (s : Memory.State) (k : ℕ) :
-    ((Memory.spec w).runClient s (Memory.allocDirty k)).1 = s.frontier := by
-  rw [runClient_allocDirty]
-
-@[local client_simps] private theorem local_fst_map {α β : Type} (w : ℕ)
-    (s : Memory.State) (g : α → β) (p : Memory.Prog α) :
-    ((Memory.spec w).runClient s (g <$> p : Memory.Prog β)).1 =
-      g ((Memory.spec w).clientResult s p) := by
-  rw [runClient_map]
-
-@[local client_simps] private theorem local_fst_ite {α : Type} (w : ℕ)
-    (c : Prop) [Decidable c] (p₁ p₂ : Memory.Prog α) (s : Memory.State) :
-    ((Memory.spec w).runClient s (if c then p₁ else p₂ : Memory.Prog α)).1 =
-      if c then (Memory.spec w).clientResult s p₁ else (Memory.spec w).clientResult s p₂ := by
-  rw [runClient_ite]; split_ifs <;> rfl
-
-private theorem clientState_bind_pure_proj {α β : Type} (s : Memory.State)
-    (p : Memory.Prog α) (f : α → β) :
-    (Memory.spec 0).clientState s (do let x ← p; pure (f x)) =
-      (Memory.spec 0).clientState s p := by
-  simp [client_simps]
-
-private theorem clientResult_bind_pure_proj {α β : Type} (s : Memory.State)
-    (p : Memory.Prog α) (f : α → β) :
-    (Memory.spec 0).clientResult s (do let x ← p; pure (f x)) =
-      f ((Memory.spec 0).clientResult s p) := by
-  simp [client_simps]
-
-private theorem memoryCost_bind_pure_proj {α β : Type} (s : Memory.State)
-    (p : Memory.Prog α) (f : α → β) :
-    memoryCost (do let x ← p; pure (f x)) s = memoryCost p s := by
-  rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
+private theorem finPrefSum_succ {n : ℕ} (f : Fin n → ℕ) {k : ℕ} (hk : k < n) :
+    finPrefSum f (k + 1) = finPrefSum f k + f ⟨k, hk⟩ := by
+  have hsplit : ∀ v : Fin n,
+      (if v.1 < k + 1 then f v else 0) =
+        (if v.1 < k then f v else 0) + (if v = ⟨k, hk⟩ then f v else 0) := fun v => by
+    rcases lt_trichotomy v.1 k with hlt | heq | hgt
+    · have hne : v ≠ ⟨k, hk⟩ := fun h => by
+        have := congrArg Fin.val h; dsimp at this; omega
+      simp [hlt, hlt.trans (Nat.lt_succ_self k), hne]
+    · have hv : v = ⟨k, hk⟩ := Fin.ext heq
+      subst hv
+      simp
+    · have hne : v ≠ ⟨k, hk⟩ := fun h => by
+        have := congrArg Fin.val h; dsimp at this; omega
+      simp [hne, show ¬ v.1 < k by omega, show ¬ v.1 < k + 1 by omega]
+  simp only [finPrefSum, hsplit, Finset.sum_add_distrib]
+  congr 1
+  simp
 
 private theorem totalWalkCount_zero_vertices {n : ℕ} (hn : n = 0)
     (adj : Fin n → Fin n → Bool) (S : Finset (Fin n)) : totalWalkCount adj S = 1 := by
@@ -196,14 +168,9 @@ private theorem one_le_word_prod (n : ℕ) : 1 ≤ 2 ^ n * (n + 1) ^ n :=
   simp [encode, List.length_flatMap]
 
 theorem inputFits (I : Instance) {w : ℕ} (hfit : I.FitsWidth w) : InputFits w I.encode := by
-  have h1 : 1 ≤ 2 ^ I.n * (I.n + 1) ^ I.n := one_le_word_prod I.n
-  refine ⟨hfit.of_le (by simp only [length_encode]; unfold wordBound; nlinarith), ?_⟩
-  intro x hx
-  simp only [encode, List.mem_cons, List.mem_flatMap, List.mem_finRange, true_and,
-    List.mem_ofFn] at hx
-  rcases hx with rfl | ⟨u, v, rfl⟩
-  · exact hfit.of_le (by unfold wordBound; nlinarith)
-  · split_ifs <;> exact hfit.of_le (by unfold wordBound; nlinarith)
+  have h1 := one_le_word_prod I.n
+  exact inputFits_boolMatrix I.adj hfit (by unfold wordBound; nlinarith)
+    (by unfold wordBound; nlinarith) (by unfold wordBound; nlinarith)
 
 private theorem init_mem_n (I : Instance) : (Memory.State.init I.encode).mem 1 = I.n := rfl
 
@@ -254,41 +221,6 @@ private theorem totalWalkCount_le {n : ℕ} (adj : Fin n → Fin n → Bool) (S 
 
 /-! ## Pure binary odometer and inclusion–exclusion lemmas -/
 
-private theorem testBit_succ_eq (k u : ℕ) :
-    (k + 1).testBit u =
-      if ∀ j < u, k.testBit j = true then !(k.testBit u) else k.testBit u := by
-  induction u generalizing k with
-  | zero =>
-    simp only [Nat.testBit_zero]
-    by_cases he : k % 2 = 0
-    · simp [Nat.add_mod, he]
-    · have h1 : k % 2 = 1 := by omega
-      simp [Nat.add_mod, h1]
-  | succ u ih =>
-    rw [Nat.testBit_succ, Nat.testBit_succ]
-    by_cases h0 : k % 2 = 0
-    · have hdiv : (k + 1) / 2 = k / 2 := by omega
-      have hf : ¬ ∀ j < u + 1, k.testBit j = true := by
-        intro h
-        have hzero := h 0 (Nat.succ_pos _)
-        simp [Nat.testBit_zero, h0] at hzero
-      rw [hdiv, ite_eq_right hf]
-    · have h1 : k % 2 = 1 := by omega
-      have hdiv : (k + 1) / 2 = k / 2 + 1 := by omega
-      rw [hdiv, ih (k / 2)]
-      have hiff : (∀ j < u, (k / 2).testBit j = true) ↔ ∀ j < u + 1, k.testBit j = true := by
-        constructor
-        · intro h j hj
-          cases j with
-          | zero => simp [Nat.testBit_zero, h1]
-          | succ j =>
-            rw [Nat.testBit_succ]
-            exact h j (by omega)
-        · intro h j hj
-          rw [← Nat.testBit_succ]
-          exact h (j + 1) (by omega)
-      simp only [hiff]
-
 private theorem card_maskSet_succ_prefix_mod {n k t : ℕ}
     (h1 : ∀ j < t, k.testBit j = true)
     (h0 : t = n ∨ (t < n ∧ k.testBit t = false)) :
@@ -301,54 +233,38 @@ private theorem card_maskSet_succ_prefix_mod {n k t : ℕ}
     have hempty : maskSet t (k + 1) = ∅ := by
       ext u
       simp only [mem_maskSet, Finset.notMem_empty, iff_false]
-      rw [testBit_succ_eq]
+      rw [Nat.testBit_add_one_eq_ite_forall]
       have hall : ∀ j < u.1, k.testBit j = true := fun j hj => h1 j (hj.trans u.isLt)
       rw [ite_eq_left hall]
       simp [h1 u.1 u.isLt]
     rw [hempty, hfull, Finset.card_empty, Finset.card_univ, Fintype.card_fin]
     simp [← two_mul]
   · have hsplit : (maskSet n (k + 1)).card + t = (maskSet n k).card + 1 := by
-      let S1 : Finset (Fin n) := Finset.univ.filter fun u : Fin n => u.1 < t
       let tFin : Fin n := ⟨t, htn⟩
+      let S1 : Finset (Fin n) := Finset.Iio tFin
       have ht_not : tFin ∉ maskSet n k := by simp [mem_maskSet, h0t, tFin]
-      have ht_in : tFin ∈ maskSet n (k + 1) := by
-        simp only [mem_maskSet, testBit_succ_eq, tFin]
-        rw [ite_eq_left h1, h0t]
-        rfl
       have hS1_sub : S1 ⊆ maskSet n k := fun u hu => by
-        simp only [S1, Finset.mem_filter, Finset.mem_univ, true_and] at hu
+        simp only [S1, Finset.mem_Iio, Fin.lt_def, tFin] at hu
         exact mem_maskSet.2 (h1 u.1 hu)
-      have hS1_card : S1.card = t := by
-        have hinj : Function.Injective (fun j : Fin t => (⟨j.1, j.isLt.trans htn⟩ : Fin n)) :=
-          fun a b h => Fin.ext (by simpa using congrArg Fin.val h)
-        have himg : S1 = (Finset.univ : Finset (Fin t)).image
-            (fun j : Fin t => (⟨j.1, j.isLt.trans htn⟩ : Fin n)) := by
-          ext u
-          simp only [S1, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_image]
-          exact ⟨fun hu => ⟨⟨u.1, hu⟩, rfl⟩, fun ⟨j, hj⟩ => by subst hj; exact j.isLt⟩
-        rw [himg, Finset.card_image_of_injective _ hinj, Finset.card_univ, Fintype.card_fin]
+      have hS1_card : S1.card = t := Fin.card_Iio tFin
       have hset_eq : maskSet n (k + 1) = insert tFin (maskSet n k \ S1) := by
         ext u
-        simp only [Finset.mem_insert, Finset.mem_sdiff, mem_maskSet, S1, Finset.mem_filter,
-          Finset.mem_univ, true_and, testBit_succ_eq]
+        simp only [Finset.mem_insert, Finset.mem_sdiff, mem_maskSet, S1, Finset.mem_Iio,
+          Nat.testBit_succ_of_lowest h0t h1]
         rcases lt_trichotomy u.1 t with hlt | heq | hgt
-        · have hall : ∀ j < u.1, k.testBit j = true := fun j hj => h1 j (hj.trans hlt)
-          have hne : u ≠ tFin := fun h => by
+        · have hne : u ≠ tFin := fun h => by
             have := congrArg Fin.val h; dsimp [tFin] at this; omega
-          rw [ite_eq_left hall]
-          simp [h1 u.1 hlt, hne, hlt]
+          have hltF : u < tFin := Fin.lt_def.2 hlt
+          simp [hlt, hltF, hne, h1 u.1 hlt]
         · have hu_eq : u = tFin := Fin.ext heq
           subst hu_eq
-          rw [ite_eq_left h1]
-          simp [h0t, tFin]
-        · have hnot : ¬ ∀ j < u.1, k.testBit j = true := fun h => by
-            have := h t hgt
-            rw [h0t] at this
-            simp at this
-          have hne : u ≠ tFin := fun h => by
+          simp [tFin]
+        · have hne : u ≠ tFin := fun h => by
             have := congrArg Fin.val h; dsimp [tFin] at this; omega
-          rw [ite_eq_right hnot]
-          simp [hne, show ¬ u.1 < t by omega]
+          have hnot : ¬ u < tFin := fun h => by
+            have := Fin.lt_def.1 h; dsimp [tFin] at this; omega
+          have hnev : u.1 ≠ t := by omega
+          simp [hne, hnot, hnev, hgt.le]
       have ht_not_diff : tFin ∉ maskSet n k \ S1 := fun h => ht_not (Finset.mem_sdiff.1 h).1
       rw [hset_eq, Finset.card_insert_of_notMem ht_not_diff, Finset.card_sdiff_of_subset hS1_sub,
         hS1_card]
@@ -749,20 +665,11 @@ private theorem stepInnerProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth 
         ∑ v : Fin I.n, if I.adj u v then vec v else 0 := by
   intro env
   have h1_fit : Fits w 1 := hfit.of_le (by unfold Instance.wordBound; omega)
-  let prefSum : ℕ → ℕ := fun k =>
-    ∑ v : Fin I.n, if v.1 < k ∧ I.adj u v then vec v else 0
-  have hpref0 : prefSum 0 = 0 := by simp [prefSum]
-  have hpref_n : prefSum I.n = ∑ v : Fin I.n, if I.adj u v then vec v else 0 := by
-    refine Finset.sum_congr rfl fun v _ => by simp [v.isLt]
-  have hpref_mono : ∀ {k₁ k₂}, k₁ ≤ k₂ → prefSum k₁ ≤ prefSum k₂ := fun {k₁ k₂} hle => by
-    refine Finset.sum_le_sum fun v _ => ?_
-    split_ifs with h1 h2
-    · exact le_rfl
-    · exfalso; exact h2 ⟨Nat.lt_of_lt_of_le h1.1 hle, h1.2⟩
-    · exact Nat.zero_le _
-    · exact le_rfl
+  let rowFn : Fin I.n → ℕ := fun v => if I.adj u v then vec v else 0
+  have hpref_n : finPrefSum rowFn I.n = ∑ v : Fin I.n, if I.adj u v then vec v else 0 :=
+    finPrefSum_eq_sum rowFn
   have hspec := iterate_spec stepInnerStep StepInnerSafe w env 2 I.n
-    (fun k st s => st = ⟨k, prefSum k⟩ ∧ s = s₀)
+    (fun k st s => st = ⟨k, finPrefSum rowFn k⟩ ∧ s = s₀)
     (fun _ => False)
     (fun k hk st s ⟨hst, hs⟩ => by
       let vFin : Fin I.n := ⟨k, hk⟩
@@ -781,31 +688,10 @@ private theorem stepInnerProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth 
         hadj_mem u vFin
       have hcur_v : s₀.mem (curBase + k) = vec vFin := hcur_mem vFin
       have hstep_pref :
-          prefSum (k + 1) = prefSum k + if I.adj u vFin then vec vFin else 0 := by
-        have hsplit : ∀ v : Fin I.n,
-            (if v.1 < k + 1 ∧ I.adj u v then vec v else 0) =
-              (if v.1 < k ∧ I.adj u v then vec v else 0) +
-                (if v = vFin ∧ I.adj u v then vec v else 0) := fun v => by
-          rcases lt_trichotomy v.1 k with hlt | heq | hgt
-          · have hne : v ≠ vFin := fun h => by
-              have := congrArg Fin.val h; dsimp [vFin] at this; omega
-            simp [hlt, hlt.trans (Nat.lt_succ_self k), hne]
-          · have hv_eq : v = vFin := Fin.ext heq
-            subst hv_eq
-            simp [vFin]
-          · have hne : v ≠ vFin := fun h => by
-              have := congrArg Fin.val h; dsimp [vFin] at this; omega
-            simp [hne, show ¬ v.1 < k by omega, show ¬ v.1 < k + 1 by omega]
-        simp only [prefSum, hsplit, Finset.sum_add_distrib]
-        congr 1
-        rw [Finset.sum_eq_single vFin]
-        · simp
-        · intro v _ hne
-          simp [hne]
-        · intro h
-          exact absurd (Finset.mem_univ vFin) h
+          finPrefSum rowFn (k + 1) = finPrefSum rowFn k + if I.adj u vFin then vec vFin else 0 :=
+        finPrefSum_succ rowFn hk
       have hacc_fit : s₀.mem (2 + u.1 * I.n + k) = 1 →
-          Fits w (prefSum k + s₀.mem (curBase + k)) := by
+          Fits w (finPrefSum rowFn k + s₀.mem (curBase + k)) := by
         intro ha1
         rw [hadj_v] at ha1
         have hadj_true : I.adj u vFin = true := by
@@ -813,10 +699,10 @@ private theorem stepInnerProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth 
         rw [hcur_v]
         refine hsum_fit.of_le ?_
         rw [← hpref_n]
-        have h1 : prefSum k + vec vFin = prefSum (k + 1) := by
+        have h1 : finPrefSum rowFn k + vec vFin = finPrefSum rowFn (k + 1) := by
           rw [hstep_pref, hadj_true]; simp
         rw [h1]
-        exact hpref_mono hk
+        exact finPrefSum_mono rowFn hk
       refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
       · rw [hst, hs]
         exact ⟨h1_fit, ha_fit, hc_fit, hk1_fit, hacc_fit⟩
@@ -831,23 +717,26 @@ private theorem stepInnerProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth 
           memoryCost_ite, memoryCost_pure, add_zero]
         split_ifs <;> omega
       · rw [hs]
-        simp [stepInnerStep, client_simps]
+        simp only [stepInnerStep, client_simps]
+        split_ifs <;> simp only [client_simps]
       · intro x _
         rw [hs]
-        simp [stepInnerStep, client_simps]
+        simp only [stepInnerStep, client_simps]
+        split_ifs <;> simp only [client_simps]
       · refine ⟨?_, ?_⟩
         · rw [hst, hs]
           dsimp only [env]
           cases hadj : I.adj u vFin <;>
             simp [stepInnerStep, client_simps, hadj_v, hcur_v, hstep_pref, hadj]
         · rw [hs]
-          simp [stepInnerStep, client_simps])
-    ⟨0, 0⟩ s₀ ⟨by simp [hpref0], rfl⟩
+          simp only [stepInnerStep, client_simps]
+          split_ifs <;> simp only [client_simps])
+    ⟨0, 0⟩ s₀ ⟨by simp [finPrefSum_zero], rfl⟩
   have heq_s : (Memory.spec 0).clientState s₀ (stepInnerProg env) = s₀ := by
     have hfr := hspec.2.2.2.1
     have hmem := hspec.2.2.2.2.1
     dsimp only [stepInnerProg]
-    rw [clientState_bind_pure_proj]
+    rw [← map_eq_pure_bind, clientState_map]
     ext a
     · exact hmem a (by simp)
     · exact hfr
@@ -855,11 +744,10 @@ private theorem stepInnerProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth 
   · simpa only [stepInnerProg] using hspec.1
   · refine validHistory_bind_step hspec.2.1 (validHistory_pure w _ _)
   · dsimp only [stepInnerProg]
-    rw [memoryCost_bind_pure_proj]
+    rw [memoryCost_bind', memoryCost_pure, add_zero]
     exact hspec.2.2.1
   · dsimp only [stepInnerProg]
-    rw [clientResult_bind_pure_proj]
-    rw [hspec.2.2.2.2.2.1, hpref_n]
+    rw [← map_eq_pure_bind, prog_clientResult_map, hspec.2.2.2.2.2.1, hpref_n]
 
 -- 4. One round of restricted matrix–vector multiplication `stepVecProg`
 
@@ -1374,15 +1262,9 @@ private theorem sumVecProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w)
       (Memory.spec 0).clientState s₀ (sumVecProg env) = s₀ ∧
       (Memory.spec 0).clientResult s₀ (sumVecProg env) = ∑ u : Fin I.n, vec u := by
   intro env
-  let prefSum : ℕ → ℕ := fun k => ∑ u : Fin I.n, if u.1 < k then vec u else 0
-  have hpref0 : prefSum 0 = 0 := by simp [prefSum]
-  have hpref_n : prefSum I.n = ∑ u : Fin I.n, vec u :=
-    Finset.sum_congr rfl fun u _ => by simp [u.isLt]
-  have hpref_mono : ∀ {k₁ k₂}, k₁ ≤ k₂ → prefSum k₁ ≤ prefSum k₂ := fun hle => by
-    refine Finset.sum_le_sum fun u _ => ?_
-    split_ifs <;> first | exact le_rfl | exact Nat.zero_le _ | omega
+  have hpref_n : finPrefSum vec I.n = ∑ u : Fin I.n, vec u := finPrefSum_eq_sum vec
   have hspec := iterate_spec sumStep SumStepSafe w env 1 I.n
-    (fun k st s => st = ⟨k, prefSum k⟩ ∧ s = s₀)
+    (fun k st s => st = ⟨k, finPrefSum vec k⟩ ∧ s = s₀)
     (fun _ => False)
     (fun k hk st s ⟨hst, hs⟩ => by
       let uFin : Fin I.n := ⟨k, hk⟩
@@ -1393,26 +1275,11 @@ private theorem sumVecProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w)
         unfold Instance.wordBound
         nlinarith)
       have hvec_k : s₀.mem (base + k) = vec uFin := hmem uFin
-      have hstep_pref : prefSum (k + 1) = prefSum k + vec uFin := by
-        have hsplit : ∀ u : Fin I.n,
-            (if u.1 < k + 1 then vec u else 0) =
-              (if u.1 < k then vec u else 0) + (if u = uFin then vec u else 0) := fun u => by
-          rcases lt_trichotomy u.1 k with hlt | heq | hgt
-          · have hne : u ≠ uFin := fun h => by
-              have := congrArg Fin.val h; dsimp [uFin] at this; omega
-            simp [hlt, hlt.trans (Nat.lt_succ_self k), hne]
-          · have hu_eq : u = uFin := Fin.ext heq
-            subst hu_eq
-            simp [uFin]
-          · have hne : u ≠ uFin := fun h => by
-              have := congrArg Fin.val h; dsimp [uFin] at this; omega
-            simp [hne, show ¬ u.1 < k by omega, show ¬ u.1 < k + 1 by omega]
-        simp only [prefSum, hsplit, Finset.sum_add_distrib]
-        congr 1
-        simp
-      have hacc_fit : Fits w (prefSum k + s₀.mem (base + k)) := by
+      have hstep_pref : finPrefSum vec (k + 1) = finPrefSum vec k + vec uFin :=
+        finPrefSum_succ vec hk
+      have hacc_fit : Fits w (finPrefSum vec k + s₀.mem (base + k)) := by
         rw [hvec_k, ← hstep_pref]
-        exact hsum_fit.of_le (hpref_n ▸ hpref_mono hk)
+        exact hsum_fit.of_le (hpref_n ▸ finPrefSum_mono vec hk)
       refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
       · rw [hst, hs]
         exact ⟨ha_fit, hk1_fit, hacc_fit⟩
@@ -1430,12 +1297,12 @@ private theorem sumVecProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w)
           simp [sumStep, client_simps, hvec_k, hstep_pref]
         · rw [hs]
           simp [sumStep, client_simps])
-    ⟨0, 0⟩ s₀ ⟨by simp [hpref0], rfl⟩
+    ⟨0, 0⟩ s₀ ⟨by simp [finPrefSum_zero], rfl⟩
   have heq_s : (Memory.spec 0).clientState s₀ (sumVecProg env) = s₀ := by
     have hfr := hspec.2.2.2.1
     have hmem' := hspec.2.2.2.2.1
     dsimp only [sumVecProg]
-    rw [clientState_bind_pure_proj]
+    rw [← map_eq_pure_bind, clientState_map]
     ext a
     · exact hmem' a (by simp)
     · exact hfr
@@ -1443,11 +1310,10 @@ private theorem sumVecProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w)
   · simpa only [sumVecProg] using hspec.1
   · exact validHistory_bind_step hspec.2.1 (validHistory_pure w _ _)
   · dsimp only [sumVecProg]
-    rw [memoryCost_bind_pure_proj]
+    rw [memoryCost_bind', memoryCost_pure, add_zero]
     simpa only [one_mul] using hspec.2.2.1
   · dsimp only [sumVecProg]
-    rw [clientResult_bind_pure_proj]
-    rw [hspec.2.2.2.2.2.1, hpref_n]
+    rw [← map_eq_pure_bind, prog_clientResult_map, hspec.2.2.2.2.2.1, hpref_n]
 
 -- 7. In-place binary odometer + parity flip `odometerProg`
 
@@ -1560,7 +1426,8 @@ private theorem odometerProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w
       have hmem_upd : ∀ x, x ≠ base + j →
           ((Memory.spec 0).clientState s (odoStep (env, st))).mem x = s.mem x := fun x hne => by
         dsimp only [env]
-        simp [odoStep, client_simps, hi, Function.update_of_ne hne]
+        simp only [odoStep, client_simps, hi]
+        split_ifs <;> simp only [client_simps, Function.update_of_ne hne]
       have hres_eq : (Memory.spec 0).clientResult s (odoStep (env, st)) =
           if st.carry = 1 then
             if s.mem (base + j) = 1 then ⟨j + 1, 1, 1 - st.parity⟩
@@ -1589,12 +1456,14 @@ private theorem odometerProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w
           memoryCost_ite, memoryCost_write, memoryCost_pure, add_zero]
         split_ifs <;> omega
       · dsimp only [env]
-        simp [odoStep, client_simps, hi, hfr_s]
+        simp only [odoStep, client_simps, hi]
+        split_ifs <;> simp only [client_simps, hfr_s]
       · intro x hx
         exact hmem_upd x (by omega)
       · have hfr' : ((Memory.spec 0).clientState s (odoStep (env, st))).frontier = s₀.frontier := by
           dsimp only [env]
-          simp [odoStep, client_simps, hi, hfr_s]
+          simp only [odoStep, client_simps, hi]
+          split_ifs <;> simp only [client_simps, hfr_s]
         refine ⟨?_, hfr', ?_, ?_, ?_⟩
         · rw [hres_eq]
           split_ifs <;> rfl
@@ -1602,7 +1471,7 @@ private theorem odometerProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w
           by_cases huj : u.1 = j
           · have hbit_succ : (k + 1).testBit j =
                 if ∀ m < j, k.testBit m = true then !(k.testBit j) else k.testBit j :=
-              testBit_succ_eq k j
+              Nat.testBit_add_one_eq_ite_forall k j
             rcases hcase with ⟨hc1, hall1, _⟩ | ⟨hc0, t, htj, hall1, h0t, _⟩
             · dsimp only [env]
               by_cases hkj : k.testBit j = true
@@ -1671,21 +1540,21 @@ private theorem odometerProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w
   · simpa only [odometerProg] using hspec.1
   · exact validHistory_bind_step hspec.2.1 (validHistory_pure w _ _)
   · dsimp only [odometerProg]
-    rw [memoryCost_bind_pure_proj]
+    rw [memoryCost_bind', memoryCost_pure, add_zero]
     exact hspec.2.2.1
   · dsimp only [odometerProg]
-    rw [clientState_bind_pure_proj]
+    rw [← map_eq_pure_bind, clientState_map]
     exact hspec.2.2.2.1
   · intro x hx
     dsimp only [odometerProg]
-    rw [clientState_bind_pure_proj]
+    rw [← map_eq_pure_bind, clientState_map]
     exact hspec.2.2.2.2.1 x hx
   · intro u
     dsimp only [odometerProg]
-    rw [clientState_bind_pure_proj]
+    rw [← map_eq_pure_bind, clientState_map]
     exact hspec.2.2.2.2.2.2.2.1 u u.isLt
   · dsimp only [odometerProg]
-    rw [clientResult_bind_pure_proj]
+    rw [← map_eq_pure_bind, prog_clientResult_map]
     exact hpar_eq
 
 -- 8. Computing `2 ^ n` via `n`-step doubling (`pow2Prog`)
@@ -1737,7 +1606,7 @@ private theorem pow2Prog_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w)
       · rw [hp]; exact hfit_2p
       · rw [hs]; exact validHistory_read_bind hs₀_fr (validHistory_pure w _ _)
       · dsimp only [pow2Step]
-        rw [memoryCost_bind_pure_proj]
+        rw [memoryCost_bind', memoryCost_pure, add_zero]
         exact le_rfl
       · rw [hs]
         simp [pow2Step, client_simps]
@@ -2050,8 +1919,8 @@ private theorem maskStep_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w)
       omega
     · dsimp only [maskStep, env, st]
       rw [ite_eq_left hn0]
-      simp only [client_simps, ite_self]
-      exact hodo.2.2.2.1
+      simp only [client_simps]
+      split_ifs <;> simpa only [client_simps] using hodo.2.2.2.1
     · intro x y
       exact Fin.elim0 (hn0 ▸ x)
     · intro u
@@ -2202,10 +2071,11 @@ private theorem maskStep_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w)
         linarith
       dsimp only [inB, curB, nextB, s1, s2, s3] at htot
       split_ifs <;> exact htot
-    · dsimp only [env]
+    · dsimp only [env, st]
       simp only [maskStep, client_simps, hn0, ↓reduceIte, hs3_unfold]
       have hodo_fr := hodo.2.2.2.1
       dsimp only [inB] at hodo_fr
+      simp only [client_simps] at hodo_fr
       split_ifs <;> rw [hodo_fr, hs3_eq, hs2_fr]
     · intro x y
       dsimp only [env]
@@ -2224,6 +2094,7 @@ private theorem maskStep_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w)
       have hmem_x : ((Memory.spec 0).clientState s3 (odometerProg ⟨ws, I.n, st.parity⟩)).mem
           (2 + x.1 * I.n + y.1) = s3.mem (2 + x.1 * I.n + y.1) := by
         simpa only [inB] using hodo.2.2.2.2.1 _ hnot_in
+      simp only [client_simps] at hmem_x
       by_cases hp : I.n % 2 = st.parity
       · simp only [hp, ↓reduceIte]
         rw [hmem_x, hs3_adj]
