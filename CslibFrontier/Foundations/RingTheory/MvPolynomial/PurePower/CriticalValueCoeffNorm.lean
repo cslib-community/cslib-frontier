@@ -88,9 +88,6 @@ theorem criticalSystem_norm_le {n ell b : ℕ} (hell : 1 ≤ ell)
       Polynomial.coeffNorm1 ((ell + 1 : ℕ) * a i ^ j) ≤ 2 ^ k :=
     (Polynomial.coeffNorm1_mul_le _ _).trans
       ((Nat.mul_le_mul hscale (hpower i hj)).trans_eq (pow_add 2 _ _).symm)
-  have hX : Polynomial.coeffNorm1 (Polynomial.X : Polynomial ℤ) = 1 := by
-    simpa only [mul_one, Polynomial.coeffNorm1_one] using
-      Polynomial.coeffNorm1_X_mul (1 : Polynomial ℤ)
   have hG : ParameterCoeffNorm.norm G ≤ 2 ^ max ((ell + 1) * c) b := by
     change ParameterCoeffNorm.norm (F.map Polynomial.C) ≤ _
     rw [ParameterCoeffNorm.map_C]
@@ -105,7 +102,7 @@ theorem criticalSystem_norm_le {n ell b : ℕ} (hell : 1 ≤ ell)
       exact (hpower i (Nat.le_succ _)).trans (pow_two_le_pow_two (Nat.le_add_left ..))
     have hder : ParameterCoeffNorm.norm (C Polynomial.X * pderiv i G) ≤ 2 ^ k := by
       refine (ParameterCoeffNorm.mul_le _ _).trans ?_
-      rw [ParameterCoeffNorm.C, hX, one_mul]
+      rw [ParameterCoeffNorm.C, Polynomial.coeffNorm1_X, one_mul]
       refine (ParameterCoeffNorm.pderiv_le _ _).trans
         ((Nat.mul_le_mul ((totalDegree_map_le Polynomial.C F).trans hF) hG).trans ?_)
       exact (Nat.mul_le_mul_right _ ((Nat.le_succ ell).trans (Nat.lt_size_self _).le)).trans_eq

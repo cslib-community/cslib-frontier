@@ -839,6 +839,32 @@ private theorem boundedAccess_rename_iff {r' L : ℕ} {f : Fin r → Fin r'} (o 
     (x : Data r') : (o.rename f).BoundedAccess L x ↔ o.BoundedAccess L (x.comap f) := by
   cases o <;> rfl
 
+private theorem rename_bind_step {r' w L extra : ℕ} {f : Fin r → Fin r'} (hf : f.Injective)
+    {c₂ : Code B r} (x : Data r') {m₁ : ProbComp (Data r × ℕ)}
+    {m₂ : Data r → ProbComp (Data r × ℕ)}
+    (h₂ : ∀ z ∈ m₁.support, ExecRandBounded w L c₂ z.1 (m₂ z.1))
+    (ih₂ : ∀ z₁ ∈ m₁.support, ∀ {x' : Data r'}, x'.comap f = z₁.1 →
+      ExecRandBounded w L (c₂.rename f) x' ((fun z => (z.1.extend f x', z.2)) <$> m₂ z₁.1)) :
+    ∃ m₂' : Data r' → ProbComp (Data r' × ℕ),
+      (∀ z' ∈ ((fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$> m₁).support,
+        ExecRandBounded w L (c₂.rename f) z'.1 (m₂' z'.1)) ∧
+      ((fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$> (do
+        let z₁ ← m₁
+        let z₂ ← m₂ z₁.1
+        pure (z₂.1, z₁.2 + z₂.2 + extra))) = (do
+        let z₁ ← (fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$> m₁
+        let z₂ ← m₂' z₁.1
+        pure (z₂.1, z₁.2 + z₂.2 + extra)) := by
+  refine ⟨fun d => (fun z => (z.1.extend f x, z.2)) <$> codeComp w c₂ (d.comap f),
+    fun z' hz' => ?_, ?_⟩
+  · supp_cases hz' with ⟨z₁, hz₁, rfl⟩
+    dsimp only
+    rw [Data.comap_extend hf, (h₂ z₁ hz₁).toExecRand.codeComp_eq]
+    simpa only [Data.extend_extend hf] using ih₂ z₁ hz₁ (Data.comap_extend hf z₁.1 x)
+  · simp only [← bind_pure_comp, bind_assoc, pure_bind]
+    refine OracleComp.bind_congr_on_support fun z₁ hz₁ => ?_
+    rw [Data.comap_extend hf, (h₂ z₁ hz₁).toExecRand.codeComp_eq]
+
 /-- Rename registers in an `ExecRandBounded` execution along an injective map `f`. -/
 theorem rename {r' w L : ℕ} {f : Fin r → Fin r'} (hf : f.Injective)
     {c : Code B r} {x : Data r'} {m : ProbComp (Data r × ℕ)}
@@ -864,22 +890,9 @@ theorem rename {r' w L : ℕ} {f : Fin r → Fin r'} (hf : f.Injective)
     simpa only [Code.rename, Data.comap_regs, heq] using ExecRandBounded.rand (x := x) hfit
   | @seq c₁ c₂ _ m₁ m₂ _ h₂ ih₁ ih₂ =>
     subst hx
-    have hseq := ExecRandBounded.seq (ih₁ rfl)
-      (m₂ := fun y' => (fun z => (z.1.extend f x, z.2)) <$> codeComp w c₂ (y'.comap f))
-      fun z' hz' => by
-        supp_cases hz' with ⟨z₁, hz₁, rfl⟩
-        rw [Data.comap_extend hf, (h₂ z₁ hz₁).toExecRand.codeComp_eq]
-        simpa only [Data.extend_extend hf] using
-          ih₂ z₁ hz₁ (x := z₁.1.extend f x) (Data.comap_extend hf z₁.1 x)
-    have heq : ((fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$> (do
-        let z₁ ← m₁; let z₂ ← m₂ z₁.1; pure (z₂.1, z₁.2 + z₂.2))) = (do
-        let z₁ ← (fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$> m₁
-        let z₂ ← (fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$> codeComp w c₂ (z₁.1.comap f)
-        pure (z₂.1, z₁.2 + z₂.2)) := by
-      simp only [← bind_pure_comp, bind_assoc, pure_bind]
-      refine OracleComp.bind_congr_on_support fun z₁ hz₁ => ?_
-      rw [Data.comap_extend hf, (h₂ z₁ hz₁).toExecRand.codeComp_eq]
-    simpa only [Code.rename, heq] using hseq
+    obtain ⟨_, hcont, heq⟩ := rename_bind_step (extra := 0) hf x h₂ fun z₁ hz₁ {_} h => ih₂ z₁ hz₁ h
+    simp only [Nat.add_zero] at heq
+    simpa only [Code.rename, ← heq] using ExecRandBounded.seq (ih₁ rfl) hcont
   | @branch_pos cond pos neg _ m hc _ ih =>
     subst hx
     simpa only [Code.rename, Functor.map_map] using
@@ -895,25 +908,11 @@ theorem rename {r' w L : ℕ} {f : Fin r → Fin r'} (hf : f.Injective)
       ExecRandBounded.loop_exit (body := body.rename f) (fun h => hc ((Cond.holds_rename _ _).1 h))
   | @loop_iter cond body _ mb ml hc _ hl ihb ihl =>
     subst hx
-    have hiter := ExecRandBounded.loop_iter ((Cond.holds_rename _ _).2 hc) (ihb rfl)
-      (m₂ := fun y' =>
-        (fun z => (z.1.extend f x, z.2)) <$> codeComp w (.loop cond body) (y'.comap f))
-      fun z' hz' => by
-        supp_cases hz' with ⟨z₁, hz₁, rfl⟩
-        rw [Data.comap_extend hf, (hl z₁ hz₁).toExecRand.codeComp_eq]
-        have hl' := ihl z₁ hz₁ (x := z₁.1.extend f x) (Data.comap_extend hf z₁.1 x)
-        change ExecRandBounded w L ((Code.loop cond body).rename f) (z₁.1.extend f x) _ at hl'
-        simpa only [Code.rename, Data.extend_extend hf] using hl'
-    have heq : ((fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$> (do
-        let z₁ ← mb; let z₂ ← ml z₁.1; pure (z₂.1, z₁.2 + z₂.2 + 2))) = (do
-        let z₁ ← (fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$> mb
-        let z₂ ← (fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$>
-          codeComp w (.loop cond body) (z₁.1.comap f)
-        pure (z₂.1, z₁.2 + z₂.2 + 2)) := by
-      simp only [← bind_pure_comp, bind_assoc, pure_bind]
-      refine OracleComp.bind_congr_on_support fun z₁ hz₁ => ?_
-      rw [Data.comap_extend hf, (hl z₁ hz₁).toExecRand.codeComp_eq]
-    simpa only [Code.rename, heq] using hiter
+    obtain ⟨_, hcont, heq⟩ :=
+      rename_bind_step (extra := 2) hf x hl fun z₁ hz₁ {_} h => ihl z₁ hz₁ h
+    simp only [Code.rename] at hcont ⊢
+    simpa only [← heq] using
+      ExecRandBounded.loop_iter ((Cond.holds_rename _ _).2 hc) (ihb rfl) hcont
 
 end ExecRandBounded
 
@@ -927,6 +926,43 @@ private theorem expect_bind_add_left {α β : Type} (m : ProbComp α) (k : α �
     rw [tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
   simp_rw [hrow, ProbComp.expect, mul_add]
   exact tsum_add
+
+private theorem lift_bind_dist {extra : ℕ} (L_fr : ℕ)
+    (m₁ : ProbComp (Data r × ℕ)) (m₂ : Data r → ProbComp (Data r × ℕ))
+    {P : RData r → Prop}
+    (ih₂ : ∀ z₁ ∈ m₁.support, P ⟨z₁.1.regs, z₁.1.mem, L_fr⟩) :
+    let lift (z : Data r × ℕ) : RData r := ⟨z.1.regs, z.1.mem, L_fr⟩
+    let μ₂ (u : RData r) : PMF (RData r) := (m₂ u.toData).eval.map lift
+    let T₂ (u : RData r) : ℝ≥0∞ := ProbComp.expect (m₂ u.toData) fun z => (z.2 : ℝ≥0∞)
+    (∀ u ∈ (m₁.eval.map lift).support, P u) ∧
+      (m₁.eval.map lift).bind μ₂ =
+        ((do
+          let z₁ ← m₁
+          let z₂ ← m₂ z₁.1
+          pure (z₂.1, z₁.2 + z₂.2 + extra)).eval.map lift) ∧
+      (ProbComp.expect m₁ fun z => (z.2 : ℝ≥0∞)) + extra +
+          (∑' u, (m₁.eval.map lift) u * T₂ u) =
+        ProbComp.expect (do
+          let z₁ ← m₁
+          let z₂ ← m₂ z₁.1
+          pure (z₂.1, z₁.2 + z₂.2 + extra)) fun z => (z.2 : ℝ≥0∞) := by
+  refine ⟨fun u hu => ?_, ?_, ?_⟩
+  · supp_cases hu with ⟨z₁, hz₁, rfl⟩
+    rw [ProbComp.support_eval] at hz₁
+    exact ih₂ z₁ hz₁
+  · simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.bind_map, PMF.pure_map]
+    rfl
+  · simp only [ProbComp.expect_bind, ProbComp.expect_pure, Nat.cast_add]
+    rw [Cslib.Probability.PMF.tsum_map_mul]
+    have hassoc : ∀ z₁ : Data r × ℕ,
+        ProbComp.expect (m₂ z₁.1) (fun z₂ => (z₁.2 : ℝ≥0∞) + (z₂.2 : ℝ≥0∞) + extra) =
+          ProbComp.expect (m₂ z₁.1) (fun z₂ => (z₁.2 : ℝ≥0∞) + ((z₂.2 : ℝ≥0∞) + extra)) :=
+      fun _ => by simp only [add_assoc]
+    simp_rw [hassoc, expect_bind_add_left m₁ (fun z₁ => m₂ z₁.1) (fun z₁ => (z₁.2 : ℝ≥0∞))
+      (fun z₂ => (z₂.2 : ℝ≥0∞) + extra), ProbComp.expect_add, ProbComp.expect_const]
+    change (ProbComp.expect m₁ fun z => (z.2 : ℝ≥0∞)) + extra +
+        (ProbComp.expect m₁ fun a => ProbComp.expect (m₂ a.1) fun z => (z.2 : ℝ≥0∞)) = _
+    ac_rfl
 
 /-- Lift a frontier-bounded randomized execution `ExecRandBounded w L c x.toData m` directly into
 `ExecRCodeDist` on `RCode.ofCode c` with unchanged hardware frontier `x.frontier`. -/
@@ -955,21 +991,15 @@ theorem ExecRCodeDist.of_execRandBounded {w L_peak L : ℕ} {c : Code B r} {x : 
         ProbComp.expect_const, le_rfl]
   | @seq c₁ c₂ _ m₁ m₂ _ _ ih₁ ih₂ =>
     subst hx0
-    let lift (z : Data r × ℕ) : RData r := ⟨z.1.regs, z.1.mem, x.frontier⟩
-    have hseq := ExecRCodeDist.seq (c₂ := RCode.ofCode c₂) (ih₁ hL_peak hL rfl)
-      (μ₂ := fun u => (m₂ u.toData).eval.map lift)
-      (T₂ := fun u => ProbComp.expect (m₂ u.toData) fun z => (z.2 : ℝ≥0∞))
-      fun u hu => by
-        supp_cases hu with ⟨z₁, hz₁, rfl⟩
-        rw [ProbComp.support_eval] at hz₁
-        exact ih₂ z₁ hz₁ (x := lift z₁) hL_peak hL rfl
-    refine hseq.congr_dist ?_ (le_of_eq ?_)
-    · simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.bind_map, PMF.pure_map]
-      rfl
-    · simp only [ProbComp.expect_bind, ProbComp.expect_pure, Nat.cast_add]
-      rw [Cslib.Probability.PMF.tsum_map_mul]
-      exact (expect_bind_add_left m₁ (fun z₁ => m₂ z₁.1) (fun z₁ => (z₁.2 : ℝ≥0∞))
-        (fun z₂ => (z₂.2 : ℝ≥0∞))).symm
+    obtain ⟨hcont, hμ, hT⟩ := lift_bind_dist (extra := 0) x.frontier m₁ m₂
+      (P := fun u => ExecRCodeDist w (RCode.ofCode c₂) u
+        ((m₂ u.toData).eval.map fun z => ⟨z.1.regs, z.1.mem, x.frontier⟩)
+        (ProbComp.expect (m₂ u.toData) fun z => (z.2 : ℝ≥0∞)) L_peak)
+      fun z₁ hz₁ => ih₂ z₁ hz₁ (x := ⟨z₁.1.regs, z₁.1.mem, x.frontier⟩) hL_peak hL rfl
+    simp only [Nat.add_zero] at hμ hT
+    simpa only [RCode.ofCode] using
+      (ExecRCodeDist.seq (ih₁ hL_peak hL rfl) hcont).congr_dist hμ
+        (le_of_eq (by simpa only [CharP.cast_eq_zero, add_zero] using hT))
   | @branch_pos cond pos neg _ m hc _ ih =>
     subst hx0
     refine (ExecRCodeDist.branch_pos hc (ih hL_peak hL rfl)).congr_dist
@@ -988,42 +1018,14 @@ theorem ExecRCodeDist.of_execRandBounded {w L_peak L : ℕ} {c : Code B r} {x : 
       (by cases x; simp [ProbComp.eval_pure]) (by simp [ProbComp.expect_pure])
   | @loop_iter cond body _ m₁ m₂ hc _ _ ih₁ ih₂ =>
     subst hx0
-    let lift (z : Data r × ℕ) : RData r := ⟨z.1.regs, z.1.mem, x.frontier⟩
-    have hloop := ExecRCodeDist.loop_iter hc (ih₁ hL_peak hL rfl)
-      (μ₂ := fun u => (m₂ u.toData).eval.map lift)
-      (T₂ := fun u => ProbComp.expect (m₂ u.toData) fun z => (z.2 : ℝ≥0∞))
-      fun u hu => by
-        supp_cases hu with ⟨z₁, hz₁, rfl⟩
-        rw [ProbComp.support_eval] at hz₁
-        exact ih₂ z₁ hz₁ (x := lift z₁) hL_peak hL rfl
-    refine hloop.congr_dist ?_ (le_of_eq ?_)
-    · simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.bind_map, PMF.pure_map]
-      rfl
-    · simp only [ProbComp.expect_bind, ProbComp.expect_pure, Nat.cast_add, Nat.cast_ofNat]
-      rw [Cslib.Probability.PMF.tsum_map_mul]
-      have hconst : ∀ z₁ : Data r × ℕ,
-          ProbComp.expect (m₂ z₁.1) (fun z₂ => (z₂.2 : ℝ≥0∞) + 2) =
-            ProbComp.expect (m₂ z₁.1) (fun z₂ => (z₂.2 : ℝ≥0∞)) + 2 := fun _ => by
-        simp only [ProbComp.expect, mul_add, tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe,
-          one_mul]
-      have houter : ProbComp.expect m₁ (fun z₁ =>
-          ProbComp.expect (m₂ z₁.1) (fun z₂ => (z₂.2 : ℝ≥0∞)) + 2) =
-          ProbComp.expect m₁ (fun z₁ =>
-            ProbComp.expect (m₂ z₁.1) fun z₂ => (z₂.2 : ℝ≥0∞)) + 2 := by
-        simp only [ProbComp.expect, mul_add, tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe,
-          one_mul]
-      have hlhs : ∀ z₁ : Data r × ℕ, ProbComp.expect (m₂ z₁.1)
-          (fun z₂ => (z₁.2 : ℝ≥0∞) + (z₂.2 : ℝ≥0∞) + 2) =
-          ProbComp.expect (m₂ z₁.1) (fun z₂ => (z₁.2 : ℝ≥0∞) + ((z₂.2 : ℝ≥0∞) + 2)) :=
-        fun _ => by simp only [add_assoc]
-      simp_rw [hlhs]
-      rw [expect_bind_add_left m₁ (fun z₁ => m₂ z₁.1) (fun z₁ => (z₁.2 : ℝ≥0∞))
-        (fun z₂ => (z₂.2 : ℝ≥0∞) + 2)]
-      simp_rw [hconst]
-      rw [houter]
-      change ((ProbComp.expect m₁ fun z => (z.2 : ℝ≥0∞)) + 2) +
-          ProbComp.expect m₁ (fun z₁ => ProbComp.expect (m₂ z₁.1) fun z₂ => (z₂.2 : ℝ≥0∞)) = _
-      ac_rfl
+    obtain ⟨hcont, hμ, hT⟩ := lift_bind_dist (extra := 2) x.frontier m₁ m₂
+      (P := fun u => ExecRCodeDist w (RCode.ofCode (.loop cond body)) u
+        ((m₂ u.toData).eval.map fun z => ⟨z.1.regs, z.1.mem, x.frontier⟩)
+        (ProbComp.expect (m₂ u.toData) fun z => (z.2 : ℝ≥0∞)) L_peak)
+      fun z₁ hz₁ => ih₂ z₁ hz₁ (x := ⟨z₁.1.regs, z₁.1.mem, x.frontier⟩) hL_peak hL rfl
+    simp only [RCode.ofCode] at hcont ⊢
+    exact (ExecRCodeDist.loop_iter hc (ih₁ hL_peak hL rfl) hcont).congr_dist hμ
+      (le_of_eq (by simpa only [Nat.cast_ofNat] using hT))
 
 /-- Lift a frontier-bounded randomized execution `ExecRandBounded w L c (x.toData.comap f) m` along
 any injective register renaming `f : Fin r → Fin r'` directly into `ExecRCodeDist` on
