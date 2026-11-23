@@ -131,8 +131,7 @@ theorem conditionalEntropy_le_expected_length_of_isPrefixFree {Obs α : Type*}
       (enc obs) (hinj obs hobs) (hpf obs hobs)
     calc ((joint.map Prod.fst) obs).toReal * entropy (conditionalSnd joint obs)
         ≤ ((joint.map Prod.fst) obs).toReal *
-            ∑ a, (conditionalSnd joint obs a).toReal * ((enc obs a).length : ℝ) :=
-          mul_le_mul_of_nonneg_left hbound ENNReal.toReal_nonneg
+            ∑ a, (conditionalSnd joint obs a).toReal * ((enc obs a).length : ℝ) := by gcongr
       _ = ∑ a, (joint (obs, a)).toReal * ((enc obs a).length : ℝ) := by
           rw [Finset.mul_sum]
           refine Finset.sum_congr rfl fun a _ => ?_
