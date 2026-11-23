@@ -39,7 +39,7 @@ arithmetic operation, and loop branch.
      `y.regs Reg.out = 3 + 2 * |text| + |sa|`, preserving `text` and `sa`.
    * **Amortized analysis and time:** using the potential
      $$\Phi(i, h) = 47 \cdot (|text| - i) - 14 \cdot \min(h, |text| - i),$$
-     each matched character in `extBody` (`14` instructions) increases `h` up to at most
+     each matched character in `kasaiExtBody` (`14` instructions) increases `h` up to at most
      `|text| - i`, while `h` drops by at most `1` between text positions. On every input
      `(text, sa)` and word width `w` with `Fits w (3 * |text| + |sa| + 4)`, `kasaiCode` executes
      within `55 * |text| + 8 * |sa| + 25` instructions (`55 * |text| + 8 * |sa| + 26` for
@@ -1469,6 +1469,49 @@ private theorem cmpLoop_stop {I : SearchInput} {w T : ℕ} {x s₁ : Data 20} {o
   exact ⟨s₁, T + 4, ExecWithin.loop_once hc_go hbody hc_stop, hrs₁,
     hs₁_lo, hs₁_hi, hs₁_mid, hs₁_sv, by rw [hcmp, hs₁_res], by omega⟩
 
+private theorem setGtStop_exec {I : SearchInput} {w : ℕ} (u : Data 20) (hru : SearchRegs I u) :
+    ExecWithin (B := .standard) w (ram[ resReg ← twoReg; go ← zero ]) u
+      ((u.set resReg 2).set go 0) 2 := by
+  have c₁ : ExecWithin (B := .standard) w (.op (.copy resReg twoReg)) u (u.set resReg 2) 1 := by
+    simpa only [hru.two_eq] using
+      (ExecWithin.copy (B := .standard) (d := resReg) (s := twoReg) (x := u))
+  have hz : (u.set resReg 2).regs zero = 0 :=
+    (Data.set_regs_of_ne (by decide) 2).trans hru.zero_eq
+  have c₂ : ExecWithin (B := .standard) w (.op (.copy go zero))
+      (u.set resReg 2) ((u.set resReg 2).set go 0) 1 := by
+    simpa only [hz] using
+      (ExecWithin.copy (B := .standard) (d := go) (s := zero) (x := u.set resReg 2))
+  exact c₁.seq c₂
+
+private theorem cmpLoop_gt_stop {I : SearchInput} {w T : ℕ} {x u : Data 20}
+    (hc_go : (Cond.lt zero go).Holds x)
+    (hbody : ExecWithin w cmpBody x ((u.set resReg 2).set go 0) T)
+    (hT : T + 4 ≤ 18)
+    (hru : SearchRegs I u)
+    (hu_lo : u.regs loReg = x.regs loReg)
+    (hu_hi : u.regs hiReg = x.regs hiReg)
+    (hu_mid : u.regs midReg = x.regs midReg)
+    (hu_sv : u.regs savedLo = x.regs savedLo)
+    (hcmp : cmpSuffix I.text.toArray (I.pat.drop (x.regs regk))
+      (x.regs posReg + x.regs regk) = .gt) :
+    ∃ y T', ExecWithin w (.loop (.lt zero go) cmpBody) x y T' ∧
+      SearchRegs I y ∧
+      y.regs loReg = x.regs loReg ∧
+      y.regs hiReg = x.regs hiReg ∧
+      y.regs midReg = x.regs midReg ∧
+      y.regs savedLo = x.regs savedLo ∧
+      y.regs resReg = encodeOrd (cmpSuffix I.text.toArray (I.pat.drop (x.regs regk))
+        (x.regs posReg + x.regs regk)) ∧
+      T' ≤ 16 * (I.pat.length - x.regs regk) + 18 :=
+  cmpLoop_stop (ord := .gt) hc_go hbody hT ((hru.set_scratch resReg 2).set_scratch go 0)
+    (Data.set_regs_self _ go 0)
+    (((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans hu_lo)
+    (((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans hu_hi)
+    (((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans hu_mid)
+    (((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans hu_sv)
+    ((Data.set_regs_of_ne (by decide) 0).trans (Data.set_regs_self u resReg 2))
+    hcmp
+
 private theorem cmpLoop_spec (I : SearchInput) {w : ℕ}
     (hw : Fits w (I.text.length + I.sa.length + I.pat.length + 6)) :
     ∀ (rem : ℕ) (x : Data 20),
@@ -1620,41 +1663,18 @@ private theorem cmpLoop_spec (I : SearchInput) {w : ℕ}
           by_cases hlt2 : I.text[pos + k] < I.pat[k]
           · have hc_lt2 : (Cond.lt t1 t0).Holds u₂ := by
               simp only [Cond.holds_lt, hu₂_t0, hu₂_t1]; exact hlt2
-            set u₃ := (u₂.set resReg 2).set go 0
-            have c₁ : ExecWithin (B := .standard) w (.op (.copy resReg twoReg))
-                u₂ (u₂.set resReg 2) 1 := by
-              simpa only [hru₂.two_eq] using
-                (ExecWithin.copy (B := .standard) (d := resReg) (s := twoReg) (x := u₂))
-            have c₂ : ExecWithin (B := .standard) w (.op (.copy go zero))
-                (u₂.set resReg 2) u₃ 1 := by
-              have hz' : (u₂.set resReg 2).regs zero = 0 :=
-                (Data.set_regs_of_ne (by decide) 2).trans hru₂.zero_eq
-              simpa only [hz'] using
-                (ExecWithin.copy (B := .standard) (d := go) (s := zero) (x := u₂.set resReg 2))
-            have hbody : ExecWithin w cmpBody x u₃ 14 := by
+            have hbody : ExecWithin w cmpBody x ((u₂.set resReg 2).set go 0) 14 := by
               unfold cmpBody
               exact (ExecWithin.branch_pos hc_k
                 (ExecWithin.branch_pos hc_kn
                   (b₁.seq (ExecWithin.branch_pos hc_pos
                     (eloads.seq (ExecWithin.branch_neg hc_nlt1
-                      (ExecWithin.branch_pos hc_lt2 (c₁.seq c₂)))))))).mono (by omega)
+                      (ExecWithin.branch_pos hc_lt2 (setGtStop_exec u₂ hru₂)))))))).mono (by omega)
             have hcmp : cmpSuffix I.text.toArray (I.pat.drop k) (pos + k) = .gt := by
               rw [List.drop_eq_getElem_cons hk_lt, cmpSuffix,
                 dite_eq_left (by simpa only [List.size_toArray] using hpk_lt),
                 List.getElem_toArray, compare_gt_iff_gt.mpr hlt2]
-            have h1 := cmpLoop_stop (ord := .gt) hc_go hbody (by omega)
-              ((hru₂.set_scratch resReg 2).set_scratch go 0)
-              (Data.set_regs_self _ go 0)
-              (((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans
-                hu₂_lo)
-              (((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans
-                hu₂_hi)
-              (((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans
-                hu₂_mid)
-              (((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans
-                hu₂_sv)
-              ((Data.set_regs_of_ne (by decide) 0).trans (Data.set_regs_self u₂ resReg 2))
-              hcmp
+            have h1 := cmpLoop_gt_stop hc_go hbody (by omega) hru₂ hu₂_lo hu₂_hi hu₂_mid hu₂_sv hcmp
             rwa [hrem] at h1
           · have hc_nlt2 : ¬(Cond.lt t1 t0).Holds u₂ := by
               simp only [Cond.holds_lt, hu₂_t0, hu₂_t1]; exact hlt2
@@ -1697,67 +1717,30 @@ private theorem cmpLoop_spec (I : SearchInput) {w : ℕ}
               by rw [hcmp_step]; exact hy_res, by omega⟩
       · have hc_npos : ¬(Cond.lt posReg t0).Holds u₁ := by
           simp only [Cond.holds_lt, hu₁_pos, u₁, Data.set_regs_self]; exact hpos_lt
-        set u₂ := (u₁.set resReg 2).set go 0
-        have c₁ : ExecWithin (B := .standard) w (.op (.copy resReg twoReg))
-            u₁ (u₁.set resReg 2) 1 := by
-          simpa only [hru₁.two_eq] using
-            (ExecWithin.copy (B := .standard) (d := resReg) (s := twoReg) (x := u₁))
-        have c₂ : ExecWithin (B := .standard) w (.op (.copy go zero))
-            (u₁.set resReg 2) u₂ 1 := by
-          have hz' : (u₁.set resReg 2).regs zero = 0 :=
-            (Data.set_regs_of_ne (by decide) 2).trans hru₁.zero_eq
-          simpa only [hz'] using
-            (ExecWithin.copy (B := .standard) (d := go) (s := zero) (x := u₁.set resReg 2))
-        have hbody : ExecWithin w cmpBody x u₂ 7 := by
+        have hbody : ExecWithin w cmpBody x ((u₁.set resReg 2).set go 0) 7 := by
           unfold cmpBody
           exact (ExecWithin.branch_pos hc_k
             (ExecWithin.branch_pos hc_kn
-              (b₁.seq (ExecWithin.branch_neg hc_npos (c₁.seq c₂))))).mono (by omega)
+              (b₁.seq (ExecWithin.branch_neg hc_npos (setGtStop_exec u₁ hru₁))))).mono (by omega)
         have hcmp : cmpSuffix I.text.toArray (I.pat.drop k) (pos + k) = .gt := by
           rw [List.drop_eq_getElem_cons hk_lt, cmpSuffix,
             dite_eq_right (by simp only [List.size_toArray]; omega)]
-        have h1 := cmpLoop_stop (ord := .gt) hc_go hbody (by omega)
-          ((hru₁.set_scratch resReg 2).set_scratch go 0)
-          (Data.set_regs_self _ go 0)
-          (((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans
-            (Data.set_regs_of_ne (by decide) _))
-          (((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans
-            (Data.set_regs_of_ne (by decide) _))
-          (((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans
-            (Data.set_regs_of_ne (by decide) _))
-          (((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans
-            (Data.set_regs_of_ne (by decide) _))
-          ((Data.set_regs_of_ne (by decide) 0).trans (Data.set_regs_self u₁ resReg 2))
-          hcmp
+        have h1 := cmpLoop_gt_stop hc_go hbody (by omega) hru₁
+          (Data.set_regs_of_ne (by decide) _)
+          (Data.set_regs_of_ne (by decide) _)
+          (Data.set_regs_of_ne (by decide) _)
+          (Data.set_regs_of_ne (by decide) _) hcmp
         rwa [hrem] at h1
     · have hc_nkn : ¬(Cond.lt regk textLen).Holds x := by
         simp only [Cond.holds_lt, hrx.tl_eq]; exact hk_n
-      set u₁ := (x.set resReg 2).set go 0
-      have c₁ : ExecWithin (B := .standard) w (.op (.copy resReg twoReg))
-          x (x.set resReg 2) 1 := by
-        simpa only [hrx.two_eq] using
-          (ExecWithin.copy (B := .standard) (d := resReg) (s := twoReg) (x := x))
-      have c₂ : ExecWithin (B := .standard) w (.op (.copy go zero)) (x.set resReg 2) u₁ 1 := by
-        have hz' : (x.set resReg 2).regs zero = 0 :=
-          (Data.set_regs_of_ne (by decide) 2).trans hrx.zero_eq
-        simpa only [hz'] using
-          (ExecWithin.copy (B := .standard) (d := go) (s := zero) (x := x.set resReg 2))
-      have hbody : ExecWithin w cmpBody x u₁ 5 := by
+      have hbody : ExecWithin w cmpBody x ((x.set resReg 2).set go 0) 5 := by
         unfold cmpBody
         exact (ExecWithin.branch_pos hc_k
-          (ExecWithin.branch_neg hc_nkn (c₁.seq c₂))).mono (by omega)
+          (ExecWithin.branch_neg hc_nkn (setGtStop_exec x hrx))).mono (by omega)
       have hcmp : cmpSuffix I.text.toArray (I.pat.drop k) (pos + k) = .gt := by
         rw [List.drop_eq_getElem_cons hk_lt, cmpSuffix,
           dite_eq_right (by simp only [List.size_toArray]; omega)]
-      have h1 := cmpLoop_stop (ord := .gt) hc_go hbody (by omega)
-        ((hrx.set_scratch resReg 2).set_scratch go 0)
-        (Data.set_regs_self _ go 0)
-        ((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _))
-        ((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _))
-        ((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _))
-        ((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _))
-        ((Data.set_regs_of_ne (by decide) 0).trans (Data.set_regs_self x resReg 2))
-        hcmp
+      have h1 := cmpLoop_gt_stop hc_go hbody (by omega) hrx rfl rfl rfl rfl hcmp
       rwa [hrem] at h1
 
 private theorem cmpSuffixCode_spec (I : SearchInput) {w : ℕ}
