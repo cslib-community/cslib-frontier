@@ -420,8 +420,8 @@ private lemma eq_edgePoint_of_edgeProj_eq (hT : W.graph.IsTree) {d : W.graph.Dar
     (h : edgeProj hT d x = (t : ℝ) * W.weight d.edge) : x = edgePoint d t := by
   have hwpos := W.dart_weight_pos d
   rcases edgeProj_cases hT d x with h0 | hw | ⟨s, _, _, rfl⟩
-  · nlinarith
-  · nlinarith
+  · nlinarith only [h, h0, ht0, hwpos]
+  · nlinarith only [h, hw, ht1, hwpos]
   · rw [edgeProj_edgePoint_self] at h
     rw [Subtype.ext (mul_right_cancel₀ hwpos.ne' h)]
 
@@ -454,7 +454,7 @@ theorem dist_edgePoint_of_edgeProj_zero [Finite V] (hT : W.graph.IsTree) (d : W.
     fun hu => by simpa only [vertexDist_self W.weight_nonneg, add_zero] using
       vertexDist_eq_of_deleteEdges_cut hT d hu hns
   have ht1 : (t : ℝ) * W.weight d.edge ≤ W.weight d.edge + (1 - t) * W.weight d.edge := by
-    nlinarith [W.dart_weight_nonneg d, t.2.2]
+    nlinarith only [W.dart_weight_nonneg d, t.2.2]
   induction x using ind with
   | vertex u =>
     rw [dist_vertex_edgePoint, dist_vertex, hcut ((edgeProj_vertex_eq_zero_iff hT d u).mp hx)]
@@ -551,8 +551,7 @@ theorem edgePoint_mem_interval_of_edgeProj_le [Finite V] (hT : W.graph.IsTree) (
   have hwpos := W.dart_weight_pos d
   rcases edgeProj_cases hT d y with hy0 | hyw | ⟨sy, _, _, rfl⟩
   · rcases edgeProj_cases hT d z with hz0 | hzw | ⟨sz, _, _, rfl⟩
-    · have : (t : ℝ) * W.weight d.edge ≤ 0 := hz0 ▸ hz
-      nlinarith
+    · nlinarith only [hz, hz0, ht0, hwpos]
     · rw [mem_interval_iff]
       have hxy := dist_of_edgeProj_zero_eq_weight hT d hy0 hzw
       have hy1 := dist_edgePoint_of_edgeProj_zero hT d hy0 t
@@ -562,13 +561,11 @@ theorem edgePoint_mem_interval_of_edgeProj_le [Finite V] (hT : W.graph.IsTree) (
     · rw [edgeProj_edgePoint_self] at hz
       exact edgePoint_mem_interval_of_fst ((mul_le_mul_iff_left₀ hwpos).mp hz)
         (dist_edgePoint_of_edgeProj_zero hT d hy0 sz)
-  · have : W.weight d.edge ≤ (t : ℝ) * W.weight d.edge := hyw ▸ hy
-    nlinarith
+  · nlinarith only [hy, hyw, ht1, hwpos]
   · rw [edgeProj_edgePoint_self] at hy
     have hsy_le : (sy : ℝ) ≤ t := (mul_le_mul_iff_left₀ hwpos).mp hy
     rcases edgeProj_cases hT d z with hz0 | hzw | ⟨sz, _, _, rfl⟩
-    · have : (t : ℝ) * W.weight d.edge ≤ 0 := hz0 ▸ hz
-      nlinarith
+    · nlinarith only [hz, hz0, ht0, hwpos]
     · exact interval_comm z (edgePoint d sy) ▸
         edgePoint_mem_interval_of_snd hsy_le (dist_edgePoint_of_edgeProj_weight hT d hzw sy)
     · rw [edgeProj_edgePoint_self] at hz
@@ -663,7 +660,7 @@ private lemma dist_lt_of_edgeProj_lt [Finite V] (hT : W.graph.IsTree) (d : W.gra
     rw [_root_.dist_comm]
     exact (le_abs_self _).trans (abs_sub_edgeProj_le_dist hT d z₂ (vertex d.fst))
   rw [edgeProj_vertex_fst, sub_zero] at h2_diff
-  rcases edgeProj_cases hT d z₁ with h10 | h1w | ⟨s₁, hs10, _, rfl⟩
+  rcases edgeProj_cases hT d z₁ with h10 | h1w | ⟨s₁, hs10, hs11, rfl⟩
   · have hx0 : edgeProj hT d x = 0 :=
       le_antisymm (h10 ▸ hb₁.1) (edgeProj_nonneg hT d x)
     have hypos : 0 < edgeProj hT d y := by linarith [(mem_interval_edgeProj_bounds hT d hz₂ hxy).2]
@@ -681,7 +678,7 @@ private lemma dist_lt_of_edgeProj_lt [Finite V] (hT : W.graph.IsTree) (d : W.gra
       have hxz₂_f := mem_interval_iff.mp
         (vertex_fst_mem_interval_of_edgeProj hT d hx0 (z := z₂) (by linarith [mul_pos hs10 hwpos]))
       linarith
-    · nlinarith [s₁.2.2]
+    · nlinarith only [hb₁.1, hs₁_eq, hxw, hs11, hwpos]
     · have hsx_le : (sx : ℝ) ≤ s₁ := (mul_le_mul_iff_left₀ hwpos).mp
         (by simpa only [edgeProj_edgePoint_self] using hb₁.1)
       have hxz₁ := dist_edgePoint_edgePoint_same_eq hT d sx s₁
@@ -952,12 +949,14 @@ private lemma interval_of_no_common_step_edgePoint [Finite V] (hT : W.graph.IsTr
     · refine Or.inl ⟨hlt, le_of_not_gt fun hgt_w => ?_⟩
       have hb := mem_interval_edgeProj_bounds hT d hp_mem
         (by rw [edgeProj_edgePoint_self]; exact hgt_w.le)
-      rw [edgeProj_edgePoint_self, edgeProj_edgePoint_self] at hb; nlinarith
-    · simp only [heq, sub_self, abs_zero, zero_mul] at hs_eq; linarith
+      rw [edgeProj_edgePoint_self, edgeProj_edgePoint_self] at hb
+      nlinarith only [hb.1, hlt, hwpos]
+    · simp only [heq, sub_self, abs_zero, zero_mul] at hs_eq; linarith only [hr_pos, hs_eq]
     · refine Or.inr ⟨hgt, le_of_not_gt fun hlt_w => ?_⟩
       have hb := mem_interval_edgeProj_bounds hT d (interval_comm (edgePoint d t) w ▸ hp_mem)
         (by rw [edgeProj_edgePoint_self]; exact hlt_w.le)
-      rw [edgeProj_edgePoint_self, edgeProj_edgePoint_self] at hb; nlinarith
+      rw [edgeProj_edgePoint_self, edgeProj_edgePoint_self] at hb
+      nlinarith only [hb.2, hgt, hwpos]
   obtain ⟨sy, hpy_mem, hsy_r, hside_y⟩ := hstep y (hr_yz.trans (min_le_left _ _))
   obtain ⟨sz, hpz_mem, hsz_r, hside_z⟩ := hstep z (hr_yz.trans (min_le_right _ _))
   have hne_s : sy ≠ sz := fun heq => hno (edgePoint d sy)
@@ -1252,7 +1251,7 @@ private lemma exists_stem_segment_of_dart [Finite V] (hT : W.graph.IsTree)
   have hv₀_mem : (vertex d.snd : MetricGraph W) ∈ branch (edgePoint d t₀) q := by
     simp only [branch, Set.mem_ofPred_eq, mem_interval_iff]
     exact fun hmem => (dist_add_dist_gt_of_edgeProj_lt hT d (hy_proj ▸ hq_gt)
-      (by rw [hy_proj, hv₀_proj]; nlinarith)).ne hmem.symm
+      (by rw [hy_proj, hv₀_proj]; nlinarith only [ht₀1, hwpos])).ne hmem.symm
   have hdv_pos : 0 < Dist.dist (edgePoint d t₀) (vertex d.snd) := by
     rw [hdv_eq]; exact mul_pos (sub_pos.mpr ht₀1) hwpos
   refine ⟨vertex d.snd, hv₀_mem, hdv_pos,
@@ -1262,7 +1261,7 @@ private lemma exists_stem_segment_of_dart [Finite V] (hT : W.graph.IsTree)
     rcases eq_or_lt_of_le (edgeProj_le_weight hT d w) with hww | hww
     · have hsym_w : edgeProj hT d.symm w = 0 := by rw [edgeProj_symm, hww, sub_self]
       have hsym_y : 0 < edgeProj hT d.symm (edgePoint d t₀) := by
-        rw [edgeProj_symm, hy_proj]; nlinarith
+        rw [edgeProj_symm, hy_proj]; nlinarith only [ht₀1, hwpos]
       exact mem_interval_trans_left
         (interval_comm w _ ▸ Dart.fst_symm d ▸ vertex_fst_mem_interval_of_edgeProj hT d.symm
           hsym_w hsym_y) hp

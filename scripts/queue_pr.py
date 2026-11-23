@@ -8,11 +8,15 @@ unless the pull request is open, not a draft, based on `main`, has head SHA, and
 into its base, and the required check (`REQUIRED_CHECKS`) has succeeded at SHA. All pages of check
 contexts are read from the same commit before selecting each required check's latest attempt.
 While that check is still running it waits up to `--wait` minutes (default 0: report and stop);
-it always waits briefly for GitHub to compute mergeability. It then enqueues with
+it always waits briefly for GitHub to compute mergeability. Just before enqueueing, if other pull
+requests are already ahead in the merge queue, it replays that queue prefix in a full local Git
+repository (supporting `GIT_DIR`, including bare repositories) and refuses on a textual conflict or
+when automatic replay is unavailable. It then enqueues with
 `expectedHeadOid` = SHA, so a push after the approval can never be queued in its place.
-If it sleeps, it snapshots the PR discussion before the first sleep and rereads it just before
-enqueueing. A changed body, comment, submitted review or inline thread stops the waiting enqueue
-so the reviewer can reread and rerun. Check events and reactions are not discussion changes.
+Whenever it sleeps or replays a non-empty queue prefix, it snapshots the PR discussion beforehand
+and rereads it on the mutation side just before enqueueing. A changed body, comment, submitted
+review or inline thread stops the enqueue so the reviewer can reread and rerun. Check events and
+reactions are not discussion changes.
 
 It does not judge the approval itself, a hold named in it, or a request for human review in the
 PR or its issue; the reviewer checks those before running it. The discussion read is not atomic
@@ -28,12 +32,21 @@ running, 2 on a `gh` error. Requires an authenticated `gh` with write access to 
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
+import contextlib
+import io
 import json
+import os
+from pathlib import Path
 import re
 import subprocess
 import sys
 import time
 
+if __name__ == "__main__":
+    sys.modules.setdefault("queue_pr", sys.modules[__name__])
+
+ROOT = Path(__file__).resolve().parents[1]
 REPO = "cslib-community/cslib-frontier"
 # The checks the `main` ruleset requires (Settings → Rules → main), each with the GitHub App that
 # must report it (15368 is GitHub Actions), as the ruleset pins them; keep in sync with it.
@@ -362,6 +375,179 @@ def assess(pr: dict, sha: str) -> tuple[str, list[str]]:
     return ("pending", waiting) if waiting else ("ready", [])
 
 
+QUEUE_PREFIX_QUERY = """
+query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
+  repository(owner: $owner, name: $name) {
+    ref(qualifiedName: "refs/heads/main") { target { oid } }
+    pullRequest(number: $number) { headRefOid baseRefName state }
+    mergeQueue { entries(first: 100, after: $cursor) {
+      totalCount nodes { position pullRequest { number headRefOid } }
+      pageInfo { endCursor hasNextPage }
+    } }
+  }
+}"""
+
+
+def _oid(value: str) -> str:
+    if not re.fullmatch(r"[0-9a-f]{40}", value):
+        raise ValueError("expected a full lowercase commit SHA")
+    return value
+
+
+def snapshot_queue_prefix(
+    owner: str,
+    name: str,
+    number: int,
+    approved: str,
+    *,
+    graphql: Callable[..., dict] | None = None,
+) -> tuple[str, list[tuple[int, str]]]:
+    """Snapshot the merge-queue entries ahead of `number`, or the whole queue for a new entry."""
+    call = gh_graphql if graphql is None else graphql
+    entries: list[tuple[int, str]] = []
+    numbers: set[int] = set()
+    cursors: set[str] = set()
+    variables: dict[str, object] = dict(owner=owner, name=name, number=number)
+    while True:
+        repo = call(QUEUE_PREFIX_QUERY, **variables)["repository"]
+        pr = repo["pullRequest"]
+        if not pr or (pr["state"], pr["baseRefName"], pr["headRefOid"]) != ("OPEN", "main", approved):
+            raise ValueError(f"#{number} is not an open PR targeting main at {approved}")
+        page = repo["mergeQueue"]["entries"]
+        snapshot = (_oid(repo["ref"]["target"]["oid"]), page["totalCount"])
+        if not entries:
+            main_oid, count = snapshot
+        elif (main_oid, count) != snapshot:
+            raise ValueError("the queue changed during pagination; retry")
+        for entry in page["nodes"]:
+            queued = entry["pullRequest"]
+            n = queued["number"]
+            if entry["position"] != len(entries) + 1 or n in numbers:
+                raise ValueError("queue positions changed during pagination; retry")
+            if n == number:
+                return main_oid, entries
+            numbers.add(n)
+            entries.append((n, _oid(queued["headRefOid"])))
+        if not page["pageInfo"]["hasNextPage"]:
+            if len(entries) != count:
+                raise ValueError("incomplete queue listing; retry")
+            return main_oid, entries
+        cursor = page["pageInfo"]["endCursor"]
+        if not cursor or cursor in cursors:
+            raise ValueError("incomplete queue listing; retry")
+        variables["cursor"] = cursor
+        cursors.add(cursor)
+
+
+def replay_repository(root: Path | None = None) -> Path | None:
+    """Locate a non-shallow Git repository for prefix replay, honoring `GIT_DIR` (including bare
+    repositories), `ROOT`, and the current working directory."""
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("GIT_ATTR_SOURCE", "GIT_CONFIG", "GIT_SHALLOW_FILE")
+           and not k.startswith("GIT_TEST_")}
+    if env.get("GIT_DIR"):
+        git_dir = Path(env["GIT_DIR"])
+        if not git_dir.is_absolute():
+            env["GIT_DIR"] = str((Path.cwd() / git_dir).resolve())
+        candidates = [root] if root is not None else [Path.cwd()]
+    elif root is not None:
+        candidates = [root]
+    else:
+        candidates = [ROOT, Path.cwd()]
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate)
+        if key in seen or not candidate.exists():
+            continue
+        seen.add(key)
+        probe = subprocess.run(
+            ["git", "-c", "core.commitGraph=false", "-C", key,
+             "rev-parse", "--is-shallow-repository"],
+            capture_output=True, text=True, env=env,
+        )
+        if probe.returncode == 0 and probe.stdout.strip() == "false":
+            return candidate
+    return None
+
+
+def check_queue_prefix(
+    owner: str,
+    name: str,
+    number: int,
+    sha: str,
+    root: Path | None = None,
+    before_replay: Callable[[], None] | None = None,
+) -> str | None:
+    """Replay any merge-queue entries ahead of `number`.
+
+    Returns `None` when the queue ahead of `number` is empty or merges cleanly, and returns a
+    refusal description when the replay conflicts or when non-empty queue entries cannot be
+    replayed automatically (missing helper scripts or no full local Git repository).
+    """
+    scripts_dir = str(Path(__file__).resolve().parent)
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    try:
+        import queue_status
+    except ImportError:
+        queue_status = None
+    imported_gh_error = (
+        getattr(getattr(queue_status, "queue_pr", None), "GhError", GhError)
+        if queue_status is not None else GhError
+    )
+    git_error = queue_status.cr.GitError if queue_status is not None else ()
+    try:
+        if queue_status is not None:
+            base, entries = queue_status.prefix(owner, name, number, sha, graphql=gh_graphql)
+        else:
+            base, entries = snapshot_queue_prefix(owner, name, number, sha, graphql=gh_graphql)
+        if not entries:
+            return None
+        if before_replay is not None:
+            before_replay()
+        ahead = ", ".join(f"#{n}" for n, _ in entries)
+        repo_dir = replay_repository(root)
+        if queue_status is None or repo_dir is None:
+            return (f"merge queue has entries ahead ({ahead}) and automatic prefix replay needs "
+                    "`scripts/queue_status.py` and a full Git repository (or `GIT_DIR`); run "
+                    f"`python3 scripts/queue_status.py prefix {number} {sha}` from a full clone "
+                    "or wait for the queue to clear.")
+        env_patch = {}
+        if os.environ.get("GIT_DIR") and not Path(os.environ["GIT_DIR"]).is_absolute():
+            env_patch["GIT_DIR"] = str((Path.cwd() / os.environ["GIT_DIR"]).resolve())
+        old_git_dir = os.environ.get("GIT_DIR")
+        try:
+            if env_patch:
+                os.environ["GIT_DIR"] = env_patch["GIT_DIR"]
+            queue_status.fetch_objects(
+                repo_dir, f"{owner}/{name}", [base, sha, *(queued_sha for _, queued_sha in entries)]
+            )
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                rc = queue_status.check_prefix(repo_dir, base, entries, sha)
+        finally:
+            if env_patch:
+                if old_git_dir is None:
+                    os.environ.pop("GIT_DIR", None)
+                else:
+                    os.environ["GIT_DIR"] = old_git_dir
+        if rc == 0 and queue_status.prefix(owner, name, number, sha,
+                                           graphql=gh_graphql) != (base, entries):
+            return "the merge queue changed during prefix replay; rerun the helper."
+    except GhError:
+        raise
+    except imported_gh_error as error:
+        raise GhError(str(error)) from error
+    except (KeyError, TypeError, OSError, ValueError, subprocess.SubprocessError,
+            git_error) as error:
+        raise GhError(f"merge-queue prefix check failed: {error}") from error
+    if rc == 0:
+        return None
+    details = " ".join(line.strip() for line in output.getvalue().splitlines() if line.strip())
+    return (f"{details}; wait for the conflicting queue entry to land or leave the queue, "
+            "then rerun.")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("pr", type=int, help="pull request number")
@@ -402,6 +588,17 @@ def main(argv: list[str] | None = None) -> int:
         if status != "ready":
             verb = "not queued yet" if status == "pending" else "not queued"
             print(f"#{args.pr} {verb}: " + "; ".join(reasons) + ".")
+            return 1
+
+        def snapshot_before_replay() -> None:
+            nonlocal discussion
+            if discussion is None:
+                discussion = fetch_discussion(pr["id"])
+
+        conflict = check_queue_prefix(owner, name, args.pr, args.sha,
+                                      before_replay=snapshot_before_replay)
+        if conflict is not None:
+            print(f"#{args.pr} not queued: {conflict}")
             return 1
         if discussion is not None and fetch_discussion(pr["id"]) != discussion:
             print(f"#{args.pr} not queued: its review discussion changed while waiting; "

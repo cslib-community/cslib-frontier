@@ -566,11 +566,6 @@ private theorem entry_glueVertex (S : List ℕ) (gs : List GateCode) (w : ℕ) (
   · simp only [hl, ↓reduceIte, false_implies]
     rfl
 
-private theorem entry_scalarVertex (S : List ℕ) (X : List Bool) (gs : List GateCode) :
-    entry (scalarVertex S X gs : List ℕ × List R).2
-        ((scalarVertex S X gs : List ℕ × List R).1.map fun _ => false) =
-      if ∀ j ∈ S, j ∈ occurrences gs ∨ X.getD j false = true then 1 else 0 := rfl
-
 end Entries
 
 /-! ### The final registers -/

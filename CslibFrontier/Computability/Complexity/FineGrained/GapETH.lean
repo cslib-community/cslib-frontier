@@ -453,8 +453,7 @@ theorem exists_reduction_GapKSAT_to_MaxKSATThreshold (P : GapKSATSpec) :
       have hreal_lt : (num : ℝ) * (φ.length : ℝ) < (sat : ℝ) * (den : ℝ) := by
         have h1 : (num : ℝ) * (φ.length : ℝ) < (P.completeness * (den : ℝ)) * (φ.length : ℝ) :=
           mul_lt_mul_of_pos_right hnum_lt_c hmR
-        have h2 : (P.completeness * (φ.length : ℝ)) * (den : ℝ) ≤ (sat : ℝ) * (den : ℝ) :=
-          mul_le_mul_of_nonneg_right hc_le_sat hdenR_pos.le
+        have h2 : (P.completeness * (φ.length : ℝ)) * (den : ℝ) ≤ (sat : ℝ) * (den : ℝ) := by gcongr
         linarith
       have hnat_lt : num * φ.length < sat * den := by exact_mod_cast hreal_lt
       have hdiv_lt : ((num * φ.length) / den) * den < sat * den :=
@@ -485,8 +484,7 @@ theorem exists_reduction_GapKSAT_to_MaxKSATThreshold (P : GapKSATSpec) :
     have h1 : (den : ℝ) * (sat : ℝ) ≤ (P.soundness * (den : ℝ)) * (φ.length : ℝ) := by
       have hm := mul_le_mul_of_nonneg_left hsat_le hdenR_pos.le
       linarith
-    have h2 : (P.soundness * (den : ℝ)) * (φ.length : ℝ) < (num : ℝ) * (φ.length : ℝ) :=
-      mul_lt_mul_of_pos_right hs_lt_num hmR
+    have h2 : (P.soundness * (den : ℝ)) * (φ.length : ℝ) < (num : ℝ) * (φ.length : ℝ) := by gcongr
     linarith
 
 /-- Any deterministic `2 ^ (δ * n) * poly(L)` decider for `MaxKSATThreshold P.width` (`δ ≥ 0`)

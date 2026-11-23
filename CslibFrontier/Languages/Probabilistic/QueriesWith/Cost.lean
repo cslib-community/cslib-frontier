@@ -84,9 +84,7 @@ theorem queriesWith_findSomeM?_cons (o : (q : ι) → spec q)
       queriesWith o (match y₁ with | some b => pure (some b) | none => xs.findSomeM? f) =
         if y₂.isSome then [] else queriesWith o (xs.findSomeM? f) := by
     rintro y₁ y₂ rfl
-    cases y₁ with
-    | none => simp only [Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
-    | some b => simp only [queriesWith_pure, Option.isSome_some, ↓reduceIte]
+    grind [queriesWith_pure]
   exact hsub _ _ rfl
 
 /-- A search in which no step finds anything makes the requests of all its steps, in order. -/

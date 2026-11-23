@@ -796,8 +796,6 @@ public theorem computableTidilyInTimeAndSpace_universal_inPlace : ∃ c,
     have h₁ := length_eSt_le' d x t i (inTr.events (eIn (d, x, t))).length
     have h₂ : (eSt (passState (foldInit (d, x, t)) foldNext foldEnd (inTr.events (eIn (d, x, t)))
       (i + 1))).length ≤ _ := length_eSt_le' d x t (i + 1) 0
-    refine (Nat.add_le_add (Nat.add_le_add (Nat.add_le_add_right h₁ 1)
-      (Nat.add_le_add_right h₁ 1)) (Nat.add_le_add_right h₂ 1)).trans ?_
     dsimp only
     omega
   case refine_7 =>

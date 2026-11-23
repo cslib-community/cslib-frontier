@@ -323,9 +323,7 @@ private theorem bind_sampleBinaryNat_size (bound : ℕ) (next : PMF (Option ℕ)
   rw [sampleBoundedIndex_eq_binary, ProbComp.eval_map, PMF.bind_map,
     Nat.size_eq_log_two_add_one hbound.ne']
   refine congrArg (PMF.bind _) (funext fun value => ?_)
-  by_cases hv : value < bound
-  · simp [hv, Nat.min_eq_right hv.le]
-  · simp [hv, Nat.min_eq_left (not_lt.mp hv)]
+  grind
 
 /-- Stopping at the first accepted attempt does not change the law. -/
 theorem eval_sampleUniformIntervalRetry (bound attempts : ℕ) :

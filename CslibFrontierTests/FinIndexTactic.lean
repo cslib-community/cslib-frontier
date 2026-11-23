@@ -77,6 +77,23 @@ example (m n : ℕ) (h : m + 1 ≤ n) (i : Fin m) :
 example (n : ℕ) (i : Fin (n + 1)) : i.succ ≠ 0 ∧ (i.succ = 1 → i = 0) := by
   constructor <;> fin_index
 
+example (n : ℕ) (i j : Fin n) : Fin.castAdd n i ≠ j.addNat n := by
+  fin_index
+
+example (k : ℕ) (i : Fin k) :
+    Fin.cast (Nat.two_mul k).symm (i.addNat k) =
+      Fin.cast (Nat.two_mul k).symm (Fin.natAdd k i) := by
+  fin_index
+
+example (n : ℕ) (k : Fin (n + 2)) (hk0 : k ≠ 0) (hkl : k ≠ Fin.last (n + 1)) :
+    k.pred hk0 < k.castPred hkl := by
+  fin_index
+
+example {a b : ℕ} (i : Fin a) (j : Fin b) :
+    Fin.append (left (b := b)) right (Fin.castAdd b i) ≠
+      Fin.append (left (b := b)) right (Fin.natAdd a j) := by
+  fin_index [left, right]
+
 /-! Definitions are named at the call, as are local `let` variables. -/
 
 example (i : Fin 162) : ∃ q r, slot q r = i :=
