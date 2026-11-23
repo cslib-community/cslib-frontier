@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCo
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
+import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import Mathlib.LinearAlgebra.Matrix.Charpoly.Coeff
 import Mathlib.Tactic.NormNum
@@ -31,6 +32,53 @@ open scoped Topology
 
 private instance : Fact (Nat.Prime 7) := ⟨by decide⟩
 private instance : Fact (Nat.Prime 3) := ⟨by decide⟩
+
+-- A closed half-line retains a convergent subsequence of constrained minima of the deformation.
+example :
+    let F : MvPolynomial (Fin 1) ℝ := X 0 ^ 2
+    let S : Set (Fin 1 → ℝ) := Set.Ici 0
+    ∃ (y : ℕ → Fin 1 → ℝ) (z : Fin 1 → ℝ) (φ : ℕ → ℕ),
+      (∀ k : ℕ, IsMinOn (fun x => eval x (deformedPolynomial 3 0 (k : ℝ) F)) S (y k)) ∧
+      StrictMono φ ∧ Filter.Tendsto (y ∘ φ) Filter.atTop (𝓝 z) ∧ z ∈ S ∧ eval z F = 0 := by
+  intro F S
+  obtain ⟨y, z, φ, _, hmin, hφ, hlim, hz, hzero⟩ :=
+    exists_deformedPolynomial_minimizers_subseq 3 (by decide) (by decide) 0 (fun _ => le_rfl)
+      F (fun x => by simpa only [F, map_pow] using sq_nonneg (eval x (X 0)))
+      (S := S) isClosed_Ici (x₀ := 0) (by simp [S]) (by simp [F])
+      (u := fun k => (k : ℝ)) (fun _ => Nat.cast_nonneg _) tendsto_natCast_atTop_atTop
+  exact ⟨y, z, φ, hmin, hφ, hlim, hz, hzero⟩
+
+-- Sample the positive zero of (X² − 1)² in its relatively clopen piece.
+open Filter in
+example :
+    let F : MvPolynomial (Fin 1) ℝ := (X 0 ^ 2 - 1) ^ 2
+    ∃ (y : ℕ → Fin 1 → ℝ) (z : {x : Fin 1 → ℝ // eval x F = 0}) (φ : ℕ → ℕ),
+      0 < z.val 0 ∧ Tendsto (y ∘ φ) atTop (𝓝 z.val) ∧
+      ∀ᶠ k in atTop, ∀ i, aeval (y (φ k)) (criticalLower 5 0 (φ k : ℝ) F i) = y (φ k) i ^ 5 := by
+  intro F
+  let Z := {x : Fin 1 → ℝ // eval x F = 0}
+  let coord (z : Z) := z.val 0
+  let C : Set Z := coord ⁻¹' Set.Ioi 0
+  have hcoord : Continuous coord := (continuous_apply 0).comp continuous_subtype_val
+  have hne (z : Z) : coord z ≠ 0 := by
+    intro hz
+    have h := z.property
+    have hz' : z.val 0 = 0 := hz
+    norm_num [F, hz'] at h
+  have hCeq : C = coord ⁻¹' Set.Ici 0 := by
+    ext z
+    change 0 < coord z ↔ 0 ≤ coord z
+    exact ⟨le_of_lt, fun hz => lt_of_le_of_ne hz (Ne.symm (hne z))⟩
+  have hC : IsClopen C := ⟨hCeq ▸ isClosed_Ici.preimage hcoord, isOpen_Ioi.preimage hcoord⟩
+  have hCne : C.Nonempty := by
+    refine ⟨⟨fun _ => 1, by simp [F]⟩, ?_⟩
+    change (0 : ℝ) < 1
+    norm_num
+  obtain ⟨y, z, φ, hz, _, hlim, hcrit⟩ := exists_deformedPolynomial_critical_subseq_in_clopen
+    5 (by decide) (by decide) 0 (fun _ => le_rfl) F
+    (fun x => by simpa only [F, map_pow] using sq_nonneg (eval x (X 0 ^ 2 - 1))) C hC hCne
+    (u := fun k => (k : ℝ)) (fun _ => Nat.cast_nonneg _) tendsto_natCast_atTop_atTop
+  exact ⟨y, z, φ, hz, hlim, hcrit⟩
 
 -- Zero is a critical point of the deformation of X² at every parameter.
 example :
