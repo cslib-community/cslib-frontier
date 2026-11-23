@@ -4731,6 +4731,31 @@ private theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
       MWISInstance.stepBound] at hc_init hc_proc hc_rp_M ⊢
     exact total_stepBound_le h1_pow hc_init hc_proc hc_rp_M
 
+private theorem runMWISProg_init_helper {w : ℕ} (inst : MWISInstance)
+    (hw : Fits w inst.wordBound) :
+    let descBase := 3 + inst.numVerts + inst.numVerts * inst.numVerts + (inst.numNodes + 1)
+    let prog := initNodesProg (descBase, inst.numNodes + 1)
+    let s₀ := Memory.State.init inst.encode
+    let s₁ := (Memory.spec 0).clientState s₀ prog
+    let descRes := (Memory.spec 0).clientResult s₀ prog
+    descRes = s₀.frontier ∧
+    s₁.frontier ≤ inst.encode.length + 1 + 4 * (inst.numNodes + 1) +
+      (inst.numNodes + 1) * 2 ^ inst.maxBagLen ∧
+    NodeLayout inst descRes
+      (fun i => List.replicate (2 ^ (inst.bagAt i).length) 0) s₁ := by
+  obtain ⟨hfr₀, _, hm1, hm2, hwt₀, hadj₀, hpar₀, hbags₀⟩ := init_decode inst
+  have hpow_12 : (inst.numNodes + 1) * 2 ^ inst.maxBagLen ≤
+      (2 * inst.numNodes + 1) * 2 ^ inst.maxBagLen :=
+    Nat.mul_le_mul_right _ (by omega)
+  have hfit_init_peak : Fits w ((Memory.State.init inst.encode).frontier +
+      4 * (inst.numNodes + 1) + (inst.numNodes + 1) * 2 ^ inst.maxBagLen) := hw.of_le (by
+    rw [hfr₀]; unfold MWISInstance.wordBound; dsimp only; omega)
+  obtain ⟨_, hdesc_eq, hfr₁, hlay₁, _⟩ :=
+    initNodesProg_spec (w := w) inst hwt₀ hadj₀ hpar₀ hbags₀ hfit_init_peak
+      (hfit_init_peak.of_le (by omega))
+  refine ⟨hdesc_eq, ?_, hlay₁⟩
+  simpa only [hfr₀] using hfr₁
+
 private theorem runMWISProg_realizes :
     Realizes .exact runMWISProg WordEncoding.encode WordEncoding.encode
       (fun w _ s =>
@@ -4745,17 +4770,17 @@ private theorem runMWISProg_realizes :
   · obtain ⟨inst, rfl, hw⟩ := h
     exact hw.of_le (by unfold MWISInstance.wordBound; dsimp only; omega)
   · obtain ⟨inst, rfl, hw⟩ := h
-    obtain ⟨hfr₀, hlen_eq, hm1, hm2, _, _, _, _⟩ := init_decode inst
+    obtain ⟨_, _, hm1, hm2, _, _, _, _⟩ := init_decode inst
     rw [hm1, hm2]
     exact hw.of_le (by unfold MWISInstance.wordBound; dsimp only; omega)
   · obtain ⟨inst, rfl, hw⟩ := h
-    obtain ⟨hfr₀, hlen_eq, _, hm2, _, _, _, _⟩ := init_decode inst
+    obtain ⟨_, _, _, hm2, _, _, _, _⟩ := init_decode inst
     rw [hm2]
     exact hw.of_le (by unfold MWISInstance.wordBound; dsimp only; omega)
   · obtain ⟨inst, rfl, hw⟩ := h
     exact hw.of_le (by unfold MWISInstance.wordBound; dsimp only; omega)
   · obtain ⟨inst, rfl, hw⟩ := h
-    obtain ⟨hfr₀, hlen_eq, hm1, hm2, _, _, _, hbags₀⟩ := init_decode inst
+    obtain ⟨hfr₀, _, hm1, hm2, _, _, _, hbags₀⟩ := init_decode inst
     rw [hm1, hm2]
     have hpow_12 : (inst.numNodes + 1) * 2 ^ inst.maxBagLen ≤
         (2 * inst.numNodes + 1) * 2 ^ inst.maxBagLen :=
@@ -4765,33 +4790,19 @@ private theorem runMWISProg_realizes :
       hbags₀,
       hw.of_le (by rw [hfr₀]; unfold MWISInstance.wordBound; dsimp only; omega)⟩
   · obtain ⟨inst, rfl, hw⟩ := h
-    obtain ⟨hfr₀, hlen_eq, hm1, _, _, _, _, _⟩ := init_decode inst
+    obtain ⟨_, _, hm1, _, _, _, _, _⟩ := init_decode inst
     rw [hm1]
     exact hw.of_le (by unfold MWISInstance.wordBound; dsimp only; omega)
   · obtain ⟨inst, rfl, hw⟩ := h
     exact hw.of_le (by unfold MWISInstance.wordBound; dsimp only; omega)
   · obtain ⟨inst, rfl, hw⟩ := h
-    obtain ⟨hfr₀, hlen_eq, hm1, _, _, _, _, _⟩ := init_decode inst
+    obtain ⟨_, _, hm1, _, _, _, _, _⟩ := init_decode inst
     rw [hm1]
     exact hw.of_le (by unfold MWISInstance.wordBound; dsimp only; omega)
   · obtain ⟨inst, rfl, hw⟩ := h
-    obtain ⟨hfr₀, hlen_eq, hm1, hm2, hwt₀, hadj₀, hpar₀, hbags₀⟩ := init_decode inst
+    obtain ⟨_, _, hm1, hm2, _, _, _, _⟩ := init_decode inst
+    obtain ⟨_, hfr₁', hlay₁⟩ := runMWISProg_init_helper inst hw
     rw [hm1, hm2]
-    have hpow_12 : (inst.numNodes + 1) * 2 ^ inst.maxBagLen ≤
-        (2 * inst.numNodes + 1) * 2 ^ inst.maxBagLen :=
-      Nat.mul_le_mul_right _ (by omega)
-    have hfit_init_peak : Fits w ((Memory.State.init inst.encode).frontier +
-        4 * (inst.numNodes + 1) + (inst.numNodes + 1) * 2 ^ inst.maxBagLen) := hw.of_le (by
-      rw [hfr₀]; unfold MWISInstance.wordBound; dsimp only; omega)
-    obtain ⟨_, _, hfr₁, hlay₁, _⟩ :=
-      initNodesProg_spec (w := w) inst hwt₀ hadj₀ hpar₀ hbags₀ hfit_init_peak
-        (hfit_init_peak.of_le (by omega))
-    have hfr₁' : ((Memory.spec 0).clientState (Memory.State.init inst.encode)
-        (initNodesProg (3 + inst.numVerts + inst.numVerts * inst.numVerts + (inst.numNodes + 1),
-          inst.numNodes + 1))).frontier ≤
-        inst.encode.length + 1 + 4 * (inst.numNodes + 1) +
-          (inst.numNodes + 1) * 2 ^ inst.maxBagLen := by
-      simpa only [hfr₀] using hfr₁
     refine ⟨inst, fun i => List.replicate (2 ^ (inst.bagAt i).length) 0,
       rfl, rfl, rfl, rfl, hlay₁,
       prefixMaxSum_replicate_zero _ _,
@@ -4800,70 +4811,16 @@ private theorem runMWISProg_realizes :
     have : (inst.numNodes + 1) * 2 ^ inst.maxBagLen + inst.numNodes * 2 ^ inst.maxBagLen =
         (2 * inst.numNodes + 1) * 2 ^ inst.maxBagLen := by ring
     unfold MWISInstance.wordBound; dsimp only; omega
-  · obtain ⟨inst, rfl, hw⟩ := h
-    obtain ⟨hfr₀, hlen_eq, hm1, hm2, hwt₀, hadj₀, hpar₀, hbags₀⟩ := init_decode inst
+  all_goals
+    obtain ⟨inst, rfl, hw⟩ := h
+    obtain ⟨hfr₀, _, hm1, hm2, _, _, _, _⟩ := init_decode inst
+    obtain ⟨hdesc_eq, hfr₁', hlay₁⟩ := runMWISProg_init_helper inst hw
     rw [hm1, hm2]
-    have hpow_12 : (inst.numNodes + 1) * 2 ^ inst.maxBagLen ≤
-        (2 * inst.numNodes + 1) * 2 ^ inst.maxBagLen :=
-      Nat.mul_le_mul_right _ (by omega)
-    have hfit_init_peak : Fits w ((Memory.State.init inst.encode).frontier +
-        4 * (inst.numNodes + 1) + (inst.numNodes + 1) * 2 ^ inst.maxBagLen) := hw.of_le (by
-      rw [hfr₀]; unfold MWISInstance.wordBound; dsimp only; omega)
-    obtain ⟨_, hdesc_eq, _, _, _⟩ :=
-      initNodesProg_spec (w := w) inst hwt₀ hadj₀ hpar₀ hbags₀ hfit_init_peak
-        (hfit_init_peak.of_le (by omega))
-    change (Memory.spec 0).clientResult _ _ = _ at hdesc_eq
-    rw [hdesc_eq, hfr₀]
-    exact hw.of_le (by unfold MWISInstance.wordBound; dsimp only; omega)
-  · obtain ⟨inst, rfl, hw⟩ := h
-    obtain ⟨hfr₀, hlen_eq, hm1, hm2, hwt₀, hadj₀, hpar₀, hbags₀⟩ := init_decode inst
-    rw [hm1, hm2]
-    have hpow_12 : (inst.numNodes + 1) * 2 ^ inst.maxBagLen ≤
-        (2 * inst.numNodes + 1) * 2 ^ inst.maxBagLen :=
-      Nat.mul_le_mul_right _ (by omega)
-    have hfit_init_peak : Fits w ((Memory.State.init inst.encode).frontier +
-        4 * (inst.numNodes + 1) + (inst.numNodes + 1) * 2 ^ inst.maxBagLen) := hw.of_le (by
-      rw [hfr₀]; unfold MWISInstance.wordBound; dsimp only; omega)
-    obtain ⟨_, hdesc_eq, _, _, _⟩ :=
-      initNodesProg_spec (w := w) inst hwt₀ hadj₀ hpar₀ hbags₀ hfit_init_peak
-        (hfit_init_peak.of_le (by omega))
-    change (Memory.spec 0).clientResult _ _ = _ at hdesc_eq
-    rw [hdesc_eq, hfr₀]
-    exact hw.of_le (by unfold MWISInstance.wordBound; dsimp only; omega)
-  · obtain ⟨inst, rfl, hw⟩ := h
-    obtain ⟨hfr₀, hlen_eq, hm1, hm2, hwt₀, hadj₀, hpar₀, hbags₀⟩ := init_decode inst
-    rw [hm1, hm2]
-    have hpow_12 : (inst.numNodes + 1) * 2 ^ inst.maxBagLen ≤
-        (2 * inst.numNodes + 1) * 2 ^ inst.maxBagLen :=
-      Nat.mul_le_mul_right _ (by omega)
-    have hfit_init_peak : Fits w ((Memory.State.init inst.encode).frontier +
-        4 * (inst.numNodes + 1) + (inst.numNodes + 1) * 2 ^ inst.maxBagLen) := hw.of_le (by
-      rw [hfr₀]; unfold MWISInstance.wordBound; dsimp only; omega)
-    obtain ⟨_, hdesc_eq, _, _, _⟩ :=
-      initNodesProg_spec (w := w) inst hwt₀ hadj₀ hpar₀ hbags₀ hfit_init_peak
-        (hfit_init_peak.of_le (by omega))
-    change (Memory.spec 0).clientResult _ _ = _ at hdesc_eq
-    rw [hdesc_eq, hfr₀]
-    exact hw.of_le (by unfold MWISInstance.wordBound; dsimp only; omega)
-  · obtain ⟨inst, rfl, hw⟩ := h
-    obtain ⟨hfr₀, hlen_eq, hm1, hm2, hwt₀, hadj₀, hpar₀, hbags₀⟩ := init_decode inst
-    rw [hm1, hm2]
-    have hpow_12 : (inst.numNodes + 1) * 2 ^ inst.maxBagLen ≤
-        (2 * inst.numNodes + 1) * 2 ^ inst.maxBagLen :=
-      Nat.mul_le_mul_right _ (by omega)
-    have hfit_init_peak : Fits w ((Memory.State.init inst.encode).frontier +
-        4 * (inst.numNodes + 1) + (inst.numNodes + 1) * 2 ^ inst.maxBagLen) := hw.of_le (by
-      rw [hfr₀]; unfold MWISInstance.wordBound; dsimp only; omega)
-    obtain ⟨_, _, hfr₁, hlay₁, _⟩ :=
-      initNodesProg_spec (w := w) inst hwt₀ hadj₀ hpar₀ hbags₀ hfit_init_peak
-        (hfit_init_peak.of_le (by omega))
-    have hfr₁' : ((Memory.spec 0).clientState (Memory.State.init inst.encode)
-        (initNodesProg (3 + inst.numVerts + inst.numVerts * inst.numVerts + (inst.numNodes + 1),
-          inst.numNodes + 1))).frontier ≤
-        inst.encode.length + 1 + 4 * (inst.numNodes + 1) +
-          (inst.numNodes + 1) * 2 ^ inst.maxBagLen := by
-      simpa only [hfr₀] using hfr₁
-    have hfit_proc_peak : Fits w (((Memory.spec 0).clientState (Memory.State.init inst.encode)
+  all_goals try
+    (change (Memory.spec 0).clientResult _ _ = _ at hdesc_eq
+     rw [hdesc_eq, hfr₀]
+     exact hw.of_le (by unfold MWISInstance.wordBound; dsimp only; omega))
+  · have hfit_proc_peak : Fits w (((Memory.spec 0).clientState (Memory.State.init inst.encode)
         (initNodesProg (3 + inst.numVerts + inst.numVerts * inst.numVerts + (inst.numNodes + 1),
           inst.numNodes + 1))).frontier + inst.numNodes * 2 ^ inst.maxBagLen) := hw.of_le (by
       have : (inst.numNodes + 1) * 2 ^ inst.maxBagLen + inst.numNodes * 2 ^ inst.maxBagLen =

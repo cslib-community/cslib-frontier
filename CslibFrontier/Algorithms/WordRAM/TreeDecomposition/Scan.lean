@@ -24,8 +24,7 @@ This module provides monotone memory-block framing (`PreservesBelow`, `HoldsIn`)
 `CslibFrontier.Algorithms.WordRAM.TreeDecomposition.CSP`):
 
 * `powProg`: bounded-word exponentiation `base ^ exp` in `exp` loop steps;
-* `bagMemProg`: linear membership scan of a materialized bag list (`memBag`);
-* `copyBagProg`: word-by-word block copy into a disjoint allocated slice.
+* `bagMemProg`: linear membership scan of a materialized bag list (`memBag`).
 
 ## Main definitions
 
@@ -33,7 +32,6 @@ This module provides monotone memory-block framing (`PreservesBelow`, `HoldsIn`)
   `Cslib.Algorithms.WordRAM.TreeDecomposition.HoldsIn`
 * `Cslib.Algorithms.WordRAM.TreeDecomposition.powProg`
 * `Cslib.Algorithms.WordRAM.TreeDecomposition.bagMemProg`
-* `Cslib.Algorithms.WordRAM.TreeDecomposition.copyBagProg`
 
 ## Main results
 
@@ -45,8 +43,6 @@ This module provides monotone memory-block framing (`PreservesBelow`, `HoldsIn`)
   `Cslib.Algorithms.WordRAM.TreeDecomposition.powProg_realizes`
 * `Cslib.Algorithms.WordRAM.TreeDecomposition.bagMemProg_spec`,
   `Cslib.Algorithms.WordRAM.TreeDecomposition.bagMemProg_realizes`
-* `Cslib.Algorithms.WordRAM.TreeDecomposition.copyBagProg_spec`,
-  `Cslib.Algorithms.WordRAM.TreeDecomposition.copyBagProg_realizes`
 -/
 
 public section
@@ -442,155 +438,5 @@ theorem bagMemProg_realizes :
   · change (st.cur + 1) + j = d.base + d.len
     omega
   · exact hfd'
-
-/-! ### Word-by-word block copy (`copyBagProg`) -/
-
-private structure CopyBagState where
-  srcCur : ℕ
-  dstCur : ℕ
-
-private def CopyBagState.equiv : CopyBagState ≃ ℕ × ℕ where
-  toFun s := (s.srcCur, s.dstCur)
-  invFun := fun (srcCur, dstCur) => ⟨srcCur, dstCur⟩
-  left_inv _ := rfl
-  right_inv _ := rfl
-
-private instance : WordEncoding CopyBagState := .ofEquiv CopyBagState.equiv
-
-/-- Arguments `(src, dst, len)` for `copyBagProg`. -/
-structure BagCopyArgs where
-  /-- Source block base address. -/
-  src : ℕ
-  /-- Destination block base address (`src + len ≤ dst` or `dst + len ≤ src`). -/
-  dst : ℕ
-  /-- Number of words to copy. -/
-  len : ℕ
-
-/-- Register tuple equivalence for `BagCopyArgs`. -/
-@[expose] def BagCopyArgs.equiv : BagCopyArgs ≃ (ℕ × ℕ) × ℕ where
-  toFun a := ((a.src, a.dst), a.len)
-  invFun := fun ((src, dst), len) => ⟨src, dst, len⟩
-  left_inv _ := rfl
-  right_inv _ := rfl
-
-instance : WordEncoding BagCopyArgs := .ofEquiv BagCopyArgs.equiv
-
-private def copyBagStep (env : Unit × CopyBagState) : Memory.Prog CopyBagState := do
-  let v ← Memory.read env.2.srcCur
-  Memory.write env.2.dstCur v
-  pure ⟨env.2.srcCur + 1, env.2.dstCur + 1⟩
-
-/-- Copy `args.len` words from `args.src` to a disjoint allocated slice at `args.dst`. -/
-def copyBagProg (args : BagCopyArgs) : Memory.Prog Unit := do
-  let _ ← iterate copyBagStep () args.len ⟨args.src, args.dst⟩
-  pure ()
-
-theorem copyBagProg_spec {w : ℕ} (args : BagCopyArgs) {xs : List ℕ} {s : Memory.State}
-    (hwf : Memory.WellFormed w s) (hxs : HoldsIn args.src xs s) (hlen : xs.length = args.len)
-    (hdisj : args.src + args.len ≤ args.dst) (hdst : args.dst + args.len ≤ s.frontier) :
-    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (copyBagProg args)) ∧
-    ((Memory.spec 0).clientState s (copyBagProg args)).frontier = s.frontier ∧
-    PreservesBelow args.dst s ((Memory.spec 0).clientState s (copyBagProg args)) ∧
-    HoldsIn args.dst xs ((Memory.spec 0).clientState s (copyBagProg args)) ∧
-    memoryCost (copyBagProg args) s ≤ 2 * args.len := by
-  have hcost : memoryCost (copyBagProg args) s ≤ 2 * args.len := by
-    unfold copyBagProg
-    rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
-    have hle := memoryCost_iterate_le_of copyBagStep 2 () (fun _ _ => le_rfl)
-      args.len ⟨args.src, args.dst⟩ s
-    omega
-  suffices ∀ ys src dst st,
-      Memory.WellFormed w st →
-      HoldsIn src ys st →
-      src + ys.length ≤ dst →
-      dst + ys.length ≤ st.frontier →
-      (Memory.spec w).ValidHistory st
-        ((Memory.spec w).clientHistory st (iterate copyBagStep () ys.length ⟨src, dst⟩)) ∧
-      ((Memory.spec 0).clientState st
-        (iterate copyBagStep () ys.length ⟨src, dst⟩)).frontier = st.frontier ∧
-      PreservesBelow dst st
-        ((Memory.spec 0).clientState st (iterate copyBagStep () ys.length ⟨src, dst⟩)) ∧
-      HoldsIn dst ys
-        ((Memory.spec 0).clientState st (iterate copyBagStep () ys.length ⟨src, dst⟩)) by
-    have hrun := this xs args.src args.dst s hwf hxs (by omega) (by omega)
-    rw [hlen] at hrun
-    unfold copyBagProg
-    refine ⟨validHistory_bind_step hrun.1 (validHistory_pure w _ ()), ?_, ?_, ?_, hcost⟩
-    · rw [StateTransitionSpec.clientState_bind]
-      exact hrun.2.1
-    · rw [StateTransitionSpec.clientState_bind]
-      exact hrun.2.2.1
-    · rw [StateTransitionSpec.clientState_bind]
-      exact hrun.2.2.2
-  intro ys
-  induction ys with
-  | nil =>
-    intro src dst st _ _ _ hdst_st
-    have h0 : iterate copyBagStep () 0 ⟨src, dst⟩ = pure ⟨src, dst⟩ := rfl
-    simp only [List.length_nil, Nat.add_zero] at hdst_st ⊢
-    rw [h0]
-    exact ⟨validHistory_pure w st _, rfl, PreservesBelow.refl hdst_st, HoldsIn.nil hdst_st⟩
-  | cons u rest ih =>
-    intro src dst st hwf_st hsrc_st hdisj_st hdst_st
-    rw [HoldsIn.cons_iff] at hsrc_st
-    obtain ⟨hsrc_b, hmem_u, hrest_src⟩ := hsrc_st
-    simp only [List.length_cons] at hdisj_st hdst_st ⊢
-    have hsrc_lt : src < st.frontier := by omega
-    have hdst_lt : dst < st.frontier := by omega
-    have hv_fit : Fits w (st.mem src) := hwf_st.mem_fits src
-    let st₁ : Memory.State := ⟨Function.update st.mem dst (st.mem src), st.frontier⟩
-    have hv_step : (Memory.spec w).ValidHistory st
-        ((Memory.spec w).clientHistory st (copyBagStep ((), ⟨src, dst⟩))) :=
-      validHistory_read_bind hsrc_lt (validHistory_write_bind hdst_lt hv_fit
-        (validHistory_pure w st₁ _))
-    have hst₁ : (Memory.spec 0).clientState st (copyBagStep ((), ⟨src, dst⟩)) = st₁ := rfl
-    have hres₁ : (Memory.spec 0).clientResult st (copyBagStep ((), ⟨src, dst⟩)) =
-        ⟨src + 1, dst + 1⟩ := rfl
-    have hwf₁ : Memory.WellFormed w st₁ := hst₁ ▸ wellFormed_clientState hwf_st hv_step
-    have hp₁ : PreservesBelow dst st st₁ := preservesBelow_write le_rfl hdst_lt
-    have hrest_st₁ : HoldsIn (src + 1) rest st₁ := hrest_src.mono (by omega) hp₁
-    have hst₁_fr : st₁.frontier = st.frontier := rfl
-    obtain ⟨hv_rest, hfr_rest, hp_rest, hhold_rest⟩ :=
-      ih (src + 1) (dst + 1) st₁ hwf₁ hrest_st₁ (by omega) (by rw [hst₁_fr]; omega)
-    change (Memory.spec w).ValidHistory st
-        ((Memory.spec w).clientHistory st
-          (copyBagStep ((), ⟨src, dst⟩) >>= iterate copyBagStep () rest.length)) ∧
-      ((Memory.spec 0).clientState st
-        (copyBagStep ((), ⟨src, dst⟩) >>= iterate copyBagStep () rest.length)).frontier =
-        st.frontier ∧
-      PreservesBelow dst st
-        ((Memory.spec 0).clientState st
-          (copyBagStep ((), ⟨src, dst⟩) >>= iterate copyBagStep () rest.length)) ∧
-      HoldsIn dst (u :: rest)
-        ((Memory.spec 0).clientState st
-          (copyBagStep ((), ⟨src, dst⟩) >>= iterate copyBagStep () rest.length))
-    refine ⟨validHistory_bind_step hv_step (by rwa [hst₁, hres₁]), ?_, ?_, ?_⟩
-    · rw [StateTransitionSpec.clientState_bind, hst₁, hres₁]
-      exact hfr_rest
-    · rw [StateTransitionSpec.clientState_bind, hst₁, hres₁]
-      exact hp₁.trans (hp_rest.mono_bound (by omega))
-    · rw [StateTransitionSpec.clientState_bind, hst₁, hres₁, HoldsIn.cons_iff]
-      refine ⟨by rw [hfr_rest, hst₁_fr]; omega, ?_, hhold_rest⟩
-      rw [hp_rest.2.2 dst (by omega)]
-      simp only [st₁, Function.update_self, hmem_u]
-
-theorem copyBagProg_realizes :
-    Realizes .exact copyBagProg WordEncoding.encode WordEncoding.encode
-      (fun w args _ => Fits w 1 ∧ Fits w (args.src + args.len) ∧ Fits w (args.dst + args.len))
-      (fun _ _ => 0) := by
-  unfold copyBagProg
-  realize
-  obtain ⟨_, hsrc_fit, hdst_fit⟩ := h
-  refine iterationSafe_of_stepInv _ _ w _
-    (fun (j : ℕ) (st : CopyBagState) (_ : Memory.State) =>
-      st.srcCur + j = d.src + d.len ∧ st.dstCur + j = d.dst + d.len)
-    (fun j st _ ⟨hsrc, hdst⟩ => ?_)
-    ⟨rfl, rfl⟩
-  dsimp only [copyBagStep]
-  refine ⟨⟨hsrc_fit.of_le (by omega), hdst_fit.of_le (by omega)⟩, ?_, ?_⟩
-  · change (st.srcCur + 1) + j = d.src + d.len
-    omega
-  · change (st.dstCur + 1) + j = d.dst + d.len
-    omega
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

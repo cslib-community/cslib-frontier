@@ -71,7 +71,7 @@ memory and charges every instruction:
 * `Cslib.Algorithms.WordRAM.TreeDecomposition.exists_program_cspDecide_rooted`,
   `Cslib.Algorithms.WordRAM.TreeDecomposition.exists_program_cspCount_rooted`: FPT Word-RAM
   satisfiability and bounded-word model counting on `RootedTreeDecomposition` via
-  `toNiceTreePruned` (`O((|V| + 1) · q ^ (k + 1) · poly(k, |F|, totalArity F))` instructions).
+  `toNiceTreePruned` (`O((|V| + 1) · q ^ (k + 1) · poly(k, |F|, |F.vars|))` instructions).
 -/
 
 public section
@@ -219,18 +219,6 @@ theorem ConstraintTable.eval_ofConstraint {Rel V : Type*} {q m : ℕ} (hq : 0 < 
     (encodeNiceTree T).length = 4 * T.size :=
   length_encodeNiceTreeAux 0 T
 
-/-- Maximum length of `bagList S` across all subtrees `S` of `T`. -/
-@[expose] def maxBagListLen : NiceTree ℕ → ℕ
-  | .leaf => 0
-  | .introduce v child => max (v :: bagList child).length (maxBagListLen child)
-  | .forget v child => max ((bagList child).erase v).length (maxBagListLen child)
-  | .join left right =>
-    max (bagList left).length (max (maxBagListLen left) (maxBagListLen right))
-
-theorem bagList_length_le_maxBagListLen (T : NiceTree ℕ) :
-    (bagList T).length ≤ maxBagListLen T := by
-  cases T <;> simp [bagList, maxBagListLen]
-
 private theorem width_child_le_introduce (v : ℕ) (c : NiceTree ℕ) :
     c.width ≤ (NiceTree.introduce v c).width :=
   Nat.sub_le_sub_right (le_max_right _ _) 1
@@ -247,31 +235,6 @@ private theorem width_right_le_join (l r : NiceTree ℕ) :
     r.width ≤ (NiceTree.join l r).width :=
   Nat.sub_le_sub_right ((le_max_right _ _).trans (le_max_right _ _)) 1
 
-theorem maxBagListLen_le_width_succ {T : NiceTree ℕ} (hval : T.LocalValid) :
-    maxBagListLen T ≤ T.width + 1 := by
-  induction T with
-  | leaf => simp [maxBagListLen]
-  | introduce v child ih =>
-    have hb : (v :: bagList child).length ≤ (NiceTree.introduce v child).width + 1 :=
-      length_bagList_le hval
-    have hc : maxBagListLen child ≤ (NiceTree.introduce v child).width + 1 :=
-      (ih hval.2).trans (Nat.add_le_add_right (width_child_le_introduce v child) 1)
-    exact max_le hb hc
-  | forget v child ih =>
-    have hb : ((bagList child).erase v).length ≤ (NiceTree.forget v child).width + 1 :=
-      length_bagList_le hval
-    have hc : maxBagListLen child ≤ (NiceTree.forget v child).width + 1 :=
-      (ih hval.2).trans (Nat.add_le_add_right (width_child_le_forget v child) 1)
-    exact max_le hb hc
-  | join left right ihl ihr =>
-    have hb : (bagList left).length ≤ (NiceTree.join left right).width + 1 :=
-      length_bagList_le hval
-    have hl : maxBagListLen left ≤ (NiceTree.join left right).width + 1 :=
-      (ihl hval.2.2.1).trans (Nat.add_le_add_right (width_left_le_join left right) 1)
-    have hr : maxBagListLen right ≤ (NiceTree.join left right).width + 1 :=
-      (ihr hval.2.2.2).trans (Nat.add_le_add_right (width_right_le_join left right) 1)
-    exact max_le hb (max_le hl hr)
-
 /-- Largest vertex label occurring anywhere in `T`. -/
 @[expose] def maxTreeVert : NiceTree ℕ → ℕ
   | .leaf => 0
@@ -279,7 +242,7 @@ theorem maxBagListLen_le_width_succ {T : NiceTree ℕ} (hval : T.LocalValid) :
   | .forget v child => max v (maxTreeVert child)
   | .join left right => max (maxTreeVert left) (maxTreeVert right)
 
-theorem mem_bagList_le_maxTreeVert :
+private theorem mem_bagList_le_maxTreeVert :
     ∀ (T : NiceTree ℕ) {u : ℕ}, u ∈ bagList T → u ≤ maxTreeVert T
   | .leaf, _, h => absurd h List.not_mem_nil
   | .introduce v child, u, h => by
@@ -292,7 +255,7 @@ theorem mem_bagList_le_maxTreeVert :
   | .join left _, u, h =>
     (mem_bagList_le_maxTreeVert left h).trans (le_max_left _ _)
 
-theorem encodeNiceTreeAux_max_le (offset : ℕ) (T : NiceTree ℕ) :
+private theorem encodeNiceTreeAux_max_le (offset : ℕ) (T : NiceTree ℕ) :
     ∀ x ∈ encodeNiceTreeAux offset T, x ≤ max 3 (max (maxTreeVert T) (offset + T.size)) := by
   induction T generalizing offset with
   | leaf =>
@@ -382,14 +345,14 @@ theorem encodeNiceTreeAux_max_le (offset : ℕ) (T : NiceTree ℕ) :
       let mr := toRadix q LR (ofRadix q LL m.val)
       leftTbl.getD m.val 0 * rightTbl.getD mr 0
 
-@[simp] theorem length_dpInstTree (counting : Bool) (q : ℕ) (cs : List (ConstraintTable q))
-    (vars : List ℕ) (T : NiceTree ℕ) :
+@[simp] private theorem length_dpInstTree (counting : Bool) (q : ℕ)
+    (cs : List (ConstraintTable q)) (vars : List ℕ) (T : NiceTree ℕ) :
     (dpInstTree counting q cs vars T).length = q ^ (bagList T).length := by
   cases T <;> simp [dpInstTree, bagList]
 
 /-- Entry magnitude bound for `dpInstTree`: `≤ 1` in decision mode and `≤ q ^ T.size` in counting
 mode. -/
-theorem mem_dpInstTree_le (counting : Bool) {q : ℕ} (hq : 0 < q)
+private theorem mem_dpInstTree_le (counting : Bool) {q : ℕ} (hq : 0 < q)
     (cs : List (ConstraintTable q)) (vars : List ℕ) (T : NiceTree ℕ) :
     ∀ x ∈ dpInstTree counting q cs vars T, x ≤ if counting then q ^ T.size else 1 := by
   cases counting
@@ -561,9 +524,106 @@ private theorem getD_map_boolToNat (xs : List Bool) (k : ℕ) :
   | none => rfl
   | some b => cases b <;> rfl
 
-theorem dpInstTree_ofConstraint_count {Rel V : Type*} [DecidableEq V] {q m : ℕ} (hq : 0 < q)
-    (e : V ≃ Fin m) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) (vars : List V)
-    (T : NiceTree V) :
+private theorem all_ofConstraint_leaf {Rel V : Type*} {q m : ℕ} (hq : 0 < q)
+    (e : V ≃ Fin m) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) :
+    ((F.map (ConstraintTable.ofConstraint hq e sem)).all fun ct =>
+      !decide (ct.scope = []) || ct.eval (fun _ => 0)) =
+    (F.all fun c => !decide (c.scope = []) || c.eval sem (fun _ => ⟨0, hq⟩)) := by
+  rw [List.all_map]
+  refine congrArg F.all (funext fun c => ?_)
+  dsimp only [Function.comp_def]
+  have hsc : decide ((ConstraintTable.ofConstraint hq e sem c).scope = []) =
+      decide (c.scope = []) := by
+    simp [ConstraintTable.ofConstraint]
+  have hev := ConstraintTable.eval_ofConstraint hq e sem c (fun _ => ⟨0, hq⟩) (fun _ => 0)
+    (fun _ _ => rfl)
+  rw [hsc, hev]
+
+private theorem all_ofConstraint_introduce {Rel V : Type*} [DecidableEq V] {q m : ℕ} (hq : 0 < q)
+    (e : V ≃ Fin m) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V)
+    (v : V) (child : NiceTree V) (idx : ℕ) :
+    ((F.map (ConstraintTable.ofConstraint hq e sem)).all fun ct =>
+      !(decide (ct.scope.toFinset ⊆
+          ((e v).val :: bagList (child.map fun u => (e u).val)).toFinset) &&
+        decide ((e v).val ∈ ct.scope)) ||
+        ct.eval (ofRadix q ((e v).val :: bagList (child.map fun u => (e u).val)) idx)) =
+    (F.all fun c =>
+      !(decide (c.scope.toFinset ⊆ (v :: bagList child).toFinset) && decide (v ∈ c.scope)) ||
+        c.eval sem (ofRadixFin q hq (v :: bagList child) idx)) := by
+  have hinj : Function.Injective (fun u : V => (e u).val) :=
+    fun _ _ h => e.injective (Fin.ext h)
+  have hcons_map : (e v).val :: bagList (child.map fun u => (e u).val) =
+      (v :: bagList child).map fun u => (e u).val := by
+    simp [bagList_map hinj child]
+  rw [List.all_map]
+  refine congrArg F.all (funext fun c => ?_)
+  dsimp only [Function.comp_def]
+  have hsub :
+      decide ((ConstraintTable.ofConstraint hq e sem c).scope.toFinset ⊆
+        ((e v).val :: bagList (child.map fun u => (e u).val)).toFinset) =
+      decide (c.scope.toFinset ⊆ (v :: bagList child).toFinset) := by
+    rw [hcons_map]
+    refine decide_eq_decide.2 ?_
+    simp only [ConstraintTable.ofConstraint, Finset.subset_iff, List.mem_toFinset, List.mem_map]
+    refine ⟨fun hs x hx => ?_, fun hs => ?_⟩
+    · obtain ⟨y, hy, heq⟩ := hs ⟨x, hx, rfl⟩
+      exact hinj heq ▸ hy
+    · rintro _ ⟨x, hx, rfl⟩
+      exact ⟨x, hs hx, rfl⟩
+  have hmem :
+      decide ((e v).val ∈ (ConstraintTable.ofConstraint hq e sem c).scope) =
+      decide (v ∈ c.scope) := by
+    refine decide_eq_decide.2 ?_
+    simp only [ConstraintTable.ofConstraint, List.mem_map]
+    exact ⟨fun ⟨u, hu, heq⟩ => hinj heq ▸ hu, fun hv => ⟨v, hv, rfl⟩⟩
+  have hev := ConstraintTable.eval_ofConstraint hq e sem c
+    (ofRadixFin q hq (v :: bagList child) idx)
+    (ofRadix q ((e v).val :: bagList (child.map fun u => (e u).val)) idx)
+    (fun u _ => by
+      rw [hcons_map]
+      exact ofRadix_map_inj hinj q (v :: bagList child) idx u)
+  rw [hsub, hmem, hev]
+
+private theorem mem_map_val_iff {V : Type*} {m : ℕ} (e : V ≃ Fin m) (v : V) (vars : List V) :
+    ((e v).val ∈ vars.map fun u => (e u).val) ↔ v ∈ vars := by
+  have hinj : Function.Injective (fun u : V => (e u).val) :=
+    fun _ _ h => e.injective (Fin.ext h)
+  simp only [List.mem_map]
+  exact ⟨fun ⟨u, hu, heq⟩ => hinj heq ▸ hu, fun hv => ⟨v, hv, rfl⟩⟩
+
+private theorem toRadix_forget_map {V : Type*} [DecidableEq V] {q m : ℕ} (e : V ≃ Fin m)
+    (v : V) (child : NiceTree V) (idx d : ℕ) :
+    toRadix q (bagList (child.map fun u => (e u).val))
+      (Function.update
+        (ofRadix q ((bagList (child.map fun u => (e u).val)).erase (e v).val) idx)
+        (e v).val d) =
+    toRadix q (bagList child)
+      (Function.update (ofRadix q ((bagList child).erase v) idx) v d) := by
+  have hinj : Function.Injective (fun u : V => (e u).val) :=
+    fun _ _ h => e.injective (Fin.ext h)
+  have hbl := bagList_map hinj child
+  have herase := bagList_map hinj (.forget v child)
+  simp only [NiceTree.map, bagList] at herase
+  rw [herase, hbl, toRadix_map]
+  refine toRadix_congr fun u _ => ?_
+  by_cases huv : u = v
+  · subst huv; simp
+  · have hne : (e u).val ≠ (e v).val := fun h => huv (hinj h)
+    simp [huv, hne, ofRadix_map_inj hinj]
+
+private theorem toRadix_join_map {V : Type*} [DecidableEq V] {q m : ℕ} (e : V ≃ Fin m)
+    (left right : NiceTree V) (idx : ℕ) :
+    toRadix q (bagList (right.map fun u => (e u).val))
+      (ofRadix q (bagList (left.map fun u => (e u).val)) idx) =
+    toRadix q (bagList right) (ofRadix q (bagList left) idx) := by
+  have hinj : Function.Injective (fun u : V => (e u).val) :=
+    fun _ _ h => e.injective (Fin.ext h)
+  rw [bagList_map hinj left, bagList_map hinj right, toRadix_map]
+  exact toRadix_congr fun u _ => ofRadix_map_inj hinj q (bagList left) idx u
+
+private theorem dpInstTree_ofConstraint_count {Rel V : Type*} [DecidableEq V] {q m : ℕ}
+    (hq : 0 < q) (e : V ≃ Fin m) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V)
+    (vars : List V) (T : NiceTree V) :
     dpInstTree true q (F.map (ConstraintTable.ofConstraint hq e sem))
       (vars.map fun v => (e v).val) (T.map fun v => (e v).val) =
       (cspCountTree q hq sem F vars T).toList := by
@@ -571,129 +631,48 @@ theorem dpInstTree_ofConstraint_count {Rel V : Type*} [DecidableEq V] {q m : ℕ
     fun _ _ h => e.injective (Fin.ext h)
   induction T with
   | leaf =>
-    simp only [NiceTree.map, dpInstTree, cspCountTree, dpTree, dpCountAlg,
-      List.toList_toArray]
-    have hall :
-        ((F.map (ConstraintTable.ofConstraint hq e sem)).all fun ct =>
-          !decide (ct.scope = []) || ct.eval (fun _ => 0)) =
-        (F.all fun c => !decide (c.scope = []) || c.eval sem (fun _ => ⟨0, hq⟩)) := by
-      rw [List.all_map]
-      refine congrArg F.all (funext fun c => ?_)
-      dsimp only [Function.comp_def]
-      have hsc : decide ((ConstraintTable.ofConstraint hq e sem c).scope = []) =
-          decide (c.scope = []) := by
-        simp [ConstraintTable.ofConstraint]
-      have hev := ConstraintTable.eval_ofConstraint hq e sem c (fun _ => ⟨0, hq⟩) (fun _ => 0)
-        (fun _ _ => rfl)
-      rw [hsc, hev]
-    rw [hall]
+    simp only [NiceTree.map, dpInstTree, cspCountTree, dpTree, dpCountAlg, List.toList_toArray]
+    rw [all_ofConstraint_leaf]
   | introduce v child ih =>
-    have hbl : bagList (child.map fun u => (e u).val) =
-        (bagList child).map fun u => (e u).val := bagList_map hinj child
+    have hbl := bagList_map hinj child
     simp only [NiceTree.map, dpInstTree, cspCountTree, dpTree, dpCountAlg]
     rw [Array.toList_ofFn]
     refine List.ext_getElem (by simp [hbl]) fun idx h1 h2 => ?_
     simp only [List.getElem_ofFn]
-    have hall :
-        ((F.map (ConstraintTable.ofConstraint hq e sem)).all fun ct =>
-          !(decide (ct.scope.toFinset ⊆
-              ((e v).val :: bagList (child.map fun u => (e u).val)).toFinset) &&
-            decide ((e v).val ∈ ct.scope)) ||
-            ct.eval (ofRadix q ((e v).val :: bagList (child.map fun u => (e u).val)) idx)) =
-        (F.all fun c =>
-          !(decide (c.scope.toFinset ⊆ (v :: bagList child).toFinset) && decide (v ∈ c.scope)) ||
-            c.eval sem (ofRadixFin q hq (v :: bagList child) idx)) := by
-      rw [List.all_map]
-      refine congrArg F.all (funext fun c => ?_)
-      dsimp only [Function.comp_def]
-      have hcons_map : (e v).val :: bagList (child.map fun u => (e u).val) =
-          (v :: bagList child).map fun u => (e u).val := by
-        simp [hbl]
-      have hsub :
-          decide ((ConstraintTable.ofConstraint hq e sem c).scope.toFinset ⊆
-            ((e v).val :: bagList (child.map fun u => (e u).val)).toFinset) =
-          decide (c.scope.toFinset ⊆ (v :: bagList child).toFinset) := by
-        rw [hcons_map]
-        refine decide_eq_decide.2 ?_
-        simp only [ConstraintTable.ofConstraint, Finset.subset_iff, List.mem_toFinset,
-          List.mem_map]
-        refine ⟨fun hs x hx => ?_, fun hs => ?_⟩
-        · obtain ⟨y, hy, heq⟩ := hs ⟨x, hx, rfl⟩
-          exact hinj heq ▸ hy
-        · rintro _ ⟨x, hx, rfl⟩
-          exact ⟨x, hs hx, rfl⟩
-      have hmem :
-          decide ((e v).val ∈ (ConstraintTable.ofConstraint hq e sem c).scope) =
-          decide (v ∈ c.scope) := by
-        refine decide_eq_decide.2 ?_
-        simp only [ConstraintTable.ofConstraint, List.mem_map]
-        exact ⟨fun ⟨u, hu, heq⟩ => hinj heq ▸ hu, fun hv => ⟨v, hv, rfl⟩⟩
-      have hev := ConstraintTable.eval_ofConstraint hq e sem c
-        (ofRadixFin q hq (v :: bagList child) idx)
-        (ofRadix q ((e v).val :: bagList (child.map fun u => (e u).val)) idx)
-        (fun u _ => by
-          rw [hcons_map]
-          exact ofRadix_map_inj hinj q (v :: bagList child) idx u)
-      rw [hsub, hmem, hev]
-    rw [hall, ih, Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD, Array.getElem?_toList]
+    rw [all_ofConstraint_introduce, ih, Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD,
+      Array.getElem?_toList]
     rfl
   | forget v child ih =>
-    have hbl : bagList (child.map fun u => (e u).val) =
-        (bagList child).map fun u => (e u).val := bagList_map hinj child
-    have herase : (bagList (child.map fun u => (e u).val)).erase (e v).val =
-        ((bagList child).erase v).map fun u => (e u).val :=
-      bagList_map hinj (.forget v child)
+    have herase := bagList_map hinj (.forget v child)
+    simp only [NiceTree.map, bagList] at herase
     simp only [NiceTree.map, dpInstTree, cspCountTree, dpTree, dpCountAlg, ↓reduceIte]
     rw [Array.toList_ofFn]
     refine List.ext_getElem (by simp [herase]) fun idx h1 h2 => ?_
     simp only [List.getElem_ofFn]
-    have hmem : ((e v).val ∈ vars.map fun u => (e u).val) ↔ v ∈ vars := by
-      simp only [List.mem_map]
-      exact ⟨fun ⟨u, hu, heq⟩ => hinj heq ▸ hu, fun hv => ⟨v, hv, rfl⟩⟩
-    have hrad (d : ℕ) :
-        toRadix q (bagList (child.map fun u => (e u).val))
-          (Function.update
-            (ofRadix q ((bagList (child.map fun u => (e u).val)).erase (e v).val) idx)
-            (e v).val d) =
-        toRadix q (bagList child)
-          (Function.update (ofRadix q ((bagList child).erase v) idx) v d) := by
-      rw [herase, hbl, toRadix_map]
-      refine toRadix_congr fun u _ => ?_
-      by_cases huv : u = v
-      · subst huv; simp
-      · have hne : (e u).val ≠ (e v).val := fun h => huv (hinj h)
-        simp [huv, hne, ofRadix_map_inj hinj]
+    have hmem := mem_map_val_iff e v vars
     rw [ih]
     by_cases hv : v ∈ vars
     · simp only [hmem.2 hv, hv, ↓reduceIte]
       refine dpAlgFold_congr fun d _ => ?_
-      rw [hrad d, Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD, Array.getElem?_toList]
+      rw [toRadix_forget_map, Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD,
+        Array.getElem?_toList]
       rfl
-    · simp only [mt hmem.1 hv, hv, ↓reduceIte, hrad 0,
+    · simp only [mt hmem.1 hv, hv, ↓reduceIte, toRadix_forget_map,
         Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD, Array.getElem?_toList]
       rfl
   | join left right ihl ihr =>
-    have hblL : bagList (left.map fun u => (e u).val) =
-        (bagList left).map fun u => (e u).val := bagList_map hinj left
-    have hblR : bagList (right.map fun u => (e u).val) =
-        (bagList right).map fun u => (e u).val := bagList_map hinj right
+    have hblL := bagList_map hinj left
     simp only [NiceTree.map, dpInstTree, cspCountTree, dpTree, dpCountAlg]
     rw [Array.toList_ofFn, ihl, ihr]
     refine List.ext_getElem (by simp [hblL]) fun idx h1 h2 => ?_
     simp only [List.getElem_ofFn]
-    have hmr :
-        toRadix q (bagList (right.map fun u => (e u).val))
-          (ofRadix q (bagList (left.map fun u => (e u).val)) idx) =
-        toRadix q (bagList right) (ofRadix q (bagList left) idx) := by
-      rw [hblL, hblR, toRadix_map]
-      exact toRadix_congr fun u _ => ofRadix_map_inj hinj q (bagList left) idx u
-    rw [hmr]
+    rw [toRadix_join_map]
     simp only [Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD, Array.getElem?_toList]
     rfl
 
-theorem dpInstTree_ofConstraint_decide {Rel V : Type*} [DecidableEq V] {q m : ℕ} (hq : 0 < q)
-    (e : V ≃ Fin m) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) (vars : List V)
-    (T : NiceTree V) :
+private theorem dpInstTree_ofConstraint_decide {Rel V : Type*} [DecidableEq V] {q m : ℕ}
+    (hq : 0 < q) (e : V ≃ Fin m) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V)
+    (vars : List V) (T : NiceTree V) :
     dpInstTree false q (F.map (ConstraintTable.ofConstraint hq e sem))
       (vars.map fun v => (e v).val) (T.map fun v => (e v).val) =
       (cspDecideTree q hq sem F vars T).toList.map (fun b => if b then 1 else 0) := by
@@ -708,70 +687,15 @@ theorem dpInstTree_ofConstraint_decide {Rel V : Type*} [DecidableEq V] {q m : �
   | leaf =>
     simp only [NiceTree.map, dpInstTree, cspDecideTree, dpTree, dpDecideAlg,
       List.toList_toArray, List.map_cons, List.map_nil]
-    have hall :
-        ((F.map (ConstraintTable.ofConstraint hq e sem)).all fun ct =>
-          !decide (ct.scope = []) || ct.eval (fun _ => 0)) =
-        (F.all fun c => !decide (c.scope = []) || c.eval sem (fun _ => ⟨0, hq⟩)) := by
-      rw [List.all_map]
-      refine congrArg F.all (funext fun c => ?_)
-      dsimp only [Function.comp_def]
-      have hsc : decide ((ConstraintTable.ofConstraint hq e sem c).scope = []) =
-          decide (c.scope = []) := by
-        simp [ConstraintTable.ofConstraint]
-      have hev := ConstraintTable.eval_ofConstraint hq e sem c (fun _ => ⟨0, hq⟩) (fun _ => 0)
-        (fun _ _ => rfl)
-      rw [hsc, hev]
-    rw [hall]
+    rw [all_ofConstraint_leaf]
     cases F.all fun c => !decide (c.scope = []) || c.eval sem (fun _ => ⟨0, hq⟩) <;> rfl
   | introduce v child ih =>
-    have hbl : bagList (child.map fun u => (e u).val) =
-        (bagList child).map fun u => (e u).val := bagList_map hinj child
+    have hbl := bagList_map hinj child
     simp only [NiceTree.map, dpInstTree, cspDecideTree, dpTree, dpDecideAlg]
     rw [Array.toList_ofFn]
     refine List.ext_getElem (by simp [hbl]) fun idx h1 h2 => ?_
     simp only [List.getElem_ofFn, List.getElem_map]
-    have hall :
-        ((F.map (ConstraintTable.ofConstraint hq e sem)).all fun ct =>
-          !(decide (ct.scope.toFinset ⊆
-              ((e v).val :: bagList (child.map fun u => (e u).val)).toFinset) &&
-            decide ((e v).val ∈ ct.scope)) ||
-            ct.eval (ofRadix q ((e v).val :: bagList (child.map fun u => (e u).val)) idx)) =
-        (F.all fun c =>
-          !(decide (c.scope.toFinset ⊆ (v :: bagList child).toFinset) && decide (v ∈ c.scope)) ||
-            c.eval sem (ofRadixFin q hq (v :: bagList child) idx)) := by
-      rw [List.all_map]
-      refine congrArg F.all (funext fun c => ?_)
-      dsimp only [Function.comp_def]
-      have hcons_map : (e v).val :: bagList (child.map fun u => (e u).val) =
-          (v :: bagList child).map fun u => (e u).val := by
-        simp [hbl]
-      have hsub :
-          decide ((ConstraintTable.ofConstraint hq e sem c).scope.toFinset ⊆
-            ((e v).val :: bagList (child.map fun u => (e u).val)).toFinset) =
-          decide (c.scope.toFinset ⊆ (v :: bagList child).toFinset) := by
-        rw [hcons_map]
-        refine decide_eq_decide.2 ?_
-        simp only [ConstraintTable.ofConstraint, Finset.subset_iff, List.mem_toFinset,
-          List.mem_map]
-        refine ⟨fun hs x hx => ?_, fun hs => ?_⟩
-        · obtain ⟨y, hy, heq⟩ := hs ⟨x, hx, rfl⟩
-          exact hinj heq ▸ hy
-        · rintro _ ⟨x, hx, rfl⟩
-          exact ⟨x, hs hx, rfl⟩
-      have hmem :
-          decide ((e v).val ∈ (ConstraintTable.ofConstraint hq e sem c).scope) =
-          decide (v ∈ c.scope) := by
-        refine decide_eq_decide.2 ?_
-        simp only [ConstraintTable.ofConstraint, List.mem_map]
-        exact ⟨fun ⟨u, hu, heq⟩ => hinj heq ▸ hu, fun hv => ⟨v, hv, rfl⟩⟩
-      have hev := ConstraintTable.eval_ofConstraint hq e sem c
-        (ofRadixFin q hq (v :: bagList child) idx)
-        (ofRadix q ((e v).val :: bagList (child.map fun u => (e u).val)) idx)
-        (fun u _ => by
-          rw [hcons_map]
-          exact ofRadix_map_inj hinj q (v :: bagList child) idx u)
-      rw [hsub, hmem, hev]
-    rw [hall, ih]
+    rw [all_ofConstraint_introduce, ih]
     change (if _ then ((cspDecideTree q hq sem F vars child).toList.map _).getD (idx / q) 0
         else 0) =
       if (if _ then (cspDecideTree q hq sem F vars child).getD (idx / q) false else false) = true
@@ -781,32 +705,14 @@ theorem dpInstTree_ofConstraint_decide {Rel V : Type*} [DecidableEq V] {q m : �
       !(decide (c.scope.toFinset ⊆ (v :: bagList child).toFinset) && decide (v ∈ c.scope)) ||
         c.eval sem (ofRadixFin q hq (v :: bagList child) idx) <;> rfl
   | forget v child ih =>
-    have hbl : bagList (child.map fun u => (e u).val) =
-        (bagList child).map fun u => (e u).val := bagList_map hinj child
-    have herase : (bagList (child.map fun u => (e u).val)).erase (e v).val =
-        ((bagList child).erase v).map fun u => (e u).val :=
-      bagList_map hinj (.forget v child)
+    have herase := bagList_map hinj (.forget v child)
+    simp only [NiceTree.map, bagList] at herase
     simp only [NiceTree.map, dpInstTree, cspDecideTree, dpTree, dpDecideAlg,
       Bool.false_eq_true, ↓reduceIte]
     rw [Array.toList_ofFn]
     refine List.ext_getElem (by simp [herase]) fun idx h1 h2 => ?_
     simp only [List.getElem_ofFn, List.getElem_map]
-    have hmem : ((e v).val ∈ vars.map fun u => (e u).val) ↔ v ∈ vars := by
-      simp only [List.mem_map]
-      exact ⟨fun ⟨u, hu, heq⟩ => hinj heq ▸ hu, fun hv => ⟨v, hv, rfl⟩⟩
-    have hrad (d : ℕ) :
-        toRadix q (bagList (child.map fun u => (e u).val))
-          (Function.update
-            (ofRadix q ((bagList (child.map fun u => (e u).val)).erase (e v).val) idx)
-            (e v).val d) =
-        toRadix q (bagList child)
-          (Function.update (ofRadix q ((bagList child).erase v) idx) v d) := by
-      rw [herase, hbl, toRadix_map]
-      refine toRadix_congr fun u _ => ?_
-      by_cases huv : u = v
-      · subst huv; simp
-      · have hne : (e u).val ≠ (e v).val := fun h => huv (hinj h)
-        simp [huv, hne, ofRadix_map_inj hinj]
+    have hmem := mem_map_val_iff e v vars
     rw [ih]
     by_cases hv : v ∈ vars
     · simp only [hmem.2 hv, hv, ↓reduceIte]
@@ -816,25 +722,16 @@ theorem dpInstTree_ofConstraint_decide {Rel V : Type*} [DecidableEq V] {q m : �
           (cspDecideTree q hq sem F vars child).getD _ false) = true then 1 else 0
       rw [dpAlgFold_bool_toNat]
       refine dpAlgFold_congr fun d _ => ?_
-      rw [hrad d, hget_arr child]
-    · simp only [mt hmem.1 hv, hv, ↓reduceIte, hrad 0]
+      rw [toRadix_forget_map, hget_arr child]
+    · simp only [mt hmem.1 hv, hv, ↓reduceIte, toRadix_forget_map]
       exact hget_arr child _
   | join left right ihl ihr =>
-    have hblL : bagList (left.map fun u => (e u).val) =
-        (bagList left).map fun u => (e u).val := bagList_map hinj left
-    have hblR : bagList (right.map fun u => (e u).val) =
-        (bagList right).map fun u => (e u).val := bagList_map hinj right
+    have hblL := bagList_map hinj left
     simp only [NiceTree.map, dpInstTree, cspDecideTree, dpTree, dpDecideAlg]
     rw [Array.toList_ofFn, ihl, ihr]
     refine List.ext_getElem (by simp [hblL]) fun idx h1 h2 => ?_
     simp only [List.getElem_ofFn, List.getElem_map]
-    have hmr :
-        toRadix q (bagList (right.map fun u => (e u).val))
-          (ofRadix q (bagList (left.map fun u => (e u).val)) idx) =
-        toRadix q (bagList right) (ofRadix q (bagList left) idx) := by
-      rw [hblL, hblR, toRadix_map]
-      exact toRadix_congr fun u _ => ofRadix_map_inj hinj q (bagList left) idx u
-    rw [hmr]
+    rw [toRadix_join_map]
     change ((cspDecideTree q hq sem F vars left).toList.map _).getD idx 0 *
         ((cspDecideTree q hq sem F vars right).toList.map _).getD _ 0 =
       if ((cspDecideTree q hq sem F vars left).getD idx false &&
@@ -855,15 +752,11 @@ theorem dpInstTree_ofConstraint_decide {Rel V : Type*} [DecidableEq V] {q m : �
   | .forget v child => max (((bagList child).erase v).length + 1) (maxTableExp child)
   | .join left right => max (bagList left).length (max (maxTableExp left) (maxTableExp right))
 
-theorem maxBagListLen_le_maxTableExp (T : NiceTree ℕ) :
-    maxBagListLen T ≤ maxTableExp T := by
-  induction T with
-  | leaf => rfl
-  | introduce v child ih => exact max_le_max le_rfl ih
-  | forget v child ih => exact max_le_max (Nat.le_succ _) ih
-  | join left right ihl ihr => exact max_le_max le_rfl (max_le_max ihl ihr)
+private theorem bagList_length_le_maxTableExp (T : NiceTree ℕ) :
+    (bagList T).length ≤ maxTableExp T := by
+  cases T <;> simp [bagList, maxTableExp]
 
-theorem maxTableExp_le_width_succ {T : NiceTree ℕ} (hval : T.LocalValid) :
+private theorem maxTableExp_le_width_succ {T : NiceTree ℕ} (hval : T.LocalValid) :
     maxTableExp T ≤ T.width + 1 := by
   induction T with
   | leaf => simp [maxTableExp]
@@ -897,36 +790,32 @@ theorem maxTableExp_le_width_succ {T : NiceTree ℕ} (hval : T.LocalValid) :
       (ihr hval.2.2.2).trans (Nat.add_le_add_right (width_right_le_join left right) 1)
     exact max_le hb (max_le hl hr)
 
-/-- Total constraint arity `∑ c ∈ F, |c.scope|`. -/
-@[expose] def cspTotalArity {Rel V : Type*} (F : CSP Rel V) : ℕ :=
-  (F.map fun c => c.scope.length).sum
-
 /-- FPT `memoryCost` bound for CSP satisfiability or bounded-word model counting on a nice tree
 decomposition of size `numNodes` and width `≤ k`, domain size `q`, `numCons = |F|`,
-`totalArity = cspTotalArity F`, and `varsLen = |F.vars|`:
-`O(numNodes · q ^ (k + 1) · ((k + 1) ^ 2 + |F| + totalArity · (k + 1)) + numNodes · varsLen)`. -/
-@[expose] def cspNiceStepBound (q numNodes k varsLen numCons totalArity : ℕ) : ℕ :=
+and `varsLen = |F.vars|` (total arity across all constraints):
+`O(numNodes · q ^ (k + 1) · ((k + 1) ^ 2 + |F| + |F.vars| · (k + 1)) + numNodes · |F.vars|)`. -/
+@[expose] def cspNiceStepBound (q numNodes k varsLen numCons : ℕ) : ℕ :=
   let W1 := k + 1
   12 + numNodes *
     (16 + 4 * W1 + varsLen +
-      q ^ W1 * (W1 ^ 2 + W1 + 4 + 3 * numCons + totalArity * (2 * W1 + 3)))
+      q ^ W1 * (W1 ^ 2 + W1 + 4 + 3 * numCons + varsLen * (2 * W1 + 3)))
 
 /-- FPT `memoryCost` bound on a rooted tree decomposition via `toNiceTreePruned`
 (`numNodes ≤ (3 * k + 5) * (card V + 1)`). -/
-@[expose] def cspRootedStepBound (q cardV k varsLen numCons totalArity : ℕ) : ℕ :=
-  cspNiceStepBound q ((3 * k + 5) * (cardV + 1)) k varsLen numCons totalArity
+@[expose] def cspRootedStepBound (q cardV k varsLen numCons : ℕ) : ℕ :=
+  cspNiceStepBound q ((3 * k + 5) * (cardV + 1)) k varsLen numCons
 
-theorem cspNiceStepBound_mono {q n₁ n₂ k₁ k₂ v₁ v₂ c₁ c₂ a₁ a₂ : ℕ} (hq : 0 < q)
-    (hn : n₁ ≤ n₂) (hk : k₁ ≤ k₂) (hv : v₁ ≤ v₂) (hc : c₁ ≤ c₂) (ha : a₁ ≤ a₂) :
-    cspNiceStepBound q n₁ k₁ v₁ c₁ a₁ ≤ cspNiceStepBound q n₂ k₂ v₂ c₂ a₂ := by
+theorem cspNiceStepBound_mono {q n₁ n₂ k₁ k₂ v₁ v₂ c₁ c₂ : ℕ} (hq : 0 < q)
+    (hn : n₁ ≤ n₂) (hk : k₁ ≤ k₂) (hv : v₁ ≤ v₂) (hc : c₁ ≤ c₂) :
+    cspNiceStepBound q n₁ k₁ v₁ c₁ ≤ cspNiceStepBound q n₂ k₂ v₂ c₂ := by
   unfold cspNiceStepBound
   dsimp only
   refine Nat.add_le_add_left (Nat.mul_le_mul hn ?_) 12
   have hW : k₁ + 1 ≤ k₂ + 1 := Nat.add_le_add_right hk 1
   have hpow : q ^ (k₁ + 1) ≤ q ^ (k₂ + 1) := Nat.pow_le_pow_right hq hW
   have hsq : (k₁ + 1) ^ 2 ≤ (k₂ + 1) ^ 2 := Nat.pow_le_pow_left hW 2
-  have hmulA : a₁ * (2 * (k₁ + 1) + 3) ≤ a₂ * (2 * (k₂ + 1) + 3) :=
-    Nat.mul_le_mul ha (by omega)
+  have hmulA : v₁ * (2 * (k₁ + 1) + 3) ≤ v₂ * (2 * (k₂ + 1) + 3) :=
+    Nat.mul_le_mul hv (by omega)
   refine Nat.add_le_add (Nat.add_le_add (by omega) hv) (Nat.mul_le_mul hpow ?_)
   omega
 
@@ -1076,7 +965,7 @@ theorem stepBound_ofNice_le {Rel V : Type*} [DecidableEq V] {q m k : ℕ} (hq : 
     (counting : Bool) (e : V ≃ Fin m) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V)
     (N : F.primalGraph.NiceTreeDecomposition) (hk : N.width ≤ k) :
     (ofNice counting q hq e sem F N).stepBound ≤
-      cspNiceStepBound q N.size k F.vars.length F.length (cspTotalArity F) := by
+      cspNiceStepBound q N.size k F.vars.length F.length := by
   have hinj : Function.Injective (fun v : V => (e v).val) :=
     fun _ _ h => e.injective (Fin.ext h)
   have hval : (N.tree.map fun v => (e v).val).LocalValid :=
@@ -1093,10 +982,10 @@ theorem stepBound_ofNice_le {Rel V : Type*} [DecidableEq V] {q m k : ℕ} (hq : 
     simp [ofNice, ofNiceTree]
   have hcons : ((ofNice counting q hq e sem F N).constraints).length = F.length := by
     simp [ofNice, ofNiceTree]
-  have harity : (ofNice counting q hq e sem F N).totalArity = cspTotalArity F := by
-    unfold ofNice ofNiceTree totalArity cspTotalArity
+  have harity : (ofNice counting q hq e sem F N).totalArity = F.vars.length := by
+    unfold ofNice ofNiceTree totalArity CSP.vars
     dsimp only
-    rw [List.map_map]
+    rw [List.length_flatMap, List.map_map]
     congr 2
     funext c
     simp [ConstraintTable.ofConstraint]
@@ -1111,8 +1000,8 @@ theorem stepBound_ofNice_le {Rel V : Type*} [DecidableEq V] {q m k : ℕ} (hq : 
   have hsq : maxTableExp (N.tree.map fun v => (e v).val) ^ 2 ≤ (k + 1) ^ 2 :=
     Nat.pow_le_pow_left hexp 2
   have hmulA :
-      cspTotalArity F * (2 * maxTableExp (N.tree.map fun v => (e v).val) + 3) ≤
-        cspTotalArity F * (2 * (k + 1) + 3) :=
+      F.vars.length * (2 * maxTableExp (N.tree.map fun v => (e v).val) + 3) ≤
+        F.vars.length * (2 * (k + 1) + 3) :=
     Nat.mul_le_mul_left _ (by omega)
   unfold cspNiceStepBound
   dsimp only
@@ -1124,7 +1013,7 @@ theorem stepBound_ofRooted_le {Rel V : Type*} [LinearOrder V] {q m n k : ℕ} (h
     (counting : Bool) (e : V ≃ Fin m) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V)
     (R : F.primalGraph.RootedTreeDecomposition n) (hk : R.width ≤ k) :
     (ofRooted counting q hq e sem F R).stepBound ≤
-      cspRootedStepBound q m k F.vars.length F.length (cspTotalArity F) := by
+      cspRootedStepBound q m k F.vars.length F.length := by
   let _ : Fintype V := Fintype.ofEquiv (Fin m) e.symm
   have hcard : Fintype.card V = m := by
     rw [Fintype.card_congr e, Fintype.card_fin]
@@ -1134,7 +1023,7 @@ theorem stepBound_ofRooted_le {Rel V : Type*} [LinearOrder V] {q m n k : ℕ} (h
     rw [hcard] at h1
     exact h1.trans (Nat.mul_le_mul_right _ (by omega))
   exact (stepBound_ofNice_le hq counting e sem F R.toNiceTreePruned hw).trans
-    (cspNiceStepBound_mono hq hs le_rfl le_rfl le_rfl le_rfl)
+    (cspNiceStepBound_mono hq hs le_rfl le_rfl le_rfl)
 
 end TreeCSPInstance
 
@@ -3103,6 +2992,90 @@ private theorem introFillStep_eval (a : IntroFillArgs) (m : ℕ) (t : Memory.Sta
     StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind]
   exact ⟨rfl, rfl⟩
 
+private theorem tableFillProg_spec {α : Type} {w : ℕ} (step : α × ℕ → Memory.Prog ℕ)
+    (a : α) (tblPtr tblLen stepCost : ℕ) (targetTbl : List ℕ) (s : Memory.State)
+    (Inv : Memory.State → Prop) (hinv : Inv s)
+    (htarget_len : targetTbl.length = tblLen) (htbl_hi : tblPtr + tblLen ≤ s.frontier)
+    (hstep : ∀ (k : ℕ) (t : Memory.State), (hk : k < tblLen) →
+      let m := tblLen - (k + 1)
+      Inv t → t.frontier = s.frontier → PreservesBelow tblPtr s t →
+      HoldsIn tblPtr (targetTbl.take m) t →
+      let entryVal := targetTbl[m]'(by
+        have hm : tblLen - (k + 1) < tblLen := Nat.sub_lt (Nat.zero_lt_of_lt hk) (Nat.succ_pos k)
+        simpa only [htarget_len] using hm)
+      let t₁ : Memory.State := ⟨Function.update t.mem (tblPtr + m) entryVal, t.frontier⟩
+      (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t (step (a, m))) ∧
+      (Memory.spec 0).clientState t (step (a, m)) = t₁ ∧
+      (Memory.spec 0).clientResult t (step (a, m)) = m + 1 ∧
+      Inv t₁ ∧
+      memoryCost (step (a, m)) t ≤ stepCost) :
+    let prog : Memory.Prog Unit := do let _ ← iterate step a tblLen 0; pure ()
+    let s₁ := (Memory.spec 0).clientState s prog
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s prog) ∧
+    s₁.frontier = s.frontier ∧
+    PreservesBelow tblPtr s s₁ ∧
+    HoldsIn tblPtr targetTbl s₁ ∧
+    memoryCost prog s ≤ tblLen * stepCost := by
+  suffices ∀ rem (t : Memory.State), rem ≤ tblLen → Inv t → t.frontier = s.frontier →
+      PreservesBelow tblPtr s t → HoldsIn tblPtr (targetTbl.take (tblLen - rem)) t →
+      (Memory.spec w).ValidHistory t
+        ((Memory.spec w).clientHistory t (iterate step a rem (tblLen - rem))) ∧
+      (let tEnd := (Memory.spec 0).clientState t (iterate step a rem (tblLen - rem))
+       tEnd.frontier = s.frontier ∧ PreservesBelow tblPtr s tEnd ∧
+       HoldsIn tblPtr targetTbl tEnd) ∧
+      memoryCost (iterate step a rem (tblLen - rem)) t ≤ rem * stepCost by
+    have hrun := this tblLen s le_rfl hinv rfl (PreservesBelow.refl (by omega))
+      (by simp only [Nat.sub_self, List.take_zero]; exact HoldsIn.nil (by omega))
+    simp only [Nat.sub_self] at hrun
+    obtain ⟨hv_l, ⟨hfr_l, hp_l, htbl_l⟩, hc_l⟩ := hrun
+    refine ⟨validHistory_bind_step hv_l (validHistory_pure w _ ()), ?_, ?_, ?_, ?_⟩
+    · rw [StateTransitionSpec.clientState_bind]; exact hfr_l
+    · rw [StateTransitionSpec.clientState_bind]; exact hp_l
+    · rw [StateTransitionSpec.clientState_bind]; exact htbl_l
+    · rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]; exact hc_l
+  intro rem
+  induction rem with
+  | zero =>
+    intro t _ _ hfr hp hhold
+    have h0 : iterate step a 0 (tblLen - 0) = pure (tblLen - 0) := rfl
+    simp only [Nat.sub_zero] at h0 hhold ⊢
+    rw [h0]
+    rw [← htarget_len, List.take_length] at hhold
+    exact ⟨validHistory_pure w t _, ⟨hfr, hp, hhold⟩, by simp [memoryCost_pure]⟩
+  | succ k ih =>
+    intro t hk_le hinv_t hfr_t hp_t hhold_t
+    let m := tblLen - (k + 1)
+    have hm_lt : m < tblLen := by omega
+    obtain ⟨hv_step, hst_t₁, hres_ev, hinv₁, hc_step⟩ :=
+      hstep k t hk_le hinv_t hfr_t hp_t hhold_t
+    let entryVal := targetTbl[m]'(by rw [htarget_len]; exact hm_lt)
+    let t₁ : Memory.State := ⟨Function.update t.mem (tblPtr + m) entryVal, t.frontier⟩
+    have hdst_lt : tblPtr + m < t.frontier := by rw [hfr_t]; omega
+    have hp₁ : PreservesBelow tblPtr t t₁ :=
+      preservesBelow_write (Nat.le_add_right _ _) hdst_lt
+    have htake_len : (targetTbl.take m).length = m :=
+      List.length_take_of_le (by rw [htarget_len]; omega)
+    have hhold₁ : HoldsIn tblPtr (targetTbl.take (m + 1)) t₁ := by
+      have happ := holdsIn_append_one (v := entryVal) hhold_t (by rw [htake_len, hfr_t]; omega)
+      rw [htake_len] at happ
+      have htake_succ : targetTbl.take (m + 1) = targetTbl.take m ++ [entryVal] :=
+        List.take_succ_eq_append_getElem (by rw [htarget_len]; exact hm_lt)
+      rwa [← htake_succ] at happ
+    have hm_succ : m + 1 = tblLen - k := by dsimp only [m]; omega
+    rw [hm_succ] at hhold₁ hres_ev
+    obtain ⟨hv_rem, hprops_rem, hc_rem⟩ :=
+      ih t₁ (Nat.le_of_succ_le hk_le) hinv₁ hfr_t (hp_t.trans hp₁) hhold₁
+    have hiter_eq : iterate step a (k + 1) m = (step (a, m) >>= iterate step a k) := rfl
+    change (Memory.spec w).ValidHistory t
+        ((Memory.spec w).clientHistory t (iterate step a (k + 1) m)) ∧ _ ∧ _
+    rw [hiter_eq]
+    refine ⟨validHistory_bind_step hv_step (by rwa [hst_t₁, hres_ev]), ?_, ?_⟩
+    · rw [StateTransitionSpec.clientState_bind, hst_t₁, hres_ev]
+      exact hprops_rem
+    · rw [memoryCost_bind', hst_t₁, hres_ev]
+      calc _ ≤ stepCost + k * stepCost := Nat.add_le_add hc_step hc_rem
+        _ = (k + 1) * stepCost := by ring
+
 private theorem introFillProg_spec {w : ℕ} (counting : Bool) (a : IntroFillArgs)
     (hq : 0 < a.q) {child : NiceTree ℕ} {cs : List (ConstraintTable a.q)} {vars : List ℕ}
     {s : Memory.State}
@@ -3134,133 +3107,71 @@ private theorem introFillProg_spec {w : ℕ} (counting : Bool) (a : IntroFillArg
     simp [targetTbl, bagList, hLB_len, htblLen]
   let stepCost :=
     2 + 3 * a.numCons + (cs.map fun ct => ct.scope.length).sum * (2 * a.bagLen + 3)
-  suffices ∀ rem (t : Memory.State), rem ≤ a.tblLen →
-      Memory.WellFormed w t →
-      t.frontier = s.frontier →
-      PreservesBelow a.tblPtr s t →
-      HoldsIn a.tblPtr (targetTbl.take (a.tblLen - rem)) t →
-      (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (iterate introFillStep a rem (a.tblLen - rem))) ∧
-      (let tEnd := (Memory.spec 0).clientState t (iterate introFillStep a rem (a.tblLen - rem))
-       tEnd.frontier = s.frontier ∧
-       PreservesBelow a.tblPtr s tEnd ∧
-       HoldsIn a.tblPtr targetTbl tEnd) ∧
-      memoryCost (iterate introFillStep a rem (a.tblLen - rem)) t ≤ rem * stepCost by
-    have hrun := this a.tblLen s le_rfl hwf rfl
-      (PreservesBelow.refl (by omega))
-      (by simp only [Nat.sub_self, List.take_zero]; exact HoldsIn.nil (by omega))
-    simp only [Nat.sub_self] at hrun
-    obtain ⟨hv_l, ⟨hfr_l, hp_l, htbl_l⟩, hc_l⟩ := hrun
-    unfold introFillProg
-    refine ⟨validHistory_bind_step hv_l (validHistory_pure w _ ()), ?_, ?_, ?_, ?_⟩
-    · rw [StateTransitionSpec.clientState_bind]; exact hfr_l
-    · rw [StateTransitionSpec.clientState_bind]; exact hp_l
-    · rw [StateTransitionSpec.clientState_bind]; exact htbl_l
-    · rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]; exact hc_l
-  intro rem
-  induction rem with
-  | zero =>
-    intro t _ _ hfr hp hhold
-    have h0 : iterate introFillStep a 0 (a.tblLen - 0) = pure (a.tblLen - 0) := rfl
-    simp only [Nat.sub_zero] at h0 hhold ⊢
-    rw [h0]
-    rw [← htarget_len, List.take_length] at hhold
-    exact ⟨validHistory_pure w t _, ⟨hfr, hp, hhold⟩, by simp [memoryCost_pure]⟩
-  | succ k ih =>
-    intro t hk_le hwf_t hfr_t hp_t hhold_t
-    let m := a.tblLen - (k + 1)
-    have hm_lt : m < a.tblLen := by omega
-    have hm_pow : a.tblLen = a.q * a.q ^ (bagList child).length := by
-      rw [htblLen, ← hLB_len, List.length_cons, Nat.pow_succ, Nat.mul_comm]
-    have hdiv_lt : m / a.q < a.q ^ (bagList child).length := by
-      rw [Nat.div_lt_iff_lt_mul hq, Nat.mul_comm]
-      omega
-    have hcTbl_t : HoldsIn a.cTblPtr (dpInstTree counting a.q cs vars child) t :=
-      hcTbl.mono (F := a.tblPtr) (by simpa using hcTbl_hi) hp_t
-    have hLB_t : HoldsIn a.bagPtr (a.v :: bagList child) t :=
-      hLB.mono (F := a.tblPtr) (by rw [hLB_len]; exact hLB_hi) hp_t
-    have hcs_t : HoldsIn a.consRawPtr (cs.flatMap ConstraintTable.encode) t :=
-      hcs.mono (F := a.tblPtr) hcs_hi hp_t
-    obtain ⟨hv_ci, hst_ci, hr_ci, hc_ci⟩ :=
-      checkIntroConstraintsProg_spec (w := w)
-        ⟨a.q, a.v, a.bagPtr, a.bagLen, m, a.consRawPtr, a.numCons⟩ hq
-        hLB_t hLB_len hcs_t hcs_len
-    dsimp only at hr_ci hc_ci
-    have hc_len : (dpInstTree counting a.q cs vars child).length = a.q ^ (bagList child).length :=
-      length_dpInstTree _ _ _ _ _
-    have hm_cval : t.mem (a.cTblPtr + m / a.q) =
-        (dpInstTree counting a.q cs vars child).getD (m / a.q) 0 := by
-      rw [hcTbl_t.get (m / a.q) (by rw [hc_len]; exact hdiv_lt), List.getD_eq_getElem?_getD,
-        List.getElem?_eq_getElem (by rw [hc_len]; exact hdiv_lt), Option.getD_some]
-    have hc_addr_lt : a.cTblPtr + m / a.q < t.frontier := by rw [hfr_t]; omega
-    have hdst_addr_lt : a.tblPtr + m < t.frontier := by rw [hfr_t]; omega
-    have hcval_fit : Fits w (t.mem (a.cTblPtr + m / a.q)) := hwf_t.2 _
-    obtain ⟨hst_ev, hres_ev⟩ := introFillStep_eval a m t
-    let entryVal := targetTbl[m]'(by rw [htarget_len]; exact hm_lt)
-    have hval_eq :
-        (if (Memory.spec 0).clientResult t
-            (checkIntroConstraintsProg
-              ⟨a.q, a.v, a.bagPtr, a.bagLen, m, a.consRawPtr, a.numCons⟩) =
-              1 then t.mem (a.cTblPtr + m / a.q) else 0) = entryVal := by
-      rw [hr_ci, hm_cval]
-      simp only [entryVal, targetTbl, dpInstTree, List.getElem_ofFn]
-      cases cs.all fun ct =>
-        !(decide (ct.scope.toFinset ⊆ (a.v :: bagList child).toFinset) &&
-          decide (a.v ∈ ct.scope)) ||
-          ct.eval (ofRadix a.q (a.v :: bagList child) m) <;> rfl
-    have hentry_fit : Fits w entryVal := by
-      rw [← hval_eq]
-      split_ifs
-      · exact hcval_fit
-      · exact fits_zero w
-    let t₁ : Memory.State := ⟨Function.update t.mem (a.tblPtr + m) entryVal, t.frontier⟩
-    have hst_t₁ : (Memory.spec 0).clientState t (introFillStep (a, m)) = t₁ := by
-      rw [hst_ev, hval_eq]
-    have hv_step : (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (introFillStep (a, m))) := by
-      unfold introFillStep
-      dsimp only
-      refine validHistory_read_bind hc_addr_lt ?_
-      refine validHistory_bind_step hv_ci ?_
-      rw [hst_ci]
-      refine validHistory_write_bind hdst_addr_lt ?_ (validHistory_pure w _ _)
-      split_ifs
-      · exact hcval_fit
-      · exact fits_zero w
-    have hc_step : memoryCost (introFillStep (a, m)) t ≤ stepCost := by
-      have hr_s (x : ℕ) : (Memory.spec 0).clientState t (Memory.read x) = t := rfl
-      unfold introFillStep
-      dsimp only
-      rw [memoryCost_bind', memoryCost_read, hr_s, memoryCost_bind', hst_ci,
-        memoryCost_bind', memoryCost_write, memoryCost_pure]
-      dsimp only [stepCost]
-      omega
-    have hwf₁ : Memory.WellFormed w t₁ := hst_t₁ ▸ wellFormed_clientState hwf_t hv_step
-    have hp₁ : PreservesBelow a.tblPtr t t₁ :=
-      preservesBelow_write (Nat.le_add_right _ _) hdst_addr_lt
-    have htake_len : (targetTbl.take m).length = m :=
-      List.length_take_of_le (by rw [htarget_len]; omega)
-    have hhold₁ : HoldsIn a.tblPtr (targetTbl.take (m + 1)) t₁ := by
-      have happ := holdsIn_append_one (v := entryVal) hhold_t (by rw [htake_len, hfr_t]; omega)
-      rw [htake_len] at happ
-      have htake_succ : targetTbl.take (m + 1) = targetTbl.take m ++ [entryVal] :=
-        List.take_succ_eq_append_getElem (by rw [htarget_len]; exact hm_lt)
-      rwa [← htake_succ] at happ
-    have hm_succ : m + 1 = a.tblLen - k := by dsimp only [m]; omega
-    rw [hm_succ] at hhold₁ hres_ev
-    obtain ⟨hv_rem, hprops_rem, hc_rem⟩ :=
-      ih t₁ (Nat.le_of_succ_le hk_le) hwf₁ hfr_t (hp_t.trans hp₁) hhold₁
-    have hiter_eq : iterate introFillStep a (k + 1) m =
-        (introFillStep (a, m) >>= iterate introFillStep a k) := rfl
-    change (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (iterate introFillStep a (k + 1) m)) ∧ _ ∧ _
-    rw [hiter_eq]
-    refine ⟨validHistory_bind_step hv_step (by rwa [hst_t₁, hres_ev]), ?_, ?_⟩
-    · rw [StateTransitionSpec.clientState_bind, hst_t₁, hres_ev]
-      exact hprops_rem
-    · rw [memoryCost_bind', hst_t₁, hres_ev]
-      calc _ ≤ stepCost + k * stepCost := Nat.add_le_add hc_step hc_rem
-        _ = (k + 1) * stepCost := by ring
+  refine tableFillProg_spec introFillStep a a.tblPtr a.tblLen stepCost targetTbl s
+    (Memory.WellFormed w) hwf htarget_len htbl_hi fun k t hk_le hwf_t hfr_t hp_t _ => ?_
+  let m := a.tblLen - (k + 1)
+  have hm_lt : m < a.tblLen := by omega
+  have hm_pow : a.tblLen = a.q * a.q ^ (bagList child).length := by
+    rw [htblLen, ← hLB_len, List.length_cons, Nat.pow_succ, Nat.mul_comm]
+  have hdiv_lt : m / a.q < a.q ^ (bagList child).length := by
+    rw [Nat.div_lt_iff_lt_mul hq, Nat.mul_comm]
+    omega
+  have hcTbl_t : HoldsIn a.cTblPtr (dpInstTree counting a.q cs vars child) t :=
+    hcTbl.mono (F := a.tblPtr) (by simpa using hcTbl_hi) hp_t
+  have hLB_t : HoldsIn a.bagPtr (a.v :: bagList child) t :=
+    hLB.mono (F := a.tblPtr) (by rw [hLB_len]; exact hLB_hi) hp_t
+  have hcs_t : HoldsIn a.consRawPtr (cs.flatMap ConstraintTable.encode) t :=
+    hcs.mono (F := a.tblPtr) hcs_hi hp_t
+  obtain ⟨hv_ci, hst_ci, hr_ci, hc_ci⟩ :=
+    checkIntroConstraintsProg_spec (w := w)
+      ⟨a.q, a.v, a.bagPtr, a.bagLen, m, a.consRawPtr, a.numCons⟩ hq
+      hLB_t hLB_len hcs_t hcs_len
+  dsimp only at hr_ci hc_ci
+  have hc_len : (dpInstTree counting a.q cs vars child).length = a.q ^ (bagList child).length :=
+    length_dpInstTree _ _ _ _ _
+  have hm_cval : t.mem (a.cTblPtr + m / a.q) =
+      (dpInstTree counting a.q cs vars child).getD (m / a.q) 0 := by
+    rw [hcTbl_t.get (m / a.q) (by rw [hc_len]; exact hdiv_lt), List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem (by rw [hc_len]; exact hdiv_lt), Option.getD_some]
+  have hc_addr_lt : a.cTblPtr + m / a.q < t.frontier := by rw [hfr_t]; omega
+  have hdst_addr_lt : a.tblPtr + m < t.frontier := by rw [hfr_t]; omega
+  have hcval_fit : Fits w (t.mem (a.cTblPtr + m / a.q)) := hwf_t.2 _
+  obtain ⟨hst_ev, hres_ev⟩ := introFillStep_eval a m t
+  let entryVal := targetTbl[m]'(by rw [htarget_len]; exact hm_lt)
+  have hval_eq :
+      (if (Memory.spec 0).clientResult t
+          (checkIntroConstraintsProg
+            ⟨a.q, a.v, a.bagPtr, a.bagLen, m, a.consRawPtr, a.numCons⟩) =
+            1 then t.mem (a.cTblPtr + m / a.q) else 0) = entryVal := by
+    rw [hr_ci, hm_cval]
+    simp only [entryVal, targetTbl, dpInstTree, List.getElem_ofFn]
+    cases cs.all fun ct =>
+      !(decide (ct.scope.toFinset ⊆ (a.v :: bagList child).toFinset) &&
+        decide (a.v ∈ ct.scope)) ||
+        ct.eval (ofRadix a.q (a.v :: bagList child) m) <;> rfl
+  have hst_t₁ : (Memory.spec 0).clientState t (introFillStep (a, m)) =
+      ⟨Function.update t.mem (a.tblPtr + m) entryVal, t.frontier⟩ := by
+    rw [hst_ev, hval_eq]
+  have hv_step : (Memory.spec w).ValidHistory t
+      ((Memory.spec w).clientHistory t (introFillStep (a, m))) := by
+    unfold introFillStep
+    dsimp only
+    refine validHistory_read_bind hc_addr_lt ?_
+    refine validHistory_bind_step hv_ci ?_
+    rw [hst_ci]
+    refine validHistory_write_bind hdst_addr_lt ?_ (validHistory_pure w _ _)
+    split_ifs
+    · exact hcval_fit
+    · exact fits_zero w
+  have hc_step : memoryCost (introFillStep (a, m)) t ≤ stepCost := by
+    have hr_s (x : ℕ) : (Memory.spec 0).clientState t (Memory.read x) = t := rfl
+    unfold introFillStep
+    dsimp only
+    rw [memoryCost_bind', memoryCost_read, hr_s, memoryCost_bind', hst_ci,
+      memoryCost_bind', memoryCost_write, memoryCost_pure]
+    dsimp only [stepCost]
+    omega
+  exact ⟨hv_step, hst_t₁, hres_ev, hst_t₁ ▸ wellFormed_clientState hwf_t hv_step, hc_step⟩
 
 private theorem introFillProg_realizes :
     Realizes .exact introFillProg WordEncoding.encode WordEncoding.encode
@@ -3308,6 +3219,148 @@ private theorem introFillProg_realizes :
   · rw [hres_ev]; omega
   · rw [hst_ev]
     exact holdsIn_write_outside hcs_t (.inr (by omega))
+
+private structure CopyBagState where
+  srcCur : ℕ
+  dstCur : ℕ
+
+private def CopyBagState.equiv : CopyBagState ≃ ℕ × ℕ where
+  toFun s := (s.srcCur, s.dstCur)
+  invFun := fun (srcCur, dstCur) => ⟨srcCur, dstCur⟩
+  left_inv _ := rfl
+  right_inv _ := rfl
+
+private instance : WordEncoding CopyBagState := .ofEquiv CopyBagState.equiv
+
+private structure BagCopyArgs where
+  src : ℕ
+  dst : ℕ
+  len : ℕ
+
+private def BagCopyArgs.equiv : BagCopyArgs ≃ (ℕ × ℕ) × ℕ where
+  toFun a := ((a.src, a.dst), a.len)
+  invFun := fun ((src, dst), len) => ⟨src, dst, len⟩
+  left_inv _ := rfl
+  right_inv _ := rfl
+
+private instance : WordEncoding BagCopyArgs := .ofEquiv BagCopyArgs.equiv
+
+private def copyBagStep (env : Unit × CopyBagState) : Memory.Prog CopyBagState := do
+  let v ← Memory.read env.2.srcCur
+  Memory.write env.2.dstCur v
+  pure ⟨env.2.srcCur + 1, env.2.dstCur + 1⟩
+
+private def copyBagProg (args : BagCopyArgs) : Memory.Prog Unit := do
+  let _ ← iterate copyBagStep () args.len ⟨args.src, args.dst⟩
+  pure ()
+
+private theorem copyBagProg_spec {w : ℕ} (args : BagCopyArgs) {xs : List ℕ} {s : Memory.State}
+    (hwf : Memory.WellFormed w s) (hxs : HoldsIn args.src xs s) (hlen : xs.length = args.len)
+    (hdisj : args.src + args.len ≤ args.dst) (hdst : args.dst + args.len ≤ s.frontier) :
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (copyBagProg args)) ∧
+    ((Memory.spec 0).clientState s (copyBagProg args)).frontier = s.frontier ∧
+    PreservesBelow args.dst s ((Memory.spec 0).clientState s (copyBagProg args)) ∧
+    HoldsIn args.dst xs ((Memory.spec 0).clientState s (copyBagProg args)) ∧
+    memoryCost (copyBagProg args) s ≤ 2 * args.len := by
+  have hcost : memoryCost (copyBagProg args) s ≤ 2 * args.len := by
+    unfold copyBagProg
+    rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
+    have hle := memoryCost_iterate_le_of copyBagStep 2 () (fun _ _ => le_rfl)
+      args.len ⟨args.src, args.dst⟩ s
+    omega
+  suffices ∀ ys src dst st,
+      Memory.WellFormed w st →
+      HoldsIn src ys st →
+      src + ys.length ≤ dst →
+      dst + ys.length ≤ st.frontier →
+      (Memory.spec w).ValidHistory st
+        ((Memory.spec w).clientHistory st (iterate copyBagStep () ys.length ⟨src, dst⟩)) ∧
+      ((Memory.spec 0).clientState st
+        (iterate copyBagStep () ys.length ⟨src, dst⟩)).frontier = st.frontier ∧
+      PreservesBelow dst st
+        ((Memory.spec 0).clientState st (iterate copyBagStep () ys.length ⟨src, dst⟩)) ∧
+      HoldsIn dst ys
+        ((Memory.spec 0).clientState st (iterate copyBagStep () ys.length ⟨src, dst⟩)) by
+    have hrun := this xs args.src args.dst s hwf hxs (by omega) (by omega)
+    rw [hlen] at hrun
+    unfold copyBagProg
+    refine ⟨validHistory_bind_step hrun.1 (validHistory_pure w _ ()), ?_, ?_, ?_, hcost⟩
+    · rw [StateTransitionSpec.clientState_bind]
+      exact hrun.2.1
+    · rw [StateTransitionSpec.clientState_bind]
+      exact hrun.2.2.1
+    · rw [StateTransitionSpec.clientState_bind]
+      exact hrun.2.2.2
+  intro ys
+  induction ys with
+  | nil =>
+    intro src dst st _ _ _ hdst_st
+    have h0 : iterate copyBagStep () 0 ⟨src, dst⟩ = pure ⟨src, dst⟩ := rfl
+    simp only [List.length_nil, Nat.add_zero] at hdst_st ⊢
+    rw [h0]
+    exact ⟨validHistory_pure w st _, rfl, PreservesBelow.refl hdst_st, HoldsIn.nil hdst_st⟩
+  | cons u rest ih =>
+    intro src dst st hwf_st hsrc_st hdisj_st hdst_st
+    rw [HoldsIn.cons_iff] at hsrc_st
+    obtain ⟨hsrc_b, hmem_u, hrest_src⟩ := hsrc_st
+    simp only [List.length_cons] at hdisj_st hdst_st ⊢
+    have hsrc_lt : src < st.frontier := by omega
+    have hdst_lt : dst < st.frontier := by omega
+    have hv_fit : Fits w (st.mem src) := hwf_st.mem_fits src
+    let st₁ : Memory.State := ⟨Function.update st.mem dst (st.mem src), st.frontier⟩
+    have hv_step : (Memory.spec w).ValidHistory st
+        ((Memory.spec w).clientHistory st (copyBagStep ((), ⟨src, dst⟩))) :=
+      validHistory_read_bind hsrc_lt (validHistory_write_bind hdst_lt hv_fit
+        (validHistory_pure w st₁ _))
+    have hst₁ : (Memory.spec 0).clientState st (copyBagStep ((), ⟨src, dst⟩)) = st₁ := rfl
+    have hres₁ : (Memory.spec 0).clientResult st (copyBagStep ((), ⟨src, dst⟩)) =
+        ⟨src + 1, dst + 1⟩ := rfl
+    have hwf₁ : Memory.WellFormed w st₁ := hst₁ ▸ wellFormed_clientState hwf_st hv_step
+    have hp₁ : PreservesBelow dst st st₁ := preservesBelow_write le_rfl hdst_lt
+    have hrest_st₁ : HoldsIn (src + 1) rest st₁ := hrest_src.mono (by omega) hp₁
+    have hst₁_fr : st₁.frontier = st.frontier := rfl
+    obtain ⟨hv_rest, hfr_rest, hp_rest, hhold_rest⟩ :=
+      ih (src + 1) (dst + 1) st₁ hwf₁ hrest_st₁ (by omega) (by rw [hst₁_fr]; omega)
+    change (Memory.spec w).ValidHistory st
+        ((Memory.spec w).clientHistory st
+          (copyBagStep ((), ⟨src, dst⟩) >>= iterate copyBagStep () rest.length)) ∧
+      ((Memory.spec 0).clientState st
+        (copyBagStep ((), ⟨src, dst⟩) >>= iterate copyBagStep () rest.length)).frontier =
+        st.frontier ∧
+      PreservesBelow dst st
+        ((Memory.spec 0).clientState st
+          (copyBagStep ((), ⟨src, dst⟩) >>= iterate copyBagStep () rest.length)) ∧
+      HoldsIn dst (u :: rest)
+        ((Memory.spec 0).clientState st
+          (copyBagStep ((), ⟨src, dst⟩) >>= iterate copyBagStep () rest.length))
+    refine ⟨validHistory_bind_step hv_step (by rwa [hst₁, hres₁]), ?_, ?_, ?_⟩
+    · rw [StateTransitionSpec.clientState_bind, hst₁, hres₁]
+      exact hfr_rest
+    · rw [StateTransitionSpec.clientState_bind, hst₁, hres₁]
+      exact hp₁.trans (hp_rest.mono_bound (by omega))
+    · rw [StateTransitionSpec.clientState_bind, hst₁, hres₁, HoldsIn.cons_iff]
+      refine ⟨by rw [hfr_rest, hst₁_fr]; omega, ?_, hhold_rest⟩
+      rw [hp_rest.2.2 dst (by omega)]
+      simp only [st₁, Function.update_self, hmem_u]
+
+private theorem copyBagProg_realizes :
+    Realizes .exact copyBagProg WordEncoding.encode WordEncoding.encode
+      (fun w args _ => Fits w 1 ∧ Fits w (args.src + args.len) ∧ Fits w (args.dst + args.len))
+      (fun _ _ => 0) := by
+  unfold copyBagProg
+  realize
+  obtain ⟨_, hsrc_fit, hdst_fit⟩ := h
+  refine iterationSafe_of_stepInv _ _ w _
+    (fun (j : ℕ) (st : CopyBagState) (_ : Memory.State) =>
+      st.srcCur + j = d.src + d.len ∧ st.dstCur + j = d.dst + d.len)
+    (fun j st _ ⟨hsrc, hdst⟩ => ?_)
+    ⟨rfl, rfl⟩
+  dsimp only [copyBagStep]
+  refine ⟨⟨hsrc_fit.of_le (by omega), hdst_fit.of_le (by omega)⟩, ?_, ?_⟩
+  · change (st.srcCur + 1) + j = d.src + d.len
+    omega
+  · change (st.dstCur + 1) + j = d.dst + d.len
+    omega
 
 private structure IntroNodeArgs where
   q : ℕ
@@ -3993,123 +4046,69 @@ private theorem forgetFillProg_spec {w : ℕ} (counting : Bool) (a : ForgetFillA
   have htarget_len : targetTbl.length = a.tblLen := by
     simp [targetTbl, bagList, hLB_len, htblLen]
   let stepCost := a.dLim * (a.cBagLen * (a.bagLen + 1) + 1) + 1
-  suffices ∀ rem (t : Memory.State), rem ≤ a.tblLen →
-      t.frontier = s.frontier →
-      PreservesBelow a.tblPtr s t →
-      HoldsIn a.tblPtr (targetTbl.take (a.tblLen - rem)) t →
-      (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (iterate forgetOuterStep a rem (a.tblLen - rem))) ∧
-      (let tEnd := (Memory.spec 0).clientState t (iterate forgetOuterStep a rem (a.tblLen - rem))
-       tEnd.frontier = s.frontier ∧
-       PreservesBelow a.tblPtr s tEnd ∧
-       HoldsIn a.tblPtr targetTbl tEnd) ∧
-      memoryCost (iterate forgetOuterStep a rem (a.tblLen - rem)) t ≤ rem * stepCost by
-    have hrun := this a.tblLen s le_rfl rfl (PreservesBelow.refl (by omega))
-      (by simp only [Nat.sub_self, List.take_zero]; exact HoldsIn.nil (by omega))
-    simp only [Nat.sub_self] at hrun
-    obtain ⟨hv_l, ⟨hfr_l, hp_l, htbl_l⟩, hc_l⟩ := hrun
-    unfold forgetFillProg
-    refine ⟨validHistory_bind_step hv_l (validHistory_pure w _ ()), ?_, ?_, ?_, ?_⟩
-    · rw [StateTransitionSpec.clientState_bind]; exact hfr_l
-    · rw [StateTransitionSpec.clientState_bind]; exact hp_l
-    · rw [StateTransitionSpec.clientState_bind]; exact htbl_l
-    · rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]; exact hc_l
-  intro rem
-  induction rem with
-  | zero =>
-    intro t _ hfr hp hhold
-    have h0 : iterate forgetOuterStep a 0 (a.tblLen - 0) = pure (a.tblLen - 0) := rfl
-    simp only [Nat.sub_zero] at h0 hhold ⊢
-    rw [h0]
-    rw [← htarget_len, List.take_length] at hhold
-    exact ⟨validHistory_pure w t _, ⟨hfr, hp, hhold⟩, by simp [memoryCost_pure]⟩
-  | succ k ih =>
-    intro t hk_le hfr_t hp_t hhold_t
-    let m := a.tblLen - (k + 1)
-    have hm_lt : m < a.tblLen := by omega
-    have hLB_t : HoldsIn a.bagPtr ((bagList child).erase a.v) t :=
-      hLB.mono (F := a.tblPtr) (by rw [hLB_len]; exact hLB_hi) hp_t
-    have hcBag_t : HoldsIn a.cBagPtr (bagList child) t :=
-      hcBag.mono (F := a.tblPtr) (by rw [hcBag_len]; exact hcBag_hi) hp_t
-    have hcTbl_t : HoldsIn a.cTblPtr (dpInstTree counting a.q cs vars child) t :=
-      hcTbl.mono (F := a.tblPtr) (by rw [length_dpInstTree, hcBag_len]; exact hcTbl_hi) hp_t
-    obtain ⟨hv_in, hst_in, hr_in, hc_in⟩ :=
-      forgetInnerProg_spec (w := w) counting
-        ⟨a.mode, a.q, a.v, a.bagPtr, a.bagLen, m, a.cBagPtr, a.cBagLen, a.cTblPtr, a.dLim⟩
-        hq hmode hLB_t hLB_len hcBag_t hcBag_len hcTbl_t
-        (by rw [length_dpInstTree, hcBag_len])
-    dsimp only at hr_in hc_in
-    let entryVal := targetTbl[m]'(by rw [htarget_len]; exact hm_lt)
-    have hval_eq :
-        (Memory.spec 0).clientResult t
-          (forgetInnerProg
-            ⟨a.mode, a.q, a.v, a.bagPtr, a.bagLen, m, a.cBagPtr, a.cBagLen, a.cTblPtr, a.dLim⟩) =
-          entryVal := by
-      rw [hr_in]
-      simp only [entryVal, targetTbl, dpInstTree, List.getElem_ofFn, hdLim]
-      by_cases hv : a.v ∈ vars
-      · simp [hv]
-      · simp only [hv, ↓reduceIte, dpAlgFold]
-        cases counting
-        · simp only [Bool.false_eq_true, ↓reduceIte]
-          have hle1 :
-              (dpInstTree false a.q cs vars child).getD
-                (toRadix a.q (bagList child)
-                  (Function.update (ofRadix a.q ((bagList child).erase a.v) m) a.v 0)) 0 ≤ 1 := by
-            rw [List.getD_eq_getElem?_getD]
-            cases hg : (dpInstTree false a.q cs vars child)[toRadix a.q (bagList child)
-                (Function.update (ofRadix a.q ((bagList child).erase a.v) m) a.v 0)]? with
-            | none => exact Nat.zero_le _
-            | some y =>
-              simpa using mem_dpInstTree_le false hq cs vars child y (List.mem_of_getElem? hg)
-          split_ifs <;> omega
-        · simp
-    have hentry_fit : Fits w entryVal := by
-      have hmem_e : entryVal ∈ targetTbl := List.getElem_mem _
-      exact hfit_cap.of_le (mem_dpInstTree_le counting hq cs vars (.forget a.v child) _ hmem_e)
-    have hdst_lt : a.tblPtr + m < t.frontier := by rw [hfr_t]; omega
-    obtain ⟨hst_ev, hres_ev⟩ := forgetOuterStep_eval a m t
-    let t₁ : Memory.State := ⟨Function.update t.mem (a.tblPtr + m) entryVal, t.frontier⟩
-    have hst_t₁ : (Memory.spec 0).clientState t (forgetOuterStep (a, m)) = t₁ := by
-      rw [hst_ev, hval_eq]
-    have hv_step : (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (forgetOuterStep (a, m))) := by
-      unfold forgetOuterStep
-      dsimp only
-      refine validHistory_bind_step hv_in ?_
-      rw [hst_in, hval_eq]
-      exact validHistory_write_bind hdst_lt hentry_fit (validHistory_pure w _ _)
-    have hc_step : memoryCost (forgetOuterStep (a, m)) t ≤ stepCost := by
-      unfold forgetOuterStep
-      dsimp only
-      rw [memoryCost_bind', hst_in, memoryCost_bind', memoryCost_write, memoryCost_pure]
-      dsimp only [stepCost]
-      omega
-    have hp₁ : PreservesBelow a.tblPtr t t₁ :=
-      preservesBelow_write (Nat.le_add_right _ _) hdst_lt
-    have htake_len : (targetTbl.take m).length = m :=
-      List.length_take_of_le (by rw [htarget_len]; omega)
-    have hhold₁ : HoldsIn a.tblPtr (targetTbl.take (m + 1)) t₁ := by
-      have happ := holdsIn_append_one (v := entryVal) hhold_t (by rw [htake_len, hfr_t]; omega)
-      rw [htake_len] at happ
-      have htake_succ : targetTbl.take (m + 1) = targetTbl.take m ++ [entryVal] :=
-        List.take_succ_eq_append_getElem (by rw [htarget_len]; exact hm_lt)
-      rwa [← htake_succ] at happ
-    have hm_succ : m + 1 = a.tblLen - k := by dsimp only [m]; omega
-    rw [hm_succ] at hhold₁ hres_ev
-    obtain ⟨hv_rem, hprops_rem, hc_rem⟩ :=
-      ih t₁ (Nat.le_of_succ_le hk_le) hfr_t (hp_t.trans hp₁) hhold₁
-    have hiter_eq : iterate forgetOuterStep a (k + 1) m =
-        (forgetOuterStep (a, m) >>= iterate forgetOuterStep a k) := rfl
-    change (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (iterate forgetOuterStep a (k + 1) m)) ∧ _ ∧ _
-    rw [hiter_eq]
-    refine ⟨validHistory_bind_step hv_step (by rwa [hst_t₁, hres_ev]), ?_, ?_⟩
-    · rw [StateTransitionSpec.clientState_bind, hst_t₁, hres_ev]
-      exact hprops_rem
-    · rw [memoryCost_bind', hst_t₁, hres_ev]
-      calc _ ≤ stepCost + k * stepCost := Nat.add_le_add hc_step hc_rem
-        _ = (k + 1) * stepCost := by ring
+  refine tableFillProg_spec forgetOuterStep a a.tblPtr a.tblLen stepCost targetTbl s
+    (fun _ => True) trivial htarget_len htbl_hi fun k t hk_le _ hfr_t hp_t _ => ?_
+  let m := a.tblLen - (k + 1)
+  have hm_lt : m < a.tblLen := by omega
+  have hLB_t : HoldsIn a.bagPtr ((bagList child).erase a.v) t :=
+    hLB.mono (F := a.tblPtr) (by rw [hLB_len]; exact hLB_hi) hp_t
+  have hcBag_t : HoldsIn a.cBagPtr (bagList child) t :=
+    hcBag.mono (F := a.tblPtr) (by rw [hcBag_len]; exact hcBag_hi) hp_t
+  have hcTbl_t : HoldsIn a.cTblPtr (dpInstTree counting a.q cs vars child) t :=
+    hcTbl.mono (F := a.tblPtr) (by rw [length_dpInstTree, hcBag_len]; exact hcTbl_hi) hp_t
+  obtain ⟨hv_in, hst_in, hr_in, hc_in⟩ :=
+    forgetInnerProg_spec (w := w) counting
+      ⟨a.mode, a.q, a.v, a.bagPtr, a.bagLen, m, a.cBagPtr, a.cBagLen, a.cTblPtr, a.dLim⟩
+      hq hmode hLB_t hLB_len hcBag_t hcBag_len hcTbl_t
+      (by rw [length_dpInstTree, hcBag_len])
+  dsimp only at hr_in hc_in
+  let entryVal := targetTbl[m]'(by rw [htarget_len]; exact hm_lt)
+  have hval_eq :
+      (Memory.spec 0).clientResult t
+        (forgetInnerProg
+          ⟨a.mode, a.q, a.v, a.bagPtr, a.bagLen, m, a.cBagPtr, a.cBagLen, a.cTblPtr, a.dLim⟩) =
+        entryVal := by
+    rw [hr_in]
+    simp only [entryVal, targetTbl, dpInstTree, List.getElem_ofFn, hdLim]
+    by_cases hv : a.v ∈ vars
+    · simp [hv]
+    · simp only [hv, ↓reduceIte, dpAlgFold]
+      cases counting
+      · simp only [Bool.false_eq_true, ↓reduceIte]
+        have hle1 :
+            (dpInstTree false a.q cs vars child).getD
+              (toRadix a.q (bagList child)
+                (Function.update (ofRadix a.q ((bagList child).erase a.v) m) a.v 0)) 0 ≤ 1 := by
+          rw [List.getD_eq_getElem?_getD]
+          cases hg : (dpInstTree false a.q cs vars child)[toRadix a.q (bagList child)
+              (Function.update (ofRadix a.q ((bagList child).erase a.v) m) a.v 0)]? with
+          | none => exact Nat.zero_le _
+          | some y =>
+            simpa using mem_dpInstTree_le false hq cs vars child y (List.mem_of_getElem? hg)
+        split_ifs <;> omega
+      · simp
+  have hentry_fit : Fits w entryVal := by
+    have hmem_e : entryVal ∈ targetTbl := List.getElem_mem _
+    exact hfit_cap.of_le (mem_dpInstTree_le counting hq cs vars (.forget a.v child) _ hmem_e)
+  have hdst_lt : a.tblPtr + m < t.frontier := by rw [hfr_t]; omega
+  obtain ⟨hst_ev, hres_ev⟩ := forgetOuterStep_eval a m t
+  have hst_t₁ : (Memory.spec 0).clientState t (forgetOuterStep (a, m)) =
+      ⟨Function.update t.mem (a.tblPtr + m) entryVal, t.frontier⟩ := by
+    rw [hst_ev, hval_eq]
+  have hv_step : (Memory.spec w).ValidHistory t
+      ((Memory.spec w).clientHistory t (forgetOuterStep (a, m))) := by
+    unfold forgetOuterStep
+    dsimp only
+    refine validHistory_bind_step hv_in ?_
+    rw [hst_in, hval_eq]
+    exact validHistory_write_bind hdst_lt hentry_fit (validHistory_pure w _ _)
+  have hc_step : memoryCost (forgetOuterStep (a, m)) t ≤ stepCost := by
+    unfold forgetOuterStep
+    dsimp only
+    rw [memoryCost_bind', hst_in, memoryCost_bind', memoryCost_write, memoryCost_pure]
+    dsimp only [stepCost]
+    omega
+  exact ⟨hv_step, hst_t₁, hres_ev, trivial, hc_step⟩
 
 private theorem forgetFillProg_realizes :
     Realizes .exact forgetFillProg WordEncoding.encode WordEncoding.encode
@@ -4584,128 +4583,74 @@ private theorem joinFillProg_spec {w : ℕ} (counting : Bool) (a : JoinFillArgs)
   have htarget_len : targetTbl.length = a.tblLen := by
     simp [targetTbl, bagList, hlBag_len, htblLen]
   let stepCost := a.rBagLen * (a.lBagLen + 1) + 3
-  suffices ∀ rem (t : Memory.State), rem ≤ a.tblLen →
-      t.frontier = s.frontier →
-      PreservesBelow a.tblPtr s t →
-      HoldsIn a.tblPtr (targetTbl.take (a.tblLen - rem)) t →
-      (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (iterate joinFillStep a rem (a.tblLen - rem))) ∧
-      (let tEnd := (Memory.spec 0).clientState t (iterate joinFillStep a rem (a.tblLen - rem))
-       tEnd.frontier = s.frontier ∧
-       PreservesBelow a.tblPtr s tEnd ∧
-       HoldsIn a.tblPtr targetTbl tEnd) ∧
-      memoryCost (iterate joinFillStep a rem (a.tblLen - rem)) t ≤ rem * stepCost by
-    have hrun := this a.tblLen s le_rfl rfl (PreservesBelow.refl (by omega))
-      (by simp only [Nat.sub_self, List.take_zero]; exact HoldsIn.nil (by omega))
-    simp only [Nat.sub_self] at hrun
-    obtain ⟨hv_l, ⟨hfr_l, hp_l, htbl_l⟩, hc_l⟩ := hrun
-    unfold joinFillProg
-    refine ⟨validHistory_bind_step hv_l (validHistory_pure w _ ()), ?_, ?_, ?_, ?_⟩
-    · rw [StateTransitionSpec.clientState_bind]; exact hfr_l
-    · rw [StateTransitionSpec.clientState_bind]; exact hp_l
-    · rw [StateTransitionSpec.clientState_bind]; exact htbl_l
-    · rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]; exact hc_l
-  intro rem
-  induction rem with
-  | zero =>
-    intro t _ hfr hp hhold
-    have h0 : iterate joinFillStep a 0 (a.tblLen - 0) = pure (a.tblLen - 0) := rfl
-    simp only [Nat.sub_zero] at h0 hhold ⊢
-    rw [h0]
-    rw [← htarget_len, List.take_length] at hhold
-    exact ⟨validHistory_pure w t _, ⟨hfr, hp, hhold⟩, by simp [memoryCost_pure]⟩
-  | succ k ih =>
-    intro t hk_le hfr_t hp_t hhold_t
-    let m := a.tblLen - (k + 1)
-    have hm_lt : m < a.tblLen := by omega
-    have hlBag_t : HoldsIn a.lBagPtr (bagList left) t :=
-      hlBag.mono (F := a.tblPtr) (by rw [hlBag_len]; exact hlBag_hi) hp_t
-    have hrBag_t : HoldsIn a.rBagPtr (bagList right) t :=
-      hrBag.mono (F := a.tblPtr) (by rw [hrBag_len]; exact hrBag_hi) hp_t
-    have hlTbl_t : HoldsIn a.lTblPtr (dpInstTree counting a.q cs vars left) t :=
-      hlTbl.mono (F := a.tblPtr) (by rw [length_dpInstTree, hlBag_len, ← htblLen]; exact hlTbl_hi)
-        hp_t
-    have hrTbl_t : HoldsIn a.rTblPtr (dpInstTree counting a.q cs vars right) t :=
-      hrTbl.mono (F := a.tblPtr) (by rw [length_dpInstTree, hrBag_len]; exact hrTbl_hi) hp_t
-    obtain ⟨hv_rp, hst_rp, hr_rp, hc_rp⟩ :=
-      radixProjProg_spec (w := w)
-        ⟨a.q, a.lBagPtr, a.lBagLen, m, 0, 0, 0, a.rBagPtr, a.rBagLen⟩
-        hlBag_t hlBag_len hrBag_t hrBag_len
-    simp only [radixProjAssign, Nat.zero_ne_one, ↓reduceIte] at hr_rp hc_rp
-    let mr := toRadix a.q (bagList right) (ofRadix a.q (bagList left) m)
-    have hl_len : (dpInstTree counting a.q cs vars left).length = a.tblLen := by
-      rw [length_dpInstTree, hlBag_len, htblLen]
-    have hr_len : (dpInstTree counting a.q cs vars right).length = a.q ^ a.rBagLen := by
-      rw [length_dpInstTree, hrBag_len]
-    have hmr_lt : mr < a.q ^ a.rBagLen := by
-      rw [← hrBag_len]; exact toRadix_lt hq _ _
-    have hm_lv : t.mem (a.lTblPtr + m) = (dpInstTree counting a.q cs vars left).getD m 0 := by
-      rw [hlTbl_t.get m (by rw [hl_len]; exact hm_lt), List.getD_eq_getElem?_getD,
-        List.getElem?_eq_getElem (by rw [hl_len]; exact hm_lt), Option.getD_some]
-    have hm_rv : t.mem (a.rTblPtr + mr) = (dpInstTree counting a.q cs vars right).getD mr 0 := by
-      rw [hrTbl_t.get mr (by rw [hr_len]; exact hmr_lt), List.getD_eq_getElem?_getD,
-        List.getElem?_eq_getElem (by rw [hr_len]; exact hmr_lt), Option.getD_some]
-    let entryVal := targetTbl[m]'(by rw [htarget_len]; exact hm_lt)
-    have hprod_eq : t.mem (a.lTblPtr + m) * t.mem (a.rTblPtr + mr) = entryVal := by
-      rw [hm_lv, hm_rv]
-      simp only [entryVal, targetTbl, dpInstTree, mr, List.getElem_ofFn]
-    have hentry_fit : Fits w entryVal := by
-      have hmem_e : entryVal ∈ targetTbl := List.getElem_mem _
-      exact hfit_cap.of_le (mem_dpInstTree_le counting hq cs vars (.join left right) _ hmem_e)
-    have hl_addr_lt : a.lTblPtr + m < t.frontier := by rw [hfr_t]; omega
-    have hr_addr_lt : a.rTblPtr + mr < t.frontier := by rw [hfr_t]; omega
-    have hdst_lt : a.tblPtr + m < t.frontier := by rw [hfr_t]; omega
-    obtain ⟨hst_ev, hres_ev⟩ := joinFillStep_eval a m t
-    let t₁ : Memory.State := ⟨Function.update t.mem (a.tblPtr + m) entryVal, t.frontier⟩
-    have hst_t₁ : (Memory.spec 0).clientState t (joinFillStep (a, m)) = t₁ := by
-      rw [hst_ev]
-      dsimp only [mr] at hprod_eq
-      rw [hr_rp, hprod_eq]
-    have hv_step : (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (joinFillStep (a, m))) := by
-      unfold joinFillStep
-      dsimp only
-      refine validHistory_read_bind hl_addr_lt ?_
-      refine validHistory_bind_step hv_rp ?_
-      rw [hst_rp, hr_rp]
-      refine validHistory_read_bind hr_addr_lt ?_
-      dsimp only [mr] at hprod_eq
-      rw [hprod_eq]
-      exact validHistory_write_bind hdst_lt hentry_fit (validHistory_pure w _ _)
-    have hc_step : memoryCost (joinFillStep (a, m)) t ≤ stepCost := by
-      have hr_s (x : ℕ) : (Memory.spec 0).clientState t (Memory.read x) = t := rfl
-      unfold joinFillStep
-      dsimp only
-      rw [memoryCost_bind', memoryCost_read, hr_s, memoryCost_bind', hst_rp,
-        memoryCost_bind', memoryCost_read, hr_s,
-        memoryCost_bind', memoryCost_write, memoryCost_pure]
-      dsimp only [stepCost]
-      omega
-    have hp₁ : PreservesBelow a.tblPtr t t₁ :=
-      preservesBelow_write (Nat.le_add_right _ _) hdst_lt
-    have htake_len : (targetTbl.take m).length = m :=
-      List.length_take_of_le (by rw [htarget_len]; omega)
-    have hhold₁ : HoldsIn a.tblPtr (targetTbl.take (m + 1)) t₁ := by
-      have happ := holdsIn_append_one (v := entryVal) hhold_t (by rw [htake_len, hfr_t]; omega)
-      rw [htake_len] at happ
-      have htake_succ : targetTbl.take (m + 1) = targetTbl.take m ++ [entryVal] :=
-        List.take_succ_eq_append_getElem (by rw [htarget_len]; exact hm_lt)
-      rwa [← htake_succ] at happ
-    have hm_succ : m + 1 = a.tblLen - k := by dsimp only [m]; omega
-    rw [hm_succ] at hhold₁ hres_ev
-    obtain ⟨hv_rem, hprops_rem, hc_rem⟩ :=
-      ih t₁ (Nat.le_of_succ_le hk_le) hfr_t (hp_t.trans hp₁) hhold₁
-    have hiter_eq : iterate joinFillStep a (k + 1) m =
-        (joinFillStep (a, m) >>= iterate joinFillStep a k) := rfl
-    change (Memory.spec w).ValidHistory t
-        ((Memory.spec w).clientHistory t (iterate joinFillStep a (k + 1) m)) ∧ _ ∧ _
-    rw [hiter_eq]
-    refine ⟨validHistory_bind_step hv_step (by rwa [hst_t₁, hres_ev]), ?_, ?_⟩
-    · rw [StateTransitionSpec.clientState_bind, hst_t₁, hres_ev]
-      exact hprops_rem
-    · rw [memoryCost_bind', hst_t₁, hres_ev]
-      calc _ ≤ stepCost + k * stepCost := Nat.add_le_add hc_step hc_rem
-        _ = (k + 1) * stepCost := by ring
+  refine tableFillProg_spec joinFillStep a a.tblPtr a.tblLen stepCost targetTbl s
+    (fun _ => True) trivial htarget_len htbl_hi fun k t hk_le _ hfr_t hp_t _ => ?_
+  let m := a.tblLen - (k + 1)
+  have hm_lt : m < a.tblLen := by omega
+  have hlBag_t : HoldsIn a.lBagPtr (bagList left) t :=
+    hlBag.mono (F := a.tblPtr) (by rw [hlBag_len]; exact hlBag_hi) hp_t
+  have hrBag_t : HoldsIn a.rBagPtr (bagList right) t :=
+    hrBag.mono (F := a.tblPtr) (by rw [hrBag_len]; exact hrBag_hi) hp_t
+  have hlTbl_t : HoldsIn a.lTblPtr (dpInstTree counting a.q cs vars left) t :=
+    hlTbl.mono (F := a.tblPtr) (by rw [length_dpInstTree, hlBag_len, ← htblLen]; exact hlTbl_hi)
+      hp_t
+  have hrTbl_t : HoldsIn a.rTblPtr (dpInstTree counting a.q cs vars right) t :=
+    hrTbl.mono (F := a.tblPtr) (by rw [length_dpInstTree, hrBag_len]; exact hrTbl_hi) hp_t
+  obtain ⟨hv_rp, hst_rp, hr_rp, hc_rp⟩ :=
+    radixProjProg_spec (w := w)
+      ⟨a.q, a.lBagPtr, a.lBagLen, m, 0, 0, 0, a.rBagPtr, a.rBagLen⟩
+      hlBag_t hlBag_len hrBag_t hrBag_len
+  simp only [radixProjAssign, Nat.zero_ne_one, ↓reduceIte] at hr_rp hc_rp
+  let mr := toRadix a.q (bagList right) (ofRadix a.q (bagList left) m)
+  have hl_len : (dpInstTree counting a.q cs vars left).length = a.tblLen := by
+    rw [length_dpInstTree, hlBag_len, htblLen]
+  have hr_len : (dpInstTree counting a.q cs vars right).length = a.q ^ a.rBagLen := by
+    rw [length_dpInstTree, hrBag_len]
+  have hmr_lt : mr < a.q ^ a.rBagLen := by
+    rw [← hrBag_len]; exact toRadix_lt hq _ _
+  have hm_lv : t.mem (a.lTblPtr + m) = (dpInstTree counting a.q cs vars left).getD m 0 := by
+    rw [hlTbl_t.get m (by rw [hl_len]; exact hm_lt), List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem (by rw [hl_len]; exact hm_lt), Option.getD_some]
+  have hm_rv : t.mem (a.rTblPtr + mr) = (dpInstTree counting a.q cs vars right).getD mr 0 := by
+    rw [hrTbl_t.get mr (by rw [hr_len]; exact hmr_lt), List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem (by rw [hr_len]; exact hmr_lt), Option.getD_some]
+  let entryVal := targetTbl[m]'(by rw [htarget_len]; exact hm_lt)
+  have hprod_eq : t.mem (a.lTblPtr + m) * t.mem (a.rTblPtr + mr) = entryVal := by
+    rw [hm_lv, hm_rv]
+    simp only [entryVal, targetTbl, dpInstTree, mr, List.getElem_ofFn]
+  have hentry_fit : Fits w entryVal := by
+    have hmem_e : entryVal ∈ targetTbl := List.getElem_mem _
+    exact hfit_cap.of_le (mem_dpInstTree_le counting hq cs vars (.join left right) _ hmem_e)
+  have hl_addr_lt : a.lTblPtr + m < t.frontier := by rw [hfr_t]; omega
+  have hr_addr_lt : a.rTblPtr + mr < t.frontier := by rw [hfr_t]; omega
+  have hdst_lt : a.tblPtr + m < t.frontier := by rw [hfr_t]; omega
+  obtain ⟨hst_ev, hres_ev⟩ := joinFillStep_eval a m t
+  have hst_t₁ : (Memory.spec 0).clientState t (joinFillStep (a, m)) =
+      ⟨Function.update t.mem (a.tblPtr + m) entryVal, t.frontier⟩ := by
+    rw [hst_ev]
+    dsimp only [mr] at hprod_eq
+    rw [hr_rp, hprod_eq]
+  have hv_step : (Memory.spec w).ValidHistory t
+      ((Memory.spec w).clientHistory t (joinFillStep (a, m))) := by
+    unfold joinFillStep
+    dsimp only
+    refine validHistory_read_bind hl_addr_lt ?_
+    refine validHistory_bind_step hv_rp ?_
+    rw [hst_rp, hr_rp]
+    refine validHistory_read_bind hr_addr_lt ?_
+    dsimp only [mr] at hprod_eq
+    rw [hprod_eq]
+    exact validHistory_write_bind hdst_lt hentry_fit (validHistory_pure w _ _)
+  have hc_step : memoryCost (joinFillStep (a, m)) t ≤ stepCost := by
+    have hr_s (x : ℕ) : (Memory.spec 0).clientState t (Memory.read x) = t := rfl
+    unfold joinFillStep
+    dsimp only
+    rw [memoryCost_bind', memoryCost_read, hr_s, memoryCost_bind', hst_rp,
+      memoryCost_bind', memoryCost_read, hr_s,
+      memoryCost_bind', memoryCost_write, memoryCost_pure]
+    dsimp only [stepCost]
+    omega
+  exact ⟨hv_step, hst_t₁, hres_ev, trivial, hc_step⟩
 
 private theorem joinFillProg_realizes :
     Realizes .exact joinFillProg WordEncoding.encode WordEncoding.encode
@@ -5459,7 +5404,9 @@ private theorem subtree_forget {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w i
   obtain ⟨hsafe_ch, hv_ch, hres_ch, hfr_ch, hframe_ch, hdesc_ch, hc_ch⟩ :=
     ih offset s hsz_ch hexp_ch hmv_ch hwf hs_fr hfit_bud_ch hvars htree_ch hcons
   let cur := offset + child.size
-  let s₁ := (Memory.spec 0).clientState s (iterate nodeStep env child.size offset)
+  obtain ⟨s₁, hs₁_def⟩ :
+      ∃ s₁, (Memory.spec 0).clientState s (iterate nodeStep env child.size offset) = s₁ := ⟨_, rfl⟩
+  rw [hs₁_def] at hfr_ch hframe_ch hdesc_ch
   have hFlo₁ : F_lo ≤ s₁.frontier := hs_fr.trans hframe_ch.1
   have hout_vars : env.varsPtr + env.varsLen ≤ env.descBase + 4 * offset :=
     hvars_lt_desc.trans (Nat.le_add_right _ _)
@@ -5487,8 +5434,7 @@ private theorem subtree_forget {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w i
     have h1 : LB.length + 1 ≤ maxTableExp (.forget v child) := le_max_left _ _
     exact h1.trans hexp
   have hcbag_len_le : (bagList child).length ≤ E :=
-    (bagList_length_le_maxBagListLen child).trans
-      ((maxBagListLen_le_maxTableExp child).trans hexp_ch)
+    (bagList_length_le_maxTableExp child).trans hexp_ch
   have hpow_ch_le : inst.domainSize ^ (bagList child).length ≤ inst.domainSize ^ E :=
     Nat.pow_le_pow_right hq hcbag_len_le
   have hpow_LB1_le : inst.domainSize ^ (LB.length + 1) ≤ inst.domainSize ^ E :=
@@ -5631,14 +5577,12 @@ private theorem subtree_forget {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w i
     exact hcost_root
   simp only [NiceTree.size_forget]
   refine ⟨iterationSafe_add nodeStep nodeStepSafe w env child.size 1 offset s hsafe_ch
-      (by rw [hres_ch]; exact ⟨hsafe_root, trivial⟩),
+      (by rw [hres_ch, hs₁_def]; exact ⟨hsafe_root, trivial⟩),
     validHistory_iterate_add nodeStep env child.size 1 offset s hv_ch
-      (by dsimp only [s₁, cur]; rw [hres_ch]; exact hv_it_root),
-    by rw [clientResult_iterate_add, hres_ch]; exact hit_root_res,
+      (by dsimp only [cur]; rw [hres_ch, hs₁_def]; exact hv_it_root),
+    by rw [clientResult_iterate_add, hres_ch, hs₁_def]; exact hit_root_res,
     ?_, ?_, ?_, ?_⟩
-  · rw [clientState_iterate_add, hres_ch]
-    change ((Memory.spec 0).clientState s₁ (iterate nodeStep env 1 cur)).frontier ≤ _
-    rw [hit_root_st, hst_root]
+  · rw [clientState_iterate_add, hres_ch, hs₁_def, hit_root_st, hst_root]
     have hfr_le : LB.length + inst.domainSize ^ LB.length ≤ perSpace := by
       dsimp only [perSpace]; omega
     have hmul_bud : (child.size + 1) * perSpace = child.size * perSpace + perSpace := by ring
@@ -5646,7 +5590,7 @@ private theorem subtree_forget {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w i
     change _ ≤ s.frontier + (child.size + 1) * perSpace
     dsimp only [fgArgs, env, subtreeEnv, LB] at hfr_fg hfr_le hfr_ch ⊢
     omega
-  · rw [clientState_iterate_add, hres_ch]
+  · rw [clientState_iterate_add, hres_ch, hs₁_def]
     change FrameOutsideRange (env.descBase + 4 * offset)
       (env.descBase + 4 * (offset + (child.size + 1))) s
       ((Memory.spec 0).clientState s₁ (iterate nodeStep env 1 cur))
@@ -5660,13 +5604,13 @@ private theorem subtree_forget {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w i
       FrameOutsideRange.trans
         (hframe_ch.mono_range le_rfl (by dsimp only [cur, env, subtreeEnv]; omega))
         (hfr_fg'.mono_range (by dsimp only [cur, env, subtreeEnv]; omega) le_rfl)
-  · rw [clientState_iterate_add, hres_ch]
+  · rw [clientState_iterate_add, hres_ch, hs₁_def]
     change NodeDescAt F_lo inst.counting inst.domainSize inst.constraints inst.vars
       (.forget v child) (env.descBase + 4 * (offset + (child.size + 1) - 1))
       ((Memory.spec 0).clientState s₁ (iterate nodeStep env 1 cur))
     rw [hit_root_st, hst_root, show offset + (child.size + 1) - 1 = cur from by omega]
     exact hdesc_fg
-  · rw [memoryCost_iterate_add, hres_ch]
+  · rw [memoryCost_iterate_add, hres_ch, hs₁_def]
     change memoryCost (iterate nodeStep env child.size offset) s +
         memoryCost (iterate nodeStep env 1 cur) s₁ ≤ (child.size + 1) * perCost
     have : (child.size + 1) * perCost = child.size * perCost + perCost := by ring
@@ -5795,10 +5739,9 @@ private theorem subtree_join_step {w : ℕ} (inst : TreeCSPInstance) (hw : Fits 
   have hdCur_hi : env.descBase + 4 * cur + 4 ≤ F_lo := by
     simp only [NiceTree.size_join] at hsz; dsimp only [F_lo, env, subtreeEnv] at *; omega
   have hllen_le : (bagList left).length ≤ E :=
-    (bagList_length_le_maxBagListLen left).trans ((maxBagListLen_le_maxTableExp left).trans hexp_l)
+    (bagList_length_le_maxTableExp left).trans hexp_l
   have hrlen_le : (bagList right).length ≤ E :=
-    (bagList_length_le_maxBagListLen right).trans
-      ((maxBagListLen_le_maxTableExp right).trans hexp_r)
+    (bagList_length_le_maxTableExp right).trans hexp_r
   have hpow_l_le : inst.domainSize ^ (bagList left).length ≤ inst.domainSize ^ E :=
     Nat.pow_le_pow_right hq hllen_le
   have hfit_rPow : Fits w (inst.domainSize ^ (bagList right).length) := by
@@ -5972,7 +5915,7 @@ private theorem subtree_join {w : ℕ} (inst : TreeCSPInstance) (hw : Fits w ins
         simp only [NiceTree.size_join] at hsz; omega)
       hframe_r
   have hllen_le : (bagList left).length ≤ E :=
-    (bagList_length_le_maxBagListLen left).trans ((maxBagListLen_le_maxTableExp left).trans hexp_l)
+    (bagList_length_le_maxTableExp left).trans hexp_l
   have hpow_l_le : inst.domainSize ^ (bagList left).length ≤ inst.domainSize ^ E :=
     Nat.pow_le_pow_right hq hllen_le
   have hfr_bound : s₂.frontier + inst.domainSize ^ (bagList left).length ≤
@@ -6190,8 +6133,10 @@ private theorem subtree_introduce {w : ℕ} (inst : TreeCSPInstance) (hw : Fits 
   obtain ⟨hsafe_ch, hv_ch, hres_ch, hfr_ch, hframe_ch, hdesc_ch, hc_ch⟩ :=
     ih offset s hsz_ch hexp_ch hmv_ch hwf hs_fr hfit_bud_ch hvars htree_ch hcons
   let cur := offset + child.size
-  let s₁ := (Memory.spec 0).clientState s (iterate nodeStep env child.size offset)
-  have hwf₁ : Memory.WellFormed w s₁ := wellFormed_clientState hwf hv_ch
+  obtain ⟨s₁, hs₁_def⟩ :
+      ∃ s₁, (Memory.spec 0).clientState s (iterate nodeStep env child.size offset) = s₁ := ⟨_, rfl⟩
+  rw [hs₁_def] at hfr_ch hframe_ch hdesc_ch
+  have hwf₁ : Memory.WellFormed w s₁ := hs₁_def ▸ wellFormed_clientState hwf hv_ch
   have hFlo₁ : F_lo ≤ s₁.frontier := hs_fr.trans hframe_ch.1
   have hout_vars : env.varsPtr + env.varsLen ≤ env.descBase + 4 * offset :=
     hvars_lt_desc.trans (Nat.le_add_right _ _)
@@ -6223,8 +6168,7 @@ private theorem subtree_introduce {w : ℕ} (inst : TreeCSPInstance) (hw : Fits 
     have h1 : (v :: bagList child).length ≤ maxTableExp (.introduce v child) := le_max_left _ _
     exact h1.trans hexp
   have hcbag_len_le : (bagList child).length ≤ E :=
-    (bagList_length_le_maxBagListLen child).trans
-      ((maxBagListLen_le_maxTableExp child).trans hexp_ch)
+    (bagList_length_le_maxTableExp child).trans hexp_ch
   have hpow_le : inst.domainSize ^ (v :: bagList child).length ≤ inst.domainSize ^ E :=
     Nat.pow_le_pow_right hq hbag_len_le
   have hs₁_peak : Fits w (s₁.frontier +
@@ -6323,14 +6267,12 @@ private theorem subtree_introduce {w : ℕ} (inst : TreeCSPInstance) (hw : Fits 
     exact hcost_root
   simp only [NiceTree.size_introduce]
   refine ⟨iterationSafe_add nodeStep nodeStepSafe w env child.size 1 offset s hsafe_ch
-      (by rw [hres_ch]; exact ⟨hsafe_root, trivial⟩),
+      (by rw [hres_ch, hs₁_def]; exact ⟨hsafe_root, trivial⟩),
     validHistory_iterate_add nodeStep env child.size 1 offset s hv_ch
-      (by dsimp only [s₁, cur]; rw [hres_ch]; exact hv_it_root),
-    by rw [clientResult_iterate_add, hres_ch]; exact hit_root_res,
+      (by dsimp only [cur]; rw [hres_ch, hs₁_def]; exact hv_it_root),
+    by rw [clientResult_iterate_add, hres_ch, hs₁_def]; exact hit_root_res,
     ?_, ?_, ?_, ?_⟩
-  · rw [clientState_iterate_add, hres_ch]
-    change ((Memory.spec 0).clientState s₁ (iterate nodeStep env 1 cur)).frontier ≤ _
-    rw [hit_root_st, hst_root]
+  · rw [clientState_iterate_add, hres_ch, hs₁_def, hit_root_st, hst_root]
     have hfr_le : (v :: bagList child).length +
         inst.domainSize ^ (v :: bagList child).length ≤ perSpace := by
       dsimp only [perSpace]; omega
@@ -6339,7 +6281,7 @@ private theorem subtree_introduce {w : ℕ} (inst : TreeCSPInstance) (hw : Fits 
     change _ ≤ s.frontier + (child.size + 1) * perSpace
     dsimp only [introArgs, env, subtreeEnv] at hfr_in hfr_ch ⊢
     omega
-  · rw [clientState_iterate_add, hres_ch]
+  · rw [clientState_iterate_add, hres_ch, hs₁_def]
     change FrameOutsideRange (env.descBase + 4 * offset)
       (env.descBase + 4 * (offset + (child.size + 1))) s
       ((Memory.spec 0).clientState s₁ (iterate nodeStep env 1 cur))
@@ -6353,13 +6295,13 @@ private theorem subtree_introduce {w : ℕ} (inst : TreeCSPInstance) (hw : Fits 
       FrameOutsideRange.trans
         (hframe_ch.mono_range le_rfl (by dsimp only [cur, env, subtreeEnv]; omega))
         (hfr_in'.mono_range (by dsimp only [cur, env, subtreeEnv]; omega) le_rfl)
-  · rw [clientState_iterate_add, hres_ch]
+  · rw [clientState_iterate_add, hres_ch, hs₁_def]
     change NodeDescAt F_lo inst.counting inst.domainSize inst.constraints inst.vars
       (.introduce v child) (env.descBase + 4 * (offset + (child.size + 1) - 1))
       ((Memory.spec 0).clientState s₁ (iterate nodeStep env 1 cur))
     rw [hit_root_st, hst_root, show offset + (child.size + 1) - 1 = cur from by omega]
     exact hdesc_in
-  · rw [memoryCost_iterate_add, hres_ch]
+  · rw [memoryCost_iterate_add, hres_ch, hs₁_def]
     change memoryCost (iterate nodeStep env child.size offset) s +
         memoryCost (iterate nodeStep env 1 cur) s₁ ≤ (child.size + 1) * perCost
     have : (child.size + 1) * perCost = child.size * perCost + perCost := by ring
@@ -6685,9 +6627,8 @@ open Classical in
 /-- **FPT Word-RAM CSP Decision (Nice Tree Decomposition).** One fixed exact-basis Word-RAM
 program decides `CSP.Satisfiable sem F` (returning `1` if satisfiable, `0` otherwise) on any
 finite-domain CSP `F : CSP Rel V` (`q > 0`, `e : V ≃ Fin m`) and nice tree decomposition `N` of
-`F.primalGraph` with `N.width ≤ k` in `≤ C * (cspNiceStepBound q N.size k |F.vars| |F|
-(cspTotalArity F) + 1) + 1` instructions at any word width `w` satisfying `Fits w inst.wordBound`.
--/
+`F.primalGraph` with `N.width ≤ k` in `≤ C * (cspNiceStepBound q N.size k |F.vars| |F| + 1) + 1`
+instructions at any word width `w` satisfying `Fits w inst.wordBound`. -/
 theorem exists_program_cspDecide_nice :
     ∃ r C : ℕ, ∃ prog : Program .exact r,
       ∀ {Rel V : Type*} [DecidableEq V] {q m k : ℕ} (hq : 0 < q) (e : V ≃ Fin m)
@@ -6697,15 +6638,13 @@ theorem exists_program_cspDecide_nice :
         ∀ w : ℕ,
           let inst := TreeCSPInstance.ofNice false q hq e sem F N
           Fits w inst.wordBound →
-          InputFits w inst.encode →
           ∃ steps,
             Executes w prog (.init inst.encode) (if CSP.Satisfiable sem F then 1 else 0) steps ∧
-            steps ≤ C * (cspNiceStepBound q N.size k F.vars.length F.length
-              (cspTotalArity F) + 1) + 1 := by
+            steps ≤ C * (cspNiceStepBound q N.size k F.vars.length F.length + 1) + 1 := by
   obtain ⟨r, C, prog, hcomp⟩ := exists_program_csp_treeDecomposition
-  refine ⟨r, C, prog, fun {Rel V _ q m k} hq e sem F N hk w hw hin => ?_⟩
+  refine ⟨r, C, prog, fun {Rel V _ q m k} hq e sem F N hk w hw => ?_⟩
   let inst := TreeCSPInstance.ofNice false q hq e sem F N
-  obtain ⟨steps, hexec, hsteps⟩ := hcomp inst w hw hin
+  obtain ⟨steps, hexec, hsteps⟩ := hcomp inst w hw (inputFits_encode inst hw)
   have hres : inst.result = if CSP.Satisfiable sem F then 1 else 0 := by
     dsimp only [inst]
     rw [TreeCSPInstance.ofNice, TreeCSPInstance.result_ofNiceTree_decide]
@@ -6730,16 +6669,14 @@ theorem exists_program_cspCount_nice :
         ∀ w : ℕ,
           let inst := TreeCSPInstance.ofNice true q hq e sem F N
           Fits w inst.wordBound →
-          InputFits w inst.encode →
           ∃ steps,
             Executes w prog (.init inst.encode)
               (@CSP.modelCount _ _ (Fin q) _ inferInstance ⟨⟨0, hq⟩⟩ sem F) steps ∧
-            steps ≤ C * (cspNiceStepBound q N.size k F.vars.length F.length
-              (cspTotalArity F) + 1) + 1 := by
+            steps ≤ C * (cspNiceStepBound q N.size k F.vars.length F.length + 1) + 1 := by
   obtain ⟨r, C, prog, hcomp⟩ := exists_program_csp_treeDecomposition
-  refine ⟨r, C, prog, fun {Rel V _ q m k} hq e sem F N hk w hw hin => ?_⟩
+  refine ⟨r, C, prog, fun {Rel V _ q m k} hq e sem F N hk w hw => ?_⟩
   let inst := TreeCSPInstance.ofNice true q hq e sem F N
-  obtain ⟨steps, hexec, hsteps⟩ := hcomp inst w hw hin
+  obtain ⟨steps, hexec, hsteps⟩ := hcomp inst w hw (inputFits_encode inst hw)
   rw [TreeCSPInstance.result_ofNice_count hq e sem F N] at hexec
   have hbound := TreeCSPInstance.stepBound_ofNice_le hq true e sem F N hk
   exact ⟨steps, hexec, hsteps.trans (Nat.add_le_add_right
@@ -6748,7 +6685,7 @@ theorem exists_program_cspCount_nice :
 open Classical in
 /-- **FPT Word-RAM CSP Decision (Rooted Tree Decomposition).** One fixed exact-basis Word-RAM
 program decides `CSP.Satisfiable sem F` over any `RootedTreeDecomposition` via `toNiceTreePruned`
-in `≤ C * (cspRootedStepBound q m k |F.vars| |F| (cspTotalArity F) + 1) + 1` instructions. -/
+in `≤ C * (cspRootedStepBound q m k |F.vars| |F| + 1) + 1` instructions. -/
 theorem exists_program_cspDecide_rooted :
     ∃ r C : ℕ, ∃ prog : Program .exact r,
       ∀ {Rel V : Type*} [LinearOrder V] {q m n k : ℕ} (hq : 0 < q) (e : V ≃ Fin m)
@@ -6758,32 +6695,29 @@ theorem exists_program_cspDecide_rooted :
         ∀ w : ℕ,
           let inst := TreeCSPInstance.ofRooted false q hq e sem F R
           Fits w inst.wordBound →
-          InputFits w inst.encode →
           ∃ steps,
             Executes w prog (.init inst.encode) (if CSP.Satisfiable sem F then 1 else 0) steps ∧
-            steps ≤ C * (cspRootedStepBound q m k F.vars.length F.length
-              (cspTotalArity F) + 1) + 1 := by
-  obtain ⟨r, C, prog, hnice⟩ := exists_program_cspDecide_nice
-  refine ⟨r, C, prog, fun {Rel V _ q m n k} hq e sem F R hk w hw hin => ?_⟩
-  let _ : Fintype V := Fintype.ofEquiv (Fin m) e.symm
-  have hcard : Fintype.card V = m := by rw [Fintype.card_congr e, Fintype.card_fin]
-  have hs : R.toNiceTreePruned.size ≤ (3 * k + 5) * (m + 1) := by
-    have h1 := R.toNiceTreePruned_size_le
-    rw [hcard] at h1
-    exact h1.trans (Nat.mul_le_mul_right _ (by omega))
-  obtain ⟨steps, hexec, hsteps⟩ :=
-    hnice hq e sem F R.toNiceTreePruned (R.toNiceTreePruned_width_le.trans hk) w hw hin
-  have hmono :
-      cspNiceStepBound q R.toNiceTreePruned.size k F.vars.length F.length (cspTotalArity F) ≤
-        cspRootedStepBound q m k F.vars.length F.length (cspTotalArity F) :=
-    cspNiceStepBound_mono hq hs le_rfl le_rfl le_rfl le_rfl
+            steps ≤ C * (cspRootedStepBound q m k F.vars.length F.length + 1) + 1 := by
+  obtain ⟨r, C, prog, hcomp⟩ := exists_program_csp_treeDecomposition
+  refine ⟨r, C, prog, fun {Rel V _ q m n k} hq e sem F R hk w hw => ?_⟩
+  let inst := TreeCSPInstance.ofRooted false q hq e sem F R
+  obtain ⟨steps, hexec, hsteps⟩ := hcomp inst w hw (inputFits_encode inst hw)
+  have hres : inst.result = if CSP.Satisfiable sem F then 1 else 0 := by
+    dsimp only [inst]
+    rw [TreeCSPInstance.ofRooted, TreeCSPInstance.ofNice, TreeCSPInstance.result_ofNiceTree_decide]
+    have hiff : cspDecideNiceTree q hq sem F R.toNiceTreePruned.tree = true ↔
+        CSP.Satisfiable sem F :=
+      cspDecideNice_eq_true_iff hq sem R.toNiceTreePruned
+    simp only [hiff]
+  rw [hres] at hexec
+  have hbound := TreeCSPInstance.stepBound_ofRooted_le hq false e sem F R hk
   exact ⟨steps, hexec, hsteps.trans (Nat.add_le_add_right
-    (Nat.mul_le_mul_left C (Nat.add_le_add_right hmono 1)) 1)⟩
+    (Nat.mul_le_mul_left C (Nat.add_le_add_right hbound 1)) 1)⟩
 
 /-- **FPT Word-RAM CSP Model Counting (Rooted Tree Decomposition).** One fixed exact-basis
 Word-RAM program computes `CSP.modelCount sem F` over any `RootedTreeDecomposition` via
-`toNiceTreePruned` in `≤ C * (cspRootedStepBound q m k |F.vars| |F| (cspTotalArity F) + 1) + 1`
-instructions whenever `Fits w inst.wordBound`. -/
+`toNiceTreePruned` in `≤ C * (cspRootedStepBound q m k |F.vars| |F| + 1) + 1` instructions whenever
+`Fits w inst.wordBound`. -/
 theorem exists_program_cspCount_rooted :
     ∃ r C : ℕ, ∃ prog : Program .exact r,
       ∀ {Rel V : Type*} [LinearOrder V] {q m n k : ℕ} (hq : 0 < q) (e : V ≃ Fin m)
@@ -6793,27 +6727,17 @@ theorem exists_program_cspCount_rooted :
         ∀ w : ℕ,
           let inst := TreeCSPInstance.ofRooted true q hq e sem F R
           Fits w inst.wordBound →
-          InputFits w inst.encode →
           ∃ steps,
             Executes w prog (.init inst.encode)
               (@CSP.modelCount _ _ (Fin q) _ inferInstance ⟨⟨0, hq⟩⟩ sem F) steps ∧
-            steps ≤ C * (cspRootedStepBound q m k F.vars.length F.length
-              (cspTotalArity F) + 1) + 1 := by
-  obtain ⟨r, C, prog, hnice⟩ := exists_program_cspCount_nice
-  refine ⟨r, C, prog, fun {Rel V _ q m n k} hq e sem F R hk w hw hin => ?_⟩
-  let _ : Fintype V := Fintype.ofEquiv (Fin m) e.symm
-  have hcard : Fintype.card V = m := by rw [Fintype.card_congr e, Fintype.card_fin]
-  have hs : R.toNiceTreePruned.size ≤ (3 * k + 5) * (m + 1) := by
-    have h1 := R.toNiceTreePruned_size_le
-    rw [hcard] at h1
-    exact h1.trans (Nat.mul_le_mul_right _ (by omega))
-  obtain ⟨steps, hexec, hsteps⟩ :=
-    hnice hq e sem F R.toNiceTreePruned (R.toNiceTreePruned_width_le.trans hk) w hw hin
-  have hmono :
-      cspNiceStepBound q R.toNiceTreePruned.size k F.vars.length F.length (cspTotalArity F) ≤
-        cspRootedStepBound q m k F.vars.length F.length (cspTotalArity F) :=
-    cspNiceStepBound_mono hq hs le_rfl le_rfl le_rfl le_rfl
+            steps ≤ C * (cspRootedStepBound q m k F.vars.length F.length + 1) + 1 := by
+  obtain ⟨r, C, prog, hcomp⟩ := exists_program_csp_treeDecomposition
+  refine ⟨r, C, prog, fun {Rel V _ q m n k} hq e sem F R hk w hw => ?_⟩
+  let inst := TreeCSPInstance.ofRooted true q hq e sem F R
+  obtain ⟨steps, hexec, hsteps⟩ := hcomp inst w hw (inputFits_encode inst hw)
+  rw [TreeCSPInstance.result_ofRooted_count hq e sem F R] at hexec
+  have hbound := TreeCSPInstance.stepBound_ofRooted_le hq true e sem F R hk
   exact ⟨steps, hexec, hsteps.trans (Nat.add_le_add_right
-    (Nat.mul_le_mul_left C (Nat.add_le_add_right hmono 1)) 1)⟩
+    (Nat.mul_le_mul_left C (Nat.add_le_add_right hbound 1)) 1)⟩
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition
