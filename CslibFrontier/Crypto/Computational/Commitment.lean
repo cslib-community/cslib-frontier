@@ -22,6 +22,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Probability.BitString.List
+import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PMFSwap
 
 /-!
@@ -589,13 +590,10 @@ theorem PseudorandomGenerator.naorGenerableStatefulHiding
     (hG : PseudorandomGenerator generator length) :
     GenerableStatefulHiding (naorCommit generator) := by
   intro aux haux receiver hR
-  have hfalse := hG.indistinguishable
-    (fun n pad => naorReceiverDistinguisher receiver false ((n, aux n), pad))
-    (isPPT_naorReceiverDistinguisher hR haux false)
-  have htrue := hG.indistinguishable
-    (fun n pad => naorReceiverDistinguisher receiver true ((n, aux n), pad))
-    (isPPT_naorReceiverDistinguisher hR haux true)
-  exact negligible_of_le (hfalse.add htrue) fun n =>
+  have h (b : Bool) := hG.indistinguishable
+    (fun n pad => naorReceiverDistinguisher receiver b ((n, aux n), pad))
+    (isPPT_naorReceiverDistinguisher hR haux b)
+  negligible using fun n =>
     advantage_commitmentHidingGame_naorCommit_le generator (length n) receiver (aux n) n
 
 /-- Step toward Naor's PRG-based bit commitment secrecy proof (after [Naor1991]), not the cited
@@ -609,11 +607,9 @@ theorem NonuniformPRG.naorStatefulHiding
     (hG : NonuniformPRG generator length) :
     StatefulHiding (naorCommit generator) := by
   intro aux haux receiver hR
-  have hfalse := hG.secure aux haux (naorReceiverDistinguisher receiver false)
-    (isPPTOn_naorReceiverDistinguisher hR false)
-  have htrue := hG.secure aux haux (naorReceiverDistinguisher receiver true)
-    (isPPTOn_naorReceiverDistinguisher hR true)
-  exact negligible_of_le (hfalse.add htrue) fun n =>
+  have h (b : Bool) := hG.secure aux haux (naorReceiverDistinguisher receiver b)
+    (isPPTOn_naorReceiverDistinguisher hR b)
+  negligible using fun n =>
     advantage_commitmentHidingGame_naorCommit_le generator (length n) receiver (aux n) n
 
 /-! ### Statistical binding -/
@@ -787,9 +783,8 @@ theorem naorBindingError_le_of_three_mul {generator : List Bool → List Bool} {
 binding failure probability is negligible. -/
 theorem negligible_naorBindingError {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hlen : ∀ s, (generator s).length = length s.length) (hstretch : ∀ n, 3 * n ≤ length n) :
-    Negligible (naorBindingError generator length) :=
-  negligible_of_le (negligible_geometric (by norm_num : (1 / 2 : ℝ≥0) < 1))
-    (fun n => naorBindingError_le_of_three_mul hlen n (hstretch n))
+    Negligible (naorBindingError generator length) := by
+  negligible using fun n => naorBindingError_le_of_three_mul hlen n (hstretch n)
 
 /-! ### Selective-opening batch commitments -/
 
