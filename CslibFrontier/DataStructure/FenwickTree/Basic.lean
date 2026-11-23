@@ -225,21 +225,18 @@ private theorem prefixSumLoop_eq {α : Type*} [AddCommMonoid α]
     {t : FenwickTree α} {s : List α} (hv : Valid t s)
     {m : ℕ} (hms : m ≤ s.length) (acc : α) :
     prefixSumLoop t.tree m acc = acc + (s.take m).sum := by
-  induction m using Nat.strongRecOn generalizing acc with
-  | ind m ih =>
-    rw [prefixSumLoop]
-    rcases Nat.eq_zero_or_pos m with rfl | hpos
-    · simp only [Nat.lt_irrefl, false_and, ↓reduceDIte, List.take_zero, List.sum_nil, add_zero]
-    · have hmt : m ≤ t.tree.size := hv.1 ▸ hms
-      simp only [hpos, hmt, and_self, ↓reduceDIte]
-      have hlt : m - lowbit m < m := Nat.sub_lt hpos (lowbit_pos hpos)
-      rw [ih (m - lowbit m) hlt (by omega) (acc + t.tree[m - 1]'(by omega)),
-        hv.2 m hpos hmt]
-      have hsplit : s.take m = s.take (m - lowbit m) ++ (s.take m).drop (m - lowbit m) := by
-        have h := (List.take_append_drop (m - lowbit m) (s.take m)).symm
-        rwa [List.take_take, Nat.min_eq_left (Nat.le_of_lt hlt)] at h
-      conv_rhs => rw [hsplit, List.sum_append]
-      rw [add_assoc, add_comm ((s.take m).drop (m - lowbit m)).sum]
+  fun_induction prefixSumLoop t.tree m acc with
+  | case1 m acc hguard ih =>
+    have hlt : m - lowbit m < m := Nat.sub_lt hguard.1 (lowbit_pos hguard.1)
+    rw [ih (by omega), hv.2 m hguard.1 hguard.2]
+    have hsplit : s.take m = s.take (m - lowbit m) ++ (s.take m).drop (m - lowbit m) := by
+      have h := (List.take_append_drop (m - lowbit m) (s.take m)).symm
+      rwa [List.take_take, Nat.min_eq_left (Nat.le_of_lt hlt)] at h
+    conv_rhs => rw [hsplit, List.sum_append]
+    rw [add_assoc, add_comm ((s.take m).drop (m - lowbit m)).sum]
+  | case2 m acc hguard =>
+    obtain rfl : m = 0 := by have := hv.1; omega
+    simp only [List.take_zero, List.sum_nil, add_zero]
 
 /-- Functional correctness of `prefixSum` (`[Fenwick1994]`, "THE CUMULATIVE FREQUENCY", Figure 4,
 p. 330): on any valid tree for `s`, `prefixSum t len` equals `(s.take len).sum` for all
@@ -279,15 +276,9 @@ Figures 5–6 on p. 331). Leaves `t` unchanged when `t.size ≤ pos`. -/
 theorem addLoop_size {α : Type*} [AddCommMonoid α]
     (n m : ℕ) (δ : α) (tree : Array α) :
     (addLoop n m δ tree).size = tree.size := by
-  generalize hrem : n + 1 - m = rem
-  induction rem using Nat.strongRecOn generalizing m tree with
-  | ind rem ih =>
-    rw [addLoop]
-    split_ifs with hm
-    · have hlb_pos : 0 < lowbit m := lowbit_pos hm.1
-      rw [@ih (n + 1 - (m + lowbit m)) (by omega) (m + lowbit m)
-        (tree.modify (m - 1) (· + δ)) rfl, Array.size_modify]
-    · rfl
+  fun_induction addLoop n m δ tree with
+  | case1 m tree _ ih => rw [ih, Array.size_modify]
+  | case2 => rfl
 
 private theorem addLoop_getElem {α : Type*} [AddCommMonoid α]
     (n m : ℕ) (δ : α) (tree : Array α)
@@ -595,20 +586,12 @@ private theorem buildLoop_spec {α : Type*} [AddCommMonoid α]
     (s : List α) (m : ℕ) {tree : Array α}
     (hm1 : 1 ≤ m) (hmn : m ≤ s.length + 1) (hinv : BuildInv s m tree) :
     BuildInv s (s.length + 1) (buildLoop s.length m tree) := by
-  generalize hrem : s.length + 1 - m = rem
-  induction rem generalizing m tree with
-  | zero =>
-    have hmeq : m = s.length + 1 := by omega
-    subst hmeq
-    rw [buildLoop]
-    have hnot : ¬ (1 ≤ s.length + 1 ∧ s.length + 1 ≤ s.length ∧ tree.size = s.length) := by omega
-    simp only [hnot, ↓reduceDIte]
+  fun_induction buildLoop s.length m tree with
+  | case1 m tree hguard _ _ ih =>
+    exact ih (by omega) (by omega) (hinv.step hm1 hguard.2.1)
+  | case2 m tree hguard =>
+    obtain rfl : m = s.length + 1 := by have := hinv.size_eq; omega
     exact hinv
-  | succ rem ih =>
-    have hms : m ≤ s.length := by omega
-    rw [buildLoop]
-    simp only [hm1, hms, hinv.size_eq, and_self, ↓reduceDIte]
-    exact ih (m + 1) (by omega) (by omega) (hinv.step hm1 hms) (by omega)
 
 /-- `ofArray a` constructs a valid Fenwick tree representing `a.toList`. -/
 theorem valid_ofArray {α : Type*} [AddCommMonoid α] (a : Array α) :

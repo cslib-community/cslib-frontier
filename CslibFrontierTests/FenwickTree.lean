@@ -7,8 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-public import CslibFrontier.Init
-public import CslibFrontier.DataStructure.FenwickTree.WordRAM
+import CslibFrontier.Init
+import CslibFrontier.DataStructure.FenwickTree.WordRAM
 import Mathlib.Algebra.Group.ULift
 
 /-!
@@ -31,7 +31,7 @@ Kernel-checked examples and theorems (without `native_decide`) exercising:
    independently necessary.
 -/
 
-public section
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.FenwickTree
 
@@ -49,21 +49,21 @@ example :
       lowbit 16 = 16 ∧
       (13 - (13 &&& 12) = lowbit 13) ∧
       (12 &&& 11 = 12 - lowbit 12) := by
-  simp [lowbit]
+  simp [lowbit.eq_def]
 
 example :
     downChain 0 = [] ∧
       downChain 7 = [7, 6, 4] ∧
       downChain 13 = [13, 12, 8] ∧
       downChain 16 = [16] := by
-  simp [downChain, lowbit]
+  simp [downChain.eq_def, lowbit.eq_def]
 
 example :
     upChain 16 0 = [] ∧
       upChain 16 1 = [1, 2, 4, 8, 16] ∧
       upChain 13 3 = [3, 4, 8] ∧
       upChain 13 14 = [] := by
-  simp [upChain, lowbit]
+  simp [upChain.eq_def, lowbit.eq_def]
 
 example :
     fenwickChildren 8 = ({4, 6, 7} : Finset ℕ) ∧
@@ -379,7 +379,7 @@ theorem valid_manual4 : Valid (⟨#[3, 4, 4, 9]⟩ : FenwickTree ℕ) [3, 1, 4, 
     change m ≤ 4 at hm4
     omega
   rcases hm_cases with rfl | rfl | rfl | rfl <;>
-    simp [lowbit]
+    simp [lowbit.eq_def]
 
 example : ofList [3, 1, 4, 1] = ⟨#[3, 4, 4, 9]⟩ :=
   (valid_ofList [3, 1, 4, 1]).unique valid_manual4
@@ -393,7 +393,7 @@ example : ¬ Valid (⟨#[3, 4, 4, 8]⟩ : FenwickTree ℕ) [3, 1, 4, 1] := by
   intro hv
   have h4 := hv.2 4 (by omega) (by decide)
   have hlhs : (⟨#[3, 4, 4, 8]⟩ : FenwickTree ℕ).tree[4 - 1] = 8 := rfl
-  have hrhs : (([3, 1, 4, 1].take 4).drop (4 - lowbit 4)).sum = 9 := by simp [lowbit]
+  have hrhs : (([3, 1, 4, 1].take 4).drop (4 - lowbit 4)).sum = 9 := by simp [lowbit.eq_def]
   rw [hlhs, hrhs] at h4
   omega
 

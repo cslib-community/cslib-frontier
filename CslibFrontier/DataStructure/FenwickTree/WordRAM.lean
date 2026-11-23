@@ -144,7 +144,7 @@ abbrev spec (w : ℕ) : StateTransitionSpec :=
     (State := List ℕ) (Op := PrefixSums.Op ℕ) (Result := PrefixSums.Op.Result ℕ)
     PrefixSums.step (valid w)
 
-theorem sum_addAt_of_lt {s : List ℕ} {pos : ℕ} (δ : ℕ) (hpos : pos < s.length) :
+private theorem sum_addAt_of_lt {s : List ℕ} {pos : ℕ} (δ : ℕ) (hpos : pos < s.length) :
     (PrefixSums.addAt s pos δ).sum = s.sum + δ := by
   induction s generalizing pos with
   | nil => simp at hpos
@@ -200,7 +200,7 @@ theorem treeOfMem_zeros {base n : ℕ} {mem : ℕ → ℕ}
   simp only [Array.getElem_ofFn, Array.getElem_replicate]
   exact hzero (base + i) (by simp only [Block.mem_footprint, Block.Owns]; omega)
 
-theorem tree_treeOfMem_update_add {base n idx v : ℕ} {mem : ℕ → ℕ} (_hidx : idx < n) :
+theorem tree_treeOfMem_update_add {base n idx v : ℕ} {mem : ℕ → ℕ} :
     (treeOfMem base n (Function.update mem (base + idx) (mem (base + idx) + v))).tree =
       (treeOfMem base n mem).tree.modify idx (· + v) := by
   refine Array.ext (by simp) fun i hi₁ hi₂ => ?_
@@ -276,7 +276,7 @@ def queryBody : Code .exact 12 := ram_exact[
 def queryLoop : Code .exact 12 := ram_exact[while rZero < rIdx do [⟪queryBody⟫]]
 
 /-- Post-iteration register state of `queryBody`. -/
-def queryNext (x : Data 12) (b m a : ℕ) : Data 12 :=
+private def queryNext (x : Data 12) (b m a : ℕ) : Data 12 :=
   let v := x.mem (b + (m - 1))
   ((((x.set rTmp1 (m - 1)).set rTmp2 (b + (m - 1))).set rTmp2 v).set rAns (a + v)).set
     rIdx (m &&& (m - 1))
@@ -376,7 +376,7 @@ def updateBody : Code .exact 12 := ram_exact[
 def updateLoop : Code .exact 12 := ram_exact[while rZero < rIdx do [⟪updateBody⟫]]
 
 /-- Post-iteration machine state of `updateBody`. -/
-def updateNext (x : Data 12) (b n m δ : ℕ) : Data 12 :=
+private def updateNext (x : Data 12) (b n m δ : ℕ) : Data 12 :=
   let v := x.mem (b + (m - 1))
   let lb := m - (m &&& (m - 1))
   let y := (((((((x.set rTmp1 (m - 1)).set rTmp2 (b + (m - 1))).set rAns v).set rAns (v + δ)).write
@@ -446,7 +446,7 @@ theorem updateLoop_spec {w b n m δ S : ℕ} {x : Data 12}
     have htree₁ : (treeOfMem b n x₁.mem).tree =
         (treeOfMem b n x.mem).tree.modify (m - 1) (· + δ) := by
       rw [hx₁_mem]
-      exact tree_treeOfMem_update_add (by omega : m - 1 < n)
+      exact tree_treeOfMem_update_add
     have hcond : (Cond.lt rZero rIdx).Holds x := by
       simp only [Cond.holds_lt, hz, hm_reg, hm_pos]
     have hlb_eq : m - (m &&& (m - 1)) = lowbit m := sub_and_pred_eq_lowbit m
@@ -590,7 +590,7 @@ def charge (s : List ℕ) (_ : PrefixSums.Op ℕ) : ℕ :=
 /-- Because every `PrefixSums.Op ℕ` preserves `s.length`, `totalCost` along any `k`-operation
 history simplifies to `k * (13 * Nat.clog 2 (s.length + 1) + 10 + c)` for any constant offset
 `c`. -/
-theorem totalCost_charge_add (w c : ℕ) (s : List ℕ) (os : List (PrefixSums.Op ℕ)) :
+private theorem totalCost_charge_add (w c : ℕ) (s : List ℕ) (os : List (PrefixSums.Op ℕ)) :
     (spec w).totalCost (fun st o => charge st o + c) s os =
       os.length * (13 * Nat.clog 2 (s.length + 1) + 10 + c) := by
   induction os generalizing s with
@@ -859,7 +859,7 @@ representation `Rep b n w s x` (whether zero-initialized or constructed in `O(n)
 `buildCode_spec`), returning `(spec w).clientResult s p` in at most
 `history.length * (13 * Nat.clog 2 (s.length + 1) + 12)` total instructions. -/
 theorem client_spec {w b n : ℕ} (hw : 0 < w) (hfit_addr : Fits w (b + n))
-    {β : Type} (p : (spec w).Client β) {s : List ℕ} {x : Data 12}
+    {β : Type*} (p : (spec w).Client β) {s : List ℕ} {x : Data 12}
     (hr : Rep b n w s x) (hv : (spec w).ValidHistory s ((spec w).clientHistory s p)) :
     ∃ y traces,
       DataStructure.Executes
@@ -907,7 +907,7 @@ def buildCode : Code .exact 12 := ram_exact[
   while rIdx < rLen do [⟪buildBody⟫] ]
 
 /-- Post-iteration machine state of `buildBody` at `0`-based counter `j < n` (`m = j + 1`). -/
-def buildNext (x : Data 12) (b n j : ℕ) : Data 12 :=
+private def buildNext (x : Data 12) (b n j : ℕ) : Data 12 :=
   let m := j + 1
   let a := m &&& j
   let lb := m - a
@@ -935,13 +935,10 @@ private theorem buildBody_exec {w b n j : ℕ} {s : List ℕ} {x : Data 12}
   have hlen_s : s.length = n := by
     simpa only [size_tree_treeOfMem] using hinv.size_eq.symm
   have hand_eq : (j + 1) &&& j = (j + 1) - lowbit (j + 1) := by
-    conv_lhs => rw [show j = (j + 1) - 1 by omega]
-    exact and_pred_eq_sub_lowbit (j + 1)
+    simpa only [Nat.add_sub_cancel] using and_pred_eq_sub_lowbit (j + 1)
   have hand_le : (j + 1) &&& j ≤ j + 1 := by rw [hand_eq]; omega
   have hlb_eq : (j + 1) - ((j + 1) &&& j) = lowbit (j + 1) := by
-    conv_lhs => rw [hand_eq]
-    have := lowbit_le (j + 1)
-    omega
+    simpa only [Nat.add_sub_cancel] using sub_and_pred_eq_lowbit (j + 1)
   have hlb_pos : 0 < lowbit (j + 1) := lowbit_pos hm1
   have hf_m : Fits w (j + 1) := hfit_addr.of_le (by omega)
   have hf_and : Fits w ((j + 1) &&& j) := hfit_addr.of_le (by omega)
@@ -1024,12 +1021,7 @@ theorem buildCode_spec {w b : ℕ} {s : List ℕ} {x : Data 12}
         split <;> exact hfr_z
       have hidx' : z'.regs rIdx = j + 1 := rfl
       have hlb_eq : (j + 1) - ((j + 1) &&& j) = lowbit (j + 1) := by
-        have hand_j : (j + 1) &&& j = (j + 1) - lowbit (j + 1) := by
-          conv_lhs => rw [show j = (j + 1) - 1 by omega]
-          exact and_pred_eq_sub_lowbit (j + 1)
-        rw [hand_j]
-        have := lowbit_le (j + 1)
-        omega
+        simpa only [Nat.add_sub_cancel] using sub_and_pred_eq_lowbit (j + 1)
       have hstep_inv := hinv_z.step (by omega : 1 ≤ j + 1) (by omega : j + 1 ≤ s.length)
       by_cases hlt : n - (j + 1) < (j + 1) - ((j + 1) &&& j)
       · have hp_not : ¬ (j + 1 + lowbit (j + 1) ≤ s.length) := by omega
@@ -1062,7 +1054,7 @@ theorem buildCode_spec {w b : ℕ} {s : List ℕ} {x : Data 12}
             (treeOfMem b n z.mem).tree.modify (p - 1)
               (· + (treeOfMem b n z.mem).tree[j]'(by rw [size_tree_treeOfMem]; omega)) := by
           rw [hmem_eq]
-          simpa only [getElem_treeOfMem] using tree_treeOfMem_update_add (by omega : p - 1 < n)
+          simpa only [getElem_treeOfMem] using tree_treeOfMem_update_add (idx := p - 1)
         refine ⟨z', he_b, ⟨ho', hb', hsz', hfr',
           fun a ha => (hmod_step a ha).trans (hmod_z a ha), ?_⟩, hidx'⟩
         simpa only [Nat.add_sub_cancel, htree_eq] using hstep_inv)

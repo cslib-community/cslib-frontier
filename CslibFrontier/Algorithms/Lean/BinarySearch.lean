@@ -56,36 +56,34 @@ theorem lowerBoundM_spec (t : ℕ → TimeM ℕ Bool) {lo hi : ℕ}
     lo ≤ (lowerBoundM t lo hi).ret ∧ (lowerBoundM t lo hi).ret ≤ max lo hi ∧
       (∀ m, lo ≤ m → m < (lowerBoundM t lo hi).ret → (t m).ret = true) ∧
       (∀ m, (lowerBoundM t lo hi).ret ≤ m → m < hi → (t m).ret = false) := by
-  generalize hk : hi - lo = k
-  induction k using Nat.strong_induction_on generalizing lo hi with
-  | _ k ih =>
-    rw [lowerBoundM]
-    split_ifs with hlt
-    · simp only [TimeM.ret_bind]
-      set mid := (lo + hi) / 2 with hmid
-      have hlm : lo ≤ mid := by omega
-      have hmh : mid < hi := by omega
-      cases hb : (t mid).ret
-      · simp only [Bool.false_eq_true, ↓reduceIte]
-        obtain ⟨h1, h2, h3, h4⟩ := ih (mid - lo) (by omega) (lo := lo) (hi := mid)
-          (fun m m' hm hmm' hm' => hmono m m' hm hmm' (by omega)) rfl
-        refine ⟨h1, by omega, h3, fun m hm hmhi => ?_⟩
-        rcases Nat.lt_or_ge m mid with hlt' | hge
-        · exact h4 m hm hlt'
-        · cases htm : (t m).ret
-          · rfl
-          · have := hmono mid m hlm hge hmhi htm
-            rw [hb] at this
-            exact absurd this Bool.false_ne_true
-      · simp only [↓reduceIte]
-        obtain ⟨h1, h2, h3, h4⟩ := ih (hi - (mid + 1)) (by omega) (lo := mid + 1) (hi := hi)
-          (fun m m' hm hmm' hm' => hmono m m' (by omega) hmm' hm') rfl
-        refine ⟨by omega, by omega, fun m hm hmk => ?_, h4⟩
-        rcases Nat.lt_or_ge m (mid + 1) with hlt' | hge
-        · exact hmono m mid hm (by omega) hmh hb
-        · exact h3 m hge hmk
-    · simp only [TimeM.ret_pure]
-      refine ⟨le_refl _, le_max_left _ _, fun m hm hm' => by omega, fun m hm hm' => by omega⟩
+  fun_induction lowerBoundM t lo hi with
+  | case1 lo hi hlt ihR ihL => -- lo < hi: probe the midpoint
+    simp only [TimeM.ret_bind]
+    set mid := (lo + hi) / 2 with hmid
+    have hlm : lo ≤ mid := by omega
+    have hmh : mid < hi := by omega
+    cases hb : (t mid).ret
+    · simp only [Bool.false_eq_true, ↓reduceIte]
+      obtain ⟨h1, h2, h3, h4⟩ :=
+        ihL fun m m' hm hmm' hm' => hmono m m' hm hmm' (by omega)
+      refine ⟨h1, by omega, h3, fun m hm hmhi => ?_⟩
+      rcases Nat.lt_or_ge m mid with hlt' | hge
+      · exact h4 m hm hlt'
+      · cases htm : (t m).ret
+        · rfl
+        · have := hmono mid m hlm hge hmhi htm
+          rw [hb] at this
+          exact absurd this Bool.false_ne_true
+    · simp only [↓reduceIte]
+      obtain ⟨h1, h2, h3, h4⟩ :=
+        ihR fun m m' hm hmm' hm' => hmono m m' (by omega) hmm' hm'
+      refine ⟨by omega, by omega, fun m hm hmk => ?_, h4⟩
+      rcases Nat.lt_or_ge m (mid + 1) with hlt' | hge
+      · exact hmono m mid hm (by omega) hmh hb
+      · exact h3 m hge hmk
+  | case2 => -- hi ≤ lo: empty range
+    simp only [TimeM.ret_pure]
+    refine ⟨le_refl _, le_max_left _ _, fun m hm hm' => by omega, fun m hm hm' => by omega⟩
 
 /-- `Nat.log 2 (2 * k') + 1 ≤ Nat.log 2 (2 * k)` when `0 < k'` and `2 * k' ≤ k`. -/
 private theorem log_two_mul_add_one_le {k k' : ℕ} (hpos : 0 < k') (h2 : 2 * k' ≤ k) :
@@ -112,36 +110,32 @@ theorem lowerBoundM_time_le (t : ℕ → TimeM ℕ Bool) {c : ℕ} (hc : ∀ m, 
     · rw [show 2 * (hi - lo) = (hi - lo) * 2 by omega, Nat.log_mul_base (by omega) (by omega)]
         at h
       exact h
-  generalize hk : hi - lo = k
-  induction k using Nat.strong_induction_on generalizing lo hi with
-  | _ k ih =>
-    rw [lowerBoundM]
-    split_ifs with hlt
-    · simp only [TimeM.time_bind]
-      set mid := (lo + hi) / 2 with hmid
-      have hlog : 1 ≤ Nat.log 2 (2 * k) := by
-        rw [show 2 * k = k * 2 by omega, Nat.log_mul_base (by omega) (by omega)]
+  fun_induction lowerBoundM t lo hi with
+  | case1 lo hi hlt ihR ihL => -- lo < hi: probe the midpoint
+    simp only [TimeM.time_bind]
+    set mid := (lo + hi) / 2 with hmid
+    generalize hk : hi - lo = k
+    have hlog : 1 ≤ Nat.log 2 (2 * k) := by
+      rw [show 2 * k = k * 2 by omega, Nat.log_mul_base (by omega) (by omega)]
+      omega
+    have hstep : ∀ k', 2 * k' ≤ k → c * Nat.log 2 (2 * k') + c ≤ c * Nat.log 2 (2 * k) := by
+      intro k' h2
+      rcases Nat.eq_zero_or_pos k' with h0 | hpos
+      · subst h0
+        simp only [Nat.mul_zero, Nat.log_zero_right]
+        have := Nat.mul_le_mul_left c hlog
         omega
-      have hstep : ∀ k', 2 * k' ≤ k → c * Nat.log 2 (2 * k') + c ≤ c * Nat.log 2 (2 * k) := by
-        intro k' h2
-        rcases Nat.eq_zero_or_pos k' with h0 | hpos
-        · subst h0
-          simp only [Nat.mul_zero, Nat.log_zero_right]
-          have := Nat.mul_le_mul_left c hlog
-          omega
-        · have := Nat.mul_le_mul_left c (log_two_mul_add_one_le hpos h2)
-          rw [Nat.mul_add, Nat.mul_one] at this
-          exact this
-      have htc := hc mid
-      cases hb : (t mid).ret
-      · simp only [Bool.false_eq_true, ↓reduceIte]
-        have := ih (mid - lo) (by omega) (lo := lo) (hi := mid) rfl
-        have := hstep (mid - lo) (by omega)
-        omega
-      · simp only [↓reduceIte]
-        have := ih (hi - (mid + 1)) (by omega) (lo := mid + 1) (hi := hi) rfl
-        have := hstep (hi - (mid + 1)) (by omega)
-        omega
-    · simp only [TimeM.time_pure, Nat.zero_le]
+      · have := Nat.mul_le_mul_left c (log_two_mul_add_one_le hpos h2)
+        rw [Nat.mul_add, Nat.mul_one] at this
+        exact this
+    have htc := hc mid
+    cases hb : (t mid).ret
+    · simp only [Bool.false_eq_true, ↓reduceIte]
+      have := hstep (mid - lo) (by omega)
+      omega
+    · simp only [↓reduceIte]
+      have := hstep (hi - (mid + 1)) (by omega)
+      omega
+  | case2 => simp only [TimeM.time_pure, Nat.zero_le] -- hi ≤ lo: empty range
 
 end Cslib.Algorithms.Lean

@@ -82,7 +82,7 @@ example :
   simp only [hashThenPRFWordIdealQueries, hashThenPRFWordIdealRun, repeatedWordQueries,
     ProbOracleComp.runState_bind, ProbOracleComp.runState_query, ProbOracleComp.runState_pure,
     StateT.run_bind, StateT.run_pure]
-  simp [StateT.run, cachedRandomFunctionOracle, memoize, ProbComp.eval_map]
+  simp [StateT.run, cachedRandomFunctionOracle, cachedSamplerOracle, memoize, ProbComp.eval_map]
 
 example (A : OracleDistinguisher) :
     let valid := fun (_ : ℕ) (word : List Bool) => word == [true]
