@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Distributed.Byzantine.RecursiveOralMes
 public import CslibFrontier.Computability.Distributed.ByzantineGraph.Basic
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Connectivity.VertexConnectivity
 import CslibFrontier.Algorithms.Lean.MaxFlow.Menger
+import CslibFrontier.Tactic.FinsetCard
 
 /-!
 # Vertex-separator impossibility and synchronous Boolean consensus on graphs
@@ -200,12 +201,7 @@ private theorem exists_split_card_le {C : Finset P} {t : ℕ} (hcard : C.card �
   · exact ⟨C, ∅, Finset.Subset.refl C, Finset.empty_subset _, Finset.subset_union_left, ht,
       Nat.zero_le t⟩
   · obtain ⟨C₁, hC₁sub, hC₁card⟩ := Finset.exists_subset_card_eq (Nat.le_of_not_le ht)
-    refine ⟨C₁, C \ C₁, hC₁sub, Finset.sdiff_subset, fun x hx => ?_, hC₁card.le, ?_⟩
-    · by_cases hx₁ : x ∈ C₁
-      · exact Finset.mem_union_left _ hx₁
-      · exact Finset.mem_union_right _ (Finset.mem_sdiff.mpr ⟨hx, hx₁⟩)
-    · rw [Finset.card_sdiff_of_subset hC₁sub]
-      omega
+    exact ⟨C₁, C \ C₁, hC₁sub, Finset.sdiff_subset, by finset_card, hC₁card.le, by finset_card⟩
 
 /-- **Vertex-separator impossibility bound for synchronous Boolean consensus**
 ([Fischer, Lynch and Merritt][FischerLynchMerritt1985], Theorem 1, §3, p. 61; connectivity proof in

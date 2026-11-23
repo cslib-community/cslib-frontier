@@ -53,7 +53,7 @@ theorem realize_inputSymbol {a : EncodedStructure} (ha : v.WellFormed a)
       (encStructure a).length = x.val := by
     simpa only [Matrix.cons_fin_one] using v.realize_inputLength ha hB x
   rcases s with _ | b
-  · fo_simp [inputSymbol, Function.comp_def, not_le, hlen, Fin.lt_def, inputAt_eq_none_iff]
+  · fo_simp [inputSymbol, not_le, hlen, Fin.lt_def, inputAt_eq_none_iff]
     refine or_congr Iff.rfl ⟨fun ⟨xs, hx, hp⟩ => by omega, fun hp => ?_⟩
     exact ⟨![⟨(encStructure a).length, hB⟩], rfl, hp⟩
   · have hdata (q : Fin B) (hq : q.val < (encStructure a).length) :
@@ -66,9 +66,7 @@ theorem realize_inputSymbol {a : EncodedStructure} (ha : v.WellFormed a)
           (encStructure a).length = (xs 1).val ∧
           (xs 0).val < (xs 1).val ∧ (xs 0).val + 1 = p.val ∧
           (if b then v.inputBit.Realize ![xs 0] else ¬v.inputBit.Realize ![xs 0]) := by
-      simp only [inputSymbol, Formula.realize_iExs, Formula.realize_inf]
-      cases b <;> fo_simp [↓reduceIte, Function.comp_def, hlen, not_le, Fin.lt_def,
-        Matrix.cons_fin_one, and_assoc]
+      cases b <;> fo_simp [inputSymbol, hlen, not_le, Fin.lt_def, Matrix.cons_fin_one, and_assoc]
     rw [hform, inputAt_eq_some_iff]
     constructor
     · rintro ⟨xs, hlen, hlt, hs, hb⟩
