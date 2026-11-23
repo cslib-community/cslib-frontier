@@ -38,7 +38,8 @@ and an insertion keeps the cost, so this is also the least cost of a script with
 ## Main results
 
 * `Cslib.Algorithms.Lean.EditDistance.length_le_lcsLength`: every common subsequence has length at
-  most `lcsLength x y`.
+  most `lcsLength x y` (`lcsLength_le_left` and `lcsLength_le_right` bound `lcsLength x y` by `|x|`
+  and `|y|`).
 * `Cslib.Algorithms.Lean.EditDistance.lcs_spec`: `lcs x y` is a common subsequence of length
   `lcsLength x y`.
 * `Cslib.Algorithms.Lean.EditDistance.isGreatest_lcsLength`: `lcsLength x y` is the greatest
@@ -168,6 +169,14 @@ theorem isGreatest_lcsLength (x y : List α) :
   refine ⟨⟨lcs x y, lcs_spec x y⟩, ?_⟩
   rintro k ⟨z, hx, hy, rfl⟩
   exact length_le_lcsLength hx hy
+
+theorem lcsLength_le_left (x y : List α) : lcsLength x y ≤ x.length := by
+  obtain ⟨hx, _, hlen⟩ := lcs_spec x y
+  exact hlen ▸ hx.length_le
+
+theorem lcsLength_le_right (x y : List α) : lcsLength x y ≤ y.length := by
+  obtain ⟨_, hy, hlen⟩ := lcs_spec x y
+  exact hlen ▸ hy.length_le
 
 /-! ### Insertion–deletion distance -/
 
@@ -325,12 +334,7 @@ theorem editDist_indel_nil_left (y : List α) : editDist Costs.indel [] y = y.le
 /-- Deleting every letter of `x` and inserting every letter of `y`. -/
 theorem editDist_indel_le_length_add (x y : List α) :
     editDist Costs.indel x y ≤ x.length + y.length := by
-  induction x with
-  | nil => exact Nat.le_of_eq (by rw [editDist_indel_nil_left, List.length_nil, Nat.zero_add])
-  | cons a x ih =>
-    have := editDist_cons_left_le Costs.indel a x y
-    simp only [Costs.indel_del, List.length_cons] at this ⊢
-    omega
+  simpa [Costs.indel] using editDist_le_sum_del_ins (Costs.indel (α := α)) x y
 
 /-- A common subsequence `z` of `x` and `y` gives a script keeping `z`. -/
 theorem editDist_indel_add_two_mul_le : ∀ {x y z : List α}, z <+ x → z <+ y →

@@ -152,6 +152,37 @@ on `[0, 1]` vs `[1, 0]`, witnessing non-unit asymmetric Wagner–Fischer on the 
   src := []
   tgt := []
 
+/-- One-sided empty source/target instances with `del = 3 ≠ 2 = ins`, distinguishing the `m > 0,
+n = 0` and `m = 0, n > 0` border loops. -/
+@[expose] def asymDelOnlyInst : WeightedInstance where
+  sigma := 1
+  costs := ⟨fun _ => 3, fun _ => 2, fun _ _ => 0⟩
+  src := [0]
+  tgt := []
+
+/-- Asymmetric insertion-only counterpart (`src = []`, `tgt = [0]`, cost `2`). -/
+@[expose] def asymInsOnlyInst : WeightedInstance where
+  sigma := 1
+  costs := ⟨fun _ => 3, fun _ => 2, fun _ _ => 0⟩
+  src := []
+  tgt := [0]
+
+/-- Asymmetric substitution table (`sub 0 1 = 1`, `sub 1 0 = 4`, `del = ins = 5`), witnessing
+row-major `a * σ + b` vs `b * σ + a` indexing of `WeightedInstance.subTable`. -/
+@[expose] def asymSubFwdInst : WeightedInstance where
+  sigma := 2
+  costs := ⟨fun _ => 5, fun _ => 5, fun a b =>
+    if a = 0 ∧ b = 1 then 1 else if a = 1 ∧ b = 0 then 4 else 0⟩
+  src := [0]
+  tgt := [1]
+
+/-- Transposed query (`src = [1]`, `tgt = [0]`, cost `4`) on the same asymmetric `sub` table. -/
+@[expose] def asymSubRevInst : WeightedInstance where
+  sigma := 2
+  costs := asymSubFwdInst.costs
+  src := [1]
+  tgt := [0]
+
 -- Checked Word-RAM execution and flat-interpreter (`Cslib.WordRAM.run`) certificates on concrete
 -- fitting widths, including empty-word and empty-alphabet boundary cases.
 example : ∃ n ≤ 26 * 7 * 8,
@@ -196,8 +227,56 @@ example : ∃ n ≤ 28,
     Executes 3 weightedEditDistProgram (.init zeroSigmaInst.encode) 0 n ∧
       Cslib.WordRAM.run 3 weightedEditDistProgram 28 (.init zeroSigmaInst.encode) =
         some (0, n) := by
-  obtain ⟨n, hexec, hle⟩ :=
-    computesInTime_weightedEditDist zeroSigmaInst 3 (by decide) (by decide)
+  have hw : zeroSigmaInst.FitsWidth 3 := by decide
+  obtain ⟨n, hexec, hle⟩ := computesInTime_weightedEditDist zeroSigmaInst 3 hw hw.inputFits
+  exact ⟨n, hle, hexec, run_mono hexec.run_eq hle⟩
+
+example : ∃ n ≤ 28 * 2 * 1,
+    Executes 4 weightedEditDistProgram (.init asymDelOnlyInst.encode) 3 n ∧
+      Cslib.WordRAM.run 4 weightedEditDistProgram (28 * 2 * 1) (.init asymDelOnlyInst.encode) =
+        some (3, n) := by
+  have hw : asymDelOnlyInst.FitsWidth 4 := by decide
+  obtain ⟨n, hexec, hle⟩ := computesInTime_weightedEditDist asymDelOnlyInst 4 hw hw.inputFits
+  dsimp only at hexec hle
+  have hval : editDist asymDelOnlyInst.costs asymDelOnlyInst.src asymDelOnlyInst.tgt = 3 := by
+    decide
+  rw [hval] at hexec
+  exact ⟨n, hle, hexec, run_mono hexec.run_eq hle⟩
+
+example : ∃ n ≤ 28 * 1 * 2,
+    Executes 4 weightedEditDistProgram (.init asymInsOnlyInst.encode) 2 n ∧
+      Cslib.WordRAM.run 4 weightedEditDistProgram (28 * 1 * 2) (.init asymInsOnlyInst.encode) =
+        some (2, n) := by
+  have hw : asymInsOnlyInst.FitsWidth 4 := by decide
+  obtain ⟨n, hexec, hle⟩ := computesInTime_weightedEditDist asymInsOnlyInst 4 hw hw.inputFits
+  dsimp only at hexec hle
+  have hval : editDist asymInsOnlyInst.costs asymInsOnlyInst.src asymInsOnlyInst.tgt = 2 := by
+    decide
+  rw [hval] at hexec
+  exact ⟨n, hle, hexec, run_mono hexec.run_eq hle⟩
+
+example : ∃ n ≤ 28 * 2 * 2,
+    Executes 5 weightedEditDistProgram (.init asymSubFwdInst.encode) 1 n ∧
+      Cslib.WordRAM.run 5 weightedEditDistProgram (28 * 2 * 2) (.init asymSubFwdInst.encode) =
+        some (1, n) := by
+  have hw : asymSubFwdInst.FitsWidth 5 := by decide
+  obtain ⟨n, hexec, hle⟩ := computesInTime_weightedEditDist asymSubFwdInst 5 hw hw.inputFits
+  dsimp only at hexec hle
+  have hval : editDist asymSubFwdInst.costs asymSubFwdInst.src asymSubFwdInst.tgt = 1 := by
+    decide
+  rw [hval] at hexec
+  exact ⟨n, hle, hexec, run_mono hexec.run_eq hle⟩
+
+example : ∃ n ≤ 28 * 2 * 2,
+    Executes 5 weightedEditDistProgram (.init asymSubRevInst.encode) 4 n ∧
+      Cslib.WordRAM.run 5 weightedEditDistProgram (28 * 2 * 2) (.init asymSubRevInst.encode) =
+        some (4, n) := by
+  have hw : asymSubRevInst.FitsWidth 5 := by decide
+  obtain ⟨n, hexec, hle⟩ := computesInTime_weightedEditDist asymSubRevInst 5 hw hw.inputFits
+  dsimp only at hexec hle
+  have hval : editDist asymSubRevInst.costs asymSubRevInst.src asymSubRevInst.tgt = 4 := by
+    decide
+  rw [hval] at hexec
   exact ⟨n, hle, hexec, run_mono hexec.run_eq hle⟩
 
 end CslibFrontierTests.EditDistance

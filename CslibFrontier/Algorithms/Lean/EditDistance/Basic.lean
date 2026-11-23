@@ -62,6 +62,8 @@ to it.
   `optScript C x y` is a script from `x` to `y` of cost `editDist C x y`.
 * `Cslib.Algorithms.Lean.EditDistance.isLeast_editDist`: `editDist C x y` is the least cost of a
   script from `x` to `y`.
+* `Cslib.Algorithms.Lean.EditDistance.editDist_le_sum_del_ins`, `editDist_unit_le_add`: upper bounds
+  from deleting `x` and inserting `y`.
 
 Word-RAM running-time bounds for Wagner–Fischer edit distance are proved in
 `CslibFrontier.Algorithms.WordRAM.EditDistance`.
@@ -247,6 +249,21 @@ theorem editDist_cons_right_le (b : α) (x y : List α) :
 theorem editDist_cons_cons_le (a b : α) (x y : List α) :
     editDist C (a :: x) (b :: y) ≤ C.sub a b + editDist C x y := by
   rw [editDist_cons_cons]; omega
+
+/-- Deleting every letter of `x` and inserting every letter of `y`. -/
+theorem editDist_le_sum_del_ins (x y : List α) :
+    editDist C x y ≤ (x.map C.del).sum + (y.map C.ins).sum := by
+  induction x with
+  | nil => rw [editDist_nil_left, List.map_nil, List.sum_nil, Nat.zero_add]
+  | cons a x ih =>
+    have h := editDist_cons_left_le C a x y
+    simp only [List.map_cons, List.sum_cons]
+    omega
+
+/-- Under unit costs, the edit distance is at most `|x| + |y|`. -/
+theorem editDist_unit_le_add [DecidableEq α] (x y : List α) :
+    editDist Costs.unit x y ≤ x.length + y.length := by
+  simpa [Costs.unit] using editDist_le_sum_del_ins (Costs.unit (α := α)) x y
 
 /-- Every script from `x` to `y` costs at least `editDist C x y`. -/
 theorem editDist_le_cost (s : EditScript α) : editDist C s.src s.tgt ≤ s.cost C := by
