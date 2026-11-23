@@ -76,8 +76,9 @@ coefficient on the circle, so the name is meant to be used qualified.
 * `Cslib.BitString.sum_fourierCoeff_sq_signVal`: Parseval's identity for functions with values
   `±1`; so their coefficients have square and absolute value at most one
   (`Cslib.BitString.fourierCoeff_sq_signVal_le_one`,
-  `Cslib.BitString.abs_fourierCoeff_signVal_le_one`) and their spectral norm is at least one
-  (`Cslib.BitString.one_le_sum_abs_fourierCoeff_signVal`).
+  `Cslib.BitString.abs_fourierCoeff_signVal_le_one`), every partial sum of their squares is at
+  most one (`Cslib.BitString.sum_fourierCoeff_sq_signVal_le_one`), and their spectral norm is at
+  least one (`Cslib.BitString.one_le_sum_abs_fourierCoeff_signVal`).
 * `Cslib.BitString.expect_signVal_mul_signVal`, `Cslib.BitString.fourierCoeff_signVal`: the
   correlation of two Boolean functions is one minus twice their relative Hamming distance.
 
@@ -423,6 +424,12 @@ theorem fourierCoeff_sq_signVal_le_one (f : (ι → Bool) → Bool) (S : Finset 
   rw [← sum_fourierCoeff_sq_signVal f]
   exact single_le_sum (f := fun S => fourierCoeff (fun x => signVal (f x)) S ^ 2)
     (fun _ _ => sq_nonneg _) (mem_univ S)
+
+/-- **Partial Fourier weight**: over any family of sets, the squared Fourier coefficients of a
+Boolean function, read as signs, sum to at most one. -/
+theorem sum_fourierCoeff_sq_signVal_le_one (f : (ι → Bool) → Bool) (s : Finset (Finset ι)) :
+    ∑ S ∈ s, fourierCoeff (fun x => signVal (f x)) S ^ 2 ≤ 1 :=
+  (sum_le_univ_sum_of_nonneg fun _ => sq_nonneg _).trans_eq (sum_fourierCoeff_sq_signVal f)
 
 /-- A Fourier coefficient of a Boolean function, read as signs, has absolute value at most one. -/
 theorem abs_fourierCoeff_signVal_le_one (f : (ι → Bool) → Bool) (S : Finset ι) :

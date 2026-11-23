@@ -6836,6 +6836,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.HadamardRectangles
 public import CslibFrontier.Foundations.BooleanAnalysis.HadamardTester
 public import CslibFrontier.Foundations.BooleanAnalysis.HammingFourier
 public import CslibFrontier.Foundations.BooleanAnalysis.HarmonicTransform
+public import CslibFrontier.Foundations.BooleanAnalysis.HastadTest
 public import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity
 public import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.Derivative
 public import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.LpNorm
