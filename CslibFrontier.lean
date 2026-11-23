@@ -6517,6 +6517,7 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.KickTree.Layout
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.KickTree.Prog
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.LinearProbing
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.LinearProbing.FiveWise
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.LowerBound
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.PackedSlice
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
