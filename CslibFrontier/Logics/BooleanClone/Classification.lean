@@ -156,8 +156,7 @@ private theorem ternaryTable_eq {f : (Fin 3 → Bool) → Bool}
   funext a
   have ha : a = ![a 0, a 1, a 2] := by ext i; fin_cases i <;> rfl
   conv_lhs => rw [ha]
-  cases h₀ : a 0 <;> cases h₁ : a 1 <;> cases h₂ : a 2 <;>
-    simp [ternaryTable, h₀, h₁, h₂, h000, h111, h011, h101, h110]
+  grind [ternaryTable]
 
 /-- An idempotent ternary operation in a clone missing the four generators is a projection.
 The eight self-dual idempotent tables are the three projections, majority, minority, and three

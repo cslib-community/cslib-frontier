@@ -129,38 +129,34 @@ theorem repair_spec (h : EdgeInstance F) {sem : Rel → List Bool → Bool}
     ValidLabeling sem g' ∧ (defects g').card ≤ (defects g).card ∧
       hammingDist f g' + 2 * k = hammingDist f g ∧ k ≤ fuel ∧
       (hammingDist f g ≤ fuel → defects g' ⊆ defects f) := by
-  induction fuel generalizing g with
-  | zero =>
+  fun_induction repair sem f fuel g with
+  | case1 g => -- fuel exhausted
     refine ⟨hg, le_rfl, by simp, le_rfl, ?_⟩
     intro hd
     have he : f = g := hammingDist_eq_zero.mp (by omega)
     subst g
     exact Subset.rfl
-  | succ n ih =>
-    cases hs : findPair F (RepairMove sem f g) with
-    | none =>
-      simp only [repair, hs]
-      refine ⟨hg, le_rfl, by simp, Nat.zero_le _, ?_⟩
-      intro _ v hvg
-      by_contra hvf
-      obtain ⟨a, ha⟩ := exists_repairMove hM hf hg
-        (mt mem_defects.mpr hvf) (mem_defects.mp hvg)
-      exact findPair_none hs a.1 a.2 ha
-    | some a =>
-      rcases a with ⟨o, p⟩
-      obtain ⟨hc, hne, ho, hp, hcf, hcg, hv⟩ := findPair_spec hs
-      have hrec := ih hv
-      have hd := hammingDist_flipOn_pair_add_two hne ho hp
-      have hcard := h.card_defects_flipOn_pair_le g hne hcg
-      simp only [repair, hs]
-      dsimp only at hrec ⊢
-      refine ⟨hrec.1, hrec.2.1.trans hcard, ?_, by omega, ?_⟩
-      · rw [hammingDist_comm g f, hammingDist_comm (flipOn {o, p} g) f] at hd
-        omega
-      · intro hb
-        apply hrec.2.2.2.2
-        rw [hammingDist_comm g f, hammingDist_comm (flipOn {o, p} g) f] at hd
-        omega
+  | case2 n g hs => -- no repair move
+    refine ⟨hg, le_rfl, by simp, Nat.zero_le _, ?_⟩
+    intro _ v hvg
+    by_contra hvf
+    obtain ⟨a, ha⟩ := exists_repairMove hM hf hg
+      (mt mem_defects.mpr hvf) (mem_defects.mp hvg)
+    exact findPair_none hs a.1 a.2 ha
+  | case3 n g o p hs g' k hrep ih => -- repair move (o, p): flip and recurse
+    obtain ⟨hc, hne, ho, hp, hcf, hcg, hv⟩ := findPair_spec hs
+    have hrec := ih hv
+    rw [hrep] at hrec
+    have hd := hammingDist_flipOn_pair_add_two hne ho hp
+    have hcard := h.card_defects_flipOn_pair_le g hne hcg
+    dsimp only at hrec ⊢
+    refine ⟨hrec.1, hrec.2.1.trans hcard, ?_, by omega, ?_⟩
+    · rw [hammingDist_comm g f, hammingDist_comm (flipOn {o, p} g) f] at hd
+      omega
+    · intro hb
+      apply hrec.2.2.2.2
+      rw [hammingDist_comm g f, hammingDist_comm (flipOn {o, p} g) f] at hd
+      omega
 
 /-- Two fewer defects and containment provide a starting defect different from any specified
 variable. Only the start is excluded; the walk may end at that variable. -/

@@ -1191,8 +1191,7 @@ private theorem exists_step_ncard_le_of_read_univ [Finite U] {τ : Signature}
   have hbound : N.accepted.ncard ≤
       (K - 1) ^ 2 * (V + 1) * (sw.transition t '' N.accepted).ncard := by
     calc N.accepted.ncard ≤ (K - 1) ^ 2 * sw.transitionCount := sw.ncard_le hfree hKS
-      _ ≤ (K - 1) ^ 2 * ((V + 1) * (sw.transition t '' N.accepted).ncard) :=
-          Nat.mul_le_mul_left _ hsum
+      _ ≤ (K - 1) ^ 2 * ((V + 1) * (sw.transition t '' N.accepted).ncard) := by gcongr
       _ = (K - 1) ^ 2 * (V + 1) * (sw.transition t '' N.accepted).ncard :=
           (mul_assoc _ _ _).symm
   exact hbound.trans (Nat.mul_le_mul_left _ (hstep t ht'))

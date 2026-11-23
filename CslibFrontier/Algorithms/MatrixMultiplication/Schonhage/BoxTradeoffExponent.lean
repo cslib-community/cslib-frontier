@@ -69,8 +69,6 @@ theorem nativeShape_ninth_blocks_rpow (k N Q : ℕ) (hN : D (9 * k) ^ 18 ≤ N)
       Q * (∑ d ∈ range (k + 1), alpha (9 * k) d) : ℕ) : ℝ) ≤
       80 * ((9 * k : ℕ) + 1 : ℝ) * (D (9 * k) : ℝ) ^ (-(8 / 125 : ℝ)) *
         (N : ℝ) ^ 2 := by
-  exact (nativeShape_ninth_blocks k N Q hN hQ).trans
-    (mul_le_mul_of_nonneg_right
-      (mul_le_mul_of_nonneg_left (decay_le_rpow k) (by positivity)) (sq_nonneg _))
+  exact (nativeShape_ninth_blocks k N Q hN hQ).trans (by gcongr; exact decay_le_rpow k)
 
 end Cslib.Algorithms.MatrixMultiplication.Schonhage.BoxTradeoff

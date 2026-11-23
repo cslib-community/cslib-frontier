@@ -58,8 +58,9 @@ structure CallArgs (L : Layout) (s : Fin 3 → ℕ) (j : Fin 3) (x : Data 64) : 
 /-- Runtime argument delivery keeps all persistent caller registers. -/
 theorem prepare_preserves (j : Fin 3) (i : Fin 64) (hi : 46 ≤ i.val) (hne : i ≠ temporary) :
     (prepare j).Preserves i := by
-  have h : 46 ≤ i.val ∧ i ≠ temporary := ⟨hi, hne⟩
-  fin_cases j <;> fin_cases i <;> norm_num [temporary] at h <;> decide
+  have h : ∀ (j : Fin 3) (i : Fin 64), 46 ≤ i.val → i ≠ temporary → (prepare j).Preserves i :=
+    by decide +kernel
+  exact h j i hi hne
 
 /-- Every complete native round retains the caller arguments and prepared layout/constants. -/
 theorem round_preserves (j : Fin 3) (i : Fin 64) (hi : 46 ≤ i.val) (hne : i ≠ temporary) :
@@ -76,52 +77,26 @@ theorem exec_prepare {w : ℕ} (x y : Data 64) (j : Fin 3)
     (hfit : Fits w (layout x).budget) (hN : 2 * (layout x).M ≤ (layout x).N) :
     ∃ q, ExecWithin w (prepare j) y q 20 ∧
       CallArgs (layout x) (fun j => x.regs (source j)) j q ∧ q.mem = y.mem := by
-  let L := layout x
-  have hfit' : Fits w L.budget := hfit
-  have hN' : 2 * L.M ≤ L.N := hN
-  obtain ⟨hk, hh, hp, hg, hpad, h1, h4⟩ := hready
-  have hl (k : Fin 3) : y.regs (length k) = L.n k :=
+  obtain ⟨hk, hh, hp, hg, _, h1, h4⟩ := hready
+  have hl (k : Fin 3) : y.regs (length k) = (layout x).n k :=
     hparams _ (by dsimp only [length]; omega)
   have hs (k : Fin 3) : y.regs (source k) = x.regs (source k) :=
     hparams _ (by dsimp only [source]; omega)
-  have hb : y.regs base = L.base := hparams _ (by decide)
-  have hm : y.regs modulus = L.M := hparams _ (by decide)
-  have f (v : ℕ) (hv : v ≤ L.packed) : Fits w v :=
-    (hfit'.of_le L.bounds.1).of_le (by
-      dsimp only [Layout.endpoint, Layout.hist, Layout.scratch]
-      omega)
-  have fc (v : ℕ) (hv : v ≤ 16) : Fits w v := hfit'.of_le (by have := L.bounds.2.2; omega)
-  have fm (v : ℕ) (hv : v ≤ 120 * L.U + 80) : Fits w v :=
-    (hfit'.of_le L.bounds.2.1).of_le hv
-  have f0 : Fits w 0 := fits_zero _
-  have f1 : Fits w 1 := fc _ (by decide)
-  have f2 : Fits w 2 := fc _ (by decide)
-  have f3 : Fits w 3 := fc _ (by decide)
-  have fb₀ : Fits w (L.base + 1) := f _ (by dsimp only [Layout.packed]; omega)
-  have fb₁ : Fits w (L.base + 1 + L.n 0) := f _ (by
-    dsimp only [Layout.packed, Layout.total]; omega)
-  have fb₂ : Fits w (L.base + 1 + L.n 0 + 1) := f _ (by
-    dsimp only [Layout.packed, Layout.total]; omega)
-  have fb₃ : Fits w (L.base + 1 + L.n 0 + 1 + L.n 1) := f _ (by
-    dsimp only [Layout.packed, Layout.total]; omega)
-  have fo₁ : Fits w (L.base + 1 + L.n 0 + 1) := fb₂
-  have fo₂ : Fits w (L.base + 1 + L.n 0 + 1 + L.n 1 + 1) := f _ (by
-    dsimp only [Layout.packed, Layout.total]; omega)
-  have ft₁ : Fits w (3 * (2 * L.gap)) := fm _ (by dsimp only [Layout.gap]; omega)
-  have ft₂ : Fits w (4 * (2 * L.gap)) := fm _ (by dsimp only [Layout.gap]; omega)
-  have fd : Fits w (4 * L.M) := (hfit'.of_le L.bounds.1).of_le (by
-    dsimp only [Layout.endpoint, Layout.hist, Layout.scratch]
-    omega)
-  dsimp only [L] at *
+  have hb : y.regs base = (layout x).base := hparams _ (by decide)
+  have hm : y.regs modulus = (layout x).M := hparams _ (by decide)
+  have hfe : Fits w (layout x).endpoint := hfit.of_le (layout x).bounds.1
+  have hfm : Fits w (120 * (layout x).U + 80) := hfit.of_le (layout x).bounds.2.1
+  have hfc : Fits w 16 := hfit.of_le (by have := (layout x).bounds.2.2; omega)
+  dsimp only [layout, Layout.endpoint, Layout.hist, Layout.scratch, Layout.packed,
+    Layout.total, Layout.gap] at hfe hfm hg hN hl hb hm
   fin_cases j <;> simp only [Fin.mk_zero, Fin.mk_one]
   all_goals
     refine WP.exists_execWithin ?_
     unfold prepare descriptorCode tagCode distanceCode
     simp +decide only [↓reduceIte]
-    wram_exec [hk, hh, hp, hg, h1, h4, hl, hs, hb, hm, f0, f1, f2, f3,
-      fb₀, fb₁, fb₂, fb₃, fo₁, fo₂, ft₁, ft₂, fd]
+    wram_exec [hk, hh, hp, hg, h1, h4, hl, hs, hb, hm]
     refine ⟨?_, by wram_simp⟩
-    constructor <;> wram_simp [Layout.heavy, Layout.descriptor, Layout.tag, layout] <;>
+    constructor <;> wram_simp [Layout.heavy, Layout.descriptor, Layout.tag, Layout.gap, layout] <;>
       simp +decide <;> omega
 
 /-- A complete native round, with all actual counting calls discharged and all pointer,

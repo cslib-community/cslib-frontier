@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Carving.Decom
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Carving.OffMedian
 import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
 import CslibFrontier.Foundations.Probability.Gaussian.Real
+import CslibFrontier.Foundations.Probability.UnionBound
 import CslibFrontier.Foundations.Probability.WeightedSecondMoment
 import Mathlib.Tactic.IntervalCases
 import Mathlib.Tactic.Linarith
@@ -757,6 +758,25 @@ end Helpers
 
 section DepthOne
 
+/-- The second part of a partition `S = T ∪ U` has the remaining cardinality. -/
+private theorem ncard_eq_sub_of_union {α : Type*} [Finite α] {S T U : Set α}
+    (hTU : Disjoint T U) (h : T ∪ U = S) : (U.ncard : ℝ) = S.ncard - T.ncard := by
+  rw [← h, ncard_union_eq hTU (toFinite _) (toFinite _)]
+  push_cast
+  ring
+
+/-- Splitting `X = X₁ ⊔ X₂` splits the cut edges of `X` by the part that contains their end in
+`X`. -/
+private theorem ncard_edgeCut_endIn_eq_sub {V E : Type*} [Finite E] {G : Multigraph V E}
+    {X X₁ X₂ : Set V} (hd : Disjoint X₁ X₂) (hu : X₁ ∪ X₂ = X) :
+    ({e ∈ G.edgeCut X | endIn G X e ∈ X₂}.ncard : ℝ) =
+      (G.edgeCut X).ncard - ({e ∈ G.edgeCut X | endIn G X e ∈ X₁}.ncard : ℝ) := by
+  refine ncard_eq_sub_of_union (disjoint_left.mpr fun _ h1 h2 => disjoint_left.mp hd h1.2 h2.2) ?_
+  ext e
+  refine ⟨by rintro (h | h) <;> exact h.1, fun he => ?_⟩
+  rcases (hu ▸ (endIn_mem he).1 : endIn G X e ∈ X₁ ∪ X₂) with h | h
+  exacts [Or.inl ⟨he, h⟩, Or.inr ⟨he, h⟩]
+
 /-- **Depth-one `CappedCompression` bisection.** For a subset `X ⊆ V` of a loopless cubic
 multigraph `G` where every vertex in `X` has at most one incident edge in `G.edgeCut X`, a
 weight-capped compression of `G.induce X` followed by a symmetric (`t = 0`) Gaussian cut bisects
@@ -800,21 +820,7 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
   have hQ_loop : Q.Loopless := cmp.quotient_loopless
   have hQ_deg : Q.MaxDegreeLE 3 := cmp.quotient_maxDegreeLE
   have hcard_X : Nat.card X = X.ncard := Nat.card_coe_set_eq X
-  have hblocks_le_X : cmp.blocks.card ≤ X.ncard := by
-    have h1_le (B : cmp.blocks) :
-        1 ≤ (Finset.univ.filter fun x : X => cmp.blockOf x = B).card := by
-      obtain ⟨x, hx⟩ := List.exists_mem_of_ne_nil _ (cmp.ne_nil B.1 B.2)
-      exact Finset.card_pos.mpr ⟨x, Finset.mem_filter.mpr ⟨Finset.mem_univ x,
-        cmp.mem_iff_blockOf_eq.mp hx⟩⟩
-    have hle := Finset.sum_le_sum fun B (_ : B ∈ (Finset.univ : Finset cmp.blocks)) => h1_le B
-    rw [Finset.sum_const, Finset.card_univ, Fintype.card_coe, smul_eq_mul, mul_one,
-      ← Finset.card_biUnion (fun B _ B' _ hne => Finset.disjoint_left.mpr fun x h1 h2 =>
-        hne ((Finset.mem_filter.mp h1).2.symm.trans (Finset.mem_filter.mp h2).2))] at hle
-    have huniv_eq : (Finset.univ.biUnion fun B : cmp.blocks =>
-        Finset.univ.filter fun x : X => cmp.blockOf x = B) = Finset.univ := by
-      ext x; simp
-    rw [huniv_eq, Finset.card_univ, ← Nat.card_eq_fintype_card, hcard_X] at hle
-    exact hle
+  have hblocks_le_X : cmp.blocks.card ≤ X.ncard := hcard_X ▸ cmp.card_blocks_le
   have hX_le_V : X.ncard ≤ Nat.card V := ncard_le_card X
   -- Low-degree and degree-3 block counts on `Q`.
   set Lset := Finset.univ.filter fun B : cmp.blocks =>
@@ -832,21 +838,9 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
       omega
     omega
   have hL_le : (Lset.card : ℝ) ≤ 32 / (M : ℝ) * h := by
-    have hsat_bound : (M / 2 + 1) * Lset.card ≤ 4 * ∑ x : X, w x := hsat.card_deg_one_two_mul_le
-    have hM_div : M ≤ 2 * (M / 2 + 1) := by omega
-    have hnat : M * Lset.card ≤ 32 * Nat.card V := calc
-      M * Lset.card ≤ (2 * (M / 2 + 1)) * Lset.card := Nat.mul_le_mul_right _ hM_div
-      _ = 2 * ((M / 2 + 1) * Lset.card) := by ring
-      _ ≤ 2 * (4 * ∑ x : X, w x) := Nat.mul_le_mul_left 2 hsat_bound
-      _ ≤ 2 * (4 * (4 * Nat.card V)) := Nat.mul_le_mul_left 2 (Nat.mul_le_mul_left 4 hsum_w_le)
-      _ = 32 * Nat.card V := by ring
-    have hreal : (M : ℝ) * (Lset.card : ℝ) ≤ 32 * h := by
-      have hc : ((M * Lset.card : ℕ) : ℝ) ≤ ((32 * Nat.card V : ℕ) : ℝ) := Nat.cast_le.mpr hnat
-      push_cast at hc
-      exact hc
-    have hMpos : (0 : ℝ) < M := by positivity
-    rw [div_mul_eq_mul_div, le_div_iff₀ hMpos]
-    linarith only [hreal]
+    have hsat_bound : M * Lset.card ≤ 8 * ∑ x : X, w x := hsat.mul_card_deg_one_two_le
+    rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity), show h = Nat.card V from rfl]
+    exact_mod_cast (by linarith : Lset.card * M ≤ 32 * Nat.card V)
   have hQ3_le : (Q3set.card : ℝ) + ((G.edgeCut X).ncard : ℝ) ≤ (X.ncard : ℝ) + (Lset.card : ℝ) := by
     have hdeg3 : Q3set.card + (G.edgeCut X).ncard ≤
         Nat.card X + (Finset.univ.filter fun B : cmp.blocks =>
@@ -858,11 +852,7 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
         simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hB
         simp [Lset, hB]
     rw [hcard_X] at hdeg3
-    have hnat : Q3set.card + (G.edgeCut X).ncard ≤ X.ncard + Lset.card := by omega
-    have hc : ((Q3set.card + (G.edgeCut X).ncard : ℕ) : ℝ) ≤
-        ((X.ncard + Lset.card : ℕ) : ℝ) := Nat.cast_le.mpr hnat
-    push_cast at hc
-    exact hc
+    exact_mod_cast (by omega : Q3set.card + (G.edgeCut X).ncard ≤ X.ncard + Lset.card)
   -- Product probability space `(gaussianReal 0 1).prod (gaussianReal 0 1)` at each block of `Q`.
   let μB : cmp.blocks → Measure (ℝ × ℝ) := fun _ => (gaussianReal 0 1).prod (gaussianReal 0 1)
   set P := Measure.pi μB
@@ -944,21 +934,10 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
     ((∑ x ∈ Finset.univ.filter (fun x : X => cmp.blockOf x = B),
       (G.incidenceSet x.1 ∩ G.edgeCut X).ncard : ℕ) : ℝ)
   have hvWt_le (B : cmp.blocks) : 0 ≤ vWt B ∧ vWt B ≤ M := by
-    refine ⟨Nat.cast_nonneg _, ?_⟩
-    have hle : {x : X | x ∈ B.1}.ncard ≤ cmp.blockWeight B := by
-      rw [cmp.ncard_block_eq_length B]
-      have h1 : B.1.length = (B.1.map fun _ => 1).sum := by simp
-      rw [h1, CappedCompression.blockWeight]
-      have h2 : ∀ l : List X, (l.map fun _ => 1).sum ≤ (l.map w).sum := by
-        intro l
-        induction l with
-        | nil => simp
-        | cons a tl ih =>
-          simp only [List.map_cons, List.sum_cons]
-          have : 1 ≤ w a := by dsimp [w]; omega
-          omega
-      exact h2 B.1
-    exact Nat.cast_le.mpr (hle.trans (cmp.blockWeight_le B))
+    refine ⟨Nat.cast_nonneg _, Nat.cast_le.mpr (le_trans ?_ (cmp.blockWeight_le B))⟩
+    rw [cmp.ncard_block_eq_length B, CappedCompression.blockWeight]
+    simpa using List.sum_le_sum (l := B.1) (f := fun _ => 1) (g := w) fun a _ => by
+      dsimp [w]; omega
   have hbWt_le (B : cmp.blocks) : 0 ≤ bWt B ∧ bWt B ≤ M := by
     refine ⟨Nat.cast_nonneg _, ?_⟩
     have hfin : B.1.toFinset = Finset.univ.filter (fun x : X => cmp.blockOf x = B) := by
@@ -972,80 +951,27 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
     exact Nat.cast_le.mpr (hle.trans (cmp.blockWeight_le B))
   -- Concentration of the three block sums with threshold `c = η * h`.
   set c : ℝ := η * h
-  have hc_pos : 0 < c := by positivity
   set D := vertexOverlap 3 R
-  have hball_D (B : cmp.blocks) :
-      (Finset.univ.filter fun B' =>
-        ¬Disjoint (closedBall Q.toSimpleGraph B (R + 1))
-          (closedBall Q.toSimpleGraph B' (R + 1))).card ≤ D :=
-    card_not_disjoint_closedBall_le hQ_deg (by norm_num) R B
-  let devV := {ω | c ≤ |∑ B : cmp.blocks, vWt B * (inSide B).indicator 1 ω -
-    ∑ B : cmp.blocks, vWt B * P.real (inSide B)|}
-  let devB := {ω | c ≤ |∑ B : cmp.blocks, bWt B * (inSide B).indicator 1 ω -
-    ∑ B : cmp.blocks, bWt B * P.real (inSide B)|}
-  let devS := {ω | c ≤ |∑ B : cmp.blocks, (1 : ℝ) * (stradQ B).indicator 1 ω -
-    ∑ B : cmp.blocks, (1 : ℝ) * P.real (stradQ B)|}
-  have hdevV : P.real devV ≤ (cmp.blocks.card : ℝ) * (M : ℝ) ^ 2 * D / c ^ 2 := by
-    have hb := measureReal_pi_le_abs_sum_weighted_indicator_sub_le (μ := μB)
-      (Finset.univ : Finset cmp.blocks) (fun B _ => hinSide_meas B) (by positivity)
-      (fun B _ => (hvWt_le B).1) (fun B _ => (hvWt_le B).2)
-      (fun B => closedBall Q.toSimpleGraph B (R + 1)) (fun B _ => hinSide_dep B)
-      (fun B B' => ¬Disjoint (closedBall Q.toSimpleGraph B (R + 1))
-        (closedBall Q.toSimpleGraph B' (R + 1)))
-      (fun _ _ _ _ h => not_not.mp h) (fun B _ => hball_D B) hc_pos
-    simpa [devV] using hb
-  have hdevB : P.real devB ≤ (cmp.blocks.card : ℝ) * (M : ℝ) ^ 2 * D / c ^ 2 := by
-    have hb := measureReal_pi_le_abs_sum_weighted_indicator_sub_le (μ := μB)
-      (Finset.univ : Finset cmp.blocks) (fun B _ => hinSide_meas B) (by positivity)
-      (fun B _ => (hbWt_le B).1) (fun B _ => (hbWt_le B).2)
-      (fun B => closedBall Q.toSimpleGraph B (R + 1)) (fun B _ => hinSide_dep B)
-      (fun B B' => ¬Disjoint (closedBall Q.toSimpleGraph B (R + 1))
-        (closedBall Q.toSimpleGraph B' (R + 1)))
-      (fun _ _ _ _ h => not_not.mp h) (fun B _ => hball_D B) hc_pos
-    simpa [devB] using hb
-  have hdevS : P.real devS ≤ (cmp.blocks.card : ℝ) * 1 ^ 2 * D / c ^ 2 := by
-    have hb := measureReal_pi_le_abs_sum_weighted_indicator_sub_le (μ := μB)
-      (Finset.univ : Finset cmp.blocks) (fun B _ => hstradQ_meas B) zero_le_one
-      (fun _ _ => zero_le_one) (fun _ _ => le_rfl)
-      (fun B => closedBall Q.toSimpleGraph B (R + 1)) (fun B _ => hstradQ_dep B)
-      (fun B B' => ¬Disjoint (closedBall Q.toSimpleGraph B (R + 1))
-        (closedBall Q.toSimpleGraph B' (R + 1)))
-      (fun _ _ _ _ h => not_not.mp h) (fun B _ => hball_D B) hc_pos
-    simpa [devS] using hb
   have hcards_le_h : (cmp.blocks.card : ℝ) ≤ h :=
     Nat.cast_le.mpr (hblocks_le_X.trans hX_le_V)
-  have hM1 : (1 : ℝ) ^ 2 ≤ (M : ℝ) ^ 2 := by
-    have hm2 : (2 : ℝ) ≤ M := Nat.cast_le.mpr hM2
-    nlinarith only [hm2]
-  have hsum_lt_one : P.real (devV ∪ devB ∪ devS) < 1 := by
-    refine ((measureReal_union_le _ _).trans
-      (add_le_add (measureReal_union_le _ _) le_rfl)).trans_lt ?_
-    have hterm_le (x : ℝ) (hx : x ≤ (cmp.blocks.card : ℝ) * (M : ℝ) ^ 2 * D / c ^ 2) :
-        x ≤ h * (M : ℝ) ^ 2 * D / c ^ 2 :=
-      hx.trans (div_le_div_of_nonneg_right
-        (mul_le_mul_of_nonneg_right
-          (mul_le_mul_of_nonneg_right hcards_le_h (sq_nonneg _)) (Nat.cast_nonneg _))
-        (sq_nonneg _))
-    have hS_le : P.real devS ≤ h * (M : ℝ) ^ 2 * D / c ^ 2 :=
-      hdevS.trans (div_le_div_of_nonneg_right
-        (mul_le_mul_of_nonneg_right (mul_le_mul hcards_le_h hM1 (sq_nonneg _) hh_pos.le)
-          (Nat.cast_nonneg _)) (sq_nonneg _))
-    have h1V := hterm_le _ hdevV
-    have h1B := hterm_le _ hdevB
-    have h3sum : P.real devV + P.real devB + P.real devS ≤ 3 * (h * (M : ℝ) ^ 2 * D / c ^ 2) := by
-      linarith only [h1V, h1B, hS_le]
-    refine h3sum.trans_lt ?_
-    have hsimpl : 3 * (h * (M : ℝ) ^ 2 * (D : ℝ) / c ^ 2) =
-        (3 * (M : ℝ) ^ 2 * D / η ^ 2) / h := by
-      dsimp [c]; field_simp
-    rw [hsimpl, div_lt_one hh_pos]
-    calc 3 * (M : ℝ) ^ 2 * D / η ^ 2 ≤ 4 * (M : ℝ) ^ 2 * D / η ^ 2 := by gcongr; norm_num
-      _ < h := large
-  obtain ⟨ω, hω⟩ := (by
-    by_contra! hall
-    have := hsum_lt_one
-    rw [Set.eq_univ_of_forall hall, probReal_univ] at this
-    exact lt_irrefl _ this : ∃ ω, ω ∉ devV ∪ devB ∪ devS)
+  have hdev (w : cmp.blocks → ℝ) {A : cmp.blocks → Set (cmp.blocks → ℝ × ℝ)}
+      (hA : ∀ B, MeasurableSet (A B))
+      (hAd : ∀ B, DependsOn (· ∈ A B) (closedBall Q.toSimpleGraph B (R + 1)))
+      (hw : ∀ B, 0 ≤ w B ∧ w B ≤ M) :
+      P.real (weightedDeviation P Finset.univ w A c) ≤ h * M ^ 2 * D / c ^ 2 :=
+    (measureReal_weightedDeviation_le _ (fun B _ => hA B) (fun B _ => (hw B).1)
+      (fun B _ => (hw B).2) _ (fun B _ => hAd B)
+      (fun B _ => card_not_disjoint_closedBall_le hQ_deg (by norm_num) R B)
+      (by positivity)).trans (by gcongr; simpa using hcards_le_h)
+  have hM1 : (1 : ℝ) ≤ M := by exact_mod_cast (by omega : 1 ≤ M)
+  have hdevV := hdev vWt hinSide_meas hinSide_dep hvWt_le
+  have hdevB := hdev bWt hinSide_meas hinSide_dep hbWt_le
+  have hdevS := hdev 1 hstradQ_meas hstradQ_dep fun _ => ⟨zero_le_one, hM1⟩
+  obtain ⟨ω, hω⟩ := exists_notMem_of_measureReal_lt_one (((measureReal_union_le _ _).trans
+    (add_le_add ((measureReal_union_le _ _).trans (add_le_add hdevV hdevB)) hdevS)).trans_lt
+    (by calc _ = 3 * (M : ℝ) ^ 2 * D * h / c ^ 2 := by ring
+      _ < 1 := mul_div_mul_sq_lt_one hη.ne' hh_pos
+        ((by gcongr; norm_num : 3 * (M : ℝ) ^ 2 * D / η ^ 2 ≤ _).trans_lt large)))
   simp only [mem_union, not_or] at hω
   obtain ⟨⟨hωV, hωB⟩, hωS⟩ := hω
   set S_Q : Set cmp.blocks := {B | ω ∈ inSide B}
@@ -1077,33 +1003,17 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
     congr 1; ext x; simp [cmp.mem_iff_blockOf_eq]
   have hvWt_sum_univ : ∑ B : cmp.blocks, vWt B = (X.ncard : ℝ) := by
     simp_rw [hvWt_block]
-    norm_cast
-    rw [← Finset.card_biUnion (fun B _ B' _ hne => Finset.disjoint_left.mpr fun x h1 h2 =>
-      hne ((Finset.mem_filter.mp h1).2.symm.trans (Finset.mem_filter.mp h2).2))]
-    have huniv_eq : (Finset.univ.biUnion fun B : cmp.blocks =>
-        Finset.univ.filter fun x : X => cmp.blockOf x = B) = Finset.univ := by
-      ext x; simp
-    rw [huniv_eq, Finset.card_univ, ← Nat.card_eq_fintype_card, hcard_X]
+    rw [← Nat.cast_sum, Finset.sum_card_fiberwise_eq_card_filter, Finset.filter_true_of_mem
+      fun _ _ => Finset.mem_univ _, Finset.card_univ, ← Nat.card_eq_fintype_card, hcard_X]
   have hbWt_sum_univ : ∑ B : cmp.blocks, bWt B = ((G.edgeCut X).ncard : ℝ) := by
-    have hnat : (∑ B : cmp.blocks, ∑ x ∈ Finset.univ.filter (fun x : X => cmp.blockOf x = B),
-        (G.incidenceSet x.1 ∩ G.edgeCut X).ncard) = (G.edgeCut X).ncard := by
-      rw [← Finset.sum_biUnion (fun B _ B' _ hne => Finset.disjoint_left.mpr fun x h1 h2 =>
-        hne ((Finset.mem_filter.mp h1).2.symm.trans (Finset.mem_filter.mp h2).2))]
-      have huniv_eq : (Finset.univ.biUnion fun B : cmp.blocks =>
-          Finset.univ.filter fun x : X => cmp.blockOf x = B) = Finset.univ := by
-        ext x; simp
-      rw [huniv_eq, hH_cut_sum]
-    dsimp [bWt]
-    rw [← Nat.cast_sum]
-    exact congrArg Nat.cast hnat
+    simp only [bWt]
+    rw [← Nat.cast_sum, Finset.sum_fiberwise, hH_cut_sum]
   have hX₁_card_sum : (X₁.ncard : ℝ) = ∑ B : cmp.blocks, vWt B * (inSide B).indicator 1 ω := by
     rw [ncard_image_of_injective _ Subtype.val_injective]
     have hpre_fin : (cmp.blockOf ⁻¹' S_Q).ncard =
         ∑ B ∈ Finset.univ.filter (· ∈ S_Q),
           (Finset.univ.filter fun x : X => cmp.blockOf x = B).card := by
-      rw [← Finset.card_biUnion (fun B _ B' _ hne => Finset.disjoint_left.mpr fun x h1 h2 =>
-        hne ((Finset.mem_filter.mp h1).2.symm.trans (Finset.mem_filter.mp h2).2))]
-      rw [← ncard_coe_finset]
+      rw [Finset.sum_card_fiberwise_eq_card_filter, ← ncard_coe_finset]
       congr 1; ext x; simp
     rw [hpre_fin]
     push_cast
@@ -1111,20 +1021,14 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
     refine Finset.sum_congr rfl fun B _ => ?_
     rw [hvWt_block]
     by_cases hB : ω ∈ inSide B <;> simp [S_Q, hB]
-  have hX₂_card_eq : (X₂.ncard : ℝ) = (X.ncard : ℝ) - (X₁.ncard : ℝ) := by
-    have hn := ncard_union_eq hdisjX (toFinite _) (toFinite _)
-    rw [hunionX] at hn
-    have hcast : ((X₁.ncard + X₂.ncard : ℕ) : ℝ) = (X.ncard : ℝ) := congrArg Nat.cast hn.symm
-    push_cast at hcast
-    linarith only [hcast]
+  have hX₂_card_eq : (X₂.ncard : ℝ) = (X.ncard : ℝ) - (X₁.ncard : ℝ) :=
+    ncard_eq_sub_of_union hdisjX hunionX
   have hv_abs :
       |∑ B : cmp.blocks, vWt B * (inSide B).indicator 1 ω - 1 / 2 * (X.ncard : ℝ)| < c := by
     have hmean : ∑ B : cmp.blocks, vWt B * P.real (inSide B) = 1 / 2 * (X.ncard : ℝ) := by
       simp_rw [hinSide_prob, ← Finset.sum_mul, hvWt_sum_univ]; ring
-    have hnot : ¬c ≤ |∑ B : cmp.blocks, vWt B * (inSide B).indicator 1 ω -
-        ∑ B : cmp.blocks, vWt B * P.real (inSide B)| := hωV
-    have hlt := not_le.mp hnot
-    rwa [hmean] at hlt
+    rw [← hmean]
+    exact not_le.mp hωV
   have hX₁_size : (X₁.ncard : ℝ) ≤ 1 / 2 * (X.ncard : ℝ) + c := by
     rw [← hX₁_card_sum] at hv_abs
     have h2 := (abs_lt.mp hv_abs).2
@@ -1167,44 +1071,24 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
         exact Subtype.ext ((hunq x₁.1 x₁.2 hi1).trans (hunq x₂.1 x₂.2 hi2).symm)
     rw [hpart_cut]
     have hgrp : (Finset.univ.filter fun x : X => cmp.blockOf x ∈ S_Q) =
-        (Finset.univ.filter (· ∈ S_Q)).biUnion
-          fun B => Finset.univ.filter fun x : X => cmp.blockOf x = B := by
+        {x ∈ (Finset.univ : Finset X) | cmp.blockOf x ∈ Finset.univ.filter (· ∈ S_Q)} := by
       ext x; simp
-    rw [hgrp, Finset.sum_biUnion (fun B _ B' _ hne => Finset.disjoint_left.mpr fun x h1 h2 =>
-      hne ((Finset.mem_filter.mp h1).2.symm.trans (Finset.mem_filter.mp h2).2))]
+    rw [hgrp, ← Finset.sum_fiberwise_eq_sum_filter]
     push_cast
     rw [Finset.sum_filter]
     refine Finset.sum_congr rfl fun B _ => ?_
     dsimp [bWt]
     by_cases hB : ω ∈ inSide B <;> simp [S_Q, hB]
   have hbdry_X₂ : ({e ∈ G.edgeCut X | endIn G X e ∈ X₂}.ncard : ℝ) =
-      ((G.edgeCut X).ncard : ℝ) - ({e ∈ G.edgeCut X | endIn G X e ∈ X₁}.ncard : ℝ) := by
-    have hd : Disjoint {e ∈ G.edgeCut X | endIn G X e ∈ X₁}
-        {e ∈ G.edgeCut X | endIn G X e ∈ X₂} :=
-      disjoint_left.mpr fun e h1 h2 => disjoint_left.mp hdisjX h1.2 h2.2
-    have hu : {e ∈ G.edgeCut X | endIn G X e ∈ X₁} ∪ {e ∈ G.edgeCut X | endIn G X e ∈ X₂} =
-        G.edgeCut X := by
-      ext e
-      refine ⟨by rintro (h | h) <;> exact h.1, fun he => ?_⟩
-      have hm : endIn G X e ∈ X₁ ∪ X₂ := hunionX ▸ (endIn_mem he).1
-      rcases hm with h1 | h2
-      exacts [Or.inl ⟨he, h1⟩, Or.inr ⟨he, h2⟩]
-    have hn := ncard_union_eq hd (toFinite _) (toFinite _)
-    rw [hu] at hn
-    have hcast : (({e ∈ G.edgeCut X | endIn G X e ∈ X₁}.ncard +
-        {e ∈ G.edgeCut X | endIn G X e ∈ X₂}.ncard : ℕ) : ℝ) = ((G.edgeCut X).ncard : ℝ) :=
-      congrArg Nat.cast hn.symm
-    push_cast at hcast
-    linarith only [hcast]
+      ((G.edgeCut X).ncard : ℝ) - ({e ∈ G.edgeCut X | endIn G X e ∈ X₁}.ncard : ℝ) :=
+    ncard_edgeCut_endIn_eq_sub hdisjX hunionX
   have hb_abs : |∑ B : cmp.blocks, bWt B * (inSide B).indicator 1 ω -
       1 / 2 * ((G.edgeCut X).ncard : ℝ)| < c := by
     have hmean : ∑ B : cmp.blocks, bWt B * P.real (inSide B) =
         1 / 2 * ((G.edgeCut X).ncard : ℝ) := by
       simp_rw [hinSide_prob, ← Finset.sum_mul, hbWt_sum_univ]; ring
-    have hnot : ¬c ≤ |∑ B : cmp.blocks, bWt B * (inSide B).indicator 1 ω -
-        ∑ B : cmp.blocks, bWt B * P.real (inSide B)| := hωB
-    have hlt := not_le.mp hnot
-    rwa [hmean] at hlt
+    rw [← hmean]
+    exact not_le.mp hωB
   have hbdry1_le : ({e ∈ G.edgeCut X | endIn G X e ∈ X₁}.ncard : ℝ) ≤
       1 / 2 * ((G.edgeCut X).ncard : ℝ) + c := by
     rw [← hbdry_X₁] at hb_abs
@@ -1271,28 +1155,15 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
   -- Bound `{B | ω ∈ stradQ B}.ncard` via `hωS`.
   have hstradQ_count : ({B : cmp.blocks | ω ∈ stradQ B}.ncard : ℝ) ≤
       (Q3set.card : ℝ) * straddleBound ρ₀ + c := by
-    have hnot0 : ¬c ≤ |∑ B : cmp.blocks, (1 : ℝ) * (stradQ B).indicator 1 ω -
-        ∑ B : cmp.blocks, (1 : ℝ) * P.real (stradQ B)| := hωS
-    have hnot := not_le.mp hnot0
-    simp only [one_mul] at hnot
-    have hncard_sum : ({B : cmp.blocks | ω ∈ stradQ B}.ncard : ℝ) =
-        ∑ B : cmp.blocks, (stradQ B).indicator (1 : (cmp.blocks → ℝ × ℝ) → ℝ) ω := by
-      have h1 : {B : cmp.blocks | ω ∈ stradQ B}.ncard =
-          (Finset.univ.filter fun B : cmp.blocks => ω ∈ stradQ B).card := by
-        rw [← ncard_coe_finset]; congr 1; ext B; simp
-      rw [h1, Finset.card_filter]
-      push_cast
-      refine Finset.sum_congr rfl fun B _ => ?_
-      by_cases hB : ω ∈ stradQ B <;> simp [hB]
+    simp only [weightedDeviation, mem_ofPred_eq, not_le, Pi.one_apply, one_mul] at hωS
     have hmean_le : ∑ B : cmp.blocks, P.real (stradQ B) ≤ (Q3set.card : ℝ) * straddleBound ρ₀ := by
       calc ∑ B : cmp.blocks, P.real (stradQ B)
           ≤ ∑ B : cmp.blocks, if (Q.incidenceSet B).ncard = 3 then straddleBound ρ₀ else 0 :=
             Finset.sum_le_sum fun B _ => hstradQ_le B
         _ = (Q3set.card : ℝ) * straddleBound ρ₀ := by
             rw [Finset.sum_ite, Finset.sum_const_zero, add_zero, Finset.sum_const, nsmul_eq_mul]
-    rw [← hncard_sum] at hnot
-    have hnot2 := (abs_lt.mp hnot).2
-    linarith only [hnot2, hmean_le]
+    rw [← ncard_eq_sum_indicator] at hωS
+    linarith only [(abs_lt.mp hωS).2, hmean_le]
   -- Combine internal quotient cut and external boundary cut for `X₁` and `X₂`.
   have hQ_cut_real : ((Q.edgeCut S_Q).ncard : ℝ) ≤
       ((X.ncard : ℝ) - ((G.edgeCut X).ncard : ℝ)) * gaussianCoefficient +
@@ -1425,12 +1296,6 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
     split_ifs at hz
     · exact hR_sub _ hz
     · exact closedBall_tgt_subset e (R + 1) hz
-  let devV := {ω |
-    c ≤ |∑ v ∈ Fv, (1 : ℝ) * (Av v).indicator 1 ω - ∑ v ∈ Fv, (1 : ℝ) * P.real (Av v)|}
-  let devE := {ω |
-    c ≤ |∑ e ∈ Fe, (1 : ℝ) * (Ae e).indicator 1 ω - ∑ e ∈ Fe, (1 : ℝ) * P.real (Ae e)|}
-  let devS := {ω |
-    c ≤ |∑ v ∈ Fv, (1 : ℝ) * (As v).indicator 1 ω - ∑ v ∈ Fv, (1 : ℝ) * P.real (As v)|}
   have hball_V (v : V) :
       (Fv.filter fun w =>
         ¬Disjoint (closedBall G.toSimpleGraph v (R + 1 + 1))
@@ -1443,33 +1308,21 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
           (closedBall G.toSimpleGraph (G.src l) (R + 1 + 1))).card ≤ D :=
     (Finset.card_le_card (Finset.filter_subset_filter _ (Finset.subset_univ Fe))).trans
       (card_not_disjoint_closedBall_src_le hdeg (R + 1) e)
-  have hdevV : P.real devV ≤ (Fv.card : ℝ) * 1 ^ 2 * D / c ^ 2 :=
-    measureReal_pi_le_abs_sum_weighted_indicator_sub_le Fv
-      (fun v _ => measurableSet_lowSide G q R 0 v) zero_le_one
-      (fun _ _ => zero_le_one) (fun _ _ => le_rfl)
-      (fun v => closedBall G.toSimpleGraph v (R + 1 + 1))
+  have hdevV : P.real (weightedDeviation P Fv 1 Av c) ≤ (Fv.card : ℝ) * 1 ^ 2 * D / c ^ 2 :=
+    measureReal_weightedDeviation_le Fv (fun v _ => measurableSet_lowSide G q R 0 v)
+      (fun _ _ => zero_le_one) (fun _ _ => le_rfl) _
       (fun v _ ω₁ ω₂ hω => dependsOn_lowSide G q R 0 v fun z hz => hω z (hR_sub v hz))
-      (fun v w => ¬Disjoint (closedBall G.toSimpleGraph v (R + 1 + 1))
-        (closedBall G.toSimpleGraph w (R + 1 + 1)))
-      (fun _ _ _ _ h => not_not.mp h) (fun v _ => hball_V v) hc_pos
-  have hdevE : P.real devE ≤ (Fe.card : ℝ) * 1 ^ 2 * D / c ^ 2 :=
-    measureReal_pi_le_abs_sum_weighted_indicator_sub_le Fe
-      (fun e _ => measurableSet_lowSide G q R 0 (endIn G Y e)) zero_le_one
-      (fun _ _ => zero_le_one) (fun _ _ => le_rfl)
-      (fun e => closedBall G.toSimpleGraph (G.src e) (R + 1 + 1))
-      (fun e _ => hAe_dep e)
-      (fun e l => ¬Disjoint (closedBall G.toSimpleGraph (G.src e) (R + 1 + 1))
-        (closedBall G.toSimpleGraph (G.src l) (R + 1 + 1)))
-      (fun _ _ _ _ h => not_not.mp h) (fun e _ => hball_E e) hc_pos
-  have hdevS : P.real devS ≤ (Fv.card : ℝ) * 1 ^ 2 * D / c ^ 2 :=
-    measureReal_pi_le_abs_sum_weighted_indicator_sub_le Fv
-      (fun v _ => measurableSet_straddleEvent q R 0 v) zero_le_one
-      (fun _ _ => zero_le_one) (fun _ _ => le_rfl)
-      (fun v => closedBall G.toSimpleGraph v (R + 1 + 1))
+      (fun v _ => hball_V v) hc_pos
+  have hdevE : P.real (weightedDeviation P Fe 1 Ae c) ≤ (Fe.card : ℝ) * 1 ^ 2 * D / c ^ 2 :=
+    measureReal_weightedDeviation_le Fe
+      (fun e _ => measurableSet_lowSide G q R 0 (endIn G Y e))
+      (fun _ _ => zero_le_one) (fun _ _ => le_rfl) _ (fun e _ => hAe_dep e)
+      (fun e _ => hball_E e) hc_pos
+  have hdevS : P.real (weightedDeviation P Fv 1 As c) ≤ (Fv.card : ℝ) * 1 ^ 2 * D / c ^ 2 :=
+    measureReal_weightedDeviation_le Fv (fun v _ => measurableSet_straddleEvent q R 0 v)
+      (fun _ _ => zero_le_one) (fun _ _ => le_rfl) _
       (fun v _ ω₁ ω₂ hω => dependsOn_straddleEvent q R 0 v fun z hz => hω z (hR_sub v hz))
-      (fun v w => ¬Disjoint (closedBall G.toSimpleGraph v (R + 1 + 1))
-        (closedBall G.toSimpleGraph w (R + 1 + 1)))
-      (fun _ _ _ _ h => not_not.mp h) (fun v _ => hball_V v) hc_pos
+      (fun v _ => hball_V v) hc_pos
   have hFv_le : (Fv.card : ℝ) ≤ h := by
     rw [← Set.ncard_eq_toFinset_card']
     exact Nat.cast_le.mpr (ncard_le_card Y)
@@ -1485,29 +1338,17 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
     push_cast at h2r
     have hh_def : h = (Nat.card V : ℝ) := rfl
     linarith only [h2r, hh_def]
-  have hsum_lt_one : P.real (devV ∪ devE ∪ devS) < 1 := by
-    refine ((measureReal_union_le _ _).trans
-      (add_le_add (measureReal_union_le _ _) le_rfl)).trans_lt ?_
-    have htot : P.real devV + P.real devE + P.real devS ≤ 7 / 2 * h * D / c ^ 2 := by
-      have h1 : (Fv.card : ℝ) * 1 ^ 2 * D / c ^ 2 ≤ h * D / c ^ 2 := by
-        rw [one_pow, mul_one]; gcongr
-      have h2 : (Fe.card : ℝ) * 1 ^ 2 * D / c ^ 2 ≤ 3 / 2 * h * D / c ^ 2 := by
-        rw [one_pow, mul_one]; gcongr
-      have hcomb : h * (D : ℝ) / c ^ 2 + 3 / 2 * h * D / c ^ 2 + h * D / c ^ 2 =
-          7 / 2 * h * D / c ^ 2 := by ring
-      linarith only [hdevV, hdevE, hdevS, h1, h2, hcomb]
-    refine htot.trans_lt ?_
-    have hsimpl : 7 / 2 * h * (D : ℝ) / c ^ 2 = (7 / 2 * D / η ^ 2) / h := by
-      dsimp [c]; field_simp
-    rw [hsimpl, div_lt_one hh_pos]
-    calc 7 / 2 * (D : ℝ) / η ^ 2 ≤ 5 * D / η ^ 2 := by gcongr; norm_num
-      _ < h := large
-  obtain ⟨ω, hω⟩ := (by
-    by_contra! hall
-    have := hsum_lt_one
-    rw [Set.eq_univ_of_forall hall, probReal_univ] at this
-    exact lt_irrefl _ this : ∃ ω, ω ∉ devV ∪ devE ∪ devS)
-  simp only [mem_union, not_or] at hω
+  obtain ⟨ω, hω⟩ := exists_notMem_of_measureReal_lt_one (((measureReal_union_le _ _).trans
+    (add_le_add ((measureReal_union_le _ _).trans (add_le_add hdevV hdevE)) hdevS)).trans_lt
+    (by
+      calc _ ≤ 7 / 2 * D * h / c ^ 2 := by
+            rw [one_pow, mul_one, mul_one, ← add_div, ← add_div]
+            gcongr
+            nlinarith only [hFv_le, hFe_le, (Nat.cast_nonneg D : (0 : ℝ) ≤ D)]
+        _ < 1 := mul_div_mul_sq_lt_one hη.ne' hh_pos
+          ((by gcongr; norm_num : 7 / 2 * (D : ℝ) / η ^ 2 ≤ _).trans_lt large)))
+  simp only [mem_union, not_or, weightedDeviation, mem_ofPred_eq, not_le, Pi.one_apply,
+    one_mul] at hω
   obtain ⟨⟨hωV, hωE⟩, hωS⟩ := hω
   set L0 := lowSide G (edgeScore G q R ω) 0
   set Y₁ := Y ∩ L0
@@ -1518,9 +1359,8 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
   have hY₁_sum : (Y₁.ncard : ℝ) = ∑ v ∈ Fv, (Av v).indicator (1 : (V → ℝ) → ℝ) ω := by
     have h1 : Y₁.ncard = (Fv.filter fun v => ω ∈ Av v).card := by
       rw [← ncard_coe_finset]; congr 1; ext v; simp [Y₁, L0, Fv, Av]
-    rw [h1, Finset.card_filter]
-    push_cast
-    exact Finset.sum_congr rfl fun v _ => by by_cases hv : ω ∈ Av v <;> simp [hv]
+    rw [h1]
+    simp only [Set.indicator_apply, Pi.one_apply, Finset.sum_boole]
   have hmeanV : ∑ v ∈ Fv, P.real (Av v) = 1 / 2 * (Y.ncard : ℝ) := by
     have hpv (v : V) : P.real (Av v) = 1 / 2 :=
       measureReal_lowSide_zero_eq_half hloop hdeg hq (by linarith only [hρ₀]) hρ (h3 v)
@@ -1528,16 +1368,9 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
     rw [Finset.sum_const, nsmul_eq_mul, ← Set.ncard_eq_toFinset_card']
     ring
   have hv_abs : |(Y₁.ncard : ℝ) - 1 / 2 * (Y.ncard : ℝ)| < c := by
-    have hnot0 : ¬c ≤ |∑ v ∈ Fv, (1 : ℝ) * (Av v).indicator 1 ω -
-        ∑ v ∈ Fv, (1 : ℝ) * P.real (Av v)| := hωV
-    have hlt := not_le.mp hnot0
-    simp only [one_mul] at hlt
-    rwa [← hY₁_sum, hmeanV] at hlt
-  have hY₂_eq : (Y₂.ncard : ℝ) = (Y.ncard : ℝ) - (Y₁.ncard : ℝ) := by
-    have hn := ncard_union_eq hdisjY (toFinite _) (toFinite _)
-    rw [hunionY] at hn
-    have hcast : ((Y₁.ncard + Y₂.ncard : ℕ) : ℝ) = (Y.ncard : ℝ) := congrArg Nat.cast hn.symm
-    push_cast at hcast; linarith only [hcast]
+    rwa [← hY₁_sum, hmeanV] at hωV
+  have hY₂_eq : (Y₂.ncard : ℝ) = (Y.ncard : ℝ) - (Y₁.ncard : ℝ) :=
+    ncard_eq_sub_of_union hdisjY hunionY
   -- External boundary edges of `Y` landing in `Y₁` and `Y₂`.
   have hE₁_sum : ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) =
       ∑ e ∈ Fe, (Ae e).indicator (1 : (V → ℝ) → ℝ) ω := by
@@ -1548,9 +1381,8 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
       simp only [Finset.mem_coe, Finset.mem_filter, Fe, Set.mem_toFinset, mem_ofPred_eq, Y₁,
         mem_inter_iff, Ae, L0]
       exact ⟨fun ⟨he, _, hl⟩ => ⟨he, hl⟩, fun ⟨he, hl⟩ => ⟨he, (endIn_mem he).1, hl⟩⟩
-    rw [h1, Finset.card_filter]
-    push_cast
-    exact Finset.sum_congr rfl fun e _ => by by_cases he : ω ∈ Ae e <;> simp [he]
+    rw [h1]
+    simp only [Set.indicator_apply, Pi.one_apply, Finset.sum_boole]
   have hmeanE : ∑ e ∈ Fe, P.real (Ae e) = 1 / 2 * ((G.edgeCut Y).ncard : ℝ) := by
     have hpe (e : E) : P.real (Ae e) = 1 / 2 :=
       measureReal_lowSide_zero_eq_half hloop hdeg hq (by linarith only [hρ₀]) hρ (h3 (endIn G Y e))
@@ -1559,29 +1391,10 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
     ring
   have he_abs : |({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) -
       1 / 2 * ((G.edgeCut Y).ncard : ℝ)| < c := by
-    have hnot0 : ¬c ≤ |∑ e ∈ Fe, (1 : ℝ) * (Ae e).indicator 1 ω -
-        ∑ e ∈ Fe, (1 : ℝ) * P.real (Ae e)| := hωE
-    have hlt := not_le.mp hnot0
-    simp only [one_mul] at hlt
-    rwa [← hE₁_sum, hmeanE] at hlt
+    rwa [← hE₁_sum, hmeanE] at hωE
   have hE₂_eq : ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₂}.ncard : ℝ) =
-      ((G.edgeCut Y).ncard : ℝ) - ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) := by
-    have hd : Disjoint {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}
-        {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₂} :=
-      disjoint_left.mpr fun _ h1 h2 => disjoint_left.mp hdisjY h1.2 h2.2
-    have hu : {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁} ∪ {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₂} =
-        G.edgeCut Y := by
-      ext e
-      refine ⟨by rintro (h | h) <;> exact h.1, fun he => ?_⟩
-      have hm : endIn G Y e ∈ Y₁ ∪ Y₂ := hunionY ▸ (endIn_mem he).1
-      rcases hm with h1 | h2
-      exacts [Or.inl ⟨he, h1⟩, Or.inr ⟨he, h2⟩]
-    have hn := ncard_union_eq hd (toFinite _) (toFinite _)
-    rw [hu] at hn
-    have hcast : (({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard +
-        {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₂}.ncard : ℕ) : ℝ) = ((G.edgeCut Y).ncard : ℝ) :=
-      congrArg Nat.cast hn.symm
-    push_cast at hcast; linarith only [hcast]
+      ((G.edgeCut Y).ncard : ℝ) - ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) :=
+    ncard_edgeCut_endIn_eq_sub hdisjY hunionY
   -- Internal cut of `Y` between `Y₁` and `Y₂` injects into `{v ∈ Y | G.EdgeStraddles ... 0 v}`.
   have hint_cut_le : ((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₁}).ncard ≤
       {v : V | v ∈ Y ∧ ω ∈ As v}.ncard := by
@@ -1603,26 +1416,20 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
     exact ncard_le_ncard (by rintro _ (h | h) <;> exact ⟨h.1, h.2.2⟩) (toFinite _)
   have hstrad_Y : ({v : V | v ∈ Y ∧ ω ∈ As v}.ncard : ℝ) ≤
       straddleBound ρ₀ * (Y.ncard : ℝ) + c := by
-    have hnot0 : ¬c ≤ |∑ v ∈ Fv, (1 : ℝ) * (As v).indicator 1 ω -
-        ∑ v ∈ Fv, (1 : ℝ) * P.real (As v)| := hωS
-    have hnot := not_le.mp hnot0
-    simp only [one_mul] at hnot
     have hsum_eq : ({v : V | v ∈ Y ∧ ω ∈ As v}.ncard : ℝ) =
         ∑ v ∈ Fv, (As v).indicator (1 : (V → ℝ) → ℝ) ω := by
       have h1 : {v : V | v ∈ Y ∧ ω ∈ As v}.ncard = (Fv.filter fun v => ω ∈ As v).card := by
         rw [← ncard_coe_finset]; congr 1; ext v; simp [Fv]
-      rw [h1, Finset.card_filter]
-      push_cast
-      exact Finset.sum_congr rfl fun v _ => by by_cases hv : ω ∈ As v <;> simp [hv]
+      rw [h1]
+      simp only [Set.indicator_apply, Pi.one_apply, Finset.sum_boole]
     have hmeanS : ∑ v ∈ Fv, P.real (As v) ≤ straddleBound ρ₀ * (Y.ncard : ℝ) := by
       calc ∑ v ∈ Fv, P.real (As v)
           ≤ ∑ _v ∈ Fv, straddleBound ρ₀ :=
             Finset.sum_le_sum fun v _ => measureReal_straddleEvent_le hloop h3 hq hρ₀ hρ 0 v
         _ = straddleBound ρ₀ * (Y.ncard : ℝ) := by
             rw [Finset.sum_const, nsmul_eq_mul, ← Set.ncard_eq_toFinset_card', mul_comm]
-    rw [← hsum_eq] at hnot
-    have hnot2 := (abs_lt.mp hnot).2
-    linarith only [hnot2, hmeanS]
+    rw [← hsum_eq] at hωS
+    linarith only [(abs_lt.mp hωS).2, hmeanS]
   have hint_cut_compl : ((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₂}).ncard =
       ((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₁}).ncard := by
     have hcompl : {x : Y | x.1 ∈ Y₂} = {x : Y | x.1 ∈ Y₁}ᶜ := by
@@ -1827,24 +1634,13 @@ private theorem exists_levelZero_partition {V E : Type*} [Finite V] [Finite E] {
     rw [Nat.card_eq_fintype_card (α := E)] at hr
     push_cast at hr; linarith
   have hV_card : (Fintype.card V : ℝ) = h := by rw [← Nat.card_eq_fintype_card]
-  have hsum_lt_one : P.real (deviation Ae c ∪ deviation As c) < 1 := by
-    refine (measureReal_union_le _ _).trans_lt ?_
-    have htot : P.real (deviation Ae c) + P.real (deviation As c) ≤ 5 / 2 * h * D / c ^ 2 := by
-      rw [hE_card] at hdevE
-      rw [hV_card] at hdevS
-      have hcomb : 3 / 2 * h * (D : ℝ) / c ^ 2 + h * D / c ^ 2 = 5 / 2 * h * D / c ^ 2 := by ring
-      linarith
-    refine htot.trans_lt ?_
-    have hsimpl : 5 / 2 * h * (D : ℝ) / c ^ 2 = (5 / 2 * D / η₀ ^ 2) / h := by
-      dsimp [c]; field_simp
-    rw [hsimpl, div_lt_one hh_pos]
-    calc 5 / 2 * (D : ℝ) / η₀ ^ 2 ≤ 3 * D / η₀ ^ 2 := by gcongr; norm_num
-      _ < h := large
-  obtain ⟨ω, hω⟩ := (by
-    by_contra! hall
-    have := hsum_lt_one
-    rw [Set.eq_univ_of_forall hall, probReal_univ] at this
-    exact lt_irrefl _ this : ∃ ω, ω ∉ deviation Ae c ∪ deviation As c)
+  rw [hE_card] at hdevE
+  rw [hV_card] at hdevS
+  obtain ⟨ω, hω⟩ := exists_notMem_of_measureReal_lt_one
+    (((measureReal_union_le _ _).trans (add_le_add hdevE hdevS)).trans_lt
+      (by calc _ = 5 / 2 * D * h / c ^ 2 := by ring
+        _ < 1 := mul_div_mul_sq_lt_one hη₀.ne' hh_pos
+          ((by gcongr; norm_num : 5 / 2 * (D : ℝ) / η₀ ^ 2 ≤ _).trans_lt large)))
   simp only [mem_union, not_or] at hω
   obtain ⟨hωE, hωS⟩ := hω
   set score := edgeScore G q R ω
@@ -1870,15 +1666,7 @@ private theorem exists_levelZero_partition {V E : Type*} [Finite V] [Finite E] {
   have hE_abs : |(E_lt : ℝ) - 3 / 2 * h * cdf (gaussianReal 0 1) t₀| < c := by
     have hnot : ¬c ≤ |∑ e : E, (Ae e).indicator (1 : (V → ℝ) → ℝ) ω - ∑ e : E, P.real (Ae e)| :=
       hωE
-    rw [not_le] at hnot
-    have hsum_ind : ∑ e : E, (Ae e).indicator (1 : (V → ℝ) → ℝ) ω = (E_lt : ℝ) := by
-      have h1 : E_lt = (Finset.univ.filter fun e : E => ω ∈ Ae e).card := by
-        dsimp only [E_lt]
-        rw [← ncard_coe_finset]; congr 1; ext e; simp [Ae, score]
-      rw [h1, Finset.card_filter]
-      push_cast
-      exact (Finset.sum_congr rfl fun e _ => by by_cases he : ω ∈ Ae e <;> simp [he]).symm
-    rwa [hsum_ind, hmean_E] at hnot
+    rwa [not_le, ← ncard_eq_sum_indicator, hmean_E] at hnot
   have hS_upper : (S_tot : ℝ) ≤ (exp (-t₀ ^ 2 / 2) * gaussianCoefficient + 3 * δ / 16) * h := by
     have hcnt := ncard_lt_of_notMem_deviation hωS
     have hmean_S : ∑ v : V, P.real (As v) ≤ h * (exp (-t₀ ^ 2 / 2) * straddleBound ρ₀) := by

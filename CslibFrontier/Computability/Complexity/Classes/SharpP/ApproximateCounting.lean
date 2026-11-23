@@ -550,8 +550,7 @@ private theorem card_witnessSet_pow_le (a : α) :
   have : #(R.witnessSet a) ≤ 2 ^ R.certLength.eval (enc a).length := by
     simpa only [BitString.card] using card_le_univ (R.witnessSet a)
   calc #(R.witnessSet a) ^ copies q (enc a).length
-      ≤ (2 ^ R.certLength.eval (enc a).length) ^ copies q (enc a).length :=
-        Nat.pow_le_pow_left this _
+      ≤ (2 ^ R.certLength.eval (enc a).length) ^ copies q (enc a).length := by gcongr
     _ = 2 ^ tupleLength R q (enc a).length := by rw [← pow_mul, mul_comm]
 
 /-- **The estimator is accurate with high probability**: for a positive precision `q(n)`, the

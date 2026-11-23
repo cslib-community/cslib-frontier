@@ -38,8 +38,8 @@ toward Theorem 8.10 (pp. 331–332), not the cited result: the reductions `roToL
 theorem's elementary wrappers, and the asymptotic transfer assumes guessing hardness against
 unbounded guessers. See
 `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` for the elementary
-lazy-simulation bit-string wrappers `lazyROToListGuess` and `lazyROToGuess`, and #6039 for general
-non-bit-string finite oracle domains.
+lazy-simulation wrappers `lazyROToListGuess` and `lazyROToGuess` and computational Theorem 8.10
+over general encoded finite secret and digest families.
 
 ## Relation to `CslibFrontier/Probability/Entropy/Guessing.lean`
 
@@ -72,7 +72,7 @@ nonempty (with no finiteness assumption on `X`).
    index draw below `Q` (`Fin.val <$> ProbComp.unifFin (Q - 1)`) and defaults to
    `Classical.arbitrary S` past the end of `B`'s list, holding for every `Q : ℕ` including
    `Q = 0` (unlike `ListCDH.listCDHToCDH`, which takes the index sampler as an argument so
-   `listCDHToCDHAdversary` can carry an efficiency certificate; the certified bit-string wrapper in
+   `listCDHToCDHAdversary` can carry an efficiency certificate; the certified wrapper in
    `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` uses
    `ProbComp.sampleModIndex`).
 4. **Information-theoretic asymptotic bound over query budgets; computational companion.**
@@ -87,11 +87,10 @@ nonempty (with no finiteness assumption on `X`).
    such a source only when `(Fintype.card Y)⁻¹` is negligible: the hidden uniform component in `Y`
    is guessed with probability `(Fintype.card Y)⁻¹`
    (`guessAdvantage_bind_uniformOfFintype_fst_le`), which is `1` when `Y` is a singleton. The
-   certified elementary lazy-simulation wrappers `lazyROToListGuess` and
-   `lazyROToGuess` for bit-string secrets and outputs against computational unpredictability
+   certified elementary lazy-simulation wrappers `lazyROToListGuess` and `lazyROToGuess` over
+   general encoded finite secret and digest families against computational unpredictability
    (§8.10.1, fourth example, p. 326) are in
-   `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational`; general
-   non-bit-string finite oracle domains remain open (#6039).
+   `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational`.
 
 ## Main definitions
 
@@ -124,8 +123,7 @@ nonempty (with no finiteness assumption on `X`).
   singleton-guessing, and information-theoretic asymptotic bounds for the eager-table wrappers,
   steps toward Theorem 8.10 and not the cited result (see `lazyROToListGuess` and `lazyROToGuess`
   in `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` for the
-  elementary lazy-simulation bit-string wrappers and #6039 for general non-bit-string finite oracle
-  domains).
+  elementary lazy-simulation wrappers over general encoded finite secret and digest families).
 
 ## References
 
@@ -424,8 +422,7 @@ advantage of `D` between `(info s, O(s))` and `(info s, t)` when `O : S → T` i
 points at which `D x t` queried `table`. Because it samples the whole oracle table `S → T` eagerly
 in `ProbComp`, this is not the elementary wrapper of Theorem 8.10; `lazyROToListGuess` (and
 `lazyROToGuess`) in `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational`
-are the elementary lazy-simulation wrappers for bit-string domains (#6039 tracks general
-non-bit-string finite oracle domains). -/
+are the elementary lazy-simulation wrappers over general encoded finite domains. -/
 @[expose] noncomputable def roToListGuess [Fintype S] [DecidableEq S] [Fintype T] [Nonempty T]
     (D : RODistinguisher X S T) (x : X) : ProbComp (List S) := do
   let table ← ProbComp.uniform (S → T)
@@ -439,15 +436,17 @@ queried points uniformly at random. Because `roToListGuess D` samples the whole 
 `S → T` eagerly in `ProbComp`, this is not the elementary wrapper of Theorem 8.10; `lazyROToGuess`
 (built on `lazyROToListGuess`) in
 `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` is the elementary
-lazy-simulation wrapper for bit-string domains (#6039 tracks general non-bit-string finite oracle
-domains). -/
+lazy-simulation wrapper over general encoded finite domains. -/
 noncomputable abbrev roToGuess [Fintype S] [DecidableEq S] [Nonempty S] [Fintype T] [Nonempty T]
     (Q : ℕ) (D : RODistinguisher X S T) : GuessAdversary X S :=
   listGuessToGuess Q (roToListGuess D)
 
-/-- **Theorem 8.10, output-size bound** ([BonehShoup2023], §8.10.2, p. 331): if `D` makes at most
-`Q` random-oracle queries on every path, then `roToListGuess D` outputs a list of length at most
-`Q` on every supported run. -/
+/-- **Eager-table step toward the output-size bound of [BonehShoup2023], Theorem 8.10**
+(§8.10.2, p. 331), not the cited result: if `D` makes at most `Q` random-oracle queries on every
+path, then the eager-table list guesser `roToListGuess D` outputs a list of length at most `Q` on
+every supported run. For the elementary lazy-simulation wrapper `lazyROToListGuess`, see
+`length_le_of_mem_support_lazyROToListGuess` in
+`CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational`. -/
 theorem length_le_of_mem_support_roToListGuess [Fintype S] [DecidableEq S]
     [Fintype T] [Nonempty T] {D : RODistinguisher X S T} {Q : ℕ}
     (hQ : D.IsOracleQueryBounded Q) (x : X) {l : List S}
@@ -524,11 +523,11 @@ end Tracking
 (§8.10.2, pp. 331–332), not the cited result: in the random-oracle model, a KDF distinguisher's
 advantage is at most the list-guessing advantage of `roToListGuess D`. The theorem asks for a list
 guesser that is an elementary wrapper around `D`; `roToListGuess D` samples the whole oracle table
-`uniformOfFintype (S → T)` eagerly in `ProbComp`, so it is not one. For bit-string domains, the
-elementary lazy-simulation wrapper `lazyROToListGuess` in
+`uniformOfFintype (S → T)` eagerly in `ProbComp`, so it is not one. The elementary lazy-simulation
+wrapper `lazyROToListGuess` in
 `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` satisfies this
-inequality exactly (`roAdvantage_toRODistinguisher_le_listGuessAdvantage`); general
-non-bit-string finite oracle domains remain open (#6039). -/
+inequality (`roAdvantage_toRODistinguisher_le_listGuessAdvantage` for exact uniform digest samplers
+and `roAdvantage_toRODistinguisher_le_listGuessAdvantage_add` for approximate ones). -/
 theorem roAdvantage_le_listGuessAdvantage [Fintype S] [DecidableEq S] [Fintype T] [Nonempty T]
     (sample : PMF S) (info : S → X) (D : RODistinguisher X S T) :
     roAdvantage sample info D ≤ listGuessAdvantage sample info (roToListGuess D) := by
@@ -571,13 +570,12 @@ theorem roAdvantage_le_listGuessAdvantage [Fintype S] [DecidableEq S] [Fintype T
 path, its KDF distinguishing advantage in the random-oracle model is at most
 `Q * guessAdvantage sample info (roToGuess Q D)`. The theorem asks for a guesser that is an
 elementary wrapper around `D`; `roToGuess Q D` samples the whole oracle table
-`uniformOfFintype (S → T)` eagerly in `ProbComp`, so it is not one. For bit-string domains,
+`uniformOfFintype (S → T)` eagerly in `ProbComp`, so it is not one.
 `roAdvantage_toRODistinguisher_le_mul_guessAdvantage_add` in
 `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` is the concrete
-variant with the elementary lazy-simulation wrapper `lazyROToGuess`: its finite fair-coin index
-sampling adds `Q / 2 ^ width` to the bound, a bias that the asymptotic corollary
-`SecretGuessHard.negligible_roAdvantage` absorbs. General non-bit-string finite oracle domains
-remain open (#6039). -/
+variant with the elementary lazy-simulation wrapper `lazyROToGuess`: its fair-coin index and digest
+sampling add `Q / 2 ^ width + (Q + 1) * εT` to the bound, which the asymptotic corollary
+`SecretGuessHard.negligible_roAdvantage` absorbs. -/
 theorem roAdvantage_le_mul_guessAdvantage [Fintype S] [DecidableEq S] [Nonempty S]
     [Fintype T] [Nonempty T] (sample : PMF S) (info : S → X)
     {D : RODistinguisher X S T} {Q : ℕ} (hQ : D.IsOracleQueryBounded Q) :
@@ -598,7 +596,7 @@ set `Y` with `(Fintype.card Y)⁻¹` negligible, since that component is guessed
 `(Fintype.card Y)⁻¹` (`guessAdvantage_bind_uniformOfFintype_fst_le`), which is `1` when `Y` is a
 singleton. `SecretGuessHard.negligible_roAdvantage` in
 `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` is the computational
-form for bit-string domains; general non-bit-string finite oracle domains remain open (#6039). -/
+form over general encoded finite secret and digest families. -/
 theorem negligible_roAdvantage_of_statisticalGuessHard {S X T : ℕ → Type}
     [∀ n, Fintype (S n)] [∀ n, DecidableEq (S n)] [∀ n, Nonempty (S n)]
     [∀ n, Fintype (T n)] [∀ n, Nonempty (T n)]
