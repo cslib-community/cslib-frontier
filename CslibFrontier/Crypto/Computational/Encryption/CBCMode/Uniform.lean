@@ -161,15 +161,6 @@ def cbcWordDecrypt (decFamily : List Bool → List Bool → List Bool) :
     ℕ → List Bool → List Bool → Option (List Bool) :=
   ivModeDecrypt (cbcWordDecBody decFamily)
 
-/-- `BitString.listRows (L / n) n x` is the word view of `BitString.padBlocks n L x`. -/
-private theorem listRows_eq_map_ofFn_padBlocks (n L : ℕ) (x : List Bool) :
-    BitString.listRows (L / n) n x = (BitString.padBlocks n L x).map List.ofFn := by
-  refine List.ext_getElem (by simp) fun i h₁ h₂ => ?_
-  refine List.ext_getElem (by simp [BitString.listRows]) fun j hj₁ hj₂ => ?_
-  simp only [BitString.listRows, List.getElem_map, List.getElem_range]
-  rw [BitString.getElem_listRow (by simpa using hj₂), List.getElem_ofFn,
-    BitString.padBlocks_getElem_apply n L x i (by simpa using h₁) ⟨j, by simpa using hj₂⟩]
-
 /-- Block-list representation of the CBC encryption chain under `g`. -/
 private def cbcChainWords (g : List Bool → List Bool) (n : ℕ) :
     List Bool → List (List Bool) → List (List Bool)
@@ -647,7 +638,7 @@ private theorem cbcWordBody_randomFunction_ofFn {n : ℕ} (f : BitString n → B
     (iv : BitString n) (m : List Bool) :
     cbcWordBody (fun _ x => randomFunctionOracle n f x) n [] (List.ofFn iv) m =
       (cbcEncryptBlocks f iv (BitString.padBlocks n m.length m)).flatMap List.ofFn := by
-  rw [cbcWordBody_eq_flatten_cbcChainWords, listRows_eq_map_ofFn_padBlocks,
+  rw [cbcWordBody_eq_flatten_cbcChainWords, BitString.listRows_eq_map_ofFn_padBlocks,
     cbcChainWords_randomFunction_map_ofFn, ← List.flatMap_def]
 
 /-- Running `cbcToPrfDistinguisher` against a fixed table `f` agrees in distribution with running
