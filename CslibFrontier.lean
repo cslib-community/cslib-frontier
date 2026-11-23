@@ -6812,6 +6812,7 @@ public import CslibFrontier.Foundations.Analysis.Lattice.Schwartz
 public import CslibFrontier.Foundations.Analysis.LpNorm
 public import CslibFrontier.Foundations.Analysis.LpNormMeasure
 public import CslibFrontier.Foundations.Analysis.MarkovBrothersInequality
+public import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateDerivative
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalDeterminantFeasibility
