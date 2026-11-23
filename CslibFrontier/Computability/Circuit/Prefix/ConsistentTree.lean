@@ -195,6 +195,24 @@ private theorem segmentWidth_pos (k d h : ℕ) : 1 ≤ segmentWidth k d h := by
       have := ih (d + 1 - min (d + 1) (k - 1))
       omega
 
+private theorem sum_Ico_one_succ_shift {M : Type*} [AddCommMonoid M] {l : ℕ} (hl : 1 ≤ l)
+    (n : ℕ) (g : ℕ → M) :
+    ∑ i ∈ Finset.Ico 1 (l + 1), g (n + 1 - i) =
+      g n + ∑ j ∈ Finset.Ico 1 l, g (n - j) := by
+  have hins : Finset.Ico 1 (l + 1) = insert 1 (Finset.Ico 2 (l + 1)) := by
+    ext x; simp only [Finset.mem_Ico, Finset.mem_insert]; omega
+  rw [hins, Finset.sum_insert (by simp only [Finset.mem_Ico]; omega), Nat.add_sub_cancel]
+  congr 1
+  refine Finset.sum_bij (fun i _ => i - 1) ?_ ?_ ?_ ?_
+  · intro i hi; simp only [Finset.mem_Ico] at hi ⊢; omega
+  · intro i₁ hi₁ i₂ hi₂ heq; simp only [Finset.mem_Ico] at hi₁ hi₂; omega
+  · intro j hj
+    simp only [Finset.mem_Ico] at hj
+    exact ⟨j + 1, by simp only [Finset.mem_Ico]; omega, Nat.add_sub_cancel _ _⟩
+  · intro i hi
+    simp only [Finset.mem_Ico] at hi
+    rw [show n + 1 - i = n - (i - 1) by omega]
+
 private theorem segmentWidth_mono_left (k : ℕ) :
     ∀ d h : ℕ, segmentWidth k d h ≤ segmentWidth k (d + 1) h := by
   intro d h
@@ -213,30 +231,8 @@ private theorem segmentWidth_mono_left (k : ℕ) :
             2 * segmentWidth k (d + 1 - min (d + 1) (k - 1)) h ≤
           (∑ i ∈ Finset.Ico 1 (min (d + 2) (k - 1)), segmentWidth k (d + 2 - i) h) +
             2 * segmentWidth k (d + 2 - min (d + 2) (k - 1)) h
-        rw [hl1, hl2, Nat.sub_self, Nat.sub_self]
-        have hsplit : ∑ i ∈ Finset.Ico 1 (d + 2), segmentWidth k (d + 2 - i) h =
-            segmentWidth k (d + 1) h +
-              ∑ j ∈ Finset.Ico 1 (d + 1), segmentWidth k (d + 1 - j) h := by
-          have h1 : Finset.Ico 1 (d + 2) = insert 1 (Finset.Ico 2 (d + 2)) := by
-            ext x
-            simp only [Finset.mem_Ico, Finset.mem_insert]
-            omega
-          rw [h1, Finset.sum_insert (by simp only [Finset.mem_Ico]; omega)]
-          congr 1
-          refine Finset.sum_bij (fun i _ => i - 1) ?_ ?_ ?_ ?_
-          · intro i hi
-            simp only [Finset.mem_Ico] at hi ⊢
-            omega
-          · intro i₁ hi₁ i₂ hi₂ heq
-            simp only [Finset.mem_Ico] at hi₁ hi₂
-            omega
-          · intro j hj
-            simp only [Finset.mem_Ico] at hj
-            exact ⟨j + 1, by simp only [Finset.mem_Ico]; omega, Nat.add_sub_cancel _ _⟩
-          · intro i hi
-            simp only [Finset.mem_Ico] at hi
-            rw [show d + 2 - i = d + 1 - (i - 1) by omega]
-        rw [hsplit]
+        rw [hl1, hl2, Nat.sub_self, Nat.sub_self,
+          sum_Ico_one_succ_shift (l := d + 1) (by omega) (d + 1) (fun x => segmentWidth k x h)]
         omega
       · have hl1 : min (d + 1) (k - 1) = k - 1 := Nat.min_eq_right (by omega)
         have hl2 : min (d + 2) (k - 1) = k - 1 := Nat.min_eq_right (by omega)
@@ -279,24 +275,6 @@ private theorem segmentWidth_mono_right (k : ℕ) :
         Finset.sum_le_sum fun i _ => ih (d + 1 - i)
       have hlast := ih (d + 1 - min (d + 1) (k - 1))
       omega
-
-private theorem sum_Ico_one_succ_shift {M : Type*} [AddCommMonoid M] {l : ℕ} (hl : 1 ≤ l)
-    (n : ℕ) (g : ℕ → M) :
-    ∑ i ∈ Finset.Ico 1 (l + 1), g (n + 1 - i) =
-      g n + ∑ j ∈ Finset.Ico 1 l, g (n - j) := by
-  have hins : Finset.Ico 1 (l + 1) = insert 1 (Finset.Ico 2 (l + 1)) := by
-    ext x; simp only [Finset.mem_Ico, Finset.mem_insert]; omega
-  rw [hins, Finset.sum_insert (by simp only [Finset.mem_Ico]; omega), Nat.add_sub_cancel]
-  congr 1
-  refine Finset.sum_bij (fun i _ => i - 1) ?_ ?_ ?_ ?_
-  · intro i hi; simp only [Finset.mem_Ico] at hi ⊢; omega
-  · intro i₁ hi₁ i₂ hi₂ heq; simp only [Finset.mem_Ico] at hi₁ hi₂; omega
-  · intro j hj
-    simp only [Finset.mem_Ico] at hj
-    exact ⟨j + 1, by simp only [Finset.mem_Ico]; omega, Nat.add_sub_cancel _ _⟩
-  · intro i hi
-    simp only [Finset.mem_Ico] at hi
-    rw [show n + 1 - i = n - (i - 1) by omega]
 
 private theorem segmentWidth_le_two_mul {k : ℕ} (hk : 2 ≤ k) :
     ∀ d h : ℕ, segmentWidth k (d + 1) h ≤ 2 * segmentWidth k d h := by
