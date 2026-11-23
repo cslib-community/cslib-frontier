@@ -136,9 +136,9 @@ theorem exists_isBarycenter {ι : Type*} [Fintype ι] [Nonempty Y] (w : ι → �
 
 /-! ### Points on geodesics (part (a)) -/
 
+omit [CAT0Space Y] in
 /-- `t(1 − t)|xv|² ≤ (1 − t)|qx|² + t|qv|²` for every `q` and `t ∈ [0, 1]`: the triangle
 inequality, squared and weighted. -/
-omit [CAT0Space Y] in
 private theorem mul_one_sub_mul_dist_sq_le (x v q : Y) {t : ℝ} (h0 : 0 ≤ t) (h1 : t ≤ 1) :
     t * (1 - t) * dist x v ^ 2 ≤ (1 - t) * dist q x ^ 2 + t * dist q v ^ 2 := by
   have h2 := dist_triangle x q v
