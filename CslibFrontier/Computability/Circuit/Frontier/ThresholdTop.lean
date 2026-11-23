@@ -1115,21 +1115,8 @@ theorem eventually_agreement_thresholdTop_le_of_layoutBound {A : ℝ} (hA : 0 < 
   have hlogq : 0 < Real.log q := Real.log_pos (by linarith)
   have hlq2 : Real.log 2 ≤ Real.log q := Real.log_le_log two_pos hq2
   set K' : ℕ → ℕ := fun n => max (K n) 2
-  have hK'_log : (fun n => Real.log (K' n)) =o[atTop] fun n => (n : ℝ) := by
-    refine IsBigO.trans_isLittleO (g := fun n => ‖Real.log (K n)‖ + Real.log 2) ?_
-      (hK.norm_left.add (isLittleO_const_id_atTop _).natCast_atTop)
-    refine IsBigO.of_bound 1 (Eventually.of_forall fun n => ?_)
-    have hK2 : (2 : ℝ) ≤ (K' n : ℕ) := by exact_mod_cast le_max_right (K n) 2
-    rw [one_mul, Real.norm_of_nonneg (Real.log_nonneg (by linarith)),
-      Real.norm_of_nonneg (by positivity)]
-    rcases le_total (K n) 2 with h | h
-    · simp only [K', max_eq_right h, Nat.cast_ofNat]
-      linarith [norm_nonneg (Real.log (K n))]
-    · simp only [K', max_eq_left h]
-      linarith [Real.le_norm_self (Real.log (K n)), Real.log_nonneg one_le_two]
   have hlogbK : (fun n => Real.logb q (K' n)) =o[atTop] fun n => (n : ℝ) :=
-    (hK'_log.const_mul_left (1 / Real.log q)).congr_left fun n => by
-      rw [Real.logb]; ring
+    isLittleO_logb_max_two hK q
   set Bcoef : ℝ := (1 + 1 / A) + 10 * (2 + 1 / A)
   have hBcoef : 0 < Bcoef := by positivity
   set η : ℝ := A * ε₀ / (8 * Bcoef)
@@ -1155,15 +1142,8 @@ theorem eventually_agreement_thresholdTop_le_of_layoutBound {A : ℝ} (hA : 0 < 
     filter_upwards [((isLittleO_const_id_atTop (1 : ℝ)).natCast_atTop.add
       (hlogbK.const_mul_left 2)).bound (by norm_num : (0 : ℝ) < 1 / 2)] with n hn
     simp only [Real.norm_eq_abs, id, Nat.abs_cast] at hn
-    have hle : 1 + 2 * Real.logb q (K' n) ≤ (1 / 2 : ℝ) * n := by
-      linarith [le_abs_self (1 + 2 * Real.logb q (K' n))]
-    have hn2 : (n : ℝ) ≤ 2 * (n / 2 : ℕ) + 1 := by
-      exact_mod_cast (show n ≤ 2 * (n / 2) + 1 by omega)
-    have hlb : Real.logb q (K' n) ≤ (n / 2 : ℕ) := by linarith
-    have hrp := (Real.logb_le_iff_le_rpow (by exact_mod_cast hq1)
-      (by exact_mod_cast (show 0 < K' n by positivity))).mp hlb
-    rw [Real.rpow_natCast] at hrp
-    exact_mod_cast hrp
+    exact le_pow_half_of_logb hq1 (by positivity)
+      (by linarith [le_abs_self (1 + 2 * Real.logb q (K' n))])
   filter_upwards [hbias, hsmall_err, hsmallK, eventually_ge_atTop 4] with n hbiasn herrn hKn hn4
   intro σ I g p T hfan hsize_orig
   have hsize : (p.innerGates.card : ℝ) ≤ (1 + 1 / A - ε₀) * n :=

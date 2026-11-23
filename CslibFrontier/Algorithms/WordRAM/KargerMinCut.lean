@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Algorithms.WordRAM.NatLog
+import CslibFrontier.Tactic.WramOmega
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Karger.Graph
 public import CslibFrontier.Algorithms.WordRAM.Karger.Contract
@@ -150,28 +151,30 @@ open Cslib.Algorithms.Karger
 `w`-bit words. -/
 theorem fits_workspace_of_logWidth_three {n w : ℕ} (hn : 2 ≤ n) (hw : logWidth 3 n ≤ w) :
     Fits w (3 + 2 * (n * n) + n) := by
-  refine (fits_of_lt_pow (k := 3) (n := n) ?_).mono hw
-  obtain ⟨d, rfl⟩ : ∃ d, n = d + 2 := ⟨n - 2, by omega⟩
-  nlinarith
+  have hlt : 3 + 2 * (n * n) + n < (n + 1) ^ 3 := by
+    obtain ⟨d, rfl⟩ : ∃ d, n = d + 2 := ⟨n - 2, by omega⟩
+    nlinarith
+  wram_omega [fits_of_lt_pow hlt]
 
 /-- Under `2 ≤ n` and `logWidth 3 n ≤ w`, `highProbTrials n` fits in `w`-bit words. -/
 theorem fits_highProbTrials_of_logWidth_three {n w : ℕ} (hn : 2 ≤ n) (hw : logWidth 3 n ≤ w) :
     Fits w (highProbTrials n) := by
-  refine (fits_of_lt_pow (k := 3) (n := n) ?_).mono hw
-  unfold highProbTrials
-  have hlog : Nat.log 2 n < n := Nat.log_lt_self 2 (by omega)
-  have hlg2 : Nat.log 2 n + 2 ≤ n + 1 := by omega
-  have hhalf : n * (n - 1) / 2 < n * n := by
-    have hlt : n * (n - 1) < n * n := Nat.mul_lt_mul_of_pos_left (by omega) (by omega)
-    exact lt_of_le_of_lt (Nat.div_le_self _ _) hlt
-  have hmul : (n * (n - 1) / 2) * (Nat.log 2 n + 2) < (n * n) * (n + 1) := by
-    have hpos : 0 < Nat.log 2 n + 2 := by omega
-    calc
-      (n * (n - 1) / 2) * (Nat.log 2 n + 2) < (n * n) * (Nat.log 2 n + 2) :=
-        Nat.mul_lt_mul_of_pos_right hhalf hpos
-      _ ≤ (n * n) * (n + 1) := Nat.mul_le_mul_left (n * n) hlg2
-  have hcube : (n * n) * (n + 1) ≤ (n + 1) ^ 3 := by nlinarith
-  exact lt_of_lt_of_le hmul hcube
+  have hlt : highProbTrials n < (n + 1) ^ 3 := by
+    unfold highProbTrials
+    have hlog : Nat.log 2 n < n := Nat.log_lt_self 2 (by omega)
+    have hlg2 : Nat.log 2 n + 2 ≤ n + 1 := by omega
+    have hhalf : n * (n - 1) / 2 < n * n := by
+      have hlt : n * (n - 1) < n * n := Nat.mul_lt_mul_of_pos_left (by omega) (by omega)
+      exact lt_of_le_of_lt (Nat.div_le_self _ _) hlt
+    have hmul : (n * (n - 1) / 2) * (Nat.log 2 n + 2) < (n * n) * (n + 1) := by
+      have hpos : 0 < Nat.log 2 n + 2 := by omega
+      calc
+        (n * (n - 1) / 2) * (Nat.log 2 n + 2) < (n * n) * (Nat.log 2 n + 2) :=
+          Nat.mul_lt_mul_of_pos_right hhalf hpos
+        _ ≤ (n * n) * (n + 1) := Nat.mul_le_mul_left (n * n) hlg2
+    have hcube : (n * n) * (n + 1) ≤ (n + 1) ^ 3 := by nlinarith
+    exact lt_of_lt_of_le hmul hcube
+  wram_omega [fits_of_lt_pow hlt]
 
 /-- `logWidth 3 n ≤ w` and `Fits w (totalDoubledWeight W)` suffice for
 `InputFits w (n :: flattenMatrix W)`. -/
@@ -188,13 +191,13 @@ theorem inputFits_amplified {R n w : ℕ} {W : Fin n → Fin n → ℕ} (hn : 2 
   have hws := fits_workspace_of_logWidth_three hn hw
   refine ⟨?_, ?_⟩
   · simp only [List.length_cons, length_flattenMatrix]
-    exact hws.of_le (by omega)
+    fits
   · intro v hv
     rcases List.mem_cons.mp hv with rfl | hv'
     · exact hR
     · rcases List.mem_cons.mp hv' with rfl | hmem
-      · exact hws.of_le (by omega)
-      · exact htot.of_le (mem_flattenMatrix_le_totalDoubledWeight W hmem)
+      · fits
+      · fits [mem_flattenMatrix_le_totalDoubledWeight W hmem]
 
 /-- In `Data.init (R :: n :: flattenMatrix W)`, memory holds `W` at base `3` with stride `n`. -/
 theorem holdsMatrix_init_amplified {r R n : ℕ} (W : Fin n → Fin n → ℕ) :
@@ -240,6 +243,7 @@ def singleProgram : Program .standard 16 :=
   singleCode.program val1
 
 /-- Worst-case instruction bound `42 * n ^ 2 + 12 * n + 21` for `singleProgram`. -/
+@[wram_arith]
 def singleTime (n : ℕ) : ℕ :=
   42 * n ^ 2 + 12 * n + 21
 
@@ -278,20 +282,19 @@ theorem singleCode_law {n w : ℕ} {W : Fin n → Fin n → ℕ}
       (42 * n ^ 2 + 12 * n + 20) (n - 2) (fun y => y.regs val1)
       (Lean.Karger.answerLaw ⟨n, W⟩) := by
   have hws_fit := fits_workspace_of_logWidth_three hn hw
-  have h1 : Fits w 1 := hws_fit.of_le (by omega)
-  have hwEnd : Fits w (2 + n * n) := hws_fit.of_le (by omega)
-  have hdEnd : Fits w (2 + n * n + n) := hws_fit.of_le (by omega)
-  have hwb1 : Fits w (2 + 1) := hws_fit.of_le (by omega)
+  have hwEnd : Fits w (2 + n * n) := by fits
+  have hdEnd : Fits w (2 + n * n + n) := by fits
   obtain ⟨y_s, e_s, hm_s, hwb_s, hdb_s, hstr_s, hk_s, ht_s⟩ := singleSetup_exec (W := W) hn hw
   obtain ⟨y_deg, e_deg, hws_d, hmod_d, _, _, hwb_d, hdb_d, hstr_d, hk_d, ht_d, htot_d⟩ :=
     computeDegreesAndTotal_exec (W := W) hwb_s hdb_s hstr_s hk_s (le_refl n) (Or.inl le_rfl)
-      h1 hwEnd hdEnd htot (hm_s ▸ holdsMatrix_init_single W)
+      (by fits) hwEnd hdEnd htot (hm_s ▸ holdsMatrix_init_single W)
   have hst_deg : ContractState w 2 (2 + n * n) n n 2 W y_deg :=
     ⟨hwb_d, hdb_d, hstr_d, hk_d, ht_d.trans ht_s, htot_d, le_refl n, Or.inl le_rfl,
       hwEnd, hdEnd, htot, hws_d⟩
   have hrun := ExecRandLaw.seq (contractDownTo_law (le_refl 2) hn hW hst_deg)
     (κ := fun G => PMF.pure (totalDoubledWeight G.weight / 2)) fun y ⟨hmod_c, W', hW', hst'⟩ => by
-      obtain ⟨y_p, e_p, hmem_p, hv_p⟩ := singlePost_exec hst'.regs_wBase h1 hwb1
+      obtain ⟨y_p, e_p, hmem_p, hv_p⟩ :=
+        singlePost_exec (w := w) hst'.regs_wBase (by fits) (by fits)
       have hmod : Modifies (Finset.Ico 2 (2 + n * n + n))
           (Data.init (r := 16) (n :: flattenMatrix W)).mem y_p.mem := by
         rw [hmem_p]
@@ -333,7 +336,7 @@ theorem singleProgram_spec {n w : ℕ} {W : Fin n → Fin n → ℕ}
           {cfg | ∃ y, cfg = .halted (minCut W) y}) := by
   intro input
   obtain ⟨hhalt, hcalls, hpost, hhit, -⟩ := program_of_law (T' := singleTime n)
-    (singleCode_law hn hW hw htot) (by unfold singleTime; omega) (inputFits_single hn hw htot)
+    (singleCode_law hn hW hw htot) (by wram_omega) (inputFits_single hn hw htot)
     fun _ hv => Lean.Karger.exists_cut_of_mem_support_answerLaw hn hW hv
   refine ⟨hhalt, hcalls, hpost, fun hmin => le_trans ?_ hhit⟩
   rw [Lean.Karger.answerLaw, PMF.toOuterMeasure_map_apply]
@@ -422,11 +425,11 @@ theorem copyMatrixCode_exec {w sb wb n : ℕ} {W : Fin n → Fin n → ℕ} {x :
   have hs_fit : Fits w ((x.comap copyRegMap).regs ArrayCopy.src +
       (x.comap copyRegMap).regs ArrayCopy.len) := by
     change Fits w (x.regs srcBase + x.regs matLen)
-    simpa [hsb, hlen] using hwEnd.of_le (by omega)
+    fits
   have hd_fit : Fits w ((x.comap copyRegMap).regs ArrayCopy.dst +
       (x.comap copyRegMap).regs ArrayCopy.len) := by
     change Fits w (x.regs wBase + x.regs matLen)
-    simpa [hwb, hlen] using hwEnd
+    fits
   have hdisj' : (x.comap copyRegMap).regs ArrayCopy.src +
       (x.comap copyRegMap).regs ArrayCopy.len ≤ (x.comap copyRegMap).regs ArrayCopy.dst := by
     change x.regs srcBase + x.regs matLen ≤ x.regs wBase
@@ -523,7 +526,6 @@ theorem ampTrialPost_exec {w wb i R : ℕ} {x : Data 22}
       y.regs trialIdx = i + 1 ∧
       y.regs bestVal =
         (if i = 0 then x.mem (wb + 1) else min (x.mem (wb + 1)) (x.regs bestVal)) := by
-  have hi1_fit : Fits w (i + 1) := hR_fit.of_le (by omega)
   unfold ampTrialPost
   wram_exec -split [hwb]
   wram_call (minUpdate_exec (by decide) (by wram_simp)) with s₂ ⟨hm2, hbv2, hfr⟩
@@ -554,8 +556,7 @@ theorem ampTrialBody_law {w sb n R i : ℕ} {W : Fin n → Fin n → ℕ} {mem�
         if i = 0 then v else min v (x.regs bestVal)) := by
   let wb := sb + n * n
   let db := sb + 2 * (n * n)
-  have hwEnd : Fits w (wb + n * n) := hdEnd.of_le (by omega)
-  have hwb1_fit : Fits w (wb + 1) := hdEnd.of_le (by omega)
+  have hwEnd : Fits w (wb + n * n) := by fits
   obtain ⟨y_deg, e_pre, hst_deg, hmod_deg'⟩ : ∃ y_deg,
       ExecWithin w
         ram[⟪copyMatrixCode⟫; activeK ← nOrig; stride ← nOrig; targetT ← #2;
@@ -585,7 +586,7 @@ theorem ampTrialBody_law {w sb n R i : ℕ} {W : Fin n → Fin n → ℕ} {mem�
       have hz_ti : y.regs trialIdx = i :=
         (hy_hi trialIdx (by decide)).trans ((e_pre.regs_eq (by decide)).trans hinv.regs_trialIdx)
       obtain ⟨y_p, e_p, hm_p, hsb_p, hwb_p, hdb_p, hn_p, hml_p, hnt_p, hti_p, hbv_p⟩ :=
-        ampTrialPost_exec hst'.regs_wBase hz_ti hiR h1 hwb1_fit hR_fit
+        ampTrialPost_exec hst'.regs_wBase hz_ti hiR h1 (by fits) hR_fit
       have hmod : Modifies (Finset.Ico wb (db + n)) x.mem y_p.mem := by
         rw [hm_p]
         exact modifies_trans_subset hmod_deg' hmod_c Finset.Subset.rfl
@@ -695,6 +696,7 @@ def amplifiedProgram : Program .standard 22 :=
   amplifiedCode.program bestVal
 
 /-- Worst-case instruction bound `R * (50 * n ^ 2 + 12 * n + 30) + 16` for `amplifiedProgram`. -/
+@[wram_arith]
 def amplifiedTime (R n : ℕ) : ℕ :=
   R * (50 * n ^ 2 + 12 * n + 30) + 16
 
@@ -726,7 +728,7 @@ theorem amplifiedCode_law {R n w : ℕ} {W : Fin n → Fin n → ℕ}
   have hws := fits_workspace_of_logWidth_three hn hw
   obtain ⟨y_s, e_s, hm_s, hsb_s, hn_s, hnt_s⟩ := amplifiedSetup_exec (R := R) (W := W) hn hw
   exact (ExecRandLaw.seq_det e_s.within (ampCore_law hR hn hW hsb_s hn_s hnt_s
-    (hws.of_le (by omega)) hws hR_fit htot (hm_s ▸ holdsMatrix_init_amplified W))).mono
+    (by fits) hws hR_fit htot (hm_s ▸ holdsMatrix_init_amplified W))).mono
     (fun _ h => hm_s ▸ h) (by omega) le_rfl
 
 /-- **`R`-trial amplified Karger specification (`amplifiedProgram`).**
@@ -759,7 +761,7 @@ theorem amplifiedProgram_spec {R n w : ℕ} {W : Fin n → Fin n → ℕ}
   intro input
   obtain ⟨hhalt, hcalls, hpost, -, hmiss⟩ :=
     program_of_law (T' := amplifiedTime R n) (amplifiedCode_law hR hn hW hw hR_fit htot)
-      (by unfold amplifiedTime; omega)
+      (by wram_omega)
       (inputFits_amplified hn hw hR_fit htot)
       fun _ hv => Lean.Karger.exists_cut_of_mem_support_answerLaw hn hW
         (Lean.Karger.mem_support_minRuns (by omega) hv)
@@ -843,18 +845,15 @@ theorem highProbSetup_exec {w n : ℕ} {W : Fin n → Fin n → ℕ}
   have hws := fits_workspace_of_logWidth_three hn hw
   have hhp_fit := fits_highProbTrials_of_logWidth_three hn hw
   have hlog_lt : Nat.log 2 n < n := Nat.log_lt_self 2 (by omega)
-  have hlg_fit : Fits w (Nat.log 2 n) := hws.of_le (by omega)
-  have hlg2_fit : Fits w (Nat.log 2 n + 2) := hws.of_le (by omega)
-  have hmul_fit : Fits w (n * (n - 1)) :=
-    hws.of_le (by have := Nat.mul_le_mul_left n (Nat.sub_le n 1); omega)
-  have hhalf_fit : Fits w (n * (n - 1) / 2) := hmul_fit.of_le (Nat.div_le_self _ _)
+  have hmul_le : n * (n - 1) ≤ n * n := Nat.mul_le_mul_left n (Nat.sub_le n 1)
+  have hdiv_le : n * (n - 1) / 2 ≤ n * (n - 1) := Nat.div_le_self _ _
   have hshr : (n * (n - 1)) >>> 1 = n * (n - 1) / 2 := by rw [Nat.shiftRight_eq_div_pow, pow_one]
   have hhp_eq : n * (n - 1) / 2 * (Nat.log 2 n + 2) = highProbTrials n := rfl
   have hm1 : (Data.init (r := 22) (n :: flattenMatrix W)).mem 1 = n := rfl
   unfold highProbSetup
   wram_exec [hm1]
-  wram_call (logLoop_exec (by omega) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-    (hws.of_le (by omega)) hlg_fit) with s₅ ⟨hm5, ho5, hn5, hidx5⟩
+  wram_call (logLoop_exec (w := w) (n := n) (by omega) (by wram_simp) (by wram_simp) (by wram_simp)
+    (by wram_simp) (by fits) (by fits)) with s₅ ⟨hm5, ho5, hn5, hidx5⟩
   wram_exec [ho5, hn5, hidx5, hshr, hhp_eq]
   exact ⟨hm5, by wram_simp [hn5]⟩
 
@@ -913,7 +912,7 @@ theorem highProbCode_law {n w : ℕ} {W : Fin n → Fin n → ℕ}
   have hws := fits_workspace_of_logWidth_three hn hw
   obtain ⟨y_s, e_s, hm_s, hsb_s, hn_s, hnt_s⟩ := highProbSetup_exec (W := W) hn hw
   exact (ExecRandLaw.seq_det e_s (ampCore_law (highProbTrials_pos hn) hn hW hsb_s hn_s hnt_s
-    (hws.of_le (by omega)) (hws.of_le (by omega)) (fits_highProbTrials_of_logWidth_three hn hw)
+    (by fits) (by fits) (fits_highProbTrials_of_logWidth_three hn hw)
     htot (hm_s ▸ holdsMatrix_init_single W))).mono (fun _ h => hm_s ▸ h) (by omega) le_rfl
 
 /-- **Explicit `O(n ^ 4 log n)` high-probability global minimum cut (`highProbProgram`).**

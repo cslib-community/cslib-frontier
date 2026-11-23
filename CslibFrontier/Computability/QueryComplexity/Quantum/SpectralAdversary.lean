@@ -152,9 +152,7 @@ private theorem mul_add_mul_le_two_mul_sqrt {a b p q ε : ℝ}
   have hε0 : 0 ≤ ε := hp0.trans hpε
   have hsum : a * √q + √p * b ≤ √((1 - p) * q) + √(p * (1 - q)) := by
     rw [Real.sqrt_mul h1p, Real.sqrt_mul hp0]
-    exact add_le_add
-      (mul_le_mul_of_nonneg_right (Real.le_sqrt_of_sq_le (by linarith)) (Real.sqrt_nonneg _))
-      (mul_le_mul_of_nonneg_left (Real.le_sqrt_of_sq_le (by linarith)) (Real.sqrt_nonneg _))
+    gcongr <;> exact Real.le_sqrt_of_sq_le (by linarith)
   have hquad {x : ℝ} (hx0 : 0 ≤ x) (hxε : x ≤ ε) : x * (1 - x) ≤ ε * (1 - ε) := by
     have h : 0 ≤ (ε - x) * (1 - ε - x) := mul_nonneg (by linarith) (by linarith)
     linarith [(by ring : ε * (1 - ε) - x * (1 - x) = (ε - x) * (1 - ε - x))]
@@ -1127,8 +1125,7 @@ theorem WeightScheme.le_spectralAdversary {α : Type*} {P : BitString N → Prop
     exact (le_inv_comm₀ hm_pos hpos).1 hsqrt
   calc √(mA * mB) ≤ (maxDiffNorm Γ)⁻¹ := hinv
     _ = 1 / maxDiffNorm Γ := (one_div _).symm
-    _ ≤ ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ / maxDiffNorm Γ :=
-        div_le_div_of_nonneg_right hnorm1 hm_pos.le
+    _ ≤ ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ / maxDiffNorm Γ := by gcongr
     _ ≤ spectralAdversary P f := _root_.Cslib.Quantum.le_spectralAdversary hsym hnonneg hΓ
 
 /-- **Hamming-distance barrier for nonnegative adversary matrices** (property-testing / distance

@@ -1602,6 +1602,10 @@ public import CslibFrontier.Computability.Circuit.Frontier.Compiler.GateSweep
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.GateSweep.QuadForm
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.GateSweep.Steiner
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.GateSweep.Uniform
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Certificates
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Compiler
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Gaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Network
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Asymptotics
@@ -3947,6 +3951,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Pi
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.QueryLoop
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.StoredLoop
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Wozencraft
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
@@ -7930,6 +7935,7 @@ public import CslibFrontier.Foundations.Probability.Gaussian.Quotient
 public import CslibFrontier.Foundations.Probability.Gaussian.Real
 public import CslibFrontier.Foundations.Probability.Gaussian.Sheppard
 public import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
+public import CslibFrontier.Foundations.Probability.Gaussian.Slepian
 public import CslibFrontier.Foundations.Probability.Gaussian.Smoothing
 public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 public import CslibFrontier.Foundations.Probability.Gaussian.Standard
@@ -7951,6 +7957,7 @@ public import CslibFrontier.Foundations.Probability.SecondMoment
 public import CslibFrontier.Foundations.Probability.SmoothTests
 public import CslibFrontier.Foundations.Probability.SpectralPayment
 public import CslibFrontier.Foundations.Probability.TwoStage
+public import CslibFrontier.Foundations.Probability.UnionBound
 public import CslibFrontier.Foundations.Probability.WeightedSecondMoment
 public import CslibFrontier.Foundations.Quantum.Algebra.AlgState
 public import CslibFrontier.Foundations.Quantum.Algebra.Approx
@@ -8170,6 +8177,7 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 public import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm.Init
 public import CslibFrontier.Languages.Probabilistic.Oracle.Lens
 public import CslibFrontier.Languages.Probabilistic.Oracle.LimitQueries
+public import CslibFrontier.Languages.Probabilistic.Oracle.Lipschitz
 public import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 public import CslibFrontier.Languages.Probabilistic.Oracle.Norm.Init
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryBoundedSimulation
@@ -9233,3 +9241,4 @@ public import CslibFrontier.Tactic.ValidProg
 public import CslibFrontier.Tactic.ValidProg.Init
 public import CslibFrontier.Tactic.WramOmega
 public import CslibFrontier.Tactic.WramOmega.Init
+public import CslibFrontier.Tactic.WramOmega.Prove

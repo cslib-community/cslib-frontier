@@ -513,145 +513,79 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
       {v : Compiler.Vertex c} (hv : col v = 0) {e : Compiler.Edge c}
       (he : G.src e = v ∨ G.tgt e = v) :
       glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e = glueEdges α₀ α₁' α₂' a₀ a₁' a₂ e := by
-    have h0_end : col (G.src e) = 0 ∨ col (G.tgt e) = 0 := by
-      rcases he with rfl | rfl <;> [exact Or.inl hv; exact Or.inr hv]
-    have hn1 : ¬(col (G.src e) = 1 ∧ col (G.tgt e) = 1) := by
-      rcases h0_end with hs | ht <;> intro h <;>
-        [exact absurd (hs.symm.trans h.1) (by decide);
-         exact absurd (ht.symm.trans h.2) (by decide)]
-    have hn2 : ¬(col (G.src e) = 2 ∧ col (G.tgt e) = 2) := by
-      rcases h0_end with hs | ht <;> intro h <;>
-        [exact absurd (hs.symm.trans h.1) (by decide);
-         exact absurd (ht.symm.trans h.2) (by decide)]
+    have h0 : col (G.src e) = 0 ∨ col (G.tgt e) = 0 := by
+      rcases he with rfl | rfl <;> simp [hv]
     have hnc1 : e ∉ G.edgeCut {w | col w = 1} ∩ G.edgeCut {w | col w = 2} := by
-      rw [mem_inter_edgeCut_iff 1 2 (by decide)]
-      rcases h0_end with hs | ht
-      · rintro (⟨h1, -⟩ | ⟨h1, -⟩) <;> exact absurd (hs.symm.trans h1) (by decide)
-      · rintro (⟨-, h2⟩ | ⟨-, h2⟩) <;> exact absurd (ht.symm.trans h2) (by decide)
-    dsimp [glueEdges]
-    simp only [hn1, hn2, hnc1, ↓reduceDIte]
+      rw [mem_inter_edgeCut_iff 1 2 (by decide)]; omega
+    simp only [glueEdges, show ¬(col (G.src e) = 1 ∧ col (G.tgt e) = 1) by omega,
+      show ¬(col (G.src e) = 2 ∧ col (G.tgt e) = 2) by omega, hnc1, ↓reduceDIte]
   have glue_eq_at_one (α₀ α₀' : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ α₂' : IntE 2 → U)
       (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ a₂' : CutE 2 → U)
       {v : Compiler.Vertex c} (hv : col v = 1) {e : Compiler.Edge c}
       (he : G.src e = v ∨ G.tgt e = v) :
       glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e = glueEdges α₀' α₁ α₂' a₀ a₁ a₂' e := by
-    have h1_end : col (G.src e) = 1 ∨ col (G.tgt e) = 1 := by
-      rcases he with rfl | rfl <;> [exact Or.inl hv; exact Or.inr hv]
-    have hn0 : ¬(col (G.src e) = 0 ∧ col (G.tgt e) = 0) := by
-      rcases h1_end with hs | ht <;> intro h <;>
-        [exact absurd (hs.symm.trans h.1) (by decide);
-         exact absurd (ht.symm.trans h.2) (by decide)]
-    have hn2 : ¬(col (G.src e) = 2 ∧ col (G.tgt e) = 2) := by
-      rcases h1_end with hs | ht <;> intro h <;>
-        [exact absurd (hs.symm.trans h.1) (by decide);
-         exact absurd (ht.symm.trans h.2) (by decide)]
+    have h1 : col (G.src e) = 1 ∨ col (G.tgt e) = 1 := by
+      rcases he with rfl | rfl <;> simp [hv]
     have hnc2 : e ∉ G.edgeCut {w | col w = 2} ∩ G.edgeCut {w | col w = 0} := by
-      rw [mem_inter_edgeCut_iff 2 0 (by decide)]
-      rcases h1_end with hs | ht
-      · rintro (⟨h1, -⟩ | ⟨h1, -⟩) <;> exact absurd (hs.symm.trans h1) (by decide)
-      · rintro (⟨-, h2⟩ | ⟨-, h2⟩) <;> exact absurd (ht.symm.trans h2) (by decide)
-    dsimp [glueEdges]
-    simp only [hn0, hn2, hnc2, ↓reduceDIte]
+      rw [mem_inter_edgeCut_iff 2 0 (by decide)]; omega
+    simp only [glueEdges, show ¬(col (G.src e) = 0 ∧ col (G.tgt e) = 0) by omega,
+      show ¬(col (G.src e) = 2 ∧ col (G.tgt e) = 2) by omega, hnc2, ↓reduceDIte]
   have glue_eq_at_two (α₀ α₀' : IntE 0 → U) (α₁ α₁' : IntE 1 → U) (α₂ : IntE 2 → U)
       (a₀ a₀' : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ : CutE 2 → U)
       {v : Compiler.Vertex c} (hv : col v = 2) {e : Compiler.Edge c}
       (he : G.src e = v ∨ G.tgt e = v) :
       glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e = glueEdges α₀' α₁' α₂ a₀' a₁ a₂ e := by
-    have h2_end : col (G.src e) = 2 ∨ col (G.tgt e) = 2 := by
-      rcases he with rfl | rfl <;> [exact Or.inl hv; exact Or.inr hv]
-    have hn0 : ¬(col (G.src e) = 0 ∧ col (G.tgt e) = 0) := by
-      rcases h2_end with hs | ht <;> intro h <;>
-        [exact absurd (hs.symm.trans h.1) (by decide);
-         exact absurd (ht.symm.trans h.2) (by decide)]
-    have hn1 : ¬(col (G.src e) = 1 ∧ col (G.tgt e) = 1) := by
-      rcases h2_end with hs | ht <;> intro h <;>
-        [exact absurd (hs.symm.trans h.1) (by decide);
-         exact absurd (ht.symm.trans h.2) (by decide)]
+    have h2 : col (G.src e) = 2 ∨ col (G.tgt e) = 2 := by
+      rcases he with rfl | rfl <;> simp [hv]
     have hnc0 : e ∉ G.edgeCut {w | col w = 0} ∩ G.edgeCut {w | col w = 1} := by
-      rw [mem_inter_edgeCut_iff 0 1 (by decide)]
-      rcases h2_end with hs | ht
-      · rintro (⟨h1, -⟩ | ⟨h1, -⟩) <;> exact absurd (hs.symm.trans h1) (by decide)
-      · rintro (⟨-, h2⟩ | ⟨-, h2⟩) <;> exact absurd (ht.symm.trans h2) (by decide)
-    dsimp [glueEdges]
-    simp only [hn0, hn1, hnc0, ↓reduceDIte]
+      rw [mem_inter_edgeCut_iff 0 1 (by decide)]; omega
+    simp only [glueEdges, show ¬(col (G.src e) = 0 ∧ col (G.tgt e) = 0) by omega,
+      show ¬(col (G.src e) = 1 ∧ col (G.tgt e) = 1) by omega, hnc0, ↓reduceDIte]
   -- Reconstruct any global assignment `β : Edge c → U` from its `6` restrictions.
   have glue_restrict (β : Compiler.Edge c → U) :
       glueEdges (fun e => β e.1) (fun e => β e.1) (fun e => β e.1)
         (fun e => β e.1) (fun e => β e.1) (fun e => β e.1) = β := by
     funext e
     dsimp [glueEdges]
-    split_ifs with h0 h1 h2 hc0 hc1 hc2
-    · rfl
-    · rfl
-    · rfl
-    · rfl
-    · rfl
-    · rfl
-    · exfalso
-      rw [mem_inter_edgeCut_iff 0 1 (by decide)] at hc0
-      rw [mem_inter_edgeCut_iff 1 2 (by decide)] at hc1
-      rw [mem_inter_edgeCut_iff 2 0 (by decide)] at hc2
-      generalize col (G.src e) = a at h0 h1 h2 hc0 hc1 hc2
-      generalize col (G.tgt e) = b at h0 h1 h2 hc0 hc1 hc2
-      fin_cases a <;> fin_cases b <;> simp_all
+    split_ifs with h0 h1 h2 hc0 hc1 hc2 <;> try rfl
+    rw [mem_inter_edgeCut_iff 0 1 (by decide)] at hc0
+    rw [mem_inter_edgeCut_iff 1 2 (by decide)] at hc1
+    rw [mem_inter_edgeCut_iff 2 0 (by decide)] at hc2
+    omega
   -- Also extract `a₀, a₁, a₂` back from `glueEdges`.
   have glue_on_cut0 (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U)
       (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) (e : CutE 0) :
       glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.1 = a₀ e := by
     have hc0 : e.1 ∈ G.edgeCut {v | col v = 0} ∩ G.edgeCut {v | col v = 1} := e.2
     have hmem := (mem_inter_edgeCut_iff 0 1 (by decide) e.1).mp hc0
-    have hn0 : ¬(col (G.src e.1) = 0 ∧ col (G.tgt e.1) = 0) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn1 : ¬(col (G.src e.1) = 1 ∧ col (G.tgt e.1) = 1) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn2 : ¬(col (G.src e.1) = 2 ∧ col (G.tgt e.1) = 2) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    dsimp [glueEdges]
-    simp only [hn0, hn1, hn2, ↓reduceDIte]
-    split_ifs with h
-    · exact congrArg a₀ (Subtype.ext rfl)
-    · exact absurd hc0 h
+    simp only [glueEdges, show ¬(col (G.src e.1) = 0 ∧ col (G.tgt e.1) = 0) by omega,
+      show ¬(col (G.src e.1) = 1 ∧ col (G.tgt e.1) = 1) by omega,
+      show ¬(col (G.src e.1) = 2 ∧ col (G.tgt e.1) = 2) by omega, hc0, ↓reduceDIte]
+    rfl
   have glue_on_cut1 (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U)
       (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) (e : CutE 1) :
       glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.1 = a₁ e := by
     have hc1 : e.1 ∈ G.edgeCut {v | col v = 1} ∩ G.edgeCut {v | col v = 2} := e.2
     have hmem := (mem_inter_edgeCut_iff 1 2 (by decide) e.1).mp hc1
-    have hn0 : ¬(col (G.src e.1) = 0 ∧ col (G.tgt e.1) = 0) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn1 : ¬(col (G.src e.1) = 1 ∧ col (G.tgt e.1) = 1) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn2 : ¬(col (G.src e.1) = 2 ∧ col (G.tgt e.1) = 2) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
     have hnc0 : e.1 ∉ G.edgeCut {w | col w = 0} ∩ G.edgeCut {w | col w = 1} := by
-      rw [mem_inter_edgeCut_iff 0 1 (by decide)]
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    dsimp [glueEdges]
-    simp only [hn0, hn1, hn2, hnc0, ↓reduceDIte]
-    split_ifs with h
-    · exact congrArg a₁ (Subtype.ext rfl)
-    · exact absurd hc1 h
+      rw [mem_inter_edgeCut_iff 0 1 (by decide)]; omega
+    simp only [glueEdges, show ¬(col (G.src e.1) = 0 ∧ col (G.tgt e.1) = 0) by omega,
+      show ¬(col (G.src e.1) = 1 ∧ col (G.tgt e.1) = 1) by omega,
+      show ¬(col (G.src e.1) = 2 ∧ col (G.tgt e.1) = 2) by omega, hnc0, hc1, ↓reduceDIte]
+    rfl
   have glue_on_cut2 (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U)
       (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) (e : CutE 2) :
       glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.1 = a₂ e := by
     have hc2 : e.1 ∈ G.edgeCut {v | col v = 2} ∩ G.edgeCut {v | col v = 0} := e.2
     have hmem := (mem_inter_edgeCut_iff 2 0 (by decide) e.1).mp hc2
-    have hn0 : ¬(col (G.src e.1) = 0 ∧ col (G.tgt e.1) = 0) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn1 : ¬(col (G.src e.1) = 1 ∧ col (G.tgt e.1) = 1) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn2 : ¬(col (G.src e.1) = 2 ∧ col (G.tgt e.1) = 2) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
     have hnc0 : e.1 ∉ G.edgeCut {w | col w = 0} ∩ G.edgeCut {w | col w = 1} := by
-      rw [mem_inter_edgeCut_iff 0 1 (by decide)]
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
+      rw [mem_inter_edgeCut_iff 0 1 (by decide)]; omega
     have hnc1 : e.1 ∉ G.edgeCut {w | col w = 1} ∩ G.edgeCut {w | col w = 2} := by
-      rw [mem_inter_edgeCut_iff 1 2 (by decide)]
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    dsimp [glueEdges]
-    simp only [hn0, hn1, hn2, hnc0, hnc1, ↓reduceDIte]
-    split_ifs with h
-    · exact congrArg a₂ (Subtype.ext rfl)
-    · exact absurd hc2 h
+      rw [mem_inter_edgeCut_iff 1 2 (by decide)]; omega
+    simp only [glueEdges, show ¬(col (G.src e.1) = 0 ∧ col (G.tgt e.1) = 0) by omega,
+      show ¬(col (G.src e.1) = 1 ∧ col (G.tgt e.1) = 1) by omega,
+      show ¬(col (G.src e.1) = 2 ∧ col (G.tgt e.1) = 2) by omega, hnc0, hnc1, hc2, ↓reduceDIte]
+    rfl
   -- Local validity predicates for parts `0, 1, 2`.
   let d0 : {i : Fin n // p i = 0} → U := fun _ => u₀
   let d1 : {i : Fin n // p i = 1} → U := fun _ => u₀
