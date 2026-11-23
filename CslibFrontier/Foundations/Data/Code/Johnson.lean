@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Data.Code.ListDecoding
 import CslibFrontier.Foundations.Combinatorics.SetFamily.PairwiseIntersection
 import CslibFrontier.Foundations.Data.Code.Plotkin
 import CslibFrontier.Foundations.Data.Hamming
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.Order.Chebyshev
 import Mathlib.Data.List.GetD
 
@@ -444,8 +445,7 @@ theorem card_filter_hammingDist_le_mul_le_of_mul_le [Nonempty α] {C : Finset (�
       rcases le_total d n with hdn | hdn
       · rw [Nat.cast_sub hdn]
       · rw [Nat.sub_eq_zero_of_le hdn]
-        push_cast
-        linarith [(Nat.cast_le (α := ℤ)).2 hdn]
+        cast_linarith [(Nat.cast_le (α := ℤ)).2 hdn]
     exact mul_le_mul_of_nonneg_left this h0
   have hgoal : ((M * (B - X) : ℕ) : ℤ) ≤ (((q - 1) * n * d : ℕ) : ℤ) := by
     push_cast [Nat.cast_sub hBX.le, Nat.cast_sub hq]

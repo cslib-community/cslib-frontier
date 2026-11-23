@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Frontier.Demand
 public import CslibFrontier.Computability.Circuit.Frontier.Reduction
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # The frontier lower bound
@@ -144,8 +145,7 @@ theorem eventually_card_mul_sq_le_ncard (hSK : DenseRectangleFree S K) :
     nlinarith [Real.log_nonneg (show (1 : ℝ) ≤ q by linarith)]
   have : Real.log (q * K n ^ 2 : ℝ) ≤ Real.log (S n).ncard := by
     rw [Real.log_mul (by positivity) (by positivity), Real.log_pow]
-    push_cast
-    linarith
+    cast_linarith
   exact_mod_cast (Real.log_le_log_iff (by positivity) hSpos).mp this
 
 private theorem eventually_lt_of_frontier_of_bound {A M : ℝ} (hA : 0 < A) (hM : 0 ≤ M) (d : ℝ)
@@ -311,11 +311,9 @@ theorem eventually_lt_of_graph {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA : 0 < A)
   filter_upwards [eventually_lt_of_graph_of_bound (M := 7) hr hA (by norm_num) hlayout hSK hε] with
     n hn g V E _ _ G hconn hloop hdeg hV hrank hwidth
   refine hn g V E G hconn hloop hdeg ?_ hrank hwidth
-  have hr' : (2 : ℝ) ≤ r := by exact_mod_cast hr
   have hg : (0 : ℝ) ≤ g := Nat.cast_nonneg g
   have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg n
-  have hV' : (Nat.card V : ℝ) ≤ 2 * r * g + 3 := by exact_mod_cast hV
-  nlinarith
+  cast_nlinarith [hV, hr]
 
 /-- **The frontier lower bound, charging only multiary gates.** Let `r ≥ 2` and assume the layout
 hypothesis for maximum degree `r + 1` with coefficient `A > 0`. Let `S_n ⊆ U^n` be
@@ -367,9 +365,7 @@ theorem eventually_lt_mul_innerSize {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA : 0 <
   filter_upwards [eventually_lt_mul_multiarySize.{u, v} hr hA hlayout hSK hε] with n hn
   intro σ I Acc c hfan hS
   refine (hn σ I Acc c hfan hS).trans_le ?_
-  have hr' : (0 : ℝ) ≤ (r : ℝ) - 1 := by
-    have : (2 : ℝ) ≤ r := by exact_mod_cast hr
-    linarith
+  have hr' : (0 : ℝ) ≤ (r : ℝ) - 1 := by cast_linarith [hr]
   exact mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize) hr'
 
 /-- **The frontier lower bound for fan-in two, charging only multiary gates.** Assume the layout
