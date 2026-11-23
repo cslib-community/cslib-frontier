@@ -189,6 +189,7 @@ def kTopAddr (wb N Mc : ℕ) : ℕ := wb + 10 * N + 3 + 2 * Mc
 
 /-! ### Reusable CSR representation and shared array/CSR primitives -/
 
+/-- Number of arcs leaving vertices below `u`: the CSR offset of vertex `u`. -/
 def csrOffset {N : ℕ} (adj : Fin N → List (Fin N)) (u : ℕ) : ℕ :=
   (((List.finRange N).take u).map fun w => (adj w).length).sum
 
@@ -224,6 +225,7 @@ theorem csrOffset_eq_outDegreeSum {N : ℕ} (adj : Fin N → List (Fin N)) :
   unfold csrOffset outDegreeSum
   rw [List.take_of_length_le (by simp)]
 
+/-- `adj` is stored in CSR form: offsets at `offBase`, successor lists at `edgeBase`. -/
 def CSRAt {N : ℕ} (adj : Fin N → List (Fin N)) (offBase edgeBase : ℕ)
     (mem : ℕ → ℕ) : Prop :=
   (∀ u ≤ N, mem (offBase + u) = csrOffset adj u) ∧
@@ -244,6 +246,8 @@ private theorem CSRAt.of_eqOn {N : ℕ} {adj : Fin N → List (Fin N)} {offBase 
   rw [Nat.add_assoc, hedge _ hk_lt, ← Nat.add_assoc]
   exact h.2 u k hk
 
+/-- Invariant of the backward CSR fill: the successor lists `part` written so far end at the cursors
+`curBase`. -/
 def PartialCSRAt {N : ℕ} (targetAdj part : Fin N → List (Fin N))
     (curBase edgeBase : ℕ) (mem : ℕ → ℕ) : Prop :=
   (∀ w : Fin N, (part w).length ≤ (targetAdj w).length) ∧
@@ -363,6 +367,7 @@ def prefixSumBody : Code .standard 28 := ram[
   iReg ← iReg + cOne;
   addr ← offB + iReg; *addr ← pReg ]
 
+/-- Prefix sums turning out-degrees at `offB` into CSR offsets and fill cursors. -/
 def prefixSumCode : Code .standard 28 :=
   (ram[ *offB ← cZero; pReg ← cZero; iReg ← cZero ]).seq
     (.loop (.lt iReg nVerts) prefixSumBody)
@@ -639,6 +644,8 @@ theorem backfillStepCode_spec {N w : ℕ}
 
 /-! ### Explicit-stack iterative CSR depth-first search (`O(N + M)`) -/
 
+/-- Pure depth-first search over the successor list `es` from the visited set `vis` with an empty
+finishing list. -/
 def foldEmpty {V : Type*} [DecidableEq V] (adj : V → List V) (k : ℕ)
     (es : List V) (vis : Finset V) : Cslib.Algorithms.Lean.DFS.State V :=
   es.foldl (fun t v => visit adj k v t) ⟨vis, []⟩
@@ -725,9 +732,11 @@ private theorem card_visit_nil {V : Type*} [DecidableEq V] (adj : V → List V)
     simp [hvis x]
   rw [hunion, Finset.card_union_of_disjoint hdisj, List.toFinset_card_of_nodup hnd]
 
+/-- The visited flags at `visAddr` encode the set `vis`. -/
 def VisAt {N : ℕ} (vis : Finset (Fin N)) (visAddr : ℕ) (mem : ℕ → ℕ) : Prop :=
   ∀ w : Fin N, mem (visAddr + w.val) = (decide (w ∈ vis)).toNat
 
+/-- Register invariant of the depth-first search: constants and array bases. -/
 structure DfsRegs (offAddr edgeAddr visAddr finAddr stkAddr : ℕ) (x : Data 28) : Prop where
   czero : x.regs cZero = 0
   cone : x.regs cOne = 1
@@ -751,6 +760,7 @@ theorem dfsRegs_of_frame {offAddr edgeAddr visAddr finAddr stkAddr : ℕ} {x y :
     hfin := (hfr finB (by decide)).trans hx.hfin
     hstk := (hfr stkB (by decide)).trans hx.hstk }
 
+/-- Push the root `uReg` as the first DFS stack frame. -/
 def dfsPushRoot : Code .standard 28 := ram[
   *addr ← cOne;
   addr ← offB + uReg; jReg ← *addr;
@@ -760,6 +770,8 @@ def dfsPushRoot : Code .standard 28 := ram[
   addr ← addr + cOne; *addr ← jEndReg;
   pReg ← cOne ]
 
+/-- One DFS step on the top stack frame: pop and finish, skip a visited successor, or push an
+unvisited one. -/
 def dfsStepBody : Code .standard 28 := ram[
   vReg ← pReg - cOne;
   addr ← cThree * vReg; addr ← stkB + addr;
@@ -786,15 +798,19 @@ def dfsStepBody : Code .standard 28 := ram[
     addr ← finB + finCnt; *addr ← uReg;
     finCnt ← finCnt + cOne ] ]
 
+/-- Run DFS steps while the stack is nonempty. -/
 def dfsLoop : Code .standard 28 :=
   .loop (.lt cZero pReg) dfsStepBody
 
+/-- Visit the root `uReg` if it is unvisited, running the DFS loop from it. -/
 def visitRootCode : Code .standard 28 := ram[
   addr ← visB + uReg; jReg ← *addr;
   if jReg = cZero then [
     ⟪dfsPushRoot.seq dfsLoop⟫ ]
   else [ pReg ← cZero ] ]
 
+/-- Instruction budget of the DFS loop on the remaining successors `es` of a frame, given the
+vertices `new` finished during it. -/
 def dfsFrameTime {N : ℕ} (adj : Fin N → List (Fin N)) (es new : List (Fin N)) : ℕ :=
   20 + 36 * es.length + 60 * new.length + 36 * outDegreeSum adj new
 
@@ -1546,9 +1562,12 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
 
 /-! ### Pass 1: Forward DFS finishing order (`O(N + M)`) -/
 
+/-- Visit vertex `iReg` as a DFS root and advance `iReg`. -/
 def forwardDFSBody : Code .standard 28 :=
   (ram[ uReg ← iReg ]).seq (visitRootCode.seq (ram[ iReg ← iReg + cOne ]))
 
+/-- Forward pass: clear the visited flags and visit every vertex as a root, writing the DFS
+finishing order at `finB`. -/
 def forwardDFSCode : Code .standard 28 :=
   (zeroBlockCode visB).seq
     ((ram[ finCnt ← cZero; iReg ← cZero ]).seq
@@ -1781,24 +1800,29 @@ theorem forwardDFSCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → List (Fin 
 
 /-! ### Pass 2: CSR transpose construction (`O(N + M)`) -/
 
+/-- Count one arc towards the in-degree of its target. -/
 def revDegInnerBody : Code .standard 28 :=
   (ram[ addr ← edgeB + jReg; vReg ← *addr ]).seq
     (incCurCode.seq (ram[ jReg ← jReg + cOne ]))
 
+/-- Count the in-degrees contributed by the arcs leaving vertex `iReg`. -/
 def revDegOuterBody : Code .standard 28 :=
   (ram[ addr ← offB + iReg; jReg ← *addr; addr ← addr + cOne; oldFinReg ← *addr ]).seq
     ((Code.loop (.lt jReg oldFinReg) revDegInnerBody).seq
       (ram[ iReg ← iReg + cOne ]))
 
+/-- Place one reversed arc at the fill cursor of its target. -/
 def revFillInnerBody : Code .standard 28 :=
   (ram[ addr ← finCnt + jReg; vReg ← *addr ]).seq
     (backfillStepCode.seq (ram[ jReg ← jReg + cOne ]))
 
+/-- Place the reversed arcs leaving vertex `uReg`. -/
 def revFillOuterBody : Code .standard 28 :=
   (ram[ addr ← offB + uReg; jReg ← *addr; addr ← addr + cOne; oldFinReg ← *addr ]).seq
     ((Code.loop (.lt jReg oldFinReg) revFillInnerBody).seq
       (ram[ uReg ← uReg + cOne ]))
 
+/-- CSR transposition: in-degree count, prefix sums and backward fill of the reversed arcs. -/
 def transposeCSRCode : Code .standard 28 :=
   (zeroBlockCode curB).seq
     ((ram[ iReg ← cZero ]).seq
@@ -2468,11 +2492,14 @@ theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
 
 /-! ### Pass 3: Kosaraju SCC peeling and component indexing (`O(N + M)`) -/
 
+/-- Write the current component index for one newly finished vertex. -/
 def writeCompBody : Code .standard 28 := ram[
   addr ← finB + pReg; vReg ← *addr;
   addr ← compB + vReg; *addr ← compIdxReg;
   pReg ← pReg + cOne ]
 
+/-- Kosaraju peeling step: visit the next vertex in reverse finishing order in the transpose and
+index the vertices finished as one component. -/
 def peelStepBody : Code .standard 28 :=
   (ram[ addr ← nVerts - cOne; addr ← addr - iReg; addr ← ordB + addr; uReg ← *addr;
         oldFinReg ← finCnt ]).seq
@@ -2484,6 +2511,8 @@ def peelStepBody : Code .standard 28 :=
           (ram[ compIdxReg ← compIdxReg ])).seq
         (ram[ iReg ← iReg + cOne ])))
 
+/-- Second Kosaraju pass: peel the transpose in reverse finishing order, writing component indices
+at `compB`. -/
 def kosarajuIndexCode : Code .standard 28 :=
   (zeroBlockCode visB).seq
     ((ram[ finCnt ← cZero; compIdxReg ← cZero; iReg ← cZero ]).seq
