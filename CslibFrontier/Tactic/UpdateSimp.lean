@@ -30,9 +30,10 @@ linear top-down pass without splitting `if` branches**:
 * Preserves `let`-sharing for nested maps (`let gm₁ := ...; let gm₂ := ...`) by peeling one head
   binding at a time instead of eagerly zeta-reducing, keeping proof and term sizes `O(depth)`.
 * Silently discharges index equality/disequality and guard truth/falsity via local hypotheses,
-  `isDefEq`, `decide`, `omega` with `@[wram_arith]` unfolding, and `StrideOmega.prove?` (which
-  handles strided 2D bounds and injectivity `b' * S + s ≠ b * S + q₀`), without triggering
-  `linter.unnecessaryWramOmega`.
+  `isDefEq`, constructor `noConfusion` (distinct constructors or injective constructors with
+  disequal fields, including dependent `Function.update`), `decide`, `omega` with `@[wram_arith]`
+  unfolding, and `StrideOmega.prove?` (which handles strided 2D bounds and injectivity
+  `b' * S + s ≠ b * S + q₀`), without triggering `linter.unnecessaryWramOmega`.
 * Supports `Data.write` / `Data.set` projections (`(d.write a v).mem`, `(d.set i v).regs`,
   `(d.write a v).regs`, `(d.set i v).mem`) whenever those declarations are in the environment.
 
@@ -135,39 +136,37 @@ private structure Config where
 private def isArithType (α : Expr) : Bool :=
   α.isConstOf ``Nat || α.isConstOf ``Int || α.isAppOfArity ``Fin 1
 
-/-- Look up an exact proof of `prop` in the local context (plus symmetric equality/disequality). -/
-private def findExactProof? (prop : Expr) : MetaM (Option Expr) := do
-  let prop ← instantiateMVars prop
+private def lookupExact? (cfg : Config) (target : Expr) : MetaM (Option Expr) := do
   for d in ← getLCtx do
-    if d.isImplementationDetail then continue
-    let t ← instantiateMVars d.type
-    if t == prop then
+    if !d.isImplementationDetail && (← instantiateMVars d.type) == target then
       return some d.toExpr
+  for h in cfg.extraHints do
+    if (← instantiateMVars (← inferType h)) == target then return some h
+  return none
+
+/-- Look up an exact proof of `prop` in the local context or `cfg.extraHints`
+(including symmetric equality/disequality). -/
+private def findExactProof? (cfg : Config) (prop : Expr) : MetaM (Option Expr) := do
+  let prop ← instantiateMVars prop
+  if let some h ← lookupExact? cfg prop then return some h
   if prop.isAppOfArity ``Eq 3 then
     let args := prop.getAppArgs
-    let sym := mkApp3 (prop.getAppFn) args[0]! args[2]! args[1]!
-    for d in ← getLCtx do
-      if d.isImplementationDetail then continue
-      if (← instantiateMVars d.type) == sym then
-        return some (← mkEqSymm d.toExpr)
+    if let some h ← lookupExact? cfg (mkApp3 prop.getAppFn args[0]! args[2]! args[1]!) then
+      return some (← mkEqSymm h)
   if prop.isAppOfArity ``Ne 3 then
     let args := prop.getAppArgs
-    let sym := mkApp3 (prop.getAppFn) args[0]! args[2]! args[1]!
-    for d in ← getLCtx do
-      if d.isImplementationDetail then continue
-      if (← instantiateMVars d.type) == sym then
-        return some (← mkAppM ``Ne.symm #[d.toExpr])
+    if let some h ← lookupExact? cfg (mkApp3 prop.getAppFn args[0]! args[2]! args[1]!) then
+      return some (← mkAppM ``Ne.symm #[h])
   if prop.isAppOfArity ``Not 1 then
     let inner := prop.appArg!
     if inner.isAppOfArity ``Eq 3 then
       let args := inner.getAppArgs
-      let ne1 ← mkAppOptM ``Ne #[some args[0]!, some args[1]!, some args[2]!]
-      let ne2 ← mkAppOptM ``Ne #[some args[0]!, some args[2]!, some args[1]!]
-      for d in ← getLCtx do
-        if d.isImplementationDetail then continue
-        let t ← instantiateMVars d.type
-        if t == ne1 then return some d.toExpr
-        if t == ne2 then return some (← mkAppM ``Ne.symm #[d.toExpr])
+      if let some h ← lookupExact? cfg
+          (← mkAppOptM ``Ne #[some args[0]!, some args[1]!, some args[2]!]) then
+        return some h
+      if let some h ← lookupExact? cfg
+          (← mkAppOptM ``Ne #[some args[0]!, some args[2]!, some args[1]!]) then
+        return some (← mkAppM ``Ne.symm #[h])
   return none
 
 /-- Try to decide a ground proposition via `decide`. -/
@@ -184,7 +183,7 @@ private def tryDecide? (prop : Expr) : MetaM (Option Expr) := do
 `decide`, or `StrideOmega.prove?`. -/
 private def proveProp? (cfg : Config) (prop : Expr) : MetaM (Option Expr) := do
   let prop ← instantiateMVars prop
-  if let some h ← findExactProof? prop then
+  if let some h ← findExactProof? cfg prop then
     return some h
   if let some h ← tryDecide? prop then
     return some h
@@ -322,17 +321,59 @@ private def composeRes (_lhs : Expr) (r₁ r₂ : Simp.Result) : MetaM Simp.Resu
   | none, some p₂ => return { expr := r₂.expr, proof? := some p₂ }
   | some p₁, some p₂ => return { expr := r₂.expr, proof? := some (← mkEqTrans p₁ p₂) }
 
-/-- Try proving `k = a` or `k ≠ a` via `proveProp?`, using structural checks first. -/
-private def proveNe? (cfg : Config) (α k a : Expr) : MetaM (Option Expr) := do
+/-- Recognize a constructor application directly or after `.reducible` WHNF. -/
+private def reducibleCtorApp? (e : Expr) : MetaM (Option (ConstructorVal × Array Expr)) := do
+  if let some r ← constructorApp? e then return some r
+  constructorApp? (← withReducible (whnf e))
+
+/-- Try proving `k ≠ a` via local/hint hypotheses, constructor `noConfusion` (distinct constructors
+or an injective constructor with disequal arguments), or arithmetic `proveProp?`. -/
+private partial def proveNe? (cfg : Config) (α k a : Expr) (depth : Nat := 8) :
+    MetaM (Option Expr) := do
+  if k == a then return none
   let neProp ← mkAppOptM ``Ne #[some α, some k, some a]
-  if let some h ← findExactProof? neProp then return some h
-  if !isArithType α then return none
-  proveProp? cfg neProp
+  if let some h ← findExactProof? cfg neProp then return some h
+  if isArithType α then return ← proveProp? cfg neProp
+  if depth == 0 then return none
+  let some (cK, _) ← reducibleCtorApp? k | return none
+  let some (cA, _) ← reducibleCtorApp? a | return none
+  let saved ← saveState
+  try
+    let eqProp ← mkEq k a
+    let pf? ← withLocalDeclD `heq eqProp fun heq => do
+      if cK.cidx != cA.cidx then
+        let nc ← withTransparency .default <| mkNoConfusion (mkConst ``False) heq
+        return some (← mkLambdaFVars #[heq] nc)
+      else if cK.numFields > 0 then
+        let ncName := cK.name.str "noConfusion"
+        if !(← hasConst ncName) then executeReservedNameAction ncName
+        let noConf ← withTransparency .default <| mkNoConfusion (mkConst ``False) heq
+        let .forallE _ contTy _ _ ← whnfD (← inferType noConf) | return none
+        let cont? ← forallTelescope contTy.headBeta fun eqs _ => do
+          for eqH in eqs do
+            let hTy ← inferType eqH
+            if let some (β, fk, fa) := hTy.eq? then
+              if let some hne ← proveNe? cfg β fk fa (depth - 1) then
+                return some (← mkLambdaFVars eqs (mkApp hne eqH))
+            else if let some (β₁, fk, β₂, fa) := hTy.heq? then
+              if β₁ == β₂ || (← withReducible (isDefEq β₁ β₂)) then
+                if let some hne ← proveNe? cfg β₁ fk fa (depth - 1) then
+                  let eqPrf ← mkAppOptM ``eq_of_heq #[some β₁, some fk, some fa, some eqH]
+                  return some (← mkLambdaFVars eqs (mkApp hne eqPrf))
+          return none
+        cont?.mapM fun cont => mkLambdaFVars #[heq] (mkApp noConf cont)
+      else
+        return none
+    if pf?.isNone then saved.restore
+    return pf?
+  catch _ =>
+    saved.restore
+    return none
 
 private def proveEq? (cfg : Config) (α k a : Expr) : MetaM (Option Expr) := do
   if k == a then return some (← mkEqRefl k)
   let eqProp ← mkEq k a
-  if let some h ← findExactProof? eqProp then return some h
+  if let some h ← findExactProof? cfg eqProp then return some h
   if !isArithType α then return none
   proveProp? cfg eqProp
 
@@ -401,22 +442,27 @@ private partial def peelApplied (cfg : Config) (fn k : Expr) (fuel : Nat) :
     match ← peelApplied cfg pr.expr k (fuel - 1) with
     | some r₂ => return some (← composeRes (mkApp fn k) stepRes r₂)
     | none => return some stepRes
-  -- 4. Direct `Function.update f a v k`.
-  if let some u := matchNondepUpdate? fn then
-    if u.a == k then
-      let pf ← mkUpdateEqProof fn u k (← mkEqRefl k)
-      return some { expr := u.v, proof? := some pf }
-    if let some hne ← proveNe? cfg u.α k u.a then
+  -- 4. Direct `Function.update f a v k` (dependent or non-dependent motive).
+  if fn.isAppOfArity ``Function.update 6 then
+    let args := fn.getAppArgs
+    let α := args[0]!; let motive := args[1]!; let inst := args[2]!
+    let f := args[3]!; let a := args[4]!; let v := args[5]!
+    if a == k then
+      let pf ← mkAppOptM ``Function.update_self
+        #[some α, some motive, some inst, some a, some v, some f]
+      return some { expr := v, proof? := some pf }
+    if let some hne ← proveNe? cfg α k a then
       let pf ← mkAppOptM ``Function.update_of_ne
-        #[some u.α, some u.motive, some u.inst, some k, some u.a, some hne, some u.v, some u.f]
-      let next := mkApp u.f k
+        #[some α, some motive, some inst, some k, some a, some hne, some v, some f]
+      let next := mkApp f k
       let step : Simp.Result := { expr := next, proof? := some pf }
-      match ← peelApplied cfg u.f k (fuel - 1) with
+      match ← peelApplied cfg f k (fuel - 1) with
       | some r₂ => return some (← composeRes (mkApp fn k) step r₂)
       | none => return some step
-    if let some heq ← proveEq? cfg u.α k u.a then
-      let pf ← mkUpdateEqProof fn u k heq
-      return some { expr := u.v, proof? := some pf }
+    if let some u := matchNondepUpdate? fn then
+      if let some heq ← proveEq? cfg u.α k u.a then
+        let pf ← mkUpdateEqProof fn u k heq
+        return some { expr := u.v, proof? := some pf }
     return none
   -- 5. Conditional `(if p then t else e) k`.
   if let some it := matchIte? fn then
@@ -614,7 +660,8 @@ private def parseArgs (args : Array Term) : TacticM (NameSet × Array Expr) := d
 /-- Simplify chained and conditional `Function.update` applications without splitting `if` guards.
 
 * `update_simp` peels `Function.update f a v k` and `(if p then Function.update f a v else g) k`
-  in the goal using local facts, `decide`, `omega` (with `@[wram_arith]` unfolding), and
+  in the goal using local facts, constructor `noConfusion` (distinct constructors or injective
+  constructors with disequal fields), `decide`, `omega` (with `@[wram_arith]` unfolding), and
   `stride_omega` (strided injectivity and bounds), automatically closing trivial equalities
   `lhs = rhs` when `lhs` and `rhs` become definitionally equal.
 * `update_simp [d₁, d₂, h₁]` additionally unfolds head definitions `d₁, d₂` (such as

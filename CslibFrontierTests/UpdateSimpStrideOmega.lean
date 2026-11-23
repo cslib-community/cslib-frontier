@@ -179,6 +179,33 @@ example (f : ℕ → ℕ) (i : ℕ) :
       Function.update f (i + 2) 7 i = 4 + f i := by
   simp only [reduceUpdate]
 
+/-- Inductive key type with dependent slot types, modeling `TASObjId` in `Hierarchy`. -/
+inductive TestObjId (R : Type) where
+  | propReg (r : R)
+  | tas
+  deriving DecidableEq
+
+abbrev TestObjState {R : Type} (V : Type) : TestObjId R → Type
+  | .propReg _ => V
+  | .tas => Bool
+
+abbrev tasKey {R : Type} : TestObjId R := .tas
+
+-- Constructor-headed inductive keys (distinct constructors, injective constructor fields,
+-- reducible constructor abbreviations, and dependent `Function.update`)
+example {R V : Type} [DecidableEq R] (mem : ∀ i : TestObjId R, TestObjState V i)
+    (p q : R) (hpq : p ≠ q) (vp vq : V) :
+    Function.update mem .tas true (.propReg q) = mem (.propReg q) ∧
+    Function.update mem (.propReg q) vq tasKey = mem .tas ∧
+    Function.update (Function.update mem (.propReg q) vq) .tas true (.propReg p) =
+      mem (.propReg p) ∧
+    Function.update mem (.propReg p) vp (.propReg p) = vp := by
+  refine ⟨by update_simp, by update_simp, by update_simp [hpq], by update_simp⟩
+
+example (f : Option ℕ → ℕ) (i : ℕ) :
+    Function.update (Function.update f none 9) (some (i + 1)) 7 (some i) = f (some i) := by
+  update_simp
+
 end UpdateSimpTests
 
 /-! ## 3. `PackedSlice`: concrete nonvacuous instances and disjoint slice views -/
