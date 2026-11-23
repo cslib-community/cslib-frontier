@@ -517,12 +517,14 @@ theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
     obtain ⟨w, hw, rfl⟩ := hz
     obtain ⟨⟨v, hv, heq⟩, hn⟩ := hl hw
     have heq' : w = u * v := heq.symm
+    change u⁻¹ * w ∈ U \ (↑points : Set ℂ)
     rw [heq', hmul]
     exact ⟨hv, fun h => hn (heq ▸ Finset.mem_image_of_mem f h)⟩
   have hparity (z : ℂ) (hz : z ∈ points) : e.rayParity u z = decide (z ∈ odd) := by
     have h : e.rayParity u z = l.rayParity 1 (f z) := by
       unfold Route.rayParity Cslib.Polygonal.rayParity
       simp only [e, mulComplex, hmul', one_mul, hf]
+      rfl
     rw [h, hpar _ (Finset.mem_image_of_mem f hz)]
     by_cases hz' : z ∈ odd
     · rw [decide_eq_true ((himage odd z).mpr hz'), decide_eq_true hz']
