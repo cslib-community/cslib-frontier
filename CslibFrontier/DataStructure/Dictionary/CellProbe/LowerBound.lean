@@ -271,20 +271,16 @@ private theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V 
         Finset.mem_union_left _ (Finset.mem_sdiff.mpr ⟨hd_mem_K r₀, hdr_not_Dk⟩)
       have hdr_some : (s_k (d r₀)).isSome := by
         rw [hst_k]; simp [hdr_in]
+      have hflt_lt : (Finset.univ.filter fun r : Fin m => r.val < k) = Finset.Iio r₀ := by
+        simpa only [Fin.lt_def] using (Finset.filter_gt_eq_Iio :
+          Finset.univ.filter (· < r₀) = Finset.Iio r₀)
+      have hflt_le : (Finset.univ.filter fun r : Fin m => r.val < k + 1) = Finset.Iic r₀ := by
+        simpa only [Nat.lt_succ_iff, Fin.le_def] using (Finset.filter_ge_eq_Iic :
+          Finset.univ.filter (· ≤ r₀) = Finset.Iic r₀)
       have hcard_D : D_k.card = k := by
-        rw [Finset.card_image_of_injective _ d.injective]
-        refine (Finset.card_bij (fun (r : Fin m) _ => r.val)
-          (fun r hr => Finset.mem_range.mpr (Finset.mem_filter.mp hr).2)
-          (fun _ _ _ _ h => Fin.ext h) fun j hj => ?_).trans (Finset.card_range k)
-        exact ⟨⟨j, (Finset.mem_range.mp hj).trans hk_lt⟩,
-          Finset.mem_filter.mpr ⟨Finset.mem_univ _, Finset.mem_range.mp hj⟩, rfl⟩
+        rw [Finset.card_image_of_injective _ d.injective, hflt_lt, Fin.card_Iio]
       have hcard_B : B_k.card = k := by
-        rw [Finset.card_image_of_injective _ b.injective]
-        refine (Finset.card_bij (fun (r : Fin m) _ => r.val)
-          (fun r hr => Finset.mem_range.mpr (Finset.mem_filter.mp hr).2)
-          (fun _ _ _ _ h => Fin.ext h) fun j hj => ?_).trans (Finset.card_range k)
-        exact ⟨⟨j, (Finset.mem_range.mp hj).trans hk_lt⟩,
-          Finset.mem_filter.mpr ⟨Finset.mem_univ _, Finset.mem_range.mp hj⟩, rfl⟩
+        rw [Finset.card_image_of_injective _ b.injective, hflt_lt, Fin.card_Iio]
       have hdom_sk : Dictionary.dom s_k = (K \ D_k) ∪ B_k := by
         ext u; rw [Dictionary.mem_dom_iff]
         rw [show s_k = _ from hst_k]
@@ -306,30 +302,14 @@ private theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V 
             (Finset.univ.filter fun r : Fin m => r.val < k + 1).image b
             then some (s.kv u).val else none) := by
         funext u
+        have himg_succ (f : Fin m ↪ Fin U) :
+            (Finset.univ.filter fun r : Fin m => r.val < k + 1).image f =
+              insert (f r₀) ((Finset.univ.filter fun r : Fin m => r.val < k).image f) := by
+          rw [hflt_le, hflt_lt, ← Finset.Iio_insert, Finset.image_insert]
         have hD1 : (Finset.univ.filter fun r : Fin m => r.val < k + 1).image d =
-            insert (d r₀) D_k := by
-          ext x; simp only [D_k, Finset.mem_insert, Finset.mem_image, Finset.mem_filter,
-            Finset.mem_univ, true_and]
-          constructor
-          · rintro ⟨r', hr', rfl⟩
-            rcases Nat.lt_succ_iff_lt_or_eq.mp hr' with hlt | heq
-            · exact Or.inr ⟨r', hlt, rfl⟩
-            · exact Or.inl (congrArg d (Fin.ext heq))
-          · rintro (rfl | ⟨r', hr', rfl⟩)
-            · exact ⟨r₀, Nat.lt_succ_self k, rfl⟩
-            · exact ⟨r', Nat.lt_succ_of_lt hr', rfl⟩
+            insert (d r₀) D_k := himg_succ d
         have hB1 : (Finset.univ.filter fun r : Fin m => r.val < k + 1).image b =
-            insert (b r₀) B_k := by
-          ext x; simp only [B_k, Finset.mem_insert, Finset.mem_image, Finset.mem_filter,
-            Finset.mem_univ, true_and]
-          constructor
-          · rintro ⟨r', hr', rfl⟩
-            rcases Nat.lt_succ_iff_lt_or_eq.mp hr' with hlt | heq
-            · exact Or.inr ⟨r', hlt, rfl⟩
-            · exact Or.inl (congrArg b (Fin.ext heq))
-          · rintro (rfl | ⟨r', hr', rfl⟩)
-            · exact ⟨r₀, Nat.lt_succ_self k, rfl⟩
-            · exact ⟨r', Nat.lt_succ_of_lt hr', rfl⟩
+            insert (b r₀) B_k := himg_succ b
         rw [hD1, hB1]
         by_cases hub : u = b r₀
         · subst hub; simp
@@ -505,6 +485,41 @@ private theorem val_pairBOf_eq {U V n t₀ m : ℕ} (s : HardKeyValSeed U V n)
   rfl
 
 open Classical in
+private theorem toReal_innerPoolDist_actSeed8Equiv {U V n t₀ m g P_size : ℕ} [NeZero V]
+    (hU : 2 * n ≤ U) (hV : 1 ≤ V) (ht₀ : t₀ + m ≤ n)
+    (pool : HardKeyValSeed U V n → Finset (Fin U))
+    (hcard_pool : ∀ s, (pool s).card = P_size)
+    (hA_pool : ∀ s, s.insertedSet t₀ m ht₀ ⊆ pool s)
+    (hpool_act : ∀ (τ : Equiv.Perm (Fin U)) (δ : Fin U → Fin V) s,
+      pool (actSeed8Equiv τ δ s) = (pool s).map τ.toEmbedding)
+    (Fg : HardKeyValSeed U V n → Finset (Finset (Fin U)))
+    (hFg : ∀ s, Fg s = ((pool s).powersetCard m).filter fun B =>
+      (s.insertedSet t₀ m ht₀ ∩ B).card = g)
+    (hne : ∀ s, (Fg s).Nonempty)
+    (τ : Equiv.Perm (Fin U)) (δ : Fin U → Fin V)
+    (s : HardKeyValSeed U V n) (B : Finset (Fin U)) :
+    (innerPoolDist hU hV Fg hne (actSeed8Equiv τ δ s, B.map τ.toEmbedding)).toReal =
+      (innerPoolDist hU hV Fg hne (s, B)).toReal := by
+  have hFg_card : ∀ s', (Fg s').card = m.choose g * (P_size - m).choose (m - g) := fun s' => by
+    rw [hFg s', card_inter_filter_powersetCard (hA_pool s')
+      ((Finset.card_image_of_injective _
+        (segInsertedKeys s'.keys t₀ m ht₀).injective).trans (by simp)),
+      hcard_pool s']
+  have hmem_iff : B.map τ.toEmbedding ∈ Fg (actSeed8Equiv τ δ s) ↔ B ∈ Fg s := by
+    rw [hFg, hFg, hpool_act τ δ s, actSeed8Equiv_insertedSet]
+    simp only [Finset.mem_filter, Finset.mem_powersetCard, Finset.card_map,
+      ← Finset.map_inter, Finset.map_subset_map]
+  let _ : Nonempty (HardKeyValSeed U V n) := ⟨s⟩
+  rw [toReal_innerPoolDist_apply, toReal_innerPoolDist_apply, hFg_card, hFg_card]
+  have hunif_s : ((PMF.uniformOfFintype (HardKeyValSeed U V n)) (actSeed8Equiv τ δ s)) =
+      (PMF.uniformOfFintype (HardKeyValSeed U V n)) s := by
+    simp [PMF.uniformOfFintype_apply]
+  rw [hunif_s]
+  by_cases hB : B ∈ Fg s
+  · rw [ite_eq_left (hmem_iff.mpr hB), ite_eq_left hB]
+  · rw [ite_eq_right (mt hmem_iff.mp hB), ite_eq_right hB]
+
+open Classical in
 private theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} {γ R : ℝ}
     (hU : 2 * n ≤ U) (hU_pos_nat : 1 ≤ U) (hV : 1 ≤ V) (ht₀ : t₀ + m ≤ n)
     (hspace : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R)
@@ -528,11 +543,6 @@ private theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} 
   let _ : DecidableEq (SizedDict U V n) := Classical.decEq _
   let μ_g := innerPoolDist hU hV Fg hne
   let M_cap := (2 : ℝ) ^ (R + 1) * (U : ℝ) ^ (γ * (m : ℝ))
-  have hFg_card : ∀ s, (Fg s).card = m.choose g * (P_size - m).choose (m - g) := fun s => by
-    rw [hFg s, card_inter_filter_powersetCard (hA_pool s)
-      ((Finset.card_image_of_injective _
-        (segInsertedKeys s.keys t₀ m ht₀).injective).trans (by simp)),
-      hcard_pool s]
   have hunif_pair : ∀ p₁ p₂ : SizedDict U V n,
       ((μ_g.map (pairBOf t₀ m ht₀)) p₁).toReal = ((μ_g.map (pairBOf t₀ m ht₀)) p₂).toReal := by
     intro p₁ p₂
@@ -573,28 +583,9 @@ private theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} 
           left_inv := fun B => by ext x; simp
           right_inv := fun B => by ext x; simp }
     have hμ_inv (sb : HardKeyValSeed U V n × Finset (Fin U)) :
-        (μ_g (e_sb sb)).toReal = (μ_g sb).toReal := by
-      rcases sb with ⟨s, B⟩
-      have hmem_iff : B.map τ.toEmbedding ∈ Fg (actSeed8Equiv τ δ s) ↔ B ∈ Fg s := by
-        rw [hFg, hFg, hpool_act τ δ s, actSeed8Equiv_insertedSet]
-        simp only [Finset.mem_filter, Finset.mem_powersetCard, Finset.card_map,
-          ← Finset.map_inter]
-        refine and_congr (and_congr ?_ Iff.rfl) Iff.rfl
-        exact ⟨fun h x hx => by
-            rcases Finset.mem_map.mp (h (Finset.mem_map.mpr ⟨x, hx, rfl⟩)) with ⟨y, hy, hxy⟩
-            rwa [τ.injective hxy] at hy,
-          fun h x hx => by
-            rcases Finset.mem_map.mp hx with ⟨y, hy, rfl⟩
-            exact Finset.mem_map.mpr ⟨y, h hy, rfl⟩⟩
-      change (μ_g (actSeed8Equiv τ δ s, B.map τ.toEmbedding)).toReal = (μ_g (s, B)).toReal
-      rw [toReal_innerPoolDist_apply, toReal_innerPoolDist_apply, hFg_card, hFg_card]
-      have hunif_s : ((PMF.uniformOfFintype (HardKeyValSeed U V n)) (actSeed8Equiv τ δ s)) =
-          (PMF.uniformOfFintype (HardKeyValSeed U V n)) s := by
-        simp [PMF.uniformOfFintype_apply]
-      rw [hunif_s]
-      by_cases hB : B ∈ Fg s
-      · rw [ite_eq_left (hmem_iff.mpr hB), ite_eq_left hB]
-      · rw [ite_eq_right (mt hmem_iff.mp hB), ite_eq_right hB]
+        (μ_g (e_sb sb)).toReal = (μ_g sb).toReal :=
+      toReal_innerPoolDist_actSeed8Equiv hU hV ht₀ pool hcard_pool hA_pool
+        (fun τ' δ' s' => hpool_act τ' δ' s') Fg hFg hne τ δ sb.1 sb.2
     have hpair_act (sb : HardKeyValSeed U V n × Finset (Fin U)) :
         pairBOf t₀ m ht₀ (e_sb sb) = p₂ ↔
           pairBOf t₀ m ht₀ sb = p₁ := by
@@ -852,11 +843,6 @@ private theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
     let actG (γ : G) :
         (HardKeyValSeed U V n × Finset (Fin U)) ≃ (HardKeyValSeed U V n × Finset (Fin U)) :=
       (actSeed8Equiv (Equiv.Perm.ofSubtype γ.1) γ.2).prodCongr (Equiv.refl _)
-    have hFg_card : ∀ s, (Fg s).card = m.choose g * (P_size - m).choose (m - g) := fun s => by
-      rw [hFg s, card_inter_filter_powersetCard (hA_pool s)
-        ((Finset.card_image_of_injective _
-          (segInsertedKeys s.keys t₀ m ht₀).injective).trans (by simp)),
-        hcard_pool s]
     have hfix (π_sub : Equiv.Perm ↥S_comp) {x : Fin U} (hx : x ∈ obsFixedSet o) :
         Equiv.Perm.ofSubtype π_sub x = x :=
       Equiv.Perm.ofSubtype_apply_of_not_mem π_sub (by simp [S_comp, hx])
@@ -928,27 +914,10 @@ private theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
             (Finset.mem_union_right _ (hBo ▸ hy)))
           rwa [← hyx, hy_fix]
         · exact hfix γ.1 (Finset.mem_union_left _ (Finset.mem_union_right _ (hBo ▸ hx)))
-      have hmem_iff : B ∈ Fg (actSeed8Equiv τ γ.2 s) ↔ B ∈ Fg s := by
-        conv_lhs => rw [← hB_map]
-        rw [hFg, hFg, hpool_act τ γ.2 s, actSeed8Equiv_insertedSet]
-        simp only [Finset.mem_filter, Finset.mem_powersetCard, Finset.card_map,
-          ← Finset.map_inter]
-        refine and_congr (and_congr ?_ Iff.rfl) Iff.rfl
-        exact ⟨fun h x hx => by
-            rcases Finset.mem_map.mp (h (Finset.mem_map.mpr ⟨x, hx, rfl⟩)) with ⟨y, hy, hxy⟩
-            rwa [τ.injective hxy] at hy,
-          fun h x hx => by
-            rcases Finset.mem_map.mp hx with ⟨y, hy, rfl⟩
-            exact Finset.mem_map.mpr ⟨y, h hy, rfl⟩⟩
       change (μ_g (actSeed8Equiv τ γ.2 s, B)).toReal = (μ_g (s, B)).toReal
-      rw [toReal_innerPoolDist_apply, toReal_innerPoolDist_apply, hFg_card, hFg_card]
-      have hunif_s : ((PMF.uniformOfFintype (HardKeyValSeed U V n)) (actSeed8Equiv τ γ.2 s)) =
-          (PMF.uniformOfFintype (HardKeyValSeed U V n)) s := by
-        simp [PMF.uniformOfFintype_apply]
-      rw [hunif_s]
-      by_cases hB : B ∈ Fg s
-      · rw [ite_eq_left (hmem_iff.mpr hB), ite_eq_left hB]
-      · rw [ite_eq_right (mt hmem_iff.mp hB), ite_eq_right hB]
+      conv_lhs => rw [← hB_map]
+      exact toReal_innerPoolDist_actSeed8Equiv (by omega : 2 * n ≤ U) hV ht₀ pool
+        hcard_pool hA_pool (fun τ' δ' s' => hpool_act τ' δ' s') Fg hFg hne τ γ.2 s B
     -- Orbit bound for any supported sb with obs8 sb = o
     have horbit_le (sb : HardKeyValSeed U V n × Finset (Fin U))
         (ho : obs8 t₀ m ht₀ sb = o) (hB_Fg : sb.2 ∈ Fg sb.1) :
@@ -1617,19 +1586,11 @@ private theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_
         (S_B sb) (ops_B sb) subset_rfl).2.2.1
     have hSB : S_B sb₁ = S_B sb₂ := (hSB_eq sb₁).symm.trans (hSB_sim.trans (hSB_eq sb₂))
     obtain ⟨hm₃, hp4⟩ := prefix_append_of_length_eq (by simp [m₃, length_encodeRestr, hSB_sim]) hp3
-    have hI_AB : I_AB sb₁ = I_AB sb₂ := by
-      have hr := encodeRestr_inj hSB_sim hm₃
-      ext j; by_cases hj : j ∈ SB_sim sb₁
-      · exact decide_eq_decide.mp (hr j hj)
-      · exact iff_of_false (fun h => hj (Finset.inter_subset_right h))
-          (fun h => (hSB_sim ▸ hj) (Finset.inter_subset_right h))
+    have hI_AB : I_AB sb₁ = I_AB sb₂ :=
+      encodeRestr_subset_inj Finset.inter_subset_right Finset.inter_subset_right hSB_sim hm₃
     obtain ⟨hm₄, hp5⟩ := prefix_append_of_length_eq (by simp [m₄, length_encodeRestr, hI_AB]) hp4
-    have hΔ : Δ_set sb₁ = Δ_set sb₂ := by
-      have hr := encodeRestr_inj hI_AB hm₄
-      ext j; by_cases hj : j ∈ I_AB sb₁
-      · exact decide_eq_decide.mp (hr j hj)
-      · exact iff_of_false (fun h => hj (Finset.filter_subset _ _ h))
-          (fun h => (hI_AB ▸ hj) (Finset.filter_subset _ _ h))
+    have hΔ : Δ_set sb₁ = Δ_set sb₂ :=
+      encodeRestr_subset_inj (Finset.filter_subset _ _) (Finset.filter_subset _ _) hI_AB hm₄
     obtain ⟨hm₅, hp6⟩ := prefix_append_of_length_eq (by simp [m₅, length_encodeRestr, hΔ]) hp5
     have hm₆ : m₆ sb₁ = m₆ sb₂ := (prefix_append_of_length_eq (v₁ := []) (v₂ := [])
       (by simp [m₆, length_encodeMemFinset]) (by simpa using hp6)).1

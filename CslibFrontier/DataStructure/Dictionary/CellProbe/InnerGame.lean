@@ -1406,19 +1406,11 @@ private theorem prob_innerPool_eq_le {U V n t₀ m g cells w : ℕ} {γ R t : �
         orderSubset_congr hD hσ, orderSubset_congr hB hπ]
     have hSB_sim : SB_sim ω₁ = SB_sim ω₂ := by dsimp only [SB_sim]; rw [hcm, hopsB]
     obtain ⟨hm₆, hp7⟩ := prefix_append_of_length_eq (by simp [m₆, length_encodeRestr, hSB_sim]) hp6
-    have hI_AB : I_AB ω₁ = I_AB ω₂ := by
-      have hr := encodeRestr_inj hSB_sim hm₆
-      ext j; by_cases hj : j ∈ SB_sim ω₁
-      · exact decide_eq_decide.mp (hr j hj)
-      · exact iff_of_false (fun h => hj (Finset.inter_subset_right h))
-          (fun h => (hSB_sim ▸ hj) (Finset.inter_subset_right h))
+    have hI_AB : I_AB ω₁ = I_AB ω₂ :=
+      encodeRestr_subset_inj Finset.inter_subset_right Finset.inter_subset_right hSB_sim hm₆
     obtain ⟨hm₇, hp8⟩ := prefix_append_of_length_eq (by simp [m₇, length_encodeRestr, hI_AB]) hp7
-    have hΔ : Δ_set ω₁ = Δ_set ω₂ := by
-      have hr := encodeRestr_inj hI_AB hm₇
-      ext j; by_cases hj : j ∈ I_AB ω₁
-      · exact decide_eq_decide.mp (hr j hj)
-      · exact iff_of_false (fun h => hj (Finset.filter_subset _ _ h))
-          (fun h => (hI_AB ▸ hj) (Finset.filter_subset _ _ h))
+    have hΔ : Δ_set ω₁ = Δ_set ω₂ :=
+      encodeRestr_subset_inj (Finset.filter_subset _ _) (Finset.filter_subset _ _) hI_AB hm₇
     obtain ⟨hm₈, hp9⟩ := prefix_append_of_length_eq (by simp [m₈, length_encodeRestr, hΔ]) hp8
     have hm₉ : m₉ ω₁ = m₉ ω₂ := (prefix_append_of_length_eq (v₁ := []) (v₂ := [])
       (by simp [m₉, length_encodeMemFinset]) (by simpa using hp9)).1

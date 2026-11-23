@@ -59,7 +59,7 @@ together with two basic binary prefix-free codes in `Cslib.BitString`:
 * `Cslib.BitString.encodeFintype`, `Cslib.BitString.encodeMemFinset`,
   `Cslib.BitString.encodeRestr`: canonical binary encodings, exact lengths, and injectivity for
   finite types, subsets, and restricted maps (`encodeFintype_injective`, `encodeMemFinset_inj`,
-  `encodeRestr_inj`).
+  `encodeRestr_inj`, `encodeRestr_subset_inj`).
 * `Cslib.BitString.decodeEliasGamma_eliasGamma`,
   `Cslib.BitString.injOn_eliasGamma`,
   `Cslib.BitString.isPrefixFree_range_eliasGamma`,
@@ -401,5 +401,19 @@ theorem length_encodeRestr_fin_two_pow {α : Type*} (S : Finset α) (w : ℕ)
 theorem encodeRestr_inj {α β : Type*} [Fintype β] {S₁ S₂ : Finset α} {f₁ f₂ : α → β}
     (hS : S₁ = S₂) (heq : encodeRestr S₁ f₁ = encodeRestr S₂ f₂) : ∀ x ∈ S₁, f₁ x = f₂ x := by
   classical subst hS; intro x hx; exact congrFun (encodeFintype_injective heq) ⟨x, hx⟩
+
+/-- Restricted characteristic-code injectivity: equal `encodeRestr` encodings of the indicator
+functions of `A₁ ⊆ S₁` and `A₂ ⊆ S₂` over equal carrier sets `S₁ = S₂` imply `A₁ = A₂`. -/
+theorem encodeRestr_subset_inj {α : Type*} {A₁ A₂ S₁ S₂ : Finset α}
+    [DecidablePred (· ∈ A₁)] [DecidablePred (· ∈ A₂)]
+    (hA₁ : A₁ ⊆ S₁) (hA₂ : A₂ ⊆ S₂) (hS : S₁ = S₂)
+    (heq : encodeRestr S₁ (fun x => decide (x ∈ A₁)) =
+      encodeRestr S₂ (fun x => decide (x ∈ A₂))) :
+    A₁ = A₂ := by
+  have hr := encodeRestr_inj hS heq
+  ext x
+  by_cases hx : x ∈ S₁
+  · exact decide_eq_decide.mp (hr x hx)
+  · exact iff_of_false (fun h => hx (hA₁ h)) (fun h => (hS ▸ hx) (hA₂ h))
 
 end Cslib.BitString
