@@ -306,8 +306,7 @@ private theorem exec_search {w : ℕ} (x y : Data 64) (values : Fin 3 → ℕ �
     hyinput (by simpa only [hl] using hinj)
   refine ⟨z, he.mono ?_, ?_, ?_⟩
   · simp only [hm, hl, searchTime]
-    exact Nat.add_le_add_right (Nat.mul_le_mul_left _
-      (Nat.add_le_add_right (Nat.add_le_add_left (Nat.mul_le_mul_left 15 hM) _) _)) _
+    gcongr
   · refine ⟨?_, fun a ha => (hmem a (by simpa only [hk] using ha)).trans (hy.2 a ha)⟩
     intro i hi
     by_cases hid : i = digits

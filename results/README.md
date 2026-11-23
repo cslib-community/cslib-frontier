@@ -47,7 +47,13 @@ The [Goldreich draft audit](goldreich-2007.md) records a source-pinned chapter-l
 for *Computational Complexity: A Conceptual Perspective*, including the any-output bounded-termination
 endpoints of Exercises 4.6–4.7 in the documented total-decoder representation. It is not a claim of
 book-wide coverage. Exercise 8.43 has the varying-density product and constant-set
-real half-length power, with normalized spectral-parameter transport; Exercise 8.44 remains open.
+real half-length power, with normalized spectral-parameter transport. Exercise 8.44
+(`goldreich-expander-visit-count` in [VisitCount](../CslibFrontier/Foundations/Combinatorics/Expander/VisitCount.lean))
+has selected-time hitting, factorial-moment and integer-tail bounds, including strict half-visits
+for odd and even positive lengths, without sampler or runtime claims; its
+[audit section](goldreich-2007.md#exercise-844-visit-counts) and the
+[exercise inventory](goldreich-2007-exercises.md) record the strictness (`1 ≤ m ≤ L`,
+`ρ + η² > 0`) and integer `m = αL` conventions that qualify the printed statement.
 Exercise 9.21 now has plurality correction and the unconditional rejection bound for all finite
 abelian groups, including trivial groups, without computational representation claims.
 Its companion [exercise inventory](goldreich-2007-exercises.md) classifies the end-of-chapter
@@ -154,8 +160,3 @@ least half the truth tables have measure zero. This explains why the additive `-
 Razborov–Rudich Theorem 5.1(b) cannot simply be omitted as in the 2007 Arora–Barak draft's
 Theorem 22.3. It is not registered as a proof of either source theorem; the corrected density
 amplification endpoint remains open under [#4711](https://github.com/cslib-community/cslib-frontier/issues/4711).
-
-Goldreich Exercise 8.44 now has selected-time hitting, factorial-moment and integer-tail
-bounds, including strict half-visits for odd and even positive lengths. The
-[exercise inventory](goldreich-2007-exercises.md) records the strictness and integer
-conventions that qualify the printed statement.

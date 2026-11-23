@@ -44,7 +44,7 @@ theorem length_runFrom_prepareWords_le (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin
     (w : List Bool) (b : ℕ) [NeZero b] (σ i t : ℕ) (words : Assignments.Words k) :
     let (positive, negative) := ScheduleRead.origin k 0 (σ, i)
     (CheckedGate.encState ((CheckedGate.machine M e).runFrom w
-      (prepareWords e (w.length, b, σ, i, words)) t)).length ≤
+      (prepareWords e ⟨w.length, b, σ, i, words⟩) t)).length ≤
       (words.previous.length + 1) +
         (2 * (Gate.encContext
           (positive, negative, ScheduleRead.fullrow k (σ, i))).length + 2 +
@@ -76,7 +76,7 @@ theorem length_runFrom_prepare_le (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s)
     (w : List Bool) (b : ℕ) [NeZero b] (σ i limit counter stride t : ℕ) :
     let (positive, negative) := ScheduleRead.origin k 0 (σ, i)
     (CheckedGate.encState ((CheckedGate.machine M e).runFrom w
-      (prepare e (w.length, b, σ, i, limit, counter, stride)) t)).length ≤
+      (prepare e ⟨w.length, b, σ, i, limit, counter, stride⟩) t)).length ≤
       (Encoding.width k s b + 1) +
         (2 * (Gate.encContext
           (positive, negative, ScheduleRead.fullrow k (σ, i))).length + 2 +
@@ -96,7 +96,7 @@ counter. -/
 theorem halted_runFrom_prepareWords (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s)
     (w : List Bool) (N b σ i : ℕ) (words : Assignments.Words k) :
     (CheckedGate.machine M e).halted ((CheckedGate.machine M e).runFrom w
-      (prepareWords e (N, b, σ, i, words)) b) = true := by
+      (prepareWords e ⟨N, b, σ, i, words⟩) b) = true := by
   cases hc : Providers.Labels.combine e (b, ScheduleRead.providerMap k (σ, i),
       words.previous, words.providers) with
   | none =>
@@ -114,7 +114,7 @@ halt immediately, while successful initialization uses the existing replay count
 theorem halted_runFrom_prepare (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s)
     (w : List Bool) (N b σ i limit counter stride : ℕ) :
     (CheckedGate.machine M e).halted ((CheckedGate.machine M e).runFrom w
-      (prepare e (N, b, σ, i, limit, counter, stride)) b) = true :=
+      (prepare e ⟨N, b, σ, i, limit, counter, stride⟩) b) = true :=
   halted_runFrom_prepareWords M e w N b σ i _
 
 end Turing.MultiTapePTM.BlockComputation.QueryReplay.Supplier

@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.DecisionTree.Leaves
 public import CslibFrontier.MachineLearning.UniformLearning.LowDegree
 public import CslibFrontier.MachineLearning.UniformLearning.MembershipQuery
 public import CslibFrontier.Foundations.BooleanAnalysis.BucketWeight
+import CslibFrontier.Foundations.BooleanAnalysis.SpectralConcentration
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Computability.DecisionTree.SpectralNorm
 import CslibFrontier.Probability.Concentration
@@ -53,7 +54,8 @@ expansion on the found sets with coefficients estimated from the points `x`
 If all estimates are within `θ² / 4` of their values, the hypothesis has error at most
 `θ² / 4 + θ L` for a function of spectral norm at most `L`
 (`UniformLearning.uniformError_kmHypothesis_le`): the found sets carry all coefficients of absolute
-value at least `θ`, and the others weigh at most `θ L`. Hoeffding's inequality and the union bound
+value at least `θ`, and the others weigh at most `θ L`
+(`BitString.sum_fourierCoeff_sq_le_mul_sum_abs`). Hoeffding's inequality and the union bound
 make the estimates accurate except with probability at most `2 (n + 2) 2 ^ n exp (-m θ⁴ / 32)`
 (`UniformLearning.uniform_not_accurate_le`). With `θ = ε / (2 L)` this gives the
 **Kushilevitz–Mansour theorem**: the functions of spectral norm at most `L` are learned with error
@@ -379,17 +381,8 @@ theorem uniformError_kmHypothesis_le (f : (ι → Bool) → Bool) {L θ : ℝ} (
       _ ≤ 1 * (θ ^ 2 / 4) := by gcongr
       _ = θ ^ 2 / 4 := one_mul _
   have hout : ∑ S ∈ Tᶜ, fourierCoeff F S ^ 2 ≤ θ * L :=
-    calc ∑ S ∈ Tᶜ, fourierCoeff F S ^ 2 ≤ ∑ S ∈ Tᶜ, θ * |fourierCoeff F S| :=
-          sum_le_sum fun S hS => by
-            have hlt : fourierCoeff F S ^ 2 < θ ^ 2 :=
-              lt_of_not_ge fun h => mem_compl.1 hS (hheavy S h)
-            have habs : |fourierCoeff F S| < θ := abs_lt_of_sq_lt_sq hlt hθ.le
-            rw [← sq_abs, sq]
-            exact mul_le_mul_of_nonneg_right habs.le (abs_nonneg _)
-      _ ≤ ∑ S, θ * |fourierCoeff F S| :=
-          sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => by positivity
-      _ = θ * ∑ S, |fourierCoeff F S| := (mul_sum _ _ _).symm
-      _ ≤ θ * L := by gcongr
+    (sum_fourierCoeff_sq_le_mul_sum_abs hθ.le fun S hS => (abs_lt_of_sq_lt_sq
+      (lt_of_not_ge fun h => mem_compl.1 hS (hheavy S h)) hθ.le).le).trans (by gcongr)
   have : uniformError f (kmHypothesis f θ ω) ≤
       ∑ S ∈ T, (fourierCoeff F S - sampleCoeff f ω S) ^ 2 + ∑ S ∈ Tᶜ, fourierCoeff F S ^ 2 :=
     herr
