@@ -159,7 +159,7 @@ text; the structurally recursive specification (`splitChars`, `lexLine`) compute
 (`tokens_eq_spec`, `lines_eq_spec`). -/
 
 /-- The pieces of a list of characters between the characters satisfying `p`. -/
-private def splitChars (p : Char → Bool) : List Char → List (List Char)
+def splitChars (p : Char → Bool) : List Char → List (List Char)
   | [] => [[]]
   | c :: cs =>
     if p c then [] :: splitChars p cs

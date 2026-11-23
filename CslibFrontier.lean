@@ -382,6 +382,7 @@ public import CslibFrontier.Algorithms.WordRAM.AKS.PolyMul
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyPow
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick
 public import CslibFrontier.Algorithms.WordRAM.Arborescence
+public import CslibFrontier.Algorithms.WordRAM.Auction
 public import CslibFrontier.Algorithms.WordRAM.BellmanFord
 public import CslibFrontier.Algorithms.WordRAM.BinarySearch
 public import CslibFrontier.Algorithms.WordRAM.BurrowsWheeler
@@ -608,6 +609,7 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WitnessScan.Setup
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WriteMatrices
 public import CslibFrontier.Algorithms.WordRAM.Freivalds
 public import CslibFrontier.Algorithms.WordRAM.GomoryHu
+public import CslibFrontier.Algorithms.WordRAM.HamiltonianCount
 public import CslibFrontier.Algorithms.WordRAM.HeldKarp
 public import CslibFrontier.Algorithms.WordRAM.Histogram
 public import CslibFrontier.Algorithms.WordRAM.HopcroftKarp
@@ -1061,6 +1063,7 @@ public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.Scan
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates
 public import CslibFrontier.Algorithms.WordRAM.TwoSAT
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination
+public import CslibFrontier.Algorithms.WordRAM.Yates
 public import CslibFrontier.Algorithms.WordRAM.ZFunction
 public import CslibFrontier.Computability.Automata.DPDA.Basic
 public import CslibFrontier.Computability.Automata.MPDA.Basic
@@ -6355,6 +6358,8 @@ public import CslibFrontier.Crypto.Protocols.UC.JointState
 public import CslibFrontier.Crypto.Protocols.UC.Linking
 public import CslibFrontier.Crypto.Protocols.UC.Machine
 public import CslibFrontier.Crypto.Protocols.UC.MultiSession
+public import CslibFrontier.Crypto.Protocols.UC.PushExecution
+public import CslibFrontier.Crypto.Protocols.UC.Reactive
 public import CslibFrontier.Crypto.Protocols.UC.WordInterface
 public import CslibFrontier.Crypto.Protocols.UOV.Attacks
 public import CslibFrontier.Crypto.Protocols.UOV.BlockKey
@@ -8322,6 +8327,7 @@ public import CslibFrontier.Languages.Probabilistic.IdealCipher
 public import CslibFrontier.Languages.Probabilistic.IdealCipher.DomainSeparation
 public import CslibFrontier.Languages.Probabilistic.IntBox
 public import CslibFrontier.Languages.Probabilistic.Iteration
+public import CslibFrontier.Languages.Probabilistic.Iteration.Add
 public import CslibFrontier.Languages.Probabilistic.Iteration.Chain
 public import CslibFrontier.Languages.Probabilistic.Lift
 public import CslibFrontier.Languages.Probabilistic.LinearHash
@@ -8364,6 +8370,7 @@ public import CslibFrontier.Languages.Probabilistic.QueryCount
 public import CslibFrontier.Languages.Probabilistic.QueryCount.Congr
 public import CslibFrontier.Languages.Probabilistic.QueryCount.Demand
 public import CslibFrontier.Languages.Probabilistic.QueryCount.Expected
+public import CslibFrontier.Languages.Probabilistic.QueryCount.Iterate
 public import CslibFrontier.Languages.Probabilistic.QueryCount.Scale
 public import CslibFrontier.Languages.Probabilistic.QueryCount.Sum
 public import CslibFrontier.Languages.Probabilistic.QueryCount.Support
@@ -8884,6 +8891,8 @@ public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Core
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Propagate
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Syntax
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Fast
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Graph.Clique
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Graph.Dimacs
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance

@@ -716,6 +716,29 @@ example :
     norm_num [s] at hsign
   exact ⟨hmatch.resolve_right (by linarith), hmiss.resolve_left (by linarith)⟩
 
+-- Weight two amplifies the sign error. The score still separates consecutive targets.
+example :
+    (1 : ℝ) / 2 ≤ SignType.fingerprintScore (-(11 / 6)) (3 / 4) (-2) ∧
+      SignType.fingerprintScore (-(11 / 6)) (3 / 4) (-1) ≤ -((1 : ℝ) / 2) := by
+  have h (target : ℤ) :
+      let score := SignType.fingerprintScore (-(11 / 6)) (3 / 4) target
+      ((1 : ℝ) / 2 ≤ score ∨ score ≤ -((1 : ℝ) / 2)) ∧ (0 < score ↔ (-2 : ℤ) = target) := by
+    have result := SignType.fingerprintScore_margin (m := 1) (M := 2) (fun _ => 2)
+      (fun _ => -(11 / 12)) (fun _ => -1) (3 / 4) 1 target
+      (by simp) (fun _ => by norm_num) (by norm_num)
+    norm_num [Fin.sum_univ_one] at result
+    exact result
+  have hyes := (h (-2)).2.mpr rfl
+  have hno := (h (-1)).2.not.mpr (by decide : ¬(-2 : ℤ) = -1)
+  exact ⟨(h (-2)).1.resolve_right (by linarith), (h (-1)).1.resolve_left (by linarith)⟩
+
+-- Zero total weight gives a constant fingerprint and still tests the qualifying sign.
+example : (1 : ℝ) / 2 ≤ SignType.fingerprintScore 0 (3 / 4) 0 := by
+  have h := SignType.fingerprintScore_margin (m := 0) (M := 0)
+    Fin.elim0 Fin.elim0 Fin.elim0 (3 / 4) 1 0 (by simp) (fun i => i.elim0) (by norm_num)
+  simp only [Finset.univ_eq_empty, Finset.sum_empty] at h
+  exact h.1.resolve_right (by linarith [h.2.mpr (by simp)])
+
 -- Clearing the denominators gives an integer polynomial that distinguishes the two targets.
 example :
     let g : Fin 1 → Polynomial ℤ := fun _ => Polynomial.X

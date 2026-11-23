@@ -10,10 +10,10 @@ module
 public import CslibFrontier.Logics.Propositional.CNF.Dimacs
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 -- `import all`: the round-trip proofs read the private lexer of `Text` through its specification
--- (`lines_eq_spec`, `tokens_eq_spec`, `lineTokens`, `splitChars`, `lexLine`, `flushToken`), unfold
--- its private parsers (`nat?`, `dropChar?`, `startsWithChar`, `terms`, `constr`, `opbLines`,
--- `objTerms`, `objective`, `presVars`, `dimacsClauses`) and the unexposed bodies of `parseOPB`,
--- `parseDIMACS`, `tokens`, `int?`, `stdVar?` and `Names.var?`.
+-- (`lines_eq_spec`, `tokens_eq_spec`, `lineTokens`, `lexLine`, `flushToken`), unfold its private
+-- parsers (`nat?`, `dropChar?`, `startsWithChar`, `terms`, `constr`, `opbLines`, `objTerms`,
+-- `objective`, `presVars`, `dimacsClauses`) and the unexposed bodies of `parseOPB`, `parseDIMACS`,
+-- `splitChars`, `tokens`, `int?`, `stdVar?` and `Names.var?`.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 
 /-! # Printing OPB instances, with round-trip theorems

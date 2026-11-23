@@ -25,6 +25,7 @@ one unsigned word of `w + 1` bits. The signed range is the existing `GenericRAM.
 ## Main results
 
 * `Signed.decode_encode`: encoding preserves the integer.
+* `Signed.encode_le_two_mul_add_one`: magnitude bound `encode z ≤ 2 * M + 1` for `z.natAbs ≤ M`.
 * `Signed.encode_fits`: one additional unsigned bit suffices for every signed input.
 
 ## References
@@ -66,17 +67,23 @@ theorem decode_encode (z : ℤ) : decode (encode z) = z := by
 theorem encode_injective : Function.Injective encode :=
   Function.LeftInverse.injective decode_encode
 
+/-- Upper bound `encode z ≤ 2 * M + 1` from a magnitude bound `z.natAbs ≤ M`. -/
+theorem encode_le_two_mul_add_one {z : ℤ} {M : ℕ} (h : z.natAbs ≤ M) :
+    encode z ≤ 2 * M + 1 := by
+  unfold encode
+  split_ifs <;> omega
+
 /-- Every signed `w`-bit integer fits in one unsigned word with one extra bit. -/
 theorem encode_fits {w : ℕ} {z : ℤ} (h : GenericRAM.Signed.Fits w z) :
     Fits (w + 1) (encode z) := by
-  have hm := h.natAbs_le
+  have hm := encode_le_two_mul_add_one h.natAbs_le
   have hw0 := h.1
   have hp : 2 ^ (w + 1) = 4 * 2 ^ (w - 1) := by
     have hw : w + 1 = (w - 1) + 2 := by omega
     rw [hw, pow_add]
     omega
   have hpos : 0 < 2 ^ (w - 1) := Nat.two_pow_pos _
-  unfold Fits encode
-  split_ifs <;> omega
+  unfold Fits
+  omega
 
 end Cslib.WordRAM.Signed
