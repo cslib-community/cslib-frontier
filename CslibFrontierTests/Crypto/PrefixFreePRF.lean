@@ -16,6 +16,8 @@ Use a proper-prefix pair in the CBC word domain with a two-block cap. Its querie
 three-block domain. A repeated valid guess makes no external query.
 -/
 
+set_option linter.privateModule false
+
 open Cslib Cslib.Crypto Cslib.Crypto.UHF Cslib.Probability Turing.MultiTapeTM
 
 private def properPrefixGuess : CollisionGuess (List Bool) :=
