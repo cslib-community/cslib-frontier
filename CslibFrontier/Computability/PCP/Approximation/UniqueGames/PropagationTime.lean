@@ -196,22 +196,7 @@ private theorem length_run_table {α : Type} [DecidableEq α] [Inhabited α] (la
   intro es S hS
   induction es generalizing S with
   | nil => exact hS
-  | cons e es ih =>
-    apply ih
-    unfold step
-    cases S.get e.src with
-    | some _ => exact hS
-    | none =>
-      have hsettle : ∀ (c : α) (l : List ℕ) (t : List (Option (α → α))),
-          (l.foldl (fun t v => t.set v (freeze c (t.getD v none))) t).length = t.length := by
-        intro c l t
-        induction l generalizing t with
-        | nil => rfl
-        | cons v l ihl => rw [List.foldl_cons, ihl, List.length_set]
-      unfold settle
-      dsimp only
-      rw [hsettle, length_iterate_scan]
-      simp [start, hS]
+  | cons e es ih => exact ih _ ((length_step labels g S e).trans hS)
 
 /-- `decodeSolution L` recovers `solve (List.finRange L) g` identically on every `v : ℕ`. -/
 theorem decodeSolution_encodeSolution {L : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) :
@@ -222,10 +207,8 @@ theorem decodeSolution_encodeSolution {L : ℕ} [NeZero L] (g : Graph (Fin L →
   · simp only [encodeSolution, decodeSolution, Option.some.injEq]
     funext v
     by_cases hv : v < slots g
-    · have hget : ((List.range (slots g)).map fun u => (labelling (List.finRange L) g u).val).getD
-          v 0 = (labelling (List.finRange L) g v).val := by
-        rw [List.getD_eq_getElem _ _ (by simp [hv])]
-        simp
+    · have hget :=
+        List.getD_map_range (fun u => (labelling (List.finRange L) g u).val) 0 hv
       simp only [hget, Fin.is_lt, ↓reduceDIte, Fin.eta]
     · have hget : ((List.range (slots g)).map fun u => (labelling (List.finRange L) g u).val).getD
           v 0 = 0 :=
@@ -3130,31 +3113,9 @@ private theorem stepsLoop_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin 
       have hcred_settle : creditRAM g (settle (List.finRange L)
           ((scan (List.finRange L) g)^[slots g] (start S e.src))) =
           ((scan (List.finRange L) g)^[slots g] (start S e.src)).wpot (weightRAM g) := by
-        have hun_set : ∀ (c : Fin L) (cand : Fin L → Bool) (l : List ℕ)
-            (t : List (Option (Fin L → Fin L))),
-            (State.mk (l.foldl (fun t v => t.set v (freeze c (t.getD v none))) t)
-              cand [] []).unvisited = (State.mk t cand [] []).unvisited := by
-          intro c cand l t
-          induction l generalizing t with
-          | nil => rfl
-          | cons v l ihl =>
-            rw [List.foldl_cons, ihl]
-            ext u
-            unfold State.unvisited
-            simp only [Finset.mem_filter, Finset.mem_range]
-            simp only [List.length_set, State.get]
-            refine and_congr_right fun hu_in => ?_
-            by_cases huv : u = v
-            · subst huv
-              rw [List.getD_set_self hu_in]
-              cases t.getD u none <;> rfl
-            · rw [List.getD_set_ne (Ne.symm huv)]
         set Tscan := (scan (List.finRange L) g)^[slots g] (start S e.src)
-        have hun_eq : (settle (List.finRange L) Tscan).unvisited = Tscan.unvisited :=
-          hun_set (((List.finRange L).find? Tscan.cand).getD default) Tscan.cand Tscan.comp
-            Tscan.table
         unfold creditRAM State.wpot
-        rw [hun_eq]
+        rw [unvisited_settle (List.finRange L) Tscan]
         simp [settle, hstk_end]
       have hcred_Tscan : creditRAM g ((scan (List.finRange L) g)^[slots g] (start S e.src)) =
           ((scan (List.finRange L) g)^[slots g] (start S e.src)).wpot (weightRAM g) +
