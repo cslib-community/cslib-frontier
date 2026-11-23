@@ -23,7 +23,7 @@ the learned clause is false.
 
 So the minimized clause is learned with the hints of the learned clause after those reasons
 (`Cslib.Algorithms.Lean.CDCL.Learned.minimize`), still one RUP step, and the hints are proved to
-refute it (`Cslib.Algorithms.Lean.CDCL.Learned.propagateHints_minimized`), with no check at run
+refute it (`Cslib.Algorithms.Lean.CDCL.Learned.propagateHints_redundant`), with no check at run
 time. The proof rests on the soundness of the memo of the search: a variable recorded as derived
 has a reason on the trail whose other literals are on variables of the learned clause or recorded
 as derived. The search records a variable as not derived while it searches its reason, so a
@@ -34,8 +34,8 @@ learned clause.
 
 On the solver's array trail (`Cslib.Algorithms.Lean.CDCL.ATrail`), reasons are looked up in
 constant time through self-certifying position hints (`Cslib.Algorithms.Lean.CDCL.ATrail.reasonAt`),
-and the clause-variable and memo arrays are cleared along the variables touched and reused across
-conflicts without per-conflict array allocation.
+and the clause-variable and memo arrays are cleared along the variables touched and reused in place
+across conflicts when unshared and within bounds.
 
 ## Main definitions
 
@@ -46,8 +46,7 @@ conflicts without per-conflict array allocation.
 
 ## Main results
 
-* `Cslib.Algorithms.Lean.CDCL.Learned.propagateHints_redundant`,
-  `Cslib.Algorithms.Lean.CDCL.Learned.propagateHints_minimized`: the minimized clause, with the
+* `Cslib.Algorithms.Lean.CDCL.Learned.propagateHints_redundant`: the minimized clause, with the
   reasons of the derived literals, oldest first, before the hints of the learned clause, is a RUP
   clause.
 
@@ -63,13 +62,6 @@ namespace Cslib.Algorithms.Lean.CDCL
 open Cslib.Logic.PL Cslib.Logic.PL.CNF
 
 variable {φ : CNF ℕ}
-
-/-- The reason code (`0` for none/decision, `r + 1` for reason `r`) of each implied variable of the
-trail `T`, indexed by variable, for the variables below `n`. -/
-def XTrail.reasonCodes (T : XTrail) (n : ℕ) : Array ℕ :=
-  T.foldl (fun a x => match x with
-    | .implied l r => a.setIfInBounds l.1 (r + 1)
-    | .decision _ => a) (Array.replicate n 0)
 
 /-- State of the memoized search for derived literals: `ok` holds the answer of the current step (or
 whether any literal was removed in `redundant`), `memo` caches answers (`some true` for derived,
@@ -127,12 +119,6 @@ def derivedHints (T : XTrail) (memo : Assign) : List ℕ :=
     | .implied l r => if memo.value l.1 == some true then some r else none
     | .decision _ => none
 
-/-- `derivedHints` in one pass over the trail, newest first, without reversing it. -/
-def derivedHintsFast (T : XTrail) (memo : Assign) : List ℕ :=
-  T.foldl (fun acc x => match x with
-    | .implied l r => if memo.holds (l.1, true) then r :: acc else acc
-    | .decision _ => acc) []
-
 private theorem holds_true_eq_beq (memo : Assign) (v : ℕ) :
     memo.holds (v, true) = (memo.value v == some true) :=
   Bool.eq_iff_iff.2 (by rw [Assign.holds_eq_true, beq_iff_eq])
@@ -151,87 +137,7 @@ private theorem foldl_derivedHints (memo : Assign) : ∀ (T : XTrail) (acc : Lis
       rw [holds_true_eq_beq]
       by_cases h : memo.value l.1 = some true <;> simp [derivedHints, h]
 
-theorem derivedHintsFast_eq (T : XTrail) (memo : Assign) :
-    derivedHintsFast T memo = derivedHints T memo := by
-  rw [derivedHintsFast, foldl_derivedHints, List.append_nil]
-
-/-- The array marking the variables of the clause `C`, below `n`. -/
-def clauseVars (C : Clause ℕ) (n : ℕ) : Array Bool :=
-  C.foldl (fun a y => a.setIfInBounds y.1 true) (Array.replicate n false)
-
-/-- **The redundant search** on the learned clause `C` with asserting literal `lit`, whose false
-literals are on the trail `T`: recursively if `recursive`, and otherwise following only the reasons
-of the literals implied at the root. -/
-def minimizeRedundant (log : LRATLog φ) (T : XTrail) (C : Clause ℕ) (lit : Literal ℕ)
-    (recursive : Bool) (n : ℕ) : MinStep :=
-  let deep : ℕ → Bool :=
-    if recursive then fun _ => true
-    else
-      let root := Assign.ofTrail (XTrail.trail (XTrail.root T))
-      fun v => root.assigned v
-  let reasons := T.reasonCodes n
-  let inC := clauseVars C n
-  redundant log (fun v => reasons.getD v 0) (fun v => inC.getD v false) deep (n + 1) lit C
-    ⟨Array.replicate n 0⟩
-
 /-! ### The minimized clause is a RUP clause -/
-
-/-- The entries of the reason-code array are reasons of the trail. -/
-private theorem XTrail.mem_of_reasonCodes {T : XTrail} {n v r : ℕ}
-    (h : (T.reasonCodes n).getD v 0 = r + 1) :
-    ∃ b, XEntry.implied (v, b) r ∈ T := by
-  suffices ∀ (T : XTrail) (a : Array ℕ),
-      (T.foldl (fun a x => match x with
-        | .implied l r => a.setIfInBounds l.1 (r + 1)
-        | .decision _ => a) a).getD v 0 = r + 1 →
-        a.getD v 0 = r + 1 ∨ ∃ b, XEntry.implied (v, b) r ∈ T by
-    rcases this T _ h with h | h
-    · rw [Array.getD_eq_getD_getElem?, Array.getElem?_replicate] at h
-      split at h <;> simp at h
-    · exact h
-  intro T
-  induction T with
-  | nil => exact fun a h => .inl h
-  | cons x T ih =>
-    intro a h
-    rcases ih _ h with h' | ⟨b, hb⟩
-    · cases x with
-      | decision d => exact .inl h'
-      | implied l r' =>
-        simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds] at h'
-        split at h'
-        · rename_i hv
-          split at h'
-          · obtain rfl := hv
-            obtain rfl : r' = r := by simpa using h'
-            exact .inr ⟨l.2, List.mem_cons_self⟩
-          · simp at h'
-        · exact .inl (by rw [Array.getD_eq_getD_getElem?]; exact h')
-    · exact .inr ⟨b, List.mem_cons_of_mem _ hb⟩
-
-/-- The marked variables are those of the clause. -/
-private theorem mem_of_clauseVars {C : Clause ℕ} {n w : ℕ}
-    (h : (clauseVars C n).getD w false = true) :
-    ∃ y ∈ C, y.1 = w := by
-  suffices ∀ (C : Clause ℕ) (a : Array Bool),
-      (C.foldl (fun a y => a.setIfInBounds y.1 true) a).getD w false = true →
-        a.getD w false = true ∨ ∃ y ∈ C, y.1 = w by
-    rcases this C _ h with h | h
-    · rw [Array.getD_eq_getD_getElem?, Array.getElem?_replicate] at h
-      split at h <;> simp at h
-    · exact h
-  intro C
-  induction C with
-  | nil => exact fun a h => .inl h
-  | cons y C ih =>
-    intro a h
-    rcases ih _ h with h' | ⟨z, hz, hzw⟩
-    · simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds] at h'
-      split at h'
-      · rename_i hv
-        exact .inr ⟨y, List.mem_cons_self, hv⟩
-      · exact .inl (by rw [Array.getD_eq_getD_getElem?]; exact h')
-    · exact .inr ⟨z, List.mem_cons_of_mem _ hz, hzw⟩
 
 /-- The memo is sound: every variable recorded as derived has a reason whose other literals are on
 variables satisfying `inC` or recorded as derived. -/
@@ -621,39 +527,32 @@ theorem Learned.propagateHints_redundant {T : XTrail} (L : Learned log₀ A (XTr
             exact List.mem_filterMap.2 ⟨_, hx, by simpa [Std.Sat.Literal.negate] using h'⟩)
       L.rup
 
-/-- **The minimized clause is a RUP clause** (`minimizeRedundant` on `XTrail`). -/
-theorem Learned.propagateHints_minimized {T : XTrail} (L : Learned log₀ A (XTrail.trail T))
-    (hreasons : Reasons log₀ T) (hnd : (Trail.vars (XTrail.trail T)).Nodup) (recursive : Bool)
-    (n : ℕ) :
-    let C := L.clause
-    let r := minimizeRedundant log₀ T C L.lit recursive n
-    propagateHints log₀.db
-      ((L.lit :: C.filter fun y => !Assign.litEq y L.lit && !r.memo.holds (y.1, true)).map
-        Std.Sat.Literal.negate)
-      (derivedHints T r.memo ++ L.hints) = true :=
-  L.propagateHints_redundant hreasons hnd (fun _ _ => XTrail.mem_of_reasonCodes)
-    (fun _ => mem_of_clauseVars) _ (n + 1) (Assign.value_replicate n)
-
-/-- `derivedHintsFast` of the entries below position `p`, read from the arrays of the trail
-(`ATrail.derivedHintsBelow_eq`). -/
+/-- `derivedHints` of the entries below position `p`, read in one pass from the arrays of the
+trail. -/
 def ATrail.derivedHintsBelow (T : ATrail) (p : ℕ) (memo : Assign) : List ℕ :=
   T.foldDown (fun acc c r => match r with
     | 0 => acc
     | r + 1 => if memo.holds (c / 2, true) then r :: acc else acc) 0 p []
 
-theorem ATrail.derivedHintsBelow_eq (T : ATrail) (p : ℕ) (memo : Assign) :
+private theorem ATrail.derivedHintsBelow_eq (T : ATrail) (p : ℕ) (memo : Assign) :
     T.derivedHintsBelow p memo = derivedHints (T.seg 0 p) memo := by
-  rw [derivedHintsBelow, foldDown_eq, ← derivedHintsFast_eq, derivedHintsFast]
-  congr 1
-  funext a x
-  cases x <;> simp only [XEntry.rsnCode, XEntry.lit, litKey_div_two]
+  rw [derivedHintsBelow, foldDown_eq]
+  have hfn : (fun (acc : List ℕ) (x : XEntry) => match x.rsnCode with
+      | 0 => acc
+      | r + 1 => if memo.holds (litKey x.lit / 2, true) then r :: acc else acc) =
+    (fun acc x => match x with
+      | .implied l r => if memo.holds (l.1, true) then r :: acc else acc
+      | .decision _ => acc) := by
+    funext a x
+    cases x <;> simp only [XEntry.rsnCode, XEntry.lit, litKey_div_two]
+  rw [hfn, foldl_derivedHints, List.append_nil]
 
 /-- **Minimizing a learned clause**, whose false literals are on the entries of the trail `T` below
 position `p`, recursively if `recursive` (MiniSat's `ccmin_mode = 2`) and otherwise in the basic
 way (`ccmin_mode = 1`): the learned clause without its redundant literals, together with the
 restored scratch memo array. Reasons are looked up in constant time through `ATrail.reasonAt vpos
-p`, the clause variables are marked in `L.seenMarks` and cleared back into `L'.seenMarks`, and the
-memo is cleared along `res.visited`, allocating no arrays per conflict. -/
+p`, `L.seenMarks` is detached first so the clause variables are marked and cleared in place when
+unshared and within bounds, and the memo is cleared along `res.visited`. -/
 def Learned.minimize (T : ATrail) (vpos : Array ℕ) (p : ℕ)
     (L : Learned log₀ A (XTrail.trail (T.seg 0 p)))
     (memoClean : {A : Assign // ∀ v, A.value v = none})
@@ -662,6 +561,8 @@ def Learned.minimize (T : ATrail) (vpos : Array ℕ) (p : ℕ)
     Learned log₀ A (XTrail.trail (T.seg 0 p)) × {A : Assign // ∀ v, A.value v = none} :=
   let C := L.clause
   let seen₀ := L.seenMarks
+  let L₀ : Learned log₀ A (XTrail.trail (T.seg 0 p)) :=
+    { L with seenMarks := ⟨⟨#[]⟩, fun v => by simp [Assign.value]⟩ }
   let inCArr := seen₀.1.markLits C
   have hinC : ∀ w, inCArr.assigned w = true → ∃ y ∈ C, y.1 = w := fun w hw => by
     have hw' : w ∈ C.map Prod.fst ∨ seen₀.1.assigned w = true := by
@@ -677,11 +578,11 @@ def Learned.minimize (T : ATrail) (vpos : Array ℕ) (p : ℕ)
       fun v =>
         let i := vpos.getD v 0
         i < r0 && T.lits.getD i 0 / 2 == v
-  let res := redundant log₀ (T.reasonAt vpos p) inCArr.assigned deep (T.size + 1) L.lit C
+  let res := redundant log₀ (T.reasonAt vpos p) inCArr.assigned deep (T.size + 1) L₀.lit C
     memoClean.1
   have hmemo' : ∀ v, (res.memo.unassign res.visited).value v = none := by
     have hres := redundant_spec (log := log₀) (reasonCode := T.reasonAt vpos p)
-      (inC := inCArr.assigned) (deep := deep) (fuel := T.size + 1) (lit := L.lit) (C := C)
+      (inC := inCArr.assigned) (deep := deep) (fuel := T.size + 1) (lit := L₀.lit) (C := C)
       (fun w hw => absurd hw (by simp [memoClean.2 w])) memoClean.2
     exact Assign.value_unassign_eq_none hres.2
   let seen' : {A : Assign // ∀ v, A.value v = none} :=
@@ -691,32 +592,32 @@ def Learned.minimize (T : ATrail) (vpos : Array ℕ) (p : ℕ)
           Assign.value_mark, ite_eq_right_iff.2 fun h => absurd h hv]
         exact seen₀.2 v⟩
   if !res.ok then
-    ({ L with seenMarks := seen' }, ⟨res.memo.unassign res.visited, hmemo'⟩)
+    ({ L₀ with seenMarks := seen' }, ⟨res.memo.unassign res.visited, hmemo'⟩)
   else
-    let D := L.lit :: C.filter fun y => !Assign.litEq y L.lit && !res.memo.holds (y.1, true)
-    let hints := T.derivedHintsBelow p res.memo ++ L.hints
+    let D := L₀.lit :: C.filter fun y => !Assign.litEq y L₀.lit && !res.memo.holds (y.1, true)
+    let hints := T.derivedHintsBelow p res.memo ++ L₀.hints
     let memo' : {A : Assign // ∀ v, A.value v = none} :=
       ⟨res.memo.unassign res.visited, hmemo'⟩
-    have hsub : ∀ y ∈ D, y ∈ L.clause := fun y hy => by
+    have hsub : ∀ y ∈ D, y ∈ L₀.clause := fun y hy => by
       rcases List.mem_cons.1 hy with rfl | hy
-      · exact L.mem
+      · exact L₀.mem
       · exact (List.mem_filter.1 hy).1
-    ({ L with
+    ({ L₀ with
       clause := D
       hints := hints
       rup := by
-        have h := L.propagateHints_redundant hreasons hnd
+        have h := L₀.propagateHints_redundant hreasons hnd
           (fun _ _ => T.mem_seg_of_reasonAt vpos) hinC deep (T.size + 1) memoClean.2
         dsimp only [D, hints, res, C]
         rw [ATrail.derivedHintsBelow_eq]
         exact h
-      vars_mem := fun l hl => L.vars_mem l (hsub l hl)
+      vars_mem := fun l hl => L₀.vars_mem l (hsub l hl)
       mem := List.mem_cons_self
-      false_below := fun y hy hne => L.false_below y (hsub y hy) hne
+      false_below := fun y hy hne => L₀.false_below y (hsub y hy) hne
       seenMarks := seen'
       nodup := List.nodup_cons.2 ⟨fun h => by
         have := (List.mem_filter.1 h).2
-        simp [Assign.litEq_eq_decide] at this, L.nodup.filter _⟩
+        simp [Assign.litEq_eq_decide] at this, L₀.nodup.filter _⟩
       head := rfl }, memo')
 
 end Cslib.Algorithms.Lean.CDCL

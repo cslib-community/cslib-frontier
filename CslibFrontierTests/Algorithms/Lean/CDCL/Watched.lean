@@ -189,6 +189,9 @@ example : ((CNF.LRATLog.init [[(0, true)]]).delete [1000000]).index.size =
     (CNF.LRATLog.init [[(0, true)]]).index.size := by
   decide
 
+/-- Bucketed clause-ID deduplication preserves order and distinguishes IDs colliding mod `1024`. -/
+example : CNF.LRATLog.dedupIds [1, 1025, 1, 2049, 1025] = [1, 1025, 2049] := by decide +kernel
+
 /-- The trail below the newest decision of a level-3 conflict, newest first: level 2 (`x₅` implied
 over the decision `x₄`), level 1 (`x₃` implied over the decision `x₂`), and
 the root (`x₁` implied). -/

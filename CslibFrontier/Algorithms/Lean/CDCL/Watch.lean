@@ -49,12 +49,13 @@ decision, and survives extending the trail (`Supported.cons`) and backjumping
 (`Supported.backjump`). With an empty queue, no clause with two different literals is false
 (`WatchStore.Inv.not_falsifies`).
 
-`WatchStore.visit` is the step of visiting one watcher on the watch list of a falsified literal,
-reading its clause by position (`findFree`), with its specification `WatchStore.visit_spec`; it
-reads the values of literals, on their keys, from an assignment indexed by variable (`Assign`)
-agreeing with the trail. `WatchStore.build` builds a store on a
-trail, watching literals that are not false, so that it satisfies the invariant with every literal
-of the trail processed as long as no clause is false (`WatchStore.build_inv`).
+`WatchStore.visit` (`visitCodes` on the unpacked clause array) is the step of visiting one watcher
+on the watch list of a falsified literal, unrolling binary and ternary clauses inline (`findFree2`)
+before scanning longer clauses by position (`findFree`), with specification `WatchStore.visit_spec`;
+it reads variable values from an assignment indexed by variable (`Assign`) agreeing with the trail,
+while `moveClause` updates the unpacked clause array when moving a watch. `WatchStore.build` builds
+a store on a trail, watching literals that are not false, so that it satisfies the invariant with
+every literal of the trail processed as long as no clause is false (`WatchStore.build_inv`).
 -/
 
 public section
@@ -483,7 +484,7 @@ def findFree2 (A : Assign) (c : Array ℕ) : ℕ :=
     else 2
   else sz
 
-theorem findFree2_eq (A : Assign) (c : Array ℕ) :
+private theorem findFree2_eq (A : Assign) (c : Array ℕ) :
     findFree2 A c = findFree A c (c.size - 3) 2 := by
   unfold findFree2
   by_cases h3 : 3 < c.size
@@ -526,9 +527,9 @@ def visitCodes (codes : Array (Array ℕ)) (A : Assign) (u k b : ℕ) : KeyVisit
 
 /-- **Visiting a watcher**, of the clause at position `k` with the blocker of key `b`, when the
 watched literal of key `u` has become false under the assignment `A`: it is skipped if its blocker
-is true; otherwise its clause is read, by position. Everything is read on the keys
-(`Assign.holdsKey`, `Assign.isFalseKey`), and the literals are compared as numbers. Inlined, so
-that the outcome is matched on without being built. -/
+is true (`Assign.holdsKey`); otherwise its clause is read by position (`visitCodes`), loading the
+other watched variable's value once and scanning with `findFree2`. Inlined, so that the outcome is
+matched on without being built. -/
 @[expose, inline]
 def WatchStore.visit (S : WatchStore) (A : Assign) (u k b : ℕ) : KeyVisit :=
   visitCodes S.codes A u k b

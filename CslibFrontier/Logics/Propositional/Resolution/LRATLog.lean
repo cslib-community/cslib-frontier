@@ -431,7 +431,7 @@ def idBuckets (ids : List ℕ) : Array (List ℕ) :=
 @[inline] def inBuckets (b : Array (List ℕ)) (i : ℕ) : Bool :=
   (b.getD (i % 1024) []).contains i
 
-theorem inBuckets_modify (b : Array (List ℕ)) (hb : b.size = 1024) (j i : ℕ) :
+private theorem inBuckets_modify (b : Array (List ℕ)) (hb : b.size = 1024) (j i : ℕ) :
     inBuckets (b.modify (j % 1024) (j :: ·)) i = ((i == j) || inBuckets b i) := by
   unfold inBuckets
   have hi : i % 1024 < b.size := by rw [hb]; exact Nat.mod_lt _ (by decide)
@@ -468,23 +468,44 @@ where
     if inBuckets seen i then go ids seen acc
     else go ids (seen.modify (i % 1024) (i :: ·)) (i :: acc)
 
-theorem mem_of_mem_dedupIds {ids : List ℕ} {x : ℕ} (h : x ∈ dedupIds ids) : x ∈ ids := by
-  suffices ∀ (l : List ℕ) (seen : Array (List ℕ)) (acc : List ℕ),
-      x ∈ dedupIds.go l seen acc → x ∈ acc ∨ x ∈ l by
-    simpa using this ids (Array.replicate 1024 []) [] h
-  intro l
-  induction l with
-  | nil => intro _ acc h; exact .inl (List.mem_reverse.1 h)
+private theorem dedupIds_go_spec (l : List ℕ) (seen : Array (List ℕ)) (acc : List ℕ)
+    (hs : seen.size = 1024) (hseen : ∀ y, inBuckets seen y = true ↔ y ∈ acc) (hnd : acc.Nodup) :
+    (∀ y, y ∈ dedupIds.go l seen acc ↔ y ∈ acc ∨ y ∈ l) ∧ (dedupIds.go l seen acc).Nodup := by
+  induction l generalizing seen acc with
+  | nil => exact ⟨fun y => by simp [dedupIds.go], List.nodup_reverse.2 hnd⟩
   | cons i l ih =>
-    intro seen acc h
-    rw [dedupIds.go] at h
-    split at h
-    · exact (ih _ _ h).imp id (List.mem_cons_of_mem _)
-    · rcases ih _ _ h with h' | h'
-      · rcases List.mem_cons.1 h' with rfl | h'
-        · exact .inr List.mem_cons_self
-        · exact .inl h'
-      · exact .inr (List.mem_cons_of_mem _ h')
+    rw [dedupIds.go]
+    split
+    · rename_i hi
+      have hia : i ∈ acc := (hseen i).1 hi
+      obtain ⟨hmem, hnd'⟩ := ih seen acc hs hseen hnd
+      refine ⟨fun y => (hmem y).trans ⟨fun h => h.imp id (List.mem_cons_of_mem _), fun h => ?_⟩,
+        hnd'⟩
+      rcases h with h | h
+      · exact .inl h
+      · rcases List.mem_cons.1 h with rfl | h
+        · exact .inl hia
+        · exact .inr h
+    · rename_i hi
+      have hia : i ∉ acc := fun h => hi ((hseen i).2 h)
+      have hseen' : ∀ y, inBuckets (seen.modify (i % 1024) (i :: ·)) y = true ↔ y ∈ i :: acc := by
+        intro y
+        rw [inBuckets_modify seen hs, Bool.or_eq_true, beq_iff_eq, hseen, List.mem_cons]
+      obtain ⟨hmem, hnd'⟩ := ih _ (i :: acc) (by simp [hs]) hseen' (List.nodup_cons.2 ⟨hia, hnd⟩)
+      refine ⟨fun y => (hmem y).trans ?_, hnd'⟩
+      simp only [List.mem_cons, or_assoc, or_left_comm]
+
+private theorem inBuckets_replicate_nil (y : ℕ) :
+    inBuckets (Array.replicate 1024 []) y = true ↔ y ∈ ([] : List ℕ) := by
+  have hy : y % 1024 < 1024 := Nat.mod_lt _ (by decide)
+  simp [inBuckets, Array.getD_eq_getD_getElem?, hy]
+
+theorem mem_dedupIds {ids : List ℕ} {x : ℕ} : x ∈ dedupIds ids ↔ x ∈ ids := by
+  rw [dedupIds]
+  simpa using (dedupIds_go_spec ids _ [] (by simp) inBuckets_replicate_nil List.nodup_nil).1 x
+
+theorem nodup_dedupIds (ids : List ℕ) : (dedupIds ids).Nodup :=
+  (dedupIds_go_spec ids _ [] (by simp) inBuckets_replicate_nil List.nodup_nil).2
 
 /-- **The numbered clauses `db` without those numbered in `ids`**: the clauses whose number is
 not in `ids` (`eraseIds_eq`), tested via a fixed-size `1024`-bucket table (`idBuckets`). -/

@@ -461,28 +461,6 @@ theorem mem_dedupKey {α : Type} {key : α → ℕ} (hkey : Function.Injective k
     {y : α} : y ∈ dedupKey key xs ↔ y ∈ xs := by
   simpa using (dedupKey_spec hkey xs).1 y
 
-/-- Removing repetitions, with any key, keeps only elements of the list or of `acc`. -/
-theorem mem_of_mem_dedupKeyGo {α : Type} {key : α → ℕ} :
-    ∀ (xs : List α) (m : Array Bool) (acc : List α) {y : α},
-      y ∈ (dedupKeyGo key xs m acc).1 → y ∈ acc ∨ y ∈ xs
-  | [], _, _, _, h => by simpa [dedupKeyGo] using h
-  | x :: xs, m, acc, y, h => by
-    rw [dedupKeyGo] at h
-    split at h
-    · rcases mem_of_mem_dedupKeyGo xs m acc h with h | h
-      · exact .inl h
-      · exact .inr (List.mem_cons_of_mem _ h)
-    · rcases mem_of_mem_dedupKeyGo xs _ (x :: acc) h with h | h
-      · rcases List.mem_cons.1 h with rfl | h
-        · exact .inr List.mem_cons_self
-        · exact .inl h
-      · exact .inr (List.mem_cons_of_mem _ h)
-
-/-- Removing repetitions, with any key, keeps only elements of the list. -/
-theorem mem_of_mem_dedupKey {α : Type} {key : α → ℕ} {xs : List α} {y : α}
-    (h : y ∈ dedupKey key xs) : y ∈ xs := by
-  simpa using mem_of_mem_dedupKeyGo (key := key) xs _ [] h
-
 /-- With an injective key, removing repetitions leaves each element once. -/
 theorem nodup_dedupKey {α : Type} {key : α → ℕ} (hkey : Function.Injective key) (xs : List α) :
     (dedupKey key xs).Nodup :=

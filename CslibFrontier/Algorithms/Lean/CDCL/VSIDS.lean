@@ -59,9 +59,10 @@ greatest activity among the unassigned variables (`VarOrder.pop_spec`), and amon
 variable.
 
 The choice of variable does not affect correctness: the solver only needs an unassigned variable
-of the database, or the fact that there is none. `Activity.pick` scans for one of greatest
-activity (`Activity.pick_some`, `Activity.pick_none`, `Activity.pick_max`); the solver uses it
-when the variable order runs out.
+of the database, or the fact that there is none. With `H.heap.size < fuel`, `VarOrder.pop` returns
+`none` only when every admitted variable is assigned (`VarOrder.pop_none`); `Activity.pick` scans
+directly when VSIDS is turned off (`Activity.pick_some`, `Activity.pick_none`,
+`Activity.pick_max`).
 
 ## Main definitions
 
@@ -88,8 +89,9 @@ when the variable order runs out.
 * `Cslib.Algorithms.Lean.CDCL.VarOrder.bump_spec`,
   `Cslib.Algorithms.Lean.CDCL.VarOrder.addAll_spec`: bumping and inserting keep the heap well formed
   and the positions consistent.
-* `Cslib.Algorithms.Lean.CDCL.VarOrder.pop_spec`: the variable popped has the greatest activity
-  among the unassigned variables, and the order keeps its invariant.
+* `Cslib.Algorithms.Lean.CDCL.VarOrder.pop_spec`, `Cslib.Algorithms.Lean.CDCL.VarOrder.pop_none`:
+  the variable popped has the greatest activity among the unassigned variables, the order keeps its
+  invariant, and `none` means every admitted variable is assigned.
 -/
 
 @[expose] public section

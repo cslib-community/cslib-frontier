@@ -485,6 +485,18 @@ def XTrail.reasonIds (M : XTrail) : List ℕ := M.filterMap XEntry.reason?
 @[simp] theorem XTrail.reasonIds_implied (l : Literal ℕ) (r : ℕ) (M : XTrail) :
     XTrail.reasonIds (.implied l r :: M) = r :: XTrail.reasonIds M := rfl
 
+/-- `XTrail.reasonIds` read directly from the `rsns` array of the trail without allocating an
+`XTrail` list (`ATrail.reasonIds_eq`). -/
+def ATrail.reasonIds (T : ATrail) : List ℕ :=
+  T.foldUp (fun acc _ r => if r == 0 then acc else (r - 1) :: acc) 0 T.size []
+
+theorem ATrail.reasonIds_eq (T : ATrail) : T.reasonIds = XTrail.reasonIds T.toX := by
+  rw [reasonIds, foldUp_eq, ATrail.toX]
+  generalize T.seg 0 T.size = M
+  induction M with
+  | nil => rfl
+  | cons e M ih => rw [List.foldr_cons, ih]; cases e <;> simp [XEntry.rsnCode]
+
 /-- The reasons of a trail are numbers of the log, so below its next number. -/
 theorem Reasons.lt_next {log : LRATLog φ} {M : XTrail} (h : Reasons log M) :
     ∀ r ∈ XTrail.reasonIds M, r < log.next := by
