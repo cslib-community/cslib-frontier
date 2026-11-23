@@ -112,6 +112,8 @@ namespace Cslib.Distributed.CausalBroadcast
 
 open Cslib Cslib.ωSequence
 
+/-! ### Packets, vector timestamps, and causal deliverability -/
+
 /-- A broadcast packet emitted in the Birman–Schiper–Stephenson `CBCAST` protocol
 ([BirmanSchiperStephenson1991], §5.1, p. 281): `sender` is the originating broadcaster, `ts` is
 the vector timestamp `VT(m) : P → ℕ` assigned upon broadcast, and `payload` is the message body. -/
@@ -168,6 +170,8 @@ theorem sup_ts_eq_update_of_deliverable {P V : Type*} [DecidableEq P] {vt : P �
     exact Nat.max_eq_right (Nat.le_succ _)
   · rw [Function.update_of_ne hr]
     exact Nat.max_eq_left (h.2 r hr)
+
+/-! ### Network state, actions, and transition system -/
 
 /-- A point-to-point network message in flight to `dest` carrying broadcast `pkt`. -/
 @[ext]
@@ -384,6 +388,8 @@ theorem bssLTS_mTr_iff {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
     · rintro ⟨⟨hen, hv⟩, rfl⟩
       exact LTS.MTr.stepL ⟨hen, rfl⟩ ((ih (bssStep s₀ act)).mpr ⟨hv, rfl⟩)
 
+/-! ### Trace snapshots and causal precedence -/
+
 /-- State after the first `i` actions of a trace starting from `bssInit P V`. -/
 @[expose]
 def bssStateAt {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
@@ -430,6 +436,8 @@ def CausalPrec {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
 section Invariants
 
 variable {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
+
+/-! ### Trace-extension and monotonicity lemmas -/
 
 private theorem bssRun_append (s₀ : BSSState P V) (xl yl : List (BSSAction P V)) :
     bssRun s₀ (xl ++ yl) = bssRun (bssRun s₀ xl) yl :=
@@ -553,6 +561,8 @@ private theorem bssRun_delivered_prefix (s : BSSState P V) (xl : List (BSSAction
   | cons act xl ih =>
     exact (bssStep_delivered_prefix s act q).trans (ih (bssStep s act))
 
+/-! ### Inductive protocol invariant -/
+
 /-- Inductive global invariant of the Birman–Schiper–Stephenson `CBCAST` protocol along any valid
 trace `xl` reaching `s = bssRun (bssInit P V) xl`. -/
 private structure BSSInv (F : Set P) (xl : List (BSSAction P V)) (s : BSSState P V) : Prop where
@@ -661,6 +671,8 @@ private theorem nonBroadcast_same_sender_lt {F : Set P} {xl : List (BSSAction P 
     exact hinv.same_sender_lt i j hilt hjlt b₁ b₂ hij hbi hbj hsend
   · rw [hst_j, hget_j, hnone] at hbj
     cases hbj
+
+/-! ### Step-preservation lemmas for `BSSInv` -/
 
 /-- Shared invariant-preservation kernel when process `p` increments `vt pkt.sender` by `1` and
 appends `pkt` to `(s.proc p).delivered` (covering both local broadcast and remote delivery). -/
@@ -914,6 +926,8 @@ private theorem bssInv_of_validTrace {F : Set P} {xl : List (BSSAction P V)}
       exact bssInv_of_vt_delivered_eq hinv rfl (fun _ => rfl) (fun _ => rfl)
         hinv.halted_mem hinv.inFlight_wf hinv.pending_wf
 
+/-! ### Integrity and duplicate freedom -/
+
 /-- Broadcast packets along a valid trace are uniquely determined by `(sender, ts sender)`. -/
 private theorem eq_of_sender_eq_of_ts_sender_eq {F : Set P} {xl : List (BSSAction P V)}
     {s : BSSState P V}
@@ -951,6 +965,8 @@ theorem bss_no_duplicates {F : Set P} {xl : List (BSSAction P V)} {s : BSSState 
     (s.proc q).delivered.Nodup := by
   obtain ⟨hv, rfl⟩ := (bssLTS_mTr_iff F (bssInit P V) xl s).mp hmtr
   exact (bssInv_of_validTrace hv).delivered_nodup q
+
+/-! ### Vector-clock characterization and causal delivery order -/
 
 private theorem validTrace_take {F : Set P} {s₀ : BSSState P V} {xl : List (BSSAction P V)}
     (hv : bssValidTrace F s₀ xl) (i : ℕ) :
@@ -1180,6 +1196,8 @@ section Liveness
 
 variable {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
 
+/-! ### Fairness and infinite-execution specification -/
+
 /-- Weak eventual-delivery fairness for `bssLTS F` on an infinite execution `(ss, xs)`:
 1. Every network packet `m` addressed to a non-faulty process `m.dest ∉ F` is eventually received.
 2. Every buffered packet at `q ∉ F` that satisfies `Deliverable` is eventually delivered at `q`.
@@ -1241,6 +1259,8 @@ theorem bss_omega_delivered_mono {F : Set P} {ss : ωSequence (BSSState P V)}
   obtain ⟨_, hrun⟩ := (bssLTS_mTr_iff F (ss i) (xs.extract i j) (ss j)).mp hmtr
   rw [hrun]
   exact (bssRun_delivered_prefix (ss i) (xs.extract i j) q).subset h
+
+/-! ### Stability of buffered deliverable packets -/
 
 private theorem omega_pending_persist {F : Set P} {ss : ωSequence (BSSState P V)}
     {xs : ωSequence (BSSAction P V)} (he : (bssLTS F).OmegaExecution ss xs)
@@ -1366,6 +1386,8 @@ private theorem causalPrec_extract_mono {F : Set P} {ss : ωSequence (BSSState P
   exact (bss_causalPrec_iff_ts_lt hmtrN
     (broadcastIn_extract_mono xs hMN hb₁)
     (broadcastIn_extract_mono xs hMN hb₂)).mpr hlt
+
+/-! ### Liveness under packet transmission and atomic multicast -/
 
 /-- Single-group single-hop `CBCAST` liveness step under causal-ancestor packet transmission (toward
 #7297, after [BirmanSchiperStephenson1991], §5.1, Liveness, p. 283): for any crash-fault set

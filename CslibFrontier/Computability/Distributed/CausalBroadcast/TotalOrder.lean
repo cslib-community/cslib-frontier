@@ -1242,6 +1242,8 @@ def zeroFaultTotalOrderAlg {P V : Type*} [Fintype P] [DecidableEq P] (leader : P
       let buf' : List (SlotEntry P V) := ⟨slot, item⟩ :: st.buf
       (drainConsecutive st.nextDeliver (buf'.length + 1) buf').delivered
 
+/-! ### Reorder-buffer drain lemmas -/
+
 private theorem drainConsecutive_spec {P V : Type*} {log : List (BcastMsg P V)}
     {buf : List (SlotEntry P V)}
     (hbuf : ∀ entry ∈ buf, ∃ h : entry.slot < log.length, log[entry.slot] = entry.item) :
@@ -1345,520 +1347,640 @@ private theorem lookupSlot_isSome_of_mem {P V : Type*} {slot : ℕ} {item : Bcas
       · exact absurd rfl hs
       · exact ih htl
 
+/-! ### Sequencer invariant and shadow log -/
+
+/-- Global inductive invariant for `zeroFaultTotalOrderAlg leader` on input assignment `inp`,
+relating a reachable global state `s` to the sequencer's shadow sequence log `log`. -/
+private structure SeqInv {P V : Type*} [DecidableEq P] [DecidableEq V]
+    (leader : P) (inp : P → V)
+    (s : BcastState P (SeqMsg P V) (SeqState P V) V)
+    (log : List (BcastMsg P V)) : Prop where
+  /-- The sequencer's assigned log contains no duplicate broadcast messages. -/
+  log_nodup : log.Nodup
+  /-- Every assigned message in `log` carries the initial input of its sender. -/
+  log_wf : ∀ item ∈ log, item = ⟨item.sender, inp item.sender⟩
+  /-- The sequencer's `nextSlot` counter equals `log.length`. -/
+  nextSlot_eq : (s.proc leader).state.nextSlot = log.length
+  /-- Each process `p`'s single message resides in exactly one of: its initial input trigger, a
+  pending `propose` to `leader`, or the assigned shadow `log`. -/
+  msg_conservation : ∀ p : P,
+    Multiset.count ⟨p, Sum.inl (inp p)⟩ s.msgs +
+      Multiset.count ⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ s.msgs +
+      (if ⟨p, inp p⟩ ∈ log then 1 else 0) = 1
+  /-- Every in-flight event is an initial trigger, a `propose` addressed to `leader`, or a valid
+  `ordered` assignment matching `log`. -/
+  msgs_wf : ∀ e ∈ s.msgs,
+    (∃ p, e = ⟨p, Sum.inl (inp p)⟩) ∨
+    (∃ p, e = ⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩) ∨
+    (∃ q slot item, e = ⟨q, Sum.inr (.ordered slot item)⟩ ∧
+      ∃ h : slot < log.length, log[slot] = item)
+  /-- Every reorder-buffer entry at every process agrees with `log`. -/
+  buf_wf : ∀ q, ∀ entry ∈ (s.proc q).state.buf,
+    ∃ h : entry.slot < log.length, log[entry.slot] = entry.item
+  /-- Each process's `nextDeliver` slot index does not exceed `log.length`. -/
+  nextDeliver_le : ∀ q, (s.proc q).state.nextDeliver ≤ log.length
+  /-- Each process's delivery log equals the drained prefix `log.take nextDeliver`. -/
+  delivered_eq : ∀ q, (s.proc q).delivered = log.take (s.proc q).state.nextDeliver
+
+/-- Advance the sequencer shadow log across one action: append `item` when `leader` processes a
+`propose item` event, and leave `log` unchanged on all other events and stuttering steps. -/
+private def seqStepLog {P V : Type*} [DecidableEq P] (leader : P)
+    (log : List (BcastMsg P V)) : BcastAction P (SeqMsg P V) V → List (BcastMsg P V)
+  | some ⟨dest, Sum.inr (.propose item)⟩ =>
+    if dest = leader then log ++ [item] else log
+  | _ => log
+
+/-- Shadow sequence log accumulated after the first `k` actions of an infinite schedule `xs`. -/
+private def seqRunLog {P V : Type*} [DecidableEq P] (leader : P)
+    (xs : ωSequence (BcastAction P (SeqMsg P V) V)) : ℕ → List (BcastMsg P V) :=
+  Nat.rec [] (fun k acc => seqStepLog leader acc (xs k))
+
+/-- Dichotomy for `seqStepLog`: each action either leaves `log` unchanged or is a `propose`
+delivered to `leader` that appends `propItem`. -/
+private theorem seqStepLog_cases {P V : Type*} [DecidableEq P] (leader : P)
+    (log : List (BcastMsg P V)) (act : BcastAction P (SeqMsg P V) V) :
+    seqStepLog leader log act = log ∨
+      ∃ propItem, act = some ⟨leader, Sum.inr (.propose propItem)⟩ ∧
+        seqStepLog leader log act = log ++ [propItem] := by
+  rcases act with _ | ⟨dest, _ | (propItem | _)⟩
+  · exact Or.inl rfl
+  · exact Or.inl rfl
+  · by_cases hdl : dest = leader
+    · exact Or.inr ⟨propItem, hdl ▸ rfl, by simp [seqStepLog, hdl]⟩
+    · exact Or.inl (by simp [seqStepLog, hdl])
+  · exact Or.inl rfl
+
+/-- The shadow sequence log grows only by appending along a schedule `xs`. -/
+private theorem seqRunLog_prefix {P V : Type*} [DecidableEq P] (leader : P)
+    (xs : ωSequence (BcastAction P (SeqMsg P V) V)) {k₁ k₂ : ℕ} (hle : k₁ ≤ k₂) :
+    seqRunLog leader xs k₁ <+: seqRunLog leader xs k₂ := by
+  obtain ⟨d, rfl⟩ : ∃ d, k₂ = k₁ + d := ⟨k₂ - k₁, by omega⟩
+  induction d with
+  | zero => exact List.prefix_refl _
+  | succ d ih =>
+    refine (ih (Nat.le_add_right k₁ d)).trans ?_
+    change seqRunLog leader xs (k₁ + d) <+:
+      seqStepLog leader (seqRunLog leader xs (k₁ + d)) (xs (k₁ + d))
+    rcases seqStepLog_cases leader (seqRunLog leader xs (k₁ + d)) (xs (k₁ + d)) with
+      heq | ⟨_, _, heq⟩ <;> rw [heq]
+    exact List.prefix_append _ _
+
+/-- Base case: `SeqInv` holds in the initial configuration `start inp` with an empty shadow log. -/
+private theorem seqInv_start {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
+    (leader : P) (inp : P → V) :
+    SeqInv leader inp ((zeroFaultTotalOrderAlg (V := V) leader).start inp) [] where
+  log_nodup := List.nodup_nil
+  log_wf := by simp
+  nextSlot_eq := rfl
+  msg_conservation p := by
+    have hcnt1 :
+        Multiset.count ⟨p, Sum.inl (inp p)⟩
+          ((zeroFaultTotalOrderAlg (V := V) leader).start inp).msgs = 1 := by
+      simp only [TotalOrderBroadcastAlg.start]
+      rw [Multiset.count_map_eq_count'
+        (fun q : P => (⟨q, Sum.inl (inp q)⟩ : BcastEvent P (SeqMsg P V) V))
+        Finset.univ.val (fun a b h => (BcastEvent.mk.inj h).1) p]
+      exact Multiset.count_eq_one_of_mem Finset.univ.nodup
+        (Finset.mem_def.mp (Finset.mem_univ p))
+    have hcnt2 :
+        Multiset.count ⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩
+          ((zeroFaultTotalOrderAlg (V := V) leader).start inp).msgs = 0 :=
+      Multiset.count_eq_zero.mpr (by simp [TotalOrderBroadcastAlg.start])
+    simp [hcnt1, hcnt2]
+  msgs_wf e he := by
+    simp only [TotalOrderBroadcastAlg.start, Multiset.mem_map] at he
+    obtain ⟨p, _, rfl⟩ := he
+    exact Or.inl ⟨p, rfl⟩
+  buf_wf q entry hmem := by simp [TotalOrderBroadcastAlg.start, zeroFaultTotalOrderAlg] at hmem
+  nextDeliver_le q := by simp [TotalOrderBroadcastAlg.start, zeroFaultTotalOrderAlg]
+  delivered_eq q := by simp [TotalOrderBroadcastAlg.start, zeroFaultTotalOrderAlg]
+
+/-! ### Per-action preservation of `SeqInv` -/
+
+/-- Preservation of `SeqInv` when process `p₀` receives its initial input trigger `Sum.inl (inp p₀)`
+and sends `propose ⟨p₀, inp p₀⟩` to `leader`. -/
+private theorem seqInv_step_initInput {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
+    {leader p₀ : P} {inp : P → V} {s : BcastState P (SeqMsg P V) (SeqState P V) V}
+    {log : List (BcastMsg P V)} (hinv : SeqInv leader inp s log)
+    (he_mem : ⟨p₀, Sum.inl (inp p₀)⟩ ∈ s.msgs) :
+    SeqInv leader inp
+      ((zeroFaultTotalOrderAlg (V := V) leader).recvEvent ⟨p₀, Sum.inl (inp p₀)⟩ s) log where
+  log_nodup := hinv.log_nodup
+  log_wf := hinv.log_wf
+  nextSlot_eq := by
+    by_cases h : leader = p₀ <;>
+      simpa [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, h] using hinv.nextSlot_eq
+  msg_conservation p := by
+    have hc := hinv.msg_conservation p
+    simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
+      Multiset.map_singleton, Multiset.count_add, Multiset.count_singleton]
+    by_cases hpp₀ : p = p₀
+    · subst hpp₀
+      have he_cnt : Multiset.count ⟨p, Sum.inl (inp p)⟩ s.msgs ≥ 1 :=
+        Multiset.count_pos.mpr he_mem
+      have hne_msg :
+          (⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ : BcastEvent P (SeqMsg P V) V) ≠
+            ⟨p, Sum.inl (inp p)⟩ := by simp
+      rw [Multiset.count_erase_self, Multiset.count_erase_of_ne hne_msg]
+      simp only [hne_msg.symm, ↓reduceIte]
+      omega
+    · have hne1 : (⟨p, Sum.inl (inp p)⟩ : BcastEvent P (SeqMsg P V) V) ≠
+          ⟨p₀, Sum.inl (inp p₀)⟩ := fun h => hpp₀ (BcastEvent.mk.inj h).1
+      have hne2 : (⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ : BcastEvent P (SeqMsg P V) V) ≠
+          ⟨p₀, Sum.inl (inp p₀)⟩ := by simp
+      have hne3 : (⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ : BcastEvent P (SeqMsg P V) V) ≠
+          ⟨leader, Sum.inr (.propose ⟨p₀, inp p₀⟩)⟩ := fun h => by
+        simp only [BcastEvent.mk.injEq, Sum.inr.injEq, SeqMsg.propose.injEq,
+          BcastMsg.mk.injEq] at h
+        exact hpp₀ h.2.1
+      have hne4 : (⟨p, Sum.inl (inp p)⟩ : BcastEvent P (SeqMsg P V) V) ≠
+          ⟨leader, Sum.inr (.propose ⟨p₀, inp p₀⟩)⟩ := by simp
+      rw [Multiset.count_erase_of_ne hne1, Multiset.count_erase_of_ne hne2]
+      simp only [hne3, hne4, ↓reduceIte]
+      omega
+  msgs_wf e' he' := by
+    simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
+      Multiset.map_singleton, Multiset.mem_add, Multiset.mem_singleton] at he'
+    rcases he' with he' | rfl
+    · exact hinv.msgs_wf e' (Multiset.mem_of_mem_erase he')
+    · exact Or.inr (Or.inl ⟨p₀, rfl⟩)
+  buf_wf q entry hmem := by
+    by_cases hq : q = p₀ <;>
+      simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hq,
+        ↓reduceIte] at hmem <;>
+      exact hinv.buf_wf _ entry hmem
+  nextDeliver_le q := by
+    by_cases hq : q = p₀ <;>
+      simpa [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hq]
+        using hinv.nextDeliver_le q
+  delivered_eq q := by
+    by_cases hq : q = p₀ <;>
+      simpa [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hq]
+        using hinv.delivered_eq q
+
+/-- Preservation of `SeqInv` when `leader` receives `propose ⟨p₀, inp p₀⟩`, assigns it the next
+sequence slot, broadcasts `.ordered` to every process, and appends it to the shadow log. -/
+private theorem seqInv_step_propose {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
+    {leader p₀ : P} {inp : P → V} {s : BcastState P (SeqMsg P V) (SeqState P V) V}
+    {log : List (BcastMsg P V)} (hinv : SeqInv leader inp s log)
+    (he_mem : ⟨leader, Sum.inr (.propose ⟨p₀, inp p₀⟩)⟩ ∈ s.msgs) :
+    SeqInv leader inp
+      ((zeroFaultTotalOrderAlg (V := V) leader).recvEvent
+        ⟨leader, Sum.inr (.propose ⟨p₀, inp p₀⟩)⟩ s)
+      (log ++ [⟨p₀, inp p₀⟩]) := by
+  let newItem : BcastMsg P V := ⟨p₀, inp p₀⟩
+  let log' := log ++ [newItem]
+  have hnot_in_log : newItem ∉ log := by
+    intro hin
+    have hc := hinv.msg_conservation p₀
+    have hpos : Multiset.count ⟨leader, Sum.inr (.propose newItem)⟩ s.msgs ≥ 1 :=
+      Multiset.count_pos.mpr he_mem
+    simp only [newItem, hin, ↓reduceIte] at hc hpos
+    omega
+  refine
+    { log_nodup := by
+        rw [List.nodup_append]
+        refine ⟨hinv.log_nodup, List.nodup_singleton newItem, fun a ha b hb hab => ?_⟩
+        simp only [List.mem_singleton] at hb
+        rw [hab, hb] at ha
+        exact hnot_in_log ha
+      log_wf := fun it hit => by
+        rcases List.mem_append.mp hit with hit | hit
+        · exact hinv.log_wf it hit
+        · simp only [List.mem_singleton] at hit; subst hit; rfl
+      nextSlot_eq := by
+        simp [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hinv.nextSlot_eq]
+      msg_conservation := fun p => by
+        have hc := hinv.msg_conservation p
+        simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, ↓reduceIte,
+          Multiset.map_map, Function.comp_def, Multiset.count_add]
+        let outMsgs : Multiset (BcastEvent P (SeqMsg P V) V) :=
+          Finset.univ.val.map fun q =>
+            ⟨q, Sum.inr (.ordered (s.proc leader).state.nextSlot newItem)⟩
+        have hcnt_out1 : Multiset.count ⟨p, Sum.inl (inp p)⟩ outMsgs = 0 :=
+          Multiset.count_eq_zero.mpr (by simp [outMsgs])
+        have hcnt_out2 :
+            Multiset.count ⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ outMsgs = 0 :=
+          Multiset.count_eq_zero.mpr (by simp [outMsgs])
+        change Multiset.count _ _ + Multiset.count _ outMsgs +
+          (Multiset.count _ _ + Multiset.count _ outMsgs) + _ = 1
+        rw [hcnt_out1, hcnt_out2]
+        have hne_inl : (⟨p, Sum.inl (inp p)⟩ : BcastEvent P (SeqMsg P V) V) ≠
+            ⟨leader, Sum.inr (.propose newItem)⟩ := by simp
+        rw [Multiset.count_erase_of_ne hne_inl]
+        by_cases hpp₀ : p = p₀
+        · subst hpp₀
+          have hpos : Multiset.count ⟨leader, Sum.inr (.propose newItem)⟩ s.msgs ≥ 1 :=
+            Multiset.count_pos.mpr he_mem
+          rw [Multiset.count_erase_self]
+          have hmem_log' : newItem ∈ log' :=
+            List.mem_append_right log (List.mem_singleton.mpr rfl)
+          simp only [newItem, hnot_in_log, ↓reduceIte] at hc
+          simp only [log', newItem, hmem_log', ↓reduceIte] at hpos ⊢
+          omega
+        · have hne_prop :
+              (⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ : BcastEvent P (SeqMsg P V) V) ≠
+                ⟨leader, Sum.inr (.propose newItem)⟩ := fun h => by
+            simp only [newItem, BcastEvent.mk.injEq, Sum.inr.injEq, SeqMsg.propose.injEq,
+              BcastMsg.mk.injEq] at h
+            exact hpp₀ h.2.1
+          rw [Multiset.count_erase_of_ne hne_prop]
+          have hmem_iff : (⟨p, inp p⟩ : BcastMsg P V) ∈ log' ↔ ⟨p, inp p⟩ ∈ log := by
+            simp only [log', newItem, List.mem_append, List.mem_singleton, BcastMsg.mk.injEq]
+            exact ⟨fun h => h.resolve_right (fun h2 => hpp₀ h2.1), Or.inl⟩
+          change _ + (if ⟨p, inp p⟩ ∈ log' then 1 else 0) = 1
+          simp only [hmem_iff]
+          omega
+      msgs_wf := fun e' he' => by
+        simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, ↓reduceIte,
+          Multiset.map_map, Function.comp_def, Multiset.mem_add, Multiset.mem_map] at he'
+        rcases he' with he' | ⟨q, _, rfl⟩
+        · rcases hinv.msgs_wf e' (Multiset.mem_of_mem_erase he') with
+            h1 | h2 | ⟨q, sl, it, rfl, hsl, hit⟩
+          · exact Or.inl h1
+          · exact Or.inr (Or.inl h2)
+          · refine Or.inr (Or.inr ⟨q, sl, it, rfl, ?_, ?_⟩)
+            · simp only [List.length_append, List.length_singleton]; omega
+            · simpa [List.getElem_append_left hsl] using hit
+        · refine Or.inr (Or.inr ⟨q, (s.proc leader).state.nextSlot, newItem, rfl, ?_, ?_⟩)
+          · simp [hinv.nextSlot_eq]
+          · simp [newItem, hinv.nextSlot_eq]
+      buf_wf := fun q entry hmem => by
+        by_cases hq : q = leader <;>
+          simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hq,
+            ↓reduceIte] at hmem <;>
+          (obtain ⟨hsl, hit⟩ := hinv.buf_wf _ entry hmem;
+           exact ⟨by simp only [List.length_append, List.length_singleton]; omega,
+             by simpa [List.getElem_append_left hsl] using hit⟩)
+      nextDeliver_le := fun q => by
+        have hnd := hinv.nextDeliver_le q
+        by_cases hq : q = leader <;>
+          simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
+            List.length_append, List.length_singleton, hq, ↓reduceIte] <;>
+          (try subst hq) <;> omega
+      delivered_eq := fun q => by
+        by_cases hq : q = leader <;>
+          simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, List.append_nil,
+            hq, ↓reduceIte] <;>
+          (try subst hq) <;>
+          exact (hinv.delivered_eq _).trans
+            (List.take_append_of_le_length (hinv.nextDeliver_le _)).symm }
+
+/-- Preservation of `SeqInv` when process `q₀` receives `ordered slot item`, buffers it, and drains
+consecutive available slots from `q₀.buf`. -/
+private theorem seqInv_step_ordered {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
+    {leader q₀ : P} {inp : P → V} {s : BcastState P (SeqMsg P V) (SeqState P V) V}
+    {log : List (BcastMsg P V)} {slot : ℕ} {item : BcastMsg P V}
+    (hinv : SeqInv leader inp s log) (hslot : slot < log.length) (hlog : log[slot] = item) :
+    SeqInv leader inp
+      ((zeroFaultTotalOrderAlg (V := V) leader).recvEvent
+        ⟨q₀, Sum.inr (.ordered slot item)⟩ s) log := by
+  let buf' : List (SlotEntry P V) := ⟨slot, item⟩ :: (s.proc q₀).state.buf
+  have hbuf'_wf :
+      ∀ entry ∈ buf', ∃ h : entry.slot < log.length, log[entry.slot] = entry.item := by
+    intro entry hmem
+    rcases List.mem_cons.mp hmem with rfl | htl
+    · exact ⟨hslot, hlog⟩
+    · exact hinv.buf_wf q₀ entry htl
+  obtain ⟨hres_le, hres_take, _⟩ :=
+    drainConsecutive_spec hbuf'_wf (s.proc q₀).state.nextDeliver (buf'.length + 1)
+      (hinv.nextDeliver_le q₀)
+  refine
+    { log_nodup := hinv.log_nodup
+      log_wf := hinv.log_wf
+      nextSlot_eq := by
+        by_cases h : leader = q₀ <;>
+          simpa [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, h]
+            using hinv.nextSlot_eq
+      msg_conservation := fun p => by
+        simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
+          Multiset.map_zero, add_zero]
+        have hne1 : (⟨p, Sum.inl (inp p)⟩ : BcastEvent P (SeqMsg P V) V) ≠
+            ⟨q₀, Sum.inr (.ordered slot item)⟩ := by simp
+        have hne2 : (⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ : BcastEvent P (SeqMsg P V) V) ≠
+            ⟨q₀, Sum.inr (.ordered slot item)⟩ := by simp
+        rw [Multiset.count_erase_of_ne hne1, Multiset.count_erase_of_ne hne2]
+        exact hinv.msg_conservation p
+      msgs_wf := fun e' he' => by
+        simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
+          Multiset.map_zero, add_zero] at he'
+        exact hinv.msgs_wf e' (Multiset.mem_of_mem_erase he')
+      buf_wf := fun q entry hmem => by
+        rcases eq_or_ne q q₀ with rfl | hqq₀
+        · simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
+            ↓reduceIte] at hmem
+          exact hbuf'_wf entry hmem
+        · simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqq₀,
+            ↓reduceIte] at hmem
+          exact hinv.buf_wf q entry hmem
+      nextDeliver_le := fun q => by
+        rcases eq_or_ne q q₀ with rfl | hqq₀
+        · simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, ↓reduceIte]
+          exact hres_le
+        · simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqq₀, ↓reduceIte]
+          exact hinv.nextDeliver_le q
+      delivered_eq := fun q => by
+        rcases eq_or_ne q q₀ with rfl | hqq₀
+        · simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, ↓reduceIte]
+          exact (hinv.delivered_eq q) ▸ hres_take
+        · simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqq₀, ↓reduceIte]
+          exact hinv.delivered_eq q }
+
+/-- Single-step preservation of `SeqInv` along any transition of `zeroFaultTotalOrderAlg leader`. -/
+private theorem seqInv_step {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
+    {leader : P} {inp : P → V} {s s' : BcastState P (SeqMsg P V) (SeqState P V) V}
+    {act : BcastAction P (SeqMsg P V) V} {log : List (BcastMsg P V)}
+    (hinv : SeqInv leader inp s log)
+    (htr : (zeroFaultTotalOrderAlg (V := V) leader).lts.Tr s act s') :
+    SeqInv leader inp s' (seqStepLog leader log act) := by
+  cases act with
+  | none =>
+    simp only [TotalOrderBroadcastAlg.lts] at htr
+    subst htr
+    exact hinv
+  | some e =>
+    rcases htr with ⟨he_mem, rfl⟩
+    rcases hinv.msgs_wf e he_mem with
+      ⟨_, rfl⟩ | ⟨_, rfl⟩ | ⟨_, _, _, rfl, hslot_lt, hlog_s⟩
+    · exact seqInv_step_initInput hinv he_mem
+    · simpa [seqStepLog] using seqInv_step_propose hinv he_mem
+    · exact seqInv_step_ordered hinv hslot_lt hlog_s
+
+/-- `SeqInv` holds at every step `k` of an infinite execution starting at `start inp`. -/
+private theorem seqInv_runLog {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
+    {leader : P} {inp : P → V}
+    {ss : ωSequence (BcastState P (SeqMsg P V) (SeqState P V) V)}
+    {xs : ωSequence (BcastAction P (SeqMsg P V) V)}
+    (hs0 : ss 0 = (zeroFaultTotalOrderAlg (V := V) leader).start inp)
+    (he : (zeroFaultTotalOrderAlg (V := V) leader).lts.OmegaExecution ss xs) (k : ℕ) :
+    SeqInv leader inp (ss k) (seqRunLog leader xs k) := by
+  induction k with
+  | zero => simpa [seqRunLog, ← hs0] using seqInv_start leader inp
+  | succ k ih => exact seqInv_step ih (he k)
+
+/-! ### Fairness, buffer monotonicity, and eventual slot delivery -/
+
+/-- In any `0`-admissible run, the faulty set is empty, so every process is `BcastProcFair`. -/
+private theorem bcastProcFair_of_admissibleZero {P M S V : Type*}
+    [Fintype P] [DecidableEq P] [DecidableEq M] [DecidableEq V]
+    {π : TotalOrderBroadcastAlg P M S V} {inp : P → V}
+    {ss : ωSequence (BcastState P M S V)} {xs : ωSequence (BcastAction P M V)}
+    (hadm : π.AdmissibleRun inp 0 ss xs) (r : P) :
+    TotalOrderBroadcastAlg.BcastProcFair r ss xs := by
+  rcases hadm with ⟨_, _, hfair_run, hnum⟩
+  have hzero : {q | TotalOrderBroadcastAlg.BcastProcFaulty q ss xs} = ∅ :=
+    (Set.ncard_eq_zero (s := {q | TotalOrderBroadcastAlg.BcastProcFaulty q ss xs})).mp
+      (Nat.eq_zero_of_le_zero hnum)
+  rcases hfair_run r with hfaulty | hfair
+  · exact False.elim ((Set.eq_empty_iff_forall_notMem.mp hzero r) hfaulty)
+  · exact hfair
+
+/-- Each process's reorder buffer `buf` is monotone (append-only) along any execution of
+`zeroFaultTotalOrderAlg leader`. -/
+private theorem seqBuf_mono {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
+    {leader : P} {ss : ωSequence (BcastState P (SeqMsg P V) (SeqState P V) V)}
+    {xs : ωSequence (BcastAction P (SeqMsg P V) V)}
+    (he : (zeroFaultTotalOrderAlg (V := V) leader).lts.OmegaExecution ss xs)
+    {k₁ k₂ : ℕ} (hle : k₁ ≤ k₂) (q : P) (entry : SlotEntry P V)
+    (hmem : entry ∈ ((ss k₁).proc q).state.buf) :
+    entry ∈ ((ss k₂).proc q).state.buf := by
+  obtain ⟨d, rfl⟩ : ∃ d, k₂ = k₁ + d := ⟨k₂ - k₁, by omega⟩
+  induction d with
+  | zero => exact hmem
+  | succ d ih =>
+    have hmem_d := ih (Nat.le_add_right k₁ d)
+    have htr := he (k₁ + d)
+    cases hact : xs (k₁ + d) with
+    | none =>
+      rw [hact] at htr
+      simp only [TotalOrderBroadcastAlg.lts] at htr
+      rwa [← Nat.add_assoc, htr]
+    | some e =>
+      rw [hact] at htr
+      rcases htr with ⟨_, hstep⟩
+      rw [← Nat.add_assoc, hstep]
+      rcases e with ⟨dest, _ | (_ | ⟨_, _⟩)⟩
+      · by_cases hqd : q = dest <;>
+          simpa [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqd] using hmem_d
+      · rcases eq_or_ne q dest with rfl | hqd
+        · by_cases hdl : q = leader <;>
+            simpa [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hdl] using hmem_d
+        · simpa [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqd] using hmem_d
+      · rcases eq_or_ne q dest with rfl | hqe
+        · simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, ↓reduceIte]
+          exact List.mem_cons_of_mem _ hmem_d
+        · simpa [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqe] using hmem_d
+
+/-- Every slot `i` appearing in `seqRunLog leader xs N` had its `ordered` message enqueued to
+process `q` at some earlier step `t < N`. -/
+private theorem seqRunLog_ordered_sent {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
+    {leader : P} {inp : P → V}
+    {ss : ωSequence (BcastState P (SeqMsg P V) (SeqState P V) V)}
+    {xs : ωSequence (BcastAction P (SeqMsg P V) V)}
+    (hs0 : ss 0 = (zeroFaultTotalOrderAlg (V := V) leader).start inp)
+    (he : (zeroFaultTotalOrderAlg (V := V) leader).lts.OmegaExecution ss xs)
+    (q : P) (N i : ℕ) (hi : i < (seqRunLog leader xs N).length) :
+    ∃ t < N, ⟨q, Sum.inr (.ordered i (seqRunLog leader xs N)[i])⟩ ∈ (ss (t + 1)).msgs := by
+  induction N generalizing i with
+  | zero => simp [seqRunLog] at hi
+  | succ n ihn =>
+    have hpref_n := seqRunLog_prefix leader xs (Nat.le_succ n)
+    by_cases hin : i < (seqRunLog leader xs n).length
+    · obtain ⟨t, ht_lt, hmsg⟩ := ihn i hin
+      obtain ⟨_, htail⟩ := hpref_n
+      have hget_eq : (seqRunLog leader xs (n + 1))[i] = (seqRunLog leader xs n)[i] := by
+        simp only [← htail, List.getElem_append_left hin]
+      exact ⟨t, by omega, hget_eq ▸ hmsg⟩
+    · rcases seqStepLog_cases leader (seqRunLog leader xs n) (xs n) with
+        heq | ⟨propItem, hact, hlog_succ⟩
+      · change i < (seqStepLog leader (seqRunLog leader xs n) (xs n)).length at hi
+        rw [heq] at hi; omega
+      · have hlog_succ' : seqRunLog leader xs (n + 1) = seqRunLog leader xs n ++ [propItem] :=
+          hlog_succ
+        have hi_eq : i = (seqRunLog leader xs n).length := by
+          rw [hlog_succ', List.length_append, List.length_singleton] at hi; omega
+        subst hi_eq
+        have hget_item : (seqRunLog leader xs (n + 1))[(seqRunLog leader xs n).length] = propItem :=
+          by simp [hlog_succ']
+        have htr_n := he n
+        rw [hact] at htr_n
+        rcases htr_n with ⟨_, hstep_n⟩
+        have hns := (seqInv_runLog hs0 he n).nextSlot_eq
+        refine ⟨n, Nat.lt_succ_self n, ?_⟩
+        rw [hget_item, hstep_n]
+        simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
+          ↓reduceIte, hns, Multiset.mem_add, Multiset.mem_map]
+        exact Or.inr ⟨⟨q, .ordered (seqRunLog leader xs n).length propItem⟩,
+          ⟨q, Finset.mem_def.mp (Finset.mem_univ q), rfl⟩, rfl⟩
+
+/-- Core liveness helper: in any `0`-admissible run, every message assigned a slot
+`m < (seqRunLog leader xs K).length` is eventually delivered at every process `q`. -/
+private theorem zeroFaultTotalOrderAlg_eventually_delivers_slot
+    {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
+    {leader : P} {inp : P → V}
+    {ss : ωSequence (BcastState P (SeqMsg P V) (SeqState P V) V)}
+    {xs : ωSequence (BcastAction P (SeqMsg P V) V)}
+    (hadm : (zeroFaultTotalOrderAlg (V := V) leader).AdmissibleRun inp 0 ss xs)
+    (K m : ℕ) (hm : m < (seqRunLog leader xs K).length) (q : P) :
+    ∃ k', (seqRunLog leader xs K)[m] ∈ ((ss k').proc q).delivered := by
+  have hfair_q := bcastProcFair_of_admissibleZero hadm q
+  rcases hadm with ⟨hs0, he, _, _⟩
+  have hex_recv : ∀ i : Fin (m + 1),
+      ∃ j, xs j = some ⟨q, Sum.inr (.ordered i.1 ((seqRunLog leader xs K)[i.1]'(by omega)))⟩ := by
+    intro i
+    obtain ⟨t, _, hmsg⟩ := seqRunLog_ordered_sent hs0 he q K i.1 (by omega)
+    obtain ⟨j, _, hxj⟩ := hfair_q _ rfl (t + 1) hmsg
+    exact ⟨j, hxj⟩
+  choose jFn hjFn using hex_recv
+  obtain ⟨iMax, _, hiMax⟩ :=
+    Finset.exists_max_image (Finset.univ : Finset (Fin (m + 1))) jFn Finset.univ_nonempty
+  let jStar := jFn iMax
+  have htr_star := he jStar
+  rw [hjFn iMax] at htr_star
+  rcases htr_star with ⟨_, hstep_star⟩
+  have hinv_star := seqInv_runLog hs0 he jStar
+  have hinv_next := seqInv_runLog hs0 he (jStar + 1)
+  let itemMax := (seqRunLog leader xs K)[iMax.1]'(by omega)
+  let bufStar : List (SlotEntry P V) := ⟨iMax.1, itemMax⟩ :: ((ss jStar).proc q).state.buf
+  have hall_in_bufStar : ∀ i : Fin (m + 1), (lookupSlot i.1 bufStar).isSome := by
+    intro i
+    have hij_le : jFn i ≤ jStar := hiMax i (Finset.mem_univ i)
+    by_cases hlt : jFn i < jStar
+    · have htr_i := he (jFn i)
+      rw [hjFn i] at htr_i
+      rcases htr_i with ⟨_, hstep_i⟩
+      have hin_next : ⟨i.1, (seqRunLog leader xs K)[i.1]'(by omega)⟩ ∈
+          ((ss (jFn i + 1)).proc q).state.buf := by
+        rw [hstep_i]
+        simp [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]
+      have hin_jStar := seqBuf_mono he (Nat.succ_le_of_lt hlt) q _ hin_next
+      exact lookupSlot_isSome_of_mem (List.mem_cons_of_mem _ hin_jStar)
+    · have hxs_eq : xs (jFn i) = xs jStar := congrArg xs (by omega : jFn i = jStar)
+      rw [hjFn i, hjFn iMax] at hxs_eq
+      simp only [Option.some.injEq, BcastEvent.mk.injEq, Sum.inr.injEq,
+        SeqMsg.ordered.injEq] at hxs_eq
+      have hi_eq : i = iMax := Fin.ext hxs_eq.2.1
+      subst hi_eq
+      exact lookupSlot_isSome_of_mem List.mem_cons_self
+  have hbufStar_eq : ((ss (jStar + 1)).proc q).state.buf = bufStar := by
+    rw [hstep_star]
+    simp [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, bufStar, itemMax]
+  have hstepLog_star : seqRunLog leader xs (jStar + 1) = seqRunLog leader xs jStar := by
+    change seqStepLog leader (seqRunLog leader xs jStar) (xs jStar) = seqRunLog leader xs jStar
+    rw [hjFn iMax]
+    rfl
+  have hbufStar_wf : ∀ entry ∈ bufStar,
+      ∃ h : entry.slot < (seqRunLog leader xs jStar).length,
+        (seqRunLog leader xs jStar)[entry.slot] = entry.item := by
+    rw [← hstepLog_star, ← hbufStar_eq]
+    exact hinv_next.buf_wf q
+  have hnone_res := drainConsecutive_stops_none hbufStar_wf (hinv_star.nextDeliver_le q)
+  let resNext := (drainConsecutive ((ss jStar).proc q).state.nextDeliver
+    (bufStar.length + 1) bufStar).nextDeliver
+  have hm_lt_res : m < resNext := by
+    by_contra hge
+    have hisSome := hall_in_bufStar ⟨resNext, by omega⟩
+    change (lookupSlot resNext bufStar).isSome = true at hisSome
+    rw [hnone_res] at hisSome
+    cases hisSome
+  have hnd_star1 : ((ss (jStar + 1)).proc q).state.nextDeliver = resNext := by
+    rw [hstep_star]
+    simp [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, bufStar, itemMax, resNext]
+  have hres_le_len : resNext ≤ (seqRunLog leader xs (jStar + 1)).length :=
+    hnd_star1 ▸ hinv_next.nextDeliver_le q
+  have hprefK := seqRunLog_prefix leader xs (Nat.le_max_left K (jStar + 1))
+  have hprefJ := seqRunLog_prefix leader xs (Nat.le_max_right K (jStar + 1))
+  have hm_lt_j : m < (seqRunLog leader xs (jStar + 1)).length := by omega
+  have hget_eq : (seqRunLog leader xs K)[m] = (seqRunLog leader xs (jStar + 1))[m] :=
+    (hprefK.getElem hm).trans (hprefJ.getElem hm_lt_j).symm
+  refine ⟨jStar + 1, ?_⟩
+  rw [hinv_next.delivered_eq q, hnd_star1, hget_eq]
+  have htake_get :
+      ((seqRunLog leader xs (jStar + 1)).take resNext)[m]'(by simp; omega) =
+        (seqRunLog leader xs (jStar + 1))[m] :=
+    List.getElem_take
+  rw [← htake_get]
+  exact List.getElem_mem _
+
+/-! ### Broadcast specification properties for `zeroFaultTotalOrderAlg` -/
+
+/-- One-shot `Validity` (`0` faults) for `zeroFaultTotalOrderAlg leader`. -/
+private theorem zeroFaultTotalOrderAlg_validity
+    {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V] (leader : P) :
+    (zeroFaultTotalOrderAlg (V := V) leader).Validity 0 := by
+  intro inp ss xs hadm p _
+  have hfair_p := bcastProcFair_of_admissibleZero hadm p
+  have hfair_l := bcastProcFair_of_admissibleZero hadm leader
+  have hs0 := hadm.1
+  have he := hadm.2.1
+  have hin0 : (⟨p, Sum.inl (inp p)⟩ : BcastEvent P (SeqMsg P V) V) ∈ (ss 0).msgs := by
+    rw [hs0]
+    simp only [TotalOrderBroadcastAlg.start, Multiset.mem_map]
+    exact ⟨p, Finset.mem_def.mp (Finset.mem_univ p), rfl⟩
+  obtain ⟨j₁, _, hxj₁⟩ := hfair_p _ rfl 0 hin0
+  have hprop_in :
+      (⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ : BcastEvent P (SeqMsg P V) V) ∈
+        (ss (j₁ + 1)).msgs := by
+    have htr₁ := he j₁
+    rw [hxj₁] at htr₁
+    rcases htr₁ with ⟨_, hstep₁⟩
+    rw [hstep₁]
+    simp [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]
+  obtain ⟨j₂, _, hxj₂⟩ := hfair_l _ rfl (j₁ + 1) hprop_in
+  have hlog_j₂ : seqRunLog leader xs (j₂ + 1) = seqRunLog leader xs j₂ ++ [⟨p, inp p⟩] := by
+    change seqStepLog leader (seqRunLog leader xs j₂) (xs j₂) =
+      seqRunLog leader xs j₂ ++ [⟨p, inp p⟩]
+    rw [hxj₂]
+    simp [seqStepLog]
+  have hm_lt : (seqRunLog leader xs j₂).length < (seqRunLog leader xs (j₂ + 1)).length := by
+    simp [hlog_j₂]
+  have hget_m : (seqRunLog leader xs (j₂ + 1))[(seqRunLog leader xs j₂).length] = ⟨p, inp p⟩ := by
+    simp [hlog_j₂]
+  obtain ⟨k', hk'⟩ := zeroFaultTotalOrderAlg_eventually_delivers_slot hadm
+    (j₂ + 1) (seqRunLog leader xs j₂).length hm_lt p
+  exact ⟨k', hget_m ▸ hk'⟩
+
+/-- One-shot `Integrity` (`0` faults) for `zeroFaultTotalOrderAlg leader`. -/
+private theorem zeroFaultTotalOrderAlg_integrity
+    {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V] (leader : P) :
+    (zeroFaultTotalOrderAlg (V := V) leader).Integrity 0 := by
+  rintro inp ss xs ⟨hs0, he, _, _⟩ p _ k
+  have hinv_k := seqInv_runLog hs0 he k
+  rw [hinv_k.delivered_eq p]
+  exact ⟨hinv_k.log_nodup.take, fun m hm => hinv_k.log_wf m (List.mem_of_mem_take hm)⟩
+
+/-- One-shot `Agreement` (`0` faults) for `zeroFaultTotalOrderAlg leader`. -/
+private theorem zeroFaultTotalOrderAlg_agreement
+    {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V] (leader : P) :
+    (zeroFaultTotalOrderAlg (V := V) leader).Agreement 0 := by
+  intro inp ss xs hadm p q _ _ m k hm
+  rw [(seqInv_runLog hadm.1 hadm.2.1 k).delivered_eq p] at hm
+  obtain ⟨idx, hidx, rfl⟩ := List.getElem_of_mem (List.mem_of_mem_take hm)
+  exact zeroFaultTotalOrderAlg_eventually_delivers_slot hadm k idx hidx q
+
+/-- Non-uniform `TotalOrder` (`0` faults) for `zeroFaultTotalOrderAlg leader`. -/
+private theorem zeroFaultTotalOrderAlg_totalOrder
+    {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V] (leader : P) :
+    (zeroFaultTotalOrderAlg (V := V) leader).TotalOrder 0 := by
+  rintro inp ss xs ⟨hs0, he, _, _⟩ p q _ _ m₁ m₂ k₁ k₂ hm₁p hm₂p hm₁q hm₂q
+  have hpref_p : ((ss k₁).proc p).delivered <+: seqRunLog leader xs (max k₁ k₂) := by
+    rw [(seqInv_runLog hs0 he k₁).delivered_eq p]
+    exact (List.take_prefix _ _).trans (seqRunLog_prefix leader xs (Nat.le_max_left k₁ k₂))
+  have hpref_q : ((ss k₂).proc q).delivered <+: seqRunLog leader xs (max k₁ k₂) := by
+    rw [(seqInv_runLog hs0 he k₂).delivered_eq q]
+    exact (List.take_prefix _ _).trans (seqRunLog_prefix leader xs (Nat.le_max_right k₁ k₂))
+  rw [hpref_p.idxOf_eq_of_mem hm₁p, hpref_p.idxOf_eq_of_mem hm₂p,
+    hpref_q.idxOf_eq_of_mem hm₁q, hpref_q.idxOf_eq_of_mem hm₂q]
+
 /-- One-shot `0`-fault solvability step (toward #7297): `zeroFaultTotalOrderAlg leader` satisfies
 `SolvesTotalOrderBroadcast 0` on any finite process set `P`. -/
 theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
     (leader : P) :
-    (zeroFaultTotalOrderAlg (V := V) leader).SolvesTotalOrderBroadcast 0 := by
-  let π := zeroFaultTotalOrderAlg (V := V) leader
-  let SeqInv (inp : P → V) (s : BcastState P (SeqMsg P V) (SeqState P V) V)
-      (log : List (BcastMsg P V)) : Prop :=
-    log.Nodup ∧
-    (∀ item ∈ log, item = ⟨item.sender, inp item.sender⟩) ∧
-    (s.proc leader).state.nextSlot = log.length ∧
-    (∀ p : P,
-      Multiset.count ⟨p, Sum.inl (inp p)⟩ s.msgs +
-        Multiset.count ⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ s.msgs +
-        (if ⟨p, inp p⟩ ∈ log then 1 else 0) = 1) ∧
-    (∀ e ∈ s.msgs,
-      (∃ p, e = ⟨p, Sum.inl (inp p)⟩) ∨
-      (∃ p, e = ⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩) ∨
-      (∃ q slot item, e = ⟨q, Sum.inr (.ordered slot item)⟩ ∧
-        ∃ h : slot < log.length, log[slot] = item)) ∧
-    (∀ q, ∀ entry ∈ (s.proc q).state.buf,
-      ∃ h : entry.slot < log.length, log[entry.slot] = entry.item) ∧
-    (∀ q, (s.proc q).state.nextDeliver ≤ log.length ∧
-      (s.proc q).delivered = log.take (s.proc q).state.nextDeliver)
-  let stepLog (log : List (BcastMsg P V)) : BcastAction P (SeqMsg P V) V → List (BcastMsg P V)
-    | some ⟨dest, Sum.inr (.propose item)⟩ =>
-      if dest = leader then log ++ [item] else log
-    | _ => log
-  have hinv_start : ∀ inp, SeqInv inp (π.start inp) [] := by
-    intro inp
-    refine ⟨List.nodup_nil, by simp, rfl, ?_, ?_, ?_, ?_⟩
-    · intro p
-      have hcnt1 : Multiset.count ⟨p, Sum.inl (inp p)⟩ (π.start inp).msgs = 1 := by
-        simp only [π, TotalOrderBroadcastAlg.start]
-        rw [Multiset.count_map_eq_count'
-          (fun q : P => (⟨q, Sum.inl (inp q)⟩ : BcastEvent P (SeqMsg P V) V))
-          Finset.univ.val (fun a b h => (BcastEvent.mk.inj h).1) p]
-        exact Multiset.count_eq_one_of_mem Finset.univ.nodup
-          (Finset.mem_def.mp (Finset.mem_univ p))
-      have hcnt2 :
-          Multiset.count ⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ (π.start inp).msgs = 0 :=
-        Multiset.count_eq_zero.mpr (by simp [π, TotalOrderBroadcastAlg.start])
-      simp [hcnt1, hcnt2]
-    · intro e he
-      simp only [π, TotalOrderBroadcastAlg.start, Multiset.mem_map] at he
-      obtain ⟨p, _, rfl⟩ := he
-      exact Or.inl ⟨p, rfl⟩
-    · intro q entry hmem
-      simp [π, TotalOrderBroadcastAlg.start, zeroFaultTotalOrderAlg] at hmem
-    · intro q
-      simp [π, TotalOrderBroadcastAlg.start, zeroFaultTotalOrderAlg]
-  have hinv_step : ∀ inp {s s'} {act} {log},
-      SeqInv inp s log → π.lts.Tr s act s' → SeqInv inp s' (stepLog log act) := by
-    intro inp s s' act log hinv htr
-    obtain ⟨hnodup, hlog_wf, hnextSlot, hcons, hmsgs_wf, hbuf_wf, hdeliv_wf⟩ := hinv
-    cases act with
-    | none =>
-      simp only [TotalOrderBroadcastAlg.lts] at htr
-      subst htr
-      exact ⟨hnodup, hlog_wf, hnextSlot, hcons, hmsgs_wf, hbuf_wf, hdeliv_wf⟩
-    | some e =>
-      rcases htr with ⟨he_mem, rfl⟩
-      rcases hmsgs_wf e he_mem with ⟨p₀, rfl⟩ | ⟨p₀, rfl⟩ | ⟨q₀, slot, item, rfl, hslot_lt, hlog_s⟩
-      · simp only [stepLog]
-        refine ⟨hnodup, hlog_wf, ?_, ?_, ?_, ?_, ?_⟩
-        · rcases eq_or_ne leader p₀ with rfl | hp₀
-          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] using hnextSlot
-          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hp₀] using hnextSlot
-        · intro p
-          have hc := hcons p
-          simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
-            Multiset.map_singleton, Multiset.count_add, Multiset.count_singleton]
-          by_cases hpp₀ : p = p₀
-          · subst hpp₀
-            have he_cnt : Multiset.count ⟨p, Sum.inl (inp p)⟩ s.msgs ≥ 1 :=
-              Multiset.count_pos.mpr he_mem
-            rw [Multiset.count_erase_self]
-            have hne_msg :
-                (⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ : BcastEvent P (SeqMsg P V) V) ≠
-                  ⟨p, Sum.inl (inp p)⟩ := by simp
-            rw [Multiset.count_erase_of_ne hne_msg]
-            have hne_msg' :
-                (⟨p, Sum.inl (inp p)⟩ : BcastEvent P (SeqMsg P V) V) ≠
-                  ⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ := hne_msg.symm
-            simp only [hne_msg', ↓reduceIte]
-            omega
-          · have hne1 : (⟨p, Sum.inl (inp p)⟩ : BcastEvent P (SeqMsg P V) V) ≠
-                ⟨p₀, Sum.inl (inp p₀)⟩ := fun h => hpp₀ (BcastEvent.mk.inj h).1
-            have hne2 : (⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ : BcastEvent P (SeqMsg P V) V) ≠
-                ⟨p₀, Sum.inl (inp p₀)⟩ := by simp
-            have hne3 : (⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ : BcastEvent P (SeqMsg P V) V) ≠
-                ⟨leader, Sum.inr (.propose ⟨p₀, inp p₀⟩)⟩ := fun h => by
-              simp only [BcastEvent.mk.injEq, Sum.inr.injEq, SeqMsg.propose.injEq,
-                BcastMsg.mk.injEq] at h
-              exact hpp₀ h.2.1
-            have hne4 : (⟨p, Sum.inl (inp p)⟩ : BcastEvent P (SeqMsg P V) V) ≠
-                ⟨leader, Sum.inr (.propose ⟨p₀, inp p₀⟩)⟩ := by simp
-            rw [Multiset.count_erase_of_ne hne1, Multiset.count_erase_of_ne hne2]
-            simp only [hne3, hne4, ↓reduceIte]
-            omega
-        · intro e' he'
-          simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
-            Multiset.map_singleton, Multiset.mem_add, Multiset.mem_singleton] at he'
-          rcases he' with he' | rfl
-          · exact hmsgs_wf e' (Multiset.mem_of_mem_erase he')
-          · exact Or.inr (Or.inl ⟨p₀, rfl⟩)
-        · intro q entry hmem
-          by_cases hq : q = p₀ <;>
-            simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hq,
-              ↓reduceIte] at hmem <;>
-            exact hbuf_wf _ entry hmem
-        · intro q
-          rcases eq_or_ne q p₀ with rfl | hq
-          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] using hdeliv_wf _
-          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hq]
-              using hdeliv_wf _
-      · let newItem : BcastMsg P V := ⟨p₀, inp p₀⟩
-        let log' := log ++ [newItem]
-        simp only [stepLog, ↓reduceIte]
-        have hnot_in_log : newItem ∉ log := by
-          intro hin
-          have hc := hcons p₀
-          have hpos : Multiset.count ⟨leader, Sum.inr (.propose newItem)⟩ s.msgs ≥ 1 :=
-            Multiset.count_pos.mpr he_mem
-          simp only [newItem, hin, ↓reduceIte] at hc hpos
-          omega
-        have hnodup' : log'.Nodup := by
-          rw [List.nodup_append]
-          refine ⟨hnodup, List.nodup_singleton newItem, fun a ha b hb hab => ?_⟩
-          simp only [List.mem_singleton] at hb
-          rw [hab, hb] at ha
-          exact hnot_in_log ha
-        refine ⟨hnodup', ?_, ?_, ?_, ?_, ?_, ?_⟩
-        · intro it hit
-          rcases List.mem_append.mp hit with hit | hit
-          · exact hlog_wf it hit
-          · simp only [List.mem_singleton] at hit; subst hit; rfl
-        · simp [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hnextSlot]
-        · intro p
-          have hc := hcons p
-          simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, ↓reduceIte,
-            Multiset.map_map, Function.comp_def, Multiset.count_add]
-          let outMsgs : Multiset (BcastEvent P (SeqMsg P V) V) :=
-            Finset.univ.val.map fun q =>
-              ⟨q, Sum.inr (.ordered (s.proc leader).state.nextSlot newItem)⟩
-          have hcnt_out1 : Multiset.count ⟨p, Sum.inl (inp p)⟩ outMsgs = 0 :=
-            Multiset.count_eq_zero.mpr (by simp [outMsgs])
-          have hcnt_out2 :
-              Multiset.count ⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ outMsgs = 0 :=
-            Multiset.count_eq_zero.mpr (by simp [outMsgs])
-          change Multiset.count _ _ + Multiset.count _ outMsgs +
-            (Multiset.count _ _ + Multiset.count _ outMsgs) + _ = 1
-          rw [hcnt_out1, hcnt_out2]
-          have hne_inl : (⟨p, Sum.inl (inp p)⟩ : BcastEvent P (SeqMsg P V) V) ≠
-              ⟨leader, Sum.inr (.propose newItem)⟩ := by simp
-          rw [Multiset.count_erase_of_ne hne_inl]
-          by_cases hpp₀ : p = p₀
-          · subst hpp₀
-            have hpos : Multiset.count ⟨leader, Sum.inr (.propose newItem)⟩ s.msgs ≥ 1 :=
-              Multiset.count_pos.mpr he_mem
-            rw [Multiset.count_erase_self]
-            have hmem_log' : newItem ∈ log' :=
-              List.mem_append_right log (List.mem_singleton.mpr rfl)
-            simp only [newItem, hnot_in_log, ↓reduceIte] at hc
-            simp only [log', newItem, hmem_log', ↓reduceIte] at hpos ⊢
-            omega
-          · have hne_prop :
-                (⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ : BcastEvent P (SeqMsg P V) V) ≠
-                  ⟨leader, Sum.inr (.propose newItem)⟩ := fun h => by
-              simp only [newItem, BcastEvent.mk.injEq, Sum.inr.injEq, SeqMsg.propose.injEq,
-                BcastMsg.mk.injEq] at h
-              exact hpp₀ h.2.1
-            rw [Multiset.count_erase_of_ne hne_prop]
-            have hmem_iff : (⟨p, inp p⟩ : BcastMsg P V) ∈ log' ↔ ⟨p, inp p⟩ ∈ log := by
-              simp only [log', newItem, List.mem_append, List.mem_singleton, BcastMsg.mk.injEq]
-              exact ⟨fun h => h.resolve_right (fun h2 => hpp₀ h2.1), Or.inl⟩
-            change _ + (if ⟨p, inp p⟩ ∈ log' then 1 else 0) = 1
-            simp only [hmem_iff]
-            omega
-        · intro e' he'
-          simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, ↓reduceIte,
-            Multiset.map_map, Function.comp_def, Multiset.mem_add, Multiset.mem_map] at he'
-          rcases he' with he' | ⟨q, _, rfl⟩
-          · rcases hmsgs_wf e' (Multiset.mem_of_mem_erase he') with
-              h1 | h2 | ⟨q, sl, it, rfl, hsl, hit⟩
-            · exact Or.inl h1
-            · exact Or.inr (Or.inl h2)
-            · refine Or.inr (Or.inr ⟨q, sl, it, rfl, ?_, ?_⟩)
-              · simp only [List.length_append, List.length_singleton]; omega
-              · simpa [List.getElem_append_left hsl] using hit
-          · refine Or.inr (Or.inr ⟨q, (s.proc leader).state.nextSlot, newItem, rfl, ?_, ?_⟩)
-            · simp [hnextSlot]
-            · simp [newItem, hnextSlot]
-        · intro q entry hmem
-          by_cases hq : q = leader <;>
-            simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hq,
-              ↓reduceIte] at hmem <;>
-            (obtain ⟨hsl, hit⟩ := hbuf_wf _ entry hmem;
-             exact ⟨by simp only [List.length_append, List.length_singleton]; omega,
-               by simpa [List.getElem_append_left hsl] using hit⟩)
-        · intro q
-          obtain ⟨hnd_le, hdel_eq⟩ := hdeliv_wf q
-          by_cases hq : q = leader <;>
-            simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, List.append_nil,
-              List.length_append, List.length_singleton, hq, ↓reduceIte] <;>
-            (try subst hq) <;>
-            exact ⟨by omega, hdel_eq.trans (List.take_append_of_le_length hnd_le).symm⟩
-      · simp only [stepLog]
-        let buf' : List (SlotEntry P V) := ⟨slot, item⟩ :: (s.proc q₀).state.buf
-        have hbuf'_wf :
-            ∀ entry ∈ buf', ∃ h : entry.slot < log.length, log[entry.slot] = entry.item := by
-          intro entry hmem
-          rcases List.mem_cons.mp hmem with rfl | htl
-          · exact ⟨hslot_lt, hlog_s⟩
-          · exact hbuf_wf q₀ entry htl
-        obtain ⟨hnd_q₀, hdel_q₀⟩ := hdeliv_wf q₀
-        obtain ⟨hres_le, hres_take, _⟩ :=
-          drainConsecutive_spec hbuf'_wf (s.proc q₀).state.nextDeliver (buf'.length + 1) hnd_q₀
-        refine ⟨hnodup, hlog_wf, ?_, ?_, ?_, ?_, ?_⟩
-        · rcases eq_or_ne leader q₀ with rfl | hq₀
-          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] using hnextSlot
-          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hq₀] using hnextSlot
-        · intro p
-          have hc := hcons p
-          simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
-            Multiset.map_zero, add_zero]
-          have hne1 : (⟨p, Sum.inl (inp p)⟩ : BcastEvent P (SeqMsg P V) V) ≠
-              ⟨q₀, Sum.inr (.ordered slot item)⟩ := by simp
-          have hne2 : (⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ : BcastEvent P (SeqMsg P V) V) ≠
-              ⟨q₀, Sum.inr (.ordered slot item)⟩ := by simp
-          rw [Multiset.count_erase_of_ne hne1, Multiset.count_erase_of_ne hne2]
-          exact hc
-        · intro e' he'
-          simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
-            Multiset.map_zero, add_zero] at he'
-          exact hmsgs_wf e' (Multiset.mem_of_mem_erase he')
-        · intro q entry hmem
-          rcases eq_or_ne q q₀ with rfl | hqq₀
-          · simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
-              ↓reduceIte] at hmem
-            exact hbuf'_wf entry hmem
-          · simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqq₀,
-              ↓reduceIte] at hmem
-            exact hbuf_wf q entry hmem
-        · intro q
-          rcases eq_or_ne q q₀ with rfl | hqq₀
-          · simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, ↓reduceIte]
-            exact ⟨hres_le, hdel_q₀ ▸ hres_take⟩
-          · simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqq₀,
-              ↓reduceIte]
-            exact hdeliv_wf q
-  -- Build the run-level log sequence `runLog xs k` along any `0`-admissible execution `(ss, xs)`.
-  let mkRunLog (xs : ωSequence (BcastAction P (SeqMsg P V) V)) : ℕ → List (BcastMsg P V) :=
-    Nat.rec [] (fun k acc => stepLog acc (xs k))
-  have hrunLog_inv : ∀ inp ss xs, ss 0 = π.start inp → π.lts.OmegaExecution ss xs →
-      ∀ k, SeqInv inp (ss k) (mkRunLog xs k) := by
-    intro inp ss xs hs0 he k
-    induction k with
-    | zero => simpa [mkRunLog, ← hs0] using hinv_start inp
-    | succ k ih => exact hinv_step inp ih (he k)
-  have hstepLog_cases : ∀ log act, stepLog log act = log ∨
-      ∃ propItem, act = some ⟨leader, Sum.inr (.propose propItem)⟩ ∧
-        stepLog log act = log ++ [propItem] := by
-    rintro log (_ | ⟨dest, _ | (propItem | _)⟩)
-    · exact Or.inl rfl
-    · exact Or.inl rfl
-    · by_cases hdl : dest = leader
-      · exact Or.inr ⟨propItem, hdl ▸ rfl, by simp [stepLog, hdl]⟩
-      · exact Or.inl (by simp [stepLog, hdl])
-    · exact Or.inl rfl
-  have hrunLog_prefix : ∀ xs {k₁ k₂ : ℕ}, k₁ ≤ k₂ → mkRunLog xs k₁ <+: mkRunLog xs k₂ := by
-    intro xs k₁ k₂ hle
-    obtain ⟨d, rfl⟩ : ∃ d, k₂ = k₁ + d := ⟨k₂ - k₁, by omega⟩
-    induction d with
-    | zero => exact List.prefix_refl _
-    | succ d ih =>
-      refine (ih (Nat.le_add_right k₁ d)).trans ?_
-      change mkRunLog xs (k₁ + d) <+: stepLog (mkRunLog xs (k₁ + d)) (xs (k₁ + d))
-      rcases hstepLog_cases (mkRunLog xs (k₁ + d)) (xs (k₁ + d)) with heq | ⟨_, _, heq⟩ <;>
-        rw [heq]
-      exact List.prefix_append _ _
-  -- All processes are `BcastProcFair` in any `0`-admissible run!
-  have hall_fair : ∀ inp ss xs, π.AdmissibleRun inp 0 ss xs →
-      ∀ r : P, TotalOrderBroadcastAlg.BcastProcFair r ss xs := by
-    rintro inp ss xs ⟨_, _, hfair_run, hnum⟩ r
-    have hzero : {q | TotalOrderBroadcastAlg.BcastProcFaulty q ss xs} = ∅ :=
-      (Set.ncard_eq_zero (s := {q | TotalOrderBroadcastAlg.BcastProcFaulty q ss xs})).mp
-        (Nat.eq_zero_of_le_zero hnum)
-    rcases hfair_run r with hfaulty | hfair
-    · exact False.elim ((Set.eq_empty_iff_forall_notMem.mp hzero r) hfaulty)
-    · exact hfair
-  -- Buffer membership is monotone over time along `π.lts.OmegaExecution`.
-  have hbuf_mono : ∀ {ss xs}, π.lts.OmegaExecution ss xs →
-      ∀ {k₁ k₂ : ℕ}, k₁ ≤ k₂ → ∀ q entry,
-        entry ∈ ((ss k₁).proc q).state.buf → entry ∈ ((ss k₂).proc q).state.buf := by
-    intro ss xs he k₁ k₂ hle q entry hmem
-    obtain ⟨d, rfl⟩ : ∃ d, k₂ = k₁ + d := ⟨k₂ - k₁, by omega⟩
-    induction d with
-    | zero => exact hmem
-    | succ d ih =>
-      have hmem_d := ih (Nat.le_add_right k₁ d)
-      have htr := he (k₁ + d)
-      cases hact : xs (k₁ + d) with
-      | none =>
-        rw [hact] at htr
-        simp only [TotalOrderBroadcastAlg.lts] at htr
-        rwa [← Nat.add_assoc, htr]
-      | some e =>
-        rw [hact] at htr
-        rcases htr with ⟨_, hstep⟩
-        rw [← Nat.add_assoc, hstep]
-        rcases e with ⟨dest, _ | ( _ | ⟨sl, it⟩)⟩
-        · rcases eq_or_ne q dest with rfl | hqd
-          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] using hmem_d
-          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqd] using hmem_d
-        · rcases eq_or_ne q dest with rfl | hqd
-          · by_cases hdl : q = leader <;>
-              simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hdl] using hmem_d
-          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqd] using hmem_d
-        · rcases eq_or_ne q dest with rfl | hqe
-          · simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, ↓reduceIte]
-            exact List.mem_cons_of_mem _ hmem_d
-          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqe] using hmem_d
-  -- Core slot-delivery helper: if slot `m < (mkRunLog xs K).length` is in `mkRunLog xs K`, then
-  -- every process `q` in a `0`-admissible run eventually delivers `(mkRunLog xs K)[m]`.
-  have heventually_delivers_slot : ∀ inp ss xs, π.AdmissibleRun inp 0 ss xs →
-      ∀ (K m : ℕ) (hm : m < (mkRunLog xs K).length) (q : P),
-        ∃ k', (mkRunLog xs K)[m] ∈ ((ss k').proc q).delivered := by
-    intro inp ss xs hadm
-    rcases hadm with ⟨hs0, he, hfair_run, hnum⟩
-    have hordered_sent : ∀ (q : P) (N i : ℕ) (hi : i < (mkRunLog xs N).length),
-        ∃ t < N, ⟨q, Sum.inr (.ordered i (mkRunLog xs N)[i])⟩ ∈ (ss (t + 1)).msgs := by
-      intro q N
-      induction N with
-      | zero => intro i hi; simp [mkRunLog] at hi
-      | succ n ihn =>
-        intro i hi
-        have hpref_n : mkRunLog xs n <+: mkRunLog xs (n + 1) := hrunLog_prefix xs (Nat.le_succ n)
-        by_cases hin : i < (mkRunLog xs n).length
-        · obtain ⟨t, ht_lt, hmsg⟩ := ihn i hin
-          obtain ⟨tail, htail⟩ := hpref_n
-          have hget_eq : (mkRunLog xs (n + 1))[i] = (mkRunLog xs n)[i] := by
-            simp only [← htail, List.getElem_append_left hin]
-          exact ⟨t, by omega, hget_eq ▸ hmsg⟩
-        · rcases hstepLog_cases (mkRunLog xs n) (xs n) with heq | ⟨propItem, hact, hlog_succ⟩
-          · change i < (stepLog (mkRunLog xs n) (xs n)).length at hi
-            rw [heq] at hi; omega
-          · have hlog_succ' : mkRunLog xs (n + 1) = mkRunLog xs n ++ [propItem] := hlog_succ
-            have hi_eq : i = (mkRunLog xs n).length := by
-              rw [hlog_succ', List.length_append, List.length_singleton] at hi; omega
-            subst hi_eq
-            have hget_item : (mkRunLog xs (n + 1))[(mkRunLog xs n).length] = propItem := by
-              simp [hlog_succ']
-            have htr_n := he n
-            rw [hact] at htr_n
-            rcases htr_n with ⟨_, hstep_n⟩
-            have hns : ((ss n).proc leader).state.nextSlot = (mkRunLog xs n).length :=
-              (hrunLog_inv inp ss xs hs0 he n).2.2.1
-            refine ⟨n, Nat.lt_succ_self n, ?_⟩
-            rw [hget_item, hstep_n]
-            simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
-              ↓reduceIte, hns, Multiset.mem_add, Multiset.mem_map]
-            exact Or.inr ⟨⟨q, .ordered (mkRunLog xs n).length propItem⟩,
-              ⟨q, Finset.mem_def.mp (Finset.mem_univ q), rfl⟩, rfl⟩
-    intro K m hm q
-    have hfair_q := hall_fair inp ss xs ⟨hs0, he, hfair_run, hnum⟩ q
-    have hex_recv : ∀ i : Fin (m + 1),
-        ∃ j, xs j = some ⟨q, Sum.inr (.ordered i.1 ((mkRunLog xs K)[i.1]'(by omega)))⟩ := by
-      intro i
-      obtain ⟨t, _, hmsg⟩ := hordered_sent q K i.1 (by omega)
-      obtain ⟨j, _, hxj⟩ := hfair_q _ rfl (t + 1) hmsg
-      exact ⟨j, hxj⟩
-    choose jFn hjFn using hex_recv
-    obtain ⟨iMax, _, hiMax⟩ :=
-      Finset.exists_max_image (Finset.univ : Finset (Fin (m + 1))) jFn Finset.univ_nonempty
-    let jStar := jFn iMax
-    have htr_star := he jStar
-    rw [hjFn iMax] at htr_star
-    rcases htr_star with ⟨_, hstep_star⟩
-    have hinv_star := hrunLog_inv inp ss xs hs0 he jStar
-    let itemMax := (mkRunLog xs K)[iMax.1]'(by omega)
-    let bufStar : List (SlotEntry P V) := ⟨iMax.1, itemMax⟩ :: ((ss jStar).proc q).state.buf
-    have hall_in_bufStar : ∀ i : Fin (m + 1), (lookupSlot i.1 bufStar).isSome := by
-      intro i
-      have hij_le : jFn i ≤ jStar := hiMax i (Finset.mem_univ i)
-      by_cases hlt : jFn i < jStar
-      · have htr_i := he (jFn i)
-        rw [hjFn i] at htr_i
-        rcases htr_i with ⟨_, hstep_i⟩
-        have hin_next : ⟨i.1, (mkRunLog xs K)[i.1]'(by omega)⟩ ∈
-            ((ss (jFn i + 1)).proc q).state.buf := by
-          rw [hstep_i]
-          simp [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]
-        have hin_jStar : ⟨i.1, (mkRunLog xs K)[i.1]'(by omega)⟩ ∈
-            ((ss jStar).proc q).state.buf :=
-          hbuf_mono he (Nat.succ_le_of_lt hlt) q _ hin_next
-        exact lookupSlot_isSome_of_mem (List.mem_cons_of_mem _ hin_jStar)
-      · have hjeq : jFn i = jStar := by omega
-        have hxs_eq : xs (jFn i) = xs jStar := congrArg xs hjeq
-        rw [hjFn i, hjFn iMax] at hxs_eq
-        simp only [Option.some.injEq, BcastEvent.mk.injEq, Sum.inr.injEq,
-          SeqMsg.ordered.injEq] at hxs_eq
-        have hi_eq : i = iMax := Fin.ext hxs_eq.2.1
-        subst hi_eq
-        exact lookupSlot_isSome_of_mem List.mem_cons_self
-    have hinv_next := hrunLog_inv inp ss xs hs0 he (jStar + 1)
-    have hbufStar_eq : ((ss (jStar + 1)).proc q).state.buf = bufStar := by
-      rw [hstep_star]
-      simp [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, bufStar, itemMax]
-    have hbufStar_wf : ∀ entry ∈ bufStar,
-        ∃ h : entry.slot < (mkRunLog xs (jStar + 1)).length,
-          (mkRunLog xs (jStar + 1))[entry.slot] = entry.item := by
-      rw [← hbufStar_eq]
-      exact hinv_next.2.2.2.2.2.1 q
-    have hstepLog_star : mkRunLog xs (jStar + 1) = mkRunLog xs jStar := by
-      change stepLog (mkRunLog xs jStar) (xs jStar) = mkRunLog xs jStar
-      rw [hjFn iMax]
-    rw [hstepLog_star] at hbufStar_wf
-    have hnd_le_jStar : ((ss jStar).proc q).state.nextDeliver ≤ (mkRunLog xs jStar).length :=
-      (hinv_star.2.2.2.2.2.2 q).1
-    have hnone_res := drainConsecutive_stops_none hbufStar_wf hnd_le_jStar
-    let resNext := (drainConsecutive ((ss jStar).proc q).state.nextDeliver
-      (bufStar.length + 1) bufStar).nextDeliver
-    have hm_lt_res : m < resNext := by
-      by_contra hge
-      have hle_m : resNext ≤ m := by omega
-      have hisSome := hall_in_bufStar ⟨resNext, by omega⟩
-      change (lookupSlot resNext bufStar).isSome = true at hisSome
-      rw [hnone_res] at hisSome
-      cases hisSome
-    refine ⟨jStar + 1, ?_⟩
-    have hdel_star1 : ((ss (jStar + 1)).proc q).delivered =
-        (mkRunLog xs (jStar + 1)).take ((ss (jStar + 1)).proc q).state.nextDeliver :=
-      (hinv_next.2.2.2.2.2.2 q).2
-    have hnd_star1 : ((ss (jStar + 1)).proc q).state.nextDeliver = resNext := by
-      rw [hstep_star]
-      simp [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, bufStar, itemMax, resNext]
-    rw [hdel_star1, hnd_star1]
-    have hres_le_len : resNext ≤ (mkRunLog xs (jStar + 1)).length := by
-      rw [← hnd_star1]
-      exact (hinv_next.2.2.2.2.2.2 q).1
-    let M_both := max K (jStar + 1)
-    have hprefK := hrunLog_prefix xs (Nat.le_max_left K (jStar + 1))
-    have hprefJ := hrunLog_prefix xs (Nat.le_max_right K (jStar + 1))
-    have hlen_M : m < (mkRunLog xs M_both).length := Nat.lt_of_lt_of_le hm hprefK.length_le
-    have hm_lt_j : m < (mkRunLog xs (jStar + 1)).length := by omega
-    have hget_eq : (mkRunLog xs K)[m] = (mkRunLog xs (jStar + 1))[m] :=
-      (hprefK.getElem hm).trans (hprefJ.getElem hm_lt_j).symm
-    rw [hget_eq]
-    have htake_get :
-        ((mkRunLog xs (jStar + 1)).take resNext)[m]'(by simp; omega) =
-          (mkRunLog xs (jStar + 1))[m] :=
-      List.getElem_take
-    rw [← htake_get]
-    exact List.getElem_mem _
-  -- Assemble `Validity`, `Integrity`, `Agreement`, and `TotalOrder`!
-  refine ⟨⟨?_, ?_, ?_⟩, ?_⟩
-  · -- Validity
-    intro inp ss xs hadm p _
-    have hfair_p := hall_fair inp ss xs hadm p
-    have hfair_l := hall_fair inp ss xs hadm leader
-    rcases hadm with ⟨hs0, he, hfair_run, hnum⟩
-    have hin0 : (⟨p, Sum.inl (inp p)⟩ : BcastEvent P (SeqMsg P V) V) ∈ (ss 0).msgs := by
-      rw [hs0]
-      simp only [TotalOrderBroadcastAlg.start, Multiset.mem_map]
-      exact ⟨p, Finset.mem_def.mp (Finset.mem_univ p), rfl⟩
-    obtain ⟨j₁, _, hxj₁⟩ := hfair_p _ rfl 0 hin0
-    have hprop_in :
-        (⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ : BcastEvent P (SeqMsg P V) V) ∈
-          (ss (j₁ + 1)).msgs := by
-      have htr₁ := he j₁
-      rw [hxj₁] at htr₁
-      rcases htr₁ with ⟨_, hstep₁⟩
-      rw [hstep₁]
-      simp [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]
-    obtain ⟨j₂, _, hxj₂⟩ := hfair_l _ rfl (j₁ + 1) hprop_in
-    have hlog_j₂ : mkRunLog xs (j₂ + 1) = mkRunLog xs j₂ ++ [⟨p, inp p⟩] := by
-      change stepLog (mkRunLog xs j₂) (xs j₂) = mkRunLog xs j₂ ++ [⟨p, inp p⟩]
-      rw [hxj₂]
-      simp [stepLog]
-    have hm_lt : (mkRunLog xs j₂).length < (mkRunLog xs (j₂ + 1)).length := by
-      simp [hlog_j₂]
-    have hget_m : (mkRunLog xs (j₂ + 1))[(mkRunLog xs j₂).length] = ⟨p, inp p⟩ := by
-      simp [hlog_j₂]
-    obtain ⟨k', hk'⟩ := heventually_delivers_slot inp ss xs ⟨hs0, he, hfair_run, hnum⟩
-      (j₂ + 1) (mkRunLog xs j₂).length hm_lt p
-    exact ⟨k', hget_m ▸ hk'⟩
-  · -- Integrity
-    rintro inp ss xs ⟨hs0, he, _, _⟩ p _ k
-    have hinv_k := hrunLog_inv inp ss xs hs0 he k
-    obtain ⟨hnodup_k, hwf_k, _, _, _, _, hdel_wf_k⟩ := hinv_k
-    obtain ⟨_, hdel_eq⟩ := hdel_wf_k p
-    rw [hdel_eq]
-    exact ⟨hnodup_k.take, fun m hm => hwf_k m (List.mem_of_mem_take hm)⟩
-  · -- Agreement
-    intro inp ss xs hadm p q _ _ m k hm
-    rcases hadm with ⟨hs0, he, hfair_run, hnum⟩
-    have hinv_k := hrunLog_inv inp ss xs hs0 he k
-    have hdel_eq := (hinv_k.2.2.2.2.2.2 p).2
-    rw [hdel_eq] at hm
-    have hm_log : m ∈ mkRunLog xs k := List.mem_of_mem_take hm
-    obtain ⟨idx, hidx, rfl⟩ := List.getElem_of_mem hm_log
-    exact heventually_delivers_slot inp ss xs ⟨hs0, he, hfair_run, hnum⟩ k idx hidx q
-  · -- TotalOrder
-    rintro inp ss xs ⟨hs0, he, _, _⟩ p q _ _ m₁ m₂ k₁ k₂ hm₁p hm₂p hm₁q hm₂q
-    let K := max k₁ k₂
-    have hpref_p : ((ss k₁).proc p).delivered <+: mkRunLog xs K := by
-      rw [(hrunLog_inv inp ss xs hs0 he k₁).2.2.2.2.2.2 p |>.2]
-      exact (List.take_prefix _ _).trans (hrunLog_prefix xs (Nat.le_max_left k₁ k₂))
-    have hpref_q : ((ss k₂).proc q).delivered <+: mkRunLog xs K := by
-      rw [(hrunLog_inv inp ss xs hs0 he k₂).2.2.2.2.2.2 q |>.2]
-      exact (List.take_prefix _ _).trans (hrunLog_prefix xs (Nat.le_max_right k₁ k₂))
-    rw [hpref_p.idxOf_eq_of_mem hm₁p, hpref_p.idxOf_eq_of_mem hm₂p,
-      hpref_q.idxOf_eq_of_mem hm₁q, hpref_q.idxOf_eq_of_mem hm₂q]
+    (zeroFaultTotalOrderAlg (V := V) leader).SolvesTotalOrderBroadcast 0 :=
+  ⟨⟨zeroFaultTotalOrderAlg_validity leader,
+    zeroFaultTotalOrderAlg_integrity leader,
+    zeroFaultTotalOrderAlg_agreement leader⟩,
+   zeroFaultTotalOrderAlg_totalOrder leader⟩
 
 /-- Exact `t = 0` crash-fault solvability characterization step for one-shot
 `TotalOrderBroadcastAlg` (toward #7297): on any finite process set `P` with `2 ≤ Fintype.card P` and

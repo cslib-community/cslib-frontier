@@ -246,7 +246,7 @@ accept if the deleted part of `W` and the separator have at most `k` vertices to
 @[expose] def leaf (k : ℕ) (W : List (Fin n)) (c₀ : Vector Bool n) (g : Vector (Option Bool) n) :
     Option (List (Fin n) × Vector Bool n) :=
   if ∀ u ∈ W, ∀ v ∈ W, G.Adj u v → ∀ a b, vget g u = some a → vget g v = some b → a ≠ b then
-    let out := (minSeparatorM G (memTable W) (keepTable G W g c₀) (flipTable G W g c₀)).ret
+    let out := minSeparator G (memTable W) (keepTable G W g c₀) (flipTable G W g c₀)
     let D := W.filter fun w => (vget g w).isNone
     if D.length + out.sep.length ≤ k then some (D ++ out.sep, newColour W g c₀ out.side)
     else none
@@ -270,7 +270,7 @@ private theorem leaf_sound {k : ℕ} {W : List (Fin n)} {c₀ : Vector Bool n}
   unfold leaf at h
   split_ifs at h with hprop
   · dsimp only at h
-    set out := (minSeparatorM G (memTable W) (keepTable G W g c₀) (flipTable G W g c₀)).ret
+    set out := minSeparator G (memTable W) (keepTable G W g c₀) (flipTable G W g c₀)
       with hout
     set D := W.filter fun w => (vget g w).isNone with hD
     split_ifs at h with hk
@@ -278,9 +278,9 @@ private theorem leaf_sound {k : ℕ} {W : List (Fin n)} {c₀ : Vector Bool n}
     have hmemD : ∀ {w}, w ∈ D ↔ w ∈ W ∧ vget g w = none := fun {w} => by
       simp only [hD, List.mem_filter, Option.isNone_iff_eq_none]
     have hsepW : ∀ {v}, v ∈ out.sep → v ∉ W := fun {v} hv => by
-      have := minSeparatorM_vget_eq_false_of_mem_sep hv
+      have := minSeparator_vget_eq_false_of_mem_sep hv
       rwa [vget_memTable, decide_eq_false_iff_not] at this
-    refine ⟨List.nodup_append.mpr ⟨hW.filter _, minSeparatorM_nodup_sep _ _ _ _,
+    refine ⟨List.nodup_append.mpr ⟨hW.filter _, minSeparator_nodup_sep _ _ _ _,
       fun a ha b hb hab => hsepW (hab ▸ hb) (hmemD.mp ha).1⟩,
       (List.length_append).trans_le hk, ?_⟩
     have henc : Encodes W g {w | w ∈ W ∧ vget g w = none} fun w => (vget g w).getD false :=
@@ -301,10 +301,10 @@ private theorem leaf_sound {k : ℕ} {W : List (Fin n)} {c₀ : Vector Bool n}
         simpa only [vget_memTable, decide_eq_false_iff_not] using hv'
     have key := proper_of_side (X := {v | v ∈ out.sep}) (side := fun v => vget out.side v)
       (c := fun v => vget (newColour W g c₀ out.side) v) (fun u v huv hu hv => hc₀ huv hu hv)
-      hprop' (fun u v huv hu hv hus hvs => minSeparatorM_side_eq_of_adj huv (hZ hu) (hZ hv) hus hvs)
-      (fun v hv hvs => minSeparatorM_side_eq_true ((keepTable_iff G henc c₀ v).mpr hv)
+      hprop' (fun u v huv hu hv hus hvs => minSeparator_side_eq_of_adj huv (hZ hu) (hZ hv) hus hvs)
+      (fun v hv hvs => minSeparator_side_eq_true ((keepTable_iff G henc c₀ v).mpr hv)
         (hZ (mem_keepTerminals.mp hv).1) hvs)
-      (fun v hv _ => minSeparatorM_side_eq_false ((flipTable_iff G henc c₀ v).mpr hv))
+      (fun v hv _ => minSeparator_side_eq_false ((flipTable_iff G henc c₀ v).mpr hv))
       (fun v hv => by
         simp only [newColour, vget_ofFn, show v ∈ W from hv, ↓reduceIte])
       (fun v hv => by
@@ -387,7 +387,7 @@ theorem compress_complete {k : ℕ} {W : List (Fin n)} {c₀ : Vector Bool n}
       Finset.coe_sdiff, Set.mem_sdiff, Finset.mem_coe, List.coe_toFinset]
     tauto
   rw [← hkeep, ← hflip, ← hZ] at hsep
-  have hX := minSeparatorM_length_sep_le hsep
+  have hX := minSeparator_length_sep_le hsep
   have hcard := Finset.card_inter_add_card_sdiff T W.toFinset
   omega
 

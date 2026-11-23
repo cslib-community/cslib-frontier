@@ -104,6 +104,11 @@ Noga Alon and Joel H. Spencer. *The Probabilistic Method*, 4th edition. Wiley, 2
 
 Noga Alon, Raphael Yuster, Uri Zwick. "Color-Coding." *Journal of the ACM* 42(4), 844–856, 1995. https://doi.org/10.1145/210332.210337 . Bibliographic data from the DOI record. The locator Lemma 3.1 (colorful paths by dynamic programming over color sets) was taken from secondary descriptions; the full text was not inspected in this pass.
 
+<a id="alrabiahgoodmanmosheiffribeiro2025"></a>
+## alrabiahgoodmanmosheiffribeiro2025
+
+Omar Alrabiah, Jesse Goodman, Jonathan Mosheiff and João Ribeiro. *Low-Degree Polynomials Are Good Extractors*. APPROX/RANDOM 2025. https://doi.org/10.4230/LIPIcs.APPROX/RANDOM.2025.38 . Locators follow ECCC TR24-093, revision 1, https://eccc.weizmann.ac.il/report/2024/093/revision/1/download/ . Checked directly on 2026-11-22: Theorem 2 (printed p. 8) gives random degree-`d` sumset extractors for `k ≥ C d (n / ε²)^(1/⌊d/2⌋)`; for `d = 4` and `ε = n^(-β)`, `β < 1/2`, its threshold is sublinear. Cited in `PolynomialWitness.lean` for prior existence; that module proves coordinate-rectangle estimates and frontier applications, not the full sumset theorem or a uniform construction.
+
 <a id="ambainis02"></a>
 ## ambainis02
 
@@ -1737,7 +1742,7 @@ Carsten Lund, Lance Fortnow, Howard Karloff and Noam Nisan. *Algebraic Methods f
 <a id="li2023"></a>
 ## li2023
 
-Xin Li. *Two Source Extractors for Asymptotically Optimal Entropy, and (Many) More*. FOCS 2023, 1271–1281. https://doi.org/10.1109/FOCS57990.2023.00075 . Bibliographic metadata checked; secondary search summaries indicate Definition 3.1 (affine sources), Lemma 3.9 (affine conditioning), Lemma 3.10 (block decomposition), Theorem 7.13 (sumset extractor), and Corollary 7.14 in preprint versions, while the full primary PDF was not read line by line, so individual numbered locators in `AffineSource.lean` remain unverified against the typeset FOCS version.
+Xin Li. *Two Source Extractors for Asymptotically Optimal Entropy, and (Many) More*. FOCS 2023, 1271–1281. https://doi.org/10.1109/FOCS57990.2023.00075 . `SumsetBridge.lean` uses ECCC TR23-023, revision 1, https://eccc.weizmann.ac.il/report/2023/023/revision/1/download/ , checked directly on 2026-11-22: Definition 1.1 (printed p. 1, explicit means polynomial-time computable) and Theorem 7.13 (printed p. 36, a one-bit sumset extractor at entropy `c(ε) log n` for every fixed error `ε > 0`). Formalizing that construction remains the [explicit frontier extractor objective](../roadmap/circuits.md). The fixed-error statement alone does not provide one family with vanishing error. Other numbered locators in `AffineSource.lean`, previously taken from secondary descriptions, remain unverified against the typeset FOCS version.
 
 <a id="lindell17"></a>
 ## lindell17
@@ -1924,10 +1929,15 @@ Ilya Mironov. "Rényi Differential Privacy." *2017 IEEE 30th Computer Security F
 
 L. Mirsky. "A Dual of Dilworth's Decomposition Theorem." *The American Mathematical Monthly* 78(8), 876–877, 1971. https://doi.org/10.1080/00029890.1971.11992886 . Bibliographic metadata from search summaries, checked on 2026-11-08; the paper is paywalled and was not inspected. The library attributes to it only the finite chain–antichain duality, whose formal statement and height-function proof follow [Schrijver's lecture notes](#schrijver17), Theorem 7.5.
 
+<a id="mishrasanthanam2026revision1"></a>
+## mishrasanthanam2026revision1
+
+Om Swostik Mishra and Rahul Santhanam. *An Explicit `4n - O(log n)` Size Lower Bound against General Boolean Circuits*. ECCC TR26-260, revision 1, 2026. https://eccc.weizmann.ac.il/report/2026/260/revision/1/download/ . Checked directly on 2026-11-22: Theorem 1.1 (printed p. 2, an explicit `P` lower bound), Theorem 4.1 (printed p. 21, the `4n - 10d` affine-disperser bound and a `poly(n, 2^d)` refuter for polynomial-time dispersers), and Remark 4.3 (printed p. 26, coefficient-`4` optimality for the paper's `s + βq + αI` potential estimates). The `4n - 9d`, binary-cost and bigraded-potential results in `AffineDisperser4n.lean` and `AffineDisperser4n/Corollary.lean` are local refinements, not the cited endpoints. This check does not identify the inaccessible STOC submission with this revision or verify every intermediate lemma attribution.
+
 <a id="mishrasanthanam2027"></a>
 ## mishrasanthanam2027
 
-Om Swostik Mishra and Rahul Santhanam. *An Explicit `4n - O(log n)` Size Lower Bound against General Boolean Circuits*. STOC 2027 submission 1241, 2027. https://stoc2027.sigact-ec.workers.dev/submissions/1241.pdf . The submission PDF was inaccessible in this pass (HTTP error 1042) and was not inspected directly; bibliographic details and cited labels (`Lemma 2.2`, `Theorem 4.1`, `Lemma 4.2`, `Remark 4.3`, and the `Theorem 1.1` target) come from repository issue `#4322` and remain unverified against the primary manuscript.
+Om Swostik Mishra and Rahul Santhanam. *An Explicit `4n - O(log n)` Size Lower Bound against General Boolean Circuits*. STOC 2027 submission 1241, 2027. https://stoc2027.sigact-ec.workers.dev/submissions/1241.pdf . The submission PDF was inaccessible in this pass (HTTP error 1042) and was not inspected directly; bibliographic details and cited labels (`Lemma 2.2`, `Theorem 4.1`, `Lemma 4.2`, `Remark 4.3`, and the `Theorem 1.1` target) come from repository issue `#4322` and remain unverified against that submission. The separately checked public revision is recorded in [mishrasanthanam2026revision1](#mishrasanthanam2026revision1).
 
 <a id="mishrasanthanam26"></a>
 ## mishrasanthanam26
@@ -2350,6 +2360,15 @@ James Schummer and Rakesh V. Vohra. "Mechanism Design without Money." Chapter 10
 ## selaherlihypetrank2021
 
 Gal Sela, Maurice Herlihy, and Erez Petrank. "Brief Announcement: Linearizability: A Typo." *Proceedings of the 2021 ACM Symposium on Principles of Distributed Computing (PODC)*, 2021 (bibliography key `SelaHerlihyPetrank2021`). https://doi.org/10.1145/3465084.3467944 ; full version "Linearizability: A Typo", https://arxiv.org/abs/2105.06737v2 . Inspected the arXiv v2 PDF https://arxiv.org/pdf/2105.06737v2 (13 pages, numbered pp. 1-13, dated 29 July 2021; SHA-256 `1a8b2fadcf89f16b89d0b544864ad10082d1330a56a08d816f5bd37e26b83893`) on 2026-11-22 UTC: Sections 2.1-2.2 (p. 3, Definitions 2.1-2.2 recalling the original printed linearizability definition of [herlihywing1990](#herlihywing1990), where `<_H` applies only to operations completed in `H`); Sections 3.1-3.3 (pp. 4-6, Figures 1-3 showing that original printed L2 allows pending invocations to linearize before earlier completed operations and fails both locality and the nonblocking property); Section 4 (p. 6, Definition 4.1 "Amended Linearizability", strengthening L2 to `<_{complete(H')} <= <_S`, equivalently `<_{H'} <= <_S` on operations completed in `H'`); Section 5.2 (pp. 7-9, Theorem 5.1 proving locality for Definition 4.1); Section 5.3 (p. 9, Theorem 5.2 proving the nonblocking property for pending invocations of total operations under Definition 4.1); and Section 6 (pp. 9-10, Definition 6.1 and Figure 5 showing why extending `<_H` to unlinearized pending invocations would be too strong). Cited by [ConcurrentObjects/Linearizability.lean](../CslibFrontier/Computability/Distributed/ConcurrentObjects/Linearizability.lean): `History.prec H e_0 e_1` sees invocations pending in `H`, and `IsLinearizable` enforces it on all operations completed in the extension `H'` (`History.IsCompletedOp H'`), which is equivalent to `<_{H'} <= <_S` by `History.prec_append_resp_iff` and matches Definition 4.1, with `isLinearizable_iff_forall_obj` and `exists_linearizable_append_resp_of_total` corresponding to Theorems 5.1 and 5.2.
+
+<a id="sergeev2013additivemultiplicative"></a>
+## sergeev2013additivemultiplicative
+
+Igor S. Sergeev. "A relation between additive and multiplicative complexity of Boolean functions." Preprint `arXiv:1303.4177v1` (18 March 2013), 4 pp.; author-hosted English PDF `https://igorssergeev.github.io/papers/1303.4177e.pdf` (SHA-256 `58b0aa108d9da736f77d706ecfd9657abecdee341fb7fe97e9ab3cbf6f8357b3`), inspected in full (pp. 1–4) on 2026-11-22 UTC under strict clean-room conditions solely from the PDF. Formalized in [`Zhegalkin.lean`](../CslibFrontier/Computability/Circuit/Boolean/Zhegalkin.lean):
+
+- **Lemma 1 (pp. 2–3, active-square additive matrix synthesis):** `Matrix.activeSquare` (`S(A)`) counts entries `(i, j)` within horizontal distance `Nat.log 2 m` of a `true` entry in row `i` (equivalent to `≤ Real.logb 2 m` for integer column distances when `1 ≤ m`). `Additive.exists_circuit_matrix_le_bound` proves the explicit `(s, p)` bound `(n * 2 ^ s) / s + A.activeSquare / (2 * s) + m * p + (m ⌈/⌉ p) * 2 ^ s * (n ⌈/⌉ s)` over any `AddCommMonoid` for `0 < s ≤ Nat.log 2 m + 1` and `0 < p` (applying horizontal section column-pairing to the `⌊n / s⌋` full width-`s` blocks while routing the single partial remainder block directly from the precomputed block subset sums; `[AddCommMonoid G]` over `{0, +}` supplies `0` for all-zero rows on total output wires, whereas p. 2 footnote 4 states a commutative semigroup `(G, +)` and `exists_circuit_matrix_le_bound` emits zero `Op.zero` gates whenever every row of `A` has a `true` entry), and `Additive.exists_circuit_matrix_le` deduces `A.activeSquare / (2 * Real.logb 2 m) + ε * ((m + n) ^ 2 / Real.logb 2 m)` for `2 ≤ m` and sufficiently large `m + n`.
+- **Theorem 1 (upper bound, pp. 1, 3, multiplicative-to-total complexity over `{⊕, ∧, 1}`):** `Zhegalkin.exists_circuit_of_andCost_le_bound` topologically decomposes any `{⊕, ∧, 1}`-circuit with `k ≤ M` conjunction gates into `2 M` affine forms and synthesizes an acyclic staged `{⊕, ∧, 1}`-circuit using at most `k` conjunction gates and `Zhegalkin.totalBound n M s p` total gates (synthesizing width-`s` conjunction-block subset sums stage-by-stage and routing the `< s` intra-stage conjunction dependencies directly so every shared paired column sum precedes both participating rows). Bounding `Zhegalkin.totalBound n M s p` directly, `Zhegalkin.exists_circuit_of_andCost_le` and `Zhegalkin.complexity_le_of_multiplicativeComplexity_le` prove the `(1 / 2 + ε) * M * (M + 2 * n) / Real.logb 2 M` upper bound with a uniform threshold in `M` for all `n : ℕ`, recovering Sergeev's published upper bound when `M = Ω(n)`.
+- **Citation boundary:** Theorem 1 on p. 1 also asserts asymptotic optimality via a counting argument on p. 2 citing Nechiporuk (1962) and Lupanov (1958); only the constructive upper bounds of Lemma 1 and Theorem 1 are formalized and registered here.
 
 <a id="sergeev2014orcomplement"></a>
 ## sergeev2014orcomplement

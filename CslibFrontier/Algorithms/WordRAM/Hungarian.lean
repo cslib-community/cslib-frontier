@@ -432,13 +432,9 @@ private theorem exec_forLoop {w N T : ℕ} {idxReg limReg : Fin 28}
 
 /-! ### Reusable leaf loops -/
 
-/-- Store `valReg` at `dst + idx` and increment `idx`. -/
-private def fillConstBody (dst valReg : Fin 28) : Code .standard 28 := ram[
-  addr ← dst + idx; *addr ← valReg; idx ← idx + one ]
-
 /-- Fill `[dst, dst + n)` with `valReg`. -/
-private def fillConst (dst valReg : Fin 28) : Code .standard 28 :=
-  .seq (ram[ idx ← #0 ]) (.loop (.lt idx rn) (fillConstBody dst valReg))
+private abbrev fillConst (dst valReg : Fin 28) : Code .standard 28 :=
+  Cslib.WordRAM.fillConst dst rn valReg one idx addr
 
 private theorem exec_fillConst {w n bC M : ℕ} (dst valReg : Fin 28)
     (hd_lt : dst.val < 21) (hv_lt : valReg.val < 21) (x : Data 28)
@@ -448,40 +444,18 @@ private theorem exec_fillConst {w n bC M : ℕ} (dst valReg : Fin 28)
       (∀ i : Fin 28, i.val < 21 → y.regs i = x.regs i) ∧
       (∀ k < n, y.mem (x.regs dst + k) = x.regs valReg) ∧
       (∀ a, ¬(x.regs dst ≤ a ∧ a < x.regs dst + n) → y.mem a = x.mem a) := by
-  let d := x.regs dst
-  let v := x.regs valReg
-  let P (k : ℕ) (y : Data 28) : Prop :=
-    (∀ i : Fin 28, i.val < 21 → y.regs i = x.regs i) ∧
-      (∀ j < k, y.mem (d + j) = v) ∧
-      (∀ a, ¬(d ≤ a ∧ a < d + k) → y.mem a = x.mem a)
-  have hbody (y : Data 28) (hy : P (y.regs idx) y) (hlt : y.regs idx < n) :
-      ∃ z, ExecWithin w (fillConstBody dst valReg) y z 3 ∧ P (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨hr, hm, hf⟩ := hy
-    have hdy : y.regs dst = d := hr dst hd_lt
-    have hvy : y.regs valReg = v := hr valReg hv_lt
-    have hone_y : y.regs one = 1 := (hr one (by decide)).trans hb.hone
-    have ha : Fits w (d + y.regs idx) := hfit.of_le (by omega)
-    have hn : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
-    have hstep : ∃ z, ExecWithin w (fillConstBody dst valReg) y z 3 ∧
-        z = ((y.set addr (d + y.regs idx)).write (d + y.regs idx) v).set idx (y.regs idx + 1) := by
-      refine WP.exists_execWithin ?_
-      unfold fillConstBody
-      wram_exec [hdy, hvy, hone_y, ha, hn]
-      rfl
-    obtain ⟨z, he, hzeq⟩ := hstep
-    have hpres : ∀ i : Fin 28, i.val < 21 → z.regs i = x.regs i := fun i hi => by
-      rw [hzeq]
-      wram_simp [hr i hi]
-    have hmem : z.mem = Function.update y.mem (d + y.regs idx) v := by
-      rw [hzeq]
-      rfl
-    obtain ⟨hm', hf'⟩ := prefix_write_step hm hf (e := fun _ => v) hmem
-    exact ⟨z, he, ⟨hpres, hm', hf'⟩, by rw [hzeq]; wram_simp⟩
-  obtain ⟨y, he, hr, hm, hf⟩ := exec_forLoop P
-    (fun y hy => (hy.1 rn (by decide)).trans hb.hrn) hbody (x := x)
-    ⟨fun i hi => by wram_simp, fun _ hj => by omega, fun _ _ => rfl⟩
-  exact ⟨y, he.mono (by omega), hr, hm, hf⟩
+  have hne : ∀ j : Fin 28, j.val < 21 → idx ≠ j ∧ addr ≠ j := fun j hj =>
+    ⟨fun h => by subst h; simp at hj, fun h => by subst h; simp at hj⟩
+  obtain ⟨y, he, hr, _, hmem⟩ := Cslib.WordRAM.fillConst_exec (w := w)
+    (base := dst) (len := rn) (val := valReg) (one := one) (idx := idx) (addr := addr)
+    (hne dst hd_lt).1 (by decide) (hne valReg hv_lt).1 (by decide)
+    (hne dst hd_lt).2 (by decide) (hne valReg hv_lt).2 (by decide) (by decide)
+    hb.hone (by rw [hb.hrn]; exact hfit.of_le (by omega))
+    (by rw [hb.hrn]; exact hfit.of_le (by omega))
+  rw [hb.hrn] at he hmem
+  exact ⟨y, he.within, fun i hi => hr i (hne i hi).1.symm (hne i hi).2.symm,
+    fun k hk => by rw [hmem]; exact fill_of_owns ⟨Nat.le_add_right _ _, Nat.add_lt_add_left hk _⟩,
+    fun a ha => by rw [hmem]; exact fill_of_not_owns ha⟩
 
 /-- Inner loop body scanning row `idx` for its minimum entry. -/
 private def rowMinBody : Code .standard 28 := ram[
