@@ -11,9 +11,10 @@ public import CslibFrontier.Algorithms.Lean.MaxFlow.Hungarian
 public import CslibFrontier.Computability.WordRAM.ListOutput
 public import CslibFrontier.Computability.WordRAM.Signed.Encoding
 import CslibFrontier.Computability.WordRAM.CountingLoop
-import CslibFrontier.Computability.WordRAM.PreservesMask
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Foundations.Data.List.RowMajor
+import CslibFrontier.Foundations.Data.Matrix.PairChunks
+import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -52,6 +53,9 @@ Two layers are provided:
   `Cslib.Algorithms.WordRAM.Hungarian.Instance.assignment`,
   `Cslib.Algorithms.WordRAM.Hungarian.Instance.encodedMinCost`: input encoding, word-width
   envelope, and canonical optimal assignment and minimum-cost outputs.
+* `Cslib.Algorithms.WordRAM.Hungarian.BaseRegs`,
+  `Cslib.Algorithms.WordRAM.Hungarian.CostMem`: register frame and row-major cost-matrix assertion
+  for in-memory calls to `coreCode`.
 * `Cslib.Algorithms.WordRAM.Hungarian.coreCode`, `Cslib.Algorithms.WordRAM.Hungarian.inputCode`,
   `Cslib.Algorithms.WordRAM.Hungarian.assignmentProgram`,
   `Cslib.Algorithms.WordRAM.Hungarian.minCostProgram`: structured and flat word-RAM programs.
@@ -99,11 +103,6 @@ structure Instance where
   cost : Fin n × Fin n → ℤ
 
 namespace Instance
-
-/-- Construct an `Instance` from unsigned natural-number edge costs. -/
-@[expose] def ofNat (n : ℕ) (cost : Fin n × Fin n → ℕ) : Instance where
-  n := n
-  cost p := (cost p : ℤ)
 
 /-- Maximum absolute cost `max_{u, v} |cost (u, v)|` (`0` when `n = 0`). -/
 @[expose] def maxMag (inst : Instance) : ℕ :=
@@ -351,17 +350,6 @@ private theorem BaseRegs.of_eq {n bC M : ℕ} {x y : Data 28} (h : BaseRegs n bC
   houtBase := (heq outBase (by decide)).trans h.houtBase
   hbaseRowMate := (heq baseRowMate (by decide)).trans h.hbaseRowMate
 
-private theorem mul_add_lt_sq {n u v : ℕ} (hu : u < n) (hv : v < n) : u * n + v < n * n := by
-  calc
-    u * n + v < u * n + n := Nat.add_lt_add_left hv _
-    _ = (u + 1) * n := by ring
-    _ ≤ n * n := Nat.mul_le_mul_right n (Nat.succ_le_of_lt hu)
-
-private theorem finRange_take_succ {n k : ℕ} (hk : k < n) :
-    (List.finRange n).take (k + 1) = (List.finRange n).take k ++ [⟨k, hk⟩] := by
-  rw [List.take_succ_eq_append_getElem (by simpa using hk)]
-  simp
-
 /-- Memory holds the `n × n` unsigned cost matrix `C` row-major at `bC`. -/
 @[expose] def CostMem {n : ℕ} (bC : ℕ) (C : Fin n × Fin n → ℕ) (mem : ℕ → ℕ) : Prop :=
   ∀ u v : Fin n, mem (bC + (u.val * n + v.val)) = C (u, v)
@@ -369,7 +357,7 @@ private theorem finRange_take_succ {n k : ℕ} (hk : k < n) :
 private theorem CostMem.of_outside {n bC : ℕ} {C : Fin n × Fin n → ℕ} {m₁ m₂ : ℕ → ℕ}
     (h : CostMem bC C m₁) (hout : ∀ a, a < bC + n * n → m₂ a = m₁ a) : CostMem bC C m₂ := by
   intro u v
-  have hlt := mul_add_lt_sq u.isLt v.isLt
+  have hlt : u.val * n + v.val < n * n := Cslib.Matrix.pairIndex_lt (u, v)
   rw [hout _ (by omega)]
   exact h u v
 
@@ -530,17 +518,17 @@ private theorem exec_rowMinCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
     have hbC_y : y.regs baseC = bC := (hr baseC (by decide)).trans hb.hbaseC
     have hz_y : y.regs zero = 0 := (hr zero (by decide)).trans hb.hzero
     have ho_y : y.regs one = 1 := (hr one (by decide)).trans hb.hone
-    have hmul_lt := mul_add_lt_sq u.isLt hlt
+    have hmul_lt : u.val * n + y.regs idx2 < n * n := Cslib.Matrix.pairIndex_lt (u, v)
     have hf1 : Fits w (u.val * n) := hfit.of_le (by omega)
     have hf2 : Fits w (u.val * n + y.regs idx2) := hfit.of_le (by omega)
     have hf3 : Fits w (bC + (u.val * n + u.val)) :=
-      hfit.of_le (by have := mul_add_lt_sq u.isLt u.isLt; omega)
+      hfit.of_le (by have : u.val * n + u.val < n * n := Cslib.Matrix.pairIndex_lt (u, u); omega)
     have hf3' : Fits w (bC + (u.val * n + y.regs idx2)) := hfit.of_le (by omega)
     have hf4 : Fits w (y.regs idx2 + 1) := hfit.of_le (by omega)
     have hload : y.mem (bC + (u.val * n + y.regs idx2)) = C (u, v) := by
       rw [hmem]
       exact hC u v
-    have htk := finRange_take_succ hlt
+    have htk := List.take_succ_finRange hlt
     refine WP.exists_execWithin ?_
     unfold rowMinBody
     by_cases hcmp : C (u, v) < y.regs acc
@@ -562,7 +550,7 @@ private theorem exec_rowMinCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
         dsimp only [c, v] at hcmp ⊢
         simp only [min_def]
         split_ifs <;> omega
-  have hmul_uu := mul_add_lt_sq u.isLt u.isLt
+  have hmul_uu : u.val * n + u.val < n * n := Cslib.Matrix.pairIndex_lt (u, u)
   have hf1 : Fits w (u.val * n) := hfit.of_le (by omega)
   have hf2 : Fits w (u.val * n + u.val) := hfit.of_le (by omega)
   have hf3 : Fits w (bC + (u.val * n + u.val)) := hfit.of_le (by omega)
@@ -740,7 +728,7 @@ private theorem exec_initMinvCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ
     let j : Fin n := ⟨y.regs idx, hlt⟩
     have hby : BaseRegs n bC M y := hb.of_eq fun i hi => hr i (by omega)
     have hrr_y : y.regs rr = r.val := (hr rr (by decide)).trans hr_reg
-    have hmul := mul_add_lt_sq r.isLt hlt
+    have hmul : r.val * n + y.regs idx < n * n := Cslib.Matrix.pairIndex_lt (r, j)
     obtain ⟨hle_sub, hsum_le, hred_eq⟩ := hgRed_nat_eq (hCW r j) (hOB.y_bounds r)
       (hOB.z_bounds j) (hOB.feas r j)
     have hC_rj : y.mem (bC + (r.val * n + y.regs idx)) = C (r, j) := by
@@ -949,7 +937,8 @@ private theorem exec_argminCode {w n bC M W : ℕ} {c : Fin n × Fin n → ℤ} 
       rw [hmem]
       exact hSM.hminv j
     have hb_step : bAt (y.regs idx + 1) = hgArgminStep s (bAt (y.regs idx)) j := by
-      simp only [bAt, finRange_take_succ hlt, List.foldl_append, List.foldl_cons, List.foldl_nil]
+      simp only [bAt, List.take_succ_finRange hlt, List.foldl_append, List.foldl_cons,
+        List.foldl_nil]
       rfl
     refine WP.exists_execWithin ?_
     unfold argminBody
@@ -1446,7 +1435,7 @@ private theorem exec_extendCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} 
         if vget used' j = true then 1 else 0 := by
       rw [hf _ (by simp only [dB]; omega)]
       exact hused₀ j
-    have hmul := mul_add_lt_sq i₀.isLt hlt
+    have hmul : i₀.val * n + y.regs idx < n * n := Cslib.Matrix.pairIndex_lt (i₀, j)
     obtain ⟨hle_sub, hsum_le, hred_eq⟩ := hgRed_nat_eq (hCW i₀ j) (hSI.y_bounds i₀)
       (hSI.z_bounds j) (hSI.feas i₀ j)
     have hC_ij : y.mem (bC + (i₀.val * n + y.regs idx)) = C (i₀, j) := by
@@ -1556,7 +1545,7 @@ private theorem exec_extendCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} 
         if vget used' j = true then 1 else 0 := by
       rw [hf _ (by simp only [dM]; omega), hf₁ _ (by simp only [dB]; omega)]
       exact hused₀ j
-    have hmul := mul_add_lt_sq i₀.isLt hlt
+    have hmul : i₀.val * n + y.regs idx < n * n := Cslib.Matrix.pairIndex_lt (i₀, j)
     obtain ⟨hle_sub, hsum_le, hred_eq⟩ := hgRed_nat_eq (hCW i₀ j) (hSI.y_bounds i₀)
       (hSI.z_bounds j) (hSI.feas i₀ j)
     have hC_ij : y.mem (bC + (i₀.val * n + y.regs idx)) = C (i₀, j) := by
@@ -2230,13 +2219,13 @@ theorem core_exec {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
     obtain ⟨z, he_inc, rfl⟩ := hstep_inc
     have hs_succ : sAt (y.regs rr + 1) =
         hgPhase c (sAt (y.regs rr)).y (sAt (y.regs rr)).z (sAt (y.regs rr)).mate r := by
-      simp only [sAt, finRange_take_succ hlt, hgRows_append_singleton]
+      simp only [sAt, List.take_succ_finRange hlt, hgRows_append_singleton]
       rfl
     refine ⟨_, (he_p.seq he_inc).mono (by omega), ⟨fun i hi => ?_, ?_, ?_, ?_, ?_⟩, by wram_simp⟩
     · have hp := hr_p i (by omega)
       wram_simp [hp, hr i hi]
     · rwa [hs_succ]
-    · rw [hs_succ, hL_p, hL_k, finRange_take_succ hlt]
+    · rw [hs_succ, hL_p, hL_k, List.take_succ_finRange hlt]
       dsimp only [r]
       ext u
       simp
@@ -2372,31 +2361,6 @@ def minCostProgram : Program .standard 28 := inputCode.program acc
 @[expose] def hungarianTime (n : ℕ) : ℕ :=
   99 * n ^ 3 + 91 * n ^ 2 + 58 * n + 52
 
-private def rowOf {n : ℕ} (q : ℕ) (hq : q < n * n) : Fin n :=
-  ⟨q / n, Nat.div_lt_of_lt_mul (by omega)⟩
-
-private def colOf {n : ℕ} (q : ℕ) (hq : q < n * n) : Fin n :=
-  ⟨q % n, Nat.mod_lt q (by nlinarith)⟩
-
-private theorem rowOf_mul_add_colOf {n q : ℕ} (hq : q < n * n) :
-    (rowOf q hq).val * n + (colOf q hq).val = q := by
-  simp only [rowOf, colOf]
-  have := Nat.div_add_mod q n
-  nlinarith
-
-private theorem rowOf_of_mul_add {n : ℕ} (u v : Fin n) :
-    rowOf (u.val * n + v.val) (mul_add_lt_sq u.isLt v.isLt) = u := by
-  ext
-  simp only [rowOf]
-  have hn : 0 < n := Nat.zero_lt_of_lt v.isLt
-  rw [Nat.mul_comm u.val n, Nat.mul_add_div hn, Nat.div_eq_of_lt v.isLt, Nat.add_zero]
-
-private theorem colOf_of_mul_add {n : ℕ} (u v : Fin n) :
-    colOf (u.val * n + v.val) (mul_add_lt_sq u.isLt v.isLt) = v := by
-  ext
-  simp only [colOf]
-  rw [Nat.mul_comm u.val n, Nat.mul_add_mod, Nat.mod_eq_of_lt v.isLt]
-
 private theorem exec_setupCode {w : ℕ} (inst : Instance) (hw : Fits w inst.wordBound) :
     ∃ y₁, ExecWithin w setupCode (Data.init inst.encode) y₁ 16 ∧
       BaseRegs inst.n (2 + inst.n * inst.n) 0 y₁ ∧
@@ -2455,18 +2419,22 @@ private theorem exec_scanMaxCode {w : ℕ} (inst : Instance) (hw : Fits w inst.w
       y.mem = x₀.mem ∧
       y.regs rM ≤ inst.maxMag ∧
       (∀ q : ℕ, (hq : q < k) → (hq' : q < n * n) →
-        (inst.cost (rowOf q hq', colOf q hq')).natAbs ≤ y.regs rM)
+        (inst.cost (finProdFinEquiv.symm ⟨q, hq'⟩)).natAbs ≤ y.regs rM)
   have hbodyM (y : Data 28) (hy : PM (y.regs idx) y) (hlt : y.regs idx < n * n) :
       ∃ z, ExecWithin w scanMaxBody y z 7 ∧ PM (y.regs idx + 1) z ∧
         z.regs idx = y.regs idx + 1 := by
     obtain ⟨hr, hmem, hM_le, hM_ge⟩ := hy
-    let u := rowOf (y.regs idx) hlt
-    let v := colOf (y.regs idx) hlt
+    let p := finProdFinEquiv.symm ⟨y.regs idx, hlt⟩
+    let u := p.1
+    let v := p.2
+    have hp_mul : u.val * n + v.val = y.regs idx :=
+      (Cslib.Matrix.pairIndex_eq_val_finProdFinEquiv p).trans
+        (congrArg Fin.val (finProdFinEquiv.apply_symm_apply ⟨y.regs idx, hlt⟩))
     have htwo_y : y.regs two = 2 := (hr two (by decide) (by decide)).trans hb₁.htwo
     have hzero_y : y.regs zero = 0 := (hr zero (by decide) (by decide)).trans hb₁.hzero
     have hone_y : y.regs one = 1 := (hr one (by decide) (by decide)).trans hb₁.hone
     have hload : y.mem (2 + y.regs idx) = Signed.encode (inst.cost (u, v)) := by
-      rw [hmem, ← rowOf_mul_add_colOf hlt]
+      rw [hmem, ← hp_mul]
       exact inst.init_mem_cost u v
     have hdiv : Signed.encode (inst.cost (u, v)) / 2 = (inst.cost (u, v)).natAbs :=
       Signed.encode_div_two _
@@ -2525,9 +2493,11 @@ private theorem exec_scanMaxCode {w : ℕ} (inst : Instance) (hw : Fits w inst.w
      (hr₂ baseRowMate (by decide) (by decide)).trans hb₁.hbaseRowMate⟩
   refine ⟨y₂, (hes₀.seq hl₂).mono (by rw [hidxs₀, Nat.sub_zero]; nlinarith),
     hb₂, hm₂, hM_le₂, fun u v => ?_⟩
-  have hq := mul_add_lt_sq u.isLt v.isLt
+  have hq : u.val * n + v.val < n * n := Cslib.Matrix.pairIndex_lt (u, v)
   have h := hM_ge₂ (u.val * n + v.val) hq hq
-  rwa [rowOf_of_mul_add u v, colOf_of_mul_add u v] at h
+  have hp_eq : (⟨u.val * n + v.val, hq⟩ : Fin (n * n)) = finProdFinEquiv (u, v) :=
+    Fin.ext (Cslib.Matrix.pairIndex_eq_val_finProdFinEquiv (u, v))
+  rwa [hp_eq, finProdFinEquiv.symm_apply_apply] at h
 
 private theorem exec_fillCCode {w M : ℕ} (inst : Instance) (hw : Fits w inst.wordBound)
     (hM_le : M ≤ inst.maxMag) (hM_ge : ∀ u v : Fin inst.n, (inst.cost (u, v)).natAbs ≤ M)
@@ -2540,7 +2510,7 @@ private theorem exec_fillCCode {w M : ℕ} (inst : Instance) (hw : Fits w inst.w
   let bC := 2 + n * n
   let x₀ : Data 28 := Data.init inst.encode
   let C : Fin n × Fin n → ℕ := fun p => (inst.cost p + (M : ℤ)).toNat
-  let eC : ℕ → ℕ := fun q => if hq : q < n * n then C (rowOf q hq, colOf q hq) else 0
+  let eC : ℕ → ℕ := fun q => if hq : q < n * n then C (finProdFinEquiv.symm ⟨q, hq⟩) else 0
   let PC (k : ℕ) (y : Data 28) : Prop :=
     (∀ i : Fin 28, i.val < 21 → y.regs i = y₂.regs i) ∧
       (∀ j < k, y.mem (bC + j) = eC j) ∧
@@ -2550,10 +2520,14 @@ private theorem exec_fillCCode {w M : ℕ} (inst : Instance) (hw : Fits w inst.w
         z.regs idx = y.regs idx + 1 := by
     obtain ⟨hr, hm, hf⟩ := hy
     have hby : BaseRegs n bC M y := hb₂.of_eq fun i hi => hr i (by omega)
-    let u := rowOf (y.regs idx) hlt
-    let v := colOf (y.regs idx) hlt
+    let p := finProdFinEquiv.symm ⟨y.regs idx, hlt⟩
+    let u := p.1
+    let v := p.2
+    have hp_mul : u.val * n + v.val = y.regs idx :=
+      (Cslib.Matrix.pairIndex_eq_val_finProdFinEquiv p).trans
+        (congrArg Fin.val (finProdFinEquiv.apply_symm_apply ⟨y.regs idx, hlt⟩))
     have hload : y.mem (2 + y.regs idx) = Signed.encode (inst.cost (u, v)) := by
-      rw [hf _ (by simp only [bC]; omega), ← rowOf_mul_add_colOf hlt]
+      rw [hf _ (by simp only [bC]; omega), ← hp_mul]
       exact inst.init_mem_cost u v
     have hdiv : Signed.encode (inst.cost (u, v)) / 2 = (inst.cost (u, v)).natAbs :=
       Signed.encode_div_two _
@@ -2610,10 +2584,12 @@ private theorem exec_fillCCode {w M : ℕ} (inst : Instance) (hw : Fits w inst.w
     ⟨fun i hi => by wram_simp, fun _ hj => by omega, fun a _ => congrFun hmem₂ a⟩
   refine ⟨y₃, he₃.mono (by nlinarith),
     hb₂.of_eq (fun i hi => hr₃ i (by omega)), fun u v => ?_⟩
-  have hq := mul_add_lt_sq u.isLt v.isLt
+  have hq : u.val * n + v.val < n * n := Cslib.Matrix.pairIndex_lt (u, v)
   have h := hm₃ (u.val * n + v.val) hq
+  have hp_eq : (⟨u.val * n + v.val, hq⟩ : Fin (n * n)) = finProdFinEquiv (u, v) :=
+    Fin.ext (Cslib.Matrix.pairIndex_eq_val_finProdFinEquiv (u, v))
   dsimp only [eC, n, bC, C] at h
-  rw [dite_eq_left hq, rowOf_of_mul_add u v, colOf_of_mul_add u v] at h
+  rw [dite_eq_left hq, hp_eq, finProdFinEquiv.symm_apply_apply] at h
   exact h
 
 private theorem exec_sumCostCode {w M : ℕ} (inst : Instance) (hw : Fits w inst.wordBound)
@@ -2650,7 +2626,7 @@ private theorem exec_sumCostCode {w M : ℕ} (inst : Instance) (hw : Fits w inst
     have hrm_u : y.mem (bC + n * n + 7 * n + 1 + y.regs idx) = v.val := by
       rw [hmem]
       exact hrm_eq u
-    have hmul := mul_add_lt_sq hlt v.isLt
+    have hmul : y.regs idx * n + v.val < n * n := Cslib.Matrix.pairIndex_lt (u, v)
     have hC_uv : y.mem (bC + (y.regs idx * n + v.val)) = C (u, v) := by
       rw [hmem]
       exact hC₄ u v
@@ -2674,7 +2650,7 @@ private theorem exec_sumCostCode {w M : ℕ} (inst : Instance) (hw : Fits w inst
       hrm_u, hC_uv, hf1, hf2, hf3, hf4, hf5, hf6]
     refine ⟨⟨fun i hi => by wram_simp [hr i hi], hmem, ?_, ?_⟩, by wram_simp⟩
     · wram_simp
-      rw [finRange_take_succ hlt, List.map_append, List.sum_append, List.map_singleton,
+      rw [List.take_succ_finRange hlt, List.map_append, List.sum_append, List.map_singleton,
         List.sum_singleton, ← hacc_eq]
     · wram_simp
       nlinarith
@@ -2696,10 +2672,7 @@ private theorem exec_sumCostCode {w M : ℕ} (inst : Instance) (hw : Fits w inst
       List.take_of_length_le (by simp)
     have hfin_sum : ((List.finRange n).map fun u => C (u, inst.assignedCol u)).sum =
         ∑ u : Fin n, C (u, inst.assignedCol u) := by
-      rw [← List.sum_toFinset _ (List.nodup_finRange n)]
-      congr 1
-      ext u
-      simp
+      rw [← Fin.sum_univ_def]
     rw [htake, hfin_sum] at hacc₅
     rw [hacc₅, Nat.cast_sum]
     simp only [C, hC_cast]

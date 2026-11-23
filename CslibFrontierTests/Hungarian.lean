@@ -137,6 +137,21 @@ private def trapInst : Instance := ⟨2, trapCost⟩
 private def cost3Inst : Instance := ⟨3, cost3⟩
 private def cost4Inst : Instance := ⟨4, cost4⟩
 
+/-- Non-involution `3 × 3` 3-cycle optimum `[1, 2, 0]` (`σ ≠ σ⁻¹`), distinguishing row-to-column
+`rowMate` orientation from `colMate`. -/
+private def cycle3Inst : Instance where
+  n := 3
+  cost
+    | (0, 1) => 1
+    | (1, 2) => 1
+    | (2, 0) => 1
+    | _ => 10
+
+/-- Tied `2 × 2` optimum where both perfect matchings `[0, 1]` and `[1, 0]` achieve cost `10`. -/
+private def tiedInst : Instance where
+  n := 2
+  cost _ := 5
+
 example : trapInst.assignment = [1, 0] ∧ trapInst.encodedMinCost = Signed.encode 4 := by decide
 
 example : cost3Inst.assignment = [1, 0, 2] ∧ cost3Inst.encodedMinCost = Signed.encode 5 := by
@@ -203,6 +218,14 @@ private meta def checkHungarian (w : ℕ) (inst : Instance)
 /-- info: true -/
 #guard_msgs in
 #eval checkHungarian 16 cost4Inst [3, 2, 1, 0] (-4)
+
+/-- info: true -/
+#guard_msgs in
+#eval checkHungarian 16 cycle3Inst [1, 2, 0] 3
+
+/-- info: true -/
+#guard_msgs in
+#eval checkHungarian 16 tiedInst [0, 1] 10
 
 -- Width invariance: running `cost4Inst` at `w = 16` and `w = 64` produces identical outputs and
 -- charged instruction counts.
