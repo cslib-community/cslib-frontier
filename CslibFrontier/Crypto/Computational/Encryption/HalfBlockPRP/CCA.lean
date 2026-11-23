@@ -36,12 +36,13 @@ cipher need not provide either. [Katz and Lindell, Exercise 5.8][KatzLindell2020
 same security proof.
 
 The reduction has one adversary for each challenge bit. `ccaToStrongPRPAdversary bit A` runs the
-CCA adversary `A`, turning an encryption request into a forward query on `r ‖ m_bit` and a
-decryption request into an inverse query. Against the block cipher its output has the law of CCA
-experiment `bit`. Against a uniform permutation the two adversaries are close: the permutation is
-replaced by the forgetful sampler `RandomPermutation.forgetfulAnswer`
-(`advantage_strongPRPIdealGame_forgetful_le`), against which the challenge bit affects the run only
-when a fresh nonce repeats the nonce part of an earlier block.
+CCA adversary `A`, turning a valid encryption request into a forward query on `r ‖ m_bit`, an
+unlogged `2 n`-bit decryption request into an inverse query, and logged or wrong-length requests
+into local replies. Against the block cipher its output has the law of CCA experiment `bit`.
+Against a uniform permutation the two adversaries are close: the permutation is replaced by the
+forgetful sampler `RandomPermutation.forgetfulAnswer` (`advantage_strongPRPIdealGame_forgetful_le`),
+against which the challenge bit affects the run only when a fresh encryption nonce matches the
+`n`-bit prefix of an earlier recorded block (from an encryption or inverse query).
 
 ## Main definitions
 
@@ -79,7 +80,9 @@ when a fresh nonce repeats the nonce part of an earlier block.
 * The book does not print a bound; the one here is derived and is not claimed tight. Its `Q` counts
   every oracle call of the adversary.
 * "(or plaintext) integrity" is read as `SymmetricCipher.EncForge`.
-* The proof uses the inverse queries of a strong PRP: every decryption request becomes one.
+* The proof uses the inverse queries of a strong PRP: every unlogged decryption request of length
+  `2 n` becomes one, while logged challenge ciphertexts are answered `[]` and other lengths are
+  answered `encOption encBits none` locally without querying the oracle.
 * Parts (b) and (c) of Exercise 9.12 are not formalized.
 
 ## References
@@ -878,8 +881,10 @@ theorem advantage_strongPRPIdealGame_ccaToStrongPRPAdversary_le (adversary : CCA
 /-- **Concrete bound for Exercise 9.12(a).** The CCA advantage against the half-block scheme of an
 adversary making at most `Q` oracle calls is at most the strong-PRP advantages of the two
 reductions plus `Q.choose 2 / 2 ^ n + 2 * Q.choose 2 / 4 ^ n`. Here `Q` counts every oracle call of
-the adversary, encryption and decryption, refused or not. The first error term bounds a repeated
-nonce, and the second is the cost of comparing the two ideal games with the forgetful sampler
+the adversary, encryption and decryption, refused or not. The first error term bounds the
+probability that a fresh encryption nonce matches the `n`-bit prefix of a previously recorded
+`2 * n`-bit block (from either an earlier encryption query or an earlier inverse query), and the
+second is the cost of comparing the two ideal games with the forgetful sampler
 (`advantage_strongPRPIdealGame_forgetful_le`). The book does not print a bound; the one here is
 derived and is not claimed tight. -/
 theorem BlockCipher.advantage_ccaGame_halfBlockCipher_le (F : BlockCipher)
@@ -925,8 +930,9 @@ The book writes the block `(m, r)`; here it is `r ‖ m`. Messages and nonces ar
 strings, so the book's condition that `1/|R|` is negligible holds and is not a hypothesis. The book
 leaves the definition of a strongly secure block cipher to the reader (§4.1.3, Exercise 4.9); here
 it is `BlockCipher.StrongPRP`. Attack Game 9.2 forbids a decryption query on a returned
-ciphertext; here it is answered `[]`. The proof sends every decryption request to the inverse
-channel of the strong-PRP oracle. -/
+ciphertext; here it is answered `[]`. The reduction sends every unlogged `2 * n`-bit decryption
+request to the inverse channel of the strong-PRP oracle, answering logged challenge ciphertexts
+with `[]` and other lengths with `encOption encBits none` locally. -/
 theorem BlockCipher.StrongPRP.indcca_halfBlockCipher {F : BlockCipher} (hF : F.StrongPRP)
     (hblock : ∀ n, F.blockLen n = 2 * n) : (F.halfBlockCipher hblock).INDCCA := by
   have hbl : F.blockLen = fun n => 2 * n := funext hblock
