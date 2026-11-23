@@ -2439,7 +2439,10 @@ theorem exists_balanced_threeWayCut {ξ : ℝ} (hξ : 0 < ξ) :
       have hb' : P.real (devCut c) ≤
           ((Finset.univ : Finset cmp.external).card : ℝ) * (1 : ℝ) ^ 2 * D_edg / thr ^ 2 := by
         simpa [devCut] using hb
-      exact hb'.trans (by gcongr)
+      exact hb'.trans (div_le_div_of_nonneg_right
+        (mul_le_mul_of_nonneg_right
+          (mul_le_mul hext_card hM1 (sq_nonneg _) (by positivity))
+          (Nat.cast_nonneg _)) (sq_nonneg _))
     -- Union of the `6` deviation events has probability strictly below `1`.
     set Bad := (devA 0 ∪ devA 1 ∪ devA 2) ∪ (devCut 0 ∪ devCut 1 ∪ devCut 2)
     have hBad_lt_one : P.real Bad < 1 := by
