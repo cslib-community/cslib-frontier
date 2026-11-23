@@ -222,7 +222,7 @@ value `(numNodes + 1) * maxBagLen * maxWeight`. -/
 /-- Compile a graph `G : SimpleGraph V` (`e : V ≃ Fin m`), rooted tree decomposition
 `R : G.RootedTreeDecomposition n`, vertex weights `w : V → ℕ`, and bag lists
 `L : Fin (n + 1) → List V` into a flat `MWISInstance`. -/
-@[expose] def ofRooted {V : Type*} {G : SimpleGraph V} [DecidableEq V] [DecidableRel G.Adj]
+@[expose] def ofRooted {V : Type*} {G : SimpleGraph V} [DecidableRel G.Adj]
     {m n : ℕ} (e : V ≃ Fin m) (R : G.RootedTreeDecomposition n) (w : V → ℕ)
     (L : Fin (n + 1) → List V) : MWISInstance where
   numVerts := m
