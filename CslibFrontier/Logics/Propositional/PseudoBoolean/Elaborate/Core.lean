@@ -328,6 +328,16 @@ end St
 in linear time, where the kernel's normalization is quadratic. -/
 private def canon (c : PBConstr) : PBConstr := ofKey (keyOf c)
 
+/-- `Cslib.Logic.PL.PBConstr.normalize` of a constraint of the parser (`Parse.constr`), in linear
+time: its terms have positive coefficients on distinct variables, and then the normal form is the
+terms reversed, with the same degree. -/
+private def normalizeParsed (c : PBConstr) : PBConstr := ⟨c.terms.reverse, c.degree⟩
+
+/-- `Cslib.Logic.PL.PBConstr.negate` of a constraint of the parser, in linear time
+(`Cslib.Logic.PL.VeriPB.Elab.normalizeParsed`). -/
+private def negateParsed (c : PBConstr) : PBConstr :=
+  ⟨c.terms.reverse.map fun t => (t.1, Std.Sat.Literal.negate t.2), coeffSum c.terms + 1 - c.degree⟩
+
 /-- Addition, as `Cslib.Logic.PL.PBConstr.add`. -/
 private def fadd (c d : PBConstr) : PBConstr := canon ⟨c.terms ++ d.terms, c.degree + d.degree⟩
 
@@ -576,7 +586,7 @@ private def implPremise (S : St σ) (c : PBConstr) (hint : Option Ref) : EM σ �
 /-- The hints of `rup c` with the augmented set annotation `hs` (§5.2.1): propagate the hinted
 constraints and `¬c` until a conflict or a fixpoint, and list those that propagated, in order. -/
 private def setHints (S : St σ) (c : PBConstr) (hs : List AHint) : EM σ (List Hint) := do
-  let neg := c.negate
+  let neg := negateParsed c
   let mut cs : Array (Hint × PBConstr) := #[(.neg, neg)]
   for h in hs do
     match h with
@@ -604,7 +614,7 @@ private def rupHintsOf (S : St σ) (c : PBConstr) (hs : Option (List AHint)) : E
   match hs with
   | some hs => S.setHints c hs
   | none =>
-    match ← S.eng.rupHints c.negate with
+    match ← S.eng.rupHints (negateParsed c) with
     | some h => return h.toList
     | none => S.fail "rup: propagation finds no conflict"
 
@@ -632,7 +642,7 @@ private partial def step (S : St σ) (top : Bool) (s : AStep) : EM σ (Array Ste
   | .rup c hs =>
     let h ← S.rupHintsOf c hs
     let k ← S.takeKid
-    let id ← S.add c.normalize k false top
+    let id ← S.add (normalizeParsed c) k false top
     return (#[.rup c h], some id)
   | .imp c add hint =>
     let i ← S.implPremise c hint
@@ -665,14 +675,14 @@ private partial def step (S : St σ) (top : Bool) (s : AStep) : EM σ (Array Ste
   | .pbc c sub q =>
     let n ← S.takeKid
     let start ← S.augNext
-    let _ ← S.add c.negate n false false
+    let _ ← S.add (negateParsed c) n false false
     let ks ← match sub with
       | some sub => S.steps false sub
       | none => pure #[]
     let (extra, qk) ← S.closing start q (some (n, c))
     S.dropFrom start
     let k ← S.takeKid
-    let id ← S.add c.normalize k false top
+    let id ← S.add (normalizeParsed c) k false top
     return (#[.pbc c (ks ++ extra).toList qk], some id)
   | .noop => return (#[], none)
   | _ => S.fail "this rule is allowed only at top level"
@@ -978,7 +988,7 @@ private partial def top (S : St σ) (s : AStep) : EM σ (Array TopStep) := do
     let ord ← S.order.get
     let n ← S.takeKid
     let start ← S.augNext
-    let _ ← S.add c.negate n false false
+    let _ ← S.add (negateParsed c) n false false
     let ki ← match sub with
       | some sub => S.items P sub
       | none => pure #[]
@@ -996,7 +1006,7 @@ private partial def top (S : St σ) (s : AStep) : EM σ (Array TopStep) := do
     -- augmented proof, `¬C` takes no augmented number.
     if sub.isNone then S.popTo start else S.dropFrom start
     let k ← S.takeKid
-    let _ ← S.add c.normalize k core true
+    let _ ← S.add (normalizeParsed c) k core true
     return #[if dom then .dom c ω (some ki.toList) qk else .red c ω (some ki.toList) qk]
   | .delId ids => S.deleteRefs (← ids.mapM S.resolve)
   | .delSpec c => S.deleteSpec c
