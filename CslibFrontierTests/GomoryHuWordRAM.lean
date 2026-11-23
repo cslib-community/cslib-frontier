@@ -4,7 +4,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Algorithms.WordRAM.GomoryHu
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.Algorithms.WordRAM.GomoryHu
 
 /-!
 # Tests for Gusfield's Gomory–Hu tree algorithm on the Word-RAM
@@ -18,8 +21,12 @@ Instantiate `Cslib.Algorithms.WordRAM.GomoryHu.exists_gomoryHu_program`:
   `λ(2, x) = λ(3, x) = 4` for every `x` other than `2` (respectively `3`), the recorded weights of
   `2` and `3` are `4` whichever parents the machine's minimum cuts produce, and that of `1` is
   `λ(1, 0) = 5` or `4`;
+* on a zero-weight `Fin 3` multigraph (`B = 0`, `n = 3`) at width `6` (`ghWorkspace 3 = 33`,
+  `ekBound 3 0 = 28`), where every tree edge has weight `0`;
 * on one vertex, at width `4`.
 -/
+
+public section
 
 namespace CslibFrontierTests.GomoryHuWordRAM
 
@@ -28,7 +35,7 @@ open Cslib.Algorithms.WordRAM.EdmondsKarp Cslib.WordRAM
 open SimpleGraph (parentGraph parentGraph_adj)
 
 /-- The weighted graph on `Fin 4` with edges `01:4`, `12:2`, `23:3`, `02:1`, `13:1`. -/
-private def W : Fin 4 → Fin 4 → ℕ := fun u v =>
+def W : Fin 4 → Fin 4 → ℕ := fun u v =>
   match u.val, v.val with
   | 0, 1 => 4 | 1, 0 => 4
   | 1, 2 => 2 | 2, 1 => 2
@@ -166,5 +173,32 @@ example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
   · rw [h0, hroot]
     rfl
   · rw [hw0, hroot, minCutBetween_self]
+
+
+/-- Zero-weight 3-vertex multigraph (`B = 0`, `n = 3`), at width `6`. -/
+example : ghWorkspace 3 = 33 := rfl
+example : ekBound 3 0 = 28 := rfl
+
+example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
+    ∃ (y : Data R) (steps res : ℕ) (p : Fin 3 → Fin 3),
+      Runs 6 prog (State.init (encodeInput (fun _ _ : Fin 3 => 0) 0)) ⟨pc, y⟩ steps ∧
+      step 6 prog ⟨pc, y⟩ = .halt res ∧ steps + 1 ≤ C * 4 ^ 6 ∧
+      IsGomoryHuTree (cutWeight fun _ _ : Fin 3 => 0) (parentGraph p) ∧
+      y.mem (parAddr 3 0) = 0 ∧
+      ∀ u : Fin 3, y.mem (wtAddr 3 u.1) = 0 := by
+  obtain ⟨R, C, pc, hC, prog, hprog⟩ := exists_gomoryHu_program
+  obtain ⟨y, steps, res, p, hruns, hhalt, htime, hpar, hroot, htree, hwt⟩ :=
+    hprog (fun _ _ : Fin 3 => 0) 0 0 6 ⟨fun _ _ => rfl, fun _ => rfl⟩ (fun _ _ => le_rfl)
+      (by decide) (by decide)
+  have h0 : y.mem (parAddr 3 0) = (p 0).1 := hpar 0
+  refine ⟨R, C, pc, hC, prog, y, steps, res, p, hruns, hhalt, htime, htree,
+    by rw [h0, hroot]; rfl, fun u => ?_⟩
+  rw [hwt u]
+  by_cases hup : u = p u
+  · rw [← hup, minCutBetween_self]
+  · have hmin : IsMinCutBetween (cutWeight fun _ _ : Fin 3 => 0) u (p u) {u} :=
+      ⟨by simp, by simpa using Ne.symm hup, fun _ _ _ => by simp [cutWeight]⟩
+    rw [← ((isMinCutBetween_cutWeight_iff _).mp hmin).2.2]
+    simp [cutWeight]
 
 end CslibFrontierTests.GomoryHuWordRAM

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.FixedPrime.Controller
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # One-slot fixed-prime ExactTriangle program
@@ -76,7 +77,7 @@ theorem program_not_readsWidth : ¬program.ReadsWidth := by
   simp only [Instances.program, Code.ReadsWidth] at hp
   have hr := RecordBoxProduct.program_fixed.2
   have hc := RecordWitness.consume_fixed.2
-  tauto
+  lrat_tauto
 
 /-- The one-slot solver fits the retained fixed finite code envelope. -/
 theorem program_fixed : (program.program FixedPrime.Reg.found).length ≤ 133152 ∧

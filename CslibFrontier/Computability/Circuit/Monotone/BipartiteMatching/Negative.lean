@@ -16,6 +16,7 @@ import Mathlib.Data.Finset.Sum
 import Mathlib.Data.Fintype.Sum
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Negative errors of matching approximators
@@ -237,7 +238,7 @@ private theorem card_filter_contains_mul_two_pow_of_determined {U V : Finset (Fi
         S'.filter fun c => c (.inl e.1) = c (.inr e.2) := by
       ext c
       simp only [S', mem_filter, contains_ofColoring_iff, mem_insert, forall_eq_or_imp]
-      tauto
+      lrat_tauto
     rw [hfilter, card_insert_of_notMem he, pow_succ, ← ih', ← h2]
     ring
 
@@ -348,7 +349,7 @@ theorem card_filter_forall_not_contains_mul_le {𝒟 : Finset (Finset (Fin n × 
         ¬Contains (ofColoring c) D') = S.filter fun c => ¬Contains (ofColoring c) D := by
       ext c
       simp only [S, mem_filter, mem_univ, true_and, mem_insert, forall_eq_or_imp]
-      tauto
+      lrat_tauto
     have hstep := card_filter_not_contains_mul_le hS (hmatch D hD) hfresh (hcard D hD)
     rw [hfilter]
     calc #(S.filter fun c => ¬Contains (ofColoring c) D) * 2 ^ (s * (k + 1))

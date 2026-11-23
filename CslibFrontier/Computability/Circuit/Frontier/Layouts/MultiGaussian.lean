@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Layouts.MultiOrder
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.VertexGaussian
 import CslibFrontier.Foundations.Geometry.Euclidean.Angle.Cap
 import CslibFrontier.Foundations.Probability.Gaussian.Sheppard
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Gaussian vertex layouts of multigraphs
@@ -159,7 +160,7 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
     congr 1
     ext e
     simp only [Multigraph.mem_edgeCut, cEvent, mem_ofPred_eq, mem_uIoc, ← not_lt]
-    tauto
+    lrat_tauto
   have hEdgeCross (t : ℝ) (e : E) : P.real (cEvent t e) ≤ arccos (ρ e) / π := by
     have hu := hunit (G.src e)
     have hv := hunit (G.tgt e)

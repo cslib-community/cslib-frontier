@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.FirstMome
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.FourPath
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.WordSum
 import CslibFrontier.Foundations.Combinatorics.CompositionMomentLinear
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # The second trace moment of iterated matrix multiplication
@@ -110,7 +111,7 @@ private theorem sum_prod_two_le (q : Fin p.n → Prop) [DecidablePred q]
     have h21 : c = c₂ c.1 → c₁ c.1 = c₂ c.1 → c = c₁ c.1 := fun a b => a.trans b.symm
     have hpos₁ : G + e₁ c.1 ≠ 0 := by positivity
     have hpos₂ : G + e₂ c.1 ≠ 0 := by positivity
-    split_ifs <;> first | (exfalso; tauto) | (push_cast; field_simp; ring) |
+    split_ifs <;> first | (exfalso; lrat_tauto) | (push_cast; field_simp; ring) |
       (push_cast; field_simp)
 
 theorem Quad.weight_nonneg (hp : p.Good) (W : Quad p.n) (τ : Bool) (t : Fin p.n) :

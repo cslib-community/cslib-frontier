@@ -82,7 +82,10 @@ structure Output (n : ℕ) where
   parent : Vector (Fin n) n
   /-- Edge weight `λ(u, vget parent u)` for every non-root vertex `u` (`0` at `r`). -/
   weight : Vector ℕ n
-  deriving DecidableEq
+
+instance instDecidableEqOutput {n : ℕ} : DecidableEq (Output n) :=
+  fun a b => decidable_of_iff (a.parent = b.parent ∧ a.weight = b.weight)
+    (by cases a; cases b; simp)
 
 /-- Re-hang below `s` every vertex `z ∈ zs` whose parent in `p` is `t` and which lies in `X`,
 writing into `acc`. -/
