@@ -99,9 +99,9 @@ jobs:
       - name: "Source hygiene"
         run: python3 -B scripts/check_hygiene.py --check-simp
       # TimeM annotations are trusted, so a TimeM bound puts the program text in the trusted base
-      # (policy/statements.md, "Cost models"; #6301). scripts/timem_baseline.json counts the
-      # remaining uses per file; a rise or a new file fails, a fall needs no baseline edit.
-      # Sources only: no Lean.
+      # (policy/statements.md#running-time-claims; #7636, #6301). scripts/timem_baseline.json
+      # counts the remaining uses per file; a rise or a new file fails, a fall needs no baseline
+      # edit. Sources only: no Lean.
       - name: "TimeM ratchet"
         run: python3 -B scripts/check_timem.py --report
       # A compound encoding that three or more public statements of a module spell out needs a

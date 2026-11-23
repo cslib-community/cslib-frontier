@@ -12,7 +12,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import check_timem  # noqa: E402
 
 
-class StripCommentsTests(unittest.TestCase):
+class MaskedSyntaxTests(unittest.TestCase):
     def test_line_comment_and_docstring_are_not_counted(self) -> None:
         text = "-- TimeM is not used here\n/-- no `TimeM` bound -/\ndef f : ℕ := 1\n"
         self.assertEqual(check_timem.count_uses(text), 0)
@@ -21,11 +21,23 @@ class StripCommentsTests(unittest.TestCase):
         text = "/- outer /- TimeM -/ still TimeM -/\ndef f : TimeM ℕ ℕ := pure 0\n"
         self.assertEqual(check_timem.count_uses(text), 1)
 
+    def test_comment_preserves_token_separation(self) -> None:
+        text = (
+            "def old : TimeM Nat Nat := pure 0\n"
+            "def added : TimeM/-separator-/Nat Nat := pure 0\n"
+        )
+        self.assertEqual(check_timem.count_uses(text), 2)
+
     def test_tick_notation_counts(self) -> None:
         self.assertEqual(check_timem.count_uses("def f : M ℕ := do ✓ return 0\n"), 1)
 
-    def test_comment_markers_inside_a_string_do_not_hide_code(self) -> None:
-        text = 'def s := "-- not a comment"\ndef f : TimeM ℕ ℕ := pure 0\n'
+    def test_string_raw_string_and_char_literals_are_ignored_and_do_not_hide_code(self) -> None:
+        text = (
+            'def s := "TimeM ✓ -- not a comment"\n'
+            'def r := r#"TimeM ✓ /- not a block comment"#\n'
+            "def c : Char := '✓'\n"
+            "def f' : TimeM ℕ ℕ := pure 0\n"
+        )
         self.assertEqual(check_timem.count_uses(text), 1)
 
     def test_longer_identifier_is_not_a_use(self) -> None:
@@ -56,6 +68,14 @@ class RatchetTests(unittest.TestCase):
 
     def test_rise_in_a_recorded_file_fails(self) -> None:
         self.write("CslibFrontier/A.lean", "def f : TimeM ℕ ℕ := do ✓ return 0\n")
+        self.assertEqual(self.run_check({"CslibFrontier/A.lean": 1}), 1)
+
+    def test_comment_separated_rise_in_recorded_file_fails(self) -> None:
+        self.write(
+            "CslibFrontier/A.lean",
+            "def old : TimeM Nat Nat := pure 0\n"
+            "def added : TimeM/-separator-/Nat Nat := pure 0\n",
+        )
         self.assertEqual(self.run_check({"CslibFrontier/A.lean": 1}), 1)
 
     def test_fall_and_removal_pass_without_an_update(self) -> None:

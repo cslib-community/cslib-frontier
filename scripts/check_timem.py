@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Reject new uses of the `TimeM` cost monad (policy/statements.md, "Cost models").
+"""Reject new uses of the `TimeM` cost monad (policy/statements.md#running-time-claims; #7636, #6301).
 
 `TimeM` annotations are trusted: nothing ties a tick to the work a program does, so a `TimeM` bound
 puts the algorithm's own source in the trusted base. The library is replacing every such bound by
 a statement in a machine model. Until that is done, `scripts/timem_baseline.json` records, for each
-Lean file under the library and test roots, how often `TimeM` and its tick notation occur outside
-comments. This check fails when
+Lean file under the library and test roots, how often `TimeM` and its tick notation occur in masked
+Lean syntax (outside comments and string, raw-string and character literals). This check fails when
 
 * a file that is not in the baseline uses `TimeM`, or
 * a file in the baseline uses it more often than recorded.
@@ -14,7 +14,8 @@ A lower count, or a file that no longer uses `TimeM` at all, passes without touc
 so a port does not have to edit a shared file and two ports cannot conflict there. Run with
 `--update` now and then to lower the recorded counts; `--update` refuses to raise or add one.
 
-Comments and docstrings are not counted, so prose may still say what a module does not use.
+Comments, docstrings and string/character literals are masked with `scripts/proof_lengths.py:masks`
+so token separation is preserved and prose may still say what a module does not use.
 Sources only: no Lean, no build outputs.
 
 Usage: python3 scripts/check_timem.py [--update] [--report] [--root DIR]
@@ -30,52 +31,17 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from proof_lengths import masks  # noqa: E402
+
 BASELINE = Path(__file__).resolve().parent / "timem_baseline.json"
 SOURCE_ROOTS = ("CslibFrontier", "CslibFrontierTests", "CslibFrontierResults")
 # `TimeM` itself, and the tick notation `✓`, which a file can use after `open` without naming it.
 USE = re.compile(r"\bTimeM\b|✓")
 
 
-def strip_comments(text: str) -> str:
-    """Remove Lean line comments and (nested) block comments, docstrings included.
-
-    String literals are respected so that `"--"` or `"/-"` inside one does not start a comment.
-    """
-    out: list[str] = []
-    i, n, depth = 0, len(text), 0
-    while i < n:
-        two = text[i:i + 2]
-        if depth:
-            if two == "/-":
-                depth += 1
-                i += 2
-            elif two == "-/":
-                depth -= 1
-                i += 2
-            else:
-                if text[i] == "\n":
-                    out.append("\n")
-                i += 1
-        elif two == "/-":
-            depth = 1
-            i += 2
-        elif two == "--":
-            while i < n and text[i] != "\n":
-                i += 1
-        elif text[i] == '"':
-            j = i + 1
-            while j < n and text[j] != '"':
-                j += 2 if text[j] == "\\" else 1
-            out.append(text[i:j + 1])
-            i = j + 1
-        else:
-            out.append(text[i])
-            i += 1
-    return "".join(out)
-
-
 def count_uses(text: str) -> int:
-    return len(USE.findall(strip_comments(text)))
+    return len(USE.findall(masks(text)[1]))
 
 
 def scan(root: Path) -> dict[str, int]:
@@ -122,8 +88,9 @@ def main(argv: list[str] | None = None) -> int:
     current = scan(args.root)
     problems = compare(baseline, current)
     if problems:
-        print("check_timem: TimeM use rose. Cost bounds are stated in a machine model "
-              "(policy/statements.md, \"Cost models\"); do not add TimeM.", file=sys.stderr)
+        print("check_timem: TimeM use rose. Running times are stated in a machine model "
+              "(policy/statements.md#running-time-claims; #7636, #6301); do not add TimeM.",
+              file=sys.stderr)
         for line in problems:
             print(f"  {line}", file=sys.stderr)
         return 1
