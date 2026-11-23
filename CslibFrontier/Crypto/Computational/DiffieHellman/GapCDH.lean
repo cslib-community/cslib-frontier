@@ -889,12 +889,12 @@ private theorem ccaAt_bound (sampleKey : ProbComp K) (adversary : F.DHKEMAdversa
   have hbad := F.bad_le_extract d x hx sampleKey adversary y key
   exact ⟨h1.trans (add_le_add le_rfl hbad), h2.trans (add_le_add le_rfl hbad)⟩
 
-/-- Concrete per-group step of [KatzLindell2020], Theorem 12.22 (p. 435); the asymptotic theorem
-is `Cslib.Crypto.DecodablePrimeOrderGroupFamily.GapCDH.dhKEMROMINDCCA`
+/-- Concrete per-group ideal-sampling step of [KatzLindell2020], Theorem 12.22 (p. 435), not the
+cited result (exponents are drawn from `PMF.uniformOfFintype (ZMod (F.order d))`); the asymptotic
+fair-coin theorem is `Cslib.Crypto.DecodablePrimeOrderGroupFamily.GapCDH.dhKEMROMINDCCA`
 (`CslibFrontier/Crypto/Computational/DiffieHellman/GapCDH/Decodable.lean`).
-The CCA advantage of every adversary against the random-oracle Diffie–Hellman KEM
-(Construction 12.19) is at most the success probability of the gap-CDH adversary `dhKEMToGapCDH`
-built from it. -/
+The CCA advantage of every adversary against `dhKEMCCAGame` is at most the success probability of
+the gap-CDH adversary `dhKEMToGapCDH` built from it. -/
 theorem advantage_dhKEMCCAGame_le (sampleKey : ProbComp K) (adversary : F.DHKEMAdversary d K) :
     Game.advantage (F.dhKEMCCAGame d sampleKey adversary true)
         (F.dhKEMCCAGame d sampleKey adversary false) ≤
