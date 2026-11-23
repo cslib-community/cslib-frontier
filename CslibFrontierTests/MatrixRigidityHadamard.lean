@@ -6,9 +6,9 @@ Authors: Samuel Schlesinger
 
 module
 
-public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.Hadamard
-public import Mathlib.Algebra.Field.ZMod
-public import Mathlib.Analysis.Complex.Basic
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.Hadamard
+import Mathlib.Algebra.Field.ZMod
+import Mathlib.Analysis.Complex.Basic
 
 /-!
 # Tests for Hadamard and Sylvester–Hadamard matrix rigidity
@@ -29,16 +29,17 @@ Exercises `CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.Hadamard` thr
   omitted.
 -/
 
-public section
+-- This test module intentionally exports no declarations.
+set_option linter.privateModule false
 
-namespace Cslib.Tests.MatrixRigidityHadamard
+namespace CslibFrontierTests.MatrixRigidityHadamard
 
 open Matrix
 open scoped Kronecker
 
 /-! ### Target rank `r = 0` -/
 
-theorem sylvesterHadamard_rigidity_zero_examples :
+example :
     (sylvesterHadamard ℚ 0).rigidity 0 = 1 ∧
     (sylvesterHadamard ℚ 1).rigidity 0 = 4 ∧
     (sylvesterHadamard ℝ 2).rigidity 0 = 16 ∧
@@ -50,7 +51,7 @@ theorem sylvesterHadamard_rigidity_zero_examples :
 
 /-! ### Tight equality at `n = 2, r = 1` over `ℚ` and `ℝ` -/
 
-theorem sylvesterHadamard_one_rigidity_one_rat : (sylvesterHadamard ℚ 1).rigidity 1 = 1 := by
+example : (sylvesterHadamard ℚ 1).rigidity 1 = 1 := by
   refine le_antisymm ?_ ?_
   · let B : Matrix (Fin 2) (Fin 2) ℚ := !![1, 1; 1, 1]
     have hBeq : B = vecMulVec ![1, 1] ![1, 1] := by
@@ -69,7 +70,7 @@ theorem sylvesterHadamard_one_rigidity_one_rat : (sylvesterHadamard ℚ 1).rigid
       (by omega) (by norm_num)
     omega
 
-theorem sylvesterHadamard_one_rigidity_one_real : (sylvesterHadamard ℝ 1).rigidity 1 = 1 := by
+example : (sylvesterHadamard ℝ 1).rigidity 1 = 1 := by
   classical
   refine le_antisymm ?_ ?_
   · let B : Matrix (Fin 2) (Fin 2) ℝ := !![1, 1; 1, 1]
@@ -101,9 +102,9 @@ private theorem sylvesterHadamard_two_eq (R : Type*) [CommRing R] :
       show Nat.testBit 2 0 = false by decide, show Nat.testBit 2 1 = true by decide,
       show Nat.testBit 3 0 = true by decide, show Nat.testBit 3 1 = true by decide]
 
-/-- `vecMulVec ![1, 1, 1, -1] ![1, 1, 1, -1]` matches `sylvesterHadamard ℚ 2` in 12 of 16 entries,
-proving that `n² / (4r) = 4` is tight at `n = 4, r = 1` as well. -/
-theorem sylvesterHadamard_two_rigidity_one_rat : (sylvesterHadamard ℚ 2).rigidity 1 = 4 := by
+-- `vecMulVec ![1, 1, 1, -1] ![1, 1, 1, -1]` matches `sylvesterHadamard ℚ 2` in 12 of 16 entries,
+-- proving that `n² / (4r) = 4` is tight at `n = 4, r = 1` as well.
+example : (sylvesterHadamard ℚ 2).rigidity 1 = 4 := by
   refine le_antisymm ?_ ?_
   · let u : Fin 4 → ℚ := ![1, 1, 1, -1]
     let B : Matrix (Fin 4) (Fin 4) ℚ := vecMulVec u u
@@ -122,9 +123,9 @@ theorem sylvesterHadamard_two_rigidity_one_rat : (sylvesterHadamard ℚ 2).rigid
     simp only [Fintype.card_fin] at h
     omega
 
-/-- At the upper endpoint `2 * r = 4` (`r = 2`), the Hadamard bound gives `2 ≤ rigidity 2`, while
-an explicit 2-dimensional row space achieves `3` changes (`rigidity 2 ≤ 3 < (4 - 2)²`). -/
-theorem sylvesterHadamard_two_rigidity_two_bounds :
+-- At the upper endpoint `2 * r = 4` (`r = 2`), the Hadamard bound gives `2 ≤ rigidity 2`, while
+-- an explicit 2-dimensional row space achieves `3` changes (`rigidity 2 ≤ 3 < (4 - 2)²`).
+example :
     2 ≤ (sylvesterHadamard ℚ 2).rigidity 2 ∧
     (sylvesterHadamard ℚ 2).rigidity 2 ≤ 3 := by
   refine ⟨?_, ?_⟩
@@ -182,9 +183,11 @@ private noncomputable def asymComplexHadamard : Matrix (Fin 2) (Fin 2) ℂ :=
   !![1, Complex.I; 1, -Complex.I]
 
 -- `asymComplexHadamard` is not symmetric and fails un-conjugated `H * Hᵀ = 2 • 1`, yet satisfies
--- `Matrix.IsHadamard` under `conjTranspose` and therefore has `4 ≤ (H ⊗ₖ H).rigidity 1`.
+-- `Matrix.IsHadamard` under `conjTranspose` and therefore has rank `2` and
+-- `4 ≤ (H ⊗ₖ H).rigidity 1`.
 example : asymComplexHadamard * asymComplexHadamardᵀ ≠ (2 : ℂ) • 1 ∧
     asymComplexHadamard.IsHadamard ∧
+    asymComplexHadamard.rank = 2 ∧
     4 ≤ (asymComplexHadamard ⊗ₖ asymComplexHadamard).rigidity 1 := by
   have hnot_trans : asymComplexHadamard * asymComplexHadamardᵀ ≠ (2 : ℂ) • 1 := by
     intro h
@@ -199,17 +202,19 @@ example : asymComplexHadamard * asymComplexHadamardᵀ ≠ (2 : ℂ) • 1 ∧
     · ext i j
       (fin_cases i <;> fin_cases j <;>
         simp [asymComplexHadamard, Matrix.mul_apply, Fin.sum_univ_two]) <;> ring
+  have hrank : asymComplexHadamard.rank = 2 := by
+    simpa using hHad.rank_eq_card (by norm_num)
   have hKron : (asymComplexHadamard ⊗ₖ asymComplexHadamard).IsHadamard := hHad.kronecker hHad
   have hrig := hKron.card_sq_le_four_mul_rigidity (r := 1) (by omega) (by simp)
   simp only [Fintype.card_prod, Fintype.card_fin] at hrig
-  exact ⟨hnot_trans, hHad, by omega⟩
+  exact ⟨hnot_trans, hHad, hrank, by omega⟩
 
 /-! ### Boundary counterexamples showing hypotheses cannot be omitted -/
 
-/-- `2 * r ≤ n` is sharp: at `n = 4, r = 3` (`2 * r = 6 > 4`), changing only entry `(0, 0)` from
-`1` to `-3` makes row `0` equal `-(row 1 + row 2 + row 3)`, so `rigidity 3 = 1` and
-`4 * 3 * rigidity 3 = 12 < 16 = 4 ^ 2`. -/
-theorem sylvesterHadamard_two_rigidity_three_counterexample :
+-- 1. `2 * r ≤ n` is sharp: at `n = 4, r = 3` (`2 * r = 6 > 4`), changing only entry `(0, 0)` from
+-- `1` to `-3` makes row `0` equal `-(row 1 + row 2 + row 3)`, so `rigidity 3 = 1` and
+-- `4 * 3 * rigidity 3 = 12 < 16 = 4 ^ 2`.
+example :
     (sylvesterHadamard ℚ 2).rigidity 3 = 1 ∧
     4 * 3 * (sylvesterHadamard ℚ 2).rigidity 3 < 2 ^ (2 * 2) := by
   have h1 : (sylvesterHadamard ℚ 2).rigidity 3 = 1 := by
@@ -227,12 +232,8 @@ theorem sylvesterHadamard_two_rigidity_three_counterexample :
         ext ⟨i, j⟩
         (fin_cases i <;> fin_cases j <;> simp [B, C, D]); norm_num
       rw [diffCount_eq_card_filter, hfilt, Finset.card_singleton]
-    · have hdet := (isHadamard_sylvesterHadamard ℚ 2).det_ne_zero (by norm_num)
-      have hunit : IsUnit (sylvesterHadamard ℚ 2) :=
-        (isUnit_iff_isUnit_det _).mpr (isUnit_iff_ne_zero.mpr hdet)
-      have hrank : (sylvesterHadamard ℚ 2).rank = 4 := by
-        rw [rank_of_isUnit _ hunit, Fintype.card_fin]
-        norm_num
+    · have hrank : (sylvesterHadamard ℚ 2).rank = 4 := by
+        simpa using rank_sylvesterHadamard_of_two_ne_zero (K := ℚ) two_ne_zero 2
       have hlow := (sylvesterHadamard ℚ 2).rank_sub_le_rigidity 3
       omega
   exact ⟨h1, by omega⟩
@@ -269,4 +270,4 @@ example :
     simp [J, Matrix.mul_apply, Fin.sum_univ_four] at h01
     norm_num at h01
 
-end Cslib.Tests.MatrixRigidityHadamard
+end CslibFrontierTests.MatrixRigidityHadamard

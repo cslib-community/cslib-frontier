@@ -52,9 +52,10 @@ Sylvester–Hadamard matrix drops its rank to `3`, so `R(3) = 1 < 4 ^ 2 / (4 · 
 
 This module also defines the explicit `2 ^ k × 2 ^ k` Sylvester–Hadamard matrix
 `Matrix.sylvesterHadamard R k` ([Lokam2009], §2.2, eq. (2.3); [Midrijanis2005], §1.3), proves its
-Kronecker decomposition `Matrix.sylvesterHadamard_add_submatrix` and `IsHadamard` instance over any
-commutative `*`-ring, establishes Midrijānis's combinatorial block-tiling bound for power-of-two
-target ranks `r = 2 ^ t` (`t < k`) over every field of characteristic other than two
+Kronecker decomposition `Matrix.sylvesterHadamard_add_submatrix`, `IsHadamard` instance over any
+commutative `*`-ring, and full rank `Matrix.rank_sylvesterHadamard_of_two_ne_zero` in
+characteristic other than two, establishes Midrijānis's combinatorial block-tiling bound for
+power-of-two target ranks `r = 2 ^ t` (`t < k`) over every field of characteristic other than two
 (`Matrix.two_pow_le_four_mul_rigidity_sylvesterHadamard_two_pow`, [Lokam2009], §2.2, Theorem 2.11;
 [Midrijanis2005], §2, Theorem 1), and deduces the general bound
 `2 ^ (2 * k) ≤ 4 * r * (sylvesterHadamard K k).rigidity r` for all `1 ≤ r` with `2 * r ≤ 2 ^ k`
@@ -72,6 +73,8 @@ over every field of characteristic zero (`Matrix.two_pow_le_four_mul_rigidity_sy
 
 * `Matrix.IsHadamard.rigidity_zero`: at target rank `0`, an `n × n` Hadamard matrix has rigidity
   `n ^ 2`.
+* `Matrix.IsHadamard.rank_eq_card`: an `n × n` Hadamard matrix over a field with `(n : K) ≠ 0` has
+  full rank `n`.
 * `Matrix.IsHadamard.card_mul_le_rank_submatrix`,
   `Matrix.IsHadamard.card_mul_le_rank_submatrix_of_trivialStar`: every `a × b` submatrix of an
   `n × n` Hadamard matrix has `a * b ≤ n * rank`.
@@ -84,6 +87,8 @@ over every field of characteristic zero (`Matrix.two_pow_le_four_mul_rigidity_sy
   commutative `*`-ring.
 * `Matrix.rigidity_sylvesterHadamard_zero`: `(sylvesterHadamard K k).rigidity 0 = 2 ^ (2 * k)` over
   every field.
+* `Matrix.rank_sylvesterHadamard_of_two_ne_zero`: `(sylvesterHadamard K k).rank = 2 ^ k` over any
+  field with `(2 : K) ≠ 0`.
 * `Matrix.two_pow_le_four_mul_rigidity_sylvesterHadamard_two_pow`: Midrijānis's bound
   `2 ^ (2 * k) ≤ 4 * 2 ^ t * (sylvesterHadamard K k).rigidity (2 ^ t)` for `t < k` over any field
   with `(2 : K) ≠ 0` ([Lokam2009], §2.2, Theorem 2.11; [Midrijanis2005], Theorem 1).
@@ -237,6 +242,12 @@ theorem IsHadamard.rigidity_zero {n K : Type*} [Fintype n] [DecidableEq n] [Fiel
   have hfilt : (univ.filter fun p : n × n => H p.1 p.2 ≠ (0 : Matrix n n K) p.1 p.2) = univ :=
     filter_true_of_mem fun p _ => by simpa only [Matrix.zero_apply] using hne p
   rw [hfilt, card_univ, Fintype.card_prod, sq]
+
+/-- Every `n × n` Hadamard matrix over a field in which `|n|` is nonzero has full rank `|n|`. -/
+theorem IsHadamard.rank_eq_card {n K : Type*} [Fintype n] [DecidableEq n] [Field K] [StarRing K]
+    {H : Matrix n n K} (hH : H.IsHadamard) (hcard : (Fintype.card n : K) ≠ 0) :
+    H.rank = Fintype.card n :=
+  rank_of_isUnit H ((isUnit_iff_isUnit_det H).mpr (isUnit_iff_ne_zero.mpr (hH.det_ne_zero hcard)))
 
 /-- Quadratic form of `X * Xᴴ` over `[RCLike K]` equals `∑ c, ‖(Xᴴ *ᵥ v) c‖ ^ 2`. -/
 private theorem re_star_dotProduct_mul_conjTranspose_mulVec {α γ K : Type*}
@@ -553,30 +564,17 @@ theorem isHadamard_sylvesterHadamard (R : Type*) [CommRing R] [StarRing R] (k : 
 @[simp]
 theorem rigidity_sylvesterHadamard_zero (K : Type*) [Field K] (k : ℕ) :
     (sylvesterHadamard K k).rigidity 0 = 2 ^ (2 * k) := by
-  classical
-  have hne (p : Fin (2 ^ k) × Fin (2 ^ k)) : sylvesterHadamard K k p.1 p.2 ≠ 0 := by
-    rcases sylvesterHadamard_apply_eq_one_or_neg_one K k p.1 p.2 with h | h
-    · rw [h]; exact one_ne_zero
-    · rw [h]; exact neg_ne_zero.mpr one_ne_zero
-  rw [Matrix.rigidity_zero, diffCount_eq_card_filter]
-  have hfilt :
-      (univ.filter fun p : Fin (2 ^ k) × Fin (2 ^ k) =>
-        sylvesterHadamard K k p.1 p.2 ≠ (0 : Matrix _ _ K) p.1 p.2) = univ :=
-    filter_true_of_mem fun p _ => by simpa only [Matrix.zero_apply] using hne p
-  rw [hfilt, card_univ, Fintype.card_prod, Fintype.card_fin]
-  ring
-
-/-- `sylvesterHadamard K m` has full rank `2 ^ m` over any field `K` with `(2 : K) ≠ 0`. -/
-private theorem rank_sylvesterHadamard_of_two_ne_zero {K : Type*} [Field K] (hchar : (2 : K) ≠ 0)
-    (m : ℕ) : (sylvesterHadamard K m).rank = 2 ^ m := by
   let _ : StarRing K := starRingOfComm
-  have hH := isHadamard_sylvesterHadamard K m
-  have hdet := hH.det_ne_zero (by
+  rw [(isHadamard_sylvesterHadamard K k).rigidity_zero, Fintype.card_fin, ← pow_mul, mul_comm k 2]
+
+/-- `sylvesterHadamard K k` has full rank `2 ^ k` over any field `K` with `(2 : K) ≠ 0`. -/
+theorem rank_sylvesterHadamard_of_two_ne_zero {K : Type*} [Field K] (hchar : (2 : K) ≠ 0)
+    (k : ℕ) : (sylvesterHadamard K k).rank = 2 ^ k := by
+  let _ : StarRing K := starRingOfComm
+  have hcard : (Fintype.card (Fin (2 ^ k)) : K) ≠ 0 := by
     rw [Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat]
-    exact pow_ne_zero m hchar)
-  have hunit : IsUnit (sylvesterHadamard K m) :=
-    (isUnit_iff_isUnit_det _).mpr (isUnit_iff_ne_zero.mpr hdet)
-  rw [rank_of_isUnit _ hunit, Fintype.card_fin]
+    exact pow_ne_zero k hchar
+  rw [(isHadamard_sylvesterHadamard K k).rank_eq_card hcard, Fintype.card_fin]
 
 /-- **Midrijānis's Sylvester–Hadamard rigidity bound** ([Lokam2009], §2.2, Theorem 2.11;
 [Midrijanis2005], §2, Theorem 1). Over any field `K` of characteristic other than two
@@ -662,21 +660,9 @@ field `K` of characteristic zero (such as `ℚ`, `ℝ`, or `ℂ`), for every `1 
 theorem two_pow_le_four_mul_rigidity_sylvesterHadamard (K : Type*) [Field K] [CharZero K]
     {k r : ℕ} (hr0 : 1 ≤ r) (hr : 2 * r ≤ 2 ^ k) :
     2 ^ (2 * k) ≤ 4 * r * (sylvesterHadamard K k).rigidity r := by
-  have h := card_sq_le_four_mul_rigidity_of_submatrix (A := sylvesterHadamard K k)
-    (fun I J => by
-      let fI : I → Fin (2 ^ k) := Subtype.val
-      let fJ : J → Fin (2 ^ k) := Subtype.val
-      have hmap_K : (sylvesterHadamard K k).submatrix fI fJ =
-          ((sylvesterHadamard ℚ k).submatrix fI fJ).map (Rat.castHom K) := by
-        rw [← map_sylvesterHadamard (Rat.castHom K) k]; rfl
-      have hmap_R : (sylvesterHadamard ℝ k).submatrix fI fJ =
-          ((sylvesterHadamard ℚ k).submatrix fI fJ).map (Rat.castHom ℝ) := by
-        rw [← map_sylvesterHadamard (Rat.castHom ℝ) k]; rfl
-      change #I * #J ≤ Fintype.card (Fin (2 ^ k)) * ((sylvesterHadamard K k).submatrix fI fJ).rank
-      rw [hmap_K, rank_map_of_field, ← rank_map_of_field (Rat.castHom ℝ), ← hmap_R]
-      have hsub := (isHadamard_sylvesterHadamard ℝ k).card_mul_le_rank_submatrix
-        (Subtype.val_injective (p := (· ∈ I))) (Subtype.val_injective (p := (· ∈ J)))
-      simpa only [Fintype.card_coe] using hsub)
+  let _ : StarRing K := starRingOfComm
+  let _ : TrivialStar K := ⟨fun _ => rfl⟩
+  have h := (isHadamard_sylvesterHadamard K k).card_sq_le_four_mul_rigidity_of_trivialStar
     hr0 (by simpa only [Fintype.card_fin] using hr)
   rwa [Fintype.card_fin, ← pow_mul, mul_comm k 2] at h
 
