@@ -90,8 +90,24 @@ private meta def runSCC (G : Cslib.Algorithms.WordRAM.DFS.Graph) (w : ℕ) :
       decide (t < 256 * (G.n + G.m + 1)))
 
 /-- Word-RAM component indices agree with `indexComponents ∘ sccs` on the diamond, the triangle,
-the bridged 2-cycles, and the empty graph. -/
+the bridged 2-cycles, `n = 1` with and without a self-loop, parallel arcs, a disconnected multi-SCC
+graph with cross/forward edges, and the empty graph, including tight word-width witnesses. -/
 abbrev twoCyclesG : Cslib.Algorithms.WordRAM.DFS.Graph := ⟨4, twoCycles⟩
+abbrev emptySCCG : Cslib.Algorithms.WordRAM.DFS.Graph := ⟨0, fun v => v.elim0⟩
+abbrev oneNoLoopG : Cslib.Algorithms.WordRAM.DFS.Graph := ⟨1, fun _ => []⟩
+abbrev oneSelfLoopG : Cslib.Algorithms.WordRAM.DFS.Graph := ⟨1, fun _ => [0]⟩
+abbrev parallelSCCG : Cslib.Algorithms.WordRAM.DFS.Graph :=
+  ⟨3, fun | 0 => [1, 1] | 1 => [0, 0] | 2 => [1, 1]⟩
+
+def multiSCC : Fin 6 → List (Fin 6)
+  | 0 => [1, 3, 4]
+  | 1 => [0, 2]
+  | 2 => [3]
+  | 3 => [3]
+  | 4 => []
+  | 5 => []
+
+abbrev multiSCCG : Cslib.Algorithms.WordRAM.DFS.Graph := ⟨6, multiSCC⟩
 
 example : ∃ n, ExecutesList 16 Cslib.Algorithms.WordRAM.DFS.sccProgram
     (State.init twoCyclesG.encodeCSR) [0, 0, 1, 1] n ∧ n ≤ 256 * (4 + 5 + 1) := by
@@ -102,13 +118,77 @@ example : ∃ n, ExecutesList 16 Cslib.Algorithms.WordRAM.DFS.sccProgram
   dsimp only at h
   rwa [hw, hm] at h
 
+/-- Tight word-width witness (`w = 5`, `wordBound = 16 < 2 ^ 5`) on the empty graph. -/
+example : ∃ n, ExecutesList 5 Cslib.Algorithms.WordRAM.DFS.sccProgram
+    (State.init emptySCCG.encodeCSR) [] n ∧ n ≤ 256 := by
+  have h := Cslib.Algorithms.WordRAM.DFS.computesListInTime_sccProgram emptySCCG 5
+    (by decide +kernel) (emptySCCG.inputFits_encodeCSR (by decide +kernel))
+  have hw : Cslib.Algorithms.WordRAM.DFS.sccWords emptySCCG = [] := by decide +kernel
+  have hm : emptySCCG.m = 0 := by decide +kernel
+  dsimp only at h
+  rwa [hw, hm] at h
+
+/-- Tight word-width witness (`w = 8`, `wordBound = 160 < 2 ^ 8`) on `twoCyclesG`. -/
+example : ∃ n, ExecutesList 8 Cslib.Algorithms.WordRAM.DFS.sccProgram
+    (State.init twoCyclesG.encodeCSR) [0, 0, 1, 1] n ∧ n ≤ 256 * (4 + 5 + 1) := by
+  have h := Cslib.Algorithms.WordRAM.DFS.computesListInTime_sccProgram twoCyclesG 8
+    (by decide +kernel) (twoCyclesG.inputFits_encodeCSR (by decide +kernel))
+  have hw : Cslib.Algorithms.WordRAM.DFS.sccWords twoCyclesG = [0, 0, 1, 1] := by decide +kernel
+  have hm : twoCyclesG.m = 5 := by decide +kernel
+  dsimp only at h
+  rwa [hw, hm] at h
+
+/-- `n = 1` without and with a self-loop on `sccProgram`. -/
+example : ∃ n, ExecutesList 16 Cslib.Algorithms.WordRAM.DFS.sccProgram
+    (State.init oneNoLoopG.encodeCSR) [0] n ∧ n ≤ 256 * (1 + 0 + 1) := by
+  have h := Cslib.Algorithms.WordRAM.DFS.computesListInTime_sccProgram oneNoLoopG 16
+    (by decide +kernel) (oneNoLoopG.inputFits_encodeCSR (by decide +kernel))
+  have hw : Cslib.Algorithms.WordRAM.DFS.sccWords oneNoLoopG = [0] := by decide +kernel
+  have hm : oneNoLoopG.m = 0 := by decide +kernel
+  dsimp only at h
+  rwa [hw, hm] at h
+
+example : ∃ n, ExecutesList 16 Cslib.Algorithms.WordRAM.DFS.sccProgram
+    (State.init oneSelfLoopG.encodeCSR) [0] n ∧ n ≤ 256 * (1 + 1 + 1) := by
+  have h := Cslib.Algorithms.WordRAM.DFS.computesListInTime_sccProgram oneSelfLoopG 16
+    (by decide +kernel) (oneSelfLoopG.inputFits_encodeCSR (by decide +kernel))
+  have hw : Cslib.Algorithms.WordRAM.DFS.sccWords oneSelfLoopG = [0] := by decide +kernel
+  have hm : oneSelfLoopG.m = 1 := by decide +kernel
+  dsimp only at h
+  rwa [hw, hm] at h
+
+/-- Parallel arcs (`transposeCSRCode` repeated cursor decrements) on `sccProgram`. -/
+example : ∃ n, ExecutesList 16 Cslib.Algorithms.WordRAM.DFS.sccProgram
+    (State.init parallelSCCG.encodeCSR) [1, 1, 0] n ∧ n ≤ 256 * (3 + 6 + 1) := by
+  have h := Cslib.Algorithms.WordRAM.DFS.computesListInTime_sccProgram parallelSCCG 16
+    (by decide +kernel) (parallelSCCG.inputFits_encodeCSR (by decide +kernel))
+  have hw : Cslib.Algorithms.WordRAM.DFS.sccWords parallelSCCG = [1, 1, 0] := by decide +kernel
+  have hm : parallelSCCG.m = 6 := by decide +kernel
+  dsimp only at h
+  rwa [hw, hm] at h
+
+/-- Disconnected / multi-SCC graph with cross and forward edges on `sccProgram`. -/
+example : ∃ n, ExecutesList 16 Cslib.Algorithms.WordRAM.DFS.sccProgram
+    (State.init multiSCCG.encodeCSR) [1, 1, 3, 4, 2, 0] n ∧ n ≤ 256 * (6 + 7 + 1) := by
+  have h := Cslib.Algorithms.WordRAM.DFS.computesListInTime_sccProgram multiSCCG 16
+    (by decide +kernel) (multiSCCG.inputFits_encodeCSR (by decide +kernel))
+  have hw : Cslib.Algorithms.WordRAM.DFS.sccWords multiSCCG = [1, 1, 3, 4, 2, 0] := by
+    decide +kernel
+  have hm : multiSCCG.m = 7 := by decide +kernel
+  dsimp only at h
+  rwa [hw, hm] at h
+
 /-- info: (some ([0, 2, 1, 3], true), some ([0, 0, 0], true)) -/
 #guard_msgs in
 #eval (runSCC ⟨4, diamond⟩ 16, runSCC ⟨3, triangle⟩ 16)
 
 /-- info: (some ([0, 0, 1, 1], true), some ([], true)) -/
 #guard_msgs in
-#eval (runSCC twoCyclesG 16, runSCC ⟨0, fun v => v.elim0⟩ 16)
+#eval (runSCC twoCyclesG 16, runSCC emptySCCG 5)
+
+/-- info: (some ([0], true), some ([0], true), some ([1, 1, 0], true), some ([1, 1, 3, 4, 2, 0], true)) -/
+#guard_msgs in
+#eval (runSCC oneNoLoopG 16, runSCC oneSelfLoopG 16, runSCC parallelSCCG 16, runSCC multiSCCG 16)
 
 /-! ### 2. Linear-time 2-SAT solver (pure & standard-basis Word-RAM) -/
 

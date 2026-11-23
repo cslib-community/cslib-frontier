@@ -16,8 +16,8 @@ public import Mathlib.Data.Fintype.EquivFin
 
 Topological sort of a directed graph given by adjacency lists: the vertices in reverse order of
 finishing time under the depth-first search of `CslibFrontier.Algorithms.Lean.DFS.Basic`, following
-[Cormen et al., Section 22.4][CLRS2009]. Linear-time iterative execution and cycle detection on the
-standard-basis word RAM are proved in `CslibFrontier.Algorithms.WordRAM.DFS`.
+[Cormen et al., Section 22.4][CLRS2009]. Linear-time iterative execution on the standard-basis word
+RAM is proved in `CslibFrontier.Algorithms.WordRAM.DFS`.
 
 ## Main definitions
 
@@ -135,5 +135,14 @@ theorem acyclic_iff_exists_isTopologicalOrder [Finite V] :
     Finset.mem_toList.2 (Finset.mem_univ v)).2 h
 
 end TopologicalSort
+
+/-- Topological sort of `List.finRange N` has length `N`. -/
+theorem length_topologicalSort_finRange {N : ℕ} (adj : Fin N → List (Fin N)) :
+    (topologicalSort adj (List.finRange N)).length = N := by
+  have hnd := nodup_topologicalSort (adj := adj) List.mem_finRange
+  have huniv : (topologicalSort adj (List.finRange N)).toFinset = Finset.univ := by
+    ext v; simp [mem_topologicalSort List.mem_finRange]
+  rw [← List.toFinset_card_of_nodup hnd, huniv]
+  simp
 
 end Cslib.Algorithms.Lean.DFS

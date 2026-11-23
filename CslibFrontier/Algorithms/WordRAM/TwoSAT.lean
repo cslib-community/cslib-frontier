@@ -1967,12 +1967,20 @@ theorem computesListInTime_program :
 /-- `program` does not read the word width (`width%`). -/
 theorem not_readsWidth_program : ¬ program.ReadsWidth := by
   apply Code.not_readsWidth_program
-  decide +kernel
+  simp [solver, headerSetupCode, checkClausesCode, checkClauseBody, setupWorkRegsCode,
+    buildImplCSRCode, implDegBody, implFillBody, extractAssignmentCode, extractVarBody,
+    Code.ReadsWidth, Op.ReadsWidth, Op.bin,
+    not_readsWidth_zeroBlockCode, not_readsWidth_incCurCode, not_readsWidth_prefixSumCode,
+    not_readsWidth_backfillStepCode, not_readsWidth_sccIndexCode]
 
 /-- `program` is deterministic (`rand`-free). -/
 theorem isRandFree_program : program.IsRandFree := by
   rw [program, Code.isRandFree_program]
-  decide +kernel
+  simp only [solver, headerSetupCode, checkClausesCode, checkClauseBody, setupWorkRegsCode,
+    buildImplCSRCode, implDegBody, implFillBody, extractAssignmentCode, extractVarBody,
+    Code.IsRandFree,
+    isRandFree_zeroBlockCode, isRandFree_incCurCode, isRandFree_prefixSumCode,
+    isRandFree_backfillStepCode, isRandFree_sccIndexCode, and_self]
 
 end Cslib.Algorithms.WordRAM.TwoSAT
 

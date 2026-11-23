@@ -59,6 +59,8 @@ based at `wb = 3`, and return a list through `Cslib.WordRAM.ExecutesList`.
 * `Cslib.Algorithms.WordRAM.DFS.forwardDFSCode_spec`: the forward pass writes the DFS finishing
   order `(topologicalSort adj (List.finRange N)).reverse` in `87 * N + 36 * Mc + 10` instructions.
 * `Cslib.Algorithms.WordRAM.DFS.transposeCSRCode_spec`: CSR transposition (`transposeAdj`).
+* `Cslib.Algorithms.WordRAM.DFS.kosarajuIndexCode_spec`: Kosaraju component peeling and indexing
+  from a transposed CSR graph and finishing order.
 * `Cslib.Algorithms.WordRAM.DFS.sccIndexCode_spec`: Kosaraju component indices
   `indexComponents (sccs adj (List.finRange N))` in `220 * N + 92 * Mc + 42` instructions.
 * `Cslib.Algorithms.WordRAM.DFS.Graph.csrAt_init`,
@@ -80,7 +82,7 @@ based at `wb = 3`, and return a list through `Cslib.WordRAM.ExecutesList`.
   Algorithms*][CLRS2009]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Algorithms.WordRAM.DFS
 
@@ -139,7 +141,7 @@ abbrev jEndReg : Fin 28 := ⟨26, by decide⟩
 /-- Address scratch register. -/
 abbrev addr : Fin 28 := ⟨27, by decide⟩
 /-- Arc count `m` (end-to-end programs). -/
-abbrev mArcs : Fin 28 := ⟨2, by decide⟩
+private abbrev mArcs : Fin 28 := ⟨2, by decide⟩
 /-- Output-list header register (end-to-end programs). -/
 abbrev outReg : Fin 28 := ⟨7, by decide⟩
 
@@ -165,36 +167,36 @@ local macro "mem_upd" : tactic =>
   `(tactic| simp only [Data.set_mem, Data.set_mem_apply, Data.write_mem])
 
 /-- Address of the forward CSR offset array in the scratch layout based at `wb`. -/
-def kOffAddr (wb : ℕ) : ℕ := wb
+@[expose] def kOffAddr (wb : ℕ) : ℕ := wb
 /-- Address of the forward CSR edge array. -/
-def kEdgeAddr (wb N : ℕ) : ℕ := wb + N + 1
+@[expose] def kEdgeAddr (wb N : ℕ) : ℕ := wb + N + 1
 /-- Address of the transpose CSR offset array. -/
-def kRevOffAddr (wb N Mc : ℕ) : ℕ := wb + N + 1 + Mc
+@[expose] def kRevOffAddr (wb N Mc : ℕ) : ℕ := wb + N + 1 + Mc
 /-- Address of the transpose CSR edge array. -/
-def kRevEdgeAddr (wb N Mc : ℕ) : ℕ := wb + 2 * N + 2 + Mc
+@[expose] def kRevEdgeAddr (wb N Mc : ℕ) : ℕ := wb + 2 * N + 2 + Mc
 /-- Address of the transpose fill cursors. -/
-def kCurAddr (wb N Mc : ℕ) : ℕ := wb + 2 * N + 2 + 2 * Mc
+@[expose] def kCurAddr (wb N Mc : ℕ) : ℕ := wb + 2 * N + 2 + 2 * Mc
 /-- Address of the visited-flag array. -/
-def kVisAddr (wb N Mc : ℕ) : ℕ := wb + 3 * N + 3 + 2 * Mc
+@[expose] def kVisAddr (wb N Mc : ℕ) : ℕ := wb + 3 * N + 3 + 2 * Mc
 /-- Address of the forward finishing order. -/
-def kOrdAddr (wb N Mc : ℕ) : ℕ := wb + 4 * N + 3 + 2 * Mc
+@[expose] def kOrdAddr (wb N Mc : ℕ) : ℕ := wb + 4 * N + 3 + 2 * Mc
 /-- Address of the second-pass finishing order. -/
-def kFinAddr (wb N Mc : ℕ) : ℕ := wb + 5 * N + 3 + 2 * Mc
+@[expose] def kFinAddr (wb N Mc : ℕ) : ℕ := wb + 5 * N + 3 + 2 * Mc
 /-- Address of the explicit DFS stack (`3` words per frame). -/
-def kStkAddr (wb N Mc : ℕ) : ℕ := wb + 6 * N + 3 + 2 * Mc
+@[expose] def kStkAddr (wb N Mc : ℕ) : ℕ := wb + 6 * N + 3 + 2 * Mc
 /-- Address of the component-index array. -/
-def kCompAddr (wb N Mc : ℕ) : ℕ := wb + 9 * N + 3 + 2 * Mc
+@[expose] def kCompAddr (wb N Mc : ℕ) : ℕ := wb + 9 * N + 3 + 2 * Mc
 /-- First address past the scratch layout. -/
-def kTopAddr (wb N Mc : ℕ) : ℕ := wb + 10 * N + 3 + 2 * Mc
+@[expose] def kTopAddr (wb N Mc : ℕ) : ℕ := wb + 10 * N + 3 + 2 * Mc
 
 /-! ### Reusable CSR representation and shared array/CSR primitives -/
 
 /-- Number of arcs leaving vertices below `u`: the CSR offset of vertex `u`. -/
-def csrOffset {N : ℕ} (adj : Fin N → List (Fin N)) (u : ℕ) : ℕ :=
+@[expose] def csrOffset {N : ℕ} (adj : Fin N → List (Fin N)) (u : ℕ) : ℕ :=
   (((List.finRange N).take u).map fun w => (adj w).length).sum
 
 @[simp]
-private theorem csrOffset_zero {N : ℕ} (adj : Fin N → List (Fin N)) :
+theorem csrOffset_zero {N : ℕ} (adj : Fin N → List (Fin N)) :
     csrOffset adj 0 = 0 := rfl
 
 theorem csrOffset_succ {N : ℕ} (adj : Fin N → List (Fin N)) {u : ℕ} (hu : u < N) :
@@ -226,7 +228,7 @@ theorem csrOffset_eq_outDegreeSum {N : ℕ} (adj : Fin N → List (Fin N)) :
   rw [List.take_of_length_le (by simp)]
 
 /-- `adj` is stored in CSR form: offsets at `offBase`, successor lists at `edgeBase`. -/
-def CSRAt {N : ℕ} (adj : Fin N → List (Fin N)) (offBase edgeBase : ℕ)
+@[expose] def CSRAt {N : ℕ} (adj : Fin N → List (Fin N)) (offBase edgeBase : ℕ)
     (mem : ℕ → ℕ) : Prop :=
   (∀ u ≤ N, mem (offBase + u) = csrOffset adj u) ∧
     ∀ (u : Fin N) (k : ℕ) (hk : k < (adj u).length),
@@ -248,7 +250,7 @@ private theorem CSRAt.of_eqOn {N : ℕ} {adj : Fin N → List (Fin N)} {offBase 
 
 /-- Invariant of the backward CSR fill: the successor lists `part` written so far end at the cursors
 `curBase`. -/
-def PartialCSRAt {N : ℕ} (targetAdj part : Fin N → List (Fin N))
+@[expose] def PartialCSRAt {N : ℕ} (targetAdj part : Fin N → List (Fin N))
     (curBase edgeBase : ℕ) (mem : ℕ → ℕ) : Prop :=
   (∀ w : Fin N, (part w).length ≤ (targetAdj w).length) ∧
     (∀ w : Fin N, mem (curBase + w.val) + (part w).length = csrOffset targetAdj (w.val + 1)) ∧
@@ -322,9 +324,25 @@ theorem zeroBlockCode_spec {w : ℕ} (baseReg : Fin 28) (hbr : baseReg.val < 18)
     simp only [x₁, Function.update_of_ne hne1]
     regs_lt
 
+/-- `zeroBlockCode baseReg` does not read the word width. -/
+theorem not_readsWidth_zeroBlockCode (baseReg : Fin 28) :
+    ¬ (zeroBlockCode baseReg).ReadsWidth := by
+  revert baseReg; decide +kernel
+
+/-- `zeroBlockCode baseReg` is `rand`-free. -/
+theorem isRandFree_zeroBlockCode (baseReg : Fin 28) :
+    (zeroBlockCode baseReg).IsRandFree := by
+  revert baseReg; decide +kernel
+
 /-- Increment `mem[curB + vReg]` by `1` in `4` instructions. -/
 def incCurCode : Code .standard 28 := ram[
   addr ← curB + vReg; jEndReg ← *addr; jEndReg ← jEndReg + cOne; *addr ← jEndReg ]
+
+/-- `incCurCode` does not read the word width. -/
+theorem not_readsWidth_incCurCode : ¬ incCurCode.ReadsWidth := by decide +kernel
+
+/-- `incCurCode` is `rand`-free. -/
+theorem isRandFree_incCurCode : incCurCode.IsRandFree := by decide +kernel
 
 theorem incCurCode_spec {N w : ℕ} (curBase maxDeg : ℕ)
     (hfit : Fits w (curBase + N + maxDeg + 1))
@@ -360,7 +378,7 @@ theorem incCurCode_spec {N w : ℕ} (curBase maxDeg : ℕ)
 
 /-- Compute CSR prefix sums `offB[0..N]` from degrees in `curB[0..N)` and set
 `curB[u] := offB[u + 1]` in `9 * N + 5` instructions. -/
-def prefixSumBody : Code .standard 28 := ram[
+private def prefixSumBody : Code .standard 28 := ram[
   addr ← curB + iReg; uReg ← *addr;
   pReg ← pReg + uReg;
   *addr ← pReg;
@@ -371,6 +389,12 @@ def prefixSumBody : Code .standard 28 := ram[
 def prefixSumCode : Code .standard 28 :=
   (ram[ *offB ← cZero; pReg ← cZero; iReg ← cZero ]).seq
     (.loop (.lt iReg nVerts) prefixSumBody)
+
+/-- `prefixSumCode` does not read the word width. -/
+theorem not_readsWidth_prefixSumCode : ¬ prefixSumCode.ReadsWidth := by decide +kernel
+
+/-- `prefixSumCode` is `rand`-free. -/
+theorem isRandFree_prefixSumCode : prefixSumCode.IsRandFree := by decide +kernel
 
 theorem prefixSumCode_spec {N w : ℕ} (targetAdj : Fin N → List (Fin N))
     (degBase offBase Mc : ℕ) (hdisj : offBase + N + 1 ≤ degBase)
@@ -482,6 +506,12 @@ def backfillStepCode : Code .standard 28 := ram[
   jEndReg ← *addr; jEndReg ← jEndReg - cOne;
   *addr ← jEndReg;
   addr ← edgeB + jEndReg; *addr ← uReg ]
+
+/-- `backfillStepCode` does not read the word width. -/
+theorem not_readsWidth_backfillStepCode : ¬ backfillStepCode.ReadsWidth := by decide +kernel
+
+/-- `backfillStepCode` is `rand`-free. -/
+theorem isRandFree_backfillStepCode : backfillStepCode.IsRandFree := by decide +kernel
 
 private theorem csrOffset_disjoint {N : ℕ} (adj : Fin N → List (Fin N)) {u v : Fin N}
     (hne : u ≠ v) {p q : ℕ}
@@ -646,7 +676,7 @@ theorem backfillStepCode_spec {N w : ℕ}
 
 /-- Pure depth-first search over the successor list `es` from the visited set `vis` with an empty
 finishing list. -/
-def foldEmpty {V : Type*} [DecidableEq V] (adj : V → List V) (k : ℕ)
+private def foldEmpty {V : Type*} [DecidableEq V] (adj : V → List V) (k : ℕ)
     (es : List V) (vis : Finset V) : Cslib.Algorithms.Lean.DFS.State V :=
   es.foldl (fun t v => visit adj k v t) ⟨vis, []⟩
 
@@ -733,7 +763,7 @@ private theorem card_visit_nil {V : Type*} [DecidableEq V] (adj : V → List V)
   rw [hunion, Finset.card_union_of_disjoint hdisj, List.toFinset_card_of_nodup hnd]
 
 /-- The visited flags at `visAddr` encode the set `vis`. -/
-def VisAt {N : ℕ} (vis : Finset (Fin N)) (visAddr : ℕ) (mem : ℕ → ℕ) : Prop :=
+private def VisAt {N : ℕ} (vis : Finset (Fin N)) (visAddr : ℕ) (mem : ℕ → ℕ) : Prop :=
   ∀ w : Fin N, mem (visAddr + w.val) = (decide (w ∈ vis)).toNat
 
 /-- Register invariant of the depth-first search: constants and array bases. -/
@@ -747,7 +777,7 @@ structure DfsRegs (offAddr edgeAddr visAddr finAddr stkAddr : ℕ) (x : Data 28)
   hfin : x.regs finB = finAddr
   hstk : x.regs stkB = stkAddr
 
-theorem dfsRegs_of_frame {offAddr edgeAddr visAddr finAddr stkAddr : ℕ} {x y : Data 28}
+private theorem dfsRegs_of_frame {offAddr edgeAddr visAddr finAddr stkAddr : ℕ} {x y : Data 28}
     (hx : DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x)
     (hfr : ∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r) :
     DfsRegs offAddr edgeAddr visAddr finAddr stkAddr y :=
@@ -761,7 +791,7 @@ theorem dfsRegs_of_frame {offAddr edgeAddr visAddr finAddr stkAddr : ℕ} {x y :
     hstk := (hfr stkB (by decide)).trans hx.hstk }
 
 /-- Push the root `uReg` as the first DFS stack frame. -/
-def dfsPushRoot : Code .standard 28 := ram[
+private def dfsPushRoot : Code .standard 28 := ram[
   *addr ← cOne;
   addr ← offB + uReg; jReg ← *addr;
   addr ← addr + cOne; jEndReg ← *addr;
@@ -772,7 +802,7 @@ def dfsPushRoot : Code .standard 28 := ram[
 
 /-- One DFS step on the top stack frame: pop and finish, skip a visited successor, or push an
 unvisited one. -/
-def dfsStepBody : Code .standard 28 := ram[
+private def dfsStepBody : Code .standard 28 := ram[
   vReg ← pReg - cOne;
   addr ← cThree * vReg; addr ← stkB + addr;
   uReg ← *addr;
@@ -799,11 +829,11 @@ def dfsStepBody : Code .standard 28 := ram[
     finCnt ← finCnt + cOne ] ]
 
 /-- Run DFS steps while the stack is nonempty. -/
-def dfsLoop : Code .standard 28 :=
+private def dfsLoop : Code .standard 28 :=
   .loop (.lt cZero pReg) dfsStepBody
 
 /-- Visit the root `uReg` if it is unvisited, running the DFS loop from it. -/
-def visitRootCode : Code .standard 28 := ram[
+private def visitRootCode : Code .standard 28 := ram[
   addr ← visB + uReg; jReg ← *addr;
   if jReg = cZero then [
     ⟪dfsPushRoot.seq dfsLoop⟫ ]
@@ -811,16 +841,8 @@ def visitRootCode : Code .standard 28 := ram[
 
 /-- Instruction budget of the DFS loop on the remaining successors `es` of a frame, given the
 vertices `new` finished during it. -/
-def dfsFrameTime {N : ℕ} (adj : Fin N → List (Fin N)) (es new : List (Fin N)) : ℕ :=
+private def dfsFrameTime {N : ℕ} (adj : Fin N → List (Fin N)) (es new : List (Fin N)) : ℕ :=
   20 + 36 * es.length + 60 * new.length + 36 * outDegreeSum adj new
-
-private theorem card_lt_of_notMem {N : ℕ} {vis : Finset (Fin N)} {v : Fin N} (hv : v ∉ vis) :
-    vis.card < N := by
-  have hlt : vis.card < (Finset.univ : Finset (Fin N)).card :=
-    Finset.card_lt_card
-      (Finset.ssubset_iff_subset_ne.2
-        ⟨Finset.subset_univ _, fun h => hv (h ▸ Finset.mem_univ v)⟩)
-  simpa using hlt
 
 private theorem visAt_insert {N : ℕ} {vis : Finset (Fin N)} {visAddr : ℕ} {mem : ℕ → ℕ}
     (h : VisAt vis visAddr mem) (v : Fin N) :
@@ -1246,7 +1268,7 @@ private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
         simp only [dfsFrameTime, List.length_cons] at ht₂ ⊢
         omega
       · -- Case 2: `v ∉ vis`
-        have hcard_lt : vis.card < N := card_lt_of_notMem hmem
+        have hcard_lt : vis.card < N := by simpa using Finset.card_lt_univ_of_notMem hmem
         rcases k with _ | k'
         · omega
         set vis₁ := insert v vis
@@ -1563,7 +1585,7 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
 /-! ### Pass 1: Forward DFS finishing order (`O(N + M)`) -/
 
 /-- Visit vertex `iReg` as a DFS root and advance `iReg`. -/
-def forwardDFSBody : Code .standard 28 :=
+private def forwardDFSBody : Code .standard 28 :=
   (ram[ uReg ← iReg ]).seq (visitRootCode.seq (ram[ iReg ← iReg + cOne ]))
 
 /-- Forward pass: clear the visited flags and visit every vertex as a root, writing the DFS
@@ -1714,14 +1736,6 @@ private theorem forwardDFSLoop_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Li
       dsimp only [st_u]
       exact Data.set_regs_of_ne hne_u _
 
-theorem length_topologicalSort_finRange {N : ℕ} (adj : Fin N → List (Fin N)) :
-    (topologicalSort adj (List.finRange N)).length = N := by
-  have hnd := nodup_topologicalSort (adj := adj) List.mem_finRange
-  have huniv : (topologicalSort adj (List.finRange N)).toFinset = Finset.univ := by
-    ext v; simp [mem_topologicalSort List.mem_finRange]
-  rw [← List.toFinset_card_of_nodup hnd, huniv]
-  simp
-
 theorem forwardDFSCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → List (Fin N))
     (wb Mc : ℕ) (hmc : csrOffset adj N ≤ Mc)
     (hfit : Fits w (kTopAddr wb N Mc + Mc + 4)) {x : Data 28}
@@ -1800,37 +1814,29 @@ theorem forwardDFSCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → List (Fin 
 
 /-! ### Pass 2: CSR transpose construction (`O(N + M)`) -/
 
-/-- Count one arc towards the in-degree of its target. -/
-def revDegInnerBody : Code .standard 28 :=
-  (ram[ addr ← edgeB + jReg; vReg ← *addr ]).seq
-    (incCurCode.seq (ram[ jReg ← jReg + cOne ]))
+/-- Scan the CSR arcs leaving `uIdxReg` and run `stepBody` on each `(u = uIdxReg, v = vReg)`. -/
+private def forEachArcInner (fwdEdgeReg : Fin 28) (stepBody : Code .standard 28) :
+    Code .standard 28 :=
+  (ram[ addr ← fwdEdgeReg + jReg; vReg ← *addr ]).seq
+    (stepBody.seq (ram[ jReg ← jReg + cOne ]))
 
-/-- Count the in-degrees contributed by the arcs leaving vertex `iReg`. -/
-def revDegOuterBody : Code .standard 28 :=
-  (ram[ addr ← offB + iReg; jReg ← *addr; addr ← addr + cOne; oldFinReg ← *addr ]).seq
-    ((Code.loop (.lt jReg oldFinReg) revDegInnerBody).seq
-      (ram[ iReg ← iReg + cOne ]))
-
-/-- Place one reversed arc at the fill cursor of its target. -/
-def revFillInnerBody : Code .standard 28 :=
-  (ram[ addr ← finCnt + jReg; vReg ← *addr ]).seq
-    (backfillStepCode.seq (ram[ jReg ← jReg + cOne ]))
-
-/-- Place the reversed arcs leaving vertex `uReg`. -/
-def revFillOuterBody : Code .standard 28 :=
-  (ram[ addr ← offB + uReg; jReg ← *addr; addr ← addr + cOne; oldFinReg ← *addr ]).seq
-    ((Code.loop (.lt jReg oldFinReg) revFillInnerBody).seq
-      (ram[ uReg ← uReg + cOne ]))
+/-- Scan every CSR vertex `uIdxReg < nVerts` and its outgoing arcs, running `stepBody` on each. -/
+private def forEachArc (fwdEdgeReg uIdxReg : Fin 28) (stepBody : Code .standard 28) :
+    Code .standard 28 :=
+  Code.loop (.lt uIdxReg nVerts)
+    ((ram[ addr ← offB + uIdxReg; jReg ← *addr; addr ← addr + cOne; oldFinReg ← *addr ]).seq
+      ((Code.loop (.lt jReg oldFinReg) (forEachArcInner fwdEdgeReg stepBody)).seq
+        (ram[ uIdxReg ← uIdxReg + cOne ])))
 
 /-- CSR transposition: in-degree count, prefix sums and backward fill of the reversed arcs. -/
 def transposeCSRCode : Code .standard 28 :=
   (zeroBlockCode curB).seq
     ((ram[ iReg ← cZero ]).seq
-      ((Code.loop (.lt iReg nVerts) revDegOuterBody).seq
+      ((forEachArc edgeB iReg incCurCode).seq
         ((ram[ compIdxReg ← offB; offB ← revOffB ]).seq
           (prefixSumCode.seq
             ((ram[ offB ← compIdxReg; finCnt ← edgeB; edgeB ← revEdgeB; uReg ← cZero ]).seq
-              ((Code.loop (.lt uReg nVerts) revFillOuterBody).seq
+              ((forEachArc finCnt uReg backfillStepCode).seq
                 (ram[ offB ← revOffB ])))))))
 
 private theorem length_foldl_rev_le {N : ℕ} (u : Fin N) :
@@ -1861,32 +1867,46 @@ private theorem csrOffset_transposeAdj_eq {N : ℕ} (adj : Fin N → List (Fin N
   rw [csrOffset_eq_outDegreeSum, csrOffset_eq_outDegreeSum, outDegreeSum, ← Fin.sum_univ_def,
     sum_length_transposeAdj]
 
-private theorem revDegInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
-    (wb Mc : ℕ) (hmc : csrOffset adj N ≤ Mc)
-    (hfit : Fits w (kTopAddr wb N Mc + Mc + 4)) (u : Fin N) :
+private theorem forEachArcInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
+    (wb Mc : ℕ) (hmc : csrOffset adj N ≤ Mc) (hfit : Fits w (kTopAddr wb N Mc + Mc + 4))
+    (fwdEdgeReg uIdxReg : Fin 28) (stepBody : Code .standard 28) (stepTime : ℕ)
+    (bound : Fin N → ℕ) (Inv : (Fin N → List (Fin N)) → (ℕ → ℕ) → Prop)
+    (MemWrite : ℕ → Prop) (ConstRegs : Data 28 → Prop)
+    (hu_lo : 18 ≤ uIdxReg.val) (hu_hi : uIdxReg.val < 24)
+    (hfwd_hi : fwdEdgeReg.val < 24) (hfwd_ne : fwdEdgeReg ≠ uIdxReg)
+    (hdisj : ∀ a, MemWrite a →
+      ¬ ((kOffAddr wb ≤ a ∧ a < kOffAddr wb + N + 1) ∨
+        (kEdgeAddr wb N ≤ a ∧ a < kEdgeAddr wb N + csrOffset adj N)))
+    (hconst_regs : ∀ d₁ d₂ : Data 28,
+      (∀ r : Fin 28, r.val < 18 → d₁.regs r = d₂.regs r) → ConstRegs d₁ → ConstRegs d₂)
+    (hstep : ∀ (u v : Fin N) (rev : Fin N → List (Fin N)) (s : Data 28),
+      (rev v).length + 1 ≤ bound v → Inv rev s.mem →
+      s.regs cOne = 1 → s.regs uIdxReg = u.val → s.regs vReg = v.val → ConstRegs s →
+      ∃ y, ExecWithin w stepBody s y stepTime ∧
+        Inv (Function.update rev v (u :: rev v)) y.mem ∧
+        (∀ a, ¬ MemWrite a → y.mem a = s.mem a) ∧
+        (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → y.regs r = s.regs r))
+    (u : Fin N) :
     ∀ (es : List (Fin N)) (k : ℕ) (rev : Fin N → List (Fin N)) (x : Data 28)
       (_ : k + es.length = (adj u).length),
       (∀ q (hq : q < es.length), (adj u)[k + q]'(by omega) = es[q]) →
       (∀ z : Fin N,
-        (es.foldl (fun r v => Function.update r v (u :: r v)) rev z).length ≤ Mc) →
-      (∀ z : Fin N, x.mem (kCurAddr wb N Mc + z.val) = (rev z).length) →
-      CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x.mem →
-      x.regs cOne = 1 →
-      x.regs edgeB = kEdgeAddr wb N →
-      x.regs curB = kCurAddr wb N Mc →
-      x.regs jReg = csrOffset adj u.val + k →
+        (es.foldl (fun r v => Function.update r v (u :: r v)) rev z).length ≤ bound z) →
+      Inv rev x.mem → CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x.mem →
+      x.regs cOne = 1 → x.regs fwdEdgeReg = kEdgeAddr wb N → ConstRegs x →
+      x.regs uIdxReg = u.val → x.regs jReg = csrOffset adj u.val + k →
       x.regs oldFinReg = csrOffset adj u.val + (adj u).length →
-      ∃ y, ExecWithin w (.loop (.lt jReg oldFinReg) revDegInnerBody) x y (9 * es.length + 2) ∧
-        (∀ z : Fin N, y.mem (kCurAddr wb N Mc + z.val) =
-          (es.foldl (fun r v => Function.update r v (u :: r v)) rev z).length) ∧
-        (∀ a, ¬ (kCurAddr wb N Mc ≤ a ∧ a < kCurAddr wb N Mc + N) → y.mem a = x.mem a) ∧
+      ∃ y, ExecWithin w (.loop (.lt jReg oldFinReg) (forEachArcInner fwdEdgeReg stepBody)) x y
+          ((stepTime + 5) * es.length + 2) ∧
+        Inv (es.foldl (fun r v => Function.update r v (u :: r v)) rev) y.mem ∧
+        (∀ a, ¬ MemWrite a → y.mem a = x.mem a) ∧
         (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → r ≠ vReg → r ≠ jReg → y.regs r = x.regs r)
-  | [], k, rev, x, hk, _, _, hdeg, _, _, _, _, hj, hof => by
+  | [], k, rev, x, hk, _, _, hinv, _, _, _, _, _, hj, hof => by
     simp only [List.length_nil, Nat.add_zero] at hk
     have hend : ¬ (Cond.lt jReg oldFinReg).Holds x := by
       change ¬ x.regs jReg < x.regs oldFinReg; omega
-    exact ⟨x, ⟨2, by simp, Exec.loop_exit hend⟩, hdeg, fun _ _ => rfl, fun _ _ _ _ _ => rfl⟩
-  | v :: es, k, rev, x, hk, hget, hroom_all, hdeg, hcsr, hc1, hedge, hcur, hj, hof => by
+    exact ⟨x, ⟨2, by simp, Exec.loop_exit hend⟩, hinv, fun _ _ => rfl, fun _ _ _ _ _ => rfl⟩
+  | v :: es, k, rev, x, hk, hget, hroom_all, hinv, hcsr, hc1, hfwd, hconst, huR, hj, hof => by
     simp only [List.length_cons] at hk
     have hk_lt : k < (adj u).length := by omega
     have hv_eq : (adj u)[k] = v := by
@@ -1901,27 +1921,41 @@ private theorem revDegInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
       hfit.of_le (by simp only [kEdgeAddr, kTopAddr]; omega)
     have hf_j1 : Fits w (csrOffset adj u.val + k + 1) :=
       hfit.of_le (by simp only [kTopAddr]; omega)
-    have hf_cur : Fits w (kCurAddr wb N Mc + N + Mc + 1) :=
-      hfit.of_le (by simp only [kCurAddr, kTopAddr]; omega)
-    have hroom_v : (rev v).length + 1 ≤ Mc := by
+    have hroom_v : (rev v).length + 1 ≤ bound v := by
       have hle := length_foldl_rev_le u es (Function.update rev v (u :: rev v)) v
       have hall := hroom_all v
       simp only [List.foldl_cons] at hall
       simpa using hle.trans hall
     let st_v := (x.set addr (kEdgeAddr wb N + (csrOffset adj u.val + k))).set vReg v.val
-    obtain ⟨y₁, hy₁_ex, hy₁_deg, hy₁_out, hy₁_fr⟩ :=
-      incCurCode_spec (N := N) (kCurAddr wb N Mc) Mc hf_cur (fun z => (rev z).length) v hroom_v
-        (x := st_v)
-        (by dsimp only [st_v]; wram_simp; exact hc1)
-        (by dsimp only [st_v]; wram_simp; exact hcur)
-        (by dsimp only [st_v]; wram_simp)
-        (by dsimp only [st_v]; exact hdeg)
-    have hp1 : ExecWithin w (ram[ addr ← edgeB + jReg; vReg ← *addr ]) x st_v 2 := by
-      have htriv :
-          st_v = (x.set addr (kEdgeAddr wb N + (csrOffset adj u.val + k))).set vReg v.val := rfl
-      wram_exec [hedge, hj, hmem_e, hf_eaddr]
+    have hst_fr : ∀ r : Fin 28, r.val < 18 → st_v.regs r = x.regs r := fun r hr => by
+      dsimp only [st_v]; rw [Data.set_regs_of_ne (by reg_ne), Data.set_regs_of_ne (by reg_ne)]
+    have hst_u : st_v.regs uIdxReg = u.val := by
+      dsimp only [st_v]
+      have h1 : uIdxReg ≠ vReg := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 24; omega)
+      have h2 : uIdxReg ≠ addr := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 27; omega)
+      rw [Data.set_regs_of_ne h1, Data.set_regs_of_ne h2, huR]
+    have hst_c1 : st_v.regs cOne = 1 := (hst_fr cOne (by decide)).trans hc1
+    obtain ⟨y₁, hy₁_ex, hy₁_inv, hy₁_out, hy₁_fr⟩ :=
+      hstep u v rev st_v hroom_v hinv hst_c1 hst_u
+        (by dsimp only [st_v]; wram_simp) (hconst_regs _ _ (fun r hr => (hst_fr r hr).symm) hconst)
+    have hp1 : ExecWithin (B := .standard) w (ram[ addr ← fwdEdgeReg + jReg; vReg ← *addr ])
+        x st_v 2 := by
+      have hfwd_ne_a : fwdEdgeReg ≠ addr := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 27; omega)
+      have hj_ne_a : jReg ≠ addr := by reg_ne
+      have h1 : Exec (B := .standard) w (ram[ addr ← fwdEdgeReg + jReg ]) x
+          (x.set addr (kEdgeAddr wb N + (csrOffset adj u.val + k))) 1 := by
+        have h : Exec (B := .standard) w (ram[ addr ← fwdEdgeReg + jReg ]) x _ 1 :=
+          Exec.bin (by
+            change Fits w (x.regs fwdEdgeReg + x.regs jReg); rw [hfwd, hj]; exact hf_eaddr)
+        simpa [BinOp.eval, hfwd, hj] using h
+      have h2 : Exec (B := .standard) w (ram[ vReg ← *addr ])
+          (x.set addr (kEdgeAddr wb N + (csrOffset adj u.val + k))) st_v 1 := by
+        have h := Exec.load (B := .standard) (w := w)
+          (x := x.set addr (kEdgeAddr wb N + (csrOffset adj u.val + k))) (d := vReg) (a := addr)
+        simpa [Data.set_regs_self, Data.set_mem, hmem_e, st_v] using h
+      exact ⟨2, le_rfl, h1.seq h2⟩
     have hy₁_1 : y₁.regs cOne = 1 :=
-      (hy₁_fr cOne (by decide) (by decide)).trans (by dsimp only [st_v]; wram_simp; exact hc1)
+      (hy₁_fr cOne (by decide) (by decide)).trans hst_c1
     have hy₁_j : y₁.regs jReg = csrOffset adj u.val + k :=
       (hy₁_fr jReg (by decide) (by decide)).trans (by dsimp only [st_v]; wram_simp; exact hj)
     let x₂ := y₁.set jReg (csrOffset adj u.val + (k + 1))
@@ -1932,76 +1966,107 @@ private theorem revDegInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
       wram_exec [hy₁_j, hy₁_1, hf_j1]
     have hx₂_csr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x₂.mem :=
       hcsr.of_eqOn
-        (fun _ _ => hy₁_out _ (by dsimp only [kOffAddr, kCurAddr]; omega))
-        (fun _ _ => hy₁_out _ (by dsimp only [kEdgeAddr, kCurAddr]; omega))
-    have hx₂_deg : ∀ z : Fin N, x₂.mem (kCurAddr wb N Mc + z.val) =
-        (Function.update rev v (u :: rev v) z).length := by
-      intro z; dsimp only [x₂]; mem_upd; rw [hy₁_deg z]
-      by_cases hz : z = v <;> simp [hz]
-    obtain ⟨y, hy_ex, hy_deg, hy_out, hy_fr⟩ :=
-      revDegInner_spec adj wb Mc hmc hfit u es (k + 1) (Function.update rev v (u :: rev v)) x₂
-        (by omega)
+        (fun i hi => by
+          by_contra hne
+          have hmem : MemWrite (kOffAddr wb + i) := by
+            by_contra hnw; exact hne (hy₁_out _ hnw)
+          exact hdisj _ hmem (.inl ⟨by omega, by omega⟩))
+        (fun e he => by
+          by_contra hne
+          have hmem : MemWrite (kEdgeAddr wb N + e) := by
+            by_contra hnw; exact hne (hy₁_out _ hnw)
+          exact hdisj _ hmem (.inr ⟨by omega, by omega⟩))
+    have hx₂_fr : ∀ r : Fin 28, r.val < 18 → x₂.regs r = x.regs r := fun r hr => by
+      dsimp only [x₂]
+      rw [Data.set_regs_of_ne (by reg_ne), hy₁_fr r (by reg_ne) (by reg_ne), hst_fr r hr]
+    have hx₂_fwd : x₂.regs fwdEdgeReg = kEdgeAddr wb N := by
+      dsimp only [x₂]
+      have h1 : fwdEdgeReg ≠ jReg := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 25; omega)
+      have h2 : fwdEdgeReg ≠ addr := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 27; omega)
+      have h3 : fwdEdgeReg ≠ jEndReg := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 26; omega)
+      have h4 : fwdEdgeReg ≠ vReg := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 24; omega)
+      rw [Data.set_regs_of_ne h1, hy₁_fr fwdEdgeReg h2 h3]
+      dsimp only [st_v]
+      rw [Data.set_regs_of_ne h4, Data.set_regs_of_ne h2, hfwd]
+    have hx₂_u : x₂.regs uIdxReg = u.val := by
+      dsimp only [x₂]
+      have h1 : uIdxReg ≠ jReg := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 25; omega)
+      have h2 : uIdxReg ≠ addr := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 27; omega)
+      have h3 : uIdxReg ≠ jEndReg := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 26; omega)
+      rw [Data.set_regs_of_ne h1, hy₁_fr uIdxReg h2 h3, hst_u]
+    have hx₂_of : x₂.regs oldFinReg = csrOffset adj u.val + (adj u).length := by
+      dsimp only [x₂]
+      rw [Data.set_regs_of_ne (by reg_ne), hy₁_fr oldFinReg (by decide) (by decide)]
+      dsimp only [st_v]; wram_simp; exact hof
+    obtain ⟨y, hy_ex, hy_inv, hy_out, hy_fr⟩ :=
+      forEachArcInner_spec adj wb Mc hmc hfit fwdEdgeReg uIdxReg stepBody stepTime bound Inv
+        MemWrite ConstRegs hu_lo hu_hi hfwd_hi hfwd_ne hdisj hconst_regs hstep u es (k + 1)
+        (Function.update rev v (u :: rev v)) x₂ (by omega)
         (fun q hq => by
           have h := hget (q + 1) (by simp; omega)
           simpa [Nat.add_assoc, Nat.add_comm 1 q] using h)
         (fun z => by simpa [List.foldl_cons] using hroom_all z)
-        hx₂_deg hx₂_csr
-        (by dsimp only [x₂]; wram_simp; exact hy₁_1)
-        (by
-          dsimp only [x₂]; wram_simp
-          exact (hy₁_fr edgeB (by decide) (by decide)).trans
-            (by dsimp only [st_v]; wram_simp; exact hedge))
-        (by
-          dsimp only [x₂]; wram_simp
-          exact (hy₁_fr curB (by decide) (by decide)).trans
-            (by dsimp only [st_v]; wram_simp; exact hcur))
-        (by dsimp only [x₂]; wram_simp)
-        (by
-          dsimp only [x₂]; wram_simp
-          exact (hy₁_fr oldFinReg (by decide) (by decide)).trans
-            (by dsimp only [st_v]; wram_simp; exact hof))
-    have hbody_ex : ExecWithin w revDegInnerBody x x₂ 7 :=
+        hy₁_inv hx₂_csr ((hx₂_fr cOne (by decide)).trans hc1) hx₂_fwd
+        (hconst_regs _ _ (fun r hr => (hx₂_fr r hr).symm) hconst) hx₂_u
+        (by dsimp only [x₂]; wram_simp) hx₂_of
+    have hbody_ex : ExecWithin w (forEachArcInner fwdEdgeReg stepBody) x x₂ (stepTime + 3) :=
       (hp1.seq (hy₁_ex.seq hp2)).mono (by omega)
     obtain ⟨t₁, ht₁, he₁⟩ := hbody_ex
     obtain ⟨t₂, ht₂, he₂⟩ := hy_ex
     have hlt : (Cond.lt jReg oldFinReg).Holds x := by
       change x.regs jReg < x.regs oldFinReg; omega
-    refine ⟨y, ⟨t₁ + t₂ + 2, by simp only [List.length_cons]; omega, Exec.loop_iter hlt he₁ he₂⟩,
-      hy_deg, fun a ha => (hy_out a ha).trans (hy₁_out a ha), fun r h1 h2 h3 h4 => ?_⟩
+    refine ⟨y, ⟨t₁ + t₂ + 2, by simp only [List.length_cons]; rw [Nat.mul_add, Nat.mul_one]; omega,
+        Exec.loop_iter hlt he₁ he₂⟩,
+      hy_inv, fun a ha => (hy_out a ha).trans (hy₁_out a ha), fun r h1 h2 h3 h4 => ?_⟩
     rw [hy_fr r h1 h2 h3 h4]
     dsimp only [x₂]
     rw [Data.set_regs_of_ne h4, hy₁_fr r h1 h2]
     dsimp only [st_v]
     rw [Data.set_regs_of_ne h3, Data.set_regs_of_ne h1]
 
-private theorem revDegOuter_spec {N w : ℕ} (adj : Fin N → List (Fin N))
-    (wb Mc : ℕ) (hmc : csrOffset adj N ≤ Mc)
-    (hfit : Fits w (kTopAddr wb N Mc + Mc + 4)) :
+private theorem forEachArc_spec {N w : ℕ} (adj : Fin N → List (Fin N))
+    (wb Mc : ℕ) (hmc : csrOffset adj N ≤ Mc) (hfit : Fits w (kTopAddr wb N Mc + Mc + 4))
+    (fwdEdgeReg uIdxReg : Fin 28) (stepBody : Code .standard 28) (stepTime : ℕ)
+    (bound : Fin N → ℕ) (Inv : (Fin N → List (Fin N)) → (ℕ → ℕ) → Prop)
+    (MemWrite : ℕ → Prop) (ConstRegs : Data 28 → Prop)
+    (hu_lo : 18 ≤ uIdxReg.val) (hu_hi : uIdxReg.val < 24) (hu_ne_of : uIdxReg ≠ oldFinReg)
+    (hfwd_hi : fwdEdgeReg.val < 24) (hfwd_ne_of : fwdEdgeReg ≠ oldFinReg)
+    (hfwd_ne : fwdEdgeReg ≠ uIdxReg)
+    (hdisj : ∀ a, MemWrite a →
+      ¬ ((kOffAddr wb ≤ a ∧ a < kOffAddr wb + N + 1) ∨
+        (kEdgeAddr wb N ≤ a ∧ a < kEdgeAddr wb N + csrOffset adj N)))
+    (hconst_regs : ∀ d₁ d₂ : Data 28,
+      (∀ r : Fin 28, r.val < 18 → d₁.regs r = d₂.regs r) → ConstRegs d₁ → ConstRegs d₂)
+    (hstep : ∀ (u v : Fin N) (rev : Fin N → List (Fin N)) (s : Data 28),
+      (rev v).length + 1 ≤ bound v → Inv rev s.mem →
+      s.regs cOne = 1 → s.regs uIdxReg = u.val → s.regs vReg = v.val → ConstRegs s →
+      ∃ y, ExecWithin w stepBody s y stepTime ∧
+        Inv (Function.update rev v (u :: rev v)) y.mem ∧
+        (∀ a, ¬ MemWrite a → y.mem a = s.mem a) ∧
+        (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → y.regs r = s.regs r)) :
     ∀ (us : List (Fin N)) (idx : ℕ) (rev : Fin N → List (Fin N)) (x : Data 28)
       (_ : idx + us.length = N),
       (∀ q (hq : q < us.length), us[q].val = idx + q) →
       (∀ z : Fin N,
         (us.foldl (fun r u => (adj u).foldl (fun r v => Function.update r v (u :: r v)) r)
-          rev z).length ≤ Mc) →
-      (∀ z : Fin N, x.mem (kCurAddr wb N Mc + z.val) = (rev z).length) →
-      CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x.mem →
-      x.regs cOne = 1 → x.regs nVerts = N →
-      x.regs offB = kOffAddr wb → x.regs edgeB = kEdgeAddr wb N →
-      x.regs curB = kCurAddr wb N Mc → x.regs iReg = idx →
-      ∃ y, ExecWithin w (.loop (.lt iReg nVerts) revDegOuterBody) x y
-          (9 * us.length + 9 * outDegreeSum adj us + 2) ∧
-        (∀ z : Fin N, y.mem (kCurAddr wb N Mc + z.val) =
-          (us.foldl (fun r u => (adj u).foldl (fun r v => Function.update r v (u :: r v)) r)
-            rev z).length) ∧
-        (∀ a, ¬ (kCurAddr wb N Mc ≤ a ∧ a < kCurAddr wb N Mc + N) → y.mem a = x.mem a) ∧
+          rev z).length ≤ bound z) →
+      Inv rev x.mem → CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x.mem →
+      x.regs cOne = 1 → x.regs nVerts = N → x.regs offB = kOffAddr wb →
+      x.regs fwdEdgeReg = kEdgeAddr wb N → ConstRegs x → x.regs uIdxReg = idx →
+      ∃ y, ExecWithin w (forEachArc fwdEdgeReg uIdxReg stepBody) x y
+          (9 * us.length + (stepTime + 5) * outDegreeSum adj us + 2) ∧
+        Inv (us.foldl (fun r u => (adj u).foldl (fun r v => Function.update r v (u :: r v)) r)
+          rev) y.mem ∧
+        (∀ a, ¬ MemWrite a → y.mem a = x.mem a) ∧
         (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r)
-  | [], idx, rev, x, hidx, _, _, hdeg, _, _, _, _, _, _, _ => by
+  | [], idx, rev, x, hidx, _, _, hinv, _, _, hNv, _, _, _, huIdx => by
     simp only [List.length_nil, Nat.add_zero] at hidx
-    have hend : ¬ (Cond.lt iReg nVerts).Holds x := by
-      change ¬ x.regs iReg < x.regs nVerts; omega
+    have hend : ¬ (Cond.lt uIdxReg nVerts).Holds x := by
+      change ¬ x.regs uIdxReg < x.regs nVerts; omega
     exact ⟨x, ⟨2, by simp [outDegreeSum], Exec.loop_exit hend⟩,
-      hdeg, fun _ _ => rfl, fun _ _ => rfl⟩
-  | u :: us, idx, rev, x, hidx, hus, hroom_all, hdeg, hcsr, hc1, hNv, hoff, hedge, hcur, hi => by
+      hinv, fun _ _ => rfl, fun _ _ => rfl⟩
+  | u :: us, idx, rev, x, hidx, hus, hroom_all, hinv, hcsr, hc1, hNv, hoff, hfwd, hconst,
+      huIdx => by
     simp only [List.length_cons] at hidx
     have hu_val : u.val = idx := by
       have h0 := hus 0 (by simp)
@@ -2018,328 +2083,133 @@ private theorem revDegOuter_spec {N w : ℕ} (adj : Fin N → List (Fin N))
     have hf_i1 : Fits w (idx + 1) := hfit.of_le (by simp only [kTopAddr]; omega)
     let x₁ := (((x.set addr (kOffAddr wb + idx)).set jReg (csrOffset adj u.val)).set
       addr (kOffAddr wb + idx + 1)).set oldFinReg (csrOffset adj u.val + (adj u).length)
-    have hp1 : ExecWithin w
-        (ram[ addr ← offB + iReg; jReg ← *addr; addr ← addr + cOne; oldFinReg ← *addr ])
+    have hp1 : ExecWithin (B := .standard) w
+        (ram[ addr ← offB + uIdxReg; jReg ← *addr; addr ← addr + cOne; oldFinReg ← *addr ])
         x x₁ 4 := by
-      have htriv : x₁ = (((x.set addr (kOffAddr wb + idx)).set jReg (csrOffset adj u.val)).set
-        addr (kOffAddr wb + idx + 1)).set oldFinReg (csrOffset adj u.val + (adj u).length) := rfl
-      wram_exec [hoff, hi, hc1, hoff_u, hoff_u1, hf_oa, hf_oa1]
+      let d₁ := x.set addr (kOffAddr wb + idx)
+      let d₂ := d₁.set jReg (csrOffset adj u.val)
+      let d₃ := d₂.set addr (kOffAddr wb + idx + 1)
+      have h_u1 : uIdxReg ≠ addr := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 27; omega)
+      have he1 : Exec (B := .standard) w (ram[ addr ← offB + uIdxReg ]) x d₁ 1 := by
+        have h : Exec (B := .standard) w (ram[ addr ← offB + uIdxReg ]) x _ 1 :=
+          Exec.bin (by change Fits w (x.regs offB + x.regs uIdxReg); rw [hoff, huIdx]; exact hf_oa)
+        simpa [d₁, BinOp.eval, hoff, huIdx] using h
+      have he2 : Exec (B := .standard) w (ram[ jReg ← *addr ]) d₁ d₂ 1 := by
+        have h := Exec.load (B := .standard) (w := w) (x := d₁) (d := jReg) (a := addr)
+        simpa [d₂, d₁, Data.set_regs_self, Data.set_mem, hoff_u] using h
+      have he3 : Exec (B := .standard) w (ram[ addr ← addr + cOne ]) d₂ d₃ 1 := by
+        have hc1_2 : d₂.regs cOne = 1 := by
+          dsimp only [d₂, d₁]
+          rw [Data.set_regs_of_ne (by reg_ne), Data.set_regs_of_ne (by reg_ne), hc1]
+        have ha_2 : d₂.regs addr = kOffAddr wb + idx := by
+          dsimp only [d₂, d₁]; rw [Data.set_regs_of_ne (by reg_ne), Data.set_regs_self]
+        have h : Exec (B := .standard) w (ram[ addr ← addr + cOne ]) d₂ _ 1 :=
+          Exec.bin (by change Fits w (d₂.regs addr + d₂.regs cOne); rw [ha_2, hc1_2]; exact hf_oa1)
+        simpa [d₃, BinOp.eval, ha_2, show d₂.regs 1 = 1 from hc1_2] using h
+      have he4 : Exec (B := .standard) w (ram[ oldFinReg ← *addr ]) d₃ x₁ 1 := by
+        have h := Exec.load (B := .standard) (w := w) (x := d₃) (d := oldFinReg) (a := addr)
+        simpa [x₁, d₃, d₂, d₁, Data.set_regs_self, Data.set_mem, hoff_u1] using h
+      exact ⟨4, le_rfl, he1.seq (he2.seq (he3.seq he4))⟩
+    have hx₁_fr : ∀ r : Fin 28, r.val < 18 → x₁.regs r = x.regs r := fun r hr => by
+      dsimp only [x₁]
+      simp [Data.set_regs_of_ne (by reg_ne : r ≠ oldFinReg),
+        Data.set_regs_of_ne (by reg_ne : r ≠ addr), Data.set_regs_of_ne (by reg_ne : r ≠ jReg)]
+    have hx₁_fwd : x₁.regs fwdEdgeReg = kEdgeAddr wb N := by
+      dsimp only [x₁]
+      have h2 : fwdEdgeReg ≠ addr := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 27; omega)
+      have h3 : fwdEdgeReg ≠ jReg := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 25; omega)
+      rw [Data.set_regs_of_ne hfwd_ne_of, Data.set_regs_of_ne h2, Data.set_regs_of_ne h3,
+        Data.set_regs_of_ne h2, hfwd]
+    have hx₁_u : x₁.regs uIdxReg = u.val := by
+      dsimp only [x₁]
+      have h2 : uIdxReg ≠ addr := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 27; omega)
+      have h3 : uIdxReg ≠ jReg := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 25; omega)
+      rw [Data.set_regs_of_ne hu_ne_of, Data.set_regs_of_ne h2, Data.set_regs_of_ne h3,
+        Data.set_regs_of_ne h2, huIdx, hu_val]
     have hroom_u : ∀ z : Fin N,
-        ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev z).length ≤ Mc := by
+        ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev z).length ≤ bound z := by
       intro z
-      exact (length_foldl_vs_rev_le adj us _ z).trans
-        (by simpa [List.foldl_cons] using hroom_all z)
-    obtain ⟨y₁, hy₁_ex, hy₁_deg, hy₁_out, hy₁_fr⟩ :=
-      revDegInner_spec adj wb Mc hmc hfit u (adj u) 0 rev x₁ (by simp) (fun q _ => by simp)
-        hroom_u (by dsimp only [x₁]; exact hdeg) (by dsimp only [x₁]; exact hcsr)
-        (by dsimp only [x₁]; wram_simp; exact hc1)
-        (by dsimp only [x₁]; wram_simp; exact hedge)
-        (by dsimp only [x₁]; wram_simp; exact hcur)
-        (by dsimp only [x₁]; wram_simp)
-        (by dsimp only [x₁]; wram_simp)
-    have hy₁_i : y₁.regs iReg = idx :=
-      (hy₁_fr iReg (by decide) (by decide) (by decide) (by decide)).trans
-        (by dsimp only [x₁]; wram_simp; exact hi)
+      have hle : ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev z).length ≤
+          (us.foldl (fun r u' => (adj u').foldl (fun r v => Function.update r v (u' :: r v)) r)
+            ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev) z).length :=
+        length_foldl_vs_rev_le adj us _ z
+      exact hle.trans (by simpa [List.foldl_cons] using hroom_all z)
+    obtain ⟨y₁, hy₁_ex, hy₁_inv, hy₁_out, hy₁_fr⟩ :=
+      forEachArcInner_spec adj wb Mc hmc hfit fwdEdgeReg uIdxReg stepBody stepTime bound Inv
+        MemWrite ConstRegs hu_lo hu_hi hfwd_hi hfwd_ne hdisj hconst_regs hstep u (adj u) 0 rev x₁
+        (by simp) (fun q _ => by simp) hroom_u (by dsimp only [x₁]; exact hinv)
+        (by dsimp only [x₁]; exact hcsr)
+        ((hx₁_fr cOne (by decide)).trans hc1) hx₁_fwd
+        (hconst_regs _ _ (fun r hr => (hx₁_fr r hr).symm) hconst) hx₁_u
+        (by dsimp only [x₁]; wram_simp) (by dsimp only [x₁]; wram_simp)
+    have hy₁_u : y₁.regs uIdxReg = idx := by
+      have h1 : uIdxReg ≠ addr := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 27; omega)
+      have h2 : uIdxReg ≠ jEndReg := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 26; omega)
+      have h3 : uIdxReg ≠ vReg := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 24; omega)
+      have h4 : uIdxReg ≠ jReg := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 25; omega)
+      rw [hy₁_fr uIdxReg h1 h2 h3 h4, hx₁_u, hu_val]
     have hy₁_1 : y₁.regs cOne = 1 :=
       (hy₁_fr cOne (by decide) (by decide) (by decide) (by decide)).trans
-        (by dsimp only [x₁]; wram_simp; exact hc1)
-    let x₂ := y₁.set iReg (idx + 1)
-    have hp2 : ExecWithin w (ram[ iReg ← iReg + cOne ]) y₁ x₂ 1 := by
-      wram_exec [hy₁_i, hy₁_1, hf_i1]
+        ((hx₁_fr cOne (by decide)).trans hc1)
+    let x₂ := y₁.set uIdxReg (idx + 1)
+    have hp2 : ExecWithin (B := .standard) w (ram[ uIdxReg ← uIdxReg + cOne ]) y₁ x₂ 1 := by
+      have h : Exec (B := .standard) w (ram[ uIdxReg ← uIdxReg + cOne ]) y₁ _ 1 :=
+        Exec.bin (by change Fits w (y₁.regs uIdxReg + y₁.regs cOne); rw [hy₁_u, hy₁_1]; exact hf_i1)
+      exact ⟨1, le_rfl, by simpa [x₂, BinOp.eval, hy₁_u, show y₁.regs 1 = 1 from hy₁_1] using h⟩
     have hx₂_csr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x₂.mem :=
       hcsr.of_eqOn
-        (fun _ _ => hy₁_out _ (by dsimp only [kOffAddr, kCurAddr]; omega))
-        (fun _ _ => hy₁_out _ (by dsimp only [kEdgeAddr, kCurAddr]; omega))
+        (fun i hi => by
+          by_contra hne
+          have hmem : MemWrite (kOffAddr wb + i) := by
+            by_contra hnw; exact hne (hy₁_out _ hnw)
+          exact hdisj _ hmem (.inl ⟨by omega, by omega⟩))
+        (fun e he => by
+          by_contra hne
+          have hmem : MemWrite (kEdgeAddr wb N + e) := by
+            by_contra hnw; exact hne (hy₁_out _ hnw)
+          exact hdisj _ hmem (.inr ⟨by omega, by omega⟩))
     have hx₂_fr0 : ∀ r : Fin 28, r.val < 18 → x₂.regs r = x.regs r := fun r hr => by
-      have hne_i : r ≠ iReg := by reg_ne
-      have hne_of : r ≠ oldFinReg := by reg_ne
-      have hne_a : r ≠ addr := by reg_ne
-      have hne_j : r ≠ jReg := by reg_ne
+      have hne_u : r ≠ uIdxReg := Fin.ne_of_val_ne (by omega)
       dsimp only [x₂]
-      rw [Data.set_regs_of_ne hne_i, hy₁_fr r hne_a (by reg_ne) (by reg_ne) hne_j]
-      dsimp only [x₁]
-      simp [Data.set_regs_of_ne hne_of, Data.set_regs_of_ne hne_a, Data.set_regs_of_ne hne_j]
-    obtain ⟨y, hy_ex, hy_deg, hy_out, hy_fr⟩ :=
-      revDegOuter_spec adj wb Mc hmc hfit us (idx + 1)
-        ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev) x₂ (by omega)
+      rw [Data.set_regs_of_ne hne_u, hy₁_fr r (by reg_ne) (by reg_ne) (by reg_ne) (by reg_ne),
+        hx₁_fr r hr]
+    have hx₂_fwd : x₂.regs fwdEdgeReg = kEdgeAddr wb N := by
+      have h1 : fwdEdgeReg ≠ addr := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 27; omega)
+      have h2 : fwdEdgeReg ≠ jEndReg := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 26; omega)
+      have h3 : fwdEdgeReg ≠ vReg := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 24; omega)
+      have h4 : fwdEdgeReg ≠ jReg := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 25; omega)
+      dsimp only [x₂]
+      rw [Data.set_regs_of_ne hfwd_ne, hy₁_fr fwdEdgeReg h1 h2 h3 h4, hx₁_fwd]
+    obtain ⟨y, hy_ex, hy_inv, hy_out, hy_fr⟩ :=
+      forEachArc_spec adj wb Mc hmc hfit fwdEdgeReg uIdxReg stepBody stepTime bound Inv MemWrite
+        ConstRegs hu_lo hu_hi hu_ne_of hfwd_hi hfwd_ne_of hfwd_ne hdisj hconst_regs hstep
+        us (idx + 1) ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev) x₂ (by omega)
         (fun q hq => by
           have h := hus (q + 1) (by simp; omega)
           simpa [Nat.add_assoc, Nat.add_comm 1 q] using h)
         (fun z => by simpa [List.foldl_cons] using hroom_all z)
-        hy₁_deg hx₂_csr
-        ((hx₂_fr0 cOne (by decide)).trans hc1)
-        ((hx₂_fr0 nVerts (by decide)).trans hNv)
-        ((hx₂_fr0 offB (by decide)).trans hoff)
-        ((hx₂_fr0 edgeB (by decide)).trans hedge)
-        ((hx₂_fr0 curB (by decide)).trans hcur)
+        hy₁_inv hx₂_csr ((hx₂_fr0 cOne (by decide)).trans hc1)
+        ((hx₂_fr0 nVerts (by decide)).trans hNv) ((hx₂_fr0 offB (by decide)).trans hoff)
+        hx₂_fwd (hconst_regs _ _ (fun r hr => (hx₂_fr0 r hr).symm) hconst)
         (by dsimp only [x₂]; wram_simp)
-    have hbody_ex : ExecWithin w revDegOuterBody x x₂ (9 * (adj u).length + 7) :=
-      (hp1.seq (hy₁_ex.seq hp2)).mono (by omega)
+    have hbody_ex : ExecWithin w
+        ((ram[ addr ← offB + uIdxReg; jReg ← *addr; addr ← addr + cOne; oldFinReg ← *addr ]).seq
+          ((Code.loop (.lt jReg oldFinReg) (forEachArcInner fwdEdgeReg stepBody)).seq
+            (ram[ uIdxReg ← uIdxReg + cOne ])))
+        x x₂ (9 + (stepTime + 5) * (adj u).length - 2) := by
+      have := (hp1.seq (hy₁_ex.seq hp2)).mono
+        (show 4 + ((stepTime + 5) * (adj u).length + 2 + 1) ≤
+          9 + (stepTime + 5) * (adj u).length - 2 by omega)
+      exact this
     obtain ⟨t₁, ht₁, he₁⟩ := hbody_ex
     obtain ⟨t₂, ht₂, he₂⟩ := hy_ex
-    have hlt : (Cond.lt iReg nVerts).Holds x := by
-      change x.regs iReg < x.regs nVerts; omega
+    have hlt : (Cond.lt uIdxReg nVerts).Holds x := by
+      change x.regs uIdxReg < x.regs nVerts; omega
     refine ⟨y, ⟨t₁ + t₂ + 2, ?_, Exec.loop_iter hlt he₁ he₂⟩,
-      hy_deg, fun a ha => (hy_out a ha).trans (hy₁_out a ha),
+      hy_inv, fun a ha => (hy_out a ha).trans (hy₁_out a ha),
       fun r hr => (hy_fr r hr).trans (hx₂_fr0 r hr)⟩
-    simp only [List.length_cons, outDegreeSum, List.map_cons, List.sum_cons] at ht₂ ⊢
-    omega
-
-private theorem revFillInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
-    (wb Mc : ℕ) (hmc : csrOffset adj N ≤ Mc)
-    (hfit : Fits w (kTopAddr wb N Mc + Mc + 4)) (u : Fin N) :
-    ∀ (es : List (Fin N)) (k : ℕ) (rev : Fin N → List (Fin N)) (x : Data 28)
-      (_ : k + es.length = (adj u).length),
-      (∀ q (hq : q < es.length), (adj u)[k + q]'(by omega) = es[q]) →
-      (∀ z : Fin N,
-        (es.foldl (fun r v => Function.update r v (u :: r v)) rev z).length ≤
-          (revGraph adj z).length) →
-      PartialCSRAt (revGraph adj) rev (kCurAddr wb N Mc) (kRevEdgeAddr wb N Mc) x.mem →
-      CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x.mem →
-      x.regs cOne = 1 →
-      x.regs finCnt = kEdgeAddr wb N →
-      x.regs edgeB = kRevEdgeAddr wb N Mc →
-      x.regs curB = kCurAddr wb N Mc →
-      x.regs uReg = u.val →
-      x.regs jReg = csrOffset adj u.val + k →
-      x.regs oldFinReg = csrOffset adj u.val + (adj u).length →
-      ∃ y, ExecWithin w (.loop (.lt jReg oldFinReg) revFillInnerBody) x y (11 * es.length + 2) ∧
-        PartialCSRAt (revGraph adj) (es.foldl (fun r v => Function.update r v (u :: r v)) rev)
-          (kCurAddr wb N Mc) (kRevEdgeAddr wb N Mc) y.mem ∧
-        (∀ a, ¬ ((kCurAddr wb N Mc ≤ a ∧ a < kCurAddr wb N Mc + N) ∨
-            (kRevEdgeAddr wb N Mc ≤ a ∧ a < kRevEdgeAddr wb N Mc + csrOffset (revGraph adj) N)) →
-          y.mem a = x.mem a) ∧
-        (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → r ≠ vReg → r ≠ jReg → y.regs r = x.regs r)
-  | [], k, rev, x, hk, _, _, hpcsr, _, _, _, _, _, _, hj, hof => by
-    simp only [List.length_nil, Nat.add_zero] at hk
-    have hend : ¬ (Cond.lt jReg oldFinReg).Holds x := by
-      change ¬ x.regs jReg < x.regs oldFinReg; omega
-    exact ⟨x, ⟨2, by simp, Exec.loop_exit hend⟩, hpcsr, fun _ _ => rfl, fun _ _ _ _ _ => rfl⟩
-  | v :: es, k, rev, x, hk, hget, hroom_all, hpcsr, hcsr, hc1, hfedge, hredge, hcur,
-      huR, hj, hof => by
-    set revAdj := revGraph adj
-    simp only [List.length_cons] at hk
-    have hk_lt : k < (adj u).length := by omega
-    have hv_eq : (adj u)[k] = v := by
-      have h0 := hget 0 (by simp)
-      simpa only [Nat.add_zero, List.getElem_cons_zero] using h0
-    have hmem_e : x.mem (kEdgeAddr wb N + (csrOffset adj u.val + k)) = v.val := by
-      rw [← Nat.add_assoc, hcsr.2 u k hk_lt, hv_eq]
-    have hj_lt_M : csrOffset adj u.val + k < csrOffset adj N := by
-      have h1 := csrOffset_succ adj u.isLt; simp only [Fin.eta] at h1
-      have h2 := csrOffset_mono adj (by omega : u.val + 1 ≤ N); omega
-    have hf_eaddr : Fits w (kEdgeAddr wb N + (csrOffset adj u.val + k)) :=
-      hfit.of_le (by simp only [kEdgeAddr, kTopAddr]; omega)
-    have hf_j1 : Fits w (csrOffset adj u.val + k + 1) :=
-      hfit.of_le (by simp only [kTopAddr]; omega)
-    have hf_bf : Fits w (kCurAddr wb N Mc + N + Mc + 1) :=
-      hfit.of_le (by simp only [kCurAddr, kTopAddr]; omega)
-    have hmc_rev : csrOffset revAdj N ≤ Mc := by
-      dsimp only [revAdj, revGraph]
-      rwa [csrOffset_transposeAdj_eq]
-    have hroom_v : (rev v).length + 1 ≤ (revAdj v).length := by
-      have hle := length_foldl_rev_le u es (Function.update rev v (u :: rev v)) v
-      have hall := hroom_all v
-      simp only [List.foldl_cons] at hall
-      simpa using hle.trans hall
-    let st_v := (x.set addr (kEdgeAddr wb N + (csrOffset adj u.val + k))).set vReg v.val
-    obtain ⟨y₁, hy₁_ex, hy₁_pcsr, hy₁_out, hy₁_fr⟩ :=
-      backfillStepCode_spec revAdj rev (kCurAddr wb N Mc) (kRevEdgeAddr wb N Mc) Mc
-        (by simp only [kRevEdgeAddr, kCurAddr]; omega) hmc_rev hf_bf v u hroom_v
-        (x := st_v)
-        (by dsimp only [st_v]; wram_simp; exact hc1)
-        (by dsimp only [st_v]; wram_simp; exact hcur)
-        (by dsimp only [st_v]; wram_simp; exact hredge)
-        (by dsimp only [st_v]; wram_simp)
-        (by dsimp only [st_v]; wram_simp; exact huR)
-        (by dsimp only [st_v]; exact hpcsr)
-    have hp1 : ExecWithin w (ram[ addr ← finCnt + jReg; vReg ← *addr ]) x st_v 2 := by
-      have htriv :
-          st_v = (x.set addr (kEdgeAddr wb N + (csrOffset adj u.val + k))).set vReg v.val := rfl
-      wram_exec [hfedge, hj, hmem_e, hf_eaddr]
-    have hy₁_1 : y₁.regs cOne = 1 :=
-      (hy₁_fr cOne (by decide) (by decide)).trans (by dsimp only [st_v]; wram_simp; exact hc1)
-    have hy₁_j : y₁.regs jReg = csrOffset adj u.val + k :=
-      (hy₁_fr jReg (by decide) (by decide)).trans (by dsimp only [st_v]; wram_simp; exact hj)
-    let x₂ := y₁.set jReg (csrOffset adj u.val + (k + 1))
-    have hp2 : ExecWithin w (ram[ jReg ← jReg + cOne ]) y₁ x₂ 1 := by
-      have htriv : x₂ = y₁.set jReg (csrOffset adj u.val + k + 1) := by
-        simp [x₂, Nat.add_assoc]
-      rw [htriv]
-      wram_exec [hy₁_j, hy₁_1, hf_j1]
-    have hx₂_csr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x₂.mem :=
-      hcsr.of_eqOn
-        (fun _ _ => hy₁_out _ (by dsimp only [kOffAddr, kCurAddr, kRevEdgeAddr]; omega))
-        (fun _ _ => hy₁_out _ (by dsimp only [kEdgeAddr, kCurAddr, kRevEdgeAddr]; omega))
-    obtain ⟨y, hy_ex, hy_pcsr, hy_out, hy_fr⟩ :=
-      revFillInner_spec adj wb Mc hmc hfit u es (k + 1) (Function.update rev v (u :: rev v)) x₂
-        (by omega)
-        (fun q hq => by
-          have h := hget (q + 1) (by simp; omega)
-          simpa [Nat.add_assoc, Nat.add_comm 1 q] using h)
-        (fun z => by simpa [List.foldl_cons] using hroom_all z)
-        hy₁_pcsr hx₂_csr
-        (by dsimp only [x₂]; wram_simp; exact hy₁_1)
-        (by
-          dsimp only [x₂]; wram_simp
-          exact (hy₁_fr finCnt (by decide) (by decide)).trans
-            (by dsimp only [st_v]; wram_simp; exact hfedge))
-        (by
-          dsimp only [x₂]; wram_simp
-          exact (hy₁_fr edgeB (by decide) (by decide)).trans
-            (by dsimp only [st_v]; wram_simp; exact hredge))
-        (by
-          dsimp only [x₂]; wram_simp
-          exact (hy₁_fr curB (by decide) (by decide)).trans
-            (by dsimp only [st_v]; wram_simp; exact hcur))
-        (by
-          dsimp only [x₂]; wram_simp
-          exact (hy₁_fr uReg (by decide) (by decide)).trans
-            (by dsimp only [st_v]; wram_simp; exact huR))
-        (by dsimp only [x₂]; wram_simp)
-        (by
-          dsimp only [x₂]; wram_simp
-          exact (hy₁_fr oldFinReg (by decide) (by decide)).trans
-            (by dsimp only [st_v]; wram_simp; exact hof))
-    have hbody_ex : ExecWithin w revFillInnerBody x x₂ 9 :=
-      (hp1.seq (hy₁_ex.seq hp2)).mono (by omega)
-    obtain ⟨t₁, ht₁, he₁⟩ := hbody_ex
-    obtain ⟨t₂, ht₂, he₂⟩ := hy_ex
-    have hlt : (Cond.lt jReg oldFinReg).Holds x := by
-      change x.regs jReg < x.regs oldFinReg; omega
-    refine ⟨y, ⟨t₁ + t₂ + 2, by simp only [List.length_cons]; omega, Exec.loop_iter hlt he₁ he₂⟩,
-      hy_pcsr, fun a ha => (hy_out a ha).trans (hy₁_out a ha), fun r h1 h2 h3 h4 => ?_⟩
-    rw [hy_fr r h1 h2 h3 h4]
-    dsimp only [x₂]
-    rw [Data.set_regs_of_ne h4, hy₁_fr r h1 h2]
-    dsimp only [st_v]
-    rw [Data.set_regs_of_ne h3, Data.set_regs_of_ne h1]
-
-private theorem revFillOuter_spec {N w : ℕ} (adj : Fin N → List (Fin N))
-    (wb Mc : ℕ) (hmc : csrOffset adj N ≤ Mc)
-    (hfit : Fits w (kTopAddr wb N Mc + Mc + 4)) :
-    ∀ (us : List (Fin N)) (idx : ℕ) (rev : Fin N → List (Fin N)) (x : Data 28)
-      (_ : idx + us.length = N),
-      (∀ q (hq : q < us.length), us[q].val = idx + q) →
-      (∀ z : Fin N,
-        (us.foldl (fun r u => (adj u).foldl (fun r v => Function.update r v (u :: r v)) r)
-          rev z).length ≤ (revGraph adj z).length) →
-      PartialCSRAt (revGraph adj) rev (kCurAddr wb N Mc) (kRevEdgeAddr wb N Mc) x.mem →
-      CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x.mem →
-      x.regs cOne = 1 → x.regs nVerts = N →
-      x.regs offB = kOffAddr wb → x.regs finCnt = kEdgeAddr wb N →
-      x.regs edgeB = kRevEdgeAddr wb N Mc → x.regs curB = kCurAddr wb N Mc →
-      x.regs uReg = idx →
-      ∃ y, ExecWithin w (.loop (.lt uReg nVerts) revFillOuterBody) x y
-          (9 * us.length + 11 * outDegreeSum adj us + 2) ∧
-        PartialCSRAt (revGraph adj)
-          (us.foldl (fun r u => (adj u).foldl (fun r v => Function.update r v (u :: r v)) r) rev)
-          (kCurAddr wb N Mc) (kRevEdgeAddr wb N Mc) y.mem ∧
-        (∀ a, ¬ ((kCurAddr wb N Mc ≤ a ∧ a < kCurAddr wb N Mc + N) ∨
-            (kRevEdgeAddr wb N Mc ≤ a ∧ a < kRevEdgeAddr wb N Mc + csrOffset (revGraph adj) N)) →
-          y.mem a = x.mem a) ∧
-        (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r)
-  | [], idx, rev, x, hidx, _, _, hpcsr, _, _, _, _, _, _, _, _ => by
-    simp only [List.length_nil, Nat.add_zero] at hidx
-    have hend : ¬ (Cond.lt uReg nVerts).Holds x := by
-      change ¬ x.regs uReg < x.regs nVerts; omega
-    exact ⟨x, ⟨2, by simp [outDegreeSum], Exec.loop_exit hend⟩,
-      hpcsr, fun _ _ => rfl, fun _ _ => rfl⟩
-  | u :: us, idx, rev, x, hidx, hus, hroom_all, hpcsr, hcsr, hc1, hNv, hoff, hfedge,
-      hredge, hcur, huR => by
-    set revAdj := revGraph adj
-    simp only [List.length_cons] at hidx
-    have hu_val : u.val = idx := by
-      have h0 := hus 0 (by simp)
-      rwa [List.getElem_cons_zero, Nat.add_zero] at h0
-    have hoff_u : x.mem (kOffAddr wb + idx) = csrOffset adj u.val := by
-      rw [← hu_val]; exact hcsr.1 u.val (by omega)
-    have hoff_u1 : x.mem (kOffAddr wb + idx + 1) = csrOffset adj u.val + (adj u).length := by
-      simpa [← hu_val, Nat.add_assoc, csrOffset_succ adj u.isLt] using
-        hcsr.1 (u.val + 1) (by omega)
-    have hf_oa : Fits w (kOffAddr wb + idx) :=
-      hfit.of_le (by simp only [kOffAddr, kTopAddr]; omega)
-    have hf_oa1 : Fits w (kOffAddr wb + idx + 1) :=
-      hfit.of_le (by simp only [kOffAddr, kTopAddr]; omega)
-    have hf_i1 : Fits w (idx + 1) := hfit.of_le (by simp only [kTopAddr]; omega)
-    let x₁ := (((x.set addr (kOffAddr wb + idx)).set jReg (csrOffset adj u.val)).set
-      addr (kOffAddr wb + idx + 1)).set oldFinReg (csrOffset adj u.val + (adj u).length)
-    have hp1 : ExecWithin w
-        (ram[ addr ← offB + uReg; jReg ← *addr; addr ← addr + cOne; oldFinReg ← *addr ])
-        x x₁ 4 := by
-      have htriv : x₁ = (((x.set addr (kOffAddr wb + idx)).set jReg (csrOffset adj u.val)).set
-        addr (kOffAddr wb + idx + 1)).set oldFinReg (csrOffset adj u.val + (adj u).length) := rfl
-      wram_exec [hoff, huR, hc1, hoff_u, hoff_u1, hf_oa, hf_oa1]
-    have hroom_u : ∀ z : Fin N,
-        ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev z).length ≤
-          (revAdj z).length := by
-      intro z
-      exact (length_foldl_vs_rev_le adj us _ z).trans
-        (by simpa [List.foldl_cons] using hroom_all z)
-    obtain ⟨y₁, hy₁_ex, hy₁_pcsr, hy₁_out, hy₁_fr⟩ :=
-      revFillInner_spec adj wb Mc hmc hfit u (adj u) 0 rev x₁ (by simp) (fun q _ => by simp)
-        hroom_u (by dsimp only [x₁]; exact hpcsr) (by dsimp only [x₁]; exact hcsr)
-        (by dsimp only [x₁]; wram_simp; exact hc1)
-        (by dsimp only [x₁]; wram_simp; exact hfedge)
-        (by dsimp only [x₁]; wram_simp; exact hredge)
-        (by dsimp only [x₁]; wram_simp; exact hcur)
-        (by dsimp only [x₁]; wram_simp; omega)
-        (by dsimp only [x₁]; wram_simp)
-        (by dsimp only [x₁]; wram_simp)
-    have hy₁_u : y₁.regs uReg = idx :=
-      (hy₁_fr uReg (by decide) (by decide) (by decide) (by decide)).trans
-        (by dsimp only [x₁]; wram_simp; exact huR)
-    have hy₁_1 : y₁.regs cOne = 1 :=
-      (hy₁_fr cOne (by decide) (by decide) (by decide) (by decide)).trans
-        (by dsimp only [x₁]; wram_simp; exact hc1)
-    let x₂ := y₁.set uReg (idx + 1)
-    have hp2 : ExecWithin w (ram[ uReg ← uReg + cOne ]) y₁ x₂ 1 := by
-      wram_exec [hy₁_u, hy₁_1, hf_i1]
-    have hmc_rev : csrOffset revAdj N ≤ Mc := by
-      dsimp only [revAdj, revGraph]; rwa [csrOffset_transposeAdj_eq]
-    have hx₂_csr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x₂.mem :=
-      hcsr.of_eqOn
-        (fun _ _ => hy₁_out _ (by dsimp only [kOffAddr, kCurAddr, kRevEdgeAddr]; omega))
-        (fun _ _ => hy₁_out _ (by dsimp only [kEdgeAddr, kCurAddr, kRevEdgeAddr]; omega))
-    have hx₂_fr0 : ∀ r : Fin 28, r.val < 18 → x₂.regs r = x.regs r := fun r hr => by
-      have hne_u : r ≠ uReg := by reg_ne
-      have hne_of : r ≠ oldFinReg := by reg_ne
-      have hne_a : r ≠ addr := by reg_ne
-      have hne_j : r ≠ jReg := by reg_ne
-      dsimp only [x₂]
-      rw [Data.set_regs_of_ne hne_u, hy₁_fr r hne_a (by reg_ne) (by reg_ne) hne_j]
-      dsimp only [x₁]
-      simp [Data.set_regs_of_ne hne_of, Data.set_regs_of_ne hne_a, Data.set_regs_of_ne hne_j]
-    have hx₂_fc : x₂.regs finCnt = kEdgeAddr wb N := by
-      dsimp only [x₂]
-      rw [Data.set_regs_of_ne (by decide),
-        hy₁_fr finCnt (by decide) (by decide) (by decide) (by decide)]
-      dsimp only [x₁]; wram_simp; exact hfedge
-    obtain ⟨y, hy_ex, hy_pcsr, hy_out, hy_fr⟩ :=
-      revFillOuter_spec adj wb Mc hmc hfit us (idx + 1)
-        ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev) x₂ (by omega)
-        (fun q hq => by
-          have h := hus (q + 1) (by simp; omega)
-          simpa [Nat.add_assoc, Nat.add_comm 1 q] using h)
-        (fun z => by simpa [List.foldl_cons] using hroom_all z)
-        hy₁_pcsr hx₂_csr
-        ((hx₂_fr0 cOne (by decide)).trans hc1)
-        ((hx₂_fr0 nVerts (by decide)).trans hNv)
-        ((hx₂_fr0 offB (by decide)).trans hoff)
-        hx₂_fc
-        ((hx₂_fr0 edgeB (by decide)).trans hredge)
-        ((hx₂_fr0 curB (by decide)).trans hcur)
-        (by dsimp only [x₂]; wram_simp)
-    have hbody_ex : ExecWithin w revFillOuterBody x x₂ (11 * (adj u).length + 7) :=
-      (hp1.seq (hy₁_ex.seq hp2)).mono (by omega)
-    obtain ⟨t₁, ht₁, he₁⟩ := hbody_ex
-    obtain ⟨t₂, ht₂, he₂⟩ := hy_ex
-    have hlt : (Cond.lt uReg nVerts).Holds x := by
-      change x.regs uReg < x.regs nVerts; omega
-    refine ⟨y, ⟨t₁ + t₂ + 2, ?_, Exec.loop_iter hlt he₁ he₂⟩,
-      hy_pcsr, fun a ha => (hy_out a ha).trans (hy₁_out a ha),
-      fun r hr => (hy_fr r hr).trans (hx₂_fr0 r hr)⟩
-    simp only [List.length_cons, outDegreeSum, List.map_cons, List.sum_cons] at ht₂ ⊢
+    simp only [List.length_cons, outDegreeSum, List.map_cons, List.sum_cons,
+      Nat.mul_add, Nat.mul_one] at ht₂ ⊢
     omega
 
 theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
@@ -2379,11 +2249,26 @@ theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
     intro z
     have h1 := csrOffset_succ revAdj z.isLt; simp only [Fin.eta] at h1
     have h2 := csrOffset_mono revAdj (by omega : z.val + 1 ≤ N); omega
+  have hf_cur : Fits w (kCurAddr wb N Mc + N + Mc + 1) :=
+    hfit.of_le (by simp only [kCurAddr, kTopAddr]; omega)
   obtain ⟨x₃, hx₃_ex, hx₃_deg, hx₃_out, hx₃_fr⟩ :=
-    revDegOuter_spec adj wb Mc hmc hfit (List.finRange N) 0 (fun _ => []) x₂ (by simp)
-      (fun q _ => by simp) (fun z => hroom_rev z)
-      (fun z => by dsimp only [x₂]; exact hx₁_zero z.val z.isLt) hx₁_csr
-      (by dsimp only [x₂]; wram_simp; exact (hx₁_fr cOne (by decide)).trans hc1)
+    forEachArc_spec adj wb Mc hmc hfit edgeB iReg incCurCode 4 (fun _ => Mc)
+      (fun rev mem => ∀ z : Fin N, mem (kCurAddr wb N Mc + z.val) = (rev z).length)
+      (fun a => kCurAddr wb N Mc ≤ a ∧ a < kCurAddr wb N Mc + N)
+      (fun d => d.regs curB = kCurAddr wb N Mc)
+      (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (fun a ha => by dsimp only [kOffAddr, kEdgeAddr, kCurAddr] at ha ⊢; omega)
+      (fun d₁ d₂ hd h => by rw [← hd curB (by decide)]; exact h)
+      (fun u v rev s hroom hinv hc1' _ hv hcur' => by
+        obtain ⟨y, hy_ex, hy_deg, hy_out, hy_fr⟩ :=
+          incCurCode_spec (kCurAddr wb N Mc) Mc hf_cur (fun z => (rev z).length) v hroom
+            hc1' hcur' hv hinv
+        refine ⟨y, hy_ex, fun z => ?_, hy_out, hy_fr⟩
+        rw [hy_deg z]
+        by_cases hz : z = v <;> simp [hz])
+      (List.finRange N) 0 (fun _ => []) x₂ (by simp) (fun q _ => by simp)
+      (fun z => hroom_rev z) (fun z => by dsimp only [x₂]; exact hx₁_zero z.val z.isLt)
+      hx₁_csr (by dsimp only [x₂]; wram_simp; exact (hx₁_fr cOne (by decide)).trans hc1)
       (by dsimp only [x₂]; wram_simp; exact (hx₁_fr nVerts (by decide)).trans hNv)
       (by dsimp only [x₂]; wram_simp; exact (hx₁_fr offB (by decide)).trans hoff)
       (by dsimp only [x₂]; wram_simp; exact (hx₁_fr edgeB (by decide)).trans hedge)
@@ -2436,16 +2321,29 @@ theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
       (fun _ _ => (hx₅_out _ (by dsimp only [kEdgeAddr, kRevOffAddr, kCurAddr]; omega)).trans
         (hx₃_out _ (by dsimp only [kEdgeAddr, kCurAddr]; omega)))
   obtain ⟨x₇, hx₇_ex, hx₇_pcsr, hx₇_out, hx₇_fr⟩ :=
-    revFillOuter_spec adj wb Mc hmc hfit (List.finRange N) 0 (fun _ => []) x₆ (by simp)
-      (fun q _ => by simp) (fun z => le_rfl)
+    forEachArc_spec adj wb Mc hmc hfit finCnt uReg backfillStepCode 6 (fun z => (revAdj z).length)
+      (fun rev mem => PartialCSRAt revAdj rev (kCurAddr wb N Mc) (kRevEdgeAddr wb N Mc) mem)
+      (fun a => (kCurAddr wb N Mc ≤ a ∧ a < kCurAddr wb N Mc + N) ∨
+        (kRevEdgeAddr wb N Mc ≤ a ∧ a < kRevEdgeAddr wb N Mc + csrOffset revAdj N))
+      (fun d => d.regs curB = kCurAddr wb N Mc ∧ d.regs edgeB = kRevEdgeAddr wb N Mc)
+      (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (fun a ha => by
+        dsimp only [kOffAddr, kEdgeAddr, kCurAddr, kRevEdgeAddr] at ha ⊢
+        omega)
+      (fun d₁ d₂ hd h => ⟨(hd curB (by decide)).symm ▸ h.1, (hd edgeB (by decide)).symm ▸ h.2⟩)
+      (fun u v rev s hroom hinv hc1' hu hv ⟨hcur', hedge'⟩ =>
+        backfillStepCode_spec revAdj rev (kCurAddr wb N Mc) (kRevEdgeAddr wb N Mc) Mc
+          (by simp only [kRevEdgeAddr, kCurAddr]; omega) hmc_rev hf_cur v u hroom
+          hc1' hcur' hedge' hv hu hinv)
+      (List.finRange N) 0 (fun _ => []) x₆ (by simp) (fun q _ => by simp) (fun _ => le_rfl)
       (partialCSRAt_init revAdj (kCurAddr wb N Mc) (kRevEdgeAddr wb N Mc) x₅.mem hx₅_cur)
       hx₅_csr
       (by dsimp only [x₆]; wram_simp; exact (hx₅_fr0 cOne (by decide) (by decide)).trans hc1)
       (by dsimp only [x₆]; wram_simp; exact (hx₅_fr0 nVerts (by decide) (by decide)).trans hNv)
       (by dsimp only [x₆]; wram_simp)
       (by dsimp only [x₆]; wram_simp)
-      (by dsimp only [x₆]; wram_simp)
-      (by dsimp only [x₆]; wram_simp; exact (hx₅_fr0 curB (by decide) (by decide)).trans hcur)
+      ⟨by dsimp only [x₆]; wram_simp; exact (hx₅_fr0 curB (by decide) (by decide)).trans hcur,
+        by dsimp only [x₆]; wram_simp⟩
       (by dsimp only [x₆]; wram_simp)
   have hx₇_roff : ∀ u ≤ N, x₇.mem (kRevOffAddr wb N Mc + u) = csrOffset revAdj u := fun u hu => by
     rw [hx₇_out _ (by simp only [kRevOffAddr, kCurAddr, kRevEdgeAddr]; omega)]
@@ -2493,14 +2391,14 @@ theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
 /-! ### Pass 3: Kosaraju SCC peeling and component indexing (`O(N + M)`) -/
 
 /-- Write the current component index for one newly finished vertex. -/
-def writeCompBody : Code .standard 28 := ram[
+private def writeCompBody : Code .standard 28 := ram[
   addr ← finB + pReg; vReg ← *addr;
   addr ← compB + vReg; *addr ← compIdxReg;
   pReg ← pReg + cOne ]
 
 /-- Kosaraju peeling step: visit the next vertex in reverse finishing order in the transpose and
 index the vertices finished as one component. -/
-def peelStepBody : Code .standard 28 :=
+private def peelStepBody : Code .standard 28 :=
   (ram[ addr ← nVerts - cOne; addr ← addr - iReg; addr ← ordB + addr; uReg ← *addr;
         oldFinReg ← finCnt ]).seq
     (visitRootCode.seq
@@ -2980,6 +2878,12 @@ def sccIndexCode : Code .standard 28 :=
     (transposeCSRCode.seq
       ((ram[ finB ← ordB + nVerts ]).seq kosarajuIndexCode))
 
+/-- `sccIndexCode` does not read the word width. -/
+theorem not_readsWidth_sccIndexCode : ¬ sccIndexCode.ReadsWidth := by decide +kernel
+
+/-- `sccIndexCode` is `rand`-free. -/
+theorem isRandFree_sccIndexCode : sccIndexCode.IsRandFree := by decide +kernel
+
 /-- **Kosaraju's algorithm on the word RAM in `O(N + M)` instructions.** From the scratch layout
 based at `wb` (with a CSR graph `adj` of at most `Mc` arcs at `kOffAddr wb`), `sccIndexCode`
 writes `indexComponents (sccs adj (List.finRange N)) u` to `kCompAddr wb N Mc + u` for every
@@ -3075,17 +2979,17 @@ structure Graph where
 namespace Graph
 
 /-- Number of arcs `∑ u, (G.adj u).length`. -/
-def m (G : Graph) : ℕ := csrOffset G.adj G.n
+@[expose] def m (G : Graph) : ℕ := csrOffset G.adj G.n
 
 /-- **CSR (offset-array) input encoding** `[n, m, off 0, …, off n] ++ arcs`, where
 `off u = csrOffset G.adj u` counts the arcs leaving vertices below `u` and `arcs` lists the
 successors of `0, …, n - 1` in successor-list order. -/
-def encodeCSR (G : Graph) : List ℕ :=
+@[expose] def encodeCSR (G : Graph) : List ℕ :=
   G.n :: G.m :: ((List.range (G.n + 1)).map (csrOffset G.adj) ++
     (List.finRange G.n).flatMap fun u => (G.adj u).map Fin.val)
 
 /-- Linear word-size envelope `16 * (n + m + 1)` covering the input and the scratch layout. -/
-def wordBound (G : Graph) : ℕ := 16 * (G.n + G.m + 1)
+@[expose] def wordBound (G : Graph) : ℕ := 16 * (G.n + G.m + 1)
 
 private theorem length_flatMap_take {N : ℕ} (adj : Fin N → List (Fin N)) (u : ℕ) :
     (((List.finRange N).take u).flatMap fun v => (adj v).map Fin.val).length =
@@ -3153,7 +3057,7 @@ end Graph
 
 /-- Load the constants, `n`, `m`, and the scratch layout based at `wb = 3` with `Mc = m`,
 directly above the CSR input. -/
-def setupCode : Code .standard 28 := ram[
+private def setupCode : Code .standard 28 := ram[
   cZero ← #0; cOne ← #1; cThree ← #3;
   nVerts ← *cOne; addr ← cOne + cOne; mArcs ← *addr;
   offB ← cThree;
@@ -3200,7 +3104,7 @@ private theorem setupCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound)
   all_goals exact hfit.of_le (by unfold Graph.wordBound; omega)
 
 /-- One step of the reversed copy `out[i] := ord[N - 1 - i]`. -/
-def revCopyBody : Code .standard 28 := ram[
+private def revCopyBody : Code .standard 28 := ram[
   addr ← nVerts - cOne; addr ← addr - iReg; addr ← ordB + addr; vReg ← *addr;
   addr ← outReg + iReg; addr ← addr + cOne; *addr ← vReg; iReg ← iReg + cOne ]
 
@@ -3265,11 +3169,12 @@ private theorem revCopyLoop_spec {N w : ℕ} (O P : ℕ) (hOP : O + N ≤ P)
 
 /-- Topological-sort output: `topologicalSort G.adj (List.finRange G.n)` (the vertices in reverse
 DFS finishing order) as vertex numbers. -/
-def topoWords (G : Graph) : List ℕ := (topologicalSort G.adj (List.finRange G.n)).map Fin.val
+@[expose] def topoWords (G : Graph) : List ℕ :=
+  (topologicalSort G.adj (List.finRange G.n)).map Fin.val
 
 /-- Strongly-connected-component output: the topological component index
 `indexComponents (sccs G.adj (List.finRange G.n)) v` of each vertex `v = 0, …, n - 1`. -/
-def sccWords (G : Graph) : List ℕ :=
+@[expose] def sccWords (G : Graph) : List ℕ :=
   (List.finRange G.n).map (indexComponents (sccs G.adj (List.finRange G.n)))
 
 /-- Structured topological sort: setup, forward DFS, and reversed copy of the finishing order. -/
@@ -3488,9 +3393,19 @@ theorem not_readsWidth_topoProgram : ¬ topoProgram.ReadsWidth := by
   apply Code.not_readsWidth_program
   decide +kernel
 
+/-- `topoProgram` is `rand`-free. -/
+theorem isRandFree_topoProgram : topoProgram.IsRandFree := by
+  rw [topoProgram, Code.isRandFree_program]
+  decide +kernel
+
 /-- `sccProgram` does not read the word width. -/
 theorem not_readsWidth_sccProgram : ¬ sccProgram.ReadsWidth := by
   apply Code.not_readsWidth_program
+  decide +kernel
+
+/-- `sccProgram` is `rand`-free. -/
+theorem isRandFree_sccProgram : sccProgram.IsRandFree := by
+  rw [sccProgram, Code.isRandFree_program]
   decide +kernel
 
 end Cslib.Algorithms.WordRAM.DFS
