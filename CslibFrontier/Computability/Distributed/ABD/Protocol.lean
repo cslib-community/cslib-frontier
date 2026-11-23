@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Distributed.ABD.Basic
 public import Mathlib.Order.Prod.Lex.Basic
 public import Mathlib.Order.WithBot
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Data.Finset.Max
 import Mathlib.Data.Finset.SDiff
 
@@ -161,12 +162,7 @@ theorem quorum_inter_nonempty {P : Type*} [Fintype P] [DecidableEq P] {t : ℕ}
     (h2t : 2 * t < Fintype.card P) {Q₁ Q₂ : Finset P}
     (hQ₁ : Fintype.card P - t ≤ Q₁.card) (hQ₂ : Fintype.card P - t ≤ Q₂.card) :
     (Q₁ ∩ Q₂).Nonempty := by
-  have hcompl : (Finset.univ \ Q₁).card < Q₂.card := by
-    rw [Finset.card_sdiff_of_subset (Finset.subset_univ Q₁), Finset.card_univ]
-    omega
-  obtain ⟨q, hq₂, hnot⟩ := Finset.exists_mem_notMem_of_card_lt_card hcompl
-  simp only [Finset.mem_sdiff, Finset.mem_univ, true_and, not_not] at hnot
-  exact ⟨q, Finset.mem_inter.mpr ⟨hnot, hq₂⟩⟩
+  finset_card
 
 /-- When `Q₁` consists of non-faulty servers (`∀ q ∈ Q₁, q ∉ F`), any two `(n - t)`-quorums
 intersect in a live server outside `F`. -/
@@ -2002,7 +1998,7 @@ omit [DecidableEq P] [LinearOrder P] [DecidableEq V] in
 in-flight request `req q`, delivering `req q` emits a response satisfying `IsResp q`, and for all
 `j ≥ k₀`, `coll j : Finset P` grows monotonically, stays strictly below `n - t`, and absorbs `q`
 upon delivering any `IsResp q` envelope, then a contradiction ensues under fairness. -/
-private lemma not_forall_stay_of_fair {t : ℕ} (h2t : 2 * t < Fintype.card P)
+private lemma not_forall_stay_of_fair {t : ℕ} (_h2t : 2 * t < Fintype.card P)
     {F : Finset P} (hF : F.card ≤ t)
     {ss : ωSequence (State P (ABDState P V) (ABDMsg P V) V)}
     {xs : ωSequence (Action P (ABDMsg P V) V)}
@@ -2044,12 +2040,8 @@ private lemma not_forall_stay_of_fair {t : ℕ} (h2t : 2 * t < Fintype.card P)
     have hle_M : stepOf ⟨q, hq⟩ ≤ M :=
       (Finset.le_sup (f := stepOf) (Finset.mem_univ ⟨q, hq⟩)).trans (le_max_right _ _)
     exact hcoll_le _ M (hstep_ge ⟨q, hq⟩) hle_M (hstep_mem ⟨q, hq⟩)
-  have hlive_card : Fintype.card P - t ≤ (Finset.univ \ F).card := by
-    rw [Finset.card_sdiff_of_subset (Finset.subset_univ F), Finset.card_univ]
-    omega
-  have hcard_ge : Fintype.card P - t ≤ (coll M).card :=
-    hlive_card.trans (Finset.card_le_card hsub)
-  exact Nat.lt_irrefl _ (lt_of_le_of_lt hcard_ge (hcoll_lt M hM_ge))
+  have := hcoll_lt M hM_ge
+  finset_card
 
 /-- Shared frame lemma for `c₀`'s client phase: while `c₀` has a pending operation, any transition
 whose `.deliver` action at `c₀` preserves `.phase` (such as `.query`, `.store`, or mismatched
