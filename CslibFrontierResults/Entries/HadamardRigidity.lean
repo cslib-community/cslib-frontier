@@ -57,9 +57,10 @@ register_result "sylvester-hadamard-rigidity-lower-bound" where
     Lokam eq. (2.3) (verified by sylvesterHadamard_one and sylvesterHadamard_add_submatrix, with \
     k = 0 giving the 1 × 1 identity). two_pow_le_four_mul_rigidity_sylvesterHadamard_two_pow \
     proves Midrijānis's exact block-tiling bound 2^(2k) ≤ 4 * 2^t * rigidity (2^t) for t < k \
-    (power-of-two r = 2^t ≤ 2^k / 2; Lokam Theorem 2.11 leaves r ≤ n / 2 implicit in S_{k-t}, \
-    whereas Midrijānis Theorem 1 states r ≤ n / 2 explicitly) over every field K with \
-    (2 : K) ≠ 0, including odd-characteristic finite fields (while failing in characteristic 2, \
-    where rank is 1). \
+    (power-of-two r = 2^t ≤ 2^k / 2; in Lokam's Theorem 2.11 with r = 2^(t - 1), the 2r ≤ 2^k \
+    restriction t ≤ k comes from choosing blocks of side 2^t, which are ±S_t by eq. (2.3) \
+    rather than that proof sentence's printed index slip ±S_{k-t}, whereas Midrijānis Theorem 1 \
+    states r ≤ n / 2 explicitly) over every field K with (2 : K) ≠ 0, including \
+    odd-characteristic finite fields (while failing in characteristic 2, where rank is 1). \
     two_pow_le_four_mul_rigidity_sylvesterHadamard extends the bound to all integers 1 ≤ r with \
     2 * r ≤ 2^k over any characteristic-zero field [Field K] [CharZero K] (including ℚ, ℝ, and ℂ)."
