@@ -9,8 +9,10 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.Controlled
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
+public import Mathlib.Algebra.Polynomial.Derivative
 import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.BoundedSearch
 import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.ResidueSign
+import CslibFrontier.Computability.Complexity.RealAlgebraic.UnivariateDerivativeEvaluation
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 
 /-!
@@ -27,7 +29,9 @@ in [OpenAI2026CountingHierarchy], Lemma 2.4 and Proposition 2.6, for the polynom
 Proposition 6.3, equation (6.11). The natural degree in the deformation parameter counts
 the thresholds strictly below its highest nonzero coefficient index. Using that binary index
 in the addressed evaluator gives uniform modular access to the values and coefficients of the
-leading deformation coefficient. Coefficient queries use the same counting level as value queries.
+leading deformation coefficient. Coefficient and binary-order derivative queries use the same
+counting level as value queries. For derivatives, the counting sum uses an addressed deformation
+index before substituting the integer degree, so the sum does not increase the final level.
 The counting endpoints remain open in
 [#6560](https://github.com/cslib-community/cslib-frontier/issues/6560).
 -/
@@ -72,6 +76,18 @@ private theorem candidateCoefficientResidue_mem {α : Type} {n : α → ℕ}
   exact coefficientResidue_mem (p := fun q : α × ℕ => q.2)
     (k := fun q => k q.1) (value := evaluate) (Decoder.pair E Decoder.nat)
     (snd enc encNat) (hk.comp hw) hc
+
+private theorem addressedCoordinateCoefficientResidue_mem {α : Type} {n : α → ℕ}
+    {enc : α ↪ List Bool} {a : ℕ} {F : (w : α) → MvPolynomial (Fin (n w)) ℤ}
+    (C : Controlled F enc a) (E : Decoder enc) {p d i j k : α → ℕ}
+    (hp : ComputableInPolyTime p enc encNat)
+    (hd : ComputableInPolyTime d enc encNat) (hi : ComputableInPolyTime i enc encNat)
+    (hj : ComputableInPolyTime j enc encNat) (hk : ComputableInPolyTime k enc encNat) :
+    (fun w => coefficientResidue (p w) (k w) (fun t =>
+      criticalCoordinateCandidateValue (p w) (n w) (d w) (i w) (j w) t
+        (fun z => C.evaluate (w, p w, z)))) ∈ CountingFunction (a + 12) enc encNat :=
+  CountingFunction.preprocess (candidateCoefficientResidue_mem C E hd hi hj hk)
+    (ComputableInPolyTime.id'.prod hp)
 
 /-- A controlled input at level `a` yields the sign of the coefficient at any binary pair
 of deformation and coordinate-value indices at level `a + 15`. The coordinate index
@@ -341,7 +357,6 @@ theorem criticalCoordinateLeadingCoefficientResidue_mem {α : Type} {n : α → 
       CountingFunction (a + 18) (encPair enc (encPair encNat encNat)) encNat := by
   let encArgs := encPair encNat encNat
   let encQuery := encPair enc encArgs
-  let encIndexed := encPair encQuery encNat
   let decQuery := Decoder.pair E (Decoder.pair Decoder.nat Decoder.nat)
   have hquery := fst encQuery encNat
   have hw := (fst enc encArgs).comp hquery
@@ -349,10 +364,8 @@ theorem criticalCoordinateLeadingCoefficientResidue_mem {α : Type} {n : α → 
   have hp := (fst encNat encNat).comp hargs
   have hk := (snd encNat encNat).comp hargs
   let C' := C.preprocess (fun (((w, _, _), _) : (α × (ℕ × ℕ)) × ℕ) => w) hw
-  have hresidue := candidateCoefficientResidue_mem C' (Decoder.pair decQuery Decoder.nat)
-    (hd.comp hw) (hi.comp hw) (snd encQuery encNat) hk
-  have haddressed := CountingFunction.preprocess hresidue
-    ((ComputableInPolyTime.id' (encIn := encIndexed)).prod hp)
+  have haddressed := addressedCoordinateCoefficientResidue_mem C'
+    (Decoder.pair decQuery Decoder.nat) hp (hd.comp hw) (hi.comp hw) (snd encQuery encNat) hk
   have hdegree := C.criticalCoordinateParameterNatDegree_mem E i hdpos hF hd hi
   exact CountingFunction.comp_with (CountingFunction.mono (by omega) haddressed)
     (CountingFunction.preprocess hdegree (fst enc encArgs))
@@ -389,5 +402,75 @@ theorem criticalCoordinateLeadingCoefficientResidue_cast {α : Type} {n : α →
     ZMod p) = (Q.leadingCoeff.coeff k : ZMod p)
   rw [coefficientResidue_cast _ _ _ hQ hk hvalue, Polynomial.coeff_map]
   rfl
+
+/-- Evaluate the derivative of binary order `k` at `z` modulo `p`, for the leading
+deformation coefficient selected over the integers. -/
+noncomputable def criticalCoordinateLeadingDerivativeResidue {α : Type} {n : α → ℕ}
+    {enc : α ↪ List Bool} {a : ℕ} {F : (w : α) → MvPolynomial (Fin (n w)) ℤ}
+    (C : Controlled F enc a) {d : α → ℕ} (i : (w : α) → Fin (n w))
+    (hF : ∀ w, (F w).totalDegree ≤ d w + 1) (w : α) (p k z : ℕ) : ℕ :=
+  univariateDerivativeResidue p ((d w + 1) ^ n w) k z
+    (fun j => C.criticalCoordinateLeadingCoefficientResidue i hF (w, p, j))
+
+/-- Binary modulus, derivative order and evaluation-point queries give a derivative
+evaluator at counting level `a + 18`. -/
+theorem criticalCoordinateLeadingDerivativeResidue_mem {α : Type} {n : α → ℕ}
+    {enc : α ↪ List Bool} {a : ℕ} {F : (w : α) → MvPolynomial (Fin (n w)) ℤ}
+    (C : Controlled F enc a) (E : Decoder enc) {d p k z : α → ℕ}
+    (i : (w : α) → Fin (n w)) (hdpos : ∀ w, 1 ≤ d w)
+    (hF : ∀ w, (F w).totalDegree ≤ d w + 1) (hd : ComputableInPolyTime d enc encNat)
+    (hi : ComputableInPolyTime (fun w => (i w).val) enc encNat)
+    (hp : ComputableInPolyTime p enc encNat) (hk : ComputableInPolyTime k enc encNat)
+    (hz : ComputableInPolyTime z enc encNat) :
+    (fun w => C.criticalCoordinateLeadingDerivativeResidue i hF w (p w) (k w) (z w)) ∈
+      CountingFunction (a + 18) enc encNat := by
+  let encIndexed := encPair enc encNat
+  let decIndexed := Decoder.pair E Decoder.nat
+  have hw := fst enc encNat
+  have hinput := fst encIndexed encNat
+  have hsource := hw.comp hinput
+  let C' := C.preprocess (fun (((w, _), _) : (α × ℕ) × ℕ) => w) hsource
+  have hresidue := addressedCoordinateCoefficientResidue_mem C'
+    (Decoder.pair decIndexed Decoder.nat) (hp.comp hsource) (hd.comp hsource) (hi.comp hsource)
+    ((snd enc encNat).comp hinput) (snd encIndexed encNat)
+  have hD := binary_pow' (binary_add' (hd.comp hw) (.const 1)) (C.arity_computable.comp hw)
+  have hderivative := univariateDerivativeResidue_mem decIndexed (hp.comp hw) hD (hk.comp hw)
+    (hz.comp hw) hresidue
+  have hdegree := C.criticalCoordinateParameterNatDegree_mem E i hdpos hF hd hi
+  exact CountingFunction.comp_with (CountingFunction.mono (by omega) hderivative) hdegree
+
+/-- Above the source and interpolation cutoffs, the derivative residue agrees with evaluation
+of the integer derivative. This holds for all orders, including beyond the degree. -/
+theorem criticalCoordinateLeadingDerivativeResidue_cast {α : Type} {n : α → ℕ}
+    {enc : α ↪ List Bool} {a : ℕ} {F : (w : α) → MvPolynomial (Fin (n w)) ℤ}
+    (C : Controlled F enc a) {d : α → ℕ} (i : (w : α) → Fin (n w))
+    (hF : ∀ w, (F w).totalDegree ≤ d w + 1) (w : α) (hd : 1 ≤ d w)
+    {p : ℕ} [Fact p.Prime] (k z : ℕ) (hsource : C.cutoff w < p)
+    (hcut : (d w + 1) * ((d w + 1) ^ n w + n w * d w + 1) + 1 < p)
+    (hdegree : (d w + 1) ^ n w * (d w + 1) ^ n w < p - 1)
+    (hparam : coordinateParameterDegreeBound (n w) (d w) < p - 1) :
+    (C.criticalCoordinateLeadingDerivativeResidue i hF w p k z : ZMod p) =
+      (Polynomial.derivative^[k] (Polynomial.Bivariate.swap (parametricCoordinatePolynomial
+        (by omega : 1 ≤ d w + 1) (F w) (hF w) (i w))).leadingCoeff).eval₂
+          (Int.castRingHom (ZMod p)) (z : ZMod p) := by
+  let D := (d w + 1) ^ n w
+  let P := parametricCoordinatePolynomial (by omega : 1 ≤ d w + 1) (F w) (hF w) (i w)
+  let Q := Polynomial.Bivariate.swap P
+  let φ := Int.castRingHom (ZMod p)
+  have hD : D < p - 1 := (Nat.le_mul_of_pos_right D (by positivity)).trans_lt hdegree
+  have hQ : (Q.leadingCoeff.map φ).natDegree ≤ D := by
+    rw [← Polynomial.coeff_natDegree]
+    exact Polynomial.natDegree_map_le.trans
+      (coordinateCoefficient_natDegree_le (by omega) (F w) (hF w) (i w) Q.natDegree)
+  have hcoeff (j : ℕ) (hj : j ≤ D) :
+      (C.criticalCoordinateLeadingCoefficientResidue i hF (w, p, j) : ZMod p) =
+        (Q.leadingCoeff.map φ).coeff j := by
+    rw [C.criticalCoordinateLeadingCoefficientResidue_cast i hF w hd j hsource hcut hdegree
+      hparam (hj.trans_lt hD), Polynomial.coeff_map]
+    rfl
+  change (univariateDerivativeResidue p D k z _ : ZMod p) =
+    (Polynomial.derivative^[k] Q.leadingCoeff).eval₂ φ (z : ZMod p)
+  rw [univariateDerivativeResidue_cast _ hQ (hD.trans_le (Nat.sub_le _ _)) _ hcoeff,
+    Polynomial.iterate_derivative_map, Polynomial.eval_map]
 
 end Cslib.Complexity.RealAlgebraic.Controlled
