@@ -159,9 +159,9 @@ to turn off this backup independently.
 
 Before restoring `.lake`, Lean CI runs `scripts/ci/prepare-runner.sh` to report available disk
 space. On GitHub-hosted Linux runners it removes the unused Android and .NET SDKs only when less
-than the configured threshold (100 GiB by default) is available, or the free-space measurement is
-unavailable. This conservative headroom policy retains cleanup on constrained runners while avoiding several minutes of SDK
-deletion on larger runners that already have ample space; it is not an exact build-size estimate.
+than the configured threshold (60 GiB by default) is available, or the free-space measurement is
+unavailable. This conservative headroom policy skips SDK deletion on standard `ubuntu-24.04` and
+larger runners that already have ample space while retaining cleanup on smaller runner images; it is not an exact build-size estimate.
 Local and self-hosted invocations skip cleanup. The Lean toolchain, compiler, Python, Node
 actions, repository and caches are retained. Cleanup is optional; all validation still runs if
 it fails.
@@ -283,15 +283,21 @@ group was formed, or a queue entry ahead of it whose run has already succeeded.
   landed commit every handoff has expired and the step is a miss.
 
 - **Payload.** The archive keeps compiled outputs (including private/server OLeans, IR and native
-  code), hashes and traces. It omits only `ir/**/*.setup.json` and `ir/**/*.irsetup.json`: Lake's
-  transient compiler setup inputs. Lake writes these inside a compilation action and does not
-  require them to reuse completed modules. Other JSON files are retained. File-type/link checks
-  still cover omitted entries. The payload limits are 500,000 files, 20 GiB unpacked and 8 GiB
+  code), hashes and traces. It omits `ir/**/*.setup.json` and `ir/**/*.irsetup.json` (Lake's
+  transient compiler setup inputs, written inside compile actions and unused when reusing completed
+  modules) together with `ir/**/*.ltar` and `ir/**/*.ltar.hash` (per-module remote-publication
+  archives, consumed only by `publish.py stage` on `main`). Other JSON files are retained,
+  file-type/link checks still cover omitted entries, and `unpack` still accepts older in-flight
+  handoff archives that include `.ltar` files. When `install_build` swaps an existing `.lake/build`
+  aside (such as `main`'s restored Actions `.lake` snapshot), it carries forward regular
+  `ir/<Rel>.ltar` files from the displaced build whenever no `ir/<Rel>.ltar` exists in the staged
+  build and `<Rel>`'s compiled trace, `.olean.hash` and companion output hashes/artifacts match
+  byte-for-byte, without mutating shared hard-linked cache objects or aborting the handoff on an
+  optional carry-over error. The payload limits are 500,000 files, 20 GiB unpacked and 8 GiB
   compressed (`480`s download timeout); a full build measured 172,812 files, 7.53 GB unpacked and
-  2.64 GB compressed on November 21, 2026 (up from 101,848 files, 4.64 GB and 1.67 GB on
-  November 8, 2026). The earlier limits had been outgrown or approached, which could silently
-  disable the handoff. Packing reports retained and omitted counts/sizes, and in Actions a limit
-  miss or any
+  2.64 GB compressed on November 21, 2026 before `.ltar` omission (up from 101,848 files, 4.64 GB
+  and 1.67 GB on November 8, 2026). Packing reports retained and omitted counts/sizes, and in
+  Actions a limit miss or any
   other unavailable handoff is a workflow warning on the run summary.
 - **Kill switch.** Setting the repository variable `DISABLE_BUILD_HANDOFF` to `1` or `true`
   (`gh variable set DISABLE_BUILD_HANDOFF --body 1`) disables merge-group staging and all handoff
@@ -557,6 +563,10 @@ This stages local files. The report is kept outside the publication inventory. W
 the Python process's CPU time are recorded on every platform; completed-child user/system CPU
 times are included where Python's `resource` module is available. Child CPU includes the waited
 command and its waited descendants, not a separate measurement of each subprocess or peak memory.
+When profiling locally with carried-over `.ltar` files after a non-`-o` build has already cached
+`ltar`-less module entries in `~/.elan`, pass a fresh `LAKE_CACHE_DIR` so Lake caches the
+carried-over archives before `lake cache stage` copies them (ephemeral CI runners start with an
+empty `LAKE_CACHE_DIR`).
 
 `lake build ... -o` can create missing per-module archives even when the Lean outputs are warm.
 The pinned Lake implementation calls `packLtar` when output tracking finds no archive
@@ -567,9 +577,13 @@ retained archives with fixed tiny sources and verifies that OLean hashes and mti
 It establishes that mechanism, not a speedup estimate for a full CI build.
 
 CI saves its Actions `.lake` snapshot after publication staging and before uploading the staged
-package. This keeps newly packed archives for later builds. Ordinary merge-group builds and
-handoffs preserve archives that Lake has not invalidated; no additional archive-preparation step
-runs on the merge queue, and no old archive is attached to a new output by filename.
+package. This keeps newly packed archives for later builds. Merge-group handoff payloads omit
+`ir/**/*.ltar` and `ir/**/*.ltar.hash` so queue runs do not ship publication archives; when `main`
+(or a later handoff consumer) swaps its restored `.lake/build` for a handoff build, `install_build`
+carries forward regular `ir/<Rel>.ltar` archives from the displaced `.lake/build` only when
+`<Rel>`'s compiled `.trace`, `.olean.hash` and companion output hashes match byte-for-byte. No
+additional archive-preparation step runs on the merge queue, chained ancestor handoffs cannot
+erode `main`'s saved archive set, and no old archive is attached to a changed output by filename.
 
 The save remains best-effort: it runs for a successful library build even when later checks or
 staging fail, but neither a saved cache nor a failed stage authorizes publication. Cancellation

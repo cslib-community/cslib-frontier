@@ -7,22 +7,21 @@ Authors: Matthew Doty
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Logics.Propositional.TseitinCNF.Refutation
+import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF.Refutation
 import Mathlib.Data.Fin.VecNotation
 
 /-!
 # Tautologies from LRAT refutations
 
 Contraposition, `(p → q) → ¬q → ¬p`, over arbitrary `Prop` atoms, proved from an LRAT refutation
-of the numbered Tseitin transformation of its negation. The kernel runs the checker through
-`decide`. The certificate was produced by the CDCL solver of #5946 on the transformation in
-DIMACS form; its last step derives the empty clause from the unit clause asserting the negation
-and the learned unit clause 31.
+of the numbered Plaisted–Greenbaum transformation of its negation. The kernel runs the checker
+through `decide`. The certificate was produced by CaDiCaL 3.0.0 (`cadical --lrat --no-binary`) on
+the transformation in DIMACS form, without its deletion steps.
 -/
 
 set_option linter.privateModule false
 
-namespace CslibFrontierTests.Logics.Propositional.TseitinCNF.Refutation
+namespace CslibFrontierTests.Logics.Propositional.PlaistedGreenbaumCNF.Refutation
 
 open Cslib.Logic.PL Cslib.Logic.PL.Proposition
 open Std.Tactic.BVDecide (LRAT.IntAction)
@@ -36,20 +35,22 @@ private abbrev neg (A : Proposition (Fin 2)) : Proposition (Fin 2) := .imp A .fa
 /-- Contraposition, `(p → q) → ¬q → ¬p`. -/
 private abbrev contraposition : Proposition (Fin 2) := .imp (.imp p q) (.imp (neg q) (neg p))
 
-/-- A refutation of the numbered Tseitin transformation of `¬contraposition`. -/
+/-- A refutation of the numbered Plaisted–Greenbaum transformation of `¬contraposition`. -/
 private def cert : Array LRAT.IntAction := #[
-  .addRup 23 #[-5, -2] #[18, 19],
-  .addRup 24 #[-3, -1, -5] #[22, 23],
-  .addRup 25 #[7, -3, -5] #[12, 24],
-  .addRup 26 #[-3, -5, 8] #[25, 10],
-  .addRup 27 #[8, -3] #[9, 26],
-  .addRup 28 #[-3, 9] #[27, 7],
-  .addRup 29 #[9] #[6, 28],
-  .addRup 30 #[-11, 10] #[29, 4],
-  .addRup 31 #[-11] #[30, 5],
-  .addEmpty 32 #[1, 31]]
+  .addRup 13 #[-9, 10] #[1, 2],
+  .addRup 14 #[-9] #[3, 13],
+  .addRup 15 #[3] #[14, 4],
+  .addRup 16 #[-8] #[14, 5],
+  .addRup 17 #[5] #[16, 6],
+  .addRup 18 #[-7] #[16, 7],
+  .addRup 19 #[1] #[18, 8],
+  .addRup 20 #[-6] #[18, 9],
+  .addRup 21 #[-2, 4] #[17, 10],
+  .addRup 22 #[-2] #[11, 21],
+  .addEmpty 23 #[15, 19, 22, 12]]
 
-private theorem cert_ok : (neg contraposition).tseitinNumberedCNF.checkLRAT cert = true := by
+private theorem cert_ok :
+    (neg contraposition).plaistedGreenbaumNumberedCNF.checkLRAT cert = true := by
   decide
 
 /-- Contraposition over `Prop`, from the certificate. -/
@@ -60,9 +61,9 @@ example (a b : Prop) : (a → b) → ¬b → ¬a := by
 example (v : Fin 2 → Bool) : contraposition.eval v = true :=
   eval_of_checkLRAT cert_ok v
 
-/-- The accepted certificate with one wrong hint, 20 for 19 in its first step, is rejected. -/
-example : (neg contraposition).tseitinNumberedCNF.checkLRAT
-    (cert.set! 0 (.addRup 23 #[-5, -2] #[18, 20])) = false := by
+/-- The accepted certificate with one wrong hint, 3 for 2 in its first step, is rejected. -/
+example : (neg contraposition).plaistedGreenbaumNumberedCNF.checkLRAT
+    (cert.set! 0 (.addRup 13 #[-9, 10] #[1, 3])) = false := by
   decide
 
-end CslibFrontierTests.Logics.Propositional.TseitinCNF.Refutation
+end CslibFrontierTests.Logics.Propositional.PlaistedGreenbaumCNF.Refutation
