@@ -31,8 +31,10 @@ propositionally (`=`) with Lean's stable `List.mergeSort` (`filterMap_getElem?_e
 
 ## Main definitions
 
-* `Cslib.Algorithms.WordRAM.MergeSort.Reg`: 18-register file exposing caller parameter registers
-  `Reg.len`, `Reg.keyBase`, `Reg.permBase`, and `Reg.bufBase`.
+* `Cslib.Algorithms.WordRAM.MergeSort.Reg.len`, `Cslib.Algorithms.WordRAM.MergeSort.Reg.keyBase`,
+  `Cslib.Algorithms.WordRAM.MergeSort.Reg.permBase`,
+  `Cslib.Algorithms.WordRAM.MergeSort.Reg.bufBase`: caller parameter registers of the 18-register
+  program.
 * `Cslib.Algorithms.WordRAM.MergeSort.StableKeyOrder`: strict tie-breaking key order
   `keys[a] < keys[b] ∨ (keys[a] = keys[b] ∧ a < b)`.
 * `Cslib.Algorithms.WordRAM.MergeSort.mergeSortPerm`: structured 18-register Word-RAM key-indexed
