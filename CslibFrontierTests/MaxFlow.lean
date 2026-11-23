@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.MaxFlow.BipartiteMatching
+public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp
 
 /-!
 # Network Flow, Edmonds–Karp, and Bipartite Matching Tests
@@ -30,6 +31,10 @@ Kernel-checked examples and non-vacuity witnesses (without `native_decide`) exer
    instances on `Fin 3 × Fin 3`, and universe-polymorphic `Type 1` instantiations.
 4. **Positive and negative witnesses** for `Network.IsCut`, `Network.Flow`, `Flow.IsAugmentingPath`,
    `AdjValid`, `IsMatching`, `IsVertexCover`, and `bfs` on edgeless graphs.
+5. **Word-RAM runtime and output certificates:** `exists_edmondsKarp_program`,
+   `exists_bipartiteMatching_program`, `exists_perfectMatching_program`, and
+   `exists_minSeparator_program` instantiated at explicit word widths on non-trivial and boundary
+   inputs.
 -/
 
 public section
@@ -282,5 +287,226 @@ theorem ulift_koenig :
       (C : VertexCover (ULift.{1} (Fin 3)) (ULift.{1} (Fin 4))),
       IsMaxMatching G M ∧ IsMinVertexCover G C ∧ M.card = C.size :=
   exists_maxMatching_eq_minVertexCover _
+
+/-! ### 5. Word-RAM Edmonds–Karp, bipartite matching, and vertex separator -/
+
+section WordRAMTests
+
+open Cslib.Algorithms.WordRAM.EdmondsKarp Cslib.WordRAM
+
+example : ekWorkspace 4 = 44 := rfl
+example : ekBound 4 1 = 84 := rfl
+example : bmWorkspace 3 4 = 202 := rfl
+example : ekBound 9 1 = 814 := rfl
+example : sepWorkspace 5 = 364 := rfl
+example : ekBound 12 6 = 2611 := rfl
+
+/-- Dense Word-RAM Edmonds–Karp on `unitDiamondNet` (`B = 1`, width `7`): returns max flow `2`. -/
+example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
+    ∃ (y : Data R) (steps : ℕ) (f : unitDiamondNet.Flow),
+      let C_cut : Finset (Fin 4) := Finset.univ.filter fun x => y.mem (ekCutAddr 4 x.1) < 4
+      Runs 7 prog (State.init (encodeFlowInput unitDiamondNet)) ⟨pc, y⟩ steps ∧
+      step 7 prog ⟨pc, y⟩ = .halt 2 ∧
+      steps + 1 ≤ C * 5 ^ 5 ∧
+      f.IsMaxFlow ∧ unitDiamondNet.IsMinCut C_cut ∧ f.value = 2 := by
+  obtain ⟨R, C, pc, hC, prog, hprog⟩ := exists_edmondsKarp_program
+  obtain ⟨y, steps, res, f, hruns, hhalt, htime, _, hmax, hmin, _, hval, hres⟩ :=
+    hprog unitDiamondNet 1 7 (by decide) (by decide) (by decide) (by decide)
+  have hval2 : f.value = 2 := by
+    have hle : f.value ≤ (unitDiamondNet.cutCapacity ({0} : Finset (Fin 4)) : ℤ) :=
+      f.value_le_cutCapacity (by decide)
+    have hge : (edmondsKarpDense unitDiamondNet).flow.value ≤ f.value := hmax _
+    have hed : (edmondsKarpDense unitDiamondNet).flow.value = 2 := by decide
+    have hcut : unitDiamondNet.cutCapacity ({0} : Finset (Fin 4)) = 2 := by decide
+    omega
+  have hres2 : res = 2 := by omega
+  subst hres2
+  exact ⟨R, C, pc, hC, prog, y, steps, f, hruns, hhalt, htime, hmax, hmin, hval2⟩
+
+/-- Dense Word-RAM Edmonds–Karp on `edgelessNet` (`B = 0`, width `7`): returns `0`. -/
+example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
+    ∃ (y : Data R) (steps : ℕ),
+      Runs 7 prog (State.init (encodeFlowInput edgelessNet)) ⟨pc, y⟩ steps ∧
+      step 7 prog ⟨pc, y⟩ = .halt 0 ∧ steps + 1 ≤ C * 5 ^ 5 := by
+  obtain ⟨R, C, pc, hC, prog, hprog⟩ := exists_edmondsKarp_program
+  obtain ⟨y, steps, res, f, hruns, hhalt, htime, _, _, hmin, _, _, hres⟩ :=
+    hprog edgelessNet 0 7 (by decide) (by decide) (by decide) (by decide)
+  have hzero : edgelessNet.cutCapacity (Finset.univ.filter fun x => y.mem (ekCutAddr 4 x.1) < 4) =
+      0 := by
+    have hle := hmin.2 ({0} : Finset (Fin 4)) (by decide)
+    have hc0 : edgelessNet.cutCapacity ({0} : Finset (Fin 4)) = 0 := by decide
+    omega
+  rw [hres, hzero] at hhalt
+  exact ⟨R, C, pc, hC, prog, y, steps, hruns, hhalt, htime⟩
+
+/-- Word-RAM bipartite matching and König cover on asymmetric `asymGraph` (`3 × 4`, width `10`). -/
+example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
+    ∃ (y : Data R) (steps : ℕ) (M : Finset (Fin 3 × Fin 4))
+      (cov : VertexCover (Fin 3) (Fin 4)),
+      Runs 10 prog (State.init (encodeBipartiteInput asymGraph)) ⟨pc, y⟩ steps ∧
+      step 10 prog ⟨pc, y⟩ = .halt 2 ∧
+      steps + 1 ≤ C * 8 ^ 5 ∧
+      IsMaxMatching asymGraph M ∧ IsMinVertexCover asymGraph cov ∧
+      M.card = 2 ∧ cov.size = 2 := by
+  obtain ⟨R, C, pc, hC, prog, hprog⟩ := exists_bipartiteMatching_program
+  obtain ⟨y, steps, res, M, cov, hruns, hhalt, htime, hM, hCmin, hMC, hres, _, _, _⟩ :=
+    hprog (w := 10) asymGraph (by decide) (by decide)
+  have hcard : M.card = 2 := by
+    have hge : ({(0, 1), (1, 0)} : Finset (Fin 3 × Fin 4)).card ≤ M.card := hM.2 _ (by decide)
+    have hle : M.card ≤ (⟨{0}, {0}⟩ : VertexCover (Fin 3) (Fin 4)).size :=
+      card_le_size_of_matching_vertexCover hM.1 (by decide)
+    have hc1 : ({(0, 1), (1, 0)} : Finset (Fin 3 × Fin 4)).card = 2 := by decide
+    have hc2 : (⟨{0}, {0}⟩ : VertexCover (Fin 3) (Fin 4)).size = 2 := by decide
+    omega
+  rw [hres, hcard] at hhalt
+  exact ⟨R, C, pc, hC, prog, y, steps, M, cov, hruns, hhalt, htime, hM, hCmin, hcard, by omega⟩
+
+/-- Empty bipartite boundary `Fin 0 × Fin 0` at width `5`. -/
+example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
+    ∃ (y : Data R) (steps : ℕ),
+      Runs 5 prog (State.init (encodeBipartiteInput (fun p : Fin 0 × Fin 0 => Fin.elim0 p.1)))
+        ⟨pc, y⟩ steps ∧
+      step 5 prog ⟨pc, y⟩ = .halt 0 ∧ steps + 1 ≤ C := by
+  obtain ⟨R, C, pc, hC, prog, hprog⟩ := exists_bipartiteMatching_program
+  obtain ⟨y, steps, res, M, _, hruns, hhalt, htime, _, _, _, hres, _, _, _⟩ :=
+    hprog (w := 5) (fun p : Fin 0 × Fin 0 => Fin.elim0 p.1) (by decide) (by decide)
+  have hM0 : M.card = 0 := by
+    rw [Finset.eq_empty_of_isEmpty M]; rfl
+  rw [hres, hM0] at hhalt
+  exact ⟨R, C, pc, hC, prog, y, steps, hruns, hhalt, by simpa using htime⟩
+
+/-- Word-RAM perfect matching decision: positive (`perfGraph`) and negative (`noPerfGraph`) at
+width `10`. -/
+example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
+    (∃ (y : Data R) (steps : ℕ),
+      Runs 10 prog (State.init (encodeBipartiteInput perfGraph)) ⟨pc, y⟩ steps ∧
+      step 10 prog ⟨pc, y⟩ = .halt 1 ∧ steps + 1 ≤ C * 4 ^ 5) ∧
+    (∃ (y : Data R) (steps : ℕ),
+      Runs 10 prog (State.init (encodeBipartiteInput noPerfGraph)) ⟨pc, y⟩ steps ∧
+      step 10 prog ⟨pc, y⟩ = .halt 0 ∧ steps + 1 ≤ C * 4 ^ 5) := by
+  obtain ⟨R, C, pc, hC, prog, hprog⟩ := exists_perfectMatching_program
+  obtain ⟨y1, s1, r1, hr1, hh1, ht1, hiff1, _⟩ := hprog (w := 10) perfGraph (by decide) (by decide)
+  obtain ⟨y0, s0, r0, hr0, hh0, ht0, hiff0, hle0⟩ :=
+    hprog (w := 10) noPerfGraph (by decide) (by decide)
+  have hr1_eq : r1 = 1 := hiff1.mpr perfGraph_hasPerfectMatching
+  have hr0_eq : r0 = 0 := by
+    have hne : r0 ≠ 1 := fun h => noPerfGraph_not_hasPerfectMatching (hiff0.mp h)
+    omega
+  rw [hr1_eq] at hh1
+  rw [hr0_eq] at hh0
+  exact ⟨R, C, pc, hC, prog, ⟨y1, s1, hr1, hh1, ht1⟩, ⟨y0, s0, hr0, hh0, ht0⟩⟩
+
+/-- Five-vertex hourglass graph (`0, 1` adjacent to `2`; `2` adjacent to `3, 4`): vertex `2` is the
+unique minimum separator between `{0, 1}` and `{3, 4}`. -/
+def hourglassGraph : SimpleGraph (Fin 5) where
+  Adj u v :=
+    (u.1 = 2 ∧ v.1 ≠ 2) ∨ (v.1 = 2 ∧ u.1 ≠ 2)
+  symm := ⟨fun _ _ h => h.symm⟩
+  loopless := ⟨fun _ h => by omega⟩
+
+instance : DecidableRel hourglassGraph.Adj := fun u v =>
+  inferInstanceAs (Decidable ((u.1 = 2 ∧ v.1 ≠ 2) ∨ (v.1 = 2 ∧ u.1 ≠ 2)))
+
+/-- Word-RAM minimum vertex separator on `hourglassGraph` at width `12`: returns `1`, records
+`{2}` at `sepOutAddr`, and labels `{0, 1}` as `1` and `{3, 4}` as `0` at `sepSideAddr`. -/
+example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
+    ∃ (y : Data R) (steps : ℕ),
+      let Z : Vector Bool 5 := Vector.ofFn fun _ => false
+      let A : Vector Bool 5 := Vector.ofFn fun v => decide (v.1 < 2)
+      let B : Vector Bool 5 := Vector.ofFn fun v => decide (3 ≤ v.1)
+      Runs 12 prog (State.init (encodeSepInput hourglassGraph Z A B)) ⟨pc, y⟩ steps ∧
+      step 12 prog ⟨pc, y⟩ = .halt 1 ∧
+      steps + 1 ≤ C * 6 ^ 5 ∧
+      y.mem (sepOutAddr 5 2) = 1 ∧ y.mem (sepOutAddr 5 0) = 0 ∧
+      y.mem (sepSideAddr 5 0) = 1 ∧ y.mem (sepSideAddr 5 3) = 0 := by
+  let Z : Vector Bool 5 := Vector.ofFn fun _ => false
+  let A : Vector Bool 5 := Vector.ofFn fun v => decide (v.1 < 2)
+  let B : Vector Bool 5 := Vector.ofFn fun v => decide (3 ≤ v.1)
+  obtain ⟨R, C, pc, hC, prog, hprog⟩ := exists_minSeparator_program
+  obtain ⟨y, steps, res, out, hruns, hhalt, htime, _, _, hsep, hmin, _, hsideA, hsideB,
+    hres, hout_mem, hside_mem⟩ := hprog (w := 12) hourglassGraph Z A B (by decide) (by decide)
+  have hY2 : hourglassGraph.IsSeparator {v | vget A v = true} {v | vget B v = true}
+      ({v | vget Z v = true} ∪ ↑({(2 : Fin 5)} : Finset (Fin 5))) := by
+    refine SimpleGraph.isSeparator_of_forall_adj (fun v : Fin 5 => decide (v.1 < 2)) ?_ ?_ ?_
+    · intro u v huv hu hv
+      have hu2 : u ≠ 2 := fun h => hu (Or.inr (by simp [h]))
+      have hv2 : v ≠ 2 := fun h => hv (Or.inr (by simp [h]))
+      rcases huv with ⟨h, _⟩ | ⟨h, _⟩
+      · exact absurd (Fin.ext h) hu2
+      · exact absurd (Fin.ext h) hv2
+    · intro a ha _; simpa [A, vget] using ha
+    · intro b hb _; have : 3 ≤ b.1 := by simpa [B, vget] using hb
+      simp [show ¬(b.1 < 2) by omega]
+  have hle1 : out.sep.length ≤ 1 := hmin {(2 : Fin 5)} hY2
+  have h2mem : (2 : Fin 5) ∈ out.sep := by
+    by_contra h2not
+    have hnot : ∀ a : Fin 5, a.1 < 2 → ∀ b : Fin 5, 3 ≤ b.1 →
+        a ∈ out.sep ∨ b ∈ out.sep := by
+      intro a ha b hb
+      have hpa : hourglassGraph.Adj a (2 : Fin 5) := Or.inr ⟨rfl, by omega⟩
+      have hpb : hourglassGraph.Adj (2 : Fin 5) b := Or.inl ⟨rfl, by omega⟩
+      let w : hourglassGraph.Walk a b := .cons hpa (.cons hpb .nil)
+      obtain ⟨v, hv_supp, hv_mem⟩ := hsep.exists_mem_support (by simpa [A, vget] using ha)
+        (by simpa [B, vget] using hb) w
+      rcases hv_mem with hvZ | hvS
+      · simp [Z, vget] at hvZ
+      · simp only [w, SimpleGraph.Walk.support_cons, SimpleGraph.Walk.support_nil,
+          List.mem_cons, List.not_mem_nil, or_false] at hv_supp
+        rcases hv_supp with rfl | rfl | rfl
+        · exact Or.inl hvS
+        · exact absurd hvS h2not
+        · exact Or.inr hvS
+    have h2le : ∀ {a b : Fin 5}, a ≠ b → a ∈ out.sep → b ∈ out.sep → 2 ≤ out.sep.length := by
+      intro a b hab ha hb
+      rcases h : out.sep with _ | ⟨x, _ | ⟨z, _⟩⟩
+      · rw [h] at ha; exact (List.not_mem_nil ha).elim
+      · rw [h, List.mem_singleton] at ha hb
+        exact absurd (ha.trans hb.symm) hab
+      · simp
+    have h03 := hnot 0 (by omega) 3 (by omega)
+    have h14 := hnot 1 (by omega) 4 (by omega)
+    rcases h03 with h0 | h3 <;> rcases h14 with h1 | h4
+    · exact absurd (h2le (by decide) h0 h1) (by omega)
+    · exact absurd (h2le (by decide) h0 h4) (by omega)
+    · exact absurd (h2le (by decide) h3 h1) (by omega)
+    · exact absurd (h2le (by decide) h3 h4) (by omega)
+  have hlen1 : out.sep.length = 1 := by
+    have hpos : 0 < out.sep.length := List.length_pos_of_mem h2mem
+    omega
+  have hsep_eq : out.sep = [(2 : Fin 5)] := by
+    rcases heq : out.sep with _ | ⟨x, _ | ⟨z, zs⟩⟩
+    · simp [heq] at hlen1
+    · rw [heq, List.mem_singleton] at h2mem; rw [h2mem]
+    · simp [heq] at hlen1
+  have h0not : (0 : Fin 5) ∉ out.sep := by rw [hsep_eq]; decide
+  rw [hres, hlen1] at hhalt
+  refine ⟨R, C, pc, hC, prog, y, steps, hruns, hhalt, htime, ?_, ?_, ?_, ?_⟩
+  · have := hout_mem 2; simpa [h2mem] using this
+  · have := hout_mem 0; simpa [h0not] using this
+  · have hs0 : vget out.side 0 = true :=
+      hsideA (by simp [A, vget]) (by simp [Z, vget]) h0not
+    have := hside_mem 0; simpa [hs0] using this
+  · have hs3 : vget out.side 3 = false := hsideB (by simp [B, vget])
+    have := hside_mem 3; simpa [hs3] using this
+
+/-- Empty graph boundary (`n = 0`) for Word-RAM minimum vertex separator at width `5`. -/
+example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
+    ∃ (y : Data R) (steps : ℕ),
+      let empty : Vector Bool 0 := Vector.ofFn Fin.elim0
+      Runs 5 prog (State.init (encodeSepInput (⊥ : SimpleGraph (Fin 0)) empty empty empty))
+        ⟨pc, y⟩ steps ∧
+      step 5 prog ⟨pc, y⟩ = .halt 0 ∧ steps + 1 ≤ C := by
+  let empty : Vector Bool 0 := Vector.ofFn Fin.elim0
+  obtain ⟨R, C, pc, hC, prog, hprog⟩ := exists_minSeparator_program
+  obtain ⟨y, steps, res, out, hruns, hhalt, htime, _, _, _, _, _, _, _, hres, _, _⟩ :=
+    hprog (w := 5) (⊥ : SimpleGraph (Fin 0)) empty empty empty (by decide) (by decide)
+  have hlen0 : out.sep.length = 0 := by
+    cases h : out.sep with
+    | nil => rfl
+    | cons x _ => exact Fin.elim0 x
+  rw [hres, hlen0] at hhalt
+  exact ⟨R, C, pc, hC, prog, y, steps, hruns, hhalt, by simpa using htime⟩
+
+end WordRAMTests
 
 end CslibFrontierTests.MaxFlow

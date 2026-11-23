@@ -88,14 +88,14 @@ namespace SplitNode
 
 /-- The index of a split node: the source is `0`, the sink `1`, the in-copies `2, …, n + 1` and
 the out-copies `n + 2, …, 2n + 1`. -/
-def toFin {n : ℕ} : SplitNode n → Fin (n + n + 2)
+@[expose] def toFin {n : ℕ} : SplitNode n → Fin (n + n + 2)
   | src => ⟨0, by omega⟩
   | snk => ⟨1, by omega⟩
   | inV v => ⟨v.1 + 2, by have := v.2; omega⟩
   | outV v => ⟨v.1 + n + 2, by have := v.2; omega⟩
 
 /-- The split node with a given index, inverse to `toFin`. -/
-def ofFin {n : ℕ} (i : Fin (n + n + 2)) : SplitNode n :=
+@[expose] def ofFin {n : ℕ} (i : Fin (n + n + 2)) : SplitNode n :=
   if h0 : i.1 = 0 then src
   else if h1 : i.1 = 1 then snk
   else if h : i.1 < n + 2 then inV ⟨i.1 - 2, by omega⟩
