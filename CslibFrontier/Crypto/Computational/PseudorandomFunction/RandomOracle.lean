@@ -34,7 +34,7 @@ Adapts Crypto/Computational/PseudorandomFunction/RandomOracle.lean on the cslib 
 branch at `5ff69ca93402e7c947208dc56396d6d86203ccd8` to the shared typed interpreter.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto
 
