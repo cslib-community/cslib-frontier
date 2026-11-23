@@ -9,11 +9,12 @@ module
 
 public import CslibFrontier.Logics.Propositional.CNF.ExactOne.Gadgets
 public import CslibFrontier.Logics.Propositional.CNF.ExactOne.ModelCount
+import CslibFrontier.Logics.Propositional.CNF.Vars
 import Mathlib.Algebra.BigOperators.Group.List.Lemmas
-import Mathlib.Data.List.Sigma
-import Mathlib.Algebra.Order.BigOperators.Group.List
 import Mathlib.Algebra.BigOperators.Ring.List
-import Mathlib.Tactic.IntervalCases
+import Mathlib.Algebra.Order.BigOperators.Group.List
+import Mathlib.Algebra.Order.Ring.Nat
+import Mathlib.Data.List.Sigma
 
 /-!
 # Parsimonious conversion of ordinary clauses to exact-one clauses
@@ -245,22 +246,74 @@ theorem auxiliary_index {i j k : ℕ} {c : Clause V}
     simp [clause, core, disjunctionClauses, forcePadding, forceFalseClauses,
       padding, lift, aux, CNF.vars, Std.Sat.Literal.negate] at h <;> tauto
 
+private theorem vars_core (i : ℕ) (p q r : Literal (Variable V)) :
+    (core i p q r).vars =
+      [p.1, aux i 3, aux i 4, q.1, aux i 3, aux i 5,
+        aux i 4, aux i 5, aux i 6, r.1, aux i 4, aux i 7] := by
+  simp [core, disjunctionClauses, CNF.vars, Std.Sat.Literal.negate]
+
+private theorem vars_forcePadding (i k : ℕ) :
+    (forcePadding (V := V) i k).vars =
+      ([k, 8 + 3 * k, 9 + 3 * k, k, 9 + 3 * k, 10 + 3 * k,
+        8 + 3 * k, 9 + 3 * k, 10 + 3 * k]).map (aux i) := rfl
+
+private theorem aux_injective (i : ℕ) : Function.Injective (aux (V := V) i) := by
+  intro a b h
+  simpa [aux] using h
+
+private theorem count_aux_core [DecidableEq V] (i k : ℕ) (p q r : Literal (Variable V)) :
+    (core i p q r).vars.count (aux i k) =
+      [p.1, q.1, r.1].count (aux i k) + ([3, 4, 3, 5, 4, 5, 6, 4, 7] : List ℕ).count k := by
+  rw [vars_core, ← List.count_map_of_injective _ (aux (V := V) i) (aux_injective i) k]
+  simp only [List.map_cons, List.map_nil, List.count_cons, List.count_nil]
+  omega
+
+private theorem count_aux_forcePadding [DecidableEq V] (i m k : ℕ) :
+    (forcePadding (V := V) i m).vars.count (aux i k) =
+      [m, 8 + 3 * m, 9 + 3 * m, m, 9 + 3 * m, 10 + 3 * m,
+        8 + 3 * m, 9 + 3 * m, 10 + 3 * m].count k := by
+  rw [vars_forcePadding, List.count_map_of_injective _ (aux (V := V) i) (aux_injective i) k]
+
 /-- No local auxiliary exceeds three occurrences. -/
 theorem count_aux_clause [DecidableEq V] (i j k : ℕ) (c : Clause V) :
     (clause i c).vars.count (Sum.inr (j, k)) ≤ 3 := by
   by_cases hji : j = i
   · subst j
+    let coreSlots : List ℕ := [3, 4, 3, 5, 4, 5, 6, 4, 7]
+    let pad0 : List ℕ := [0, 8, 9, 0, 9, 10, 8, 9, 10]
+    let pad1 : List ℕ := [1, 11, 12, 1, 12, 13, 11, 12, 13]
+    let pad2 : List ℕ := [2, 14, 15, 2, 15, 16, 14, 15, 16]
+    let allSlots : List ℕ := [0, 1, 2] ++ coreSlots ++ pad0 ++ pad1 ++ pad2
+    have hbound : allSlots.count k ≤ 3 := by
+      by_cases hk : k ∈ allSlots
+      · exact (by decide : ∀ m ∈ allSlots, allSlots.count m ≤ 3) k hk
+      · simp [List.count_eq_zero.mpr hk]
+    have hsum : ([0, 1, 2] : List ℕ).count k + coreSlots.count k +
+        pad0.count k + pad1.count k + pad2.count k ≤ 3 := by
+      simpa only [allSlots, List.count_append] using hbound
+    change (clause i c).vars.count (aux i k) ≤ 3
     rcases c with _ | ⟨p, _ | ⟨q, _ | ⟨r, rest⟩⟩⟩ <;>
-      simp only [vars, clause, core, disjunctionClauses, lift, aux, Std.Sat.Literal.negate,
-        padding, Bool.not_true, forcePadding, forceFalseClauses, mul_zero, add_zero, mul_one,
-        Nat.reduceAdd, Nat.reduceMul, List.cons_append, List.nil_append, List.flatten_cons,
-        List.flatten_nil, List.append_nil, List.map_cons, List.map_nil, ne_eq, reduceCtorEq,
-        not_false_eq_true, List.count_cons_of_ne, List.count_cons,
-        Sum.inr.injEq, Prod.mk.injEq,
-        List.count_nil, beq_iff_eq, true_and, zero_add] <;>
-      (by_cases hk : k < 17
-       · interval_cases k <;> decide
-       · simp (discharger := omega) only [ite_eq_right, add_zero, Nat.zero_le])
+      simp only [clause, CNF.vars_append, List.count_append, count_aux_core,
+        count_aux_forcePadding]
+    · have hc : [(padding (V := V) i 0).1, (padding i 1).1, (padding i 2).1].count (aux i k) =
+          ([0, 1, 2] : List ℕ).count k :=
+        List.count_map_of_injective [0, 1, 2] (aux (V := V) i) (aux_injective i) k
+      change _ + coreSlots.count k + pad0.count k + pad1.count k + pad2.count k ≤ 3
+      omega
+    · have hc : [(lift p).1, (padding i 1).1, (padding i 2).1].count (aux i k) ≤
+          ([0, 1, 2] : List ℕ).count k := by
+        simp [lift, padding, aux, List.count_cons, beq_iff_eq]
+      change _ + coreSlots.count k + pad1.count k + pad2.count k ≤ 3
+      omega
+    · have hc : [(lift p).1, (lift q).1, (padding i 2).1].count (aux i k) ≤
+          ([0, 1, 2] : List ℕ).count k := by
+        simp [lift, padding, aux, List.count_cons, beq_iff_eq]; omega
+      change _ + coreSlots.count k + pad2.count k ≤ 3
+      omega
+    · have hc : [(lift p).1, (lift q).1, (lift r).1].count (aux i k) = 0 := by
+        simp [lift, aux]
+      change _ + coreSlots.count k ≤ 3
+      omega
   · rw [List.count_eq_zero.mpr (fun hm => hji (auxiliary_index hm))]
     omega
 
@@ -331,25 +384,77 @@ theorem inl_mem_vars_formula (φ : CNF V)
   classical
   rw [← List.count_pos_iff, count_inl_formula φ hw, List.count_pos_iff]
 
+private theorem core_agree (i : ℕ) {p q r : Literal (Variable V)} {σ τ : Variable V → Bool}
+    (hσ : (core i p q r).evalOne σ = true) (hτ : (core i p q r).evalOne τ = true)
+    (hp : σ p.1 = τ p.1) (hq : σ q.1 = τ q.1) (hr : σ r.1 = τ r.1) :
+    ∀ v ∈ (core i p q r).vars, σ v = τ v := by
+  have hp' : Literal.eval σ p = Literal.eval τ p := by simp [Literal.eval, hp]
+  have hq' : Literal.eval σ q = Literal.eval τ q := by simp [Literal.eval, hq]
+  have hr' : Literal.eval σ r = Literal.eval τ r := by simp [Literal.eval, hr]
+  simp only [core, evalOne_disjunctionClauses_iff_canonical] at hσ hτ
+  intro v hv
+  rw [vars_core] at hv
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
+  rcases hv with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+    simp [hp, hq, hr, hp', hq', hr', hσ, hτ]
+
+private theorem forcePadding_agree (i k : ℕ) {σ τ : Variable V → Bool}
+    (hσ : (forcePadding i k).evalOne σ = true) (hτ : (forcePadding i k).evalOne τ = true) :
+    ∀ v ∈ (forcePadding i k).vars, σ v = τ v := by
+  simp only [forcePadding, evalOne_forceFalseClauses_iff] at hσ hτ
+  intro v hv
+  rw [vars_forcePadding] at hv
+  simp only [List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil, or_false] at hv
+  rcases hv with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+    simp [hσ, hτ]
+
 /-- Two satisfying local assignments that agree on source variables agree everywhere used
 by the replacement. This is the unique-extension property on the actual variable support. -/
 theorem clause_agree (i : ℕ) (c : Clause V) (σ τ : Variable V → Bool)
     (hσ : (clause i c).evalOne σ = true) (hτ : (clause i c).evalOne τ = true)
     (hs : ∀ l ∈ c, σ (Sum.inl l.1) = τ (Sum.inl l.1)) :
     ∀ v ∈ (clause i c).vars, σ v = τ v := by
-  rcases c with _ | ⟨p, _ | ⟨q, _ | ⟨r, rest⟩⟩⟩ <;>
-    simp only [clause, core, CNF.evalOne_append, Bool.and_eq_true,
-      evalOne_disjunctionClauses_iff_canonical, forcePadding,
-      evalOne_forceFalseClauses_iff, padding, lift, Literal.eval_mk,
-      aux] at hσ hτ <;>
-    simp only [List.mem_cons, forall_eq_or_imp, List.not_mem_nil, forall_false] at hs <;>
-    simp only [vars, clause, core, disjunctionClauses, lift, padding, aux,
-      Std.Sat.Literal.negate, Bool.not_true, forcePadding, forceFalseClauses,
-      mul_zero, add_zero, mul_one, Nat.reduceAdd, Nat.reduceMul, List.cons_append,
-      List.nil_append, List.flatten_cons, List.flatten_nil, List.append_nil,
-      List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil, or_false,
-      forall_eq_or_imp, forall_eq] <;>
-    grind
+  have pad_mem (k : ℕ) : (padding (V := V) i k).1 ∈ (forcePadding (V := V) i k).vars := by
+    rw [vars_forcePadding]
+    exact List.mem_cons_self
+  rcases c with _ | ⟨p, _ | ⟨q, _ | ⟨r, rest⟩⟩⟩
+  · simp only [clause, CNF.evalOne_append, Bool.and_eq_true] at hσ hτ
+    obtain ⟨⟨⟨hcσ, h0σ⟩, h1σ⟩, h2σ⟩ := hσ
+    obtain ⟨⟨⟨hcτ, h0τ⟩, h1τ⟩, h2τ⟩ := hτ
+    have hf0 := forcePadding_agree i 0 h0σ h0τ
+    have hf1 := forcePadding_agree i 1 h1σ h1τ
+    have hf2 := forcePadding_agree i 2 h2σ h2τ
+    have hcore := core_agree i hcσ hcτ (hf0 _ (pad_mem 0)) (hf1 _ (pad_mem 1)) (hf2 _ (pad_mem 2))
+    intro v hv
+    simp only [clause, CNF.vars_append, List.mem_append] at hv
+    rcases hv with ((hv | hv) | hv) | hv
+    · exact hcore v hv
+    · exact hf0 v hv
+    · exact hf1 v hv
+    · exact hf2 v hv
+  · simp only [clause, CNF.evalOne_append, Bool.and_eq_true] at hσ hτ
+    obtain ⟨⟨hcσ, h1σ⟩, h2σ⟩ := hσ
+    obtain ⟨⟨hcτ, h1τ⟩, h2τ⟩ := hτ
+    have hf1 := forcePadding_agree i 1 h1σ h1τ
+    have hf2 := forcePadding_agree i 2 h2σ h2τ
+    have hcore := core_agree i hcσ hcτ (hs p (by simp)) (hf1 _ (pad_mem 1)) (hf2 _ (pad_mem 2))
+    intro v hv
+    simp only [clause, CNF.vars_append, List.mem_append] at hv
+    rcases hv with (hv | hv) | hv
+    · exact hcore v hv
+    · exact hf1 v hv
+    · exact hf2 v hv
+  · simp only [clause, CNF.evalOne_append, Bool.and_eq_true] at hσ hτ
+    obtain ⟨hcσ, h2σ⟩ := hσ
+    obtain ⟨hcτ, h2τ⟩ := hτ
+    have hf2 := forcePadding_agree i 2 h2σ h2τ
+    have hcore := core_agree i hcσ hcτ (hs p (by simp)) (hs q (by simp)) (hf2 _ (pad_mem 2))
+    intro v hv
+    simp only [clause, CNF.vars_append, List.mem_append] at hv
+    rcases hv with hv | hv
+    · exact hcore v hv
+    · exact hf2 v hv
+  · exact core_agree i hσ hτ (hs p (by simp)) (hs q (by simp)) (hs r (by simp))
 
 /-- Satisfying output assignments are determined exactly by their source restrictions. -/
 theorem assignments_agree_iff (φ : CNF V) (hw : ∀ c ∈ φ, c.length ≤ 3)
