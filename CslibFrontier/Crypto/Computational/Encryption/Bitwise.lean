@@ -675,35 +675,31 @@ theorem INDCPA.indcpaOn_bitwiseEncrypt
   negligible using fun n =>
     (advantage_bitwiseEncrypt_eq valid keyGen encrypt maxLen adversary n (hlen n)).le
 
-/-- Public-key-bounded bitwise hybrid step: when every public key produced by `keyGen n` has bit
-length at most `pkBound n` for a polynomially bounded function `pkBound` (which need not be
-computable), every uniform strict-PPT word adversary's chosen messages are bounded by an explicit
-unary polynomial-time schedule in `n`, so single-bit `INDCPA keyGen encrypt` and strict-PPT
-`encrypt` imply `WordINDCPA keyGen (bitwiseEncrypt encrypt)`. -/
-theorem INDCPA.wordINDCPA_bitwiseEncrypt_of_publicKey_length_le
+/-- For any word encryption `encWord` and key generator `keyGen` whose supported public keys have
+polynomially bounded bit-length `pkBound n`, chosen-plaintext security on
+`validBoundedWords maxLen` for every unary polynomial-time length cap `maxLen : ℕ → ℕ` implies full
+`WordINDCPA keyGen encWord`. -/
+theorem wordINDCPA_of_indcpaOn_validBoundedWords
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
-    {encrypt : ℕ → List Bool → Bool → ProbComp (List Bool)}
+    {encWord : ℕ → List Bool → List Bool → ProbComp (List Bool)}
     {pkBound : ℕ → ℕ}
     (hpkBound : Cslib.PolynomiallyBounded pkBound)
     (hpkLen : ∀ n keys, keys ∈ (ProbComp.eval (keyGen n)).support → keys.1.length ≤ pkBound n)
-    (hencrypt : IsPPTOn (encKeyedInput encBool) encBits (fun ⟨n, k, b⟩ => encrypt n k b))
-    (h : INDCPA keyGen encrypt) :
-    WordINDCPA keyGen (bitwiseEncrypt encrypt) := by
+    (hbounded : ∀ (maxLen : ℕ → ℕ), ComputableInPolyTime maxLen encUnary encUnary →
+      INDCPAOn (validBoundedWords maxLen) encBits keyGen encWord) :
+    WordINDCPA keyGen encWord := by
   intro adversary hadversary
   obtain ⟨ck, dk, hpkPoly⟩ := Cslib.polynomiallyBounded_iff_le.mp hpkBound
   obtain ⟨ca, da, hchooseLen⟩ := hadversary.choose.on.length_le
   let maxLen (n : ℕ) : ℕ := ca * (2 * n + 2 * (ck * (n + 1) ^ dk) + 4) ^ da
   have hmax : ComputableInPolyTime maxLen encUnary encUnary := by
     dsimp only [maxLen]; fun_prop
-  have hbounded := h.indcpaOn_bitwiseEncrypt (computableInPolyTime_validBoundedWords hmax) hencrypt
-    hmax (fun n _ _ m₀ m₁ hv => by
-      simp only [validBoundedWords, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hv
-      exact hv) adversary hadversary
+  have hAdv := hbounded maxLen hmax adversary hadversary
   have heqGame (bit : Bool) (n : ℕ) :
       ProbComp.eval (gameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length) keyGen
-        (bitwiseEncrypt encrypt) adversary bit n) =
+        encWord adversary bit n) =
       ProbComp.eval (gameOn (validBoundedWords maxLen) keyGen
-        (bitwiseEncrypt encrypt) adversary bit n) := by
+        encWord adversary bit n) := by
     simp only [gameOn, pmf_norm, apply_ite ProbComp.eval]
     refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun keys hkeys =>
       Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun choice hchoice => ?_
@@ -717,7 +713,27 @@ theorem INDCPA.wordINDCPA_bitwiseEncrypt_of_publicKey_length_le
         dsimp only [ChoiceOut.msg₀, ChoiceOut.msgs]; enc_len
       exact hm₀.trans (hout.trans (Nat.mul_le_mul_left ca (Nat.pow_le_pow_left hin da)))
     simp only [validBoundedWords, decide_eq_true hmsgLen, Bool.and_true]
-  simpa only [heqGame] using hbounded
+  simpa only [heqGame] using hAdv
+
+/-- Public-key-bounded bitwise hybrid step: when every public key produced by `keyGen n` has bit
+length at most `pkBound n` for a polynomially bounded function `pkBound` (which need not be
+computable), every uniform strict-PPT word adversary's chosen messages are bounded by an explicit
+unary polynomial-time schedule in `n`, so single-bit `INDCPA keyGen encrypt` and strict-PPT
+`encrypt` imply `WordINDCPA keyGen (bitwiseEncrypt encrypt)`. -/
+theorem INDCPA.wordINDCPA_bitwiseEncrypt_of_publicKey_length_le
+    {keyGen : ℕ → ProbComp (List Bool × List Bool)}
+    {encrypt : ℕ → List Bool → Bool → ProbComp (List Bool)}
+    {pkBound : ℕ → ℕ}
+    (hpkBound : Cslib.PolynomiallyBounded pkBound)
+    (hpkLen : ∀ n keys, keys ∈ (ProbComp.eval (keyGen n)).support → keys.1.length ≤ pkBound n)
+    (hencrypt : IsPPTOn (encKeyedInput encBool) encBits (fun ⟨n, k, b⟩ => encrypt n k b))
+    (h : INDCPA keyGen encrypt) :
+    WordINDCPA keyGen (bitwiseEncrypt encrypt) :=
+  wordINDCPA_of_indcpaOn_validBoundedWords hpkBound hpkLen fun maxLen hmax =>
+    h.indcpaOn_bitwiseEncrypt (computableInPolyTime_validBoundedWords hmax) hencrypt hmax
+      fun _ _ _ _ _ hv => by
+        simp only [validBoundedWords, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hv
+        exact hv
 
 /-- Single-challenge bitwise reduction step (library infrastructure after [KatzLindell2020],
 Section 12.2.2, locator not verified, rather than Theorem 12.6's multi-encryption oracle endpoint;
