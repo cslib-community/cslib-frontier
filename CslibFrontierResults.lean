@@ -20,6 +20,7 @@ import CslibFrontierResults.Entries.ODonnellPTFSparsity
 import CslibFrontierResults.Entries.ODonnellPeres
 import CslibFrontierResults.Entries.ODonnellSpectralConcentration
 import CslibFrontierResults.Entries.ODonnellStabilityDerivative
+import CslibFrontierResults.Entries.ODonnellStableInfluenceBound
 import CslibFrontierResults.Entries.ODonnellTribes
 import CslibFrontierResults.Entries.ODonnellUncertainty
 import CslibFrontierResults.Entries.PolynomialHashing
@@ -31,6 +32,7 @@ import CslibFrontierResults.Entries.SergeevMonotoneShift
 import CslibFrontierResults.Entries.SergeevORComplement
 import CslibFrontierResults.Entries.SergeevPrefixDepth
 import CslibFrontierResults.Entries.SergeevUniqueDisjointness
+import CslibFrontierResults.Entries.SturmReduced
 import CslibFrontierResults.Entries.TwoSATWordRAM
 import CslibFrontierResults.Entries.VeriPBClique
 import CslibFrontierResults.Registry
