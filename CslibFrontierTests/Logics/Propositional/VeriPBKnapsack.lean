@@ -8,11 +8,13 @@ module
 -- upstream: local-only (tests)
 
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Knapsack
+import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 import CslibFrontier.Algorithms.Lean.Knapsack.ProfitDP
 import Mathlib.Data.Fin.VecNotation
 -- `#guard` runs the dynamic program, the checkers and `profitDP` at compile time.
 public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Knapsack
+public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 public meta import CslibFrontier.Algorithms.Lean.Knapsack.ProfitDP
 
@@ -25,8 +27,9 @@ ordinary client, which imports the module without `import all`:
   or a smaller optimum is rejected; on boundary instances (no items, capacity `0`, items heavier
   than the capacity, zero weights and profits, a capacity above the total weight) and on random
   instances of up to `20` items;
-* a printer of the proofs as kernel text (`pbpText`) and of the instances as OPB (`opbText`),
-  whose output the text front end parses and accepts with the same conclusion. VeriPB 3.0.2 and
+* the instances printed as OPB by the library's printer `Cslib.Logic.PL.VeriPB.Text.printOPB`
+  (`opbText`), and a test-only printer of the proofs as kernel text (`pbpText`), whose output the
+  text front end parses and accepts with the same conclusion. VeriPB 3.0.2 and
   CakePB (cakepb `438b8f8`) report `s VERIFIED BOUNDS` on the printed texts of the instances
   below, as written out by `printCases`.
 
@@ -161,13 +164,11 @@ def pbpText (m : ℕ) (P : RedProof) : String :=
       | _ => "conclusion NONE ;\n") ++
     "end pseudo-Boolean proof ;\n"
 
-/-- The knapsack instance as OPB text. -/
+/-- The knapsack instance as OPB text, by the library's printer. -/
 def opbText (ws ps : List ℕ) (B : ℕ) : String :=
   let w : Fin ws.length → ℕ := fun i => ws.getD i 0
   let p : Fin ws.length → ℕ := fun i => ps.getD i 0
-  s!"* #variable= {ws.length} #constraint= 1\nmin: " ++
-    String.join ((objective p).lin.map fun e => s!"{e.2} x{e.1 + 1} ") ++ ";\n" ++
-    constrText (capacity w B) ++ " ;\n"
+  Text.printOPB ⟨formula w B, some (objective p), none⟩
 
 /-- The proof of the dynamic program as kernel text. -/
 def proofText (ws ps : List ℕ) (B : ℕ) : String :=
