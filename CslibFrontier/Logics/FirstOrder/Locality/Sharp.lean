@@ -643,7 +643,7 @@ private theorem boundedFormula_realize_iff_formula_realize {L : Language} {M : T
 theorem realize_loopReach_succ {M : Type*} [Language.graph.Structure M] (k : ℕ) (x : M) :
     (loopReach (k + 1)).Realize ![x] ↔
       ∃ z, (distLE k).Realize ![x, z] ∧ (loopReach k).Realize ![z] := by
-  fo_simp [loopReach, Formula.Realize]
+  fo_simp [loopReach]
   exact exists_congr fun z => and_congr
     (boundedFormula_realize_iff_formula_realize _ (fun i => by fin_cases i <;> rfl) _)
     (boundedFormula_realize_iff_formula_realize _ (fun i => by fin_cases i; rfl) _)
@@ -858,7 +858,7 @@ private theorem quantifierRank_exStep1 {L : Language} (φ : L.Formula (Fin 1))
 private theorem realize_exStep1 {L : Language} {M : Type*} [L.Structure M]
     (φ : L.Formula (Fin 1)) (ψ : L.Formula (Fin 2)) (z : M) :
     (exStep1 φ ψ).Realize ![z] ↔ ∃ u, φ.Realize ![u] ∧ ψ.Realize ![u, z] := by
-  fo_simp [exStep1, Formula.Realize]
+  fo_simp [exStep1]
   exact exists_congr fun u => and_congr
     (boundedFormula_realize_iff_formula_realize _ (fun i => by fin_cases i; rfl) _)
     (boundedFormula_realize_iff_formula_realize _ (fun i => by fin_cases i <;> rfl) _)
@@ -901,8 +901,7 @@ private theorem quantifierRank_twoLoopSentence (k : ℕ) :
 private theorem realize_twoLoopSentence {M : Type*} [Language.graph.Structure M] (k : ℕ) :
     M ⊨ twoLoopSentence k ↔ ∃ z : M, (fwdStrict k).Realize ![z] ∧
       (loopReach (k + 1)).Realize ![z] := by
-  simp only [Sentence.Realize, Formula.Realize, twoLoopSentence, BoundedFormula.realize_ex,
-    BoundedFormula.realize_inf, BoundedFormula.realize_relabel]
+  fo_simp [twoLoopSentence, Sentence.Realize, Formula.Realize]
   exact exists_congr fun z => and_congr
     (boundedFormula_realize_iff_formula_realize _ (fun i => by fin_cases i; rfl) _)
     (boundedFormula_realize_iff_formula_realize _ (fun i => by fin_cases i; rfl) _)

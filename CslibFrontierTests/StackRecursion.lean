@@ -34,15 +34,12 @@ def halving : Scheme ℕ (ℕ × ℕ) ℕ where
 
 /-- The number of leaves below `x`. -/
 def leaves (x : ℕ) : ℕ := if x < 2 then 1 else 2 * leaves (x / 2)
-decreasing_by omega
 
 /-- The number of nodes below `x`. -/
 def nodes (x : ℕ) : ℕ := if x < 2 then 1 else 2 * nodes (x / 2) + 1
-decreasing_by omega
 
 /-- The number of open calls while evaluating `x`. -/
 def height (x : ℕ) : ℕ := if x < 2 then 0 else height (x / 2) + 1
-decreasing_by omega
 
 /-- No invariant. -/
 def none : Invariant ℕ (ℕ × ℕ) ℕ := ⟨fun _ => True, fun _ _ => True, fun _ => True⟩

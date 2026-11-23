@@ -89,7 +89,7 @@ private theorem realize_frameEnd {α : Type*}
     (hdom : ∀ j : Fin B, dom.Realize ![j] ↔ (j : ℕ) < len) :
     (v.frameEnd dom base last).Realize env ↔
       (base.realize env).val + 2 * len + 1 = (last.realize env).val := by
-  fo_simp [frameEnd, FO.realize_isFirstOut hlt hlen hdom, Function.comp_def, and_assoc]
+  fo_simp [frameEnd, FO.realize_isFirstOut hlt hlen hdom, and_assoc]
   constructor
   · rintro ⟨u, hu, hd, hb, he⟩
     change (base.realize env).val + (u 1).val = (u 2).val at hb
@@ -108,7 +108,7 @@ private theorem realize_frameBit {α : Type*}
     (v.frameBit dom bit base pos).Realize env ↔
       ∃ j < w.length, (pos.realize env).val = (base.realize env).val + 2 * j ∨
         (w[j]? = some true ∧ (pos.realize env).val = (base.realize env).val + 2 * j + 1) := by
-  fo_simp [frameBit, Function.comp_def, Fin.ext_iff, and_assoc]
+  fo_simp [frameBit, Fin.ext_iff, and_assoc]
   constructor
   · rintro ⟨u, hd, hs, hb, he⟩
     change (base.realize env).val + (u 1).val = (u 2).val at hb
@@ -234,13 +234,12 @@ private theorem realize_prefixEnd {a : EncodedStructure} (ha : v.WellFormed a)
         j.val < (v.table a (v.symbol i)).length := by
       rw [ha.length_table]
       exact Iff.rfl
-    rw [prefixEnd, dite_eq_left hm']
-    fo_simp
+    fo_simp [prefixEnd, dite_eq_left hm']
     constructor
     · rintro ⟨u, hu, hf⟩
       have hb := (ih (Nat.le_of_lt hm') _ (Sum.elim env u)).mp hu
       have he := (realize_frameEnd _ _ _ _ _ hlen hlt hdom).mp hf
-      fo_simp [Function.comp_def] at hb he
+      fo_simp at hb he
       change (u ()).val + 2 * (v.table a (v.symbol i)).length + 1 =
         (last.realize env).val at he
       rw [show m + 1 = i.val + 1 from rfl, encStructurePrefix_succ, List.length_append,
@@ -252,7 +251,7 @@ private theorem realize_prefixEnd {a : EncodedStructure} (ha : v.WellFormed a)
       let u : Unit → Fin B := fun _ => ⟨(v.encStructurePrefix a m).length, hp⟩
       refine ⟨u, (ih (Nat.le_of_lt hm') _ _).mpr rfl, ?_⟩
       apply (realize_frameEnd _ _ _ _ _ hlen hlt hdom).mpr
-      fo_simp [Function.comp_def]
+      fo_simp
       simpa only [show m + 1 = i.val + 1 from rfl, encStructurePrefix_succ,
         List.length_append, length_frame, Nat.add_assoc] using he
 
@@ -304,8 +303,7 @@ private theorem realize_prefixBit {a : EncodedStructure} (ha : v.WellFormed a)
         (v.table a (v.symbol i)).getD j.val false = true) ↔ _
       rw [← WellFormed.length_table v ha (v.symbol i)]
       simp [hj]
-    rw [prefixBit, dite_eq_left hm', Formula.realize_sup, Formula.realize_iExs]
-    fo_simp
+    fo_simp [prefixBit, dite_eq_left hm']
     rw [show m + 1 = i.val + 1 from rfl,
       encStructurePrefix_succ, append_true_iff]
     apply or_congr (ih (Nat.le_of_lt hm') pos env)
@@ -313,14 +311,14 @@ private theorem realize_prefixBit {a : EncodedStructure} (ha : v.WellFormed a)
     · rintro ⟨u, hu, hf⟩
       have hb := (v.realize_prefixEnd ha hB (Nat.le_of_lt hm') _ _).mp hu
       have hf' := (realize_frameBit _ _ _ _ _ _ hdom hbit).mp hf
-      fo_simp [Function.comp_def] at hb hf'
+      fo_simp at hb hf'
       rw [← hb] at hf'
       exact (shifted_frame_true_iff _ _ _).mpr hf'
     · intro hf
       let u : Unit → Fin B := fun _ => ⟨(v.encStructurePrefix a m).length, hp⟩
       refine ⟨u, (v.realize_prefixEnd ha hB (Nat.le_of_lt hm') _ _).mpr rfl, ?_⟩
       apply (realize_frameBit _ _ _ _ _ _ hdom hbit).mpr
-      fo_simp [Function.comp_def]
+      fo_simp
       exact (shifted_frame_true_iff _ _ _).mp hf
 
 /-- The direct first-order input-bit formula recognizes precisely the set bits of the existing
