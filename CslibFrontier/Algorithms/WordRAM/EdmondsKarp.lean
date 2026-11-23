@@ -1558,6 +1558,304 @@ private theorem bfsProg_spec (hB : ∀ u v, W u v ≤ B) (hlay : mb + n * n ≤ 
 
 end Semantics
 
+
+/-! ### Semantics: the augmenting path, its bottleneck, and the augmentation -/
+
+private theorem fin_mul_add_inj {M : ℕ} {x₁ y₁ x₂ y₂ : Fin M}
+    (h : x₁.1 * M + y₁.1 = x₂.1 * M + y₂.1) : x₁ = x₂ ∧ y₁ = y₂ := by
+  have hM : 0 < M := Nat.zero_lt_of_lt x₁.2
+  have hd : (x₁.1 * M + y₁.1) / M = (x₂.1 * M + y₂.1) / M := congrArg (· / M) h
+  have hm : (x₁.1 * M + y₁.1) % M = (x₂.1 * M + y₂.1) % M := congrArg (· % M) h
+  rw [Nat.mul_comm x₁.1 M, Nat.mul_add_div hM, Nat.div_eq_of_lt y₁.2, add_zero,
+    Nat.mul_comm x₂.1 M, Nat.mul_add_div hM, Nat.div_eq_of_lt y₂.2, add_zero] at hd
+  rw [Nat.mul_comm x₁.1 M, Nat.mul_add_mod, Nat.mod_eq_of_lt y₁.2,
+    Nat.mul_comm x₂.1 M, Nat.mul_add_mod, Nat.mod_eq_of_lt y₂.2] at hm
+  exact ⟨Fin.ext hd, Fin.ext hm⟩
+
+private def buildPath {M : ℕ} (parOf : Fin M → Fin M) : ℕ → Fin M → List (Fin M)
+  | 0, cur => [cur]
+  | rem + 1, cur => buildPath parOf rem (parOf cur) ++ [cur]
+
+private theorem buildPath_ne_nil {M : ℕ} (parOf : Fin M → Fin M) :
+    ∀ rem cur, buildPath parOf rem cur ≠ []
+  | 0, _ => List.cons_ne_nil _ _
+  | _ + 1, cur => List.append_ne_nil_of_right_ne_nil _ (List.cons_ne_nil cur [])
+
+private theorem buildPath_getLast? {M : ℕ} (parOf : Fin M → Fin M) :
+    ∀ rem cur, (buildPath parOf rem cur).getLast? = some cur
+  | 0, _ => rfl
+  | rem + 1, cur => by
+    unfold buildPath
+    rw [List.getLast?_append_of_ne_nil _ (List.cons_ne_nil cur [])]
+    rfl
+
+private theorem buildPath_props {M : ℕ} {N : Network (Fin M)} (f : N.Flow)
+    (parOf : Fin M → Fin M)
+    (hpar : ∀ x : Fin M, 0 < f.resDist x → f.resDist x < M →
+      f.resDist (parOf x) + 1 = f.resDist x ∧ 0 < f.resCap (parOf x) x) :
+    ∀ rem (cur : Fin M), rem < M → f.resDist cur = rem →
+      (buildPath parOf rem cur).head? = some N.s ∧
+      (∀ z ∈ buildPath parOf rem cur, f.resDist z ≤ rem) ∧
+      (buildPath parOf rem cur).Nodup ∧
+      (∀ e ∈ pathArcs (buildPath parOf rem cur), 1 ≤ f.resCap e.1 e.2)
+  | 0, cur, _, hcur => by
+    have hs : cur = N.s := f.eq_source_of_resDist_eq_zero hcur
+    refine ⟨by simp [buildPath, hs], ?_, List.nodup_singleton cur, by simp [buildPath]⟩
+    intro z hz
+    simp only [buildPath, List.mem_singleton] at hz
+    subst hz
+    exact le_of_eq hcur
+  | rem + 1, cur, hrem, hcur => by
+    obtain ⟨hd_p, hrc_p⟩ := hpar cur (by omega) (by omega)
+    have hp_rem : f.resDist (parOf cur) = rem := by omega
+    obtain ⟨hhead, hle, hnd, harcs⟩ := buildPath_props f parOf hpar rem (parOf cur)
+      (by omega) hp_rem
+    have hne := buildPath_ne_nil parOf rem (parOf cur)
+    have hlast := buildPath_getLast? parOf rem (parOf cur)
+    unfold buildPath
+    refine ⟨by rw [List.head?_append_of_ne_nil _ hne]; exact hhead, ?_, ?_, ?_⟩
+    · intro z hz
+      rcases List.mem_append.mp hz with hz1 | hz2
+      · exact (hle z hz1).trans (Nat.le_succ rem)
+      · simp only [List.mem_singleton] at hz2; subst hz2; omega
+    · refine List.Nodup.append hnd (List.nodup_singleton cur) fun a ha hb => ?_
+      simp only [List.mem_singleton] at hb
+      subst hb
+      have := hle a ha
+      omega
+    · rw [pathArcs_append_singleton hne hlast]
+      intro e he
+      rcases List.mem_append.mp he with he1 | he2
+      · exact harcs e he1
+      · simp only [List.mem_singleton] at he2; subst he2; exact hrc_p
+
+
+private theorem length_buildPath {M : ℕ} (parOf : Fin M → Fin M) :
+    ∀ rem cur, (buildPath parOf rem cur).length = rem + 1
+  | 0, _ => rfl
+  | rem + 1, cur => by
+    rw [buildPath, List.length_append, length_buildPath parOf rem (parOf cur)]
+    rfl
+
+private theorem length_pathArcs_buildPath {M : ℕ} (parOf : Fin M → Fin M) (rem : ℕ)
+    (cur : Fin M) : (pathArcs (buildPath parOf rem cur)).length = rem := by
+  have h := length_pathArcs_add_one (buildPath_ne_nil parOf rem cur)
+  rw [length_buildPath] at h
+  omega
+
+private theorem pathArcs_buildPath_succ {M : ℕ} (parOf : Fin M → Fin M) (rem : ℕ)
+    (cur : Fin M) :
+    pathArcs (buildPath parOf (rem + 1) cur) =
+      pathArcs (buildPath parOf rem (parOf cur)) ++ [(parOf cur, cur)] := by
+  rw [buildPath]
+  exact pathArcs_append_singleton (buildPath_ne_nil parOf rem (parOf cur))
+    (buildPath_getLast? parOf rem (parOf cur))
+
+section Walks
+
+variable {n mb sb B : ℕ} {W : Fin n → Fin n → ℕ} {src snk : Fin n}
+
+/-- The bottleneck walk computes, from `δ`, the minimum of `δ` and the residual capacities along
+the path to `cur` built from the parent function. -/
+private theorem iterate_bnStep_spec (hB : ∀ u v, W u v ≤ B) {t : Memory.State}
+    (hW : MatLoaded n mb W t) (f : (Network.mk W src snk).Flow) (hf : FlowStored sb f t)
+    (parOf : Fin n → Fin n)
+    (hpar : ∀ x : Fin n, 0 < f.resDist x → f.resDist x < n →
+      f.resDist (parOf x) + 1 = f.resDist x ∧ 0 < f.resCap (parOf x) x)
+    (hp_mem : ∀ x : Fin n, 0 < f.resDist x → f.resDist x < n →
+      t.mem (predAddr (n, mb, sb, B) x.1) = (parOf x).1) :
+    ∀ rem (cur : Fin n) (δ : ℕ), rem < n → f.resDist cur = rem →
+      let δ' := ((Memory.spec 0).clientResult t
+        (iterate bnStep (n, mb, sb, B) rem (cur.1, δ))).2
+      δ' ≤ δ ∧ (∀ e ∈ pathArcs (buildPath parOf rem cur), δ' ≤ f.resCap e.1 e.2) ∧
+        (δ' = δ ∨ ∃ e ∈ pathArcs (buildPath parOf rem cur), δ' = f.resCap e.1 e.2)
+  | 0, cur, δ, _, _ => by
+    refine ⟨le_rfl, ?_, Or.inl rfl⟩
+    simp [buildPath, pathArcs_singleton]
+  | rem + 1, cur, δ, hrem, hcur => by
+    obtain ⟨hd_p, hrc_p⟩ := hpar cur (by omega) (by omega)
+    have hp_rem : f.resDist (parOf cur) = rem := by omega
+    have hpv := hp_mem cur (by omega) (by omega)
+    set δ₁ := if f.resCap (parOf cur) cur ≤ δ then f.resCap (parOf cur) cur else δ with hδ₁
+    have hstep : (Memory.spec 0).clientResult t (bnStep ((n, mb, sb, B), (cur.1, δ))) =
+        ((parOf cur).1, δ₁) := by
+      unfold bnStep
+      dsimp only
+      rw [clientResult_bind_read, if_pos cur.2, clientResult_bind_read, hpv,
+        if_pos (parOf cur).2, StateTransitionSpec.clientResult_bind,
+        readResCap_state, readResCap_spec hB hW hf (parOf cur) cur]
+      rw [hδ₁]
+      split_ifs <;> rfl
+    have hred : ((Memory.spec 0).clientResult t
+        (iterate bnStep (n, mb, sb, B) (rem + 1) (cur.1, δ))).2 =
+        ((Memory.spec 0).clientResult t
+          (iterate bnStep (n, mb, sb, B) rem ((parOf cur).1, δ₁))).2 := by
+      change ((Memory.spec 0).clientResult t
+        (bnStep ((n, mb, sb, B), (cur.1, δ)) >>= iterate bnStep (n, mb, sb, B) rem)).2 = _
+      rw [StateTransitionSpec.clientResult_bind, bnStep_state, hstep]
+    have hih := iterate_bnStep_spec hB hW f hf parOf hpar hp_mem rem (parOf cur) δ₁
+      (by omega) hp_rem
+    dsimp only at hih ⊢
+    rw [hred, pathArcs_buildPath_succ]
+    obtain ⟨h1, h2, h3⟩ := hih
+    have hδ₁δ : δ₁ ≤ δ := by rw [hδ₁]; split_ifs <;> omega
+    have hδ₁r : δ₁ ≤ f.resCap (parOf cur) cur := by rw [hδ₁]; split_ifs <;> omega
+    refine ⟨h1.trans hδ₁δ, fun e he => ?_, ?_⟩
+    · rcases List.mem_append.mp he with he | he
+      · exact h2 e he
+      · rw [List.mem_singleton] at he
+        subst he
+        exact h1.trans hδ₁r
+    · rcases h3 with h3 | ⟨e, he, h3⟩
+      · rw [h3, hδ₁]
+        split_ifs
+        · exact Or.inr ⟨(parOf cur, cur), List.mem_append_right _ (List.mem_singleton_self _),
+            rfl⟩
+        · exact Or.inl rfl
+      · exact Or.inr ⟨e, List.mem_append_left _ he, h3⟩
+
+end Walks
+
+
+private theorem augStep_spec {c : Ctx} {δ cur p : ℕ} (hcur : cur < c.1) (hp : p < c.1)
+    {t : Memory.State} (hpred : t.mem (predAddr c cur) = p)
+    (hfB : t.mem (flowAddr c p cur) ≤ c.2.2.2) (hδ : δ ≤ 2 * c.2.2.2) :
+    (Memory.spec 0).clientResult t (augStep ((c, δ), cur)) = p ∧
+    (Memory.spec 0).clientState t (augStep ((c, δ), cur)) =
+      ⟨Function.update (Function.update t.mem (flowAddr c cur p)
+          (t.mem (flowAddr c cur p) - min δ (t.mem (flowAddr c cur p))))
+        (flowAddr c p cur) (t.mem (flowAddr c p cur) + (δ - min δ (t.mem (flowAddr c cur p)))),
+        t.frontier⟩ := by
+  refine ⟨?_, ?_⟩
+  · unfold augStep
+    dsimp only
+    rw [clientResult_bind_read, if_pos hcur, clientResult_bind_read, hpred, if_pos hp,
+      clientResult_bind_read, clientResult_bind_read, if_pos ⟨hfB, hδ⟩]
+    rfl
+  · unfold augStep
+    dsimp only
+    rw [clientState_bind_read, if_pos hcur, clientState_bind_read, hpred, if_pos hp,
+      clientState_bind_read, clientState_bind_read, if_pos ⟨hfB, hδ⟩]
+    rfl
+
+section AugWalk
+
+variable {n mb sb B : ℕ} {W : Fin n → Fin n → ℕ} {src snk : Fin n}
+
+/-- The augmentation walk pushes `δ` along the path to `cur` built from the parent function,
+cancelling reverse flow first, exactly as `Network.Flow.augmentFun`. -/
+private theorem iterate_augStep_spec (hB : ∀ u v, W u v ≤ B) (f : (Network.mk W src snk).Flow)
+    (parOf : Fin n → Fin n)
+    (hpar : ∀ x : Fin n, 0 < f.resDist x → f.resDist x < n →
+      f.resDist (parOf x) + 1 = f.resDist x ∧ 0 < f.resCap (parOf x) x)
+    (δ : ℕ) (hδ : δ ≤ 2 * B) :
+    ∀ rem (cur : Fin n) (u_st : Memory.State), rem < n → f.resDist cur = rem →
+      (∀ x : Fin n, 0 < f.resDist x → f.resDist x < n →
+        u_st.mem (predAddr (n, mb, sb, B) x.1) = (parOf x).1) →
+      (∀ x y : Fin n,
+        ((x, y) ∈ pathArcs (buildPath parOf rem cur) ∨
+          (y, x) ∈ pathArcs (buildPath parOf rem cur)) →
+        u_st.mem (flowAddr (n, mb, sb, B) x.1 y.1) = f x y) →
+      ∀ x y : Fin n,
+        ((Memory.spec 0).clientState u_st
+          (iterate augStep ((n, mb, sb, B), δ) rem cur.1)).mem (flowAddr (n, mb, sb, B) x.1 y.1) =
+          if (x, y) ∈ pathArcs (buildPath parOf rem cur) then f x y + (δ - min δ (f y x))
+          else if (y, x) ∈ pathArcs (buildPath parOf rem cur) then f x y - min δ (f x y)
+          else u_st.mem (flowAddr (n, mb, sb, B) x.1 y.1)
+  | 0, cur, u_st, _, _, _, _ => fun x y => by
+    simp only [iterate, buildPath, pathArcs_singleton, List.not_mem_nil, ↓reduceIte]
+    rfl
+  | rem + 1, cur, u_st, hrem, hcur, hp_mem, hf_sub => by
+    intro x y
+    set c : Ctx := (n, mb, sb, B)
+    obtain ⟨hd_p, hrc_p⟩ := hpar cur (by omega) (by omega)
+    have hp_rem : f.resDist (parOf cur) = rem := by omega
+    have hne_pc : parOf cur ≠ cur := fun h => by rw [h] at hp_rem; omega
+    have harcs_eq := pathArcs_buildPath_succ parOf rem cur
+    have hf_rev : u_st.mem (flowAddr c cur.1 (parOf cur).1) = f cur (parOf cur) :=
+      hf_sub cur (parOf cur) (Or.inr (by rw [harcs_eq]; simp))
+    have hf_fwd : u_st.mem (flowAddr c (parOf cur).1 cur.1) = f (parOf cur) cur :=
+      hf_sub (parOf cur) cur (Or.inl (by rw [harcs_eq]; simp))
+    have hfB : u_st.mem (flowAddr c (parOf cur).1 cur.1) ≤ c.2.2.2 := by
+      rw [hf_fwd]; exact (f.le_cap _ _).trans (hB _ _)
+    obtain ⟨hres1, hst1⟩ := augStep_spec (c := c) (δ := δ) cur.2 (parOf cur).2
+      (hp_mem cur (by omega) (by omega)) hfB hδ
+    set u1 := (Memory.spec 0).clientState u_st (augStep ((c, δ), cur.1))
+    have haddr : ∀ a b a' b' : Fin n, flowAddr c a.1 b.1 = flowAddr c a'.1 b'.1 →
+        a = a' ∧ b = b' := fun a b a' b' h => by
+      dsimp only [c, flowAddr] at h
+      exact fin_mul_add_inj (by omega)
+    have hflow1 : ∀ x y : Fin n, u1.mem (flowAddr c x.1 y.1) =
+        if (x, y) = (parOf cur, cur) then f x y + (δ - min δ (f y x))
+        else if (y, x) = (parOf cur, cur) then f x y - min δ (f x y)
+        else u_st.mem (flowAddr c x.1 y.1) := by
+      intro x y
+      rw [hst1]
+      dsimp only
+      rw [hf_rev, hf_fwd]
+      by_cases hxy : (x, y) = (parOf cur, cur)
+      · obtain ⟨rfl, rfl⟩ := Prod.mk.inj hxy
+        rw [if_pos rfl, Function.update_self]
+      · rw [if_neg hxy, Function.update_of_ne (fun h => hxy (Prod.ext (haddr _ _ _ _ h).1
+          (haddr _ _ _ _ h).2))]
+        by_cases hyx : (y, x) = (parOf cur, cur)
+        · obtain ⟨rfl, rfl⟩ := Prod.mk.inj hyx
+          rw [if_pos rfl, Function.update_self]
+        · rw [if_neg hyx, Function.update_of_ne (fun h => hyx (Prod.ext (haddr _ _ _ _ h).2
+            (haddr _ _ _ _ h).1))]
+    have hpar1 : ∀ x : Fin n, 0 < f.resDist x → f.resDist x < n →
+        u1.mem (predAddr c x.1) = (parOf x).1 := fun x hx1 hx2 => by
+      rw [preservesAt_augStep (d := ((c, δ), cur.1)) (Or.inr (by ek_omega)) u_st]
+      exact hp_mem x hx1 hx2
+    obtain ⟨_, hle_rem, _, _⟩ := buildPath_props f parOf hpar rem (parOf cur) (by omega) hp_rem
+    have hdisj : ∀ a b : Fin n, (a, b) ∈ pathArcs (buildPath parOf rem (parOf cur)) →
+        a ≠ cur ∧ b ≠ cur := by
+      intro a b hab
+      have ha := hle_rem a (fst_mem_of_mem_pathArcs hab)
+      have hb := hle_rem b (snd_mem_of_mem_pathArcs hab)
+      exact ⟨fun h => by subst h; omega, fun h => by subst h; omega⟩
+    have hf_sub1 : ∀ x y : Fin n,
+        ((x, y) ∈ pathArcs (buildPath parOf rem (parOf cur)) ∨
+          (y, x) ∈ pathArcs (buildPath parOf rem (parOf cur))) →
+        u1.mem (flowAddr c x.1 y.1) = f x y := by
+      intro x y hmem
+      rw [hflow1 x y]
+      rcases hmem with hxy | hyx
+      · obtain ⟨_, hyc⟩ := hdisj x y hxy
+        have h1 : (x, y) ≠ (parOf cur, cur) := fun h => hyc (Prod.mk.inj h).2
+        have h2 : (y, x) ≠ (parOf cur, cur) := fun h => (hdisj x y hxy).1 (Prod.mk.inj h).2
+        rw [if_neg h1, if_neg h2]
+        exact hf_sub x y (Or.inl (by rw [harcs_eq]; exact List.mem_append_left _ hxy))
+      · obtain ⟨hxc, _⟩ := hdisj y x hyx
+        have h1 : (x, y) ≠ (parOf cur, cur) := fun h => hxc (Prod.mk.inj h).2
+        have h2 : (y, x) ≠ (parOf cur, cur) := fun h => (hdisj y x hyx).2 (Prod.mk.inj h).2
+        rw [if_neg h1, if_neg h2]
+        exact hf_sub x y (Or.inr (by rw [harcs_eq]; exact List.mem_append_left _ hyx))
+    have hih := iterate_augStep_spec hB f parOf hpar δ hδ rem (parOf cur) u1 (by omega) hp_rem
+      hpar1 hf_sub1 x y
+    change ((Memory.spec 0).clientState u_st
+      (augStep ((c, δ), cur.1) >>= iterate augStep (c, δ) rem)).mem _ = _
+    rw [StateTransitionSpec.clientState_bind, hres1, hih, hflow1 x y, harcs_eq]
+    simp only [List.mem_append, List.mem_singleton]
+    by_cases h1 : (x, y) ∈ pathArcs (buildPath parOf rem (parOf cur))
+    · rw [if_pos h1, if_pos (Or.inl h1)]
+    · by_cases h2 : (x, y) = (parOf cur, cur)
+      · have h3 : (y, x) ∉ pathArcs (buildPath parOf rem (parOf cur)) := fun h =>
+          (hdisj y x h).1 (Prod.mk.inj h2).2
+        rw [if_neg h1, if_neg h3, if_pos h2, if_pos (Or.inr h2)]
+      · have h12 : ¬ ((x, y) ∈ pathArcs (buildPath parOf rem (parOf cur)) ∨
+            (x, y) = (parOf cur, cur)) := not_or.mpr ⟨h1, h2⟩
+        rw [if_neg h1, if_neg h12]
+        by_cases h3 : (y, x) ∈ pathArcs (buildPath parOf rem (parOf cur))
+        · rw [if_pos h3, if_pos (Or.inl h3)]
+        · by_cases h4 : (y, x) = (parOf cur, cur)
+          · rw [if_neg h3, if_neg h2, if_pos h4, if_pos (Or.inr h4)]
+          · have h34 : ¬ ((y, x) ∈ pathArcs (buildPath parOf rem (parOf cur)) ∨
+                (y, x) = (parOf cur, cur)) := not_or.mpr ⟨h3, h4⟩
+            rw [if_neg h3, if_neg h2, if_neg h4, if_neg h34]
+
+end AugWalk
+
 /-! ### Interface (proofs in progress) -/
 
 /-- **Correctness of dense Edmonds–Karp.** On a state holding the capacities `W ≤ B` at `mb`,
