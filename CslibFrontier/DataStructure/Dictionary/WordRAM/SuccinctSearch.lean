@@ -294,7 +294,6 @@ theorem realizes_resolveOvfStepGen :
     have hq_lt : 4 + 3 * d1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos h.2.1
   )
   · exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU hq_lt.le
-  · exact fits_const_of_dictEnv h.1 (by decide)
   · exact h.1
   · exact hq_lt
   · rw [clientResult_readGMProg _ hq_lt]
@@ -319,7 +318,6 @@ theorem realizes_resolveOvfStepGen :
   · rw [clientResult_readGMProg s hq_lt] at hc
     exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU
       (resolveOvfStep_aboveIdx_lt hb_pos h.2.1 h.2.2.2.1 h.2.2.2.2.1 hc).le
-  · exact fits_const_of_dictEnv h.1 (by decide)
   · exact h.1
   · rw [clientResult_readGMProg s hq_lt] at hc
     exact resolveOvfStep_aboveIdx_lt hb_pos h.2.1 h.2.2.2.1 h.2.2.2.2.1 hc
@@ -855,7 +853,6 @@ theorem realizes_initOvfSearchGen :
       (Nat.sub_lt (dirSlabsPerBucket_pos_of_pos hb_pos) Nat.zero_lt_one)
   )
   · exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU hq_lt.le
-  · exact fits_const_of_dictEnv h.1 (by decide)
   · exact h.1
   · exact hq_lt
   · exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU hr_lt.le
@@ -877,7 +874,6 @@ theorem realizes_initOvfSearchGen :
   · repeat rw [clientState_readGMProg]
     exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU
       (initOvfSearch_aboveIdx_lt hb_pos h.2.1 h.2.2.1 hc).le
-  · exact fits_const_of_dictEnv h.1 (by decide)
   · repeat rw [clientState_readGMProg]
     exact initOvfSearch_aboveIdx_lt hb_pos h.2.1 h.2.2.1 hc
 
