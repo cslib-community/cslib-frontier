@@ -19,6 +19,7 @@ import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
 import CslibFrontier.Foundations.Probability.Gaussian.QuadrantDeriv
 import CslibFrontier.Foundations.Probability.Gaussian.Real
 import CslibFrontier.Foundations.Probability.SecondMoment
+import CslibFrontier.Foundations.Probability.UnionBound
 import Mathlib.Analysis.Calculus.Deriv.Shift
 import Mathlib.Analysis.Real.Pi.Bounds
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
@@ -1446,49 +1447,17 @@ theorem eventually_4217_div_1000_sub_mul_lt_innerSize_of_isTotallyRegular {ε : 
       (N : ℝ) * ((3 * D_ov : ℕ) : ℝ) / c_dev ^ 2 :=
     hdev_term bout hbout_mult (fun B x => x ≤ thr B) fun _ => measurableSet_Iic
   -- Union bound `< 1` gives a good sample `ω₀`:
-  have hsum_lt_one : P.real (Gaussian.deviation A_in c_dev ∪
-      Gaussian.deviation B_unread c_dev ∪ Gaussian.deviation C_out c_dev) < 1 := by
-    have hu1 := measureReal_union_le (μ := P)
-      (Gaussian.deviation A_in c_dev ∪ Gaussian.deviation B_unread c_dev)
-      (Gaussian.deviation C_out c_dev)
-    have hu2 := measureReal_union_le (μ := P)
-      (Gaussian.deviation A_in c_dev) (Gaussian.deviation B_unread c_dev)
-    have hu : P.real (Gaussian.deviation A_in c_dev ∪
-        Gaussian.deviation B_unread c_dev ∪ Gaussian.deviation C_out c_dev) ≤
-        P.real (Gaussian.deviation A_in c_dev) +
-          P.real (Gaussian.deviation B_unread c_dev) +
-          P.real (Gaussian.deviation C_out c_dev) := by linarith [hu1, hu2]
-    have hA_bound : (3 / 2 * h) * D_ov / c_dev ^ 2 ≤ 14 * (N : ℝ) * D_ov / c_dev ^ 2 :=
-      div_le_div_of_nonneg_right
-        (mul_le_mul_of_nonneg_right
-          (by linarith [hh_le_N, show (0 : ℝ) < N from Nat.cast_pos.mpr hNpos])
-          (Nat.cast_nonneg _))
-        (sq_nonneg _)
-    have hcalc : 14 * (N : ℝ) * D_ov / c_dev ^ 2 +
-        (N : ℝ) * ((3 * D_ov : ℕ) : ℝ) / c_dev ^ 2 +
-        (N : ℝ) * ((3 * D_ov : ℕ) : ℝ) / c_dev ^ 2 =
-        20 * (D_ov : ℝ) / δ ^ 2 / N := by
-      push_cast
-      dsimp [c_dev]
-      have hN0 : (N : ℝ) ≠ 0 := (Nat.cast_pos.mpr hNpos).ne'
-      have hδ0 : δ ≠ 0 := hδ_pos.ne'
-      field_simp
-      ring
-    have hlt1 : 20 * (D_ov : ℝ) / δ ^ 2 / N < 1 :=
-      (div_lt_one (Nat.cast_pos.mpr hNpos)).mpr hN_ov
-    exact hu.trans_lt (by linarith [hdev_A, hdev_B, hdev_C, hA_bound, hcalc, hlt1])
-  have hex_good : ∃ ω₀, ω₀ ∉ Gaussian.deviation A_in c_dev ∧
-      ω₀ ∉ Gaussian.deviation B_unread c_dev ∧ ω₀ ∉ Gaussian.deviation C_out c_dev := by
-    by_contra! hall
-    have huniv : Gaussian.deviation A_in c_dev ∪ Gaussian.deviation B_unread c_dev ∪
-        Gaussian.deviation C_out c_dev = univ := by
-      ext ω
-      simp only [mem_union, mem_univ, iff_true]
-      by_contra! hnot
-      exact hnot.2 (hall ω hnot.1.1 hnot.1.2)
-    rw [huniv, probReal_univ] at hsum_lt_one
-    exact lt_irrefl _ hsum_lt_one
-  obtain ⟨ω₀, hωA, hωB, hωC⟩ := hex_good
+  obtain ⟨ω₀, hω⟩ := exists_notMem_of_measureReal_lt_one (((measureReal_union_le _ _).trans
+    (add_le_add ((measureReal_union_le _ _).trans (add_le_add hdev_A hdev_B)) hdev_C)).trans_lt
+    (by
+      calc _ ≤ 20 * (D_ov : ℝ) * N / c_dev ^ 2 := by
+            rw [← add_div, ← add_div]
+            gcongr
+            push_cast
+            nlinarith only [hh_le_N, (Nat.cast_nonneg D_ov : (0 : ℝ) ≤ D_ov)]
+        _ < 1 := Gaussian.mul_div_mul_sq_lt_one hδ_pos.ne' (Nat.cast_pos.mpr hNpos) hN_ov))
+  simp only [mem_union, not_or] at hω
+  obtain ⟨⟨hωA, hωB⟩, hωC⟩ := hω
   set T₀ := DirectedShift.shiftedCut Q (Gaussian.vertexScore Q qk R ω₀) d₀
   -- Upper bound on `|Q.inCut T₀|` from `hωA` and the 4-type cubic LP:
   have hin_upper : ((Q.inCut T₀).ncard : ℝ) <

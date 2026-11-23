@@ -147,8 +147,7 @@ private theorem eventually_bound_lt_rpow (c : ℕ) {β ε : ℝ} (hβ : 0 < β)
     ring
   have hmain : (2 : ℝ) ^ n * c * ((n : ℝ) + ⌊(2 : ℝ) ^ (β * n)⌋₊ + 1) ^ c ≤
       (2 : ℝ) ^ n * ((c * 2 ^ c * ((n : ℝ) + 1) ^ c) * (a ^ n) ^ c) := by
-    have hle : ((n : ℝ) + ⌊(2 : ℝ) ^ (β * n)⌋₊ + 1) ^ c ≤ (2 * ((n + 1) * a ^ n)) ^ c :=
-      pow_le_pow_left₀ hsum0 hsum c
+    have hle : ((n : ℝ) + ⌊(2 : ℝ) ^ (β * n)⌋₊ + 1) ^ c ≤ (2 * ((n + 1) * a ^ n)) ^ c := by gcongr
     have hc0 : (0 : ℝ) ≤ c := Nat.cast_nonneg c
     calc (2 : ℝ) ^ n * c * ((n : ℝ) + ⌊(2 : ℝ) ^ (β * n)⌋₊ + 1) ^ c
         ≤ (2 : ℝ) ^ n * c * (2 * ((n + 1) * a ^ n)) ^ c := by gcongr

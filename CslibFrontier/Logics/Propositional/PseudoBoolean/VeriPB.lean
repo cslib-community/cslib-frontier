@@ -129,9 +129,7 @@ theorem le_coeffSum_of_mem {ts : List (ℕ × Literal ℕ)} {t : ℕ × Literal 
   induction ts with
   | nil => simp at h
   | cons u ts ih =>
-    rcases List.mem_cons.mp h with rfl | h
-    · simp
-    · simp only [coeffSum_cons]; have := ih h; omega
+    grind [coeffSum_cons]
 
 theorem lhs_eq_coeffSum_filter (σ : ℕ → Bool) (ts : List (ℕ × Literal ℕ)) :
     lhs σ ts = coeffSum (ts.filter fun t => Literal.eval σ t.2) := by
@@ -161,9 +159,7 @@ theorem propagate_sound {σ : ℕ → Bool} {ρ : List (Literal ℕ)} {c : PBCon
       c.terms.filter fun t => Literal.eval σ t.2 := by
     apply List.filter_congr
     intro t ht
-    cases h : Literal.eval σ t.2
-    · simp
-    · simp [hnf t ht h]
+    grind
   rw [htrue, ← lhs_eq_coeffSum_filter] at hsplit
   unfold Holds at hc
   have hs : 0 ≤ slack ρ c := by unfold slack; omega
