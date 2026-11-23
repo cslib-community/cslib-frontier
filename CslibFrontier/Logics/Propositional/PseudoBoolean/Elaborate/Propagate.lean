@@ -23,9 +23,10 @@ hinted `rup C : hints;` of the kernel format (§5.2.1 of the VeriPB/CakePB docum
 
 The engine is untrusted: it has no correctness theorem, and the hints it returns are checked by
 the kernel checker (`Cslib.Logic.PL.VeriPB.rup`). It is written for compiled execution: its state
-(`Cslib.Logic.PL.VeriPB.Elab.EState`) is one value, held by a mutable reference in `ST` and
-updated in place by pure functions while it is uniquely referenced, and the kernel cannot evaluate
-it.
+is one value, private to this module, held by a mutable reference in `ST` and updated in place by
+pure functions while it is uniquely referenced, and the kernel cannot evaluate it. The engine's
+interface is `Cslib.Logic.PL.VeriPB.Elab.Engine.new` and the operations `add`, `kill`, `rupHints`
+and `extend`.
 
 **Data.** A constraint is stored as its literal codes (`2 i` for the `i`-th variable met, `2 i + 1`
 for its negation) and coefficients, sorted by decreasing coefficient, in two arrays shared by all
@@ -61,7 +62,7 @@ namespace Cslib.Logic.PL.VeriPB.Elab
 (literal codes and coefficients, sorted by decreasing coefficient; a clause's first two literals
 are its watches), their number, the degree, the slack of the empty assignment, whether it
 propagates as a clause, and the kernel hint that names it. -/
-structure CRec where
+private structure CRec where
   /-- The position of the first term. -/
   start : Nat
   /-- The number of terms. -/
@@ -75,10 +76,10 @@ structure CRec where
   /-- The kernel hint naming the constraint. -/
   hint : Hint
 
-instance : Inhabited CRec := ⟨⟨0, 0, 0, 0, false, .neg⟩⟩
+private instance : Inhabited CRec := ⟨⟨0, 0, 0, 0, false, .neg⟩⟩
 
 /-- The assignment of the engine. -/
-structure Asg where
+private structure Asg where
   /-- The value of each literal code: `0` unassigned, `1` true, `2` false. -/
   value : ByteArray := .empty
   /-- The reason of each assigned variable. -/
@@ -90,7 +91,7 @@ structure Asg where
   deriving Inhabited
 
 /-- The state of the propagation engine. -/
-structure EState where
+private structure EState where
   /-- The index of each variable met. -/
   varIdx : Std.HashMap ℕ ℕ := {}
   /-- The variable of each index. -/
@@ -130,10 +131,12 @@ structure EState where
   /-- Marks on variables, for the conflict analysis; all clear between analyses. -/
   seen : ByteArray := .empty
 
-/-- The propagation engine: its state, as a mutable reference. -/
+/-- The propagation engine: its state, as a mutable reference. The state and its transitions are
+private; the engine is used through `new`, `add`, `kill`, `rupHints` and `extend`. -/
 structure Engine (σ : Type) where
+  private mk ::
   /-- The state. -/
-  st : ST.Ref σ EState
+  private st : ST.Ref σ EState
 
 /-- The value of a literal code: `0` unassigned, `1` true, `2` false. -/
 @[inline] private def litVal (value : ByteArray) (code : ℕ) : UInt8 := value.get! code
@@ -427,7 +430,7 @@ private def pushCons (s : EState) (ts : Array (ℕ × ℕ)) (d : ℕ) (slack0 : 
 
 /-- Add a constraint at the root level, named by the kernel hint `h`; returns its engine
 index. -/
-def add (s : EState) (c : PBConstr) (h : Hint) : EState × ℕ := Id.run do
+private def add (s : EState) (c : PBConstr) (h : Hint) : EState × ℕ := Id.run do
   let (s, ts) := s.codes c
   let total : ℕ := ts.foldl (fun t x => t + x.1) 0
   let clause := 2 ≤ ts.size && 0 < c.degree && ts.all (c.degree ≤ ·.1)
@@ -455,7 +458,7 @@ def add (s : EState) (c : PBConstr) (h : Hint) : EState × ℕ := Id.run do
   return (s, i)
 
 /-- Delete the constraint with engine index `i`. -/
-def kill (s : EState) (i : ℕ) : EState :=
+private def kill (s : EState) (i : ℕ) : EState :=
   let s := { s with alive := s.alive.set! i 0 }
   if s.rootReason.get! i != 0 || s.rootConflict == some i then { s with dirty := true } else s
 
@@ -543,9 +546,9 @@ private def analyze (s : EState) (k : ℕ) : EState × Array Hint :=
   ({ s with seen := seen }, (out.reverse.map (s.cons[·]!.hint)).push rk.hint)
 
 /-- **The hints of `rup C`**, given the negation `neg` of `C`: propagate the database and `neg`,
-and on a conflict return its hints (`Cslib.Logic.PL.VeriPB.Elab.EState.analyze`), `neg` being
+and on a conflict return its hints (`analyze`), `neg` being
 named `~`. Returns `none` when propagation reaches no conflict. The negation is removed again. -/
-def rupHints (s : EState) (neg : PBConstr) : EState × Option (Array Hint) := Id.run do
+private def rupHints (s : EState) (neg : PBConstr) : EState × Option (Array Hint) := Id.run do
   let s := if s.dirty then s.rebuild else s
   if let some k := s.rootConflict then
     let (s, h) := s.analyze k
@@ -577,7 +580,8 @@ def rupHints (s : EState) (neg : PBConstr) : EState × Option (Array Hint) := Id
 /-- **Extend a partial assignment by propagation**, as VeriPB does for a logged solution
 (§5.8.1): make the literals `ls` true, propagate the database, and return every assigned
 literal; `none` on a conflict. -/
-def extend (s : EState) (ls : List (Literal ℕ)) : EState × Option (Array (Literal ℕ)) := Id.run do
+private def extend (s : EState) (ls : List (Literal ℕ)) :
+    EState × Option (Array (Literal ℕ)) := Id.run do
   let s := if s.dirty then s.rebuild else s
   if s.rootConflict.isSome then return (s, none)
   let rl := s.rootLen
@@ -605,20 +609,25 @@ variable {σ : Type}
 /-- A new empty engine. -/
 def new : ST σ (Engine σ) := return ⟨← ST.mkRef {}⟩
 
-/-- Add a constraint at the root level, named by the kernel hint `h`; returns its engine
-index (`Cslib.Logic.PL.VeriPB.Elab.EState.add`). -/
+/-- Add a constraint at the root level, named by the kernel hint `h`, and propagate it there;
+returns its engine index. -/
 def add (e : Engine σ) (c : PBConstr) (h : Hint) : ST σ ℕ :=
   e.st.modifyGet fun s => let (s, i) := s.add c h; (i, s)
 
-/-- Delete the constraint with engine index `i`. -/
+/-- Delete the constraint with engine index `i`; the root level is rebuilt before the next
+step if the constraint was the reason of a root propagation or a root conflict. -/
 def kill (e : Engine σ) (i : ℕ) : ST σ Unit := e.st.modify (·.kill i)
 
-/-- **The hints of `rup C`**, given the negation `neg` of `C`
-(`Cslib.Logic.PL.VeriPB.Elab.EState.rupHints`). -/
+/-- **The hints of `rup C`**, given the negation `neg` of `C`: propagate the database and `neg`,
+and on a conflict return the reasons of the literals the conflict needs, in trail order, then
+the conflicting constraint, `neg` being named `~`. Returns `none` when propagation reaches no
+conflict. The negation is removed again. -/
 def rupHints (e : Engine σ) (neg : PBConstr) : ST σ (Option (Array Hint)) :=
   e.st.modifyGet fun s => let (s, r) := s.rupHints neg; (r, s)
 
-/-- **Extend a partial assignment by propagation** (`Cslib.Logic.PL.VeriPB.Elab.EState.extend`). -/
+/-- **Extend a partial assignment by propagation**, as VeriPB does for a logged solution
+(§5.8.1): make the literals `ls` true, propagate the database, and return every assigned
+literal; `none` on a conflict. -/
 def extend (e : Engine σ) (ls : List (Literal ℕ)) : ST σ (Option (Array (Literal ℕ))) :=
   e.st.modifyGet fun s => let (s, r) := s.extend ls; (r, s)
 
