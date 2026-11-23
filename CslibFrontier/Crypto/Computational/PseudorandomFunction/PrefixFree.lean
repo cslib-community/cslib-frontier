@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger, Erik Demaine
 module
 -- upstream: candidate
 
-public import CslibFrontier.Crypto.Computational.PseudorandomFunction
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Domain
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 
 /-!
@@ -24,6 +24,7 @@ is nonempty and belongs to the PRF input domain.
 
 * `Cslib.Crypto.wordQueryRunDist`: the law of the output and chronological query log.
 * `Cslib.Crypto.IsPrefixFreeOraclePPT`: strict oracle-PPT distinguishers with prefix-free queries.
+* `Cslib.Crypto.PrefixFreePseudorandomFunctionOn`: security against that class of distinguishers.
 
 ## References
 
@@ -153,5 +154,23 @@ theorem isPrefixFreeOn_of_isQueryBounded_one {α : Type} (valid : List Bool → 
     exact absurd (hx.trans hy.symm) hxy
   · simp only [List.length_cons] at hlen
     omega
+
+/-- Prefix-free uniform computational pseudorandom function over `valid` ([BonehShoup2023],
+Section 4.6.1, Definition 4.5, printed p. 152, and Section 6.4, printed p. 226): deterministic
+polynomial-time evaluation, output length `outLen`, and indistinguishability against
+the domain-relative class `IsPrefixFreeOraclePPT valid outLen`. -/
+structure PrefixFreePseudorandomFunctionOn (valid : ℕ → List Bool → Bool) (outLen : ℕ → ℕ)
+    (family : List Bool → List Bool → List Bool) : Prop where
+  /-- Deterministic polynomial-time evaluation from `(key, query)`. -/
+  polyTime : ComputableInPolyTime (fun pair => family pair.1 pair.2)
+    (encPair encBits encBits) encBits
+  /-- Valid queries under a key receive `outLen key.length`-bit answers. -/
+  length_eq : ∀ key query, valid key.length query = true →
+    (family key query).length = outLen key.length
+  /-- Indistinguishability against uniform strict oracle-PPT prefix-free distinguishers. -/
+  secure : Game.Indistinguishable
+    (fun adversary n => ProbComp.eval (prfRealGameOn valid family adversary n))
+    (fun adversary n => ProbComp.eval (prfIdealGameOn valid outLen adversary n))
+    (IsPrefixFreeOraclePPT valid outLen)
 
 end Cslib.Crypto

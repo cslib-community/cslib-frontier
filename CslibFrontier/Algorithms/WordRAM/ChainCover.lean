@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.Lean.MaxFlow.ChainCover
 public import CslibFrontier.Algorithms.WordRAM.HopcroftKarp
 import CslibFrontier.Computability.WordRAM.Allocation
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Foundations.Data.List.RowMajor
 import Mathlib.Tactic.Linarith
@@ -153,22 +154,24 @@ private theorem init_mem_n {reg : ℕ} (inst : PosetInstance) :
 private theorem init_mem_entry {reg : ℕ} (inst : PosetInstance) (u v : Fin inst.n) :
     (Data.init inst.encode : Data reg).mem (2 + (u.val * inst.n + v.val)) =
       if inst.lt (u, v) then 1 else 0 := by
-  let g : Fin inst.n → List ℕ := fun u' =>
-    (List.finRange inst.n).map fun v' => if inst.lt (u', v') then 1 else 0
-  have h := List.getElem?_flatMap_mul_add (List.finRange inst.n) g inst.n
-    (fun _ _ => by simp [g]) (show u.val < (List.finRange inst.n).length by simp) v.isLt
-  rw [show 2 + (u.val * inst.n + v.val) = (u.val * inst.n + v.val) + 1 + 1 by omega,
-    Data.init_mem_succ, encode, List.getD_cons_succ, List.getD_eq_getElem?_getD, h]
-  simp [g]
+  change (Data.init ([inst.n] ++ (List.finRange inst.n).flatMap fun u' =>
+    (List.finRange inst.n).map fun v' => if inst.lt (u', v') then 1 else 0) : Data reg).mem
+      ([inst.n].length + 1 + (u.val * inst.n + v.val)) = _
+  exact Data.init_mem_flatMap_finRange [inst.n] (fun u' v' => if inst.lt (u', v') then 1 else 0)
+    u v
 
 theorem inputFits_encode {w : ℕ} (inst : PosetInstance) (hw : Fits w inst.wordBound) :
     InputFits w inst.encode := by
-  refine ⟨hw.of_le (by rw [inst.encode_length]; unfold wordBound; nlinarith), fun x hx => ?_⟩
-  simp only [encode, List.mem_cons, List.mem_flatMap, List.mem_finRange, true_and,
-    List.mem_map] at hx
-  rcases hx with rfl | ⟨u, v, rfl⟩
-  · exact hw.of_le (by unfold wordBound; nlinarith)
-  · split_ifs <;> exact hw.of_le (by unfold wordBound; nlinarith)
+  rw [PosetInstance.encode, ← List.singleton_append]
+  exact InputFits.flatMap_finRange [inst.n] (fun u v => if inst.lt (u, v) then 1 else 0)
+    (hw.of_le (by simp only [List.length_singleton]; unfold wordBound; nlinarith))
+    (fun x hx => by
+      simp only [List.mem_singleton] at hx; subst hx
+      exact hw.of_le (by unfold wordBound; nlinarith))
+    (fun _ _ => by
+      split_ifs
+      · exact hw.of_le (by unfold wordBound; nlinarith)
+      · exact fits_zero w)
 
 end PosetInstance
 
