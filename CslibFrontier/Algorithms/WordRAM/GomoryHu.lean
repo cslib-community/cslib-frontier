@@ -329,4 +329,176 @@ private theorem ghProg_realizes :
       | exact hfr | exact hw | exact ⟨B, hB, hwB⟩
       | (apply hw.of_le; dsimp only [ghWorkspace]; omega)
 
+/-! ### State-level effect of the loop steps -/
+
+-- TEMP: `PreservesAt` is opaque outside `ProgFrame.lean` (board #79).
+private theorem preservesAt_apply {a : ℕ} {α : Type} {p : Memory.Prog α} (h : PreservesAt a p)
+    (s : Memory.State) : ((Memory.spec 0).clientState s p).mem a = s.mem a := by
+  sorry
+
+/-- The re-hanging scan re-hangs below `s` exactly the vertices `z ∉ {s, t}` with parent `t` whose
+distance word is below `n`, and changes no word outside the parent array. -/
+private theorem rehang_spec (n s t : ℕ) (st : Memory.State) :
+    let st' := (Memory.spec 0).clientState st (iterate rehangStep ((n, s), t) n 0)
+    (∀ a, (a < parBase n ∨ parBase n + n ≤ a) → st'.mem a = st.mem a) ∧
+    ∀ z < n, st'.mem (parBase n + z) =
+      if z ≠ s ∧ z ≠ t ∧ st.mem (parBase n + z) = t ∧ st.mem (distBase n + z) < n then s
+      else st.mem (parBase n + z) := by
+  intro st'
+  obtain ⟨hsum, hfr, hpar⟩ := iterate_invariant_of rehangStep ((n, s), t)
+    (fun rem (z : ℕ) u => z + rem = n ∧
+      (∀ a, (a < parBase n ∨ parBase n + n ≤ a) → u.mem a = st.mem a) ∧
+      ∀ y < n, u.mem (parBase n + y) =
+        if y < z ∧ (y ≠ s ∧ y ≠ t ∧ st.mem (parBase n + y) = t ∧ st.mem (distBase n + y) < n)
+        then s else st.mem (parBase n + y))
+    (fun rem z u ⟨hsum, hfr, hpar⟩ => by
+      have hz : z < n := by omega
+      have hpz : u.mem (parBase n + z) = st.mem (parBase n + z) := by
+        rw [hpar z hz, ite_eq_right_iff]
+        exact fun h => absurd h.1 (lt_irrefl z)
+      have hdz : u.mem (distBase n + z) = st.mem (distBase n + z) :=
+        hfr _ (Or.inr (by dsimp only [distBase, parBase]; omega))
+      unfold rehangStep
+      dsimp only
+      rw [clientResult_bind_read, clientState_bind_read, clientResult_bind_read,
+        clientState_bind_read, hpz, hdz]
+      by_cases hc : z ≠ s ∧ z ≠ t ∧ st.mem (parBase n + z) = t ∧ st.mem (distBase n + z) < n
+      · rw [ite_eq_left hc, clientResult_bind_write, clientState_bind_write,
+          StateTransitionSpec.clientResult_pure, StateTransitionSpec.clientState_pure]
+        refine ⟨by omega, fun a ha => ?_, fun y hy => ?_⟩
+        · dsimp only
+          rw [Function.update_of_ne (by omega)]
+          exact hfr a ha
+        · dsimp only
+          by_cases hyz : y = z
+          · subst hyz
+            rw [Function.update_self, ite_eq_left ⟨Nat.lt_succ_self y, hc⟩]
+          · rw [Function.update_of_ne (by omega), hpar y hy]
+            split_ifs <;> omega
+      · rw [ite_eq_right hc, StateTransitionSpec.clientResult_pure,
+          StateTransitionSpec.clientState_pure]
+        refine ⟨by omega, hfr, fun y hy => ?_⟩
+        rw [hpar y hy]
+        by_cases hyz : y = z
+        · subst hyz
+          rw [ite_eq_right (fun h => absurd h.1 (lt_irrefl y)),
+            ite_eq_right (fun h => hc h.2)]
+        · split_ifs <;> omega)
+    (n := n) (a := 0) (s := st) ⟨Nat.zero_add _, fun _ _ => rfl, fun y _ =>
+      (ite_eq_right (fun h => absurd h.1 (Nat.not_lt_zero y))).symm⟩
+  refine ⟨hfr, fun z hz => ?_⟩
+  rw [hpar z hz, ite_and]
+  simp only [show z < (Memory.spec 0).clientResult st (iterate rehangStep ((n, s), t) n 0) by
+    omega, ↓reduceIte]
+
+private theorem clientResult_ghStep (n r B k : ℕ) (st : Memory.State) :
+    (Memory.spec 0).clientResult st (ghStep ((n, r, B), k)) = k + 1 := by
+  unfold ghStep
+  simp_client
+
+/-- State-level effect of one step of Gusfield's algorithm on a non-root vertex `k` with parent
+`t`, in terms of the state `st1` and value `v` left by the Edmonds–Karp run. -/
+private theorem ghStep_spec {n r B k t : ℕ} {st : Memory.State} (hk : k < n) (hkr : k ≠ r)
+    (hpar : ∀ z < n, st.mem (parBase n + z) < n) (htdef : st.mem (parBase n + k) = t) :
+    let st1 := (Memory.spec 0).clientState st (ekProg (ghCtx n B, (k, t)))
+    let v := (Memory.spec 0).clientResult st (ekProg (ghCtx n B, (k, t)))
+    let st' := (Memory.spec 0).clientState st (ghStep ((n, r, B), k))
+    (∀ a < parBase n, st'.mem a = st.mem a) ∧
+    (∀ z < n, st'.mem (parBase n + z) =
+      if z = k then
+        (if st1.mem (distBase n + st.mem (parBase n + t)) < n then st.mem (parBase n + t) else t)
+      else if z = t then
+        (if st1.mem (distBase n + st.mem (parBase n + t)) < n then k else st.mem (parBase n + t))
+      else if st.mem (parBase n + z) = t ∧ st1.mem (distBase n + z) < n then k
+      else st.mem (parBase n + z)) ∧
+    (∀ z < n, st'.mem (wtBase n + z) =
+      if st1.mem (distBase n + st.mem (parBase n + t)) < n then
+        (if z = k then st.mem (wtBase n + t) else if z = t then v else st.mem (wtBase n + z))
+      else if z = k then v else st.mem (wtBase n + z)) := by
+  intro st1 v st'
+  have ht : t < n := htdef ▸ hpar k hk
+  have hpt : st.mem (parBase n + t) < n := hpar t ht
+  have h1 : ∀ a < scrBase n, st1.mem a = st.mem a := fun a ha =>
+    preservesAt_apply (preservesAt_ekProg (d := (ghCtx n B, (k, t))) (Or.inl ha)) st
+  obtain ⟨h2fr, h2par⟩ := rehang_spec n k t st1
+  have e1 : (Memory.spec 0).clientState st (ekProg (ghCtx n B, (k, t))) = st1 := rfl
+  have e2 : (Memory.spec 0).clientResult st (ekProg (ghCtx n B, (k, t))) = v := rfl
+  generalize hst2 : (Memory.spec 0).clientState st1 (iterate rehangStep ((n, k), t) n 0) = st2
+    at h2fr h2par
+  have hP2 : ∀ y < n, st2.mem (parBase n + y) =
+      if y ≠ k ∧ y ≠ t ∧ st.mem (parBase n + y) = t ∧ st1.mem (distBase n + y) < n then k
+      else st.mem (parBase n + y) := fun y hy => by
+    rw [h2par y hy, h1 _ (by dsimp only [scrBase, parBase]; omega)]
+  have hPt2 : st2.mem (parBase n + t) = st.mem (parBase n + t) := by
+    rw [hP2 t ht, ite_eq_right (fun h => h.2.1 rfl)]
+  have hD2 : ∀ y, st2.mem (distBase n + y) = st1.mem (distBase n + y) := fun y =>
+    h2fr _ (Or.inr (by dsimp only [distBase, parBase]; omega))
+  have hW2 : ∀ y < n, st2.mem (wtBase n + y) = st.mem (wtBase n + y) := fun y hy => by
+    rw [h2fr _ (Or.inr (by dsimp only [wtBase, parBase]; omega)),
+      h1 _ (by dsimp only [scrBase, wtBase]; omega)]
+  have hlow2 : ∀ a < parBase n, st2.mem a = st.mem a := fun a ha => by
+    rw [h2fr _ (Or.inl ha), h1 _ (by dsimp only [scrBase, parBase] at ha ⊢; omega)]
+  have key : st' = if st1.mem (distBase n + st.mem (parBase n + t)) < n then
+      ⟨Function.update (Function.update (Function.update (Function.update st2.mem
+        (parBase n + t) k) (parBase n + k) (st.mem (parBase n + t))) (wtBase n + t) v)
+        (wtBase n + k) (st.mem (wtBase n + t)), st2.frontier⟩
+    else ⟨Function.update st2.mem (wtBase n + k) v, st2.frontier⟩ := by
+    show (Memory.spec 0).clientState st (ghStep ((n, r, B), k)) = _
+    unfold ghStep
+    simp only [clientState_read, clientResult_read, hkr, htdef, ht, ↓reduceIte,
+      StateTransitionSpec.clientState_bind, e1, e2, hst2, hPt2, hpt, hD2, hW2 t ht,
+      clientState_bind_write, clientState_write, StateTransitionSpec.clientState_pure]
+  refine ⟨fun a ha => ?_, fun z hz => ?_, fun z hz => ?_⟩
+  · have hne : ∀ b, a ≠ parBase n + b := fun b => by omega
+    have hne' : ∀ b, a ≠ wtBase n + b := fun b => by dsimp only [wtBase, parBase] at ha ⊢; omega
+    rw [key]
+    split_ifs
+    · dsimp only
+      rw [Function.update_of_ne (hne' _), Function.update_of_ne (hne' _),
+        Function.update_of_ne (hne _), Function.update_of_ne (hne _), hlow2 a ha]
+    · dsimp only
+      rw [Function.update_of_ne (hne' _), hlow2 a ha]
+  · by_cases hX : st1.mem (distBase n + st.mem (parBase n + t)) < n
+    · rw [key, ite_eq_left hX]
+      dsimp only
+      simp only [Function.update_apply, hX, ↓reduceIte]
+      by_cases hzk : z = k
+      · subst hzk
+        simp only [parBase, wtBase] at *
+        split_ifs <;> omega
+      · by_cases hzt : z = t
+        · subst hzt
+          simp only [parBase, wtBase] at *
+          split_ifs <;> omega
+        · rw [hP2 z hz]
+          simp only [parBase, wtBase] at *
+          split_ifs <;> omega
+    · rw [key, ite_eq_right hX]
+      dsimp only
+      simp only [Function.update_apply, hX, ↓reduceIte]
+      by_cases hzk : z = k
+      · subst hzk
+        rw [hP2 z hz]
+        simp only [parBase, wtBase] at *
+        split_ifs <;> omega
+      · by_cases hzt : z = t
+        · subst hzt
+          rw [hP2 z hz]
+          simp only [parBase, wtBase] at *
+          split_ifs <;> omega
+        · rw [hP2 z hz]
+          simp only [parBase, wtBase] at *
+          split_ifs <;> omega
+  · by_cases hX : st1.mem (distBase n + st.mem (parBase n + t)) < n
+    · rw [key, ite_eq_left hX]
+      dsimp only
+      simp only [Function.update_apply, hX, ↓reduceIte, hW2 z hz]
+      simp only [parBase, wtBase] at *
+      split_ifs <;> omega
+    · rw [key, ite_eq_right hX]
+      dsimp only
+      simp only [Function.update_apply, hX, ↓reduceIte, hW2 z hz]
+      simp only [parBase, wtBase] at *
+      split_ifs <;> omega
+
 end Cslib.Algorithms.WordRAM.GomoryHu
