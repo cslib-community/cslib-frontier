@@ -28,8 +28,8 @@ next-free address must fit even for an empty input; this is not a width-zero ini
 ## Main results
 
 * `Realization.isRandFree_stripRand`, `Realization.not_readsWidth_stripRand`,
-  `Realization.step_stripRand_of_ne_fault`, `Realization.runs_stripRand`: `stripRand` produces a
-  rand-free program preserving `¬ReadsWidth`, non-faulting steps, and deterministic `Runs`.
+  `Realization.step_stripRand_of_halt`, `Realization.runs_stripRand`: `stripRand` produces a
+  rand-free program preserving `¬ReadsWidth`, halting steps, and deterministic `Runs`.
 * `Realizes.exists_standard_init_program_state_from_words`: one flat program for independent
   raw memory and register arguments, related by their input prefix.
 * `Realizes.exists_standard_basis_init_program_state_from_words`: standard-basis width-blind
@@ -76,8 +76,7 @@ theorem not_readsWidth_stripRand {B : Basis} {r : ℕ} {p : Program B r}
   | rand _ _ => exact hrw
   | _ => exact hp ⟨_, hj, hrw⟩
 
-/-- Any non-faulting deterministic step of `p` steps identically in `stripRand p`. -/
-theorem step_stripRand_of_ne_fault {B : Basis} {r w : ℕ} {p : Program B r}
+private theorem step_stripRand_of_ne_fault {B : Basis} {r w : ℕ} {p : Program B r}
     {s : State r} (hne : step w p s ≠ .fault) :
     step w (stripRand p) s = step w p s := by
   unfold step at hne ⊢
@@ -88,6 +87,11 @@ theorem step_stripRand_of_ne_fault {B : Basis} {r w : ℕ} {p : Program B r}
     cases ins with
     | rand _ _ => simp [hp] at hne
     | _ => rfl
+
+/-- Halting steps of `p` transfer unchanged to `stripRand p`. -/
+theorem step_stripRand_of_halt {B : Basis} {r w v : ℕ} {p : Program B r} {s : State r}
+    (h : step w p s = .halt v) : step w (stripRand p) s = .halt v := by
+  rw [step_stripRand_of_ne_fault (by rw [h]; exact nofun), h]
 
 /-- Deterministic `Runs` of `p` transfer unchanged to `stripRand p`. -/
 theorem runs_stripRand {B : Basis} {r w : ℕ} {p : Program B r}

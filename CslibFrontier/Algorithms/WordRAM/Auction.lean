@@ -2581,17 +2581,12 @@ theorem exists_epsAuction_program :
     rw [clientState_width w] at hmem
     rw [clientResult_width w] at hhalt₀
     dsimp only [wordWords] at hhalt₀
-    have hruns : Runs w prog (.init inst.encode) ⟨pc, y⟩ m := runs_stripRand hruns₀
-    have hhalt : WordRAM.step w prog ⟨pc, y⟩ =
-        .halt ((Memory.spec 0).clientResult (Memory.State.init inst.encode)
-          (epsMainProg (inst.n, inst.eps))) := by
-      rw [step_stripRand_of_ne_fault (by rw [hhalt₀]; exact nofun)]
-      exact hhalt₀
     have hymem : y.mem =
         ((Memory.spec 0).clientState (Memory.State.init inst.encode)
           (epsMainProg (inst.n, inst.eps))).mem :=
       congrArg Memory.State.mem hmem
-    refine ⟨m + 1, ⟨⟨pc, y⟩, m, _, hruns, hhalt, hymem ▸ hout, hfit_out, rfl⟩, ?_⟩
+    refine ⟨m + 1, ⟨⟨pc, y⟩, m, _, runs_stripRand hruns₀, step_stripRand_of_halt hhalt₀,
+      hymem ▸ hout, hfit_out, rfl⟩, ?_⟩
     have hp := eps_poly_bound inst.n C inst.eps hε
     have hmul : C₁ * (memoryCost (epsMainProg (inst.n, inst.eps))
         (Memory.State.init inst.encode) + 0 + 1) ≤
@@ -2649,12 +2644,6 @@ theorem exists_scaledAuction_program :
     rw [clientState_width w] at hmem
     rw [clientResult_width w] at hhalt₀
     dsimp only [wordWords] at hhalt₀
-    have hruns : Runs w prog (.init inst.encode) ⟨pc, y⟩ m := runs_stripRand hruns₀
-    have hhalt : WordRAM.step w prog ⟨pc, y⟩ =
-        .halt ((Memory.spec 0).clientResult (Memory.State.init inst.encode)
-          (scaledMainProg inst.n)) := by
-      rw [step_stripRand_of_ne_fault (by rw [hhalt₀]; exact nofun)]
-      exact hhalt₀
     have hymem : y.mem =
         ((Memory.spec 0).clientState (Memory.State.init inst.encode)
           (scaledMainProg inst.n)).mem :=
@@ -2671,7 +2660,8 @@ theorem exists_scaledAuction_program :
           (scaledSolveProg inst.n) := by
       unfold scaledMainProg
       rw [clientState_bind, clientState_pure]
-    refine ⟨m + 1, ⟨⟨pc, y⟩, m, _, hruns, hhalt, ?_, ?_, rfl⟩, scaled_steps_le hsteps hmc⟩
+    refine ⟨m + 1, ⟨⟨pc, y⟩, m, _, runs_stripRand hruns₀, step_stripRand_of_halt hhalt₀,
+      ?_, ?_, rfl⟩, scaled_steps_le hsteps hmc⟩
     · rw [hymem, hst_eq, hres_eq]; exact hout_s
     · rw [hres_eq, inst.length_assignment]
       rw [hws_n] at hfit_ws
@@ -2738,11 +2728,8 @@ theorem exists_scaledMinCost_program :
       rw [clientResult_bind]
       exact hres_sum
     rw [hres_eq] at hhalt₀
-    have hruns : Runs w prog (.init inst.encode) ⟨pc, y⟩ m := runs_stripRand hruns₀
-    have hhalt : WordRAM.step w prog ⟨pc, y⟩ = .halt inst.encodedMinCost := by
-      rw [step_stripRand_of_ne_fault (by rw [hhalt₀]; exact nofun)]
-      exact hhalt₀
-    exact ⟨m + 1, ⟨⟨pc, y⟩, m, hruns, hhalt, rfl⟩, scaled_steps_le hsteps hmc⟩
+    exact ⟨m + 1, ⟨⟨pc, y⟩, m, runs_stripRand hruns₀, step_stripRand_of_halt hhalt₀, rfl⟩,
+      scaled_steps_le hsteps hmc⟩
   refine ⟨r, 34 * C₁ + 1, by omega, prog, not_readsWidth_stripRand hnw₀,
     isRandFree_stripRand prog₀, @hmain, fun inst w hw _ =>
       hmain inst inst.sub_le_rowSpread hw⟩
