@@ -7802,6 +7802,8 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.Hadamard
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.Random
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.TotallyRegular
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.WalshBand
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.WalshCounts
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.WalshRigidity
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.SchurComplement
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.SkewDeterminant
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.SpectralCut
