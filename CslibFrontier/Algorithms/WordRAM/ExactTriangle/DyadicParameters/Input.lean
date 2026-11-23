@@ -9,8 +9,8 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.DyadicParameters.Exec
 public import CslibFrontier.Computability.WordRAM.Width
-import Mathlib.Data.List.GetD
 import CslibFrontier.Computability.WordRAM.Admission
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Initialized halting native parameter preparation
@@ -59,13 +59,15 @@ theorem exec_input {W n : ℕ} (hW : admissionWidth n ≤ W) :
   have h1 : Fits W 1 := hfit.of_le (by unfold wordBudget; omega)
   have hn : Fits W n := hfit.of_le (by unfold wordBudget; omega)
   have hi : InputFits W [n] := ⟨by simpa using h1, by simpa using hn⟩
-  let x := ((Data.init (r := 16) [n]).set Reg.divisor 1).set Reg.side n
-  have header : ExecWithin (B := .standard) W
-      (ram[ Reg.divisor ← #1; Reg.side ← *Reg.divisor ]) (.init [n]) x 2 := by
-    ram_eval [x, h1, hn, Reg.divisor, Reg.side, Data.init, List.getD, Fin.mk.injEq]
-  obtain ⟨y, he, hs, hb, hl, hd, hg, hL, hf, hm⟩ := exec x (by rfl) hfit
-  have full : ExecWithin W entryProgram (.init [n]) y (timeBound n + 2) :=
-    (header.seq he).mono (by omega)
+  have hmem1 : (Data.init [n] : Data 16).mem 1 = n := by simp [Data.init]
+  have hfull : ∃ y, ExecWithin W entryProgram (.init [n]) y (timeBound n + 2) ∧
+      Post n (.init [n]) y := by
+    refine WP.exists_execWithin ?_
+    unfold entryProgram
+    wram_exec [hmem1]
+    wram_call (exec _ (by wram_simp) hfit) with y hy
+    exact ⟨by wram_simp; omega, by simpa only [Post, Data.set_mem] using hy⟩
+  obtain ⟨y, full, hs, hb, hl, hd, hg, hL, hf, hm⟩ := hfull
   exact ⟨hi, y, full, hs, hb, hl, hd, hg, hL, hf, full.bounded (.init hi), hm⟩
 
 /-- Same-state actual prefix and halt, with every output connected to the original dimension.

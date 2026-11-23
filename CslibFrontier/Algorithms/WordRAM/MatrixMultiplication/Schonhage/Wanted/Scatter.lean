@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.ScatterStep
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Complete native wanted-query scatter
@@ -66,15 +67,6 @@ theorem exec_scatter {w L m N Q : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ × �
             (outStrOfPos (MaskTable.layout hm) (pairs i).1 (pairs i).2)).val ∧
         z.mem (originalAddress L m N Q + CountingSort.position key Q i) = i) ∧
     (∀ a, a < cursorAddressBase L m N Q ∨ memoryLimit L m N Q ≤ a → z.mem a = x.mem a)
-  let start := x.set index 0
-  have hs : ExecWithin w (ram[index ← #0] : Code .standard 96) x start 1 := by
-    ram_eval [start]
-  have hp : Parameters L m N Q start := hx.of_exec hs (by decide +kernel)
-  have hi : P (start.regs index) start := by
-    refine ⟨hp, hinput, htable, ?_, by simp [start], by simp [start]⟩
-    intro t ht
-    simpa only [start, Data.set_regs, Function.update_self, Data.set_mem,
-      Nat.count_zero, Nat.add_zero] using hcursors t ht
   have hb (z : Data 96) (hz : P (z.regs index) z) (hn : z.regs index < Q) :
       ∃ u, ExecWithin w scatterStep z u (15 * L + 39) ∧
         P (z.regs index + 1) u ∧ u.regs index = z.regs index + 1 := by
@@ -144,17 +136,16 @@ theorem exec_scatter {w L m N Q : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ × �
       rw [hf _ (by rcases ha with ha | ha <;> omega)
         (by rcases ha with ha | ha <;> omega) (by rcases ha with ha | ha <;> omega)]
       exact hz.2.2.2.2.2 a ha
-  obtain ⟨y, he, hy, _⟩ := ExecWithin.loop_count P (fun _ hy => hy.1.queryCount)
-    hb (by simp [start]) hi
-  refine ⟨y, ?_, hy.1, ?_, ?_, hy.2.2.2.2.2⟩
-  · apply (hs.seq he).mono
-    have h0 : start.regs index = 0 := by simp [start]
-    rw [h0, Nat.sub_zero]
-    nlinarith
-  · intro i hi
-    exact hy.2.2.2.2.1 i hi
-  · intro t ht
-    have hv := hy.2.2.2.1 t ht
-    exact hv.trans (CountingSort.count_lt_succ key Q t).symm
+  refine WP.exists_execWithin ?_
+  unfold scatter
+  wram_exec
+  wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.queryCount) hb
+    (by wram_simp; exact Nat.zero_le _)
+    ⟨by regs_frame, hinput, htable, fun t ht => by
+      wram_simp [hcursors t ht, Nat.count_zero]; rfl, by wram_simp; simp, fun _ _ => rfl⟩)
+    with y ⟨hy, _⟩
+  refine ⟨by wram_simp; nlinarith, hy.1, hy.2.2.2.2.1, ?_, hy.2.2.2.2.2⟩
+  intro t ht
+  exact (hy.2.2.2.1 t ht).trans (CountingSort.count_lt_succ key Q t).symm
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted

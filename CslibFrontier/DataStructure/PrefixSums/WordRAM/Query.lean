@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.PrefixSums.WordRAM.Update
+import CslibFrontier.Tactic.Fits
 
 /-!
 # Fixed Word-RAM prefix queries
@@ -67,18 +68,14 @@ private theorem queryBody_exec (hx : Entry b n i δ x) (hi : i ≤ n) (hn : 0 < 
     (hl : i ≠ n → n / 2 ≤ i → Fits w (a + x.mem (b + 1))) :
     ExecWithin w queryBody x (queryNext x b n i a) 11 := by
   obtain ⟨hz, ho, ht, hp, hn', hi', hd⟩ := hx
-  have hf : Fits w (n / 2) := ha.of_le (by omega)
-  have hb : Fits w (b + 1) := ha.of_le (by omega)
-  have hb' : Fits w (b + n / 2) := ha.of_le (by omega)
-  have hb'' : Fits w (b + n / 2 + n / 2) := ha.of_le (by omega)
-  have hi'' : Fits w (i - n / 2) := ha.of_le (by omega)
   by_cases he : i = n
   · ram_eval [queryBody, queryNext, hp, hn', hi', hxans, he, hv]
-  · by_cases hc : i < n / 2
-    · ram_eval [queryBody, queryNext, hp, hn', hi', hxans, he, ho, ht, hc, hf, hb]
-    · have hs := hl he (by omega)
-      ram_eval [queryBody, queryNext, hp, hn', hi', hxans, he, ho, ht, hc, hf, hb, hb',
-        hb'', hi'', hs]
+  · have hb : Fits w (b + 1) := by fits
+    by_cases hc : i < n / 2
+    · ram_eval [queryBody, queryNext, hp, hn', hi', hxans, he, ho, ht, hc, hb]
+    · have hi'' : Fits w (i - n / 2) := by fits
+      have hs := hl he (by omega)
+      ram_eval [queryBody, queryNext, hp, hn', hi', hxans, he, ho, ht, hc, hb, hi'', hs]
 
 /-- One prefix-query iteration leaves RAM memory unchanged. -/
 @[simp]
@@ -141,7 +138,8 @@ theorem queryLoop_spec (t : Tree h) (hx : Entry b (2 ^ h) i δ x) (hi : i ≤ 2 
       have hsize : 2 ^ (h + 1) = 2 * 2 ^ h := by simp [pow_succ, Nat.mul_comm]
       have hs : Fits w (a + x.mem (b + 1)) := by
         rw [hr.2.1.root]
-        exact hv.of_le (by simp only [Tree.total]; omega)
+        simp only [Tree.total] at hv
+        fits
       let y := queryNext x b (2 ^ (h + 1)) i a
       have he := queryBody_exec hx hi (Nat.two_pow_pos _) hxans ha
         (by simpa [hr.root] using hv) (fun _ _ => hs)
@@ -153,8 +151,8 @@ theorem queryLoop_spec (t : Tree h) (hx : Entry b (2 ^ h) i δ x) (hi : i ≤ 2 
       · have hy' : Entry (b + 1) (2 ^ h) i δ y := by simpa [hhalf, hleft] using hy
         have hyans : y.regs ans = a := by simp +decide [y, queryNext, hie, hhalf, hleft, hxans]
         obtain ⟨z, hz, hans, hm⟩ := ih l hy' hleft.le hyans
-          (by simpa [y] using hr.2.1) (ha.of_le (by rw [hsize]; omega))
-          (hv.of_le (by simp only [Tree.total]; omega))
+          (by simpa [y] using hr.2.1) (by fits [hsize])
+          (by simp only [Tree.total] at hv; fits)
         refine ⟨z, (he.loop_iter hcond hz).mono (by omega), ?_, hm.trans queryNext_mem⟩
         simpa [Tree.prefixSum, hleft] using hans
       · have hy' : Entry (b + 2 * 2 ^ h) (2 ^ h) (i - 2 ^ h) δ y := by
@@ -162,7 +160,7 @@ theorem queryLoop_spec (t : Tree h) (hx : Entry b (2 ^ h) i δ x) (hi : i ≤ 2 
         have hyans : y.regs ans = a + l.total := by
           simp +decide [y, queryNext, hie, hhalf, hleft, hr.2.1.root]
         obtain ⟨z, hz, hans, hm⟩ := ih r hy' (by rw [hsize] at hi; omega) hyans
-          (by simpa [y] using hr.2.2) (ha.of_le (by rw [hsize]; omega))
+          (by simpa [y] using hr.2.2) (by fits [hsize])
           (by simpa [Tree.total, Nat.add_assoc] using hv)
         refine ⟨z, (he.loop_iter hcond hz).mono (by omega), ?_, hm.trans queryNext_mem⟩
         simpa [Tree.prefixSum, hleft, Nat.add_assoc] using hans

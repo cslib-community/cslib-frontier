@@ -86,15 +86,7 @@ variable {machine}
 /-- At most all coin strings are accepted. -/
 theorem viewAcceptCount_le (t : ℕ) (finite : FiniteCfg k Bool State) :
     machine.viewAcceptCount t finite ≤ 2 ^ t := by
-  induction t generalizing finite with
-  | zero =>
-    simp only [viewAcceptCount, pow_zero]
-    split_ifs <;> omega
-  | succ t ih =>
-    simp only [viewAcceptCount, pow_succ]
-    have h₁ := ih (machine.viewCoinStep finite false)
-    have h₂ := ih (machine.viewCoinStep finite true)
-    omega
+  fun_induction viewAcceptCount machine t finite <;> simp only [pow_succ, pow_zero] at * <;> omega
 
 open scoped Classical in
 /-- **The count is an entry of the power of the configuration matrix** on any set of views
