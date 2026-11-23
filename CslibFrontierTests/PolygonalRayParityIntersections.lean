@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersection
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
 import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 import CslibFrontier.Foundations.Geometry.SegmentSign
+import Mathlib.Analysis.Convex.PathConnected
 import Mathlib.Logic.Equiv.Fin.Rotate
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
@@ -596,9 +597,11 @@ example :
     intro h
     have hre := congrArg Complex.im h
     norm_num at hre
+  have hconn : IsPathConnected (Set.univ : Set ℂ) :=
+    (convex_univ : Convex ℝ (Set.univ : Set ℂ)).isPathConnected ⟨0, Set.mem_univ 0⟩
   obtain ⟨p, hstart, hfinish, hs, hodd, heven⟩ :=
-    Route.exists_rayParity_isolating_excursion (U := Set.univ) isOpen_univ
-      isPathConnected_univ points (Set.mem_univ 0) (Set.mem_univ ⟨2, 3⟩) ha hac
+    Route.exists_rayParity_isolating_excursion isOpen_univ hconn points
+      (Set.mem_univ 0) (Set.mem_univ ⟨2, 3⟩) ha hac
   have avoids (z : ℂ) (hz : z ∈ insert ⟨2, 3⟩ points) : z ∉ p.support :=
     fun h => (hs h).2 hz
   refine ⟨p, hstart, hfinish, avoids _ (by simp), avoids _ (by simp [points]),
