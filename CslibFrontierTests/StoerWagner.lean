@@ -7,7 +7,13 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Algorithms.Lean.StoerWagner.Basic
+-- `import all` is used only so the brute-force `decide` checks below can unfold the unexposed pure
+-- definitions `cutWeight`, `attachWeight`, `maSearch`, `contractMatrix`, `contractPart`, `run`,
+-- and `stoerWagner`; the tested `WordRAM.StoerWagner` API is imported ordinarily.
+import all CslibFrontier.Foundations.Combinatorics.WeightedCut
+import all CslibFrontier.Foundations.Combinatorics.WeightedCut.Contraction
+import all CslibFrontier.Foundations.Combinatorics.WeightedCut.MAOrdering
+import all CslibFrontier.Algorithms.Lean.StoerWagner.Basic
 import CslibFrontier.Algorithms.WordRAM.StoerWagner
 
 /-!

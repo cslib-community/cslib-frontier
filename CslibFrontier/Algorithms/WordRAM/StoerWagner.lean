@@ -42,19 +42,21 @@ merged edge sum `W s j + W t j`, attachment key, and cut weight stays at most
 `I.wordBound = max (workspaceBound I.n) (totalDoubledWeight I.W)` bounds all word values and
 addresses (`I.wordBound < 2 ^ w`), therefore executes without overflow.
 
-The dense `O(n³)` array Word-RAM program and word-width bound are original over [StoerWagner1997]
-(which states the algorithm at the high level using a priority queue in `O(n m + n² log n)` time).
+The dense `O(n³)` array Word-RAM program and word-value/address bound are original over
+[StoerWagner1997] (which states the algorithm at the high level using a priority queue in
+`O(n m + n² log n)` time).
 
 ## Main definitions
 
-* `Cslib.Algorithms.WordRAM.StoerWagner.workspaceBound`: word-width threshold covering all `O(n²)`
+* `Cslib.Algorithms.WordRAM.StoerWagner.workspaceBound`: word-address bound covering all `O(n²)`
   input, workspace, and output addresses.
 * `Cslib.Algorithms.WordRAM.StoerWagner.StoerWagnerInput`: documented weighted-multigraph input
   record carrying `n`, `W`, and `isMultigraph`.
 * `Cslib.Algorithms.WordRAM.StoerWagner.StoerWagnerInput.encode`: flat Word-RAM input word list
   `I.n :: Karger.flattenMatrix I.W`.
-* `Cslib.Algorithms.WordRAM.StoerWagner.StoerWagnerInput.wordBound`: polynomial word-width
-  threshold `max (workspaceBound I.n) (totalDoubledWeight I.W)`.
+* `Cslib.Algorithms.WordRAM.StoerWagner.StoerWagnerInput.wordBound`: polynomial word-value and
+  address bound `max (workspaceBound I.n) (totalDoubledWeight I.W)` (required to satisfy
+  `Fits w I.wordBound`, i.e., `I.wordBound < 2 ^ w`).
 * `Cslib.Algorithms.WordRAM.StoerWagner.StoerWagnerInput.expectedOutput`: expected output word list
   consisting of `(stoerWagner I.W).weight` followed by the `0`/`1` indicator of
   `(stoerWagner I.W).side`.
@@ -66,8 +68,8 @@ The dense `O(n³)` array Word-RAM program and word-width bound are original over
 * `Cslib.Algorithms.WordRAM.StoerWagner.StoerWagnerInput.expectedOutput_spec`: for `2 ≤ I.n`,
   `I.expectedOutput` encodes a non-trivial global minimum cut of `I.W` and its weight `minCut I.W`.
 * `Cslib.Algorithms.WordRAM.StoerWagner.exists_stoerWagner_program`: uniform `O(n³)` width-blind
-  standard-basis Word-RAM program (`Program.ComputesListInTime`) computing `I.expectedOutput` at
-  every word width fitting `I.wordBound`.
+  standard-basis Word-RAM program (`Program.ComputesListInTime`) computing `I.expectedOutput` in
+  `C * (I.n + 1) ^ 3` instructions at every word width `w` with `Fits w I.wordBound`.
 
 ## References
 
@@ -82,11 +84,11 @@ open Cslib.WeightedCut
 open Cslib.WordRAM
 open Cslib.WordRAM.Realization
 
-/-! ### Public input, output, and word-width interface -/
+/-! ### Public input, output, and word-value bound interface -/
 
 public section
 
-/-- Word-width threshold covering the input list, mutable `n × n` matrix workspace, `part`/`key`/
+/-- Word-address bound covering the input list, mutable `n × n` matrix workspace, `part`/`key`/
 `used` arrays, and the `(n + 2)`-word output buffer. -/
 @[expose] def workspaceBound (n : ℕ) : ℕ :=
   2 * n * n + 8 * n + 16
@@ -104,7 +106,8 @@ structure StoerWagnerInput where
 @[expose] def StoerWagnerInput.encode (I : StoerWagnerInput) : List ℕ :=
   I.n :: Karger.flattenMatrix I.W
 
-/-- Polynomial word-width threshold `max (workspaceBound I.n) (totalDoubledWeight I.W)`. -/
+/-- Polynomial word-value and address bound `max (workspaceBound I.n) (totalDoubledWeight I.W)`
+(requiring `Fits w I.wordBound`, i.e., `I.wordBound < 2 ^ w`). -/
 @[expose] def StoerWagnerInput.wordBound (I : StoerWagnerInput) : ℕ :=
   max (workspaceBound I.n) (totalDoubledWeight I.W)
 
@@ -138,13 +141,11 @@ end
 /-! ### Local `Memory.Prog` simplification and loop-invariant combinators -/
 
 -- Local `simp`-indexed forms matching `StateTransitionSpec.fst_snd_runClient_bind`.
+attribute [local client_simps] clientResult_read
+
 @[local client_simps] private theorem local_fst_snd_read (w : ℕ) (s : Memory.State) (a : ℕ) :
     ((Memory.spec w).runClient s (Memory.read a)).2.1 = s := by
   rw [runClient_read]
-
-@[local client_simps] private theorem local_clientResult_read (w : ℕ) (s : Memory.State) (a : ℕ) :
-    (Memory.spec w).clientResult s (Memory.read a) = s.mem a :=
-  clientResult_read w s a
 
 @[local client_simps] private theorem local_fst_snd_write (w : ℕ) (s : Memory.State) (a v : ℕ) :
     ((Memory.spec w).runClient s (Memory.write a v)).2.1 =
@@ -853,13 +854,23 @@ private theorem maPickMaxProg_spec {w : ℕ} (a : InitMAArgs)
         dsimp only
         rw [hst_i]
         simp only [client_simps]
-        split_ifs <;> simp [client_simps]
+        by_cases h1 : s₀.mem (a.ub + k) = 0
+        · simp only [h1, ↓reduceIte, client_simps]
+          by_cases h2 : st.has = 0
+          · simp [h2, client_simps]
+          · by_cases h3 : st.bestKey < s₀.mem (a.kb + k) <;> simp [h2, h3, client_simps]
+        · simp [h1, client_simps]
       · intro addr _
         unfold maPickStep
         dsimp only
         rw [hst_i]
         simp only [client_simps]
-        split_ifs <;> simp [client_simps]
+        by_cases h1 : s₀.mem (a.ub + k) = 0
+        · simp only [h1, ↓reduceIte, client_simps]
+          by_cases h2 : st.has = 0
+          · simp [h2, client_simps]
+          · by_cases h3 : st.bestKey < s₀.mem (a.kb + k) <;> simp [h2, h3, client_simps]
+        · simp [h1, client_simps]
       · unfold maPickStep
         dsimp only
         rw [hst_i]
@@ -1047,9 +1058,10 @@ private theorem maUpdateKeysProg_spec {w : ℕ} (a : MAUpdArgs)
         unfold maUpdateStep
         dsimp only
         simp only [client_simps]
-        split_ifs
-        · exact Function.update_of_ne (by omega) _ _
-        · rfl
+        by_cases h1 : s.mem (a.ub + k) = 0
+        · simp only [h1, ↓reduceIte, client_simps]
+          exact Function.update_of_ne (by omega) _ _
+        · simp [h1, client_simps]
       · unfold maUpdateStep
         dsimp only
         simp only [client_simps, hu_k, hm_k]
@@ -2805,6 +2817,27 @@ private theorem phaseStep_spec {w n ws fr₀ : ℕ} (hn : 2 ≤ n) {W₀ : Fin n
       pure ⟨st.m - 1, 1, nbw⟩
     else
       pure ⟨st.m - 1, 1, nbw⟩
+  have hfinish := fun (c4 : ℕ)
+      (hvh4 : (Memory.spec w).ValidHistory s3
+        ((Memory.spec w).clientHistory s3 (p4f ord newBestW)))
+      (hmc4 : memoryCost (p4f ord newBestW) s3 ≤ c4)
+      (hfr4 : ((Memory.spec 0).clientState s3 (p4f ord newBestW)).frontier = s.frontier)
+      (hmod4 : ∀ addr, ¬(matBase ws ≤ addr ∧ addr < outBase ws n + n + 2) →
+        ((Memory.spec 0).clientState s3 (p4f ord newBestW)).mem addr = s.mem addr)
+      (hP4 : PhaseInv ws fr₀ W₀ (p + 1)
+        ((Memory.spec 0).clientResult s3 (p4f ord newBestW))
+        ((Memory.spec 0).clientState s3 (p4f ord newBestW)))
+      (hbud : 1 + 2 * st.m + (6 * st.m + 2) * st.m + (2 * n + 1) + c4 ≤ 23 * n ^ 2) =>
+    seq_phase_spec (p1 := initMAProg ⟨kb, ub, st.m⟩)
+      (p2 := maOrderProg ⟨mb, kb, ub, n, st.m⟩) (p3 := p3f) (p4 := p4f)
+      (s1 := s1) (s2 := s2) (s3 := s3) (ord := ord) (v := newBestW)
+      (c1 := 2 * st.m) (c2 := (6 * st.m + 2) * st.m) (c3 := 2 * n + 1)
+      (c4 := c4) (C := 23 * n ^ 2)
+      (P := PhaseInv ws fr₀ W₀ (p + 1))
+      (Mod := fun addr => matBase ws ≤ addr ∧ addr < outBase ws n + n + 2)
+      (by rw [hfr]; exact hf_pos) hinit.2.1 rfl hmc_init
+      hvh_o rfl rfl hmc_ord hvh_better hval_res rfl hmc_better
+      hvh4 hmc4 hfr4 hmod4 hP4 hbud
   by_cases hgt2 : 2 < st.m
   · have hcon := phaseContract_spec hgt2 hm_eq hk hmn hC htotW hma_eq hst_ne
       hord_prev hord_last hf hfit_top hfit_tot s3 hs3_fr hs3_outl hnbW hs3_ob1 hs3_ob2
@@ -2821,20 +2854,12 @@ private theorem phaseStep_spec {w n ws fr₀ : ℕ} (hn : 2 ≤ n) {W₀ : Fin n
         (6 * st.m + 3 * (st.m - 1) + 2 * n) ≤ 23 * n ^ 2 := by
       have hst_le : st.m - 1 ≤ n := by omega
       nlinarith only [hn, hmn, hst_le]
-    have hseq := seq_phase_spec (p1 := initMAProg ⟨kb, ub, st.m⟩)
-      (p2 := maOrderProg ⟨mb, kb, ub, n, st.m⟩) (p3 := p3f) (p4 := p4f)
-      (s1 := s1) (s2 := s2) (s3 := s3) (ord := ord) (v := newBestW)
-      (c1 := 2 * st.m) (c2 := (6 * st.m + 2) * st.m) (c3 := 2 * n + 1)
-      (c4 := 6 * st.m + 3 * (st.m - 1) + 2 * n) (C := 23 * n ^ 2)
-      (P := PhaseInv ws fr₀ W₀ (p + 1))
-      (Mod := fun addr => matBase ws ≤ addr ∧ addr < outBase ws n + n + 2)
-      (by rw [hfr]; exact hf_pos) hinit.2.1 rfl hmc_init
-      hvh_o rfl rfl hmc_ord hvh_better hval_res rfl hmc_better
-      (hp4_eq ▸ hcon_vh) (hp4_eq ▸ hcon_mc) (hp4_eq ▸ hcon_fr.trans hfr.symm)
-      (fun addr haddr => hp4_eq ▸ (hcon_mod addr haddr).trans (hs3_outside addr haddr))
-      (hp4_eq ▸ hcon_inv) hbudget
     exact ⟨⟨hfit_ob2, hfit4, by dsimp only; omega, hinit.1, hsafe_o, fun _ => hws.1,
-        fun _ => hcon_safe⟩, hseq⟩
+        fun _ => hcon_safe⟩,
+      hfinish (6 * st.m + 3 * (st.m - 1) + 2 * n)
+        (hp4_eq ▸ hcon_vh) (hp4_eq ▸ hcon_mc) (hp4_eq ▸ hcon_fr.trans hfr.symm)
+        (fun addr haddr => hp4_eq ▸ (hcon_mod addr haddr).trans (hs3_outside addr haddr))
+        (hp4_eq ▸ hcon_inv) hbudget⟩
   · -- Final phase (`st.m = 2`, `p + 1 = n - 1`).
     have hm_two : st.m = 2 :=
       (by omega : ∀ {m : ℕ}, 2 ≤ m → ¬2 < m → m = 2) hm2 hgt2
@@ -2863,23 +2888,15 @@ private theorem phaseStep_spec {w n ws fr₀ : ℕ} (hn : 2 ≤ n) {W₀ : Fin n
         fun v => by simpa [hnewBest_eq] using hs3_ob2 v⟩)⟩
     have hbudget : 1 + 2 * st.m + (6 * st.m + 2) * st.m + (2 * n + 1) + 0 ≤ 23 * n ^ 2 := by
       nlinarith only [hn, hmn]
-    have hseq := seq_phase_spec (p1 := initMAProg ⟨kb, ub, st.m⟩)
-      (p2 := maOrderProg ⟨mb, kb, ub, n, st.m⟩) (p3 := p3f) (p4 := p4f)
-      (s1 := s1) (s2 := s2) (s3 := s3) (ord := ord) (v := newBestW)
-      (c1 := 2 * st.m) (c2 := (6 * st.m + 2) * st.m) (c3 := 2 * n + 1)
-      (c4 := 0) (C := 23 * n ^ 2)
-      (P := PhaseInv ws fr₀ W₀ (p + 1))
-      (Mod := fun addr => matBase ws ≤ addr ∧ addr < outBase ws n + n + 2)
-      (by rw [hfr]; exact hf_pos) hinit.2.1 rfl hmc_init
-      hvh_o rfl rfl hmc_ord hvh_better hval_res rfl hmc_better
-      (by rw [hp4_eq]; exact validHistory_pure w _ _)
-      (by rw [hp4_eq, memoryCost_pure])
-      (by rw [hp4_eq]; simp only [client_simps]; exact hs3_fr.trans hfr.symm)
-      (fun addr haddr => by rw [hp4_eq]; simp only [client_simps]; exact hs3_outside addr haddr)
-      (by rw [hp4_eq]; simp only [client_simps]; exact hinv_end)
-      hbudget
     exact ⟨⟨hfit_ob2, hfit4, by dsimp only; omega, hinit.1, hsafe_o, fun _ => hws.1,
-        fun h => absurd h hgt2⟩, hseq⟩
+        fun h => absurd h hgt2⟩,
+      hfinish 0
+        (by rw [hp4_eq]; exact validHistory_pure w _ _)
+        (by rw [hp4_eq, memoryCost_pure])
+        (by rw [hp4_eq]; simp only [client_simps]; exact hs3_fr.trans hfr.symm)
+        (fun addr haddr => by rw [hp4_eq]; simp only [client_simps]; exact hs3_outside addr haddr)
+        (by rw [hp4_eq]; simp only [client_simps]; exact hinv_end)
+        hbudget⟩
 
 private theorem phasesLoop_spec {w n ws : ℕ} (hn : 2 ≤ n) {W₀ : Fin n → Fin n → ℕ}
     (hW₀ : IsMultigraph W₀) (s₀ : Memory.State)
