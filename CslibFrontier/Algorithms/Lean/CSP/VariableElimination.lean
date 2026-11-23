@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.CSP.FactorTable
+import CslibFrontier.Foundations.Data.List.FoldMax
 import Mathlib.Algebra.BigOperators.Group.List.Basic
 import Mathlib.Algebra.BigOperators.Pi
 import Mathlib.Algebra.Order.BigOperators.Group.List
@@ -470,18 +471,6 @@ section IntermediateScopeBounds
 
 variable {R V : Type*}
 
-private theorem le_foldl_max_self : ∀ (l : List ℕ) (a : ℕ), a ≤ l.foldl max a
-  | [], _ => le_rfl
-  | x :: xs, a => le_trans (le_max_left a x) (le_foldl_max_self xs (max a x))
-
-private theorem mem_le_foldl_max {l : List ℕ} {a x : ℕ} (hx : x ∈ l) : x ≤ l.foldl max a := by
-  induction l generalizing a with
-  | nil => simp at hx
-  | cons y ys ih =>
-      rcases List.mem_cons.mp hx with rfl | hx
-      · exact le_trans (le_max_right a x) (le_foldl_max_self ys _)
-      · exact ih hx
-
 private theorem list_sum_map_le {α : Type*} (l : List α) (m : α → ℕ) {B : ℕ}
     (hm : ∀ a ∈ l, m a ≤ B) : (l.map m).sum ≤ l.length * B := by
   simpa [smul_eq_mul] using List.sum_le_length_nsmul (l.map m) B fun _ hn => by
@@ -538,13 +527,13 @@ theorem mem_traceOrder_joint_le [Semiring R] [DecidableEq V] (d : ℕ)
     (order : List V) (init : ElimState R V) {st : ElimStepStats}
     (hst : st ∈ traceOrder d order init) :
     st.jointScopeVars ≤ maxJointScopeLen d order init :=
-  mem_le_foldl_max (List.mem_map.mpr ⟨st, hst, rfl⟩)
+  List.mem_le_foldl_max (List.mem_map.mpr ⟨st, hst, rfl⟩)
 
 private theorem mem_traceOrder_out_le [Semiring R] [DecidableEq V] (d : ℕ)
     (order : List V) (init : ElimState R V) {st : ElimStepStats}
     (hst : st ∈ traceOrder d order init) :
     st.outScopeVars ≤ maxOutScopeLen d order init :=
-  mem_le_foldl_max (List.mem_map.mpr ⟨st, hst, rfl⟩)
+  List.mem_le_foldl_max (List.mem_map.mpr ⟨st, hst, rfl⟩)
 
 /-- Total scalar arithmetic operations along `order` are bounded by the maximum actual
 intermediate bucket scope width `maxJointScopeLen d order init` and the amortized bucket factor
@@ -606,18 +595,11 @@ private theorem maxOutScope_le_sub {R V : Type*} [Semiring R] [DecidableEq V] (d
 /-- Output table dimension never exceeds the joint bucket dimension along any order. -/
 theorem maxOutScopeLen_le_maxJointScopeLen [Semiring R] [DecidableEq V] (d : ℕ) (order : List V)
     (init : ElimState R V) :
-    maxOutScopeLen d order init ≤ maxJointScopeLen d order init := by
-  suffices h : ∀ (l : List ElimStepStats) (a : ℕ),
-      (∀ st ∈ l, st.outScopeVars ≤ maxJointScopeLen d order init) →
-      a ≤ maxJointScopeLen d order init →
-      (l.map ElimStepStats.outScopeVars).foldl max a ≤ maxJointScopeLen d order init from
-    h (traceOrder d order init) 0 (fun st hst => le_trans (maxOutScope_le_sub d order init st hst)
-      (mem_traceOrder_joint_le d order init hst)) (Nat.zero_le _)
-  intro l a hl ha; induction l generalizing a with
-  | nil => exact ha
-  | cons st sts ih =>
-      exact ih (max a st.outScopeVars) (fun y hy => hl y (by simp [hy]))
-        (max_le ha (hl st (by simp)))
+    maxOutScopeLen d order init ≤ maxJointScopeLen d order init :=
+  List.foldl_max_le (Nat.zero_le _) fun _ hn => by
+    rcases List.mem_map.mp hn with ⟨st, hst, rfl⟩
+    exact (maxOutScope_le_sub d order init st hst).trans
+      (mem_traceOrder_joint_le d order init hst)
 
 private theorem length_filter_ne_add_one {V : Type*} [DecidableEq V] :
     ∀ {l : List V} {x : V}, l.Nodup → x ∈ l →
@@ -663,12 +645,12 @@ private theorem elimVar_forall_le [Semiring R] [DecidableEq V] (d : ℕ) (x : V)
 
 private theorem each_mem_le_maxTableEntries {live : List (FactorTable R V)} :
     ∀ f ∈ live, f.entries.size ≤ maxTableEntries live := fun f hf =>
-  mem_le_foldl_max (List.mem_map.mpr ⟨f, hf, rfl⟩)
+  List.mem_le_foldl_max (List.mem_map.mpr ⟨f, hf, rfl⟩)
 
 /-- Every factor in `live` has scope length at most `maxScopeLen live`. -/
 theorem each_mem_le_maxScopeLen {live : List (FactorTable R V)} :
     ∀ f ∈ live, f.scope.length ≤ maxScopeLen live := fun f hf =>
-  mem_le_foldl_max (List.mem_map.mpr ⟨f, hf, rfl⟩)
+  List.mem_le_foldl_max (List.mem_map.mpr ⟨f, hf, rfl⟩)
 
 /-- Eliminating one variable never increases `remaining.length`. -/
 theorem length_elimVar_remaining_le [Semiring R] [DecidableEq V] (d : ℕ) (x : V)
@@ -745,7 +727,7 @@ theorem liveEntries_eliminateOrder_take_le [Semiring R] [DecidableEq V] (d : ℕ
       intro s acc k hacc; cases k with
       | zero =>
           simp only [List.take_zero, eliminateOrder, traceOrder, List.map_cons, List.foldl_cons]
-          exact le_trans hacc (le_trans (le_max_left _ _) (le_foldl_max_self _ _))
+          exact le_trans hacc (le_trans (le_max_left _ _) (List.le_foldl_max_self _ _))
       | succ k' =>
           simp only [List.take_succ_cons, eliminateOrder, traceOrder, List.map_cons,
             List.foldl_cons]

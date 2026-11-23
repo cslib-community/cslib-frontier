@@ -9,10 +9,12 @@ module
 
 public import CslibFrontier.Algorithms.Lean.CSP.VariableElimination
 public import CslibFrontier.Computability.WordRAM.Function
+import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Computability.WordRAM.ListArray
 import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
 import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.Computability.WordRAM.Realization.WordEncoding.Equiv
+import CslibFrontier.Foundations.Data.List.FoldMax
 import CslibFrontier.Tactic.Realize
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Order.BigOperators.Group.List
@@ -23,7 +25,9 @@ import Mathlib.Tactic.Ring
 
 This module implements bucket (variable) elimination (`Cslib.Algorithms.Lean.CSP.eliminateOrder`)
 over materialized radix-indexed factor tables (`FactorTable ℕ ℕ`) on the exact-basis Word-RAM
-(`Cslib.WordRAM.Basis.exact`).
+(`Cslib.WordRAM.Basis.exact`). `Basis.exact` supplies unit-cost multiplication, division, and
+remainder for mixed-radix indexing and exact `ℕ` weight products while certifying non-underflowing
+subtraction and non-zero divisors in the machine semantics.
 
 Every operation of the algorithm is genuinely executed and charged on word-addressed memory:
 - parsing serialized factor records into 4-word descriptors (`initFactors`),
@@ -961,19 +965,6 @@ private theorem lookupAssign_lt {args : LookupArgs} (hd : 0 < args.dom) (s : Mem
 
 /-! ### Multiplicative factor capacity and Horner scope evaluation -/
 
-private theorem mem_le_foldl_max_init :
-    ∀ (xs : List ℕ) (acc v : ℕ), v ∈ xs → v ≤ xs.foldl max acc
-  | [], _, _, hv => by simp at hv
-  | x :: rest, acc, v, hv => by
-    simp only [List.mem_cons, List.foldl_cons] at hv ⊢
-    rcases hv with rfl | hv
-    · have hle : ∀ (ys : List ℕ) (a : ℕ), a ≤ ys.foldl max a := by
-        intro ys; induction ys with
-        | nil => intro a; exact le_rfl
-        | cons y ys' ihy => intro a; exact (le_max_left a y).trans (ihy _)
-      exact (le_max_right acc v).trans (hle rest _)
-    · exact mem_le_foldl_max_init rest (max acc x) v hv
-
 private def capFactor (f : FactorTable ℕ ℕ) : ℕ :=
   max 1 (f.entries.toList.foldl max 0)
 
@@ -982,7 +973,7 @@ private theorem one_le_capFactor (f : FactorTable ℕ ℕ) : 1 ≤ capFactor f :
 
 private theorem mem_entries_le_capFactor {f : FactorTable ℕ ℕ} {v : ℕ}
     (hv : v ∈ f.entries.toList) : v ≤ capFactor f :=
-  (mem_le_foldl_max_init f.entries.toList 0 v hv).trans (le_max_right 1 _)
+  (List.mem_le_foldl_max hv).trans (le_max_right 1 _)
 
 private theorem evalAt_le_capFactor (d : ℕ) (f : FactorTable ℕ ℕ) (σ : ℕ → ℕ) :
     f.evalAt d σ ≤ capFactor f := by
@@ -990,13 +981,6 @@ private theorem evalAt_le_capFactor (d : ℕ) (f : FactorTable ℕ ℕ) (σ : �
   split_ifs with hlt
   · exact mem_entries_le_capFactor (Array.getElem_mem_toList hlt)
   · exact Nat.zero_le _
-
-private theorem one_le_prod_capFactor :
-    ∀ (fs : List (FactorTable ℕ ℕ)), 1 ≤ (fs.map capFactor).prod
-  | [] => le_rfl
-  | f :: rest => by
-    simp only [List.map_cons, List.prod_cons]
-    exact le_trans (by simp) (Nat.mul_le_mul (one_le_capFactor f) (one_le_prod_capFactor rest))
 
 private theorem holdsFactor_read_entry_le {descAddr : ℕ} {f : FactorTable ℕ ℕ} {s : Memory.State}
     (hf : HoldsFactor descAddr f s) (fIdx : ℕ) :
@@ -1522,7 +1506,8 @@ private theorem evalBucketProd_realizes :
     have hprod_cap : st.prod * capFactor f * (rem'.map capFactor).prod ≤ B := by
       simpa [List.map_cons, List.prod_cons, Nat.mul_assoc] using hprod_le
     have hprod_f : st.prod * capFactor f ≤ B := by
-      have h1' : 1 ≤ (rem'.map capFactor).prod := one_le_prod_capFactor rem'
+      have h1' : 1 ≤ (rem'.map capFactor).prod :=
+        List.one_le_prod_of_one_le (by simp [one_le_capFactor])
       exact (Nat.le_mul_of_pos_right _ h1').trans hprod_cap
     obtain ⟨hd, hsl, hel, hsc, hent⟩ := hf
     have hpow_f : Fits w (d.dom ^ s.mem (st.curDesc + 1)) := by
@@ -1820,7 +1805,8 @@ private theorem sumDomainValues_realizes :
     ⟨rfl, by simp, by simp⟩
   subst t
   dsimp only
-  have h1_prod : 1 ≤ (bucket.map capFactor).prod := one_le_prod_capFactor bucket
+  have h1_prod : 1 ≤ (bucket.map capFactor).prod :=
+    List.one_le_prod_of_one_le (by simp [one_le_capFactor])
   have hprod_le_B : (bucket.map capFactor).prod ≤ B :=
     (Nat.le_mul_of_pos_left _ hdom).trans hcapB
   have hcurA_fit : Fits w (st.curA + 1) := by
@@ -3785,19 +3771,6 @@ private def buildOutScope (args : BuildOutScopeArgs) : Memory.Prog (ℕ × ℕ) 
   flattenScopes ⟨args.bucketPtr, args.bucketLen, flatLen⟩ >>= fun flatPtr =>
   dedupFilterBack ⟨args.x, flatPtr, flatLen⟩
 
-private theorem flatMap_scope_length_le {bucket : List (FactorTable ℕ ℕ)} {maxScope : ℕ}
-    (hmax : ∀ f ∈ bucket, f.scope.length ≤ maxScope) :
-    (bucket.flatMap FactorTable.scope).length ≤ bucket.length * maxScope := by
-  induction bucket with
-  | nil => simp
-  | cons f rest ih =>
-    simp only [List.flatMap_cons, List.length_append, List.length_cons]
-    have hf := hmax f (List.mem_cons_self ..)
-    have hr := ih fun g hg => hmax g (List.mem_cons_of_mem f hg)
-    calc f.scope.length + (rest.flatMap FactorTable.scope).length
-        ≤ maxScope + rest.length * maxScope := Nat.add_le_add hf hr
-      _ = (rest.length + 1) * maxScope := by ring
-
 private theorem buildOutScope_spec {w : ℕ} {args : BuildOutScopeArgs}
     {bucket : List (FactorTable ℕ ℕ)} {maxScope W_out : ℕ} {s : Memory.State}
     (hwf : Memory.WellFormed w s)
@@ -3821,7 +3794,14 @@ private theorem buildOutScope_spec {w : ℕ} {args : BuildOutScopeArgs}
   let flat := bucket.flatMap FactorTable.scope
   let K := flat.length
   have hK_le : K ≤ args.bucketLen * maxScope := by
-    rw [← hlen]; exact flatMap_scope_length_le hmax
+    rw [← hlen]
+    dsimp only [K, flat]
+    rw [List.length_flatMap]
+    have hsum := List.sum_le_length_nsmul (bucket.map fun a => a.scope.length) maxScope
+      fun _ hn => by
+        rcases List.mem_map.mp hn with ⟨f, hf, rfl⟩
+        exact hmax f hf
+    simpa [smul_eq_mul] using hsum
   have hss_val := sumScopeLen_valid (w := w) (args := ⟨args.bucketPtr, args.bucketLen⟩) hb hlen
   have hss_st := sumScopeLen_state ⟨args.bucketPtr, args.bucketLen⟩ s
   have hss_res : (Memory.spec 0).clientResult s (sumScopeLen ⟨args.bucketPtr, args.bucketLen⟩) =
@@ -3870,16 +3850,6 @@ private theorem buildOutScope_spec {w : ℕ} {args : BuildOutScopeArgs}
           Nat.add_le_add hss_cost (Nat.add_le_add hfl_cost (by omega))
       _ = 2 + args.bucketLen * (3 + 2 * maxScope + maxScope * (2 + W_out)) := by ring
 
-private theorem scope_le_flatMap {f : FactorTable ℕ ℕ} :
-    ∀ {gs : List (FactorTable ℕ ℕ)}, f ∈ gs →
-      f.scope.length ≤ (gs.flatMap FactorTable.scope).length
-  | [], hf => by simp at hf
-  | g :: gs, hf => by
-    simp only [List.mem_cons, List.flatMap_cons, List.length_append] at hf ⊢
-    rcases hf with rfl | hf
-    · omega
-    · have := scope_le_flatMap hf; omega
-
 private theorem buildOutScope_realizes :
     Realizes .exact buildOutScope WordEncoding.encode WordEncoding.encode
       (fun w args s =>
@@ -3900,59 +3870,38 @@ private theorem buildOutScope_realizes :
   · exact h.1
   · obtain ⟨_, bucket, hlen, hb, hfit⟩ := h
     let K := (bucket.flatMap FactorTable.scope).length
+    have hscK : ∀ f ∈ bucket, f.scope.length ≤ K := fun f hf => by
+      dsimp only [K]
+      rw [List.length_flatMap]
+      exact List.le_sum_of_mem
+        (List.mem_map_of_mem (f := fun g : FactorTable ℕ ℕ => g.scope.length) hf)
     rw [sumScopeLen_state, sumScopeLen_result hb hlen]
     obtain ⟨_, hfl_fr, _, hfl_res, _, _⟩ :=
       flattenScopes_spec (w := w) (args := ⟨d.bucketPtr, d.bucketLen, K⟩) hmem hb hlen rfl
-        (maxScope := K) (fun _ hf => scope_le_flatMap hf) (hfit.of_le (by dsimp only [K]; omega))
+        hscK (hfit.of_le (by dsimp only [K]; omega))
     rw [hfl_res, hfl_fr]
   · obtain ⟨_, bucket, hlen, hb, hfit⟩ := h
     let K := (bucket.flatMap FactorTable.scope).length
+    have hscK : ∀ f ∈ bucket, f.scope.length ≤ K := fun f hf => by
+      dsimp only [K]
+      rw [List.length_flatMap]
+      exact List.le_sum_of_mem
+        (List.mem_map_of_mem (f := fun g : FactorTable ℕ ℕ => g.scope.length) hf)
     rw [sumScopeLen_state, sumScopeLen_result hb hlen]
     obtain ⟨_, hfl_fr, _, _, _, _⟩ :=
       flattenScopes_spec (w := w) (args := ⟨d.bucketPtr, d.bucketLen, K⟩) hmem hb hlen rfl
-        (maxScope := K) (fun _ hf => scope_le_flatMap hf) (hfit.of_le (by dsimp only [K]; omega))
+        hscK (hfit.of_le (by dsimp only [K]; omega))
     rw [hfl_fr]
     exact hfit.of_le (by dsimp only [K]; omega)
 
 /-! ### Multiplicative state-capacity budget (`stateCap`), `elimVarProg`, and `elimOrderLoop` -/
 
-private theorem foldl_max_le {B : ℕ} :
-    ∀ (xs : List ℕ) (acc : ℕ), acc ≤ B → (∀ v ∈ xs, v ≤ B) → xs.foldl max acc ≤ B
-  | [], _acc, hacc, _ => hacc
-  | v :: rest, acc, hacc, hall =>
-    foldl_max_le rest (max acc v) (max_le hacc (hall v (List.mem_cons_self ..)))
-      fun u hu => hall u (List.mem_cons_of_mem v hu)
-
-private theorem prod_capFactor_filter_mul (p : FactorTable ℕ ℕ → Bool) :
-    ∀ (fs : List (FactorTable ℕ ℕ)),
-      ((fs.filter p).map capFactor).prod * ((fs.filter fun f => !p f).map capFactor).prod =
-        (fs.map capFactor).prod
-  | [] => by simp
-  | f :: rest => by
-    have ih := prod_capFactor_filter_mul p rest
-    cases hpf : p f
-    · simp only [List.filter_cons, hpf, Bool.false_eq_true, ↓reduceIte, Bool.not_false,
-        List.map_cons, List.prod_cons]
-      calc ((rest.filter p).map capFactor).prod *
-            (capFactor f * ((rest.filter fun g => !p g).map capFactor).prod)
-          = capFactor f *
-              (((rest.filter p).map capFactor).prod *
-                ((rest.filter fun g => !p g).map capFactor).prod) := by ring
-        _ = capFactor f * (rest.map capFactor).prod := by rw [ih]
-    · simp only [List.filter_cons, hpf, ↓reduceIte, Bool.not_true, Bool.false_eq_true,
-        List.map_cons, List.prod_cons]
-      calc (capFactor f * ((rest.filter p).map capFactor).prod) *
-            ((rest.filter fun g => !p g).map capFactor).prod
-          = capFactor f *
-              (((rest.filter p).map capFactor).prod *
-                ((rest.filter fun g => !p g).map capFactor).prod) := by ring
-        _ = capFactor f * (rest.map capFactor).prod := by rw [ih]
-
 private theorem capFactor_elimBucketTable (d x : ℕ) (bucket : List (FactorTable ℕ ℕ)) :
     capFactor (elimBucketTable d x bucket) ≤ max 1 d * (bucket.map capFactor).prod := by
-  unfold capFactor
-  refine max_le (Nat.mul_le_mul (le_max_left 1 d) (one_le_prod_capFactor bucket)) ?_
-  refine foldl_max_le _ 0 (Nat.zero_le _) fun v hv => ?_
+  rw [capFactor]
+  refine max_le (Nat.mul_le_mul (le_max_left 1 d)
+    (List.one_le_prod_of_one_le (by simp [one_le_capFactor]))) ?_
+  refine List.foldl_max_le (Nat.zero_le _) fun v hv => ?_
   obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hv
   rw [Array.getElem_toList]
   simp only [elimBucketTable, Array.getElem_ofFn]
@@ -3973,7 +3922,7 @@ private def stateCap (s : ElimState ℕ ℕ) : ℕ :=
   max 1 s.scalar * (s.live.map capFactor).prod
 
 private theorem one_le_stateCap (s : ElimState ℕ ℕ) : 1 ≤ stateCap s :=
-  Nat.mul_le_mul (le_max_left 1 _) (one_le_prod_capFactor s.live)
+  Nat.mul_le_mul (le_max_left 1 _) (List.one_le_prod_of_one_le (by simp [one_le_capFactor]))
 
 private theorem max_one_mul_le (a d : ℕ) : max 1 (a * d) ≤ max 1 d * max 1 a := by
   rcases Nat.eq_zero_or_pos a with rfl | ha
@@ -3984,9 +3933,13 @@ private theorem max_one_mul_le (a d : ℕ) : max 1 (a * d) ≤ max 1 d * max 1 a
 
 private theorem bucket_prod_le_stateCap (x : ℕ) (s : ElimState ℕ ℕ) :
     (((s.live.filter fun f => decide (x ∈ f.scope)).map capFactor).prod) ≤ stateCap s := by
-  have hsplit := prod_capFactor_filter_mul (fun f => decide (x ∈ f.scope)) s.live
+  have hsplit :=
+    ((List.filter_append_perm (fun f => decide (x ∈ f.scope)) s.live).map capFactor).prod_eq
+  rw [List.map_append, List.prod_append] at hsplit
   have h1 : 1 ≤ ((s.live.filter fun f => !decide (x ∈ f.scope)).map capFactor).prod :=
-    one_le_prod_capFactor _
+    List.one_le_prod_of_one_le fun _ hn => by
+      rcases List.mem_map.mp hn with ⟨f, _, rfl⟩
+      exact one_le_capFactor f
   have hle_live : ((s.live.filter fun f => decide (x ∈ f.scope)).map capFactor).prod ≤
       (s.live.map capFactor).prod := by
     calc _ ≤ _ * ((s.live.filter fun f => !decide (x ∈ f.scope)).map capFactor).prod :=
@@ -4014,7 +3967,9 @@ private theorem stateCap_elimVar_le (d x : ℕ) (s : ElimState ℕ ℕ) :
         refine List.filter_congr fun f _ => ?_
         simp
       rw [hrest_eq]
-      have hsplit := prod_capFactor_filter_mul (fun f => decide (x ∈ f.scope)) s.live
+      have hsplit :=
+        ((List.filter_append_perm (fun f => decide (x ∈ f.scope)) s.live).map capFactor).prod_eq
+      rw [List.map_append, List.prod_append] at hsplit
       calc max 1 s.scalar *
             (capFactor (elimBucketTable d x (s.live.filter fun f => decide (x ∈ f.scope))) *
               ((s.live.filter fun f => !decide (x ∈ f.scope)).map capFactor).prod)
@@ -4089,20 +4044,14 @@ private def elimVarProg (args : ElimVarArgs) : Memory.Prog ElimStepState :=
       writeDesc ⟨part.newLiveBuf, outPair.1, outPair.2, entPair.1, entPair.2⟩ >>= fun _ =>
       pure ⟨args.scalar, part.newLiveBuf, 1 + part.restLen, remPair.1, remPair.2⟩
 
-/-- Memory frontier growth upper bound for a single elimination step at remaining-variable bound
-`R`, live-factor bound `M`, scope-width envelope `SW`, domain size `d`, and joint-scope bound
-`W`. -/
-@[expose] def stepMemDelta (R M SW d W : ℕ) : ℕ :=
+private abbrev stepMemDelta (R M SW d W : ℕ) : ℕ :=
   R + 4 + 8 * M + 2 * (M * SW) + (max 1 d) ^ W
 
-/-- Fixed memory-operation cost per elimination step (excluding per-bucket-factor work). -/
-@[expose] def stepFixedCost (R M SW d W : ℕ) : ℕ :=
-  12 + 3 * R + M * (8 + SW) + W + (max 1 d) ^ W * (3 + d)
+private abbrev stepFixedCost (R M SW d W : ℕ) : ℕ :=
+  12 + 3 * R + M * (8 + SW) + W + 4 * (max 1 d) ^ W
 
-/-- Memory-operation cost per participating bucket factor at scope-width envelope `SW`, domain size
-`d`, and joint-scope bound `W`. -/
-@[expose] def stepBucketUnitCost (SW d W : ℕ) : ℕ :=
-  3 + SW * (4 + W) + (max 1 d) ^ W * d * (5 + SW * (W + 1))
+private abbrev stepBucketUnitCost (SW d W : ℕ) : ℕ :=
+  3 + SW * (4 + W) + (max 1 d) ^ W * (5 + SW * W)
 
 private theorem elimVarProg_spec {w : ℕ} {args : ElimVarArgs} {es : ElimState ℕ ℕ}
     {R M SW W B : ℕ} {s : Memory.State}
@@ -4251,9 +4200,22 @@ private theorem elimVarProg_spec {w : ℕ} {args : ElimVarArgs} {es : ElimState 
       dsimp only [bosArgs] at hbos_fr hbos_len hbos_holds hbos_cost
       have hwf₃ : Memory.WellFormed w s₃ :=
         by rw [← hs₃]; exact wellFormed_clientState hwf₂ hbos_val
-      have hout_le_W' : outPair.2 ≤ W := by rw [hbos_len]; exact hout_le_W
+      have hjoint_eq : (bucketOutScope args.x bucket).length + 1 =
+          (bucketJointScope bucket).length :=
+        length_bucketOutScope_add_one hb_ne fun f hf => by
+          simpa using (List.mem_filter.mp hf).2
+      have hout_succ_le_W : outPair.2 + 1 ≤ W := by
+        rw [hbos_len, hjoint_eq]; exact hj_le
+      have hout_le_W' : outPair.2 ≤ W := Nat.le_of_succ_le hout_succ_le_W
       have hpow_out_le : (max 1 args.dom) ^ outPair.2 ≤ (max 1 args.dom) ^ W :=
         Nat.pow_le_pow_right (le_max_left 1 args.dom) hout_le_W'
+      have hpow_joint_le : (max 1 args.dom) ^ outPair.2 * args.dom ≤ (max 1 args.dom) ^ W := by
+        calc (max 1 args.dom) ^ outPair.2 * args.dom
+            ≤ (max 1 args.dom) ^ outPair.2 * max 1 args.dom :=
+              Nat.mul_le_mul_left _ (le_max_right 1 args.dom)
+          _ = (max 1 args.dom) ^ (outPair.2 + 1) := (Nat.pow_succ _ _).symm
+          _ ≤ (max 1 args.dom) ^ W :=
+              Nat.pow_le_pow_right (le_max_left 1 args.dom) hout_succ_le_W
       have hb_capB : max 1 args.dom * (bucket.map capFactor).prod ≤ B :=
         (Nat.mul_le_mul_left _ (bucket_prod_le_stateCap args.x es)).trans hcapB
       let boeArgs : BuildOutArgs :=
@@ -4394,33 +4356,32 @@ private theorem elimVarProg_spec {w : ℕ} {args : ElimVarArgs} {es : ElimState 
         have hboe_c' :
             memoryCost (buildOutEntries
               ⟨args.dom, args.x, outPair.1, outPair.2, part.bucketPtr, part.bucketLen⟩) s₃ ≤
-              3 + W + (max 1 args.dom) ^ W * (3 + args.dom) +
-                bucket.length * ((max 1 args.dom) ^ W * args.dom * (5 + SW * (W + 1))) := by
-          have h1_le : outPair.2 + 1 ≤ W + 1 := Nat.add_le_add_right hout_le_W' 1
-          have h2_le : 5 + SW * (outPair.2 + 1) ≤ 5 + SW * (W + 1) :=
-            Nat.add_le_add_left (Nat.mul_le_mul_left SW h1_le) 5
-          have h3_le : 1 + bucket.length * (5 + SW * (outPair.2 + 1)) ≤
-              1 + bucket.length * (5 + SW * (W + 1)) :=
-            Nat.add_le_add_left (Nat.mul_le_mul_left _ h2_le) 1
-          have h4_le : 3 + args.dom * (1 + bucket.length * (5 + SW * (outPair.2 + 1))) ≤
-              3 + args.dom * (1 + bucket.length * (5 + SW * (W + 1))) :=
-            Nat.add_le_add_left (Nat.mul_le_mul_left _ h3_le) 3
+              3 + W + 4 * (max 1 args.dom) ^ W +
+                bucket.length * ((max 1 args.dom) ^ W * (5 + SW * W)) := by
+          have h2_le : 5 + SW * (outPair.2 + 1) ≤ 5 + SW * W :=
+            Nat.add_le_add_left (Nat.mul_le_mul_left SW hout_succ_le_W) 5
           calc memoryCost (buildOutEntries
                 ⟨args.dom, args.x, outPair.1, outPair.2, part.bucketPtr, part.bucketLen⟩) s₃
               ≤ 3 + outPair.2 + (max 1 args.dom) ^ outPair.2 *
                   (3 + args.dom * (1 + part.bucketLen * (5 + SW * (outPair.2 + 1)))) := hboe_cost
-            _ = 3 + outPair.2 + (max 1 args.dom) ^ outPair.2 *
-                  (3 + args.dom * (1 + bucket.length * (5 + SW * (outPair.2 + 1)))) := by
-                rw [hpl_bLen]
-            _ ≤ 3 + W + (max 1 args.dom) ^ W *
-                  (3 + args.dom * (1 + bucket.length * (5 + SW * (W + 1)))) :=
-                Nat.add_le_add (Nat.add_le_add_left hout_le_W' 3)
-                  (Nat.mul_le_mul hpow_out_le h4_le)
-            _ = 3 + W + (max 1 args.dom) ^ W * (3 + args.dom) +
-                  bucket.length * ((max 1 args.dom) ^ W * args.dom * (5 + SW * (W + 1))) := by
-                ring
+            _ = 3 + outPair.2 + (max 1 args.dom) ^ outPair.2 * 3 +
+                  ((max 1 args.dom) ^ outPair.2 * args.dom) * 1 +
+                  bucket.length * (((max 1 args.dom) ^ outPair.2 * args.dom) *
+                    (5 + SW * (outPair.2 + 1))) := by
+                rw [hpl_bLen]; ring
+            _ ≤ 3 + W + (max 1 args.dom) ^ W * 3 +
+                  (max 1 args.dom) ^ W * 1 +
+                  bucket.length * ((max 1 args.dom) ^ W * (5 + SW * W)) :=
+                Nat.add_le_add
+                  (Nat.add_le_add
+                    (Nat.add_le_add (Nat.add_le_add_left hout_le_W' 3)
+                      (Nat.mul_le_mul_right 3 hpow_out_le))
+                    (Nat.mul_le_mul_right 1 hpow_joint_le))
+                  (Nat.mul_le_mul_left _ (Nat.mul_le_mul hpow_joint_le h2_le))
+            _ = 3 + W + 4 * (max 1 args.dom) ^ W +
+                  bucket.length * ((max 1 args.dom) ^ W * (5 + SW * W)) := by ring
         have hunit_split : bucket.length * (3 + SW * (4 + W)) +
-            bucket.length * ((max 1 args.dom) ^ W * args.dom * (5 + SW * (W + 1))) =
+            bucket.length * ((max 1 args.dom) ^ W * (5 + SW * W)) =
             bucket.length * stepBucketUnitCost SW args.dom W := by
           dsimp only [stepBucketUnitCost]; ring
         dsimp only [stepFixedCost]
@@ -4500,7 +4461,8 @@ private theorem elimVarProg_realizes :
   · rw [memScan_state]
     exact ⟨es.live, hlive_len.symm, hlive_h.mono_frontier hfn_pres⟩
   · have hsc_le : d.scalar * d.dom ≤ B := by
-      have h1_live : 1 ≤ (es.live.map capFactor).prod := one_le_prod_capFactor es.live
+      have h1_live : 1 ≤ (es.live.map capFactor).prod :=
+        List.one_le_prod_of_one_le (by simp [one_le_capFactor])
       have hsc_m : d.scalar * d.dom ≤ max 1 d.dom * max 1 es.scalar := by
         rw [hsc_eq, Nat.mul_comm]
         exact Nat.mul_le_mul (le_max_right 1 d.dom) (le_max_right 1 es.scalar)
@@ -4512,9 +4474,15 @@ private theorem elimVarProg_realizes :
     exact hB.of_le hsc_le
   · exact h1
   · rw [memScan_state]
-    have hK_le : (bucket.flatMap FactorTable.scope).length ≤ M * SW :=
-      (flatMap_scope_length_le hb_SW).trans
-        (Nat.mul_le_mul_right SW ((List.length_filter_le _ _).trans hM))
+    have hK_le : (bucket.flatMap FactorTable.scope).length ≤ M * SW := by
+      have hfl : (bucket.flatMap FactorTable.scope).length ≤ bucket.length * SW := by
+        rw [List.length_flatMap]
+        have hsum := List.sum_le_length_nsmul (bucket.map fun a => a.scope.length) SW
+          fun _ hn => by
+            rcases List.mem_map.mp hn with ⟨f, hf, rfl⟩
+            exact hb_SW f hf
+        simpa [smul_eq_mul] using hsum
+      exact hfl.trans (Nat.mul_le_mul_right SW ((List.length_filter_le _ _).trans hM))
     refine ⟨bucket, hpl_bLen.symm, hpl_bH, hfit_fr.of_le ?_⟩
     rw [hpl_fr, hfn_fr]
     dsimp only [stepMemDelta]
@@ -4959,7 +4927,7 @@ private theorem getD_zero_le_capFactor (f : FactorTable ℕ ℕ) :
     have hmem : f.entries[0] ∈ f.entries.toList := by
       rw [← Array.getElem_toList (xs := f.entries) (i := 0) (by simpa using h0)]
       exact List.getElem_mem _
-    exact mem_le_foldl_max_init f.entries.toList 0 _ hmem
+    exact List.mem_le_foldl_max hmem
   · omega
 
 private structure FinalProdArgs where
@@ -5172,7 +5140,8 @@ private theorem finalResultProd_realizes :
       _ = st.2 * (capFactor f * (rest.map capFactor).prod) := Nat.mul_assoc _ _ _
       _ ≤ B := hcap_t
   have hprod_le : st.2 * f.entries.getD 0 0 ≤ B := by
-    have h1_rest : 1 ≤ (rest.map capFactor).prod := one_le_prod_capFactor rest
+    have h1_rest : 1 ≤ (rest.map capFactor).prod :=
+      List.one_le_prod_of_one_le (by simp [one_le_capFactor])
     exact (Nat.le_mul_of_pos_right _ h1_rest).trans hcap'
   refine ⟨?_, ?_⟩
   · refine ⟨hmem.frontier_fits.of_le (by omega), hmem.frontier_fits.of_le (by omega), ?_, ?_⟩
@@ -5199,15 +5168,8 @@ private theorem holdsIn_append_split {base : ℕ} {xs ys : List ℕ} {s : Memory
     HoldsIn base xs s ∧ HoldsIn (base + xs.length) ys s := by
   obtain ⟨hb, hl⟩ := h
   simp only [List.length_append] at hb
-  refine ⟨⟨by omega, fun i => ?_⟩, ⟨by omega, fun i => ?_⟩⟩
-  · change s.mem (base + i.1) = xs[i.1]
-    have hi := hl.get i.1 (by simp only [List.length_append]; omega)
-    simpa [List.getElem_append_left i.2] using hi
-  · change s.mem (base + xs.length + i.1) = ys[i.1]
-    have hi := hl.get (xs.length + i.1) (by simp only [List.length_append]; omega)
-    rw [List.getElem_append_right (Nat.le_add_right _ _)] at hi
-    rw [show base + xs.length + i.1 = base + (xs.length + i.1) by omega]
-    simpa [Nat.add_sub_cancel_left] using hi
+  obtain ⟨hx, hy⟩ := Block.holdsList_append_iff.mp hl
+  exact ⟨⟨by omega, hx⟩, ⟨by omega, hy⟩⟩
 
 private theorem holdsIn_encodeFactor_cons {curRaw : ℕ} {f : FactorTable ℕ ℕ}
     {rest : List (FactorTable ℕ ℕ)} {s : Memory.State}
@@ -5567,13 +5529,14 @@ elimination run, radix powers `(max 1 domain) ^ max S W`, and intermediate/final
   let M := inst.factors.length
   let W := maxJointScopeLen d inst.order inst.initState
   let SW := max (maxScopeLen inst.factors) W
-  5 + (inst.encode.length + 1 + 4 * M + T * stepMemDelta R M SW d W) +
+  5 + (inst.encode.length + 1 + 4 * M +
+      T * (R + 4 + 8 * M + 2 * (M * SW) + (max 1 d) ^ W)) +
     (max 1 d) ^ SW +
     (max 1 d) ^ T * (max 1 inst.maxEntry) ^ M
 
 /-- Upper bound on the oracle memory cost (`memoryCost`) of bucket elimination along `inst.order`,
-exponential only in the intermediate joint bucket width `W = maxJointScopeLen` with amortized
-`M + T` bucket factor evaluations. -/
+exponential only in `W = maxJointScopeLen` (`(max 1 domain) ^ W`) with amortized `M + T` bucket
+factor evaluations. -/
 @[expose] def stepBound (inst : ElimInstance) : ℕ :=
   let d := inst.domain
   let R := inst.declared.length
@@ -5581,7 +5544,9 @@ exponential only in the intermediate joint bucket width `W = maxJointScopeLen` w
   let M := inst.factors.length
   let W := maxJointScopeLen d inst.order inst.initState
   let SW := max (maxScopeLen inst.factors) W
-  5 + 9 * M + T * (1 + stepFixedCost R M SW d W) + (M + T) * stepBucketUnitCost SW d W
+  5 + 9 * M +
+    T * (1 + (12 + 3 * R + M * (8 + SW) + W + 4 * (max 1 d) ^ W)) +
+    (M + T) * (3 + SW * (4 + W) + (max 1 d) ^ W * (5 + SW * W))
 
 /-- Compile a `ℕ`-weighted `CSP Rel ℕ` over finite domain `D ≃ Fin d` with declared variable list
 `declared` and elimination order `order` into an `ElimInstance`. -/
@@ -5608,34 +5573,25 @@ end ElimInstance
 private theorem holdsIn_stateInit (words : List ℕ) :
     HoldsIn 1 words (Memory.State.init words) := by
   refine ⟨by simp [Memory.State.init]; omega, fun i => ?_⟩
-  change (if 1 + i.1 = 0 then words.length else words.getD ((1 + i.1) - 1) 0) = words[i.1]
-  rw [ite_eq_right (by omega), show (1 + i.1) - 1 = i.1 by omega,
-    List.getD_eq_getElem?_getD, List.getElem?_eq_getElem i.2, Option.getD_some]
+  have h := Data.init_realizes_append (r := 0) [] words [] i
+  simpa [Memory.State.init] using h
 
 private theorem capFactor_le_maxEntry {inst : ElimInstance} {f : FactorTable ℕ ℕ}
     (hf : f ∈ inst.factors) :
     capFactor f ≤ max 1 inst.maxEntry := by
   unfold capFactor ElimInstance.maxEntry
   refine max_le (le_max_left 1 _) (le_trans ?_ (le_max_right 1 _))
-  exact mem_le_foldl_max_init _ 0 _ (List.mem_map.mpr ⟨f, hf, rfl⟩)
-
-private theorem prod_capFactor_le_pow {M : ℕ} :
-    ∀ (fs : List (FactorTable ℕ ℕ)),
-      (∀ f ∈ fs, capFactor f ≤ M) →
-      (fs.map capFactor).prod ≤ M ^ fs.length
-  | [], _ => by simp
-  | f :: rest, hall => by
-      simp only [List.map_cons, List.prod_cons, List.length_cons, Nat.pow_succ]
-      rw [Nat.mul_comm (M ^ rest.length) M]
-      exact Nat.mul_le_mul (hall f (List.mem_cons_self ..))
-        (prod_capFactor_le_pow rest fun g hg => hall g (List.mem_cons_of_mem f hg))
+  exact List.mem_le_foldl_max (List.mem_map.mpr ⟨f, hf, rfl⟩)
 
 private theorem initState_stateCap_le (inst : ElimInstance) :
     stateCap inst.initState ≤ (max 1 inst.maxEntry) ^ inst.factors.length := by
   unfold stateCap ElimInstance.initState ElimState.ofFactors
   dsimp only
   simp only [max_self, Nat.one_mul]
-  exact prod_capFactor_le_pow inst.factors fun f hf => capFactor_le_maxEntry hf
+  simpa [List.length_map] using
+    List.prod_le_pow_length (inst.factors.map capFactor) (max 1 inst.maxEntry) fun _ hn => by
+      rcases List.mem_map.mp hn with ⟨f, hf, rfl⟩
+      exact capFactor_le_maxEntry hf
 
 private theorem stateCap_eliminateOrder_le (d : ℕ) :
     ∀ (ord : List ℕ) (es : ElimState ℕ ℕ),
@@ -5735,7 +5691,10 @@ private theorem runProg_spec {w : ℕ} (inst : ElimInstance)
   have hcap₀ : (max 1 d) ^ T * stateCap inst.initState ≤ B :=
     Nat.mul_le_mul_left _ (initState_stateCap_le inst)
   have hfit_loop : Fits w (s₁.frontier + T * stepMemDelta R M SW d W) := hw.of_le (by
-    rw [hif_fr, hs0_fr]; unfold ElimInstance.wordBound; dsimp only [d, R, T, M, W, SW]; omega)
+    rw [hif_fr, hs0_fr]
+    unfold ElimInstance.wordBound
+    dsimp only [d, R, T, M, W, SW, stepMemDelta]
+    omega)
   let eoArgs : ElimOrderArgs := ⟨d, 5 + R, T, 1, livePtr, M, 5, R⟩
   have heo_spec := elimOrderLoop_spec (w := w) (args := eoArgs) (R := R) (M := M)
     hwf₁ hord₁ rfl hes₁ le_rfl le_rfl hSW₀ hW₀ (le_max_right _ _) hcap₀ hB h1 hpowSW hfit_loop
@@ -5792,7 +5751,8 @@ private theorem runProg_spec {w : ℕ} (inst : ElimInstance)
       memoryCost_bind', hs₁, hlivePtr,
       memoryCost_bind', hs₂, hfinalSt]
     unfold ElimInstance.stepBound
-    dsimp only [d, R, T, M, W, SW] at hif_cost heo_cost hfp_cost hliveLen_le_M ⊢
+    dsimp only [d, R, T, M, W, SW, stepFixedCost, stepBucketUnitCost]
+      at hif_cost heo_cost hfp_cost hliveLen_le_M ⊢
     omega
 
 private theorem runProg_realizes :
@@ -5857,7 +5817,9 @@ private theorem runProg_realizes :
       hw.of_le (by
         rw [hif_fr]
         change inst.encode.length + 1 + 4 * M + T * stepMemDelta R M SW d W ≤ inst.wordBound
-        unfold ElimInstance.wordBound; dsimp only [d, R, T, M, W, SW]; omega)⟩
+        unfold ElimInstance.wordBound
+        dsimp only [d, R, T, M, W, SW, stepMemDelta]
+        omega)⟩
   · simp only [hm1, hm2, hm3, hm4]
     let s₀ := Memory.State.init inst.encode
     let d := inst.domain
@@ -5896,7 +5858,9 @@ private theorem runProg_realizes :
       (hw.of_le (by
         rw [hif_fr]
         change inst.encode.length + 1 + 4 * M + T * stepMemDelta R M SW d W ≤ inst.wordBound
-        unfold ElimInstance.wordBound; dsimp only [d, R, T, M, W, SW]; omega))
+        unfold ElimInstance.wordBound
+        dsimp only [d, R, T, M, W, SW, stepMemDelta]
+        omega))
     dsimp only at heo_spec
     obtain ⟨_, _, _, heo_es, _⟩ := heo_spec
     obtain ⟨_, hsc_f, hliveLen_f, _, hlive_f, _⟩ := heo_es

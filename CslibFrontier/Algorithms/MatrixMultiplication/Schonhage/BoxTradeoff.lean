@@ -140,8 +140,7 @@ theorem total_boxes_le {L m t N : ℕ} (hL : 10 * m ≤ L) (ht : t ≤ m) :
     div_nonneg (pow_nonneg (rho_nonneg (by omega)) _) (by linarith [rho_lt_one hL])
   calc ((tiles L m N).card : ℝ) * ((boxes L m t).card : ℝ)
       ≤ ((tiles L m N).card : ℝ) *
-          (((m : ℝ) + 1) * ((M L m : ℝ) * (rho L m ^ t / (1 - rho L m)))) :=
-        mul_le_mul_of_nonneg_left hc (Nat.cast_nonneg _)
+          (((m : ℝ) + 1) * ((M L m : ℝ) * (rho L m ^ t / (1 - rho L m)))) := by gcongr
     _ = (((tiles L m N).card : ℝ) * (M L m : ℝ)) *
         (((m : ℝ) + 1) * (rho L m ^ t / (1 - rho L m))) := by ring
     _ ≤ (4 * (padN L m N : ℝ) ^ 2) *

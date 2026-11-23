@@ -4086,6 +4086,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryOrder
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryPair
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BlockMove
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.ChineseRemainder
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Choose
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
@@ -5495,6 +5496,7 @@ public import CslibFrontier.Crypto.Computational.GoldreichLevin.WordListDecoder
 public import CslibFrontier.Crypto.Computational.GoldreichLevin.WordReduction
 public import CslibFrontier.Crypto.Computational.GoldwasserMicali
 public import CslibFrontier.Crypto.Computational.GoldwasserMicali.Malleability
+public import CslibFrontier.Crypto.Computational.GoldwasserMicali.TextbookKeyGen
 public import CslibFrontier.Crypto.Computational.HQC.DQCSD
 public import CslibFrontier.Crypto.Computational.HQC.INDCPA
 public import CslibFrontier.Crypto.Computational.HardCore
@@ -5626,6 +5628,7 @@ public import CslibFrontier.Crypto.Computational.LinearSigmaProtocol
 public import CslibFrontier.Crypto.Computational.LubyRackoff
 public import CslibFrontier.Crypto.Computational.MAC
 public import CslibFrontier.Crypto.Computational.MAC.Counter
+public import CslibFrontier.Crypto.Computational.MAC.VerificationQueries
 public import CslibFrontier.Crypto.Computational.MLDSA.AdaptiveCommitmentCall
 public import CslibFrontier.Crypto.Computational.MLDSA.AdaptiveKeySeed
 public import CslibFrontier.Crypto.Computational.MLDSA.AdaptiveSigningSimulation
@@ -5907,6 +5910,7 @@ public import CslibFrontier.Crypto.Game.CloseTo.UntilBad
 public import CslibFrontier.Crypto.Game.Concrete
 public import CslibFrontier.Crypto.Game.Experiment
 public import CslibFrontier.Crypto.Game.Forgery
+public import CslibFrontier.Crypto.Game.Forgery.VerificationQueries
 public import CslibFrontier.Crypto.Game.FourHop
 public import CslibFrontier.Crypto.Game.HiddenBit
 public import CslibFrontier.Crypto.Game.Hop
@@ -7372,6 +7376,7 @@ public import CslibFrontier.Foundations.Data.List.FlatMapPositions
 public import CslibFrontier.Foundations.Data.List.FlatMapRange
 public import CslibFrontier.Foundations.Data.List.Flatten
 public import CslibFrontier.Foundations.Data.List.Fold
+public import CslibFrontier.Foundations.Data.List.FoldMax
 public import CslibFrontier.Foundations.Data.List.FoldlIdx
 public import CslibFrontier.Foundations.Data.List.FoldrForall
 public import CslibFrontier.Foundations.Data.List.Forall2

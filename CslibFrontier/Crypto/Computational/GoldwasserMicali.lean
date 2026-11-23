@@ -89,7 +89,10 @@ modulus `N = p * q` and public nonresidue `z ∈ QNR_N^{+1}`:
   extends the lossy-public-key reduction to bounded equal-length bit words (`encryptWord`) with
   factor-`2` QR loss independent of message length (`advantage_publicKeyWordGame_le_qr`,
   `indistinguishable_publicKeyWordGame`). `publicKeyLaw` is a distribution, not a key-generation
-  algorithm: no generator `gen` whose `keyGen gen` matches it is constructed.
+  algorithm; `CslibFrontier.Crypto.Computational.GoldwasserMicali.TextbookKeyGen` constructs the
+  strict-PPT textbook key generator `textbookKeyGen` within `1 / 2 ^ n` statistical distance of
+  `publicKeyLaw` and proves single-bit and multi-bit IND-CPA steps toward #5293 for a
+  caller-supplied modulus generator `gen : ℕ → ProbComp ModulusDesc`.
 * **Necessity of `J_N(z) = +1`**: `jacobiAttackAdversary` is a certified uniform strict-PPT
   adversary achieving exact IND-CPA advantage `1` whenever `z ∈ jacobiNegSet p q`
   (`advantage_jacobiAttackAdversary_eq_one`).
@@ -725,8 +728,10 @@ theorem advantage_publicKeyGame_le_qr {setup : ℕ → PMF ModulusDesc} {n : ℕ
 
 /-- **Asymptotic IND-CPA security for `publicKeyLaw`** ([KatzLindell2020], Theorem 15.29), with
 the public key drawn from the ideal law `publicKeyLaw setup` (uniform `z ∈ QNR_N^{+1}`). The key law
-is a distribution, not a key-generation algorithm; for a scheme with an explicit key generator see
-`indcpa_blumGoldwasserMicali`. -/
+is a distribution, not a key-generation algorithm; for schemes with explicit key generators see
+`indcpa_blumGoldwasserMicali` and
+`CslibFrontier.Crypto.Computational.GoldwasserMicali.TextbookKeyGen`
+(`indcpa_textbookGoldwasserMicali`). -/
 theorem indistinguishable_publicKeyGame {setup : ℕ → PMF ModulusDesc}
     (hsize : ∀ n, ∀ d ∈ (setup n).support, n ≤ d.p.size ∧ n ≤ d.q.size)
     (hQR : QuadraticResiduosityHard setup) :
