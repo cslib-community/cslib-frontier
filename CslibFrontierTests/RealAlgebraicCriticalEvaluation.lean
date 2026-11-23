@@ -355,4 +355,23 @@ example :
     (fun _ => (totalDegree_X_le 0).trans (by omega))
     (ComputableInPolyTime.binary_add' ComputableInPolyTime.id' (.const 1)) (.const 0)
 
+-- The selected evaluator accepts binary modulus and value queries and agrees at a large prime.
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0
+    let hF : F.totalDegree ≤ 2 := (totalDegree_X_le 0).trans (by decide)
+    let C : Controlled (fun _ : ℕ => F) encNat 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let leading := C.criticalCoordinateLeadingValue (d := fun _ => 1) (fun _ => 0) (fun _ => hF)
+    let P := Polynomial.Bivariate.swap (parametricCoordinatePolynomial (by decide) F hF 0)
+    leading ∈ CountingFunction 18 (encPair encNat (encPair encNat encNat)) encNat ∧
+      ∀ t : ℕ, (leading (0, 101, t) : ZMod 101) =
+        P.leadingCoeff.eval₂ (Int.castRingHom (ZMod 101)) (t : ZMod 101) := by
+  intro F hF C leading P
+  refine ⟨C.criticalCoordinateLeadingValue_mem Decoder.nat (fun _ => 0) (fun _ => by decide)
+    (fun _ => hF) (.const 1) (.const 0), ?_⟩
+  intro t
+  let : Fact (Nat.Prime 101) := ⟨by decide⟩
+  exact C.criticalCoordinateLeadingValue_cast (fun _ => 0) (fun _ => hF) 0 (by decide) t
+    (by decide) (by decide) (by decide) (by decide)
+
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
