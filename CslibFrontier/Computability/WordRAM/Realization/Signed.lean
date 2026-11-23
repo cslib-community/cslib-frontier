@@ -10,14 +10,19 @@ module
 public import CslibFrontier.Computability.WordRAM.Realization.Basic
 public import CslibFrontier.Computability.WordRAM.Realization.Structure
 public import CslibFrontier.Computability.WordRAM.Signed.Encoding
+public import Mathlib.Data.List.FinRange
+import CslibFrontier.Foundations.Data.List.RowMajor
 import CslibFrontier.Tactic.Realize
+import Mathlib.Data.List.GetD
 
 /-!
 # Signed-integer `Memory.Prog` primitives over `Signed.encode`
 
 This module provides pure-register `Memory.Prog` negation, addition, subtraction, and strict
 order comparison over `Cslib.WordRAM.Signed.encode` (`2 * |z| + signBit`), together with their
-`Realizes .exact`, `ValidHistory`, `memoryCost`, and `clientResult` certificates.
+`Realizes .exact`, `ValidHistory`, `memoryCost`, and `clientResult` certificates, as well as
+shared magnitude-fit and row-major `Data.init` / `InputFits` bridges for `Signed.encode` matrix
+inputs.
 
 ## Main definitions
 
@@ -39,6 +44,11 @@ order comparison over `Cslib.WordRAM.Signed.encode` (`2 * |z| + signBit`), toget
   signed subtraction.
 * `Cslib.WordRAM.Realization.Signed.signedLtWord_iff`: equivalence between `SignedLtWord` and `<`
   on `ℤ`.
+* `Cslib.WordRAM.Signed.encode_le_two_mul_add_one`: upper bound `Signed.encode z ≤ 2 * M + 1` from
+  `z.natAbs ≤ M`.
+* `Cslib.WordRAM.Data.init_mem_flatMap_finRange`,
+  `Cslib.WordRAM.InputFits.flatMap_finRange`: row-major lookup in `Data.init` and `InputFits`
+  after a header prefix.
 -/
 
 namespace Cslib.WordRAM.Realization.Signed
@@ -294,3 +304,45 @@ theorem signedLtWord_iff (a b : ℤ) :
 end
 
 end Cslib.WordRAM.Realization.Signed
+
+public section
+
+namespace Cslib.WordRAM
+
+/-- Upper bound `Signed.encode z ≤ 2 * M + 1` from a magnitude bound `z.natAbs ≤ M`. -/
+theorem Signed.encode_le_two_mul_add_one {z : ℤ} {M : ℕ} (h : z.natAbs ≤ M) :
+    Signed.encode z ≤ 2 * M + 1 := by
+  unfold Signed.encode
+  split_ifs <;> omega
+
+/-- Reading entry `(i, j)` of a flattened `n × d` row-major block after a header prefix `pre`
+in `Data.init`. The `+ 1` accounts for the machine's input-length header at address `0`. -/
+theorem Data.init_mem_flatMap_finRange {r n d : ℕ} (pre : List ℕ) (f : Fin n → Fin d → ℕ)
+    (i : Fin n) (j : Fin d) :
+    (Data.init (pre ++ (List.finRange n).flatMap fun i' => (List.finRange d).map (f i')) :
+      Data r).mem (pre.length + 1 + (i.val * d + j.val)) = f i j := by
+  have h : ((List.finRange n).flatMap fun i' => (List.finRange d).map (f i')) =
+      (List.finRange n).flatMap fun i' => List.ofFn (f i') := by
+    simp only [List.ofFn_eq_map]
+  rw [show pre.length + 1 + (i.val * d + j.val) = (pre.length + (i.val * d + j.val)) + 1 by omega,
+    Data.init_mem_succ, List.getD_append_right _ _ _ _ (by omega), Nat.add_sub_cancel_left, h,
+    List.getD_flatMap_ofFn]
+
+/-- `InputFits` for a header prefix `pre` followed by a flattened `n × d` row-major block. -/
+theorem InputFits.flatMap_finRange {w n d : ℕ} (pre : List ℕ) (f : Fin n → Fin d → ℕ)
+    (hlen : Fits w (pre.length + n * d)) (hpre : ∀ x ∈ pre, Fits w x)
+    (hf : ∀ i j, Fits w (f i j)) :
+    InputFits w (pre ++ (List.finRange n).flatMap fun i => (List.finRange d).map (f i)) := by
+  refine ⟨?_, fun x hx => ?_⟩
+  · simp only [List.length_append, List.length_flatMap, List.length_map, List.length_finRange,
+      List.map_const', List.sum_replicate, smul_eq_mul]
+    exact hlen
+  · simp only [List.mem_append, List.mem_flatMap, List.mem_finRange, List.mem_map,
+      true_and] at hx
+    rcases hx with hx | ⟨i, j, rfl⟩
+    · exact hpre x hx
+    · exact hf i j
+
+end Cslib.WordRAM
+
+end
