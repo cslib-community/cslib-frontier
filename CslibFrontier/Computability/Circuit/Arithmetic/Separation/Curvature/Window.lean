@@ -8,15 +8,17 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.WindowMean
+public import Mathlib.Order.Interval.Set.ProjIcc
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Data.Nat.Choose.Cast
 import Mathlib.Analysis.SpecificLimits.Basic
+import Mathlib.Topology.MetricSpace.Lipschitz
 
 /-!
 # Windows: clamping, the relative place in a window, and two elementary inequalities
 
 Helpers for the theorem that prices are nonpositively curved in *VP ≠ VNP over every field*
-(Anthropic, `anthropics/formal-math`, commit `11b6c7e3c9`, module `Nc.Cat.Window`); nothing
+[AnthropicVPVNP2026] (module `Nc.Cat.Window`); nothing
 here is about prices.
 
 ## Main definitions
@@ -54,17 +56,22 @@ theorem clamp_le (N : ℕ) (i : ℤ) : clamp N i ≤ N := min_le_right _ _
 
 theorem clamp_zero (N : ℕ) : clamp N 0 = 0 := by simp [clamp]
 
-/-- Clamping is `1`-Lipschitz. -/
+/-- The clamp, cast to `ℝ`, is Mathlib's projection onto `[0, N]`. -/
+theorem cast_clamp (N : ℕ) (i : ℤ) :
+    ((clamp N i : ℕ) : ℝ) = Set.projIcc (0 : ℝ) N (Nat.cast_nonneg N) i := by
+  have hz : ((clamp N i : ℕ) : ℤ) = max 0 (min (N : ℤ) i) := by
+    simp only [clamp]
+    omega
+  rw [Set.coe_projIcc, ← Int.cast_natCast, hz]
+  push_cast
+  rfl
+
+/-- Clamping is `1`-Lipschitz, since `Set.projIcc` is. -/
 theorem abs_clamp_sub_le (N : ℕ) (i i' : ℤ) :
     |((clamp N i : ℕ) : ℝ) - (clamp N i' : ℕ)| ≤ |(i : ℝ) - i'| := by
-  have h : |((clamp N i : ℕ) : ℤ) - (clamp N i' : ℕ)| ≤ |i - i'| := by
-    unfold clamp
-    rcases le_total i i' with h | h
-    · rw [abs_of_nonpos (by omega), abs_of_nonpos (by omega)]
-      omega
-    · rw [abs_of_nonneg (by omega), abs_of_nonneg (by omega)]
-      omega
-  exact_mod_cast h
+  have h := (LipschitzWith.projIcc (Nat.cast_nonneg (α := ℝ) N)).dist_le_mul i i'
+  simp only [Subtype.dist_eq, NNReal.coe_one, one_mul, Real.dist_eq] at h
+  rwa [cast_clamp, cast_clamp]
 
 theorem abs_clamp_sub_clamp_succ_le (N : ℕ) (i : ℤ) :
     |((clamp N i : ℕ) : ℝ) - (clamp N (i + 1) : ℕ)| ≤ 1 := by
@@ -140,7 +147,7 @@ theorem mean_windowPlace : windowPlace.mean = 1 / 2 := by
       push_cast
       rfl
     rw [Finset.sum_congr rfl hp, Finset.sum_const, Finset.card_range, nsmul_eq_mul]
-  rw [windowAvg, Finset.sum_congr rfl fun b _ => h2 b, Finset.sum_const, Finset.card_univ,
+  rw [windowAvg_eq_sum, Finset.sum_congr rfl fun b _ => h2 b, Finset.sum_const, Finset.card_univ,
     Fintype.card_bool, nsmul_eq_mul]
   push_cast
   field_simp

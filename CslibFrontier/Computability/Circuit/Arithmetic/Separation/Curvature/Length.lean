@@ -8,13 +8,13 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.WindowMean
+public import Mathlib.Analysis.Normed.Group.Seminorm
 public import Mathlib.Analysis.Subadditive
 
 /-!
 # Length functions on `ℤ²` with the crossing inequality
 
-From *VP ≠ VNP over every field* (Anthropic, `anthropics/formal-math`, commit `11b6c7e3c9`,
-modules `Nc.Cat.Len` and `Nc.Cat.Length`).
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026] (modules `Nc.Cat.Len` and `Nc.Cat.Length`).
 
 A *crossing length* is an even subadditive function `N ≥ 0` on `ℤ²` with the crossing inequality
 (Q) of the paper: for all `X, V, Y, U, n, n', k, k'` and `τ > 0`,
@@ -22,8 +22,10 @@ A *crossing length* is an even subadditive function `N ≥ 0` on `ℤ²` with th
   + N(Y−U)(N(Y−n) + N(U−n') + N(U−k) + N(Y−k')) + τ(N(X−V)² + N(Y−U)²)
   + (N(n−n')² + N(k−k')²)/(2τ)`.
 
-Two sources of crossing lengths are proved here. Every crossing length has a homogeneous version
-`h ↦ lim N(S • h)/S` (`Separation.CrossingLength.exists_homogeneous`). And a family of
+Two sources of crossing lengths are proved here. Every crossing length has a homogeneous version,
+its
+homogenization `h ↦ lim N(S • h)/S` (`Separation.CrossingLength.homogenization`, with
+`Separation.CrossingLength.tendsto_homogenization`). And a family of
 pseudometrics on `ℤ²`, Lipschitz with one constant and satisfying a pointwise form of (Q)
 (`Separation.CrossingMetrics`), gives the crossing length
 `h ↦ ‖P ↦ W(P, P + h)‖`, the root mean square over large windows
@@ -33,6 +35,9 @@ pseudometrics on `ℤ²`, Lipschitz with one constant and satisfying a pointwise
 
 * `Separation.CrossingLength N`: `N` is a crossing length.
 * `Separation.IsHomogeneous N`: `N(m • h) = m N(h)` for natural `m`.
+* `Separation.CrossingLength.toAddGroupSeminorm`: the seminorm part, as Mathlib's
+  `AddGroupSeminorm`.
+* `Separation.CrossingLength.homogenization`: the canonical homogenization `lim N(S • h)/S`.
 * `Separation.CrossingMetrics W Λ`: Lipschitz pseudometrics with the pointwise inequality (Q).
 * `Separation.meanLength W h`: the root mean square of `W(P, P + h)`.
 -/
@@ -67,37 +72,66 @@ theorem subadditive (hN : CrossingLength N) (h : ℤ × ℤ) :
     Subadditive fun S : ℕ => N (S • h) := fun m n => by
   simpa only [add_smul] using hN.add _ _
 
-/-- The homogeneous version `N' h = lim N(S • h)/S` of a crossing length: a homogeneous crossing
-length below `N`, and above every `c` with `c S ≤ N(S • h)` for all `S > 0`. -/
-theorem exists_homogeneous (hN : CrossingLength N) :
-    ∃ N' : ℤ × ℤ → ℝ, CrossingLength N' ∧ IsHomogeneous N' ∧ (∀ h, N' h ≤ N h) ∧
-      ∀ h (c : ℝ), (∀ S : ℕ, 0 < S → c * S ≤ N (S • h)) → c ≤ N' h := by
-  let N' : ℤ × ℤ → ℝ := fun h => (hN.subadditive h).lim
-  have hbdd : ∀ h, BddBelow (Set.range fun S : ℕ => N (S • h) / S) := fun h =>
+/-- The seminorm part of a crossing length, as Mathlib's `AddGroupSeminorm`. -/
+def toAddGroupSeminorm (hN : CrossingLength N) : AddGroupSeminorm (ℤ × ℤ) where
+  toFun := N
+  map_zero' := hN.zero
+  add_le' := hN.add
+  neg' := hN.neg
+
+@[simp] theorem coe_toAddGroupSeminorm (hN : CrossingLength N) : ⇑hN.toAddGroupSeminorm = N := by
+  rfl
+
+theorem le_sub_add (hN : CrossingLength N) (h h' : ℤ × ℤ) : N h ≤ N (h - h') + N h' := by
+  simpa [add_comm] using le_map_add_map_sub hN.toAddGroupSeminorm h h'
+
+theorem sub_le (hN : CrossingLength N) (h h' : ℤ × ℤ) : N (h - h') ≤ N h + N h' := by
+  simpa using map_sub_le_add hN.toAddGroupSeminorm h h'
+
+theorem abs_sub_le (hN : CrossingLength N) (h h' : ℤ × ℤ) : |N h - N h'| ≤ N (h - h') := by
+  simpa using abs_sub_map_le_sub hN.toAddGroupSeminorm h h'
+
+/-! ### The homogenization -/
+
+/-- The homogenization `h ↦ lim N(S • h)/S` of a crossing length, by Fekete's lemma. -/
+noncomputable def homogenization (hN : CrossingLength N) (h : ℤ × ℤ) : ℝ :=
+  (hN.subadditive h).lim
+
+/-- `N(S • h)/S` converges to the homogenization. -/
+theorem tendsto_homogenization (hN : CrossingLength N) (h : ℤ × ℤ) :
+    Tendsto (fun S : ℕ => N (S • h) / S) atTop (𝓝 (hN.homogenization h)) :=
+  (hN.subadditive h).tendsto_lim
     ⟨0, by rintro _ ⟨S, rfl⟩; exact div_nonneg (hN.nonneg _) (Nat.cast_nonneg _)⟩
-  have hT : ∀ h, Tendsto (fun S : ℕ => N (S • h) / S) atTop (𝓝 (N' h)) := fun h =>
-    (hN.subadditive h).tendsto_lim (hbdd h)
-  have hhom : IsHomogeneous N' := by
-    intro m h
-    rcases Nat.eq_zero_or_pos m with rfl | hm
-    · have h1 := hT ((0 : ℕ) • h)
-      simp only [zero_smul, smul_zero, hN.zero, zero_div] at h1
-      rw [Nat.cast_zero, zero_mul, zero_smul]
-      exact tendsto_nhds_unique h1 tendsto_const_nhds
-    · have h2 : Tendsto (fun S : ℕ => (m : ℝ) * (N ((S * m) • h) / (S * m : ℕ))) atTop
-          (𝓝 (m * N' h)) :=
-        ((hT h).comp (tendsto_id.atTop_mul_const' hm)).const_mul _
-      refine tendsto_nhds_unique (hT (m • h)) (h2.congr fun S => ?_)
-      have hm' : (m : ℝ) ≠ 0 := by exact_mod_cast hm.ne'
-      rw [mul_smul]
-      push_cast
-      rcases Nat.eq_zero_or_pos S with rfl | hS
-      · simp
-      · have hS' : (S : ℝ) ≠ 0 := by exact_mod_cast hS.ne'
-        field_simp
-  refine ⟨N', ⟨?_, ?_, ?_, ?_, ?_⟩, hhom, ?_, ?_⟩
+
+/-- The homogenization is homogeneous. -/
+theorem isHomogeneous_homogenization (hN : CrossingLength N) :
+    IsHomogeneous hN.homogenization := by
+  have hT := hN.tendsto_homogenization
+  intro m h
+  rcases Nat.eq_zero_or_pos m with rfl | hm
+  · have h1 := hT ((0 : ℕ) • h)
+    simp only [zero_smul, smul_zero, hN.zero, zero_div] at h1
+    rw [Nat.cast_zero, zero_mul, zero_smul]
+    exact tendsto_nhds_unique h1 tendsto_const_nhds
+  · have h2 : Tendsto (fun S : ℕ => (m : ℝ) * (N ((S * m) • h) / (S * m : ℕ))) atTop
+        (𝓝 (m * hN.homogenization h)) :=
+      ((hT h).comp (tendsto_id.atTop_mul_const' hm)).const_mul _
+    refine tendsto_nhds_unique (hT (m • h)) (h2.congr fun S => ?_)
+    have hm' : (m : ℝ) ≠ 0 := by exact_mod_cast hm.ne'
+    rw [mul_smul]
+    push_cast
+    rcases Nat.eq_zero_or_pos S with rfl | hS
+    · simp
+    · have hS' : (S : ℝ) ≠ 0 := by exact_mod_cast hS.ne'
+      field_simp
+
+/-- The homogenization of a crossing length is a crossing length. -/
+theorem crossingLength_homogenization (hN : CrossingLength N) :
+    CrossingLength hN.homogenization := by
+  have hT := hN.tendsto_homogenization
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · exact fun h => ge_of_tendsto' (hT h) fun S => div_nonneg (hN.nonneg _) (Nat.cast_nonneg _)
-  · simpa using hhom 0 0
+  · simpa using hN.isHomogeneous_homogenization 0 0
   · intro h
     refine tendsto_nhds_unique (hT (-h)) ((hT h).congr fun S => ?_)
     rw [smul_neg, hN.neg]
@@ -121,24 +155,20 @@ theorem exists_homogeneous (hN : CrossingLength N) :
     · have hS' : (0 : ℝ) < S := by exact_mod_cast hS
       have h2 := div_le_div_of_nonneg_right h (show 0 ≤ (S : ℝ) ^ 2 by positivity)
       refine le_trans (le_of_eq ?_) (h2.trans (le_of_eq ?_)) <;> field_simp
-  · exact fun h => by simpa using (hN.subadditive h).lim_le_div (hbdd h) one_ne_zero
-  · intro h c hc
-    refine ge_of_tendsto (hT h) ?_
-    filter_upwards [eventually_gt_atTop 0] with S hS
-    rw [le_div_iff₀ (by exact_mod_cast hS)]
-    exact hc S hS
 
-theorem le_sub_add (hN : CrossingLength N) (h h' : ℤ × ℤ) : N h ≤ N (h - h') + N h' := by
-  simpa using hN.add (h - h') h'
+/-- The homogenization lies below the crossing length. -/
+theorem homogenization_le (hN : CrossingLength N) (h : ℤ × ℤ) : hN.homogenization h ≤ N h := by
+  rw [homogenization]
+  simpa using (hN.subadditive h).lim_le_div
+    ⟨0, by rintro _ ⟨S, rfl⟩; exact div_nonneg (hN.nonneg _) (Nat.cast_nonneg _)⟩ one_ne_zero
 
-theorem sub_le (hN : CrossingLength N) (h h' : ℤ × ℤ) : N (h - h') ≤ N h + N h' := by
-  simpa [sub_eq_add_neg, hN.neg] using hN.add h (-h')
-
-theorem abs_sub_le (hN : CrossingLength N) (h h' : ℤ × ℤ) : |N h - N h'| ≤ N (h - h') := by
-  rw [abs_le]
-  have := hN.le_sub_add h' h
-  rw [← hN.neg (h' - h), neg_sub] at this
-  constructor <;> linarith [hN.le_sub_add h h']
+/-- The homogenization lies above every `c` with `c S ≤ N(S • h)` for all `S > 0`. -/
+theorem le_homogenization (hN : CrossingLength N) {h : ℤ × ℤ} {c : ℝ}
+    (hc : ∀ S : ℕ, 0 < S → c * S ≤ N (S • h)) : c ≤ hN.homogenization h := by
+  refine ge_of_tendsto (hN.tendsto_homogenization h) ?_
+  filter_upwards [eventually_gt_atTop 0] with S hS
+  rw [le_div_iff₀ (by exact_mod_cast hS)]
+  exact hc S hS
 
 end CrossingLength
 

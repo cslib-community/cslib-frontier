@@ -8,10 +8,12 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import Mathlib.Algebra.Order.BigOperators.Expect
 public import Mathlib.Analysis.Real.Sqrt
 public import Mathlib.Order.Filter.Cofinite
 public import Mathlib.Topology.Instances.Real.Lemmas
-import CslibFrontier.Foundations.Geometry.CAT0.Basic
+import Mathlib.Analysis.Normed.Group.Continuity
+import Mathlib.Analysis.Normed.Group.Real
 import Mathlib.Analysis.SpecificLimits.Basic
 import Mathlib.Order.Filter.Ultrafilter.Basic
 import Mathlib.Topology.Algebra.Order.LiminfLimsup
@@ -19,8 +21,8 @@ import Mathlib.Topology.Algebra.Order.LiminfLimsup
 /-!
 # Means over large windows
 
-The price argument of *VP ≠ VNP over every field* (Anthropic, `anthropics/formal-math`, commit
-`11b6c7e3c9`, module `Nc.Cat.Mean`) averages functions on two sheets of `ℤ²` over windows: for
+The price argument of *VP ≠ VNP over every field* [AnthropicVPVNP2026] (module `Nc.Cat.Mean`)
+averages functions on two sheets of `ℤ²` over windows: for
 every `n` the window has two sheets (`Bool`), `0 ≤ i < n²` and `0 ≤ k < n`. A *window function*
 `f : WindowFn` is one function `f n` for every `n`. Its `mean` is the limit of the means over the
 `n`-th window along a fixed free ultrafilter (Mathlib's `hyperfilter ℕ`), which exists for bounded
@@ -30,7 +32,7 @@ invariant under translations and satisfies the inequality of Cauchy and Schwarz.
 ## Main definitions
 
 * `WindowFn`, `WindowFn.Bounded`: window functions and the bounded ones.
-* `windowAvg n f`: the mean over the `n`-th window.
+* `window n`, `windowAvg n f`: the `n`-th window and the mean over it (`Finset.expect`).
 * `WindowFn.mean`, `WindowFn.rms`: the mean over large windows, and the root of the mean square.
 
 ## Main results
@@ -46,15 +48,32 @@ invariant under translations and satisfies the inequality of Cauchy and Schwarz.
 public section
 
 open Filter Topology Finset
+open scoped BigOperators
 
 namespace Cslib.Circuits.Arithmetic.Separation
 
 /-- Functions on two sheets of `ℤ²`, one for every window size `n`. -/
 abbrev WindowFn := ℕ → Bool → ℤ → ℤ → ℝ
 
-/-- The mean over the `n`-th window: two sheets, `0 ≤ i < n²`, `0 ≤ k < n`. -/
+/-- The `n`-th window: two sheets, `0 ≤ i < n²`, `0 ≤ k < n`. -/
+@[expose] def window (n : ℕ) : Finset (Bool × ℕ × ℕ) := univ ×ˢ range (n ^ 2) ×ˢ range n
+
+/-- The mean over the `n`-th window, as `Finset.expect`. -/
 @[expose] noncomputable def windowAvg (n : ℕ) (f : Bool → ℤ → ℤ → ℝ) : ℝ :=
-  (∑ b, ∑ i ∈ range (n ^ 2), ∑ k ∈ range n, f b i k) / (2 * n ^ 3)
+  𝔼 p ∈ window n, f p.1 p.2.1 p.2.2
+
+theorem mem_window {n : ℕ} {p : Bool × ℕ × ℕ} : p ∈ window n ↔ p.2.1 < n ^ 2 ∧ p.2.2 < n := by
+  simp [window]
+
+/-- The window mean as a normalized sum, for the telescoping arguments. -/
+theorem windowAvg_eq_sum (n : ℕ) (f : Bool → ℤ → ℤ → ℝ) :
+    windowAvg n f = (∑ b, ∑ i ∈ range (n ^ 2), ∑ k ∈ range n, f b i k) / (2 * n ^ 3) := by
+  rw [windowAvg, Finset.expect_eq_sum_div_card, window, Finset.sum_product, Finset.card_product,
+    Finset.card_product, Finset.card_univ, Fintype.card_bool, Finset.card_range,
+    Finset.card_range]
+  simp only [Finset.sum_product]
+  push_cast
+  ring
 
 namespace WindowFn
 
@@ -89,32 +108,33 @@ theorem Bounded.shift {f : WindowFn} (hf : Bounded f) (a c : ℤ) :
 end WindowFn
 
 theorem windowAvg_add (n : ℕ) (f g : Bool → ℤ → ℤ → ℝ) :
-    windowAvg n (f + g) = windowAvg n f + windowAvg n g := by
-  simp only [windowAvg, Pi.add_apply, Finset.sum_add_distrib, add_div]
+    windowAvg n (f + g) = windowAvg n f + windowAvg n g :=
+  Finset.expect_add_distrib _ _ _
 
 theorem windowAvg_smul (n : ℕ) (c : ℝ) (f : Bool → ℤ → ℤ → ℝ) :
-    windowAvg n (c • f) = c * windowAvg n f := by
-  simp only [windowAvg, Pi.smul_apply, smul_eq_mul, ← Finset.mul_sum, mul_div_assoc]
+    windowAvg n (c • f) = c * windowAvg n f :=
+  (Finset.mul_expect _ _ _).symm
 
 theorem windowAvg_mono {n : ℕ} {f g : Bool → ℤ → ℤ → ℝ}
     (h : ∀ b, ∀ i < n ^ 2, ∀ k < n, f b (i : ℕ) (k : ℕ) ≤ g b (i : ℕ) (k : ℕ)) :
-    windowAvg n f ≤ windowAvg n g := by
-  unfold windowAvg
-  gcongr with b _ i hi k hk
-  exact h b i (Finset.mem_range.1 hi) k (Finset.mem_range.1 hk)
+    windowAvg n f ≤ windowAvg n g :=
+  Finset.expect_le_expect fun _ hp => h _ _ (mem_window.1 hp).1 _ (mem_window.1 hp).2
 
-theorem windowAvg_const {n : ℕ} (hn : n ≠ 0) (c : ℝ) : windowAvg n (fun _ _ _ => c) = c := by
-  have : (n : ℝ) ≠ 0 := by exact_mod_cast hn
-  simp only [windowAvg, Finset.sum_const, Finset.card_univ, Fintype.card_bool, Finset.card_range,
-    nsmul_eq_mul]
-  push_cast
-  field_simp
+theorem windowAvg_const {n : ℕ} (hn : n ≠ 0) (c : ℝ) : windowAvg n (fun _ _ _ => c) = c :=
+  Finset.expect_const ⟨(true, 0, 0), mem_window.2 ⟨by positivity, Nat.pos_of_ne_zero hn⟩⟩ c
+
+/-- The inequality of Cauchy and Schwarz over one window. -/
+theorem windowAvg_mul_sq_le (n : ℕ) (f g : Bool → ℤ → ℤ → ℝ) :
+    windowAvg n (f * g) ^ 2 ≤ windowAvg n (f * f) * windowAvg n (g * g) := by
+  simpa only [windowAvg, Pi.mul_apply, ← sq] using
+    Finset.expect_mul_sq_le_sq_mul_sq (window n) (fun p => f p.1 p.2.1 p.2.2)
+      (fun p => g p.1 p.2.1 p.2.2)
 
 theorem abs_windowAvg_le {n : ℕ} {f : Bool → ℤ → ℤ → ℝ} {C : ℝ} (h : ∀ b i k, |f b i k| ≤ C) :
     |windowAvg n f| ≤ C := by
   have hC : 0 ≤ C := (abs_nonneg _).trans (h true 0 0)
   rcases eq_or_ne n 0 with rfl | hn
-  · simpa [windowAvg] using hC
+  · simpa [windowAvg_eq_sum] using hC
   rw [abs_le]
   constructor
   · calc -C = windowAvg n (fun _ _ _ => -C) := (windowAvg_const hn _).symm
@@ -174,7 +194,7 @@ theorem mean_nonneg {f : WindowFn} (hf : Bounded f) (h : ∀ n b i k, 0 ≤ f n 
 /-! ### Translations -/
 
 /-- `∑_{i < N} φ (i + 1) = ∑_{i < N} φ i + (φ N − φ 0)`. -/
-theorem sum_range_shift (φ : ℤ → ℝ) (N : ℕ) :
+private theorem sum_range_shift (φ : ℤ → ℝ) (N : ℕ) :
     ∑ i ∈ range N, φ ((i : ℤ) + 1) = ∑ i ∈ range N, φ (i : ℤ) + (φ N - φ 0) := by
   have h := Finset.sum_range_sub (fun i : ℕ => φ (i : ℤ)) N
   rw [Finset.sum_sub_distrib] at h
@@ -200,7 +220,7 @@ private theorem abs_boundary_le {n m : ℕ} (hn : n ≠ 0) (hm : (m : ℝ) ≤ 2
     _ ≤ 2 * n ^ 2 * (2 * C) := by gcongr
     _ = 2 * C * (1 / n) * (2 * n ^ 3) := by field_simp
 
-theorem mean_shift_one {f : WindowFn} (hf : Bounded f) :
+private theorem mean_shift_one {f : WindowFn} (hf : Bounded f) :
     mean (fun n b i k => f n b (i + 1) k) = mean f := by
   obtain ⟨C, hC⟩ := id hf
   have hC0 : 0 ≤ C := (abs_nonneg _).trans (hC 0 true 0 0)
@@ -208,7 +228,7 @@ theorem mean_shift_one {f : WindowFn} (hf : Bounded f) :
   filter_upwards [eventually_ne_atTop 0] with n hn
   have h1 : (windowAvg n fun b i k => f n b (i + 1) k) - windowAvg n (f n) =
       (∑ b, ∑ k ∈ range n, (f n b ((n ^ 2 : ℕ) : ℤ) k - f n b 0 k)) / (2 * n ^ 3) := by
-    rw [windowAvg, windowAvg, ← sub_div, ← Finset.sum_sub_distrib]
+    rw [windowAvg_eq_sum, windowAvg_eq_sum, ← sub_div, ← Finset.sum_sub_distrib]
     congr 1
     refine Finset.sum_congr rfl fun b _ => ?_
     rw [Finset.sum_comm, Finset.sum_comm (s := range (n ^ 2)), ← Finset.sum_sub_distrib]
@@ -227,7 +247,7 @@ theorem mean_shift_one {f : WindowFn} (hf : Bounded f) :
   push_cast
   ring
 
-theorem mean_shift_one' {f : WindowFn} (hf : Bounded f) :
+private theorem mean_shift_one' {f : WindowFn} (hf : Bounded f) :
     mean (fun n b i k => f n b i (k + 1)) = mean f := by
   obtain ⟨C, hC⟩ := id hf
   have hC0 : 0 ≤ C := (abs_nonneg _).trans (hC 0 true 0 0)
@@ -235,7 +255,7 @@ theorem mean_shift_one' {f : WindowFn} (hf : Bounded f) :
   filter_upwards [eventually_ne_atTop 0] with n hn
   have h1 : (windowAvg n fun b i k => f n b i (k + 1)) - windowAvg n (f n) =
       (∑ b, ∑ i ∈ range (n ^ 2), (f n b i (n : ℕ) - f n b i 0)) / (2 * n ^ 3) := by
-    rw [windowAvg, windowAvg, ← sub_div, ← Finset.sum_sub_distrib]
+    rw [windowAvg_eq_sum, windowAvg_eq_sum, ← sub_div, ← Finset.sum_sub_distrib]
     congr 1
     refine Finset.sum_congr rfl fun b _ => ?_
     rw [← Finset.sum_sub_distrib]
@@ -253,43 +273,32 @@ theorem mean_shift_one' {f : WindowFn} (hf : Bounded f) :
   push_cast
   ring
 
-theorem mean_shift_left {f : WindowFn} (hf : Bounded f) (a : ℤ) :
-    mean (fun n b i k => f n b (i + a) k) = mean f := by
+/-- From invariance under one step to invariance under every integer number of steps, for a
+family of translations `T a` with `T a ∘ T c = T (a + c)`. -/
+private theorem mean_shift_int (T : ℤ → WindowFn → WindowFn)
+    (hT : ∀ a c f, T a (T c f) = T (a + c) f) (h0 : ∀ f, T 0 f = f)
+    (hb : ∀ a f, Bounded f → Bounded (T a f)) (h1 : ∀ f, Bounded f → mean (T 1 f) = mean f)
+    {f : WindowFn} (hf : Bounded f) (a : ℤ) : mean (T a f) = mean f := by
   induction a using Int.induction_on with
-  | zero => simp
-  | succ a ih =>
-    rw [← ih, ← mean_shift_one (f := fun n b i k => f n b (i + a) k)
-      (by simpa using hf.shift a 0)]
-    congr 1
-    funext n b i k
-    congr 1
-    ring
+  | zero => rw [h0]
+  | succ a ih => rw [← ih, ← h1 _ (hb a f hf), hT, add_comm]
   | pred a ih =>
-    rw [← ih, ← mean_shift_one (f := fun n b i k => f n b (i + (-a - 1)) k)
-      (by simpa using hf.shift (-a - 1) 0)]
-    congr 1
-    funext n b i k
-    congr 1
-    ring
+    rw [← ih, ← h1 _ (hb _ f hf), hT]
+    ring_nf
+
+theorem mean_shift_left {f : WindowFn} (hf : Bounded f) (a : ℤ) :
+    mean (fun n b i k => f n b (i + a) k) = mean f :=
+  mean_shift_int (fun a f n b i k => f n b (i + a) k)
+    (fun a c f => by funext n b i k; simp only [add_assoc])
+    (fun f => by simp) (fun a f hf => by simpa using hf.shift a 0) (fun _ hf => mean_shift_one hf)
+    hf a
 
 theorem mean_shift_right {f : WindowFn} (hf : Bounded f) (a : ℤ) :
-    mean (fun n b i k => f n b i (k + a)) = mean f := by
-  induction a using Int.induction_on with
-  | zero => simp
-  | succ a ih =>
-    rw [← ih, ← mean_shift_one' (f := fun n b i k => f n b i (k + a))
-      (by simpa using hf.shift 0 a)]
-    congr 1
-    funext n b i k
-    congr 1
-    ring
-  | pred a ih =>
-    rw [← ih, ← mean_shift_one' (f := fun n b i k => f n b i (k + (-a - 1)))
-      (by simpa using hf.shift 0 (-a - 1))]
-    congr 1
-    funext n b i k
-    congr 1
-    ring
+    mean (fun n b i k => f n b i (k + a)) = mean f :=
+  mean_shift_int (fun a f n b i k => f n b i (k + a))
+    (fun a c f => by funext n b i k; simp only [add_assoc])
+    (fun f => by simp) (fun a f hf => by simpa using hf.shift 0 a) (fun _ hf => mean_shift_one' hf)
+    hf a
 
 /-- The mean is invariant under translations. -/
 theorem mean_shift {f : WindowFn} (hf : Bounded f) (a c : ℤ) :
@@ -312,7 +321,7 @@ theorem le_mean_tele {F : WindowFn}
   have hn' : (0 : ℝ) < n := by exact_mod_cast Nat.pos_of_ne_zero hn0
   have h1 : (windowAvg n fun b i k => (n : ℝ) ^ 2 * (F n b (i + 1) k - F n b i k)) =
       (∑ k ∈ range n, ∑ b, (F n b ((n ^ 2 : ℕ) : ℤ) k - F n b 0 k)) / (2 * n) := by
-    rw [windowAvg, Finset.sum_comm (s := range n)]
+    rw [windowAvg_eq_sum, Finset.sum_comm (s := range n)]
     have : ∀ b : Bool, ∑ i ∈ range (n ^ 2), ∑ k ∈ range n,
         (n : ℝ) ^ 2 * (F n b ((i : ℤ) + 1) k - F n b i k) =
         (n : ℝ) ^ 2 * ∑ k ∈ range n, (F n b ((n ^ 2 : ℕ) : ℤ) k - F n b 0 k) := by
@@ -361,24 +370,15 @@ theorem rms_nonneg (f : WindowFn) : 0 ≤ rms f := Real.sqrt_nonneg _
 theorem rms_sq {f : WindowFn} (hf : Bounded f) : rms f ^ 2 = mean (f * f) :=
   Real.sq_sqrt (mean_nonneg (hf.mul hf) fun _ _ _ _ => mul_self_nonneg _)
 
-/-- The inequality of Cauchy and Schwarz. -/
+/-- The inequality of Cauchy and Schwarz: `windowAvg_mul_sq_le` passes to the limit. -/
 theorem mean_mul_le {f g : WindowFn} (hf : Bounded f) (hg : Bounded g) :
     mean (f * g) ≤ rms f * rms g := by
-  suffices h : 2 * mean (f * g) ≤ 2 * rms g * rms f by linarith
-  apply CAT0.le_two_mul_of_forall (rms_nonneg g) (rms_nonneg f)
-  intro τ hτ
-  rw [rms_sq hf, rms_sq hg, div_eq_inv_mul]
-  have h1 : mean ((2 : ℝ) • (f * g)) ≤ mean (τ • (f * f) + τ⁻¹ • (g * g)) := by
-    refine mean_le ((hf.mul hg).smul 2) (((hf.mul hf).smul τ).add ((hg.mul hg).smul τ⁻¹))
-      fun n b i k => ?_
-    simp only [Pi.smul_apply, Pi.mul_apply, Pi.add_apply, smul_eq_mul]
-    have h2 : 0 ≤ τ⁻¹ * (τ * f n b i k - g n b i k) ^ 2 := by positivity
-    have h3 : τ⁻¹ * (τ * f n b i k - g n b i k) ^ 2 =
-        τ * (f n b i k * f n b i k) + τ⁻¹ * (g n b i k * g n b i k)
-          - 2 * (f n b i k * g n b i k) := by field_simp; ring
-    linarith
-  rwa [mean_smul (hf.mul hg), mean_add ((hf.mul hf).smul τ) ((hg.mul hg).smul τ⁻¹),
-    mean_smul (hf.mul hf), mean_smul (hg.mul hg)] at h1
+  have h : mean (f * g) ^ 2 ≤ mean (f * f) * mean (g * g) :=
+    le_of_tendsto_of_tendsto ((tendsto_mean (hf.mul hg)).pow 2)
+      ((tendsto_mean (hf.mul hf)).mul (tendsto_mean (hg.mul hg)))
+      (Eventually.of_forall fun n => windowAvg_mul_sq_le n (f n) (g n))
+  rw [rms, rms, ← Real.sqrt_mul (mean_nonneg (hf.mul hf) fun _ _ _ _ => mul_self_nonneg _)]
+  exact Real.le_sqrt_of_sq_le h
 
 theorem rms_mono {f g : WindowFn} (hf : Bounded f) (hg : Bounded g) (h0 : ∀ n b i k, 0 ≤ f n b i k)
     (h : ∀ᶠ n : ℕ in atTop, ∀ b, ∀ i < n ^ 2, ∀ k < n,

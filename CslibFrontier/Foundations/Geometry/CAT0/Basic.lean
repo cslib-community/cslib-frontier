@@ -8,27 +8,36 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import Mathlib.Analysis.InnerProductSpace.Basic
 public import Mathlib.Analysis.Normed.Lp.PiLp
 public import Mathlib.Topology.MetricSpace.Pseudo.Defs
+import Mathlib.Geometry.Euclidean.Triangle
 
 /-!
-# CAT(0) spaces: definitions
+# Complete CAT(0) spaces: definitions
 
-A complete metric space is *CAT(0)* when any two points `x`, `v` have a midpoint `m` that
-satisfies the inequality of Bruhat and Tits,
-`|zm|² ≤ ½|zx|² + ½|zv|² − ¼|xv|²` for every `z` [BridsonHaefliger1999, II.1.9]. This file states
-the definition through the inequality that characterizes the point at fraction `t` on a geodesic,
+`Cslib.CompleteCAT0Space X` is the convention of the source formalization (`Nc.Cat.Core`): `X` is
+complete, and any two points `x`, `v` have a midpoint `m` with the inequality of Bruhat and Tits
+`|zm|² ≤ ½|zx|² + ½|zv|² − ¼|xv|²` for every `z` (the *CN inequality*). For geodesic spaces the CN
+inequality is equivalent to the CAT(0) condition on comparison triangles
+[BridsonHaefliger1999, II.1.9(1)(c), p. 163]; that equivalence is not formalized here, and the
+class is used only through the CN inequality. Complete real inner product spaces are instances
+(`Cslib.CompleteCAT0Space.ofInnerProductSpace`).
+
+This file states the midpoint condition through the inequality that characterizes the point at
+fraction `t` on a geodesic,
 `|zb|² ≤ (1 − t)|zx|² + t|zv|² − t(1 − t)|xv|²` (`Cslib.CAT0.IsPointAt`), and the variance
 inequality of barycenters (`Cslib.CAT0.IsBarycenter`). Both predicates make sense in every metric
 space; the facts that need the CAT(0) inequality are in `Cslib.CAT0.Toolkit`.
 
-The material comes from the formalization of *VP ≠ VNP over every field* (Anthropic,
-`anthropics/formal-math`, commit `11b6c7e3c9`), modules `Nc.Cat.Core` and `Nc.Cat.Prod`.
+The material comes from the formalization of *VP ≠ VNP over every field* [AnthropicVPVNP2026],
+modules `Nc.Cat.Core` and `Nc.Cat.Prod`.
 
 ## Main definitions
 
 * `Cslib.CAT0.IsPointAt x v t b`: `b` satisfies the inequality of the point at fraction `t`.
-* `Cslib.CAT0Space X`: `X` is complete and any two points have a midpoint (`t = 1/2`).
+* `Cslib.CompleteCAT0Space X`: `X` is complete and any two points have a midpoint with the CN
+  inequality (`t = 1/2`).
 * `Cslib.CAT0.mid x v`: a chosen midpoint.
 * `Cslib.CAT0.IsBarycenter w x b`: `b` satisfies the variance inequality of the weighted points.
 
@@ -38,11 +47,13 @@ The material comes from the formalization of *VP ≠ VNP over every field* (Anth
   has distances `t|xv|` and `(1 − t)|xv|`; `Cslib.CAT0.IsPointAt.eq_of_dist`: it is the only
   point with these distances.
 * `Cslib.CAT0.IsBarycenter.unique`: a barycenter of positive total weight is unique.
-* `Cslib.CAT0.le_two_mul_of_forall`: `S ≤ 2ab` from `S ≤ τb² + a²/τ` for every `τ > 0`.
+* `Cslib.completeCAT0Space_iff`: the class unfolded into completeness, the midpoint distances and
+  the CN inequality.
 
 ## References
 
 * [M. R. Bridson and A. Haefliger, *Metric Spaces of Non-Positive Curvature*][BridsonHaefliger1999]
+* [Anthropic, *VP ≠ VNP over every field*, Lean formalization][AnthropicVPVNP2026]
 -/
 
 public section
@@ -91,9 +102,12 @@ theorem IsPointAt.eq_of_dist {x v b b' : X} {t : ℝ} (h : IsPointAt x v t b)
 end CAT0
 
 open CAT0 in
-/-- A *CAT(0) space*: a complete metric space in which any two points have a midpoint with the
-inequality of Bruhat and Tits, `|zm|² ≤ ½|zx|² + ½|zv|² − ¼|xv|²`. -/
-class CAT0Space (X : Type*) [MetricSpace X] : Prop extends CompleteSpace X where
+/-- A *complete CAT(0) space* in the convention of the source formalization (`Nc.Cat.Core`): a
+complete metric space in which any two points have a midpoint with the CN inequality of Bruhat
+and Tits, `|zm|² ≤ ½|zx|² + ½|zv|² − ¼|xv|²`. For geodesic spaces this is equivalent to the
+comparison-triangle definition [BridsonHaefliger1999, II.1.9(1)(c)], which is not formalized
+here. -/
+class CompleteCAT0Space (X : Type*) [MetricSpace X] : Prop extends CompleteSpace X where
   exists_mid : ∀ x v : X, ∃ m : X, IsPointAt x v (1 / 2) m
 
 namespace CAT0
@@ -102,13 +116,13 @@ variable {X : Type*} [MetricSpace X]
 
 section mid
 
-variable [CAT0Space X]
+variable [CompleteCAT0Space X]
 
 /-- A chosen midpoint of `x` and `v`. -/
-noncomputable def mid (x v : X) : X := Classical.choose (CAT0Space.exists_mid x v)
+noncomputable def mid (x v : X) : X := Classical.choose (CompleteCAT0Space.exists_mid x v)
 
 theorem isPointAt_mid (x v : X) : IsPointAt x v (1 / 2) (mid x v) :=
-  Classical.choose_spec (CAT0Space.exists_mid x v)
+  Classical.choose_spec (CompleteCAT0Space.exists_mid x v)
 
 /-- The inequality of Bruhat and Tits. -/
 theorem dist_mid_sq_le (x v z : X) :
@@ -125,9 +139,10 @@ theorem dist_mid_right (x v : X) : dist (mid x v) v = dist x v / 2 := by
 
 end mid
 
-/-- The definition in the form of [BridsonHaefliger1999, II.1.9]: `X` is complete, and any two
-points have a midpoint with the inequality of Bruhat and Tits. -/
-theorem _root_.Cslib.cat0Space_iff : CAT0Space X ↔ CompleteSpace X ∧ ∀ x v : X, ∃ m,
+/-- The class unfolded: `X` is complete, and any two points have a point at distance half their
+distance from both with the CN inequality. This restates the bundled axiom only; it is not the
+comparison-triangle definition. -/
+theorem _root_.Cslib.completeCAT0Space_iff : CompleteCAT0Space X ↔ CompleteSpace X ∧ ∀ x v : X, ∃ m,
     dist x m = dist x v / 2 ∧ dist m v = dist x v / 2 ∧
       ∀ z, dist z m ^ 2 ≤ dist z x ^ 2 / 2 + dist z v ^ 2 / 2 - (dist x v / 2) ^ 2 := by
   constructor
@@ -175,34 +190,15 @@ theorem IsBarycenter.comp_equiv {κ : Type*} [Fintype κ] {w : ι → ℝ} {x : 
 
 end bary
 
-/-- `S ≤ 2ab` for `a, b ≥ 0` when `S ≤ τb² + a²/τ` for every `τ > 0`: the inequality of the
-arithmetic and geometric means, used to choose the parameter `τ`. -/
-theorem le_two_mul_of_forall {S a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b)
-    (h : ∀ τ : ℝ, 0 < τ → S ≤ τ * b ^ 2 + a ^ 2 / τ) : S ≤ 2 * a * b := by
-  rcases ha.eq_or_lt with rfl | ha
-  · -- `S ≤ τb²` for every `τ > 0`
-    refine le_of_forall_pos_lt_add fun ε hε => ?_
-    have h1 := h (ε / (b ^ 2 + 1)) (by positivity)
-    have h2 : ε / (b ^ 2 + 1) * b ^ 2 < ε := by
-      rw [div_mul_eq_mul_div, div_lt_iff₀ (by positivity)]
-      linarith
-    simp only [ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, zero_div, add_zero] at h1
-    linarith
-  rcases hb.eq_or_lt with rfl | hb
-  · -- `S ≤ a²/τ` for every `τ > 0`
-    refine le_of_forall_pos_lt_add fun ε hε => ?_
-    have h1 := h ((a ^ 2 + 1) / ε) (by positivity)
-    have h2 : a ^ 2 / ((a ^ 2 + 1) / ε) < ε := by
-      rw [div_div_eq_mul_div, div_lt_iff₀ (by positivity)]
-      linarith
-    simp only [ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, mul_zero, zero_add]
-      at h1
-    linarith
-  · have h1 := h (a / b) (by positivity)
-    have h2 : a / b * b ^ 2 + a ^ 2 / (a / b) = 2 * a * b := by
-      field_simp
-      ring
-    linarith
+/-! ### Instances -/
+
+/-- A complete real inner product space is a complete CAT(0) space: the affine midpoint satisfies
+the CN inequality with equality, by Apollonius's identity. -/
+instance _root_.Cslib.CompleteCAT0Space.ofInnerProductSpace {E : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℝ E] [CompleteSpace E] : CompleteCAT0Space E where
+  exists_mid x v := ⟨midpoint ℝ x v, fun z => by
+    have := EuclideanGeometry.dist_sq_add_dist_sq_eq_two_mul_dist_midpoint_sq_add_half_dist_sq z x v
+    linarith⟩
 
 /-! ### Finite `ℓ²` products -/
 
@@ -217,8 +213,8 @@ theorem _root_.PiLp.dist_sq_eq_sum {ι : Type*} [Fintype ι] {X : ι → Type*}
 
 /-- A finite `ℓ²` product of CAT(0) spaces is CAT(0): the inequality of Bruhat and Tits adds up
 over the coordinates. -/
-instance _root_.Cslib.CAT0Space.piLp {ι : Type*} [Fintype ι] {X : ι → Type*}
-    [∀ i, MetricSpace (X i)] [∀ i, CAT0Space (X i)] : CAT0Space (PiLp 2 X) where
+instance _root_.Cslib.CompleteCAT0Space.piLp {ι : Type*} [Fintype ι] {X : ι → Type*}
+    [∀ i, MetricSpace (X i)] [∀ i, CompleteCAT0Space (X i)] : CompleteCAT0Space (PiLp 2 X) where
   exists_mid x v := by
     refine ⟨WithLp.toLp 2 fun i => mid (x i) (v i), fun z => ?_⟩
     rw [PiLp.dist_sq_eq_sum, PiLp.dist_sq_eq_sum, PiLp.dist_sq_eq_sum,

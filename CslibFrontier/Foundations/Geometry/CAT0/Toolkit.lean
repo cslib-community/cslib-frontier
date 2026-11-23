@@ -15,8 +15,8 @@ import Mathlib.Topology.MetricSpace.Cauchy
 # CAT(0) spaces: points on geodesics, barycenters, projections and flat rectangles
 
 The elementary facts about a CAT(0) space `Y` that follow from the inequality of Bruhat and Tits
-alone [BridsonHaefliger1999, II.2], in the form of Lemma "toolkit" of *VP ≠ VNP over every field*
-(Anthropic, `anthropics/formal-math`, commit `11b6c7e3c9`, module `Paper.Toolkit`).
+alone, in the form of Lemma "toolkit" of *VP ≠ VNP over every field* [AnthropicVPVNP2026]
+(module `Paper.Toolkit`); for the CN inequality see [BridsonHaefliger1999, II.1.9(1)(c)].
 
 All existence statements come from one minimization principle
 (`Cslib.CAT0.exists_add_mul_dist_sq_le`): a continuous nonnegative function that is uniformly
@@ -35,7 +35,7 @@ quadratic growth away from it.
   have barycenters, and barycenters depend `1`-Lipschitz on the points (part (c));
   `Cslib.CAT0.isBarycenter_one_iff` identifies the barycenter with the minimizer of `∑ |yxᵢ|²`.
 * `Cslib.CAT0.exists_proj`: nearest points on nonempty closed convex sets (part (d)).
-* `Cslib.CAT0Space.piLp` (in `Basic`): finite `ℓ²` products (part (e)).
+* `Cslib.CompleteCAT0Space.piLp` (in `Basic`): finite `ℓ²` products (part (e)).
 * `Cslib.CAT0.dist_sq_of_flat`: distances in flat rectangles (part (f)).
 
 ## References
@@ -49,7 +49,7 @@ open Filter Topology
 
 namespace Cslib.CAT0
 
-variable {Y : Type*} [MetricSpace Y] [CAT0Space Y]
+variable {Y : Type*} [MetricSpace Y] [CompleteCAT0Space Y]
 
 /-- The minimization principle. Let `C` be nonempty, closed and closed under midpoints, and let
 `Θ ≥ 0` be continuous with `Θ(m) ≤ ½Θ(x) + ½Θ(v) − (c/4)|xv|²` for the midpoint `m` of
@@ -136,7 +136,7 @@ theorem exists_isBarycenter {ι : Type*} [Fintype ι] [Nonempty Y] (w : ι → �
 
 /-! ### Points on geodesics (part (a)) -/
 
-omit [CAT0Space Y] in
+omit [CompleteCAT0Space Y] in
 /-- `t(1 − t)|xv|² ≤ (1 − t)|qx|² + t|qv|²` for every `q` and `t ∈ [0, 1]`: the triangle
 inequality, squared and weighted. -/
 private theorem mul_one_sub_mul_dist_sq_le (x v q : Y) {t : ℝ} (h0 : 0 ≤ t) (h1 : t ≤ 1) :
@@ -175,6 +175,35 @@ theorem isPointAt_of_dist {x v c : Y} {t : ℝ} (h0 : 0 ≤ t) (h1 : t ≤ 1)
   rwa [hb.eq_of_dist e1 e2]
 
 /-! ### The quadrilateral inequality (part (b)) -/
+
+/-- `S ≤ 2ab` for `a, b ≥ 0` when `S ≤ τb² + a²/τ` for every `τ > 0`: the inequality of the
+arithmetic and geometric means, used to choose the parameter `τ`. -/
+private theorem le_two_mul_of_forall {S a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b)
+    (h : ∀ τ : ℝ, 0 < τ → S ≤ τ * b ^ 2 + a ^ 2 / τ) : S ≤ 2 * a * b := by
+  rcases ha.eq_or_lt with rfl | ha
+  · -- `S ≤ τb²` for every `τ > 0`
+    refine le_of_forall_pos_lt_add fun ε hε => ?_
+    have h1 := h (ε / (b ^ 2 + 1)) (by positivity)
+    have h2 : ε / (b ^ 2 + 1) * b ^ 2 < ε := by
+      rw [div_mul_eq_mul_div, div_lt_iff₀ (by positivity)]
+      linarith
+    simp only [ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, zero_div, add_zero] at h1
+    linarith
+  rcases hb.eq_or_lt with rfl | hb
+  · -- `S ≤ a²/τ` for every `τ > 0`
+    refine le_of_forall_pos_lt_add fun ε hε => ?_
+    have h1 := h ((a ^ 2 + 1) / ε) (by positivity)
+    have h2 : a ^ 2 / ((a ^ 2 + 1) / ε) < ε := by
+      rw [div_div_eq_mul_div, div_lt_iff₀ (by positivity)]
+      linarith
+    simp only [ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, mul_zero, zero_add]
+      at h1
+    linarith
+  · have h1 := h (a / b) (by positivity)
+    have h2 : a / b * b ^ 2 + a ^ 2 / (a / b) = 2 * a * b := by
+      field_simp
+      ring
+    linarith
 
 /-- The first step of part (b): for the point `q` at `s` on `[p, p']`, insert the inequality of
 part (a) twice into `t(1 − t)|xv|² ≤ (1 − t)|xq|² + t|qv|²`. -/
