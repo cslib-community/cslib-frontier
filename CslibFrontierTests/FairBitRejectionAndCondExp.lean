@@ -238,26 +238,33 @@ def ternaryChoiceGreedy : PolyTimeChoiceGreedyInput ℕ ℕ ℕ (ℕ × ℕ) ℕ
 
 theorem ternaryChoiceGreedy_polyTime_and_run :
     ternaryChoiceGreedy.run 0 = (0, 0) ∧
-      ComputableInPolyTime ternaryChoiceGreedy.run encNat (encPair encNat encNat) := by
+      (ComputableInPolyTime ternaryChoiceGreedy.run encNat (encPair encNat encNat) ∧
+        ∀ x, ternaryChoiceGreedy.estimate x (ternaryChoiceGreedy.run x) ≤
+          ternaryChoiceGreedy.estimate x (ternaryChoiceGreedy.init x)) := by
   refine ⟨by decide, ?_⟩
-  refine ternaryChoiceGreedy.computableInPolyTime_run_nat
-    (encR := encNat) (encLR := encList encNat) (encA := encNat) (encLA := encList encNat)
-    (const [0, 1]) (const [2, 1, 0]) (const (2, 2)) ?_ ?_
-    (growth := fun _ => 6) (PolyBounded.const 6) fun _ s r a _ ha => ?_
-  · unfold PolyTimeChoiceGreedyInput.encChoiceInput ternaryChoiceGreedy
-    fun_prop
-  · unfold ternaryChoiceGreedy
-    fun_prop
-  · have halen : (encNat a).length ≤ 2 := by
-      rcases List.mem_cons.mp ha with rfl | ha1
-      · decide
-      · rcases List.mem_cons.mp ha1 with rfl | ha0
+  obtain ⟨hpt, hmin⟩ := ternaryChoiceGreedy.run_polyTime_spec
+    (encI := encNat) (encR := encNat) (encLR := encList encNat)
+    (encA := encNat) (encLA := encList encNat) (encS := encPair encNat encNat)
+    (const [0, 1]) (const [2, 1, 0]) (const (2, 2))
+    (by unfold PolyTimeChoiceGreedyInput.encChoiceInput ternaryChoiceGreedy; fun_prop)
+    (by unfold ternaryChoiceGreedy; fun_prop)
+    (binary_le' (fst encNat encNat) (snd encNat encNat))
+    (growth := fun _ => 6) (PolyBounded.const 6)
+    (fun _ s r a _ ha => by
+      have halen : (encNat a).length ≤ 2 := by
+        rcases List.mem_cons.mp ha with rfl | ha1
         · decide
-        · rcases List.mem_cons.mp ha0 with rfl | hnil
+        · rcases List.mem_cons.mp ha1 with rfl | ha0
           · decide
-          · cases hnil
-    dsimp only [ternaryChoiceGreedy]
-    split_ifs <;> simp only [length_encPair] <;> omega
+          · rcases List.mem_cons.mp ha0 with rfl | hnil
+            · decide
+            · cases hnil
+      dsimp only [ternaryChoiceGreedy]
+      split_ifs <;> simp only [length_encPair] <;> omega)
+    (fun _ _ _ => True) (fun _ => trivial) (fun _ _ _ _ _ _ _ => trivial)
+    (fun _ _ _ _ _ => ⟨0, by simp [ternaryChoiceGreedy], by
+      dsimp only [ternaryChoiceGreedy]; split_ifs <;> omega⟩)
+  exact ⟨hpt, fun x => (hmin x).2⟩
 
 /-! ## 4. Weighted `MaxCut` downstream clients: Turing `PolyTime` and `WordRAM` -/
 
@@ -303,10 +310,11 @@ theorem testMultigraph_universal_and_polyTime (σ : ℕ → Bool) :
   (Cslib.WordRAM.State.init (Cslib.Algorithms.WordRAM.MaxCut.encode 3 testMultigraph))).map
   Prod.fst = some 11
 
-/-- Ordinary-import specification checks for `maxCutProgram_spec` on both the empty multigraph
-(`n = 0`, `edges = []`) and `testMultigraph` (`n = 3`, `m = 5`, `wordBound = 45`,
-`maxCutTime 3 5 + 1 = 358` instructions). -/
+/-- Ordinary-import specification checks for `inputFits_encode` and `maxCutProgram_spec` on both
+the empty multigraph (`n = 0`, `edges = []`) and `testMultigraph` (`n = 3`, `m = 5`,
+`wordBound = 45`, `maxCutTime 3 5 + 1 = 358` instructions). -/
 theorem testMultigraph_wordRAM_spec :
+    Cslib.WordRAM.InputFits 6 (Cslib.Algorithms.WordRAM.MaxCut.encode 3 testMultigraph) ∧
     (∃ (side : ℕ → Bool) (steps : ℕ),
       steps ≤ Cslib.Algorithms.WordRAM.MaxCut.maxCutTime 0 0 + 1 ∧
       Cslib.WordRAM.Executes 4 Cslib.Algorithms.WordRAM.MaxCut.maxCutProgram
@@ -325,7 +333,7 @@ theorem testMultigraph_wordRAM_spec :
   have hends : ∀ e ∈ testMultigraph, e.u < 3 ∧ e.v < 3 := by decide
   have hw : Cslib.WordRAM.Fits 6 (Cslib.Algorithms.WordRAM.MaxCut.wordBound 3 testMultigraph) := by
     decide
-  exact ⟨⟨s0, st0, hst0, hex0⟩,
+  exact ⟨Cslib.Algorithms.WordRAM.MaxCut.inputFits_encode hends hw, ⟨s0, st0, hst0, hex0⟩,
     Cslib.Algorithms.WordRAM.MaxCut.maxCutProgram_spec testMultigraph hends hw⟩
 
 end Cslib.Tests.FairBitRejectionAndCondExp

@@ -10,14 +10,15 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.MaxCut.Derandomized
 public import CslibFrontier.Computability.WordRAM.Compile
+public import CslibFrontier.Computability.WordRAM.Function
 public import CslibFrontier.Computability.WordRAM.ListArray
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.ListOutput
-import CslibFrontier.Computability.WordRAM.MemoryView
 import CslibFrontier.Computability.WordRAM.Notation
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
 import CslibFrontier.Foundations.Data.List.RowMajor
+import Mathlib.Algebra.Order.BigOperators.Group.List
 
 /-!
 # Deterministic `1/2`-approximation for weighted `MaxCut` on the word RAM
@@ -60,8 +61,7 @@ certified deterministic `1 / 2`-approximation against every cut `τ : ℕ → Bo
 * `Cslib.Algorithms.WordRAM.MaxCut.encodeEdges`, `encode`: flat word-list encoding of `(n, edges)`.
 * `Cslib.Algorithms.WordRAM.MaxCut.wordBound`: sufficient word-size bound
   `3 + 3 * edges.length + n + totalWeight edges`.
-* `Cslib.Algorithms.WordRAM.MaxCut.EdgesAt`, `Cslib.Algorithms.WordRAM.MaxCut.sideAt`: edge-slice
-  predicate and cut indicator `ℕ → Bool` read from memory.
+* `Cslib.Algorithms.WordRAM.MaxCut.sideAt`: cut indicator `ℕ → Bool` read from memory.
 * `Cslib.Algorithms.WordRAM.MaxCut.Reg.cutWt`: output register holding the achieved cut weight.
 * `Cslib.Algorithms.WordRAM.MaxCut.maxCutCode`, `maxCutProgram`: structured and compiled word-RAM
   `1 / 2`-approximation algorithm for weighted `MaxCut`.
@@ -69,7 +69,8 @@ certified deterministic `1 / 2`-approximation against every cut `τ : ℕ → Bo
 
 ## Main results
 
-* `Cslib.Algorithms.WordRAM.MaxCut.edgesAt_of_holdsList`: `Block.HoldsList` bridge for `EdgesAt`.
+* `Cslib.Algorithms.WordRAM.MaxCut.inputFits_encode`: `InputFits` certificate for `encode n edges`
+  whenever all endpoints lie below `n` and `Fits w (wordBound n edges)`.
 * `Cslib.Algorithms.WordRAM.MaxCut.maxCutCode_spec`: structured execution within
   `maxCutTime n edges.length` instructions computing `side` and `cutWeight edges side` with
   `nonLoopWeight edges ≤ 2 * cutWeight edges side` and
@@ -144,16 +145,30 @@ private theorem weight_le_totalWeight {edges : List WeightedEdge} {e : WeightedE
     (he : e ∈ edges) : e.weight ≤ totalWeight edges :=
   List.le_sum_of_mem (List.mem_map_of_mem he)
 
-/-- Memory slice `[base, base + 3 * edges.length)` holds the triples of `edges`. -/
-@[expose]
-def EdgesAt (mem : ℕ → ℕ) (base : ℕ) (edges : List WeightedEdge) : Prop :=
+/-- Every word of `encode n edges` and `(encode n edges).length` fit in width `w` whenever all
+endpoints lie below `n` and `Fits w (wordBound n edges)`. -/
+theorem inputFits_encode {w n : ℕ} {edges : List WeightedEdge}
+    (hends : ∀ e ∈ edges, e.u < n ∧ e.v < n)
+    (hw : Fits w (wordBound n edges)) :
+    InputFits w (encode n edges) := by
+  refine ⟨hw.of_le (by rw [length_encode]; unfold wordBound; omega), fun v hv => ?_⟩
+  rcases List.mem_cons.mp hv with rfl | hv1
+  · exact hw.of_le (by unfold wordBound; omega)
+  · rcases List.mem_cons.mp hv1 with rfl | hmem
+    · exact hw.of_le (by unfold wordBound; omega)
+    · obtain ⟨e, he, hve⟩ := List.mem_flatMap.mp hmem
+      have ⟨hu, hv_lt⟩ := hends e he
+      have hwt := weight_le_totalWeight he
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hve
+      rcases hve with rfl | rfl | rfl <;> exact hw.of_le (by unfold wordBound; omega)
+
+private def EdgesAt (mem : ℕ → ℕ) (base : ℕ) (edges : List WeightedEdge) : Prop :=
   ∀ (i : ℕ) (hi : i < edges.length),
     mem (base + 3 * i) = edges[i].u ∧
       mem (base + 3 * i + 1) = edges[i].v ∧
       mem (base + 3 * i + 2) = edges[i].weight
 
-/-- A `Block.HoldsList` view of `encodeEdges edges` gives `EdgesAt`. -/
-theorem edgesAt_of_holdsList {mem : ℕ → ℕ} {base : ℕ} {edges : List WeightedEdge}
+private theorem edgesAt_of_holdsList {mem : ℕ → ℕ} {base : ℕ} {edges : List WeightedEdge}
     (h : HoldsList base (encodeEdges edges) mem) : EdgesAt mem base edges := fun i hi => by
   obtain ⟨hu, hv, hw⟩ := getElem_encodeEdges edges i hi
   have h0 := h.get (3 * i) (by rw [length_encodeEdges]; omega)
@@ -196,25 +211,11 @@ private theorem edgeGain_le_weight (side : ℕ → Bool) (z : ℕ) (b : Bool) (e
   dsimp only [edgeGain]
   split_ifs <;> omega
 
-private theorem listGain_le_totalWeight (side : ℕ → Bool) (z : ℕ) (b : Bool) :
-    ∀ edges : List WeightedEdge, listGain side z b edges ≤ totalWeight edges
-  | [] => le_rfl
-  | e :: es => by
-    have he := edgeGain_le_weight side z b e
-    have ih := listGain_le_totalWeight side z b es
-    simp only [listGain, totalWeight, List.map_cons, List.sum_cons] at ih ⊢
-    omega
-
 private theorem listGain_take_le_totalWeight (side : ℕ → Bool) (z : ℕ) (b : Bool)
     (edges : List WeightedEdge) (i : ℕ) :
-    listGain side z b (edges.take i) ≤ totalWeight edges := by
-  have h1 := listGain_le_totalWeight side z b (edges.take i)
-  have h2 : totalWeight (edges.take i) ≤ totalWeight edges := by
-    have hsplit : edges = edges.take i ++ edges.drop i := (List.take_append_drop i edges).symm
-    conv_rhs => rw [hsplit]
-    simp only [totalWeight, List.map_append, List.sum_append]
-    omega
-  exact h1.trans h2
+    listGain side z b (edges.take i) ≤ totalWeight edges :=
+  (List.sum_le_sum fun e _ => edgeGain_le_weight side z b e).trans
+    (((List.take_sublist i edges).map WeightedEdge.weight).sum_le_sum fun _ _ => Nat.zero_le _)
 
 private theorem nonLoopWeight_cons (e : WeightedEdge) (es : List WeightedEdge) :
     nonLoopWeight (e :: es) = (if e.u = e.v then 0 else e.weight) + nonLoopWeight es := by
@@ -273,16 +274,8 @@ private theorem nonLoop_belowVertex_succ (side : ℕ → Bool) (z : ℕ) (edges 
       · have hyes : otherEndpoint z e < z := by unfold otherEndpoint; split_ifs <;> omega
         cases hs : side (otherEndpoint z e) <;> simp [edgeGain, huv, hyes, hs])
     (fun e hlt1 => by unfold edgeGain otherEndpoint; split_ifs <;> omega) edges
-  have hsum : ∀ l : List WeightedEdge,
-      (l.map fun e => edgeGain side z false e + edgeGain side z true e).sum =
-        listGain side z false l + listGain side z true l := by
-    intro l
-    induction l with
-    | nil => rfl
-    | cons e es ih =>
-      simp only [listGain, List.map_cons, List.sum_cons] at ih ⊢
-      omega
-  rw [hsum edges] at h
+  rw [List.sum_map_add] at h
+  dsimp only [listGain]
   omega
 
 private theorem cutWeight_belowVertex_succ {side side' : ℕ → Bool} {z : ℕ} {b : Bool}
@@ -315,18 +308,11 @@ private theorem cutWeight_belowVertex_succ {side side' : ℕ → Bool} {z : ℕ}
 private theorem cutWeight_belowVertex_le_totalWeight (z : ℕ) (side : ℕ → Bool)
     (edges : List WeightedEdge) :
     cutWeight (edges.filter (belowVertex z)) side ≤ totalWeight edges := by
-  have h2 : nonLoopWeight (edges.filter (belowVertex z)) ≤ totalWeight edges := by
-    induction edges with
-    | nil => exact le_rfl
-    | cons e es ih =>
-      have ht : totalWeight (e :: es) = e.weight + totalWeight es := rfl
-      rw [ht]
-      by_cases hb : belowVertex z e = true
-      · rw [List.filter_cons_of_pos hb, nonLoopWeight_cons]
-        split_ifs <;> omega
-      · rw [List.filter_cons_of_neg hb]
-        omega
-  exact (cutWeight_le_nonLoopWeight (edges.filter (belowVertex z)) side).trans h2
+  have hnl : nonLoopWeight (edges.filter (belowVertex z)) ≤ nonLoopWeight edges :=
+    ((((edges.filter_sublist (p := belowVertex z)).filter _).map
+      WeightedEdge.weight).sum_le_sum fun _ _ => Nat.zero_le _)
+  have htot := Cslib.Algorithms.Lean.MaxCut.totalWeight_eq_loopWeight_add_nonLoopWeight edges
+  exact (cutWeight_le_nonLoopWeight (edges.filter (belowVertex z)) side).trans (by omega)
 
 /-! ### Registers and word-RAM program -/
 

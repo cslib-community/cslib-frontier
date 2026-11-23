@@ -69,6 +69,10 @@ per-round candidate lists `choices : I → R → List A` (such as finite-product
 * `Cslib.Computability.PolyTimeChoiceGreedyInput.computableInPolyTime_run`,
   `Cslib.Computability.PolyTimeChoiceGreedyInput.computableInPolyTime_run_nat`: plain
   polynomial-time transfer for multi-choice candidate scanning.
+* `Cslib.Computability.PolyTimeChoiceGreedyInput.run_spec`,
+  `Cslib.Computability.PolyTimeChoiceGreedyInput.run_polyTime_spec`: minimizing invariant and
+  objective guarantee (`G.estimate x (G.run x) ≤ G.estimate x (G.init x)`), pure and paired with
+  `ComputableInPolyTime`.
 -/
 
 public section
@@ -281,7 +285,10 @@ structure PolyTimeChoiceGreedyInput (I R A S M : Type) [LE M] [DecidableRel (α 
 
 namespace PolyTimeChoiceGreedyInput
 
-/-- Tuple encoding `(((I × S) × R) × A)` for candidate branch transitions. -/
+/-- Left-associated pair encoding `(((I × S) × R) × A)` for candidate branch transitions: encodes
+`(((input, state), round), choice)` as
+`frame (frame (frame (encI input) ++ encS state) ++ encR round) ++ encA choice`, framing each
+nested left component with `Turing.MultiTapeTM.frame` followed by the unframed `encA choice`. -/
 abbrev encChoiceInput {I R A S : Type}
     (encI : I ↪ List Bool) (encS : S ↪ List Bool) (encR : R ↪ List Bool) (encA : A ↪ List Bool) :
     (((I × S) × R) × A) ↪ List Bool :=
@@ -493,6 +500,126 @@ theorem computableInPolyTime_run_nat
     (binary_le' (fst encNat encNat) (snd encNat encNat)) hpoly hgrowth
 
 end NatSpecialization
+
+section CombinedSpec
+
+variable {I R A S M : Type} [LinearOrder M] (G : PolyTimeChoiceGreedyInput I R A S M)
+
+private theorem scanStep_foldl_spec (x : I) (s : S) (r : R) (all : List A) :
+    ∀ (cs : List A) (a₀ : A) (m₀ : M),
+      a₀ ∈ all →
+      m₀ = G.estimate x (G.branch x r a₀ s) →
+      (∀ a ∈ cs, a ∈ all) →
+      ∃ b ∈ all,
+        cs.foldl (G.scanStep x s r) (some (a₀, m₀)) =
+          some (b, G.estimate x (G.branch x r b s)) ∧
+        G.estimate x (G.branch x r b s) ≤ m₀ ∧
+        ∀ a ∈ cs, G.estimate x (G.branch x r b s) ≤ G.estimate x (G.branch x r a s)
+  | [], a₀, m₀, ha₀, hm₀, _ =>
+    ⟨a₀, ha₀, congrArg (fun m => some (a₀, m)) hm₀, hm₀.symm.le, by simp⟩
+  | c :: cs, a₀, m₀, ha₀, hm₀, hsub => by
+    have hc : c ∈ all := hsub c List.mem_cons_self
+    have hsub' : ∀ a ∈ cs, a ∈ all := fun a ha => hsub a (List.mem_cons_of_mem c ha)
+    dsimp only [List.foldl_cons, scanStep, Option.elim]
+    let val := G.estimate x (G.branch x r c s)
+    split_ifs with hle
+    · obtain ⟨b, hb, hout, hle_c, hforall⟩ := scanStep_foldl_spec x s r all cs c val hc rfl hsub'
+      refine ⟨b, hb, hout, hle_c.trans hle, fun a ha => ?_⟩
+      rcases List.mem_cons.mp ha with rfl | ha'
+      · exact hle_c
+      · exact hforall a ha'
+    · have hm₀_le : m₀ ≤ val := le_of_not_ge hle
+      obtain ⟨b, hb, hout, hle_0, hforall⟩ := scanStep_foldl_spec x s r all cs a₀ m₀ ha₀ hm₀ hsub'
+      refine ⟨b, hb, hout, hle_0, fun a ha => ?_⟩
+      rcases List.mem_cons.mp ha with rfl | ha'
+      · exact hle_0.trans hm₀_le
+      · exact hforall a ha'
+
+private theorem foldl_stepRound_spec
+    (Inv : I → List R → S → Prop)
+    (hinv_branch : ∀ x r rs s a,
+      Inv x (r :: rs) s → a ∈ G.choices x r → Inv x rs (G.branch x r a s))
+    (hmin : ∀ x r rs s, Inv x (r :: rs) s →
+      ∃ a ∈ G.choices x r, G.estimate x (G.branch x r a s) ≤ G.estimate x s)
+    (x : I) :
+    ∀ (rs : List R) (s : S), Inv x rs s →
+      Inv x [] (rs.foldl (G.stepRound x) s) ∧
+        G.estimate x (rs.foldl (G.stepRound x) s) ≤ G.estimate x s
+  | [], _, hinv => ⟨hinv, le_rfl⟩
+  | r :: rs, s, hinv => by
+    obtain ⟨a_star, ha_star, ha_le⟩ := hmin x r rs s hinv
+    cases hcs : G.choices x r with
+    | nil =>
+      rw [hcs] at ha_star
+      cases ha_star
+    | cons a₀ cs =>
+      obtain ⟨b, hb, hout, hle_0, hforall⟩ :=
+        G.scanStep_foldl_spec x s r (a₀ :: cs) cs a₀
+          (G.estimate x (G.branch x r a₀ s)) List.mem_cons_self rfl
+          fun a ha => List.mem_cons_of_mem a₀ ha
+      have hb_choices : b ∈ G.choices x r := hcs ▸ hb
+      have hstep : G.stepRound x s r = G.branch x r b s := by
+        simp [stepRound, hcs, scanStep, hout]
+      have hle_star : G.estimate x (G.branch x r b s) ≤ G.estimate x (G.branch x r a_star s) := by
+        rw [hcs] at ha_star
+        rcases List.mem_cons.mp ha_star with rfl | hmem_cs
+        · exact hle_0
+        · exact hforall a_star hmem_cs
+      obtain ⟨hinv_end, hest_end⟩ :=
+        foldl_stepRound_spec Inv hinv_branch hmin x rs (G.branch x r b s)
+          (hinv_branch x r rs s b hinv hb_choices)
+      simpa only [List.foldl_cons, hstep] using
+        ⟨hinv_end, hest_end.trans (hle_star.trans ha_le)⟩
+
+/-- Minimizing correctness specification for `G.run`: if `Inv` holds initially, is preserved by
+taking any candidate `a ∈ G.choices x r`, and each round admits at least one candidate in
+`G.choices x r` not increasing `G.estimate x`, then `G.run x` satisfies `Inv x []` and
+`G.estimate x (G.run x) ≤ G.estimate x (G.init x)`. -/
+theorem run_spec
+    (Inv : I → List R → S → Prop)
+    (hinv_init : ∀ x, Inv x (G.rounds x) (G.init x))
+    (hinv_branch : ∀ x r rs s a,
+      Inv x (r :: rs) s → a ∈ G.choices x r → Inv x rs (G.branch x r a s))
+    (hmin : ∀ x r rs s, Inv x (r :: rs) s →
+      ∃ a ∈ G.choices x r, G.estimate x (G.branch x r a s) ≤ G.estimate x s)
+    (x : I) :
+    Inv x [] (G.run x) ∧ G.estimate x (G.run x) ≤ G.estimate x (G.init x) :=
+  G.foldl_stepRound_spec Inv hinv_branch hmin x (G.rounds x) (G.init x) (hinv_init x)
+
+/-- Pairs the plain `ComputableInPolyTime` certificate for `G.run` with the terminal invariant and
+minimizing bound `G.estimate x (G.run x) ≤ G.estimate x (G.init x)` from `run_spec`. -/
+theorem run_polyTime_spec
+    {encI : I ↪ List Bool} {encR : R ↪ List Bool} {encLR : List R ↪ List Bool}
+    [ListEncoding encR encLR] [SizedListEncoding encR encLR]
+    {encA : A ↪ List Bool} {encLA : List A ↪ List Bool}
+    [ListEncoding encA encLA] [SizedListEncoding encA encLA]
+    {encS : S ↪ List Bool} {encM : M ↪ List Bool}
+    (hrounds : ComputableInPolyTime G.rounds encI encLR)
+    (hchoices : ComputableInPolyTime (fun (input, round) => G.choices input round)
+      (encPair encI encR) encLA)
+    (hinit : ComputableInPolyTime G.init encI encS)
+    (hbranch : ComputableInPolyTime
+      (fun (((input, state), round), choice) => G.branch input round choice state)
+      (encChoiceInput encI encS encR encA) encS)
+    (hestimate : ComputableInPolyTime (fun (input, state) => G.estimate input state)
+      (encPair encI encS) encM)
+    (hle : ComputableInPolyTime (fun (m₁, m₂) => decide (m₁ ≤ m₂))
+      (encPair encM encM) encBool)
+    {growth : I → ℕ} (hpoly : PolyBounded (fun x => (encI x).length) growth)
+    (hgrowth : ∀ x s r a, r ∈ G.rounds x → a ∈ G.choices x r →
+      (encS (G.branch x r a s)).length ≤ (encS s).length + growth x)
+    (Inv : I → List R → S → Prop)
+    (hinv_init : ∀ x, Inv x (G.rounds x) (G.init x))
+    (hinv_branch : ∀ x r rs s a,
+      Inv x (r :: rs) s → a ∈ G.choices x r → Inv x rs (G.branch x r a s))
+    (hmin : ∀ x r rs s, Inv x (r :: rs) s →
+      ∃ a ∈ G.choices x r, G.estimate x (G.branch x r a s) ≤ G.estimate x s) :
+    ComputableInPolyTime G.run encI encS ∧
+      ∀ x, Inv x [] (G.run x) ∧ G.estimate x (G.run x) ≤ G.estimate x (G.init x) :=
+  ⟨G.computableInPolyTime_run hrounds hchoices hinit hbranch hestimate hle hpoly hgrowth,
+    G.run_spec Inv hinv_init hinv_branch hmin⟩
+
+end CombinedSpec
 
 end PolyTimeChoiceGreedyInput
 
