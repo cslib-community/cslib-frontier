@@ -126,7 +126,7 @@ def new : ST σ (Engine σ) := do
     rootLen := ← ST.mkRef 0, rootConflict := ← ST.mkRef none, dirty := ← ST.mkRef false }
 
 /-- The code of a literal, registering its variable if it is new. -/
-def litCode (e : Engine σ) (l : Literal ℕ) : ST σ ℕ := do
+private def litCode (e : Engine σ) (l : Literal ℕ) : ST σ ℕ := do
   let m ← e.varIdx.get
   let i ← match m[l.1]? with
     | some i => pure i
@@ -143,12 +143,12 @@ def litCode (e : Engine σ) (l : Literal ℕ) : ST σ ℕ := do
   return 2 * i + (if l.2 then 0 else 1)
 
 /-- The value of a literal code: `0` unassigned, `1` true, `2` false. -/
-@[inline] def litVal (value : ByteArray) (code : ℕ) : UInt8 :=
+@[inline] private def litVal (value : ByteArray) (code : ℕ) : UInt8 :=
   let v := value.get! (code / 2)
   if v == 0 then 0 else if (v == 1) == (code % 2 == 0) then 1 else 2
 
 /-- Make the literal `code` true with the reason `r`. -/
-def assign (e : Engine σ) (code r : ℕ) : ST σ Unit := do
+private def assign (e : Engine σ) (code r : ℕ) : ST σ Unit := do
   let v := code / 2
   let n := (← e.trail.get).size
   e.value.modify (·.set! v (if code % 2 == 0 then 1 else 2))
@@ -158,7 +158,7 @@ def assign (e : Engine σ) (code r : ℕ) : ST σ Unit := do
 
 /-- Propagate the non-clause constraint `c` with slack `s`: make true every unassigned term whose
 coefficient exceeds `s`. -/
-def propagatePB (e : Engine σ) (c : ℕ) (s : ℤ) : ST σ Unit := do
+private def propagatePB (e : Engine σ) (c : ℕ) (s : ℤ) : ST σ Unit := do
   let r := (← e.cons.get)[c]!
   let mut k := 0
   while k < r.lits.size && (r.coeffs[k]! : ℤ) > s do
@@ -168,7 +168,7 @@ def propagatePB (e : Engine σ) (c : ℕ) (s : ℤ) : ST σ Unit := do
 /-- Process the falsification of the literal `f`: update the slacks of the non-clause
 constraints containing it, and visit the clauses watching it. Returns a conflicting constraint,
 if any. The slack updates are always completed, so that backtracking can undo them. -/
-def falsify (e : Engine σ) (f : ℕ) : ST σ (Option ℕ) := do
+private def falsify (e : Engine σ) (f : ℕ) : ST σ (Option ℕ) := do
   let mut confl : Option ℕ := none
   -- Non-clause constraints.
   let os := (← e.occ.get)[f]!
@@ -218,7 +218,7 @@ def falsify (e : Engine σ) (f : ℕ) : ST σ (Option ℕ) := do
   return confl
 
 /-- Process the trail until a conflict or until every entry is processed. -/
-def propagate (e : Engine σ) : ST σ (Option ℕ) := do
+private def propagate (e : Engine σ) : ST σ (Option ℕ) := do
   let mut confl := none
   while confl.isNone && (← e.qhead.get) < (← e.trail.get).size do
     let q ← e.qhead.get
@@ -227,7 +227,7 @@ def propagate (e : Engine σ) : ST σ (Option ℕ) := do
   return confl
 
 /-- Undo the trail down to length `n`, restoring the slacks of the processed entries. -/
-def backtrack (e : Engine σ) (n : ℕ) : ST σ Unit := do
+private def backtrack (e : Engine σ) (n : ℕ) : ST σ Unit := do
   let q ← e.qhead.get
   let trail ← e.trail.get
   let mut i := trail.size
@@ -242,7 +242,7 @@ def backtrack (e : Engine σ) (n : ℕ) : ST σ Unit := do
   e.qhead.set (min q n)
 
 /-- Mark the reasons of the trail entries from `n` as root reasons. -/
-def markRootReasons (e : Engine σ) (n : ℕ) : ST σ Unit := do
+private def markRootReasons (e : Engine σ) (n : ℕ) : ST σ Unit := do
   let trail ← e.trail.get
   for i in [n:trail.size] do
     let r := (← e.reason.get)[trail[i]! / 2]!
@@ -250,7 +250,7 @@ def markRootReasons (e : Engine σ) (n : ℕ) : ST σ Unit := do
 
 /-- The slack of the terms `lits`, `coeffs` with degree `d` under the processed part of the
 trail: a literal counts as false only once its falsification has been processed. -/
-def freshSlack (e : Engine σ) (lits coeffs : Array ℕ) (d : ℕ) : ST σ ℤ := do
+private def freshSlack (e : Engine σ) (lits coeffs : Array ℕ) (d : ℕ) : ST σ ℤ := do
   let value ← e.value.get
   let tpos ← e.tpos.get
   let q ← e.qhead.get
@@ -262,7 +262,7 @@ def freshSlack (e : Engine σ) (lits coeffs : Array ℕ) (d : ℕ) : ST σ ℤ :
 /-- Propagate the constraint `c`, just added at the root level or checked during a rebuild,
 from scratch: its slack under the current assignment, then a conflict or its propagations. The
 processed part of the trail must be the whole trail. -/
-def checkFresh (e : Engine σ) (c : ℕ) : ST σ (Option ℕ) := do
+private def checkFresh (e : Engine σ) (c : ℕ) : ST σ (Option ℕ) := do
   let r := (← e.cons.get)[c]!
   let value ← e.value.get
   let s ← e.freshSlack r.lits r.coeffs r.degree
@@ -328,7 +328,7 @@ def kill (e : Engine σ) (i : ℕ) : ST σ Unit := do
 
 /-- Rebuild the root level: undo it, and propagate the constraints that propagate on the empty
 assignment. -/
-def rebuild (e : Engine σ) : ST σ Unit := do
+private def rebuild (e : Engine σ) : ST σ Unit := do
   e.backtrack 0
   e.rootConflict.set none
   e.rootReason.modify fun b => ⟨b.data.map fun _ => 0⟩
@@ -379,7 +379,7 @@ private def heapPop (h : Array ℕ) : ℕ × Array ℕ := Id.run do
 
 /-- The kernel hints of a conflict at the constraint `k`: the reasons of the needed literals, in
 trail order, a reason repeated on consecutive needed literals given once, then `k`. -/
-def analyze (e : Engine σ) (k : ℕ) : ST σ (Array Hint) := do
+private def analyze (e : Engine σ) (k : ℕ) : ST σ (Array Hint) := do
   let cons ← e.cons.get
   let trail ← e.trail.get
   let tpos ← e.tpos.get
@@ -407,8 +407,8 @@ def analyze (e : Engine σ) (k : ℕ) : ST σ (Array Hint) := do
   return (out.reverse.map (cons[·]!.hint)).push cons[k]!.hint
 
 /-- **The hints of `rup C`**, given the negation `neg` of `C`: propagate the database and `neg`,
-and on a conflict return its hints (`Cslib.Logic.PL.VeriPB.Elab.Engine.analyze`), `neg` being
-named `~`. Returns `none` when propagation reaches no conflict. -/
+and on a conflict return its hints, found by conflict analysis, `neg` being named `~`. Returns
+`none` when propagation reaches no conflict. -/
 def rupHints (e : Engine σ) (neg : PBConstr) : ST σ (Option (Array Hint)) := do
   if ← e.dirty.get then e.rebuild
   if let some k ← e.rootConflict.get then return some (← e.analyze k)
