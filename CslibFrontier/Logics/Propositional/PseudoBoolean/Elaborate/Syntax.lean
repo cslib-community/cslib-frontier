@@ -207,8 +207,8 @@ structure Lexer (σ : Type) where
   pos : ST.Ref σ ℕ
   /-- Tokens read ahead. -/
   ahead : ST.Ref σ (Array String)
-  /-- The line of the position, for error messages. -/
-  line : ST.Ref σ ℕ
+  /-- The start of the token read last, whose line error messages name. -/
+  last : ST.Ref σ ℕ
   /-- The numbers of the other names (`Cslib.Logic.PL.VeriPB.Text.Names.others`). -/
   names : ST.Ref σ (Std.HashMap String ℕ)
   /-- The other names, those of the instance first, then those of the proof in order of first
@@ -235,7 +235,7 @@ private def isDigit (c : UInt8) : Bool := c ≥ 48 && c ≤ 57
 def new (s : String) (N : Text.Names) : ST σ (Lexer σ) := do
   let others := N.others.toArray
   let names := others.zipIdx.foldl (fun m (t, i) => m.insert t (N.base + i)) {}
-  return ⟨s.toUTF8, N.base, ← ST.mkRef 0, ← ST.mkRef #[], ← ST.mkRef 1, ← ST.mkRef names,
+  return ⟨s.toUTF8, N.base, ← ST.mkRef 0, ← ST.mkRef #[], ← ST.mkRef 0, ← ST.mkRef names,
     ← ST.mkRef others⟩
 
 /-- The names read so far: those of the instance, extended by those of the proof. -/
@@ -256,21 +256,31 @@ def fresh (L : Lexer σ) : ST σ ℕ := do
   L.others.modify (·.push s!"_elab{k}")
   return v
 
+/-- The position of the first byte from `p` on that is not whitespace or in a comment. -/
+private partial def skipWs (b : ByteArray) (p : ℕ) : ℕ :=
+  if p < b.size then
+    let c := b.get! p
+    if c == 10 || c == 32 || c == 9 || c == 13 then skipWs b (p + 1)
+    else if c == 37 then skipWs b (skipLine b p) else p
+  else p
+where
+  /-- The position of the end of the line from `p`. -/
+  skipLine (b : ByteArray) (p : ℕ) : ℕ :=
+    if p < b.size && b.get! p != 10 then skipLine b (p + 1) else p
+
+/-- The end of the run of bytes from `p` that satisfy `f`. -/
+private partial def runEnd (b : ByteArray) (f : UInt8 → Bool) (p : ℕ) : ℕ :=
+  if p < b.size && f (b.get! p) then runEnd b f (p + 1) else p
+
+/-- The value of the decimal digits at `[p, e)`, from `acc`. -/
+private partial def digitsVal (b : ByteArray) (p e acc : ℕ) : ℕ :=
+  if p < e then digitsVal b (p + 1) e (10 * acc + (b.get! p - 48).toNat) else acc
+
 /-- Read the next token from the text, or `""` at its end. -/
 private def scan (L : Lexer σ) : ST σ String := do
   let b := L.bytes
-  let mut p ← L.pos.get
-  let mut ln ← L.line.get
-  -- Skip whitespace and comments.
-  let mut go := true
-  while go && p < b.size do
-    let c := b.get! p
-    if c == 10 then ln := ln + 1; p := p + 1
-    else if c == 32 || c == 9 || c == 13 then p := p + 1
-    else if c == 37 then
-      while p < b.size && b.get! p != 10 do p := p + 1
-    else go := false
-  L.line.set ln
+  let mut p := skipWs b (← L.pos.get)
+  L.last.set p
   if p ≥ b.size then L.pos.set p; return ""
   let start := p
   let c := b.get! p
@@ -319,8 +329,10 @@ private def next (L : Lexer σ) : ST σ String := do
   L.ahead.modify (·.eraseIdx! 0)
   return t
 
-/-- The current line, for error messages. -/
-private def lineNo (L : Lexer σ) : ST σ ℕ := L.line.get
+/-- The current line, for error messages: that of the token read last. -/
+private def lineNo (L : Lexer σ) : ST σ ℕ := do
+  let p ← L.last.get
+  return (L.bytes.extract 0 p).foldl (fun n c => if c == 10 then n + 1 else n) 1
 
 end Lexer
 
@@ -399,12 +411,70 @@ private partial def refsTo (L : Lexer σ) : PM σ (List Ref) := do
   let r ← ref L
   return r :: (← refsTo L)
 
+/-- Add `c x_v` to the linear form `lin`, whose entry for each variable `idx` gives. -/
+@[inline] private def addEntry (lin : Array (ℕ × ℤ)) (idx : Std.HashMap ℕ ℕ) (v : ℕ) (c : ℤ) :
+    Array (ℕ × ℤ) × Std.HashMap ℕ ℕ :=
+  match idx[v]? with
+  | some i => (lin.modify i fun e => (e.1, e.2 + c), idx)
+  | none => (lin.push (v, c), idx.insert v lin.size)
+
+/-- The literal whose `~` or name starts at `q`, read from the bytes: the variable, its sign and
+the end of the literal; `none` if it is not a `~` followed by a name, or a name (the slow path
+then reads it, or fails). A standard name below the base is read without making a string. -/
+private def litAt (L : Lexer σ) (q : ℕ) : PM σ (Option (ℕ × Bool × ℕ)) := do
+  let b := L.bytes
+  let neg := q < b.size && b.get! q == 126
+  let r := if neg then Lexer.skipWs b (q + 1) else q
+  if !(r < b.size && Lexer.isIdStart (b.get! r) && b.get! r != 64) then return none
+  let e := Lexer.runEnd b Lexer.isIdChar (r + 1)
+  let d := Lexer.runEnd b Lexer.isDigit (r + 1)
+  if b.get! r == 120 && d == e && r + 1 < e && b.get! (r + 1) != 48 then
+    let n := Lexer.digitsVal b (r + 1) e 0
+    if n - 1 < L.base then return some (n - 1, !neg, e)
+  return some (← var L (String.fromUTF8! (b.extract r e)), !neg, e)
+
+/-- The fast path of `terms`: read terms straight from the bytes from `p` on, while no token has
+been read ahead, a coefficient being a plain integer followed by a literal. It stops before the
+first token it does not read this way, which the slow path then reads. -/
+private partial def termsFast (L : Lexer σ) (p : ℕ) (lin : Array (ℕ × ℤ)) (idx : Std.HashMap ℕ ℕ)
+    (k : ℤ) : PM σ (ℕ × Array (ℕ × ℤ) × Std.HashMap ℕ ℕ × ℤ) := do
+  let b := L.bytes
+  let p := Lexer.skipWs b p
+  if p ≥ b.size then return (p, lin, idx, k)
+  let c := b.get! p
+  let signed := (c == 43 || c == 45) && p + 1 < b.size && Lexer.isDigit (b.get! (p + 1))
+  if Lexer.isDigit c || signed then
+    let d := if signed then p + 1 else p
+    let e := Lexer.runEnd b Lexer.isDigit d
+    -- A number with a `.`, or followed by `;` or `:`, is left to the slow path.
+    if e < b.size && b.get! e == 46 then return (p, lin, idx, k)
+    let q := Lexer.skipWs b e
+    if q < b.size && (b.get! q == 59 || b.get! q == 58) then return (p, lin, idx, k)
+    let a : ℤ := if c == 45 then -(Lexer.digitsVal b d e 0 : ℤ) else Lexer.digitsVal b d e 0
+    match ← litAt L q with
+    | some (v, pos, e) =>
+      let (lin, idx) := addEntry lin idx v (if pos then a else -a)
+      termsFast L e lin idx (if pos then k else k + a)
+    | none => return (p, lin, idx, k)
+  else if c == 126 || (c ≥ 65 && c ≤ 90) || (c ≥ 97 && c ≤ 122) || c == 95 || c == 36 then
+    match ← litAt L p with
+    | some (v, pos, e) =>
+      let (lin, idx) := addEntry lin idx v (if pos then 1 else -1)
+      termsFast L e lin idx (if pos then k else k + 1)
+    | none => return (p, lin, idx, k)
+  else return (p, lin, idx, k)
+
 /-- The terms `a ℓ` of a constraint or objective up to a non-term token: the linear form, merged
 by variable, and the constant moved out of negative literals. -/
 private partial def terms (L : Lexer σ) : PM σ (Array (ℕ × ℤ) × ℤ) := do
-  let mut lin : Array (ℕ × ℤ) := #[]
-  let mut idx : Std.HashMap ℕ ℕ := {}
-  let mut k : ℤ := 0
+  let (lin₀, idx₀, k₀) ← if (← L.ahead.get).isEmpty then do
+      let (p, r) ← termsFast L (← L.pos.get) #[] {} 0
+      L.pos.set p
+      pure r
+    else pure (#[], {}, 0)
+  let mut lin := lin₀
+  let mut idx := idx₀
+  let mut k := k₀
   let mut go := true
   while go do
     let t ← L.peek
