@@ -85,18 +85,16 @@ theorem queriesSatisfy_recursiveDlog (base : S → S → OracleComp (GroupOracle
     (hbase : ∀ g u, OracleComp.QueriesSatisfy GroupQuery.IsProduct (base g u))
     (q e : ℕ) (g u : S) :
     OracleComp.QueriesSatisfy GroupQuery.IsProduct (recursiveDlog base q e g u) := by
-  induction e using Nat.strong_induction_on generalizing g u with
-  | ind e ih =>
-    by_cases he : e ≤ 1
-    · rw [recursiveDlog_of_le_one _ _ he]; exact hbase g u
-    · rw [recursiveDlog_of_one_lt _ _ (by omega)]
-      exact .bind (queriesSatisfy_power _ _) fun g₁ =>
-        .bind (queriesSatisfy_power _ _) fun u₁ =>
-          .bind (ih (e / 2) (by omega) g₁ u₁) fun _ =>
-            .bind (queriesSatisfy_power _ _) fun g₂ =>
-              .bind (queriesSatisfy_power _ _) fun w =>
-                .bind (queriesSatisfy_product _ _) fun u₂ =>
-                  .bind (ih (e - e / 2) (by omega) g₂ u₂) fun _ => .pure _
+  fun_induction recursiveDlog base q e g u with
+  | case1 e g u => exact hbase g u -- e ≤ 1: base solver
+  | case2 e g u he ih₁ ih₂ => -- 1 < e: recurse on `e / 2` and `e - e / 2`
+    exact .bind (queriesSatisfy_power _ _) fun g₁ =>
+      .bind (queriesSatisfy_power _ _) fun u₁ =>
+        .bind (ih₁ g₁ u₁) fun _ =>
+          .bind (queriesSatisfy_power _ _) fun g₂ =>
+            .bind (queriesSatisfy_power _ _) fun w =>
+              .bind (queriesSatisfy_product _ _) fun u₂ =>
+                .bind (ih₂ g₂ u₂) fun _ => .pure _
 
 /-- Product-query bound for `recursiveDlog` when `2 ≤ q` and `1 ≤ e`, in the worst case over all
 oracle responses. Constants `6` and `2` (in `power`) are this library's; exponent arithmetic and
@@ -106,43 +104,42 @@ theorem isQueryBounded_recursiveDlog {base : S → S → OracleComp (GroupOracle
     (e : ℕ) (he : 1 ≤ e) (g u : S) :
     OracleComp.IsQueryBounded (recursiveDlog base q e g u)
       (e * T + 6 * e * Nat.clog 2 e * Nat.clog 2 q) := by
-  induction e using Nat.strong_induction_on generalizing g u with
-  | ind e ih =>
-    by_cases he1 : e ≤ 1
-    · obtain rfl : e = 1 := by omega
-      rw [recursiveDlog_of_le_one _ _ (le_refl 1)]; simpa using hbase g u
-    · have he2 : 2 ≤ e := by omega
-      set f := e / 2; set d := e - e / 2
-      have hfd : f + d = e := by omega
-      have hclog_f : Nat.clog 2 f + 1 ≤ Nat.clog 2 e :=
-        Nat.clog_two_lt_clog_two_of_le_half he2 (by omega)
-      have hclog_d : Nat.clog 2 d + 1 ≤ Nat.clog 2 e :=
-        Nat.clog_two_lt_clog_two_of_le_half he2 (by omega)
-      have hCq : 1 ≤ Nat.clog 2 q := Nat.clog_pos (by omega) (by omega)
-      rw [recursiveDlog_of_one_lt _ _ (by omega)]
-      refine .mono (.bind (isQueryBounded_power g (q ^ d)) fun g₁ =>
-        .bind (isQueryBounded_power u (q ^ d)) fun u₁ =>
-          .bind (ih f (by omega) (by omega) g₁ u₁) fun β =>
-            .bind (isQueryBounded_power g (q ^ f)) fun g₂ =>
-              .bind ((isQueryBounded_power g (q ^ e - β)).mono
-                (Nat.mul_le_mul_left 2 (Nat.log_mono_right (Nat.sub_le _ _)))) fun w =>
-                .bind (isQueryBounded_product u w) fun u₂ =>
-                  .bind (ih d (by omega) (by omega) g₂ u₂) fun _ => .pure _ 0) ?_
-      have hlog (m : ℕ) : Nat.log 2 (q ^ m) ≤ m * Nat.clog 2 q :=
-        (Nat.log_le_clog 2 _).trans (Nat.clog_pow_le_mul 2 q m)
-      have hlog_d := hlog d; have hlog_f := hlog f; have hlog_e := hlog e
-      have hT : f * T + d * T = e * T := by rw [← add_mul, hfd]
-      have hC1 : 6 * f * Nat.clog 2 q + 6 * d * Nat.clog 2 q = 6 * e * Nat.clog 2 q := by
-        rw [← add_mul, ← mul_add, hfd]
-      have hC2 : 6 * f * Nat.clog 2 e * Nat.clog 2 q + 6 * d * Nat.clog 2 e * Nat.clog 2 q =
-          6 * e * Nat.clog 2 e * Nat.clog 2 q := by rw [← add_mul, ← add_mul, ← mul_add, hfd]
-      have hprod : 4 * (d * Nat.clog 2 q) + 2 * (f * Nat.clog 2 q) + 2 * (e * Nat.clog 2 q) + 1 ≤
-          6 * e * Nat.clog 2 q := by nlinarith [show 4 * d + 2 * f + 2 * e + 1 ≤ 6 * e by omega]
-      have h1 : 6 * f * Nat.clog 2 f * Nat.clog 2 q + 6 * f * Nat.clog 2 q ≤
-          6 * f * Nat.clog 2 e * Nat.clog 2 q := by nlinarith
-      have h2 : 6 * d * Nat.clog 2 d * Nat.clog 2 q + 6 * d * Nat.clog 2 q ≤
-          6 * d * Nat.clog 2 e * Nat.clog 2 q := by nlinarith
-      linarith
+  fun_induction recursiveDlog base q e g u with
+  | case1 e g u he1 => -- e ≤ 1: base solver
+    obtain rfl : e = 1 := by omega
+    simpa using hbase g u
+  | case2 e g u he1 ih₁ ih₂ => -- 1 < e: recurse on `e / 2` and `e - e / 2`
+    have he2 : 2 ≤ e := by omega
+    set f := e / 2; set d := e - e / 2
+    have hfd : f + d = e := by omega
+    have hclog_f : Nat.clog 2 f + 1 ≤ Nat.clog 2 e :=
+      Nat.clog_two_lt_clog_two_of_le_half he2 (by omega)
+    have hclog_d : Nat.clog 2 d + 1 ≤ Nat.clog 2 e :=
+      Nat.clog_two_lt_clog_two_of_le_half he2 (by omega)
+    have hCq : 1 ≤ Nat.clog 2 q := Nat.clog_pos (by omega) (by omega)
+    refine .mono (.bind (isQueryBounded_power g (q ^ d)) fun g₁ =>
+      .bind (isQueryBounded_power u (q ^ d)) fun u₁ =>
+        .bind (ih₁ g₁ u₁ (by omega)) fun β =>
+          .bind (isQueryBounded_power g (q ^ f)) fun g₂ =>
+            .bind ((isQueryBounded_power g (q ^ e - β)).mono
+              (Nat.mul_le_mul_left 2 (Nat.log_mono_right (Nat.sub_le _ _)))) fun w =>
+              .bind (isQueryBounded_product u w) fun u₂ =>
+                .bind (ih₂ g₂ u₂ (by omega)) fun _ => .pure _ 0) ?_
+    have hlog (m : ℕ) : Nat.log 2 (q ^ m) ≤ m * Nat.clog 2 q :=
+      (Nat.log_le_clog 2 _).trans (Nat.clog_pow_le_mul 2 q m)
+    have hlog_d := hlog d; have hlog_f := hlog f; have hlog_e := hlog e
+    have hT : f * T + d * T = e * T := by rw [← add_mul, hfd]
+    have hC1 : 6 * f * Nat.clog 2 q + 6 * d * Nat.clog 2 q = 6 * e * Nat.clog 2 q := by
+      rw [← add_mul, ← mul_add, hfd]
+    have hC2 : 6 * f * Nat.clog 2 e * Nat.clog 2 q + 6 * d * Nat.clog 2 e * Nat.clog 2 q =
+        6 * e * Nat.clog 2 e * Nat.clog 2 q := by rw [← add_mul, ← add_mul, ← mul_add, hfd]
+    have hprod : 4 * (d * Nat.clog 2 q) + 2 * (f * Nat.clog 2 q) + 2 * (e * Nat.clog 2 q) + 1 ≤
+        6 * e * Nat.clog 2 q := by nlinarith [show 4 * d + 2 * f + 2 * e + 1 ≤ 6 * e by omega]
+    have h1 : 6 * f * Nat.clog 2 f * Nat.clog 2 q + 6 * f * Nat.clog 2 q ≤
+        6 * f * Nat.clog 2 e * Nat.clog 2 q := by nlinarith
+    have h2 : 6 * d * Nat.clog 2 d * Nat.clog 2 q + 6 * d * Nat.clog 2 q ≤
+        6 * d * Nat.clog 2 e * Nat.clog 2 q := by nlinarith
+    linarith
 
 /-- **Correctness.** For `s` of additive order `q ^ e` (`1 ≤ e`) and a base-case solver `base`
 correct on order `q`, `recursiveDlog base q e (L s) (L (α * s))` outputs `α` for `α < q ^ e`. -/

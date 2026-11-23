@@ -11,6 +11,7 @@ public import CslibFrontier.DataStructure.Dictionary.Spec
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing.Analysis
 public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
 public import CslibFrontier.Computability.WordRAM.Randomized.UniformLoopExit
+import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
 import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
@@ -717,23 +718,6 @@ def unshiftFromHashBaseCode : Code .exact 19 :=
   .seq (.op (.const 15 20))
        (.op (.exactBin .sub 0 0 15))
 
-private theorem shiftToHashBaseCode_exec {w base : ℕ} {x : Data 19}
-    (h0 : x.regs 0 = base)
-    (hfit_20 : Fits w 20)
-    (hfit_hb : Fits w (hashBase base)) :
-    Exec w shiftToHashBaseCode x ((x.set 15 20).set 0 (hashBase base)) 2 := by
-  unfold shiftToHashBaseCode
-  wram_exec [h0]
-  rfl
-
-private theorem unshiftFromHashBaseCode_exec {w base : ℕ} {x : Data 19}
-    (h0 : x.regs 0 = hashBase base)
-    (hfit_20 : Fits w 20)
-    (hfit_base : Fits w base) :
-    Exec w unshiftFromHashBaseCode x ((x.set 15 20).set 0 base) 2 := by
-  unfold unshiftFromHashBaseCode
-  wram_exec [h0, hashBase, Nat.add_sub_cancel]
-
 /-- Evaluates `h₁(u)` with `reg 0 = base`, `reg 1 = u.val`, placing
 `(evalHash1 θ u).val` in `reg 2` and restoring `reg 0 = base`. -/
 @[expose]
@@ -834,43 +818,22 @@ private theorem resampleAtBaseCode_execCodeDist {w base c_exp n_max U : ℕ} {x 
         (∀ a, (a < hashBase base ∨
           hashBase base + hashPairSpace c_exp n_max ≤ a) → y.mem a = x.mem a) := by
   have hle_sp := le_space c_exp n_max
-  have hfit_20 : Fits w 20 := hfit_end.of_le (by omega)
-  have hfit_base : Fits w base := hfit_end.of_le (Nat.le_add_right _ _)
-  have hfit_hb : Fits w (hashBase base) := hfit_end.of_le (by dsimp only [hashBase]; omega)
   have hfit_hp : Fits w (hashBase base + hashPairSpace c_exp n_max) :=
     hfit_end.of_le (by dsimp only [hashBase, space]; omega)
-  have e_sh := shiftToHashBaseCode_exec h0 hfit_20 hfit_hb
   set s1 := (x.set 15 20).set 0 (hashBase base)
   obtain ⟨hres_dist, hres_law, hres_supp⟩ :=
-    resampleHashPairCode_execCodeDist (w := w) (x := s1) htab (by simp +decide [s1]) hfit_hp hfit_q
-  let μ_inner : PMF (Data 19) :=
-    (Prod.fst <$> resampleHashPairComp (hashBase base) c_exp n_max U (tableBits n_max) s1).eval
+    resampleHashPairCode_execCodeDist (w := w) (x := s1) htab (by wram_simp [s1]) hfit_hp hfit_q
   let unshiftFn : Data 19 → Data 19 := fun d => (d.set 15 20).set 0 base
-  have hun : ∀ z ∈ μ_inner.support,
-      ExecCodeDist w unshiftFromHashBaseCode z (PMF.pure (unshiftFn z)) 2 := by
-    intro z hz
-    obtain ⟨hz_0, -, -⟩ := hres_supp z hz
-    exact ExecCodeDist.of_exec (unshiftFromHashBaseCode_exec hz_0 hfit_20 hfit_base)
-  let μ_res : PMF (Data 19) := μ_inner.map unshiftFn
-  have htail :
-      ExecCodeDist w (.seq (resampleHashPairCode c_exp n_max (tableBits n_max))
-        unshiftFromHashBaseCode) s1
-      μ_res (resampleHashPairSteps c_exp n_max + 2) :=
-    (hres_dist.seq_const hun (fun _ _ => le_rfl)).congr_dist rfl le_rfl
-  have hfull : ExecCodeDist w (resampleAtBaseCode c_exp n_max) x μ_res
-      (resampleAtBaseSteps c_exp n_max) := by
-    have hseq := (ExecCodeDist.of_exec e_sh).seq_const
-      (μ₂ := fun _ => μ_res)
-      (T₂ := fun _ => (resampleHashPairSteps c_exp n_max : ℝ≥0∞) + 2)
-      (B₂ := (resampleHashPairSteps c_exp n_max : ℝ≥0∞) + 2)
-      (fun y hy => by
-        rw [PMF.support_pure, Set.mem_singleton_iff] at hy
-        subst hy; exact htail)
-      (fun _ _ => le_rfl)
-    refine hseq.congr_dist (PMF.pure_bind s1 _) ?_
-    exact_mod_cast (by dsimp only [resampleAtBaseSteps]; omega :
-      2 + (resampleHashPairSteps c_exp n_max + 2) ≤ resampleAtBaseSteps c_exp n_max)
-  refine ⟨μ_res, hfull, ?_, ?_⟩
+  let μ_res : PMF (Data 19) :=
+    (Prod.fst <$>
+      resampleHashPairComp (hashBase base) c_exp n_max U (tableBits n_max) s1).eval.map unshiftFn
+  refine ⟨μ_res, ?_, ?_, ?_⟩
+  · unfold resampleAtBaseCode shiftToHashBaseCode unshiftFromHashBaseCode resampleAtBaseSteps
+    wram_rand_exec [h0, show base + 20 = hashBase base from rfl]
+    wram_rand_call hres_dist with z hz
+    · wram_rand_exec [(hres_supp z hz).1, hashBase, Nat.add_sub_cancel]
+    · exact ⟨by simp only [μ_res, unshiftFn, ← PMF.bind_pure_comp, Function.comp_def],
+        by norm_cast; omega⟩
   · dsimp only [μ_res]
     rw [PMF.map_comp]
     exact hres_law
@@ -879,7 +842,7 @@ private theorem resampleAtBaseCode_execCodeDist {w base c_exp n_max U : ℕ} {x 
     rw [PMF.mem_support_map_iff] at hy
     obtain ⟨z, hz, rfl⟩ := hy
     obtain ⟨-, hz_hash, hz_frame⟩ := hres_supp z hz
-    exact ⟨by simp +decide [unshiftFn], hz_hash, hz_frame⟩
+    exact ⟨by wram_simp [unshiftFn], hz_hash, hz_frame⟩
 
 /-- Helper subprogram that loads `mem[base + off]` into `reg dst` using `reg 15` as scratch. -/
 @[expose]
@@ -2355,18 +2318,12 @@ private theorem rehashAttemptCode_execCodeDist {w base c_exp n_max U V : ℕ}
   have hfull :
       ExecCodeDist w (rehashAttemptCode c_exp n_max) z μ_att
         (rehashAttemptSteps c_exp n_max U) := by
-    have hseq := hres_dist.seq_const
-      (c₂ := .seq clearTablesCode (.seq (replayLoopCode c_exp n_max) syncRehashCondCode))
-      (μ₂ := fun z1 => PMF.pure (tailFn z1))
-      (T₂ := fun _ => (clearTablesSteps n_max + replayLoopSteps c_exp n_max U + 4 : ℕ))
-      (B₂ := (clearTablesSteps n_max + replayLoopSteps c_exp n_max U + 4 : ℕ))
-      (fun z1 hz1 => ExecCodeDist.of_execWithin (h_exec z1 hz1))
-      (fun _ _ => le_rfl)
-    refine hseq.congr_dist rfl ?_
-    exact_mod_cast (by dsimp only [rehashAttemptSteps]; omega :
-      resampleAtBaseSteps c_exp n_max +
-        (clearTablesSteps n_max + replayLoopSteps c_exp n_max U + 4) ≤
-        rehashAttemptSteps c_exp n_max U)
+    unfold rehashAttemptCode rehashAttemptSteps
+    apply WP.Dist.execCodeDist
+    wram_rand_call hres_dist with z1 hz1
+    · wram_rand_call (h_exec z1 hz1)
+      exact ⟨rfl, le_rfl⟩
+    · exact ⟨by simp only [μ_att, ← PMF.bind_pure_comp, Function.comp_def], by norm_cast; omega⟩
   have hlaw_att :
       μ_att.map (fun y => extractSeed (hashBase base) c_exp n_max U (tableBits n_max) y.mem) =
         seedLaw c_exp n_max U (tableBits n_max) := by
@@ -2740,55 +2697,6 @@ private theorem survivingSeeds_stepKeys_subset {U : ℕ} (c_exp n_max : ℕ) (ks
     · exact Finset.Subset.refl _
     · exact survivingSeeds_append_subset _ _ _ _ _
 
-private theorem rehashLoopCode_set2_execCodeDist {w base c_exp n_max U V : ℕ}
-    {ks : List (Fin U)} {s : Dictionary.State U} {x₀ x : Data 19}
-    (hreh : ∀ (S : Finset (Fin U)), S.card ≤ n_max →
-      (seedLaw c_exp n_max U (tableBits n_max)).toOuterMeasure
-        {θ : Seed c_exp n_max U (tableBits n_max) |
-          ¬ GoodForSet (evalHash1 θ) (evalHash2 θ) (maxEvictions n_max) S} ≤ 1 / 2)
-    (hinv : RehashLoopInv w base c_exp n_max U V ks s x₀ x)
-    (hm16 : x.mem (base + 16) = 1)
-    (hfit_ev : Fits w (maxEvictions n_max))
-    (hw : 2 * Probability.trinomialDeg U (tableBits n_max) ≤ w)
-    (hfit_end : Fits w (base + space c_exp n_max))
-    (hfit_q : Fits w (2 ^ Probability.trinomialDeg U (tableBits n_max))) :
-    ∃ (μ_out : PMF (Data 19))
-      (hE : (survivingSeeds evalHash1 evalHash2 (maxEvictions n_max) ks).Nonempty),
-      ExecCodeDist w (.seq (rehashLoopCode c_exp n_max) (.op (.const 2 0))) x μ_out
-        (rehashLoopSteps c_exp n_max U + 1) ∧
-      μ_out.map (fun y => extractSeed (hashBase base) c_exp n_max U (tableBits n_max) y.mem) =
-        PMF.uniformOfFinset (survivingSeeds evalHash1 evalHash2 (maxEvictions n_max) ks) hE ∧
-      ∀ y ∈ μ_out.support,
-        y.regs 2 = 0 ∧ RehashLoopPost w base c_exp n_max U V ks s x₀ y := by
-  have hfit_0 : Fits w 0 := hfit_end.of_le (Nat.zero_le _)
-  obtain ⟨μ_reh, hE, hreh_dist, hreh_law, hreh_supp⟩ :=
-    rehashLoopCode_execCodeDist hreh hinv hm16 hfit_ev hw hfit_end hfit_q
-  let μ_out := μ_reh.map (fun z => z.set 2 0)
-  have hseq := hreh_dist.seq_const
-    (c₂ := .op (.const 2 0))
-    (μ₂ := fun z => PMF.pure (z.set 2 0))
-    (T₂ := fun _ => ((1 : ℕ) : ℝ≥0∞))
-    (B₂ := ((1 : ℕ) : ℝ≥0∞))
-    (fun z _ => ExecCodeDist.of_exec (Exec.const (B := .exact) (d := 2) hfit_0))
-    (fun _ _ => le_rfl)
-  have hout_law :
-      μ_out.map (fun y => extractSeed (hashBase base) c_exp n_max U (tableBits n_max) y.mem) =
-        PMF.uniformOfFinset (survivingSeeds evalHash1 evalHash2 (maxEvictions n_max) ks) hE := by
-    dsimp only [μ_out]
-    rw [PMF.map_comp]
-    exact hreh_law
-  refine ⟨μ_out, hE, hseq.congr_dist rfl (by push_cast; rfl), hout_law, ?_⟩
-  intro y hy
-  dsimp only [μ_out] at hy
-  rw [PMF.mem_support_map_iff] at hy
-  obtain ⟨z, hz, rfl⟩ := hy
-  obtain ⟨⟨hz_bdd, hz_0, hz_hdr, hz_tab, hz_kv, hz_mod⟩, hz_hash, tbl, hrep, hslots⟩ :=
-    hreh_supp z hz
-  have hy_bdd : (z.set 2 0).Bounded w :=
-    (Exec.const (B := .exact) (d := 2) hfit_0).bounded hz_bdd
-  refine ⟨by simp +decide [Data.set], ⟨hy_bdd, by simp +decide [Data.set, hz_0],
-    hz_hdr, hz_tab, hz_kv, hz_mod⟩, hz_hash, tbl, hrep, hslots⟩
-
 open Classical in
 private theorem insertNewKeyBranchCode_execCodeDist {w base c_exp n_max U V v : ℕ}
     {ks : List (Fin U)}
@@ -2870,7 +2778,6 @@ private theorem insertNewKeyBranchCode_execCodeDist {w base c_exp n_max U V v : 
     hs2_0 (by fits) (by fits)
   set s3 := ((s2.set 15 16).set 16 (base + 16)).set 16 (s2.mem (base + 16))
   set s4 := s3.set 15 0
-  have e_c0 : Exec w (.op (.const 15 0) : Code .exact 19) s3 s4 1 := Exec.const hfit_0
   have hs4_0 : s4.regs 0 = base := by regs_frame
   have hs4_kv :
       KeysValsRep base c_exp n_max U V (ks ++ [u]) (Function.update s u (some v)) s4.mem := by
@@ -2892,27 +2799,28 @@ private theorem insertNewKeyBranchCode_execCodeDist {w base c_exp n_max U V v : 
         θ_mem ∈ survivingSeeds evalHash1 evalHash2 (maxEvictions n_max) (ks ++ [u]) := by
       rw [mem_survivingSeeds, hrep_app]
       rfl
-    have hcond : ¬(Cond.lt 15 16 : Cond 19).Holds s4 := by
-      simp [Cond.Holds, s4, s3, hs2_16_0]
-    have hall := he_setup.seq (he_ev.seq (e_ld16.seq (e_c0.seq
-      ((Exec.const (B := .exact) (d := 2) hfit_0).branch_neg
-        (pos := .seq (rehashLoopCode c_exp n_max) (.op (.const 2 0))) hcond))))
-    refine ⟨PMF.pure (s4.set 2 0), ⟨θ_mem, hmem_surv⟩, (ExecCodeDist.of_exec hall).mono ?_, ?_,
-      ?_⟩
-    · simp only [hmem_surv, ↓reduceIte]
+    let y₀ := ((((s2.set 15 16).set 16 (base + 16)).set 16 0).set 15 0).set 2 0
+    have hdist : ExecCodeDist w (insertNewKeyBranchCode c_exp n_max) x (PMF.pure y₀)
+        (cuckooWalkRounds (evalHash1 θ_mem) (evalHash2 θ_mem) (maxEvictions n_max)
+          (Dictionary.dom s) u * evictIterSteps c_exp n_max U + 54 : ℕ) := by
       have hwalk_mul := Nat.mul_le_mul_right (evictIterSteps c_exp n_max U)
         (evictRounds_le_cuckooWalkRounds (maxLoop := maxEvictions n_max)
           (pureReplay_validPlacement hkv.1 (fun x hx => (hkv.2.2.2.1 x).mp hx) hreplay)
           u ks.length)
-      exact_mod_cast (by omega : 37 + (t_ev + (3 + (1 + (1 + 2)))) ≤
-        cuckooWalkRounds (evalHash1 θ_mem) (evalHash2 θ_mem) (maxEvictions n_max)
-          (Dictionary.dom s) u * evictIterSteps c_exp n_max U + 54)
+      unfold insertNewKeyBranchCode loadHeaderCode
+      apply WP.Dist.execCodeDist
+      wram_rand_call he_setup
+      wram_rand_call he_ev
+      wram_rand_exec [hs2_0, hs2_16_0]
+    refine ⟨PMF.pure y₀, ⟨θ_mem, hmem_surv⟩, ?_, ?_, ?_⟩
+    · simp only [hmem_surv, ↓reduceIte]; exact hdist
     · simp only [hmem_surv, ↓reduceIte, PMF.map, PMF.pure_bind, Function.comp_apply]
       exact congrArg PMF.pure hs4_seed
     · intro y hy
+      have hy_bdd := hdist.bounded hx_bdd y hy
       rw [PMF.support_pure, Set.mem_singleton_iff] at hy
       subst hy
-      exact ⟨by wram_simp, ⟨hall.bounded hx_bdd, by wram_simp [hs4_0], hs2_hdr,
+      exact ⟨by wram_simp [y₀], ⟨hy_bdd, by wram_simp [y₀, hs2_0], hs2_hdr,
         hs4_seed ▸ hs2_hash, hs4_kv, tbl', hs4_seed ▸ hrep_app, hs2_slots⟩, hs4_mod⟩
   | none =>
     rw [hev_eq] at hs2_res
@@ -2921,26 +2829,39 @@ private theorem insertNewKeyBranchCode_execCodeDist {w base c_exp n_max U V v : 
       rw [mem_survivingSeeds, pureReplay_append_singleton, hreplay]
       simp [hev_eq]
     simp only [hnot_surv, ↓reduceIte]
-    have hcond : (Cond.lt 15 16 : Cond 19).Holds s4 := by
-      simp [Cond.Holds, s4, s3, hs2_res]
-    obtain ⟨μ_out, hE', hout_dist, hout_law, hout_supp⟩ :=
-      rehashLoopCode_set2_execCodeDist hreh
-        ⟨(he_setup.seq (he_ev.seq (e_ld16.seq e_c0))).bounded hx_bdd, hs4_0, hs2_hdr,
-          hs2_hash.1, hs4_kv, hs4_mod⟩ hs2_res hfit_ev hw hfit_end hfit_q
-    have hseq := (ExecCodeDist.of_exec he_setup).seq_pure ((ExecCodeDist.of_exec he_ev).seq_pure
-      ((ExecCodeDist.of_exec e_ld16).seq_pure ((ExecCodeDist.of_exec e_c0).seq_pure
-        (hout_dist.branch_pos (neg := .op (.const 2 0)) hcond))))
-    have ht_ev_max := ht_ev.trans (Nat.add_le_add_right (Nat.mul_le_mul_right _
-      (evictRounds_le (evalHash1 θ_mem) (evalHash2 θ_mem) (maxEvictions n_max) tbl
-        ⟨u, ks.length⟩)) 10)
-    refine ⟨μ_out, hE', hseq.mono ?_, hout_law, fun y hy => ?_⟩
-    · exact_mod_cast (by omega :
-        37 + (t_ev + (3 + (1 + ((rehashLoopSteps c_exp n_max U + 1) + 1)))) ≤
-          maxEvictions n_max * evictIterSteps c_exp n_max U + 54 +
-            rehashLoopSteps c_exp n_max U + 2)
-    · obtain ⟨hy_2, ⟨hy_bdd, hy_0, hy_hdr, _, hy_kv, hy_mod⟩, hy_hash, tbl', hy_rep, hy_slots⟩ :=
-        hout_supp y hy
-      exact ⟨hy_2, ⟨hy_bdd, hy_0, hy_hdr, hy_hash, hy_kv, tbl', hy_rep, hy_slots⟩, hy_mod⟩
+    have hs4_bdd : s4.Bounded w :=
+      (e_ld16.seq (Exec.const hfit_0)).bounded ((he_setup.seq he_ev).bounded hx_bdd)
+    obtain ⟨μ_reh, hE', hreh_dist, hreh_law, hreh_supp⟩ :=
+      rehashLoopCode_execCodeDist hreh
+        ⟨hs4_bdd, hs4_0, hs2_hdr, hs2_hash.1, hs4_kv, hs4_mod⟩
+        hs2_res hfit_ev hw hfit_end hfit_q
+    let μ_out := μ_reh.map (fun z => z.set 2 0)
+    have hdist : ExecCodeDist w (insertNewKeyBranchCode c_exp n_max) x μ_out
+        (maxEvictions n_max * evictIterSteps c_exp n_max U + 54 +
+          rehashLoopSteps c_exp n_max U + 2 : ℕ) := by
+      have ht_ev_max := ht_ev.trans (Nat.add_le_add_right (Nat.mul_le_mul_right _
+        (evictRounds_le (evalHash1 θ_mem) (evalHash2 θ_mem) (maxEvictions n_max) tbl
+          ⟨u, ks.length⟩)) 10)
+      unfold insertNewKeyBranchCode loadHeaderCode
+      apply WP.Dist.execCodeDist
+      wram_rand_call he_setup
+      wram_rand_call he_ev
+      wram_rand_exec [hs2_0, hs2_res]
+      have hs4_eq : (((s2.set 15 16).set 16 (base + 16)).set 16 1).set 15 0 = s4 := by
+        simp only [s4, s3, hs2_res]
+      rw [hs4_eq]
+      wram_rand_call hreh_dist with z hz
+      · wram_rand_exec
+      · exact ⟨by simp only [μ_out, ← PMF.bind_pure_comp, Function.comp_def], by norm_cast; omega⟩
+    refine ⟨μ_out, hE', hdist, by dsimp only [μ_out]; rw [PMF.map_comp]; exact hreh_law,
+      fun y hy => ?_⟩
+    have hy_bdd := hdist.bounded hx_bdd y hy
+    dsimp only [μ_out] at hy
+    rw [PMF.mem_support_map_iff] at hy
+    obtain ⟨z, hz, rfl⟩ := hy
+    obtain ⟨⟨_, hz_0, hz_hdr, _, hz_kv, hz_mod⟩, hz_hash, tbl', hz_rep, hz_slots⟩ := hreh_supp z hz
+    exact ⟨by wram_simp, ⟨hy_bdd, by wram_simp [hz_0], hz_hdr, hz_hash, hz_kv, tbl', hz_rep,
+      hz_slots⟩, hz_mod⟩
 
 private theorem insertCode_execCodeDist {w base c_exp n_max U V v : ℕ}
     {ks : List (Fin U)} {s : Dictionary.State U}
@@ -3029,46 +2950,48 @@ private theorem insertCode_execCodeDist {w base c_exp n_max U V v : ℕ}
     rw [hlook] at hs3_lookup
     obtain ⟨hs3_13, hs3_14⟩ := hs3_lookup
     dsimp only at hs3_14
-    have hcond : (Cond.lt 15 16 : Cond 19).Holds s5 := by
-      simp [Cond.Holds, s5, s4, hs3_13]
     obtain ⟨y, he_ov, hy_0, hy_2, hy_val, hy_frame⟩ :=
       insertOverwriteBranchCode_exec (c_exp := c_exp) (n_max := n_max)
         hs5_0 hs3_hdr.2.2.2.2.2.2.2.2.2 hs3_14 hs3_18 (by omega) hfit_end
-    have hall := e_st11.seq (e_st18.seq (he_probe.seq (e_ld13.seq (e_c0.seq
-      (he_ov.branch_pos (neg := insertNewKeyBranchCode c_exp n_max) hcond)))))
     have hy_seed : extractSeed (hashBase base) c_exp n_max U (tableBits n_max) y.mem = θ_mem :=
       (extractSeed_congr_of_footprint (by mem_frame)).trans hs3_seed_x
     have hy_mod : Modifies (Block.mk base (space c_exp n_max)).footprint x.mem y.mem := by
       mem_frame
-    have hstep_eq : stepKeys ks (.insert u v) = ks := by
-      simp [stepKeys, hu_ks]
+    have hstep_eq : stepKeys ks (.insert u v) = ks := by simp [stepKeys, hu_ks]
     rw [hstep_eq]
-    refine ⟨PMF.pure y, ⟨θ_mem, hθ_surv⟩, (ExecCodeDist.of_exec hall).mono ?_, ?_, ?_⟩
-    · dsimp only [insertSeedSteps]
-      simp only [hu, ↓reduceIte]
-      exact_mod_cast (by dsimp only [insertBaseSteps]; omega :
-        3 + (3 + (t_probe + (3 + (1 + (12 + 1))))) ≤ insertBaseSteps c_exp n_max U)
-    · simp only [hθ_surv, ↓reduceIte, PMF.map, PMF.pure_bind, Function.comp_apply]
-      exact congrArg PMF.pure hy_seed
+    have hdist : ExecCodeDist w (insertCode c_exp n_max) x (PMF.pure y)
+        (insertBaseSteps c_exp n_max U : ℕ) := by
+      unfold insertCode insertBaseSteps
+      apply WP.Dist.execCodeDist
+      wram_rand_call e_st11
+      wram_rand_call e_st18
+      wram_rand_call he_probe
+      wram_rand_call e_ld13
+      wram_rand_call e_c0
+      wram_rand_exec [show s5.regs 15 = 0 from rfl,
+        show s5.regs 16 = 1 by wram_simp [s5, s4, hs3_13]]
+      wram_rand_call he_ov
+      exact ⟨rfl, by norm_cast; omega⟩
+    refine ⟨PMF.pure y, ⟨θ_mem, hθ_surv⟩, hdist.mono (by dsimp only [insertSeedSteps]; simp [hu]),
+      ?_, ?_⟩
+    · simp only [hθ_surv, ↓reduceIte, PMF.map, PMF.pure_bind, Function.comp_apply, hy_seed]
     · intro z hz
+      have hy_bdd := hdist.bounded hx_bdd z hz
       rw [PMF.support_pure, Set.mem_singleton_iff] at hz
       subst hz
-      exact ⟨hy_2, ⟨hall.bounded hx_bdd, hy_0, by struct_frame hs3_hdr,
+      exact ⟨hy_2, ⟨hy_bdd, hy_0, by struct_frame hs3_hdr,
         hy_seed ▸ hs3_hash.congr_of_footprint (by mem_frame),
         hs3_kv.insert_of_mem hpre.2 hidx_lt hks_idx (by mem_frame)
           (by mem_frame) hy_val (by mem_frame),
         tbl, hy_seed ▸ hreplay, by struct_frame hs3_slots⟩, hy_mod⟩
   · have hu_ks : u ∉ ks := fun h => hu ((hkv.2.2.2.1 u).mp h)
-    have hstep_eq : stepKeys ks (.insert u v) = ks ++ [u] := by
-      simp [stepKeys, hu_ks]
+    have hstep_eq : stepKeys ks (.insert u v) = ks ++ [u] := by simp [stepKeys, hu_ks]
     have hnone_u : s u = none := Dictionary.notMem_dom_iff.mp hu
     have hlen_lt : ks.length < n_max := by
       rw [← hkv.card_dom_eq]
       exact hpre.1.resolve_right (by rw [hnone_u]; exact Bool.false_ne_true)
     have hlook := pureReplay_lookupEntry_of_notMem hkv.1 hreplay hu_ks
     rw [hlook] at hs3_lookup
-    have hcond : ¬(Cond.lt 15 16 : Cond 19).Holds s5 := by
-      simp [Cond.Holds, s5, s4, hs3_lookup]
     obtain ⟨μ_br, hE'_br, hbr_dist, hbr_law, hbr_supp⟩ :=
       insertNewKeyBranchCode_execCodeDist (x₀ := x) (x := s5) hreh
         ((e_st11.seq (e_st18.seq (he_probe.seq (e_ld13.seq e_c0)))).bounded hx_bdd) hs5_0
@@ -3076,26 +2999,31 @@ private theorem insertCode_execCodeDist {w base c_exp n_max U V v : ℕ}
         hlen_lt hpre.2 hs5_mod hfit_ev hw hfit_end hfit_q
     rw [hs5_seed] at hbr_dist hbr_law
     rw [hstep_eq]
-    have hseq := (ExecCodeDist.of_exec e_st11).seq_pure ((ExecCodeDist.of_exec e_st18).seq_pure
-      ((ExecCodeDist.of_exec he_probe).seq_pure ((ExecCodeDist.of_exec e_ld13).seq_pure
-        ((ExecCodeDist.of_exec e_c0).seq_pure
-          (hbr_dist.branch_neg (pos := insertOverwriteBranchCode) hcond)))))
-    refine ⟨μ_br, hE'_br, hseq.mono ?_, hbr_law, hbr_supp⟩
-    dsimp only [insertSeedSteps]
+    set B_br : ℝ≥0∞ :=
+      if θ_mem ∈ survivingSeeds evalHash1 evalHash2 (maxEvictions n_max) (ks ++ [u]) then
+        (cuckooWalkRounds (evalHash1 θ_mem) (evalHash2 θ_mem) (maxEvictions n_max)
+          (Dictionary.dom s) u * evictIterSteps c_exp n_max U + 54 : ℕ)
+      else
+        (maxEvictions n_max * evictIterSteps c_exp n_max U + 54 +
+          rehashLoopSteps c_exp n_max U + 2 : ℕ)
+    change ExecCodeDist w (insertNewKeyBranchCode c_exp n_max) s5 μ_br B_br at hbr_dist
+    have hdist : ExecCodeDist w (insertCode c_exp n_max) x μ_br
+        ((3 + (3 + (t_probe + (3 + 1))) : ℕ) + (B_br + 2)) := by
+      unfold insertCode
+      apply WP.Dist.execCodeDist
+      wram_rand_call e_st11
+      wram_rand_call e_st18
+      wram_rand_call he_probe
+      wram_rand_call e_ld13
+      wram_rand_call e_c0
+      wram_rand_exec [show s5.regs 15 = 0 from rfl,
+        show s5.regs 16 = 0 by wram_simp [s5, s4, hs3_lookup]]
+      wram_rand_call hbr_dist
+      exact ⟨rfl, by push_cast; exact le_of_eq (by ring)⟩
+    refine ⟨μ_br, hE'_br, hdist.mono ?_, hbr_law, hbr_supp⟩
+    dsimp only [insertSeedSteps, B_br]
     simp only [hu, hθ_surv, not_true_eq_false, or_false, ↓reduceIte]
-    split_ifs with hsurv'
-    · exact_mod_cast (by dsimp only [insertBaseSteps]; omega :
-        3 + (3 + (t_probe + (3 + (1 +
-          ((cuckooWalkRounds (evalHash1 θ_mem) (evalHash2 θ_mem) (maxEvictions n_max)
-            (Dictionary.dom s) u * evictIterSteps c_exp n_max U + 54) + 2))))) ≤
-        insertBaseSteps c_exp n_max U +
-          cuckooWalkRounds (evalHash1 θ_mem) (evalHash2 θ_mem) (maxEvictions n_max)
-            (Dictionary.dom s) u * evictIterSteps c_exp n_max U)
-    · exact_mod_cast (by dsimp only [insertWorstSteps, insertBaseSteps]; omega :
-        3 + (3 + (t_probe + (3 + (1 +
-          ((maxEvictions n_max * evictIterSteps c_exp n_max U + 54 +
-            rehashLoopSteps c_exp n_max U + 2) + 2))))) ≤
-        insertWorstSteps c_exp n_max U)
+    split_ifs <;> (dsimp only [insertWorstSteps, insertBaseSteps]; norm_cast; omega)
 
 /-! ### Section 6: `opCode`, `cuckooCode`, `impl`, and `cuckoo_seq_expected_amortized` -/
 
@@ -3221,32 +3149,24 @@ private theorem opCode_execCodeDist {w base c_exp n_max U V : ℕ}
   classical
   intro θ_mem
   have hfit_0 : Fits w 0 := hfit_end.of_le (Nat.zero_le _)
-  set s1 := x.set 15 0
-  have e_c0 : Exec w (.op (.const 15 0) : Code .exact 19) x s1 1 := Exec.const hfit_0
-  have hs1_rep : RepWithKeys w base c_exp n_max U V ks s s1 :=
-    RepWithKeys.supported (x := x) (x' := s1) (by simp +decide [s1]) (fun _ _ => rfl)
-      (e_c0.bounded hrep.1) hrep
+  have hs1_rep : RepWithKeys w base c_exp n_max U V ks s (x.set 15 0) :=
+    RepWithKeys.supported (x := x) (x' := x.set 15 0) (by simp +decide) (fun _ _ => rfl)
+      ((Exec.const (B := .exact) (d := 15) hfit_0).bounded hrep.1) hrep
   cases o with
   | query u =>
     obtain ⟨h2, h3⟩ := harg
-    have hcond : (Cond.eq 2 15 : Cond 19).Holds s1 := by
-      simp +decide [Cond.Holds, s1, h2]
-    obtain ⟨y, ⟨t_g, ht_g, he_g⟩, hy_2, hy_rep, hy_seed, hy_mod⟩ :=
-      queryCode_execWithin (u := u) hs1_rep (by simp +decide [s1, h3]) hw hfit_end hfit_V
-    have e_br := he_g.branch_pos (neg := insertCode c_exp n_max) hcond
-    have hall := e_c0.seq e_br
+    obtain ⟨y, he_g, hy_2, hy_rep, hy_seed, hy_mod⟩ :=
+      queryCode_execWithin (u := u) hs1_rep (by wram_simp [h3]) hw hfit_end hfit_V
     have hθ_surv : θ_mem ∈ survivingSeeds evalHash1 evalHash2 (maxEvictions n_max) ks :=
       hrep.extractSeed_mem_survivingSeeds
-    have hE' :
-        (survivingSeeds evalHash1 evalHash2 (maxEvictions n_max)
-          (stepKeys ks (.query u))).Nonempty :=
-      ⟨θ_mem, hθ_surv⟩
-    refine ⟨PMF.pure y, hE', (ExecCodeDist.of_exec hall).mono ?_, ?_, ?_⟩
+    refine ⟨PMF.pure y, ⟨θ_mem, hθ_surv⟩, ?_, ?_, ?_⟩
     · dsimp only [opSeedSteps]
-      exact_mod_cast (by omega : 1 + (t_g + 1) ≤ querySteps c_exp n_max U + 2)
+      unfold opCode
+      wram_rand_exec [h2]
+      wram_rand_call he_g
+      exact ⟨rfl, by norm_cast; omega⟩
     · dsimp only [stepKeys]
-      simp only [hθ_surv, ↓reduceIte, PMF.map, PMF.pure_bind, Function.comp_apply]
-      rw [hy_seed]
+      simp only [hθ_surv, ↓reduceIte, PMF.map, PMF.pure_bind, Function.comp_apply, hy_seed]
       rfl
     · intro z hz
       rw [PMF.support_pure, Set.mem_singleton_iff] at hz
@@ -3256,22 +3176,18 @@ private theorem opCode_execCodeDist {w base c_exp n_max U V : ℕ}
       rw [hy_2, decodeOptionNat_encodeOptionNat]
   | insert u v =>
     obtain ⟨h2, h3, h4⟩ := harg
-    have hcond : ¬(Cond.eq 2 15 : Cond 19).Holds s1 := by
-      simp +decide [Cond.Holds, s1, h2]
     obtain ⟨μ_ins, hE', hins_dist, hins_law, hins_supp⟩ :=
-      insertCode_execCodeDist hreh hs1_rep (by simp +decide [s1, h3])
-        (by simp +decide [s1, h4]) hvalid hfit_ev hw hfit_end hfit_q
-    have hbr := hins_dist.branch_neg (pos := queryCode c_exp n_max) hcond
-    have hseq := (ExecCodeDist.of_exec e_c0).seq_pure hbr
-    refine ⟨μ_ins, hE', hseq.mono ?_, hins_law, ?_⟩
-    · dsimp only [opSeedSteps]
-      change ((1 : ℕ) : ℝ≥0∞) + (insertSeedSteps c_exp n_max U ks θ_mem s u + 2) ≤
-        insertSeedSteps c_exp n_max U ks θ_mem s u + 3
-      rw [Nat.cast_one]
-      exact le_of_eq (by ring)
-    · intro y hy
-      obtain ⟨_, hy_rep, hy_mod⟩ := hins_supp y hy
-      exact ⟨rfl, hy_rep, hy_mod⟩
+      insertCode_execCodeDist hreh hs1_rep (by wram_simp [h3])
+        (by wram_simp [h4]) hvalid hfit_ev hw hfit_end hfit_q
+    refine ⟨μ_ins, hE', ?_, hins_law, fun y hy => ⟨rfl, (hins_supp y hy).2.1, (hins_supp y hy).2.2⟩⟩
+    unfold opCode opSeedSteps
+    wram_rand_exec [h2]
+    wram_rand_call hins_dist
+    refine ⟨rfl, ?_⟩
+    change ((1 : ℕ) : ℝ≥0∞) + (insertSeedSteps c_exp n_max U ks θ_mem s u + 2) ≤
+      insertSeedSteps c_exp n_max U ks θ_mem s u + 3
+    rw [Nat.cast_one]
+    exact le_of_eq (by ring)
 
 private theorem tsum_seedLaw_insertSeedSteps_le {c_exp n_max U V C_walk C_reh v : ℕ}
     {ks : List (Fin U)} {s : Dictionary.State U} {u : Fin U}
