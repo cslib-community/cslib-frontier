@@ -10,11 +10,10 @@ module
 public import CslibFrontier.Algorithms.Lean.TSP.HamiltonianCount
 public import CslibFrontier.Computability.WordRAM.Function
 public import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
-import CslibFrontier.Algorithms.WordRAM.BoolMatrixInput
+import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.Computability.WordRAM.Realization.Structure
 import CslibFrontier.DataStructure.StateTransition
-import CslibFrontier.Foundations.Data.List.RowMajor
 import CslibFrontier.Foundations.Data.Matrix.PairChunks
 import CslibFrontier.Foundations.Data.Nat.Bitwise.Carry
 import CslibFrontier.Tactic.Realize
@@ -169,18 +168,27 @@ private theorem one_le_word_prod (n : ℕ) : 1 ≤ 2 ^ n * (n + 1) ^ n :=
 
 theorem inputFits (I : Instance) {w : ℕ} (hfit : I.FitsWidth w) : InputFits w I.encode := by
   have h1 := one_le_word_prod I.n
-  exact inputFits_boolMatrix I.adj hfit (by unfold wordBound; nlinarith)
-    (by unfold wordBound; nlinarith) (by unfold wordBound; nlinarith)
+  rw [Instance.encode, ← List.singleton_append]
+  simp only [List.ofFn_eq_map]
+  exact InputFits.flatMap_finRange [I.n] (fun u v => if I.adj u v then 1 else 0)
+    (hfit.of_le (by simp only [List.length_singleton]; unfold wordBound; nlinarith))
+    (fun x hx => by
+      simp only [List.mem_singleton] at hx; subst hx
+      exact hfit.of_le (by unfold wordBound; nlinarith))
+    (fun _ _ => by
+      split_ifs
+      · exact hfit.of_le (by unfold wordBound; nlinarith)
+      · exact fits_zero w)
 
 private theorem init_mem_n (I : Instance) : (Memory.State.init I.encode).mem 1 = I.n := rfl
 
 private theorem init_mem_adj (I : Instance) (u v : Fin I.n) :
     (Memory.State.init I.encode).mem (2 + u.1 * I.n + v.1) = if I.adj u v then 1 else 0 := by
-  rw [show (2 : ℕ) + u.1 * I.n + v.1 = ((u.1 * I.n + v.1) + 1) + 1 by omega]
-  change (Data.init (r := 0) I.encode).mem (((u.1 * I.n + v.1) + 1) + 1) = _
-  rw [Data.init_mem_succ]
-  simp only [encode, List.getD_cons_succ]
-  exact List.getD_flatMap_ofFn (fun u v => if I.adj u v then 1 else 0) 0 u v
+  change (Data.init (r := 0) I.encode).mem (2 + u.1 * I.n + v.1) = _
+  rw [show (2 : ℕ) + u.1 * I.n + v.1 = [I.n].length + 1 + (u.1 * I.n + v.1) by simp [Nat.add_assoc],
+    Instance.encode, ← List.singleton_append]
+  simp only [List.ofFn_eq_map]
+  exact Data.init_mem_flatMap_finRange [I.n] (fun u' v' => if I.adj u' v' then 1 else 0) u v
 
 private theorem init_frontier (I : Instance) :
     (Memory.State.init I.encode).frontier = I.n * I.n + 2 := by

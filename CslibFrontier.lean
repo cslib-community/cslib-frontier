@@ -385,7 +385,6 @@ public import CslibFrontier.Algorithms.WordRAM.Arborescence
 public import CslibFrontier.Algorithms.WordRAM.Auction
 public import CslibFrontier.Algorithms.WordRAM.BellmanFord
 public import CslibFrontier.Algorithms.WordRAM.BinarySearch
-public import CslibFrontier.Algorithms.WordRAM.BoolMatrixInput
 public import CslibFrontier.Algorithms.WordRAM.BurrowsWheeler
 public import CslibFrontier.Algorithms.WordRAM.CSR
 public import CslibFrontier.Algorithms.WordRAM.CYK
