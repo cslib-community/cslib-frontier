@@ -42,10 +42,11 @@ in OPB text, and in CakePB's order:
 CakePB writes the per-pattern at-most-one constraints (`has_mapping_am1`) as `∑ᵤ xₐᵤ ≤ 1`; here
 they are written in the `≥` form that CakePB's normalization gives them, the constraints of the
 checker being `≥` constraints. CakePB already writes the per-target constraints (`one_one`) in the
-`≥` form with negated literals, as here. A constraint with no literal has degree `0` here where
-CakePB's is negative: with `p = 0`, `one_one` is `≥ -1` in CakePB, and with `t = 0`,
+`≥` form with negated literals, as here. An at-most-one constraint with no literal has degree `0`
+here where CakePB's is negative: with `p = 0`, `one_one` is `≥ -1` in CakePB, and with `t = 0`,
 `has_mapping_am1` is `≤ 1`, that is `≥ -1`. Both forms are trivial, and the constraints keep
-CakePB's IDs.
+CakePB's IDs. With `t = 0` the at-least-one constraint `has_mapping_al1` has no literal either; it
+is `0 ≥ 1`, of degree `1` in both, and contradicts any pattern vertex.
 
 **Correctness** (CakePB's `encode_correct`). An assignment satisfies the constraints exactly when
 it is the graph of a copy of `P` in `T`
@@ -57,7 +58,7 @@ satisfiable exactly when `P ⊑ T` (`Cslib.Logic.PL.VeriPB.Graph.exists_holds_is
 `Cslib.Logic.PL.VeriPB.Text.checkOPBOutput`; the round trip of the printer carries the conclusion
 back to the encoding built in Lean. No theorem relates this checker to CakePB's: that a proof
 accepted here is accepted by `cake_pb_iso`, with the variables renamed, was checked only on the
-translated fixtures of the tests, including the two with the empty rows above.
+translated fixtures of the tests, including the two with the empty at-most-one rows above.
 A conclusion `SAT` gives `true` and `UNSAT` gives `false`; other conclusions give nothing.
 * `Cslib.Logic.PL.VeriPB.Graph.isContained_iff_of_checkSubgraphIsoGraph`: if
   `Cslib.Logic.PL.VeriPB.Graph.checkSubgraphIsoGraph P T pbp = some b`, then `P ⊑ T ↔ b = true`.

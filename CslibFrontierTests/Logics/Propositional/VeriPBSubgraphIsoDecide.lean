@@ -37,10 +37,11 @@ import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 VeriPB 3.0.2 accepts the five client proofs against the printed encoding, and
 `veripb --elaborate` returns them unchanged up to spacing. CakePB's `cake_pb_iso` accepts the same
 five against the LAD texts, with the variables renamed `x(t·a + u + 1) ↦ xa_u`, reporting
-`SUBGRAPH ISOMORPHIC` or `NOT SUBGRAPH ISOMORPHIC` as here. In the last two the rows without a
-literal differ: `>= 0` here, `>= -1` for CakePB's `@inj0` and `@inj1` (empty pattern) and
-`<= 1` for its `@am10` (empty target). These translated fixtures are the only evidence that a proof
-accepted here is accepted by CakePB.
+`SUBGRAPH ISOMORPHIC` or `NOT SUBGRAPH ISOMORPHIC` as here. In the last two the at-most-one rows
+without a literal differ: `>= 0` here, `>= -1` for CakePB's `@inj0` and `@inj1` (empty pattern)
+and `<= 1` for its `@am10` (empty target). The empty target's at-least-one row `@al10` has no
+literal either but is `>= 1` in both; it is the constraint `1` of the `UNSAT` proof. These
+translated fixtures are the only evidence that a proof accepted here is accepted by CakePB.
 -/
 
 set_option linter.privateModule false

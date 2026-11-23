@@ -32,8 +32,10 @@ register_result "cakepb-subgraph-iso-encode-correct" where
     at-least-one and at-most-one per pattern vertex, at-most-one per target vertex, and the \
     edge-mapping constraints, in CakePB's order; CakePB writes the per-pattern has_mapping_am1 \
     rows with ≤ and they are printed here in their normalized ≥ form, while its per-target \
-    one_one rows are already ≥ rows over negated literals; a row with no literal, for p = 0 or \
-    t = 0, has degree 0 here and -1 in CakePB, both trivial) exactly when it is the graph of \
+    one_one rows are already ≥ rows over negated literals; an at-most-one row (has_mapping_am1 \
+    or one_one) with no literal, for p = 0 or t = 0, has degree 0 here and -1 in CakePB, both \
+    trivial, while an empty has_mapping_al1 row, for t = 0, is 0 ≥ 1, of degree 1 in both) \
+    exactly when it is the graph of \
     some f : P.Copy T, so the constraints are satisfiable exactly when P.IsContained T. \
     CakePB's has_subgraph_iso (an injective map sending edges to edges, non-induced) is \
     SimpleGraph.IsContained, not the induced embedding P ↪g T, and SimpleGraph (Fin n) is the \
@@ -69,6 +71,7 @@ register_result "cakepb-subgraph-iso-of-check" where
     sets, and the simple graph of a graph it reads has exactly the edges listed \
     (adj_iff_of_parseLAD, in Graph/Lad.lean). No theorem relates the Lean checker to CakePB's; \
     acceptance of the same proofs by cake_pb_iso, with the variables renamed, was checked only \
-    on the five translated test fixtures, two of which have the trivial empty rows (degree 0 \
-    here, -1 in CakePB). Outside-fleet source check: \
+    on the five translated test fixtures, two of which have trivial empty at-most-one rows \
+    (degree 0 here, -1 in CakePB); the empty-target fixture's UNSAT proof uses its empty \
+    at-least-one row 0 ≥ 1, of degree 1 in both. Outside-fleet source check: \
     https://github.com/cslib-community/cslib-frontier/pull/7944#pullrequestreview-6024571013"
