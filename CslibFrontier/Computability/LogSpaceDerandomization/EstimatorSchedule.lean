@@ -183,7 +183,6 @@ theorem coarse_scale_available {A a a' u : ℝ} (M c i : ℕ) (h : ℤ)
 @[expose] noncomputable def scaleMajorant (h : ℤ) : ℝ :=
   (2 : ℝ) ^ (-(h.natAbs : ℝ) / 8)
 
-@[positivity_lemma]
 theorem scaleMajorant_nonneg (h : ℤ) : 0 ≤ scaleMajorant h := by
   unfold scaleMajorant
   positivity
