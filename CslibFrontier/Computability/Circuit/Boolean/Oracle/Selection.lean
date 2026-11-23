@@ -76,24 +76,20 @@ selected word is that of the first accepted candidate, or none is and it is the 
 theorem firstSel_spec (d : BitString w) (acc : Fin N → Bool) (word : Fin N → BitString w) :
     (∃ i, acc i = true ∧ (∀ j < i, acc j = false) ∧ firstSel d acc word = word i) ∨
       ((∀ i, acc i = false) ∧ firstSel d acc word = d) := by
-  induction N with
-  | zero => exact .inr ⟨fun i => i.elim0, rfl⟩
-  | succ N ih =>
-    by_cases h0 : acc 0 = true
-    · refine .inl ⟨0, h0, fun j hj => absurd hj (Fin.not_lt_zero j), ?_⟩
-      simp [firstSel, h0]
-    · have hsel : firstSel d acc word = firstSel d (acc ∘ Fin.succ) (word ∘ Fin.succ) := by
-        simp [firstSel, h0]
-      rw [hsel]
-      rcases ih (acc ∘ Fin.succ) (word ∘ Fin.succ) with ⟨i, hi, hfirst, h⟩ | ⟨hnone, h⟩
-      · refine .inl ⟨i.succ, hi, fun j hj => ?_, h⟩
-        cases j using Fin.cases with
-        | zero => simpa using h0
-        | succ j => exact hfirst j (Fin.succ_lt_succ_iff.mp hj)
-      · refine .inr ⟨fun i => ?_, h⟩
-        cases i using Fin.cases with
-        | zero => simpa using h0
-        | succ i => exact hnone i
+  fun_induction firstSel d acc word with
+  | case1 => exact .inr ⟨fun i => i.elim0, rfl⟩ -- no candidates
+  -- acc 0: take word 0
+  | case2 N acc word h0 => exact .inl ⟨0, h0, fun j hj => absurd hj (Fin.not_lt_zero j), rfl⟩
+  | case3 N acc word h0 ih => -- ¬acc 0: search the rest
+    rcases ih with ⟨i, hi, hfirst, h⟩ | ⟨hnone, h⟩
+    · refine .inl ⟨i.succ, hi, fun j hj => ?_, h⟩
+      cases j using Fin.cases with
+      | zero => simpa using h0
+      | succ j => exact hfirst j (Fin.succ_lt_succ_iff.mp hj)
+    · refine .inr ⟨fun i => ?_, h⟩
+      cases i using Fin.cases with
+      | zero => simpa using h0
+      | succ i => exact hnone i
 
 /-- A property of words that the default and every accepted candidate's word have holds for the
 selected word. -/

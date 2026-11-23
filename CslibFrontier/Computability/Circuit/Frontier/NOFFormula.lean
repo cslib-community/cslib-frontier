@@ -582,40 +582,38 @@ private theorem chopAux_spec {n B : ℕ} (hB : 1 ≤ B) (fuel : ℕ) {m : ℕ} (
     (∀ i : Fin n, (chopAux B hB fuel T hfan hfuel).totalLeafAt i = T.leafAt i) ∧
     ∀ (x : Fin n → Bool) (b : Fin m → Bool),
       (chopAux B hB fuel T hfan hfuel).eval x b = T.eval x b := by
-  induction fuel generalizing m T with
-  | zero =>
+  fun_induction chopAux B hB fuel T hfan hfuel with
+  | case1 T _ hfuel => -- fuel exhausted
     have h0 : T.leafCount = 0 := Nat.le_zero.mp hfuel
     refine ⟨?_, ?_, rfl, fun _ => rfl, fun _ _ => rfl⟩
-    · simp [chopAux, AllBounded, h0]
-    · simp [chopAux, steps]
-  | succ fuel ih =>
-    dsimp only [chopAux]
-    split_ifs with hle
-    · refine ⟨hle, ?_, rfl, fun _ => rfl, fun _ _ => rfl⟩
-      simp [steps]
-    · let res := T.pluck hB hfan (by omega)
-      obtain ⟨hK_fan, hC_fan, hK_gt, hK_le, hsum_cnt, hsum_at, heval⟩ := res.2
-      have hC_fuel : res.1.2.leafCount ≤ fuel := by omega
-      obtain ⟨hbd, hsteps, htot, hat, hev⟩ := ih res.1.2 hC_fan hC_fuel
-      have hpos : 1 ≤ (chopAux B hB fuel res.1.2 hC_fan hC_fuel).steps := by
-        cases chopAux B hB fuel res.1.2 hC_fan hC_fuel <;> simp [steps]
-      refine ⟨⟨hK_le, hbd⟩, ?_, ?_, ?_, ?_⟩
-      · dsimp only [steps]
-        rw [Nat.add_sub_cancel]
-        have hstep1 : ((chopAux B hB fuel res.1.2 hC_fan hC_fuel).steps - 1 + 1) =
-            (chopAux B hB fuel res.1.2 hC_fan hC_fuel).steps := by omega
-        rw [← hstep1, Nat.succ_mul]
-        omega
-      · dsimp only [totalLeaves]
-        rw [htot]
-        exact (add_comm _ _).trans hsum_cnt
-      · intro i
-        dsimp only [totalLeafAt]
-        rw [hat i]
-        exact (add_comm _ _).trans (hsum_at i)
-      · intro x b
-        dsimp only [eval]
-        exact (hev x _).trans (heval x b)
+    · simp [AllBounded, h0]
+    · simp [steps]
+  | case2 fuel T hfan hfuel hle => -- leafCount ≤ 2 * B: a single root
+    refine ⟨hle, ?_, rfl, fun _ => rfl, fun _ _ => rfl⟩
+    simp [steps]
+  | case3 fuel T hfan hfuel hle res ih => -- pluck a piece, recurse on the rest
+    obtain ⟨hK_fan, hC_fan, hK_gt, hK_le, hsum_cnt, hsum_at, heval⟩ := res.2
+    have hC_fuel : res.1.2.leafCount ≤ fuel := by omega
+    obtain ⟨hbd, hsteps, htot, hat, hev⟩ := ih
+    have hpos : 1 ≤ (chopAux B hB fuel res.1.2 hC_fan hC_fuel).steps := by
+      cases chopAux B hB fuel res.1.2 hC_fan hC_fuel <;> simp [steps]
+    refine ⟨⟨hK_le, hbd⟩, ?_, ?_, ?_, ?_⟩
+    · dsimp only [steps]
+      rw [Nat.add_sub_cancel]
+      have hstep1 : ((chopAux B hB fuel res.1.2 hC_fan hC_fuel).steps - 1 + 1) =
+          (chopAux B hB fuel res.1.2 hC_fan hC_fuel).steps := by omega
+      rw [← hstep1, Nat.succ_mul]
+      omega
+    · dsimp only [totalLeaves]
+      rw [htot]
+      exact (add_comm _ _).trans hsum_cnt
+    · intro i
+      dsimp only [totalLeafAt]
+      rw [hat i]
+      exact (add_comm _ _).trans (hsum_at i)
+    · intro x b
+      dsimp only [eval]
+      exact (hev x _).trans (heval x b)
 
 /-- Pick the player in `Fin (r + 1)` with minimum current load. -/
 private noncomputable def minBag {r : ℕ} (load : Fin (r + 1) → ℕ) : Fin (r + 1) :=
