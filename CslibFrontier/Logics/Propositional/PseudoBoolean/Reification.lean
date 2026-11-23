@@ -37,7 +37,9 @@ rule is added.
   for a contradiction of slack above `1`, `negate` truncates its degree and the autoproof fails.
 * **Wrapping and unwrapping** (§2.2). `resolveGuard a b K` adds `K` times the clause `b` to the
   implication `a`: from `r ⇒ C` and `s ⇒ r` it derives `s ⇒ C`, and from `r ⇒ C` and `r` it
-  unwraps `C`. Lifting a whole derivation under a guard is Theorem 1, in
+  unwraps `C`; `runStep_resolveGuard_wrap` and `runStep_resolveGuard_unwrap` show that the derived
+  constraint has exactly the linear form of `s ⇒ C`, or of `C`, so it is that constraint up to the
+  order of its terms. Lifting a whole derivation under a guard is Theorem 1, in
   `CslibFrontier.Logics.Propositional.CuttingPlanes.Reification`.
 * **Fusion resolution** (§3.2). `fusion R C p q A A' n` derives `⋀ R ⇒ C ≥ min(A, A')` from
   `⋀ R ∧ r ⇒ C ≥ A` and `⋀ R ∧ ¬r ⇒ C ≥ A'` by a `pbc` subproof: two cutting-planes steps and a
@@ -62,7 +64,9 @@ The knapsack proofs of the paper's milestone use these combinators: its layer st
   accepted.
 * `Cslib.Logic.PL.VeriPB.stepTop_reifyFwd`, `Cslib.Logic.PL.VeriPB.stepTop_reifyBwd`,
   `Cslib.Logic.PL.VeriPB.runTop_reify`: the reification is accepted for a fresh variable.
-* `Cslib.Logic.PL.VeriPB.runStep_resolveGuard`: a guard resolution is accepted.
+* `Cslib.Logic.PL.VeriPB.runStep_resolveGuard`, `Cslib.Logic.PL.VeriPB.runStep_resolveGuard_wrap`,
+  `Cslib.Logic.PL.VeriPB.runStep_resolveGuard_unwrap`: a guard resolution is accepted, and wraps or
+  unwraps exactly.
 
 ## References
 
@@ -686,6 +690,190 @@ theorem touchedTrue_of_not_mem {z : ℕ} {w : VeriPB.WVal} {c : PBConstr} (h : z
 theorem not_mem_vars_negate {z : ℕ} {c : PBConstr} (h : z ∉ c.vars) : z ∉ c.negate.vars :=
   fun hm => h (mem_vars_of_mem_vars_normalize (by rwa [vars_negate] at hm))
 
+/-! ### The linear-form calculus
+
+The linear form of a constraint is its coefficient function `cf` and its bound
+`bnd = degree - negSum`. Normalization keeps the coefficients and clamps the bound at `-nP`, the
+negative part; sums, multiples, negation and division act linearly on the forms, up to that
+clamp and to rounding. -/
+
+/-- The negative part `∑ᵥ max(0, -aᵥ)` of a coefficient function. -/
+private noncomputable def nP (f : ℕ →₀ ℤ) : ℕ := f.sum fun _ a => (-a).toNat
+
+/-- The bound of the linear form of a constraint. -/
+private def bnd (c : PBConstr) : ℤ := c.degree - negSum c.terms
+
+private theorem sum_add_single {f : ℕ →₀ ℤ} {v : ℕ} (a : ℤ) (h : f v = 0) (g : ℤ → ℕ)
+    (hg : g 0 = 0) :
+    (f + Finsupp.single v a).sum (fun _ x => g x) = f.sum (fun _ x => g x) + g a := by
+  rw [Finsupp.sum_add_index_of_disjoint, Finsupp.sum_single_index hg]
+  rw [Finset.disjoint_iff_ne]
+  intro x hx y hy hxy
+  subst hxy
+  have := Finsupp.support_single_subset hy
+  simp only [Finset.mem_singleton] at this
+  subst this
+  exact (Finsupp.mem_support_iff.1 hx) h
+
+private theorem nP_add_single {f : ℕ →₀ ℤ} {v : ℕ} (a : ℤ) (h : f v = 0) :
+    nP (f + Finsupp.single v a) = nP f + (-a).toNat :=
+  sum_add_single a h (fun x => (-x).toNat) rfl
+
+private theorem sum_map_eq {L : List (ℕ × ℤ)} (h : (keys L).Nodup) (g : ℤ → ℕ) (hg : g 0 = 0) :
+    (L.map fun e => g e.2).sum = (sing L).sum fun _ x => g x := by
+  induction L with
+  | nil => simp [sing]
+  | cons e L ih =>
+    simp only [List.map_cons, List.nodup_cons] at h
+    have h0 := sing_apply_of_not_mem h.1
+    rw [show sing (e :: L) = sing L + Finsupp.single e.1 e.2 by simp [sing, add_comm],
+      sum_add_single _ h0 g hg, List.map_cons, List.sum_cons, ih h.2, add_comm]
+
+private theorem negMass_toLinear_eq (ts : List (ℕ × Literal ℕ)) :
+    negMass (toLinear ts) = nP (cf ts) := by
+  rw [cf_eq_lin]; exact sum_map_eq (nodup_keys_toLinear ts) (fun a => (-a).toNat) rfl
+
+private theorem bnd_normalize (c : PBConstr) :
+    bnd c.normalize = max (bnd c) (-(nP (cf c.terms) : ℤ)) := by
+  have := degree_normalize c
+  rw [negMass_toLinear_eq] at this
+  simp only [bnd, negSum_normalize, negMass_toLinear_eq]
+  omega
+
+private theorem cf_add' (c d : PBConstr) : cf (c.add d).terms = cf c.terms + cf d.terms := by
+  rw [add, cf_normalize, cf_append]
+
+private theorem bnd_add (c d : PBConstr) :
+    bnd (c.add d) = max (bnd c + bnd d) (-(nP (cf c.terms + cf d.terms) : ℤ)) := by
+  rw [add, bnd_normalize, cf_append]
+  simp only [bnd, negSum_append]; push_cast; ring_nf
+
+private theorem cf_mul' (k : ℕ) (c : PBConstr) : cf (c.mul k).terms = (k : ℤ) • cf c.terms := by
+  rw [mul, cf_normalize, VeriPB.cf_map_mul]
+
+private theorem bnd_mul (k : ℕ) (c : PBConstr) :
+    bnd (c.mul k) = max (k * bnd c) (-(nP ((k : ℤ) • cf c.terms) : ℤ)) := by
+  rw [mul, bnd_normalize, VeriPB.cf_map_mul]
+  simp only [bnd, VeriPB.negSum_map_mul]; push_cast; ring_nf
+
+/-- The negated-guard term of `⋀ R ⇒ c` on the literal `l`, as a coefficient. -/
+private theorem termCoeff_guard (a : ℕ) (l : Literal ℕ) :
+    termCoeff (a, Std.Sat.Literal.negate l) = if l.2 then -(a : ℤ) else a := by
+  obtain ⟨v, b⟩ := l; cases b <;> simp [termCoeff, Std.Sat.Literal.negate]
+
+private theorem cf_impl_single (l : Literal ℕ) (c : PBConstr) :
+    cf (impl [l] c).terms =
+      cf c.terms + Finsupp.single l.1 (if l.2 then -(c.degree : ℤ) else c.degree) := by
+  rw [show (impl [l] c).terms = (c.degree, Std.Sat.Literal.negate l) :: c.terms from rfl, cf_cons,
+    termCoeff_guard, add_comm]
+  obtain ⟨v, b⟩ := l; rfl
+
+private theorem bnd_impl_single (l : Literal ℕ) (c : PBConstr) :
+    bnd (impl [l] c) = bnd c - (if l.2 then (c.degree : ℤ) else 0) := by
+  simp only [bnd, impl, List.map_cons, List.map_nil, List.singleton_append, negSum_cons]
+  obtain ⟨v, b⟩ := l; cases b <;> simp [Std.Sat.Literal.negate]
+
+private theorem nP_impl_single {l : Literal ℕ} {c : PBConstr} (h : l.1 ∉ c.vars) :
+    nP (cf (impl [l] c).terms) = nP (cf c.terms) + (if l.2 then c.degree else 0) := by
+  rw [cf_impl_single, nP_add_single _ (cf_apply_of_not_mem h)]
+  cases l.2 <;> simp
+
+/-- The linear form of the normal form of `C`, from its coefficients and the bound `β`. -/
+private theorem toIneq_eq' (c : PBConstr) : c.toIneq = ⟨cf c.terms, bnd c⟩ := toIneq_eq c
+
+private theorem nP_single (v : ℕ) (a : ℤ) : nP (Finsupp.single v a) = (-a).toNat :=
+  Finsupp.sum_single_index (by simp)
+
+private theorem nP_pair {u v : ℕ} (huv : u ≠ v) (a b : ℤ) :
+    nP (Finsupp.single u a + Finsupp.single v b) = (-a).toNat + (-b).toNat := by
+  rw [nP_add_single _ (by simp [huv]), nP_single]
+
+/-- The clause `l ∨ z` of two literals on distinct variables. -/
+private theorem toPB_pair {l : Literal ℕ} {z : ℕ} (h : l.1 ≠ z) :
+    Clause.toPB [l, (z, true)] = ⟨[(1, l), (1, (z, true))], 1⟩ := by
+  have : [l, (z, true)].Nodup := by
+    simp only [List.nodup_cons, List.mem_singleton, List.not_mem_nil, not_false_eq_true,
+      List.nodup_nil, and_true]
+    rintro rfl; exact h rfl
+  simp [Clause.toPB, List.dedup_eq_self.2 this]
+
+/-- The common computation of guard resolution: `z ⇒ C` plus `deg C` times a constraint `d` of
+coefficients `z + a u`, for `a ∈ {-1, 0, 1}`, a variable `u` outside `C` and other than `z`, and
+bound `1 - max(0, -a)`. -/
+private theorem toIneq_add_mul_of {z u : ℕ} {a : ℤ} {c d : PBConstr} (hz : z ∉ c.vars)
+    (hu : u ∉ c.vars) (huz : u ≠ z) (ha : a = -1 ∨ a = 0 ∨ a = 1)
+    (hδ : cf d.terms = Finsupp.single z 1 + Finsupp.single u a) (hdb : bnd d = 1 - (-a).toNat) :
+    ((impl [(z, true)] c).normalize.add (d.normalize.mul c.degree)).toIneq =
+      ⟨cf c.terms + Finsupp.single u (c.degree * a),
+        max (bnd c) (-(nP (cf c.terms) : ℤ)) - c.degree * (-a).toNat⟩ := by
+  have hγu := cf_apply_of_not_mem hu
+  have hsum : cf (impl [(z, true)] c).terms + (c.degree : ℤ) • cf d.terms =
+      cf c.terms + Finsupp.single u (c.degree * a) := by
+    rw [cf_impl_single, hδ, smul_add, Finsupp.smul_single, Finsupp.smul_single]
+    simp only [↓reduceIte, smul_eq_mul, mul_one]
+    abel_nf; simp
+  have hnsum : nP (cf c.terms + Finsupp.single u (c.degree * a)) =
+      nP (cf c.terms) + (-(c.degree * a)).toNat := nP_add_single _ hγu
+  have hdn : nP (cf d.terms) = (-a).toNat := by rw [hδ, nP_pair (Ne.symm huz)]; simp
+  have hmn : nP ((c.degree : ℤ) • cf d.terms) = (-(c.degree * a)).toNat := by
+    rw [hδ, smul_add, Finsupp.smul_single, Finsupp.smul_single, nP_pair (Ne.symm huz)]
+    simp only [smul_eq_mul, mul_one]; omega
+  have h1 := bnd_normalize (impl [(z, true)] c)
+  have h2 := bnd_normalize d
+  have h3 := bnd_mul c.degree d.normalize
+  have h4 := bnd_add (impl [(z, true)] c).normalize (d.normalize.mul c.degree)
+  simp only [cf_normalize, cf_mul'] at h3 h4
+  rw [hsum, hnsum] at h4
+  have hb1 := bnd_impl_single (z, true) c
+  have hn1 := nP_impl_single (l := (z, true)) hz
+  have hnc := negMass_toLinear_le c.terms
+  rw [negMass_toLinear_eq] at hnc
+  rw [toIneq_eq', cf_add', cf_mul', cf_normalize, cf_normalize, hsum]
+  congr 1
+  rw [h4, h3, h2, h1, hb1, hn1, hdb, hdn, hmn]
+  simp only [bnd, ↓reduceIte] at *
+  rcases ha with rfl | rfl | rfl <;> simp <;> omega
+
+/-- **Wrapping by guard resolution, exactly**: `z ⇒ C` plus `deg C` times the clause `¬s ∨ z`
+(that is, `s ⇒ z`), both normalized, has the linear form of `s ⇒ C`, normalized, so it is that
+implication up to the order of its terms. Here `z` and the variable of `s` are distinct and not in
+`C`. -/
+theorem toIneq_resolveGuard_clause {z : ℕ} {s : Literal ℕ} {c : PBConstr} (hz : z ∉ c.vars)
+    (hs : s.1 ∉ c.vars) (hsz : s.1 ≠ z) :
+    ((impl [(z, true)] c).normalize.add
+        ((Clause.toPB [Std.Sat.Literal.negate s, (z, true)]).normalize.mul c.degree)).toIneq =
+      (impl [s] c).normalize.toIneq := by
+  obtain ⟨v, b⟩ := s
+  have hne : (Std.Sat.Literal.negate (v, b)).1 ≠ z := hsz
+  rw [toPB_pair hne]
+  rw [toIneq_add_mul_of (u := v) (a := if b then -1 else 1) hz hs hsz
+    (by cases b <;> simp) (by
+      simp only [cf_cons, cf_nil, add_zero, termCoeff_guard]
+      cases b <;> simp [termCoeff, Std.Sat.Literal.negate, add_comm])
+    (by cases b <;> simp [bnd, negSum, Std.Sat.Literal.negate])]
+  rw [toIneq_eq' (impl [(v, b)] c).normalize, cf_normalize, cf_impl_single, bnd_normalize,
+    bnd_impl_single, nP_impl_single hs]
+  have hnc := negMass_toLinear_le c.terms
+  rw [negMass_toLinear_eq] at hnc
+  congr 1
+  · cases b <;> simp
+  · simp only [bnd] at *
+    cases b <;> simp; omega
+
+/-- **Unwrapping by guard resolution, exactly**: `z ⇒ C` plus `deg C` times the unit clause `z`,
+both normalized, has the linear form of `C`, normalized, for `z` not in `C`. -/
+theorem toIneq_resolveGuard_unit {z : ℕ} {c : PBConstr} (hz : z ∉ c.vars) :
+    ((impl [(z, true)] c).normalize.add
+        ((⟨[(1, (z, true))], 1⟩ : PBConstr).normalize.mul c.degree)).toIneq =
+      c.normalize.toIneq := by
+  obtain ⟨u, hu, huz⟩ : ∃ u, u ∉ c.vars ∧ u ≠ z := by
+    refine ⟨(z :: c.vars).sum + 1, fun h => ?_, fun h => ?_⟩
+    · have := List.le_sum_of_mem (List.mem_cons_of_mem z h); omega
+    · have := List.le_sum_of_mem (List.mem_cons_self (a := z) (l := c.vars)); omega
+  rw [toIneq_add_mul_of (u := u) (a := 0) hz hu huz (by simp) (by simp [termCoeff])
+    (by simp [bnd, negSum]), toIneq_eq' c.normalize, cf_normalize, bnd_normalize]
+  simp
+
 end PBConstr
 
 namespace VeriPB
@@ -845,6 +1033,30 @@ theorem runStep_resolveGuard {db : List (ℕ × PBConstr)} {n a b K : ℕ} {c₁
     runStep db n (resolveGuard a b K) = some ((n, c₁.add (c₂.mul K)) :: db, n + 1) := by
   obtain ⟨K, rfl⟩ : ∃ k, K = k + 1 := ⟨K - 1, by omega⟩
   simp [runStep, resolveGuard, polEval, ha, hb]
+
+/-- **Wrapping is exact**: guard resolution of `z ⇒ C`, as `reifyFwd` stores it, against the
+clause `s ⇒ z` with `K = deg C` derives a constraint with the linear form of `s ⇒ C`, normalized:
+the same implication, up to the order of its terms. -/
+theorem runStep_resolveGuard_wrap {db : List (ℕ × PBConstr)} {n a b z : ℕ} {s : Literal ℕ}
+    {c : PBConstr} (ha : lookup db a = some (impl [(z, true)] c).normalize)
+    (hb : lookup db b = some (Clause.toPB [Std.Sat.Literal.negate s, (z, true)]).normalize)
+    (hK : 0 < c.degree) (hz : z ∉ c.vars) (hs : s.1 ∉ c.vars) (hsz : s.1 ≠ z) :
+    ∃ d, runStep db n (resolveGuard a b c.degree) = some ((n, d) :: db, n + 1) ∧
+      d.toIneq = (impl [s] c).normalize.toIneq ∧ ∀ σ, d.Holds σ ↔ (impl [s] c).Holds σ := by
+  refine ⟨_, runStep_resolveGuard ha hb hK, toIneq_resolveGuard_clause hz hs hsz, fun σ => ?_⟩
+  rw [← holds_toIneq_iff, toIneq_resolveGuard_clause hz hs hsz, holds_toIneq_iff,
+    holds_normalize]
+
+/-- **Unwrapping is exact**: guard resolution of `z ⇒ C` against the unit clause `z` with
+`K = deg C` derives a constraint with the linear form of `C`, normalized. -/
+theorem runStep_resolveGuard_unwrap {db : List (ℕ × PBConstr)} {n a b z : ℕ} {c : PBConstr}
+    (ha : lookup db a = some (impl [(z, true)] c).normalize)
+    (hb : lookup db b = some (⟨[(1, (z, true))], 1⟩ : PBConstr).normalize)
+    (hK : 0 < c.degree) (hz : z ∉ c.vars) :
+    ∃ d, runStep db n (resolveGuard a b c.degree) = some ((n, d) :: db, n + 1) ∧
+      d.toIneq = c.normalize.toIneq ∧ ∀ σ, d.Holds σ ↔ c.Holds σ := by
+  refine ⟨_, runStep_resolveGuard ha hb hK, toIneq_resolveGuard_unit hz, fun σ => ?_⟩
+  rw [← holds_toIneq_iff, toIneq_resolveGuard_unit hz, holds_toIneq_iff, holds_normalize]
 
 /-- **Fusion resolution under implications** (§3.2 of the paper): from `p`, the implication
 `⋀ R ∧ r ⇒ C ≥ A`, and `q`, the implication `⋀ R ∧ ¬r ⇒ C ≥ A'`, derive `⋀ R ⇒ c`, for `c` the
