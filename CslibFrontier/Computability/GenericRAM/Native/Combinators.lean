@@ -438,7 +438,7 @@ theorem branch_isPolynomial {condition : α → Bool} {f g : α → β}
     (yes : NativeCertificate f ei eb) (no : NativeCertificate g ei eb)
     (ht : test.IsPolynomial) (hy : yes.IsPolynomial) (hn : no.IsPolynomial) :
     (branch test yes no).IsPolynomial :=
-  ⟨by dsimp only [branch]; growth_poly, by dsimp only [branch]; growth_poly⟩
+  ⟨by growth_poly, by growth_poly⟩
 
 theorem option_isPolynomial {value : α → Option β} {fallback : α → γ} {body : α × β → γ}
     (c : NativeCertificate value ei (encOption eb))
@@ -447,8 +447,8 @@ theorem option_isPolynomial {value : α → Option β} {fallback : α → γ} {b
     (hc : c.IsPolynomial) (hno : no.IsPolynomial) (hyes : yes.IsPolynomial) :
     (option c no yes).IsPolynomial := by
   have hlen := (c.polyTime hc).polyBounded_length
-  exact ⟨by dsimp only [option]; growth_poly [polyBounded_optionElim hlen hno.1 hyes.1],
-    by dsimp only [option]; growth_poly [polyBounded_optionElim hlen hno.2 hyes.2]⟩
+  exact ⟨by growth_poly [polyBounded_optionElim hlen hno.1 hyes.1],
+    by growth_poly [polyBounded_optionElim hlen hno.2 hyes.2]⟩
 
 private theorem polyBounded_listMax_iterate {n : α → ℕ} {init : α → β} {step : β → β}
     {cost : β → ℕ} {B : α → ℕ}
@@ -484,7 +484,7 @@ theorem iterate_isPolynomial {n : α → ℕ} {init : α → β} {step : β → 
   have hmaxS : PolyBounded (fun a => (ei a).length)
       (fun a => maxRoundSpace cstep (n a) (init a)) :=
     polyBounded_listMax_iterate hcstep.2 hB hstate
-  exact ⟨by dsimp only [iterate]; growth_poly, by dsimp only [iterate]; growth_poly⟩
+  exact ⟨by growth_poly, by growth_poly⟩
 
 end
 

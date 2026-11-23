@@ -249,8 +249,7 @@ theorem sum_prob_not_isGoodSeg_le {Ω : Type*} [Fintype Ω]
   calc (∑ i : Fin (T.fanout (ℓ + 1)), ∑ ω, (p ω).toReal *
         (if T.IsGoodSeg D initLen stride (opsOf ω) γ t ℓ b i then (0 : ℝ) else 1))
       ≤ ∑ i, ∑ ω, (p ω).toReal * (badInd ω i + probeInd ω i) :=
-          Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun ω _ =>
-            mul_le_mul_of_nonneg_left (hind_le ω i) ENNReal.toReal_nonneg
+          by gcongr with i _ ω _; exact hind_le ω i
     _ = (∑ i, ∑ ω, (p ω).toReal * badInd ω i) + (∑ i, ∑ ω, (p ω).toReal * probeInd ω i) := by
           simp_rw [mul_add, Finset.sum_add_distrib]
     _ ≤ (41 / 400) * F := by linarith
