@@ -42,6 +42,8 @@ the work tapes.
   starting after a prefix on the input tape.
 * `Turing.MultiTapeTM.transformsTapesAt_streamLoop_encoded_after_of_round`: the same typed phase
   for any machine satisfying the exact one-round specification.
+* `Turing.MultiTapeTM.exists_inputFromWord_extendTapes`,
+  `Turing.MultiTapeTM.exists_onWords_extendTapes`: embed tidy machines onto selected work tapes.
 * `Turing.MultiTapeTM.ComputableTidilyInTimeAndSpace.streamFold_sum_after`: streaming folds
   after an initialization phase that writes the framed initial state and may move the input head
   past a prefix, with cumulative round costs and peak workspace bounds.
@@ -341,6 +343,35 @@ public theorem transformsTapesAt_streamLoop_encoded {α : Type u} {σ : Type v}
     next emit hE hN hcost hspace hstate helem
 
 -- upstream: candidate
+/-- Embed `tm.inputFromWord mark` into `K` work tapes with its input tape placed at `V`. -/
+public theorem exists_inputFromWord_extendTapes {ι Symbol State : Type*} {k K : ℕ}
+    (mark : Symbol) (tm : MultiTapeTM k Symbol State) {inp out : ι → List Symbol}
+    {t s : ι → ℕ} (htm : ∀ a, tm.ComputesTidilyInTimeAndSpace (inp a) (out a) (t a) (s a))
+    (hk : k + 2 ≤ K) (V : Fin K) :
+    ∃ e : Fin (k + 2) ↪ Fin K, ∀ a, TransformsTapes ((tm.inputFromWord mark).extendTapes e)
+      (fun _ ws => ws = Function.update (fun _ => []) V (inp a))
+      (fun _ ws ws' em => ws' = ws ∧ em = out a)
+      (t a + 4) (s a + 2 * ((inp a).length + 2) + 2 * k + 8 + (K - (k + 2))) := by
+  obtain ⟨e, he⟩ := Fin.exists_embedding_eq hk (Fin.natAdd k (0 : Fin 2)) V
+  exact ⟨e, fun a => (htm a).inputFromWord_extendTapes mark he⟩
+
+-- upstream: candidate
+/-- Embed `tm.onWords mark` into `K` work tapes with its input tape at `V` and output tape at
+`O`. -/
+public theorem exists_onWords_extendTapes {ι Symbol State : Type*} {k K : ℕ}
+    (mark : Symbol) (tm : MultiTapeTM k Symbol State) {inp out : ι → List Symbol}
+    {t s : ι → ℕ} (htm : ∀ a, tm.ComputesTidilyInTimeAndSpace (inp a) (out a) (t a) (s a))
+    (hk : k + 1 + 2 ≤ K) {V O : Fin K} (hVO : V ≠ O) :
+    ∃ e : Fin (k + 1 + 2) ↪ Fin K, ∀ a, TransformsTapes ((tm.onWords mark).extendTapes e)
+      (fun _ ws => ws = Function.update (fun _ => []) V (inp a))
+      (fun _ ws ws' em => ws' = Function.update ws O (out a) ∧ em = [])
+      (t a + (out a).length + 6)
+      (s a + 2 * (inp a).length + 2 * (out a).length + 3 * k + 18 + (K - (k + 1 + 2))) := by
+  obtain ⟨e, hi, ho⟩ := Fin.exists_embedding_eq₂ hk (i := Fin.natAdd (k + 1) (0 : Fin 2))
+    (o := (Fin.last k).castAdd 2) (by simp [Fin.ext_iff]) hVO
+  exact ⟨e, fun a => (htm a).onWords_extendTapes mark hi ho⟩
+
+-- upstream: candidate
 /-- **Streaming folds after an initialization phase.** The input `encIn x` is a prefix `pre x`
 followed by the concatenated non-empty tokens `tok a` of the elements `elems x`, from each of which
 the finite-state reader `r` reads `encA a`. On any selection `e` of tapes, the initializer `I e`
@@ -412,17 +443,11 @@ public theorem ComputableTidilyInTimeAndSpace.streamFold_sum_after {α : Type u}
   let V : Fin (M + 3) := ⟨M, by omega⟩
   let N : Fin (M + 3) := ⟨M + 1, by omega⟩
   let F : Fin (M + 3) := ⟨M + 2, by omega⟩
-  have hVN : V ≠ N := by simp [V, N, Fin.ext_iff]
-  have hVF : V ≠ F := by simp [V, F, Fin.ext_iff]
-  have hNF : N ≠ F := by simp [N, F, Fin.ext_iff]
+  have ⟨hVN, hVF, hNF⟩ : V ≠ N ∧ V ≠ F ∧ N ≠ F := by simp [V, N, F, Fin.ext_iff]
   obtain ⟨eI, heI⟩ := Fin.exists_embedding_eq (K := M + 3) (by omega) (Fin.last kI) V
-  obtain ⟨eE, heE⟩ := Fin.exists_embedding_eq (K := M + 3) (by omega)
-    (Fin.natAdd kE (0 : Fin 2)) V
-  obtain ⟨eN, heN, heN'⟩ := Fin.exists_embedding_eq₂ (K := M + 3) (by omega)
-    (i := Fin.natAdd (kN + 1) (0 : Fin 2)) (o := (Fin.last kN).castAdd 2)
-    (by simp [Fin.ext_iff]) hVN
-  obtain ⟨eF, heF⟩ := Fin.exists_embedding_eq (K := M + 3) (by omega)
-    (Fin.natAdd kF (0 : Fin 2)) V
+  obtain ⟨eE, hE⟩ := exists_inputFromWord_extendTapes (K := M + 3) true tmE htmE (by omega) V
+  obtain ⟨eN, hN⟩ := exists_onWords_extendTapes (K := M + 3) true tmN htmN (by omega) hVN
+  obtain ⟨eF, hF⟩ := exists_inputFromWord_extendTapes (K := M + 3) true tmF htmF (by omega) V
   refine ⟨(40 * M + 200) * (cfr + cN + cuf + cF + M + 100), _, _, inferInstance,
     streamTM r (I eI) ((tmE.inputFromWord true).extendTapes eE)
       ((tmN.onWords true).extendTapes eN) ((tmF.inputFromWord true).extendTapes eF)
@@ -434,8 +459,6 @@ public theorem ComputableTidilyInTimeAndSpace.streamFold_sum_after {α : Type u}
   have hSj (j : ℕ) (hj : j ≤ n) : (encS (st j)).length ≤ L := hS x j hj
   have hI := hinit eI x
   rw [heI] at hI
-  have hE := fun p => (htmE p).inputFromWord_extendTapes true heE
-  have hN := fun p => (htmN p).onWords_extendTapes true heN heN'
   have hloop := transformsTapesAt_streamLoop_encoded_after r tok htok hread hVN hVF hNF (pre x)
     (init x) l next (fun p => encE (emit p)) hE hN
     (roundCost := fun j => (cfr + cN + 60) * roundCost x j)
@@ -445,7 +468,7 @@ public theorem ComputableTidilyInTimeAndSpace.streamFold_sum_after {α : Type u}
     have h := computesTidily_streamTM_after (r := r) hVN hVF hNF (encIn x) (pre x)
       (frame (encS (init x))) (frame (encS (st n)))
       (streamEmit next (fun p => encE (emit p)) (init x) l) (encF (finish (st n)))
-      hI hloop ((htmF (st n)).inputFromWord_extendTapes true heF)
+      hI hloop (hF (st n))
     rw [hg x]
     have hSn : (encS (st n)).length ≤ L := hSj n le_rfl
     set D := cfr + cN + cuf + cF + M + 100 with hD
