@@ -812,66 +812,103 @@ theorem falsifies_of_watchOrder {A : Assign} {M : Trail} (hA : A.Agrees M) {c re
   rw [Bool.not_eq_true', ← Bool.not_eq_true, hA.isFalse_iff] at this
   exact this hw
 
-/-- **The false literal assigned last, first**: if the first literal of `c` is false, the false
-literal of `c` with the greatest position `P` of its variable (the first among ties) is moved to
-the front. -/
-@[expose] def latestFirst (P : Array ℕ) (A : Assign) : Clause ℕ → Clause ℕ
+/-- **The literal assigned last, first**: the literal of `c` with the greatest position `P` of its
+variable (the first among ties) is moved to the front. -/
+@[expose] def latestFirst (P : Array ℕ) : Clause ℕ → Clause ℕ
   | [] => []
   | y :: ys =>
-    if A.isFalse y then
+    let best := ys.foldl (fun b z => if P.getD b.1 0 < P.getD z.1 0 then z else b) y
+    best :: (y :: ys).erase best
+
+/-- The literal chosen by the fold of `latestFirst` is the first element or one of the others, and
+its position is the greatest. -/
+private theorem foldl_latest {P : Array ℕ} :
+    ∀ (ys : List (Literal ℕ)) (y : Literal ℕ),
       let best := ys.foldl (fun b z => if P.getD b.1 0 < P.getD z.1 0 then z else b) y
-      best :: (y :: ys).erase best
-    else y :: ys
-
-/-- The literal chosen by a fold that keeps either its accumulator or the next element is the
-first element or one of the others. -/
-private theorem foldl_choose_mem {α : Type} (f : α → α → α) (hf : ∀ b z, f b z = b ∨ f b z = z) :
-    ∀ (ys : List α) (y : α), ys.foldl f y ∈ y :: ys
-  | [], y => List.mem_cons_self
+      best ∈ y :: ys ∧ ∀ z ∈ y :: ys, P.getD z.1 0 ≤ P.getD best.1 0
+  | [], y => ⟨List.mem_cons_self, fun z hz => by simp_all⟩
   | z :: ys, y => by
+    dsimp only
     rw [List.foldl_cons]
-    have hm := foldl_choose_mem f hf ys (f y z)
-    rcases List.mem_cons.1 hm with h' | h'
-    · rw [h']
-      rcases hf y z with h | h <;> rw [h]
-      · exact List.mem_cons_self
-      · exact List.mem_cons_of_mem _ List.mem_cons_self
-    · exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ h')
+    obtain ⟨hm, hmax⟩ := foldl_latest (P := P) ys
+      (if P.getD y.1 0 < P.getD z.1 0 then z else y)
+    refine ⟨?_, fun x hx => ?_⟩
+    · rcases List.mem_cons.1 hm with h' | h'
+      · rw [h']
+        split
+        · exact List.mem_cons_of_mem _ List.mem_cons_self
+        · exact List.mem_cons_self
+      · exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ h')
+    · have hc := hmax _ List.mem_cons_self
+      have hy : P.getD y.1 0 ≤ P.getD (if P.getD y.1 0 < P.getD z.1 0 then z else y).1 0 := by
+        split <;> omega
+      have hz : P.getD z.1 0 ≤ P.getD (if P.getD y.1 0 < P.getD z.1 0 then z else y).1 0 := by
+        split <;> omega
+      rcases List.mem_cons.1 hx with h | hx
+      · rw [h]; exact le_trans hy hc
+      rcases List.mem_cons.1 hx with h | hx
+      · rw [h]; exact le_trans hz hc
+      · exact hmax x (List.mem_cons_of_mem _ hx)
 
-theorem latestFirst_perm (P : Array ℕ) (A : Assign) : ∀ c : Clause ℕ, (latestFirst P A c).Perm c
+theorem latestFirst_perm (P : Array ℕ) : ∀ c : Clause ℕ, (latestFirst P c).Perm c
   | [] => List.Perm.refl _
-  | y :: ys => by
-    rw [latestFirst]
-    split
-    · exact (List.perm_cons_erase (foldl_choose_mem _ (fun b z => by split <;> simp) ys y)).symm
-    · exact List.Perm.refl _
+  | y :: ys => (List.perm_cons_erase (foldl_latest ys y).1).symm
+
+/-- **The first literal of `latestFirst` has the greatest position** among the literals of `c`. -/
+theorem latestFirst_max {P : Array ℕ} {c rest : Clause ℕ} {x : Literal ℕ}
+    (h : latestFirst P c = x :: rest) : ∀ z ∈ c, P.getD z.1 0 ≤ P.getD x.1 0 := by
+  cases c with
+  | nil => simp [latestFirst] at h
+  | cons y ys =>
+    obtain ⟨rfl, -⟩ := List.cons.inj h
+    exact (foldl_latest ys y).2
 
 /-- **The order of the watches at a rebuild**: `watchOrder`, the literals that are not false first,
-then, after the first, the false literal assigned last, as MiniSat's watches would be after the
-propagations, so that a clause with a single literal that is not false watches the literal false
-at the highest level. The positions `P` of the variables on the trail affect only the order. -/
+then, if the second literal is false, the false literal assigned last second (`latestFirst`), as
+MiniSat's watches would be after the propagations, so that a clause with a single literal that is
+not false watches the literal false at the highest level. The positions `P` of the variables on the
+trail affect only the order. -/
 @[expose] def watchOrderAt (P : Array ℕ) (A : Assign) (c : Clause ℕ) : Clause ℕ :=
   match watchOrder A c with
-  | w :: rest => w :: latestFirst P A rest
-  | [] => []
+  | w :: y :: ys => if A.isFalse y then w :: latestFirst P (y :: ys) else w :: y :: ys
+  | c' => c'
 
 theorem watchOrderAt_perm (P : Array ℕ) (A : Assign) (c : Clause ℕ) :
     (watchOrderAt P A c).Perm c := by
   unfold watchOrderAt
   split
-  · rename_i w rest h
-    exact ((latestFirst_perm P A rest).cons w).trans (h ▸ watchOrder_perm A c)
-  · rename_i h
-    exact h ▸ watchOrder_perm A c
+  · rename_i w y ys h
+    split
+    · exact ((latestFirst_perm P _).cons w).trans (h ▸ watchOrder_perm A c)
+    · exact h ▸ watchOrder_perm A c
+  · exact watchOrder_perm A c
 
 theorem watchOrderAt_head {P : Array ℕ} {A : Assign} {c rest : Clause ℕ} {w : Literal ℕ}
     (h : watchOrderAt P A c = w :: rest) : ∃ rest', watchOrder A c = w :: rest' := by
   unfold watchOrderAt at h
   split at h
-  · rename_i w' rest' h'
-    obtain ⟨rfl, -⟩ := List.cons.inj h
-    exact ⟨rest', h'⟩
-  · simp at h
+  · rename_i w' y ys h'
+    split at h <;> obtain ⟨rfl, -⟩ := List.cons.inj h <;> exact ⟨_, h'⟩
+  · exact ⟨rest, h⟩
+
+/-- **A false second watch is the one assigned last**: if the second literal of `watchOrderAt` is
+false, its variable has the greatest position among the literals after the first. -/
+theorem watchOrderAt_second {P : Array ℕ} {A : Assign} {c rest : Clause ℕ} {w x : Literal ℕ}
+    (h : watchOrderAt P A c = w :: x :: rest) (hx : A.isFalse x = true) :
+    ∀ z ∈ x :: rest, P.getD z.1 0 ≤ P.getD x.1 0 := by
+  unfold watchOrderAt at h
+  split at h
+  · rename_i w' y ys h'
+    split at h
+    · obtain ⟨-, h⟩ := List.cons.inj h
+      exact fun z hz => latestFirst_max h z
+        ((latestFirst_perm P _).mem_iff.1 (by rw [h]; exact hz))
+    · rename_i hy
+      simp only [List.cons.injEq] at h
+      obtain ⟨-, rfl, -⟩ := h
+      exact absurd hx hy
+  · rename_i hne
+    exact absurd h (hne w x rest)
 
 /-- The literals of a clause without repetitions, removed in linear time (`dedupLits`), are those
 of `List.dedup`, up to order. -/

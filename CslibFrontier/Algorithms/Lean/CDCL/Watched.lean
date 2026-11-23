@@ -1713,6 +1713,29 @@ theorem perm_secondOn (w : ℕ) : ∀ C : Clause ℕ, (secondOn w C).Perm C
       exact ((List.perm_cons_erase (List.mem_of_find?_eq_some hy)).symm).cons l
     · exact List.Perm.refl _
 
+/-- **What `ATrail.topMarked` finds**: the variable of the newest entry below position `i` whose
+variable is marked, or `0` if there is none. -/
+theorem ATrail.topMarked_eq (T : ATrail) (marked : ℕ → Bool) : ∀ i,
+    T.topMarked marked i = (((T.seg 0 i).find? fun e => marked e.lit.1).map (·.lit.1)).getD 0
+  | 0 => rfl
+  | i + 1 => by
+    have h : (T.entry i).lit.1 = T.lits.getD i 0 / 2 := by rw [entry_lit]; rfl
+    simp only [topMarked, seg_succ, List.find?_cons, Nat.zero_add, h,
+      ATrail.topMarked_eq T marked i]
+    cases marked (T.lits.getD i 0 / 2) <;> simp [h]
+
+/-- **Moving the literal on `w` second**: if a literal after the first is on the variable `w`,
+the second literal is on `w`. -/
+theorem secondOn_var {w : ℕ} {l : Literal ℕ} {rest : Clause ℕ} (h : ∃ y ∈ rest, y.1 = w) :
+    ∃ y rest', secondOn w (l :: rest) = l :: y :: rest' ∧ y.1 = w := by
+  rw [secondOn]
+  split
+  · rename_i y hy
+    exact ⟨y, _, rfl, by simpa using List.find?_some hy⟩
+  · rename_i hn
+    obtain ⟨y, hy, hyw⟩ := h
+    exact absurd (List.find?_eq_none.1 hn y hy) (by simp [hyw])
+
 /-- Moving a literal second keeps the first literal. -/
 theorem secondOn_cons (w : ℕ) (l : Literal ℕ) (rest : Clause ℕ) :
     ∃ rest', secondOn w (l :: rest) = l :: rest' := by
@@ -2335,6 +2358,55 @@ where
   go : ℕ → ℕ → Array ℕ → Array ℕ
   | _, 0, P => P
   | i, k + 1, P => go (i + 1) k (P.setIfInBounds (T.lits.getD i 0 / 2) (i + 1))
+
+private theorem ATrail.positions_go_size (T : ATrail) :
+    ∀ (i k : ℕ) (P : Array ℕ), (ATrail.positions.go T i k P).size = P.size
+  | _, 0, _ => rfl
+  | i, k + 1, P => by
+    rw [ATrail.positions.go, ATrail.positions_go_size T (i + 1) k, Array.size_setIfInBounds]
+
+private theorem ATrail.positions_go_of_ne (T : ATrail) {v : ℕ} : ∀ (i k : ℕ) (P : Array ℕ),
+    (∀ j, i ≤ j → j < i + k → (T.lit j).1 ≠ v) → (ATrail.positions.go T i k P).getD v 0 = P.getD v 0
+  | _, 0, _, _ => rfl
+  | i, k + 1, P, h => by
+    rw [ATrail.positions.go,
+      ATrail.positions_go_of_ne T (i + 1) k _ fun j h₁ h₂ => h j (by omega) (by omega)]
+    have hi : T.lits.getD i 0 / 2 ≠ v := h i le_rfl (by omega)
+    generalize T.lits.getD i 0 / 2 = u at hi ⊢
+    simp [Array.getD_eq_getD_getElem?, hi]
+
+private theorem ATrail.positions_go_eq (T : ATrail) {v j : ℕ} : ∀ (i k : ℕ) (P : Array ℕ),
+    i ≤ j → j < i + k → (T.lit j).1 = v → v < P.size →
+    (∀ j', i ≤ j' → j' < i + k → (T.lit j').1 = v → j' = j) →
+    (ATrail.positions.go T i k P).getD v 0 = j + 1
+  | _, 0, _, h₁, h₂, _, _, _ => absurd h₂ (by omega)
+  | i, k + 1, P, h₁, h₂, hj, hv, hu => by
+    rw [ATrail.positions.go]
+    by_cases hij : i = j
+    · subst hij
+      rw [ATrail.positions_go_of_ne T (i + 1) k _ fun j' h₁' h₂' he =>
+        absurd (hu j' (by omega) (by omega) he) (by omega)]
+      have hj' : T.lits.getD i 0 / 2 = v := hj
+      generalize T.lits.getD i 0 / 2 = u at hj' ⊢
+      subst hj'
+      simp [Array.getD_eq_getD_getElem?, hv]
+    · exact ATrail.positions_go_eq T (i + 1) k _ (by omega) (by omega) hj (by simpa using hv)
+        fun j' h₁' h₂' he => hu j' (by omega) (by omega) he
+
+/-- **The position of a variable on the trail**: on a trail without a variable twice, the
+variable of the entry at position `j`, below `n`, gets `j + 1`. -/
+theorem ATrail.positions_lit {T : ATrail} {n j : ℕ} (hj : j < T.size)
+    (hnd : ∀ i < T.size, (T.lit i).1 = (T.lit j).1 → i = j) (hn : (T.lit j).1 < n) :
+    (T.positions n).getD (T.lit j).1 0 = j + 1 :=
+  ATrail.positions_go_eq T 0 T.size _ (Nat.zero_le _) (by omega) rfl (by simpa using hn)
+    fun j' _ h₂ he => hnd j' (by omega) he
+
+/-- A variable not on the trail gets `0`. -/
+theorem ATrail.positions_of_not_mem {T : ATrail} {n v : ℕ}
+    (hv : ∀ j < T.size, (T.lit j).1 ≠ v) : (T.positions n).getD v 0 = 0 := by
+  rw [ATrail.positions, ATrail.positions_go_of_ne T 0 T.size _ fun j _ h => hv j (by omega)]
+  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_replicate]
+  split <;> rfl
 
 /-- **Forgetting clauses**: the clauses numbered `ids` are forgotten, and the watch store, the
 short clauses and the marks of the variables occurring in the database are rebuilt. Reduction and
