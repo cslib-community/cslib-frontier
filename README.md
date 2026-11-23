@@ -27,7 +27,7 @@ mathematics. See [Contributing](CONTRIBUTING.md) to propose, implement, or revie
 | See what an area covers | [Library map](#library-map) below |
 | See how the library has grown and how its parts depend on each other | [Codebase views](https://www.cslib.io/cslib-frontier/viz/): charts and a growth video, rebuilt nightly from `main` with the API documentation |
 | Find a named result, such as Cook–Levin or the PCP theorem | [Results inventory](results/README.md), then the declarations it links in the [API documentation](https://www.cslib.io/cslib-frontier/) |
-| Find a model, definition or mathematical tool | [Search the API documentation](https://www.cslib.io/cslib-frontier/search.html), rebuilt nightly from `main`; [CslibFrontier.lean](CslibFrontier.lean) lists every module |
+| Find a model, definition or mathematical tool | [Search the API documentation](https://www.cslib.io/cslib-frontier/search.html), rebuilt nightly from `main`; [CslibFrontier.lean](CslibFrontier.lean) is the `mk_all`-generated flat import aggregate (9,000+ lines), not a human-curated map |
 | Use cslib-frontier in another Lean project | [Add a pinned dependency](#use-from-another-lean-project) |
 | Build or edit this repository | [Build a checkout](#build-a-checkout) |
 | Propose a substantial new direction | [Open an issue](https://github.com/cslib-community/cslib-frontier/issues/new/choose), as [Contributing](CONTRIBUTING.md#proposing-and-contributing-work) describes; [ROADMAP.md](ROADMAP.md) lists the accepted directions |
@@ -35,9 +35,12 @@ mathematics. See [Contributing](CONTRIBUTING.md) to propose, implement, or revie
 
 ### Library map
 
-Each top-level directory of [CslibFrontier/](CslibFrontier) is a library area. The reference
-chapters of the Operator's Manual describe its models and main theorems; the checked examples
-in [CslibFrontierTests/](CslibFrontierTests) show the APIs in use.
+Each top-level directory of [CslibFrontier/](CslibFrontier) is a library area. The Operator's Manual
+reference chapters linked below are frozen snapshots (November 2026) and are not kept current
+([manual/README.md](manual/README.md)); for live declarations and checked narrative examples, use
+the Lean source, its docstrings, the [API documentation](https://www.cslib.io/cslib-frontier/), and
+the [Guide](https://www.cslib.io/cslib-frontier/guide/) ([guide/CslibFrontierGuide.lean](guide/CslibFrontierGuide.lean)).
+The checked examples in [CslibFrontierTests/](CslibFrontierTests) show the APIs in use.
 
 | Area | Covers | Start with |
 | --- | --- | --- |

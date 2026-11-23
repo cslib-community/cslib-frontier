@@ -121,7 +121,7 @@ example : ∃ γ : ℝ, 0 < γ ∧ ∀ᶠ n in atTop,
         |quantumCorrelation {x | hardForm n x} (quantumAcceptProb C q_out e x₀)| ≤
           (2 : ℝ) ^ (-γ * n) := by
   convert eventually_abs_quantumCorrelation_hardForm_le_twoLocal
-    (ε := 1 / 100) (by norm_num) using 1 <;> norm_num
+    (ε := 1 / 100) (by norm_num) using 1; norm_num
 
 example : ∀ᶠ n in atTop, ∀ (N : ℕ) (e : Fin n ↪ Fin N) (q_out : Fin N) (x₀ : Fin N → Bool)
     (θ : ℝ) (C : Circuit N), TwoLocal C →
@@ -129,12 +129,12 @@ example : ∀ᶠ n in atTop, ∀ (N : ℕ) (e : Fin n ↪ Fin N) (q_out : Fin N)
       else quantumAcceptProb C q_out e x₀ x < θ) →
       (273 / 200 : ℝ) * n < twoQubitCount C := by
   convert eventually_lt_twoQubitCount_uqp_hardForm_twoLocal
-    (ε := 1 / 100) (by norm_num) using 1 <;> norm_num
+    (ε := 1 / 100) (by norm_num) using 1; norm_num
 
 example : ∃ γ : ℝ, 0 < γ ∧ ∀ᶠ n in atTop, ∀ (N : ℕ) (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool)
     (C : Circuit N), TwoLocal C → (twoQubitCount C : ℝ) ≤ (249 / 100) * n →
       ‖inner ℂ (phaseState (hardMatrix n) e x₀) (C.run x₀)‖ ^ 2 ≤ (2 : ℝ) ^ (-γ * n) := by
   convert eventually_fidelity_phaseState_hardMatrix_le_twoLocal
-    (ε := 1 / 100) (by norm_num) using 1 <;> norm_num
+    (ε := 1 / 100) (by norm_num) using 1; norm_num
 
 end CslibFrontierTests.FrontierQuantum
