@@ -57,6 +57,8 @@ To encode a structure as the tuple of its fields, import `CslibFrontier.Computab
 
 Generated field and flattened-parent polynomial-time rules lift their degree certificate with `ComputableInDegree.computableInPolyTime`, then compose with the caller’s certificate. They share the degree proof rather than deriving the projection again in the polynomial-time calculus.
 
+For a record in `Type`, import `CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words` and write `enc_structure eS : S logspace where …` to also generate logarithmic-workspace rules. The option follows any `flattened` annotations. The field and annotated-parent rules `eS_f_logSpace` and the constructor rule `eS_mk_logSpace` participate in `fun_prop`; `eS_fields_logSpace` supplies the raw tuple view. The encoded words are unchanged, and the output tape is not charged to the workspace. The option is explicit because logspace composition itself depends on records encoded by the base command.
+
 For each field `f`, the command also generates `eS_f_length_le`, stating that the field's
 encoded word is no longer than the record word. Use this bound before combining arithmetic
 with `omega`, without unfolding the record's framed tuple. For dependent fields it bounds the
