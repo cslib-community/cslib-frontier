@@ -63,6 +63,7 @@ namespace Cslib.Algorithms.WordRAM.EdmondsKarp
 
 open Cslib.Algorithms.Lean.MaxFlow Cslib.Algorithms.Lean.GomoryHu Cslib.WeightedCut
 open Cslib.DataStructure Cslib.WordRAM Cslib.WordRAM.Realization
+open StateTransitionSpec (clientResult_bind clientState_bind clientResult_pure clientState_pure)
 
 /-! ### Layout -/
 
@@ -519,7 +520,7 @@ theorem ekProg_realizes :
 theorem preservesAt_fillRange {a : ℕ} {d : (ℕ × ℕ) × ℕ}
     (hout : a < d.1.1 ∨ d.1.1 + d.2 ≤ a) : PreservesAt a (fillRange d) := fun s => by
   unfold fillRange
-  rw [StateTransitionSpec.clientState_bind]
+  rw [clientState_bind]
   change ((Memory.spec 0).clientState s (iterate fillStep d.1 d.2 0)).mem a = s.mem a
   refine iterate_invariant_of fillStep d.1
     (fun rem (idx : ℕ) t => idx + rem = d.2 ∧ t.mem a = s.mem a)
@@ -536,7 +537,7 @@ theorem fillRange_spec (base val len : ℕ) (s : Memory.State) :
   intro s'
   refine ⟨?_, fun a ha => preservesAt_fillRange ha s⟩
   unfold s' fillRange
-  rw [StateTransitionSpec.clientState_bind]
+  rw [clientState_bind]
   change ∀ i < len, ((Memory.spec 0).clientState s (iterate fillStep (base, val) len 0)).mem
     (base + i) = val
   have hinv := iterate_invariant_of fillStep (base, val)
@@ -589,7 +590,7 @@ private theorem bnStep_state (d : Ctx × (ℕ × ℕ)) (s : Memory.State) :
   split_ifs
   · rw [clientState_bind_read]
     split_ifs
-    · rw [StateTransitionSpec.clientState_bind, readResCap_state]
+    · rw [clientState_bind, readResCap_state]
       split_ifs <;> rfl
     · rfl
   · rfl
@@ -604,7 +605,7 @@ private theorem cutOuterStep_state (d : Ctx × (ℕ × ℕ)) (s : Memory.State) 
   unfold cutOuterStep
   rw [clientState_bind_read]
   split_ifs
-  · rw [StateTransitionSpec.clientState_bind,
+  · rw [clientState_bind,
       clientState_iterate_eq_of _ _ (fun a t => cutInnerStep_state _ t)]
     rfl
   · rfl
@@ -630,7 +631,9 @@ private theorem preservesAt_bfsProg {a : ℕ} {d : Ctx × ℕ} (hs : d.2 < d.1.1
       fun _ => preservesAt_pure _ _
     · unfold bfsInnerStep
       refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-      refine preservesAt_bind (fun t => congrArg (fun st : Memory.State => st.mem a) (readResCap_state _ t)) fun _ => ?_
+      refine preservesAt_bind
+        (fun t => congrArg (fun st : Memory.State => st.mem a) (readResCap_state _ t))
+        fun _ => ?_
       refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
       refine preservesAt_bind (preservesAt_write _ (by ek_omega)) fun _ => ?_
       exact preservesAt_map _ (preservesAt_write _ (by ek_omega))
@@ -650,7 +653,7 @@ private def DistRel (c : Ctx) (layer : ℕ) (t t' : Memory.State) : Prop :=
 private theorem DistRel.refl (c : Ctx) (layer : ℕ) (t : Memory.State) : DistRel c layer t t :=
   fun _ _ => Or.inl rfl
 
-private theorem DistRel.trans {c : Ctx} {layer : ℕ} (hl : layer + 1 ≠ c.1)
+private theorem DistRel.trans {c : Ctx} {layer : ℕ}
     {t₁ t₂ t₃ : Memory.State} (h₁ : DistRel c layer t₁ t₂) (h₂ : DistRel c layer t₂ t₃) :
     DistRel c layer t₁ t₃ := fun x hx => by
   rcases h₁ x hx with h | ⟨ha, hb⟩ <;> rcases h₂ x hx with h' | ⟨ha', hb'⟩
@@ -664,9 +667,9 @@ private theorem bfsInnerStep_rel (d : ((Ctx × ℕ) × ℕ) × ℕ) (t : Memory.
   intro x hx
   unfold bfsInnerStep
   dsimp only
-  rw [clientState_bind_read, StateTransitionSpec.clientState_bind, readResCap_state]
+  rw [clientState_bind_read, clientState_bind, readResCap_state]
   split_ifs with hc
-  · rw [clientState_bind_write, clientState_bind_write, StateTransitionSpec.clientState_pure]
+  · rw [clientState_bind_write, clientState_bind_write, clientState_pure]
     dsimp only
     rw [Function.update_of_ne (by ek_omega)]
     by_cases hxv : x = d.2
@@ -676,31 +679,31 @@ private theorem bfsInnerStep_rel (d : ((Ctx × ℕ) × ℕ) × ℕ) (t : Memory.
   · exact Or.inl rfl
 
 
-private theorem bfsInner_iterate_rel (c : Ctx) (layer u : ℕ) (hl : layer + 1 ≠ c.1)
+private theorem bfsInner_iterate_rel (c : Ctx) (layer u : ℕ)
     (m v₀ : ℕ) (t : Memory.State) :
     DistRel c layer t
       ((Memory.spec 0).clientState t (iterate bfsInnerStep ((c, layer), u) m v₀)) :=
   iterate_invariant_of bfsInnerStep ((c, layer), u) (fun _ _ t' => DistRel c layer t t')
-    (fun _ v t' h => h.trans hl (bfsInnerStep_rel (((c, layer), u), v) t'))
+    (fun _ v t' h => h.trans (bfsInnerStep_rel (((c, layer), u), v) t'))
     (DistRel.refl c layer t)
 
-private theorem bfsMidStep_rel (c : Ctx) (layer u : ℕ) (hl : layer + 1 ≠ c.1)
+private theorem bfsMidStep_rel (c : Ctx) (layer u : ℕ)
     (t : Memory.State) :
     DistRel c layer t ((Memory.spec 0).clientState t (bfsMidStep ((c, layer), u))) := by
   unfold bfsMidStep
   dsimp only
   rw [clientState_bind_read]
   split_ifs
-  · rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
-    exact bfsInner_iterate_rel c layer u hl _ _ t
+  · rw [clientState_bind, clientState_pure]
+    exact bfsInner_iterate_rel c layer u _ _ t
   · exact DistRel.refl c layer t
 
-private theorem bfsMid_iterate_rel (c : Ctx) (layer : ℕ) (hl : layer + 1 ≠ c.1)
+private theorem bfsMid_iterate_rel (c : Ctx) (layer : ℕ)
     (m u₀ : ℕ) (t : Memory.State) :
     DistRel c layer t
       ((Memory.spec 0).clientState t (iterate bfsMidStep (c, layer) m u₀)) :=
   iterate_invariant_of bfsMidStep (c, layer) (fun _ _ t' => DistRel c layer t t')
-    (fun _ u t' h => h.trans hl (bfsMidStep_rel c layer u hl t'))
+    (fun _ u t' h => h.trans (bfsMidStep_rel c layer u t'))
     (DistRel.refl c layer t)
 
 /-! ### Memory-operation counts -/
@@ -791,11 +794,11 @@ private theorem memoryCost_bfsLayerStep_le (c : Ctx) (layer : ℕ) (hl : layer +
   intro j u t' ⟨hsum, hrel⟩
   have hu : u < c.1 := by omega
   have hl' : layer + 1 ≠ c.1 := by omega
-  have hstep_rel := bfsMidStep_rel c layer u hl' t'
+  have hstep_rel := bfsMidStep_rel c layer u t'
   have hres : (Memory.spec 0).clientResult t' (bfsMidStep ((c, layer), u)) = u + 1 := by
     unfold bfsMidStep; simp_client
   rw [hres]
-  refine ⟨⟨by omega, hrel.trans hl' hstep_rel⟩, ?_⟩
+  refine ⟨⟨by omega, hrel.trans hstep_rel⟩, ?_⟩
   set t'' := (Memory.spec 0).clientState t' (bfsMidStep ((c, layer), u))
   have hsame : ∀ x : Fin c.1,
       t''.mem (distAddr c x.1) = layer ↔ t'.mem (distAddr c x.1) = layer := fun x => by
@@ -857,9 +860,9 @@ private theorem memoryCost_bfsProg_le (d : Ctx × ℕ) (s : Memory.State) :
   have hrel : DistRel c layer t' ((Memory.spec 0).clientState t' (bfsLayerStep (c, layer))) := by
     unfold bfsLayerStep
     dsimp only
-    rw [clientState_bind_read, StateTransitionSpec.clientState_bind,
-      StateTransitionSpec.clientState_pure]
-    exact bfsMid_iterate_rel c layer (by omega) _ _ t'
+    rw [clientState_bind_read, clientState_bind,
+      clientState_pure]
+    exact bfsMid_iterate_rel c layer _ _ t'
   set t'' := (Memory.spec 0).clientState t' (bfsLayerStep (c, layer))
   have hsame : (Finset.univ.filter fun x : Fin c.1 => layer + 1 ≤ t''.mem (distAddr c x.1)) =
       Finset.univ.filter fun x : Fin c.1 => layer + 1 ≤ t'.mem (distAddr c x.1) := by
@@ -1137,7 +1140,8 @@ theorem validHistory_ekProg {w : ℕ} {d : Ctx × (ℕ × ℕ)} {s : Memory.Stat
   have hr2 : EkReady w c _ := MonotoneMemInv.pres hr1 hrounds
   refine validHistory_bind_step
     (validHistory_iterate_fst (Inv := EkReady w c) c.1 0 0
-      (fun u hu b t' ht' => ⟨validHistory_cutOuterStep (d := (c, (u, b))) hc.1 (by dsimp only; omega) ht',
+      (fun u hu b t' ht' => ⟨validHistory_cutOuterStep (d := (c, (u, b))) hc.1
+        (by dsimp only; omega) ht',
         ?_⟩) hr2) (validHistory_pure _ _ _)
   unfold cutOuterStep
   simp_client
@@ -1202,10 +1206,10 @@ private theorem cutInnerStep_acc_le (d : (Ctx × ℕ) × (ℕ × ℕ)) (t : Memo
   dsimp only
   rw [clientResult_bind_read, clientResult_bind_read]
   split_ifs with hg
-  · rw [StateTransitionSpec.clientResult_pure]
+  · rw [clientResult_pure]
     dsimp only
     omega
-  · rw [StateTransitionSpec.clientResult_pure]
+  · rw [clientResult_pure]
     exact h
 
 private theorem cutOuterStep_acc_le (d : Ctx × (ℕ × ℕ)) (t : Memory.State)
@@ -1216,19 +1220,19 @@ private theorem cutOuterStep_acc_le (d : Ctx × (ℕ × ℕ)) (t : Memory.State)
   dsimp only
   rw [clientResult_bind_read]
   split_ifs
-  · rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
+  · rw [clientResult_bind, clientResult_pure]
     exact iterate_invariant_of cutInnerStep (d.1, d.2.1)
       (fun _ (va : ℕ × ℕ) _ => va.2 ≤ d.1.1 * d.1.1 * d.1.2.2.2 + d.1.2.2.2)
       (fun _ va t' hva => cutInnerStep_acc_le ((d.1, d.2.1), va) t' hva) h
-  · rw [StateTransitionSpec.clientResult_pure]
+  · rw [clientResult_pure]
     exact h
 
 theorem ekProg_result_le (d : Ctx × (ℕ × ℕ)) (s : Memory.State) :
     (Memory.spec 0).clientResult s (ekProg d) ≤ d.1.1 * d.1.1 * d.1.2.2.2 + d.1.2.2.2 := by
   unfold ekProg
   dsimp only
-  rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
-    StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
+  rw [clientResult_bind, clientResult_bind,
+    clientResult_bind, clientResult_pure]
   exact iterate_invariant_of cutOuterStep d.1
     (fun _ (ua : ℕ × ℕ) _ => ua.2 ≤ d.1.1 * d.1.1 * d.1.2.2.2 + d.1.2.2.2)
     (fun _ ua t' hua => cutOuterStep_acc_le (d.1, ua) t' hua) (Nat.zero_le _)
@@ -1270,7 +1274,7 @@ private theorem readResCap_spec (hB : ∀ u v, W u v ≤ B) {t : Memory.State}
     hf v u]
   have hc : W u v ≤ B ∧ f u v ≤ W u v ∧ f v u ≤ B :=
     ⟨hB u v, f.le_cap u v, (f.le_cap v u).trans (hB v u)⟩
-  rw [ite_eq_left hc, StateTransitionSpec.clientResult_pure]
+  rw [ite_eq_left hc, clientResult_pure]
   rfl
 
 /-- Invariant after the layers below `layer`: distances up to `layer` are exact, the others still
@@ -1307,11 +1311,13 @@ private theorem bfsMid_spec (hB : ∀ u v, W u v ≤ B) (hlay : mb + n * n ≤ s
       (∀ x : Fin M, f.resDist x ≤ layer → t'.mem (distAddr (n, mb, sb, B) x.1) = f.resDist x) ∧
       (∀ x : Fin M, layer + 1 < f.resDist x → t'.mem (distAddr (n, mb, sb, B) x.1) = M) ∧
       (∀ x : Fin M, f.resDist x = layer + 1 →
-        t'.mem (distAddr (n, mb, sb, B) x.1) = layer + 1 ∨ t'.mem (distAddr (n, mb, sb, B) x.1) = M) ∧
+        t'.mem (distAddr (n, mb, sb, B) x.1) = layer + 1 ∨
+          t'.mem (distAddr (n, mb, sb, B) x.1) = M) ∧
       (∀ x : Fin M, f.resDist x = layer + 1 →
         (∃ u' : Fin M, u'.1 < u ∧ f.resDist u' = layer ∧ 0 < f.resCap u' x) →
         t'.mem (distAddr (n, mb, sb, B) x.1) = layer + 1) ∧
-      (∀ x : Fin M, 0 < t'.mem (distAddr (n, mb, sb, B) x.1) → t'.mem (distAddr (n, mb, sb, B) x.1) < M →
+      (∀ x : Fin M, 0 < t'.mem (distAddr (n, mb, sb, B) x.1) →
+        t'.mem (distAddr (n, mb, sb, B) x.1) < M →
         ∃ p : Fin M, t'.mem (predAddr (n, mb, sb, B) x.1) = p.1 ∧
           f.resDist p + 1 = f.resDist x ∧ 0 < f.resCap p x))
     (fun urem u t' ⟨husum, ht_low, hd_le, hd_gt, hd_eq, hd_found, hpar⟩ => by
@@ -1321,11 +1327,13 @@ private theorem bfsMid_spec (hB : ∀ u v, W u v ≤ B) (hlay : mb + n * n ≤ s
       dsimp only
       rw [clientResult_bind_read, clientState_bind_read]
       by_cases hdu : t'.mem (distAddr (n, mb, sb, B) u) = layer
-      · rw [ite_eq_left hdu, StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_pure, StateTransitionSpec.clientState_pure]
+      · rw [ite_eq_left hdu, clientResult_bind, clientState_bind, clientResult_pure,
+          clientState_pure]
         have hres_u : f.resDist uFin = layer := by
           by_contra hne
           rcases lt_trichotomy (f.resDist uFin) layer with hlt | heq | hgt
-          · have h1 : t'.mem (distAddr (n, mb, sb, B) u) = f.resDist uFin := hd_le uFin (le_of_lt hlt)
+          · have h1 : t'.mem (distAddr (n, mb, sb, B) u) = f.resDist uFin :=
+            hd_le uFin (le_of_lt hlt)
             omega
           · exact hne heq
           · by_cases h1 : f.resDist uFin = layer + 1
@@ -1338,16 +1346,19 @@ private theorem bfsMid_spec (hB : ∀ u v, W u v ≤ B) (hlay : mb + n * n ≤ s
           (fun vrem (v : ℕ) t'' =>
             v + vrem = M ∧
             (∀ a < sb + n * n, t''.mem a = s.mem a) ∧
-            (∀ x : Fin M, f.resDist x ≤ layer → t''.mem (distAddr (n, mb, sb, B) x.1) = f.resDist x) ∧
+            (∀ x : Fin M, f.resDist x ≤ layer →
+              t''.mem (distAddr (n, mb, sb, B) x.1) = f.resDist x) ∧
             (∀ x : Fin M, layer + 1 < f.resDist x → t''.mem (distAddr (n, mb, sb, B) x.1) = M) ∧
             (∀ x : Fin M, f.resDist x = layer + 1 →
-              t''.mem (distAddr (n, mb, sb, B) x.1) = layer + 1 ∨ t''.mem (distAddr (n, mb, sb, B) x.1) = M) ∧
+              t''.mem (distAddr (n, mb, sb, B) x.1) = layer + 1 ∨
+                t''.mem (distAddr (n, mb, sb, B) x.1) = M) ∧
             (∀ x : Fin M, f.resDist x = layer + 1 →
               (∃ u' : Fin M, u'.1 < u ∧ f.resDist u' = layer ∧ 0 < f.resCap u' x) →
               t''.mem (distAddr (n, mb, sb, B) x.1) = layer + 1) ∧
             (∀ x : Fin M, x.1 < v → 0 < f.resCap uFin x → f.resDist x = layer + 1 →
               t''.mem (distAddr (n, mb, sb, B) x.1) = layer + 1) ∧
-            (∀ x : Fin M, 0 < t''.mem (distAddr (n, mb, sb, B) x.1) → t''.mem (distAddr (n, mb, sb, B) x.1) < M →
+            (∀ x : Fin M, 0 < t''.mem (distAddr (n, mb, sb, B) x.1) →
+              t''.mem (distAddr (n, mb, sb, B) x.1) < M →
               ∃ p : Fin M, t''.mem (predAddr (n, mb, sb, B) x.1) = p.1 ∧
                 f.resDist p + 1 = f.resDist x ∧ 0 < f.resCap p x))
           (fun vrem v t'' ⟨hvsum, hi_low, hi_le, hi_gt, hi_eq, hi_found, hi_cur, hi_par⟩ => by
@@ -1357,7 +1368,7 @@ private theorem bfsMid_spec (hB : ∀ u v, W u v ≤ B) (hlay : mb + n * n ≤ s
             have hW'' : MatLoaded n mb W t'' := hW.congr hlay hi_low
             unfold bfsInnerStep
             dsimp only
-            rw [clientResult_bind_read, clientState_bind_read, StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind]
+            rw [clientResult_bind_read, clientState_bind_read, clientResult_bind, clientState_bind]
             have hrc_r' : (Memory.spec 0).clientResult t''
                 (readResCap (((n, mb, sb, B), u), v)) = f.resCap uFin vFin :=
               readResCap_spec hB hW'' hf'' uFin vFin
@@ -1365,7 +1376,8 @@ private theorem bfsMid_spec (hB : ∀ u v, W u v ≤ B) (hlay : mb + n * n ≤ s
                 (readResCap (((n, mb, sb, B), u), v)) = t'' := readResCap_state _ t''
             rw [hrc_r', hrc_s']
             by_cases hcond : t''.mem (distAddr (n, mb, sb, B) v) = M ∧ 0 < f.resCap uFin vFin
-            · rw [ite_eq_left hcond, clientResult_bind_write, clientState_bind_write, clientResult_bind_write,
+            · rw [ite_eq_left hcond, clientResult_bind_write, clientState_bind_write,
+                clientResult_bind_write,
                 clientState_bind_write]
               simp only [client_simps]
               have hv_res : f.resDist vFin = layer + 1 := by
@@ -1448,7 +1460,8 @@ private theorem bfsMid_spec (hB : ∀ u v, W u v ≤ B) (hlay : mb + n * n ≤ s
         by_cases hu_eq : u'.1 = u
         · have : u' = uFin := Fin.ext hu_eq
           subst this
-          have h1 : t'.mem (distAddr (n, mb, sb, B) u) = f.resDist uFin := hd_le uFin (le_of_eq hru')
+          have h1 : t'.mem (distAddr (n, mb, sb, B) u) = f.resDist uFin :=
+            hd_le uFin (le_of_eq hru')
           omega
         · exact hd_found x hx ⟨u', by omega, hru', hrc'⟩)
     (n := M) (a := 0) (s := st)
@@ -1535,9 +1548,9 @@ private theorem bfsProg_spec (hB : ∀ u v, W u v ≤ B) (hlay : mb + n * n ≤ 
       obtain ⟨_, hm_low, hm_inv⟩ := bfsMid_spec hB hlay hW f hf hlayer_lt hst_low hlinv
       unfold bfsLayerStep
       dsimp only
-      rw [clientResult_bind_read, clientState_bind_read, StateTransitionSpec.clientResult_bind,
-        StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_pure,
-        StateTransitionSpec.clientState_pure]
+      rw [clientResult_bind_read, clientState_bind_read, clientResult_bind,
+        clientState_bind, clientResult_pure,
+        clientState_pure]
       exact ⟨by omega, hm_low, hm_inv⟩)
     (n := M - 1) (a := 0) (s := s2) ⟨Nat.zero_add _, hs2_low, hinv0⟩
   obtain ⟨hsum_end, _, hinv_end⟩ := hlayers
@@ -1549,8 +1562,8 @@ private theorem bfsProg_spec (hB : ∀ u v, W u v ≤ B) (hlay : mb + n * n ≤ 
     change (Memory.spec 0).clientState s (bfsProg ((n, mb, sb, B), src.1)) = s3
     unfold bfsProg
     dsimp only
-    rw [StateTransitionSpec.clientState_bind, clientState_bind_write, clientState_bind_write,
-      StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
+    rw [clientState_bind, clientState_bind_write, clientState_bind_write,
+      clientState_bind, clientState_pure]
   rw [ht_eq]
   have hdist_all : ∀ x : Fin M, s3.mem (distAddr (n, mb, sb, B) x.1) = f.resDist x := by
     intro x
@@ -1689,7 +1702,7 @@ private theorem iterate_bnStep_spec (hB : ∀ u v, W u v ≤ B) {t : Memory.Stat
       unfold bnStep
       dsimp only
       rw [clientResult_bind_read, ite_eq_left cur.2, clientResult_bind_read, hpv,
-        ite_eq_left (parOf cur).2, StateTransitionSpec.clientResult_bind,
+        ite_eq_left (parOf cur).2, clientResult_bind,
         readResCap_state, readResCap_spec hB hW hf (parOf cur) cur]
       rw [hδ₁]
       split_ifs <;> rfl
@@ -1699,7 +1712,7 @@ private theorem iterate_bnStep_spec (hB : ∀ u v, W u v ≤ B) {t : Memory.Stat
           (iterate bnStep (n, mb, sb, B) rem ((parOf cur).1, δ₁))).2 := by
       change ((Memory.spec 0).clientResult t
         (bnStep ((n, mb, sb, B), (cur.1, δ)) >>= iterate bnStep (n, mb, sb, B) rem)).2 = _
-      rw [StateTransitionSpec.clientResult_bind, bnStep_state, hstep]
+      rw [clientResult_bind, bnStep_state, hstep]
     have hih := iterate_bnStep_spec hB hW f hf parOf hpar hp_mem rem (parOf cur) δ₁
       (by omega) hp_rem
     dsimp only at hih ⊢
@@ -1842,7 +1855,7 @@ private theorem iterate_augStep_spec (hB : ∀ u v, W u v ≤ B) (f : (Network.m
       hpar1 hf_sub1 x y
     change ((Memory.spec 0).clientState u_st
       (augStep ((c, δ), cur.1) >>= iterate augStep (c, δ) rem)).mem _ = _
-    rw [StateTransitionSpec.clientState_bind, hres1, hih, hflow1 x y, harcs_eq]
+    rw [clientState_bind, hres1, hih, hflow1 x y, harcs_eq]
     simp only [List.mem_append, List.mem_singleton]
     by_cases h1 : (x, y) ∈ pathArcs (buildPath parOf rem (parOf cur))
     · rw [ite_eq_left h1, ite_eq_left (Or.inl h1)]
@@ -1900,7 +1913,7 @@ private theorem roundStep_spec (hst : src ≠ snk) (hB : ∀ u v, W u v ≤ B)
     change (Memory.spec 0).clientResult t (roundStep ((c, (src.1, snk.1)), 0)) = _
     unfold roundStep
     dsimp only
-    rw [clientResult_bind_read, ite_eq_left rfl, StateTransitionSpec.clientResult_bind]
+    rw [clientResult_bind_read, ite_eq_left rfl, clientResult_bind]
   have hred_s : t' = (Memory.spec 0).clientState tb
       (do
         let dt ← Memory.read (distAddr c snk.1)
@@ -1912,7 +1925,7 @@ private theorem roundStep_spec (hst : src ≠ snk) (hB : ∀ u v, W u v ≤ B)
     change (Memory.spec 0).clientState t (roundStep ((c, (src.1, snk.1)), 0)) = _
     unfold roundStep
     dsimp only
-    rw [clientState_bind_read, ite_eq_left rfl, StateTransitionSpec.clientState_bind]
+    rw [clientState_bind_read, ite_eq_left rfl, clientState_bind]
   rw [clientResult_bind_read] at hred_r
   rw [clientState_bind_read] at hred_s
   have hdt : tb.mem (distAddr c snk.1) = f.resDist snk := hb_dist snk
@@ -1921,8 +1934,8 @@ private theorem roundStep_spec (hst : src ≠ snk) (hB : ∀ u v, W u v ≤ B)
   · right
     rw [ite_eq_left hreach] at hred_r hred_s
     refine ⟨?_, ?_⟩
-    · rw [hred_r, StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
-        StateTransitionSpec.clientResult_pure]
+    · rw [hred_r, clientResult_bind, clientResult_bind,
+        clientResult_pure]
     let parOf : Fin n → Fin n := fun x =>
       if h : tb.mem (predAddr c x.1) < n then ⟨tb.mem (predAddr c x.1), h⟩ else x
     have hpar_spec : ∀ x : Fin n, 0 < f.resDist x → f.resDist x < n →
@@ -1932,7 +1945,7 @@ private theorem roundStep_spec (hst : src ≠ snk) (hB : ∀ u v, W u v ≤ B)
       obtain ⟨u, hu1, hu2, hu3⟩ := hb_par x hx1 hx2
       have hlt : tb.mem (predAddr c x.1) < n := by rw [hu1]; exact u.2
       have hpu : parOf x = u := by
-        simp only [parOf, dif_pos hlt]
+        simp only [parOf, dite_eq_left hlt]
         exact Fin.ext hu1
       exact ⟨by rw [hpu, hu1], by rw [hpu]; exact hu2, by rw [hpu]; exact hu3⟩
     have hpar : ∀ x : Fin n, 0 < f.resDist x → f.resDist x < n →
@@ -1975,9 +1988,9 @@ private theorem roundStep_spec (hst : src ≠ snk) (hB : ∀ u v, W u v ≤ B)
     have hflows := iterate_augStep_spec (mb := mb) (sb := sb) hB f parOf hpar δ hδB k snk tb
       hreach.2 rfl hp_mem (fun x y _ => hfb x y)
     have hst_eq : t' = (Memory.spec 0).clientState tb (iterate augStep (c, δ) k snk.1) := by
-      rw [hred_s, StateTransitionSpec.clientState_bind,
+      rw [hred_s, clientState_bind,
         clientState_iterate_eq_of _ _ (fun _ t'' => bnStep_state _ t''),
-        StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
+        clientState_bind, clientState_pure]
     intro x y
     rw [hst_eq]
     change _ = Network.Flow.augmentFun f p (f.bottleneck p) x y
@@ -1992,8 +2005,8 @@ private theorem roundStep_spec (hst : src ≠ snk) (hB : ∀ u v, W u v ≤ B)
         by_contra h0
         exact hst (f.eq_source_of_resDist_eq_zero (by omega)).symm
       exact hreach ⟨hpos, by change _ < n; omega⟩
-    rw [StateTransitionSpec.clientState_pure] at hred_s
-    rw [StateTransitionSpec.clientResult_pure] at hred_r
+    rw [clientState_pure] at hred_s
+    rw [clientResult_pure] at hred_r
     rw [hred_s]
     exact ⟨hred_r, hfb, hb_dist, hk⟩
 
@@ -2036,7 +2049,7 @@ private theorem sum_filter_lt_full {n : ℕ} (P : Fin n → Prop) [DecidablePred
       ∑ x ∈ Finset.univ.filter P, g x := by
   congr 1
   ext x
-  simp [x.2]
+  simp
 
 private theorem sum_sum_le_sq {n B : ℕ} {W : Fin n → Fin n → ℕ} (hB : ∀ u v, W u v ≤ B)
     (S T : Finset (Fin n)) : ∑ x ∈ S, ∑ y ∈ T, W x y ≤ n * n * B := by
@@ -2081,9 +2094,9 @@ private theorem iterate_cutInner_spec (hB : ∀ u v, W u v ≤ B) {t : Memory.St
         by_cases hvC : vFin ∈ C
         · have hd : t'.mem (distAddr (n, mb, sb, B) va.1) ≠ n := fun h => (hC vFin).mp h hvC
           rw [ite_eq_right (fun h => hd h.1), ite_eq_right (not_not.mpr hvC),
-            StateTransitionSpec.clientResult_pure]
+            clientResult_pure]
         · have hd := (hC vFin).mpr hvC
-          rw [ite_eq_left ⟨hd, hB u vFin, by omega⟩, ite_eq_left hvC, StateTransitionSpec.clientResult_pure]
+          rw [ite_eq_left ⟨hd, hB u vFin, by omega⟩, ite_eq_left hvC, clientResult_pure]
       refine ⟨?_, ?_, cutInnerStep_state _ t'⟩
       · rw [hres]; dsimp only; omega
       · rw [hres]
@@ -2121,8 +2134,8 @@ private theorem iterate_cutOuter_spec (hB : ∀ u v, W u v ≤ B) {t : Memory.St
         dsimp only
         rw [clientResult_bind_read]
         by_cases huC : uFin ∈ C
-        · rw [ite_eq_left ((hC' uFin).mpr huC), ite_eq_left huC, StateTransitionSpec.clientResult_bind,
-            StateTransitionSpec.clientResult_pure]
+        · rw [ite_eq_left ((hC' uFin).mpr huC), ite_eq_left huC, clientResult_bind,
+            clientResult_pure]
           congr 1
           refine iterate_cutInner_spec hB hW C hC uFin ua.2 ?_
           rw [hacc']
@@ -2131,7 +2144,7 @@ private theorem iterate_cutOuter_spec (hB : ∀ u v, W u v ≤ B) {t : Memory.St
           rw [hsplit, ite_eq_left huC] at this
           exact this
         · rw [ite_eq_right (fun h => huC ((hC' uFin).mp h)), ite_eq_right huC,
-            StateTransitionSpec.clientResult_pure]
+            clientResult_pure]
       refine ⟨?_, ?_, cutOuterStep_state _ t'⟩
       · rw [hres]; dsimp only; omega
       · rw [hres]
@@ -2153,8 +2166,8 @@ private theorem roundStep_idle {d : (Ctx × (ℕ × ℕ)) × ℕ} (h : d.2 ≠ 0
       (Memory.spec 0).clientState t (roundStep d) = t := by
   unfold roundStep
   dsimp only
-  exact ⟨by rw [clientResult_bind_read, ite_eq_right h, StateTransitionSpec.clientResult_pure],
-    by rw [clientState_bind_read, ite_eq_right h, StateTransitionSpec.clientState_pure]⟩
+  exact ⟨by rw [clientResult_bind_read, ite_eq_right h, clientResult_pure],
+    by rw [clientState_bind_read, ite_eq_right h, clientState_pure]⟩
 
 /-- **Correctness of dense Edmonds–Karp.** On a state holding the capacities `W ≤ B` at `mb`,
 `ekProg` leaves memory outside its scratch area unchanged, the set `C` of vertices whose final
@@ -2216,7 +2229,8 @@ theorem ekProg_spec {n mb sb B : ℕ} {W : Fin n → Fin n → ℕ} {s t : Fin n
             intro j hj
             by_cases hjk : j = k
             · subst hjk
-              simp only [flows', paths', ite_eq_left (le_refl j), ite_eq_right (show ¬ j + 1 ≤ j by omega),
+              simp only [flows', paths', ite_eq_left (le_refl j),
+                ite_eq_right (show ¬ j + 1 ≤ j by omega),
                 ite_eq_left rfl]
               exact ⟨hp, trivial⟩
             · obtain ⟨hpj, hj'⟩ := hseq j (by omega)
@@ -2256,16 +2270,16 @@ theorem ekProg_spec {n mb sb B : ℕ} {W : Fin n → Fin n → ℕ} {s t : Fin n
   have hst_eq : (Memory.spec 0).clientState st (ekProg ((n, mb, sb, B), (s.1, t.1))) = s2 := by
     unfold ekProg
     dsimp only
-    rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
-      StateTransitionSpec.clientState_bind,
+    rw [clientState_bind, clientState_bind,
+      clientState_bind,
       clientState_iterate_eq_of _ _ (fun _ t' => cutOuterStep_state _ t'),
-      StateTransitionSpec.clientState_pure]
+      clientState_pure]
   have hres_eq : (Memory.spec 0).clientResult st (ekProg ((n, mb, sb, B), (s.1, t.1))) =
       ((Memory.spec 0).clientResult s2 (iterate cutOuterStep (n, mb, sb, B) n (0, 0))).2 := by
     unfold ekProg
     dsimp only
-    rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
-      StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
+    rw [clientResult_bind, clientResult_bind,
+      clientResult_bind, clientResult_pure]
   rw [hst_eq, hres_eq]
   rw [hst_eq] at hframe
   refine ⟨hframe, ?_⟩
@@ -2294,9 +2308,5 @@ theorem ekProg_spec {n mb sb B : ℕ} {W : Fin n → Fin n → ℕ} {s t : Fin n
       (f.value_eq_cutCapacity_reachableCut hno)
   rw [hC_eq]
   exact hmin.isMinCutBetween
-
-/-! ### Interface (proofs in progress) -/
-
-
 
 end Cslib.Algorithms.WordRAM.EdmondsKarp
