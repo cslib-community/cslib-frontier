@@ -1356,21 +1356,6 @@ theorem Assign.unassignEntries_eq (A : Assign) (M : XTrail) :
     rw [ih]
     simp [Assign.unassign, Trail.vars, XTrail.trail, XEntry.var_entry]
 
-/-- **Assigning a level** of the trail on top of `A`: the decision `d`, then the entries `M`
-above it, oldest first, without listing their trail: what `Assign.assignTrail` does on
-`XTrail.trail M ++ [⟨d, true⟩]` (`Assign.assignLevel_eq`). -/
-@[expose] def Assign.assignLevel (A : Assign) (d : Literal ℕ) : XTrail → Assign
-  | [] => A.assign d
-  | e :: M => (Assign.assignLevel A d M).assign e.lit
-
-theorem Assign.assignLevel_eq (A : Assign) (d : Literal ℕ) (M : XTrail) :
-    A.assignLevel d M = A.assignTrail (XTrail.trail M ++ [⟨d, true⟩]) := by
-  induction M with
-  | nil => simp [Assign.assignLevel, Assign.assignTrail]
-  | cons e M ih =>
-    rw [Assign.assignLevel, ih, XTrail.trail_cons, List.cons_append, Assign.assignTrail_cons,
-      XEntry.lit_entry]
-
 /-- **Saving the phases of the literals of the entries `M`**, folding over them in order: what
 `Phases.save` does on their trail (`Phases.saveEntries_eq`), without listing them. -/
 @[expose] def Phases.saveEntries (P : Phases) (M : XTrail) : Phases :=
@@ -1400,16 +1385,6 @@ saving is on. -/
 saving is on. -/
 @[expose] def WExec.saved (S : WExec φ) (U : XTrail) : Phases := savedWith S.opts S.phase U
 
-/-- The assignment `A` after undoing the entries `U` and asserting `l`: the variables undone are
-unassigned, then `l` is assigned. -/
-@[expose] def backjumpedWith (A : Assign) (U : XTrail) (l : Literal ℕ) : Assign :=
-  (A.unassignEntries U).assign l
-
-/-- The assignment after undoing the entries `U` and asserting `l`: the variables undone are
-unassigned, then `l` is assigned. -/
-@[expose] def WExec.backjumped (S : WExec φ) (U : XTrail) (l : Literal ℕ) : Assign :=
-  backjumpedWith S.assign U l
-
 /-- One more conflict. -/
 @[expose] def Stats.conflict (s : Stats) : Stats := { s with conflicts := s.conflicts + 1 }
 
@@ -1431,7 +1406,7 @@ def reducedWith (o : Options) (R : Reduction) (used : List ℕ) (id next : ℕ) 
     conflicts := s.conflicts + 1, maxLiterals := s.maxLiterals + k₀, literals := s.literals + k }
 
 /-- **Assigning the current level** on top of `A`, read from the arrays of the trail: the
-decision at position `p`, then the entries above it, oldest first. It is `Assign.assignLevel` of
+decision at position `p`, then the entries above it, oldest first. It is `Assign.assignTrail` of
 the level read back (`ATrail.assignLevelAt_eq`). -/
 @[expose] def ATrail.assignLevelAt (T : ATrail) (p : ℕ) (A : Assign) : Assign :=
   T.foldUp (fun A c _ => A.assign (litOfKey c)) p (T.size - p) A
@@ -1440,12 +1415,13 @@ theorem ATrail.assignLevelAt_eq (T : ATrail) {p : ℕ} (A : Assign) (hp : p < T.
     T.assignLevelAt p A = A.assignTrail (T.level p) := by
   rw [assignLevelAt, foldUp_eq, show T.size - p = (T.size - (p + 1)) + 1 by omega,
     seg_succ_bottom, List.foldr_append]
-  simp only [List.foldr_cons, List.foldr_nil, litOfKey_litCode, entry_lit, ATrail.level,
-    ← Assign.assignLevel_eq]
+  simp only [List.foldr_cons, List.foldr_nil, litOfKey_litCode, entry_lit, ATrail.level]
   generalize T.seg (p + 1) (T.size - (p + 1)) = M
   induction M with
-  | nil => rfl
-  | cons e M ih => simp only [List.foldr_cons, Assign.assignLevel, ih]
+  | nil => simp [Assign.assignTrail]
+  | cons e M ih =>
+    rw [List.foldr_cons, ih, XTrail.trail_cons, List.cons_append, Assign.assignTrail_cons,
+      XEntry.lit_entry]
 
 /-- The marks after an analysis: the array the analysis returns, with the variables of the
 current level cleared, which leaves no value. -/
@@ -1726,8 +1702,9 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
       rw [congrArg Trail.vars hN.2]
       exact Trail.mem_vars_of_mem_lits (lits_below hxM₀)
   -- the assignment undoes the literals above the decision, then asserts the learned literal
-  have hassign : (S.backjumped U L.lit).Agrees (⟨L.lit, false⟩ :: XTrail.trail K) := by
-    rw [WExec.backjumped, backjumpedWith, Assign.unassignEntries_eq]
+  have hassign : ((S.assign.unassignEntries U).assign L.lit).Agrees
+      (⟨L.lit, false⟩ :: XTrail.trail K) := by
+    rw [Assign.unassignEntries_eq]
     have hA := hS.assign
     have hnd := hS.exec.run.nodup
     rw [hMUK] at hA
