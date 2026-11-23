@@ -305,11 +305,7 @@ Complete client: [MatrixRigidityCauchy.lean](../../CslibFrontierTests/MatrixRigi
 lake build CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.TotallyRegular CslibFrontierTests.MatrixRigidityCauchy
 ```
 
-At `r = ε n` the Cauchy bound is only `Ω(n)`, below the hypothesis of Valiant's criterion (Lokam, p. 16). The [random-matrix results](../../CslibFrontier/Foundations/LinearAlgebra/Matrix/Rigidity/Random.lean) give the general upper bound and the finite-field counting bound.
-
-For Walsh–Hadamard matrices, [consecutive-layer interpolation](../../CslibFrontier/Foundations/Data/MvPolynomial/ConsecutiveLayers.lean) gives an integer multilinear polynomial of degree at most `t - 1` realizing arbitrary values on `t` consecutive Hamming layers. [WalshBand](../../CslibFrontier/Foundations/LinearAlgebra/Matrix/Rigidity/WalshBand.lean) applies the same binomial coefficients to pairs of supports. Over every field, a matrix of rank at most `∑ j : Fin t, n.choose j` agrees with the Walsh sign when the size of the intersection is in the band. The [checked client](../../CslibFrontierTests/WalshBand.lean) exhibits a rank-at-most-five approximant on sixteen supports over `ZMod 3`. The [Hadamard module](../../CslibFrontier/Foundations/LinearAlgebra/Matrix/Rigidity/Hadamard.lean) supplies the native Sylvester matrix and its rigidity lower bounds. The asymptotic Walsh upper bound and the Vandermonde problem are follow-up work.
-
-[WalshRigidity](../../CslibFrontier/Foundations/LinearAlgebra/Matrix/Rigidity/WalshRigidity.lean) corrects atypical rows and columns, then counts the remaining off-band pairs. `Matrix.rigidity_sylvesterHadamard_le` bounds total edits on the native Sylvester matrix. `Matrix.exists_rank_le_sylvesterHadamard_row_edits_le` gives one low-rank approximation meeting every row budget. The [consumer tests](../../CslibFrontierTests/WalshRigidity.lean) instantiate both bounds on a 256 × 256 matrix.
+**Not certified here.** At `r = ε n` the bound is only `Ω(n)`, far below what Valiant's criterion needs (Lokam, p. 16). Shparlinsky's Vandermonde bound, the Sylvester–Hadamard bounds, the counting bounds `R_A(r) ≤ (n - r)²` and near-maximal rigidity of random matrices, and Alman–Williams non-rigidity of the Walsh–Hadamard matrices are open; see [ROADMAP.md](../../ROADMAP.md).
 
 ## Hitting sets for small partial-derivative spaces
 

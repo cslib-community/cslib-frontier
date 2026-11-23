@@ -46,9 +46,9 @@ private theorem sum_subset_coeff {K : Type*} [Field K] {n : ℕ}
     ext s; simp [and_comm]
   simp [h, nsmul_eq_mul, mul_comm]
 
-/-- Over every field, the Walsh–Hadamard signs on t consecutive overlap sizes agree
-with a matrix of rank at most the number of squarefree monomials of degree below t.
-See [Alman and Williams, Lemmas 3.1–3.2][AlmanWilliams2017]. -/
+/-- Finite interpolation step toward [Alman and Williams, Lemma 3.1][AlmanWilliams2017].
+Over every field, the Walsh–Hadamard signs on `t` consecutive overlap sizes agree with
+a matrix of rank at most the number of squarefree monomials of degree below `t`. -/
 theorem exists_low_rank_eq_walsh_on_band (K : Type*) [Field K] (n k t : ℕ) :
     ∃ A : Matrix (Finset (Fin n)) (Finset (Fin n)) K,
       A.rank ≤ ∑ j : Fin t, n.choose j ∧ ∀ x y, k ≤ (x ∩ y).card →

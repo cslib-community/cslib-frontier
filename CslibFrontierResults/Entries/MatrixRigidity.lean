@@ -8,8 +8,7 @@ Authors: Samuel Schlesinger
 import CslibFrontierResults.Registry
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.Random
-import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.WalshBand
-import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.WalshRigidity
+import CslibFrontier.Foundations.Data.MvPolynomial.ConsecutiveLayers
 
 register_result "lokam-matrix-rigidity-upper-bound" where
   title := "Every n × n matrix over a field has rigidity at most (n - r)²"
@@ -71,39 +70,8 @@ register_result "alman-williams-consecutive-layer-interpolation" where
   ]
   theorems := [Cslib.exists_multilinear_of_consecutive_weights]
   scope := "Prescribes any integer value per weight on a band of t consecutive layers. \
-    The polynomial has total degree at most t - 1 and individual degree at most one."
-
-register_result "alman-williams-walsh-rank-on-band" where
-  title := "A low-rank matrix agrees with Walsh signs on consecutive overlap sizes"
-  topic := "algebraic complexity"
-  sources := [
-    { paper := AlmanWilliams2017, theorem := "Finite interpolation step of Lemma 3.1",
-      locator := "§3, arXiv v2, printed pp. 6–7 (PDF pp. 7–8)" }
-  ]
-  theorems := [Cslib.exists_low_rank_eq_walsh_on_band]
-  scope := "Over any field the approximant has rank at most the sum of binom(n,j) for j < t. \
-    The agreement covers pairs whose intersection size lies in the given band of t sizes. \
-    The off-band error count and the asymptotic non-rigidity theorem are separate steps."
-
-register_result "alman-williams-sylvester-finite" where
-  title := "Finite binomial upper bound on Sylvester–Hadamard rigidity"
-  topic := "algebraic complexity"
-  sources := [{ paper := AlmanWilliams2017,
-    theorem := "Finite construction in the proof of Theorem 1.1",
-    locator := "Section 3, Corollary 3.1 and proof of Theorem 1.1" }]
-  theorems := [Matrix.rigidity_sylvesterHadamard_le]
-  scope := "The rank budget includes the interpolation rank and the cost of correcting \
-    exceptional rows and columns. The edit budget counts ordered central pairs off the \
-    overlap band. All fields and natural band parameters. The asymptotic rate is outside \
-    this entry."
-
-register_result "alman-williams-sylvester-rows" where
-  title := "A common low-rank Sylvester–Hadamard witness for every row"
-  topic := "algebraic complexity"
-  sources := [{ paper := AlmanWilliams2017,
-    theorem := "Finite construction in the proof of Theorem 1.1",
-    locator := "Section 3, Corollary 3.1 and proof of Theorem 1.1" }]
-  theorems := [Matrix.exists_rank_le_sylvesterHadamard_row_edits_le]
-  scope := "Any uniform bound on the explicit central binomial row sums bounds every row \
-    of one approximant and yields a total edit bound after multiplication by the side length. \
-    All fields and natural band parameters. The asymptotic rate is outside this entry."
+    The polynomial has total degree at most t - 1 and individual degree at most one. \
+    Lean uses k ≤ |x| < k + t where the paper uses k + 1 ≤ |z| ≤ k + r, and drops the \
+    dimension hypothesis n ≥ k + t by prescribing values only on existing layers. \
+    Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/7803#pullrequestreview-6016309173"

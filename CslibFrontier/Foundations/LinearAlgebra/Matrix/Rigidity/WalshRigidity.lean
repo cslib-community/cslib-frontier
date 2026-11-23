@@ -17,8 +17,11 @@ import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.WalshCounts
 Correct the exceptional rows and columns of the interpolation matrix. All surviving
 disagreements lie on the counted central off-band pairs. Reindex by bit supports to
 obtain total and per-row budgets for the native Sylvester matrix over any field.
-The two bounds are `Matrix.rigidity_sylvesterHadamard_le` and
-`Matrix.exists_rank_le_sylvesterHadamard_row_edits_le`.
+`Matrix.rigidity_sylvesterHadamard_le` bounds total edits by an explicit binomial sum.
+Given a bound on the sum for each central row weight,
+`Matrix.exists_rank_le_sylvesterHadamard_row_edits_le_of_row_sum_le` produces a common
+low-rank witness meeting the edit budget in every row. To deduce Theorem 1.1 one still
+needs asymptotic estimates for the rank cutoff and the off-band tails.
 
 See [Alman and Williams, §3][AlmanWilliams2017].
 -/
@@ -199,17 +202,18 @@ private theorem exists_sylvester_reindex (K : Type*) [Field K] (n : ℕ) :
   have hs : univ.filter (fun b => b ∈ s i ∩ s j) = s i ∩ s j := by ext b; simp
   rw [hs, prod_const]
 
-/-- Finite corrected rigidity bound on the binary indexing of the Sylvester matrix. -/
-theorem _root_.Matrix.rigidity_sylvesterHadamard_le : ∀ (K : Type*) [Field K] (n lo hi k t : ℕ),
-  let H := Matrix.sylvesterHadamard K n
-  let bad := ∑ a ∈ Finset.range (n + 1), if lo ≤ a ∧ a ≤ hi then 0 else n.choose a
-  let r := (∑ j : Fin t, n.choose j) + 2 * bad
-  H.rigidity r ≤ ∑ a ∈ Finset.range (n + 1), if lo ≤ a ∧ a ≤ hi then
-    n.choose a * (∑ j ∈ Finset.range (a + 1), ∑ b ∈ Finset.range (n - a + 1),
-      if lo ≤ j + b ∧ j + b ≤ hi ∧ (j < k ∨ k + t ≤ j)
-      then a.choose j * (n - a).choose b else 0)
-  else 0 := by
-  intro K _ n lo hi k t
+/-- Finite step toward [Alman and Williams, Theorem 1.1][AlmanWilliams2017].
+At the displayed rank cutoff, the number of central off-band pairs bounds the rigidity
+of the native Sylvester matrix over any field. -/
+theorem _root_.Matrix.rigidity_sylvesterHadamard_le (K : Type*) [Field K] (n lo hi k t : ℕ) :
+    let H := Matrix.sylvesterHadamard K n
+    let bad := ∑ a ∈ Finset.range (n + 1), if lo ≤ a ∧ a ≤ hi then 0 else n.choose a
+    let r := (∑ j : Fin t, n.choose j) + 2 * bad
+    H.rigidity r ≤ ∑ a ∈ Finset.range (n + 1), if lo ≤ a ∧ a ≤ hi then
+      n.choose a * (∑ j ∈ Finset.range (a + 1), ∑ b ∈ Finset.range (n - a + 1),
+        if lo ≤ j + b ∧ j + b ≤ hi ∧ (j < k ∨ k + t ≤ j)
+        then a.choose j * (n - a).choose b else 0)
+    else 0 := by
   obtain ⟨e, he⟩ := exists_sylvester_reindex K n
   let H : Matrix (Finset (Fin n)) (Finset (Fin n)) K := Matrix.of fun x y =>
     (-1 : K) ^ (x ∩ y).card
@@ -241,9 +245,10 @@ private theorem rigidity_le_of_row_edits {ι K : Type*} [Fintype ι] [Field K]
       simpa using h
     _ = _ := by simp
 
-/-- A bound on each central row's binomial sum gives one low-rank native witness for all rows. -/
-theorem _root_.Matrix.exists_rank_le_sylvesterHadamard_row_edits_le (K : Type*) [Field K]
-    (n lo hi k t edits : ℕ)
+/-- Conditional finite step toward [Alman and Williams, Theorem 1.1][AlmanWilliams2017].
+A bound on each central row's binomial sum gives one low-rank native witness for all rows. -/
+theorem _root_.Matrix.exists_rank_le_sylvesterHadamard_row_edits_le_of_row_sum_le
+    (K : Type*) [Field K] (n lo hi k t edits : ℕ)
     (hrow : ∀ a ≤ n, lo ≤ a → a ≤ hi →
       (∑ j ∈ range (a + 1), ∑ b ∈ range (n - a + 1),
         if lo ≤ j + b ∧ j + b ≤ hi ∧ (j < k ∨ k + t ≤ j)

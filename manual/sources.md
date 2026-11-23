@@ -64,6 +64,11 @@ Rudolf Ahlswede and Imre Csiszár. "On Oblivious Transfer Capacity." ISIT 2007, 
 
 Benny Applebaum, Yuval Ishai, Eyal Kushilevitz. "How to Garble Arithmetic Circuits." *52nd Annual IEEE Symposium on Foundations of Computer Science (FOCS 2011)*, 120–129, 2011. https://doi.org/10.1109/FOCS.2011.40 . Checked on 2026-11-10 against the author-hosted copy of the FOCS version, https://bennyapplebaum.sites.tau.ac.il/_files/ugd/f706bf_ccb157901f504e32a79d89a666f56de3.pdf , which has no printed page numbers: Definition 4.2 (affinization gadget), Definition 4.5 (perfect privacy of a gadget) and Section 5, Fact 5.1. Cited for the framework of affine key encodings over a ring (with per-wire keys) and for the notion of an affinization gadget; the four-value multiplication gadget formalized here is an explicit instance derived in the Lean source, not the general compiler of the paper.
 
+<a id="almanwilliams2017"></a>
+## almanwilliams2017
+
+Josh Alman and Ryan Williams. "Probabilistic Rank and Matrix Rigidity." [arXiv:1611.05558v2](https://arxiv.org/pdf/1611.05558v2), 7 January 2017 (bibliography key `AlmanWilliams2017`, PDF SHA-256 `8ca83b72bdc02cf3b637def97745bd2af57a6d8c4b598ca622e27e03b5ec31d0`). Section 3, Lemma 3.2 (printed p. 6, PDF p. 7) gives integer multilinear interpolation on consecutive Hamming layers, formalized as `Cslib.exists_multilinear_of_consecutive_weights`. The finite Sylvester–Hadamard rank and off-band edit bounds are steps toward [#3209](https://github.com/cslib-community/cslib-frontier/issues/3209). The asymptotic estimates in Lemmas 3.1 and 3.3 and the non-rigidity bound in Theorem 1.1 remain open in this development. [Independent agent source check of §§1–3](https://github.com/cslib-community/cslib-frontier/pull/7803#pullrequestreview-6016309173).
+
 <a id="alonbabaiitai1986"></a>
 ## alonbabaiitai1986
 

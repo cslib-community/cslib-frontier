@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger, Shengye Tao
 -/
 
+module
+
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.WalshRigidity
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.WalshCounts
 
@@ -28,7 +30,7 @@ example (K : Type*) [Field K] : (Matrix.sylvesterHadamard K 8).rigidity 73 ≤ 9
 example (K : Type*) [Field K] :
     ∃ B : Matrix (Fin 256) (Fin 256) K, B.rank ≤ 73 ∧
       ∀ i, ({j | Matrix.sylvesterHadamard K 8 i j ≠ B i j} : Set _).ncard ≤ 80 := by
-  apply (Matrix.exists_rank_le_sylvesterHadamard_row_edits_le K 8 2 6 1 3 80 ?_).2
+  apply (Matrix.exists_rank_le_sylvesterHadamard_row_edits_le_of_row_sum_le K 8 2 6 1 3 80 ?_).2
   intro a ha hlo hhi
   interval_cases a <;> decide
 

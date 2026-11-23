@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger, Shengye Tao
 -/
 
+module
+
 import CslibFrontier.Foundations.Data.MvPolynomial.ConsecutiveLayers
 
 /-! Checked instances for integer interpolation on consecutive Hamming layers. -/
