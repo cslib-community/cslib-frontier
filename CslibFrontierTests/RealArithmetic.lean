@@ -158,7 +158,8 @@ set_option linter.hashCommand false in
     formulaWordGateTermWord word 2 == encTerm 1 (.const (-2)) &&
     formulaWordGateTermWord word 0 == encTerm 1 (.const 0) &&
     formulaWordGateTermWord word (2 ^ 80) == encTerm 1 (.const 0) &&
-    formulaWordGateTermWord [] 0 == encTerm 0 (.const 0)
+    formulaWordGateTermWord [] 0 == encTerm 0 (.const 0) &&
+    decide (0 < (formulaWordGateTermWord [] 0).length)
 
 -- The same comparison slots evaluate modulo a composite, with missing coordinates set to zero.
 set_option linter.hashCommand false in
