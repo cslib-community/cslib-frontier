@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalConstruct
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Local Chan–He node delivery without catalogue publication
@@ -159,11 +160,10 @@ theorem deliverLocal_exec {w : ℕ} (x : Data 128)
       (x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6)) +
       4 * x.regs groups + x.regs selected)) :
     Exec w deliverLocal x (localDeliveryState x) 21 := by
-  dsimp only [heap, slot, groups, selected, outputs, outputCount, one] at *
-  ram_eval [deliverLocal, localDeliveryState, heavyBase, heavyLength, heap, slot, groups, selected,
-    outputs, outputCount, packed, temporary, endpoint, one, hone,
-    Function.update_of_ne, Nat.mul_comm, Nat.mul_left_comm, Nat.mul_assoc,
-    show ∀ n : ℕ, n + n + (n + n) = 4 * n by omega]
+  unfold deliverLocal localDeliveryState
+  wram_exec [hone]
+  simp only [show x.regs groups + x.regs groups + (x.regs groups + x.regs groups) =
+    4 * x.regs groups by omega]
 
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Traversal

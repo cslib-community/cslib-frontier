@@ -334,12 +334,9 @@ private theorem foldl_agreesStep (msg : α × List Bool × ℕ × List Bool → 
     (a : α) (c : List Bool) (g : List (IPMove × ℕ)) (j : ℕ) (p t : List Bool) (ok : Bool) :
     (g.foldl (agreesStep msg (a, c)) { j := j, p := p, t := t, ok := ok }).ok =
       (ok && agrees (fun j' p' => msg (a, c, j', p')) g j p t) := by
-  induction g generalizing j p t ok with
-  | nil => simp [agrees]
-  | cons x g ih =>
-    obtain ⟨_ | _, n⟩ := x
-    · simp only [List.foldl_cons, agreesStep, ih, agrees, BitString.listRow_zero, Bool.and_assoc]
-    · simp only [List.foldl_cons, agreesStep, ih, agrees, Bool.and_true]
+  fun_induction agrees (fun j' p' => msg (a, c, j', p')) g j p t generalizing ok <;>
+    simp only [List.foldl_nil, List.foldl_cons, agreesStep, BitString.listRow_zero, Bool.and_assoc,
+      Bool.and_true, *]
 
 /-- `agrees` on a dynamic polynomial-time shape `g` is polynomial-time. -/
 theorem computableInPolyTime_agrees_dyn {γ : Type} {enc : α ↪ List Bool} {encIn : γ ↪ List Bool}

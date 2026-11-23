@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Decision.Program
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Decision.Width
 import CslibFrontier.Algorithms.WordRAM.ThreeSum.Decision.Registers
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Charged in-place Convolution calls during Chan–He traversal
@@ -48,35 +49,20 @@ theorem exec_prepareHost {r w : ℕ} (x : Data (registerCount r)) :
       (∀ i, y.regs (preprocessingRegisters r i) = x.regs (preprocessingRegisters r i)) ∧
       (∀ i, y.regs (controllerRegisters r i) = x.regs (controllerRegisters r i)) ∧
       y.mem = x.mem := by
-  let p := preprocessingRegisters r
-  let m := controllerRegisters r
-  let h := fun i => hostRegisters r (Host.hostRegisters (r := r + 7) i)
-  let y := x.set (h Host.len) (x.regs (p ChanHe.Preprocessing.packedLength))
-    |>.set (h Host.upper) (x.regs (m envelope))
-    |>.set (h Host.base) (x.regs (p ChanHe.Traversal.packed))
-    |>.set (h Host.matAB) (x.regs (p ChanHe.Traversal.heap))
-  have hh (i j : Fin 64) : h i = h j ↔ i = j :=
+  have hh {i j : Fin 64} :
+      hostRegisters r (Host.hostRegisters (r := r + 7) i) =
+        hostRegisters r (Host.hostRegisters (r := r + 7) j) ↔ i = j :=
     ((host_injective r).comp Host.hostRegisters_injective).eq_iff
-  have hph (i : Fin 128) (j : Fin 64) : p i ≠ h j := preprocessing_ne_host i _
-  have hmh (i : Fin 16) (j : Fin 64) : m i ≠ h j := controller_ne_host i _
-  have he : ExecWithin w prepareHost x y 4 := by
-    ram_eval [prepareHost, y, p, m, h, hh, hph, hmh,
-      Host.len, Host.upper, Host.base, Host.matAB, Fin.mk.injEq]
-  refine ⟨y, he, ?_, ?_, ?_, ?_, ?_, ?_, rfl⟩
-  · change y.regs (h Host.len) = x.regs (p ChanHe.Preprocessing.packedLength)
-    simp +decide [y, h, hh, Host.len, Host.upper, Host.base, Host.matAB]
-  · change y.regs (h Host.upper) = x.regs (m envelope)
-    simp +decide [y, h, hh, Host.upper, Host.base, Host.matAB]
-  · change y.regs (h Host.base) = x.regs (p ChanHe.Traversal.packed)
-    simp +decide [y, h, hh, Host.base, Host.matAB]
-  · change y.regs (h Host.matAB) = x.regs (p ChanHe.Traversal.heap)
-    simp [y, h]
-  · intro i
-    change y.regs (p i) = x.regs (p i)
-    simp only [y, Data.set_regs, Function.update_apply, hph, ↓reduceIte]
-  · intro i
-    change y.regs (m i) = x.regs (m i)
-    simp only [y, Data.set_regs, Function.update_apply, hmh, ↓reduceIte]
+  have hph (i : Fin 128) (j : Fin 64) :
+      preprocessingRegisters r i ≠ hostRegisters r (Host.hostRegisters j) :=
+    preprocessing_ne_host i _
+  have hmh (i : Fin 16) (j : Fin 64) :
+      controllerRegisters r i ≠ hostRegisters r (Host.hostRegisters j) :=
+    controller_ne_host i _
+  refine WP.exists_execWithin ?_
+  unfold prepareHost
+  wram_exec
+  simp +decide [Data.comap_regs, Data.set_regs, Data.set_mem, hh, hph, hmh]
 
 /-- Boolean OR costs at most three native instructions and changes no other register or cell. -/
 theorem exec_receive {r w b v : ℕ} (x : Data (registerCount r))
@@ -86,18 +72,10 @@ theorem exec_receive {r w b v : ℕ} (x : Data (registerCount r))
     ∃ y, ExecWithin w receive x y 3 ∧
       y.regs (controllerRegisters r answer) = (if v = 1 then 1 else b) ∧
       (∀ i, i ≠ controllerRegisters r answer → y.regs i = x.regs i) ∧ y.mem = x.mem := by
-  let m := controllerRegisters r
-  let y := x.set (m answer) (if v = 1 then 1 else b)
-  have hm (i j : Fin 16) : m i = m j ↔ i = j := (controller_injective r).eq_iff
-  have hmh (i : Fin 16) (j : Fin 64) :
-      m i ≠ hostRegisters r (Host.hostRegisters j) := controller_ne_host i _
-  have he : ExecWithin w receive x y 3 := by
-    by_cases h : v = 1 <;>
-      ram_eval [receive, y, m, ho, hb, hv, hm, hmh, h, one, answer, Fin.mk.injEq]
-  refine ⟨y, he, ?_, ?_, rfl⟩
-  · simp [y, m]
-  · intro i hi
-    exact Function.update_of_ne hi ..
+  refine WP.exists_execWithin ?_
+  unfold receive
+  wram_exec [ho, hb, hv] <;>
+    exact ⟨by wram_simp [hc], fun i hi => by wram_simp [Function.update_of_ne hi], by wram_simp⟩
 
 /-- Invoke the existing certified solver on the current actual packed block, preserving the
 entire live prefix and traversal bank. Argument copies and Boolean accumulation are charged. -/

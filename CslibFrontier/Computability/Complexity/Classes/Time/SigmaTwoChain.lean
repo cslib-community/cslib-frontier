@@ -222,14 +222,12 @@ private theorem add_two_mul_length_le_of_drop_frames {E : List Bool} {i : ℕ} {
 
 /-- At most as many words are framed in `E` as `E` has bits. -/
 private theorem length_frames_le (E : List Bool) : (frames E).length ≤ E.length := by
-  by_cases hE : E = []
-  · simp [hE]
-  · rw [frames_of_ne_nil hE, List.length_cons]
-    have := length_frames_le (dropFrame E)
+  fun_induction frames E with
+  | case1 => simp -- []
+  | case2 E hE ih => -- unframe E :: frames (dropFrame E)
     have := length_dropFrame_lt hE
+    rw [frames_of_ne_nil hE, List.length_cons]
     omega
-termination_by E.length
-decreasing_by exact length_dropFrame_lt hE
 
 /-! ### The cost of the verifier -/
 
