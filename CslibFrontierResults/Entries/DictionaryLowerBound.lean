@@ -47,8 +47,10 @@ register_result "dict-cell-probe-iterlog-redundancy" where
     validHistoriesUpTo U V n (4 * n + 1) incurs at least c * n * k (resp. c * n * log* n) \
     expected cell probes over the oblivious insertQueryDeleteDist distribution (4 * n charged \
     operations; correctness horizon 4 * n + 1 provides one trailing query step for decodeDict). \
-    The same scheme is both proved exact and lower-bounded; concrete two-cell witnesses are \
-    checked in CslibFrontierTests/DictLowerBoundMultilevel.lean. Space benchmark \
+    Exactness on admissible histories is an input hypothesis placed on the same scheme whose \
+    probes are bounded (not proved by these endpoints); \
+    CslibFrontierTests/DictLowerBoundMultilevel.lean proves that hypothesis for its concrete \
+    two-cell fixture scheme. Space benchmark \
     benchmarkBits U V n = log₂ C(U, n) + n * log₂ V is bridged to Dynamic.optBits in \
     LowerBound.lean. Internal steps (OuterGame.lean Lemma 3.2, LowerBound.lean Lemma 8.1) use a \
     deterministic c = 1 probe cap and Step 6 Markov sub-conditioning for large values V > U ^ 3 \
@@ -87,10 +89,11 @@ register_result "dict-cell-probe-sublinear-redundancy" where
     w ≤ c_w * (log₂ U + log₂ V), and cells * w ≤ benchmarkBits U V n + R, the standalone \
     endpoints assume R ≤ n and give c * n * log₂(n / max R 1) expected probes (vanishing at the \
     boundary R = n where log₂(n / max n 1) = 0), while the combined endpoints cover all \
-    R ≤ c_R * n and give c * n * (log* n + max 0 (log₂(n / max R 1))). The same scheme is both \
-    proved exact and lower-bounded; concrete two-cell witnesses are checked in \
-    CslibFrontierTests/DictLowerBoundMultilevel.lean. Bounded-error Monte Carlo schemes, adaptive \
-    sequence adversaries, and Word-RAM transfers (#3140 Milestone 5) are not covered. \
+    R ≤ c_R * n and give c * n * (log* n + max 0 (log₂(n / max R 1))). Exactness on admissible \
+    histories is an input hypothesis placed on the same scheme whose probes are bounded (not \
+    proved by these endpoints); CslibFrontierTests/DictLowerBoundMultilevel.lean proves that \
+    hypothesis for its concrete two-cell fixture scheme. Bounded-error Monte Carlo schemes, \
+    adaptive sequence adversaries, and Word-RAM transfers (#3140 Milestone 5) are not covered. \
     Outside-fleet source checks: \
     https://github.com/cslib-community/cslib-frontier/pull/5704#pullrequestreview-5911577643, \
     https://github.com/cslib-community/cslib-frontier/pull/5704#pullrequestreview-5911560173, \
@@ -126,16 +129,21 @@ register_result "dict-cell-probe-update-lower-bound" where
     charging that query in the probe sum. For every fixed α_V > 0 and c_w ≥ 0 (plus c_R ≥ 0 for \
     the iterLog, log* n, and combined variants), a uniform constant c > 0 is chosen before all \
     varying parameters (U, V, n, k, R, cells, w) and schemes under 2 ≤ n, 3 * n ≤ U, 1 ≤ V, \
-    U ^ (2 + α_V) ≤ V * n ^ 2, and w ≤ c_w * (log₂ U + log₂ V), recovering Ω(n * k) for \
-    1 ≤ k ≤ log* n and R ≤ c_R * n * max (Nat.iterLog k n) 1, Ω(n * log* n) for R ≤ c_R * n, \
-    Ω(n * log₂(n / max R 1)) for R ≤ n (vanishing at R = n), and the combined \
-    Ω(n * (log* n + max 0 (log₂(n / max R 1)))) for R ≤ c_R * n. Proved via the query-free \
-    modified inner game (Lemma 8.1) with internal deterministic c = 1 probe cap and Step 6 Markov \
-    sub-conditioning (extra 2 * γ * m * log₂ U budget absorbed without strengthening \
-    U ^ (2 + α_V) ≤ V * n ^ 2). Concrete two-cell witnesses are checked in \
-    CslibFrontierTests/DictLowerBoundMultilevel.lean. Bounded-error Monte Carlo schemes, adaptive \
-    adversaries, and Word-RAM transfers (#3140 Milestone 5) are not covered. Outside-fleet source \
-    checks: \
+    U ^ (2 + α_V) ≤ V * n ^ 2, and w ≤ c_w * (log₂ U + log₂ V): the iterated-log variants assume \
+    1 ≤ k ≤ Nat.logStar n and cells * w ≤ benchmarkBits U V n + c_R * n * max (Nat.iterLog k n) 1 \
+    to give c * n * k expected probes; the log* n variants assume \
+    cells * w ≤ benchmarkBits U V n + c_R * n to give c * n * log* n expected probes; and the \
+    sublinear (R ≤ n, vanishing at R = n) and combined (R ≤ c_R * n) variants take the allowed \
+    redundancy R via cells * w ≤ benchmarkBits U V n + R to give c * n * log₂(n / max R 1) and \
+    c * n * (log* n + max 0 (log₂(n / max R 1))) expected probes respectively. Proved via the \
+    query-free modified inner game (Lemma 8.1) with internal deterministic c = 1 probe cap and \
+    Step 6 Markov sub-conditioning (extra 2 * γ * m * log₂ U budget absorbed without strengthening \
+    U ^ (2 + α_V) ≤ V * n ^ 2). Exactness on admissible histories (validHistoriesUpTo U V n \
+    (3 * n + 1)) is an input hypothesis placed on the same scheme whose probes are bounded (not \
+    proved by these endpoints); CslibFrontierTests/DictLowerBoundMultilevel.lean proves that \
+    hypothesis for its concrete two-cell fixture scheme. Bounded-error Monte Carlo schemes, \
+    adaptive adversaries, and Word-RAM transfers (#3140 Milestone 5) are not covered. \
+    Outside-fleet source checks: \
     https://github.com/cslib-community/cslib-frontier/pull/5704#pullrequestreview-5911577643, \
     https://github.com/cslib-community/cslib-frontier/pull/5704#pullrequestreview-5911573135, \
     https://github.com/cslib-community/cslib-frontier/pull/5704#pullrequestreview-5911560173, \
