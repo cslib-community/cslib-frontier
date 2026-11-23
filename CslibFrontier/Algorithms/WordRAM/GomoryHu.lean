@@ -678,4 +678,293 @@ private theorem gusfieldAt_ghStep {n : ℕ} {W : Fin n → Fin n → ℕ} {r : F
           (ekProg (ghCtx n M, (k, (res.1 ⟨k, hk⟩).1)))).mem (distBase n + y) < n)
         ((res.1 ⟨k, hk⟩).1) hP hWt hmemX rfl z).symm
 
+/-! ### The input -/
+
+private theorem init_frontier {n : ℕ} (W : Fin n → Fin n → ℕ) (r : Fin n) :
+    (Memory.State.init (encodeInput W r)).frontier = 3 + n * n := by
+  change (encodeInput W r).length + 1 = 3 + n * n
+  simp only [encodeInput, List.length_cons, length_flattenMatrix]
+  omega
+
+private theorem init_mem_matrix {n : ℕ} (W : Fin n → Fin n → ℕ) (r : Fin n) {i : ℕ}
+    (hi : i < n * n) :
+    (Memory.State.init (encodeInput W r)).mem (3 + i) =
+      (flattenMatrix W)[i]'(by rw [length_flattenMatrix]; exact hi) := by
+  change (if 3 + i = 0 then (encodeInput W r).length
+    else (encodeInput W r).getD (3 + i - 1) 0) = _
+  rw [ite_eq_right (by omega), show 3 + i - 1 = i + 2 by omega]
+  change (flattenMatrix W).getD i 0 = _
+  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem, Option.getD_some]
+
+private theorem matrixLoaded_init {n : ℕ} (W : Fin n → Fin n → ℕ) (r : Fin n) :
+    MatrixLoaded W (Memory.State.init (encodeInput W r)) := fun u v => by
+  have hlt : u.1 * n + v.1 < n * n := by nlinarith [u.2, v.2]
+  rw [Nat.add_assoc, init_mem_matrix W r hlt, getElem_flattenMatrix]
+
+private theorem init_le {n : ℕ} {W : Fin n → Fin n → ℕ} (r : Fin n) {B : ℕ}
+    (hB : ∀ u v, W u v ≤ B) {i : ℕ} (hi : i < n * n) :
+    (Memory.State.init (encodeInput W r)).mem (3 + i) ≤ B := by
+  have hn : 0 < n := Nat.pos_of_ne_zero fun h => by simp [h] at hi
+  have hu : i / n < n := Nat.div_lt_of_lt_mul hi
+  have hv : i % n < n := Nat.mod_lt i hn
+  have hidx : 3 + i = 3 + (⟨i / n, hu⟩ : Fin n).1 * n + (⟨i % n, hv⟩ : Fin n).1 := by
+    dsimp only
+    rw [Nat.add_assoc, Nat.div_add_mod']
+  rw [hidx, matrixLoaded_init W r]
+  exact hB _ _
+
+private theorem inputFits_encodeInput {n : ℕ} {W : Fin n → Fin n → ℕ} (r : Fin n) {B w : ℕ}
+    (hB : ∀ u v, W u v ≤ B) (hw : Fits w (ghWorkspace n)) (hwB : Fits w (ekBound n B)) :
+    InputFits w (encodeInput W r) := by
+  have hBw : Fits w B := hwB.of_le (by unfold ekBound; omega)
+  refine ⟨hw.of_le ?_, fun x hx => ?_⟩
+  · simp only [encodeInput, List.length_cons, length_flattenMatrix, ghWorkspace]
+    omega
+  · simp only [encodeInput, List.mem_cons] at hx
+    rcases hx with rfl | rfl | hx
+    · exact hw.of_le (by unfold ghWorkspace; omega)
+    · exact hw.of_le (by unfold ghWorkspace; omega)
+    · obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hx
+      rw [length_flattenMatrix] at hi
+      rw [← init_mem_matrix W r hi]
+      exact hBw.of_le (init_le r hB hi)
+
+/-! ### Admissibility -/
+
+private abbrev MemReady (w n : ℕ) (s : Memory.State) : Prop :=
+  Memory.WellFormed w s ∧ ghWorkspace n ≤ s.frontier
+
+private theorem validHistory_maxScan {w n : ℕ} {st : Memory.State} (hs : MemReady w n st) :
+    (Memory.spec w).ValidHistory st
+      ((Memory.spec w).clientHistory st (iterate maxStep 3 (n * n) (0, 0))) := by
+  refine validHistory_iterate_fst (Inv := MemReady w n) (n * n) 0 0
+    (fun i hi b u hu => ⟨?_, ?_⟩) hs
+  · have hfr := hu.2
+    unfold maxStep
+    dsimp only [ghWorkspace] at hfr ⊢
+    refine validHistory_read_bind (by omega) ?_
+    exact validHistory_ite (fun _ => validHistory_pure _ _ _) (fun _ => validHistory_pure _ _ _)
+  · unfold maxStep
+    simp_client
+
+private theorem validHistory_rehang {w n s t : ℕ} {st : Memory.State} (hs : MemReady w n st)
+    (hsn : s < n) :
+    (Memory.spec w).ValidHistory st
+      ((Memory.spec w).clientHistory st (iterate rehangStep ((n, s), t) n 0)) := by
+  refine validHistory_iterate_nat (Inv := MemReady w n) n 0 (fun z hz u hu => ⟨?_, ?_⟩) hs
+  · have hfit : Fits w (ghWorkspace n) := hu.1.frontier_fits.of_le hu.2
+    have hfr := hu.2
+    unfold rehangStep
+    dsimp only [ghWorkspace, parBase, distBase] at hfr hfit ⊢
+    refine validHistory_read_bind (by omega) ?_
+    refine validHistory_read_bind (by omega) ?_
+    refine validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
+    exact validHistory_write_bind (by omega) (hfit.of_le (by omega)) (validHistory_pure _ _ _)
+  · unfold rehangStep
+    simp_client
+
+private theorem ekProg_result_le_ekBound (n B k t : ℕ) (st : Memory.State) :
+    (Memory.spec 0).clientResult st (ekProg (ghCtx n B, (k, t))) ≤ ekBound n B := by
+  have h := ekProg_result_le (ghCtx n B, (k, t)) st
+  dsimp only at h
+  have : n * n * (n + B) = n * n * n + n * n * B := Nat.mul_add _ _ _
+  unfold ekBound
+  omega
+
+private theorem validHistory_ghStep {w n r B k : ℕ} {st : Memory.State} (hs : MemReady w n st)
+    (hB : Fits w (ekBound n B)) (hk : k < n) :
+    (Memory.spec w).ValidHistory st ((Memory.spec w).clientHistory st (ghStep ((n, r, B), k))) := by
+  have hfit : Fits w (ghWorkspace n) := hs.1.frontier_fits.of_le hs.2
+  have hfr := hs.2
+  unfold ghStep
+  dsimp only [ghWorkspace, parBase, wtBase, distBase, scrBase] at hfr hfit ⊢
+  refine validHistory_read_bind (by omega) ?_
+  refine validHistory_ite (fun _ => validHistory_pure _ _ _) (fun _ => ?_)
+  refine validHistory_read_bind (by omega) ?_
+  refine validHistory_ite (fun ht => ?_) (fun _ => validHistory_pure _ _ _)
+  have hek := validHistory_ekProg (d := (ghCtx n B, (k, st.mem (3 + n * n + k))))
+    ⟨by dsimp only [scrBase]; omega, hfit.of_le (by dsimp only [ekScratch, scrBase]; omega), hB⟩
+    hk ht hs.1 (by dsimp only [ekScratch, scrBase]; omega)
+  refine validHistory_bind_step hek ?_
+  have hs1 := MonotoneMemInv.pres hs hek
+  have hr := validHistory_rehang (t := st.mem (3 + n * n + k)) hs1 hk
+  refine validHistory_bind_step hr ?_
+  have hs2 := MonotoneMemInv.pres hs1 hr
+  have hv := hB.of_le (ekProg_result_le_ekBound n B k (st.mem (3 + n * n + k)) st)
+  have hfr2 := hs2.2
+  dsimp only [ghWorkspace] at hfr2
+  refine validHistory_read_bind (by omega) ?_
+  refine validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
+  refine validHistory_read_bind (by omega) ?_
+  refine validHistory_ite (fun _ => ?_) (fun _ => ?_)
+  · refine validHistory_read_bind (by omega) ?_
+    refine validHistory_write_bind (by omega) (hfit.of_le (by omega)) ?_
+    refine validHistory_write_bind (by dsimp only; omega) (hs2.1.mem_fits _) ?_
+    refine validHistory_write_bind (by dsimp only; omega) hv ?_
+    exact validHistory_write_bind (by dsimp only; omega) (hs2.1.mem_fits _)
+      (validHistory_pure _ _ _)
+  · exact validHistory_write_bind (by omega) hv (validHistory_pure _ _ _)
+
+private theorem clientState_maxScan (n : ℕ) (st : Memory.State) :
+    (Memory.spec 0).clientState st (iterate maxStep 3 (n * n) (0, 0)) = st :=
+  clientState_iterate_eq_of maxStep 3 (fun a t => by
+    unfold maxStep
+    rw [clientState_bind_read]
+    split_ifs <;> rfl) _ _ _
+
+private theorem validHistory_ghMain {w n r B : ℕ} {st : Memory.State}
+    (hwf : Memory.WellFormed w st) (hfr : st.frontier = 3 + n * n) (hw : Fits w (ghWorkspace n))
+    (hr : Fits w r) (hB : ∀ i < n * n, st.mem (3 + i) ≤ B) (hwB : Fits w (ekBound n B)) :
+    (Memory.spec w).ValidHistory st ((Memory.spec w).clientHistory st (ghMain (n, r))) := by
+  unfold ghMain
+  dsimp only
+  have halloc : (Memory.spec w).ValidHistory st
+      ((Memory.spec w).clientHistory st (Memory.alloc (ghScratch n))) :=
+    validHistory_alloc (by rw [hfr, input_add_ghScratch]; exact hw)
+  refine validHistory_bind_step halloc ?_
+  have hs1 : MemReady w n ((Memory.spec 0).clientState st (Memory.alloc (ghScratch n))) := by
+    refine ⟨wellFormed_clientState hwf halloc, ?_⟩
+    change ghWorkspace n ≤ st.frontier + ghScratch n
+    rw [hfr, input_add_ghScratch]
+  have hal : ∀ i < n * n,
+      ((Memory.spec 0).clientState st (Memory.alloc (ghScratch n))).mem (3 + i) ≤ B :=
+    fun i hi => (Memory.mem_step_of_lt_frontier st (.alloc (ghScratch n))
+      (by rw [hfr]; omega) (by simp)).trans_le (hB i hi)
+  have hM := (maxScan_spec hal).1
+  have hmx := validHistory_maxScan hs1
+  refine validHistory_bind_step hmx ?_
+  rw [clientState_maxScan]
+  have hfr1 := hs1.2
+  dsimp only [ghWorkspace] at hfr1
+  have hf1 := validHistory_fillRange (d := ((parBase n, r), n)) hs1.1
+    (by dsimp only [parBase]; omega) hr
+  refine validHistory_bind_step hf1 ?_
+  have hs3 := MonotoneMemInv.pres hs1 hf1
+  have hfr3 := hs3.2
+  dsimp only [ghWorkspace] at hfr3
+  have hf2 := validHistory_fillRange (d := ((wtBase n, 0), n)) hs3.1
+    (by dsimp only [wtBase]; omega)
+    (fits_zero w)
+  refine validHistory_bind_step hf2 ?_
+  have hs4 := MonotoneMemInv.pres hs3 hf2
+  refine validHistory_bind_step (validHistory_iterate_nat (Inv := MemReady w n) n 0
+    (fun k hk u hu => ⟨validHistory_ghStep hu (hwB.of_le (by unfold ekBound; gcongr)) (by omega),
+      clientResult_ghStep _ _ _ _ _⟩) hs4) (validHistory_pure _ _ _)
+
+private theorem validHistory_ghProg {n : ℕ} {W : Fin n → Fin n → ℕ} (r : Fin n) {B w : ℕ}
+    (hB : ∀ u v, W u v ≤ B) (hw : Fits w (ghWorkspace n)) (hwB : Fits w (ekBound n B)) :
+    (Memory.spec w).ValidHistory (Memory.State.init (encodeInput W r))
+      ((Memory.spec w).clientHistory (Memory.State.init (encodeInput W r)) (ghProg ())) := by
+  have hfr := init_frontier W r
+  have hin := inputFits_encodeInput r hB hw hwB
+  have hwf : Memory.WellFormed w (Memory.State.init (encodeInput W r)) :=
+    Memory.wellFormed_init hin (by rw [← init_frontier W r] at hfr; exact hw.of_le (by
+      simp only [encodeInput, List.length_cons, length_flattenMatrix, ghWorkspace]
+      omega))
+  unfold ghProg
+  refine validHistory_read_bind (by omega) ?_
+  refine validHistory_read_bind (by omega) ?_
+  exact validHistory_ghMain hwf hfr hw (hw.of_le (by
+    change r.1 ≤ ghWorkspace n
+    have := r.2
+    unfold ghWorkspace
+    omega)) (fun i hi => init_le r hB hi) hwB
+
+/-! ### Memory-operation counts -/
+
+private theorem memoryCost_read_bind_le {α : Type} {a : ℕ} {q : ℕ → Memory.Prog α}
+    {s : Memory.State} {k : ℕ} (h : ∀ x t, memoryCost (q x) t ≤ k) :
+    memoryCost (Memory.read a >>= q) s ≤ k + 1 := by
+  have := memoryCost_bind_le (memoryCost_read a s).le h
+  omega
+
+private theorem memoryCost_write_bind_le {α : Type} {a v : ℕ} {q : Unit → Memory.Prog α}
+    {s : Memory.State} {k : ℕ} (h : ∀ x t, memoryCost (q x) t ≤ k) :
+    memoryCost (Memory.write a v >>= q) s ≤ k + 1 := by
+  have := memoryCost_bind_le (memoryCost_write a v s).le h
+  omega
+
+private theorem memoryCost_maxStep_le (d : ℕ × (ℕ × ℕ)) (s : Memory.State) :
+    memoryCost (maxStep d) s ≤ 1 := by
+  unfold maxStep
+  exact memoryCost_read_bind_le fun _ _ => memoryCost_ite_le (by simp) (by simp)
+
+private theorem memoryCost_rehangStep_le (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
+    memoryCost (rehangStep d) s ≤ 3 := by
+  unfold rehangStep
+  exact memoryCost_read_bind_le fun _ _ => memoryCost_read_bind_le fun _ _ =>
+    memoryCost_ite_le (memoryCost_write_bind_le fun _ _ => by simp) (by simp)
+
+private theorem memoryCost_ghStep_le (n r B k : ℕ) (s : Memory.State) :
+    memoryCost (ghStep ((n, r, B), k)) s ≤ ekCost n + 3 * n + 9 := by
+  unfold ghStep
+  dsimp only
+  refine (memoryCost_read_bind_le (k := ekCost n + 3 * n + 8) fun _ t => ?_).trans (by omega)
+  refine memoryCost_ite_le (by simp) ?_
+  refine (memoryCost_read_bind_le (k := ekCost n + 3 * n + 7) fun x t => ?_).trans (by omega)
+  refine memoryCost_ite_le ?_ (by simp)
+  have hek : memoryCost (ekProg (ghCtx n B, (k, x))) t ≤ ekCost n :=
+    memoryCost_ekProg_le (ghCtx n B, (k, x)) t
+  refine (memoryCost_bind_le (k₁ := ekCost n) (k₂ := 3 * n + 7) hek
+    fun _ t => ?_).trans (by omega)
+  refine (memoryCost_bind_le (k₁ := 3 * n) (k₂ := 7)
+    (memoryCost_iterate_le_of rehangStep 3 _ (fun _ _ => memoryCost_rehangStep_le _ _) n 0 _)
+    fun _ t => ?_).trans (by omega)
+  refine (memoryCost_read_bind_le (k := 6) fun _ t => ?_).trans (by omega)
+  refine memoryCost_ite_le ?_ (by simp)
+  refine (memoryCost_read_bind_le (k := 5) fun _ t => ?_).trans (by omega)
+  refine memoryCost_ite_le ?_ ?_
+  · refine (memoryCost_read_bind_le (k := 4) fun _ t => ?_).trans (by omega)
+    exact memoryCost_write_bind_le fun _ _ => memoryCost_write_bind_le fun _ _ =>
+      memoryCost_write_bind_le fun _ _ => memoryCost_write_bind_le fun _ _ => by simp
+  · exact (memoryCost_write_bind_le (k := 0) fun _ _ => by simp).trans (by omega)
+
+private theorem ghCost_arith (n : ℕ) :
+    2 * n + (n * n + 2 * n) + 1 +
+        (1 * (n * n) + (n + (n + ((20 * (n + 1) ^ 5 + 3 * n + 9) * n + 0)))) ≤
+      38 * (n + 1) ^ 6 := by
+  have h6 : (n + 1) ^ 6 = (n + 1) ^ 5 * (n + 1) := pow_succ _ _
+  have h5 : (n + 1) ^ 2 ≤ (n + 1) ^ 5 := Nat.pow_le_pow_right (Nat.succ_pos n) (by norm_num)
+  have h1 : 1 ≤ (n + 1) ^ 5 := Nat.one_le_pow _ _ (Nat.succ_pos n)
+  nlinarith
+
+private theorem memoryCost_ghMain_le (n r : ℕ) (s : Memory.State) :
+    memoryCost (ghMain (n, r)) s ≤ 38 * (n + 1) ^ 6 := by
+  unfold ghMain
+  dsimp only
+  refine le_trans (memoryCost_bind_le (memoryCost_alloc _ _).le fun _ t => ?_) (ghCost_arith n)
+  refine memoryCost_bind_le (memoryCost_iterate_le_of maxStep 1 3
+    (fun _ _ => memoryCost_maxStep_le _ _) (n * n) (0, 0) t) fun m t => ?_
+  refine memoryCost_bind_le (memoryCost_fillRange_le ((parBase n, r), n) t) fun _ t => ?_
+  refine memoryCost_bind_le (memoryCost_fillRange_le ((wtBase n, 0), n) t) fun _ t => ?_
+  exact memoryCost_bind_le (memoryCost_iterate_le_of ghStep (ekCost n + 3 * n + 9) _
+    (fun k t => memoryCost_ghStep_le n r m.2 k t) n 0 t) fun _ t => by simp
+
+private theorem memoryCost_ghProg_le (s : Memory.State) :
+    memoryCost (ghProg ()) s ≤ 40 * (s.mem 1 + 1) ^ 6 := by
+  unfold ghProg
+  rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read, memoryCost_bind',
+    memoryCost_read, clientResult_read, clientState_read]
+  have h := memoryCost_ghMain_le (s.mem 1) (s.mem 2) s
+  have h1 : 1 ≤ (s.mem 1 + 1) ^ 6 := Nat.one_le_pow _ _ (Nat.succ_pos _)
+  omega
+
+/-! ### Correctness -/
+
+/-- The program leaves Gusfield's algorithm with valid oracles on all `n` vertices in memory. -/
+private theorem gusfieldAt_ghProg {n : ℕ} {W : Fin n → Fin n → ℕ} (r : Fin n) {B : ℕ}
+    (hB : ∀ u v, W u v ≤ B) :
+    GusfieldAt W r n
+      ((Memory.spec 0).clientState (Memory.State.init (encodeInput W r)) (ghProg ())) := by
+  have hfr0 := init_frontier W r
+  have hW0 := matrixLoaded_init W r
+  have e0 : (Memory.spec 0).clientState (Memory.State.init (encodeInput W r)) (ghProg ()) =
+      (Memory.spec 0).clientState (Memory.State.init (encodeInput W r)) (ghMain (n, r.1)) := by
+    unfold ghProg
+    rw [clientState_bind_read, clientState_bind_read]
+    rfl
+  rw [e0]
+  generalize Memory.State.init (encodeInput W r) = s₀ at hfr0 hW0 hB ⊢
+  sorry
+
 end Cslib.Algorithms.WordRAM.GomoryHu
