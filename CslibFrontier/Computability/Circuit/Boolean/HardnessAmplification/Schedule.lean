@@ -138,10 +138,8 @@ private theorem schedule_bounds {M b : ℕ} (hb : 1 ≤ b)
       36 * M ≤ 2 ^ (b / 4) ∧ 2 ^ 27 * M ^ 3 * b ^ 6 ≤ 2 ^ (b / 4) := by
   have hb6 : b ≤ b ^ 6 := Nat.le_self_pow (by norm_num) b
   have hP1 : 128 ≤ 2 ^ 27 * M ^ 3 + 4608 * M + 128 := Nat.le_add_left _ _
-  have hP2 : 4608 * M ≤ 2 ^ 27 * M ^ 3 + 4608 * M + 128 :=
-    (Nat.le_add_left _ _).trans (Nat.le_add_right _ _)
-  have hP3 : 2 ^ 27 * M ^ 3 ≤ 2 ^ 27 * M ^ 3 + 4608 * M + 128 :=
-    (Nat.le_add_right _ _).trans (Nat.le_add_right _ _)
+  have hP2 : 4608 * M ≤ 2 ^ 27 * M ^ 3 + 4608 * M + 128 := by omega
+  have hP3 : 2 ^ 27 * M ^ 3 ≤ 2 ^ 27 * M ^ 3 + 4608 * M + 128 := by omega
   have hB : 128 * b ≤ 2 ^ (b / 4) := (Nat.mul_le_mul hP1 hb6).trans hev
   have hD : 4608 * M * b ≤ 2 ^ (b / 4) := (Nat.mul_le_mul hP2 hb6).trans hev
   have hF : 2 ^ 27 * M ^ 3 * b ^ 6 ≤ 2 ^ (b / 4) := (Nat.mul_le_mul_right _ hP3).trans hev

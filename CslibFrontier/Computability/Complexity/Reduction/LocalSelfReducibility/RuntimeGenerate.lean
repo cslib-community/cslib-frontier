@@ -41,9 +41,9 @@ theorem localQueryData_logSpace {α : Type} {enc : α ↪ List Bool}
     (hq : ComputableInLogSpace q enc encBits)
     (hcut : ComputableInLogSpace cut enc encUnary)
     (hi : ComputableInLogSpace address enc encNat) :
-    ComputableInLogSpace (fun a => (cut a, (q a).drop (cut a), address a))
+    ComputableInLogSpace (fun a => (⟨cut a, (q a).drop (cut a), address a⟩ : VirtualWord.Data))
       enc VirtualWord.encData :=
-  hcut.unaryToBinary.pair ((hq.bitsDrop' hcut).pair hi)
+  (hcut.unaryToBinary.pair ((hq.bitsDrop' hcut).pair hi)).congr fun _ => rfl
 
 /-- A local-query consumer with workspace logarithmic in the actual original input. The
 source locality theorem proves the entire header bound and exact virtual length; they are

@@ -12,6 +12,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Seq
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapesView
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.TransformsTapes
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Deterministic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Run.FirstStep
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import Mathlib.Tactic.Ring
 
 /-!
@@ -99,9 +101,7 @@ lemma shift_tapesCfg (ws : Fin k → List Symbol) (o h δ : Fin k → ℤ) (out 
 
 lemma tapesCfg_zero_withState (ws : Fin k → List Symbol) (out : List Symbol) (q : Option State) :
     (tapesCfg input ws 0 0 out).withState q = wordsCfg input q ws out := by
-  refine Cfg.ext rfl rfl ?_ rfl rfl
-  funext i z
-  simp [tapesCfg, wordsCfg]
+  tm_step [tapesCfg]
 
 /-- A `wordsCfg` configuration, shifted. -/
 lemma wordsCfg_shift (ws : Fin k → List Symbol) (δ : Fin k → ℤ) (out : List Symbol)
@@ -326,8 +326,7 @@ theorem step_check (d : Cfg k Symbol Unit input) :
   have hi : (d.withState (some (.inr () : State ⊕ Unit))).inputSymbol = d.inputSymbol := rfl
   rw [hw, hi]
   rcases hc : c d.inputSymbol d.workTapeSymbols <;>
-    refine Cfg.ext ?_ ?_ ?_ ?_ ?_ <;>
-    simp [whileCond, combine, adaptedTr, WhileCond.condTest, Action.apply, Cfg.withState, hc]
+    tm_step [combine, adaptedTr, WhileCond.condTest, hc]
 
 /-- The step that reads the condition keeps the work-tape heads in place, so it visits at most
 `k` cells. -/
@@ -355,12 +354,12 @@ private lemma exists_round {d d' : Cfg k Symbol Unit input} {t s : ℕ}
       (d.withState (some tm.q₀)).mapState (handOver ()) := by
     rw [step_check, hc]
     rfl
-  have hrun : (whileCond c tm).runFrom (d.withState (some (.inr ()))) (1 + u) =
+  have hrun : (whileCond c tm).runFrom (d.withState (some (.inr ()))) (u + 1) =
       d'.withState (some (.inr ())) := by
-    rw [runFrom_add, runFrom_one, hstart, hhalt.runFrom_combine_left (handOver_some ()) le_rfl,
+    rw [runFrom_succ_eq_step, hstart, hhalt.runFrom_combine_left (handOver_some ()) le_rfl,
       ← hhalt.runFrom_eq hu, h.1]
     rfl
-  refine ⟨u, hu, by rw [Nat.add_comm]; exact hrun, ?_⟩
+  refine ⟨u, hu, hrun, ?_⟩
   have h2 : (MultiTapeNTM.RunPath.ofDeterministic (whileCond c tm)
       ((whileCond c tm).runFrom (d.withState (some (.inr ()))) 1) u).space ≤ s := by
     rw [runFrom_one, hstart, space_eq_of_workTapePos (tm' := tm) _ (d.withState (some tm.q₀)) u

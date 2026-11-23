@@ -31,6 +31,8 @@ rule of `fun_prop` for `ComputableInLogSpace`.
 * `Turing.MultiTapeTM.ComputableInLogSpace.comp`: logspace functions compose.
 * `Turing.MultiTapeTM.comp_logSpace_of_length_log`: a logspace producer of short values
   composes with a linear-space consumer.
+* `Turing.MultiTapeTM.ComputableInLogSpace.inSpace_of_length_log`: charge the encoded output
+  to the logarithmic workspace budget.
 * `Turing.MultiTapeTM.length_log_of_inSpace`: the composed output is short.
 * `Turing.MultiTapeTM.ComputableInLogSpace.comp'`,
   `Turing.MultiTapeTM.ComputableInLogSpace.bool_not`: composition and negation in the form used by
@@ -101,6 +103,18 @@ theorem ComputableInLogSpace.bool_not {c : α → Bool} (hc : ComputableInLogSpa
     ComputableInLogSpace (fun a => !c a) encIn encBool :=
   (ComputableInLogSpace.of_finite (encIn := encBool) not).comp' hc
 
+/-- A logarithmic output-length bound lets a logspace computation charge its encoded output
+to the same logarithmic budget. -/
+theorem ComputableInLogSpace.inSpace_of_length_log {f : α → β}
+    (h : ComputableInLogSpace f encIn encMid)
+    (hlen : ∃ L, ∀ a, (encMid (f a)).length ≤ L * (Nat.log2 (encIn a).length + 1)) :
+    ComputableInSpace f encIn encMid (fun a => Nat.log2 (encIn a).length) := by
+  obtain ⟨time, C, hwork⟩ := h
+  obtain ⟨L, hlen⟩ := hlen
+  refine ⟨time, max C L, hwork.mono (fun _ => le_rfl) (fun _ => ?_), fun a => ?_⟩
+  · exact Nat.mul_le_mul_right _ (le_max_left C L)
+  · exact (hlen a).trans (Nat.mul_le_mul_right _ (le_max_right C L))
+
 /-- Compose a `ComputableInLogSpace` producer whose encoded output has logarithmic length with a
 `ComputableInSpace` consumer running in space linear in its input length. -/
 theorem comp_logSpace_of_length_log {α β γ : Type}
@@ -140,12 +154,7 @@ theorem comp_logSpace_of_length_log {α β γ : Type}
   calc cf * L + cg * ((encMid (f a)).length + 1) +
           (encNat ((encIn a).length + 1)).length +
           (encNat ((encMid (f a)).length + 1)).length + 1
-      ≤ cf * L + cg * (C + 1) * L + 2 * L + (C + 1) * L + L :=
-        Nat.add_le_add
-          (Nat.add_le_add
-            (Nat.add_le_add (Nat.add_le_add le_rfl hsg) hn_bits)
-            hm_bits)
-          hL
+      ≤ cf * L + cg * (C + 1) * L + 2 * L + (C + 1) * L + L := by omega
     _ = (cf + cg * (C + 1) + 2 + (C + 1) + 1) * L := by ring
 
 /-- A linear-space `ComputableInSpace` function preserves logarithmic encoded-output length. -/

@@ -11,6 +11,8 @@ public import CslibFrontier.Init
 public import Mathlib.Basic.Real.Basic
 public import Mathlib.Data.Finset.Card
 public import Mathlib.Data.Fintype.Basic
+import CslibFrontier.Probability.PMF.UniformBridge
+import CslibFrontier.Probability.Quantile
 import Mathlib.Data.Finset.Max
 import Mathlib.Tactic.Linarith
 
@@ -47,35 +49,21 @@ theorem exists_quantile (s : Finset α) (hs : s.Nonempty) (score : α → β)
     ∃ p ∈ s, a * s.card ≤ ((s.filter fun x => score x ≤ score p).card : ℝ) ∧
       (1 - a) * s.card ≤ ((s.filter fun x => score p ≤ score x).card : ℝ) := by
   classical
-  let candidates := s.filter fun p =>
-    a * s.card ≤ ((s.filter fun x => score x ≤ score p).card : ℝ)
-  have hne : candidates.Nonempty := by
-    obtain ⟨p, hp, hmax⟩ := s.exists_max_image score hs
-    refine ⟨p, mem_filter.mpr ⟨hp, ?_⟩⟩
-    rw [filter_true_of_mem hmax]
-    nlinarith [Nat.cast_nonneg (α := ℝ) s.card]
-  obtain ⟨p, hp, hmin⟩ := candidates.exists_min_image score hne
-  obtain ⟨hps, hlo⟩ := mem_filter.mp hp
-  refine ⟨p, hps, hlo, ?_⟩
-  by_contra hupper
-  have hsplit := s.card_filter_add_card_filter_not fun x => score p ≤ score x
-  have hsplitR : ((s.filter fun x => score p ≤ score x).card : ℝ) +
-      ((s.filter fun x => ¬ score p ≤ score x).card : ℝ) = s.card := by
-    exact_mod_cast hsplit
-  have hlow : a * s.card < ((s.filter fun x => ¬ score p ≤ score x).card : ℝ) := by
-    linarith
-  have hne' : (s.filter fun x => ¬ score p ≤ score x).Nonempty := by
-    rw [← card_pos, ← Nat.cast_pos (α := ℝ)]
-    exact (mul_nonneg ha (Nat.cast_nonneg _)).trans_lt hlow
-  obtain ⟨p', hp', hmax⟩ := (s.filter fun x => ¬ score p ≤ score x).exists_max_image score hne'
-  obtain ⟨hp's, hlt⟩ := mem_filter.mp hp'
-  have hsub : (s.filter fun x => ¬ score p ≤ score x) ⊆
-      s.filter fun x => score x ≤ score p' := fun x hx =>
-    mem_filter.mpr ⟨(mem_filter.mp hx).1, hmax x hx⟩
-  have hcard : ((s.filter fun x => ¬ score p ≤ score x).card : ℝ) ≤
-      ((s.filter fun x => score x ≤ score p').card : ℝ) := by
-    exact_mod_cast card_le_card hsub
-  exact hlt (hmin p' (mem_filter.mpr ⟨hp's, hlow.le.trans hcard⟩))
+  have : Nonempty s := hs.to_subtype
+  obtain ⟨_, ⟨p, rfl⟩, hlt, hle⟩ :=
+    Cslib.Probability.PMF.exists_quantile (Cslib.Probability.PMF.uniformOfFintype s)
+      (fun x : s => score x.1) ha ha₁
+  rw [Cslib.Probability.PMF.sum_subtype_uniformOfFintype_ite_toReal s (score · < score p.1)] at hlt
+  rw [Cslib.Probability.PMF.sum_subtype_uniformOfFintype_ite_toReal s (score · ≤ score p.1)] at hle
+  have hpos : (0 : ℝ) < s.card := Nat.cast_pos.mpr hs.card_pos
+  have hcompl : ((s.filter fun x => score x < score p.1).card : ℝ) +
+      ((s.filter fun x => score p.1 ≤ score x).card : ℝ) = s.card := by
+    simpa only [not_lt] using
+      (Nat.cast_add _ _).symm.trans
+        (congrArg Nat.cast (s.card_filter_add_card_filter_not fun x => score x < score p.1))
+  refine ⟨p.1, p.2, (le_div_iff₀ hpos).mp hle, ?_⟩
+  have := (div_le_iff₀ hpos).mp hlt
+  linarith
 
 /-- Every nonempty finite set `s` equipped with a linearly ordered score `score : α → β` has a
 median element `p ∈ s` with at least half of `s` weakly below `score p` and at least half weakly

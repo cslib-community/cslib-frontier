@@ -138,11 +138,7 @@ def runFrom (x : X) (y : Y) : Fin k ⊕ O → Option O
     | none => none
     | some s => runFrom x y (node j s)
 termination_by s => s.elim (fun j => j.val + 1) fun _ => 0
-decreasing_by
-  rcases s with i | _
-  · simp only [node_inl, Sum.elim_inl, Fin.val_castLE]
-    exact Nat.succ_lt_succ i.isLt
-  · simp
+decreasing_by cases s <;> simp
 
 /-- The answer at the end of the walk from the source, or `none` if the walk meets an
 inconsistent inner node. -/

@@ -39,6 +39,7 @@ SOURCE_CHECK_NAMES = frozenset({
     "Test Python tooling",
     "Operator manual links and excerpts",
     "Source hygiene",
+    "TimeM ratchet",
     "Encoding readability ratchet (changed modules)",
     "Encoding readability report",
     "Projection chain ratchet (changed modules)",

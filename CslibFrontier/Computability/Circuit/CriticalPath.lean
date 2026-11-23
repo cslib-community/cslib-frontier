@@ -308,40 +308,34 @@ theorem Circuit.exists_noDeadGates (C : Circuit σ n m) :
     ∃ C' : Circuit σ n m, C'.NoDeadGates ∧ C'.size ≤ C.size ∧
       (∀ {U : Type u} (I : Interpretation σ U) (x : Fin n → U), C'.eval I x = C.eval I x) ∧
       (∀ r, C.FanInAtMost r → C'.FanInAtMost r) := by
-  suffices ∀ s (C : Circuit σ n m), C.size = s →
-      ∃ C' : Circuit σ n m, C'.NoDeadGates ∧ C'.size ≤ C.size ∧
-        (∀ {U : Type u} (I : Interpretation σ U) (x : Fin n → U), C'.eval I x = C.eval I x) ∧
-        (∀ r, C.FanInAtMost r → C'.FanInAtMost r) from this C.size C rfl
-  intro s
-  induction s using Nat.strong_induction_on with
-  | _ s ih =>
-    intro C hs
-    by_cases hnoDead : C.NoDeadGates
-    · exact ⟨C, hnoDead, le_rfl, fun _ _ => rfl, fun _ h => h⟩
-    · unfold Circuit.NoDeadGates at hnoDead
-      push Not at hnoDead
-      obtain ⟨k₀, hout0, hnotOut⟩ := hnoDead
-      rcases C with ⟨p, outputs⟩
-      cases s with
-      | zero => exact (hs ▸ k₀).elim0
-      | succ g =>
-        subst hs
-        have hunused : ∀ (k : Fin (g + 1)) (a : Fin (σ.Arity (p.lines k).op)),
-            (p.lines k).wires a ≠ .gate k₀ := by
-          intro k a
-          exact (Circuit.outDeg_eq_zero_iff ⟨p, outputs⟩).mp hout0 ⟨k, a⟩
-        have houtNe : ∀ j : Fin m, outputs j ≠ .gate k₀ := by
-          intro j hj
-          exact hnotOut (Circuit.mem_outputsFinset ⟨p, outputs⟩ |>.mpr ⟨j, hj⟩)
-        obtain ⟨q, ρ, htrace, hfan⟩ := Program.exists_deleteUnusedGate.{v, u} p k₀ hunused
-        let C₁ : Circuit σ n m := ⟨q, fun j => ρ (outputs j) (houtNe j)⟩
-        obtain ⟨C', hC'noDead, hC'size, hC'eval, hC'fan⟩ := ih g (Nat.lt_succ_self g) C₁ rfl
-        refine ⟨C', hC'noDead, hC'size.trans (Nat.le_succ g), ?_,
-          fun r hr => hC'fan r (hfan r hr)⟩
-        intro U I x
-        rw [hC'eval I x]
-        funext j
-        exact htrace I x (outputs j) (houtNe j)
+  by_cases hnoDead : C.NoDeadGates
+  · exact ⟨C, hnoDead, le_rfl, fun _ _ => rfl, fun _ h => h⟩
+  · unfold Circuit.NoDeadGates at hnoDead
+    push Not at hnoDead
+    obtain ⟨k₀, hout0, hnotOut⟩ := hnoDead
+    generalize hs : C.size = s
+    rcases C with ⟨p, outputs⟩
+    cases s with
+    | zero => exact (hs ▸ k₀).elim0
+    | succ g =>
+      subst hs
+      have hunused : ∀ (k : Fin (g + 1)) (a : Fin (σ.Arity (p.lines k).op)),
+          (p.lines k).wires a ≠ .gate k₀ := by
+        intro k a
+        exact (Circuit.outDeg_eq_zero_iff ⟨p, outputs⟩).mp hout0 ⟨k, a⟩
+      have houtNe : ∀ j : Fin m, outputs j ≠ .gate k₀ := by
+        intro j hj
+        exact hnotOut (Circuit.mem_outputsFinset ⟨p, outputs⟩ |>.mpr ⟨j, hj⟩)
+      obtain ⟨q, ρ, htrace, hfan⟩ := Program.exists_deleteUnusedGate.{v, u} p k₀ hunused
+      let C₁ : Circuit σ n m := ⟨q, fun j => ρ (outputs j) (houtNe j)⟩
+      obtain ⟨C', hC'noDead, hC'size, hC'eval, hC'fan⟩ := Circuit.exists_noDeadGates C₁
+      refine ⟨C', hC'noDead, hC'size.trans (Nat.le_succ g), ?_,
+        fun r hr => hC'fan r (hfan r hr)⟩
+      intro U I x
+      rw [hC'eval I x]
+      funext j
+      exact htrace I x (outputs j) (houtNe j)
+termination_by C.size
 
 /-- An input wire of out-degree `0` that is not a designated output wire has no effect on circuit
 evaluation under any interpretation. -/

@@ -15,6 +15,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tra
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.TransformsWords
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Equivalence
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.ExtendTapes
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Tape transformations with the input head anywhere
@@ -246,7 +247,7 @@ lemma step_atPos (p : Fin (input.length + 2)) (c : Cfg k Symbol State []) :
       inputSymbol_eq_none_of_boundary (cfg := c)
         (by have := c.inputPos.isLt; simp only [List.length_nil] at this ⊢; omega),
       show (atPos (input := input) p c).workTapeSymbols = c.workTapeSymbols from rfl]
-    refine Cfg.ext ?_ ?_ ?_ ?_ ?_ <;> simp [freezeInput, atPos, Action.apply, moveInputPos_zero]
+    tm_step [freezeInput, atPos]
 
 lemma runFrom_atPos (p : Fin (input.length + 2)) (c : Cfg k Symbol State []) (n : ℕ) :
     tm.freezeInput.runFrom (atPos p c) n = atPos p (tm.runFrom c n) :=

@@ -283,30 +283,59 @@ private theorem heavy_correct (right : Bool) (zero maxSucc : M.Op) (le : M.Test)
     simp only [hle, ↓reduceIte]
     exact built.of_start qheap (qcur.trans cursor.symm) qtop
 
-/-! Frames of `balance`, read off its text. Each is evaluated in a declaration of its own: the
-program has 230 instructions, which exceeds the default recursion depth. Larger programs get
-their frames from these by `simp`. -/
+/-! Frames of `inChild`, `heavyCase` and `balance`, from those of their subprograms. -/
 
--- The program has 230 instructions; evaluating its frame exceeds the default depth.
-set_option maxRecDepth 8192 in
+@[simp] private theorem inChild_keepsSize (right : Bool)
+    (body : Code M (layout extra (regs + 1))) :
+    (inChild right body).KeepsSize ↔ body.KeepsSize := by
+  simp [inChild, Op.creates]
+
+@[simp] private theorem inChild_dataDests (right : Bool)
+    (body : Code M (layout extra (regs + 1))) :
+    (inChild right body).dataDests = body.dataDests := by
+  simp [inChild, Op.dataDest]
+
+@[simp] private theorem inChild_fieldDests (right : Bool)
+    (body : Code M (layout extra (regs + 1))) :
+    (inChild right body).fieldDests = body.fieldDests := by
+  simp [inChild, Op.fieldDest]
+
+@[simp] private theorem heavyCase_keepsSize (right : Bool) (zero maxSucc : M.Op) (le : M.Test)
+    (field : Fin (extra + 1)) :
+    (heavyCase (regs := regs) right zero maxSucc le field).KeepsSize := by
+  simp [heavyCase, Op.creates]
+
+private theorem heavyCase_dataDests (right : Bool) (zero maxSucc : M.Op) (le : M.Test)
+    (field : Fin (extra + 1)) :
+    (heavyCase (regs := regs) right zero maxSucc le field).dataDests ⊆ [1, 2] := by
+  simpa [heavyCase, List.append_subset, Op.dataDest] using
+    ⟨rotate_dataDests right zero maxSucc field,
+      rotate_dataDests (!right) zero maxSucc field,
+      rotate_dataDests right zero maxSucc field⟩
+
+private theorem heavyCase_fieldDests (right : Bool) (zero maxSucc : M.Op) (le : M.Test)
+    (field : Fin (extra + 1)) :
+    ∀ f ∈ (heavyCase (regs := regs) right zero maxSucc le field).fieldDests, f = field := by
+  simp [heavyCase, Op.fieldDest]
+
 /-- `balance` creates no record. -/
 theorem balance_keepsSize (zero maxSucc : M.Op) (heavy le : M.Test) (field : Fin (extra + 1)) :
     (balance (regs := regs) zero maxSucc heavy le field).KeepsSize := by
-  pm_frame
+  simp [balance, Op.creates]
 
--- The program has 230 instructions; evaluating its frame exceeds the default depth.
-set_option maxRecDepth 8192 in
 /-- `balance` assigns only data registers one and two. -/
 theorem balance_dataDests (zero maxSucc : M.Op) (heavy le : M.Test) (field : Fin (extra + 1)) :
     (balance (regs := regs) zero maxSucc heavy le field).dataDests ⊆ [1, 2] := by
-  pm_frame
+  simpa [balance, List.append_subset, Op.dataDest] using
+    ⟨heavyCase_dataDests false zero maxSucc le field,
+      heavyCase_dataDests true zero maxSucc le field⟩
 
--- The program has 230 instructions; evaluating its frame exceeds the default depth.
-set_option maxRecDepth 8192 in
 /-- `balance` stores only into the height field. -/
 theorem balance_fieldDests (zero maxSucc : M.Op) (heavy le : M.Test) (field : Fin (extra + 1)) :
-    ∀ f ∈ (balance (regs := regs) zero maxSucc heavy le field).fieldDests, f = field :=
-  fun _ hf => List.eq_of_mem_replicate (n := 13) hf
+    ∀ f ∈ (balance (regs := regs) zero maxSucc heavy le field).fieldDests, f = field := by
+  simpa [balance, Op.fieldDest, or_imp, forall_and] using
+    ⟨heavyCase_fieldDests false zero maxSucc le field,
+      heavyCase_fieldDests true zero maxSucc le field⟩
 
 /-- The balance program implements `AVLTree.balance` in at most 85 instructions, without
 allocation. Children must have consistent encoded caches; the old root cache may be arbitrary.

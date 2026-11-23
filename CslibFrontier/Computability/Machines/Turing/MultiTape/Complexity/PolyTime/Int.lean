@@ -33,8 +33,10 @@ indices in a computation tableau.
   the signed difference of unary naturals.
 * `Turing.MultiTapeTM.ComputableInPolyTime.int_succ`, `.int_pred`, `.int_pos`, `.int_neg`:
   unit shifts and sign tests.
-* `Turing.MultiTapeTM.ComputableInPolyTime.int_toNat`, `.int_natAbs`, `.int_equivNat`:
-  nonnegative truncation, absolute value and the standard numbering of integers, in unary.
+* `Turing.MultiTapeTM.ComputableInPolyTime.int_toNat`, `.int_neg_toNat`, `.int_neg_toNat'`,
+  `.int_natAbs`, `.int_equivNat`:
+  nonnegative truncation, negative part, absolute value and the standard numbering of integers, in
+  unary.
 * `Turing.MultiTapeTM.ComputableInPolyTime.int_sub`: subtraction of signed unary integers.
 * `Turing.MultiTapeTM.ComputableInPolyTime.int_sub_sign`, `.int_abs_le_nat`:
   fixed tape moves and membership in a unary-bounded window.
@@ -136,12 +138,20 @@ theorem int_natAbs : ComputableInPolyTime Int.natAbs encIntUnary encUnary := by
   cases z <;> simp [intTail]
 
 /-- The negative part of a signed unary integer, in unary. -/
-private theorem int_neg_toNat :
+@[fun_prop]
+theorem int_neg_toNat :
     ComputableInPolyTime (fun z : ℤ => (-z).toNat) encIntUnary encUnary := by
   have h := int_neg.ite' int_natAbs (const 0)
   convert h using 1
   funext z
   split_ifs with hz <;> simp_all only [decide_eq_true_eq] <;> lia
+
+/-- The negative part of a computed signed unary integer, in unary. -/
+@[fun_prop]
+theorem int_neg_toNat' {α : Type} {input : α ↪ List Bool} {f : α → ℤ}
+    (hf : ComputableInPolyTime f input encIntUnary) :
+    ComputableInPolyTime (fun a => (-f a).toNat) input encUnary :=
+  int_neg_toNat.comp hf
 
 /-- Subtract two signed unary integers. -/
 @[fun_prop]

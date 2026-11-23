@@ -14,12 +14,12 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Op
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Languages.Probabilistic.Vector
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.DPi
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Probabilistic.Finite
 import CslibFrontier.Computability.Probabilistic.PPT.PairCapture
-import CslibFrontier.Computability.Probabilistic.Repeat
+import CslibFrontier.Computability.Probabilistic.Vector
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.PPT
 
 /-!
 # Nested encryption
@@ -401,6 +401,7 @@ private theorem computable_finTail {α K : Type} {encIn : α ↪ List Bool} {enc
     ComputableInPolyTime (fun a => Fin.tail (ks a)) encIn (encFinFn n encK) :=
   ComputableInPolyTime.finFn fun i => (ComputableInPolyTime.finFn_apply encK i.succ).comp hks
 
+@[local fun_prop]
 private theorem computable_revealKeys {α K : Type} {encIn : α ↪ List Bool} {encK : K ↪ List Bool}
     {n : ℕ} {d : α → Fin n} {ks : α → Fin n → K}
     (hd : ComputableInPolyTime d encIn (encFinEnum (Fin n)))
@@ -419,17 +420,6 @@ private theorem computable_revealKeys {α K : Type} {encIn : α ↪ List Bool} {
         (ComputableInPolyTime.optionSome encK).comp
           ((ComputableInPolyTime.finFn_apply encK i).comp hks)
   simpa only [← revealKeys_apply] using h
-
-private theorem isPPTOn_replicateFin {α K : Type} {encIn : α ↪ List Bool} {encK : K ↪ List Bool}
-    {sampleKey : α → ProbComp K} (hsampleKey : IsPPTOn encIn encK sampleKey) (n : ℕ) :
-    IsPPTOn encIn (encFinFn n encK) fun a => OracleComp.replicateFin n (sampleKey a) := by
-  obtain ⟨k, State, hfin, machine, c, d, hm⟩ :=
-    hsampleKey.replicate (count := fun _ => n) (ComputableInPolyTime.const n)
-  refine ⟨k, State, hfin, machine, c, d, fun a => ?_⟩
-  rw [← hm a]
-  beta_reduce
-  rw [← OracleComp.map_ofFn_replicateFin, ProbComp.eval_map, PMF.map_comp]
-  rfl
 
 private theorem isPPTOn_nestedEncrypt {α K M : Type} {encIn : α ↪ List Bool}
     {encK : K ↪ List Bool} {encM : M ↪ List Bool} {E : α → Cipher K M M}
@@ -477,16 +467,19 @@ private theorem isPPTOn_nestedPrefix_const {α K M : Type} {encIn : α ↪ List 
           (ComputableInPolyTime.snd _ _)
       simpa [Cipher.nestedPrefix] using IsPPTOn.bind_pair hhead htail
 
-private theorem isPPTOn_nestedPrefix {α K M : Type} {n : ℕ} {encIn : α ↪ List Bool}
-    {encK : K ↪ List Bool} {encM : M ↪ List Bool}
-    {E : α → Cipher K M M} {d : α → Fin n} {ks : α → Fin n → K} {msg : α → M}
-    (hencrypt : IsPPTOn (encPair encIn (encPair encK encM)) encM fun ⟨a, k, m⟩ => (E a).encrypt k m)
+@[local fun_prop]
+private theorem isPPTOn_nestedPrefix {ι α K M : Type} {n : ℕ} {encIdx : ι ↪ List Bool}
+    {encIn : α ↪ List Bool} {encK : K ↪ List Bool} {encM : M ↪ List Bool}
+    {E : ι → Cipher K M M} {idx : α → ι} {d : α → Fin n} {ks : α → Fin n → K} {msg : α → M}
+    (hencrypt : IsPPTOn (encPair encIdx (encPair encK encM)) encM
+      fun ⟨i, k, m⟩ => (E i).encrypt k m)
+    (hidx : ComputableInPolyTime idx encIn encIdx)
     (hd : ComputableInPolyTime d encIn (encFinEnum (Fin n)))
     (hks : ComputableInPolyTime ks encIn (encFinFn n encK))
     (hmsg : ComputableInPolyTime msg encIn encM) :
-    IsPPTOn encIn encM fun a => (E a).nestedPrefix (d a) (ks a) (msg a) :=
+    IsPPTOn encIn encM fun a => (E (idx a)).nestedPrefix (d a) (ks a) (msg a) :=
   IsPPTOn.finite_cases hd fun choice =>
-    isPPTOn_nestedPrefix_const hencrypt choice ComputableInPolyTime.id' hks hmsg
+    isPPTOn_nestedPrefix_const hencrypt choice hidx hks hmsg
 
 private theorem isPPTOn_nestedSuffix_const {α K M : Type} {encIn : α ↪ List Bool}
     {encK : K ↪ List Bool} {encM : M ↪ List Bool} {E : α → Cipher K M M}
@@ -508,16 +501,19 @@ private theorem isPPTOn_nestedSuffix_const {α K M : Type} {encIn : α ↪ List 
       simpa [Cipher.nestedSuffix] using
         isPPTOn_nestedSuffix_const hencrypt i hA (computable_finTail hks) hc
 
-private theorem isPPTOn_nestedSuffix {α K M : Type} {n : ℕ} {encIn : α ↪ List Bool}
-    {encK : K ↪ List Bool} {encM : M ↪ List Bool}
-    {E : α → Cipher K M M} {d : α → Fin n} {ks : α → Fin n → K} {c : α → M}
-    (hencrypt : IsPPTOn (encPair encIn (encPair encK encM)) encM fun ⟨a, k, m⟩ => (E a).encrypt k m)
+@[local fun_prop]
+private theorem isPPTOn_nestedSuffix {ι α K M : Type} {n : ℕ} {encIdx : ι ↪ List Bool}
+    {encIn : α ↪ List Bool} {encK : K ↪ List Bool} {encM : M ↪ List Bool}
+    {E : ι → Cipher K M M} {idx : α → ι} {d : α → Fin n} {ks : α → Fin n → K} {c : α → M}
+    (hencrypt : IsPPTOn (encPair encIdx (encPair encK encM)) encM
+      fun ⟨i, k, m⟩ => (E i).encrypt k m)
+    (hidx : ComputableInPolyTime idx encIn encIdx)
     (hd : ComputableInPolyTime d encIn (encFinEnum (Fin n)))
     (hks : ComputableInPolyTime ks encIn (encFinFn n encK))
     (hc : ComputableInPolyTime c encIn encM) :
-    IsPPTOn encIn encM fun a => (E a).nestedSuffix (d a) (ks a) (c a) :=
+    IsPPTOn encIn encM fun a => (E (idx a)).nestedSuffix (d a) (ks a) (c a) :=
   IsPPTOn.finite_cases hd fun choice =>
-    isPPTOn_nestedSuffix_const hencrypt choice ComputableInPolyTime.id' hks hc
+    isPPTOn_nestedSuffix_const hencrypt choice hidx hks hc
 
 /-- Uniform strict polynomial-time efficiency of `nestedToSingleAdversary`: for a fixed `n`, when
 `sampleKey` and `encrypt` are strict PPT and `valid` is computable in polynomial time (each
@@ -539,142 +535,11 @@ theorem isPPT_nestedToSingleAdversary {K M σ : Type} {encK : K ↪ List Bool}
       (encNestedReductionState encK encσ n)
       (fun sec => nestedToSingleAdversary (E sec) (sampleKey sec) (valid sec) n (A sec)) where
   choose := by
-    let e0 := encPair encUnary encUnit
-    let e1 := encPair e0 (encPair (encNestedRequest encM n) encσ)
-    let e2 := encPair e1 (encFinFn n encK)
-    let e3 := encPair e2 encM
-    let e4 := encPair e3 encM
-    have hchoose : IsPPTOn e0 (encPair (encNestedRequest encM n) encσ)
-        fun x => (A x.1).choose x.2 := hA.choose
-    have h1_sec : ComputableInPolyTime (fun p : (ℕ × Unit) × (NestedRequest M n × σ) => p.1.1)
-        e1 encUnary :=
-      (ComputableInPolyTime.fst encUnary encUnit).comp (ComputableInPolyTime.fst _ _)
-    have h1_req : ComputableInPolyTime (fun p : (ℕ × Unit) × (NestedRequest M n × σ) => p.2.1)
-        e1 (encNestedRequest encM n) :=
-      (ComputableInPolyTime.fst (encNestedRequest encM n) encσ).comp (ComputableInPolyTime.snd _ _)
-    have h1_withheld : ComputableInPolyTime
-        (fun p : (ℕ × Unit) × (NestedRequest M n × σ) => p.2.1.withheld)
-        e1 (encFinEnum (Fin n)) := encNestedRequest_withheld_polyTime encM n h1_req
-    have hsk : IsPPTOn e1 (encFinFn n encK)
-        fun p => OracleComp.replicateFin n (sampleKey p.1.1) :=
-      (isPPTOn_replicateFin hsampleKey n).preprocess h1_sec
-    have h2_sec : ComputableInPolyTime
-        (fun p : ((ℕ × Unit) × (NestedRequest M n × σ)) × (Fin n → K) => p.1.1.1)
-        e2 encUnary := h1_sec.comp (ComputableInPolyTime.fst _ _)
-    have h2_withheld : ComputableInPolyTime
-        (fun p : ((ℕ × Unit) × (NestedRequest M n × σ)) × (Fin n → K) => p.1.2.1.withheld)
-        e2 (encFinEnum (Fin n)) := h1_withheld.comp (ComputableInPolyTime.fst _ _)
-    have h2_pair : ComputableInPolyTime
-        (fun p : ((ℕ × Unit) × (NestedRequest M n × σ)) × (Fin n → K) => p.1.2.1.pair)
-        e2 (encMessagePair encM) :=
-      encNestedRequest_pair_polyTime encM n (h1_req.comp (ComputableInPolyTime.fst _ _))
-    have hm₀ : IsPPTOn e2 encM
-        fun p => (E p.1.1.1).nestedPrefix p.1.2.1.withheld p.2 p.1.2.1.pair.msg₀ :=
-      isPPTOn_nestedPrefix
-        (hencrypt.preprocess ((h2_sec.comp (ComputableInPolyTime.fst _ _)).prod
-          (ComputableInPolyTime.snd _ _)))
-        h2_withheld (ComputableInPolyTime.snd _ _) (encMessagePair_msg₀_polyTime h2_pair)
-    have hm₁ : IsPPTOn e3 encM
-        fun p => (E p.1.1.1.1).nestedPrefix p.1.1.2.1.withheld p.1.2 p.1.1.2.1.pair.msg₁ :=
-      isPPTOn_nestedPrefix
-        (hencrypt.preprocess
-          (((h2_sec.comp (ComputableInPolyTime.fst _ _)).comp (ComputableInPolyTime.fst _ _)).prod
-            (ComputableInPolyTime.snd _ _)))
-        (h2_withheld.comp (ComputableInPolyTime.fst _ _))
-        ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _))
-        (encMessagePair_msg₁_polyTime (h2_pair.comp (ComputableInPolyTime.fst _ _)))
-    have h4_sec : ComputableInPolyTime
-        (fun p : ((((ℕ × Unit) × (NestedRequest M n × σ)) × (Fin n → K)) × M) × M => p.1.1.1.1.1)
-        e4 encUnary :=
-      h2_sec.comp ((ComputableInPolyTime.fst e2 encM).comp (ComputableInPolyTime.fst e3 encM))
-    have h4_pair : ComputableInPolyTime
-        (fun p : ((((ℕ × Unit) × (NestedRequest M n × σ)) × (Fin n → K)) × M) × M =>
-          p.1.1.1.2.1.pair) e4 (encMessagePair encM) :=
-      h2_pair.comp ((ComputableInPolyTime.fst e2 encM).comp (ComputableInPolyTime.fst e3 encM))
-    have h4_st : ComputableInPolyTime
-        (fun p : ((((ℕ × Unit) × (NestedRequest M n × σ)) × (Fin n → K)) × M) × M =>
-          p.1.1.1.2.2) e4 encσ :=
-      ((ComputableInPolyTime.snd (encNestedRequest encM n) encσ).comp
-        (ComputableInPolyTime.snd e0 _)).comp
-          ((ComputableInPolyTime.fst _ _).comp
-            ((ComputableInPolyTime.fst e2 encM).comp (ComputableInPolyTime.fst e3 encM)))
-    have h4_withheld : ComputableInPolyTime
-        (fun p : ((((ℕ × Unit) × (NestedRequest M n × σ)) × (Fin n → K)) × M) × M =>
-          p.1.1.1.2.1.withheld) e4 (encFinEnum (Fin n)) :=
-      h2_withheld.comp ((ComputableInPolyTime.fst e2 encM).comp (ComputableInPolyTime.fst e3 encM))
-    have h4_keys : ComputableInPolyTime
-        (fun p : ((((ℕ × Unit) × (NestedRequest M n × σ)) × (Fin n → K)) × M) × M => p.1.1.2)
-        e4 (encFinFn n encK) :=
-      (ComputableInPolyTime.snd e1 _).comp
-        ((ComputableInPolyTime.fst e2 encM).comp (ComputableInPolyTime.fst e3 encM))
-    have h4_adm : ComputableInPolyTime
-        (fun p : ((((ℕ × Unit) × (NestedRequest M n × σ)) × (Fin n → K)) × M) × M =>
-          valid p.1.1.1.1.1 p.1.1.1.2.1.pair.msg₀ p.1.1.1.2.1.pair.msg₁) e4 encBool :=
-      hvalid.comp
-        (h4_sec.prod
-          ((encMessagePair_msg₀_polyTime h4_pair).prod (encMessagePair_msg₁_polyTime h4_pair)))
-    have hfin : ComputableInPolyTime
-        (fun p : ((((ℕ × Unit) × (NestedRequest M n × σ)) × (Fin n → K)) × M) × M =>
-          (⟨p.1.2, p.2⟩,
-            ⟨p.1.1.1.2.2, p.1.1.1.2.1.withheld, p.1.1.2,
-              valid p.1.1.1.1.1 p.1.1.1.2.1.pair.msg₀ p.1.1.1.2.1.pair.msg₁⟩))
-        e4 (encPair (encMessagePair encM) (encNestedReductionState encK encσ n)) :=
-      (encMessagePair_mk_polyTime
-        ((ComputableInPolyTime.snd e2 encM).comp (ComputableInPolyTime.fst e3 encM))
-        (ComputableInPolyTime.snd e3 encM)).prod
-        (encNestedReductionState_mk_polyTime encK encσ n h4_st h4_withheld h4_keys h4_adm)
-    refine (IsPPTOn.map
-      (IsPPTOn.bind_pair hchoose
-        (IsPPTOn.bind_pair hsk (IsPPTOn.bind_pair hm₀ (IsPPTOn.bind_pair hm₁ hfin.isPPTOn))))
-      ComputableInPolyTime.id').congr fun ⟨sec, u⟩ => ?_
-    simp [nestedToSingleAdversary]
+    have hchoose := hA.choose
+    ppt [nestedToSingleAdversary]
   guess := by
-    let eg := encPair encUnary (encPair (encNestedReductionState encK encσ n) encM)
-    have hguess : IsPPTOn (encPair encUnary (encPair encσ (encNestedChallenge encK encM n))) encBool
-        fun x => (A x.1).guess x.2.1 x.2.2 := hA.guess
-    have hg_sec : ComputableInPolyTime (fun x : ℕ × (NestedReductionState K σ n × M) => x.1)
-        eg encUnary := ComputableInPolyTime.fst _ _
-    have hg_st : ComputableInPolyTime (fun x : ℕ × (NestedReductionState K σ n × M) => x.2.1)
-        eg (encNestedReductionState encK encσ n) :=
-      (ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _)
-    have hg_chal : ComputableInPolyTime (fun x : ℕ × (NestedReductionState K σ n × M) => x.2.2)
-        eg encM := (ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _)
-    have hsuf : IsPPTOn eg encM
-        fun x => (E x.1).nestedSuffix x.2.1.withheld x.2.1.keys x.2.2 :=
-      isPPTOn_nestedSuffix
-        (hencrypt.preprocess ((hg_sec.comp (ComputableInPolyTime.fst _ _)).prod
-          (ComputableInPolyTime.snd _ _)))
-        (encNestedReductionState_withheld_polyTime encK encσ n hg_st)
-        (encNestedReductionState_keys_polyTime encK encσ n hg_st)
-        hg_chal
-    have hrev : ComputableInPolyTime
-        (fun p : (ℕ × (NestedReductionState K σ n × M)) × M =>
-          revealKeys p.1.2.1.withheld p.1.2.1.keys)
-        (encPair eg encM) (encFinFn n (encOption encK)) :=
-      computable_revealKeys
-        (encNestedReductionState_withheld_polyTime encK encσ n
-          (hg_st.comp (ComputableInPolyTime.fst _ _)))
-        (encNestedReductionState_keys_polyTime encK encσ n
-          (hg_st.comp (ComputableInPolyTime.fst _ _)))
-    have hcall : IsPPTOn (encPair eg encM) encBool
-        fun p => (A p.1.1).guess p.1.2.1.innerState
-          ⟨p.2, revealKeys p.1.2.1.withheld p.1.2.1.keys⟩ :=
-      hguess.preprocess
-        ((hg_sec.comp (ComputableInPolyTime.fst _ _)).prod
-          ((encNestedReductionState_innerState_polyTime encK encσ n
-            (hg_st.comp (ComputableInPolyTime.fst _ _))).prod
-            (encNestedChallenge_mk_polyTime encK encM n
-              (ComputableInPolyTime.snd eg encM) hrev)))
-    have hcond : IsPPTOn eg encBool
-        fun x => if x.2.1.admissible = true then
-          do let c ← (E x.1).nestedSuffix x.2.1.withheld x.2.1.keys x.2.2
-             (A x.1).guess x.2.1.innerState ⟨c, revealKeys x.2.1.withheld x.2.1.keys⟩
-          else pure false :=
-      IsPPTOn.cond (encNestedReductionState_admissible_polyTime encK encσ n hg_st)
-        (IsPPTOn.bind_pair hsuf hcall)
-        (ComputableInPolyTime.const false).isPPTOn
-    refine hcond.congr fun ⟨sec, st, chal⟩ => ?_
-    simp only [nestedToSingleAdversary]
+    have hguess := hA.guess
+    ppt [nestedToSingleAdversary]
 
 /-- Corrected form of Theorem 2.12 ([BonehShoup2023], §2.4, p. 37), with the admissibility
 hypothesis `PreservesValid` that the book does not state and without which the theorem fails

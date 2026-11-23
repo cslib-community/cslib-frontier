@@ -381,8 +381,7 @@ theorem exists_refutableInWidth_le_of_refutableInSize {k s N : ℕ} (hk : ∀ c 
       linarith
     have : (s : ℝ) * ((2 * N - d : ℕ) : ℝ) ^ b < (2 * N) ^ b := by
       calc (s : ℝ) * ((2 * N - d : ℕ) : ℝ) ^ b
-          ≤ s * ((2 * N) ^ b * Real.exp (b * -(d / (2 * N)))) :=
-            mul_le_mul_of_nonneg_left hexp (by positivity)
+          ≤ s * ((2 * N) ^ b * Real.exp (b * -(d / (2 * N)))) := by gcongr
         _ = (2 * N) ^ b * (s * Real.exp (b * -(d / (2 * N)))) := by ring
         _ < (2 * N) ^ b * 1 := mul_lt_mul_of_pos_left hlt (by positivity)
         _ = (2 * N) ^ b := mul_one _

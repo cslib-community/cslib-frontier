@@ -182,16 +182,17 @@ theorem navigationBits_flag (x y : BitString n) :
 /-- **The output format.** When `y` is reachable from `x`, the time bits of `navigationBits` are
 the first hitting time, which is below `2 ^ n`. -/
 theorem navigationBits_time (x y : BitString n) (h : ∃ t, f^[t] x = y) :
-    let t := (word fun i : Fin (n + 1) => navigationBits f x y (Fin.natAdd 1 i)).toNat
+    let t := (BitString.equivBitVec fun i : Fin (n + 1) =>
+      navigationBits f x y (Fin.natAdd 1 i)).toNat
     f^[t] x = y ∧ (∀ j < t, f^[j] x ≠ y) ∧ t < 2 ^ n := by
   have hr := (reaches_iff f x y).mpr h
   have ht := hittingTime_spec f x y hr
   have hb : hittingTime f x y < 2 ^ n := by simpa using ht.2.2
-  have he : (word fun i : Fin (n + 1) => navigationBits f x y (Fin.natAdd 1 i)) =
+  have he : (BitString.equivBitVec fun i : Fin (n + 1) => navigationBits f x y (Fin.natAdd 1 i)) =
       (navigationTime f x y).setWidth (n + 1) := by
     apply BitVec.eq_of_getLsbD_eq
     intro i hi
-    rw [getLsbD_word _ ⟨i, hi⟩]
+    rw [BitString.getLsbD_equivBitVec _ ⟨i, hi⟩]
     simp only [navigationBits, Fin.append_right, BitVec.getLsbD_setWidth, hi, decide_true,
       Bool.true_and]
   dsimp only

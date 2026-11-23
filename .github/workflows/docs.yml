@@ -42,6 +42,18 @@ jobs:
         run: bash tools/stats/install-tokei.sh "$RUNNER_TEMP/tokei-bin"
       - name: Build source history dashboard
         run: python3 tools/stats/build.py --tokei "$RUNNER_TEMP/tokei-bin/tokei"
+      - uses: actions/cache@v4
+        with:
+          path: tools/viz/.cache
+          key: codebase-viz-v1-${{ hashFiles('tools/viz/history.py') }}-${{ github.sha }}-${{ github.run_id }}
+          restore-keys: |
+            codebase-viz-v1-${{ hashFiles('tools/viz/history.py') }}-
+      - name: Install visualization dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends graphviz ffmpeg
+          python3 -m venv "$RUNNER_TEMP/viz-venv"
+          "$RUNNER_TEMP/viz-venv/bin/pip" install -q -r tools/viz/requirements.txt
       - name: Check documentation pins
         run: python3 scripts/check_docs.py --config-only
       # Restores or installs the toolchain with retries (.github/actions/install-lean, #1426).
@@ -56,6 +68,17 @@ jobs:
         run: scripts/cache/get-missing.sh
       - name: Generate API documentation
         run: DISABLE_EQUATIONS=1 lake -d docbuild build CslibFrontier:docs
+      # Built from this run's checkout and its library build, so the views describe the same commit
+      # as the API docs. The Lean census extends the series published by the previous run. The
+      # results registry is exported from the built CslibFrontierResults.
+      - name: Build codebase visualizations
+        run: |
+          lake build CslibFrontierResults
+          "$RUNNER_TEMP/viz-venv/bin/python" -m unittest discover -s tools/viz -p 'test_*.py'
+          "$RUNNER_TEMP/viz-venv/bin/python" tools/viz/build.py \
+            --lean-lib .lake/build/lib/lean \
+            --require-registry \
+            --lean-history https://www.cslib.io/cslib-frontier/viz/lean-history.json
       - name: Restore Guide dependencies
         id: guide-deps
         if: vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1'
@@ -107,6 +130,8 @@ jobs:
         run: cp -R guide/.lake/build/site/html-multi docbuild/.lake/build/doc/guide
       - name: Add source history dashboard to the site
         run: cp -R tools/stats/_site docbuild/.lake/build/doc/stats
+      - name: Add codebase visualizations to the site
+        run: cp -R tools/viz/_site docbuild/.lake/build/doc/viz
       # Built from this run's trimmed declaration index, so the tables match the published API.
       - name: Add class inclusion tables to the site
         run: |

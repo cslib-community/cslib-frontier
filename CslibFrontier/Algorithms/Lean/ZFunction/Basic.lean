@@ -127,30 +127,23 @@ private theorem zLoopM_time_add_le (s : Array α) (i l r : ℕ) (z : Array ℕ) 
     (hr : r ≤ s.size) :
     (zLoopM s i l r z).time + max r i + (if max r i < s.size then 1 else 0) ≤
       (s.size - i) + s.size := by
-  generalize hk : s.size - i = k
-  induction k generalizing i l r z with
-  | zero =>
-    rw [zLoopM]
-    simp only [show ¬(i < s.size) by omega, ↓reduceIte, TimeM.time_pure]
-    split_ifs <;> omega
-  | succ k ih =>
-    have his : i < s.size := by omega
-    rw [zLoopM]
-    simp only [his, ↓reduceIte]
-    by_cases hcopy : z.getD (i - l) 0 < r - i
-    · simp only [hcopy, ↓reduceIte]
-      have := ih (i + 1) l r (z.push (z.getD (i - l) 0)) (by omega) hr (by omega)
+  fun_induction zLoopM s i l r z with
+  | case1 i l r z his hcopy ih => -- inside the box: copy z[i - l]
+    have := ih (by omega) hr
+    split_ifs at this ⊢ <;> omega
+  | case2 i l r z his hncopy ih => -- extend the common prefix
+    simp only [TimeM.time_bind]
+    have h1 := extendM_time_add_le s 0 i (r - i)
+    have h2 := ret_extendM_le s 0 i (r - i)
+    have h3 := extendM_time_add_le_of_size_le s 0 i (r - i)
+    have := ih (extendM s 0 i (r - i)).ret (by omega) (by omega)
+    by_cases hend : s.size ≤ i + (extendM s 0 i (r - i)).ret
+    · have h3 := h3 hend
       split_ifs at this ⊢ <;> omega
-    · simp only [hcopy, ↓reduceIte, TimeM.time_bind]
-      have h1 := extendM_time_add_le s 0 i (r - i)
-      have h2 := ret_extendM_le s 0 i (r - i)
-      have h3 := extendM_time_add_le_of_size_le s 0 i (r - i)
-      have := ih (i + 1) i (i + (extendM s 0 i (r - i)).ret)
-        (z.push (extendM s 0 i (r - i)).ret) (by omega) (by omega) (by omega)
-      by_cases hend : s.size ≤ i + (extendM s 0 i (r - i)).ret
-      · have h3 := h3 hend
-        split_ifs at this ⊢ <;> omega
-      · split_ifs at this ⊢ <;> omega
+    · split_ifs at this ⊢ <;> omega
+  | case3 => -- i ≥ s.size: done
+    simp only [TimeM.time_pure]
+    split_ifs <;> omega
 
 /-- **Linear bound for the Z-algorithm.** `zAlgorithmM s` performs at most `2 * |s| - 3`
 character comparisons, for every input. -/
@@ -172,19 +165,15 @@ private theorem zLoopM_spec (s : Array α) (i l r : ℕ) (z : Array ℕ) (hi1 : 
     (hl : l < i) (hl0 : r = 0 ∨ 0 < l)
     (hrl : r ≤ l + List.lcpLen s.toList (s.toList.drop l)) (hr : r ≤ s.size) :
     (zLoopM s i l r z).ret.toList = zFunction s.toList := by
-  generalize hk : s.size - i = k
-  induction k generalizing i l r z with
-  | zero =>
-    rw [zLoopM]
-    simp only [show ¬(i < s.size) by omega, ↓reduceIte, TimeM.ret_pure]
+  fun_induction zLoopM s i l r z
+  case case3 i l r z his => -- i ≥ s.size: done
+    simp only [TimeM.ret_pure]
     apply List.ext_getElem (by simp only [Array.length_toList, length_zFunction]; omega)
     intro j h1 h2
     simp only [Array.length_toList] at h1
     rw [Array.getElem_toList, getElem_zFunction, hzs j (by omega)]
-  | succ k ih =>
-    have his : i < s.size := by omega
-    rw [zLoopM]
-    simp only [his, ↓reduceIte]
+  all_goals
+    rename_i i l r z his hcopy ih
     -- Inside the box, `s.drop i` and `s.drop (i - l)` agree on their first `r - i` entries.
     have hbox : i < r → min (List.lcpLen s.toList (s.toList.drop (i - l))) (r - i) =
         min (List.lcpLen s.toList (s.toList.drop i)) (r - i) := by
@@ -199,33 +188,32 @@ private theorem zLoopM_spec (s : Array α) (i l r : ℕ) (z : Array ℕ) (hi1 : 
       intro hir
       rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem (by omega), Option.getD_some]
       exact hzs (i - l) (by omega)
-    by_cases hcopy : z.getD (i - l) 0 < r - i
-    · simp only [hcopy, ↓reduceIte]
-      have hir : i < r := by omega
-      have hmin := hbox hir
-      have hval : z.getD (i - l) 0 = List.lcpLen s.toList (s.toList.drop i) := by grind
-      refine ih (i + 1) l r (z.push (z.getD (i - l) 0)) (by omega) (by omega)
-        (by rw [Array.size_push, hz]) (fun j hj => ?_) (by omega) hl0 hrl hr (by omega)
-      rw [Array.getElem_push]
-      split_ifs with hji
-      · exact hzs j (by omega)
-      · rw [show j = i by omega]
-        exact hval
-    · simp only [hcopy, ↓reduceIte, TimeM.ret_bind]
-      have hh : r - i ≤ List.lcpLen s.toList (s.toList.drop i) := by grind
-      have hext : (extendM s 0 i (r - i)).ret = List.lcpLen s.toList (s.toList.drop i) := by
-        rw [ret_extendM, List.lcpLen_eq_add_lcpLen_drop hh, List.drop_drop, Nat.zero_add]
-      rw [hext]
-      have hlen := List.lcpLen_le_length_right s.toList (s.toList.drop i)
-      simp only [List.length_drop, Array.length_toList] at hlen
-      refine ih (i + 1) i (i + List.lcpLen s.toList (s.toList.drop i))
-        (z.push (List.lcpLen s.toList (s.toList.drop i))) (by omega) (by omega)
-        (by rw [Array.size_push, hz]) (fun j hj => ?_) (by omega) (Or.inr (by omega))
-        (le_refl _) (by omega) (by omega)
-      rw [Array.getElem_push]
-      split_ifs with hji
-      · exact hzs j (by omega)
-      · rw [show j = i by omega]
+  case case1 => -- inside the box: copy z[i - l]
+    have hir : i < r := by omega
+    have hmin := hbox hir
+    have hval : z.getD (i - l) 0 = List.lcpLen s.toList (s.toList.drop i) := by grind
+    refine ih (by omega) (by omega) (by rw [Array.size_push, hz]) (fun j hj => ?_) (by omega) hl0
+      hrl hr
+    rw [Array.getElem_push]
+    split_ifs with hji
+    · exact hzs j (by omega)
+    · rw [show j = i by omega]
+      exact hval
+  case case2 => -- extend the common prefix
+    simp only [TimeM.ret_bind]
+    have hh : r - i ≤ List.lcpLen s.toList (s.toList.drop i) := by grind
+    have hext : (extendM s 0 i (r - i)).ret = List.lcpLen s.toList (s.toList.drop i) := by
+      rw [ret_extendM, List.lcpLen_eq_add_lcpLen_drop hh, List.drop_drop, Nat.zero_add]
+    rw [hext]
+    have hlen := List.lcpLen_le_length_right s.toList (s.toList.drop i)
+    simp only [List.length_drop, Array.length_toList] at hlen
+    refine ih (List.lcpLen s.toList (s.toList.drop i)) (by omega) (by omega)
+      (by rw [Array.size_push, hz]) (fun j hj => ?_) (by omega) (Or.inr (by omega)) (le_refl _)
+      (by omega)
+    rw [Array.getElem_push]
+    split_ifs with hji
+    · exact hzs j (by omega)
+    · rw [show j = i by omega]
 
 /-- **Correctness of the Z-algorithm**: `zAlgorithmM s` returns the Z-function of `s`, for every
 input. -/
