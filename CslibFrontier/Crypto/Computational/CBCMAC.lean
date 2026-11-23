@@ -121,7 +121,7 @@ length-preserving keyed block-function family (`PseudorandomFunction`), completi
 * `cbcMacStep`, `cbcMacQueries`, `cbcMacQuery`, `cbcMacToPrfDistinguisher`, `lengthPrependedQuery`,
   `lengthPrependedToPrfDistinguisher`: certified word-oracle PRF reductions.
 * `macSigningPairOracleOn`, `macSigningOracleOn`, `macSufCmaGameOn`, `macEufCmaGameOn`,
-  `MACSUFCMAOn`, `MACEUFCMAOn`, `macLogHandlerOn`, `macToPrfOnDistinguisher`,
+  `MACSUFCMAOn`, `MACEUFCMAOn`, `macToPrfOnDistinguisher`,
   `lengthPrependedMacToPrfDistinguisher`, `cbcExtensionForger`, `cbcFixedBlockMAC`,
   `cbcFixedBlockMacToPrfDistinguisher`, `lengthPrependedBlockMAC`: domain-restricted and
   `MACScheme` adaptive chosen-message security games, certified reductions, and extension forger.
@@ -2102,18 +2102,6 @@ theorem macSufCmaOn_iff_macEufCmaOn (valid : ℕ → List Bool → Bool)
   · rw [eval_macSufCmaGameOn_eq_macEufCmaGameOn]
   · rw [← eval_macSufCmaGameOn_eq_macEufCmaGameOn]
 
-/-- Open stateful handler forwarding `valid n`-admissible MAC signing requests to the external
-oracle (truncating replies to `n` bits) and logging queried messages; invalid requests receive `[]`
-without querying or logging ([BonehShoup2023], Section 6.3, Theorem 6.2, printed p. 224). -/
-def macLogHandlerOn (valid : ℕ → List Bool → Bool) (n : ℕ) (request : Unit × List Bool) :
-    StateT (List (List Bool)) (WordOracleComp Unit) (List Bool) :=
-  fun queried =>
-    if valid n request.2 then
-      (fun tag => (tag, request.2 :: queried)) <$>
-        (List.take n <$> ProbOracleComp.query ((), request.2))
-    else
-      pure ([], queried)
-
 /-- Certified reduction turning an adaptive MAC forger on `valid` into a domain-restricted PRF
 distinguisher ([BonehShoup2023], Section 6.3, Theorem 6.2, printed p. 224). -/
 def macToPrfOnDistinguisher (valid : ℕ → List Bool → Bool) (adversary : Forger) :
@@ -2137,101 +2125,8 @@ theorem isOraclePPT_macToPrfOnDistinguisher {valid : ℕ → List Bool → Bool}
       (encPair encUnary encBits) encBool)
     {adversary : Forger} (hadversary : IsOraclePPT (encPair encBits encBits) adversary) :
     IsOraclePPT encBool (macToPrfOnDistinguisher valid adversary) := by
-  let ECall := encPair (encPair encUnary encBits)
-    (encPair (encPair (encFinEnum Unit) encBits) (encList encBits))
-  have hcondCall : ComputableInPolyTime
-      (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) =>
-        valid pair.1.1 pair.2.1.2)
-      ECall encBool :=
-    hvalid.comp
-      ((show ComputableInPolyTime (fun pair => pair.1.1) ECall encUnary by
-          dsimp only [ECall]; fun_prop).prod
-        (show ComputableInPolyTime (fun pair => pair.2.1.2) ECall encBits by
-          dsimp only [ECall]; fun_prop))
-  have hhandler : IsOraclePPTOn ECall (encPair encBits (encList encBits))
-      (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) =>
-        macLogHandlerOn valid pair.1.1 pair.2.1 pair.2.2) := by
-    refine IsOraclePPTOn.cond hcondCall ?_ ?_
-    · have hnCall : ComputableInPolyTime
-          (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) => pair.1.1)
-          ECall encUnary := by dsimp only [ECall]; fun_prop
-      have hmsgCall : ComputableInPolyTime
-          (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) => pair.2.1.2)
-          ECall encBits := by dsimp only [ECall]; fun_prop
-      refine (IsOraclePPTOn.query_take () hmsgCall hnCall).map_with
-        (f := fun (pair : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)))
-            (tag : List Bool) => (tag, pair.2.1.2 :: pair.2.2)) ?_
-      have hp := ComputableInPolyTime.id' (encIn := encPair ECall encBits)
-      have hmsg' : ComputableInPolyTime
-          (fun x : ((ℕ × List Bool) × ((Unit × List Bool) × List (List Bool))) × List Bool =>
-            x.1.2.1.2)
-          (encPair ECall encBits) encBits := hmsgCall.comp hp.fst'
-      have hlog' : ComputableInPolyTime
-          (fun x : ((ℕ × List Bool) × ((Unit × List Bool) × List (List Bool))) × List Bool =>
-            x.1.2.2)
-          (encPair ECall encBits) (encList encBits) := by
-        dsimp only [ECall]
-        fun_prop
-      exact hp.snd'.prod (ComputableInPolyTime.cons' hmsg' hlog')
-    · exact ((ComputableInPolyTime.const []).prod
-        (show ComputableInPolyTime
-            (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) => pair.2.2)
-            ECall (encList encBits) by dsimp only [ECall]; fun_prop)).isPPTOn.isOraclePPTOn
-  have hrun : IsOraclePPTOn (encPair encUnary encBits)
-      (encPair (encPair encBits encBits) (encList encBits))
-      (fun caller : ℕ × List Bool =>
-        (OracleComp.interpret
-          (OracleComp.sumHandler
-            (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
-            (macLogHandlerOn valid caller.1))
-          (adversary caller.1 [])).run []) := by
-    apply hadversary.run_interpret_preprocess_open
-      (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
-      (initial := fun _ => ([] : List (List Bool)))
-      (resources := fun caller query => caller.1 + 2 * query.length + 2)
-      (by polytime) hhandler (ComputableInPolyTime.const [])
-      (fun _ _ => True) (fun _ => trivial) (by polytime)
-    intro caller request queried _ result hresult
-    unfold macLogHandlerOn at hresult
-    split_ifs at hresult
-    · obtain ⟨tag, htag, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
-      obtain ⟨_, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp htag
-      refine ⟨trivial, (List.length_take_le _ _).trans (by lia), ?_⟩
-      enc_len
-    · rw [OracleComp.eq_of_mem_supportWith_pure hresult]
-      exact ⟨trivial, by simp, by enc_len⟩
-  let EPost := encPair (encPair encUnary encBits)
-    (encPair (encPair encBits encBits) (encList encBits))
-  have hnPost : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × ((List Bool × List Bool) × List (List Bool)) => p.1.1)
-      EPost encUnary := by dsimp only [EPost]; fun_prop
-  have hmsgPost : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × ((List Bool × List Bool) × List (List Bool)) => p.2.1.1)
-      EPost encBits := by dsimp only [EPost]; fun_prop
-  have hcondPost : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × ((List Bool × List Bool) × List (List Bool)) =>
-        valid p.1.1 p.2.1.1 && !p.2.2.contains p.2.1.1)
-      EPost encBool := by
-    have hvPost : ComputableInPolyTime
-        (fun p : (ℕ × List Bool) × ((List Bool × List Bool) × List (List Bool)) =>
-          valid p.1.1 p.2.1.1)
-        EPost encBool := hvalid.comp (hnPost.prod hmsgPost)
-    dsimp only [EPost] at hvPost ⊢
-    polytime
-  have hpost : IsOraclePPTOn EPost encBool
-      (fun p : (ℕ × List Bool) × ((List Bool × List Bool) × List (List Bool)) =>
-        if valid p.1.1 p.2.1.1 && !p.2.2.contains p.2.1.1 then
-          (· == p.2.1.2) <$> (List.take p.1.1 <$> ProbOracleComp.query ((), p.2.1.1))
-        else
-          pure false) := by
-    refine IsOraclePPTOn.cond hcondPost ?_
-      ((ComputableInPolyTime.const false).isPPTOn.isOraclePPTOn)
-    refine (IsOraclePPTOn.query_take () hmsgPost hnPost).map_with
-      (f := fun (p : (ℕ × List Bool) × ((List Bool × List Bool) × List (List Bool)))
-          (r : List Bool) => r == p.2.1.2) ?_
-    dsimp only [EPost]
-    polytime
-  exact (hrun.bind_with hpost).isOraclePPT
+  have hrun := isOraclePPTOn_run_macLogHandlerOn hvalid hadversary
+  ppt [macToPrfOnDistinguisher]
 
 private theorem isQueryBounded_run_macLogHandlerOn {α : Type} (valid : ℕ → List Bool → Bool)
     (n : ℕ) {prog : WordOracleComp Unit α} {q : ℕ}
