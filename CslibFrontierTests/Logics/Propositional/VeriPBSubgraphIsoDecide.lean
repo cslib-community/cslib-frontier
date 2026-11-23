@@ -24,7 +24,8 @@ import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
   (CakeML `14856fcf`) on the same text, except for the loop, which CakePB accepts.
 * The encoding of the edge `K₂` into the path `0 - 1 - 2`, printed: it is CakePB's
   (`cake_pb_iso` prints the same constraints in the same order, with labels `@al10 …`, the
-  variable `x(3a + u + 1)` named `xa_u`, and the at-most-one constraints as `… <= 1`).
+  variable `x(3a + u + 1)` named `xa_u`, and the per-pattern at-most-one constraints as
+  `… <= 1`; its per-target `@inj` constraints are the `>=` constraints printed here).
 * **Clients**, with proofs written by hand in the kernel format: `K₂` has a copy in the path
   (`SAT`, with the copy `0 ↦ 0`, `1 ↦ 1`); `K₂` has none in the graph with two vertices and no
   edge (`UNSAT`: summing `x₀₀ + x₀₁ ≥ 1`, `~x₀₀ ≥ 1` and `~x₀₁ ≥ 1` gives `0 ≥ 1`); the triangle
@@ -33,10 +34,13 @@ import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
   the empty target. Each is accepted against the LAD texts and the first three against Mathlib's
   graphs.
 
-VeriPB 3.0.2 accepts every proof against the printed encoding, and `veripb --elaborate` returns
-them unchanged up to spacing. CakePB's `cake_pb_iso` accepts them against the LAD texts, with the
-variables renamed `x(t·a + u + 1) ↦ xa_u`, reporting `SUBGRAPH ISOMORPHIC` or
-`NOT SUBGRAPH ISOMORPHIC` as here.
+VeriPB 3.0.2 accepts the five client proofs against the printed encoding, and
+`veripb --elaborate` returns them unchanged up to spacing. CakePB's `cake_pb_iso` accepts the same
+five against the LAD texts, with the variables renamed `x(t·a + u + 1) ↦ xa_u`, reporting
+`SUBGRAPH ISOMORPHIC` or `NOT SUBGRAPH ISOMORPHIC` as here. In the last two the rows without a
+literal differ: `>= 0` here, `>= -1` for CakePB's `@inj0` and `@inj1` (empty pattern) and
+`<= 1` for its `@am10` (empty target). These translated fixtures are the only evidence that a proof
+accepted here is accepted by CakePB.
 -/
 
 set_option linter.privateModule false

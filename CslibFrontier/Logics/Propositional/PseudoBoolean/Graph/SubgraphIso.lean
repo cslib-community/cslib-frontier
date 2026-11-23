@@ -39,9 +39,13 @@ in OPB text, and in CakePB's order:
   the neighbours in increasing order (`edge_map`): if `a` goes to `u`, then `b` goes to a neighbour
   of `u`.
 
-CakePB writes the at-most-one constraints with `≤`; here they are written in the `≥` form that
-CakePB's normalization gives them, the constraints of the checker being `≥` constraints. For
-`p = 0` or `t = 0` the degree `p - 1` or `t - 1` is `0` here and `-1` in CakePB, both trivial.
+CakePB writes the per-pattern at-most-one constraints (`has_mapping_am1`) as `∑ᵤ xₐᵤ ≤ 1`; here
+they are written in the `≥` form that CakePB's normalization gives them, the constraints of the
+checker being `≥` constraints. CakePB already writes the per-target constraints (`one_one`) in the
+`≥` form with negated literals, as here. A constraint with no literal has degree `0` here where
+CakePB's is negative: with `p = 0`, `one_one` is `≥ -1` in CakePB, and with `t = 0`,
+`has_mapping_am1` is `≤ 1`, that is `≥ -1`. Both forms are trivial, and the constraints keep
+CakePB's IDs.
 
 **Correctness** (CakePB's `encode_correct`). An assignment satisfies the constraints exactly when
 it is the graph of a copy of `P` in `T`
@@ -50,8 +54,10 @@ satisfiable exactly when `P ⊑ T` (`Cslib.Logic.PL.VeriPB.Graph.exists_holds_is
 
 **End to end** (CakePB's `full_encode_sem_concl`). The encoding is printed as OPB text
 (`Cslib.Logic.PL.VeriPB.Text.printOPB`), and the proof is checked against that text by
-`Cslib.Logic.PL.VeriPB.Text.checkOPBOutput`, as the VeriPB tool would check it against the same
-file; the round trip of the printer carries the conclusion back to the encoding built in Lean.
+`Cslib.Logic.PL.VeriPB.Text.checkOPBOutput`; the round trip of the printer carries the conclusion
+back to the encoding built in Lean. No theorem relates this checker to CakePB's: that a proof
+accepted here is accepted by `cake_pb_iso`, with the variables renamed, was checked only on the
+translated fixtures of the tests, including the two with the empty rows above.
 A conclusion `SAT` gives `true` and `UNSAT` gives `false`; other conclusions give nothing.
 * `Cslib.Logic.PL.VeriPB.Graph.isContained_iff_of_checkSubgraphIsoGraph`: if
   `Cslib.Logic.PL.VeriPB.Graph.checkSubgraphIsoGraph P T pbp = some b`, then `P ⊑ T ↔ b = true`.

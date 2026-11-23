@@ -30,11 +30,16 @@ register_result "cakepb-subgraph-iso-encode-correct" where
   scope := "For all p, t and graphs P : SimpleGraph (Fin p), T : SimpleGraph (Fin t) with \
     decidable adjacency, an assignment satisfies isoConstraints P T (CakePB's encode: \
     at-least-one and at-most-one per pattern vertex, at-most-one per target vertex, and the \
-    edge-mapping constraints, in CakePB's order, the at-most-one constraints in their \
-    normalized ≥ form) exactly when it is the graph of some f : P.Copy T, so the constraints \
-    are satisfiable exactly when P.IsContained T. CakePB's has_subgraph_iso (an injective map \
-    sending edges to edges, non-induced) is SimpleGraph.IsContained, not the induced \
-    embedding P ↪g T, and good_graph is the type SimpleGraph (Fin n)."
+    edge-mapping constraints, in CakePB's order; CakePB writes the per-pattern has_mapping_am1 \
+    rows with ≤ and they are printed here in their normalized ≥ form, while its per-target \
+    one_one rows are already ≥ rows over negated literals; a row with no literal, for p = 0 or \
+    t = 0, has degree 0 here and -1 in CakePB, both trivial) exactly when it is the graph of \
+    some f : P.Copy T, so the constraints are satisfiable exactly when P.IsContained T. \
+    CakePB's has_subgraph_iso (an injective map sending edges to edges, non-induced) is \
+    SimpleGraph.IsContained, not the induced embedding P ↪g T, and SimpleGraph (Fin n) is the \
+    loop-free part of CakePB's good_graph model (a symmetric edge set on vertices below n, \
+    where CakePB also allows loops). Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/7944#pullrequestreview-6024571013"
 
 register_result "cakepb-subgraph-iso-of-check" where
   title := "Subgraph isomorphism from a VeriPB proof accepted against CakePB's encoding"
@@ -59,5 +64,11 @@ register_result "cakepb-subgraph-iso-of-check" where
     main_semantics, a theorem about the compiled x64 machine code, its file and command-line \
     I/O and its output strings, none of which is covered. The LAD reader accepts exactly the \
     texts CakePB's parse_lad and check_good_graph accept, except that it rejects a loop, which \
-    CakePB accepts; the simple graph of a graph it reads has exactly the edges listed \
-    (adj_iff_of_parseLAD, in Graph/Lad.lean)."
+    CakePB accepts; on an accepted text it gives the same adjacency relation as CakePB, though \
+    it keeps the neighbour lists as written (a repeated neighbour included) where CakePB stores \
+    sets, and the simple graph of a graph it reads has exactly the edges listed \
+    (adj_iff_of_parseLAD, in Graph/Lad.lean). No theorem relates the Lean checker to CakePB's; \
+    acceptance of the same proofs by cake_pb_iso, with the variables renamed, was checked only \
+    on the five translated test fixtures, two of which have the trivial empty rows (degree 0 \
+    here, -1 in CakePB). Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/7944#pullrequestreview-6024571013"

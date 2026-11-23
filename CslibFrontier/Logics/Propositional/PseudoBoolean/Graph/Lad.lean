@@ -23,7 +23,11 @@ the number `d` of neighbours of `u` followed by the `d` neighbours. The vertices
 `0`.
 
 `Cslib.Logic.PL.VeriPB.Graph.parseLAD` accepts a text exactly when CakePB does, except for loops,
-and reads the same neighbour lists. As in CakePB:
+and on an accepted loop-free text it gives the same adjacency relation as CakePB. The neighbour
+lists themselves may differ: CakePB stores each list as a set (`list_to_num_set` in
+`parse_lad_edges`) and its encoder reads the neighbours sorted, while the reader here keeps each
+list as written, a repeated neighbour included (`"2\n2 1 1\n1 0\n"` gives `[[1, 1], [0]]`). As
+in CakePB:
 * the words of a line are separated by spaces, tabs and carriage returns, and are decimal numerals
   (leading zeros allowed);
 * a line holding no word is rejected, but the text may end with a newline;
