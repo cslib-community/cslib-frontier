@@ -134,7 +134,7 @@ variable {M R : Type*} [AddCommMonoid M] [Monoid R] [DistribMulAction R M]
 @[expose] def zeta {n : ℕ} (t : Vector M (2 ^ n)) : Vector M (2 ^ n) :=
   transform (1 : ℕ) t
 
-@[simp] theorem getElem_pass {n : ℕ} (c : R) (i : Fin n) (t : Vector M (2 ^ n))
+theorem getElem_pass {n : ℕ} (c : R) (i : Fin n) (t : Vector M (2 ^ n))
     (F : Finset (Fin n) → M) (hF : ∀ (k : ℕ) (hk : k < 2 ^ n), t[k] = F (maskSet n k))
     (k : ℕ) (hk : k < 2 ^ n) :
     (pass c i t)[k] = yatesPass c i F (maskSet n k) := by

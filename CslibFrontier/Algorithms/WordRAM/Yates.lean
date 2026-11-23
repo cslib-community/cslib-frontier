@@ -43,7 +43,9 @@ All three transforms instantiate one parameterized `Memory.Prog` in-place butter
 (`butterflyProg`) realized via `realize` and lifted to `Basis.standard`. Each coordinate pass
 `0 ≤ i < n` visits the `2 ^ (n - 1)` aligned pairs `(loIdx (2 ^ i) p, hiIdx (2 ^ i) p)` without
 bitwise instructions, updating the input buffer starting at address `2` in place, writing the
-output length `2 ^ n` to address `1`, and returning `1`.
+output length `2 ^ n` to address `1`, and returning `1`. The in-place word-RAM butterfly
+realization, memory layout, and word-size envelopes are original to this formalization over
+[BjorklundHusfeldtKoivisto2009] and [Williams2014].
 
 ## Word-size conditions
 
