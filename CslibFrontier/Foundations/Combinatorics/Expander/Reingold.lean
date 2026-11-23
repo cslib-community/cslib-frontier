@@ -186,8 +186,7 @@ theorem min_le_one_sub_spectralExpansion_reingoldStep {V : Type*} [Fintype V]
     rw [hx]
     calc 16 / 25 * γ ≤ (1 - H.spectralExpansion) ^ 2 * γ :=
           mul_le_mul_of_nonneg_right hν hγ₀
-      _ ≤ (1 - H.spectralExpansion) ^ 2 * (1 - G.spectralExpansion) :=
-          mul_le_mul_of_nonneg_left hγ (sq_nonneg _)
+      _ ≤ (1 - H.spectralExpansion) ^ 2 * (1 - G.spectralExpansion) := by gcongr
       _ = _ := mul_comm _ _
   have hstep : (reingoldStep H e G).spectralExpansion ≤ (1 - 16 / 25 * γ) ^ 2 :=
     (spectralExpansion_reingoldStep_le H e G).trans
