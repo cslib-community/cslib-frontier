@@ -22,6 +22,11 @@ This is the two-query wrapper in the proof of [BonehShoup2023], v0.6, Theorem 7.
 each accepted word by the same full block, and checks equality of the two oracle replies.
 The wrapper always extends an accepted pair. Its reply reads are capped at the declared width.
 
+The certificate uses the library's domain-relative prefix condition. Definition 4.5
+(printed p. 152) also requires every query to be nonempty and in the PRF input domain. Applying
+the wrapper to that game requires showing that the extended messages fit the oracle domain.
+Theorem 7.3 provides this room by giving the PRF domain one extra block of capacity.
+
 ## Main definitions
 
 * `Cslib.Crypto.UHF.prefixFreeCollisionReduction`: compare oracle replies on extended queries.
@@ -88,7 +93,10 @@ private theorem isOraclePPT_prefixFreeCollisionReduction {width outLen : ℕ →
     (hright.preprocess hstage).map_with (f := fun p right => decide (p.2 = right)) hcompare
 
 /-- If valid input words are aligned at a positive width, the wrapper for a strict PPT
-collision guesser is a strict oracle-PPT prefix-free distinguisher on any oracle domain. -/
+collision guesser is a strict oracle-PPT distinguisher with prefix-incomparable queries.
+The prefix condition is relative to `oracleValid`. Applying the certificate to the source
+game also requires showing that the extended queries are nonempty and satisfy `oracleValid`,
+as they do for the domain with one extra block in [BonehShoup2023], Theorem 7.3. -/
 theorem isPrefixFreeOraclePPT_prefixFreeCollisionReduction {width outLen : ℕ → ℕ}
     {valid oracleValid : ℕ → List Bool → Bool}
     {guessPair : ℕ × ℕ → ProbComp (CollisionGuess (List Bool))}

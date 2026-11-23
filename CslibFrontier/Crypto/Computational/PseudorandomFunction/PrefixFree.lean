@@ -17,6 +17,9 @@ This module records word-oracle queries and expresses prefix-free admissibility 
 deterministic oracles of the declared reply width. Invalid queries are ignored by the prefix
 condition, and repeated identical valid queries are allowed.
 
+To apply [BonehShoup2023], Definition 4.5 (printed p. 152), one must also show that every query
+is nonempty and belongs to the PRF input domain.
+
 ## Main definitions
 
 * `Cslib.Crypto.wordQueryRunDist`: the law of the output and chronological query log.
@@ -86,7 +89,9 @@ theorem wordQueryRunDist_query_bind {α : Type} (oracle : List Bool → List Boo
 
 /-- `IsPrefixFreeOn valid outLen program` holds when, against every deterministic word oracle that
 maps valid words to `outLen`-bit replies and invalid words to `[]`, every supported query log of
-`program` satisfies `WordPrefixFree valid` ([BonehShoup2023], Definition 4.5, printed p. 152). -/
+`program` satisfies `WordPrefixFree valid`. This is the domain-relative prefix condition from
+[BonehShoup2023], Definition 4.5 (printed p. 152), which additionally requires every query to be
+nonempty and in the input domain. -/
 @[expose]
 def IsPrefixFreeOn {α : Type} (valid : List Bool → Bool) (outLen : ℕ)
     (program : WordOracleComp Unit α) : Prop :=
@@ -97,8 +102,7 @@ def IsPrefixFreeOn {α : Type} (valid : List Bool → Bool) (outLen : ℕ)
       WordPrefixFree valid result.2
 
 /-- Uniform strict oracle-PPT distinguishers whose queries are prefix-free on `valid n` with
-`outLen n`-bit valid replies at every security parameter `n` ([BonehShoup2023], Definition 4.5,
-printed p. 152). -/
+`outLen n`-bit valid replies at every security parameter `n`, in the sense of `IsPrefixFreeOn`. -/
 @[expose]
 def IsPrefixFreeOraclePPT (valid : ℕ → List Bool → Bool) (outLen : ℕ → ℕ)
     (adversary : OracleDistinguisher) : Prop :=
