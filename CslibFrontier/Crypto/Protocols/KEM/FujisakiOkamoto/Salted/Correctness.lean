@@ -17,7 +17,6 @@ import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Represented
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.BindFailure
 import CslibFrontier.Tactic.SuppCases
 
 /-!
@@ -514,38 +513,41 @@ noncomputable def decapsKey [DecidableEq (Ciphertext CT Salt)]
       (key, { st with decapsCache := (ciphertext, key) :: st.decapsCache })
 
 open Classical in
+/-- Shared decrypt/re-encrypt/fallback decapsulation path parameterized by the joint lookup
+oracle (`realJoint` in `realDecaps`, `simJoint` in `prefetchDecaps`). -/
+private noncomputable def decapsWithJoint [DecidableEq (Ciphertext CT Salt)]
+    (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K)
+    (pk : PK) (sk : SK)
+    (joint : JointInput JointPrefix M Salt →
+      StateT (CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) PMF (JointReply K R))
+    (ciphertext : Ciphertext CT Salt) :
+    StateT (CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) PMF (Option K) := do
+  match S.pke.dec sk ciphertext.pke with
+  | none => some <$> S.decapsKey ciphertext
+  | some message =>
+    let reply ← joint (S.jointInput pk message ciphertext.salt)
+    if S.pke.encDet pk message reply.coins = ciphertext.pke then
+      return some reply.key
+    else
+      some <$> S.decapsKey ciphertext
+
 /-- Real decrypt/re-encrypt decapsulation path. Its implicit call to the fused joint oracle is
 why a decapsulation query contributes one further correctness opportunity. -/
 noncomputable def realDecaps [DecidableEq (JointInput JointPrefix M Salt)]
     [DecidableEq (Ciphertext CT Salt)]
     (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K)
     (pk : PK) (sk : SK) (ciphertext : Ciphertext CT Salt) :
-    StateT (CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) PMF (Option K) := do
-  match S.pke.dec sk ciphertext.pke with
-  | none => some <$> S.decapsKey ciphertext
-  | some message =>
-    let reply ← S.realJoint pk sk (S.jointInput pk message ciphertext.salt)
-    if S.pke.encDet pk message reply.coins = ciphertext.pke then
-      return some reply.key
-    else
-      some <$> S.decapsKey ciphertext
+    StateT (CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) PMF (Option K) :=
+  S.decapsWithJoint pk sk (S.realJoint pk sk) ciphertext
 
-open Classical in
 /-- Proof-only prefetch decapsulation path. It decrypts and re-encrypts exactly as `realDecaps`,
 but uses `simJoint`, so every joint reply it creates is linked to the patched `LD` table. -/
 private noncomputable def prefetchDecaps [DecidableEq (JointInput JointPrefix M Salt)]
     [DecidableEq (Ciphertext CT Salt)]
     (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K)
     (pk : PK) (sk : SK) (ciphertext : Ciphertext CT Salt) :
-    StateT (CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) PMF (Option K) := do
-  match S.pke.dec sk ciphertext.pke with
-  | none => some <$> S.decapsKey ciphertext
-  | some message =>
-    let reply ← S.simJoint pk (S.jointInput pk message ciphertext.salt)
-    if S.pke.encDet pk message reply.coins = ciphertext.pke then
-      return some reply.key
-    else
-      some <$> S.decapsKey ciphertext
+    StateT (CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) PMF (Option K) :=
+  S.decapsWithJoint pk sk (S.simJoint pk) ciphertext
 
 /-- Keyless cached decapsulation simulator. Target-prefix direct joint queries patch
 `decapsCache`; a fresh decapsulation query samples the same independent fallback table without
@@ -917,14 +919,14 @@ private theorem prefetchDecaps_map_completionCache
   classical
   cases hdec : S.pke.dec sk ciphertext.pke with
   | none =>
-    simp only [prefetchDecaps, completionPrefetchDecapsProgram, hdec, StateT.map_apply,
-      PMF.monad_map_eq_map, OracleComp.run_interpret_map, OracleComp.run_interpret_query,
-      PMF.map_comp, Function.comp_def]
+    simp only [prefetchDecaps, decapsWithJoint, completionPrefetchDecapsProgram, hdec,
+      StateT.map_apply, PMF.monad_map_eq_map, OracleComp.run_interpret_map,
+      OracleComp.run_interpret_query, PMF.map_comp, Function.comp_def]
     simpa only [PMF.map_comp, Function.comp_def, Prod.map_apply, id_eq] using
       congrArg (PMF.map (Prod.map some id)) (S.decapsKey_map_completionCache pk ciphertext st)
   | some message =>
-    simp only [prefetchDecaps, completionPrefetchDecapsProgram, hdec, StateT.bind_apply,
-      PMF.monad_bind_eq_bind, PMF.map_bind, OracleComp.run_interpret_bind,
+    simp only [prefetchDecaps, decapsWithJoint, completionPrefetchDecapsProgram, hdec,
+      StateT.bind_apply, PMF.monad_bind_eq_bind, PMF.map_bind, OracleComp.run_interpret_bind,
       ← S.simJoint_map_completionCache pk (S.jointInput pk message ciphertext.salt) st hlinked,
       PMF.bind_map]
     refine PMF.bind_congr_on_support _ _ _ fun z _ => ?_
@@ -949,11 +951,11 @@ private theorem Linked.of_prefetchDecaps
   classical
   cases hdec : S.pke.dec sk ciphertext.pke with
   | none =>
-    supp_cases hz [prefetchDecaps, hdec, StateT.map_apply] with ⟨x, hx, rfl⟩
+    supp_cases hz [prefetchDecaps, decapsWithJoint, hdec, StateT.map_apply] with ⟨x, hx, rfl⟩
     exact hlinked.of_decapsKey hx
   | some message =>
-    supp_cases hz [prefetchDecaps, hdec, StateT.bind_apply, stateT_ite_apply, StateT.pure_apply,
-      StateT.map_apply] with ⟨reply, hreply, ⟨-, rfl⟩ | ⟨-, x, hx, rfl⟩⟩
+    supp_cases hz [prefetchDecaps, decapsWithJoint, hdec, StateT.bind_apply, stateT_ite_apply,
+      StateT.pure_apply, StateT.map_apply] with ⟨reply, hreply, ⟨-, rfl⟩ | ⟨-, x, hx, rfl⟩⟩
     · exact hlinked.of_simJoint hreply
     · exact (hlinked.of_simJoint hreply).of_decapsKey hx
 
@@ -1418,7 +1420,7 @@ private theorem realDecaps_apply_eq_prefetchDecaps
     (hy : S.GoodCache pk sk y.2) :
     S.realDecaps pk sk ciphertext st y = S.prefetchDecaps pk sk ciphertext st y := by
   classical
-  unfold realDecaps prefetchDecaps
+  unfold realDecaps prefetchDecaps decapsWithJoint
   cases hdec : S.pke.dec sk ciphertext.pke with
   | none => rfl
   | some message =>
@@ -1437,8 +1439,7 @@ private theorem realDecaps_apply_eq_prefetchDecaps
         exact hz (hy.of_subset fun entry hentry => by rwa [heq])
       rw [hcont, mul_zero, mul_zero]
 
-open Classical in
-private theorem decaps_jointCache_subset
+private theorem decapsWithJoint_jointCache_subset
     [DecidableEq (Ciphertext CT Salt)]
     (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K)
     (pk : PK) (sk : SK)
@@ -1451,25 +1452,17 @@ private theorem decaps_jointCache_subset
     (ciphertext : Ciphertext CT Salt)
     {st : CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
     {y : Option K × CacheState JointPrefix M Salt RejectPrefix Sigma CT K R}
-    (hy : y ∈ ((match S.pke.dec sk ciphertext.pke with
-      | none => some <$> S.decapsKey ciphertext
-      | some message => do
-        let reply ← joint (S.jointInput pk message ciphertext.salt)
-        if S.pke.encDet pk message reply.coins = ciphertext.pke then
-          return some reply.key
-        else
-          some <$> S.decapsKey ciphertext :
-        StateT (CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) PMF (Option K))
-          st).support) :
+    (hy : y ∈ (S.decapsWithJoint pk sk joint ciphertext st).support) :
     ∀ entry ∈ st.jointCache, entry ∈ y.2.jointCache := by
   cases hdec : S.pke.dec sk ciphertext.pke with
   | none =>
-    supp_cases hy [hdec, StateT.map_apply] with ⟨x, hx, rfl⟩
+    supp_cases hy [decapsWithJoint, hdec, StateT.map_apply] with ⟨x, hx, rfl⟩
     intro entry hentry
     dsimp only
     rwa [S.decapsKey_jointCache_eq ciphertext hx]
   | some message =>
-    supp_cases hy [hdec, StateT.bind_apply] with ⟨z, hz, hy⟩
+    classical
+    supp_cases hy [decapsWithJoint, hdec, StateT.bind_apply] with ⟨z, hz, hy⟩
     intro entry hentry
     rw [S.decapsContinuation_jointCache_eq ciphertext z hy]
     exact hjoint (S.jointInput pk message ciphertext.salt) hz entry hentry
@@ -1524,7 +1517,7 @@ private theorem realHandler_jointCache_subset
     intro input _ _ hz
     exact S.cacheJoint_jointCache_subset pk _ input (by simpa only [realJoint] using hz)
   exact S.dispatch_jointCache_subset hjoint
-    (fun ciphertext _ _ h => S.decaps_jointCache_subset pk sk hjoint ciphertext h)
+    (fun ciphertext _ _ h => S.decapsWithJoint_jointCache_subset pk sk hjoint ciphertext h)
     challenge q hy
 
 private theorem prefetchHandler_jointCache_subset
@@ -1545,7 +1538,7 @@ private theorem prefetchHandler_jointCache_subset
         ∀ entry ∈ st.jointCache, entry ∈ z.2.jointCache :=
     fun input _ _ hz => S.cacheJoint_jointCache_subset pk (fun _ _ => True) input hz
   exact S.dispatch_jointCache_subset hjoint
-    (fun ciphertext _ _ h => S.decaps_jointCache_subset pk sk hjoint ciphertext h)
+    (fun ciphertext _ _ h => S.decapsWithJoint_jointCache_subset pk sk hjoint ciphertext h)
     challenge q hy
 
 private theorem identicalUntilBad_realHandler_prefetchHandler
@@ -1584,7 +1577,7 @@ private theorem realDecaps_bad_eq_realJoint_bad
       (S.realJoint pk sk (S.jointInput pk message ciphertext.salt) st).toOuterMeasure
         {z | ¬S.GoodCache pk sk z.2} := by
   classical
-  unfold realDecaps
+  unfold realDecaps decapsWithJoint
   simp only [hdec, StateT.bind_apply, PMF.monad_bind_eq_bind]
   rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply]
   refine tsum_congr fun z => ?_
@@ -1698,26 +1691,16 @@ private theorem realDecaps_bad_le [Fintype M] [Nonempty M]
     (hs : S.GoodCache pk sk st) :
     (S.realDecaps pk sk ciphertext st).toOuterMeasure {z | ¬S.GoodCache pk sk z.2} ≤
       ENNReal.ofReal (S.pke.keyPairMaxFailProb pk sk) := by
-  classical
   cases hdec : S.pke.dec sk ciphertext.pke with
   | none =>
     refine le_of_eq_of_le ?_ zero_le
     apply toOuterMeasure_notGood_eq_zero hs
     intro z hz entry hentry
-    supp_cases hz [realDecaps, hdec, StateT.map_apply] with ⟨x, hx, rfl⟩
+    supp_cases hz [realDecaps, decapsWithJoint, hdec, StateT.map_apply] with ⟨x, hx, rfl⟩
     rwa [S.decapsKey_jointCache_eq ciphertext hx] at hentry
   | some message =>
-    unfold realDecaps
-    simp only [hdec]
-    rw [StateT.bind_apply, PMF.monad_bind_eq_bind]
-    refine (Probability.PMF.toOuterMeasure_bind_le_add _ _ {z | ¬S.GoodCache pk sk z.2} _ 0
-      fun z _ hgood => by
-        refine le_of_eq (toOuterMeasure_notGood_eq_zero (of_not_not hgood) ?_)
-        intro y hy entry hentry
-        have heq := S.decapsContinuation_jointCache_eq ciphertext z hy
-        exact heq ▸ hentry).trans (by
-          rw [add_zero]
-          exact S.realJoint_bad_le pk sk (S.jointInput pk message ciphertext.salt) hs)
+    rw [S.realDecaps_bad_eq_realJoint_bad pk sk ciphertext message hdec]
+    exact S.realJoint_bad_le pk sk (S.jointInput pk message ciphertext.salt) hs
 
 private theorem realHandler_bad_le [Fintype M] [Nonempty M]
     [DecidableEq (JointInput JointPrefix M Salt)]
