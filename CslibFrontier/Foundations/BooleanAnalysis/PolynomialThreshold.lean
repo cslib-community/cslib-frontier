@@ -192,8 +192,6 @@ theorem one_le_sum_abs_fourierCoeff_of_nonneg_mul {T : Finset (Finset ι)}
   obtain ⟨x₀, hx₀⟩ := Function.ne_iff.1 hp₀
   have hpos : 0 < 𝔼 x, |p x| :=
     expect_pos' (fun x _ => abs_nonneg _) ⟨x₀, mem_univ x₀, abs_pos.2 hx₀⟩
-  have hcoeff (S : Finset ι) : |fourierCoeff p S| ≤ 𝔼 x, |p x| :=
-    (abs_expect_le _ _).trans_eq (by simp only [abs_mul, abs_chi, mul_one])
   have key : 𝔼 x, |p x| ≤ (∑ S ∈ T, |fourierCoeff (fun x => signVal (f x)) S|) * 𝔼 x, |p x| :=
     calc 𝔼 x, |p x| = 𝔼 x, signVal (f x) * p x :=
           expect_congr rfl fun x _ => (signVal_mul_eq_abs hp x).symm
@@ -201,7 +199,7 @@ theorem one_le_sum_abs_fourierCoeff_of_nonneg_mul {T : Finset (Finset ι)}
           expect_mul_eq_sum_of_fourierCoeff_eq_zero hpT _
       _ ≤ ∑ S ∈ T, |fourierCoeff (fun x => signVal (f x)) S| * 𝔼 x, |p x| :=
           sum_le_sum fun S _ => (le_abs_self _).trans <| (abs_mul _ _).trans_le <|
-            mul_le_mul_of_nonneg_left (hcoeff S) (abs_nonneg _)
+            mul_le_mul_of_nonneg_left (abs_fourierCoeff_le_expect_abs p S) (abs_nonneg _)
       _ = (∑ S ∈ T, |fourierCoeff (fun x => signVal (f x)) S|) * 𝔼 x, |p x| := (sum_mul ..).symm
   exact le_of_mul_le_mul_right (by rwa [one_mul]) hpos
 

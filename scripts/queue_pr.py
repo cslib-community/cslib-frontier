@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Add a pull request to the merge queue at exactly the approved head.
 
-Usage: python3 scripts/queue_pr.py PR SHA [--wait MINUTES] [--repo OWNER/NAME]
+Usage: python3 scripts/queue_pr.py PR SHA [--wait MINUTES] [--hold-hubs] [--repo OWNER/NAME]
 
 This is the queueing half of approve-and-queue (AGENTS.md, "Approve and queue"). It refuses
 unless the pull request is open, not a draft, based on `main`, has head SHA, and merges cleanly
@@ -11,8 +11,11 @@ While that check is still running it waits up to `--wait` minutes (default 0: re
 it always waits briefly for GitHub to compute mergeability. Just before enqueueing, if other pull
 requests are already ahead in the merge queue, it replays that queue prefix in a full local Git
 repository (supporting `GIT_DIR`, including bare repositories) and refuses on a textual conflict or
-when automatic replay is unavailable. It then enqueues with
-`expectedHeadOid` = SHA, so a push after the approval can never be queued in its place.
+when automatic replay is unavailable. When active queue entries are ahead and the PR modifies
+high-fan-in `CslibFrontier/` hub modules (`>= 500` transitive importers), it prints an advisory
+rebuild notice after enqueueing, or refuses before enqueueing when `--hold-hubs` is passed. It then
+enqueues with `expectedHeadOid` = SHA, so a push after the approval can never be queued in its
+place.
 Whenever it sleeps or replays a non-empty queue prefix, it snapshots the PR discussion beforehand
 and rereads it on the mutation side just before enqueueing. A changed body, comment, submitted
 review or inline thread stops the enqueue so the reviewer can reread and rerun. Check events and
@@ -470,6 +473,117 @@ def replay_repository(root: Path | None = None) -> Path | None:
     return None
 
 
+def _format_hub_hits(hits: list[tuple[str, int]], limit: int = 3) -> str:
+    shown = [f"`{rel}` ({trans:,} transitive importers)" for rel, trans in hits[:limit]]
+    if len(hits) > limit:
+        shown.append(f"and {len(hits) - limit} more")
+    return ", ".join(shown)
+
+
+def _evaluate_hub_impact(
+    repo_dir: Path,
+    base: str,
+    sha: str,
+    ahead: str,
+    number: int,
+    *,
+    cr_mod,
+    root: Path | None = None,
+    hold_hubs: bool = False,
+) -> tuple[str | None, str | None]:
+    """Check whether `sha` modifies high-fan-in `CslibFrontier/` modules behind active queue entries.
+
+    Returns `(refusal, notice)`. Advisory mode (`hold_hubs=False`) skips quietly when commits or a
+    local `CslibFrontier/` source tree are unavailable; `--hold-hubs` fails closed whenever `sha`
+    modifies existing `CslibFrontier/*.lean` modules and fan-in cannot be verified.
+    """
+    for oid in (base, sha):
+        if cr_mod.git(repo_dir, "cat-file", "-e", f"{oid}^{{commit}}", ok=(0, 1, 128)).returncode:
+            if hold_hubs:
+                return (
+                    f"--hold-hubs could not inspect commit {oid[:12]} in {repo_dir}; "
+                    "run from a full clone or omit --hold-hubs.",
+                    None,
+                )
+            return None, None
+    try:
+        mb = cr_mod.merge_base(repo_dir, base, sha)
+        diff = cr_mod.git(
+            repo_dir, "diff", "--no-ext-diff", "--no-renames", "--diff-filter=MD",
+            "--name-only", "-z", mb, sha, "--", "CslibFrontier/",
+        )
+    except cr_mod.GitError as error:
+        if hold_hubs:
+            return f"--hold-hubs could not diff {sha[:12]} against {base[:12]}: {error}", None
+        return None, None
+    modified = sorted(
+        p for p in diff.stdout.decode("utf-8", "surrogateescape").split("\0")
+        if p.endswith(".lean")
+    )
+    if not modified:
+        return None, None
+    scan_root = (
+        repo_dir if (repo_dir / "CslibFrontier").is_dir()
+        else (ROOT if root is None and (ROOT / "CslibFrontier").is_dir() else None)
+    )
+    try:
+        import check_hub_impact
+    except ImportError:
+        check_hub_impact = None
+    if scan_root is None or check_hub_impact is None:
+        if hold_hubs:
+            return (
+                "modifies `CslibFrontier/*.lean` while merge queue has entries ahead "
+                f"({ahead}) and `--hold-hubs` needs a local `CslibFrontier/` checkout and "
+                "`scripts/check_hub_impact.py`; run from a full checkout of `main` or omit "
+                "--hold-hubs.",
+                None,
+            )
+        return None, None
+    try:
+        graph, _total = check_hub_impact.build_reverse_graph(scan_root)
+    except OSError as error:
+        if hold_hubs:
+            return f"--hold-hubs could not scan `CslibFrontier/` imports: {error}", None
+        return None, None
+    threshold = check_hub_impact.DEFAULT_THRESHOLD
+    high_threshold = getattr(check_hub_impact, "HIGH_THRESHOLD", 2000)
+    hits: list[tuple[str, int]] = []
+    for rel in modified:
+        target = scan_root / rel
+        if not target.is_file() or target.is_symlink():
+            if hold_hubs and not cr_mod.git(
+                repo_dir, "cat-file", "-e", f"{base}:{rel}", ok=(0, 1, 128)
+            ).returncode:
+                return (
+                    f"--hold-hubs needs `{scan_root}` updated to current `main` "
+                    f"(`{rel}` is missing or symlinked locally); sync `main` or omit --hold-hubs.",
+                    None,
+                )
+            continue
+        mod = ".".join(Path(rel).with_suffix("").parts)
+        trans = check_hub_impact.transitive_importers(graph, mod)
+        if trans >= threshold:
+            hits.append((rel, trans))
+    if not hits:
+        return None, None
+    hits.sort(key=lambda item: (-item[1], item[0]))
+    summary = _format_hub_hits(hits)
+    if hold_hubs:
+        return (
+            f"modifies high-fan-in hub module(s) ({summary}) while merge queue has entries ahead "
+            f"({ahead}); wait for the queue to clear or omit --hold-hubs.",
+            None,
+        )
+    severity = "Warning" if hits[0][1] >= high_threshold else "Note"
+    notice = (
+        f"{severity}: #{number} modifies high-fan-in hub module(s) ({summary}) with active queue "
+        f"entries ahead ({ahead}); sequence broad hub refactors so trailing PRs do not stall "
+        "behind cold rebuilds."
+    )
+    return None, notice
+
+
 def check_queue_prefix(
     owner: str,
     name: str,
@@ -477,12 +591,15 @@ def check_queue_prefix(
     sha: str,
     root: Path | None = None,
     before_replay: Callable[[], None] | None = None,
+    hold_hubs: bool = False,
+    on_hub_notice: Callable[[str], None] | None = None,
 ) -> str | None:
     """Replay any merge-queue entries ahead of `number`.
 
     Returns `None` when the queue ahead of `number` is empty or merges cleanly, and returns a
-    refusal description when the replay conflicts or when non-empty queue entries cannot be
-    replayed automatically (missing helper scripts or no full local Git repository).
+    refusal description when the replay conflicts, when `--hold-hubs` blocks a high-fan-in hub PR
+    behind active queue entries, or when non-empty queue entries cannot be replayed automatically
+    (missing helper scripts or no full local Git repository).
     """
     scripts_dir = str(Path(__file__).resolve().parent)
     if scripts_dir not in sys.path:
@@ -516,6 +633,7 @@ def check_queue_prefix(
         if os.environ.get("GIT_DIR") and not Path(os.environ["GIT_DIR"]).is_absolute():
             env_patch["GIT_DIR"] = str((Path.cwd() / os.environ["GIT_DIR"]).resolve())
         old_git_dir = os.environ.get("GIT_DIR")
+        hub_refusal, hub_notice = None, None
         try:
             if env_patch:
                 os.environ["GIT_DIR"] = env_patch["GIT_DIR"]
@@ -525,12 +643,19 @@ def check_queue_prefix(
             output = io.StringIO()
             with contextlib.redirect_stdout(output):
                 rc = queue_status.check_prefix(repo_dir, base, entries, sha)
+            if rc == 0:
+                hub_refusal, hub_notice = _evaluate_hub_impact(
+                    repo_dir, base, sha, ahead, number,
+                    cr_mod=queue_status.cr, root=root, hold_hubs=hold_hubs,
+                )
         finally:
             if env_patch:
                 if old_git_dir is None:
                     os.environ.pop("GIT_DIR", None)
                 else:
                     os.environ["GIT_DIR"] = old_git_dir
+        if rc == 0 and hub_refusal is not None:
+            return hub_refusal
         if rc == 0 and queue_status.prefix(owner, name, number, sha,
                                            graphql=gh_graphql) != (base, entries):
             return "the merge queue changed during prefix replay; rerun the helper."
@@ -542,6 +667,8 @@ def check_queue_prefix(
             git_error) as error:
         raise GhError(f"merge-queue prefix check failed: {error}") from error
     if rc == 0:
+        if hub_notice is not None and on_hub_notice is not None:
+            on_hub_notice(hub_notice)
         return None
     details = " ".join(line.strip() for line in output.getvalue().splitlines() if line.strip())
     return (f"{details}; wait for the conflicting queue entry to land or leave the queue, "
@@ -554,6 +681,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("sha", help="the full approved head commit")
     parser.add_argument("--wait", type=float, default=0, metavar="MINUTES",
                         help="wait this long for running required checks (default 0)")
+    parser.add_argument("--hold-hubs", action="store_true",
+                        help="refuse to enqueue when active queue entries are ahead and the PR "
+                             "modifies a high-fan-in CslibFrontier hub (>= 500 importers)")
     parser.add_argument("--repo", default=REPO, help=f"OWNER/NAME (default {REPO})")
     args = parser.parse_args(argv)
     if not re.fullmatch(r"[0-9a-f]{40}", args.sha):
@@ -595,8 +725,11 @@ def main(argv: list[str] | None = None) -> int:
             if discussion is None:
                 discussion = fetch_discussion(pr["id"])
 
+        notices: list[str] = []
         conflict = check_queue_prefix(owner, name, args.pr, args.sha,
-                                      before_replay=snapshot_before_replay)
+                                      before_replay=snapshot_before_replay,
+                                      hold_hubs=args.hold_hubs,
+                                      on_hub_notice=notices.append)
         if conflict is not None:
             print(f"#{args.pr} not queued: {conflict}")
             return 1
@@ -614,6 +747,8 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 2
     print(f"#{args.pr} queued at {args.sha[:12]} (position {entry['position']}).")
+    for notice in notices:
+        print(notice)
     return 0
 
 

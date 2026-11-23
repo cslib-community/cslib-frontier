@@ -263,7 +263,7 @@ private theorem while_fallback_spec {w : ℕ} (pat : List ℕ) (pi : Array ℕ)
       let x₁ := x.set go 0
       have hb : ExecWithin w fallbackBody x x₁ 3 := by
         unfold fallbackBody
-        ram_eval [x₁, hz, hk]
+        wram_exec [hz, hk]
       have hstop : ¬(Cond.lt zero go).Holds x₁ := by simp +decide [Cond.holds_lt, x₁, hz]
       have hx₁_k : x₁.regs regk = 0 := by simp +decide [x₁, hk]
       have hx₁_ch : x₁.regs regch = x.regs regch := by simp +decide [x₁]
@@ -284,7 +284,8 @@ private theorem while_fallback_spec {w : ℕ} (pat : List ℕ) (pi : Array ℕ)
       · let x₁ := ((x.set t0 (x.regs patBase + k)).set t0 pat[k]).set go 0
         have hb : ExecWithin w fallbackBody x x₁ 5 := by
           unfold fallbackBody
-          ram_eval [x₁, hz, hk, hk_pos, hread_pat, hmatch, hf_pk]
+          wram_exec [hz, hk, hk_pos, hread_pat, hmatch, hf_pk]
+          rw [← hmatch]
         have hstop : ¬(Cond.lt zero go).Holds x₁ := by simp +decide [Cond.holds_lt, x₁, hz]
         have hx₁_k : x₁.regs regk = k := by simp +decide [x₁, hk]
         have hx₁_ch : x₁.regs regch = x.regs regch := by simp +decide [x₁]
@@ -309,7 +310,7 @@ private theorem while_fallback_spec {w : ℕ} (pat : List ℕ) (pi : Array ℕ)
           t0 (x.regs piBase + (k - 1))).set regk k'
         have hb : ExecWithin w fallbackBody x x₁ 8 := by
           unfold fallbackBody
-          ram_eval [x₁, hz, ho, hk, hk_pos, hread_pat, hmatch, hread_pi, hf_pk, hf_km1, hf_pik]
+          wram_exec [hz, ho, hk, hk_pos, hread_pat, hmatch, hread_pi, hf_pk, hf_km1, hf_pik]
         have hx₁_pb : x₁.regs patBase = x.regs patBase := by simp +decide [x₁]
         have hx₁_pib : x₁.regs piBase = x.regs piBase := by simp +decide [x₁]
         have hx₁_ch : x₁.regs regch = x.regs regch := by simp +decide [x₁]
@@ -395,27 +396,22 @@ private theorem advanceCode_spec {w : ℕ} (pat : List ℕ) (pi : Array ℕ)
         regk (y₁.regs regk + 1)
     have htail : ExecWithin w tail y₁ y 4 := by
       unfold tail
-      ram_eval [y, hy₁_one, hy₁_ch, hread₁, hm, hf_pk₁, hf_k1]
+      wram_exec [hy₁_one, hy₁_ch, hread₁, hm, hf_pk₁, hf_k1]
+      rw [← hm]
     have hy_k : y.regs regk = y₁.regs regk + 1 := by simp +decide [y]
     refine ⟨y, 1 + (T₁ + 4), hx₀_go.seq (hloop.seq htail), ?_, by rw [hy_k]; omega, hmem₁,
-      fun r hr1 hr2 hr3 => ?_⟩
-    · rw [hy_k, ← hadv₁]
-      simp only [hm, ↓reduceIte]
-    · simp only [y, Data.set_regs, Function.update_of_ne hr1, Function.update_of_ne hr3]
-      rw [hfr₁ r hr1 hr2 hr3]
-      simp only [x₀, Data.set_regs, Function.update_of_ne hr2]
+      by regs_frame⟩
+    rw [hy_k, ← hadv₁]
+    simp only [hm, ↓reduceIte]
   · let y := ((y₁.set t0 (y₁.regs patBase + y₁.regs regk)).set t0 pat[y₁.regs regk]).set regk 0
     have htail : ExecWithin w tail y₁ y 5 := by
       unfold tail
-      ram_eval [y, hy₁_ch, hread₁, hm, hf_pk₁]
+      wram_exec [hy₁_ch, hread₁, hm, hf_pk₁]
     have hy_k : y.regs regk = 0 := by simp +decide [y]
     refine ⟨y, 1 + (T₁ + 5), hx₀_go.seq (hloop.seq htail), ?_, by rw [hy_k]; omega, hmem₁,
-      fun r hr1 hr2 hr3 => ?_⟩
-    · rw [hy_k, ← hadv₁]
-      simp only [hm, ↓reduceIte]
-    · simp only [y, Data.set_regs, Function.update_of_ne hr1, Function.update_of_ne hr3]
-      rw [hfr₁ r hr1 hr2 hr3]
-      simp only [x₀, Data.set_regs, Function.update_of_ne hr2]
+      by regs_frame⟩
+    rw [hy_k, ← hadv₁]
+    simp only [hm, ↓reduceIte]
 
 /-! ## Execution of `buildPrefixNonempty` and `prefixCode` -/
 
@@ -447,10 +443,7 @@ private theorem buildPrefixNonempty_spec {w : ℕ} (pat : List ℕ) (hpos : 0 < 
   let x₀ := ((x.write pib 0).set regidx 1).set regk 0
   have hinit : ExecWithin (B := .standard) w
       (ram[ *piBase ← zero; regidx ← one; regk ← zero ]) x x₀ 3 := by
-    have h := (ExecWithin.store (B := .standard) (w := w) (a := piBase) (s := zero) (x := x)).seq
-      ((ExecWithin.copy (d := regidx) (s := one)).seq (ExecWithin.copy (d := regk) (s := zero)))
-    simpa only [x₀, pib, hz, ho, Data.write_regs, Data.set_regs,
-      Function.update_of_ne (show zero ≠ regidx by decide)] using h.mono (by omega)
+    wram_exec [pib, hz, ho]
   have hx₀_I : I x₀ := by
     have hx₀_idx : x₀.regs regidx = 1 := by simp +decide [x₀]
     refine ⟨by simp +decide [x₀, hz], by simp +decide [x₀, ho], by simp +decide [x₀, pb],
@@ -494,14 +487,7 @@ private theorem buildPrefixNonempty_spec {w : ℕ} (pat : List ℕ) (hpos : 0 < 
     have hread_q : s.mem (pb + q) = pat[q] := hs_pat.get q hq_lt
     let s₁ := (s.set t0 (pb + q)).set regch pat[q]
     have hpre : ExecWithin w (ram[ t0 ← patBase + regidx; regch ← *t0 ]) s s₁ 2 := by
-      have h1 : ExecWithin w (ram[ t0 ← patBase + regidx ]) s (s.set t0 (pb + q)) 1 := by
-        simpa only [BinOp.eval, spb, q] using ExecWithin.bin (f := .add) (d := t0) (i := patBase)
-          (j := regidx) (x := s) (by simpa only [BinOp.eval, spb, q] using hf_pbq)
-      have h2 : ExecWithin (B := .standard) w (ram[ regch ← *t0 ])
-          (s.set t0 (pb + q)) s₁ 1 := by
-        simpa only [s₁, Data.set_mem, Data.set_regs, Function.update_self, hread_q] using
-          ExecWithin.load (B := .standard) (d := regch) (a := t0) (x := s.set t0 (pb + q))
-      exact h1.seq h2
+      wram_exec [spb, q, hread_q, hf_pbq]
     have hs₁_pb : s₁.regs patBase = pb := by simp +decide [s₁, spb]
     have hs₁_pib : s₁.regs piBase = pib := by simp +decide [s₁, spib]
     have hs₁_k : s₁.regs regk = s.regs regk := by simp +decide [s₁]
@@ -533,53 +519,14 @@ private theorem buildPrefixNonempty_spec {w : ℕ} (pat : List ℕ) (hpos : 0 < 
     let z := ((s₂.set t0 (pib + q)).write (pib + q) (s₂.regs regk)).set regidx (q + 1)
     have hpost : ExecWithin w (ram[ t0 ← piBase + regidx; *t0 ← regk; regidx ← regidx + one ])
         s₂ z 3 := by
-      have h1 : ExecWithin w (ram[ t0 ← piBase + regidx ]) s₂ (s₂.set t0 (pib + q)) 1 := by
-        simpa only [BinOp.eval, hs₂_pib, hs₂_idx] using ExecWithin.bin (f := .add) (d := t0)
-          (i := piBase) (j := regidx) (x := s₂)
-          (by simpa only [BinOp.eval, hs₂_pib, hs₂_idx] using hf_pibq)
-      have h2 : ExecWithin (B := .standard) w (ram[ *t0 ← regk ]) (s₂.set t0 (pib + q))
-          ((s₂.set t0 (pib + q)).write (pib + q) (s₂.regs regk)) 1 := by
-        simpa only [Data.set_regs, Function.update_self,
-          Function.update_of_ne (show regk ≠ t0 by decide)] using
-          ExecWithin.store (B := .standard) (a := t0) (s := regk) (x := s₂.set t0 (pib + q))
-      have h3 : ExecWithin w (ram[ regidx ← regidx + one ])
-          ((s₂.set t0 (pib + q)).write (pib + q) (s₂.regs regk)) z 1 := by
-        simpa only [z, BinOp.eval, Data.write_regs, Data.set_regs, hs₂_idx, hs₂_one,
-          Function.update_of_ne (show regidx ≠ t0 by decide),
-          Function.update_of_ne (show one ≠ t0 by decide)] using
-          ExecWithin.bin (f := .add) (d := regidx) (i := regidx) (j := one)
-            (x := (s₂.set t0 (pib + q)).write (pib + q) (s₂.regs regk))
-            (by simpa only [BinOp.eval, Data.write_regs, Data.set_regs, hs₂_idx, hs₂_one,
-              Function.update_of_ne (show regidx ≠ t0 by decide),
-              Function.update_of_ne (show one ≠ t0 by decide)] using hf_q1)
-      exact h1.seq (h2.seq h3)
+      wram_exec [hs₂_pib, hs₂_idx, hs₂_one, hf_pibq, hf_q1]
     unfold prefixBody
     have hz_idx : z.regs regidx = q + 1 := by simp +decide [z]
     have hz_k : z.regs regk = s₂.regs regk := by simp +decide [z]
     refine ⟨z, 2 + (T_adv + 3), hpre.seq (hadv_exec.seq hpost), ?_, ?_⟩
-    · refine ⟨?_, ?_, ?_, ?_, ?_, by rw [hz_idx]; omega, by rw [hz_idx]; omega,
-        by rw [hz_k, hz_idx, hs₂_k], ?_, ?_, ?_⟩
-      · simp only [z, Data.set_regs, Data.write_regs,
-          Function.update_of_ne (show zero ≠ regidx by decide),
-          Function.update_of_ne (show zero ≠ t0 by decide)]
-        exact (hadv_fr zero (by decide) (by decide) (by decide)).trans (by simp +decide [s₁, sz])
-      · simp only [z, Data.set_regs, Data.write_regs,
-          Function.update_of_ne (show one ≠ regidx by decide),
-          Function.update_of_ne (show one ≠ t0 by decide)]
-        exact hs₂_one
-      · simp only [z, Data.set_regs, Data.write_regs,
-          Function.update_of_ne (show patBase ≠ regidx by decide),
-          Function.update_of_ne (show patBase ≠ t0 by decide)]
-        exact (hadv_fr patBase (by decide) (by decide) (by decide)).trans hs₁_pb
-      · simp only [z, Data.set_regs, Data.write_regs,
-          Function.update_of_ne (show patLen ≠ regidx by decide),
-          Function.update_of_ne (show patLen ≠ t0 by decide)]
-        exact (hadv_fr patLen (by decide) (by decide) (by decide)).trans
-          (by simp +decide [s₁, splen])
-      · simp only [z, Data.set_regs, Data.write_regs,
-          Function.update_of_ne (show piBase ≠ regidx by decide),
-          Function.update_of_ne (show piBase ≠ t0 by decide)]
-        exact hs₂_pib
+    · refine ⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+        by rw [hz_idx]; omega, by rw [hz_idx]; omega,
+        by rw [hz_k, hz_idx, hs₂_k], ?_, ?_, by regs_frame⟩
       · intro j hj
         rw [hz_idx] at hj
         simp only [z, Data.set_mem, Data.write_mem]
@@ -592,12 +539,6 @@ private theorem buildPrefixNonempty_spec {w : ℕ} (pat : List ℕ) (hpos : 0 < 
         simp only [z, Data.set_mem, Data.write_mem]
         rw [Function.update_of_ne (by omega), hadv_mem]
         exact smem_fr a ha
-      · intro r hr1 hr2 hr3 hr4 hr5
-        simp only [z, Data.set_regs, Data.write_regs, Function.update_of_ne hr1,
-          Function.update_of_ne hr5]
-        rw [hadv_fr r hr2 hr4 hr5]
-        simp only [s₁, Data.set_regs, Function.update_of_ne hr3, Function.update_of_ne hr5]
-        exact sreg_fr r hr1 hr2 hr3 hr4 hr5
     · unfold prefixPotential
       rw [hz_k, hz_idx, hs₂_k, ← hk'_eq, ← hadv_k]
       change 2 + (T_adv + 3) + 2 + (10 * s₂.regs regk + 31 * (pat.length - (q + 1))) ≤
@@ -766,21 +707,7 @@ private theorem emptyPatCode_spec {w : ℕ} (txt : List ℕ) (hw : Fits w (2 * t
   have hf_n1 : Fits w (txt.length + 1) := hw.of_le (by omega)
   let x₀ := ((x.set t1 (txt.length + 1)).write (3 + txt.length) (txt.length + 1)).set regidx 0
   have hinit : ExecWithin w (ram[ t1 ← txtLen + one; *out ← t1; regidx ← zero ]) x x₀ 3 := by
-    have h1 : ExecWithin w (ram[ t1 ← txtLen + one ]) x (x.set t1 (txt.length + 1)) 1 := by
-      simpa only [BinOp.eval, hn, ho] using ExecWithin.bin (f := .add) (d := t1) (i := txtLen)
-        (j := one) (x := x) (by simpa only [BinOp.eval, hn, ho] using hf_n1)
-    have h2 : ExecWithin (B := .standard) w (ram[ *out ← t1 ]) (x.set t1 (txt.length + 1))
-        ((x.set t1 (txt.length + 1)).write (3 + txt.length) (txt.length + 1)) 1 := by
-      simpa only [Data.set_regs, Function.update_self,
-        Function.update_of_ne (show out ≠ t1 by decide), hout] using
-        ExecWithin.store (B := .standard) (a := out) (s := t1) (x := x.set t1 (txt.length + 1))
-    have h3 : ExecWithin (B := .standard) w (ram[ regidx ← zero ])
-        ((x.set t1 (txt.length + 1)).write (3 + txt.length) (txt.length + 1)) x₀ 1 := by
-      simpa only [x₀, Data.write_regs, Data.set_regs, hz,
-        Function.update_of_ne (show zero ≠ t1 by decide)] using
-        ExecWithin.copy (B := .standard) (d := regidx) (s := zero)
-          (x := (x.set t1 (txt.length + 1)).write (3 + txt.length) (txt.length + 1))
-    exact h1.seq (h2.seq h3)
+    wram_exec [hn, ho, hout, hz, hf_n1]
   let P (j : ℕ) (s : Data 15) : Prop :=
     s.regs one = 1 ∧ s.regs out = 3 + txt.length ∧ s.regs t1 = txt.length + 1 ∧
       s.mem (3 + txt.length) = txt.length + 1 ∧
@@ -855,33 +782,6 @@ private structure SearchRegs (I : SearchInput) (s : Data 15) : Prop where
   pib_eq : s.regs piBase = 3 + I.pat.length + I.txt.length
   out_eq : s.regs out = 3 + 2 * I.pat.length + I.txt.length
 
-private theorem SearchRegs.of_advance_frame {I : SearchInput} {s₁ s₂ : Data 15}
-    (hr : SearchRegs I s₁)
-    (hfr : ∀ r : Fin 15, r ≠ regk → r ≠ go → r ≠ t0 → s₂.regs r = s₁.regs r) :
-    SearchRegs I s₂ :=
-  ⟨(hfr _ (by decide) (by decide) (by decide)).trans hr.zero_eq,
-   (hfr _ (by decide) (by decide) (by decide)).trans hr.one_eq,
-   (hfr _ (by decide) (by decide) (by decide)).trans hr.pb_eq,
-   (hfr _ (by decide) (by decide) (by decide)).trans hr.pm_eq,
-   (hfr _ (by decide) (by decide) (by decide)).trans hr.tb_eq,
-   (hfr _ (by decide) (by decide) (by decide)).trans hr.tn_eq,
-   (hfr _ (by decide) (by decide) (by decide)).trans hr.pib_eq,
-   (hfr _ (by decide) (by decide) (by decide)).trans hr.out_eq⟩
-
-private theorem SearchRegs.of_prefix_frame {I : SearchInput} {x y : Data 15}
-    (hr : SearchRegs I x)
-    (hfr : ∀ r : Fin 15,
-      r ≠ regidx → r ≠ regk → r ≠ regch → r ≠ go → r ≠ t0 → y.regs r = x.regs r) :
-    SearchRegs I y :=
-  ⟨(hfr _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hr.zero_eq,
-   (hfr _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hr.one_eq,
-   (hfr _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hr.pb_eq,
-   (hfr _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hr.pm_eq,
-   (hfr _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hr.tb_eq,
-   (hfr _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hr.tn_eq,
-   (hfr _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hr.pib_eq,
-   (hfr _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hr.out_eq⟩
-
 private structure SearchInv (I : SearchInput) (pi : Array ℕ) (s : Data 15) : Prop where
   regs_ok : SearchRegs I s
   idx_le : s.regs regidx ≤ I.txt.length
@@ -925,10 +825,7 @@ private theorem searchPostBranch_full_step {w : ℕ} (I : SearchInput) (hp : 0 <
   unfold searchPostBranch
   wram_exec [hr₂.one_eq, hr₂.pm_eq, hr₂.pib_eq, hr₂.out_eq, hfull, hread_pi_last,
     hf_i1, hf_shift, hf_oc1, hf_out_oc, hf_mm1, hf_pibm]
-  refine ⟨⟨by wram_simp [hr₂.zero_eq], by wram_simp [hr₂.one_eq], by wram_simp [hr₂.pb_eq],
-    by wram_simp [hr₂.pm_eq], by wram_simp [hr₂.tb_eq], by wram_simp [hr₂.tn_eq],
-    by wram_simp [hr₂.pib_eq], by wram_simp [hr₂.out_eq]⟩,
-    by wram_simp, by wram_simp, by wram_simp, ?_⟩
+  refine ⟨by regs_frame, by wram_simp, by wram_simp, by wram_simp, ?_⟩
   wram_simp
   congr 1
   omega
@@ -948,10 +845,7 @@ private theorem searchPostBranch_nonfull_step {w : ℕ} (I : SearchInput)
   refine WP.exists_execWithin ?_
   unfold searchPostBranch
   wram_exec [hr₂.one_eq, hr₂.pm_eq, hkne, hf_i1]
-  exact ⟨⟨by wram_simp [hr₂.zero_eq], by wram_simp [hr₂.one_eq], by wram_simp [hr₂.pb_eq],
-    by wram_simp [hr₂.pm_eq], by wram_simp [hr₂.tb_eq], by wram_simp [hr₂.tn_eq],
-    by wram_simp [hr₂.pib_eq], by wram_simp [hr₂.out_eq]⟩,
-    by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
+  exact ⟨by regs_frame, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
 
 private theorem searchBody_spec {w : ℕ} (I : SearchInput) (hp : 0 < I.pat.length)
     (hw : Fits w (2 * I.pat.length + 2 * I.txt.length + 4))
@@ -979,10 +873,7 @@ private theorem searchBody_spec {w : ℕ} (I : SearchInput) (hp : 0 < I.pat.leng
       s₁.regs regch = I.txt[s.regs regidx] ∧ s₁.mem = s.mem := by
     refine WP.exists_execWithin ?_
     wram_exec [hrs.tb_eq, hread_txt, hf_tbi]
-    exact ⟨⟨by wram_simp [hrs.zero_eq], by wram_simp [hrs.one_eq], by wram_simp [hrs.pb_eq],
-      by wram_simp [hrs.pm_eq], by wram_simp [hrs.tb_eq], by wram_simp [hrs.tn_eq],
-      by wram_simp [hrs.pib_eq], by wram_simp [hrs.out_eq]⟩,
-      by wram_simp, by wram_simp, by wram_simp, by wram_simp, rfl⟩
+    exact ⟨by regs_frame, by wram_simp, by wram_simp, by wram_simp, by wram_simp, rfl⟩
   obtain ⟨s₁, hpre, hr₁, hs₁_idx, hs₁_oc, hs₁_k, hs₁_ch, hs₁_mem⟩ := hpre_ex
   obtain ⟨s₂, T_adv, hadv_exec, hadv_k, hadv_pot, hadv_mem, hadv_fr⟩ :=
     advanceCode_spec I.pat pi hpi_dec s₁
@@ -998,11 +889,9 @@ private theorem searchBody_spec {w : ℕ} (I : SearchInput) (hp : 0 < I.pat.leng
   rw [hs₁_k, hs₁_ch] at hadv_k
   rw [hs₁_k] at hadv_pot
   rw [hs₁_mem] at hadv_mem
-  have hr₂ : SearchRegs I s₂ := hr₁.of_advance_frame hadv_fr
-  have hs₂_idx : s₂.regs regidx = s.regs regidx :=
-    (hadv_fr regidx (by decide) (by decide) (by decide)).trans hs₁_idx
-  have hs₂_oc : s₂.regs outCnt = s.regs outCnt :=
-    (hadv_fr outCnt (by decide) (by decide) (by decide)).trans hs₁_oc
+  have hr₂ : SearchRegs I s₂ := by regs_frame
+  have hs₂_idx : s₂.regs regidx = s.regs regidx := by regs_frame
+  have hs₂_oc : s₂.regs outCnt = s.regs outCnt := by regs_frame
   have hk'_max : s₂.regs regk =
       maxPrefixSuffixUpTo I.pat (I.txt.take (s.regs regidx + 1)) I.pat.length := by
     rw [hadv_k]
@@ -1149,7 +1038,7 @@ private theorem nonemptyPatCode_spec {w : ℕ} (I : SearchInput) (hp : 0 < I.pat
       (by rw [hrx.pb_eq]; exact hpat)
       (by rw [hrx.pb_eq, hrx.pib_eq]; omega)
   rw [hrx.pib_eq] at hpi_holds₁ hmem_fr₁
-  have hry₁ : SearchRegs I y₁ := hrx.of_prefix_frame hreg_fr₁
+  have hry₁ : SearchRegs I y₁ := by regs_frame
   have hpat₁ : Block.HoldsList 3 I.pat y₁.mem :=
     hpat.frame fun a ha1 ha2 => hmem_fr₁ a (Or.inl (by omega))
   have htxt₁ : Block.HoldsList (3 + I.pat.length) I.txt y₁.mem :=
@@ -1162,10 +1051,7 @@ private theorem nonemptyPatCode_spec {w : ℕ} (I : SearchInput) (hp : 0 < I.pat
       y₂.mem = y₁.mem := by
     refine WP.exists_execWithin ?_
     wram_exec [hry₁.zero_eq]
-    exact ⟨⟨by wram_simp [hry₁.zero_eq], by wram_simp [hry₁.one_eq], by wram_simp [hry₁.pb_eq],
-      by wram_simp [hry₁.pm_eq], by wram_simp [hry₁.tb_eq], by wram_simp [hry₁.tn_eq],
-      by wram_simp [hry₁.pib_eq], by wram_simp [hry₁.out_eq]⟩,
-      by wram_simp, by wram_simp, by wram_simp, rfl⟩
+    exact ⟨by regs_frame, by wram_simp, by wram_simp, by wram_simp, rfl⟩
   obtain ⟨y₂, hprep, hry₂, hy₂_idx, hy₂_oc, hy₂_k, hy₂_mem⟩ := hprep_ex
   generalize hpi_def : computePrefix I.pat.toArray = pi
   rw [hpi_def] at hpi_holds₁

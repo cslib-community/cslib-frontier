@@ -11,6 +11,10 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.Concatenate
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersections
 public import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
 import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Tactic.FieldSimp
+import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.NormNum
 
 /-!
 # Indexed endpoint and observation parity of polygonal routes
@@ -19,7 +23,8 @@ import Mathlib.Algebra.BigOperators.Fin
 `Route.rayParity_endpoints_add_eq_sum_intersections` applies the straight observation law
 on every actual segment, with explicit reciprocal closed endpoint exclusions. Route ray
 parity also adds under concatenation and is invariant under reversal, so a closed excursion
-retains the loop's parity when the connector is retraced.
+retains the loop's parity when the connector is retraced. A sufficiently small triangular
+loop isolates any one ray-parity observation from a finite set.
 -/
 
 public section
@@ -144,5 +149,180 @@ theorem rayParity_closed_excursion (c p : Route) (hjoin : c.finish = p.start)
   calc
     _ = (c.rayParity u z + c.rayParity u z) + p.rayParity u z := by ac_rfl
     _ = _ := by rw [BooleanRing.add_self, zero_add]
+
+private noncomputable def parityTriangle (c : ℂ) (r : ℝ) : Route where
+  bends := 2
+  point i :=
+    if i.val = 1 then ⟨c.re + r, c.im⟩
+    else if i.val = 2 then ⟨c.re - r, c.im + r⟩
+    else ⟨c.re - r, c.im - r⟩
+
+private theorem parityTriangle_point (c : ℂ) (r : ℝ) (i : Fin 4) :
+    (parityTriangle c r).point i =
+      if i.val = 1 then ⟨c.re + r, c.im⟩
+      else if i.val = 2 then ⟨c.re - r, c.im + r⟩
+      else ⟨c.re - r, c.im - r⟩ := rfl
+
+open Classical in
+private theorem parityTriangle_bits (c z : ℂ) {r : ℝ} (hr : 0 < r) :
+    (parityTriangle c r).rayParity 1 z =
+      (if c.im - r ≤ z.im ∧ z.im < c.im ∧
+        z.re < c.re + r + 2 * (z.im - c.im) then true else 0) +
+      (if c.im ≤ z.im ∧ z.im < c.im + r ∧
+        z.re < c.re + r - 2 * (z.im - c.im) then true else 0) +
+      (if c.im - r ≤ z.im ∧ z.im < c.im + r ∧ z.re < c.re - r then true else 0) := by
+  let a : ℂ := ⟨c.re - r, c.im - r⟩
+  let b : ℂ := ⟨c.re + r, c.im⟩
+  let d : ℂ := ⟨c.re - r, c.im + r⟩
+  have hab : horizontalIntercept a b z.im = c.re + r + 2 * (z.im - c.im) := by
+    change c.re - r + (z.im - (c.im - r)) / (c.im - (c.im - r)) *
+      (c.re + r - (c.re - r)) = _
+    rw [show c.im - (c.im - r) = r by ring]
+    field_simp [hr.ne']
+    ring
+  have hbd : horizontalIntercept b d z.im = c.re + r - 2 * (z.im - c.im) := by
+    change c.re + r + (z.im - c.im) / (c.im + r - c.im) * (c.re - r - (c.re + r)) = _
+    rw [show c.im + r - c.im = r by ring]
+    field_simp [hr.ne']
+    ring
+  have hda : horizontalIntercept d a z.im = c.re - r := by
+    change c.re - r + (z.im - (c.im + r)) / (c.im - r - (c.im + r)) *
+      (c.re - r - (c.re - r)) = _
+    rw [sub_self, mul_zero, add_zero]
+  have ha : a.im ≤ b.im := by
+    dsimp only [a, b]
+    linarith
+  have hb : b.im ≤ d.im := by
+    dsimp only [b, d]
+    linarith
+  have hsum : (parityTriangle c r).rayParity 1 z =
+      (if RayCrosses a b z then true else 0) +
+      (if RayCrosses b d z then true else 0) +
+      (if RayCrosses d a z then true else 0) := by
+    unfold Route.rayParity Cslib.Polygonal.rayParity
+    change (∑ i : Fin 3, if RayCrosses (1 * (parityTriangle c r).point i.castSucc)
+      (1 * (parityTriangle c r).point i.succ) (1 * z) then (true : Bool) else 0) = _
+    simp only [Fin.sum_univ_three, one_mul]
+    rfl
+  rw [hsum]
+  simp only [RayCrosses, min_eq_left ha, max_eq_right ha, min_eq_left hb, max_eq_right hb,
+    min_eq_right (ha.trans hb), max_eq_left (ha.trans hb), hab, hbd, hda]
+  rfl
+
+private theorem parityTriangle_center (c : ℂ) {r : ℝ} (hr : 0 < r) :
+    (parityTriangle c r).rayParity 1 c = true := by
+  rw [parityTriangle_bits c c hr]
+  have hlo : c.im - r ≤ c.im := by linarith
+  have hhi : c.im < c.im + r := by linarith
+  have hleft : ¬ c.re < c.re - r := by linarith
+  have hright : c.re < c.re + r := by linarith
+  simp [hlo, hhi, hleft, hright, Bool.add_eq_xor, Bool.zero_eq_false]
+
+private theorem parityTriangle_outside {c z : ℂ} {r : ℝ} (hr : 0 < r)
+    (hout : r < max |z.re - c.re| |z.im - c.im|) :
+    (parityTriangle c r).rayParity 1 z = false := by
+  rw [parityTriangle_bits c z hr]
+  by_cases hlo : c.im - r ≤ z.im
+  · by_cases hhi : z.im < c.im + r
+    · have hy : |z.im - c.im| ≤ r := abs_le.mpr ⟨by linarith, by linarith⟩
+      have hside : z.re < c.re - r ∨ c.re + r < z.re := by
+        by_contra! h
+        have hx : |z.re - c.re| ≤ r := abs_le.mpr ⟨by linarith [h.1], by linarith [h.2]⟩
+        exact (not_lt_of_ge (max_le hx hy)) hout
+      by_cases hmid : z.im < c.im
+      · have hmid' : ¬ c.im ≤ z.im := not_le.mpr hmid
+        rcases hside with hx | hx
+        · have h : z.re < c.re + r + 2 * (z.im - c.im) := by linarith
+          simp [hlo, hhi, hmid, hmid', hx, h, Bool.add_eq_xor]
+        · have h : ¬ z.re < c.re + r + 2 * (z.im - c.im) := by linarith
+          have hleft : ¬ z.re < c.re - r := by linarith
+          simp [hlo, hhi, hmid, hmid', hleft, h, Bool.zero_eq_false]
+      · have hmid' : c.im ≤ z.im := le_of_not_gt hmid
+        rcases hside with hx | hx
+        · have h : z.re < c.re + r - 2 * (z.im - c.im) := by linarith
+          simp [hlo, hhi, hmid, hmid', hx, h, Bool.add_eq_xor]
+        · have h : ¬ z.re < c.re + r - 2 * (z.im - c.im) := by linarith
+          have hleft : ¬ z.re < c.re - r := by linarith
+          simp [hlo, hhi, hmid, hmid', hleft, h, Bool.zero_eq_false]
+    · have hmid : ¬ z.im < c.im := by linarith [le_of_not_gt hhi]
+      simp [hhi, hmid, Bool.zero_eq_false]
+  · have hmid : ¬ c.im ≤ z.im := by linarith [lt_of_not_ge hlo]
+    simp [hlo, hmid, Bool.zero_eq_false]
+
+private theorem parityTriangle_support (c : ℂ) {r : ℝ} (hr : 0 < r)
+    {z : ℂ} (hz : z ∈ (parityTriangle c r).support) :
+    z ≠ c ∧ max |z.re - c.re| |z.im - c.im| ≤ r := by
+  obtain ⟨i, t, ht, rfl⟩ := ((parityTriangle c r).mem_support_iff z).mp hz
+  have h₀ : 0 ≤ t * r := mul_nonneg ht.1 hr.le
+  have h₁ : t * r ≤ r := by simpa only [one_mul] using mul_le_mul_of_nonneg_right ht.2 hr.le
+  have hre := congrArg Complex.re
+    (AffineMap.lineMap_apply_module' ((parityTriangle c r).point i.castSucc)
+      ((parityTriangle c r).point i.succ) t)
+  have him := lineMap_im ((parityTriangle c r).point i.castSucc)
+    ((parityTriangle c r).point i.succ) t
+  change Fin 3 at i
+  fin_cases i <;>
+    norm_num [parityTriangle_point, Complex.add_re, Complex.real_smul, Complex.mul_re,
+      Complex.ofReal_re, Complex.sub_re, Complex.ofReal_im] at hre him
+  all_goals
+    refine ⟨?_, max_le (abs_le.mpr ⟨?_, ?_⟩) (abs_le.mpr ⟨?_, ?_⟩)⟩
+    · intro heq
+      have hx := congrArg Complex.re heq
+      have hy := congrArg Complex.im heq
+      norm_num [Route.eval, parityTriangle_point] at hx hy
+      nlinarith
+    all_goals
+      norm_num [Route.eval, parityTriangle_point]
+      nlinarith
+
+/-- An arbitrarily small three-segment closed route can toggle horizontal ray parity
+at exactly one point of a finite set. Its support avoids the center and every observation
+point, and all three segments are nonhorizontal. -/
+theorem exists_rayParity_isolating_loop (points : Finset ℂ) (c : ℂ)
+    {ε : ℝ} (hε : 0 < ε) :
+    ∃ p : Route, p.segments = 3 ∧ p.finish = p.start ∧
+      (∀ i : Fin p.segments, (p.point i.castSucc).im ≠ (p.point i.succ).im) ∧
+      c ∉ p.support ∧ (∀ z ∈ points, z ∉ p.support) ∧
+      (∀ z ∈ p.support, max |z.re - c.re| |z.im - c.im| < ε) ∧
+      p.rayParity 1 c = true ∧ ∀ z ∈ points, z ≠ c → p.rayParity 1 z = false := by
+  classical
+  have chooseRadius (s : Finset ℂ) : ∃ r : ℝ, 0 < r ∧ r < ε ∧
+      ∀ z ∈ s, z ≠ c → r < max |z.re - c.re| |z.im - c.im| := by
+    induction s using Finset.induction_on with
+    | empty =>
+      exact ⟨ε / 2, by linarith, by linarith, by simp⟩
+    | @insert z s _ ih =>
+      obtain ⟨r, hr, hrε, hs⟩ := ih
+      by_cases hzc : z = c
+      · refine ⟨r, hr, hrε, ?_⟩
+        intro w hw hwc
+        rcases Finset.mem_insert.mp hw with rfl | hw
+        · exact (hwc hzc).elim
+        · exact hs w hw hwc
+      let d := max |z.re - c.re| |z.im - c.im|
+      have hd : 0 < d := by
+        by_contra! h
+        have hre := (le_max_left |z.re - c.re| |z.im - c.im|).trans h
+        have him := (le_max_right |z.re - c.re| |z.im - c.im|).trans h
+        exact hzc (Complex.ext
+          (by have := abs_le.mp hre; linarith) (by have := abs_le.mp him; linarith))
+      refine ⟨min r (d / 2), lt_min hr (by linarith), (min_le_left _ _).trans_lt hrε, ?_⟩
+      intro w hw hwc
+      rcases Finset.mem_insert.mp hw with rfl | hw
+      · exact (min_le_right _ _).trans_lt (by
+          change d / 2 < d
+          linarith)
+      · exact (min_le_left _ _).trans_lt (hs w hw hwc)
+  obtain ⟨r, hr, hrε, hpoints⟩ := chooseRadius points
+  refine ⟨parityTriangle c r, rfl, rfl, ?_, ?_, ?_, ?_, parityTriangle_center c hr, ?_⟩
+  · intro i
+    change Fin 3 at i
+    fin_cases i <;> intro heq <;> norm_num [parityTriangle_point] at heq <;> linarith
+  · exact fun h => (parityTriangle_support c hr h).1 rfl
+  · intro z hz hs
+    obtain ⟨hne, hle⟩ := parityTriangle_support c hr hs
+    exact (not_lt_of_ge hle) (hpoints z hz hne)
+  · exact fun z hz => (parityTriangle_support c hr hz).2.trans_lt hrε
+  · exact fun z hz hne => parityTriangle_outside hr (hpoints z hz hne)
 
 end Cslib.Polygonal.Route
