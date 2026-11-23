@@ -116,23 +116,24 @@ theorem runClient_ite {α : Type} (w : ℕ) (c : Prop) [Decidable c]
 
 /-- `runClient` state projection for `Memory.read`, matching `fst_snd_runClient_bind`. -/
 theorem fst_snd_runClient_read (w : ℕ) (s : Memory.State) (a : ℕ) :
-    ((Memory.spec w).runClient s (Memory.read a)).2.1 = s := rfl
+    Prod.fst (Prod.snd ((Memory.spec w).runClient s (Memory.read a))) = s := rfl
 
 /-- `runClient` state projection for `Memory.write`, matching `fst_snd_runClient_bind`. -/
 theorem fst_snd_runClient_write (w : ℕ) (s : Memory.State) (a v : ℕ) :
-    ((Memory.spec w).runClient s (Memory.write a v)).2.1 =
+    Prod.fst (Prod.snd ((Memory.spec w).runClient s (Memory.write a v))) =
       ⟨Function.update s.mem a v, s.frontier⟩ :=
   Eq.trans rfl rfl
 
 /-- `runClient` state projection for `Memory.allocDirty`, matching `fst_snd_runClient_bind`. -/
 theorem fst_snd_runClient_allocDirty (w : ℕ) (s : Memory.State) (k : ℕ) :
-    ((Memory.spec w).runClient s (Memory.allocDirty k)).2.1 = ⟨s.mem, s.frontier + k⟩ :=
+    Prod.fst (Prod.snd ((Memory.spec w).runClient s (Memory.allocDirty k))) =
+      ⟨s.mem, s.frontier + k⟩ :=
   Eq.trans rfl rfl
 
 /-- `runClient` state projection for a conditional branch, matching `fst_snd_runClient_bind`. -/
 theorem fst_snd_runClient_ite {α : Type} (w : ℕ) (c : Prop) [Decidable c]
     (p₁ p₂ : Memory.Prog α) (s : Memory.State) :
-    ((Memory.spec w).runClient s (if c then p₁ else p₂ : Memory.Prog α)).2.1 =
+    Prod.fst (Prod.snd ((Memory.spec w).runClient s (if c then p₁ else p₂ : Memory.Prog α))) =
       if c then (Memory.spec w).clientState s p₁ else (Memory.spec w).clientState s p₂ := by
   split_ifs <;> rfl
 
