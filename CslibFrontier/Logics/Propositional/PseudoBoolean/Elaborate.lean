@@ -75,7 +75,7 @@ check the kernel proof; the conclusion, if accepted. -/
 def checkAugmented (opb pbp : String) : Option Conclusion :=
   (parseOPB opb).bind fun I =>
     checkResult I.constraints I.objective I.preserved
-      (elaborate I.constraints I.objective I.preserved pbp)
+      (elaborate I.constraints I.objective I.preserved pbp (opbNames opb))
 
 /-- **Check an augmented proof for a DIMACS CNF formula**, its clause `1 -2 3 0` read as the
 constraint `x1 + ~x2 + x3 >= 1`. -/

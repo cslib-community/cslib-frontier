@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 public import Std.Data.HashMap
 
 /-!
@@ -34,12 +35,14 @@ of the parser is needed. It reads the bytes of the proof with a lexer modelled o
 VeriPB 3.0.2: identifiers start with a letter, `_`, `@` or `$` and continue with letters,
 digits and `_ [ ] { } ^ -`; `~`, `:`, `;` and `*` are tokens of their own; `%` starts a comment.
 
-**Variables.** The variable `xN` is `N - 1`, as in the kernel text front end
-(`Cslib.Logic.PL.VeriPB.Text`), so variables of the formula keep their numbers. Every other name
-gets a number from a base on, in order of first appearance (`Cslib.Logic.PL.VeriPB.Elab.AuxNames`).
-As for the kernel text front end (`Cslib.Logic.PL.VeriPB.Text.Names.Separates`), the base is above
-every variable of the instance and every standard name of the proof, which a pass over the bytes
-of the proof finds before parsing, so distinct names get distinct numbers.
+**Variables.** Names are read with the names of the instance (`Cslib.Logic.PL.VeriPB.Text.Names`,
+for an OPB text `Cslib.Logic.PL.VeriPB.Text.opbNames`), as `Cslib.Logic.PL.VeriPB.Text.Names.var?`
+reads them: a standard name `xN` (`Cslib.Logic.PL.VeriPB.Text.stdVar?`, so `x01` is not `x1`) below
+the base is the variable `N - 1`, and a known other name has its number. Every other name of the
+proof (`Cslib.Logic.PL.VeriPB.Text.isName`), a standard name from the base on included, is a new
+variable, numbered from `Cslib.Logic.PL.VeriPB.Text.Names.next` in order of first appearance. The
+names of the proof thus extend those of the instance (`Cslib.Logic.PL.VeriPB.Text.Names.Extends`),
+and distinct names get distinct numbers.
 
 ## References
 
@@ -193,28 +196,12 @@ inductive AConclusion where
 
 /-! ### The lexer -/
 
-/-- The non-standard variable names of a proof: the `i`-th name of `names` is the variable
-`base + i`. -/
-structure AuxNames where
-  /-- The number of the first non-standard name. -/
-  base : ℕ
-  /-- The non-standard names, in order of first appearance. -/
-  names : Array String
-  deriving Inhabited, Repr
-
-/-- The name of the variable `v`: its non-standard name, or else the standard name `x(v + 1)`.
-Variables from `N.base + N.names.size` on have no name in the proof, and get standard names, which
-no other variable has when `N.base` is above the standard names of the proof. The variable the
-elaborator picks for the `pol` operation `-` is the one above the largest variable of the
-constraint, so it may be any of these. -/
-def AuxNames.name (N : AuxNames) (v : ℕ) : String :=
-  if h : N.base ≤ v ∧ v - N.base < N.names.size then N.names[v - N.base] else s!"x{v + 1}"
-
 /-- The lexer and the variable names, as mutable references. -/
 structure Lexer (σ : Type) where
   /-- The text. -/
   bytes : ByteArray
-  /-- The number of the first non-standard variable name. -/
+  /-- The standard names `xN` with `N - 1` below `base` are the variables below `base`
+  (`Cslib.Logic.PL.VeriPB.Text.Names.base`). -/
   base : ℕ
   /-- The position of the next byte. -/
   pos : ST.Ref σ ℕ
@@ -222,9 +209,10 @@ structure Lexer (σ : Type) where
   ahead : ST.Ref σ (Array String)
   /-- The line of the position, for error messages. -/
   line : ST.Ref σ ℕ
-  /-- The numbers of the non-standard variable names. -/
+  /-- The numbers of the other names (`Cslib.Logic.PL.VeriPB.Text.Names.others`). -/
   names : ST.Ref σ (Std.HashMap String ℕ)
-  /-- The non-standard names, in order of first appearance. -/
+  /-- The other names, those of the instance first, then those of the proof in order of first
+  appearance; the `i`-th is the variable `base + i`. -/
   others : ST.Ref σ (Array String)
 
 /-- The parser monad. -/
@@ -243,33 +231,30 @@ private def isIdChar (c : UInt8) : Bool :=
 
 private def isDigit (c : UInt8) : Bool := c ≥ 48 && c ≤ 57
 
-/-- A bound on the standard names of the text `b`: every token `xN` has `N` at most this bound.
-It takes every `x` followed by digits and then by a byte that cannot continue an identifier, which
-includes every standard name of the text, and some other strings, such as the end of `ax5` or
-text in a comment, which only raise the bound. -/
-private def stdBound (b : ByteArray) : ℕ := Id.run do
-  let mut m := 0
-  let mut p := 0
-  while p < b.size do
-    if b.get! p == 120 then
-      let mut q := p + 1
-      let mut v := 0
-      while q < b.size && isDigit (b.get! q) do
-        v := 10 * v + (b.get! q - 48).toNat
-        q := q + 1
-      if q > p + 1 && (q ≥ b.size || !isIdChar (b.get! q)) then m := max m v
-      p := q
-    else p := p + 1
-  return m
+/-- A new lexer for the text `s` of a proof, with the names `N` of its instance. -/
+def new (s : String) (N : Text.Names) : ST σ (Lexer σ) := do
+  let others := N.others.toArray
+  let names := others.zipIdx.foldl (fun m (t, i) => m.insert t (N.base + i)) {}
+  return ⟨s.toUTF8, N.base, ← ST.mkRef 0, ← ST.mkRef #[], ← ST.mkRef 1, ← ST.mkRef names,
+    ← ST.mkRef others⟩
 
-/-- A new lexer for the text `s` of a proof for an instance whose variables are below `floor`.
-The non-standard names are numbered from the larger of `floor` and `stdBound` of the text, which
-is above every variable of the instance and every standard name `xN` (the variable `N - 1`) of the
-text. -/
-def new (s : String) (floor : ℕ) : ST σ (Lexer σ) := do
-  let b := s.toUTF8
-  return ⟨b, max floor (stdBound b), ← ST.mkRef 0, ← ST.mkRef #[], ← ST.mkRef 1, ← ST.mkRef {},
-    ← ST.mkRef #[]⟩
+/-- The names read so far: those of the instance, extended by those of the proof. -/
+def namesOf (L : Lexer σ) : ST σ Text.Names := return ⟨(← L.others.get).toList, L.base⟩
+
+/-- The first variable without a name yet (`Cslib.Logic.PL.VeriPB.Text.Names.next`). -/
+def nextVar (L : Lexer σ) : ST σ ℕ := return L.base + (← L.others.get).size
+
+/-- A new variable, with a new name `_elabK`, for a variable the elaborator introduces. The
+variables it introduces occur in no constraint (the `pol` operation `-` adds `k x` and `k ¬x`),
+so a later name of the proof equal to it may share the variable. -/
+def fresh (L : Lexer σ) : ST σ ℕ := do
+  let m ← L.names.get
+  let mut k := 0
+  while m.contains s!"_elab{k}" do k := k + 1
+  let v ← L.nextVar
+  L.names.modify (·.insert s!"_elab{k}" v)
+  L.others.modify (·.push s!"_elab{k}")
+  return v
 
 /-- Read the next token from the text, or `""` at its end. -/
 private def scan (L : Lexer σ) : ST σ String := do
@@ -364,17 +349,17 @@ private def int? (t : String) : Option ℤ :=
   else if t.startsWith "-" then nat? (t.drop 1).toString |>.map fun n => -(n : ℤ)
   else nat? t |>.map Int.ofNat
 
-/-- The number of a variable name. -/
+/-- The number of a variable name, as `Cslib.Logic.PL.VeriPB.Text.Names.var?` reads it with the
+names read so far; a new name is the next variable. -/
 private def var (L : Lexer σ) (t : String) : PM σ ℕ := do
-  if t.startsWith "x" then
-    if let some (n + 1) := nat? (t.drop 1).toString then return n
-  if t.isEmpty || !t.front.isAlpha && t.front != '_' && t.front != '$' then
-    fail L s!"expected a variable, found `{t}`"
+  if let some v := Text.stdVar? t then
+    if v < L.base then return v
   let m ← L.names.get
   match m[t]? with
   | some v => return v
   | none =>
-    let v := L.base + m.size
+    if !Text.isName t then fail L s!"expected a variable, found `{t}`"
+    let v ← L.nextVar
     L.names.modify (·.insert t v)
     L.others.modify (·.push t)
     return v

@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Propagate
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Syntax
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 
 /-!
 # An elaborator from the augmented to the kernel VeriPB format
@@ -360,13 +361,13 @@ private structure PVal where
 
 private instance : Inhabited PVal := ⟨⟨⟨[], 0⟩, #[]⟩⟩
 
-/-- A variable not in the constraint. -/
+/-- One more than the largest variable of the constraint. -/
 private def freshVar (c : PBConstr) : ℕ := c.terms.foldl (fun m t => max m (termVar t + 1)) 0
 
-/-- `k -`: add `k x` and `k ¬x` for a variable `x` not in the constraint. -/
-private def lowerOps (v : PVal) (k : ℕ) : PVal :=
+/-- `k -`: add `k x` and `k ¬x` for a variable `x` not in the constraint
+(`Cslib.Logic.PL.VeriPB.Elab.St.lowerVar`). -/
+private def lowerOps (v : PVal) (k x : ℕ) : PVal :=
   if k = 0 then v else
-  let x := freshVar v.c
   let c₁ := fadd v.c (fmul (litAxiom (x, true)) k)
   ⟨fadd c₁ (fmul (litAxiom (x, false)) k),
     v.ops ++ #[.lit (x, true), .mul k, .add, .lit (x, false), .mul k, .add]⟩
@@ -414,6 +415,24 @@ namespace St
 
 variable {σ : Type}
 
+/-- A variable not in the terms `ts`, for the `pol` operation `-`: the one after their largest
+variable if it has a name, else the least named variable not in them, else a new variable
+(`Cslib.Logic.PL.VeriPB.Elab.Lexer.fresh`). So the kernel proof names every variable it uses. -/
+private def lowerVar (S : St σ) (ts : List (ℕ × Literal ℕ)) : EM σ ℕ := do
+  let n ← S.L.nextVar
+  let c : PBConstr := ⟨ts, 0⟩
+  if freshVar c < n then return freshVar c
+  let vs : Std.HashSet ℕ := ts.foldl (fun m t => m.insert (termVar t)) {}
+  let mut v := 0
+  while v < n && vs.contains v do v := v + 1
+  if v < n then return v
+  S.L.fresh
+
+/-- The trivial constraint `0 ≥ 0`, as `x + ¬x`. -/
+private def trivial (S : St σ) : EM σ PVal := do
+  let x ← S.lowerVar []
+  return ⟨fadd (litAxiom (x, true)) (litAxiom (x, false)), #[.lit (x, true), .lit (x, false), .add]⟩
+
 /-- The kernel operations pushing a value, as one operation if possible: a `pol` step deriving
 it is emitted otherwise, into `pre`. -/
 private def asSingle (S : St σ) (v : PVal) (pre : Array Step) : EM σ (PVal × Array Step) := do
@@ -429,9 +448,7 @@ private def mirStep (S : St σ) (v : PVal) (d : ℕ) (vf : Bool) (pre : Array St
   let c := v.c.normalize
   match mir c d vf with
   | none =>
-    -- The trivial constraint `0 ≥ 0`.
-    let ax : PBConstr := fadd (litAxiom (0, true)) (litAxiom (0, false))
-    return (⟨ax, #[.lit (0, true), .lit (0, false), .add]⟩, pre)
+    return (← S.trivial, pre)
   | some (M, ax, r) =>
     let (v, pre) ← S.asSingle v pre
     let n ← S.takeKid
@@ -468,16 +485,14 @@ private def polOps (S : St σ) (ops : List AOp) : EM σ (PVal × Array Step) := 
       st := st.pop
       let a' ← match op with
         | .mul k =>
-          if k = 0 then
-            pure (⟨fadd (litAxiom (0, true)) (litAxiom (0, false)),
-              #[.lit (0, true), .lit (0, false), .add]⟩ : PVal)
+          if k = 0 then S.trivial
           else pure (⟨fmul a.c k, a.ops.push (.mul k)⟩ : PVal)
         | .div k => if k = 0 then S.fail "pol: division by 0" else
           pure ⟨fdiv a.c k, a.ops.push (.div k)⟩
         | .vdiv k => if k = 0 then S.fail "pol: division by 0" else pure (vdivOps a k)
         | .sat => pure ⟨fsat a.c, a.ops.push .sat⟩
         | .weaken x => pure ⟨fweaken a.c x, a.ops.push (.weaken x)⟩
-        | .minus k => pure (lowerOps a k)
+        | .minus k => pure (lowerOps a k (← S.lowerVar a.c.terms))
         | .nmir k => do
           let (v, p) ← S.mirStep a k false pre
           pre := p
@@ -512,7 +527,7 @@ private def implies (s t : Key) : Bool := Id.run do
 premise `v`, given `implies`: weaken the terms not in `t` and lower the coefficients above those
 of `t` (below its degree), lower the degree to that of `t`, saturate, and add literal axioms up
 to the coefficients of `t`. -/
-private def impOps (v : PVal) (t : Key) : PVal := Id.run do
+private def impOps (v : PVal) (t : Key) (x : ℕ) : PVal := Id.run do
   let s := keyOf v.c
   let tm : Std.HashMap (ℕ × Bool) ℕ := t.1.foldl (fun m x => m.insert (x.var, x.pos) x.coeff) {}
   let mut v := v
@@ -527,7 +542,7 @@ private def impOps (v : PVal) (t : Key) : PVal := Id.run do
         if x.coeff > b && b < t.2 then v := addAxioms v [((x.var, !x.pos), x.coeff - b)]
       | none => v := ⟨fweaken v.c x.var, v.ops.push (.weaken x.var)⟩
   let cur := keyOf v.c
-  if cur.2 > t.2 then v := lowerOps v (cur.2 - t.2)
+  if cur.2 > t.2 then v := lowerOps v (cur.2 - t.2) x
   if t.2 > 0 then v := ⟨fsat v.c, v.ops.push .sat⟩
   let cur := keyOf v.c
   let cm : Std.HashMap (ℕ × Bool) ℕ :=
@@ -623,7 +638,7 @@ private partial def step (S : St σ) (top : Bool) (s : AStep) : EM σ (Array Ste
     let i ← S.implPremise c hint
     if !add then return (#[], some i)
     let e ← S.entry i
-    let v := impOps ⟨e.c, #[.id e.kid]⟩ (keyOf c)
+    let v := impOps ⟨e.c, #[.id e.kid]⟩ (keyOf c) (← S.lowerVar (e.c.terms ++ c.terms))
     if keyOf v.c != keyOf c then S.fail "internal error: ia derivation"
     let k ← S.takeKid
     let id ← S.add v.c k false top
@@ -689,7 +704,7 @@ private partial def closing (S : St σ) (start : ℕ) (q : Option Ref) (goal : O
         let some (n, G) := goal | S.fail "subproof: no contradiction"
         let i ← try S.implPremise G none catch _ => S.fail "subproof: no contradiction"
         let e ← S.entry i
-        let v := impOps ⟨e.c, #[.id e.kid]⟩ (keyOf G)
+        let v := impOps ⟨e.c, #[.id e.kid]⟩ (keyOf G) (← S.lowerVar (e.c.terms ++ G.terms))
         if !decide (fadd v.c G.negate).IsContradiction then S.fail "subproof: no contradiction"
         let k ← S.takeKid
         return (#[.pol (v.ops.push (.id n) |>.push .add).toList], k)
@@ -1300,23 +1315,20 @@ private def trim (steps : Array (TopStep × Option ℕ)) (concl : Conclusion) (n
   return (out, conclRenum f concl)
 
 /-- The result of elaboration: the kernel proof, its output section (`none` for `NONE`, else the
-guarantee and `FILE` (`true`) or `IMPLICIT`), and the non-standard variable names. -/
+guarantee and `FILE` (`true`) or `IMPLICIT`), and the variable names. -/
 structure Result where
   /-- The kernel proof. -/
   proof : RedProof
   /-- The output section. -/
   output : Option (Guarantee × Bool)
-  /-- The non-standard variable names. -/
-  names : AuxNames
+  /-- The variable names: those of the instance, extended by those of the proof
+  (`Cslib.Logic.PL.VeriPB.Text.Names.Extends`). -/
+  names : Text.Names
 
 /-- Run the elaborator. -/
 private def run {σ : Type} (F : List PBConstr) (obj : Option Objective) (pres : Option (List ℕ))
-    (pbp : String) : EM σ Result := do
-  -- The non-standard names are numbered above the variables of the instance.
-  let floor := F.foldl (fun m c => max m (freshVar c)) 0
-  let floor := obj.elim floor fun f => f.lin.foldl (fun m e => max m (e.1 + 1)) floor
-  let floor := pres.elim floor fun P => P.foldl (fun m v => max m (v + 1)) floor
-  let L ← (Lexer.new pbp floor : ST σ (Lexer σ))
+    (pbp : String) (N : Text.Names) : EM σ Result := do
+  let L ← (Lexer.new pbp N : ST σ (Lexer σ))
   let eng ← (Engine.new : ST σ (Engine σ))
   let S : St σ := ⟨L, eng, ← ST.mkRef #[default], ← ST.mkRef (F.length + 1), ← ST.mkRef {},
     ← ST.mkRef {}, ← ST.mkRef {}, ← ST.mkRef none, ← ST.mkRef obj, ← ST.mkRef pres,
@@ -1356,14 +1368,16 @@ private def run {σ : Type} (F : List PBConstr) (obj : Option Objective) (pres :
   let c ← S.conclusion concl
   let next ← S.kerNext.get
   let (steps, c) := if trimmable && sec.isNone then trim out c next else (out.map (·.1), c)
-  return ⟨⟨steps.toList, c⟩, sec, ⟨L.base, ← L.others.get⟩⟩
+  return ⟨⟨steps.toList, c⟩, sec, ← L.namesOf⟩
 
 /-- **The elaborator**: the kernel proof of the augmented proof text `pbp` for the formula `F`,
-the objective `obj` and the preserved set `pres`, or an error message. Untrusted: the result is
-meant to be checked by `Cslib.Logic.PL.VeriPB.checkRed`. -/
+the objective `obj` and the preserved set `pres`, whose variables are named by `N` (for an OPB
+text, `Cslib.Logic.PL.VeriPB.Text.opbNames`; by default the standard names,
+`Cslib.Logic.PL.VeriPB.Text.stdNames`), or an error message. Untrusted: the result is meant to be
+checked by `Cslib.Logic.PL.VeriPB.checkRed`. -/
 def elaborate (F : List PBConstr) (obj : Option Objective) (pres : Option (List ℕ))
-    (pbp : String) : Except String Result :=
-  runST fun _ => (run F obj pres pbp).run
+    (pbp : String) (N : Text.Names := Text.stdNames ⟨F, obj, pres⟩) : Except String Result :=
+  runST fun _ => (run F obj pres pbp N).run
 
 end Cslib.Logic.PL.VeriPB.Elab
 
