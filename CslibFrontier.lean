@@ -59,6 +59,7 @@ public import CslibFrontier.Algorithms.Lean.CSP.VariableElimination
 public import CslibFrontier.Algorithms.Lean.CSP.WeightCost
 public import CslibFrontier.Algorithms.Lean.CYK.Basic
 public import CslibFrontier.Algorithms.Lean.DFS.Basic
+public import CslibFrontier.Algorithms.Lean.DFS.Dominance
 public import CslibFrontier.Algorithms.Lean.DFS.SCC
 public import CslibFrontier.Algorithms.Lean.DFS.TopologicalSort
 public import CslibFrontier.Algorithms.Lean.DPLL

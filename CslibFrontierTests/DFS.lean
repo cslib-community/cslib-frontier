@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 public import CslibFrontier.Algorithms.Lean.DFS.TopologicalSort
+public import CslibFrontier.Algorithms.Lean.DFS.Dominance
 
 /-!
 # Depth-first search and topological sort: worked examples
@@ -32,6 +33,15 @@ def diamond : Fin 4 → List (Fin 4)
   | 1 => [3]
   | 2 => [3]
   | 3 => []
+
+-- Either branch can reach the join. The join dominates itself, and no path leads back to 0.
+example : dominatesB diamond 0 0 3 = true ∧ dominatesB diamond 0 1 3 = false ∧
+    dominatesB diamond 0 2 3 = false ∧ dominatesB diamond 0 3 3 = true ∧
+    dominatesB diamond 3 1 0 = true := by decide +kernel
+
+-- With the entry moved to the left branch, the join is mandatory on the way to a new exit.
+example : dominatesB (fun u : Fin 4 => if u = 3 then [2] else diamond u) 1 3 2 = true := by
+  decide +kernel
 
 example : topologicalSort diamond (List.finRange 4) = [0, 2, 1, 3] := by decide +kernel
 
