@@ -31,14 +31,49 @@ namespace Cslib.TreeEval.Ary.Packed.RawController
 
 open Reader
 
-/-- Runtime modulus, fan-in and register width. -/
+/-- Runtime modulus, fan-in and register width: `(modulus, fanIn, width)`. -/
 abbrev Params := ℕ × ℕ × ℕ
 
-/-- Round, child, undo phase, coefficient and target, with binary natural indices. -/
+/-- The field modulus `p` of runtime parameters. -/
+abbrev Params.modulus (par : Params) : ℕ := par.1
+
+/-- The fan-in `d` of runtime parameters. -/
+abbrev Params.fanIn (par : Params) : ℕ := par.2.1
+
+/-- The register width `r` of runtime parameters. -/
+abbrev Params.width (par : Params) : ℕ := par.2.2
+
+/-- Round, child, undo phase, coefficient and target, with binary natural indices:
+`(round, child, undo, coeff, target)`, matching the fields of `Ary.Iter.Frame`. -/
 abbrev Frame := ℕ × ℕ × Bool × ℕ × ℕ
 
-/-- One global bank, its continuation stack and a call coefficient/target or return. -/
+/-- The unit-round counter of a raw frame. -/
+abbrev Frame.round (fr : Frame) : ℕ := fr.1
+
+/-- The child index of a raw frame. -/
+abbrev Frame.child (fr : Frame) : ℕ := fr.2.1
+
+/-- The undo phase of a raw frame. -/
+abbrev Frame.undo (fr : Frame) : Bool := fr.2.2.1
+
+/-- The call coefficient of a raw frame. -/
+abbrev Frame.coeff (fr : Frame) : ℕ := fr.2.2.2.1
+
+/-- The target register of a raw frame. -/
+abbrev Frame.target (fr : Frame) : ℕ := fr.2.2.2.2
+
+/-- One global bank, its continuation stack and a call coefficient/target or return:
+`(bank, stack, mode)`. -/
 abbrev State := List ℕ × List Frame × Option (ℕ × ℕ)
+
+/-- The flat register bank of a raw state. -/
+abbrev State.bank (q : State) : List ℕ := q.1
+
+/-- The continuation stack of a raw state. -/
+abbrev State.stack (q : State) : List Frame := q.2.1
+
+/-- The mode of a raw state: a call coefficient and target, or `none` for a return. -/
+abbrev State.mode (q : State) : Option (ℕ × ℕ) := q.2.2
 
 /-- Row-major bank position, matching the existing finite-product equivalence. -/
 def index (r t i : ℕ) : ℕ := i + r * t
@@ -160,7 +195,7 @@ theorem toRegs_subBank {p d r : ℕ} [NeZero p] (bank values : List ℕ)
     simp [toRegs, subBank, hk, hd, htn, ht]
 
 /-- Recover the path from child indices; it is not duplicated in continuation frames. -/
-def path (stack : List Frame) : List ℕ := stack.reverse.map (fun fr => fr.2.1)
+def path (stack : List Frame) : List ℕ := stack.reverse.map (fun fr => fr.child)
 
 /-- The child-register point is the cyclic bank with its target register omitted. It uses
 only two slices, including when the register width or fan-in is zero. -/
@@ -174,13 +209,13 @@ abbrev Need := ℕ × List ℕ × List ℕ × ℕ
 
 /-- Request only the external data needed by the current control step. -/
 def needCore (d r : ℕ) (q : State) : Option Need :=
-  match q.2.2 with
-  | some _ => some (0, path q.2.1, [], 0)
-  | none => match q.2.1 with
+  match q.mode with
+  | some _ => some (0, path q.stack, [], 0)
+  | none => match q.stack with
     | [] => none
     | fr :: st =>
-      if fr.2.2.1 || decide (fr.2.1 + 1 < d) then none
-      else some (1, path st, point d r fr.2.2.2.2 q.1, 0)
+      if fr.undo || decide (fr.child + 1 < d) then none
+      else some (1, path st, point d r fr.target q.bank, 0)
 
 /-- A node reply has tag zero for invalid, one for a leaf, or two for a gate. The payload is
 one packed value or one gate-extension value, never a table of assignments. -/
@@ -194,7 +229,7 @@ def validBank (p d r : ℕ) (bank : List ℕ) : Bool :=
 
 /-- Reject malformed storage before constructing a request point. -/
 def need (p d r : ℕ) (q : State) : Option Need :=
-  if validBank p d r q.1 then needCore d r q else none
+  if validBank p d r q.bank then needCore d r q else none
 
 /-- The executable guard states the bank shape and per-cell padding explicitly. -/
 theorem validBank_eq_true (p d r : ℕ) (bank : List ℕ) :
@@ -240,18 +275,18 @@ def beginRound (p d r round c t : ℕ) (bank : List ℕ) (stack : List Frame) : 
 
 /-- The arithmetic/control step, after any required reply has returned. -/
 def stepCore (p d r : ℕ) (reply : Reply) (q : State) : State :=
-  match q.2.2 with
+  match q.mode with
   | some (c, t) =>
-    if reply.1 = 1 then (addBank p r t c reply.2 q.1, q.2.1, none)
+    if reply.1 = 1 then (addBank p r t c reply.2 q.bank, q.stack, none)
     else if reply.1 = 2 then
-      if p - 1 = 0 then (q.1, q.2.1, none)
-      else beginRound p d r 0 c t q.1 q.2.1
-    else (q.1, q.2.1, none)
-  | none => match q.2.1 with
+      if p - 1 = 0 then (q.bank, q.stack, none)
+      else beginRound p d r 0 c t q.bank q.stack
+    else (q.bank, q.stack, none)
+  | none => match q.stack with
     | [] => q
     | (round, child, undo, c, t) :: st =>
       if undo then
-        let bank := scaleBank p r (reg d t child) (unitInv p round) q.1
+        let bank := scaleBank p r (reg d t child) (unitInv p round) q.bank
         if child + 1 < d then
           (bank, (round, child + 1, true, c, t) :: st,
             some (p - 1, reg d t (child + 1)))
@@ -259,15 +294,15 @@ def stepCore (p d r : ℕ) (reply : Reply) (q : State) : State :=
         else (bank, st, none)
       else
         if child + 1 < d then
-          (scaleBank p r (reg d t (child + 1)) (round + 1) q.1,
+          (scaleBank p r (reg d t (child + 1)) (round + 1) q.bank,
             (round, child + 1, false, c, t) :: st, some (1, reg d t (child + 1)))
         else
-          (subBank p r t c reply.2 q.1, (round, 0, true, c, t) :: st,
+          (subBank p r t c reply.2 q.bank, (round, 0, true, c, t) :: st,
             some (p - 1, reg d t 0))
 
 /-- Reject malformed storage without transforming it. -/
 def step (p d r : ℕ) (reply : Reply) (q : State) : State :=
-  if validBank p d r q.1 then stepCore p d r reply q else q
+  if validBank p d r q.bank then stepCore p d r reply q else q
 
 /-- Typed continuation frames are represented by their five small control fields. -/
 def ofFrame {p d : ℕ} (fr : Ary.Iter.Frame (ZMod p) d) : Frame :=
@@ -285,8 +320,8 @@ noncomputable def ofCfg {p d r : ℕ} (q : Ary.Iter.Cfg (ZMod p) d r) : State :=
 
 /-- Reading an individual raw frame uses the existing finite index types. -/
 def toFrame {p d : ℕ} (hd : 0 < d) (fr : Frame) : Ary.Iter.Frame (ZMod p) d :=
-  ⟨fr.1, ⟨fr.2.1 % d, Nat.mod_lt _ hd⟩, fr.2.2.1, (fr.2.2.2.1 : ZMod p),
-    ⟨fr.2.2.2.2 % (d + 1), Nat.mod_lt _ (Nat.succ_pos d)⟩⟩
+  ⟨fr.round, ⟨fr.child % d, Nat.mod_lt _ hd⟩, fr.undo, (fr.coeff : ZMod p),
+    ⟨fr.target % (d + 1), Nat.mod_lt _ (Nat.succ_pos d)⟩⟩
 
 /-- Decode only the control fields and scalar values; no tree or table is reconstructed. -/
 def toMode (p d : ℕ) (mode : Option (ℕ × ℕ)) : Ary.Iter.Mode (ZMod p) d :=
@@ -296,14 +331,15 @@ def toMode (p d : ℕ) (mode : Option (ℕ × ℕ)) : Ary.Iter.Mode (ZMod p) d :
 
 /-- Read a raw configuration in the existing iterative semantics. -/
 def toCfg (p d r : ℕ) (hd : 0 < d) (q : State) : Ary.Iter.Cfg (ZMod p) d r :=
-  ⟨toRegs p d r q.1, q.2.1.map (toFrame hd), toMode p d q.2.2⟩
+  ⟨toRegs p d r q.bank, q.stack.map (toFrame hd), toMode p d q.mode⟩
 
 @[simp] theorem toFrame_ofFrame {p d : ℕ} [NeZero p] (hd : 0 < d)
     (fr : Ary.Iter.Frame (ZMod p) d) : toFrame hd (ofFrame fr) = fr := by
   cases fr with
   | mk round child undo coeff target =>
-    simp only [toFrame, ofFrame, Nat.mod_eq_of_lt child.isLt,
-      Nat.mod_eq_of_lt target.isLt, ZMod.natCast_zmod_val]
+    simp only [toFrame, ofFrame, Frame.round, Frame.child, Frame.undo, Frame.coeff,
+      Frame.target, Nat.mod_eq_of_lt child.isLt, Nat.mod_eq_of_lt target.isLt,
+      ZMod.natCast_zmod_val]
 
 @[simp] theorem toMode_ofMode {p d : ℕ} [NeZero p] (mode : Ary.Iter.Mode (ZMod p) d) :
     toMode p d (ofMode mode) = mode := by
@@ -316,7 +352,8 @@ def toCfg (p d r : ℕ) (hd : 0 < d) (q : State) : Ary.Iter.Cfg (ZMod p) d r :=
 theorem toCfg_ofCfg {p d r : ℕ} [NeZero p] (hd : 0 < d)
     (q : Ary.Iter.Cfg (ZMod p) d r) : toCfg p d r hd (ofCfg q) = q := by
   cases q
-  simp [toCfg, ofCfg, toRegs_ofRegs, List.map_map, Function.comp_def]
+  simp [toCfg, ofCfg, State.bank, State.stack, State.mode, toRegs_ofRegs, List.map_map,
+    Function.comp_def]
 
 /-- The stack-derived request path is the existing controller's path. -/
 theorem path_ofFrame {p d : ℕ} (st : List (Ary.Iter.Frame (ZMod p) d)) :
@@ -361,7 +398,7 @@ theorem toCfg_step_call_leaf {p d r b : ℕ} [Fact p.Prime] (hd : 0 < d)
   rw [toRegs_ofRegs, ZMod.natCast_zmod_val] at hregs
   have hvec : (fun i : Fin r => (values.getD i 0 : ZMod p)) = e v := funext hvalues
   rw [hvec] at hregs
-  simp only [toCfg, toMode, List.map_map]
+  simp only [toCfg, State.bank, State.stack, toMode, List.map_map]
   rw [hregs]
   congr 1
   simp only [Function.comp_def, toFrame_ofFrame, List.map_id_fun', id_eq]
@@ -383,9 +420,9 @@ theorem toCfg_beginRound {p d r : ℕ} [Fact p.Prime] (hd : 0 < d)
   have hstack : (st.map ofFrame).map (toFrame hd) = st := by
     simp only [List.map_map, Function.comp_def, toFrame_ofFrame,
       List.map_id_fun', id_eq]
-  simp only [beginRound, toCfg, List.map_cons, hstack]
-  simp only [toFrame, toMode, Nat.zero_mod, Nat.mod_eq_of_lt t.isLt,
-    ZMod.natCast_zmod_val, Nat.cast_one]
+  simp only [beginRound, toCfg, State.bank, State.stack, State.mode, List.map_cons, hstack]
+  simp only [toFrame, Frame.round, Frame.child, Frame.undo, Frame.coeff, Frame.target, toMode,
+    Nat.zero_mod, Nat.mod_eq_of_lt t.isLt, ZMod.natCast_zmod_val, Nat.cast_one]
   rw [hreg, hscale]
   simp only [Ary.Iter.beginRound, child, Nat.mod_eq_of_lt (Ary.reg t child).isLt]
 

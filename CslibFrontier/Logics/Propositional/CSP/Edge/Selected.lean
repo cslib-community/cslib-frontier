@@ -81,8 +81,7 @@ theorem EdgeInstance.card_true_eq (hF : EdgeInstance F) (f : OccurrenceLabeling 
     rw [he]
     simp only [hF.mem_selectedVariables_iff, mem_defects, hF.inconsistent_iff]
     have hn := hF.partner_ne o
-    cases h₁ : f o <;> cases h₂ : f (hF.partner o) <;>
-      simp [Finset.filter_insert, Finset.filter_singleton, h₁, h₂, hn]
+    grind [Finset.filter_insert, Finset.filter_singleton]
   have hsum : T.card = ∑ v ∈ F.vars.toFinset, (T.filter fun o => o.var = v).card :=
     card_eq_sum_card_fiberwise fun o _ => List.mem_toFinset.mpr o.var_mem
   rw [hsum, sum_congr rfl hfiber, sum_add_distrib]

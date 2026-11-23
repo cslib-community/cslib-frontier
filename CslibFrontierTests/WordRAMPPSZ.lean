@@ -157,7 +157,7 @@ example : ((ram[ ⟪ampSetup⟫; ⟪Cslib.Algorithms.WordRAM.PPZ.countSetup⟫ ]
 example := ampProgram_spec 3 39 70 5 φ (w := 8) (by decide)
 
 example : ((evalRand 8 ampProgram (ampTime 3 39 70 5 2 ampInput.length) (.init ampInput)).map
-    Cslib.Algorithms.WordRAM.Schoening.cfgSuccess false).toReal ≤ Real.exp (-5) := by
+    RandCfg.accepts false).toReal ≤ Real.exp (-5) := by
   exact_mod_cast ampProgram_failure_le_exp_three (c := 5) ⟨fun _ => true, by decide⟩ (by decide)
     (by decide)
 
