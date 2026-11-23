@@ -25,6 +25,7 @@ mathematics. See [Contributing](CONTRIBUTING.md) to propose, implement, or revie
 | Direct agents working in the library | [Agent Operator's Manual](manual/AGENT_OPERATORS.md): roles, review and handoffs |
 | Read checked Lean tutorials | [Guide](https://www.cslib.io/cslib-frontier/guide/) |
 | See what an area covers | [Library map](#library-map) below |
+| See how the library has grown and how its parts depend on each other | [Codebase views](https://www.cslib.io/cslib-frontier/viz/): charts and a growth video, rebuilt nightly from `main` with the API documentation |
 | Find a named result, such as Cook–Levin or the PCP theorem | [Results inventory](results/README.md), then the declarations it links in the [API documentation](https://www.cslib.io/cslib-frontier/) |
 | Find a model, definition or mathematical tool | [Search the API documentation](https://www.cslib.io/cslib-frontier/search.html), rebuilt nightly from `main`; [CslibFrontier.lean](CslibFrontier.lean) lists every module |
 | Use cslib-frontier in another Lean project | [Add a pinned dependency](#use-from-another-lean-project) |

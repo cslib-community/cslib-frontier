@@ -68,7 +68,6 @@ trial.
 * `Cslib.Algorithms.WordRAM.Schoening.ampCode`, `Cslib.Algorithms.WordRAM.Schoening.ampProgram`:
   the amplified algorithm, structured and compiled.
 * `Cslib.Algorithms.WordRAM.Schoening.ampTime`: its instruction bound.
-* `Cslib.Algorithms.WordRAM.Schoening.cfgSuccess`: whether a halting run output `1`.
 
 ## Main results
 
@@ -227,11 +226,6 @@ of at most `k` literals and an input of length `L`. -/
 noncomputable def ampTime (k n c L : ℕ) : ℕ :=
   schoeningTrials k n c * (36 * n * L + 66 * n + 12 * L + 43) + setupTime k n c +
     9 * counterLen k n c + 45
-
-/-- Whether a halting run output `1`. -/
-def cfgSuccess {r : ℕ} : RandCfg r → Bool
-  | .halted v _ => decide (v = 1)
-  | _ => false
 
 /-- **The running time** of Schöning's algorithm is `O((n + k + L) ^ 3 (2 - 2 / k) ^ n (c + 1))`:
 explicitly, at most `900 (n + k + L + 1) ^ 3 (2 (k - 1) / k) ^ n (c + 1)` instructions. For
@@ -720,7 +714,8 @@ theorem ampProgram_spec (k c : ℕ) (hk : 3 ≤ k) (φ : CNF (Fin n)) {w : ℕ}
         (v = 0 ∨ (v = 1 ∧
           φ.eval (assignmentAt d.mem ((k :: c :: encode φ).length + 1) n) = true))) ∧
     (evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map cfgSuccess = repeatTrial φ (schoeningTrials k n c) := by
+      (.init (k :: c :: encode φ))).map RandCfg.accepts =
+      repeatTrial φ (schoeningTrials k n c) := by
   set L := (k :: c :: encode φ).length with hL
   have hE : (encodeClauses φ).length ≤ L := by
     simp only [hL, List.length_cons, length_encode]; omega
@@ -749,7 +744,7 @@ theorem ampProgram_spec (k c : ℕ) (hk : 3 ≤ k) (φ : CNF (Fin n)) {w : ℕ}
       wram_omega [Nat.mul_le_mul_left (schoeningTrials k n c)
         (show trialCoreTime n (encodeClauses φ).length + 30 ≤ 36 * n * L + 66 * n + 12 * L + 43 by
           wram_omega [Nat.mul_le_mul_left (36 * n) hE])])
-    cfgSuccess fun _ _ => rfl
+    RandCfg.accepts fun _ _ => rfl
   refine ⟨hhalt, hcalls, fun cfg hcfg => ?_, hlaw⟩
   obtain ⟨d, rfl, -, hd⟩ := hpost cfg hcfg
   exact ⟨_, d, rfl, hd⟩
@@ -760,7 +755,7 @@ probability of one trial. -/
 theorem ampProgram_failure_eq (k c : ℕ) (hk : 3 ≤ k) (φ : CNF (Fin n)) {w : ℕ}
     (hw : Fits w ((k :: c :: encode φ).length + 6 * n + 4 * k + 2 * c + counterLen k n c + 2)) :
     ((evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map cfgSuccess false).toReal =
+      (.init (k :: c :: encode φ))).map RandCfg.accepts false).toReal =
       (1 - succeedProb φ (trial φ)) ^ schoeningTrials k n c := by
   rw [(ampProgram_spec k c hk φ hw).2.2.2, repeatTrial_false_toReal]
 
@@ -771,7 +766,7 @@ theorem ampProgram_failure_le_exp {k c : ℕ} (hk : 3 ≤ k) {φ : CNF (Fin n)} 
     (hlen : ∀ cl ∈ φ, cl.length ≤ k) {w : ℕ}
     (hw : Fits w ((k :: c :: encode φ).length + 6 * n + 4 * k + 2 * c + counterLen k n c + 2)) :
     ((evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map cfgSuccess false).toReal ≤ Real.exp (-c) := by
+      (.init (k :: c :: encode φ))).map RandCfg.accepts false).toReal ≤ Real.exp (-c) := by
   rw [ampProgram_failure_eq k c hk φ hw]
   have hp := trial_success_of_length_le hk hφ hlen
   simp only [Fintype.card_fin] at hp
