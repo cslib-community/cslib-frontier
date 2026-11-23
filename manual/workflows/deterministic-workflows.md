@@ -98,7 +98,7 @@ Unused elements of a longer `right` are ignored, and retained outputs keep their
 
 Supply one joint certificate for `(p, a, b?) ↦ f p a b?`, with the parameter, left element
 and optional right element encoded together. Both cost rules require `Inhabited` for the
-right-element and output types. They also require a bound on **every encoded output prefix**:
+right-element type. They also require a bound on **every encoded output prefix**:
 the result of `zipFold f p (left.take i) right` for every `i`, not only the final list.
 Keep the parameter and element encodings explicit when applying the rule.
 
