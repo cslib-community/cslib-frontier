@@ -829,8 +829,7 @@ private theorem log_innerPool_budget_le {U V n m g w : ℕ} {γ R t pW : ℝ}
         linarith
       have hmg_le : ((m - g : ℕ) : ℝ) ≤ (m : ℝ) := by exact_mod_cast Nat.sub_le m g
       calc (U : ℝ) * ((m - g : ℕ) : ℝ)
-          ≤ (2 * ((U - m : ℕ) : ℝ)) * (m : ℝ) :=
-            mul_le_mul hUm_ge hmg_le (Nat.cast_nonneg _) (by positivity)
+          ≤ (2 * ((U - m : ℕ) : ℝ)) * (m : ℝ) := by gcongr
         _ = ((U - m : ℕ) : ℝ) * (2 * (m : ℝ)) := by ring
     have hlog2 := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) (by positivity) h2
     rw [Real.logb_div (by positivity) (by positivity), Real.logb_mul (by norm_num) hm_pos.ne',

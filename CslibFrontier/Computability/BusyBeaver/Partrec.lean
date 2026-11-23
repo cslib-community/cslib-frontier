@@ -143,10 +143,6 @@ for the evaluator `Code.evaln`; the fuel is not the step count of a machine. -/
 noncomputable def bbFuel (n : ℕ) : ℕ :=
   sSup {k | ∃ c : Code, encode c ≤ n ∧ k ∈ evalnFuel c 0}
 
-private theorem bbOutput_eq : bbOutput = bbOf fun c => c.eval 0 := rfl
-
-private theorem bbFuel_eq : bbFuel = bbOf fun c => evalnFuel c 0 := rfl
-
 private theorem dom_eval_zero : (Code.zero.eval 0).Dom := by
   simp [Code.eval, pure, PFun.pure]
 

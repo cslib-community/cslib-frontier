@@ -7,15 +7,18 @@ module
 -- upstream: local-only (test driver)
 
 public import CslibFrontier.Algorithms.Lean.TreeDecomposition.IndependentSetFPT
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet
 public import Mathlib.Combinatorics.SimpleGraph.Hasse
 public import Mathlib.Data.Fin.VecNotation
 meta import CslibFrontier.Algorithms.Lean.TreeDecomposition.IndependentSetFPT
+meta import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet
 meta import Mathlib.Combinatorics.SimpleGraph.Hasse
 meta import Mathlib.Data.Fin.VecNotation
 
 /-! # Maximum-weight independent sets over tree decompositions on small graphs
 
-Kernel-checked runs of the tree-decomposition dynamic program, with no `native_decide`:
+Kernel-checked runs of the pure tree-decomposition dynamic program (`mwisFPT`) and Word-RAM
+realization (`exists_program_mwis_rooted`), with no `native_decide`:
 
 1. the weighted path `0 - 1 - 2 - 3` with weights `3, 5, 4, 1` and a width-one decomposition:
    the value `7` (attained by `{0, 2}`) and the independence number `2` read off the unit-weight
@@ -25,19 +28,17 @@ Kernel-checked runs of the tree-decomposition dynamic program, with no `native_d
 3. a one-node decomposition of the edgeless graph on three vertices, where every vertex is chosen;
 4. the star `K_{1,3}` with a root bag `{0}` and three children, which exercises the sum of
    several child messages: the independence number `3` and two weighted values;
-5. the executable program `mwisFPT` on the same decompositions: its values, its exact tick counts
-   `273` on the weighted path and `97` on the single bag, a bag ordering that `IsBagOrder`
-   rejects, and a compiled run on the orderings built by `sortedBags`;
-6. a family of path decompositions of every depth `N`, on which `mwisFPT` takes exactly
-   `120 N + 33` ticks, linear in the depth. The program is evaluated by `decide +kernel` at depth
-   `40` and by `#guard` at depth `2000`.
-
-Items 1 to 4 evaluate the specification `mwisValue`. The tick counts of items 5 and 6 are charged
-inside the loops of `mwisFPT`.
+5. the pure executable program `mwisFPT` on the same decompositions, a bag ordering that
+   `IsBagOrder` rejects, and a compiled run on the orderings built by `sortedBags`;
+6. a family of path decompositions of every depth `N`, evaluated by `decide +kernel` at depth `40`
+   and by `#guard` at depth `2000`;
+7. checked Word-RAM `MWISInstance` encodings and non-vacuous `Fits` / `InputFits` witnesses for
+   `exists_program_mwis_rooted` (including width invariance `w = 8` vs `w = 16`, edgeless single-bag
+   `n = 0`, and `starDecomposition`).
 -/
 
--- The `#guard` checks of sections 5 and 6 run the compiled program, at depth `2000` beyond the
--- reach of `decide`, and on `sortedBags`, which is not exposed.
+-- The `#guard` checks of sections 5–7 evaluate compiled definitions (`deepPath 2000`, `sortedBags`,
+-- and `MWISInstance.result`) beyond the practical unrolling reach of `decide`.
 set_option linter.hashCommand false
 
 public section
@@ -45,6 +46,7 @@ public section
 namespace Cslib.Tests.TreeDecompositionIndependentSet
 
 open SimpleGraph Cslib.Algorithms.Lean Cslib.Algorithms.Lean.TreeDecomposition
+open Cslib.Algorithms.WordRAM.TreeDecomposition Cslib.WordRAM
 
 /-! ### 1. A weighted path -/
 
@@ -165,36 +167,16 @@ example : IsBagOrder pathDecomposition pathBags := by decide
 /-- A list with a repeated vertex is not a bag ordering. -/
 example : ¬IsBagOrder pathDecomposition ![[0, 1, 0], [1, 2], [2, 3]] := by decide
 
-example : (mwisFPT pathDecomposition pathWeight pathBags).ret = 7 := by decide
+example : mwisFPT pathDecomposition pathWeight pathBags = 7 := by decide
 
-/-- The executed tick count. The two nonroot nodes have bags of size `2` under bags of size `2`.
-Each costs `processTime 2 2 = 119`: `3` for the bookkeeping, `4` to allocate `best`, `4 · 19` for
-the four child masks (independence test `3`, parent-bag mask `6`, forgotten weight `6`, table
-update `4`), and `4 · 9` for the four parent masks (restriction `6`, table update `3`). The root
-costs `rootPassTime 2 = 4 · 8 = 32` and allocating the three tables costs `3`. -/
-example : (mwisFPT pathDecomposition pathWeight pathBags).time = 273 := by decide
-
-example : (mwisFPT pathDecomposition pathWeight pathBags).time = 3 + 2 * 119 + 32 := by
-  rw [time_mwisFPT]
+example : mwisFPT cycleDecomposition ![1, 1, 10, 1, 1]
+    ![[0, 1, 2], [0, 2, 3], [0, 3, 4]] = 11 := by
   decide
 
-/-- The general bound for width one: `3 · fptNodeBound 2 = 408`. -/
-example : (mwisFPT pathDecomposition pathWeight pathBags).time ≤ 408 :=
-  (time_mwisFPT_le pathDecomposition pathWeight (by decide) (k := 1)
-    (pathDecomposition.width_le_iff.2 (by decide))).trans_eq (by decide)
+example : mwisFPT bagDecomposition ![2, 3, 4] ![[0, 1, 2]] = 9 := by decide
 
-example : (mwisFPT cycleDecomposition ![1, 1, 10, 1, 1]
-    ![[0, 1, 2], [0, 2, 3], [0, 3, 4]]).ret = 11 := by
-  decide
-
-/-- On the single bag only the root pass runs: `1` tick allocates the table and
-`rootPassTime 3 = 8 · (6 + 3 + 3) = 96` ticks scan the eight root masks. -/
-example : (mwisFPT bagDecomposition ![2, 3, 4] ![[0, 1, 2]]).ret = 9 ∧
-    (mwisFPT bagDecomposition ![2, 3, 4] ![[0, 1, 2]]).time = 97 := by
-  decide
-
-example : (mwisFPT starDecomposition ![2, 1, 1, 1] ![[0], [0, 1], [0, 2], [0, 3]]).ret = 3 ∧
-    (mwisFPT starDecomposition ![5, 1, 1, 1] ![[0], [0, 1], [0, 2], [0, 3]]).ret = 5 := by
+example : mwisFPT starDecomposition ![2, 1, 1, 1] ![[0], [0, 1], [0, 2], [0, 3]] = 3 ∧
+    mwisFPT starDecomposition ![5, 1, 1, 1] ![[0], [0, 1], [0, 2], [0, 3]] = 5 := by
   decide
 
 /-- The independence number of the star, from the executable program. -/
@@ -236,36 +218,79 @@ def deepBags (N : ℕ) : Fin (N + 1) → List (Fin (N + 2)) :=
 theorem isBagOrder_deepBags (N : ℕ) : IsBagOrder (deepPath N) (deepBags N) := fun i =>
   ⟨by simp [deepBags, Fin.ext_iff], by simp [deepBags, deepPath]⟩
 
-/-- On the path decomposition of depth `N` the program takes `120 N + 33` ticks, linear in the
-depth: each nonroot node costs `processTime 2 2 + 1 = 120`. -/
-theorem time_mwisFPT_deepPath (N : ℕ) (w : Fin (N + 2) → ℕ) :
-    (mwisFPT (deepPath N) w (deepBags N)).time = 120 * N + 33 := by
-  have h₁ : processTime 2 2 = 119 := by decide
-  have h₂ : rootPassTime 2 = 32 := by decide
-  rw [time_mwisFPT]
-  simp only [deepBags, List.length_cons, List.length_nil, Nat.reduceAdd, h₁, h₂,
-    Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
-  omega
-
 /-- With unit weights it returns the independence number `21` of the path on `42` vertices. -/
-example : (mwisFPT (deepPath 40) (fun _ => 1) (deepBags 40)).ret = 21 := by decide +kernel
+example : mwisFPT (deepPath 40) (fun _ => 1) (deepBags 40) = 21 := by decide +kernel
 
 example : (pathGraph 42).indepNum = 21 := by
   rw [← mwisFPT_one_eq_indepNum (deepPath 40) (isBagOrder_deepBags 40)]
   decide +kernel
 
-/- Compiled evaluation at depth `2000`, where the tick count is `120 · 2000 + 33`. -/
-#guard (mwisFPT (deepPath 2000) (fun _ => 1) (deepBags 2000)).ret == 1001
-#guard (mwisFPT (deepPath 2000) (fun _ => 1) (deepBags 2000)).time == 120 * 2000 + 33
+/- Compiled evaluation at depth `2000`. -/
+#guard mwisFPT (deepPath 2000) (fun _ => 1) (deepBags 2000) == 1001
 
 /-- `sortedBags` orders the bags of a decomposition of a linearly ordered vertex type, so
-`ret_mwisFPT` applies to it. -/
-example : (mwisFPT pathDecomposition pathWeight (sortedBags pathDecomposition)).ret = 7 := by
-  rw [ret_mwisFPT _ _ (isBagOrder_sortedBags _)]
+`mwisFPT_eq_mwisValue` applies to it. -/
+example : mwisFPT pathDecomposition pathWeight (sortedBags pathDecomposition) = 7 := by
+  rw [mwisFPT_eq_mwisValue _ _ (isBagOrder_sortedBags _)]
   decide
 
 /- The compiled program on the orderings built by `sortedBags`, which `decide` cannot unfold. -/
-#guard (mwisFPT pathDecomposition pathWeight (sortedBags pathDecomposition)).ret == 7
-#guard (mwisFPT cycleDecomposition ![1, 1, 10, 1, 1] (sortedBags cycleDecomposition)).ret == 11
+#guard mwisFPT pathDecomposition pathWeight (sortedBags pathDecomposition) == 7
+#guard mwisFPT cycleDecomposition ![1, 1, 10, 1, 1] (sortedBags cycleDecomposition) == 11
+
+/-! ### 7. Word-RAM FPT execution witnesses -/
+
+/-- Encoded Word-RAM instance for `pathDecomposition`. -/
+def pathInst : MWISInstance :=
+  MWISInstance.ofRooted (Equiv.refl (Fin 4)) pathDecomposition pathWeight pathBags
+
+/-- Encoded Word-RAM instance for the single-bag edgeless graph `bagDecomposition`. -/
+def bagInst : MWISInstance :=
+  MWISInstance.ofRooted (Equiv.refl (Fin 3)) bagDecomposition ![2, 3, 4] ![[0, 1, 2]]
+
+/-- Encoded Word-RAM instances for `starDecomposition`. -/
+def starInstLow : MWISInstance :=
+  MWISInstance.ofRooted (Equiv.refl (Fin 4)) starDecomposition ![2, 1, 1, 1]
+    ![[0], [0, 1], [0, 2], [0, 3]]
+
+def starInstHigh : MWISInstance :=
+  MWISInstance.ofRooted (Equiv.refl (Fin 4)) starDecomposition ![5, 1, 1, 1]
+    ![[0], [0, 1], [0, 2], [0, 3]]
+
+#guard pathInst.result == 7
+#guard bagInst.result == 9
+#guard starInstLow.result == 3
+#guard starInstHigh.result == 5
+
+example : ∃ r C : ℕ, ∃ prog : Program .exact r,
+    (∀ w ∈ ([8, 16] : List ℕ), Fits w pathInst.wordBound ∧ InputFits w pathInst.encode ∧
+      ∃ steps, Executes w prog (.init pathInst.encode) 7 steps ∧
+        steps ≤ C * (mwisFPTBound 2 1 + 1) + 1) ∧
+    (∃ steps, Executes 8 prog (.init bagInst.encode) 9 steps ∧
+      steps ≤ C * (mwisFPTBound 0 2 + 1) + 1) ∧
+    (∃ steps, Executes 9 prog (.init starInstLow.encode) 3 steps ∧
+      steps ≤ C * (mwisFPTBound 3 1 + 1) + 1) := by
+  obtain ⟨r, C, prog, hprog⟩ := exists_program_mwis_rooted
+  refine ⟨r, C, prog, ?_, ?_, ?_⟩
+  · intro w hw
+    have hw816 : w = 8 ∨ w = 16 := by simpa using hw
+    have hfit : Fits w pathInst.wordBound := by
+      rcases hw816 with rfl | rfl <;> decide
+    have hin : InputFits w pathInst.encode := by
+      rcases hw816 with rfl | rfl <;> decide
+    obtain ⟨steps, hex, hle⟩ := hprog (k := 1) (Equiv.refl (Fin 4)) pathDecomposition pathWeight
+      pathBags (by decide) (pathDecomposition.width_le_iff.2 (by decide)) w hfit hin
+    rw [show mwisValue pathDecomposition pathWeight = 7 by decide] at hex
+    exact ⟨hfit, hin, steps, hex, hle⟩
+  · obtain ⟨steps, hex, hle⟩ := hprog (k := 2) (Equiv.refl (Fin 3)) bagDecomposition ![2, 3, 4]
+      ![[0, 1, 2]] (by decide) (bagDecomposition.width_le_iff.2 (by decide)) 8
+      (by decide) (by decide)
+    rw [show mwisValue bagDecomposition ![2, 3, 4] = 9 by decide] at hex
+    exact ⟨steps, hex, hle⟩
+  · obtain ⟨steps, hex, hle⟩ := hprog (k := 1) (Equiv.refl (Fin 4)) starDecomposition ![2, 1, 1, 1]
+      ![[0], [0, 1], [0, 2], [0, 3]] (by decide) (starDecomposition.width_le_iff.2 (by decide)) 9
+      (by decide) (by decide)
+    rw [show mwisValue starDecomposition ![2, 1, 1, 1] = 3 by decide] at hex
+    exact ⟨steps, hex, hle⟩
 
 end Cslib.Tests.TreeDecompositionIndependentSet

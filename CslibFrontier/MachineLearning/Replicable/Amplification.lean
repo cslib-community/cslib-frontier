@@ -24,6 +24,7 @@ import CslibFrontier.Probability.PMF.Markov
 import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.PMF.Union
+import CslibFrontier.Tactic.FinsetCard
 import CslibFrontier.Tactic.PMFSwap
 
 /-!
@@ -226,10 +227,7 @@ theorem majorityVote_accurate {A : Algorithm X Ω Bool m} {𝒟 : Set (PMF X)}
       cases ht : target D <;> simp only [ht, Set.mem_singleton_iff, ne_eq, decide_eq_true_eq,
         Bool.not_eq_false, Bool.not_eq_true] at hv ⊢
       · exact hv
-      · have hpart := Finset.card_filter_add_card_filter_not (s := Finset.univ)
-          fun j : Fin (2 * (r + 1)) => v j = true
-        simp only [Bool.not_eq_true, Finset.card_univ, Fintype.card_fin] at hpart
-        omega
+      · finset_card
 
 /-- For any Boolean algorithm with error `β₀ < 1 / 2` and any target `β > 0`, taking the majority
 of `2 * (r + 1)` independent repetitions achieves failure probability at most `β`. -/
@@ -257,14 +255,11 @@ theorem medianOfRuns_accurate {A : Algorithm X Ω ℝ m} {𝒟 : Set (PMF X)}
     EstimatesFor (medianOfRuns A r) 𝒟 target ε ((4 * β₀ * (1 - β₀)) ^ (r + 1)) :=
   isAccurateFor_replicate_map hacc hβ₀ r Cslib.median
     (fun D y => decide (ε < |y - target D|)) (fun _ _ => by simp [not_le]) fun D _ v hv => by
-      simp only [Set.mem_ofPred_eq, not_le, decide_eq_true_eq] at hv ⊢
+      simp only [Set.mem_ofPred_eq, ← not_le, decide_eq_true_eq] at hv ⊢
       have hnot : ¬ Fintype.card (Fin (2 * (r + 1))) <
           2 * (Finset.univ.filter fun j : Fin (2 * (r + 1)) => |v j - target D| ≤ ε).card :=
-        fun hlt => (not_le.mpr hv) (Cslib.abs_median_sub_le hlt)
-      have hpart := Finset.card_filter_add_card_filter_not (s := Finset.univ)
-        fun j : Fin (2 * (r + 1)) => |v j - target D| ≤ ε
-      simp only [not_le, Finset.card_univ, Fintype.card_fin] at hnot hpart
-      omega
+        fun hlt => hv (Cslib.abs_median_sub_le hlt)
+      finset_card
 
 /-- For any real estimator within `ε` except with probability `β₀ < 1 / 2` and any `β > 0`,
 `medianOfRuns` achieves `(ε, β)` estimation accuracy. -/
@@ -521,13 +516,7 @@ theorem strictMajorityCandidate_eq_of_lt_two_mul {k : ℕ} [DecidableEq α] (v :
   split_ifs with h'
   swap; · exact absurd hne h'
   have hj_cond := (Finset.mem_filter.mp (Finset.min'_mem cands hne)).2
-  by_contra hne_val
-  have hdisj : Disjoint (Finset.univ.filter fun j' => v j' = v (cands.min' hne))
-      (Finset.univ.filter fun j' => v j' = y) :=
-    Finset.disjoint_filter.mpr fun _ _ h1 h2 => hne_val (h1.symm.trans h2)
-  have hle := (Finset.card_union_of_disjoint hdisj).symm.trans_le
-    ((Finset.card_le_univ _).trans_eq (Fintype.card_fin k))
-  omega
+  finset_card
 
 /-- Output distribution of `A` on `D` conditioned on a fixed seed `r`. -/
 @[expose] noncomputable def seedOutput (A : Algorithm X Ω α m) (D : PMF X) (r : Ω) : PMF α :=

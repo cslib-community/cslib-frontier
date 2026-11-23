@@ -175,10 +175,6 @@ theorem realizes_readLMHeadGen :
         d.2.1.2 < numBuckets (dpNMax d.1) ∧ d.2.2 < numMicroPerBucket (dpNMax d.1))
       (fun _ _ => 0) := by
   have hrl := realizes_readLMGen ⟨0, by decide⟩
-  refine Realizes.congr (p := fun d : DictParams × ((ℕ × ℕ) × ℕ) => do
-      let idx ← pure (d.2.1.2 * dpNumMicro d.1 + d.2.2)
-      readLMGenProg ⟨0, by decide⟩ (d.1, (d.2.1.1, idx))) ?_
-    (fun _ => rfl)
   realizeDict
   · exact fits_of_le_totalMicroBuckets h.1 hw hnU hU (le_of_lt (lmHeadIdx_lt h.2.1 h.2.2))
   · exact h.1
@@ -192,10 +188,6 @@ theorem realizes_writeLMHeadGen :
         d.2.1.1.2 < numBuckets (dpNMax d.1) ∧ d.2.1.2 < numMicroPerBucket (dpNMax d.1))
       (fun _ _ => 0) := by
   have hwl := realizes_writeLMGen ⟨0, by decide⟩
-  refine Realizes.congr (p := fun d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ) => do
-      let idx ← pure (d.2.1.1.2 * dpNumMicro d.1 + d.2.1.2)
-      writeLMGenProg ⟨0, by decide⟩ (d.1, ((d.2.1.1.1, idx), d.2.2))) ?_
-    (fun _ => rfl)
   realizeDict
   · exact fits_of_le_totalMicroBuckets h.1 hw hnU hU (le_of_lt (lmHeadIdx_lt h.2.1 h.2.2))
   · exact h.1
@@ -415,6 +407,18 @@ theorem clientResult_readLMNextProg {U V w n_max h_space base b j : ℕ} (s : Me
       lmNext n_max (lmAt base U V w n_max h_space s.mem) b j :=
   clientResult_readLMMod4Prog s (by decide) hb hj
 
+local macro "lmMod4Side" : tactic => `(tactic| (
+  realizeDict
+  all_goals
+    have hpre : DictEnvGen _ _ _ ∧ _ < numBuckets _ ∧ _ < effBucketCap _ := ‹_›
+    first
+    | decide
+    | exact hpre.1
+    | exact lmSlotIdx_lt hpre.2.1 hpre.2.2
+    | exact fits_of_le_totalMicroBuckets hpre.1 ‹0 < _› ‹_ ≤ _› ‹_ < 2 ^ _›
+        (le_of_lt (lmSlotIdx_lt hpre.2.1 hpre.2.2))
+    | exact fits_const_of_dictEnv hpre.1 (by decide)))
+
 theorem realizes_readLMMod4Gen {c_base : ℕ} (hc : c_base + 3 < 9) :
     Realizes .exact (readLMMod4GenProg c_base hc)
       (WordEncoding.encode (α := DictParams × ((ℕ × ℕ) × ℕ))) (WordEncoding.encode (α := ℕ))
@@ -425,35 +429,7 @@ theorem realizes_readLMMod4Gen {c_base : ℕ} (hc : c_base + 3 < 9) :
   have hrl1 := realizes_readLMGen ⟨c_base + 1, by omega⟩
   have hrl2 := realizes_readLMGen ⟨c_base + 2, by omega⟩
   have hrl3 := realizes_readLMGen ⟨c_base + 3, by omega⟩
-  refine Realizes.congr (p := fun d : DictParams × ((ℕ × ℕ) × ℕ) => do
-      let idx ← pure (d.2.1.2 * dpNumMicro d.1 + d.2.2 / 4)
-      let r ← pure (d.2.2 % 4)
-      let c0 ← pure 0
-      let c1 ← pure 1
-      let c2 ← pure 2
-      if r = c0 then
-        readLMGenProg ⟨c_base, by omega⟩ (d.1, (d.2.1.1, idx))
-      else if r = c1 then
-        readLMGenProg ⟨c_base + 1, by omega⟩ (d.1, (d.2.1.1, idx))
-      else if r = c2 then
-        readLMGenProg ⟨c_base + 2, by omega⟩ (d.1, (d.2.1.1, idx))
-      else
-        readLMGenProg ⟨c_base + 3, by omega⟩ (d.1, (d.2.1.1, idx))) ?_
-    (fun _ => rfl)
-  realizeDict
-  · decide
-  · exact fits_of_le_totalMicroBuckets h.1 hw hnU hU (le_of_lt (lmSlotIdx_lt h.2.1 h.2.2))
-  · exact fits_const_of_dictEnv h.1 (by decide)
-  · exact fits_const_of_dictEnv h.1 (by decide)
-  · exact fits_const_of_dictEnv h.1 (by decide)
-  · exact h.1
-  · exact lmSlotIdx_lt h.2.1 h.2.2
-  · exact h.1
-  · exact lmSlotIdx_lt h.2.1 h.2.2
-  · exact h.1
-  · exact lmSlotIdx_lt h.2.1 h.2.2
-  · exact h.1
-  · exact lmSlotIdx_lt h.2.1 h.2.2
+  lmMod4Side
 
 theorem realizes_writeLMMod4Gen {c_base : ℕ} (hc : c_base + 3 < 9) :
     Realizes .exact (writeLMMod4GenProg c_base hc)
@@ -466,35 +442,7 @@ theorem realizes_writeLMMod4Gen {c_base : ℕ} (hc : c_base + 3 < 9) :
   have hwl1 := realizes_writeLMGen ⟨c_base + 1, by omega⟩
   have hwl2 := realizes_writeLMGen ⟨c_base + 2, by omega⟩
   have hwl3 := realizes_writeLMGen ⟨c_base + 3, by omega⟩
-  refine Realizes.congr (p := fun d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ) => do
-      let idx ← pure (d.2.1.1.2 * dpNumMicro d.1 + d.2.1.2 / 4)
-      let r ← pure (d.2.1.2 % 4)
-      let c0 ← pure 0
-      let c1 ← pure 1
-      let c2 ← pure 2
-      if r = c0 then
-        writeLMGenProg ⟨c_base, by omega⟩ (d.1, ((d.2.1.1.1, idx), d.2.2))
-      else if r = c1 then
-        writeLMGenProg ⟨c_base + 1, by omega⟩ (d.1, ((d.2.1.1.1, idx), d.2.2))
-      else if r = c2 then
-        writeLMGenProg ⟨c_base + 2, by omega⟩ (d.1, ((d.2.1.1.1, idx), d.2.2))
-      else
-        writeLMGenProg ⟨c_base + 3, by omega⟩ (d.1, ((d.2.1.1.1, idx), d.2.2))) ?_
-    (fun _ => rfl)
-  realizeDict
-  · decide
-  · exact fits_of_le_totalMicroBuckets h.1 hw hnU hU (le_of_lt (lmSlotIdx_lt h.2.1 h.2.2))
-  · exact fits_const_of_dictEnv h.1 (by decide)
-  · exact fits_const_of_dictEnv h.1 (by decide)
-  · exact fits_const_of_dictEnv h.1 (by decide)
-  · exact h.1
-  · exact lmSlotIdx_lt h.2.1 h.2.2
-  · exact h.1
-  · exact lmSlotIdx_lt h.2.1 h.2.2
-  · exact h.1
-  · exact lmSlotIdx_lt h.2.1 h.2.2
-  · exact h.1
-  · exact lmSlotIdx_lt h.2.1 h.2.2
+  lmMod4Side
 
 theorem realizes_readLMPrevGen :
     Realizes .exact readLMPrevGenProg
@@ -1145,28 +1093,19 @@ theorem realizes_lmPrependGen :
   have hwn := realizes_writeLMNextGen
   realizeDictWith [lmPrependGenPre_mk, LMPrependPre, readLMHeadGenProg_mk, writeLMHeadGenProg_mk,
     writeLMPrevGenProg_mk, writeLMNextGenProg_mk]
-  · exact h.1
-  · exact h.2.1
-  · exact h.2.2.1
-  · exact fits_of_le_max_n_one h.1 hw hnU hU (by have := h.2.2.2.2.1; omega)
-  · exact h.1
-  · exact h.2.1
-  · exact h.2.2.2.1
-  · omega
-  · exact h.1
-  · exact h.2.1
-  · have hh : (Memory.spec 0).clientResult s (readLMHeadProg U V w₀ n_max h_space d.1) =
-        lmHead n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 d.1.2 :=
-      clientResult_readLMHeadProg s h.2.1 h.2.2.1
-    rw [hh] at hc ⊢
-    have := h.2.2.2.2.2
-    omega
-  · exact h.1
-  · exact h.2.1
-  · exact h.2.2.1
-  · exact h.1
-  · exact h.2.1
-  · exact h.2.2.1
+  all_goals first
+    | exact h.1
+    | exact h.2.1
+    | exact h.2.2.1
+    | exact h.2.2.2.1
+    | exact fits_of_le_max_n_one h.1 hw hnU hU (by have := h.2.2.2.2.1; omega)
+    | omega
+    | (have hh : (Memory.spec 0).clientResult s (readLMHeadProg U V w₀ n_max h_space d.1) =
+           lmHead n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 d.1.2 :=
+         clientResult_readLMHeadProg s h.2.1 h.2.2.1
+       rw [hh] at hc ⊢
+       have := h.2.2.2.2.2
+       omega)
 
 /-- Pure state effect of `lmPrependProg`. -/
 theorem lmPrependProg_effect {U V w n_max h_space base b m j_new : ℕ}
@@ -1753,7 +1692,6 @@ theorem realizes_microStepGen :
   · exact h.2.2.2.1
   · rw [clientState_readLMNextProg]; exact h.2.2.2.2.2
   · rw [clientState_readLMNextProg]; exact h.2.2.2.2.1
-  · exact h.1
   · rw [clientState_readLMNextProg,
       clientResult_resolveIndexedSlotProg (d1.1, a.1.1.1 - 1) s
         h.2.2.2.2.2 h.2.1 h.2.2.2.2.1 h.2.2.2.1]

@@ -526,8 +526,7 @@ theorem abs_piApprox_div_sub_pi_le (qBits : ℕ) :
     |(((raw + 2 ^ (g - 1)) / 2 ^ g : ℕ) : ℝ) / (2 : ℝ) ^ qBits - Real.pi| ≤
         |(((raw + 2 ^ (g - 1)) / 2 ^ g : ℕ) : ℝ) / (2 : ℝ) ^ qBits - (raw : ℝ) / (2 : ℝ) ^ M| +
           |(raw : ℝ) / (2 : ℝ) ^ M - Real.pi| := abs_sub_le _ _ _
-    _ ≤ (1 / 2 : ℝ) * (2 : ℝ) ^ (-(qBits : ℤ)) + (1 / 2 : ℝ) * (2 : ℝ) ^ (-(qBits : ℤ)) :=
-      add_le_add hshift_scaled hraw_real
+    _ ≤ (1 / 2 : ℝ) * (2 : ℝ) ^ (-(qBits : ℤ)) + (1 / 2 : ℝ) * (2 : ℝ) ^ (-(qBits : ℤ)) := by gcongr
     _ = (2 : ℝ) ^ (-(qBits : ℤ)) := by ring
 
 private theorem computableInPolyTime_arctanInvApprox (d : ℕ) :

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalProgram
 import CslibFrontier.Algorithms.ThreeSum.ChanHe.SelectorBounds
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Actual native argument delivery in the Chan–He traversal
@@ -121,19 +122,14 @@ A fit for their largest value derives all intermediate address fits. -/
 theorem prepareModulus_exec {w : ℕ} (x : Data 128)
     (h : Fits w (x.regs heap + x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6))) :
     Exec w prepareModulus x (modulusState x) 14 := by
-  have h₀ : Fits w (x.regs heap + x.regs (slot 2)) := h.of_le (by omega)
-  have h₁ : Fits w (x.regs heap + x.regs (slot 2) + x.regs (slot 4)) := h.of_le (by omega)
-  dsimp only [heap, slot] at h₀ h₁ h
-  ram_eval [prepareModulus, modulusState, kernel, slot, CountCall.source, CountCall.length,
-    CountCall.scratch, CountCall.histogram, Search.limit, Search.primes, CollisionTest.card,
-    Modulus.digits, heap, limit, bitmap, primeCount, digits, h₀, h₁, h]
+  unfold prepareModulus modulusState
+  wram_exec
 
 /-- Complete node argument delivery is ten native copies; no address arithmetic is hidden. -/
 theorem prepareNode_exec {w : ℕ} (x : Data 128) :
     Exec w prepareNode x (nodeState x) 10 := by
-  ram_eval [prepareNode, nodeState, kernel, slot, NodePacking.source, NodePacking.length,
-    NodePacking.base, NodePacking.groups, NodePacking.magnitude, NodePacking.modulus,
-    heap, groups, magnitude, selected]
+  unfold prepareNode nodeState
+  wram_exec
 
 private theorem kernel_injective : Function.Injective kernel := by
   intro i j h

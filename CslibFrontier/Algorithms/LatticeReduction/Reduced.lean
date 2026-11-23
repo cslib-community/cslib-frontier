@@ -125,8 +125,7 @@ theorem IsReduced.norm_sq_gramSchmidt_chain {δ : ℝ} {b : Fin n → E} (hb : I
     calc ‖gramSchmidt ℝ b j‖ ^ 2
         ≤ (4 / (4 * δ - 1)) ^ k * ‖gramSchmidt ℝ b ⟨j + k, hk'⟩‖ ^ 2 := ih hk'
       _ ≤ (4 / (4 * δ - 1)) ^ k *
-            (4 / (4 * δ - 1) * ‖gramSchmidt ℝ b ⟨j + (k + 1), hk⟩‖ ^ 2) :=
-          mul_le_mul_of_nonneg_left hstep hα
+            (4 / (4 * δ - 1) * ‖gramSchmidt ℝ b ⟨j + (k + 1), hk⟩‖ ^ 2) := by gcongr
       _ = (4 / (4 * δ - 1)) ^ (k + 1) * ‖gramSchmidt ℝ b ⟨j + (k + 1), hk⟩‖ ^ 2 := by
           rw [pow_succ]; ring
 

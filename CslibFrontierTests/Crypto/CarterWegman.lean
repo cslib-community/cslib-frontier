@@ -7,6 +7,9 @@ Authors: Samuel Schlesinger
 module
 
 import CslibFrontier.Crypto.Protocols.MAC.CarterWegman
+import CslibFrontier.Crypto.Protocols.MAC.CarterWegman.Instantiations
+import CslibFrontier.Crypto.Protocols.MAC.CarterWegman.Nonce
+import CslibFrontier.Crypto.Protocols.MAC.CarterWegman.RandomNonce
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Tactic.PolyTime
 import Mathlib.Algebra.Field.ZMod
@@ -18,7 +21,8 @@ Checks concrete tag generation and verification for `xpolyHash` over `ZMod 7` an
 linear hashing over `BitString 2`, instantiates `OneTimeForger`, `CounterForger`, `NonceForger`,
 `RandomNonceForger`, `NonceMACForger`, and `Forger` on multi-query adaptive programs, and exercises
 the one-time, multi-query counter, nonce-based, randomized, and computational (`NonceMACScheme` and
-`MACScheme`) security bounds of `CslibFrontier.Crypto.Protocols.MAC.CarterWegman`.
+`MACScheme`) security bounds across `CslibFrontier.Crypto.Protocols.MAC.CarterWegman` and its
+`Nonce`, `RandomNonce`, and `Instantiations` submodules.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
