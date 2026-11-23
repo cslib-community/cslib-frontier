@@ -15,7 +15,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 
@@ -447,25 +446,25 @@ theorem computableInO_roundStep {edge : π → List Bool → List Bool → Bool}
   refine ((hc.inO_one.ite hbase hrest.inO_one).mono 8 (fun q => ?_) fun q => ?_).of_enc_eq
     fun q => by rw [roundStep_eq]; split_ifs <;> rfl
   all_goals
+    dsimp only
     have hE : (encReg q.2.reg).length ≤ (encRound encP q).length := by
       have h₁ : (encState q.2).length ≤ (encRound encP q).length := length_le_encPair_right _ _ q
-      have := length_encState q.2
-      omega
-  · split_ifs with hq
-    · have hreg := eq_call_of_isBase hq
-      rw [hreg, length_encReg_call] at hE
-      rw [hreg, Reg.edgeCost]
-      have := Nat.mul_le_mul (show q.2.args.2.1.length + 1 ≤ (encRound encP q).length + 1 by omega)
-        (show q.2.args.2.1.length + q.2.args.2.2.length + 1 ≤ (encRound encP q).length + 1 by
-          omega)
-      nlinarith
-    · nlinarith
-  · dsimp only
+      have := length_encState q.2; omega
+  · have hsq : (encRound encP q).length + 1 ≤ ((encRound encP q).length + 1) ^ 2 :=
+      Nat.le_self_pow (by decide) _
     split_ifs with hq
     · have hreg := eq_call_of_isBase hq
       rw [hreg, length_encReg_call] at hE
       rw [hreg, Reg.edgeCost]
+      have := (Nat.mul_le_mul (show q.2.args.2.1.length + 1 ≤ (encRound encP q).length + 1 by omega)
+        (show q.2.args.2.1.length + q.2.args.2.2.length + 1 ≤ (encRound encP q).length + 1 by
+          omega)).trans_eq (Nat.pow_two _).symm
       omega
+    · omega
+  · split_ifs with hq
+    · have hreg := eq_call_of_isBase hq
+      rw [hreg, length_encReg_call] at hE
+      rw [hreg, Reg.edgeCost]; omega
     · omega
 
 /-! ### The states of a run -/
@@ -563,17 +562,16 @@ theorem length_encState_le {w d : ℕ} {s : State} (h : Invariant w d s) :
     refine (length_encList_le encFrame s.stack fun f hf => ?_).trans
       (Nat.mul_le_mul_right _ hst.length_le)
     obtain ⟨hl, hs, hd, hm⟩ := hst.mem f hf
-    rw [length_encFrame]
-    omega
+    rw [length_encFrame]; omega
   have hr : (encReg s.reg).length ≤ 4 * d + 6 * w + 8 := by
     rcases hs : s.reg with ⟨i, u, v⟩ | b
     · obtain ⟨hi, hu, hv⟩ := hreg i u v hs
-      rw [length_encReg_call]
-      omega
-    · rw [length_encReg_ret]
-      omega
-  rw [length_encState]
-  nlinarith
+      rw [length_encReg_call]; omega
+    · rw [length_encReg_ret]; omega
+  rw [length_encState, show 24 * (d + 1) * (d + w + 1) =
+    8 * d ^ 2 + 24 * (d * w) + 48 * d + 24 * w + 24 + 16 * d ^ 2 by ring]
+  have := (Nat.mul_le_mul_left 2 hlist).trans_eq (by ring : _ = 8 * d ^ 2 + 24 * (d * w) + 22 * d)
+  omega
 
 /-- A bound on the encoded states of the iteration, for an encoded parameter of length `P`. -/
 private def stateBound (P w d : ℕ) : ℕ := 4 * P + 27 * ((d + 1) * (d + w + 1))
@@ -582,8 +580,11 @@ private def stateBound (P w d : ℕ) : ℕ := 4 * P + 27 * ((d + 1) * (d + w + 1
 private theorem length_encRound_le {p : π} {w d : ℕ} {s : State} (h : Invariant w d s) :
     (encRound encP ((p, w), s)).length ≤ stateBound (encP p).length w d := by
   have := length_encState_le h
-  simp only [encRound, length_encPair, encUnary_apply, List.length_replicate, stateBound]
-  nlinarith
+  have hw : w + 1 ≤ (d + 1) * (d + w + 1) :=
+    (by omega : w + 1 ≤ d + w + 1).trans (Nat.le_mul_of_pos_left _ (by omega))
+  simp only [encRound, length_encPair, encUnary_apply, List.length_replicate, stateBound,
+    Nat.mul_assoc] at this ⊢
+  omega
 
 /-- The edge test of a round of a run runs on words of width `w`. -/
 private theorem edgeCost_le (T : π × List Bool × List Bool → ℕ) (p : π) {w d : ℕ} {s : State}
@@ -621,8 +622,7 @@ private theorem foldl_countStep (p n : ℕ) (acc : List Bool) :
   | succ n ih =>
     rw [List.replicate_succ, List.foldl_cons, ih, countStep, List.append_assoc,
       ← List.replicate_add]
-    congr 2
-    ring
+    congr 2; ring
 
 /-- The number of rounds, `(w + 2) * (d + 1)` ones in binary, from `w` and `d` in unary. -/
 private theorem steps_inO :
@@ -642,35 +642,26 @@ private theorem steps_inO :
       (enc₂ := encUnary) fun _ => rfl).mono
   have hacc (t : ℕ × ℕ) (i : ℕ) : (((List.replicate (t.2 + 1) true).take i).foldl
       (countStep (t.1 + 2)) []).length ≤ (t.1 + 2) * (t.2 + 1) := by
-    rw [List.take_replicate, foldl_countStep, List.nil_append, List.length_replicate]
-    rw [Nat.mul_comm]
+    rw [List.take_replicate, foldl_countStep, List.nil_append, List.length_replicate, Nat.mul_comm]
     exact Nat.mul_le_mul_left _ (min_le_right _ _)
-  have hfold := (ComputableInO.foldlWith (encL := encBits) (encB := encBits)
-    hpar.inO_one hlist.inO_one
-    (ComputableInO.const []) hstep.inO_one
-    (R := fun t => 6 * ((t.1 + 2) * (t.2 + 1)) + 4)
-    (Q := fun t => 6 * ((t.1 + 2) * (t.2 + 1)) + 4)
-    (B := fun t => (t.1 + 2) * (t.2 + 1))
-    (fun t i _ => by
-      have := hacc t i
-      simp only [length_encPair, encUnary_apply, encBits_apply, encBool_apply,
-        List.length_replicate, List.length_singleton]
-      nlinarith)
-    (fun t i _ => by
-      have := hacc t i
-      simp only [length_encPair, encUnary_apply, encBits_apply, encBool_apply,
-        List.length_replicate, List.length_singleton]
-      nlinarith)
-    (fun t i _ => by simpa using hacc t i))
+  have hRQ (t : ℕ × ℕ) (i : ℕ) (_ : i < (List.replicate (t.2 + 1) true).length) :
+      (encPair (encPair encUnary encBits) encBool
+        ((t.1 + 2, ((List.replicate (t.2 + 1) true).take i).foldl (countStep (t.1 + 2)) []),
+          (List.replicate (t.2 + 1) true)[i])).length ≤ 6 * ((t.1 + 2) * (t.2 + 1)) + 4 := by
+    have := hacc t i
+    have := Nat.le_mul_of_pos_right (t.1 + 2) (by omega : 0 < t.2 + 1)
+    simp only [length_encPair, encUnary_apply, encBits_apply, encBool_apply,
+      List.length_replicate, List.length_singleton]; omega
+  have hfold := ComputableInO.foldlWith (encL := encBits) (encB := encBits)
+    hpar.inO_one hlist.inO_one (ComputableInO.const []) hstep.inO_one
+    (R := fun t => 6 * ((t.1 + 2) * (t.2 + 1)) + 4) (Q := fun t => 6 * ((t.1 + 2) * (t.2 + 1)) + 4)
+    (B := fun t => (t.1 + 2) * (t.2 + 1)) hRQ hRQ (fun t i _ => by simpa using hacc t i)
   refine (hfold.mono 32 (fun t => ?_) fun t => ?_).of_enc_eq fun t => ?_
-  all_goals
-    have hK : t.1 + t.2 + 2 ≤ (t.1 + 2) * (t.2 + 1) := by nlinarith
   · simp only [length_encPair, encUnary_apply, encBits_apply, List.length_replicate]
-    generalize (t.1 + 2) * (t.2 + 1) = K at hK ⊢
-    nlinarith
-  · simp only [length_encPair, encUnary_apply, encBits_apply, List.length_replicate]
-    generalize (t.1 + 2) * (t.2 + 1) = K at hK ⊢
-    nlinarith
+    ring_nf; omega
+  · have hK : t.1 + t.2 + 2 ≤ (t.1 + 2) * (t.2 + 1) := by rw [Nat.add_mul, Nat.mul_add]; omega
+    simp only [length_encPair, encUnary_apply, encBits_apply, List.length_replicate]
+    generalize (t.1 + 2) * (t.2 + 1) = K at hK ⊢; omega
   · rw [encNat_steps, foldl_countStep, List.nil_append, encBits_apply, Nat.mul_comm]
 
 /-! ### The first round and the answer -/
@@ -714,7 +705,7 @@ private theorem savitch_bounds (P w d : ℕ) :
       (w + 2) * (d + 1) + 1 ≤ 2 * ((d + 1) * (d + w + 1) + P + 1) ∧
       d + 2 ≤ (d + 1) * (d + w + 1) + P + 1 := by
   simp only [stateBound]
-  refine ⟨by nlinarith, by nlinarith, by nlinarith⟩
+  refine ⟨by ring_nf; omega, by ring_nf; omega, by ring_nf; omega⟩
 
 end Certificates
 
@@ -779,7 +770,7 @@ theorem computableInO_savitch {γ : Type} {encIn : γ ↪ List Bool}
       simp only [Function.comp_apply, roundStep_iterate]
       exact length_encRound_le (hinv x k)))
   refine ((answer_deg.inO_one.comp_linear hiter).mono 900 (fun x => ?_) fun x => ?_).of_enc_eq
-    fun x => ?_
+    fun x => by simp only [Function.comp_apply]; rw [roundStep_iterate, savitch, answer_eq]
   all_goals simp only [Function.comp_apply]
   · rw [steps_add_one, length_encNat_steps]
     obtain ⟨h₁, h₂, h₃⟩ := savitch_bounds (encP (par x)).length (width x) (depth x)
@@ -789,19 +780,19 @@ theorem computableInO_savitch {γ : Type} {encIn : γ ↪ List Bool}
     generalize edgeMax Te (par x) (width x) = E
     have hM : 1 ≤ 2 ^ K := Nat.one_le_two_pow
     generalize 2 ^ K = M at hM ⊢
-    have hB := Nat.pow_le_pow_left h₁ 2
-    have hK := Nat.pow_le_pow_left h₂ 2
+    have hB := (Nat.pow_le_pow_left h₁ 2).trans_eq (Nat.mul_pow 27 (S + 1) 2)
+    have hK := (Nat.pow_le_pow_left h₂ 2).trans_eq (Nat.mul_pow 2 (S + 1) 2)
     have hdK := Nat.mul_le_mul h₃ (show K ≤ 2 * (S + 1) by omega)
-    rw [Nat.mul_pow] at hB hK
-    have hround : (B + 1) ^ 2 + E + B + (K + 1) ^ 2 ≤ 760 * (S + 1) ^ 2 + E := by nlinarith
-    have := Nat.mul_le_mul_left M hround
+    have hS1 : S + 1 ≤ (S + 1) ^ 2 := Nat.le_self_pow (by decide) _
+    have hMround := Nat.mul_le_mul_left M
+      (show (B + 1) ^ 2 + E + B + (K + 1) ^ 2 ≤ 760 * (S + 1) ^ 2 + E by omega)
     have : (S + 1) ^ 2 ≤ M * (S + 1) ^ 2 := Nat.le_mul_of_pos_left _ hM
-    nlinarith
+    rw [Nat.mul_add] at hMround; ring_nf at hdK this hMround ⊢; omega
   · rw [length_encNat_steps]
     obtain ⟨h₁, h₂, -⟩ := savitch_bounds (encP (par x)).length (width x) (depth x)
-    simp only [stateBound] at h₁ ⊢
-    nlinarith
-  · rw [roundStep_iterate, savitch, answer_eq]
+    have hw : width x ≤ (depth x + 1) * (depth x + width x + 1) :=
+      (by omega : width x ≤ depth x + width x + 1).trans (Nat.le_mul_of_pos_left _ (by omega))
+    simp only [stateBound] at h₁ ⊢; omega
 
 /-- **Savitch's algorithm in polynomial space.** If the edge test is computable in polynomial time,
 and the parameter, the width and depth in unary, and endpoints of width `w` are computable from `x`

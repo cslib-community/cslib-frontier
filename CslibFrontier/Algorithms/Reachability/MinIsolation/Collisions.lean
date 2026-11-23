@@ -68,7 +68,6 @@ private theorem suffix_change_le (δ : (Fin ℓ → Bool) → ℤ) {A : ℤ} (hA
     rw [heq, sub_self, abs_zero, mul_zero]
     positivity
 termination_by ℓ - k
-decreasing_by omega
 
 private theorem eq_of_agrees_on_equal_bits {c d : Fin ℓ → Bool} (δ : (Fin ℓ → Bool) → ℤ)
     {A : ℤ} (hA : 0 < A)

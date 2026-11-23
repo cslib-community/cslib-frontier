@@ -287,8 +287,7 @@ theorem toOuterMeasure_quickSilverMulCheck_le (x y z v_x v_y v_z : Fin t → F)
         by_cases hchi : chi ∈ cancel <;> simp [hchi]
     _ ≤ (t : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) +
         1 * (2 / (Fintype.card F : ℝ≥0∞)) :=
-      add_le_add hcancel <| mul_le_mul_of_nonneg_right
-        (PMF.toOuterMeasure_le_one (PMF.uniformOfFintype F) cancelᶜ) zero_le
+      by gcongr; exact PMF.toOuterMeasure_le_one _ _
     _ = _ := by
       rw [one_mul, div_eq_mul_inv, div_eq_mul_inv, div_eq_mul_inv, Nat.cast_add,
         Nat.cast_ofNat]

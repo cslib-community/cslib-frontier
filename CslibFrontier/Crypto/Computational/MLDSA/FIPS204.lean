@@ -7,12 +7,12 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
 public import CslibFrontier.Crypto.Computational.MLDSA.Signing
 public import CslibFrontier.Crypto.Computational.SIS.SelfTargetFork
 public import CslibFrontier.Crypto.Primitives.Hash.ExtendableOutput
 public import CslibFrontier.Crypto.Primitives.Hash.Keccak.SHAKE128
 public import CslibFrontier.Probability.PMF
-import all CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Crypto.Game.Order
 import Batteries.Data.Vector.Lemmas

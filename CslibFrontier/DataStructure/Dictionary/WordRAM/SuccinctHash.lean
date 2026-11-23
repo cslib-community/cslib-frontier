@@ -226,8 +226,7 @@ theorem tableWords_hash_le {U w n_max : ℕ} (hw : 0 < w) (hnU : n_max ≤ U) (h
       (totalMicroBits_le_of_le_pow hnU hU)
       hw2
     have hm := max_eight_two_pow_hashB_div_two_le n_max
-    have hdiv1 : 2 * max 8 (2 ^ (hashB n_max / 2)) / w ≤ (16 + 2 * n_max) / w :=
-      Nat.div_le_div_right (by omega)
+    have hdiv1 : 2 * max 8 (2 ^ (hashB n_max / 2)) / w ≤ (16 + 2 * n_max) / w := by gcongr; omega
     have hdiv2 : (16 + 2 * n_max) / w < 9 + (2 * n_max + w - 1) / w := by
       refine Nat.div_lt_of_lt_mul ?_
       have h2 := Nat.div_add_mod (2 * n_max + w - 1) w
@@ -305,8 +304,7 @@ theorem space_le_succinctWords {U V w n_max : ℕ}
   have hdiv :
       (Dynamic.optBits U V n_max + 79 * n_max * Dynamic.logLogFactor n_max +
         (2 * n_max) * 1 + w - 1) / w ≤
-      (Dynamic.optBits U V n_max + 81 * n_max * Dynamic.logLogFactor n_max + w - 1) / w :=
-    Nat.div_le_div_right hnum
+      (Dynamic.optBits U V n_max + 81 * n_max * Dynamic.logLogFactor n_max + w - 1) / w := by gcongr
   wram_omega [htab]
 
 /-! ## Section 2: Expected `probeExcess` bound (`≤ 5`) under `ReducedPolySeed` -/
@@ -400,8 +398,7 @@ theorem tsum_uniform_probeExcess_reducedPolyHash_le_five {U n_max : ℕ} (hnU : 
           (2 * 2 ^ (qBits U n_max - 1)) * 2 ^ (3 * hashB n_max) := by
       calc (#(univ \ G) * (2 * #(S.erase u))) * 2 ^ (3 * hashB n_max)
           = (#(univ \ G) * 2 ^ (3 * hashB n_max)) * (2 * #(S.erase u)) := by ring
-        _ ≤ ((#S_Q * (#S_Q - 1)) * 2 ^ (qBits U n_max - 1)) * (2 * #(S.erase u)) :=
-            Nat.mul_le_mul_right _ hunion
+        _ ≤ ((#S_Q * (#S_Q - 1)) * 2 ^ (qBits U n_max - 1)) * (2 * #(S.erase u)) := by gcongr
         _ = ((#S_Q * (#S_Q - 1)) * (2 * #(S.erase u))) * 2 ^ (qBits U n_max - 1) := by ring
         _ ≤ (2 * 2 ^ (3 * hashB n_max)) * 2 ^ (qBits U n_max - 1) :=
             Nat.mul_le_mul_right _ hprod_le

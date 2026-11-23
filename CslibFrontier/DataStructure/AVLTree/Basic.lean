@@ -664,18 +664,12 @@ theorem valid_and_height_balance (a : α) {l r : AVLTree α} (hl : Valid l) (hr 
 @[simp]
 theorem elements_insert (x : α) (t : AVLTree α) :
     elements (insert x t) = Insert.insert x (elements t) := by
-  induction t with
-  | nil => simp [insert, mkNode]
-  | node a h l r ihl ihr =>
-    simp only [insert]
-    split <;> rename_i hxa
-    · ext y
-      simp [elements_balance, ihl, or_left_comm]
-    · split <;> rename_i hax
-      · ext y
-        simp [elements_balance, ihr, or_left_comm]
-      · have heq : x = a := le_antisymm (le_of_not_gt hax) (le_of_not_gt hxa)
-        simp [heq]
+  fun_induction insert x t with
+  | case1 => simp [mkNode] -- nil
+  | case2 _ _ _ _ _ ih | case3 _ _ _ _ _ _ ih => -- x < a: insert into l; a < x: into r
+    ext y
+    simp [elements_balance, ih, or_left_comm]
+  | case4 a h l r hxa hax => simp [le_antisymm (le_of_not_gt hax) (le_of_not_gt hxa)] -- x = a
 
 private theorem valid_and_height_insert {t : AVLTree α} (ht : Valid t) (x : α) :
     Valid (insert x t) ∧

@@ -1729,27 +1729,24 @@ theorem sum_probeCount_oddStride_of_whp_kWiseIndependent
               probeCount_le_add_one (hrep ((top₁, bot.1), (top₂, bot.2))).toTableRep hdom u
         _ = (n_max + 1) * B_card := by simp [B_card, Nat.mul_comm]
         _ ≤ (2 + b₁ top₁ + b₂ top₂) * B_card := Nat.mul_le_mul_right B_card <| by
-            simp only [b₁, b₂]
-            split_ifs <;> first | omega | tauto
+            simp only [b₁, b₂]; split_ifs <;> first | omega | tauto
   calc (∑ θ : (Θ_top₁ × Θ_bot₁) × (Θ_top₂ × Θ_bot₂),
         probeCount (T θ) u (twoStageOddStridePerm H₁ H₂ θ u))
       = ∑ top₁ : Θ_top₁, ∑ top₂ : Θ_top₂, ∑ bot : Θ_bot₁ × Θ_bot₂,
           probeCount (T ((top₁, bot.1), (top₂, bot.2))) u
             (oddStridePerm (H₁ top₁ bot.1) (H₂ top₂ bot.2) u) := by
-        rw [Fintype.sum_prod_type]
         simp only [Fintype.sum_prod_type, twoStageOddStridePerm]
-        exact Finset.sum_congr rfl fun top₁ _ => Finset.sum_comm
+        exact Finset.sum_congr rfl fun _ _ => Finset.sum_comm
     _ ≤ ∑ top₁ : Θ_top₁, ∑ top₂ : Θ_top₂, (2 + b₁ top₁ + b₂ top₂) * B_card :=
         Finset.sum_le_sum fun top₁ _ => Finset.sum_le_sum fun top₂ _ => hinner top₁ top₂
     _ ≤ (3 * (Fintype.card Θ_top₁ * Fintype.card Θ_top₂)) * B_card := by
         simp only [b₁, b₂, ← Finset.sum_mul, Finset.sum_add_distrib, Finset.sum_const,
           Finset.card_univ, smul_eq_mul, ← Finset.mul_sum, Finset.sum_boole, Nat.cast_id]
-        refine Nat.mul_le_mul_right _ ?_
-        nlinarith [Nat.mul_le_mul_right (Fintype.card Θ_top₂) hbad₁,
-          Nat.mul_le_mul_left (Fintype.card Θ_top₁) hbad₂]
+        have h1 := Nat.mul_le_mul_right (Fintype.card Θ_top₂) hbad₁
+        have h2 := Nat.mul_le_mul_left (Fintype.card Θ_top₁) hbad₂
+        exact Nat.mul_le_mul_right _ (by ring_nf at h1 h2 ⊢; omega)
     _ = 3 * Fintype.card ((Θ_top₁ × Θ_bot₁) × (Θ_top₂ × Θ_bot₂)) := by
-        simp only [B_card, Fintype.card_prod]
-        ring
+        simp only [B_card, Fintype.card_prod]; ring
 
 /-- **Expected Probe-Count Bound under High-Probability `(2 * L + 1)`-Wise Independence**:
 under the hypotheses of `sum_probeCount_oddStride_of_whp_kWiseIndependent`, the expected probe count
@@ -1882,12 +1879,14 @@ theorem sum_probeCount_oddStride_doubleTab_le
   obtain ⟨hU_cb, hb_ge, hmax_le_2b⟩ : U ≤ 2 ^ (c * b) ∧ doubleTabMinB c_exp ≤ b ∧
       max n_max 4 ≤ 2 ^ (2 * b) := doubleTab_canonical_params hge hU
   have hb_min_def : doubleTabMinB c_exp = 4 * (24 * c + 8) ^ 2 := doubleTabMinB_eq c_exp
-  have hb_64 : 64 ≤ b := by nlinarith
+  have hb_64 : 64 ≤ b := ((by decide : 64 ≤ 4 * 8 ^ 2).trans
+    (Nat.mul_le_mul_left 4 (Nat.pow_le_pow_left (by omega) 2))).trans (hb_min_def ▸ hb_ge)
   have hcut_le : maxProbeCutoff n_max ≤ 2 * b + 4 := by grind [maxProbeCutoff]
-  have h2cut_sq : 2 * maxProbeCutoff n_max + 1 ≤ b ^ 2 := by nlinarith
+  have h2cut_sq : 2 * maxProbeCutoff n_max + 1 ≤ b ^ 2 := by
+    have := Nat.mul_le_mul_right b hb_64; rw [sq]; omega
   have h2n_le : 2 * (n_max + 1) ≤ 2 ^ (2 * b) * b ^ 2 :=
-    calc 2 * (n_max + 1) ≤ max n_max 4 * 4 := by omega
-      _ ≤ 2 ^ (2 * b) * b ^ 2 := Nat.mul_le_mul hmax_le_2b (by nlinarith)
+    (by omega : 2 * (n_max + 1) ≤ max n_max 4 * 4).trans
+      (Nat.mul_le_mul hmax_le_2b (Nat.pow_le_pow_left (by omega : 2 ≤ b) 2))
   have hclog_le_M : Nat.clog 2 (max n_max 4) ≤ M :=
     (Nat.clog_le_iff_le_pow (by decide)).mpr (by omega)
   have hw4 : 2 * (2 * maxProbeCutoff n_max) ^ 4 ≤ 2 ^ M :=

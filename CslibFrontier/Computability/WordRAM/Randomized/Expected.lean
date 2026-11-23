@@ -16,6 +16,7 @@ import CslibFrontier.Foundations.Analysis.ENNRealTsum
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.SupportTsum
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Expected running time for randomized word RAMs
@@ -793,16 +794,15 @@ private theorem loopIterPMF_support_of_preserves {cond : Cond r} {I Q S : Data r
     (K : ℕ) {x : Data r} (hx : LoopStateInv cond I Q x) (hSx : S x) :
     ∀ y ∈ (loopIterPMF cond μ_body K x).support, S y := by
   induction K generalizing x with
-  | zero => intro y hy; rw [loopIterPMF_zero, PMF.support_pure, Set.mem_singleton_iff] at hy
-            rwa [hy]
+  | zero => intro y hy; supp_cases hy [loopIterPMF_zero]; exact hSx
   | succ K ih =>
     intro y hy
-    obtain ⟨z, hz, hyz⟩ := (PMF.mem_support_bind_iff _ _ _).mp hy
+    supp_cases hy [loopIterPMF_succ] with ⟨z, hz, hyz⟩
     rcases hx with ⟨hcx, hIx⟩ | ⟨hcx, hQx⟩
     · rw [loopStepPMF_of_holds hcx] at hz
       exact ih (hinv x hIx hcx z hz) (hS x hIx hcx hSx z hz) y hyz
-    · rw [loopStepPMF_of_not_holds hcx, PMF.support_pure, Set.mem_singleton_iff] at hz
-      exact ih (hz ▸ Or.inr ⟨hcx, hQx⟩) (hz ▸ hSx) y hyz
+    · supp_cases hz [loopStepPMF_of_not_holds hcx]
+      exact ih (Or.inr ⟨hcx, hQx⟩) hSx y hyz
 
 theorem loopIterPMF_support_inv {cond : Cond r} {I Q : Data r → Prop}
     {μ_body : Data r → PMF (Data r)}
@@ -1069,8 +1069,7 @@ theorem seq_pure (h₁ : ExecCodeDist w c₁ x (PMF.pure y) T₁)
   classical
   have h := h₁.seq (c₂ := c₂) (μ₂ := fun z => if z = y then μ else PMF.pure z)
     (T₂ := fun z => if z = y then T₂ else 0) fun z hz => by
-      rw [PMF.support_pure, Set.mem_singleton_iff] at hz
-      subst hz
+      supp_cases hz
       simpa only [↓reduceIte] using h₂
   exact h.congr_dist (by simp) (by simp)
 
@@ -1189,7 +1188,7 @@ private theorem support_of_execRand_preserves {R : Code B r → Prop} {S : Data 
     intro _ hy; obtain ⟨z, hz, rfl⟩ := mem_support_eval_fst_iff.mp hy; exact h_rand hm hR hS z hz
   | mono _ _ ih => exact ih hR hS
   | seq _ _ ih₁ ih₂ =>
-    intro y hy; obtain ⟨z, hz, hyz⟩ := (PMF.mem_support_bind_iff _ _ _).mp hy
+    intro y hy; supp_cases hy with ⟨z, hz, hyz⟩
     exact ih₂ z hz (h_seq hR).2 (ih₁ (h_seq hR).1 hS z hz) y hyz
   | branch_pos _ _ ih => exact ih (h_bpos hR) hS
   | branch_neg _ _ ih => exact ih (h_bneg hR) hS
@@ -1234,9 +1233,9 @@ private theorem extend_left_injective {r' : ℕ} {f : Fin r → Fin r'} (hf : f.
 private theorem pmf_map_apply_not_mem_range {α β : Type*} (p : PMF α) (g : α → β) {b : β}
     (hb : b ∉ Set.range g) :
     p.map g b = 0 :=
-  (PMF.apply_eq_zero_iff _ _).mpr fun h =>
-    let ⟨a, _, ha⟩ := (PMF.mem_support_map_iff _ _ _).mp h
-    hb ⟨a, ha⟩
+  (PMF.apply_eq_zero_iff _ _).mpr fun h => by
+    supp_cases h with ⟨a, _, rfl⟩
+    exact hb ⟨a, rfl⟩
 
 private theorem loopIterPMF_rename {r' : ℕ} {f : Fin r → Fin r'} (hf : f.Injective)
     (cond : Cond r) (μ_body : Data r → PMF (Data r)) (x : Data r') (K : ℕ) (u : Data r) :
@@ -1283,8 +1282,9 @@ private theorem rename_loop_geometric {r' : ℕ} {f : Fin r → Fin r'} (hf : f.
   have hinv' : ∀ z', I' z' → (cond.rename f).Holds z' →
       ∀ y' ∈ (μ_body' z').support, LoopStateInv (cond.rename f) I' Q' y' := by
     rintro _ ⟨u, hIu, rfl⟩ hcz' y' hy'
-    simp only [μ_body', g, Data.comap_extend hf, PMF.mem_support_map_iff] at hy'
-    obtain ⟨y, hy, rfl⟩ := hy'
+    dsimp only [μ_body', g] at hy'
+    rw [Data.comap_extend hf] at hy'
+    supp_cases hy' with ⟨y, hy, rfl⟩
     exact hinv_img (hinv u hIu ((hcond u).mp hcz') y hy)
   have hp_exit' : ∀ z', I' z' → (cond.rename f).Holds z' →
       p_exit ≤ (μ_body' z').toOuterMeasure {y' | ¬(cond.rename f).Holds y'} := by
@@ -1339,7 +1339,7 @@ theorem rename {r' : ℕ} {f : Fin r → Fin r'} (hf : f.Injective) {x : Data r'
     subst hx₀
     have hseq := (ih₁ rfl).seq (μ₂ := fun y' => (μ₂ (y'.comap f)).map fun z => z.extend f x)
       (T₂ := fun y' => T₂ (y'.comap f)) fun y' hy' => by
-        obtain ⟨y₁, hy₁, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hy'
+        supp_cases hy' with ⟨y₁, hy₁, rfl⟩
         simpa only [Data.comap_extend hf, Data.extend_extend hf] using
           ih₂ y₁ hy₁ (x := y₁.extend f x) (Data.comap_extend hf y₁ x)
     refine hseq.congr_dist ?_ ?_

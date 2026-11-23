@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.FourierRestriction
 public import CslibFrontier.Foundations.BooleanAnalysis.KahnKalaiLinial
 public import Mathlib.Logic.Function.DependsOn
 import CslibFrontier.Foundations.BooleanAnalysis.HammingFourier
+import CslibFrontier.Foundations.Data.Finset.Markov
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
@@ -38,7 +39,9 @@ of the coordinates of influence more than `τ`, the weight outside the subsets o
 carry weight at most `log 3 / log A · I[F]`, and the hypercontractive bound of the
 Kahn–Kalai–Linial theorem, `∑_{S ∋ i} 3 ^ (-|S|) F̂(S) ^ 2 ≤ Infᵢ[F] ^ (3/2) / 3`, summed over
 the coordinates `i ∉ J`, bounds the others. Taking `A = 9 ^ (K / ε)` and
-`√τ = 3 ε / (2 K A)` makes both terms at most `ε / 2`, and `J` has at most `K / τ` elements.
+`√τ = 3 ε / (2 K A)` makes both terms at most `ε / 2`
+(`BitString.exists_sum_filter_not_subset_fourierCoeff_sq_le_of_totalInfluence_le`), and `J` has
+at most `K / τ` elements.
 
 ## Main results
 
@@ -49,6 +52,10 @@ the coordinates `i ∉ J`, bounds the others. Taking `A = 9 ^ (K / ε)` and
   when resampling the coordinates outside `J` rarely changes its value.
 * `Cslib.BitString.sum_filter_not_subset_fourierCoeff_sq_le`: the Fourier weight outside the
   subsets of the set of influential coordinates.
+* `Cslib.BitString.exists_sum_filter_not_subset_fourierCoeff_sq_le_of_totalInfluence_le`: a set of
+  at most `4 K³/(9 ε²) · 81^(K/ε)` coordinates (`exp(O(K/ε))` for `ε ≤ 1`), outside whose subsets
+  the Fourier weight is at most `ε`. The `## Usage` section of
+  `CslibFrontier.Foundations.BooleanAnalysis.LargeCoefficient` shows how to use it.
 * `Cslib.BitString.exists_dependsOn_hammingDist_div_le_of_totalInfluence_le`,
   `Cslib.BitString.exists_card_le_three_mul_two_rpow_dependsOn_hammingDist_div_le`: Friedgut's
   junta theorem.
@@ -229,13 +236,7 @@ private theorem card_filter_lt_influence_le_of_totalInfluence_le (F : (ι → Bo
   have hA0 : 0 < A := rpow_pos_of_pos (by norm_num) _
   have hτ : 0 < τ := sq_pos_of_pos (by positivity)
   have hcard : #{i : ι | τ < influence i F} * τ ≤ K :=
-    calc #{i : ι | τ < influence i F} * τ = ∑ _i ∈ {i : ι | τ < influence i F}, τ := by
-          rw [sum_const, nsmul_eq_mul]
-      _ ≤ ∑ i ∈ {i : ι | τ < influence i F}, influence i F :=
-          sum_le_sum fun i hi => (mem_filter.1 hi).2.le
-      _ ≤ totalInfluence F :=
-          sum_le_sum_of_subset_of_nonneg (subset_univ _) fun i _ _ => influence_nonneg i F
-      _ ≤ K := hK
+    (card_filter_mul_le_sum univ _ _ (fun i _ => influence_nonneg i F) fun _ _ h => h.le).trans hK
   have hA2 : A * A = 81 ^ (K / ε) := by
     rw [← mul_rpow (by norm_num) (by norm_num)]
     norm_num
@@ -244,36 +245,27 @@ private theorem card_filter_lt_influence_le_of_totalInfluence_le (F : (ι → Bo
   field_simp
   ring
 
-/-- When `totalInfluence (signVal ∘ f) ≤ 0`, `f` is within relative Hamming distance `ε > 0` of a
-function depending on `∅`. -/
-private theorem exists_empty_dependsOn_of_totalInfluence_le_zero (f : (ι → Bool) → Bool)
-    {K ε : ℝ} (hε : 0 < ε) (hK : totalInfluence (fun x => signVal (f x)) ≤ K) (hK0 : 0 = K) :
-    ∃ (J : Finset ι) (g : (ι → Bool) → Bool),
-      (#J : ℝ) ≤ 4 * K ^ 3 / (9 * ε ^ 2) * 81 ^ (K / ε) ∧ DependsOn g (J : Set ι) ∧
-        (hammingDist f g : ℝ) / 2 ^ Fintype.card ι ≤ ε := by
-  obtain ⟨g, hg, hfg⟩ :=
-    exists_dependsOn_hammingDist_div_le_sum_not_subset_fourierCoeff_sq f ∅
-  refine ⟨∅, g, by rw [← hK0]; simp, hg, hfg.trans ?_⟩
-  have h := sum_filter_not_subset_fourierCoeff_sq_le f (J := ∅) (τ := 1)
-    (fun i _ => influence_signVal_le_one f i) (A := 3) (by norm_num)
-  have hI0 : totalInfluence (fun x => signVal (f x)) = 0 :=
-    le_antisymm (hK0 ▸ hK) (totalInfluence_nonneg _)
-  rw [hI0, mul_zero, mul_zero, add_zero] at h
-  exact h.trans hε.le
-
-/-- **Friedgut's junta theorem**: if a Boolean function read as signs `F` has total influence at
-most `K`, then for every `ε > 0` it is at relative Hamming distance at most `ε` from a Boolean
-function of at most `4 K ^ 3 / (9 ε ^ 2) · 81 ^ (K / ε)` coordinates [Friedgut1998]
-[O'Donnell, Section 9.6][ODonnell2014]. -/
-theorem exists_dependsOn_hammingDist_div_le_of_totalInfluence_le (f : (ι → Bool) → Bool)
-    {K ε : ℝ} (hε : 0 < ε) (hK : totalInfluence (fun x => signVal (f x)) ≤ K) :
-    ∃ (J : Finset ι) (g : (ι → Bool) → Bool),
-      (#J : ℝ) ≤ 4 * K ^ 3 / (9 * ε ^ 2) * 81 ^ (K / ε) ∧ DependsOn g (J : Set ι) ∧
-        (hammingDist f g : ℝ) / 2 ^ Fintype.card ι ≤ ε := by
+/-- **Few coordinates carry the Fourier weight**: if a Boolean function read as signs
+`F` has total influence at most `K`, then for every `ε > 0` there is a set `J` of at most
+`4 K ^ 3 / (9 ε ^ 2) · 81 ^ (K / ε)` coordinates with `∑_{S ⊄ J} F̂(S) ^ 2 ≤ ε`, adapting the
+proof of [O'Donnell, Theorem 9.28][ODonnell2014]. Together with the bound on the weight above
+degree `K / ε` (`BitString.sum_fourierCoeff_sq_le_of_totalInfluence_le`) this is the spectral form
+of Friedgut's junta theorem [O'Donnell, Section 9.6][ODonnell2014]. -/
+theorem exists_sum_filter_not_subset_fourierCoeff_sq_le_of_totalInfluence_le
+    (f : (ι → Bool) → Bool) {K ε : ℝ} (hε : 0 < ε)
+    (hK : totalInfluence (fun x => signVal (f x)) ≤ K) :
+    ∃ J : Finset ι, (#J : ℝ) ≤ 4 * K ^ 3 / (9 * ε ^ 2) * 81 ^ (K / ε) ∧
+      ∑ S with ¬S ⊆ J, fourierCoeff (fun x => signVal (f x)) S ^ 2 ≤ ε := by
   set F : (ι → Bool) → ℝ := fun x => signVal (f x)
   rcases ((totalInfluence_nonneg F).trans hK).lt_or_eq with hK0 | hK0
   swap
-  · exact exists_empty_dependsOn_of_totalInfluence_le_zero f hε hK hK0
+  · -- with no influence at all, `J = ∅` works
+    refine ⟨∅, by rw [← hK0]; simp, ?_⟩
+    have h := sum_filter_not_subset_fourierCoeff_sq_le f (J := ∅) (τ := 1)
+      (fun i _ => influence_signVal_le_one f i) (A := 3) (by norm_num)
+    have hI0 : totalInfluence F = 0 := le_antisymm (hK0 ▸ hK) (totalInfluence_nonneg _)
+    rw [hI0, mul_zero, mul_zero, add_zero] at h
+    exact h.trans hε.le
   -- the parameters `A = 9 ^ (K / ε)` and `√τ = 3 ε / (2 K A)`
   set A : ℝ := 9 ^ (K / ε)
   have hA : 1 < A := one_lt_rpow (by norm_num) (div_pos hK0 hε)
@@ -288,9 +280,7 @@ theorem exists_dependsOn_hammingDist_div_le_of_totalInfluence_le (f : (ι → Bo
   have hs : 0 < s := by positivity
   set τ : ℝ := s ^ 2
   set J : Finset ι := {i | τ < influence i F}
-  obtain ⟨g, hg, hfg⟩ :=
-    exists_dependsOn_hammingDist_div_le_sum_not_subset_fourierCoeff_sq f J
-  refine ⟨J, g, card_filter_lt_influence_le_of_totalInfluence_le F hK0 hε hK, hg, hfg.trans ?_⟩
+  refine ⟨J, card_filter_lt_influence_le_of_totalInfluence_le F hK0 hε hK, ?_⟩
   -- both terms of the weight bound are at most `ε / 2`
   have h := sum_filter_not_subset_fourierCoeff_sq_le f (J := J) (τ := τ)
     (fun i hi => not_lt.1 fun h => hi (mem_filter.2 ⟨mem_univ i, h⟩)) hA
@@ -304,6 +294,19 @@ theorem exists_dependsOn_hammingDist_div_le_of_totalInfluence_le (f : (ι → Bo
   have h2 : ε / (2 * K) * K = ε / 2 := by
     field_simp
   linarith
+
+/-- **Friedgut's junta theorem**: if a Boolean function read as signs `F` has total influence at
+most `K`, then for every `ε > 0` it is at relative Hamming distance at most `ε` from a Boolean
+function of at most `4 K ^ 3 / (9 ε ^ 2) · 81 ^ (K / ε)` coordinates [Friedgut1998]
+[O'Donnell, Section 9.6][ODonnell2014]. -/
+theorem exists_dependsOn_hammingDist_div_le_of_totalInfluence_le (f : (ι → Bool) → Bool)
+    {K ε : ℝ} (hε : 0 < ε) (hK : totalInfluence (fun x => signVal (f x)) ≤ K) :
+    ∃ (J : Finset ι) (g : (ι → Bool) → Bool),
+      (#J : ℝ) ≤ 4 * K ^ 3 / (9 * ε ^ 2) * 81 ^ (K / ε) ∧ DependsOn g (J : Set ι) ∧
+        (hammingDist f g : ℝ) / 2 ^ Fintype.card ι ≤ ε := by
+  obtain ⟨J, hJ, hw⟩ := exists_sum_filter_not_subset_fourierCoeff_sq_le_of_totalInfluence_le f hε hK
+  obtain ⟨g, hg, hfg⟩ := exists_dependsOn_hammingDist_div_le_sum_not_subset_fourierCoeff_sq f J
+  exact ⟨J, g, hJ, hg, hfg.trans hw⟩
 
 /-- **Friedgut's junta theorem, exponential form**: if a Boolean function read as signs `F` has
 total influence at most `K`, then for every `0 < ε ≤ 1` it is at relative Hamming distance at most

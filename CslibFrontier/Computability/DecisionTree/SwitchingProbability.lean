@@ -380,8 +380,7 @@ private theorem card_filter_not_cnf_div_card_le_of_ne_one {n k s t : ℕ} (hk : 
       nlinarith [mul_le_mul ht' ht' (by positivity) (by positivity)]
     have hku : (0 : ℝ) ≤ (k : ℝ) ^ 2 * u := by positivity
     calc (8 * k * u : ℝ) ^ 2 * n = (k ^ 2 * u) * (64 * n * u) := by ring
-      _ ≤ (k ^ 2 * u) * ((k : ℝ) ^ 8 * (((n - u : ℕ) : ℝ) + 1) ^ 2) :=
-          mul_le_mul_of_nonneg_left hkey hku
+      _ ≤ (k ^ 2 * u) * ((k : ℝ) ^ 8 * (((n - u : ℕ) : ℝ) + 1) ^ 2) := by gcongr
       _ = u * k ^ 10 * (((n - u : ℕ) : ℝ) + 1) ^ 2 := by ring
   calc (#B : ℝ) / #W ≤ r ^ s := hP
     _ = (r ^ 2) ^ ((s : ℝ) / 2) := by

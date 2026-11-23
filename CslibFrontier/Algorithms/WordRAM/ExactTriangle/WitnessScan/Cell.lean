@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WitnessScan.Program
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Charged original-weight zero-sum test
@@ -24,9 +24,6 @@ namespace Cslib.Algorithms.WordRAM.ExactTriangle.WitnessScan
 
 open Cslib.WordRAM
 
-private theorem loads_preserve : ∀ i : Fin 32, 9 ≤ i.val → i ≠ Reg.address →
-    loadBC.Preserves i ∧ loadAC.Preserves i := by decide
-
 /-- Actual signed verification of one original candidate vertex, with every address and
 arithmetic instruction charged. The first partial sum must fit the next kernel's signed
 source range; the complete initialized caller derives this from the original weight bound. -/
@@ -41,35 +38,31 @@ theorem exec_testVertex {w rb ra c : ℕ} {ab bc ac : ℤ} (x : Data 32)
     ∃ y, ExecWithin (w + 2) testVertex x y 36 ∧
       y.regs Signed.result = Signed.encode (ab + bc + ac) ∧ y.mem = x.mem ∧
       ∀ i : Fin 32, 9 ≤ i.val → i ≠ Reg.address → y.regs i = x.regs i := by
-  let a := x.set Signed.left (Signed.encode ab) |>.set Reg.address (rb + c)
-    |>.set Signed.right (Signed.encode bc)
-  have hloadB : ExecWithin (w + 2) loadBC x a 3 := by
-    have hf : Fits (w + 2) (rb + c) := haddr.of_le (by omega)
-    ram_eval [loadBC, a, hrowB, hindex, hwab, hBC, hf,
-      Reg.address, Reg.rowB, Reg.index, Reg.wab, Signed.left, Signed.right, Fin.mk.injEq]
-  obtain ⟨b, hsumB, bsum, bframe⟩ := Signed.exec_add hab hbc a
-    (by simp +decide [a, Signed.left, Signed.right, Reg.address])
-    (by simp +decide [a, Signed.left, Signed.right, Reg.address])
+  refine WP.exists_execWithin ?_
+  unfold testVertex loadBC loadAC
+  wram_exec [hrowB, hindex, hwab, hBC]
+  wram_call (Signed.exec_add hab hbc _ (by wram_simp) (by wram_simp))
+    with b ⟨bsum, bmem, bframe⟩
   change b.regs Signed.result = Signed.encode (ab + bc) at bsum
-  have bmeta (i : Fin 32) (hi : 9 ≤ i.val) (hne : i ≠ Reg.address) :
-      b.regs i = x.regs i :=
-    (bframe.2 i (Or.inr hi)).trans (hloadB.regs_eq (loads_preserve i hi hne).1)
-  have bra : b.regs Reg.rowA = ra := by regs_frame
-  have bindex : b.regs Reg.index = c := by regs_frame
-  have bmem : b.mem = x.mem := bframe.1
-  let d := b.set Signed.left (Signed.encode (ab + bc)) |>.set Reg.address (ra + c)
-    |>.set Signed.right (Signed.encode ac)
-  have hloadA : ExecWithin (w + 2) loadAC b d 3 := by
-    have hf : Fits (w + 2) (ra + c) := haddr.of_le (by omega)
-    ram_eval [loadAC, d, bra, bindex, bsum, bmem, hAC, hf,
-      Reg.address, Reg.rowA, Reg.index, Signed.left, Signed.right, Signed.result, Fin.mk.injEq]
-  obtain ⟨y, hsumA, ysum, yframe⟩ := Signed.exec_add hpartial hac d
-    (by simp +decide [d, Signed.left, Signed.right, Reg.address])
-    (by simp +decide [d, Signed.left, Signed.right, Reg.address])
-  refine ⟨y, hloadB.seq (hsumB.seq (hloadA.seq hsumA)), ysum, ?_, ?_⟩
-  · exact yframe.1.trans bmem
-  · intro i hi hne
-    exact (yframe.2 i (Or.inr hi)).trans
-      ((hloadA.regs_eq (loads_preserve i hi hne).2).trans (bmeta i hi hne))
+  wram_simp at bmem
+  have bra : b.regs Reg.rowA = ra :=
+    (bframe _ (Or.inr (by decide))).trans (by wram_simp [hrowA])
+  have bindex : b.regs Reg.index = c :=
+    (bframe _ (Or.inr (by decide))).trans (by wram_simp [hindex])
+  have hAC' : b.mem (ra + c) = Signed.encode ac := bmem ▸ hAC
+  wram_exec [bsum, bra, bindex, hAC']
+  wram_call (Signed.exec_add hpartial hac _ (by wram_simp) (by wram_simp))
+    with y ⟨ysum, ymem, yframe⟩
+  wram_simp at ymem
+  refine ⟨by decide, ysum, ymem.trans bmem, fun i hi hne => ?_⟩
+  have h1 : i ≠ Signed.left := fun h => by subst h; exact absurd hi (by decide)
+  have h2 : i ≠ Signed.right := fun h => by subst h; exact absurd hi (by decide)
+  have hloadA : (b.set Signed.left (Signed.encode (ab + bc)) |>.set Reg.address (ra + c)
+      |>.set Signed.right (Signed.encode ac)).regs i = b.regs i := by
+    wram_simp [h1, h2, hne]
+  have hloadB : (x.set Signed.left (Signed.encode ab) |>.set Reg.address (rb + c)
+      |>.set Signed.right (Signed.encode bc)).regs i = x.regs i := by
+    wram_simp [h1, h2, hne]
+  exact (yframe i (Or.inr hi)).trans (hloadA.trans ((bframe i (Or.inr hi)).trans hloadB))
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.WitnessScan

@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Circuit.Boolean.Simps
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-! # Bounding depth, size and cost with `circuit_bound` and `circuit_simps` -/
 
@@ -68,6 +68,47 @@ example (i j : Fin n) :
       ≤ 1 := by
   circuit_bound
 
+-- A formula gate of arbitrary arity bounds its depth uniformly across its arguments (`Finset.sup`).
+example (op : σ.Op) (args : Fin (σ.Arity op) → Formula σ n) (D : ℕ)
+    (hargs : ∀ j, (args j).depth ≤ D) :
+    (Formula.gate op args).depth ≤ D + 1 := by
+  circuit_bound
+
+-- Small-arity tuple gates (`Fin 0`, `Fin 1`, `Fin 2`) expand to exact maxima without needing a
+-- uniform bound across distinct arguments.
+example (F G : Formula Boolean.signature n) (a b : ℕ)
+    (hF : F.depth ≤ a) (hG : G.depth ≤ b) :
+    (Formula.gate (σ := Boolean.signature) .or ![.gate .not ![F], G]).depth ≤
+      max a b + 2 := by
+  circuit_bound
+
+-- Formula substitution (`Formula.bind`) adds at most the uniform depth of the substituted leaves.
+example (F : Formula σ m) (sub : Fin m → Formula σ n) (D c : ℕ)
+    (hF : F.depth ≤ D) (hsub : ∀ i, (sub i).depth ≤ c) :
+    (F.bind sub).depth ≤ D + c := by
+  circuit_bound
+
+-- Fixed-exponent powers are monotone in their base (`Nat.pow_le_pow_left`).
+example (c : Circuit σ n m) (r : ℕ) (hc : c.size ≤ r) :
+    (c.size + 1) ^ 2 + 2 ≤ (r + 1) ^ 2 + 2 := by
+  circuit_bound
+
+-- Iterating a circuit multiplies its program cost via `Circuit.costProgram`.
+example (c : Circuit σ n n) (w : σ.Op → ℕ) (t : ℕ) (hc : c.program.cost w ≤ 4) :
+    (c.iterate t).program.cost w ≤ t * 4 := by
+  circuit_bound
+
+-- Boolean formula size and cost rules (`size_const`, `size_xor`, `cost_*`) in `circuit_simps`.
+example (i : Fin n) :
+    ((Formula.input i).xor (.const false) : Formula Boolean.signature n).size = 7 := by
+  simp only [circuit_simps]
+
+example (i j : Fin n) (w : Boolean.signature.Op → ℕ) :
+    ((Formula.input i).and (.not (.input j)) : Formula Boolean.signature n).toCircuit.program.cost
+      w = w .not + w .and := by
+  simp only [circuit_simps]
+  omega
+
 /-! ### Size and cost -/
 
 -- The size of a family is a sum, bounded term by term.
@@ -94,13 +135,13 @@ example (d : Circuit σ m k) (c : Circuit σ n m) (e : Circuit σ n k) :
 /-! ### Definitions, induction hypotheses and registered bounds -/
 
 /-- `t` rounds of a circuit, after a circuit `c₀`. -/
-def rounds (c : Circuit σ n n) (c₀ : Circuit σ n n) : ℕ → Circuit σ n n
+private def rounds (c : Circuit σ n n) (c₀ : Circuit σ n n) : ℕ → Circuit σ n n
   | 0 => c₀
   | t + 1 => c.comp (rounds c c₀ t)
 
 -- The definition is unfolded on request; the induction hypothesis bounds the recursive call.
-theorem depth_rounds_le (c c₀ : Circuit σ n n) (hc : c.depth ≤ 2) (h₀ : c₀.depth ≤ 1) (t : ℕ) :
-    (rounds c c₀ t).depth ≤ 2 * t + 1 := by
+private theorem depth_rounds_le (c c₀ : Circuit σ n n) (hc : c.depth ≤ 2) (h₀ : c₀.depth ≤ 1)
+    (t : ℕ) : (rounds c c₀ t).depth ≤ 2 * t + 1 := by
   induction t with
   | zero => simpa [rounds] using h₀
   | succ t ih => circuit_bound [rounds]
@@ -224,6 +265,28 @@ error: circuit_bound expects a goal `m ≤ b` between natural numbers, got
 -/
 #guard_msgs in
 example (c : Circuit σ n m) : c.depth = 3 := by
+  circuit_bound
+
+-- Soundness: `circuit_bound` leaves an exponent untouched even when a bound on the exponent is in
+-- context.
+example (b d : ℕ) (_h : 1 ≤ d) (_hd : d ≤ 2) (hb : b ^ d ≤ 9) : b ^ d ≤ 9 := by
+  circuit_bound
+
+example (d : ℕ) (h0 : 0 < d) (_hd : d ≤ 2) : 0 ^ d ≤ 0 := by
+  fail_if_success circuit_bound
+  simp [Nat.zero_pow h0]
+
+-- A `Finset.sup` family whose bound depends on the index reports the same diagnostic note.
+/--
+error: circuit_bound could not prove
+  (Finset.univ.sup fun j => (args j).depth) + 1 ≤ 5
+No bound of
+  (args j).depth
+is known that does not depend on `j`. State a bound of the family as a hypothesis `∀ j, … ≤ D`.
+-/
+#guard_msgs in
+example (op : σ.Op) (args : Fin (σ.Arity op) → Formula σ n) :
+    (Formula.gate op args).depth ≤ 5 := by
   circuit_bound
 
 -- The attribute accepts only bounds and values of natural numbers.

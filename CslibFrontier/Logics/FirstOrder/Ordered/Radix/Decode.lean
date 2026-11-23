@@ -63,7 +63,7 @@ variable {L : Language} {n : ℕ} [Fact (2 ≤ n)] [L.Structure (Fin n)] {α : T
 theorem realize_quotientEq (B x q r : (language L).Term α) (v : α → Fin n) :
     (quotientEq L B x q r).Realize v ↔
       (x.realize v).val = (r.realize v).val + (B.realize v).val * (q.realize v).val := by
-  fo_simp [quotientEq, Function.comp_def]
+  fo_simp [quotientEq]
   constructor
   · rintro ⟨u, hu, he⟩
     lia
@@ -82,7 +82,7 @@ theorem realize_decode {d : ℕ} (B x : (language L).Term α)
       (∀ i, ((w i).realize v).val < (B.realize v).val) ∧
       Nat.ofDigits (B.realize v).val (List.ofFn fun i => ((w i).realize v).val) =
         (x.realize v).val := by
-  fo_simp [decode, Function.comp_def, Fin.ext_iff, and_assoc]
+  fo_simp [decode, Fin.ext_iff, and_assoc]
   constructor
   · rintro ⟨hw, q, hq0, hqe, hs⟩
     exact ⟨hw, (Nat.ofDigits_eq_of_quotients _ (fun i => (q i).val) hqe hs).trans hq0⟩

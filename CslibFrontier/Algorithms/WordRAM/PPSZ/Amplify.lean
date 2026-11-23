@@ -275,7 +275,7 @@ theorem ampProgram_spec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
         (v = 0 ∨ (v = 1 ∧
           φ.eval (assignmentAt d.mem ((s :: a :: b :: c :: encode φ).length + 1) n) = true))) ∧
     (evalRand w ampProgram (ampTime s a b c n (s :: a :: b :: c :: encode φ).length)
-      (.init (s :: a :: b :: c :: encode φ))).map Schoening.cfgSuccess =
+      (.init (s :: a :: b :: c :: encode φ))).map RandCfg.accepts =
         repeatRoundWith (implied φ s) φ (ppszRounds a b n c) := by
   set L := (s :: a :: b :: c :: encode φ).length with hL
   have hE : (encodeClauses φ).length + 5 = L := by
@@ -339,7 +339,7 @@ theorem ampProgram_spec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
           12 * (encodeClauses φ).length + 35 ≤ n * (impliedTime s L + 25) + 12 * L + 41 by omega)
       simp only [ampTime, countSetupTime, ppszCounterLen, ppszDigits, ← he] at hlen hcount ⊢
       omega)
-    Schoening.cfgSuccess fun _ _ => rfl
+    RandCfg.accepts fun _ _ => rfl
   refine ⟨hhalt, hcalls, fun cfg hcfg => ?_, hlaw⟩
   obtain ⟨d, rfl, -, hd⟩ := hpost cfg hcfg
   exact ⟨_, d, rfl, hd⟩
@@ -366,7 +366,7 @@ theorem ampProgram_failure_le_exp_of_le {s a b c : ℕ} (hb : 0 < b) {φ : CNF (
     (hw : Fits w ((s :: a :: b :: c :: encode φ).length + 2 * n + 2 * s + a * n + b + 2 * c +
       ppszCounterLen a b n c + 3)) :
     ((evalRand w ampProgram (ampTime s a b c n (s :: a :: b :: c :: encode φ).length)
-      (.init (s :: a :: b :: c :: encode φ))).map Schoening.cfgSuccess false).toReal ≤
+      (.init (s :: a :: b :: c :: encode φ))).map RandCfg.accepts false).toReal ≤
       Real.exp (-c) := by
   rw [(ampProgram_spec s a b c φ hw).2.2.2]
   exact PPZ.repeatRoundWith_false_le_exp hq (le_ppszRounds_mul hb n c)
@@ -381,7 +381,7 @@ theorem ampProgram_failure_le_exp {k h s a b c : ℕ} (hk : 3 ≤ k) (hb : 0 < b
     (hw : Fits w ((s :: a :: b :: c :: encode φ).length + 2 * n + 2 * s + a * n + b + 2 * c +
       ppszCounterLen a b n c + 3)) :
     ((evalRand w ampProgram (ampTime s a b c n (s :: a :: b :: c :: encode φ).length)
-      (.init (s :: a :: b :: c :: encode φ))).map Schoening.cfgSuccess false).toReal ≤
+      (.init (s :: a :: b :: c :: encode φ))).map RandCfg.accepts false).toReal ≤
       Real.exp (-c) :=
   ampProgram_failure_le_exp_of_le hb
     ((two_rpow_neg_mul_le n hab).trans (roundSuccessProb_ge hk hφ hlen hs)) hw
@@ -399,7 +399,7 @@ theorem ampProgram_failure_le_exp_limit {k : ℕ} (hk : 3 ≤ k) {ε : ℝ} (hε
         Fits w ((s :: a :: b :: c :: encode φ).length + 2 * n + 2 * s + a * n + b + 2 * c +
           ppszCounterLen a b n c + 3) →
         ((evalRand w ampProgram (ampTime s a b c n (s :: a :: b :: c :: encode φ).length)
-          (.init (s :: a :: b :: c :: encode φ))).map Schoening.cfgSuccess false).toReal ≤
+          (.init (s :: a :: b :: c :: encode φ))).map RandCfg.accepts false).toReal ≤
           Real.exp (-c) := by
   obtain ⟨s, hs⟩ := round_success_limit hk ε hε
   refine ⟨s, fun hb hab n φ hφ hlen w hw => ampProgram_failure_le_exp_of_le hb ?_ hw⟩
@@ -414,7 +414,7 @@ theorem ampProgram_failure_le_exp_three {c : ℕ} {φ : CNF (Fin n)} (hφ : φ.S
     (hw : Fits w ((3 :: 39 :: 70 :: c :: encode φ).length + 2 * n + 2 * 3 + 39 * n + 70 + 2 * c +
       ppszCounterLen 39 70 n c + 3)) :
     ((evalRand w ampProgram (ampTime 3 39 70 c n (3 :: 39 :: 70 :: c :: encode φ).length)
-      (.init (3 :: 39 :: 70 :: c :: encode φ))).map Schoening.cfgSuccess false).toReal ≤
+      (.init (3 :: 39 :: 70 :: c :: encode φ))).map RandCfg.accepts false).toReal ≤
       Real.exp (-c) :=
   ampProgram_failure_le_exp (k := 3) (h := 2) le_rfl (by norm_num) hφ hlen
     (by simp [Finset.sum_range_succ]) (by rw [qbar_three_two]; norm_num) hw

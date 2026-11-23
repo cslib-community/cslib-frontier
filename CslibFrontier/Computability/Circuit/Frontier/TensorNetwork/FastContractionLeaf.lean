@@ -519,8 +519,8 @@ theorem packetShape_child {x : Call T} (hx : WF x) (ha : active x = true) (hs : 
       hv' with ⟨w, hw, hvw⟩ | ⟨q, tags, hvq, hslot, hnodup⟩
   · obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hs w hw d (hvw ▸ hd)
     exact ⟨h1, h2, h3, h4.trans hp, h5, h6⟩
-  · rw [hvq] at hd
-    cases hd
+  · cases hvq ▸ hd
+    dsimp only [packetCtx, child]
     exact ⟨hia, slotBits_le _ _, rfl, le_rfl, hslot, hnodup⟩
 
 /-- The positions of a list satisfying a test are as many as its elements satisfying it. -/
@@ -603,7 +603,7 @@ theorem leafCertificate_le_of_packetShape
   have hR : (encCall encT x).length + 2 ^ (Nat.log 2 x.scale / 32768) * x.prec + ES + 1 ≤
       (N + 1) ^ 2 := by
     have : 2 ^ (Nat.log 2 x.scale / 32768) * x.prec ≤ (N + 1) * N := by gcongr <;> omega
-    nlinarith
+    nlinarith only [this, hN]
   have hpow : K * ((encCall encT x).length + 2 ^ (Nat.log 2 x.scale / 32768) * x.prec + ES +
       1) ^ K ≤ 2 * K * (N + 1) ^ (2 * K) :=
     calc _ ≤ K * ((N + 1) ^ 2) ^ K := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hR _)
@@ -680,8 +680,7 @@ theorem leafCertificate_tableEntry_le_of_packetShape : ∃ K : ℕ,
           Nat.mul_le_mul (Nat.mul_le_mul_right _ hWK) hXE
       _ = K * c₁ ^ K * c₂ * B ^ ((ds + 1) * K + dt) * 2 ^ x.edges * X := by rw [pow_add]; ring
       _ ≤ K' * B ^ K' * 2 ^ x.edges * X :=
-          Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _
-            (Nat.mul_le_mul (by omega) (Nat.pow_le_pow_right hB1 (by omega))))
+          by gcongr <;> omega
   · calc _ ≤ K * c₁ ^ K * B ^ ((ds + 1) * K) := hWK
       _ ≤ K' * B ^ K' := Nat.mul_le_mul
           ((Nat.le_mul_of_pos_right _ hc₂1).trans (by omega))
@@ -729,7 +728,7 @@ theorem exists_packetFactor_le (C c : ℕ) : ∃ K : ℕ, ∀ s m p : ℕ, 2 ≤
     have h1 : A * p ≤ m * m ^ c := Nat.mul_le_mul hAm hp
     have h2 : 2 ≤ m * m ^ c := by
       have : 1 ≤ m ^ c := Nat.one_le_pow _ _ (by omega)
-      nlinarith
+      nlinarith only [hm2, this]
     have h3 : m * m ^ c = m ^ (c + 1) := by ring
     have h4 : m ^ (c + 1) ≤ (2 ^ (lam + 1)) ^ (c + 1) := Nat.pow_le_pow_left hmlam.le _
     calc A * p + 2 ≤ 2 * m ^ (c + 1) := by omega
@@ -741,8 +740,8 @@ theorem exists_packetFactor_le (C c : ℕ) : ∃ K : ℕ, ∀ s m p : ℕ, 2 ≤
   have hE : ((lam + 1) * (c + 1) + 1) * A * Nat.sqrt μ ≤
       16 * ((c₀ + 2) * (c + 1)) * 2 ^ c₀ * s := by
     have h1 : (lam + 1) * (c + 1) + 1 ≤ (c₀ + 2) * (c + 1) * (μ + 1) := by
-      have : lam + 1 ≤ (c₀ + 1) * (μ + 1) := by nlinarith
-      nlinarith
+      have : lam + 1 ≤ (c₀ + 1) * (μ + 1) := by nlinarith only [hlamμ]
+      nlinarith only [this]
     have h2 : Nat.sqrt μ ≤ μ + 1 := (Nat.sqrt_le_self μ).trans (Nat.le_succ μ)
     have h3 := succ_sq_le_two_pow μ
     have h4 : 2 ^ (μ / 2) * 2 ^ (μ / 32768) ≤ 2 ^ μ := by
@@ -789,16 +788,14 @@ theorem exists_leafFactor_le (C c s₀ : ℕ) : ∃ K : ℕ, ∀ s m M p n : ℕ
     have hmC' : m ≤ C * s₀ := hmC.trans (Nat.mul_le_mul_left _ hsmall.le)
     have h2M : 2 ^ M ≤ 2 ^ (2 * (C * s₀)) := Nat.pow_le_pow_right (by norm_num) (by omega)
     have hbase : A * p + 2 ≤ (C * s₀ + 2) * (n + 1) := by
-      have : A * p ≤ C * s₀ * n := Nat.mul_le_mul (hAm.trans hmC') hp
-      nlinarith
+      nlinarith only [Nat.mul_le_mul (hAm.trans hmC') hp]
     have hfac : (A * p + 2) ^ A ≤ (C * s₀ + 2) ^ (C * s₀) * (n + 1) ^ (C * s₀) := by
       calc (A * p + 2) ^ A ≤ ((C * s₀ + 2) * (n + 1)) ^ A := Nat.pow_le_pow_left hbase _
         _ ≤ ((C * s₀ + 2) * (n + 1)) ^ (C * s₀) :=
             Nat.pow_le_pow_right (Nat.one_le_iff_ne_zero.mpr (by positivity)) (hAm.trans hmC')
         _ = (C * s₀ + 2) ^ (C * s₀) * (n + 1) ^ (C * s₀) := mul_pow _ _ _
     calc 2 ^ M * (A * p + 2) ^ A
-        ≤ 2 ^ (2 * (C * s₀)) * ((C * s₀ + 2) ^ (C * s₀) * (n + 1) ^ (C * s₀)) :=
-          Nat.mul_le_mul h2M hfac
+        ≤ 2 ^ (2 * (C * s₀)) * ((C * s₀ + 2) ^ (C * s₀) * (n + 1) ^ (C * s₀)) := by gcongr
       _ = Ks * (n + 1) ^ (C * s₀) := by rw [hKs]; ring
       _ ≤ K * (n + 1) ^ K := Nat.mul_le_mul (by omega) (Nat.pow_le_pow_right hB1 (by omega))
       _ ≤ K * (n + 1) ^ K * 2 ^ (K * s / S) := Nat.le_mul_of_pos_right _ hX1
@@ -892,7 +889,7 @@ theorem exists_leafCertificate_le_of_entry
   refine ⟨?_, hS.trans (Nat.mul_le_mul (by omega) (Nat.pow_le_pow_right hB1 (by omega)))⟩
   have hPE : Pk + E ≤ Pk * (E + 1) := by
     have : 1 ≤ Pk := Nat.one_le_pow _ _ (by omega)
-    nlinarith
+    nlinarith only [this]
   calc _ ≤ K₀ * W ^ K₀ * 2 ^ x.edges * (Pk + E) := hT
     _ ≤ K₀ * W ^ K₀ * (2 ^ x.edges * Pk) * (E + 1) := by
         rw [Nat.mul_assoc (K₀ * W ^ K₀), Nat.mul_assoc (K₀ * W ^ K₀), Nat.mul_assoc (2 ^ x.edges)]
