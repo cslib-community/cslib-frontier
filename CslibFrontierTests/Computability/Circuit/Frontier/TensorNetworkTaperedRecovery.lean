@@ -17,7 +17,7 @@ have multiplicity `6` and the node `-2`, of valuation one, has multiplicity `3`.
 theorem applies over `K = ℚ` with `B = ℤ_(2)`: its hypotheses are met by exact jets.
 -/
 
-@[expose] public section
+public section
 
 namespace CslibFrontierTests.Computability.Circuit.Frontier.TensorNetwork.TaperedRecovery
 

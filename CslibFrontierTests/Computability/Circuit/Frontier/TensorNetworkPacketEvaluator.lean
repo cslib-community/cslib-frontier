@@ -18,7 +18,7 @@ with one row port and zero exponents is the local form, a single kernel value; a
 correctness theorem applies to these packets.
 -/
 
-@[expose] public section
+public section
 
 namespace CslibFrontierTests.TensorNetworkPacketEvaluator
 
