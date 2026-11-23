@@ -149,10 +149,10 @@ theorem isQueryBounded_iterate_step (S : PushSystem m Msg) (fuel : ℕ) (ts : To
     (OracleComp.iterate fuel (step S) ts).IsQueryBounded fuel := by
   simpa using OracleComp.IsCostBounded.iterate (isQueryBounded_step S) fuel ts
 
-/-- Library infrastructure toward `#6043` (call-count budgets only; computational polynomial-time
-UC execution is open in `#6043`): when every node of `S` at security parameter `κ` has
+/-- Library infrastructure (no cited result): when every node of `S` at security parameter `κ` has
 per-activation call budget `t`, a `fuel`-step push run makes at most `m * t + fuel * (m * t + 1)`
-coin draws. -/
+coin draws (toward `#6043`; call-count budgets only, while computational polynomial-time UC
+execution is open in `#6043`). -/
 theorem isQueryBounded_pushRun (S : PushSystem m Msg) (κ : ℕ) (z : List Bool) (fuel t : ℕ)
     (h : ∀ j : Fin m, (S.node κ j).IsBounded t) :
     (pushRun S κ z fuel).IsQueryBounded (m * t + fuel * (m * t + 1)) :=
