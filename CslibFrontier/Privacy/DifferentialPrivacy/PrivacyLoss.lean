@@ -145,17 +145,16 @@ theorem renyiMoment_le_of_le_mul {p q : R → ℝ≥0∞} {ε α : ℝ} (hε : 0
     rcases eq_or_ne (p r) 0 with hp0 | hp0
     · have : q r = 0 := by simpa [hp0] using hqp r
       exact absurd this hq0
-    have hP : 0 < (p r).toReal := ENNReal.toReal_pos hp0 (hp r)
-    have hQ : 0 < (q r).toReal := ENNReal.toReal_pos hq0 (hq r)
+    have hP : 0 < (p r).toReal := by ennreal_to_real using pos_iff_ne_zero.mpr hp0
+    have hQ : 0 < (q r).toReal := by ennreal_to_real using pos_iff_ne_zero.mpr hq0
     have hPQ : (p r).toReal ≤ E * (q r).toReal := by ennreal_to_real using hpq r
     have hQP : (q r).toReal ≤ E * (p r).toReal := by ennreal_to_real using hqp r
-    have hreal := mul_div_rpow_add_le hE ht hP hQ hPQ hQP
-    rw [← ENNReal.ofReal_toReal (hp r), ← ENNReal.ofReal_toReal (hq r),
-      ← ENNReal.ofReal_div_of_pos hQ, ENNReal.ofReal_rpow_of_nonneg (div_pos hP hQ).le ht,
-      ← ENNReal.ofReal_mul hP.le, ← ENNReal.ofReal_mul hY,
-      ← ENNReal.ofReal_add (by positivity) (mul_nonneg hY hQ.le),
-      ← ENNReal.ofReal_mul hA]
-    exact ENNReal.ofReal_le_ofReal (by simpa only [hYdef, hAdef] using hreal)
+    have hdiv : (p r / q r) ^ t ≠ ⊤ :=
+      ENNReal.rpow_ne_top_of_nonneg ht (ENNReal.div_ne_top (hp r) hq0)
+    have hreal : (p r).toReal * ((p r).toReal / (q r).toReal) ^ t + Y * (q r).toReal ≤
+        A * (p r).toReal := by
+      simpa only [hYdef, hAdef] using mul_div_rpow_add_le hE ht hP hQ hPQ hQP
+    ennreal_to_real using hreal
   have hsum' : Probability.renyiMoment α p q + ENNReal.ofReal Y * ∑' r, p r ≤
       ENNReal.ofReal A * ∑' r, p r :=
     calc Probability.renyiMoment α p q + ENNReal.ofReal Y * ∑' r, p r

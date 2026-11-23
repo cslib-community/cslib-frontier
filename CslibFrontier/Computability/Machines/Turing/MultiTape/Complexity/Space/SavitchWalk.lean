@@ -92,11 +92,9 @@ private def fitZip : ZipTransducer Unit where
 private theorem fitZip_step (x : Option Bool × Option Bool) :
     fitZip.step () x = ((), if x.1.isSome then [x.2.getD false] else []) := rfl
 
-private theorem fitZip_final : fitZip.final () = [] := rfl
-
 private theorem fitZip_run_nil (u : List Bool) : fitZip.run () [] u = [] := by
   induction u with
-  | nil => exact (fitZip.run_nil_nil ()).trans fitZip_final
+  | nil => exact fitZip.run_nil_nil ()
   | cons a u ih => simp only [ZipTransducer.run_nil_cons, fitZip_step, Option.isSome_none,
       Bool.false_eq_true, ↓reduceIte, List.nil_append, ih]
 

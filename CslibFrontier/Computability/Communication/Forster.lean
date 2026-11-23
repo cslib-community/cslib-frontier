@@ -308,8 +308,7 @@ theorem mul_sqrt_card_mul_card_le_mul_signRank (f : X → Y → Bool) (M : Matri
   have h3 : P * (P * μ) ≤ P * (lam * signRank f) := by
     calc P * (P * μ) = Fintype.card X * (Fintype.card Y * μ) := by
           rw [← mul_assoc, hPP, mul_assoc]
-      _ ≤ Fintype.card X * ((signRank f : ℝ) / Fintype.card X * K) :=
-          mul_le_mul_of_nonneg_left hlim hm.le
+      _ ≤ Fintype.card X * ((signRank f : ℝ) / Fintype.card X * K) := by gcongr
       _ = P * (lam * signRank f) := by
           rw [hK, mul_assoc lam, ← hP]
           field_simp

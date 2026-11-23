@@ -19,6 +19,7 @@ public import Mathlib.Basic.Finite.Sum
 public import Mathlib.Data.Fin.Tuple.Embedding
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapesView
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Data.Fintype.Option
@@ -156,7 +157,7 @@ theorem runFrom_clearShadowed_pairEmb (hm : m₀ ≠ m₁) {C : Cfg (k + k) Symb
     · exact h.pos_castAdd
     · exact h.pos_natAdd
   rw [runFrom_extendTapes, hview, runFrom_clearShadowed hm h.insert_eq h.blank]
-  have hne : i.addNat k ≠ Fin.castAdd k i := by grind
+  have hne : i.addNat k ≠ Fin.castAdd k i := by fin_index
   tm_step [embed, partialInv_pairEmb, clearedCfg, pairIdx_eq_iff]
 
 /-- The control states of `clearList` for a list of length `n`. -/
