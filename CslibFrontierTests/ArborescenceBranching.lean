@@ -8,23 +8,27 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Algorithms.Lean.Arborescence.PolyTime
+import CslibFrontier.Algorithms.WordRAM.Arborescence
 import Mathlib.Data.Fin.VecNotation
 
 /-!
-# Tests for branchings, materialized `O(n³)` solvers, and `P` certificates
+# Tests for branchings, materialized `O(n³)` Word-RAM solvers, and `P` certificates
 
 Exercises the full `#3526` arborescence and branching stack:
 
 * `Digraph.Branching`: `IsBranching`, `superRootExtend`, `restrictOption`, undirected acyclicity,
   and non-branching counterexamples (in-degree `2` and directed cycles);
-* `Arborescence.Table`: `edmondsTableM` and `edmondsOutTableM` exact values, `O(n³)` tick bounds,
-  optimality, and infeasibility (`none`);
-* `Arborescence.Branching`: `optimumBranching`, `optimumBranchingM`, `minBranching` on mixed
-  positive/negative cyclic digraphs, and Edmonds (1967, Section 2) weight-shift reductions
+* `Arborescence.Table`: `edmondsTable` and `edmondsOutTable` exact values, optimality, and
+  infeasibility (`none`);
+* `Arborescence.Branching`: `optimumBranching` and `minBranching` on mixed positive/negative
+  cyclic digraphs, and Edmonds (1967, Section 2) weight-shift reductions
   (`edmonds_shift_weight_branching`, `edmonds_rooted_outArborescence_of_shift`);
 * `Arborescence.PolyTime`: list-table solvers (`edmondsList`, `edmondsOutList`,
   `optimumBranchingList`), positive/negative/out-of-bounds threshold deciders, and `P` membership
-  (`minArborescenceDec_mem_P`, `minOutArborescenceDec_mem_P`, `maxBranchingDec_mem_P`).
+  (`minArborescenceDec_mem_P`, `minOutArborescenceDec_mem_P`, `maxBranchingDec_mem_P`);
+* `WordRAM.Arborescence`: `O(n³)` exact-basis Word-RAM execution (`exists_edmonds_program`,
+  `exists_edmondsOut_program`, `exists_optimumBranching_program`) on cyclic, reversed, infeasible,
+  mixed-sign branching, and empty (`n = 0`) instances at `w = 64`.
 -/
 
 set_option linter.privateModule false
@@ -86,7 +90,7 @@ example : ¬ twoCycleDigraph.IsBranching := by
       (Relation.TransGen.single (show twoCycleDigraph.Adj 1 0 by simp [twoCycleDigraph]))
   exact hB.acyclic hwalk
 
-/-! ### 2. `Arborescence.Table`: `edmondsTableM` and `edmondsOutTableM` -/
+/-! ### 2. `Arborescence.Table`: `edmondsTable` and `edmondsOutTable` -/
 
 private def arbArcs : List (Fin 4 × Fin 4) :=
   [(1, 0), (2, 0), (1, 2), (2, 1), (3, 1), (2, 3), (3, 2)]
@@ -116,12 +120,9 @@ private def c_int (u w : Fin 4) : ℤ :=
 
 private def arbOpt : Fin 4 → Fin 4 := ![0, 2, 0, 1]
 
-example : (edmondsTableM G_cyc c_int 0).ret = some arbOpt := by
-  rw [edmondsTableM_ret_eq_edmonds]
+example : edmondsTable G_cyc c_int 0 = some arbOpt := by
+  rw [edmondsTable_eq_edmonds]
   decide
-
-example : (edmondsTableM G_cyc c_int 0).time ≤ 15 * (FinEnum.card (Fin 4)) ^ 3 :=
-  time_edmondsTableM_le G_cyc c_int 0
 
 example : (Digraph.parentDigraph 0 arbOpt).IsInArborescence 0 ∧
     Digraph.parentDigraph 0 arbOpt ≤ G_cyc ∧
@@ -130,7 +131,7 @@ example : (Digraph.parentDigraph 0 arbOpt).IsInArborescence 0 ∧
       T.IsInArborescence 0 → T ≤ G_cyc → 8 ≤ arcCost T c_int := by
   obtain ⟨hT, hTG, hopt⟩ :=
     edmondsTable_optimal (G := G_cyc) (c := c_int) (r := 0) (p := arbOpt) (by
-      rw [edmondsTableM_ret_eq_edmonds]; decide)
+      rw [edmondsTable_eq_edmonds]; decide)
   have hcost : arcCost (Digraph.parentDigraph (0 : Fin 4) arbOpt) c_int = 8 := by
     rw [arcCost_parentDigraph]; decide
   refine ⟨hT, hTG, hcost, fun T _ hT' hTG' => ?_⟩
@@ -142,13 +143,9 @@ private def G_rev : Digraph (Fin 4) where
 private instance : DecidableRel G_rev.Adj :=
   fun u w => inferInstanceAs (Decidable (G_cyc.Adj w u))
 
-example : (edmondsOutTableM G_rev (fun u w => c_int w u) 0).ret = some arbOpt := by
-  rw [edmondsOutTableM_ret_eq_edmondsOut]
+example : edmondsOutTable G_rev (fun u w => c_int w u) 0 = some arbOpt := by
+  rw [edmondsOutTable_eq_edmondsOut]
   decide
-
-example : (edmondsOutTableM G_rev (fun u w => c_int w u) 0).time ≤
-    15 * (FinEnum.card (Fin 4)) ^ 3 :=
-  time_edmondsOutTableM_le G_rev (fun u w => c_int w u) 0
 
 private def H_infeas : Digraph (Fin 3) where
   Adj u w := (u, w) ∈ ([(1, 2), (2, 1)] : List (Fin 3 × Fin 3))
@@ -156,13 +153,13 @@ private def H_infeas : Digraph (Fin 3) where
 private instance : DecidableRel H_infeas.Adj :=
   fun u w => inferInstanceAs (Decidable ((u, w) ∈ ([(1, 2), (2, 1)] : List (Fin 3 × Fin 3))))
 
-example : (edmondsOutTableM H_infeas (fun _ _ => (1 : ℤ)) 0).ret = none := by
-  rw [edmondsOutTableM_ret_eq_edmondsOut]
+example : edmondsOutTable H_infeas (fun _ _ => (1 : ℤ)) 0 = none := by
+  rw [edmondsOutTable_eq_edmondsOut]
   decide
 
 example : ∀ t, ¬ IsInArborescenceParent (fun u w => H_infeas.Adj w u) 0 t :=
   (edmondsOutTable_spec (G := H_infeas) (c := fun _ _ => (1 : ℤ)) (r := 0)).2
-    (by rw [edmondsOutTableM_ret_eq_edmondsOut]; decide)
+    (by rw [edmondsOutTable_eq_edmondsOut]; decide)
 
 /-! ### 3. `Arborescence.Branching` and Edmonds Section 2 reductions -/
 
@@ -217,13 +214,6 @@ example : (optimumBranching G_br w_br).IsBranching ∧ optimumBranching G_br w_b
   ⟨optimumBranching_isBranching G_br w_br, optimumBranching_le G_br w_br,
     optimumBranching_optimal G_br w_br B_sub B_sub_isBranching (fun u v huv => by
       fin_cases u <;> fin_cases v <;> simp_all [B_sub, G_br, brArcs])⟩
-
-example : (optimumBranchingM G_br w_br).ret = ![0, 0, 1, 3] := by
-  rw [optimumBranchingM_ret_eq]
-  decide
-
-example : (optimumBranchingM G_br w_br).time ≤ 15 * (FinEnum.card (Fin 4) + 1) ^ 3 :=
-  time_optimumBranchingM_le G_br w_br
 
 example : (minBranching G_br w_br).IsBranching ∧ minBranching G_br w_br ≤ G_br ∧
     arcCost (minBranching G_br w_br) w_br = -7 := by
@@ -396,5 +386,95 @@ example : minOutArborescenceDec ∈ Cslib.Complexity.P encArborescenceDecInstanc
 
 example : maxBranchingDec ∈ Cslib.Complexity.P encBranchingDecInstance :=
   maxBranchingDec_mem_P
+
+/-! ### 5. `WordRAM.Arborescence`: `O(n³)` exact-basis Word-RAM execution -/
+
+section WordRAMTests
+
+open Cslib.Algorithms.WordRAM.Arborescence
+open Cslib.WordRAM
+
+private def cycArbInput : ArborescenceInput where
+  n := 4
+  root := 0
+  adj u v := decide (G_cyc.Adj u v)
+  cost := c_int
+
+private def revArbInput : ArborescenceInput where
+  n := 4
+  root := 0
+  adj u v := decide (G_rev.Adj u v)
+  cost u v := c_int v u
+
+private def infeasArbInput : ArborescenceInput where
+  n := 3
+  root := 0
+  adj u v := decide (H_infeas.Adj u v)
+  cost _ _ := 1
+
+private def mixedBranchingInput : BranchingInput where
+  n := 4
+  adj u v := decide (G_br.Adj u v)
+  weight := w_br
+
+private def emptyBranchingInput : BranchingInput where
+  n := 0
+  adj u _ := Fin.elim0 u
+  weight u _ := Fin.elim0 u
+
+example : cycArbInput.expectedParentList = [0, 2, 0, 1] := by decide
+
+example : revArbInput.expectedOutParentList = [0, 2, 0, 1] := by decide
+
+example : infeasArbInput.expectedOutParentList = [] := by decide
+
+example : mixedBranchingInput.expectedParentList = [0, 0, 1, 3] := by decide
+
+example : emptyBranchingInput.expectedParentList = [] := by decide
+
+example : ∃ r C : ℕ, ∃ prog : Program .exact r, ∃ t,
+    ExecutesList 64 prog (State.init cycArbInput.encode) [0, 2, 0, 1] t ∧
+      t ≤ C * 125 := by
+  obtain ⟨r, C, prog, hprog⟩ := exists_edmonds_program
+  have hM : ∀ u v, (cycArbInput.cost u v).natAbs ≤ 100 := by
+    intro u v; fin_cases u <;> fin_cases v <;> decide
+  have hwb : Fits 64 (wordBound cycArbInput.n 100) := by decide
+  obtain ⟨t, hexec, hle⟩ := hprog cycArbInput 100 64 hM hwb
+  have hexp : cycArbInput.expectedParentList = [0, 2, 0, 1] := by decide
+  exact ⟨r, C, prog, t, hexp ▸ hexec, hle⟩
+
+example : ∃ r C : ℕ, ∃ prog : Program .exact r,
+    (∃ t₁, ExecutesList 64 prog (State.init revArbInput.encode) [0, 2, 0, 1] t₁ ∧
+      t₁ ≤ C * 125) ∧
+    (∃ t₂, ExecutesList 64 prog (State.init infeasArbInput.encode) [] t₂ ∧
+      t₂ ≤ C * 64) := by
+  obtain ⟨r, C, prog, hprog⟩ := exists_edmondsOut_program
+  have hM₁ : ∀ u v, (revArbInput.cost u v).natAbs ≤ 100 := by
+    intro u v; fin_cases u <;> fin_cases v <;> decide
+  have hM₂ : ∀ u v, (infeasArbInput.cost u v).natAbs ≤ 1 := by
+    intro u v; fin_cases u <;> fin_cases v <;> decide
+  obtain ⟨t₁, hexec₁, hle₁⟩ := hprog revArbInput 100 64 hM₁ (by decide)
+  obtain ⟨t₂, hexec₂, hle₂⟩ := hprog infeasArbInput 1 64 hM₂ (by decide)
+  have hexp₁ : revArbInput.expectedOutParentList = [0, 2, 0, 1] := by decide
+  have hexp₂ : infeasArbInput.expectedOutParentList = [] := by decide
+  exact ⟨r, C, prog, ⟨t₁, hexp₁ ▸ hexec₁, hle₁⟩, ⟨t₂, hexp₂ ▸ hexec₂, hle₂⟩⟩
+
+example : ∃ r C : ℕ, ∃ prog : Program .exact r,
+    (∃ t₁, ExecutesList 64 prog (State.init mixedBranchingInput.encode) [0, 0, 1, 3] t₁ ∧
+      t₁ ≤ C * 125) ∧
+    (∃ t₂, ExecutesList 64 prog (State.init emptyBranchingInput.encode) [] t₂ ∧
+      t₂ ≤ C) := by
+  obtain ⟨r, C, prog, hprog⟩ := exists_optimumBranching_program
+  have hM₁ : ∀ u v, (mixedBranchingInput.weight u v).natAbs ≤ 6 := by
+    intro u v; fin_cases u <;> fin_cases v <;> decide
+  have hM₂ : ∀ u v, (emptyBranchingInput.weight u v).natAbs ≤ 0 := fun u => Fin.elim0 u
+  obtain ⟨t₁, hexec₁, hle₁⟩ := hprog mixedBranchingInput 6 64 hM₁ (by decide)
+  obtain ⟨t₂, hexec₂, hle₂⟩ := hprog emptyBranchingInput 0 64 hM₂ (by decide)
+  have hexp₁ : mixedBranchingInput.expectedParentList = [0, 0, 1, 3] := by decide
+  have hexp₂ : emptyBranchingInput.expectedParentList = [] := by decide
+  exact ⟨r, C, prog, ⟨t₁, hexp₁ ▸ hexec₁, hle₁⟩,
+    ⟨t₂, hexp₂ ▸ hexec₂, by simpa [emptyBranchingInput] using hle₂⟩⟩
+
+end WordRAMTests
 
 end CslibFrontierTests.ArborescenceBranching
