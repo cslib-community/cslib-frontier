@@ -136,7 +136,7 @@ theorem IsTotallyRegular.eq_zero_of_mulVec_eq_zero [Fintype n] [NoZeroDivisors R
   -- On the rows `f`, the vector `A v` is the submatrix on `f` and `g` applied to `v ∘ g`.
   have hzero : A.submatrix f g *ᵥ (v ∘ g) = 0 := by
     funext j
-    rw [Pi.zero_apply, ← hAv _ (r j).2]
+    rw [Pi.zero_apply, ← hAv _ (r j).property]
     simp only [mulVec, dotProduct, submatrix_apply, Function.comp_apply, g]
     rw [Finset.sum_coe_sort cols fun j' => A (f j) j' * v j']
     exact Finset.sum_subset (Finset.subset_univ cols) fun j' _ hj' => by simp [hv j' hj']

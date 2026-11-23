@@ -80,10 +80,10 @@ convergence threshold at accuracy `ε / 2` and confidence `δ` serves every ERM.
 theorem HasUniformConvergence.isERMLearnable {C : ConceptClass α β} {𝒟 : Set (Measure (α × β))}
     (h : HasUniformConvergence C 𝒟) : IsERMLearnable C 𝒟 := by
   intro ε δ
-  have hε0 : (0 : ℝ) < ε.val := by exact_mod_cast ε.2.1
-  have hε1 : (ε.val : ℝ) < 1 := by exact_mod_cast ε.2.2
+  have hε0 : (0 : ℝ) < ε.val := by exact_mod_cast ε.property.1
+  have hε1 : (ε.val : ℝ) < 1 := by exact_mod_cast ε.property.2
   obtain ⟨m₀, hm₀⟩ := h (ε.val / 2) δ.val (by positivity) (by linarith)
-    (by exact_mod_cast δ.2.1) (by exact_mod_cast δ.2.2)
+    (by exact_mod_cast δ.property.1) (by exact_mod_cast δ.property.2)
   refine ⟨m₀, fun m hm A hA D _ hD => ?_⟩
   calc Measure.pi (fun _ : Fin m => D) {S | optimalError D C + ↑ε.val < error D (A S)}
       ≤ Measure.pi (fun _ : Fin m => D) {S | ¬ IsRepresentative D C (ε.val / 2) S} := by

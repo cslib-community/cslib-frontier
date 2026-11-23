@@ -257,15 +257,15 @@ theorem exists_forall_errorProb_le [Finite β] [Nonempty α] (Acc : α → β �
   let r : α → Set β := fun a => {b | ¬Acc a b}
   have := Fintype.ofFinite (Set.range r)
   have : Nonempty (Set.range r) := ⟨⟨r (Classical.arbitrary α), _, rfl⟩⟩
-  let rep : Set.range r → α := fun s => s.2.choose
+  let rep : Set.range r → α := fun s => s.property.choose
   have hrep (s : Set.range r) (b : β) :
-      (if Acc (rep s) b then 0 else 1 : ℝ) = if b ∈ s.1 then 1 else 0 := by
-    have : ¬Acc (rep s) b ↔ b ∈ s.1 := by
-      rw [← s.2.choose_spec]
+      (if Acc (rep s) b then 0 else 1 : ℝ) = if b ∈ s.val then 1 else 0 := by
+    have : ¬Acc (rep s) b ↔ b ∈ s.val := by
+      rw [← s.property.choose_spec]
       rfl
-    by_cases hb : Acc (rep s) b <;> simp [hb, show b ∈ s.1 ↔ ¬Acc (rep s) b from this.symm]
+    by_cases hb : Acc (rep s) b <;> simp [hb, show b ∈ s.val ↔ ¬Acc (rep s) b from this.symm]
   obtain ⟨p, hp⟩ := exists_forall_sum_le_of_forall_exists_sum_le
-    (fun (s : Set.range r) b => if b ∈ s.1 then 1 else 0) (c := ε) fun q => by
+    (fun (s : Set.range r) b => if b ∈ s.val then 1 else 0) (c := ε) fun q => by
       obtain ⟨a, hq⟩ := h q
       refine ⟨⟨r a, a, rfl⟩, ?_⟩
       rw [errorProb_eq_sum, Finsupp.sum_fintype _ _ fun _ => zero_mul _] at hq
@@ -289,14 +289,14 @@ theorem exists_maxCost_le_and_forall_errorProb_le [Finite β] [Nonempty β]
   obtain ⟨a₀, ha₀, -⟩ := h (.single (Classical.arbitrary β))
   have : Nonempty {a : α // cost a ≤ d} := ⟨⟨a₀, ha₀⟩⟩
   obtain ⟨μ, hμ⟩ := exists_forall_errorProb_le (α := {a : α // cost a ≤ d})
-    (fun a b => Acc a.1 b) (ε := ε) fun ν => by
+    (fun a b => Acc a.val b) (ε := ε) fun ν => by
       obtain ⟨a, ha, hν⟩ := h ν
       exact ⟨⟨a, ha⟩, hν⟩
   refine ⟨μ.map Subtype.val, fun b => ?_, maxCost_le_iff.mpr fun a ha => ?_⟩
-  · exact (errorProb_map_le (fun a : {a : α // cost a ≤ d} => Acc a.1 b)
+  · exact (errorProb_map_le (fun a : {a : α // cost a ≤ d} => Acc a.val b)
       (fun a => Acc a b) Subtype.val μ fun _ h => h).trans (hμ b)
   · obtain ⟨a', -, rfl⟩ := exists_of_mem_support_map ha
-    exact a'.2
+    exact a'.property
 
 end Strategies
 
@@ -578,13 +578,13 @@ theorem exists_maxCost_le_and_forall_errorProb_le {cost : α → ℕ} {Acc : α 
       ∃ a : α, cost a ≤ c ∧ errorProb (fun b a => Acc a b) ν a ≤ ε) :
     ∃ μ : PMF α, (∀ b ∈ D, errorProb Acc μ b ≤ ε) ∧ maxCost cost μ ≤ c := by
   obtain ⟨μ, -, hμ⟩ := exists_forall_toOuterMeasure_le
-    (I := {a : α // cost a ≤ c}) (J := D) (fun a b => ¬Acc a.1 b.1) (ε := ε) fun ν => by
+    (I := {a : α // cost a ≤ c}) (J := D) (fun a b => ¬Acc a.val b.val) (ε := ε) fun ν => by
       obtain ⟨a, hc, hp⟩ := h (ν.map Subtype.val) fun b hb => by
         obtain ⟨b', -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hb
-        exact b'.2
+        exact b'.property
       refine ⟨⟨a, hc⟩, ?_⟩
       rwa [errorProb, PMF.toOuterMeasure_map_apply] at hp
-  refine ⟨μ.map Subtype.val, fun b hb => ?_, maxCost_map_le_of_le cost Subtype.val μ fun a _ => a.2⟩
+  refine ⟨μ.map Subtype.val, fun b hb => ?_, maxCost_map_le_of_le cost Subtype.val μ fun a _ => a.property⟩
   rw [errorProb, PMF.toOuterMeasure_map_apply]
   exact hμ ⟨b, hb⟩
 

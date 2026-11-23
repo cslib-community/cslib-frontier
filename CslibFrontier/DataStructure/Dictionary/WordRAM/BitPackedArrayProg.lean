@@ -153,13 +153,13 @@ theorem validHistory_writePackedProg {w base offset N k idx val : ℕ} {s : Memo
     have := bitOffset_add_lowWidth_le (k := k) (idx := idx) hw
     omega
   have hw0 : Fits w (s.mem (base + offset + wOff) ^^^ ((old₀ ^^^ val₀) <<< bOff)) :=
-    Nat.xor_lt_two_pow (hwf.2 _) hsh0_lt
+    Nat.xor_lt_two_pow (hwf.mem_fits _) hsh0_lt
   let mem₁ := Function.update s.mem (base + offset + wOff)
     (s.mem (base + offset + wOff) ^^^ ((old₀ ^^^ val₀) <<< bOff))
   have hm1 : Fits w (mem₁ (base + offset + wOff + 1)) := by
     dsimp only [mem₁]
     rw [Function.update_of_ne (by omega)]
-    exact hwf.2 _
+    exact hwf.mem_fits _
   set old₁ := (mem₁ (base + offset + wOff + 1) >>> 0) &&& (2 ^ k₁ - 1)
   set val₁ := (val >>> k₀) &&& (2 ^ k₁ - 1)
   have hk1_le_w : k₁ ≤ w := by
@@ -189,7 +189,7 @@ theorem wellFormed_clientState_writePackedProg {w w' base offset k idx val : ℕ
     Memory.WellFormed w
       ((Memory.spec w').clientState s (writePackedProg base offset k w idx val)) := by
   rw [clientState_width, clientState_writePackedProg]
-  exact ⟨hwf.1, writePacked_lt_two_pow hw hkw hwf.2 idx val⟩
+  exact ⟨hwf.frontier_fits, writePacked_lt_two_pow hw hkw hwf.mem_fits idx val⟩
 
 /-- `readPackedCode` does not invoke `Op.width`. -/
 theorem readPackedCode_not_readsWidth :

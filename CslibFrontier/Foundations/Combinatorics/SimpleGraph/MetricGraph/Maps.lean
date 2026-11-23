@@ -49,7 +49,7 @@ theorem dist_map_le_of_edgePoint_dist_le [Finite V] {W : WeightedGraph V}
     constructor
     · rw [← edgePoint_zero d]
       refine (hdart d r 0).trans_eq ?_
-      rw [show ((0 : unitInterval) : ℝ) = 0 from rfl, sub_zero, abs_of_nonneg r.2.1]
+      rw [show ((0 : unitInterval) : ℝ) = 0 from rfl, sub_zero, abs_of_nonneg r.property.1]
     · rw [← edgePoint_one d]
       refine (hdart d r 1).trans_eq ?_
       rw [show ((1 : unitInterval) : ℝ) = 1 from rfl, abs_sub_comm,

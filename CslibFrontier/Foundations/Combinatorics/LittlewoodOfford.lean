@@ -134,8 +134,8 @@ theorem card_filter_sum_bool_le_of_subset {ι : Type*} [Fintype ι] [DecidableEq
   let e := Equiv.piEquivPiSubtypeProd (· ∈ S) (fun _ => Bool)
   have hsum (w : ι → Bool) :
       (∑ i : ι, a i * (w i).toNat) =
-        (∑ i : {i // i ∈ S}, a i.1 * ((e w).1 i).toNat) +
-          (∑ i : {i // i ∉ S}, a i.1 * ((e w).2 i).toNat) := by
+        (∑ i : {i // i ∈ S}, a i.val * ((e w).1 i).toNat) +
+          (∑ i : {i // i ∉ S}, a i.val * ((e w).2 i).toNat) := by
     rw [← sum_add_sum_compl S (fun i => a i * (w i).toNat),
       Finset.sum_subtype S (fun _ => Iff.rfl) (fun i => a i * (w i).toNat),
       Finset.sum_subtype Sᶜ (fun _ => mem_compl) (fun i => a i * (w i).toNat)]
@@ -143,19 +143,19 @@ theorem card_filter_sum_bool_le_of_subset {ι : Type*} [Fintype ι] [DecidableEq
   have hbij : #{w : ι → Bool | P (∑ i : ι, a i * (w i).toNat)} =
       ∑ v : {i // i ∉ S} → Bool,
         #{u : {i // i ∈ S} → Bool |
-          P ((∑ i : {i // i ∈ S}, a i.1 * (u i).toNat) +
-            (∑ i : {i // i ∉ S}, a i.1 * (v i).toNat))} := by
+          P ((∑ i : {i // i ∈ S}, a i.val * (u i).toNat) +
+            (∑ i : {i // i ∉ S}, a i.val * (v i).toNat))} := by
     simp only [card_filter, hsum]
     rw [e.sum_comp (fun p : ({i // i ∈ S} → Bool) × ({i // i ∉ S} → Bool) =>
-      if P ((∑ i : {i // i ∈ S}, a i.1 * (p.1 i).toNat) +
-        (∑ i : {i // i ∉ S}, a i.1 * (p.2 i).toNat)) then 1 else 0),
+      if P ((∑ i : {i // i ∈ S}, a i.val * (p.1 i).toNat) +
+        (∑ i : {i // i ∉ S}, a i.val * (p.2 i).toNat)) then 1 else 0),
       Fintype.sum_prod_type_right]
   rw [hbij]
   refine (sum_le_sum (g := fun _ => (#S).choose (#S / 2)) fun v _ => ?_).trans_eq ?_
-  · let c_v := ∑ i : {i // i ∉ S}, a i.1 * (v i).toNat
+  · let c_v := ∑ i : {i // i ∉ S}, a i.val * (v i).toNat
     have hfiber := card_filter_sum_bool_le_choose_of_forall_le_abs
-      (fun i : {i // i ∈ S} => a i.1) (fun x => P (x + c_v))
-      (fun i => hδ i.1 i.2)
+      (fun i : {i // i ∈ S} => a i.val) (fun x => P (x + c_v))
+      (fun i => hδ i.val i.property)
       (fun x y hx hy => by simpa [add_sub_add_right_eq_sub] using hP (x + c_v) (y + c_v) hx hy)
     simpa [Fintype.card_coe] using hfiber
   · rw [sum_const, card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_subtype_compl,

@@ -288,7 +288,7 @@ theorem CNF.modelCountOn_ofStdSat_univ {n : ℕ} (f : Std.Sat.CNF (Fin n)) :
   let U : Finset (Fin n) := Finset.univ
   let e : (↥U → Bool) ≃ (Fin n → Bool) :=
     { toFun := fun σ i => σ ⟨i, Finset.mem_univ i⟩
-      invFun := fun a i => a i.1
+      invFun := fun a i => a i.val
       left_inv := fun _ => rfl
       right_inv := fun _ => rfl }
   refine Finset.card_bij (fun σ _ => e σ) (fun σ hσ => ?_) (fun _ _ _ _ h => e.injective h)
@@ -318,8 +318,8 @@ theorem CNF.card_eval_eq_modelCountOn_relabel_val {n : ℕ} (f : Std.Sat.CNF (Fi
   rw [CNF.card_eval_ofStdSat_eq_modelCountOn, CNF.relabel_ofStdSat]
   let R : Finset ℕ := Finset.range n
   let g : (Fin n → Bool) ≃ (↥R → Bool) :=
-    { toFun := fun σ i => σ ⟨i.1, Finset.mem_range.mp i.2⟩
-      invFun := fun τ i => τ ⟨i.1, Finset.mem_range.mpr i.isLt⟩
+    { toFun := fun σ i => σ ⟨i.val, Finset.mem_range.mp i.property⟩
+      invFun := fun τ i => τ ⟨i.val, Finset.mem_range.mpr i.isLt⟩
       left_inv := fun _ => rfl
       right_inv := fun _ => rfl }
   have hL : (CNF.ofStdSat f).modelCountOn Finset.univ =

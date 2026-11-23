@@ -132,9 +132,9 @@ private theorem eq_of_stopBitEncode_prefix {n : ℕ} :
 /-- **Method 2 (stop bits)** ([BonehShoup2023], Section 6.6.1, p. 236): `stopBitEncode` is a
 prefix-free encoding on nonempty lists of `n`-bit blocks. -/
 theorem isPrefixFreeEncoding_stopBitEncode (n : ℕ) :
-    IsPrefixFreeEncoding (fun m : {m : List (BitString n) // m ≠ []} => stopBitEncode m.1) :=
+    IsPrefixFreeEncoding (fun m : {m : List (BitString n) // m ≠ []} => stopBitEncode m.val) :=
   IsPrefixFreeEncoding.iff_forall_prefix.mpr
-    ⟨fun m => stopBitEncode_ne_nil m.2,
-      fun m₁ _ hp => Subtype.ext (eq_of_stopBitEncode_prefix m₁.2 hp)⟩
+    ⟨fun m => stopBitEncode_ne_nil m.property,
+      fun m₁ _ hp => Subtype.ext (eq_of_stopBitEncode_prefix m₁.property hp)⟩
 
 end Cslib.Crypto.PRF

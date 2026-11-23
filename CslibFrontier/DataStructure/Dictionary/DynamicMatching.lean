@@ -687,8 +687,8 @@ theorem rounds_le_card {U' n' : ℕ} (h : Scheme U' n')
 `Algorithm 1`) for any active ball set `A ⊆ Fin U'` of size `A.card ≤ n'`. -/
 def matching {U' n' : ℕ} (h : Scheme U' n') (A : Finset (Fin U'))
     (hA : A.card ≤ n') : A ↪ Fin n' where
-  toFun a := (matchOpt h A a.1).get <|
-    (matchOptOn_isSome_iff h (by simpa using hA) a.1).mpr a.2
+  toFun a := (matchOpt h A a.val).get <|
+    (matchOptOn_isSome_iff h (by simpa using hA) a.val).mpr a.property
   inj' a₁ a₂ heq := Subtype.ext <|
     matchOptOn_injective h A Finset.univ
       ((Option.some_get _).symm.trans (congrArg some heq))
@@ -697,7 +697,7 @@ def matching {U' n' : ℕ} (h : Scheme U' n') (A : Finset (Fin U'))
 @[simp]
 theorem matching_apply {U' n' : ℕ} (h : Scheme U' n') (A : Finset (Fin U'))
     (hA : A.card ≤ n') (a : A) :
-    matchOpt h A a.1 = some (matching h A hA a) :=
+    matchOpt h A a.val = some (matching h A hA a) :=
   (Option.some_get _).symm
 
 /-! ### Expected round bound (`Claim 3.3`) -/

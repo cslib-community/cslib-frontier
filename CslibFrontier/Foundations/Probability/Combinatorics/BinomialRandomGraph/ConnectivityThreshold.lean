@@ -448,10 +448,10 @@ theorem binomialRandom_real_forall_not_isIsolated_and_not_connected_le [Fintype 
     have ht_in : t ⊆ S.sym2.filter (¬ ·.IsDiag) := fun e he => by
       obtain ⟨e', he', rfl⟩ := Finset.mem_image.mp he
       rw [Finset.mem_filter, Finset.mem_sym2_iff]
-      refine ⟨fun u hu => by obtain ⟨x, _, rfl⟩ := Sym2.mem_map.mp hu; exact x.2, ?_⟩
+      refine ⟨fun u hu => by obtain ⟨x, _, rfl⟩ := Sym2.mem_map.mp hu; exact x.property, ?_⟩
       induction e' using Sym2.ind with
       | _ a b =>
-        change ¬Sym2.IsDiag s(a.1, b.1)
+        change ¬Sym2.IsDiag s(a.val, b.val)
         simpa using Subtype.coe_ne_coe.mpr (htSedge _ he').2
     have ht_card : #t = #S - 1 := by
       rw [Finset.card_image_of_injective _ (Sym2.map.injective Subtype.val_injective), htScard]

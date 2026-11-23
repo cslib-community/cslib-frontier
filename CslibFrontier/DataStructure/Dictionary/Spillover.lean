@@ -204,19 +204,19 @@ theorem decode?_eq_some_iff {X : ℕ} (r_sp : ℕ)
 def equiv (X r_sp : ℕ) :
     Fin X ≃ { km : Fin (spillUniv X r_sp) × Fin (2 ^ memBits X r_sp) // decodeVal km < X } where
   toFun x := ⟨encode r_sp x, by simp [x.isLt]⟩
-  invFun km := ⟨decodeVal km.1, km.2⟩
+  invFun km := ⟨decodeVal km.val, km.property⟩
   left_inv x := Fin.ext (decodeVal_encode r_sp x)
-  right_inv km := Subtype.ext (encode_decodeVal km.1 km.2)
+  right_inv km := Subtype.ext (encode_decodeVal km.val km.property)
 
 @[simp]
 theorem coe_equiv {X r_sp : ℕ} (x : Fin X) :
-    (equiv X r_sp x).1 = encode r_sp x := by
+    (equiv X r_sp x).val = encode r_sp x := by
   simp [equiv]
 
 @[simp]
 theorem val_equiv_symm {X r_sp : ℕ}
     (km : { km : Fin (spillUniv X r_sp) × Fin (2 ^ memBits X r_sp) // decodeVal km < X }) :
-    ((equiv X r_sp).symm km).val = decodeVal km.1 := by
+    ((equiv X r_sp).symm km).val = decodeVal km.val := by
   simp [equiv]
 
 /-! ### Spillover universe and bit-redundancy bounds (Lemma 3.8) -/

@@ -112,10 +112,10 @@ theorem rank_getElem (j : ℕ) (hj : j < (members p).length) : rank p (members p
 
 /-- **The numbering of the elements with a property by their positions.** -/
 @[expose] def rankEquiv : {v // p v} ≃ Fin (members p).length where
-  toFun v := ⟨rank p v, rank_lt p v v.2⟩
-  invFun j := ⟨(members p)[j], of_decide_eq_true (List.mem_filter.mp (List.getElem_mem j.2)).2⟩
-  left_inv v := Subtype.ext (getElem_rank p v v.2)
-  right_inv j := Fin.ext (rank_getElem p j j.2)
+  toFun v := ⟨rank p v, rank_lt p v v.property⟩
+  invFun j := ⟨(members p)[j], of_decide_eq_true (List.mem_filter.mp (List.getElem_mem j.isLt)).2⟩
+  left_inv v := Subtype.ext (getElem_rank p v v.property)
+  right_inv j := Fin.ext (rank_getElem p j j.isLt)
 
 @[simp] theorem rankEquiv_apply_val (v : {v // p v}) : (rankEquiv p v : ℕ) = rank p v := rfl
 
@@ -139,11 +139,11 @@ abbrev ChildEdge : Type := {e : Fin m // group (src e) = g} ⊕ {e : Fin m // gr
 
 /-- The child end of a child edge: the row of a row port, or the column of a column port. -/
 @[expose] def childSrc : ChildEdge src tgt group g → ChildVertex group g P :=
-  Sum.elim (fun e => .inl ⟨src e.1, e.2⟩) (fun e => .inl ⟨tgt e.1, e.2⟩)
+  Sum.elim (fun e => .inl ⟨src e.val, e.property⟩) (fun e => .inl ⟨tgt e.val, e.property⟩)
 
 /-- The packet end of a child edge. -/
 @[expose] def childTgt : ChildEdge src tgt group g → ChildVertex group g P :=
-  Sum.elim (fun e => .inr (packet e.1)) (fun e => .inr (packet e.1))
+  Sum.elim (fun e => .inr (packet e.val)) (fun e => .inr (packet e.val))
 
 /-- **The numbering of the child vertices**: the vertices of group `g` by position, then the
 packets. -/

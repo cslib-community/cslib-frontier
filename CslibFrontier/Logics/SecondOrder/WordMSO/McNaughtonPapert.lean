@@ -113,7 +113,7 @@ the union of the products `L(T₁) · {c} · L(T₂)` over the triples producing
 theorem pointedRankTypeLanguage_eq (n : ℕ) (τ : FO.RankType (wordLanguage α) n 1) :
     pointedRankTypeLanguage n τ =
       ⨆ t : {t // ProducesType n τ t},
-        rankTypeLanguage n t.1.1 * {[t.1.2.1]} * rankTypeLanguage n t.1.2.2 := by
+        rankTypeLanguage n t.val.1 * {[t.val.2.1]} * rankTypeLanguage n t.val.2.2 := by
   ext x
   rw [Language.mem_iSup]
   constructor
@@ -250,7 +250,7 @@ of the classes of rank-`n` equivalence that it meets, finitely many star-free la
 theorem WordFO.isStarFree_language (φ : (wordLanguage α).Sentence) :
     IsStarFree (WordFO.language φ) := by
   have h : WordFO.language φ = ⨆ T : {T // ∃ w ∈ WordFO.language φ,
-      wordRankType (FO.quantifierRank φ) w Fin.elim0 = T}, rankTypeLanguage _ T.1 := by
+      wordRankType (FO.quantifierRank φ) w Fin.elim0 = T}, rankTypeLanguage _ T.val := by
     ext v
     rw [Language.mem_iSup]
     constructor

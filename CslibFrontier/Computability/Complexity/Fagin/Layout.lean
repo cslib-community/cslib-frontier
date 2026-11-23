@@ -115,7 +115,7 @@ private theorem exists_lt_iff_of_val_eq (S : (Fin 1 → Fin B) → Prop) {n : �
     (hy : (y : ℕ) = n) :
     (∃ h : n < B, S ![⟨n, h⟩]) ↔ S ![y] := by
   subst hy
-  simp [y.2]
+  simp [y.isLt]
 
 include hlt
 
@@ -179,7 +179,7 @@ theorem nextBase_and_getElem?_frame_of_realize_frameChunkSentence
         exists_lt_iff_of_val_eq (RelMap outBitRel) (y 1) hy1, ← hbit jm hm]
       exact ⟨hout0, hout1⟩
   intro p hlo hhi
-  simpa [p.2] using hP (p : ℕ) hlo hhi
+  simpa [p.isLt] using hP (p : ℕ) hlo hhi
 
 /-- Completeness of `frameChunkSentence`: the canonical stride-2 relation
 `mapRel(j, p) ↔ j ≤ w.length ∧ p = base + 2 * j` satisfies `frameChunkSentence` whenever
@@ -377,8 +377,8 @@ private theorem length_frame_encUnary_lt {a : EncodedStructure} (ha : v.WellForm
 
 private theorem length_prefix_add_frame_table_lt {a : EncodedStructure} (ha : v.WellFormed a)
     {B : ℕ} (hB : (frame (encStructure a)).length < B) (idx : Fin v.count) :
-    (v.encStructurePrefix a idx.1).length + (frame (v.table a (v.symbol idx))).length < B := by
-  have h1 := v.length_encStructurePrefix_le a (by omega : idx.1 + 1 ≤ v.count)
+    (v.encStructurePrefix a idx.val).length + (frame (v.table a (v.symbol idx))).length < B := by
+  have h1 := v.length_encStructurePrefix_le a (by omega : idx.val + 1 ≤ v.count)
   have h2 := length_frame (encStructure a)
   rw [v.encStructurePrefix_count ha] at h1
   rw [← List.length_append, ← v.encStructurePrefix_succ a idx]
@@ -514,11 +514,11 @@ private theorem realize_layoutMatrix_sound {a : EncodedStructure} (ha : v.WellFo
           (v.realize_layoutTableBit_iff ha B I_in R idx) hbase_m (hchunks idx)
       refine ⟨fun z => ?_, fun p hp => ?_⟩
       · change RelMap (v.layoutBase idx.succ.succ) ![z] ↔
-          (z : ℕ) = (v.encStructurePrefix a (idx.1 + 1)).length
+          (z : ℕ) = (v.encStructurePrefix a (idx.val + 1)).length
         rw [hsucc_eq, List.length_append]; exact hnext z
-      · change (p : ℕ) < (v.encStructurePrefix a (idx.1 + 1)).length at hp
+      · change (p : ℕ) < (v.encStructurePrefix a (idx.val + 1)).length at hp
         change RelMap v.layoutRawBit ![p] ↔
-          (v.encStructurePrefix a (idx.1 + 1))[(p : ℕ)]? = some true
+          (v.encStructurePrefix a (idx.val + 1))[(p : ℕ)]? = some true
         rw [hsucc_eq] at hp ⊢
         rcases lt_or_ge (p : ℕ) (v.encStructurePrefix a m).length with hlt_p | hge_p
         · rw [List.getElem?_append_left hlt_p]; exact hout_m p hlt_p
@@ -547,7 +547,7 @@ private def canonicalLayoutR (a : EncodedStructure) (B : ℕ) :
     else
       let idx : Fin v.count := ⟨(m : ℕ) - 1, by omega⟩
       {x : Fin 2 → Fin B | (x 0 : ℕ) ≤ a.1 ^ v.arity idx ∧
-        (x 1 : ℕ) = (v.encStructurePrefix a idx.1).length + 2 * (x 0 : ℕ)}
+        (x 1 : ℕ) = (v.encStructurePrefix a idx.val).length + 2 * (x 0 : ℕ)}
   | .inr (.inr ()) =>
     {x : Fin 2 → Fin B | (x 0 : ℕ) ≤ (encStructure a).length ∧ (x 1 : ℕ) = 2 * (x 0 : ℕ)}
 
@@ -599,9 +599,9 @@ private theorem realize_layoutMatrix_complete {a : EncodedStructure} (ha : v.Wel
         rw [Vocabulary.WellFormed.length_table v ha (v.symbol idx)]
         change ![j, p] ∈ R (.inr (.inl idx.succ)) ↔ _; simp [R, canonicalLayoutR]; rfl)
       (fun p hlo hhi => ?_)
-    have hp' : (p : ℕ) < (v.encStructurePrefix a (idx.1 + 1)).length := by
+    have hp' : (p : ℕ) < (v.encStructurePrefix a (idx.val + 1)).length := by
       rw [hsucc_eq, List.length_append]; exact hhi
-    rw [hraw_prefix (idx.1 + 1) p hp', hsucc_eq, List.getElem?_append_right hlo]
+    rw [hraw_prefix (idx.val + 1) p hp', hsucc_eq, List.getElem?_append_right hlo]
   · have hbase_last : ∀ z : Fin B,
         RelMap (v.layoutBase (Fin.last (v.count + 1))) ![z] ↔
           (z : ℕ) = (encStructure a).length := fun z => by

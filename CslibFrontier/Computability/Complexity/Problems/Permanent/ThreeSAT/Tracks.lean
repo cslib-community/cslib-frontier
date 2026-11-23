@@ -337,7 +337,7 @@ theorem card_rowSet {P : Finset ℕ} (hP : P ⊆ range (numOcc φ)) :
   · split_ifs <;> omega
   · simp only [colSet, mem_filter, mem_univ, true_and] at hu
     split_ifs with h
-    · exact u.2
+    · exact u.isLt
     · rcases hu with hu | ⟨o, hoP, he⟩
       · exact absurd hu h
       · have := exitIdx_lt_size (φ := φ) (mem_range.1 (hP hoP))
@@ -389,7 +389,7 @@ def bijOfAssign {P : Finset ℕ} (hlt : ∀ k, InRows φ P k → ∀ a, succOf �
 
 /-- The assignment read off a bijection at the auxiliary vertices. -/
 def assignOfBij (f : Fin (size φ) → Fin (size φ)) (i : Fin (numAux φ)) : Bool :=
-  decide ((f ⟨i, lt_of_lt_of_le i.2 (numAux_le_size φ)⟩).val = auxSucc φ i true)
+  decide ((f ⟨i, lt_of_lt_of_le i.isLt (numAux_le_size φ)⟩).val = auxSucc φ i true)
 
 /-- **The count of track bijections**: the permanent sum of the track matrix between the rows and
 the columns of `P` is the number of assignments whose true occurrences are exactly `P`. -/
@@ -496,10 +496,10 @@ theorem permOn_trackMatrix (hφ : WellFormed φ) {P : Finset ℕ}
       rw [← hF u hu, hul]
   · intro a _
     funext i
-    have hi : InRows φ P i := Or.inl i.2
+    have hi : InRows φ P i := Or.inl i.isLt
     simp only [assignOfBij, bijOfAssign, hi, dite_true]
-    rw [succOf_aux a i.2]
-    have hne := auxSucc_true_ne_false hφ i.2
+    rw [succOf_aux a i.isLt]
+    have hne := auxSucc_true_ne_false hφ i.isLt
     cases h : a i
     · simp only [decide_eq_false_iff_not]
       exact hne.symm

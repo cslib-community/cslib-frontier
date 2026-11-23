@@ -142,25 +142,25 @@ theorem exists_small_partitionGadget (γ : Type) [Fintype γ] (t : ℕ) :
   classical
   let W := {p : Finset γ × Finset γ // Disjoint p.1 p.2 ∧ p.1.card + p.2.card ≤ t}
   let hit : (γ → Bool) → W → Prop := fun f w =>
-    (∀ b ∈ w.1.1, f b = true) ∧ (∀ b ∈ w.1.2, f b = false)
+    (∀ b ∈ w.val.1, f b = true) ∧ (∀ b ∈ w.val.2, f b = false)
   let enc : W → (Fin t → Option (γ × Bool)) := fun w i =>
-    ((w.1.1.image (fun b => (b, true)) ∪ w.1.2.image (fun b => (b, false))).toList)[(i : ℕ)]?
+    ((w.val.1.image (fun b => (b, true)) ∪ w.val.2.image (fun b => (b, false))).toList)[(i : ℕ)]?
   have henc_inj : Function.Injective enc := by
     intro w₁ w₂ h
     let S₁ : Finset (γ × Bool) :=
-      w₁.1.1.image (fun b => (b, true)) ∪ w₁.1.2.image (fun b => (b, false))
+      w₁.val.1.image (fun b => (b, true)) ∪ w₁.val.2.image (fun b => (b, false))
     let S₂ : Finset (γ × Bool) :=
-      w₂.1.1.image (fun b => (b, true)) ∪ w₂.1.2.image (fun b => (b, false))
+      w₂.val.1.image (fun b => (b, true)) ∪ w₂.val.2.image (fun b => (b, false))
     have hcard₁ : S₁.card ≤ t := by
-      calc S₁.card ≤ (w₁.1.1.image (fun b => (b, true))).card +
-              (w₁.1.2.image (fun b => (b, false))).card := Finset.card_union_le _ _
-        _ ≤ w₁.1.1.card + w₁.1.2.card := Nat.add_le_add Finset.card_image_le Finset.card_image_le
-        _ ≤ t := w₁.2.2
+      calc S₁.card ≤ (w₁.val.1.image (fun b => (b, true))).card +
+              (w₁.val.2.image (fun b => (b, false))).card := Finset.card_union_le _ _
+        _ ≤ w₁.val.1.card + w₁.val.2.card := Nat.add_le_add Finset.card_image_le Finset.card_image_le
+        _ ≤ t := w₁.property.2
     have hcard₂ : S₂.card ≤ t := by
-      calc S₂.card ≤ (w₂.1.1.image (fun b => (b, true))).card +
-              (w₂.1.2.image (fun b => (b, false))).card := Finset.card_union_le _ _
-        _ ≤ w₂.1.1.card + w₂.1.2.card := Nat.add_le_add Finset.card_image_le Finset.card_image_le
-        _ ≤ t := w₂.2.2
+      calc S₂.card ≤ (w₂.val.1.image (fun b => (b, true))).card +
+              (w₂.val.2.image (fun b => (b, false))).card := Finset.card_union_le _ _
+        _ ≤ w₂.val.1.card + w₂.val.2.card := Nat.add_le_add Finset.card_image_le Finset.card_image_le
+        _ ≤ t := w₂.property.2
     have hS : S₁ = S₂ := by
       ext ⟨b, flag⟩
       simp only [← Finset.mem_toList]
@@ -216,7 +216,7 @@ theorem exists_small_partitionGadget (γ : Type) [Fintype γ] (t : ℕ) :
     dsimp only at hDisj hsum
     let R : Finset γ := Finset.univ \ (P ∪ Q)
     let φ : {f : γ → Bool // hit f ⟨(P, Q), hDisj, hsum⟩} ≃ (R → Bool) :=
-      { toFun := fun f b => f.1 b.1
+      { toFun := fun f b => f.val b.val
         invFun := fun g => ⟨fun b =>
           if hb : b ∈ R then g ⟨b, hb⟩ else decide (b ∈ P), by
             refine ⟨fun b hbP => ?_, fun b hbQ => ?_⟩
@@ -238,7 +238,7 @@ theorem exists_small_partitionGadget (γ : Type) [Fintype γ] (t : ℕ) :
             · simp [hfQ b hbQ, Finset.disjoint_right.1 hDisj hbQ]
         right_inv := fun g => by
           funext b
-          simp [b.2] }
+          simp [b.property] }
     have hcard_eq : Fintype.card {f : γ → Bool // hit f ⟨(P, Q), hDisj, hsum⟩} = 2 ^ R.card := by
       rw [Fintype.card_congr φ, Fintype.card_fun, Fintype.card_bool, Fintype.card_coe]
     have hcard_R : P.card + Q.card + R.card = Fintype.card γ := by
@@ -256,7 +256,7 @@ theorem exists_small_partitionGadget (γ : Type) [Fintype γ] (t : ℕ) :
   refine ⟨⟨m, fun x b => if hx : x < m then tests ⟨x, hx⟩ b else false⟩, ?_, rfl⟩
   intro P Q hDisj hsum
   obtain ⟨i, hi⟩ := htests ⟨(P, Q), hDisj, hsum⟩
-  refine ⟨i.1, i.isLt, ⟨fun b hbP => ?_, fun b hbQ => ?_⟩⟩
+  refine ⟨i.val, i.isLt, ⟨fun b hbP => ?_, fun b hbQ => ?_⟩⟩
   · dsimp only
     split_ifs with h
     · exact hi.1 b hbP

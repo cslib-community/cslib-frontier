@@ -135,7 +135,7 @@ private theorem Coords.nonempty [Finite M] : Nonempty (Coords M (Nat.card M)) :=
   have := Fintype.ofFinite M
   let e := Fintype.orderIsoFinOfCardEq M (Nat.card_eq_fintype_card (α := M)).symm
   refine ⟨⟨fun x => ((e.symm x : Fin _) : ℕ), fun x y => ?_, fun x => by positivity,
-    fun x => by exact_mod_cast (e.symm x).2, fun z hz hzm => ?_⟩⟩
+    fun x => by exact_mod_cast (e.symm x).isLt, fun z hz hzm => ?_⟩⟩
   · rw [Nat.cast_lt, Fin.val_fin_lt, e.symm.lt_iff_lt]
   · refine ⟨e ⟨z.toNat, by omega⟩, ?_⟩
     simp only [OrderIso.symm_apply_apply]

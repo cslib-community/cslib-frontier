@@ -159,16 +159,16 @@ private theorem log_card_le_sum_bregmanWeight :
           rw [← he]; exact e.injective.ne_iff.symm
         rw [← card_attach]
         refine card_le_card_of_injOn
-          (fun e => e.1.subtypeEquiv (hiff e.1 (mem_filter.1 e.2).2)) ?_ ?_
+          (fun e => e.val.subtypeEquiv (hiff e.val (mem_filter.1 e.property).2)) ?_ ?_
         · intro e _
           simp only [coe_filter, Set.mem_ofPred_eq, mem_univ, true_and]
           intro a
-          exact (memM _).1 (mem_filter.1 e.2).1 a
+          exact (memM _).1 (mem_filter.1 e.property).1 a
         · intro e _ e' _ h
           apply Subtype.ext
           ext a
           by_cases ha : a = i
-          · rw [ha, (mem_filter.1 e.2).2, (mem_filter.1 e'.2).2]
+          · rw [ha, (mem_filter.1 e.property).2, (mem_filter.1 e'.property).2]
           · have := congrArg (fun f => (f ⟨a, ha⟩ : β)) h
             simpa using this
       have hlog : Real.log #{e ∈ M | e i = k} ≤

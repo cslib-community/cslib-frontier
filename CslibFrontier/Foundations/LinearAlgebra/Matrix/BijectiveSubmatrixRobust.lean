@@ -65,7 +65,7 @@ theorem exists_bijective_submatrixRobust (n : ℕ) :
     have hv0 : fM v + gLin v = 0 := hv
     have hfg : fM v = -gLin v := eq_neg_of_add_eq_zero_left hv0
     have hmem_inf : fM v ∈ R_sub ⊓ C_cod :=
-      ⟨LinearMap.mem_range_self fM v, hfg ▸ C_cod.neg_mem (φ (π_K v)).2⟩
+      ⟨LinearMap.mem_range_self fM v, hfg ▸ C_cod.neg_mem (φ (π_K v)).property⟩
     rw [hC_cod.disjoint.eq_bot] at hmem_inf
     have hvK : v ∈ K_sub := hmem_inf
     have hg0 : gLin v = 0 := by
@@ -97,7 +97,7 @@ theorem exists_bijective_submatrixRobust (n : ℕ) :
       have hfacU : (M.submatrix ((↑) : ↥(univ : Set (Fin n)) → Fin n)
           ((↑) : ↥(univ : Set (Fin n)) → Fin n)).mulVecLin = resU.comp (fM.comp extU) :=
         LinearMap.ext fun x => funext fun i => by
-          change (M.submatrix _ _ *ᵥ x) i = (M *ᵥ fun j => x ⟨j, trivial⟩) i.1
+          change (M.submatrix _ _ *ᵥ x) i = (M *ᵥ fun j => x ⟨j, trivial⟩) i.val
           simp only [Matrix.mulVec, dotProduct, Matrix.submatrix_apply]
           exact Fintype.sum_equiv (Equiv.Set.univ (Fin n)) _ _ fun _ => rfl
       change Module.finrank (ZMod 2) (LinearMap.range _) ≤ _
@@ -117,7 +117,7 @@ theorem exists_bijective_submatrixRobust (n : ℕ) :
       (E_mat.submatrix ((↑) : S_set → Fin n) ((↑) : T_set → Fin n)).rank ≤
         Module.finrank (ZMod 2) K_sub := by
     let resS : (Fin n → ZMod 2) →ₗ[ZMod 2] (S_set → ZMod 2) :=
-      { toFun := fun y i => y i.1
+      { toFun := fun y i => y i.val
         map_add' := fun _ _ => rfl
         map_smul' := fun _ _ => rfl }
     let extT : (T_set → ZMod 2) →ₗ[ZMod 2] (Fin n → ZMod 2) :=
@@ -128,16 +128,16 @@ theorem exists_bijective_submatrixRobust (n : ℕ) :
         (resS.comp (C_cod.subtype.comp φ.toLinearMap)).comp (π_K.comp extT) :=
       LinearMap.ext fun x => funext fun i => by
         change (E_mat.submatrix ((↑) : S_set → Fin n) ((↑) : T_set → Fin n) *ᵥ x) i =
-          gLin (extT x) i.1
-        rw [← congrFun (congrFun hE_mul (extT x)) i.1]
+          gLin (extT x) i.val
+        rw [← congrFun (congrFun hE_mul (extT x)) i.val]
         simp only [Matrix.mulVec, dotProduct, Matrix.submatrix_apply, extT, LinearMap.coe_mk,
           AddHom.coe_mk]
         rw [← Fintype.sum_subtype_add_sum_subtype (· ∈ T_set)]
         have h0 : (∑ j : {j : Fin n // j ∉ T_set},
-            E_mat i.1 j.1 * (if hj : j.1 ∈ T_set then x ⟨j.1, hj⟩ else 0)) = 0 :=
-          Finset.sum_eq_zero fun j _ => by simp [j.2]
+            E_mat i.val j.val * (if hj : j.val ∈ T_set then x ⟨j.val, hj⟩ else 0)) = 0 :=
+          Finset.sum_eq_zero fun j _ => by simp [j.property]
         rw [h0, add_zero]
-        exact Finset.sum_congr rfl fun j _ => by simp [j.2]
+        exact Finset.sum_congr rfl fun j _ => by simp [j.property]
     change Module.finrank (ZMod 2)
       (LinearMap.range (E_mat.submatrix ((↑) : S_set → Fin n) ((↑) : T_set → Fin n)).mulVecLin) ≤ _
     rw [hfac]

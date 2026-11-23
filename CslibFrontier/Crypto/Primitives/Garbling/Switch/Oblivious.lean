@@ -388,11 +388,11 @@ private theorem realGame_reduction [DecidableEq R] [Fintype L] {S : SwitchSystem
   -- with input zero labels `X - x • Δ`.
   have hmat : ∀ (Δ : {Δ : L // col Δ = 1}) (X : Fin n → L),
       OracleComp.interpret
-        (OracleComp.sumHandler ProbComp.unifFin fun q => pure (CCR.Arithmetic.oracle H Δ.1 q))
+        (OracleComp.sumHandler ProbComp.unifFin fun q => pure (CCR.Arithmetic.oracle H Δ.val q))
         (reduceGates H col σ 0 S.gates (Sum.elim X 0)) =
-      pure (garbleWith S H col Δ.1 fun i => X i - x i • Δ.1).material := by
+      pure (garbleWith S H col Δ.val fun i => X i - x i • Δ.val).material := by
     intro Δ X
-    refine interpret_reduceGates_real H col Δ.2 0 S.gates _ _ _ ?_ hS hσ.2
+    refine interpret_reduceGates_real H col Δ.property 0 S.gates _ _ _ ?_ hS hσ.2
     rintro _ ⟨i, rfl⟩
     simp only [Sum.elim_inl, wireLabel, hσ.1 i, sub_add_cancel]
   -- Shifting uniform input labels by `x • Δ` is a bijection.
@@ -403,7 +403,7 @@ private theorem realGame_reduction [DecidableEq R] [Fintype L] {S : SwitchSystem
     reduction, interp_norm, hmat, pure_bind, bind_assoc, ProbComp.eval_bind, ProbComp.eval_uniform]
   congr 1
   funext Δ
-  conv_lhs => rw [← hshift Δ.1]
+  conv_lhs => rw [← hshift Δ.val]
   rw [PMF.bind_map]
   congr 1
   funext K

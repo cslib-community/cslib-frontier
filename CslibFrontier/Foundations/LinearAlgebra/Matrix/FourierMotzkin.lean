@@ -98,8 +98,8 @@ theorem combination_nonneg [IsStrictOrderedRing K] (a : ι → K) (r : Row a) (i
       simp
     · simp [h]
   · rw [combination_inr, Pi.add_apply]
-    have hp := p.2
-    have hq := q.2
+    have hp := p.property
+    have hq := q.property
     apply add_nonneg
     · by_cases h : i = p
       · subst h
@@ -131,7 +131,7 @@ theorem combination_mulVec_self (a : ι → K) : combination a *ᵥ a = 0 := by
   funext r
   rcases r with i | ⟨p, q⟩
   · rw [combination_mulVec_inl]
-    exact i.2
+    exact i.property
   · rw [combination_mulVec_inr, Pi.zero_apply]
     ring
 
@@ -165,8 +165,8 @@ theorem exists_smul_add_le_iff (a v b : ι → K) :
       intro p q
       have := h (.inr (p, q))
       rw [combination_mulVec_inr, combination_mulVec_inr] at this
-      rw [div_le_iff_of_neg q.2, div_mul_eq_mul_div, div_le_iff₀ p.2]
-      nlinarith [p.2, q.2]
+      rw [div_le_iff_of_neg q.property, div_mul_eq_mul_div, div_le_iff₀ p.property]
+      nlinarith [p.property, q.property]
     obtain ⟨t, hlo, hhi⟩ := exists_between_of_le _ _ fun q p => hpq p q
     refine ⟨t, fun i => ?_⟩
     rw [Pi.add_apply, Pi.smul_apply, smul_eq_mul]

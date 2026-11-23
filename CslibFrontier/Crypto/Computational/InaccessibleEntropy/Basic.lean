@@ -156,7 +156,7 @@ theorem expected_realSampleEntropy_eq_conditionalEntropy {α β : Type*}
     rw [PMF.map_apply, tsum_eq_single ⟨x, rfl⟩]
     · simp
     · intro b hb
-      have hval : x ≠ b.1 := fun h => hb (Subtype.ext h.symm)
+      have hval : x ≠ b.val := fun h => hb (Subtype.ext h.symm)
       simp [hval]
   rw [realSampleEntropy, PMF.surprisal]
   change Real.logb 2 #(fiberSet F (F x)) =

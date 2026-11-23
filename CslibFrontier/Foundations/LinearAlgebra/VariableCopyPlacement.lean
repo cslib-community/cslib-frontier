@@ -446,7 +446,7 @@ def groupMeasurementMatrix {A : Type*} [Fintype A] (Q r A₀ R : ℕ) {n h : ℕ
     (K : Type*) [CommRing K] (place : A → Fin h × AuxLabel Q r) (varOf : A → Fin n)
     (a : Fin n → Fin Q → Fin r) (t : Fin Q) (g : Fin r) :
     Matrix (Fin h × measurementIndices Q r A₀ R) (varGroup a t g) K :=
-  fun p v => varMeasurementMatrix Q r A₀ R K place varOf p v.1
+  fun p v => varMeasurementMatrix Q r A₀ R K place varOf p v.val
 
 /-- **Equation (4.16) row count identity (p. 32)**: each of the `r` matrices `C_{t,g}` has
 `h * #(measurementIndices Q r A₀ R)` rows, so their total row count across `g : Fin r` is
@@ -616,7 +616,7 @@ theorem sum_abs_varMeasurementMatrix_le {A : Type*} [Fintype A] (Q r A₀ R : �
       (∑ e' ∈ univ.filter (fun e' : A => (place e').1 = p.1),
           |measurementMatrix Q r A₀ R ℤ p.2 (place e').2|) ≤
         ∑ _e' ∈ univ.filter (fun e' : A => (place e').1 = p.1), (1 : ℤ) :=
-          sum_le_sum fun e' _ => abs_eigenvecInt_le_one p.2.1 (place e').2
+          sum_le_sum fun e' _ => abs_eigenvecInt_le_one p.2.val (place e').2
       _ = #(univ.filter (fun e' : A => (place e').1 = p.1)) := by simp
   have hcard :
       #(univ.filter (fun e' : A => (place e').1 = p.1)) ≤ r ^ (2 * Q) := by
@@ -654,24 +654,24 @@ theorem abs_varMeasurementMatrix_mulVec_le_of_zero_one {A : Type*} [Fintype A]
 /-! ### 4. Explicit `ℓ₁`-coefficient norm bounds (Lemma 4.6, p. 33) -/
 
 private theorem coeffNorm1_prod_C_sub_X_le {Q : ℕ} (E : Finset (Fin Q)) :
-    (∏ s ∈ E, (C ((s.1 : ℤ) + 1) - X)).coeffNorm1 ≤ ∏ s ∈ E, ((s.1 + 1) + 1) := by
+    (∏ s ∈ E, (C ((s.val : ℤ) + 1) - X)).coeffNorm1 ≤ ∏ s ∈ E, ((s.val + 1) + 1) := by
   classical
   induction E using Finset.induction_on with
   | empty => simp
   | insert s E hs ih =>
     rw [prod_insert hs, prod_insert hs]
-    have hnat : ((s.1 : ℤ) + 1).natAbs = s.1 + 1 := by omega
+    have hnat : ((s.val : ℤ) + 1).natAbs = s.val + 1 := by omega
     calc
-      ((C ((s.1 : ℤ) + 1) - X) * ∏ t ∈ E, (C ((t.1 : ℤ) + 1) - X)).coeffNorm1 ≤
-          (((s.1 : ℤ) + 1).natAbs + 1) *
-            (∏ t ∈ E, (C ((t.1 : ℤ) + 1) - X)).coeffNorm1 :=
+      ((C ((s.val : ℤ) + 1) - X) * ∏ t ∈ E, (C ((t.val : ℤ) + 1) - X)).coeffNorm1 ≤
+          (((s.val : ℤ) + 1).natAbs + 1) *
+            (∏ t ∈ E, (C ((t.val : ℤ) + 1) - X)).coeffNorm1 :=
         coeffNorm1_C_sub_X_mul_le _ _
-      _ = ((s.1 + 1) + 1) * (∏ t ∈ E, (C ((t.1 : ℤ) + 1) - X)).coeffNorm1 := by
+      _ = ((s.val + 1) + 1) * (∏ t ∈ E, (C ((t.val : ℤ) + 1) - X)).coeffNorm1 := by
         rw [hnat]
-      _ ≤ ((s.1 + 1) + 1) * ∏ t ∈ E, ((t.1 + 1) + 1) := by gcongr
+      _ ≤ ((s.val + 1) + 1) * ∏ t ∈ E, ((t.val + 1) + 1) := by gcongr
 
 private theorem prod_add_one_add_one_le {Q : ℕ} (E : Finset (Fin Q)) :
-    (∏ s ∈ E, ((s.1 + 1) + 1)) ≤ ∏ s ∈ E, (2 * (s.1 + 1)) := by
+    (∏ s ∈ E, ((s.val + 1) + 1)) ≤ ∏ s ∈ E, (2 * (s.val + 1)) := by
   classical
   induction E using Finset.induction_on with
   | empty => simp
@@ -685,32 +685,32 @@ theorem coeffNorm1_mismatchAnnihilatorScaledInt_le {Q r : ℕ} (u y : AuxLabel Q
     (mismatchAnnihilatorScaledInt u y).coeffNorm1 ≤ Q.factorial * 2 ^ Q := by
   unfold mismatchAnnihilatorScaledInt
   have hcast :
-      (∏ s ∈ (mismatchSet u y)ᶜ, ((s.1 : ℤ) + 1)) =
-        ((∏ s ∈ (mismatchSet u y)ᶜ, (s.1 + 1) : ℕ) : ℤ) := by
+      (∏ s ∈ (mismatchSet u y)ᶜ, ((s.val : ℤ) + 1)) =
+        ((∏ s ∈ (mismatchSet u y)ᶜ, (s.val + 1) : ℕ) : ℤ) := by
     push_cast
     rfl
   have hnat :
-      (∏ s ∈ (mismatchSet u y)ᶜ, ((s.1 : ℤ) + 1)).natAbs =
-        ∏ s ∈ (mismatchSet u y)ᶜ, (s.1 + 1) := by
+      (∏ s ∈ (mismatchSet u y)ᶜ, ((s.val : ℤ) + 1)).natAbs =
+        ∏ s ∈ (mismatchSet u y)ᶜ, (s.val + 1) := by
     rw [hcast, Int.natAbs_natCast]
   calc
-    (C (∏ s ∈ (mismatchSet u y)ᶜ, ((s.1 : ℤ) + 1)) *
-        ∏ s ∈ mismatchSet u y, (C ((s.1 : ℤ) + 1) - X)).coeffNorm1 ≤
-      (∏ s ∈ (mismatchSet u y)ᶜ, ((s.1 : ℤ) + 1)).natAbs *
-        (∏ s ∈ mismatchSet u y, (C ((s.1 : ℤ) + 1) - X)).coeffNorm1 :=
+    (C (∏ s ∈ (mismatchSet u y)ᶜ, ((s.val : ℤ) + 1)) *
+        ∏ s ∈ mismatchSet u y, (C ((s.val : ℤ) + 1) - X)).coeffNorm1 ≤
+      (∏ s ∈ (mismatchSet u y)ᶜ, ((s.val : ℤ) + 1)).natAbs *
+        (∏ s ∈ mismatchSet u y, (C ((s.val : ℤ) + 1) - X)).coeffNorm1 :=
       coeffNorm1_C_mul_le _ _
-    _ = (∏ s ∈ (mismatchSet u y)ᶜ, (s.1 + 1)) *
-        (∏ s ∈ mismatchSet u y, (C ((s.1 : ℤ) + 1) - X)).coeffNorm1 := by
+    _ = (∏ s ∈ (mismatchSet u y)ᶜ, (s.val + 1)) *
+        (∏ s ∈ mismatchSet u y, (C ((s.val : ℤ) + 1) - X)).coeffNorm1 := by
       rw [hnat]
-    _ ≤ (∏ s ∈ (mismatchSet u y)ᶜ, (s.1 + 1)) *
-        ∏ s ∈ mismatchSet u y, ((s.1 + 1) + 1) :=
+    _ ≤ (∏ s ∈ (mismatchSet u y)ᶜ, (s.val + 1)) *
+        ∏ s ∈ mismatchSet u y, ((s.val + 1) + 1) :=
       Nat.mul_le_mul_left _ (coeffNorm1_prod_C_sub_X_le _)
-    _ ≤ (∏ s ∈ (mismatchSet u y)ᶜ, (s.1 + 1)) *
-        ∏ s ∈ mismatchSet u y, (2 * (s.1 + 1)) :=
+    _ ≤ (∏ s ∈ (mismatchSet u y)ᶜ, (s.val + 1)) *
+        ∏ s ∈ mismatchSet u y, (2 * (s.val + 1)) :=
       Nat.mul_le_mul_left _ (prod_add_one_add_one_le _)
     _ = 2 ^ #(mismatchSet u y) * Q.factorial := by
       rw [prod_mul_distrib, prod_const, ← mul_assoc,
-        mul_comm (∏ s ∈ (mismatchSet u y)ᶜ, (s.1 + 1)) (2 ^ #(mismatchSet u y)),
+        mul_comm (∏ s ∈ (mismatchSet u y)ᶜ, (s.val + 1)) (2 ^ #(mismatchSet u y)),
         mul_assoc, prod_compl_mul_prod,
         Fin.prod_univ_eq_prod_range (fun i => i + 1) Q,
         Finset.prod_range_add_one_eq_factorial]

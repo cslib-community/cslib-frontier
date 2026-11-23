@@ -61,7 +61,7 @@ variable (K : Type*) [Semiring K] [PartialOrder K]
     ↥(⊤ : SimpleGraph V).edgeSet → K :=
   fun e =>
     Sym2.lift ⟨fun u v => if (u ∈ X) ≠ (v ∈ X) then 1 else 0, fun _ _ => by simp only [ne_comm]⟩
-      e.1
+      e.val
 
 /-- The **cut polytope** `CUT(V) = conv {χ_{δ(X)} | X ⊆ V}`
 [FioriniMassarPokuttaTiwaryDeWolf2015, Section 3.2]. -/
@@ -89,7 +89,7 @@ private theorem corrToCutSym_symm {α : Type*} (y : (α × α) → K) (u v : Opt
 
 private def corrToCutLinear (K : Type*) [Field K]
     (α : Type*) : ((α × α) → K) →ₗ[K] (↥(⊤ : SimpleGraph (Option α)).edgeSet → K) where
-  toFun y e := Sym2.lift ⟨corrToCutSym y, corrToCutSym_symm y⟩ e.1
+  toFun y e := Sym2.lift ⟨corrToCutSym y, corrToCutSym_symm y⟩ e.val
   map_add' y₁ y₂ := by
     ext ⟨e, he⟩
     induction e using Sym2.ind with
@@ -318,7 +318,7 @@ theorem three_pow_le_two_pow_mul_extensionComplexity_cutPolytope
         | none => simp only [Option.elim'_none, ↓reduceDIte]
         | some a =>
             dsimp only [Option.elim'_some]
-            simp only [a.2, ↓reduceDIte]
+            simp only [a.property, ↓reduceDIte]
             rfl }
   have hcard : Fintype.card α = Fintype.card V - 1 := by
     have := Fintype.card_congr e

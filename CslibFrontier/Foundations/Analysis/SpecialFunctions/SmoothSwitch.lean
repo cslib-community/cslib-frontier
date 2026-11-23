@@ -102,10 +102,10 @@ private theorem exists_lipschitzWith_comp {g : ℝ → ℝ}
   refine ⟨K, LipschitzWith.of_dist_le_mul fun x y => ?_⟩
   have hproj := (LipschitzWith.projIcc (zero_le_one' ℝ)).dist_le_mul x y
   rw [← smoothTransition.projIcc (x := x), ← smoothTransition.projIcc (x := y)]
-  refine (hK.dist_le_mul _ (projIcc 0 1 _ x).2 _ (projIcc 0 1 _ y).2).trans ?_
+  refine (hK.dist_le_mul _ (projIcc 0 1 _ x).property _ (projIcc 0 1 _ y).property).trans ?_
   rw [Subtype.dist_eq] at hproj
   simp only [NNReal.coe_one, one_mul] at hproj
-  exact mul_le_mul_of_nonneg_left hproj K.2
+  exact mul_le_mul_of_nonneg_left hproj K.property
 
 /-- Every positive power of the smooth transition is Lipschitz. -/
 theorem exists_lipschitzWith_rpow {p : ℝ} (hp : 0 < p) :

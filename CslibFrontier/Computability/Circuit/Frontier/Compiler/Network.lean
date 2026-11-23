@@ -132,7 +132,7 @@ variable {c}
 
 /-- The signal read by a consumer. -/
 def consumed : Consumer c → Signal c
-  | .inl a => ⟨(c.program.lines a.1.1).wires a.1.2, .arg a.1.2 a.2⟩
+  | .inl a => ⟨(c.program.lines a.val.1).wires a.val.2, .arg a.val.2 a.property⟩
   | .inr o => ⟨c.outputs o, .output o⟩
 
 variable (c) in
@@ -155,7 +155,7 @@ noncomputable def junctionEquiv : Junction c ≃ Consumer c :=
 
 /-- The consumer of a junction reads the signal of the junction. -/
 @[simp] theorem consumed_junctionEquiv (j : Junction c) : consumed (junctionEquiv c j) = j.1 :=
-  ((Finite.equivFin {t : Consumer c // consumed t = j.1}).symm j.2).2
+  ((Finite.equivFin {t : Consumer c // consumed t = j.1}).symm j.2).property
 
 /-- The junction of a consumer belongs to the signal it reads. -/
 @[simp] theorem fst_junctionEquiv_symm (t : Consumer c) :
@@ -224,7 +224,7 @@ instance : Finite (Edge c) :=
 
 /-- The vertex that consumes through a consumer: a gate vertex or an output vertex. -/
 def owner : Consumer c → Vertex c
-  | .inl a => .signal ⟨.gate a.1.1, a.2⟩
+  | .inl a => .signal ⟨.gate a.val.1, a.property⟩
   | .inr o => .output o
 
 /-- The vertex feeding a junction: the signal itself for its first junction, and the previous
@@ -318,7 +318,7 @@ private theorem signal_of_src_eq_junction :
 
 /-- An edge entering the vertex of a signal delivers one of the argument slots of its gate. -/
 theorem exists_slot_of_tgt_eq_signal {e : Edge c} {w : Signal c} (h : tgt e = .signal w) :
-    ∃ a : Slot c, Wire.gate a.1.1 = w.1 ∧ e = deliverEdge (.inl a) := by
+    ∃ a : Slot c, Wire.gate a.val.1 = w.val ∧ e = deliverEdge (.inl a) := by
   rcases e with j | j
   · cases h
   · change owner (junctionEquiv c j) = _ at h
@@ -420,7 +420,7 @@ variable {I Acc}
 /-- The values of the circuit satisfy the network: every edge carries the value of its
 signal. -/
 theorem satisfies_trace {x : Fin n → U} (hx : ∀ o, c.eval I x o ∈ Acc o) :
-    (network c I Acc).Satisfies x fun e => c.program.trace I x e.signal.1 := by
+    (network c I Acc).Satisfies x fun e => c.program.trace I x e.signal.val := by
   intro v
   cases v with
   | signal w =>
@@ -433,10 +433,10 @@ theorem satisfies_trace {x : Fin n → U} (hx : ∀ o, c.eval I x o ∈ Acc o) :
       simp only [emit, argEdge, signal_deliverEdge, consumed]
   | junction j =>
     intro e he
-    change c.program.trace I x e.signal.1 = c.program.trace I x j.1.1
+    change c.program.trace I x e.signal.val = c.program.trace I x j.1.val
     rw [signal_of_src_eq_junction he]
   | output o =>
-    change c.program.trace I x (outEdge c o).signal.1 ∈ Acc o
+    change c.program.trace I x (outEdge c o).signal.val ∈ Acc o
     rw [signal_deliverEdge]
     exact hx o
 
@@ -472,8 +472,8 @@ private theorem head_eq_trace :
 
 /-- **Uniqueness.** A satisfying assignment puts on every edge the value of its signal in the
 circuit. -/
-theorem eq_trace (e : Edge c) : α e = c.program.trace I x e.signal.1 :=
-  (eq_head hα e).trans (head_eq_trace hα _ e.signal.2)
+theorem eq_trace (e : Edge c) : α e = c.program.trace I x e.signal.val :=
+  (eq_head hα e).trans (head_eq_trace hα _ e.signal.property)
 
 end Satisfying
 
@@ -481,7 +481,7 @@ end Satisfying
 is accepted and the assignment puts on every edge the value of its signal in the circuit. -/
 theorem satisfies_iff {x : Fin n → U} {α : Edge c → U} :
     (network c I Acc).Satisfies x α ↔
-      (∀ o, c.eval I x o ∈ Acc o) ∧ α = fun e => c.program.trace I x e.signal.1 := by
+      (∀ o, c.eval I x o ∈ Acc o) ∧ α = fun e => c.program.trace I x e.signal.val := by
   refine ⟨fun hα => ⟨fun o => ?_, funext (eq_trace hα)⟩, ?_⟩
   · have h : α (outEdge c o) ∈ Acc o := hα (.output o)
     rwa [eq_trace hα, signal_deliverEdge] at h
@@ -512,18 +512,18 @@ at `P` and like `y` elsewhere. Then the outputs of `z` are those of `x` at the o
 `P`, and those of `y` at the others. -/
 theorem eval_splice {P : Set (Vertex c)} {x y z : Fin n → U}
     (hcut : ∀ e ∈ (graph c).edgeCut P,
-      c.program.trace I x e.signal.1 = c.program.trace I y e.signal.1)
+      c.program.trace I x e.signal.val = c.program.trace I y e.signal.val)
     (hzx : EqOn z x ((network c I fun _ => univ).readIn P))
     (hzy : EqOn z y ((network c I fun _ => univ).readIn P)ᶜ) (o : Fin m) :
     (Vertex.output o ∈ P → c.eval I z o = c.eval I x o) ∧
       (Vertex.output o ∉ P → c.eval I z o = c.eval I y o) := by
-  have hx : (network c I fun _ => univ).Satisfies x fun e => c.program.trace I x e.signal.1 :=
+  have hx : (network c I fun _ => univ).Satisfies x fun e => c.program.trace I x e.signal.val :=
     satisfies_trace fun _ => mem_univ _
-  have hy : (network c I fun _ => univ).Satisfies y fun e => c.program.trace I y e.signal.1 :=
+  have hy : (network c I fun _ => univ).Satisfies y fun e => c.program.trace I y e.signal.val :=
     satisfies_trace fun _ => mem_univ _
   obtain ⟨γ, hγ, hγx, hγy⟩ := hx.splice hy hcut hzx hzy
   -- Every value at the output `o` is read off the edge delivering it.
-  have hval : ∀ v, c.program.trace I v (outEdge c o).signal.1 = c.eval I v o := fun v => by
+  have hval : ∀ v, c.program.trace I v (outEdge c o).signal.val = c.eval I v o := fun v => by
     rw [signal_deliverEdge]
     rfl
   have htgt : (network c I fun _ => univ).tgt (outEdge c o) = .output o := tgt_deliverEdge _

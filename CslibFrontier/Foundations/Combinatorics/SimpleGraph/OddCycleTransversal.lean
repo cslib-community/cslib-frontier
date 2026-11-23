@@ -117,7 +117,7 @@ theorem isOddCycleTransversal_iff_exists_bool :
     simp only [hu, hv, ↓reduceDIte]
     exact hc (u := ⟨u, hu⟩) (v := ⟨v, hv⟩) huv
   · rintro ⟨c, hc⟩
-    exact ⟨fun v => c v, fun u v huv => hc huv u.2 v.2⟩
+    exact ⟨fun v => c v, fun u v huv => hc huv u.property v.property⟩
 
 /-- `S` is an odd cycle transversal exactly when every closed walk of odd length visits `S`. -/
 theorem isOddCycleTransversal_iff_forall_odd_walk :
@@ -141,7 +141,7 @@ theorem isOddCycleTransversal_iff_forall_odd_walk :
       ((Walk.length_map (Embedding.induce Sᶜ).toHom p) ▸ hp)
     have hx' : x ∈ p.support.map (Embedding.induce Sᶜ).toHom := (Walk.support_map _ p) ▸ hx
     obtain ⟨y, -, rfl⟩ := List.mem_map.mp hx'
-    exact y.2 hxS
+    exact y.property hxS
 
 theorem IsOddCycleTransversal.mono (h : G.IsOddCycleTransversal S) (hST : S ⊆ T) :
     G.IsOddCycleTransversal T := by

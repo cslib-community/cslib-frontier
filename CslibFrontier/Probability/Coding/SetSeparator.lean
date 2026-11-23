@@ -198,7 +198,7 @@ private theorem card_filter_separates {S : ℕ} {A B : Finset (Fin S)} (hdisj : 
       simpa [extend, hi] using hi_eq
     · intro r hr
       obtain ⟨hA, hB⟩ := separates_eq_true_iff.mp (Finset.mem_filter.mp hr).2
-      refine ⟨fun x => r x.1, Finset.mem_univ _, ?_⟩
+      refine ⟨fun x => r x.val, Finset.mem_univ _, ?_⟩
       funext i
       by_cases hi : i ∈ U_rem
       · simp [extend, hi]

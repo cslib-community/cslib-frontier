@@ -222,12 +222,12 @@ theorem indepFun_pi_of_dependsOn {β γ : Type*} [MeasurableSpace β] [Measurabl
   classical
   obtain ⟨ω₀⟩ := nonempty_of_isProbabilityMeasure (Measure.pi μ)
   let e := MeasurableEquiv.piEquivPiSubtypeProd Ω (· ∈ S)
-  let ν₁ : Measure (Π i : {i // i ∈ S}, Ω i) := Measure.pi fun i => μ i.1
-  let ν₂ : Measure (Π i : {i // i ∉ S}, Ω i) := Measure.pi fun i => μ i.1
+  let ν₁ : Measure (Π i : {i // i ∈ S}, Ω i) := Measure.pi fun i => μ i.val
+  let ν₂ : Measure (Π i : {i // i ∉ S}, Ω i) := Measure.pi fun i => μ i.val
   have he : MeasurePreserving e (Measure.pi μ) (ν₁.prod ν₂) :=
     measurePreserving_piEquivPiSubtypeProd μ (· ∈ S)
-  let y₀ : Π i : {i // i ∉ S}, Ω i := fun i => ω₀ i.1
-  let x₀ : Π i : {i // i ∈ S}, Ω i := fun i => ω₀ i.1
+  let y₀ : Π i : {i // i ∉ S}, Ω i := fun i => ω₀ i.val
+  let x₀ : Π i : {i // i ∈ S}, Ω i := fun i => ω₀ i.val
   rw [indepFun_iff_measure_inter_preimage_eq_mul]
   intro A B _ _
   let C : Set (Π i : {i // i ∈ S}, Ω i) := {x | f (e.symm (x, y₀)) ∈ A}

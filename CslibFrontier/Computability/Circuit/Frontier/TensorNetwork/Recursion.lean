@@ -460,7 +460,7 @@ theorem exists_callValue_eq_add {rec : ContractionOracle B} (hrec : rec.Correct)
     push_cast
     rfl
   refine ⟨⟨b, hb⟩, ?_⟩
-  rw [callValue, dite_eq_left (by rw [hx']; exact (N.contraction + 2 ^ p * ⟨b, hb⟩).2)]
+  rw [callValue, dite_eq_left (by rw [hx']; exact (N.contraction + 2 ^ p * ⟨b, hb⟩).property)]
   exact Subtype.ext hx'
 
 end Call
@@ -486,15 +486,15 @@ theorem rowsToColumnsLE_child {Δ a : ℕ} {slot : E → ℕ} (hrow : ∀ v, #{e
   src_le := by
     rintro (v | q)
     · rw [S.card_child_src_inl]
-      by_cases hv : S.side v.1
-      · have h0 : #{e | N.tgt e = v.1} = 0 := card_eq_zero.mpr <| filter_eq_empty_iff.mpr
+      by_cases hv : S.side v.val
+      · have h0 : #{e | N.tgt e = v.val} = 0 := card_eq_zero.mpr <| filter_eq_empty_iff.mpr
           fun e _ he => by
             have := S.side_tgt e
             rw [he, hv] at this
             exact absurd this (by decide)
         rw [h0, add_zero]
         exact hrow _
-      · have h0 : #{e | N.src e = v.1} = 0 := card_eq_zero.mpr <| filter_eq_empty_iff.mpr
+      · have h0 : #{e | N.src e = v.val} = 0 := card_eq_zero.mpr <| filter_eq_empty_iff.mpr
           fun e _ he => by
             have := S.side_src e
             rw [he] at this

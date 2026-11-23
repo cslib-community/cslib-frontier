@@ -150,7 +150,7 @@ theorem isNegTriangleAnswer_findNegTri (oracle : {ι : Type} → Q ι → ι)
     by_cases h : HasNegTriangle A B C
     · simp only [h, decide_true, ite_true, IsNegTriangleAnswer]
       obtain ⟨i, j, k, hijk⟩ := h
-      have h0 : ∀ x : Fin (2 ^ 0), x = 0 := fun x => Fin.ext (by have := x.2; simp at this; omega)
+      have h0 : ∀ x : Fin (2 ^ 0), x = 0 := fun x => Fin.ext (by have := x.isLt; simp at this; omega)
       rwa [h0 i, h0 j, h0 k] at hijk
     · simp only [h, decide_false, Bool.false_eq_true, ite_false, IsNegTriangleAnswer]
       exact not_false

@@ -200,7 +200,7 @@ private theorem exists_abs_switch_product_root_sub_le (α β γ δ : ℝ) :
           C * (|v - v'| + |r - r'|) := by
   obtain ⟨Ka, hKa⟩ := exists_lipschitzWith_polynomialSwitch4_root α β
   obtain ⟨Kb, hKb⟩ := exists_lipschitzWith_one_sub_polynomialSwitch4_root γ δ
-  refine ⟨max (Ka : ℝ) Kb, le_max_of_le_left Ka.2, ?_⟩
+  refine ⟨max (Ka : ℝ) Kb, le_max_of_le_left Ka.property, ?_⟩
   intro v r v' r'
   set A : ℝ → ℝ := fun x => polynomialSwitch4 α β x ^ (4⁻¹ : ℝ)
   set B : ℝ → ℝ := fun x => (1 - polynomialSwitch4 γ δ x) ^ (4⁻¹ : ℝ)

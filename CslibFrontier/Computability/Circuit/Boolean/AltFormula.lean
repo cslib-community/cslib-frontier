@@ -253,7 +253,7 @@ theorem size_excludingClause (y : BitString n) : size (excludingClause y) = 1 :=
 
 /-- The formula in conjunctive normal form excluding every false input of `f`. -/
 noncomputable def cnf (f : BitString n → Bool) : AltFormula n 2 :=
-  gate fun y : {y : BitString n // f y = false} => excludingClause y.1
+  gate fun y : {y : BitString n // f y = false} => excludingClause y.val
 
 /-- `cnf f` evaluates to `f x` on every input `x` with root operation `.and`. -/
 theorem eval_cnf (f : BitString n → Bool) (x : BitString n) : eval .and (cnf f) x = f x := by
@@ -267,7 +267,7 @@ theorem eval_cnf (f : BitString n → Bool) (x : BitString n) : eval .and (cnf f
     | true => rfl
   · intro h y he
     subst x
-    exact Bool.noConfusion (h.symm.trans y.2)
+    exact Bool.noConfusion (h.symm.trans y.property)
 
 /-- The canonical CNF formula `cnf f` has size at most `2 ^ n + 1`. -/
 theorem size_cnf_le (f : BitString n → Bool) : size (cnf f) ≤ 2 ^ n + 1 := by

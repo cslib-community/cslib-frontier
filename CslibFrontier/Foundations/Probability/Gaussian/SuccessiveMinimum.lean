@@ -57,7 +57,7 @@ section SuccessiveMinimumBound
 
 private def intNeZeroEquiv : Bool × ℕ ≃ {k : ℤ // k ≠ 0} where
   toFun p := if p.1 then ⟨(p.2 : ℤ) + 1, by omega⟩ else ⟨-((p.2 : ℤ) + 1), by omega⟩
-  invFun k := (decide (0 < k.1), k.1.natAbs - 1)
+  invFun k := (decide (0 < k.val), k.val.natAbs - 1)
   left_inv := by
     rintro ⟨b, m⟩
     cases b <;> simp only [↓reduceIte, Bool.false_eq_true, Prod.mk.injEq, decide_eq_true_eq,
@@ -174,7 +174,7 @@ private theorem dual_hyperplane_fiber_le
     (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
     {v : E} (hv0 : v ≠ 0) {s : ℝ} (hs : 0 < s) (j : ℤ) :
     (∑' w : {w : LinearMap.BilinForm.dualSubmodule (innerₗ E) L // ⟪(w : E), v⟫ = (j : ℝ)},
-        gaussianWeight (1 / s) (w.1 : E)) ≤
+        gaussianWeight (1 / s) (w.val : E)) ≤
       Real.exp (-Real.pi * (s / ‖v‖) ^ 2 * (j : ℝ) ^ 2) *
         gaussianMass (dualOrthSubmodule L v) (1 / s) 0 := by
   let D := LinearMap.BilinForm.dualSubmodule (innerₗ E) L
@@ -192,25 +192,25 @@ private theorem dual_hyperplane_fiber_le
       field_simp
       ring
     let ej : P ≃ {w : D // ⟪(w : E), v⟫ = (j : ℝ)} := {
-      toFun := fun u ↦ ⟨w₀ + ⟨u.1, u.2.1⟩, by
-        rw [Submodule.coe_add, inner_add_left, hw₀, u.2.2, add_zero]⟩
-      invFun := fun w ↦ ⟨(w.1 : E) - (w₀ : E),
-        D.sub_mem w.1.2 w₀.2,
-        by rw [inner_sub_left, w.2, hw₀, sub_self]⟩
+      toFun := fun u ↦ ⟨w₀ + ⟨u.val, u.property.1⟩, by
+        rw [Submodule.coe_add, inner_add_left, hw₀, u.property.2, add_zero]⟩
+      invFun := fun w ↦ ⟨(w.val : E) - (w₀ : E),
+        D.sub_mem w.val.property w₀.property,
+        by rw [inner_sub_left, w.property, hw₀, sub_self]⟩
       left_inv := fun u ↦ by ext; simp
       right_inv := fun w ↦ by ext; simp
     }
     have hweight (u : P) :
-        gaussianWeight (1 / s) ((ej u).1 : E) =
+        gaussianWeight (1 / s) ((ej u).val : E) =
           Real.exp (-Real.pi * (s / ‖v‖) ^ 2 * (j : ℝ) ^ 2) *
             gaussianWeight (1 / s) ((u : E) - (-c)) := by
-      have hdecomp : ((ej u).1 : E) = ((j : ℝ) / ‖v‖ ^ 2) • v + ((u : E) - (-c)) := by
+      have hdecomp : ((ej u).val : E) = ((j : ℝ) / ‖v‖ ^ 2) • v + ((u : E) - (-c)) := by
         simp only [ej, Equiv.coe_fn_mk, Submodule.coe_add, sub_neg_eq_add, c]
         rw [add_left_comm, add_sub_cancel, add_comm]
       have horth : ⟪((j : ℝ) / ‖v‖ ^ 2) • v, (u : E) - (-c)⟫ = 0 := by
         rw [real_inner_smul_left, sub_neg_eq_add, inner_add_right, ← real_inner_comm v (u : E),
-          u.2.2, ← real_inner_comm v c, hcv, add_zero, mul_zero]
-      have hnorm_sq : ‖((ej u).1 : E)‖ ^ 2 =
+          u.property.2, ← real_inner_comm v c, hcv, add_zero, mul_zero]
+      have hnorm_sq : ‖((ej u).val : E)‖ ^ 2 =
           (j : ℝ) ^ 2 / ‖v‖ ^ 2 + ‖(u : E) - (-c)‖ ^ 2 := by
         rw [hdecomp, norm_add_sq_real, horth, norm_smul, Real.norm_eq_abs, mul_pow, sq_abs]
         have hvn : ‖v‖ ≠ 0 := hv_norm.ne'
@@ -247,7 +247,7 @@ private theorem dual_inner_int_floor
     (L : Submodule ℤ E) {v : E} (hvL : v ∈ L)
     (w : LinearMap.BilinForm.dualSubmodule (innerₗ E) L) :
     ((Int.floor ⟪(w : E), v⟫ : ℤ) : ℝ) = ⟪(w : E), v⟫ := by
-  obtain ⟨j, hj⟩ := Submodule.mem_one.mp (w.2 v hvL)
+  obtain ⟨j, hj⟩ := Submodule.mem_one.mp (w.property v hvL)
   have hinner : ⟪(w : E), v⟫ = (j : ℝ) := by
     simpa only [innerₗ_apply_apply, real_inner_comm, algebraMap_int_eq, eq_intCast] using hj.symm
   rw [hinner, Int.floor_intCast]
@@ -256,15 +256,15 @@ private def dualNeZeroFiberEquiv
     {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
     (L : Submodule ℤ E) {v : E} (hvL : v ∈ L) :
     (Σ j : {j : ℤ // j ≠ 0},
-        {w : LinearMap.BilinForm.dualSubmodule (innerₗ E) L // ⟪(w : E), v⟫ = (j.1 : ℝ)}) ≃
+        {w : LinearMap.BilinForm.dualSubmodule (innerₗ E) L // ⟪(w : E), v⟫ = (j.val : ℝ)}) ≃
       {w : LinearMap.BilinForm.dualSubmodule (innerₗ E) L // ⟪(w : E), v⟫ ≠ 0} where
-  toFun p := ⟨p.2.1, by rw [p.2.2]; exact Int.cast_ne_zero.mpr p.1.2⟩
+  toFun p := ⟨p.2.val, by rw [p.2.property]; exact Int.cast_ne_zero.mpr p.1.property⟩
   invFun w :=
-    ⟨⟨Int.floor ⟪(w.1 : E), v⟫, by
+    ⟨⟨Int.floor ⟪(w.val : E), v⟫, by
       intro h0
-      apply w.2
-      rw [← dual_inner_int_floor L hvL w.1, h0, Int.cast_zero]⟩,
-     ⟨w.1, (dual_inner_int_floor L hvL w.1).symm⟩⟩
+      apply w.property
+      rw [← dual_inner_int_floor L hvL w.val, h0, Int.cast_zero]⟩,
+     ⟨w.val, (dual_inner_int_floor L hvL w.val).symm⟩⟩
   left_inv := by
     rintro ⟨⟨j, hj⟩, ⟨w, hw⟩⟩
     have hφj : Int.floor ⟪(w : E), v⟫ = j := by
@@ -279,22 +279,22 @@ private theorem dual_fiber_sum_eq
     (L : Submodule ℤ E) {v : E} (hvL : v ∈ L)
     (f : LinearMap.BilinForm.dualSubmodule (innerₗ E) L → ℝ) (hf : Summable f) :
     Summable (fun j : {j : ℤ // j ≠ 0} ↦
-      ∑' w : {w : LinearMap.BilinForm.dualSubmodule (innerₗ E) L // ⟪(w : E), v⟫ = (j.1 : ℝ)},
-        f w.1) ∧
-    (∑' w : {w : LinearMap.BilinForm.dualSubmodule (innerₗ E) L // ⟪(w : E), v⟫ ≠ 0}, f w.1) =
+      ∑' w : {w : LinearMap.BilinForm.dualSubmodule (innerₗ E) L // ⟪(w : E), v⟫ = (j.val : ℝ)},
+        f w.val) ∧
+    (∑' w : {w : LinearMap.BilinForm.dualSubmodule (innerₗ E) L // ⟪(w : E), v⟫ ≠ 0}, f w.val) =
       ∑' j : {j : ℤ // j ≠ 0},
-        ∑' w : {w : LinearMap.BilinForm.dualSubmodule (innerₗ E) L // ⟪(w : E), v⟫ = (j.1 : ℝ)},
-          f w.1 := by
+        ∑' w : {w : LinearMap.BilinForm.dualSubmodule (innerₗ E) L // ⟪(w : E), v⟫ = (j.val : ℝ)},
+          f w.val := by
   let D := LinearMap.BilinForm.dualSubmodule (innerₗ E) L
   let eqv := dualNeZeroFiberEquiv L hvL
-  have hsum_ne : Summable (fun w : {w : D // ⟪(w : E), v⟫ ≠ 0} ↦ f w.1) :=
+  have hsum_ne : Summable (fun w : {w : D // ⟪(w : E), v⟫ ≠ 0} ↦ f w.val) :=
     hf.comp_injective Subtype.val_injective
-  have hsum_sigma : Summable (fun p : Σ j : {j : ℤ // j ≠ 0}, {w : D // ⟪(w : E), v⟫ = (j.1 : ℝ)} ↦
-      f p.2.1) := by
-    change Summable ((fun w : {w : D // ⟪(w : E), v⟫ ≠ 0} ↦ f w.1) ∘ eqv)
+  have hsum_sigma : Summable (fun p : Σ j : {j : ℤ // j ≠ 0}, {w : D // ⟪(w : E), v⟫ = (j.val : ℝ)} ↦
+      f p.2.val) := by
+    change Summable ((fun w : {w : D // ⟪(w : E), v⟫ ≠ 0} ↦ f w.val) ∘ eqv)
     exact eqv.summable_iff.mpr hsum_ne
   have hsum_fib (j : {j : ℤ // j ≠ 0}) :
-      Summable (fun w : {w : D // ⟪(w : E), v⟫ = (j.1 : ℝ)} ↦ f w.1) :=
+      Summable (fun w : {w : D // ⟪(w : E), v⟫ = (j.val : ℝ)} ↦ f w.val) :=
     hsum_sigma.comp_injective sigma_mk_injective
   refine ⟨hsum_sigma.sigma' hsum_fib, ?_⟩
   rw [← eqv.tsum_eq]
@@ -305,7 +305,7 @@ private theorem dual_hyperplane_compl_le
     (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
     {v : E} (hvL : v ∈ L) (hv0 : v ≠ 0) {s : ℝ} (hs : 0 < s) :
     (∑' w : {w : LinearMap.BilinForm.dualSubmodule (innerₗ E) L // ⟪(w : E), v⟫ ≠ 0},
-        gaussianWeight (1 / s) (w.1 : E)) ≤
+        gaussianWeight (1 / s) (w.val : E)) ≤
       2 / (Real.exp (Real.pi * (s / ‖v‖) ^ 2) + 1) *
         gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (1 / s) 0 := by
   classical
@@ -318,51 +318,51 @@ private theorem dual_hyperplane_compl_le
   have hsumD : Summable (fun w : D ↦ gaussianWeight (1 / s) (w : E)) := by
     simpa only [sub_zero] using summable_gaussianWeight D (1 / s) hs' 0
   let e0 : P ≃ {w : D // ⟪(w : E), v⟫ = 0} := {
-    toFun := fun u ↦ ⟨⟨u.1, u.2.1⟩, u.2.2⟩
-    invFun := fun w ↦ ⟨w.1.1, w.1.2, w.2⟩
+    toFun := fun u ↦ ⟨⟨u.val, u.property.1⟩, u.property.2⟩
+    invFun := fun w ↦ ⟨w.val.val, w.val.property, w.property⟩
     left_inv := fun _ ↦ rfl
     right_inv := fun _ ↦ rfl
   }
-  have hM0 : (∑' w : {w : D // ⟪(w : E), v⟫ = 0}, gaussianWeight (1 / s) (w.1 : E)) =
+  have hM0 : (∑' w : {w : D // ⟪(w : E), v⟫ = 0}, gaussianWeight (1 / s) (w.val : E)) =
       gaussianMass P (1 / s) 0 := by
     rw [← e0.tsum_eq]
     unfold gaussianMass
     refine tsum_congr fun u ↦ ?_
     simp only [e0, Equiv.coe_fn_mk, sub_zero]
   have hsplit : gaussianMass P (1 / s) 0 +
-      (∑' w : {w : D // ⟪(w : E), v⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E)) =
+      (∑' w : {w : D // ⟪(w : E), v⟫ ≠ 0}, gaussianWeight (1 / s) (w.val : E)) =
         gaussianMass D (1 / s) 0 := by
     have h := hsumD.tsum_subtype_add_tsum_subtype_compl {w : D | ⟪(w : E), v⟫ = 0}
     let eZero : {w : D // ⟪(w : E), v⟫ = 0} ≃ ↥{w : D | ⟪(w : E), v⟫ = 0} :=
       Equiv.subtypeEquivRight fun _ ↦ Iff.rfl
     let eCompl : {w : D // ⟪(w : E), v⟫ ≠ 0} ≃ ↥({w : D | ⟪(w : E), v⟫ = 0}ᶜ) :=
       Equiv.subtypeEquivRight fun _ ↦ by simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, ne_eq]
-    have h1 : (∑' x : ↥{w : D | ⟪(w : E), v⟫ = 0}, gaussianWeight (1 / s) (x.1 : E)) =
+    have h1 : (∑' x : ↥{w : D | ⟪(w : E), v⟫ = 0}, gaussianWeight (1 / s) (x.val : E)) =
         gaussianMass P (1 / s) 0 := by
       rw [← hM0]
       exact (eZero.tsum_eq fun x : ↥{w : D | ⟪(w : E), v⟫ = 0} ↦
-        gaussianWeight (1 / s) (x.1 : E)).symm
-    have h2 : (∑' x : ↥({w : D | ⟪(w : E), v⟫ = 0}ᶜ), gaussianWeight (1 / s) (x.1 : E)) =
-        ∑' w : {w : D // ⟪(w : E), v⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E) :=
+        gaussianWeight (1 / s) (x.val : E)).symm
+    have h2 : (∑' x : ↥({w : D | ⟪(w : E), v⟫ = 0}ᶜ), gaussianWeight (1 / s) (x.val : E)) =
+        ∑' w : {w : D // ⟪(w : E), v⟫ ≠ 0}, gaussianWeight (1 / s) (w.val : E) :=
       (eCompl.tsum_eq fun x : ↥({w : D | ⟪(w : E), v⟫ = 0}ᶜ) ↦
-        gaussianWeight (1 / s) (x.1 : E)).symm
+        gaussianWeight (1 / s) (x.val : E)).symm
     rw [h1, h2] at h
     simpa only [gaussianMass, sub_zero] using h
   obtain ⟨hsum_outer, hne_eq⟩ := dual_fiber_sum_eq L hvL
     (fun w : D ↦ gaussianWeight (1 / s) (w : E)) hsumD
   have ht : 0 < s / ‖v‖ := div_pos hs hv_norm
-  have hbound_ne : (∑' w : {w : D // ⟪(w : E), v⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E)) ≤
+  have hbound_ne : (∑' w : {w : D // ⟪(w : E), v⟫ ≠ 0}, gaussianWeight (1 / s) (w.val : E)) ≤
       2 / (Real.exp (Real.pi * (s / ‖v‖) ^ 2) - 1) * gaussianMass P (1 / s) 0 := by
     calc
-      (∑' w : {w : D // ⟪(w : E), v⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E))
+      (∑' w : {w : D // ⟪(w : E), v⟫ ≠ 0}, gaussianWeight (1 / s) (w.val : E))
         = ∑' j : {j : ℤ // j ≠ 0},
-            ∑' w : {w : D // ⟪(w : E), v⟫ = (j.1 : ℝ)}, gaussianWeight (1 / s) (w.1 : E) := hne_eq
+            ∑' w : {w : D // ⟪(w : E), v⟫ = (j.val : ℝ)}, gaussianWeight (1 / s) (w.val : E) := hne_eq
       _ ≤ ∑' j : {j : ℤ // j ≠ 0},
-            Real.exp (-Real.pi * (s / ‖v‖) ^ 2 * (j.1 : ℝ) ^ 2) * gaussianMass P (1 / s) 0 :=
-          Summable.tsum_le_tsum (fun j ↦ dual_hyperplane_fiber_le L hv0 hs j.1) hsum_outer
+            Real.exp (-Real.pi * (s / ‖v‖) ^ 2 * (j.val : ℝ) ^ 2) * gaussianMass P (1 / s) 0 :=
+          Summable.tsum_le_tsum (fun j ↦ dual_hyperplane_fiber_le L hv0 hs j.val) hsum_outer
             ((summable_int_ne_zero_exp_neg_pi_mul_sq ht).mul_right _)
       _ = (∑' j : {j : ℤ // j ≠ 0},
-            Real.exp (-Real.pi * (s / ‖v‖) ^ 2 * (j.1 : ℝ) ^ 2)) * gaussianMass P (1 / s) 0 :=
+            Real.exp (-Real.pi * (s / ‖v‖) ^ 2 * (j.val : ℝ) ^ 2)) * gaussianMass P (1 / s) 0 :=
           tsum_mul_right
       _ ≤ 2 / (Real.exp (Real.pi * (s / ‖v‖) ^ 2) - 1) * gaussianMass P (1 / s) 0 :=
           mul_le_mul_of_nonneg_right (tsum_int_ne_zero_exp_neg_pi_mul_sq_le ht)
@@ -446,7 +446,7 @@ theorem gaussianMass_dual_sub_one_le_of_successiveMinimum
     have hx_gt : 1 < x := by linarith
     have hx_add_pos : 0 < x + 1 := by linarith
     have hper_i (i : Fin (finrank ℝ E)) :
-        (∑' w : {w : D // ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E)) ≤
+        (∑' w : {w : D // ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.val : E)) ≤
           2 / (x + 1) * gaussianMass D (1 / s) 0 := by
       have hhi := dual_hyperplane_compl_le L (hv_mem i) (hv_ne i) hs
       refine hhi.trans (mul_le_mul_of_nonneg_right ?_ (gaussianMass_pos D (1 / s) hs' 0).le)
@@ -486,12 +486,12 @@ theorem gaussianMass_dual_sub_one_le_of_successiveMinimum
         dsimp only [ind]; split_ifs <;> [exact le_rfl; exact (gaussianWeight_pos _ _).le]) hsumD
     have hind_tsum (i : Fin (finrank ℝ E)) :
         (∑' w : D, ind i w) =
-          ∑' w : {w : D // ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E) := by
+          ∑' w : {w : D // ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.val : E) := by
       let eS : {w : D // ⟪(w : E), v i⟫ ≠ 0} ≃ ↥{w : D | ⟪(w : E), v i⟫ ≠ 0} :=
         Equiv.subtypeEquivRight fun _ ↦ Iff.rfl
-      have heq : (∑' w : {w : D // ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E)) =
-          ∑' w : ↥{w : D | ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E) :=
-        eS.tsum_eq fun w : ↥{w : D | ⟪(w : E), v i⟫ ≠ 0} ↦ gaussianWeight (1 / s) (w.1 : E)
+      have heq : (∑' w : {w : D // ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.val : E)) =
+          ∑' w : ↥{w : D | ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.val : E) :=
+        eS.tsum_eq fun w : ↥{w : D | ⟪(w : E), v i⟫ ≠ 0} ↦ gaussianWeight (1 / s) (w.val : E)
       have hsub := tsum_subtype {w : D | ⟪(w : E), v i⟫ ≠ 0}
         (fun w : D ↦ gaussianWeight (1 / s) (w : E))
       rw [heq, hsub]
@@ -507,34 +507,34 @@ theorem gaussianMass_dual_sub_one_le_of_successiveMinimum
         rfl
     have hunion : gaussianMass D (1 / s) 0 - 1 ≤
         ∑ i : Fin (finrank ℝ E),
-          ∑' w : {w : D // ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E) := by
+          ∑' w : {w : D // ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.val : E) := by
       rw [gaussianMass_zero_sub_one_eq_tsum D (1 / s) hs']
       have hpt (w : {w : D | w ≠ 0}) :
-          gaussianWeight (1 / s) (w.1 : E) ≤ ∑ i : Fin (finrank ℝ E), ind i w.1 := by
-        obtain ⟨i, hi⟩ := hcover w.1 w.2
+          gaussianWeight (1 / s) (w.val : E) ≤ ∑ i : Fin (finrank ℝ E), ind i w.val := by
+        obtain ⟨i, hi⟩ := hcover w.val w.property
         calc
-          gaussianWeight (1 / s) (w.1 : E) = ind i w.1 := by simp [ind, hi]
-          _ ≤ ∑ j : Fin (finrank ℝ E), ind j w.1 :=
-            Finset.single_le_sum (f := fun j ↦ ind j w.1) (fun j _ ↦ hind_nonneg j w.1)
+          gaussianWeight (1 / s) (w.val : E) = ind i w.val := by simp [ind, hi]
+          _ ≤ ∑ j : Fin (finrank ℝ E), ind j w.val :=
+            Finset.single_le_sum (f := fun j ↦ ind j w.val) (fun j _ ↦ hind_nonneg j w.val)
               (Finset.mem_univ i)
       have hsub_le (i : Fin (finrank ℝ E)) :
-          (∑' w : {w : D | w ≠ 0}, ind i w.1) ≤ ∑' w : D, ind i w := by
+          (∑' w : {w : D | w ≠ 0}, ind i w.val) ≤ ∑' w : D, ind i w := by
         rw [tsum_subtype {w : D | w ≠ 0} (ind i)]
         refine Summable.tsum_le_tsum (fun w ↦ ?_) ((hind_sum i).indicator _) (hind_sum i)
         by_cases hw : w ∈ {w : D | w ≠ 0}
         · rw [Set.indicator_of_mem hw]
         · rw [Set.indicator_of_notMem hw]; exact hind_nonneg i w
       calc
-        (∑' w : {w : D | w ≠ 0}, gaussianWeight (1 / s) (w.1 : E))
-          ≤ ∑' w : {w : D | w ≠ 0}, ∑ i : Fin (finrank ℝ E), ind i w.1 :=
+        (∑' w : {w : D | w ≠ 0}, gaussianWeight (1 / s) (w.val : E))
+          ≤ ∑' w : {w : D | w ≠ 0}, ∑ i : Fin (finrank ℝ E), ind i w.val :=
             Summable.tsum_le_tsum hpt (hsumD.subtype _)
               (summable_sum fun i _ ↦ (hind_sum i).subtype _)
-        _ = ∑ i : Fin (finrank ℝ E), ∑' w : {w : D | w ≠ 0}, ind i w.1 :=
+        _ = ∑ i : Fin (finrank ℝ E), ∑' w : {w : D | w ≠ 0}, ind i w.val :=
             Summable.tsum_finsetSum fun i _ ↦ (hind_sum i).subtype _
         _ ≤ ∑ i : Fin (finrank ℝ E), ∑' w : D, ind i w :=
             Finset.sum_le_sum fun i _ ↦ hsub_le i
         _ = ∑ i : Fin (finrank ℝ E),
-              ∑' w : {w : D // ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.1 : E) := by
+              ∑' w : {w : D // ⟪(w : E), v i⟫ ≠ 0}, gaussianWeight (1 / s) (w.val : E) := by
             simp_rw [hind_tsum]
     have htotal : gaussianMass D (1 / s) 0 - 1 ≤
         (2 * (finrank ℝ E : ℝ)) / (x + 1) * gaussianMass D (1 / s) 0 := by

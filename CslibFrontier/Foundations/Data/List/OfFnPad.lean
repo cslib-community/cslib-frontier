@@ -39,7 +39,7 @@ theorem prod_ofFn_dite_lt {m N : ℕ} (h : m ≤ N) (A : Fin m → α) :
     simp
   | succ N ih =>
     rcases h.eq_or_lt with rfl | hlt
-    · exact congrArg (fun f => (ofFn f).prod) (funext fun i => dite_eq_left i.2)
+    · exact congrArg (fun f => (ofFn f).prod) (funext fun i => dite_eq_left i.isLt)
     · rw [ofFn_succ', concat_eq_append, prod_append, prod_singleton,
         dite_eq_right (by simp only [Fin.val_last]; omega), mul_one]
       exact ih (by omega)

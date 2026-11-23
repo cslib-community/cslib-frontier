@@ -135,7 +135,7 @@ theorem mem_mistakeRounds {A : OnlineLearner α} {S : List (α × Bool)} {t : �
     Fin.valEmbedding_apply]
   constructor
   · rintro ⟨a, ha, rfl⟩
-    exact ⟨a.2, ha⟩
+    exact ⟨a.isLt, ha⟩
   · rintro ⟨ht, h⟩
     exact ⟨⟨t, ht⟩, h, rfl⟩
 

@@ -39,7 +39,7 @@ variable {α : Type*} [LinearOrder α] {s : Finset α}
 
 /-- The largest element of the part of `x`, as an element of `s`. -/
 private def partMax (P : Finpartition s) (x : s) : s :=
-  ⟨(P.part x).max' (P.part_nonempty.2 x.2), P.part_subset x (max'_mem _ _)⟩
+  ⟨(P.part x).max' (P.part_nonempty.2 x.property), P.part_subset x (max'_mem _ _)⟩
 
 /-- Two set partitions of `s` whose parts have the same largest element at every point of `s` have
 the same part at every point. -/

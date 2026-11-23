@@ -139,10 +139,10 @@ theorem partitionFunction_eq_sum_powerset (wt : Rel → List Bool → ℕ) (F : 
   rw [partitionFunction]
   refine Finset.sum_nbij'
     (fun τ => X.filter fun v => if h : v ∈ X then τ ⟨v, h⟩ = true else False)
-    (fun S x => decide (x.1 ∈ S)) (fun τ _ => Finset.mem_powerset.mpr (Finset.filter_subset _ _))
+    (fun S x => decide (x.val ∈ S)) (fun τ _ => Finset.mem_powerset.mpr (Finset.filter_subset _ _))
     (fun S _ => Finset.mem_univ _) (fun τ _ => ?_) (fun S hS => ?_) (fun τ _ => by rw [hext τ])
   · funext x
-    have hx : (x : V) ∈ X := x.2
+    have hx : (x : V) ∈ X := x.property
     simp only [Finset.mem_filter, hx, ↓reduceDIte, true_and, Subtype.coe_eta, Bool.decide_eq_true]
   · have hS' := Finset.mem_powerset.mp (Finset.mem_coe.mp hS)
     ext v

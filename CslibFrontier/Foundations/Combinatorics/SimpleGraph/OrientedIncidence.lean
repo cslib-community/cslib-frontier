@@ -105,7 +105,7 @@ theorem sum_mul_orientedIncMatrix [Fintype V] (f : V → ℤ) (e : G.edgeSet) :
 and `0` elsewhere. -/
 theorem orientedIncMatrix_mul_self (u : V) (e : G.edgeSet) :
     G.orientedIncMatrix u e * G.orientedIncMatrix u e = if u ∈ (e : Sym2 V) then 1 else 0 := by
-  have hne := G.out_fst_ne_out_snd_of_mem_edgeSet e.2
+  have hne := G.out_fst_ne_out_snd_of_mem_edgeSet e.property
   have hmem : u ∈ (e : Sym2 V) ↔ u = (e : Sym2 V).out.1 ∨ u = (e : Sym2 V).out.2 := by
     conv_lhs => rw [← Sym2.mk_fst_out_snd_out (e : Sym2 V)]
     exact Sym2.mem_iff
@@ -129,7 +129,7 @@ when `e` joins them and `0` otherwise. -/
 theorem orientedIncMatrix_mul_of_ne {u w : V} (huw : u ≠ w) (e : G.edgeSet) :
     G.orientedIncMatrix u e * G.orientedIncMatrix w e =
       if (e : Sym2 V) = s(u, w) then -1 else 0 := by
-  have hne := G.out_fst_ne_out_snd_of_mem_edgeSet e.2
+  have hne := G.out_fst_ne_out_snd_of_mem_edgeSet e.property
   have he : (e : Sym2 V) = s((e : Sym2 V).out.1, (e : Sym2 V).out.2) :=
     (Sym2.mk_fst_out_snd_out _).symm
   set a := (e : Sym2 V).out.1
@@ -170,7 +170,7 @@ theorem orientedIncMatrix_mul_transpose :
       · simp [hadj]
       · rw [ite_eq_right_iff]
         intro hx
-        exact absurd (hx ▸ x.2 : s(u, w) ∈ G.edgeSet) hadj
+        exact absurd (hx ▸ x.property : s(u, w) ∈ G.edgeSet) hadj
 
 omit [Fintype V] [DecidableEq V] in
 /-- The adjacency matrix of `G` is its weighted adjacency matrix with all weights `1`. -/
@@ -218,7 +218,7 @@ theorem orientedIncMatrix_map_mul_diagonal_mul_transpose {R : Type*} [CommRing R
     · have := Sym2.other_spec (Finset.mem_filter.1 he).2
       simp only [Finset.mem_filter, Finset.mem_univ, true_and]
       rw [← mem_edgeSet, this]
-      exact e.2
+      exact e.property
     · apply Subtype.ext
       rw [← Sym2.other_spec (Finset.mem_filter.1 he₁).2,
         ← Sym2.other_spec (Finset.mem_filter.1 he₂).2, h]
@@ -242,6 +242,6 @@ theorem orientedIncMatrix_map_mul_diagonal_mul_transpose {R : Type*} [CommRing R
     · rw [ite_eq_right_iff.mpr fun h => absurd h hadj, neg_zero]
       exact Finset.sum_eq_zero fun e _ =>
         ite_eq_right_iff.mpr fun (h : (e : Sym2 V) = s(u, v)) =>
-          absurd (h ▸ e.2 : s(u, v) ∈ G.edgeSet) hadj
+          absurd (h ▸ e.property : s(u, v) ∈ G.edgeSet) hadj
 
 end SimpleGraph

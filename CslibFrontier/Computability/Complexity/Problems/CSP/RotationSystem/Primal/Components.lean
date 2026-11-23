@@ -31,14 +31,14 @@ open Cslib.Logic.PL Graph.RotationCertificate
 variable {Rel V : Type} [DecidableEq V] {F : CSP Rel V}
 
 private theorem polygon_declared (o : F.Occurrence) :
-    F.distinctVars.idxOf o.var ∈ (polygonGraph F).1 := by
+    F.distinctVars.idxOf o.var ∈ (polygonGraph F).vertices := by
   change F.distinctVars.idxOf o.var ∈ List.range F.numVars
   rw [List.mem_range, ← CSP.length_distinctVars]
   exact List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr o.var_mem)
 
 /-- All endpoints in the flattened polygon list are declared dense vertices. -/
 theorem polygon_endpoints_declared :
-    ∀ v ∈ (polygonGraph F).incidenceVertices, v ∈ (polygonGraph F).1 := by
+    ∀ v ∈ (polygonGraph F).incidenceVertices, v ∈ (polygonGraph F).vertices := by
   intro v hv
   obtain ⟨edge, he, hv⟩ := List.mem_flatMap.mp hv
   rcases List.mem_cons.mp hv with rfl | hv
@@ -118,14 +118,14 @@ theorem polygon_sameComponent_of_incidence (o p : F.Occurrence)
   let P (v : ℕ) : Prop := ∃ q : F.Occurrence, ∃ b : Bool,
     (incidenceDart q b).vertex = v ∧ SameComponent (polygonGraph F)
       (F.distinctVars.idxOf o.var) (F.distinctVars.idxOf q.var)
-  have step {u v : {v // v ∈ (incidenceGraph F).1}}
+  have step {u v : {v // v ∈ (incidenceGraph F).vertices}}
       (hadj : (incidenceGraph F).induced.Adj u v) (hu : P u.val) : P v.val := by
     obtain ⟨q, b, hq, hu⟩ := hu
     obtain ⟨t, c, ht, hv⟩ := incidence_adj_occurrence hadj
     exact ⟨t, !c, hv, hu.trans
       (polygon_sameComponent_incidence_vertex q t b c (hq.trans ht.symm))⟩
   obtain ⟨hu, hv, ⟨w⟩⟩ := h
-  have transport {u v : {v // v ∈ (incidenceGraph F).1}}
+  have transport {u v : {v // v ∈ (incidenceGraph F).vertices}}
       (w : (incidenceGraph F).induced.Walk u v) : P u.val → P v.val := by
     induction w with
     | nil => exact id
@@ -147,8 +147,8 @@ theorem incidence_sameComponent_polygonEdge (o : F.Occurrence) :
     simpa only [vertex_incidenceDart, Bool.false_eq_true, ↓reduceIte] using h
   exact (h o).trans (h (argumentSuccessor o)).symm
 
-private theorem polygon_vertex_incidence_declared {v : ℕ} (h : v ∈ (polygonGraph F).1) :
-    v ∈ (incidenceGraph F).1 := by
+private theorem polygon_vertex_incidence_declared {v : ℕ} (h : v ∈ (polygonGraph F).vertices) :
+    v ∈ (incidenceGraph F).vertices := by
   rw [incidenceGraph_vertices, List.mem_range]
   have hv : v < F.numVars := List.mem_range.mp h
   omega
@@ -157,7 +157,7 @@ private theorem polygon_vertex_incidence_declared {v : ℕ} (h : v ∈ (polygonG
 each listed polygon edge. -/
 theorem incidence_sameComponent_of_polygon {u v : ℕ}
     (h : SameComponent (polygonGraph F) u v) : SameComponent (incidenceGraph F) u v := by
-  have step {u v : {v // v ∈ (polygonGraph F).1}}
+  have step {u v : {v // v ∈ (polygonGraph F).vertices}}
       (hadj : (polygonGraph F).induced.Adj u v) :
       SameComponent (incidenceGraph F) u.val v.val := by
     rcases (Graph.toSimpleGraph_adj.mp hadj).2 with he | he
@@ -180,7 +180,7 @@ theorem incidence_sameComponent_of_polygon {u v : ℕ}
       rw [← hu, ← hv]
       exact (incidence_sameComponent_polygonEdge o).symm
   obtain ⟨hu, hv, ⟨w⟩⟩ := h
-  have lift {u v : {v // v ∈ (polygonGraph F).1}}
+  have lift {u v : {v // v ∈ (polygonGraph F).vertices}}
       (w : (polygonGraph F).induced.Walk u v) :
       SameComponent (incidenceGraph F) u.val v.val := by
     induction w with

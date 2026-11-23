@@ -368,12 +368,12 @@ theorem stdInterp_caseSem {C : ℕ} (hN : K + outBound K C < N) (c : Code) (hc :
     exact h
   | left =>
     rw [evaln_succ_left_iff (by omega)] at h
-    refine ⟨⟨(n : ℕ).unpair.2, lt_of_le_of_lt (Nat.unpair_right_le _) n.2⟩, ?_⟩
+    refine ⟨⟨(n : ℕ).unpair.2, lt_of_le_of_lt (Nat.unpair_right_le _) n.isLt⟩, ?_⟩
     change Nat.pair x _ = n
     rw [h, Nat.pair_unpair]
   | right =>
     rw [evaln_succ_right_iff (by omega)] at h
-    refine ⟨⟨(n : ℕ).unpair.1, lt_of_le_of_lt (Nat.unpair_left_le _) n.2⟩, ?_⟩
+    refine ⟨⟨(n : ℕ).unpair.1, lt_of_le_of_lt (Nat.unpair_left_le _) n.isLt⟩, ?_⟩
     change Nat.pair _ x = n
     rw [h, Nat.pair_unpair]
   | pair cf cg =>
@@ -396,8 +396,8 @@ theorem stdInterp_caseSem {C : ℕ} (hN : K + outBound K C < N) (c : Code) (hc :
   | prec cf cg =>
     have h1 := Code.encode_lt_prec cf cg
     rw [evaln_succ_prec_iff (by omega)] at h
-    refine ⟨⟨(n : ℕ).unpair.1, lt_of_le_of_lt (Nat.unpair_left_le _) n.2⟩,
-      ⟨(n : ℕ).unpair.2, lt_of_le_of_lt (Nat.unpair_right_le _) n.2⟩,
+    refine ⟨⟨(n : ℕ).unpair.1, lt_of_le_of_lt (Nat.unpair_left_le _) n.isLt⟩,
+      ⟨(n : ℕ).unpair.2, lt_of_le_of_lt (Nat.unpair_right_le _) n.isLt⟩,
       (Nat.pair_unpair (n : ℕ) :), ?_⟩
     rcases h with ⟨hy0, hx⟩ | ⟨y', hy', i, hi, hx⟩
     · rw [← hk'] at hx
@@ -409,7 +409,7 @@ theorem stdInterp_caseSem {C : ℕ} (hN : K + outBound K C < N) (c : Code) (hc :
       have hsN : Nat.pair y' i < N :=
         lt_of_le_of_lt (Nat.right_le_pair _ _) huN
       have := Nat.unpair_right_le (n : ℕ)
-      have := n.2
+      have := n.isLt
       refine Or.inr ⟨⟨y', by omega⟩, ⟨k', by omega⟩, ⟨_, htN⟩, ⟨i, hiN⟩, ⟨_, hsN⟩, ⟨_, huN⟩,
         ?_, ?_, rfl, ?_, rfl, rfl, ?_⟩
       · change (n : ℕ).unpair.2 = y' + 1
@@ -423,8 +423,8 @@ theorem stdInterp_caseSem {C : ℕ} (hN : K + outBound K C < N) (c : Code) (hc :
     rw [evaln_succ_rfind_iff (by omega)] at h
     obtain ⟨w, hw, hcase⟩ := h
     rw [← hk'] at hw
-    refine ⟨⟨(n : ℕ).unpair.1, lt_of_le_of_lt (Nat.unpair_left_le _) n.2⟩,
-      ⟨(n : ℕ).unpair.2, lt_of_le_of_lt (Nat.unpair_right_le _) n.2⟩,
+    refine ⟨⟨(n : ℕ).unpair.1, lt_of_le_of_lt (Nat.unpair_left_le _) n.isLt⟩,
+      ⟨(n : ℕ).unpair.2, lt_of_le_of_lt (Nat.unpair_right_le _) n.isLt⟩,
       ⟨w, hout hkK (by omega) hw⟩, (Nat.pair_unpair (n : ℕ) :), by simpa [hkK] using hw, ?_⟩
     rcases hcase with ⟨hw0, hx⟩ | ⟨hw0, hx⟩
     · exact Or.inl ⟨hw0, Fin.ext hx⟩

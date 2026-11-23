@@ -149,7 +149,7 @@ private theorem exists_spanning_columns (R : Matrix (Fin k) (Fin k) (ZMod 2))
   refine ⟨Finset.univ.image fun x => (a x : Fin k), ?_, ?_, ?_⟩
   · intro j hj
     obtain ⟨x, -, rfl⟩ := mem_image.mp hj
-    exact (a x).2
+    exact (a x).property
   · rw [show (fun x => (a x : Fin k)) = Subtype.val ∘ a from rfl,
       card_image_of_injective _ (Subtype.val_injective.comp ha), card_univ,
       ← finrank_span_eq_card hli, hspan, ← blockRank_transpose]
@@ -329,7 +329,7 @@ private theorem card_spannedBy_mul_le (S T T' : Finset (Fin k)) :
   set D := T \ T'
   set Z : Finset (Fin k × Fin k) := (S ×ˢ D)ᶜ
   let Φ : Matrix (Fin k) (Fin k) (ZMod 2) → (D → T' → ZMod 2) × (Z → ZMod 2) :=
-    fun R => (fun j => spanCoeff R S T' j, fun p => R p.1.1 p.1.2)
+    fun R => (fun j => spanCoeff R S T' j, fun p => R p.val.1 p.val.2)
   have hinj : Set.InjOn Φ
       (spannedFamily (id : Matrix (Fin k) (Fin k) (ZMod 2) → _) S T T') := by
     intro R hR R' hR' h
@@ -352,7 +352,7 @@ private theorem card_spannedBy_mul_le (S T T' : Finset (Fin k)) :
       have hlZ : (i, (l : Fin k)) ∈ Z := by
         simp only [Z, Finset.mem_compl, mem_product, not_and]
         intro _ hl
-        exact (mem_sdiff.mp hl).2 l.2
+        exact (mem_sdiff.mp hl).2 l.property
       exact congrFun hz ⟨(i, l), hlZ⟩
   have hcard := card_le_card_of_injOn Φ (fun _ _ => mem_univ _) hinj
   rw [card_univ, Fintype.card_prod, Fintype.card_fun, Fintype.card_fun, Fintype.card_fun,

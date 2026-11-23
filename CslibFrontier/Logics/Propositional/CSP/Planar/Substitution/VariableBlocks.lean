@@ -41,7 +41,7 @@ theorem blockAtRecord_occurrence (templates : Src → CSP Rel (Bool × ℕ))
   unfold blockAtRecord
   exact List.flatMap_ite_key_eq F.zipIdx Prod.snd
     (fun entry => shiftBlock (occurrencePrefix templates F entry.2)
-      ((freeBlocks entry.1.1).getD o.2.val []))
+      ((freeBlocks entry.1.rel).getD o.2.val []))
     (List.nodup_zipIdx_map_snd F)
     (a := (F[o.1.val], o.1.val))
     (List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_some_iff.mpr ⟨o.1.isLt, rfl⟩))

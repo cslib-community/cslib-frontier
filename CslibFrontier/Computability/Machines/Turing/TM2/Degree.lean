@@ -277,13 +277,13 @@ private theorem stepCases_computableInDegree (M : Λ → Stmt Γ Λ σ) (Ls : Li
       cases l with
       | none =>
         refine hr.of_enc_eq fun a => ?_
-        have h := of_decide_eq_true a.2
+        have h := of_decide_eq_true a.property
         simp only [Function.comp_apply, stepTotal, h, Option.elim_none]
       | some l =>
         have h := stepAux_computableInDegree (M l) (cfg_var_computableInDegree.comp hr).mono
           (cfg_stk_computableInDegree.comp hr).mono
         refine h.of_enc_eq fun a => ?_
-        have h := of_decide_eq_true a.2
+        have h := of_decide_eq_true a.property
         simp only [Function.comp_apply, stepTotal, h, Option.elim_some]
     have hno := ih (hc.restrict (fun a => decide ((cfg a).l = l) = false))
     have h := ComputableInDegree.ite (c := fun a => decide ((cfg a).l = l))

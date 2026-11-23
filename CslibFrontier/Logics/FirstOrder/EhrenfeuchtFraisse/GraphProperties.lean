@@ -100,8 +100,8 @@ theorem definedGraph_cycleArcFormula_fin :
     definedGraph (Fin m) cycleArcFormula = SimpleGraph.cycleGraph m := by
   ext x y
   rw [definedGraph_cycleArcFormula_adj_fin, SimpleGraph.cycleGraph_adj']
-  have hx := x.2
-  have hy := y.2
+  have hx := x.isLt
+  have hy := y.isLt
   rcases lt_trichotomy x y with h | rfl | h
   · rw [Fin.coe_sub_iff_lt.2 h, Fin.coe_sub_iff_le.2 h.le]
     rw [Fin.lt_def] at h
@@ -170,23 +170,23 @@ private theorem isAcyclic_stepTwoTopBot_fin_of_even (hm : Even m) :
     (definedGraph (Fin m) stepTwoTopBotArcFormula).IsAcyclic := by
   obtain ⟨k, rfl⟩ := hm
   let f : Fin (k + k) → Fin (k + k) := fun x =>
-    ⟨if x.1 % 2 = 0 then k - 1 - x.1 / 2 else 2 * k - 1 - x.1 / 2, by
-      have := x.2; split <;> omega⟩
+    ⟨if x.val % 2 = 0 then k - 1 - x.val / 2 else 2 * k - 1 - x.val / 2, by
+      have := x.isLt; split <;> omega⟩
   have hf : Function.Injective f := by
     intro x y h
     have h' := congrArg Fin.val h
     simp only [f] at h'
     ext
-    have := x.2
-    have := y.2
+    have := x.isLt
+    have := y.isLt
     split at h' <;> split at h' <;> omega
   let F : definedGraph (Fin (k + k)) stepTwoTopBotArcFormula →g SimpleGraph.pathGraph (k + k) :=
     ⟨f, fun {x y} h => by
       rw [definedGraph_stepTwoTopBotArcFormula_adj_fin] at h
       rw [SimpleGraph.pathGraph_adj]
       simp only [f]
-      have := x.2
-      have := y.2
+      have := x.isLt
+      have := y.isLt
       split <;> split <;> omega⟩
   exact (SimpleGraph.isAcyclic_pathGraph _).comap F hf
 

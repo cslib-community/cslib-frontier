@@ -313,9 +313,9 @@ languages. -/
 theorem of_finite [Finite α] {L : _root_.Language α} (hL : Set.Finite (L : Set (List α))) :
     IsStarFree L := by
   have : Finite {w // w ∈ L} := hL.to_subtype
-  refine cast (congrArg IsStarFree ?_) (iSup fun v : {w // w ∈ L} => singleton v.1)
+  refine cast (congrArg IsStarFree ?_) (iSup fun v : {w // w ∈ L} => singleton v.val)
   ext w
-  change w ∈ ⨆ v : {w // w ∈ L}, ({v.1} : _root_.Language α) ↔ w ∈ L
+  change w ∈ ⨆ v : {w // w ∈ L}, ({v.val} : _root_.Language α) ↔ w ∈ L
   simp [Language.mem_iSup]
 
 end IsStarFree

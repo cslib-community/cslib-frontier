@@ -188,7 +188,7 @@ variable {I : ℕ → List M → Prop}
 
 private theorem forall_fin_val {N : ℕ} (e : M ≃ Fin N) {P : ℕ → Prop} :
     (∀ c, P (e c)) ↔ ∀ i < N, P i :=
-  ⟨fun h i hi => by simpa using h (e.symm ⟨i, hi⟩), fun h c => h _ (e c).2⟩
+  ⟨fun h i hi => by simpa using h (e.symm ⟨i, hi⟩), fun h c => h _ (e c).isLt⟩
 
 private theorem nextSem_iff {N : ℕ} (e : M ≃ Fin N) (hlt : ∀ a b, I 0 [a, b] ↔ (e a : ℕ) < e b)
     (hz : ∀ a, I 1 [a] ↔ (e a : ℕ) = 0) (hs : ∀ a b, I 2 [a, b] ↔ (e b : ℕ) = e a + 1)
@@ -209,12 +209,12 @@ theorem pair_faithful (h : ArithModel I) {N : ℕ} (e : M ≃ Fin N)
   induction q using Nat.strong_induction_on with
   | _ q ih =>
   intro a b p hp
-  rw [h.pair, pair_eq_iff (hp ▸ (e p).2)]
+  rw [h.pair, pair_eq_iff (hp ▸ (e p).isLt)]
   simp only [hz, hs, nextSem_iff e hlt hz hs, hp]
   constructor
   · rintro (h0 | ⟨a', b', p', h1, h2, h3⟩)
     · exact Or.inl h0
-    · refine Or.inr ⟨e a', (e a').2, e b', (e b').2, e p', (e p').2, h1, ?_, h3⟩
+    · refine Or.inr ⟨e a', (e a').isLt, e b', (e b').isLt, e p', (e p').isLt, h1, ?_, h3⟩
       exact (ih (e p') (by omega) a' b' p' rfl).1 h2
   · rintro (h0 | ⟨a', ha', b', hb', p', hp', h1, h2, h3⟩)
     · exact Or.inl h0
@@ -276,7 +276,7 @@ theorem arithModel_faithful (h : ArithModel I) : ∃ (N : ℕ) (e : M ≃ Fin N)
     constructor
     · intro H
       by_contra hne
-      exact H 0 (lt_of_le_of_lt (Nat.zero_le _) (e a).2) (by omega)
+      exact H 0 (lt_of_le_of_lt (Nat.zero_le _) (e a).isLt) (by omega)
     · intro H i _
       omega
   have hs : ∀ a b, I 2 [a, b] ↔ (e b : ℕ) = e a + 1 := by
@@ -287,7 +287,7 @@ theorem arithModel_faithful (h : ArithModel I) : ∃ (N : ℕ) (e : M ≃ Fin N)
     constructor
     · rintro ⟨hab, H⟩
       by_contra hne
-      exact H (e a + 1) (by have := (e b).2; omega) (by omega) (by omega)
+      exact H (e a + 1) (by have := (e b).isLt; omega) (by omega) (by omega)
     · intro H
       exact ⟨by omega, fun i _ _ => by omega⟩
   exact ⟨_, e, hlt, hz, hs, pair_faithful h e hlt hz hs⟩
@@ -327,7 +327,7 @@ theorem arithModel_of_std {N : ℕ} {I : ℕ → List (Fin N) → Prop}
     · rintro ⟨hab, H⟩
       by_contra hne
       exact H ⟨a + 1, by omega⟩ (by simp) (by simp; omega)
-  · rw [h3, pair_eq_iff p.2]
+  · rw [h3, pair_eq_iff p.isLt]
     simp only [h1, h2, hnext]
     constructor
     · rintro (h | ⟨a', ha', b', hb', p', hp', h4, h5, h6⟩)
@@ -335,7 +335,7 @@ theorem arithModel_of_std {N : ℕ} {I : ℕ → List (Fin N) → Prop}
       · exact Or.inr ⟨⟨a', ha'⟩, ⟨b', hb'⟩, ⟨p', hp'⟩, h4, (h3 _ _ _).2 h5, h6⟩
     · rintro (h | ⟨a', b', p', h4, h5, h6⟩)
       · exact Or.inl ⟨h.1, h.2.1, h.2.2⟩
-      · exact Or.inr ⟨a', a'.2, b', b'.2, p', p'.2, h4, (h3 _ _ _).1 h5, h6⟩
+      · exact Or.inr ⟨a', a'.isLt, b', b'.isLt, p', p'.isLt, h4, (h3 _ _ _).1 h5, h6⟩
 
 theorem arithModel_stdArith (N : ℕ) : ArithModel (StdArith N) :=
   arithModel_of_std (fun _ _ => Iff.rfl) (fun _ => Iff.rfl) (fun _ _ => Iff.rfl)

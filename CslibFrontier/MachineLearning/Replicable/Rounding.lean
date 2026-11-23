@@ -193,7 +193,7 @@ private theorem thresholdRound_disagree_le_of_le {a b : ℝ} (hab : a < b) {N : 
       (Finset.univ.filter fun i : Fin N =>
         thresholdRound a b N i x₁ ≠ thresholdRound a b N i x₂).card ≤
       (Finset.Ioc ⌊u₁⌋ ⌊u₂⌋).card := by
-    refine Finset.card_le_card_of_injOn (fun i : Fin N => (i.1 : ℤ)) ?_ ?_
+    refine Finset.card_le_card_of_injOn (fun i : Fin N => (i.val : ℤ)) ?_ ?_
     · intro i hi
       rw [Finset.mem_coe, Finset.mem_filter] at hi
       simp only [thresholdRound, ne_eq] at hi
@@ -209,18 +209,18 @@ private theorem thresholdRound_disagree_le_of_le {a b : ℝ} (hab : a < b) {N : 
         rw [not_le] at hlt
         exact hnot ⟨fun h => absurd (h.trans hx) (not_le.mpr hlt),
           fun h => absurd h (not_le.mpr hlt)⟩
-      have hu1 : u₁ < ((i.1 : ℤ) : ℝ) := by
+      have hu1 : u₁ < ((i.val : ℤ) : ℝ) := by
         dsimp only [u₁, thresholdValue] at h1 ⊢
         rw [div_lt_iff₀ hba]
-        have h1' : (x₁ - a) * N < (b - a) * (i.1 : ℝ) :=
-          (lt_div_iff₀ hN).mp (by linarith : x₁ - a < (b - a) * (i.1 : ℝ) / N)
+        have h1' : (x₁ - a) * N < (b - a) * (i.val : ℝ) :=
+          (lt_div_iff₀ hN).mp (by linarith : x₁ - a < (b - a) * (i.val : ℝ) / N)
         push_cast
         linarith
-      have hu2 : ((i.1 : ℤ) : ℝ) ≤ u₂ := by
+      have hu2 : ((i.val : ℤ) : ℝ) ≤ u₂ := by
         dsimp only [u₂, thresholdValue] at h2 ⊢
         rw [le_div_iff₀ hba]
-        have h2' : (b - a) * (i.1 : ℝ) ≤ (x₂ - a) * N :=
-          (div_le_iff₀ hN).mp (by linarith : (b - a) * (i.1 : ℝ) / N ≤ x₂ - a)
+        have h2' : (b - a) * (i.val : ℝ) ≤ (x₂ - a) * N :=
+          (div_le_iff₀ hN).mp (by linarith : (b - a) * (i.val : ℝ) / N ≤ x₂ - a)
         push_cast
         linarith
       exact Finset.mem_Ioc.mpr ⟨Int.floor_lt.mpr hu1, Int.le_floor.mpr hu2⟩

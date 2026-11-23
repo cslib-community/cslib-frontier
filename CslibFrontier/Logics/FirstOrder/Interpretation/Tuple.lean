@@ -77,7 +77,7 @@ is isomorphic to the tuples with the relations defined by the interpretation. -/
 def tupleModelEquiv (hdom : ∀ x : ι → M, I.domain.Realize x) :
     @Language.Equiv L' (I.Model M) (ι → M) _ (I.tupleStructure M) :=
   letI := I.tupleStructure M
-  { toFun x := x.1
+  { toFun x := x.val
     invFun x := ⟨x, hdom x⟩
     left_inv _ := rfl
     right_inv _ := rfl
@@ -87,7 +87,7 @@ def tupleModelEquiv (hdom : ∀ x : ι → M, I.domain.Realize x) :
 /-- `I.tupleModelEquiv M hdom` maps an interpreted element `x` to its underlying tuple `x.1`. -/
 @[simp]
 theorem tupleModelEquiv_apply (hdom : ∀ x : ι → M, I.domain.Realize x) (x : I.Model M) :
-    I.tupleModelEquiv M hdom x = x.1 :=
+    I.tupleModelEquiv M hdom x = x.val :=
   rfl
 
 /-- Equality of functions on `Unit` is equality at `()`. -/

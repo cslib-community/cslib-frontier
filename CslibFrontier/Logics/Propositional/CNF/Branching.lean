@@ -512,7 +512,7 @@ theorem modelCountOn_cons_unit_eq_substLit {l : Literal V} {φ : CNF V} {U : Fin
   let extE (τ : U.erase l.1 → Bool) (v : V) : Bool :=
     if hv : v ∈ U.erase l.1 then τ ⟨v, hv⟩ else false
   let ins (τ : U.erase l.1 → Bool) (u : U) : Bool :=
-    if h : u.1 = l.1 then l.2 else τ ⟨u.1, Finset.mem_erase.mpr ⟨h, u.2⟩⟩
+    if h : u.val = l.1 then l.2 else τ ⟨u.val, Finset.mem_erase.mpr ⟨h, u.property⟩⟩
   have heval_ins (τ : U.erase l.1 → Bool) :
       Function.update (extE τ) l.1 l.2 = extU (ins τ) := by
     funext v
@@ -528,17 +528,17 @@ theorem modelCountOn_cons_unit_eq_substLit {l : Literal V} {φ : CNF V} {U : Fin
   let e : {σ : U → Bool // CNF.eval (extU σ) (([l] : Clause V) :: φ) = true} ≃
       {τ : U.erase l.1 → Bool // (substLit l φ).eval (extE τ) = true} :=
     { toFun := fun ⟨σ, hσ⟩ =>
-        ⟨fun u => σ ⟨u.1, Finset.mem_of_mem_erase u.2⟩, by
+        ⟨fun u => σ ⟨u.val, Finset.mem_of_mem_erase u.property⟩, by
           rw [CNF.eval_cons, Clause.eval_cons, Clause.eval_nil, Bool.or_false, Bool.and_eq_true,
             Literal.eval_eq_true_iff] at hσ
           have hl_eq : σ ⟨l.1, hl⟩ = l.2 := by simpa only [extU, hl, ↓reduceDIte] using hσ.1
-          have hins : ins (fun u => σ ⟨u.1, Finset.mem_of_mem_erase u.2⟩) = σ := by
+          have hins : ins (fun u => σ ⟨u.val, Finset.mem_of_mem_erase u.property⟩) = σ := by
             funext ⟨v, hv⟩
             by_cases hvl : v = l.1
             · subst hvl
               simpa only [ins, ↓reduceDIte] using hl_eq.symm
             · simp only [ins, hvl, ↓reduceDIte]
-          rw [eval_substLit, heval_ins (fun u => σ ⟨u.1, Finset.mem_of_mem_erase u.2⟩), hins]
+          rw [eval_substLit, heval_ins (fun u => σ ⟨u.val, Finset.mem_of_mem_erase u.property⟩), hins]
           exact hσ.2⟩
       invFun := fun ⟨τ, hτ⟩ =>
         ⟨ins τ, by

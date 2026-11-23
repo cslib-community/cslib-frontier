@@ -91,16 +91,16 @@ noncomputable def weighting (hd : IsPrefixFreeDescription C d) : Weighting C whe
   summable := by
     have hs := hd.isPrefixFree_image.summable_one_div_card_pow_length (α := Bool)
     simp only [Fintype.card_bool, Nat.cast_ofNat] at hs
-    exact hs.comp_injective (i := fun h : C => (⟨d h, h, h.2, rfl⟩ : d '' C))
-      fun h h' heq => Subtype.ext (hd.injOn h.2 h'.2 (congrArg Subtype.val heq))
+    exact hs.comp_injective (i := fun h : C => (⟨d h, h, h.property, rfl⟩ : d '' C))
+      fun h h' heq => Subtype.ext (hd.injOn h.property h'.property (congrArg Subtype.val heq))
   tsum_le_one := by
     have hs := hd.isPrefixFree_image.summable_one_div_card_pow_length (α := Bool)
     have hle := hd.isPrefixFree_image.tsum_one_div_card_pow_length_le_one (α := Bool)
     simp only [Fintype.card_bool, Nat.cast_ofNat] at hs hle
     refine le_trans ?_ hle
     exact tsum_comp_le_tsum_of_inj hs (fun _ => by positivity)
-      (i := fun h : C => (⟨d h, h, h.2, rfl⟩ : d '' C))
-      fun h h' heq => Subtype.ext (hd.injOn h.2 h'.2 (congrArg Subtype.val heq))
+      (i := fun h : C => (⟨d h, h, h.property, rfl⟩ : d '' C))
+      fun h h' heq => Subtype.ext (hd.injOn h.property h'.property (congrArg Subtype.val heq))
 
 @[simp] theorem weighting_apply (hd : IsPrefixFreeDescription C d) (h : C) :
     hd.weighting h = (1 / 2 : ℝ) ^ (d h).length := by
@@ -127,7 +127,7 @@ theorem measure_pi_exists_le_abs_sub_le (hd : IsPrefixFreeDescription C d)
   have : Countable C := hd.countable.to_subtype
   refine (measure_mono fun S => ?_).trans (hd.weighting.measure_pi_exists_not_isRepresentative_le
     (H := fun h : C => ({(h : α → β)} : ConceptClass α β))
-    (fun h => hasUniformConvergenceRate_singleton (hmeas h h.2)) D (mem_univ D) hm hδ)
+    (fun h => hasUniformConvergenceRate_singleton (hmeas h h.property)) D (mem_univ D) hm hδ)
   rintro ⟨h, hh, hlt⟩
   refine ⟨⟨h, hh⟩, fun hrep => ?_⟩
   have := hrep h rfl

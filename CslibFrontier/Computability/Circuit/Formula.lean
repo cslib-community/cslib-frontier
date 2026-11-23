@@ -558,7 +558,7 @@ variable (I cost) in
 /-- The least depth with costs `cost` of a formula computing `f` under `I`, or `⊤` if no formula
 computes `f`. -/
 noncomputable def minDepthWith (f : (Fin n → U) → U) : ℕ∞ :=
-  ⨅ F : {F : Formula σ n // F.Computes I f}, (F.1.depthWith cost : ℕ∞)
+  ⨅ F : {F : Formula σ n // F.Computes I f}, (F.val.depthWith cost : ℕ∞)
 
 /-- The least depth is at most the depth of every formula computing the function. -/
 theorem minDepthWith_le {F : Formula σ n} (hF : F.Computes I f) :
@@ -581,7 +581,7 @@ theorem exists_depthWith_eq_minDepthWith (h : ∃ F : Formula σ n, F.Computes I
     ∃ F : Formula σ n, F.Computes I f ∧ (F.depthWith cost : ℕ∞) = minDepthWith I cost f := by
   have : Nonempty {F : Formula σ n // F.Computes I f} := nonempty_subtype.2 h
   obtain ⟨⟨F, hF⟩, hmin⟩ := ENat.exists_eq_iInf
-    fun F : {F : Formula σ n // F.Computes I f} => (F.1.depthWith cost : ℕ∞)
+    fun F : {F : Formula σ n // F.Computes I f} => (F.val.depthWith cost : ℕ∞)
   exact ⟨F, hF, hmin⟩
 
 end MinDepthWith

@@ -72,7 +72,7 @@ private theorem entropy_map_restrict_insert [DecidableEq ι] (P : PMF (∀ i, α
     entropy (P.map (insert a s).restrict) =
       entropy (P.map s.restrict) + conditionalEntropy (P.map fun x => (s.restrict x, x a)) := by
   let split (y : ∀ i : ↥(insert a s), α i) : (∀ i : ↥s, α i) × α a :=
-    (fun i => y ⟨i, mem_insert_of_mem i.2⟩, y ⟨a, mem_insert_self a s⟩)
+    (fun i => y ⟨i, mem_insert_of_mem i.property⟩, y ⟨a, mem_insert_self a s⟩)
   have hsplit : Function.Injective split := by
     intro y z hyz
     funext ⟨i, hi⟩
@@ -98,7 +98,7 @@ theorem entropy_map_restrict_eq_sum [LinearOrder ι] (P : PMF (∀ i, α i)) (s 
     apply entropy_eq_zero_of_subsingleton_support
     intro y _ z _
     funext i
-    exact absurd i.2 (notMem_empty _)
+    exact absurd i.property (notMem_empty _)
   | insert a s hlt ih =>
     have ha : a ∉ s := fun h => lt_irrefl a (hlt a h)
     rw [entropy_map_restrict_insert P ha, sum_insert ha, ih, add_comm]

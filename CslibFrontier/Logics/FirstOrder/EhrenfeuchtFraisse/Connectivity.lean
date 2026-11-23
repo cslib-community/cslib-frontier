@@ -139,8 +139,8 @@ end Realize
 theorem stepTwoArc_fin_iff {m : ℕ} (x y : Fin m) :
     StepTwoArc (Fin m) x y ↔ (x : ℕ) + 2 = y ∨ ((x : ℕ) + 1 = m ∧ (y : ℕ) = 1) ∨
       ((x : ℕ) + 2 = m ∧ (y : ℕ) = 0) := by
-  have hx := x.2
-  have hy := y.2
+  have hx := x.isLt
+  have hy := y.isLt
   simp only [stepTwoArc_iff, Fin.covBy_iff, Nat.covBy_iff_add_one_eq, Fin.le_def]
   refine or_congr ⟨?_, ?_⟩ (or_congr ⟨?_, ?_⟩ ⟨?_, ?_⟩)
   · rintro ⟨z, h₁, h₂⟩
@@ -153,16 +153,16 @@ theorem stepTwoArc_fin_iff {m : ℕ} (x y : Fin m) :
     simp only at *
     omega
   · rintro ⟨h₁, h₂⟩
-    exact ⟨fun t => by have := t.2; omega, ⟨0, by omega⟩, fun t => Nat.zero_le _,
+    exact ⟨fun t => by have := t.isLt; omega, ⟨0, by omega⟩, fun t => Nat.zero_le _,
       by simp only; omega⟩
   · rintro ⟨⟨z, h₁, h₂⟩, h₃⟩
     have := h₁ ⟨m - 1, by omega⟩
     have := h₃ ⟨0, by omega⟩
-    have := z.2
+    have := z.isLt
     simp only at *
     omega
   · rintro ⟨h₁, h₂⟩
-    exact ⟨⟨⟨m - 1, by omega⟩, fun t => by have := t.2; simp only; omega, by simp only; omega⟩,
+    exact ⟨⟨⟨m - 1, by omega⟩, fun t => by have := t.isLt; simp only; omega, by simp only; omega⟩,
       fun t => by omega⟩
 
 /-- Adjacency in the step-two graph on `Fin m`, in terms of values. -/
@@ -194,11 +194,11 @@ private theorem stepTwoGraph_fin_connected_of_odd {m : ℕ} (hm : Odd m) :
   suffices h : ∀ x : Fin (2 * t + 1), (stepTwoGraph _).Reachable ⟨0, h0⟩ x from
     (h x).symm.trans (h y)
   intro x
-  obtain ⟨j, hj | hj⟩ := Nat.even_or_odd' x.1
+  obtain ⟨j, hj | hj⟩ := Nat.even_or_odd' x.val
   · have := reachable_even h0 j (by omega)
     convert this using 1
     exact Fin.ext hj
-  · have ht : 0 < t := by have := x.2; omega
+  · have ht : 0 < t := by have := x.isLt; omega
     have h1 : 1 < 2 * t + 1 := by omega
     have h10 : (stepTwoGraph (Fin (2 * t + 1))).Reachable ⟨0, h0⟩ ⟨1, h1⟩ :=
       (reachable_even h0 t (by omega)).trans (SimpleGraph.Adj.reachable

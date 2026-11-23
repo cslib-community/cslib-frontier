@@ -107,7 +107,7 @@ theorem poissonBinomial_cons_succ (p : I) (ps : List I) (k : ℕ) :
 theorem poissonBinomial_cons_zero_toReal (p : I) (ps : List I) :
     (poissonBinomial (p :: ps) 0).toReal = (1 - (p : ℝ)) * (poissonBinomial ps 0).toReal := by
   rw [poissonBinomial_cons_zero, ENNReal.toReal_mul,
-    ENNReal.toReal_ofReal (sub_nonneg.mpr p.2.2)]
+    ENNReal.toReal_ofReal (sub_nonneg.mpr p.property.2)]
 
 /-- Real-valued probability mass of `k + 1` under `poissonBinomial (p :: ps)`. -/
 theorem poissonBinomial_cons_succ_toReal (p : I) (ps : List I) (k : ℕ) :
@@ -116,8 +116,8 @@ theorem poissonBinomial_cons_succ_toReal (p : I) (ps : List I) (k : ℕ) :
         (p : ℝ) * (poissonBinomial ps k).toReal := by
   rw [poissonBinomial_cons_succ, ENNReal.toReal_add (ENNReal.mul_ne_top ENNReal.ofReal_ne_top
       (PMF.apply_ne_top _ _)) (ENNReal.mul_ne_top ENNReal.ofReal_ne_top (PMF.apply_ne_top _ _)),
-    ENNReal.toReal_mul, ENNReal.toReal_mul, ENNReal.toReal_ofReal (sub_nonneg.mpr p.2.2),
-    ENNReal.toReal_ofReal p.2.1]
+    ENNReal.toReal_mul, ENNReal.toReal_mul, ENNReal.toReal_ofReal (sub_nonneg.mpr p.property.2),
+    ENNReal.toReal_ofReal p.property.1]
 
 /-- Any value in the support of `poissonBinomial ps` is at most `ps.length`. -/
 theorem mem_support_poissonBinomial_le {ps : List I} {k : ℕ}

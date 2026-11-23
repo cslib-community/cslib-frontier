@@ -307,10 +307,10 @@ end Basis.Hom
 /-- The sub-basis of `B` consisting of the operations satisfying `P`. -/
 def Basis.restrict (B : Basis) (P : B.Op → Prop) : Basis where
   Op := Subtype P
-  Arity f := B.Arity f.1
-  ReadsWidth f := B.ReadsWidth f.1
-  interp w f := B.interp w f.1
-  interp_mono_of_not_readsWidth f hf := B.interp_mono_of_not_readsWidth f.1 hf
+  Arity f := B.Arity f.val
+  ReadsWidth f := B.ReadsWidth f.val
+  interp w f := B.interp w f.val
+  interp_mono_of_not_readsWidth f hf := B.interp_mono_of_not_readsWidth f.val hf
 
 /-- The inclusion of a sub-basis. -/
 def Basis.restrictHom (B : Basis) (P : B.Op → Prop) : (B.restrict P).Hom B where
@@ -331,7 +331,7 @@ def Basis.arithmetic : Basis :=
 
 /-- The additive operations are arithmetic. -/
 def Basis.additiveHomArithmetic : Basis.additive.Hom Basis.arithmetic where
-  toHom := ⟨fun f => ⟨f.1, by rcases f with ⟨f, hf⟩; simp only [List.mem_cons] at hf ⊢; tauto⟩,
+  toHom := ⟨fun f => ⟨f.val, by rcases f with ⟨f, hf⟩; simp only [List.mem_cons] at hf ⊢; tauto⟩,
     fun _ => rfl⟩
   preserves _ _ _ := rfl
   readsWidth_of_map _ h := h

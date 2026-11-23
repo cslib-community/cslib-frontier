@@ -125,7 +125,7 @@ variable {M : Type u} {X : Type v} {Z : Type w}
 /-- Least cost in `ℕ∞` of a deterministic strategy solving `R` on `A`, or `⊤` if none exists. -/
 @[expose] noncomputable def detComplexity (C : RandomizedCost M X Z) (R : X → Z → Prop)
     (A : Set X) : ℕ∞ :=
-  ⨅ m : {m : M // C.DetSolves m R A}, (C.cost m.1 : ℕ∞)
+  ⨅ m : {m : M // C.DetSolves m R A}, (C.cost m.val : ℕ∞)
 
 /-- Probability that deterministic strategy `m` errs against `R` on an input drawn from `ν`. -/
 @[expose] noncomputable def distributionalError (C : RandomizedCost M X Z) (m : M) (ν : PMF X)
@@ -135,7 +135,7 @@ variable {M : Type u} {X : Type v} {Z : Type w}
 /-- Least cost in `ℕ∞` of a deterministic strategy erring with probability at most `ε` under `ν`. -/
 @[expose] noncomputable def distributionalComplexity (C : RandomizedCost M X Z) (ε : ℝ)
     (R : X → Z → Prop) (ν : PMF X) : ℕ∞ :=
-  ⨅ m : {m : M // C.distributionalError m ν R ≤ ε}, (C.cost m.1 : ℕ∞)
+  ⨅ m : {m : M // C.distributionalError m ν R ≤ ε}, (C.cost m.val : ℕ∞)
 
 /-- Probability that a strategy drawn from `μ` errs against `R` on input `x`. -/
 @[expose] noncomputable def errorProb (C : RandomizedCost M X Z) (μ : PMF M) (R : X → Z → Prop)
@@ -151,7 +151,7 @@ variable {M : Type u} {X : Type v} {Z : Type w}
 `ε`, or `⊤` if none exists. -/
 @[expose] noncomputable def ecomplexity (C : RandomizedCost M X Z) (ε : ℝ) (R : X → Z → Prop)
     (A : Set X) : ℕ∞ :=
-  ⨅ μ : {μ : PMF M // C.Solves μ ε R A}, PMF.maxCost C.cost μ.1
+  ⨅ μ : {μ : PMF M // C.Solves μ ε R A}, PMF.maxCost C.cost μ.val
 
 /-- Public-coin complexity of computing a total function `f : X → Z` with error `ε`. -/
 @[expose] noncomputable def ecomplexityFun (C : RandomizedCost M X Z) (ε : ℝ) (f : X → Z) : ℕ∞ :=

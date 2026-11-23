@@ -80,13 +80,13 @@ def Node.root (h : ℕ) : Node h :=
 /-- Leaf `i` belongs to the subtree rooted at `v` ([BonehShoup2023], Definition 5.4). -/
 @[expose]
 def Node.CoversLeaf {h : ℕ} (v : Node h) (i : Fin (2 ^ h)) : Prop :=
-  i.1 / 2 ^ v.level = v.index
+  i.val / 2 ^ v.level = v.index
 
 instance {h : ℕ} (v : Node h) (i : Fin (2 ^ h)) : Decidable (v.CoversLeaf i) :=
-  inferInstanceAs (Decidable (i.1 / 2 ^ v.level = v.index))
+  inferInstanceAs (Decidable (i.val / 2 ^ v.level = v.index))
 
 private theorem Node.root_coversLeaf {h : ℕ} (i : Fin (2 ^ h)) : (Node.root h).CoversLeaf i := by
-  simp [Node.CoversLeaf, Node.root, Nat.div_eq_of_lt i.2]
+  simp [Node.CoversLeaf, Node.root, Nat.div_eq_of_lt i.isLt]
 
 /-- Embedding of the left subtree of height `h` into height `h + 1`. -/
 @[expose]
@@ -154,7 +154,7 @@ private theorem rightEmb_coversLeaf_natAdd {h : ℕ} (v : Node h) (i : Fin (2 ^ 
     (Node.rightEmb v).CoversLeaf
       (Fin.cast (by rw [pow_succ', two_mul]) (Fin.natAdd (2 ^ h) i)) ↔ v.CoversLeaf i := by
   simp only [Node.CoversLeaf, Node.level_rightEmb, Node.index_rightEmb]
-  change (2 ^ h + i.1) / 2 ^ v.level = 2 ^ (h - v.level) + v.index ↔ i.1 / 2 ^ v.level = v.index
+  change (2 ^ h + i.val) / 2 ^ v.level = 2 ^ (h - v.level) + v.index ↔ i.val / 2 ^ v.level = v.index
   rw [nat_two_pow_add_div v.level_le]
   omega
 
@@ -162,7 +162,7 @@ private theorem not_leftEmb_coversLeaf_natAdd {h : ℕ} (v : Node h) (i : Fin (2
     ¬ (Node.leftEmb v).CoversLeaf
       (Fin.cast (by rw [pow_succ', two_mul]) (Fin.natAdd (2 ^ h) i)) := by
   intro hcov
-  have hval : (2 ^ h + i.1) / 2 ^ v.level = v.index := hcov
+  have hval : (2 ^ h + i.val) / 2 ^ v.level = v.index := hcov
   rw [nat_two_pow_add_div v.level_le] at hval
   exact absurd hval (Nat.ne_of_gt (lt_of_lt_of_le v.index_lt (Nat.le_add_right _ _)))
 
@@ -170,10 +170,10 @@ private theorem not_rightEmb_coversLeaf_castAdd {h : ℕ} (v : Node h) (i : Fin 
     ¬ (Node.rightEmb v).CoversLeaf
       (Fin.cast (by rw [pow_succ', two_mul]) (Fin.castAdd (2 ^ h) i)) := by
   simp only [Node.CoversLeaf, Node.level_rightEmb, Node.index_rightEmb]
-  change ¬ i.1 / 2 ^ v.level = 2 ^ (h - v.level) + v.index
-  have hdiv : i.1 / 2 ^ v.level < 2 ^ (h - v.level) := by
+  change ¬ i.val / 2 ^ v.level = 2 ^ (h - v.level) + v.index
+  have hdiv : i.val / 2 ^ v.level < 2 ^ (h - v.level) := by
     rw [Nat.div_lt_iff_lt_mul (Nat.pow_pos (by omega)), ← pow_add, Nat.sub_add_cancel v.level_le]
-    exact i.2
+    exact i.isLt
   omega
 
 /-- A set `W` of nodes *covers* a leaf set `S` iff the leaves descending from `W` are
@@ -265,8 +265,8 @@ theorem covers_cover {h : ℕ} (S : Finset (Fin (2 ^ h))) : Covers (cover S) S :
     · intro x
       dsimp only [cover]
       rw [ite_eq_right_iff.2 (fun heq => absurd heq hS)]
-      by_cases hlt : x.1 < 2 ^ h
-      · let i : Fin (2 ^ h) := ⟨x.1, hlt⟩
+      by_cases hlt : x.val < 2 ^ h
+      · let i : Fin (2 ^ h) := ⟨x.val, hlt⟩
         have hx : x = Fin.cast (by rw [pow_succ', two_mul]) (Fin.castAdd (2 ^ h) i) := by
           ext; rfl
         rw [hx, ← mem_leftPart, ih (leftPart S) i]
@@ -278,11 +278,11 @@ theorem covers_cover {h : ℕ} (S : Finset (Fin (2 ^ h))) : Covers (cover S) S :
           rcases hw with ⟨v, hv, rfl⟩ | ⟨v, _, rfl⟩
           · exact ⟨v, hv, (leftEmb_coversLeaf_castAdd v i).1 hwc⟩
           · exact False.elim (not_rightEmb_coversLeaf_castAdd v i hwc)
-      · have hx2 : x.1 < 2 ^ h + 2 ^ h := by simpa [pow_succ', two_mul] using x.2
-        have hlt2 : x.1 - 2 ^ h < 2 ^ h := by omega
-        let i : Fin (2 ^ h) := ⟨x.1 - 2 ^ h, hlt2⟩
+      · have hx2 : x.val < 2 ^ h + 2 ^ h := by simpa [pow_succ', two_mul] using x.isLt
+        have hlt2 : x.val - 2 ^ h < 2 ^ h := by omega
+        let i : Fin (2 ^ h) := ⟨x.val - 2 ^ h, hlt2⟩
         have hx : x = Fin.cast (by rw [pow_succ', two_mul]) (Fin.natAdd (2 ^ h) i) := by
-          ext; change x.1 = 2 ^ h + (x.1 - 2 ^ h); omega
+          ext; change x.val = 2 ^ h + (x.val - 2 ^ h); omega
         rw [hx, ← mem_rightPart, ih (rightPart S) i]
         simp only [Finset.mem_union, Finset.mem_map]
         constructor

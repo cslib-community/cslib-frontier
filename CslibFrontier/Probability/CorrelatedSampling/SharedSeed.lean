@@ -335,7 +335,7 @@ theorem map_seedSample (P : PMF S) : (seed S).map (seedSample P) = P.toMeasure :
     ext ⟨x, u⟩
     by_cases hx : x = s
     · simp [underGraph, hx]
-    · simpa [underGraph, hx] using u.2.1
+    · simpa [underGraph, hx] using u.property.1
   have hn : (Fintype.card S : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.2 Fintype.card_ne_zero
   have hn' : (Fintype.card S : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
   rw [hslice, seedPoint_underGraph h0 h1, seedPoint_underGraph (fun x => by split_ifs <;> simp [h0])

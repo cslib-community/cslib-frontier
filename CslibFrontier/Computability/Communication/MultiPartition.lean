@@ -152,7 +152,7 @@ theorem exists_isCover_card [Fintype U] (hn : 2 ≤ Fintype.card ι)
     simp only [Set.mem_iUnion, Set.mem_singleton_iff]
     constructor
     · rintro ⟨i, rfl⟩
-      exact (Finset.mem_filter.mp (T.equivFin.symm i).2).2
+      exact (Finset.mem_filter.mp (T.equivFin.symm i).property).2
     · intro hx
       exact ⟨T.equivFin ⟨x, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hx⟩⟩, by simp⟩
 

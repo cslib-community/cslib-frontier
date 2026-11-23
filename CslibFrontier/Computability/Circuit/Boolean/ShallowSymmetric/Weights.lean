@@ -49,7 +49,7 @@ open Finset BitString
 /-- The weight of a partition block. -/
 def blockWeight {ι G : Type*} [Fintype ι] [DecidableEq G]
     (block : ι → G) (x : ι → Bool) (a : G) : ℕ :=
-  weight (fun i : {i : ι // block i = a} => x i.1)
+  weight (fun i : {i : ι // block i = a} => x i.val)
 
 /-- Summing the block weights recovers the total weight. -/
 theorem sum_blockWeight {ι G : Type*} [Fintype ι] [Fintype G] [DecidableEq G]
@@ -65,18 +65,18 @@ def residueBlock {n k : ℕ} (i : Fin n) : ZMod k := i.val
 theorem card_residueBlock_le (n k : ℕ) (a : ZMod k) :
     Fintype.card {i : Fin n // residueBlock i = a} ≤ n / k + 1 := by
   let encode (i : {i : Fin n // residueBlock i = a}) : Fin (n / k + 1) :=
-    ⟨i.1.val / k, Nat.lt_succ_of_le (Nat.div_le_div_right (Nat.le_of_lt i.1.isLt))⟩
+    ⟨i.val.val / k, Nat.lt_succ_of_le (Nat.div_le_div_right (Nat.le_of_lt i.val.isLt))⟩
   have hi : Function.Injective encode := by
     intro i j h
-    have hd : i.1.val / k = j.1.val / k := congrArg Fin.val h
-    have hm : i.1.val % k = j.1.val % k :=
-      (ZMod.natCast_eq_natCast_iff' _ _ _).1 (i.2.trans j.2.symm)
+    have hd : i.val.val / k = j.val.val / k := congrArg Fin.val h
+    have hm : i.val.val % k = j.val.val % k :=
+      (ZMod.natCast_eq_natCast_iff' _ _ _).1 (i.property.trans j.property.symm)
     apply Subtype.ext
     apply Fin.ext
     calc
-      i.1.val = i.1.val % k + k * (i.1.val / k) := (Nat.mod_add_div _ _).symm
-      _ = j.1.val % k + k * (j.1.val / k) := by rw [hd, hm]
-      _ = j.1.val := Nat.mod_add_div _ _
+      i.val.val = i.val.val % k + k * (i.val.val / k) := (Nat.mod_add_div _ _).symm
+      _ = j.val.val % k + k * (j.val.val / k) := by rw [hd, hm]
+      _ = j.val.val := Nat.mod_add_div _ _
   simpa using Fintype.card_le_of_injective encode hi
 
 /-- A pair of blocks, with the second block complemented, has weight

@@ -67,7 +67,7 @@ variable {n r : ℕ}
 
 /-- The input `x` contains all edges between the vertices of `s`. -/
 def Contains (x : Fin (edgeCount n) → Bool) (s : Finset (Fin n)) : Prop :=
-  ∀ e : Edge n, e.1.toFinset ⊆ s → x (edgeEquiv n e) = true
+  ∀ e : Edge n, e.val.toFinset ⊆ s → x (edgeEquiv n e) = true
 
 /-- Decidability of `Contains x s`. -/
 noncomputable instance (x : Fin (edgeCount n) → Bool) (s : Finset (Fin n)) :
@@ -98,11 +98,11 @@ theorem contains_iff_isClique {x : Fin (edgeCount n) → Bool} {s : Finset (Fin 
 
 /-- The complete graph on `s`, as an input. -/
 noncomputable def ofFinset (s : Finset (Fin n)) : Fin (edgeCount n) → Bool :=
-  fun i => decide (((edgeEquiv n).symm i).1.toFinset ⊆ s)
+  fun i => decide (((edgeEquiv n).symm i).val.toFinset ⊆ s)
 
 /-- `ofFinset s` sets an edge to `true` exactly when both of its endpoints lie in `s`. -/
 @[simp] theorem ofFinset_edgeEquiv (s : Finset (Fin n)) (e : Edge n) :
-    ofFinset s (edgeEquiv n e) = decide (e.1.toFinset ⊆ s) := by
+    ofFinset s (edgeEquiv n e) = decide (e.val.toFinset ⊆ s) := by
   simp [ofFinset]
 
 /-- The complete graph on `s` contains all edges between vertices of `s`. -/
@@ -122,8 +122,8 @@ theorem subset_of_contains_ofFinset {s t : Finset (Fin n)} (ht : 2 ≤ t.card)
 /-- The complete multipartite graph of a colouring, as an input: two vertices are adjacent when
 they have different colours. -/
 noncomputable def ofColoring (c : Fin n → Fin r) : Fin (edgeCount n) → Bool :=
-  fun i => decide (∀ u ∈ ((edgeEquiv n).symm i).1.toFinset,
-    ∀ v ∈ ((edgeEquiv n).symm i).1.toFinset, c u = c v → u = v)
+  fun i => decide (∀ u ∈ ((edgeEquiv n).symm i).val.toFinset,
+    ∀ v ∈ ((edgeEquiv n).symm i).val.toFinset, c u = c v → u = v)
 
 /-- In the graph of a colouring, the sets with all edges inside are those coloured injectively. -/
 theorem contains_ofColoring_iff {c : Fin n → Fin r} {s : Finset (Fin n)} :

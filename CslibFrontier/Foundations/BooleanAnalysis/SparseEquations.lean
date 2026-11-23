@@ -560,7 +560,7 @@ theorem card_branchAssignments [Fintype ι] [DecidableEq ι] (S : Finset ι) :
     #(branchAssignments S) = 2 ^ #S := by
   have hbij :
       #(branchAssignments S) = #(univ : Finset (S → Bool)) := by
-    refine card_nbij' (fun b (v : S) => b v.1)
+    refine card_nbij' (fun b (v : S) => b v.val)
       (fun g v => if hv : v ∈ S then g ⟨v, hv⟩ else false) ?_ ?_ ?_ ?_
     · intro b _
       exact mem_coe.mpr (mem_univ _)

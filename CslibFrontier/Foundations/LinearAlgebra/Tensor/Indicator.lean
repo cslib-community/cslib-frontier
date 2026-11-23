@@ -153,9 +153,9 @@ theorem card_rank_indicatorThreeTensor_le (K : Type*) [Field K]
       simp [MvPolynomial.totalDegree_X]
     omega
   have hex_z (S : Good) : ∃ z : Idx → K, ∀ p : P3,
-      MvPolynomial.eval z (entryPoly p) = if p ∈ S.1 then 1 else 0 := by
-    have hmem : Rank r (indicatorThreeTensor K (S.1 : Set P3)) :=
-      (Finset.mem_filter.mp S.2).2
+      MvPolynomial.eval z (entryPoly p) = if p ∈ S.val then 1 else 0 := by
+    have hmem : Rank r (indicatorThreeTensor K (S.val : Set P3)) :=
+      (Finset.mem_filter.mp S.property).2
     obtain ⟨α, β, γ, hres⟩ := hmem
     refine ⟨Sum.elim (fun kx => α kx.1 kx.2)
       (Sum.elim (fun ky => β ky.1 ky.2) (fun kz => γ kz.2 kz.1)), fun p => ?_⟩
@@ -165,7 +165,7 @@ theorem card_rank_indicatorThreeTensor_le (K : Type*) [Field K]
     exact hval.trans (by simp)
   choose z hz using hex_z
   let Q (S : Good) : MvPolynomial Idx K :=
-    ∏ p : P3, if p ∈ S.1 then entryPoly p else (1 - entryPoly p)
+    ∏ p : P3, if p ∈ S.val then entryPoly p else (1 - entryPoly p)
   have hQ_eval (S S' : Good) :
       MvPolynomial.eval (z S') (Q S) = if S = S' then 1 else 0 := by
     simp only [Q, map_prod]
@@ -173,19 +173,19 @@ theorem card_rank_indicatorThreeTensor_le (K : Type*) [Field K]
     · subst heq
       refine Finset.prod_eq_one fun p _ => ?_
       split_ifs with hp <;> simp [hz S p, hp]
-    · have hne : ∃ p : P3, (p ∈ S.1) ≠ (p ∈ S'.1) := by
+    · have hne : ∃ p : P3, (p ∈ S.val) ≠ (p ∈ S'.val) := by
         by_contra! hall_eq
         exact heq (Subtype.ext (Finset.ext fun p => eq_iff_iff.mp (hall_eq p)))
       obtain ⟨p₀, hp₀⟩ := hne
       refine Finset.prod_eq_zero (Finset.mem_univ p₀) ?_
-      by_cases hpS : p₀ ∈ S.1
-      · have hpS' : p₀ ∉ S'.1 := fun h => hp₀ (by simp [hpS, h])
+      by_cases hpS : p₀ ∈ S.val
+      · have hpS' : p₀ ∉ S'.val := fun h => hp₀ (by simp [hpS, h])
         simp [hpS, hpS', hz S' p₀]
-      · have hpS' : p₀ ∈ S'.1 := by by_contra h; exact hp₀ (by simp [hpS, h])
+      · have hpS' : p₀ ∈ S'.val := by by_contra h; exact hp₀ (by simp [hpS, h])
         simp [hpS, hpS', hz S' p₀]
   have hQ_deg (S : Good) : (Q S).totalDegree ≤ 3 * N := by
     refine (totalDegree_prod_le _ _).trans ?_
-    have hterm (p : P3) : (if p ∈ S.1 then entryPoly p else 1 - entryPoly p).totalDegree ≤ 3 := by
+    have hterm (p : P3) : (if p ∈ S.val then entryPoly p else 1 - entryPoly p).totalDegree ≤ 3 := by
       split_ifs
       · exact hdeg_entry p
       · have h1sub : (1 - entryPoly p : MvPolynomial Idx K) =
@@ -197,7 +197,7 @@ theorem card_rank_indicatorThreeTensor_le (K : Type*) [Field K]
           MvPolynomial.totalDegree_C (-1 : K)
         have hd := hdeg_entry p
         omega
-    calc (∑ p : P3, (if p ∈ S.1 then entryPoly p else 1 - entryPoly p).totalDegree)
+    calc (∑ p : P3, (if p ∈ S.val then entryPoly p else 1 - entryPoly p).totalDegree)
         ≤ ∑ _p : P3, 3 := Finset.sum_le_sum fun p _ => hterm p
       _ = 3 * N := by simp [hcard_P3, Nat.mul_comm]
   let Box := Idx → Fin (3 * N + 1)

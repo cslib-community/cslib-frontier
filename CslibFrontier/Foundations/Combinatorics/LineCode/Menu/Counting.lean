@@ -102,7 +102,7 @@ theorem card_filter_forall_mem_le {ι α : Type*} [Fintype ι] [DecidableEq ι] 
       ≤ #(Fintype.piFinset fun i : {i // i ∈ S} => A y i) := by
         refine card_le_card_of_injOn (fun x i => x i) (fun x hx => ?_) fun x hx x' hx' hxx' => ?_
         · obtain ⟨hxT, rfl⟩ := mem_filter.mp hx
-          exact Fintype.mem_piFinset.mpr fun i => (mem_filter.mp hxT).2 i i.2
+          exact Fintype.mem_piFinset.mpr fun i => (mem_filter.mp hxT).2 i i.property
         · have hy : outside x = outside x' :=
             (mem_filter.mp hx).2.trans (mem_filter.mp hx').2.symm
           funext i
@@ -110,7 +110,7 @@ theorem card_filter_forall_mem_le {ι α : Type*} [Fintype ι] [DecidableEq ι] 
           · exact congrFun hxx' ⟨i, hi⟩
           · exact congrFun hy ⟨i, hi⟩
     _ = ∏ i : {i // i ∈ S}, #(A y i) := Fintype.card_piFinset _
-    _ ≤ M ^ #(univ : Finset {i // i ∈ S}) := prod_le_pow_card _ _ _ fun i _ => hA y i i.2
+    _ ≤ M ^ #(univ : Finset {i // i ∈ S}) := prod_le_pow_card _ _ _ fun i _ => hA y i i.property
     _ = M ^ #S := by rw [card_univ, Fintype.card_coe]
 
 /-- **Covering menus.** If for every state `s` at most a `2 ^ (-m)` fraction of the candidates

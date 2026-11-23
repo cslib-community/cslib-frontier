@@ -121,7 +121,7 @@ def Solves (μ : PublicCoin X Y Z) (ε : ℝ) (R : X → Y → Z → Prop) (A : 
 /-- The public-coin communication complexity of `R` on `A × B` with error `ε`: the least cost of
 a public-coin protocol solving it with error `ε`, or `⊤` if there is none. -/
 noncomputable def ecomplexity (ε : ℝ) (R : X → Y → Z → Prop) (A : Set X) (B : Set Y) : ℕ∞ :=
-  ⨅ μ : {μ : PublicCoin X Y Z // μ.Solves ε R A B}, μ.1.depth
+  ⨅ μ : {μ : PublicCoin X Y Z // μ.Solves ε R A B}, μ.val.depth
 
 /-- The public-coin communication complexity of computing `f` with error `ε`: `ecomplexity` of the
 relation `f x y = z` on all inputs. -/
@@ -217,7 +217,7 @@ theorem ecomplexity_le_protocol (hε : 0 ≤ ε) :
   refine le_iInf fun p => ENat.iInf_subtype_natCast_le
     (P := fun p' => (Protocol.randomizedCost X Y Z).DetSolves p' (fun q z => R q.1 q.2 z) (A ×ˢ B))
     (d := Protocol.depth) ?_
-  exact fun ⟨x, y⟩ ⟨hx, hy⟩ => p.2 x hx y hy
+  exact fun ⟨x, y⟩ ⟨hx, hy⟩ => p.property x hx y hy
 
 theorem ecomplexityFun_le_protocol {f : X → Y → Z} (hε : 0 ≤ ε) :
     ecomplexityFun ε f ≤ Protocol.ecomplexityFun f :=
@@ -277,7 +277,7 @@ def Solves (P : PrivateCoin a b X Y Z) (ε : ℝ) (R : X → Y → Z → Prop) (
 of a private-coin protocol solving it with error `ε`, with any numbers of random bits, or `⊤` if
 there is none. -/
 noncomputable def ecomplexity (ε : ℝ) (R : X → Y → Z → Prop) (A : Set X) (B : Set Y) : ℕ∞ :=
-  ⨅ (a : ℕ) (b : ℕ) (P : {P : PrivateCoin a b X Y Z // P.Solves ε R A B}), (P.1.depth : ℕ∞)
+  ⨅ (a : ℕ) (b : ℕ) (P : {P : PrivateCoin a b X Y Z // P.Solves ε R A B}), (P.val.depth : ℕ∞)
 
 /-- The private-coin communication complexity of computing `f` with error `ε`: `ecomplexity` of
 the relation `f x y = z` on all inputs. -/
@@ -343,7 +343,7 @@ theorem ecomplexity_mono (hA : A' ⊆ A) (hB : B' ⊆ B) :
 /-- Private-coin protocols with nonnegative error are at least as good as deterministic ones. -/
 theorem ecomplexity_le_protocol (hε : 0 ≤ ε) :
     ecomplexity ε R A B ≤ Protocol.ecomplexity R A B :=
-  le_iInf fun p => (ecomplexity_le_depth (a := 0) (b := 0) (solves_comap p.2 hε)).trans_eq
+  le_iInf fun p => (ecomplexity_le_depth (a := 0) (b := 0) (solves_comap p.property hε)).trans_eq
     (by rw [Protocol.depth_comap])
 
 theorem ecomplexityFun_le_protocol {f : X → Y → Z} (hε : 0 ≤ ε) :

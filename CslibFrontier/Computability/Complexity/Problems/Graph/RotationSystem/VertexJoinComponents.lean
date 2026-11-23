@@ -27,7 +27,7 @@ open Equiv RotationCertificate
 /-- The literal vertex merge joins exactly the two selected components, and no others.
 The selected vertices may already belong to one component. -/
 theorem sameComponent_mergeGraph_iff_join {G : Graph} (h k : Dart G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (a b : Dart G) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (a b : Dart G) :
     SameComponent (mergeGraph h k) (mergeDartEquiv h k a).vertex
       (mergeDartEquiv h k b).vertex ↔
       SameComponent G a.vertex b.vertex ∨
@@ -83,7 +83,7 @@ theorem sameComponent_mergeGraph_iff_join {G : Graph} (h k : Dart G)
 
 /-- The component of the first merged corner is exactly the union of the two old ones. -/
 theorem sameComponent_mergeGraph_left_iff {G : Graph} (h k : Dart G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (b : Dart G) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (b : Dart G) :
     SameComponent (mergeGraph h k) (mergeDartEquiv h k h).vertex
       (mergeDartEquiv h k b).vertex ↔
       SameComponent G h.vertex b.vertex ∨ SameComponent G k.vertex b.vertex := by
@@ -99,7 +99,7 @@ theorem sameComponent_mergeGraph_left_iff {G : Graph} (h k : Dart G)
 
 /-- Components disjoint from both selected corners retain precisely their old darts. -/
 theorem sameComponent_mergeGraph_unaffected_iff {G : Graph} (h k : Dart G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (a b : Dart G)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (a b : Dart G)
     (ha : ¬ SameComponent G a.vertex h.vertex)
     (hb : ¬ SameComponent G a.vertex k.vertex) :
     SameComponent (mergeGraph h k) (mergeDartEquiv h k a).vertex

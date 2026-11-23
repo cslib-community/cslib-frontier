@@ -142,7 +142,7 @@ theorem card_filter_subsetTest (acc : List Bool → Bool) {K k : ℕ} (Z : ℕ) 
       simp only [mem_filter, mem_univ, true_and, hP, SubsetBlockPred] at ht ⊢
       refine ⟨strictMono_of_lt_succ fun i hi => ht.2 i hi, fun i => ?_⟩
       rw [mem_map]
-      exact ⟨_, by rw [hA, mem_filter]; exact ⟨mem_univ _, (ht.1 _).1 i.2⟩, rfl⟩
+      exact ⟨_, by rw [hA, mem_filter]; exact ⟨mem_univ _, (ht.1 _).1 i.isLt⟩, rfl⟩
     · intro t ht t' ht' h
       simp only [mem_filter, mem_univ, true_and, hP, SubsetBlockPred] at ht ht'
       funext j
@@ -152,7 +152,7 @@ theorem card_filter_subsetTest (acc : List Bool → Bool) {K k : ℕ} (Z : ℕ) 
     · intro g hg
       simp only [mem_filter, mem_univ, true_and] at hg
       refine ⟨fun j => if h : (j : ℕ) < k then ofLex (g ⟨j, h⟩) else 0, ?_,
-        funext fun i => by simp [i.2]⟩
+        funext fun i => by simp [i.isLt]⟩
       simp only [mem_filter, mem_univ, true_and, hP, SubsetBlockPred]
       refine ⟨fun j => ⟨fun hj => ?_, fun hj => by simp [show ¬(j : ℕ) < k by omega]⟩,
         fun i hi => ?_⟩

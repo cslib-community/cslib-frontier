@@ -224,7 +224,7 @@ theorem realize_isZero {V : Type*} (v : V → Fin B) (u : V) :
   · intro h
     by_contra hne
     have h0 : 0 < (v u : ℕ) := by omega
-    have hB : 0 < B := h0.trans (v u).2
+    have hB : 0 < B := h0.trans (v u).isLt
     have := h ⟨0, hB⟩
     fin_index
   · omega
@@ -236,7 +236,7 @@ theorem realize_isMax {V : Type*} (v : V → Fin B) (u : V) :
   have h1 : (isMax r u).Realize v ↔ ∀ z : Fin B, ¬ (v u < z) := by
     simp [isMax, Formula.Realize, hlt, Fin.snoc]
   rw [h1]
-  have hu := (v u).2
+  have hu := (v u).isLt
   constructor
   · intro h
     by_contra hne
@@ -255,8 +255,8 @@ theorem realize_succ {V : Type*} (v : V → Fin B) (u w : V) :
     rw [succ, Formula.realize_inf, realize_lt hlt]
     simp [Formula.Realize, hlt, Fin.snoc]
   rw [h1]
-  have hu := (v u).2
-  have hw := (v w).2
+  have hu := (v u).isLt
+  have hw := (v w).isLt
   constructor
   · rintro ⟨hlt', hmid⟩
     rw [Fin.lt_def] at hlt'
@@ -318,7 +318,7 @@ sentence asserting that the truth values `i ↦ (M ⊨ φ i)` satisfy `P`. -/
 noncomputable def truthTableSentence {m : ℕ} (φ : Fin m → L.Sentence)
     (P : (Fin m → Bool) → Prop) : L.Sentence :=
   BoundedFormula.iSup fun s : {s : Fin m → Bool // P s} =>
-    BoundedFormula.iInf fun i : Fin m => if s.1 i then φ i else ∼(φ i)
+    BoundedFormula.iInf fun i : Fin m => if s.val i then φ i else ∼(φ i)
 
 open scoped Classical in
 /-- `truthTableSentence φ P` holds exactly when the truth values of the sentences `φ i` satisfy

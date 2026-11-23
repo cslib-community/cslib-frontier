@@ -70,8 +70,8 @@ noncomputable def goemansWilliamsonConstant : ℝ :=
   ⨅ θ : Ioc (0 : ℝ) π, 2 / π * θ / (1 - cos θ)
 
 private theorem gw_term_nonneg (θ : Ioc (0 : ℝ) π) : 0 ≤ 2 / π * (θ : ℝ) / (1 - cos θ) :=
-  div_nonneg (mul_nonneg (div_nonneg zero_le_two pi_pos.le) θ.2.1.le)
-    (one_sub_cos_pos_of_mem_Ioc θ.2.1 θ.2.2).le
+  div_nonneg (mul_nonneg (div_nonneg zero_le_two pi_pos.le) θ.property.1.le)
+    (one_sub_cos_pos_of_mem_Ioc θ.property.1 θ.property.2).le
 
 private theorem gw_bddBelow :
     BddBelow (range fun θ : Ioc (0 : ℝ) π => 2 / π * (θ : ℝ) / (1 - cos θ)) :=
@@ -159,8 +159,8 @@ theorem lt_goemansWilliamsonConstant : (0.87856 : ℝ) < goemansWilliamsonConsta
   have : Nonempty (Ioc (0 : ℝ) π) := ⟨⟨π, pi_pos, le_rfl⟩⟩
   refine lt_of_lt_of_le (by norm_num : (0.87856 : ℝ) < 878562 / 1000000) ?_
   refine le_ciInf fun θ => ?_
-  rw [le_div_iff₀ (one_sub_cos_pos_of_mem_Ioc θ.2.1 θ.2.2)]
-  exact gw_lower_aux θ.2.1 θ.2.2
+  rw [le_div_iff₀ (one_sub_cos_pos_of_mem_Ioc θ.property.1 θ.property.2)]
+  exact gw_lower_aux θ.property.1 θ.property.2
 
 /-- The Goemans–Williamson constant is below `0.87857`, witnessed by `θ = π - 0.810474`. With
 `Real.lt_goemansWilliamsonConstant`, this pins down the first five decimal digits. -/

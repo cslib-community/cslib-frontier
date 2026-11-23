@@ -302,10 +302,10 @@ theorem r_pos (M : Design ι s κ scope r Q R D τ) : 0 < r :=
 
 private theorem sum_groupSubtype {β : Type*} [AddCommMonoid β] (t : Fin Q) (g : Fin r)
     (f : {i : ι // M.varGroup t i = g} → β) (g' : ι → β)
-    (hfg : ∀ i : {i : ι // M.varGroup t i = g}, f i = g' i.1) :
+    (hfg : ∀ i : {i : ι // M.varGroup t i = g}, f i = g' i.val) :
     (∑ i : {i : ι // M.varGroup t i = g}, f i) = ∑ i ∈ M.groupSet t g, g' i := by
   have hcongr : (∑ i : {i : ι // M.varGroup t i = g}, f i) =
-      ∑ i : {i : ι // M.varGroup t i = g}, g' i.1 := sum_congr rfl fun i _ => hfg i
+      ∑ i : {i : ι // M.varGroup t i = g}, g' i.val := sum_congr rfl fun i _ => hfg i
   rw [hcongr, ← sum_subtype (M.groupSet t g)
     (fun i => by simp only [groupSet, mem_filter, mem_univ, true_and]) g']
 
@@ -345,7 +345,7 @@ theorem card_localCube (t : Fin Q) (g : Fin r) :
 /-- Local integer measurement of `u ∈ {0, 1}^{S_{t,g}}` under `C_{t,g}`. -/
 @[expose] def localMeasure (t : Fin Q) (g : Fin r) (u : M.LocalCube t g) :
     Fin (M.numRows t g) → ℤ :=
-  fun k => ∑ i : {i : ι // M.varGroup t i = g}, M.matrix t g k i.1 * BitString.bitVal ℤ (u i)
+  fun k => ∑ i : {i : ι // M.varGroup t i = g}, M.matrix t g k i.val * BitString.bitVal ℤ (u i)
 
 /-- Global integer measurement of `x : ι → Bool` on group `g` at node `t`. -/
 @[expose] def globalMeasure (t : Fin Q) (g : Fin r) (x : ι → Bool) :
@@ -360,10 +360,10 @@ theorem globalMeasure_piGroupEquiv (t : Fin Q) (g : Fin r)
   funext k
   simp only [globalMeasure, localMeasure]
   have hsub : (∑ i : {i : ι // M.varGroup t i = g},
-      M.matrix t g k i.1 * BitString.bitVal ℤ (u g i)) =
+      M.matrix t g k i.val * BitString.bitVal ℤ (u g i)) =
       ∑ i ∈ M.groupSet t g, M.matrix t g k i *
         BitString.bitVal ℤ (piGroupEquiv (M.varGroup t) u i) :=
-    M.sum_groupSubtype t g _ _ fun i => by rw [piGroupEquiv_apply_of_eq (M.varGroup t) u i.2]
+    M.sum_groupSubtype t g _ _ fun i => by rw [piGroupEquiv_apply_of_eq (M.varGroup t) u i.property]
   rw [hsub]
   refine (sum_subset (subset_univ _) fun i _ hi => ?_).symm
   rw [M.matrix_support t g k i (fun h => hi (mem_filter.mpr ⟨mem_univ i, h⟩)), zero_mul]
@@ -381,7 +381,7 @@ theorem globalMeasure_piGroupEquiv (t : Fin Q) (g : Fin r)
 theorem localMeasure_mem_groupBox (t : Fin Q) (g : Fin r) (u : M.LocalCube t g) :
     M.localMeasure t g u ∈ M.groupBox t g := by
   refine boolean_mulVec_mem_intMeasurementBox (fun k => ?_) u
-  have hle : (∑ i : {i : ι // M.varGroup t i = g}, (M.matrix t g k i.1).natAbs) ≤
+  have hle : (∑ i : {i : ι // M.varGroup t i = g}, (M.matrix t g k i.val).natAbs) ≤
       ∑ i : ι, (M.matrix t g k i).natAbs := by
     rw [M.sum_groupSubtype t g _ (fun i => (M.matrix t g k i).natAbs) (fun _ => rfl)]
     exact sum_le_univ_sum_of_nonneg fun _ => Nat.zero_le _
@@ -438,7 +438,7 @@ theorem evalRowRat_eq_of_eq_outside_group {t : Fin Q} {f : F} (hf : f ∈ s) (v 
 
 private def ratLocalMeasureLinearMap (t : Fin Q) (g : Fin r) :
     ({i : ι // M.varGroup t i = g} → ℚ) →ₗ[ℚ] (Fin (M.numRows t g) → ℚ) where
-  toFun ξ k := ∑ i : {i : ι // M.varGroup t i = g}, (M.matrix t g k i.1 : ℚ) * ξ i
+  toFun ξ k := ∑ i : {i : ι // M.varGroup t i = g}, (M.matrix t g k i.val : ℚ) * ξ i
   map_add' ξ₁ ξ₂ := funext fun k => by simp only [Pi.add_apply, mul_add, sum_add_distrib]
   map_smul' c ξ := funext fun k => by
     simp only [Pi.smul_apply, smul_eq_mul, RingHom.id_apply, mul_sum]
@@ -451,7 +451,7 @@ private theorem matrix_sum_extendFromGroup (t : Fin Q) (h : Fin r) (k : Fin (M.n
   simp only [ratLocalMeasureLinearMap, LinearMap.coe_mk, AddHom.coe_mk]
   rw [M.sum_groupSubtype t h _
     (fun i => (M.matrix t h k i : ℚ) * extendFromGroup (M.varGroup t) h delta i)
-    (fun i => by simp only [extendFromGroup, i.2, ↓reduceDIte])]
+    (fun i => by simp only [extendFromGroup, i.property, ↓reduceDIte])]
   refine (sum_subset (subset_univ _) fun i _ hi => ?_).symm
   have hne : M.varGroup t i ≠ h := fun hh => hi (mem_filter.mpr ⟨mem_univ i, hh⟩)
   simp only [extendFromGroup, hne, ↓reduceDIte, mul_zero]
@@ -472,7 +472,7 @@ theorem evalRowRat_eq_of_eq_on_assigned_group {t : Fin Q} {f : F} (hf : f ∈ s)
   have hg₀ : xLoc g₀ = xLoc' g₀ := funext fun i => by
     simp only [xLoc, xLoc', piGroupEquiv, Equiv.symm_symm, Equiv.piCongrFiberwise_apply,
       Equiv.refl_apply]
-    exact hassigned i.1 i.2
+    exact hassigned i.val i.property
   have hsame : ∀ h, M.ratLocalMeasureLinearMap t h (xLoc h) =
       M.ratLocalMeasureLinearMap t h (xLoc' h) := by
     intro h
@@ -749,7 +749,7 @@ variable {ι F : Type*} [Fintype ι] [DecidableEq ι] {s : Finset F} {κ : F →
 `i ∈ E ∩ S_{t,g}` ([OpenAI2026ETH], Lemma 3.2 proof, p. 23). -/
 @[expose] def restrictedLocalCube (t : Fin Q) (E : Finset ι) (g : Fin r) :
     Finset (M.LocalCube t g) :=
-  univ.filter fun u => ∀ i : {i : ι // M.varGroup t i = g}, i.1 ∈ E → u i = true
+  univ.filter fun u => ∀ i : {i : ι // M.varGroup t i = g}, i.val ∈ E → u i = true
 
 /-- Product of factors assigned to group `g` at node `t` when each factor `f` is evaluated on its
 baseline vector `v ↦ M.evalRow t f v x` ([OpenAI2026ETH], equation (3.11), p. 25). -/
@@ -813,7 +813,7 @@ theorem sum_restricted_prod_eq_sum_measurement_fibers {B : Type*} [CommRing B]
         (piGroupEquiv (M.varGroup t)).apply_symm_apply x⟩
       refine Fintype.mem_piFinset.mpr fun g => mem_filter.mpr ⟨mem_univ _, fun i hiE => ?_⟩
       simpa only [piGroupEquiv, Equiv.symm_symm, Equiv.piCongrFiberwise_apply,
-        Equiv.refl_apply] using hx.2 i.1 hiE
+        Equiv.refl_apply] using hx.2 i.val hiE
     · intro u _
       exact M.prod_groupedFactor_eq evalFactor t u
   rw [hbij]

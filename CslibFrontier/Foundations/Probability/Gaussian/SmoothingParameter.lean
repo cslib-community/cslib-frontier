@@ -351,34 +351,34 @@ private theorem exists_pos_lt_dualMass [Nontrivial E] (ε : ℝ) :
   refine ⟨δ, one_div_pos.mpr hM, fun s hs hsδ ↦ ?_⟩
   rw [gaussianMass_zero_sub_one_eq_tsum D (1 / s) (one_div_pos.mpr hs)]
   let emb : Fin N → ↥{w : D | w ≠ 0} := fun k ↦
-    ⟨(k.1 + 1) • w₀, by
+    ⟨(k.val + 1) • w₀, by
       intro h0
-      have h0' : ((k.1 + 1 : ℕ) : ℝ) • (w₀ : E) = 0 := by
-        have hcoe : (((k.1 + 1) • w₀ : D) : E) = (k.1 + 1) • (w₀ : E) :=
-          AddSubmonoidClass.coe_nsmul w₀ (k.1 + 1)
+      have h0' : ((k.val + 1 : ℕ) : ℝ) • (w₀ : E) = 0 := by
+        have hcoe : (((k.val + 1) • w₀ : D) : E) = (k.val + 1) • (w₀ : E) :=
+          AddSubmonoidClass.coe_nsmul w₀ (k.val + 1)
         rw [Nat.cast_smul_eq_nsmul ℝ, ← hcoe, h0, Submodule.coe_zero]
       rcases smul_eq_zero.mp h0' with hc | hw
-      · exact (Nat.cast_pos.mpr (Nat.succ_pos k.1)).ne' hc
+      · exact (Nat.cast_pos.mpr (Nat.succ_pos k.val)).ne' hc
       · exact hw₀ (Subtype.ext hw)⟩
   have hemb_inj : Function.Injective emb := by
     intro k₁ k₂ hk
     have hval := congrArg (fun u : ↥{w : D | w ≠ 0} ↦ (u.val : E)) hk
-    have hval' : ((k₁.1 + 1 : ℕ) : ℝ) • (w₀ : E) = ((k₂.1 + 1 : ℕ) : ℝ) • (w₀ : E) := by
-      have h1 : (((k₁.1 + 1) • w₀ : D) : E) = ((k₁.1 + 1 : ℕ) : ℝ) • (w₀ : E) := by
+    have hval' : ((k₁.val + 1 : ℕ) : ℝ) • (w₀ : E) = ((k₂.val + 1 : ℕ) : ℝ) • (w₀ : E) := by
+      have h1 : (((k₁.val + 1) • w₀ : D) : E) = ((k₁.val + 1 : ℕ) : ℝ) • (w₀ : E) := by
         rw [AddSubmonoidClass.coe_nsmul, ← Nat.cast_smul_eq_nsmul ℝ]
-      have h2 : (((k₂.1 + 1) • w₀ : D) : E) = ((k₂.1 + 1 : ℕ) : ℝ) • (w₀ : E) := by
+      have h2 : (((k₂.val + 1) • w₀ : D) : E) = ((k₂.val + 1 : ℕ) : ℝ) • (w₀ : E) := by
         rw [AddSubmonoidClass.coe_nsmul, ← Nat.cast_smul_eq_nsmul ℝ]
       simpa only [emb, h1, h2] using hval
-    have heq : ((k₁.1 + 1 : ℕ) : ℝ) = ((k₂.1 + 1 : ℕ) : ℝ) :=
+    have heq : ((k₁.val + 1 : ℕ) : ℝ) = ((k₂.val + 1 : ℕ) : ℝ) :=
       smul_left_injective ℝ (fun h0 ↦ hw₀ (Subtype.ext h0)) hval'
-    have hnat : k₁.1 + 1 = k₂.1 + 1 := by exact_mod_cast heq
+    have hnat : k₁.val + 1 = k₂.val + 1 := by exact_mod_cast heq
     exact Fin.ext (Nat.succ.inj hnat)
   have hterm : ∀ k : Fin N, (1 / 2 : ℝ) ≤ gaussianWeight (1 / s) ((emb k).val : E) := by
     intro k
     rw [gaussianWeight_one_div]
-    have hkn : ((k.1 + 1 : ℕ) : ℝ) ≤ (N : ℝ) := by exact_mod_cast k.isLt
-    have hnormk : ‖((emb k).val : E)‖ = ((k.1 + 1 : ℕ) : ℝ) * ‖(w₀ : E)‖ := by
-      change ‖(((k.1 + 1) • w₀ : D) : E)‖ = _
+    have hkn : ((k.val + 1 : ℕ) : ℝ) ≤ (N : ℝ) := by exact_mod_cast k.isLt
+    have hnormk : ‖((emb k).val : E)‖ = ((k.val + 1 : ℕ) : ℝ) * ‖(w₀ : E)‖ := by
+      change ‖(((k.val + 1) • w₀ : D) : E)‖ = _
       rw [AddSubmonoidClass.coe_nsmul, ← Nat.cast_smul_eq_nsmul ℝ, norm_smul,
         Real.norm_of_nonneg (Nat.cast_nonneg _)]
     have hsM : s * (Real.sqrt (2 * Real.pi) * (N : ℝ) * ‖(w₀ : E)‖) ≤ 1 := by

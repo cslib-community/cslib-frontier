@@ -137,7 +137,7 @@ theorem contraction_append_pairs {R : Type*} [CommSemiring R] (W : ℕ)
       (fun w => ∀ h : w < W, x ⟨2 * w, by omega⟩ = x ⟨2 * w + 1, by omega⟩)
     rw [key]
     congr 1
-    exact propext ⟨fun h w => h w (List.mem_range.mpr w.2) w.2,
+    exact propext ⟨fun h w => h w (List.mem_range.mpr w.isLt) w.isLt,
       fun h w _ hw => h ⟨w, hw⟩⟩
   have hF (x : Fin (2 * W) → Bool) : F x =
       (rows.map fun v => entry v.2 (G.portBits x v.1)).prod *

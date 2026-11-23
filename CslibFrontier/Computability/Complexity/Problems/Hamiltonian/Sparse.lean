@@ -244,7 +244,7 @@ theorem sum_sparseSlots_le (φ : CNF ℕ) :
 /-- **The sparse diamond graph has linear size.** It has at most `23 L + m + 1` vertices and arcs
 in total, counted as listed, for `L` occurrences of variables and `m` clauses. -/
 theorem length_sparseDiamondGraph_le_length_vars (φ : CNF ℕ) :
-    (sparseDiamondGraph φ).1.length + (sparseDiamondGraph φ).2.length ≤
+    (sparseDiamondGraph φ).vertices.length + (sparseDiamondGraph φ).edges.length ≤
       23 * φ.vars.length + φ.length + 1 := by
   have hS := sum_sparseSlots_le φ
   have hn : φ.distinctVars.length ≤ φ.vars.length := by
@@ -258,7 +258,7 @@ theorem length_sparseDiamondGraph_le_length_vars (φ : CNF ℕ) :
 /-- **The sparse diamond graph has linear size.** On formulas with `m` clauses of at most `k`
 literals, it has at most `(23 k + 1) m + 1` vertices and arcs in total, counted as listed. -/
 theorem length_sparseDiamondGraph_le {k : ℕ} {φ : CNF ℕ} (hφ : ∀ c ∈ φ, c.length ≤ k) :
-    (sparseDiamondGraph φ).1.length + (sparseDiamondGraph φ).2.length ≤
+    (sparseDiamondGraph φ).vertices.length + (sparseDiamondGraph φ).edges.length ≤
       (23 * k + 1) * φ.length + 1 := by
   have h := length_sparseDiamondGraph_le_length_vars φ
   have hL := CNF.length_vars_le_mul_length hφ
@@ -266,7 +266,7 @@ theorem length_sparseDiamondGraph_le {k : ℕ} {φ : CNF ℕ} (hφ : ∀ c ∈ �
 
 /-- The closed sparse diamond graph has linear size. -/
 theorem length_toSparseDirHamCycle_le {k : ℕ} {φ : CNF ℕ} (hφ : ∀ c ∈ φ, c.length ≤ k) :
-    (toSparseDirHamCycle φ).1.length + (toSparseDirHamCycle φ).2.length ≤
+    (toSparseDirHamCycle φ).vertices.length + (toSparseDirHamCycle φ).edges.length ≤
       (23 * k + 1) * φ.length + 2 := by
   have h := length_sparseDiamondGraph_le hφ
   simp only [sparseDiamondGraph, graph] at h
@@ -277,7 +277,7 @@ theorem length_toSparseDirHamCycle_le {k : ℕ} {φ : CNF ℕ} (hφ : ∀ c ∈ 
 literals, the graph of `toSparseHamCycle` has at most `(115 k + 5) m + 10` vertices and edges in
 total, counted as listed. -/
 theorem length_toSparseHamCycle_le {k : ℕ} {φ : CNF ℕ} (hφ : ∀ c ∈ φ, c.length ≤ k) :
-    (toSparseHamCycle φ).1.length + (toSparseHamCycle φ).2.length ≤
+    (toSparseHamCycle φ).vertices.length + (toSparseHamCycle φ).edges.length ≤
       (115 * k + 5) * φ.length + 10 := by
   have h := length_toSparseDirHamCycle_le hφ
   rw [toSparseHamCycle, Graph.length_split_fst, Graph.length_split_snd]

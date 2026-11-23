@@ -56,84 +56,84 @@ theorem iInf_natCast_le_natCast_iff {f : ι → ℕ} {k : ℕ} :
   simp only [iInf_le_natCast_iff, natCast_le_natCast]
 
 /-- Any witness satisfying `P` bounds the least cost over `{w // P w}` from above. -/
-theorem iInf_subtype_le {w : α} (hw : P w) : (⨅ w : {w : α // P w}, c w.1) ≤ c w :=
-  iInf_le (fun w : {w : α // P w} => c w.1) ⟨w, hw⟩
+theorem iInf_subtype_le {w : α} (hw : P w) : (⨅ w : {w : α // P w}, c w.val) ≤ c w :=
+  iInf_le (fun w : {w : α // P w} => c w.val) ⟨w, hw⟩
 
 /-- Lower bounds on a subtype infimum are lower bounds on every witness satisfying `P`. -/
 theorem le_iInf_subtype_iff {k : ℕ∞} :
-    k ≤ (⨅ w : {w : α // P w}, c w.1) ↔ ∀ w, P w → k ≤ c w := by
+    k ≤ (⨅ w : {w : α // P w}, c w.val) ↔ ∀ w, P w → k ≤ c w := by
   simp only [le_iInf_iff, Subtype.forall]
 
 /-- Upper bounds by a finite budget `k` on a subtype infimum in `ℕ∞` are witnessed by some `w`
 satisfying `P`. -/
 theorem iInf_subtype_le_natCast_iff {k : ℕ} :
-    (⨅ w : {w : α // P w}, c w.1) ≤ k ↔ ∃ w, P w ∧ c w ≤ k := by
+    (⨅ w : {w : α // P w}, c w.val) ≤ k ↔ ∃ w, P w ∧ c w ≤ k := by
   simp only [iInf_le_natCast_iff, Subtype.exists, exists_prop]
 
 /-- Relaxing the witness predicate cannot increase the least cost. -/
 theorem iInf_subtype_mono (hPQ : ∀ w, P w → Q w) :
-    (⨅ w : {w : α // Q w}, c w.1) ≤ ⨅ w : {w : α // P w}, c w.1 :=
-  le_iInf fun w => iInf_le_of_le ⟨w.1, hPQ w.1 w.2⟩ le_rfl
+    (⨅ w : {w : α // Q w}, c w.val) ≤ ⨅ w : {w : α // P w}, c w.val :=
+  le_iInf fun w => iInf_le_of_le ⟨w.val, hPQ w.val w.property⟩ le_rfl
 
 /-- Mapping witnesses of `P` to witnesses of `R` without increasing cost bounds the least cost of
 `R` by that of `P`. -/
 theorem iInf_subtype_le_iInf_subtype {β : Sort*} {c' : β → ℕ∞} {R : β → Prop} (f : α → β)
     (hPR : ∀ w, P w → R (f w)) (hc : ∀ w, P w → c' (f w) ≤ c w) :
-    (⨅ u : {u : β // R u}, c' u.1) ≤ ⨅ w : {w : α // P w}, c w.1 :=
-  le_iInf fun w => (iInf_subtype_le (hPR w.1 w.2)).trans (hc w.1 w.2)
+    (⨅ u : {u : β // R u}, c' u.val) ≤ ⨅ w : {w : α // P w}, c w.val :=
+  le_iInf fun w => (iInf_subtype_le (hPR w.val w.property)).trans (hc w.val w.property)
 
 /-- Any witness satisfying `P` bounds the least natural-number cost over `{w // P w}`. -/
 theorem iInf_subtype_natCast_le {w : α} (hw : P w) :
-    (⨅ w : {w : α // P w}, (d w.1 : ℕ∞)) ≤ d w :=
+    (⨅ w : {w : α // P w}, (d w.val : ℕ∞)) ≤ d w :=
   iInf_subtype_le (c := fun w => (d w : ℕ∞)) hw
 
 /-- The least natural-number cost over `{w // P w}` is finite exactly when a witness exists. -/
 theorem iInf_subtype_natCast_ne_top_iff :
-    (⨅ w : {w : α // P w}, (d w.1 : ℕ∞)) ≠ ⊤ ↔ ∃ w, P w := by
+    (⨅ w : {w : α // P w}, (d w.val : ℕ∞)) ≠ ⊤ ↔ ∃ w, P w := by
   rw [ENat.iInf_natCast_ne_top, nonempty_subtype]
 
 /-- When a witness satisfying `P` exists, some witness attains the least natural-number cost. -/
 theorem exists_eq_iInf_subtype_natCast (h : ∃ w, P w) :
-    ∃ w, P w ∧ (d w : ℕ∞) = ⨅ w : {w : α // P w}, (d w.1 : ℕ∞) := by
+    ∃ w, P w ∧ (d w : ℕ∞) = ⨅ w : {w : α // P w}, (d w.val : ℕ∞) := by
   have : Nonempty {w : α // P w} := nonempty_subtype.mpr h
-  obtain ⟨⟨w, hw⟩, hmin⟩ := ENat.exists_eq_iInf (fun w : {w : α // P w} => (d w.1 : ℕ∞))
+  obtain ⟨⟨w, hw⟩, hmin⟩ := ENat.exists_eq_iInf (fun w : {w : α // P w} => (d w.val : ℕ∞))
   exact ⟨w, hw, hmin⟩
 
 /-- The least natural-number cost over `{w // P w}` is at most `k` iff some witness costs at most
 `k`. -/
 theorem iInf_subtype_natCast_le_natCast_iff {k : ℕ} :
-    (⨅ w : {w : α // P w}, (d w.1 : ℕ∞)) ≤ k ↔ ∃ w, P w ∧ d w ≤ k := by
+    (⨅ w : {w : α // P w}, (d w.val : ℕ∞)) ≤ k ↔ ∃ w, P w ∧ d w ≤ k := by
   simp only [iInf_natCast_le_natCast_iff, Subtype.exists, exists_prop]
 
 /-- Lower bounds on the least natural-number cost over `{w // P w}` are lower bounds on every
 witness satisfying `P`. -/
 theorem le_iInf_subtype_natCast_iff {k : ℕ∞} :
-    k ≤ (⨅ w : {w : α // P w}, (d w.1 : ℕ∞)) ↔ ∀ w, P w → k ≤ d w :=
+    k ≤ (⨅ w : {w : α // P w}, (d w.val : ℕ∞)) ↔ ∀ w, P w → k ≤ d w :=
   le_iInf_subtype_iff (c := fun w => (d w : ℕ∞))
 
 /-- Relaxing the witness predicate cannot increase the least natural-number cost. -/
 theorem iInf_subtype_natCast_mono (hPQ : ∀ w, P w → Q w) :
-    (⨅ w : {w : α // Q w}, (d w.1 : ℕ∞)) ≤ ⨅ w : {w : α // P w}, (d w.1 : ℕ∞) :=
+    (⨅ w : {w : α // Q w}, (d w.val : ℕ∞)) ≤ ⨅ w : {w : α // P w}, (d w.val : ℕ∞) :=
   iInf_subtype_mono (c := fun w => (d w : ℕ∞)) hPQ
 
 /-- `iInf_subtype_natCast_le` transported along an equivalence of witness predicates. -/
 theorem iInf_subtype_natCast_le_of_iff (hPQ : ∀ w, P w ↔ Q w) {w : α} (hw : Q w) :
-    (⨅ w : {w : α // P w}, (d w.1 : ℕ∞)) ≤ d w :=
+    (⨅ w : {w : α // P w}, (d w.val : ℕ∞)) ≤ d w :=
   iInf_subtype_natCast_le ((hPQ w).mpr hw)
 
 /-- `iInf_subtype_natCast_le_natCast_iff` transported along an equivalence of witness predicates. -/
 theorem iInf_subtype_natCast_le_natCast_iff_of_iff (hPQ : ∀ w, P w ↔ Q w) {k : ℕ} :
-    (⨅ w : {w : α // P w}, (d w.1 : ℕ∞)) ≤ k ↔ ∃ w, Q w ∧ d w ≤ k := by
+    (⨅ w : {w : α // P w}, (d w.val : ℕ∞)) ≤ k ↔ ∃ w, Q w ∧ d w ≤ k := by
   simp only [iInf_subtype_natCast_le_natCast_iff, hPQ]
 
 /-- `le_iInf_subtype_iff` transported along an equivalence of witness predicates. -/
 theorem le_iInf_subtype_iff_of_iff (hPQ : ∀ w, P w ↔ Q w) {k : ℕ∞} :
-    k ≤ (⨅ w : {w : α // P w}, c w.1) ↔ ∀ w, Q w → k ≤ c w := by
+    k ≤ (⨅ w : {w : α // P w}, c w.val) ↔ ∀ w, Q w → k ≤ c w := by
   simp only [le_iInf_subtype_iff, hPQ]
 
 /-- `le_iInf_subtype_natCast_iff` transported along an equivalence of witness predicates. -/
 theorem le_iInf_subtype_natCast_iff_of_iff (hPQ : ∀ w, P w ↔ Q w) {k : ℕ∞} :
-    k ≤ (⨅ w : {w : α // P w}, (d w.1 : ℕ∞)) ↔ ∀ w, Q w → k ≤ d w :=
+    k ≤ (⨅ w : {w : α // P w}, (d w.val : ℕ∞)) ↔ ∀ w, Q w → k ≤ d w :=
   le_iInf_subtype_iff_of_iff (c := fun w => (d w : ℕ∞)) hPQ
 
 section Indexed2
@@ -142,26 +142,26 @@ variable {β : Sort*} {γ : α → β → Sort*} {R S : ∀ a b, γ a b → Prop
 
 /-- Any witness in a two-parameter family bounds the least cost from above. -/
 theorem iInf₂_subtype_natCast_le {a : α} {b : β} {w : γ a b} (hw : R a b w) :
-    (⨅ (a : α) (b : β) (w : {w : γ a b // R a b w}), (g a b w.1 : ℕ∞)) ≤ g a b w :=
+    (⨅ (a : α) (b : β) (w : {w : γ a b // R a b w}), (g a b w.val : ℕ∞)) ≤ g a b w :=
   (iInf_le _ a).trans <| (iInf_le _ b).trans <| iInf_subtype_natCast_le hw
 
 /-- Lower bounds on a two-parameter subtype infimum are lower bounds on every witness. -/
 theorem le_iInf₂_subtype_natCast_iff {k : ℕ∞} :
-    k ≤ (⨅ (a : α) (b : β) (w : {w : γ a b // R a b w}), (g a b w.1 : ℕ∞)) ↔
+    k ≤ (⨅ (a : α) (b : β) (w : {w : γ a b // R a b w}), (g a b w.val : ℕ∞)) ↔
       ∀ a b (w : γ a b), R a b w → k ≤ g a b w := by
   simp only [le_iInf_iff, Subtype.forall]
 
 /-- Upper bounds by a finite budget `k` on a two-parameter subtype infimum are witnessed by some
 `a`, `b`, and `w`. -/
 theorem iInf₂_subtype_natCast_le_natCast_iff {k : ℕ} :
-    (⨅ (a : α) (b : β) (w : {w : γ a b // R a b w}), (g a b w.1 : ℕ∞)) ≤ k ↔
+    (⨅ (a : α) (b : β) (w : {w : γ a b // R a b w}), (g a b w.val : ℕ∞)) ≤ k ↔
       ∃ a b, ∃ w : γ a b, R a b w ∧ g a b w ≤ k := by
   simp only [iInf_le_natCast_iff, natCast_le_natCast, Subtype.exists, exists_prop]
 
 /-- Relaxing the witness predicate in a two-parameter family cannot increase the least cost. -/
 theorem iInf₂_subtype_natCast_mono (hRS : ∀ a b w, R a b w → S a b w) :
-    (⨅ (a : α) (b : β) (w : {w : γ a b // S a b w}), (g a b w.1 : ℕ∞)) ≤
-      ⨅ (a : α) (b : β) (w : {w : γ a b // R a b w}), (g a b w.1 : ℕ∞) :=
+    (⨅ (a : α) (b : β) (w : {w : γ a b // S a b w}), (g a b w.val : ℕ∞)) ≤
+      ⨅ (a : α) (b : β) (w : {w : γ a b // R a b w}), (g a b w.val : ℕ∞) :=
   le_iInf₂_subtype_natCast_iff.mpr fun _ _ _ hw => iInf₂_subtype_natCast_le (hRS _ _ _ hw)
 
 end Indexed2

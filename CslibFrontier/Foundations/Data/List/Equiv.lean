@@ -105,7 +105,7 @@ theorem ofFn_appendIndexEquiv (left right : List α) (f : Fin (left ++ right).le
 theorem getElem_appendIndexEquiv_inl (left right : List α) (i : Fin left.length) :
     (left ++ right)[appendIndexEquiv left right (.inl i)] = left[i] := by
   simp only [Fin.getElem_fin, val_appendIndexEquiv_inl]
-  exact getElem_append_left i.2
+  exact getElem_append_left i.isLt
 
 theorem getElem_appendIndexEquiv_inr (left right : List α) (j : Fin right.length) :
     (left ++ right)[appendIndexEquiv left right (.inr j)] = right[j] := by

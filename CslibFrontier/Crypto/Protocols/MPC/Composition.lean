@@ -255,9 +255,9 @@ proof-domain indexed `m`-party family `fun i s _ => c_k s`. -/
 /-- Push a coalition-restricted `J`-tuple `c_J : (s : subCoalition parties I) → F s.1` forward
 along `parties : Fin k ↪ Fin m` to `(i : I) → (s : Fin k) → (parties s = i.1) → F s`. -/
 @[expose] def pushTupleRestrict {k m : ℕ} (parties : Fin k ↪ Fin m) (I : Finset (Fin m))
-    {F : Fin k → Type} (c_J : (s : subCoalition parties I) → F s.1) (i : I) :
-    (s : Fin k) → (parties s = i.1) → F s :=
-  fun s hs => c_J ⟨s, mem_subCoalition.2 (hs.symm ▸ i.2)⟩
+    {F : Fin k → Type} (c_J : (s : subCoalition parties I) → F s.val) (i : I) :
+    (s : Fin k) → (parties s = i.val) → F s :=
+  fun s hs => c_J ⟨s, mem_subCoalition.2 (hs.symm ▸ i.property)⟩
 
 private theorem restrict_pushTuple {k m : ℕ} (parties : Fin k ↪ Fin m) (I : Finset (Fin m))
     {F : Fin k → Type} (c_k : (s : Fin k) → F s) :
@@ -349,21 +349,21 @@ parties in `sc.map (Round.embed parties)`. -/
 s.1` forward to `(i : I) → (Round.embed parties r).Received i.1`. -/
 @[expose] def pushRoundReceivedRestrict {k m : ℕ} {spec : MultiOracleSpec}
     (parties : Fin k ↪ Fin m) (I : Finset (Fin m)) (r : Round k spec)
-    (recv_J : (s : subCoalition parties I) → r.Received s.1) (i : I) :
-    (Round.embed parties r).Received i.1 :=
+    (recv_J : (s : subCoalition parties I) → r.Received s.val) (i : I) :
+    (Round.embed parties r).Received i.val :=
   match r with
   | .message _ r₀ _ =>
-    fun hr => recv_J ⟨r₀, mem_subCoalition.2 (hr ▸ i.2)⟩ rfl
+    fun hr => recv_J ⟨r₀, mem_subCoalition.2 (hr ▸ i.property)⟩ rfl
   | .oracle _ subParties =>
-    fun t ht => recv_J ⟨subParties t, mem_subCoalition.2 (ht.symm ▸ i.2)⟩ t rfl
+    fun t ht => recv_J ⟨subParties t, mem_subCoalition.2 (ht.symm ▸ i.property)⟩ t rfl
 
 /-- Push a coalition-restricted received transcript
 `recv_J : (s : subCoalition parties I) → sc.Received s.1` forward to
 `(i : I) → Schedule.Received (sc.map (Round.embed parties)) i.1`. -/
 @[expose] def pushScheduleReceivedRestrict {k m : ℕ} {spec : MultiOracleSpec}
     (parties : Fin k ↪ Fin m) (I : Finset (Fin m)) :
-    (sc : Schedule k spec) → ((s : subCoalition parties I) → sc.Received s.1) →
-      (i : I) → Schedule.Received (sc.map (Round.embed parties)) i.1
+    (sc : Schedule k spec) → ((s : subCoalition parties I) → sc.Received s.val) →
+      (i : I) → Schedule.Received (sc.map (Round.embed parties)) i.val
   | [], _, _ => ()
   | r :: sc, recv_J, i =>
     (pushRoundReceivedRestrict parties I r (fun s => (recv_J s).1) i,
@@ -541,9 +541,9 @@ simulator `S₂ op (subCoalition parties I)` at every `.oracle op parties` round
     (S₂ : (op : spec₁.Op) → (J : Finset (Fin (spec₁.arity op))) →
       CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J)
     (I : Finset (Fin m)) (steps : Steps State Out sc₁)
-    (stI : (i : I) → State i.1) (recvI : (i : I) → sc₁.Received i.1) :
-    ProbComp ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) :=
+    (stI : (i : I) → State i.val) (recvI : (i : I) → sc₁.Received i.val) :
+    ProbComp ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.val) :=
   match steps with
   | .done _ =>
     pure (fun _ => ((), ()))
@@ -553,10 +553,10 @@ simulator `S₂ op (subCoalition parties I)` at every `.oracle op parties` round
     return fun i => ((rest i).1, ((recvI i).1, (rest i).2))
   | .oracle (op := op) (parties := parties) query next => do
     let J := subCoalition parties I
-    let qJ : (s : J) → spec₁.Query op s.1 :=
-      fun s => query s.1 (stI ⟨parties s.1, mem_subCoalition.1 s.2⟩)
-    let aJ : (s : J) → spec₁.Answer op s.1 :=
-      fun s => (recvI ⟨parties s.1, mem_subCoalition.1 s.2⟩).1 s.1 rfl
+    let qJ : (s : J) → spec₁.Query op s.val :=
+      fun s => query s.val (stI ⟨parties s.val, mem_subCoalition.1 s.property⟩)
+    let aJ : (s : J) → spec₁.Answer op s.val :=
+      fun s => (recvI ⟨parties s.val, mem_subCoalition.1 s.property⟩).1 s.val rfl
     let v_sub ← S₂ op J qJ aJ
     let rest ← expandSimSteps S₂ I next
       (fun i => (stI i, (recvI i).1)) (fun i => (recvI i).2)
@@ -588,7 +588,7 @@ private theorem evalWith_compose_steps_eq_hybrid {m : ℕ} {spec₁ spec₂ : Mu
         fun sub => (sub, fun i => steps.outputAt i (st i) (recv₁ i))) =
     (ProbComp.eval (OracleComp.pi (sampleSubCoins Sub sc₁))).bind fun c_sub =>
       ((Steps.compose Sub steps).evalWith W₂ (fun i => (st i, c_sub i))).map fun recv₂ =>
-        (fun i : I => (c_sub i.1, recv₂ i.1),
+        (fun i : I => (c_sub i.val, recv₂ i.val),
           fun i => (Steps.compose Sub steps).outputAt i (st i, c_sub i) (recv₂ i)) := by
   induction steps with
   | done output =>
@@ -599,11 +599,11 @@ private theorem evalWith_compose_steps_eq_hybrid {m : ℕ} {spec₁ spec₂ : Mu
       Steps.outputAt_mapState]
     have hih := ih (fun i => (st i, Round.deliverMessage (send (st s₀)) i))
     simp only [Finset.restrict_def] at hih
-    have hmap := congrArg (PMF.map fun res : ((i : I) → Schedule.SubCoins Coins₂ _ i.1 ×
-          Schedule.Received (Schedule.compose sc₂ _) i.1) × ((i : Fin m) → _) =>
+    have hmap := congrArg (PMF.map fun res : ((i : I) → Schedule.SubCoins Coins₂ _ i.val ×
+          Schedule.Received (Schedule.compose sc₂ _) i.val) × ((i : Fin m) → _) =>
         (fun i : I => ((res.1 i).1,
           (Round.deliverMessage (spec := spec₂) (sender := s₀) (receiver := r₀)
-            (send (st s₀)) i.1, (res.1 i).2)), res.2)) hih
+            (send (st s₀)) i.val, (res.1 i).2)), res.2)) hih
     simp only [pmf_norm] at hmap
     exact hmap
   | @oracle _ _ op parties rest query next ih =>
@@ -677,7 +677,7 @@ private theorem evalWith_compose_steps_eq_hybrid {m : ℕ} {spec₁ spec₂ : Mu
     refine congrArg (PMF.map · _) (funext fun r_tail => ?_)
     refine Prod.ext (funext fun i => ?_) rfl
     exact Prod.ext rfl
-      (congrArg (Schedule.Received.append · (r_tail i.1))
+      (congrArg (Schedule.Received.append · (r_tail i.val))
         (congrFun (restrict_pushScheduleReceived parties I (sc₂ op) r_sub) i).symm)
 
 end Composition
@@ -748,8 +748,8 @@ theorem PerfectSemiHonestPrivate.compose {m : ℕ} {spec₁ spec₂ : MultiOracl
       ProbComp.eval (idealJoint f I (composeSim P S₁ S₂ I) x) =
         (P.realJoint W₁ I x).bind fun ⟨v₁, y⟩ =>
           (ProbComp.eval (expandSimSteps S₂ I P.steps
-            (fun i => (x i.1, (v₁ i).coins)) (fun i => (v₁ i).received))).map fun sub =>
-              (fun i : I => ⟨x i.1, ((v₁ i).coins, (sub i).1), (sub i).2⟩, y) := by
+            (fun i => (x i.val, (v₁ i).coins)) (fun i => (v₁ i).received))).map fun sub =>
+              (fun i : I => ⟨x i.val, ((v₁ i).coins, (sub i).1), (sub i).2⟩, y) := by
     rw [← hP I x]
     simp [idealJoint, composeSim, PMF.bind_bind, PMF.bind_map, Function.comp_def]
   rw [houter]
@@ -758,11 +758,11 @@ theorem PerfectSemiHonestPrivate.compose {m : ℕ} {spec₁ spec₂ : MultiOracl
     Prod.map_apply, Finset.restrict_def, id_eq]
   refine congrArg (ProbComp.eval (OracleComp.pi P.sampleCoins)).bind (funext fun c₁ => ?_)
   have hsteps := evalWith_compose_steps_eq_hybrid hSub I P.steps (fun i => (x i, c₁ i))
-  have hmap := congrArg (PMF.map fun res : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-        Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) =>
+  have hmap := congrArg (PMF.map fun res : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+        Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i) =>
       (fun i : I =>
-        (⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩ :
-          PartyView In (Schedule.ComposedCoins Coins₂ Coins₁ sc₁) (Schedule.compose sc₂ sc₁) i.1),
+        (⟨x i.val, (c₁ i.val, (res.1 i).1), (res.1 i).2⟩ :
+          PartyView In (Schedule.ComposedCoins Coins₂ Coins₁ sc₁) (Schedule.compose sc₂ sc₁) i.val),
         res.2)) hsteps
   simp only [pmf_norm, Finset.restrict_def] at hmap ⊢
   exact hmap
@@ -805,7 +805,7 @@ Proposition 7.3.4 on p. 639): takes party inputs `(x_i, r_i)` and evaluates
     (I : Finset (Fin m)) :
     CoalitionSimulator sc In Coins Out I :=
   fun xI yI => do
-    let v ← S I (fun i => enc i.1 (xI i)) yI
+    let v ← S I (fun i => enc i.val (xI i)) yI
     return fun i => ⟨xI i, (v i).coins, (v i).received⟩
 
 /-- Perfect semi-honest privacy is preserved under local input encodings `Protocol.mapInput`. -/
@@ -822,9 +822,9 @@ theorem PerfectSemiHonestPrivate.mapInput {m : ℕ} {spec : MultiOracleSpec}
   intro I x
   have h := hP I (fun i => enc i (x i))
   have hmap := congrArg (PMF.map fun res :
-        ((i : I) → PartyView In' Coins sc i.1) × ((i : Fin m) → Out i) =>
+        ((i : I) → PartyView In' Coins sc i.val) × ((i : Fin m) → Out i) =>
       (fun i : I =>
-        (⟨x i.1, (res.1 i).coins, (res.1 i).received⟩ : PartyView In Coins sc i.1),
+        (⟨x i.val, (res.1 i).coins, (res.1 i).received⟩ : PartyView In Coins sc i.val),
         res.2)) h
   simp only [pmf_norm, idealJoint, mapInputSim, Protocol.realJoint, Protocol.evalWith_eq,
     Protocol.outputOfView, Protocol.mapInput, Steps.evalWith_mapState, Steps.outputAt_mapState,
@@ -954,8 +954,8 @@ theorem perfectSemiHonestPrivate_randomizedWrapper {m : ℕ}
           fun r =>
             (P.realJoint W I (fun i => (x i, r i))).map fun res =>
               (fun i : I =>
-                (⟨x i.1, (r i.1, (res.1 i).coins), (res.1 i).received⟩ :
-                  PartyView In (fun i => BitString coins × Coins i) sc i.1),
+                (⟨x i.val, (r i.val, (res.1 i).coins), (res.1 i).received⟩ :
+                  PartyView In (fun i => BitString coins × Coins i) sc i.val),
                 res.2) := by
     simp only [pmf_norm, Protocol.realJoint, Protocol.evalWith_eq, Protocol.outputOfView,
       Protocol.randomizedWrapper, eval_pi_pair, Steps.evalWith_mapState, Steps.outputAt_mapState,
@@ -965,11 +965,11 @@ theorem perfectSemiHonestPrivate_randomizedWrapper {m : ℕ}
       (P.randomizedWrapper coins).realJoint W I x =
         (ProbComp.eval (OracleComp.pi (fun _ : Fin m => ProbComp.uniform (BitString coins)))).bind
           fun r =>
-            (ProbComp.eval (S I (fun i => (x i.1, I.restrict r i))
+            (ProbComp.eval (S I (fun i => (x i.val, I.restrict r i))
               (I.restrict (g (∑ j : Fin m, r j) x)))).map fun v =>
                 (fun i : I =>
-                  (⟨x i.1, (I.restrict r i, (v i).coins), (v i).received⟩ :
-                    PartyView In (fun i => BitString coins × Coins i) sc i.1),
+                  (⟨x i.val, (I.restrict r i, (v i).coins), (v i).received⟩ :
+                    PartyView In (fun i => BitString coins × Coins i) sc i.val),
                   g (∑ j : Fin m, r j) x) := by
     rw [hreal]
     refine congrArg (ProbComp.eval _).bind (funext fun r => ?_)
@@ -978,10 +978,10 @@ theorem perfectSemiHonestPrivate_randomizedWrapper {m : ℕ}
       PMF.map_comp, Function.comp_def, Finset.restrict_def]
   -- 3. Apply `bind_restrict_and_sum_pi_uniform` to decouple `I.restrict r` from `∑ j, r j`.
   rw [hsub, bind_restrict_and_sum_pi_uniform coins hI (k := fun rI s =>
-    (ProbComp.eval (S I (fun i => (x i.1, rI i)) (I.restrict (g s x)))).map fun v =>
+    (ProbComp.eval (S I (fun i => (x i.val, rI i)) (I.restrict (g s x)))).map fun v =>
       (fun i : I =>
-        (⟨x i.1, (rI i, (v i).coins), (v i).received⟩ :
-          PartyView In (fun i => BitString coins × Coins i) sc i.1),
+        (⟨x i.val, (rI i, (v i).coins), (v i).received⟩ :
+          PartyView In (fun i => BitString coins × Coins i) sc i.val),
         g s x))]
   -- 4. Swap the `rI` and `s` binds to match `idealJoint` of `randomizedFunctionality`.
   symm

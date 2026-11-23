@@ -824,7 +824,7 @@ private theorem dpSpec_dpDecideAlg_eq {q : ℕ} (hq : 0 < q) (sem : Rel → List
         dpAlgFold_bool]
       congr 1
       simp only [eq_iff_iff]
-      refine ⟨fun ⟨d, hd, h⟩ => ⟨⟨d, hd⟩, ?_⟩, fun ⟨d, h⟩ => ⟨d.1, d.isLt, ?_⟩⟩
+      refine ⟨fun ⟨d, hd, h⟩ => ⟨⟨d, hd⟩, ?_⟩, fun ⟨d, h⟩ => ⟨d.val, d.isLt, ?_⟩⟩
       · simpa only [dite_eq_left hd, dpSpec_dpDecideAlg_eq] using h
       · simpa only [dite_eq_left d.isLt, Fin.eta, dpSpec_dpDecideAlg_eq] using h
     · exact dpSpec_dpDecideAlg_eq hq sem F U child _

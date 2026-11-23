@@ -115,7 +115,7 @@ def index (r : Σ n, L.Relations n) : ℕ :=
 
 /-- The table index of any relation symbol `r` is strictly less than `v.count`. -/
 theorem index_lt (r : Σ n, L.Relations n) : v.index r < v.count :=
-  (v.symbol.symm r).2
+  (v.symbol.symm r).isLt
 
 /-- The arity of the relation symbol at a position. -/
 def arity (i : Fin v.count) : ℕ :=

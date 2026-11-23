@@ -385,7 +385,7 @@ private theorem norm_det_vandermonde_sq_le {d : ℕ} (hd : 2 ≤ d) (r : Fin d �
         _ = (max 1 ‖r i‖) ^ (2 * (k : ℕ)) := by rw [mul_comm]
         _ ≤ (max 1 ‖r i‖) ^ (2 * (d - 1)) := by
             refine pow_le_pow_right₀ h1M ?_
-            have hk : (k : ℕ) < d := k.2
+            have hk : (k : ℕ) < d := k.isLt
             omega
     calc ∑ k : Fin d, ‖W i k‖ ^ 2
         ≤ ∑ _k : Fin d, (max 1 ‖r i‖) ^ (2 * (d - 1)) := Finset.sum_le_sum fun k _ => hentry k
@@ -402,7 +402,7 @@ private theorem norm_det_vandermonde_sq_le {d : ℕ} (hd : 2 ≤ d) (r : Fin d �
         simp only [W, Matrix.updateRow_self, Pi.add_apply, Pi.smul_apply, smul_eq_mul, neg_mul,
           one_mul, ← sub_eq_add_neg, V, Matrix.vandermonde_apply]
       rw [hWj]
-      have hdiff := norm_pow_sub_pow_le hnorm k.2 hd
+      have hdiff := norm_pow_sub_pow_le hnorm k.isLt hd
       rw [norm_sub_rev (r j₀) (r i₀)] at hdiff
       have hsq : ‖r j₀ ^ (k : ℕ) - r i₀ ^ (k : ℕ)‖ ^ 2 ≤
           (‖r i₀ - r j₀‖ * (k : ℝ) * (max 1 ‖r j₀‖) ^ (d - 2)) ^ 2 := by
@@ -499,7 +499,7 @@ theorem mignotte_sep_mahler_complex {p : ℤ[X]} (hd : 2 ≤ p.natDegree)
   have hlen : pC.roots.toList.length = pC.natDegree := by
     rw [Multiset.length_toList, ← hsplits.natDegree_eq_card_roots]
   let L := pC.roots.toList
-  let r : Fin pC.natDegree → ℂ := fun i => L[i.1]'(i.2.trans_eq hlen.symm)
+  let r : Fin pC.natDegree → ℂ := fun i => L[i.val]'(i.isLt.trans_eq hlen.symm)
   have hList_eq : List.ofFn r = L := by
     refine List.ext_get ?_ fun n hn1 hn2 => ?_
     · rw [List.length_ofFn]

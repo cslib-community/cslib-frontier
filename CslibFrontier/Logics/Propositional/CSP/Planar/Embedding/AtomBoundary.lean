@@ -266,7 +266,7 @@ theorem restrictPrefix_atomBoundaryCertificate (n : ℕ) :
   · rw [length_restrictPrefix, atomBodyCertificate, Graph.RotationCertificate.length_ofRotation]
     simp [starGraph]
   · intro k hk hl
-    have hlt : k < 2 * (starGraph n).2.length := by
+    have hlt : k < 2 * (starGraph n).edges.length := by
       simpa only [length_restrictPrefix, starGraph, List.length_map, List.length_finRange] using hk
     let d := (Graph.Dart.indexEquiv (starGraph n)).symm ⟨k, hlt⟩
     obtain ⟨⟨i, b⟩, hd⟩ := (starDartEquiv n).surjective d

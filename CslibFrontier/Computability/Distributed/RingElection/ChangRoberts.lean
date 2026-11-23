@@ -1119,7 +1119,7 @@ private theorem mul_sum_crHops_perm_eq {n : ℕ} [NeZero n] (v : Fin n) :
   let S : Finset (Fin n) := Finset.univ.filter fun u : Fin n => v ≤ u
   have hS_card : S.card = n - v.val := by
     have hbij : S = (Finset.Ico v.val n).attach.map
-        ⟨fun x => ⟨x.1, (Finset.mem_Ico.mp x.2).2⟩, fun a b h => by
+        ⟨fun x => ⟨x.val, (Finset.mem_Ico.mp x.property).2⟩, fun a b h => by
           ext; exact congrArg Fin.val h⟩ := by
       ext u
       simp only [S, Finset.mem_filter, Finset.mem_univ, true_and, Fin.le_def, Finset.mem_map,

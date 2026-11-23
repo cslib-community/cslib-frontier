@@ -83,7 +83,7 @@ def HasExtension (M : Type*) [Language.graph.Structure M] (k : ℕ) (s : Fin k �
 witnesses the extension by `s`. -/
 private noncomputable def extensionBody {k : ℕ} (s : Fin k → Bool) :
     Language.graph.Formula (Fin k) :=
-  (Formula.iInf fun p : {p : Fin k × Fin k // p.1 ≠ p.2} => ∼(varEq p.1.1 p.1.2)) ⟹
+  (Formula.iInf fun p : {p : Fin k × Fin k // p.1 ≠ p.2} => ∼(varEq p.val.1 p.val.2)) ⟹
     Formula.iExs (Fin 1)
       (Formula.iInf fun i : Fin k =>
         ∼(varEq (Sum.inr 0) (Sum.inl i)) ⊓
@@ -104,7 +104,7 @@ theorem realize_extensionAxiom {k : ℕ} (s : Fin k → Bool) :
     realize_varEq, Formula.realize_iExs, Formula.realize_inf]
   constructor
   · intro h hx
-    obtain ⟨z, hz⟩ := h fun p hp => p.2 (hx hp)
+    obtain ⟨z, hz⟩ := h fun p hp => p.property (hx hp)
     refine ⟨z 0, fun i => (hz i).1, fun i => ?_⟩
     have := (hz i).2
     cases hs : s i <;> simp only [hs, Bool.false_eq_true, iff_false, ↓reduceIte,
@@ -234,7 +234,7 @@ theorem isExtensionPair_of_hasExtension {N : Type*} [Language.graph.Structure N]
       Language.graph.Substructure M), (u : M) ∉ S → g u = z := fun u h => dite_eq_right h
   have hm_of_not_mem : ∀ u : (Substructure.closure Language.graph {m} ⊔ S :
       Language.graph.Substructure M), (u : M) ∉ S → (u : M) = m := fun u h =>
-    ((hU u).1 u.2).resolve_right h
+    ((hU u).1 u.property).resolve_right h
   refine ⟨embeddingOfAdj g ?_ ?_, ?_⟩
   · intro u v huv
     apply Subtype.ext
@@ -260,7 +260,7 @@ theorem isExtensionPair_of_hasExtension {N : Type*} [Language.graph.Structure N]
   · ext a
     simp only [Embedding.comp_apply, Substructure.coe_inclusion]
     change f a = g _
-    rw [hg_of_mem _ a.2]
+    rw [hg_of_mem _ a.property]
 
 /-- The theory of the random graph is `ℵ₀`-categorical: any two countable models are isomorphic,
 by a back-and-forth argument [Libkin2004, Chapter 12]. -/

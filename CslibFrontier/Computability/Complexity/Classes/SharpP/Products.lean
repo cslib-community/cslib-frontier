@@ -83,7 +83,7 @@ theorem acceptCount_indexedProductVerifier (r k : α → ℕ)
   constructor
   · intro h i
     simpa only [BitString.listRow_eq_ofFn (k a) i, BitString.ofList_ofFn,
-      BitString.blocksEquiv_apply] using h i i.2
+      BitString.blocksEquiv_apply] using h i i.isLt
   · intro h i hi
     simpa only [BitString.listRow_eq_ofFn (k a) ⟨i, hi⟩, BitString.ofList_ofFn,
       BitString.blocksEquiv_apply] using h ⟨i, hi⟩
@@ -150,6 +150,6 @@ theorem GapP.prod_range_mem {g : α × ℕ → ℤ} {r : α → ℕ}
   rw [← Fin.prod_univ_eq_prod_range]
   apply prod_congr rfl
   intro i _
-  simp [select, List.getD, i.2]
+  simp [select, List.getD, i.isLt]
 
 end Cslib.Complexity

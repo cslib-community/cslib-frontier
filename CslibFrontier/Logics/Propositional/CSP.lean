@@ -275,10 +275,10 @@ theorem modelCountOn_denseRelabel [Fintype D] [Inhabited D] (sem : Rel → List 
     rcases hi' with ⟨v, hv, rfl⟩
     exact ⟨v, List.mem_toFinset.mpr hv, rfl⟩
   let eVar : S ≃ R := Equiv.ofBijective
-    (fun v => ⟨F.distinctVars.idxOf v.1, hmem_range v.1 v.2⟩)
-    ⟨fun v w h => Subtype.ext (hinj v.1 v.2 w.1 w.2 (Subtype.mk.inj h)),
+    (fun v => ⟨F.distinctVars.idxOf v.val, hmem_range v.val v.property⟩)
+    ⟨fun v w h => Subtype.ext (hinj v.val v.property w.val w.property (Subtype.mk.inj h)),
      fun i => by
-       obtain ⟨v, hv, hvi⟩ := hsurj i.1 i.2
+       obtain ⟨v, hv, hvi⟩ := hsurj i.val i.property
        exact ⟨⟨v, hv⟩, Subtype.ext hvi⟩⟩
   have heVar (v : V) (hvS : v ∈ S) :
       eVar ⟨v, hvS⟩ = ⟨F.distinctVars.idxOf v, hmem_range v hvS⟩ := rfl
@@ -324,7 +324,7 @@ theorem modelCount_pos_iff [Fintype D] [Inhabited D] {sem : Rel → List D → B
   · rintro ⟨σ, -, hσ⟩
     exact ⟨_, hσ⟩
   · rintro ⟨σ, hσ⟩
-    refine ⟨fun v => σ v.1, Finset.mem_univ _, ?_⟩
+    refine ⟨fun v => σ v.val, Finset.mem_univ _, ?_⟩
     refine (eval_congr fun v hv => ?_).trans hσ
     have hv' : v ∈ F.vars.toFinset := List.mem_toFinset.mpr hv
     simp [hv']

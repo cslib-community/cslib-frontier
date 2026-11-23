@@ -93,8 +93,8 @@ theorem lazyRandomWalk_apply_comm (x y : ι → Bool) :
   rw [uniformOfFintype_map_apply, uniformOfFintype_map_apply]
   congr 2
   refine Nat.card_congr
-    { toFun := fun p => ⟨(p.1.1, x p.1.1), ?_⟩
-      invFun := fun p => ⟨(p.1.1, y p.1.1), ?_⟩
+    { toFun := fun p => ⟨(p.val.1, x p.val.1), ?_⟩
+      invFun := fun p => ⟨(p.val.1, y p.val.1), ?_⟩
       left_inv := fun p => ?_
       right_inv := fun p => ?_ } <;>
   · obtain ⟨⟨i, b⟩, hp⟩ := p

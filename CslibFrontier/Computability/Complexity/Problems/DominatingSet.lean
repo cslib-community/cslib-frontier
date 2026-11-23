@@ -133,17 +133,17 @@ theorem mem_DominatingSet_iff {G : Graph} {k : ℕ} :
   constructor
   · rintro ⟨S, hS, hcard⟩
     refine ⟨S.map (.subtype _),
-      fun v hv => by obtain ⟨u, _, rfl⟩ := Finset.mem_map.1 hv; exact u.2,
+      fun v hv => by obtain ⟨u, _, rfl⟩ := Finset.mem_map.1 hv; exact u.property,
       fun v hv => ?_, (Finset.card_map _).trans hcard⟩
     rcases SimpleGraph.isDominatingSet_iff.1 hS ⟨v, hv⟩ with h | ⟨s, hs, hadj⟩
     · exact Or.inl (Finset.mem_map_of_mem _ h)
-    · exact Or.inr ⟨s.1, Finset.mem_map_of_mem (.subtype _) hs, hadj⟩
+    · exact Or.inr ⟨s.val, Finset.mem_map_of_mem (.subtype _) hs, hadj⟩
   · rintro ⟨S, hSV, hS, rfl⟩
     have hmap : (S.subtype (· ∈ G.vertices)).map (.subtype _) = S :=
       (Finset.subtype_map _).trans (Finset.filter_eq_self.mpr hSV)
     refine ⟨S.subtype (· ∈ G.vertices), SimpleGraph.isDominatingSet_iff.2 fun v => ?_,
       by rw [← Finset.card_map (.subtype _), hmap]⟩
-    rcases hS v.1 v.2 with h | ⟨s, hs, hadj⟩
+    rcases hS v.val v.property with h | ⟨s, hs, hadj⟩
     · exact Or.inl (Finset.mem_coe.2 (Finset.mem_subtype.2 h))
     · exact Or.inr ⟨⟨s, hSV s hs⟩, Finset.mem_coe.2 (Finset.mem_subtype.2 hs), hadj⟩
 
@@ -387,23 +387,23 @@ private theorem mem_DominatingSet_of_mem_VertexCover {G : Graph} {k : ℕ}
 `k` vertices: drop the hub and the pendant, and read the remaining vertices back in `G`. -/
 private theorem exists_cover_of_mem_DominatingSet {G : Graph} {k : ℕ}
     (h : (⟨dominationGraph G, k + 1⟩ : DominatingSetInstance) ∈ DominatingSet) :
-    ∃ S : Finset ℕ, (∀ v ∈ S, v ∈ G.1) ∧
-      (∀ u ∈ G.1, ∀ v ∈ G.1, G.toSimpleGraph.Adj u v → u ∈ S ∨ v ∈ S) ∧ S.card ≤ k := by
+    ∃ S : Finset ℕ, (∀ v ∈ S, v ∈ G.vertices) ∧
+      (∀ u ∈ G.vertices, ∀ v ∈ G.vertices, G.toSimpleGraph.Adj u v → u ∈ S ∨ v ∈ S) ∧ S.card ≤ k := by
   classical
   obtain ⟨D, hDV, hD, hcard⟩ := mem_DominatingSet_iff.1 h
-  have hmem : ∀ w ∈ D, w ≠ 1 → w ≠ 3 → decodeVertex w ∈ G.1 →
-      decodeVertex w ∈ (((D.erase 1).erase 3).image decodeVertex).filter (· ∈ G.1) :=
+  have hmem : ∀ w ∈ D, w ≠ 1 → w ≠ 3 → decodeVertex w ∈ G.vertices →
+      decodeVertex w ∈ (((D.erase 1).erase 3).image decodeVertex).filter (· ∈ G.vertices) :=
     fun w hw h1 h3 hG => Finset.mem_filter.2 ⟨Finset.mem_image_of_mem _
       (Finset.mem_erase.2 ⟨h3, Finset.mem_erase.2 ⟨h1, hw⟩⟩), hG⟩
   -- A chosen copy `2v` of a declared vertex `v` puts `v` in the cover.
-  have hdouble : ∀ v ∈ G.1, 2 * v ∈ D →
-      v ∈ (((D.erase 1).erase 3).image decodeVertex).filter (· ∈ G.1) := fun v hv hvD => by
+  have hdouble : ∀ v ∈ G.vertices, 2 * v ∈ D →
+      v ∈ (((D.erase 1).erase 3).image decodeVertex).filter (· ∈ G.vertices) := fun v hv hvD => by
     have := hmem _ hvD (by omega) (by omega) (by rw [decodeVertex_double]; exact hv)
     rwa [decodeVertex_double] at this
   -- The vertex of a proper edge is dominated by itself or by the copy of an endpoint.
   have hedge : ∀ e ∈ properEdges G,
-      e.1 ∈ (((D.erase 1).erase 3).image decodeVertex).filter (· ∈ G.1) ∨
-        e.2 ∈ (((D.erase 1).erase 3).image decodeVertex).filter (· ∈ G.1) := fun e he => by
+      e.1 ∈ (((D.erase 1).erase 3).image decodeVertex).filter (· ∈ G.vertices) ∨
+        e.2 ∈ (((D.erase 1).erase 3).image decodeVertex).filter (· ∈ G.vertices) := fun e he => by
     obtain ⟨-, he1, he2, -⟩ := mem_properEdges.1 he
     rcases hD _ (mem_dominationGraph_fst.2 (Or.inr (Or.inr (Or.inr ⟨e, he, rfl⟩)))) with
       hw | ⟨s, hs, hadj⟩

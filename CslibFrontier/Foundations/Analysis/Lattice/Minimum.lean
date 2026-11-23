@@ -244,14 +244,14 @@ theorem exists_linearIndependent_norm_le_successiveMinimum
   obtain ⟨s, hsB, hscard⟩ := Finset.exists_subset_card_eq hcard
   let e : Fin k ≃ s := (Fintype.equivFinOfCardEq (by simp [hscard])).symm
   refine ⟨fun i => (e i : E), ?_, ?_, ?_⟩
-  · have hsubB : ∀ x : s, (x : E) ∈ B := fun x => hBfin.mem_toFinset.1 (hsB x.2)
+  · have hsubB : ∀ x : s, (x : E) ∈ B := fun x => hBfin.mem_toFinset.1 (hsB x.property)
     have hcomp : (fun i : Fin k => (e i : E)) =
         ((↑) : B → E) ∘ (fun i : Fin k => ⟨(e i : E), hsubB (e i)⟩) := rfl
     rw [hcomp]
     refine hliB.comp _ fun i j hij => e.injective (Subtype.ext ?_)
     exact congrArg (Subtype.val : B → E) hij
-  · exact fun i => (hBA (hBfin.mem_toFinset.1 (hsB (e i).2))).1
-  · exact fun i => (hBA (hBfin.mem_toFinset.1 (hsB (e i).2))).2
+  · exact fun i => (hBA (hBfin.mem_toFinset.1 (hsB (e i).property))).1
+  · exact fun i => (hBA (hBfin.mem_toFinset.1 (hsB (e i).property))).2
 
 variable [ProperSpace E]
 

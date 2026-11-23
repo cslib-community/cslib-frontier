@@ -91,7 +91,7 @@ theorem realize_interpret {G : Type*} {E : ℕ → List G → Prop} {P : G → P
       · simp [Function.update_of_ne hyx, hwu y hy]
     constructor
     · intro h m
-      exact (realize_interpret hD hθ φ hat hB.2 _ _ (hupd m)).1 (h m m.2)
+      exact (realize_interpret hD hθ φ hat hB.2 _ _ (hupd m)).1 (h m m.property)
     · intro h g hg
       exact (realize_interpret hD hθ φ hat hB.2 _ _ (hupd ⟨g, hg⟩)).2 (h ⟨g, hg⟩)
 

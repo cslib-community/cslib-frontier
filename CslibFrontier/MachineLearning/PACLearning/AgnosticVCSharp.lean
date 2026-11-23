@@ -177,7 +177,7 @@ theorem card_filter_swapSamples_exists_le_abs_le {Z : Type*} {G : ConceptClass Z
     refine (sq_le_one_iff_abs_le_one _).1 ?_
     rw [mul_pow, hs, one_mul]
     simp only [a]
-    cases g.1 (z.1 i) <;> cases g.1 (z.2 i) <;> norm_num
+    cases g.val (z.1 i) <;> cases g.val (z.2 i) <;> norm_num
   have hnorm (s : ℝ) (hs : s ^ 2 = 1) (g : G) : ∑ i, (s * a g i) ^ 2 ≤ √m ^ 2 := by
     rw [Real.sq_sqrt (Nat.cast_nonneg m)]
     calc ∑ i, (s * a g i) ^ 2 ≤ ∑ _i : Fin m, (1 : ℝ) := Finset.sum_le_sum fun i _ => by
@@ -188,13 +188,13 @@ theorem card_filter_swapSamples_exists_le_abs_le {Z : Type*} {G : ConceptClass Z
   have hdist (s : ℝ) (hs : s ^ 2 = 1) (g g' : G) :
       ∑ i, (s * a g i - s * a g' i) ^ 2 ≤
         4 * √m ^ 2 / ((m + m : ℕ) : ℝ) *
-          hammingDist (fun j => g.1 (x j)) (fun j => g'.1 (x j)) := by
+          hammingDist (fun j => g.val (x j)) (fun j => g'.val (x j)) := by
     have hpt (i : Fin m) : (s * a g i - s * a g' i) ^ 2 ≤
-        2 * ((if g.1 (z.1 i) ≠ g'.1 (z.1 i) then 1 else 0 : ℝ) +
-          if g.1 (z.2 i) ≠ g'.1 (z.2 i) then 1 else 0) := by
+        2 * ((if g.val (z.1 i) ≠ g'.val (z.1 i) then 1 else 0 : ℝ) +
+          if g.val (z.2 i) ≠ g'.val (z.2 i) then 1 else 0) := by
       rw [← mul_sub, mul_pow, hs, one_mul]
       simp only [a]
-      cases g.1 (z.1 i) <;> cases g'.1 (z.1 i) <;> cases g.1 (z.2 i) <;> cases g'.1 (z.2 i) <;>
+      cases g.val (z.1 i) <;> cases g'.val (z.1 i) <;> cases g.val (z.2 i) <;> cases g'.val (z.2 i) <;>
         norm_num
     rcases Nat.eq_zero_or_pos m with rfl | hm
     · simp
@@ -205,8 +205,8 @@ theorem card_filter_swapSamples_exists_le_abs_le {Z : Type*} {G : ConceptClass Z
   -- Chaining: the expected maximal correlation is at most `32 √(m d) ≤ m ε / 4`.
   have hE (s : ℝ) (hs : s ^ 2 = 1) :
       𝔼 σ : Fin m → Bool, ⨆ g : G, ∑ i, s * a g i * signVal (σ i) ≤ m * ε / 4 := by
-    refine (expect_ciSup_sum_mul_signVal_le_of_hammingDist hG x (fun (g : G) j => g.1 (x j))
-      (fun g => mem_restriction.2 ⟨g.1, g.2, fun _ => rfl⟩) (fun g i => s * a g i)
+    refine (expect_ciSup_sum_mul_signVal_le_of_hammingDist hG x (fun (g : G) j => g.val (x j))
+      (fun g => mem_restriction.2 ⟨g.val, g.property, fun _ => rfl⟩) (fun g i => s * a g i)
       (r := √m) (Real.sqrt_nonneg _) (hnorm s hs) (hdist s hs)).trans ?_
     have hm0 : (0 : ℝ) ≤ m := Nat.cast_nonneg m
     have h1 : 128 * √d ≤ √m * ε := by
@@ -368,7 +368,7 @@ theorem isPACLearnerFor_univ_of_chainingSampleSize_le {C : ConceptClass α Bool}
   obtain ⟨A, hA⟩ := exists_isERM (m := m) hne
   refine ⟨A, fun D _ _ => ?_⟩
   have h := hA.measure_pi_lt_error_le_of_chainingSampleSize_le D hC
-    (by exact_mod_cast ε.2.1) (by exact_mod_cast δ.2.1) hm
+    (by exact_mod_cast ε.property.1) (by exact_mod_cast δ.property.1) hm
   rwa [ENNReal.ofReal_coe_nnreal, ENNReal.ofReal_coe_nnreal] at h
 
 /-- The agnostic sample complexity of a class of finite VC dimension on a countable domain is at

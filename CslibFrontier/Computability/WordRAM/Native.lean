@@ -292,7 +292,7 @@ theorem Basis.restrict_checkedOp_polyTime (B : Basis) (P : B.Op → Prop)
     (op : (B.restrict P).Op) :
     ComputableInPolyTime ((B.restrict P).genericModel.checkedOp op)
       encWidthOperands (encOption encNat) :=
-  hop op.1
+  hop op.val
 
 noncomputable section
 

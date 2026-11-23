@@ -86,7 +86,7 @@ theorem blockMonomial_apply [DecidableEq σ] (blk : σ → Fin d) (S : Finset (F
   rw [blockMonomial, Finsupp.finsetSum_apply]
   simp only [Finsupp.single_apply]
   have key (i : S) (hiv : (x i : σ) = v) : (i : Fin d) = blk v :=
-    (x i).2.symm.trans (congrArg blk hiv)
+    (x i).property.symm.trans (congrArg blk hiv)
   split_ifs with h hx
   · rw [Finset.sum_eq_single ⟨blk v, h⟩
       (fun i _ hi => ite_eq_right fun hiv => hi (Subtype.ext (key i hiv)))
@@ -94,7 +94,7 @@ theorem blockMonomial_apply [DecidableEq σ] (blk : σ → Fin d) (S : Finset (F
   · refine Finset.sum_eq_zero fun i _ => ite_eq_right fun hiv => hx ?_
     obtain rfl : i = ⟨blk v, h⟩ := Subtype.ext (key i hiv)
     exact hiv
-  · exact Finset.sum_eq_zero fun i _ => ite_eq_right fun hiv => h (key i hiv ▸ i.2)
+  · exact Finset.sum_eq_zero fun i _ => ite_eq_right fun hiv => h (key i hiv ▸ i.property)
 
 /-- A variable outside the blocks of `S` does not occur in the monomial of a choice on `S`. -/
 theorem blockMonomial_apply_of_notMem (blk : σ → Fin d) {S : Finset (Fin d)}
@@ -122,7 +122,7 @@ theorem blockMonomial_injective (blk : σ → Fin d) (S : Finset (Fin d)) :
   funext i
   apply Subtype.ext
   have h := DFunLike.congr_fun hxy (x i : σ)
-  rw [blockMonomial_apply_of_eq x (x i).2, blockMonomial_apply_of_eq y (x i).2, ite_eq_left rfl]
+  rw [blockMonomial_apply_of_eq x (x i).property, blockMonomial_apply_of_eq y (x i).property, ite_eq_left rfl]
     at h
   by_contra hne
   rw [ite_eq_right fun h' => hne h'.symm] at h
@@ -213,7 +213,7 @@ theorem mul (hf : IsSetMultilinear blk S f) (hg : IsSetMultilinear blk T g)
   obtain ⟨x, rfl⟩ := hf m₁ hm₁
   obtain ⟨y, rfl⟩ := hg m₂ hm₂
   refine ⟨fun i => if h : (i : Fin d) ∈ S then x ⟨i, h⟩ else
-    y ⟨i, (Finset.mem_union.mp i.2).resolve_left h⟩, ?_⟩
+    y ⟨i, (Finset.mem_union.mp i.property).resolve_left h⟩, ?_⟩
   ext v
   rw [Finsupp.add_apply, blockMonomial_apply, blockMonomial_apply, blockMonomial_apply]
   by_cases hS : blk v ∈ S
@@ -226,7 +226,7 @@ end IsSetMultilinear
 /-- A constant is set-multilinear on the empty set of blocks. -/
 theorem isSetMultilinear_C (blk : σ → Fin d) (c : K) : IsSetMultilinear blk ∅ (C c) := by
   intro m hm
-  refine ⟨fun i => absurd i.2 (Finset.notMem_empty _), ?_⟩
+  refine ⟨fun i => absurd i.property (Finset.notMem_empty _), ?_⟩
   classical
   rw [mem_support_iff, coeff_C] at hm
   obtain rfl : m = 0 := by
@@ -240,7 +240,7 @@ theorem isSetMultilinear_X (blk : σ → Fin d) (v : σ) :
     IsSetMultilinear blk {blk v} (X v : MvPolynomial σ K) := by
   classical
   intro m hm
-  refine ⟨fun i => ⟨v, (Finset.mem_singleton.mp i.2).symm⟩, ?_⟩
+  refine ⟨fun i => ⟨v, (Finset.mem_singleton.mp i.property).symm⟩, ?_⟩
   rw [mem_support_iff, coeff_X] at hm
   obtain rfl : Finsupp.single v 1 = m := by
     by_contra h

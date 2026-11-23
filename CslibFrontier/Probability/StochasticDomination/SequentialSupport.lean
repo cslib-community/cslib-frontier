@@ -88,7 +88,7 @@ theorem seqCount_stochasticallyDominates_poissonBinomial_of_support
   · simpa only [completedEvent, ite_eq_left hh] using hp t ht h hh
   · have huniv : (step t h).toOuterMeasure Set.univ = 1 :=
       (PMF.toOuterMeasure_apply_eq_one_iff _ _).2 (Set.subset_univ _)
-    simpa only [completedEvent, ite_eq_right hh, huniv, ENNReal.toReal_one] using (ps[t]).2.2
+    simpa only [completedEvent, ite_eq_right hh, huniv, ENNReal.toReal_one] using (ps[t]).property.2
 
 /-- Before-target binomial tail bound from a lower event-probability envelope
 only at supported prefixes whose original success count is below the target. -/
@@ -110,6 +110,6 @@ theorem seqCount_active_toReal_Iio_le_of_support
     simpa only [completedEvent, ite_eq_left hh] using hp t ht h hh hc'
   · have huniv : (step t h).toOuterMeasure Set.univ = 1 :=
       (PMF.toOuterMeasure_apply_eq_one_iff _ _).2 (Set.subset_univ _)
-    simpa only [completedEvent, ite_eq_right hh, huniv, ENNReal.toReal_one] using p.2.2
+    simpa only [completedEvent, ite_eq_right hh, huniv, ENNReal.toReal_one] using p.property.2
 
 end Cslib.Probability.PMF

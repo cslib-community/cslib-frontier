@@ -98,7 +98,7 @@ private-coin protocol solving it with unbounded error, with any numbers of rando
 if there is none [Paturi and Simon][PaturiSimon1986]. -/
 noncomputable def uppComplexity (R : X → Y → Z → Prop) (A : Set X) (B : Set Y) : ℕ∞ :=
   ⨅ (a : ℕ) (b : ℕ) (P : {P : PrivateCoin a b X Y Z // P.SolvesUnbounded R A B}),
-    (P.1.depth : ℕ∞)
+    (P.val.depth : ℕ∞)
 
 /-- The unbounded-error communication complexity of computing `f`: `uppComplexity` of the
 relation `f x y = z` on all inputs. -/

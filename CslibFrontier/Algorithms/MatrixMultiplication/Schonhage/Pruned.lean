@@ -281,7 +281,7 @@ def Vertex.Contributes {k L : ℕ} (τ : Vertex k) (w : OutStr L) : Prop :=
 /-- At full depth, vertex relevance coincides with the existing leaf-relevance predicate. -/
 theorem Vertex.contributes_iff_leaf {L : ℕ} (τ : Leaf L) (w : OutStr L) :
     Vertex.Contributes τ w ↔ Leaf.Contributes τ w :=
-  ⟨fun h ℓ => h ℓ ℓ.2, fun h ℓ _ => h ℓ⟩
+  ⟨fun h ℓ => h ℓ ℓ.isLt, fun h ℓ _ => h ℓ⟩
 
 /-- Decompose relevance of a nonempty vertex into relevance of its head and relevance of its
 tail.

@@ -92,12 +92,12 @@ variable {σ : Signature.{v}} {n m s : ℕ} {K T : Type}
 /-- The rows of a Free-XOR garbled table: one for each colour vector of the arguments of each
 gate that is not free. -/
 abbrev GarbledRow (τ : Circuit.Topology n m s) (free : Fin s → Bool) : Type :=
-  Σ g : {g : Fin s // free g = false}, Fin (τ.arity g.1) → Bool
+  Σ g : {g : Fin s // free g = false}, Fin (τ.arity g.val) → Bool
 
 /-- The gate of a row. -/
 abbrev GarbledRow.gate {τ : Circuit.Topology n m s} {free : Fin s → Bool}
     (r : GarbledRow τ free) : Fin s :=
-  r.1.1
+  r.1.val
 
 /-- The argument slots of the rows of a Free-XOR garbled table. -/
 abbrev GarbledSlot (τ : Circuit.Topology n m s) (free : Fin s → Bool) : Type :=

@@ -110,7 +110,7 @@ theorem isPACLearnerFor_univ_of_log_le [Nonempty (α → β)] {H : Finset (α �
   obtain ⟨A, hA⟩ := exists_isERM (m := m) (C := (H : Set (α → β))) (by exact_mod_cast hne)
   refine ⟨A, fun D _ _ => ?_⟩
   have h := hA.measure_pi_lt_error_le_of_log_le D hH ε.val.coe_nonneg
-    (by exact_mod_cast δ.2.1) hm
+    (by exact_mod_cast δ.property.1) hm
   rwa [ENNReal.ofReal_coe_nnreal, ENNReal.ofReal_coe_nnreal] at h
 
 /-- `2 log (2 n / δ) ≤ ε² ⌈2 log (2 n / δ) / ε²⌉`. -/
@@ -118,7 +118,7 @@ private theorem log_le_ceil {n : ℕ} (ε δ : Set.Ioo (0 : ℝ≥0) 1) :
     2 * Real.log (2 * n / (δ.val : ℝ)) ≤
       (ε.val : ℝ) ^ 2 * ⌈2 * Real.log (2 * n / (δ.val : ℝ)) / (ε.val : ℝ) ^ 2⌉₊ := by
   have hε : (0 : ℝ) < (ε.val : ℝ) ^ 2 := by
-    have : (0 : ℝ) < ε.val := by exact_mod_cast ε.2.1
+    have : (0 : ℝ) < ε.val := by exact_mod_cast ε.property.1
     positivity
   have := Nat.le_ceil (2 * Real.log (2 * n / (δ.val : ℝ)) / (ε.val : ℝ) ^ 2)
   rw [div_le_iff₀ hε] at this

@@ -90,7 +90,7 @@ private theorem card_filter_mod_eq_le {n s j z' c q : ℕ} (hn : n ≤ 2 ^ s * 2
   calc #{b : Fin n | ((b : ℕ) * z' + c) % 2 ^ j = q} ≤ #(range (2 ^ s)) := by
         refine card_le_card_of_injOn (fun b => (b : ℕ) / 2 ^ j) (fun b _ => ?_) ?_
         · rw [coe_range, Set.mem_Iio]
-          exact Nat.div_lt_of_lt_mul (by rw [mul_comm]; exact b.2.trans_le hn)
+          exact Nat.div_lt_of_lt_mul (by rw [mul_comm]; exact b.isLt.trans_le hn)
         · intro b₁ hb₁ b₂ hb₂ h
           simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hb₁ hb₂
           have hmod : (b₁ : ℕ) ≡ b₂ [MOD 2 ^ j] :=
@@ -153,7 +153,7 @@ private theorem card_filter_lt {w M : ℕ} (hw : 0 < w) (hM : M ≤ w) {x y : Fi
   obtain ⟨s, z', hz', hz⟩ := Nat.exists_eq_two_pow_mul_odd (n := (x : ℕ) - y) (by omega)
   have hs : s < w := by
     have h1 : 2 ^ s ≤ (x : ℕ) - y := hz ▸ Nat.le_mul_of_pos_right _ hz'.pos
-    have h2 : (x : ℕ) - y < 2 ^ w := by have := x.2; omega
+    have h2 : (x : ℕ) - y < 2 ^ w := by have := x.isLt; omega
     exact (Nat.pow_lt_pow_iff_right (by norm_num)).mp (h1.trans_lt h2)
   obtain ⟨c, hc⟩ := hz'
   set j := w - s - 1 with hj

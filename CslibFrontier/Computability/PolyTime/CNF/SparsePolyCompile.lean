@@ -705,12 +705,12 @@ dot product of `row` with `φ.violations σ`. -/
 theorem evalMonomialList_compileParityRow_eq_dotProduct (φ : CNF ℕ) (row : List Bool)
     (σ : ℕ → Bool) :
     evalMonomialList (compileParityRow φ row) σ =
-      (fun e : Fin φ.length => row.getD e.1 false) ⬝ᵥ φ.violations σ := by
+      (fun e : Fin φ.length => row.getD e.val false) ⬝ᵥ φ.violations σ := by
   have hprefix : ∀ n (hn : n ≤ φ.length),
       evalMonomialList ((List.range n).foldl
         (fun acc e =>
           if row.getD e false then xorEquation acc (compileClause (φ.getD e [])) else acc) []) σ =
-        ∑ i : Fin n, row.getD i.1 false * !(φ[i.1]'(Nat.lt_of_lt_of_le i.2 hn)).eval σ := by
+        ∑ i : Fin n, row.getD i.val false * !(φ[i.val]'(Nat.lt_of_lt_of_le i.isLt hn)).eval σ := by
     intro n hn
     induction n with
     | zero =>
@@ -735,7 +735,7 @@ theorem evalMonomialList_compileParityRow_eq_dotProduct (φ : CNF ℕ) (row : Li
 theorem evalSystem_compileParitySystem_iff_passesTests (φ : CNF ℕ) (rows : List (List Bool))
     (σ : ℕ → Bool) :
     evalSystem (compileParitySystem φ rows) σ = true ↔
-      PassesTests φ.violations (rows.map fun row (e : Fin φ.length) => row.getD e.1 false) σ := by
+      PassesTests φ.violations (rows.map fun row (e : Fin φ.length) => row.getD e.val false) σ := by
   simp only [evalSystem_eq_true_iff, compileParitySystem, PassesTests, List.mem_map,
     forall_exists_index, and_imp, forall_apply_eq_imp_iff₂,
     evalMonomialList_compileParityRow_eq_dotProduct]

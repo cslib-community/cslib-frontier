@@ -189,7 +189,7 @@ theorem parentTree_isTree (hlt : ∀ i, i ≠ 0 → p i < i) : (parentTree p).Is
   rw [isTree_iff_connected_and_card]
   refine ⟨⟨fun i j => (hreach i).trans (hreach j).symm⟩, ?_⟩
   let f : {i : Fin (n + 1) // i ≠ 0} → (parentTree p).edgeSet :=
-    fun i => ⟨s(i.1, p i.1), parentTree_adj_self hlt i.2⟩
+    fun i => ⟨s(i.val, p i.val), parentTree_adj_self hlt i.property⟩
   have hf : Function.Bijective f := by
     constructor
     · rintro ⟨i, hi⟩ ⟨j, hj⟩ h
@@ -231,7 +231,7 @@ theorem eq_of_preconnected_parentTree (h0 : p 0 = 0) (hlt : ∀ i, i ≠ 0 → p
       simp only [w', Walk.support_map, List.mem_map] at this
       obtain ⟨x, -, hx⟩ := this
       rw [← hx]
-      exact x.2
+      exact x.property
     obtain ⟨k, hk⟩ := hd1
     rcases (parentTree_adj hlt).1 d.adj with ⟨-, hpd⟩ | ⟨hne, hpd⟩
     · rcases k with _ | k

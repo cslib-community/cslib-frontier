@@ -71,7 +71,7 @@ theorem hasSliceDecomposition_add (p q : ℕ) :
     HasSliceDecomposition (fun x y : ι → Bool => x + y)
       (lowDegree K ι p) (lowDegree K ι q) (lowDegree K ι (p + q + 1)) := by
   classical
-  have hrange : Set.range (fun S : {S : Finset ι // #S ≤ p + q + 1} => monomial K S.1) =
+  have hrange : Set.range (fun S : {S : Finset ι // #S ≤ p + q + 1} => monomial K S.val) =
       monomial K '' {S | #S ≤ p + q + 1} := by
     ext f
     simp
@@ -79,8 +79,8 @@ theorem hasSliceDecomposition_add (p q : ℕ) :
   rw [← hrange]
   apply hasSliceDecomposition_span
   intro S
-  have hexpand : (fun x y : ι → Bool => monomial K S.1 (x + y)) =
-      ∑ T ∈ S.1.powerset, (fun x y => monomial K T x * monomial K (S.1 \ T) y) := by
+  have hexpand : (fun x y : ι → Bool => monomial K S.val (x + y)) =
+      ∑ T ∈ S.val.powerset, (fun x y => monomial K T x * monomial K (S.val \ T) y) := by
     funext x y
     simp only [Finset.sum_apply, monomial_add]
   rw [hexpand]
@@ -88,9 +88,9 @@ theorem hasSliceDecomposition_add (p q : ℕ) :
   intro T hT
   by_cases hsmall : #T ≤ p
   · exact mul_mem_sliceSpace_left _ (monomial_mem_lowDegree hsmall) _
-  · have hsub : T ⊆ S.1 := mem_powerset.mp hT
+  · have hsub : T ⊆ S.val := mem_powerset.mp hT
     have hcard := card_sdiff_add_card_eq_card hsub
-    have hdegree := S.2
+    have hdegree := S.property
     exact mul_mem_sliceSpace_right _ _ (monomial_mem_lowDegree (by omega))
 
 end Cslib.BitString

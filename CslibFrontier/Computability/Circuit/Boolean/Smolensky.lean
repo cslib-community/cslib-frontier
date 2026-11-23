@@ -101,7 +101,7 @@ section LowerBounds
 
 /-- A `k`-bit suffix of weight `r` (when `r ≤ k`): its first `r` bits are `true`. -/
 private def padVec (k r : ℕ) : BitString k :=
-  fun j => decide (j.1 < r)
+  fun j => decide (j.val < r)
 
 /-- Appending `padVec (n - m) r` to `x : BitString m` produces an `n`-bit string when `m ≤ n`. -/
 private def padBits {m n : ℕ} (hmn : m ≤ n) (r : ℕ) (x : BitString m) : BitString n :=
@@ -111,10 +111,10 @@ private theorem weight_padVec {k r : ℕ} (hr : r ≤ k) : weight (padVec k r) =
   rw [weight]
   refine (card_bij (s := univ.filter fun j : Fin k => padVec k r j = true)
       (t := (univ : Finset (Fin r)))
-      (fun j hj => ⟨j.1, of_decide_eq_true (mem_filter.1 hj).2⟩)
+      (fun j hj => ⟨j.val, of_decide_eq_true (mem_filter.1 hj).2⟩)
       (fun _ _ => mem_univ _)
       (fun _ _ _ _ h => Fin.ext (congrArg (Fin.val (n := r)) h))
-      (fun j _ => ⟨Fin.castLE hr j, mem_filter.2 ⟨mem_univ _, decide_eq_true j.2⟩, rfl⟩)).trans
+      (fun j _ => ⟨Fin.castLE hr j, mem_filter.2 ⟨mem_univ _, decide_eq_true j.isLt⟩, rfl⟩)).trans
     (by simp)
 
 private theorem padBits_injective {m n : ℕ} (hmn : m ≤ n) (r : ℕ) :

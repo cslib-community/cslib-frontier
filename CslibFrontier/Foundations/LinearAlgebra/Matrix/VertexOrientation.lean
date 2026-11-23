@@ -60,11 +60,11 @@ def pivotBasisEquiv {T₁ T₂ : Finset κ} (e₁ : ι ≃ T₁) {l l' : κ}
       apply e₁.injective
       apply Subtype.ext
       simpa only [i₀, Equiv.apply_symm_apply] using h
-    have hmem : (e₁ i : κ) ∈ T₁.erase l := Finset.mem_erase.2 ⟨hne, (e₁ i).2⟩
+    have hmem : (e₁ i : κ) ∈ T₁.erase l := Finset.mem_erase.2 ⟨hne, (e₁ i).property⟩
     rw [herase] at hmem
     exact (Finset.mem_erase.1 hmem).2
   have hmem_T1 : ∀ y : T₂, (y : κ) ≠ l' → (y : κ) ∈ T₁ := fun y hy => by
-    have hmem : (y : κ) ∈ T₂.erase l' := Finset.mem_erase.2 ⟨hy, y.2⟩
+    have hmem : (y : κ) ∈ T₂.erase l' := Finset.mem_erase.2 ⟨hy, y.property⟩
     rw [← herase] at hmem
     exact (Finset.mem_erase.1 hmem).2
   { toFun := fun i => if hi : i = i₀ then ⟨l', hl'⟩ else ⟨(e₁ i : κ), hmem_T2 i hi⟩
@@ -78,7 +78,7 @@ def pivotBasisEquiv {T₁ T₂ : Finset κ} (e₁ : ι ≃ T₁) {l l' : κ}
             apply e₁.injective
             apply Subtype.ext
             simpa only [i₀, Equiv.apply_symm_apply] using h
-          have hmem : (e₁ i : κ) ∈ T₁.erase l := Finset.mem_erase.2 ⟨hne, (e₁ i).2⟩
+          have hmem : (e₁ i : κ) ∈ T₁.erase l := Finset.mem_erase.2 ⟨hne, (e₁ i).property⟩
           rw [herase] at hmem
           exact (Finset.mem_erase.1 hmem).1
         simp [hi, hne']
@@ -91,7 +91,7 @@ def pivotBasisEquiv {T₁ T₂ : Finset κ} (e₁ : ι ≃ T₁) {l l' : κ}
           have hval : (e₁ (e₁.symm ⟨(y : κ), hmem_T1 y hy⟩) : κ) = (e₁ i₀ : κ) :=
             congrArg (fun z : T₁ => (z : κ)) (congrArg e₁ heq)
           simp only [i₀, Equiv.apply_symm_apply] at hval
-          have hmem : (y : κ) ∈ T₂.erase l' := Finset.mem_erase.2 ⟨hy, y.2⟩
+          have hmem : (y : κ) ∈ T₂.erase l' := Finset.mem_erase.2 ⟨hy, y.property⟩
           rw [← herase] at hmem
           exact (Finset.mem_erase.1 hmem).1 hval
         simp [hy, hne] }
@@ -134,7 +134,7 @@ theorem isVertex_of_det_submatrix_ne_zero {A : Matrix κ ι K} {b : κ → K} {x
   ext i
   simp only [mulVec, dotProduct, submatrix_apply, id_eq, Pi.zero_apply, mul_zero,
     Finset.sum_const_zero]
-  exact hv (e i : κ) (hS (e i).2)
+  exact hv (e i : κ) (hS (e i).property)
 
 /-- Replacing the leaving tight row `l` by the entering tight row `l'` across an adjacent pivot
 reverses the sign of the square basis determinant. -/
@@ -190,7 +190,7 @@ theorem IsVertex.det_updateRow_pivot_mul_lt_zero
       apply e.injective
       apply Subtype.ext
       simpa only [i₀, Equiv.apply_symm_apply] using h
-    have hmem_x : (e i : κ) ∈ tightRows A b x := (e i).2
+    have hmem_x : (e i : κ) ∈ tightRows A b x := (e i).property
     have hmem_y : (e i : κ) ∈ tightRows A b y := by
       have hm := Finset.mem_erase.2 ⟨hne_l, hmem_x⟩
       rw [herase] at hm

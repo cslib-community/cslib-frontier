@@ -217,34 +217,34 @@ private lemma halfEdgeFun_bijective_left {m n : ℕ} (hcard : Fintype.card κ = 
     · exfalso
       simp only [Sum.elim_inl, Sum.elim_inr] at hab
       exact Finset.eq_empty_iff_forall_notMem.1 hdisj (ord₁ i₁ : κ)
-        (Finset.mem_inter.2 ⟨(ord₁ i₁).2, hab ▸ (ord₂ j₂).2⟩)
+        (Finset.mem_inter.2 ⟨(ord₁ i₁).property, hab ▸ (ord₂ j₂).property⟩)
     · exfalso
       simp only [Sum.elim_inr, Sum.elim_inl] at hab
       exact Finset.eq_empty_iff_forall_notMem.1 hdisj (ord₂ j₁ : κ)
-        (Finset.mem_inter.2 ⟨hab ▸ (ord₁ i₂).2, (ord₂ j₁).2⟩)
+        (Finset.mem_inter.2 ⟨hab ▸ (ord₁ i₂).property, (ord₂ j₁).property⟩)
     · exact congrArg Sum.inr (ord₂.injective (Subtype.ext hab))
   · obtain ⟨_, hinter⟩ := mem_inter_of_acl_not_mem hcard hT₁ hT₂ hacl hk₀
     set l := leaveLabel T₁ T₂ k₀
     have hk₀1 : k₀ ∉ T₁ := fun h => hk₀ (Finset.mem_union.2 (.inl h))
     have hnot2 : ∀ i : Fin m, (ord₁ i : κ) ≠ l → (ord₁ i : κ) ∉ T₂ := fun i hi h2 => by
-      have hm : (ord₁ i : κ) ∈ T₁ ∩ T₂ := Finset.mem_inter.2 ⟨(ord₁ i).2, h2⟩
+      have hm : (ord₁ i : κ) ∈ T₁ ∩ T₂ := Finset.mem_inter.2 ⟨(ord₁ i).property, h2⟩
       rw [hinter, Finset.mem_singleton] at hm
       exact hi hm
     rcases a with i₁ | j₁ <;> rcases b with i₂ | j₂
     · simp only [halfEdgeFun, Sum.elim_inl] at hab
       split_ifs at hab with h1 h2
       · exact congrArg Sum.inl (ord₁.injective (Subtype.ext (h1.trans h2.symm)))
-      · exact absurd (hab.symm ▸ (ord₁ i₂).2) hk₀1
-      · exact absurd (hab ▸ (ord₁ i₁).2) hk₀1
+      · exact absurd (hab.symm ▸ (ord₁ i₂).property) hk₀1
+      · exact absurd (hab ▸ (ord₁ i₁).property) hk₀1
       · exact congrArg Sum.inl (ord₁.injective (Subtype.ext hab))
     · simp only [halfEdgeFun, Sum.elim_inl, Sum.elim_inr] at hab
       split_ifs at hab with h1
-      · exact absurd (hab ▸ (ord₂ j₂).2) hact
-      · exact absurd (hab ▸ (ord₂ j₂).2) (hnot2 i₁ h1)
+      · exact absurd (hab ▸ (ord₂ j₂).property) hact
+      · exact absurd (hab ▸ (ord₂ j₂).property) (hnot2 i₁ h1)
     · simp only [halfEdgeFun, Sum.elim_inr, Sum.elim_inl] at hab
       split_ifs at hab with h2
-      · exact absurd (hab ▸ (ord₂ j₁).2) hact
-      · exact absurd (hab ▸ (ord₂ j₁).2) (hnot2 i₂ h2)
+      · exact absurd (hab ▸ (ord₂ j₁).property) hact
+      · exact absurd (hab ▸ (ord₂ j₁).property) (hnot2 i₂ h2)
     · exact congrArg Sum.inr (ord₂.injective (Subtype.ext hab))
 
 omit [Fintype κ] in
@@ -613,7 +613,7 @@ theorem halfEdgeIndex_pivot_left_eq_neg {m n : ℕ}
           apply hi; apply ord₁p.injective; apply Subtype.ext
           simpa only [Equiv.apply_symm_apply] using h
         have hor_ne_l' : (ord₁p i : κ) ≠ l' := by
-          have hm : (ord₁p i : κ) ∈ T₁p.erase l := Finset.mem_erase.2 ⟨hor_ne_l, (ord₁p i).2⟩
+          have hm : (ord₁p i : κ) ∈ T₁p.erase l := Finset.mem_erase.2 ⟨hor_ne_l, (ord₁p i).property⟩
           rw [herase] at hm
           exact (Finset.mem_erase.1 hm).1
         simp [hi, hor_ne_l, hor_ne_l']

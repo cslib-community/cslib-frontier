@@ -61,7 +61,7 @@ noncomputable def edgeEquiv (n : ℕ) : Edge n ≃ Fin (edgeCount n) := Fintype.
 @[expose] def edge {u v : Fin n} (h : u ≠ v) : Edge n := ⟨s(u, v), by simpa using h⟩
 
 /-- The endpoints of `edge h` are `{u, v}`. -/
-@[simp] theorem toFinset_edge {u v : Fin n} (h : u ≠ v) : (edge h).1.toFinset = {u, v} :=
+@[simp] theorem toFinset_edge {u v : Fin n} (h : u ≠ v) : (edge h).val.toFinset = {u, v} :=
   Sym2.toFinset_mk_eq
 
 /-- The edge between `u` and `v` is the edge between `v` and `u`. -/
@@ -77,7 +77,7 @@ theorem graph_adj {x : Fin (edgeCount n) → Bool} {u v : Fin n} (h : u ≠ v) :
 
 /-- A possible edge belongs to the encoded graph exactly when its bit is set. -/
 @[simp] theorem mem_edgeSet_graph (x : Fin (edgeCount n) → Bool) (e : Edge n) :
-    e.1 ∈ (graph x).edgeSet ↔ x (edgeEquiv n e) = true := by
+    e.val ∈ (graph x).edgeSet ↔ x (edgeEquiv n e) = true := by
   simp [graph, SimpleGraph.edgeSet_fromEdgeSet, e.property]
 
 /-- Distinct edge words encode distinct graphs. -/
@@ -88,7 +88,7 @@ theorem graph_injective : Function.Injective (graph (n := n)) := by
     simpa only [Equiv.apply_symm_apply] using
       (mem_edgeSet_graph x ((edgeEquiv n).symm i)).symm.trans
         ((congrArg (fun G : SimpleGraph (Fin n) =>
-          ((edgeEquiv n).symm i).1 ∈ G.edgeSet) h).to_iff.trans
+          ((edgeEquiv n).symm i).val ∈ G.edgeSet) h).to_iff.trans
           (mem_edgeSet_graph y ((edgeEquiv n).symm i)))
   cases hx : x i <;> cases hy : y i <;> simp_all
 
@@ -113,7 +113,7 @@ theorem graph_mono {x y : Fin (edgeCount n) → Bool}
 /-- Clearing a coordinate deletes precisely that edge. -/
 theorem graph_update_false (x : Fin (edgeCount n) → Bool) (i : Fin (edgeCount n)) :
     graph (Function.update x i false) =
-      (graph x).deleteEdges {((edgeEquiv n).symm i).1} := by
+      (graph x).deleteEdges {((edgeEquiv n).symm i).val} := by
   apply SimpleGraph.edgeSet_injective
   ext e
   by_cases he : e.IsDiag
@@ -121,10 +121,10 @@ theorem graph_update_false (x : Fin (edgeCount n) → Bool) (i : Fin (edgeCount 
   · rw [mem_edgeSet_graph _ ⟨e, he⟩, SimpleGraph.edgeSet_deleteEdges]
     simp only [Set.mem_sdiff, Set.mem_singleton_iff, mem_edgeSet_graph x ⟨e, he⟩]
     by_cases hi : edgeEquiv n ⟨e, he⟩ = i
-    · have hei : e = ((edgeEquiv n).symm i).1 :=
+    · have hei : e = ((edgeEquiv n).symm i).val :=
         congrArg Subtype.val ((edgeEquiv n).injective (hi.trans (Equiv.apply_symm_apply _ _).symm))
       simp [hei]
-    · have hei : e ≠ ((edgeEquiv n).symm i).1 := by
+    · have hei : e ≠ ((edgeEquiv n).symm i).val := by
         intro hh
         apply hi
         rw [show (⟨e, he⟩ : Edge n) = (edgeEquiv n).symm i from Subtype.ext hh,
@@ -133,7 +133,7 @@ theorem graph_update_false (x : Fin (edgeCount n) → Bool) (i : Fin (edgeCount 
 
 /-- The edge word of a labelled simple graph, in the same numbering as `graph`. -/
 noncomputable def ofGraph (G : SimpleGraph (Fin n)) : BitString (edgeCount n) :=
-  fun i => @decide (((edgeEquiv n).symm i).1 ∈ G.edgeSet) (Classical.propDecidable _)
+  fun i => @decide (((edgeEquiv n).symm i).val ∈ G.edgeSet) (Classical.propDecidable _)
 
 /-- Encoding a graph and reading its edge word recovers the graph. -/
 @[simp] theorem graph_ofGraph (G : SimpleGraph (Fin n)) : graph (ofGraph G) = G := by

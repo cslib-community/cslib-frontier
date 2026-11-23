@@ -228,7 +228,7 @@ private theorem ncard_size_satToIndependentSet (M : Structure FO.cnf) :
       Nat.card (Option (Fin M.size)) := by
   rw [← Nat.card_coe_set_eq]
   refine Nat.card_congr
-    { toFun := fun x => blockOf x.1
+    { toFun := fun x => blockOf x.val
       invFun := fun o => ⟨sizeRep o, ?_⟩
       left_inv := ?_
       right_inv := ?_ }

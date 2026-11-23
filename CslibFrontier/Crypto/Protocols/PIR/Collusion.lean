@@ -126,7 +126,7 @@ theorem isTPrivate_zero : P.IsTPrivate 0 := by
   subst hEmpty
   ext f
   have hf : ∀ g : (∅ : Finset S) → Q, g = f :=
-    fun g => funext fun s => (Finset.notMem_empty s.1 s.2).elim
+    fun g => funext fun s => (Finset.notMem_empty s.val s.property).elim
   have h1 := (ProbComp.eval (P.coalitionQuery ∅ i)).tsum_coe
   have h2 := (ProbComp.eval (P.coalitionQuery ∅ i')).tsum_coe
   rw [tsum_eq_single f fun g hg => (hg (hf g)).elim] at h1 h2
@@ -203,7 +203,7 @@ theorem isTPrivate_iff_tuple {t : ℕ} :
       classical
       let e := T.equivFin
       let servers : Fin t → S := fun k =>
-        if hk : k.val < T.card then (e.symm ⟨k.val, hk⟩).1 else s₀
+        if hk : k.val < T.card then (e.symm ⟨k.val, hk⟩).val else s₀
       have hrecover (idx : ι) :
           ProbComp.eval (P.coalitionQuery T idx) =
             (ProbComp.eval (P.tupleQuery servers idx)).map
@@ -211,7 +211,7 @@ theorem isTPrivate_iff_tuple {t : ℕ} :
         rw [P.eval_coalitionQuery, P.eval_tupleQuery, PMF.map_comp]
         congr 1
         funext rq u
-        change rq.2 u.1 = rq.2 (servers ⟨(e u).val, (e u).isLt.trans_le hT⟩)
+        change rq.2 u.val = rq.2 (servers ⟨(e u).val, (e u).isLt.trans_le hT⟩)
         have hlt : (e u).val < T.card := (e u).isLt
         simp only [servers, dite_eq_left hlt, Fin.eta, Equiv.symm_apply_apply]
       rw [hrecover i, hrecover i', h servers i i']
@@ -266,7 +266,7 @@ theorem exists_injective_answers_of_card_le [Fintype S] [Nonempty ι] {t : ℕ}
   obtain ⟨⟨r₀, q₀⟩, h₀⟩ := (ProbComp.eval (P.query i₀)).support_nonempty
   refine ⟨q₀, fun x y hxy => funext fun i => ?_⟩
   have huniv : (Finset.univ : Finset S).card ≤ t := by simpa using hcard
-  have hmem : (fun s : (Finset.univ : Finset S) => q₀ s.1) ∈
+  have hmem : (fun s : (Finset.univ : Finset S) => q₀ s.val) ∈
       (ProbComp.eval (P.coalitionQuery Finset.univ i)).support := by
     rw [hprivate Finset.univ huniv i i₀, P.eval_coalitionQuery]
     exact (PMF.mem_support_map_iff _ _ _).2 ⟨(r₀, q₀), h₀, rfl⟩

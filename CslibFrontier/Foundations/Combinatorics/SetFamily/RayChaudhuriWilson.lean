@@ -198,13 +198,13 @@ theorem Fintype.card_le_choose_of_card_inter_mem (A : ι → Finset κ) {d : ℕ
   -- The functions of the members, and `x ↦ x_I (|X| - d)` for `|I| < s`, which vanish on them.
   let f : ι ⊕ {I : Finset κ // #I < s} → (κ → Bool) → K := Sum.elim
     (fun i => ∏ l ∈ L, cardInterSub (A i) l)
-    (fun I => Cslib.BitString.monomial K I.1 * cardInterSub univ (d : K))
+    (fun I => Cslib.BitString.monomial K I.val * cardInterSub univ (d : K))
   have hmem : ∀ t, f t ∈ Cslib.BitString.lowDegree K κ s := by
     rintro (i | I)
     · exact prod_cardInterSub_mem (A i) L
-    · refine Cslib.BitString.lowDegree_mono (by have := I.2; omega)
+    · refine Cslib.BitString.lowDegree_mono (by have := I.property; omega)
         (Cslib.BitString.mul_mem_lowDegree
-          (Cslib.BitString.monomial_mem_lowDegree (R := K) (le_refl #I.1))
+          (Cslib.BitString.monomial_mem_lowDegree (R := K) (le_refl #I.val))
           (cardInterSub_mem univ (d : K)))
   have hli : LinearIndependent K f := by
     rw [Fintype.linearIndependent_iff]
@@ -234,7 +234,7 @@ theorem Fintype.card_le_choose_of_card_inter_mem (A : ι → Finset κ) {d : ℕ
         prod_ne_zero_iff.2 fun l hl => sub_ne_zero.2 fun h => hd (h ▸ hl)
       exact (mul_eq_zero.1 h).resolve_right hne
     have hG : ∀ X, ∑ I : {I : Finset κ // #I < s},
-        g (Sum.inr I) * (Cslib.BitString.monomial K I.1 (ind X) * ((#X : K) - d)) = 0 := by
+        g (Sum.inr I) * (Cslib.BitString.monomial K I.val (ind X) * ((#X : K) - d)) = 0 := by
       intro X
       have h := hev X
       rw [Fintype.sum_sum_type] at h
@@ -242,19 +242,19 @@ theorem Fintype.card_le_choose_of_card_inter_mem (A : ι → Finset κ) {d : ℕ
         cardInterSub_ind, univ_inter] at h
       exact h
     -- Evaluating at `I` itself, by induction on `|I|`, kills the coefficient of `f (inr I)`.
-    have hI : ∀ m, ∀ I : {I : Finset κ // #I < s}, #I.1 = m → g (Sum.inr I) = 0 := by
+    have hI : ∀ m, ∀ I : {I : Finset κ // #I < s}, #I.val = m → g (Sum.inr I) = 0 := by
       intro m
       induction m using Nat.strong_induction_on with
       | _ m ih =>
         intro I hIm
-        have h := hG I.1
+        have h := hG I.val
         rw [Finset.sum_eq_single I] at h
         · rw [monomial_ind_of_subset (subset_refl _), one_mul] at h
-          have hne : (#I.1 : K) - d ≠ 0 := sub_ne_zero.2 (hL _ I.2)
+          have hne : (#I.val : K) - d ≠ 0 := sub_ne_zero.2 (hL _ I.property)
           exact (mul_eq_zero.1 h).resolve_right hne
         · intro J _ hJI
-          by_cases hsub : J.1 ⊆ I.1
-          · have hlt : #J.1 < m := hIm ▸ card_lt_card
+          by_cases hsub : J.val ⊆ I.val
+          · have hlt : #J.val < m := hIm ▸ card_lt_card
               (Finset.ssubset_iff_subset_ne.2 ⟨hsub, fun h => hJI (Subtype.ext h)⟩)
             rw [ih _ hlt J rfl, zero_mul]
           · rw [monomial_ind_of_not_subset hsub, zero_mul, mul_zero]

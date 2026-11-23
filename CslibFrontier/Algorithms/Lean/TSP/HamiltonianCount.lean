@@ -287,7 +287,7 @@ variable {n : ℕ}
 @[expose] def stepCellM (adj : Fin n → Fin n → Bool) (k : ℕ) (dp : Vector ℕ n)
     (u : Fin n) : TimeM ℕ ℕ :=
   (List.finRange n).foldlM
-    (fun acc (v : Fin n) => do ✓ pure (acc + if (k.testBit u && adj u v) then dp[v.1] else 0)) 0
+    (fun acc (v : Fin n) => do ✓ pure (acc + if (k.testBit u && adj u v) then dp[v.val] else 0)) 0
 
 /-- One round of restricted vector–adjacency multiplication in `n²` ticks. -/
 @[expose] def stepVecM (adj : Fin n → Fin n → Bool) (k : ℕ) (dp : Vector ℕ n) :
@@ -301,7 +301,7 @@ variable {n : ℕ}
 
 /-- Sum the entries of a length-`n` vector in `n` ticks. -/
 @[expose] def sumVecM (dp : Vector ℕ n) : TimeM ℕ ℕ :=
-  (List.finRange n).foldlM (fun acc (u : Fin n) => do ✓ pure (acc + dp[u.1])) 0
+  (List.finRange n).foldlM (fun acc (u : Fin n) => do ✓ pure (acc + dp[u.val])) 0
 
 /-- Count the `n`-vertex walks in `adj` whose vertices all lie in `maskSet n k`, in
 `(n - 1) * n² + n` ticks when `n ≥ 1` (`0` ticks when `n = 0`). -/
@@ -331,7 +331,7 @@ restricted vector–adjacency multiplication, and accumulates the signed sum in 
 @[simp] theorem ret_stepCellM (adj : Fin n → Fin n → Bool) (k : ℕ) (dp : Vector ℕ n)
     (u : Fin n) :
     (stepCellM adj k dp u).ret =
-      ∑ v : Fin n, if u ∈ maskSet n k ∧ adj u v then dp[v.1] else 0 := by
+      ∑ v : Fin n, if u ∈ maskSet n k ∧ adj u v then dp[v.val] else 0 := by
   simp only [stepCellM, time_simps, Bool.and_eq_true, mem_maskSet]
   rw [← List.foldl_map, ← List.sum_eq_foldl, ← Fin.sum_univ_def]
 
@@ -342,7 +342,7 @@ restricted vector–adjacency multiplication, and accumulates the signed sum in 
 
 @[simp] theorem ret_stepVecM (adj : Fin n → Fin n → Bool) (k : ℕ) (dp : Vector ℕ n) :
     (stepVecM adj k dp).ret =
-      Vector.ofFn fun u => ∑ v : Fin n, if u ∈ maskSet n k ∧ adj u v then dp[v.1] else 0 := by
+      Vector.ofFn fun u => ∑ v : Fin n, if u ∈ maskSet n k ∧ adj u v then dp[v.val] else 0 := by
   simp [stepVecM]
 
 @[simp] theorem time_stepVecM (adj : Fin n → Fin n → Bool) (k : ℕ) (dp : Vector ℕ n) :
@@ -376,7 +376,7 @@ theorem ret_roundsM (adj : Fin n → Fin n → Bool) (k r : ℕ) :
     List.length_finRange]
 
 @[simp] theorem ret_sumVecM (dp : Vector ℕ n) :
-    (sumVecM dp).ret = ∑ u : Fin n, dp[u.1] := by
+    (sumVecM dp).ret = ∑ u : Fin n, dp[u.val] := by
   simp only [sumVecM, time_simps]
   rw [← List.foldl_map, ← List.sum_eq_foldl, ← Fin.sum_univ_def]
 

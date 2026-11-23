@@ -89,11 +89,11 @@ instance {k : ℕ} [Finite (Σ l, L.Relations l)] : Finite (NewAtom L k) :=
   Subtype.finite
 
 /-- The relation symbol of a new atomic fact, with its arity. -/
-abbrev NewAtom.symbol {k : ℕ} (a : NewAtom L k) : Σ l, L.Relations l := a.1.1
+abbrev NewAtom.symbol {k : ℕ} (a : NewAtom L k) : Σ l, L.Relations l := a.val.1
 
 /-- The arguments of a new atomic fact, as positions in `Fin (k + 1)`, where `0` is the new
 element. -/
-abbrev NewAtom.args {k : ℕ} (a : NewAtom L k) : Fin a.symbol.1 → Fin (k + 1) := a.1.2
+abbrev NewAtom.args {k : ℕ} (a : NewAtom L k) : Fin a.symbol.1 → Fin (k + 1) := a.val.2
 
 variable {M : Type w} [L.Structure M]
 
@@ -132,11 +132,11 @@ private theorem realize_atomFormula {k : ℕ} (a : Atom L (k + 1)) (x : Fin k �
 /-- The matrix of an extension axiom. -/
 private noncomputable def extensionBody [Finite (Σ l, L.Relations l)] {k : ℕ}
     (p : NewAtom L k → Bool) : L.Formula (Fin k) :=
-  (Formula.iInf fun q : {q : Fin k × Fin k // q.1 ≠ q.2} => ∼(varEq q.1.1 q.1.2)) ⟹
+  (Formula.iInf fun q : {q : Fin k × Fin k // q.1 ≠ q.2} => ∼(varEq q.val.1 q.val.2)) ⟹
     Formula.iExs (Fin 1)
       ((Formula.iInf fun i : Fin k => ∼(varEq (Sum.inr 0) (Sum.inl i))) ⊓
         Formula.iInf fun a : NewAtom L k =>
-          if p a then atomFormula a.1 else ∼(atomFormula a.1))
+          if p a then atomFormula a.val else ∼(atomFormula a.val))
 
 /-- The **extension axiom** for the pattern `p`: every tuple of `k` distinct elements has a witness
 of its extension by `p` [Fagin1976]. -/
@@ -160,7 +160,7 @@ theorem realize_extensionAxiom [Finite (Σ l, L.Relations l)] {k : ℕ} (p : New
     realize_atomFormula]
   constructor
   · intro h hx
-    obtain ⟨zf, hz1, hz2⟩ := h fun q hq => q.2 (hx hq)
+    obtain ⟨zf, hz1, hz2⟩ := h fun q hq => q.property (hx hq)
     exact ⟨zf 0, hz1, hz2⟩
   · intro h hx
     obtain ⟨z, hz1, hz2⟩ := h fun i j hij => by
@@ -229,7 +229,7 @@ theorem isExtensionPair_of_hasExtension [L.IsRelational] {N : Type*} [L.Structur
   have hg_of_mem : ∀ (u : U) (h : (u : M) ∈ S), g u = f ⟨u, h⟩ := fun u h => dite_eq_left h
   have hg_of_not_mem : ∀ u : U, (u : M) ∉ S → g u = z := fun u h => dite_eq_right h
   have hm_of_not_mem : ∀ u : U, (u : M) ∉ S → (u : M) = m := fun u h =>
-    ((hU u).1 u.2).resolve_right h
+    ((hU u).1 u.property).resolve_right h
   have g_inj : Function.Injective g := by
     intro u w huw
     apply Subtype.ext
@@ -276,7 +276,7 @@ theorem isExtensionPair_of_hasExtension [L.IsRelational] {N : Type*} [L.Structur
   ext a
   simp only [Embedding.comp_apply, Substructure.coe_inclusion]
   change f a = g _
-  rw [hg_of_mem _ a.2]
+  rw [hg_of_mem _ a.property]
 
 /-- **The extension theory is `ℵ₀`-categorical**: any two countable models are isomorphic, by a
 back-and-forth argument [Libkin2004, Chapter 12]. This needs that `L` has no nullary relation

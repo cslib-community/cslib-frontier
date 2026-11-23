@@ -263,7 +263,7 @@ by listing `encView i (vI ⟨i, hi⟩)` for `i ∈ I` and `[]` for `i ∉ I`. -/
 @[expose] def encodeCoalitionView {m : ℕ} {spec : MultiOracleSpec} {sc : Schedule m spec}
     {In Coins : Fin m → Type}
     (encView : (i : Fin m) → PartyView In Coins sc i → List Bool)
-    (I : Finset (Fin m)) (vI : (i : I) → PartyView In Coins sc i.1) : List Bool :=
+    (I : Finset (Fin m)) (vI : (i : I) → PartyView In Coins sc i.val) : List Bool :=
   encList encBits
     ((List.finRange m).map fun i => if hi : i ∈ I then encView i (vI ⟨i, hi⟩) else [])
 

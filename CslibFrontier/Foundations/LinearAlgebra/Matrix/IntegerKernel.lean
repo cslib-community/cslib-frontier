@@ -39,13 +39,13 @@ and entry bound `B`. -/
 
 private lemma sum_ne_eq_sum_erase {n α : Type*} [Fintype n] [DecidableEq n] [AddCommMonoid α]
     (j₀ : n) (f : n → α) :
-    ∑ j : { j : n // j ≠ j₀ }, f j.1 = ∑ j ∈ Finset.univ.erase j₀, f j := by
+    ∑ j : { j : n // j ≠ j₀ }, f j.val = ∑ j ∈ Finset.univ.erase j₀, f j := by
   let e : { j : n // j ≠ j₀ } ≃ ↥(Finset.univ.erase j₀) :=
-    { toFun := fun j => ⟨j.1, Finset.mem_erase.2 ⟨j.2, Finset.mem_univ _⟩⟩
-      invFun := fun j => ⟨j.1, (Finset.mem_erase.1 j.2).1⟩
+    { toFun := fun j => ⟨j.val, Finset.mem_erase.2 ⟨j.property, Finset.mem_univ _⟩⟩
+      invFun := fun j => ⟨j.val, (Finset.mem_erase.1 j.property).1⟩
       left_inv := fun _ => rfl
       right_inv := fun _ => rfl }
-  rw [Fintype.sum_equiv e (fun j => f j.1) (fun j : ↥(Finset.univ.erase j₀) => f j.1)
+  rw [Fintype.sum_equiv e (fun j => f j.val) (fun j : ↥(Finset.univ.erase j₀) => f j.val)
     (fun _ => rfl)]
   exact Finset.sum_coe_sort (Finset.univ.erase j₀) f
 
@@ -81,13 +81,13 @@ theorem exists_int_mulVec_eq_zero_of_not_injective {m n : Type*} [Fintype m] [Fi
     rw [inv_mul_le_iff₀ (abs_pos.2 hvj₀), mul_one]
     exact this
   let n' := { j : n // j ≠ j₀ }
-  let A' : Matrix m n' ℤ := fun i j => A i j.1
-  let b' : m → ℤ := fun i => -A i j₀ + ∑ j : n', A i j.1
-  let x' : n' → ℚ := fun j => w j.1 + 1
+  let A' : Matrix m n' ℤ := fun i j => A i j.val
+  let b' : m → ℤ := fun i => -A i j₀ + ∑ j : n', A i j.val
+  let x' : n' → ℚ := fun j => w j.val + 1
   have hx'_nonneg : 0 ≤ x' := by
     intro j
-    have := abs_le.1 (hw_abs j.1)
-    change 0 ≤ w j.1 + 1
+    have := abs_le.1 (hw_abs j.val)
+    change 0 ≤ w j.val + 1
     linarith
   have hAx' : (A'.map Int.cast) *ᵥ x' = fun i => (b' i : ℚ) := by
     ext i
@@ -96,13 +96,13 @@ theorem exists_int_mulVec_eq_zero_of_not_injective {m n : Type*} [Fintype m] [Fi
         ((A i j₀ : ℤ) : ℚ) * w j₀ + ∑ j ∈ Finset.univ.erase j₀, ((A i j : ℤ) : ℚ) * w j := by
       rw [← Finset.add_sum_erase Finset.univ _ (Finset.mem_univ j₀)]
     have hrow : ∑ j : n, ((A i j : ℤ) : ℚ) * w j = 0 := congrFun hw_mul i
-    have heq_sub : ∑ j : n', ((A i j.1 : ℤ) : ℚ) * w j.1 =
+    have heq_sub : ∑ j : n', ((A i j.val : ℤ) : ℚ) * w j.val =
         ∑ j ∈ Finset.univ.erase j₀, ((A i j : ℤ) : ℚ) * w j :=
       sum_ne_eq_sum_erase j₀ fun j => ((A i j : ℤ) : ℚ) * w j
-    calc ∑ j : n', ((A i j.1 : ℤ) : ℚ) * (w j.1 + 1)
-        = (∑ j : n', ((A i j.1 : ℤ) : ℚ) * w j.1) + ∑ j : n', ((A i j.1 : ℤ) : ℚ) := by
+    calc ∑ j : n', ((A i j.val : ℤ) : ℚ) * (w j.val + 1)
+        = (∑ j : n', ((A i j.val : ℤ) : ℚ) * w j.val) + ∑ j : n', ((A i j.val : ℤ) : ℚ) := by
           simp only [mul_add, mul_one, Finset.sum_add_distrib]
-      _ = -((A i j₀ : ℤ) : ℚ) + ∑ j : n', ((A i j.1 : ℤ) : ℚ) := by
+      _ = -((A i j₀ : ℤ) : ℚ) + ∑ j : n', ((A i j.val : ℤ) : ℚ) := by
           rw [hw_j₀, mul_one] at hsplit
           rw [heq_sub]
           linarith [hsplit, hrow]
@@ -112,15 +112,15 @@ theorem exists_int_mulVec_eq_zero_of_not_injective {m n : Type*} [Fintype m] [Fi
       Finset.card_univ]
     omega
   have hA'_bd : ∀ i (j : n'), |A' i j| ≤ B' := fun i j =>
-    (hA i j.1).trans (by exact_mod_cast Nat.le_mul_of_pos_left B (Nat.succ_pos _))
+    (hA i j.val).trans (by exact_mod_cast Nat.le_mul_of_pos_left B (Nat.succ_pos _))
   have hb'_bd : ∀ i, |b' i| ≤ B' := fun i => by
-    have hsum_bd : |∑ j : n', A i j.1| ≤ (Fintype.card n' : ℤ) * B := by
-      calc |∑ j : n', A i j.1|
+    have hsum_bd : |∑ j : n', A i j.val| ≤ (Fintype.card n' : ℤ) * B := by
+      calc |∑ j : n', A i j.val|
           ≤ ∑ _j : n', (B : ℤ) :=
-            (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun j _ => hA i j.1)
+            (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun j _ => hA i j.val)
         _ = (Fintype.card n' : ℤ) * B := by simp
-    calc |b' i| = |-A i j₀ + ∑ j : n', A i j.1| := rfl
-      _ ≤ |-A i j₀| + |∑ j : n', A i j.1| := abs_add_le _ _
+    calc |b' i| = |-A i j₀ + ∑ j : n', A i j.val| := rfl
+      _ ≤ |-A i j₀| + |∑ j : n', A i j.val| := abs_add_le _ _
       _ ≤ B + (Fintype.card n' : ℤ) * B := add_le_add (by simpa [abs_neg] using hA i j₀) hsum_bd
       _ ≤ (B' : ℤ) := by
         dsimp only [B']
@@ -151,13 +151,13 @@ theorem exists_int_mulVec_eq_zero_of_not_injective {m n : Type*} [Fintype m] [Fi
         ∑ j : n', A' i j * (p' j - d) := by
       rw [← sum_ne_eq_sum_erase j₀ (fun j => A i j * c j)]
       refine Finset.sum_congr rfl fun j _ => ?_
-      simp [c, j.2, A']
+      simp [c, j.property, A']
     have hAp_i : ∑ j : n', A' i j * p' j = d * b' i := congrFun hAp' i
     rw [hsplit, hc_j₀, hsub]
     calc A i j₀ * d + ∑ j : n', A' i j * (p' j - d)
-        = A i j₀ * d + ((∑ j : n', A' i j * p' j) - d * ∑ j : n', A i j.1) := by
+        = A i j₀ * d + ((∑ j : n', A' i j * p' j) - d * ∑ j : n', A i j.val) := by
           simp only [mul_sub, Finset.sum_sub_distrib, Finset.mul_sum, A', mul_comm _ d]
-      _ = A i j₀ * d + (d * (-A i j₀ + ∑ j : n', A i j.1) - d * ∑ j : n', A i j.1) := by
+      _ = A i j₀ * d + (d * (-A i j₀ + ∑ j : n', A i j.val) - d * ∑ j : n', A i j.val) := by
           rw [hAp_i]
       _ = 0 := by ring
   · intro j
@@ -192,14 +192,14 @@ theorem exists_int_mulVec_eq_zero_of_card_lt {m n : Type*} [Fintype m] [Fintype 
   have hS_card : Fintype.card S = Fintype.card m + 1 := by simp [Fintype.card_coe, hS]
   let AS : Matrix m S ℤ := A.submatrix id Subtype.val
   obtain ⟨cS, hcS0, hAS, hcS_bd⟩ := exists_int_mulVec_eq_zero_of_succ AS
-    (fun i j => hA i j.1) hS_card
+    (fun i j => hA i j.val) hS_card
   let c : n → ℤ := fun j => if hj : j ∈ S then cS ⟨j, hj⟩ else 0
   refine ⟨c, ?_, ?_, ?_⟩
   · intro hc0
     apply hcS0
     ext j
-    have := congrFun hc0 j.1
-    simpa [c, j.2] using this
+    have := congrFun hc0 j.val
+    simpa [c, j.property] using this
   · ext i
     change ∑ j : n, A i j * c j = 0
     have hsplit : ∑ j : n, A i j * c j = ∑ j ∈ S, A i j * c j := by

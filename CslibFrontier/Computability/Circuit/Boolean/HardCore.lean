@@ -255,7 +255,7 @@ theorem exists_isHardCoreMeasure {f : BooleanFunction n} {s T : ℕ} {δ ε : �
   have hcomplexity : complexity interpretation (single g) ≤ T * s + (2 + T * (2 * (T + 2))) := by
     have h : complexity interpretation (single g) ≤ j * s + (2 + j * (2 * (j + 2))) :=
       complexity_threshold_pi_le_of_le (j := j / 2 + 1) (fun l : Fin j => next (margin f next l))
-        fun l => (hnext (margin f next l) (hdense l l.2)).1
+        fun l => (hnext (margin f next l) (hdense l l.isLt)).1
     have hjT' := hjT.le
     have : j * s + (2 + j * (2 * (j + 2))) ≤ T * s + (2 + T * (2 * (T + 2))) := by
       gcongr

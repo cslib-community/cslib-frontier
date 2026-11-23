@@ -99,7 +99,7 @@ variable [Finite α] (t : ℕ)
 /-- The maps constant on the blocks of `x` are the maps on its blocks. -/
 private def constEquiv (x : Setoid α) :
     {f : α → Fin t // x ≤ Setoid.ker f} ≃ (Quotient x → Fin t) where
-  toFun f := Quotient.lift f.1 fun _ _ h => f.2 h
+  toFun f := Quotient.lift f.val fun _ _ h => f.property h
   invFun g := ⟨g ∘ Quotient.mk x, fun _ _ h => by
     simp only [Setoid.ker_def, Function.comp_apply, Quotient.sound h]⟩
   left_inv _ := rfl
@@ -108,12 +108,12 @@ private def constEquiv (x : Setoid α) :
 /-- The maps with kernel `z` are the injective maps on its blocks. -/
 private def kerEquiv (z : Setoid α) :
     {f : α → Fin t // Setoid.ker f = z} ≃ (Quotient z ↪ Fin t) where
-  toFun f := ⟨Quotient.lift f.1 fun a b h => by
-      rw [← f.2] at h
+  toFun f := ⟨Quotient.lift f.val fun a b h => by
+      rw [← f.property] at h
       exact Setoid.ker_def.mp h,
     fun p q => Quotient.inductionOn₂ p q fun a b hab => Quotient.sound (by
-      have : Setoid.ker f.1 a b := Setoid.ker_def.mpr hab
-      rwa [f.2] at this)⟩
+      have : Setoid.ker f.val a b := Setoid.ker_def.mpr hab
+      rwa [f.property] at this)⟩
   invFun e := ⟨e ∘ Quotient.mk z, Setoid.ext fun a b => by
     simp only [Setoid.ker_def, Function.comp_apply, e.injective.eq_iff, Quotient.eq]⟩
   left_inv _ := rfl

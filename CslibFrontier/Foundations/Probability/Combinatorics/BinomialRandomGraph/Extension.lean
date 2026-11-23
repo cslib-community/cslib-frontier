@@ -59,13 +59,13 @@ theorem binomialRandom_real_forall_not_witness [Fintype V] (p : I) {k : ℕ} (x 
   classical
   -- The vertices outside `x`, and the pairs joining them to `x`.
   let O := {z : V // z ∉ Set.range x}
-  let f : O × Fin k → Sym2 V := fun q => s(q.1.1, x q.2)
+  let f : O × Fin k → Sym2 V := fun q => s(q.1.val, x q.2)
   have hf : Function.Injective f := by
     rintro ⟨z, i⟩ ⟨z', i'⟩ h
     rcases Sym2.eq_iff.1 h with ⟨hz, hi⟩ | ⟨hz, -⟩
     · exact Prod.ext (Subtype.ext hz) (x.injective hi)
-    · exact absurd ⟨i', hz.symm⟩ z.2
-  have hd : ∀ q, ¬(f q).IsDiag := fun q h => q.1.2 ⟨q.2, (Sym2.mk_isDiag_iff.1 h).symm⟩
+    · exact absurd ⟨i', hz.symm⟩ z.property
+  have hd : ∀ q, ¬(f q).IsDiag := fun q h => q.1.property ⟨q.2, (Sym2.mk_isDiag_iff.1 h).symm⟩
   -- The event that the adjacency pattern of the outside vertices towards `x` is `t`.
   let E : (O → Fin k → Bool) → Set (SimpleGraph V) :=
     fun t => {G | ∀ q : O × Fin k, (f q ∈ G.edgeSet ↔ t q.1 q.2 = true)}
@@ -82,7 +82,7 @@ theorem binomialRandom_real_forall_not_witness [Fintype V] (p : I) {k : ℕ} (x 
     constructor
     · intro h
       refine ⟨fun z i => decide (G.Adj z (x i)), fun z hz => h z ?_, fun z i => ?_⟩
-      · refine ⟨fun i he => z.2 ⟨i, he.symm⟩, fun i => ?_⟩
+      · refine ⟨fun i he => z.property ⟨i, he.symm⟩, fun i => ?_⟩
         rw [← congrFun hz i, decide_eq_true_iff]
       · rw [decide_eq_true_iff]
     · rintro ⟨t, ht, hG⟩ z ⟨hne, hadj⟩

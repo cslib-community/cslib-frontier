@@ -78,9 +78,9 @@ variable {Secret Key Party : Type*} {Share : Party → Type*}
 every ambient key `k`. -/
 @[expose] def PerfectlyCorrect (access : AccessStructure Party)
     (share : Key → Secret → (i : Party) → Share i)
-    (reconstruct : (s : Finset Party) → ((i : s) → Share i.1) → Secret) : Prop :=
+    (reconstruct : (s : Finset Party) → ((i : s) → Share i.val) → Secret) : Prop :=
   ∀ (k : Key) (secret : Secret) (s : Finset Party),
-    access.authorized s → reconstruct s (fun i => share k secret i.1) = secret
+    access.authorized s → reconstruct s (fun i => share k secret i.val) = secret
 
 /-- Perfect view-indistinguishability privacy relative to source class `sources`: under every
 source `P ∈ sources` and every unauthorized coalition `s`, any two secrets induce identical view
@@ -153,7 +153,7 @@ prior `secretDist`. -/
 @[expose] noncomputable def posteriorSecretDistOf
     (P : PMF Key) (share : Key → Secret → (i : Party) → Share i)
     (s : Finset Party) (secretDist : PMF Secret)
-    (v : (i : s) → Share i.1)
+    (v : (i : s) → Share i.val)
     (hv : v ∈ (secretDist.bind (AccessStructure.viewDistOf P share s)).support) : PMF Secret :=
   posteriorDist secretDist (AccessStructure.viewDistOf P share s) v hv
 
@@ -161,7 +161,7 @@ prior `secretDist`. -/
 theorem posteriorSecretDistOf_apply
     (P : PMF Key) (share : Key → Secret → (i : Party) → Share i)
     (s : Finset Party) (secretDist : PMF Secret)
-    (v : (i : s) → Share i.1)
+    (v : (i : s) → Share i.val)
     (hv : v ∈ (secretDist.bind (AccessStructure.viewDistOf P share s)).support)
     (secret : Secret) :
     posteriorSecretDistOf P share s secretDist v hv secret =
@@ -176,7 +176,7 @@ conditioning on any positive-probability view leaves every secret prior unchange
 @[expose] def PosteriorPrivate (access : AccessStructure Party) (sources : SourceClass Key)
     (share : Key → Secret → (i : Party) → Share i) : Prop :=
   ∀ P ∈ sources, ∀ (s : Finset Party), ¬ access.authorized s →
-    ∀ (secretDist : PMF Secret) (v : (i : s) → Share i.1)
+    ∀ (secretDist : PMF Secret) (v : (i : s) → Share i.val)
       (hv : v ∈ (secretDist.bind (AccessStructure.viewDistOf P share s)).support),
         posteriorSecretDistOf P share s secretDist v hv = secretDist
 
@@ -231,7 +231,7 @@ theorem posteriorPrivate_iff_viewIndist
 @[expose] noncomputable def AccessScheme.posteriorSecretDist
     (scheme : AccessScheme Secret Key Party Share)
     (P : PMF Key) (s : Finset Party) (secretDist : PMF Secret)
-    (v : (i : s) → Share i.1)
+    (v : (i : s) → Share i.val)
     (hv : v ∈ (secretDist.bind (scheme.viewDist P s)).support) : PMF Secret :=
   posteriorSecretDistOf P scheme.share s secretDist v hv
 
@@ -256,7 +256,7 @@ under key source `P`. -/
 @[expose] noncomputable def jointSecretView
     (P : PMF Key) (share : Key → Secret → (i : Party) → Share i)
     (s : Finset Party) (secretDist : PMF Secret) :
-    PMF (Secret × ((i : s) → Share i.1)) :=
+    PMF (Secret × ((i : s) → Share i.val)) :=
   secretDist.bind fun m => (AccessStructure.viewDistOf P share s m).map (m, ·)
 
 @[simp]
@@ -377,7 +377,7 @@ theorem AccessScheme.mutualInfo_authorized_eq_entropy
     have hR : mutualInfo joint =
         entropy (joint.map Prod.fst) + entropy (joint.map Prod.snd) - entropy joint := by
       have hid := mutualInfo_map joint Prod.fst Prod.snd
-      rw [show (fun ω : Secret × ((i : s) → Share i.1) => (ω.1, ω.2)) = id from rfl,
+      rw [show (fun ω : Secret × ((i : s) → Share i.val) => (ω.1, ω.2)) = id from rfl,
         PMF.map_id] at hid
       exact hid
     rw [hL, hR, entropy_map_of_injective joint Prod.swap_injective]

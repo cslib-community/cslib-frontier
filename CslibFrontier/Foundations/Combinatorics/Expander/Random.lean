@@ -76,7 +76,7 @@ private theorem card_filter_forall_eq_le (K : Finset V) (g : K → V)
   refine le_of_eq (Eq.trans ?_ (Perm.card_filter_forall_eq_of_injOn K f hf))
   refine congrArg card (filter_congr fun σ _ ↦ ⟨fun h u hu ↦ ?_, fun h v ↦ ?_⟩)
   · simpa only [f, hu, ↓reduceDIte] using h ⟨u, hu⟩
-  · simpa only [f, v.2, ↓reduceDIte] using h v v.2
+  · simpa only [f, v.property, ↓reduceDIte] using h v v.property
 
 /-- At most `s (s - 1) ⋯ (s - k + 1) (n - k)!` permutations of an `n`-element type map a
 `k`-element set `K` into an `s`-element set `S`: on `K` such a permutation is one of the
@@ -87,7 +87,7 @@ private theorem card_filter_forall_mem_le (K S : Finset V) :
       (univ : Finset (K ↪ S)).biUnion fun g ↦ {σ : Perm V | ∀ v : K, σ v = g v} := by
     intro σ hσ
     rw [mem_filter] at hσ
-    exact mem_biUnion.2 ⟨⟨fun v ↦ ⟨σ v, hσ.2 v v.2⟩,
+    exact mem_biUnion.2 ⟨⟨fun v ↦ ⟨σ v, hσ.2 v v.property⟩,
       fun a b h ↦ Subtype.ext (σ.injective (congrArg Subtype.val h))⟩, mem_univ _,
       mem_filter.2 ⟨mem_univ _, fun _ ↦ rfl⟩⟩
   calc #{σ : Perm V | ∀ v ∈ K, σ v ∈ S}

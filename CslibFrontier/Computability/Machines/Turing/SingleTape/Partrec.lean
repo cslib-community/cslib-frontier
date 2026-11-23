@@ -83,7 +83,7 @@ attribute [local instance] Encodable.decidableEqOfEncodable
 /-- Equivalence between `StackTape Symbol` and its underlying subtype of `List (Option Symbol)`. -/
 def equivSubtype : StackTape Symbol ≃ { l : List (Option Symbol) // l.getLast? ≠ some none } where
   toFun t := ⟨t.toList, t.toList_getLast?_ne_some_none⟩
-  invFun s := ⟨s.1, s.2⟩
+  invFun s := ⟨s.val, s.property⟩
   left_inv t := by cases t; rfl
   right_inv s := by cases s; rfl
 

@@ -103,7 +103,7 @@ theorem empiricalRademacherComplexity_linearPredictors_le_sqrt (φ : Z → E) {B
   calc 𝔼 σ : Fin m → Bool, ⨆ h : linearPredictors φ B, ∑ i, (h : Z → ℝ) (S i) * signVal (σ i)
       ≤ 𝔼 σ : Fin m → Bool, B * ‖∑ i, signVal (σ i) • φ (S i)‖ := by
         refine Finset.expect_le_expect fun σ _ => ciSup_le fun h => ?_
-        obtain ⟨w, hw, hwh⟩ := mem_linearPredictors.1 h.2
+        obtain ⟨w, hw, hwh⟩ := mem_linearPredictors.1 h.property
         rw [← hwh]
         calc ∑ i, ⟪w, φ (S i)⟫ * signVal (σ i) = ⟪w, ∑ i, signVal (σ i) • φ (S i)⟫ := by
               rw [inner_sum]

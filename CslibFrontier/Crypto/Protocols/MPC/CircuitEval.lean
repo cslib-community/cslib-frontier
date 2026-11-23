@@ -451,7 +451,7 @@ private theorem eval_lineDist_restrict_of_ne_univ {m inputCount g : ℕ} [NeZero
     have hfactor : ∀ b : Bool,
         ((ProbComp.eval (ProbComp.sampleAdditiveShares m b)).map deliverMulOracle).map I.restrict =
           ((ProbComp.eval (ProbComp.sampleAdditiveShares m b)).map I.restrict).map
-            (fun ansI (i : I) => deliverSelfShare (ansI i) i.1) := by
+            (fun ansI (i : I) => deliverSelfShare (ansI i) i.val) := by
       intro b
       rw [PMF.map_comp, PMF.map_comp]
       congr 1
@@ -816,22 +816,22 @@ per-sender contributions `contrib`. -/
 private def assembleInputShare (m n : ℕ) (I : Finset (Fin m))
     (contrib : (s : Fin m) → (s ∈ I → Fin n → Fin (m - 1) → Bool) × ((i : I) → BitString n))
     (i : I) :
-    (Fin n → Fin (m - 1) → Bool) × (inputShareSchedule m n).Received i.1 :=
-  ((contrib i.1).1 i.2,
-    receivedScheduleOfInbox i.1 (fun s => (contrib s).2 i) (allPairs m))
+    (Fin n → Fin (m - 1) → Bool) × (inputShareSchedule m n).Received i.val :=
+  ((contrib i.val).1 i.property,
+    receivedScheduleOfInbox i.val (fun s => (contrib s).2 i) (allPairs m))
 
 private theorem eval_inputShare_restrict (m n : ℕ) [NeZero m] (I : Finset (Fin m))
     (x : (i : Fin m) → BitString n) :
     (ProbComp.eval (OracleComp.pi (fun _ : Fin m =>
         ProbComp.uniform (Fin n → Fin (m - 1) → Bool)))).map
-      (fun c (i : I) => (c i.1, deliverInputShares (extendByZero I (I.restrict x)) c i.1)) =
+      (fun c (i : I) => (c i.val, deliverInputShares (extendByZero I (I.restrict x)) c i.val)) =
     (ProbComp.eval (OracleComp.pi (fun _ : Fin m =>
         ProbComp.uniform (Fin n → Fin (m - 1) → Bool)))).map
-      (fun c (i : I) => (c i.1, deliverInputShares x c i.1)) := by
+      (fun c (i : I) => (c i.val, deliverInputShares x c i.val)) := by
   have hfactor : ∀ x' : (i : Fin m) → BitString n,
       (ProbComp.eval (OracleComp.pi (fun _ : Fin m =>
           ProbComp.uniform (Fin n → Fin (m - 1) → Bool)))).map
-        (fun c (i : I) => (c i.1, deliverInputShares x' c i.1)) =
+        (fun c (i : I) => (c i.val, deliverInputShares x' c i.val)) =
       (ProbComp.eval (OracleComp.pi (fun s : Fin m =>
           senderContribution m n I s (x' s) <$>
             ProbComp.uniform (Fin n → Fin (m - 1) → Bool)))).map
@@ -884,7 +884,7 @@ private theorem map_deliverCoord_restrict {m k : ℕ} [NeZero m]
         ((ProbComp.eval (ProbComp.sampleAdditiveShares m b)).map (deliverCoord coord.1)).map
             I.restrict =
           ((ProbComp.eval (ProbComp.sampleAdditiveShares m b)).map I.restrict).map
-            (fun ansI (i : I) => deliverCoordNonMember coord.1 (ansI i) i.1) := by
+            (fun ansI (i : I) => deliverCoordNonMember coord.1 (ansI i) i.val) := by
       intro b
       rw [PMF.map_comp, PMF.map_comp]
       congr 1
@@ -1005,19 +1005,19 @@ private theorem eval_gmwCircuitRealViews_restrict {m n k : ℕ} [NeZero m]
         (extendByZero I (I.restrict x)) (extendByZero I (I.restrict y)))).map I.restrict =
       (ProbComp.eval (gmwCircuitRealViews m n k C x y)).map I.restrict := by
   have hfactor : ∀ (x' : (i : Fin m) → BitString n) (y' : (i : Fin m) → BitString k)
-      (hx' : ∀ i : I, x' i.1 = x i.1),
+      (hx' : ∀ i : I, x' i.val = x i.val),
       (ProbComp.eval (gmwCircuitRealViews m n k C x' y')).map I.restrict =
         ((ProbComp.eval (OracleComp.pi (fun _ : Fin m =>
             ProbComp.uniform (Fin n → Fin (m - 1) → Bool)))).map
-          (fun c (i : I) => (c i.1, deliverInputShares x' c i.1))).bind fun cI =>
+          (fun c (i : I) => (c i.val, deliverInputShares x' c i.val))).bind fun cI =>
           ((ProbComp.eval (progDist m (BitString.blocksEquiv.symm x') C.program)).map
               I.restrict).bind
             fun rI_prog =>
               ((ProbComp.eval (outputDist m k y')).map I.restrict).map fun rI_out (i : I) =>
-                (⟨x i.1, (cI i).1,
+                (⟨x i.val, (cI i).1,
                   Schedule.Received.append (cI i).2
                     (Schedule.Received.append (rI_prog i) (rI_out i))⟩ :
-                  GMWCircuitView m n k C i.1) := by
+                  GMWCircuitView m n k C i.val) := by
     intro x' y' hx'
     simp only [pmf_norm, gmwCircuitRealViews, bind_pure_comp, I.restrict_def]
     refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun c _ => ?_
@@ -1026,7 +1026,7 @@ private theorem eval_gmwCircuitRealViews_restrict {m n k : ℕ} [NeZero m]
     funext r_out i
     simp [hx' i]
   rw [hfactor (extendByZero I (I.restrict x)) (extendByZero I (I.restrict y))
-      (fun i => extendByZero_of_mem I (I.restrict x) i.2),
+      (fun i => extendByZero_of_mem I (I.restrict x) i.property),
     hfactor x y (fun _ => rfl),
     eval_inputShare_restrict m n I x,
     eval_progDist_restrict I x C.program,

@@ -190,7 +190,7 @@ theorem isVertexConnected_iff_forall_isVertexSeparator {G : SimpleGraph V} {k : 
     · have huT : u ∉ T := fun h => hu (hTX ▸ Finset.mem_coe.mpr h)
       have hvT : v ∉ T := fun h => hv (hTX ▸ Finset.mem_coe.mpr h)
       by_contra hnr
-      let f : G.induce (T : Set V)ᶜ →g G.induce Xᶜ := ⟨fun y => ⟨y.1, hTX ▸ y.2⟩, id⟩
+      let f : G.induce (T : Set V)ᶜ →g G.induce Xᶜ := ⟨fun y => ⟨y.val, hTX ▸ y.property⟩, id⟩
       have hTsep : G.IsVertexSeparator u v T :=
         isVertexSeparator_iff_not_reachable_induce.mpr ⟨huT, hvT, fun hr => hnr (hr.map f)⟩
       exact absurd (hsep huv T hTsep) (not_le_of_gt hTcard)
@@ -234,8 +234,8 @@ theorem card_gt_of_injective_internallyDisjoint {G : SimpleGraph V} {u v : V} (h
     omega
   choose x hxm hxu hxv using fun i (hi : i ∈ I) =>
     exists_internal_mem_support_of_support_ne huv (hW i) (Finset.mem_filter.mp hi).2
-  let S : Finset V := insert u (insert v (I.attach.image fun i => x i.1 i.2))
-  have hxinj : Function.Injective fun i : I => x i.1 i.2 := by
+  let S : Finset V := insert u (insert v (I.attach.image fun i => x i.val i.property))
+  have hxinj : Function.Injective fun i : I => x i.val i.property := by
     intro ⟨i, hi⟩ ⟨j, hj⟩ hij
     by_contra hne
     have hne' : i ≠ j := fun h => hne (Subtype.ext h)
@@ -244,13 +244,13 @@ theorem card_gt_of_injective_internallyDisjoint {G : SimpleGraph V} {u v : V} (h
     · exact hxu i hi h
     · exact hxv i hi h
   have hScard : k + 1 ≤ S.card := by
-    have huS : u ∉ insert v (I.attach.image fun i => x i.1 i.2) := by
+    have huS : u ∉ insert v (I.attach.image fun i => x i.val i.property) := by
       simp only [Finset.mem_insert, Finset.mem_image, Finset.mem_attach, true_and, not_or,
         not_exists]
-      exact ⟨huv, fun i hi => hxu i.1 i.2 hi⟩
-    have hvS : v ∉ I.attach.image fun i => x i.1 i.2 := by
+      exact ⟨huv, fun i hi => hxu i.val i.property hi⟩
+    have hvS : v ∉ I.attach.image fun i => x i.val i.property := by
       simp only [Finset.mem_image, Finset.mem_attach, true_and, not_exists]
-      exact fun i hi => hxv i.1 i.2 hi
+      exact fun i hi => hxv i.val i.property hi
     rw [Finset.card_insert_of_notMem huS, Finset.card_insert_of_notMem hvS,
       Finset.card_image_of_injective _ hxinj, Finset.card_attach]
     omega
@@ -328,9 +328,9 @@ theorem exists_injective_internallyDisjoint_iff_exists_finset {G : SimpleGraph V
       exact hdisj (fun h => hne (congrArg W h))
   · rintro ⟨P, hPcard, hW, hdisj⟩
     let e := (P.equivFinOfCardEq hPcard).symm
-    refine ⟨fun i => (e i).1, fun i j hij => e.injective (Subtype.ext hij),
-      fun i => hW _ (e i).2, fun i j hij => ?_⟩
-    exact hdisj (e i).2 (e j).2 fun h => hij (e.injective (Subtype.ext h))
+    refine ⟨fun i => (e i).val, fun i j hij => e.injective (Subtype.ext hij),
+      fun i => hW _ (e i).property, fun i j hij => ?_⟩
+    exact hdisj (e i).property (e j).property fun h => hij (e.injective (Subtype.ext h))
 
 /-- A simple `u`–`v` path containing the edge `s(u, v)` must be the single-edge walk `[u, v]`. -/
 theorem support_eq_pair_of_mem_edges_of_isPath {G : SimpleGraph V} {u v : V} {w : G.Walk u v}

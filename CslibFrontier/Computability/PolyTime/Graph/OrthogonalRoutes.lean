@@ -64,7 +64,7 @@ theorem computableInPolyTime_sourceStart :
       sourceStart p.1.1 p.1.2 p.2) encSourceIndex encPoint := by
   have hp : ComputableInPolyTime
       (fun p : (Graph × Graph.OrthogonalDrawing) × ℕ =>
-        (p.1, (p.1.1.2.getD p.2 (0, 0)).2)) encSourceIndex
+        (p.1, (p.1.1.edges.getD p.2 (0, 0)).2)) encSourceIndex
       (encPair (encPair encGraph Graph.encOrthogonalDrawing) encNat) := by fun_prop
   simpa only [Function.comp_def, sourceStart] using
     (computableInPolyTime_drawingPosition.comp hp)

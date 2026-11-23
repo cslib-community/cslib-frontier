@@ -408,7 +408,7 @@ private theorem card_le_natarajanSum [Fintype β] :
         intro hne
         have := hRp p hp ∅ (by
           rw [coe_empty]
-          exact natarajanShatters_empty (hne.coe_sort.elim fun g => ⟨g, g.2⟩))
+          exact natarajanShatters_empty (hne.coe_sort.elim fun g => ⟨g, g.property⟩))
         simp at this
       rw [sum_congr rfl hzero, sum_const_zero, add_zero] at hcount
       have hR'1 : R'.card ≤ natarajanSum n (Fintype.card β) 0 := ih 0 R' hR'

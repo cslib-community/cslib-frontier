@@ -26,8 +26,8 @@ open Graph.RotationCertificate
 
 /-- Connectedness identifies every component face with a face of the whole rotation. -/
 noncomputable def connectedFaceEquiv {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
-    (hc : ∀ u ∈ G.1, ∀ v ∈ G.1, SameComponent G u v) (d : Dart G) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
+    (hc : ∀ u ∈ G.vertices, ∀ v ∈ G.vertices, SameComponent G u v) (d : Dart G) :
     ComponentFace r d.vertex ≃ r.Face where
   toFun := Subtype.val
   invFun f := ⟨f, Quotient.inductionOn f (fun a =>
@@ -38,11 +38,11 @@ noncomputable def connectedFaceEquiv {G : Graph} (r : RotationSystem G)
 /-- On a connected graph with an actual edge, numerical genus zero is precisely Euler's
 single equation. No geometric meaning or recognition algorithm is asserted. -/
 theorem numericalGenusZero_iff_connected_euler {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
-    (hc : ∀ u ∈ G.1, ∀ v ∈ G.1, SameComponent G u v) (d : Dart G) :
-    r.NumericalGenusZero ↔ G.1.toFinset.card + Nat.card r.Face = G.2.length + 2 := by
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
+    (hc : ∀ u ∈ G.vertices, ∀ v ∈ G.vertices, SameComponent G u v) (d : Dart G) :
+    r.NumericalGenusZero ↔ G.vertices.toFinset.card + Nat.card r.Face = G.edges.length + 2 := by
   classical
-  have hv (a : Dart G) : G.componentVertexSet a.vertex = G.1.toFinset := by
+  have hv (a : Dart G) : G.componentVertexSet a.vertex = G.vertices.toFinset := by
     apply Finset.filter_eq_self.mpr
     intro v hv
     exact hc _ (vertex_mem hG a) _ (List.mem_toFinset.mp hv)

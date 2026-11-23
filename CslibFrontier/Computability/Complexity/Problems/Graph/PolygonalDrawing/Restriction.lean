@@ -34,9 +34,9 @@ open Polygonal
 avoids the other declared points, and cuts every incident segment before its first third.
 Repeated vertex declarations and arbitrary natural vertex names are allowed. -/
 theorem IsEmbedding.exists_restriction_radius {G : Graph} {D : PolygonalDrawing G}
-    (hD : D.IsEmbedding) (v : ℕ) (hv : v ∈ G.1) :
+    (hD : D.IsEmbedding) (v : ℕ) (hv : v ∈ G.vertices) :
     ∃ ρ > 0,
-      (∀ w ∈ G.1, D.vertex w ∈ Metric.closedBall (D.vertex v) ρ → w = v) ∧
+      (∀ w ∈ G.vertices, D.vertex w ∈ Metric.closedBall (D.vertex v) ρ → w = v) ∧
       (∀ e (i : Fin (D.route e).segments) z,
         z ∈ Metric.closedBall (D.vertex v) ρ →
         z ∈ segment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) →
@@ -45,9 +45,9 @@ theorem IsEmbedding.exists_restriction_radius {G : Graph} {D : PolygonalDrawing 
       (∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖) := by
   classical
   obtain ⟨ε, hε, hseg⟩ := hD.exists_vertex_ball v hv
-  let K : Set ℂ := D.vertex '' {w | w ∈ G.1 ∧ w ≠ v}
-  have hfinite : Set.Finite {w | w ∈ G.1 ∧ w ≠ v} :=
-    G.1.finite_toSet.subset (fun _ h => h.1)
+  let K : Set ℂ := D.vertex '' {w | w ∈ G.vertices ∧ w ≠ v}
+  have hfinite : Set.Finite {w | w ∈ G.vertices ∧ w ≠ v} :=
+    G.vertices.finite_toSet.subset (fun _ h => h.1)
   have hK : IsClosed K := (hfinite.image D.vertex).isClosed
   have hvK : D.vertex v ∈ Kᶜ := by
     rintro ⟨w, ⟨hw, hne⟩, heq⟩
@@ -153,7 +153,7 @@ of an edge stays unchanged; the two ends of a loop are cut separately. -/
 /-- The exterior part of an edge after cutting at a named vertex. This is route data,
 not a drawing of a graph with invented port vertices. -/
 @[expose] noncomputable def outsideRoute {G : Graph} (D : PolygonalDrawing G)
-    (v : ℕ) (ρ : ℝ) (e : Fin G.2.length) : Route :=
+    (v : ℕ) (ρ : ℝ) (e : Fin G.edges.length) : Route :=
   (D.route e).cutEnds (D.restrictionTime v ρ (e, false))
     (D.restrictionTime v ρ (e, true))
 
@@ -173,7 +173,7 @@ theorem IsEmbedding.restrictionTime_mem {G : Graph} {D : PolygonalDrawing G}
 /-- The two independent end cuts leave a nonempty parameter interval on every route. -/
 theorem IsEmbedding.restrictionTime_bounds {G : Graph} {D : PolygonalDrawing G}
     (hD : D.IsEmbedding) (v : ℕ) {ρ : ℝ} (hρ : 0 < ρ)
-    (hlen : ∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖) (e : Fin G.2.length) :
+    (hlen : ∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖) (e : Fin G.edges.length) :
     0 ≤ D.restrictionTime v ρ (e, false) ∧ 0 ≤ D.restrictionTime v ρ (e, true) ∧
       D.restrictionTime v ρ (e, false) + D.restrictionTime v ρ (e, true) < 1 := by
   have hs := hD.restrictionTime_mem v hρ hlen (e, false)
@@ -183,7 +183,7 @@ theorem IsEmbedding.restrictionTime_bounds {G : Graph} {D : PolygonalDrawing G}
 /-- The two ends of the exterior piece are their respective cut ports or unchanged
 original endpoints, according to actual incidence with the named vertex. -/
 theorem endpoint_outsideRoute {G : Graph} (D : PolygonalDrawing G)
-    (v : ℕ) (ρ : ℝ) (e : Fin G.2.length) (b : Bool) :
+    (v : ℕ) (ρ : ℝ) (e : Fin G.edges.length) (b : Bool) :
     (D.outsideRoute v ρ e).endpoint b =
       if Dart.vertex (e, b) = v then D.cutPort ρ (e, b) else D.vertex (Dart.vertex (e, b)) := by
   rw [outsideRoute, Route.endpoint_cutEnds]
@@ -194,7 +194,7 @@ theorem endpoint_outsideRoute {G : Graph} (D : PolygonalDrawing G)
 number of bends, loop status or the incidence of their other end. -/
 theorem IsEmbedding.outsideRoute_simple {G : Graph} {D : PolygonalDrawing G}
     (hD : D.IsEmbedding) (v : ℕ) {ρ : ℝ} (hρ : 0 < ρ)
-    (hlen : ∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖) (e : Fin G.2.length) :
+    (hlen : ∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖) (e : Fin G.edges.length) :
     (D.outsideRoute v ρ e).IsSimple := by
   obtain ⟨hs, ht, hst⟩ := hD.restrictionTime_bounds v hρ hlen e
   exact (hD.simple e).cutEnds hs ht hst
@@ -202,7 +202,7 @@ theorem IsEmbedding.outsideRoute_simple {G : Graph} {D : PolygonalDrawing G}
 /-- Cutting the star does not create any point outside an old edge's continuous support. -/
 theorem IsEmbedding.support_outsideRoute_subset {G : Graph} {D : PolygonalDrawing G}
     (hD : D.IsEmbedding) (v : ℕ) {ρ : ℝ} (hρ : 0 < ρ)
-    (hlen : ∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖) (e : Fin G.2.length) :
+    (hlen : ∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖) (e : Fin G.edges.length) :
     (D.outsideRoute v ρ e).support ⊆ (D.route e).support := by
   obtain ⟨hs, ht, hst⟩ := hD.restrictionTime_bounds v hρ hlen e
   exact (D.route e).support_cutEnds_subset hs ht hst
@@ -217,7 +217,7 @@ theorem IsEmbedding.cutEnds_ball_contact {G : Graph} {D : PolygonalDrawing G}
       z ∈ segment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) →
         (i.val = 0 ∧ Dart.vertex (e, false) = v) ∨
           (i.val + 1 = (D.route e).segments ∧ Dart.vertex (e, true) = v))
-    (e : Fin G.2.length) {s t : ℝ} (hs : 0 ≤ s) (ht : 0 ≤ t) (hst : s + t < 1)
+    (e : Fin G.edges.length) {s t : ℝ} (hs : 0 ≤ s) (ht : 0 ≤ t) (hst : s + t < 1)
     (hcuts : ∀ b, Dart.vertex (e, b) = v → (if b then t else s) = ρ / ‖D.germ (e, b)‖)
     (i : Fin ((D.route e).cutEnds s t).segments) {u : ℝ} (hu : u ∈ Set.Icc 0 1)
     (hz : ((D.route e).cutEnds s t).eval i u ∈ Metric.closedBall (D.vertex v) ρ) :
@@ -296,7 +296,7 @@ theorem IsEmbedding.outsideRoute_ball_contact {G : Graph} {D : PolygonalDrawing 
       z ∈ segment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) →
         (i.val = 0 ∧ Dart.vertex (e, false) = v) ∨
         (i.val + 1 = (D.route e).segments ∧ Dart.vertex (e, true) = v))
-    (e : Fin G.2.length) (i : Fin (D.outsideRoute v ρ e).segments)
+    (e : Fin G.edges.length) (i : Fin (D.outsideRoute v ρ e).segments)
     {u : ℝ} (hu : u ∈ Set.Icc 0 1)
     (hz : (D.outsideRoute v ρ e).eval i u ∈ Metric.closedBall (D.vertex v) ρ) :
     ∃ b, (D.outsideRoute v ρ e).AtEnd i u b ∧ Dart.vertex (e, b) = v ∧
@@ -310,9 +310,9 @@ theorem IsEmbedding.outsideRoute_ball_contact {G : Graph} {D : PolygonalDrawing 
 conditions. No local disk, prescribed slopes, port coordinates or patch is a premise.
 This stops at the exterior pieces: constructing and attaching a split patch is separate. -/
 theorem IsEmbedding.exists_restriction {G : Graph} {D : PolygonalDrawing G}
-    (hD : D.IsEmbedding) (v : ℕ) (hv : v ∈ G.1) :
+    (hD : D.IsEmbedding) (v : ℕ) (hv : v ∈ G.vertices) :
     ∃ ρ > 0,
-      (∀ w ∈ G.1, D.vertex w ∈ Metric.closedBall (D.vertex v) ρ → w = v) ∧
+      (∀ w ∈ G.vertices, D.vertex w ∈ Metric.closedBall (D.vertex v) ρ → w = v) ∧
       (∀ e, (D.outsideRoute v ρ e).IsSimple) ∧
       (∀ e, (D.outsideRoute v ρ e).support ⊆ (D.route e).support) ∧
       (∀ e (i : Fin (D.outsideRoute v ρ e).segments) (u : ℝ), u ∈ Set.Icc 0 1 →

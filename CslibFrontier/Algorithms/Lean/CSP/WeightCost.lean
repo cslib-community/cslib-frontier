@@ -172,15 +172,15 @@ private theorem intBudgetInvariant_elimVar [DecidableEq V] {d W M₀ k : ℕ} (x
         rcases hz with ⟨idx, rfl⟩
         have hprod : ∀ a : Fin d,
             Int.natAbs ((List.map (fun f => FactorTable.evalAt d f fun v =>
-              if v = x then a.1 else assignScope (bucketOutScope x (s.live.filter p))
-                (lsbDecode d (bucketOutScope x (s.live.filter p)).length idx.1) v)
+              if v = x then a.val else assignScope (bucketOutScope x (s.live.filter p))
+                (lsbDecode d (bucketOutScope x (s.live.filter p)).length idx.val) v)
               (s.live.filter p)).prod) ≤
             d ^ (budsB.map Prod.fst).sum * W ^ (budsB.map Prod.snd).sum :=
           fun a => prod_natAbs_le_of_forall₂ hB _
         calc Int.natAbs (∑ a : Fin d, _)
             ≤ ∑ a : Fin d, Int.natAbs ((List.map (fun f => FactorTable.evalAt d f fun v =>
-                if v = x then a.1 else assignScope (bucketOutScope x (s.live.filter p))
-                  (lsbDecode d (bucketOutScope x (s.live.filter p)).length idx.1) v)
+                if v = x then a.val else assignScope (bucketOutScope x (s.live.filter p))
+                  (lsbDecode d (bucketOutScope x (s.live.filter p)).length idx.val) v)
                 (s.live.filter p)).prod) :=
               Int.natAbs_sum_le _ _
           _ ≤ ∑ _ : Fin d, d ^ (budsB.map Prod.fst).sum * W ^ (budsB.map Prod.snd).sum :=
@@ -466,10 +466,10 @@ theorem rat_elimBucketTable_bounds {V : Type*} [DecidableEq V] {d A B : ℕ} (hB
   let term : ℕ → ℚ := fun i =>
     (bucket.map fun f => f.evalAt d fun v => if v = x then i else
       assignScope (bucketOutScope x bucket)
-        (lsbDecode d (bucketOutScope x bucket).length idx.1) v).prod
-  have hsum_eq : (∑ a : Fin d, term a.1) = ∑ i ∈ Finset.range d, term i :=
+        (lsbDecode d (bucketOutScope x bucket).length idx.val) v).prod
+  have hsum_eq : (∑ a : Fin d, term a.val) = ∑ i ∈ Finset.range d, term i :=
     Fin.sum_univ_eq_sum_range term d
-  change (∑ a : Fin d, term a.1).num.natAbs ≤ _ ∧ (∑ a : Fin d, term a.1).den ≤ _
+  change (∑ a : Fin d, term a.val).num.natAbs ≤ _ ∧ (∑ a : Fin d, term a.val).den ≤ _
   rw [hsum_eq]
   have hQ : 1 ≤ B ^ bucket.length := Nat.one_le_pow _ _ hB
   have hterm : ∀ i : ℕ, i < d →
@@ -478,7 +478,7 @@ theorem rat_elimBucketTable_bounds {V : Type*} [DecidableEq V] {d A B : ℕ} (hB
     have hprod := rat_list_prod_bounds
       (bucket.map fun f => f.evalAt d fun v => if v = x then i else
         assignScope (bucketOutScope x bucket)
-          (lsbDecode d (bucketOutScope x bucket).length idx.1) v)
+          (lsbDecode d (bucketOutScope x bucket).length idx.val) v)
       fun r hr => by
         rcases List.mem_map.mp hr with ⟨f, hf, rfl⟩
         rw [FactorTable.evalAt, Array.getD]
@@ -531,9 +531,9 @@ theorem contractionOn_zipWith_scale {R V : Type*} [CommSemiring R] [DecidableEq 
   rw [FactorTable.contractionOn, FactorTable.contractionOn, Finset.mul_sum]
   refine Finset.sum_congr rfl fun σ _ => ?_
   have hprod : ((List.zipWith scaleFactor scales factors).map fun f =>
-      f.evalAt d fun v => if h : v ∈ declared then (σ ⟨v, h⟩).1 else 0).prod =
+      f.evalAt d fun v => if h : v ∈ declared then (σ ⟨v, h⟩).val else 0).prod =
       scales.prod * (factors.map fun f =>
-        f.evalAt d fun v => if h : v ∈ declared then (σ ⟨v, h⟩).1 else 0).prod := by
+        f.evalAt d fun v => if h : v ∈ declared then (σ ⟨v, h⟩).val else 0).prod := by
     induction scales generalizing factors with
     | nil =>
         cases factors with

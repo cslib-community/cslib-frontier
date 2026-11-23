@@ -91,7 +91,7 @@ theorem count_faceRepresentatives_eq_card_componentFace {G : Graph} (r : Rotatio
 
 /-- Old face steps preserve each declared component selection. -/
 theorem component_faceNext_iff {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (root : ℕ) (d : Dart G) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (root : ℕ) (d : Dart G) :
     RotationCertificate.SameComponent G root (r.faceNext d).vertex ↔
       RotationCertificate.SameComponent G root d.vertex := by
   have hs := r.sameComponent_faceNext hG d

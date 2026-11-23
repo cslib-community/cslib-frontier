@@ -155,7 +155,7 @@ theorem gaussianMass_le_gaussianMass_zero {E : Type*} [NormedAddCommGroup E]
   have hproj : gaussianMass L s c ≤ gaussianMass L s (cPar : E) := by
     refine Summable.tsum_le_tsum (fun z : L ↦ ?_)
       (summable_gaussianWeight L s hs c) (summable_gaussianWeight L s hs (cPar : E))
-    have hdiff : (z : E) - (cPar : E) ∈ V := V.sub_mem (Submodule.subset_span z.2) cPar.2
+    have hdiff : (z : E) - (cPar : E) ∈ V := V.sub_mem (Submodule.subset_span z.property) cPar.property
     have horth : c - (cPar : E) ∈ Vᗮ := V.sub_starProjection_mem_orthogonal c
     have hinner : ⟪(z : E) - (cPar : E), c - (cPar : E)⟫ = 0 :=
       (Submodule.mem_orthogonal V _).mp horth _ hdiff
@@ -179,8 +179,8 @@ theorem gaussianMass_le_gaussianMass_zero {E : Type*} [NormedAddCommGroup E]
     exact neg_le_neg hdiv
   let LV : Submodule ℤ V := L.comap (V.subtype.restrictScalars ℤ)
   let e : LV ≃ₜ L := {
-    toFun := fun x ↦ ⟨(x.1 : E), x.2⟩
-    invFun := fun z ↦ ⟨⟨(z : E), Submodule.subset_span z.2⟩, z.2⟩
+    toFun := fun x ↦ ⟨(x.val : E), x.property⟩
+    invFun := fun z ↦ ⟨⟨(z : E), Submodule.subset_span z.property⟩, z.property⟩
     left_inv := fun _ ↦ rfl
     right_inv := fun _ ↦ rfl
     continuous_toFun := (continuous_subtype_val.comp continuous_subtype_val).subtype_mk _

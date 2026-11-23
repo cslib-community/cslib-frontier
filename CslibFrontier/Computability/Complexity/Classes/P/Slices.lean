@@ -43,7 +43,7 @@ theorem mem_ofSlices_iff (f : ∀ n, BitString n → Bool) (x : List Bool) :
   change f x.length (fun i => x[i]) = true ↔ f x.length (BitString.ofList x.length x) = true
   congr! 2
   funext i
-  rw [BitString.ofList, List.getD_eq_getElem _ _ i.2, Fin.getElem_fin]
+  rw [BitString.ofList, List.getD_eq_getElem _ _ i.isLt, Fin.getElem_fin]
 
 /-- For any Boolean family `f : ∀ N, BitString N → Bool`, `Language.ofSlices f` as a set of bit
 lists is `{x | f x.length (BitString.ofList x.length x) = true}`. -/

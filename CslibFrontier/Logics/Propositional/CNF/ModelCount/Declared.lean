@@ -88,10 +88,10 @@ theorem modelCountOn_eq_mul_modelCount (φ : CNF V) (declared : Finset V)
     φ.modelCountOn declared = 2 ^ (declared.card - φ.numVars) * φ.modelCount := by
   classical
   let used := φ.vars.toFinset
-  let p : declared → Prop := fun v => v.1 ∈ used
+  let p : declared → Prop := fun v => v.val ∈ used
   let usedEquiv : {v : declared // p v} ≃ used :=
-    { toFun := fun v => ⟨v.1.1, v.2⟩
-      invFun := fun v => ⟨⟨v.1, hvars v.2⟩, v.2⟩
+    { toFun := fun v => ⟨v.val.val, v.property⟩
+      invFun := fun v => ⟨⟨v.val, hvars v.property⟩, v.property⟩
       left_inv := fun _ => rfl
       right_inv := fun _ => rfl }
   let split : (declared → Bool) ≃ (used → Bool) × ({v : declared // ¬p v} → Bool) :=
@@ -109,14 +109,14 @@ theorem modelCountOn_eq_mul_modelCount (φ : CNF V) (declared : Finset V)
   let e : {σ : declared → Bool //
       φ.eval (fun v => if h : v ∈ declared then σ ⟨v, h⟩ else false) = true} ≃
       {τ : used → Bool // good τ} × ({v : declared // ¬p v} → Bool) :=
-    { toFun := fun σ => (⟨(split σ.1).1, by
-        change φ.eval (φ.extendAssignment (split σ.1).1) = true
+    { toFun := fun σ => (⟨(split σ.val).1, by
+        change φ.eval (φ.extendAssignment (split σ.val).1) = true
         rw [← heval]
-        exact σ.2⟩, (split σ.1).2)
-      invFun := fun τ => ⟨split.symm (τ.1.1, τ.2), by
+        exact σ.property⟩, (split σ.val).2)
+      invFun := fun τ => ⟨split.symm (τ.1.val, τ.2), by
         rw [heval]
-        simpa only [Equiv.apply_symm_apply] using τ.1.2⟩
-      left_inv := fun σ => Subtype.ext (split.symm_apply_apply σ.1)
+        simpa only [Equiv.apply_symm_apply] using τ.1.property⟩
+      left_inv := fun σ => Subtype.ext (split.symm_apply_apply σ.val)
       right_inv := fun τ => by
         simp only [Equiv.apply_symm_apply] }
   have hused : Fintype.card {v : declared // p v} = used.card := by

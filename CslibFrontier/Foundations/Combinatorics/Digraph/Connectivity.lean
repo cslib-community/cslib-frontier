@@ -158,7 +158,7 @@ theorem isArcCut_outArcs [Fintype V] [DecidableEq V] (G : Digraph V) [DecidableR
   obtain ⟨e, he, he_out⟩ :=
     Multidigraph.isArcCut_outArcs (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) hs ht q hq
   rw [Multidigraph.mem_outArcs] at he_out
-  exact ⟨e.1, hzip ▸ List.mem_map_of_mem he, mem_outArcs.mpr ⟨he_out.1, he_out.2, e.2⟩⟩
+  exact ⟨e.val, hzip ▸ List.mem_map_of_mem he, mem_outArcs.mpr ⟨he_out.1, he_out.2, e.property⟩⟩
 
 /-- **Closed-set certificate for directed separators.** If `S` holds on `A \ Y`, fails on `B \ Y`,
 and every arc leaving `S` enters `Y`, then `Y` separates `A` from `B`. -/
@@ -170,7 +170,7 @@ theorem isSeparator_of_forall_adj {G : Digraph V} {A B Y : Set V} (S : V → Pro
   obtain ⟨q, hq, hverts, -⟩ := liftDipath hp
   rw [← hverts]
   exact Multidigraph.isSeparator_of_forall_src_tgt (Multidigraph.arcSrc G) (Multidigraph.arcTgt G)
-    S (fun e => hstep e.2) hA hB ha hb q hq
+    S (fun e => hstep e.property) hA hB ha hb q hq
 
 /-- Closed-set certificate for a vertex cut: if `s ∈ S`, `t ∉ S`, `T` avoids `s` and `t`, and
 every arc leaving `S` ends in `T`, then `T` is an `s`–`t` vertex cut. -/
@@ -181,7 +181,7 @@ theorem isVertexCut_of_forall_adj {G : Digraph V} {s t : V} {S T : Finset V} (hs
   obtain ⟨q, hq, hverts, -⟩ := liftDipath hp
   rw [← hverts]
   exact (Multidigraph.isVertexCut_of_forall_src_tgt (Multidigraph.arcSrc G) (Multidigraph.arcTgt G)
-    hs ht hsT htT fun e hu => hST e.1.1 hu e.1.2 e.2).2.2 q hq
+    hs ht hsT htT fun e hu => hST e.val.1 hu e.val.2 e.property).2.2 q hq
 
 /-- **Weak duality for arc-disjoint paths**: `k` pairwise arc-disjoint directed `s`–`t` paths need
 at least `k` arcs in every `s`–`t` arc cut. -/
@@ -189,12 +189,12 @@ theorem card_le_card_of_arcDisjoint_of_isArcCut {G : Digraph V} {s t : V} {k : �
     {P : Fin k → List V} (hP : ∀ i, G.IsDipath s t (P i)) (hdisj : ArcDisjoint P)
     {C : Finset (V × V)} (hC : G.IsArcCut s t C) : k ≤ C.card := by
   classical
-  let Q : Fin k → List (Multidigraph.Arc G) := fun i => (liftDipath (hP i)).1
+  let Q : Fin k → List (Multidigraph.Arc G) := fun i => (liftDipath (hP i)).val
   have hQ : ∀ i, Multidigraph.IsDipath (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) s t (Q i) :=
-    fun i => (liftDipath (hP i)).2.1
+    fun i => (liftDipath (hP i)).property.1
   have hQdisj : Pairwise fun i j => (Q i).Disjoint (Q j) := fun i j hij e hei hej =>
-    hdisj hij e.1 ((liftDipath (hP i)).2.2.2 ▸ List.mem_map_of_mem hei)
-      ((liftDipath (hP j)).2.2.2 ▸ List.mem_map_of_mem hej)
+    hdisj hij e.val ((liftDipath (hP i)).property.2.2 ▸ List.mem_map_of_mem hei)
+      ((liftDipath (hP j)).property.2.2 ▸ List.mem_map_of_mem hej)
   let C' : Finset (Multidigraph.Arc G) := C.subtype fun e => G.Adj e.1 e.2
   have hC' : Multidigraph.IsArcCut (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) s t C' := by
     intro q hq
@@ -214,11 +214,11 @@ theorem card_le_card_of_arcDisjoint_of_isArcCut {G : Digraph V} {s t : V} {k : �
 theorem card_le_card_of_internallyDisjoint_of_isVertexCut {G : Digraph V} {s t : V} {k : ℕ}
     {P : Fin k → List V} (hP : ∀ i, G.IsDipath s t (P i)) (hdisj : InternallyDisjoint s t P)
     {T : Finset V} (hT : G.IsVertexCut s t T) : k ≤ T.card := by
-  let Q : Fin k → List (Multidigraph.Arc G) := fun i => (liftDipath (hP i)).1
+  let Q : Fin k → List (Multidigraph.Arc G) := fun i => (liftDipath (hP i)).val
   have hQ : ∀ i, Multidigraph.IsDipath (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) s t (Q i) :=
-    fun i => (liftDipath (hP i)).2.1
+    fun i => (liftDipath (hP i)).property.1
   have hverts : ∀ i, s :: (Q i).map (Multidigraph.arcTgt G) = P i :=
-    fun i => (liftDipath (hP i)).2.2.1
+    fun i => (liftDipath (hP i)).property.2.1
   have hQdisj : Multidigraph.InternallyDisjoint (Multidigraph.arcTgt G) s t Q :=
     fun i j hij v hvi hvj => by
       rw [hverts i] at hvi
@@ -235,12 +235,12 @@ theorem card_le_card_of_disjoint_of_isSeparator {G : Digraph V} {A B : Set V} {k
     (hdisj : Pairwise fun i j => (P i).Disjoint (P j))
     {Y : Finset V} (hY : G.IsSeparator A B ↑Y) : k ≤ Y.card := by
   choose a ha b hb hPi using hP
-  let Q : Fin k → List (Multidigraph.Arc G) := fun i => (liftDipath (hPi i)).1
+  let Q : Fin k → List (Multidigraph.Arc G) := fun i => (liftDipath (hPi i)).val
   have hQ : ∀ i,
       Multidigraph.IsDipath (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) (a i) (b i) (Q i) :=
-    fun i => (liftDipath (hPi i)).2.1
+    fun i => (liftDipath (hPi i)).property.1
   have hverts : ∀ i, a i :: (Q i).map (Multidigraph.arcTgt G) = P i :=
-    fun i => (liftDipath (hPi i)).2.2.1
+    fun i => (liftDipath (hPi i)).property.2.1
   have hQdisj : Pairwise fun i j =>
       (a i :: (Q i).map (Multidigraph.arcTgt G)).Disjoint
         (a j :: (Q j).map (Multidigraph.arcTgt G)) :=

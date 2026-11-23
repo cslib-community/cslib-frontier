@@ -79,7 +79,7 @@ theorem norm_matrix_append_sub_le (C C' D D' : Circuit n) :
       ‖(matrix C : Matrix (Fin n → Bool) (Fin n → Bool) ℂ) - matrix D‖ +
         ‖(matrix C' : Matrix (Fin n → Bool) (Fin n → Bool) ℂ) - matrix D'‖ := by
   rw [matrix_append, matrix_append, Submonoid.coe_mul, Submonoid.coe_mul]
-  exact norm_mul_sub_mul_le_of_mem_unitary (matrix C').2 (matrix D).2
+  exact norm_mul_sub_mul_le_of_mem_unitary (matrix C').property (matrix D).property
 
 /-- **Approximating a circuit gate by gate**: for circuits of the same length,
 `‖U_m ⋯ U_1 - V_m ⋯ V_1‖ ≤ ∑ ‖U_i - V_i‖`. -/
@@ -100,7 +100,7 @@ theorem norm_matrix_sub_matrix_le (C D : Circuit n) (h : C.length = D.length) :
       rw [List.zipWith_cons_cons, List.sum_cons, matrix_cons, matrix_cons, Submonoid.coe_mul,
         Submonoid.coe_mul]
       have := norm_mul_sub_mul_le_of_mem_unitary (u := (g.matrix : Matrix _ _ ℂ))
-        (b := (matrix D : Matrix _ _ ℂ)) (matrix C).2 g'.matrix.2
+        (b := (matrix D : Matrix _ _ ℂ)) (matrix C).property g'.matrix.property
       linarith [ih D h]
 
 /-- **Approximating a circuit block by block**: replacing the subcircuits `C_1, …, C_m` by

@@ -28,8 +28,8 @@ open RotationCertificate
 
 /-- Every appended edge endpoint is declared if all old endpoints were declared. -/
 theorem cornerGraph_endpoints_declared {G : Graph} (h k : Dart G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) :
-    ∀ v ∈ (cornerGraph h k).incidenceVertices, v ∈ (cornerGraph h k).1 := by
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) :
+    ∀ v ∈ (cornerGraph h k).incidenceVertices, v ∈ (cornerGraph h k).vertices := by
   intro v hv
   have he : (cornerGraph h k).incidenceVertices = G.incidenceVertices ++
       [h.vertex, k.vertex] := by simp [cornerGraph, Graph.incidenceVertices]
@@ -58,7 +58,7 @@ theorem sameComponent_cornerGraph_iff {G : Graph} (h k : Dart G)
     SameComponent (cornerGraph h k) u v ↔ SameComponent G u v := by
   constructor
   · obtain ⟨hh, hk, hp⟩ := hc
-    have hedge {a b : {w // w ∈ G.1}}
+    have hedge {a b : {w // w ∈ G.vertices}}
         (hab : (cornerGraph h k).induced.Adj a b) : G.induced.Reachable a b := by
       change (cornerGraph h k).toSimpleGraph.Adj a.val b.val at hab
       rw [Graph.toSimpleGraph_adj] at hab
@@ -73,7 +73,7 @@ theorem sameComponent_cornerGraph_iff {G : Graph} (h k : Dart G)
         convert hp.symm using 1 <;> exact Subtype.ext (by assumption)
     rintro ⟨hu, hv, ⟨path⟩⟩
     refine ⟨hu, hv, ?_⟩
-    have liftPath {a b : {w // w ∈ G.1}} (path : (cornerGraph h k).induced.Walk a b) :
+    have liftPath {a b : {w // w ∈ G.vertices}} (path : (cornerGraph h k).induced.Walk a b) :
         G.induced.Reachable a b := by
       induction path with
       | nil => exact .rfl
@@ -100,7 +100,7 @@ theorem card_componentEdgeSet_cornerGraph {G : Graph} (h k : Dart G)
   classical
   rw [Graph.card_componentEdgeSet, Graph.card_componentEdgeSet]
   simp only [sameComponent_cornerGraph_iff h k hc]
-  change (G.2 ++ [(h.vertex, k.vertex)]).countP
+  change (G.edges ++ [(h.vertex, k.vertex)]).countP
       (fun edge => decide (SameComponent G root edge.1)) = _
   simp
 
@@ -126,7 +126,7 @@ open Classical in
 /-- Exact component face count for cofacial insertion. Only the selected component gains a
 face; every other component retains its full face quotient. -/
 theorem card_componentFace_insertEdge {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (h k : Dart G)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (h k : Dart G)
     (hf : r.faceNext.SameCycle h k) (root : ℕ) :
     Nat.card (ComponentFace (r.insertEdge h k) root) = Nat.card (ComponentFace r root) +
       if SameComponent G root h.vertex then 1 else 0 := by
@@ -166,7 +166,7 @@ theorem exists_oldCornerVertex {G : Graph} (h k : Dart G)
 Disconnected closed components and declared point components remain in the same predicate;
 there is no connectedness, distinct-vertex or distinct-corner hypothesis. -/
 theorem numericalGenusZero_insertEdge {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (hr : r.NumericalGenusZero)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hr : r.NumericalGenusZero)
     (h k : Dart G) (hf : r.faceNext.SameCycle h k) :
     (r.insertEdge h k).NumericalGenusZero := by
   classical

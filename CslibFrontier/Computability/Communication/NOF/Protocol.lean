@@ -93,7 +93,7 @@ def view (i : ι) (x : ∀ j, X j) : View X i :=
 sees. -/
 theorem view_update_self [DecidableEq ι] (i : ι) (x : ∀ j, X j) (a : X i) :
     view i (Function.update x i a) = view i x :=
-  funext fun j => Function.update_of_ne j.2 a x
+  funext fun j => Function.update_of_ne j.property a x
 
 /-- A deterministic number-on-forehead protocol with output in `Z`: a leaf labelled by an output,
 or a node at which player `i` writes the bit `send (view i x)`, computed from what they see, and the
@@ -148,7 +148,7 @@ theorem Solves.of_imp (h : p.Solves R A) (hR : ∀ x z, R x z → R' x z) : p.So
 /-- The communication complexity of `R` on `A`: the least depth of a protocol solving it, or `⊤`
 if there is none. -/
 noncomputable def ecomplexity (R : (∀ i, X i) → Z → Prop) (A : Set (∀ i, X i)) : ℕ∞ :=
-  ⨅ p : {p : Protocol X Z // p.Solves R A}, (p.1.depth : ℕ∞)
+  ⨅ p : {p : Protocol X Z // p.Solves R A}, (p.val.depth : ℕ∞)
 
 theorem ecomplexity_le_depth (hp : p.Solves R A) : ecomplexity R A ≤ p.depth :=
   ENat.iInf_subtype_natCast_le hp

@@ -178,7 +178,7 @@ theorem ptr_run_le (k t : ℕ) (x : ℕ → Bool) (N : ℕ) : (run φ k t x N).p
       ⟨e, st, d, hm, -⟩ | ⟨e, st, hm, -⟩ | ⟨hm, -⟩
     · simp only [step, hm, apply]
       omega
-    · have := c.2
+    · have := c.isLt
       simp only [step, hm, apply]
       omega
     · simp only [step, hm, apply]
@@ -307,7 +307,7 @@ theorem card_exhausts_lt {k L : ℕ} (hφ : φ.IsExactDistinct k)
               (i : ℕ) < n + (final φ k t (Function.extend Fin.val z fun _ => false)).trace.length *
                 k := by
             rw [length_trace_final_eq hz]
-            exact i.2
+            exact i.isLt
           have e1 := decode_run hφ hL t (Function.extend Fin.val y fun _ => false) (fuel φ t) i
             (hle y hy)
           have e2 := decode_run hφ hL t (Function.extend Fin.val y' fun _ => false) (fuel φ t) i

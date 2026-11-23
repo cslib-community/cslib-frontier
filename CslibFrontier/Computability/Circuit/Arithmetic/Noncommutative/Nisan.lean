@@ -137,7 +137,7 @@ theorem rank_nisanMatrix_eq_finrank_nisanRowSpace [Fintype X] {f : FreeAlgebra K
     by_cases hv : v.toList.length = m
     · obtain ⟨u, rfl⟩ := FreeMonoid.exists_ofFn_eq v hv
       exact congrFun hg u
-    · exact apply_eq_zero_of_mem_nisanRowSpace hf g.2 (by omega)
+    · exact apply_eq_zero_of_mem_nisanRowSpace hf g.property (by omega)
   rw [Matrix.rank_eq_finrank_span_row, hrow, Submodule.span_image,
     ← LinearMap.finrank_range_of_inj hinj, LinearMap.range_comp, Submodule.range_subtype]
   rfl
@@ -259,7 +259,7 @@ private theorem rowBasis_apply_one_ne_zero {f : FreeAlgebra K X} {d : ℕ}
   by_cases hv : v.toList.length = 0
   · rw [show v = 1 from FreeMonoid.ext (List.length_eq_zero_iff.mp hv)]
     exact h
-  · exact apply_eq_zero_of_mem_nisanRowSpace hd (rowBasis f d i).2 (by omega)
+  · exact apply_eq_zero_of_mem_nisanRowSpace hd (rowBasis f d i).property (by omega)
 
 private theorem rowScale_ne_zero {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsHomogeneous d)
     (hf : f ≠ 0) (k : ℕ) (i : Fin (Module.finrank K (nisanRowSpace f k))) :
@@ -269,7 +269,7 @@ private theorem rowScale_ne_zero {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsHomog
   · subst hk
     have hne : (rowBasis f 0 i : FreeMonoid X → K) ≠ 0 := fun h =>
       (rowBasis f 0).ne_zero i (Subtype.ext h)
-    have h1 := (smul_eq_nisanRow_one hf (rowBasis f 0 i).2 hne).1
+    have h1 := (smul_eq_nisanRow_one hf (rowBasis f 0 i).property hne).1
     have h2 : nisanRow f 1 (witness f) ≠ 0 := by simpa [nisanRow] using coeff_witness hf
     exact div_ne_zero h2 h1
   · subst hkd
@@ -321,7 +321,7 @@ private theorem srow_zero {f : FreeAlgebra K X} {d : ℕ} (hf : f ≠ 0)
   have hne : (rowBasis f 0 i : FreeMonoid X → K) ≠ 0 := fun h =>
     (rowBasis f 0).ne_zero i (Subtype.ext h)
   rw [srow, rowScale, ite_eq_left rfl]
-  exact (smul_eq_nisanRow_one hf (rowBasis f 0 i).2 hne).2
+  exact (smul_eq_nisanRow_one hf (rowBasis f 0 i).property hne).2
 
 private theorem srow_deg_apply_one {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsHomogeneous d)
     (hd0 : d ≠ 0) (i : Fin (Module.finrank K (nisanRowSpace f d))) : srow f d d i 1 = 1 := by

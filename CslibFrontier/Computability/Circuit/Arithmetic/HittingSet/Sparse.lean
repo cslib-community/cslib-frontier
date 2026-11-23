@@ -89,7 +89,7 @@ theorem isHittingSet_powerHittingSet [IsDomain F] {x : σ → F}
     Matrix.eq_zero_of_forall_pow_sum_mul_pow_eq_zero
       (f := fun t => (e.symm t : σ →₀ ℕ).prod fun i k => x i ^ k)
       (hx.comp (Subtype.val_injective.comp e.symm.injective)) fun i => by
-        rw [← hzero i (i.2.trans_le hf), ← sum_coe_sort f.support]
+        rw [← hzero i (i.isLt.trans_le hf), ← sum_coe_sort f.support]
         exact Equiv.sum_comp e.symm fun m : f.support =>
           f.coeff (m : σ →₀ ℕ) * ((m : σ →₀ ℕ).prod fun i k => x i ^ k) ^ (i : ℕ)
   obtain ⟨m, hm⟩ : f.support.Nonempty := by

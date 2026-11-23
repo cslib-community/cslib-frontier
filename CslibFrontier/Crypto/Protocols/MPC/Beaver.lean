@@ -379,10 +379,10 @@ noncomputable def beaverMulSim (p m : ℕ) [NeZero p] (I : Finset (Fin m)) :
         msgsCompl ⟨j, Finset.mem_compl.mpr hj⟩
     let op : ZMod p × ZMod p := ∑ j : Fin m, msgs j
     return fun i =>
-      beaverViewOf i.1 (xyI i)
+      beaverViewOf i.val (xyI i)
         { a := aI i
           b := bI i
-          c := zI i - ((if i.1.val = 0 then op.1 * op.2 else 0) +
+          c := zI i - ((if i.val.val = 0 then op.1 * op.2 else 0) +
             op.1 * bI i + op.2 * aI i) }
         msgs
 
@@ -408,7 +408,7 @@ theorem perfectSemiHonestPrivateProper_beaverMul (p m : ℕ) [NeZero p] :
     { toFun := fun ⟨a, b, cE⟩ =>
         let msgs : Fin m → ZMod p × ZMod p := fun j => ((xy j).1 - a j, (xy j).2 - b j)
         let op : ZMod p × ZMod p := ∑ j : Fin m, msgs j
-        (fun k => baseTerm k.1 op (a k.1) (b k.1) + cE k,
+        (fun k => baseTerm k.val op (a k.val) (b k.val) + cE k,
          I.restrict a,
          I.restrict b,
          Iᶜ.restrict msgs)
@@ -419,7 +419,7 @@ theorem perfectSemiHonestPrivateProper_beaverMul (p m : ℕ) [NeZero p] :
           if hj : j ∈ I then bI ⟨j, hj⟩ else (xy j).2 - (msgsC ⟨j, Finset.mem_compl.mpr hj⟩).2
         let msgs : Fin m → ZMod p × ZMod p := fun j => ((xy j).1 - a j, (xy j).2 - b j)
         let op : ZMod p × ZMod p := ∑ j : Fin m, msgs j
-        (a, b, fun k => zE k - baseTerm k.1 op (a k.1) (b k.1))
+        (a, b, fun k => zE k - baseTerm k.val op (a k.val) (b k.val))
       left_inv := fun ⟨a, b, cE⟩ => by
         have ha : (fun j => if hj : j ∈ I then a j else (xy j).1 - ((xy j).1 - a j)) = a := by
           ext j; by_cases hj : j ∈ I <;> simp [hj]
@@ -431,9 +431,9 @@ theorem perfectSemiHonestPrivateProper_beaverMul (p m : ℕ) [NeZero p] :
           fun j => if hj : j ∈ I then a j else (xy j).1 - ((xy j).1 - a j)
         let fb : Fin m → ZMod p :=
           fun j => if hj : j ∈ I then b j else (xy j).2 - ((xy j).2 - b j)
-        change baseTerm k.1 (∑ j : Fin m, ((xy j).1 - a j, (xy j).2 - b j)) (a k.1) (b k.1) +
+        change baseTerm k.val (∑ j : Fin m, ((xy j).1 - a j, (xy j).2 - b j)) (a k.val) (b k.val) +
             cE k -
-          baseTerm k.1 (∑ j : Fin m, ((xy j).1 - fa j, (xy j).2 - fb j)) (fa k.1) (fb k.1) = cE k
+          baseTerm k.val (∑ j : Fin m, ((xy j).1 - fa j, (xy j).2 - fb j)) (fa k.val) (fb k.val) = cE k
         have hfa : fa = a := ha
         have hfb : fb = b := hb
         rw [hfa, hfb]
@@ -457,7 +457,7 @@ theorem perfectSemiHonestPrivateProper_beaverMul (p m : ℕ) [NeZero p] :
             let t : Fin m → TripleShare (ZMod p) := fun i => ⟨a i, b i, c i⟩
             let msgs : Fin m → ZMod p × ZMod p := fun j => localMaskedOpening (xy j) (t j)
             let op : ZMod p × ZMod p := ∑ j : Fin m, msgs j
-            (fun i : I => beaverViewOf i.1 (xy i.1) (t i.1) msgs,
+            (fun i : I => beaverViewOf i.val (xy i.val) (t i.val) msgs,
              fun i : Fin m => beaverMulShare i op (t i)) := by
     simp only [pmf_norm, Protocol.realJoint, evalWith_beaverMulProtocol, beaverTripleFunctionality,
       bind_pure_comp, ProbComp.eval_uniform,
@@ -477,10 +477,10 @@ theorem perfectSemiHonestPrivateProper_beaverMul (p m : ℕ) [NeZero p] :
               else msgsC ⟨j, Finset.mem_compl.mpr hj⟩
             let op : ZMod p × ZMod p := ∑ j : Fin m, msgs j
             (fun i : I =>
-              beaverViewOf i.1 (xy i.1)
+              beaverViewOf i.val (xy i.val)
                 { a := aI i
                   b := bI i
-                  c := z i.1 - baseTerm i.1 op (aI i) (bI i) }
+                  c := z i.val - baseTerm i.val op (aI i) (bI i) }
                 msgs,
              z) := by
     simp only [pmf_norm, idealJoint, sharedMulFunctionality, beaverMulSim, bind_pure_comp,
@@ -502,27 +502,27 @@ theorem perfectSemiHonestPrivateProper_beaverMul (p m : ℕ) [NeZero p] :
     ProbComp.sum_completeSharesErase j₀ _ cE
   have hz_sum : ∑ i : Fin m, z i = target :=
     sum_beaverMulShare_eq_mul xy t hc_sum
-  have hzE : (fun k : E => baseTerm k.1 op (a k.1) (b k.1) + cE k) = E.restrict z := by
+  have hzE : (fun k : E => baseTerm k.val op (a k.val) (b k.val) + cE k) = E.restrict z := by
     ext ⟨k, hk⟩
     have hne : k ≠ j₀ := (Finset.mem_erase.mp hk).1
     have hck : c k = cE ⟨k, hk⟩ := by simp [c, ProbComp.completeSharesErase, hne]
     simp [Finset.restrict, z, beaverMulShare, baseTerm, t, hck, add_assoc]
   have hz_eq :
       ProbComp.completeSharesErase j₀ target
-        (fun k : E => baseTerm k.1 op (a k.1) (b k.1) + cE k) = z := by
+        (fun k : E => baseTerm k.val op (a k.val) (b k.val) + cE k) = z := by
     rw [hzE]
     exact ProbComp.completeSharesErase_restrict_erase j₀ hz_sum
   change (fun i : I =>
-      beaverViewOf i.1 (xy i.1)
-        { a := a i.1
-          b := b i.1
+      beaverViewOf i.val (xy i.val)
+        { a := a i.val
+          b := b i.val
           c := ProbComp.completeSharesErase j₀ target
-              (fun k : E => baseTerm k.1 op (a k.1) (b k.1) + cE k) i.1 -
-            baseTerm i.1 op (a i.1) (b i.1) }
+              (fun k : E => baseTerm k.val op (a k.val) (b k.val) + cE k) i.val -
+            baseTerm i.val op (a i.val) (b i.val) }
         msgs,
       ProbComp.completeSharesErase j₀ target
-        (fun k : E => baseTerm k.1 op (a k.1) (b k.1) + cE k)) =
-    (fun i : I => beaverViewOf i.1 (xy i.1) (t i.1) msgs, z)
+        (fun k : E => baseTerm k.val op (a k.val) (b k.val) + cE k)) =
+    (fun i : I => beaverViewOf i.val (xy i.val) (t i.val) msgs, z)
   rw [hz_eq]
   refine Prod.ext (funext fun ⟨i, _⟩ => ?_) rfl
   have hzi : z i - baseTerm i op (a i) (b i) = c i := by

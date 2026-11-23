@@ -184,7 +184,7 @@ with `0` outside bounds. -/
 @[expose] def contractionOn [Semiring R] [DecidableEq V] (d : ℕ)
     (factors : List (FactorTable R V)) (declared : Finset V) : R :=
   ∑ σ : declared → Fin d,
-    (factors.map fun f => f.evalAt d fun v => if h : v ∈ declared then (σ ⟨v, h⟩).1 else 0).prod
+    (factors.map fun f => f.evalAt d fun v => if h : v ∈ declared then (σ ⟨v, h⟩).val else 0).prod
 
 /-- Contract a list of factor tables over its occurring variables `FactorTable.vars`. -/
 @[expose] def contraction [Semiring R] [DecidableEq V] (d : ℕ)
@@ -221,33 +221,33 @@ theorem contractionOn_eq_card_pow_mul_of_subset [Semiring R] [DecidableEq V] (d 
   let eSplit := sdiffPiEquiv (D := Fin d) hST
   rw [contractionOn, contractionOn]
   calc ∑ σ : T → Fin d,
-          (factors.map fun f => f.evalAt d fun v => if h : v ∈ T then (σ ⟨v, h⟩).1 else 0).prod
+          (factors.map fun f => f.evalAt d fun v => if h : v ∈ T then (σ ⟨v, h⟩).val else 0).prod
       = ∑ p : (S → Fin d) × ((T \ S : Finset V) → Fin d),
           (factors.map fun f =>
-            f.evalAt d fun v => if h : v ∈ T then (eSplit.symm p ⟨v, h⟩).1 else 0).prod :=
+            f.evalAt d fun v => if h : v ∈ T then (eSplit.symm p ⟨v, h⟩).val else 0).prod :=
         Fintype.sum_equiv eSplit _ (fun p => _) (fun σ => by
           congr 1; refine List.map_congr_left fun f _ => evalAt_congr fun v _ => ?_
           by_cases hv : v ∈ T <;> simp [hv, Equiv.symm_apply_apply])
     _ = ∑ p : (S → Fin d) × ((T \ S : Finset V) → Fin d),
           (factors.map fun f =>
-            f.evalAt d fun v => if h : v ∈ S then (p.1 ⟨v, h⟩).1 else 0).prod := by
+            f.evalAt d fun v => if h : v ∈ S then (p.1 ⟨v, h⟩).val else 0).prod := by
         refine Finset.sum_congr rfl fun p _ => prod_map_evalAt_congr fun f hf v hv => ?_
         have hvS : v ∈ S := hvars (List.mem_toFinset.mpr (List.mem_flatMap.mpr ⟨f, hf, hv⟩))
         have hvT : v ∈ T := hST hvS
         simp [eSplit, hvS, hvT]
     _ = ∑ _ : (T \ S : Finset V) → Fin d, ∑ σ₁ : S → Fin d,
           (factors.map fun f =>
-            f.evalAt d fun v => if h : v ∈ S then (σ₁ ⟨v, h⟩).1 else 0).prod := by
+            f.evalAt d fun v => if h : v ∈ S then (σ₁ ⟨v, h⟩).val else 0).prod := by
         rw [Fintype.sum_prod_type_right]
     _ = (Fintype.card ((T \ S : Finset V) → Fin d) : R) *
           ∑ σ₁ : S → Fin d,
             (factors.map fun f =>
-              f.evalAt d fun v => if h : v ∈ S then (σ₁ ⟨v, h⟩).1 else 0).prod := by
+              f.evalAt d fun v => if h : v ∈ S then (σ₁ ⟨v, h⟩).val else 0).prod := by
         rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
     _ = ((d : R) ^ (T \ S).card) *
           ∑ σ₁ : S → Fin d,
             (factors.map fun f =>
-              f.evalAt d fun v => if h : v ∈ S then (σ₁ ⟨v, h⟩).1 else 0).prod := by
+              f.evalAt d fun v => if h : v ∈ S then (σ₁ ⟨v, h⟩).val else 0).prod := by
         simp [Nat.cast_pow]
 
 /-- Disconnected lists of factor tables multiply over a commutative semiring. -/
@@ -260,18 +260,18 @@ theorem contractionOn_append_of_disjoint [CommSemiring R] [DecidableEq V] (d : �
   rw [contractionOn, contractionOn, contractionOn]
   calc ∑ σ : (d₁ ∪ d₂ : Finset V) → Fin d,
           ((fs₁ ++ fs₂).map fun f =>
-            f.evalAt d fun v => if h : v ∈ d₁ ∪ d₂ then (σ ⟨v, h⟩).1 else 0).prod
+            f.evalAt d fun v => if h : v ∈ d₁ ∪ d₂ then (σ ⟨v, h⟩).val else 0).prod
       = ∑ p : (d₁ → Fin d) × (d₂ → Fin d),
           ((fs₁ ++ fs₂).map fun f =>
             f.evalAt d fun v =>
-              if h : v ∈ d₁ ∪ d₂ then (eSplit.symm p ⟨v, h⟩).1 else 0).prod :=
+              if h : v ∈ d₁ ∪ d₂ then (eSplit.symm p ⟨v, h⟩).val else 0).prod :=
         Fintype.sum_equiv eSplit _ (fun p => _) (fun σ => by
           congr 1; refine List.map_congr_left fun f _ => evalAt_congr fun v _ => ?_
           by_cases hv : v ∈ d₁ ∪ d₂ <;> simp [hv, Equiv.symm_apply_apply])
     _ = ∑ p : (d₁ → Fin d) × (d₂ → Fin d),
-          (fs₁.map fun f => f.evalAt d fun v => if h : v ∈ d₁ then (p.1 ⟨v, h⟩).1 else 0).prod *
+          (fs₁.map fun f => f.evalAt d fun v => if h : v ∈ d₁ then (p.1 ⟨v, h⟩).val else 0).prod *
           (fs₂.map fun f =>
-            f.evalAt d fun v => if h : v ∈ d₂ then (p.2 ⟨v, h⟩).1 else 0).prod := by
+            f.evalAt d fun v => if h : v ∈ d₂ then (p.2 ⟨v, h⟩).val else 0).prod := by
         refine Finset.sum_congr rfl fun p _ => ?_
         rw [List.map_append, List.prod_append]
         congr 1
@@ -288,10 +288,10 @@ theorem contractionOn_append_of_disjoint [CommSemiring R] [DecidableEq V] (d : �
             (Equiv.piFinsetUnion_right (fun _ => Fin d) hdisj (f := p.1) (g := p.2) hv₂ hvu)
           simpa [eSplit, hv₂, hvu] using hright
     _ = (∑ σ₁ : d₁ → Fin d,
-          (fs₁.map fun f => f.evalAt d fun v => if h : v ∈ d₁ then (σ₁ ⟨v, h⟩).1 else 0).prod) *
+          (fs₁.map fun f => f.evalAt d fun v => if h : v ∈ d₁ then (σ₁ ⟨v, h⟩).val else 0).prod) *
           (∑ σ₂ : d₂ → Fin d,
           (fs₂.map fun f =>
-            f.evalAt d fun v => if h : v ∈ d₂ then (σ₂ ⟨v, h⟩).1 else 0).prod) := by
+            f.evalAt d fun v => if h : v ∈ d₂ then (σ₂ ⟨v, h⟩).val else 0).prod) := by
         rw [Fintype.sum_prod_type, Finset.sum_mul_sum]
 
 /-- Disconnected factor tables multiply over `contraction`. -/
@@ -320,12 +320,12 @@ theorem contractionOn_relabel_equiv [Semiring R] [DecidableEq V] [DecidableEq W]
     contractionOn d (factors.map (relabel e)) (declared.map e.toEmbedding) =
       contractionOn d factors declared := by
   let eDom : declared ≃ declared.map e.toEmbedding :=
-    { toFun := fun v => ⟨e v.1, Finset.mem_map.mpr ⟨v.1, v.2, rfl⟩⟩
-      invFun := fun w => ⟨e.symm w.1, by
-        rcases Finset.mem_map.mp w.2 with ⟨v, hv, hvw⟩
+    { toFun := fun v => ⟨e v.val, Finset.mem_map.mpr ⟨v.val, v.property, rfl⟩⟩
+      invFun := fun w => ⟨e.symm w.val, by
+        rcases Finset.mem_map.mp w.property with ⟨v, hv, hvw⟩
         simpa [← hvw] using hv⟩
-      left_inv := fun v => Subtype.ext (e.symm_apply_apply v.1)
-      right_inv := fun w => Subtype.ext (e.apply_symm_apply w.1) }
+      left_inv := fun v => Subtype.ext (e.symm_apply_apply v.val)
+      right_inv := fun w => Subtype.ext (e.apply_symm_apply w.val) }
   let eAssign : (declared.map e.toEmbedding → Fin d) ≃ (declared → Fin d) :=
     Equiv.piCongrLeft' (fun _ => Fin d) eDom.symm
   rw [contractionOn, contractionOn]
@@ -356,7 +356,7 @@ variable {Rel V D R : Type*}
     (c : Constraint Rel V) : FactorTable R V :=
   { scope := c.scope
     entries := Array.ofFn fun i : Fin (d ^ c.scope.length) =>
-      let args := (lsbDecode d c.scope.length i.1).map fun k =>
+      let args := (lsbDecode d c.scope.length i.val).map fun k =>
         if hk : k < d then e.symm ⟨k, hk⟩ else default
       wt c.rel args }
 
@@ -385,31 +385,31 @@ theorem vars_ofCSP [DecidableEq V] [Inhabited D] (d : ℕ) (e : D ≃ Fin d)
 preserving arbitrary repeated variables and empty scopes. -/
 theorem evalAt_ofConstraint [Zero R] [Inhabited D] (d : ℕ) (e : D ≃ Fin d)
     (wt : Rel → List D → R) (c : Constraint Rel V) (σ : V → D) :
-    (ofConstraint d e wt c).evalAt d (fun v => (e (σ v)).1) = wt c.rel (c.scope.map σ) := by
-  have hlt : ∀ x ∈ c.scope.map (fun v => (e (σ v)).1), x < d := by
+    (ofConstraint d e wt c).evalAt d (fun v => (e (σ v)).val) = wt c.rel (c.scope.map σ) := by
+  have hlt : ∀ x ∈ c.scope.map (fun v => (e (σ v)).val), x < d := by
     intro x hx
     rcases List.mem_map.mp hx with ⟨v, _, rfl⟩
-    exact (e (σ v)).2
-  have hidx : Nat.ofDigits d (c.scope.map fun v => (e (σ v)).1) < d ^ c.scope.length := by
+    exact (e (σ v)).isLt
+  have hidx : Nat.ofDigits d (c.scope.map fun v => (e (σ v)).val) < d ^ c.scope.length := by
     simpa [List.length_map] using ofDigits_lt_pow_length _ hlt
-  have hdec : lsbDecode d c.scope.length (Nat.ofDigits d (c.scope.map fun v => (e (σ v)).1)) =
-      c.scope.map fun v => (e (σ v)).1 := by
-    have := lsbDecode_ofDigits (c.scope.map fun v => (e (σ v)).1) hlt
+  have hdec : lsbDecode d c.scope.length (Nat.ofDigits d (c.scope.map fun v => (e (σ v)).val)) =
+      c.scope.map fun v => (e (σ v)).val := by
+    have := lsbDecode_ofDigits (c.scope.map fun v => (e (σ v)).val) hlt
     simpa [List.length_map] using this
   rw [evalAt, ofConstraint, Array.getD]
   dsimp only
   split_ifs with hsz
   · change (Array.ofFn fun i : Fin (d ^ c.scope.length) =>
-        let args := (lsbDecode d c.scope.length i.1).map fun k =>
+        let args := (lsbDecode d c.scope.length i.val).map fun k =>
           if hk : k < d then e.symm ⟨k, hk⟩ else default
-        wt c.rel args)[Nat.ofDigits d (c.scope.map fun v => (e (σ v)).1)]'(by simpa using hidx) =
+        wt c.rel args)[Nat.ofDigits d (c.scope.map fun v => (e (σ v)).val)]'(by simpa using hidx) =
       wt c.rel (c.scope.map σ)
     rw [Array.getElem_ofFn]
     dsimp only
     rw [hdec, List.map_map]
     congr 1
     refine List.map_congr_left fun v _ => ?_
-    have hvlt : (e (σ v)).1 < d := (e (σ v)).2
+    have hvlt : (e (σ v)).val < d := (e (σ v)).isLt
     simp [hvlt]
   · exact absurd (by simpa using hidx) hsz
 
@@ -425,7 +425,7 @@ theorem contractionOn_ofCSP [Semiring R] [DecidableEq V] [Fintype D] [Inhabited 
   refine Fintype.sum_equiv eAssign _ _ fun σ => ?_
   rw [ofCSP, List.map_map]
   change (F.map fun c => (ofConstraint d e wt c).evalAt d
-    (fun v => if h : v ∈ declared then (σ ⟨v, h⟩).1 else 0)).prod =
+    (fun v => if h : v ∈ declared then (σ ⟨v, h⟩).val else 0)).prod =
     F.weight wt (fun v => if h : v ∈ declared then e.symm (σ ⟨v, h⟩) else default)
   rw [CSP.weight]
   congr 1
@@ -433,9 +433,9 @@ theorem contractionOn_ofCSP [Semiring R] [DecidableEq V] [Fintype D] [Inhabited 
   have hcvar : ∀ v ∈ c.scope, v ∈ declared := fun v hv =>
     hvars (List.mem_toFinset.mpr (List.mem_flatMap.mpr ⟨c, hc, hv⟩))
   have hcongr : (ofConstraint d e wt c).evalAt d
-      (fun v => if h : v ∈ declared then (σ ⟨v, h⟩).1 else 0) =
+      (fun v => if h : v ∈ declared then (σ ⟨v, h⟩).val else 0) =
       (ofConstraint d e wt c).evalAt d
-      (fun v => (e (if h : v ∈ declared then e.symm (σ ⟨v, h⟩) else default)).1) := by
+      (fun v => (e (if h : v ∈ declared then e.symm (σ ⟨v, h⟩) else default)).val) := by
     refine evalAt_congr fun v hv => ?_
     have hvd : v ∈ declared := hcvar v hv
     simp [hvd]
@@ -494,8 +494,8 @@ theorem contractionOn_ofExplicitTensorNetwork [CommSemiring R]
     contractionOn 2 (ofExplicitTensorNetwork net) (Finset.range net.numEdges) =
       net.contraction := by
   let eDom : Fin net.numEdges ≃ Finset.range net.numEdges :=
-    { toFun := fun i => ⟨i.1, Finset.mem_range.mpr i.2⟩
-      invFun := fun i => ⟨i.1, Finset.mem_range.mp i.2⟩
+    { toFun := fun i => ⟨i.val, Finset.mem_range.mpr i.isLt⟩
+      invFun := fun i => ⟨i.val, Finset.mem_range.mp i.property⟩
       left_inv := fun _ => rfl
       right_inv := fun _ => rfl }
   let eAssign : (Finset.range net.numEdges → Fin 2) ≃ (Fin net.numEdges → Bool) :=
@@ -514,8 +514,8 @@ theorem contractionOn_ofExplicitTensorNetwork [CommSemiring R]
   by_cases hi : i < net.numEdges
   · have hir : i ∈ Finset.range net.numEdges := Finset.mem_range.mpr hi
     simp only [hi, hir, dite_true]
-    have hassign : (eAssign σ ⟨i, hi⟩).toNat = (σ ⟨i, hir⟩).1 := by
-      change (finTwoEquiv (σ ⟨i, hir⟩)).toNat = (σ ⟨i, hir⟩).1
+    have hassign : (eAssign σ ⟨i, hi⟩).toNat = (σ ⟨i, hir⟩).val := by
+      change (finTwoEquiv (σ ⟨i, hir⟩)).toNat = (σ ⟨i, hir⟩).val
       rcases σ ⟨i, hir⟩ with ⟨_ | _ | k, hk⟩
       · rfl
       · rfl
@@ -552,13 +552,13 @@ theorem contractionOn_ofDescribedNetwork {T : Type*} [CommSemiring R]
     (eval : T → List Bool → R) (net : DescribedNetwork T)
     (heval : ∀ v ∈ net.vertices, ∀ bs : List Bool, bs.length = v.1.length →
       eval v.2 bs = (Array.ofFn fun i : Fin (2 ^ v.1.length) =>
-        eval v.2 ((lsbDecode 2 v.1.length i.1).map fun k => decide (k ≠ 0))).getD
+        eval v.2 ((lsbDecode 2 v.1.length i.val).map fun k => decide (k ≠ 0))).getD
           (BitString.lsbValue bs) 0) :
     contractionOn 2
       (net.vertices.map fun v =>
         ({ scope := v.1
            entries := Array.ofFn fun i : Fin (2 ^ v.1.length) =>
-             eval v.2 ((lsbDecode 2 v.1.length i.1).map fun k => decide (k ≠ 0)) } :
+             eval v.2 ((lsbDecode 2 v.1.length i.val).map fun k => decide (k ≠ 0)) } :
           FactorTable R ℕ))
       (Finset.range net.numEdges) =
     DescribedNetwork.contraction eval net := by
@@ -566,12 +566,12 @@ theorem contractionOn_ofDescribedNetwork {T : Type*} [CommSemiring R]
     { numEdges := net.numEdges
       vertices := net.vertices.map fun v =>
         (v.1, (Array.ofFn fun i : Fin (2 ^ v.1.length) =>
-          eval v.2 ((lsbDecode 2 v.1.length i.1).map fun k => decide (k ≠ 0))).toList) }
+          eval v.2 ((lsbDecode 2 v.1.length i.val).map fun k => decide (k ≠ 0))).toList) }
   have h1 : contractionOn 2
       (net.vertices.map fun v =>
         ({ scope := v.1
            entries := Array.ofFn fun i : Fin (2 ^ v.1.length) =>
-             eval v.2 ((lsbDecode 2 v.1.length i.1).map fun k => decide (k ≠ 0)) } :
+             eval v.2 ((lsbDecode 2 v.1.length i.val).map fun k => decide (k ≠ 0)) } :
           FactorTable R ℕ))
       (Finset.range net.numEdges) =
       contractionOn 2 (ofExplicitTensorNetwork netExp) (Finset.range netExp.numEdges) := by

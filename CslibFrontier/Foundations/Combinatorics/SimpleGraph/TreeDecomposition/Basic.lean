@@ -142,7 +142,7 @@ def reindex (D : G.TreeDecomposition ι) (e : ι ≃ κ) : G.TreeDecomposition �
         (D.tree.comap e.symm).induce {a | v ∈ (D.bag ∘ e.symm) a} :=
       { toFun := fun t => ⟨e t, by
           simp only [Set.mem_ofPred_eq, Function.comp_apply, Equiv.symm_apply_apply]
-          exact t.2⟩
+          exact t.property⟩
         map_rel' := fun {a b} h => by simpa [comap_adj] using h }
     refine (D.preconnected_bag v).map f ?_
     rintro ⟨a, ha⟩

@@ -195,11 +195,11 @@ theorem DNF.modelCount_eq_card_filter (φ : DNF V) :
   have hnd : vs.Nodup := CNF.nodup_distinctVars φ
   have hlen : vs.length = CNF.numVars φ := CNF.length_distinctVars φ
   let e : Fin (CNF.numVars φ) ≃ (CNF.vars φ).toFinset :=
-    { toFun := fun i => ⟨vs[i.1]'(by rw [hlen]; exact i.2), by
+    { toFun := fun i => ⟨vs[i.val]'(by rw [hlen]; exact i.isLt), by
         rw [← CNF.distinctVars_toFinset, List.mem_toFinset]; exact List.getElem_mem _⟩
-      invFun := fun v => ⟨vs.idxOf v.1, by
+      invFun := fun v => ⟨vs.idxOf v.val, by
         rw [← hlen]; apply List.idxOf_lt_length_of_mem
-        rw [← List.mem_toFinset, CNF.distinctVars_toFinset]; exact v.2⟩
+        rw [← List.mem_toFinset, CNF.distinctVars_toFinset]; exact v.property⟩
       left_inv := fun i => by
         ext; exact hnd.idxOf_getElem _ _
       right_inv := fun v => by
@@ -285,7 +285,7 @@ private theorem card_filter_override {ι : Type*} [Fintype ι] [DecidableEq ι] 
     Fintype.card_coe, nsmul_eq_mul, Nat.cast_id]
   congr 1
   symm
-  rw [Finset.sum_eq_single (fun i : {i // i ∈ J} => c i.1)]
+  rw [Finset.sum_eq_single (fun i : {i // i ∈ J} => c i.val)]
   · apply Finset.sum_congr rfl
     intro b _
     have hc : ∀ i ∈ J, e.symm ((fun i => c i), b) i = c i := by
@@ -299,8 +299,8 @@ private theorem card_filter_override {ι : Type*} [Fintype ι] [DecidableEq ι] 
       intro h
       apply ha
       funext i
-      have hi := h i.1 i.2
-      simpa only [e, Equiv.piEquivPiSubtypeProd_symm_apply, i.2, dite_true] using hi
+      have hi := h i.val i.property
+      simpa only [e, Equiv.piEquivPiSubtypeProd_symm_apply, i.property, dite_true] using hi
     exact ite_eq_right_iff.2 fun h => absurd h.1 hne
   · intro h
     exact absurd (Finset.mem_univ _) h
@@ -319,8 +319,8 @@ theorem card_filter_force {vs : List V} (hnd : vs.Nodup) {t : Term V}
   classical
   simp only [wordAssignment_ofFn]
   set n := vs.length
-  let J : Finset (Fin n) := Finset.univ.filter fun i => t.any (fun l => l.1 == vs[i.1])
-  let c : Fin n → Bool := fun i => t.any (fun l => l.1 == vs[i.1] && l.2)
+  let J : Finset (Fin n) := Finset.univ.filter fun i => t.any (fun l => l.1 == vs[i.val])
+  let c : Fin n → Bool := fun i => t.any (fun l => l.1 == vs[i.val] && l.2)
   have hglue (x : Fin n → Bool) : t.force (indexAssignment vs x) =
       indexAssignment vs (fun i => if i ∈ J then c i else x i) := by
     funext v
@@ -339,7 +339,7 @@ theorem card_filter_force {vs : List V} (hnd : vs.Nodup) {t : Term V}
     Q (indexAssignment vs z))]
   have hJ : J.card = t.width := by
     rw [Term.width]
-    refine Finset.card_bij (fun i _ => vs[i.1]) (fun i hi => ?_) (fun i _ j _ h => ?_)
+    refine Finset.card_bij (fun i _ => vs[i.val]) (fun i hi => ?_) (fun i _ j _ h => ?_)
       (fun v hv => ?_)
     · simp only [J, Finset.mem_filter, Finset.mem_univ, true_and, List.any_eq_true,
         beq_iff_eq] at hi
@@ -359,11 +359,11 @@ theorem card_filter_force {vs : List V} (hnd : vs.Nodup) {t : Term V}
   ext y
   simp only [Finset.mem_filter, Finset.mem_univ, true_and]
   refine ⟨fun h => h.2, fun h => ⟨fun i hi => ?_, h⟩⟩
-  have hf := congrFun (Term.force_eq_of_eval h.1) vs[i.1]
-  have hiJ : t.any (fun l => l.1 == vs[i.1]) = true := by
+  have hf := congrFun (Term.force_eq_of_eval h.1) vs[i.val]
+  have hiJ : t.any (fun l => l.1 == vs[i.val]) = true := by
     simpa only [J, Finset.mem_filter, Finset.mem_univ, true_and] using hi
-  have hidx : vs.idxOf vs[i.1] = i.1 := hnd.idxOf_getElem _ _
-  simp only [Term.force, hiJ, ite_true, indexAssignment, hidx, i.2, dite_true] at hf
+  have hidx : vs.idxOf vs[i.val] = i.val := hnd.idxOf_getElem _ _
+  simp only [Term.force, hiJ, ite_true, indexAssignment, hidx, i.isLt, dite_true] at hf
   exact hf.symm
 
 /-- A term on the variables of a nodup list `vs` has at most `|vs|` variables. -/

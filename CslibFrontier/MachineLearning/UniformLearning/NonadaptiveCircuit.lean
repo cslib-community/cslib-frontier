@@ -90,7 +90,7 @@ theorem pad (hA : A.HasCircuit q S) {q' : ℕ} (h : q ≤ q') : A.HasCircuit q' 
   obtain ⟨pts, F, hF, hev⟩ := hA ω
   let embed : Fin (q + n) → Fin (q' + n) :=
     Fin.append (fun i => Fin.castAdd n (Fin.castLE h i)) (Fin.natAdd q')
-  refine ⟨fun i => if hi : i.1 < q then pts ⟨i.1, hi⟩ else fun _ => false,
+  refine ⟨fun i => if hi : i.val < q then pts ⟨i.val, hi⟩ else fun _ => false,
     fun z => F (z ∘ embed), ?_, fun f x => ?_⟩
   · calc complexity interpretation (single fun z => F (z ∘ embed))
         = complexity interpretation (single F ∘ fun z => z ∘ embed) := rfl

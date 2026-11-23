@@ -134,7 +134,7 @@ def boolPairToFin4 (p : Bool × Bool) : Fin 4 :=
 
 /-- Decode an index in `Fin 4` to its pair of bits `Bool × Bool`. -/
 def fin4ToBoolPair (idx : Fin 4) : Bool × Bool :=
-  (decide (2 ≤ idx.1), decide (idx.1 % 2 = 1))
+  (decide (2 ≤ idx.val), decide (idx.val % 2 = 1))
 
 @[simp] theorem fin4ToBoolPair_boolPairToFin4 (p : Bool × Bool) :
     fin4ToBoolPair (boolPairToFin4 p) = p := by
@@ -209,7 +209,7 @@ corrupted party `i ∈ I` deterministically forms its view from its own input `x
 def twoPartyMulSim (I : Finset (Fin 2)) :
     CoalitionSimulator twoPartyMulSchedule
       (fun _ => Bool × Bool) (Fin.cases Bool (fun _ => Unit)) (fun _ => Bool) I :=
-  fun xI yI => pure (fun i => twoPartyMulViewOfInOut i.1 (xI i) (yI i))
+  fun xI yI => pure (fun i => twoPartyMulViewOfInOut i.val (xI i) (yI i))
 
 private theorem uniformOfFintype_fin1_bool :
     PMF.uniformOfFintype (Fin 1 → Bool) =
@@ -315,7 +315,7 @@ abbrev OrderedPair.second {m : ℕ} (p : OrderedPair m) : Fin m :=
 
 /-- The first party of an ordered pair precedes the second. -/
 theorem OrderedPair.first_lt_second {m : ℕ} (p : OrderedPair m) : p.first < p.second :=
-  p.2
+  p.property
 
 /-- Embedding of `Fin 2` into `Fin m` sending `0 ↦ p.first` and `1 ↦ p.second` for an ordered pair
 `p : OrderedPair m`. -/
@@ -1064,7 +1064,7 @@ noncomputable def multiPartyMulSim (m : ℕ) [NeZero m] (I : Finset (Fin m)) :
       let x₀ := extendIn I xI
       let y₀ := extendOut I yI
       let rSim := tildeR (pivotParty I) x₀ y₀ r
-      fun i => viewOfRow i.1 (xI i) (matrixOfCoins x₀ rSim i.1)
+      fun i => viewOfRow i.val (xI i) (matrixOfCoins x₀ rSim i.val)
 
 /-- Proposition 7.5.9 (Goldreich Section 7.5.2.2, p. 704): `multiPartyMulProtocol m` privately
 reduces `m`-party shared multiplication `sharedMulFunctionality m` to 2-party shared multiplication
@@ -1078,9 +1078,9 @@ theorem perfectSemiHonestPrivate_multiPartyMul (m : ℕ) [NeZero m] :
   dsimp [idealJoint, multiPartyMulSim]
   simp only [pmf_norm, ProbComp.eval_uniform]
   let F : (OrderedPair m → Bool) →
-      ((i : I) → PartyView (fun _ => Bool × Bool) (fun _ => Unit) (multiPartyMulSchedule m) i.1) ×
+      ((i : I) → PartyView (fun _ => Bool × Bool) (fun _ => Unit) (multiPartyMulSchedule m) i.val) ×
         (Fin m → Bool) :=
-    fun r' => (fun i : I => viewOfRow i.1 (x i.1) (matrixOfCoins x r' i.1), realOut x r')
+    fun r' => (fun i : I => viewOfRow i.val (x i.val) (matrixOfCoins x r' i.val), realOut x r')
   change _ = (PMF.uniformOfFintype (OrderedPair m → Bool)).map F
   rw [← uniform_bind_tildeR (pivotParty I) x F]
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun y hy => ?_
@@ -1092,7 +1092,7 @@ theorem perfectSemiHonestPrivate_multiPartyMul (m : ℕ) [NeZero m] :
   dsimp [F, Function.comp]
   refine Prod.ext (funext fun i => ?_) ?_
   · dsimp only
-    rw [matrixOfCoins_tildeR_add_sigmaShift I x y r i.2]
+    rw [matrixOfCoins_tildeR_add_sigmaShift I x y r i.property]
   · exact (realOut_tildeR (pivotParty I) x y (r + sigmaShift I x) hsum).symm
 
 end Cslib.Crypto.Protocols.MPC

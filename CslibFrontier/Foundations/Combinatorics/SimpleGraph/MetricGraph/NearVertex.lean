@@ -50,8 +50,8 @@ theorem fst_eq_or_snd_eq_of_dist_vertex_edgePoint_lt {v : V} {d : W.graph.Dart}
   rcases min_choice (vertexDist W.graph W.weight v d.fst + (t : ℝ) * W.weight d.edge)
       (vertexDist W.graph W.weight v d.snd + (1 - (t : ℝ)) * W.weight d.edge) with hm | hm <;>
     rw [hm] at h₁ h₂
-  · linarith [mul_nonneg t.2.1 (W.dart_weight_nonneg d)]
-  · linarith [mul_nonneg (sub_nonneg.mpr t.2.2) (W.dart_weight_nonneg d)]
+  · linarith [mul_nonneg t.property.1 (W.dart_weight_nonneg d)]
+  · linarith [mul_nonneg (sub_nonneg.mpr t.property.2) (W.dart_weight_nonneg d)]
 
 /-- A point on a dart out of `v` that is closer to `v` than the other endpoint is at distance its
 offset along the dart. -/
@@ -64,7 +64,7 @@ theorem dist_vertex_edgePoint_of_fst_eq {v : V} {d : W.graph.Dart} {t : unitInte
   rw [dist_vertex_edgePoint, hfst, vertexDist_self W.weight_nonneg, zero_add] at h ⊢
   refine min_eq_left (le_of_not_gt fun hlt => ?_)
   rw [min_eq_right hlt.le] at h
-  linarith [mul_nonneg (sub_nonneg.mpr t.2.2) (W.dart_weight_nonneg d)]
+  linarith [mul_nonneg (sub_nonneg.mpr t.property.2) (W.dart_weight_nonneg d)]
 
 /-- A point on a dart into `v` that is closer to `v` than the other endpoint is at distance its
 offset from the end of the dart. -/

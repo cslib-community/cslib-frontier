@@ -265,7 +265,7 @@ theorem abs_movingAverage_sub_le (hψ : LipschitzWith c ψ) (hh : 0 < h) (s : �
         simpa [Real.dist_eq] using hψ.dist_le_mul (s + t) s
     _ ≤ c * h := by
         rw [add_sub_cancel_left, abs_of_pos ht.1]
-        exact mul_le_mul_of_nonneg_left ht.2 c.2
+        exact mul_le_mul_of_nonneg_left ht.2 c.property
 
 /-- The `m`-fold moving average with window `h > 0` moves a `c`-Lipschitz function by at most
 `m c h`. -/

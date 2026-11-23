@@ -48,7 +48,7 @@ private lemma exists_nonneg_int_solution_independent_large {m n : ℕ}
     ∃ x : Fin n → ℤ, 0 ≤ x ∧ A *ᵥ x = b ∧
       Function.Injective
         ((A.submatrix id (fun j : {j //
-          (n.factorial * (m * ((n + 1) * B) ^ 2 + 1) ^ n : ℕ) ≤ x j} => j.1)).map
+          (n.factorial * (m * ((n + 1) * B) ^ 2 + 1) ^ n : ℕ) ≤ x j} => j.val)).map
           (Int.cast : ℤ → ℚ)).mulVecLin := by
   classical
   let K := n.factorial * (m * ((n + 1) * B) ^ 2 + 1) ^ n
@@ -71,7 +71,7 @@ private lemma exists_nonneg_int_solution_independent_large {m n : ℕ}
   let J := {j : Fin n // (K : ℤ) ≤ x j}
   let AJ : Matrix (Fin m) J ℤ := A.submatrix id Subtype.val
   obtain ⟨cJ, hcJ, hAcJ, hcJB⟩ := exists_int_mulVec_eq_zero_of_not_injective AJ
-    (fun i j => hA i j.1) (r := n) (by
+    (fun i j => hA i j.val) (r := n) (by
       calc Fintype.card J ≤ Fintype.card (Fin n) := Fintype.card_subtype_le _
         _ ≤ n + 1 := by simp) hinj
   let c : Fin n → ℤ := fun j => if hj : (K : ℤ) ≤ x j then cJ ⟨j, hj⟩ else 0
@@ -85,12 +85,12 @@ private lemma exists_nonneg_int_solution_independent_large {m n : ℕ}
     ext i
     change ∑ j, A i j * c j = 0
     rw [← Fintype.sum_subtype_add_sum_subtype (fun j => (K : ℤ) ≤ x j)]
-    have hzero : ∑ j : {j : Fin n // ¬(K : ℤ) ≤ x j}, A i j.1 * c j.1 = 0 := by
+    have hzero : ∑ j : {j : Fin n // ¬(K : ℤ) ≤ x j}, A i j.val * c j.val = 0 := by
       apply Finset.sum_eq_zero
       intro j _
-      simp [c, j.2]
+      simp [c, j.property]
     rw [hzero, add_zero]
-    have heq : ∀ j : J, c j.1 = cJ j := fun j => by simp [c, j.2]
+    have heq : ∀ j : J, c j.val = cJ j := fun j => by simp [c, j.property]
     simpa only [AJ, mulVec, dotProduct, submatrix_apply, id_eq, heq, Pi.zero_apply]
       using congrFun hAcJ i
   have hplus : 0 ≤ x + c := fun j => by
@@ -123,8 +123,8 @@ private lemma exists_nonneg_int_solution_independent_large {m n : ℕ}
     simpa [a, j.isLt] using h j j.isLt
   apply hcJ
   funext j
-  have h := congrFun hc_eq j.1
-  simpa [c, j.2] using h
+  have h := congrFun hc_eq j.val
+  simpa [c, j.property] using h
 
 /-- An explicit bound for nonnegative integer solutions of an `m × n` integer equality system
 with coefficients and right-hand side bounded by `B`. Its logarithm is polynomial in
@@ -168,38 +168,38 @@ private theorem exists_nonneg_int_mulVec_eq_le_fin {m n B : ℕ}
           exact mul_le_mul (hA i j) (hz j) (abs_nonneg _) (by positivity))
       _ = (C : ℤ) := by simp [C]; ring
   have hAC : ∀ i j, |AJ i j| ≤ C := fun i j =>
-    (hA i j.1).trans (Int.ofNat_le.mpr (Nat.le_add_right B _))
-  have hAJx : AJ *ᵥ (fun j : J => x j.1) = b' := by
+    (hA i j.val).trans (Int.ofNat_le.mpr (Nat.le_add_right B _))
+  have hAJx : AJ *ᵥ (fun j : J => x j.val) = b' := by
     ext i
     have hsplit := Fintype.sum_subtype_add_sum_subtype
       (p := fun j : Fin n => (K : ℤ) ≤ x j) (fun j => A i j * x j)
-    have hzsum : (A *ᵥ z) i = ∑ j : {j : Fin n // ¬(K : ℤ) ≤ x j}, A i j.1 * x j.1 := by
+    have hzsum : (A *ᵥ z) i = ∑ j : {j : Fin n // ¬(K : ℤ) ≤ x j}, A i j.val * x j.val := by
       change (∑ j, A i j * z j) = _
       rw [← Fintype.sum_subtype_add_sum_subtype (fun j => (K : ℤ) ≤ x j)]
-      have hyes : ∀ j : J, z j.1 = 0 := fun j => ite_eq_left j.2
-      have hno : ∀ j : {j : Fin n // ¬(K : ℤ) ≤ x j}, z j.1 = x j.1 := fun j => ite_eq_right j.2
+      have hyes : ∀ j : J, z j.val = 0 := fun j => ite_eq_left j.property
+      have hno : ∀ j : {j : Fin n // ¬(K : ℤ) ≤ x j}, z j.val = x j.val := fun j => ite_eq_right j.property
       simp only [hyes, hno, mul_zero, Finset.sum_const_zero, zero_add]
     have hrow := congrFun hAx i
-    change (∑ j : J, A i j.1 * x j.1) = b i - (A *ᵥ z) i
+    change (∑ j : J, A i j.val * x j.val) = b i - (A *ᵥ z) i
     rw [hzsum]
     change (∑ j, A i j * x j) = b i at hrow
     linarith
-  have hAJxQ : AJ.map (Int.cast : ℤ → ℚ) *ᵥ (fun j : J => (x j.1 : ℚ)) =
+  have hAJxQ : AJ.map (Int.cast : ℤ → ℚ) *ᵥ (fun j : J => (x j.val : ℚ)) =
       fun i => (b' i : ℚ) := by
     ext i
     have h := congrFun hAJx i
     simp only [mulVec, dotProduct, map_apply] at h ⊢
     exact_mod_cast h
   obtain ⟨d, p, hd, hp, hAp, _, hpB⟩ := exists_int_nonneg_mulVec_eq hAC hb'
-    (show (0 : J → ℚ) ≤ fun j => (x j.1 : ℚ) from fun j => by
-      change (0 : ℚ) ≤ (x j.1 : ℚ)
-      exact_mod_cast (show 0 ≤ x j.1 from hx j.1)) hAJxQ
-  have hpx : p = d • (fun j : J => x j.1) := by
-    have hEq : (fun j => (p j : ℚ)) = (fun j : J => ((d * x j.1 : ℤ) : ℚ)) := by
+    (show (0 : J → ℚ) ≤ fun j => (x j.val : ℚ) from fun j => by
+      change (0 : ℚ) ≤ (x j.val : ℚ)
+      exact_mod_cast (show 0 ≤ x j.val from hx j.val)) hAJxQ
+  have hpx : p = d • (fun j : J => x j.val) := by
+    have hEq : (fun j => (p j : ℚ)) = (fun j : J => ((d * x j.val : ℤ) : ℚ)) := by
       apply hinj
       change AJ.map (Int.cast : ℤ → ℚ) *ᵥ _ = AJ.map (Int.cast : ℤ → ℚ) *ᵥ _
       have hcast := (Int.castRingHom ℚ).map_mulVec AJ p
-      have hcast' := (Int.castRingHom ℚ).map_mulVec AJ (d • (fun j : J => x j.1))
+      have hcast' := (Int.castRingHom ℚ).map_mulVec AJ (d • (fun j : J => x j.val))
       rw [mulVec_smul, hAJx] at hcast'
       ext i
       exact (hcast i).symm.trans (by rw [hAp]; exact hcast' i)

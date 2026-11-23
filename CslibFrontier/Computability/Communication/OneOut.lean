@@ -72,7 +72,7 @@ theorem ecomplexity_le (R : X → Y → Z → Prop) (i : Fin k) :
   unfold ecomplexity
   apply le_iInf
   intro p
-  exact (ecomplexity_le_depth (solves_atCoordinate p.2 i)).trans_eq
+  exact (ecomplexity_le_depth (solves_atCoordinate p.property i)).trans_eq
     (by simp)
 
 end Cslib.Communication.OneOut

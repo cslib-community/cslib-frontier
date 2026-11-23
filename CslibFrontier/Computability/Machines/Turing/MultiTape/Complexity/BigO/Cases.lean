@@ -107,9 +107,9 @@ theorem sumElimSnd {f : π × α → ε} {g : π × β → ε} {Tf Sf : π × α
     · enc_len [enc]
   -- the two branches, on their cases
   let L : {p : π × (α ⊕ β) // p.2.isLeft = true} → π × α :=
-    fun p => (p.1.1, p.1.2.getLeft (by simpa using p.2))
+    fun p => (p.val.1, p.val.2.getLeft (by simpa using p.property))
   let R : {p : π × (α ⊕ β) // p.2.isLeft = false} → π × β :=
-    fun p => (p.1.1, p.1.2.getRight (by simpa using p.2))
+    fun p => (p.val.1, p.val.2.getRight (by simpa using p.property))
   have hL := keepFrame_drop (encP := encP) (encA := encA)
     (encS := (Function.Embedding.subtype _).trans enc) (h := L) 1
     fun ⟨⟨x, s⟩, hs⟩ => by
@@ -125,12 +125,12 @@ theorem sumElimSnd {f : π × α → ε} {g : π × β → ε} {Tf Sf : π × α
   obtain ⟨c₀, ⟨k₀, Q₀, _, tm₀, h₀⟩, -⟩ := Internal.NormalForm.inO htest
   obtain ⟨c₁, ⟨k₁, Q₁, _, tm₁, h₁⟩, l₁⟩ := Internal.NormalForm.inO (hf.comp hL)
   obtain ⟨c₂, ⟨k₂, Q₂, _, tm₂, h₂⟩, l₂⟩ := Internal.NormalForm.inO (hg.comp hR)
-  have hF₁ : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = true}, F q.1 = f (L q) := by
+  have hF₁ : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = true}, F q.val = f (L q) := by
     rintro ⟨⟨x, s⟩, hs⟩
     cases s with
     | inl a => rfl
     | inr b => simp at hs
-  have hF₂ : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = false}, F q.1 = g (R q) := by
+  have hF₂ : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = false}, F q.val = g (R q) := by
     rintro ⟨⟨x, s⟩, hs⟩
     cases s with
     | inl a => simp at hs
@@ -140,9 +140,9 @@ theorem sumElimSnd {f : π × α → ε} {g : π × β → ε} {Tf Sf : π × α
   let Tr : π × (α ⊕ β) → ℕ := fun p => p.2.elim (fun _ => 0) (fun b => Tg (p.1, b))
   let Sr : π × (α ⊕ β) → ℕ := fun p => p.2.elim (fun _ => 0) (fun b => Sg (p.1, b))
   have hlenL : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = true},
-      ((Function.Embedding.subtype _).trans enc q).length = (enc q.1).length := fun _ => rfl
+      ((Function.Embedding.subtype _).trans enc q).length = (enc q.val).length := fun _ => rfl
   have hlenR : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = false},
-      ((Function.Embedding.subtype _).trans enc q).length = (enc q.1).length := fun _ => rfl
+      ((Function.Embedding.subtype _).trans enc q).length = (enc q.val).length := fun _ => rfl
   obtain ⟨k, K, Q, _, tm, h⟩ := Internal.conditional h₀ (f := F) (g := F)
     (tf := fun p => c₁ * ((enc p).length + Tl p + 1))
     (sf := fun p => c₁ * ((enc p).length + Sl p + 1))
@@ -219,9 +219,9 @@ theorem optionElimSnd {f : π → ε} {g : π × α → ε} {Tf Sf : π → ℕ}
     · obtain ⟨x, _ | a⟩ := p <;> rfl
     all_goals simp only [encBool_apply, List.length_singleton]; omega
   -- the two branches, on their cases
-  let N : {p : π × Option α // p.2.isSome = false} → π := fun p => p.1.1
+  let N : {p : π × Option α // p.2.isSome = false} → π := fun p => p.val.1
   let S : {p : π × Option α // p.2.isSome = true} → π × α :=
-    fun p => (p.1.1, p.1.2.get p.2)
+    fun p => (p.val.1, p.val.2.get p.property)
   have hN : ComputableInO N ((Function.Embedding.subtype _).trans enc) encP
       (fun s => ((Function.Embedding.subtype _).trans enc s).length)
       (fun s => ((Function.Embedding.subtype _).trans enc s).length) :=
@@ -235,12 +235,12 @@ theorem optionElimSnd {f : π → ε} {g : π × α → ε} {Tf Sf : π → ℕ}
   obtain ⟨c₀, ⟨k₀, Q₀, _, tm₀, h₀⟩, -⟩ := Internal.NormalForm.inO htest
   obtain ⟨c₁, ⟨k₁, Q₁, _, tm₁, h₁⟩, l₁⟩ := Internal.NormalForm.inO (hg.comp hS)
   obtain ⟨c₂, ⟨k₂, Q₂, _, tm₂, h₂⟩, l₂⟩ := Internal.NormalForm.inO (hf.comp hN)
-  have hF₁ : ∀ q : {p : π × Option α // p.2.isSome = true}, F q.1 = g (S q) := by
+  have hF₁ : ∀ q : {p : π × Option α // p.2.isSome = true}, F q.val = g (S q) := by
     rintro ⟨⟨x, o⟩, ho⟩
     cases o with
     | none => simp at ho
     | some a => rfl
-  have hF₂ : ∀ q : {p : π × Option α // p.2.isSome = false}, F q.1 = f (N q) := by
+  have hF₂ : ∀ q : {p : π × Option α // p.2.isSome = false}, F q.val = f (N q) := by
     rintro ⟨⟨x, o⟩, ho⟩
     cases o with
     | none => rfl
@@ -250,9 +250,9 @@ theorem optionElimSnd {f : π → ε} {g : π × α → ε} {Tf Sf : π → ℕ}
   let Tn : π × Option α → ℕ := fun p => p.2.elim (Tf p.1) (fun _ => 0)
   let Sn : π × Option α → ℕ := fun p => p.2.elim (Sf p.1) (fun _ => 0)
   have hlenS : ∀ q : {p : π × Option α // p.2.isSome = true},
-      ((Function.Embedding.subtype _).trans enc q).length = (enc q.1).length := fun _ => rfl
+      ((Function.Embedding.subtype _).trans enc q).length = (enc q.val).length := fun _ => rfl
   have hlenN : ∀ q : {p : π × Option α // p.2.isSome = false},
-      ((Function.Embedding.subtype _).trans enc q).length = (enc q.1).length := fun _ => rfl
+      ((Function.Embedding.subtype _).trans enc q).length = (enc q.val).length := fun _ => rfl
   obtain ⟨k, K, Q, _, tm, h⟩ := Internal.conditional h₀ (f := F) (g := F)
     (tf := fun p => c₁ * ((enc p).length + Ts p + 1))
     (sf := fun p => c₁ * ((enc p).length + Ss p + 1))

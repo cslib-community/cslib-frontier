@@ -264,7 +264,7 @@ theorem length_neighbors_le (c : Fin φ.length) : (neighbors φ c).length ≤ de
         · exact Or.inr ⟨mem_univ _, h, hj⟩
     _ ≤ degree φ c + 1 := card_insert_le _ _
 
-theorem getElem_mem_fin (c : Fin φ.length) : φ[c] ∈ φ := List.getElem_mem c.2
+theorem getElem_mem_fin (c : Fin φ.length) : φ[c] ∈ φ := List.getElem_mem c.isLt
 
 theorem run_succ (k t : ℕ) (x : ℕ → Bool) (N : ℕ) :
     run φ k t x (N + 1) = step φ k t x (run φ k t x N) := rfl
@@ -273,7 +273,7 @@ theorem run_succ (k t : ℕ) (x : ℕ → Bool) (N : ℕ) :
 theorem move_cases (t : ℕ) (s : State n φ.length) :
     (move φ t s = .skip ∧ s.stack = [] ∧
       ∃ h : s.ptr < φ.length, φ[(⟨s.ptr, h⟩ : Fin φ.length)].eval s.assignment = true) ∨
-    (∃ c : Fin φ.length, move φ t s = .root c ∧ s.stack = [] ∧ c.1 = s.ptr ∧
+    (∃ c : Fin φ.length, move φ t s = .root c ∧ s.stack = [] ∧ c.val = s.ptr ∧
       φ[c].eval s.assignment = false ∧ s.trace.length < t) ∨
     (∃ e st d, move φ t s = .child ((neighbors φ e).idxOf d) d ∧ s.stack = e :: st ∧
       d ∈ neighbors φ e ∧ φ[d].eval s.assignment = false ∧ s.trace.length < t) ∨
@@ -314,7 +314,7 @@ variable (φ) in
 a variable with an active `Fix` call. -/
 def Sound (s : State n φ.length) : Prop :=
   ∀ j : Fin φ.length, φ[j].eval s.assignment = false →
-    s.ptr ≤ j.1 ∨ ∃ e ∈ s.stack, Shares φ[e] φ[j]
+    s.ptr ≤ j.val ∨ ∃ e ∈ s.stack, Shares φ[e] φ[j]
 
 theorem sound_init (x : ℕ → Bool) : Sound φ (init φ x) := fun _ _ => Or.inl (Nat.zero_le _)
 
@@ -397,7 +397,7 @@ theorem eval_of_lt_of_move_eq_root {t : ℕ} {s : State n φ.length} (hs : Sound
   by_contra hf
   rw [Bool.not_eq_true] at hf
   rcases hs j hf with h | ⟨e, he, -⟩
-  · have : j.1 < c.1 := hj
+  · have : j.val < c.val := hj
     omega
   · rw [hst] at he
     exact absurd he List.not_mem_nil
@@ -415,7 +415,7 @@ theorem potential_step_lt (k t : ℕ) (x : ℕ → Bool) {s : State n φ.length}
     ⟨e, st, d, hm', -, -, -, ht⟩ | ⟨e, st, hm', hst, -⟩ | ⟨hm', -⟩
   · simp only [potential, step, hm', apply]
     omega
-  · have := c.2
+  · have := c.isLt
     simp only [potential, step, hm', apply, List.length_cons, hst, List.length_nil]
     omega
   · simp only [potential, step, hm', apply, List.length_cons]
@@ -581,7 +581,7 @@ theorem run_congr {k : ℕ} (hφ : φ.IsExactDistinct k) {t : ℕ} {x y : ℕ �
   induction N with
   | zero =>
     have h : (fun v : Fin n => x v) = fun v : Fin n => y v :=
-      funext fun v => hxy _ (lt_of_lt_of_le v.2 (Nat.le_add_right _ _))
+      funext fun v => hxy _ (lt_of_lt_of_le v.isLt (Nat.le_add_right _ _))
     simp only [run, init, h]
   | succ N ih =>
     rw [run_succ, run_succ, ← ih]

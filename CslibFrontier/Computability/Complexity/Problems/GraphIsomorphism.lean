@@ -200,7 +200,7 @@ theorem isVerifier :
         fun i hi j hj => ?_⟩
       · rintro hv
         obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hv
-        exact (φ (G.vertexEquiv i)).2
+        exact (φ (G.vertexEquiv i)).property
       · intro hv
         exact List.mem_ofFn.2 ⟨G.vertexEquiv.symm (φ.symm ⟨v, hv⟩), by simp [f]⟩
       · rw [List.getD_ofFn_of_lt _ hi, List.getD_ofFn_of_lt _ hj]

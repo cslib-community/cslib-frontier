@@ -121,7 +121,7 @@ private theorem Inv.cut {S : Finset (Fin I.n)} {D : Fin I.n → ℕ∞} (h : I.I
     by_cases hb : b ∈ S
     · refine ⟨v, hv, ?_⟩
       calc
-        D v ≤ D b + (e : {c : ℕ // I.weight b v = some c}).1 :=
+        D v ≤ D b + (e : {c : ℕ // I.weight b v = some c}).val :=
           h.relaxed b hb v hv _ e.property
         _ = I.dist I.source b + I.arrowWeight e := by rw [h.eq_of_mem b hb]; rfl
         _ ≤ p.addWeight I.arrowWeight + I.arrowWeight e :=

@@ -25,7 +25,7 @@ namespace Cslib.Complexity.Graph.RotationCertificate
 /-- A raw table is the exact canonical generated certificate iff it has the actual dart
 count and agrees with every literal successor, including the empty-graph case. -/
 theorem ofRotation_eq_iff {G : Graph} (r : RotationSystem G) (c : RotationCertificate) :
-    ofRotation r = c ↔ c.successor.length = 2 * G.2.length ∧
+    ofRotation r = c ↔ c.successor.length = 2 * G.edges.length ∧
       ∀ d : Dart G, c.successor.getD d.index 0 = (r.rotate d).index := by
   constructor
   · rintro rfl
@@ -40,7 +40,7 @@ theorem ofRotation_eq_iff {G : Graph} (r : RotationSystem G) (c : RotationCertif
     change (ofRotation r).successor[i] = c.successor[i]
     rw [← List.getD_eq_getElem (ofRotation r).successor 0 hi,
       ← List.getD_eq_getElem c.successor 0 hj]
-    have hb : i < 2 * G.2.length := by rwa [length_ofRotation] at hi
+    have hb : i < 2 * G.edges.length := by rwa [length_ofRotation] at hi
     let d := (Dart.indexEquiv G).symm ⟨i, hb⟩
     have hd : d.index = i := congrArg Fin.val ((Dart.indexEquiv G).apply_symm_apply ⟨i, hb⟩)
     rw [← hd, getD_ofRotation, hstep]

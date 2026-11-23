@@ -98,7 +98,7 @@ theorem card_polynomialBlock_inter_le {c d : Fin k → F} (hcd : c ≠ d) :
     #(polynomialBlock F k c ∩ polynomialBlock F k d) ≤ k - 1 := by
   have heval (c : Fin k → F) (x : F) :
       ((degreeLTEquiv F k).symm c : F[X]).eval x = ∑ i, c i * x ^ (i : ℕ) := by
-    rw [eval_eq_sum_degreeLTEquiv ((degreeLTEquiv F k).symm c).2, Subtype.coe_eta,
+    rw [eval_eq_sum_degreeLTEquiv ((degreeLTEquiv F k).symm c).property, Subtype.coe_eta,
       LinearEquiv.apply_symm_apply]
   set P : F[X] := ↑((degreeLTEquiv F k).symm c)
   set Q : F[X] := ↑((degreeLTEquiv F k).symm d)
@@ -138,7 +138,7 @@ theorem isDesign_rsDesign {q m k : ℕ} [Fact q.Prime] (hm : m ≤ q) :
     rintro ⟨a, b⟩ - ⟨a', b'⟩ - h
     obtain ⟨h1, h2⟩ := Prod.ext_iff.1 h
     have h' := (ZMod.natCast_eq_natCast_iff' _ _ _).1 h1
-    rw [Nat.mod_eq_of_lt (a.2.trans_le hm), Nat.mod_eq_of_lt (a'.2.trans_le hm)] at h'
+    rw [Nat.mod_eq_of_lt (a.isLt.trans_le hm), Nat.mod_eq_of_lt (a'.isLt.trans_le hm)] at h'
     exact Prod.ext (Fin.ext h') h2
   have hmaps : ∀ c'' : Fin k → ZMod q, ∀ x ∈ rsDesign q m k c'',
       φ x ∈ polynomialBlock (ZMod q) k c'' := fun c'' x hx => by

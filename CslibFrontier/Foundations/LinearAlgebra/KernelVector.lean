@@ -272,7 +272,7 @@ private theorem spansKernel_kernelBasisUpTo (A : Matrix (Fin r) (Fin n) F) (k : 
 private theorem spansKernel_kernelBasis (A : Matrix (Fin r) (Fin n) F) :
     SpansKernel (Set.range A) (kernelBasis A) := by
   have hset : {a | ∃ l : Fin r, (l : ℕ) < r ∧ a = A l} = Set.range A :=
-    Set.ext fun a => ⟨fun ⟨l, _, hl⟩ => ⟨l, hl.symm⟩, fun ⟨l, hl⟩ => ⟨l, l.2, hl.symm⟩⟩
+    Set.ext fun a => ⟨fun ⟨l, _, hl⟩ => ⟨l, hl.symm⟩, fun ⟨l, hl⟩ => ⟨l, l.isLt, hl.symm⟩⟩
   have h := spansKernel_kernelBasisUpTo A r
   rw [hset] at h
   exact h

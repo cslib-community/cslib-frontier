@@ -115,10 +115,10 @@ theorem eval_dom_iff (M : Machine Γ Λ) (l : List Γ) :
 /-- The restriction of a `TM0` machine to a set of states supporting it. -/
 def restrict (M : Machine Γ Λ) {S : Set Λ} (hS : Supports M S) [Inhabited S] :
     Machine Γ S := fun q a =>
-  (M q.1 a).pmap (fun x hx => (⟨x.1, hS.2 hx q.2⟩, x.2)) fun _ h => h
+  (M q.val a).pmap (fun x hx => (⟨x.1, hS.2 hx q.property⟩, x.2)) fun _ h => h
 
 /-- The configuration of the original machine underlying a configuration of the restriction. -/
-def liftCfg {S : Set Λ} (c : Cfg Γ S) : Cfg Γ Λ := ⟨c.q.1, c.Tape⟩
+def liftCfg {S : Set Λ} (c : Cfg Γ S) : Cfg Γ Λ := ⟨c.q.val, c.Tape⟩
 
 omit [Inhabited Λ] in
 private theorem map_pmap_val {S : Set Λ} {β : Type*} (o : Option (Λ × β))
@@ -131,8 +131,8 @@ theorem step_liftCfg (M : Machine Γ Λ) {S : Set Λ}
     (hS : Supports M S) [Inhabited S] (c : Cfg Γ S) :
     (step (restrict M hS) c).map liftCfg = step M (liftCfg c) := by
   obtain ⟨q, T⟩ := c
-  have h := map_pmap_val (S := S) (M q.1 T.head) fun x hx => hS.2 hx q.2
-  change ((restrict M hS q T.head).map _).map liftCfg = (M q.1 T.head).map _
+  have h := map_pmap_val (S := S) (M q.val T.head) fun x hx => hS.2 hx q.property
+  change ((restrict M hS q T.head).map _).map liftCfg = (M q.val T.head).map _
   rw [← h, Option.map_map, Option.map_map]
   rfl
 
@@ -154,7 +154,7 @@ theorem restrict_respects (M : Machine Γ Λ) {S : Set Λ}
 
 theorem eval_restrict_dom (M : Machine Γ Λ) {S : Set Λ}
     (hS : Supports M S) [Inhabited S]
-    (hd : (default : S).1 = default := by rfl)
+    (hd : (default : S).val = default := by rfl)
     (l : List Γ) :
     (eval (restrict M hS) l).Dom ↔ (eval M l).Dom := by
   simp only [eval]

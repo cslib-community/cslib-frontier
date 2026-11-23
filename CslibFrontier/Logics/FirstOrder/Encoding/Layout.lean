@@ -192,14 +192,14 @@ theorem encStructurePrefix_zero (a : EncodedStructure) :
   simp [encStructurePrefix]
 
 theorem encStructurePrefix_succ (a : EncodedStructure) (i : Fin v.count) :
-    v.encStructurePrefix a (i.1 + 1) =
-      v.encStructurePrefix a i.1 ++ frame (v.table a (v.symbol i)) := by
+    v.encStructurePrefix a (i.val + 1) =
+      v.encStructurePrefix a i.val ++ frame (v.table a (v.symbol i)) := by
   simp only [encStructurePrefix]
   have htake :
-      (List.ofFn fun j : Fin v.count => v.table a (v.symbol j)).take (i.1 + 1) =
-        (List.ofFn fun j : Fin v.count => v.table a (v.symbol j)).take i.1 ++
+      (List.ofFn fun j : Fin v.count => v.table a (v.symbol j)).take (i.val + 1) =
+        (List.ofFn fun j : Fin v.count => v.table a (v.symbol j)).take i.val ++
           [v.table a (v.symbol i)] := by
-    rw [List.take_add_one, List.getElem?_eq_getElem (by simp [i.2]), List.getElem_ofFn]
+    rw [List.take_add_one, List.getElem?_eq_getElem (by simp [i.isLt]), List.getElem_ofFn]
     simp
   rw [htake, List.flatMap_append, List.flatMap_singleton, List.append_assoc]
 

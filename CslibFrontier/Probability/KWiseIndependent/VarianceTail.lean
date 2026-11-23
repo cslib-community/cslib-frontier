@@ -126,10 +126,10 @@ private theorem sum_prod_image_eq_card_le [DecidableEq X] (S : Finset X) (v : X 
       let e : I ≃ Fin r := I.equivFin.trans (finCongr hcard)
       have hmem (j : Fin n) : t j ∈ I := mem_image_of_mem t (mem_univ j)
       let f : Fin n → Fin r := fun j => e ⟨t j, hmem j⟩
-      let w : Fin r → X := fun k => (e.symm k).1
+      let w : Fin r → X := fun k => (e.symm k).val
       refine ⟨(f, w), ?_, ?_, ?_⟩
       · refine mem_product.mpr ⟨by simp [P_idx], mem_piFinset.mpr fun k => ?_⟩
-        obtain ⟨j, -, hj⟩ := mem_image.mp (e.symm k).2
+        obtain ⟨j, -, hj⟩ := mem_image.mp (e.symm k).property
         dsimp only [w]
         rw [← hj]
         exact htS j
@@ -143,7 +143,7 @@ private theorem sum_prod_image_eq_card_le [DecidableEq X] (S : Finset X) (v : X 
           · rintro ⟨j, rfl⟩
             exact ⟨e ⟨t j, hmem j⟩, by simp⟩
           · rintro ⟨k, rfl⟩
-            obtain ⟨j, -, hj⟩ := mem_image.mp (e.symm k).2
+            obtain ⟨j, -, hj⟩ := mem_image.mp (e.symm k).property
             exact ⟨j, hj⟩
         have hinj : Set.InjOn w ↑(univ : Finset (Fin r)) := by
           intro k₁ _ k₂ _ hwk
@@ -421,7 +421,7 @@ theorem dens_fresh_pair_collisions_le {r : ℕ} {H : ι → Z → Y}
   have hmem_b (k : Fin r) : b k ∈ T := subset_union_right (mem_image_of_mem _ (mem_univ k))
   let GoodF : Finset (T → Y) :=
     univ.filter fun f => ∀ k : Fin r, f ⟨a k, hmem_a k⟩ = f ⟨b k, hmem_b k⟩
-  let projR : (T → Y) → (R_rest → Y) := fun f z => f ⟨z.1, sdiff_subset z.2⟩
+  let projR : (T → Y) → (R_rest → Y) := fun f z => f ⟨z.val, sdiff_subset z.property⟩
   have hinj_proj : Set.InjOn projR (GoodF : Set (T → Y)) := by
     intro f₁ hf₁ f₂ hf₂ heq
     have hf₁_eq := (mem_filter.mp hf₁).2
@@ -445,12 +445,12 @@ theorem dens_fresh_pair_collisions_le {r : ℕ} {H : ι → Z → Y}
           exact ih j.val (hk_n ▸ hj_lt) j rfl
         · exact congrFun heq ⟨b k, mem_sdiff.mpr ⟨hmem_b k, hbU⟩⟩
     funext z
-    by_cases hzU : z.1 ∈ U_pts
+    by_cases hzU : z.val ∈ U_pts
     · obtain ⟨k, -, hk_z⟩ := mem_image.mp hzU
       have hsub_z : (⟨a k, hmem_a k⟩ : T) = z := Subtype.ext hk_z
       rw [← hsub_z]
       exact hk_eq k.val k rfl
-    · exact congrFun heq ⟨z.1, mem_sdiff.mpr ⟨z.2, hzU⟩⟩
+    · exact congrFun heq ⟨z.val, mem_sdiff.mpr ⟨z.property, hzU⟩⟩
   have hcard_GoodF : #GoodF ≤ Fintype.card Y ^ #R_rest := by
     calc #GoodF = #(GoodF.image projR) := (card_image_of_injOn hinj_proj).symm
       _ ≤ #(univ : Finset (R_rest → Y)) := card_le_card (subset_univ _)

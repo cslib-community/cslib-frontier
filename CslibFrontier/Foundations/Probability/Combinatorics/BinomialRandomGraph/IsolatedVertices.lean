@@ -266,7 +266,7 @@ theorem binomialRandom_real_forall_not_isIsolated_le [Fintype V] [Nonempty V] (p
     intro G hG
     have : X G = 0 := by
       simp only [hX, Nat.cast_eq_zero]
-      exact Nat.card_eq_zero.2 (Or.inl ⟨fun v => hG v.1 v.2⟩)
+      exact Nat.card_eq_zero.2 (Or.inl ⟨fun v => hG v.val v.property⟩)
     simp only [Set.mem_ofPred_eq, this, hE, zero_sub, abs_neg, abs_of_pos hμ0, le_refl]
   have hvar : variance X G(V, p) = n * (n - 1) * (1 - p : ℝ) ^ (2 * n - 3) + μ - μ ^ 2 := by
     rw [variance_eq_sub hmem, ← hE]

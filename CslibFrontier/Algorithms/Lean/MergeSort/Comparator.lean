@@ -53,7 +53,7 @@ theorem mergeSortM_time_le (xs : List α) (le : α → α → TimeM ℕ Bool)
   | case3 _ _ _ lr ih₂ ih₁ =>
     simp only [time_bind]
     have hm : (List.mergeM ⟪List.mergeSortM lr.1 le⟫ ⟪List.mergeSortM lr.2 le⟫ le).time ≤
-        lr.1.1.length + lr.2.1.length := by
+        lr.1.val.length + lr.2.val.length := by
       refine (mergeM_time _ _ le hle).trans_eq ?_
       simp [ret_mergeSortM]
     unfold timeMergeSortRec

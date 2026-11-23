@@ -40,7 +40,7 @@ variable {ι κ : Type*} [Fintype ι] [DecidableEq ι] [Fintype κ] [DecidableEq
 /-- The unitary `U ⊗ I` acting as `U` on the first register of `ι × κ` and trivially on the
 second. -/
 noncomputable def onFirst (U : unitaryGroup ι ℂ) : unitaryGroup (ι × κ) ℂ :=
-  ⟨(U : Matrix ι ι ℂ) ⊗ₖ (1 : Matrix κ κ ℂ), kronecker_mem_unitary U.2 (one_mem _)⟩
+  ⟨(U : Matrix ι ι ℂ) ⊗ₖ (1 : Matrix κ κ ℂ), kronecker_mem_unitary U.property (one_mem _)⟩
 
 theorem onFirst_apply (U : unitaryGroup ι ℂ) (p q : ι × κ) :
     (onFirst (κ := κ) U : Matrix (ι × κ) (ι × κ) ℂ) p q =

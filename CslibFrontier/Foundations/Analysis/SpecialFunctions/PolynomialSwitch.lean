@@ -222,7 +222,7 @@ theorem exists_lipschitzWith_polynomialTransition4_root :
   rw [← root_eq (clamp_mem x), ← root_eq (clamp_mem y)] at hb
   refine hb.trans ?_
   simp only [Subtype.dist_eq, NNReal.coe_one, one_mul, Set.coe_projIcc] at hproj
-  exact mul_le_mul_of_nonneg_left hproj K.2
+  exact mul_le_mul_of_nonneg_left hproj K.property
 
 /-- The fourth root of the complement is Lipschitz, by reflection at `1/2`. -/
 theorem exists_lipschitzWith_one_sub_polynomialTransition4_root :

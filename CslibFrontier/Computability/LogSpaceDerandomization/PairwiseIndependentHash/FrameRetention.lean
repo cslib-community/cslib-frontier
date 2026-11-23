@@ -213,8 +213,8 @@ theorem dens_frameChannel_le (E : (Fin r → Fin H → ZMod P) × (Fin H → ZMo
     [DecidablePred E] :
     (dens {A : FrameChannel P H r | E (A.2.val, A.1)} : ℝ) ≤
       dens {s | E s} / frameDensity P H r := by
-  have hinj : #{A : FrameChannel P H r | E (A.2.1, A.1)} ≤ #{s | E s} :=
-    card_le_card_of_injOn (fun A ↦ (A.2.1, A.1)) (fun A hA ↦ by simpa using hA)
+  have hinj : #{A : FrameChannel P H r | E (A.2.val, A.1)} ≤ #{s | E s} :=
+    card_le_card_of_injOn (fun A ↦ (A.2.val, A.1)) (fun A hA ↦ by simpa using hA)
       fun A _ B _ h ↦ by
         simp only [Prod.mk.injEq] at h
         exact Prod.ext h.2 (Subtype.ext h.1)

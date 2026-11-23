@@ -50,7 +50,7 @@ theorem card_le_of_forall_exists_mem_span_eq {α ι K : Type*} [Field K]
     (Submodule.span K (s.image v : Set (α → K))).subtype
   have hsurj : Function.Surjective restrict := fun g => by
     obtain ⟨p, hp, hpx⟩ := h fun x => if hx : x ∈ G then g ⟨x, hx⟩ else 0
-    exact ⟨⟨p, hp⟩, funext fun x => (by simpa using hpx x.1 x.2 : p x.1 = g x)⟩
+    exact ⟨⟨p, hp⟩, funext fun x => (by simpa using hpx x.val x.property : p x.val = g x)⟩
   calc
     #G = Module.finrank K (G → K) := by simp
     _ ≤ _ := LinearMap.finrank_le_finrank_of_surjective hsurj

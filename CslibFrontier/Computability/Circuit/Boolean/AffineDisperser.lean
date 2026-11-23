@@ -109,7 +109,7 @@ theorem initialState_valid {C : Circuit (fullSignature 2 Bool) n 1}
   phi_congr := fun val val' h => funext fun i => h i (by
     change ↑i ∈ (ofCircuitBinary C).params
     rw [ofCircuitBinary_params]
-    exact Finset.mem_range.2 i.2)
+    exact Finset.mem_range.2 i.isLt)
   phi_affine := fun _ _ hσ _ u v w => funext fun i => congrFun (hσ u v w) i
   phi_injective := fun val val' h j hj => by
     change j ∈ (ofCircuitBinary C).params at hj

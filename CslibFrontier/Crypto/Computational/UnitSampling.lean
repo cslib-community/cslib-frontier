@@ -73,7 +73,7 @@ theorem dist_uniformOfFintype_zmod_units (N : ℕ) [NeZero N] :
   let S : Finset (ZMod N) := Finset.univ.filter (· ∈ E)
   let e : (ZMod N)ˣ ≃ S := ZMod.unitsEquivCoprime.trans
     (Equiv.subtypeEquivRight fun x => by simp [S, E])
-  have hS : S.Nonempty := ⟨_, (e 1).2⟩
+  have hS : S.Nonempty := ⟨_, (e 1).property⟩
   have : Nonempty S := ⟨e 1⟩
   have hev : ∃ a ∈ E, a ∈ (PMF.uniformOfFintype (ZMod N)).support :=
     ⟨((1 : (ZMod N)ˣ) : ZMod N), ZMod.val_coe_unit_coprime 1,

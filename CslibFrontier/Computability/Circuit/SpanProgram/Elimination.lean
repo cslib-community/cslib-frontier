@@ -158,7 +158,7 @@ and returns the zero vector for every party (`recombination_eq_zero_of_not_accep
 /-- For an accepted coalition, the vectors of `recombination` combine the rows of the members to
 the target `e₁`. -/
 theorem sum_vecMul_recombination (P : MonotoneSpanProgram F (Fin N)) {s : Finset (Fin N)}
-    (hs : P.Accepts s) : ∑ i : s, P.recombination s i.1 ᵥ* P.matrix i.1 = P.target := by
+    (hs : P.Accepts s) : ∑ i : s, P.recombination s i.val ᵥ* P.matrix i.val = P.target := by
   rw [Finset.sum_coe_sort s fun i => P.recombination s i ᵥ* P.matrix i]
   have h := vecMul_stack P s (Cslib.LinearAlgebra.vecMulSolve (P.stack s) P.target)
   rw [show (∑ i ∈ s, P.recombination s i ᵥ* P.matrix i) = _ from h.symm]
@@ -172,14 +172,14 @@ theorem sum_vecMul_recombination (P : MonotoneSpanProgram F (Fin N)) {s : Finset
   congr 1
   funext row
   rw [Equiv.symm_apply_apply]
-  exact dite_eq_left i.2
+  exact dite_eq_left i.property
 
 /-- On a coalition that is not accepted, `recombination` gives every party the zero vector. -/
 theorem recombination_eq_zero_of_not_accepts (P : MonotoneSpanProgram F (Fin N))
     {s : Finset (Fin N)} (hs : ¬ P.Accepts s) (i : Fin N) : P.recombination s i = 0 := by
   have h : Cslib.LinearAlgebra.vecMulSolve (P.stack s) P.target = 0 := by
     refine Cslib.LinearAlgebra.vecMulSolve_eq_zero _ _ fun ⟨W, hW⟩ => hs ?_
-    refine (P.accepts_iff_exists_vecMul s).2 ⟨fun i row => W (finSigmaFinEquiv ⟨i.1, row⟩), ?_⟩
+    refine (P.accepts_iff_exists_vecMul s).2 ⟨fun i row => W (finSigmaFinEquiv ⟨i.val, row⟩), ?_⟩
     rw [Finset.sum_coe_sort s fun i => (fun row => W (finSigmaFinEquiv ⟨i, row⟩)) ᵥ* P.matrix i,
       ← vecMul_stack, hW]
   funext row

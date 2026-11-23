@@ -310,32 +310,32 @@ private theorem exists_nat_dotProduct_lt_zero_of_isSymm_fin {n B : ℕ} {M : Mat
     dsimp only [lam]
     rw [hdot, hdot2, hxS, one_mul]
   have hMR_S : ∀ i ∈ S, (MR *ᵥ x) i = lam := fun i hi => (hconst i hi).trans hlam_eq
-  let MS : Matrix S S ℤ := Matrix.of fun i j => M i.1 j.1
+  let MS : Matrix S S ℤ := Matrix.of fun i j => M i.val j.val
   let b : S → ℤ := fun _ => -1
   let B' : ℕ := max B 1
   have hMS_le : ∀ i j : S, |MS i j| ≤ (B' : ℤ) := fun i j =>
-    (hB i.1 j.1).trans (by exact_mod_cast le_max_left B 1)
+    (hB i.val j.val).trans (by exact_mod_cast le_max_left B 1)
   have hb_le : ∀ i : S, |b i| ≤ (B' : ℤ) := fun i => by
     dsimp only [b]
     norm_num
     exact_mod_cast le_max_right B 1
-  let z : S → ℝ := fun j => (-lam)⁻¹ * x j.1
+  let z : S → ℝ := fun j => (-lam)⁻¹ * x j.val
   have hz_nonneg : 0 ≤ z := fun j =>
-    mul_nonneg (inv_nonneg.2 (neg_pos.2 hlam_neg).le) (hx0 j.1)
+    mul_nonneg (inv_nonneg.2 (neg_pos.2 hlam_neg).le) (hx0 j.val)
   have hMSz : MS.map (Int.cast : ℤ → ℝ) *ᵥ z = fun i => (b i : ℝ) := by
     ext i
     simp only [mulVec, dotProduct, map_apply, MS, of_apply, z, b, Int.cast_neg, Int.cast_one]
-    have hsum_eq : ∑ j : S, (M i.1 j.1 : ℝ) * ((-lam)⁻¹ * x j.1) =
-        (-lam)⁻¹ * ∑ j : S, (M i.1 j.1 : ℝ) * x j.1 := by
+    have hsum_eq : ∑ j : S, (M i.val j.val : ℝ) * ((-lam)⁻¹ * x j.val) =
+        (-lam)⁻¹ * ∑ j : S, (M i.val j.val : ℝ) * x j.val := by
       rw [Finset.mul_sum]
       exact Finset.sum_congr rfl fun j _ => by ring
-    have hxS_sum : ∑ j : S, (M i.1 j.1 : ℝ) * x j.1 = (MR *ᵥ x) i.1 := by
-      rw [← Finset.sum_subtype S (fun _ => Iff.rfl) fun j => (M i.1 j : ℝ) * x j]
+    have hxS_sum : ∑ j : S, (M i.val j.val : ℝ) * x j.val = (MR *ᵥ x) i.val := by
+      rw [← Finset.sum_subtype S (fun _ => Iff.rfl) fun j => (M i.val j : ℝ) * x j]
       simp only [mulVec, dotProduct, MR, map_apply]
       refine Finset.sum_subset (Finset.subset_univ S) fun j _ hj => ?_
       simp only [S, Finset.mem_filter, Finset.mem_univ, true_and, not_lt] at hj
       rw [le_antisymm hj (hx0 j), mul_zero]
-    rw [hsum_eq, hxS_sum, hMR_S i.1 i.2]
+    rw [hsum_eq, hxS_sum, hMR_S i.val i.property]
     have hlam_ne : lam ≠ 0 := hlam_neg.ne
     field_simp [hlam_ne]
   obtain ⟨d, pS, hd_pos, hpS_nonneg, hAp, _, hpS_le⟩ :=
@@ -362,8 +362,8 @@ private theorem exists_nat_dotProduct_lt_zero_of_isSymm_fin {n B : ℕ} {M : Mat
       dsimp only [p]
       split_ifs
       rfl
-    have hp_in : ∀ i : S, (p i.1 : ℤ) = pS i := fun i => by
-      have hi := i.2
+    have hp_in : ∀ i : S, (p i.val : ℤ) = pS i := fun i => by
+      have hi := i.property
       dsimp only [p]
       split_ifs
       exact Int.toNat_of_nonneg (hpS_nonneg i)
@@ -378,7 +378,7 @@ private theorem exists_nat_dotProduct_lt_zero_of_isSymm_fin {n B : ℕ} {M : Mat
       congr 1
       rw [← Finset.sum_subset (Finset.subset_univ S) fun j _ hj => by rw [hp_out j hj, mul_zero]]
       rw [Finset.sum_subtype S (fun _ => Iff.rfl)
-        fun j => M i.1 j * (p j : ℤ)]
+        fun j => M i.val j * (p j : ℤ)]
       refine Finset.sum_congr rfl fun j _ => by simp only [MS, of_apply, hp_in j]
     have hMSp_eq : ∀ i : S, (MS *ᵥ pS) i = -d := fun i => by
       have hi := congrFun hAp i

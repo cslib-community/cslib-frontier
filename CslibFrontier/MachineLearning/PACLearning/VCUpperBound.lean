@@ -224,8 +224,8 @@ theorem isPACLearnerFor_realizableDistributions_of_vcSampleSize_le {C : ConceptC
   · exact isPACLearnerFor_realizableDistributions_empty (fun _ _ => false) ε δ
   obtain ⟨A, hA⟩ := exists_isConsistent (m := m) hne
   refine ⟨A, fun D _ hD => ?_⟩
-  have h := hA.measure_pi_lt_error_le_of_vcSampleSize_le hC hD (by exact_mod_cast ε.2.1)
-    (by exact_mod_cast ε.2.2.le) (by exact_mod_cast δ.2.1) (by exact_mod_cast δ.2.2.le) hm
+  have h := hA.measure_pi_lt_error_le_of_vcSampleSize_le hC hD (by exact_mod_cast ε.property.1)
+    (by exact_mod_cast ε.property.2.le) (by exact_mod_cast δ.property.1) (by exact_mod_cast δ.property.2.le) hm
   rw [ENNReal.ofReal_coe_nnreal, ENNReal.ofReal_coe_nnreal] at h
   rw [IsRealizableBy.optimalError_eq_zero hD, zero_add]
   exact h

@@ -167,20 +167,20 @@ theorem nat_apply (n : ℕ) : nat n = n :=
 /-- Canonical codec for `Fin k` onto `{0, …, k - 1}`. -/
 @[expose]
 def fin (k : ℕ) : NatCodec (Fin k) where
-  encode i := i.1
+  encode i := i.val
   decode? n := if h : n < k then some ⟨n, h⟩ else none
-  decode?_encode i := by simp [i.2]
+  decode?_encode i := by simp [i.isLt]
   encode_of_decode? {n _} h := by
     split at h
     · exact congrArg Fin.val (Option.some.inj h).symm
     · cases h
 
 @[simp]
-theorem fin_apply (k : ℕ) (i : Fin k) : fin k i = i.1 :=
+theorem fin_apply (k : ℕ) (i : Fin k) : fin k i = i.val :=
   rfl
 
 theorem fin_lt (k : ℕ) (i : Fin k) : fin k i < k :=
-  i.2
+  i.isLt
 
 /-- Shift every index of `c` upward by `k`. -/
 @[expose]
@@ -209,7 +209,7 @@ def finSum {β : Type*} (k : ℕ) (c : NatCodec β) : NatCodec (Fin k ⊕ β) wh
   encode := Sum.elim (fin k) (c.shift k)
   decode? n := if h : n < k then some (.inl ⟨n, h⟩) else ((c.shift k).decode? n).map .inr
   decode?_encode
-    | .inl i => by simp [i.2]
+    | .inl i => by simp [i.isLt]
     | .inr b => by
       have hlt : ¬c b + k < k := Nat.not_lt.mpr (le_shift k c b)
       simp only [Sum.elim_inr, shift_apply, hlt, ↓reduceDIte, Option.map_eq_some_iff]
@@ -223,7 +223,7 @@ def finSum {β : Type*} (k : ℕ) (c : NatCodec β) : NatCodec (Fin k ⊕ β) wh
 
 @[simp]
 theorem finSum_inl {β : Type*} (k : ℕ) (c : NatCodec β) (i : Fin k) :
-    c.finSum k (.inl i) = i.1 :=
+    c.finSum k (.inl i) = i.val :=
   rfl
 
 @[simp]
@@ -327,7 +327,7 @@ section SizeBounds
 variable {α β : Type*}
 
 theorem size_fin_le (k : ℕ) (i : Fin k) : (fin k i).size ≤ k.size :=
-  Nat.size_le_size i.2.le
+  Nat.size_le_size i.isLt.le
 
 theorem size_shift_le (k : ℕ) (c : NatCodec α) (a : α) :
     (c.shift k a).size ≤ max (c a).size k.size + 1 :=

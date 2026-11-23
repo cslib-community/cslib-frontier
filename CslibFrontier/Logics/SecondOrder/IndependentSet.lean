@@ -141,27 +141,27 @@ theorem realize_independentSetSentence [Finite M] :
     let R : ∀ i, Set (Fin (independentSetArity i) → M) := fun i =>
       Fin.cases (motive := fun i => Set (Fin (independentSetArity i) → M)) {v | v (0 : Fin 1) ∈ s}
         (fun j => Fin.cases (motive := fun j => Set (Fin (independentSetArity j.succ) → M))
-          {v | ∃ h : v (0 : Fin 2) ∈ s, (g ⟨v (0 : Fin 2), h⟩).1 = v (1 : Fin 2)}
+          {v | ∃ h : v (0 : Fin 2) ∈ s, (g ⟨v (0 : Fin 2), h⟩).val = v (1 : Fin 2)}
           (fun k => k.elim0) j) i
     refine ⟨R, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rintro x y ⟨hx, hxy⟩
       change x ∈ s at hx
-      change (g ⟨x, hx⟩).1 = y at hxy
+      change (g ⟨x, hx⟩).val = y at hxy
       subst hxy
-      exact ⟨hx, (g ⟨x, hx⟩).2⟩
+      exact ⟨hx, (g ⟨x, hx⟩).property⟩
     · rintro x y z ⟨hx, hxy⟩ ⟨hx', hxz⟩
       change x ∈ s at hx hx'
-      change (g ⟨x, hx⟩).1 = y at hxy
-      change (g ⟨x, hx'⟩).1 = z at hxz
+      change (g ⟨x, hx⟩).val = y at hxy
+      change (g ⟨x, hx'⟩).val = z at hxz
       exact hxy.symm.trans hxz
     · rintro x y z ⟨hx, hxz⟩ ⟨hy, hyz⟩
       change x ∈ s at hx
       change y ∈ s at hy
-      change (g ⟨x, hx⟩).1 = z at hxz
-      change (g ⟨y, hy⟩).1 = z at hyz
+      change (g ⟨x, hx⟩).val = z at hxz
+      change (g ⟨y, hy⟩).val = z at hyz
       exact congrArg Subtype.val (g.injective (Subtype.ext (hxz.trans hyz.symm)))
     · intro x hx
-      exact ⟨(g ⟨x, hx⟩).1, hx, rfl⟩
+      exact ⟨(g ⟨x, hx⟩).val, hx, rfl⟩
     · intro y hy
       obtain ⟨⟨x, hx⟩, hxy⟩ := g.surjective ⟨y, hy⟩
       exact ⟨x, hx, congrArg Subtype.val hxy⟩

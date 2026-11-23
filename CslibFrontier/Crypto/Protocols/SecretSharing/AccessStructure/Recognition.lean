@@ -103,7 +103,7 @@ theorem recognizeCoalitionDist_eq_pure_true_of_authorized [Fintype Secret] [None
     rw [viewDist, AccessStructure.viewDistOf, PMF.map_comp]
     have hconst :
         ((fun v => decide (scheme.reconstruct s v = secret)) ∘
-          fun k i => scheme.share k secret i.1) =
+          fun k i => scheme.share k secret i.val) =
           Function.const Key true := by
       funext k
       simp [scheme.correct k secret s hs]
@@ -116,7 +116,7 @@ uniformly chosen secret with probability `(Fintype.card Secret : ℝ≥0∞)⁻�
 theorem bind_viewDist_map_decide_eq_true_of_not_authorized [Fintype Secret] [Nonempty Secret]
     [DecidableEq Secret] (scheme : AccessScheme Secret Key Party Share)
     {P : PMF Key} (hP : P ∈ scheme.sources) {s : Finset Party}
-    (hs : ¬ scheme.access.authorized s) (guess : ((i : s) → Share i.1) → Secret) :
+    (hs : ¬ scheme.access.authorized s) (guess : ((i : s) → Share i.val) → Secret) :
     ((uniformOfFintype Secret).bind fun secret =>
       (scheme.viewDist P s secret).map fun v => decide (guess v = secret)) true =
       (Fintype.card Secret : ℝ≥0∞)⁻¹ := by
@@ -163,13 +163,13 @@ correct for an access structure that authorizes `∅`: the empty view is indepen
 theorem not_perfectlyCorrect_of_authorized_empty {Secret Key Party : Type*} {Share : Party → Type*}
     [Nontrivial Secret] [Nonempty Key] {A : AccessStructure Party} (hempty : A.authorized ∅)
     (share : Key → Secret → (i : Party) → Share i)
-    (reconstruct : (s : Finset Party) → ((i : s) → Share i.1) → Secret) :
+    (reconstruct : (s : Finset Party) → ((i : s) → Share i.val) → Secret) :
     ¬ PerfectlyCorrect A share reconstruct := by
   intro hcorr
   obtain ⟨k⟩ := ‹Nonempty Key›
   obtain ⟨m₀, m₁, hne⟩ := exists_pair_ne Secret
-  have hview : (fun i : (∅ : Finset Party) => share k m₀ i.1) =
-      fun i : (∅ : Finset Party) => share k m₁ i.1 := by
+  have hview : (fun i : (∅ : Finset Party) => share k m₀ i.val) =
+      fun i : (∅ : Finset Party) => share k m₁ i.val := by
     ext ⟨_, hi⟩
     exact False.elim (Finset.notMem_empty _ hi)
   have h0 := hcorr k m₀ ∅ hempty

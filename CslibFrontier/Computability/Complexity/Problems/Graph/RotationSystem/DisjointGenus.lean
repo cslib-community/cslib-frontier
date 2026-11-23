@@ -25,8 +25,8 @@ open Equiv RotationCertificate Perm.SelectedOrbits
 
 /-- Disjoint union preserves source numerical genus zero component by component. -/
 theorem numericalGenusZero_disjointUnion {G H : Graph} (r : RotationSystem G)
-    (s : RotationSystem H) (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
-    (hH : ∀ v ∈ H.incidenceVertices, v ∈ H.1)
+    (s : RotationSystem H) (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
+    (hH : ∀ v ∈ H.incidenceVertices, v ∈ H.vertices)
     (hr : r.NumericalGenusZero) (hs : s.NumericalGenusZero) :
     (r.disjointUnion s).NumericalGenusZero := by
   classical

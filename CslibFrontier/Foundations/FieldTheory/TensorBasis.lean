@@ -129,7 +129,7 @@ theorem top_le_span_prod_pow (hm : Pairwise (Nat.Coprime on m)) (hE : finrank K 
           exact hmem e
       rcases Nat.lt_or_ge ((J i : ℕ) + 1) (m i) with hlt | hge
       · exact hmem ⟨_, hlt⟩
-      · rw [show (J i : ℕ) + 1 = m i by have := (J i).2; omega]
+      · rw [show (J i : ℕ) + 1 = m i by have := (J i).isLt; omega]
         refine hspan _ ?_
         have := pow_natDegree_minpoly_mem_span (K := K) (α i)
         rwa [hα i] at this
@@ -197,7 +197,7 @@ theorem prodPowBasis_mul_prodPowBasis (hm : Pairwise (Nat.Coprime on m))
   simp only [prodPowBasis_apply]
   rw [← Finset.prod_mul_distrib]
   simp_rw [← pow_add]
-  rw [Finset.prod_congr rfl fun i _ => hc i _ (by have := (J i).2; have := (J' i).2; omega),
+  rw [Finset.prod_congr rfl fun i _ => hc i _ (by have := (J i).isLt; have := (J' i).isLt; omega),
     Finset.prod_univ_sum, Fintype.piFinset_univ]
   refine Finset.sum_congr rfl fun M _ => ?_
   simp_rw [Algebra.smul_def, Finset.prod_mul_distrib, map_prod]

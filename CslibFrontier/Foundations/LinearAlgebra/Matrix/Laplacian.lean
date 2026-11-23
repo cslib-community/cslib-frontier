@@ -111,9 +111,9 @@ theorem det_submatrix_eq_of_sum_eq_zero {R V : Type*} [CommRing R] [Fintype V] [
       simp only [one_smul] at h
       rw [← det_transpose N, ← h, det_transpose]
     let e : {x // x ≠ u} ≃ {x // x ≠ v} :=
-      { toFun := fun x => ⟨Equiv.swap u v x, fun hx => x.2 ((Equiv.swap u v).injective
+      { toFun := fun x => ⟨Equiv.swap u v x, fun hx => x.property ((Equiv.swap u v).injective
           (by simp only [hx, Equiv.swap_apply_left]))⟩
-        invFun := fun y => ⟨Equiv.swap u v y, fun hy => y.2 ((Equiv.swap u v).injective
+        invFun := fun y => ⟨Equiv.swap u v y, fun hy => y.property ((Equiv.swap u v).injective
           (by simp only [hy, Equiv.swap_apply_right]))⟩
         left_inv := fun x => Subtype.ext (by simp only [Equiv.swap_apply_self])
         right_inv := fun y => Subtype.ext (by simp only [Equiv.swap_apply_self]) }
@@ -142,16 +142,16 @@ theorem det_submatrix_eq_of_sum_eq_zero {R V : Type*} [CommRing R] [Fintype V] [
         simp only [↓reduceIte, v', Equiv.swap_apply_right, neg_one_mul, mul_neg, mul_one, neg_neg]
       · subst hi
         have hj' : (j : V) ≠ v := fun h => hj (Subtype.ext h)
-        have hj_swap : Equiv.swap u v (j : V) = j := Equiv.swap_apply_of_ne_of_ne j.2 hj'
+        have hj_swap : Equiv.swap u v (j : V) = j := Equiv.swap_apply_of_ne_of_ne j.property hj'
         simp only [hj, ↓reduceIte, hj_swap, v', Equiv.swap_apply_right, neg_one_mul, mul_one]
       · subst hj
         have hi' : (i : V) ≠ v := fun h => hi (Subtype.ext h)
-        have hi_swap : Equiv.swap u v (i : V) = i := Equiv.swap_apply_of_ne_of_ne i.2 hi'
+        have hi_swap : Equiv.swap u v (i : V) = i := Equiv.swap_apply_of_ne_of_ne i.property hi'
         simp only [hi, ↓reduceIte, hi_swap, v', Equiv.swap_apply_right, one_mul, mul_neg, mul_one]
       · have hi' : (i : V) ≠ v := fun h => hi (Subtype.ext h)
         have hj' : (j : V) ≠ v := fun h => hj (Subtype.ext h)
-        have hi_swap : Equiv.swap u v (i : V) = i := Equiv.swap_apply_of_ne_of_ne i.2 hi'
-        have hj_swap : Equiv.swap u v (j : V) = j := Equiv.swap_apply_of_ne_of_ne j.2 hj'
+        have hi_swap : Equiv.swap u v (i : V) = i := Equiv.swap_apply_of_ne_of_ne i.property hi'
+        have hj_swap : Equiv.swap u v (j : V) = j := Equiv.swap_apply_of_ne_of_ne j.property hj'
         simp only [hi, hj, ↓reduceIte, hi_swap, hj_swap, one_mul, mul_one]
     have hs_sq : (∏ i : {x // x ≠ u}, s i) * (∏ i : {x // x ≠ u}, s i) = 1 := by
       rw [← Finset.prod_mul_distrib]

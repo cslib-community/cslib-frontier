@@ -69,14 +69,14 @@ noncomputable def sumVar :
       (L'.sum (varLanguage arity)) κ where
   domain := LHom.sumInl.onFormula I.domain
   rel r := r.elim (fun R => LHom.sumInl.onFormula (I.rel R)) fun r =>
-    Relations.formula (Sum.inr ⟨r.1, rfl⟩) fun m =>
-      .var ((blockEquiv κ _ m).map (Fin.cast r.2) _root_.id)
+    Relations.formula (Sum.inr ⟨r.val, rfl⟩) fun m =>
+      .var ((blockEquiv κ _ m).map (Fin.cast r.property) _root_.id)
 
 variable {I} {M : Type w} [L.Structure M] {arity}
 
 /-- The concatenated coordinates of a sequence of elements of an interpreted structure. -/
 noncomputable def flatten {n : ℕ} (x : Fin n → I.Model M) : Fin (n * Nat.card κ) → M :=
-  fun m => (x (blockEquiv κ n m).1).1 (blockEquiv κ n m).2
+  fun m => (x (blockEquiv κ n m).1).val (blockEquiv κ n m).2
 
 private theorem flatten_injective {n : ℕ} :
     Function.Injective (flatten (I := I) (M := M) (n := n)) := by

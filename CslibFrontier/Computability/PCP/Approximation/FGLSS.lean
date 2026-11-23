@@ -124,7 +124,7 @@ structure IsFGLSSVertex (v : V.View a) : Prop where
 the instance `a`: the accepting self-consistent views, two of them adjacent when they are
 inconsistent. A vertex is consistent with itself, so the graph has no loops. -/
 def fglssGraph : SimpleGraph {v : V.View a // V.IsFGLSSVertex a v} where
-  Adj v w := ¬v.1.Consistent w.1
+  Adj v w := ¬v.val.Consistent w.val
   symm := ⟨fun _ _ h hc => h hc.symm⟩
   loopless := ⟨fun v h => h v.property.consistent⟩
 
@@ -157,13 +157,13 @@ theorem acceptCount_le_indepNum_fglssGraph (π : List Bool) :
     acceptCount (fun x => V.accepts x.1 π x.2) a (V.coins a) ≤ (V.fglssGraph a).indepNum := by
   classical
   set R := univ.filter fun ρ : Fin (V.coins a) → Bool => V.accepts a π (List.ofFn ρ) = true
-  have hvert (ρ : R) : V.IsFGLSSVertex a (proofView π ρ.1) := by
+  have hvert (ρ : R) : V.IsFGLSSVertex a (proofView π ρ.val) := by
     refine ⟨?_, consistent_proofView π _ _⟩
     rw [ofFn_proofView]
-    exact (mem_filter.1 ρ.2).2
+    exact (mem_filter.1 ρ.property).2
   let e : R ↪ {v : V.View a // V.IsFGLSSVertex a v} :=
-    ⟨fun ρ => ⟨proofView π ρ.1, hvert ρ⟩, fun ρ ρ' h => by
-      have h := congrArg (fun v => v.1.random) h
+    ⟨fun ρ => ⟨proofView π ρ.val, hvert ρ⟩, fun ρ ρ' h => by
+      have h := congrArg (fun v => v.val.random) h
       exact Subtype.ext h⟩
   have hind : (V.fglssGraph a).IsIndepSet (univ.map e : Finset _) := by
     intro v _ w _ hvw hadj
@@ -181,26 +181,26 @@ private theorem exists_card_le_acceptCount {S : Finset {v : V.View a // V.IsFGLS
     ∃ π : List Bool, #S ≤ acceptCount (fun x => V.accepts x.1 π x.2) a (V.coins a) := by
   classical
   -- views of `S` are pairwise consistent
-  have hcons {v w} (hv : v ∈ S) (hw : w ∈ S) : v.1.Consistent w.1 := by
+  have hcons {v w} (hv : v ∈ S) (hw : w ∈ S) : v.val.Consistent w.val := by
     by_cases hvw : v = w
     · subst hvw
       exact v.property.consistent
     · by_contra h
       exact hS hv hw hvw h
   -- a bound on the queried positions
-  set N := (S.sup fun v => (V.queries (a, List.ofFn v.1.random)).sum) + 1
-  have hpos {v} (hv : v ∈ S) (i : Fin (V.queries (a, List.ofFn v.1.random)).length) :
-      (V.queries (a, List.ofFn v.1.random))[i] < N := by
-    have h₁ : (V.queries (a, List.ofFn v.1.random))[i] ≤
-        (V.queries (a, List.ofFn v.1.random)).sum :=
+  set N := (S.sup fun v => (V.queries (a, List.ofFn v.val.random)).sum) + 1
+  have hpos {v} (hv : v ∈ S) (i : Fin (V.queries (a, List.ofFn v.val.random)).length) :
+      (V.queries (a, List.ofFn v.val.random))[i] < N := by
+    have h₁ : (V.queries (a, List.ofFn v.val.random))[i] ≤
+        (V.queries (a, List.ofFn v.val.random)).sum :=
       List.le_sum_of_mem (by rw [Fin.getElem_fin]; exact List.getElem_mem _)
-    have h₂ := le_sup (f := fun v => (V.queries (a, List.ofFn v.1.random)).sum) hv
+    have h₂ := le_sup (f := fun v => (V.queries (a, List.ofFn v.val.random)).sum) hv
     omega
   let π : List Bool := List.ofFn fun p : Fin N =>
-    decide (∃ w ∈ S, ∃ j : Fin (V.queries (a, List.ofFn w.1.random)).length,
-      (V.queries (a, List.ofFn w.1.random))[j] = p ∧ w.1.answers j = true)
-  have hread {v} (hv : v ∈ S) (i : Fin (V.queries (a, List.ofFn v.1.random)).length) :
-      π.getD (V.queries (a, List.ofFn v.1.random))[i] false = v.1.answers i := by
+    decide (∃ w ∈ S, ∃ j : Fin (V.queries (a, List.ofFn w.val.random)).length,
+      (V.queries (a, List.ofFn w.val.random))[j] = p ∧ w.val.answers j = true)
+  have hread {v} (hv : v ∈ S) (i : Fin (V.queries (a, List.ofFn v.val.random)).length) :
+      π.getD (V.queries (a, List.ofFn v.val.random))[i] false = v.val.answers i := by
     rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem
       (by simp only [π, List.length_ofFn]; exact hpos hv i),
       Option.getD_some]
@@ -213,16 +213,16 @@ private theorem exists_card_le_acceptCount {S : Finset {v : V.View a // V.IsFGLS
       exact hcons hv hw i j hj.symm
     · intro h
       exact ⟨v, hv, i, rfl, h⟩
-  have hacc {v} (hv : v ∈ S) : V.accepts a π (List.ofFn v.1.random) = true := by
+  have hacc {v} (hv : v ∈ S) : V.accepts a π (List.ofFn v.val.random) = true := by
     have h := v.property.accepts
-    have hans : answers π (V.queries (a, List.ofFn v.1.random)) = List.ofFn v.1.answers := by
+    have hans : answers π (V.queries (a, List.ofFn v.val.random)) = List.ofFn v.val.answers := by
       rw [← ofFn_proofView]
       congr 1
       funext i
       exact hread hv i
     rw [accepts, hans]
     exact h
-  refine ⟨π, card_le_card_of_injOn (fun v => v.1.random) (fun v hv => ?_) fun v hv w hw h => ?_⟩
+  refine ⟨π, card_le_card_of_injOn (fun v => v.val.random) (fun v hv => ?_) fun v hv w hw h => ?_⟩
   · simpa using hacc hv
   · obtain ⟨⟨ρ, β⟩, hv'⟩ := v
     obtain ⟨⟨ρ', β'⟩, hw'⟩ := w

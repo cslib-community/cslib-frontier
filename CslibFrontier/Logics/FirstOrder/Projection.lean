@@ -93,14 +93,14 @@ with the numeric structure instance on the same universe. -/
 @[instance_reducible]
 def inputStructure (I : Projection N N' L L' ι) (M : Type*)
     [N.Structure M] [L.Structure M] [L'.IsRelational] : L'.Structure (I.numeric.Model M) where
-  RelMap R x := (I.rel R).toFormula.Realize fun p => (x p.1).1 p.2
+  RelMap R x := (I.rel R).toFormula.Realize fun p => (x p.1).val p.2
 
 /-- An output relation holds in `I.inputStructure M` iff its defining projection formula holds on
 the underlying coordinate tuples. -/
 @[fo_realize]
 theorem relMap_inputStructure [L'.IsRelational] (I : Projection N N' L L' ι) {M : Type*}
     [N.Structure M] [L.Structure M] {n : ℕ} (R : L'.Relations n) (x : Fin n → I.numeric.Model M) :
-    (I.inputStructure M).RelMap R x ↔ (I.rel R).toFormula.Realize fun p => (x p.1).1 p.2 :=
+    (I.inputStructure M).RelMap R x ↔ (I.rel R).toFormula.Realize fun p => (x p.1).val p.2 :=
   Iff.rfl
 
 /-- The numeric model with projected input relations agrees with the ordinary interpretation
@@ -111,8 +111,8 @@ def modelEquiv [N'.IsRelational] [L'.IsRelational]
     I.numeric.Model M ≃[N'.sum L'] I.toInterpretation.Model M := by
   letI := I.inputStructure M
   exact
-    { toFun x := ⟨x.1, (LHom.realize_onFormula LHom.sumInl I.numeric.domain).2 x.2⟩
-      invFun x := ⟨x.1, (LHom.realize_onFormula LHom.sumInl I.numeric.domain).1 x.2⟩
+    { toFun x := ⟨x.val, (LHom.realize_onFormula LHom.sumInl I.numeric.domain).2 x.property⟩
+      invFun x := ⟨x.val, (LHom.realize_onFormula LHom.sumInl I.numeric.domain).1 x.property⟩
       left_inv _ := rfl
       right_inv _ := rfl
       map_fun' f := isEmptyElim f
@@ -142,7 +142,7 @@ theorem realize_onFormula [Finite ι] [N'.IsRelational] [L'.IsRelational]
     (I : Projection N N' L L' ι) {M : Type*} [N.Structure M] [L.Structure M]
     (p : ProjectionFormula N' L' α) (x : α → I.numeric.Model M) :
     letI := I.inputStructure M
-    (I.onFormula p).toFormula.Realize (fun q => (x q.1).1 q.2) ↔ p.toFormula.Realize x := by
+    (I.onFormula p).toFormula.Realize (fun q => (x q.1).val q.2) ↔ p.toFormula.Realize x := by
   let := I.inputStructure M
   apply ProjectionFormula.realize_subst
   · exact fun g => I.numeric.realize_onFormula g x
@@ -202,9 +202,9 @@ def compEquiv [Finite ι] [Finite κ]
         | inl R => exact (Interpretation.compEquiv J.numeric I.numeric).map_rel' R x
         | inr R =>
           change ((I.onFormula (J.rel R)).relabel (Equiv.prodAssoc _ _ _)).toFormula.Realize _ ↔
-            (J.rel R).toFormula.Realize (fun p => (x p.1).1 p.2)
+            (J.rel R).toFormula.Realize (fun p => (x p.1).val p.2)
           rw [ProjectionFormula.realize_relabel]
-          exact I.realize_onFormula (J.rel R) (fun p => (x p.1).1 p.2) }
+          exact I.realize_onFormula (J.rel R) (fun p => (x p.1).val p.2) }
 
 /-- The numeric interpretation of a composite projection is the composite of the numeric
 interpretations. -/
@@ -234,7 +234,7 @@ theorem comp_numeric_rel [Finite ι] [Finite κ] [N'.IsRelational]
 theorem compEquiv_numeric_symm_apply_val_val [Finite ι] [Finite κ] [N'.IsRelational]
     [N''.IsRelational] (J : Projection N' N'' L' L'' κ) (I : Projection N N' L L' ι)
     {M : Type*} [N.Structure M] (z : (J.comp I).numeric.Model M) (j : κ) (i : ι) :
-    (((Interpretation.compEquiv J.numeric I.numeric).symm z).1 j).1 i = z.1 (j, i) :=
+    (((Interpretation.compEquiv J.numeric I.numeric).symm z).val j).val i = z.val (j, i) :=
   rfl
 
 /-- An input relation of a composite projection holds exactly when it holds after successive
@@ -251,7 +251,7 @@ theorem relMap_comp_inputStructure [Finite ι] [Finite κ] [N'.IsRelational] [N'
   change ((I.onFormula (J.rel R)).relabel (Equiv.prodAssoc _ _ _)).toFormula.Realize _ ↔ _
   rw [ProjectionFormula.realize_relabel]
   exact I.realize_onFormula (J.rel R)
-    fun p => ((Interpretation.compEquiv J.numeric I.numeric).symm (x p.1)).1 p.2
+    fun p => ((Interpretation.compEquiv J.numeric I.numeric).symm (x p.1)).val p.2
 
 /-! ### Projections on all tuples -/
 
@@ -291,7 +291,7 @@ def tupleModelEquiv [N'.IsRelational] [L'.IsRelational] (I : Projection N N' L L
 theorem tupleModelEquiv_apply [N'.IsRelational] [L'.IsRelational]
     (I : Projection N N' L L' ι) (M : Type*) [N.Structure M] [L.Structure M]
     (hdom : ∀ x : ι → M, I.numeric.domain.Realize x) (x : I.numeric.Model M) :
-    I.tupleModelEquiv M hdom x = x.1 :=
+    I.tupleModelEquiv M hdom x = x.val :=
   rfl
 
 /-- The pullback of a projection formula along a projection whose numeric domain formula holds of

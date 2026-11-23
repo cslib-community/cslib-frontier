@@ -351,7 +351,7 @@ theorem modelCount_tableau :
   · rcases Nat.eq_zero_or_pos T with rfl | hT
     · rw [eval_tableau_zero] at hσ
       exact absurd hσ Bool.false_ne_true
-    · exact h _ (cert_mem_vars_tableau hT j.2)
+    · exact h _ (cert_mem_vars_tableau hT j.isLt)
   · rintro ⟨hhalt, hout⟩
     refine ⟨runAssignment tm u (List.ofFn w), eval_tableau_runAssignment (by simp) hhalt hout,
       funext fun j => ?_⟩

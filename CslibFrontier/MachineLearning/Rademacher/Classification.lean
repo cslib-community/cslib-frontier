@@ -129,10 +129,10 @@ theorem empiricalRademacherComplexity_bitClass_lossClass (C : ConceptClass α Bo
     empiricalRademacherComplexity (bitClass (lossClass C)) S =
       empiricalRademacherComplexity (signClass C) (fun i => (S i).1) / 2 := by
   have hsign : ∀ (f : signClass C) (i : Fin m), |(f : α → ℝ) (S i).1| ≤ 1 :=
-    fun f i => abs_le_one_of_mem_signClass f.2 _
+    fun f i => abs_le_one_of_mem_signClass f.property _
   have hloss : ∀ (f : bitClass (lossClass C)) (i : Fin m), |(f : α × Bool → ℝ) (S i)| ≤ 1 :=
     fun f i => by
-      have := mem_Icc_of_mem_bitClass f.2 (S i)
+      have := mem_Icc_of_mem_bitClass f.property (S i)
       exact abs_le.2 ⟨by linarith [this.1], this.2⟩
   have haff := rademacherAverage_add_mul_signVal_mul hsign (fun _ => 1 / 2)
     (fun i => !(S i).2) (by norm_num : (0 : ℝ) ≤ 1 / 2)

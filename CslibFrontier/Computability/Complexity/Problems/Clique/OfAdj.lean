@@ -111,12 +111,12 @@ theorem mem_Clique_ofAdj_iff_entries {vs : List V} {adj : V → V → Bool}
   rw [mem_Clique_ofAdj_iff]
   constructor
   · rintro ⟨S, hcard, hlt, hadj⟩
-    refine ⟨S.attach.image fun i => vs[i.1]'(hlt _ i.2), ?_, ?_, ?_⟩
+    refine ⟨S.attach.image fun i => vs[i.val]'(hlt _ i.property), ?_, ?_, ?_⟩
     · rw [Finset.card_image_of_injective, Finset.card_attach, hcard]
       intro i j hij
       by_contra hne
-      have hne' : i.1 ≠ j.1 := fun h => hne (Subtype.ext h)
-      have := hadj i.1 i.2 j.1 j.2 (hlt _ i.2) (hlt _ j.2) hne'
+      have hne' : i.val ≠ j.val := fun h => hne (Subtype.ext h)
+      have := hadj i.val i.property j.val j.property (hlt _ i.property) (hlt _ j.property) hne'
       simp only at hij
       rw [hij, hirr, Bool.or_false] at this
       exact Bool.false_ne_true this
@@ -126,7 +126,7 @@ theorem mem_Clique_ofAdj_iff_entries {vs : List V} {adj : V → V → Bool}
     · intro v hv w hw hvw
       obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hv
       obtain ⟨j, -, rfl⟩ := Finset.mem_image.1 hw
-      exact hadj i.1 i.2 j.1 j.2 _ _ fun h => hvw (by simp [h])
+      exact hadj i.val i.property j.val j.property _ _ fun h => hvw (by simp [h])
   · rintro ⟨T, hcard, hmem, hadj⟩
     have hinj : Set.InjOn (fun v => vs.idxOf v) T := fun v hv w hw h =>
       (List.idxOf_inj (hmem v hv)).1 h

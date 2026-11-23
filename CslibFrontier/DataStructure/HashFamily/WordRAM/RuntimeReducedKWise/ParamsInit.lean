@@ -292,7 +292,7 @@ private theorem realizesBounded_initTableClear :
     have hge1 := Nat.zero_le (idx >>> rPack w w₀ b b'))
   all_goals try (rw [Nat.shiftLeft_eq, one_mul]; exact Nat.one_le_two_pow)
   all_goals try (rw [Nat.shiftLeft_eq, one_mul]; exact Nat.pow_lt_pow_right one_lt_two hsh_lt)
-  all_goals try exact hmem.1.of_le (by omega)
+  all_goals try exact hmem.frontier_fits.of_le (by omega)
   exact hsh_lt.trans Nat.lt_two_pow_self
 
 private theorem realizesBounded_initTableWrite :
@@ -370,7 +370,7 @@ private theorem realizesBounded_initTableWrite :
     have hge1 := Nat.zero_le (idx >>> rPack w w₀ b b')
     have hge2 := Nat.zero_le (((idx >>> rChunk w₀ b b' <<< rChunk w₀ b b') +
       ((idx &&& (2 ^ rChunk w₀ b b' - 1)) >>> 1)) >>> rPack w w₀ b b'))
-  all_goals try exact hmem.1.of_le (by omega)
+  all_goals try exact hmem.frontier_fits.of_le (by omega)
   all_goals try exact hpow2c.of_le (by omega)
   all_goals try exact hsh_lt.trans Nat.lt_two_pow_self
   all_goals try exact hpSh_lt.trans Nat.lt_two_pow_self
@@ -744,7 +744,7 @@ theorem realizesBounded_zeroWordsStep :
       ZeroWordsStepPre (fun _ _ => 0) := by
   realize
   all_goals (rcases d with ⟨baseAddr, i⟩; dsimp only [ZeroWordsStepPre] at h)
-  all_goals exact hmem.1.of_le (by omega)
+  all_goals exact hmem.frontier_fits.of_le (by omega)
 
 theorem zeroWordsLoop_spec {w baseAddr n : ℕ} {s₀ : Memory.State}
     (hfr : baseAddr + n ≤ s₀.frontier) :

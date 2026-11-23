@@ -148,7 +148,7 @@ theorem ite {encC : Bool ↪ List Bool} {c : α → Bool} {f g : α → β}
     (sf := fun a => c₁ * ((encIn a).length + 1) ^ d₁)
     (tg := fun a => c₂ * ((encIn a).length + 1) ^ d₂)
     (sg := fun a => c₂ * ((encIn a).length + 1) ^ d₂)
-    h₀ (fun x => h₁ x.1) (fun x => h₂ x.1)
+    h₀ (fun x => h₁ x.val) (fun x => h₂ x.val)
   refine of_computesTidily (T := fun n =>
       c₀ * (n + 1) ^ d₀ + (c₁ * (n + 1) ^ d₁ + c₂ * (n + 1) ^ d₂) + k)
     (by fun_prop) h (fun a => ?_) (fun a => ?_) <;>

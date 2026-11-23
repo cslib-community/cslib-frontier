@@ -84,13 +84,13 @@ theorem ramProgram_eq :
   simp [ramProgram, ToRAM.preparedProgramAdditive, ← Code.program_mapOp]
 
 private theorem exists_nodup_execution (a : Input) :
-    ∃ t, Executes (logWidth 2 a.1.length) (deciderAdditive.program Reg.ans) (State.init a.1)
-      (if a.1.Nodup then 1 else 0) t ∧ t ≤ 16 * (a.1.length + 1) := by
+    ∃ t, Executes (logWidth 2 a.val.length) (deciderAdditive.program Reg.ans) (State.init a.val)
+      (if a.val.Nodup then 1 else 0) t ∧ t ≤ 16 * (a.val.length + 1) := by
   obtain ⟨v, t, he, ht, hv, hnodup⟩ :=
-    decidesInTime_nodup_additive a (logWidth 2 a.1.length) le_rfl (inputFits a le_rfl)
-  have hvalue : v = if a.1.Nodup then 1 else 0 := by
-    change v = 1 ↔ a.1.Nodup at hnodup
-    by_cases ha : a.1.Nodup
+    decidesInTime_nodup_additive a (logWidth 2 a.val.length) le_rfl (inputFits a le_rfl)
+  have hvalue : v = if a.val.Nodup then 1 else 0 := by
+    change v = 1 ↔ a.val.Nodup at hnodup
+    by_cases ha : a.val.Nodup
     · simp [ha, hnodup.mpr ha]
     · simp only [ite_eq_right ha]
       have : v ≠ 1 := fun h => ha (hnodup.mp h)
@@ -114,9 +114,9 @@ private theorem compiled_cost_le {n t : ℕ} (ht : t ≤ 16 * (n + 1)) :
 not optimized. All source and compiler instructions are charged, but constructing the
 initial padded list is not included. -/
 theorem haltsWithResultInTime_nodup_padded (a : Input) :
-    RAM.HaltsWithResultInTime RAM.logCost paddedRamProgram (ToRAM.paddedInput 12 a.1)
-      (if a.1.Nodup then 1 else 0)
-      (2448 * (a.1.length + 1) * (Nat.log 2 (a.1.length + 1) + 1)) := by
+    RAM.HaltsWithResultInTime RAM.logCost paddedRamProgram (ToRAM.paddedInput 12 a.val)
+      (if a.val.Nodup then 1 else 0)
+      (2448 * (a.val.length + 1) * (Nat.log 2 (a.val.length + 1) + 1)) := by
   obtain ⟨t, he, ht⟩ := exists_nodup_execution a
   exact (ToRAM.haltsWithResultInTime_padded_additive (inputFits a le_rfl) he).mono
     (compiled_cost_le ht)
@@ -126,22 +126,22 @@ theorem haltsWithResultInTime_nodup_padded (a : Input) :
 fixed program handles every input, whose entries must be below its length. Installing the
 external five-zero prefix, length header and words is uncharged; all instructions are charged. -/
 theorem haltsWithResultInTime_nodup (a : Input) :
-    RAM.HaltsWithResultInTime RAM.logCost ramProgram (RAM.Input.encode 5 a.1)
-      (if a.1.Nodup then 1 else 0)
-      (2735 * (a.1.length + 1) * (Nat.log 2 (a.1.length + 1) + 1)) := by
+    RAM.HaltsWithResultInTime RAM.logCost ramProgram (RAM.Input.encode 5 a.val)
+      (if a.val.Nodup then 1 else 0)
+      (2735 * (a.val.length + 1) * (Nat.log 2 (a.val.length + 1) + 1)) := by
   obtain ⟨t, he, ht⟩ := exists_nodup_execution a
-  have hlen : RAM.bitLength a.1.length ≤ Nat.log 2 (a.1.length + 1) + 1 :=
-    RAM.bitLength_mono (Nat.le_succ a.1.length)
-  have hinput (x : ℕ) (hx : x ∈ a.1) : RAM.bitLength x ≤ Nat.log 2 (a.1.length + 1) + 1 :=
-    (RAM.bitLength_mono (a.2 x hx).le).trans hlen
+  have hlen : RAM.bitLength a.val.length ≤ Nat.log 2 (a.val.length + 1) + 1 :=
+    RAM.bitLength_mono (Nat.le_succ a.val.length)
+  have hinput (x : ℕ) (hx : x ∈ a.val) : RAM.bitLength x ≤ Nat.log 2 (a.val.length + 1) + 1 :=
+    (RAM.bitLength_mono (a.property x hx).le).trans hlen
   have h := ToRAM.haltsWithResultInTime_prepared_of_bitLength_le_additive
     (inputFits a le_rfl) he hlen hinput
   refine h.mono ?_
-  change 287 * (a.1.length + 1) * (Nat.log 2 (a.1.length + 1) + 1) +
-    48 * (t + 1) * (logWidth 2 a.1.length + 1) ≤ _
+  change 287 * (a.val.length + 1) * (Nat.log 2 (a.val.length + 1) + 1) +
+    48 * (t + 1) * (logWidth 2 a.val.length + 1) ≤ _
   calc
-    _ ≤ 287 * (a.1.length + 1) * (Nat.log 2 (a.1.length + 1) + 1) +
-        2448 * (a.1.length + 1) * (Nat.log 2 (a.1.length + 1) + 1) :=
+    _ ≤ 287 * (a.val.length + 1) * (Nat.log 2 (a.val.length + 1) + 1) +
+        2448 * (a.val.length + 1) * (Nat.log 2 (a.val.length + 1) + 1) :=
       Nat.add_le_add_left (compiled_cost_le ht) _
     _ = _ := by ring
 

@@ -108,7 +108,7 @@ theorem finrank_add_le_card_add_one {F : Type*} [Field F] [DecidableEq F]
     (n := Fintype.card ι - d + 1) (by rw [card_univ]; omega)
   have hinj := injOn_restrict_of_card_lt_add hd (S := S) (by omega)
   let f : C →ₗ[F] S → F := (LinearMap.funLeft F F ((↑) : S → ι)).comp C.subtype
-  have hf : Function.Injective f := fun x y h => Subtype.ext (hinj x.2 y.2 h)
+  have hf : Function.Injective f := fun x y h => Subtype.ext (hinj x.property y.property h)
   have := LinearMap.finrank_le_finrank_of_injective hf
   rw [Module.finrank_fintype_fun_eq_card, Fintype.card_coe] at this
   omega

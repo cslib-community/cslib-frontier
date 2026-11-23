@@ -91,7 +91,7 @@ theorem empiricalRademacherComplexity_l1LinearPredictors_le (φ : Z → Fin n �
       rademacherAverage v := by
     rw [empiricalRademacherComplexity_def, rademacherAverage_def, rademacherAverage_def]
     refine Finset.expect_le_expect fun σ _ => ciSup_le fun h => ?_
-    obtain ⟨w, hw, hwh⟩ := mem_l1LinearPredictors.1 h.2
+    obtain ⟨w, hw, hwh⟩ := mem_l1LinearPredictors.1 h.property
     obtain ⟨c, hc⟩ : ∃ c : Fin n → ℝ, ∀ j, c j = 𝔼 i, signVal (σ i) * φ (S i) j :=
       ⟨_, fun _ => rfl⟩
     have hlin : 𝔼 i, signVal (σ i) * (h : Z → ℝ) (S i) = ∑ j, w j * c j := by

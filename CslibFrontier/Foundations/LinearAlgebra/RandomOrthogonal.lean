@@ -176,11 +176,11 @@ theorem one_div_four_le_card_determines_div_card {a : Fin n → ZMod 2} (ha : a 
     have hli := card_linearIndependent (K := ZMod 2) (V := K) (k := n - 1) hK.ge
     rw [ZMod.card, hK] at hli
     rw [← hli, Nat.card_eq_fintype_card, ← Fintype.card_coe]
-    refine Fintype.card_le_of_injective (fun s => ⟨fun i => (s.1 i : Fin n → ZMod 2), ?_⟩) ?_
-    · refine mem_filter.2 ⟨mem_univ _, fun i => mem_orth.1 (s.1 i).2, fun w hw => ?_⟩
+    refine Fintype.card_le_of_injective (fun s => ⟨fun i => (s.val i : Fin n → ZMod 2), ?_⟩) ?_
+    · refine mem_filter.2 ⟨mem_univ _, fun i => mem_orth.1 (s.val i).property, fun w hw => ?_⟩
       refine eq_zero_or_eq_of_forall_mem_orth fun v hv => ?_
-      have hspan := s.2.span_eq_top_of_card_eq_finrank' (by rw [Fintype.card_fin, hK])
-      have key : ∀ x ∈ Submodule.span (ZMod 2) (Set.range s.1), (x : Fin n → ZMod 2) ⬝ᵥ w = 0 := by
+      have hspan := s.property.span_eq_top_of_card_eq_finrank' (by rw [Fintype.card_fin, hK])
+      have key : ∀ x ∈ Submodule.span (ZMod 2) (Set.range s.val), (x : Fin n → ZMod 2) ⬝ᵥ w = 0 := by
         intro x hx
         induction hx using Submodule.span_induction with
         | mem x hx =>

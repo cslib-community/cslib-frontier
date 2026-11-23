@@ -392,7 +392,7 @@ theorem exists_rooted [Finite ι] (D : G.TreeDecomposition ι) :
       { toFun := fun t => ⟨e.symm t, by
           change v ∈ D.bag (e (e.symm t))
           rw [e.apply_symm_apply]
-          exact t.2⟩
+          exact t.property⟩
         map_rel' := fun {a b} h => by
           change (parentTree parent).Adj (e.symm a) (e.symm b)
           rw [hadj, e.apply_symm_apply, e.apply_symm_apply]

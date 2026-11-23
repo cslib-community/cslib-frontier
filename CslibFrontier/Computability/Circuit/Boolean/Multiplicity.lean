@@ -106,7 +106,7 @@ and a symmetric gate reads each with its multiplicity in `line`. -/
 def multLine : Line extSignature n g → Line multSignature n g
   | ⟨.ac op, w⟩ => ⟨.ac (dedupLine ⟨op, w⟩).op, (dedupLine ⟨op, w⟩).wires⟩
   | ⟨.gate _, w⟩ => ⟨.gate (List.ofFn w).dedup.length
-      fun j => (List.ofFn w).count (List.ofFn w).dedup[j.1], fun j => (List.ofFn w).dedup[j.1]⟩
+      fun j => (List.ofFn w).count (List.ofFn w).dedup[j.val], fun j => (List.ofFn w).dedup[j.val]⟩
 
 private theorem sum_map_filter_eq {α : Type*} (p : α → Bool) (f : α → ℕ) (l : List α) :
     ((l.filter p).map f).sum = (l.map fun a => f a * (p a).toNat).sum := by
@@ -123,8 +123,8 @@ private theorem countP_eq_sum {α : Type*} (p : α → Bool) (l : List α) :
 /-- Reading the distinct wires with their multiplicities counts the true arguments. -/
 private theorem multWeight_count_dedup {k : ℕ} (w : Fin k → Wire n g) (v : Wire n g → Bool) :
     multWeight
-        (fun j : Fin (List.ofFn w).dedup.length => (List.ofFn w).count (List.ofFn w).dedup[j.1])
-        (fun j => v (List.ofFn w).dedup[j.1]) = BitString.weight (v ∘ w) := by
+        (fun j : Fin (List.ofFn w).dedup.length => (List.ofFn w).count (List.ofFn w).dedup[j.val])
+        (fun j => v (List.ofFn w).dedup[j.val]) = BitString.weight (v ∘ w) := by
   rw [multWeight, Fin.sum_univ_fun_getElem (List.ofFn w).dedup
       (fun a => (List.ofFn w).count a * (v a).toNat), ← sum_map_filter_eq,
     List.sum_map_count_dedup_filter_eq_countP, countP_eq_sum, List.map_ofFn, List.sum_ofFn,
@@ -133,7 +133,7 @@ private theorem multWeight_count_dedup {k : ℕ} (w : Fin k → Wire n g) (v : W
 
 /-- Reading the distinct wires with their multiplicities keeps the number of arguments. -/
 private theorem sum_count_dedup {k : ℕ} (w : Fin k → Wire n g) :
-    ∑ j : Fin (List.ofFn w).dedup.length, (List.ofFn w).count (List.ofFn w).dedup[j.1] = k := by
+    ∑ j : Fin (List.ofFn w).dedup.length, (List.ofFn w).count (List.ofFn w).dedup[j.val] = k := by
   rw [Fin.sum_univ_fun_getElem (List.ofFn w).dedup (fun a => (List.ofFn w).count a),
     List.sum_map_count_dedup_eq_length, List.length_ofFn]
 

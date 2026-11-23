@@ -127,7 +127,7 @@ theorem sigmaTwoVerifier_append_ofFn {q k p : Polynomial ℕ} {W : α × List Bo
       BitString.ofList_append_of_le (by simp [hw]), BitString.listRow_zero, BitString.ofList_ofFn,
       ← BitString.ofFn_add] at h
   · rintro ⟨i, h⟩
-    refine ⟨i, i.2, ?_⟩
+    refine ⟨i, i.isLt, ?_⟩
     rwa [BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ i,
       BitString.ofList_append_of_le (by simp [hw]), BitString.listRow_zero, BitString.ofList_ofFn,
       ← BitString.ofFn_add]
@@ -214,7 +214,7 @@ theorem piTwoVerifier_append {k p q : Polynomial ℕ} {W : α × List Bool → B
   rw [List.drop_left' hu, ← List.drop_drop, List.drop_left' hu]
   constructor
   · intro h i
-    have h := h i i.2
+    have h := h i i.isLt
     rwa [BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ i,
       BitString.listRow_eq_ofFn (count := k.eval (enc a).length) _ i,
       BitString.ofList_append_of_le (by simp [hu]), BitString.listRow_zero,

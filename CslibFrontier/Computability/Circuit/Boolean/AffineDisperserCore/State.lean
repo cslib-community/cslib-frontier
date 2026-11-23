@@ -199,7 +199,7 @@ theorem eq_of_spread {F : Finset ℕ} {k : ℕ} (h : F.card = k) {u v : BitStrin
     (huv : ∀ i ∈ F, spread F h u i = spread F h v i) : u = v := by
   funext i
   rw [← spread_orderIsoOfFin h u i, ← spread_orderIsoOfFin h v i]
-  exact huv _ (F.orderIsoOfFin h i).2
+  exact huv _ (F.orderIsoOfFin h i).property
 
 /-- The identity map on an additive group is affine. -/
 theorem isAffine_id {α : Type*} [Add α] : IsAffine (fun x : α => x) :=

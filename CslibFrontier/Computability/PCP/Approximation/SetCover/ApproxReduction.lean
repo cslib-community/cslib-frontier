@@ -347,16 +347,16 @@ theorem optCoverWeight_toWeighted (S : SetSystem) :
     refine le_antisymm ?_ ?_
     · obtain ⟨C, hC, hcard⟩ := SetSystem.exists_isCover_optCoverSize hS
       let C' : Finset (Fin S.toWeighted.sets.length) := C.map ⟨fun i : Fin S.sets.length =>
-        (⟨i.1, by simp [SetSystem.toWeighted, i.isLt]⟩ : Fin S.toWeighted.sets.length),
+        (⟨i.val, by simp [SetSystem.toWeighted, i.isLt]⟩ : Fin S.toWeighted.sets.length),
         fun _ _ h => Fin.ext (congrArg (Fin.val : Fin S.toWeighted.sets.length → ℕ) h)⟩
       have hC' : S.toWeighted.IsCover C' := by
         intro u hu
         obtain ⟨i, hi, hui⟩ := hC u hu
-        refine ⟨⟨i.1, by simp [SetSystem.toWeighted, i.isLt]⟩, Finset.mem_map.2 ⟨i, hi, rfl⟩, ?_⟩
+        refine ⟨⟨i.val, by simp [SetSystem.toWeighted, i.isLt]⟩, Finset.mem_map.2 ⟨i, hi, rfl⟩, ?_⟩
         simpa [SetSystem.toWeighted] using hui
       have hwt : S.toWeighted.coverWeight C' = C.card := by
         rw [WeightedSetSystem.coverWeight, Finset.sum_map]
-        calc ∑ x ∈ C, S.toWeighted.sets[(⟨x.1, by simp [SetSystem.toWeighted, x.isLt]⟩ :
+        calc ∑ x ∈ C, S.toWeighted.sets[(⟨x.val, by simp [SetSystem.toWeighted, x.isLt]⟩ :
               Fin S.toWeighted.sets.length)].weight
             = ∑ _x ∈ C, 1 := Finset.sum_congr rfl fun x _ => by
                 change ((S.sets.map fun A => WeightedSet.mk A 1)[(x : ℕ)]'(by
@@ -366,18 +366,18 @@ theorem optCoverWeight_toWeighted (S : SetSystem) :
       exact (WeightedSetSystem.optCoverWeight_le hC').trans_eq (hwt.trans hcard)
     · obtain ⟨C, hC, hwt⟩ := WeightedSetSystem.exists_isCover_optCoverWeight hW
       let C' : Finset (Fin S.sets.length) := C.map ⟨fun i : Fin S.toWeighted.sets.length =>
-        (⟨i.1, by simpa [SetSystem.toWeighted] using i.isLt⟩ : Fin S.sets.length),
+        (⟨i.val, by simpa [SetSystem.toWeighted] using i.isLt⟩ : Fin S.sets.length),
         fun _ _ h => Fin.ext (congrArg (Fin.val : Fin S.sets.length → ℕ) h)⟩
       have hC' : S.IsCover C' := by
         intro u hu
         obtain ⟨i, hi, hui⟩ := hC u hu
-        have hi' : i.1 < S.sets.length := by simpa [SetSystem.toWeighted] using i.isLt
-        have hui' : u ∈ S.sets[i.1]'hi' := by
+        have hi' : i.val < S.sets.length := by simpa [SetSystem.toWeighted] using i.isLt
+        have hui' : u ∈ S.sets[i.val]'hi' := by
           have h0 : u ∈ ((S.sets.map fun A => WeightedSet.mk A 1)[(i : ℕ)]'(by
               simpa [SetSystem.toWeighted] using i.isLt)).elements := hui
           rw [List.getElem_map] at h0
           exact h0
-        exact ⟨⟨i.1, hi'⟩, Finset.mem_map.2 ⟨i, hi, rfl⟩, hui'⟩
+        exact ⟨⟨i.val, hi'⟩, Finset.mem_map.2 ⟨i, hi, rfl⟩, hui'⟩
       have hwt' : S.toWeighted.coverWeight C = C.card := by
         rw [WeightedSetSystem.coverWeight]
         calc ∑ i ∈ C, S.toWeighted.sets[i].weight

@@ -145,7 +145,7 @@ instance [Finite T] [∀ t, Finite (ι t)] [Finite M] : Finite (I.Model M) :=
 
 /-- The tag and coordinates of an element of the interpreted structure. -/
 def Model.toSigma (e : I.Model M) : Σ t, ι t → M :=
-  ⟨e.1, e.2.1⟩
+  ⟨e.1, e.2.val⟩
 
 /-- Two elements of `I.Model M` with equal `toSigma` projections are equal. -/
 theorem Model.ext_toSigma {e e' : I.Model M} (h : e.toSigma = e'.toSigma) : e = e' := by
@@ -160,12 +160,12 @@ variable [L'.IsRelational]
 /-- The structure interpreted by `I`: a relation holds of some elements when its defining formula
 for their tags holds of their coordinates. -/
 instance : L'.Structure (I.Model M) where
-  RelMap R xs := (I.rel R fun j => (xs j).1).Realize fun p => (xs p.1).2.1 p.2
+  RelMap R xs := (I.rel R fun j => (xs j).1).Realize fun p => (xs p.1).2.val p.2
 
 /-- A relation `R` holds on `xs` in `I.Model M` iff `I.rel R` for their tags holds of their
 coordinates. -/
 theorem relMap_model {n : ℕ} (R : L'.Relations n) (xs : Fin n → I.Model M) :
-    RelMap R xs ↔ (I.rel R fun j => (xs j).1).Realize fun p => (xs p.1).2.1 p.2 :=
+    RelMap R xs ↔ (I.rel R fun j => (xs j).1).Realize fun p => (xs p.1).2.val p.2 :=
   Iff.rfl
 
 end Model
@@ -253,8 +253,8 @@ theorem ncard_set_val (s : Set N) :
     {x : Copies J N | x.val ∈ s}.ncard = Nat.card J * s.ncard := by
   rw [← Nat.card_coe_set_eq, ← Nat.card_coe_set_eq, ← Nat.card_prod]
   exact Nat.card_congr
-    { toFun := fun x => (x.1.idx, ⟨x.1.val, x.2⟩)
-      invFun := fun p => ⟨⟨p.1, p.2.1⟩, p.2.2⟩
+    { toFun := fun x => (x.val.idx, ⟨x.val.val, x.property⟩)
+      invFun := fun p => ⟨⟨p.1, p.2.val⟩, p.2.property⟩
       left_inv := fun _ => rfl
       right_inv := fun _ => rfl }
 
@@ -396,9 +396,9 @@ theorem realize_toInterpretation_rel_of_nontrivial [Nontrivial M] {n : ℕ}
 `S`. -/
 def subsingletonEquiv [L'.IsRelational] [Subsingleton M] :
     (I.toInterpretation S).Model M ≃[L'] S.Model M where
-  toFun c := ⟨fun _ => c.1 p, (realize_toInterpretation_domain_of_subsingleton S c.1).1 c.2⟩
-  invFun x := ⟨fun _ => x.1 (), (realize_toInterpretation_domain_of_subsingleton S _).2 <| by
-    simpa only [show (fun _ : Unit => x.1 ()) = x.1 from funext fun _ => rfl] using x.2⟩
+  toFun c := ⟨fun _ => c.val p, (realize_toInterpretation_domain_of_subsingleton S c.val).1 c.property⟩
+  invFun x := ⟨fun _ => x.val (), (realize_toInterpretation_domain_of_subsingleton S _).2 <| by
+    simpa only [show (fun _ : Unit => x.val ()) = x.val from funext fun _ => rfl] using x.property⟩
   left_inv _ := Interpretation.Model.ext (funext fun _ => Subsingleton.elim _ _)
   right_inv _ := Interpretation.Model.ext (funext fun _ => rfl)
   map_fun' f := isEmptyElim f
@@ -430,13 +430,13 @@ noncomputable def coords (a b : M) (e : I.Model M) : Coord T ι → M
   | .inl false => a
   | .inl true => b
   | .inr (.inl t) => if t = e.1 then b else a
-  | .inr (.inr ⟨t, i⟩) => if h : t = e.1 then e.2.1 (h ▸ i) else a
+  | .inr (.inr ⟨t, i⟩) => if h : t = e.1 then e.2.val (h ▸ i) else a
 
 omit [Finite T] [∀ t, Finite (ι t)] in
 /-- At the tag `e.1` of `e`, `coords a b e` evaluates `data ⟨e.1, i⟩` to `e.2.1 i`. -/
 @[simp]
 theorem coords_data_self (a b : M) (e : I.Model M) (i : ι e.1) :
-    coords a b e (data ⟨e.1, i⟩) = e.2.1 i := by
+    coords a b e (data ⟨e.1, i⟩) = e.2.val i := by
   simp [coords]
 
 omit [Finite T] [∀ t, Finite (ι t)] in
@@ -474,13 +474,13 @@ theorem realize_domainAt_coords (a b : M) (h : a ≠ b) (e : I.Model M) :
   refine (realize_domainAt _ _).2 ⟨h, fun t' => ?_, fun ⟨t', i⟩ ht => ?_, ?_⟩
   · simp only [coords]
   · simp only [coords, ht, dite_false]
-  · simpa only [coords_data_self] using e.2.2
+  · simpa only [coords_data_self] using e.2.property
 
 /-- The map from the copies of the tagged structure to the compiled structure. -/
 noncomputable def ofCopies [Nontrivial M] (x : Copies (Pairs M) (I.Model M)) :
     (I.toInterpretation S).Model M :=
-  ⟨coords x.idx.1.1 x.idx.1.2 x.val, (realize_toInterpretation_domain_of_nontrivial S _).2
-    ⟨x.val.1, realize_domainAt_coords _ _ x.idx.2 x.val⟩⟩
+  ⟨coords x.idx.val.1 x.idx.val.2 x.val, (realize_toInterpretation_domain_of_nontrivial S _).2
+    ⟨x.val.1, realize_domainAt_coords _ _ x.idx.property x.val⟩⟩
 
 /-- On a nontrivial structure `M`, `ofCopies S` is a bijection from `Copies (Pairs M) (I.Model M)`
 to `(I.toInterpretation S).Model M`. -/
@@ -513,8 +513,8 @@ noncomputable def copiesEquiv [L'.IsRelational] [Nontrivial M] :
   toEquiv := Equiv.ofBijective _ (ofCopies_bijective S)
   map_fun' f := isEmptyElim f
   map_rel' {n} R xs := by
-    change ((I.toInterpretation S).rel R).Realize (fun x => coords (xs x.1).idx.1.1
-      (xs x.1).idx.1.2 (xs x.1).val x.2) ↔ _
+    change ((I.toInterpretation S).rel R).Realize (fun x => coords (xs x.1).idx.val.1
+      (xs x.1).idx.val.2 (xs x.1).val x.2) ↔ _
     rw [realize_toInterpretation_rel_of_nontrivial, realize_relAt, Copies.relMap_copies,
       relMap_model]
     refine and_congr ?_ ⟨fun ⟨ts, hts, h⟩ => ?_, fun h => ⟨fun j => (xs j).val.1, fun j => ?_, ?_⟩⟩
@@ -522,9 +522,9 @@ noncomputable def copiesEquiv [L'.IsRelational] [Nontrivial M] :
       have := congrArg Subtype.val (h i j)
       exact ⟨congrArg Prod.fst this, congrArg Prod.snd this⟩
     · obtain rfl : ts = fun j => (xs j).val.1 :=
-        funext fun j => (coords_tag_eq_iff (xs j).idx.2 _ _).1 (hts j)
+        funext fun j => (coords_tag_eq_iff (xs j).idx.property _ _).1 (hts j)
       simpa only [coords_data_self] using h
-    · exact (coords_tag_eq_iff (xs j).idx.2 _ _).2 rfl
+    · exact (coords_tag_eq_iff (xs j).idx.property _ _).2 rfl
     · simpa only [coords_data_self] using h
 
 end Compile
@@ -543,7 +543,7 @@ theorem TaggedInterpretation.nontrivial_toInterpretation_model
   refine ⟨⟨TaggedInterpretation.ofCopies S ⟨⟨(x, y), hxy⟩, e⟩,
     TaggedInterpretation.ofCopies S ⟨⟨(y, x), hxy.symm⟩, e⟩, fun h => hxy ?_⟩⟩
   have := (TaggedInterpretation.ofCopies_bijective S).1 h
-  exact congrArg (fun c : Copies (TaggedInterpretation.Pairs M) (I.Model M) => c.idx.1.1) this
+  exact congrArg (fun c : Copies (TaggedInterpretation.Pairs M) (I.Model M) => c.idx.val.1) this
 
 
 /-! ### Reductions by tagged interpretations -/
@@ -649,7 +649,7 @@ def binaryRel (F : ∀ t w : T, L.Formula (ι t ⊕ ι w)) (ts : Fin 2 → T) :
 theorem relMap_binaryRel {L' : Language.{u', v'}} [L'.IsRelational]
     {I : TaggedInterpretation L L' T ι} {M : Type w} [L.Structure M] {R : L'.Relations 2}
     {F : ∀ t w : T, L.Formula (ι t ⊕ ι w)} (hR : ∀ ts, I.rel R ts = binaryRel F ts)
-    (a b : I.Model M) : RelMap R ![a, b] ↔ (F a.1 b.1).Realize (Sum.elim a.2.1 b.2.1) := by
+    (a b : I.Model M) : RelMap R ![a, b] ↔ (F a.1 b.1).Realize (Sum.elim a.2.val b.2.val) := by
   rw [relMap_model, hR, binaryRel, Formula.realize_relabel]
   refine iff_of_eq (congrArg _ (funext fun i => ?_))
   rcases i with i | i <;> rfl

@@ -529,7 +529,7 @@ private theorem modelCountOn_range_pos_iff {D Rel' : Type*} [Fintype D] [Inhabit
   · rintro ⟨σ, -, hσ⟩
     exact ⟨_, hσ⟩
   · rintro ⟨σ, hσ⟩
-    refine ⟨fun v => σ v.1, Finset.mem_univ _, ?_⟩
+    refine ⟨fun v => σ v.val, Finset.mem_univ _, ?_⟩
     refine (CSP.eval_congr fun v hv => ?_).trans hσ
     have hv' : v ∈ Finset.range M := Finset.mem_range.mpr (hG v hv)
     simp [hv']

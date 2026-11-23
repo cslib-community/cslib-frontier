@@ -386,7 +386,7 @@ theorem IsMatching.ncard_verts_eq_two_mul [Finite V] (hM : M.IsMatching) :
   have := Fintype.ofFinite V
   have h1 : ∀ v : M.verts, M.coe.degree v = 1 := fun v => by
     rw [coe_degree, degree_eq_one_iff_existsUnique_adj]
-    exact hM v.2
+    exact hM v.property
   have hsum := M.coe.sum_degrees_eq_twice_card_edges
   rw [Finset.sum_congr rfl fun v _ => by convert h1 v, Finset.sum_const, smul_eq_mul, mul_one,
     Finset.card_univ] at hsum
@@ -403,7 +403,7 @@ theorem isMaximumMatching_iff_ncard [Finite V] :
       M'.edgeSet.ncard ≤ M.edgeSet.ncard := by
     rw [← (Set.toFinite M'.edgeSet).cast_ncard_eq, ← (Set.toFinite M.edgeSet).cast_ncard_eq,
       Nat.cast_le]
-  exact ⟨fun hM => ⟨hM.1, fun M' hM' => (h M').mp (hM.2 M' hM')⟩,
+  exact ⟨fun hM => ⟨hM.isMatching, fun M' hM' => (h M').mp (hM.maximum M' hM')⟩,
     fun hM => ⟨hM.1, fun M' hM' => (h M').mpr (hM.2 M' hM')⟩⟩
 
 /-- In a finite graph a matching is maximum iff it covers at least as many vertices as every

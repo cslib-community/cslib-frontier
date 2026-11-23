@@ -56,7 +56,7 @@ private theorem prod_sum_range {R : Type*} [CommSemiring R] (D : ℕ) (γ φ : �
   rw [← prod_mul_distrib,
     ← prod_attach S fun i => γ i (if h : i ∈ S then q i h else 0) *
       φ i (if h : i ∈ S then q i h else 0)]
-  exact prod_congr rfl fun i _ => by simp only [i.2, ↓reduceDIte]
+  exact prod_congr rfl fun i _ => by simp only [i.property, ↓reduceDIte]
 
 /-- **Upper comparison.** For polynomials with nonnegative coefficients `γ i` in the basis of
 falling factorials, the sum over the weak compositions `M` of `t` of the product of their values

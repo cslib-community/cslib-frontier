@@ -394,7 +394,7 @@ private theorem card_filter_coord_eq_zero
     (fun g _ j => if h : j = j₀ then 0 else g ⟨j, h⟩)
     (fun _ _ => by simp)
     (fun g₁ _ g₂ _ heq => funext fun ⟨j, hj⟩ => by simpa [hj] using congrFun heq j)
-    (fun z hz => ⟨fun j => z j.1, mem_univ _, funext fun j => by
+    (fun z hz => ⟨fun j => z j.val, mem_univ _, funext fun j => by
       by_cases h : j = j₀ <;> simp [h, (mem_filter.1 hz).2]⟩)
   rw [← hbij, Finset.card_univ, Fintype.card_fun, Fintype.card_subtype]
   congr 1
@@ -514,7 +514,7 @@ theorem exists_ratWeighted_correlatedAgreement_curve_unique
   let badI : Finset ι := Finset.univ.filter fun i => ¬ ∀ j : Fin (d + 1), u j i = v j i
   have hf_ne (i : ι) (hi : i ∈ badI) : f i ≠ 0 := fun h0 => (mem_filter.1 hi).2 fun j => by
     have hc := congrArg (fun p : F[X] => p.coeff (j : ℕ)) h0
-    simp only [f, Polynomial.ofFn_coeff_eq_val_of_lt _ j.2, coeff_zero] at hc
+    simp only [f, Polynomial.ofFn_coeff_eq_val_of_lt _ j.isLt, coeff_zero] at hc
     exact sub_eq_zero.1 hc
   have hS_sub : S ⊆ badI.biUnion fun i => (f i).roots.toFinset := fun z hz => by
     obtain ⟨i, hi_not, heq⟩ := exists_disagree_mem_unique hα hunique hμ_le hθ
@@ -969,7 +969,7 @@ private theorem card_zero_affine_le
       ha₀ <| by simpa [hall0] using (mem_filter.1 hz).2
     simp [hemp]
   · push Not at hall0; obtain ⟨j₀, hj₀⟩ := hall0
-    let proj : (Fin ℓ → F) → ({j : Fin ℓ // j ≠ j₀} → F) := fun z j => z j.1
+    let proj : (Fin ℓ → F) → ({j : Fin ℓ // j ≠ j₀} → F) := fun z j => z j.val
     have hinj : Set.InjOn proj (S : Set (Fin ℓ → F)) := fun z₁ hz₁ z₂ hz₂ hproj => by
       have hne_eq : ∀ j : Fin ℓ, j ≠ j₀ → z₁ j = z₂ j := fun j hj => congrFun hproj ⟨j, hj⟩
       have h1 := (mem_filter.1 hz₁).2; have h2 := (mem_filter.1 hz₂).2
@@ -1267,7 +1267,7 @@ private theorem exists_submodule_eq_top_of_cover {F : Type*} [Field F] [Fintype 
     exact Finset.card_bij (fun z hz => (⟨z - z_star, (mem_filter.1 hz).2⟩ : K c))
       (fun _ _ => mem_univ _)
       (fun _ _ _ _ h => sub_left_inj.1 (Subtype.ext_iff.1 h))
-      fun d _ => ⟨d.1 + z_star, mem_filter.2 ⟨mem_univ _, by rw [add_sub_cancel_right]; exact d.2⟩,
+      fun d _ => ⟨d.val + z_star, mem_filter.2 ⟨mem_univ _, by rw [add_sub_cancel_right]; exact d.property⟩,
         Subtype.ext (add_sub_cancel_right _ _)⟩
   have hpigeon : (Fintype.card F) ^ ℓ ≤ L * (U c).card := calc
     (Fintype.card F) ^ ℓ = (Finset.univ : Finset (Fin ℓ → F)).card := by

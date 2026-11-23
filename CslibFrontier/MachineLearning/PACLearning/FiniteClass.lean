@@ -189,7 +189,7 @@ theorem isPACLearnerFor_realizableDistributions_of_log_card_add_log_inv_le
     IsPACLearnerFor m ε δ (H : Set (α → β)) (realizableDistributions (H : Set (α → β))) := by
   rcases H.eq_empty_or_nonempty with rfl | hne
   · have hδ : 0 < Real.log (δ.val : ℝ)⁻¹ :=
-      Real.log_pos ((one_lt_inv₀ (by exact_mod_cast δ.2.1)).2 (by exact_mod_cast δ.2.2))
+      Real.log_pos ((one_lt_inv₀ (by exact_mod_cast δ.property.1)).2 (by exact_mod_cast δ.property.2))
     have hm0 : 0 < m := Nat.pos_of_ne_zero fun h => by
       subst h
       simp only [Finset.card_empty, Nat.cast_zero, Real.log_zero, zero_add, mul_zero] at hm
@@ -199,7 +199,7 @@ theorem isPACLearnerFor_realizableDistributions_of_log_card_add_log_inv_le
   obtain ⟨A, hA⟩ := exists_isConsistent (m := m) (C := (H : Set (α → β))) (by exact_mod_cast hne)
   refine ⟨A, fun D _ hD => ?_⟩
   have h := hA.measure_pi_lt_error_le_of_log_card_add_log_inv_le hH hD ε.val.coe_nonneg
-    (by exact_mod_cast δ.2.1) hm
+    (by exact_mod_cast δ.property.1) hm
   rw [ENNReal.ofReal_coe_nnreal, ENNReal.ofReal_coe_nnreal] at h
   rw [IsRealizableBy.optimalError_eq_zero hD, zero_add]
   exact h
@@ -214,7 +214,7 @@ theorem sampleComplexity_realizableDistributions_le_of_finite
       ⌈(Real.log H.card + Real.log (δ.val : ℝ)⁻¹) / ε.val⌉₊ := by
   refine Nat.sInf_le
     (isPACLearnerFor_realizableDistributions_of_log_card_add_log_inv_le hH ?_)
-  have hε : (0 : ℝ) < ε.val := by exact_mod_cast ε.2.1
+  have hε : (0 : ℝ) < ε.val := by exact_mod_cast ε.property.1
   rw [mul_comm, ← div_le_iff₀ hε]
   exact Nat.le_ceil _
 

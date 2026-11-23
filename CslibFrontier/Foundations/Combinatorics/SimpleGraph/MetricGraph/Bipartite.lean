@@ -197,10 +197,10 @@ theorem bipartite_const_weight_dist_edgePoint_affine [Finite V] {W : WeightedGra
     dist_vertex_eq_of_const_weight hℓ hconst, dist_vertex_eq_of_const_weight hℓ hconst]
   rcases bipartite_graph_dist_adj_succ hbip W.connected t₀ d.adj with h | h
   · rw [h, Nat.cast_add, Nat.cast_one]
-    rw [min_eq_left (by nlinarith [hℓ, s.2.1, s.2.2])]
+    rw [min_eq_left (by nlinarith [hℓ, s.property.1, s.property.2])]
     ring
   · rw [h, Nat.cast_add, Nat.cast_one]
-    rw [min_eq_right (by nlinarith [hℓ, s.2.1, s.2.2])]
+    rw [min_eq_right (by nlinarith [hℓ, s.property.1, s.property.2])]
     ring
 
 theorem bipartite_equalLength_dist_edgePoint_affine [Finite V] {G : SimpleGraph V}
@@ -304,19 +304,19 @@ private theorem midpoint_forward_cases [Finite V] (W : WeightedGraph V)
 private theorem midpoint_witness_diff [Finite V] (W : WeightedGraph V)
     {x y : { z : MetricGraph W // z ∈ midpointPoints W }}
     {d : W.graph.Dart} {s t : unitInterval} (hst : (s : ℝ) < t)
-    (hs : edgePoint d s = x.1) (ht : edgePoint d t = y.1)
+    (hs : edgePoint d s = x.val) (ht : edgePoint d t = y.val)
     (hno : ∀ r : unitInterval, (s : ℝ) < r → (r : ℝ) < t →
       edgePoint d r ∉ midpointPoints W) :
     ((t : ℝ) - s = 1 / 2) ∧
-      (((∃ v : V, x.1 = vertex v) ∧ (∃ e : W.graph.edgeSet,
-          y.1 = edgePoint (edgeDartOfSym2 e) halfUnit)) ∨
-       ((∃ e : W.graph.edgeSet, x.1 = edgePoint (edgeDartOfSym2 e) halfUnit) ∧
-          (∃ v : V, y.1 = vertex v))) := by
+      (((∃ v : V, x.val = vertex v) ∧ (∃ e : W.graph.edgeSet,
+          y.val = edgePoint (edgeDartOfSym2 e) halfUnit)) ∨
+       ((∃ e : W.graph.edgeSet, x.val = edgePoint (edgeDartOfSym2 e) halfUnit) ∧
+          (∃ v : V, y.val = vertex v))) := by
   let e : W.graph.edgeSet := ⟨d.edge, d.edge_mem⟩
   have he : d.edge = (edgeDartOfSym2 e).edge := (edgeDartOfSym2_edge e).symm
   rcases (dart_edge_eq_iff d (edgeDartOfSym2 e)).mp he with hd | hsym
-  · have hsB : edgePoint (edgeDartOfSym2 e) s ∈ midpointPoints W := by rw [← hd, hs]; exact x.2
-    have htB : edgePoint (edgeDartOfSym2 e) t ∈ midpointPoints W := by rw [← hd, ht]; exact y.2
+  · have hsB : edgePoint (edgeDartOfSym2 e) s ∈ midpointPoints W := by rw [← hd, hs]; exact x.property
+    have htB : edgePoint (edgeDartOfSym2 e) t ∈ midpointPoints W := by rw [← hd, ht]; exact y.property
     have hno' : ∀ r : unitInterval, (s : ℝ) < r → (r : ℝ) < t →
         edgePoint (edgeDartOfSym2 e) r ∉ midpointPoints W := by
       intro r hr1 hr2; rw [← hd]; exact hno r hr1 hr2
@@ -331,9 +331,9 @@ private theorem midpoint_witness_diff [Finite V] (W : WeightedGraph V)
     let t' := unitInterval.symm s
     have hst' : (s' : ℝ) < t' := by change 1 - (t : ℝ) < 1 - s; linarith
     have hsB : edgePoint (edgeDartOfSym2 e) s' ∈ midpointPoints W := by
-      rw [edgePoint_symm', ← hsym, ht]; exact y.2
+      rw [edgePoint_symm', ← hsym, ht]; exact y.property
     have htB : edgePoint (edgeDartOfSym2 e) t' ∈ midpointPoints W := by
-      rw [edgePoint_symm', ← hsym, hs]; exact x.2
+      rw [edgePoint_symm', ← hsym, hs]; exact x.property
     have hno' : ∀ r : unitInterval, (s' : ℝ) < r → (r : ℝ) < t' →
         edgePoint (edgeDartOfSym2 e) r ∉ midpointPoints W := by
       intro r hr1 hr2
@@ -381,9 +381,9 @@ private theorem midpoint_witness_diff [Finite V] (W : WeightedGraph V)
 
 theorem midpointSubdivision_isBipartite [Finite V] (W : WeightedGraph V) :
     (midpointSubdivision W).graph.IsBipartite := by
-  let S : Set { z : MetricGraph W // z ∈ midpointPoints W } := { x | ∃ v : V, x.1 = vertex v }
+  let S : Set { z : MetricGraph W // z ∈ midpointPoints W } := { x | ∃ v : V, x.val = vertex v }
   let T : Set { z : MetricGraph W // z ∈ midpointPoints W } :=
-    { x | ∃ e : W.graph.edgeSet, x.1 = edgePoint (edgeDartOfSym2 e) halfUnit }
+    { x | ∃ e : W.graph.edgeSet, x.val = edgePoint (edgeDartOfSym2 e) halfUnit }
   have hdisj : Disjoint S T := by
     rw [Set.disjoint_left]
     rintro x ⟨v, hv⟩ ⟨e, he⟩

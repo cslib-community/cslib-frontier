@@ -416,7 +416,7 @@ theorem CNF.modelCount_toExact3CNF [DecidableEq V] (φ : CNF V) :
         exact Clause.eval_take_congr hagree (CNF.mem_zipIdx_iff_mem.1 ⟨i, hci⟩) _
     · intro he
       exact funext fun v =>
-        he _ (CNF.inl_mem_vars_toExact3CNF (List.mem_toFinset.1 v.2))
+        he _ (CNF.inl_mem_vars_toExact3CNF (List.mem_toFinset.1 v.property))
   · constructor
     · intro hρ
       let σ : V ⊕ (ℕ × ℕ) → Bool :=
@@ -427,7 +427,7 @@ theorem CNF.modelCount_toExact3CNF [DecidableEq V] (φ : CNF V) :
         have hget : φ.getD i [] = c := by simp [List.getD_eq_getElem?_getD, hci]
         simp only [σ, Sum.elim_inr, hget]
         rfl
-      · exact CNF.extendAssignment_of_mem _ (List.mem_toFinset.1 v.2)
+      · exact CNF.extendAssignment_of_mem _ (List.mem_toFinset.1 v.property)
     · rintro ⟨σ, hσ, rfl⟩
       rw [CNF.eval_toExact3CNF_iff] at hσ
       refine (CNF.eval_congr fun v hv => ?_).trans hσ.1

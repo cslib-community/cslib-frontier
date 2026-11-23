@@ -290,7 +290,7 @@ noncomputable def toCellProbe (C : WordRAM.StateTransitionImpl P D w base params
         C_cp.initPotential = C.initPotential ∧
           ∀ s o, C_cp.charge s o = C.charge s o + 2 * persistentRegCount P } := by
   let S := C.toCellProbeLayout (standardLayout P.input base C.space w) hd₀ hfr hpar
-  refine ⟨S.1, ⟨S.2.1, S.2.2.1, fun s o => (S.2.2.2 s o).trans ?_⟩⟩
+  refine ⟨S.1, ⟨S.2.val, S.2.property.1, fun s o => (S.2.property.2 s o).trans ?_⟩⟩
   rw [standardLayout_overhead, persistentRegCount_eq_persCount]
 
 /-- Fresh-initializer cell-probe tree for `(C.toCellProbe hd₀ hfr hpar).1`: starting from zeroed
@@ -339,7 +339,7 @@ noncomputable def toCellProbeWide (C : WordRAM.StateTransitionImpl P D w base pa
           ∀ s o, C_cp.charge s o =
             C.charge s o + if persistentRegCount P = 0 then 0 else 2 } := by
   let S := C.toCellProbeLayout (wideLayout P.input base C.space w) hd₀ hfr hpar
-  refine ⟨S.1, ⟨S.2.1, S.2.2.1, fun s o => (S.2.2.2 s o).trans ?_⟩⟩
+  refine ⟨S.1, ⟨S.2.val, S.2.property.1, fun s o => (S.2.property.2 s o).trans ?_⟩⟩
   rw [wideLayout_overhead, persistentRegCount_eq_persCount]
 
 end Cslib.DataStructure.WordRAM.StateTransitionImpl

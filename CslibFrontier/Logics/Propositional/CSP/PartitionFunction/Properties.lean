@@ -257,12 +257,12 @@ theorem partitionFunctionOn_relabel_equiv [Semiring R] [DecidableEq V] [Decidabl
     (F.relabel e).partitionFunctionOn wt (declared.map e.toEmbedding) =
       F.partitionFunctionOn wt declared := by
   let eDom : declared ≃ declared.map e.toEmbedding :=
-    { toFun := fun v => ⟨e v.1, Finset.mem_map.mpr ⟨v.1, v.2, rfl⟩⟩
-      invFun := fun w => ⟨e.symm w.1, by
-        rcases Finset.mem_map.mp w.2 with ⟨v, hv, hvw⟩
+    { toFun := fun v => ⟨e v.val, Finset.mem_map.mpr ⟨v.val, v.property, rfl⟩⟩
+      invFun := fun w => ⟨e.symm w.val, by
+        rcases Finset.mem_map.mp w.property with ⟨v, hv, hvw⟩
         simpa [← hvw] using hv⟩
-      left_inv := fun v => Subtype.ext (e.symm_apply_apply v.1)
-      right_inv := fun w => Subtype.ext (e.apply_symm_apply w.1) }
+      left_inv := fun v => Subtype.ext (e.symm_apply_apply v.val)
+      right_inv := fun w => Subtype.ext (e.apply_symm_apply w.val) }
   let eAssign : (declared.map e.toEmbedding → D) ≃ (declared → D) :=
     Equiv.piCongrLeft' (fun _ => D) eDom.symm
   rw [partitionFunctionOn, partitionFunctionOn]
@@ -315,10 +315,10 @@ theorem partitionFunctionOn_denseRelabel [Semiring R] [DecidableEq V] [Fintype D
     rcases hi' with ⟨v, hv, rfl⟩
     exact ⟨v, List.mem_toFinset.mpr hv, rfl⟩
   let eVar : S ≃ Rng := Equiv.ofBijective
-    (fun v => ⟨F.distinctVars.idxOf v.1, hmem_range v.1 v.2⟩)
-    ⟨fun v w h => Subtype.ext (hinj v.1 v.2 w.1 w.2 (Subtype.mk.inj h)),
+    (fun v => ⟨F.distinctVars.idxOf v.val, hmem_range v.val v.property⟩)
+    ⟨fun v w h => Subtype.ext (hinj v.val v.property w.val w.property (Subtype.mk.inj h)),
      fun i => by
-       obtain ⟨v, hv, hvi⟩ := hsurj i.1 i.2
+       obtain ⟨v, hv, hvi⟩ := hsurj i.val i.property
        exact ⟨⟨v, hv⟩, Subtype.ext hvi⟩⟩
   let eAssign : (Rng → D) ≃ (S → D) := Equiv.piCongrLeft' (fun _ => D) eVar.symm
   rw [partitionFunctionOn, partitionFunction_eq_partitionFunctionOn, partitionFunctionOn]

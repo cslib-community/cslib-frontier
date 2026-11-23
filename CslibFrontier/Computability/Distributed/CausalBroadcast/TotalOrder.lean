@@ -1748,9 +1748,9 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
     intro K m hm q
     have hfair_q := hall_fair inp ss xs ⟨hs0, he, hfair_run, hnum⟩ q
     have hex_recv : ∀ i : Fin (m + 1),
-        ∃ j, xs j = some ⟨q, Sum.inr (.ordered i.1 ((mkRunLog xs K)[i.1]'(by omega)))⟩ := by
+        ∃ j, xs j = some ⟨q, Sum.inr (.ordered i.val ((mkRunLog xs K)[i.val]'(by omega)))⟩ := by
       intro i
-      obtain ⟨t, _, hmsg⟩ := hordered_sent q K i.1 (by omega)
+      obtain ⟨t, _, hmsg⟩ := hordered_sent q K i.val (by omega)
       obtain ⟨j, _, hxj⟩ := hfair_q _ rfl (t + 1) hmsg
       exact ⟨j, hxj⟩
     choose jFn hjFn using hex_recv
@@ -1761,20 +1761,20 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
     rw [hjFn iMax] at htr_star
     rcases htr_star with ⟨_, hstep_star⟩
     have hinv_star := hrunLog_inv inp ss xs hs0 he jStar
-    let itemMax := (mkRunLog xs K)[iMax.1]'(by omega)
-    let bufStar : List (SlotEntry P V) := ⟨iMax.1, itemMax⟩ :: ((ss jStar).proc q).state.buf
-    have hall_in_bufStar : ∀ i : Fin (m + 1), (lookupSlot i.1 bufStar).isSome := by
+    let itemMax := (mkRunLog xs K)[iMax.val]'(by omega)
+    let bufStar : List (SlotEntry P V) := ⟨iMax.val, itemMax⟩ :: ((ss jStar).proc q).state.buf
+    have hall_in_bufStar : ∀ i : Fin (m + 1), (lookupSlot i.val bufStar).isSome := by
       intro i
       have hij_le : jFn i ≤ jStar := hiMax i (Finset.mem_univ i)
       by_cases hlt : jFn i < jStar
       · have htr_i := he (jFn i)
         rw [hjFn i] at htr_i
         rcases htr_i with ⟨_, hstep_i⟩
-        have hin_next : ⟨i.1, (mkRunLog xs K)[i.1]'(by omega)⟩ ∈
+        have hin_next : ⟨i.val, (mkRunLog xs K)[i.val]'(by omega)⟩ ∈
             ((ss (jFn i + 1)).proc q).state.buf := by
           rw [hstep_i]
           simp [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]
-        have hin_jStar : ⟨i.1, (mkRunLog xs K)[i.1]'(by omega)⟩ ∈
+        have hin_jStar : ⟨i.val, (mkRunLog xs K)[i.val]'(by omega)⟩ ∈
             ((ss jStar).proc q).state.buf :=
           hbuf_mono he (Nat.succ_le_of_lt hlt) q _ hin_next
         exact lookupSlot_isSome_of_mem (List.mem_cons_of_mem _ hin_jStar)

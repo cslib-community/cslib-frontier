@@ -110,15 +110,15 @@ private theorem exists_equiv_compl {α β Q : Type*} [Finite α] {κa : α → Q
     have hA : Nat.card {x : (sᶜ : Set α) // κa x = q} = (A \ s).ncard := by
       rw [← Nat.card_coe_set_eq]
       exact Nat.card_congr
-        { toFun := fun x => ⟨x.1.1, x.2, x.1.2⟩
-          invFun := fun x => ⟨⟨x.1, x.2.2⟩, x.2.1⟩
+        { toFun := fun x => ⟨x.val.val, x.property, x.val.property⟩
+          invFun := fun x => ⟨⟨x.val, x.property.2⟩, x.property.1⟩
           left_inv := fun _ => rfl
           right_inv := fun _ => rfl }
     have hB : Nat.card {y : (tᶜ : Set β) // κb y = q} = (B \ t).ncard := by
       rw [← Nat.card_coe_set_eq]
       exact Nat.card_congr
-        { toFun := fun x => ⟨x.1.1, x.2, x.1.2⟩
-          invFun := fun x => ⟨⟨x.1, x.2.2⟩, x.2.1⟩
+        { toFun := fun x => ⟨x.val.val, x.property, x.val.property⟩
+          invFun := fun x => ⟨⟨x.val, x.property.2⟩, x.property.1⟩
           left_inv := fun _ => rfl
           right_inv := fun _ => rfl }
     have hAB : A.ncard = B.ncard := by
@@ -247,7 +247,7 @@ theorem hanfEquiv_of_nbhdIso [Finite M] {k d : ℕ} {a : Fin k → M} {b : Fin k
     obtain ⟨h₂, H₂⟩ := nbhdIso_iff.1 (hg ⟨c, hc⟩)
     refine (Hh.mono (by omega)).snoc H₂ (fun i => ?_) (fun i => ?_)
     · exact lt_of_not_ge fun h' => hc (mem_ball.2 ⟨i, h'⟩)
-    · exact lt_of_not_ge fun h' => (g ⟨c, hc⟩).2 (mem_ball.2 ⟨i, h'⟩)
+    · exact lt_of_not_ge fun h' => (g ⟨c, hc⟩).property (mem_ball.2 ⟨i, h'⟩)
 
 /-- [Libkin, Corollary 4.10][Libkin2004]: if `(M, a) ⇆_{3d+1} (N, b)`, then some bijection
 `f : M ≃ N` gives `(M, a c) ⇆_d (N, b (f c))` for every `c`. -/

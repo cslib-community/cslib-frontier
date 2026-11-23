@@ -102,7 +102,7 @@ theorem card_majTree_ne_le {Ω : Type*} [Fintype Ω] (val : Ω → α) (y : α)
       · rw [mem_coe, mem_filter] at hω ⊢
         exact ⟨mem_univ _, hω.2⟩
       · funext k
-        have hk : k = ⟨0, by simp⟩ := Fin.ext (Nat.lt_one_iff.1 (k.2.trans_eq (pow_zero 3)))
+        have hk : k = ⟨0, by simp⟩ := Fin.ext (Nat.lt_one_iff.1 (k.isLt.trans_eq (pow_zero 3)))
         rw [hk]
     rw [this]
     simpa using hρ

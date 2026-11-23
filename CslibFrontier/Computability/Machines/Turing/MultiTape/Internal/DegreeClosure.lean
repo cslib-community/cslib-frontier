@@ -85,8 +85,8 @@ theorem ite {encC : Bool ↪ List Bool} {c : α → Bool} {f g : α → β} {dc 
     if h : c x = true then u ⟨x, h⟩ else v ⟨x, by simpa using h⟩
   obtain ⟨k, km, Qm, hmfin, tm, htm⟩ := Internal.conditional hmc
     (tf := ext tf tg) (sf := ext sf sg) (tg := ext tf tg) (sg := ext sf sg)
-    (fun x => (hmf x).mono (by simp [ext, x.2]) (by simp [ext, x.2]))
-    (fun x => (hmg x).mono (by simp [ext, x.2]) (by simp [ext, x.2]))
+    (fun x => (hmf x).mono (by simp [ext, x.property]) (by simp [ext, x.property]))
+    (fun x => (hmg x).mono (by simp [ext, x.property]) (by simp [ext, x.property]))
   have hext {u v} {cu du cv dv : ℕ}
       (hu : ∀ x : {x // c x = true}, u x ≤ cu * ((encIn x).length + 1) ^ du)
       (hv : ∀ x : {x // c x = false}, v x ≤ cv * ((encIn x).length + 1) ^ dv) :

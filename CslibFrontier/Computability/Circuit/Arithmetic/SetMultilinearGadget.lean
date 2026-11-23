@@ -118,18 +118,18 @@ variable {s G}
 theorem productDepth_sumOn_le {p : ℕ} (h : ∀ i ∈ s, (G i).productDepth ≤ p) :
     (sumOn s c G).productDepth ≤ p := by
   rw [sumOn, productDepth_add]
-  exact Finset.sup_le fun j _ => h _ (s.equivFin.symm j).2
+  exact Finset.sup_le fun j _ => h _ (s.equivFin.symm j).property
 
 /-- A product gate adds one to the product-depth. -/
 theorem productDepth_prodOn_le {p : ℕ} (h : ∀ i ∈ s, (G i).productDepth ≤ p) :
     (prodOn s G).productDepth ≤ p + 1 := by
   rw [prodOn, productDepth_mul]
-  exact Nat.add_le_add_right (Finset.sup_le fun j _ => h _ (s.equivFin.symm j).2) 1
+  exact Nat.add_le_add_right (Finset.sup_le fun j _ => h _ (s.equivFin.symm j).property) 1
 
 /-- A sum gate over children set-multilinear on `S` is set-multilinear on `S`. -/
 theorem isSetMultilinear_sumOn {blk : Fin n → Fin d} {S : Finset (Fin d)}
     (h : ∀ i ∈ s, (G i).IsSetMultilinear blk S) : (sumOn s c G).IsSetMultilinear blk S :=
-  .add _ _ S fun j => h _ (s.equivFin.symm j).2
+  .add _ _ S fun j => h _ (s.equivFin.symm j).property
 
 /-- A product gate over children set-multilinear on pairwise disjoint sets `T i` is
 set-multilinear on their union. -/
@@ -139,9 +139,9 @@ theorem isSetMultilinear_prodOn {blk : Fin n → Fin d}
     (prodOn s G).IsSetMultilinear blk (s.biUnion T) := by
   have hmul := IsSetMultilinear.mul (blk := blk) (fun j => G (s.equivFin.symm j))
     (fun j => T (s.equivFin.symm j))
-    (fun j k hjk => hT (s.equivFin.symm j).2 (s.equivFin.symm k).2
+    (fun j k hjk => hT (s.equivFin.symm j).property (s.equivFin.symm k).property
       fun h => hjk (s.equivFin.symm.injective (Subtype.ext h)))
-    fun j => h _ (s.equivFin.symm j).2
+    fun j => h _ (s.equivFin.symm j).property
   rw [prodOn]
   convert hmul using 1
   ext x
@@ -150,7 +150,7 @@ theorem isSetMultilinear_prodOn {blk : Fin n → Fin d}
   · rintro ⟨i, hi, hx⟩
     exact ⟨s.equivFin ⟨i, hi⟩, by simpa using hx⟩
   · rintro ⟨j, hx⟩
-    exact ⟨_, (s.equivFin.symm j).2, hx⟩
+    exact ⟨_, (s.equivFin.symm j).property, hx⟩
 
 end Gates
 
@@ -223,14 +223,14 @@ theorem isSetMultilinear_mulGadget {blk : Fin n → Fin d}
       Set.PairwiseDisjoint
         (({r | Quotient.mk (SameCycle.setoid π) r = q} : Finset P.parts) : Set P.parts)
         Subtype.val :=
-    fun r _ r' _ hne => P.disjoint r.2 r'.2 (Subtype.coe_ne_coe.2 hne)
+    fun r _ r' _ hne => P.disjoint r.property r'.property (Subtype.coe_ne_coe.2 hne)
   have hU : (univ : Finset (Quotient (SameCycle.setoid π))).biUnion U = S := by
     refine Eq.trans ?_ P.biUnion_parts
     ext x
     simp only [U, mem_biUnion, mem_filter, mem_univ, true_and, id]
     constructor
     · rintro ⟨q, r, -, hx⟩
-      exact ⟨r, r.2, hx⟩
+      exact ⟨r, r.property, hx⟩
     · rintro ⟨t, ht, hx⟩
       exact ⟨Quotient.mk _ ⟨t, ht⟩, ⟨t, ht⟩, rfl, hx⟩
   have hdisj : ((univ : Finset (Quotient (SameCycle.setoid π))) : Set _).PairwiseDisjoint U := by
@@ -240,7 +240,7 @@ theorem isSetMultilinear_mulGadget {blk : Fin n → Fin d}
     have hne : r ≠ r' := by
       rintro rfl
       exact hqq' ((mem_filter.1 hr).2.symm.trans (mem_filter.1 hr').2)
-    exact P.disjoint r.2 r'.2 (Subtype.coe_ne_coe.2 hne)
+    exact P.disjoint r.property r'.property (Subtype.coe_ne_coe.2 hne)
   refine (congrArg (IsSetMultilinear blk _) hU).mp ?_
   exact isSetMultilinear_prodOn hdisj fun q _ => isSetMultilinear_sumOn _ fun j _ =>
     isSetMultilinear_prodOn (hrows q) fun r _ => hg j r
@@ -311,7 +311,7 @@ theorem nodeCount_mulGadget_le {S : Finset (Fin d)} {a : ι → K}
           #{r | Quotient.mk _ r = q} * w j + 1 := by
       rw [nodeCount_prodOn]
       refine Nat.add_le_add_right
-        ((sum_le_sum fun (r : P.parts) _ => hg j r (P.le r.2)).trans ?_) 1
+        ((sum_le_sum fun (r : P.parts) _ => hg j r (P.le r.property)).trans ?_) 1
       rw [sum_const, smul_eq_mul]
     have hL4 (q : Quotient (SameCycle.setoid π)) :
         (sumOn Yᶜ (fun j => colScale a j ^ #{r | Quotient.mk _ r = q}) fun j =>

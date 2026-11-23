@@ -107,39 +107,39 @@ noncomputable def bidegreeEquiv [Fintype σ] [DecidableEq σ] (a b : ℕ) :
       (Finset.univ.filter s).finsuppAntidiag a ×
         (Finset.univ.filter (¬ s ·)).finsuppAntidiag b where
   toFun d :=
-    (⟨d.1.filter s, Finset.mem_finsuppAntidiag.2
+    (⟨d.val.filter s, Finset.mem_finsuppAntidiag.2
         ⟨(Finset.sum_congr rfl fun i hi => by
             simp [(Finset.mem_filter.1 hi).2]).trans
-          (congrArg Prod.fst ((weight_bidegWeight s d.1).symm.trans d.2)),
+          (congrArg Prod.fst ((weight_bidegWeight s d.val).symm.trans d.property)),
         fun i hi => Finset.mem_filter.2 ⟨Finset.mem_univ _, (Finset.mem_filter.1 hi).2⟩⟩⟩,
-      ⟨d.1.filter (¬ s ·), Finset.mem_finsuppAntidiag.2
+      ⟨d.val.filter (¬ s ·), Finset.mem_finsuppAntidiag.2
         ⟨(Finset.sum_congr rfl fun i hi => by
             simp [(Finset.mem_filter.1 hi).2]).trans
-          (congrArg Prod.snd ((weight_bidegWeight s d.1).symm.trans d.2)),
+          (congrArg Prod.snd ((weight_bidegWeight s d.val).symm.trans d.property)),
         fun i hi => Finset.mem_filter.2 ⟨Finset.mem_univ _, (Finset.mem_filter.1 hi).2⟩⟩⟩)
-  invFun := fun (f, g) => ⟨f.1 + g.1, by
-    have hf := Finset.mem_finsuppAntidiag.1 f.2
-    have hg := Finset.mem_finsuppAntidiag.1 g.2
-    have hf0 : ∀ i, ¬ s i → f.1 i = 0 := fun i hi => Classical.byContradiction fun h =>
+  invFun := fun (f, g) => ⟨f.val + g.val, by
+    have hf := Finset.mem_finsuppAntidiag.1 f.property
+    have hg := Finset.mem_finsuppAntidiag.1 g.property
+    have hf0 : ∀ i, ¬ s i → f.val i = 0 := fun i hi => Classical.byContradiction fun h =>
       hi (Finset.mem_filter.1 (hf.2 (Finsupp.mem_support_iff.2 h))).2
-    have hg0 : ∀ i, s i → g.1 i = 0 := fun i hi => Classical.byContradiction fun h =>
+    have hg0 : ∀ i, s i → g.val i = 0 := fun i hi => Classical.byContradiction fun h =>
       (Finset.mem_filter.1 (hg.2 (Finsupp.mem_support_iff.2 h))).2 hi
     rw [weight_bidegWeight]
     simp only [Finsupp.add_apply, Finset.sum_add_distrib]
     rw [hf.1, hg.1, Finset.sum_eq_zero fun i hi => hg0 i (Finset.mem_filter.1 hi).2,
       Finset.sum_eq_zero fun i hi => hf0 i (Finset.mem_filter.1 hi).2, add_zero, zero_add]⟩
-  left_inv d := Subtype.ext (Finsupp.filter_add_filter_not d.1 s)
+  left_inv d := Subtype.ext (Finsupp.filter_add_filter_not d.val s)
   right_inv := fun (f, g) => by
-    have hf := (Finset.mem_finsuppAntidiag.1 f.2).2
-    have hg := (Finset.mem_finsuppAntidiag.1 g.2).2
-    have hf' : f.1.filter s = f.1 := (Finsupp.filter_eq_self_iff _ _).2 fun i hi =>
+    have hf := (Finset.mem_finsuppAntidiag.1 f.property).2
+    have hg := (Finset.mem_finsuppAntidiag.1 g.property).2
+    have hf' : f.val.filter s = f.val := (Finsupp.filter_eq_self_iff _ _).2 fun i hi =>
       (Finset.mem_filter.1 (hf (Finsupp.mem_support_iff.2 hi))).2
-    have hg' : g.1.filter (¬ s ·) = g.1 := (Finsupp.filter_eq_self_iff _ _).2 fun i hi =>
+    have hg' : g.val.filter (¬ s ·) = g.val := (Finsupp.filter_eq_self_iff _ _).2 fun i hi =>
       (Finset.mem_filter.1 (hg (Finsupp.mem_support_iff.2 hi))).2
-    have hf0 : f.1.filter (¬ s ·) = 0 := (Finsupp.filter_eq_zero_iff _ _).2 fun i hi =>
+    have hf0 : f.val.filter (¬ s ·) = 0 := (Finsupp.filter_eq_zero_iff _ _).2 fun i hi =>
       Classical.byContradiction fun h =>
         hi (Finset.mem_filter.1 (hf (Finsupp.mem_support_iff.2 h))).2
-    have hg0 : g.1.filter s = 0 := (Finsupp.filter_eq_zero_iff _ _).2 fun i hi =>
+    have hg0 : g.val.filter s = 0 := (Finsupp.filter_eq_zero_iff _ _).2 fun i hi =>
       Classical.byContradiction fun h =>
         (Finset.mem_filter.1 (hg (Finsupp.mem_support_iff.2 h))).2 hi
     refine Prod.ext (Subtype.ext ?_) (Subtype.ext ?_) <;>

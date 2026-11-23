@@ -384,7 +384,7 @@ theorem eq_zero_of_linearizedEval_eq_zero {n : ℕ} [NeZero n] {b : ZMod n → F
     refine eq_zero_of_natDegree_lt_card_of_eval_eq_zero p (f := ((↑) : S → F))
       Subtype.val_injective (fun x => ?_) (by simpa using hdeg)
     rw [heval]
-    exact h x x.2
+    exact h x x.property
   funext j
   have := congrArg (fun q => q.coeff (2 ^ j.val)) hp0
   simp only [hp, finsetSum_coeff, coeff_C_mul_X_pow, coeff_zero] at this
@@ -424,12 +424,12 @@ theorem exists_subfield_card_le [Finite F] {n k : ℕ} (hn : finrank (ZMod 2) F 
         rw [zero_mul] at this
         exact hy₀ (pow_eq_zero_iff (pow_ne_zero _ two_ne_zero) |>.1 this)
       let f : W → K := fun y => ⟨y / y₀, (hmem _).2 (by
-        rw [div_pow, h y y.2, h y₀ hy₀W, mul_div_mul_left _ _ hc])⟩
+        rw [div_pow, h y y.property, h y₀ hy₀W, mul_div_mul_left _ _ hc])⟩
       exact Nat.card_le_card_of_injective f fun y y' hyy' =>
         Subtype.ext ((div_left_inj₀ hy₀).1 (congrArg Subtype.val hyy'))
     · push Not at hW
       have : Nat.card W = 1 := Nat.card_eq_one_iff_unique.2
-        ⟨⟨fun y y' => Subtype.ext (by rw [hW y y.2, hW y' y'.2])⟩, ⟨0⟩⟩
+        ⟨⟨fun y y' => Subtype.ext (by rw [hW y y.property, hW y' y'.property])⟩, ⟨0⟩⟩
       rw [this]
       exact Nat.one_le_iff_ne_zero.2 Nat.card_pos.ne'
 

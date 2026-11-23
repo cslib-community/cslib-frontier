@@ -64,7 +64,7 @@ variable (K : Type*) [Semiring K] [PartialOrder K]
 [FioriniMassarPokuttaTiwaryDeWolf2015, Section 3.3]. -/
 @[expose] def stabPolytope {V : Type*} [DecidableEq V] (G : SimpleGraph V) : Set (V → K) :=
   convexHull K (Set.range fun S : {S : Finset V // G.IsIndepSet (S : Set V)} =>
-    stabVertex K S.1)
+    stabVertex K S.val)
 
 end Defs
 
@@ -83,7 +83,7 @@ structure CorrPairIdx (n : ℕ) where
 private def corrPairIdxEquivSubtype (n : ℕ) :
     CorrPairIdx n ≃ {p : Fin n × Fin n // p.1 < p.2} where
   toFun e := ⟨(e.fst, e.snd), e.lt⟩
-  invFun p := ⟨p.1.1, p.1.2, p.2⟩
+  invFun p := ⟨p.val.1, p.val.2, p.property⟩
   left_inv _ := rfl
   right_inv _ := rfl
 
@@ -115,7 +115,7 @@ private def corrGadgetVEquivSum (n : ℕ) :
 private def corrPairSuccEquiv (n : ℕ) : CorrPairIdx (n + 1) ≃ CorrPairIdx n ⊕ Fin n where
   toFun e :=
     if h : e.snd = Fin.last n then
-      Sum.inr ⟨e.fst.1, by have := e.lt; fin_index⟩
+      Sum.inr ⟨e.fst.val, by have := e.lt; fin_index⟩
     else
       Sum.inl ⟨e.fst.castPred (Fin.ne_last_of_lt (lt_of_lt_of_le e.lt (Fin.le_last _))),
         e.snd.castPred h, by have := e.lt; fin_index⟩
@@ -363,21 +363,21 @@ theorem extensionComplexity_corrPolytope_le_corrGadgetGraph
     simp only [dotProduct, c, stabVertex, one_mul, Finset.sum_boole, Finset.filter_mem_eq_inter,
       Finset.univ_inter]
   have hvalid : ∀ S : {S : Finset (CorrGadgetV n) // (corrGadgetGraph n).IsIndepSet (S : Set _)},
-      c ⬝ᵥ stabVertex K S.1 ≤ δ := fun S => by
+      c ⬝ᵥ stabVertex K S.val ≤ δ := fun S => by
     rw [hdot]
     dsimp only [δ]
-    exact_mod_cast card_le_of_isIndepSet_corrGadgetGraph S.2
+    exact_mod_cast card_le_of_isIndepSet_corrGadgetGraph S.property
   have htight_iff :
       ∀ S : {S : Finset (CorrGadgetV n) // (corrGadgetGraph n).IsIndepSet (S : Set _)},
-      c ⬝ᵥ stabVertex K S.1 = δ ↔ S.1.card = n + Fintype.card (CorrPairIdx n) := fun S => by
+      c ⬝ᵥ stabVertex K S.val = δ ↔ S.val.card = n + Fintype.card (CorrPairIdx n) := fun S => by
     rw [hdot]
     exact Nat.cast_inj
   let face := stabPolytope K (corrGadgetGraph n) ∩ {x | c ⬝ᵥ x = δ}
   have him : stabToCorrLinear K n '' face = corrPolytope K (Fin n) := by
     have hface : face =
         convexHull K ((fun S : {S : Finset (CorrGadgetV n) //
-            (corrGadgetGraph n).IsIndepSet (S : Set _)} => stabVertex K S.1) ''
-          {S | c ⬝ᵥ stabVertex K S.1 = δ}) := by
+            (corrGadgetGraph n).IsIndepSet (S : Set _)} => stabVertex K S.val) ''
+          {S | c ⬝ᵥ stabVertex K S.val = δ}) := by
       simpa only [face, stabPolytope] using convexHull_inter_dotProduct_eq hvalid
     rw [hface, LinearMap.image_convexHull, corrPolytope]
     congr 1
