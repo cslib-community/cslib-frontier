@@ -16,7 +16,7 @@ public import Mathlib
 
 public section
 
-namespace Cslib.Circuits.Arithmetic.Separation.Tower
+namespace Cslib.SLTower
 
 open Polynomial
 
@@ -151,4 +151,4 @@ theorem ev_t (m : ℕ) : ev m (t (m + 1)) = 1 := by rw [t, map_add, map_one, ev_
 theorem s_eq (m : ℕ) : s m = 1 + t m := by
   rw [t, ← add_assoc, add_self, zero_add]
 
-end Cslib.Circuits.Arithmetic.Separation.Tower
+end Cslib.SLTower

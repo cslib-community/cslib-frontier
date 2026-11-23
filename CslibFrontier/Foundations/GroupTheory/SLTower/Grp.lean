@@ -8,8 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tower.Ring
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tower.UT
+public import CslibFrontier.Foundations.GroupTheory.SLTower.Ring
+public import CslibFrontier.Foundations.GroupTheory.SLTower.UT
 
 /-!
 # The groups SL_h(F₂[s]/(s^{n+1})) and their h unitriangular subgroups
@@ -17,7 +17,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tower.UT
 
 public section
 
-namespace Cslib.Circuits.Arithmetic.Separation.Tower
+namespace Cslib.SLTower
 
 open Matrix Finset
 
@@ -37,14 +37,16 @@ variable {h n}
 noncomputable def wt (i a : Fin h) : (R (n + 1))ˣ := if a < i then (tu n)⁻¹ else 1
 
 /-- Conjugation by the i-th power of the shift. -/
-noncomputable def shMat (i : Fin h) (A : Matrix (Fin h) (Fin h) (ZMod 2)) : Matrix (Fin h) (Fin h) (R (n + 1)) :=
+noncomputable def shMat (i : Fin h) (A : Matrix (Fin h) (Fin h) (ZMod 2)) : Matrix (Fin h) (Fin h)
+    (R (n + 1)) :=
   diagonal (fun a => ((wt i a : (R (n + 1))ˣ) : R (n + 1))) *
     ((A.map (cst (n + 1))).submatrix (Equiv.subRight i) (Equiv.subRight i) *
       diagonal (fun a => (((wt i a)⁻¹ : (R (n + 1))ˣ) : R (n + 1))))
 
 theorem shMat_apply (i : Fin h) (A : Matrix (Fin h) (Fin h) (ZMod 2)) (a b : Fin h) :
     (shMat i A : Matrix (Fin h) (Fin h) (R (n + 1))) a b =
-      (wt i a : (R (n + 1))ˣ) * (cst (n + 1) (A (a - i) (b - i)) * ((wt i b)⁻¹ : (R (n + 1))ˣ)) := by
+      (wt i a : (R (n + 1))ˣ) * (cst (n + 1) (A (a - i) (b - i)) * ((wt i b)⁻¹ : (R (n + 1))ˣ)) :=
+          by
   rw [shMat, Matrix.diagonal_mul, Matrix.mul_diagonal]
   rfl
 
@@ -74,13 +76,14 @@ theorem det_shMat (i : Fin h) (A : Matrix (Fin h) (Fin h) (ZMod 2)) :
     (shMat i A : Matrix (Fin h) (Fin h) (R (n + 1))).det = cst (n + 1) A.det := by
   rw [shMat, Matrix.det_mul, Matrix.det_mul, Matrix.det_diagonal, Matrix.det_diagonal,
     Matrix.det_submatrix_equiv_self, ← RingHom.mapMatrix_apply, ← RingHom.map_det]
-  have : (∏ a, ((wt i a : (R (n + 1))ˣ) : R (n + 1))) * ∏ a, (((wt i a)⁻¹ : (R (n + 1))ˣ) : R (n + 1)) = 1 := by
+  have : (∏ a, ((wt i a : (R (n + 1))ˣ) : R (n + 1))) * ∏ a, (((wt i a)⁻¹ : (R (n + 1))ˣ) : R (n +
+      1)) = 1 := by
     rw [← Finset.prod_mul_distrib]
     exact Finset.prod_eq_one fun a _ => Units.mul_inv _
   linear_combination (cst (n + 1) A.det) * this
 
 /-- The embedding of SL_h(F₂) shifted by i. -/
-noncomputable def th0 (i : Fin h) : SL2 h →* G h n where
+@[expose] noncomputable def th0 (i : Fin h) : SL2 h →* G h n where
   toFun A := ⟨shMat i A.1, by rw [det_shMat, A.2, map_one]⟩
   map_one' := Subtype.ext (shMat_one i)
   map_mul' A B := Subtype.ext (shMat_mul i A.1 B.1)
@@ -109,7 +112,8 @@ theorem ev_wt_inv (i a : Fin h) : ev n (((wt i a)⁻¹ : (R (n + 1))ˣ) : R (n +
   rw [map_mul, ev_wt, one_mul, map_one] at h2
   exact h2
 
-theorem evG_th0 (i : Fin h) (A : SL2 h) (a b : Fin h) : (evG (th0 i A : G h n)).1 a b = A.1 (a - i) (b - i) := by
+theorem evG_th0 (i : Fin h) (A : SL2 h) (a b : Fin h) : (evG (th0 i A : G h n)).1 a b = A.1 (a - i)
+    (b - i) := by
   rw [evG_apply, th0_val, shMat_apply, map_mul, map_mul, ev_wt, ev_wt_inv, ev_cst, one_mul, mul_one]
 
 theorem evG_th0_injective (i : Fin h) : Function.Injective fun A : SL2 h => evG (th0 i A : G h n) := by
@@ -122,7 +126,7 @@ theorem evG_th0_injective (i : Fin h) : Function.Injective fun A : SL2 h => evG 
   exact this
 
 /-- The h unitriangular subgroups. -/
-noncomputable def th (i : Fin h) : U h →* G h n := (th0 i).comp (U h).subtype
+@[expose] noncomputable def th (i : Fin h) : U h →* G h n := (th0 i).comp (U h).subtype
 
 theorem th_injective (i : Fin h) : Function.Injective (th i : U h →* G h n) := by
   intro A B e
@@ -155,7 +159,8 @@ noncomputable def gen (h2 : 2 ≤ h) (k : Fin h) : G h n :=
 theorem gen_val (h2 : 2 ≤ h) (k : Fin h) : (gen h2 k : G h n).1 = transvection (k - 1) k (tt n k) := by rfl
 
 theorem gen_mul_self (h2 : 2 ≤ h) (k : Fin h) : (gen h2 k : G h n) * gen h2 k = 1 := by
-  refine Subtype.ext ((transvection_mul_transvection_same _ _ (sub_one_ne h2 k) (tt n k) (tt n k)).trans ?_)
+  refine Subtype.ext ((transvection_mul_transvection_same _ _ (sub_one_ne h2 k) (tt n k) (tt n
+      k)).trans ?_)
   rw [add_self, transvection_zero]
   rfl
 
@@ -211,7 +216,8 @@ theorem wt_sub_one (h2 : 2 ≤ h) {i k : Fin h} (hk : k ≠ i) :
       have h2' := Fin.lt_def.1 hlt
       have := i.2
       omega
-    rw [wt, wt, ite_eq_right hl, ite_eq_left hi0, tt, ite_eq_left rfl, inv_inv, Units.val_one, one_mul, tu_val]
+    rw [wt, wt, ite_eq_right hl, ite_eq_left hi0, tt, ite_eq_left rfl, inv_inv, Units.val_one,
+        one_mul, tu_val]
   · have h1 : (k - 1).1 = k.1 - 1 := by
       have hk0 : 0 < k.1 := Nat.pos_of_ne_zero fun e => h0 (Fin.ext e)
       have h3 : (1 : Fin h) ≤ k := by
@@ -252,7 +258,8 @@ theorem th_x (h2 : 2 ≤ h) (i : Fin h) (l : Fin (h - 1)) : (th i (x h l) : G h 
     by_cases h1 : lo l = a - i ∧ hi l = b - i
     · have ha : lo l + i = a := by rw [h1.1, sub_add_cancel]
       have hb : sh i l = b := by rw [sh, h1.2, sub_add_cancel]
-      rw [h1.1, h1.2, Matrix.single_apply_same, map_one, one_mul, sub_add_cancel, hb, Matrix.single_apply_same]
+      rw [h1.1, h1.2, Matrix.single_apply_same, map_one, one_mul, sub_add_cancel, hb,
+          Matrix.single_apply_same]
       have := wt_sub_one (n := n) h2 (sh_ne i l)
       rw [sh_sub_one h2, ha, hb] at this
       exact this
@@ -262,4 +269,4 @@ theorem th_x (h2 : 2 ≤ h) (i : Fin h) (l : Fin (h - 1)) : (th i (x h l) : G h 
       rw [Matrix.single_apply, Matrix.single_apply, ite_eq_right h1, ite_eq_right h3]
       simp
 
-end Cslib.Circuits.Arithmetic.Separation.Tower
+end Cslib.SLTower

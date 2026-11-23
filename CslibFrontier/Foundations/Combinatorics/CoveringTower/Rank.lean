@@ -16,7 +16,7 @@ public import Mathlib
 
 public section
 
-namespace Cslib.Circuits.Arithmetic.Separation.Covering
+namespace Cslib.CoveringTower
 
 open Finset
 
@@ -100,4 +100,4 @@ theorem exists_rk (hidx : Function.Injective idx) (F : Finset U) (k : κ) {w : �
   obtain ⟨h1, h2⟩ := mem_filter.1 hu
   exact ⟨u, h1, h2, rfl⟩
 
-end Cslib.Circuits.Arithmetic.Separation.Covering
+end Cslib.CoveringTower

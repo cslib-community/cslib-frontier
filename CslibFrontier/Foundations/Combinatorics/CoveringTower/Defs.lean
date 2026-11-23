@@ -20,7 +20,7 @@ structure `Fl`, `Nr`), coverings `X j → X (j + 1)` of degree `D`, and hosts.
 
 public section
 
-namespace Cslib.Circuits.Arithmetic.Separation.Covering
+namespace Cslib.CoveringTower
 
 open Finset
 
@@ -117,4 +117,4 @@ structure Routes {h b D J r : ℕ} (T : Tower h b D J r) (m Uu : ℕ) where
   len : ∀ c c', (rt c c').length ≤ m
   use : ∀ e : T.Ed 0, ∑ c, ∑ c', (rt c c').count e ≤ Uu
 
-end Cslib.Circuits.Arithmetic.Separation.Covering
+end Cslib.CoveringTower

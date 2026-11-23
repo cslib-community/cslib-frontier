@@ -16,7 +16,7 @@ public import Mathlib
 
 public section
 
-namespace Cslib.Circuits.Arithmetic.Separation.Tower
+namespace Cslib.SLTower
 
 open Matrix Finset
 
@@ -88,7 +88,7 @@ theorem lo_lt_hi {h : ℕ} (j : Fin (h - 1)) : lo j < hi j := by
 theorem lo_ne_hi {h : ℕ} (j : Fin (h - 1)) : lo j ≠ hi j := (lo_lt_hi j).ne
 
 /-- The simple root elements 1 + E_{j,j+1}. -/
-def x (h : ℕ) (j : Fin (h - 1)) : U h :=
+@[expose] def x (h : ℕ) (j : Fin (h - 1)) : U h :=
   ⟨⟨Matrix.transvection (lo j) (hi j) 1, Matrix.det_transvection_of_ne _ _ (lo_ne_hi j) 1⟩, by
     intro a b
     refine ⟨fun hab => ?_, ?_⟩
@@ -152,4 +152,4 @@ theorem card_pairs (h : ℕ) : Fintype.card {p : Fin h × Fin h // p.1 < p.2} = 
 theorem card_U (h : ℕ) : Fintype.card (U h) = 2 ^ (h * (h - 1) / 2) := by
   rw [Fintype.card_congr (equivU h), Fintype.card_fun, ZMod.card, card_pairs]
 
-end Cslib.Circuits.Arithmetic.Separation.Tower
+end Cslib.SLTower
