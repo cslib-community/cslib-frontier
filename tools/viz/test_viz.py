@@ -285,6 +285,56 @@ class PageData(unittest.TestCase):
         self.assertNotIn("</", pages._json({"s": "</script><b>"}))
 
 
+class PullRequests(unittest.TestCase):
+    def setUp(self):
+        info = lambda code: h.BlobInfo(code + 1, code, (), {})
+        self.H = type("FakeHistory", (), {})()
+        self.H.blobs = {"a": info(10), "b": info(30), "c": info(4)}
+        t0 = 1795000000
+        self.t0 = t0
+        self.H.commits = [
+            h.Commit("1" * 40, t0 + 100, "x", "feat(Crypto): add A (#5)",
+                     [("CslibFrontier/Crypto/Primitives/A.lean", "a")]),
+            h.Commit("2" * 40, t0 + 200, "x", "refactor: grow A, add B (#6)",
+                     [("CslibFrontier/Crypto/Primitives/A.lean", "b"),
+                      ("CslibFrontier/Logics/B.lean", "c")]),
+        ]
+
+    def raw(self, n, title, state, created, merged=None, closed=None):
+        iso = lambda t: (__import__("datetime").datetime.fromtimestamp(t, __import__("datetime").timezone.utc)
+                         .isoformat().replace("+00:00", "Z")) if t else None
+        return {"number": n, "title": title, "state": state, "createdAt": iso(created),
+                "mergedAt": iso(merged), "closedAt": iso(closed), "author": {"login": "a"},
+                "additions": 3, "deletions": 1, "changedFiles": 1, "reviews": {"totalCount": 0},
+                "comments": {"totalCount": 0}, "commits": {"totalCount": 1}}
+
+    def test_kinds(self):
+        import prs
+        self.assertEqual([prs.kind(t) for t in ("feat(X): y", "refactor: y", "perf(Z): y",
+                                                 "fix: y", "doc: y", "")], [0, 1, 1, 2, 2, 2])
+
+    def test_records_join_areas_through_the_squash_commit(self):
+        import prs
+        t0 = self.t0
+        raw = [self.raw(5, "feat(Crypto): add A", "MERGED", t0, t0 + 100),
+               self.raw(6, "refactor: grow A, add B", "MERGED", t0 + 50, t0 + 200),
+               self.raw(7, "feat: open", "OPEN", t0 + 150)]
+        recs = {r["n"]: r for r in prs.records(self.H, raw)}
+        self.assertEqual((recs[5]["area"], recs[5]["sub"]), ("Crypto", "Crypto/Primitives"))
+        # #6 changed A by 20 code lines and added B with 4: Crypto is its main area.
+        self.assertEqual(recs[6]["area"], "Crypto")
+        self.assertIsNone(recs[7]["area"])
+        self.assertEqual([recs[n]["kind"] for n in (5, 6, 7)], [0, 1, 0])
+        import numpy as np
+        w = prs.wip(list(recs.values()), np.array([t0 + 60, t0 + 160, t0 + 300]), t0 + 300)
+        self.assertEqual(list(w), [2, 2, 1])
+
+    def test_stream_series_follow_sub_areas(self):
+        import streams
+        dates, rows = streams.series(self.H)
+        self.assertEqual(rows[-1], {"Crypto/Primitives": 30, "Logics": 4})
+
+
 class Squarify(unittest.TestCase):
     def test_areas_are_proportional_and_inside(self):
         vals = [50, 20, 13, 10, 5, 1, 1]
