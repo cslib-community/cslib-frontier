@@ -13,6 +13,7 @@ public import CslibFrontier.Foundations.Data.BitString.Hamming
 import CslibFrontier.Foundations.Data.BitString.DeltaMatroid.Operations
 import Mathlib.Data.Fintype.Sigma
 import CslibFrontier.Foundations.Data.Finset.SymmDiff
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Defects of Boolean occurrence labelings
@@ -182,7 +183,7 @@ theorem card_defects_flipOn_pair_le (h : EdgeInstance F) (f : OccurrenceLabeling
       (defects f ∆ {o.var}) ∆ {p.var} := by
     ext v
     simp only [mem_symmDiff, mem_singleton]
-    tauto
+    lrat_tauto
   rw [flipOn_insert (by simpa using hne), h.defects_flipOn_singleton,
     h.defects_flipOn_singleton, heq, symmDiff_singleton_eq (defects f) o.var,
     ite_eq_left (mem_defects.mpr ho)]

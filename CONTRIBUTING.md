@@ -211,7 +211,7 @@ experiments, advantages, ideal laws, encodings and the theorem's own variables n
 The scan is advisory. It points a reviewer at premises about a constructed object, and a hit is a
 prompt to open the statement, not a debt. On a pull request CI prints, without failing, the hits
 in the changed modules that `scripts/security_premises_baseline.json` does not record and the
-entries there that no longer match; merge groups and pushes print every difference. A baseline
+entries there that no longer match; pushes to `main` print every difference. A baseline
 entry is a note that a hit is known (an algebraic helper whose name and docstring say so, a
 premise that the rule allows but the scan cannot tell apart, or a misformalization tracked under
 #5293). It is not a clearance, and the number of entries does not measure progress.

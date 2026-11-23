@@ -1410,11 +1410,9 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
       rcases hmsgs_wf e he_mem with ⟨p₀, rfl⟩ | ⟨p₀, rfl⟩ | ⟨q₀, slot, item, rfl, hslot_lt, hlog_s⟩
       · simp only [stepLog]
         refine ⟨hnodup, hlog_wf, ?_, ?_, ?_, ?_, ?_⟩
-        · simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]
-          by_cases hlp : p₀ = leader
-          · subst hlp; simp [hnextSlot]
-          · have hlp' : leader ≠ p₀ := Ne.symm hlp
-            simp [hlp', hnextSlot]
+        · rcases eq_or_ne leader p₀ with rfl | hp₀
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] using hnextSlot
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hp₀] using hnextSlot
         · intro p
           have hc := hcons p
           simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
@@ -1454,15 +1452,15 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
           · exact hmsgs_wf e' (Multiset.mem_of_mem_erase he')
           · exact Or.inr (Or.inl ⟨p₀, rfl⟩)
         · intro q entry hmem
-          simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] at hmem
-          by_cases hqp : q = p₀
-          · subst hqp; simp only [↓reduceIte] at hmem; exact hbuf_wf _ entry hmem
-          · simp only [hqp, ↓reduceIte] at hmem; exact hbuf_wf q entry hmem
+          by_cases hq : q = p₀ <;>
+            simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hq,
+              ↓reduceIte] at hmem <;>
+            exact hbuf_wf _ entry hmem
         · intro q
-          simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]
-          by_cases hqp : q = p₀
-          · subst hqp; simpa using hdeliv_wf q
-          · simpa [hqp] using hdeliv_wf q
+          rcases eq_or_ne q p₀ with rfl | hq
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] using hdeliv_wf _
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hq]
+              using hdeliv_wf _
       · let newItem : BcastMsg P V := ⟨p₀, inp p₀⟩
         let log' := log ++ [newItem]
         simp only [stepLog, ↓reduceIte]
@@ -1541,25 +1539,19 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
             · simp [hnextSlot]
             · simp [newItem, hnextSlot]
         · intro q entry hmem
-          simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] at hmem
-          have hmem' : entry ∈ (s.proc q).state.buf := by
-            by_cases hql : q = leader <;> simpa [hql] using hmem
-          obtain ⟨hsl, hit⟩ := hbuf_wf q entry hmem'
-          exact ⟨by simp only [List.length_append, List.length_singleton]; omega,
-            by simpa [List.getElem_append_left hsl] using hit⟩
+          by_cases hq : q = leader <;>
+            simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hq,
+              ↓reduceIte] at hmem <;>
+            (obtain ⟨hsl, hit⟩ := hbuf_wf _ entry hmem;
+             exact ⟨by simp only [List.length_append, List.length_singleton]; omega,
+               by simpa [List.getElem_append_left hsl] using hit⟩)
         · intro q
           obtain ⟨hnd_le, hdel_eq⟩ := hdeliv_wf q
-          have htake_eq : (log ++ [newItem]).take (s.proc q).state.nextDeliver =
-              log.take (s.proc q).state.nextDeliver :=
-            List.take_append_of_le_length hnd_le
-          simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]
-          by_cases hql : q = leader
-          · simp only [hql, ↓reduceIte, List.append_nil, List.length_append,
-              List.length_singleton]
-            rw [← hql]
-            exact ⟨by omega, hdel_eq.trans htake_eq.symm⟩
-          · simp only [hql, ↓reduceIte, List.length_append, List.length_singleton]
-            exact ⟨by omega, hdel_eq.trans htake_eq.symm⟩
+          by_cases hq : q = leader <;>
+            simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, List.append_nil,
+              List.length_append, List.length_singleton, hq, ↓reduceIte] <;>
+            (try subst hq) <;>
+            exact ⟨by omega, hdel_eq.trans (List.take_append_of_le_length hnd_le).symm⟩
       · simp only [stepLog]
         let buf' : List (SlotEntry P V) := ⟨slot, item⟩ :: (s.proc q₀).state.buf
         have hbuf'_wf :
@@ -1572,11 +1564,9 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
         obtain ⟨hres_le, hres_take, _⟩ :=
           drainConsecutive_spec hbuf'_wf (s.proc q₀).state.nextDeliver (buf'.length + 1) hnd_q₀
         refine ⟨hnodup, hlog_wf, ?_, ?_, ?_, ?_, ?_⟩
-        · simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]
-          by_cases hlq : q₀ = leader
-          · subst hlq; simp [hnextSlot]
-          · have hlq' : leader ≠ q₀ := Ne.symm hlq
-            simp [hlq', hnextSlot]
+        · rcases eq_or_ne leader q₀ with rfl | hq₀
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] using hnextSlot
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hq₀] using hnextSlot
         · intro p
           have hc := hcons p
           simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
@@ -1592,17 +1582,19 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
             Multiset.map_zero, add_zero] at he'
           exact hmsgs_wf e' (Multiset.mem_of_mem_erase he')
         · intro q entry hmem
-          simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] at hmem
-          by_cases hqq₀ : q = q₀
-          · subst hqq₀; simp only [↓reduceIte] at hmem; exact hbuf'_wf entry hmem
-          · simp only [hqq₀, ↓reduceIte] at hmem; exact hbuf_wf q entry hmem
+          rcases eq_or_ne q q₀ with rfl | hqq₀
+          · simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
+              ↓reduceIte] at hmem
+            exact hbuf'_wf entry hmem
+          · simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqq₀,
+              ↓reduceIte] at hmem
+            exact hbuf_wf q entry hmem
         · intro q
-          simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]
-          by_cases hqq₀ : q = q₀
-          · subst hqq₀
-            simp only [↓reduceIte]
-            exact ⟨hres_le, by rw [hdel_q₀]; exact hres_take⟩
-          · simp only [hqq₀, ↓reduceIte]
+          rcases eq_or_ne q q₀ with rfl | hqq₀
+          · simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, ↓reduceIte]
+            exact ⟨hres_le, hdel_q₀ ▸ hres_take⟩
+          · simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqq₀,
+              ↓reduceIte]
             exact hdeliv_wf q
   -- Build the run-level log sequence `runLog xs k` along any `0`-admissible execution `(ss, xs)`.
   let mkRunLog (xs : ωSequence (BcastAction P (SeqMsg P V) V)) : ℕ → List (BcastMsg P V) :=
@@ -1613,6 +1605,16 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
     induction k with
     | zero => simpa [mkRunLog, ← hs0] using hinv_start inp
     | succ k ih => exact hinv_step inp ih (he k)
+  have hstepLog_cases : ∀ log act, stepLog log act = log ∨
+      ∃ propItem, act = some ⟨leader, Sum.inr (.propose propItem)⟩ ∧
+        stepLog log act = log ++ [propItem] := by
+    rintro log (_ | ⟨dest, _ | (propItem | _)⟩)
+    · exact Or.inl rfl
+    · exact Or.inl rfl
+    · by_cases hdl : dest = leader
+      · exact Or.inr ⟨propItem, hdl ▸ rfl, by simp [stepLog, hdl]⟩
+      · exact Or.inl (by simp [stepLog, hdl])
+    · exact Or.inl rfl
   have hrunLog_prefix : ∀ xs {k₁ k₂ : ℕ}, k₁ ≤ k₂ → mkRunLog xs k₁ <+: mkRunLog xs k₂ := by
     intro xs k₁ k₂ hle
     obtain ⟨d, rfl⟩ : ∃ d, k₂ = k₁ + d := ⟨k₂ - k₁, by omega⟩
@@ -1621,18 +1623,9 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
     | succ d ih =>
       refine (ih (Nat.le_add_right k₁ d)).trans ?_
       change mkRunLog xs (k₁ + d) <+: stepLog (mkRunLog xs (k₁ + d)) (xs (k₁ + d))
-      cases xs (k₁ + d) with
-      | none => exact List.prefix_refl _
-      | some ev =>
-        rcases ev with ⟨dest, _ | msg⟩
-        · exact List.prefix_refl _
-        · cases msg with
-          | propose it =>
-            simp only [stepLog]
-            split
-            · exact List.prefix_append _ _
-            · exact List.prefix_refl _
-          | ordered _ _ => exact List.prefix_refl _
+      rcases hstepLog_cases (mkRunLog xs (k₁ + d)) (xs (k₁ + d)) with heq | ⟨_, _, heq⟩ <;>
+        rw [heq]
+      exact List.prefix_append _ _
   -- All processes are `BcastProcFair` in any `0`-admissible run!
   have hall_fair : ∀ inp ss xs, π.AdmissibleRun inp 0 ss xs →
       ∀ r : P, TotalOrderBroadcastAlg.BcastProcFair r ss xs := by
@@ -1663,19 +1656,18 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
         rw [hact] at htr
         rcases htr with ⟨_, hstep⟩
         rw [← Nat.add_assoc, hstep]
-        simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]
-        by_cases hqe : q = e.dest
-        · subst hqe
-          simp only [↓reduceIte]
-          cases e.evt with
-          | inl _ => exact hmem_d
-          | inr msg =>
-            cases msg with
-            | propose _ =>
-              by_cases hdl : e.dest = leader <;> simpa [hdl] using hmem_d
-            | ordered sl it =>
-              exact List.mem_cons_of_mem _ hmem_d
-        · simpa [hqe] using hmem_d
+        rcases e with ⟨dest, _ | ( _ | ⟨sl, it⟩)⟩
+        · rcases eq_or_ne q dest with rfl | hqd
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent] using hmem_d
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqd] using hmem_d
+        · rcases eq_or_ne q dest with rfl | hqd
+          · by_cases hdl : q = leader <;>
+              simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hdl] using hmem_d
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqd] using hmem_d
+        · rcases eq_or_ne q dest with rfl | hqe
+          · simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, ↓reduceIte]
+            exact List.mem_cons_of_mem _ hmem_d
+          · simpa [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hqe] using hmem_d
   -- Core slot-delivery helper: if slot `m < (mkRunLog xs K).length` is in `mkRunLog xs K`, then
   -- every process `q` in a `0`-admissible run eventually delivers `(mkRunLog xs K)[m]`.
   have heventually_delivers_slot : ∀ inp ss xs, π.AdmissibleRun inp 0 ss xs →
@@ -1697,54 +1689,26 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
           have hget_eq : (mkRunLog xs (n + 1))[i] = (mkRunLog xs n)[i] := by
             simp only [← htail, List.getElem_append_left hin]
           exact ⟨t, by omega, hget_eq ▸ hmsg⟩
-        · have htr_n := he n
-          cases hact : xs n with
-          | none =>
-            have heq : mkRunLog xs (n + 1) = mkRunLog xs n := by
-              change stepLog (mkRunLog xs n) (xs n) = mkRunLog xs n
-              simp [hact, stepLog]
-            rw [heq] at hi
-            omega
-          | some ev =>
-            rcases ev with ⟨dest, v | msg⟩
-            · have heq : mkRunLog xs (n + 1) = mkRunLog xs n := by
-                change stepLog (mkRunLog xs n) (xs n) = mkRunLog xs n
-                simp [hact, stepLog]
-              rw [heq] at hi
-              omega
-            · cases msg with
-              | ordered _ _ =>
-                have heq : mkRunLog xs (n + 1) = mkRunLog xs n := by
-                  change stepLog (mkRunLog xs n) (xs n) = mkRunLog xs n
-                  simp [hact, stepLog]
-                rw [heq] at hi
-                omega
-              | propose propItem =>
-                by_cases hdl : dest = leader
-                · have hlog_succ : mkRunLog xs (n + 1) = mkRunLog xs n ++ [propItem] := by
-                    change stepLog (mkRunLog xs n) (xs n) = mkRunLog xs n ++ [propItem]
-                    simp [hact, stepLog, hdl]
-                  have hi_eq : i = (mkRunLog xs n).length := by
-                    rw [hlog_succ, List.length_append, List.length_singleton] at hi
-                    omega
-                  subst hi_eq
-                  have hget_item : (mkRunLog xs (n + 1))[(mkRunLog xs n).length] = propItem := by
-                    simp [hlog_succ]
-                  rw [hact] at htr_n
-                  rcases htr_n with ⟨_, hstep_n⟩
-                  have hns : ((ss n).proc leader).state.nextSlot = (mkRunLog xs n).length :=
-                    (hrunLog_inv inp ss xs hs0 he n).2.2.1
-                  refine ⟨n, Nat.lt_succ_self n, ?_⟩
-                  rw [hget_item, hstep_n, hdl]
-                  simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
-                    ↓reduceIte, hns, Multiset.mem_add, Multiset.mem_map]
-                  exact Or.inr ⟨⟨q, .ordered (mkRunLog xs n).length propItem⟩,
-                    ⟨q, Finset.mem_def.mp (Finset.mem_univ q), rfl⟩, rfl⟩
-                · have heq : mkRunLog xs (n + 1) = mkRunLog xs n := by
-                    change stepLog (mkRunLog xs n) (xs n) = mkRunLog xs n
-                    simp [hact, stepLog, hdl]
-                  rw [heq] at hi
-                  omega
+        · rcases hstepLog_cases (mkRunLog xs n) (xs n) with heq | ⟨propItem, hact, hlog_succ⟩
+          · change i < (stepLog (mkRunLog xs n) (xs n)).length at hi
+            rw [heq] at hi; omega
+          · have hlog_succ' : mkRunLog xs (n + 1) = mkRunLog xs n ++ [propItem] := hlog_succ
+            have hi_eq : i = (mkRunLog xs n).length := by
+              rw [hlog_succ', List.length_append, List.length_singleton] at hi; omega
+            subst hi_eq
+            have hget_item : (mkRunLog xs (n + 1))[(mkRunLog xs n).length] = propItem := by
+              simp [hlog_succ']
+            have htr_n := he n
+            rw [hact] at htr_n
+            rcases htr_n with ⟨_, hstep_n⟩
+            have hns : ((ss n).proc leader).state.nextSlot = (mkRunLog xs n).length :=
+              (hrunLog_inv inp ss xs hs0 he n).2.2.1
+            refine ⟨n, Nat.lt_succ_self n, ?_⟩
+            rw [hget_item, hstep_n]
+            simp only [π, zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
+              ↓reduceIte, hns, Multiset.mem_add, Multiset.mem_map]
+            exact Or.inr ⟨⟨q, .ordered (mkRunLog xs n).length propItem⟩,
+              ⟨q, Finset.mem_def.mp (Finset.mem_univ q), rfl⟩, rfl⟩
     intro K m hm q
     have hfair_q := hall_fair inp ss xs ⟨hs0, he, hfair_run, hnum⟩ q
     have hex_recv : ∀ i : Fin (m + 1),
@@ -1893,17 +1857,8 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
     have hpref_q : ((ss k₂).proc q).delivered <+: mkRunLog xs K := by
       rw [(hrunLog_inv inp ss xs hs0 he k₂).2.2.2.2.2.2 q |>.2]
       exact (List.take_prefix _ _).trans (hrunLog_prefix xs (Nat.le_max_right k₁ k₂))
-    obtain ⟨tp, htp⟩ := hpref_p
-    obtain ⟨tq, htq⟩ := hpref_q
-    have hp₁ : (mkRunLog xs K).idxOf m₁ = ((ss k₁).proc p).delivered.idxOf m₁ := by
-      rw [← htp, List.idxOf_append_of_mem hm₁p]
-    have hp₂ : (mkRunLog xs K).idxOf m₂ = ((ss k₁).proc p).delivered.idxOf m₂ := by
-      rw [← htp, List.idxOf_append_of_mem hm₂p]
-    have hq₁ : (mkRunLog xs K).idxOf m₁ = ((ss k₂).proc q).delivered.idxOf m₁ := by
-      rw [← htq, List.idxOf_append_of_mem hm₁q]
-    have hq₂ : (mkRunLog xs K).idxOf m₂ = ((ss k₂).proc q).delivered.idxOf m₂ := by
-      rw [← htq, List.idxOf_append_of_mem hm₂q]
-    rw [← hp₁, ← hp₂, ← hq₁, ← hq₂]
+    rw [hpref_p.idxOf_eq_of_mem hm₁p, hpref_p.idxOf_eq_of_mem hm₂p,
+      hpref_q.idxOf_eq_of_mem hm₁q, hpref_q.idxOf_eq_of_mem hm₂q]
 
 /-- Exact `t = 0` crash-fault solvability characterization step for one-shot
 `TotalOrderBroadcastAlg` (toward #7297): on any finite process set `P` with `2 ≤ Fintype.card P` and
@@ -2293,10 +2248,10 @@ theorem totalOrderBroadcast_of_consensusSlotExec {P Msg : Type*} [Finite P] [Lin
         (E.aDelivered q t₂).idxOf m₁ < (E.aDelivered q t₂).idxOf m₂) := by
     intro p q t₁ t₂ m₁ m₂ hm₁p hm₂p hm₁q hm₂q
     rcases le_total (E.decidedBatches p t₁).length (E.decidedBatches q t₂).length with hle | hge
-    · obtain ⟨tail, htail⟩ := E.aDelivered_prefix_of_length_le hle
-      rw [← htail, List.idxOf_append_of_mem hm₁p, List.idxOf_append_of_mem hm₂p]
-    · obtain ⟨tail, htail⟩ := E.aDelivered_prefix_of_length_le hge
-      rw [← htail, List.idxOf_append_of_mem hm₁q, List.idxOf_append_of_mem hm₂q]
+    · have hpref := E.aDelivered_prefix_of_length_le hle
+      rw [hpref.idxOf_eq_of_mem hm₁p, hpref.idxOf_eq_of_mem hm₂p]
+    · have hpref := E.aDelivered_prefix_of_length_le hge
+      rw [hpref.idxOf_eq_of_mem hm₁q, hpref.idxOf_eq_of_mem hm₂q]
   have hagr : ∀ p ∉ F, ∀ q ∉ F, ∀ m t₁, m ∈ E.aDelivered p t₁ → ∃ t₂, m ∈ E.aDelivered q t₂ := by
     intro p hp q hq m t₁ hm
     obtain ⟨batch, hbatch_mem, hm_in⟩ := (mem_runConsensusSlots _ m).mp hm
