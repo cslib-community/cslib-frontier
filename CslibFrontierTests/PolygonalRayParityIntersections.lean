@@ -612,4 +612,57 @@ example :
     have hre := congrArg Complex.re h
     norm_num at hre
 
+-- Two points have odd parity, while the third marked point has even parity.
+example : ∃ p : Route, p.start = 0 ∧ p.finish = 0 ∧
+    p.rayParity 1 ⟨1, 1⟩ = true ∧ p.rayParity 1 ⟨3, 1⟩ = true ∧
+    p.rayParity 1 ⟨2, 1⟩ = false := by
+  classical
+  let odd : Finset ℂ := {⟨1, 1⟩, ⟨3, 1⟩}
+  let points : Finset ℂ := insert ⟨2, 1⟩ odd
+  have ha : (0 : ℂ) ∉ points := by
+    intro hz
+    simp only [points, odd, Finset.mem_insert, Finset.mem_singleton] at hz
+    rcases hz with h | h | h <;> have hi := congrArg Complex.im h <;> norm_num at hi
+  have hconn : IsPathConnected (Set.univ : Set ℂ) :=
+    (convex_univ : Convex ℝ (Set.univ : Set ℂ)).isPathConnected ⟨0, Set.mem_univ 0⟩
+  have hsub : odd ⊆ points := fun _ hz => Finset.mem_insert_of_mem hz
+  obtain ⟨p, hs, hf, -, hparity⟩ :=
+    Route.exists_rayParity_excursion_of_subset isOpen_univ hconn points odd hsub
+      (fun z _ => Set.mem_univ z) (Set.mem_univ 0) ha
+  have heven : (⟨2, 1⟩ : ℂ) ∉ odd := by
+    intro hz
+    simp only [odd, Finset.mem_insert, Finset.mem_singleton] at hz
+    rcases hz with h | h <;> have hr := congrArg Complex.re h <;> norm_num at hr
+  refine ⟨p, hs, hf, ?_, ?_, ?_⟩
+  · rw [hparity _ (hsub (by simp [odd]))]
+    simp [odd]
+  · rw [hparity _ (hsub (by simp [odd]))]
+    simp [odd]
+  · rw [hparity _ (by simp [points])]
+    exact decide_eq_false heven
+
+-- Inserting an excursion on a two-leg route preserves its endpoint germs.
+example :
+    let p := Route.line 0 ⟨0, 1⟩
+    let q := Route.line ⟨0, 1⟩ ⟨0, 2⟩
+    ∃ r : Route, (∀ b, r.germ b = (p.concat q).germ b) ∧
+      r.rayParity 1 ⟨1, 1⟩ = (p.concat q).rayParity 1 ⟨1, 1⟩ + true := by
+  classical
+  dsimp only
+  let p := Route.line 0 ⟨0, 1⟩
+  let q := Route.line ⟨0, 1⟩ ⟨0, 2⟩
+  let c : ℂ := ⟨1, 1⟩
+  have hconn : IsPathConnected (Set.univ : Set ℂ) :=
+    (convex_univ : Convex ℝ (Set.univ : Set ℂ)).isPathConnected ⟨0, Set.mem_univ 0⟩
+  have ha : p.finish ∉ ({c} : Finset ℂ) := by
+    intro h
+    have he : p.finish = c := Finset.mem_singleton.mp h
+    have hr := congrArg Complex.re he
+    norm_num [p, c] at hr
+  obtain ⟨r, -, hgerm, -, -, hray⟩ :=
+    Route.exists_concat_add_rayParity isOpen_univ hconn {c} {c} (fun _ h => h)
+      (fun z _ => Set.mem_univ z) p q rfl (Set.mem_univ p.finish) ha
+  have h := hray c (Finset.mem_singleton_self c)
+  exact ⟨r, hgerm, by simpa only [Finset.mem_singleton_self, decide_true] using h⟩
+
 end CslibFrontierTests.PolygonalRayParityIntersections

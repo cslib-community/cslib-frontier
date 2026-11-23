@@ -255,6 +255,33 @@ theorem getLimb_extractBot_val (base w₀ b b' k : ℕ) (mem : ℕ → ℕ)
   exact congrArg Fin.val (congrFun ((limbsEquivFin c L (reducedChunkBits_pos t)).symm_apply_apply
     fun m' => Tabulation.extractSlice (base + 1) c (k * L) mem (finProdFinEquiv (j, m'))) m)
 
+/-- Extracting a seed from memory satisfying `SeedRep` recovers the original seed `θ`. -/
+theorem extractSeed_of_seedRep {base w₀ b b' k : ℕ}
+    {θ : ReducedPolySeed w₀ b b' k} {mem : ℕ → ℕ}
+    (hseed : SeedRep base w₀ b b' k θ mem) :
+    extractSeed base w₀ b b' k mem = θ := by
+  unfold extractSeed
+  obtain ⟨h0, hlimb⟩ := hseed
+  refine Prod.ext (Fin.ext ?_) (funext fun j => Fin.ext ?_)
+  · dsimp only
+    rw [extractTop_val, h0]
+    exact Cslib.WordRAM.wordOfNat_val_of_lt θ.1.isLt
+  · dsimp only
+    set t := reducedTrinomialStep w₀ b b'
+    set c := reducedChunkBits t
+    set L := reducedLimbCount t
+    have hc : 0 < c := reducedChunkBits_pos t
+    have hpow : L * c = 2 * 3 ^ t := reducedLimbCount_mul_chunkBits t
+    have ha : (extractBot base w₀ b b' k mem j).val < 2 ^ (L * c) :=
+      hpow.symm ▸ (extractBot base w₀ b b' k mem j).isLt
+    have hb : (θ.2 j).val < 2 ^ (L * c) := hpow.symm ▸ (θ.2 j).isLt
+    rw [← packLimbs_getLimb hc L ha, ← packLimbs_getLimb hc L hb]
+    refine packLimbs_congr fun m hm => ?_
+    have hm' := getLimb_extractBot_val base w₀ b b' k mem j ⟨m, hm⟩
+    dsimp only at hm'
+    rw [hm', hlimb j ⟨m, hm⟩]
+    exact Cslib.WordRAM.wordOfNat_val_of_lt (getLimb_lt c (θ.2 j).val m)
+
 /-! ## Register layout on `Data 240` -/
 
 /-- Reduced-key limb register `20 + m % 54` (`0 ≤ m < L ≤ 54`). -/
