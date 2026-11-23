@@ -26,7 +26,7 @@ are looked up in one batched dictionary, and each member finishes on its own. Fo
 (`batched_fixed_power`), where
 `batchBudget n s M r L = r * L * s + (n + 1) ^ 3 * (r * L + M / L + 1)`;
 the storage term `M / L` is paid once rather than `r` times. Balancing `L` gives
-`300000 * (r * A + √((n + 1) ^ 3 * 2 ^ n * r * A))` with `A = s + (n + 1) ^ 3`
+`200000 * (r * A + √((n + 1) ^ 3 * 2 ^ n * r * A))` with `A = s + (n + 1) ^ 3`
 (`batched_fixed_power_optimized`).
 
 If each trajectory's first `L` states lie in a finite set `S`, the same construction pays
@@ -37,7 +37,7 @@ may leave `S` later. In particular, an invariant set gives the tradeoff
 
 With a separate `m`-bit time for each member, binary powering with the batched powers costs
 `m * (100000 * batchBudget n s (2 ^ n) r L + 4 * r * n)` (`batched_variable_time`), and
-`m * (300000 * optimizedBatchBudget n s (2 ^ n) r + 4 * r * n)` balanced
+`m * (200000 * optimizedBatchBudget n s (2 ^ n) r + 4 * r * n)` balanced
 (`batched_variable_time_optimized`). These input-time circuits specialize the shared
 binary-powering rule in `Iteration.InputTime` to the batched fixed-power circuits proved here.
 
@@ -437,18 +437,21 @@ theorem optimizedBatchBudget_one (n s M : ℕ) :
 
 private theorem exists_batchBudget_le_optimizedBatchBudget (n s M r : ℕ) (hr : 0 < r)
     (hM : M ≤ 2 ^ n) :
-    ∃ L : ℕ, 0 < L ∧ (batchBudget n s M r L : ℝ) ≤ 3 * optimizedBatchBudget n s M r := by
+    ∃ L : ℕ, 0 < L ∧ (batchBudget n s M r L : ℝ) ≤ 2 * optimizedBatchBudget n s M r := by
   have hb : (n + 1) ^ 3 ≤ r * (s + (n + 1) ^ 3) := by
     have := Nat.mul_le_mul_right (s + (n + 1) ^ 3) hr
     omega
-  obtain ⟨L, hL, -, h⟩ := exists_le_three_mul_add_sqrt (r * (s + (n + 1) ^ 3)) ((n + 1) ^ 3)
+  obtain ⟨L, hL, -, h⟩ := exists_le_add_add_two_mul_sqrt (r * (s + (n + 1) ^ 3)) ((n + 1) ^ 3)
     M (2 ^ n) (by positivity) hb hM (by positivity)
   refine ⟨L, hL, ?_⟩
   have he : batchBudget n s M r L = r * (s + (n + 1) ^ 3) * L + (n + 1) ^ 3 * (M / L + 1) := by
     unfold batchBudget
     ring
-  simpa only [he, optimizedBatchBudget, Nat.cast_add, Nat.cast_mul, Nat.cast_pow, Nat.cast_one]
-    using h
+  have hb' : (((n + 1) ^ 3 : ℕ) : ℝ) ≤ (r * (s + (n + 1) ^ 3) : ℕ) := by
+    exact_mod_cast hb
+  simp only [he, optimizedBatchBudget, Nat.cast_add, Nat.cast_mul, Nat.cast_pow, Nat.cast_one]
+    at h hb' ⊢
+  linarith only [h, hb']
 
 /-- **Square-root batched powers on an invariant set.** The balanced shared-storage bound uses
 `S.card` rather than the size of the ambient state space. -/
@@ -459,7 +462,7 @@ theorem batched_fixed_power_on_optimized (c : Circuit signature n n)
       out.ComputesOn interpretation
         {x | ∀ member : Fin r, BitString.block x member ∈ S}
         (blockMap (c.eval interpretation)^[T] r) ∧
-      (out.size : ℝ) ≤ 300000 * optimizedBatchBudget n c.size S.card r := by
+      (out.size : ℝ) ≤ 200000 * optimizedBatchBudget n c.size S.card r := by
   have hcard : S.card ≤ 2 ^ n := by
     simpa only [Finset.card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_bool] using
       Finset.card_le_univ S
@@ -476,7 +479,7 @@ theorem batched_fixed_power_optimized (c : Circuit signature n n) (r T : ℕ) (h
     (hrN : r ≤ 2 ^ n) :
     ∃ out : Circuit signature (r * n) (r * n),
       out.Computes interpretation (blockMap (c.eval interpretation)^[T] r) ∧
-      (out.size : ℝ) ≤ 300000 * optimizedBatchBudget n c.size (2 ^ n) r := by
+      (out.size : ℝ) ≤ 200000 * optimizedBatchBudget n c.size (2 ^ n) r := by
   obtain ⟨L, hL, hopt⟩ := exists_batchBudget_le_optimizedBatchBudget n c.size (2 ^ n) r hr
     le_rfl
   obtain ⟨out, hout, hs⟩ := batched_fixed_power c r T L hrN hL
@@ -506,7 +509,7 @@ theorem batched_variable_time_optimized (c : Circuit signature n n) (r m : ℕ) 
     (hrN : r ≤ 2 ^ n) :
     ∃ out : Circuit signature (r * (n + m)) (r * n),
       out.Computes interpretation (blockMap (inputTimeIterate (c.eval interpretation) m) r) ∧
-      (out.size : ℝ) ≤ m * (300000 * optimizedBatchBudget n c.size (2 ^ n) r + 4 * (r * n)) := by
+      (out.size : ℝ) ≤ m * (200000 * optimizedBatchBudget n c.size (2 ^ n) r + 4 * (r * n)) := by
   obtain ⟨L, hL, hopt⟩ := exists_batchBudget_le_optimizedBatchBudget n c.size (2 ^ n) r hr
     le_rfl
   obtain ⟨out, hout, hs⟩ := batched_variable_time c r m L hrN hL
