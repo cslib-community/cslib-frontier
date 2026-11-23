@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MAC
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFree
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
 public import CslibFrontier.Crypto.Primitives.BlockCipher.LengthPrependedCBCMAC
 public import CslibFrontier.Foundations.Data.BitString.List.Binary
@@ -113,9 +114,8 @@ length-preserving keyed block-function family (`PseudorandomFunction`), completi
   `lengthPrependedCbcMacFamily`: polynomial-time word-level basic and length-prepended CBC-MAC.
 * `cbcBlockValid`, `lpBlockValid`, `prfOracleOn`, `prfRealGameOn`, `prfIdealGameOn`,
   `PseudorandomFunctionOn`: domain-restricted computational PRF games and security predicate.
-* `WordPrefixFree`, `wordQueryRunDist`, `IsPrefixFreeOn`, `IsPrefixFreeOraclePPT`,
-  `PrefixFreePseudorandomFunctionOn`: prefix-free word-oracle adversaries and prefix-free PRF
-  security ([BonehShoup2023], Definition 4.5, p. 152).
+* `PrefixFreePseudorandomFunctionOn`: security against the shared prefix-free word-oracle
+  adversary class ([BonehShoup2023], Definition 4.5, p. 152).
 * `cbcInputCodec`, `lengthPrependedCodec`: `OracleCodec` bridges to `CBCOracleSpec` and
   `LengthPrependedSpec`.
 * `cbcMacStep`, `cbcMacQueries`, `cbcMacQuery`, `cbcMacToPrfDistinguisher`, `lengthPrependedQuery`,
@@ -588,45 +588,6 @@ structure PseudorandomFunctionOn (valid : ℕ → List Bool → Bool) (outLen : 
     (fun adversary n => ProbComp.eval (prfIdealGameOn valid outLen adversary n))
     (IsOraclePPT encBool)
 
-/-- A query list is prefix-free on `valid` when no valid query is a prefix of a distinct valid query
-([BonehShoup2023], Section 4.6.1, Definition 4.5, printed p. 152). Repeated identical queries are
-allowed. -/
-@[expose]
-def WordPrefixFree (valid : List Bool → Bool) (queries : List (List Bool)) : Prop :=
-  ∀ x ∈ queries, valid x = true → ∀ y ∈ queries, valid y = true → x ≠ y → ¬ x.IsPrefix y
-
-/-- Distribution of `(output, query_log)` pairs when `program` interacts with a deterministic word
-oracle `oracle`, recording word requests in chronological order. -/
-@[expose]
-noncomputable def wordQueryRunDist {α : Type} (oracle : List Bool → List Bool) :
-    WordOracleComp Unit α → PMF (α × List (List Bool))
-  | .pure a => PMF.pure (a, [])
-  | .liftBind (.inl k) cont =>
-    (ProbComp.unifOracle k).bind fun c => wordQueryRunDist oracle (cont c)
-  | .liftBind (.inr request) cont =>
-    (wordQueryRunDist oracle (cont (oracle request.2))).map fun (a, log) =>
-      (a, request.2 :: log)
-
-/-- `IsPrefixFreeOn valid outLen program` holds when, against every deterministic word oracle that
-maps valid words to `outLen`-bit replies and invalid words to `[]`, every supported query log of
-`program` satisfies `WordPrefixFree valid` ([BonehShoup2023], Definition 4.5, printed p. 152). -/
-@[expose]
-def IsPrefixFreeOn {α : Type} (valid : List Bool → Bool) (outLen : ℕ)
-    (program : WordOracleComp Unit α) : Prop :=
-  ∀ oracle : List Bool → List Bool,
-    (∀ w, valid w = false → oracle w = []) →
-    (∀ w, valid w = true → (oracle w).length = outLen) →
-    ∀ result ∈ (wordQueryRunDist oracle program).support,
-      WordPrefixFree valid result.2
-
-/-- Uniform strict oracle-PPT distinguishers whose queries are prefix-free on `valid n` with
-`outLen n`-bit valid replies at every security parameter `n` ([BonehShoup2023], Definition 4.5,
-printed p. 152). -/
-@[expose]
-def IsPrefixFreeOraclePPT (valid : ℕ → List Bool → Bool) (outLen : ℕ → ℕ)
-    (adversary : OracleDistinguisher) : Prop :=
-  IsOraclePPT encBool adversary ∧ ∀ n, IsPrefixFreeOn (valid n) (outLen n) (adversary n [])
-
 /-- Prefix-free uniform computational pseudorandom function over `valid` ([BonehShoup2023],
 Section 4.6.1, Definition 4.5, printed p. 152, and Section 6.4, printed p. 226): deterministic
 polynomial-time evaluation, output length `outLen`, and indistinguishability against
@@ -644,52 +605,6 @@ structure PrefixFreePseudorandomFunctionOn (valid : ℕ → List Bool → Bool) 
     (fun adversary n => ProbComp.eval (prfRealGameOn valid family adversary n))
     (fun adversary n => ProbComp.eval (prfIdealGameOn valid outLen adversary n))
     (IsPrefixFreeOraclePPT valid outLen)
-
-/-- Every program is prefix-free on a fixed-length domain, since equal-length prefixes are equal. -/
-theorem isPrefixFreeOn_of_fixedLength {α : Type} {valid : List Bool → Bool} {outLen : ℕ}
-    (heqLen : ∀ x y, valid x = true → valid y = true → x.length = y.length)
-    (program : WordOracleComp Unit α) :
-    IsPrefixFreeOn valid outLen program := by
-  intro _ _ _ _ _ x _ hx y _ hy hxy hpre
-  exact hxy (hpre.eq_of_length (heqLen x y hx hy))
-
-private theorem length_snd_le_of_mem_support_wordQueryRunDist {α : Type}
-    (oracle : List Bool → List Bool) {program : WordOracleComp Unit α} {q : ℕ}
-    (hq : program.IsQueryBounded q) {result : α × List (List Bool)}
-    (hmem : result ∈ (wordQueryRunDist oracle program).support) :
-    result.2.length ≤ q := by
-  induction program generalizing q result with
-  | pure a =>
-    simp only [wordQueryRunDist, PMF.mem_support_pure_iff] at hmem
-    subst hmem
-    exact Nat.zero_le q
-  | liftBind op cont ih =>
-    obtain ⟨hle, hcont⟩ := OracleComp.IsCostBounded.liftBind_iff.mp hq
-    cases op with
-    | inl m =>
-      simp only [wordQueryRunDist, PMF.mem_support_bind_iff] at hmem
-      obtain ⟨c, _, hc⟩ := hmem
-      simpa only [Sum.elim_inl, Nat.sub_zero] using ih c (hcont c) hc
-    | inr req =>
-      simp only [wordQueryRunDist, PMF.mem_support_map_iff] at hmem
-      obtain ⟨⟨a, log⟩, hc, rfl⟩ := hmem
-      have hlen := ih (oracle req.2) (hcont (oracle req.2)) hc
-      simp only [Sum.elim_inr] at hle hlen
-      simp only [List.length_cons]
-      omega
-
-/-- Every program making at most one query is prefix-free on every domain. -/
-theorem isPrefixFreeOn_of_isQueryBounded_one {α : Type} (valid : List Bool → Bool) (outLen : ℕ)
-    {program : WordOracleComp Unit α} (hq : program.IsQueryBounded 1) :
-    IsPrefixFreeOn valid outLen program := by
-  intro oracle _ _ result hmem x hx _ y hy _ hxy
-  have hlen := length_snd_le_of_mem_support_wordQueryRunDist oracle hq hmem
-  rcases result with ⟨_, _ | ⟨w, _ | ⟨w', _⟩⟩⟩
-  · cases hx
-  · simp only [List.mem_singleton] at hx hy
-    exact absurd (hx.trans hy.symm) hxy
-  · simp only [List.length_cons] at hlen
-    omega
 
 /-! ### Section 3: Typed Codec Bridges to `CBCOracleSpec` and `LengthPrependedSpec` -/
 

@@ -5352,6 +5352,7 @@ public import CslibFrontier.Computability.WordRAM.Resizable.Basic
 public import CslibFrontier.Computability.WordRAM.Resizable.Clocked
 public import CslibFrontier.Computability.WordRAM.Resizable.LoopDist
 public import CslibFrontier.Computability.WordRAM.Resizable.Randomized
+public import CslibFrontier.Computability.WordRAM.Resizable.Rename
 public import CslibFrontier.Computability.WordRAM.Sequence
 public import CslibFrontier.Computability.WordRAM.Signed.Arithmetic
 public import CslibFrontier.Computability.WordRAM.Signed.ArrayArithmetic.Body
@@ -5870,6 +5871,7 @@ public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Finite
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.HashThenPRF
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Label
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.MultiKey
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFree
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFreePair
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
@@ -6142,6 +6144,7 @@ public import CslibFrontier.Crypto.Primitives.UHF.Difference
 public import CslibFrontier.Crypto.Primitives.UHF.Finite
 public import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 public import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
+public import CslibFrontier.Crypto.Primitives.UHF.PrefixFreePRF
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash.PRF
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash.Reduction
@@ -6392,6 +6395,8 @@ public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.Quotient
 public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.Code
 public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.SlotArray
 public import CslibFrontier.DataStructure.BPlusTree.Basic
+public import CslibFrontier.DataStructure.BPlusTree.Erase.Basic
+public import CslibFrontier.DataStructure.BPlusTree.Erase.MinMax
 public import CslibFrontier.DataStructure.BPlusTree.Height
 public import CslibFrontier.DataStructure.BPlusTree.Insert
 public import CslibFrontier.DataStructure.BPlusTree.Lookup
@@ -6494,10 +6499,21 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.KickTree.Prog
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.LinearProbing
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.LinearProbing.FiveWise
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.PackedSlice
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Compaction
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.BucketOps
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.ExecCtx
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.MicroSearchOps
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.SlotOps
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.InEpoch
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.MetaSync
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.Exec
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.StreamStep
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Params
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.WindowOps
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.Succinct
@@ -6936,6 +6952,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Hypercube
 public import CslibFrontier.Foundations.BooleanAnalysis.IncidenceExpansion
 public import CslibFrontier.Foundations.BooleanAnalysis.Influence
 public import CslibFrontier.Foundations.BooleanAnalysis.InnerProduct
+public import CslibFrontier.Foundations.BooleanAnalysis.InnerProductPTF
 public import CslibFrontier.Foundations.BooleanAnalysis.Invariance
 public import CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy
 public import CslibFrontier.Foundations.BooleanAnalysis.InvarianceNoise
