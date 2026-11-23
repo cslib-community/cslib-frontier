@@ -3050,6 +3050,24 @@ CPA game of `A`, for either challenge bit; `SymmetricCipher.INDCCA.indcpa` deriv
 `INDCCA`. Examples are in
 [`CslibFrontierTests/Crypto/CCAToCPA.lean`](../../CslibFrontierTests/Crypto/CCAToCPA.lean).
 
+A step of the proof of Boneh–Shoup Theorem 9.3, not the theorem (§9.4.4, pp. 373–377
+[bs23][bs23]): import
+[`Encryption/MACThenEncrypt/RandomPads.lean`](../../CslibFrontier/Crypto/Computational/Encryption/MACThenEncrypt/RandomPads.lean)
+for the passage from the ciphertext-integrity game to Game 1 of that proof, in which the pads are
+fresh random words (bound (9.13)). It is stated for `macThenEncrypt`, described in the next
+paragraph, over the one-block cipher `prfCipher`, on messages of exactly `n` bits. For an adversary
+with at most `Q n` encryption queries, `eval_ciGame_macThenEncrypt_prfCipher_le_freshPads` bounds
+its winning probability by the PRF advantage of `mteCIToPrfDistinguisher M ptLen adversary` at
+parameter `ptLen n`, plus `(Q n).choose 2 / 2 ^ ptLen n`, plus its winning probability in Game 1,
+which is written with the encryption oracle `mteForgetfulOracle` and the final check
+`mteIdealFinal`. The bound needs `StrictMono ptLen` and assumes no security of the function family
+or of the MAC. `isOraclePPT_mteCIToPrfDistinguisher` certifies the distinguisher as
+`IsOraclePPT encBool` when the adversary is `IsOraclePPT encBits` and `ptLen` is polynomial-time
+computable. No security statement follows from this module alone: steps (9.14)–(9.17), which bound
+the Game 1 term by one-time MAC advantages, are not formalized, and neither are counter mode over
+several blocks and messages of varying length. Examples are in
+[`CslibFrontierTests/Crypto/MACThenEncryptRandomPads.lean`](../../CslibFrontierTests/Crypto/MACThenEncryptRandomPads.lean).
+
 For generic MAC-then-Encrypt composition, its `INDCPA` preservation, and its chosen-ciphertext
 counterexample over `SymmetricCipher` and `MACScheme`, import
 [`Encryption/MACThenEncrypt.lean`](../../CslibFrontier/Crypto/Computational/Encryption/MACThenEncrypt.lean)

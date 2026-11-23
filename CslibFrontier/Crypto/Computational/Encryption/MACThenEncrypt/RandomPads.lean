@@ -14,19 +14,54 @@ import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Programming
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
-import CslibFrontier.Probability.StatisticalDistance.CloseTo
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Map
-import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
-import CslibFrontier.Tactic.EncLen
 
 /-!
-# MAC-then-encrypt over the one-block PRF cipher: the PRF step (DRAFT)
+# MAC-then-encrypt over the one-block PRF cipher: random pads
+
+This module is a step of the proof of Theorem 9.3 of [BonehShoup2023] (§9.4.4, printed
+pp. 373–377); it does not prove Theorem 9.3. That result says that MAC-then-encrypt over randomized
+counter mode "provides authenticated encryption assuming `I` is a secure one-time MAC and `F` is a
+secure PRF where `1/|X|` is negligible". Its proof starts by replacing "the pseudo-random pads in
+the counter-mode cipher by truly independent one-time pads" (Game 1) and bounds the change by
+(9.13): `|Pr[W₁] − Pr[W₀]| ≤ PRFadv[B_prf, F] + Q² / (2 |X|)`.
+
+It proves that step, in the direction the proof uses, for `macThenEncrypt` over the cipher
+`prfCipher`, which encrypts one PRF block under a fresh IV, and for messages of exactly `n` bits:
+`eval_ciGame_macThenEncrypt_prfCipher_le_freshPads` bounds the winning probability of a
+ciphertext-integrity adversary with at most `Q n` encryption queries by the PRF advantage of
+`mteCIToPrfDistinguisher`, plus `(Q n).choose 2 / 2 ^ ptLen n`, plus its winning probability in
+Game 1. The distinguisher has the certificate `isOraclePPT_mteCIToPrfDistinguisher`.
+
+No security statement follows from this module alone: the bound still contains the winning
+probability in Game 1, which the later steps (9.14)–(9.17) of the proof bound by one-time MAC
+advantages, and those steps are not formalized here. Counter mode over several blocks and messages
+of varying length are not covered either.
+
+The proof has the two halves the source describes after (9.13). The PRF half identifies the real
+and ideal PRF games of `mteCIToPrfDistinguisher` with the ciphertext-integrity game and with the
+same game over a lazily sampled random function. The "forgetful gnome" half is an instance of
+`RandomOracle.closeTo_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two`.
+
+## Main definitions
+
+* `mtePlaintextValid`: the check `macThenEncrypt` applies to a decrypted plaintext.
+* `mteCIToPrfDistinguisher`: the PRF distinguisher `B_prf`.
+* `mteForgetfulOracle` and `mteIdealFinal`: the encryption oracle and the winning condition of
+  Game 1, on the state `MteState` of query records `MteRec`.
+
+## Main results
+
+* `eval_ciGame_macThenEncrypt_prfCipher_le_freshPads`: step (9.13), from the ciphertext-integrity
+  game to Game 1.
+* `isOraclePPT_mteCIToPrfDistinguisher`: `B_prf` is `IsOraclePPT` when the adversary is.
+
+## References
+
+* [D. Boneh and V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023]
 -/
 
 public section
@@ -38,15 +73,16 @@ open scoped NNReal ENNReal
 
 /-! ## The plaintext check of `macThenEncrypt` -/
 
-/-- The check `macThenEncrypt` applies to a decrypted plaintext `p`: canonical pair encoding,
-message length, tag verification. -/
+/-- The check `macThenEncrypt` applies to a decrypted plaintext `p`, as a Boolean: `p` is the
+canonical encoding of a pair, its message has `M.msgLen n` bits, and its tag verifies under `km`. -/
 @[expose] def mtePlaintextValid (M : MACScheme) (n : ℕ) (km p : List Bool) : Bool :=
   (encPair encBits encBits (unframe p, dropFrame p) == p) &&
     ((unframe p).length == M.msgLen n) && M.verify km (unframe p) (dropFrame p)
 
-/-! ## The three reductions (programs) -/
+/-! ## The PRF distinguisher -/
 
-/-- `B_prf`'s encryption handler: tag with `km`, draw the IV `r`, ask the PRF oracle for the pad. -/
+/-- The encryption handler of `mteCIToPrfDistinguisher`: tag with `km`, draw the IV `r`, ask the
+PRF oracle for the pad, and log the ciphertext. -/
 private noncomputable def mteCIToPrfHandler (M : MACScheme) (n m : ℕ) (km : List Bool)
     (request : Unit × List Bool) : StateT (List (List Bool)) (WordOracleComp Unit) (List Bool) :=
   fun log =>
@@ -59,8 +95,13 @@ private noncomputable def mteCIToPrfHandler (M : MACScheme) (n m : ℕ) (km : Li
     else
       pure ([], log)
 
-/-- `B_prf` (Theorem 9.3, (9.13)): runs the CI adversary, simulating `macThenEncrypt (prfCipher F)`
-with its PRF oracle, then decrypts the forgery with one more oracle call. -/
+/-- The PRF distinguisher `B_prf` of step (9.13) of the proof of [BonehShoup2023], Theorem 9.3, for
+one PRF block and messages of exactly `n` bits. At PRF parameter `m` it recovers `n` with
+`ptLen n = m` (and outputs `false` when there is none), draws a MAC key, and runs the
+ciphertext-integrity adversary: an `n`-bit message is tagged and encrypted with a fresh `m`-bit IV
+under the pad the PRF oracle returns for that IV. It outputs whether the adversary's ciphertext is
+new, has `2 * m` bits, and decrypts, with one more oracle call, to a plaintext that passes
+`mtePlaintextValid`. -/
 noncomputable def mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ)
     (adversary : CIAdversary) : OracleDistinguisher :=
   fun m _ =>
@@ -79,17 +120,19 @@ noncomputable def mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ)
     else
       pure false
 
-
 /-! ## The ideal games -/
 
-/-- A record of one answered encryption query: IV, pad, message, tag. -/
+/-- A record of one answered encryption query in the ideal games of step (9.13): IV, pad, message,
+tag. -/
 abbrev MteRec := List Bool × List Bool × List Bool × List Bool
 
-/-- The ciphertext a record stands for. -/
+/-- The ciphertext a record stands for: its IV, then its pair `(message, tag)` under the first `m`
+bits of its pad. -/
 @[expose] def MteRec.ct (m : ℕ) (e : MteRec) : List Bool :=
   e.1 ++ List.zipWith xor (e.2.1.take m) (encPair encBits encBits (e.2.2.1, e.2.2.2))
 
-/-- State of the ideal games: the random-function cache and the query history, newest first. -/
+/-- State of the ideal games of step (9.13): the cache of `(IV, pad)` pairs and the history of
+answered queries, both newest first. -/
 abbrev MteState := List (List Bool × List Bool) × List MteRec
 
 /-- The encryption oracle of the CI game of `macThenEncrypt` over `prfCipher` with a lazily
@@ -124,10 +167,12 @@ front of the cache, and IV, pad, message and tag are logged. Other queries get `
     else
       PMF.pure ([], st)
 
-/-- The winning condition of the ideal CI games of the proof of [BonehShoup2023], Theorem 9.3, for
-one PRF block and messages of exactly `n` bits: the final ciphertext is new and has `2 * m` bits,
-and its plaintext under the pad of its IV (looked up in the cache, or drawn fresh) passes
-`mtePlaintextValid`. -/
+/-- The winning condition of Game 1 of the proof of [BonehShoup2023], Theorem 9.3 (p. 375), for one
+PRF block and messages of exactly `n` bits; a device of that proof, with no security statement of
+its own. The final ciphertext is new and has `2 * m` bits, and its plaintext passes
+`mtePlaintextValid` under the pad of its IV: the first pad the cache holds for that IV, which is
+that of the most recent query with it, or a fresh pad when there is none. The source takes the
+earliest such query, "for specificity". -/
 @[expose] noncomputable def mteIdealFinal (M : MACScheme) (n m : ℕ) (km : List Bool)
     (out : List Bool × MteState) : PMF Bool :=
   if !(out.2.2.map (MteRec.ct m)).contains out.1 && out.1.length == 2 * m then
@@ -237,6 +282,8 @@ private theorem mteFaithful_bind_apply_le (M : MACScheme) (n m : ℕ) (km : List
 
 /-! ## The PRF step -/
 
+/-- The real PRF game of `mteCIToPrfDistinguisher` is the ciphertext-integrity game of
+`macThenEncrypt` over `prfCipher`. -/
 private theorem eval_prfRealGame_mteCIToPrfDistinguisher
     (family : List Bool → List Bool → List Bool)
     (hpoly : ComputableInPolyTime (fun pair => family pair.1 pair.2)
@@ -312,8 +359,8 @@ private theorem eval_prfRealGame_mteCIToPrfDistinguisher
     simp only [Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm, hfresh',
       Bool.false_and]
 
-
-/-- The ideal PRF game of `B_prf` is the CI game against the lazily sampled random function. -/
+/-- The ideal PRF game of `mteCIToPrfDistinguisher` is the ciphertext-integrity game over a lazily
+sampled random function. -/
 private theorem eval_prfIdealGame_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ)
     (hmono : StrictMono ptLen) (adversary : CIAdversary) (n : ℕ) :
     ProbComp.eval (prfIdealGame id id (mteCIToPrfDistinguisher M ptLen adversary) (ptLen n)) =
@@ -367,7 +414,8 @@ private theorem eval_prfIdealGame_mteCIToPrfDistinguisher (M : MACScheme) (ptLen
 
 /-- **Step (9.13) of the proof of [BonehShoup2023], Theorem 9.3**, for `macThenEncrypt` over the
 one-block cipher `prfCipher`, messages of exactly `n` bits and a polynomial schedule `ptLen`; it is
-a step of the proof, not the theorem. For a CI adversary with at most `Q n` encryption queries, its
+a step of the proof, not the theorem, and it is stated in the direction the proof uses (the source
+bounds the absolute difference). For a CI adversary with at most `Q n` encryption queries, its
 winning probability is at most the PRF advantage of `mteCIToPrfDistinguisher`, plus
 `(Q n).choose 2 / 2 ^ ptLen n` for a repeated IV (the source prints `Q ^ 2 / (2 |X|)`), plus the
 winning probability in Game 1, the ideal game with a fresh pad for every query
@@ -472,7 +520,9 @@ private theorem isOraclePPTOn_mteCIToPrfPost (M : MACScheme) (ptLen : ℕ → �
   have hvalid := computableInPolyTime_mtePlaintextValid M
   ppt
 
-/-- `B_prf` is strict oracle PPT when the CI adversary is. -/
+/-- An efficiency certificate for the reduction of step (9.13) of the proof of [BonehShoup2023],
+Theorem 9.3 (one PRF block, messages of exactly `n` bits), not a security statement:
+`mteCIToPrfDistinguisher` is `IsOraclePPT` when the ciphertext-integrity adversary is. -/
 theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ)
     (hptLenPoly : ComputableInPolyTime ptLen encUnary encUnary)
     {adversary : CIAdversary} (hadversary : IsOraclePPT encBits adversary) :
