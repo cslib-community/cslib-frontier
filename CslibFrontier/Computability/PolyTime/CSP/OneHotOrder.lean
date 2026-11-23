@@ -30,6 +30,7 @@ public section
 namespace Cslib.Complexity.CSP.OneHot3
 
 open Cslib.Logic.PL Graph Turing.MultiTapeTM
+open scoped RotationCertificate
 
 /-- Framed binary CSP followed by its supplied binary successor table. -/
 abbrev encOrderInput := encPair (encCSP encUnit encNat) encRotationCertificate
@@ -69,19 +70,14 @@ private theorem swapTail3_polyTime :
 private theorem forward_polyTime :
     ComputableInPolyTime (fun p : RotationCertificate × ℕ => forward p.1 p.2)
       encTableIndex encBool := by
-  have hs := RotationCertificate.computableInPolyTime_successor
-  have hidx : ComputableInPolyTime (fun p : RotationCertificate × ℕ => 6 * p.2 + 1)
-      encTableIndex encNat := by
-    exact ComputableInPolyTime.binary_add'
-      (ComputableInPolyTime.binary_mul' (ComputableInPolyTime.const 6)
-        (ComputableInPolyTime.snd encRotationCertificate encNat))
-      (ComputableInPolyTime.const 1)
-  have hlookup := ComputableInPolyTime.listGetD_binary (encA := encNat) 0
-    (hs.comp (ComputableInPolyTime.fst _ _)) hidx
-  exact hlookup.decide_eq' (ComputableInPolyTime.binary_add'
-    (ComputableInPolyTime.binary_mul' (ComputableInPolyTime.const 6)
-      (ComputableInPolyTime.snd encRotationCertificate encNat))
-    (ComputableInPolyTime.const 3))
+  unfold forward encTableIndex
+  have h6 : ComputableInPolyTime (fun p : RotationCertificate × ℕ => 6 * p.2)
+      (encPair encRotationCertificate encNat) encNat :=
+    ComputableInPolyTime.binary_mul' (ComputableInPolyTime.const 6) (by fun_prop)
+  exact ComputableInPolyTime.decide_eq'
+    (RotationCertificate.listGetD_binary_encList 0 (by fun_prop)
+      (ComputableInPolyTime.binary_add' h6 (ComputableInPolyTime.const 1)))
+    (ComputableInPolyTime.binary_add' h6 (ComputableInPolyTime.const 3))
 
 /-- The exact conditional scope exchange is native polynomial time on all raw input lists. -/
 theorem computableInPolyTime_orderedConstraints :
@@ -135,9 +131,7 @@ theorem computableInPolyTime_orderedCertificate :
     (ComputableInPolyTime.fst (encCSP encUnit encNat) encRotationCertificate)
   have hn : ComputableInPolyTime (fun p : CSP Unit ℕ × RotationCertificate =>
       2 * (incidenceGraph p.1).edges.length) encOrderInput encUnary := by
-    have he := encGraph_edges_polyTime hg
-    have hl := (ComputableInPolyTime.length_list (encPair encNat encNat)).comp he
-    exact ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const 2).prod hl)
+    fun_prop
   have hc : ComputableInPolyTime (fun p : CSP Unit ℕ × RotationCertificate => p.2)
       encOrderInput encRotationCertificate := ComputableInPolyTime.snd _ _
   have hi : ComputableInPolyTime (fun p : (CSP Unit ℕ × RotationCertificate) × ℕ =>
