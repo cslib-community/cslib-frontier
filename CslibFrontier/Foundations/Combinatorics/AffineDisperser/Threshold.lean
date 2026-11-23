@@ -250,8 +250,7 @@ theorem eventually_explicitThreshold_le :
   have hC : (ℓ + 1) * (N / (ℓ + 1)) ≤ N := Nat.mul_div_le N (ℓ + 1)
   have hD : N / (ℓ + 1) ≤ N / 2 := Nat.div_le_div_left (by omega) two_pos
   calc (ℓ + 1) * explicitThreshold N
-      ≤ (ℓ + 1) * (T + 2 * (r * (r + 1)) + N / (L + 1) + 2 * (N / (ℓ + 1))) :=
-        Nat.mul_le_mul_left _ hthr
+      ≤ (ℓ + 1) * (T + 2 * (r * (r + 1)) + N / (L + 1) + 2 * (N / (ℓ + 1))) := by gcongr
     _ = (ℓ + 1) * T + 2 * ((ℓ + 1) * (r * (r + 1))) + (ℓ + 1) * (N / (L + 1)) +
         2 * ((ℓ + 1) * (N / (ℓ + 1))) := by ring
     _ ≤ 6 * N := by omega

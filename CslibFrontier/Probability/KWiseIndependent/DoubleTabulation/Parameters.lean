@@ -123,8 +123,7 @@ theorem mul_doubleTabCodeBound_le {c_exp b k A : ℕ} (hb : doubleTabMinB c_exp 
     unfold doubleTabCodeBound
     calc c * ((c * k) ^ (2 * c) * (8 * c)) ^ 4
         ≤ b * (((b ^ 3) ^ (2 * c) * b) ^ 4) :=
-          Nat.mul_le_mul (by omega) (Nat.pow_le_pow_left
-            (Nat.mul_le_mul (Nat.pow_le_pow_left hck_cube (2 * c)) hb_8c) 4)
+          by gcongr; omega
       _ = b ^ (24 * c + 5) := by
         rw [← Nat.pow_mul, ← pow_succ, ← Nat.pow_mul, ← pow_succ']
         congr 1

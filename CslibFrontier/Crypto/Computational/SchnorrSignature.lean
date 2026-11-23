@@ -10,12 +10,8 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Computational.SchnorrProtocol
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrSignature
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Probability.PMF
-import CslibFrontier.Tactic.PPT
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
 
 /-!
@@ -119,26 +115,12 @@ def schnorrSignCoins
 
 /-- **Deterministic bit-level Schnorr signing `schnorrSignCoins` is computable in polynomial
 time**. -/
+@[fun_prop]
 theorem computableInPolyTime_schnorrSignCoins :
     ComputableInPolyTime F.schnorrSignCoins
       (encPair F.encDesc (encPair encBits (encPair encBits (encPair encBits encBits))))
       (encPair encBits encBits) := by
-  let encIn := encPair F.encDesc (encPair encBits (encPair encBits (encPair encBits encBits)))
-  have hd : ComputableInPolyTime
-      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool => p.1)
-      encIn F.encDesc := by fun_prop
-  have hsk : ComputableInPolyTime
-      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool => p.2.1)
-      encIn encBits := by fun_prop
-  have hr : ComputableInPolyTime
-      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool => p.2.2.2.1)
-      encIn encBits := by fun_prop
-  have hro : ComputableInPolyTime
-      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool => p.2.2.2.2)
-      encIn encBits := by fun_prop
-  have hcommit := F.computableInPolyTime_schnorrCommitBits.comp (hd.prod hr)
-  have hresp := F.computableInPolyTime_schnorrRespondBits.comp (hd.prod (hsk.prod (hr.prod hro)))
-  exact hcommit.prod hresp
+  fun_prop [PrimeOrderGroupFamily.schnorrSignCoins]
 
 /-- `schnorrSignCoins` lifted to `ProbComp` is uniform strict PPT. -/
 theorem isPPTOn_schnorrSignCoins :
@@ -159,6 +141,7 @@ def schnorrSigVerifyBits
 
 /-- **Bit-level Schnorr signature verification `schnorrSigVerifyBits` is computable in polynomial
 time**. -/
+@[fun_prop]
 theorem computableInPolyTime_schnorrSigVerifyBits :
     ComputableInPolyTime F.schnorrSigVerifyBits
       (encPair F.encDesc

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.LogSpaceDerandomization.RowCompression.Iteration
+public import CslibFrontier.Tactic.PositivityLemma
 import Mathlib.Algebra.Order.GroupWithZero.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -84,11 +85,13 @@ theorem dyadicSlack_succ {m i : ℕ} (hi : i + 1 < m) :
   unfold dyadicSlack
   rw [h, pow_succ, Nat.mul_comm]
 
+@[positivity_lemma]
 theorem dyadicFloor_nonneg {η : ℝ} (hη : 0 ≤ η) (m i : ℕ) :
     0 ≤ dyadicFloor η m i := by
   unfold dyadicFloor
   positivity
 
+@[positivity_lemma]
 theorem dyadicFloor_pos {η : ℝ} (hη : 0 < η) (m i : ℕ) :
     0 < dyadicFloor η m i := by
   unfold dyadicFloor
@@ -113,8 +116,7 @@ theorem dyadicFloor_le_scale_div {η : ℝ} (hη : 0 ≤ η) (m i : ℕ) :
 theorem dyadicFloor_mul_le_succ {η : ℝ} (hη : 0 ≤ η) {m i : ℕ} (hi : i + 1 < m) :
     1024 * dyadicFloor η m i ≤ dyadicFloor η m (i + 1) := by
   have hbase := pow_dyadicSlack_le m (i + 1)
-  have hnonneg := dyadicFloor_nonneg hη m (i + 1)
-  have hmul := mul_le_mul_of_nonneg_left hbase hnonneg
+  have hmul := mul_le_mul_of_nonneg_left hbase (by positivity : 0 ≤ dyadicFloor η m (i + 1))
   have heq : dyadicFloor η m i =
       dyadicFloor η m (i + 1) * (1 / 1024) ^ dyadicSlack m (i + 1) := by
     unfold dyadicFloor
@@ -127,7 +129,7 @@ current floor. This is derived from the concrete schedule, without a small-sum p
 theorem sum_range_dyadicFloor_le {η : ℝ} (hη : 0 ≤ η) {m j : ℕ} (hj : j < m) :
     ∑ i ∈ range j, dyadicFloor η m i ≤ dyadicFloor η m j / 1023 := by
   induction j with
-  | zero => simpa using div_nonneg (dyadicFloor_nonneg hη m 0) (by norm_num : (0 : ℝ) ≤ 1023)
+  | zero => simpa using (by positivity : 0 ≤ dyadicFloor η m 0 / 1023)
   | succ j ih =>
     have hprev := ih (Nat.lt_of_succ_lt hj)
     have hstep := dyadicFloor_mul_le_succ hη hj

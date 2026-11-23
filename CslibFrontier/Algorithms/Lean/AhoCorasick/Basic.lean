@@ -284,45 +284,40 @@ theorem output_cons (P : List (List α)) (b : α) (w : List α) :
 
 theorem mem_output_iff {P : List (List α)} {w v : List α} :
     v ∈ output P w ↔ v ≠ [] ∧ v ∈ P ∧ v <:+ w := by
-  induction w with
-  | nil =>
-    rw [output_nil, List.suffix_nil]
+  fun_induction output P w with
+  | case1 => -- []
+    rw [List.suffix_nil]
     simp only [List.not_mem_nil, false_iff, not_and]
     intro hv _ hv'
     exact hv hv'
-  | cons b w ih =>
-    rw [output, List.suffix_cons_iff]
-    split_ifs with h
-    · rw [List.mem_cons, ih]
-      constructor
-      · rintro (rfl | ⟨hv, hvP, hvw⟩)
-        · exact ⟨List.cons_ne_nil b w, h, Or.inl rfl⟩
-        · exact ⟨hv, hvP, Or.inr hvw⟩
-      · rintro ⟨hv, hvP, rfl | hvw⟩
-        · exact Or.inl rfl
-        · exact Or.inr ⟨hv, hvP, hvw⟩
-    · rw [ih]
-      constructor
-      · rintro ⟨hv, hvP, hvw⟩
-        exact ⟨hv, hvP, Or.inr hvw⟩
-      · rintro ⟨hv, hvP, rfl | hvw⟩
-        · exact absurd hvP h
-        · exact ⟨hv, hvP, hvw⟩
+  | case2 b w hmem ih => -- b :: w ∈ P
+    rw [List.suffix_cons_iff, List.mem_cons, ih]
+    constructor
+    · rintro (rfl | ⟨hv, hvP, hvw⟩)
+      · exact ⟨List.cons_ne_nil b w, hmem, Or.inl rfl⟩
+      · exact ⟨hv, hvP, Or.inr hvw⟩
+    · rintro ⟨hv, hvP, rfl | hvw⟩
+      · exact Or.inl rfl
+      · exact Or.inr ⟨hv, hvP, hvw⟩
+  | case3 b w hmem ih => -- b :: w ∉ P
+    rw [List.suffix_cons_iff, ih]
+    constructor
+    · rintro ⟨hv, hvP, hvw⟩
+      exact ⟨hv, hvP, Or.inr hvw⟩
+    · rintro ⟨hv, hvP, rfl | hvw⟩
+      · exact absurd hvP hmem
+      · exact ⟨hv, hvP, hvw⟩
 
 theorem pairwise_length_gt_output (P : List (List α)) (w : List α) :
     (output P w).Pairwise (fun x y => y.length < x.length) := by
-  induction w with
-  | nil =>
-    rw [output_nil]
-    exact List.Pairwise.nil
-  | cons b w ih =>
-    rw [output]
-    split_ifs
-    · refine List.Pairwise.cons (fun y hy => ?_) ih
-      have := (mem_output_iff.mp hy).2.2.length_le
-      rw [List.length_cons]
-      omega
-    · exact ih
+  fun_induction output P w with
+  | case1 => exact List.Pairwise.nil -- []
+  | case2 b w _ ih => -- b :: w ∈ P
+    refine List.Pairwise.cons (fun y hy => ?_) ih
+    have := (mem_output_iff.mp hy).2.2.length_le
+    rw [List.length_cons]
+    omega
+  | case3 _ _ _ ih => exact ih -- b :: w ∉ P
 
 theorem nodup_output (P : List (List α)) (w : List α) : (output P w).Nodup :=
   (pairwise_length_gt_output P w).imp fun h heq => by rw [heq] at h; omega

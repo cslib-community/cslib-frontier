@@ -172,14 +172,12 @@ public theorem exec_tileStep {w L m N A t E : ℕ} (hw : 0 < w) (hm : m ≤ L)
     habsL habsR hw (magnitude_admissions hw hmag).2.1 hkernel
   rw [hset] at hk kv
   let u := k.extend bank arg
-  have hhigh (i : Fin 160) (hi : 96 ≤ i.val) : u.regs i = arg.regs i := by
-    have hnot : ¬∃ j, bank j = i := by
-      rintro ⟨j, hj⟩
-      have hv := congrArg (fun r : Fin 160 => r.val) hj
+  have hhigh (i : Fin 160) (hi : 96 ≤ i.val) : u.regs i = arg.regs i :=
+    Function.extend_apply' _ _ _ fun ⟨j, hj⟩ => by
+      have hv := congrArg Fin.val hj
       change j.val = i.val at hv
       omega
-    exact Function.extend_apply' _ _ _ hnot
-  have up : Parameters L m N qs.length u := arp.reframe hhigh
+  have up : Parameters L m N qs.length u := by regs_frame
   have ui : u.regs Reg.index = t := by regs_frame
   have ue : u.regs (bank PrunedQuery.epoch) = k.regs PrunedQuery.epoch :=
     bank_injective.extend_apply _ _ _
@@ -191,10 +189,9 @@ public theorem exec_tileStep {w L m N A t E : ℕ} (hw : 0 < w) (hm : m ≤ L)
   have hpost : ExecWithin (B := .standard) (w + 2)
       (.seq (.op (.copy Reg.epoch (bank PrunedQuery.epoch)))
         (ram[Reg.index ← Reg.index + Reg.one])) u y 2 := by
-    ram_eval [y, ue, ui, up.one, hnext, Reg.epoch, Reg.index, Reg.one]
-  have yp : Parameters L m N qs.length y :=
-    (up.set_work Reg.epoch (by decide) _).set_work Reg.index (by decide) _
-  have yepoch : y.regs Reg.epoch = k.regs PrunedQuery.epoch := by simp [y, Reg.epoch, Reg.index]
+    wram_exec * [ue, hnext]
+  have yp : Parameters L m N qs.length y := by regs_frame
+  have yepoch : y.regs Reg.epoch = k.regs PrunedQuery.epoch := by dsimp only [y]; wram_simp
   have yframe (p : ℕ)
       (ho : ¬(groupedBase L m N qs.length + a ≤ p ∧
         p < groupedBase L m N qs.length + b))

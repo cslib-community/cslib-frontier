@@ -16,9 +16,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
 import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Crypto.Game.Order
-import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.Rewinding
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Schnorr's protocol is a proof of knowledge of discrete logarithms
@@ -300,13 +300,8 @@ theorem DiscreteLog.negligible_schnorrPoKGame {F : PrimeOrderGroupFamily}
     (hinv : Negligible fun n => (1 / m n : ℝ≥0))
     {A : MaliciousProver (ℕ × F.Desc)} (hA : A.IsPPT (encPair encUnary F.encDesc)) :
     Negligible fun n => Game.succProbability (F.schnorrPoKGame setup A n) := by
-  have hbound := (hinv.add (negligible_const_div_two_pow 2)).add
-    (Negligible.sqrt (hDL _ (F.isPPTOn_schnorrPoKToDLogSolver hA)))
-  refine negligible_of_le hbound fun n => ?_
-  rw [← NNReal.coe_le_coe, Pi.add_apply, Pi.add_apply, NNReal.coe_add, NNReal.coe_add,
-    Real.coe_sqrt, NNReal.coe_div, NNReal.coe_div, NNReal.coe_one, NNReal.coe_natCast,
-    NNReal.coe_pow, NNReal.coe_ofNat]
-  exact F.succProbability_schnorrPoKGame_le setup A n (m n) (hm0 n) (hm n)
+  have hdl := hDL _ (F.isPPTOn_schnorrPoKToDLogSolver hA)
+  negligible using fun n => F.succProbability_schnorrPoKGame_le setup A n (m n) (hm0 n) (hm n)
 
 /-! ### Composed fair-coin Schnorr protocols (`andProof`, `schnorrOrProbFamily`,
   `parallelRepetition`) -/
@@ -502,9 +497,8 @@ theorem computationalSpecialHVZK_andProof_schnorr (setup : ℕ → PMF F.Desc) :
     exact andProof_accepts_iff.mpr
       ⟨F.mem_support_schnorrSimulator_accepts i y.1 c ha,
        F.mem_support_schnorrSimulator_accepts i y.2 c hb⟩
-  indistinguishable _ A _ :=
-    negligible_of_le (negligible_const_div_two_pow 4) fun n =>
-      F.advantage_chvzkGame_andProof_schnorrProbFamily_le setup A n
+  indistinguishable _ A _ := by
+    negligible using F.advantage_chvzkGame_andProof_schnorrProbFamily_le setup A
 
 /-! #### Disjunction (`schnorrOrProbFamily`) -/
 
@@ -699,9 +693,8 @@ theorem computationalSpecialHVZK_orProof_schnorr (setup : ℕ → PMF F.Desc) :
     exact orProofWith_accepts_iff.mpr
       ⟨F.mem_support_schnorrSimulator_accepts i y.1 c₀ ha,
        F.mem_support_schnorrSimulator_accepts i y.2 (c - c₀) hb⟩
-  indistinguishable _ A _ :=
-    negligible_of_le (negligible_const_div_two_pow 6) fun n =>
-      F.advantage_chvzkGame_schnorrOrProbFamily_le setup A n
+  indistinguishable _ A _ := by
+    negligible using F.advantage_chvzkGame_schnorrOrProbFamily_le setup A
 
 /-! #### `k`-fold parallel repetition (`parallelRepetition`) -/
 
@@ -844,8 +837,8 @@ theorem computationalSpecialHVZK_parallelRepetition_schnorr
     obtain ⟨v, hv, rfl⟩ := htz
     exact parallelRepetition_accepts_iff.mpr fun j =>
       F.mem_support_schnorrSimulator_accepts i y (c j) (hv j)
-  indistinguishable _ A _ :=
-    negligible_of_le (by fun_prop) fun n =>
+  indistinguishable _ A _ := by
+    negligible using fun n =>
       F.advantage_chvzkGame_parallelRepetition_schnorrProbFamily_le k setup n (K n) (hk n) A
 
 end Cslib.Crypto.PrimeOrderGroupFamily

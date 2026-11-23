@@ -277,8 +277,7 @@ theorem BPTIME_subset_DTIME_of_canonicalDerandomizer_of_growth {G : List Bool �
         rw [← pow_mul, mul_left_comm, ← mul_assoc, ← pow_add]
         ring_nf
     _ ≤ 2 ^ (D * d + D * e) * (P ^ (D * d) * P ^ D) :=
-        Nat.mul_le_mul_left _ (Nat.mul_le_mul (Nat.pow_le_pow_left hP1 _)
-          (Nat.pow_le_pow_left hP2 _))
+        by gcongr
     _ = 2 ^ (D * d + D * e) * P ^ (D * d + D) := by rw [pow_add P]
     _ ≤ _ := Nat.le_add_right _ _
 

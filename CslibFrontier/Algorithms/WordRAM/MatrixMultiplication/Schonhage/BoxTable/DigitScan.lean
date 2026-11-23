@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Bo
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.Digits
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Execution of the box-geometry digit scan
@@ -35,9 +36,6 @@ instance (i : Fin registers) : Decidable (DigitLocal i) :=
   inferInstanceAs (Decidable (i = Reg.digit ∨ i = Reg.suffix ∨ i = Reg.population ∨
     i = Reg.starPower ∨ i = Reg.power ∨ i = Reg.level ∨ i = Reg.temporary))
 
-private theorem countDigit_preserves (i : Fin registers) :
-    ¬DigitLocal i → countDigit.Preserves i := by decide +revert
-
 /-- One charged step of the real native scan, with its original-input-derived fits. -/
 theorem exec_countDigit {w L c e k : ℕ} (x : Data registers) (hk : k < L)
     (h10 : x.regs Reg.ten = 10) (h9 : x.regs Reg.nine = 9)
@@ -54,55 +52,28 @@ theorem exec_countDigit {w L c e k : ℕ} (x : Data registers) (hk : k < L)
       y.regs Reg.starPower = starStride c e (k + 1) ∧ y.mem = x.mem ∧
       (∀ i, ¬DigitLocal i → y.regs i = x.regs i) := by
   have hp0 := population_le c k
-  have hcBound : c ≤ c + 10 ^ L + L + 12 :=
-    ((Nat.le_add_right c (10 ^ L)).trans (Nat.le_add_right _ L)).trans
-      (Nat.le_add_right _ 12)
-  have hLBound : L ≤ c + 10 ^ L + L + 12 :=
-    (Nat.le_add_left L (c + 10 ^ L)).trans (Nat.le_add_right _ 12)
-  have hPBound : 10 ^ L ≤ c + 10 ^ L + L + 12 :=
-    ((Nat.le_add_left (10 ^ L) c).trans (Nat.le_add_right _ L)).trans
-      (Nat.le_add_right _ 12)
-  have h12Bound : 12 ≤ c + 10 ^ L + L + 12 := Nat.le_add_left _ _
-  have hfpop : Fits w (population c k + 1) :=
-    hfit.of_le ((Nat.succ_le_of_lt (hp0.trans_lt hk)).trans hLBound)
-  have hfk : Fits w (k + 1) := hfit.of_le ((Nat.succ_le_of_lt hk).trans hLBound)
-  have hfd : Fits w (digitAt c k) := hfit.of_le
-    ((Nat.le_of_lt (Nat.mod_lt _ (by decide : 0 < 10))).trans
-      ((by decide : 10 ≤ 12).trans h12Bound))
-  have hfq : Fits w (c / 10 ^ k / 10) := hfit.of_le
-    ((Nat.div_le_self _ _).trans ((Nat.div_le_self _ _).trans hcBound))
+  have hdm : c / 10 ^ k % 10 < 10 := Nat.mod_lt _ (by decide)
+  have hdiv : c / 10 ^ k / 10 ≤ c := (Nat.div_le_self _ _).trans (Nat.div_le_self _ _)
   have hpowle : 10 ^ (k + 1) ≤ 10 ^ L :=
     Nat.pow_le_pow_right (by decide) (Nat.succ_le_of_lt hk)
-  have hfpow : Fits w (10 ^ k * 10) := by
-    simpa only [pow_succ] using hfit.of_le (hpowle.trans hPBound)
+  have hpow10 : 10 ^ k * 10 = 10 ^ (k + 1) := (pow_succ 10 k).symm
   have hpowq : c / 10 ^ k / 10 = c / 10 ^ (k + 1) := by
     rw [Nat.div_div_eq_div_mul, pow_succ]
-  let base := (x.set Reg.digit (digitAt c k)).set Reg.suffix (c / 10 ^ k / 10)
-  let changed := if digitAt c k = 9 then
-      if population c k + 1 = e then
-        (base.set Reg.population (population c k + 1)).set Reg.starPower (10 ^ k)
-      else (base.set Reg.population (population c k + 1)).set Reg.temporary
-        (x.regs Reg.temporary)
-    else base.set Reg.temporary (x.regs Reg.temporary)
-  let y := (changed.set Reg.power (10 ^ k * 10)).set Reg.level (k + 1)
-  have hy : ExecWithin w countDigit x y 9 := by
-    dsimp only [digitAt] at hfd
-    by_cases hd : c / 10 ^ k % 10 = 9 <;> by_cases hm : population c k + 1 = e
-    all_goals
-      have hf9 : Fits w 9 := hfit.of_le ((by decide : 9 ≤ 12).trans h12Bound)
-      have hfn := hfpop
-      try rw [hm] at hfn
-      ram_eval [countDigit, y, changed, base, hd, hm, h10, h9, h1, he, hl, hq, hp,
-        hpow, hs, hfd, hfq, hfpop, hfn, hf9, hfpow, hfk, digitAt,
-        Reg.digit, Reg.suffix, Reg.population, Reg.starPower, Reg.power, Reg.level,
-        Reg.temporary, Reg.ten, Reg.nine, Reg.one, Reg.stars, Fin.mk.injEq]
-  refine ⟨y, hy, ?_, ?_, ?_, ?_, ?_, ?_, fun i hi => hy.regs_eq
-    (countDigit_preserves i hi)⟩
-  all_goals
-    by_cases hd : digitAt c k = 9 <;> by_cases hm : population c k + 1 = e <;>
-      simp [y, changed, base, hd, hm, hp, hs, population_succ, starStride,
-        hpowq, pow_succ, Reg.level, Reg.power, Reg.population, Reg.suffix,
-        Reg.starPower, Reg.digit, Reg.temporary]
+  suffices ∃ y, ExecWithin w countDigit x y 9 ∧ y.regs Reg.level = k + 1 ∧
+      y.regs Reg.suffix = c / 10 ^ (k + 1) ∧
+      y.regs Reg.population = population c (k + 1) ∧
+      y.regs Reg.power = 10 ^ (k + 1) ∧
+      y.regs Reg.starPower = starStride c e (k + 1) ∧ y.mem = x.mem by
+    obtain ⟨y, hy, hl', hq', hp', hpow', hs', hm'⟩ := this
+    exact ⟨y, hy, hl', hq', hp', hpow', hs', hm',
+      fun i hi => hy.regs_eq (by unfold DigitLocal at hi; decide +revert)⟩
+  unfold countDigit
+  wram_exec [*]
+  · rename_i hd
+    wram_simp [population_succ, starStride, digitAt, hd, hc, hpowq, hpow10]
+  · rename_i hd
+    wram_simp [population_succ, starStride, digitAt, hd, hc, hs, hpowq, hpow10]
+  · wram_simp [population_succ, starStride, digitAt, hc, hs, hp, hpowq, hpow10, false_and]
 
 /-- Registers changed by the scan, including its descriptor initialization. -/
 @[expose] def InspectLocal (i : Fin registers) : Prop :=
@@ -110,9 +81,6 @@ theorem exec_countDigit {w L c e k : ℕ} (x : Data registers) (hk : k < L)
 
 instance (i : Fin registers) : Decidable (InspectLocal i) :=
   inferInstanceAs (Decidable (DigitLocal i ∨ i = Reg.stars ∨ i = Reg.completion))
-
-private theorem inspect_preserves (i : Fin registers) :
-    ¬InspectLocal i → inspect.Preserves i := by decide +revert
 
 /-- The complete digit loop computes the population and highest-star stride from a raw slot. -/
 theorem exec_inspect {w L s : ℕ} (x : Data registers)
@@ -129,81 +97,34 @@ theorem exec_inspect {w L s : ℕ} (x : Data registers)
   let c := s % 10 ^ L
   have hc : c ≤ s := Nat.mod_le _ _
   have he : e ≤ s := Nat.div_le_self _ _
-  have hscalar : s ≤ s + 10 ^ L + L + 12 :=
-    ((Nat.le_add_right _ _).trans (Nat.le_add_right _ _)).trans (Nat.le_add_right _ _)
-  have hfe : Fits w e := hfit.of_le (he.trans hscalar)
-  have hfc : Fits w c := hfit.of_le (hc.trans hscalar)
-  have hfitc : Fits w (c + 10 ^ L + L + 12) := hfit.of_le
-    (Nat.add_le_add_right (Nat.add_le_add_right (Nat.add_le_add_right hc _) _) _)
-  have hf1 : Fits w 1 := hfit.of_le ((by decide : 1 ≤ 12).trans (Nat.le_add_left _ _))
-  let start := ((((((x.set Reg.stars e).set Reg.completion c).set Reg.suffix c).set
-    Reg.level 0).set Reg.population 0).set Reg.power 1).set Reg.starPower 0
-  have hs : ExecWithin w (ram[
-      Reg.stars ← Reg.slot / Reg.span; Reg.completion ← Reg.slot % Reg.span;
-      Reg.suffix ← Reg.completion; Reg.level ← #0; Reg.population ← #0;
-      Reg.power ← #1; Reg.starPower ← #0 ]) x start 7 := by
-    ram_eval [start, e, c, hslot, hT, hfe, hfc, hf1,
-      Reg.stars, Reg.slot, Reg.span, Reg.completion, Reg.suffix, Reg.level,
-      Reg.population, Reg.power, Reg.starPower, Fin.mk.injEq]
+  suffices ∃ y, ExecWithin w inspect x y (11 * L + 9) ∧
+      y.regs Reg.stars = e ∧ y.regs Reg.completion = c ∧
+      y.regs Reg.population = population c L ∧
+      y.regs Reg.starPower = starStride c e L ∧ y.mem = x.mem by
+    obtain ⟨y, hy, hs', hc', hp', hsp', hm'⟩ := this
+    exact ⟨y, hy, hs', hc', hp', hsp', hm',
+      fun i hi => hy.regs_eq (by unfold InspectLocal DigitLocal at hi; decide +revert)⟩
   let P (j : ℕ) (y : Data registers) : Prop :=
-    y.regs Reg.suffix = c / 10 ^ j ∧
-      y.regs Reg.population = population c j ∧
-      y.regs Reg.power = 10 ^ j ∧
-      y.regs Reg.starPower = starStride c e j ∧
-      y.mem = x.mem ∧ (∀ i, ¬DigitLocal i → y.regs i = start.regs i)
-  have hi : P (start.regs Reg.level) start := by
-    simp [P, start, Reg.level, Reg.starPower, Reg.power, Reg.population, Reg.suffix,
-      Reg.completion, Reg.stars, population_zero, starStride]
-  have hlimit (y : Data registers) (hy : P (y.regs Reg.level) y) :
-      y.regs Reg.levels = L := by
-    obtain ⟨_, _, _, _, _, hframe⟩ := hy
-    rw [hframe Reg.levels (by decide)]
-    simpa [start, Reg.levels, Reg.stars, Reg.completion, Reg.suffix, Reg.level,
-      Reg.population, Reg.power, Reg.starPower] using hL
+    y.regs Reg.levels = L ∧ y.regs Reg.one = 1 ∧ y.regs Reg.ten = 10 ∧ y.regs Reg.nine = 9 ∧
+      y.regs Reg.stars = e ∧ y.regs Reg.completion = c ∧
+      y.regs Reg.suffix = c / 10 ^ j ∧ y.regs Reg.population = population c j ∧
+      y.regs Reg.power = 10 ^ j ∧ y.regs Reg.starPower = starStride c e j ∧ y.mem = x.mem
   have hb (y : Data registers) (hy : P (y.regs Reg.level) y) (hk : y.regs Reg.level < L) :
       ∃ z, ExecWithin w countDigit y z 9 ∧ P (y.regs Reg.level + 1) z ∧
         z.regs Reg.level = y.regs Reg.level + 1 := by
-    obtain ⟨hq, hp, hpow, hstar, hm, hframe⟩ := hy
-    have hconst1 : y.regs Reg.one = 1 := by
-      simpa [start, Reg.one, Reg.stars, Reg.completion, Reg.suffix, Reg.level,
-        Reg.population, Reg.power, Reg.starPower] using
-        (hframe Reg.one (by decide)).trans (by
-          simpa [start, Reg.one, Reg.stars, Reg.completion, Reg.suffix, Reg.level,
-            Reg.population, Reg.power, Reg.starPower] using h1)
-    have hconst10 : y.regs Reg.ten = 10 := by
-      simpa [start, Reg.ten, Reg.stars, Reg.completion, Reg.suffix, Reg.level,
-        Reg.population, Reg.power, Reg.starPower] using
-        (hframe Reg.ten (by decide)).trans (by
-          simpa [start, Reg.ten, Reg.stars, Reg.completion, Reg.suffix, Reg.level,
-            Reg.population, Reg.power, Reg.starPower] using h10)
-    have hconst9 : y.regs Reg.nine = 9 := by
-      simpa [start, Reg.nine, Reg.stars, Reg.completion, Reg.suffix, Reg.level,
-        Reg.population, Reg.power, Reg.starPower] using
-        (hframe Reg.nine (by decide)).trans (by
-          simpa [start, Reg.nine, Reg.stars, Reg.completion, Reg.suffix, Reg.level,
-            Reg.population, Reg.power, Reg.starPower] using h9)
-    have hstars : y.regs Reg.stars = e := by
-      simpa [start, Reg.stars, Reg.completion, Reg.suffix, Reg.level,
-        Reg.population, Reg.power, Reg.starPower] using hframe Reg.stars (by decide)
+    obtain ⟨yL, y1, y10, y9, ystars, ycomp, hq, hp, hpow, hstar, hm⟩ := hy
     obtain ⟨z, hz, hzl, hzq, hzp, hzpow, hzs, hzm, hzf⟩ :=
-      exec_countDigit y hk hconst10 hconst9 hconst1 hstars rfl hq hp hpow hstar hfitc
-    refine ⟨z, hz, ⟨hzq, hzp, hzpow, hzs, hzm.trans hm,
-      fun i h => (hzf i h).trans (hframe i h)⟩, hzl⟩
-  obtain ⟨y, hloop, ⟨_, hpop, _, hstar, hm, hframe⟩, _⟩ := ExecWithin.loop_count P hlimit hb
-    (by simp [start, Reg.level, Reg.starPower, Reg.power, Reg.population]) hi
-  have hwhole : ExecWithin w inspect x y (11 * L + 9) := by
-    apply (hs.seq hloop).mono
-    simp only [start, Data.set_regs, Reg.level, Reg.population, Reg.power, Reg.starPower,
-      Function.update_apply, Fin.reduceEq, ↓reduceIte, Nat.sub_zero]
-    omega
-  refine ⟨y, hwhole, ?_, ?_, ?_, ?_, hm,
-    fun i hi => hwhole.regs_eq (inspect_preserves i hi)⟩
-  · simpa [start, Reg.stars, Reg.completion, Reg.suffix, Reg.level,
-      Reg.population, Reg.power, Reg.starPower] using hframe Reg.stars (by decide)
-  · simpa [start, Reg.stars, Reg.completion, Reg.suffix, Reg.level,
-      Reg.population, Reg.power, Reg.starPower] using
-      hframe Reg.completion (by decide)
-  · exact hpop
-  · exact hstar
+      exec_countDigit y hk y10 y9 y1 ystars rfl hq hp hpow hstar (hfit.of_le (by omega))
+    refine ⟨z, hz, ⟨(hzf _ (by decide)).trans yL, (hzf _ (by decide)).trans y1,
+      (hzf _ (by decide)).trans y10, (hzf _ (by decide)).trans y9,
+      (hzf _ (by decide)).trans ystars, (hzf _ (by decide)).trans ycomp,
+      hzq, hzp, hzpow, hzs, hzm.trans hm⟩, hzl⟩
+  refine WP.exists_execWithin ?_
+  unfold inspect inspectSetup
+  wram_exec [*]
+  wram_call (ExecWithin.loop_count P (fun _ hy => hy.1) hb (by wram_simp; exact Nat.zero_le _)
+    (by wram_simp [P, population_zero, starStride, pow_zero, Nat.div_one, e, c, *]))
+    with y ⟨⟨_, _, _, _, ystars, ycomp, _, hpop, _, hstar, hm⟩, _⟩
+  exact ⟨by wram_simp; omega, ystars, ycomp, hpop, hstar, by simpa only [Data.set_mem] using hm⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable

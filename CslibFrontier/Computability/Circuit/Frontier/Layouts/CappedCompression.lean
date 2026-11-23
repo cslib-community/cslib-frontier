@@ -50,7 +50,8 @@ counts on connected blocks, this bounds the number of degree-three quotient bloc
 
 * `Cslib.Circuits.Frontier.Multigraph.CappedCompression.exists_saturated`: merging terminates when
   every single vertex has degree at most `d` and weight at most `M`.
-* `Cslib.Circuits.Frontier.Multigraph.CappedCompression.Saturated.card_deg_one_two_mul_le`: the
+* `Cslib.Circuits.Frontier.Multigraph.CappedCompression.Saturated.card_deg_one_two_mul_le`,
+  `Cslib.Circuits.Frontier.Multigraph.CappedCompression.Saturated.mul_card_deg_one_two_le`: the
   number of degree-`1` and degree-`2` blocks is `O((∑ v, w v) / M)`.
 * `Cslib.Circuits.Frontier.Multigraph.CappedCompression.card_deg_three_le_of_connected`: in a
   connected subcubic multigraph, `#Q₃ ≤ 2 β₁ + #Q₁`.
@@ -283,6 +284,13 @@ theorem mem_iff_blockOf_eq {v : V} {B : c.blocks} : v ∈ B.1 ↔ c.blockOf v = 
 private theorem preimage_blockOf_singleton (B : c.blocks) : c.blockOf ⁻¹' {B} = {v | v ∈ B.1} := by
   ext v
   simp [c.mem_iff_blockOf_eq]
+
+/-- There are at most as many blocks as vertices. -/
+theorem card_blocks_le [Finite V] : c.blocks.card ≤ Nat.card V := by
+  calc c.blocks.card = Nat.card c.blocks := by simp
+    _ ≤ Nat.card V := Nat.card_le_card_of_surjective c.blockOf fun B =>
+      let ⟨v, hv⟩ := List.exists_mem_of_ne_nil _ (c.ne_nil B.1 B.2)
+      ⟨v, c.mem_iff_blockOf_eq.mp hv⟩
 
 /-- Distinct blocks are disjoint. -/
 theorem disjoint_of_ne {B B' : c.blocks} (h : B ≠ B') :
@@ -518,6 +526,18 @@ theorem Saturated.card_deg_one_two_mul_le [Fintype V] [Finite E] (hc : c.Saturat
   calc (M / 2 + 1) * L.card ≤ (M / 2 + 1) * (4 * H.card) := Nat.mul_le_mul_left _ hL_le
     _ = 4 * ((M / 2 + 1) * H.card) := Nat.mul_left_comm _ 4 _
     _ ≤ 4 * ∑ v : V, w v := Nat.mul_le_mul_left 4 hH_wt
+
+/-- **Low-degree blocks are scarce**, with the weight cap itself as the factor:
+`M * #{B | deg_Q(B) ∈ {1, 2}} ≤ 8 * ∑ v, w v`. -/
+theorem Saturated.mul_card_deg_one_two_le [Fintype V] [Finite E] (hc : c.Saturated) :
+    M * (Finset.univ.filter fun B : c.blocks =>
+        1 ≤ (c.quotient.incidenceSet B).ncard ∧ (c.quotient.incidenceSet B).ncard ≤ 2).card ≤
+      8 * ∑ v : V, w v := by
+  have := hc.card_deg_one_two_mul_le
+  have := Nat.mul_le_mul_right (Finset.univ.filter fun B : c.blocks =>
+    1 ≤ (c.quotient.incidenceSet B).ncard ∧ (c.quotient.incidenceSet B).ncard ≤ 2).card
+    (show M ≤ 2 * (M / 2 + 1) by omega)
+  linarith
 
 /-- Sum of block sizes is `|V|`, and each connected block `B` absorbs at least `|B| - 1` internal
 edges (and at least `|B|` internal edges if `G.edgeCut B = ∅` and all vertices in `B` have degree

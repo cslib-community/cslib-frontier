@@ -34,8 +34,8 @@ by `circuit_bound [step, generateFormula, propagateFormula]`.
 ## How it works
 
 The tactic computes an upper bound of `m` and leaves the comparison of that bound with `b` to
-`omega`. It bounds sums, products, maxima, finite sums and conditionals from bounds of their parts.
-At any other term `t` it tries, in this order:
+`omega`. It bounds sums, products, powers with a fixed exponent, maxima, finite sums, finite suprema
+and conditionals from bounds of their parts. At any other term `t` it tries, in this order:
 
 1. If `t` occurs in `b`, it keeps `t`.
 2. A local hypothesis `t ≤ c` or `t = c`, possibly under quantifiers: an induction hypothesis, or a
@@ -65,7 +65,8 @@ circuit-specific parts, and they are attached in `CslibFrontier.Computability.Ci
 ## Implementation notes
 
 `dite_le_max` is used in the proofs the tactic builds, so it is public. The other monotonicity
-steps use `Nat.add_le_add`, `Nat.mul_le_mul`, `max_le_max`, `ite_le_sup` and `Finset.sum_le_sum`.
+steps use `Nat.add_le_add`, `Nat.mul_le_mul`, `Nat.pow_le_pow_left`, `max_le_max`, `ite_le_sup`,
+`Finset.sum_le_sum` and `Finset.sup_le`.
 -/
 
 public section
@@ -174,6 +175,12 @@ private partial def bound (e : Expr) : BoundM Bound := do
     if α.isConstOf ``Nat then combine ``Nat.add_le_add e a b else boundTerm e
   | HMul.hMul α _ _ _ a b =>
     if α.isConstOf ``Nat then combine ``Nat.mul_le_mul e a b else boundTerm e
+  | HPow.hPow α β γ _ a b =>
+    if α.isConstOf ``Nat && β.isConstOf ``Nat && γ.isConstOf ``Nat then
+      let A ← bound a
+      if A.proof?.isNone then boundTerm e
+      else Bound.ofProof (← mkAppM ``Nat.pow_le_pow_left #[A.proof, b])
+    else boundTerm e
   | Max.max _ _ a b =>
     let A ← bound a
     let B ← bound b
@@ -208,6 +215,19 @@ private partial def bound (e : Expr) : BoundM Bound := do
       let proof ← mkAppOptM ``Finset.sum_le_sum #[ι, mkConst ``Nat, ← natInst ``AddCommMonoid,
         ← natInst ``Preorder, f, g, s, none, h]
       return ⟨val, some (← mkExpectedTypeHint proof (natLE e val))⟩
+  | Finset.sup α ι instSup instBot s f =>
+    let b ← boundTerm e
+    if b.proof?.isSome || !α.isConstOf ``Nat || e.occurs (← read).target then return b
+    let supBound ← attempt do
+      let (val, h) ← boundUnder `j ι fun j => f.beta #[j]
+      let hmem ← withLocalDeclD `j ι fun j => do
+        withLocalDeclD `hj (← mkAppM ``Membership.mem #[s, j]) fun hj =>
+          mkLambdaFVars #[j, hj] (h.beta #[j])
+      let proof ← mkAppOptM ``Finset.sup_le #[α, ι, instSup, instBot, s, f, val, hmem]
+      return (val, ← mkExpectedTypeHint proof (natLE e val))
+    return match supBound with
+      | some (val, proof) => ⟨val, some proof⟩
+      | none => b
   | _ => boundTerm e
 
 /-- Bound an operation by the same operation on bounds of its arguments `a` and `b`, by the

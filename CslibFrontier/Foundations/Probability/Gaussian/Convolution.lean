@@ -242,8 +242,7 @@ theorem tvDist_conv_discreteGaussian_le_of_dual_mass_le (r s t : ℝ)
   calc
     _ ≤ 2 * ε := by change (gaussianMass D _ 0 - 1) + (gaussianMass D _ 0 - 1) ≤ _; linarith
     _ ≤ 4 * ε * (1 - ε) := by nlinarith
-    _ ≤ 4 * ε * (covolume L / r ^ finrank ℝ E * gaussianMass L r (-u)) :=
-      mul_le_mul_of_nonneg_left (by linarith) (by positivity)
+    _ ≤ 4 * ε * (covolume L / r ^ finrank ℝ E * gaussianMass L r (-u)) := by gcongr; linarith
   rfl
 
 /-- A positive dual gap and the explicit Gaussian tail criterion suffice for the actual
