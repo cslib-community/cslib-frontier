@@ -2011,6 +2011,29 @@ section
 #guard agreeOPB enumOut enumOutProof
 #guard agreeOPB sym2 domObjProof
 
+/-! Through ordinary imports: the compiled checker of output sections accepts `enumOut` with
+its output `EQUIENUMERABLE IMPLICIT`, and the equality theorems carry an acceptance by a
+reference checker over to the compiled one. -/
+
+#guard match parseOPB enumOut with
+  | some I =>
+    match parseProof I.constraints.length 1000 (noOutput enumOutProof) with
+    | some P =>
+      (checkRedOutputFast I.constraints I.objective P I.preserved ⟨.equienumerable, none⟩).isSome
+    | none => false
+  | none => false
+
+example (F : List PBConstr) (obj : Option Objective) (P : RedProof) (pres : Option (List ℕ))
+    (h : checkRed F obj P pres = true) : checkRedFast F obj P pres = true := by
+  rw [checkRedFast_eq_checkRed]
+  exact h
+
+example (F : List PBConstr) (obj : Option Objective) (P : RedProof) (pres : Option (List ℕ))
+    (sec : OutputSection) (o : Output) (h : checkRedOutput F obj P pres sec = some o) :
+    checkRedOutputFast F obj P pres sec = some o := by
+  rw [checkRedOutputFast_eq_checkRedOutput]
+  exact h
+
 end
 
 end CslibFrontierTests.Logics.Propositional.VeriPBText

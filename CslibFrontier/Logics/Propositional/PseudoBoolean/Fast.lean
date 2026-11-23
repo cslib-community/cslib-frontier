@@ -8,9 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
-public import CslibFrontier.Foundations.Data.Array.SetGrow
-public import Std.Data.HashMap
-public import Std.Data.HashSet
+import CslibFrontier.Foundations.Data.Array.SetGrow
+import Std.Data.HashMap
+import Std.Data.HashSet
 
 /-!
 # A compiled VeriPB kernel checker
@@ -22,32 +22,30 @@ the same proofs with compiled data structures, and agrees with it on every input
 (`Cslib.Logic.PL.VeriPB.checkRedFast_eq_checkRed`), so every soundness theorem of `checkRed`
 applies to it unchanged.
 
-* **The database and the core set** are each a `Cslib.Logic.PL.VeriPB.DB`: an array indexed by
-  constraint number holding the live constraint of each number, and a history list of the
-  constraints in database order, deleted ones included. The represented list is the history
-  filtered to the live numbers (`Cslib.Logic.PL.VeriPB.DB.toList`). A lookup reads the array, a
+* **The database and the core set** are each a private `DB`: an array indexed by constraint
+  number holding the live constraint of each number, and a history list of the constraints in
+  database order, deleted ones included. The represented list is the history filtered to the
+  live numbers. A lookup reads the array, a
   deletion writes `none` into it, and an addition at a number above all others conses onto the
   history and writes the array. The history is filtered again once the deletions since the last
   filtering outnumber half the array.
 * **The steps** `pol`, `rup`, `del`, `deld` and `delc`, which make up the proofs that solvers
-  log, run on this representation (`Cslib.Logic.PL.VeriPB.stepTopFast`). Every other step
+  log, run on this representation (the private `stepTopFast`). Every other step
   materializes the represented state, runs the reference step `Cslib.Logic.PL.VeriPB.stepTop`
   and converts back, so its semantics is that of the reference by construction. That costs time
   linear in the database, as the reference step does anyway.
-* **The cutting-planes rules** normalize in linear time: `Cslib.Logic.PL.PBConstr.toLinearFast`
-  merges the terms on a variable through a hash map of positions instead of
-  `Cslib.Logic.PL.PBConstr.insertCoeff`'s scan, and produces the same list
-  (`Cslib.Logic.PL.PBConstr.toLinearFast_eq`). Saturation, division and weakening renormalize
-  a constraint already in normal form, whose variables are distinct
-  (`Cslib.Logic.PL.PBConstr.nodup_termVar_normalize`): there no terms merge, and
-  `Cslib.Logic.PL.PBConstr.normalizeDistinct` skips the hash map.
+* **The cutting-planes rules** normalize in linear time: the private `toLinearFast` merges the
+  terms on a variable through a hash map of positions instead of
+  `Cslib.Logic.PL.PBConstr.insertCoeff`'s scan, and produces the same list. Saturation, division
+  and weakening renormalize a constraint already in normal form, whose variables are distinct
+  (`Cslib.Logic.PL.PBConstr.nodup_termVar_normalize`): there no terms merge, and the hash map
+  is skipped.
 * **Unit propagation** keeps its trail in a hash set and computes the slack once per
-  constraint (`Cslib.Logic.PL.VeriPB.rupFast_eq`). Distinct deletion numbers are checked with a
-  hash set (`Cslib.Logic.PL.VeriPB.nodupFast_eq`).
+  constraint. Distinct deletion numbers are checked with a hash set.
 
-The proof is by a representation invariant (`Cslib.Logic.PL.VeriPB.FState.WF`), preserved by
-each step (`Cslib.Logic.PL.VeriPB.stepTopFast_spec`), as for
-`Cslib.Logic.PL.CNF.checkLRATFast_eq_checkLRAT`. The structures are updated in place when
+The proof is by a representation invariant on the compiled state, preserved by each step, as for
+`Cslib.Logic.PL.CNF.checkLRATFast_eq_checkLRAT`. The representation and the compiled steps are
+private. The structures are updated in place when
 uniquely referenced. That speed is measured, not proved.
 
 **Compiled callers run it automatically**: `Cslib.Logic.PL.VeriPB.checkRed_eq_checkRedFast` is a
@@ -66,7 +64,6 @@ and their `decide +kernel` clients are unchanged.
 * `Cslib.Logic.PL.VeriPB.checkRedFast_eq_checkRed`,
   `Cslib.Logic.PL.VeriPB.checkRedOutputFast_eq_checkRedOutput`: they agree with the reference
   checkers.
-* `Cslib.Logic.PL.VeriPB.stepTopFast_spec`: one compiled step computes the reference step.
 * `Cslib.Logic.PL.VeriPB.checkRed_eq_checkRedFast`,
   `Cslib.Logic.PL.VeriPB.checkRedOutput_eq_checkRedOutputFast`: the `@[csimp]` lemmas.
 -/
@@ -81,7 +78,7 @@ namespace PBConstr
 
 /-- A linear form under construction: its entries, and the position of each variable among
 them. -/
-structure LinAcc where
+private structure LinAcc where
   /-- The position of each variable among the entries. -/
   pos : Std.HashMap ℕ ℕ
   /-- The entries, one per variable, in the order of `Cslib.Logic.PL.PBConstr.toLinear`. -/
@@ -89,14 +86,14 @@ structure LinAcc where
 
 /-- Add the term `t` to a linear form under construction, as `Cslib.Logic.PL.PBConstr.insertCoeff`
 does: to the entry of its variable if there is one, and as a new last entry otherwise. -/
-def linStep (t : ℕ × Literal ℕ) (acc : LinAcc) : LinAcc :=
+private def linStep (t : ℕ × Literal ℕ) (acc : LinAcc) : LinAcc :=
   match acc.pos[termVar t]? with
   | some i => ⟨acc.pos, acc.entries.modify i fun e => (e.1, e.2 + termCoeff t)⟩
   | none => ⟨acc.pos.insert (termVar t) acc.entries.size, acc.entries.push (termVar t, termCoeff t)⟩
 
 /-- `Cslib.Logic.PL.PBConstr.toLinear` with the positions of the variables hashed: linear time
 instead of quadratic. -/
-def toLinearFast (ts : List (ℕ × Literal ℕ)) : List (ℕ × ℤ) :=
+private def toLinearFast (ts : List (ℕ × Literal ℕ)) : List (ℕ × ℤ) :=
   (ts.foldr linStep
     ⟨Std.HashMap.emptyWithCapacity ts.length, Array.emptyWithCapacity ts.length⟩).entries.toList
 
@@ -156,7 +153,7 @@ private theorem LinAcc.Rep.linStep {acc : LinAcc} {L : List (ℕ × ℤ)} (h : a
       simp [hi, ← he]
     · simp [hw]
 
-theorem toLinearFast_eq (ts : List (ℕ × Literal ℕ)) : toLinearFast ts = toLinear ts := by
+private theorem toLinearFast_eq (ts : List (ℕ × Literal ℕ)) : toLinearFast ts = toLinear ts := by
   have key : ∀ (ts : List (ℕ × Literal ℕ)) (init : LinAcc), init.Rep [] →
       (ts.foldr PBConstr.linStep init).Rep (toLinear ts) := by
     intro ts init h
@@ -240,10 +237,10 @@ private theorem nodup_toLinear :
       exact ih
 
 /-- `Cslib.Logic.PL.PBConstr.normalize` in linear time. -/
-def normalizeFast (c : PBConstr) : PBConstr :=
+private def normalizeFast (c : PBConstr) : PBConstr :=
   fromLinear (toLinearFast c.terms) ((c.degree : ℤ) - negSum c.terms)
 
-@[simp] theorem normalizeFast_eq (c : PBConstr) : c.normalizeFast = c.normalize := by
+@[simp] private theorem normalizeFast_eq (c : PBConstr) : c.normalizeFast = c.normalize := by
   simp [normalizeFast, normalize, toLinearFast_eq]
 
 /-- The variables of a normalized constraint are distinct. -/
@@ -264,45 +261,47 @@ theorem nodup_termVar_normalize (c : PBConstr) : (c.normalize.terms.map termVar)
   exact (nodup_toLinear c.terms).sublist (hsub _)
 
 /-- `Cslib.Logic.PL.PBConstr.normalize` of terms on distinct variables, without merging. -/
-def normalizeDistinct (c : PBConstr) : PBConstr :=
+private def normalizeDistinct (c : PBConstr) : PBConstr :=
   fromLinear (c.terms.map fun t => (termVar t, termCoeff t)).reverse
     ((c.degree : ℤ) - negSum c.terms)
 
-theorem normalizeDistinct_eq {c : PBConstr} (h : (c.terms.map termVar).Nodup) :
+private theorem normalizeDistinct_eq {c : PBConstr} (h : (c.terms.map termVar).Nodup) :
     c.normalizeDistinct = c.normalize := by
   simp [normalizeDistinct, normalize, toLinear_of_nodup h]
 
 /-- `Cslib.Logic.PL.PBConstr.add` through `Cslib.Logic.PL.PBConstr.normalizeFast`. -/
-def addFast (c d : PBConstr) : PBConstr := normalizeFast ⟨c.terms ++ d.terms, c.degree + d.degree⟩
+private def addFast (c d : PBConstr) : PBConstr :=
+  normalizeFast ⟨c.terms ++ d.terms, c.degree + d.degree⟩
 
 /-- `Cslib.Logic.PL.PBConstr.mul` through `Cslib.Logic.PL.PBConstr.normalizeFast`. -/
-def mulFast (k : ℕ) (c : PBConstr) : PBConstr :=
+private def mulFast (k : ℕ) (c : PBConstr) : PBConstr :=
   normalizeFast ⟨c.terms.map fun t => (k * t.1, t.2), k * c.degree⟩
 
 /-- `Cslib.Logic.PL.PBConstr.div` through `Cslib.Logic.PL.PBConstr.normalizeFast`. -/
-def divFast (k : ℕ) (c : PBConstr) : PBConstr :=
+private def divFast (k : ℕ) (c : PBConstr) : PBConstr :=
   let n := c.normalizeFast
   normalizeDistinct ⟨n.terms.map fun t => (ceilDiv t.1 k, t.2), ceilDiv n.degree k⟩
 
 /-- `Cslib.Logic.PL.PBConstr.saturate` through `Cslib.Logic.PL.PBConstr.normalizeFast`. -/
-def saturateFast (c : PBConstr) : PBConstr :=
+private def saturateFast (c : PBConstr) : PBConstr :=
   let n := c.normalizeFast
   normalizeDistinct ⟨n.terms.map fun t => (min t.1 n.degree, t.2), n.degree⟩
 
 /-- `Cslib.Logic.PL.PBConstr.weaken` through `Cslib.Logic.PL.PBConstr.normalizeFast`. -/
-def weakenFast (v : ℕ) (c : PBConstr) : PBConstr :=
+private def weakenFast (v : ℕ) (c : PBConstr) : PBConstr :=
   let n := c.normalizeFast
   normalizeDistinct ⟨n.terms.filter (termVar · != v),
     n.degree - coeffSum (n.terms.filter (termVar · == v))⟩
 
 /-- `Cslib.Logic.PL.PBConstr.negate` through `Cslib.Logic.PL.PBConstr.normalizeFast`. -/
-def negateFast (c : PBConstr) : PBConstr :=
+private def negateFast (c : PBConstr) : PBConstr :=
   let n := c.normalizeFast
   ⟨n.terms.map fun t => (t.1, Std.Sat.Literal.negate t.2), coeffSum n.terms + 1 - n.degree⟩
 
-@[simp] theorem addFast_eq (c d : PBConstr) : c.addFast d = c.add d := by simp [addFast, add]
+@[simp] private theorem addFast_eq (c d : PBConstr) : c.addFast d = c.add d := by
+  simp [addFast, add]
 
-@[simp] theorem mulFast_eq (k : ℕ) (c : PBConstr) : c.mulFast k = c.mul k := by
+@[simp] private theorem mulFast_eq (k : ℕ) (c : PBConstr) : c.mulFast k = c.mul k := by
   simp [mulFast, mul]
 
 private theorem termVar_mk_snd (a : ℕ) (t : ℕ × Literal ℕ) : termVar (a, t.2) = termVar t := rfl
@@ -311,19 +310,19 @@ private theorem nodup_map_snd (f : ℕ × Literal ℕ → ℕ) (c : PBConstr) :
     ((c.normalize.terms.map fun t => (f t, t.2)).map termVar).Nodup := by
   simpa [List.map_map, Function.comp_def, termVar_mk_snd] using nodup_termVar_normalize c
 
-@[simp] theorem divFast_eq (k : ℕ) (c : PBConstr) : c.divFast k = c.div k := by
+@[simp] private theorem divFast_eq (k : ℕ) (c : PBConstr) : c.divFast k = c.div k := by
   simp only [divFast, div, normalizeFast_eq]
   exact normalizeDistinct_eq (nodup_map_snd _ c)
 
-@[simp] theorem saturateFast_eq (c : PBConstr) : c.saturateFast = c.saturate := by
+@[simp] private theorem saturateFast_eq (c : PBConstr) : c.saturateFast = c.saturate := by
   simp only [saturateFast, saturate, normalizeFast_eq]
   exact normalizeDistinct_eq (nodup_map_snd _ c)
 
-@[simp] theorem weakenFast_eq (v : ℕ) (c : PBConstr) : c.weakenFast v = c.weaken v := by
+@[simp] private theorem weakenFast_eq (v : ℕ) (c : PBConstr) : c.weakenFast v = c.weaken v := by
   simp only [weakenFast, weaken, normalizeFast_eq]
   exact normalizeDistinct_eq ((nodup_termVar_normalize c).sublist ((List.filter_sublist).map _))
 
-@[simp] theorem negateFast_eq (c : PBConstr) : c.negateFast = c.negate := by
+@[simp] private theorem negateFast_eq (c : PBConstr) : c.negateFast = c.negate := by
   simp [negateFast, negate]
 
 end PBConstr
@@ -336,7 +335,8 @@ open PBConstr
 
 /-- `Cslib.Logic.PL.VeriPB.polEval` with the constraint numbers resolved by `look` and the
 operations computed in linear time. -/
-def polEvalFast (look : ℕ → Option PBConstr) : List PolOp → List PBConstr → Option (List PBConstr)
+private def polEvalFast (look : ℕ → Option PBConstr) :
+    List PolOp → List PBConstr → Option (List PBConstr)
   | [], st => some st
   | .id n :: ops, st => (look n).bind fun c => polEvalFast look ops (c :: st)
   | .lit l :: ops, st => polEvalFast look ops (litAxiom l :: st)
@@ -347,7 +347,7 @@ def polEvalFast (look : ℕ → Option PBConstr) : List PolOp → List PBConstr 
   | .weaken v :: ops, c :: st => polEvalFast look ops (c.weakenFast v :: st)
   | _, _ => none
 
-theorem polEvalFast_eq {look : ℕ → Option PBConstr} {db : List (ℕ × PBConstr)}
+private theorem polEvalFast_eq {look : ℕ → Option PBConstr} {db : List (ℕ × PBConstr)}
     (h : ∀ n, look n = lookup db n) (ops : List PolOp) (st : List PBConstr) :
     polEvalFast look ops st = polEval db ops st := by
   fun_induction polEval db ops st <;> simp_all [polEvalFast]
@@ -355,14 +355,14 @@ theorem polEvalFast_eq {look : ℕ → Option PBConstr} {db : List (ℕ × PBCon
 /-! ### Reverse unit propagation on a hashed trail -/
 
 /-- A trail of literals, as a hash set. -/
-abbrev Trail := Std.HashSet (Literal ℕ)
+private abbrev Trail := Std.HashSet (Literal ℕ)
 
 /-- `Cslib.Logic.PL.VeriPB.slack` on a hashed trail. -/
-def slackFast (T : Trail) (c : PBConstr) : ℤ :=
+private def slackFast (T : Trail) (c : PBConstr) : ℤ :=
   (coeffSum (c.terms.filter fun t => !T.contains (Std.Sat.Literal.negate t.2)) : ℤ) - c.degree
 
 /-- `Cslib.Logic.PL.VeriPB.propagate` on a hashed trail, the slack computed once. -/
-def propagateFast (T : Trail) (c : PBConstr) : Option Trail :=
+private def propagateFast (T : Trail) (c : PBConstr) : Option Trail :=
   let s := slackFast T c
   if s < 0 then none
   else some (c.terms.foldl (fun T' t =>
@@ -371,7 +371,7 @@ def propagateFast (T : Trail) (c : PBConstr) : Option Trail :=
     else T') T)
 
 /-- The hashed trail `T` holds the literals of the trail `ρ`. -/
-def Trail.Rep (T : Trail) (ρ : List (Literal ℕ)) : Prop := ∀ l, T.contains l = ρ.contains l
+private def Trail.Rep (T : Trail) (ρ : List (Literal ℕ)) : Prop := ∀ l, T.contains l = ρ.contains l
 
 private theorem contains_foldl_insert (p : ℕ × Literal ℕ → Bool) :
     ∀ (ts : List (ℕ × Literal ℕ)) (T : Trail) (l : Literal ℕ),
@@ -388,12 +388,13 @@ private theorem contains_foldl_insert (p : ℕ × Literal ℕ → Bool) :
         simp [hp, h₁, h₂]
     · simp [hp]
 
-theorem slackFast_eq {T : Trail} {ρ : List (Literal ℕ)} (h : T.Rep ρ) (c : PBConstr) :
+private theorem slackFast_eq {T : Trail} {ρ : List (Literal ℕ)} (h : T.Rep ρ) (c : PBConstr) :
     slackFast T c = slack ρ c := by
   have h' : ∀ l, T.contains l = ρ.contains l := h
   simp only [slackFast, slack, falsified, h']
 
-theorem Trail.Rep.propagateFast {T : Trail} {ρ : List (Literal ℕ)} (h : T.Rep ρ) (c : PBConstr) :
+private theorem Trail.Rep.propagateFast {T : Trail} {ρ : List (Literal ℕ)} (h : T.Rep ρ)
+    (c : PBConstr) :
     (VeriPB.propagateFast T c).isNone = (propagate ρ c).isNone ∧
       ∀ T' ρ', VeriPB.propagateFast T c = some T' → propagate ρ c = some ρ' → T'.Rep ρ' := by
   have h' : ∀ l, T.contains l = ρ.contains l := h
@@ -408,7 +409,7 @@ theorem Trail.Rep.propagateFast {T : Trail} {ρ : List (Literal ℕ)} (h : T.Rep
 
 /-- `Cslib.Logic.PL.VeriPB.rupHints` with the constraint numbers resolved by `look`, on a hashed
 trail. -/
-def rupHintsFast (look : ℕ → Option PBConstr) (neg : PBConstr) : List Hint → Trail → Bool
+private def rupHintsFast (look : ℕ → Option PBConstr) (neg : PBConstr) : List Hint → Trail → Bool
   | [], _ => false
   | h :: hs, T =>
     match (match h with | .neg => some neg | .id n => look n) with
@@ -418,7 +419,7 @@ def rupHintsFast (look : ℕ → Option PBConstr) (neg : PBConstr) : List Hint �
       | none => true
       | some T' => rupHintsFast look neg hs T'
 
-theorem rupHintsFast_eq {look : ℕ → Option PBConstr} {db : List (ℕ × PBConstr)}
+private theorem rupHintsFast_eq {look : ℕ → Option PBConstr} {db : List (ℕ × PBConstr)}
     (hl : ∀ n, look n = lookup db n) (neg : PBConstr) :
     ∀ (hs : List Hint) (T : Trail) (ρ : List (Literal ℕ)), T.Rep ρ →
       rupHintsFast look neg hs T = rupHints db neg hs ρ
@@ -439,10 +440,10 @@ theorem rupHintsFast_eq {look : ℕ → Option PBConstr} {db : List (ℕ × PBCo
       · exact rupHintsFast_eq hl neg hs _ _ (hrep _ _ h₁ h₂)
 
 /-- `Cslib.Logic.PL.VeriPB.rup` with the constraint numbers resolved by `look`. -/
-def rupFast (look : ℕ → Option PBConstr) (c : PBConstr) (hs : List Hint) : Bool :=
+private def rupFast (look : ℕ → Option PBConstr) (c : PBConstr) (hs : List Hint) : Bool :=
   rupHintsFast look c.negateFast hs ∅
 
-theorem rupFast_eq {look : ℕ → Option PBConstr} {db : List (ℕ × PBConstr)}
+private theorem rupFast_eq {look : ℕ → Option PBConstr} {db : List (ℕ × PBConstr)}
     (hl : ∀ n, look n = lookup db n) (c : PBConstr) (hs : List Hint) :
     rupFast look c hs = rup db c hs := by
   rw [rupFast, rup, negateFast_eq]
@@ -451,7 +452,7 @@ theorem rupFast_eq {look : ℕ → Option PBConstr} {db : List (ℕ × PBConstr)
 /-! ### Distinct numbers -/
 
 /-- The numbers of `l` are distinct, checked with a hash set of those seen. -/
-def nodupFast (l : List ℕ) : Bool := go l ∅
+private def nodupFast (l : List ℕ) : Bool := go l ∅
 where
   /-- The numbers of `l` are distinct and none is in `S`. -/
   go : List ℕ → Std.HashSet ℕ → Bool
@@ -478,7 +479,7 @@ private theorem nodupFast_go_iff :
       · rintro ⟨⟨hm, hn⟩, -, h⟩
         exact ⟨hn, fun y hy => ⟨fun e => hm (e ▸ hy), h y hy⟩⟩
 
-@[simp] theorem nodupFast_eq (l : List ℕ) : nodupFast l = decide l.Nodup := by
+@[simp] private theorem nodupFast_eq (l : List ℕ) : nodupFast l = decide l.Nodup := by
   rw [Bool.eq_iff_iff, nodupFast, nodupFast_go_iff, decide_eq_true_iff]
   simp
 
@@ -509,13 +510,13 @@ theorem isSome_lookup_iff (l : List (ℕ × PBConstr)) (n : ℕ) :
     (lookup l n).isSome ↔ ∃ e ∈ l, e.1 = n := by
   simp [lookup, List.find?_isSome]
 
-theorem any_contains_eq_any_isSome_lookup (l : List (ℕ × PBConstr)) (ids : List ℕ) :
+private theorem any_contains_eq_any_isSome_lookup (l : List (ℕ × PBConstr)) (ids : List ℕ) :
     l.any (fun e => ids.contains e.1) = ids.any fun i => (lookup l i).isSome := by
   rw [Bool.eq_iff_iff]
   simp only [List.any_eq_true, List.contains_iff_mem, isSome_lookup_iff]
   exact ⟨fun ⟨e, he, hi⟩ => ⟨e.1, hi, e, he, rfl⟩, fun ⟨i, hi, e, he, h⟩ => ⟨e, he, h ▸ hi⟩⟩
 
-theorem any_fst_beq_eq_isSome_lookup (l : List (ℕ × PBConstr)) (i : ℕ) :
+private theorem any_fst_beq_eq_isSome_lookup (l : List (ℕ × PBConstr)) (i : ℕ) :
     l.any (·.1 == i) = (lookup l i).isSome := by
   rw [Bool.eq_iff_iff]
   simp [isSome_lookup_iff]
@@ -528,7 +529,7 @@ theorem any_fst_beq_eq_isSome_lookup (l : List (ℕ × PBConstr)) (i : ℕ) :
 * `hist` lists the constraints in the order of the database, latest first, possibly with
   deleted ones: the database is `hist` filtered to the live numbers (`DB.toList`).
 * `dead` counts the deletions since `hist` was last filtered. -/
-structure DB where
+private structure DB where
   /-- The constraints, latest first, live or deleted. -/
   hist : List (ℕ × PBConstr)
   /-- The live constraint of each number. -/
@@ -539,52 +540,38 @@ structure DB where
 namespace DB
 
 /-- The live constraint numbered `n`. -/
-def get (d : DB) (n : ℕ) : Option PBConstr := d.arr.getD n none
+private def get (d : DB) (n : ℕ) : Option PBConstr := d.arr.getD n none
 
 /-- The database as a list, in the order of `hist`. -/
-def toList (d : DB) : List (ℕ × PBConstr) := d.hist.filter fun e => (d.get e.1).isSome
+private def toList (d : DB) : List (ℕ × PBConstr) := d.hist.filter fun e => (d.get e.1).isSome
 
 /-- The representation invariant: the numbers of `hist` index `arr`, and `arr` holds the first
 constraint of the database with each number. -/
-structure WF (d : DB) : Prop where
+private structure WF (d : DB) : Prop where
   lt : ∀ e ∈ d.hist, e.1 < d.arr.size
   get : ∀ n, lookup d.toList n = d.get n
 
 /-- The database of the list `l`. -/
-def ofList (l : List (ℕ × PBConstr)) : DB :=
+private def ofList (l : List (ℕ × PBConstr)) : DB :=
   ⟨l, l.foldr (fun e a => a.setGrow e.1 none (some e.2)) #[], 0⟩
 
 /-- Delete the constraint numbered `i`. -/
-def erase (d : DB) (i : ℕ) : DB := ⟨d.hist, d.arr.setIfInBounds i none, d.dead + 1⟩
+private def erase (d : DB) (i : ℕ) : DB := ⟨d.hist, d.arr.setIfInBounds i none, d.dead + 1⟩
 
 /-- Delete the constraints with the numbers `ids`. -/
-def eraseAll (d : DB) (ids : List ℕ) : DB := ids.foldl erase d
+private def eraseAll (d : DB) (ids : List ℕ) : DB := ids.foldl erase d
 
 /-- Drop the deleted constraints from `hist` once they are many. -/
-def compact (d : DB) : DB :=
+private def compact (d : DB) : DB :=
   if 1024 ≤ d.dead && d.arr.size ≤ 2 * d.dead then ⟨d.toList, d.arr, 0⟩ else d
 
 /-- Add the constraint `c` numbered `m` as the latest; in place if `m` is above every number
 seen. -/
-def push (d : DB) (m : ℕ) (c : PBConstr) : DB :=
+private def push (d : DB) (m : ℕ) (c : PBConstr) : DB :=
   if d.arr.size ≤ m then ⟨(m, c) :: d.hist, d.arr.setGrow m none (some c), d.dead⟩
   else ofList ((m, c) :: d.toList)
 
-theorem toList_ofList (l : List (ℕ × PBConstr)) : (ofList l).toList = l := by
-  have hget : ∀ n, (ofList l).get n = lookup l n := by
-    intro n
-    simp only [get, ofList]
-    induction l with
-    | nil => simp [lookup]
-    | cons e l ih =>
-      rw [List.foldr_cons, Array.getD_setGrow, ih, lookup_cons]
-      by_cases h : n = e.1 <;> simp [h, eq_comm]
-  simp only [toList, ofList] at hget ⊢
-  refine List.filter_eq_self.2 fun e he => ?_
-  rw [hget, isSome_lookup_iff]
-  exact ⟨e, he, rfl⟩
-
-theorem get_ofList (l : List (ℕ × PBConstr)) (n : ℕ) : (ofList l).get n = lookup l n := by
+private theorem get_ofList (l : List (ℕ × PBConstr)) (n : ℕ) : (ofList l).get n = lookup l n := by
   simp only [get, ofList]
   induction l with
   | nil => simp [lookup]
@@ -592,7 +579,12 @@ theorem get_ofList (l : List (ℕ × PBConstr)) (n : ℕ) : (ofList l).get n = l
     rw [List.foldr_cons, Array.getD_setGrow, ih, lookup_cons]
     by_cases h : n = e.1 <;> simp [h, eq_comm]
 
-theorem wf_ofList (l : List (ℕ × PBConstr)) : (ofList l).WF where
+private theorem toList_ofList (l : List (ℕ × PBConstr)) : (ofList l).toList = l := by
+  refine List.filter_eq_self.2 fun e he => ?_
+  rw [get_ofList, isSome_lookup_iff]
+  exact ⟨e, he, rfl⟩
+
+private theorem wf_ofList (l : List (ℕ × PBConstr)) : (ofList l).WF where
   lt := by
     have : ∀ (l : List (ℕ × PBConstr)), ∀ e ∈ l,
         e.1 < (l.foldr (fun e a => a.setGrow e.1 none (some e.2)) #[]).size := by
@@ -608,20 +600,20 @@ theorem wf_ofList (l : List (ℕ × PBConstr)) : (ofList l).WF where
     exact this l
   get n := by rw [toList_ofList, get_ofList]
 
-theorem toList_erase (d : DB) (i : ℕ) :
+private theorem toList_erase (d : DB) (i : ℕ) :
     (d.erase i).toList = d.toList.filter (·.1 != i) := by
   simp only [toList, erase, get, List.filter_filter]
   refine List.filter_congr fun e _ => ?_
   rw [Array.getD_setIfInBounds_self]
   by_cases h : e.1 = i <;> simp [h]
 
-theorem WF.erase {d : DB} (hd : d.WF) (i : ℕ) : (d.erase i).WF where
+private theorem WF.erase {d : DB} (hd : d.WF) (i : ℕ) : (d.erase i).WF where
   lt e he := by simpa [DB.erase] using hd.lt e he
   get n := by
     rw [toList_erase d, lookup_filter_ne, hd.get]
     simp only [DB.get, DB.erase, Array.getD_setIfInBounds_self]
 
-theorem eraseAll_spec (ids : List ℕ) :
+private theorem eraseAll_spec (ids : List ℕ) :
     ∀ (d : DB), d.WF →
       (d.eraseAll ids).WF ∧
         (d.eraseAll ids).toList = d.toList.filter fun e => !ids.contains e.1 := by
@@ -641,20 +633,20 @@ private theorem toList_refilter (d : DB) (k : ℕ) :
     (⟨d.toList, d.arr, k⟩ : DB).toList = d.toList := by
   simp only [toList, get, List.filter_filter, Bool.and_self]
 
-theorem toList_compact (d : DB) : d.compact.toList = d.toList := by
+private theorem toList_compact (d : DB) : d.compact.toList = d.toList := by
   unfold compact
   split
   · exact toList_refilter d 0
   · rfl
 
-theorem WF.compact {d : DB} (hd : d.WF) : d.compact.WF := by
+private theorem WF.compact {d : DB} (hd : d.WF) : d.compact.WF := by
   unfold DB.compact
   split
   · exact ⟨fun e he => hd.lt e (List.mem_of_mem_filter he), fun n => by
       rw [toList_refilter, hd.get]; rfl⟩
   · exact hd
 
-theorem push_spec {d : DB} (hd : d.WF) (m : ℕ) (c : PBConstr) :
+private theorem push_spec {d : DB} (hd : d.WF) (m : ℕ) (c : PBConstr) :
     (d.push m c).WF ∧ (d.push m c).toList = (m, c) :: d.toList := by
   unfold push
   split
@@ -676,9 +668,9 @@ theorem push_spec {d : DB} (hd : d.WF) (m : ℕ) (c : PBConstr) :
       · simp [h, Ne.symm h]
   · exact ⟨wf_ofList _, toList_ofList _⟩
 
-theorem get_eq {d : DB} (hd : d.WF) (n : ℕ) : d.get n = lookup d.toList n := (hd.get n).symm
+private theorem get_eq {d : DB} (hd : d.WF) (n : ℕ) : d.get n = lookup d.toList n := (hd.get n).symm
 
-theorem eraseAll_compact_spec {d : DB} (hd : d.WF) (ids : List ℕ) :
+private theorem eraseAll_compact_spec {d : DB} (hd : d.WF) (ids : List ℕ) :
     ((d.eraseAll ids).compact).WF ∧
       ((d.eraseAll ids).compact).toList = d.toList.filter fun e => !ids.contains e.1 := by
   obtain ⟨hw, hl⟩ := eraseAll_spec ids d hd
@@ -690,7 +682,7 @@ end DB
 
 /-- The state of the compiled checker: the database and the core set as `DB`s, and the other
 fields of a `Cslib.Logic.PL.VeriPB.State`, whose `db` and `core` are ignored. -/
-structure FState where
+private structure FState where
   /-- The database. -/
   db : DB
   /-- The core set. -/
@@ -701,27 +693,29 @@ structure FState where
 namespace FState
 
 /-- The state of the reference checker that the compiled state represents. -/
-def toState (f : FState) : State := { f.s with db := f.db.toList, core := f.core.toList }
+private def toState (f : FState) : State := { f.s with db := f.db.toList, core := f.core.toList }
 
 /-- The compiled state of a state of the reference checker. -/
-def ofState (s : State) : FState := ⟨.ofList s.db, .ofList s.core, { s with db := [], core := [] }⟩
+private def ofState (s : State) : FState :=
+  ⟨.ofList s.db, .ofList s.core, { s with db := [], core := [] }⟩
 
 /-- The representation invariant. -/
-structure WF (f : FState) : Prop where
+private structure WF (f : FState) : Prop where
   db : f.db.WF
   core : f.core.WF
 
-@[simp] theorem toState_ofState (s : State) : (ofState s).toState = s := by
+@[simp] private theorem toState_ofState (s : State) : (ofState s).toState = s := by
   simp [toState, ofState, DB.toList_ofList]
 
-theorem wf_ofState (s : State) : (ofState s).WF := ⟨DB.wf_ofList _, DB.wf_ofList _⟩
+private theorem wf_ofState (s : State) : (ofState s).WF := ⟨DB.wf_ofList _, DB.wf_ofList _⟩
 
 end FState
 
 /-- **One top-level step of the compiled checker**: `pol`, `rup`, the deletions `del`, `deld`
 and `delc` are computed on the compiled state; any other step by
 `Cslib.Logic.PL.VeriPB.stepTop` on the state it represents. -/
-def stepTopFast (F : List PBConstr) (obj : Option Objective) (f : FState) : TopStep → Option FState
+private def stepTopFast (F : List PBConstr) (obj : Option Objective) (f : FState) :
+    TopStep → Option FState
   | .step (.pol ops) =>
     match polEvalFast f.db.get ops [] with
     | some [c] => some ⟨f.db.push f.s.next c, f.core, { f.s with next := f.s.next + 1 }⟩
@@ -752,8 +746,8 @@ def stepTopFast (F : List PBConstr) (obj : Option Objective) (f : FState) : TopS
 
 /-- The compiled step computes the reference step on the represented state, and keeps the
 invariant. -/
-theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f : FState} (hf : f.WF)
-    (t : TopStep) :
+private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f : FState}
+    (hf : f.WF) (t : TopStep) :
     (stepTopFast F obj f t).map FState.toState = stepTop F obj f.toState t ∧
       ∀ f' ∈ stepTopFast F obj f t, f'.WF := by
   have hdb := DB.get_eq hf.db
@@ -841,14 +835,15 @@ theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f : FStat
   | _ => exact ⟨fallback _, fallbackWF _⟩
 
 /-- Run the top-level steps on the compiled state. -/
-def runTopFast (F : List PBConstr) (obj : Option Objective) : FState → List TopStep → Option FState
+private def runTopFast (F : List PBConstr) (obj : Option Objective) :
+    FState → List TopStep → Option FState
   | f, [] => some f
   | f, t :: ts =>
     match stepTopFast F obj f t with
     | some f' => runTopFast F obj f' ts
     | none => none
 
-theorem runTopFast_spec (F : List PBConstr) (obj : Option Objective) :
+private theorem runTopFast_spec (F : List PBConstr) (obj : Option Objective) :
     ∀ (ts : List TopStep) (f : FState), f.WF →
       (runTopFast F obj f ts).map FState.toState = runTop F obj f.toState ts
   | [], f, _ => by simp [runTopFast, runTop_nil]

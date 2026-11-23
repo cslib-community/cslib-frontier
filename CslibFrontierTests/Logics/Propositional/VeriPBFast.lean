@@ -8,6 +8,9 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
+-- `import all`: `agree` runs the private compiled run `runTopFast` on the private compiled state
+-- `FState`.
+import all CslibFrontier.Logics.Propositional.PseudoBoolean.Fast
 import CslibFrontierTests.Logics.Propositional.VeriPBAuxFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBOutputFixtures
