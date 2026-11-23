@@ -533,8 +533,7 @@ theorem initialPilotRaw_allocated
   have hr : 0 < 1 - 1 / (155648 * (J+1) * (4:ℝ)^4) :=
     sub_pos.mpr ((div_lt_one (by linarith)).mpr hden)
   have hp := spectralWalkLength_payment hr (sub_lt_self _ (by positivity))
-    (mul_nonneg (by norm_num) (rowNormPow_nonneg hNu input)) hε 0 steps
-    (Nat.le_max_right _ _)
+    (by positivity) hε 0 steps (Nat.le_max_right _ _)
   simp only [pow_zero, mul_one] at hp
   refine ⟨lt_of_lt_of_le Nat.zero_lt_one (Nat.le_max_left _ _), ?_⟩
   have hn := noise R.source R.terminal R.source_terminal (side P ks) (side P kt)

@@ -217,25 +217,22 @@ noncomputable def restrict (r : V → R) (x : V) : ArithQBF V → R[X]
 `r` with `x` set to `z`. -/
 theorem eval_restrict (x : V) (z : R) :
     (e.restrict r x).eval z = e.eval (Function.update r x z) := by
-  induction e generalizing r with
-  | var v =>
-    by_cases h : v = x
-    · subst h
-      simp only [restrict, ↓reduceIte, eval_X, eval_var, Function.update_self]
-    · simp only [restrict, h, ↓reduceIte, eval_C, eval_var, Function.update_of_ne h]
-  | top => simp only [restrict, eval_one, eval_top]
-  | bot => simp only [restrict, Polynomial.eval_zero, eval_bot]
-  | not e ih => simp only [restrict, eval_sub, eval_one, ih, eval_not]
-  | bin o e₁ e₂ ih₁ ih₂ =>
-    rw [restrict, ← coe_evalRingHom, Connective.map_apply, coe_evalRingHom, ih₁, ih₂, eval_bin]
-  | op o v e ih =>
-    rw [restrict, eval_op, ← coe_evalRingHom]
-    by_cases h : v = x
-    · subst h
-      simp only [↓reduceIte, Operator.map_apply, coe_evalRingHom, eval_X, eval_C,
-        Function.update_self, Function.update_idem]
-    · simp only [h, ↓reduceIte, Operator.map_apply, coe_evalRingHom, eval_C, ih,
-        Function.update_of_ne h, Function.update_comm h]
+  fun_induction restrict r x e with
+  | case1 => simp only [eval_X, eval_var, Function.update_self] -- var x
+  | case2 r v hvx => simp only [eval_C, eval_var, Function.update_of_ne hvx] -- var v, v ≠ x
+  | case3 => simp only [eval_one, eval_top] -- top
+  | case4 => simp only [Polynomial.eval_zero, eval_bot] -- bot
+  | case5 r e ih => simp only [eval_sub, eval_one, ih, eval_not] -- not
+  | case6 r o e₁ e₂ ih₁ ih₂ => -- bin
+    rw [← coe_evalRingHom, Connective.map_apply, coe_evalRingHom, ih₁, ih₂, eval_bin]
+  | case7 => -- op binding x
+    rw [eval_op, ← coe_evalRingHom]
+    simp only [Operator.map_apply, coe_evalRingHom, eval_X, eval_C, Function.update_self,
+      Function.update_idem]
+  | case8 r o v e hvx ih₀ ih₁ => -- op binding v ≠ x
+    rw [eval_op, ← coe_evalRingHom]
+    simp only [Operator.map_apply, coe_evalRingHom, eval_C, ih₀, ih₁, Function.update_of_ne hvx,
+      Function.update_comm hvx]
 
 /-- The factor by which an operator binding another variable can multiply the degree in `x`. -/
 def Operator.degMul : Operator → ℕ
@@ -309,23 +306,18 @@ theorem Operator.natDegree_apply_X_le (o : Operator) (a b : R) :
 
 /-- The restriction of a formula to `x` has degree at most `degBound x`. -/
 theorem natDegree_restrict_le (x : V) : (e.restrict r x).natDegree ≤ e.degBound x := by
-  induction e generalizing r with
-  | var v =>
-    by_cases h : v = x
-    · simp only [restrict, degBound, h, ↓reduceIte]
-      exact natDegree_X_le
-    · simp only [restrict, degBound, h, ↓reduceIte, natDegree_C, le_refl]
-  | top => simp only [restrict, degBound, natDegree_one, le_refl]
-  | bot => simp only [restrict, degBound, natDegree_zero, le_refl]
-  | not e ih => exact (natDegree_one_sub_le _).trans (ih r)
-  | bin o e₁ e₂ ih₁ ih₂ =>
-    exact (Connective.natDegree_apply_le o _ _).trans (Nat.add_le_add (ih₁ r) (ih₂ r))
-  | op o v e ih =>
-    by_cases h : v = x
-    · simp only [restrict, degBound, h, ↓reduceIte]
-      exact Operator.natDegree_apply_X_le o _ _
-    · simp only [restrict, degBound, h, ↓reduceIte]
-      exact Operator.natDegree_apply_le o _ (ih _) (ih _)
+  fun_induction restrict r x e with
+  | case1 => simpa [degBound] using natDegree_X_le -- var x
+  | case2 r v hvx => simp only [degBound, hvx, ↓reduceIte, natDegree_C, le_refl] -- var v, v ≠ x
+  | case3 => simp only [degBound, natDegree_one, le_refl] -- top
+  | case4 => simp only [degBound, natDegree_zero, le_refl] -- bot
+  | case5 r e ih => exact (natDegree_one_sub_le _).trans ih -- not
+  | case6 r o e₁ e₂ ih₁ ih₂ => -- bin
+    exact (Connective.natDegree_apply_le o _ _).trans (Nat.add_le_add ih₁ ih₂)
+  | case7 r o => simpa [degBound] using Operator.natDegree_apply_X_le o _ _ -- op binding x
+  | case8 r o v e hvx ih₀ ih₁ => -- op binding v ≠ x
+    simp only [degBound, hvx, ↓reduceIte]
+    exact Operator.natDegree_apply_le o _ ih₀ ih₁
 
 /-- The sum, over the operators of a formula, of the degree of their body in the variable they
 bind: the number of roots that can fool the verifier in the interactive proof. -/

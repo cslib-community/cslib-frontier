@@ -239,20 +239,15 @@ theorem smoothDivisorSeq_mono (q T : ℕ) {k k' : ℕ} (h : k ≤ k') :
 `smoothDivisorSeq q T k` satisfies `ℓ ≤ T + 1`. -/
 theorem smoothDivisorSeq_prime_le {q T : ℕ} (hT : 0 < T) {ℓ : ℕ} (hℓ : ℓ.Prime) (k : ℕ)
     (h : ℓ ∣ smoothDivisorSeq q T k) : ℓ ≤ T + 1 := by
-  induction k with
-  | zero =>
-    simp only [smoothDivisorSeq, Nat.dvd_one] at h
-    have := hℓ.one_lt
-    omega
-  | succ k ih =>
-    rw [smoothDivisorSeq] at h
-    split_ifs at h
-    · rcases (Nat.Prime.dvd_mul hℓ).1 h with h | h
-      · exact ih h
-      · have h1 := Nat.le_of_dvd (by omega) h
-        have h2 := Nat.mod_lt k hT
-        omega
+  fun_induction smoothDivisorSeq q T k with
+  | case1 => exact absurd (Nat.dvd_one.mp h) hℓ.ne_one -- k = 0
+  | case2 k _ ih => -- k + 1, product divides q: multiply by `k % T + 2`
+    rcases (Nat.Prime.dvd_mul hℓ).1 h with h | h
     · exact ih h
+    · have h1 := Nat.le_of_dvd (by omega) h
+      have h2 := Nat.mod_lt k hT
+      omega
+  | case3 k _ ih => exact ih h -- k + 1, product does not divide q: unchanged
 
 /-- **Exhaustion of small prime factors**: after `m` passes of length `T` (`q < 2 ^ m`), no prime
 `ℓ ≤ T + 1` divides the cofactor `q / smoothDivisorSeq q T (m * T)`. -/

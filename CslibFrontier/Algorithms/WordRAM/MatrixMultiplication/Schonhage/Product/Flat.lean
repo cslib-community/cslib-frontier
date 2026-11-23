@@ -8,9 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.Exec
-import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandFlat
-import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.Width
-import CslibFrontier.Computability.WordRAM.Width
+import CslibFrontier.Computability.WordRAM.PreservesMask
 
 /-!
 # Initialized flat native queried products
@@ -35,44 +33,12 @@ open Cslib.Algorithms.MatrixMultiplication.Schonhage
 /-- The full flattened instruction list, including halt, is fixed independently of the input. -/
 public theorem program_length_le (bits : Bool) :
     (program bits |>.program Reg.output).length ≤ 32768 := by
-  have hw := Wanted.program_length_le
-  have hb := BandPreparation.program_length_le
-  simp only [Code.program, List.length_append, Code.length_assemble,
-    List.length_singleton] at hw hb ⊢
-  have hk : PrunedQuery.kernel.size ≤ 4096 := by decide +kernel
-  have hpre : (Code.seq parameters (.seq layout (.seq saveInput prepareQueries))).size ≤ 1024 := by
-    decide +kernel
-  have hsave : saveGroups.size ≤ 256 := by decide +kernel
-  have hmat : (prepareMatrices bits).size ≤ 128 := by cases bits <;> decide +kernel
-  have hinit : initializeDirectory.size ≤ 64 := by decide +kernel
-  have htile : tileArguments.size ≤ 64 := by decide +kernel
-  let kEpoch := bank PrunedQuery.epoch
-  have hstep : (ram[ Reg.epoch ← kEpoch; Reg.index ← Reg.index + Reg.one ]).size ≤ 8 := by
-    decide +kernel
-  have htail : (Code.seq reconstruct restoreInput).size ≤ 128 := by decide +kernel
-  simp only [program, prepareRouting, evaluateTiles, tileStep, Code.size,
-    Code.size_rename] at hpre htail ⊢
-  omega
+  simp only [Code.program, List.length_append, Code.length_assemble, List.length_singleton]
+  cases bits <;> decide +kernel
 
 /-- Neither mode reads the physical width; the same fixed code runs at every admitted width. -/
 public theorem not_readsWidth (bits : Bool) : ¬(program bits).ReadsWidth := by
-  have hw := Wanted.not_readsWidth
-  have hb := BandPreparation.not_readsWidth
-  have hk : ¬PrunedQuery.kernel.ReadsWidth := by decide +kernel
-  have hpre :
-      ¬(Code.seq parameters (.seq layout (.seq saveInput prepareQueries))).ReadsWidth := by
-    decide +kernel
-  have hsave : ¬saveGroups.ReadsWidth := by decide +kernel
-  have hmat : ¬(prepareMatrices bits).ReadsWidth := by cases bits <;> decide +kernel
-  have hinit : ¬initializeDirectory.ReadsWidth := by decide +kernel
-  have htile : ¬tileArguments.ReadsWidth := by decide +kernel
-  let kEpoch := bank PrunedQuery.epoch
-  have hstep : ¬(ram[ Reg.epoch ← kEpoch; Reg.index ← Reg.index + Reg.one ]).ReadsWidth := by
-    decide +kernel
-  have htail : ¬(Code.seq reconstruct restoreInput).ReadsWidth := by decide +kernel
-  simp only [program, prepareRouting, evaluateTiles, tileStep, Code.ReadsWidth,
-    Code.readsWidth_rename] at hpre htail ⊢
-  tauto
+  cases bits <;> exact Code.not_readsWidth_of_readsWidthBool rfl
 
 /-- Original matrices and coordinates initialize the real native run. The charged prefix
 reaches the same memory that contains all product values, and its next instruction halts. -/

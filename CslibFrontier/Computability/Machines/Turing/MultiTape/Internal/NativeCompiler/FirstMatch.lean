@@ -196,48 +196,12 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
     rw [streamEmit_firstMatch encValue query found table]
     cases found <;> simp
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        let pair := (streamState input.1 firstMatchNext input.2 j, input.2[j])
-        inputFromWordWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            emitCompiler pair +
-          onWordsWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            (streamFramedNext nextCompiler) pair
-        else 0)
-      (Finset.mem_range.mpr hj)
-    simpa only [firstMatchSMax, nextCompiler, emitCompiler, finishCompiler, hj, dite_true]
-      using hsup
+    exact Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp only [hj, dite_true]; rfl)
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range (input.2.length + 1))
-      (f := fun j => if hj : j ≤ input.2.length then
-        ((encPair encKey encBool) (streamState input.1 firstMatchNext input.2 j)).length
-        else 0)
-      (Finset.mem_range.mpr (by omega : j < input.2.length + 1))
-    have hbound :
-        ((encPair encKey encBool) (streamState input.1 firstMatchNext input.2 j)).length ≤
-          (Finset.range (input.2.length + 1)).sup fun j =>
-            if hj : j ≤ input.2.length then
-              ((encPair encKey encBool)
-                (streamState input.1 firstMatchNext input.2 j)).length else 0 := by
-      simpa only [hj, dite_true] using hsup
-    exact hbound.trans (Nat.le_max_left _ _)
+    exact le_max_of_le_left <|
+      Finset.le_sup_of_le (Finset.mem_range.mpr (Nat.lt_succ_of_le hj)) (by simp [hj])
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        ((encPair encKey encValue) input.2[j]).length else 0)
-      (Finset.mem_range.mpr hj)
-    have hbound :
-        ((encPair encKey encValue) input.2[j]).length ≤
-          (Finset.range input.2.length).sup fun j =>
-            if hj : j < input.2.length then
-              ((encPair encKey encValue) input.2[j]).length else 0 := by
-      simpa only [hj, dite_true] using hsup
-    exact hbound.trans (Nat.le_max_right _ _)
+    exact le_max_of_le_right (Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp [hj]))
 
 /-- Retained marshalling from `(table, key)` to the stream's `((key, false), table)` layout. -/
 @[expose] def firstMatchMarshalCompiler (encKey : Key ↪ List Bool)

@@ -748,7 +748,7 @@ private theorem pos_params_of_interpolation {ι : Type*} [Fintype ι] {W : ι �
   have hD_pos : 1 ≤ D := by
     by_contra h0
     have htri : 1 ≤ m * (m + 1) / 2 := by
-      have : 2 ≤ m * (m + 1) := by nlinarith
+      have : 2 ≤ m * (m + 1) := Nat.mul_le_mul hm (by omega : 2 ≤ m + 1)
       omega
     have hmon0 : #(Sudan.monomials d 0) ≤ 1 := by
       refine (card_le_card (t := {(0, 0)}) fun p hp => mem_singleton.2 ?_).trans (by simp)
@@ -1030,7 +1030,8 @@ private theorem exists_good_shift_and_factor
   set H : F[X][X] := S.leadingCoeff * Δ
   have hH_ne : H ≠ 0 := mul_ne_zero (leadingCoeff_ne_zero.2 fun h => by simp [s, h] at hS_deg) hΔ_ne
   obtain ⟨x₀, _, hHx₀_ne⟩ := exists_eval_C_ne_zero hH_ne (hH_degX.trans_lt (by
-    have h1 : 2 * s * D ≤ 2 * R.natDegree * (D + B_Z) := by nlinarith
+    have h1 : 2 * s * D ≤ 2 * R.natDegree * (D + B_Z) :=
+      Nat.mul_le_mul (Nat.mul_le_mul_left 2 hs_le_dR) (Nat.le_add_right D B_Z)
     exact lt_of_le_of_lt (h1.trans (Nat.le_add_right _ _)) hTR_card))
   have hlc_x₀_ne : S.leadingCoeff.eval (C x₀) ≠ 0 := fun h0 => hHx₀_ne (by simp [H, h0])
   have hΔ_x₀_ne : Δ.eval (C x₀) ≠ 0 := fun h0 => hHx₀_ne (by simp [H, h0])
@@ -1113,7 +1114,8 @@ private theorem exists_good_shift_and_factor
       mem_filter.2 ⟨hz, P, hP_deg, hS_eval0, hv0, hγ_eval_ne, hW_P⟩⟩
   set B_step := W_tot * D_Y * (4 * D * B_Z + r * D_Y)
   have hsum_G : ∑ _G ∈ gs.toFinset, B_step < ∑ G ∈ gs.toFinset, #(T_ofG G) := by
-    have h1 : 2 * s * B_Z ≤ 2 * R.natDegree * (D + B_Z) := by nlinarith
+    have h1 : 2 * s * B_Z ≤ 2 * R.natDegree * (D + B_Z) :=
+      Nat.mul_le_mul (Nat.mul_le_mul_left 2 hs_le_dR) (Nat.le_add_left B_Z D)
     have h2 : s * B_step ≤ W_tot * R.natDegree * D_Y * (4 * D * B_Z + r * D_Y) := by
       rw [show s * B_step = W_tot * s * D_Y * (4 * D * B_Z + r * D_Y) by dsimp [B_step]; ring]
       exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hs_le_dR))
@@ -2220,10 +2222,9 @@ private theorem sqrt_rate_bounds {n k : ℕ} {ρ : ℝ} (hρ : ρ = (k : ℝ) / 
     calc (k : ℝ) / n = Real.sqrt ((k : ℝ) / n) * Real.sqrt ((k : ℝ) / n) := by rw [← sq, hsq_sq]
       _ ≤ Real.sqrt ((k : ℝ) / n) := mul_le_of_le_one_right hsq_pos.le hsq_le
   · refine le_of_sq_le_sq ?_ hnR.le
-    rw [div_pow, one_pow, hsq_sq, one_div_div, div_le_iff₀ hkR]
-    have : (1 : ℝ) ≤ (n : ℝ) * k := one_le_mul_of_one_le_of_one_le
-      (by exact_mod_cast hk.trans hkn) (by exact_mod_cast hk)
-    nlinarith
+    rw [div_pow, one_pow, hsq_sq, one_div_div, div_le_iff₀ hkR, sq, mul_assoc]
+    exact le_mul_of_one_le_right hnR.le
+      (one_le_mul_of_one_le_of_one_le (by exact_mod_cast hk.trans hkn) (by exact_mod_cast hk))
 
 private theorem johnson_monomial_gap {n k m : ℕ} (hk : 1 ≤ k) (hkn : k ≤ n) (hm : 1 ≤ m) :
     let m' := m + 1
@@ -2240,10 +2241,8 @@ private theorem johnson_monomial_gap {n k m : ℕ} (hk : 1 ≤ k) (hkn : k ≤ n
   have hm'R : (0 : ℝ) < m' := by positivity
   have h1_le_t₀ : 1 ≤ t₀ := by
     have hsq : (1 : ℝ) ≤ Real.sqrt ((n : ℝ) * k) :=
-      Real.le_sqrt (by norm_num) (by positivity) |>.2 (by
-        have h1 : (1 : ℝ) ≤ n := by exact_mod_cast hk.trans hkn
-        have h2 : (1 : ℝ) ≤ k := by exact_mod_cast hk
-        nlinarith)
+      (Real.le_sqrt (by norm_num) (by positivity)).2 <| (by norm_num : (1 : ℝ) ^ 2 ≤ 1).trans
+        (one_le_mul_of_one_le_of_one_le (by exact_mod_cast hk.trans hkn) (by exact_mod_cast hk))
     have hle : (1 : ℝ) ≤ (t₀ : ℝ) := hsq.trans (by
       calc Real.sqrt ((n : ℝ) * k) ≤ (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k) :=
             le_mul_of_one_le_left (Real.sqrt_nonneg _)
@@ -2352,10 +2351,8 @@ private theorem johnson_curve_params_gap {n k e m r : ℕ}
   obtain ⟨hinterp, hdiff_lower⟩ := johnson_monomial_gap hk hkn hm
   have hD_upper : (D : ℝ) ≤ (5 / 2) * (m' : ℝ) * n * Real.sqrt ρ := by
     have hsq1 : (1 : ℝ) ≤ Real.sqrt ((n : ℝ) * k) :=
-      (Real.le_sqrt (by norm_num) (by positivity)).2 (by
-        have h1 : (1 : ℝ) ≤ n := by exact_mod_cast hk.trans hkn
-        have h2 : (1 : ℝ) ≤ k := by exact_mod_cast hk
-        nlinarith)
+      (Real.le_sqrt (by norm_num) (by positivity)).2 <| (by norm_num : (1 : ℝ) ^ 2 ≤ 1).trans
+        (one_le_mul_of_one_le_of_one_le (by exact_mod_cast hk.trans hkn) (by exact_mod_cast hk))
     have hlt := Nat.ceil_lt_add_one (a := (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k))
       (by positivity)
     have hhalf : 1 + 1 / (2 * (m : ℝ)) ≤ 3 / 2 := by
@@ -2411,7 +2408,9 @@ private theorem johnson_curve_params_gap {n k e m r : ℕ}
           linarith [show 2 * R_eq = n * (m' * (m' + 1) / 2 * 2) by ring] :
             2 * R_eq ≤ n * (m' * (m' + 1)))
       have hm2 : (2 : ℝ) ≤ m' := by exact_mod_cast (show 2 ≤ m' by omega)
-      nlinarith
+      linarith [mul_le_mul_of_nonneg_left
+          (mul_le_mul_of_nonneg_left (by linarith : (m' : ℝ) + 1 ≤ 3 / 2 * m') hm'R.le) hnR.le,
+        show (n : ℝ) * ((m' : ℝ) * (3 / 2 * m')) = 2 * ((3 / 4) * n * m' ^ 2) by ring]
     have hfrac : (r : ℝ) * ((R_eq : ℝ) * (maxYDeg (k - 1) D : ℝ)) / ((C_mon - R_eq : ℕ) : ℝ) ≤
         (r : ℝ) * ((3 / 4 * n * (m' : ℝ) ^ 2) * (5 * m' / Real.sqrt ρ)) / (5 / 8 * n) :=
       div_le_div₀ (by positivity)
@@ -2465,7 +2464,7 @@ theorem johnson_curve_params_bound {n k e m r : ℕ}
   have h1_le_m' : (1 : ℝ) ≤ (m' : ℝ) := by exact_mod_cast (show 1 ≤ m' by omega)
   have h1_le_invρ : (1 : ℝ) ≤ 1 / ρ := h1_le_invsq.trans hinvsq_le_invρ
   have h1_le_n2 : (1 : ℝ) ≤ (n : ℝ) ^ 2 := one_le_pow₀ h1_le_n
-  have hn_le_n2 : (n : ℝ) ≤ (n : ℝ) ^ 2 := by nlinarith
+  have hn_le_n2 : (n : ℝ) ≤ (n : ℝ) ^ 2 := le_self_pow₀ h1_le_n two_ne_zero
   have hm'p (a : ℕ) (ha : a ≤ 6) : (m' : ℝ) ^ a ≤ (m' : ℝ) ^ 6 := pow_le_pow_right₀ h1_le_m' ha
   set D_Y := maxYDeg (k - 1) D; set B_Z := siegelZDeg n m' (k - 1) D r
   set U := (m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ)
@@ -2507,8 +2506,8 @@ theorem johnson_curve_params_bound {n k e m r : ℕ}
   have ht5 : (n : ℝ) * (D_Y : ℝ) ^ 2 * ((r : ℝ) * D_Y) ≤ 125 * r * U := by
     have hDY3 := mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (by positivity) hDY_upper 3) hnR.le
     rw [div_pow, show Real.sqrt ρ ^ 3 = ρ * Real.sqrt ρ by rw [pow_succ, hsqρ_sq]] at hDY3
-    have hn_inv : (n : ℝ) * (1 / Real.sqrt ρ) ≤ (n : ℝ) ^ 2 := by
-      nlinarith [mul_le_mul_of_nonneg_left hinvsq_le_n hnR.le]
+    have hn_inv : (n : ℝ) * (1 / Real.sqrt ρ) ≤ (n : ℝ) ^ 2 :=
+      (mul_le_mul_of_nonneg_left hinvsq_le_n hnR.le).trans_eq (sq _).symm
     have hbase : (n : ℝ) * (D_Y : ℝ) ^ 3 ≤ 125 * U := by
       have hmono : (m' : ℝ) ^ 3 * (n * (1 / Real.sqrt ρ)) * (1 / ρ) ≤
           (m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ) := by gcongr
@@ -2523,7 +2522,7 @@ theorem johnson_curve_params_bound {n k e m r : ℕ}
   rw [hcast, show 1800 * (r : ℝ) * ((m + 1 : ℝ) ^ 6) * ((n : ℝ) ^ 2) / ((k : ℝ) / n) =
     1800 * r * U by dsimp only [U, m', ρ]; push_cast; ring]
   have : 0 ≤ (r : ℝ) * U := by positivity
-  linarith
+  linarith only [ht1, ht2, ht3, ht4, ht5, this]
 
 /-- Quantitative Guruswami–Sudan parameter packaging for affine lines (`r = 1`), specializing
 `johnson_curve_params_bound`. -/

@@ -9,13 +9,15 @@ module
 
 public import CslibFrontier.Computability.Distributed.Byzantine.NodeBound
 public import CslibFrontier.Computability.Distributed.PartialSynchrony.Basic
+public import CslibFrontier.Computability.Distributed.RoundRobin
 import Mathlib.Data.Fintype.EquivFin
 
 /-!
 # Post-GST deterministic liveness and tight resiliency bounds under partial synchrony
 
 Post-stabilization termination of `byzQuorumProtocol` (`3 * t < Fintype.card P`) and
-`omissionQuorumProtocol` (`2 * t < Fintype.card P`) under a round-robin `rotatingLeader`, together
+`omissionQuorumProtocol` (`2 * t < Fintype.card P`) under the shared round-robin
+`Cslib.Distributed.rotatingCoordinator`, together
 with the matching impossibility results (`2 ≤ Fintype.card P ≤ 3 * t` for unauthenticated Byzantine
 faults and `2 ≤ Fintype.card P ≤ 2 * t` for crash/omission faults) and exact characterizations of
 when deterministic partial-synchrony consensus is solvable
@@ -23,16 +25,12 @@ when deterministic partial-synchrony consensus is solvable
 
 ## Main definitions
 
-* `Cslib.Distributed.PartialSynchrony.rotatingLeader`: round-robin view coordinator cycling through
-  `procs.dedup`.
 * `Cslib.Distributed.PartialSynchrony.PartialSyncProtocol.toSyncProtocol`: specializes a
   `PartialSyncProtocol` at `GST = 0` without message omissions (`deliver = fun _ _ _ => true`) to a
   synchronous `Cslib.Distributed.Byzantine.Protocol`.
 
 ## Main results
 
-* `Cslib.Distributed.PartialSynchrony.exists_honest_rotatingLeader`: among any `t + 1` consecutive
-  views under `F.card ≤ t < Fintype.card P`, at least one view has a correct `rotatingLeader`.
 * `Cslib.Distributed.PartialSynchrony.byzQuorum_terminates_in_honest_view`,
   `Cslib.Distributed.PartialSynchrony.byzQuorum_terminates_after_gst`: once `GST` holds, an
   honest-leader view decides for all correct processes at `6 * (v* + 1)`, yielding uniform bounded
@@ -86,65 +84,6 @@ public section
 namespace Cslib.Distributed.PartialSynchrony
 
 open Finset
-
-/-! ### Round-robin coordinator and pigeonhole honest-leader window -/
-
-/-- Round-robin coordinator for view `v`, indexing into `procs.dedup` modulo `procs.dedup.length`
-(`fallback` is unused whenever `procs` is nonempty). -/
-@[expose] def rotatingLeader {P : Type*} [DecidableEq P]
-    (procs : List P) (fallback : P) (v : ℕ) : P :=
-  if h : v % procs.dedup.length < procs.dedup.length then
-    procs.dedup[v % procs.dedup.length]
-  else fallback
-
-/-- **Pigeonhole honest coordinator (`exists_honest_rotatingLeader`):** when `procs` enumerates `P`
-and `F.card ≤ t < Fintype.card P`, every window `[v₀, v₀ + t]` of `t + 1` consecutive views contains
-at least one view `v*` whose `rotatingLeader` is correct (`∉ F`). -/
-theorem exists_honest_rotatingLeader {P : Type*} [Fintype P] [DecidableEq P]
-    {procs : List P} (hprocs : ∀ p : P, p ∈ procs) (fallback : P)
-    {F : Finset P} {t : ℕ} (hF : F.card ≤ t) (ht : t < Fintype.card P) (v₀ : ℕ) :
-    ∃ vStar, v₀ ≤ vStar ∧ vStar ≤ v₀ + t ∧ rotatingLeader procs fallback vStar ∉ F := by
-  have hlen : procs.dedup.length = Fintype.card P := dedup_length_eq_card hprocs
-  have hpos : 0 < procs.dedup.length := by omega
-  let f : Fin (t + 1) → P := fun k => rotatingLeader procs fallback (v₀ + k.val)
-  have hinj : Function.Injective f := by
-    intro k₁ k₂ heq
-    have hlt₁ : (v₀ + k₁.val) % procs.dedup.length < procs.dedup.length :=
-      Nat.mod_lt _ hpos
-    have hlt₂ : (v₀ + k₂.val) % procs.dedup.length < procs.dedup.length :=
-      Nat.mod_lt _ hpos
-    simp only [f, rotatingLeader, hlt₁, hlt₂, ↓reduceDIte] at heq
-    have hmod : (v₀ + k₁.val) % procs.dedup.length = (v₀ + k₂.val) % procs.dedup.length :=
-      (List.Nodup.getElem_inj_iff (List.nodup_dedup procs)).1 heq
-    have hk₁ : k₁.val < procs.dedup.length := by omega
-    have hk₂ : k₂.val < procs.dedup.length := by omega
-    have hcancel : ∀ a b, a < procs.dedup.length → b < procs.dedup.length → a ≤ b →
-        (v₀ + a) % procs.dedup.length = (v₀ + b) % procs.dedup.length → a = b := by
-      intro a b _ _ _ hrem
-      have hd₁ := Nat.div_add_mod (v₀ + a) procs.dedup.length
-      have hd₂ := Nat.div_add_mod (v₀ + b) procs.dedup.length
-      have hle_div : (v₀ + a) / procs.dedup.length ≤ (v₀ + b) / procs.dedup.length :=
-        Nat.div_le_div_right (by omega)
-      rcases eq_or_lt_of_le hle_div with hdiv_eq | hdiv_lt
-      · rw [hdiv_eq, hrem] at hd₁
-        omega
-      · have hmul : procs.dedup.length * ((v₀ + a) / procs.dedup.length + 1) ≤
-            procs.dedup.length * ((v₀ + b) / procs.dedup.length) :=
-          Nat.mul_le_mul_left _ hdiv_lt
-        rw [Nat.mul_add, Nat.mul_one] at hmul
-        rw [hrem] at hd₁
-        omega
-    ext
-    rcases le_total k₁.val k₂.val with hle | hle
-    · exact hcancel k₁.val k₂.val hk₁ hk₂ hle hmod
-    · exact (hcancel k₂.val k₁.val hk₂ hk₁ hle hmod.symm).symm
-  let img : Finset P := Finset.univ.image f
-  have hcard : img.card = t + 1 := by
-    rw [Finset.card_image_of_injective _ hinj, Finset.card_fin]
-  obtain ⟨p, hp_img, hpF⟩ := Finset.exists_mem_notMem_of_card_lt_card
-    (show F.card < img.card by omega)
-  obtain ⟨k, -, rfl⟩ := Finset.mem_image.1 hp_img
-  exact ⟨v₀ + k.val, Nat.le_add_right v₀ k.val, by omega, hpF⟩
 
 /-! ### Post-GST bounded termination of `byzQuorumProtocol` (`3 * t < Fintype.card P`) -/
 
@@ -569,9 +508,10 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
   cases ((byzQuorumProtocol P V procs leader t).byzantineState
       F deliver adv x (6 * vStar + 5) i).decided <;> rfl
 
-/-- **Post-GST bounded termination (`byzQuorum_terminates_after_gst`):** under `rotatingLeader`,
-once `IsGST deliver F gst` holds with `3 * t < Fintype.card P` and `F.card ≤ t`, every correct
-process `i ∉ F` has decided by round `gst + 6 * (t + 2)` (`O(t)` rounds after `GST`, cf.
+/-- **Post-GST bounded termination (`byzQuorum_terminates_after_gst`):** under
+`rotatingCoordinator`, once `IsGST deliver F gst` holds with `3 * t < Fintype.card P` and
+`F.card ≤ t`, every correct process `i ∉ F` has decided by round `gst + 6 * (t + 2)` (`O(t)` rounds
+after `GST`, cf.
 [Dwork, Lynch and Stockmeyer, §3.2.3, Remark 1, p. 302][DworkLynchStockmeyer1988]). -/
 theorem byzQuorum_terminates_after_gst {F : Finset P}
     (hprocs : ∀ p : P, p ∈ procs) (fallback : P)
@@ -579,34 +519,34 @@ theorem byzQuorum_terminates_after_gst {F : Finset P}
     {deliver : ℕ → P → P → Bool} {gst : ℕ} (hgst : IsGST deliver F gst)
     (adv : ℕ → P → P → Option (ByzViewMsg V)) (x : P → V) :
     ∀ i ∉ F,
-      ((byzQuorumProtocol P V procs (rotatingLeader procs fallback) t).byzantineDecision
+      ((byzQuorumProtocol P V procs (rotatingCoordinator procs fallback) t).byzantineDecision
         F deliver adv x (gst + 6 * (t + 2)) i).isSome = true := by
   let v₀ := (gst + 5) / 6
   obtain ⟨vStar, hv₀_le, hvStar_le, hl⟩ :=
-    exists_honest_rotatingLeader hprocs fallback hF (by omega) v₀
-  have hdec := byzQuorum_terminates_in_honest_view (rotatingLeader procs fallback) hprocs hn hF
+    exists_rotatingCoordinator_notMem hprocs fallback hF (by omega) v₀
+  have hdec := byzQuorum_terminates_in_honest_view (rotatingCoordinator procs fallback) hprocs hn hF
     (adv := adv) x hl (fun r hr_ge _ j hj i hi => hgst r (by omega) j hj i hi)
   intro i hi
   obtain ⟨val, hval⟩ := Option.isSome_iff_exists.1 (hdec i hi)
-  have hval' := byzQuorum_irrevocable (rotatingLeader procs fallback) F deliver adv x
+  have hval' := byzQuorum_irrevocable (rotatingCoordinator procs fallback) F deliver adv x
     (r₁ := 6 * (vStar + 1)) (r₂ := gst + 6 * (t + 2)) (by omega) i val hval
   rw [hval']
   rfl
 
-/-- `byzQuorumProtocol` with `rotatingLeader` solves unauthenticated Byzantine partial-synchrony
-consensus whenever `3 * t < Fintype.card P` (witnessing the existence half of
+/-- `byzQuorumProtocol` with `rotatingCoordinator` solves unauthenticated Byzantine
+partial-synchrony consensus whenever `3 * t < Fintype.card P` (witnessing the existence half of
 [Dwork, Lynch and Stockmeyer, Theorem 3.3, p. 302][DworkLynchStockmeyer1988] in the §3.1 basic round
 model via a six-subround rotating-coordinator view-locking protocol). -/
 theorem solvesByzantinePartialSync_byzQuorumProtocol
     (hprocs : ∀ p : P, p ∈ procs) (fallback : P) (hn : 3 * t < Fintype.card P) :
-    (byzQuorumProtocol P V procs (rotatingLeader procs fallback) t).SolvesByzantinePartialSync
+    (byzQuorumProtocol P V procs (rotatingCoordinator procs fallback) t).SolvesByzantinePartialSync
       t where
   irrevocable F _ deliver adv x _ _ hr i _ val hdec :=
-    byzQuorum_irrevocable (rotatingLeader procs fallback) F deliver adv x hr i val hdec
+    byzQuorum_irrevocable (rotatingCoordinator procs fallback) F deliver adv x hr i val hdec
   agreement _ hF deliver adv x _ _ _ _ _ _ _ _ h₁ h₂ :=
-    byzQuorum_agreement (rotatingLeader procs fallback) hprocs hn hF deliver adv x h₁ h₂
+    byzQuorum_agreement (rotatingCoordinator procs fallback) hprocs hn hF deliver adv x h₁ h₂
   validity _ hF deliver adv _ _ hv r i _ _ hw :=
-    byzQuorum_validity (rotatingLeader procs fallback) hprocs hn hF deliver adv hv r i hw
+    byzQuorum_validity (rotatingCoordinator procs fallback) hprocs hn hF deliver adv hv r i hw
   termination _ hF _ gst adv x hgst i hi :=
     ⟨gst + 6 * (t + 2), byzQuorum_terminates_after_gst hprocs fallback hn hF hgst adv x i hi⟩
 
@@ -726,41 +666,41 @@ theorem omission_terminates_in_honest_view {F : Finset P}
       deliver x (3 * vStar + 2) i).decided <;> rfl
 
 /-- **Post-GST bounded omission termination (`omission_terminates_after_gst`):** under
-`rotatingLeader`, once `IsGST deliver F gst` holds with `2 * t < Fintype.card P` and `F.card ≤ t`,
-every correct process `i ∉ F` has decided by round `gst + 3 * (t + 2)`. -/
+`rotatingCoordinator`, once `IsGST deliver F gst` holds with `2 * t < Fintype.card P` and
+`F.card ≤ t`, every correct process `i ∉ F` has decided by round `gst + 3 * (t + 2)`. -/
 theorem omission_terminates_after_gst {F : Finset P}
     (hprocs : ∀ p : P, p ∈ procs) (fallback : P)
     (hn : 2 * t < Fintype.card P) (hF : F.card ≤ t)
     {deliver : ℕ → P → P → Bool} {gst : ℕ} (hgst : IsGST deliver F gst) (x : P → V) :
     ∀ i ∉ F,
-      ((omissionQuorumProtocol P V procs (rotatingLeader procs fallback) t).omissionDecision
+      ((omissionQuorumProtocol P V procs (rotatingCoordinator procs fallback) t).omissionDecision
         deliver x (gst + 3 * (t + 2)) i).isSome = true := by
   let v₀ := (gst + 2) / 3
   obtain ⟨vStar, hv₀_le, hvStar_le, hl⟩ :=
-    exists_honest_rotatingLeader hprocs fallback hF (by omega) v₀
-  have hdec := omission_terminates_in_honest_view (rotatingLeader procs fallback) hprocs hn hF x hl
-    (fun r hr_ge _ j hj i hi => hgst r (by omega) j hj i hi)
+    exists_rotatingCoordinator_notMem hprocs fallback hF (by omega) v₀
+  have hdec := omission_terminates_in_honest_view (rotatingCoordinator procs fallback) hprocs hn hF
+    x hl (fun r hr_ge _ j hj i hi => hgst r (by omega) j hj i hi)
   intro i hi
   obtain ⟨val, hval⟩ := Option.isSome_iff_exists.1 (hdec i hi)
-  have hval' := omission_irrevocable (rotatingLeader procs fallback) deliver x
+  have hval' := omission_irrevocable (rotatingCoordinator procs fallback) deliver x
     (r₁ := 3 * (vStar + 1)) (r₂ := gst + 3 * (t + 2)) (by omega) i val hval
   rw [hval']
   rfl
 
-/-- `omissionQuorumProtocol` with `rotatingLeader` solves crash/omission partial-synchrony consensus
-whenever `2 * t < Fintype.card P` (witnessing the existence half of
+/-- `omissionQuorumProtocol` with `rotatingCoordinator` solves crash/omission partial-synchrony
+consensus whenever `2 * t < Fintype.card P` (witnessing the existence half of
 [Dwork, Lynch and Stockmeyer, Theorem 3.1, p. 297][DworkLynchStockmeyer1988] in the §3.1 basic round
 model via a three-subround rotating-coordinator view-locking protocol). -/
 theorem solvesOmissionPartialSync_omissionQuorumProtocol
     (hprocs : ∀ p : P, p ∈ procs) (fallback : P) (hn : 2 * t < Fintype.card P) :
-    (omissionQuorumProtocol P V procs (rotatingLeader procs fallback) t).SolvesOmissionPartialSync
-      t where
+    (omissionQuorumProtocol P V procs
+      (rotatingCoordinator procs fallback) t).SolvesOmissionPartialSync t where
   irrevocable deliver x _ _ hr i val hdec :=
-    omission_irrevocable (rotatingLeader procs fallback) deliver x hr i val hdec
+    omission_irrevocable (rotatingCoordinator procs fallback) deliver x hr i val hdec
   agreement _ _ deliver x _ _ _ _ _ _ _ _ h₁ h₂ :=
-    omission_agreement (rotatingLeader procs fallback) hprocs hn deliver x h₁ h₂
+    omission_agreement (rotatingCoordinator procs fallback) hprocs hn deliver x h₁ h₂
   validity deliver _ _ hv r i _ hw :=
-    omission_validity (rotatingLeader procs fallback) hprocs hn deliver hv r i hw
+    omission_validity (rotatingCoordinator procs fallback) hprocs hn deliver hv r i hw
   termination _ hF _ gst x hgst i hi :=
     ⟨gst + 3 * (t + 2), omission_terminates_after_gst hprocs fallback hn hF hgst x i hi⟩
 
@@ -1159,7 +1099,7 @@ theorem exists_solvesByzantinePartialSync_iff.{u, v} (P : Type u) (V : Type v)
         List.mem_ofFn.2 ⟨e p, Equiv.symm_apply_apply e p⟩
       let fallback : P := e.symm ⟨0, by omega⟩
       exact ⟨ByzViewState V, ByzViewMsg V,
-        byzQuorumProtocol P V procs (rotatingLeader procs fallback) t,
+        byzQuorumProtocol P V procs (rotatingCoordinator procs fallback) t,
         solvesByzantinePartialSync_byzQuorumProtocol hprocs fallback h3t⟩
 
 /-- **Sharp characterization of crash/omission consensus under partial synchrony
@@ -1186,7 +1126,7 @@ theorem exists_solvesOmissionPartialSync_iff.{u, v} (P : Type u) (V : Type v)
         List.mem_ofFn.2 ⟨e p, Equiv.symm_apply_apply e p⟩
       let fallback : P := e.symm ⟨0, by omega⟩
       exact ⟨OmissionViewState V, OmissionViewMsg V,
-        omissionQuorumProtocol P V procs (rotatingLeader procs fallback) t,
+        omissionQuorumProtocol P V procs (rotatingCoordinator procs fallback) t,
         solvesOmissionPartialSync_omissionQuorumProtocol hprocs fallback h2t⟩
 
 end Cslib.Distributed.PartialSynchrony

@@ -1077,8 +1077,7 @@ private theorem childRouter_code_le_of_threshold {ε_inv α_inv s T : ℕ}
         _ = c * (6 * A + 8) * b := (Nat.mul_assoc _ _ _).symm
     calc 4 * (c * ((c * (2 * childRouterHalfInd #S)) ^ (2 * c) * d) ^ q)
         ≤ 4 * (c * (((c * (6 * A + 8) * b) ^ (2 * c) * d) ^ q)) :=
-          Nat.mul_le_mul_left 4 (Nat.mul_le_mul_left c
-            (Nat.pow_le_pow_left (Nat.mul_le_mul_right d (Nat.pow_le_pow_left hstep _)) q))
+          by gcongr
       _ = 4 * c * d ^ q * (c * (6 * A + 8)) ^ (2 * c * q) * b ^ (2 * c * q) := by
           rw [Nat.mul_pow (c * (6 * A + 8)) b (2 * c),
             Nat.mul_pow _ d q, Nat.mul_pow _ (b ^ (2 * c)) q,

@@ -167,60 +167,51 @@ theorem kwProtocol_solves (p : Program signature n g) (i₀ : Fin n) (d : ℕ) (
     (s : Bool) (hw : p.wireDepthsWith andOrCost w ≤ d) (x y : BitString n)
     (hx : p.trace interpretation x w = s) (hy : p.trace interpretation y w = !s) :
     x ((kwProtocol p i₀ d w s).run x y) ≠ y ((kwProtocol p i₀ d w s).run x y) := by
-  match w with
-  | .input i =>
-    rw [kwProtocol.eq_def]
+  have hval (k : Fin g) (z : BitString n) : p.trace interpretation z (.gate k) =
+      interpretation (p.lines k).op fun a => p.trace interpretation z ((p.lines k).wires a) :=
+    (p.lines_eval interpretation z k).symm
+  have hle (k : Fin g) (a : Fin (signature.Arity (p.lines k).op)) :
+      p.wireDepthsWith andOrCost ((p.lines k).wires a) + andOrCost (p.lines k).op ≤
+        p.depthsWith andOrCost k :=
+    p.wireDepthsWith_lines_add_le _ k a
+  fun_induction kwProtocol p i₀ d w s with
+  | case1 d s i => -- input wire: output it
     dsimp only [RoundProtocol.run]
     simp only [Program.trace_input] at hx hy
     rw [hx, hy]
     cases s <;> decide
-  | .gate k =>
-    have hval (z : BitString n) : p.trace interpretation z (.gate k) =
-        interpretation (p.lines k).op fun a => p.trace interpretation z ((p.lines k).wires a) :=
-      (p.lines_eval interpretation z k).symm
+  | case2 d s k hop ih => -- not gate: recurse on its argument
+    have hx' := (hval k x).symm.trans hx
+    have hy' := (hval k y).symm.trans hy
+    rw [interpretation_of_op_eq_not hop] at hx' hy'
+    have hfirst := firstArg_of_op_eq_not i₀ hop
     have hdk : p.depthsWith andOrCost k ≤ d := hw
-    have hle (a : Fin (signature.Arity (p.lines k).op)) :
-        p.wireDepthsWith andOrCost ((p.lines k).wires a) + andOrCost (p.lines k).op ≤
-          p.depthsWith andOrCost k :=
-      p.wireDepthsWith_lines_add_le _ k a
     have hcost := p.cost_le_depthsWith andOrCost k
-    rw [kwProtocol.eq_def]
-    dsimp only
-    split
-    · rename_i hop
-      have hx' := (hval x).symm.trans hx
-      have hy' := (hval y).symm.trans hy
-      rw [interpretation_of_op_eq_not hop] at hx' hy'
-      have hfirst := firstArg_of_op_eq_not i₀ hop
-      have hd : p.wireDepthsWith andOrCost (firstArg p i₀ k) ≤ d := by grind
-      refine kwProtocol_solves p i₀ d _ (!s) hd x y ?_ ?_
-      · rw [hfirst, ← hx', Bool.not_not]
-      · rw [hfirst, ← hy', Bool.not_not]
-    · rename_i m hop
-      have hc : andOrCost (p.lines k).op = 1 := by rw [hop]; rfl
-      split
-      · omega
-      rename_i d
-      obtain ⟨a, ha, hxa, hya⟩ := exists_argWith_witness (b := false)
-        (fun u => by simp [hval, ← Bool.not_eq_true, interpretation_of_op_eq_and hop]) hx hy
-      simp only [Bool.bne_false] at ha
-      rw [RoundProtocol.run_speak, ha]
-      exact kwProtocol_solves p i₀ d _ s (by have := hle a; omega) x y hxa hya
-    · rename_i m hop
-      have hc : andOrCost (p.lines k).op = 1 := by rw [hop]; rfl
-      split
-      · omega
-      rename_i d
-      obtain ⟨a, ha, hxa, hya⟩ := exists_argWith_witness (b := true)
-        (fun u => by rw [hval, interpretation_of_op_eq_or hop]) hx hy
-      simp only [Bool.bne_true] at ha
-      rw [RoundProtocol.run_speak, ha]
-      exact kwProtocol_solves p i₀ d _ s (by have := hle a; omega) x y hxa hya
-termination_by (d, p.wireDepths w)
-decreasing_by
-  all_goals simp_wf
-  · exact Prod.Lex.right _ (wireDepths_firstArg_lt p i₀ k)
-  all_goals exact Prod.Lex.left _ _ (by omega)
+    have hd : p.wireDepthsWith andOrCost (firstArg p i₀ k) ≤ d := by grind
+    refine ih hd ?_ ?_
+    · rw [hfirst, ← hx', Bool.not_not]
+    · rw [hfirst, ← hy', Bool.not_not]
+  | case3 s k m hop | case5 s k m hop => -- and/or gate, no messages left
+    have hc : andOrCost (p.lines k).op = 1 := by rw [hop]; rfl
+    have hdk : p.depthsWith andOrCost k ≤ 0 := hw
+    have := p.cost_le_depthsWith andOrCost k
+    omega
+  | case4 s k m hop d ih => -- and gate: speak, then recurse
+    have hc : andOrCost (p.lines k).op = 1 := by rw [hop]; rfl
+    have hdk : p.depthsWith andOrCost k ≤ d + 1 := hw
+    obtain ⟨a, ha, hxa, hya⟩ := exists_argWith_witness (b := false)
+      (fun u => by simp [hval, ← Bool.not_eq_true, interpretation_of_op_eq_and hop]) hx hy
+    simp only [Bool.bne_false] at ha
+    rw [RoundProtocol.run_speak, ha]
+    exact ih _ (by have := hle k a; omega) hxa hya
+  | case6 s k m hop d ih => -- or gate: speak, then recurse
+    have hc : andOrCost (p.lines k).op = 1 := by rw [hop]; rfl
+    have hdk : p.depthsWith andOrCost k ≤ d + 1 := hw
+    obtain ⟨a, ha, hxa, hya⟩ := exists_argWith_witness (b := true)
+      (fun u => by rw [hval, interpretation_of_op_eq_or hop]) hx hy
+    simp only [Bool.bne_true] at ha
+    rw [RoundProtocol.run_speak, ha]
+    exact ih _ (by have := hle k a; omega) hxa hya
 
 /-- **A circuit gives a protocol**: a circuit of AND/OR depth at most `d` computing `f` on `n ≥ 1`
 inputs gives a Karchmer–Wigderson protocol for `f` with at most `d` messages from its wires. -/

@@ -15,8 +15,10 @@ public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
 import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
 public import CslibFrontier.Tactic.WramOmega.Init
 import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.UpdateSimp
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -448,69 +450,50 @@ writes `used[p] ← 1`, `key[p] ← u`, and `val[p] ← v`. -/
       (keyBase base n_max + p.val) u)
     (valBase base n_max + p.val) v
 
-private theorem insertMem_of_ne {base n_max : ℕ} {mem : ℕ → ℕ}
-    {p : Fin (2 ^ tableLog n_max)} {u v a : ℕ}
-    (h0 : a ≠ usedBase base n_max + p.val) (h1 : a ≠ keyBase base n_max + p.val)
-    (h2 : a ≠ valBase base n_max + p.val) :
-    insertMem base n_max mem p u v a = mem a := by
-  simp only [insertMem, Function.update_of_ne h2, Function.update_of_ne h1,
-    Function.update_of_ne h0]
-
 private theorem insertMem_of_outside {base n_max : ℕ} {mem : ℕ → ℕ}
     {p : Fin (2 ^ tableLog n_max)} {u v a : ℕ}
     (ha : a < usedBase base n_max ∨ base + space n_max ≤ a) :
     insertMem base n_max mem p u v a = mem a := by
-  have hp := p.isLt
+  have := p.isLt
   dsimp only [usedBase, space, tableSize] at ha
-  exact insertMem_of_ne (by dsimp only [usedBase]; omega)
-    (by dsimp only [keyBase, usedBase, tableSize]; omega)
-    (by dsimp only [valBase, keyBase, usedBase, tableSize]; omega)
+  dsimp only [insertMem, usedBase, keyBase, valBase, tableSize]
+  update_simp
 
 theorem usedAt_insertMem (base n_max : ℕ) (mem : ℕ → ℕ)
     (p q : Fin (2 ^ tableLog n_max)) (u v : ℕ) :
     usedAt base n_max (insertMem base n_max mem p u v) q =
       if q = p then 1 else usedAt base n_max mem q := by
-  have hp := p.isLt; have hq := q.isLt
+  have := p.isLt; have := q.isLt
   by_cases hqp : q = p
-  · subst hqp
-    have h1 : usedBase base n_max + q.val ≠ valBase base n_max + q.val := by
-      dsimp only [valBase, keyBase, usedBase, tableSize]; omega
-    have h2 : usedBase base n_max + q.val ≠ keyBase base n_max + q.val := by
-      dsimp only [keyBase, usedBase, tableSize]; omega
-    simp only [usedAt, insertMem, ↓reduceIte, Function.update_of_ne h1, Function.update_of_ne h2,
-      Function.update_self]
+  · subst hqp; simp only [↓reduceIte, usedAt, insertMem, usedBase, keyBase, valBase, tableSize]
+    update_simp
   · have := Fin.val_ne_of_ne hqp
-    simp only [usedAt, hqp, ↓reduceIte]
-    exact insertMem_of_ne (by omega)
-      (by dsimp only [keyBase, usedBase, tableSize]; omega)
-      (by dsimp only [valBase, keyBase, usedBase, tableSize]; omega)
+    simp only [hqp, ↓reduceIte, usedAt, insertMem, usedBase, keyBase, valBase, tableSize]
+    update_simp
 
 theorem keyAt_insertMem (base n_max : ℕ) (mem : ℕ → ℕ)
     (p q : Fin (2 ^ tableLog n_max)) (u v : ℕ) :
     keyAt base n_max (insertMem base n_max mem p u v) q =
       if q = p then u else keyAt base n_max mem q := by
-  have hp := p.isLt; have hq := q.isLt
+  have := p.isLt; have := q.isLt
   by_cases hqp : q = p
-  · subst hqp
-    have h1 : keyBase base n_max + q.val ≠ valBase base n_max + q.val := by
-      dsimp only [valBase, keyBase, usedBase, tableSize]; omega
-    simp only [keyAt, insertMem, ↓reduceIte, Function.update_of_ne h1, Function.update_self]
+  · subst hqp; simp only [↓reduceIte, keyAt, insertMem, usedBase, keyBase, valBase, tableSize]
+    update_simp
   · have := Fin.val_ne_of_ne hqp
-    simp only [keyAt, hqp, ↓reduceIte]
-    exact insertMem_of_ne (by dsimp only [keyBase, usedBase, tableSize]; omega) (by omega)
-      (by dsimp only [valBase, keyBase, usedBase, tableSize]; omega)
+    simp only [hqp, ↓reduceIte, keyAt, insertMem, usedBase, keyBase, valBase, tableSize]
+    update_simp
 
 theorem valAt_insertMem (base n_max : ℕ) (mem : ℕ → ℕ)
     (p q : Fin (2 ^ tableLog n_max)) (u v : ℕ) :
     valAt base n_max (insertMem base n_max mem p u v) q =
       if q = p then v else valAt base n_max mem q := by
-  have hp := p.isLt; have hq := q.isLt
+  have := p.isLt; have := q.isLt
   by_cases hqp : q = p
-  · subst hqp; simp only [valAt, insertMem, ↓reduceIte, Function.update_self]
+  · subst hqp; simp only [↓reduceIte, valAt, insertMem, usedBase, keyBase, valBase, tableSize]
+    update_simp
   · have := Fin.val_ne_of_ne hqp
-    simp only [valAt, hqp, ↓reduceIte]
-    exact insertMem_of_ne (by dsimp only [valBase, keyBase, usedBase, tableSize]; omega)
-      (by dsimp only [valBase, keyBase, usedBase, tableSize]; omega) (by omega)
+    simp only [hqp, ↓reduceIte, valAt, insertMem, usedBase, keyBase, valBase, tableSize]
+    update_simp
 
 /-- Writing `(1, u.val, v)` at the stopping slot `p = probeSlot M (hashFn U n_max θ u) t`
 preserves `TableInv` for `Function.update s u (some v)` whenever `.insert u v` is admissible. -/
@@ -1486,24 +1469,21 @@ theorem opCode_execWithin {U V w base n_max : ℕ} {θ : Seed U n_max}
   have hx1_key : x.regs 1 = u.val := by cases o <;> exact harg.1
   refine WP.exists_execWithin (WP.bounded hrep.bounded ?_)
   unfold opCode
-  apply WP.seq
   wram_call (KWise.evalCode_execWithin u (x := x.comap kwiseMap) hrep.kwise_rep
     hrep.reg_base hx1_key hw (hfit_space.of_le (by wram_omega))) renamed injective_kwiseMap with
     x₁ ⟨⟨hx₁_0, hx₁_1, hx₁_2, hx₁_mem⟩, hx₁_frame⟩
-  apply WP.seq
   wram_call (probeSetupCode_execWithin u b (x := x₁) hx₁_0 hx₁_1 hx₁_2 hfit_space) with x₂
     ⟨hx₂_mem, hx₂_0, hx₂_1, hx₂_2, hx₂_3, hx₂_4, hx₂_5, hx₂_6, hx₂_7, hx₂_9, hx₂_10,
       hx₂_22, hx₂_23⟩
-  have hmem₂ : x₂.mem = x.mem := hx₂_mem.trans hx₁_mem
+  have hmem₂ : x₂.mem = x.mem := by mem_frame
   have ht₂ : (hmem₂.symm ▸ hrep.table_inv).probeLen u (hashFn U n_max θ u) = t :=
     TableInv.probeLen_congr (hmem₂.symm ▸ hrep.table_inv) hrep.table_inv hmem₂ u b
-  apply WP.seq
   wram_call (probeLoop_execWithin (hinv := hmem₂.symm ▸ hrep.table_inv) u
     hx₂_0 hx₂_1 hx₂_2 hx₂_3 hx₂_4 hx₂_5 hx₂_6
     (by simpa only [hx₁_mem, hmem₂] using hx₂_7)
     (by simpa only [hx₁_mem, hmem₂] using hx₂_9) hx₂_10 hfit_space) with x₃
     ⟨hx₃_mem, hx₃_0, hx₃_1, hx₃_2, hx₃_4, hx₃_5, hx₃_6, hx₃_9, hx₃_10, hx₃_22, hx₃_23⟩
-  have hmem₃ : x₃.mem = x.mem := hx₃_mem.trans hmem₂
+  have hmem₃ : x₃.mem = x.mem := by mem_frame
   have hx₃_22_eq : x₃.regs 22 = x.regs 22 := by regs_frame
   have hx₃_23_eq : x₃.regs 23 = x.regs 23 := by regs_frame
   have hx₃_2' : x₃.regs 2 = p.val := by rwa [ht₂] at hx₃_2
@@ -1512,35 +1492,31 @@ theorem opCode_execWithin {U V w base n_max : ℕ} {θ : Seed U n_max}
   | query u₀ =>
     have ht₃ : (hmem₃.symm ▸ hrep.table_inv).probeLen u (hashFn U n_max θ u) = t :=
       TableInv.probeLen_congr (hmem₃.symm ▸ hrep.table_inv) hrep.table_inv hmem₃ u b
-    apply WP.branch_eq (hx₃_22_eq.trans harg.2) hx₃_10
-    · intro h; omega
-    · intro _
-      wram_call (queryFinishCode_execWithin (hinv := hmem₃.symm ▸ hrep.table_inv) u hx₃_0
-        (by rw [ht₃]; exact hx₃_2') hx₃_6
-        (by rw [ht₃, hmem₃]; exact hx₃_9')
-        hx₃_10 hfit_space hfit_V) with y ⟨hymem, hy0, hdec⟩
-      intro hbdd
-      have hmx : y.mem = x.mem := hymem.trans hmem₃
-      refine ⟨?_, hdec, ⟨hbdd, hy0, hmx ▸ hrep.kwise_rep, hmx ▸ hrep.table_inv⟩,
-        fun _ _ => hmx ▸ rfl⟩
-      rw [TableInv.probeLen_congr (hmem₂.symm ▸ hrep.table_inv) hrep.table_inv hmem₂ u _]; omega
+    wram_exec [hx₃_22_eq, harg.2, hx₃_10]
+    wram_call (queryFinishCode_execWithin (hinv := hmem₃.symm ▸ hrep.table_inv) u hx₃_0
+      (by rw [ht₃]; exact hx₃_2') hx₃_6
+      (by rw [ht₃, hmem₃]; exact hx₃_9')
+      hx₃_10 hfit_space hfit_V) with y ⟨hymem, hy0, hdec⟩
+    intro hbdd
+    have hmx : y.mem = x.mem := by mem_frame
+    refine ⟨?_, hdec, ⟨hbdd, hy0, hmx ▸ hrep.kwise_rep, hmx ▸ hrep.table_inv⟩,
+      fun _ _ => hmx ▸ rfl⟩
+    rw [TableInv.probeLen_congr (hmem₂.symm ▸ hrep.table_inv) hrep.table_inv hmem₂ u _]; omega
   | insert u₀ v =>
-    apply WP.branch_eq (hx₃_22_eq.trans harg.2.1) hx₃_10
-    · intro _
-      wram_call (insertFinishCode_execWithin u v p hx₃_0 hx₃_1 hx₃_2'
-        hx₃_4 hx₃_5 hx₃_6 hx₃_10 (hx₃_23_eq.trans harg.2.2) hfit_space) with
-        y ⟨hymem, hy0, _⟩
-      intro hbdd
-      have hmx : y.mem = insertMem base n_max x.mem p u.val v := hymem.trans (by rw [hmem₃])
-      refine ⟨?_, rfl,
-        ⟨hbdd, hy0,
-          kwise_rep_congr hrep.kwise_rep fun a ha _ => hmx ▸ insertMem_of_outside (.inl ha),
-          hmx ▸ hrep.table_inv.insert_mem u₀ v hvalid⟩,
-        Modifies.block_iff.mpr fun a ha =>
-          hmx ▸ insertMem_of_outside (ha.imp (fun h => Nat.lt_of_lt_of_le h (Nat.le_add_right _ _))
-            id)⟩
-      rw [TableInv.probeLen_congr (hmem₂.symm ▸ hrep.table_inv) hrep.table_inv hmem₂ u _]; omega
-    · intro h; exact absurd rfl h
+    wram_exec [hx₃_22_eq, harg.2.1, hx₃_10]
+    wram_call (insertFinishCode_execWithin u v p hx₃_0 hx₃_1 hx₃_2'
+      hx₃_4 hx₃_5 hx₃_6 hx₃_10 (hx₃_23_eq.trans harg.2.2) hfit_space) with
+      y ⟨hymem, hy0, _⟩
+    intro hbdd
+    have hmx : y.mem = insertMem base n_max x.mem p u.val v := hymem.trans (by rw [hmem₃])
+    refine ⟨?_, rfl,
+      ⟨hbdd, hy0,
+        kwise_rep_congr hrep.kwise_rep fun a ha _ => hmx ▸ insertMem_of_outside (.inl ha),
+        hmx ▸ hrep.table_inv.insert_mem u₀ v hvalid⟩,
+      Modifies.block_iff.mpr fun a ha =>
+        hmx ▸ insertMem_of_outside (ha.imp (fun h => Nat.lt_of_lt_of_le h (Nat.le_add_right _ _))
+          id)⟩
+    rw [TableInv.probeLen_congr (hmem₂.symm ▸ hrep.table_inv) hrep.table_inv hmem₂ u _]; omega
 
 /-! ## Section 4: `Randomized.StateTransitionImpl` certificate and expected-time sequence theorem -/
 
