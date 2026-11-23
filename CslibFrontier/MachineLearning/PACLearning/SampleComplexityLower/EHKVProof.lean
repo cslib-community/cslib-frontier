@@ -125,8 +125,7 @@ theorem markov_bad_samples
           (ENNReal.ofReal_div_of_pos hk_pos).symm
   have harith : 8 * ↑m * ε' / ↑k < 1 / 2 := by
     have h8mε : 8 * (m : ℝ) * ε' < (↑d : ℝ) / 4 := by
-      calc 8 * (m : ℝ) * ε' < 8 * ((↑d : ℝ) / (32 * ε')) * ε' :=
-            mul_lt_mul_of_pos_right (by linarith) hε'_pos
+      calc 8 * (m : ℝ) * ε' < 8 * ((↑d : ℝ) / (32 * ε')) * ε' := by gcongr
         _ = ↑d / 4 := by field_simp; ring
     have h2k : (d : ℝ) < 2 * ↑k := by
       exact_mod_cast (show d < 2 * k from by omega)

@@ -238,19 +238,16 @@ private theorem length_cbcChainCache (t : List (BitString n × BitString n)) (c 
 private theorem not_goodChain_of_cbcChainFlag (t : List (BitString n × BitString n))
     (c : BitString n) (ms us : List (BitString n)) (h : cbcChainFlag t c ms us = true) :
     ¬goodChain (t.map Prod.fst) c ms us := by
-  induction ms generalizing t c us with
-  | nil => simp [cbcChainFlag] at h
-  | cons m ms ih =>
-    cases us with
-    | nil => simp [cbcChainFlag] at h
-    | cons u us =>
-      simp only [goodChain, not_and]
-      intro hc
-      simp only [cbcChainFlag, Bool.or_eq_true] at h
-      rcases h with h | h
-      · obtain ⟨p, hp, hcp⟩ := List.lookup_isSome_iff.1 h
-        exact absurd (List.mem_map.2 ⟨p, hp, (beq_iff_eq.1 hcp).symm⟩) hc
-      · exact ih ((c + m, u) :: t) u us h
+  fun_induction cbcChainFlag t c ms us with
+  | case1 t c m ms u us ih => -- m :: ms, u :: us
+    simp only [goodChain, not_and]
+    intro hc
+    simp only [Bool.or_eq_true] at h
+    rcases h with h | h
+    · obtain ⟨p, hp, hcp⟩ := List.lookup_isSome_iff.1 h
+      exact absurd (List.mem_map.2 ⟨p, hp, (beq_iff_eq.1 hcp).symm⟩) hc
+    · exact ih h
+  | case2 => cases h -- either list exhausted
 
 /-- Fresh sampling along the chain of `ms` draws `ms.length` uniform blocks, which are the
 ciphertext blocks. -/

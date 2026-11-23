@@ -291,8 +291,7 @@ theorem IsHardCoreMeasure.pad {f : BooleanFunction n} {s : ℕ} {δ ε w γ : �
     have h2 : w * (#{x | g x = f x} : ℝ) ≤ w * 2 ^ n := mul_le_mul_of_nonneg_left hcount hw0
     have h3 : γ * (1 - w) * (δ * 2 ^ n) ≤ γ * (1 - w) * ∑ x, M x :=
       mul_le_mul_of_nonneg_left hδM (mul_nonneg hγ (by linarith only [hw1]))
-    have h4 : w * (1 / 2 - ε - γ) * 2 ^ n ≤ γ * (1 - w) * δ * 2 ^ n :=
-      mul_le_mul_of_nonneg_right hwγ hN.le
+    have h4 : w * (1 / 2 - ε - γ) * 2 ^ n ≤ γ * (1 - w) * δ * 2 ^ n := by gcongr
     have h5 : (1 / 2 + (ε + γ)) * ((1 - w) * ∑ x, M x + w * 2 ^ n) =
         (1 - w) * ((1 / 2 + ε) * ∑ x, M x) + γ * (1 - w) * ∑ x, M x +
           (w * 2 ^ n - w * (1 / 2 - ε - γ) * 2 ^ n) := by ring

@@ -257,37 +257,12 @@ theorem listGetNatOption_streamState (list : List Value) (index : ℕ) :
   · intro input
     simp only [encUnit_apply, streamEmit_const_nil, List.nil_append]
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        let pair := (streamState input.1 listGetNatNext input.2 j, input.2[j])
-        inputFromWordWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            emitCompiler pair +
-          onWordsWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            (streamFramedNext nextCompiler) pair
-        else 0)
-      (Finset.mem_range.mpr hj)
-    simpa only [listGetNatSMax, nextCompiler, emitCompiler, finishCompiler, hj, dite_true]
-      using hsup
+    exact Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp only [hj, dite_true]; rfl)
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range (input.2.length + 1))
-      (f := fun j => if hj : j ≤ input.2.length then
-        ((encPair encNat (encOption encValue))
-          (streamState input.1 listGetNatNext input.2 j)).length else 0)
-      (Finset.mem_range.mpr (by omega : j < input.2.length + 1))
-    refine Nat.le_trans ?_ (Nat.le_max_left _ _)
-    simpa only [hj, dite_true] using hsup
+    exact le_max_of_le_left <|
+      Finset.le_sup_of_le (Finset.mem_range.mpr (Nat.lt_succ_of_le hj)) (by simp [hj])
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        (encValue input.2[j]).length else 0)
-      (Finset.mem_range.mpr hj)
-    refine Nat.le_trans ?_ (Nat.le_max_right _ _)
-    simpa only [hj, dite_true] using hsup
+    exact le_max_of_le_right (Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp [hj]))
 
 /-- Retained binary-countdown scan returning `none` exactly for an out-of-range index. -/
 @[expose] def listGetNatOptionStreamCompiler
@@ -305,37 +280,12 @@ theorem listGetNatOption_streamState (list : List Value) (index : ℕ) :
   · intro input
     simp only [encUnit_apply, streamEmit_const_nil, List.nil_append]
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        let pair := (streamState input.1 listGetNatNext input.2 j, input.2[j])
-        inputFromWordWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            emitCompiler pair +
-          onWordsWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            (streamFramedNext nextCompiler) pair
-        else 0)
-      (Finset.mem_range.mpr hj)
-    simpa only [listGetNatOptionSMax, nextCompiler, emitCompiler, finishCompiler, hj, dite_true]
-      using hsup
+    exact Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp only [hj, dite_true]; rfl)
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range (input.2.length + 1))
-      (f := fun j => if hj : j ≤ input.2.length then
-        ((encPair encNat (encOption encValue))
-          (streamState input.1 listGetNatNext input.2 j)).length else 0)
-      (Finset.mem_range.mpr (by omega : j < input.2.length + 1))
-    refine Nat.le_trans ?_ (Nat.le_max_left _ _)
-    simpa only [hj, dite_true] using hsup
+    exact le_max_of_le_left <|
+      Finset.le_sup_of_le (Finset.mem_range.mpr (Nat.lt_succ_of_le hj)) (by simp [hj])
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        (encValue input.2[j]).length else 0)
-      (Finset.mem_range.mpr hj)
-    refine Nat.le_trans ?_ (Nat.le_max_right _ _)
-    simpa only [hj, dite_true] using hsup
+    exact le_max_of_le_right (Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp [hj]))
 
 /-- Retained marshalling from `(list, binary index)` to countdown stream state. -/
 @[expose] def listGetNatMarshalCompiler (encValue : Value ↪ List Bool) :
@@ -460,35 +410,12 @@ variable {Input : Type u} {Output : Type v} {mapValue : Input → Output}
     | cons element list ih =>
         simpa [streamEmit, encFramed_apply, encList_cons] using ih
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        let pair := (streamState input.1 Prod.fst input.2 j, input.2[j])
-        inputFromWordWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            emitCompiler pair +
-          onWordsWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            (streamFramedNext nextCompiler) pair
-        else 0)
-      (Finset.mem_range.mpr hj)
-    simpa only [listMapSMax, nextCompiler, emitCompiler, finishCompiler, hj, dite_true]
-      using hsup
+    exact Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp only [hj, dite_true]; rfl)
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range (input.2.length + 1))
-      (f := fun j => if _hj : j ≤ input.2.length then (encUnit ()).length else 0)
-      (Finset.mem_range.mpr (by omega : j < input.2.length + 1))
-    refine Nat.le_trans ?_ (Nat.le_max_left _ _)
-    simpa only [hj, dite_true] using hsup
+    exact le_max_of_le_left <|
+      Finset.le_sup_of_le (Finset.mem_range.mpr (Nat.lt_succ_of_le hj)) (by simp [hj])
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        (encInput input.2[j]).length else 0)
-      (Finset.mem_range.mpr hj)
-    refine Nat.le_trans ?_ (Nat.le_max_right _ _)
-    simpa only [hj, dite_true] using hsup
+    exact le_max_of_le_right (Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp [hj]))
 
 /-- Retained marshalling from a standard list to the unit-state stream layout. -/
 @[expose] def listMapMarshalCompiler (encInput : Input ↪ List Bool) :
@@ -604,40 +531,12 @@ variable {Left : Type u} {Right : Type v} {Zipped : Type w}
         cases rights <;>
           simp [streamEmit, listZipWithLeft, encFramed_apply, encList_cons, ih]
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        let pair :=
-          (streamState input.1 (fun pair : List Right × Left => pair.1.tail) input.2 j,
-            input.2[j])
-        inputFromWordWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            emitCompiler pair +
-          onWordsWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            (streamFramedNext nextCompiler) pair
-        else 0)
-      (Finset.mem_range.mpr hj)
-    simpa only [listZipWithLeftSMax, nextCompiler, emitCompiler, finishCompiler, hj,
-      dite_true] using hsup
+    exact Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp only [hj, dite_true]; rfl)
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range (input.2.length + 1))
-      (f := fun j => if hj : j ≤ input.2.length then
-        (encList encRight
-          (streamState input.1 (fun pair : List Right × Left => pair.1.tail) input.2 j)).length
-        else 0)
-      (Finset.mem_range.mpr (by omega : j < input.2.length + 1))
-    refine Nat.le_trans ?_ (Nat.le_max_left _ _)
-    simpa only [hj, dite_true] using hsup
+    exact le_max_of_le_left <|
+      Finset.le_sup_of_le (Finset.mem_range.mpr (Nat.lt_succ_of_le hj)) (by simp [hj])
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        (encLeft input.2[j]).length else 0)
-      (Finset.mem_range.mpr hj)
-    refine Nat.le_trans ?_ (Nat.le_max_right _ _)
-    simpa only [hj, dite_true] using hsup
+    exact le_max_of_le_right (Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp [hj]))
 
 /-- Retained left-length zip, including the charged input reordering pass. -/
 @[expose] def listZipWithLeftCompiler (default : Right)
@@ -810,37 +709,12 @@ theorem streamEmit_listReplace (encValue : Value ↪ List Bool) (replacement : V
             (index, true, replacement) list ++ []
         rw [streamEmit_listReplace_done, List.append_nil]
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        let pair := (streamState input.1 listReplaceNext input.2 j, input.2[j])
-        inputFromWordWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            emitCompiler pair +
-          onWordsWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            (streamFramedNext nextCompiler) pair
-        else 0)
-      (Finset.mem_range.mpr hj)
-    simpa only [listReplaceSMax, nextCompiler, emitCompiler, finishCompiler, hj, dite_true]
-      using hsup
+    exact Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp only [hj, dite_true]; rfl)
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range (input.2.length + 1))
-      (f := fun j => if hj : j ≤ input.2.length then
-        ((encPair encUnary (encPair encBool encValue))
-          (streamState input.1 listReplaceNext input.2 j)).length else 0)
-      (Finset.mem_range.mpr (by omega : j < input.2.length + 1))
-    refine Nat.le_trans ?_ (Nat.le_max_left _ _)
-    simpa only [hj, dite_true] using hsup
+    exact le_max_of_le_left <|
+      Finset.le_sup_of_le (Finset.mem_range.mpr (Nat.lt_succ_of_le hj)) (by simp [hj])
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        (encValue input.2[j]).length else 0)
-      (Finset.mem_range.mpr hj)
-    refine Nat.le_trans ?_ (Nat.le_max_right _ _)
-    simpa only [hj, dite_true] using hsup
+    exact le_max_of_le_right (Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp [hj]))
 
 /-- Retained marshalling from `(list, unary index, replacement)` to replacement stream state. -/
 @[expose] def listReplaceMarshalCompiler (encValue : Value ↪ List Bool) :

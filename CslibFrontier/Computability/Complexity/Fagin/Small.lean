@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Logics.FirstOrder.Basic
 public import CslibFrontier.Logics.FirstOrder.Encoding
 public import CslibFrontier.Logics.SecondOrder.Projection
+import CslibFrontier.Tactic.FirstOrder.Simp
 
 /-!
 # Small structures and cardinality splitting
@@ -123,21 +124,15 @@ private theorem relTable_eq_of_equiv_fin_one {N : Type} [L.Structure N] (e : N �
   have hj' : j < 1 ^ r.1 := by simpa [Vocabulary.relTable] using hj₁
   simp only [Vocabulary.relTable, List.getElem_ofFn, List.getElem_singleton]
   refine decide_eq_decide.2 ?_
-  have hrel : (N ⊨ constTupleRelSentence r) ↔ ∀ x : N, RelMap r.2 (fun _ => x) := by
-    simp [constTupleRelSentence, Sentence.Realize, Formula.Realize, Fin.snoc]
-  rw [hrel]
-  constructor
-  · intro h x
-    have hx : (fun _ : Fin r.1 => x) = e.symm ∘ finFunctionFinEquiv.symm ⟨j, hj'⟩ := by
-      funext k
-      exact e.injective (Subsingleton.elim _ _)
-    rwa [hx]
-  · intro h
-    have hx : (e.symm ∘ finFunctionFinEquiv.symm ⟨j, hj'⟩) = fun _ : Fin r.1 => e.symm 0 := by
-      funext k
-      exact e.injective (Subsingleton.elim _ _)
-    rw [hx]
-    exact h (e.symm 0)
+  fo_simp [constTupleRelSentence]
+  have hconst : (fun x : Fin r.1 => e.symm (finFunctionFinEquiv.symm ⟨j, hj'⟩ x)) =
+      fun _ => e.symm 0 :=
+    funext fun _ => congrArg e.symm (Subsingleton.elim _ _)
+  rw [hconst]
+  refine ⟨fun h x => ?_, fun h => h (e.symm 0)⟩
+  have hx : (fun _ : Fin r.1 => x) = fun _ => e.symm 0 :=
+    funext fun _ => e.injective (Subsingleton.elim _ _)
+  rwa [hx]
 
 open scoped Classical in
 private theorem encode_eq_encodeOfOne {N : Type} [L.Structure N] (e : N ≃ Fin 1) :

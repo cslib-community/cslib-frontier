@@ -198,8 +198,7 @@ private lemma exists_Icc_of_roundMidTrim {P K : Type*} [Fintype P]
         rw [hmax_eq, hmin_eq]
         exact hle_abs.trans habs
       have hwidth' : hi' - lo' ≤ (hi - lo) / 2 ^ (r + 1) := by
-        have hdiv : (hi_r - lo_r) / 2 ≤ ((hi - lo) / 2 ^ r) / 2 :=
-          div_le_div_of_nonneg_right hwidth_r (by positivity)
+        have hdiv : (hi_r - lo_r) / 2 ≤ ((hi - lo) / 2 ^ r) / 2 := by gcongr
         rw [div_div, ← pow_succ] at hdiv
         exact hsub_le.trans hdiv
       refine ⟨lo', hi', hlo_r.trans hlo'_ge, hlh', hhi'_le.trans hhi_r, hwidth', ?_⟩

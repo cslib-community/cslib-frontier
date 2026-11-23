@@ -295,7 +295,6 @@ theorem card_image_eval_embedUpdate_le [DecidableEq κ] (c : Circuit signature n
   calc #(s.image f) ≤ #(s.image E) := hle₁
     _ ≤ #(P ×ˢ range (2 ^ Fintype.card κ + 1)) := hle₂
     _ = #P * (2 ^ Fintype.card κ + 1) := by rw [card_product, card_range]
-    _ ≤ B.card.choose D * (2 ^ Fintype.card κ - 1) ^ D * (2 ^ Fintype.card κ + 1) :=
-        Nat.mul_le_mul_right _ hP
+    _ ≤ B.card.choose D * (2 ^ Fintype.card κ - 1) ^ D * (2 ^ Fintype.card κ + 1) := by gcongr
 
 end Cslib.Circuits.Boolean.WeightedThreshold

@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Karn Seth, Samuel Schlesinger
 -/
 import CslibFrontier.Crypto.Computational.Encryption.MACThenEncrypt
+import CslibFrontierTests.Crypto.MACThenEncryptFixture
 
 /-!
 # Tests for MAC-then-Encrypt and the Chosen-Ciphertext Counterexample
@@ -11,10 +12,11 @@ import CslibFrontier.Crypto.Computational.Encryption.MACThenEncrypt
 Concrete evaluations, PPT certificates, and counterexample witnesses for
 `CslibFrontier/Crypto/Computational/Encryption/MACThenEncrypt.lean`. We instantiate
 `macThenEncrypt` and its trailing-bit malleable extension `extendCipher` on explicit concrete
-primitives (`echoCipher` and `echoMAC`), verify decryption round-trips and tag rejection, check
-exact advantage `1` for `macThenEncryptExtendCIAdversary` and `macThenEncryptExtendCCAAdversary`,
-and verify all four negative theorems (`OneTimeCiphertextIntegrity`, `CiphertextIntegrity`,
-`OneTimeINDCCA`, `INDCCA`).
+primitives (`echoCipher` and `echoMAC`, the latter shared through
+`CslibFrontierTests.Crypto.MACThenEncryptFixture`), verify decryption round-trips and tag
+rejection, check exact advantage `1` for `macThenEncryptExtendCIAdversary` and
+`macThenEncryptExtendCCAAdversary`, and verify all four negative theorems
+(`OneTimeCiphertextIntegrity`, `CiphertextIntegrity`, `OneTimeINDCCA`, `INDCCA`).
 -/
 namespace CslibFrontierTests.Crypto.MACThenEncrypt
 open Cslib Cslib.Probability Cslib.Crypto Turing.MultiTapeTM
@@ -36,37 +38,6 @@ def echoCipher : SymmetricCipher where
     simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hct
     subst hct
     rfl
-
-/-- Deterministic echo MAC signing `n`-bit messages by `tag = msg` and checking equality. -/
-def echoMAC : MACScheme where
-  msgLen n := n
-  keyGen _ := pure []
-  sign _ msg := pure msg
-  verify _ msg tag := msg == tag
-  keyGen_ppt := by ppt
-  sign_ppt := by ppt
-  verify_polyTime := by polytime
-  verify_sign := by
-    intro _ _ _ msg _ tag htag
-    simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at htag
-    subst htag
-    exact beq_self_eq_true _
-
-/-- Every framed `(msg, tag)` pair produced by `echoMAC` on an `n`-bit message has exact length
-`3 * n + 1`. -/
-theorem echo_pairLen :
-    ∀ n km, km ∈ (ProbComp.eval (echoMAC.keyGen n)).support →
-      ∀ msg, msg.length = n →
-      ∀ tag ∈ (ProbComp.eval (echoMAC.sign km msg)).support,
-        (encPair encBits encBits (msg, tag)).length = 3 * n + 1 := by
-  intro n km _ msg hmsg tag htag
-  change tag ∈ (ProbComp.eval (pure msg)).support at htag
-  simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at htag
-  subst htag
-  rw [encPair_apply]
-  dsimp only
-  rw [length_frame_append, encBits_apply, hmsg]
-  omega
 
 /-- Plain MAC-then-Encrypt instantiated on `echoCipher` and `echoMAC` with `ptLen n = 3 * n + 1`. -/
 noncomputable def echoMtE : SymmetricCipher :=

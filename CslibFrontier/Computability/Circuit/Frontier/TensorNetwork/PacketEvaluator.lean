@@ -81,9 +81,7 @@ time `exp(O(L log s))` and polynomial space are separate.
 namespace Cslib.Circuits.Frontier
 
 open Finset
-
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
+open scoped TensorNetwork
 
 /-- An odd natural number is a unit of a ring in which `2` is nilpotent. -/
 private theorem isUnit_natCast_of_odd {S : Type*} [CommRing S] {n : ℕ} (hn : (2 : S) ^ n = 0)

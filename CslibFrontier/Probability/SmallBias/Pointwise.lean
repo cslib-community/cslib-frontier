@@ -76,9 +76,7 @@ theorem abs_mul_mass_sub_one_le_sum_abs_bias (p : PMF (ι → Bool)) (z : ι →
   have heq : 2 ^ Fintype.card ι * (p z).toReal - 1 =
       ∑ S with S.Nonempty, bias p S * chi ℝ S z := by linarith
   rw [heq]
-  calc
-    _ ≤ ∑ S with S.Nonempty, |bias p S * chi ℝ S z| := abs_sum_le_sum_abs _ _
-    _ = _ := by simp only [abs_mul, abs_chi, mul_one]
+  exact abs_sum_mul_chi_le _ _ z
 
 /-- **Small bias gives pointwise closeness to uniform** ([Goldreich2007DraftR4], Exercise 8.34):
 every atom of an `ε`-biased distribution on `n` bits has normalized mass within `(2 ^ n - 1) ε` of
@@ -93,11 +91,7 @@ theorem IsSmallBias.abs_mul_mass_sub_one_le {ε : ℝ} {p : PMF (ι → Bool)} (
 theorem mul_mass_le_sum_abs_bias (p : PMF (ι → Bool)) (z : ι → Bool) :
     2 ^ Fintype.card ι * (p z).toReal ≤ ∑ S, |bias p S| := by
   rw [← sum_bias_mul_chi]
-  apply sum_le_sum
-  intro S _
-  calc
-    bias p S * chi ℝ S z ≤ |bias p S * chi ℝ S z| := le_abs_self _
-    _ = |bias p S| := by rw [abs_mul, abs_chi, mul_one]
+  exact (le_abs_self _).trans (abs_sum_mul_chi_le _ _ z)
 
 /-- Controlling only the higher-order parity biases bounds the atom mass by the number of
 uncontrolled low-order parities plus the total controlled bias. -/
