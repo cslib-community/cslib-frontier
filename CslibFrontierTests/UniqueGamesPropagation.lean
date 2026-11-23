@@ -7,12 +7,15 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime
+import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime
+meta import CslibFrontier.Computability.PCP.Approximation.UniqueGames.PropagationTime
+meta import CslibFrontier.Computability.WordRAM.Structured.FastEval
 
 /-!
 # Label propagation for unique games: worked examples
 
-Kernel-checked runs (no `native_decide`) of `Cslib.Complexity.UniqueGames.Propagation.solve`:
+Kernel-checked runs of `Cslib.Complexity.UniqueGames.Propagation.solve` and Word-RAM execution
+checks of `Cslib.Complexity.UniqueGames.Propagation.solveCode` / `program`:
 
 * a satisfiable 3-cycle of rotations, the same cycle with its edges reversed (so that propagation
   inverts the bijections), and an unsatisfiable variant;
@@ -22,14 +25,16 @@ Kernel-checked runs (no `native_decide`) of `Cslib.Complexity.UniqueGames.Propag
 * edges outside the declared vertex range, and the empty instance;
 * a satisfiable instance with non-injective tables on which `solve` fails, showing that
   completeness needs injective tables;
-* an exact charge of `solveM`, against the bound of `solveM_time_le`.
+* Word-RAM execution checks (`#guard`) verifying exact output arrays, decision bits, and step
+  counts bounded by `timeBound`.
 -/
 
-public section
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.UniqueGamesPropagation
 
 open Cslib.Complexity Cslib.Complexity.UniqueGames.Propagation Cslib.PCP Cslib.PCP.Encoded
+  Cslib.WordRAM
 
 /-- Rotation by one on three labels. -/
 def rot : Fin 3 → Fin 3 := fun a => a + 1
@@ -152,15 +157,105 @@ example : (constTables.toGraph permutationEval).Satisfiable :=
 
 example : (solve (List.finRange 2) constTables).isSome = false := by decide
 
-/-! ### Charged steps -/
+/-! ### Word-RAM execution and step-bound checks -/
 
-/-- The exact charge of `solveM` on the cycle: `4` for the slots, `9` for the incidence lists,
-`3` to allocate the table, `102` for the outer loop (one component of three pops, each visiting
-two edges), `3` to extract the labelling and `9` for the check. -/
-example : (solveM (List.finRange 3) cyc).time = 130 := by decide
+section GuardChecks
 
-/-- The general bound on the cycle: `(3 + 5) · 3 + (9 · 3 + 16) · 3 + 1 = 154`. -/
-example : (solveM (List.finRange 3) cyc).time ≤ 154 :=
-  solveM_time_le (List.finRange 3) cyc
+set_option linter.hashCommand false
+
+private meta def evalRAM {L : ℕ} (w : ℕ) (g : Graph (Fin L → Fin L)) :
+    Option (List ℕ × ℕ × ℕ) :=
+  (solveCode.eval w (timeBound g) (Data.init (encode g))).map fun (y, steps) =>
+    (outputList y.mem (y.regs Reg.outBase), y.regs Reg.ok, steps)
+
+-- Satisfiable 3-cycle `cyc` (wordBound = 9 * 8 = 72 < 128 = 2^7).
+#guard match evalRAM 7 cyc with
+  | some (out, ok, steps) => out == [1, 0, 1, 2] && ok == 1 && steps ≤ timeBound cyc
+  | none => false
+
+-- Reversed 3-cycle `cycRev` (tests backward bijection inversion in Word-RAM).
+#guard match evalRAM 7 cycRev with
+  | some (out, ok, steps) => out == [1, 2, 0, 1] && ok == 1 && steps ≤ timeBound cycRev
+  | none => false
+
+-- Unsatisfiable 3-cycle `cycBad`.
+#guard match evalRAM 7 cycBad with
+  | some (out, ok, steps) => out == [0] && ok == 0 && steps ≤ timeBound cycBad
+  | none => false
+
+-- Odd and even flip cycles over `Fin 2`.
+def oddFlipFin : Graph (Fin 2 → Fin 2) :=
+  ⟨3, [⟨0, 1, fun a => 1 - a⟩, ⟨1, 2, fun a => 1 - a⟩, ⟨2, 0, fun a => 1 - a⟩]⟩
+
+def evenFlipFin : Graph (Fin 2 → Fin 2) :=
+  ⟨4, [⟨0, 1, fun a => 1 - a⟩, ⟨1, 2, fun a => 1 - a⟩,
+       ⟨2, 3, fun a => 1 - a⟩, ⟨3, 0, fun a => 1 - a⟩]⟩
+
+#guard match evalRAM 7 oddFlipFin with
+  | some (out, ok, steps) => out == [0] && ok == 0 && steps ≤ timeBound oddFlipFin
+  | none => false
+
+#guard match evalRAM 7 evenFlipFin with
+  | some (out, ok, steps) => out == [1, 0, 1, 0, 1] && ok == 1 && steps ≤ timeBound evenFlipFin
+  | none => false
+
+-- Disconnected 6-vertex instance `disc` with self-loop and isolated vertex
+-- (wordBound = 9 * 13 = 117 < 128).
+#guard match evalRAM 7 disc with
+  | some (out, ok, steps) => out == [1, 0, 1, 2, 0, 2, 0] && ok == 1 && steps ≤ timeBound disc
+  | none => false
+
+-- Out-of-range endpoints `⟨0, [⟨0, 1, flip⟩]⟩`.
+#guard match evalRAM 6 (⟨0, [⟨0, 1, fun a : Fin 2 => 1 - a⟩]⟩ : Graph (Fin 2 → Fin 2)) with
+  | some (out, ok, steps) => out == [1, 0, 1] && ok == 1 && steps ≤ 1000
+  | none => false
+
+-- Empty graph `⟨0, []⟩` over `Fin 2` (wordBound = 8 * 2 = 16 < 32 = 2^5).
+#guard match evalRAM 5 (⟨0, []⟩ : Graph (Fin 2 → Fin 2)) with
+  | some (out, ok, steps) =>
+      out == [1] && ok == 1 && steps ≤ timeBound (⟨0, []⟩ : Graph (Fin 2 → Fin 2))
+  | none => false
+
+-- Non-injective `constTables` (satisfiable, but `solve` returns `none`, and Word-RAM agrees!).
+#guard match evalRAM 7 constTables with
+  | some (out, ok, steps) => out == [0] && ok == 0 && steps ≤ timeBound constTables
+  | none => false
+
+end GuardChecks
+
+/-! ### Non-vacuous theorem-level `ExecutesList` and `Executes` instantiations -/
+
+theorem cyc_wordram_executesList :
+    InputFits 7 (encode cyc) ∧
+    ∃ n ≤ 2444, ExecutesList 7 program (.init (encode cyc)) [1, 0, 1, 2] n := by
+  have hw : Fits 7 (wordBound cyc) := by decide
+  have hwf : cyc.WellFormed := by
+    simp only [Graph.WellFormed, cyc, List.mem_cons, List.not_mem_nil, or_false,
+      forall_eq_or_imp, forall_eq]
+    decide
+  refine ⟨Fits.inputFits_encode hw, ?_⟩
+  obtain ⟨n, hn, hex⟩ := program_spec_of_wellFormed (w := 7) (g := cyc) hwf hw
+  have hout : encodeSolution cyc.vertices (solve (List.finRange 3) cyc) = [1, 0, 1, 2] := by
+    decide
+  rw [hout] at hex
+  exact ⟨n, hn, hex⟩
+
+theorem cycBad_wordram_decide :
+    ∃ n ≤ timeBound cycBad, Executes 7 decideProgram (.init (encode cycBad)) 0 n := by
+  obtain ⟨n, hn, hex⟩ := decideProgram_spec (w := 7) cycBad (by decide)
+  have h0 : (solve (List.finRange 3) cycBad).isSome.toNat = 0 := by decide
+  exact ⟨n, hn, h0 ▸ hex⟩
+
+theorem disc_wordram_decode_roundtrip :
+    ∃ n ≤ timeBound disc,
+      ExecutesList 7 program (.init (encode disc)) [1, 0, 1, 2, 0, 2, 0] n ∧
+      (decodeSolution 3 [1, 0, 1, 2, 0, 2, 0]).map (fun σ => (List.range 6).map σ) =
+        some [0, 1, 2, 0, 2, 0] := by
+  obtain ⟨n, hn, hex⟩ := program_spec (w := 7) disc (by decide)
+  have hout : encodeSolution (slots disc) (solve (List.finRange 3) disc) =
+      [1, 0, 1, 2, 0, 2, 0] := by decide
+  refine ⟨n, hn, hout ▸ hex, ?_⟩
+  rw [← hout, decodeSolution_encodeSolution]
+  decide
 
 end CslibFrontierTests.UniqueGamesPropagation
