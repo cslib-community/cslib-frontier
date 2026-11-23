@@ -201,8 +201,7 @@ example :
   refine formulaWordGatePolynomial_bivariateCoeffNorm1_le word 0 coordinates (M := 2)
     (by decide) fun _ => ?_
   refine (Polynomial.bivariateCoeffNorm1_add_le _ _).trans ?_
-  rw [Polynomial.bivariateCoeffNorm1_C, ← mul_one (Polynomial.X : Polynomial ℤ),
-    Polynomial.coeffNorm1_X_mul, Polynomial.coeffNorm1_one]
+  rw [Polynomial.bivariateCoeffNorm1_C, Polynomial.coeffNorm1_X]
   have h := Polynomial.bivariateCoeffNorm1_mul_X_pow_le 1 2
   simp only [one_mul, Polynomial.bivariateCoeffNorm1_one] at h
   exact Nat.add_le_add_left h 1

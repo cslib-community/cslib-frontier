@@ -216,7 +216,7 @@ theorem coeffNorm1_X_mul (p : ℤ[X]) : coeffNorm1 (X * p) = coeffNorm1 p := by
   rw [mul_comm, coeff_mul_X]
 
 /-- The variable has coefficient norm one. -/
-theorem coeffNorm1_X : coeffNorm1 (X : ℤ[X]) = 1 := by
+@[simp] theorem coeffNorm1_X : coeffNorm1 (X : ℤ[X]) = 1 := by
   simpa only [mul_one, coeffNorm1_one] using coeffNorm1_X_mul (1 : ℤ[X])
 
 /-- Multiplying by `X ^ k` does not increase `coeffNorm1`. -/
