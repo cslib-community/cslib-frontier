@@ -468,7 +468,7 @@ theorem validHistory_iterate_fst {w : ℕ} {Inv : Memory.State → Prop} [Monoto
 /-! ## Single-address frames -/
 
 /-- `p` leaves memory address `a` unchanged from every starting state. -/
-def PreservesAt (a : ℕ) {α : Type} (p : Memory.Prog α) : Prop :=
+@[expose] def PreservesAt (a : ℕ) {α : Type} (p : Memory.Prog α) : Prop :=
   ∀ s, ((Memory.spec 0).clientState s p).mem a = s.mem a
 
 theorem preservesAt_pure (a : ℕ) {α : Type} (x : α) :
