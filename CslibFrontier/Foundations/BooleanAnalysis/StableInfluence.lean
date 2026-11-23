@@ -109,6 +109,13 @@ noncomputable def stableInfluence (ρ : ℝ) (i : ι) (f : (ι → Bool) → ℝ
 noncomputable def totalStableInfluence (ρ : ℝ) (f : (ι → Bool) → ℝ) : ℝ :=
   ∑ i, stableInfluence ρ i f
 
+/-- The stable influence is the noise stability of the derivative,
+`Infᵢ^{(ρ)}[f] = Stab_ρ[Dᵢ f]` [O'Donnell, Definition 2.52][ODonnell2014], unfolding
+`stableInfluence` for other modules. -/
+theorem stableInfluence_eq_noiseStability_derivative (ρ : ℝ) (i : ι) (f : (ι → Bool) → ℝ) :
+    stableInfluence ρ i f = noiseStability ρ (derivative i f) := by
+  rw [stableInfluence]
+
 /-- **The Fourier formula for the stable influence**:
 `Infᵢ^{(ρ)}[f] = ∑_{S ∋ i} ρ ^ (|S| - 1) f̂(S) ^ 2` [O'Donnell, Definition 2.52][ODonnell2014]. -/
 theorem stableInfluence_eq_sum (ρ : ℝ) (i : ι) (f : (ι → Bool) → ℝ) :

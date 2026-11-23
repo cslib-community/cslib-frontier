@@ -40,7 +40,6 @@ public import CslibFrontier.Algorithms.Lean.BinPacking.FirstFitWeight
 public import CslibFrontier.Algorithms.Lean.BinPacking.NextFit
 public import CslibFrontier.Algorithms.Lean.BinPacking.Online
 public import CslibFrontier.Algorithms.Lean.BinPacking.OnlineLowerBound
-public import CslibFrontier.Algorithms.Lean.BinarySearch
 public import CslibFrontier.Algorithms.Lean.BurrowsWheeler.Basic
 public import CslibFrontier.Algorithms.Lean.BurrowsWheeler.Decode
 public import CslibFrontier.Algorithms.Lean.CDCL.Assign
@@ -260,9 +259,6 @@ public import CslibFrontier.Algorithms.Lean.TSP.MSTTour
 public import CslibFrontier.Algorithms.Lean.TSP.PerfectMatching
 public import CslibFrontier.Algorithms.Lean.TSP.Shortcut
 public import CslibFrontier.Algorithms.Lean.TSP.Walk
-public import CslibFrontier.Algorithms.Lean.TimeM.Loops
-public import CslibFrontier.Algorithms.Lean.TimeM.Simps
-public import CslibFrontier.Algorithms.Lean.TimeM.Simps.Init
 public import CslibFrontier.Algorithms.Lean.TreeDecomposition.BagAssignment
 public import CslibFrontier.Algorithms.Lean.TreeDecomposition.BagMask
 public import CslibFrontier.Algorithms.Lean.TreeDecomposition.CSP
@@ -3416,6 +3412,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.PowerProductC
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.QuotientCharacteristicEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.QuotientTraceEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ResidueEvaluation
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.RootIsolation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.RootLabelWitness
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ShiftedCriticalObjectiveEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.SignLabelEvaluation
@@ -6358,6 +6355,7 @@ public import CslibFrontier.Crypto.Protocols.UC.JointState
 public import CslibFrontier.Crypto.Protocols.UC.Linking
 public import CslibFrontier.Crypto.Protocols.UC.Machine
 public import CslibFrontier.Crypto.Protocols.UC.MultiSession
+public import CslibFrontier.Crypto.Protocols.UC.PPT
 public import CslibFrontier.Crypto.Protocols.UC.PushExecution
 public import CslibFrontier.Crypto.Protocols.UC.Reactive
 public import CslibFrontier.Crypto.Protocols.UC.WordInterface
@@ -6831,9 +6829,9 @@ public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseIntege
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootDeterminant
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootProduct
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.Sturm
+public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SturmBitBounds
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ThomSign
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.TotalIsolation
-public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.TotalRatPoly
 public import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomial
 public import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomialBounds
 public import CslibFrontier.Foundations.Algebra.Quaternion.BpInfinity
@@ -7037,6 +7035,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.SpectralConcentration
 public import CslibFrontier.Foundations.BooleanAnalysis.SpectralNorm
 public import CslibFrontier.Foundations.BooleanAnalysis.SpectralSample
 public import CslibFrontier.Foundations.BooleanAnalysis.StableInfluence
+public import CslibFrontier.Foundations.BooleanAnalysis.StableInfluenceBound
 public import CslibFrontier.Foundations.BooleanAnalysis.Subcube
 public import CslibFrontier.Foundations.BooleanAnalysis.SubsetZeta
 public import CslibFrontier.Foundations.BooleanAnalysis.Symmetrization
@@ -8890,6 +8889,7 @@ public import CslibFrontier.Logics.Propositional.PseudoBoolean.Graph.Dimacs
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Rename
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.VeriPB
 public import CslibFrontier.Logics.Propositional.QBF
