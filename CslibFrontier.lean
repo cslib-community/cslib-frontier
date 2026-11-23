@@ -3633,6 +3633,7 @@ public import CslibFrontier.Computability.Kolmogorov.UniversalMachine
 public import CslibFrontier.Computability.Languages.ChomskyNormalForm
 public import CslibFrontier.Computability.Languages.Copy
 public import CslibFrontier.Computability.Languages.DeterministicContextFree
+public import CslibFrontier.Computability.Languages.InnerProduct
 public import CslibFrontier.Computability.Languages.RegularLanguage
 public import CslibFrontier.Computability.Languages.Slice
 public import CslibFrontier.Computability.Languages.StarFree
@@ -4568,14 +4569,17 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Wi
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedInit
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedParts
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.BoundedCrossings
+public import CslibFrontier.Computability.Machines.Turing.SingleTape.Communication
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.Copy
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.CrossingSequence
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.Decision
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.FoolingSet
+public import CslibFrontier.Computability.Machines.Turing.SingleTape.InnerProduct
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.NLogNGap
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.Palindrome
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.Partrec
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.PostTuringMachine
+public import CslibFrontier.Computability.Machines.Turing.SingleTape.Rectangle
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.TM0Restrict
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.TM0Universal
 public import CslibFrontier.Computability.Machines.Turing.TM2.ConfigBound
@@ -7536,6 +7540,7 @@ public import CslibFrontier.Foundations.Data.List.IdxOfInjective
 public import CslibFrontier.Foundations.Data.List.IsSortedLT
 public import CslibFrontier.Foundations.Data.List.KeyedFlatMap
 public import CslibFrontier.Foundations.Data.List.Last
+public import CslibFrontier.Foundations.Data.List.LengthCounting
 public import CslibFrontier.Foundations.Data.List.Lex
 public import CslibFrontier.Foundations.Data.List.ListsUpTo
 public import CslibFrontier.Foundations.Data.List.Lookup
