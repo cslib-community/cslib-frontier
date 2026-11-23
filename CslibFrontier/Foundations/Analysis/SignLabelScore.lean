@@ -10,6 +10,8 @@ public import CslibFrontier.Init
 public import Mathlib.Algebra.BigOperators.Fin
 public import Mathlib.Basic.Real.Basic
 public import Mathlib.Basic.Sign.Basic
+import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
@@ -21,9 +23,13 @@ Approximate values within `1 / (4 * (m + 1))` of their true signs give a score
 separated from zero by at least one half. The score is positive exactly when
 all `m` target signs agree with the true signs. The empty family is included.
 
+For weighted signs, a separate score tests equality with the integer fingerprint and
+positivity of a qualifying test. The approximation tolerance uses the total weight.
+
 Adapted from `RootLabelScore` and `RationalSignMargin` in lean-canny at commit
 `970f28a5ecefc1327402ade16c068aa4b1b2c183`. The larger tolerance still gives
 the same score margin and permits fewer repetitions of the dyadic product.
+The weighted score adapts `FingerprintLabelScore` at the same commit.
 -/
 
 public section
@@ -84,5 +90,77 @@ theorem labelScore_margin {m : ℕ} (a : Fin m → ℝ) (s target : Fin m → Si
       unfold labelScore
       linarith
     exact ⟨Or.inr hscore, ⟨fun h => by linarith, fun h => (hmatch h).elim⟩⟩
+
+/-- Subtract four times the squared errors from the integer fingerprint target and the
+qualifying target `1`. The inputs are the approximate weighted sum and qualifying sign. -/
+@[expose] noncomputable def fingerprintScore (A b : ℝ) (target : ℤ) : ℝ :=
+  1 - 4 * ((A - target) ^ 2 + (b - 1) ^ 2)
+
+private theorem abs_weightedSignError_le {m : ℕ} (w : Fin m → ℕ) (a : Fin m → ℝ)
+    (s : Fin m → SignType) {M : ℕ} (hM : 1 ≤ M) (hw : ∑ i, w i ≤ M)
+    (ha : ∀ i, |a i - (s i : ℝ)| ≤ (16 * (M : ℝ))⁻¹) :
+    |(∑ i, (w i : ℝ) * a i) - ((∑ i, (w i : ℤ) * (s i : ℤ) : ℤ) : ℝ)| ≤
+      (1 : ℝ) / 16 := by
+  have hpos : (0 : ℝ) < M := by exact_mod_cast (show 0 < M by omega)
+  have hweight : (∑ i, (w i : ℝ)) ≤ M := by exact_mod_cast hw
+  simp only [Int.cast_sum, Int.cast_mul, Int.cast_natCast, SignType.intCast_cast]
+  rw [← Finset.sum_sub_distrib]
+  calc
+    _ ≤ ∑ i, |(w i : ℝ) * a i - (w i : ℝ) * (s i : ℝ)| :=
+      Finset.abs_sum_le_sum_abs _ _
+    _ = ∑ i, (w i : ℝ) * |a i - (s i : ℝ)| := by
+      apply Finset.sum_congr rfl
+      intro i _
+      rw [← mul_sub, abs_mul, abs_of_nonneg (Nat.cast_nonneg _)]
+    _ ≤ ∑ i, (w i : ℝ) * (16 * (M : ℝ))⁻¹ :=
+      Finset.sum_le_sum fun i _ => mul_le_mul_of_nonneg_left (ha i) (Nat.cast_nonneg _)
+    _ = (∑ i, (w i : ℝ)) * (16 * (M : ℝ))⁻¹ := (Finset.sum_mul _ _ _).symm
+    _ ≤ M * (16 * (M : ℝ))⁻¹ := mul_le_mul_of_nonneg_right hweight (by positivity)
+    _ = (1 : ℝ) / 16 := by field_simp
+
+private theorem fingerprint_gap_sq {a actual target : ℝ}
+    (ha : |a - actual| ≤ (1 : ℝ) / 16) (hgap : 1 ≤ |actual - target|) :
+    ((15 : ℝ) / 16) ^ 2 ≤ (a - target) ^ 2 := by
+  have htri := abs_sub_le actual a target
+  rw [abs_sub_comm actual a] at htri
+  have h := pow_le_pow_left₀ (by norm_num : (0 : ℝ) ≤ 15 / 16)
+    (show (15 : ℝ) / 16 ≤ |a - target| by linarith) 2
+  rwa [sq_abs] at h
+
+/-- With approximations accurate to the total-weight tolerance, the fingerprint score has
+margin at least one half. It is positive exactly when the weighted integer signs match
+the target and the qualifying sign is positive. -/
+theorem fingerprintScore_margin {m : ℕ} (w : Fin m → ℕ) (a : Fin m → ℝ)
+    (s : Fin m → SignType) (b : ℝ) (sigma : SignType) (target : ℤ)
+    {M : ℕ} (hM : 1 ≤ M) (hw : ∑ i, w i ≤ M)
+    (ha : ∀ i, |a i - (s i : ℝ)| ≤ (16 * (M : ℝ))⁻¹)
+    (hb : |b - (sigma : ℝ)| ≤ (1 : ℝ) / 16) :
+    let actual := ∑ i, (w i : ℤ) * (s i : ℤ)
+    let score := fingerprintScore (∑ i, (w i : ℝ) * a i) b target
+    ((1 : ℝ) / 2 ≤ score ∨ score ≤ -(1 : ℝ) / 2) ∧
+      (0 < score ↔ actual = target ∧ sigma = 1) := by
+  intro actual score
+  let A := ∑ i, (w i : ℝ) * a i
+  have hA : |A - (actual : ℝ)| ≤ (1 : ℝ) / 16 := abs_weightedSignError_le w a s hM hw ha
+  by_cases hmatch : actual = target ∧ sigma = 1
+  · have hAsq := pow_le_pow_left₀ (abs_nonneg _) hA 2
+    have hbsq := pow_le_pow_left₀ (abs_nonneg _) hb 2
+    simp only [sq_abs, hmatch.1, hmatch.2, SignType.coe_one] at hAsq hbsq
+    have hp : (1 : ℝ) / 2 ≤ score := by
+      change (1 : ℝ) / 2 ≤ fingerprintScore A b target
+      unfold fingerprintScore
+      nlinarith
+    exact ⟨Or.inl hp, ⟨fun _ => hmatch, fun _ => by linarith⟩⟩
+  · have hn : score ≤ -(1 : ℝ) / 2 := by
+      change fingerprintScore A b target ≤ -(1 : ℝ) / 2
+      unfold fingerprintScore
+      by_cases he : actual = target
+      · have hgap := one_le_abs_sub_of_ne sigma 1 (fun hs => hmatch ⟨he, hs⟩)
+        rw [SignType.coe_one] at hgap
+        nlinarith [fingerprint_gap_sq hb hgap, sq_nonneg (A - (target : ℝ))]
+      · have hgap : (1 : ℝ) ≤ |(actual : ℝ) - (target : ℝ)| := by
+          exact_mod_cast Int.one_le_abs (sub_ne_zero.mpr he)
+        nlinarith [fingerprint_gap_sq hA hgap, sq_nonneg (b - 1)]
+    exact ⟨Or.inr hn, ⟨fun hp => by linarith, fun h => (hmatch h).elim⟩⟩
 
 end SignType
