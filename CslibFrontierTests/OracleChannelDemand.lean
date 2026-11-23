@@ -4,6 +4,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Devon Tuma
 -/
 
+module
+-- upstream: local-only (test)
+
+public import CslibFrontier.Languages.Probabilistic.QueryCount
 import CslibFrontier.Languages.Probabilistic.QueryCount.Demand
 import Mathlib.Data.Fintype.BigOperators
 
@@ -80,5 +84,18 @@ example (j : Bool) :
   have h := IsCostBounded.interpret_interpret_demand charge charge charge d swap
     (fun q => calls (expand q)) (fun q => calls [!q]) perCall hs (bound source) j
   cases j <;> simpa [Fintype.sum_bool, source, d, expand, swap, charge] using h
+
+/-- One source budget controls a distinct price on each natural-number-indexed target channel. -/
+public theorem natChannelBound (p : OracleComp (fun _ : Unit => Bool) Bool) (n : ℕ)
+    (bounded : p.IsQueryBounded n) (j : ℕ) : IsCostBounded (fun _ : Unit => j + 1)
+      (interpret (fun q : Unit => query (spec := fun _ : Unit => Bool) q) p)
+      (n * (j + 1)) := by
+  have perCall (q : Unit) (k : ℕ) : IsCostBounded (fun _ => k + 1)
+      (query (spec := fun _ : Unit => Bool) q) (∑ _i : Unit, 1 * (k + 1)) := by
+    simpa using (IsCostBounded.query (spec := fun _ : Unit => Bool) (cost := fun _ => k + 1) q)
+  simpa using IsCostBounded.interpret_demand (I := Unit) (J := ℕ) (fun _ _ => 1)
+    (fun j _ => j + 1) (fun _ j => j + 1) (budget := fun _ => n)
+    (fun q : Unit => query (spec := fun _ : Unit => Bool) q)
+    perCall (fun _ => bounded) j
 
 end CslibFrontierTests.OracleChannelDemand

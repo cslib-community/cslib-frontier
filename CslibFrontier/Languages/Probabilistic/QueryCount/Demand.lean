@@ -7,7 +7,8 @@ Authors: Bas Spitters, Devon Tuma
 module
 -- upstream: candidate
 
-public import CslibFrontier.Languages.Probabilistic.QueryCount.Scale
+public import CslibFrontier.Languages.Probabilistic.QueryCount
+import CslibFrontier.Languages.Probabilistic.QueryCount.Scale
 public import Mathlib.Algebra.BigOperators.Ring.Finset
 
 /-!
@@ -18,9 +19,19 @@ If implementing a source call uses at most its weighted sum of source charges on
 channel `j`, then the same weighted sum of program budgets bounds the entire implementation
 on `j`. Successive handlers act on the resulting budgets in turn.
 
-The demand and composition laws specialize the vector-charge results of Bas Spitters in
-PolyFun (`PFunctor.Handler.CertifiedVec`, revision `ae1b2a3b`) to Frontier's
-natural-number query budgets. They count calls on every answer branch.
+These laws specialize vector charges to the pathwise natural-number bounds of
+`Cslib.OracleComp.IsCostBounded`.
+
+## Main results
+
+* `Cslib.OracleComp.IsCostBounded.sum_mul` combines a finite set of weighted bounds.
+* `Cslib.OracleComp.IsCostBounded.interpret_demand` transfers channel budgets across one handler.
+* `Cslib.OracleComp.IsCostBounded.interpret_interpret_demand` composes two handlers' demand
+  matrices in execution order.
+
+## References
+
+Bas Spitters's [vector-charge demand laws in PolyFun](https://github.com/Verified-zkEVM/PolyFun/blob/ae1b2a3b9cb5f28f43c4b41138481f68b901838d/PolyFun/PFunctor/Handler/CertifiedVec.lean).
 -/
 
 public section

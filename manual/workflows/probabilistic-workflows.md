@@ -2050,6 +2050,7 @@ The [checked clients](../../CslibFrontierTests/Crypto/UntilBadROMFramework.lean)
 
 ## Transfer separate query budgets through a handler
 
+Import [QueryCount/Demand.lean](../../CslibFrontier/Languages/Probabilistic/QueryCount/Demand.lean).
 Assign each source query a natural-number charge on each channel and bound those charges with
 `OracleComp.IsCostBounded`. For each target channel, bound the implementation of one source call
 by the weighted sum of its source charges. `IsCostBounded.interpret_demand` gives the corresponding
@@ -2061,7 +2062,8 @@ For example, expanding signing requests into at most `K` trials turns budgets of
 and `H` direct digest calls into bounds of `S * K` trials and `H` direct calls. A terminal signing
 failure can stop before the bound. The [signing implementation](../../CslibFrontier/Crypto/Computational/MLDSA/SigningROM.lean)
 uses both bounds. The [two-channel example](../../CslibFrontierTests/OracleChannelDemand.lean)
-shows how to apply the same calculation when a call uses several target channels.
+shows how to apply the same calculation when a call uses several target channels. Check the example
+with `scripts/build.sh CslibFrontierTests.OracleChannelDemand --wfail --iofail`.
 
 ## Derive adaptive decapsulation security
 
