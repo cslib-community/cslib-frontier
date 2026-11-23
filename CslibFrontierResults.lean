@@ -5,4 +5,5 @@ import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.ODonnellStabilityDerivative
 import CslibFrontierResults.Entries.VeriPBClique
+import CslibFrontierResults.Entries.VeriPBSubgraphIso
 import CslibFrontierResults.Registry
