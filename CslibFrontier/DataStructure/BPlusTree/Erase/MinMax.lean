@@ -28,8 +28,6 @@ not stated here.
 ## Main results
 
 * `map_eraseMinM`, `map_eraseMaxM`: a monad morphism commutes with the removals.
-* `eraseMin?_eq_map_min?`, `eraseMax?_eq_map_max?`: the entry that `min?` or `max?` finds,
-  together with the tree with its key erased.
 * `eraseMin?_eq`, `eraseMax?_eq`: on a well-formed tree, the first or the last entry together
   with the tree with its key erased.
 * `eraseMin?_eq_some_iff`, `eraseMax?_eq_some_iff`: when an entry and a tree are returned.
@@ -188,10 +186,7 @@ theorem eraseMax?_eq_some_iff (h : IsWF t tr) {p : α × β} {tr' : BPlusTree α
 theorem toList_of_eraseMin?_eq_some (h : IsWF t tr) {p : α × β} {tr' : BPlusTree α β}
     (he : eraseMin? t tr = some (p, tr')) : tr'.toList = tr.toList.tail := by
   obtain ⟨hq, rfl⟩ := (eraseMin?_eq_some_iff h).1 he
-  obtain ⟨l, hl⟩ : ∃ l, tr.toList = p :: l := by
-    cases hc : tr.toList with
-    | nil => simp [hc] at hq
-    | cons a l => simp only [hc, List.head?_cons, Option.some.injEq] at hq; exact ⟨l, hq ▸ rfl⟩
+  obtain ⟨l, hl⟩ := List.head?_eq_some_iff.1 hq
   have hs := h.sorted
   rw [hl, List.isSortedAssoc_cons_iff] at hs
   rw [toList_erase h, hl, SortedAssoc.erase_cons]

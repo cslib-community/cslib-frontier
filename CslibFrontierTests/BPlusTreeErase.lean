@@ -126,11 +126,6 @@ example :
       (erase 2 1 twoLevels).height + 1 = twoLevels.height :=
   height_erase isWF_twoLevels 1
 
-example : (erase 2 1 twoLevels).height ≤ twoLevels.height := height_erase_le isWF_twoLevels 1
-
-example : twoLevels.height ≤ (erase 2 1 twoLevels).height + 1 :=
-  height_le_height_erase_add_one isWF_twoLevels 1
-
 example :
     (erase 2 1 twoLevels).size =
       if (lookup 1 twoLevels).isSome then twoLevels.size - 1 else twoLevels.size :=

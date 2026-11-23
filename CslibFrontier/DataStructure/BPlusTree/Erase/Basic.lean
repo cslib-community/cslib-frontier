@@ -36,18 +36,17 @@ linear order and `visit := pure ()`. `visit` fires once at each node on the path
 the leaf, and once more for each sibling a repair inspects. At an interior node the separators
 are scanned as in `slotM`, one comparison per separator passed and one more where the scan stops.
 In the leaf the entry is removed by `Cslib.SortedAssoc.eraseM`. `eraseRestM` takes the child
-before the branches together with the computation of its erasure, so that the recursion is
-structural and the definitions are `@[expose]`d: `decide` evaluates erasure on concrete trees.
-In a strict monad such as `Id` that computation is run for every child the scan passes, so the
-pure `erase` does work linear in the size of the tree when it is evaluated, although it visits
-and compares along one path, which is what `visit` and `le` record. Costs are not stated here.
+before the branches together with its erasure as a delayed computation, a function from `Unit`:
+the recursion is then structural, so the definitions are `@[expose]`d and `decide` evaluates
+erasure on concrete trees, and the erasure of a child is run only where the search descends, in
+`Id` as in any other monad. Costs are not stated here.
 
 ## Main definitions
 
 * `underflows`, `mergeSplit`, `collapse`: underflow, the sibling repair and the root collapse.
 * `rebalanceRightM`, `rebalanceLastM`: the repairs against the right and the left sibling.
 * `eraseSubtreeM`, `eraseRestM`, `eraseM`: erasure, polymorphic.
-* `rebalanceRight`, `rebalanceLast`, `eraseSubtree`, `eraseRest`, `erase`: the pure operations.
+* `erase`: the pure operation.
 
 ## Main results
 
@@ -55,8 +54,7 @@ and compares along one path, which is what `visit` and `le` record. Costs are no
 * `toList_erase`: on a well-formed tree, the entries after erasure are `Cslib.SortedAssoc.erase`
   of the entries.
 * `IsWF.erase`: erasure preserves well-formedness.
-* `height_erase`, `height_erase_le`, `height_le_height_erase_add_one`: the height stays or falls
-  by one.
+* `height_erase`: the height stays or falls by one.
 * `size_erase`: the size falls by one exactly when the key was present.
 * `toList_erase_of_lookup_eq_none`: erasing an absent key keeps the entries.
 
@@ -155,26 +153,26 @@ entry. -/
     return .leaf (← SortedAssoc.eraseM le k entries)
   | .node first rest => do
     visit
-    let p ← eraseRestM t le visit k first (eraseSubtreeM t le visit k first) rest
+    let p ← eraseRestM t le visit k first (fun _ => eraseSubtreeM t le visit k first) rest
     pure (.node p.1 p.2)
 
-/-- Erasure among the branches after the child `prev`, whose erasure is `prevErased`, scanning
+/-- Erasure among the branches after the child `prev`, whose erasure is `prevErased ()`, scanning
 the separators in order with the comparisons of `slotM`. At a separator above the key, `prev` is
 erased from and repaired against its right sibling. Past the last separator, the last child is
 erased from and repaired against its left sibling. -/
 @[expose] def eraseRestM (t : ℕ) (le : α → α → m Bool) (visit : m Unit) (k : α)
-    (prev : BPlusTree α β) (prevErased : m (BPlusTree α β)) :
+    (prev : BPlusTree α β) (prevErased : Unit → m (BPlusTree α β)) :
     List (Branch α β) → m (BPlusTree α β × List (Branch α β))
-  | [] => do return (← prevErased, [])
+  | [] => do return (← prevErased (), [])
   | (s, c) :: rest => do
     if ← le s k then
       match rest with
       | [] => do rebalanceLastM t visit prev s (← eraseSubtreeM t le visit k c)
       | _ :: _ => do
-        let p ← eraseRestM t le visit k c (eraseSubtreeM t le visit k c) rest
+        let p ← eraseRestM t le visit k c (fun _ => eraseSubtreeM t le visit k c) rest
         pure (prev, (s, p.1) :: p.2)
     else
-      rebalanceRightM t visit (← prevErased) s c rest
+      rebalanceRightM t visit (← prevErased ()) s c rest
 end
 
 /-- Remove the entry with key `k`, if any, from a B+-tree of minimum degree `t`, comparing with
@@ -201,29 +199,29 @@ theorem eraseSubtreeM_node (t : ℕ) (le : α → α → m Bool) (visit : m Unit
     (first : BPlusTree α β) (rest : List (Branch α β)) :
     eraseSubtreeM t le visit k (.node first rest) = (do
       visit
-      let p ← eraseRestM t le visit k first (eraseSubtreeM t le visit k first) rest
+      let p ← eraseRestM t le visit k first (fun _ => eraseSubtreeM t le visit k first) rest
       pure (.node p.1 p.2)) := rfl
 
 /-- Past the last branch, the erasure of the preceding child is the result. -/
 theorem eraseRestM_nil (t : ℕ) (le : α → α → m Bool) (visit : m Unit) (k : α)
-    (prev : BPlusTree α β) (prevErased : m (BPlusTree α β)) :
-    eraseRestM t le visit k prev prevErased [] = (do return (← prevErased, [])) := rfl
+    (prev : BPlusTree α β) (prevErased : Unit → m (BPlusTree α β)) :
+    eraseRestM t le visit k prev prevErased [] = (do return (← prevErased (), [])) := rfl
 
 /-- At a branch: when its separator is above the key, erase from the preceding child and repair
 it against this child; otherwise move on, erasing from the last child and repairing it against
 its left sibling. -/
 theorem eraseRestM_cons (t : ℕ) (le : α → α → m Bool) (visit : m Unit) (k : α)
-    (prev : BPlusTree α β) (prevErased : m (BPlusTree α β)) (s : α) (c : BPlusTree α β)
+    (prev : BPlusTree α β) (prevErased : Unit → m (BPlusTree α β)) (s : α) (c : BPlusTree α β)
     (rest : List (Branch α β)) :
     eraseRestM t le visit k prev prevErased ((s, c) :: rest) = (do
       if ← le s k then
         match rest with
         | [] => do rebalanceLastM t visit prev s (← eraseSubtreeM t le visit k c)
         | _ :: _ => do
-          let p ← eraseRestM t le visit k c (eraseSubtreeM t le visit k c) rest
+          let p ← eraseRestM t le visit k c (fun _ => eraseSubtreeM t le visit k c) rest
           pure (prev, (s, p.1) :: p.2)
       else
-        rebalanceRightM t visit (← prevErased) s c rest) := rfl
+        rebalanceRightM t visit (← prevErased ()) s c rest) := rfl
 
 end Polymorphic
 
@@ -262,10 +260,11 @@ termination_by sizeOf tr
 
 /-- A monad morphism commutes with erasure among the branches of a node. -/
 private theorem map_eraseRestM (hf : IsMonadHom m n f) (t : ℕ) (le : α → α → m Bool)
-    (visit : m Unit) (k : α) (prev : BPlusTree α β) (prevErased : m (BPlusTree α β))
+    (visit : m Unit) (k : α) (prev : BPlusTree α β) (prevErased : Unit → m (BPlusTree α β))
     (rest : List (Branch α β)) :
     f (eraseRestM t le visit k prev prevErased rest) =
-      eraseRestM t (fun a b => f (le a b)) (f visit) k prev (f prevErased) rest := by
+      eraseRestM t (fun a b => f (le a b)) (f visit) k prev (fun u => f (prevErased u))
+        rest := by
   match rest with
   | [] => simp [eraseRestM_nil, hf.map_bind, hf.map_pure]
   | (s, c) :: rest =>
@@ -293,26 +292,17 @@ section PureStructure
 variable {α β : Type} {t : ℕ}
 
 /-- Pure repair of a child against its right sibling. -/
-@[expose] def rebalanceRight (t : ℕ) (c : BPlusTree α β) (s : α) (r : BPlusTree α β)
+private def rebalanceRight (t : ℕ) (c : BPlusTree α β) (s : α) (r : BPlusTree α β)
     (rest : List (Branch α β)) : BPlusTree α β × List (Branch α β) :=
   Id.run (rebalanceRightM t (pure ()) c s r rest)
 
 /-- Pure repair of a last child against its left sibling. -/
-@[expose] def rebalanceLast (t : ℕ) (prev : BPlusTree α β) (s : α) (c : BPlusTree α β) :
+private def rebalanceLast (t : ℕ) (prev : BPlusTree α β) (s : α) (c : BPlusTree α β) :
     BPlusTree α β × List (Branch α β) :=
   Id.run (rebalanceLastM t (pure ()) prev s c)
 
-/-- `rebalanceRight` is the `Id` instantiation of `rebalanceRightM`. -/
-theorem rebalanceRight_def (c : BPlusTree α β) (s : α) (r : BPlusTree α β)
-    (rest : List (Branch α β)) :
-    rebalanceRight t c s r rest = Id.run (rebalanceRightM t (pure ()) c s r rest) := (rfl)
-
-/-- `rebalanceLast` is the `Id` instantiation of `rebalanceLastM`. -/
-theorem rebalanceLast_def (prev : BPlusTree α β) (s : α) (c : BPlusTree α β) :
-    rebalanceLast t prev s c = Id.run (rebalanceLastM t (pure ()) prev s c) := (rfl)
-
 /-- Pure repair against the right sibling merges only an underflowing child. -/
-theorem rebalanceRight_eq_ite (c : BPlusTree α β) (s : α) (r : BPlusTree α β)
+private theorem rebalanceRight_eq_ite (c : BPlusTree α β) (s : α) (r : BPlusTree α β)
     (rest : List (Branch α β)) :
     rebalanceRight t c s r rest =
       if underflows t c then (mergeSplit t c s r).withRest rest else (c, (s, r) :: rest) := by
@@ -322,7 +312,7 @@ theorem rebalanceRight_eq_ite (c : BPlusTree α β) (s : α) (r : BPlusTree α �
   split <;> rfl
 
 /-- Pure repair against the left sibling merges only an underflowing last child. -/
-theorem rebalanceLast_eq_ite (prev : BPlusTree α β) (s : α) (c : BPlusTree α β) :
+private theorem rebalanceLast_eq_ite (prev : BPlusTree α β) (s : α) (c : BPlusTree α β) :
     rebalanceLast t prev s c =
       if underflows t c then (mergeSplit t prev s c).withRest [] else (prev, [(s, c)]) := by
   unfold rebalanceLast rebalanceLastM
@@ -339,7 +329,7 @@ theorem rebalanceLast_eq_ite (prev : BPlusTree α β) (s : α) (c : BPlusTree α
   · rfl
 
 /-- Repair against the right sibling keeps the entries. -/
-theorem toList_rebalanceRight (c : BPlusTree α β) (s : α) (r : BPlusTree α β)
+private theorem toList_rebalanceRight (c : BPlusTree α β) (s : α) (r : BPlusTree α β)
     (rest : List (Branch α β)) :
     (rebalanceRight t c s r rest).1.toList ++
         ((rebalanceRight t c s r rest).2.flatMap fun e => e.child.toList) =
@@ -350,7 +340,7 @@ theorem toList_rebalanceRight (c : BPlusTree α β) (s : α) (r : BPlusTree α �
   · simp
 
 /-- Repair against the left sibling keeps the entries. -/
-theorem toList_rebalanceLast (prev : BPlusTree α β) (s : α) (c : BPlusTree α β) :
+private theorem toList_rebalanceLast (prev : BPlusTree α β) (s : α) (c : BPlusTree α β) :
     (rebalanceLast t prev s c).1.toList ++
         ((rebalanceLast t prev s c).2.flatMap fun e => e.child.toList) =
       prev.toList ++ c.toList := by
@@ -507,7 +497,7 @@ private theorem mended_mergeSplit {l r : BPlusTree α β} {h : ℕ} (hl : Underf
         · exact hr.good_of_mem_children (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
 
 /-- Repair against the right sibling: the results are good, with one branch fewer or none. -/
-private theorem good_rebalanceRight (ht : 2 ≤ t) {c r : BPlusTree α β} {h : ℕ}
+private theorem good_rebalanceRight {c r : BPlusTree α β} {h : ℕ}
     (hc : Underfull t h c) (hr : Good t h r) (s : α) {rest : List (Branch α β)}
     (hrest : ∀ e ∈ rest, Good t h e.child) :
     Good t h (rebalanceRight t c s r rest).1 ∧
@@ -527,7 +517,7 @@ private theorem good_rebalanceRight (ht : 2 ≤ t) {c r : BPlusTree α β} {h : 
 
 /-- Repair of a last child against its left sibling: the results are good, with at most one
 branch. -/
-private theorem good_rebalanceLast (ht : 2 ≤ t) {prev c : BPlusTree α β} {h : ℕ}
+private theorem good_rebalanceLast {prev c : BPlusTree α β} {h : ℕ}
     (hp : Good t h prev) (hc : Underfull t h c) (s : α) :
     Good t h (rebalanceLast t prev s c).1 ∧
       (∀ e ∈ (rebalanceLast t prev s c).2, Good t h e.child) ∧
@@ -551,55 +541,46 @@ section Pure
 variable {α β : Type} [LinearOrder α] {t : ℕ} {k : α}
 
 /-- Pure erasure from a subtree. -/
-@[expose] def eraseSubtree (t : ℕ) (k : α) (tr : BPlusTree α β) : BPlusTree α β :=
+private def eraseSubtree (t : ℕ) (k : α) (tr : BPlusTree α β) : BPlusTree α β :=
   Id.run (eraseSubtreeM t leI (pure ()) k tr)
 
 /-- Pure erasure among the branches after the child `prev`, whose erasure is `prevErased`. -/
-@[expose] def eraseRest (t : ℕ) (k : α) (prev prevErased : BPlusTree α β)
+private def eraseRest (t : ℕ) (k : α) (prev prevErased : BPlusTree α β)
     (rest : List (Branch α β)) : BPlusTree α β × List (Branch α β) :=
-  Id.run (eraseRestM t leI (pure ()) k prev (pure prevErased) rest)
+  Id.run (eraseRestM t leI (pure ()) k prev (fun _ => pure prevErased) rest)
 
 /-- Pure erasure. -/
 @[expose] def erase (t : ℕ) (k : α) (tr : BPlusTree α β) : BPlusTree α β :=
   Id.run (eraseM t leI (pure ()) k tr)
-
-/-- `eraseSubtree` is the `Id` instantiation of `eraseSubtreeM`. -/
-theorem eraseSubtree_def (tr : BPlusTree α β) :
-    eraseSubtree t k tr = Id.run (eraseSubtreeM t leI (pure ()) k tr) := (rfl)
-
-/-- `eraseRest` is the `Id` instantiation of `eraseRestM`. -/
-theorem eraseRest_def (prev pe : BPlusTree α β) (rest : List (Branch α β)) :
-    eraseRest t k prev pe rest = Id.run (eraseRestM t leI (pure ()) k prev (pure pe) rest) :=
-  (rfl)
 
 /-- `erase` is the `Id` instantiation of `eraseM`. -/
 theorem erase_def (tr : BPlusTree α β) : erase t k tr = Id.run (eraseM t leI (pure ()) k tr) :=
   (rfl)
 
 /-- Erasure from a leaf removes the entry by the scan of its entries. -/
-theorem eraseSubtree_leaf (entries : List (α × β)) :
+private theorem eraseSubtree_leaf (entries : List (α × β)) :
     eraseSubtree t k (.leaf entries) = .leaf (Id.run (SortedAssoc.eraseM leI k entries)) := rfl
 
 /-- Erasure from a leaf with sorted entries is the model erasure of its entries. -/
-theorem eraseSubtree_leaf_of_isSortedAssoc {entries : List (α × β)}
+private theorem eraseSubtree_leaf_of_isSortedAssoc {entries : List (α × β)}
     (h : entries.IsSortedAssoc) :
     eraseSubtree t k (.leaf entries) = .leaf (SortedAssoc.erase k entries) := by
   rw [eraseSubtree_leaf, SortedAssoc.idRun_eraseM h]
 
 /-- Erasure from a node is erasure among its branches. -/
-theorem eraseSubtree_node (first : BPlusTree α β) (rest : List (Branch α β)) :
+private theorem eraseSubtree_node (first : BPlusTree α β) (rest : List (Branch α β)) :
     eraseSubtree t k (.node first rest) =
       .node (eraseRest t k first (eraseSubtree t k first) rest).1
         (eraseRest t k first (eraseSubtree t k first) rest).2 := rfl
 
 /-- Past the last branch, the erasure of the preceding child. -/
-@[simp] theorem eraseRest_nil (prev pe : BPlusTree α β) :
+@[simp] private theorem eraseRest_nil (prev pe : BPlusTree α β) :
     eraseRest t k prev pe [] = (pe, []) := rfl
 
 /-- Pure erasure at a branch: when its separator is above the key, the erasure of the preceding
 child is repaired against this child; otherwise the search moves on, and the last child is erased
 from and repaired against its left sibling. -/
-theorem eraseRest_cons (prev pe : BPlusTree α β) (s : α) (c : BPlusTree α β)
+private theorem eraseRest_cons (prev pe : BPlusTree α β) (s : α) (c : BPlusTree α β)
     (rest : List (Branch α β)) :
     eraseRest t k prev pe ((s, c) :: rest) =
       if s ≤ k then
@@ -619,7 +600,7 @@ theorem eraseRest_cons (prev pe : BPlusTree α β) (s : α) (c : BPlusTree α β
     rfl
 
 /-- Erasure is erasure from the root subtree, then collapsing an empty root. -/
-theorem erase_eq_collapse (tr : BPlusTree α β) :
+private theorem erase_eq_collapse (tr : BPlusTree α β) :
     erase t k tr = collapse (eraseSubtree t k tr) := rfl
 
 /-! ### The model equation -/
@@ -708,7 +689,7 @@ private theorem toList_eraseSubtree_of (ht : 2 ≤ t) (k : α) (tr : BPlusTree �
 
 /-- Shape of the erasure among the branches after a good child `prev`, whose erasure `pe` is at
 most one item short: the results are good, with at most one branch fewer. -/
-private theorem good_eraseRest (ht : 2 ≤ t) {h : ℕ} {rest : List (Branch α β)}
+private theorem good_eraseRest {h : ℕ} {rest : List (Branch α β)}
     (hc : ∀ e ∈ rest, Good t h e.child ∧ Underfull t h (eraseSubtree t k e.child))
     {prev pe : BPlusTree α β} (hp : Good t h prev) (hpe : Underfull t h pe) (hne : rest ≠ []) :
     Good t h (eraseRest t k prev pe rest).1 ∧
@@ -728,12 +709,12 @@ private theorem good_eraseRest (ht : 2 ≤ t) {h : ℕ} {rest : List (Branch α 
     by_cases hk : s ≤ k
     · simp only [hk, ↓reduceIte]
       rcases rest with _ | ⟨e, rest⟩
-      · obtain ⟨r₁, r₂, r₃⟩ := good_rebalanceLast ht hp hcg.2 s
+      · obtain ⟨r₁, r₂, r₃⟩ := good_rebalanceLast hp hcg.2 s
         exact ⟨r₁, r₂, by simpa using r₃, by simp⟩
       · obtain ⟨r₁, r₂, r₃, r₄⟩ := ih hcg.1 hcg.2 (List.cons_ne_nil _ _)
         exact ⟨hp, List.forall_mem_cons.2 ⟨r₁, r₂⟩, by simpa using r₃, by simpa using r₄⟩
     · simp only [hk, ↓reduceIte]
-      obtain ⟨r₁, r₂, r₃, r₄⟩ := good_rebalanceRight ht hpe hcg.1 s hrest
+      obtain ⟨r₁, r₂, r₃, r₄⟩ := good_rebalanceRight hpe hcg.1 s hrest
       exact ⟨r₁, r₂, by simpa using r₄, by simpa using r₃⟩
 
 /-- Shape invariant of erasure from a subtree. -/
@@ -769,7 +750,7 @@ private theorem eraseFits_eraseSubtree (ht : 2 ≤ t) (k : α) (tr : BPlusTree �
     have hc : ∀ e ∈ rest, Good t first.height e.child ∧
         Underfull t first.height (eraseSubtree t k e.child) := fun e he =>
       ⟨hr e he, hchild _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he)) (hr e he) (ihr e he)⟩
-    obtain ⟨r₁, r₂, r₃, r₄⟩ := good_eraseRest ht hc hf hpe hne
+    obtain ⟨r₁, r₂, r₃, r₄⟩ := good_eraseRest hc hf hpe hne
     rw [eraseSubtree_node]
     have hb' : Balanced (.node (eraseRest t k first (eraseSubtree t k first) rest).1
         (eraseRest t k first (eraseSubtree t k first) rest).2) :=
@@ -958,7 +939,7 @@ private theorem separated_eraseSubtree (ht : 2 ≤ t) (k : α) (tr : BPlusTree �
       (fun e he => ⟨hgr e he, (hrest e he).1, hp.of_mem_rest he, (hrest e he).2.1,
         (hrest e he).2.2⟩)
       hgf uf hp.first sf subf hp.linked (by rwa [toList_node] at hs)
-    obtain ⟨-, g₂, -, -⟩ := good_eraseRest ht (fun e he => ⟨hgr e he, (hrest e he).1⟩) hgf uf hne
+    obtain ⟨-, g₂, -, -⟩ := good_eraseRest (fun e he => ⟨hgr e he, (hrest e he).1⟩) hgf uf hne
     rw [eraseSubtree_node]
     exact separated_node_of_linked l₁ l₂ l₃ fun e he =>
       List.ne_nil_of_length_pos ((g₂ e he).occupied.size_pos ht)
@@ -1012,15 +993,6 @@ theorem height_erase (h : IsWF t tr) (k : α) :
   · exact Or.inl hh
   · exact Or.inr (by simp only [collapse]; rw [← hh, hb.height_node])
   · exact Or.inl hh
-
-/-- Erasure never raises the height. -/
-theorem height_erase_le (h : IsWF t tr) (k : α) : (erase t k tr).height ≤ tr.height := by
-  rcases height_erase h k with h | h <;> omega
-
-/-- Erasure lowers the height by at most one. -/
-theorem height_le_height_erase_add_one (h : IsWF t tr) (k : α) :
-    tr.height ≤ (erase t k tr).height + 1 := by
-  rcases height_erase h k with h | h <;> omega
 
 /-- Erasure removes one entry when the key is present and none otherwise. -/
 theorem size_erase (h : IsWF t tr) (k : α) :
