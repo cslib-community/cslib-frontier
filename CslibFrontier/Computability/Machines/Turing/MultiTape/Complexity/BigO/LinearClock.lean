@@ -59,8 +59,8 @@ private theorem clockWord (A : ℕ) :
   | succ A ih =>
     have hu : ComputableInO (fun x : List Bool => x.length + 1) encBits encUnary
         (fun x => x.length) fun x => x.length :=
-      (ComputableInO.unarySucc'.comp ComputableInO.lengthUnary).mono 3
-        (fun x => by simp [encUnary_apply]; omega) (fun x => by simp [encUnary_apply]; omega)
+      .mono (by fun_prop) 3 (fun x => by simp [encUnary_apply]; omega)
+        fun x => by simp [encUnary_apply]; omega
     have h := ih.append hu
       (g := fun x : List Bool => List.replicate ((A + 1) * (x.length + 1)) true)
       (encOut := encBits) fun x => by
