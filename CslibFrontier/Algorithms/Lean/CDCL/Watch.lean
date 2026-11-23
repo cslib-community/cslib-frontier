@@ -919,10 +919,14 @@ theorem dedupWith_spec (m : Array Bool) (c : Clause ℕ)
   split
   · rename_i hall
     have hsize : ∀ x ∈ c, litCode x < m.size := by simpa using hall
-    have hm0 : ∀ y, m.getD (litCode y) false = true ↔ y ∈ ([] : Clause ℕ) := by simp [hm]
-    obtain ⟨h₁, h₂, h₃⟩ := dedupKeyGo_spec litCode_injective c m [] hsize hm0 List.nodup_nil
+    have hm0 : ∀ y, m.getD (litCode y) false = true ↔
+        ∃ z ∈ ([] : Clause ℕ), litCode z = litCode y := by simp [hm]
+    obtain ⟨h₁, h₂, h₃⟩ := dedupKeyGo_spec c m [] (fun _ _ _ _ h => litCode_injective h) hsize hm0
+      List.nodup_nil
     exact ⟨(List.perm_ext_iff_of_nodup h₂ (List.nodup_dedup c)).2 fun l => by
-      rw [h₁, List.mem_dedup]; simp, clearKeys_clean _ _ fun y hy => (h₃ y).1 hy⟩
+      rw [h₁, List.mem_dedup]; simp, clearKeys_clean _ _ fun y hy => by
+        obtain ⟨z, hz, hzy⟩ := (h₃ y).1 hy
+        exact litCode_injective hzy ▸ hz⟩
   · exact ⟨dedupLits_perm c, hm⟩
 
 /-- The watch store of `F`, as `WatchStore.build`, removing repetitions with the marks `m`, which

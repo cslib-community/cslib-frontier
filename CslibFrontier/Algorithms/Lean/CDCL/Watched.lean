@@ -2230,36 +2230,58 @@ number. -/
   let kept := Assign.marks (locked.filterMap fun r => if lo ≤ r then some (r - lo) else none)
   dedupKey (· - lo) <| ids.filter fun i => !kept.assigned (i - lo)
 
-/-- The least of `ids` and `m` is at most `m` and each of `ids`. -/
-theorem foldl_min_le {ids : List ℕ} :
-    ∀ m, ids.foldl min m ≤ m ∧ ∀ i ∈ ids, ids.foldl min m ≤ i := by
-  induction ids with
-  | nil => intro m; simp
-  | cons j ids ih =>
-    intro m
-    obtain ⟨h₁, h₂⟩ := ih (min m j)
-    refine ⟨le_trans h₁ (min_le_left _ _), fun i hi => ?_⟩
-    rcases List.mem_cons.1 hi with rfl | hi
-    · exact le_trans h₁ (min_le_right _ _)
-    · exact h₂ i hi
+/-- **The numbers chosen**, and that each is chosen once. -/
+private theorem chooseIds_spec (n : ℕ) (locked cand : List ℕ) :
+    (∀ i, i ∈ chooseIds n locked cand ↔ i ∈ cand ∧ n < i ∧ i ∉ locked) ∧
+      (chooseIds n locked cand).Nodup := by
+  unfold chooseIds
+  dsimp only
+  generalize hids : cand.filter (isLearntId n) = ids
+  have hlo : ∀ i ∈ ids, ids.foldl min (ids.headD 0) ≤ i := fun i hi => by
+    rw [List.foldl_min_eq_min (List.ne_nil_of_mem hi)]
+    exact Nat.le_trans (Nat.min_le_right _ _) (List.min_le_of_mem hi)
+  generalize ids.foldl min (ids.headD 0) = lo at hlo ⊢
+  obtain ⟨hmem, hnd⟩ := dedupKey_spec (key := (· - lo)) (ids.filter fun i =>
+      !(Assign.marks (locked.filterMap fun r => if lo ≤ r then some (r - lo) else none)).assigned
+        (i - lo)) fun x hx y hy h => by
+    have := hlo x (List.mem_filter.1 hx).1
+    have := hlo y (List.mem_filter.1 hy).1
+    omega
+  refine ⟨fun i => ?_, hnd⟩
+  rw [hmem, List.mem_filter]
+  constructor
+  · rintro ⟨hi, hk⟩
+    have hle := hlo i hi
+    rw [← hids, List.mem_filter] at hi
+    refine ⟨hi.1, by simpa [isLearntId] using hi.2, fun hm => ?_⟩
+    have : i - lo ∈ locked.filterMap fun r => if lo ≤ r then some (r - lo) else none :=
+      List.mem_filterMap.2 ⟨i, hm, by simp [hle]⟩
+    rw [← Assign.assigned_marks] at this
+    simp [this] at hk
+  · rintro ⟨hc, hn, hl⟩
+    have hi : i ∈ ids := by
+      rw [← hids, List.mem_filter]; exact ⟨hc, by simpa [isLearntId] using hn⟩
+    refine ⟨hi, ?_⟩
+    have hle := hlo i hi
+    rw [Bool.not_eq_true']
+    cases hm : (Assign.marks
+        (locked.filterMap fun r => if lo ≤ r then some (r - lo) else none)).assigned (i - lo)
+    · rfl
+    · rw [Assign.assigned_marks] at hm
+      obtain ⟨r, hr, hre⟩ := List.mem_filterMap.1 hm
+      split at hre
+      · simp only [Option.some.injEq] at hre
+        exact absurd (show r = i by omega ▸ hr) hl
+      · simp at hre
 
-/-- A number chosen is a learned one of `cand`, not in `locked`. -/
-theorem mem_chooseIds {n : ℕ} {locked cand : List ℕ} {i : ℕ} (h : i ∈ chooseIds n locked cand) :
-    i ∈ cand ∧ n < i ∧ i ∉ locked := by
-  unfold chooseIds at h
-  dsimp only at h
-  generalize hids : cand.filter (isLearntId n) = ids at h
-  generalize hlo : ids.foldl min (ids.headD 0) = lo at h
-  have h := mem_of_mem_dedupKey h
-  rw [List.mem_filter, Bool.not_eq_true'] at h
-  obtain ⟨hi, hkept⟩ := h
-  have hle : lo ≤ i := hlo ▸ (foldl_min_le _).2 i hi
-  rw [← hids, List.mem_filter] at hi
-  refine ⟨hi.1, by simpa [isLearntId] using hi.2, fun hm => ?_⟩
-  have : i - lo ∈ locked.filterMap fun r => if lo ≤ r then some (r - lo) else none :=
-    List.mem_filterMap.2 ⟨i, hm, by simp [hle]⟩
-  rw [← Assign.assigned_marks] at this
-  simp [this] at hkept
+/-- **The numbers chosen** are the learned ones of `cand` not in `locked`. -/
+theorem mem_chooseIds {n : ℕ} {locked cand : List ℕ} {i : ℕ} :
+    i ∈ chooseIds n locked cand ↔ i ∈ cand ∧ n < i ∧ i ∉ locked :=
+  (chooseIds_spec n locked cand).1 i
+
+/-- Each number is chosen once. -/
+theorem nodup_chooseIds (n : ℕ) (locked cand : List ℕ) : (chooseIds n locked cand).Nodup :=
+  (chooseIds_spec n locked cand).2
 
 /-- **The learned clauses to forget**, as MiniSat's `reduceDB` chooses them: the learned clauses
 of the store, those of more than two literals first by increasing activity; of the less active
@@ -2371,7 +2393,7 @@ rebuilt and the certificate gets no deletion step. -/
 
 theorem WExec.mem_reduceIds {S : WExec φ} {i : ℕ} (h : i ∈ S.reduceIds) :
     φ.length < i ∧ i ∉ XTrail.reasonIds S.exec.trail ∧ ∀ e ∈ S.short, e.1 ≠ i := by
-  obtain ⟨-, hlt, hnot⟩ := mem_chooseIds h
+  obtain ⟨-, hlt, hnot⟩ := mem_chooseIds.1 h
   simp only [List.mem_append, List.mem_map, not_or, not_exists, not_and] at hnot
   exact ⟨hlt, hnot.1, fun e he hei => hnot.2 e he hei⟩
 

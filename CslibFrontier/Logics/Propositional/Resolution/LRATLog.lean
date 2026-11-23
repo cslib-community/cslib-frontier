@@ -448,19 +448,6 @@ private theorem le_foldl_max {ids : List ℕ} {i : ℕ} :
       · exact .inl h
     · exact .inr (le_max_of_le_left h)
 
-/-- The least of `ids` and `m` is at most each of them. -/
-private theorem foldl_min_le {ids : List ℕ} :
-    ∀ m, ids.foldl min m ≤ m ∧ ∀ i ∈ ids, ids.foldl min m ≤ i := by
-  induction ids with
-  | nil => intro m; simp
-  | cons j ids ih =>
-    intro m
-    obtain ⟨h₁, h₂⟩ := ih (min m j)
-    refine ⟨le_trans h₁ (min_le_left _ _), fun i hi => ?_⟩
-    rcases List.mem_cons.1 hi with rfl | hi
-    · exact le_trans h₁ (min_le_right _ _)
-    · exact h₂ i hi
-
 /-- **The numbered clauses `db` without those numbered in `ids`**: the clauses whose number is
 not in `ids` (`eraseIds_eq`). The numbers are marked once, from the least of them, in an array
 reaching the greatest, so that each clause is tested in constant time instead of by searching
@@ -477,7 +464,9 @@ theorem eraseIds_eq (db : List (ℕ × Clause ℕ)) (ids : List ℕ) :
   unfold eraseIds
   refine List.filter_congr fun e _ => ?_
   congr 1
-  obtain ⟨-, hlo⟩ := foldl_min_le (ids := ids) (ids.headD 0)
+  have hlo : ∀ j ∈ ids, ids.foldl min (ids.headD 0) ≤ j := fun j hj => by
+    rw [List.foldl_min_eq_min (List.ne_nil_of_mem hj)]
+    exact Nat.le_trans (Nat.min_le_right _ _) (List.min_le_of_mem hj)
   set lo := ids.foldl min (ids.headD 0)
   have hf : ∀ A : Array Bool, ids.foldl (fun a i => a.setIfInBounds (i - lo) true) A =
       (ids.map (· - lo)).foldl (fun a i => a.setIfInBounds i true) A := fun A => by
