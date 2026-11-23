@@ -7,7 +7,6 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Crypto.Encoding
 public import CslibFrontier.Crypto.Computational.Homomorphic.Leveled.ExactSecurity
 public import CslibFrontier.Crypto.Computational.Homomorphic.KeyChain.Reduction.CoinTape
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
@@ -26,8 +25,6 @@ state and ciphertext; it is not the multiplicative runtime ratio in Gentry's sou
 
 ## Main definitions
 
-* `Cslib.Crypto.Homomorphic.Leveled.encChooseCoinsInput`: encoding of seeded message-selection
-  inputs `((1ⁿ, pk), tape)`.
 * `Cslib.Crypto.Homomorphic.Leveled.publicKeyGameCoins`: replay the adaptive public-key game.
 
 ## Main results
@@ -100,12 +97,6 @@ theorem eval_publicKeyGame_eq_map_coins (E : Scheme) (adversary : Encryption.Adv
   unfold publicKeyGameCoins
   dsimp only
   exact (BitString.uniformList_map_split3 _ _ _ _).symm
-
-/-- Seeded input `((1ⁿ, pk), tape)` of a message-selection evaluator: the unary security parameter
-`n` is framed before the public-key word `pk`, the pair `(1ⁿ, pk)` is framed again, and the raw
-coin tape `tape` follows unframed, with no tag bits. -/
-abbrev encChooseCoinsInput : (ℕ × List Bool) × List Bool ↪ List Bool :=
-  encPair (encPair encUnary encBits) encBits
 
 /-- The concrete adaptive-game replay is native polynomial time in the public artifact,
 parameter, tape, and unary component budgets. -/

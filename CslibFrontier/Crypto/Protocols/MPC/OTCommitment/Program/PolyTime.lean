@@ -28,10 +28,7 @@ semantic bridge identifies it with the one common receiver recursion.
 
 ## Main definitions
 
-* `encReceiverReceipt`: single OT receipt `(j, answer)` encoding.
 * `encReceiverView`: bit-free receiver view `(transcript, state)` encoding.
-* `encReceiverFinishInput`: input encoding of the final receiver continuation.
-* `encReceiverClosedOutput`: output encoding of the closed receiver simulator.
 
 ## Main results
 
@@ -48,47 +45,12 @@ open Probability Turing.MultiTapeTM Crypto.Protocols.Commitment
 
 variable {State : Type}
 
-/-- Single OT receipt `(j, answer)`: the choice index `j : Fin 4` in unary rank
-(`encFinEnum (Fin 4)`) is framed before the unframed received bit `answer : Bool`, with no tag
-bits. -/
-abbrev encReceiverReceipt : Fin 4 × Bool ↪ List Bool :=
-  encPair (encFinEnum (Fin 4)) encBool
-
 /-- Bit-free receiver view `(transcript, state)`: the list of OT receipts (`encList
 encReceiverReceipt`, each receipt framed inside the list) is framed before the unframed receiver
 state under `stateEncoding`, with no tag bits. -/
 abbrev encReceiverView (stateEncoding : State ↪ List Bool) :
     List (Fin 4 × Bool) × State ↪ List Bool :=
   encPair (encList encReceiverReceipt) stateEncoding
-
-/-- Input `(transcript, state, later, observed, pairs)` of the final receiver continuation: the
-receipt list (`encList encReceiverReceipt`, elements framed), receiver state (`stateEncoding`),
-retained later state (`laterEncoding`), and phased observation (`encFinite` unary rank) are each
-framed in order before the unframed optional opening-pair list `Option (List (Bool × Bool))`
-(`none` encoded as `[]`; `some ps` tagged with leading `true` followed by the framed pair elements,
-each pairing a framed first bit with an unframed second bit). -/
-noncomputable abbrev encReceiverFinishInput {Later : Type}
-    (stateEncoding : State ↪ List Bool) (laterEncoding : Later ↪ List Bool) :
-    List (Fin 4 × Bool) × State × Later × Phased.Observation ×
-      Option (List (Bool × Bool)) ↪ List Bool :=
-  encPair (encList encReceiverReceipt)
-    (encPair stateEncoding (encPair laterEncoding
-      (encPair (encFinite Phased.Observation)
-        (encOption (encList (encPair encBool encBool))))))
-
-/-- Output `(received, observed, transcript, state, later, out)` of the closed receiver simulator:
-both phased observations (`encFinite` unary ranks), the receipt list (`encList encReceiverReceipt`,
-elements framed), the final receiver state (`stateEncoding`), and the retained later state
-(`laterEncoding`) are each framed in order, followed by the unframed output `out` under
-`outputEncoding`, with no tag bits. -/
-noncomputable abbrev encReceiverClosedOutput {Later Output : Type}
-    (stateEncoding : State ↪ List Bool) (laterEncoding : Later ↪ List Bool)
-    (outputEncoding : Output ↪ List Bool) :
-    Phased.Observation × Phased.Observation × List (Fin 4 × Bool) ×
-      State × Later × Output ↪ List Bool :=
-  encPair (encFinite Phased.Observation) (encPair (encFinite Phased.Observation)
-    (encPair (encList encReceiverReceipt)
-      (encPair stateEncoding (encPair laterEncoding outputEncoding))))
 
 private noncomputable def receiverLoopStep
     (choose : ℕ → State → ProbComp (Fin 4 × State))
@@ -187,7 +149,10 @@ theorem receiverClosedProgram_isPPT {Later Output : Type}
       (fun p => receive p.1 p.2))
     (hplan : IsPPTOn (encReceiverView stateEncoding)
       (encPair encBool laterEncoding) (fun p => plan p.1 p.2))
-    (hfinish : IsPPTOn (encReceiverFinishInput stateEncoding laterEncoding)
+    (hfinish : IsPPTOn
+      (encPair (encList encReceiverReceipt)
+        (encPair stateEncoding (encPair laterEncoding
+          (encPair (encFinite Phased.Observation) (encOption encOpeningPairs)))))
       outputEncoding (fun p => finish p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2))
     (chooseGrowth receiveGrowth : ℕ)
     (hchooseGrowth : ∀ k st j next, (j, next) ∈ (ProbComp.eval (choose k st)).support →
@@ -196,7 +161,9 @@ theorem receiverClosedProgram_isPPT {Later Output : Type}
       next ∈ (ProbComp.eval (receive st answer)).support →
       (stateEncoding next).length ≤ (stateEncoding st).length + receiveGrowth) :
     IsPPTOn (encPair encBool (encPair encUnary stateEncoding))
-      (encReceiverClosedOutput stateEncoding laterEncoding outputEncoding)
+      (encPair (encFinite Phased.Observation) (encPair (encFinite Phased.Observation)
+        (encPair (encList encReceiverReceipt)
+          (encPair stateEncoding (encPair laterEncoding outputEncoding)))))
       (fun p => receiverClosedProgram choose receive p.1 p.2.1 p.2.2 plan finish) := by
   have hview := receiverViewProgram_isPPT stateEncoding choose receive hchoose hreceive
     chooseGrowth receiveGrowth hchooseGrowth hreceiveGrowth
