@@ -2279,17 +2279,14 @@ private theorem prfIdealLogOracleOn_inv (valid : ℕ → List Bool → Bool) (ad
   unfold macLogHandlerOn at hstep
   dsimp only [StateT.run] at hstep
   by_cases hv : valid n msg = true
-  · unfold cachedRandomFunctionOracle cachedSamplerOracle at hstep
-    simp only [hv, ↓reduceIte, Functor.map_map, OracleComp.interpret_map,
+  · simp only [hv, ↓reduceIte, Functor.map_map, OracleComp.interpret_map,
       ProbOracleComp.interpret_query] at hstep
     dsimp only [Functor.map, StateT.map, StateT.run] at hstep
     simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_map_iff,
       PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hstep
     obtain ⟨_, ⟨⟨v, nextCache⟩, hans, rfl⟩, hpair⟩ := hstep
     rcases Prod.mk.inj hpair with ⟨-, rfl, rfl⟩
-    rw [ProbComp.eval_memoize, BitString.eval_sampleList] at hans
-    rcases (RandomOracle.mem_support_memoize_iff _ _ _ _).mp hans with
-      ⟨_, hnext⟩ | ⟨_, _, hnext⟩
+    rcases cachedSamplerOracle_cache_of_mem_support hans with hnext | ⟨-, -, hnext⟩
     · dsimp only at hnext ⊢
       rw [hnext]
       exact fun e he => List.mem_cons_of_mem _ (hstate e he)
