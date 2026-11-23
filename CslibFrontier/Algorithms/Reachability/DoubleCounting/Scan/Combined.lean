@@ -298,7 +298,7 @@ theorem finish_inSpace : ComputableInSpace finish encContext (encOption encNat)
   have hboth := budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
     (budget_prod hk hc)
   exact (budget_ite hboth (budget_comp_linear result_inSpace hr)
-    (budget_const none (.refl _))).of_enc_eq fun s => by simp [finish, Bool.and_eq_true]
+    (budget_const none)).of_enc_eq fun s => by simp [finish, Bool.and_eq_true]
 
 /-- One actual native machine performs prefix dispatch, parameter preparation and streaming
 ID decoding. Its workspace is uniform in runtime parameters and independent of suffix length.

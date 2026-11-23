@@ -96,7 +96,7 @@ theorem pairFalse_inSpace {α : Type} {enc : α ↪ List Bool} {B : α × Bool �
       fun x => B (x, false) :=
   (ComputableInSpace.budget_prod
     (ComputableInSpace.of_inO (.of_linear (.of_eq (f := id) fun _ => rfl)))
-    (ComputableInSpace.budget_const (encB := encBool) false (.refl _))).weaken
+    (ComputableInSpace.budget_const (encB := encBool) false)).weaken
       (.of_le fun x => by
         have := hB x
         simp only [length_encPair] at this ⊢

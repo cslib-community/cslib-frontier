@@ -241,12 +241,12 @@ theorem result_inSpace :
     (encState_limit_budget (of_inO (ComputableInO.of_eq fun _ => rfl)))
   have hok := budget_finite (encC := encBool)
     (fun ((failed, lt) : Bool × Bool) => !failed && lt) (budget_prod hf hlt)
-  exact budget_ite hok (budget_optionSome hv) (budget_const none (.refl _))
+  exact budget_ite hok (budget_optionSome hv) (budget_const none)
 
 /-- No intermediate output is materialized. -/
 theorem emit_inSpace (N : ℕ) :
     ComputableInSpace (machine N).emit (QueryMachine.encStateRead encState) encBits
-      (fun p => (QueryMachine.encStateRead encState p).length) := budget_const [] (.refl _)
+      (fun p => (QueryMachine.encStateRead encState p).length) := budget_const []
 
 /-- Native finalization encodes the range-checked optional rank. -/
 theorem finish_inSpace (N : ℕ) :

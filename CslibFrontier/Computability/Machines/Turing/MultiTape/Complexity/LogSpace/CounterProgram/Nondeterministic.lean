@@ -249,7 +249,7 @@ private theorem withChoice_inSpace :
       (encPair encConfig encBool) (encList encNat)
       fun q => (encPair encConfig encBool q).length :=
     budget_comp_lin (snd _ _) (.refl _) hs
-  have hv := budget_prod hregs (budget_prod (budget_const (encB := encNat) 0 (.refl _))
+  have hv := budget_prod hregs (budget_prod (budget_const (encB := encNat) 0)
     (budget_finite (encC := encNat) Bool.toNat (snd encConfig encBool)))
   exact budget_prod (budget_comp_lin (fst _ _) (.refl _) hs)
     (budget_comp ComputableInSpace.set hv
@@ -281,7 +281,7 @@ private theorem accept_inSpace :
     ComputableInSpace P.toNondeterministicQueryMachine.accept encConfig encBool
       fun s => (encConfig s).length :=
   dispatch P.code (.halt []) (fun i _ => decide (i.finish = [true]))
-    (fun _ => budget_const _ (.refl _)) (fst _ _)
+    (fun _ => budget_const _) (fst _ _)
 
 /-- The labels of every branch are bounded by the largest label of the program, and the number of
 registers is fixed. -/

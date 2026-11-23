@@ -333,7 +333,7 @@ theorem passEmit_inSpace
     ComputableInSpace (passEmit M') (encPass encS') encBits
       fun q => (encPass encS' q).length :=
   budget_ite (budget_comp_linear hhalted (fst _ _))
-    (budget_const [] (.refl _))
+    (budget_const [])
     (budget_comp_linear hemit (budget_prod (fst _ _) (snd' (snd _ _))))
 
 theorem passEnd_inSpace
@@ -346,7 +346,7 @@ theorem passEnd_inSpace
     (budget_ite (budget_comp_linear hhalted (fst _ _))
       (fst _ _)
       (budget_comp_linear hnext (budget_prod (fst _ _) (snd' (snd _ _)))))
-    (budget_prod (budget_const 0 (.refl _)) (budget_const none (.refl _)))
+    (budget_prod (budget_const 0) (budget_const none))
 
 theorem passCont_inSpace
     (hhalted : ComputableInSpace M'.halted encS' encBool fun s => (encS' s).length) :

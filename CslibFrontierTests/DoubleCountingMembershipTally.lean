@@ -106,7 +106,7 @@ example :
   refine ⟨?_, ?_⟩
   · exact next_withParameter_inSpace encBool encBool negativeContext walk enter fuel
       (fst encBool encRegisters) (fst encBool encReadChoice)
-      (budget_const true (.refl _)) (budget_const (some 0) (.refl _))
+      (budget_const true) (budget_const (some 0))
   · intro context
     rfl
 
@@ -233,13 +233,15 @@ example :
   have hentry : ComputableInSpace enter encIn enc budget :=
     retainedInitial_budget encBool encBool (fst encBool encContext) (snd encBool encContext)
   have hquery := retainedMachine_query_inSpace contextEdge start id 0 entry false encBool encBool
-    baseline (budget_const (encIn := encBool) (encB := encNat) 0 (.refl _))
+    baseline (budget_const (encIn := encBool) (encB := encNat) 0)
   have hhalt := retainedMachine_halted_inSpace contextEdge start id 0 entry false encBool encBool
     baseline
   have hstep := retainedMachine_next_inSpace contextEdge start id 0 entry false encBool encBool
     baseline (fst encBool (encPair encNat encNat)) (fst encBool (encOption encBool))
-    (budget_const true (.refl _)) (of_inO ComputableInDegree.id'.inO_one)
-  have hchoice := budget_const (encIn := encIn) (encB := encReadChoice) (none, true) (.refl _)
+    (budget_const true) (of_inO ComputableInDegree.id'.inO_one)
+  have hchoice :=
+    budget_const (Bs := fun a => (encIn a).length) (encIn := encIn) (encB := encReadChoice)
+      (none, true)
   exact ⟨hentry, budget_comp_linear hstep (budget_prod hentry hchoice),
     budget_comp_linear hquery hentry, budget_comp_linear hhalt hentry,
     budget_comp_linear (retainedReply_inSpace encBool encBool) hentry⟩
@@ -271,8 +273,8 @@ example :
     retainedMachine_exists_routines contextEdge start id 0 entry false encBool encBool
       encBool budget baseline id (fun _ => expanded) hcontext hparams
       (fun _ => Nat.le_add_right _ _)
-      (fst encBool (encPair encNat encNat)) (budget_const 0 (.refl _))
-      (fst encBool (encOption encBool)) (budget_const true (.refl _)) hid
+      (fst encBool (encPair encNat encNat)) (budget_const 0)
+      (fst encBool (encOption encBool)) (budget_const true) hid
       (fun _ => hsource) (fun _ => 1)
       (fun _ _ _ _ _ => by simp only [encBool_apply, List.length_singleton, le_refl])
       (fun _ => Nat.le_add_left _ _)
@@ -323,8 +325,8 @@ private theorem routines : Nonempty
       (fun _ : List Bool => initial negativeContext) encBits budget) := by
   refine withBoundedWalk_exists_routines edge start verdict 0 0 encBits budget
     negativeContext (fun _ => negativeContext) encUnit ?_ ?_
-    (budget_const () (.refl _)) (budget_const 0 (.refl _)) (budget_const () (.refl _))
-    (budget_const true (.refl _)) (budget_const false (.refl _)) (fun _ => 0) ?_ ?_
+    (budget_const ()) (budget_const 0) (budget_const ())
+    (budget_const true) (budget_const false) (fun _ => 0) ?_ ?_
   · exact (ComputableInSpace.constZero negativeContext).mono_le fun _ => Nat.zero_le _
   · intro input
     rw [encBits_apply]

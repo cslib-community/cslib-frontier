@@ -78,7 +78,7 @@ private theorem finishWeight_inSpace :
   have hctx := SeedDigits.encState_context_budget Context encContext hid
   have hlayer := encContext_layer_budget hctx
   have hacc := SeedDigits.encState_accumulator_budget Context encContext hid
-  have hzero := budget_const (encB := encNat) 0 (.refl fun s => (e s).length)
+  have hzero := budget_const (encIn := e) (Bs := fun s => (e s).length) (encB := encNat) 0
   have hscaled := budget_comp_linear scaleAccumulatedWeight_inSpace (budget_prod hlayer hacc)
   exact (budget_ite (budget_natEq hlayer hzero) hzero hscaled).of_enc_eq fun s => by
     by_cases h : s.context.layer = 0 <;> simp [finishWeight, h]

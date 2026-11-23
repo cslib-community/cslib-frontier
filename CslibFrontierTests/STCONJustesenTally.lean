@@ -363,8 +363,9 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
       ComputableInSpace round.next encStep E (fun p => (encStep p).length) := by
   intro E encStep round
   obtain ⟨hq, hn, hh, hr⟩ := justesenRoundCallback_parts_inSpace ntm c
-  have hadj := budget_const (encIn := SourceRound.encState)
-    (encB := encJustesenSubdivisionContext) adjacency (.refl _)
+  have hadj :=
+    budget_const (Bs := fun a => (SourceRound.encState a).length) (encIn := SourceRound.encState)
+    (encB := encJustesenSubdivisionContext) adjacency
   have hid := budget_id (enc := SourceRound.encState) (.refl _)
   have hentry := budget_comp_linear justesenRoundCallbackStart_inSpace (budget_prod hadj hid)
   exact ⟨SourceRound.machine_query_inSpace encJustesenRoundCallbackState initial

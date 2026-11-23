@@ -292,7 +292,7 @@ theorem init_budget {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ}
 /-- The choice phase has no dependency on the original input. -/
 theorem query_inSpace (N : ℕ) :
     ComputableInSpace (machine N).query encState encNat (fun s => (encState s).length) :=
-  budget_const 0 (.refl _)
+  budget_const 0
 
 /-- Update the choice state directly from a selector in linear space. -/
 theorem advance_inSpace :

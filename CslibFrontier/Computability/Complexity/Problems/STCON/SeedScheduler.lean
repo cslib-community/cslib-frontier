@@ -257,9 +257,11 @@ theorem seedSchedulerStep_noReply_inSpace :
         if p.1.needsScan then none else some (seedSchedulerRoot p.1 (p.1.cursor + 1) p.2))
       E encSeedSchedulerStepResult (fun p => (E p).length) :=
     budget_ite (SeedSchedulerFrame.needsScan_budget hframe)
-      (budget_const none (.refl _)) (budget_optionSome hroot)
-  have hnone := budget_const (encIn := encSeedSchedulerFrame) (encB := encSeedSchedulerStepResult)
-    none (.refl _)
+      (budget_const none) (budget_optionSome hroot)
+  have hnone :=
+    budget_const (Bs := fun a => (encSeedSchedulerFrame a).length) (encIn := encSeedSchedulerFrame)
+      (encB := encSeedSchedulerStepResult)
+    none
   have hid := budget_id (enc := encSeedSchedulerFrame) (.refl _)
   have hinput := budget_prod hid (encSeedSchedulerFrame_answer_budget hid)
   exact (budget_comp_linear (optionElimSnd hnone hsome) hinput).of_enc_eq fun f => by
@@ -293,7 +295,7 @@ private theorem seedSchedulerStep_decided_inSpace :
       E encSeedSchedulerStepResult (fun p => (E p).length) := by
   let E := encPair encSeedSchedulerFrame encBool
   have hframe := fst encSeedSchedulerFrame encBool
-  have hfirst := seedSchedulerRoot_budget hframe (budget_const 0 (.refl _))
+  have hfirst := seedSchedulerRoot_budget hframe (budget_const 0)
     (snd encSeedSchedulerFrame encBool)
   have hretained := fst E encBool
   have hindexedFrame := budget_comp_linear hframe hretained

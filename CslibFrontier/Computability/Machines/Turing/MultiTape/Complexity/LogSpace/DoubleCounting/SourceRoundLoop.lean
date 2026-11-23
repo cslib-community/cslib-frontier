@@ -812,13 +812,14 @@ theorem enterRound_inSpace (roundStart : Registers κ → ρ)
   have hr := budget_id (enc := R) (.refl _)
   have hzero := budget_natIsZero (encRegisters_fuel_budget encContext hr)
   have hentry := round_budget encContext encRound encMember hr hstart
-  have hreject := budget_const (encIn := R) (encB := E) (.inr none) (.refl _)
+  have hreject := budget_const (Bs := fun a => (R a).length) (encIn := R) (encB := E) (.inr none)
   exact (budget_ite hzero hreject hentry).of_enc_eq fun r => by simp [enterRound, roundState]
 
 /-- Decode the optional source verdict in linear workspace. -/
 theorem reply_inSpace :
     ComputableInSpace reply E F (fun s => (E s).length) := by
-  have hlive := budget_const (encIn := encSum P Q) (encB := F) none (.refl _)
+  have hlive :=
+    budget_const (Bs := fun a => (encSum P Q a).length) (encIn := encSum P Q) (encB := F) none
   have hend := budget_id (enc := F) (.refl _)
   exact (sumElim hlive hend).of_enc_eq fun | .inl _ | .inr _ => rfl
 
@@ -847,7 +848,7 @@ private theorem returnRound_inSpace (roundStart : Registers κ → ρ)
   have htied := finish_budget encContext encRound encMember (budget_optionSome
     (budget_comp_linear htag (budget_natSucc (encRegisters_radius_budget encContext hreg))))
   have hsome := budget_ite hbad htied (budget_ite hcount hmember hcontinue)
-  have hnone := budget_const (encIn := R) (encB := E) (.inr none) (.refl _)
+  have hnone := budget_const (Bs := fun a => (R a).length) (encIn := R) (encB := E) (.inr none)
   refine (optionElimSnd hnone hsome).of_enc_eq ?_
   rintro ⟨r, a | _⟩
   · rfl
@@ -868,14 +869,14 @@ theorem query_inSpace
     ComputableInSpace (M).query E encNat (fun s => (E s).length) :=
   (sumElim (sumElim (budget_comp_linear hr (snd R encRound))
     (budget_comp_linear hm (snd R encMember)))
-    (budget_const (encIn := F) (encB := encNat) 0 (.refl _))).of_enc_eq fun
+    (budget_const (encIn := F) (encB := encNat) 0)).of_enc_eq fun
       | .inl (.inl _) | .inl (.inr _) | .inr _ => rfl
 
 /-- The phase tag distinguishes terminal from active rounds and membership calls. -/
 theorem halted_inSpace :
     ComputableInSpace (M).halted E encBool (fun s => (E s).length) :=
-  (sumElim (budget_const (encIn := encSum P Q) (encB := encBool) false (.refl _))
-    (budget_const (encIn := F) (encB := encBool) true (.refl _))).of_enc_eq fun
+  (sumElim (budget_const (encIn := encSum P Q) (encB := encBool) false)
+    (budget_const (encIn := F) (encB := encBool) true)).of_enc_eq fun
       | .inl _ | .inr _ => rfl
 
 /-- Advance one selector, preserving the suspended controller registers across a live call. -/
@@ -903,8 +904,10 @@ theorem next_inSpace
   have hreturned := budget_comp_linear
     (returnRound_inSpace encContext encRound encMember _ _ hroundStart hmemberStart)
     (budget_prod hroundRegs (budget_comp_linear hroundReply hroundState))
-  have hroundReject := budget_const (encIn := encPair P encReadChoice) (encB := E)
-    (.inr none) (.refl _)
+  have hroundReject :=
+    budget_const (Bs := fun a => (encPair P encReadChoice a).length)
+      (encIn := encPair P encReadChoice) (encB := E)
+    (.inr none)
   have hroundContinue := round_budget encContext encRound encMember hroundRegs
     (budget_comp_linear hroundNext (budget_prod hroundState hroundRead))
   have hround := budget_ite (budget_comp_linear hroundHalt hroundState)
@@ -919,10 +922,14 @@ theorem next_inSpace
     (of_inO (ComputableInO.inr encNat encBool)).of_enc_eq fun _ => rfl
   have hmReply := budget_comp_linear hmemberReply hmState
   have hmHit := budget_comp_linear hdecide (budget_optionGetD false hmReply)
-  have hmNone := budget_const (encIn := encPair Q encReadChoice) (encB := F) none (.refl _)
+  have hmNone :=
+    budget_const (Bs := fun a => (encPair Q encReadChoice a).length)
+      (encIn := encPair Q encReadChoice) (encB := F) none
   have hmResult := budget_ite (budget_optionIsSome hmReply) (budget_optionSome hmHit) hmNone
-  have hmReject := budget_const (encIn := encPair Q encReadChoice) (encB := E)
-    (.inr none) (.refl _)
+  have hmReject :=
+    budget_const (Bs := fun a => (encPair Q encReadChoice a).length)
+      (encIn := encPair Q encReadChoice) (encB := E)
+    (.inr none)
   have hmDone := finish_budget encContext encRound encMember hmResult
   have hmContinue := member_budget encContext encRound encMember hmRegs
     (budget_comp_linear hmemberNext (budget_prod hmState hmRead))

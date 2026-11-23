@@ -102,7 +102,7 @@ private theorem phaseEq_budget {s : α → Cslib.InductiveCounting.State}
     (hs : ComputableInSpace s enc encState S) (p : Cslib.InductiveCounting.Phase)
     (hin : (fun a => (enc a).length) ≼ S) :
     ComputableInSpace (fun a => (s a).phase == p) enc encBool S :=
-  phaseCases_budget hs (fun q _ => q == p) (fun _ => budget_const _ hin) hin
+  phaseCases_budget hs (fun q _ => q == p) (fun _ => budget_const _) hin
 
 /-- Detect a complete final count check meeting a bad vertex. -/
 private theorem overflowed_budget {s : α → Cslib.InductiveCounting.State}
@@ -124,7 +124,7 @@ private theorem controllerQuery_budget {B : α → ℕ} {s : α → Cslib.Induct
   have hbranches (p : Cslib.InductiveCounting.Phase) : ComputableInSpace
       (fun a => controllerQuery k (B a) { s a with phase := p }) enc encNat S := by
     cases p <;> dsimp only [controllerQuery, Cslib.InductiveCounting.query] <;>
-      try exact budget_const 0 hin
+      try exact budget_const 0
     · exact (queryIndex_budget hB (current_budget hs))
     · exact (queryIndex_budget hB
         (candidate_budget hs)).of_enc_eq fun a => by
@@ -149,23 +149,23 @@ private theorem localAnswer_budget (ntm : MultiTapeNTM k Bool State)
       (fun a => modeBad ntm (B a) (n a) (chk a) (s a).candidate (symbol a)) enc encBool S :=
     (budget_ite hchk
       (bad_budget hB hn
-        (candidate_budget hs) hin)
+        (candidate_budget hs))
       (overflow_budget ntm hB hn
-        (candidate_budget hs) hsymbol hin)).of_enc_eq
+        (candidate_budget hs) hsymbol)).of_enc_eq
       fun a => by
         cases chk a <;> rfl
   have hbranches (p : Cslib.InductiveCounting.Phase) : ComputableInSpace
       (fun a => localAnswer ntm (B a) (n a) (chk a) { s a with phase := p } (symbol a))
       enc encBool S := by
     cases p <;> dsimp only [localAnswer, Cslib.InductiveCounting.query] <;>
-      try exact budget_const false hin
+      try exact budget_const false
     · exact (edgeWithSymbol_budget ntm hB hn
         (current_budget hs) (guess_budget hs)
-        hsymbol hin)
+        hsymbol)
     · exact (budget_ite (finalScan_budget hs) hmode
         (edgeWithSymbol_budget ntm hB hn
           (candidate_budget hs) (target_budget hs)
-          hsymbol hin)
+          hsymbol)
       ).of_enc_eq fun a => by cases (s a).finalScan <;> rfl
   refine (phaseCases_budget hs _ hbranches hin).of_enc_eq fun a => ?_
   cases s a
@@ -190,7 +190,7 @@ private theorem runtimeHalted_budget {s : α → Runtime}
   exact (budget_ite (budget_optionIsSome (runtimeCounting_budget hs))
     (or_budget (phaseEq_budget hc .reject hin)
       (and_budget (runtimeChecked_budget hs) (phaseEq_budget hc .accept hin)))
-    (budget_const false hin)).of_enc_eq fun a => by
+    (budget_const false)).of_enc_eq fun a => by
       cases h : (s a).counting <;> simp [runtimeHalted, h]
 
 /-- Acceptance detection includes the bootstrap phase and accepts arbitrary runtime data. -/
@@ -200,15 +200,15 @@ private theorem runtimeAccept_budget {s : α → Runtime}
     ComputableInSpace (fun a => runtimeAccept (s a)) enc encBool S := by
   exact (and_budget (runtimeChecked_budget hs)
     (budget_ite (budget_optionIsSome (runtimeCounting_budget hs))
-      (accepting_budget (controller_budget hs) hin) (budget_const false hin))).of_enc_eq
+      (accepting_budget (controller_budget hs) hin) (budget_const false))).of_enc_eq
     fun a => by cases h : (s a).counting <;> simp [runtimeAccept, h]
 
 /-- Installing the controller on a computed radix. -/
 private theorem install_budget (ntm : MultiTapeNTM k Bool State) {B : α → ℕ}
-    (hB : ComputableInSpace B enc encNat S) (hin : (fun a => (enc a).length) ≼ S) :
+    (hB : ComputableInSpace B enc encNat S) :
     ComputableInSpace (fun a => install ntm (B a)) enc encState S :=
-  initial_budget (vertexBound_budget hB hin)
-    (startID_budget ntm hB hin) hin
+  initial_budget (vertexBound_budget hB)
+    (startID_budget ntm hB)
 
 /-- The complete next-state callback, including bootstrap, radix changes, graph evaluation and
 checked advance, uses the common budget without assuming that the runtime is reachable or well
@@ -225,26 +225,26 @@ private theorem runtimeNext_budget (ntm : MultiTapeNTM k Bool State)
   have hB := runtimeRadix_budget hs
   have hchk := runtimeChecked_budget hs
   have hc := controller_budget hs
-  have hN := (vertexBound_budget (k := k) hB hin)
+  have hN := (vertexBound_budget (k := k) hB)
   have hw := budget_comp_linear natSizeUnary hN
-  have hsource := (startID_budget ntm hB hin)
+  have hsource := (startID_budget ntm hB)
   have ha := localAnswer_budget ntm hB hn hchk hc hsymbol hin
   have hadvance := runtime_budget hn hB hchk
     (budget_optionSome (advance_budget hN hw hsource hc ha hchoice hin))
-  have hB₄ := budget_natMul (budget_const 4 hin) hB
-  have hgrow := runtime_budget hn hB₄ (budget_const false hin)
-    (budget_optionSome (install_budget ntm hB₄ hin))
-  have hcheck := runtime_budget hn hB (budget_const true hin)
-    (budget_optionSome (install_budget ntm hB hin))
+  have hB₄ := budget_natMul (budget_const 4) hB
+  have hgrow := runtime_budget hn hB₄ (budget_const false)
+    (budget_optionSome (install_budget ntm hB₄))
+  have hcheck := runtime_budget hn hB (budget_const true)
+    (budget_optionSome (install_budget ntm hB))
   have hnot := budget_finite (encC := encBool) Bool.not hchk
   have hcounting := budget_ite (and_budget hnot (overflowed_budget hc hin)) hgrow
     (budget_ite (and_budget hnot (phaseEq_budget hc .accept hin)) hcheck hadvance)
-  have hstart := budget_natMul (budget_natAdd hn (budget_const 2 hin))
-    (budget_const (2 ^ (Fintype.card (Option State) + 2)) hin)
+  have hstart := budget_natMul (budget_natAdd hn (budget_const 2))
+    (budget_const (2 ^ (Fintype.card (Option State) + 2)))
   have hscan := budget_ite (budget_finite Option.isSome hsymbol)
-    (runtime_budget (budget_natSucc hn) hB hchk (budget_const none hin))
-    (runtime_budget hn hstart (budget_const false hin)
-      (budget_optionSome (install_budget ntm hstart hin)))
+    (runtime_budget (budget_natSucc hn) hB hchk (budget_const none))
+    (runtime_budget hn hstart (budget_const false)
+      (budget_optionSome (install_budget ntm hstart)))
   exact (budget_ite (budget_optionIsSome (runtimeCounting_budget hs)) hcounting hscan).of_enc_eq
     fun a => by
       cases h : (s a).counting <;> simp [runtimeNext, h, vertexWidth, startRadix]
