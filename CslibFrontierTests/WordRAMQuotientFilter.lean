@@ -29,8 +29,8 @@ Exercises:
      `QuotientFilter.implOfEps`, `QuotientFilter.implOfEpsStandard`, `QuotientFilter.impl_space_le`,
      and `QuotientFilter.implOfEps_space_le` on
      `(U, n, ε, w, w₀, base) = (2 ^ 32, 16, 1 / 16, 64, 32, 100)`;
-   - the cluster scan records (`ScanEnv`, `ScanState`, `ScanReads`, `ScanStepCtx`, `ScanResult`)
-     keep the widths and words of the nested tuples they replaced.
+   - the cluster input and scan records (`ClusterInput`, `ScanEnv`, `ScanState`, `ScanStepCtx`)
+     keep the widths and words of the vector and nested tuples they replaced.
 -/
 
 @[expose] public section
@@ -279,16 +279,22 @@ theorem nonvacuous_sampleQFImplOfEps_steps
   simpa only [sampleQFImplOfEps, implOfEps, implOfLe, Nat.cast_zero, zero_add,
     List.map_const', List.sum_replicate, smul_eq_mul] using hcost
 
-/-! ### Cluster scan records keep their tuple words -/
+/-! ### Cluster input and scan records keep their encoded words -/
 
 section ScanRecords
 
 open Cslib.WordRAM.Realization
 
-example : WordEncoding.width ScanEnv = 20 ∧ WordEncoding.width ScanState = 7 ∧
-    WordEncoding.width ScanReads = 3 ∧ WordEncoding.width ScanStepCtx = 29 ∧
-    WordEncoding.width ScanResult = 5 :=
-  ⟨rfl, rfl, rfl, rfl, rfl⟩
+example : WordEncoding.width ClusterInput = 15 ∧ WordEncoding.width ScanEnv = 20 ∧
+    WordEncoding.width ScanState = 7 ∧ WordEncoding.width ScanStepCtx = 29 :=
+  ⟨rfl, rfl, rfl, rfl⟩
+
+example (d : ClusterInput) :
+    WordEncoding.encode d =
+      ![d.qVal, d.rVal, d.opTag, d.slotCap, d.slotMask,
+        d.fullBase, d.occBase, d.runBase, d.remBase,
+        d.pBit, d.pBitMask, d.pRem, d.pRemMask, d.f, d.fMask] :=
+  rfl
 
 example (env : ScanEnv) : WordEncoding.encode env =
     WordEncoding.encode ((env.d, (env.o, (env.a, env.ℓ))), (env.occA, env.occA1)) :=
@@ -298,15 +304,8 @@ example (m : ScanState) : WordEncoding.encode m =
     WordEncoding.encode ((m.i, (m.runs, m.occI)), ((m.s₀, m.s), (m.e, m.qFound))) :=
   rfl
 
-example (r : ScanReads) : WordEncoding.encode r = WordEncoding.encode (r.occ, (r.run, r.rem)) :=
-  rfl
-
 example (c : ScanStepCtx) : WordEncoding.encode c =
     WordEncoding.encode ((c.env, c.st), (c.runs, c.rem)) :=
-  rfl
-
-example (r : ScanResult) : WordEncoding.encode r =
-    WordEncoding.encode (r.occQ, ((r.s₀, r.s), (r.e, r.qFound))) :=
   rfl
 
 end ScanRecords

@@ -713,12 +713,10 @@ theorem discreteGaussian_abs_inner_sub_ge_le_of_dual_mass_le
   calc
     (∑' z : ↥{z : L | t * s * ‖u‖ ≤ |⟪(z : E) - c, u⟫|},
         gaussianWeight s ((z : E) - c)) / gaussianMass L s c ≤
-      (2 * Real.exp (-Real.pi * t ^ 2) * gaussianMass L s 0) / gaussianMass L s c :=
-      div_le_div_of_nonneg_right htail hm.le
+      (2 * Real.exp (-Real.pi * t ^ 2) * gaussianMass L s 0) / gaussianMass L s c := by gcongr
     _ = (gaussianMass L s 0 / gaussianMass L s c) * (2 * Real.exp (-Real.pi * t ^ 2)) := by
       ring
-    _ ≤ (1 + ε) / (1 - ε) * (2 * Real.exp (-Real.pi * t ^ 2)) :=
-      mul_le_mul_of_nonneg_right hratio (by positivity)
+    _ ≤ (1 + ε) / (1 - ε) * (2 * Real.exp (-Real.pi * t ^ 2)) := by gcongr
 
 /-- One-dimensional off-center discrete Gaussian tail on a lattice `L ⊆ ℝ` under a dual-mass
 bound `ρ_{1/s}(L* \ {0}) ≤ ε < 1`. -/

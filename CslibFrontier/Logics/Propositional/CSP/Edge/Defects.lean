@@ -13,6 +13,7 @@ public import CslibFrontier.Foundations.Data.BitString.Hamming
 import CslibFrontier.Foundations.Data.BitString.DeltaMatroid.Operations
 import Mathlib.Data.Fintype.Sigma
 import CslibFrontier.Foundations.Data.Finset.SymmDiff
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Defects of Boolean occurrence labelings
@@ -182,7 +183,7 @@ theorem card_defects_flipOn_pair_le (h : EdgeInstance F) (f : OccurrenceLabeling
       (defects f ∆ {o.var}) ∆ {p.var} := by
     ext v
     simp only [mem_symmDiff, mem_singleton]
-    tauto
+    lrat_tauto
   rw [flipOn_insert (by simpa using hne), h.defects_flipOn_singleton,
     h.defects_flipOn_singleton, heq, symmDiff_singleton_eq (defects f) o.var,
     ite_eq_left (mem_defects.mpr ho)]
@@ -242,18 +243,15 @@ theorem card_defects_mod_two_eq (h : EdgeInstance F) {sem : Rel → List Bool �
     (hM : EvenConstraints sem F) {f g : OccurrenceLabeling F Bool}
     (hf : ValidLabeling sem f) (hg : ValidLabeling sem g) :
     (defects f).card % 2 = (defects g).card % 2 := by
-  generalize hn : hammingDist f g = n
-  induction n using Nat.strong_induction_on generalizing f with
-  | ind n ih =>
-    by_cases he : f = g
-    · subst g
-      rfl
-    · obtain ⟨o, ho⟩ := Function.ne_iff.mp he
-      obtain ⟨p, hc, hne, hp, hv⟩ := exists_valid_exchange hM hf hg o ho
-      have hd := hammingDist_flipOn_pair_add_two hne ho hp
-      have ht : hammingDist (flipOn {o, p} f) g < n := by omega
-      exact (h.card_defects_flipOn_pair_mod_two f hne).symm.trans
-        (ih _ ht hv rfl)
+  by_cases he : f = g
+  · subst g
+    rfl
+  · obtain ⟨o, ho⟩ := Function.ne_iff.mp he
+    obtain ⟨p, hc, hne, hp, hv⟩ := exists_valid_exchange hM hf hg o ho
+    have hd := hammingDist_flipOn_pair_add_two hne ho hp
+    exact (h.card_defects_flipOn_pair_mod_two f hne).symm.trans
+      (h.card_defects_mod_two_eq hM hv hg)
+termination_by hammingDist f g
 
 end EdgeInstance
 

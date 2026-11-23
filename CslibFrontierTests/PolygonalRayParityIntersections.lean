@@ -561,4 +561,19 @@ example :
   norm_num [stemBit, squareBits, bit, RayCrosses, horizontalIntercept]
   exact Bool.zero_eq_false
 
+-- Distinct observations can have the same height and lie on opposite sides.
+example :
+    ∃ p : Route, p.finish = p.start ∧ p.rayParity 1 ⟨2, 3⟩ = true ∧
+      p.rayParity 1 ⟨1, 3⟩ = false ∧ p.rayParity 1 ⟨3, 3⟩ = false := by
+  classical
+  let points : Finset ℂ := {⟨1, 3⟩, ⟨2, 3⟩, ⟨3, 3⟩}
+  obtain ⟨p, -, hclosed, -, -, -, -, hcenter, houtside⟩ :=
+    Route.exists_rayParity_isolating_loop points ⟨2, 3⟩ (ε := 1) (by norm_num)
+  refine ⟨p, hclosed, hcenter, houtside _ (by simp [points]) ?_,
+    houtside _ (by simp [points]) ?_⟩
+  all_goals
+    intro h
+    have hre := congrArg Complex.re h
+    norm_num at hre
+
 end CslibFrontierTests.PolygonalRayParityIntersections
