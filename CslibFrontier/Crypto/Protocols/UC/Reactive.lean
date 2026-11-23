@@ -29,8 +29,9 @@ In this library's single-token push reading:
   [Canetti2020] §3.3.2, "Deleting ITIs").
 
 The operational runner built on this vocabulary lives in
-`CslibFrontier.Crypto.Protocols.UC.PushExecution`. The relation to the pull-style execution of
-`CslibFrontier.Crypto.Protocols.UC.Execution` is not proved here.
+`CslibFrontier.Crypto.Protocols.UC.PushExecution`. Relating this push execution to the pull-style
+execution of `CslibFrontier.Crypto.Protocols.UC.Execution`, as well as bounding running time rather
+than step/call counts (computational polynomial-time UC execution), remain open under `#6043`.
 
 ## Main definitions
 
@@ -41,13 +42,13 @@ The operational runner built on this vocabulary lives in
 * `ReactiveNode`: a closed `Machine` mapping `Delivery` to `Outcome`.
 * `ControlFunction`: a predicate on the delivered log and a proposed envelope.
 * `PushSystem`: a fixed `m`-node family, distinguished initial node, and control function.
-* `TokenState`, `TokenState.initialFor`, `TokenState.next`: scheduler state and pure rule table.
+* `TokenState`, `TokenState.initialFor`, `TokenState.next`: scheduler state and pure rule table
+  (together with its `@[simp]` row equations `TokenState.next_write_of_control_eq_true`,
+  `TokenState.next_write_of_control_eq_false`, `TokenState.next_yield`,
+  `TokenState.next_halt_of_target_eq`, and `TokenState.next_halt_of_target_ne`).
 
 ## Main results
 
-* `TokenState.next_write_of_control_eq_true`, `TokenState.next_write_of_control_eq_false`,
-  `TokenState.next_yield`, `TokenState.next_halt_of_target_eq`,
-  `TokenState.next_halt_of_target_ne`: `@[simp]` equations for each row of `TokenState.next`.
 * `TokenState.halted_subset_next`, `TokenState.log_prefix_next`: monotonicity of halted nodes
   and append-only growth of the delivered log under `TokenState.next`.
 
