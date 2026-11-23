@@ -248,34 +248,26 @@ theorem isPPT_ddhWordToElGamalAdversary {d : ℕ → F.Desc}
     (hW : IsPPTOn (encPair encUnary (encPair F.encDesc (encPair encBits (encPair encBits encBits))))
       encBool (fun x => W x.1 x.2)) :
     (F.ddhWordToElGamalAdversary d W).IsPPT := by
-  let E0 := encPair encUnary encBits
-  have hn0 : ComputableInPolyTime (fun p : ℕ × List Bool => p.1) E0 encUnary :=
-    ComputableInPolyTime.fst encUnary encBits
+  have hn0 := ComputableInPolyTime.fst encUnary encBits
   have hd0 := hd.comp hn0
-  have hp := ComputableInPolyTime.fst E0 encNat
-  have hc := ComputableInPolyTime.snd E0 encNat
+  have hp := ComputableInPolyTime.fst (encPair encUnary encBits) encNat
+  have hc := ComputableInPolyTime.snd (encPair encUnary encBits) encNat
   have hd' := hd0.comp hp
   have hm₀ := computableInPolyTime_encode_zero hd'
   have hm₁ := F.computableInPolyTime_smul.comp
     (hd'.prod (hc.prod (F.computableInPolyTime_generator.comp hd')))
   have hpk0 := (ComputableInPolyTime.snd encUnary encBits).comp hp
-  have hchoose : Probability.IsPPT (encChoiceOut encBits)
-      (F.ddhWordToElGamalAdversary d W).choose :=
-    ((F.isPPTOn_sampleExp hn0 hd0).bind_with
-      (((hm₀.prod hm₁).prod hpk0).isPPTOn)).isPPT
+  have hret : ComputableInPolyTime _ _ (encChoiceOut encBits) := (hm₀.prod hm₁).prod hpk0
+  have h0 := (F.isPPTOn_sampleExp hn0 hd0).keep_input.bind hret.isPPTOn
   have hn := ComputableInPolyTime.fst encUnary (encPair encBits encBits)
   have hrest := ComputableInPolyTime.snd encUnary (encPair encBits encBits)
   have hpk := (ComputableInPolyTime.fst encBits encBits).comp hrest
   have hct := (ComputableInPolyTime.snd encBits encBits).comp hrest
-  have hguess : IsPPTOn encGuessInput encBool
-      (fun ⟨n, state, ciphertext⟩ =>
-        (F.ddhWordToElGamalAdversary d W).guess n state ciphertext) :=
-    hW.preprocess
-      (hn.prod ((hd.comp hn).prod
-        ((ComputableInPolyTime.dropFrame.comp hpk).prod
-          ((ComputableInPolyTime.unframe.comp hct).prod
-            (ComputableInPolyTime.dropFrame.comp hct)))))
-  exact ⟨hchoose, hguess⟩
+  have hprep : ComputableInPolyTime _ encGuessInput _ := hn.prod ((hd.comp hn).prod
+    ((ComputableInPolyTime.dropFrame.comp hpk).prod ((ComputableInPolyTime.unframe.comp hct).prod
+      (ComputableInPolyTime.dropFrame.comp hct))))
+  exact ⟨IsPPTOn.isPPT (h0.congr fun _ => congrArg ProbComp.eval (bind_map_left _ _ _)),
+    (hW.preprocess hprep).congr fun _ => congrArg ProbComp.eval rfl⟩
 
 /-- In world `false` (`m₀ = 0`), `ddhWordToElGamalAdversary` ignores its sampled exponent `c` and
 passes `(α • g, β • g, (α * β) • g)` to `W`, matching `ddhRealGame` with zero sampling loss. -/

@@ -37,6 +37,9 @@ accepted certificate shows that the formula has no model
 ## Main definitions
 
 * `Cslib.Logic.PL.Clause.ofDIMACS`: a clause from DIMACS integers.
+* `Cslib.Logic.PL.Literal.toDIMACS`, `Cslib.Logic.PL.Clause.toDIMACS`: a literal and a clause as
+  DIMACS integers, inverted by `Cslib.Logic.PL.Literal.ofDIMACS_toDIMACS` and
+  `Cslib.Logic.PL.Clause.ofDIMACS_toDIMACS`.
 * `Cslib.Logic.PL.Clause.residual`: what is left of a clause once its false literals are removed:
   nothing, one literal possibly repeated, or more.
 * `Cslib.Logic.PL.CNF.propagateHints`: unit propagation along hints.
@@ -72,6 +75,36 @@ def Literal.ofDIMACS (i : Int) : Option (Literal ℕ) :=
 /-- The clause named by a list of DIMACS integers. -/
 def Clause.ofDIMACS (c : List Int) : Clause ℕ :=
   c.filterMap Literal.ofDIMACS
+
+/-- The DIMACS integer of a literal: `v + 1` for the variable `v`, `-(v + 1)` for its negation. -/
+def Literal.toDIMACS (l : Literal ℕ) : Int :=
+  if l.2 then (l.1 : Int) + 1 else -((l.1 : Int) + 1)
+
+/-- A clause as DIMACS integers. -/
+def Clause.toDIMACS (c : Clause ℕ) : Array Int :=
+  (c.map Literal.toDIMACS).toArray
+
+/-- The DIMACS integer of the variable `v` has absolute value `v + 1`. -/
+@[simp] theorem Literal.natAbs_toDIMACS (l : Literal ℕ) : l.toDIMACS.natAbs = l.1 + 1 := by
+  unfold Literal.toDIMACS
+  split <;> omega
+
+/-- **Reading the DIMACS integer of a literal gives it back.** -/
+@[simp] theorem Literal.ofDIMACS_toDIMACS (l : Literal ℕ) :
+    Literal.ofDIMACS l.toDIMACS = some l := by
+  obtain ⟨v, b⟩ := l
+  cases b
+  · rw [show Literal.toDIMACS (v, false) = Int.negSucc v by
+      simp only [Literal.toDIMACS, Int.negSucc_eq]; rfl]
+    simp [Literal.ofDIMACS, Int.negSucc_lt_zero, Int.natAbs_negSucc]
+  · rw [show Literal.toDIMACS (v, true) = ((v + 1 : ℕ) : Int) by simp [Literal.toDIMACS]]
+    simp only [Literal.ofDIMACS, Int.natAbs_natCast, Nat.add_sub_cancel]
+    simp
+
+/-- Reading the DIMACS integers of a clause gives it back. -/
+@[simp] theorem Clause.ofDIMACS_toDIMACS (c : Clause ℕ) :
+    Clause.ofDIMACS c.toDIMACS.toList = c := by
+  simp [Clause.ofDIMACS, Clause.toDIMACS, List.filterMap_map]
 
 /-- What is left of a clause under the literals assumed true, once its false literals are
 removed (`Cslib.Logic.PL.Clause.residual`). -/

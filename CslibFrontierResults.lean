@@ -1,7 +1,11 @@
 import CslibFrontierResults.Entries
+import CslibFrontierResults.Entries.DeterminantalUniversality
+import CslibFrontierResults.Entries.DistributedConcurrentObjects
 import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Entries.MatrixRigidity
+import CslibFrontierResults.Entries.MinimumSpanningTree
 import CslibFrontierResults.Entries.ODonnellStabilityDerivative
+import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.SergeevBkSequence
 import CslibFrontierResults.Registry
