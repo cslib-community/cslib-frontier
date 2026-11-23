@@ -26,8 +26,12 @@ register_result "extendable-prefix-free-prf-computational-universality" where
   ]
   scope := "Uniform strict PPT collision adversaries and a strict oracle-PPT wrapper with \
     a private uniform n-bit key and public unary security parameter. Messages are raw bit \
-    lists of whole blocks. Block width and hash-domain recognition are polynomial-time \
-    computable. The PRF domain admits every one-block extension of a valid hash input, and \
+    lists of whole positive-width blocks. Width and hash-domain recognition are polynomial-time \
+    computable. The source domains allow at most ℓ hash blocks and ℓ + 1 PRF blocks. \
+    The Lean hypotheses ensure that every one-block extension of a valid hash input is \
+    PRF-valid. In the source specialization the hash domain is also included in the PRF \
+    domain, so the PRF's length clause makes the original raw hash digests the bit lists \
+    of fixed-width bit strings. The conclusion uses equality of the raw digests, and \
     the reciprocal of the reply-space cardinality is negligible. The wrapper rejects \
     invalid or repeated guesses, always appends a common block to an accepted pair, and \
     caps each of its two replies at the width it computes by public PRF evaluation. \

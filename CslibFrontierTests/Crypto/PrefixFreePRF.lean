@@ -71,16 +71,17 @@ example :
   have hvalid : (cbcBlockValid (fun _ => 2) 2 properPrefixGuess.first &&
       cbcBlockValid (fun _ => 2) 2 properPrefixGuess.second &&
       decide (properPrefixGuess.first ≠ properPrefixGuess.second)) = true := by decide
-  simp only [prefixFreeCollisionReduction, wordQueryRunDist_sample_bind, ProbComp.eval_pure,
-    PMF.pure_bind, ite_eq_left hvalid, map_eq_bind_pure_comp, bind_assoc, pure_bind,
-    Function.comp_def, wordQueryRunDist_query_bind, wordQueryRunDist_pure, PMF.pure_map]
+  simp only [prefixFreeCollisionReduction, prefixFreeCollisionReductionWithCap,
+    wordQueryRunDist_sample_bind, ProbComp.eval_pure, PMF.pure_bind, ite_eq_left hvalid,
+    map_eq_bind_pure_comp, bind_assoc, pure_bind, Function.comp_def, wordQueryRunDist_query_bind,
+    wordQueryRunDist_pure, PMF.pure_map]
   rfl
 
 example :
     wordQueryRunDist id
       (prefixFreeCollisionReduction id id (cbcBlockValid (fun _ => 2))
         (fun _ => pure ⟨[true, false], [true, false]⟩) 2 []) = PMF.pure (false, []) := by
-  simp [prefixFreeCollisionReduction]
+  simp [prefixFreeCollisionReduction, prefixFreeCollisionReductionWithCap]
 
 example (family : List Bool → List Bool → List Bool) :
     Game.succProbability (collisionGame pure (fun _ => cbcBlockValid (fun _ => 2))

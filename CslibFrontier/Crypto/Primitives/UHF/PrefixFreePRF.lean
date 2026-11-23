@@ -61,26 +61,34 @@ open Probability Turing.MultiTapeTM
 open scoped ENNReal NNReal
 
 /-- Reject invalid and repeated guesses. On an accepted pair, append the same separating block
-to both words and compare the two oracle replies up to the declared reply width. -/
-@[expose] def prefixFreeCollisionReduction (width outLen : ℕ → ℕ)
+to both words and compare the two oracle replies, capped at the value of `cap` on the parameter
+and first extended query. -/
+@[expose] def prefixFreeCollisionReductionWithCap (width : ℕ → ℕ) (cap : ℕ → List Bool → ℕ)
     (valid : ℕ → List Bool → Bool) (guessPair : ℕ × ℕ → ProbComp (CollisionGuess (List Bool))) :
     OracleDistinguisher :=
   fun n _ => do
     let guess ← ProbOracleComp.sample (guessPair (n, n))
     if valid n guess.first && valid n guess.second && decide (guess.first ≠ guess.second) then
       let block := PRF.separatingWordBlock (width n) guess.first guess.second
-      let left ← List.take (outLen n) <$> ProbOracleComp.query ((), guess.first ++ block)
-      let right ← List.take (outLen n) <$> ProbOracleComp.query ((), guess.second ++ block)
+      let limit := cap n (guess.first ++ block)
+      let left ← List.take limit <$> ProbOracleComp.query ((), guess.first ++ block)
+      let right ← List.take limit <$> ProbOracleComp.query ((), guess.second ++ block)
       return decide (left = right)
     else
       return false
+
+/-- The prefix-free collision wrapper with both replies capped at the declared output width. -/
+@[expose] def prefixFreeCollisionReduction (width outLen : ℕ → ℕ)
+    (valid : ℕ → List Bool → Bool) (guessPair : ℕ × ℕ → ProbComp (CollisionGuess (List Bool))) :
+    OracleDistinguisher :=
+  prefixFreeCollisionReductionWithCap width (fun n _ => outLen n) valid guessPair
 
 /-- The wrapper makes at most two external queries, regardless of the guess or the replies. -/
 theorem isQueryBounded_prefixFreeCollisionReduction (width outLen : ℕ → ℕ)
     (valid : ℕ → List Bool → Bool) (guessPair : ℕ × ℕ → ProbComp (CollisionGuess (List Bool)))
     (n : ℕ) (aux : List Bool) :
     (prefixFreeCollisionReduction width outLen valid guessPair n aux).IsQueryBounded 2 := by
-  rw [prefixFreeCollisionReduction, ← Nat.zero_add 2]
+  rw [prefixFreeCollisionReduction, prefixFreeCollisionReductionWithCap, ← Nat.zero_add 2]
   refine (ProbOracleComp.IsQueryBounded.sample _).bind fun guess => ?_
   split
   · simp only [map_eq_bind_pure_comp, bind_assoc, pure_bind, Function.comp_def]
@@ -99,17 +107,8 @@ private theorem isOraclePPT_prefixFreeCollisionReduction {width outLen : ℕ →
     (hvalid : ComputableInPolyTime (fun p => valid p.1 p.2) (encPair encUnary encBits) encBool)
     (hguess : IsPPTOn (encPair encUnary encUnary) (encCollisionGuess encBits) guessPair) :
     IsOraclePPT encBool (prefixFreeCollisionReduction width outLen valid guessPair) := by
-  let capped : OracleDistinguisher := fun n _ => do
-    let guess ← ProbOracleComp.sample (guessPair (n, n))
-    if valid n guess.first && valid n guess.second && decide (guess.first ≠ guess.second) then
-      let block := PRF.separatingWordBlock (width n) guess.first guess.second
-      let limit := cap n (guess.first ++ block)
-      let left ← List.take limit <$> ProbOracleComp.query ((), guess.first ++ block)
-      let right ← List.take limit <$> ProbOracleComp.query ((), guess.second ++ block)
-      return decide (left = right)
-    else
-      return false
-  have hcert : IsOraclePPT encBool capped := by
+  have hcert : IsOraclePPT encBool
+      (prefixFreeCollisionReductionWithCap width cap valid guessPair) := by
     let encGuess := encCollisionGuess encBits
     let encInput := encPair encUnary encBits
     let encStage := encPair encInput encGuess
@@ -142,7 +141,7 @@ private theorem isOraclePPT_prefixFreeCollisionReduction {width outLen : ℕ →
   apply hcert.congr
   intro n aux State oracle state
   apply congrArg (fun program => ProbOracleComp.runWith oracle program state)
-  simp only [capped, prefixFreeCollisionReduction]
+  simp only [prefixFreeCollisionReduction, prefixFreeCollisionReductionWithCap]
   congr 1
   funext guess
   by_cases hg :
@@ -160,7 +159,8 @@ private theorem isPrefixFreeOn_prefixFreeCollisionReduction {width outLen : ℕ 
     IsPrefixFreeOn (oracleValid n) (outLen n)
       (prefixFreeCollisionReduction width outLen valid guessPair n []) := by
   intro oracle _ _ result hres
-  simp only [prefixFreeCollisionReduction, wordQueryRunDist_sample_bind,
+  simp only [prefixFreeCollisionReduction, prefixFreeCollisionReductionWithCap,
+    wordQueryRunDist_sample_bind,
     PMF.mem_support_bind_iff] at hres
   obtain ⟨guess, _, hguessRun⟩ := hres
   split at hguessRun
@@ -234,7 +234,8 @@ theorem succProbability_collisionGame_le_real_prefixFreeCollisionReduction
       (prefixFreeCollisionReduction width outLen valid guessPair n []).run
         (fun req => pure (prfOracleOn (oracleValid n) family key req.2)) =
       ((guessPair (n, n)) >>= fun guess => pure (accept key guess)) := by
-    simp only [prefixFreeCollisionReduction, ProbOracleComp.run_bind, ProbOracleComp.run_sample]
+    simp only [prefixFreeCollisionReduction, prefixFreeCollisionReductionWithCap,
+      ProbOracleComp.run_bind, ProbOracleComp.run_sample]
     congr 1
     funext guess
     by_cases hg :
@@ -276,7 +277,8 @@ theorem eval_prfIdealGameOn_prefixFreeCollisionReduction_le
       ((2 : ℝ≥0∞) ^ outLen n)⁻¹ := by
   simp only [prfIdealGameOn, ProbComp.eval_map, ProbOracleComp.eval_run_interpret_eq_runWith,
     cachedRandomFunctionOracle, eval_cachedSamplerOracle, BitString.eval_sampleList,
-    prefixFreeCollisionReduction, ProbOracleComp.runWith_sample_bind, PMF.map_bind]
+    prefixFreeCollisionReduction, prefixFreeCollisionReductionWithCap,
+    ProbOracleComp.runWith_sample_bind, PMF.map_bind]
   apply PMF.bind_apply_le_on_support
   intro guess _
   by_cases hg :
@@ -358,8 +360,16 @@ theorem succProbability_collisionGame_le_prefixFreeCollisionReduction
 prefix-free PRF with negligible reciprocal reply-space size is a computational UHF on the
 smaller domain. The uniform private key has `n` bits, and public setup is the unary parameter.
 Valid hash inputs are whole blocks of positive width, and appending any one block puts them
-in the PRF domain. The reduction obtains the reply width by evaluating the PRF at a public
-zero key on a valid extended query. -/
+in the PRF domain.
+
+The source specialization uses positive-width bit blocks, with hash inputs of at most `ℓ`
+blocks and PRF inputs of at most `ℓ + 1` blocks. The hash input domain is included in the PRF
+input domain there, so `hPRF.length_eq` gives fixed-width digests for the original hash inputs.
+The conclusion expresses collision security with raw `List Bool` digests, which on those inputs
+are the bit-list representation of `BitString (outLen n)`.
+
+The reduction obtains the reply width by evaluating the PRF at a public zero key on a valid
+extended query. -/
 theorem isComputationalUHF_of_extendable_prefixFreePRF
     {width outLen : ℕ → ℕ} {valid oracleValid : ℕ → List Bool → Bool}
     {family : List Bool → List Bool → List Bool}
