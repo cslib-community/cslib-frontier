@@ -589,7 +589,7 @@ theorem ATrail.reasonsBelow_eq (T : ATrail) (p n : ℕ) :
   rw [reasonsBelow, foldDown_eq, XTrail.reasons]
   congr 1
   funext a x
-  cases x <;> simp only [XEntry.rsnCode, XEntry.lit, litKey_div_two]
+  cases x <;> simp only [XEntry.rsnCode, XEntry.lit, litCode_div_two]
 
 /-- `derivedHintsFast` of the entries below position `p`, read from the arrays of the trail
 (`ATrail.derivedHintsBelow_eq`). -/
@@ -603,7 +603,7 @@ theorem ATrail.derivedHintsBelow_eq (T : ATrail) (p : ℕ) (memo : Assign) :
   rw [derivedHintsBelow, foldDown_eq, ← derivedHintsFast_eq, derivedHintsFast]
   congr 1
   funext a x
-  cases x <;> simp only [XEntry.rsnCode, XEntry.lit, litKey_div_two]
+  cases x <;> simp only [XEntry.rsnCode, XEntry.lit, litCode_div_two]
 
 /-- `minimizeRedundant` on the entries below position `p`, with the reasons read from the arrays of
 the trail. -/

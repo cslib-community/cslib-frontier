@@ -99,6 +99,8 @@ namespace Cslib.Complexity
 open Cslib.BitString Cslib.Circuits Cslib.Circuits.Boolean
 open Turing.MultiTapeTM ComputableInPolyTime
 
+attribute [local irreducible] ComputableInPolyTime
+
 variable {α β : Type}
 
 /-! ### Polynomial-time bit-string and binary-number primitives -/

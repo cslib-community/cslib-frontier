@@ -84,45 +84,42 @@ private theorem area_lower_bound (x : ℝ) : 1 / 2 - x ≤ area x := by
   rcases le_total x 0 with hx | hx
   · rw [area_of_nonpos hx]
   · rcases le_total x 1 with hx' | hx'
-    · rw [area_of_mem_Icc ⟨hx, hx'⟩]
-      nlinarith [sq_nonneg x]
-    · rw [area_of_one_le hx']
-      linarith
+    · rw [area_of_mem_Icc ⟨hx, hx'⟩, ← sub_nonneg,
+        show (1 - x) ^ 2 / 2 - (1 / 2 - x) = x ^ 2 / 2 by ring]
+      positivity
+    · rw [area_of_one_le hx']; linarith only [hx']
 
 private theorem area_le_quadratic (x y : ℝ) :
     area y ≤ area x - curve x * (y - x) + (y - x) ^ 2 / 2 := by
+  rw [← sub_nonneg]
   rcases le_total x 0 with hx | hx
   · rw [area_of_nonpos hx, curve_of_nonpos hx]
     rcases le_total y 0 with hy | hy
-    · rw [area_of_nonpos hy]
-      nlinarith [sq_nonneg (y - x)]
+    · rw [area_of_nonpos hy, show _ - (1 / 2 - y) = (y - x) ^ 2 / 2 by ring]; positivity
     · rcases le_total y 1 with hy' | hy'
-      · rw [area_of_mem_Icc ⟨hy, hy'⟩]
-        nlinarith [mul_nonpos_of_nonpos_of_nonneg hx hy, sq_nonneg x]
-      · rw [area_of_one_le hy']
-        nlinarith [mul_nonpos_of_nonpos_of_nonneg hx hy, sq_nonneg (y - 1),
-          sq_nonneg x]
+      · rw [area_of_mem_Icc ⟨hy, hy'⟩,
+          show _ - (1 - y) ^ 2 / 2 = x ^ 2 / 2 + (-x) * y by ring]
+        exact add_nonneg (by positivity) (mul_nonneg (neg_nonneg.mpr hx) hy)
+      · rw [area_of_one_le hy',
+          show _ - 0 = (y - 1) ^ 2 / 2 + x ^ 2 / 2 + (-x) * y by ring]
+        exact add_nonneg (by positivity) (mul_nonneg (neg_nonneg.mpr hx) hy)
   · rcases le_total x 1 with hx' | hx'
     · rw [area_of_mem_Icc ⟨hx, hx'⟩, curve_of_mem_Icc ⟨hx, hx'⟩]
       rcases le_total y 0 with hy | hy
-      · rw [area_of_nonpos hy]
-        nlinarith [sq_nonneg y]
+      · rw [area_of_nonpos hy, show _ - (1 / 2 - y) = y ^ 2 / 2 by ring]; positivity
       · rcases le_total y 1 with hy' | hy'
-        · rw [area_of_mem_Icc ⟨hy, hy'⟩]
-          nlinarith
-        · rw [area_of_one_le hy']
-          nlinarith [sq_nonneg (y - 1)]
+        · rw [area_of_mem_Icc ⟨hy, hy'⟩, show _ - (1 - y) ^ 2 / 2 = 0 by ring]
+        · rw [area_of_one_le hy', show _ - 0 = (y - 1) ^ 2 / 2 by ring]; positivity
     · rw [area_of_one_le hx', curve_of_one_le hx']
       rcases le_total y 0 with hy | hy
-      · rw [area_of_nonpos hy]
-        nlinarith [sq_nonneg (x - 1), sq_nonneg y,
-          mul_nonpos_of_nonneg_of_nonpos (sub_nonneg.mpr hx') hy]
+      · rw [area_of_nonpos hy,
+          show _ - (1 / 2 - y) = (x - 1 - y) ^ 2 / 2 + (x - 1) by ring]
+        exact add_nonneg (by positivity) (sub_nonneg.mpr hx')
       · rcases le_total y 1 with hy' | hy'
-        · rw [area_of_mem_Icc ⟨hy, hy'⟩]
-          nlinarith [sq_nonneg (x - 1),
-            mul_nonneg (sub_nonneg.mpr hx') (sub_nonneg.mpr hy')]
-        · rw [area_of_one_le hy']
-          nlinarith [sq_nonneg (y - x)]
+        · rw [area_of_mem_Icc ⟨hy, hy'⟩,
+            show _ - (1 - y) ^ 2 / 2 = (x - 1) ^ 2 / 2 + (x - 1) * (1 - y) by ring]
+          exact add_nonneg (by positivity) (mul_nonneg (sub_nonneg.mpr hx') (sub_nonneg.mpr hy'))
+        · rw [area_of_one_le hy', show _ - 0 = (y - x) ^ 2 / 2 by ring]; positivity
 
 /-- The clipped linear weight on an example's signed margin relative to the threshold. -/
 def weight (rate margin : ℝ) : ℝ := min 1 (max 0 (1 - rate * margin))
@@ -136,9 +133,8 @@ theorem weight_mem_Icc (rate margin : ℝ) : weight rate margin ∈ Set.Icc 0 1 
   exact ⟨le_min zero_le_one (le_max_left _ _), min_le_left _ _⟩
 
 /-- Increasing a margin can only decrease its weight. -/
-theorem weight_antitone {rate : ℝ} (hrate : 0 ≤ rate) : Antitone (weight rate) := by
-  intro x y hxy
-  exact min_le_min_left _ (max_le_max_left _ (by nlinarith : 1 - rate * y ≤ 1 - rate * x))
+theorem weight_antitone {rate : ℝ} (hrate : 0 ≤ rate) : Antitone (weight rate) := fun _ _ hxy =>
+  min_le_min_left _ (max_le_max_left _ (sub_le_sub_left (mul_le_mul_of_nonneg_left hxy hrate) 1))
 
 /-- An example at or below the threshold has full weight. -/
 theorem weight_of_nonpos {rate margin : ℝ} (hrate : 0 ≤ rate) (hmargin : margin ≤ 0) :

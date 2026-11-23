@@ -90,6 +90,10 @@ theorem litCodeBy_injective {f : α → ℕ} (hf : Function.Injective f) :
   rw [hf h1]
   cases b <;> cases b' <;> simp_all
 
+/-- The codes of literals over `ℕ` determine the literals. -/
+theorem litCode_injective : Function.Injective litCode :=
+  litCodeBy_injective Function.injective_id
+
 /-- **Flipping the low bit negates**: the code of the negation of a literal. -/
 theorem litCodeBy_xor_one (l : Literal α) :
     litCodeBy f l ^^^ 1 = litCodeBy f (Std.Sat.Literal.negate l) := by

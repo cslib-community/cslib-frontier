@@ -116,6 +116,7 @@ a conflict, so the checker accepts the certificate by construction, with no chec
 namespace Cslib.Algorithms.Lean.CDCL
 
 open Cslib.Logic.PL Cslib.Logic.PL.CNF
+open Cslib.Algorithms.WordRAM.ClauseCode (litCode)
 
 variable {φ : CNF ℕ}
 
@@ -178,10 +179,10 @@ def XEntry.rsnCode : XEntry → ℕ
 /-! ### The trail as arrays -/
 
 /-- The variable of a literal is its key halved. -/
-theorem litKey_div_two (l : Literal ℕ) : litKey l / 2 = l.1 :=
-  congrArg Prod.fst (litOfKey_litKey l)
+theorem litCode_div_two (l : Literal ℕ) : litCode l / 2 = l.1 :=
+  congrArg Prod.fst (litOfKey_litCode l)
 
-/-- **The solver's trail as two arrays**, oldest first: the code of each literal (`litKey`), and
+/-- **The solver's trail as two arrays**, oldest first: the code of each literal (`litCode`), and
 the code of the reason of each entry (`Cslib.Algorithms.Lean.CDCL.XEntry.rsnCode`). Both hold small
 numbers only, so an entry allocates nothing, and backjumping pops the entries undone. The trail
 read back as a list of entries, newest first, is `Cslib.Algorithms.Lean.CDCL.ATrail.toX`, on which
@@ -261,8 +262,8 @@ the right fold of the entries `T.seg lo k` (`ATrail.foldUp_eq`). -/
 theorem entry_lit (T : ATrail) (i : ℕ) : (T.entry i).lit = T.lit i := by
   unfold entry; split <;> rfl
 
-theorem litKey_entry_lit (T : ATrail) (i : ℕ) : litKey (T.entry i).lit = T.lits.getD i 0 := by
-  rw [entry_lit, lit, litKey_litOfKey]
+theorem litCode_entry_lit (T : ATrail) (i : ℕ) : litCode (T.entry i).lit = T.lits.getD i 0 := by
+  rw [entry_lit, lit, litCode_litOfKey]
 
 theorem rsnCode_entry (T : ATrail) (i : ℕ) : (T.entry i).rsnCode = T.rsns.getD i 0 := by
   unfold entry; split <;> simp_all [XEntry.rsnCode]
@@ -280,9 +281,9 @@ theorem isDecision_entry (T : ATrail) (i : ℕ) :
   unfold entry; split <;> simp_all [XEntry.isDecision]
 
 /-- The entry at a position holding the codes of `e` is `e`. -/
-theorem entry_eq_of {T : ATrail} {i : ℕ} {e : XEntry} (hl : T.lits.getD i 0 = litKey e.lit)
+theorem entry_eq_of {T : ATrail} {i : ℕ} {e : XEntry} (hl : T.lits.getD i 0 = litCode e.lit)
     (hr : T.rsns.getD i 0 = e.rsnCode) : T.entry i = e := by
-  cases e <;> simp only [entry, lit, hl, hr, XEntry.rsnCode, XEntry.lit, litOfKey_litKey]
+  cases e <;> simp only [entry, lit, hl, hr, XEntry.rsnCode, XEntry.lit, litOfKey_litCode]
 
 /-- Two trails with the same codes at a position have the same entry there. -/
 theorem entry_congr {T T' : ATrail} {i : ℕ} (hl : T'.lits.getD i 0 = T.lits.getD i 0)
@@ -334,19 +335,19 @@ theorem seg_congr {T T' : ATrail} {lo k : ℕ}
 
 theorem foldDown_eq {β : Type} (T : ATrail) (f : β → ℕ → ℕ → β) (lo : ℕ) :
     ∀ (k : ℕ) (b : β),
-      T.foldDown f lo k b = (T.seg lo k).foldl (fun b e => f b (litKey e.lit) e.rsnCode) b
+      T.foldDown f lo k b = (T.seg lo k).foldl (fun b e => f b (litCode e.lit) e.rsnCode) b
   | 0, _ => rfl
   | k + 1, b => by
-    rw [foldDown, foldDown_eq T f lo k, seg_succ, List.foldl_cons, litKey_entry_lit,
+    rw [foldDown, foldDown_eq T f lo k, seg_succ, List.foldl_cons, litCode_entry_lit,
       rsnCode_entry]
 
 theorem foldUp_eq {β : Type} (T : ATrail) (f : β → ℕ → ℕ → β) :
     ∀ (lo k : ℕ) (b : β),
-      T.foldUp f lo k b = (T.seg lo k).foldr (fun e b => f b (litKey e.lit) e.rsnCode) b
+      T.foldUp f lo k b = (T.seg lo k).foldr (fun e b => f b (litCode e.lit) e.rsnCode) b
   | _, 0, _ => rfl
   | lo, k + 1, b => by
     rw [foldUp, foldUp_eq T f (lo + 1) k, seg_succ_bottom, List.foldr_append, List.foldr_cons,
-      List.foldr_nil, litKey_entry_lit, rsnCode_entry]
+      List.foldr_nil, litCode_entry_lit, rsnCode_entry]
 
 @[simp] theorem size_push (T : ATrail) (c r : ℕ) : (T.push c r).size = T.size + 1 := by
   simp [push, size]
@@ -359,16 +360,16 @@ theorem entry_push_lt (T : ATrail) {c r i : ℕ} (h : i < T.size) :
     simp [push, Array.getD_eq_getD_getElem?, Array.getElem?_push, hl, h', Nat.ne_of_lt]
 
 theorem entry_push_size (T : ATrail) (e : XEntry) :
-    (T.push (litKey e.lit) e.rsnCode).entry T.size = e := by
-  have h₁ : (T.push (litKey e.lit) e.rsnCode).lits.getD T.size 0 = litKey e.lit := by
+    (T.push (litCode e.lit) e.rsnCode).entry T.size = e := by
+  have h₁ : (T.push (litCode e.lit) e.rsnCode).lits.getD T.size 0 = litCode e.lit := by
     simp [push, size]
-  have h₂ : (T.push (litKey e.lit) e.rsnCode).rsns.getD T.size 0 = e.rsnCode := by
+  have h₂ : (T.push (litCode e.lit) e.rsnCode).rsns.getD T.size 0 = e.rsnCode := by
     simp [push, size, T.size_eq]
   exact entry_eq_of h₁ h₂
 
 /-- **Pushing an entry** puts it at the head of the trail read back. -/
 theorem toX_push (T : ATrail) (e : XEntry) :
-    (T.push (litKey e.lit) e.rsnCode).toX = e :: T.toX := by
+    (T.push (litCode e.lit) e.rsnCode).toX = e :: T.toX := by
   rw [toX, size_push, seg_succ, Nat.zero_add, entry_push_size, toX]
   exact congrArg _ (seg_congr fun i _ h => T.entry_push_lt (by omega))
 
@@ -2212,7 +2213,7 @@ theorem init_inv (φ : CNF ℕ) : (init φ).Inv := ExecL.init_inv φ
 
 /-- **UnitPropagate**: the literal of a unit clause pushed, with that clause as its reason. -/
 def propagate (S : Exec φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) : Exec φ :=
-  ⟨S.tr.push (litKey l) (e.1 + 1), S.db, S.log⟩
+  ⟨S.tr.push (litCode l) (e.1 + 1), S.db, S.log⟩
 
 theorem toL_propagate (S : Exec φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) :
     (S.propagate e l).toL = S.toL.propagate e l := by
@@ -2231,7 +2232,7 @@ theorem propagate_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} {l : L
   exact ExecL.propagate_spec hS he hl hundef hfalse
 
 /-- **Decide**: the literal of the variable `x` with polarity `b` pushed as a decision. -/
-def decide (S : Exec φ) (x : ℕ) (b : Bool) : Exec φ := ⟨S.tr.push (litKey (x, b)) 0, S.db, S.log⟩
+def decide (S : Exec φ) (x : ℕ) (b : Bool) : Exec φ := ⟨S.tr.push (litCode (x, b)) 0, S.db, S.log⟩
 
 theorem toL_decide (S : Exec φ) (x : ℕ) (b : Bool) : (S.decide x b).toL = S.toL.decide x b := by
   simp only [toL, decide, ExecL.decide, ExecL.mk.injEq, and_true]
@@ -2287,7 +2288,7 @@ theorem rank_forget (S : Exec φ) (ids : List ℕ) :
 /-- The state after Backjump and Learn: the trail popped down to `q` entries, the asserting
 literal pushed with the learned clause as its reason, and the clause added to the log. -/
 def afterConflictAt {sp : Split} (S : Exec φ) (L : S.LearnedAt sp) (q : ℕ) : Exec φ :=
-  ⟨(S.tr.shrink q).push (litKey L.lit) (L.id + 1), (L.id, L.clause) :: S.db, L.log⟩
+  ⟨(S.tr.shrink q).push (litCode L.lit) (L.id + 1), (L.id, L.clause) :: S.db, L.log⟩
 
 theorem toL_afterConflictAt {sp : Split} (S : Exec φ) (L : S.LearnedAt sp) {q : ℕ}
     (hq : q ≤ S.tr.size) :
