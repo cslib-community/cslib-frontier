@@ -68,10 +68,10 @@ variable (hash : List Bool → List Bool → List Bool)
 /-- A defaulted lookup in words of at most `k + 2` bits has at most `k + 2` bits. -/
 theorem length_getD_le {k : ℕ} {ws : List (List Bool)}
     (hws : ∀ w ∈ ws, w.length ≤ k + 2) (i : ℕ) : (ws.getD i []).length ≤ k + 2 := by
-  rw [List.getD_eq_getElem?_getD]
-  cases h : ws[i]? with
-  | none => simp
-  | some w => exact hws w (List.mem_of_getElem? h)
+  rcases List.getD_mem_or ws i [] with h | h
+  · exact hws _ h
+  · rw [h]
+    simp
 
 /-- The evaluator's AND gate writes at most `k + 2` bits. -/
 theorem length_andWord_le (k g : ℕ) (TG TE a b : List Bool) :

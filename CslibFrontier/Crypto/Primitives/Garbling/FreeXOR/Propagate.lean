@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Simulator
 import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Scheme
+import CslibFrontier.Foundations.Data.List.Lookup
 
 /-!
 # Shared zero-label and active-label propagation on words
@@ -100,13 +101,12 @@ theorem length_le_of_mem_simPropWords (k : ℕ) (t : Topo) (free : List Bool)
     · exact ih w hw
     · rw [List.mem_singleton.mp hw]
       split
-      · have ha : (ws.getD (t.A ⟨s, hsq⟩ - 1) []).length ≤ k + 2 := by
-          rw [List.getD_eq_getElem?_getD]
-          cases h : ws[t.A ⟨s, hsq⟩ - 1]? with
-          | none => simp
-          | some v => exact ih v (List.mem_of_getElem? h)
-        rw [List.length_zipWith]
-        omega
+      · rcases List.getD_mem_or ws (t.A ⟨s, hsq⟩ - 1) [] with h | h
+        · have := ih _ h
+          rw [List.length_zipWith]
+          omega
+        · rw [h]
+          simp
       · simp [PointPermute.length_simLabel]
   | case3 => assumption -- s + 1, ¬s < t.q: unchanged
 
