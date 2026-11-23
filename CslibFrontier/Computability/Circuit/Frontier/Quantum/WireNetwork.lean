@@ -215,20 +215,6 @@ private theorem evalAct_append {W : Type} [Fintype W] [DecidableEq W]
   | cons g L₁ ih => simp only [List.cons_append, evalAct, ih, mul_assoc]
 
 open Classical in
-private theorem prod_inactive_one_apply {N : ℕ} (A : Set (Fin N)) (z x : Fin N → Bool) :
-    (∏ q : {q : Fin N // q ∉ A},
-      ((1 : unitaryGroup Bool ℂ) : Matrix Bool Bool ℂ) (z q.1) (x q.1)) =
-      if ∀ q : {q : Fin N // q ∉ A}, z q.1 = x q.1 then 1 else 0 := by
-  by_cases hAc : ∀ q : {q : Fin N // q ∉ A}, z q.1 = x q.1
-  · rw [ite_eq_left hAc]
-    exact Finset.prod_eq_one fun q _ => by
-      simp only [Submonoid.coe_one, Matrix.one_apply, hAc q, ↓reduceIte]
-  · rw [ite_eq_right hAc]
-    obtain ⟨q₀, hq₀⟩ := not_forall.mp hAc
-    exact Finset.prod_eq_zero (Finset.mem_univ q₀)
-      (by simp only [Submonoid.coe_one, Matrix.one_apply, hq₀, ↓reduceIte])
-
-open Classical in
 /-- **Active-wire decoupling.** Every two-local circuit `C` whose two-qubit gates lie in `A`
 tensors into an active unitary `evalAct L` on `↥A → Bool` (with the same two-qubit gate count and
 bond-rank-two property) times single-qubit unitaries on `{q // q ∉ A}`. -/
@@ -244,8 +230,8 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
   induction C with
   | nil =>
     refine ⟨[], fun _ => 1, rfl, fun _ g hg => absurd hg (List.not_mem_nil), fun y x => ?_⟩
-    rw [prod_inactive_one_apply]
-    simp only [Quantum.Circuit.matrix_nil, evalAct, Submonoid.coe_one, Matrix.one_apply]
+    simp only [Quantum.Circuit.matrix_nil, evalAct, Submonoid.coe_one, Matrix.one_apply,
+      Fintype.prod_boole]
     have hsplit : (y = x) ↔
         (A.domRestrict y = A.domRestrict x ∧ ∀ q : {q : Fin N // q ∉ A}, y q.1 = x q.1) := by
       refine ⟨fun h => h ▸ ⟨rfl, fun _ => rfl⟩, fun ⟨hA, hAc⟩ => funext fun j => ?_⟩
@@ -337,7 +323,8 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
             by_cases hjA : j ∈ A
             · exact hA ⟨j, hjA⟩ fun ⟨i, hi⟩ => hj ⟨i, congrArg Subtype.val hi⟩
             · exact hAc ⟨j, hjA⟩
-        rw [prod_inactive_one_apply, if_congr hoff rfl rfl]
+        simp only [Submonoid.coe_one, Matrix.one_apply, Fintype.prod_boole]
+        rw [if_congr hoff rfl rfl]
         by_cases hA_cond : ∀ q : ↥A, (¬∃ i, wA i = q) → A.domRestrict z q = A.domRestrict x q
         · by_cases hAc : ∀ q : {q : Fin N // q ∉ A}, z q.1 = x q.1
           · rw [ite_eq_left ⟨hA_cond, hAc⟩, ite_eq_left hA_cond, ite_eq_left hAc, mul_one]; rfl
@@ -1821,18 +1808,6 @@ theorem norm_phaseState {n N : ℕ} (Q : Matrix (Fin n) (Fin n) (ZMod 2))
       one_pow]
   nlinarith [norm_nonneg ψ]
 
-private theorem piEquivPiSubtypeProd_symm_apply {α : Type*} (S : Set α) [DecidablePred (· ∈ S)]
-    (a : S → Bool) (b : ↥Sᶜ → Bool) (i : α) :
-    (Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).symm (a, b) i =
-      if hi : i ∈ S then a ⟨i, hi⟩ else b ⟨i, hi⟩ := by
-  by_cases hi : i ∈ S
-  · simp only [hi, ↓reduceDIte]
-    exact congrFun (congrArg Prod.fst
-      ((Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).apply_symm_apply (a, b))) ⟨i, hi⟩
-  · simp only [hi, ↓reduceDIte]
-    exact congrFun (congrArg Prod.snd
-      ((Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).apply_symm_apply (a, b))) ⟨i, hi⟩
-
 private theorem exists_lift_domRestrict {n N : ℕ} {α : Type*}
     (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool) {A : Set (Fin N)} (heA : Set.range e ⊆ A)
     (Q_sub : Set ↥A) {T : Set (Fin n)}
@@ -1880,11 +1855,11 @@ private theorem exists_lift_domRestrict_glue {n N : ℕ}
   intro S glueS
   obtain ⟨liftP, hP⟩ := exists_lift_domRestrict (T := S) e x₀ heA Q_sub (fun _ h => h)
     glueS Prod.fst fun ⟨a, b⟩ i => by
-      simp only [glueS, piEquivPiSubtypeProd_symm_apply, i.2, ↓reduceDIte]
+      simp only [glueS, Equiv.piEquivPiSubtypeProd_symm_apply, i.2, ↓reduceDIte]
   obtain ⟨liftPc, hPc⟩ := exists_lift_domRestrict (T := Sᶜ) e x₀ heA Q_subᶜ (fun _ h => h)
     glueS Prod.snd fun ⟨a, b⟩ i => by
       have hni : i.1 ∉ S := i.2
-      simp only [glueS, piEquivPiSubtypeProd_symm_apply, hni, ↓reduceDIte]
+      simp only [glueS, Equiv.piEquivPiSubtypeProd_symm_apply, hni, ↓reduceDIte]; rfl
   exact ⟨liftP, liftPc, fun a b => hP (a, b), fun a b => hPc (a, b)⟩
 
 /-! ### Core single-cut bounds from `CappedWireNet` -/
@@ -2627,7 +2602,7 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
         (Equiv.piEquivPiSubtypeProd (· ∈ S) fun _ => Bool).symm
           ((fun k => a ⟨emb k.1, (hemb k.1).mpr k.2⟩),
            (fun k => b ⟨emb k.1, fun h => k.2 ((hemb k.1).mp h)⟩)) i := by
-    simp only [glueU, piEquivPiSubtypeProd_symm_apply]
+    simp only [glueU, Equiv.piEquivPiSubtypeProd_symm_apply]
     by_cases hi : i ∈ S
     · simp only [hi, (hemb i).mpr hi, ↓reduceDIte]
     · have hiU : emb i ∉ U := fun h => hi ((hemb i).mp h)
@@ -2681,10 +2656,10 @@ private theorem cutRank_linBlockMatrix_le_of_capped {n N : ℕ}
         (fun j => if glueU (a, b) (inr2n n j) && glueY (wP, wPc) j then (-1 : ℂ) else 1)]
       congr 1
       · refine Finset.prod_congr rfl fun j _ => ?_
-        simp only [hglue_inr, glueY, piEquivPiSubtypeProd_symm_apply, j.2, ↓reduceDIte]
+        simp only [hglue_inr, glueY, Equiv.piEquivPiSubtypeProd_symm_apply, j.2, ↓reduceDIte]
       · refine Finset.prod_congr rfl fun j _ => ?_
         have hnj : j.1 ∉ Y := j.2
-        simp only [hglue_inr, glueY, piEquivPiSubtypeProd_symm_apply, hnj, ↓reduceDIte]
+        simp only [hglue_inr, glueY, Equiv.piEquivPiSubtypeProd_symm_apply, hnj, ↓reduceDIte]; rfl
     simp_rw [hprod_y, ← Fintype.sum_prod_type']
     refine (Fintype.sum_equiv (Equiv.piEquivPiSubtypeProd (· ∈ Y) fun _ => Bool)
       (fun w =>

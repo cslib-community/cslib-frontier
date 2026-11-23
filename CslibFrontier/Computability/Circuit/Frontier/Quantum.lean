@@ -480,10 +480,6 @@ private theorem switched_coeff_eq (k c_sw : ℝ) (hk : k ≠ 0)
   rw [h3, h2, ← h]
   field_simp
 
-private theorem twoLocal_coeff_eq (k c_two : ℝ) (hk : k ≠ 0) (h : 1 + 5 / (2 * k) = c_two) :
-    c_two = 1 + 1 / (k * (2 / 5)) := by
-  rw [← h]; field_simp
-
 private theorem rat_sub_mul_le_switched {k c_sw c_rat ε : ℝ} (hk : 0 < k) (n : ℕ)
     (hsw : 1 + 2 * π / (3 * k * arccos (5 / 6)) = c_sw)
     (hrat : c_rat ≤ 1 + (457597 / 100000 - 1) / k) :
@@ -707,7 +703,7 @@ theorem eventually_abs_quantumCorrelation_hardForm_le_twoLocal_two_fifths {ε : 
       (twoQubitCount C : ℝ) ≤ (13 / 8 - ε) * n →
         |quantumCorrelation {x | hardForm n x} (quantumAcceptProb C q_out e x₀)| ≤
           (2 : ℝ) ^ (-γ * n) := by
-  rw [twoLocal_coeff_eq 4 (13 / 8) (by norm_num) (by norm_num)]
+  rw [show (13 / 8 : ℝ) = 1 + 1 / (4 * (2 / 5)) by norm_num]
   exact eventually_abs_quantumCorrelation_hardForm_le_of_layoutBound (Or.inr rfl) (by norm_num)
     layoutBound_two_fifths_four hε
 
@@ -787,7 +783,7 @@ theorem eventually_lt_twoQubitCount_uqp_hardForm_twoLocal_two_fifths {ε : ℝ} 
       (∀ x, if hardForm n x then θ < quantumAcceptProb C q_out e x₀ x
         else quantumAcceptProb C q_out e x₀ x < θ) →
         (21 / 16 - ε) * n < twoQubitCount C := by
-  rw [twoLocal_coeff_eq 8 (21 / 16) (by norm_num) (by norm_num)]
+  rw [show (21 / 16 : ℝ) = 1 + 1 / (8 * (2 / 5)) by norm_num]
   exact eventually_lt_twoQubitCount_uqp_hardForm_of_layoutBound (Or.inr rfl) (by norm_num)
     layoutBound_two_fifths_four hε
 
@@ -843,7 +839,7 @@ theorem eventually_fidelity_phaseState_hardMatrix_le_twoLocal_two_fifths {ε : �
       (C : Quantum.Circuit N), TwoLocal C →
       (twoQubitCount C : ℝ) ≤ (9 / 4 - ε) * n →
         ‖inner ℂ (phaseState (hardMatrix n) e x₀) (C.run x₀)‖ ^ 2 ≤ (2 : ℝ) ^ (-γ * n) := by
-  rw [twoLocal_coeff_eq 2 (9 / 4) (by norm_num) (by norm_num)]
+  rw [show (9 / 4 : ℝ) = 1 + 1 / (2 * (2 / 5)) by norm_num]
   exact eventually_fidelity_phaseState_hardMatrix_le_of_layoutBound (Or.inr rfl) (by norm_num)
     layoutBound_two_fifths_four hε
 
