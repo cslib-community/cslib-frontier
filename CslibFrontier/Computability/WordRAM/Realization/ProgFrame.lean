@@ -44,10 +44,11 @@ This module provides width-independent reasoning principles for `Memory.Prog` cl
   `clientState_iterate_eq_of`, `clientState_boundedWhile_eq_of`, `memoryCost_iterate_le_of`,
   `memoryCost_iterate_le_potential`, `memoryCost_boundedWhile_le_of`: generic loop invariant and
   cost lemmas, including an amortized bound with a potential.
-* `clientResult_bind_read`, `clientState_bind_write`, `clientResult_map`, `memoryCost_map`,
-  `memoryCost_bind_le`, `memoryCost_ite_le`, `validHistory_iterate_nat`,
-  `validHistory_iterate_fst`: reductions through primitive steps and cost and admissibility
-  combinators for counting loops.
+* `clientResult_bind_read`, `clientState_bind_write`, `fst_runClient_read`,
+  `fst_snd_runClient_write`, `fst_runClient_ite`, `clientResult_map`, `memoryCost_map`,
+  `memoryCost_bind_le`, `memoryCost_read_bind_le`, `memoryCost_write_bind_le`,
+  `memoryCost_ite_le`, `validHistory_iterate_nat`, `validHistory_iterate_fst`: reductions through
+  primitive steps and cost and admissibility combinators for counting loops.
 * `PreservesAt`, `preservesAt_bind`, `preservesAt_iterate`, `preservesAt_iterate_nat`,
   `preservesAt_boundedWhile`: single-address frames.
 -/
@@ -402,6 +403,42 @@ theorem clientState_bind_write {α : Type} (w : ℕ) (s : Memory.State) (a v : �
       (Memory.spec w).clientState ⟨Function.update s.mem a v, s.frontier⟩ (k ()) :=
   rfl
 
+/-- `Prod.fst` of running `Memory.read`. This and the following five `runClient` reductions are
+not in `client_simps` globally; clients add them with `attribute [local client_simps]`. -/
+theorem fst_runClient_read (w : ℕ) (s : (Memory.spec w).State) (a : ℕ) :
+    ((Memory.spec w).runClient s (Memory.read a)).1 = s.mem a :=
+  rfl
+
+/-- The state after running `Memory.read`. -/
+theorem fst_snd_runClient_read (w : ℕ) (s : (Memory.spec w).State) (a : ℕ) :
+    ((Memory.spec w).runClient s (Memory.read a)).2.1 = s :=
+  rfl
+
+/-- `Prod.fst` of running `Memory.write`. -/
+theorem fst_runClient_write (w : ℕ) (s : (Memory.spec w).State) (a v : ℕ) :
+    ((Memory.spec w).runClient s (Memory.write a v)).1 = () :=
+  rfl
+
+/-- The state after running `Memory.write`. -/
+theorem fst_snd_runClient_write (w : ℕ) (s : (Memory.spec w).State) (a v : ℕ) :
+    ((Memory.spec w).runClient s (Memory.write a v)).2.1 =
+      ⟨Function.update s.mem a v, s.frontier⟩ :=
+  rfl
+
+/-- `Prod.fst` of running a conditional. -/
+theorem fst_runClient_ite {α : Type} (w : ℕ) (s : (Memory.spec w).State)
+    (c : Prop) [Decidable c] (p₁ p₂ : (Memory.spec w).Client α) :
+    ((Memory.spec w).runClient s (if c then p₁ else p₂)).1 =
+      if c then (Memory.spec w).clientResult s p₁ else (Memory.spec w).clientResult s p₂ :=
+  apply_ite (fun p => ((Memory.spec w).runClient s p).1) c p₁ p₂
+
+/-- The state after running a conditional. -/
+theorem fst_snd_runClient_ite {α : Type} (w : ℕ) (s : (Memory.spec w).State)
+    (c : Prop) [Decidable c] (p₁ p₂ : (Memory.spec w).Client α) :
+    ((Memory.spec w).runClient s (if c then p₁ else p₂)).2.1 =
+      if c then (Memory.spec w).clientState s p₁ else (Memory.spec w).clientState s p₂ :=
+  apply_ite (fun p => ((Memory.spec w).runClient s p).2.1) c p₁ p₂
+
 theorem clientResult_map {α β : Type} (w : ℕ) (f : α → β) (p : Memory.Prog α)
     (s : Memory.State) :
     (Memory.spec w).clientResult s (f <$> p) = f ((Memory.spec w).clientResult s p) := by
@@ -428,6 +465,20 @@ theorem memoryCost_bind_le {α β : Type} {p : Memory.Prog α} {q : α → Memor
     memoryCost (p >>= q) s ≤ k₁ + k₂ := by
   rw [memoryCost_bind']
   have := h₂ ((Memory.spec 0).clientResult s p) ((Memory.spec 0).clientState s p)
+  omega
+
+/-- A read followed by a continuation of cost at most `k` costs at most `k + 1`. -/
+theorem memoryCost_read_bind_le {α : Type} {a : ℕ} {q : ℕ → Memory.Prog α}
+    {s : Memory.State} {k : ℕ} (h : ∀ x t, memoryCost (q x) t ≤ k) :
+    memoryCost (Memory.read a >>= q) s ≤ k + 1 := by
+  have := memoryCost_bind_le (memoryCost_read a s).le h
+  omega
+
+/-- A write followed by a continuation of cost at most `k` costs at most `k + 1`. -/
+theorem memoryCost_write_bind_le {α : Type} {a v : ℕ} {q : Unit → Memory.Prog α}
+    {s : Memory.State} {k : ℕ} (h : ∀ x t, memoryCost (q x) t ≤ k) :
+    memoryCost (Memory.write a v >>= q) s ≤ k + 1 := by
+  have := memoryCost_bind_le (memoryCost_write a v s).le h
   omega
 
 theorem memoryCost_ite_le {α : Type} {c : Prop} [Decidable c]

@@ -119,40 +119,8 @@ private theorem input_add_ghScratch (n : ℕ) : 3 + n * n + ghScratch n = ghWork
 
 /-! ### Client reduction helpers -/
 
-@[client_simps]
-private theorem fst_runClient_read (w : ℕ) (s : (Memory.spec w).State) (a : ℕ) :
-    ((Memory.spec w).runClient s (Memory.read a)).1 = s.mem a :=
-  rfl
-
-@[client_simps]
-private theorem fst_snd_runClient_read (w : ℕ) (s : (Memory.spec w).State) (a : ℕ) :
-    ((Memory.spec w).runClient s (Memory.read a)).2.1 = s :=
-  rfl
-
-@[client_simps]
-private theorem fst_runClient_write (w : ℕ) (s : (Memory.spec w).State) (a v : ℕ) :
-    ((Memory.spec w).runClient s (Memory.write a v)).1 = () :=
-  rfl
-
-@[client_simps]
-private theorem fst_snd_runClient_write (w : ℕ) (s : (Memory.spec w).State) (a v : ℕ) :
-    ((Memory.spec w).runClient s (Memory.write a v)).2.1 =
-      ⟨Function.update s.mem a v, s.frontier⟩ :=
-  rfl
-
-@[client_simps]
-private theorem fst_runClient_ite {α : Type} (w : ℕ) (s : (Memory.spec w).State)
-    (c : Prop) [Decidable c] (p₁ p₂ : (Memory.spec w).Client α) :
-    ((Memory.spec w).runClient s (if c then p₁ else p₂)).1 =
-      if c then (Memory.spec w).clientResult s p₁ else (Memory.spec w).clientResult s p₂ :=
-  apply_ite (fun p => ((Memory.spec w).runClient s p).1) c p₁ p₂
-
-@[client_simps]
-private theorem fst_snd_runClient_ite {α : Type} (w : ℕ) (s : (Memory.spec w).State)
-    (c : Prop) [Decidable c] (p₁ p₂ : (Memory.spec w).Client α) :
-    ((Memory.spec w).runClient s (if c then p₁ else p₂)).2.1 =
-      if c then (Memory.spec w).clientState s p₁ else (Memory.spec w).clientState s p₂ :=
-  apply_ite (fun p => ((Memory.spec w).runClient s p).2.1) c p₁ p₂
+attribute [local client_simps] fst_runClient_read fst_snd_runClient_read fst_runClient_write
+  fst_snd_runClient_write fst_runClient_ite fst_snd_runClient_ite
 
 local elab "simp_client" : tactic => do
   Lean.Elab.Tactic.evalTactic
@@ -926,18 +894,6 @@ private theorem validHistory_ghProg {n : ℕ} {W : Fin n → Fin n → ℕ} (r :
     omega)) (fun i hi => init_le r hB hi) hwB
 
 /-! ### Memory-operation counts -/
-
-private theorem memoryCost_read_bind_le {α : Type} {a : ℕ} {q : ℕ → Memory.Prog α}
-    {s : Memory.State} {k : ℕ} (h : ∀ x t, memoryCost (q x) t ≤ k) :
-    memoryCost (Memory.read a >>= q) s ≤ k + 1 := by
-  have := memoryCost_bind_le (memoryCost_read a s).le h
-  omega
-
-private theorem memoryCost_write_bind_le {α : Type} {a v : ℕ} {q : Unit → Memory.Prog α}
-    {s : Memory.State} {k : ℕ} (h : ∀ x t, memoryCost (q x) t ≤ k) :
-    memoryCost (Memory.write a v >>= q) s ≤ k + 1 := by
-  have := memoryCost_bind_le (memoryCost_write a v s).le h
-  omega
 
 private theorem memoryCost_maxStep_le (d : ℕ × (ℕ × ℕ)) (s : Memory.State) :
     memoryCost (maxStep d) s ≤ 1 := by
