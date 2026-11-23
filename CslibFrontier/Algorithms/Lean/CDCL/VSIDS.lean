@@ -445,22 +445,24 @@ theorem VarOrder.PosOK.pop {a p : Array ℕ} (h : PosOK a p) (hn : 0 < a.size) :
 
 /-! #### Sifting, with positions -/
 
-/-- `heapifyUpF` in the order of the activities `A`, also updating the positions `p`. -/
-def VarOrder.siftUp (A : @& Activity) : (fuel : ℕ) → {n : ℕ} → Vector ℕ n → Array ℕ → Fin n →
+/-- `heapifyUpF` in the order of the activities `A`, updating `(a, p)` in place without allocating
+intermediate pairs. -/
+def VarOrder.siftUp (A : @& Activity) : (fuel : ℕ) → {n : ℕ} → Vector ℕ n × Array ℕ → Fin n →
     Vector ℕ n × Array ℕ
-  | 0, _, a, p, _ => (a, p)
-  | _ + 1, _, a, p, ⟨0, _⟩ => (a, p)
-  | fuel + 1, _, a, p, ⟨i + 1, hi⟩ =>
+  | 0, _, s, _ => s
+  | _ + 1, _, s, ⟨0, _⟩ => s
+  | fuel + 1, _, s, ⟨i + 1, hi⟩ =>
     let j := i / 2
-    let x := a[i + 1]
-    let y := a[j]
+    let x := s.1[i + 1]
+    let y := s.1[j]
     if A.below y x then
-      VarOrder.siftUp A fuel (a.swap (i + 1) j) (swapPos p x y (i + 1) j) ⟨j, by omega⟩
-    else (a, p)
+      let (a, p) := s
+      VarOrder.siftUp A fuel (a.swap (i + 1) j, swapPos p x y (i + 1) j) ⟨j, by omega⟩
+    else s
 
 theorem VarOrder.siftUp_fst (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : Vector ℕ n)
     (p : Array ℕ) (i : Fin n),
-    (VarOrder.siftUp A fuel a p i).1 = @Batteries.BinaryHeap.heapifyUpF ℕ A.keyOrd fuel n a i
+    (VarOrder.siftUp A fuel (a, p) i).1 = @Batteries.BinaryHeap.heapifyUpF ℕ A.keyOrd fuel n a i
   | 0, _, _, _, _ => rfl
   | _ + 1, _, _, _, ⟨0, _⟩ => rfl
   | fuel + 1, _, a, p, ⟨i + 1, hi⟩ => by
@@ -471,22 +473,24 @@ theorem VarOrder.siftUp_fst (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : Vec
     · rfl
 
 theorem VarOrder.siftUp_size (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : Vector ℕ n)
-    (p : Array ℕ) (i : Fin n), (VarOrder.siftUp A fuel a p i).2.size = p.size
+    (p : Array ℕ) (i : Fin n), (VarOrder.siftUp A fuel (a, p) i).2.size = p.size
   | 0, _, _, _, _ => rfl
   | _ + 1, _, _, _, ⟨0, _⟩ => rfl
   | fuel + 1, _, a, p, ⟨i + 1, hi⟩ => by
     rw [VarOrder.siftUp]
+    dsimp only
     split
     · exact (VarOrder.siftUp_size A fuel _ _ _).trans (size_swapPos ..)
     · rfl
 
 theorem VarOrder.siftUp_pos (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : Vector ℕ n)
     (p : Array ℕ) (i : Fin n), VarOrder.PosOK a.toArray p →
-    VarOrder.PosOK (VarOrder.siftUp A fuel a p i).1.toArray (VarOrder.siftUp A fuel a p i).2
+    VarOrder.PosOK (VarOrder.siftUp A fuel (a, p) i).1.toArray (VarOrder.siftUp A fuel (a, p) i).2
   | 0, _, _, _, _, h => h
   | _ + 1, _, _, _, ⟨0, _⟩, h => h
   | fuel + 1, _, a, p, ⟨i + 1, hi⟩, h => by
     rw [VarOrder.siftUp]
+    dsimp only
     split
     · have h' := h.swap (i := i + 1) (j := i / 2) (by simpa using hi) (by simp; omega)
       exact VarOrder.siftUp_pos A fuel _ _ _ (by rw [Vector.toArray_swap]; exact h')
@@ -508,22 +512,25 @@ theorem VarOrder.maxChild_eq (A : Activity) {n : ℕ} (a : Vector ℕ n) (i : Fi
   unfold VarOrder.maxChild Batteries.BinaryHeap.maxChildF
   simp only [Activity.isLT_compare]
 
-/-- `heapifyDownF` in the order of the activities `A`, also updating the positions `p`. -/
-def VarOrder.siftDown (A : @& Activity) : (fuel : ℕ) → {n : ℕ} → Vector ℕ n → Array ℕ → Fin n →
+/-- `heapifyDownF` in the order of the activities `A`, updating `(a, p)` in place without
+allocating intermediate pairs. -/
+def VarOrder.siftDown (A : @& Activity) : (fuel : ℕ) → {n : ℕ} → Vector ℕ n × Array ℕ → Fin n →
     Vector ℕ n × Array ℕ
-  | 0, _, a, p, _ => (a, p)
-  | fuel + 1, _, a, p, i =>
-    match VarOrder.maxChild A a i with
-    | none => (a, p)
+  | 0, _, s, _ => s
+  | fuel + 1, _, s, i =>
+    match VarOrder.maxChild A s.1 i with
+    | none => s
     | some j =>
-      let x := a[i]
-      let y := a[j]
-      if A.below x y then VarOrder.siftDown A fuel (a.swap i j) (swapPos p x y i j) j
-      else (a, p)
+      let x := s.1[i]
+      let y := s.1[j]
+      if A.below x y then
+        let (a, p) := s
+        VarOrder.siftDown A fuel (a.swap i j, swapPos p x y i j) j
+      else s
 
 theorem VarOrder.siftDown_fst (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : Vector ℕ n)
     (p : Array ℕ) (i : Fin n),
-    (VarOrder.siftDown A fuel a p i).1 = @Batteries.BinaryHeap.heapifyDownF ℕ A.keyOrd fuel n a i
+    (VarOrder.siftDown A fuel (a, p) i).1 = @Batteries.BinaryHeap.heapifyDownF ℕ A.keyOrd fuel n a i
   | 0, _, _, _, _ => rfl
   | fuel + 1, _, a, p, i => by
     unfold VarOrder.siftDown Batteries.BinaryHeap.heapifyDownF
@@ -538,7 +545,7 @@ theorem VarOrder.siftDown_fst (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : V
       · simp only [hc, Bool.false_eq_true, ↓reduceIte]
 
 theorem VarOrder.siftDown_size (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : Vector ℕ n)
-    (p : Array ℕ) (i : Fin n), (VarOrder.siftDown A fuel a p i).2.size = p.size
+    (p : Array ℕ) (i : Fin n), (VarOrder.siftDown A fuel (a, p) i).2.size = p.size
   | 0, _, _, _, _ => rfl
   | fuel + 1, _, a, p, i => by
     unfold VarOrder.siftDown
@@ -552,7 +559,8 @@ theorem VarOrder.siftDown_size (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : 
 
 theorem VarOrder.siftDown_pos (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : Vector ℕ n)
     (p : Array ℕ) (i : Fin n), VarOrder.PosOK a.toArray p →
-    VarOrder.PosOK (VarOrder.siftDown A fuel a p i).1.toArray (VarOrder.siftDown A fuel a p i).2
+    VarOrder.PosOK (VarOrder.siftDown A fuel (a, p) i).1.toArray
+      (VarOrder.siftDown A fuel (a, p) i).2
   | 0, _, _, _, _, h => h
   | fuel + 1, _, a, p, i, h => by
     unfold VarOrder.siftDown
@@ -591,7 +599,7 @@ def VarOrder.insert (A : @& Activity) (H : VarOrder) (v : ℕ) : VarOrder :=
   if H.pos.getD v 0 == 0 && v < H.pos.size then
     let n := H.heap.size
     let a : Vector ℕ n := ⟨H.heap, rfl⟩
-    let r := VarOrder.siftUp A (n + 1) (a.push v) (H.pos.setIfInBounds v (n + 1))
+    let r := VarOrder.siftUp A (n + 1) (a.push v, H.pos.setIfInBounds v (n + 1))
       ⟨n, Nat.lt_succ_self _⟩
     ⟨r.1.toArray, r.2⟩
   else H
@@ -601,7 +609,7 @@ heap: MiniSat's `decrease`. -/
 def VarOrder.increase (A : @& Activity) (H : VarOrder) (v : ℕ) : VarOrder :=
   let k := H.pos.getD v 0
   if h : k ≠ 0 ∧ k - 1 < H.heap.size then
-    let r := VarOrder.siftUp A k (⟨H.heap, rfl⟩ : Vector ℕ H.heap.size) H.pos ⟨k - 1, h.2⟩
+    let r := VarOrder.siftUp A k ((⟨H.heap, rfl⟩ : Vector ℕ H.heap.size), H.pos) ⟨k - 1, h.2⟩
     ⟨r.1.toArray, r.2⟩
   else H
 
@@ -615,7 +623,7 @@ def VarOrder.removeTop (A : @& Activity) (H : VarOrder) (h : 0 < H.heap.size) : 
   let p := (swapPos H.pos x y 0 (n - 1)).setIfInBounds x 0
   let a := (a.swap 0 (n - 1)).pop
   if h' : 0 < n - 1 then
-    let r := VarOrder.siftDown A n a p ⟨0, h'⟩
+    let r := VarOrder.siftDown A n (a, p) ⟨0, h'⟩
     ⟨r.1.toArray, r.2⟩
   else ⟨a.toArray, p⟩
 
@@ -670,8 +678,8 @@ theorem VarOrder.insert_spec (A : Activity) (H : VarOrder) (v : ℕ)
     simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hg
     have hfst := VarOrder.siftUp_fst A (H.heap.size + 1) ((⟨H.heap, rfl⟩ : Vector ℕ _).push v)
       (H.pos.setIfInBounds v (H.heap.size + 1)) ⟨H.heap.size, Nat.lt_succ_self _⟩
-    have heq : (VarOrder.siftUp A (H.heap.size + 1) ((⟨H.heap, rfl⟩ : Vector ℕ _).push v)
-        (H.pos.setIfInBounds v (H.heap.size + 1)) ⟨H.heap.size, Nat.lt_succ_self _⟩).1.toArray =
+    have heq : (VarOrder.siftUp A (H.heap.size + 1) (((⟨H.heap, rfl⟩ : Vector ℕ _).push v),
+        H.pos.setIfInBounds v (H.heap.size + 1)) ⟨H.heap.size, Nat.lt_succ_self _⟩).1.toArray =
         (Batteries.BinaryHeap.insert ⟨H.heap⟩ v).arr := by
       rw [← Batteries.BinaryHeap.insertF_eq, hfst]; rfl
     dsimp only

@@ -2375,46 +2375,20 @@ theorem WExec.Inv.restart {S : WExec φ} (hS : S.Inv) (hq : S.queue = []) : S.re
   · exact hs.truncate (by rw [WExec.M_restart]; exact hN) h₁.1 h₂.1
 
 /-- **The numbers of `cand` to delete**: the learned ones (`isLearntId n`) not in `locked`,
-without repetitions, which LRAT checkers such as drat-trim's `lrat-check` reject. The numbers are
-marked from the least of them, so that each is tested in constant time: the numbers chosen
-together are mostly recent ones, so the arrays of marks are much shorter than the greatest
-number. -/
+without repetitions, which LRAT checkers such as drat-trim's `lrat-check` reject. Tested and
+deduplicated via `1024`-bucket tables (`idBuckets`, `dedupIds`) so that memory stays small even when
+an early clause is locked or deleted alongside recent ones. -/
 @[expose] def chooseIds (n : ℕ) (locked cand : List ℕ) : List ℕ :=
-  let ids := cand.filter (isLearntId n)
-  let lo := ids.foldl min (ids.headD 0)
-  let kept := Assign.marks (locked.filterMap fun r => if lo ≤ r then some (r - lo) else none)
-  dedupKey (· - lo) <| ids.filter fun i => !kept.assigned (i - lo)
-
-/-- The least of `ids` and `m` is at most `m` and each of `ids`. -/
-theorem foldl_min_le {ids : List ℕ} :
-    ∀ m, ids.foldl min m ≤ m ∧ ∀ i ∈ ids, ids.foldl min m ≤ i := by
-  induction ids with
-  | nil => intro m; simp
-  | cons j ids ih =>
-    intro m
-    obtain ⟨h₁, h₂⟩ := ih (min m j)
-    refine ⟨le_trans h₁ (min_le_left _ _), fun i hi => ?_⟩
-    rcases List.mem_cons.1 hi with rfl | hi
-    · exact le_trans h₁ (min_le_right _ _)
-    · exact h₂ i hi
+  let kept := LRATLog.idBuckets locked
+  LRATLog.dedupIds <| cand.filter fun i => isLearntId n i && !LRATLog.inBuckets kept i
 
 /-- A number chosen is a learned one of `cand`, not in `locked`. -/
 theorem mem_chooseIds {n : ℕ} {locked cand : List ℕ} {i : ℕ} (h : i ∈ chooseIds n locked cand) :
     i ∈ cand ∧ n < i ∧ i ∉ locked := by
-  unfold chooseIds at h
-  dsimp only at h
-  generalize hids : cand.filter (isLearntId n) = ids at h
-  generalize hlo : ids.foldl min (ids.headD 0) = lo at h
-  have h := mem_of_mem_dedupKey h
-  rw [List.mem_filter, Bool.not_eq_true'] at h
-  obtain ⟨hi, hkept⟩ := h
-  have hle : lo ≤ i := hlo ▸ (foldl_min_le _).2 i hi
-  rw [← hids, List.mem_filter] at hi
-  refine ⟨hi.1, by simpa [isLearntId] using hi.2, fun hm => ?_⟩
-  have : i - lo ∈ locked.filterMap fun r => if lo ≤ r then some (r - lo) else none :=
-    List.mem_filterMap.2 ⟨i, hm, by simp [hle]⟩
-  rw [← Assign.assigned_marks] at this
-  simp [this] at hkept
+  have h := LRATLog.mem_of_mem_dedupIds h
+  rw [List.mem_filter, Bool.and_eq_true, Bool.not_eq_true', LRATLog.inBuckets_idBuckets] at h
+  exact ⟨h.1, by simpa [isLearntId] using h.2.1, fun hm =>
+    absurd (h.2.2.symm.trans (List.contains_iff_mem.2 hm)) (by decide)⟩
 
 /-- `XTrail.reasonIds` read directly from the `rsns` array of the trail without allocating an
 `XTrail` list (`ATrail.reasonIds_eq`). -/
@@ -2611,28 +2585,26 @@ on the input clauses with `removeSatisfied`): those satisfied by a literal of th
 trail, except the reasons of the trail. -/
 @[expose] def WExec.simplifyIds (S : WExec φ) : List ℕ :=
   let root := Assign.ofTrail (XTrail.trail (XTrail.root S.exec.trail))
-  let locked := Assign.marks S.exec.tr.reasonIds
+  let locked := LRATLog.idBuckets S.exec.tr.reasonIds
   -- without repetitions, as in `reduceIds`
-  dedupVars <| (S.exec.db.filter fun e =>
-    (S.opts.removeSatisfied || φ.length < e.1) && e.2.any root.holds && !locked.assigned e.1).map
-      Prod.fst
+  LRATLog.dedupIds <| (S.exec.db.filter fun e =>
+    (S.opts.removeSatisfied || φ.length < e.1) && e.2.any root.holds &&
+      !LRATLog.inBuckets locked e.1).map Prod.fst
 
 theorem WExec.mem_simplifyIds {S : WExec φ} (hS : S.Inv) {i : ℕ} (h : i ∈ S.simplifyIds) :
     i ∉ XTrail.reasonIds S.exec.trail ∧ ∃ e ∈ S.exec.db, e.1 = i ∧
       ∃ l ∈ e.2, l ∈ Trail.lits (XTrail.trail (XTrail.root S.exec.trail)) := by
   unfold simplifyIds at h
+  have h := LRATLog.mem_of_mem_dedupIds h
   rw [ATrail.reasonIds_eq, ← Exec.trail] at h
-  rw [mem_dedupKey Function.injective_id] at h
   simp only [List.mem_map, List.mem_filter, Bool.and_eq_true, List.any_eq_true,
-    Bool.not_eq_true'] at h
+    Bool.not_eq_true', LRATLog.inBuckets_idBuckets] at h
   obtain ⟨e, ⟨he, ⟨-, l, hl, hroot⟩, hlock⟩, rfl⟩ := h
   have hnd : (Trail.vars (XTrail.trail (XTrail.root S.exec.trail))).Nodup := by
     have := (Exec.restart_inv hS.exec).run.nodup
     rwa [Exec.toL_trail, Exec.trail_restart] at this
   refine ⟨fun hr => ?_, e, he, rfl, l, hl, ((Assign.agrees_ofTrail _ hnd).holds_iff l).1 hroot⟩
-  rw [← Assign.assigned_marks] at hr
-  rw [hr] at hlock
-  exact absurd hlock (by decide)
+  exact absurd (hlock.symm.trans (List.contains_iff_mem.2 hr)) (by decide)
 
 /-- **Simplifying at the root** (MiniSat's `simplify`): the clauses satisfied by the root are
 forgotten, input clauses included, and the watch store and the marks of the variables occurring in
