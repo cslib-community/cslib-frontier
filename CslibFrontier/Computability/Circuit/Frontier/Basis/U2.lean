@@ -34,6 +34,11 @@ branching program (`Basis.U2.BranchingProgram`), the `7/8` cubic matching theore
    nondeterministic, worst-case, and average-case circuits over every `U₂` basis
    (`Interpretation.IsU2`), with specializations to `Boolean.DeMorgan` and `Boolean`.
 
+Here `U₂` restricts binary gates to polarized `AND` operations and excludes `XOR` and `XNOR`;
+the `Boolean` specialization is the library's `AND`/`OR`/`NOT` basis, with constants.
+"Unconditional" refers to the proved numerical layout bound: the worst-case and average-case
+reductions still require `DenseRectangleFree` and `RectangleBias` witnesses, respectively.
+
 The `U₂` pair-compressed `4.6362 n` frontier lower bounds and parametric `U2CubicPairBound`
 reductions are original to this library.
 

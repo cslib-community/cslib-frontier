@@ -29,27 +29,27 @@ families of unconditional quantum two-qubit gate lower bounds over `Cslib.Quantu
    `eventually_lt_twoQubitCount_bqp_hardForm_switched`). Correlation of single-qubit measurement
    acceptance probability with the nonconstructively chosen bilinear form `hardForm n` decays as
    `2 ^ (-γ n)` below `(1 + π / (6 arccos (5 / 6)) - ε) n ≈ 1.893993 n` bond-rank-two gates
-   (`CNOT`, `CZ`, `Gate.controlled V`) and `(13 / 8 - ε) n = 1.625 n` general `U(4)` gates via
-   `layoutBound_two_fifths_four` (`A₄ = 2 / 5`).
+   (`CNOT`, `CZ`, `Gate.controlled V`) and `(7 / 4 - ε) n` general `U(4)` gates via
+   `layoutBound_four_one_third` (`A₄ = 1 / 3`).
 2. **`UQP` unbounded-error sign-rank**
    (`eventually_lt_twoQubitCount_uqp_hardForm_of_layoutBound`,
    `eventually_lt_twoQubitCount_uqp_hardForm_switched`). Deciding `hardForm n` with strict threshold
    `θ` (`θ < prob x ↔ hardForm n x`, with arbitrarily small margin) requires more than
    `(1 + π / (12 arccos (5 / 6)) - ε) n ≈ 1.446996 n` bond-rank-two gates and
-   `(21 / 16 - ε) n = 1.3125 n` general `U(4)` gates.
+   `(11 / 8 - ε) n` general `U(4)` gates.
 3. **Quadratic phase-state preparation fidelity decay**
    (`eventually_fidelity_phaseState_hardMatrix_le_of_layoutBound`,
    `eventually_fidelity_phaseState_hardMatrix_le_switched`). Squared overlap
    `‖⟪ψ_{hardMatrix n}, C |x₀⟩⟫‖²` with the `n`-qubit computational-basis phase state of the
    nonconstructively chosen `hardMatrix n` decays as `2 ^ (-γ n)` below
    `(1 + π / (3 arccos (5 / 6)) - ε) n ≈ 2.787986 n` bond-rank-two gates and
-   `(9 / 4 - ε) n = 2.25 n` general `U(4)` gates.
+   `(5 / 2 - ε) n` general `U(4)` gates.
 4. **Reversible and quantum `𝔽₂` linear synthesis**
    (`eventually_lt_twoQubitCount_linear_of_layoutBound`,
    `eventually_lt_twoQubitCount_linear_switched`). Coherently computing the nonconstructively chosen
    invertible submatrix-robust linear bijection `boolMulVec (robustBijectiveMatrix n)` requires more
    than `(1 + 2π / (3 arccos (5 / 6)) - ε) n ≈ 4.575972 n` bond-rank-two gates and
-   `(7 / 2 - ε) n = 3.5 n` general `U(4)` gates.
+   `(4 - ε) n` general `U(4)` gates, with clean ancillas restored exactly.
 
 The active-qubit wire-segment tensor network compiler and the four quantum frontier lower-bound
 families developed here and in `CslibFrontier.Computability.Circuit.Frontier.Quantum.WireNetwork`
@@ -62,24 +62,27 @@ are original to this library.
 
 ## Main results
 
-* `Cslib.Circuits.Frontier.layoutBound_two_fifths_four`: unconditional `LayoutBound 4 (2 / 5)`.
 * `Cslib.Circuits.Frontier.robustBijectiveMatrix_bijective`,
   `Cslib.Circuits.Frontier.robustBijectiveMatrix_submatrixRobust`,
   `Cslib.Circuits.Frontier.boolMulVec_robustBijectiveMatrix_bijective`: bijectivity and square-block
   robustness of `robustBijectiveMatrix n`.
 * `Cslib.Circuits.Frontier.eventually_abs_quantumCorrelation_hardForm_le_of_layoutBound`,
   `Cslib.Circuits.Frontier.eventually_abs_quantumCorrelation_hardForm_le_switched`,
+  `Cslib.Circuits.Frontier.eventually_abs_quantumCorrelation_hardForm_le_twoLocal`,
   `Cslib.Circuits.Frontier.eventually_lt_twoQubitCount_bqp_hardForm_switched`: `BQP` single-qubit
-  measurement correlation decay and decision bounds (`1.893993 n` / `1.625 n`).
+  measurement correlation decay and decision bounds (`1.893993 n` / `1.75 n`).
 * `Cslib.Circuits.Frontier.eventually_lt_twoQubitCount_uqp_hardForm_of_layoutBound`,
-  `Cslib.Circuits.Frontier.eventually_lt_twoQubitCount_uqp_hardForm_switched`: `UQP` unbounded-error
-  sign-rank lower bounds (`1.446996 n` / `1.3125 n`).
+  `Cslib.Circuits.Frontier.eventually_lt_twoQubitCount_uqp_hardForm_switched`,
+  `Cslib.Circuits.Frontier.eventually_lt_twoQubitCount_uqp_hardForm_twoLocal`: `UQP` unbounded-error
+  sign-rank lower bounds (`1.446996 n` / `1.375 n`).
 * `Cslib.Circuits.Frontier.eventually_fidelity_phaseState_hardMatrix_le_of_layoutBound`,
-  `Cslib.Circuits.Frontier.eventually_fidelity_phaseState_hardMatrix_le_switched`: quadratic phase
-  state preparation fidelity decay (`2.787986 n` / `2.25 n`).
+  `Cslib.Circuits.Frontier.eventually_fidelity_phaseState_hardMatrix_le_switched`,
+  `Cslib.Circuits.Frontier.eventually_fidelity_phaseState_hardMatrix_le_twoLocal`: quadratic phase
+  state preparation fidelity decay (`2.787986 n` / `2.5 n`).
 * `Cslib.Circuits.Frontier.eventually_lt_twoQubitCount_linear_of_layoutBound`,
-  `Cslib.Circuits.Frontier.eventually_lt_twoQubitCount_linear_switched`: reversible and quantum
-  linear synthesis lower bounds (`4.575972 n` / `3.5 n`).
+  `Cslib.Circuits.Frontier.eventually_lt_twoQubitCount_linear_switched`,
+  `Cslib.Circuits.Frontier.eventually_lt_twoQubitCount_linear_twoLocal`: reversible and quantum
+  linear synthesis lower bounds (`4.575972 n` / `4 n`).
 
 ## References
 
@@ -97,10 +100,6 @@ namespace Cslib.Circuits.Frontier
 
 open Set Filter Asymptotics Real Matrix
 open scoped Finset
-
-/-- **Unconditional `LayoutBound 4 (2 / 5)`** via `Gaussian.degreeCoefficient_four`. -/
-theorem layoutBound_two_fifths_four : LayoutBound 4 (2 / 5) :=
-  Gaussian.degreeCoefficient_four ▸ layoutBound_degree (by norm_num)
 
 /-! ### Chosen family of invertible submatrix-robust linear maps over `𝔽₂` -/
 
@@ -469,7 +468,7 @@ private theorem one_add_inv_mul_two_switchedCoefficient (k : ℝ) (hk : k ≠ 0)
   rw [h3, h2]
   field_simp
 
-/-! #### 1. `BQP` single-qubit measurement correlation decay (`1.893993 n` / `1.625 n`) -/
+/-! #### 1. `BQP` single-qubit measurement correlation decay (`1.893993 n` / `1.75 n`) -/
 
 /-- **`BQP` correlation decay with `hardForm n` under `LayoutBound d A` (`d ∈ {3, 4}`).**
 For any `ε > 0`, there is `γ > 0` such that for all large `n`, every quantum circuit `C` on ANY
@@ -635,22 +634,22 @@ theorem eventually_lt_twoQubitCount_bqp_hardForm_switched {ε : ℝ} (hε : 0 < 
       _ = _ := Finset.sum_congr rfl fun y _ => by split_ifs <;> rfl
   linarith [le_abs_self (quantumCorrelation {x | hardForm n x} (quantumAcceptProb C q_out e x₀))]
 
-/-- **Unconditional general two-local `U(4)` `BQP` correlation decay (`(13 / 8 - ε) n = 1.625 n`)**
-via `layoutBound_two_fifths_four` (`A₄ = 2 / 5`). -/
-theorem eventually_abs_quantumCorrelation_hardForm_le_twoLocal_two_fifths {ε : ℝ} (hε : 0 < ε) :
+/-- **Unconditional general two-local `U(4)` `BQP` correlation decay below `(7 / 4 - ε) n` gates**
+via `layoutBound_four_one_third` (`A₄ = 1 / 3`). -/
+theorem eventually_abs_quantumCorrelation_hardForm_le_twoLocal {ε : ℝ} (hε : 0 < ε) :
     ∃ γ : ℝ, 0 < γ ∧ ∀ᶠ n in atTop,
       ∀ (N : ℕ) (e : Fin n ↪ Fin N) (q_out : Fin N) (x₀ : Fin N → Bool) (C : Quantum.Circuit N),
       TwoLocal C →
-      (twoQubitCount C : ℝ) ≤ (13 / 8 - ε) * n →
+      (twoQubitCount C : ℝ) ≤ (7 / 4 - ε) * n →
         |quantumCorrelation {x | hardForm n x} (quantumAcceptProb C q_out e x₀)| ≤
           (2 : ℝ) ^ (-γ * n) := by
   obtain ⟨γ, hγ, hev⟩ := eventually_abs_quantumCorrelation_hardForm_le_of_layoutBound (Or.inr rfl)
-    (by norm_num) layoutBound_two_fifths_four hε
+    (by norm_num) layoutBound_four_one_third hε
   refine ⟨γ, hγ, ?_⟩
   filter_upwards [hev] with n hn N e q_out x₀ C htwo hsize
   exact hn N e q_out x₀ C (by simpa) (by convert hsize using 2; norm_num)
 
-/-! #### 2. `UQP` unbounded-error sign-rank bounds (`1.446996 n` / `1.3125 n`) -/
+/-! #### 2. `UQP` unbounded-error sign-rank bounds (`1.446996 n` / `1.375 n`) -/
 
 /-- **`UQP` unbounded-error lower bound on `hardForm n` under `LayoutBound d A` (`d ∈ {3, 4}`).**
 Every quantum circuit `C` deciding the nonconstructively chosen bilinear form `hardForm n`
@@ -749,19 +748,20 @@ theorem eventually_lt_twoQubitCount_uqp_hardForm_144699 {ε : ℝ} (hε : 0 < ε
   have hdiv : π / (12 * arccos (5 / 6)) = (2 * π / (3 * arccos (5 / 6))) / 8 := by ring
   linarith
 
-/-- **Unconditional general two-local `U(4)` `UQP` lower bound (`(21 / 16 - ε) n = 1.3125 n`).** -/
-theorem eventually_lt_twoQubitCount_uqp_hardForm_twoLocal_two_fifths {ε : ℝ} (hε : 0 < ε) :
+/-- **Unconditional general two-local `U(4)` `UQP` lower bound `(11 / 8 - ε) n`**
+via `layoutBound_four_one_third` (`A₄ = 1 / 3`). -/
+theorem eventually_lt_twoQubitCount_uqp_hardForm_twoLocal {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (N : ℕ) (e : Fin n ↪ Fin N) (q_out : Fin N) (x₀ : Fin N → Bool) (θ : ℝ)
       (C : Quantum.Circuit N), TwoLocal C →
       (∀ x, if hardForm n x then θ < quantumAcceptProb C q_out e x₀ x
         else quantumAcceptProb C q_out e x₀ x < θ) →
-        (21 / 16 - ε) * n < twoQubitCount C := by
+        (11 / 8 - ε) * n < twoQubitCount C := by
   filter_upwards [eventually_lt_twoQubitCount_uqp_hardForm_of_layoutBound (Or.inr rfl)
-    (by norm_num) layoutBound_two_fifths_four hε] with n hn N e q_out x₀ θ C htwo huqp
+    (by norm_num) layoutBound_four_one_third hε] with n hn N e q_out x₀ θ C htwo huqp
   convert hn N e q_out x₀ θ C (by simpa) huqp using 2
   norm_num
 
-/-! #### 3. Quadratic phase-state preparation fidelity decay (`2.787986 n` / `2.25 n`) -/
+/-! #### 3. Quadratic phase-state preparation fidelity decay (`2.787986 n` / `2.5 n`) -/
 
 /-- **Quadratic phase-state preparation fidelity decay under `LayoutBound d A` (`d ∈ {3, 4}`).**
 Below `(1 + 1 / (2 A) - ε) n` two-qubit gates (with unlimited ancillas `N` and unlimited
@@ -864,20 +864,20 @@ theorem eventually_fidelity_phaseState_hardMatrix_le_278798 {ε : ℝ} (hε : 0 
   have hdiv : π / (3 * arccos (5 / 6)) = (2 * π / (3 * arccos (5 / 6))) / 2 := by ring
   linarith
 
-/-- **Unconditional general two-local `U(4)` phase-state fidelity decay
-(`(9 / 4 - ε) n = 2.25 n`).** -/
-theorem eventually_fidelity_phaseState_hardMatrix_le_twoLocal_two_fifths {ε : ℝ} (hε : 0 < ε) :
+/-- **Unconditional general two-local `U(4)` phase-state fidelity decay below `(5 / 2 - ε) n`
+gates** via `layoutBound_four_one_third` (`A₄ = 1 / 3`). -/
+theorem eventually_fidelity_phaseState_hardMatrix_le_twoLocal {ε : ℝ} (hε : 0 < ε) :
     ∃ γ : ℝ, 0 < γ ∧ ∀ᶠ n in atTop, ∀ (N : ℕ) (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool)
       (C : Quantum.Circuit N), TwoLocal C →
-      (twoQubitCount C : ℝ) ≤ (9 / 4 - ε) * n →
+      (twoQubitCount C : ℝ) ≤ (5 / 2 - ε) * n →
         ‖inner ℂ (phaseState (hardMatrix n) e x₀) (C.run x₀)‖ ^ 2 ≤ (2 : ℝ) ^ (-γ * n) := by
   obtain ⟨γ, hγ, hev⟩ := eventually_fidelity_phaseState_hardMatrix_le_of_layoutBound (Or.inr rfl)
-    (by norm_num) layoutBound_two_fifths_four hε
+    (by norm_num) layoutBound_four_one_third hε
   refine ⟨γ, hγ, ?_⟩
   filter_upwards [hev] with n hn N e x₀ C htwo hsize
   exact hn N e x₀ C (by simpa) (by convert hsize using 2; norm_num)
 
-/-! #### 4. Reversible and quantum linear synthesis (`4.575972 n` / `3.5 n`) -/
+/-! #### 4. Reversible and quantum linear synthesis (`4.575972 n` / `4 n`) -/
 
 /-- **Reversible and quantum linear synthesis lower bound under `LayoutBound d A` (`d ∈ {3, 4}`).**
 Every quantum circuit `C` on ANY number of qubits `N` (with unlimited clean ancillas restored to
@@ -956,16 +956,16 @@ theorem eventually_lt_twoQubitCount_linear_457597 {ε : ℝ} (hε : 0 < ε) :
     (hn N e x₀ C hbond hlin)
   linarith [Switched.circuitCoefficient_ge_457597]
 
-/-- **Unconditional general two-local `U(4)` linear synthesis lower bound
-(`(7 / 2 - ε) n = 3.5 n`)** via `layoutBound_two_fifths_four` (`A₄ = 2 / 5`). -/
-theorem eventually_lt_twoQubitCount_linear_twoLocal_two_fifths {ε : ℝ} (hε : 0 < ε) :
+/-- **Unconditional general two-local `U(4)` linear synthesis lower bound `(4 - ε) n`**
+via `layoutBound_four_one_third` (`A₄ = 1 / 3`), with clean ancillas restored exactly. -/
+theorem eventually_lt_twoQubitCount_linear_twoLocal {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (N : ℕ) (e : Fin n ↪ Fin N) (x₀ : Fin N → Bool)
       (C : Quantum.Circuit N), TwoLocal C →
       (∀ x, C.run (Quantum.glue e x x₀) =
         Quantum.ket (Quantum.glue e (boolMulVec (robustBijectiveMatrix n) x) x₀)) →
-        (7 / 2 - ε) * n < twoQubitCount C := by
+        (4 - ε) * n < twoQubitCount C := by
   filter_upwards [eventually_lt_twoQubitCount_linear_of_layoutBound (Or.inr rfl)
-    (by norm_num) layoutBound_two_fifths_four hε] with n hn N e x₀ C htwo hlin
+    (by norm_num) layoutBound_four_one_third hε] with n hn N e x₀ C htwo hlin
   convert hn N e x₀ C (by simpa) hlin using 2
   norm_num
 
