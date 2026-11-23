@@ -140,15 +140,19 @@ theorem rayParity_reverse (p : Route) (u z : ℂ) :
     _ = _ := Equiv.sum_comp e (fun i =>
       if RayCrosses (u * p.point i.castSucc) (u * p.point i.succ) (u * z) then true else 0)
 
+private theorem closed_excursion_return_join (p q : Route)
+    (hjoin : p.finish = q.start) (hclosed : q.finish = q.start) :
+    (p.concat q).finish = p.reverse.start := by
+  change (p.concat q).endpoint true = p.reverse.endpoint false
+  rw [endpoint_concat p q hjoin, endpoint_reverse]
+  simpa only [endpoint, Bool.not_false, ↓reduceIte] using hclosed.trans hjoin.symm
+
 /-- Following a connector to a closed route and retracing the connector contributes
 exactly the parity of the closed route. -/
 theorem rayParity_closed_excursion (c p : Route) (hjoin : c.finish = p.start)
     (hclosed : p.finish = p.start) (u z : ℂ) :
     ((c.concat p).concat c.reverse).rayParity u z = p.rayParity u z := by
-  have hreturn : (c.concat p).finish = c.reverse.start := by
-    change (c.concat p).endpoint true = c.reverse.endpoint false
-    rw [endpoint_concat c p hjoin, endpoint_reverse]
-    simpa only [endpoint, Bool.not_false, ↓reduceIte] using hclosed.trans hjoin.symm
+  have hreturn := closed_excursion_return_join c p hjoin hclosed
   rw [rayParity_concat (c.concat p) c.reverse hreturn, rayParity_concat c p hjoin,
     rayParity_reverse]
   calc
@@ -370,16 +374,14 @@ theorem exists_rayParity_isolating_excursion {U : Set ℂ} (hU : IsOpen U)
     · exact hpoints z hz' hz
   have hqstart : q.start ∈ q.support := by
     have hzero : (0 : ℝ) ∈ Set.Icc 0 1 := ⟨le_rfl, zero_le_one⟩
-    rw [← q.at_eq_start 0 0 hzero (by simp [position])]
-    exact q.at_mem_support 0 hzero
-  have haV : a ∈ V := ⟨ha, by simpa only [Finset.mem_coe, Finset.mem_insert, not_or] using
-    And.intro hac haPoints⟩
+    have he := q.at_eq_start 0 hzero (by simp [position])
+    exact he ▸ q.at_mem_support 0 hzero
+  have haV : a ∈ V := by
+    refine ⟨ha, ?_⟩
+    simpa only [Finset.mem_coe, Finset.mem_insert, not_or] using (And.intro hac haPoints)
   obtain ⟨p, hstart, hjoin, hp⟩ :=
     exists_support_subset_of_joinedIn hV (hVconn.joinedIn _ haV _ (hq hqstart))
-  have hreturn : (p.concat q).finish = p.reverse.start := by
-    change (p.concat q).endpoint true = p.reverse.endpoint false
-    rw [endpoint_concat p q hjoin, endpoint_reverse]
-    exact hclosed.trans hjoin.symm
+  have hreturn := closed_excursion_return_join p q hjoin hclosed
   have hfirst : ((p.concat q).concat p.reverse).start = a := by
     change ((p.concat q).concat p.reverse).endpoint false = a
     rw [endpoint_concat _ _ hreturn]

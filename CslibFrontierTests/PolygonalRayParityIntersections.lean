@@ -580,7 +580,8 @@ example :
 -- and avoids all three marked points, including the one whose bit it flips.
 example :
     ∃ p : Route, p.start = 0 ∧ p.finish = 0 ∧
-      (⟨2, 3⟩ : ℂ) ∉ p.support ∧
+      (⟨2, 3⟩ : ℂ) ∉ p.support ∧ (⟨1, 3⟩ : ℂ) ∉ p.support ∧
+      (⟨3, 3⟩ : ℂ) ∉ p.support ∧
       p.rayParity 1 ⟨2, 3⟩ = true ∧ p.rayParity 1 ⟨1, 3⟩ = false ∧
       p.rayParity 1 ⟨3, 3⟩ = false := by
   classical
@@ -598,8 +599,11 @@ example :
   obtain ⟨p, hstart, hfinish, hs, hodd, heven⟩ :=
     Route.exists_rayParity_isolating_excursion (U := Set.univ) isOpen_univ
       isPathConnected_univ points (Set.mem_univ 0) (Set.mem_univ ⟨2, 3⟩) ha hac
-  refine ⟨p, hstart, hfinish, fun hz => (hs hz).2 (by simp), hodd,
-    heven _ (by simp [points]) ?_, heven _ (by simp [points]) ?_⟩
+  have avoids (z : ℂ) (hz : z ∈ insert ⟨2, 3⟩ points) : z ∉ p.support :=
+    fun h => (hs h).2 hz
+  refine ⟨p, hstart, hfinish, avoids _ (by simp), avoids _ (by simp [points]),
+    avoids _ (by simp [points]), hodd, heven _ (by simp [points]) ?_,
+    heven _ (by simp [points]) ?_⟩
   all_goals
     intro h
     have hre := congrArg Complex.re h
