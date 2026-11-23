@@ -223,4 +223,19 @@ example : (criticalCoordinateCandidateValue 13 1 1 0 7 5 (fun z => z[0]?.getD 0)
     (0 : Fin 1)).trans_lt (show coordinateParameterDegreeBound 1 1 < 7 by decide)
   rw [Polynomial.coeff_eq_zero_of_natDegree_lt hdegree, Polynomial.eval₂_zero]
 
+-- One bound applies to all deformation coefficients of the characteristic polynomial of X.
+example (j : ℕ) :
+    let F : MvPolynomial (Fin 1) ℤ := X 0
+    let P := parametricCoordinatePolynomial (by decide : 1 ≤ 2) F (totalDegree_X_le 0 |>.trans
+      (by decide : 1 ≤ 2)) 0
+    ((Polynomial.Bivariate.swap P).coeff j).coeffNorm1 ≤
+      2 ^ parametricCoordinateCoeffNormExponent 1 2 0 := by
+  dsimp only
+  refine (Polynomial.coeffNorm1_coeff_swap_le _ j).trans ?_
+  exact parametricCoordinatePolynomial_bivariateCoeffNorm1_le (by decide) (X 0) _ (by simp) 0
+
+example : ComputableInPolyTime (fun b => parametricCoordinateCoeffNormExponent 1 2 b)
+    encNat encNat :=
+  parametricCoordinateCoeffNormExponent_polyTime (.const 1) (.const 2) ComputableInPolyTime.id'
+
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

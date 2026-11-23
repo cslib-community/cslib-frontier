@@ -8,6 +8,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.MvPolynomial.CriticalSystem
+public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CharpolyCoeffNorm
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.MultiplicationMatrix
 public import Mathlib.Algebra.Polynomial.Bivariate
 public import Mathlib.Algebra.Polynomial.Eval.Defs
@@ -21,11 +22,14 @@ The polynomial for a coordinate is the characteristic polynomial of multiplicati
 by that coordinate in the normalized pure-power quotient. The inner variable is
 the deformation parameter, and the outer variable is the coordinate value.
 Specialization commutes with this construction over every commutative ring. The
-parameter degree is bounded from the spatial arity and deformation exponent.
+parameter degree is bounded from the spatial arity and deformation exponent. The
+coefficient-norm bound uses the norm of the zero-centered lower relations and the
+generic quotient characteristic estimate for multiplication by a variable.
 
 This adapts `LeanCanny.CountingHierarchy.parametricCoordinatePolynomial` at
 lean-canny `970f28a5ecefc1327402ade16c068aa4b1b2c183` and formalizes the polynomial
-in [OpenAI2026CountingHierarchy], Proposition 6.3, equation (6.11).
+in [OpenAI2026CountingHierarchy], Proposition 6.3, equation (6.11). The norm estimate
+adapts `parametricCoordinatePolynomial_mass_le` at the same source revision.
 -/
 
 public section
@@ -89,5 +93,35 @@ theorem parametricCoordinatePolynomial_natDegree_swap_le (d : ℕ) (hd : 1 ≤ d
     simpa only [parametricCoordinatePolynomial, r, coordinateParameterDegreeBound,
       Nat.mul_one, Nat.zero_add] using h
   exact (Polynomial.Bivariate.natDegree_swap_le_iff _ _).mpr hcoeff
+
+/-- Binary coefficient-norm exponent for coordinate multiplication with pure-power
+exponent `ell` and input coefficient norm at most `2 ^ b`. -/
+@[expose] def parametricCoordinateCoeffNormExponent (n ell b : ℕ) : ℕ :=
+  multiplicationMatrixCharpolyCoeffNormExponent n ell 1 0 (ell.size + b)
+
+/-- The norm sums absolute coefficients in both the deformation and coordinate variables. -/
+theorem parametricCoordinatePolynomial_bivariateCoeffNorm1_le {n ell b : ℕ} (hell : 2 ≤ ell)
+    (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (hb : F.coeffNorm1 ≤ 2 ^ b)
+    (i : Fin n) :
+    (parametricCoordinatePolynomial (by omega : 1 ≤ ell) F hF i).bivariateCoeffNorm1 ≤
+      2 ^ parametricCoordinateCoeffNormExponent n ell b := by
+  let G := F.map Polynomial.C
+  let r := criticalLower ell (fun _ => 0) Polynomial.X G
+  have hG : G.totalDegree ≤ ell := (totalDegree_map_le Polynomial.C F).trans hF
+  have hr (j : Fin n) : (r j).totalDegree < ell :=
+    criticalLower_degree ell (by omega) _ _ _ hG j
+  have hrnorm (j : Fin n) : ParameterCoeffNorm.norm (r j) ≤ 2 ^ (ell.size + b) := by
+    simp only [r, criticalLower, zero_pow (by omega : ell ≠ 0), map_zero, zero_sub,
+      ParameterCoeffNorm.neg]
+    refine (ParameterCoeffNorm.mul_le _ _).trans ?_
+    rw [ParameterCoeffNorm.C, Polynomial.coeffNorm1_X, one_mul, pow_add]
+    exact (ParameterCoeffNorm.pderiv_le G j).trans
+      (Nat.mul_le_mul (hG.trans (Nat.lt_size_self _).le)
+        (by simpa only [G, ParameterCoeffNorm.map_C] using hb))
+  unfold parametricCoordinatePolynomial parametricCoordinateCoeffNormExponent
+  change (multiplicationMatrix (by omega : 1 ≤ ell) r hr (X i)).charpoly.bivariateCoeffNorm1 ≤ _
+  exact bivariateCoeffNorm1_multiplicationMatrix_charpoly_le_pow_two (Ω := 1) (bv := 0)
+    (br := ell.size + b) hell r hr hrnorm (X i) (totalDegree_X_le i)
+    (by simp only [ParameterCoeffNorm.X, pow_zero, le_refl])
 
 end MvPolynomial.CriticalSystem

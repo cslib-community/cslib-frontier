@@ -8,6 +8,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 
 /-!
@@ -17,6 +18,8 @@ Each coefficient in the deformation parameter is a polynomial in the coordinate 
 The bivariate evaluator and a finite-field coefficient sum evaluate the addressed polynomial
 without expanding it. The theorem `coordinateParameterDegreeBound_polyTime` computes a bound
 on the coefficient index in binary from the unary arity and the binary exponent parameter.
+The theorem `parametricCoordinateCoeffNormExponent_polyTime` computes the binary norm exponent
+that bounds every addressed coefficient.
 
 This adapts `LeanCanny.CountingHierarchy.coordinateCandidateValue` at lean-canny
 `970f28a5ecefc1327402ade16c068aa4b1b2c183`, the coefficient extraction in
@@ -40,6 +43,16 @@ theorem coordinateParameterDegreeBound_polyTime {α : Type} {enc : α ↪ List B
   have hell := binary_add' hd (.const 1)
   exact binary_mul' (binary_pow' hell hn)
     (binary_add' (.const 1) (binary_mul' (unary_to_binary.comp hn) hell))
+
+/-- The binary coordinate characteristic norm exponent is computable in polynomial time
+from unary arity, binary pure-power exponent and the binary input norm exponent. -/
+theorem parametricCoordinateCoeffNormExponent_polyTime {α : Type} {enc : α ↪ List Bool}
+    {n ell b : α → ℕ} (hn : ComputableInPolyTime n enc encUnary)
+    (hell : ComputableInPolyTime ell enc encNat) (hb : ComputableInPolyTime b enc encNat) :
+    ComputableInPolyTime (fun w => parametricCoordinateCoeffNormExponent (n w) (ell w) (b w))
+      enc encNat :=
+  multiplicationMatrixCharpolyCoeffNormExponent_polyTime hn hell (.const 1) (.const 0)
+    (binary_add' (unary_to_binary.comp (binary_size.comp hell)) hb)
 
 /-- Evaluate coefficient `j` in the deformation parameter at the coordinate value `t`. -/
 noncomputable def criticalCoordinateCandidateValue (p n d i j t : ℕ)
