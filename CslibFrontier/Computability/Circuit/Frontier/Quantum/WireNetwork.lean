@@ -2479,8 +2479,7 @@ private theorem sq_quantumCorrelation_mul_le_of_capped {n N : ℕ}
       _ ≤ (Fintype.card κ : ℝ) * (2 : ℝ) ^ n * ∑ a, ∑ b, (U_mat * V_mat) a b ^ 2 := by
           rw [hsq_corr]; exact hfrob
       _ ≤ (4 * (4 : ℝ) ^ Ecut.ncard) * (2 : ℝ) ^ n * (2 : ℝ) ^ n :=
-          mul_le_mul (mul_le_mul_of_nonneg_right hcard_κ (by positivity)) hUV_sq
-            (Finset.sum_nonneg fun _ _ => Finset.sum_nonneg fun _ _ => sq_nonneg _) (by positivity)
+          by gcongr
       _ = 4 * (4 : ℝ) ^ Ecut.ncard * ((2 : ℝ) ^ n) ^ 2 := by ring
   exact le_of_mul_le_mul_right hmult (by positivity)
 
@@ -2748,8 +2747,7 @@ private theorem sq_fidelity_phaseState_mul_le_of_capped {n N : ℕ}
       _ = 2 * (2 : ℝ) ^ Ecut.ncard * (2 : ℝ) ^ n *
             ∑ a, ∑ b, ((U_re * V_re) a b ^ 2 + (U_im * V_im) a b ^ 2) := by
           simp_rw [Finset.sum_add_distrib]
-      _ ≤ 2 * (2 : ℝ) ^ Ecut.ncard * (2 : ℝ) ^ n * 1 :=
-          mul_le_mul_of_nonneg_left hnorm_sum_le (by positivity)
+      _ ≤ 2 * (2 : ℝ) ^ Ecut.ncard * (2 : ℝ) ^ n * 1 := by gcongr
       _ = 2 * (2 : ℝ) ^ Ecut.ncard * (2 : ℝ) ^ n := mul_one _
   calc 1 / (2 : ℝ) ^ n *
         ((∑ a, ∑ b, S_mat a b * (U_re * V_re) a b) ^ 2 +
@@ -2757,8 +2755,7 @@ private theorem sq_fidelity_phaseState_mul_le_of_capped {n N : ℕ}
         (2 : ℝ) ^ (Q + Qᵀ).cutRank Y
       = 1 / (2 : ℝ) ^ n * (((∑ a, ∑ b, S_mat a b * (U_re * V_re) a b) ^ 2 +
           (∑ a, ∑ b, S_mat a b * (U_im * V_im) a b) ^ 2) * (2 : ℝ) ^ (Q + Qᵀ).cutRank Y) := by ring
-    _ ≤ 1 / (2 : ℝ) ^ n * (2 * (2 : ℝ) ^ Ecut.ncard * (2 : ℝ) ^ n) :=
-        mul_le_mul_of_nonneg_left hsum_frob (by positivity)
+    _ ≤ 1 / (2 : ℝ) ^ n * (2 * (2 : ℝ) ^ Ecut.ncard * (2 : ℝ) ^ n) := by gcongr
     _ = 2 * (2 : ℝ) ^ Ecut.ncard := by field_simp
     _ ≤ 4 * (2 : ℝ) ^ Ecut.ncard := by linarith [pow_pos (two_pos : (0 : ℝ) < 2) Ecut.ncard]
 

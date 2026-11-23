@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Multiword.Digits
 public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Tactic.FinIndex
 
 /-!
@@ -171,14 +172,13 @@ def setupResult (w : ℕ) (x : Data (r + 4)) : Data (r + 4) :=
 /-- Initialization executes in exactly six instructions for every width at least two. -/
 theorem exec_setup {w : ℕ} (hw : 2 ≤ w) (x : Data (r + 4)) :
     Exec w setup x (setupResult w x) 6 := by
-  have h2 : Fits w 2 := lt_of_lt_of_le (by decide : 2 < 2 ^ 2)
-    (Nat.pow_le_pow_right (by decide) hw)
-  have hhalf := (fits_self w).of_le (Nat.div_le_self w 2)
-  have h1 := fits_one (w := w) (by omega)
-  have hβ := radix_fits hw
+  have h2 : Fits w 2 :=
+    lt_of_lt_of_le (by decide : 2 < 2 ^ 2) (Nat.pow_le_pow_right (by decide) hw)
   have hshift : 1 <<< (w / 2) = radix w := by rw [Nat.shiftLeft_eq, one_mul]; rfl
-  ram_eval [setup, setupResult, total, carry, base, zero, Fin.mk.injEq,
-    h2, hhalf, h1, hβ, hshift]
+  refine WP.Exact.exec ?_
+  unfold setup setupResult
+  wram_exec [fits_self w, h2, radix_fits hw, hshift]
+  rfl
 
 /-- Initialization preserves every register outside the reserved workspace. -/
 theorem setup_digit (w : ℕ) (x : Data (r + 4)) {i : Fin (r + 4)}
