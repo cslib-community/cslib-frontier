@@ -48,11 +48,15 @@ sizes as CakePB's `conv_concl` does (`Cslib.Logic.PL.VeriPB.Graph.convConcl`): `
   every clique of `G` has at most `u` vertices and some clique has at least `l`;
   `Cslib.Logic.PL.VeriPB.Graph.cliqueNum_eq_of_checkCliqueGraph` (`full_encode_sem_concl_check`):
   equal bounds `k` give `G.cliqueNum = k`.
-* `Cslib.Logic.PL.VeriPB.Graph.clique_bounds_of_checkClique` is the statement of the paper's
-  Figure 5 for the checker `Cslib.Logic.PL.VeriPB.Graph.checkClique`, which takes a DIMACS graph
-  and a proof as text: if it returns `(l, u)`, the text parses to a graph
-  (`Cslib.Logic.PL.VeriPB.Graph.parseDIMACSGraph`) whose cliques have at most `u` vertices, one of
-  them at least `l`.
+* `Cslib.Logic.PL.VeriPB.Graph.clique_bounds_of_checkClique`: the checker
+  `Cslib.Logic.PL.VeriPB.Graph.checkClique` takes a DIMACS graph and a proof as text, and if it
+  returns `(l, u)`, the text parses to a graph (`Cslib.Logic.PL.VeriPB.Graph.parseDIMACSGraph`)
+  whose cliques have at most `u` vertices, one of them at least `l`;
+  `Cslib.Logic.PL.VeriPB.Graph.cliqueNum_eq_of_checkClique`: equal bounds `k` give clique number
+  `k`. This is the pure functional specification behind the paper's Figure 5, CakePB's
+  `clique_sem` in `cliqueProgScript.sml`, not Figure 5 itself: Figure 5 (`main_semantics`) is a
+  theorem about the compiled x64 machine code, its file and command-line I/O and its output, which
+  nothing here covers.
 
 The trusted base is the DIMACS graph reader, the definitions of `SimpleGraph`, `IsClique` and
 `cliqueNum`, and the Lean kernel for a check run by `decide +kernel`, or Lean's compiler for a
@@ -62,7 +66,8 @@ verified. CakePB's own end-to-end theorem also covers its compiled machine code.
 ## Main definitions
 
 * `Cslib.Logic.PL.VeriPB.Graph.encodeClique`: the encoding.
-* `Cslib.Logic.PL.VeriPB.Graph.chosen`: the vertices an assignment chooses.
+* `Cslib.Logic.PL.VeriPB.Graph.chosen`: the vertices an assignment chooses
+  (`Cslib.Logic.PL.VeriPB.Graph.mem_chosen`).
 * `Cslib.Logic.PL.VeriPB.Graph.convConcl`: bounds on clique sizes from a `BOUNDS` conclusion.
 * `Cslib.Logic.PL.VeriPB.Graph.checkCliqueGraph`, `Cslib.Logic.PL.VeriPB.Graph.checkClique`: the
   checkers, for a graph built in Lean and for a DIMACS graph.
@@ -74,7 +79,8 @@ verified. CakePB's own end-to-end theorem also covers its compiled machine code.
   `Cslib.Logic.PL.VeriPB.Graph.eval_cliqueObjective`: correctness of the encoding.
 * `Cslib.Logic.PL.VeriPB.Graph.clique_bounds_of_checkCliqueGraph`,
   `Cslib.Logic.PL.VeriPB.Graph.cliqueNum_eq_of_checkCliqueGraph`,
-  `Cslib.Logic.PL.VeriPB.Graph.clique_bounds_of_checkClique`: the end-to-end theorems.
+  `Cslib.Logic.PL.VeriPB.Graph.clique_bounds_of_checkClique`,
+  `Cslib.Logic.PL.VeriPB.Graph.cliqueNum_eq_of_checkClique`: the end-to-end theorems.
 
 ## References
 
@@ -92,14 +98,12 @@ variable {n : ℕ}
 
 /-! ### The encoding -/
 
-/-- The constraint `~x + ~y ≥ 1`: the vertices `x` and `y` are not both chosen. -/
-def nonEdge (x y : Fin n) : PBConstr := ⟨[(1, (x.val, false)), (1, (y.val, false))], 1⟩
-
 /-- The constraints of the encoding: `~x + ~y ≥ 1` for each pair `x < y` of vertices that are not
-adjacent, ordered by `x` and then `y`. -/
+adjacent, ordered by `x` and then `y` (CakePB's `mk_constraint`). -/
 def cliqueConstraints (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] : List PBConstr :=
   (List.finRange n).flatMap fun x =>
-    ((List.finRange n).filter fun y => decide (x < y ∧ ¬ G.Adj x y)).map (nonEdge x)
+    ((List.finRange n).filter fun y => decide (x < y ∧ ¬ G.Adj x y)).map fun y =>
+      ⟨[(1, (x.val, false)), (1, (y.val, false))], 1⟩
 
 /-- The objective of the encoding: the number `∑ᵥ ~xᵥ = ∑ᵥ -xᵥ + n` of vertices not chosen. -/
 def cliqueObjective (n : ℕ) : Objective := ⟨(List.finRange n).map fun v => (v.val, -1), n⟩
@@ -112,11 +116,17 @@ def encodeClique (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] : Instance :=
 /-- The vertices an assignment chooses: those whose variable is true. -/
 def chosen (n : ℕ) (σ : ℕ → Bool) : Finset (Fin n) := Finset.univ.filter fun v => σ v.val
 
+@[simp] theorem mem_chosen {σ : ℕ → Bool} {v : Fin n} : v ∈ chosen n σ ↔ σ v.val = true := by
+  simp [chosen]
+
 /-! ### Correctness -/
+
+/-- The constraint `~x + ~y ≥ 1` of the non-edge `x`, `y`. -/
+private abbrev nonEdge (x y : Fin n) : PBConstr := ⟨[(1, (x.val, false)), (1, (y.val, false))], 1⟩
 
 private theorem holds_nonEdge_iff {x y : Fin n} {σ : ℕ → Bool} :
     (nonEdge x y).Holds σ ↔ ¬ (σ x.val = true ∧ σ y.val = true) := by
-  simp only [nonEdge, Holds, lhs, termVal, Literal.eval, List.map_cons, List.map_nil,
+  simp only [Holds, lhs, termVal, Literal.eval, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil]
   cases σ x.val <;> cases σ y.val <;> decide
 
@@ -136,8 +146,7 @@ the encoding exactly when the vertices it chooses form a clique. -/
 theorem forall_holds_cliqueConstraints_iff (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     (σ : ℕ → Bool) :
     (∀ c ∈ cliqueConstraints G, c.Holds σ) ↔ G.IsClique (chosen n σ : Set (Fin n)) := by
-  have hmem : ∀ v : Fin n, v ∈ (chosen n σ : Set (Fin n)) ↔ σ v.val = true := by
-    simp [chosen]
+  have hmem : ∀ v : Fin n, v ∈ (chosen n σ : Set (Fin n)) ↔ σ v.val = true := by simp
   constructor
   · intro h x hx y hy hne
     rw [hmem] at hx hy
@@ -153,7 +162,7 @@ theorem forall_holds_cliqueConstraints_iff (G : SimpleGraph (Fin n)) [DecidableR
 
 /-- **Every set of vertices is chosen** by some assignment. -/
 theorem exists_chosen_eq (s : Finset (Fin n)) : ∃ σ, chosen n σ = s :=
-  ⟨fun v => decide (∃ h : v < n, (⟨v, h⟩ : Fin n) ∈ s), by ext v; simp [chosen]⟩
+  ⟨fun v => decide (∃ h : v < n, (⟨v, h⟩ : Fin n) ∈ s), by ext v; simp⟩
 
 /-- **The objective value** of an assignment is `n` minus the number of vertices it chooses. -/
 theorem eval_cliqueObjective (σ : ℕ → Bool) :
@@ -233,10 +242,11 @@ theorem cliqueNum_eq_of_checkCliqueGraph {G : SimpleGraph (Fin n)} [DecidableRel
   obtain ⟨t, ht⟩ := G.exists_isNClique_cliqueNum
   exact le_antisymm (ht.card_eq ▸ hub t ht.isClique) (hle.trans hs.card_le_cliqueNum)
 
-/-- **Clique bounds for a DIMACS graph, end to end** (Figure 5 of the paper, without the compiled
-code): if the checker returns the bounds `(l, u)` for the DIMACS text `graph` and the proof `pbp`,
-then the text parses to a graph `g` every clique of which has at most `u` vertices, and some
-clique of which has at least `l`. -/
+/-- **Clique bounds for a DIMACS graph**, the pure functional specification step behind Figure 5
+of the paper (CakePB's `clique_sem`), not Figure 5 itself, which is about compiled machine code
+and its I/O: if the checker returns the bounds `(l, u)` for the DIMACS text `graph` and the proof
+`pbp`, then the text parses to a graph `g` every clique of which has at most `u` vertices, and
+some clique of which has at least `l`. -/
 theorem clique_bounds_of_checkClique {graph pbp : String} {l u : ℕ}
     (h : checkClique graph pbp = some (l, u)) :
     ∃ g, parseDIMACSGraph graph = some g ∧
@@ -244,5 +254,14 @@ theorem clique_bounds_of_checkClique {graph pbp : String} {l u : ℕ}
       ∃ s : Finset (Fin g.n), g.graph.IsClique (s : Set (Fin g.n)) ∧ l ≤ s.card := by
   obtain ⟨g, hg, h⟩ := Option.bind_eq_some_iff.1 h
   exact ⟨g, hg, clique_bounds_of_checkCliqueGraph h⟩
+
+/-- **The clique number of a DIMACS graph** (CakePB's `clique_sem` with equal bounds): if the
+checker returns the bounds `(k, k)` for the DIMACS text `graph` and the proof `pbp`, then the text
+parses to a graph of clique number `k`. -/
+theorem cliqueNum_eq_of_checkClique {graph pbp : String} {k : ℕ}
+    (h : checkClique graph pbp = some (k, k)) :
+    ∃ g, parseDIMACSGraph graph = some g ∧ g.graph.cliqueNum = k := by
+  obtain ⟨g, hg, h⟩ := Option.bind_eq_some_iff.1 h
+  exact ⟨g, hg, cliqueNum_eq_of_checkCliqueGraph h⟩
 
 end Cslib.Logic.PL.VeriPB.Graph

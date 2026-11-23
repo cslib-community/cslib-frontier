@@ -7,43 +7,31 @@ Authors: Matthew Doty
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Logics.Propositional.PseudoBoolean.Graph.Clique
-import Mathlib.Combinatorics.SimpleGraph.CycleGraph
--- `import all`: the kernel evaluates the DIMACS graph reader and its private helpers, `printOPB`
--- and its private word builders, the parsers and checkers of `Text` and the step `stepTop` of
--- `Redundance`, whose bodies are not exposed.
-import all CslibFrontier.Logics.Propositional.PseudoBoolean.Graph.Dimacs
-import all CslibFrontier.Logics.Propositional.PseudoBoolean.Print
-import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
-import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Graph.Clique
+public import Mathlib.Combinatorics.SimpleGraph.CycleGraph
 
-/-! Maximum clique end to end, checked by the kernel.
+/-! Maximum clique under the ordinary imports of its API.
 
-* The DIMACS graph reader on accepted and rejected texts: comments, blank lines, `p col`, a loop
-  and an edge listed twice are accepted; a vertex `0` or beyond `n`, a missing header, an edge
-  before the header and a malformed line are rejected.
-* The encoding of the 5-cycle, printed: it is CakePB's (`cake_pb_clique` prints
-  `min: 1 ~x1 … ~x5 ;` and the same five constraints in the same order, with labels
-  `@noedge1_3 …`).
-* **Clients.** A proof written by hand that the 5-cycle has clique number `2`: log the clique
-  `{1, 2}`, sum the five non-edge constraints and halve, which gives `∑ ~xᵥ ≥ 3`, and add the
-  objective-improving constraint `∑ ~xᵥ ≤ 2` of the logged solution for a contradiction. It is
-  accepted against Mathlib's `SimpleGraph.cycleGraph 5` and against a DIMACS text, so
-  `(cycleGraph 5).cliqueNum = 2`. A second proof shows that a triangle with a pendant vertex has
-  clique number `3`.
+* `DimacsGraph.graph`: adjacency is decided, a listed loop is dropped and an edge counts in both
+  directions.
+* `encodeClique`, `chosen` and the correctness theorems `forall_holds_cliqueConstraints_iff`,
+  `exists_chosen_eq` and `eval_cliqueObjective`, applied to the 5-cycle.
+* `convConcl` on the boundary cases of CakePB's `conv_concl`: distinct bounds, `INF` on either
+  side, `lb ≤ 0` (giving `u = n`), the empty graph, and a conclusion other than `BOUNDS`.
+* The end-to-end theorems, applied to the acceptance of the proofs below.
 
-Both proofs are in the kernel format: VeriPB 3.0.2 accepts them against the printed encodings,
-`veripb --elaborate` returns them unchanged, and CakePB's `cake_pb_clique` (CakeML `14856fcf`)
-accepts them against the DIMACS texts, reporting `|CLIQUE| = 2` and `|CLIQUE| = 3`.
+The DIMACS reader, `printOPB` and the checkers have no exposed bodies;
+`CslibFrontierTests.Logics.Propositional.VeriPBCliqueDecide` evaluates them in the kernel and
+discharges the acceptance hypotheses here.
 -/
 
-set_option linter.privateModule false
+@[expose] public section
 
 namespace CslibFrontierTests.Logics.Propositional.VeriPBClique
 
-open Cslib.Logic.PL Cslib.Logic.PL.VeriPB Cslib.Logic.PL.VeriPB.Text Cslib.Logic.PL.VeriPB.Graph
+open Cslib.Logic.PL Cslib.Logic.PL.VeriPB Cslib.Logic.PL.VeriPB.Graph
 
-/-! ### The DIMACS graph reader -/
+/-! ### DIMACS graphs -/
 
 /-- The 5-cycle `1 - 2 - 3 - 4 - 5 - 1`. -/
 def c5Text : String := "c the 5-cycle\np edge 5 5\ne 1 2\ne 2 3\ne 3 4\ne 4 5\ne 5 1\n"
@@ -51,95 +39,73 @@ def c5Text : String := "c the 5-cycle\np edge 5 5\ne 1 2\ne 2 3\ne 3 4\ne 4 5\ne
 /-- The 5-cycle as read: the vertex `u` of the file is `u - 1`. -/
 def c5 : DimacsGraph := ⟨5, [(0, 1), (1, 2), (2, 3), (3, 4), (4, 0)]⟩
 
-example : parseDIMACSGraph c5Text = some c5 := by decide +kernel
-
--- Comments, blank lines, `p col`, a loop and a repeated edge (in the other direction).
-example : parseDIMACSGraph "c x\n\np col 3 9\nc y\ne 1 1\ne 1 2\n\ne 2 1\n" =
-    some ⟨3, [(0, 0), (0, 1), (1, 0)]⟩ := by decide +kernel
--- The edge count of the header is not checked; a graph may have no edges.
-example : parseDIMACSGraph "p edge 2 7" = some ⟨2, []⟩ := by decide +kernel
-
--- Rejected: vertices `0` and `n + 1`, no header, an edge before the header, a second header, a
--- malformed edge line and a malformed header.
-example : parseDIMACSGraph "p edge 3 1\ne 0 1\n" = none := by decide +kernel
-example : parseDIMACSGraph "p edge 3 1\ne 1 4\n" = none := by decide +kernel
-example : parseDIMACSGraph "c only a comment\n" = none := by decide +kernel
-example : parseDIMACSGraph "e 1 2\np edge 3 1\n" = none := by decide +kernel
-example : parseDIMACSGraph "p edge 3 1\np edge 3 1\n" = none := by decide +kernel
-example : parseDIMACSGraph "p edge 3 1\ne 1 2 3\n" = none := by decide +kernel
-example : parseDIMACSGraph "p cnf 3 1\n" = none := by decide +kernel
-
--- The loop `e 1 1` is dropped: the graph is simple.
-example : ¬ (⟨3, [(0, 0)]⟩ : DimacsGraph).graph.Adj 0 0 := by decide
-example : (⟨3, [(1, 0)]⟩ : DimacsGraph).graph.Adj 0 1 := by decide
-
-/-! ### The encoding -/
-
--- The non-edges of the 5-cycle, in CakePB's order, and the objective `∑ᵥ -xᵥ + 5`.
-example : printOPB (encodeClique (SimpleGraph.cycleGraph 5)) = "* #variable= 5 #constraint= 5 \n\
-    min: -1 x1 -1 x2 -1 x3 -1 x4 -1 x5 5 ; \n1 ~x1 1 ~x3 >= 1 ; \n1 ~x1 1 ~x4 >= 1 ; \n\
-    1 ~x2 1 ~x4 >= 1 ; \n1 ~x2 1 ~x5 >= 1 ; \n1 ~x3 1 ~x5 >= 1 ; \n" := by
-  decide +kernel
-
--- The 5-cycle read from DIMACS has the same encoding as Mathlib's.
-example : encodeClique c5.graph = encodeClique (SimpleGraph.cycleGraph 5) := by decide +kernel
-
-/-! ### Clients -/
-
-/-- **The clique number of the 5-cycle is `2`**: a proof written by hand in the kernel format. -/
-def c5Proof : String := "pseudo-Boolean proof version 3.0
-f 5;
-soli x1 x2 ~x3 ~x4 ~x5;
-pol 1 2 + 3 + 4 + 5 + 2 d;
-pol 6 7 +;
-output NONE;
-conclusion BOUNDS 3 : 8 3;
-end pseudo-Boolean proof;
-"
-
-theorem c5_accepted : checkCliqueGraph (SimpleGraph.cycleGraph 5) c5Proof = some (2, 2) := by
-  decide +kernel
-
-/-- **Mathlib's 5-cycle has clique number `2`**, from the acceptance of the proof. -/
-example : (SimpleGraph.cycleGraph 5).cliqueNum = 2 := cliqueNum_eq_of_checkCliqueGraph c5_accepted
-
-theorem c5Text_accepted : checkClique c5Text c5Proof = some (2, 2) := by decide +kernel
-
-/-- **End to end from DIMACS text**: the text parses to a graph whose cliques have at most `2`
-vertices, one of them `2`. -/
-example : ∃ g, parseDIMACSGraph c5Text = some g ∧
-    (∀ s : Finset (Fin g.n), g.graph.IsClique (s : Set (Fin g.n)) → s.card ≤ 2) ∧
-    ∃ s : Finset (Fin g.n), g.graph.IsClique (s : Set (Fin g.n)) ∧ 2 ≤ s.card :=
-  clique_bounds_of_checkClique c5Text_accepted
-
 /-- A triangle `1 2 3` with the pendant vertex `4` on `3`. -/
 def k3pText : String := "p edge 4 4\ne 1 2\ne 2 3\ne 1 3\ne 3 4\n"
 
-/-- **The clique number of `k3pText` is `3`**: log the triangle; the non-edge constraint
-`~x1 + ~x4 ≥ 1` plus the objective-improving constraint `x1 + x2 + x3 + x4 ≥ 4` is the
-contradiction `x2 + x3 ≥ 3`. -/
-def k3pProof : String := "pseudo-Boolean proof version 3.0
-f 2;
-soli x1 x2 x3 ~x4;
-pol 1 3 +;
-output NONE;
-conclusion BOUNDS 1 : 4 1;
-end pseudo-Boolean proof;
-"
+/-- The graph with no vertices. -/
+def emptyText : String := "p edge 0 0\n"
 
-theorem k3p_parsed : parseDIMACSGraph k3pText = some ⟨4, [(0, 1), (1, 2), (0, 2), (2, 3)]⟩ := by
+-- An edge is adjacent in both directions, a loop is dropped, and a non-edge is not adjacent.
+example : c5.graph.Adj ⟨0, by decide⟩ ⟨1, by decide⟩ ∧ c5.graph.Adj ⟨1, by decide⟩ ⟨0, by decide⟩ ∧
+    ¬ c5.graph.Adj ⟨0, by decide⟩ ⟨2, by decide⟩ := by
+  decide
+example : ¬ (⟨3, [(0, 0)]⟩ : DimacsGraph).graph.Adj 0 0 := by decide
+example : (⟨3, [(1, 0)]⟩ : DimacsGraph).graph.Adj 0 1 := by simp
+
+/-! ### The encoding and its correctness -/
+
+-- The 5-cycle read from DIMACS has the same constraints as Mathlib's: its five non-edges.
+example : (encodeClique c5.graph).constraints =
+    (encodeClique (SimpleGraph.cycleGraph 5)).constraints := by
   decide +kernel
+example : (encodeClique c5.graph).constraints.length = 5 := by decide +kernel
+example : (encodeClique c5.graph).objective = some (cliqueObjective 5) := rfl
+-- The empty graph has no constraints, and the objective `0`.
+example : (encodeClique (⊥ : SimpleGraph (Fin 0))).constraints = [] := by decide +kernel
+example : cliqueObjective 0 = ⟨[], 0⟩ := rfl
 
-theorem k3p_accepted :
-    checkCliqueGraph (⟨4, [(0, 1), (1, 2), (0, 2), (2, 3)]⟩ : DimacsGraph).graph k3pProof =
-      some (3, 3) := by
-  decide +kernel
+/-- The assignment choosing the vertices `0` and `1` of the 5-cycle. -/
+def σ01 (v : ℕ) : Bool := v < 2
 
-example : ∃ g, parseDIMACSGraph k3pText = some g ∧ g.graph.cliqueNum = 3 :=
-  ⟨_, k3p_parsed, cliqueNum_eq_of_checkCliqueGraph k3p_accepted⟩
+example : chosen 5 σ01 = {0, 1} := by decide
 
--- A proof with another conclusion gives no bounds.
-example : checkClique k3pText "pseudo-Boolean proof version 3.0\nf 2;\noutput NONE;\n\
-    conclusion NONE;\nend pseudo-Boolean proof;\n" = none := by decide +kernel
+-- It satisfies the encoding, so `{0, 1}` is a clique; its objective value is `5 - 2`.
+example : c5.graph.IsClique (chosen 5 σ01 : Set (Fin 5)) :=
+  (forall_holds_cliqueConstraints_iff _ σ01).1 (by decide +kernel)
+example : (cliqueObjective 5).eval σ01 = 3 := by rw [eval_cliqueObjective]; decide
+example : ∃ σ, chosen 5 σ = {1, 3} := exists_chosen_eq _
+
+/-! ### Bounds from conclusions -/
+
+-- `BOUNDS 3 : q 4` on 5 vertices: some clique has `1` vertex, none has more than `2`.
+example : convConcl 5 (.bounds (some 3) 0 (some 4) none) = some (1, 2) := rfl
+-- `INF` as the upper bound of the objective gives no clique, `INF` as the lower bound gives `0`.
+example : convConcl 5 (.bounds (some 3) 0 none none) = some (0, 2) := rfl
+example : convConcl 5 (.bounds none 0 none none) = some (0, 0) := rfl
+-- A lower bound `lb ≤ 0` gives the trivial bound `u = n`.
+example : convConcl 5 (.bounds (some (-2)) 0 (some 1) none) = some (4, 5) := rfl
+example : convConcl 5 (.bounds (some 0) 0 (some 5) none) = some (0, 5) := rfl
+-- The empty graph, and conclusions other than `BOUNDS`.
+example : convConcl 0 (.bounds (some 0) 0 (some 0) none) = some (0, 0) := rfl
+example : convConcl 5 (.unsat 0) = none := rfl
+example : convConcl 5 .noClaim = none := rfl
+
+/-! ### The end-to-end theorems -/
+
+example {pbp : String} (h : checkCliqueGraph (SimpleGraph.cycleGraph 5) pbp = some (2, 2)) :
+    (SimpleGraph.cycleGraph 5).cliqueNum = 2 :=
+  cliqueNum_eq_of_checkCliqueGraph h
+
+example {pbp : String} (h : checkClique c5Text pbp = some (1, 2)) :
+    ∃ g, parseDIMACSGraph c5Text = some g ∧
+      (∀ s : Finset (Fin g.n), g.graph.IsClique (s : Set (Fin g.n)) → s.card ≤ 2) ∧
+      ∃ s : Finset (Fin g.n), g.graph.IsClique (s : Set (Fin g.n)) ∧ 1 ≤ s.card :=
+  clique_bounds_of_checkClique h
+
+example {pbp : String} (h : checkClique k3pText pbp = some (3, 3)) :
+    ∃ g, parseDIMACSGraph k3pText = some g ∧ g.graph.cliqueNum = 3 :=
+  cliqueNum_eq_of_checkClique h
 
 end CslibFrontierTests.Logics.Propositional.VeriPBClique
+
+end
