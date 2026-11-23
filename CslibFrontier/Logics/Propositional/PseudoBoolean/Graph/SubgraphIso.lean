@@ -59,11 +59,16 @@ A conclusion `SAT` gives `true` and `UNSAT` gives `false`; other conclusions giv
   text (`Cslib.Logic.PL.VeriPB.Graph.parseLAD`): if it returns `b`, both texts parse, and the
   pattern read is contained in the target read exactly when `b = true`.
 
-This is the pure-functional specification of CakePB's `cake_pb_iso`, without its compiled code:
-the trusted base is the LAD reader, the definitions of `SimpleGraph`, `SimpleGraph.Copy` and
+The second is the pure functional specification of CakePB's `cake_pb_iso`, its
+`check_unsat_3_sem` (`examples/pseudo_bool/array/subgraph_isoProgScript.sml`), with `SAT` and
+`UNSAT` for the strings `s VERIFIED SUBGRAPH ISOMORPHIC` and `s VERIFIED NOT SUBGRAPH ISOMORPHIC`.
+It is not CakePB's `main_semantics`, a theorem about the compiled x64 machine code, its file and
+command-line I/O and its output, which nothing here covers.
+
+The trusted base is the LAD reader, the definitions of `SimpleGraph`, `SimpleGraph.Copy` and
 `SimpleGraph.IsContained`, and the Lean kernel for a check run by `decide +kernel`, or Lean's
 compiler for a compiled run. The encoding, the OPB printer and reader, the proof reader and the
-checker are verified. CakePB's own end-to-end theorem also covers its compiled machine code.
+checker are verified.
 
 ## Main definitions
 
@@ -295,10 +300,10 @@ theorem isContained_iff_of_checkSubgraphIsoGraph {P : SimpleGraph (Fin p)} [Deci
     exact iff_of_false (fun ⟨σ, hσ⟩ => not_satisfiable_of_checkOPB_printOPB hc' σ hσ) (by simp)
   | _ => cases hb
 
-/-- **Subgraph isomorphism for LAD graphs, end to end** (the pure-functional specification behind
-CakePB's `cake_pb_iso`, without the compiled code): if the checker returns `b` for the LAD texts
-`pattern` and `target` and the proof `pbp`, then both texts parse, and the pattern read has a copy
-in the target read exactly when `b` is `true`. -/
+/-- **Subgraph isomorphism for LAD graphs** (CakePB's `check_unsat_3_sem`, the pure functional
+specification of `cake_pb_iso`, not its compiled code): if the checker returns `b` for the LAD
+texts `pattern` and `target` and the proof `pbp`, then both texts parse, and the pattern read has a
+copy in the target read exactly when `b` is `true`. -/
 theorem isContained_iff_of_checkSubgraphIso {pattern target pbp : String} {b : Bool}
     (h : checkSubgraphIso pattern target pbp = some b) :
     ∃ gp gt, parseLAD pattern = some gp ∧ parseLAD target = some gt ∧
