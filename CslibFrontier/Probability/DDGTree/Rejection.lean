@@ -11,6 +11,7 @@ public import Cslib.Probability.StatisticalDistance
 public import CslibFrontier.Foundations.Data.Fin.Decode
 public import CslibFrontier.Init
 public import CslibFrontier.Probability.DDGTree
+public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 public import CslibFrontier.Probability.UniformNat
 import CslibFrontier.Probability.Option
 import CslibFrontier.Probability.PMF.Filter
@@ -59,10 +60,13 @@ Instantiating `BlockRejectionSpec` with binary decoding yields:
 
 ## Main results
 
-* `Cslib.Probability.BlockRejectionSpec.runTrials_none`,
-  `Cslib.Probability.BlockRejectionSpec.runTrials_some_of_singleLaw`: exact `t`-trial laws.
-* `Cslib.Probability.BlockRejectionSpec.dist_runCapped_le`: statistical distance of the capped
-  fallback sampler from the target law.
+* `Cslib.Probability.BlockRejectionSpec.acceptProb_eq_tsum_some`,
+  `Cslib.Probability.BlockRejectionSpec.runTrials_none`,
+  `Cslib.Probability.BlockRejectionSpec.runTrials_some_of_singleLaw`: exact single-trial and
+  `t`-trial laws.
+* `Cslib.Probability.BlockRejectionSpec.dist_runCapped_le`,
+  `Cslib.Probability.BlockRejectionSpec.closeTo_runCapped`: statistical distance of the capped
+  fallback sampler from the target law (with and without `[Fintype α]`).
 * `Cslib.Probability.BlockRejectionSpec.run_toDDGTree`,
   `Cslib.Probability.BlockRejectionSpec.toDDGTree_generates`,
   `Cslib.Probability.BlockRejectionSpec.expectedFlips_toDDGTree`: exact `DDGTree` generation and
@@ -131,7 +135,8 @@ theorem rejectProb_lt_one_iff (spec : BlockRejectionSpec α) :
     spec.rejectProb < 1 ↔ spec.acceptProb ≠ 0 := by
   rw [acceptProb, ne_eq, tsub_eq_zero_iff_le, not_le]
 
-private theorem acceptProb_eq_tsum_some (spec : BlockRejectionSpec α) :
+/-- Acceptance probability of a single block equals `∑' a, spec.singleLaw (some a)`. -/
+theorem acceptProb_eq_tsum_some (spec : BlockRejectionSpec α) :
     spec.acceptProb = ∑' a, spec.singleLaw (some a) := by
   have h := spec.singleLaw.tsum_coe
   rw [tsum_option_eq, add_comm] at h
@@ -417,6 +422,18 @@ theorem dist_runCapped_le [Fintype α] {spec : BlockRejectionSpec α} {target : 
   rw [dist_runCapped_eq h fallback t]
   have h0 : 0 ≤ (target fallback).toReal := ENNReal.toReal_nonneg
   exact mul_le_of_le_one_right ENNReal.toReal_nonneg (by linarith)
+
+/-- Without any `Fintype` assumption, `spec.runCapped fallback t` lies within `CloseTo` statistical
+distance `spec.rejectProb ^ t` of `target`. -/
+theorem closeTo_runCapped {α : Type} {spec : BlockRejectionSpec α} {target : PMF α}
+    (h : ∀ a, spec.singleLaw (some a) = spec.acceptProb * target a)
+    (fallback : α) (t : ℕ) :
+    CloseTo (spec.runCapped fallback t) target (spec.rejectProb ^ t) := by
+  classical
+  refine CloseTo.of_one_sub_mul_le fun a => ?_
+  rw [← spec.runTrials_some_of_singleLaw h t a, runCapped, PMF.map_apply]
+  refine le_trans ?_ (le_tsum _ (some a))
+  simp
 
 /-! ### Unbounded `DDGTree` realization -/
 

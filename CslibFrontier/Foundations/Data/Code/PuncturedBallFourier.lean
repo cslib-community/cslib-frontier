@@ -328,8 +328,7 @@ private theorem ksTailIntegrand_arg {ρ z : ℝ} (hρ0 : 0 ≤ ρ) (hρ : ρ < 1
         pow_le_one₀ h1ρ.le (sub_le_self _ (mul_nonneg zero_le_two hρ0))
       have h2 : 0 ≤ z * (1 - z) :=
         mul_nonneg hz0 (sub_nonneg.mpr (hz.trans (by norm_num)))
-      have hmul : (1 - 2 * ρ) ^ 2 * (z * (1 - z)) ≤ 1 * (z * (1 - z)) :=
-        mul_le_mul_of_nonneg_right h1 h2
+      have hmul : (1 - 2 * ρ) ^ 2 * (z * (1 - z)) ≤ 1 * (z * (1 - z)) := by gcongr
       calc (1 - 2 * ρ) ^ 2 - 4 * z * (1 - z)
           = (1 - 2 * ρ) ^ 2 - 4 * (1 * (z * (1 - z))) := by ring
         _ ≤ (1 - 2 * ρ) ^ 2 - 4 * ((1 - 2 * ρ) ^ 2 * (z * (1 - z))) :=
@@ -541,8 +540,7 @@ private theorem threshold_le {n w y V : ℝ} (hn : 2 ≤ n) (hρ0 : 0 ≤ w / n)
     rw [mul_sub, hwy'] at hm
     calc n * (ksTailExponent (w / n) y - binEntropy (w / n) / 2)
         = n * ksTailExponent (w / n) y - n * binEntropy (w / n) / 2 := by ring
-      _ ≤ (n * binEntropy (w / n) - 2 * (w * y)) - n * binEntropy (w / n) / 2 :=
-        sub_le_sub_right hm _
+      _ ≤ (n * binEntropy (w / n) - 2 * (w * y)) - n * binEntropy (w / n) / 2 := by gcongr
       _ = n * binEntropy (w / n) / 2 + -(2 * (w * y)) := by ring
       _ ≤ n * binEntropy (w / n) / 2 + -(2 * log n) :=
         add_le_add_right (neg_le_neg (mul_le_mul_of_nonneg_left hwy zero_le_two)) _
