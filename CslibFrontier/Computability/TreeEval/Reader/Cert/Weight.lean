@@ -51,11 +51,6 @@ private theorem iterate_halfStep (p k o : ℕ) (x : List ℕ) (a : ℕ) (n : ℕ
     rw [Function.iterate_succ_apply', ih, List.range_succ, List.foldl_append]
     rfl
 
-private theorem weight_eq (p ℓ k : ℕ) (x y : List ℕ) :
-    weight p ℓ k x y = mulMod p (halfStep^[ℓ] (((p, k, 0), x), 0, 1 % p)).2.2
-      (halfStep^[ℓ] (((p, k, ℓ), y), 0, 1 % p)).2.2 := by
-  simp only [weight, iterate_halfStep, zero_add]
-
 private theorem length_chi_le (p : ℕ) (b : Bool) (x : ℕ) :
     (encNat (chi p b x)).length ≤ (encNat p).length + (encNat x).length + 1 := by
   rcases Nat.eq_zero_or_pos p with rfl | hp
@@ -204,7 +199,7 @@ theorem weight_inSpace :
   have hhi := budget_comp half_inSpace hhi₀
     (.const_mul 256 (((length_le hhi₀).add hℓle).add (.const 1 _)))
   exact (budget_comp_linear mulMod_inSpace (budget_prod hp (budget_prod hlo hhi))).of_enc_eq
-    fun w => by rw [weight_eq]
+    fun w => by simp only [weight, iterate_halfStep, zero_add]
 
 end Reader
 

@@ -99,8 +99,7 @@ private theorem controller_budget {s : α → Runtime}
 
 /-- Test the finite phase against a fixed one. -/
 private theorem phaseEq_budget {s : α → Cslib.InductiveCounting.State}
-    (hs : ComputableInSpace s enc encState S) (p : Cslib.InductiveCounting.Phase)
-    :
+    (hs : ComputableInSpace s enc encState S) (p : Cslib.InductiveCounting.Phase) :
     ComputableInSpace (fun a => (s a).phase == p) enc encBool S :=
   phaseCases_budget hs (fun q _ => q == p) (fun _ => budget_const _)
 
@@ -118,8 +117,7 @@ variable {k : ℕ} {State : Type} [Fintype State]
 request. -/
 private theorem controllerQuery_budget {B : α → ℕ} {s : α → Cslib.InductiveCounting.State}
     (hB : ComputableInSpace B enc encNat S)
-    (hs : ComputableInSpace s enc encState S)
-    :
+    (hs : ComputableInSpace s enc encState S) :
     ComputableInSpace (fun a => controllerQuery k (B a) (s a)) enc encNat S := by
   have hbranches (p : Cslib.InductiveCounting.Phase) : ComputableInSpace
       (fun a => controllerQuery k (B a) { s a with phase := p }) enc encNat S := by
@@ -141,8 +139,7 @@ private theorem localAnswer_budget (ntm : MultiTapeNTM k Bool State)
     (hn : ComputableInSpace n enc encNat S)
     (hchk : ComputableInSpace chk enc encBool S)
     (hs : ComputableInSpace s enc encState S)
-    (hsymbol : ComputableInSpace symbol enc (encOption encBool) S)
-    :
+    (hsymbol : ComputableInSpace symbol enc (encOption encBool) S) :
     ComputableInSpace (fun a => localAnswer ntm (B a) (n a) (chk a) (s a) (symbol a))
       enc encBool S := by
   have hmode : ComputableInSpace
@@ -173,8 +170,7 @@ private theorem localAnswer_budget (ntm : MultiTapeNTM k Bool State)
 
 /-- Runtime input lookup preserves any common budget covering the encoded arguments. -/
 private theorem runtimeQuery_budget {s : α → Runtime}
-    (hs : ComputableInSpace s enc encRuntime S)
-    :
+    (hs : ComputableInSpace s enc encRuntime S) :
     ComputableInSpace (fun a => runtimeQuery k (s a)) enc encNat S := by
   exact (budget_ite (budget_optionIsSome (runtimeCounting_budget hs))
     (controllerQuery_budget (k := k) (runtimeRadix_budget hs) (controller_budget hs))
@@ -183,8 +179,7 @@ private theorem runtimeQuery_budget {s : α → Runtime}
 
 /-- Halt detection includes the bootstrap phase and accepts arbitrary runtime data. -/
 private theorem runtimeHalted_budget {s : α → Runtime}
-    (hs : ComputableInSpace s enc encRuntime S)
-    :
+    (hs : ComputableInSpace s enc encRuntime S) :
     ComputableInSpace (fun a => runtimeHalted (s a)) enc encBool S := by
   have hc := controller_budget hs
   exact (budget_ite (budget_optionIsSome (runtimeCounting_budget hs))
@@ -195,8 +190,7 @@ private theorem runtimeHalted_budget {s : α → Runtime}
 
 /-- Acceptance detection includes the bootstrap phase and accepts arbitrary runtime data. -/
 private theorem runtimeAccept_budget {s : α → Runtime}
-    (hs : ComputableInSpace s enc encRuntime S)
-    :
+    (hs : ComputableInSpace s enc encRuntime S) :
     ComputableInSpace (fun a => runtimeAccept (s a)) enc encBool S := by
   exact (and_budget (runtimeChecked_budget hs)
     (budget_ite (budget_optionIsSome (runtimeCounting_budget hs))
@@ -217,8 +211,7 @@ private theorem runtimeNext_budget (ntm : MultiTapeNTM k Bool State)
     {s : α → Runtime} {symbol : α → Option Bool} {choice : α → Bool}
     (hs : ComputableInSpace s enc encRuntime S)
     (hsymbol : ComputableInSpace symbol enc (encOption encBool) S)
-    (hchoice : ComputableInSpace choice enc encBool S)
-    :
+    (hchoice : ComputableInSpace choice enc encBool S) :
     ComputableInSpace
       (fun a => runtimeNext ntm (s a) (symbol a) (choice a)) enc encRuntime S := by
   have hn := runtimeLength_budget hs

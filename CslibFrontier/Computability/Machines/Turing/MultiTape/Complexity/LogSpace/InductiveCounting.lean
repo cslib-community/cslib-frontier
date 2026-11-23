@@ -39,7 +39,7 @@ output are uncharged, exactly as in the existing native `RunsInSpace` convention
 * [M. Sipser, *Introduction to the Theory of Computation*, Section 8.6][Sipser2013]
 -/
 
-@[expose] public section
+public section
 
 namespace Turing.MultiTapeNTM
 

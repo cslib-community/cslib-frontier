@@ -134,8 +134,7 @@ private theorem or_budget {f g : α → Bool}
 private theorem dispatch_budget {κ β : Type} {encB : β ↪ List Bool}
     (l : List κ) (d : κ) (F : κ → α → β)
     (hF : ∀ p, ComputableInSpace (F p) enc encB S) {i : α → ℕ}
-    (hi : ComputableInSpace i enc encNat S)
-    :
+    (hi : ComputableInSpace i enc encNat S) :
     ComputableInSpace (fun a => F (l.getD (i a) d) a) enc encB S := by
   induction l generalizing i with
   | nil => simpa using hF d
@@ -147,8 +146,7 @@ private theorem dispatch_budget {κ β : Type} {encB : β ↪ List Bool}
 /-- Case distinction on the finite phase, retaining an arbitrary common budget. -/
 theorem phaseCases_budget {β : Type} {encB : β ↪ List Bool} {s : α → State}
     (hs : ComputableInSpace s enc encState S) (F : Phase → α → β)
-    (hF : ∀ p, ComputableInSpace (F p) enc encB S)
-    :
+    (hF : ∀ p, ComputableInSpace (F p) enc encB S) :
     ComputableInSpace (fun a => F (s a).phase a) enc encB S := by
   refine (dispatch_budget
     [.round, .target, .candidate, .walk, .guess, .edge, .observe, .done, .accept, .reject]
@@ -264,16 +262,14 @@ private theorem not_budget {f : α → Bool}
 
 /-- Halt detection reads only the finite phase. -/
 theorem halted_budget {s : α → State}
-    (hs : ComputableInSpace s enc encState S)
-    :
+    (hs : ComputableInSpace s enc encState S) :
     ComputableInSpace (fun a => halted (s a)) enc encBool S := by
   refine (phaseCases_budget hs (fun p _ => p == .accept || p == .reject)
     (fun p => budget_const _)).of_enc_eq fun _ => rfl
 
 /-- Acceptance detection reads only the finite phase. -/
 theorem accepting_budget {s : α → State}
-    (hs : ComputableInSpace s enc encState S)
-    :
+    (hs : ComputableInSpace s enc encState S) :
     ComputableInSpace (fun a => (s a).phase == .accept) enc encBool S :=
   phaseCases_budget hs (fun p _ => p == .accept) (fun _ => budget_const _)
 
@@ -298,8 +294,7 @@ theorem instruction_budget (hN : ComputableInSpace N enc encNat S)
     (hsource : ComputableInSpace source enc encNat S)
     (hs : ComputableInSpace s enc encState S)
     (hanswer : ComputableInSpace answer enc encBool S)
-    (hchoice : ComputableInSpace choice enc encBool S)
-    :
+    (hchoice : ComputableInSpace choice enc encBool S) :
     ComputableInSpace
       (fun a => instruction (N a) (width a) (source a) (s a) (answer a) (choice a))
       enc encState S := by
@@ -428,8 +423,7 @@ theorem roundCost_budget (hN : ComputableInSpace N enc encNat S)
 /-- The full progress measure is computed in the common budget on arbitrary states. -/
 theorem rank_budget (hN : ComputableInSpace N enc encNat S)
     (hw : ComputableInSpace width enc encNat S)
-    (hs : ComputableInSpace s enc encState S)
-    :
+    (hs : ComputableInSpace s enc encState S) :
     ComputableInSpace (fun a => rank (N a) (width a) (s a)) enc encNat S := by
   have hc := candidateCost_budget hN hw
   have ht := targetCost_budget hN hw
@@ -503,8 +497,7 @@ theorem advance_budget (hN : ComputableInSpace N enc encNat S)
     (hsource : ComputableInSpace source enc encNat S)
     (hs : ComputableInSpace s enc encState S)
     (hanswer : ComputableInSpace answer enc encBool S)
-    (hchoice : ComputableInSpace choice enc encBool S)
-    :
+    (hchoice : ComputableInSpace choice enc encBool S) :
     ComputableInSpace
       (fun a => advance (N a) (width a) (source a) (s a) (answer a) (choice a))
       enc encState S := by
@@ -545,8 +538,7 @@ def encQuery : Query ↪ List Bool :=
       ((encPair encBool (encPair encNat encNat)).injective h)⟩
 
 /-- The explicit request, including the finite-phase and final-scan selection. -/
-theorem query_budget (hs : ComputableInSpace s enc encState S)
-    :
+theorem query_budget (hs : ComputableInSpace s enc encState S) :
     ComputableInSpace (fun a => query (s a)) enc (encOption encQuery) S := by
   have hedge {u v : α → ℕ} (hu : ComputableInSpace u enc encNat S)
       (hv : ComputableInSpace v enc encNat S) :

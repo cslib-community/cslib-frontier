@@ -344,8 +344,7 @@ theorem codeExpWhp_mul_ell_le_bCharWhp {c n_max : ℕ} (hth : whpThreshold c ≤
   have hell := logLogFactor_le_log_log_add_two hn4 (by omega : 2 ≤ m)
   set A := codeExpWhp c
   have hmul_sq := Nat.mul_log_le_add_sq Nat.one_lt_two (8 * A) m
-  have h1 : 8 * A * Dynamic.logLogFactor n_max ≤ 8 * A * (Nat.log 2 m + 2) :=
-    Nat.mul_le_mul_left _ hell
+  have h1 : 8 * A * Dynamic.logLogFactor n_max ≤ 8 * A * (Nat.log 2 m + 2) := by gcongr
   have h2 : 8 * A * (Nat.log 2 m + 2) = 8 * A * Nat.log 2 m + 16 * A := by ring
   have hbm_def : bMinWhp c = 64 * A ^ 2 + 16 * A := rfl
   have hsq : (8 * A) * (8 * A) = 64 * A ^ 2 := by ring
@@ -944,8 +943,7 @@ private theorem totalBTreeNodesWhp_bits_le {c n_max : ℕ} (hth : whpThreshold c
       have h1 := Nat.div_mul_le_self (32 * L ^ 12) (tMinWhp n_max - 1)
       have h3 : 32 * L ^ 12 / (tMinWhp n_max - 1) * tMinWhp n_max ≤ 64 * L ^ 12 := calc
         32 * L ^ 12 / (tMinWhp n_max - 1) * tMinWhp n_max
-            ≤ 32 * L ^ 12 / (tMinWhp n_max - 1) * (2 * (tMinWhp n_max - 1)) :=
-              Nat.mul_le_mul_left _ (by omega)
+            ≤ 32 * L ^ 12 / (tMinWhp n_max - 1) * (2 * (tMinWhp n_max - 1)) := by gcongr; omega
         _ = 2 * (32 * L ^ 12 / (tMinWhp n_max - 1) * (tMinWhp n_max - 1)) := by ring
         _ ≤ 64 * L ^ 12 := by linarith
       have ht_le_L12 : 64 * tMinWhp n_max ≤ 64 * L ^ 12 := Nat.mul_le_mul_left 64 <|
@@ -970,13 +968,11 @@ private theorem totalBTreeNodesWhp_bits_le {c n_max : ℕ} (hth : whpThreshold c
     wram_omega [h4, h5])
   have hb2 := hbt (keysWordBitsWhp n_max) 76 (by
     have hk : keyLaneBitsWhp n_max ≤ 38 * ell := by wram_omega [hell]
-    calc 2 * tMinWhp n_max * keyLaneBitsWhp n_max ≤ 2 * tMinWhp n_max * (38 * ell) :=
-          Nat.mul_le_mul_left _ hk
+    calc 2 * tMinWhp n_max * keyLaneBitsWhp n_max ≤ 2 * tMinWhp n_max * (38 * ell) := by gcongr
       _ = 76 * (tMinWhp n_max * ell) := by ring)
   have hb3 := hbt (valsWordBitsWhp n_max) 40 (by
     have hv : valLaneBitsWhp n_max ≤ 20 * ell := by wram_omega [hell]
-    calc 2 * tMinWhp n_max * valLaneBitsWhp n_max ≤ 2 * tMinWhp n_max * (20 * ell) :=
-          Nat.mul_le_mul_left _ hv
+    calc 2 * tMinWhp n_max * valLaneBitsWhp n_max ≤ 2 * tMinWhp n_max * (20 * ell) := by gcongr
       _ = 40 * (tMinWhp n_max * ell) := by ring)
   linarith
 
@@ -1032,13 +1028,11 @@ private theorem largeSpaceWhp_auxBits_le {c n_max : ℕ} (hth : whpThreshold c �
       _ = 4 * (M * L) := by ring
       _ ≤ 4 * (n_max * ell) := Nat.mul_le_mul_left 4 (hML_le.trans hne)
   have hb_bptr : M * capBackWhp n_max * globalPtrBits n_max ≤ 4 * (n_max * ell) := calc
-    M * (2 * L ^ 11) * globalPtrBits n_max ≤ M * (2 * L ^ 11) * (2 * L) :=
-        Nat.mul_le_mul_left _ hptr
+    M * (2 * L ^ 11) * globalPtrBits n_max ≤ M * (2 * L ^ 11) * (2 * L) := by gcongr
     _ = 4 * (M * L ^ 12) := by ring
     _ ≤ 4 * (n_max * ell) := Nat.mul_le_mul_left 4 (hM_L12.trans hne)
   have hb_bfree : M * capBackWhp n_max * (12 * ell + 4) ≤ 32 * (n_max * ell) := calc
-    M * capBackWhp n_max * (12 * ell + 4) ≤ (2 * n_max) * (16 * ell) :=
-        Nat.mul_le_mul hcb (by omega)
+    M * capBackWhp n_max * (12 * ell + 4) ≤ (2 * n_max) * (16 * ell) := by gcongr; omega
     _ = 32 * (n_max * ell) := by ring
   simp only [auxPackedList, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
     Nat.add_zero, one_mul]

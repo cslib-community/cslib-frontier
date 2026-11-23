@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.ApproximateMembership.QuotientFilter.Probability
-public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.Cluster
+public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.Code
 public import CslibFrontier.DataStructure.WordRAM.Randomized.ObliviousSequence
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Probability.PMF.Bind
@@ -92,6 +92,9 @@ open Cslib.DataStructure.HashFamily.WordRAM
 open Cslib.DataStructure.Dictionary.WordRAM.LinearProbing
 open scoped ENNReal BigOperators Finset
 
+attribute [local wram_arith] ReducedKWise.seedWords ReducedKWise.tableWords
+  ReducedKWise.space ReducedKWise.tabBase ReducedKWise.coeffLimbAddr
+
 /-! ## Section 1: Derived word-width bounds and representation invariant `Rep` -/
 
 /-- Whenever `0 < w₀`, `2 * w₀ ≤ w`, and `Fits w (base + space w w₀ n k)`, the Four-Russians double
@@ -115,10 +118,8 @@ theorem tableRep_congr {base w w₀ b b' k : ℕ} {mem₁ mem₂ : ℕ → ℕ}
       ReducedKWise.TableRep base w w₀ b b' k mem₂ := by
   dsimp only [ReducedKWise.TableRep]
   refine and_congr (forall₂_congr fun wIdx hwIdx => ?_) (forall₂_congr fun idx hidx => ?_)
-  · rw [h _ (by dsimp only [ReducedKWise.tabBase, ReducedKWise.space]; omega)]
-  · have hwIdx : idx >>> reducedPackShift (reducedTrinomialStep w₀ b b') w <
-        ReducedKWise.tableWords w w₀ b b' := shiftRight_lt_reducedTableWords hidx
-    rw [h _ (by dsimp only [ReducedKWise.tabBase, ReducedKWise.space]; omega)]
+  · rw [h _ (by wram_omega)]
+  · rw [h _ (by wram_omega [shiftRight_lt_reducedTableWords (w := w) hidx])]
 
 /-- `ReducedKWise.SeedRep` depends only on memory below `base + ReducedKWise.space`. -/
 theorem seedRep_congr {base w w₀ b b' k : ℕ} (θ : ReducedPolySeed w₀ b b' k)
@@ -127,15 +128,13 @@ theorem seedRep_congr {base w w₀ b b' k : ℕ} (θ : ReducedPolySeed w₀ b b'
     ReducedKWise.SeedRep base w₀ b b' k θ mem₁ ↔
       ReducedKWise.SeedRep base w₀ b b' k θ mem₂ := by
   dsimp only [ReducedKWise.SeedRep]
-  refine and_congr
-    (by rw [h base (by dsimp only [ReducedKWise.space, ReducedKWise.seedWords]; omega)])
-    (forall₂_congr fun j m => ?_)
+  refine and_congr (by rw [h base (by wram_omega)]) (forall₂_congr fun j m => ?_)
   have hlt : m.val + reducedLimbCount (reducedTrinomialStep w₀ b b') * j.val <
       k * reducedLimbCount (reducedTrinomialStep w₀ b b') := by
     have := Nat.mul_le_mul_right (reducedLimbCount (reducedTrinomialStep w₀ b b')) j.isLt
     have := m.isLt
     linarith
-  rw [h _ (by dsimp only [ReducedKWise.space, ReducedKWise.seedWords]; omega)]
+  rw [h _ (by wram_omega [hlt])]
 
 /-- Seed-coupled Word-RAM representation invariant linking seed `p : FilterSeed w₀ n`, active key
 set `S : Finset (Fin U)`, and machine state `x : Data rQF`. -/
@@ -311,11 +310,9 @@ theorem extractSeed_remInitData (base w w₀ n : ℕ) (x : Data rQF) (γ : ℕ) 
   dsimp only [ReducedKWise.extractSeed]
   refine Prod.ext (by
     dsimp only [ReducedKWise.extractTop]
-    exact congrArg _ (hslice base (w₀ - 1) 1 (by
-      dsimp only [remSeedAddr, ReducedKWise.space, ReducedKWise.seedWords]; omega))) (by
+    exact congrArg _ (hslice base (w₀ - 1) 1 (by wram_omega))) (by
     dsimp only [ReducedKWise.extractBot]
-    exact congrArg _ (hslice (base + 1) _ _ (by
-      dsimp only [remSeedAddr, ReducedKWise.space, ReducedKWise.seedWords]; omega)))
+    exact congrArg _ (hslice (base + 1) _ _ (by wram_omega)))
 
 theorem map_extractFilterSeed_eval_sampleSeedsComp (base w w₀ n : ℕ) (x₂ : Data rQF) :
     ((sampleSeedsComp base w w₀ n x₂).eval).map
@@ -395,13 +392,8 @@ theorem initSetup_exec {U base w w₀ n k : ℕ}
         y.mem a = x₁.mem a := by
       have hne : a ≠ remSeedAddr base w w₀ n := by rcases ha with h | h <;> wram_omega [h]
       rw [show y.mem a = z1.1.mem a from Function.update_of_ne hne _ _]
-      have ha1 : a < base ∨ base + ReducedKWise.seedWords w₀ b b 5 ≤ a :=
-        ha.imp_right fun h => by
-          dsimp only [fullBase, remSeedAddr, ReducedKWise.space, b] at h ⊢; omega
-      have ha2 : a < ReducedKWise.tabBase base w₀ b b 5 ∨
-          base + ReducedKWise.space w w₀ b b 5 ≤ a :=
-        ha.imp (fun h => by dsimp only [ReducedKWise.tabBase]; omega) (fun h => by wram_omega [h])
-      exact (hframe1 a ha1).trans (hframe_tab a ha2)
+      exact (hframe1 a (ha.imp_right fun h => by wram_omega [h])).trans
+        (hframe_tab a (ha.imp (fun h => by wram_omega [h]) (fun h => by wram_omega [h])))
     have hmem_below : ∀ a < base + ReducedKWise.space w w₀ b b 5, y.mem a = z1.1.mem a :=
       fun a ha => Function.update_of_ne (by wram_omega [ha]) _ _
     have hy_0 : y.regs (qfReg 0) = base := by

@@ -267,7 +267,6 @@ subtractions of width `2w`. -/
   | 0 => 0
   | 1 => 1
   | w + 2 => 3 * gates ((w + 3) / 2) + 26 * ((w + 3) / 2) + 172 * (w + 2) + 34
-decreasing_by omega
 
 @[simp] theorem gates_zero : gates 0 = 0 := by rw [gates]
 

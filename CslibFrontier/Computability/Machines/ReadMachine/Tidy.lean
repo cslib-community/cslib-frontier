@@ -167,8 +167,7 @@ theorem lt_bigOLe {u : (σ × ℕ) × Option Bool → ℕ} (h : u ≼ spaceB enc
   have h₂ := Nat.pow_le_pow_left h₁ 2
   simp only [timeB]
   calc (p.1.2 + 1) * (u p + 1) ^ 2
-      ≤ (p.1.2 + 1) * ((c + 1) * (T p.1.1 + S p.1.1 + inLen encS p + 1)) ^ 2 :=
-        Nat.mul_le_mul_left _ h₂
+      ≤ (p.1.2 + 1) * ((c + 1) * (T p.1.1 + S p.1.1 + inLen encS p + 1)) ^ 2 := by gcongr
     _ = (c + 1) ^ 2 * ((p.1.2 + 1) * (T p.1.1 + S p.1.1 + inLen encS p + 1) ^ 2) := by ring
     _ ≤ _ := by nlinarith
 
