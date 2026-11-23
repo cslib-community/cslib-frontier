@@ -76,9 +76,10 @@ lists `edgesOfFin` and `partialScheduleListOfFin`, where no subtraction truncate
 * `exists_min_index_streamBestSlotLabel`, `streamBestSlotLabel_false_eq_bestVariableLabel`,
   `streamBestSlotLabel_true_eq_bestFactorLabel`: first-minimizer and `bestVariableLabel` /
   `bestFactorLabel` bridges.
-* `length_encSlotSelectState_run_le`, `streamBestSlotCertificate_bounds`,
-  `computableInO_streamBestSlotLabel`, `computableInPolySpace_streamBestSlotLabel`: all-prefix
-  live-state bit bound, `O((r ^ Q + 1) * poly(|input|))` native time, and polynomial workspace.
+* `length_encSlotSelectState_run_le`, `streamBestSlotCertificate_factorTimePolySpace`,
+  `streamBestSlotCertificate_bounds`, `computableInO_streamBestSlotLabel`,
+  `computableInPolySpace_streamBestSlotLabel`: all-prefix live-state bit bound,
+  `O((r ^ Q + 1) * poly(|input|))` native time, and polynomial workspace.
 
 ## References
 
@@ -1089,8 +1090,11 @@ noncomputable def streamBestSlotCertificate :
       simp only [Function.comp_apply, extractBestSlotWord, streamSlotCount, streamSlotInit,
         streamBestSlotLabel, hp]
 
-private theorem streamBestSlotCertificate_factorTimePolySpace :
-    streamBestSlotCertificate.FactorTimePolySpace (fun a => a.1.2.1.1 ^ a.1.1.2 + 1) := by
+/-- `streamBestSlotCertificate` runs in `(r ^ Q + 1) * poly(|input|)` native time and polynomial
+workspace. -/
+theorem streamBestSlotCertificate_factorTimePolySpace :
+    streamBestSlotCertificate.FactorTimePolySpace
+      (fun a => let (((_, Q), (r, _), _), _) := a; r ^ Q + 1) := by
   let bFull (a : StreamSlotIn) :=
     8 * (encStreamSlotIn a).length * (encStreamSlotIn a).length +
       15 * (encStreamSlotIn a).length + 28
@@ -1101,7 +1105,7 @@ private theorem streamBestSlotCertificate_factorTimePolySpace :
     (K := fun _ => 1) (B := bFull) (fun _ => le_rfl)
     (PolyBounded.of_forall_le 51 2 fun a => by dsimp only [bFull]; nlinarith)
     (fun _ _ _ => le_rfl) fun ⟨⟨⟨n, Q⟩, ⟨r, C⟩, edges⟩, ⟨slot, scheds⟩⟩ j hj => ?_).mono_const 1
-    fun a => by dsimp only [streamSlotCount]; omega).comp_ofPolyTime
+    fun ⟨⟨⟨_, _⟩, ⟨_, _⟩, _⟩, _⟩ => by dsimp only [streamSlotCount]; omega).comp_ofPolyTime
     (fun _ => Nat.succ_pos _) computableInPolyTime_extractBestSlotWord).congr _
   let L := (encStreamSlotIn (((n, Q), (r, C), edges), (slot, scheds))).length
   have hed : edges.length ≤ (encList (encPair encNat encNat) edges).length := by

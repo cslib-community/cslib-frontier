@@ -78,8 +78,10 @@ or missing positions to `0` via `wordToSchedule`.
 * `length_encEdges_le_of_lt`, `length_encPartialSchedules_le`,
   `length_encSlotSelectState_run_valid_le`, `length_encOuterState_run_valid_le`,
   `length_encOuterState_run_le`: encoded bit-length bounds across inner and outer loop prefixes.
-* `computableInPolyTime_slotOfIndex`, `greedySchedulePassCertificate_bounds`,
-  `computableInO_greedySchedulePass`, `computableInPolySpace_greedySchedulePass`,
+* `computableInPolyTime_slotOfIndex`, `greedySchedulePassCertificate_factorTimePolySpace`,
+  `greedySchedulePassCertificate_bounds`, `computableInO_greedySchedulePass`,
+  `computableInPolySpace_greedySchedulePass`,
+  `constructBalancedSchedulesCertificate_factorTimePolySpace`,
   `constructBalancedSchedulesCertificate_bounds`, `computableInO_constructBalancedSchedules`,
   `computableInPolySpace_constructBalancedSchedules`: native time and workspace bounds.
 
@@ -935,12 +937,8 @@ noncomputable def constructBalancedSchedulesCertificate :
 private theorem greedySlotStepBodyCertificate_factorTimePolySpace :
     greedySlotStepBodyCertificate.FactorTimePolySpace
       (fun st : OuterSt => st.2.1.2.1.1 ^ st.2.1.1.2.2 + 1) := by
-  obtain ⟨pSlot, hpSlot, -, hSlotB⟩ := streamBestSlotCertificate_bounds
-  have hSlot : streamBestSlotCertificate.FactorTimePolySpace (fun a => a.1.2.1.1 ^ a.1.1.2 + 1) :=
-    .of_polyBounded (.of_polynomiallyBounded _ hpSlot)
-      ((PolyBounded.of_polynomiallyBounded _ hpSlot).mono fun a => (hSlotB a).2)
-      fun a => (hSlotB a).1
-  have hIn := hSlot.comp_polyPre computableInPolyTime_streamSlotInOfOuter fun _ => Nat.succ_pos _
+  have hIn := streamBestSlotCertificate_factorTimePolySpace.comp_polyPre
+    computableInPolyTime_streamSlotInOfOuter fun _ => Nat.succ_pos _
   have hId := (NativeCertificate.FactorTimePolySpace.ofIsPolynomial
     (NativeCertificate.linear_isPolynomial
       (ComputableInO.of_linear (.of_eq fun _ => rfl) :
@@ -976,14 +974,18 @@ private theorem outerAccCert_factorTimePolySpace :
       bOuter (encScheduleParams p).length at h
     rw [length_encPair] at h; omega
 
-private theorem greedySchedulePassCertificate_factorTimePolySpace :
+/-- `greedySchedulePassCertificate` runs in `(r ^ Q + 1) * poly(|input|)` native time and
+polynomial workspace. -/
+theorem greedySchedulePassCertificate_factorTimePolySpace :
     greedySchedulePassCertificate.FactorTimePolySpace
-      (fun p : ScheduleParams => p.2.1.1 ^ p.1.2.2 + 1) :=
+      (fun p : ScheduleParams => let ((_, _, Q), (r, _), _) := p; r ^ Q + 1) :=
   outerAccCert_factorTimePolySpace.snd
 
-private theorem constructBalancedSchedulesCertificate_factorTimePolySpace :
+/-- `constructBalancedSchedulesCertificate` runs in `(r ^ Q + 1) * poly(|input|)` native time and
+polynomial workspace. -/
+theorem constructBalancedSchedulesCertificate_factorTimePolySpace :
     constructBalancedSchedulesCertificate.FactorTimePolySpace
-      (fun p : ScheduleParams => p.2.1.1 ^ p.1.2.2 + 1) :=
+      (fun p : ScheduleParams => let ((_, _, Q), (r, _), _) := p; r ^ Q + 1) :=
   (outerAccCert_factorTimePolySpace.comp_ofPolyTime (fun _ => Nat.succ_pos _)
     computableInPolyTime_finalizeBalancedSchedules).congr _
 

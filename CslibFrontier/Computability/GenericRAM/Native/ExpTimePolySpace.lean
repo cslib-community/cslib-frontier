@@ -57,11 +57,8 @@ variable {α β γ : Type} {enc : α ↪ List Bool} {eβ : β ↪ List Bool} {e�
 length. -/
 theorem polyBounded_length_of_space {c : NativeCertificate f enc eβ}
     (hs : PolyBounded (fun a => (enc a).length) c.space) :
-    PolyBounded (fun a => (enc a).length) (fun a => (eβ (f a)).length) := by
-  obtain ⟨c₀, d₀, hle⟩ := hs.exists_le; obtain ⟨k, -, hl⟩ := c.computes
-  refine .of_forall_le (k * (c₀ + 1)) d₀ fun a => (hl a).trans ?_
-  have h1 : 1 ≤ ((enc a).length + 1) ^ d₀ := Nat.one_le_pow _ _ (Nat.succ_pos _)
-  exact (Nat.mul_le_mul_left k (Nat.add_le_add (hle a) h1)).trans_eq (by ring)
+    PolyBounded (fun a => (enc a).length) (fun a => (eβ (f a)).length) :=
+  let ⟨k, _, hl⟩ := c.computes; ((PolyBounded.const k).mul (hs.add (.const 1))).mono hl
 
 /-- A native certificate with polynomially bounded workspace witnesses `ComputableInPolySpace`,
 regardless of its running time. -/
@@ -266,9 +263,6 @@ inputs `a` of encoded length `n`. -/
 @[expose] def ExpTimePolySpace (c : NativeCertificate f enc eβ) (E : α → ℕ) : Prop :=
   ∃ C d : ℕ, ∀ a, c.time a ≤ C * 2 ^ E a * ((enc a).length + 1) ^ d ∧
     c.space a ≤ C * ((enc a).length + 1) ^ d
-
-theorem expTimePolySpace_iff_factorTimePolySpace {c : NativeCertificate f enc eβ} {E : α → ℕ} :
-    c.ExpTimePolySpace E ↔ c.FactorTimePolySpace (fun a => 2 ^ E a) := Iff.rfl
 
 namespace ExpTimePolySpace
 

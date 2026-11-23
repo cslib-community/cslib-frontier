@@ -787,8 +787,8 @@ theorem exists_computableInO_measPayload :
       fun _ => Nat.succ_pos _
   have hFull := (((hIdWC.prod_same hPass1).comp hBrWR).mono_const (K' := K) 2
     fun _ => by dsimp only [K]; omega).congr (f' := evalMeasPayload) fun _ => rfl
-  obtain ⟨p, hp, hc⟩ := hFull.exists_poly_computableInO
-  exact ⟨fun wc => p (eWC wc).length, .of_polynomiallyBounded _ hp, hc⟩
+  obtain ⟨e, hc⟩ := hFull.computableInO
+  exact ⟨_, (PolyBounded.self.add (.const 1)).pow e, hc⟩
 
 end LoopCertificates
 

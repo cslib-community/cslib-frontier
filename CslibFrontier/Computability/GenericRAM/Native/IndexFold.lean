@@ -25,7 +25,9 @@ This is an enumeration building block for the local-assignment and measurement l
 Boolean vectors or mixed-radix tuples. A callback may retain captured inputs in its accumulator;
 its certificate must cover the full index/accumulator encoding. Arbitrary callbacks need not
 have small outputs: the reachable-prefix size bound is an explicit hypothesis of the resource
-bound below. No polynomial-time claim is made for an exponentially long whole loop.
+bound below (`certificate_factorTimePolySpace`, `certificate_factorTimePolySpace_of_polyBounded`,
+and `certificate_expTimePolySpace`). No polynomial-time claim is made for an exponentially long
+whole loop.
 -/
 
 @[expose] public section
