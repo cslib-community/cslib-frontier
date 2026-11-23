@@ -5987,22 +5987,20 @@ register_result "bareiss-rational-elimination-polytime" where
     (circulant spectra and fibre-sum bounds remain open there)."
 
 register_result "kosaraju-scc" where
-  title := "Kosaraju's linear-time strongly connected components and condensation order"
+  title := "Kosaraju's strongly connected components and condensation order"
   topic := "algorithms"
   sources := [
     { paper := CLRS2009, theorem := unverified, locator := unverified }
   ]
   theorems := [
     Cslib.Algorithms.Lean.DFS.isSCCCondensation_sccs,
-    Cslib.Algorithms.Lean.DFS.time_sccsM_of_nodup,
     Cslib.Algorithms.Lean.DFS.IsSCCCondensation.indexComponents_eq_iff,
     Cslib.Algorithms.Lean.DFS.IsSCCCondensation.indexComponents_le_of_edge
   ]
-  scope := "Two-pass Kosaraju SCC decomposition on adjacency lists adj : V → List V in TimeM, \
+  scope := "Pure two-pass Kosaraju SCC decomposition on adjacency lists adj : V → List V, \
     returning duplicate-free mutual-reachability components in forward condensation topological \
-    order at exact cost 3 * (|vs| + ∑ v, |adj v|) for duplicate-free vertex lists covering V, \
-    plus O(|V|) component-index lookup. Visited-set membership, insertion, and function-update \
-    array steps are counted as unit-cost operations."
+    order, plus component-index lookup. Linear-time standard-basis Word-RAM execution is \
+    registered separately in kosaraju-scc-wordram."
 
 register_result "selected-entries-subset-convolution-timem" where
   title := "Selected entries of ranked subset convolution by the trimmed fast zeta transform"

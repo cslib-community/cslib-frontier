@@ -8,11 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Cslib.Algorithms.Lean.TimeM
 public import Mathlib.Data.Fintype.Card
 public import Mathlib.Logic.Relation
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
 /-!
 # Depth-first search
@@ -26,14 +24,16 @@ and the finished vertices, most recently finished first): if `u` is undiscovered
 its successors are visited in turn, and it is finished. The recursion budget `k` makes the
 definition structural; `Fintype.card V ≤ k` suffices, because each nested call discovers a new
 vertex. `Cslib.Algorithms.Lean.DFS.dfs adj k roots` visits the roots in turn from the empty
-state.
+state. Linear-time iterative execution on the standard-basis word RAM is proved in
+`CslibFrontier.Algorithms.WordRAM.DFS`.
 
 ## Main definitions
 
 * `Cslib.Algorithms.Lean.DFS.Edge`: the edge relation of adjacency lists.
 * `Cslib.Algorithms.Lean.DFS.StronglyConnected`: mutual reachability in `Edge adj`.
+* `Cslib.Algorithms.Lean.DFS.State`: discovered-set and finishing-list state of depth-first search.
 * `Cslib.Algorithms.Lean.DFS.visit`, `Cslib.Algorithms.Lean.DFS.dfs`: depth-first search.
-* `Cslib.Algorithms.Lean.DFS.dfsM`: depth-first search in `TimeM`.
+* `Cslib.Algorithms.Lean.DFS.outDegreeSum`: total out-degree of a list of vertices.
 
 ## Main results
 
@@ -47,15 +47,6 @@ state.
 * `Cslib.Algorithms.Lean.DFS.dfs_scc_finished_order`: if a finished vertex `u` reaches `v` while
   `v` does not reach `u`, some vertex mutually reachable with `u` finishes after `v` (the
   component finishing-time property underlying Kosaraju's algorithm [Cormen et al.][CLRS2009]).
-* `Cslib.Algorithms.Lean.DFS.time_dfsM`, `Cslib.Algorithms.Lean.DFS.time_dfsM_le`: the cost is one
-  unit per root plus one per edge out of a finished vertex, so at most `|roots| + |E|`.
-
-## Cost model
-
-`Cslib.Algorithms.Lean.DFS.visitM` charges one unit per call of `visit`: one per root and one per
-adjacency-list entry examined. A call performs one membership test and at most one insertion into
-the discovered set and one cons onto the finishing list; these are counted as constant-time steps
-(as with a Boolean array indexed by the vertices), not charged separately.
 
 ## References
 
@@ -117,6 +108,9 @@ def visit [DecidableEq V] (adj : V → List V) : ℕ → V → State V → State
 /-- Depth-first search from each root in turn. -/
 def dfs [DecidableEq V] (adj : V → List V) (k : ℕ) (roots : List V) : State V :=
   roots.foldl (fun s u => visit adj k u s) ⟨∅, []⟩
+
+/-- The total out-degree of a list of vertices. -/
+def outDegreeSum (adj : V → List V) (l : List V) : ℕ := (l.map fun v => (adj v).length).sum
 
 variable {adj : V → List V}
 
@@ -460,97 +454,5 @@ theorem dfs_scc_finished_order (hk : Fintype.card V ≤ k) (roots : List V) {u v
   · exact absurd (hb z hzv) hzf
 
 end Results
-
-/-! ### Cost -/
-
-open TimeM
-
-/-- `visit` in `TimeM`, charging one unit per call. -/
-def visitM [DecidableEq V] (adj : V → List V) : ℕ → V → State V → TimeM ℕ (State V)
-  | 0, _, s => do ✓ return s
-  | k + 1, u, s => do
-    ✓
-    if u ∈ s.visited then return s
-    else
-      let t ← (adj u).foldlM (fun t v => visitM adj k v t) ⟨insert u s.visited, s.finished⟩
-      return ⟨t.visited, u :: t.finished⟩
-
-/-- Depth-first search from each root in turn, in `TimeM`. -/
-def dfsM [DecidableEq V] (adj : V → List V) (k : ℕ) (roots : List V) : TimeM ℕ (State V) :=
-  roots.foldlM (fun s u => visitM adj k u s) ⟨∅, []⟩
-
-/-- The total out-degree of a list of vertices. -/
-def outDegreeSum (adj : V → List V) (l : List V) : ℕ := (l.map fun v => (adj v).length).sum
-
-section CostProof
-
-variable [DecidableEq V]
-
-private theorem foldlM_visitM {k : ℕ}
-    (ih : ∀ u s, (visitM adj k u s).ret = visit adj k u s ∧
-      (visitM adj k u s).time + outDegreeSum adj s.finished =
-        1 + outDegreeSum adj (visit adj k u s).finished) :
-    ∀ (l : List V) (t : State V),
-      (l.foldlM (fun t v => visitM adj k v t) t).ret = l.foldl (fun t v => visit adj k v t) t ∧
-      (l.foldlM (fun t v => visitM adj k v t) t).time + outDegreeSum adj t.finished =
-        l.length + outDegreeSum adj (l.foldl (fun t v => visit adj k v t) t).finished
-  | [], t => by simp
-  | v :: l, t => by
-    obtain ⟨h₁, h₂⟩ := ih v t
-    obtain ⟨h₃, h₄⟩ := foldlM_visitM ih l (visit adj k v t)
-    simp only [List.foldlM_cons, List.foldl_cons, TimeM.ret_bind, TimeM.time_bind, h₁,
-      List.length_cons]
-    refine ⟨h₃, ?_⟩
-    omega
-
-private theorem visitM_spec :
-    ∀ (k : ℕ) (u : V) (s : State V), (visitM adj k u s).ret = visit adj k u s ∧
-      (visitM adj k u s).time + outDegreeSum adj s.finished =
-        1 + outDegreeSum adj (visit adj k u s).finished
-  | 0, u, s => by simp [visitM, visit_zero]
-  | k + 1, u, s => by
-    by_cases hu : u ∈ s.visited
-    · simp [visitM, visit_of_mem hu, hu]
-    · obtain ⟨h₁, h₂⟩ := foldlM_visitM (visitM_spec k) (adj u) ⟨insert u s.visited, s.finished⟩
-      rw [visit_of_notMem hu]
-      simp only [visitM, hu, ite_false, TimeM.ret_bind, TimeM.time_bind, TimeM.time_tick,
-        TimeM.ret_pure, TimeM.time_pure, h₁, true_and]
-      simp only [outDegreeSum, List.map_cons, List.sum_cons] at h₂ ⊢
-      omega
-
-/-- `visitM` computes `visit`. -/
-theorem ret_visitM (k : ℕ) (u : V) (s : State V) : (visitM adj k u s).ret = visit adj k u s :=
-  (visitM_spec k u s).1
-
-/-- `visitM` charges one unit plus the out-degrees of newly finished vertices. -/
-theorem time_visitM (k : ℕ) (u : V) (s : State V) :
-    (visitM adj k u s).time + outDegreeSum adj s.finished =
-      1 + outDegreeSum adj (visit adj k u s).finished :=
-  (visitM_spec k u s).2
-
-/-- `dfsM` computes `dfs`. -/
-theorem ret_dfsM (k : ℕ) (roots : List V) : (dfsM adj k roots).ret = dfs adj k roots :=
-  (foldlM_visitM (visitM_spec k) roots _).1
-
-/-- **The cost of depth-first search**: one unit per root and one per edge out of a finished
-vertex. -/
-theorem time_dfsM (k : ℕ) (roots : List V) :
-    (dfsM adj k roots).time = roots.length + outDegreeSum adj (dfs adj k roots).finished := by
-  have := (foldlM_visitM (adj := adj) (visitM_spec k) roots ⟨∅, []⟩).2
-  simpa [outDegreeSum, dfsM, dfs] using this
-
-end CostProof
-
-section Bound
-
-variable [DecidableEq V] [Fintype V]
-
-/-- The cost of depth-first search is at most the number of roots plus the number of edges. -/
-theorem time_dfsM_le {k : ℕ} (hk : Fintype.card V ≤ k) (adj : V → List V) (roots : List V) :
-    (dfsM adj k roots).time ≤ roots.length + ∑ v, (adj v).length := by
-  rw [time_dfsM, outDegreeSum, ← List.sum_toFinset _ (nodup_dfs_finished hk roots)]
-  exact Nat.add_le_add_left (Finset.sum_le_sum_of_subset (Finset.subset_univ _)) _
-
-end Bound
 
 end Cslib.Algorithms.Lean.DFS

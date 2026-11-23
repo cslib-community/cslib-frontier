@@ -1534,11 +1534,7 @@ def solver : Code .standard 28 :=
           (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ])
           (setupWorkRegsCode.seq
             (buildImplCSRCode.seq
-              (forwardDFSCode.seq
-                (transposeCSRCode.seq
-                  ((ram[ finB ← ordB + nVerts ]).seq
-                    (kosarajuIndexCode.seq
-                      extractAssignmentCode)))))))
+              (sccIndexCode.seq extractAssignmentCode))))
         (ram[ *outBase ← cZero ])))
 
 /-- Flat standard-basis Word-RAM 2-SAT program returning `answerWords G` via `ExecutesList`. -/
@@ -1635,11 +1631,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
             (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ])
             (setupWorkRegsCode.seq
               (buildImplCSRCode.seq
-                (forwardDFSCode.seq
-                  (transposeCSRCode.seq
-                    ((ram[ finB ← ordB + nVerts ]).seq
-                      (kosarajuIndexCode.seq
-                        extractAssignmentCode)))))))
+                (sccIndexCode.seq extractAssignmentCode))))
           (ram[ *outBase ← cZero ]))
         s₂ (s₂.write G.outAddrBase 0) 3 :=
       ⟨3, le_rfl, Exec.branch_neg hncond hneg⟩
@@ -1693,11 +1685,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
             (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ])
             (setupWorkRegsCode.seq
               (buildImplCSRCode.seq
-                (forwardDFSCode.seq
-                  (transposeCSRCode.seq
-                    ((ram[ finB ← ordB + nVerts ]).seq
-                      (kosarajuIndexCode.seq
-                        extractAssignmentCode)))))))
+                (sccIndexCode.seq extractAssignmentCode))))
           s₂ y_n0 (tn0 + 1) :=
         Exec.branch_pos hcond_n0 hen0
       have hbr_outer : ExecWithin w
@@ -1706,11 +1694,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
               (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ])
               (setupWorkRegsCode.seq
                 (buildImplCSRCode.seq
-                  (forwardDFSCode.seq
-                    (transposeCSRCode.seq
-                      ((ram[ finB ← ordB + nVerts ]).seq
-                        (kosarajuIndexCode.seq
-                          extractAssignmentCode)))))))
+                  (sccIndexCode.seq extractAssignmentCode))))
             (ram[ *outBase ← cZero ]))
           s₂ y_n0 5 :=
         ⟨tn0 + 2, by omega, Exec.branch_pos hcond_chk hbr_inner⟩
@@ -1804,84 +1788,18 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           hvis := (hs₄_fr visB (by decide)).trans hs₃_vis
           hfin := (hs₄_fr finB (by decide)).trans hs₃_fin
           hstk := (hs₄_fr stkB (by decide)).trans hs₃_stk }
-      obtain ⟨s₅, hs₅_ex, hs₅_olen, hs₅_omem, hs₅_csr, _, hs₅_fr⟩ :=
-        forwardDFSCode_spec hN_pos G.adjFin wb Mc hmc_adj hfit_top hs₄_dregs
-          ((hs₄_fr nVerts (by decide)).trans hs₃_Nv) hs₄_csr
-      have hs₅_fr3 : ∀ r : Fin 28, r.val < 18 → s₅.regs r = s₃.regs r :=
-        fun r hr => (hs₅_fr r hr).trans (hs₄_fr r hr)
-      obtain ⟨s₆, hs₆_ex, hs₆_rcsr, hs₆_off, hs₆_edge, hs₆_out, hs₆_fr⟩ :=
-        transposeCSRCode_spec G.adjFin wb Mc hmc_adj hfit_top
-          ((hs₅_fr3 cZero (by decide)).trans hs₃_0)
-          ((hs₅_fr3 cOne (by decide)).trans hs₃_1)
-          ((hs₅_fr3 nVerts (by decide)).trans hs₃_Nv)
-          ((hs₅_fr3 offB (by decide)).trans hs₃_off)
-          ((hs₅_fr3 edgeB (by decide)).trans hs₃_edge)
-          ((hs₅_fr3 curB (by decide)).trans hs₃_cur)
-          ((hs₅_fr3 revOffB (by decide)).trans hs₃_roff)
-          ((hs₅_fr3 revEdgeB (by decide)).trans hs₃_redge)
-          hs₅_csr
-      have hs₆_fr3 : ∀ r : Fin 28, r.val < 18 → r ≠ offB → r ≠ edgeB → s₆.regs r = s₃.regs r :=
-        fun r hr hno hne => (hs₆_fr r hr hno hne).trans (hs₅_fr3 r hr)
-      have hf_finB : Fits w (kFinAddr wb N Mc) :=
-        hfit_top.of_le (by simp only [kFinAddr, kTopAddr]; omega)
-      let s₆' := s₆.set finB (kFinAddr wb N Mc)
-      have hp_finB : ExecWithin w (ram[ finB ← ordB + nVerts ]) s₆ s₆' 1 := by
-        have h_ordB : s₆.regs ordB = kOrdAddr wb N Mc :=
-          (hs₆_fr3 ordB (by decide) (by decide) (by decide)).trans hs₃_ord
-        have h_Nv : s₆.regs nVerts = N :=
-          (hs₆_fr3 nVerts (by decide) (by decide) (by decide)).trans hs₃_Nv
-        have htriv : s₆' = s₆.set finB (kOrdAddr wb N Mc + N) := by
-          simp [s₆', kOrdAddr, kFinAddr]; ring_nf
-        rw [htriv]
-        have hf_on : Fits w (kOrdAddr wb N Mc + N) :=
-          hfit_top.of_le (by simp only [kOrdAddr, kTopAddr]; omega)
-        wram_exec [h_ordB, h_Nv, hf_on]
-      have hs₆'_dregs : DfsRegs (kRevOffAddr wb N Mc) (kRevEdgeAddr wb N Mc)
-          (kVisAddr wb N Mc) (kFinAddr wb N Mc) (kStkAddr wb N Mc) s₆' :=
-        { czero := by
-            dsimp only [s₆']; wram_simp
-            exact (hs₆_fr3 cZero (by decide) (by decide) (by decide)).trans hs₃_0
-          cone := by
-            dsimp only [s₆']; wram_simp
-            exact (hs₆_fr3 cOne (by decide) (by decide) (by decide)).trans hs₃_1
-          cthree := by
-            dsimp only [s₆']; wram_simp
-            exact (hs₆_fr3 cThree (by decide) (by decide) (by decide)).trans hs₃_3
-          hoff := by dsimp only [s₆']; wram_simp; exact hs₆_off
-          hedge := by dsimp only [s₆']; wram_simp; exact hs₆_edge
-          hvis := by
-            dsimp only [s₆']; wram_simp
-            exact (hs₆_fr3 visB (by decide) (by decide) (by decide)).trans hs₃_vis
-          hfin := by dsimp only [s₆']; wram_simp
-          hstk := by
-            dsimp only [s₆']; wram_simp
-            exact (hs₆_fr3 stkB (by decide) (by decide) (by decide)).trans hs₃_stk }
-      have hs₆'_omem : ∀ idx (hidx : idx < N),
-          s₆'.mem (kOrdAddr wb N Mc + (N - 1 - idx)) =
-            ((topologicalSort G.adjFin (List.finRange N))[idx]'(by
-              rw [length_topologicalSort_finRange]; exact hidx)).val :=
-        fun idx hidx => by
-          dsimp only [s₆']; mem_upd
-          rw [hs₆_out _ (by dsimp only [kRevOffAddr, kRevEdgeAddr, kCurAddr, kOrdAddr]; omega)]
-          exact hs₅_omem idx hidx
-      obtain ⟨s₇, hs₇_ex, hs₇_comp, _, hs₇_fr⟩ :=
-        kosarajuIndexCode_spec hN_pos G.adjFin wb Mc hmc_adj hfit_top hs₆'_dregs
-          (by
-            dsimp only [s₆']; wram_simp
-            exact (hs₆_fr3 nVerts (by decide) (by decide) (by decide)).trans hs₃_Nv)
-          (by
-            dsimp only [s₆']; wram_simp
-            exact (hs₆_fr3 ordB (by decide) (by decide) (by decide)).trans hs₃_ord)
-          (by
-            dsimp only [s₆']; wram_simp
-            exact (hs₆_fr3 compB (by decide) (by decide) (by decide)).trans hs₃_comp)
-          hs₆_rcsr hs₅_olen hs₆'_omem
+      obtain ⟨s₇, hs₇_ex, hs₇_comp, -, hs₇_fr⟩ :=
+        sccIndexCode_spec hN_pos G.adjFin wb Mc hmc_adj hfit_top hs₄_dregs
+          ((hs₄_fr nVerts (by decide)).trans hs₃_Nv)
+          ((hs₄_fr curB (by decide)).trans hs₃_cur)
+          ((hs₄_fr revOffB (by decide)).trans hs₃_roff)
+          ((hs₄_fr revEdgeB (by decide)).trans hs₃_redge)
+          ((hs₄_fr ordB (by decide)).trans hs₃_ord)
+          ((hs₄_fr compB (by decide)).trans hs₃_comp)
+          hs₄_csr
       have hs₇_fr3 : ∀ r : Fin 28, r.val < 18 → r ≠ offB → r ≠ edgeB → r ≠ finB →
-          s₇.regs r = s₃.regs r := fun r hr h1 h2 h3 => by
-        rw [hs₇_fr r hr]
-        dsimp only [s₆']
-        rw [Data.set_regs_of_ne h3]
-        exact hs₆_fr3 r hr h1 h2
+          s₇.regs r = s₃.regs r := fun r hr h1 h2 h3 =>
+        (hs₇_fr r hr h1 h2 h3).trans (hs₄_fr r hr)
       set compIdx := indexComponents (sccs (implicationAdj G.φ) (literalList (List.finRange G.n)))
       have hs₇_comp' : ∀ u : Fin (2 * G.n),
           s₇.mem (kCompAddr wb N Mc + u.val) = compIdx ((litEquiv G.n).symm u) := fun u => by
@@ -2007,13 +1925,9 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
       have hfull_pos : ExecWithin w
           (setupWorkRegsCode.seq
             (buildImplCSRCode.seq
-              (forwardDFSCode.seq
-                (transposeCSRCode.seq
-                  ((ram[ finB ← ordB + nVerts ]).seq
-                    (kosarajuIndexCode.seq
-                      extractAssignmentCode))))))
+              (sccIndexCode.seq extractAssignmentCode)))
           s₂ y (498 * G.n + 245 * G.φ.length + 88) :=
-        (hs₃_ex.seq (hs₄_ex.seq (hs₅_ex.seq (hs₆_ex.seq (hp_finB.seq (hs₇_ex.seq hext_ex)))))).mono
+        (hs₃_ex.seq (hs₄_ex.seq (hs₇_ex.seq hext_ex))).mono
           (by dsimp only [N, Mc] at *; omega)
       obtain ⟨tf, htf, hef⟩ := hfull_pos
       have hbr_inner : Exec w
@@ -2021,11 +1935,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
             (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ])
             (setupWorkRegsCode.seq
               (buildImplCSRCode.seq
-                (forwardDFSCode.seq
-                  (transposeCSRCode.seq
-                    ((ram[ finB ← ordB + nVerts ]).seq
-                      (kosarajuIndexCode.seq
-                        extractAssignmentCode)))))))
+                (sccIndexCode.seq extractAssignmentCode))))
           s₂ y (tf + 2) :=
         Exec.branch_neg hncond_n0 hef
       have hbr_outer : ExecWithin w
@@ -2034,11 +1944,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
               (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ])
               (setupWorkRegsCode.seq
                 (buildImplCSRCode.seq
-                  (forwardDFSCode.seq
-                    (transposeCSRCode.seq
-                      ((ram[ finB ← ordB + nVerts ]).seq
-                        (kosarajuIndexCode.seq
-                           extractAssignmentCode)))))))
+                  (sccIndexCode.seq extractAssignmentCode))))
             (ram[ *outBase ← cZero ]))
           s₂ y (498 * G.n + 245 * G.φ.length + 91) :=
         ⟨tf + 3, by omega, Exec.branch_pos hcond_chk hbr_inner⟩
