@@ -5,6 +5,7 @@ Authors: Christian Reitwiessner
 -/
 
 module
+-- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.InputBit
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.StoredCount
