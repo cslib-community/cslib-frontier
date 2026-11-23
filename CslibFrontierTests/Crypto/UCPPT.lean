@@ -500,6 +500,12 @@ private noncomputable def emptyWordOracle :
     WordInterface.empty.Channel × List Bool → StateT Unit PMF (List Bool)
   | cw, _ => cw.1.elim
 
+private theorem runWith_lowerWith_empty_sample {α : Type} (k : ℕ) (p : ProbComp α) :
+    ProbOracleComp.runWith emptyWordOracle
+        (ProbOracleComp.lowerWith WordInterface.empty k (ProbOracleComp.sample p)) () =
+      p.eval.map (·, ()) := by
+  rw [ProbOracleComp.lowerWith, ProbOracleComp.simulate_sample, ProbOracleComp.runWith_sample]
+
 /-- Observable `wordRun` witness: for any `PPTCertificate` of `coinStore.toProtocol`, running
 `coinEnv` through `wordRun` with fitting `replyBound = 2` delivers the fair stored coin to the
 environment (`PMF` probability `1 / 2` on `true`), whereas truncating at `replyBound = 1` drops the
@@ -514,7 +520,7 @@ theorem coinStore_wordRun_delivers_coin
     ProbOracleComp.runWith emptyWordOracle
       (wordRun coinStore.toProtocol WordInterface.empty coinPartyPort unitPort
         cert.codec coinEnv ∅ ⟨κ, 1, z⟩) () (true, ()) = 0 := by
-  have hrun : ∀ k : ℕ, 1 ≤ k →
+  have hrun (k : ℕ) :
       ProbOracleComp.runWith emptyWordOracle
         (wordRun coinStore.toProtocol WordInterface.empty coinPartyPort unitPort
           cert.codec coinEnv ∅ ⟨κ, k, z⟩) () =
@@ -523,7 +529,6 @@ theorem coinStore_wordRun_delivers_coin
               (List.take k (coinPartyPort.reply (some [true ^^ c]))) with
           | some (b :: _) => b
           | _ => false, ())) := by
-    intro k _
     have hproto0 (s : (coinStore.toProtocol κ ∅).State) :
         ProbOracleComp.runWith emptyWordOracle
           (ProbOracleComp.lowerWith WordInterface.empty k
@@ -541,8 +546,7 @@ theorem coinStore_wordRun_delivers_coin
       change ProbOracleComp.runWith emptyWordOracle
           (ProbOracleComp.lowerWith WordInterface.empty k
             (ProbOracleComp.sample ((coinStore.onInput q0.1 q0.2).run s'))) () = _
-      rw [hq0, ProbOracleComp.lowerWith, ProbOracleComp.simulate_sample,
-        ProbOracleComp.runWith_sample]
+      rw [hq0, runWith_lowerWith_empty_sample]
       dsimp only
       rw [coinStore_onInput_zero_eval]
       refine Eq.trans (PMF.map_comp
@@ -563,8 +567,7 @@ theorem coinStore_wordRun_delivers_coin
       change ProbOracleComp.runWith emptyWordOracle
           (ProbOracleComp.lowerWith WordInterface.empty k
             (ProbOracleComp.sample ((coinStore.onInput q1.1 q1.2).run s'))) () = _
-      rw [hq1, ProbOracleComp.lowerWith, ProbOracleComp.simulate_sample,
-        ProbOracleComp.runWith_sample, coinStore_onInput_one_eval]
+      rw [hq1, runWith_lowerWith_empty_sample, coinStore_onInput_one_eval]
       exact PMF.pure_map (fun x : Option (List Bool) × List Bool => (x, ())) (some s', s')
     have hprotoU (s : (coinStore.toProtocol κ ∅).State) :
         ProbOracleComp.runWith emptyWordOracle
@@ -575,8 +578,7 @@ theorem coinStore_wordRun_delivers_coin
       change ProbOracleComp.runWith emptyWordOracle
           (ProbOracleComp.lowerWith WordInterface.empty k
             (ProbOracleComp.sample ((coinStore.onBackdoor ()).run s'))) () = _
-      rw [ProbOracleComp.lowerWith, ProbOracleComp.simulate_sample, ProbOracleComp.runWith_sample,
-        coinStore_onBackdoor_eval]
+      rw [runWith_lowerWith_empty_sample, coinStore_onBackdoor_eval]
       exact PMF.pure_map (fun x : Unit × List Bool => (x, ())) ((), s')
     let sInit : (coinStore.toProtocol κ ∅).State := ([] : List Bool)
     have hinit : (coinStore.toProtocol κ ∅).init = pure sInit := rfl
@@ -609,7 +611,7 @@ theorem coinStore_wordRun_delivers_coin
     simp only [Function.comp_def, Prod.map, id_eq, (cert.codec κ ∅).decode_enc, sInit]
     exact PMF.bind_pure_comp _ _
   refine ⟨?_, ?_⟩
-  · rw [hrun 2 (by omega)]
+  · rw [hrun 2]
     have hfit : ∀ x : Bool,
         coinPartyPort.replyDecoder.decode
           (List.take 2 (coinPartyPort.reply (some [x]))) = some [x] := by
@@ -624,7 +626,7 @@ theorem coinStore_wordRun_delivers_coin
       rw [Fintype.sum_bool]
       simp
     simp [one_div]
-  · rw [hrun 1 (by omega)]
+  · rw [hrun 1]
     have htrunc : ∀ x : Bool,
         coinPartyPort.replyDecoder.decode
           (List.take 1 (coinPartyPort.reply (some [x]))) = some [] := by
