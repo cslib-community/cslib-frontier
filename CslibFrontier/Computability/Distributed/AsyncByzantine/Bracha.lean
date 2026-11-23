@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Distributed.AsyncByzantine.Basic
 import CslibFrontier.Computability.Distributed.AsyncByzantine.Impossibility
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Data.Finset.Lattice.Fold
 
@@ -112,10 +113,7 @@ theorem echo_quorum_inter_notMem {P : Type*} [Fintype P] [DecidableEq P]
     (h₁ : echoThreshold (Fintype.card P) t ≤ S₁.card)
     (h₂ : echoThreshold (Fintype.card P) t ≤ S₂.card) :
     ∃ p ∈ S₁ ∩ S₂, p ∉ F := by
-  have := Finset.card_union_add_card_inter S₁ S₂
-  have := Finset.card_le_univ (S₁ ∪ S₂)
-  simp only [echoThreshold] at h₁ h₂
-  exact Finset.exists_mem_notMem_of_card_lt_card (by omega)
+  finset_card [echoThreshold]
 
 /-! ### Protocol definition -/
 
@@ -464,8 +462,7 @@ private lemma BrachaInv.out_has_honest_ready {s : State P (BrachaState P V) (Bra
     {p : P} (hp : p ∉ F) {v : V} (hv : s.ProcDecided p v) :
     ∃ k ∉ F, (s.proc k).state.sentReady = some v := by
   have hcnt := hinv.outSound p hp v hv
-  obtain ⟨k, hkS, hkF⟩ := Finset.exists_mem_notMem_of_card_lt_card
-    (show F.card < (readySenders (s.proc p).state v).card by omega)
+  obtain ⟨k, hkS, hkF⟩ : ∃ k ∈ readySenders (s.proc p).state v, k ∉ F := by finset_card
   simp only [readySenders, Finset.mem_filter, Finset.mem_univ, true_and] at hkS
   exact ⟨k, hkF, hinv.readySound p hp k hkF v hkS⟩
 
@@ -638,10 +635,9 @@ private lemma recvCore_readyWitness (hF : F.card ≤ t) (hinv : BrachaInv dealer
     · refine lift hcnt fun j hjS hjF => ?_
       simp only [echoSenders, Finset.mem_filter, Finset.mem_univ, true_and] at hjS
       exact hES_pre j hjF v hjS
-    · obtain ⟨k, hkS, hkF⟩ := Finset.exists_mem_notMem_of_card_lt_card
-        (show F.card <
-          (readySenders (brachaStep dealer t (s.proc p).state src body).nextState v).card
-          by omega)
+    · obtain ⟨k, hkS, hkF⟩ :
+          ∃ k ∈ readySenders (brachaStep dealer t (s.proc p).state src body).nextState v,
+            k ∉ F := by finset_card
       simp only [readySenders, Finset.mem_filter, Finset.mem_univ, true_and] at hkS
       obtain ⟨S, hS, hw⟩ := hinv.readyWitness k hkF v (hRS_pre k hkF v hkS)
       exact lift hS hw
@@ -690,9 +686,9 @@ private lemma recvCore_outSat (hF : F.card ≤ t) (hinv : BrachaInv dealer t F i
     cases hprev : (s.proc p).out with
     | some u =>
       obtain ⟨k₁, hk₁, hr₁⟩ := hinv.out_has_honest_ready hF hp hprev
-      obtain ⟨k₂, hk₂S, hk₂F⟩ := Finset.exists_mem_notMem_of_card_lt_card
-        (show F.card <
-          (readySenders (brachaStep dealer t (s.proc p).state src body).nextState v).card by omega)
+      obtain ⟨k₂, hk₂S, hk₂F⟩ :
+          ∃ k₂ ∈ readySenders (brachaStep dealer t (s.proc p).state src body).nextState v,
+            k₂ ∉ F := by finset_card
       simp only [readySenders, Finset.mem_filter, Finset.mem_univ, true_and] at hk₂S
       obtain rfl := hinv.ready_unique hF hk₁ hk₂F hr₁ (hRS_pre k₂ hk₂F v hk₂S)
       exact recvCore_procDecided_mono hprev
@@ -816,10 +812,9 @@ private lemma brachaInv_recvCore (hF : F.card ≤ t)
         (.ready v) (hinv.readySat p hp v) brachaStep_readySenders_card_eq
         (fun hbm hsr hcnt => by rw [hbm] at hcnt ⊢; exact brachaStep_ready_sat_none hsr hcnt)
         (fun u hsr hcnt => by
-          obtain ⟨k, hkS, hkF⟩ := Finset.exists_mem_notMem_of_card_lt_card
-            (show F.card <
-              (readySenders (brachaStep dealer t (s.proc dest).state src body).nextState v).card
-              by omega)
+          obtain ⟨k, hkS, hkF⟩ :
+              ∃ k ∈ readySenders (brachaStep dealer t (s.proc dest).state src body).nextState v,
+                k ∉ F := by finset_card
           simp only [readySenders, Finset.mem_filter, Finset.mem_univ, true_and] at hkS
           exact (hinv.ready_unique hF hdest hkF hsr (hRS_pre k hkF v hkS)).symm)
       outSat := recvCore_outSat hF hinv hRS_pre
@@ -965,7 +960,7 @@ private lemma eventual_deliver_of_all_ready (hnt : 3 * t < Fintype.card P) (hF :
     (fun _ _ _ _ _ => brachaStep_readyFrom_mono) (Finset.univ \ F) q v fun p hp => by
       obtain ⟨k, hk⟩ := hready p (Finset.mem_sdiff.mp hp).2
       exact eventual_readyFrom hF ha (Finset.mem_sdiff.mp hp).2 hq hk
-  have hcard : 2 * t + 1 ≤ (Finset.univ \ F).card := by simp [Finset.card_sdiff]; omega
+  have hcard : 2 * t + 1 ≤ (Finset.univ \ F).card := by finset_card
   exact ⟨K, (brachaInv_run hF ha K).outSat q hq v (hcard.trans hK)⟩
 
 end Liveness
@@ -988,12 +983,11 @@ theorem solvesReliableBroadcast_bracha {P V : Type*} [Fintype P] [DecidableEq P]
     have hinv := brachaInv_reachable hF hr
     obtain ⟨k, hk, hrk⟩ := hinv.out_has_honest_ready hF hi hv
     obtain ⟨S, hS, hw⟩ := hinv.readyWitness k hk v hrk
-    have : t < echoThreshold (Fintype.card P) t := by simp only [echoThreshold]; omega
-    obtain ⟨j, hjS, hjF⟩ := Finset.exists_mem_notMem_of_card_lt_card (by omega : F.card < S.card)
+    obtain ⟨j, hjS, hjF⟩ : ∃ j ∈ S, j ∉ F := by finset_card [echoThreshold]
     exact hinv.echoDealer hd j hjF v (hw j hjS hjF)
   validity F hF hd v ss xs ha q hq := by
     have hcard : echoThreshold (Fintype.card P) t ≤ (Finset.univ \ F).card := by
-      simp only [echoThreshold, Finset.card_sdiff, Finset.inter_univ, Finset.card_univ]; omega
+      finset_card [echoThreshold]
     have hevent_echo : ∀ r ∉ F, ∃ k, ((ss k).proc r).state.sentEcho = some v := fun r hr =>
       eventual_of_mem_or (Q := fun st => st.sentEcho = some v) ha hr
         ((brachaInv_run hF ha 0).initLive hd v rfl r hr) (fun j _ hinvj => by
@@ -1018,10 +1012,7 @@ theorem solvesReliableBroadcast_bracha {P V : Type*} [Fintype P] [DecidableEq P]
     have hinvk := brachaInv_run hF ha k
     let R : Finset P := readySenders ((ss k).proc i).state v \ F
     have hcard : t + 1 ≤ R.card := by
-      have hsound := hinvk.outSound i hi v hv
-      have : (readySenders ((ss k).proc i).state v).card ≤ R.card + F.card :=
-        Finset.card_le_card_sdiff_add_card
-      omega
+      have := hinvk.outSound i hi v hv; finset_card
     refine eventual_deliver_of_all_ready hnt hF ha (fun p hp => ?_) hq
     obtain ⟨K, hK⟩ := eventual_filter_card ha.2.1 BrachaState.readyFrom
       (fun _ _ _ _ _ => brachaStep_readyFrom_mono) R p v fun r hr => by
