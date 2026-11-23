@@ -8,9 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.TseitinCNF.Refutation
+public import CslibFrontier.Logics.Propositional.CNF.LRATKernel
 public import Mathlib.Data.Fin.VecNotation
 public meta import CslibFrontier.Logics.Propositional.TseitinCNF.Numbered
 public meta import CslibFrontier.Algorithms.Lean.CDCL.Watched
+public meta import CslibFrontier.Logics.Propositional.CNF.LRATFast
 public meta import Mathlib.Util.AtomM
 public meta import Lean.Elab.Tactic.ElabTerm
 
@@ -25,11 +27,13 @@ checks the certificate; the proof uses no native evaluation, and its axioms are 
 
 The tactic reads the goal `P` as a proposition `A : Proposition (Fin n)` and a valuation
 `v : Fin n → Prop` of its atoms, with `A.eval v ↔ P`. It then applies
-`Cslib.Logic.PL.Proposition.eval_prop_of_checkLRAT` to `A` and `v`: its hypothesis, that
-`Cslib.Logic.PL.CNF.checkLRAT` accepts `cert` on `(imp A falsum).tseitinNumberedCNF`, is proved by
-`decide`, so the kernel runs the checker. Only that run is trusted; where the certificate came
-from does not matter. The goals proved are the classical tautologies, since
-`eval_prop_of_checkLRAT` decides each atom classically.
+`Cslib.Logic.PL.Proposition.eval_prop_of_checkLRAT` to `A` and `v`. Its hypothesis, that
+`Cslib.Logic.PL.CNF.checkLRAT` accepts `cert` on `(imp A falsum).tseitinNumberedCNF`, is proved
+by `decide` for the checker built for kernel reduction, `Cslib.Logic.PL.CNF.checkLRATKernel`,
+and rewritten with `Cslib.Logic.PL.CNF.checkLRATKernel_eq_checkLRAT`. So the kernel runs that
+checker, and only that run is trusted; where the certificate came from does not matter. The
+goals proved are the classical tautologies, since `eval_prop_of_checkLRAT` decides each atom
+classically.
 
 ## Reading the goal
 
@@ -70,10 +74,12 @@ a countermodel of the goal itself, since the atoms may not be able to take those
 `∀ n : ℕ, n = n`, the one atom `n = n` is assigned `False`. Otherwise the solver
 returns a certificate, which is proved correct (`Cslib.Algorithms.Lean.CDCL.solveCompact_unsat`)
 but is not trusted here: the kernel checks it as it checks a supplied one. The certificate is first
-trimmed to the steps that the empty clause depends on, without the deletions, which the kernel
-checks faster; the untrimmed certificate is used if the trimmed one fails the checker, evaluated
-in the interpreter. `set_option trace.lrat_tauto true` reports the sizes of the formula and of the
-certificate and the times taken.
+trimmed to the steps that the empty clause depends on, without the deletions, and the clauses it
+adds are renumbered `n + 1, n + 2, …` after the `n` clauses of the formula, which keeps the
+kernel checker's trie shallow. The untrimmed certificate is used if the result fails the
+array-based checker `Cslib.Logic.PL.CNF.checkLRATFast`, evaluated in the interpreter.
+`set_option trace.lrat_tauto true` reports the sizes of the formula and of the certificate and
+the times taken.
 
 The solver is a single private definition, `generateCert`. Its type,
 `Cslib.Algorithms.Lean.DPLL.Result`, guarantees neither a model nor a certificate, so a replacement
@@ -101,13 +107,13 @@ kernel checks every certificate; the tactic then fails, or shows a wrong assignm
 
 * `↔` is encoded by writing each side twice, so a goal that nests `↔` to depth `d` has up to
   `2 ^ d` copies of its innermost subformulas.
-* The kernel evaluates a checker on lists, which is slow, and its time grows faster than the
-  size of the certificate, as each hint is looked up in a list of all the clauses. On the
-  pigeonhole formulas for five pigeons in four holes and six in five, supplied certificates of
-  193 and 395 steps (from CaDiCaL) took about 3 and 13 seconds to elaborate and check; the
-  CDCL solver's certificates have 374 and 1561 steps after trimming, and the kernel took about 10
-  and 118 seconds to check them. The benchmark script `LRATTautoBench` in the
-  repository's scripts measures more families.
+* The kernel check takes most of the time. With the CDCL solver's certificates, trimmed, the
+  kernel checked the pigeonhole formulas for five pigeons in four holes and six in five
+  (certificates of 131 and 461 steps) in about 7 and 23 seconds, the chain of 320 implications
+  in about 3 seconds, and the distributivity of `∧` over `∨` on six disjunctions (32 steps) and
+  the associativity of `↔` on six atoms (67 steps) in about 2.5 seconds each. The time grows
+  with the number of steps and with the length of the clauses the hints name. The benchmark
+  script `LRATTautoBench` in the repository's scripts measures these families.
 * The solver runs in Lean's interpreter, and its work counts toward `maxHeartbeats`; it takes a
   small fraction of the time of the kernel check, but on the larger formulas enough heartbeats
   that `set_option maxHeartbeats` must be raised.
@@ -125,11 +131,10 @@ arbitrary propositions, from an LRAT certificate that refutes the numbered Tseit
 of the negated goal. The certificate is generated by the CDCL solver at elaboration time, or
 supplied as `lrat_tauto using cert` with `cert : Array LRAT.IntAction`; when the goal is not a
 propositional tautology, the error shows an assignment to its atoms, read as independent
-propositions, under which it is false. The
-kernel checks the certificate by evaluating `Cslib.Logic.PL.CNF.checkLRAT`. Leading binders over
-non-propositions, such as `∀ p q : Prop`, are introduced first; hypotheses in the context are not
-used. The atoms are the maximal subterms that are not connectives, compared at reducible
-transparency.
+propositions, under which it is false. The kernel checks the certificate by evaluating
+`Cslib.Logic.PL.CNF.checkLRATKernel`. Leading binders over non-propositions, such as
+`∀ p q : Prop`, are introduced first; hypotheses in the context are not used. The atoms are the
+maximal subterms that are not connectives, compared at reducible transparency.
 
 A supplied certificate is a closed term the kernel can evaluate: a literal, or a definition whose
 body it can unfold. A certificate the checker rejects is reported as such.
@@ -293,8 +298,10 @@ private def generateCert (φ : CNF ℕ) : Cslib.Algorithms.Lean.DPLL.Result :=
   Cslib.Algorithms.Lean.CDCL.solveCompact φ
 
 /-- The steps of a certificate that the empty clause depends on, through the hints, in order;
-deletions are dropped. The kernel checks the result faster, as its database stays smaller, and
-accepts it whenever it accepts the certificate, since a deleted clause is never hinted again. -/
+deletions are dropped. The kernel checker accepts the result whenever it accepts the
+certificate, since a deleted clause is never hinted again. Dropping the deletions measured faster
+than keeping the solver's or deleting each clause after its last hint: the checker's trie does
+not get shallower when clauses are deleted, and each deletion costs a step. -/
 private def trimCert (cert : Array LRAT.IntAction) : Array LRAT.IntAction := Id.run do
   let mut needed : Std.HashSet ℕ := {}
   let mut kept : Array LRAT.IntAction := #[]
@@ -312,6 +319,27 @@ private def trimCert (cert : Array LRAT.IntAction) : Array LRAT.IntAction := Id.
     | .addRat .. => kept := kept.push a
     | .del _ => pure ()
   return kept.reverse
+
+/-- Renumbers the clauses that a certificate adds as `n + 1, n + 2, …` in order, after the `n`
+clauses of the formula, and its hints and deletions accordingly, so that the kernel checker's
+trie stays shallow. A hint to a number the certificate has not added keeps that number. -/
+private def renumberCert (n : ℕ) (cert : Array LRAT.IntAction) : Array LRAT.IntAction :=
+  Id.run do
+  let mut m : Std.HashMap ℕ ℕ := {}
+  let mut next := n + 1
+  let mut out : Array LRAT.IntAction := #[]
+  for a in cert do
+    match a with
+    | .addRup id c hints =>
+      out := out.push (.addRup next c (hints.map fun h => m.getD h h))
+      m := m.insert id next
+      next := next + 1
+    | .addEmpty _ hints =>
+      out := out.push (.addEmpty next (hints.map fun h => m.getD h h))
+      next := next + 1
+    | .del ids => out := out.push (.del (ids.map fun h => m.getD h h))
+    | .addRat .. => out := out.push a
+  return out
 
 /-- A certificate as an expression, with its numbers as raw literals. -/
 private def certToExpr (cert : Array LRAT.IntAction) : Expr :=
@@ -346,8 +374,8 @@ private def certFor (φ : CNF ℕ) (atoms : Array Expr) : MetaM (Array LRAT.IntA
   let start ← IO.monoMsNow
   match ← IO.lazyPure fun _ => generateCert φ with
   | .unsat cert =>
-    let trimmed := trimCert cert
-    let ok := CNF.checkLRAT φ trimmed
+    let trimmed := renumberCert φ.length (trimCert cert)
+    let ok := CNF.checkLRATFast φ trimmed
     trace[lrat_tauto] "{φ.length} clauses; the solver's certificate has {cert.size} steps, \
       {trimmed.size} after trimming{if ok then "" else ", rejected, so it is not used"}; \
       {(← IO.monoMsNow) - start} ms"
@@ -370,7 +398,8 @@ private def closeGoal (g : MVarId) (cert : Option Expr) : MetaM Unit := g.withCo
   let a := propositionToExpr (s.toProposition n)
   let negA := mkApp3 (mkConst ``Proposition.imp [0]) (toTypeExpr (Fin n)) a
     (mkApp (mkConst ``Proposition.falsum [0]) (toTypeExpr (Fin n)))
-  let checkE ← mkAppM ``CNF.checkLRAT #[← mkAppM ``Proposition.tseitinNumberedCNF #[negA], cert]
+  let φE ← mkAppM ``Proposition.tseitinNumberedCNF #[negA]
+  let checkE ← mkAppM ``CNF.checkLRATKernel #[φE, cert]
   let checkProp ← mkEq checkE (mkConst ``Bool.true)
   let start ← IO.monoMsNow
   let hcheck ← try
@@ -380,6 +409,9 @@ private def closeGoal (g : MVarId) (cert : Option Expr) : MetaM Unit := g.withCo
   trace[lrat_tauto] "the kernel checked the certificate in {(← IO.monoMsNow) - start} ms"
   let v ← atoms.foldrM (fun e t => mkAppM ``Matrix.vecCons #[e, t])
     (← mkAppOptM ``Matrix.vecEmpty #[mkSort .zero])
+  -- `checkLRATKernel φ cert = true`, rewritten to `checkLRAT φ cert = true`
+  let hcheck ← mkEqTrans (← mkEqSymm (← mkAppM ``CNF.checkLRATKernel_eq_checkLRAT #[φE, cert]))
+    hcheck
   let hA ← mkAppM ``Proposition.eval_prop_of_checkLRAT #[hcheck, v]
   let (_, p, hiff) ← s.iffGoal
   -- `hiff : X ↔ P`, where `X` is `A.eval v` up to unfolding `eval` and the valuation.

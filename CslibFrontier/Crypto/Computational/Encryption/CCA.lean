@@ -37,6 +37,7 @@ import CslibFrontier.Probability.PMF.BindCompare
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Chosen-ciphertext security for public-key encryption (1CCA and multi-challenge CCA / IND-CCA2)
@@ -2086,11 +2087,8 @@ theorem INDCCA2On.indcca2MultiOn {Msg Out : Type} [Inhabited Msg]
     exact hch.trans (Nat.mul_le_mul_left cq (Nat.pow_le_pow_left (by omega) dq))
   have hsingleNeg := h (cca2MultiToSingle valid encrypt decBound Q adversary)
     (isPPT_cca2MultiToSingle hvalid hencrypt hdecBoundPoly hQPoly hA)
-  have hpolyDyadic : PolynomiallyBounded (fun n => dyadicSize (Q n)) := by
-    dsimp only [Q]; fun_prop
-  refine negligible_of_le (hsingleNeg.polynomiallyBounded_mul hpolyDyadic) fun n => ?_
-  rw [advantage_cca2MultiGameOn valid encOut keyGen encrypt decrypt decBound Q adversary n
-    (hdecBound n) (hQ n)]
+  negligible using fun n => (advantage_cca2MultiGameOn valid encOut keyGen encrypt decrypt
+    decBound Q adversary n (hdecBound n) (hQ n)).le
 
 /-- Batch-challenge step toward [BonehShoup2023], Theorem 12.1 with Definition 12.2 (printed
 p. 468), not the cited result: single-challenge 1CCA security and batch-challenge multi-challenge

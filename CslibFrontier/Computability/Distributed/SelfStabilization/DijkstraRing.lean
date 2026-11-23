@@ -1425,7 +1425,7 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
         centralCycleState]
       ext
       have hnot : ¬ n - 1 ≤ n - (K + 2) + 1 := by omega
-      simp [hnot]
+      simp only [Nat.zero_le, hnot, ↓reduceIte, Nat.sub_self, Nat.zero_mod]
     have hplast : dijkstraPrivileged (centralCycleState n K 0) ⟨n - 1, by omega⟩ := by
       have hnz : n - 1 ≠ 0 := by omega
       simp only [dijkstraPrivileged, hnz, ↓reduceIte, fin_sub_one_eq, ↓reduceDIte,
@@ -1442,21 +1442,21 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
       funext i
       have h1le : 1 ≤ K := by omega
       by_cases hi0 : i.val = 0
-      · have hieq : i = 0 := Fin.ext hi0
-        subst hieq
+      · obtain rfl : i = 0 := Fin.ext hi0
         ext
-        simp [centralCycleState, h1le, dijkstraStep, dijkstraNextVal, fin_add_one_mod]
+        simp only [centralCycleState, Nat.one_ne_zero, h1le, ↓reduceIte, Fin.val_zero,
+          dijkstraStep, Function.update_self, dijkstraNextVal, fin_add_one_mod, Nat.zero_le,
+          zero_add]
       · have hine : i ≠ 0 := fun h => hi0 (by rw [h]; rfl)
         have hil : i.val ≤ n - 1 := by have := i.isLt; omega
         rw [dijkstraStep, Function.update_of_ne hine]
         simp only [centralCycleState, Nat.one_ne_zero, h1le, ↓reduceIte, hi0, hil]
-    refine ⟨⟨hp0, hstep_eq⟩, not_legit_of_two hp0 hplast (fun h => by
-      have hv := congrArg Fin.val h
-      change 0 = n - 1 at hv
-      omega)⟩
+    refine ⟨⟨hp0, hstep_eq⟩, not_legit_of_two hp0 hplast (fun h => ?_)⟩
+    have hv : 0 = n - 1 := congrArg Fin.val h
+    omega
   · by_cases hrK : r ≤ K
     · have hsched_val : (centralCycleSched n K hn r).val = n - r := by
-        simp [centralCycleSched, hr0, hrK]
+        simp only [centralCycleSched, hr0, hrK, ↓reduceDIte]
       let p := centralCycleSched n K hn r
       have hp_nz : p.val ≠ 0 := by rw [hsched_val]; omega
       have hleft_val : (p - 1).val = n - r - 1 := by
@@ -1499,12 +1499,12 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
             by_cases hrrK : r = K
             · have hl_le_d : (p - 1).val ≤ n - (K + 2) + 1 := by rw [hleft_val]; omega
               have hnp : n - p.val = K := by rw [hsched_val]; omega
-              simp [hl_le_d, hnp]
+              simp only [hl_le_d, ↓reduceIte, hnp, Nat.mod_self]
             · have hl_gt_d : ¬ (p - 1).val ≤ n - (K + 2) + 1 := by rw [hleft_val]; omega
               have hl_le_nr : (p - 1).val ≤ n - r := by rw [hleft_val]; omega
               have hs2 : n - 1 - (p - 1).val = n - p.val := by
                 rw [hleft_val, hsched_val]; omega
-              simp [hl_gt_d, hl_le_nr, hs2]
+              simp only [hl_gt_d, hl_le_nr, ↓reduceIte, hs2]
           rw [hnext_val]
           have hp_gt_d : ¬ p.val ≤ n - (K + 2) + 1 := by rw [hsched_val]; omega
           by_cases hrrK : r = K
@@ -1523,7 +1523,7 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
             have hsub0 : r + 1 - (K + 1) = 0 := by omega
             simp only [centralCycleState, hr1_nz, hnotK, ↓reduceIte, hsub0, hr0, hrK]
             by_cases hi0 : i.val = 0
-            · simp [hi0]
+            · simp only [hi0, Nat.zero_le, ↓reduceIte]
             · have hnot0 : ¬ i.val ≤ 0 := by omega
               simp only [hi0, hnot0, ↓reduceIte]
               split_ifs with hd hnr
@@ -1533,13 +1533,13 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
           · have hr1K : r + 1 ≤ K := by omega
             simp only [centralCycleState, hr1_nz, hr1K, ↓reduceIte, hr0, hrK]
             by_cases hi0 : i.val = 0
-            · simp [hi0]
+            · simp only [hi0, ↓reduceIte]
             · simp only [hi0, ↓reduceIte]
               by_cases hd : i.val ≤ n - (K + 2) + 1
-              · simp [hd]
+              · simp only [hd, ↓reduceIte]
               · simp only [hd, ↓reduceIte]
                 have hiff : (i.val ≤ n - (r + 1)) ↔ (i.val ≤ n - r) := by omega
-                simp [hiff]
+                simp only [hiff]
       have hnot_leg : centralCycleState n K r ∉ DijkstraLegitimate n K := by
         by_cases hr1 : r = 1
         · subst hr1
@@ -1548,26 +1548,23 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
             have h1d : 1 ≤ n - (K + 2) + 1 := by omega
             simp only [dijkstraPrivileged, Nat.one_ne_zero, ↓reduceIte, fin_sub_one_eq, ↓reduceDIte,
               Nat.sub_self, centralCycleState, h1le, h1d]
-            intro heq
-            have hv := congrArg Fin.val heq
-            simp [h1mod] at hv
-          exact not_legit_of_two hp1 hp_priv (fun h => by
-            have hv := congrArg Fin.val h
-            rw [hsched_val] at hv
-            change 1 = n - 1 at hv
-            omega)
+            exact fun heq => Nat.zero_ne_one ((congrArg Fin.val heq).trans h1mod)
+          refine not_legit_of_two hp1 hp_priv (fun h => ?_)
+          have hv : 1 = p.val := congrArg Fin.val h
+          rw [hsched_val] at hv; omega
         · have hp0 : dijkstraPrivileged (centralCycleState n K r) 0 := by
             have hnot_d : ¬ n - 1 ≤ n - (K + 2) + 1 := by omega
             have hnot_nr : ¬ n - 1 ≤ n - r := by omega
             have hsub1 : n - (n - 1) = 1 := by omega
-            simp [dijkstraPrivileged, fin_sub_one_eq, centralCycleState, hr0, hrK,
-              Nat.sub_ne_zero_of_lt (by omega : 1 < n), hnot_d, hnot_nr, hsub1]
+            simp only [dijkstraPrivileged, Fin.val_zero, ↓reduceIte, fin_sub_one_eq, ↓reduceDIte,
+              centralCycleState, hr0, hrK, Nat.sub_ne_zero_of_lt (by omega : 1 < n), hnot_d,
+              hnot_nr, hsub1]
           exact not_legit_of_two hp0 hp_priv (Ne.symm (fun h => hp_nz (by rw [h]; rfl)))
       exact ⟨⟨hp_priv, hstep_eq⟩, hnot_leg⟩
     · have hgtK : K + 1 ≤ r := by omega
       have hnot_leK : ¬ r ≤ K := hrK
       have hsched_val : (centralCycleSched n K hn r).val = r - K := by
-        simp [centralCycleSched, hr0, hrK, hr]
+        simp only [centralCycleSched, hr0, hrK, hr, ↓reduceDIte]
       let p := centralCycleSched n K hn r
       have hp_nz : p.val ≠ 0 := by rw [hsched_val]; omega
       have hleft_val : (p - 1).val = r - (K + 1) := by
@@ -1588,8 +1585,8 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
         have hnot1 : ¬ n - 1 ≤ r - (K + 1) := by omega
         have hnotd : ¬ n - 1 ≤ n - (K + 2) + 1 := by omega
         have hsub1 : n - (n - 1) = 1 := by omega
-        simp [dijkstraPrivileged, fin_sub_one_eq, centralCycleState, hr0, hnot_leK, hnot1,
-          hnotd, hsub1]
+        simp only [dijkstraPrivileged, Fin.val_zero, ↓reduceIte, fin_sub_one_eq, ↓reduceDIte,
+          centralCycleState, hr0, hnot_leK, Nat.zero_le, hnot1, hnotd, hsub1]
       have hstep_eq : centralCycleState n K (r + 1) =
           dijkstraStep (centralCycleState n K r) p := by
         funext i
@@ -1780,6 +1777,10 @@ congruent modulo `a` carry equal states. -/
 @[expose] def IsRingPeriodic (a : ℕ) {n : ℕ} {State : Type*} (s : Fin n → State) : Prop :=
   ∀ i j : Fin n, i.val % a = j.val % a → s i = s j
 
+private theorem mul_add_lt_mul {a b k r : ℕ} (hr : r < a) (hk : k < b) : a * k + r < a * b :=
+  (Nat.add_lt_add_left hr _).trans_le
+    ((Nat.mul_succ a k).symm.trans_le (Nat.mul_le_mul_left a hk))
+
 namespace UniformRingProtocol
 
 section Ring
@@ -1870,11 +1871,8 @@ theorem card_privilegedSet_dvd_of_isRingPeriodic {a b : ℕ} (ha : 1 ≤ a) (hb 
     [NeZero (a * b)] {s : Fin (a * b) → State} (hper : IsRingPeriodic a s) :
     b ∣ (π.privilegedSet s).card := by
   let eqv : Fin a × Fin b ≃ Fin (a * b) :=
-    { toFun := fun rq => ⟨a * rq.2.val + rq.1.val, by
-        have := rq.1.isLt; have := rq.2.isLt; nlinarith⟩
-      invFun := fun i =>
-        (⟨i.val % a, Nat.mod_lt _ ha⟩,
-          ⟨i.val / a, Nat.div_lt_of_lt_mul (by linarith [i.isLt, mul_comm a b])⟩)
+    { toFun := fun rq => ⟨a * rq.2.val + rq.1.val, mul_add_lt_mul rq.1.isLt rq.2.isLt⟩
+      invFun := fun i => (⟨i.val % a, Nat.mod_lt _ ha⟩, ⟨i.val / a, Nat.div_lt_of_lt_mul i.isLt⟩)
       left_inv := fun ⟨r, q⟩ => by
         ext
         · dsimp only
@@ -1956,16 +1954,15 @@ theorem not_uniform_enabledMove_selfStabilizing_composite_ring {State : Type*} [
   -- Independent-set property: distinct elements of a mod-`a` coset are non-adjacent in `C_{a*b}`.
   have coset_ne_sub_one : ∀ {r : ℕ} (hr : r < a) {k₁ k₂ : ℕ} (hk₁ : k₁ < b) (hk₂ : k₂ < b),
       k₁ ≠ k₂ →
-      (⟨a * k₁ + r, by nlinarith⟩ : Fin (a * b)) ≠
-        (⟨a * k₂ + r, by nlinarith⟩ : Fin (a * b)) - 1 := by
+      (⟨a * k₁ + r, mul_add_lt_mul hr hk₁⟩ : Fin (a * b)) ≠
+        (⟨a * k₂ + r, mul_add_lt_mul hr hk₂⟩ : Fin (a * b)) - 1 := by
     intro r hr k₁ k₂ hk₁ hk₂ hne h
     have hv := congrArg Fin.val h
     simp only [fin_sub_one_eq] at hv
     split_ifs at hv with hz
     · dsimp only at hv
-      have hk₂0 : k₂ = 0 := by nlinarith
-      have hr0 : r = 0 := by nlinarith
-      subst hk₂0 hr0
+      obtain ⟨hmul0, rfl⟩ := Nat.add_eq_zero_iff.mp hz
+      obtain rfl := (Nat.mul_eq_zero.mp hmul0).resolve_left (by omega)
       have hk₁_le : k₁ ≤ b - 1 := by omega
       have hmul_le : a * k₁ ≤ a * (b - 1) := Nat.mul_le_mul_left a hk₁_le
       have hprod : a * (b - 1) + a = a * b := by
@@ -1974,8 +1971,7 @@ theorem not_uniform_enabledMove_selfStabilizing_composite_ring {State : Type*} [
         · simp only [Nat.add_sub_cancel]; ring
       omega
     · dsimp only at hv
-      have hmod1 : (a * k₁ + r) % a = r := by
-        rw [Nat.mul_add_mod, Nat.mod_eq_of_lt hr]
+      have hmod1 : (a * k₁ + r) % a = r := by rw [Nat.mul_add_mod, Nat.mod_eq_of_lt hr]
       have hmod2 : (a * k₂ + r - 1) % a = (r + (a - 1)) % a := by
         have hpos : 1 ≤ a * k₂ + r := Nat.pos_of_ne_zero hz
         calc
@@ -1992,8 +1988,8 @@ theorem not_uniform_enabledMove_selfStabilizing_composite_ring {State : Type*} [
         omega
   have hcoset_indep : ∀ {r : ℕ} (hr : r < a) {k₁ k₂ : ℕ} (hk₁ : k₁ < b) (hk₂ : k₂ < b)
       (hne : k₁ ≠ k₂),
-      let p₁ : Fin (a * b) := ⟨a * k₁ + r, by nlinarith⟩
-      let p₂ : Fin (a * b) := ⟨a * k₂ + r, by nlinarith⟩
+      let p₁ : Fin (a * b) := ⟨a * k₁ + r, mul_add_lt_mul hr hk₁⟩
+      let p₂ : Fin (a * b) := ⟨a * k₂ + r, mul_add_lt_mul hr hk₂⟩
       p₁ ≠ p₂ ∧ p₁ ≠ p₂ - 1 ∧ p₁ ≠ p₂ + 1 := by
     intro r hr k₁ k₂ hk₁ hk₂ hne p₁ p₂
     have hp_ne : p₁ ≠ p₂ := by
@@ -2018,34 +2014,31 @@ theorem not_uniform_enabledMove_selfStabilizing_composite_ring {State : Type*} [
     have hr_lt : r < a := Nat.mod_lt _ ha1
     let v_new := π.nextVal u i₀
     let cosetNode : ℕ → Fin (a * b) := fun k =>
-      if hk : k < b then ⟨a * k + r, by nlinarith⟩ else ⟨0, NeZero.pos (a * b)⟩
+      if hk : k < b then ⟨a * k + r, mul_add_lt_mul hr_lt hk⟩ else ⟨0, NeZero.pos (a * b)⟩
     let st : ℕ → Fin (a * b) → State := fun k j =>
       if j.val % a = r ∧ j.val / a < min k b then v_new else u j
     have hst0 : st 0 = u := by funext j; simp [st]
     have hstb_per : IsRingPeriodic a (st b) := by
       intro i j hij
-      have hdiv_i : i.val / a < b := Nat.div_lt_of_lt_mul (by linarith [i.isLt, mul_comm a b])
-      have hdiv_j : j.val / a < b := Nat.div_lt_of_lt_mul (by linarith [j.isLt, mul_comm a b])
-      simp only [st, min_self, hdiv_i, hdiv_j, and_true, hij]
+      simp only [st, min_self, Nat.div_lt_of_lt_mul i.isLt, Nat.div_lt_of_lt_mul j.isLt, and_true,
+        hij]
       split_ifs
       · rfl
       · exact hper i j hij
     have hstep_k : ∀ k, k < b →
         (π.centralLTS (a * b)).Tr (st k) (cosetNode k) (st (k + 1)) := by
       intro k hk
-      let pk : Fin (a * b) := ⟨a * k + r, by nlinarith⟩
+      let pk : Fin (a * b) := ⟨a * k + r, mul_add_lt_mul hr_lt hk⟩
       have hcn : cosetNode k = pk := by simp [cosetNode, hk, pk]
       rw [hcn]
       have hpk_mod : pk.val % a = r := by
-        dsimp only [pk]
-        rw [Nat.mul_add_mod, Nat.mod_eq_of_lt hr_lt]
+        dsimp only [pk]; rw [Nat.mul_add_mod, Nat.mod_eq_of_lt hr_lt]
       have hpk_div : pk.val / a = k := by
-        dsimp only [pk]
-        rw [Nat.mul_add_div ha1, Nat.div_eq_of_lt hr_lt, add_zero]
+        dsimp only [pk]; rw [Nat.mul_add_div ha1, Nat.div_eq_of_lt hr_lt, add_zero]
       have hmin_k : min k b = k := Nat.min_eq_left (Nat.le_of_lt hk)
       have hmin_k1 : min (k + 1) b = k + 1 := Nat.min_eq_left hk
       have hpk_same : st k pk = u pk := by
-        simp [st, hpk_div]
+        simp only [st, hpk_div, hmin_k, lt_irrefl, and_false, ↓reduceIte]
       have hnbor_same : ∀ x : Fin (a * b),
           (x = pk - 1 ∨ x = pk + 1) → st k x = u x := by
         intro x hx
@@ -2056,7 +2049,7 @@ theorem not_uniform_enabledMove_selfStabilizing_composite_ring {State : Type*} [
           let k' := x.val / a
           have hk'_lt : k' < b := lt_trans hx_div hk
           have hk'_ne : k' ≠ k := Nat.ne_of_lt hx_div
-          have hx_eq : x = ⟨a * k' + r, by nlinarith⟩ := by
+          have hx_eq : x = ⟨a * k' + r, mul_add_lt_mul hr_lt hk'_lt⟩ := by
             ext
             dsimp only [k']
             rw [← hx_mod]

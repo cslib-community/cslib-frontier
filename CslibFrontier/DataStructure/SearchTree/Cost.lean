@@ -88,13 +88,6 @@ theorem successorVisits_le_height (x : α) (t : BinaryTree α) :
 /-- This permits linear height growth; it is not a balancing theorem. -/
 theorem height_insert_le (x : α) (t : BinaryTree α) :
     (insert x t).height ≤ t.height + 1 := by
-  induction t with
-  | nil => simp [insert]
-  | node a l r il ir =>
-    simp only [insert]
-    split
-    · simp only [BinaryTree.height]
-      omega
-    · split <;> simp only [BinaryTree.height] <;> omega
+  fun_induction insert x t <;> simp only [BinaryTree.height] <;> omega
 
 end Cslib.DataStructure.SearchTree
