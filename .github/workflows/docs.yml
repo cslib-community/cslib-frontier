@@ -27,7 +27,10 @@ jobs:
   docs:
     # ubuntu-latest moved to Ubuntu 26.04 on 2026-10-30, and doc-gen4 has run out of memory there
     # ("resource exhausted (error code: 12)") on every run since; upstream cslib#1191 pins the same.
-    runs-on: ubuntu-24.04
+    # Scheduled and manual runs on `main` use the runner named by DOCS_BUILD_RUNNER when set; larger
+    # runners are billed even in public repositories. Other branches and unset runs use the standard
+    # `ubuntu-24.04` runner. Delete the variable to fall back without a commit (scripts/cache/README.md).
+    runs-on: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && vars.DOCS_BUILD_RUNNER || 'ubuntu-24.04' }}
     steps:
       - uses: actions/checkout@v4
         with:

@@ -128,6 +128,9 @@ length-preserving keyed block-function family (`PseudorandomFunction`), completi
 
 ## Main results
 
+* `cbcMacWord_append_block`: one-step chaining on aligned words, which preserves equal tags
+  under a common block extension.
+
 * `computableInPolyTime_cbcMacFamily`, `computableInPolyTime_lengthPrependedCbcMacFamily`,
   `ofFn_blockCountBlock`: polynomial-time evaluation and exact bit-level agreement with
   `blockCountBlock`.
@@ -185,6 +188,29 @@ def cbcMacWord (family : List Bool → List Bool → List Bool) (n : ℕ)
   (BitString.listRows (msg.length / n) n msg).foldl
     (fun state block => (family key (List.zipWith xor state block)).take n)
     (List.replicate n false)
+
+/-- Appending one full block to an aligned word advances the CBC-MAC state by one step.
+In particular, equal tags stay equal after appending the same block, the CBC-MAC extension
+property used in [BonehShoup2023], v0.6, §7.2.2, printed p. 258. -/
+theorem cbcMacWord_append_block (family : List Bool → List Bool → List Bool) {n : ℕ}
+    (hn : 0 < n) (key : List Bool) {msg block : List Bool} (hmsg : n ∣ msg.length)
+    (hblock : block.length = n) :
+    cbcMacWord family n key (msg ++ block) =
+      (family key (List.zipWith xor (cbcMacWord family n key msg) block)).take n := by
+  let rows := BitString.listRows (msg.length / n) n msg
+  have hrowsWidth : ∀ w ∈ rows ++ [block], w.length = n := by
+    intro w hw
+    rcases List.mem_append.mp hw with hw | hw
+    · exact BitString.length_of_mem_listRows hw
+    · exact (List.mem_singleton.mp hw) ▸ hblock
+  have hrows := BitString.listRows_flatten (rows ++ [block]) hrowsWidth
+  rw [List.flatten_append, List.flatten_singleton,
+    BitString.flatten_listRows_of_length (Nat.div_mul_cancel hmsg).symm,
+    List.length_append, BitString.length_listRows, List.length_singleton] at hrows
+  have hcount : (msg ++ block).length / n = msg.length / n + 1 := by
+    rw [List.length_append, hblock, Nat.add_div_right _ hn]
+  simp only [cbcMacWord, hcount, hrows, List.foldl_append, List.foldl_cons, List.foldl_nil]
+  rfl
 
 /-- Keyed-family presentation of basic CBC-MAC at block width `key.length`. -/
 @[expose]
@@ -2541,19 +2567,12 @@ private theorem cbcMacFamily_zero_append_tag {family : List Bool → List Bool �
   have htag1 : tag = family sk (List.replicate n false) := by
     simp only [tag, cbcMacFamily, hsk, cbcMacWord, List.length_replicate, hrows1,
       List.foldl_cons, List.foldl_nil, zipWith_xor_self, List.take_of_length_le hfamLen.le]
-  have hrows2 : BitString.listRows ((List.replicate n false ++ tag).length / n) n
-      (List.replicate n false ++ tag) = [List.replicate n false, tag] := by
-    have hdiv2 : (List.replicate n false ++ tag).length / n = 2 := by
-      rw [List.length_append, List.length_replicate, htagLen, ← Nat.two_mul,
-        Nat.mul_div_cancel _ hn]
-    rw [hdiv2]
-    have hflat : BitString.listRows 2 n [List.replicate n false, tag].flatten =
-        [List.replicate n false, tag] :=
-      BitString.listRows_flatten [List.replicate n false, tag] (by simp [htagLen])
-    simpa using hflat
-  rw [cbcMacFamily, hsk, cbcMacWord, hrows2]
-  simp only [List.foldl_cons, List.foldl_nil, zipWith_xor_self, List.length_replicate,
-    ← htag1, List.take_of_length_le htagLen.le, htagLen]
+  unfold cbcMacFamily at ⊢
+  rw [hsk, cbcMacWord_append_block family hn sk (by simp) htagLen]
+  have htagWord : cbcMacWord family n sk (List.replicate n false) = tag := by
+    rw [show tag = cbcMacFamily family sk (List.replicate n false) from rfl, cbcMacFamily, hsk]
+  rw [htagWord]
+  rw [zipWith_xor_self, htagLen, ← htag1, List.take_of_length_le htagLen.le]
 
 /-- Helper step of [BonehShoup2023], Section 6.4.3 (printed pp. 230–231): at every `n ≥ 1`,
 `cbcExtensionForger` wins `macSufCmaGameOn (lpBlockValid (fun _ => 2)) (cbcMacFamily family)` with
