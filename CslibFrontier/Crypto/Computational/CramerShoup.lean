@@ -60,9 +60,9 @@ library's **native strict-PPT PKE 1CCA notions** (`Encryption.cca2ADGameOn`,
 `advantage_cca2GameOn_cramerShoupGroupCCA2Game_le` (which account for the additional `8 / 2 ^ n`
 per-bit `sampleModNat` approximation loss of `cramerShoupKeyGenProb`, `cramerShoupADEncryptProb`,
 and `cramerShoupEncryptProb`), yielding `DDH.indcca2ADOn_cramerShoup_bitStringAD` (associated
-data in $\{0,1\}^*$), `DDH.indcca2On_cramerShoup`, and (via `INDCCA2On.indcca2MultiOn`, the
-batch-challenge step toward Theorem 12.1) batch-challenge multi-challenge CCA security
-`DDH.indcca2MultiOn_cramerShoup`.
+data in $\{0,1\}^*$) and `DDH.indcca2On_cramerShoup`; the multi-challenge lifts
+`DDH.indcca2InterleavedOn_cramerShoup` and `DDH.indcca2MultiOn_cramerShoup` live in
+`CslibFrontier/Crypto/Computational/CramerShoup/Interleaved.lean`.
 
 ## Source Statements ([BonehShoup2023], Section 12.5.3 & Exercise 12.27)
 
@@ -168,8 +168,8 @@ Verbatim from [BonehShoup2023], Exercise 12.27 (printed pp. 521–522):
   the public key, as [CramerShoup2003], Section 6.1, Figure 1 does (and [CramerShoup1998],
   Section 3, which chooses the hash function from a universal one-way family at key generation).
   It is the scheme of `CramerShoup.Reductions` over `F.withKey`, whose parameters `(d, hk)` attach
-  the hash key `hk` to the group `d`. The native theorems `DDH.indcca2ADOn_cramerShoup_bitStringAD`,
-  `DDH.indcca2On_cramerShoup`, and `DDH.indcca2MultiOn_cramerShoup` fix a polynomial-time
+  the hash key `hk` to the group `d`. The native theorems `DDH.indcca2ADOn_cramerShoup_bitStringAD`
+  and `DDH.indcca2On_cramerShoup` fix a polynomial-time
   computable group family `d : ℕ → F.Desc` and a polynomial-time key length `keyLen`: the group at
   parameter `n` is `d n` and is not sampled, and the hash key is a uniform `keyLen n`-bit word.
   DDH is assumed for the point-mass setup `fun n => PMF.pure (d n)`; `DDH.withKey` transfers it to
@@ -1604,40 +1604,5 @@ theorem DDH.indcca2On_cramerShoup
   exact negligible_advantage_of_eight_le (hgroup adversary hA)
     (F.advantage_cca2GameOn_cramerShoupGroupCCA2Game_le H isElem hmem d keyLen adversary false)
     (F.advantage_cca2GameOn_cramerShoupGroupCCA2Game_le H isElem hmem d keyLen adversary true)
-
-/-- **Multiplicative Cramer–Shoup is CCA secure in the batch-challenge game** ([BonehShoup2023],
-Exercise 12.27, printed pp. 521–522, proved by the method of Theorem 12.9, printed pp. 489–493,
-and the batch-challenge specialization of Theorem 12.1, printed p. 468) under DDH and collision
-resistance of $H'$ on its well-formed inputs $\mathbb{G}^3 \times \mathcal{D}$, here with
-$\mathcal{D} = \{[]\}$. Under the hypotheses of `DDH.indcca2On_cramerShoup`, the scheme
-`(cramerShoupKeyGenProb d keyLen, cramerShoupEncryptProb H d, cramerShoupDecryptOpt H isElem d)`
-satisfies the two-phase batch-challenge multi-challenge `Encryption.INDCCA2MultiOn` notion with
-respect to `cramerShoupValid isElem d`. The hash key is drawn at key generation and published in
-the public key. -/
-theorem DDH.indcca2MultiOn_cramerShoup
-    {F : PrimeOrderGroupFamily}
-    {H : F.withKey.Desc × List Bool → List Bool}
-    {isElem : F.Desc × List Bool → Bool}
-    {d : ℕ → F.Desc} {keyLen : ℕ → ℕ}
-    (hH : ComputableInPolyTime H (encPair F.withKey.encDesc encBits) encBits)
-    (hisElem : ComputableInPolyTime isElem (encPair F.encDesc encBits) encBool)
-    (hd : ComputableInPolyTime d encUnary F.encDesc)
-    (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary)
-    (hmem : ∀ d x, isElem (d, x) = true ↔ x ∈ Set.range (F.encode d))
-    (hDDH : F.DDH (fun n => PMF.pure (d n)))
-    (hCR : CollisionResistantForOn F.withKey.encDesc
-      (F.withKeySetup (fun n => PMF.pure (d n)) keyLen) (F.withKey.cramerShoupHashMod H)
-      (fun _ => F.withKey.isCramerShoupHashInput false (F.isElemWithKey isElem)))
-    {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n)
-    (hm : ∀ n, m n ≤ F.order (d n))
-    (hinv : Negligible fun n => (1 / m n : ℝ≥0)) :
-    INDCCA2MultiOn (F.cramerShoupValid isElem d) encBits encBits
-      (F.cramerShoupKeyGenProb d keyLen) (F.cramerShoupEncryptProb H d)
-      (F.cramerShoupDecryptOpt H isElem d) :=
-  (hDDH.indcca2On_cramerShoup hH hisElem hd hkeyLen hmem hCR hm0 hm hinv).indcca2MultiOn
-    (F.computableInPolyTime_cramerShoupValid hisElem hd)
-    (F.isPPTOn_cramerShoupKeyGenProb hd hkeyLen)
-    (F.isPPTOn_cramerShoupEncryptProb hH hd)
-    (F.computableInPolyTime_cramerShoupDecryptOpt hH hisElem hd)
 
 end Cslib.Crypto.PrimeOrderGroupFamily
