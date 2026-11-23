@@ -78,7 +78,10 @@ coefficient on the circle, so the name is meant to be used qualified.
   (`Cslib.BitString.fourierCoeff_sq_signVal_le_one`,
   `Cslib.BitString.abs_fourierCoeff_signVal_le_one`), every partial sum of their squares is at
   most one (`Cslib.BitString.sum_fourierCoeff_sq_signVal_le_one`), and their spectral norm is at
-  least one (`Cslib.BitString.one_le_sum_abs_fourierCoeff_signVal`).
+  least one (`Cslib.BitString.one_le_sum_abs_fourierCoeff_signVal`). For functions with values in
+  `[-1, 1]` the same partial sums and absolute values are at most one
+  (`Cslib.BitString.sum_fourierCoeff_sq_le_one_of_abs_le_one`,
+  `Cslib.BitString.abs_fourierCoeff_le_one_of_abs_le_one`).
 * `Cslib.BitString.expect_signVal_mul_signVal`, `Cslib.BitString.fourierCoeff_signVal`: the
   correlation of two Boolean functions is one minus twice their relative Hamming distance.
 
@@ -425,17 +428,32 @@ theorem fourierCoeff_sq_signVal_le_one (f : (ι → Bool) → Bool) (S : Finset 
   exact single_le_sum (f := fun S => fourierCoeff (fun x => signVal (f x)) S ^ 2)
     (fun _ _ => sq_nonneg _) (mem_univ S)
 
+/-- **Partial Fourier weight of a bounded function**: over any family of sets, the squared Fourier
+coefficients of a real function with values in `[-1, 1]` sum to at most one. -/
+theorem sum_fourierCoeff_sq_le_one_of_abs_le_one {f : (ι → Bool) → ℝ} (hf : ∀ x, |f x| ≤ 1)
+    (s : Finset (Finset ι)) : ∑ S ∈ s, fourierCoeff f S ^ 2 ≤ 1 := by
+  refine (sum_le_univ_sum_of_nonneg fun _ => sq_nonneg _).trans ?_
+  rw [← expect_sq_eq_sum_fourierCoeff_sq]
+  exact expect_le univ_nonempty fun x _ => sq_le_one_iff_abs_le_one _ |>.2 (hf x)
+
 /-- **Partial Fourier weight**: over any family of sets, the squared Fourier coefficients of a
 Boolean function, read as signs, sum to at most one. -/
 theorem sum_fourierCoeff_sq_signVal_le_one (f : (ι → Bool) → Bool) (s : Finset (Finset ι)) :
     ∑ S ∈ s, fourierCoeff (fun x => signVal (f x)) S ^ 2 ≤ 1 :=
-  (sum_le_univ_sum_of_nonneg fun _ => sq_nonneg _).trans_eq (sum_fourierCoeff_sq_signVal f)
+  sum_fourierCoeff_sq_le_one_of_abs_le_one (fun x => (abs_signVal (f x)).le) s
 
 /-- A Fourier coefficient of a Boolean function, read as signs, has absolute value at most one. -/
 theorem abs_fourierCoeff_signVal_le_one (f : (ι → Bool) → Bool) (S : Finset ι) :
     |fourierCoeff (fun x => signVal (f x)) S| ≤ 1 := by
   rw [← sq_le_one_iff_abs_le_one]
   exact fourierCoeff_sq_signVal_le_one f S
+
+/-- A Fourier coefficient of a real function with values in `[-1, 1]` has absolute value at most
+one. -/
+theorem abs_fourierCoeff_le_one_of_abs_le_one {f : (ι → Bool) → ℝ} (hf : ∀ x, |f x| ≤ 1)
+    (S : Finset ι) : |fourierCoeff f S| ≤ 1 := by
+  rw [← sq_le_one_iff_abs_le_one, ← sum_singleton (fun S => fourierCoeff f S ^ 2) S]
+  exact sum_fourierCoeff_sq_le_one_of_abs_le_one hf {S}
 
 /-- A Boolean function, read as signs, has spectral norm `∑_S |f̂(S)|` at least one. -/
 theorem one_le_sum_abs_fourierCoeff_signVal (f : (ι → Bool) → Bool) :

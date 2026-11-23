@@ -37,33 +37,67 @@ Section 7.4, and a `Foundations` module cannot import it.
 These tests use only 3-variable linear equations over `F₂` as predicates. A parity on an odd
 number `k` of coordinates is accepted with probability `1/2 + 1/2 (1 - δ) ^ k`, and one on an
 even number with probability `1/2` (`BitString.hastadAcceptance_parityOn`), so dictators are
-accepted with probability `1 - δ / 2` (`BitString.hastadAcceptance_dictator`). Conversely, for
-`0 ≤ ε ≤ δ ≤ 1`, if every `(1 - ε)`-stable influence of `F` is at most `ε`, so that `f` has no
-`(ε, ε)`-notable coordinates, the test accepts with probability at most `1/2 + 1/2 √ε`
-(`BitString.hastadAcceptance_le_of_stableInfluence_le`), and for `0 ≤ δ ≤ 2` it accepts with
-probability at most one (`BitString.hastadAcceptance_le_one`). With `λ(ε) = 1/2 √ε` for `ε ≤ δ`
-and `λ(ε) = 1/2` otherwise, these are the clauses of a `(1/2, 1 - δ / 2)`-Dictator-vs.-No-Notables
-test, and at noise rate `2 δ` this is Håstad's `(1/2, 1 - δ)` test
-[O'Donnell, Theorem 7.42][ODonnell2014]. This file does not formalize Dictator-vs.-No-Notables
-tests in general [O'Donnell, Definition 7.37][ODonnell2014].
+accepted with probability `1 - δ / 2` (`BitString.hastadAcceptance_dictator`).
+
+Soundness concerns functions with values in `[-1, 1]` as well
+[O'Donnell, Remark 7.38][ODonnell2014]. On such a `g`, each query returns an independent random
+sign with mean the value of `g`, and Håstad's test accepts with probability
+`BitString.hastadValue δ g`, which is `BitString.hastadAcceptance δ f` at the signs of a Boolean
+`f` (`BitString.hastadAcceptance_eq_hastadValue`); (7.4) holds verbatim
+(`BitString.hastadValue_eq_sum`) [O'Donnell, Exercise 7.22][ODonnell2014]. For `0 ≤ ε ≤ δ ≤ 1`,
+if every `(1 - ε)`-stable influence of `g` is at most `ε`, so that `g` has no `(ε, ε)`-notable
+coordinates, the test accepts with probability at most `1/2 + 1/2 √ε`
+(`BitString.hastadValue_le_of_stableInfluence_le`, and for Boolean functions
+`BitString.hastadAcceptance_le_of_stableInfluence_le`), and for `0 ≤ δ ≤ 2` it accepts with
+probability at most one (`BitString.hastadValue_le_one`, `BitString.hastadAcceptance_le_one`).
+With `λ(ε) = 1/2 √ε` for `ε ≤ δ` and `λ(ε) = 1/2` otherwise, these are the clauses of a
+`(1/2, 1 - δ / 2)`-Dictator-vs.-No-Notables test [O'Donnell, Theorem 7.42][ODonnell2014]. That
+definition takes the test as a Max-E3-Lin instance, a finite list of checks, so it is stated at a
+rational noise rate in `CslibFrontier.Logics.Propositional.CSP.HastadTest`
+(`Logic.PL.CSP.isDictatorVsNoNotables_hastadTest`,
+`Logic.PL.CSP.exists_isDictatorVsNoNotables_e3Lin`).
 
 The book's bound `1/2 + 1/2 max_{|S| odd} F̂(S)` for the Odd BLR test needs the maximum to be
 nonnegative (`BitString.oddBlrAcceptance_le_of_fourierCoeff_le`).
+
+## Usage
+
+Open `Cslib.BitString`. The tests take a Boolean function `f : (ι → Bool) → Bool` on a finite
+index type and read it as signs, `fun x => signVal (f x)`, with `signVal true = -1`, so `true` is
+the book's `-1`. Each test is its acceptance probability, a real expectation over the cube.
+`BitString.hastadAcceptance_zero` turns a statement about Håstad's test at `δ = 0` into one about
+the Odd BLR test. To compute an acceptance probability, rewrite with
+`BitString.hastadAcceptance_eq_sum` (or `BitString.hastadValue_eq_sum`) and the Fourier
+coefficients of the function, as `BitString.hastadAcceptance_parityOn` does for parities. The
+soundness bound takes `hg : ∀ x, |g x| ≤ 1` and `h : ∀ i, stableInfluence (1 - ε) i g ≤ ε`, for
+`0 ≤ ε ≤ δ ≤ 1`. Proposition 7.46's bound `BitString.oddBlrAcceptance_le_of_fourierCoeff_le`
+takes any `M ≥ 0` above the odd coefficients. The checked clients in
+[CslibFrontierTests/BooleanAnalysisHastadTest.lean](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisHastadTest.lean)
+compute dictators, constants, odd and even parities, (7.4) at a `[-1, 1]`-valued constant,
+soundness for a concrete constant and for a hypothetical `f`, and the NAND of two bits, which
+passes the Odd BLR test with probability `3/8` although its odd coefficients are `-1/2`, the
+counterexample to the bound with a negative maximum.
 
 ## Main definitions
 
 * `Cslib.BitString.oddBlrAcceptance`: the acceptance probability of the Odd BLR test.
 * `Cslib.BitString.hastadAcceptance`: the acceptance probability of Håstad's test.
+* `Cslib.BitString.hastadValue`: the acceptance probability of Håstad's test on a function with
+  values in `[-1, 1]`.
 
 ## Main results
 
-* `Cslib.BitString.hastadAcceptance_eq_sum`: the Fourier formula (7.4).
+* `Cslib.BitString.hastadAcceptance_eq_sum`, `Cslib.BitString.hastadValue_eq_sum`: the Fourier
+  formula (7.4), for Boolean and for real functions;
+  `Cslib.BitString.hastadAcceptance_eq_hastadValue` relates the two.
 * `Cslib.BitString.oddBlrAcceptance_eq_sum`,
   `Cslib.BitString.oddBlrAcceptance_le_of_fourierCoeff_le`: Proposition 7.46.
 * `Cslib.BitString.hastadAcceptance_parityOn`: the acceptance probability of parities.
 * `Cslib.BitString.hastadAcceptance_dictator`,
+  `Cslib.BitString.hastadValue_le_of_stableInfluence_le`, `Cslib.BitString.hastadValue_le_one`,
   `Cslib.BitString.hastadAcceptance_le_of_stableInfluence_le`,
-  `Cslib.BitString.hastadAcceptance_le_one`: Theorem 7.42.
+  `Cslib.BitString.hastadAcceptance_le_one`: the completeness and soundness clauses of
+  Theorem 7.42.
 
 ## References
 
@@ -106,6 +140,33 @@ theorem oddBlrAcceptance_def (f : (ι → Bool) → Bool) :
       𝔼 x, 𝔼 y, 𝔼 b : Bool, if (f x ^^ f y ^^ f (x + y + fun _ => b)) = b then 1 else 0 := by
   rw [oddBlrAcceptance]
 
+/-- The acceptance probability of **Håstad's test** with noise rate `δ` on a real function `g`,
+for `g` with values in `[-1, 1]` [O'Donnell, Exercise 7.22][ODonnell2014]: each query of `g` at `w`
+returns an independent random sign with mean `g w`, so that the check `g(x) g(y) g(z') = b`, with
+`b` read as a sign, passes with probability `1/2 + 1/2 b g(x) g(y) g(z')`, the multilinear
+extension of the check. The strings `x`, `y`, the bit `b` and the noisy `z'` are drawn as in
+`hastadAcceptance`, which is the case of signs of a Boolean function
+(`hastadAcceptance_eq_hastadValue`). -/
+noncomputable def hastadValue (δ : ℝ) (g : (ι → Bool) → ℝ) : ℝ :=
+  𝔼 x, 𝔼 y, 𝔼 b : Bool,
+    noiseOp (1 - δ) (fun z => 1 / 2 + 1 / 2 * (signVal b * g x * g y * g z)) (x + y + fun _ => b)
+
+/-- The defining formula of `hastadValue`. -/
+theorem hastadValue_def (δ : ℝ) (g : (ι → Bool) → ℝ) :
+    hastadValue δ g = 𝔼 x, 𝔼 y, 𝔼 b : Bool,
+      noiseOp (1 - δ) (fun z => 1 / 2 + 1 / 2 * (signVal b * g x * g y * g z))
+        (x + y + fun _ => b) := by
+  rw [hastadValue]
+
+/-- On a Boolean function read as signs, the acceptance probability of Håstad's test on real
+functions is that of the test on `f`. -/
+theorem hastadAcceptance_eq_hastadValue (δ : ℝ) (f : (ι → Bool) → Bool) :
+    hastadAcceptance δ f = hastadValue δ fun x => signVal (f x) := by
+  have hind (a c b d : Bool) : (if (a ^^ c ^^ d) = b then (1 : ℝ) else 0) =
+      1 / 2 + 1 / 2 * (signVal b * signVal a * signVal c * signVal d) := by
+    cases a <;> cases c <;> cases b <;> cases d <;> norm_num
+  simp only [hastadAcceptance, hastadValue, hind]
+
 /-- Håstad's test without noise is the Odd BLR test. -/
 theorem hastadAcceptance_zero (f : (ι → Bool) → Bool) :
     hastadAcceptance 0 f = oddBlrAcceptance f := by
@@ -124,31 +185,26 @@ private theorem expect_signVal_mul_chi_const (S : Finset ι) :
   · rw [h.add_one.neg_one_pow, ite_eq_left h]
     norm_num
 
-/-- **The acceptance probability of Håstad's test** [O'Donnell, (7.4)][ODonnell2014]: reading `f`
-as signs, the test accepts with probability `1/2 + 1/2 ∑_{|S| odd} (1 - δ) ^ |S| F̂(S)³`. -/
-theorem hastadAcceptance_eq_sum (δ : ℝ) (f : (ι → Bool) → Bool) :
-    hastadAcceptance δ f = 1 / 2 + 1 / 2 *
-      ∑ S with Odd #S, (1 - δ) ^ #S * fourierCoeff (fun x => signVal (f x)) S ^ 3 := by
-  set F : (ι → Bool) → ℝ := fun x => signVal (f x)
-  have hind (a c b d : Bool) : (if (a ^^ c ^^ d) = b then (1 : ℝ) else 0) =
-      1 / 2 + 1 / 2 * (signVal a * signVal c * signVal b) * signVal d := by
-    cases a <;> cases c <;> cases b <;> cases d <;> norm_num
+/-- **The acceptance probability of Håstad's test on real functions**
+[O'Donnell, (7.4) and Exercise 7.22][ODonnell2014]: on a real function `g` the test accepts with
+probability `1/2 + 1/2 ∑_{|S| odd} (1 - δ) ^ |S| ĝ(S)³`. -/
+theorem hastadValue_eq_sum (δ : ℝ) (g : (ι → Bool) → ℝ) :
+    hastadValue δ g = 1 / 2 + 1 / 2 * ∑ S with Odd #S, (1 - δ) ^ #S * fourierCoeff g S ^ 3 := by
   have hterm (x y : ι → Bool) (b : Bool) :
-      F x * F y * signVal b * noiseOp (1 - δ) F (x + y + fun _ => b) =
-        ∑ S, (1 - δ) ^ #S * fourierCoeff F S * (F x * chi ℝ S x) * (F y * chi ℝ S y) *
+      signVal b * g x * g y * noiseOp (1 - δ) g (x + y + fun _ => b) =
+        ∑ S, (1 - δ) ^ #S * fourierCoeff g S * (g x * chi ℝ S x) * (g y * chi ℝ S y) *
           (signVal b * chi ℝ S fun _ => b) := by
     rw [noiseOp_eq_sum, mul_sum]
     refine sum_congr rfl fun S _ => ?_
     rw [chi_add, chi_add]
     ring
-  calc hastadAcceptance δ f
+  calc hastadValue δ g
       = 1 / 2 + 1 / 2 * 𝔼 x, 𝔼 y, 𝔼 b : Bool,
-          F x * F y * signVal b * noiseOp (1 - δ) F (x + y + fun _ => b) := by
-        simp only [hastadAcceptance, hind, noiseOp_add, noiseOp_const, noiseOp_const_mul,
-          expect_add_distrib, ← mul_expect, Fintype.expect_const, mul_assoc]
-        rfl
-    _ = 1 / 2 + 1 / 2 * ∑ S, (1 - δ) ^ #S * fourierCoeff F S * fourierCoeff F S *
-          fourierCoeff F S * (if Odd #S then 1 else 0) := by
+          signVal b * g x * g y * noiseOp (1 - δ) g (x + y + fun _ => b) := by
+        simp only [hastadValue, noiseOp_add, noiseOp_const, noiseOp_const_mul,
+          expect_add_distrib, ← mul_expect, Fintype.expect_const]
+    _ = 1 / 2 + 1 / 2 * ∑ S, (1 - δ) ^ #S * fourierCoeff g S * fourierCoeff g S *
+          fourierCoeff g S * (if Odd #S then 1 else 0) := by
         simp only [hterm, expect_sum_comm, ← mul_expect, ← expect_mul,
           expect_signVal_mul_chi_const]
         rfl
@@ -157,6 +213,13 @@ theorem hastadAcceptance_eq_sum (δ : ℝ) (f : (ι → Bool) → Bool) :
         congr 2
         refine sum_congr rfl fun S _ => ?_
         split_ifs <;> ring
+
+/-- **The acceptance probability of Håstad's test** [O'Donnell, (7.4)][ODonnell2014]: reading `f`
+as signs, the test accepts with probability `1/2 + 1/2 ∑_{|S| odd} (1 - δ) ^ |S| F̂(S)³`. -/
+theorem hastadAcceptance_eq_sum (δ : ℝ) (f : (ι → Bool) → Bool) :
+    hastadAcceptance δ f = 1 / 2 + 1 / 2 *
+      ∑ S with Odd #S, (1 - δ) ^ #S * fourierCoeff (fun x => signVal (f x)) S ^ 3 := by
+  rw [hastadAcceptance_eq_hastadValue, hastadValue_eq_sum]
 
 /-- **The acceptance probability of the Odd BLR test** [O'Donnell, Proposition 7.46][ODonnell2014]:
 reading `f` as signs, the test accepts with probability `1/2 + 1/2 ∑_{|S| odd} F̂(S)³`. -/
@@ -200,41 +263,70 @@ theorem hastadAcceptance_dictator (δ : ℝ) (i : ι) :
     ite_eq_left odd_one]
   ring
 
-/-- **Soundness of Håstad's test** [O'Donnell, Theorem 7.42 and (7.6)][ODonnell2014]: for
-`0 ≤ ε ≤ δ ≤ 1`, if every `(1 - ε)`-stable influence of `f`, read as signs, is at most `ε`, so that
-`f` has no `(ε, ε)`-notable coordinates, then the test accepts with probability at most
-`1/2 + 1/2 √ε`. Every odd `S` contains some coordinate `i`, so
-`((1 - δ) ^ |S| F̂(S))² ≤ (1 - ε) ^ (|S| - 1) F̂(S)²` is at most `Infᵢ^{(1 - ε)}[F] ≤ ε`, and the
-odd weight of `F` is at most one. -/
-theorem hastadAcceptance_le_of_stableInfluence_le {δ ε : ℝ} (hε : 0 ≤ ε) (hεδ : ε ≤ δ)
-    (hδ : δ ≤ 1) {f : (ι → Bool) → Bool}
-    (h : ∀ i, stableInfluence (1 - ε) i (fun x => signVal (f x)) ≤ ε) :
-    hastadAcceptance δ f ≤ 1 / 2 + 1 / 2 * √ε := by
-  set F : (ι → Bool) → ℝ := fun x => signVal (f x)
+/-- **Soundness of Håstad's test on real functions** [O'Donnell, Theorem 7.42, (7.6) and
+Exercise 7.22][ODonnell2014]: for `0 ≤ ε ≤ δ ≤ 1` and `g` with values in `[-1, 1]`, if every
+`(1 - ε)`-stable influence of `g` is at most `ε`, so that `g` has no `(ε, ε)`-notable coordinates,
+then the test accepts with probability at most `1/2 + 1/2 √ε`. Every odd `S` contains some
+coordinate `i`, so `((1 - δ) ^ |S| ĝ(S))² ≤ (1 - ε) ^ (|S| - 1) ĝ(S)²` is at most
+`Infᵢ^{(1 - ε)}[g] ≤ ε`, and the odd weight of `g` is at most `𝔼 g² ≤ 1`. -/
+theorem hastadValue_le_of_stableInfluence_le {δ ε : ℝ} (hε : 0 ≤ ε) (hεδ : ε ≤ δ) (hδ : δ ≤ 1)
+    {g : (ι → Bool) → ℝ} (hg : ∀ x, |g x| ≤ 1) (h : ∀ i, stableInfluence (1 - ε) i g ≤ ε) :
+    hastadValue δ g ≤ 1 / 2 + 1 / 2 * √ε := by
   have hterm (S : Finset ι) (hS : S ∈ ({S | Odd #S} : Finset (Finset ι))) :
-      (1 - δ) ^ #S * fourierCoeff F S ^ 3 ≤ √ε * fourierCoeff F S ^ 2 := by
+      (1 - δ) ^ #S * fourierCoeff g S ^ 3 ≤ √ε * fourierCoeff g S ^ 2 := by
     have hodd := (mem_filter.1 hS).2
     obtain ⟨i, hi⟩ := card_pos.1 hodd.pos
-    have hsq : ((1 - δ) ^ #S * fourierCoeff F S) ^ 2 ≤ ε := calc
-      _ = (1 - δ) ^ (2 * #S) * fourierCoeff F S ^ 2 := by ring
-      _ ≤ (1 - ε) ^ (#S - 1) * fourierCoeff F S ^ 2 := by
+    have hsq : ((1 - δ) ^ #S * fourierCoeff g S) ^ 2 ≤ ε := calc
+      _ = (1 - δ) ^ (2 * #S) * fourierCoeff g S ^ 2 := by ring
+      _ ≤ (1 - ε) ^ (#S - 1) * fourierCoeff g S ^ 2 := by
         gcongr ?_ * _
         calc (1 - δ) ^ (2 * #S) ≤ (1 - δ) ^ (#S - 1) :=
               pow_le_pow_of_le_one (by linarith) (by linarith) (by omega)
           _ ≤ (1 - ε) ^ (#S - 1) := by gcongr
-      _ ≤ stableInfluence (1 - ε) i F :=
-        pow_mul_fourierCoeff_sq_le_stableInfluence (by linarith) hi F
+      _ ≤ stableInfluence (1 - ε) i g :=
+        pow_mul_fourierCoeff_sq_le_stableInfluence (by linarith) hi g
       _ ≤ ε := h i
-    calc (1 - δ) ^ #S * fourierCoeff F S ^ 3
-        = (1 - δ) ^ #S * fourierCoeff F S * fourierCoeff F S ^ 2 := by ring
-      _ ≤ √ε * fourierCoeff F S ^ 2 := by
+    calc (1 - δ) ^ #S * fourierCoeff g S ^ 3
+        = (1 - δ) ^ #S * fourierCoeff g S * fourierCoeff g S ^ 2 := by ring
+      _ ≤ √ε * fourierCoeff g S ^ 2 := by
         gcongr
         exact (le_abs_self _).trans (Real.abs_le_sqrt hsq)
   have hsum := sum_le_sum hterm
   rw [← mul_sum] at hsum
   have hW := mul_le_of_le_one_right (Real.sqrt_nonneg ε)
-    (sum_fourierCoeff_sq_signVal_le_one f {S | Odd #S})
-  rw [hastadAcceptance_eq_sum]
+    (sum_fourierCoeff_sq_le_one_of_abs_le_one hg {S | Odd #S})
+  rw [hastadValue_eq_sum]
+  linarith
+
+/-- **Soundness of Håstad's test** [O'Donnell, Theorem 7.42 and (7.6)][ODonnell2014]: for
+`0 ≤ ε ≤ δ ≤ 1`, if every `(1 - ε)`-stable influence of `f`, read as signs, is at most `ε`, so that
+`f` has no `(ε, ε)`-notable coordinates, then the test accepts with probability at most
+`1/2 + 1/2 √ε`. This is the Boolean case of `hastadValue_le_of_stableInfluence_le`. -/
+theorem hastadAcceptance_le_of_stableInfluence_le {δ ε : ℝ} (hε : 0 ≤ ε) (hεδ : ε ≤ δ)
+    (hδ : δ ≤ 1) {f : (ι → Bool) → Bool}
+    (h : ∀ i, stableInfluence (1 - ε) i (fun x => signVal (f x)) ≤ ε) :
+    hastadAcceptance δ f ≤ 1 / 2 + 1 / 2 * √ε := by
+  rw [hastadAcceptance_eq_hastadValue]
+  exact hastadValue_le_of_stableInfluence_le hε hεδ hδ (fun x => (abs_signVal _).le) h
+
+/-- **Håstad's test accepts real functions with values in `[-1, 1]` with probability at most one**
+for `0 ≤ δ ≤ 2`, where the noise is a probability distribution. This gives the soundness clause of
+Theorem 7.42 with `λ(ε) = 1/2` for `ε > δ` [O'Donnell, Theorem 7.42][ODonnell2014]. -/
+theorem hastadValue_le_one {δ : ℝ} (hδ0 : 0 ≤ δ) (hδ2 : δ ≤ 2) {g : (ι → Bool) → ℝ}
+    (hg : ∀ x, |g x| ≤ 1) : hastadValue δ g ≤ 1 := by
+  have hterm (S : Finset ι) (_ : S ∈ ({S | Odd #S} : Finset (Finset ι))) :
+      (1 - δ) ^ #S * fourierCoeff g S ^ 3 ≤ fourierCoeff g S ^ 2 := by
+    have h1 : (1 - δ) ^ #S * fourierCoeff g S ≤ 1 := calc
+      _ ≤ |1 - δ| ^ #S * |fourierCoeff g S| := by rw [← abs_pow, ← abs_mul]; exact le_abs_self _
+      _ ≤ 1 := (mul_le_mul (pow_le_one₀ (abs_nonneg _) (abs_le.2 ⟨by linarith, by linarith⟩))
+        (abs_fourierCoeff_le_one_of_abs_le_one hg S) (abs_nonneg _) zero_le_one).trans_eq
+          (one_mul 1)
+    calc (1 - δ) ^ #S * fourierCoeff g S ^ 3
+        = (1 - δ) ^ #S * fourierCoeff g S * fourierCoeff g S ^ 2 := by ring
+      _ ≤ fourierCoeff g S ^ 2 := mul_le_of_le_one_left (sq_nonneg _) h1
+  have hsum := sum_le_sum hterm
+  have hW := sum_fourierCoeff_sq_le_one_of_abs_le_one hg {S | Odd #S}
+  rw [hastadValue_eq_sum]
   linarith
 
 /-- **Håstad's test accepts with probability at most one** for `0 ≤ δ ≤ 2`, where the noise is a
@@ -242,19 +334,7 @@ probability distribution. This gives the soundness clause of Theorem 7.42 with `
 `ε > δ` [O'Donnell, Theorem 7.42][ODonnell2014]. -/
 theorem hastadAcceptance_le_one {δ : ℝ} (hδ0 : 0 ≤ δ) (hδ2 : δ ≤ 2) (f : (ι → Bool) → Bool) :
     hastadAcceptance δ f ≤ 1 := by
-  set F : (ι → Bool) → ℝ := fun x => signVal (f x)
-  have hterm (S : Finset ι) (_ : S ∈ ({S | Odd #S} : Finset (Finset ι))) :
-      (1 - δ) ^ #S * fourierCoeff F S ^ 3 ≤ fourierCoeff F S ^ 2 := by
-    have h1 : (1 - δ) ^ #S * fourierCoeff F S ≤ 1 := calc
-      _ ≤ |1 - δ| ^ #S * |fourierCoeff F S| := by rw [← abs_pow, ← abs_mul]; exact le_abs_self _
-      _ ≤ 1 := (mul_le_mul (pow_le_one₀ (abs_nonneg _) (abs_le.2 ⟨by linarith, by linarith⟩))
-        (abs_fourierCoeff_signVal_le_one f S) (abs_nonneg _) zero_le_one).trans_eq (one_mul 1)
-    calc (1 - δ) ^ #S * fourierCoeff F S ^ 3
-        = (1 - δ) ^ #S * fourierCoeff F S * fourierCoeff F S ^ 2 := by ring
-      _ ≤ fourierCoeff F S ^ 2 := mul_le_of_le_one_left (sq_nonneg _) h1
-  have hsum := sum_le_sum hterm
-  have hW := sum_fourierCoeff_sq_signVal_le_one f {S | Odd #S}
-  rw [hastadAcceptance_eq_sum]
-  linarith
+  rw [hastadAcceptance_eq_hastadValue]
+  exact hastadValue_le_one hδ0 hδ2 fun x => (abs_signVal _).le
 
 end Cslib.BitString

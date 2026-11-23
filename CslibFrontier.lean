@@ -6869,6 +6869,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreePhase
 public import CslibFrontier.Foundations.BooleanAnalysis.Majority
 public import CslibFrontier.Foundations.BooleanAnalysis.MajorityFourier
 public import CslibFrontier.Foundations.BooleanAnalysis.MaximalSupport
+public import CslibFrontier.Foundations.BooleanAnalysis.MeanWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.MirrorSets
 public import CslibFrontier.Foundations.BooleanAnalysis.Mobius
 public import CslibFrontier.Foundations.BooleanAnalysis.Monotone
@@ -8537,6 +8538,7 @@ public import CslibFrontier.Logics.Propositional.CSP.BinaryDigits
 public import CslibFrontier.Logics.Propositional.CSP.Boolean
 public import CslibFrontier.Logics.Propositional.CSP.Boolean.FiniteSignature
 public import CslibFrontier.Logics.Propositional.CSP.CNFTemplate
+public import CslibFrontier.Logics.Propositional.CSP.DictatorVsNoNotables
 public import CslibFrontier.Logics.Propositional.CSP.Edge.Augmenting
 public import CslibFrontier.Logics.Propositional.CSP.Edge.DAG
 public import CslibFrontier.Logics.Propositional.CSP.Edge.DAG.External
@@ -8558,6 +8560,7 @@ public import CslibFrontier.Logics.Propositional.CSP.Edge.Walk.Visits
 public import CslibFrontier.Logics.Propositional.CSP.ExactlyOne
 public import CslibFrontier.Logics.Propositional.CSP.FactorTable
 public import CslibFrontier.Logics.Propositional.CSP.HardCore
+public import CslibFrontier.Logics.Propositional.CSP.HastadTest
 public import CslibFrontier.Logics.Propositional.CSP.MaxCSP
 public import CslibFrontier.Logics.Propositional.CSP.MaxCSPSampling
 public import CslibFrontier.Logics.Propositional.CSP.Occurrence
@@ -8663,6 +8666,7 @@ public import CslibFrontier.Logics.Propositional.CSP.PrimitivePositive.Operation
 public import CslibFrontier.Logics.Propositional.CSP.PrimitivePositive.Polymorphism
 public import CslibFrontier.Logics.Propositional.CSP.PrimitivePositive.Replacement
 public import CslibFrontier.Logics.Propositional.CSP.Quadratic
+public import CslibFrontier.Logics.Propositional.CSP.RandomizedAssignment
 public import CslibFrontier.Logics.Propositional.CSP.Table
 public import CslibFrontier.Logics.Propositional.CSP.Table.ContractionRows
 public import CslibFrontier.Logics.Propositional.CSP.Table.CyclicDifference

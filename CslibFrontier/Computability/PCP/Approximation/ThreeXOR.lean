@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Logics.Propositional.CSP.Boolean
 public import CslibFrontier.Logics.Propositional.CSP.ToCNF.Count
 public import CslibFrontier.Logics.Propositional.CNF.UnsatVal
 public import CslibFrontier.Computability.PolyTime.CSP.ToCNF
@@ -28,9 +29,8 @@ This module does not establish hardness of MAX-E3LIN or the perfect-completeness
 theorem for MAX-E3SAT; small-soundness Label Cover is in
 `CslibFrontier.Computability.PCP.Approximation.LabelCover.SmallSoundness`.
 
-## Main definitions
-
-* `Cslib.Logic.PL.CSP.paritySem`: the Boolean relation alphabet selecting even or odd parity.
+The parity equations are the relation alphabet `Cslib.Logic.PL.CSP.paritySem` of
+`CslibFrontier.Logics.Propositional.CSP.Boolean`.
 
 ## Main results
 
@@ -44,22 +44,11 @@ theorem for MAX-E3SAT; small-soundness Label Cover is in
 * [J. Håstad, *Some optimal inapproximability results*][Hastad2001], proof of Theorem 6.1, p. 831.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Logic.PL.CSP
 
 variable {V : Type*}
-
-/-- The relation symbol `b` asks that the XOR of the local bits equal `b`. This semantics works
-at every arity; the three-variable reduction explicitly assumes scopes of length three. -/
-def paritySem (b : Bool) (bits : List Bool) : Bool :=
-  bits.foldl Bool.xor false == b
-
-/-- On three bits, `paritySem` is precisely the three-variable XOR equation. -/
-@[simp]
-theorem paritySem_three (b x y z : Bool) :
-    paritySem b [x, y, z] = ((x ^^ y ^^ z) == b) := by
-  cases x <;> rfl
 
 private theorem length_constraint_toCNF_parity (c : Constraint Bool V) (hc : c.scope.length = 3) :
     (Constraint.toCNF paritySem c).length = 4 := by
