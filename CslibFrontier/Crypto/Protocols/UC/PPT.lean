@@ -14,7 +14,10 @@ public import CslibFrontier.Crypto.Protocols.UC.DummyAdversary
 public import CslibFrontier.Crypto.Protocols.UC.WordInterface
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Computability.Probabilistic.Oracle.SubstitutionGrowth
+import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
+import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 
 /-!
@@ -53,8 +56,8 @@ Definition 6 of [Canetti2020]. In particular:
   parameters `(secParam, replyBound, corrupted)` for a UC machine family and their encoding.
 * `Cslib.Crypto.Protocols.UC.EnvParam`, `Cslib.Crypto.Protocols.UC.encEnvParam`: activation
   parameters `(secParam, replyBound, aux)` for a UC environment and their encoding.
-* `Cslib.Crypto.Protocols.UC.StateCodec`: injective binary state encoder and total left-inverse
-  decoder for a family of UC machines.
+* `Cslib.Crypto.Protocols.UC.WordCodec`, `Cslib.Crypto.Protocols.UC.StateCodec`: injective binary
+  state presentation with total left-inverse decoder for a UC machine or ideal functionality.
 * `Cslib.Crypto.Protocols.UC.wordHandle`: one word-level activation of a typed UC machine family
   lowered through `WordInterface`s and `StateCodec`.
 * `Cslib.Crypto.Protocols.UC.PPTCertificate`: strict-PPT certificate for a UC machine family
@@ -69,6 +72,9 @@ Definition 6 of [Canetti2020]. In particular:
 
 * `Cslib.Crypto.Protocols.UC.PPTCertificate.preserve_wordHandle`: invariant-and-growth bridge
   from `PPTCertificate` to `IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth`.
+* `Cslib.Crypto.Protocols.UC.Environment.IsPPT.isOraclePPTOn_run_wordHandle`: running a
+  strict-PPT environment against any machine family equipped with a `PPTCertificate` yields a
+  uniform strict oracle-PPT program.
 * `Cslib.Crypto.Protocols.UC.Machine.isPPTFamily_id`: the forwarding machine `Machine.id` is
   strict PPT over any `WordInterface`.
 * `Cslib.Crypto.Protocols.UC.Adversary.isPPT_dummyAdversary`: the dummy adversary is strict PPT
@@ -78,9 +84,10 @@ Definition 6 of [Canetti2020]. In particular:
 
 ## References
 
-* [R. Canetti, *Universally Composable Security*][Canetti2020], Section 3.2 and Section 4:
-  context for UC interactive machines and the dummy adversary. The strict-PPT certificates here
-  are library constructions for this word model, not Definition 6 of [Canetti2020].
+* [R. Canetti, *Universally Composable Security*][Canetti2020], Section 3.2 (Polynomial Time ITMs
+  and Parameterized Systems; Definition 6) and Section 4.3.1 (Emulation with Respect to the Dummy
+  Adversary): context for UC polynomial time and the dummy adversary. The strict-PPT certificates
+  here are library constructions for this word model, not Definition 6 of [Canetti2020].
 -/
 
 public section
@@ -129,16 +136,24 @@ enc_structure encEnvParam : EnvParam where
 
 /-! ### State codecs, word activations, and strict-PPT certificates -/
 
+/-- Library construction (no cited definition): injective binary presentation of a type `α` with a
+total left-inverse decoder. Unlike `Turing.MultiTapeTM.Decoder`, this omits a standalone
+`ComputableInDegree` obligation on `decode` because decoding and re-encoding costs are certified
+directly inside `PPTCertificate.handle` (and `IdealFunctionality.PPTCertificate.onInput` /
+`onBackdoor`). -/
+structure WordCodec (α : Type) : Type where
+  /-- Injectively encode a value as a bit word. -/
+  enc : α ↪ List Bool
+  /-- Total decoder recovering a value from a bit word. -/
+  decode : List Bool → α
+  /-- Decoding an encoded value recovers it. -/
+  decode_enc : ∀ s, decode (enc s) = s
+
 /-- Library construction (no cited definition): binary state presentation for a family of UC
-machines, supplying an injective encoder and a total left-inverse decoder at every `(κ, C)`. -/
-structure StateCodec {n : ℕ} {ιI ιE : Type} {I : ιI → Type} {E : ιE → Type}
-    (M : ℕ → Finset (Fin n) → Machine I E) : Type where
-  /-- Injectively encode a machine state as a bit word. -/
-  enc : ∀ κ C, (M κ C).State ↪ List Bool
-  /-- Total decoder recovering a machine state from a bit word. -/
-  decode : ∀ κ C, List Bool → (M κ C).State
-  /-- Decoding an encoded state recovers it. -/
-  decode_enc : ∀ κ C s, decode κ C (enc κ C s) = s
+machines, supplying a `WordCodec` at every `(κ, C)`. -/
+abbrev StateCodec {n : ℕ} {ιI ιE : Type} {I : ιI → Type} {E : ιE → Type}
+    (M : ℕ → Finset (Fin n) → Machine I E) : Type :=
+  ∀ κ C, WordCodec (M κ C).State
 
 /-- Library construction (no cited definition): one word-level activation of `M p.secParam
 p.corrupted`. It decodes the exported request via `iE` and the state word via `codec`, runs the
@@ -150,9 +165,10 @@ typed reply and updated state. -/
     (p : PPTParam n) (request : iE.Channel × List Bool) (state : List Bool) :
     WordOracleComp iI.Channel (List Bool × List Bool) :=
   let q := iE.decodeQuery request.1 request.2
-  (fun result => (iE.reply q result.1, codec.enc p.secParam p.corrupted result.2)) <$>
+  (fun result => (iE.reply q result.1, (codec p.secParam p.corrupted).enc result.2)) <$>
     ProbOracleComp.lowerWith iI p.replyBound
-      (((M p.secParam p.corrupted).handle q).run (codec.decode p.secParam p.corrupted state))
+      (((M p.secParam p.corrupted).handle q).run
+        ((codec p.secParam p.corrupted).decode state))
 
 /-- Library construction (no cited definition; not Definition 6 of [Canetti2020]): a strict-PPT
 certificate for a UC machine family `M` in this library's word model.
@@ -172,7 +188,7 @@ structure PPTCertificate {n : ℕ} {ιI ιE : Type} {I : ιI → Type} {E : ιE 
   /-- Initializing the machine and encoding its initial state is uniform strict PPT under
   `encPPTParam n` (the initialization program ignores `p.replyBound`). -/
   init : IsPPTOn (encPPTParam n) encBits
-    (fun p => codec.enc p.secParam p.corrupted <$> (M p.secParam p.corrupted).init)
+    (fun p => (codec p.secParam p.corrupted).enc <$> (M p.secParam p.corrupted).init)
   /-- One lowered word activation is uniform strict oracle PPT in the parameter, request, and
   state word. -/
   handle : IsOraclePPTOn
@@ -191,8 +207,8 @@ structure PPTCertificate {n : ℕ} {ιI ιE : Type} {I : ιI → Type} {E : ιE 
   preserve : ∀ (p : PPTParam n) (request : iE.Channel × List Bool)
     (s : (M p.secParam p.corrupted).State),
     ∀ result ∈ OracleComp.support
-      (wordHandle M iI iE codec p request (codec.enc p.secParam p.corrupted s)),
-      result.2.length ≤ (codec.enc p.secParam p.corrupted s).length + growth p request.2
+      (wordHandle M iI iE codec p request ((codec p.secParam p.corrupted).enc s)),
+      result.2.length ≤ ((codec p.secParam p.corrupted).enc s).length + growth p request.2
 
 /-- Library infrastructure (no cited result): `PPTCertificate.preserve` in the exact invariant
 and additive-growth form consumed by
@@ -200,10 +216,11 @@ and additive-growth form consumed by
 theorem PPTCertificate.preserve_wordHandle {n : ℕ} {ιI ιE : Type} {I : ιI → Type} {E : ιE → Type}
     {M : ℕ → Finset (Fin n) → Machine I E} {iI : WordInterface I} {iE : WordInterface E}
     (cert : PPTCertificate M iI iE) (p : PPTParam n) (request : iE.Channel × List Bool)
-    (state : List Bool) (hstate : state ∈ Set.range (cert.codec.enc p.secParam p.corrupted))
+    (state : List Bool)
+    (hstate : state ∈ Set.range (cert.codec p.secParam p.corrupted).enc)
     (result : List Bool × List Bool)
     (hresult : result ∈ OracleComp.support (wordHandle M iI iE cert.codec p request state)) :
-    result.2 ∈ Set.range (cert.codec.enc p.secParam p.corrupted) ∧
+    result.2 ∈ Set.range (cert.codec p.secParam p.corrupted).enc ∧
       result.2.length ≤ state.length + cert.growth p request.2 := by
   rcases hstate with ⟨s, rfl⟩
   refine ⟨?_, cert.preserve p request s result hresult⟩
@@ -266,28 +283,24 @@ programs on `(request word, state word)` with one additive encoded-state growth 
 structure IdealFunctionality.PPTCertificate {n : ℕ} {In Out BackQ BackR : Type}
     (F : IdealFunctionality n In Out BackQ BackR)
     (party : WordPort (Fin n × In) (Option Out)) (back : WordPort BackQ BackR) : Type where
-  /-- Injectively encode a functionality state as a bit word. -/
-  stateEnc : F.State ↪ List Bool
-  /-- Total decoder recovering a functionality state from a bit word. -/
-  stateDecode : List Bool → F.State
-  /-- Decoding an encoded state recovers it. -/
-  stateDecode_enc : ∀ s, stateDecode (stateEnc s) = s
+  /-- Binary presentation of the functionality's private state. -/
+  stateCodec : WordCodec F.State
   /-- Initializing the functionality and encoding its state is uniform strict PPT in `(κ, C)`. -/
   init : IsPPTOn (encPair encUnary (encFinite (Finset (Fin n)))) encBits
-    (fun p => stateEnc <$> F.init p.1 p.2)
+    (fun p => stateCodec.enc <$> F.init p.1 p.2)
   /-- Answering a decoded party-port word request and re-encoding the reply and next state is
   uniform strict PPT. -/
   onInput : IsPPTOn (encPair encBits encBits) (encPair encBits encBits)
     (fun p =>
       let q := party.queryDecoder.decode p.1
-      (fun result => (party.reply result.1, stateEnc result.2)) <$>
-        (F.onInput q.1 q.2).run (stateDecode p.2))
+      (fun result => (party.reply result.1, stateCodec.enc result.2)) <$>
+        (F.onInput q.1 q.2).run (stateCodec.decode p.2))
   /-- Answering a decoded backdoor word request and re-encoding the reply and next state is
   uniform strict PPT. -/
   onBackdoor : IsPPTOn (encPair encBits encBits) (encPair encBits encBits)
     (fun p =>
-      (fun result => (back.reply result.1, stateEnc result.2)) <$>
-        (F.onBackdoor (back.queryDecoder.decode p.1)).run (stateDecode p.2))
+      (fun result => (back.reply result.1, stateCodec.enc result.2)) <$>
+        (F.onBackdoor (back.queryDecoder.decode p.1)).run (stateCodec.decode p.2))
   /-- Additive encoded-state growth bound per activation, depending only on the request word. -/
   growth : List Bool → ℕ
   /-- `growth` is polynomially bounded in the request word length. -/
@@ -297,12 +310,12 @@ structure IdealFunctionality.PPTCertificate {n : ℕ} {In Out BackQ BackR : Type
   preserve_onInput : ∀ (req : List Bool) (s : F.State),
     let q := party.queryDecoder.decode req
     ∀ result ∈ (ProbComp.eval ((F.onInput q.1 q.2).run s)).support,
-      (stateEnc result.2).length ≤ (stateEnc s).length + growth req
+      (stateCodec.enc result.2).length ≤ (stateCodec.enc s).length + growth req
   /-- Every supported backdoor transition from an encoded state grows the encoded state by at
   most `growth req` bits. -/
   preserve_onBackdoor : ∀ (req : List Bool) (s : F.State),
     ∀ result ∈ (ProbComp.eval ((F.onBackdoor (back.queryDecoder.decode req)).run s)).support,
-      (stateEnc result.2).length ≤ (stateEnc s).length + growth req
+      (stateCodec.enc result.2).length ≤ (stateCodec.enc s).length + growth req
 
 /-- Library construction (no cited definition; follows the typed-object-plus-encoding convention
 of `AdversaryOf.IsPPT`, not Definition 6 of [Canetti2020]): a UC ideal functionality is strict PPT
@@ -313,13 +326,132 @@ in this library's word model for party port `party` and backdoor port `back` whe
     (party : WordPort (Fin n × In) (Option Out)) (back : WordPort BackQ BackR) : Prop :=
   Nonempty (IdealFunctionality.PPTCertificate F party back)
 
+/-! ### Environment-machine composition -/
+
+/-- Library infrastructure (no cited result): running a strict-PPT environment against any machine
+family equipped with a `PPTCertificate` through `wordHandle` (sampling the initial encoded state
+via `cert.init` and interpreting lowered queries via `cert.handle` with polynomially bounded
+additive state growth `cert.preserve_wordHandle`) yields a uniform strict oracle-PPT program over
+`iI.Channel`. -/
+theorem Environment.IsPPT.isOraclePPTOn_run_wordHandle
+    {n : ℕ} {ιI : Type} {I : ιI → Type} {In Out AdvQ AdvR : Type}
+    {party : WordPort (Fin n × In) (Option Out)} {adv : WordPort AdvQ AdvR}
+    {Z : Environment n In Out AdvQ AdvR}
+    (hZ : Z.IsPPT party adv)
+    {iI : WordInterface I}
+    {M : ℕ → Finset (Fin n) → Machine I (execSpec n In Out AdvQ AdvR)}
+    (cert : PPTCertificate M iI (WordInterface.exec party adv))
+    (C : Finset (Fin n)) :
+    IsOraclePPTOn (Operation := iI.Channel) encEnvParam encBool (fun e => do
+      let s0 ← ProbOracleComp.sample
+        ((cert.codec e.secParam C).enc <$> (M e.secParam C).init)
+      let p : PPTParam n := ⟨e.secParam, e.replyBound, C⟩
+      Prod.fst <$> (OracleComp.interpret
+        (OracleComp.sumHandler
+          (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
+          (wordHandle M iI (WordInterface.exec party adv) cert.codec p))
+        (ProbOracleComp.lowerWith (WordInterface.exec party adv)
+          e.replyBound (Z e.secParam e.aux))).run s0) := by
+  let iE := WordInterface.exec party adv
+  let ValidState : Type :=
+    { x : EnvParam × List Bool // x.2 ∈ Set.range (cert.codec x.1.secParam C).enc }
+  let encValid : ValidState ↪ List Bool :=
+    (Function.Embedding.subtype _).trans (encPair encEnvParam encBits)
+  have hval : ComputableInPolyTime (fun x : ValidState => x.1)
+      encValid (encPair encEnvParam encBits) :=
+    ComputableInPolyTime.of_eq fun _ => rfl
+  have hprep : ComputableInPolyTime
+      (fun e : EnvParam => (⟨e.secParam, e.replyBound, C⟩ : PPTParam n))
+      encEnvParam (encPPTParam n) := by
+    have hconst : ComputableInPolyTime (fun _ : EnvParam => C)
+        encEnvParam (encFinite (Finset (Fin n))) :=
+      ComputableInPolyTime.const C
+    fun_prop
+  have hinitBase : IsPPTOn encEnvParam (encPair encEnvParam encBits) fun e =>
+      (fun w => (e, w)) <$>
+        ((cert.codec e.secParam C).enc <$> (M e.secParam C).init) :=
+    (cert.init.preprocess hprep).keep_input
+  have hinitValid : IsPPTOn encEnvParam encValid fun e =>
+      (fun s => (⟨(e, (cert.codec e.secParam C).enc s), ⟨s, rfl⟩⟩ : ValidState)) <$>
+        (M e.secParam C).init := by
+    rw [isPPTOn_iff_encoded] at hinitBase ⊢
+    refine hinitBase.congr fun e => ?_
+    simp only [encValid, Function.Embedding.trans_apply, ProbComp.eval_map, PMF.map_comp,
+      Function.comp_def]
+    rfl
+  have hstep : IsOraclePPTOn (Operation := iI.Channel)
+      encValid (encPair encBool encBits) fun x =>
+        (OracleComp.interpret
+          (OracleComp.sumHandler
+            (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
+            (wordHandle M iI iE cert.codec
+              ⟨x.1.1.secParam, x.1.1.replyBound, C⟩))
+          (ProbOracleComp.lowerWith iE x.1.1.replyBound (Z x.1.1.secParam x.1.1.aux))).run
+            x.1.2 := by
+    have hprepare : ComputableInPolyTime (fun x : ValidState => x.1.1) encValid encEnvParam :=
+      (ComputableInPolyTime.fst encEnvParam encBits).comp hval
+    have hparam : ComputableInPolyTime
+        (fun x : ValidState => (⟨x.1.1.secParam, x.1.1.replyBound, C⟩ : PPTParam n))
+        encValid (encPPTParam n) :=
+      hprep.comp hprepare
+    have hhandlerProj : ComputableInPolyTime
+        (fun x : ValidState × ((iE.Channel × List Bool) × List Bool) =>
+          ((⟨x.1.1.1.secParam, x.1.1.1.replyBound, C⟩ : PPTParam n), x.2))
+        (encHandlerCall encValid (encFinite iE.Channel) encBits)
+        (encHandlerCall (encPPTParam n) (encFinite iE.Channel) encBits) :=
+      (hparam.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)
+    have hhandler : IsOraclePPTOn
+        (encHandlerCall encValid (encFinite iE.Channel) encBits)
+        (encPair encBits encBits)
+        (fun x => wordHandle M iI iE cert.codec
+          ⟨x.1.1.1.secParam, x.1.1.1.replyBound, C⟩ x.2.1 x.2.2) :=
+      cert.handle.preprocess hhandlerProj
+    have hinitProj : ComputableInPolyTime (fun x : ValidState => x.1.2) encValid encBits :=
+      (ComputableInPolyTime.snd encEnvParam encBits).comp hval
+    have hgrowthProj : ComputableInPolyTime
+        (fun pair : ValidState × List Bool =>
+          ((⟨pair.1.1.1.secParam, pair.1.1.1.replyBound, C⟩ : PPTParam n), pair.2))
+        (encPair encValid encBits) (encPair (encPPTParam n) encBits) :=
+      (hparam.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)
+    have hgrowth : Turing.MultiTapeTM.PolyBounded
+        (fun pair : ValidState × List Bool => (encPair encValid encBits pair).length)
+        (fun pair => cert.growth ⟨pair.1.1.1.secParam, pair.1.1.1.replyBound, C⟩ pair.2) :=
+      cert.growth_poly.comp hgrowthProj.polyBounded_length
+    exact IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
+      (Operation := iE.Channel) (External := iI.Channel)
+      (operationEncoding := encFinite iE.Channel)
+      (program := fun e : EnvParam =>
+        ProbOracleComp.lowerWith iE e.replyBound (Z e.secParam e.aux))
+      hZ hprepare hhandler hinitProj
+      (fun x state => state ∈ Set.range (cert.codec x.1.1.secParam C).enc)
+      (fun x => x.2) hgrowth
+      (fun x req state hinv result hmem =>
+        cert.preserve_wordHandle ⟨x.1.1.secParam, x.1.1.replyBound, C⟩ req state hinv result hmem)
+  have hcombined : IsOraclePPTOn (Operation := iI.Channel)
+      encEnvParam encBool fun e =>
+        Prod.fst <$> (ProbOracleComp.sample
+          ((fun s => (⟨(e, (cert.codec e.secParam C).enc s), ⟨s, rfl⟩⟩ : ValidState)) <$>
+            (M e.secParam C).init) >>= fun x =>
+          (OracleComp.interpret
+            (OracleComp.sumHandler
+              (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
+              (wordHandle M iI iE cert.codec
+                ⟨x.1.1.secParam, x.1.1.replyBound, C⟩))
+            (ProbOracleComp.lowerWith iE x.1.1.replyBound (Z x.1.1.secParam x.1.1.aux))).run
+              x.1.2) :=
+    (hinitValid.isOraclePPTOn.bind hstep).map (ComputableInPolyTime.fst encBool encBits)
+  refine hcombined.congr fun e State oracle s => ?_
+  simp only [ProbOracleComp.runWith_map, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
+    ProbComp.eval_map, PMF.bind_map, PMF.map_bind, Function.comp_def]
+  rfl
+
 /-! ### Baseline certificates -/
 
 private def punitStateCodec {n : ℕ} {ι : Type} (E : ι → Type) :
-    StateCodec (fun (_ : ℕ) (_ : Finset (Fin n)) => Machine.id E) where
-  enc _ _ := ⟨fun _ => [], fun a b _ => by cases a; cases b; rfl⟩
-  decode _ _ _ := PUnit.unit
-  decode_enc _ _ _ := rfl
+    StateCodec (fun (_ : ℕ) (_ : Finset (Fin n)) => Machine.id E) := fun _ _ =>
+  { enc := ⟨fun _ => [], fun a b _ => by cases a; cases b; rfl⟩
+    decode := fun _ => PUnit.unit
+    decode_enc := fun _ => rfl }
 
 /-- Library infrastructure (no cited result): the stateless forwarding machine `Machine.id E` has
 a strict-PPT certificate over any `WordInterface E`. -/
@@ -383,8 +515,9 @@ theorem Machine.isPPTFamily_id {n : ℕ} {ι : Type} {E : ι → Type} (I : Word
     rcases hresult with ⟨x, _, rfl⟩
     exact Nat.le_refl 0
 
-/-- Library infrastructure toward #6043 (not Definition 6 of [Canetti2020]): the dummy adversary
-forwarding `netSpec NetQ NetR` has a strict-PPT certificate in this library's word model. -/
+/-- Library infrastructure (no cited result): the dummy adversary forwarding `netSpec NetQ NetR` has
+a strict-PPT certificate in this library's word model (toward `#6043`, not Definition 6 of
+`[Canetti2020]`). -/
 theorem Adversary.isPPT_dummyAdversary (n : ℕ) {NetQ NetR : Type} (net : WordPort NetQ NetR) :
     (dummyAdversary n NetQ NetR).IsPPT net net :=
   Machine.isPPTFamily_id (WordInterface.net net)
@@ -397,10 +530,7 @@ theorem IdealFunctionality.IsPPT.toProtocol {n : ℕ} {In Out BackQ BackR : Type
     (h : F.IsPPT party back) :
     F.toProtocol.IsPPT party back := by
   rcases h with ⟨cert⟩
-  let codec : StateCodec F.toProtocol := {
-    enc := fun _ _ => cert.stateEnc
-    decode := fun _ _ => cert.stateDecode
-    decode_enc := fun _ _ => cert.stateDecode_enc }
+  let codec : StateCodec F.toProtocol := fun _ _ => cert.stateCodec
   refine ⟨{
     codec := codec
     init := ?_
@@ -431,11 +561,11 @@ theorem IdealFunctionality.IsPPT.toProtocol {n : ℕ} {In Out BackQ BackR : Type
       match c with
       | .inl () => ProbOracleComp.sample (
           let q := party.queryDecoder.decode x.2.1.2
-          (fun result => (party.reply result.1, cert.stateEnc result.2)) <$>
-            (F.onInput q.1 q.2).run (cert.stateDecode x.2.2))
+          (fun result => (party.reply result.1, cert.stateCodec.enc result.2)) <$>
+            (F.onInput q.1 q.2).run (cert.stateCodec.decode x.2.2))
       | .inr () => ProbOracleComp.sample (
-          (fun result => (back.reply result.1, cert.stateEnc result.2)) <$>
-            (F.onBackdoor (back.queryDecoder.decode x.2.1.2)).run (cert.stateDecode x.2.2))
+          (fun result => (back.reply result.1, cert.stateCodec.enc result.2)) <$>
+            (F.onBackdoor (back.queryDecoder.decode x.2.1.2)).run (cert.stateCodec.decode x.2.2))
     have hcases : IsOraclePPTOn (Operation := WordInterface.empty.Channel)
         (encHandlerCall (encPPTParam n) (encFinite iP.Channel) encBits)
         (encPair encBits encBits)
@@ -453,16 +583,12 @@ theorem IdealFunctionality.IsPPT.toProtocol {n : ℕ} {In Out BackQ BackR : Type
       (simp only [branch, wordHandle, IdealFunctionality.toProtocol, codec, WordInterface.protocol,
         WordInterface.sum, WordInterface.net, StateT.run, ProbOracleComp.lowerWith,
         ProbOracleComp.simulate_sample, ProbOracleComp.sample_map]; rfl)
-  · obtain ⟨c, d, hbound⟩ := cert.growth_poly.exists_le
-    refine PolyBounded.of_forall_le c d fun pair => ?_
-    have hlen : pair.2.length ≤ (encPair (encPPTParam n) encBits pair).length := by
-      rw [length_encPair]
-      simp only [encBits_apply]
-      omega
-    exact (hbound pair.2).trans (Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by omega) d))
+  · exact cert.growth_poly.comp (PolyBounded.self.mono fun pair => by
+      simp only [length_encPair, encBits_apply]
+      omega)
   · intro p request s result hresult
     rcases request with ⟨ch, req⟩
-    rw [wordHandle, codec.decode_enc] at hresult
+    rw [wordHandle, (codec p.secParam p.corrupted).decode_enc] at hresult
     cases ch with
     | inl u =>
       cases u

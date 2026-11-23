@@ -11,7 +11,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.SubstitutionGrowth
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Computability.Probabilistic.Sampling
@@ -34,9 +33,8 @@ Non-degenerate witnesses for `CslibFrontier.Crypto.Protocols.UC.PPT`:
    fails), while a party-`1` poll returns a reply of length `s.length + 1` (unbounded in
    `(p, request)` alone, exercising why `PPTCertificate` imposes no state-independent reply bound).
 3. Interactive environment witness (`coinEnv.IsPPT`) making two party calls and one adversary call,
-   composed end-to-end with `coinStore.toProtocol`'s `PPTCertificate` (using `cert.init`,
-   `cert.handle`, `cert.growth_poly`, and `cert.preserve_wordHandle`) via
-   `IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth`.
+   composed end-to-end with `coinStore.toProtocol`'s `PPTCertificate` via
+   `Environment.IsPPT.isOraclePPTOn_run_wordHandle`.
 4. Machine-level witness that `PPTParam.replyBound` matters: on `dummyAdversary 2 Unit (List Bool)`
    against an oracle returning `[true, true, true]`, `replyBound = 2` truncates the word reply to
    `[true, true]`, `replyBound = 3` fits and returns `[true, true, true]`, and the two runs differ.
@@ -262,9 +260,10 @@ private theorem coinStore_onInput_isPPTOn :
 
 private noncomputable def coinStoreCert :
     IdealFunctionality.PPTCertificate coinStore coinPartyPort unitPort where
-  stateEnc := encBits
-  stateDecode := id
-  stateDecode_enc _ := rfl
+  stateCodec :=
+    { enc := encBits
+      decode := id
+      decode_enc := fun _ => rfl }
   init := by
     change IsPPTOn (encPair encUnary (encFinite (Finset (Fin 2)))) encBits (fun _ => pure [])
     exact (ComputableInPolyTime.const []).isPPTOn
@@ -315,10 +314,10 @@ theorem dummyAdversary_isPPT : (dummyAdversary 2 Unit Unit).IsPPT unitPort unitP
 
 /-! ### 2. Non-vacuity: real coins, strict state growth, and state-dependent replies -/
 
-private def coinStoreCodec : StateCodec coinStore.toProtocol where
-  enc _ _ := encBits
-  decode _ _ := id
-  decode_enc _ _ _ := rfl
+private def coinStoreCodec : StateCodec coinStore.toProtocol := fun _ _ =>
+  { enc := encBits
+    decode := id
+    decode_enc := fun _ => rfl }
 
 /-- A party-`0` store activation from `[false, true]` has two distinct supported next states
 `[true, false, true]` and `[false, false, true]` (real coins), both strictly longer than the
@@ -502,17 +501,15 @@ theorem coinEnv_isPPT : coinEnv.IsPPT coinPartyPort unitPort := by
     bind_assoc, pure_bind, Function.comp_apply, hdec]
   rfl
 
-/-- Direct end-to-end integration check against `SubstitutionGrowth.lean`: sampling the initial
-encoded state with `cert.init` and running `coinEnv` against `wordHandle` using `cert.handle`,
-`cert.growth_poly`, and `cert.preserve_wordHandle` via
-`IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth` yields a strict oracle-PPT
-combined word interaction. -/
+/-- Direct end-to-end instantiation of `Environment.IsPPT.isOraclePPTOn_run_wordHandle`:
+sampling the initial encoded state with `cert.init` and running `coinEnv` against `wordHandle` for
+`coinStore.toProtocol` yields a strict oracle-PPT combined word interaction. -/
 theorem coinEnv_run_coinStore_wordHandle_isOraclePPTOn :
     ∃ cert : PPTCertificate coinStore.toProtocol WordInterface.empty
       (WordInterface.protocol coinPartyPort unitPort),
       IsOraclePPTOn (Operation := WordInterface.empty.Channel) encEnvParam encBool (fun e => do
         let s0 ← ProbOracleComp.sample
-          (cert.codec.enc e.secParam ∅ <$> (coinStore.toProtocol e.secParam ∅).init)
+          ((cert.codec e.secParam ∅).enc <$> (coinStore.toProtocol e.secParam ∅).init)
         let p : PPTParam 2 := ⟨e.secParam, e.replyBound, ∅⟩
         Prod.fst <$> (OracleComp.interpret
           (OracleComp.sumHandler
@@ -522,103 +519,7 @@ theorem coinEnv_run_coinStore_wordHandle_isOraclePPTOn :
           (ProbOracleComp.lowerWith (WordInterface.exec coinPartyPort unitPort)
             e.replyBound (coinEnv e.secParam e.aux))).run s0) := by
   rcases coinStore_toProtocol_isPPT with ⟨cert⟩
-  refine ⟨cert, ?_⟩
-  let ValidState : Type :=
-    { x : EnvParam × List Bool // x.2 ∈ Set.range (cert.codec.enc x.1.secParam ∅) }
-  let encValid : ValidState ↪ List Bool :=
-    (Function.Embedding.subtype _).trans (encPair encEnvParam encBits)
-  have hval : ComputableInPolyTime (fun x : ValidState => x.1)
-      encValid (encPair encEnvParam encBits) :=
-    ComputableInPolyTime.of_eq fun _ => rfl
-  have hprep : ComputableInPolyTime
-      (fun e : EnvParam => (⟨e.secParam, e.replyBound, ∅⟩ : PPTParam 2))
-      encEnvParam (encPPTParam 2) := by
-    fun_prop
-  have hinitBase : IsPPTOn encEnvParam (encPair encEnvParam encBits) fun e =>
-      (fun w => (e, w)) <$>
-        (cert.codec.enc e.secParam ∅ <$> (coinStore.toProtocol e.secParam ∅).init) :=
-    (cert.init.preprocess hprep).keep_input
-  have hinitValid : IsPPTOn encEnvParam encValid fun e =>
-      (fun s => (⟨(e, cert.codec.enc e.secParam ∅ s), ⟨s, rfl⟩⟩ : ValidState)) <$>
-        (coinStore.toProtocol e.secParam ∅).init := by
-    rw [isPPTOn_iff_encoded] at hinitBase ⊢
-    refine hinitBase.congr fun e => ?_
-    simp only [encValid, Function.Embedding.trans_apply, ProbComp.eval_map, PMF.map_comp,
-      Function.comp_def]
-    rfl
-  have hstep : IsOraclePPTOn (Operation := WordInterface.empty.Channel)
-      encValid (encPair encBool encBits) fun x =>
-        (OracleComp.interpret
-          (OracleComp.sumHandler
-            (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
-            (wordHandle coinStore.toProtocol WordInterface.empty
-              (WordInterface.protocol coinPartyPort unitPort) cert.codec
-              ⟨x.1.1.secParam, x.1.1.replyBound, ∅⟩))
-          (ProbOracleComp.lowerWith (WordInterface.exec coinPartyPort unitPort)
-            x.1.1.replyBound (coinEnv x.1.1.secParam x.1.1.aux))).run x.1.2 := by
-    have hprepare : ComputableInPolyTime (fun x : ValidState => x.1.1) encValid encEnvParam :=
-      (ComputableInPolyTime.fst encEnvParam encBits).comp hval
-    have hparam : ComputableInPolyTime
-        (fun x : ValidState => (⟨x.1.1.secParam, x.1.1.replyBound, ∅⟩ : PPTParam 2))
-        encValid (encPPTParam 2) :=
-      hprep.comp hprepare
-    have hhandlerProj : ComputableInPolyTime
-        (fun x : ValidState ×
-            (((WordInterface.exec coinPartyPort unitPort).Channel × List Bool) × List Bool) =>
-          ((⟨x.1.1.1.secParam, x.1.1.1.replyBound, ∅⟩ : PPTParam 2), x.2))
-        (encHandlerCall encValid
-          (encFinite (WordInterface.exec coinPartyPort unitPort).Channel) encBits)
-        (encHandlerCall (encPPTParam 2)
-          (encFinite (WordInterface.exec coinPartyPort unitPort).Channel) encBits) :=
-      (hparam.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)
-    have hhandler : IsOraclePPTOn
-        (encHandlerCall encValid
-          (encFinite (WordInterface.exec coinPartyPort unitPort).Channel) encBits)
-        (encPair encBits encBits)
-        (fun x => wordHandle coinStore.toProtocol WordInterface.empty
-          (WordInterface.protocol coinPartyPort unitPort) cert.codec
-          ⟨x.1.1.1.secParam, x.1.1.1.replyBound, ∅⟩ x.2.1 x.2.2) :=
-      cert.handle.preprocess hhandlerProj
-    have hinitProj : ComputableInPolyTime (fun x : ValidState => x.1.2) encValid encBits :=
-      (ComputableInPolyTime.snd encEnvParam encBits).comp hval
-    have hgrowthProj : ComputableInPolyTime
-        (fun pair : ValidState × List Bool =>
-          ((⟨pair.1.1.1.secParam, pair.1.1.1.replyBound, ∅⟩ : PPTParam 2), pair.2))
-        (encPair encValid encBits) (encPair (encPPTParam 2) encBits) :=
-      (hparam.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)
-    have hgrowth : PolyBounded
-        (fun pair : ValidState × List Bool => (encPair encValid encBits pair).length)
-        (fun pair => cert.growth ⟨pair.1.1.1.secParam, pair.1.1.1.replyBound, ∅⟩ pair.2) :=
-      cert.growth_poly.comp hgrowthProj.polyBounded_length
-    exact IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
-      (Operation := (WordInterface.exec coinPartyPort unitPort).Channel)
-      (External := WordInterface.empty.Channel)
-      (operationEncoding := encFinite (WordInterface.exec coinPartyPort unitPort).Channel)
-      (program := fun e : EnvParam =>
-        ProbOracleComp.lowerWith (WordInterface.exec coinPartyPort unitPort)
-          e.replyBound (coinEnv e.secParam e.aux))
-      coinEnv_isPPT hprepare hhandler hinitProj
-      (fun x state => state ∈ Set.range (cert.codec.enc x.1.1.secParam ∅))
-      (fun x => x.2) hgrowth
-      (fun x req state hinv result hmem =>
-        cert.preserve_wordHandle ⟨x.1.1.secParam, x.1.1.replyBound, ∅⟩ req state hinv result hmem)
-  have hcombined : IsOraclePPTOn (Operation := WordInterface.empty.Channel)
-      encEnvParam encBool fun e =>
-        Prod.fst <$> (ProbOracleComp.sample
-          ((fun s => (⟨(e, cert.codec.enc e.secParam ∅ s), ⟨s, rfl⟩⟩ : ValidState)) <$>
-            (coinStore.toProtocol e.secParam ∅).init) >>= fun x =>
-          (OracleComp.interpret
-            (OracleComp.sumHandler
-              (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
-              (wordHandle coinStore.toProtocol WordInterface.empty
-                (WordInterface.protocol coinPartyPort unitPort) cert.codec
-                ⟨x.1.1.secParam, x.1.1.replyBound, ∅⟩))
-            (ProbOracleComp.lowerWith (WordInterface.exec coinPartyPort unitPort)
-              x.1.1.replyBound (coinEnv x.1.1.secParam x.1.1.aux))).run x.1.2) :=
-    (hinitValid.isOraclePPTOn.bind hstep).map (ComputableInPolyTime.fst encBool encBits)
-  refine hcombined.congr fun e State oracle s => ?_
-  simp only [ProbOracleComp.runWith_map, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-    ProbComp.eval_map, PMF.bind_map, PMF.map_bind, Function.comp_def]
+  exact ⟨cert, coinEnv_isPPT.isOraclePPTOn_run_wordHandle cert ∅⟩
 
 end CoinStoreWitness
 
@@ -633,12 +534,12 @@ private noncomputable def tripleOracle : (q : Unit) → StateT Unit PMF (List Bo
 `dummyAdversary 2 Unit (List Bool)`: for any `PPTCertificate` of the dummy adversary, running
 `wordHandle` against `tripleOracle` truncates to `[true, true]` at `replyBound = 2`, fits and
 returns `[true, true, true]` at `replyBound = 3`, and the two distributions differ. -/
-theorem dummyAdversary_wordHandle_replyBound_truncates_and_fits :
-    ∃ cert : PPTCertificate (dummyAdversary 2 Unit (List Bool))
-      (WordInterface.net bitsPort) (WordInterface.net bitsPort),
+theorem dummyAdversary_wordHandle_replyBound_truncates_and_fits
+    (cert : PPTCertificate (dummyAdversary 2 Unit (List Bool))
+      (WordInterface.net bitsPort) (WordInterface.net bitsPort)) :
       let pTrunc : PPTParam 2 := ⟨1, 2, ∅⟩
       let pFit : PPTParam 2 := ⟨1, 3, ∅⟩
-      let state0 := cert.codec.enc 1 ∅ PUnit.unit
+      let state0 := (cert.codec 1 ∅).enc PUnit.unit
       ProbOracleComp.runWith ((WordInterface.net bitsPort).encodeOracle tripleOracle)
         (wordHandle (dummyAdversary 2 Unit (List Bool))
           (WordInterface.net bitsPort) (WordInterface.net bitsPort)
@@ -657,14 +558,12 @@ theorem dummyAdversary_wordHandle_replyBound_truncates_and_fits :
         (wordHandle (dummyAdversary 2 Unit (List Bool))
           (WordInterface.net bitsPort) (WordInterface.net bitsPort)
           cert.codec pFit ((), []) state0) () := by
-  rcases Adversary.isPPT_dummyAdversary 2 bitsPort with ⟨cert⟩
-  refine ⟨cert, ?_⟩
   have hrun : ∀ k : ℕ,
       ProbOracleComp.runWith ((WordInterface.net bitsPort).encodeOracle tripleOracle)
         (wordHandle (dummyAdversary 2 Unit (List Bool))
           (WordInterface.net bitsPort) (WordInterface.net bitsPort)
-          cert.codec ⟨1, k, ∅⟩ ((), []) (cert.codec.enc 1 ∅ PUnit.unit)) () =
-        PMF.pure ((List.take k [true, true, true], cert.codec.enc 1 ∅ PUnit.unit), ()) := by
+          cert.codec ⟨1, k, ∅⟩ ((), []) ((cert.codec 1 ∅).enc PUnit.unit)) () =
+        PMF.pure ((List.take k [true, true, true], (cert.codec 1 ∅).enc PUnit.unit), ()) := by
     intro k
     simp only [wordHandle, dummyAdversary, Machine.id, StateT.run, StateT.lift,
       ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind, ProbOracleComp.simulate_pure,
@@ -674,12 +573,12 @@ theorem dummyAdversary_wordHandle_replyBound_truncates_and_fits :
     simp only [WordInterface.net, bitsPort, tripleOracle, Decoder.bits, encBits_apply,
       PMF.pure_bind, PMF.pure_map, id_eq]
     exact congrArg
-      (fun u => PMF.pure ((List.take k [true, true, true], cert.codec.enc 1 ∅ u), ()))
-      (cert.codec.decode_enc 1 ∅ PUnit.unit)
+      (fun u => PMF.pure ((List.take k [true, true, true], (cert.codec 1 ∅).enc u), ()))
+      ((cert.codec 1 ∅).decode_enc PUnit.unit)
   refine ⟨hrun 2, hrun 3, ?_⟩
   rw [hrun 2, hrun 3]
   intro h
-  have hv := congrArg (fun p => p (([true, true], cert.codec.enc 1 ∅ PUnit.unit), ())) h
+  have hv := congrArg (fun p => p (([true, true], (cert.codec 1 ∅).enc PUnit.unit), ())) h
   simp at hv
 
 end ReplyBoundWitness
