@@ -2114,6 +2114,7 @@ public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.D
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.FirstEventSign
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Generator
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.ModularArithmetic
+public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.PolynomialEvaluation
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Primality
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.PrimeCofactor
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Products
@@ -3287,6 +3288,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFea
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledSigns
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalFeasibilityWitness
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalLabelDeterminantEvaluation
@@ -7966,6 +7968,7 @@ public import CslibFrontier.Foundations.RingTheory.Derivation.Wronskian
 public import CslibFrontier.Foundations.RingTheory.GaloisRing
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Basis
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CharpolyCoeffNorm
+public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CoordinateCharacteristicPolynomial
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalIntegerSpecialization
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalParameterExclusion
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueCoeffNorm

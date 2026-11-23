@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
@@ -134,5 +135,29 @@ example : criticalCoordinateCoefficientValue 11 1 1 1 0 2 (fun z => z[0]?.getD 0
       _ = 1 := by
         rw [Polynomial.coeff_natDegree, (Matrix.charpoly_monic A).leadingCoeff, ZMod.val_one]
   exact hleading _
+
+-- At u = 1, the equation for F = X is X² + 1 = 0. The value t = 5 is a root mod 13.
+example : (criticalCoordinatePolynomialValue 13 1 1 1 0 5 (fun z => z[0]?.getD 0) :
+    ZMod 13) = 0 := by
+  let : Fact (Nat.Prime 13) := ⟨by decide⟩
+  let F : MvPolynomial (Fin 1) ℤ := X 0
+  let φ := Int.castRingHom (ZMod 13)
+  have hF : F.totalDegree ≤ 1 + 1 := (totalDegree_X_le 0).trans (by decide)
+  change (criticalCoordinatePolynomialValue 13 1 1 1 (0 : Fin 1).val 5 _ : ZMod 13) = 0
+  rw [criticalCoordinatePolynomialValue_cast 1 (by decide) F hF (0 : Fin 1) 1 5
+    (by decide) (by decide) (fun z => z[0]?.getD 0)
+    (by intro z; simp only [F, eval₂_X, Fin.val_zero]),
+    Polynomial.eval₂_eq_eval_map, parametricCoordinatePolynomial_map_eval₂]
+  let r := criticalLower 2 (fun _ => 0) ((1 : ℕ) : ZMod 13) (F.map φ)
+  have hr (j : Fin 1) : (r j).totalDegree < 2 :=
+    criticalLower_degree 2 (by decide) _ _ _ ((totalDegree_map_le φ F).trans hF) j
+  have hx (j : Fin 1) : aeval (fun _ => ((5 : ℕ) : ZMod 13)) (r j) = ((5 : ℕ) : ZMod 13) ^ 2 := by
+    rw [Fin.eq_zero j]
+    simp only [r, F, map_X, criticalLower, zero_pow (by decide : 2 ≠ 0),
+      pderiv_X_self, map_sub, aeval_C, mul_one]
+    decide
+  simpa only [Polynomial.IsRoot.def, aeval_X] using
+    isRoot_charpoly_multiplicationMatrix_of_aeval_eq (by decide) r hr
+      (X 0) (fun _ => ((5 : ℕ) : ZMod 13)) hx
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
