@@ -12,6 +12,7 @@ public import CslibFrontier.Logics.Propositional.PseudoBoolean.Graph.Lad
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 public import Mathlib.Combinatorics.SimpleGraph.Copy
 import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Logic.Equiv.Fin.Basic
 
 /-! # Subgraph isomorphism as a pseudo-Boolean satisfaction problem, end to end
 
@@ -124,17 +125,16 @@ for each `u`; and `~xₐᵤ + ∑_{v ~ u} x_{bv} ≥ 1` for each `u`, each `a` a
 
 /-! ### Correctness -/
 
+/-- `xₐᵤ` is the index of `(a, u)` under Mathlib's `finProdFinEquiv`. -/
+private theorem val_finProdFinEquiv_eq_isoVar (a : Fin p) (u : Fin t) :
+    (finProdFinEquiv (a, u) : ℕ) = isoVar t a u := by
+  rw [finProdFinEquiv_apply_val, isoVar, Nat.add_comm]
+
 private theorem isoVar_inj {a a' : Fin p} {u u' : Fin t} (h : isoVar t a u = isoVar t a' u') :
     a = a' ∧ u = u' := by
-  have hu := u.isLt
-  have hu' := u'.isLt
-  have hpos : 0 < t := by omega
-  unfold isoVar at h
-  have hdiv := congrArg (· / t) h
-  have hmod := congrArg (· % t) h
-  simp only [Nat.mul_add_div hpos, Nat.div_eq_of_lt hu, Nat.div_eq_of_lt hu', Nat.mul_add_mod,
-    Nat.mod_eq_of_lt hu, Nat.mod_eq_of_lt hu', add_zero] at hdiv hmod
-  exact ⟨Fin.ext hdiv, Fin.ext hmod⟩
+  have hv : (finProdFinEquiv (a, u) : ℕ) = finProdFinEquiv (a', u') := by
+    rw [val_finProdFinEquiv_eq_isoVar, val_finProdFinEquiv_eq_isoVar, h]
+  exact Prod.ext_iff.1 (finProdFinEquiv.injective (Fin.ext hv))
 
 /-- A sum of literals with coefficient `1` over all of `Fin k` counts the true ones. -/
 private theorem lhs_finRange {k : ℕ} (g : Fin k → ℕ) (b : Bool) (σ : ℕ → Bool) :

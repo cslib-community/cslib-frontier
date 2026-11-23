@@ -95,20 +95,11 @@ end LADGraph
 private def vertex? (n : ℕ) (w : List Char) : Option (Fin n) :=
   (Nat.ofDecimal? w).bind fun v => if h : v < n then some ⟨v, h⟩ else none
 
-/-- The neighbours of a vertex line, as words, each a vertex. -/
-private def vertices? (n : ℕ) : List (List Char) → Option (List (Fin n))
-  | [] => some []
-  | w :: ws => (vertex? n w).bind fun v => (vertices? n ws).map (v :: ·)
-
 /-- A vertex line `d v₁ … v_d`, as words: its neighbours. -/
 private def vertexLine? (n : ℕ) : List (List Char) → Option (List (Fin n))
   | [] => none
-  | d :: ws => (Nat.ofDecimal? d).bind fun d => if ws.length = d then vertices? n ws else none
-
-/-- The vertex lines, as words. -/
-private def vertexLines? (n : ℕ) : List (List (List Char)) → Option (List (List (Fin n)))
-  | [] => some []
-  | l :: ls => (vertexLine? n l).bind fun vs => (vertexLines? n ls).map (vs :: ·)
+  | d :: ws =>
+    (Nat.ofDecimal? d).bind fun d => if ws.length = d then ws.mapM (vertex? n) else none
 
 /-- The neighbour lists are at most `n`, loop-free and symmetric. -/
 private def isGood (n : ℕ) (ls : List (List (Fin n))) : Bool :=
@@ -127,7 +118,7 @@ def parseLAD (s : String) : Option LADGraph :=
   match (ladLines s).map (words · []) with
   | [h] :: ls =>
     (Nat.ofDecimal? h).bind fun n =>
-      (vertexLines? n ls).bind fun nb => if isGood n nb then some ⟨n, nb⟩ else none
+      (ls.mapM (vertexLine? n)).bind fun nb => if isGood n nb then some ⟨n, nb⟩ else none
   | _ => none
 
 private theorem of_isGood {n : ℕ} {ls : List (List (Fin n))} (h : isGood n ls = true)
