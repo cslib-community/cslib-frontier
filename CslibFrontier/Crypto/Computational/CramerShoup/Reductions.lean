@@ -64,10 +64,7 @@ open scoped ENNReal NNReal
 
 variable (F : PrimeOrderGroupFamily)
 
-attribute [local fun_prop]
-  computableInPolyTime_decodeBits4
-  computableInPolyTime_splitCramerShoupQuery
-  isPPTOn_sampleExp
+attribute [local fun_prop] isPPTOn_sampleExp
 
 @[local fun_prop]
 private theorem computableInPolyTime_extractCramerShoupTuple_comp
@@ -88,36 +85,6 @@ private theorem computableInPolyTime_encodeCramerShoupPublicKey_comp
       encIn encBits :=
   F.computableInPolyTime_encodeCramerShoupPublicKey.comp (hd.prod (hu.prod hsk))
 
-@[local fun_prop]
-private theorem computableInPolyTime_encodeCramerShoupChallenge_comp
-    {H : F.Desc × List Bool → List Bool}
-    (hH : ComputableInPolyTime H (encPair F.encDesc encBits) encBits)
-    {γ : Type} {encIn : γ ↪ List Bool} {d : γ → F.Desc}
-    {sk : γ → (ℕ × ℕ) × ((ℕ × ℕ) × (ℕ × ℕ))} {v w m ad : γ → List Bool}
-    (hd : ComputableInPolyTime d encIn F.encDesc)
-    (hsk : ComputableInPolyTime sk encIn encCramerShoupSK)
-    (hv : ComputableInPolyTime v encIn encBits)
-    (hw : ComputableInPolyTime w encIn encBits)
-    (hm : ComputableInPolyTime m encIn encBits)
-    (had : ComputableInPolyTime ad encIn encBits) :
-    ComputableInPolyTime
-      (fun a => F.encodeCramerShoupChallenge H (d a) (sk a) (v a) (w a) (m a) (ad a))
-      encIn encBits :=
-  (F.computableInPolyTime_encodeCramerShoupChallenge hH).comp
-    (hd.prod (hsk.prod (hv.prod (hw.prod (hm.prod had)))))
-
-@[local fun_prop]
-private theorem computableInPolyTime_isCramerShoupHashInput_comp
-    (hasAD : Bool) {isElem : F.Desc × List Bool → Bool}
-    (hisElem : ComputableInPolyTime isElem (encPair F.encDesc encBits) encBool)
-    {γ : Type} {encIn : γ ↪ List Bool} {d : γ → F.Desc} {x : γ → List Bool}
-    (hd : ComputableInPolyTime d encIn F.encDesc)
-    (hx : ComputableInPolyTime x encIn encBits) :
-    ComputableInPolyTime (fun a => F.isCramerShoupHashInput hasAD isElem (d a) (x a))
-      encIn encBool :=
-  (F.computableInPolyTime_isCramerShoupHashInput hasAD hisElem).comp (hd.prod hx)
-
-@[local fun_prop]
 private theorem computableInPolyTime_decodeCramerShoup_comp
     {H : F.Desc × List Bool → List Bool} {isElem : F.Desc × List Bool → Bool}
     (hH : ComputableInPolyTime H (encPair F.encDesc encBits) encBits)
@@ -169,7 +136,6 @@ private theorem isPPTOn_sampleCramerShoupPair {γ : Type} {encIn : γ ↪ List B
     IsPPTOn encIn (encPair encNat encNat) (fun a => F.sampleCramerShoupPair (n a) (d a)) := by
   ppt [sampleCramerShoupPair]
 
-@[local fun_prop]
 private theorem isPPTOn_sampleCramerShoupTripleExponents {γ : Type} {encIn : γ ↪ List Bool}
     {n : γ → ℕ} {d : γ → F.Desc}
     (hn : ComputableInPolyTime n encIn encUnary)
@@ -178,7 +144,6 @@ private theorem isPPTOn_sampleCramerShoupTripleExponents {γ : Type} {encIn : γ
       (fun a => F.sampleCramerShoupTripleExponents (n a) (d a)) := by
   ppt [sampleCramerShoupTripleExponents]
 
-@[local fun_prop]
 private theorem isPPTOn_sampleCramerShoupSK {γ : Type} {encIn : γ ↪ List Bool}
     {n : γ → ℕ} {d : γ → F.Desc}
     (hn : ComputableInPolyTime n encIn encUnary)
@@ -393,11 +358,8 @@ private theorem computableInPolyTime_cramerShoupPhase2Reply
       (fun a => F.cramerShoupPhase2Reply hasAD H isElem (d a) (sk a) (ct a) (ad a) (req a))
       encIn encBits := by
   have hsplit := (computableInPolyTime_splitCramerShoupQuery hasAD).comp hreq
-  have hq1 := hsplit.fst'; have hq2 := hsplit.snd'
-  dsimp only [Function.comp_def] at hq1 hq2
-  have hdec :=
-    (computableInPolyTime_decodeCramerShoup_comp F hH hisElem hd hsk hq1 hq2).encoding_comp
-  polytime [cramerShoupPhase2Reply]
+  exact ((hsplit.fst'.beq hct).bool_and' (hsplit.snd'.beq had)).ite (.const [])
+    (computableInPolyTime_cramerShoupPhase1Reply F hasAD hH hisElem hd hsk hreq)
 
 @[local fun_prop]
 private theorem computableInPolyTime_cramerShoupCollisionPhase2Reply
@@ -416,12 +378,10 @@ private theorem computableInPolyTime_cramerShoupCollisionPhase2Reply
       encIn encBits := by
   have hsplit := (computableInPolyTime_splitCramerShoupQuery hasAD).comp hreq
   have hq1 := hsplit.fst'; have hq2 := hsplit.snd'
-  dsimp only [Function.comp_def] at hq1 hq2
-  have hdec :=
-    (computableInPolyTime_decodeCramerShoup_comp F hH hisElem hd hsk hq1 hq2).encoding_comp
+  have hdec := computableInPolyTime_cramerShoupPhase1Reply F hasAD hH hisElem hd hsk hreq
+  dsimp only [Function.comp_def, cramerShoupPhase1Reply] at hq1 hq2 hdec
   polytime [cramerShoupCollisionPhase2Reply]
 
-@[local fun_prop]
 private theorem isPPTOn_run_cramerShoupPhase1Oracle
     (hasAD : Bool) {Msg AD : Type} {encMsg : Msg ↪ List Bool} {encAD : AD ↪ List Bool}
     {H : F.Desc × List Bool → List Bool} {isElem : F.Desc × List Bool → Bool}
@@ -455,7 +415,6 @@ private theorem isPPTOn_run_cramerShoupPhase1Oracle
       exact ⟨trivial, le_rfl, Nat.le_add_right _ _⟩)
   ppt [cramerShoupPhase1Oracle]
 
-@[local fun_prop]
 private theorem isPPTOn_run_cramerShoupPhase2Oracle
     (hasAD : Bool) {Msg AD : Type} {encMsg : Msg ↪ List Bool} {encAD : AD ↪ List Bool}
     {H : F.Desc × List Bool → List Bool} {isElem : F.Desc × List Bool → Bool}
@@ -492,7 +451,6 @@ private theorem isPPTOn_run_cramerShoupPhase2Oracle
       exact ⟨trivial, le_rfl, Nat.le_add_right _ _⟩)
   ppt [cramerShoupPhase2Oracle]
 
-@[local fun_prop]
 private theorem isPPTOn_run_cramerShoupCollisionPhase2Oracle
     (hasAD : Bool) {Msg AD : Type} {encMsg : Msg ↪ List Bool} {encAD : AD ↪ List Bool}
     {H : F.Desc × List Bool → List Bool} {isElem : F.Desc × List Bool → Bool}
@@ -517,11 +475,17 @@ private theorem isPPTOn_run_cramerShoupCollisionPhase2Oracle
   have hp2 := ComputableInPolyTime.snd encIn encBits
   have hsplitP2 := (computableInPolyTime_splitCramerShoupQuery hasAD).comp hp2
   have hq1P2 := hsplitP2.fst'; have hq2P2 := hsplitP2.snd'
-  have hE2 := ComputableInPolyTime.snd encIn
-    (encPair (encPair (encFinEnum Unit) encBits) (encOption encBits))
+  let ECall := encPair (encPair (encFinEnum Unit) encBits) (encOption encBits)
+  have hE2 := ComputableInPolyTime.snd encIn ECall
   have hsplitIn := (computableInPolyTime_splitCramerShoupQuery hasAD).comp hE2.fst'.snd'
   have hq1In := hsplitIn.fst'; have hq2In := hsplitIn.snd'
   dsimp only [Function.comp_def] at hq1P2 hq2P2 hq1In hq2In
+  have hhashIn := (F.computableInPolyTime_isCramerShoupHashInput hasAD hisElem).comp
+    ((hd.comp (.fst encIn ECall)).prod (by polytime : ComputableInPolyTime
+      (fun s : γ × ((Unit × List Bool) × Option (List Bool)) =>
+        extractCramerShoupTuple (splitCramerShoupQuery hasAD s.2.1.2).1
+          (splitCramerShoupQuery hasAD s.2.1.2).2) (encPair encIn ECall) encBits))
+  dsimp only [Function.comp_def] at hhashIn
   refine hA.guess.run_interpret_preprocess (operationEncoding := encFinEnum Unit)
     (prepare := fun a : γ => (n a, state a, ct a)) (initial := fun _ => none)
     (resources := fun a req =>
@@ -612,7 +576,18 @@ theorem isPPT_cramerShoupMsgToDDHDistinguisher
   refine (isPPTOn_sampleCramerShoupSK F (by polytime) (by polytime)).bind_with ?_
   refine (isPPTOn_run_cramerShoupPhase1Oracle F hasAD hH hisElem hA
     (by polytime) (by polytime) (by polytime) (by polytime)).bind_with ?_
-  ppt
+  refine IsPPTOn.cond (by polytime) ?_ (by ppt)
+  let E2 := encPair (encPair F.encDDHInput encCramerShoupSK)
+    (encPair (encPair (encPair (encPair encMsg encMsg) encAD) encBits) (encFinEnum Unit))
+  refine (isPPTOn_run_cramerShoupPhase2Oracle F hasAD hH hisElem hA
+    (by polytime) (by polytime) (by polytime) (by polytime) ?_ (by polytime)).bind_with (by ppt)
+  exact (F.computableInPolyTime_encodeCramerShoupChallenge hH).comp (encIn := E2)
+    (g := fun s => (s.1.1.groupParameters, s.1.2,
+      F.encode s.1.1.groupParameters s.1.1.rightPublic,
+      F.encode s.1.1.groupParameters s.1.1.candidateShared,
+      if bit then encodeMsg (s.1.1.groupParameters, s.2.1.1.1.2)
+      else encodeMsg (s.1.1.groupParameters, s.2.1.1.1.1),
+      encodeAD (s.1.1.groupParameters, s.2.1.1.2))) (by polytime)
 
 /-- `cramerShoupADToDDHDistinguisher` is uniform strict PPT whenever `H` and `isElem` are
 computable in polynomial time and `adversary` is a strict oracle PPT 1CCA adversary with associated
@@ -730,13 +705,13 @@ theorem isPPTOn_cramerShoupMsgToCollisionFinder
     (encPair (encPair (encPair (encPair encMsg encMsg) encAD) encBits) (encFinEnum Unit))
   have had : ComputableInPolyTime (fun s => encodeAD (s.1.1.1.2, s.2.1.1.2)) E3 encBits := by
     polytime
-  have hct : ComputableInPolyTime
-      (fun s => F.encodeCramerShoupChallenge H s.1.1.1.2 s.1.2
-        (F.smul (s.1.1.1.2, s.1.1.2.2.1, F.encode s.1.1.1.2 (F.generator s.1.1.1.2)))
-        (F.smul (s.1.1.1.2, s.1.1.2.2.2, F.encode s.1.1.1.2 (F.generator s.1.1.1.2)))
-        (if bit then encodeMsg (s.1.1.1.2, s.2.1.1.1.2)
-          else encodeMsg (s.1.1.1.2, s.2.1.1.1.1))
-        (encodeAD (s.1.1.1.2, s.2.1.1.2))) E3 encBits := by polytime
+  have hct := (F.computableInPolyTime_encodeCramerShoupChallenge hH).comp
+    (encIn := E3) (g := fun s => (s.1.1.1.2, s.1.2,
+      F.smul (s.1.1.1.2, s.1.1.2.2.1, F.encode s.1.1.1.2 (F.generator s.1.1.1.2)),
+      F.smul (s.1.1.1.2, s.1.1.2.2.2, F.encode s.1.1.1.2 (F.generator s.1.1.1.2)),
+      if bit then encodeMsg (s.1.1.1.2, s.2.1.1.1.2) else encodeMsg (s.1.1.1.2, s.2.1.1.1.1),
+      encodeAD (s.1.1.1.2, s.2.1.1.2))) (by polytime)
+  dsimp only [Function.comp_def] at hct
   refine (isPPTOn_run_cramerShoupCollisionPhase2Oracle F hasAD hH hisElem hA
     (by polytime) (by polytime) (by polytime) (by polytime) hct had).bind_with ?_
   have hct' := hct.comp (.fst E3 (encPair encBool (encOption encBits)))
@@ -906,7 +881,6 @@ theorem decodeCramerShoupSK_encCramerShoupSK (sk : (ℕ × ℕ) × ((ℕ × ℕ)
   simp [encCramerShoupSK, decodeCramerShoupSK, encPair_apply, encNat_apply,
     unframe_frame_append, dropFrame_frame_append]
 
-@[local fun_prop]
 private theorem computableInPolyTime_decodeCramerShoupSK :
     ComputableInPolyTime decodeCramerShoupSK encBits encCramerShoupSK := by
   polytime [decodeCramerShoupSK]
@@ -1128,12 +1102,9 @@ theorem computableInPolyTime_cramerShoupDecryptOpt
       (fun ⟨n, skBits, ct⟩ => F.cramerShoupDecryptOpt H isElem d n skBits ct)
       (encPair encUnary (encPair encBits encBits)) (encOption encBits) := by
   have hp := ComputableInPolyTime.id' (encIn := encPair encUnary (encPair encBits encBits))
-  exact computableInPolyTime_decodeCramerShoup_comp F.withKey hH
-    (F.computableInPolyTime_isElemWithKey hisElem)
-    ((hd.comp hp.fst').prod (ComputableInPolyTime.unframe.comp hp.snd'.fst'))
-    (computableInPolyTime_decodeCramerShoupSK.comp
-      (ComputableInPolyTime.dropFrame.comp hp.snd'.fst'))
-    hp.snd'.snd' (.const [])
+  convert (F.computableInPolyTime_cramerShoupADDecryptOpt hH hisElem hd).comp
+    (hp.fst'.prod (hp.snd'.fst'.prod (hp.snd'.snd'.prod (.const [])))) using 1
+  ext ⟨_, _, _⟩; rfl
 
 /-- The secret key word of `cramerShoupKeyGenProb`: the framed hash key, then the exponents. -/
 private theorem encPair_encCramerShoupSK (hk : List Bool) (sk : (ℕ × ℕ) × ((ℕ × ℕ) × (ℕ × ℕ))) :

@@ -507,8 +507,6 @@ theorem computableInPolyTime_uowhfLeaves :
       (encPair encUnary encBits) (encList encBits) := by
   polytime [uowhfLeaves]
 
-attribute [local fun_prop] computableInPolyTime_uowhfLeaves
-
 /-- Concatenate the `2 * j`-th and `(2 * j + 1)`-st blocks of `level`, normalizing each to exact
 width `M` via `padOrTake M` (defaulting missing odd-tail blocks to `0^M`). -/
 @[expose]
@@ -520,7 +518,7 @@ theorem length_uowhfPairInput (M : ℕ) (level : List (List Bool)) (j : ℕ) :
     (uowhfPairInput M level j).length = 2 * M := by
   simp only [uowhfPairInput, List.length_append, length_padOrTake]; omega
 
-@[program_certificate]
+@[program_certificate, fun_prop]
 theorem computableInPolyTime_uowhfPairInput
     {γ : Type} {encIn : γ ↪ List Bool}
     {M j : γ → ℕ} {level : γ → List (List Bool)}
@@ -529,8 +527,6 @@ theorem computableInPolyTime_uowhfPairInput
     (hj : ComputableInPolyTime j encIn encUnary) :
     ComputableInPolyTime (fun a => uowhfPairInput (M a) (level a) (j a)) encIn encBits := by
   polytime [uowhfPairInput]
-
-attribute [local fun_prop] computableInPolyTime_uowhfPairInput
 
 /-- Compress one level of the binary hash tree under subkey `k`: keep `level` unchanged if it has at
 most one block, and otherwise compress each adjacent pair into an `M`-bit block. -/
@@ -646,7 +642,7 @@ theorem length_uowhfTreeLevels_eq_one (h : ℕ → List Bool → List Bool → L
 
 /-- Folding `uowhfTreeStep` is computable in plain polynomial time whenever `h` and the parameters
 are computable in plain polynomial time. -/
-@[program_certificate]
+@[program_certificate, fun_prop]
 theorem computableInPolyTime_uowhfTreeLevels
     {h : ℕ → List Bool → List Bool → List Bool}
     (hh : ComputableInPolyTime (fun ⟨n, k, x⟩ => h n k x)
@@ -687,8 +683,6 @@ theorem computableInPolyTime_uowhfTreeLevels
     (Nat.mul_le_mul_right (2 * elemCap a + 1)
       ((length_uowhfTreeLevels_le h (n a) (κ a) (M a) ((keys a).take i) (init a)).trans
         (SizedListEncoding.length_le (encA := encBits) (encL := encList encBits) (init a))))
-
-attribute [local fun_prop] computableInPolyTime_uowhfTreeLevels
 
 /-- **Level-keyed binary-tree + length-block hash**: total fixed-depth adaptation of level-keyed
 tree hashing ([NaorYung1989], 1995 revision, Section 2.3; [Goldreich2004], Section 6.4.3.2, June
@@ -753,7 +747,7 @@ theorem length_uowhfCandidateInput (h : ℕ → List Bool → List Bool → List
   · exact length_uowhfPairInput M _ j
   · simp only [List.length_append, length_padOrTake, BitString.length_lowBits]; omega
 
-@[program_certificate]
+@[program_certificate, fun_prop]
 theorem computableInPolyTime_uowhfCandidateInput
     {h : ℕ → List Bool → List Bool → List Bool}
     (hh : ComputableInPolyTime (fun ⟨n, k, x⟩ => h n k x)
@@ -771,8 +765,6 @@ theorem computableInPolyTime_uowhfCandidateInput
       (fun a => uowhfCandidateInput h (n a) (κ a) (M a) (i a) (j a) (front a) (msg a))
       encIn encBits := by
   polytime [uowhfCandidateInput]
-
-attribute [local fun_prop] computableInPolyTime_uowhfCandidateInput
 
 /-! ### Deterministic tree collision witness -/
 
@@ -989,7 +981,6 @@ noncomputable def uowhfTreeAdversary
       uowhfCandidateInput h n (keyLen n) (blockLen n) i s.block s.front m₁
     else []
 
-attribute [local fun_prop] isPPTOn_sampleDyadicIndex in
 /-- `uowhfTreeAdversary` is a uniform strict PPT `TargetCollisionFinder` whenever `h`, `keyLen`,
 `blockLen`, `maxBlocks` are plain polynomial-time and `adversary` is strict PPT. -/
 theorem isPPT_uowhfTreeAdversary

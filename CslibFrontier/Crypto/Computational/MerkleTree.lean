@@ -552,11 +552,6 @@ theorem computableInPolyTime_merkleRoot
   ComputableInPolyTime.listHeadDWithInput
     (computableInPolyTime_iterate_merkleParents hH hlen) (.const [])
 
-@[local fun_prop]
-private theorem computableInPolyTime_merkleSibling :
-    ComputableInPolyTime merkleSibling encUnary encUnary := by
-  polytime [merkleSibling]
-
 private theorem computableInPolyTime_merklePathStep
     (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
       (encPair encBits encBits) encBits) :
@@ -564,7 +559,7 @@ private theorem computableInPolyTime_merklePathStep
       (fun p : List Bool × (List (List Bool) × ℕ × List (List Bool)) => merklePathStep H p.1 p.2)
       (encPair encBits (encPair (encList encBits) (encPair encUnary (encList encBits))))
       (encPair (encList encBits) (encPair encUnary (encList encBits))) := by
-  polytime [merklePathStep]
+  polytime [merklePathStep, merkleSibling]
 
 /-- Computing an authentication path is polynomial-time for a polynomial-time keyed hash whose
 digests have the length of the key. -/
