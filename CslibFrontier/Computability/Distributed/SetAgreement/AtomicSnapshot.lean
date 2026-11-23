@@ -937,17 +937,15 @@ theorem exists_solo_completion {P Data : Type*} [Fintype P] [DecidableEq P] (ord
       k ≤ remainingSteps ord (s.proc i) ∧
       (snapshotLTS ord dInit).MTr s (List.replicate k (.step i)) s' ∧
       s'.proc i = .idle := by
-  induction hfuel : remainingSteps ord (s.proc i) using Nat.strong_induction_on generalizing s with
-  | _ m ih =>
-    subst hfuel
-    by_cases hact : s.proc i = .idle
-    · exact ⟨0, s, Nat.zero_le _, Cslib.LTS.MTr.refl, hact⟩
-    · obtain ⟨s₁, hs₁⟩ := step_enabled_of_not_idle ord dInit s i hact
-      have hlt := (remainingSteps_lt_of_step ord dInit hs₁).1
-      obtain ⟨k, s', hk_le, hmtr, hidle⟩ := ih _ hlt s₁ rfl
-      refine ⟨k + 1, s', by omega, ?_, hidle⟩
-      rw [List.replicate_succ]
-      exact Cslib.LTS.MTr.stepL hs₁ hmtr
+  by_cases hact : s.proc i = .idle
+  · exact ⟨0, s, Nat.zero_le _, Cslib.LTS.MTr.refl, hact⟩
+  · obtain ⟨s₁, hs₁⟩ := step_enabled_of_not_idle ord dInit s i hact
+    have hlt := (remainingSteps_lt_of_step ord dInit hs₁).1
+    obtain ⟨k, s', hk_le, hmtr, hidle⟩ := exists_solo_completion ord dInit s₁ i
+    refine ⟨k + 1, s', by omega, ?_, hidle⟩
+    rw [List.replicate_succ]
+    exact Cslib.LTS.MTr.stepL hs₁ hmtr
+termination_by remainingSteps ord (s.proc i)
 
 /-! ### Execution traces, Lemmas 3.1–3.3, and Theorem 1 (Linearizability) -/
 
