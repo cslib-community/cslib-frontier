@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import CslibFrontier.Crypto.Primitives.BlockCipher.LengthPrependedCBCMAC
-public import CslibFrontier.Crypto.Primitives.PRF.PrefixFreeEncoding
+import all CslibFrontier.Crypto.Primitives.PRF.PrefixFreeEncoding
 public import CslibFrontier.Crypto.Primitives.PRF.RandPrefixFreeEncoding
 
 /-!
@@ -100,6 +100,15 @@ example :
     let c := separatingBlock false true [true] [false]
     (¬ [true] ++ [c] <+: [false] ++ [c]) ∧ (¬ [false] ++ [c] <+: [true] ++ [c]) :=
   separatingBlock_prefix_incomparable (by decide) (by decide)
+
+/-- A batch containing the empty word and a proper-prefix pair gets a common delimiter. -/
+example : ∃ block, freshBatchBlock [[], [blk01], [blk01, blk10]] = some block ∧
+    InformationTheory.IsPrefixFree
+      ((fun msg => msg ++ [block]) '' {msg | msg ∈ [[], [blk01], [blk01, blk10]]}) :=
+  isPrefixFree_append_freshBatchBlock (by decide)
+
+/-- If both one-bit blocks occur in the batch, the search reports exhaustion. -/
+example : freshBatchBlock (n := 1) [[fun _ => false], [fun _ => true]] = none := by decide
 
 /-- info: 'Cslib.Crypto.PRF.isPrefixFreeEncoding_stopBitEncode' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
