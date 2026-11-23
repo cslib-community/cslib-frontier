@@ -443,7 +443,7 @@ theorem realize_distLE_zero {M : Type*} [Language.graph.Structure M] (x y : M) :
 theorem realize_distLE_succ {M : Type*} [Language.graph.Structure M] (k : ℕ) (x y : M) :
     (distLE (k + 1)).Realize ![x, y] ↔
       ∃ z, (distLE k).Realize ![x, z] ∧ (distLE k).Realize ![z, y] := by
-  fo_simp [distLE, Formula.Realize]
+  fo_simp [distLE]
   refine exists_congr fun z => and_congr ?_ ?_ <;>
   · apply iff_of_eq
     congr 1

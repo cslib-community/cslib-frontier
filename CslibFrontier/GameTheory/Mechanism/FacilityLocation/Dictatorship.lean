@@ -143,12 +143,10 @@ theorem socialCost_dictatorship_le [Fintype ι] (i₀ : ι) (x : ι → G) (y : 
   calc socialCost x (x i₀)
       ≤ socialCost x y + ((Fintype.card ι : ℝ) - 2) * dist (x i₀) y := socialCost_self_le i₀ x y
     _ ≤ socialCost x y + (α - 1) * dist (x i₀) y := by
-        have : ((Fintype.card ι : ℝ) - 2) * dist (x i₀) y ≤ (α - 1) * dist (x i₀) y :=
-          mul_le_mul_of_nonneg_right hsub dist_nonneg
+        have : ((Fintype.card ι : ℝ) - 2) * dist (x i₀) y ≤ (α - 1) * dist (x i₀) y := by gcongr
         linarith
     _ ≤ socialCost x y + (α - 1) * socialCost x y := by
-        have : (α - 1) * dist (x i₀) y ≤ (α - 1) * socialCost x y :=
-          mul_le_mul_of_nonneg_left hle hpos
+        have : (α - 1) * dist (x i₀) y ≤ (α - 1) * socialCost x y := by gcongr
         linarith
     _ = α * socialCost x y := by ring
 

@@ -181,7 +181,6 @@ lemma false_schedule_sum_capacity {η ε R K : ℝ} (hη : 0 < η) (hK : 0 ≤ K
     ∑ i ∈ range m, (64 * K * R ^ 4 / ((n i : ℝ) * dyadicFloor η m i ^ 4)) *
       (ε * 2 ^ dyadicSlack m i) ^ 4 ≤ 64 * K * R ^ 4 / η ^ 4 * ε ^ 4 / 63 := by
   refine le_trans (sum_le_sum fun i hi => ?_) (false_schedule_sum hη hK m)
-  have hf := dyadicFloor_pos hη m i
   apply mul_le_mul_of_nonneg_right _ (by positivity)
   apply div_le_div_of_nonneg_left (by positivity) (by positivity)
   apply mul_le_mul_of_nonneg_right _ (by positivity)

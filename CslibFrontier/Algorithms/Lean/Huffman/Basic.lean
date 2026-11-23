@@ -196,6 +196,13 @@ branch. -/
 @[simp] theorem weight_branch [Add β] (w : α → β) (l r : CodeTree α) :
     (branch l r).weight w = l.weight w + r.weight w := rfl
 
+theorem weight_map {γ : Type*} [Add β] {w₁ : α → β} {w₂ : γ → β}
+    {f : α → γ} (T : CodeTree α) (hw : ∀ a, w₂ (f a) = w₁ a) :
+    (T.map f).weight w₂ = T.weight w₁ := by
+  induction T with
+  | leaf a => exact hw a
+  | branch l r ihl ihr => simp [map, ihl, ihr]
+
 @[simp] theorem weightedPathLength_leaf [Add β] [Zero β] (w : α → β) (a : α) :
     (leaf a).weightedPathLength w = 0 := rfl
 
@@ -422,6 +429,13 @@ theorem encodeSym_eq_none_of_notMem [DecidableEq α] {T : CodeTree α} {a : α}
   | branch l r ihl ihr =>
     simp only [leaves_branch, List.mem_append, not_or] at ha
     simp [encodeSym, ihl ha.1, ihr ha.2]
+
+theorem encodeSym_map_of_injective {β : Type*} [DecidableEq α] [DecidableEq β]
+    {f : α → β} (hf : Function.Injective f) (T : CodeTree α) (a : α) :
+    (T.map f).encodeSym (f a) = T.encodeSym a := by
+  induction T with
+  | leaf b => simp only [map, encodeSym, hf.eq_iff]
+  | branch l r ihl ihr => simp only [map, encodeSym, ihl, ihr]
 
 theorem mem_codewords_of_encodeSym [DecidableEq α] {T : CodeTree α} {a : α} {c : List Bool}
     (h : T.encodeSym a = some c) : (a, c) ∈ T.codewords := by

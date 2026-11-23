@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Cslib.Foundations.Semantics.LTS.OmegaExecution
 public import Mathlib.Data.Finset.Card
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Data.Multiset.Filter
 
 /-!
@@ -855,16 +856,7 @@ private lemma direct_validity {P V : Type*} [Fintype P] [DecidableEq P] [Decidab
 private lemma eq_of_card_le_two_of_mem {P : Type*} [Fintype P]
     {F : Finset P} (hcard : Fintype.card P ≤ 2) {d i j : P}
     (hd : d ∈ F) (hi : i ∉ F) (hj : j ∉ F) : i = j := by
-  classical
-  by_contra hne
-  have h1 : d ≠ i := fun h => hi (h ▸ hd)
-  have h2 : d ≠ j := fun h => hj (h ▸ hd)
-  have h3 : ({d, i, j} : Finset P).card = 3 := by
-    rw [Finset.card_insert_of_notMem (by simp [h1, h2]),
-      Finset.card_insert_of_notMem (by simp [hne]), Finset.card_singleton]
-  have hle := Finset.card_le_card (Finset.subset_univ ({d, i, j} : Finset P))
-  rw [Finset.card_univ, h3] at hle
-  omega
+  finset_card
 
 private lemma direct_honest_agreement {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
     {dealer : P} {F : Finset P} (hd : dealer ∉ F) {input : Option V} {s : State P PUnit V V}

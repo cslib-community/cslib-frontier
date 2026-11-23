@@ -21,7 +21,7 @@ for `f^[2 ^ j]` to the current state, and bit `j` of the time selects its result
 state, at four gates per state bit (`synthesis_binary_powering`). With the fixed-power circuits
 of size `40000 * powerBudget n s (2 ^ n) L`, an `m`-bit time costs at most
 `m * (40000 * powerBudget n s (2 ^ n) L + 4 * n)` (`variable_time`), and
-`m * (120000 * optimizedBudget n s (2 ^ n) + 4 * n)` with the balanced parameter
+`m * (80000 * optimizedBudget n s (2 ^ n) + 4 * n)` with the balanced parameter
 (`variable_time_optimized`). The cost is linear in `m`; a bound additive in `m`, which first
 reduces the time modulo the cycle length, is `variable_time_additive` in `Iteration.LongTime`.
 
@@ -208,7 +208,7 @@ theorem variable_time (c : Circuit signature n n) (m L : ℕ) (hL : 0 < L) (hLN 
 theorem variable_time_optimized (c : Circuit signature n n) (m : ℕ) :
     ∃ out : Circuit signature (n + m) n,
       out.Computes interpretation (inputTimeIterate (c.eval interpretation) m) ∧
-      (out.size : ℝ) ≤ m * (120000 * optimizedBudget n c.size (2 ^ n) + 4 * n) := by
+      (out.size : ℝ) ≤ m * (80000 * optimizedBudget n c.size (2 ^ n) + 4 * n) := by
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, hout, hs⟩ := variable_time c m L hL hLN
   refine ⟨out, hout, ?_⟩

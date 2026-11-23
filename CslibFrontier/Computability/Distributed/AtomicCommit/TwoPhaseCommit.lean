@@ -380,35 +380,28 @@ private theorem twoPC_canReach_trans {s₁ s₂ s₃ : TwoPCState P}
   rcases h₂ with ⟨tr₂, hm₂⟩
   exact ⟨tr₁ ++ tr₂, hm₁.comp _ hm₂⟩
 
+omit [Fintype P] in
+private theorem decision_update_of_none {st : P → TwoPCLocalState} {q p : P}
+    {newSt : TwoPCLocalState} {d : Decision}
+    (hq : (st q).decision = none) (hd : (st p).decision = some d) :
+    (Function.update st q newSt p).decision = some d := by
+  by_cases hp : p = q
+  · subst hp; rw [hq] at hd; cases hd
+  · rwa [Function.update_of_ne hp]
+
 private theorem step_decision_stable {s s' : TwoPCState P} {act : TwoPCAction P}
     (hstep : twoPCStep? coord votes s act = some s') {p : P} {d : Decision}
     (hd : s.decision p = some d) : s'.decision p = some d := by
   cases act <;> dsimp only [twoPCStep?] at hstep <;> split at hstep <;> cases hstep <;>
     dsimp only [TwoPCState.decision] at hd ⊢
-  · rename_i hg
-    by_cases hp : p = coord
-    · subst hp; simp [hg.2] at hd
-    · simpa [Function.update, hp] using hd
-  · rename_i q hg
-    by_cases hp : p = q
-    · subst hp; simp [hg.2.2.1] at hd
-    · simpa [Function.update, hp] using hd
+  · rename_i hg; exact decision_update_of_none (by rw [hg.2]; rfl) hd
+  · rename_i q hg; exact decision_update_of_none (by rw [hg.2.2.1]; rfl) hd
   · exact hd
-  · rename_i hg
-    by_cases hp : p = coord
-    · subst hp; simp [hg.2.1] at hd
-    · simpa [Function.update, hp] using hd
-  · rename_i hg
-    by_cases hp : p = coord
-    · subst hp; simp [hg.2.1] at hd
-    · simpa [Function.update, hp] using hd
+  · rename_i hg; exact decision_update_of_none (by rw [hg.2.1]; rfl) hd
+  · rename_i hg; exact decision_update_of_none (by rw [hg.2.1]; rfl) hd
   · rename_i q d' hg
-    by_cases hp : p = q
-    · subst hp
-      rcases hg.2.2.2 with hunc | ⟨_, hinit⟩
-      · simp [hunc] at hd
-      · simp [hinit] at hd
-    · simpa [Function.update, hp] using hd
+    exact decision_update_of_none
+      (hg.2.2.2.elim (fun h => by rw [h]; rfl) (fun ⟨_, h⟩ => by rw [h]; rfl)) hd
   · exact hd
   · exact hd
 
@@ -497,6 +490,35 @@ private theorem twoPCInvariant_coord_noncommit {s : TwoPCState P} {newSt : TwoPC
     verdict_abort_imp_coord := fun p hm => by simp [hva p hm]
     aborted_imp_no_or_coord := fun p hp => by simpa using hab p hp }
 
+omit [Fintype P] in
+private theorem twoPCInvariant_cohort_step {s : TwoPCState P} {q : P}
+    {newSt : TwoPCLocalState} {msgs' : Multiset (TwoPCMsg P)}
+    (hinv : TwoPCInvariant coord votes s) (hqc : q ≠ coord)
+    (hrep : ∀ p, TwoPCMsg.voteReply p .yes ∈ msgs' →
+      TwoPCMsg.voteReply p .yes ∈ s.msgs ∨ votes p = .yes)
+    (hsub_v : ∀ p d, TwoPCMsg.verdict p d ∈ msgs' → TwoPCMsg.verdict p d ∈ s.msgs)
+    (hcom_q : newSt = .committed → s.localState coord = .committed)
+    (hab_q : newSt = .aborted → votes q = .no ∨ s.localState coord = .aborted) :
+    TwoPCInvariant coord votes
+      { s with localState := Function.update s.localState q newSt, msgs := msgs' } := by
+  have hcoord : Function.update s.localState q newSt coord = s.localState coord :=
+    Function.update_of_ne hqc.symm _ _
+  refine ⟨hinv.yesVotes_yes,
+    fun p hm => (hrep p hm).elim (hinv.voteReply_yes p) id, ?_,
+    fun p hm => hcoord.trans (hinv.verdict_commit_imp_coord p (hsub_v p .commit hm)),
+    fun hc => hinv.coord_committed_all_yes (hcoord ▸ hc),
+    fun p hm => hcoord.trans (hinv.verdict_abort_imp_coord p (hsub_v p .abort hm)), ?_⟩
+  · intro p hp; dsimp only at hp ⊢
+    rw [hcoord]
+    by_cases hpq : p = q
+    · subst hpq; rw [Function.update_self] at hp; exact hcom_q hp
+    · rw [Function.update_of_ne hpq] at hp; exact hinv.committed_imp_coord p hp
+  · intro p hp; dsimp only at hp ⊢
+    rw [hcoord]
+    by_cases hpq : p = q
+    · subst hpq; rw [Function.update_self] at hp; exact hab_q hp
+    · rw [Function.update_of_ne hpq] at hp; exact hinv.aborted_imp_no_or_coord p hp
+
 private theorem twoPCInvariant_step {s s' : TwoPCState P} {act : TwoPCAction P}
     (hinv : TwoPCInvariant coord votes s) (hstep : twoPCStep? coord votes s act = some s') :
     TwoPCInvariant coord votes s' := by
@@ -510,131 +532,68 @@ private theorem twoPCInvariant_step {s s' : TwoPCState P} {act : TwoPCAction P}
         (mem_of_mem_add_map_ne (fun _ h => by cases h) hm)))
     · simpa using aborted_imp_no_update_coord (by decide) hna hinv.aborted_imp_no_or_coord hp
   case recvRequest.isTrue q hg =>
-    have hcoord_eq : ∀ st, Function.update s.localState q st coord = s.localState coord :=
-      fun st => Function.update_of_ne hg.1.symm _ _
-    refine ⟨hinv.yesVotes_yes, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · intro p hm; dsimp only at hm
-      simp only [Multiset.mem_add, Multiset.mem_singleton] at hm
-      rcases hm with hm | heq
-      · exact hinv.voteReply_yes p (Multiset.mem_of_mem_erase hm)
-      · injection heq with hp hv
-        subst hp
-        exact hv.symm
-    · intro p hp; dsimp only at hp ⊢
-      rw [hcoord_eq]
-      by_cases hpq : p = q
-      · subst hpq
-        simp only [Function.update_self] at hp
-        split at hp <;> cases hp
-      · rw [Function.update_of_ne hpq] at hp
-        exact hinv.committed_imp_coord p hp
-    · intro p hm; dsimp only at hm ⊢
-      rw [hcoord_eq]
-      simp only [Multiset.mem_add, Multiset.mem_singleton] at hm
-      rcases hm with hm | heq
-      · exact hinv.verdict_commit_imp_coord p (Multiset.mem_of_mem_erase hm)
-      · cases heq
-    · intro hc; dsimp only at hc
-      rw [hcoord_eq] at hc
-      exact hinv.coord_committed_all_yes hc
-    · intro p hm; dsimp only at hm ⊢
-      rw [hcoord_eq]
-      simp only [Multiset.mem_add, Multiset.mem_singleton] at hm
-      rcases hm with hm | heq
-      · exact hinv.verdict_abort_imp_coord p (Multiset.mem_of_mem_erase hm)
-      · cases heq
-    · intro p hp; dsimp only at hp ⊢
-      rw [hcoord_eq]
-      by_cases hpq : p = q
-      · subst hpq
-        simp only [Function.update_self] at hp
-        cases hvp : votes p with
-        | yes => simp [hvp] at hp
-        | no => exact Or.inl rfl
-      · rw [Function.update_of_ne hpq] at hp
-        exact hinv.aborted_imp_no_or_coord p hp
+    refine twoPCInvariant_cohort_step hinv hg.1
+      (fun p hm => ?_) (fun p d hm => ?_)
+      (fun hp => by split at hp <;> cases hp)
+      (fun hp => by cases hv : votes q <;> [simp only [hv, ↓reduceIte, reduceCtorEq] at hp;
+        exact Or.inl rfl])
+    · rcases Multiset.mem_add.mp hm with hm | heq
+      · exact Or.inl (Multiset.mem_of_mem_erase hm)
+      · obtain ⟨rfl, hv⟩ := TwoPCMsg.voteReply.inj (Multiset.mem_singleton.mp heq)
+        exact Or.inr hv.symm
+    · rcases Multiset.mem_add.mp hm with hm | heq
+      · exact Multiset.mem_of_mem_erase hm
+      · cases Multiset.mem_singleton.mp heq
   case recvVote.isTrue q v hg =>
-    refine ⟨?_, ?_, hinv.committed_imp_coord, ?_, hinv.coord_committed_all_yes, ?_,
+    refine ⟨?_, fun p hm => hinv.voteReply_yes p (Multiset.mem_of_mem_erase hm),
+      hinv.committed_imp_coord,
+      fun p hm => hinv.verdict_commit_imp_coord p (Multiset.mem_of_mem_erase hm),
+      hinv.coord_committed_all_yes,
+      fun p hm => hinv.verdict_abort_imp_coord p (Multiset.mem_of_mem_erase hm),
       hinv.aborted_imp_no_or_coord⟩
-    · intro p hp; dsimp only at hp
-      cases v with
-      | yes =>
-        simp only [↓reduceIte, Finset.mem_insert] at hp
-        rcases hp with rfl | hp
-        · exact hinv.voteReply_yes p hg.2.2
-        · exact hinv.yesVotes_yes p hp
-      | no =>
-        exact hinv.yesVotes_yes p hp
-    · intro p hm; exact hinv.voteReply_yes p (Multiset.mem_of_mem_erase hm)
-    · intro p hm; exact hinv.verdict_commit_imp_coord p (Multiset.mem_of_mem_erase hm)
-    · intro p hm; exact hinv.verdict_abort_imp_coord p (Multiset.mem_of_mem_erase hm)
+    intro p hp; dsimp only at hp
+    cases v with
+    | yes =>
+      rcases Finset.mem_insert.mp hp with rfl | hp
+      · exact hinv.voteReply_yes p hg.2.2
+      · exact hinv.yesVotes_yes p hp
+    | no => exact hinv.yesVotes_yes p hp
   case coordCommit.isTrue hg =>
     have hna : s.localState coord ≠ .aborted := by rw [hg.2.1]; decide
-    have hall_yes : ∀ r, votes r = .yes := by
-      intro r
-      by_cases hrc : r = coord
-      · exact hrc ▸ hg.2.2.1
-      · exact hinv.yesVotes_yes r (hg.2.2.2.2 (Finset.mem_erase.mpr ⟨hrc, Finset.mem_univ r⟩))
-    refine ⟨hinv.yesVotes_yes, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · intro p hm
-      exact hinv.voteReply_yes p (mem_of_mem_add_map_ne (fun _ h => by cases h) hm)
-    · intro _ _; exact Function.update_self _ _ _
-    · intro _ _; exact Function.update_self _ _ _
-    · intro _; exact hall_yes
-    · intro p hm
-      exact absurd (hinv.verdict_abort_imp_coord p
-        (mem_of_mem_add_map_ne (fun _ h => by cases h) hm)) hna
-    · intro p hp
-      exact aborted_imp_no_update_coord (by decide) hna hinv.aborted_imp_no_or_coord hp
+    have hall_yes : ∀ r, votes r = .yes := fun r =>
+      if hrc : r = coord then hrc ▸ hg.2.2.1
+      else hinv.yesVotes_yes r (hg.2.2.2.2 (Finset.mem_erase.mpr ⟨hrc, Finset.mem_univ r⟩))
+    exact ⟨hinv.yesVotes_yes,
+      fun p hm => hinv.voteReply_yes p (mem_of_mem_add_map_ne (fun _ h => by cases h) hm),
+      fun _ _ => Function.update_self _ _ _,
+      fun _ _ => Function.update_self _ _ _,
+      fun _ => hall_yes,
+      fun p hm => absurd (hinv.verdict_abort_imp_coord p
+        (mem_of_mem_add_map_ne (fun _ h => by cases h) hm)) hna,
+      fun _ hp => aborted_imp_no_update_coord (by decide) hna hinv.aborted_imp_no_or_coord hp⟩
   case coordAbort.isTrue hg =>
     have hnc : s.localState coord ≠ .committed := by rw [hg.2.1]; decide
     exact twoPCInvariant_coord_noncommit hinv (by decide) hnc
       (fun _ _ h => by cases h) (fun _ _ h => by cases h)
       (fun _ _ => rfl) (fun _ _ => Or.inr rfl)
   case recvVerdict.isTrue q d hg =>
-    have hcoord_eq : ∀ st, Function.update s.localState q st coord = s.localState coord :=
-      fun st => Function.update_of_ne hg.1.symm _ _
-    refine ⟨hinv.yesVotes_yes, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · intro p hm; exact hinv.voteReply_yes p (Multiset.mem_of_mem_erase hm)
-    · intro p hp; dsimp only at hp ⊢
-      rw [hcoord_eq]
-      by_cases hpq : p = q
-      · subst hpq
-        simp only [Function.update_self] at hp
-        cases d with
-        | commit => exact hinv.verdict_commit_imp_coord p hg.2.2.1
-        | abort => cases hp
-      · rw [Function.update_of_ne hpq] at hp
-        exact hinv.committed_imp_coord p hp
-    · intro p hm; dsimp only at hm ⊢
-      rw [hcoord_eq]
-      exact hinv.verdict_commit_imp_coord p (Multiset.mem_of_mem_erase hm)
-    · intro hc; dsimp only at hc
-      rw [hcoord_eq] at hc
-      exact hinv.coord_committed_all_yes hc
-    · intro p hm; dsimp only at hm ⊢
-      rw [hcoord_eq]
-      exact hinv.verdict_abort_imp_coord p (Multiset.mem_of_mem_erase hm)
-    · intro p hp; dsimp only at hp ⊢
-      rw [hcoord_eq]
-      by_cases hpq : p = q
-      · subst hpq
-        simp only [Function.update_self] at hp
-        cases d with
-        | commit => cases hp
-        | abort => exact Or.inr (hinv.verdict_abort_imp_coord p hg.2.2.1)
-      · rw [Function.update_of_ne hpq] at hp
-        exact hinv.aborted_imp_no_or_coord p hp
+    exact twoPCInvariant_cohort_step hinv hg.1
+      (fun _ hm => Or.inl (Multiset.mem_of_mem_erase hm))
+      (fun _ _ hm => Multiset.mem_of_mem_erase hm)
+      (fun hp => by cases d <;> [exact hinv.verdict_commit_imp_coord q hg.2.2.1; cases hp])
+      (fun hp => by cases d <;> [cases hp; exact Or.inr (hinv.verdict_abort_imp_coord q hg.2.2.1)])
   case crash.isTrue =>
     exact ⟨hinv.yesVotes_yes, hinv.voteReply_yes, hinv.committed_imp_coord,
       hinv.verdict_commit_imp_coord, hinv.coord_committed_all_yes,
       hinv.verdict_abort_imp_coord, hinv.aborted_imp_no_or_coord⟩
   case dropMsg.isTrue =>
-    refine ⟨hinv.yesVotes_yes, ?_, hinv.committed_imp_coord, ?_, hinv.coord_committed_all_yes,
-      ?_, hinv.aborted_imp_no_or_coord⟩
-    · intro p hm; exact hinv.voteReply_yes p (Multiset.mem_of_mem_erase hm)
-    · intro p hm; exact hinv.verdict_commit_imp_coord p (Multiset.mem_of_mem_erase hm)
-    · intro p hm; exact hinv.verdict_abort_imp_coord p (Multiset.mem_of_mem_erase hm)
+    exact ⟨hinv.yesVotes_yes,
+      fun p hm => hinv.voteReply_yes p (Multiset.mem_of_mem_erase hm),
+      hinv.committed_imp_coord,
+      fun p hm => hinv.verdict_commit_imp_coord p (Multiset.mem_of_mem_erase hm),
+      hinv.coord_committed_all_yes,
+      fun p hm => hinv.verdict_abort_imp_coord p (Multiset.mem_of_mem_erase hm),
+      hinv.aborted_imp_no_or_coord⟩
 
 private theorem twoPCInvariant_of_reachable {s : TwoPCState P}
     (hreach : TwoPCReachable coord votes s) : TwoPCInvariant coord votes s := by
@@ -708,6 +667,18 @@ private theorem erase_map_insert_val {α : Type*} [DecidableEq α] {f : P → α
     (rest + (insert q R).val.map f).erase (f q) = rest + R.val.map f := by
   rw [Finset.insert_val_of_notMem hqR, Multiset.map_cons, Multiset.add_comm rest,
     Multiset.cons_add, Multiset.erase_cons_head, Multiset.add_comm]
+
+omit [Fintype P] in
+private theorem ite_mem_update_eq_insert {α : Type*} (R : Finset P) (q : P) (v : α)
+    (st : P → α) :
+    (fun p => if p ∈ R then v else Function.update st q v p) =
+      (fun p => if p ∈ insert q R then v else st p) := by
+  funext p
+  by_cases hpR : p ∈ R
+  · simp only [hpR, Finset.mem_insert_of_mem, ↓reduceIte]
+  · by_cases hpq : p = q <;>
+      simp only [Finset.mem_insert, hpR, hpq, true_or, or_false, Function.update_apply,
+        ↓reduceIte, ite_self]
 
 /-- Process Phase 1 requests and vote replies for every cohort in `R` when all cohorts vote
 `.yes`. -/
@@ -794,17 +765,8 @@ private theorem faultFree_collect_all_yes (hyes : ∀ p, votes p = .yes) :
     obtain ⟨s', hff, hloc, hyv, hsaw, halive, hmsgs⟩ :=
       ih hcoordR (Function.update st q .uncertain) (insert q yv) rest hst₁_c hst₂_R
     refine ⟨s', FaultFreeMTr.step rfl hstep₁ (FaultFreeMTr.step rfl hstep₂ hff),
-      ?_, ?_, hsaw, halive, hmsgs⟩
-    · rw [hloc]
-      funext p
-      by_cases hpR : p ∈ R
-      · have hpI : p ∈ insert q R := Finset.mem_insert_of_mem hpR
-        simp [hpR, hpI]
-      · by_cases hpq : p = q
-        · subst hpq; simp [hpR]
-        · have hpI : p ∉ insert q R := by simp [hpq, hpR]
-          simp [hpR, hpI, Function.update, hpq]
-    · rw [hyv]; ext p; simp only [Finset.mem_union, Finset.mem_insert]; tauto
+      hloc.trans (ite_mem_update_eq_insert R q .uncertain st), ?_, hsaw, halive, hmsgs⟩
+    rw [hyv]; ext p; simp only [Finset.mem_union, Finset.mem_insert]; tauto
 
 /-- Deliver Phase 2 verdicts `d` to every cohort in `R`. -/
 private theorem faultFree_deliver_verdicts (d : Decision) :
@@ -866,16 +828,8 @@ private theorem faultFree_deliver_verdicts (d : Decision) :
       exact hst_R r (Finset.mem_insert_of_mem hr)
     obtain ⟨s', hff, hloc, halive, hmsgs⟩ :=
       ih hcoordR (Function.update st q d.toTwoPCLocal) yv sn rest hst₁_R
-    refine ⟨s', FaultFreeMTr.step rfl hstep₁ hff, ?_, halive, hmsgs⟩
-    rw [hloc]
-    funext p
-    by_cases hpR : p ∈ R
-    · have hpI : p ∈ insert q R := Finset.mem_insert_of_mem hpR
-      simp [hpR, hpI]
-    · by_cases hpq : p = q
-      · subst hpq; simp [hpR]
-      · have hpI : p ∉ insert q R := by simp [hpq, hpR]
-        simp [hpR, hpI, Function.update, hpq]
+    exact ⟨s', FaultFreeMTr.step rfl hstep₁ hff,
+      hloc.trans (ite_mem_update_eq_insert R q d.toTwoPCLocal st), halive, hmsgs⟩
 
 private abbrev twoPCAfterRequests (coord : P) : TwoPCState P where
   localState := Function.update (fun _ => .init) coord .waitVotes
