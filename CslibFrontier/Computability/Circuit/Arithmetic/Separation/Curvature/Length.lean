@@ -93,6 +93,11 @@ theorem abs_sub_le (hN : CrossingLength N) (h h' : ℤ × ℤ) : |N h - N h'| �
 
 /-! ### The homogenization -/
 
+/-- `N(S • h)/S ≥ 0`, so the averages are bounded below, as Fekete's lemma needs. -/
+private theorem bddBelow_div (hN : CrossingLength N) (h : ℤ × ℤ) :
+    BddBelow (Set.range fun S : ℕ => N (S • h) / S) :=
+  ⟨0, by rintro _ ⟨S, rfl⟩; exact div_nonneg (hN.nonneg _) (Nat.cast_nonneg _)⟩
+
 /-- The homogenization `h ↦ lim N(S • h)/S` of a crossing length, by Fekete's lemma. -/
 noncomputable def homogenization (hN : CrossingLength N) (h : ℤ × ℤ) : ℝ :=
   (hN.subadditive h).lim
@@ -100,8 +105,7 @@ noncomputable def homogenization (hN : CrossingLength N) (h : ℤ × ℤ) : ℝ 
 /-- `N(S • h)/S` converges to the homogenization. -/
 theorem tendsto_homogenization (hN : CrossingLength N) (h : ℤ × ℤ) :
     Tendsto (fun S : ℕ => N (S • h) / S) atTop (𝓝 (hN.homogenization h)) :=
-  (hN.subadditive h).tendsto_lim
-    ⟨0, by rintro _ ⟨S, rfl⟩; exact div_nonneg (hN.nonneg _) (Nat.cast_nonneg _)⟩
+  (hN.subadditive h).tendsto_lim (hN.bddBelow_div h)
 
 /-- The homogenization is homogeneous. -/
 theorem isHomogeneous_homogenization (hN : CrossingLength N) :
@@ -159,8 +163,7 @@ theorem crossingLength_homogenization (hN : CrossingLength N) :
 /-- The homogenization lies below the crossing length. -/
 theorem homogenization_le (hN : CrossingLength N) (h : ℤ × ℤ) : hN.homogenization h ≤ N h := by
   rw [homogenization]
-  simpa using (hN.subadditive h).lim_le_div
-    ⟨0, by rintro _ ⟨S, rfl⟩; exact div_nonneg (hN.nonneg _) (Nat.cast_nonneg _)⟩ one_ne_zero
+  simpa using (hN.subadditive h).lim_le_div (hN.bddBelow_div h) one_ne_zero
 
 /-- The homogenization lies above every `c` with `c S ≤ N(S • h)` for all `S > 0`. -/
 theorem le_homogenization (hN : CrossingLength N) {h : ℤ × ℤ} {c : ℝ}

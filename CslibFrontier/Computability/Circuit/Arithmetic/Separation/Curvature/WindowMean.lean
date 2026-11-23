@@ -58,13 +58,9 @@ abbrev WindowFn := ℕ → Bool → ℤ → ℤ → ℝ
 /-- The `n`-th window: two sheets, `0 ≤ i < n²`, `0 ≤ k < n`. -/
 @[expose] def window (n : ℕ) : Finset (Bool × ℕ × ℕ) := univ ×ˢ range (n ^ 2) ×ˢ range n
 
-/-- A function on the sheets, read at a point `(b, i, k)` of a window. -/
-@[expose] def atWindowPoint (f : Bool → ℤ → ℤ → ℝ) : Bool × ℕ × ℕ → ℝ
-  | (b, i, k) => f b i k
-
 /-- The mean over the `n`-th window, as `Finset.expect`. -/
 @[expose] noncomputable def windowAvg (n : ℕ) (f : Bool → ℤ → ℤ → ℝ) : ℝ :=
-  𝔼 p ∈ window n, atWindowPoint f p
+  𝔼 p ∈ window n, match p with | (b, i, k) => f b i k
 
 theorem mem_window {n : ℕ} {b : Bool} {i k : ℕ} : (b, i, k) ∈ window n ↔ i < n ^ 2 ∧ k < n := by
   simp [window]
@@ -75,7 +71,7 @@ theorem windowAvg_eq_sum (n : ℕ) (f : Bool → ℤ → ℤ → ℝ) :
   rw [windowAvg, Finset.expect_eq_sum_div_card, window, Finset.sum_product, Finset.card_product,
     Finset.card_product, Finset.card_univ, Fintype.card_bool, Finset.card_range,
     Finset.card_range]
-  simp only [Finset.sum_product, atWindowPoint]
+  simp only [Finset.sum_product]
   push_cast
   ring
 
@@ -130,10 +126,13 @@ theorem windowAvg_const {n : ℕ} (hn : n ≠ 0) (c : ℝ) : windowAvg n (fun _ 
 /-- The inequality of Cauchy and Schwarz over one window. -/
 theorem windowAvg_mul_sq_le (n : ℕ) (f g : Bool → ℤ → ℤ → ℝ) :
     windowAvg n (f * g) ^ 2 ≤ windowAvg n (f * f) * windowAvg n (g * g) := by
-  have h := Finset.expect_mul_sq_le_sq_mul_sq (window n) (atWindowPoint f) (atWindowPoint g)
-  have e : ∀ u v : Bool → ℤ → ℤ → ℝ, atWindowPoint (u * v) = fun p =>
-      atWindowPoint u p * atWindowPoint v p := fun u v => funext fun ⟨_, _, _⟩ => rfl
-  rw [windowAvg, windowAvg, windowAvg, e, e, e]
+  let at_ (u : Bool → ℤ → ℤ → ℝ) (p : Bool × ℕ × ℕ) : ℝ := match p with | (b, i, k) => u b i k
+  have h := Finset.expect_mul_sq_le_sq_mul_sq (window n) (at_ f) (at_ g)
+  have e : ∀ u v : Bool → ℤ → ℤ → ℝ, at_ (u * v) = fun p => at_ u p * at_ v p :=
+    fun u v => funext fun ⟨_, _, _⟩ => rfl
+  change (𝔼 p ∈ window n, at_ (f * g) p) ^ 2 ≤
+    (𝔼 p ∈ window n, at_ (f * f) p) * 𝔼 p ∈ window n, at_ (g * g) p
+  rw [e, e, e]
   simpa only [sq] using h
 
 theorem abs_windowAvg_le {n : ℕ} {f : Bool → ℤ → ℤ → ℝ} {C : ℝ} (h : ∀ b i k, |f b i k| ≤ C) :
