@@ -23,6 +23,8 @@ with weights `weight` is the cost with weights `f ∘ weight`. For example, with
 
 * `Cslib.FreeM.map_cost`: `f (p.cost oracle weight) = p.cost oracle (f ∘ weight)`.
 * `Cslib.FreeM.cost_zero`: with zero weights, the cost is zero.
+* `Cslib.FreeM.cost_le_mul_countQueries`: with weights at most `c`, the cost is at most `c` times
+  the number of queries.
 -/
 
 public section
@@ -49,5 +51,21 @@ theorem map_cost {T : Type t} {T' : Type w} {G : Type x} [AddMonoid T] [AddMonoi
 @[simp] theorem cost_zero {T : Type t} [AddMonoid T] (oracle : {ι : Type u} → F ι → ι)
     (p : FreeM F α) : p.cost oracle (fun _ => (0 : T)) = 0 := by
   simpa using (map_cost (0 : T →+ T) oracle (fun _ => (0 : T)) p).symm
+
+/-- With every query weighted at most `c`, the cost is at most `c` times the number of queries.
+For example, a program whose queries are each simulated by at most `c` queries of another kind
+(`Cslib.FreeM.liftM`, `Cslib.FreeM.cost_liftM`) makes at most `c` times as many. -/
+theorem cost_le_mul_countQueries (oracle : {ι : Type u} → F ι → ι)
+    (weight : {ι : Type u} → F ι → ℕ) {c : ℕ} (hc : ∀ {ι : Type u} (q : F ι), weight q ≤ c)
+    (p : FreeM F α) : p.cost oracle weight ≤ c * p.countQueries oracle := by
+  induction p with
+  | pure a => simp
+  | lift_bind op cont ih =>
+    change (FreeM.lift op >>= cont).cost oracle weight ≤
+      c * (FreeM.lift op >>= cont).countQueries oracle
+    rw [cost_liftBind, countQueries_liftBind, Nat.mul_add, Nat.mul_one]
+    have := ih (oracle op)
+    have := hc op
+    omega
 
 end Cslib.FreeM

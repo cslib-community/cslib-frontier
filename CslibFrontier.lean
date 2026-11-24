@@ -219,6 +219,7 @@ public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Linear
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.PathMaxima
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.PathMaxima.Boruvka
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.PathMaxima.ChainMaxima
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Ties
 public import CslibFrontier.Algorithms.Lean.Query.Select.Correctness
 public import CslibFrontier.Algorithms.Lean.Query.Select.Cost
 public import CslibFrontier.Algorithms.Lean.Query.Select.Defs

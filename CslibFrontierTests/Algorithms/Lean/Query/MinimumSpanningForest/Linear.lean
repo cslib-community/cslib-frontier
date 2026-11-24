@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Linear
+import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Ties
 import Mathlib.Tactic.FinCases
 
 /-!
@@ -12,7 +12,8 @@ import Mathlib.Tactic.FinCases
 
 Algorithm 2 (`Cslib.Query.linearMsf`) on a multigraph with a self-loop, a pair of parallel edges, a
 triangle and a second component, with concrete distinct weights; and Theorem 4.1
-(`Cslib.Query.exists_msf_program_countQueries_le`) instantiated on it.
+(`Cslib.Query.exists_msf_program_countQueries_le`) instantiated on it; and the tie-breaking
+variant `Cslib.Query.linearMsfTies` on the same multigraph with all weights equal.
 -/
 
 namespace CslibFrontierTests.Algorithms.Query.MinimumSpanningForest.Linear
@@ -100,5 +101,50 @@ example : (linearMsf linearMsfSteps multi ∅).countQueries (LEQuery.keyOracle w
   have := hD multi ∅ weight weight_injective
   simp only [card_empty, CharP.cast_eq_zero, mul_zero] at this
   exact_mod_cast le_antisymm this (Nat.cast_nonneg _)
+
+/-! ### Tied weights -/
+
+/-- All weights equal: ties are broken by edge index. -/
+private def flat : Fin 6 → ℕ := fun _ => 0
+
+/-- The tie-broken weights `e ↦ (0, e)` order the edges by index. -/
+private def flatKey : Fin 6 → Lex (ℕ × Fin 6) := fun e => toLex (flat e, e)
+
+private theorem flatKey_injective : Function.Injective flatKey :=
+  fun _ _ h => (Prod.ext_iff.1 (toLex.injective h)).2
+
+/-- With all weights equal, the minimum spanning forest for the tie-broken weights keeps the
+lowest-indexed edge of each cycle. -/
+private theorem msf_flat : msf multi flatKey univ = {1, 3, 5} := by
+  have cut : ∀ (P : Finset (Fin 5)) (e : Fin 6), e ∈ edgeCut multi P →
+      (∀ f ∈ edgeCut multi P, flatKey e ≤ flatKey f) → e ∈ msf multi flatKey univ :=
+    fun P e hcut hmin => by
+      refine mem_msf_of_mem_edgeCut (P := (P : Set (Fin 5))) flatKey (mem_univ _) ?_ ?_ <;>
+        rw [← coe_edgeCut_eq_toGraph_edgeCut]
+      · exact hcut
+      · exact fun f _ hf => hmin f hf
+  have h01 : Joins multi {f | f ∈ (univ : Finset (Fin 6)) ∧ flatKey f < flatKey 2} 0 1 := by
+    refine Joins.of_mem (e := 1) ?_ rfl
+    exact ⟨mem_univ _, by decide⟩
+  have h02 : Joins multi {f | f ∈ (univ : Finset (Fin 6)) ∧ flatKey f < flatKey 4} 0 2 := by
+    refine (Joins.of_mem (ends := multi) (e := 1) ?_ rfl).trans (Joins.of_mem (e := 3) ?_ rfl)
+    · exact ⟨mem_univ _, by decide⟩
+    · exact ⟨mem_univ _, by decide⟩
+  ext e
+  fin_cases e
+  · simpa using notMem_msf_of_isDiag (S := univ) flatKey (e := (0 : Fin 6)) (by decide)
+  · simpa using cut {0} 1 (by decide) (by decide)
+  · simpa using notMem_msf_of_joins (ends := multi) (S := univ) (e := 2) flatKey
+      (by rintro f ⟨hf, -⟩; exact hf) (by rintro f ⟨-, hf⟩; exact hf) rfl h01
+  · simpa using cut {2} 3 (by decide) (by decide)
+  · simpa using notMem_msf_of_joins (ends := multi) (S := univ) (e := 4) flatKey
+      (by rintro f ⟨hf, -⟩; exact hf) (by rintro f ⟨-, hf⟩; exact hf) rfl h02
+  · simpa using cut {3} 5 (by decide) (by decide)
+
+/-- With all weights equal, `linearMsfTies` keeps one of the two parallel edges and drops the
+self-loop and an edge of the triangle: the minimum spanning forest for the tie-broken weights. -/
+example : (linearMsfTies multi univ).eval (LEQuery.keyOracle flat) = {1, 3, 5} := by
+  rw [eval_linearMsfTies]
+  exact msf_flat
 
 end CslibFrontierTests.Algorithms.Query.MinimumSpanningForest.Linear
