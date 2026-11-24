@@ -7687,6 +7687,7 @@ public import CslibFrontier.Foundations.Combinatorics.LovaszSteinCover
 public import CslibFrontier.Foundations.Combinatorics.MajorityTree
 public import CslibFrontier.Foundations.Combinatorics.MajorityVote
 public import CslibFrontier.Foundations.Combinatorics.MajorityVote.Weighted
+public import CslibFrontier.Foundations.Combinatorics.MaximaVectors
 public import CslibFrontier.Foundations.Combinatorics.MinIsolation.BaseSix
 public import CslibFrontier.Foundations.Combinatorics.Multidigraph.Arborescence
 public import CslibFrontier.Foundations.Combinatorics.Multidigraph.BEST
