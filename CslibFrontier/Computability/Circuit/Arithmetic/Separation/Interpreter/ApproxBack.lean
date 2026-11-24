@@ -8,12 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Foundations.Data.List.Forall2
-public import CslibFrontier.Foundations.Data.List.Blocks
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxExtract
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.AccSize
 import Mathlib.Algebra.Order.Ring.Star
-import Mathlib.Algebra.Polynomial.Laurent
+import CslibFrontier.Foundations.Data.List.Forall2
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.AccSize
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -25,13 +23,22 @@ import Mathlib.Tactic.Ring
 The program that reads the coefficient of ε^0 out of an approximate accelerator, its constants and
 its size.
 
+## Main definitions
+
+* `extF`: the program of the extraction; `xcst`: the sizes of its fixed parts.
+
+## Main results
+
+* `extF_kv`: the value of the extraction.
+* `nds_coefK`, `ht_coefK`, `size_xF`, `size_extF`: its constants and its size.
+
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
   Appendix N (Proposition N.4, Theorem N.5) of the paper; module `NS1.ApproxBack`
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Interpreter
 
@@ -39,39 +46,9 @@ open Cslib.Circuits.Arithmetic.Separation.Interpreter.Tree LaurentPolynomial
 
 variable {A : Type} [CommRing A] {θ : List Bool → A} {E : Type} [CommRing E] [Algebra A E]
 
-/-- Runs that give values with weights, then a formula at the values. -/
-private theorem KV.app_rel {R : Type} [CommRing R] [Algebra A R] {κ : List Bool → R}
-    {S : Set (List Bool)}
-    {β : Type*}
-    {F e : Fm} {x : Tree} {le : List (Run A)} {Q : List β} {c : β → R} {o : β → Tree} {w : β → R}
-        {ce d : ℕ}
-    (he : Ev θ e x le)
-    (rel : List.Forall₂
-        (fun r q => wt κ r = c q ∧ r.out = o q ∧ (∀ p ∈ r.bill, p ∈ S) ∧ r.cost ≤ ce) le Q)
-    (hF : ∀ q ∈ Q, KV θ κ S F (o q) (w q) d) :
-    KV θ κ S (Cslib.Circuits.Arithmetic.Separation.Interpreter.app F.code e) x
-        (Q.map fun q => c q * w q).sum (ce + d + 2) := by
-  have eU := Ev.app (p := F.code) he fun s hs => by
-    obtain ⟨q, hq, -, h, -⟩ := List.Forall₂.exists_mem_of_mem rel hs
-    rw [Fm.ofTree_code, h]
-    exact (hF q hq).hl
-  refine ⟨_, eU, ?_, ?_⟩
-  · intro u hu
-    obtain ⟨s, hs, t, ht, h1, h2, -, -⟩ := mem_app hu
-    obtain ⟨q, hq, -, h4, h5, h6⟩ := List.Forall₂.exists_mem_of_mem rel hs
-    rw [Fm.ofTree_code, h4] at ht
-    obtain ⟨c1, c2⟩ := (hF q hq).evl.1 t ht
-    refine ⟨by omega, fun p hp => ?_⟩
-    rw [h2, List.mem_append] at hp
-    exact hp.elim (h5 p) (c2 p)
-  · rw [val_eq_sumF, sumF_app, sum_rel (c := c) (o := o) (rel.imp fun r q hr => ⟨hr.1, hr.2.1⟩)]
-    congr 1
-    refine List.map_congr_left fun q hq => ?_
-    rw [Fm.ofTree_code, ← val_eq_sumF, (hF q hq).evl.2]
-
 /-- Accept only with the counter at 0; then run the plain instance. The argument is (argument,
 (budgets, counter)). -/
-def finF (P : Tree) : Fm :=
+private def finF (P : Tree) : Fm :=
     .cons (.run (.quote AZ.code) (.cons (.quote AZ.code) (.cons (.quote .nil) (.tl (.tl .id)))))
   (app UF.code (.cons (.quote WF.code) (.cons (.quote P) (.cons (.hd .id) (.hd (.tl .id))))))
 
@@ -83,7 +60,6 @@ private theorem finF_kv {κ : List Bool → E} {S : Set (List Bool)} {P z : Tree
       ((if KT.val o = 0 then 1 else 0) *
           algebraMap A E (l.map fun r => if ok t r.bill = true then r.th else 0).sum)
       (40 * (o.length + 1) + MM H * T + 40 * t.nds + 90) := by
-  obtain ⟨pl, pe, -⟩ := zq_plain hP hT ht (τ := MM H * T + 40 * t.nds + 40) le_rfl
   obtain ⟨k, hk, u, hu⟩ := AZ_ev (θ := θ) (.leaf o)
   obtain ⟨x, hx⟩ : ∃ x, x = Tree.cons z (.cons t.enc (ofBits o)) := ⟨_, rfl⟩
   rw [← hx]
@@ -111,23 +87,7 @@ private theorem finF_kv {κ : List Bool → E} {S : Set (List Bool)} {P z : Tree
       by_cases hz : KT.val o = 0
       · simp [e.2 hz, hz, val, wt, Run.delay, Run.det]
       · simp [Bool.eq_false_iff.2 (fun h => hz (e.1 h)), hz, val]
-  have k2 : KV θ κ S UF (zq P z t)
-      (algebraMap A E (l.map fun r => if ok t r.bill = true then r.th else 0).sum)
-      (MM H * T + 40 * t.nds + 45) := by
-    refine ⟨_, UF_ev pl.1.ev, ?_, ?_⟩
-    · intro r hr
-      rw [List.mem_map] at hr
-      obtain ⟨s, hs, rfl⟩ := hr
-      obtain ⟨b1, b2⟩ := pl.2 s hs
-      refine ⟨?_, by simp [Run.delay, b1]⟩
-      simp only [Run.delay]
-      omega
-    · rw [← pe, pv, val_plain]
-      · simp [pval, Function.comp_def, Run.delay]
-      · intro r hr
-        rw [List.mem_map] at hr
-        obtain ⟨s, hs, rfl⟩ := hr
-        exact (pl.2 s hs).1
+  have k2 := UF_zq_kv (κ := κ) (S := S) hP hT ht
   have g : Gives θ (.cons (.quote WF.code) (.cons (.quote P) (.cons (.hd .id) (.hd (.tl .id))))) x
       (zq P z t) 12 := by
     subst hx

@@ -1247,7 +1247,6 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpre
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxMain
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxOrder
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxRound
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxScale
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Approximate
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.BaseChange
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Budget

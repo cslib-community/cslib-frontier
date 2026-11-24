@@ -10,22 +10,24 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.RingTheory.LaurentPolynomial.OrderSpan
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.BaseChange
-public import Mathlib.Algebra.Polynomial.Laurent
-import Mathlib.Algebra.Order.Ring.Star
-import Mathlib.Algebra.Order.Star.Int
-import Mathlib.Data.Int.Interval
-import Mathlib.Logic.Equiv.PartialEquiv
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
-import Mathlib.Tactic.Bound
-import Mathlib.Tactic.Continuity
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.FullTrie
 
 /-!
-# Laurent polynomials in ε: orders, spans, rescaling
+# Trees of constants and the spans of their budgets
 
-Used for approximate accelerators, whose constants are Laurent polynomials in ε.
+The constants of an approximate accelerator are Laurent polynomials in ε, stored in a tree of
+constants (`KT`). This file adds a predicate for all constants of a tree (`KT.All`) and bounds the
+span of the products of powers of the constants that a budget names (`span_budg`), also after
+the constants are expanded into their repeated squares (`span_expand_budg`).
+
+## Main definitions
+
+* `KT.All`: every constant of a tree satisfies a predicate.
+
+## Main results
+
+* `KT.All.imp`, `KT.All.map`, `KT.All.expand`, `KT.exists_bound`.
+* `span_budg`, `span_expand_budg`: the spans of the budgets' products.
 
 ## References
 
@@ -33,32 +35,30 @@ Used for approximate accelerators, whose constants are Laurent polynomials in ε
   Appendix N (Proposition N.4, Theorem N.5) of the paper; module `NS1.ApproxOrd`
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Interpreter
 
 open LaurentPolynomial
 
-variable {A : Type} [CommRing A] {E : Type} [CommRing E] [Algebra A E]
+variable {E : Type} [CommRing E]
 
 namespace KT
 
-variable {R R' : Type} [CommRing R] [CommRing R']
+variable {R R' : Type}
 
 /-- All constants satisfy `P`. -/
-def All (P : R → Prop) : KT R → Prop
+@[expose] def All (P : R → Prop) : KT R → Prop
   | none => True
   | leaf c => P c
   | node l r => l.All P ∧ r.All P
 
-omit [CommRing R] in
 theorem All.imp {P Q : R → Prop} (hPQ : ∀ c, P c → Q c) {K : KT R} (h : K.All P) : K.All Q := by
   induction K with
   | none => trivial
   | leaf c => exact hPQ c h
   | node l r ihl ihr => exact ⟨ihl h.1, ihr h.2⟩
 
-omit [CommRing R] [CommRing R'] in
 theorem All.map {P : R → Prop} {Q : R' → Prop} {f : R → R'} (hPQ : ∀ c, P c → Q (f c))
     {K : KT R} (h : K.All P) :
     (K.map f).All Q := by
@@ -67,7 +67,7 @@ theorem All.map {P : R → Prop} {Q : R' → Prop} {f : R → R'} (hPQ : ∀ c, 
   | leaf c => exact hPQ c h
   | node l r ihl ihr => exact ⟨ihl h.1, ihr h.2⟩
 
-theorem All.expand {P Q : R → Prop} {B : ℕ} (hPQ : ∀ c, P c → ∀ b < B, Q (c ^ 2 ^ b))
+theorem All.expand [CommRing R] {P Q : R → Prop} {B : ℕ} (hPQ : ∀ c, P c → ∀ b < B, Q (c ^ 2 ^ b))
     {K : KT R} (h : K.All P) :
     (K.expand B).All Q := by
   induction K with
@@ -86,7 +86,6 @@ theorem All.expand {P Q : R → Prop} {B : ℕ} (hPQ : ∀ c, P c → ∀ b < B,
     have := h1 B 0 (by omega)
     rwa [pow_zero, pow_one] at this
 
-omit [CommRing R] in
 theorem exists_bound {P : ℕ → R → Prop} (hP : ∀ c, ∃ n, P n c)
     (hm : ∀ n m c, n ≤ m → P n c → P m c) (K : KT R) :
     ∃ n, K.All (P n) := by
@@ -115,21 +114,19 @@ theorem span_budg {n J : ℕ} {K : KT E[T;T⁻¹]} (h : K.All (Span n))
     obtain ⟨w, hw, rfl⟩ := hq
     refine ((show Span n c from h).pow _).mono ?_
     rw [KT.nds, one_mul]
-    exact Nat.mul_le_mul_right _ (val_lt_of_length' w (KT.length_words hw)).le
+    exact Nat.mul_le_mul_right _ (val_lt_of_length (KT.length_words hw)).le
   | node l r ihl ihr =>
     simp only [KT.budg, List.mem_flatMap, List.mem_map] at hq
     obtain ⟨p, hp, q', hq', rfl⟩ := hq
     refine ((ihl h.1 hp).mul (ihr h.2 hq')).mono ?_
     simp only [KT.nds, add_mul]
     exact Nat.le_add_right _ _
-where
-  val_lt_of_length' {J : ℕ} (w : List Bool) (hw : w.length = J) : KT.val w < 2 ^ J := by
-    induction w generalizing J with
-    | nil => simp [KT.val, ← hw]
-    | cons b w ih =>
-      subst hw
-      have := ih rfl
-      rw [KT.val, List.length_cons, pow_succ]
-      cases b <;> simp <;> omega
+
+/-- **The exponents of the outer weights**: products of powers of constants of span `M`. -/
+theorem span_expand_budg {K : KT E[T;T⁻¹]} {M B J : ℕ} (hM : K.All (Span M)) {q : Bt × E[T;T⁻¹]}
+    (hq : q ∈ (K.expand B).budg J) : Span ((K.expand B).nds * 2 ^ J * (2 ^ B * M)) q.2 :=
+  span_budg (hM.expand (Q := Span (2 ^ B * M)) fun _ hc _ hb =>
+    (hc.pow _).mono (Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by norm_num) hb.le))) hq
+
 
 end Cslib.Circuits.Arithmetic.Separation.Interpreter

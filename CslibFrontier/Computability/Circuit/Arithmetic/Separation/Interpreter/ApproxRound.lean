@@ -8,11 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Foundations.Data.List.Forall2
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxOrder
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Postponed
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.NamedValue
-import Mathlib.Algebra.Polynomial.Laurent
+import CslibFrontier.Foundations.Data.List.Forall2
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Scale
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -26,13 +26,26 @@ constants of the inner program are rescaled by ε ↦ ε^r, with r above every e
 weights. To give the rescaled constants names of their own the round guesses budgets for all inner
 calls at once and runs the list program inside the interpreter.
 
+## Main definitions
+
+* `IsAccA`, `IsPreA`: approximate accelerators, and the same with runs that stop only on plain
+  sums.
+* `rebF`, `stepA`, `roundA`: the programs of a round.
+
+## Main results
+
+* `KV.app_rel`, `UF_zq_kv`: a formula applied to weighted runs, and the universal program on a plain
+  instance.
+* `rebill_kv`, `stepA_kv`: the values of the two halves of a round.
+* `IsAccA.pre`, `IsAccA.mono`, `UF_preA`, `size_roundA`.
+
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
   Appendix N (Proposition N.4, Theorem N.5) of the paper; module `NS1.ApproxRound`
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Interpreter
 
@@ -53,6 +66,7 @@ private theorem gt_map {R' : Type} (f : R → R') (ν : ℕ → ℕ) (J B : ℕ)
   | leaf c => rfl
   | node l r ihl ihr => simp only [KT.map, gt, ihl, ihr]
 
+omit [Algebra A R] in
 private theorem nds_expand_map {R' : Type} [CommRing R'] (f : R → R') (B : ℕ) (K : KT R) :
     ((K.map f).expand B).nds = (K.expand B).nds := by
   induction K with
@@ -62,6 +76,57 @@ private theorem nds_expand_map {R' : Type} [CommRing R'] (f : R → R') (B : ℕ
 
 /-- Guess budgets with `g`; run the interpreted program `P` on the argument with these budgets. -/
 def rebF (g : Fm) (P : Tree) : Fm := app UF.code (ZE (.quote P) g)
+
+/-- Runs that give values with weights, then a formula at the values. -/
+theorem KV.app_rel {β : Type*}
+    {F e : Fm} {x : Tree} {le : List (Run A)} {Q : List β} {c : β → R} {o : β → Tree} {w : β → R}
+        {ce d : ℕ}
+    (he : Ev θ e x le)
+    (rel : List.Forall₂
+        (fun r q => wt κ r = c q ∧ r.out = o q ∧ (∀ p ∈ r.bill, p ∈ S) ∧ r.cost ≤ ce) le Q)
+    (hF : ∀ q ∈ Q, KV θ κ S F (o q) (w q) d) :
+    KV θ κ S (Cslib.Circuits.Arithmetic.Separation.Interpreter.app F.code e) x
+        (Q.map fun q => c q * w q).sum (ce + d + 2) := by
+  have eU := Ev.app (p := F.code) he fun s hs => by
+    obtain ⟨q, hq, -, h, -⟩ := List.Forall₂.exists_mem_of_mem rel hs
+    rw [Fm.ofTree_code, h]
+    exact (hF q hq).hl
+  refine ⟨_, eU, ?_, ?_⟩
+  · intro u hu
+    obtain ⟨s, hs, t, ht, h1, h2, -, -⟩ := mem_app hu
+    obtain ⟨q, hq, -, h4, h5, h6⟩ := List.Forall₂.exists_mem_of_mem rel hs
+    rw [Fm.ofTree_code, h4] at ht
+    obtain ⟨c1, c2⟩ := (hF q hq).evl.1 t ht
+    refine ⟨by omega, fun p hp => ?_⟩
+    rw [h2, List.mem_append] at hp
+    exact hp.elim (h5 p) (c2 p)
+  · rw [val_eq_sumF, sumF_app, sum_rel (c := c) (o := o) (rel.imp fun r q hr => ⟨hr.1, hr.2.1⟩)]
+    congr 1
+    refine List.map_congr_left fun q hq => ?_
+    rw [Fm.ofTree_code, ← val_eq_sumF, (hF q hq).evl.2]
+
+/-- **The universal program on a plain instance**: on `zq P z t` it gives the sum of the values of
+the runs of `P` that use up the budget `t`, with no constants. -/
+theorem UF_zq_kv {P z : Tree} {t : Bt} {l : List (Run A)} {T H : ℕ}
+    (hP : Ev θ (Fm.ofTree P) z l) (hT : ∀ r ∈ l, r.cost ≤ T) (ht : t.ht ≤ H) :
+    KV θ κ S UF (zq P z t)
+      (algebraMap A R (l.map fun r => if ok t r.bill = true then r.th else 0).sum)
+      (MM H * T + 40 * t.nds + 45) := by
+  obtain ⟨pl, pe, -⟩ := zq_plain hP hT ht (τ := MM H * T + 40 * t.nds + 40) le_rfl
+  refine ⟨_, UF_ev pl.1.ev, ?_, ?_⟩
+  · intro r hr
+    rw [List.mem_map] at hr
+    obtain ⟨s, hs, rfl⟩ := hr
+    obtain ⟨b1, b2⟩ := pl.2 s hs
+    refine ⟨?_, by simp [Run.delay, b1]⟩
+    simp only [Run.delay]
+    omega
+  · rw [← pe, pv, val_plain]
+    · simp [pval, Function.comp_def, Run.delay]
+    · intro r hr
+      rw [List.mem_map] at hr
+      obtain ⟨s, hs, rfl⟩ := hr
+      exact (pl.2 s hs).1
 
 /-- **The weight of a budget times the runs that use it up**, summed over the budgets. -/
 private theorem rebF_kv {g : Fm} {P z : Tree} {cg T H n : ℕ} {lg l : List (Run A)}
@@ -75,51 +140,10 @@ private theorem rebF_kv {g : Fm} {P z : Tree} {cg T H n : ℕ} {lg l : List (Run
           algebraMap A R (l.map fun r => if ok q.1 r.bill = true then r.th else 0).sum).sum
       (cg + MM H * T + 40 * n + 60) := by
   obtain ⟨lZ, eZ, rZ⟩ := ZE_ev (Dt.quote P z) hg rg
-  have hZ : ∀ s ∈ lZ, ∃ q ∈ Q,
-      wt κ s = q.2 ∧ s.out = zq P z q.1 ∧ (∀ m ∈ s.bill, m ∈ S) ∧ s.cost ≤ cg + 1 + 5 :=
-    fun s hs => List.Forall₂.exists_mem_of_mem rZ hs
-  have key : ∀ q ∈ Q, ∃ l',
-      Ev θ UF (zq P z q.1) l' ∧ (∀ r ∈ l', r.bill = [] ∧ r.cost ≤ MM H * T + 40 * n + 45) ∧
-      val κ l' = algebraMap A R (l.map fun r => if ok q.1 r.bill = true then r.th else 0).sum := by
-    intro q hq
-    obtain ⟨h1, h2⟩ := hQ q hq
-    obtain ⟨pl, pe, -⟩ := zq_plain hP hT h1 (τ := MM H * T + 40 * n + 40) (by omega)
-    refine ⟨_, UF_ev pl.1.ev, ?_, ?_⟩
-    · intro r hr
-      rw [List.mem_map] at hr
-      obtain ⟨s, hs, rfl⟩ := hr
-      obtain ⟨b1, b2⟩ := pl.2 s hs
-      refine ⟨b1, ?_⟩
-      simp only [Run.delay]
-      omega
-    · rw [← pe, pv, val_plain]
-      · simp [pval, Function.comp_def, Run.delay]
-      · intro r hr
-        rw [List.mem_map] at hr
-        obtain ⟨s, hs, rfl⟩ := hr
-        exact (pl.2 s hs).1
-  have eU := Ev.app (p := UF.code) eZ fun s hs => by
-    obtain ⟨q, hq, -, h, -⟩ := hZ s hs
-    obtain ⟨l', e, -⟩ := key q hq
-    rw [Fm.ofTree_code, h]
-    exact e.hl
-  refine ⟨_, eU, ?_, ?_⟩
-  · intro u hu
-    obtain ⟨s, hs, t, ht, h1, h2, -, -⟩ := mem_app hu
-    obtain ⟨q, hq, -, h4, h5, h6⟩ := hZ s hs
-    obtain ⟨l', e, hl', -⟩ := key q hq
-    rw [Fm.ofTree_code, h4, e.evl] at ht
-    obtain ⟨c1, c2⟩ := hl' t ht
-    refine ⟨by omega, ?_⟩
-    rw [h2, c1, List.append_nil]
-    exact h5
-  · rw [val_eq_sumF, sumF_app]
-    rw [sum_rel (c := fun q : Bt × R => q.2) (o := fun q : Bt × R => zq P z q.1)
-      (rZ.imp fun r q hr => ⟨hr.1, hr.2.1⟩)]
-    congr 1
-    refine List.map_congr_left fun q hq => ?_
-    obtain ⟨l', e, -, hv⟩ := key q hq
-    rw [Fm.ofTree_code, e.evl, ← val_eq_sumF, hv]
+  refine (KV.app_rel (F := UF) (d := MM H * T + 40 * n + 45) eZ rZ fun q hq =>
+    (UF_zq_kv hP hT (hQ q hq).1).mono ?_).mono (by omega)
+  have := (hQ q hq).2
+  omega
 
 /-- **A program with renamed constants**: with the names `pre ++ p` for the images under `f` of its
 constants. -/
@@ -275,8 +299,16 @@ theorem UF_preA (θ : List Bool → A) (H v : ℕ) (B : ℕ) :
 
 /-- The program of a round: outer budgets with the names that begin with 0, inner ones with those
 that begin with 1. -/
-def roundA {R : Type} (K : KT R) (B : ℕ) (K' : KT R) (B' J : ℕ) (D G p : Tree) : Fm :=
+@[expose] def roundA {R : Type} (K : KT R) (B : ℕ) (K' : KT R) (B' J : ℕ) (D G p : Tree) : Fm :=
   stepA (rebF (gt id J B' K' [true]) (LP D).code) (LP D).code G p (gt id J B K [false])
+
+theorem size_roundA {R : Type} (K K' : KT R) (B B' J : ℕ) (D G p : Tree) :
+    (roundA K B K' B' J D G p).code.size ≤ 2 * D.size + G.size + p.size +
+        (gt id J B K [false]).code.size +
+      (gt id J B' K' [true]).code.size + 2 * WF.code.size + UF.code.size + 2000 := by
+  have := size_LP D
+  simp only [roundA, stepA, rebF, app, ZE, Fm.code, Tree.size, size_num]
+  omega
 
 end Round
 

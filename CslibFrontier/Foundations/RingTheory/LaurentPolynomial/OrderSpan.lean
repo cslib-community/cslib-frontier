@@ -61,9 +61,7 @@ variable {A : Type} [CommRing A] {E : Type} [CommRing E] [Algebra A E]
 
 theorem coeff_algebraMap (a : A) (i : ℤ) :
     (algebraMap A E[T;T⁻¹] a).coeff i = if i = 0 then algebraMap A E a else 0 := by
-  rw [AddMonoidAlgebra.coe_algebraMap, Function.comp_apply, AddMonoidAlgebra.coeff_single,
-      Finsupp.single_apply]
-  exact if_congr eq_comm rfl rfl
+  rw [algebraMap_apply, C_apply]
 
 private theorem exists_coeff_mul_ne_zero {P Q : E[T;T⁻¹]} {i : ℤ} (h : (P * Q).coeff i ≠ 0) :
     ∃ a b, P.coeff a ≠ 0 ∧ Q.coeff b ≠ 0 ∧ a + b = i := by
@@ -185,7 +183,7 @@ private theorem Span.card_support {n : ℕ} {P : E[T;T⁻¹]} (h : Span n P) : P
     omega
 
 /-- ε ↦ ε^r. -/
-@[expose] noncomputable def rescale (A : Type)
+noncomputable def rescale (A : Type)
     [CommRing A] {E : Type} [CommRing E] [Algebra A E] (r : ℕ) :
     E[T;T⁻¹] →ₐ[A] E[T;T⁻¹] :=
   AddMonoidAlgebra.mapDomainAlgHom A E (AddMonoidHom.mulLeft (r : ℤ))

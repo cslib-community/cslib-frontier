@@ -8,8 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxScale
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Scale
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxBack
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Next
 import Mathlib.Algebra.Order.Ring.Star
 import Mathlib.Algebra.Polynomial.Laurent
 import Mathlib.Tactic.FieldSimp
@@ -24,6 +25,15 @@ Proposition N.4 of *VP ≠ VNP over every field* [AnthropicVPVNP2026], in the fo
 of Theorem N.5 (Theorem 1.4, approximate computation) uses it: one round of an approximate
 accelerator (`prop_approx_acc_next`) and the passage from an approximate accelerator to an exact one
 (`prop_approx_acc_exact`).
+
+These are the two steps of the proof of Proposition N.4, not the proposition itself: that no
+approximate accelerators exist (`Paper.prop_approx_acc` in the source) follows from them and from
+the absence of exact accelerators, in a later module.
+
+## Main results
+
+* `prop_approx_acc_next`: one round of an approximate accelerator.
+* `prop_approx_acc_exact`: an approximate accelerator gives an exact one.
 
 ## References
 
@@ -208,15 +218,8 @@ private theorem prop_approx_acc_round_num {h : ℕ} (hh : 17 ≤ h) {u α : ℕ}
   have hB1 := le_max_left B B'
   have hB2 := le_max_right B B'
   -- basic inequalities
-  have hX3 : 10 * X ^ 2 ≤ X ^ 3 := by
-    have : X ^ 3 = X * X ^ 2 := by ring
-    rw [this]
-    exact Nat.mul_le_mul_right _ hX10
-  have hX2 : 10 * X ≤ X ^ 2 := by rw [pow_two]; exact Nat.mul_le_mul_right _ hX10
-  replace hcst : WF.code.size + UF.code.size + 2000 ≤ u := hcst
-  obtain ⟨sU, hsU⟩ : ∃ n, n = UF.code.size := ⟨_, rfl⟩
-  obtain ⟨sW, hsW⟩ : ∃ n, n = WF.code.size := ⟨_, rfl⟩
-  rw [← hsU, ← hsW] at hcst
+  obtain ⟨hX3, hX2⟩ := pow_bounds hX10
+  obtain ⟨sU, sW, hsU, hsW, hcst⟩ := cst_bounds hcst
   have hu4 : 2000 ≤ u := by omega
   have hu1 : 1 ≤ u := by omega
   have hh1 : 5 * h ≤ h * α := by rw [Nat.mul_comm h α]; exact Nat.mul_le_mul_right _ hα
@@ -230,9 +233,7 @@ private theorem prop_approx_acc_round_num {h : ℕ} (hh : 17 ≤ h) {u α : ℕ}
   have he4 : 16 * h ≤ e := by omega
   have hH : 16 * h ≤ e + 9 := by omega
   have pu : ∀ a, u ^ (a + 1) = u * u ^ a := fun a => by rw [pow_succ]; ring
-  have pbig : ∀ a,
-      2000 * u ^ a ≤ u ^ (a + 1) := fun a => by rw [pu]; exact Nat.mul_le_mul_right _ hu4
-  have ppos : ∀ a, 1 ≤ u ^ a := fun a => Nat.one_le_pow _ _ (by omega)
+  obtain ⟨pbig, ppos⟩ := scale_bounds hu4
   -- the tries of powers
   have hnBX : ∀ (K₀ : KT E[T;T⁻¹]) (B₀ : ℕ), K₀.nds ≤ u ^ (h * α) → B₀ + 1 ≤ X → ∀ c,
       c * X ^ 2 ≤ 1000 * X ^ 3 →
@@ -420,16 +421,12 @@ theorem prop_approx_acc_next {h : ℕ} (hh : 17 ≤ h) {u α : ℕ} (hα : 5 ≤
   have hXu' : X ≤ u := by
     have : X ≤ X ^ 3 := Nat.le_self_pow (by norm_num) X
     omega
-  have hu4 : 2000 ≤ u := by
-    replace hcst : WF.code.size + UF.code.size + 2000 ≤ u := hcst
-    exact (Nat.le_add_left _ _).trans hcst
-  have hUF : UF.code.size ≤ u := by
-    replace hcst : WF.code.size + UF.code.size + 2000 ≤ u := hcst
-    exact ((Nat.le_add_left _ _).trans (Nat.le_add_right _ 2000)).trans hcst
+  obtain ⟨sU, sW, hsU, hsW, hcst'⟩ := cst_bounds hcst
+  have hu4 : 2000 ≤ u := by omega
+  have hUF : UF.code.size ≤ u := by rw [← hsU]; omega
   have hu1 : 1 ≤ u := by omega
   have pu : ∀ a, u ^ (a + 1) = u * u ^ a := fun a => by rw [pow_succ]; ring
-  have pbig : ∀ a,
-      2000 * u ^ a ≤ u ^ (a + 1) := fun a => by rw [pu]; exact Nat.mul_le_mul_right _ hu4
+  have pbig := (scale_bounds hu4).1
   have hαX : 2 * α + 2 ≤ X := by
     have : (2 * α + 2) * 1 ≤ (2 * α + 2) * (J + 1) := Nat.mul_le_mul_left _ (by omega)
     omega
@@ -579,7 +576,7 @@ theorem prop_approx_acc_exact {H v t t' : ℕ} {K : KT E[T;T⁻¹]} {B : ℕ} {D
     have key : ∀ z : Tree, z.size ≤ v ^ (H - 32) → KV θ K'.lk {p | K'.InB 1 p} (extF D g) z
         ((xL J m W K₂).map fun q => q.coef * ((if KT.val q.digits = 0 then 1 else 0) *
           algebraMap A E
-              ((evl θ (Fm.ofTree D) z).map fun r => if ok q.1 r.bill =
+              ((evl θ (Fm.ofTree D) z).map fun r => if ok q.budget r.bill =
                   true then r.th else 0).sum)).sum t' := by
       intro z hz
       obtain ⟨hD1, hD2⟩ := hD.run z hz
@@ -629,10 +626,10 @@ theorem prop_approx_acc_exact {H v t t' : ℕ} {K : KT E[T;T⁻¹]} {B : ℕ} {D
     -- the left side at 0 is the value of the program
     have hL : ∀ L : List (ExtractTerm E), (∀ q ∈ L, q.digits.length = W) →
         (L.map fun q : ExtractTerm E => algebraMap A (AddMonoidAlgebra E (ZMod (2 ^ W)))
-            (s q.1) *
+            (s q.budget) *
           mark W q.digits q.coef).sum.coeff 0 =
           (L.map fun q => q.coef *
-              ((if KT.val q.digits = 0 then 1 else 0) * algebraMap A E (s q.1))).sum := by
+              ((if KT.val q.digits = 0 then 1 else 0) * algebraMap A E (s q.budget))).sum := by
       intro L hL
       induction L with
       | nil => simp

@@ -8,13 +8,12 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Foundations.Data.List.Blocks
-public import CslibFrontier.Foundations.Data.List.Forall2
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxScale
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxRound
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxAdd
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.FullTrie
 public import Mathlib.Data.ZMod.Basic
-import Mathlib.Algebra.Polynomial.Laurent
+import CslibFrontier.Foundations.Data.List.Blocks
+import CslibFrontier.Foundations.Data.List.Forall2
 import Mathlib.Data.List.GetD
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -31,13 +30,24 @@ multiplies by the coefficient of the term, an element of the ring E, and adds th
 counter. It accepts only if the counter is 0. So its value is the coefficient of ε^0 of an
 approximate value: the exact one.
 
+## Main definitions
+
+* `ExtractTerm`: a guessed term, with its budget, its coefficient and the digits of its exponent.
+* `chT`, `termExp`, `termCoef`, `expBits`, `wrap`, `mark`, `coefK`, `xL`, `combF`, `xF`: the
+  guesses and the counter.
+
+## Main results
+
+* `coeff_wrap_zero`: the coefficient of `ε^0` survives the counter.
+* `length_xL`, `bt_xL`, `sum_xL`, `xF_ev`: the guessed terms and their values.
+
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
   Appendix N (Proposition N.4, Theorem N.5) of the paper; module `NS1.ApproxExtract`
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Interpreter
 
@@ -48,7 +58,7 @@ variable {A : Type} [CommRing A] {θ : List Bool → A} {E : Type} [CommRing E] 
 section Choice
 
 /-- Guess a word of length `n`; go on with the formula of this word. -/
-def chT : ℕ → (List Bool → Fm) → Fm
+@[expose] def chT : ℕ → (List Bool → Fm) → Fm
   | 0, f => f []
   | n + 1, f => .ite .guess (chT n fun w => f (true :: w)) (chT n fun w => f (false :: w))
 
@@ -145,7 +155,8 @@ noncomputable def wrap (A : Type) [CommRing A] {E : Type} [CommRing E] [Algebra 
   AddMonoidAlgebra.mapDomainAlgHom A E (Int.castAddHom (ZMod (2 ^ W)))
 
 /-- A coefficient with the exponent on the counter. -/
-noncomputable def mark (W : ℕ) (o : List Bool) (a : E) : AddMonoidAlgebra E (ZMod (2 ^ W)) :=
+@[expose] noncomputable def mark (W : ℕ) (o : List Bool) (a : E) :
+    AddMonoidAlgebra E (ZMod (2 ^ W)) :=
   AddMonoidAlgebra.single ((KT.val o : ℕ) : ZMod (2 ^ W)) a
 
 private theorem mark_addc {W : ℕ} {o o' : List Bool} (h : o.length = W) (h' : o'.length = W)
@@ -230,7 +241,7 @@ end Terms
 section Gadget
 
 /-- The coefficients of the terms of the powers, with names for every choice of digits and term. -/
-noncomputable def coefK (J m : ℕ) : KT E[T;T⁻¹] → KT E
+@[expose] noncomputable def coefK (J m : ℕ) : KT E[T;T⁻¹] → KT E
   | .none => .none
   | .leaf c => KT.full (J + m) fun w => termCoef (c ^ KT.val (w.take J)) (KT.val (w.drop J))
   | .node l r => .node (coefK J m l) (coefK J m r)
@@ -250,7 +261,7 @@ def combF : Fm := .cons (.cons (.cons (.hd (.hd .id)) (.hd (.tl .id))) (.quote .
       (.cons (.quote AD.code) (.cons (.quote .nil) (.cons (.tl (.hd .id)) (.tl (.tl .id))))))
 
 /-- The gadget. -/
-noncomputable def xF (J m W : ℕ) : KT E[T;T⁻¹] → List Bool → Fm
+@[expose] noncomputable def xF (J m W : ℕ) : KT E[T;T⁻¹] → List Bool → Fm
   | .none, _ => .quote (.cons Bt.none.enc (ofBits (List.replicate W false)))
   | .leaf c, pre => chT (J + m) fun w => .ite (.mul (.quote (ofBits (pre ++ (w ++ [false]))))) .fail
       (.quote (.cons (Bt.leaf (w.take J)).enc

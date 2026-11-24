@@ -8,9 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Foundations.Data.List.Forall2
-public import CslibFrontier.Foundations.Data.List.Blocks
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxBack
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxRound
 import Mathlib.Algebra.Polynomial.Laurent
 
 /-!
@@ -19,13 +17,22 @@ import Mathlib.Algebra.Polynomial.Laurent
 An approximate accelerator is carried to scales that are large against the exponents and the number
 of its constants; there it gives an exact accelerator, which does not exist.
 
+## Main definitions
+
+* `HasAccA`: an approximate accelerator of bounded size exists.
+* `InvA`: the invariant carried from scale to scale.
+
+## Main results
+
+* `le_lg_four`.
+
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
   Appendix N (Proposition N.4, Theorem N.5) of the paper; module `NS1.ApproxMain`
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Interpreter
 
@@ -37,7 +44,8 @@ variable {A : Type} [CommRing A] {θ : List Bool → A} {E : Type} [CommRing E] 
 accelerator of size `s` at the scale `V = v ^ H` over E: a trie of at most `s` nodes with constants
 in E[ε,ε⁻¹], and a program of size at most `s` whose values lie in the universal plain sums + ε
 E[ε]. -/
-def HasAccA (θ : List Bool → A) (E : Type) [CommRing E] [Algebra A E] (H v s : ℕ) : Prop :=
+@[expose] def HasAccA (θ : List Bool → A) (E : Type) [CommRing E] [Algebra A E] (H v s : ℕ) :
+    Prop :=
   ∃ (K : KT E[T;T⁻¹]) (B : ℕ) (D : Tree),
       IsAccA θ H v (v ^ (H - 16)) K B D ∧ K.nds ≤ s ∧ D.size ≤ s ∧
     K.ht ≤ lg (max (v ^ H) s) ^ 2 ∧ B ≤ lg (max (v ^ H) s) ^ 3

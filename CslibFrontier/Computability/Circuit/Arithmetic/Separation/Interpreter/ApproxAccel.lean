@@ -9,8 +9,9 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.Line
-public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.ApproxMain
-public import CslibFrontier.Computability.Circuit.Arithmetic.Border
+public import CslibFrontier.Foundations.RingTheory.LaurentPolynomial.OrderSpan
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.AccProg
+import Mathlib.Algebra.MvPolynomial.CommRing
 import Mathlib.Algebra.Polynomial.Laurent
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -20,13 +21,19 @@ import Mathlib.Tactic.Ring
 /-!
 # The parts of low degree of an approximated polynomial
 
+## Main results
+
+* `orderGE_sum_coeff_sub`: if the coefficients of `p` agree with those of `f` up to `ε` and `f` has
+  degree at most `d < n`, then at a point of the code the sum of the parts of degree below `n` of
+  `p` along a line is the value of `f` up to `ε` (for Theorem N.5).
+
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
   Appendix N (Proposition N.4, Theorem N.5) of the paper; module `Nc.Acc.ApproxMain`
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Interpreter
 
@@ -39,9 +46,9 @@ open LaurentPolynomial
 variable {A : Type} [CommRing A] {E : Type} [CommRing E] [Algebra A E]
 
 /-- All coefficients are without terms below ε ^ r. -/
-def PolyOrderGE (r : ℤ) (P : Polynomial E[T;T⁻¹]) : Prop := ∀ i, OrderGE r (P.coeff i)
+private def PolyOrderGE (r : ℤ) (P : Polynomial E[T;T⁻¹]) : Prop := ∀ i, OrderGE r (P.coeff i)
 
-theorem PolyOrderGE.mul {r s : ℤ} {P Q : Polynomial E[T;T⁻¹]} (hP : PolyOrderGE r P)
+private theorem PolyOrderGE.mul {r s : ℤ} {P Q : Polynomial E[T;T⁻¹]} (hP : PolyOrderGE r P)
     (hQ : PolyOrderGE s Q) :
     PolyOrderGE (r + s) (P * Q) := by
   intro i
