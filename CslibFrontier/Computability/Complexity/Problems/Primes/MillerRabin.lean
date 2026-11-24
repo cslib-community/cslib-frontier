@@ -19,6 +19,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.N
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 import CslibFrontier.Foundations.Data.BitString.Binary
 import CslibFrontier.Foundations.Data.BitString.Counter
+import CslibFrontier.Foundations.Data.ZMod.NatCast
 import Mathlib.Data.Int.CardIntervalMod
 
 /-!
@@ -105,6 +106,11 @@ theorem passes_polyTime :
         (fun q : (ℕ × ℕ) × ℕ => q.1.2 ^ (q.1.1 / 2 ^ q.2) % (q.1.1 + 1))
         (encPair (encPair encNat encNat) encUnary) encNat :=
       ComputableInPolyTime.binary_powMod (by fun_prop) hexp (by fun_prop) fun _ => Nat.succ_pos _
+    have hmod2 := ComputableInPolyTime.binary_mod' hexp (ComputableInPolyTime.const 2)
+    have hdivisible := ComputableInPolyTime.binary_mod'
+      ((ComputableInPolyTime.fst (encPair encNat encNat) encUnary).fst')
+      (ComputableInPolyTime.binary_two_pow.comp
+        (ComputableInPolyTime.snd (encPair encNat encNat) encUnary))
     fun_prop
 
 /-- The Miller–Rabin verifier is computable in polynomial time. -/
@@ -113,11 +119,20 @@ theorem verifier_polyTime :
   have hinner : ComputableInPolyTime
       (fun x : ℕ × List Bool => (x.1 - 1, 1 + ofBits x.2 % (x.1 - 1)))
       (encPair encNat encBits) (encPair encNat encNat) := by
-    fun_prop
+    have hn := ComputableInPolyTime.fst encNat encBits
+    have hpred := ComputableInPolyTime.binary_sub.comp
+      (hn.prod (ComputableInPolyTime.const 1))
+    have hword := ComputableInPolyTime.snd encNat encBits
+    have hnumber := ComputableInPolyTime.bitsToNat.comp hword
+    have hrem := ComputableInPolyTime.binary_mod' hnumber hpred
+    exact hpred.prod (ComputableInPolyTime.binary_add.comp
+      ((ComputableInPolyTime.const 1).prod hrem))
   have hpasses : ComputableInPolyTime
       (fun x : ℕ × List Bool => passes (x.1 - 1) (1 + ofBits x.2 % (x.1 - 1)))
       (encPair encNat encBits) encBool :=
     passes_polyTime.comp hinner
+  have hmod2 := ComputableInPolyTime.binary_mod'
+    (ComputableInPolyTime.fst encNat encBits) (ComputableInPolyTime.const 2)
   unfold verifier
   fun_prop
 
@@ -128,10 +143,7 @@ private theorem pow_mod_eq_one_iff {m a e : ℕ} (hm : 0 < m) :
 
 private theorem pow_mod_eq_neg_one_iff {m a e : ℕ} :
     a ^ e % (m + 1) = m ↔ (a : ZMod (m + 1)) ^ e = -1 := by
-  have hm : ((m : ℕ) : ZMod (m + 1)) = -1 := by
-    have h := ZMod.natCast_self (m + 1)
-    rw [Nat.cast_add, Nat.cast_one] at h
-    exact eq_neg_of_add_eq_zero_left h
+  have hm : ((m : ℕ) : ZMod (m + 1)) = -1 := ZMod.natCast_self_sub_one (m + 1)
   rw [← hm, ← Nat.cast_pow, ZMod.natCast_eq_natCast_iff', Nat.mod_eq_of_lt (Nat.lt_succ_self m)]
 
 /-- For `m > 0`, a Miller–Rabin round for `m + 1` passes exactly on the strong liars. -/

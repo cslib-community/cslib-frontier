@@ -68,4 +68,15 @@ example : ComputableInLogSpace (fun l : List ℕ => decide (l.length * l.length 
     (encList encUnary) encBool := by
   fun_prop
 
+/-- Bit-word length, logarithm, size and fixed unary powers under `fun_prop`. -/
+example : ComputableInLogSpace
+    (fun p : List Bool × ℕ => (Nat.log2 p.1.length) ^ 3 + p.2.size ^ 2)
+    (encPair encBits encUnary) encUnary := by
+  fun_prop
+
+/-- `List.length` on `encBits` targets `encUnary`; binary output requires `unaryToBinary`. -/
+example : ComputableInLogSpace (fun w : List Bool => w.length ^ 2) encBits encNat := by
+  fail_if_success fun_prop
+  exact ComputableInLogSpace.unaryToBinary (by fun_prop)
+
 end CslibFrontierTests.LogSpaceUnary

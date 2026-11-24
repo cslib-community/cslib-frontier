@@ -18,8 +18,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Probabilistic.Adaptive
-import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PPT
 
 /-!
@@ -434,13 +434,8 @@ theorem indCPA_of_decisionLWE {n m w η : ℕ → ℕ}
   intro adversary hadversary
   have hsource := hLWE.encoded (lweDistinguisher n m w adversary)
     (isPPT_lweDistinguisher hn hm hw hadversary)
-  have herror := negligible_mul_sqrt_pow_two_div_pow_two
-    (count := fun _ => 1) (outputBits := fun k => (n k + 1) * w k) (by fun_prop) hmargin
-  apply negligible_of_le
-    ((hsource.polynomiallyBounded_mul (p := fun _ => 2) (by fun_prop)).add herror)
-  intro security
-  refine (advantage_game_le n m w η adversary security).trans (le_of_eq ?_)
-  simp [hidingError]
+  have := negligible_sqrt_pow_two_div_pow_two hmargin
+  negligible [hidingError] using advantage_game_le n m w η adversary
 
 /-! ### Adaptive multi-challenge left-or-right security -/
 
@@ -539,13 +534,27 @@ theorem eval_lorDistinguisherSerialized_toBinary (n m w Q : ℕ → ℕ)
   rw [eval_lorRunSerialized_toBinary n m w adversary security A bit (Q security) (st₀, [])]
   rfl
 
+/-- On canonical public-matrix words, the hidden-bit reduction `lorLweDistinguisher` draws a fair
+challenge bit `bit` and outputs the guess of typed `Regev.lorDistinguisher` at `bit`, XOR `bit`. -/
+theorem eval_lorLweDistinguisher_toBinary (n m w Q : ℕ → ℕ)
+    (adversary : Encryption.LoRAdversary) (security : ℕ)
+    (A : PublicKey (n security) (m security) (w security)) :
+    ProbComp.eval (lorLweDistinguisher n m w Q adversary security (Cslib.Matrix.toBinary A)) =
+      (PMF.uniformOfFintype Bool).bind fun bit =>
+        (lorDistinguisher (Q security) (typedLoRAdversary adversary security) bit A).map
+          fun guess => guess ^^ bit := by
+  simp only [← eval_lorDistinguisherSerialized_toBinary, lorLweDistinguisher,
+    Encryption.lorKeyDistinguisher, Encryption.lorKeyDistinguisherOn, ProbComp.eval_bind,
+    ProbComp.eval_uniform, ProbComp.eval_pure]
+  rfl
+
 /-- Under the real `DecisionLWE` ensemble, `lorDistinguisherSerialized` realizes the real side of
 `Regev.lorGame_advantage_le`. -/
 theorem distinguishingGame_realEnsemble_lorDistinguisherSerialized (n m w η Q : ℕ → ℕ)
     (adversary : Encryption.LoRAdversary) (bit : Bool) (security : ℕ) :
     distinguishingGame (LWE.realEnsemble n m w (fun k => LWE.noiseLaw (w k) (η k)) security)
         (lorDistinguisherSerialized n m w Q adversary bit security) =
-      (LWE.publicMatrixLaw (n security) (m security) (w security)
+      (LWE.publicMatrixLaw (n security) (m security)
           (LWE.noiseLaw (w security) (η security))).bind
         (lorDistinguisher (Q security) (typedLoRAdversary adversary security) bit) := by
   simp [distinguishingGame, Game.withSetup, LWE.realEnsemble, PMF.bind_map, Function.comp_def,
@@ -566,7 +575,7 @@ theorem distinguishingGame_uniformEnsemble_lorDistinguisherSerialized (n m w Q :
 theorem eval_lorGameSerialized (n m w η Q : ℕ → ℕ) (adversary : Encryption.LoRAdversary)
     (bit : Bool) (security : ℕ) :
     ProbComp.eval (lorGameSerialized n m w η Q adversary bit security) =
-      lorGame (LWE.publicMatrixLaw (n security) (m security) (w security)
+      lorGame (LWE.publicMatrixLaw (n security) (m security)
           (LWE.noiseLaw (w security) (η security)))
         (Q security) (typedLoRAdversary adversary security) bit := by
   rw [lorGameSerialized, Encryption.eval_lorGame_eq_distinguishingGame,
@@ -580,7 +589,7 @@ private theorem polynomiallyBounded_ciphertextLength {n w : ℕ → ℕ}
     Cslib.PolynomiallyBounded (fun k => (n k + 1) * w k) := by
   have h : ComputableInPolyTime (fun k => (n k + 1) * w k) encUnary encUnary := by fun_prop
   have hp : PolyBounded (fun x => x) (fun k => (n k + 1) * w k) := by
-    simpa only [encUnary_apply, List.length_replicate] using h.tidy.polyBounded
+    simpa only [encUnary_apply, List.length_replicate] using h.polyBounded
   exact PolyBounded.polynomiallyBounded hp
 
 private theorem isPPTOn_encryptSerialized_keyed {n m w : ℕ → ℕ}
@@ -727,12 +736,7 @@ theorem lorIndCPA_of_decisionLWE {n m w η Q : ℕ → ℕ}
   intro adversary hadversary
   have hsource := hLWE.encoded (lorLweDistinguisher n m w Q adversary)
     (isPPT_lorLweDistinguisher hn hm hw hQ hadversary)
-  have herror := negligible_mul_sqrt_pow_two_div_pow_two
-    (count := Q) (outputBits := fun k => (n k + 1) * w k) hQ.polynomiallyBounded hmargin
-  apply negligible_of_le
-    ((hsource.polynomiallyBounded_mul (p := fun _ => 2) (by fun_prop)).add herror)
-  intro security
-  refine (lorGameSerialized_advantage_le_two_mul n m w η Q adversary security).trans (le_of_eq ?_)
-  simp [hidingError]
+  have := negligible_sqrt_pow_two_div_pow_two hmargin
+  negligible [hidingError] using lorGameSerialized_advantage_le_two_mul n m w η Q adversary
 
 end Cslib.Crypto.Regev

@@ -8,9 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
-public import CslibFrontier.Probability.IID
-import CslibFrontier.Probability.IID.FirstSome
 import Batteries.Data.Fin.Lemmas
+import Batteries.Data.Vector.Lemmas
+import Mathlib.Tactic.Ring
 
 /-!
 # Bounded ML-DSA signing
@@ -23,13 +23,12 @@ existing semantic ML-DSA surface and gives executable bounded-loop semantics.
 The source-shaped loop takes an explicit mask schedule. Attempt `i` uses the counter
 `κ + i ℓ`, matching Algorithm 7 line 31. Exhausting the supplied attempt limit returns `none`.
 This pure result represents the standard's single error result, but does not model destruction
-of intermediate state or side-channel behavior. A separate IID interface samples independent
-masks and proves its exact failure mass; no theorem identifies that model with FIPS 204's seeded
-`ExpandMask` before its distribution and counter behavior are formalized.
+of intermediate state or side-channel behavior. The byte signer in `MLDSA.FIPS204Signing` supplies
+the concrete seeded mask and challenge and uses the same response calculation.
 
 Appendix C, Table 3 of the published FIPS 204 gives `814` as the minimum permitted bounded
-signing limit under its stated hash/XOF distribution assumptions. The numeral is recorded here
-without a theorem deriving the standard's failure estimate from the semantic mask model.
+signing limit under its stated hash/XOF distribution assumptions. This module does not derive
+the standard's failure estimate from the semantic mask model.
 
 ## Main definitions
 
@@ -39,17 +38,14 @@ without a theorem deriving the standard's failure estimate from the semantic mas
 * `Cslib.Crypto.MLDSA.compressedSignBoundedFrom`,
   `Cslib.Crypto.MLDSA.compressedSignBounded`: first successful attempt in a bounded mask
   schedule, with an explicit starting counter or counter zero.
-* `Cslib.Crypto.MLDSA.compressedSignIID`: bounded first-success signing with IID masks.
-* `Cslib.Crypto.MLDSA.fips204PublishedSigningLoopLimit`: the published Appendix C limit.
 
 ## Main results
 
-* `Cslib.Crypto.MLDSA.compressedSignBoundedFrom_eq_none_iff`: exhaustion is exactly rejection
-  of every scheduled attempt.
-* `Cslib.Crypto.MLDSA.compressedSignBoundedFrom_eq_some_iff`: a result is exactly the first
-  successful scheduled attempt.
-* `Cslib.Crypto.MLDSA.compressedSignIID_apply_none`: under IID masks, bounded failure is the
-  single-attempt failure mass raised to the number of attempts.
+* `Cslib.Crypto.MLDSA.signAttempt_eq_some_of_compressedSignAttempt_eq_some`: every compressed
+  attempt output is also the corresponding uncompressed attempt output.
+* `Cslib.Crypto.MLDSA.compressedVerify_compressedSignAttempt`,
+  `Cslib.Crypto.MLDSA.compressedVerify_compressedSignBounded`: accepted attempts and bounded
+  signing outputs pass compressed verification.
 
 ## References
 
@@ -60,9 +56,6 @@ without a theorem deriving the standard's failure estimate from the semantic mas
 public section
 
 namespace Cslib.Crypto.MLDSA
-
-open Cslib.Probability
-open scoped ENNReal
 
 variable (P : Params)
 
@@ -79,6 +72,38 @@ instance (ct₀ : Fin P.k → Fin P.n → ZMod P.q) :
     Decidable (LowProductShort P ct₀) :=
   inferInstanceAs (Decidable (∀ _ _, _))
 
+/-- Store the coefficients of a polynomial vector once, for repeated access during signing. -/
+@[expose] def tabulateRingVector {rows n q : ℕ} (f : Fin rows → Fin n → ZMod q) :
+    Vector (Vector (ZMod q) n) rows :=
+  Vector.ofFn fun i => Vector.ofFn (f i)
+
+/-- Read the coefficient polynomials of a stored vector. -/
+@[expose] def ringVectorCoeffs {rows n q : ℕ} (values : Vector (Vector (ZMod q) n) rows) :
+    Fin rows → Fin n → ZMod q :=
+  fun i => (values.get i).get
+
+/-- Reading the materialized vector returns the original coefficients. -/
+theorem tabulateRingVector_eq {rows n q : ℕ} (f : Fin rows → Fin n → ZMod q) :
+    ringVectorCoeffs (tabulateRingVector f) = f := by
+  funext i j
+  simp only [tabulateRingVector, ringVectorCoeffs, Vector.get_ofFn]
+
+/-- Algorithm 7 lines 18--30. Given the signer's low public-key term and sampled challenge,
+return the response and hint precisely when both rejection stages pass. -/
+@[expose] def compressedResponse (ω : ℕ) (s₁ : Fin P.ℓ → Fin P.n → ZMod P.q)
+    (s₂ t₀ : Fin P.k → Fin P.n → ZMod P.q) (y : Fin P.ℓ → Fin P.n → ZMod P.q)
+    (w : Fin P.k → Fin P.n → ZMod P.q) (c : Fin P.n → ZMod P.q) :
+    Option (CompressedSignature P) :=
+  let z := ringVectorCoeffs (tabulateRingVector (y + fun j => negacyclicMul c (s₁ j)))
+  let r₀ := ringVectorCoeffs (tabulateRingVector (w - fun i => negacyclicMul c (s₂ i)))
+  if ResponseShort P z ∧ LowBitsShort P r₀ then
+    let ct₀ := ringVectorCoeffs (tabulateRingVector fun i => negacyclicMul c (t₀ i))
+    let h := fun i => makeHintVec P.q P.γ₂ (-ct₀ i) (r₀ i + ct₀ i)
+    if LowProductShort P ct₀ ∧ hintWeight P h ≤ ω then
+      some ⟨z, h, c⟩
+    else none
+  else none
+
 /-- One semantic execution of FIPS 204 Algorithm 7 lines 11--30.
 
 The hash and mask are still the abstract values used by `Basic.lean`; seed expansion, the message
@@ -88,15 +113,67 @@ representative, byte encodings and malformed-input behavior are not modeled here
     (msg : List Bool) (y : Fin P.ℓ → Fin P.n → ZMod P.q) : Option (CompressedSignature P) :=
   let w := moduleSISMap sk.A y
   let c := H (highBitsVec P w, msg)
-  let z := y + fun j => negacyclicMul c (sk.s₁ j)
-  let r₀ := w - fun i => negacyclicMul c (sk.s₂ i)
-  if ResponseShort P z ∧ LowBitsShort P r₀ then
-    let ct₀ := fun i => negacyclicMul c (publicKeyLowPart P d sk.publicKey i)
-    let h := fun i => makeHintVec P.q P.γ₂ (-ct₀ i) (r₀ i + ct₀ i)
-    if LowProductShort P ct₀ ∧ hintWeight P h ≤ ω then
-      some ⟨z, h, c⟩
-    else none
-  else none
+  compressedResponse P ω sk.s₁ sk.s₂ (publicKeyLowPart P d sk.publicKey) y w c
+
+/-- Every compressed attempt output is also the corresponding output of the uncompressed
+`signAttempt`; the compressed attempt only adds the second-stage checks and the hint. -/
+theorem signAttempt_eq_some_of_compressedSignAttempt_eq_some (d ω : ℕ) (H : Hash P)
+    (sk : SecretKey P) (msg : List Bool) (y : Fin P.ℓ → Fin P.n → ZMod P.q)
+    {σ : CompressedSignature P} (hout : compressedSignAttempt P d ω H sk msg y = some σ) :
+    signAttempt P H sk msg y = some (⟨σ.z, σ.c⟩ : Signature P) := by
+  simp only [compressedSignAttempt, compressedResponse, tabulateRingVector_eq] at hout
+  split_ifs at hout with hshort hfinal
+  cases hout
+  unfold signAttempt
+  rw [ite_eq_left hshort]
+
+/-- Every accepted Algorithm 7 response has the prescribed response and hint bounds and
+reconstructs the exact high-bit commitment used by the signer. -/
+theorem recovered_of_compressedResponse (hP : P.Valid) (hγq : 4 * P.γ₂ < P.q)
+    {d ω : ℕ} {sk : SecretKey P} {y : Fin P.ℓ → Fin P.n → ZMod P.q} {c : Fin P.n → ZMod P.q}
+    (hc : InBall P.τ c) (hs₂ : ∀ i j, |(sk.s₂ i j).valMinAbs| ≤ P.η) {σ : CompressedSignature P}
+    (hout : compressedResponse P ω sk.s₁ sk.s₂ (publicKeyLowPart P d sk.publicKey) y
+      (moduleSISMap sk.A y) c = some σ) :
+    ResponseShort P σ.z ∧ hintWeight P σ.h ≤ ω ∧ σ.c = c ∧
+      (fun i => useHintVec P.q P.γ₂ (σ.h i)
+        (compressedVerifierCommitment P d sk.publicKey σ.z σ.c i)) =
+          highBitsVec P (moduleSISMap sk.A y) := by
+  have : NeZero P.q := ⟨by have := hP.one_lt_q; omega⟩
+  simp only [compressedResponse, tabulateRingVector_eq] at hout
+  split_ifs at hout with hshort hfinal
+  cases hout
+  obtain ⟨hct₀, weight⟩ := hfinal
+  refine ⟨hshort.1, weight, rfl, ?_⟩
+  set w := moduleSISMap sk.A y
+  set r₀ := w - fun i => negacyclicMul c (sk.s₂ i)
+  set ct₀ := fun i => negacyclicMul c (publicKeyLowPart P d sk.publicKey i)
+  rw [← highBitsVec_sub_challenge hP hc hs₂ hshort.2]
+  funext i
+  rw [compressedVerifierCommitment_eq_verifierCommitment_add_lowPart,
+    verifierCommitment_publicKey]
+  simp only [Pi.add_apply]
+  rw [useHintVec_makeHintVec hP.γ₂_pos hP.two_mul_γ₂_dvd hγq (z := -ct₀ i)
+    (r := r₀ i + ct₀ i) (fun j => by
+      simpa only [Pi.neg_apply, Int.abs_eq_natAbs, ZMod.natAbs_valMinAbs_neg] using
+        (hct₀ i j).le)]
+  funext j
+  simp only [highBitsVec, Pi.add_apply, Pi.neg_apply]
+  congr 1
+  ring
+
+/-- **Correctness of one compressed attempt.** Under the secret-key and hash-to-ball bounds,
+every signature returned by `compressedSignAttempt` passes `compressedVerify` under the matching
+public key. The proof uses the derived compressed/uncompressed commitment bridge and the
+`MakeHint`/`UseHint` recovery theorem. -/
+theorem compressedVerify_compressedSignAttempt (hP : P.Valid) (hγq : 4 * P.γ₂ < P.q)
+    {d ω : ℕ} {H : Hash P} (hH : ∀ x, InBall P.τ (H x)) {sk : SecretKey P}
+    (hs₂ : ∀ i j, |(sk.s₂ i j).valMinAbs| ≤ P.η) {msg : List Bool}
+    {y : Fin P.ℓ → Fin P.n → ZMod P.q} {σ : CompressedSignature P}
+    (hout : compressedSignAttempt P d ω H sk msg y = some σ) :
+    compressedVerify P d H sk.publicKey msg σ = true := by
+  obtain ⟨hz, _, hc, hw⟩ := recovered_of_compressedResponse P hP hγq (hH _) hs₂ hout
+  simp only [compressedVerify, Bool.and_eq_true, decide_eq_true_eq]
+  exact ⟨⟨hz, hc ▸ hH _⟩, hw ▸ hc.symm⟩
 
 /-- Counter supplied to the `i`-th scheduled attempt. Algorithm 7 starts at `κ` and advances it
 by `ℓ` after every rejection. -/
@@ -112,77 +189,42 @@ counter progression built into each mask lookup. -/
 
 /-- Bounded Algorithm 7 signing from counter `κ`: return the first accepted signature among
 `K` scheduled attempts, or `none` if every attempt rejects. This is the pure semantics of the
-bounded-implementation paragraph immediately before Algorithm 7 and of its lines 10--32. -/
+finite-maximum option in Section 6.2, footnote 10, and of Algorithm 7 lines 10--32. -/
 @[expose] def compressedSignBoundedFrom (d ω : ℕ) (H : Hash P) (sk : SecretKey P)
     (msg : List Bool) (maskAt : ℕ → Fin P.ℓ → Fin P.n → ZMod P.q) (κ K : ℕ) :
     Option (CompressedSignature P) :=
   Fin.findSome? (compressedSignAttempts P d ω H sk msg maskAt κ K)
 
-/-- Bounded Algorithm 7 signing with the initial counter `κ = 0` from Algorithm 7 line 10. -/
+/-- Bounded Algorithm 7 signing with the initial counter `κ = 0` from Algorithm 7 line 8. -/
 @[expose] def compressedSignBounded (d ω : ℕ) (H : Hash P) (sk : SecretKey P)
     (msg : List Bool) (maskAt : ℕ → Fin P.ℓ → Fin P.n → ZMod P.q) (K : ℕ) :
     Option (CompressedSignature P) :=
   compressedSignBoundedFrom P d ω H sk msg maskAt 0 K
 
-/-- The bounded-error obligation from the paragraph before Algorithm 7: the single failure result
-is returned exactly when every scheduled execution of lines 11--30 rejects. -/
-theorem compressedSignBoundedFrom_eq_none_iff (d ω : ℕ) (H : Hash P) (sk : SecretKey P)
-    (msg : List Bool) (maskAt : ℕ → Fin P.ℓ → Fin P.n → ZMod P.q) (κ K : ℕ) :
-    compressedSignBoundedFrom P d ω H sk msg maskAt κ K = none ↔
-      ∀ i, compressedSignAttempts P d ω H sk msg maskAt κ K i = none := by
-  simpa only [compressedSignBoundedFrom] using
-    (Fin.findSome?_eq_none_iff
-      (f := compressedSignAttempts P d ω H sk msg maskAt κ K))
-
-/-- Algorithm 7's loop returns the first accepting scheduled attempt; all smaller indices reject. -/
-theorem compressedSignBoundedFrom_eq_some_iff (d ω : ℕ) (H : Hash P) (sk : SecretKey P)
-    (msg : List Bool) (maskAt : ℕ → Fin P.ℓ → Fin P.n → ZMod P.q) (κ K : ℕ)
-    (σ : CompressedSignature P) :
-    compressedSignBoundedFrom P d ω H sk msg maskAt κ K = some σ ↔
-      ∃ i, compressedSignAttempts P d ω H sk msg maskAt κ K i = some σ ∧
-        ∀ j < i, compressedSignAttempts P d ω H sk msg maskAt κ K j = none := by
-  simpa only [compressedSignBoundedFrom] using
+/-- Every signature returned by bounded signing from an arbitrary starting counter passes
+compressed verification under the matching public key. -/
+theorem compressedVerify_compressedSignBoundedFrom (hP : P.Valid)
+    (hγq : 4 * P.γ₂ < P.q) {d ω : ℕ} {H : Hash P} (hH : ∀ x, InBall P.τ (H x))
+    {sk : SecretKey P} (hs₂ : ∀ i j, |(sk.s₂ i j).valMinAbs| ≤ P.η) {msg : List Bool}
+    {maskAt : ℕ → Fin P.ℓ → Fin P.n → ZMod P.q} {κ K : ℕ} {σ : CompressedSignature P}
+    (hout : compressedSignBoundedFrom P d ω H sk msg maskAt κ K = some σ) :
+    compressedVerify P d H sk.publicKey msg σ = true := by
+  obtain ⟨i, hi, _⟩ :=
     (Fin.findSome?_eq_some_iff
-      (f := compressedSignAttempts P d ω H sk msg maskAt κ K) (a := σ))
+      (f := compressedSignAttempts P d ω H sk msg maskAt κ K) (a := σ)).mp
+      (by simpa only [compressedSignBoundedFrom] using hout)
+  apply compressedVerify_compressedSignAttempt P hP hγq hH hs₂
+  simpa only [compressedSignAttempts] using hi
 
-/-- The law of one semantic compressed signing attempt under a supplied mask distribution.
-This is a convenience definition, not FIPS 204's seeded `ExpandMask` distribution. -/
-noncomputable def compressedSignAttemptLaw (d ω : ℕ) (H : Hash P) (sk : SecretKey P)
-    (msg : List Bool) (mask : PMF (Fin P.ℓ → Fin P.n → ZMod P.q)) :
-    PMF (Option (CompressedSignature P)) :=
-  mask.map (compressedSignAttempt P d ω H sk msg)
-
-/-- IID bounded signing: draw `K` independent masks, run the complete compressed attempt on each,
-and return the first success. This convenience model is not a separate FIPS 204 algorithm and is
-not identified with seeded `ExpandMask`. -/
-noncomputable def compressedSignIID (d ω : ℕ) (H : Hash P) (sk : SecretKey P)
-    (msg : List Bool) (mask : PMF (Fin P.ℓ → Fin P.n → ZMod P.q)) (K : ℕ) :
-    PMF (Option (CompressedSignature P)) :=
-  (PMF.iid (compressedSignAttemptLaw P d ω H sk msg mask) K).map Fin.findSome?
-
-/-- Exact IID failure probability: all `K` independent attempts must reject. This is a formal
-consequence of the convenience IID model, not FIPS 204 Appendix C's distribution analysis. -/
-theorem compressedSignIID_apply_none (d ω : ℕ) (H : Hash P) (sk : SecretKey P)
-    (msg : List Bool) (mask : PMF (Fin P.ℓ → Fin P.n → ZMod P.q)) (K : ℕ) :
-    compressedSignIID P d ω H sk msg mask K none =
-      (compressedSignAttemptLaw P d ω H sk msg mask none) ^ K := by
-  simpa only [compressedSignIID] using
-    PMF.map_findSome_iid_apply_none (compressedSignAttemptLaw P d ω H sk msg mask) K
-
-/-- A supplied one-attempt failure estimate raises to the `K`-th power under the IID model.
-This monotonicity consequence supplies no one-attempt estimate itself. -/
-theorem compressedSignIID_apply_none_le (d ω : ℕ) (H : Hash P) (sk : SecretKey P)
-    (msg : List Bool) (mask : PMF (Fin P.ℓ → Fin P.n → ZMod P.q)) (K : ℕ)
-    {ε : ℝ≥0∞} (hε : compressedSignAttemptLaw P d ω H sk msg mask none ≤ ε) :
-    compressedSignIID P d ω H sk msg mask K none ≤ ε ^ K := by
-  rw [compressedSignIID_apply_none]
-  exact pow_le_pow_left' hε K
-
-/-- Published FIPS 204 Appendix C, Table 3 minimum bounded-signing limit.
-
-The published analysis uses expected repetition values `4.25`, `5.1` and `3.85` and the
-standard's stated hash/XOF distribution assumptions. This declaration alone proves no failure
-bound. -/
-@[expose] def fips204PublishedSigningLoopLimit : ℕ := 814
+/-- Every signature returned by bounded signing from Algorithm 7's initial counter passes
+compressed verification under the matching public key. -/
+theorem compressedVerify_compressedSignBounded (hP : P.Valid) (hγq : 4 * P.γ₂ < P.q)
+    {d ω : ℕ} {H : Hash P} (hH : ∀ x, InBall P.τ (H x)) {sk : SecretKey P}
+    (hs₂ : ∀ i j, |(sk.s₂ i j).valMinAbs| ≤ P.η) {msg : List Bool}
+    {maskAt : ℕ → Fin P.ℓ → Fin P.n → ZMod P.q} {K : ℕ} {σ : CompressedSignature P}
+    (hout : compressedSignBounded P d ω H sk msg maskAt K = some σ) :
+    compressedVerify P d H sk.publicKey msg σ = true := by
+  apply compressedVerify_compressedSignBoundedFrom P hP hγq hH hs₂
+  simpa only [compressedSignBounded] using hout
 
 end Cslib.Crypto.MLDSA

@@ -80,6 +80,8 @@ to all words (`IsPPTOn.exists_extension`).
 
 ## References
 
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*, Version 0.6][BonehShoup2023],
+  Section 10.3, Attack Game 10.3 and Definition 10.5 (pp. 404–405).
 * [J. Katz, Y. Lindell, *Introduction to Modern Cryptography*][KatzLindell2020],
   Section 9.2.4, Definition 9.46 (The RSA Assumption) and Section 15.1.1, Definition 15.1
   (Trapdoor Permutations; RSA example on p. 526).
@@ -189,6 +191,12 @@ theorem totient_gt_one (desc : RSADesc) : 1 < desc.totient := by
     have hb : 0 < b := by omega
     nlinarith
 
+/-- The public exponent is positive, since `0` is not coprime to `φ(N) > 1`. -/
+theorem e_pos (desc : RSADesc) : 0 < desc.e := by
+  refine Nat.pos_of_ne_zero fun h => desc.totient_gt_one.ne' ?_
+  have := desc.he
+  rwa [h, Nat.coprime_zero_left] at this
+
 /-- The public key `(N, e)`. -/
 abbrev publicKey (desc : RSADesc) : RSAPublicKey :=
   ⟨desc.modulus, desc.e⟩
@@ -249,6 +257,15 @@ theorem rsaEval_rsaInvert (desc : RSADesc) {y : ℕ} (hy : y < desc.modulus) :
   have hmod := rsa_pow_mul_modEq desc y
   rw [Nat.ModEq, Nat.mod_eq_of_lt hy] at hmod
   exact hmod
+
+/-- RSA evaluation undoes trapdoor inversion modulo `N`, for every natural number `y`. -/
+theorem rsaEval_rsaInvert_mod (desc : RSADesc) (y : ℕ) :
+    rsaEval desc.modulus desc.e (rsaInvert desc.modulus desc.d y) = y % desc.modulus := by
+  have h : rsaInvert desc.modulus desc.d y = rsaInvert desc.modulus desc.d (y % desc.modulus) := by
+    unfold rsaInvert
+    exact Nat.pow_mod y desc.d desc.modulus
+  rw [h]
+  exact rsaEval_rsaInvert desc (Nat.mod_lt _ desc.modulus_pos)
 
 /-- RSA evaluation is a bijection on `Fin N`. -/
 theorem rsaEval_bijective_fin (desc : RSADesc) : Function.Bijective desc.publicKey.eval := by
@@ -355,8 +372,10 @@ theorem rsaInversionGame_eq (gen : RSAGen) (inverter : RSAInverter) (n : ℕ) :
   simp only [ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
   rfl
 
-/-- The RSA assumption for `gen`: every PPT inverter recovers a uniform residue from its RSA
-image with negligible probability. -/
+/-- The RSA assumption for `gen` ([BonehShoup2023], Attack Game 10.3 and Definition 10.5,
+pp. 404–405): every uniform strict PPT inverter recovers a uniform residue `x ∈ Fin N` from its
+RSA image `x ^ e mod N` with negligible probability. Keys are drawn from an arbitrary
+`gen : RSAGen` family rather than `RSAGen(ℓ, e)`. -/
 def RSAOneWay (gen : RSAGen) : Prop :=
   ∀ inverter : RSAInverter, inverter.IsPPT →
     Negligible fun n => Game.succProbability (rsaInversionGame gen inverter n)

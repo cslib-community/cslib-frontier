@@ -254,23 +254,26 @@ theorem evalPure_micaliVerify (hTree : List Bool → List Bool)
   simp [micaliVerify, micaliVerifyPure]
 
 /-- **Perfect completeness of Micali's construction (pure oracle form)**: for any deterministic
-Merkle oracle `hTree` and Fiat–Shamir oracle `hFS`, if `V.tableVerifier` accepts `(x, table)` and
-every challenge string returned by `hFS` on `(x, root)` has `V.coins x` bits, then
-`micaliVerifyPure` accepts the proof produced by `micaliProvePure`. -/
-theorem micaliVerifyPure_micaliProvePure_eq_true {hTree : List Bool → List Bool}
+Merkle oracle `hTree` whose digests all have one length and any Fiat–Shamir oracle `hFS`, if
+`V.tableVerifier` accepts `(x, table)` and every challenge string returned by `hFS` on
+`(x, root)` has `V.coins x` bits, then `micaliVerifyPure` accepts the proof produced by
+`micaliProvePure`. -/
+theorem micaliVerifyPure_micaliProvePure_eq_true {hTree : List Bool → List Bool} {ℓ : ℕ}
+    (hlen : ∀ y, (hTree y).length = ℓ)
     {hFS : α × List Bool → List (List Bool)} {V : PCPVerifier α} {x : α}
     {table : List Bool} (htable : V.tableVerifier (x, table) = true)
     (hρs : ∀ ρ ∈ hFS (x, kilianCommit (fun _ => hTree) V [] x table),
       ρ.length = V.coins x) :
     micaliVerifyPure hTree hFS V x (micaliProvePure hTree hFS V x table) = true := by
   simpa [micaliProvePure, micaliVerifyPure] using
-    kilianVerify_kilianRespond (H := fun _ => hTree) htable [] hρs
+    kilianVerify_kilianRespond (H := fun _ => hTree) htable [] hlen hρs
 
 /-- **Perfect completeness of Micali's construction (`OracleComp` simulation form)**: under any
-deterministic oracle `(hTree, hFS)` whose Fiat–Shamir challenges have length `V.coins x`, running
-`micaliProve` followed by `micaliVerify` returns `true` on every table accepted by
-`V.tableVerifier`. -/
-theorem micaliVerify_micaliProve_eq_true {hTree : List Bool → List Bool}
+deterministic oracle `(hTree, hFS)` whose Merkle digests all have one length and whose
+Fiat–Shamir challenges have length `V.coins x`, running `micaliProve` followed by `micaliVerify`
+returns `true` on every table accepted by `V.tableVerifier`. -/
+theorem micaliVerify_micaliProve_eq_true {hTree : List Bool → List Bool} {ℓ : ℕ}
+    (hlen : ∀ y, (hTree y).length = ℓ)
     {hFS : α × List Bool → List (List Bool)} {V : PCPVerifier α} {x : α}
     {table : List Bool} (htable : V.tableVerifier (x, table) = true)
     (hρs : ∀ ρ ∈ hFS (x, kilianCommit (fun _ => hTree) V [] x table),
@@ -278,7 +281,7 @@ theorem micaliVerify_micaliProve_eq_true {hTree : List Bool → List Bool}
     OracleComp.evalPure (micaliOracle hTree hFS) (do
       let proof ← micaliProve V x table
       micaliVerify V x proof) = true := by
-  simp [micaliVerifyPure_micaliProvePure_eq_true htable hρs]
+  simp [micaliVerifyPure_micaliProvePure_eq_true hlen htable hρs]
 
 /-! #### The Micali random-oracle experiment -/
 
@@ -320,7 +323,8 @@ theorem micaliHonestGame_eq_pure_true [DecidableEq α] (V : PCPVerifier α) {x :
     ext q
     cases q <;> rfl
   rw [hsplit]
-  refine micaliVerify_micaliProve_eq_true htable fun ρ hρ => ?_
+  refine micaliVerify_micaliProve_eq_true (ℓ := σ) (fun y => ?_) htable fun ρ hρ => ?_
+  · exact BitString.length_of_mem_support_uniformList (hh (.inl y))
   have hmem := hh (.inr (x, kilianCommit (fun _ => fun msg => h (.inl msg)) V [] x table))
   simp only [micaliOracleDist, kilianChallenges, ProbComp.mem_support_replicate_iff] at hmem
   exact BitString.length_of_mem_support_uniformList (by simpa using hmem.2 ρ hρ)

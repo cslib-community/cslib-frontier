@@ -47,6 +47,8 @@ is a coarse correlated equilibrium (`IsMixedNash.isCoarseCorrelatedEquilibrium`)
 * `Cslib.GameTheory.CostGame.expectedCost`: the expected cost of a player under the product
   distribution.
 * `Cslib.GameTheory.CostGame.IsMixedNash`: mixed Nash equilibria.
+* `Cslib.GameTheory.CostGame.IsTotallyMixedNash`: mixed Nash equilibria in which every pure
+  strategy has positive probability.
 * `Cslib.GameTheory.CostGame.nashMap`: Nash's map on mixed strategy profiles.
 
 ## Main results
@@ -59,12 +61,16 @@ is a coarse correlated equilibrium (`IsMixedNash.isCoarseCorrelatedEquilibrium`)
 * `Cslib.GameTheory.CostGame.IsMixedNash.deviationCost_eq_of_pos`: the pure strategies in the
   support of an equilibrium strategy attain the expected cost.
 * `Cslib.GameTheory.CostGame.IsMixedNash.expectedCost_le_update`: mixed deviations gain nothing.
+* `Cslib.GameTheory.CostGame.isTotallyMixedNash_iff`: equation (1) of [Datta2003]: the totally
+  mixed Nash equilibria are the positive profiles at which each player's pure strategies all have
+  the same expected cost.
 * `Cslib.GameTheory.CostGame.IsMixedNash.isCoarseCorrelatedEquilibrium`: a mixed Nash
   equilibrium induces a coarse correlated equilibrium.
 
 ## References
 
 * [J. Nash, *Non-Cooperative Games*][Nash1951]
+* [R. S. Datta, *Universality of Nash Equilibria*][Datta2003]
 * [T. Roughgarden, *CS364A: Algorithmic Game Theory*, lecture notes][Roughgarden2013CS364A]
 -/
 
@@ -270,6 +276,32 @@ theorem IsMixedNash.deviationCost_eq_of_pos {p : ∀ i, S i → ℝ} (h : G.IsMi
   rw [← sum_mul, (h.1 i).sum_eq_one, one_mul,
     G.sum_mul_deviationCost_eq_expectedCost p (h.1 i).sum_eq_one] at hsum
   exact lt_irrefl _ hsum
+
+variable (G) in
+/-- A **totally mixed Nash equilibrium**: a mixed Nash equilibrium in which every pure strategy is
+played with positive probability ([Datta2003], §1). -/
+@[expose] def IsTotallyMixedNash (p : ∀ i, S i → ℝ) : Prop :=
+  G.IsMixedNash p ∧ ∀ i a, 0 < p i a
+
+variable (G) in
+/-- **Equation (1)** of [Datta2003]: a profile is a totally mixed Nash equilibrium iff it is
+positive, each player's weights sum to `1`, and each player's pure strategies all have the same
+expected cost against the other players' strategies. -/
+theorem isTotallyMixedNash_iff {p : ∀ i, S i → ℝ} :
+    G.IsTotallyMixedNash p ↔ (∀ i a, 0 < p i a) ∧ (∀ i, ∑ a, p i a = 1) ∧
+      ∀ i a b, G.deviationCost p i a = G.deviationCost p i b := by
+  constructor
+  · rintro ⟨h, hpos⟩
+    exact ⟨hpos, fun i => (h.1 i).sum_eq_one, fun i a b => by
+      rw [h.deviationCost_eq_of_pos i (hpos i a), h.deviationCost_eq_of_pos i (hpos i b)]⟩
+  · rintro ⟨hpos, hsum, heq⟩
+    refine ⟨⟨fun i => isMixedStrategy_iff.2 ⟨fun a => (hpos i a).le, hsum i⟩, fun i a => ?_⟩,
+      hpos⟩
+    rw [← G.sum_mul_deviationCost_eq_expectedCost p (hsum i)]
+    refine le_of_eq ?_
+    calc ∑ b, p i b * G.deviationCost p i b = ∑ b, p i b * G.deviationCost p i a :=
+          sum_congr rfl fun b _ => by rw [heq i b a]
+      _ = G.deviationCost p i a := by rw [← sum_mul, hsum i, one_mul]
 
 /-- The product distribution of a mixed Nash equilibrium is a coarse correlated equilibrium. -/
 theorem IsMixedNash.isCoarseCorrelatedEquilibrium {p : ∀ i, S i → ℝ} (h : G.IsMixedNash p) :

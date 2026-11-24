@@ -67,8 +67,9 @@ When a declaration claims to formalize a cited result, give the precise source v
 locator and map the source claim to Lean: quantifiers, hypotheses, models, encodings and resource
 conventions. Verify locators and quotations against the source itself; invented or misattributed
 ones block approval. New mathematics needs no source; label it original. Search for an existing
-notion before adding a public definition, and explain any parallel one. Reviewers may ask for a
-checked instance where a definition holds and one where it fails.
+notion before adding a public definition, and explain any parallel one. Include a checked test
+witness on subtle model boundaries (self-loops, asymmetric matrices, repeated or malformed
+queries); reviewers may also ask for instances where a definition holds and where it fails.
 
 ### Faithful headlines
 
@@ -91,7 +92,8 @@ documentation, manual page, PR title or [results inventory](results/README.md) e
 3. **No vacuous headlines.** Hypotheses that cannot hold together, or a conclusion that follows
    trivially, are a misformalization even when documented. Check a satisfying instance.
 4. **The faithful statement supersedes its stand-ins.** The change that proves it deletes or
-   demotes them, with their docstrings, manual text, `ROADMAP.md` lines and inventory entries.
+   demotes them, with their docstrings, maintained manual text, `ROADMAP.md` lines and inventory
+   entries.
 
 Stand-ins already on `main` are defects to fix, not precedents (#5293 for cryptography).
 
@@ -108,7 +110,7 @@ An encoding is part of what a statement claims, so statements show every encodin
 the reader parse the same nested one repeatedly. For new and changed statements:
 
 1. **Name repeated compound encodings.** A nested application of `encPair`, `encList`,
-   `encOption`, `encSum`, `encFramed`, `encPi` or `encDPi` that occurs in the types of three or
+   `encOption`, `encSum`, `encSigma`, `encFramed`, `encPi` or `encDPi` that occurs in the types of three or
    more public declarations of a module gets a named `abbrev`, used everywhere.
 2. **Document the layout** in the `abbrev`'s docstring: order of parts, framing, tag bits.
 3. **Keep it reducible:** `abbrev`, not `def`, and never a `local notation`.
@@ -120,6 +122,10 @@ the reader parse the same nested one repeatedly. For new and changed statements:
 6. **Show meaning-bearing choices** (unary or binary, graph and matrix representation, framing
    that changes a length bound) in the name or the first docstring line.
 7. **No hidden defaults:** no elaborator or typeclass chooses an encoding (`enc%`, #1830, is parked).
+8. **Keep restricted-class results on the general encoding:** state a restricted language as
+   `{x | x ∈ Problem ∧ Restricted x}` and a promise or conditional algorithm with `Restricted x` as
+   a hypothesis on the general instance type, rather than encoding a caller-supplied witness or
+   decomposition unless the source takes that representation as input.
 
 ### Security theorems
 
@@ -146,8 +152,8 @@ says "locator not verified" until a reviewer has confirmed the locator at the so
 claiming a cited result rests on the source's assumption, on one review accepts as the same in
 another formal setting, or on one the source's implies; otherwise it is a stand-in. A novel
 assumption may support a result presented as original and named for it.
-`scripts/check_security_premises.py` and `scripts/check_hardness_assumptions.py` supplement these
-rules; they do not replace semantic review.
+`scripts/check_hardness_assumptions.py` checks the inventory; the premise and reduction-witness
+scans are advisory. None replaces semantic review.
 
 ## Review cycle
 
@@ -174,7 +180,9 @@ to reach a count. A review does the following, in this order.
    it parallel a neighbouring API? Name what you asked the author to delete, merge or make
    private, or say that you looked and found nothing to remove. A review without an answer to
    this question is incomplete. A zero reference count alone does not justify removing expected
-   mathematical API.
+   mathematical API. Automation justified by the code it removes must shrink the diff overall,
+   and each new branch must serve callers beyond one definition or module
+   ([details](policy/review.md#review-cycle)).
 3. **Name the first real property.** For each new definition, construction or transcribed
    algorithm, say what its first non-trivial property is (signatures verify, the padding is
    block-aligned, the simulator's output is close) and whether this PR proves it. Unfoldings,
@@ -190,8 +198,8 @@ to reach a count. A review does the following, in this order.
    the Parallel-definition, Duplicate-statement and Repeated-proof-block notices in CI for the
    reviewed revision. Record each relevant candidate's resolution. An empty report is not
    evidence of uniqueness.
-6. **Check the documentation the change affects**, including both manuals
-   ([Maintaining the manuals](CONTRIBUTING.md#maintaining-the-manuals)).
+6. **Check the documentation the change affects:** docstrings, the PR description and any changed
+   procedure page or registry ([manuals](CONTRIBUTING.md#maintaining-the-manuals)).
 7. **Give a clear verdict** for an identified revision: a short approval or a specific request
    for changes, with the limits of the review. A clean review needs no checklist of everything
    inspected. Lean acceptance does not establish that a definition matches its intended
@@ -206,9 +214,10 @@ A non-authoring agent may review work from the same coordinator or account, in a
 review context, reaching its own verdict. Anyone who took part in the implementation or its
 design cannot supply that review. If a shared GitHub account prevents formal approval, use one
 brief PR comment naming the reviewer agent or session, revision and verdict. Agent review is
-never presented as human review. Before a published theorem enters the
-[results inventory](results/README.md), a human maintainer checks the statement against the
-source and records that in a comment the human writes.
+never presented as human review. A headline for a cited result is presented as a step or is
+registered in the [results inventory](results/README.md), once a reviewer, human or agent, from
+outside the authoring fleet checks its statement against the source, opens the definitions it
+names and records the check ([policy/review.md](policy/review.md#review-cycle)).
 
 ### Approve and queue
 
@@ -217,9 +226,8 @@ queues the approved head with `scripts/queue_pr.py`, run from a trusted checkout
 `main` ([command](manual/workflows/agent-operations.md#queue-approved-work-and-keep-its-approval)).
 Authors do not queue their own PRs. Approve without queueing, and say why, when human review has
 been requested or the approval names a hold (an unlanded lower PR, a migration, or pending
-source, advisory-notice or rendered-manual review). A passing check does not release a review
-hold; do not start `queue_pr.py --wait` while running CI will still produce notices or rendered
-pages that need review.
+source or advisory-notice review). A passing check does not release a review hold; do not start
+`queue_pr.py --wait` while running CI will still produce notices that need review.
 
 **Every merge to `main` goes through the merge queue.** Never call a direct merge endpoint: the
 REST merge API, a GitHub connector's `merge_pull_request` tool, or `gh pr merge --admin`. With
@@ -280,7 +288,8 @@ Full text: [policy/workflow.md](policy/workflow.md). Each agent works as a **coo
 Changing roles does not make an author eligible to approve their own changes. Give parallel
 agents distinct scope, branches and build outputs; the delegating agent brings their work to
 completion. When review or integration is the bottleneck, do requested fixes, reviews and landing
-before starting more PRs. Use issues for substantial tasks and search for existing ones first; do
+before starting more PRs; a coordinator starts or commissions no new PR work while more than ten
+of its fleet's need its own action ([backpressure](policy/workflow.md#backpressure-and-tending)). Use issues for substantial tasks and search for existing ones first; do
 not open an issue or PR for each incidental cleanup.
 
 ### Completion and scope
@@ -311,8 +320,8 @@ remains.
    takeover and proceed. A PR that needs author action (changes requested, a conflict or failing
    CI) may be reassigned by a coordinator after the same notice and 24 hours; a PR awaiting
    review is never released by silence. Preserve the earlier work and its credit.
-4. Implement, self-review and validate. Assess both manuals and update affected instructions,
-   reference sections and checked examples in the same change.
+4. Implement, self-review and validate. Explain the change in its docstrings and the PR
+   description; the manual's reference chapters are frozen.
 5. Open a PR with validation and limitations and request coordinator review.
 6. Address requested changes before starting more work. Do not approve or merge your own PR.
 
@@ -381,7 +390,7 @@ private. The handoff names the caller and what it no longer has to repeat.
 
 Full text: [policy/workflow.md](policy/workflow.md#writing-in-issues-and-prs). Write for a human
 who has not followed the task. Start with the point: the problem or mathematical setting, the
-central idea, and what the change enables, then validation, manual impact and AI disclosure.
+central idea, and what the change enables, then validation and AI disclosure.
 Small PRs need a paragraph or two. Keep evidence in one place and link to it. Comments add a
 finding, answer, decision, blocker or handoff; keep CI polling and internal agent discussion out
 of public threads. Do not imply that an agent review is human review.
@@ -410,7 +419,8 @@ For Lean, dependency or build changes, all of these and the other CI checks must
 final revision before integration. A successful hosted run for that revision supplies full
 validation; run `scripts/check.sh` locally only when asked or when hosted coverage is
 unavailable. During development, check affected modules and representative clients;
-`scripts/check.sh --quick --no-full-fallback [--base REF]` is the local checkpoint, and exit
+`scripts/check.sh --focused [--base REF]` (deferring unchanged global `Smoke`/`Axioms` leaves to
+CI) or `scripts/check.sh --quick --no-full-fallback [--base REF]` is the local checkpoint, and exit
 status 3 means "run focused checks and leave the full run to CI". Documentation-only changes need
 consistency and link checks, not a rebuild. `lake exe mk_all` regenerates `CslibFrontier.lean`
 after adding a file; new tests go in `CslibFrontierTests/`. Details and what each mode covers:
@@ -440,6 +450,11 @@ Keep the cslib pin on an upstream `main` SHA and coordinate bumps in focused dep
 When the pin adopts merged work, the same commit replaces the superseded local file with its
 deprecated shim ([details](policy/build-and-files.md#staying-current-with-upstream)).
 
+Every pin bump lists the upstream PRs labelled `cslib-frontier-adaptation` that merged in the
+range it crosses. These are design changes, such as new or more general definitions, that need
+more than repaired proofs: adapt to each in the bump, or defer it as the cleanup rule allows
+([query and procedure](policy/build-and-files.md#upstream-changes-labelled-for-adaptation)).
+
 ## Design commitments (do not re-litigate casually)
 
 - Base pin is upstream cslib `main` at a SHA; never a fork.
@@ -452,6 +467,9 @@ deprecated shim ([details](policy/build-and-files.md#staying-current-with-upstre
   The tidy computability calculus is being deleted (#862); tidiness survives only as a machine-level
   kernel inside the Machines layer, used inside proofs of plain rules.
 - Programs are `PFunctor.FreeM` values; a machine's clocked run is itself a program.
+- Running times are Word-RAM or multi-tape Turing-machine theorems. `TimeM` is permanently
+  removed and forbidden (#7636, #6301; enforced by `scripts/check_timem.py`): its ticks are
+  unchecked annotations ([Running-time claims](policy/statements.md#running-time-claims)).
 - The universal machine is an interpreter program certified by the calculus, not a hand-built
   machine.
 - Do not cite the unpublished draft "A Small Calculus of Finite Computation" in source or PR text.

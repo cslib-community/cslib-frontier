@@ -26,7 +26,6 @@ private def count (p : Context × List (List Bool)) : ℕ :=
 
 private theorem count_polyTime :
     ComputableInPolyTime count (encPair encContext (encList encBits)) encNat := by
-  refine .of_tidy ?_
   unfold count encContext
   fun_prop
 

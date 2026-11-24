@@ -17,9 +17,10 @@ Given a graph `G` with a rooted tree decomposition `R : G.RootedTreeDecompositio
 weights `w : V → ℕ`, the dynamic program `mwisValue R w` is the maximum total weight of an
 independent set of `G`. This module is the specification: it defines the program with `Finset`
 tables and proves it correct. The executable program `mwisFPT` of
-`CslibFrontier.Algorithms.Lean.TreeDecomposition.IndependentSetFPT` materializes the tables, returns
-`mwisValue R w` (`ret_mwisFPT`) and charges its ticks inside the loops that do the work
-(`time_mwisFPT_le`).
+`CslibFrontier.Algorithms.Lean.TreeDecomposition.IndependentSetFPT` materializes the tables as
+bit-mask-indexed arrays and computes `mwisValue R w` (`mwisFPT_eq_mwisValue`);
+`CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet` realizes the algorithm on the
+Word-RAM with an explicit FPT instruction bound.
 
 The program processes the nodes in decreasing order, so every child is handled before its
 parent. Node `i` keeps a table indexed by the subsets `S` of its bag. Once all children of `i`

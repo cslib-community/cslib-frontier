@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalInvariant
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Shared native initialization of a Chan–He root
@@ -53,7 +54,8 @@ theorem initializeRoot_exec {a : Arena} {w : ℕ} (x : Data 128) (e : Entry)
   have h1 : Fits w 1 := h2.of_le (by decide)
   have hp : Exec (B := .standard) w
       (ram[ zero ← #0; one ← #1; ptr ← stackBase; len ← #0 ]) x p 4 := by
-    ram_eval [p, ptr, len, zero, one, registers, WordStack.ptr, WordStack.len, stackBase, h1]
+    dsimp only [p, ptr, len]
+    wram_exec
   have pmeta (i : Fin 128) (hi : Outside i) : p.regs i = x.regs i := by
     have hne (j : Fin 9) : i ≠ registers j := by
       intro he

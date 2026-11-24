@@ -64,12 +64,13 @@ example {ct : List Bool}
 
 /-! ### The notion -/
 
-/-- `SymmetricCipher.INDCPA` of `prfCipher` is `SymmetricINDCPAOn` on `n`-bit pairs. -/
+/-- `SymmetricCipher.INDCPA` of `prfCipher` is, by definition, `SymmetricINDCPAOn` on `n`-bit
+pairs. -/
 example {family : List Bool → List Bool → List Bool} (hprf : PseudorandomFunction family) :
     SymmetricINDCPAOn (fun n m₀ m₁ => (m₀.length == n) && (m₁.length == n))
       (prfCipher family hprf.polyTime hprf.length_eq).keyGen
       (prfCipher family hprf.polyTime hprf.length_eq).encrypt :=
-  (SymmetricCipher.indcpa_iff _).mp hprf.indcpa_prfCipher
+  hprf.indcpa_prfCipher
 
 /-! ### A querying adversary -/
 
@@ -96,7 +97,7 @@ public theorem isOraclePPT_oneBlockAdversary : IsOraclePPT encBool oneBlockAdver
       (encPair (encPair encUnary encBits) encBits) encBool := by
     polytime
   unfold oneBlockAdversary
-  exact ((IsOraclePPTOn.query_take' () hrequest hlimit).map_with' hout).isOraclePPT
+  exact ((IsOraclePPTOn.query_take () hrequest hlimit).map_with hout).isOraclePPT
 
 /-- The adversary makes one request. -/
 public theorem isQueryBounded_oneBlockAdversary (n : ℕ) :
@@ -124,11 +125,13 @@ example {family : List Bool → List Bool → List Bool}
       (ProbComp.eval (symmetricCPAGameOn blockPairValid BitString.sampleList
         (ctrWordEncrypt family) oneBlockAdversary true 16)) : ℝ) ≤
       (Game.advantage
-        (ProbComp.eval (prfRealGame family (ctrToPrfDistinguisher oneBlockAdversary false) 16))
-        (ProbComp.eval (prfIdealGame (ctrToPrfDistinguisher oneBlockAdversary false) 16)) : ℝ) +
+        (ProbComp.eval (prfRealGame id family (ctrToPrfDistinguisher oneBlockAdversary false) 16))
+        (ProbComp.eval
+          (prfIdealGame id id (ctrToPrfDistinguisher oneBlockAdversary false) 16)) : ℝ) +
       (Game.advantage
-        (ProbComp.eval (prfRealGame family (ctrToPrfDistinguisher oneBlockAdversary true) 16))
-        (ProbComp.eval (prfIdealGame (ctrToPrfDistinguisher oneBlockAdversary true) 16)) : ℝ) +
+        (ProbComp.eval (prfRealGame id family (ctrToPrfDistinguisher oneBlockAdversary true) 16))
+        (ProbComp.eval
+          (prfIdealGame id id (ctrToPrfDistinguisher oneBlockAdversary true) 16)) : ℝ) +
       2 * (((1 : ℕ) : ℝ) * ((50 : ℕ) : ℝ)) ^ 2 / 2 ^ 16 :=
   advantage_ctrWordCPAGame_le hlen oneBlockAdversary (isQueryBounded_oneBlockAdversary 16)
     (queriesSatisfy_oneBlockAdversary 16) (by norm_num)

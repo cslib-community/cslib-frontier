@@ -10,24 +10,25 @@ module
 public import CslibFrontier.Crypto.Computational.FuzzyExtractor.DecodeThenExtract
 public import CslibFrontier.Crypto.Computational.LWE.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Matrix.Binary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.UniformNat.Residue
+import CslibFrontier.Tactic.PPT
 import Mathlib.Algebra.BigOperators.Fin
 
 /-!
-# Asymptotic security of the LWE fuzzy extractor
+# Asymptotic security of the LWE fuzzy extractor at power-of-two modulus
 
 Fuller, Meng and Reyzin's LWE fuzzy extractor `lweFuzzyExtractor` ([FullerMengReyzin2020]) uses
 the noisy reading `w` as the error of an LWE sample. Its secret has `k + l` coordinates, of which
 the first `k` are the key. This module makes it a family in the security parameter `κ`, with `m κ`
 samples, key length `k κ`, `l κ` further secret coordinates and modulus `2 ^ w κ`, and proves it
-secure from decision LWE in dimension `l κ` whose error law is the source itself.
+secure from `DecisionLWEWithErrors`, decision LWE in dimension `l κ` whose error law is the source
+itself, an assumption novel to this library. This is a step toward the security part of
+[FullerMengReyzin2020] Theorem 4.11, not that theorem: see "Deviations and limitations".
 
 A distinguisher family reads the security parameter in unary, the key, and the helper matrix
 `[c | A]`, each residue as `w κ` binary digits (`LWEFamily.encInput`). It is admissible when one
@@ -59,16 +60,22 @@ program has the same output law as the typed reduction.
 * `Cslib.Crypto.FuzzyExtractor.LWEFamily.isPPT_keyReduction`,
   `Cslib.Crypto.FuzzyExtractor.LWEFamily.isPPT_uniformReduction`: strict PPT certificates for the
   reductions, from the distinguisher's certificate.
-* `Cslib.Crypto.FuzzyExtractor.computationallySecure_lweFuzzyExtractor`: under
-  `DecisionLWEWithErrors l m w source` for every source ensemble in `sources`, the family is
-  `ComputationallySecure` for `sources` against PPT distinguishers.
+* `Cslib.Crypto.FuzzyExtractor.computationallySecure_lweFuzzyExtractor_of_decisionLWEWithErrors`:
+  under `DecisionLWEWithErrors l m w source` for every source ensemble in `sources`, the family is
+  `ComputationallySecure` for `sources` against PPT distinguishers. It is a step toward the
+  security part of Theorem 4.11 at power-of-two modulus, not that theorem.
 
 ## Deviations and limitations
 
-* The modulus is `2 ^ w κ`, the modulus of the library's typed decision LWE (`DecisionLWE`). The
+* The modulus is `2 ^ w κ`, the modulus of the library's typed decision LWE (`DecisionLWE`).
+  Construction 4.1 needs a prime `q` (p. 11 of the ePrint revision of June 23, 2020), and
+  `2 ^ w κ` is prime only when `w κ = 1`, so apart from modulus `2` this module covers no instance
+  of [FullerMengReyzin2020] Theorem 4.11. That theorem at a prime modulus stays open (#5293). The
   fixed-parameter results in `DecodeThenExtract` allow any modulus `q`.
-* The assumption is LWE with the source as its error law. Its hardness for particular sources is
-  not proved here.
+* The assumption is `DecisionLWEWithErrors`, LWE with the source as its error law at modulus
+  `2 ^ w κ`, in dimension `l` (FMR's `n - k`, as in Lemma 4.7). It is novel to this library: it
+  has the form of FMR's Definition 4.5, but outside that definition's range of prime moduli. Its
+  hardness for particular sources is not proved here.
 * The efficiency of the honest `Gen` and `Rep` is not certified; `Rep` runs an arbitrary decoder,
   whose correctness is a hypothesis in `DecodeThenExtract` (`DecoderCorrectWithError`).
 * Distinguishers are uniform strict PPT programs. Non-uniform, circuit-size formulations are not
@@ -224,16 +231,11 @@ private def helperWordOf (m k l w : ℕ) (lweWord : List Bool) (a : List (List �
       (List.range l).flatMap fun j =>
         BitString.lowBits w (Cslib.Matrix.binaryEntry (l + 1) w lweWord i (j + 1))
 
-private theorem lowBits_eq_ofFn_val (w x : ℕ) :
-    BitString.lowBits w x =
-      List.ofFn fun t : Fin w => (x : ZMod (2 ^ w)).val.testBit t.val := by
-  rw [← BitString.lowBits_val_natCast, BitString.lowBits_eq_ofFn]
-
 private theorem keyWord_coinVector (k w : ℕ) (keyCoins : List ℕ) :
     keyWord (coinVector k w keyCoins) = keyWordOf k w keyCoins := by
   simp only [keyWord, keyWordOf, Cslib.Matrix.toBinary_eq, _root_.Matrix.of_apply,
     List.ofFn_succ, List.ofFn_zero, List.flatten_cons, List.flatten_nil, List.append_nil,
-    List.flatMap_def, List.map_range_eq_ofFn, coinVector, lowBits_eq_ofFn_val]
+    List.flatMap_def, List.map_range_eq_ofFn, coinVector, BitString.lowBits_eq_ofFn_val]
 
 private theorem helperWord_reductionInput (x : LWE.Input l m w) (a : List (List ℕ))
     (b keyCoins : List ℕ) :
@@ -241,15 +243,8 @@ private theorem helperWord_reductionInput (x : LWE.Input l m w) (a : List (List 
       helperWordOf (m x.secParam) (k x.secParam) (l x.secParam) (w x.secParam)
         (Cslib.Matrix.toBinary (LWE.augmentedMatrix x.matrix x.target)) a b := by
   obtain ⟨κ, A₂, c₂⟩ := x
-  have hc (i : Fin (m κ)) : (Cslib.Matrix.binaryEntry (l κ + 1) (w κ)
-      (Cslib.Matrix.toBinary (LWE.augmentedMatrix A₂ c₂)) i.val 0 : ZMod (2 ^ w κ)) = c₂ i := by
-    simpa [LWE.augmentedMatrix] using
-      Cslib.Matrix.binaryEntry_toBinary (LWE.augmentedMatrix A₂ c₂) i 0
-  have hA (i : Fin (m κ)) (j : Fin (l κ)) : (Cslib.Matrix.binaryEntry (l κ + 1) (w κ)
-      (Cslib.Matrix.toBinary (LWE.augmentedMatrix A₂ c₂)) i.val (j.val + 1) : ZMod (2 ^ w κ)) =
-        A₂ i j := by
-    simpa [LWE.augmentedMatrix] using
-      Cslib.Matrix.binaryEntry_toBinary (LWE.augmentedMatrix A₂ c₂) i j.succ
+  have hc := LWE.binaryEntry_toBinary_augmentedMatrix_zero A₂ c₂
+  have hA := LWE.binaryEntry_toBinary_augmentedMatrix_succ A₂ c₂
   generalize Cslib.Matrix.toBinary (LWE.augmentedMatrix A₂ c₂) = word at hc hA ⊢
   simp only [helperWord, helperWordOf, reductionInput, Cslib.Matrix.toBinary_eq,
     List.flatMap_def, List.map_range_eq_ofFn]
@@ -258,7 +253,7 @@ private theorem helperWord_reductionInput (x : LWE.Input l m w) (a : List (List 
   funext i
   rw [List.ofFn_succ, List.ofFn_add, List.flatten_cons, List.flatten_append, List.append_assoc]
   simp only [LWE.augmentedMatrix, Fin.cons_zero, Fin.cons_succ, joinCols, _root_.Matrix.of_apply,
-    Fin.append_left', Fin.append_right, lowBits_eq_ofFn_val, Pi.add_apply,
+    Fin.append_left', Fin.append_right, BitString.lowBits_eq_ofFn_val, Pi.add_apply,
     _root_.Matrix.mulVec, dotProduct, coinMatrix, coinVector, Nat.cast_add, List.sum_ofFn,
     Nat.cast_sum, Nat.cast_mul, hc, hA]
 
@@ -285,10 +280,8 @@ private theorem computableInPolyTime_keyWordOf {k w : α → ℕ} {keyCoins : α
     (hcoins : ComputableInPolyTime keyCoins input (encList encNat)) :
     ComputableInPolyTime (fun a => keyWordOf (k a) (w a) (keyCoins a)) input encBits := by
   unfold keyWordOf
-  apply flatMapToBitsWithInput (range.comp hk)
-  apply bitsLow (hw.comp (fst input encUnary))
-  exact (listGetD (encA := encNat) 0).comp
-    ((hcoins.comp (fst input encUnary)).prod (snd input encUnary))
+  apply flatMapToBitsWithInput (by polytime)
+  polytime
 
 private theorem computableInPolyTime_helperWordOf {m k l w : α → ℕ} {lweWord : α → List Bool}
     {a : α → List (List ℕ)} {b : α → List ℕ}
@@ -300,54 +293,33 @@ private theorem computableInPolyTime_helperWordOf {m k l w : α → ℕ} {lweWor
     ComputableInPolyTime
       (fun x => helperWordOf (m x) (k x) (l x) (w x) (lweWord x) (a x) (b x)) input encBits := by
   unfold helperWordOf
-  apply flatMapToBitsWithInput (range.comp hm)
+  apply flatMapToBitsWithInput (by polytime)
   have hrow : ComputableInPolyTime (fun p : α × ℕ => (a p.1).getD p.2 [])
-      (encPair input encUnary) (encList encNat) :=
-    (listGetD (encA := encList encNat) []).comp
-      ((ha.comp (fst input encUnary)).prod (snd input encUnary))
+      (encPair input encUnary) (encList encNat) := by polytime
+  have hcell : ComputableInPolyTime
+      (fun q : (α × ℕ) × ℕ => ((a q.1.1).getD q.1.2 []).getD q.2 0)
+      (encPair (encPair input encUnary) encUnary) encNat :=
+    (listGetD (encA := encNat) 0).comp ((hrow.comp (fst _ encUnary)).prod (snd _ encUnary))
   refine bitsAppend (bitsAppend ?_ ?_) ?_
-  · apply bitsLow (hw.comp (fst input encUnary))
-    have hterm : ComputableInPolyTime
-        (fun q : (α × ℕ) × ℕ => ((a q.1.1).getD q.1.2 []).getD q.2 0 * (b q.1.1).getD q.2 0)
-        (encPair (encPair input encUnary) encUnary) encNat :=
-      binary_mul' ((listGetD (encA := encNat) 0).comp
-          ((hrow.comp (fst _ encUnary)).prod (snd _ encUnary)))
-        ((listGetD (encA := encNat) 0).comp
-          ((hb.comp ((fst input encUnary).comp (fst _ encUnary))).prod (snd _ encUnary)))
-    have hsum := (show ComputableInPolyTime List.sum (encList encNat) encNat by fun_prop).comp
-      (mapWithInput (f := fun p j => ((a p.1).getD p.2 []).getD j 0 * (b p.1).getD j 0)
-        (range.comp (hk.comp (fst input encUnary))) hterm)
-    exact binary_add' hsum (matrixBinaryEntry (by fun_prop) (hw.comp (fst input encUnary))
-      (hlweWord.comp (fst input encUnary)) (snd input encUnary) (const 0))
-  · apply flatMapToBitsWithInput (range.comp (hk.comp (fst input encUnary)))
-    apply bitsLow (hw.comp ((fst input encUnary).comp (fst _ encUnary)))
-    exact (listGetD (encA := encNat) 0).comp
-      ((hrow.comp (fst _ encUnary)).prod (snd _ encUnary))
-  · apply flatMapToBitsWithInput (range.comp (hl.comp (fst input encUnary)))
-    apply bitsLow (hw.comp ((fst input encUnary).comp (fst _ encUnary)))
-    exact matrixBinaryEntry (by fun_prop) (hw.comp ((fst input encUnary).comp (fst _ encUnary)))
-      (hlweWord.comp ((fst input encUnary).comp (fst _ encUnary)))
-      ((snd input encUnary).comp (fst _ encUnary)) (by fun_prop)
+  · apply bitsLow (by polytime)
+    have hsum : ComputableInPolyTime
+        (fun p : α × ℕ =>
+          ((List.range (k p.1)).map fun j => ((a p.1).getD p.2 []).getD j 0 * (b p.1).getD j 0).sum)
+        (encPair input encUnary) encNat :=
+      binary_sum.comp (mapWithInput (encA := encUnary) (by polytime)
+        (binary_mul' hcell (by polytime)))
+    exact binary_add' hsum (by polytime)
+  · exact flatMapToBitsWithInput (by polytime) (bitsLow (by polytime) hcell)
+  · apply flatMapToBitsWithInput (by polytime); polytime
 
 end PolyTime
 
 /-! ### Certificates for the reductions -/
 
-/-- The security parameter of an LWE input is computable in polynomial time from its encoding. -/
-private theorem computableInPolyTime_secParam :
-    ComputableInPolyTime (fun x : LWE.Input l m w => x.secParam) (LWE.encInput l m w) encUnary :=
-  (ComputableInPolyTime.fst encUnary encBits).comp
-    (ComputableInPolyTime.of_eq (f := LWE.Input.words) fun _ => rfl)
-
-/-- The LWE word of an input is computable in polynomial time from its encoding. -/
-private theorem computableInPolyTime_lweWord :
-    ComputableInPolyTime
-      (fun x : LWE.Input l m w => Cslib.Matrix.toBinary (LWE.augmentedMatrix x.matrix x.target))
-      (LWE.encInput l m w) encBits :=
-  (ComputableInPolyTime.snd encUnary encBits).comp
-    (ComputableInPolyTime.of_eq (f := LWE.Input.words) fun _ => rfl)
+attribute [local fun_prop] LWE.computableInPolyTime_secParam
 
 /-- Building the distinguisher input from an LWE input and coins is polynomial-time. -/
+@[local fun_prop]
 private theorem computableInPolyTime_reductionInput {β : Type} {enc : β ↪ List Bool}
     {x : β → LWE.Input l m w} {a : β → List (List ℕ)} {b keyCoins : β → List ℕ}
     (hm : ComputableInPolyTime m encUnary encUnary) (hk : ComputableInPolyTime k encUnary encUnary)
@@ -358,10 +330,12 @@ private theorem computableInPolyTime_reductionInput {β : Type} {enc : β ↪ Li
     (hkeyCoins : ComputableInPolyTime keyCoins enc (encList encNat)) :
     ComputableInPolyTime (fun q => reductionInput (k := k) (x q) (a q) (b q) (keyCoins q)) enc
       (encInput m k l w) := by
-  have hκ := computableInPolyTime_secParam.comp hx
-  have hword := computableInPolyTime_lweWord.comp hx
+  have hκ : ComputableInPolyTime (fun q => (x q).secParam) enc encUnary :=
+    LWE.computableInPolyTime_secParam.comp hx
+  have hword := LWE.computableInPolyTime_augmentedWord.comp hx
   refine ComputableInPolyTime.of_enc_eq
-    (hκ.prod ((computableInPolyTime_keyWordOf (hk.comp hκ) (hw.comp hκ) hkeyCoins).prod
+    (ComputableInPolyTime.prod hκ
+      ((computableInPolyTime_keyWordOf (hk.comp hκ) (hw.comp hκ) hkeyCoins).prod
       (computableInPolyTime_helperWordOf (hm.comp hκ) (hk.comp hκ) (hl.comp hκ) (hw.comp hκ)
         hword ha hb))) fun q => ?_
   change encPair encUnary (encPair encBits encBits) (reductionInput (x q) (a q) (b q)
@@ -403,22 +377,21 @@ private theorem eval_uniformReductionWords (D : Distinguisher m k l w) (x : LWE.
     ProbComp.eval_replicate_replicate_sampleBinaryNat, ProbComp.eval_replicate_sampleBinaryNat,
     PMF.bind_map, Function.comp_def, reductionInput, coinMatrix_ofFn, coinVector_ofFn]
 
+private theorem isPPTOn_sampleCoins {β : Type} {enc : β ↪ List Bool} {κ : β → ℕ}
+    (hκ : ComputableInPolyTime κ enc encUnary) (hk : ComputableInPolyTime k encUnary encUnary)
+    (hw : ComputableInPolyTime w encUnary encUnary) :
+    IsPPTOn enc (encList encNat) fun q => sampleCoins (k (κ q)) (w (κ q)) := by
+  ppt [sampleCoins]
+
 /-- Sampling the coins is strict PPT on LWE inputs. -/
 private theorem isPPTOn_sampleCoinRows (hm : ComputableInPolyTime m encUnary encUnary)
     (hk : ComputableInPolyTime k encUnary encUnary)
     (hw : ComputableInPolyTime w encUnary encUnary) :
     IsPPTOn (LWE.encInput l m w) (encList (encList encNat))
-      fun x => sampleCoinRows (m x.secParam) (k x.secParam) (w x.secParam) :=
-  ((hw.comp computableInPolyTime_secParam).sampleBinaryNat.replicate
-    (hk.comp computableInPolyTime_secParam)).replicate (hm.comp computableInPolyTime_secParam)
-
-/-- Sampling a coin vector is strict PPT for every input encoding with a polynomial-time security
-parameter. -/
-private theorem isPPTOn_sampleCoins {β : Type} {enc : β ↪ List Bool} {κ : β → ℕ}
-    (hκ : ComputableInPolyTime κ enc encUnary) (hk : ComputableInPolyTime k encUnary encUnary)
-    (hw : ComputableInPolyTime w encUnary encUnary) :
-    IsPPTOn enc (encList encNat) fun q => sampleCoins (k (κ q)) (w (κ q)) :=
-  (hw.comp hκ).sampleBinaryNat.replicate (hk.comp hκ)
+      fun x => sampleCoinRows (m x.secParam) (k x.secParam) (w x.secParam) := by
+  have hcoins := isPPTOn_sampleCoins (enc := LWE.encInput l m w)
+    LWE.computableInPolyTime_secParam hk hw
+  ppt [sampleCoinRows]
 
 /-- **`keyReduction` is PPT.** When `m, k, l, w` are computable in polynomial time in unary, the
 real-key reduction of a PPT distinguisher family is a uniform strict PPT LWE distinguisher. -/
@@ -428,24 +401,11 @@ theorem isPPT_keyReduction (hm : ComputableInPolyTime m encUnary encUnary)
     (hw : ComputableInPolyTime w encUnary encUnary)
     {D : Distinguisher m k l w} (hD : D.IsPPT) : (keyReduction D).IsPPT := by
   let encA := encPair (LWE.encInput l m w) (encList (encList encNat))
-  have hκ : ComputableInPolyTime (fun p : LWE.Input l m w × List (List ℕ) => p.1.secParam)
-      encA encUnary :=
-    computableInPolyTime_secParam.comp (ComputableInPolyTime.fst _ _)
-  have hinput := computableInPolyTime_reductionInput hm hk hl hw
-    (x := fun q : (LWE.Input l m w × List (List ℕ)) × List ℕ => q.1.1)
-    (a := fun q => q.1.2) (b := fun q => q.2) (keyCoins := fun q => q.2)
-    ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _))
-    ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _))
-    (ComputableInPolyTime.snd _ _) (ComputableInPolyTime.snd _ _)
-  have hrun := hD.preprocess hinput
-  have hb := (isPPTOn_sampleCoins hκ hk hw).bind_with (second := fun p b =>
-    let y := reductionInput p.1 p.2 b b
-    D y.secParam y.key y.helper) hrun
-  have hall := (isPPTOn_sampleCoinRows (l := l) hm hk hw).bind_with (second := fun x a => do
-    let b ← sampleCoins (k x.secParam) (w x.secParam)
-    let y := reductionInput x a b b
-    D y.secParam y.key y.helper) hb
-  exact hall.congr (eval_keyReductionWords D)
+  have hrun := hD.preprocess (input := encPair encA (encList encNat))
+    (prepare := fun q => reductionInput q.1.1 q.1.2 q.2 q.2) (by polytime)
+  exact ((isPPTOn_sampleCoinRows (l := l) hm hk hw).bind_with
+    ((isPPTOn_sampleCoins (enc := encA) (by polytime) hk hw).bind_with hrun)).congr
+    (eval_keyReductionWords D)
 
 /-- **`uniformReduction` is PPT.** When `m, k, l, w` are computable in polynomial time in unary,
 the uniform-key reduction of a PPT distinguisher family is a uniform strict PPT LWE
@@ -457,54 +417,39 @@ theorem isPPT_uniformReduction (hm : ComputableInPolyTime m encUnary encUnary)
     {D : Distinguisher m k l w} (hD : D.IsPPT) : (uniformReduction D).IsPPT := by
   let encA := encPair (LWE.encInput l m w) (encList (encList encNat))
   let encB := encPair encA (encList encNat)
-  have hκA : ComputableInPolyTime (fun p : LWE.Input l m w × List (List ℕ) => p.1.secParam)
-      encA encUnary :=
-    computableInPolyTime_secParam.comp (ComputableInPolyTime.fst _ _)
-  have hκB : ComputableInPolyTime
-      (fun p : (LWE.Input l m w × List (List ℕ)) × List ℕ => p.1.1.secParam) encB encUnary :=
-    hκA.comp (ComputableInPolyTime.fst _ _)
-  have hinput := computableInPolyTime_reductionInput hm hk hl hw
-    (x := fun q : ((LWE.Input l m w × List (List ℕ)) × List ℕ) × List ℕ => q.1.1.1)
-    (a := fun q => q.1.1.2) (b := fun q => q.1.2) (keyCoins := fun q => q.2)
-    (((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)).comp
-      (ComputableInPolyTime.fst _ _))
-    (((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)).comp
-      (ComputableInPolyTime.fst _ _))
-    ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _))
-    (ComputableInPolyTime.snd _ _)
-  have hrun := hD.preprocess hinput
-  have hr := (isPPTOn_sampleCoins hκB hk hw).bind_with (second := fun p r =>
-    let y := reductionInput p.1.1 p.1.2 p.2 r
-    D y.secParam y.key y.helper) hrun
-  have hb := (isPPTOn_sampleCoins hκA hk hw).bind_with (second := fun p b => do
-    let r ← sampleCoins (k p.1.secParam) (w p.1.secParam)
-    let y := reductionInput p.1 p.2 b r
-    D y.secParam y.key y.helper) hr
-  have hall := (isPPTOn_sampleCoinRows (l := l) hm hk hw).bind_with (second := fun x a => do
-    let b ← sampleCoins (k x.secParam) (w x.secParam)
-    let r ← sampleCoins (k x.secParam) (w x.secParam)
-    let y := reductionInput x a b r
-    D y.secParam y.key y.helper) hb
-  exact hall.congr (eval_uniformReductionWords D)
+  have hrun := hD.preprocess (input := encPair encB (encList encNat))
+    (prepare := fun q => reductionInput q.1.1.1 q.1.1.2 q.1.2 q.2) (by polytime)
+  exact ((isPPTOn_sampleCoinRows (l := l) hm hk hw).bind_with
+    ((isPPTOn_sampleCoins (enc := encA) (by polytime) hk hw).bind_with
+      ((isPPTOn_sampleCoins (enc := encB) (by polytime) hk hw).bind_with hrun))).congr
+    (eval_uniformReductionWords D)
 
 end LWEFamily
 
 /-! ### Asymptotic security -/
 
-/-- **Asymptotic security of the LWE fuzzy extractor** ([FullerMengReyzin2020]). Let
-`m, k, l, w` be computable in polynomial time in unary, and let `sources` be a set of source
-ensembles such that, for every `source ∈ sources`, decision LWE in dimension `l κ` with `m κ`
-samples, modulus `2 ^ w κ` and error law `source κ` holds against uniform strict PPT
-distinguishers (`DecisionLWEWithErrors l m w source`). Then the family
+/-- A step toward the security part of [FullerMengReyzin2020] Theorem 4.11 at power-of-two
+modulus, not that theorem: after Fuller, Meng and Reyzin, the LWE fuzzy extractor at modulus
+`2 ^ w κ` is asymptotically secure from `DecisionLWEWithErrors`. Let `m, k, l, w` be computable in
+polynomial time in unary, and let `sources` be a set of source ensembles such that, for every
+`source ∈ sources`, decision LWE in dimension `l κ` with `m κ` samples, modulus `2 ^ w κ` and
+error law `source κ` holds against uniform strict PPT distinguishers
+(`DecisionLWEWithErrors l m w source`, an assumption novel to this library). Then the family
 `κ ↦ lweFuzzyExtractor (m κ) (k κ) (l κ) (2 ^ w κ) (decode κ)` is `ComputationallySecure` for
 `sources` against uniform strict PPT distinguisher families: on each source ensemble, the key is
 indistinguishable from uniform given the helper.
+
+Theorem 4.11 is about Construction 4.1, which needs a prime `q` (p. 11 of the ePrint revision of
+June 23, 2020), and assumes Definition 4.5 at a prime `q = poly(n, m)` that it sets. Since
+`2 ^ w κ` is prime only when `w κ = 1`, apart from modulus `2` this covers no instance of
+Theorem 4.11, and FMR's prime-modulus assumption is not proved or cited to imply
+`DecisionLWEWithErrors`. Theorem 4.11 at a prime modulus stays open (#5293).
 
 The proof bounds the advantage at each `κ` by the LWE advantages of `LWEFamily.keyReduction D`
 and `LWEFamily.uniformReduction D` (`securityAdvantage_lweFuzzyExtractor_le`), which are PPT by
 `LWEFamily.isPPT_keyReduction` and `LWEFamily.isPPT_uniformReduction`. The decoder affects only
 correctness. -/
-theorem computationallySecure_lweFuzzyExtractor {m k l w : ℕ → ℕ}
+theorem computationallySecure_lweFuzzyExtractor_of_decisionLWEWithErrors {m k l w : ℕ → ℕ}
     (hm : ComputableInPolyTime m encUnary encUnary)
     (hk : ComputableInPolyTime k encUnary encUnary)
     (hl : ComputableInPolyTime l encUnary encUnary)

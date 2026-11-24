@@ -44,24 +44,39 @@ value (`BitString.influence_signVal_ne_zero_iff`), and the total influence is th
 of bits whose flip changes the value, the *average sensitivity* (`BitString.totalInfluence_signVal`)
 [O'Donnell, Sections 2.2 and 2.3][ODonnell2014].
 
+The *gradient* `∇f(x)` is the vector of derivatives at `x` (`BitString.gradient`), and the total
+influence is the mean squared norm of the gradient
+(`BitString.totalInfluence_eq_expect_sum_gradient_sq`)
+[O'Donnell, Definition 2.34 and Proposition 2.35][ODonnell2014]; for a Boolean function read as
+signs the squared norm at `x` is the number of bits whose flip changes the value
+(`BitString.sum_gradient_signVal_sq`).
+
 ## Main definitions
 
 * `Cslib.BitString.derivative`: the derivative in a coordinate.
 * `Cslib.BitString.influence`: the influence of a coordinate.
 * `Cslib.BitString.totalInfluence`: the total influence.
+* `Cslib.BitString.gradient`: the gradient.
 
 ## Main results
 
 * `Cslib.BitString.derivative_chi`, `Cslib.BitString.fourierCoeff_derivative`: the derivative of
   a character, and the Fourier coefficients of a derivative.
+* `Cslib.BitString.derivative_comp_arrowCongr`: the derivative commutes with renaming the
+  coordinates.
 * `Cslib.BitString.influence_eq_sum_fourierCoeff_sq`: the influence of `i` is the Fourier weight
   on the sets containing `i`.
 * `Cslib.BitString.influence_signVal`, `Cslib.BitString.influence_signVal_eq_dens`: the influence
   on a Boolean function is the probability that a flip changes its value.
 * `Cslib.BitString.influence_signVal_ne_zero_iff`: a coordinate has nonzero influence on a Boolean
   function exactly when flipping it changes the value on some input.
+* `Cslib.BitString.influence_comp_arrowCongr`: renaming the coordinates renames the influences.
 * `Cslib.BitString.totalInfluence_eq_sum_card_mul_fourierCoeff_sq`: the spectral formula for the
   total influence.
+* `Cslib.BitString.totalInfluence_eq_expect_sum_gradient_sq`: the total influence is the mean
+  squared norm of the gradient.
+* `Cslib.BitString.sum_gradient_signVal_sq`: for a Boolean function read as signs, the squared
+  norm of the gradient is the sensitivity.
 * `Cslib.BitString.totalInfluence_signVal`: the total influence of a Boolean function is the
   expected number of sensitive coordinates, for an arbitrary finite coordinate type.
 * `Cslib.BitString.expect_sub_expect_sq_eq_sum_fourierCoeff_sq`: the variance is the Fourier
@@ -109,13 +124,6 @@ theorem derivative_chi (i : ι) (S : Finset ι) (x : ι → Bool) :
     ring
   · rw [derivative, chi_update_of_notMem hi, chi_update_of_notMem hi, sub_self, zero_div]
 
-/-- Changing bit `i` of `x` gives the two points with bit `i` set to `false` and to `true`. -/
-private theorem update_false_true_eq (f : (ι → Bool) → Bool) (i : ι) (x : ι → Bool) :
-    (f (update x i false) = f (update x i true)) ↔ f (update x i !x i) = f x := by
-  cases h : x i
-  · rw [show update x i false = x from update_eq_self_iff.2 h.symm, Bool.not_false, eq_comm]
-  · rw [show update x i true = x from update_eq_self_iff.2 h.symm, Bool.not_true]
-
 /-- The derivative of a Boolean function read as signs takes the values `0` and `±1`, so its
 square is its absolute value. -/
 theorem sq_derivative_signVal (f : (ι → Bool) → Bool) (i : ι) (x : ι → Bool) :
@@ -127,8 +135,25 @@ theorem sq_derivative_signVal (f : (ι → Bool) → Bool) (i : ι) (x : ι → 
 bit `i` changes the value. -/
 theorem derivative_signVal_ne_zero_iff (f : (ι → Bool) → Bool) (i : ι) (x : ι → Bool) :
     derivative i (fun x => signVal (f x)) x ≠ 0 ↔ f (update x i !x i) ≠ f x := by
-  rw [ne_eq, ne_eq, ← update_false_true_eq, derivative]
+  rw [ne_eq, ne_eq, ← apply_update_false_eq_apply_update_true_iff, derivative]
   cases f (update x i false) <;> cases f (update x i true) <;> norm_num
+
+/-- The squared derivative of a Boolean function read as signs is `1` where flipping bit `i`
+changes the value and `0` elsewhere. -/
+theorem sq_derivative_signVal_eq_ite (f : (ι → Bool) → Bool) (i : ι) (x : ι → Bool) :
+    derivative i (fun x => signVal (f x)) x ^ 2 = if f (update x i !x i) = f x then 0 else 1 := by
+  rw [derivative, ← if_congr (apply_update_false_eq_apply_update_true_iff f i x) rfl rfl]
+  cases f (update x i false) <;> cases f (update x i true) <;> norm_num
+
+/-- The derivative commutes with renaming the coordinates: differentiating `g` with its
+coordinates renamed by `e` in `i` is differentiating `g` in `e i`. -/
+theorem derivative_comp_arrowCongr {κ : Type*} [DecidableEq κ] (e : ι ≃ κ) (i : ι)
+    (g : (κ → Bool) → ℝ) (x : ι → Bool) :
+    derivative i (fun y : ι → Bool => g fun j => y (e.symm j)) x =
+      derivative (e i) g fun j => x (e.symm j) := by
+  simp only [derivative, ← comp_apply (f := update x i _), update_comp_equiv x e.symm,
+    Equiv.symm_symm]
+  rfl
 
 variable [Fintype ι]
 
@@ -182,6 +207,14 @@ theorem influence_le_expect_sq (i : ι) (f : (ι → Bool) → ℝ) :
   rw [influence_eq_sum_fourierCoeff_sq, expect_sq_eq_sum_fourierCoeff_sq]
   exact sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun _ _ _ => sq_nonneg _
 
+/-- **Relabelling the coordinates relabels the influences**: renaming the coordinates of `g` by
+`e`, the influence of `i` is the influence of `e i` on `g`. -/
+theorem influence_comp_arrowCongr {κ : Type*} [Fintype κ] [DecidableEq κ] (e : ι ≃ κ) (i : ι)
+    (g : (κ → Bool) → ℝ) :
+    influence i (fun y : ι → Bool => g fun j => y (e.symm j)) = influence (e i) g := by
+  simp only [influence, derivative_comp_arrowCongr]
+  exact Fintype.expect_comp_arrowCongr e fun y => derivative (e i) g y ^ 2
+
 /-- The influence of `i` on a character is one if `i` is in its set, and zero otherwise. -/
 theorem influence_chi (i : ι) (S : Finset ι) :
     influence i (chi ℝ S) = if i ∈ S then 1 else 0 := by
@@ -196,10 +229,8 @@ theorem influence_chi (i : ι) (S : Finset ι) :
 `i` changes the value [O'Donnell, Section 2.2][ODonnell2014]. -/
 theorem influence_signVal (i : ι) (f : (ι → Bool) → Bool) :
     influence i (fun x => signVal (f x)) =
-      𝔼 x, if f (update x i !x i) = f x then 0 else 1 := by
-  refine expect_congr rfl fun x _ => ?_
-  rw [derivative, ← if_congr (update_false_true_eq f i x) rfl rfl]
-  cases f (update x i false) <;> cases f (update x i true) <;> norm_num
+      𝔼 x, if f (update x i !x i) = f x then 0 else 1 :=
+  expect_congr rfl fun x _ => sq_derivative_signVal_eq_ite f i x
 
 /-- The influence of `i` on a Boolean function read as signs is the density of the points where
 its derivative in `i` is nonzero. -/
@@ -240,13 +271,34 @@ theorem totalInfluence_eq_sum_card_mul_fourierCoeff_sq (f : (ι → Bool) → �
   refine sum_congr rfl fun S _ => ?_
   rw [sum_ite_mem, univ_inter, sum_const, nsmul_eq_mul]
 
+/-- The *gradient* of `f` at `x`: the vector of its derivatives `(D₁ f(x), …, Dₙ f(x))`
+[O'Donnell, Definition 2.34][ODonnell2014]. Its squared Euclidean norm `‖∇f(x)‖₂²` is written
+`∑ i, gradient f x i ^ 2`; the norm of `ι → ℝ` is the sup norm. -/
+noncomputable def gradient (f : (ι → Bool) → ℝ) (x : ι → Bool) : ι → ℝ :=
+  fun i => derivative i f x
+
+/-- **The total influence is the mean squared norm of the gradient**: `I[f] = E[‖∇f(x)‖₂²]`
+[O'Donnell, Proposition 2.35][ODonnell2014]. -/
+theorem totalInfluence_eq_expect_sum_gradient_sq (f : (ι → Bool) → ℝ) :
+    totalInfluence f = 𝔼 x, ∑ i, gradient f x i ^ 2 := by
+  simp only [totalInfluence, influence, gradient]
+  exact (expect_sum_comm _ _ _).symm
+
+/-- For a Boolean function read as signs, the squared norm of the gradient at `x` is the
+*sensitivity* of `f` at `x`, the number of bits whose flip changes the value
+[O'Donnell, remark after Definition 2.34][ODonnell2014]. -/
+theorem sum_gradient_signVal_sq (f : (ι → Bool) → Bool) (x : ι → Bool) :
+    ∑ i, gradient (fun x => signVal (f x)) x i ^ 2 =
+      #{i | f (Function.update x i (!x i)) ≠ f x} := by
+  simp only [gradient, sq_derivative_signVal_eq_ite, natCast_card_filter, ite_not]
+
 /-- **The total influence of a Boolean function** read as signs is its *average sensitivity*: the
-expected number of bits whose flip changes the value [O'Donnell, Section 2.3][ODonnell2014]. -/
+expected number of bits whose flip changes the value
+[O'Donnell, Proposition 2.28][ODonnell2014]. -/
 theorem totalInfluence_signVal (f : (ι → Bool) → Bool) :
     totalInfluence (fun x => signVal (f x)) =
       𝔼 x, (#{i | f (Function.update x i (!x i)) ≠ f x} : ℝ) := by
-  simp only [totalInfluence, influence_signVal, natCast_card_filter, ite_not]
-  exact (expect_sum_comm _ _ _).symm
+  simp only [totalInfluence_eq_expect_sum_gradient_sq, sum_gradient_signVal_sq]
 
 /-- A character has total influence the size of its set. -/
 theorem totalInfluence_chi (S : Finset ι) : totalInfluence (chi ℝ S) = #S := by

@@ -14,6 +14,11 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.Route
 
 The one-segment constructor and simplicity criterion connect finite route data to
 Mathlib's actual real affine segment. In particular a one-segment loop is not simple.
+
+## Main results
+
+* `Cslib.Polygonal.Route.support_line`: a one-segment route has exactly the actual real segment
+  as its continuous support.
 -/
 
 public section
@@ -37,6 +42,16 @@ theorem eval_line (a b : ℂ) (i : Fin (line a b).segments) (t : ℝ) :
   have hi : i = (0 : Fin 1) := Subsingleton.elim (α := Fin 1) _ _
   subst i
   rfl
+
+/-- The full continuous support of a single-segment route is its actual real segment. -/
+theorem support_line (a b : ℂ) : (line a b).support = segment ℝ a b := by
+  ext z
+  rw [(Route.line a b).mem_support_iff, segment_eq_image_lineMap]
+  constructor
+  · rintro ⟨i, t, ht, heq⟩
+    exact ⟨t, ht, (Route.eval_line a b i t).symm.trans heq⟩
+  · rintro ⟨t, ht, heq⟩
+    exact ⟨0, t, ht, (Route.eval_line a b 0 t).trans heq⟩
 
 /-- A segment joining distinct points is a simple polygonal route. -/
 theorem isSimple_line {a b : ℂ} (hab : a ≠ b) : (line a b).IsSimple := by

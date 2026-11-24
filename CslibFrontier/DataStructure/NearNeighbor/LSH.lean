@@ -13,6 +13,7 @@ import CslibFrontier.Probability.EventCount
 import CslibFrontier.Probability.IID.Event
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Markov
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Approximate near neighbours by locality-sensitive hashing
@@ -261,11 +262,9 @@ theorem toOuterMeasure_query_eq_none_le [DecidableEq Y] {far : X → X → Prop}
       ν.toOuterMeasure {i | g i x₀ = g i q}ᶜ ^ L + L * (P.length * ENNReal.ofReal P₂) / T :=
     (MeasureTheory.measure_mono hsub).trans
       ((MeasureTheory.measure_union_le A B).trans (by rw [hA]; exact add_le_add le_rfl hB))
-  refine (ENNReal.toReal_le_add hle (ENNReal.pow_ne_top (PMF.toOuterMeasure_ne_top _ _))
-    hBfin).trans ?_
-  rw [ENNReal.toReal_pow, hcompl, ENNReal.toReal_div, ENNReal.toReal_mul, ENNReal.toReal_mul,
-    ENNReal.toReal_natCast, ENNReal.toReal_natCast, ENNReal.toReal_natCast,
-    ENNReal.toReal_ofReal hP₂, ← mul_assoc]
+  ennreal_to_real at hle
+  refine hle.trans ?_
+  rw [hcompl, ← mul_assoc]
   have h1 : 0 ≤ 1 - collisionProb ν g x₀ q := sub_nonneg.2 (collisionProb_le_one _ _ _ _)
   gcongr
 

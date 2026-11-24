@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.State
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.Expand
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.FullLeaf
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete charged native frontier step
@@ -50,17 +51,13 @@ theorem exec_step {w L m t AA BB D V K F A B : ℕ} (x : Data registers)
   have hT : 10 ^ L ≤ (L + 1) * 10 ^ L := Nat.le_mul_of_pos_left _ (by omega)
   have hquery := (PrunedQuery.queryIndex η).isLt
   have hVK : V + (boxes L m t).card ≤ F := by rw [← hK]; omega
-  obtain ⟨htask, hrest⟩ := hx.stack.pop
-  obtain ⟨u, hu, un, uk, uc, uu, ue, upow, um, uf⟩ := exec_pop
-    (F := F) (n := rest.length) x hp.stack (by simpa only [List.length_cons] using hx.top)
-    hp.five hp.one htask.depth htask.code htask.used htask.stars htask.power
-    (hfit.of_le (by unfold queryAddressBound; omega))
+  obtain ⟨u, hu, un, ustack, uk, uc, uu, ue, upow, um, uf⟩ :=
+    hx.stack.exec_pop hp.stack (by simpa only [List.length_cons] using hx.top)
+      hp.five hp.one (hfit.of_le (by unfold queryAddressBound; omega))
   have up := hp.after_pop hu
-  have ustack : StackMemory η F rest u.mem := by simpa only [um] using hrest
   have utable : Readback m t D V AA BB a b u.mem := by simpa only [um] using hx.table
   have uanswer : u.regs Reg.answer = Signed.encode
-      ((finished.map (leafQueryValue m t η a b)).sum) :=
-    (uf _ (by decide)).trans hx.answer
+      ((finished.map (leafQueryValue m t η a b)).sum) := by regs_frame
   by_cases hk : xs.length < L
   · have hpowle : 10 ^ (xs.length + 1) ≤ 10 ^ L :=
       Nat.pow_le_pow_right (by decide) (by omega)
@@ -80,7 +77,7 @@ theorem exec_step {w L m t AA BB D V K F A B : ℕ} (x : Data registers)
         (children η t xs ++ rest) y := by
       refine ⟨hp.after_body he, hx.frontier.expand hk, ?_, ystack, ?_, ?_⟩
       · simpa only [List.length_append, Nat.add_comm] using yn
-      · exact (yf _ (by decide)).trans uanswer
+      · regs_frame
       · exact hx.table.transport hAA hBB hD hVK (fun q hq => hframe q (by omega))
     refine ⟨y, finished, children η t xs ++ rest, he, hready, ?_, hframe⟩
     rw [hready.work_eq, hx.work_eq]
@@ -103,7 +100,7 @@ theorem exec_step {w L m t AA BB D V K F A B : ℕ} (x : Data registers)
       exact hf.finish
     have hready : Ready η m t AA BB D V K F a b (finished ++ [τ]) rest y := by
       refine ⟨hp.after_body he, hfront, ?_, ?_, ?_, ?_⟩
-      · exact (yf _ (by decide)).trans un
+      · regs_frame
       · simpa only [ym] using ustack
       · simpa only [List.map_append, List.map_singleton, List.sum_append,
           List.sum_singleton, τ, z] using yanswer

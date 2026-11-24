@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.TreeEval.Ary.Packed.RawController
 import CslibFrontier.Computability.TreeEval.Ary.IterativeCorrect
 import CslibFrontier.Computability.TreeEval.Ary.IterativeBounds
+import CslibFrontier.Foundations.Data.ZMod.NatCast
 
 /-!
 # Raw-controller transition correspondence
@@ -70,18 +71,15 @@ variable {p d r b : ℕ} [Fact p.Prime]
 private theorem toCfg_ret (hd : 0 < d) (bank : List ℕ)
     (st : List (Ary.Iter.Frame (ZMod p) d)) :
     toCfg p d r hd (bank, st.map ofFrame, none) = ⟨toRegs p d r bank, st, .ret⟩ := by
-  simp only [toCfg, toMode, List.map_map, Function.comp_def, toFrame_ofFrame,
-    List.map_id_fun', id_eq]
+  simp only [toCfg, State.bank, State.stack, toMode, List.map_map, Function.comp_def,
+    toFrame_ofFrame, List.map_id_fun', id_eq]
 
 private theorem toCfg_call (hd : 0 < d) (bank : List ℕ)
     (st : List (Ary.Iter.Frame (ZMod p) d)) (c : ℕ) (t : Fin (d + 1)) :
     toCfg p d r hd (bank, st.map ofFrame, some (c, t.val)) =
       ⟨toRegs p d r bank, st, .call (c : ZMod p) t⟩ := by
-  simp only [toCfg, toMode, List.map_map, Function.comp_def, toFrame_ofFrame,
-    List.map_id_fun', id_eq, Nat.mod_eq_of_lt t.isLt]
-
-private theorem cast_negOne : ((p - 1 : ℕ) : ZMod p) = -1 := by
-  rw [Nat.cast_sub (Fact.out : p.Prime).one_lt.le, ZMod.natCast_self, Nat.cast_one, zero_sub]
+  simp only [toCfg, State.bank, State.stack, toMode, List.map_map, Function.comp_def,
+    toFrame_ofFrame, List.map_id_fun', id_eq, Nat.mod_eq_of_lt t.isLt]
 
 private theorem unitAt_units {j : ℕ} (hj : j < p - 1) :
     ((j + 1 : ℕ) : ZMod p) = (Ary.Iter.unitAt (units p) j : ZMod p) := by
@@ -186,7 +184,7 @@ theorem toCfg_step_ofCfg (hd : 0 < d)
     | nil =>
       rw [Ary.Iter.step_ret_nil]
       change toCfg p d r hd (step p d r reply (ofRegs S, [], none)) = _
-      simp only [step, hvalid, ↓reduceIte, stepCore, toCfg, toMode,
+      simp only [step, hvalid, ↓reduceIte, stepCore, toCfg, State.bank, State.stack, toMode,
         List.map_nil, toRegs_ofRegs]
     | cons fr st =>
       have hr : fr.round < p - 1 := hround fr (by simp)
@@ -204,12 +202,13 @@ theorem toCfg_step_ofCfg (hd : 0 < d)
             (scaleBank p r (reg d fr.target fr.child) (Reader.unitInv p fr.round) (ofRegs S),
               ({ fr with child := child, undo := true } :: st).map ofFrame,
               some (p - 1, (Ary.reg fr.target child).val)) = _
-          rw [toCfg_call, cast_negOne, toRegs_scale_inverse S fr.target fr.child fr.round hr]
+          rw [toCfg_call, ZMod.natCast_self_sub_one,
+            toRegs_scale_inverse S fr.target fr.child fr.round hr]
         · by_cases hi : fr.round + 1 < p - 1
           · rw [Ary.Iter.step_ret_undo_round hd e E (units p) read S fr st hu hj]
             · simp only [step, hvalid, ↓reduceIte, stepCore, ofFrame, hu, hj, hi, ↓reduceIte]
               rw [toCfg_beginRound hd (units p) (fr.round + 1) fr.coeff fr.target _
-                (by simp) st (unitAt_units hi),
+                (by simp [State.bank]) st (unitAt_units hi),
                 toRegs_scale_inverse S fr.target fr.child fr.round hr]
             · simpa only [units, List.length_map, List.length_range] using hi
           · rw [Ary.Iter.step_ret_undo_last hd e E (units p) read S fr st hu hj]
@@ -244,7 +243,7 @@ theorem toCfg_step_ofCfg (hd : 0 < d)
             (subBank p r fr.target fr.coeff.val reply.2 (ofRegs S),
               ({ fr with child := ⟨0, hd⟩, undo := true } :: st).map ofFrame,
               some (p - 1, (Ary.reg fr.target ⟨0, hd⟩).val)) = _
-          rw [toCfg_call, cast_negOne, toRegs_subBank_expected E read S st fr.coeff
+          rw [toCfg_call, ZMod.natCast_self_sub_one, toRegs_subBank_expected E read S st fr.coeff
             fr.target reply.2 hv]
 
 /-- Canonical padded cells retain exactly one modulus offset. -/
@@ -253,12 +252,12 @@ theorem toCfg_step_ofCfg (hd : 0 < d)
 
 /-- Canonical raw control fields use the exact finite indices and field representatives. -/
 @[expose] def CanonicalFrame (p d : ℕ) (fr : Frame) : Prop :=
-  fr.1 < p - 1 ∧ fr.2.1 < d ∧ fr.2.2.2.1 < p ∧ fr.2.2.2.2 < d + 1
+  fr.round < p - 1 ∧ fr.child < d ∧ fr.coeff < p ∧ fr.target < d + 1
 
 /-- The raw configuration has no hidden slack or alternative field representatives. -/
 @[expose] def Canonical (p d r : ℕ) (q : State) : Prop :=
-  CanonicalBank p d r q.1 ∧ (∀ fr ∈ q.2.1, CanonicalFrame p d fr) ∧
-    ∀ c t, q.2.2 = some (c, t) → c < p ∧ t < d + 1
+  CanonicalBank p d r q.bank ∧ (∀ fr ∈ q.stack, CanonicalFrame p d fr) ∧
+    ∀ c t, q.mode = some (c, t) → c < p ∧ t < d + 1
 
 private theorem canonical_cell (v : ℕ) (hv : p ≤ v) (hv2 : v < 2 * p) :
     p + (v : ZMod p).val = v := by
@@ -382,7 +381,7 @@ private theorem canonical_call {bank : List ℕ} {st : List Frame} {c t : ℕ}
     (hc : c < p) (ht : t < d + 1) : Canonical p d r (bank, st, some (c, t)) := by
   refine ⟨hbank, hst, ?_⟩
   intro c' t' h
-  simp only [Option.some.injEq, Prod.mk.injEq] at h
+  simp only [State.mode, Option.some.injEq, Prod.mk.injEq] at h
   rcases h with ⟨rfl, rfl⟩
   exact ⟨hc, ht⟩
 
@@ -422,8 +421,9 @@ theorem canonical_step (hd : 0 < d) (reply : Reply) (q : State)
     | nil => exact ⟨hbank, hstack, hmode⟩
     | cons fr st =>
       rcases fr with ⟨round, child, undo, coeff, target⟩
-      obtain ⟨hr, hj, hc, ht⟩ := hstack (round, child, undo, coeff, target) (by simp)
-      have hst : ∀ fr ∈ st, CanonicalFrame p d fr := fun fr hfr => hstack fr (by simp [hfr])
+      obtain ⟨hr, hj, hc, ht⟩ := hstack (round, child, undo, coeff, target) (by simp [State.stack])
+      have hst : ∀ fr ∈ st, CanonicalFrame p d fr := fun fr hfr =>
+        hstack fr (by simp [State.stack, hfr])
       have hreg (j : ℕ) : reg d target j < d + 1 := Nat.mod_lt _ (Nat.succ_pos d)
       have hneg : p - 1 < p := by have := (Fact.out : p.Prime).pos; omega
       cases undo with
@@ -468,7 +468,7 @@ private theorem canonical_ofCfg (q : Ary.Iter.Cfg (ZMod p) d r)
       cases h
     | call c t =>
       intro c' t' h
-      simp only [ofCfg, ofMode, hm, Option.some.injEq, Prod.mk.injEq] at h
+      simp only [ofCfg, ofMode, hm, State.mode, Option.some.injEq, Prod.mk.injEq] at h
       rcases h with ⟨rfl, rfl⟩
       exact ⟨ZMod.val_lt c, t.isLt⟩
 

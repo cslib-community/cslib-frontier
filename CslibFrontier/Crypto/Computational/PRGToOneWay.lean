@@ -13,6 +13,7 @@ public import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Crypto.Computational.OneWayToPRG
 import CslibFrontier.Crypto.Computational.Stretch
 import CslibFrontier.Foundations.Data.BitString.ShortWords
+import CslibFrontier.Foundations.Data.BitString.WordsOfLength
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
 
@@ -188,17 +189,14 @@ increasing and eventually below `2 n`. -/
 theorem PseudorandomGenerator.oneWay_of_injective {generator : List Bool → List Bool}
     {ℓ : ℕ → ℕ} (hgenerator : PseudorandomGenerator generator ℓ) (hinj : Function.Injective ℓ)
     (hgap : Negligible fun n => (1 / 2 : ℝ≥0) ^ (ℓ n - n)) : OneWay generator := by
-  classical
-  refine hgenerator.oneWay_of_card_le hgap
-    (fun n => univ.image (List.ofFn : (Fin n → Bool) → _)) (fun n x hx => ?_) fun n => ?_
-  · obtain rfl : x.length = n := hinj hx
-    exact mem_image.2 ⟨x.get, mem_univ _, List.ofFn_get x⟩
-  · have h : (1 / 2 : ℝ≥0) ^ (ℓ n - n) * 2 ^ ℓ n = 2 ^ n := by
-      obtain ⟨k, hk⟩ : ∃ k, ℓ n = k + n := ⟨ℓ n - n, by have := hgenerator.stretch n; omega⟩
-      rw [hk, Nat.add_sub_cancel, pow_add, one_div_pow]
-      field_simp
-    rw [h]
-    exact_mod_cast card_image_le.trans (by simp)
+  refine hgenerator.oneWay_of_card_le hgap BitString.wordsOfLength
+    (fun n x hx => BitString.mem_wordsOfLength.mpr (hinj hx)) fun n => ?_
+  have h : (1 / 2 : ℝ≥0) ^ (ℓ n - n) * 2 ^ ℓ n = 2 ^ n := by
+    obtain ⟨k, hk⟩ : ∃ k, ℓ n = k + n := ⟨ℓ n - n, by have := hgenerator.stretch n; omega⟩
+    rw [hk, Nat.add_sub_cancel, pow_add, one_div_pow]
+    field_simp
+  rw [h]
+  exact_mod_cast (BitString.card_wordsOfLength n).le
 
 /-- **Every pseudorandom generator yields a one-way function.** Truncate the generator to one bit
 of stretch, amplify it to stretch `n ↦ 2 n + 1`, and apply `PseudorandomGenerator.oneWay`. -/

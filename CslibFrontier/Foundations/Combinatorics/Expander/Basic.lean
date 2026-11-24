@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Tactic.PositivityLemma
 public import Mathlib.Algebra.BigOperators.Expect
 public import Mathlib.Analysis.InnerProductSpace.PiL2
 public import Mathlib.Data.Fintype.Prod
@@ -262,7 +263,7 @@ theorem walk_const [Nonempty D] (c : ℝ) : G.walk (fun _ ↦ c) = fun _ ↦ c :
 theorem walk_pow_const [Nonempty D] (t : ℕ) (c : ℝ) : (G.walk ^ t) (fun _ ↦ c) = fun _ ↦ c := by
   induction t with
   | zero => rfl
-  | succ t ih => rw [pow_succ, Module.End.mul_apply, walk_const, ih]
+  | succ t ih => rw [pow_succ, mul_apply_eq_comp, walk_const, ih]
 
 /-- **Jensen's inequality for the walk**: the square of an average of neighbors is at most the
 average of the squares. -/
@@ -284,7 +285,7 @@ theorem expect_walk [Nonempty D] (f : V → ℝ) : 𝔼 v, G.walk f v = 𝔼 v, 
 theorem expect_walk_pow [Nonempty D] (t : ℕ) (f : V → ℝ) : 𝔼 v, (G.walk ^ t) f v = 𝔼 v, f v := by
   induction t with
   | zero => rfl
-  | succ t ih => rw [pow_succ', Module.End.mul_apply, expect_walk, ih]
+  | succ t ih => rw [pow_succ', mul_apply_eq_comp, expect_walk, ih]
 
 /-- The walk operator preserves expectation zero. -/
 theorem expect_walk_eq_zero {f : V → ℝ} (hf : 𝔼 v, f v = 0) : 𝔼 v, G.walk f v = 0 := by
@@ -297,7 +298,7 @@ theorem expect_walk_pow_eq_zero {f : V → ℝ} (hf : 𝔼 v, f v = 0) (t : ℕ)
     𝔼 v, (G.walk ^ t) f v = 0 := by
   induction t with
   | zero => exact hf
-  | succ t ih => rw [pow_succ', Module.End.mul_apply, G.expect_walk_eq_zero ih]
+  | succ t ih => rw [pow_succ', mul_apply_eq_comp, G.expect_walk_eq_zero ih]
 
 /-- The walk operator is self-adjoint for the uniform inner product. -/
 theorem expect_mul_walk_comm (f g : V → ℝ) :
@@ -337,6 +338,7 @@ noncomputable def spectralExpansion : ℝ :=
     (orthogonalSubmodule V).subtypeL‖
 
 /-- The spectral expansion is nonnegative. -/
+@[positivity_lemma]
 theorem spectralExpansion_nonneg : 0 ≤ G.spectralExpansion := by
   rw [spectralExpansion]
   positivity
@@ -398,7 +400,6 @@ theorem spectralExpansion_le_iff {c : ℝ} (hc : 0 ≤ c) :
       ∀ f : V → ℝ, 𝔼 v, f v = 0 → 𝔼 v, G.walk f v ^ 2 ≤ c ^ 2 * 𝔼 v, f v ^ 2 := by
   refine ⟨fun hG f hf ↦ (expect_walk_sq_le_spectralExpansion_sq_mul hf).trans ?_,
     spectralExpansion_le hc⟩
-  have := G.spectralExpansion_nonneg
   gcongr
 
 /-- Polarization identity for the walk quadratic form on `t • f ± G.walk f`: the difference of the
@@ -470,7 +471,6 @@ theorem spectralExpansion_le_of_abs_expect_mul_walk_le {c : ℝ} (hc : 0 ≤ c)
 the second moment of `f` in absolute value. -/
 theorem abs_expect_mul_walk_le {f : V → ℝ} (hf : 𝔼 v, f v = 0) :
     |𝔼 v, f v * G.walk f v| ≤ G.spectralExpansion * 𝔼 v, f v ^ 2 := by
-  have := G.spectralExpansion_nonneg
   refine abs_le_of_sq_le_sq ?_ (by positivity)
   calc
     _ ≤ (𝔼 v, f v ^ 2) * 𝔼 v, G.walk f v ^ 2 := expect_mul_sq_le_sq_mul_sq _ _ _
@@ -522,10 +522,9 @@ theorem expect_walk_pow_sq_le_spectralExpansion_pow_mul {f : V → ℝ}
   induction t with
   | zero => simp
   | succ t ih =>
-    have := G.spectralExpansion_nonneg
     calc
       _ ≤ G.spectralExpansion ^ 2 * 𝔼 v, (G.walk ^ t) f v ^ 2 := by
-        rw [pow_succ', Module.End.mul_apply]
+        rw [pow_succ', mul_apply_eq_comp]
         exact expect_walk_sq_le_spectralExpansion_sq_mul (G.expect_walk_pow_eq_zero hf t)
       _ ≤ G.spectralExpansion ^ 2 * (G.spectralExpansion ^ (2 * t) * 𝔼 v, f v ^ 2) := by gcongr
       _ = G.spectralExpansion ^ (2 * (t + 1)) * 𝔼 v, f v ^ 2 := by ring

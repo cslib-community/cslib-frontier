@@ -139,12 +139,13 @@ theorem runWith_deviceWordHandler_referenceMeasure {α : Type}
   induction program using OracleComp.induction generalizing s with
   | pure value => rw [ProbOracleComp.runWith_pure, PMF.pure_bind]
   | query_bind q next ih =>
-    rw [ProbOracleComp.runWith, OracleComp.runWith_bind, OracleComp.runWith_query, PMF.bind_bind]
+    rw [ProbOracleComp.runWith, OracleComp.runWith_freeMBind, OracleComp.runWith_query,
+      PMF.bind_bind]
     simp only [ProbOracleComp.runWith] at ih
     simp only [ih]
     cases q with
     | inl n =>
-      simp [OracleComp.sumHandler, StateT.lift, PMF.bind_const]
+      simp [OracleComp.sumHandler, Function.comp_def]
     | inr request => exact deviceWordHandler_referenceMeasure _ _ _ _ _
 
 end Cslib.Quantum

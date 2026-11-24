@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.PriorityQueue.BinaryHeap.Native.Base
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.Decode
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Raw native execution of the memory heap
@@ -327,7 +328,7 @@ theorem subroutineImpl_exec_memoryState {w n K base : ℕ}
       (memoryState (Backend.frontier Program.family) x)
       (Memory.ops (Memory.compactLayout n base) o) := by
   rw [subroutineImpl_toBase] at hr ha
-  have hn : Fits w n := hS.of_le (by unfold space; omega)
+  have hn : Fits w n := hS.of_le (by wram_omega)
   have hrep : Representation.Rep base hn hK s x :=
     (subroutineBase_rep_iff hS hK s x).mp hr
   rw [subroutineBase_argMatch] at ha
@@ -345,7 +346,7 @@ theorem subroutineImpl_exec_nativeObservation {w n K base : ℕ}
     (he : Exec w Program.code.code x y N) :
     nativeObservation (K := K) o y.regs = Program.code.decode (K_max := K) o y.regs := by
   rw [subroutineImpl_toBase] at hr ha
-  have hn : Fits w n := hS.of_le (by unfold space; omega)
+  have hn : Fits w n := hS.of_le (by wram_omega)
   have hrep : Representation.Rep base hn hK s x :=
     (subroutineBase_rep_iff hS hK s x).mp hr
   rw [subroutineBase_argMatch] at ha

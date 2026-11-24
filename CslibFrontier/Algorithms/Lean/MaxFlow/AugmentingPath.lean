@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.MaxFlow.BipartiteMatching
+import CslibFrontier.Tactic.FinsetCard
 
 /-!
 # Augmenting Paths, Berge's Theorem, and the Hopcroft–Karp Phase Bound
@@ -266,10 +267,7 @@ private theorem card_altLeft_succ (hM : IsMatching G M) (j : ℕ) :
       Fintype.card L + (altRight G M j ∩ matchedRight M).card := by
   rw [altLeft_succ_eq, Finset.card_union_of_disjoint]
   · have h1 : (Finset.univ \ matchedLeft M).card + M.card = Fintype.card L := by
-      rw [Finset.card_sdiff_of_subset (Finset.subset_univ _), Finset.card_univ,
-        card_matchedLeft hM]
-      have := hM.card_le_card_left
-      omega
+      finset_card [card_matchedLeft hM]
     have hinjL : Set.InjOn Prod.fst (M.filter fun e => e.2 ∈ altRight G M j : Set (L × R)) := by
       rintro ⟨u₁, v₁⟩ h₁ ⟨u₂, v₂⟩ h₂ (hu : u₁ = u₂)
       subst hu
@@ -305,14 +303,9 @@ private theorem size_layerCover_zero (hM : IsMatching G M) :
 private theorem size_layerCover_succ (hM : IsMatching G M) (j : ℕ) :
     (layerCover G M (j + 1)).size + (altRight G M j ∩ matchedRight M).card =
       M.card + (altRight G M (j + 1)).card := by
-  have h := card_altLeft_succ hM j
-  have hc : (Finset.univ \ altLeft G M (j + 1)).card + (altLeft G M (j + 1)).card =
-      Fintype.card L := by
-    rw [Finset.card_sdiff_of_subset (Finset.subset_univ _), Finset.card_univ]
-    have := Finset.card_le_univ (altLeft G M (j + 1))
-    omega
+  have := card_altLeft_succ hM j
   simp only [VertexCover.size, layerCover]
-  omega
+  finset_card
 
 /-- **Layered counting lemma.** If no alternating path with fewer than `k` matched edges leads from
 a free left vertex to a free right vertex, then every matching `M'` satisfies
@@ -334,11 +327,9 @@ theorem card_mul_le_of_noShortAug (hM : IsMatching G M) {M' : Finset (L × R)}
       have h := card_le_size_of_matching_vertexCover hM'
         (isVertexCover_layerCover (M := M) (j + 1))
       have hs := size_layerCover_succ hM j
-      have hinter : altRight G M j ∩ matchedRight M = altRight G M j :=
-        Finset.inter_eq_left.mpr (hk j (by omega))
-      rw [hinter] at hs
+      have : altRight G M j ⊆ matchedRight M := hk j (by omega)
       rw [Nat.add_mul (j + 1) 1, Nat.add_mul (j + 1) 1]
-      omega
+      finset_card
   cases k with
   | zero => simp
   | succ k =>
@@ -390,7 +381,6 @@ theorem card_augment (hM : IsMatching G M) (hN : IsMatching G N) :
     rw [Finset.disjoint_left]
     intro e heN heM
     exact (Finset.mem_filter.mp heM).2 (Finset.mem_image_of_mem _ heN)
-  have hsplit := Finset.card_filter_add_card_filter_not (s := M) (fun e => e.1 ∈ matchedLeft N)
   have hinj : Set.InjOn Prod.fst (M.filter fun e => e.1 ∈ matchedLeft N : Set (L × R)) := by
     rintro ⟨u₁, v₁⟩ h₁ ⟨u₂, v₂⟩ h₂ (hu : u₁ = u₂)
     subst hu
@@ -409,9 +399,7 @@ theorem card_augment (hM : IsMatching G M) (hN : IsMatching G N) :
   have hcardIn : (M.filter fun e => e.1 ∈ matchedLeft N).card =
       (matchedLeft N ∩ matchedLeft M).card := by
     rw [← himg, Finset.card_image_of_injOn hinj]
-  have hNsplit := Finset.card_sdiff_add_card_inter (matchedLeft N) (matchedLeft M)
-  rw [augment, Finset.card_union_of_disjoint hdisj, ← card_matchedLeft hN]
-  omega
+  finset_card [augment, card_matchedLeft hN]
 
 /-- The left vertices covered by an augmentation are those covered by `N` or by `M`. -/
 theorem matchedLeft_augment : matchedLeft (augment M N) = matchedLeft N ∪ matchedLeft M := by

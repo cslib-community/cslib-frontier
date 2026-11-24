@@ -148,8 +148,9 @@ example (M : MACScheme) :
           M.blockwiseVerify zeroEncoder p.1 p.2.1 p.2.2.1 p.2.2.2)
         encVerifyInput encBool := by
   intro zeroEncoder
-  have hE : IsPolyTimeEncoder zeroEncoder :=
-    IsPolyTimeEncoder.of_computableInPolyTime (by dsimp [zeroEncoder]; fun_prop)
+  have hE : IsPolyTimeEncoder zeroEncoder := by
+    unfold IsPolyTimeEncoder zeroEncoder
+    fun_prop
   exact ⟨hE, M.isPPTOn_blockwiseSign hE, M.computableInPolyTime_blockwiseVerify hE⟩
 
 end Cslib.Crypto.VariableLengthMACTests

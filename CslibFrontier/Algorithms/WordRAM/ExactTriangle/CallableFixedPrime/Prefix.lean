@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime.Flat
-public import CslibFrontier.Computability.WordRAM.Width
 
 /-!
 # Physical-width-independent prefixes of the caller-safe fixed-prime program
@@ -56,15 +55,10 @@ theorem bounded_reachable_caller {W m n g p b P k : ℕ} (values : List ℤ)
   have hx : x.Bounded w := original_bounded x hregs hmem le_rfl
   have fit : Fits w (b + 4 * windowSize n (D m) g p (rawTotal n values) + 1024) :=
     (admission_fits (le_refl w)).of_le (by omega)
-  obtain ⟨a, hout, y, he, -⟩ := exec values hlen hD hg hp hN
+  obtain ⟨_, _, _, he, -⟩ := exec values hlen hD hg hp hN
     x xn xD xg xp xb hab hbc hac vab vbc vac hx fit
-  obtain ⟨t, ht, hex⟩ := he
-  exact hr.prefix_bounds program_fixed.2 hW hx (hex.executes Reg.found)
-    (pow_admissionWidth_le n (D m) g p (rawTotal n values) b P)
-
-/-- Numerical envelope for initialized prefix words and newly written addresses. -/
-@[expose] def prefixBound (n d g p : ℕ) (values : List ℤ) : ℕ :=
-  wordBound n d g p (rawTotal n values) (workspaceBase n) (inputWordBound n d g p values)
+  exact he.prefix_bounds_program program_not_readsWidth hW hx
+    (pow_admissionWidth_le n (D m) g p (rawTotal n values) b P) hr
 
 /-- Initialized execution, including every reused dirty workspace prefix, has finite support
 independent of physical width. The concrete minimum-width run supplies the comparison. -/
@@ -77,10 +71,7 @@ theorem bounded_reachable_input {W m n g p k : ℕ} (values : List ℤ)
     (∀ i, s.data.regs i < prefixBound n (D m) g p values) ∧
       (∀ q, s.data.mem q < prefixBound n (D m) g p values) ∧
       ∀ q, prefixBound n (D m) g p values ≤ q → s.data.mem q = 0 := by
-  obtain ⟨hi, a, hout, y, t, ht, hpref, he, -⟩ :=
-    runs_input values hlen hD hg hp hN le_rfl
-  exact hr.prefix_bounds_init entryProgram_fixed.2 hW hi he
-    (pow_admissionWidth_le n (D m) g p (rawTotal n values) (workspaceBase n)
-      (inputWordBound n (D m) g p values))
+  obtain ⟨_, _, E⟩ := entry_endpoint values hlen hD hg hp hN
+  exact E.prefix_bounds () hW hr
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime

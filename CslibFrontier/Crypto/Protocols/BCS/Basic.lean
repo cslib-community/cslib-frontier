@@ -27,9 +27,13 @@ import Mathlib.Data.List.OfFn
 # The BCS transform: public-coin interactive oracle proofs to non-interactive arguments
 
 The Ben-Sasson–Chiesa–Spooner (BCS) transformation ([BenSassonChiesaSpooner2016]; compare
-[ChiesaYogev2024], Construction 25.1.1 and Remark 25.1.3, printed pp. 274–275) compiles a
+[ChiesaYogev2024], Construction 25.1.1 and Remark 25.1.3, printed pp. 274–277) compiles a
 multi-round public-coin Interactive Oracle Proof (`PublicCoinIOP`) into a non-interactive argument
-(`BCSProof`, `bcsProve`, `bcsVerify`) by combining two primitives:
+(`BCSProof`, `bcsProve`, `bcsVerify`; round-by-round ROM soundness and knowledge soundness are
+`Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound` and
+`Cslib.Crypto.Protocols.BCS.bcsROMKnowledgeSoundness_bound` in
+`CslibFrontier.Crypto.Protocols.BCS.ROM`, while state-restoration BCS knowledge soundness as in
+[ChiesaYogev2024], Theorem 26.1.1, is open in #6042), by combining two primitives:
 
 1. **Merkle-tree oracle commitments** (`merkleRoot`, `merklePath`, `merkleVerify` from
    `CslibFrontier.Crypto.Computational.MerkleTree` and
@@ -54,11 +58,10 @@ multi-round public-coin Interactive Oracle Proof (`PublicCoinIOP`) into a non-in
   evaluation of an `r`-round public-coin Interactive Oracle Proof.
 * `Cslib.Crypto.Protocols.BCS.IOPCompleteness`, `Cslib.Crypto.Protocols.BCS.IOPSoundness`,
   `Cslib.Crypto.Protocols.BCS.IOPRoundByRoundSoundness`,
-  `Cslib.Crypto.Protocols.BCS.IOPKnowledgeSoundnessAt`,
-  `Cslib.Crypto.Protocols.BCS.IOPKnowledgeSoundness`: perfect completeness, rejection of false
-  statements on a given set of good challenge vectors, round-by-round soundness, and
-  straight-line knowledge soundness at one challenge vector and, with zero error, at all of them,
-  for a `PublicCoinIOP`. These are deterministic predicates; none of them bounds a probability.
+  `Cslib.Crypto.Protocols.BCS.IOPKnowledgeSoundnessAt`: perfect completeness, rejection of false
+  statements on a given set of good challenge vectors, round-by-round soundness, and straight-line
+  knowledge soundness at a given challenge vector for a `PublicCoinIOP`.
+  These are deterministic predicates; none of them bounds a probability.
 * `Cslib.Crypto.Protocols.BCS.BCSProof`,
   `Cslib.Crypto.Protocols.BCS.rootPrefix`, `Cslib.Crypto.Protocols.BCS.bcsChallenge`: BCS proof
   structure and Fiat–Shamir challenge derivation from Merkle root prefixes.
@@ -75,11 +78,9 @@ multi-round public-coin Interactive Oracle Proof (`PublicCoinIOP`) into a non-in
   `Cslib.Crypto.Protocols.BCS.BCSTableCommitAdversary`,
   `Cslib.Crypto.Protocols.BCS.bcsTableCollisionFinder`,
   `Cslib.Crypto.Protocols.BCS.bcsBreaksTableBinding`,
-  `Cslib.Crypto.Protocols.BCS.bcsTableBindingGame`,
-  `Cslib.Crypto.Protocols.BCS.bcsTableKnowledgeGame`: encodings (building on `encFinEnum (Fin ...)`
+  `Cslib.Crypto.Protocols.BCS.bcsTableBindingGame`: encodings (building on `encFinEnum (Fin ...)`
   and `encFinFn` from `CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.DPi`),
-  collision-finding reduction, and standard-model committed-table binding and knowledge-soundness
-  games.
+  collision-finding reduction, and standard-model committed-table binding game.
 
 ## Main results
 
@@ -90,7 +91,7 @@ multi-round public-coin Interactive Oracle Proof (`PublicCoinIOP`) into a non-in
   vector.
 * `Cslib.Crypto.Protocols.BCS.bcsVerify_bcsProve_of_iopVerify`,
   `Cslib.Crypto.Protocols.BCS.bcsVerify_bcsProve_eq_true`: perfect completeness of the BCS transform
-  for any hash function `H k` and any Fiat–Shamir function `hFS`.
+  for any hash function `H k` whose digests have one length and any Fiat–Shamir function `hFS`.
 * `Cslib.Crypto.Protocols.BCS.bcs_sound_or_merkleCollision`,
   `Cslib.Crypto.Protocols.BCS.isCollision_of_bcsVerify_of_iopVerify_eq_false`,
   `Cslib.Crypto.Protocols.BCS.isCollision_of_bcsVerify_conflict`: deterministic Merkle binding.
@@ -117,12 +118,9 @@ multi-round public-coin Interactive Oracle Proof (`PublicCoinIOP`) into a non-in
   `Cslib.Crypto.Protocols.BCS.computableInPolyTime_bcsExtractTableCollision`,
   `Cslib.Crypto.Protocols.BCS.isPPT_bcsTableCollisionFinder`,
   `Cslib.Crypto.Protocols.BCS.succProbability_bcsTableBindingGame_le`,
-  `Cslib.Crypto.Protocols.BCS.succProbability_bcsTableKnowledgeGame_le`,
   `Cslib.Crypto.Protocols.BCS.CollisionResistant.bcsTableBinding_negligible`,
-  `Cslib.Crypto.Protocols.BCS.CollisionResistant.bcsTableKnowledge_negligible`,
-  `Cslib.Crypto.Protocols.BCS.HashFamily.bcsTableBinding_negligible`,
-  `Cslib.Crypto.Protocols.BCS.HashFamily.bcsTableKnowledge_negligible`: polynomial-time
-  certificates for `bcsExtractTableCollision` and standard-model reductions to
+  `Cslib.Crypto.Protocols.BCS.HashFamily.bcsTableBinding_negligible`: polynomial-time certificates
+  for `bcsExtractTableCollision` and standard-model committed-table binding reductions to
   `CollisionResistant H`.
 
 ## References
@@ -171,16 +169,17 @@ theorem getD_oracleLeaves {Sym : Type} (encSym : Sym → List Bool) (d : ℕ)
   rw [List.getD_eq_getElem _ _ hlt]
   simp [oracleLeaves]
 
-/-- **Honest openings of an oracle table pass `merkleVerify`**: for every index `idx : Fin (2 ^ d)`,
-opening `oracleLeaves encSym d π` at `idx.val` with `merklePath` is accepted by `merkleVerify` at
-depth `d`. -/
+/-- **Honest openings of an oracle table pass `merkleVerify`**: when all digests of `H k` have one
+length, for every index `idx : Fin (2 ^ d)`, opening `oracleLeaves encSym d π` at `idx.val` with
+`merklePath` is accepted by `merkleVerify` at depth `d`. -/
 theorem merkleVerify_oracleLeaves (H : List Bool → List Bool → List Bool) (k : List Bool)
+    {ℓ : ℕ} (hlen : ∀ y, (H k y).length = ℓ)
     {Sym : Type} (encSym : Sym → List Bool) (d : ℕ) (π : OracleTable d Sym)
     (idx : Fin (2 ^ d)) :
     merkleVerify H k d (merkleRoot H k (oracleLeaves encSym d π)) idx.val (encSym (π idx))
       (merklePath H k (oracleLeaves encSym d π) idx.val) = true := by
   rw [← getD_oracleLeaves encSym d π idx]
-  exact merkleVerify_merklePath_of_clog_eq (clog_length_oracleLeaves encSym d π) idx.isLt
+  exact merkleVerify_merklePath_of_clog_eq hlen (clog_length_oracleLeaves encSym d π) idx.isLt
 
 /-! ### Public-coin Interactive Oracle Proofs (`PublicCoinIOP`) -/
 
@@ -319,12 +318,6 @@ def IOPKnowledgeSoundnessAt (iop : PublicCoinIOP r d Stmt Wit Sym Chal) (rel : S
     (iopExtract : Stmt → (Fin r → OracleTable d Sym) → Wit) (x : Stmt) (chals : Fin r → Chal)
     (oracles : Fin r → OracleTable d Sym) : Prop :=
   iopVerify iop x chals oracles = true → rel x (iopExtract x oracles)
-
-/-- **Zero-error straight-line knowledge soundness** of a `PublicCoinIOP`: whenever `iopVerify`
-accepts `oracles` on `(x, chals)`, `iopExtract x oracles` satisfies `rel x`. -/
-def IOPKnowledgeSoundness (iop : PublicCoinIOP r d Stmt Wit Sym Chal) (rel : Stmt → Wit → Prop)
-    (iopExtract : Stmt → (Fin r → OracleTable d Sym) → Wit) : Prop :=
-  ∀ x chals oracles, IOPKnowledgeSoundnessAt iop rel iopExtract x chals oracles
 
 end IOP
 
@@ -492,9 +485,11 @@ theorem bcsHonestTables_eq_iopProverOracles (iop : PublicCoinIOP r d Stmt Wit Sy
     ⟨t.val, Nat.lt_trans ht j.isLt⟩ (Nat.le_of_lt ht) le_rfl]
 
 /-- If the IOP verifier accepts the honest prover's tables at the Fiat–Shamir challenge vector
-`bcsHonestChallenges`, then `bcsVerify` accepts `bcsProve`. -/
+`bcsHonestChallenges`, then `bcsVerify` accepts `bcsProve`, when all digests of `H k` have one
+length. -/
 theorem bcsVerify_bcsProve_of_iopVerify (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
-    (H : List Bool → List Bool → List Bool) (k : List Bool) (encSym : Sym → List Bool)
+    (H : List Bool → List Bool → List Bool) (k : List Bool) {ℓ : ℕ}
+    (hlen : ∀ y, (H k y).length = ℓ) (encSym : Sym → List Bool)
     (hFS : Stmt → List (List Bool) → Chal) (x : Stmt) (w : Wit)
     (hiop : iopVerify iop x (bcsHonestChallenges iop H k encSym hFS x w)
       (iopProverOracles iop x w (bcsHonestChallenges iop H k encSym hFS x w)) = true) :
@@ -512,20 +507,21 @@ theorem bcsVerify_bcsProve_of_iopVerify (iop : PublicCoinIOP r d Stmt Wit Sym Ch
   simp only [hzip, MerkleOpening.verify, Bool.and_eq_true, beq_iff_eq, List.length_map,
     List.all_map, List.all_eq_true, Function.comp_def, List.map_map, true_and]
   refine ⟨fun ⟨j, idx⟩ _ => ?_, ?_⟩
-  · exact merkleVerify_oracleLeaves H k encSym d (tables j) idx
+  · exact merkleVerify_oracleLeaves H k hlen encSym d (tables j) idx
   · rw [bcsHonestTables_eq_iopProverOracles]
     exact hiop
 
 /-- **Perfect completeness of the BCS transform**: if `iop` satisfies `IOPCompleteness iop rel` and
-`rel x w` holds, then for *every* Merkle hash `H`, key `k`, symbol encoding `encSym`, and
-Fiat–Shamir function `hFS`, `bcsVerify` accepts `bcsProve` ([BenSassonChiesaSpooner2016]; compare
-[ChiesaYogev2024], Construction 25.1.1). -/
+`rel x w` holds, then for every Merkle hash `H` and key `k` such that all digests of `H k` have one
+length, every symbol encoding `encSym`, and every Fiat–Shamir function `hFS`, `bcsVerify` accepts
+`bcsProve` ([BenSassonChiesaSpooner2016]; compare [ChiesaYogev2024], Construction 25.1.1). -/
 theorem bcsVerify_bcsProve_eq_true {iop : PublicCoinIOP r d Stmt Wit Sym Chal}
     {rel : Stmt → Wit → Prop} (hcomp : IOPCompleteness iop rel)
-    (H : List Bool → List Bool → List Bool) (k : List Bool) (encSym : Sym → List Bool)
+    (H : List Bool → List Bool → List Bool) (k : List Bool) {ℓ : ℕ}
+    (hlen : ∀ y, (H k y).length = ℓ) (encSym : Sym → List Bool)
     (hFS : Stmt → List (List Bool) → Chal) {x : Stmt} {w : Wit} (hrel : rel x w) :
     bcsVerify iop H k encSym hFS x (bcsProve iop H k encSym hFS x w) = true :=
-  bcsVerify_bcsProve_of_iopVerify iop H k encSym hFS x w
+  bcsVerify_bcsProve_of_iopVerify iop H k hlen encSym hFS x w
     (hcomp x w hrel (bcsHonestChallenges iop H k encSym hFS x w))
 
 /-! ### Binding extraction and soundness / knowledge reductions -/
@@ -603,12 +599,12 @@ theorem bcs_sound_or_merkleCollision
     simp only [bne_iff_ne, ne_eq] at hne_bool
     have hmv₁ : merkleVerify H k d (prf.roots j) idx.val (encSym val) path = true :=
       verify_of_bcsVerify hver hmem
-    have hmv₂ : merkleVerify H k d (prf.roots j) idx.val (encSym (oracles j idx))
-        (merklePath H k (oracleLeaves encSym d (oracles j)) idx.val) = true := by
-      rw [hroots j]
-      exact merkleVerify_oracleLeaves H k encSym d (oracles j) idx
+    rw [hroots j] at hmv₁
+    rw [← getD_oracleLeaves encSym d (oracles j) idx] at hne_bool
     simp only [bcsExtractTableCollision, hsome]
-    exact isCollision_of_merkleVerify hmv₁ hmv₂ hne_bool n
+    rw [← getD_oracleLeaves encSym d (oracles j) idx]
+    exact isCollision_of_merkleVerify_merklePath (clog_length_oracleLeaves encSym d (oracles j))
+      hmv₁ hne_bool n
   · left
     rw [Bool.not_eq_true, Option.isSome_eq_false_iff, Option.isNone_iff_eq_none] at hfind
     refine iopVerify_eq_true_of_bcsVerify_of_openings_eq hver fun j idx val path hmem => ?_
@@ -849,40 +845,15 @@ theorem computableInPolyTime_bcsFindConflict {r d : ℕ} {Stmt Wit Sym Chal γ :
     ComputableInPolyTime
       (fun a => bcsFindConflict iop encSym hFS (x a) (oracles a) (prf a))
       encIn
-      (encOption (encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym))) := by
-  have hroots : ComputableInPolyTime (fun a => (prf a).roots) encIn (encFinFn r encBits) :=
-    encBCSProof_roots_polyTime r Sym encSym hprf
-  have hopenings : ComputableInPolyTime (fun a => (prf a).openings) encIn
-      (encList (encMerkleOpeningOf Sym encSym)) :=
-    encBCSProof_openings_polyTime r Sym encSym hprf
-  have hchals := computableInPolyTime_bcsChallenge hhFS hx hroots
-  have hqs := hqueries.comp (hx.prod hchals)
-  have hzip := (ComputableInPolyTime.zip
-    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp (hqs.prod hopenings)
-  let encElem : ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) ↪ List Bool :=
-    encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)
-  have hfst := ComputableInPolyTime.fst encIn encElem
-  have hsnd := ComputableInPolyTime.snd encIn encElem
-  have hqpair := (ComputableInPolyTime.fst
-    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
-  have ho := (ComputableInPolyTime.snd
-    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
-  have hj := (ComputableInPolyTime.fst
-    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
-  have hidx := (ComputableInPolyTime.snd
-    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
-  have hval : ComputableInPolyTime
-      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)
-      (encPair encIn encElem) encBits :=
-    (encMerkleOpeningOf_leaf_polyTime Sym encSym ho).of_enc_eq fun _ => rfl
-  have htableVal := computableInPolyTime_encode_oracles_apply (horacles.comp hfst) hj hidx
-  have htest : ComputableInPolyTime
-      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) =>
-        encSym p.2.2.leaf != encSym (oracles p.1 p.2.1.1 p.2.1.2))
-      (encPair encIn encElem) encBool :=
-    (ComputableInPolyTime.bool_not.comp (ComputableInPolyTime.beq hval htableVal)).of_enc_eq
-      fun _ => rfl
-  exact ComputableInPolyTime.findWithInput hzip htest
+      (encOption (encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym))) :=
+  ComputableInPolyTime.findWithInput
+    ((ComputableInPolyTime.zip (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp
+      ((hqueries.comp (hx.prod (computableInPolyTime_bcsChallenge hhFS hx
+        (encBCSProof_roots_polyTime r Sym encSym hprf)))).prod
+        (encBCSProof_openings_polyTime r Sym encSym hprf)))
+    (ComputableInPolyTime.bne (encB := encBits) (by fun_prop)
+      (computableInPolyTime_encode_oracles_apply
+        (horacles.comp (.fst _ _)) (by fun_prop) (by fun_prop)))
 
 /-- Deterministic Merkle collision extraction for the BCS transform (`bcsExtractTableCollision`)
 runs in polynomial time. -/
@@ -908,31 +879,28 @@ theorem computableInPolyTime_bcsExtractTableCollision {r d : ℕ} {Stmt Wit Sym 
     ComputableInPolyTime
       (fun a => bcsExtractTableCollision iop H (k a) encSym hFS (x a) (oracles a) (prf a))
       encIn (encPair encBits encBits) := by
-  have hfind := computableInPolyTime_bcsFindConflict hqueries hhFS hx horacles hprf
   let encElem : ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) ↪ List Bool :=
     encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)
+  have hfind := computableInPolyTime_bcsFindConflict hqueries hhFS hx horacles hprf
   have hfst := ComputableInPolyTime.fst encIn encElem
-  have hsnd := ComputableInPolyTime.snd encIn encElem
-  have hqpair := (ComputableInPolyTime.fst
-    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
-  have ho := (ComputableInPolyTime.snd
-    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
-  have hj := (ComputableInPolyTime.fst
-    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
-  have hidx := (ComputableInPolyTime.snd
-    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
-  have hidxVal := ComputableInPolyTime.finVal hidx
-  have hval : ComputableInPolyTime
-      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)
-      (encPair encIn encElem) encBits :=
-    (encMerkleOpeningOf_leaf_polyTime Sym encSym ho).of_enc_eq fun _ => rfl
-  have hpath := encMerkleOpeningOf_path_polyTime Sym encSym ho
-  have htableVal := computableInPolyTime_encode_oracles_apply (horacles.comp hfst) hj hidx
-  have hleaves := computableInPolyTime_oracleLeaves_apply (horacles.comp hfst) hj
+  have hj : ComputableInPolyTime
+      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => p.2.1.1)
+      (encPair encIn encElem) (encFinEnum (Fin r)) := by fun_prop
+  have hidx : ComputableInPolyTime
+      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => p.2.1.2)
+      (encPair encIn encElem) (encFinEnum (Fin (2 ^ d))) := by fun_prop
   have hhonestPath := (computableInPolyTime_merklePath hH hlen).comp
-    ((hk.comp hfst).prod (hleaves.prod hidxVal))
+    ((hk.comp hfst).prod
+      ((computableInPolyTime_oracleLeaves_apply (horacles.comp hfst) hj).prod hidx.finVal))
   have hcol := (computableInPolyTime_extractMerkleCollision hH hlen).comp
-    ((hk.comp hfst).prod ((hval.prod htableVal).prod (hidxVal.prod (hpath.prod hhonestPath))))
+    ((hk.comp hfst).prod
+      ((((by fun_prop : ComputableInPolyTime
+          (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)
+          (encPair encIn encElem) encBits)).prod
+        (computableInPolyTime_encode_oracles_apply (horacles.comp hfst) hj hidx)).prod
+        (hidx.finVal.prod
+          ((encMerkleOpeningOf_path_polyTime Sym encSym
+            ((ComputableInPolyTime.snd _ _).comp (.snd encIn encElem))).prod hhonestPath))))
   convert hfind.optionElimWithInput
     (body := fun a (e : (Fin r × Fin (2 ^ d)) × MerkleOpening Sym) =>
       extractMerkleCollision H (k a) (encSym e.2.leaf) (encSym (oracles a e.1.1 e.1.2))
@@ -999,23 +967,6 @@ noncomputable def bcsTableBindingGame (iop : PublicCoinIOP r d Stmt Wit Sym Chal
   let out ← adversary n k
   return bcsBreaksTableBinding iop H k encSym hFS out
 
-open Classical in
-/-- The committed-table BCS knowledge-soundness experiment at security parameter `n`: sample a
-uniform `n`-bit hash key `k`, run `adversary n k`, and accept when the proof's round roots match
-`out.oracles`, `bcsVerify` accepts `out.proof`, and the IOP extractor `iopExtract` fails to
-produce a valid witness for `out.stmt`. -/
-noncomputable def bcsTableKnowledgeGame (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
-    (rel : Stmt → Wit → Prop) (iopExtract : Stmt → (Fin r → OracleTable d Sym) → Wit)
-    (H : List Bool → List Bool → List Bool) (encSym : Sym → List Bool)
-    (hFS : Stmt → List (List Bool) → Chal)
-    (adversary : BCSTableCommitAdversary r d Stmt Sym) (n : ℕ) : ProbComp Bool := do
-  let k ← BitString.sampleList n
-  let out ← adversary n k
-  return ((List.finRange r).all (fun j =>
-      out.proof.roots j == merkleRoot H k (oracleLeaves encSym d (out.oracles j))) &&
-    bcsVerify iop H k encSym hFS out.stmt out.proof &&
-    decide (¬ rel out.stmt (iopExtract out.stmt out.oracles)))
-
 /-- **A committed-table BCS binding break yields a hash collision**: if `bcsBreaksTableBinding`
 holds and `encSym` is injective, then `bcsExtractTableCollision` outputs a valid collision for
 `H k`. -/
@@ -1055,47 +1006,6 @@ theorem succProbability_bcsTableBindingGame_le (iop : PublicCoinIOP r d Stmt Wit
   · simp
   · rw [isCollision_of_bcsBreaksTableBinding hinj hbreak n]
 
-/-- **Tight reduction from committed-table BCS knowledge soundness to collision finding**: under
-`IOPKnowledgeSoundness iop rel iopExtract`, a committed-table adversary breaks knowledge soundness
-at most as often as `bcsTableCollisionFinder` finds a hash collision. -/
-theorem succProbability_bcsTableKnowledgeGame_le {iop : PublicCoinIOP r d Stmt Wit Sym Chal}
-    {rel : Stmt → Wit → Prop} {iopExtract : Stmt → (Fin r → OracleTable d Sym) → Wit}
-    (hks : IOPKnowledgeSoundness iop rel iopExtract)
-    (H : List Bool → List Bool → List Bool) {encSym : Sym → List Bool}
-    (hinj : Function.Injective encSym) (hFS : Stmt → List (List Bool) → Chal)
-    (adversary : BCSTableCommitAdversary r d Stmt Sym) (n : ℕ) :
-    Game.succProbability
-        (ProbComp.eval (bcsTableKnowledgeGame iop rel iopExtract H encSym hFS adversary n)) ≤
-      Game.succProbability (ProbComp.eval
-        (collisionGame H (fun _ _ => true)
-          (bcsTableCollisionFinder iop H encSym hFS adversary) n)) := by
-  refine le_trans ?_ (succProbability_bcsTableBindingGame_le iop H hinj hFS adversary n)
-  apply Game.succProbability_mono
-  simp only [pmf_norm, bcsTableKnowledgeGame, bcsTableBindingGame]
-  apply PMF.bind_apply_mono_on_support
-  intro k _
-  apply PMF.bind_apply_mono_on_support
-  intro out _
-  by_cases hwin :
-      ((List.finRange r).all (fun j =>
-        out.proof.roots j == merkleRoot H k (oracleLeaves encSym d (out.oracles j))) &&
-        bcsVerify iop H k encSym hFS out.stmt out.proof &&
-        decide (¬ rel out.stmt (iopExtract out.stmt out.oracles))) = true
-  · rw [hwin]
-    simp only [Bool.and_eq_true, decide_eq_true_eq] at hwin
-    obtain ⟨⟨hroots, hver⟩, hnot_rel⟩ := hwin
-    have hrej :
-        iopVerify iop out.stmt (bcsChallenge hFS out.stmt out.proof.roots) out.oracles = false := by
-      cases hiop : iopVerify iop out.stmt (bcsChallenge hFS out.stmt out.proof.roots) out.oracles
-      · rfl
-      · exact False.elim (hnot_rel (hks out.stmt _ out.oracles hiop))
-    have hbreak : bcsBreaksTableBinding iop H k encSym hFS out = true := by
-      simp [bcsBreaksTableBinding, hroots, hver, hrej]
-    rw [hbreak]
-  · rw [Bool.not_eq_true] at hwin
-    rw [hwin]
-    simp
-
 /-- **Efficiency of `bcsTableCollisionFinder`**: for a polynomial-time hash `H` with `k.length`-bit
 digests, polynomial-time `iop.queries`, and polynomial-time `hFS`, the collision finder of any
 uniform strict PPT committed-table BCS adversary is uniform strict PPT. -/
@@ -1120,8 +1030,8 @@ theorem isPPT_bcsTableCollisionFinder {encStmt : Stmt ↪ List Bool} {encSym : S
   have hstmt := encBCSTableCommitOutput_stmt_polyTime r d Stmt Sym encStmt encSym hsnd
   have horacles := encBCSTableCommitOutput_oracles_polyTime r d Stmt Sym encStmt encSym hsnd
   have hprf := encBCSTableCommitOutput_proof_polyTime r d Stmt Sym encStmt encSym hsnd
-  have hpost := (computableInPolyTime_bcsExtractTableCollision hH hlen hqueries hhFS
-    hk hstmt horacles hprf).tidy
+  have hpost := computableInPolyTime_bcsExtractTableCollision hH hlen hqueries hhFS
+    hk hstmt horacles hprf
   change IsPPTOn (encPair encUnary encBits) (encPair encBits encBits)
     (fun p => bcsTableCollisionFinder iop H encSym hFS adversary p.1 p.2)
   exact hadversary.bind_with hpost.isPPTOn
@@ -1149,32 +1059,6 @@ theorem CollisionResistant.bcsTableBinding_negligible
     (hcr.negligible _ (isPPT_bcsTableCollisionFinder hH hlen hqueries hhFS hadversary))
     (succProbability_bcsTableBindingGame_le iop H encSym.injective hFS adversary)
 
-/-- **Standard-model committed-table BCS knowledge soundness from collision resistance**: under
-`IOPKnowledgeSoundness iop rel iopExtract` and `CollisionResistant H`, every uniform strict PPT
-committed-table adversary produces an accepting BCS proof whose committed tables fail to yield a
-valid witness with negligible probability. -/
-theorem CollisionResistant.bcsTableKnowledge_negligible
-    {encStmt : Stmt ↪ List Bool} {encSym : Sym ↪ List Bool} {encChal : Chal ↪ List Bool}
-    {iop : PublicCoinIOP r d Stmt Wit Sym Chal} {rel : Stmt → Wit → Prop}
-    {iopExtract : Stmt → (Fin r → OracleTable d Sym) → Wit}
-    (hks : IOPKnowledgeSoundness iop rel iopExtract)
-    {H : List Bool → List Bool → List Bool} {hFS : Stmt → List (List Bool) → Chal}
-    (hcr : CollisionResistant H)
-    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
-      (encPair encBits encBits) encBits)
-    (hlen : ∀ k x, (H k x).length = k.length)
-    (hqueries : ComputableInPolyTime (fun p : Stmt × (Fin r → Chal) => iop.queries p.1 p.2)
-      (encIOPTranscript r encStmt encChal) (encIOPQueryList r d))
-    (hhFS : ComputableInPolyTime (fun p : Stmt × List (List Bool) => hFS p.1 p.2)
-      (encFSTranscript encStmt) encChal)
-    {adversary : BCSTableCommitAdversary r d Stmt Sym}
-    (hadversary : IsPPT (encBCSTableCommitOutput r d Stmt Sym encStmt encSym) adversary) :
-    Negligible fun n => Game.succProbability
-      (ProbComp.eval (bcsTableKnowledgeGame iop rel iopExtract H encSym hFS adversary n)) :=
-  negligible_of_le
-    (hcr.negligible _ (isPPT_bcsTableCollisionFinder hH hlen hqueries hhFS hadversary))
-    (succProbability_bcsTableKnowledgeGame_le hks H encSym.injective hFS adversary)
-
 /-- **Collision-resistant `HashFamily` corollary for committed-table BCS binding**. -/
 theorem HashFamily.bcsTableBinding_negligible
     {encStmt : Stmt ↪ List Bool} {encSym : Sym ↪ List Bool} {encChal : Chal ↪ List Bool}
@@ -1190,25 +1074,6 @@ theorem HashFamily.bcsTableBinding_negligible
     Negligible fun n =>
       Game.succProbability (ProbComp.eval (bcsTableBindingGame iop H encSym hFS adversary n)) :=
   CollisionResistant.bcsTableBinding_negligible hH.collisionResistant hH.polyTime
-    (fun k x => hH.length_eq k x) hqueries hhFS hadversary
-
-/-- **Collision-resistant `HashFamily` corollary for committed-table BCS knowledge soundness**. -/
-theorem HashFamily.bcsTableKnowledge_negligible
-    {encStmt : Stmt ↪ List Bool} {encSym : Sym ↪ List Bool} {encChal : Chal ↪ List Bool}
-    {iop : PublicCoinIOP r d Stmt Wit Sym Chal} {rel : Stmt → Wit → Prop}
-    {iopExtract : Stmt → (Fin r → OracleTable d Sym) → Wit}
-    (hks : IOPKnowledgeSoundness iop rel iopExtract)
-    {H : List Bool → List Bool → List Bool} {hFS : Stmt → List (List Bool) → Chal}
-    (hH : HashFamily H)
-    (hqueries : ComputableInPolyTime (fun p : Stmt × (Fin r → Chal) => iop.queries p.1 p.2)
-      (encIOPTranscript r encStmt encChal) (encIOPQueryList r d))
-    (hhFS : ComputableInPolyTime (fun p : Stmt × List (List Bool) => hFS p.1 p.2)
-      (encFSTranscript encStmt) encChal)
-    {adversary : BCSTableCommitAdversary r d Stmt Sym}
-    (hadversary : IsPPT (encBCSTableCommitOutput r d Stmt Sym encStmt encSym) adversary) :
-    Negligible fun n => Game.succProbability
-      (ProbComp.eval (bcsTableKnowledgeGame iop rel iopExtract H encSym hFS adversary n)) :=
-  CollisionResistant.bcsTableKnowledge_negligible hks hH.collisionResistant hH.polyTime
     (fun k x => hH.length_eq k x) hqueries hhFS hadversary
 
 end TableReduction

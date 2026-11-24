@@ -46,12 +46,19 @@ theorem natarajanShatters_univ {b₀ b₁ : β} (hb : b₀ ≠ b₁) (W : Set α
 dimension equal to the number of points. -/
 theorem natarajanDim_univ [Fintype α] {b₀ b₁ : β} (hb : b₀ ≠ b₁) :
     natarajanDim (Set.univ : ConceptClass α β) = Fintype.card α :=
-  le_antisymm (natarajanDim_le fun W _ => W.card_le_univ)
-    ((natarajanShatters_univ hb _).card_le_natarajanDim (hasFiniteNatarajanDim_of_finite _)
-      (W := Finset.univ) |>.trans_eq' Finset.card_univ.symm)
+  le_antisymm (natarajanDim_le_iff.mpr fun W _ => Nat.cast_le.mpr W.card_le_univ)
+    (by simpa using (natarajanShatters_univ hb _).card_le_natarajanDim (W := Finset.univ))
+
+/-- All Boolean functions on the naturals shatter finite sets of every size. -/
+example : evcDim (Set.univ : ConceptClass ℕ Bool) = ⊤ := by
+  rw [← natarajanDim_eq_evcDim]
+  apply ENat.eq_top_iff_forall_ge.mpr
+  intro n
+  simpa using (natarajanShatters_univ Bool.false_ne_true _).card_le_natarajanDim
+    (W := Finset.range n)
 
 example : natarajanDim (Set.univ : ConceptClass (Fin 5) (Fin 3)) = 5 := by
-  rw [natarajanDim_univ (b₀ := 0) (b₁ := 1) (by decide), Fintype.card_fin]
+  simpa using natarajanDim_univ (α := Fin 5) (β := Fin 3) (b₀ := 0) (b₁ := 1) (by decide)
 
 /-- With `Bool` labels on three points the bound of Natarajan's lemma is attained by the class of
 all `8` functions. -/
@@ -100,12 +107,11 @@ dimension `1`. -/
 theorem natarajanDim_constants [Nonempty α] {b₀ b₁ : β} (hb : b₀ ≠ b₁) :
     natarajanDim (constants (α := α) β) = 1 := by
   obtain ⟨x⟩ := ‹Nonempty α›
-  refine le_antisymm (natarajanDim_le fun W hW => card_le_one_of_natarajanShatters_constants hW) ?_
-  have hfin : HasFiniteNatarajanDim (constants (α := α) β) :=
-    hasFiniteNatarajanDim_iff.2 ⟨1, fun W hW => card_le_one_of_natarajanShatters_constants hW⟩
+  refine le_antisymm (natarajanDim_le_iff.mpr fun W hW => ?_) ?_
+  · exact_mod_cast card_le_one_of_natarajanShatters_constants hW
   have h := natarajanShatters_constants_singleton (α := α) hb x
   rw [← Finset.coe_singleton] at h
-  simpa using h.card_le_natarajanDim hfin
+  simpa using h.card_le_natarajanDim
 
 /-- Natarajan's lemma on four points with three labels: a class whose N-shattered sets have at
 most one point has at most `1 + 4 · 3 = 13` of the `81` functions. -/
@@ -125,6 +131,9 @@ example : NatarajanShatters (Set.univ : ConceptClass (Fin 4) (Fin 3)) ↑({0, 1}
 /-- With two labels the Natarajan dimension is the VC dimension: homogeneous halfspaces in the
 plane have Natarajan dimension `2`. -/
 example : natarajanDim (homogeneousHalfspaces 2) = 2 := by
-  rw [natarajanDim_eq_vcDim, vcDim_homogeneousHalfspaces]
+  rw [natarajanDim_eq_evcDim, ← natCast_vcDim, vcDim_homogeneousHalfspaces]
+  · norm_num
+  · rw [homogeneousHalfspaces_eq_positivityClass]
+    exact hasFiniteVCDim_positivityClass _
 
 end CslibFrontierTests.NatarajanDimension

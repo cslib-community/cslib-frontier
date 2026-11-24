@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.Hybrid.SavedPrediction
 public import CslibFrontier.Crypto.Computational.Pseudoentropy.Learning
 public import CslibFrontier.Crypto.Computational.Pseudoentropy.Boosting.Training
+import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Languages.Probabilistic.Notation
 import CslibFrontier.Tactic.PPT
 
@@ -36,8 +37,6 @@ interprets the learner's orientation bit, and is also the evaluator used by subs
 * `exists_evaluator`: discharge the replay law from one sequence-test certificate.
 * `learn_goodPredictor_error`: a noticeable sequence gap satisfies the boosting loop contract.
 * `failureBound_negligible`: the total failure bound is negligible for polynomial parameters.
-* `predict_extracted_error_of_extraction_le`: turn a gap against every dense masked source into
-  prediction bias.
 
 ## References
 
@@ -186,13 +185,6 @@ theorem isPPTOn_learn {source : α → ProbComp (List Bool × Bool)} {base : α 
     IsPPTOn input encBits (fun a =>
       learn evaluate (source a) (base a) (count a) c d (width a) (inverseGap a)
         (params a) (state a)) := by
-  have hevaluate := hevaluate.tidy
-  have hbase := hbase.tidy
-  have hcount := hcount.tidy
-  have hwidth := hwidth.tidy
-  have hgap := hgap.tidy
-  have hparams := hparams.tidy
-  have hstate := hstate.tidy
   unfold learn
   fun_prop
 
@@ -274,9 +266,8 @@ theorem exists_evaluator {Param : Type} {input : Param ↪ List Bool}
           ProbComp.eval (maskedSequencePredictor source observe truth
             (fun x => mask (signedPredict evaluate) params state (observe x, truth x))
             count (test a) observation) := by
-  simp only [Turing.MultiTapeTM.computableInPolyTime_iff_computableTidilyInPolyTime]
   obtain ⟨c, d, evaluate, hefficient, hrealize⟩ := SavedPrediction.exists_evaluator htest
-  refine ⟨c, d, evaluate, hefficient.tidy, ?_⟩
+  refine ⟨c, d, evaluate, hefficient, ?_⟩
   intro a α source observe truth count width params state observation hwidth
   simpa only [candidates, maskedSequencePredictor, maskedSample, bind_map_left, Functor.map_map,
     Function.comp_def, encBits, Function.Embedding.refl_apply] using
@@ -432,57 +423,6 @@ theorem predict_error (source : ProbComp α) (observe : α → List Bool) (truth
     ring
   rw [hbudget] at h
   simpa only [predict, ProbComp.eval_bind, ProbComp.eval_map, PMF.map_bind] using h
-
-/-- Extraction error is the only additional loss when the complete reduction starts from a
-test of hashed labels. The statistical premise is needed only at dense boosting states. -/
-theorem predict_extracted_error_of_extraction_le {Seed Output : Type}
-    (source : ProbComp α) (observe : α → List Bool) (truth : α → Bool)
-    (evaluate : List Bool → List Bool → Bool) (base : List Bool) (count c d width inverseGap : ℕ)
-    (params : Parameters) (seed : ProbComp Seed) (hash : Seed → List Bool → Output)
-    (test : List (List Bool) × Seed × Output → ProbComp Bool)
-    (ideal : PMF (List (List Bool) × Seed × Output)) {ε : ℝ}
-    (hparams : params.Valid) (hgap : 0 < inverseGap)
-    (hgamma : params.gamma ≤ 1 / (2 * inverseGap))
-    (hwidth : ∀ value ∈ (ProbComp.eval source).support, (observe value).length ≤ width)
-    (hbound : SavedPrediction.codeBound base.length count c d width + 1 ≤ params.codeBound)
-    (hrealize : ∀ state value, value ∈ (ProbComp.eval source).support →
-      ProbComp.eval ((fun code => evaluate code (observe value)) <$>
-        candidates (signedPredict evaluate) ((fun x => (observe x, truth x)) <$> source)
-          base count c d width params state) =
-        ProbComp.eval (maskedSequencePredictor source observe truth
-          (fun x => mask (signedPredict evaluate) params state (observe x, truth x))
-          count (fun samples => extractLabels seed hash samples >>= test) (observe value)))
-    (hclose : ∀ state : State,
-      params.delta ≤ density (ProbComp.eval source) params.rate
-        (fun x => state.margin (fun code x => signedPredict evaluate code (observe x)) truth x -
-          state.threshold) →
-      (Game.advantage
-        ((ProbComp.eval (extractLabelsReal (maskedSample source observe truth
-          (fun x => mask (signedPredict evaluate) params state (observe x, truth x))) count seed
-            hash)).bind (fun output => ProbComp.eval (test output)))
-        (ideal.bind (fun output => ProbComp.eval (test output))) : ℝ) ≤ ε)
-    (hdistinguish : (dyadicSize count : ℝ) / inverseGap + ε ≤
-      (Game.advantage (ProbComp.eval (extractLabelsReal
-        ((fun x => (observe x, truth x)) <$> source) count seed hash >>= test))
-        (ideal.bind (fun output => ProbComp.eval (test output))) : ℝ)) :
-    (ProbComp.eval (do
-      let x ← source
-      (fun answer => answer == truth x) <$> predict evaluate
-        ((fun x => (observe x, truth x)) <$> source) base count c d width inverseGap params
-        (observe x)) false).toReal ≤
-      params.delta / 2 - 1 / params.predictionInverseTolerance +
-        failureBound params inverseGap := by
-  apply predict_error source observe truth evaluate base count c d width inverseGap params
-    (fun samples => extractLabels seed hash samples >>= test)
-    hparams hgap hgamma hwidth hbound hrealize
-  intro state hdense
-  have h := extractLabels_sequence_gap_of_extraction_le ((fun x => (observe x, truth x)) <$> source)
-    (maskedSample source observe truth
-      (fun x => mask (signedPredict evaluate) params state (observe x, truth x)))
-    count seed hash test ideal (hclose state hdense)
-  rw [extractLabelsReal, bind_assoc] at hdistinguish
-  have hgap' := (le_sub_iff_add_le.mpr hdistinguish).trans h
-  simpa only [Game.coe_advantage, Game.coe_succProbability] using hgap'
 
 end Correctness
 

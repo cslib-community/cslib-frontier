@@ -485,6 +485,7 @@ abbrev ProgramSteps (C : ObliviousSequenceImpl.{u, v, z} P S w base params)
   ExecProgramSteps P S C.Latent w base C.spaceBound C.peakSpaceBound C.encode C.decode p_op out []
 
 /-- Transport an `ObliviousSequenceImpl` certificate along `φ : B.Simulates B'`. -/
+@[expose]
 def mapSimulates (φ : B.Simulates B')
     (C : ObliviousSequenceImpl.{u, v, z} P S w base params) :
     ObliviousSequenceImpl.{u, v, z} (P.mapSimulates φ) S w base params where

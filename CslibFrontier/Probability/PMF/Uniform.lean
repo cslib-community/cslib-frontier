@@ -45,6 +45,8 @@ the overwritten string and the old part together determine `(a, b)`.
   dependent function along an embedding gives the uniform distribution on the domain.
 * `Cslib.Probability.PMF.uniformOfFintype_bind_bind_adaptiveUpdate`: resampling the value at a
   point chosen from the function itself.
+* `Cslib.Probability.PMF.uniformOfFintype_map_exchange_option`: the joint law after exchanging
+  the output of a partial decoder with an independent uniform input.
 * `Cslib.Probability.PMF.uniformOfFintype_bind_map_fst_equiv`,
   `Cslib.Probability.PMF.uniformOfFintype_bind_bind_fst_equiv`: resampling along an equivalence.
 * `Cslib.Probability.PMF.toOuterMeasure_uniformOfFinset`,
@@ -122,6 +124,22 @@ theorem uniformOfFintype_prod_map_snd :
   rw [← uniformOfFintype_map_equiv (Equiv.prodComm β α), PMF.map_comp]
   exact uniformOfFintype_prod_map_fst
 
+/-- Exchange the successful result of a partial decoder with an independent uniform value.
+If a permutation of the full input pair preserves exhaustion and makes a successful input decode
+to the supplied value, the programmed input and the reported result have the original joint law. -/
+theorem uniformOfFintype_map_exchange_option (e : Equiv.Perm (α × β)) (read : α → Option γ)
+    (value : β → γ) (hnone : ∀ {a}, read a = none → ∀ b, read (e (a, b)).1 = none)
+    (hsome : ∀ {a c}, read a = some c → ∀ b, read (e (a, b)).1 = some (value b)) :
+    (uniformOfFintype (α × β)).map (fun (a, b) => ((e (a, b)).1, (read a).map fun _ => value b)) =
+    (uniformOfFintype α).map (fun a => (a, read a)) := by
+  rw [← uniformOfFintype_prod_map_fst (α := α) (β := β), _root_.PMF.map_comp]
+  conv_rhs => rw [← uniformOfFintype_map_equiv e, _root_.PMF.map_comp]
+  congr 1
+  funext ⟨a, b⟩
+  cases h : read a with
+  | none => simp [h, hnone h]
+  | some c => simp [h, hsome h]
+
 /-- Mapping a curried binary function over two independent uniform draws is equivalent to
 mapping the uncurried function over a uniform pair. Iterating this rewrite collapses `n`-ary
 chains of independent uniform draws into a single `uniformOfFintype` over a nested product. -/
@@ -197,6 +215,18 @@ theorem uniformOfFintype_bind_bind_fst_equiv (e : α × β ≃ γ × δ) (f : γ
   rw [← uniformOfFintype_bind_map_fst_equiv e]
   simp only [PMF.bind_bind, PMF.bind_map]
   rfl
+
+/-- Two independent uniform draws pushed through an equivalence `e : α × β ≃ γ` are one uniform
+draw from `γ`. -/
+theorem uniformOfFintype_bind_bind_equiv (e : α × β ≃ γ) (f : γ → PMF ε) :
+    ((uniformOfFintype α).bind fun a => (uniformOfFintype β).bind fun b => f (e (a, b))) =
+      (uniformOfFintype γ).bind f :=
+  uniformOfFintype_bind_bind_fst_equiv (e.trans (Equiv.prodPUnit γ : γ × Unit ≃ γ).symm) f
+
+/-- The uniform distribution on `Unit` is the point mass at `()`. -/
+theorem uniformOfFintype_unit : uniformOfFintype Unit = PMF.pure () := by
+  ext u
+  simp
 
 /-- **Adaptive resampling**: a uniform function whose value at a point `p f`, chosen from the
 function itself, is replaced by a fresh uniform value is uniform, provided that replacing that

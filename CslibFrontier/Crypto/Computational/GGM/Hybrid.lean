@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.GGM.Evaluation
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
 import CslibFrontier.Computability.Probabilistic.Memoize
@@ -81,7 +82,7 @@ with choosing the key at the start of the real PRF game, even if there are no va
 theorem hybridGame_zero (generator : List Bool → List Bool) (adversary : OracleDistinguisher)
     (n : ℕ) :
     ProbComp.eval (hybridGame generator adversary n 0) =
-      ProbComp.eval (prfRealGame (eval generator) adversary n) := by
+      ProbComp.eval (prfRealGame id (eval generator) adversary n) := by
   let root := fun cache : Cache => (cache.lookup []).elim (BitString.uniformList n) PMF.pure
   have hstep : ∀ query cache,
       (ProbComp.eval (frontierOracle generator n 0 query cache)).bind
@@ -100,21 +101,21 @@ theorem hybridGame_zero (generator : List Bool → List Bool) (adversary : Oracl
   have houtput := congrArg (PMF.map Prod.fst) h
   simpa [hybridGame, prfRealGame, ProbOracleComp.run, ProbOracleComp.eval_run_interpret_eq_runWith,
     ProbOracleComp.eval_interpret, BitString.eval_sampleList, root, PMF.map,
-    Function.comp_def, OracleComp.evalWith] using houtput
+    Function.comp_def, OracleComp.evalWith_eq_interpret] using houtput
 
 /-- The final level caches full query answers directly. There is no suffix left to evaluate. -/
 theorem frontierOracle_self (generator : List Bool → List Bool) (n : ℕ) :
-    frontierOracle generator n n = cachedRandomFunctionOracle n := by
+    frontierOracle generator n n = cachedRandomFunctionOracle (·.length == n) n := by
   funext query cache
   by_cases h : query.length = n
-  · simp [frontierOracle, cachedRandomFunctionOracle, ← h]
-  · simp [frontierOracle, cachedRandomFunctionOracle, h]
+  · simp [frontierOracle, cachedRandomFunctionOracle, cachedSamplerOracle, ← h]
+  · simp [frontierOracle, cachedRandomFunctionOracle, cachedSamplerOracle, h]
 
 /-- At the final level, the prefix hybrid is exactly the ideal PRF game. -/
 theorem hybridGame_self (generator : List Bool → List Bool) (adversary : OracleDistinguisher)
     (n : ℕ) :
     ProbComp.eval (hybridGame generator adversary n n) =
-      ProbComp.eval (prfIdealGame adversary n) := by
+      ProbComp.eval (prfIdealGame id id adversary n) := by
   simp only [hybridGame, frontierOracle_self, prfIdealGame_eq_cached]
 
 /-- Each call preserves label widths and adds at most one encoded entry. Key lengths and duplicate
@@ -163,12 +164,7 @@ theorem isPPTOn_frontierOracle {α : Type} {input : α ↪ List Bool}
     (hcache : ComputableInPolyTime cache input cacheEncoding) :
     IsPPTOn input (encPair encBits cacheEncoding)
       (fun a => frontierOracle generator (parameter a) (depth a) (query a) (cache a)) := by
-  have hgenerator := hgenerator.tidy
-  have hparameter := hparameter.tidy
-  have hdepth := hdepth.tidy
-  have hquery := hquery.tidy
-  have hcache := hcache.tidy
-  have heval := (computableInPolyTime_eval (.of_tidy hgenerator)).tidy
+  have heval := (computableInPolyTime_eval (hgenerator))
   unfold frontierOracle cacheEncoding
   fun_prop
 

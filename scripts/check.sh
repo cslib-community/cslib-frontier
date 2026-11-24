@@ -5,20 +5,23 @@
 # REF (default origin/main) is the comparison base for checks of changed files and modules.
 # --no-full-fallback (with --quick) reports a change quick mode cannot plan instead of running the
 # full check.
-# Usage: scripts/check.sh [--quick [--no-full-fallback]] [--base REF] (from the repository root
+# --focused keeps ordinary clients and defers unedited whole-library test leaves to CI.
+# Usage: scripts/check.sh [--quick [--no-full-fallback] | --focused] [--base REF] (from the repository root
 # or any worktree)
 set -u
 cd "$(dirname "$0")/.." || exit 1
 usage() {
-  echo "Usage: scripts/check.sh [--quick [--no-full-fallback]] [--base REF]" >&2
+  echo "Usage: scripts/check.sh [--quick [--no-full-fallback] | --focused] [--base REF]" >&2
   exit 2
 }
 quick=0
+focused=()
 no_fallback=()
 base=origin/main
 while (($#)); do
   case $1 in
     --quick) quick=1 ;;
+    --focused) quick=1; focused=(--focused) ;;
     --no-full-fallback) no_fallback=(--no-full-fallback) ;;
     --base) (($# > 1)) || usage; shift; base=$1 ;;
     --base=*) base=${1#--base=} ;;
@@ -70,6 +73,6 @@ if [ "${COMPLEXITYLIB_CACHE_CHECK_STARTED-}" != "1" ]; then
 fi
 finish
 if ((quick)); then
-  exec python3 scripts/quick_check.py --base "$base" ${no_fallback[@]+"${no_fallback[@]}"}
+  exec python3 scripts/quick_check.py --base "$base" ${no_fallback[@]+"${no_fallback[@]}"} ${focused[@]+"${focused[@]}"}
 fi
 exec python3 -B scripts/full_check.py --base "$base"

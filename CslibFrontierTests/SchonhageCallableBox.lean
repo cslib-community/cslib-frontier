@@ -7,6 +7,8 @@ Authors: Erik Demaine
 -- upstream: local-only (tests)
 
 import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox
+-- Compiled `Code.eval` runs below use the fast interpreter.
+import CslibFrontier.Computability.WordRAM.Structured.FastEval
 
 -- VM checks exercise actual code alongside the separate kernel-checked general execution.
 -- Complete interpreter clients use m=0,N=1: (4^m)^18 ≤ N makes larger depths impractical.
