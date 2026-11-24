@@ -104,37 +104,9 @@ noncomputable def forgetfulWithBad (q : Query Key Block) :
   (RandomPermutation.forgetfulWithBad q.2 (st q.1, bad)).map fun (b, (c, bad')) =>
     (b, (Function.update st q.1 c, bad'))
 
-omit [Fintype Block] [DecidableEq Block] [Nonempty Block] in
-theorem pi_update_eq_bind_perm [Finite Block] (p : ∀ _k : Key, PMF (Equiv.Perm Block)) (i : Key)
-    (q' : PMF (Equiv.Perm Block)) :
-    PMF.pi (Function.update p i q') = q'.bind (fun v =>
-      PMF.pi (Function.update p i (PMF.pure v))) :=
-  by
-  have : ∀ _k : Key, Finite (Equiv.Perm Block) := fun _ => inferInstance
-  simpa only [Function.update_self, Function.update_idem] using
-    (PMF.pi_bind_update (Function.update p i q') i).symm
-
-omit [Fintype Block] [DecidableEq Block] [Nonempty Block] in
-theorem pi_bind_eq_bind_pi_update [Finite Block] (p : ∀ _k : Key, PMF (Equiv.Perm Block)) (i : Key)
-    {β : Type} (f : (∀ _k : Key, Equiv.Perm Block) → PMF β) :
-    (PMF.pi p).bind f = (p i).bind (fun v => (PMF.pi (Function.update p i (PMF.pure v))).bind f) :=
-  by
-  have : ∀ _k : Key, Finite (Equiv.Perm Block) := fun _ => inferInstance
-  have H : PMF.pi p = (p i).bind (fun v => PMF.pi (Function.update p i (PMF.pure v))) := by
-    simpa only [Function.update_self, Function.update_idem] using (PMF.pi_bind_update p i).symm
-  rw [H, PMF.bind_bind]
-
-theorem bind_map_bind_lemma {α β γ δ : Type} (m : PMF α) (F : α → PMF β) (H : β → PMF γ)
-    (proj : α → δ) :
-    m.bind (fun x => (F x |>.bind H).map (proj x, ·)) =
-    (m.bind (fun x => (F x).map (proj x, ·))).bind (fun y => H y.2 |>.map (y.1, ·)) := by
-  rw [PMF.bind_bind]
-  apply congrArg
-  ext1 x
-  rw [PMF.map_bind, PMF.bind_map]
-  rfl
-
 omit [Fintype Key] in
+/-- A query step of `answer` preserves the invariant that every key's cache is a partial
+bijection. -/
 theorem answer_preserve_isPartialBijection (q : Query Key Block) (st : Key → Cache Block)
     (hst : ∀ k, IsPartialBijection (st k)) (a : Block) (st' : Key → Cache Block)
     (hmem : (a, st') ∈ (answer q st).support) (k : Key) : IsPartialBijection (st' k) := by
@@ -146,69 +118,57 @@ theorem answer_preserve_isPartialBijection (q : Query Key Block) (st : Key → C
   · simp only [Function.update_of_ne h]
     exact hst k
 
+/-- Single-step simulation law for `answer` against `complete`: when every key's cache in `st` is
+a partial bijection, answering `q` lazily and completing the updated caches yields the same joint
+distribution of `(answer, permutations)` as completing `st` first and evaluating `q` under the
+resulting permutation family. -/
 theorem answer_complete (q : Query Key Block) (st : Key → Cache Block)
     (hst : ∀ k, IsPartialBijection (st k)) :
     (answer q st).bind (fun (a, st') => (complete st').map (a, ·)) =
       (complete st).bind (fun P => (fun x => (x, P)) <$> PMF.pure (evalPerm (P q.1) q.2)) := by
-  have H_comp (s : Key → Cache Block) :
-    complete s = PMF.pi (fun k => RandomPermutation.complete (s k)) := rfl
-  have H_ans : answer q st = (RandomPermutation.answer q.2 (st q.1)).map
-    (fun (b, c) => (b, Function.update st q.1 c)) := rfl
-  rw [H_ans, PMF.bind_map]
-  simp_rw [H_comp]
-  simp only [Function.comp_def]
-  have H_update (c : Cache Block) :
+  let p : Key → PMF (Equiv.Perm Block) := fun k => RandomPermutation.complete (st k)
+  have hupdate (c : Cache Block) :
       (fun k => RandomPermutation.complete (Function.update st q.1 c k)) =
-      Function.update (fun k => RandomPermutation.complete (st k)) q.1
-        (RandomPermutation.complete c) := by
+        Function.update p q.1 (RandomPermutation.complete c) := by
     ext k
     by_cases h : k = q.1
-    · subst h; simp [Function.update]
-    · simp [Function.update, h]
-  have H_LHS : (RandomPermutation.answer q.2 (st q.1)).bind (fun x =>
-    (PMF.pi (fun k => RandomPermutation.complete (Function.update st q.1 x.2 k))).map (x.1, ·)) =
-      (RandomPermutation.answer q.2 (st q.1)).bind (fun x =>
-        ((RandomPermutation.complete x.2).bind (fun v =>
-          PMF.pi (Function.update (fun k => RandomPermutation.complete (st k)) q.1
-              (PMF.pure v)))).map (x.1, ·)) := by
-    apply congrArg
-    ext1 ⟨b, c⟩
-    rw [H_update c, pi_update_eq_bind_perm]
-  rw [H_LHS, bind_map_bind_lemma, RandomPermutation.answer_complete q.2 (st q.1) (hst q.1)]
-  have H_RHS : (PMF.pi (fun k => RandomPermutation.complete (st k))).bind
-      (fun P => (fun x => (x, P)) <$> PMF.pure (evalPerm (P q.1) q.2)) =
-      (RandomPermutation.complete (st q.1)).bind (fun P_q1 =>
-        (PMF.pi (Function.update (fun k => RandomPermutation.complete (st k)) q.1
-          (PMF.pure P_q1))).map (evalPerm P_q1 q.2, ·)) := by
-    rw [pi_bind_eq_bind_pi_update]
-    apply congrArg
-    ext1 v
-    have h1 : (PMF.pi (Function.update (fun k => RandomPermutation.complete (st k)) q.1
-      (PMF.pure v))).bind (fun P =>
-            PMF.pure (evalPerm (P q.1) q.2, P)) =
-           (PMF.pi (Function.update (fun k => RandomPermutation.complete (st k)) q.1
-             (PMF.pure v))).bind (fun P =>
-            PMF.pure (evalPerm v q.2, P)) := by
-      apply PMF.bind_congr_on_support
-      intro P hP
-      have hP' := (PMF.mem_support_pi_iff _ _).mp hP q.1
-      simp only [Function.update_self, PMF.mem_support_pure_iff] at hP'
-      rw [hP']
-    have h2 : ((PMF.pi (Function.update (fun k => RandomPermutation.complete (st k)) q.1
-             (PMF.pure v))).bind (fun P => (fun x => (x, P)) <$> PMF.pure (evalPerm (P q.1) q.2))) =
-             ((PMF.pi (Function.update (fun k => RandomPermutation.complete (st k)) q.1
-             (PMF.pure v))).bind (fun P => PMF.pure (evalPerm (P q.1) q.2, P))) := by
-      apply congrArg
-      ext1 P
-      exact PMF.pure_bind _ _
-    rw [h2, h1]
-    exact (PMF.bind_pure_comp _ _).symm
-  rw [H_RHS]
-  rw [PMF.bind_map]
-  apply congrArg
-  ext1 P_q1
-  exact (PMF.bind_pure_comp _ _).symm
+    · subst h; simp [p]
+    · simp [p, h]
+  have hcomplete_update (c : Cache Block) :
+      complete (Function.update st q.1 c) =
+        (RandomPermutation.complete c).bind fun v =>
+          PMF.pi (Function.update p q.1 (PMF.pure v)) := by
+    change PMF.pi (fun k => RandomPermutation.complete (Function.update st q.1 c k)) = _
+    rw [hupdate c]
+    simpa only [Function.update_self, Function.update_idem] using
+      (PMF.pi_bind_update (Function.update p q.1 (RandomPermutation.complete c)) q.1).symm
+  calc
+    (answer q st).bind (fun (a, st') => (complete st').map (a, ·))
+        = (RandomPermutation.answer q.2 (st q.1)).bind fun (b, c) =>
+            ((RandomPermutation.complete c).bind fun v =>
+              PMF.pi (Function.update p q.1 (PMF.pure v))).map (b, ·) := by
+          simp only [answer, PMF.bind_map, Function.comp_def, hcomplete_update]
+      _ = ((RandomPermutation.answer q.2 (st q.1)).bind fun (b, c) =>
+            (RandomPermutation.complete c).map (b, ·)).bind fun (b, v) =>
+              (PMF.pi (Function.update p q.1 (PMF.pure v))).map (b, ·) := by
+          rw [PMF.bind_bind]
+          congr 1 with ⟨b, c⟩ : 1
+          dsimp only
+          rw [PMF.map_bind, PMF.bind_map]
+          rfl
+      _ = (RandomPermutation.complete (st q.1)).bind fun v =>
+            (PMF.pi (Function.update p q.1 (PMF.pure v))).map (evalPerm v q.2, ·) := by
+          rw [RandomPermutation.answer_complete q.2 (st q.1) (hst q.1)]
+          simp only [pmf_norm]
+      _ = (PMF.pi p).bind fun P => PMF.pure (evalPerm (P q.1) q.2, P) :=
+          PMF.bind_pi_update p q.1 (fun v P => PMF.pure (evalPerm v q.2, P))
+      _ = (complete st).bind
+            (fun P => (fun x => (x, P)) <$> PMF.pure (evalPerm (P q.1) q.2)) := by
+          simp only [complete, p, pmf_norm]
 
+/-- Running `program` against independent uniformly random permutations
+`P : Key → Equiv.Perm Block` yields the same output distribution as running `program` lazily under
+`answer` from empty caches and projecting out the return value. -/
 theorem uniform_interpret_eq_lazy {α : Type} (program : OracleComp (Spec Key Block) α) :
     (do
       let P ← PMF.pi (fun _ : Key => PMF.uniformOfFintype (Equiv.Perm Block))
@@ -243,6 +203,7 @@ theorem uniform_interpret_eq_lazy {α : Type} (program : OracleComp (Spec Key Bl
   simpa only [pmf_norm, complete, PMF.map, PMF.bind_const] using h2.symm
 
 omit [Fintype Key] in
+/-- `exactWithBad` and `forgetfulWithBad` are identical until the bad flag becomes `true`. -/
 theorem identicalUntilBad_exactWithBad_forgetfulWithBad :
     IdenticalUntilBad (spec := Spec Key Block) exactWithBad forgetfulWithBad
       (fun st : (Key → Cache Block) × Bool => st.2 = true) where
@@ -277,7 +238,9 @@ theorem identicalUntilBad_exactWithBad_forgetfulWithBad :
       · exact (hst' rfl).elim
     · exact (hst rfl).elim
 
-
+/-- Quadratic birthday bound on the bad-flag probability of `forgetfulWithBad`: starting from
+initial key caches `cache` with `bad = false`, an `n`-query-bounded program sets `bad = true`
+with probability at most `(n * ∑ k, (cache k).length + n.choose 2) * (Fintype.card Block)⁻¹`. -/
 theorem toOuterMeasure_bad_forgetfulWithBad_le {β : Type}
     {program : OracleComp (Spec Key Block) β} {n : ℕ}
     (hn : IsQueryBounded program n) (cache : Key → Cache Block) :
@@ -333,6 +296,8 @@ theorem toOuterMeasure_bad_forgetfulWithBad_le {β : Type}
       omega
 
 omit [Fintype Key] in
+/-- A query step of `exactWithBad` preserves the invariant that every key's cache is a partial
+bijection. -/
 theorem exactWithBad_preserve_isPartialBijection (q : Query Key Block)
     (st : (Key → Cache Block) × Bool) (hst : ∀ k, IsPartialBijection (st.1 k)) (a : Block)
     (st' : (Key → Cache Block) × Bool)
@@ -348,6 +313,8 @@ theorem exactWithBad_preserve_isPartialBijection (q : Query Key Block)
     exact hst k
 
 omit [Fintype Key] in
+/-- Dropping the bad flag after a step of `exactWithBad` recovers the law of `answer`, provided
+every key's cache in `st.1` is a partial bijection. -/
 theorem exactWithBad_map_fst (q : Query Key Block) (st : (Key → Cache Block) × Bool)
     (hcache : ∀ k, IsPartialBijection (st.1 k)) :
     (exactWithBad q st).map (fun (a, st') => (a, st'.1)) = answer q st.1 := by
@@ -358,6 +325,8 @@ theorem exactWithBad_map_fst (q : Query Key Block) (st : (Key → Cache Block) �
   exact h
 
 omit [Fintype Key] in
+/-- Dropping the bad flag after a step of `forgetfulWithBad` recovers the law of
+`forgetfulAnswer`. -/
 theorem forgetfulWithBad_map_fst (q : Query Key Block) (st : (Key → Cache Block) × Bool) :
     (forgetfulWithBad q st).map (fun (a, st') => (a, st'.1)) = forgetfulAnswer q st.1 := by
   simp only [forgetfulWithBad, forgetfulAnswer, PMF.map_comp]
@@ -365,7 +334,10 @@ theorem forgetfulWithBad_map_fst (q : Query Key Block) (st : (Key → Cache Bloc
     (RandomPermutation.forgetfulWithBad_map_fst q.2 (st.1 q.1, st.2))
   rw [PMF.map_comp] at h
   exact h
+
 omit [Fintype Key] in
+/-- Dropping the final bad flag after running `program` under `exactWithBad` recovers the run
+under `answer`, provided every key's initial cache is a partial bijection. -/
 theorem run_interpret_exactWithBad_map_fst {β : Type}
     (program : OracleComp (Spec Key Block) β) (cache : Key → Cache Block) (bad : Bool)
     (hcache : ∀ k, IsPartialBijection (cache k)) :
@@ -379,6 +351,8 @@ theorem run_interpret_exactWithBad_map_fst {β : Type}
     program (cache, bad) hcache
 
 omit [Fintype Key] in
+/-- Dropping the final bad flag after running `program` under `forgetfulWithBad` recovers the run
+under `forgetfulAnswer`. -/
 theorem run_interpret_forgetfulWithBad_map_fst {β : Type}
     (program : OracleComp (Spec Key Block) β) (cache : Key → Cache Block) (bad : Bool) :
     ((OracleComp.interpret forgetfulWithBad program).run (cache, bad)).map
@@ -387,18 +361,23 @@ theorem run_interpret_forgetfulWithBad_map_fst {β : Type}
   OracleComp.run_interpret_map_state forgetfulWithBad forgetfulAnswer Prod.fst
     forgetfulWithBad_map_fst program (cache, bad)
 
-
-
-
+/-- Ideal-cipher switching bound (`ℝ`, two-sided): for any `Q`-query-bounded program `program`,
+postprocessing kernel `next : β → PMF γ`, and outcome `c : γ`, the probabilities of outputting
+`c` under independent uniformly random permutations `P : Key → Equiv.Perm Block` and under the
+forgetful lazy sampler `forgetfulAnswer` (starting from empty caches) differ by at most
+`Q.choose 2 * (Fintype.card Block)⁻¹`. -/
 theorem abs_sub_uniformPerm_forgetful_le {β γ : Type}
     {program : OracleComp (Spec Key Block) β} {Q : ℕ}
     (hQ : IsQueryBounded program Q) (next : β → PMF γ) (c : γ) :
-    |(((do
-        let P ← PMF.pi (fun _ : Key => PMF.uniformOfFintype (Equiv.Perm Block))
-        OracleComp.interpret (fun (q : Query Key Block) =>
-          PMF.pure (evalPerm (P q.1) q.2)) program).bind next) c).toReal -
-      (((((OracleComp.interpret forgetfulAnswer program).run (fun _ => [])).map
-        Prod.fst).bind next) c).toReal| ≤
+    |((do
+        let a ← (do
+          let P ← PMF.pi (fun _ : Key => PMF.uniformOfFintype (Equiv.Perm Block))
+          OracleComp.interpret (fun (q : Query Key Block) =>
+            PMF.pure (evalPerm (P q.1) q.2)) program)
+        next a) c).toReal -
+      ((do
+        let a ← ((OracleComp.interpret forgetfulAnswer program).run (fun _ => [])).map Prod.fst
+        next a) c).toReal| ≤
       (Q.choose 2 : ℝ) * (Fintype.card Block : ℝ)⁻¹ := by
   rw [uniform_interpret_eq_lazy,
     ← run_interpret_exactWithBad_map_fst program (fun _ => []) false
@@ -417,7 +396,6 @@ theorem abs_sub_uniformPerm_forgetful_le {β γ : Type}
       (ENNReal.inv_ne_top.mpr (Nat.cast_ne_zero.mpr Fintype.card_ne_zero))
   simpa only [ENNReal.toReal_mul, ENNReal.toReal_natCast, ENNReal.toReal_inv] using
     ENNReal.toReal_mono htop hbad
-
 
 end Finite
 

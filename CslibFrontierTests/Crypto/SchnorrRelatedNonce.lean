@@ -9,6 +9,7 @@ module
 import CslibFrontier.Crypto.Computational.DiscreteLog.SchnorrGroup
 import CslibFrontier.Crypto.Computational.SchnorrRelatedNonce
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF
 import Mathlib.Tactic.NormNum.Prime
 
@@ -77,10 +78,8 @@ equal, the adversary returns `0`, and it wins exactly when the signing key is `0
 theorem relatedNonceGame_same_message (ι : C ↪ ZMod q) (g : G) (m : M) :
     relatedNonceGame ι g 1 0 m m =
       (PMF.uniformOfFintype (ZMod q)).map fun α => decide ((0 : ZMod q) = α) := by
-  simp only [relatedNonceGame, relatedNonceAttacker, schnorrROMScheme, fiatShamir, interpret_map,
-    interpret_query, interpret_bind, interpret_pure, StateT.run_map, StateT.run_bind,
-    StateT.run_pure, pmf_norm, PMF.monad_map_eq_map, PMF.bind_bind, PMF.pure_bind,
-    PMF.map, Function.Embedding.refl_apply, schnorrKeyGen, one_mul, add_zero]
+  simp only [relatedNonceGame, relatedNonceAttacker, schnorrROMScheme, fiatShamir, interp_norm,
+    pmf_norm, PMF.map, Function.Embedding.refl_apply, schnorrKeyGen, one_mul, add_zero]
   refine congrArg (PMF.bind _) (funext fun α => ?_)
   have hmiss' : ∀ r : ZMod q, (oracle C (m, r • g)).run [] =
       (PMF.uniformOfFintype C).bind fun c => PMF.pure (c, [((m, r • g), c)]) :=

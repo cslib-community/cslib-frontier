@@ -185,13 +185,6 @@ theorem isPPTOn_learn {source : α → ProbComp (List Bool × Bool)} {base : α 
     IsPPTOn input encBits (fun a =>
       learn evaluate (source a) (base a) (count a) c d (width a) (inverseGap a)
         (params a) (state a)) := by
-  have hevaluate := hevaluate.tidy
-  have hbase := hbase.tidy
-  have hcount := hcount.tidy
-  have hwidth := hwidth.tidy
-  have hgap := hgap.tidy
-  have hparams := hparams.tidy
-  have hstate := hstate.tidy
   unfold learn
   fun_prop
 
@@ -273,9 +266,8 @@ theorem exists_evaluator {Param : Type} {input : Param ↪ List Bool}
           ProbComp.eval (maskedSequencePredictor source observe truth
             (fun x => mask (signedPredict evaluate) params state (observe x, truth x))
             count (test a) observation) := by
-  simp only [Turing.MultiTapeTM.computableInPolyTime_iff_computableTidilyInPolyTime]
   obtain ⟨c, d, evaluate, hefficient, hrealize⟩ := SavedPrediction.exists_evaluator htest
-  refine ⟨c, d, evaluate, hefficient.tidy, ?_⟩
+  refine ⟨c, d, evaluate, hefficient, ?_⟩
   intro a α source observe truth count width params state observation hwidth
   simpa only [candidates, maskedSequencePredictor, maskedSample, bind_map_left, Functor.map_map,
     Function.comp_def, encBits, Function.Embedding.refl_apply] using

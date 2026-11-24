@@ -64,6 +64,7 @@ The stream case `ivStreamToPrfDistinguisher keystreamQueries` takes a program
 ## Main results
 
 * `Cslib.Crypto.isOraclePPT_ivModeToPrfDistinguisher`,
+  `Cslib.Crypto.isOraclePPT_ivModeToPrfDistinguisher_blockLen`,
   `Cslib.Crypto.isOraclePPT_ivStreamToPrfDistinguisher`: the reduction is uniform strict oracle
   PPT.
 * `Cslib.Crypto.eval_prfRealGame_ivModeToPrfDistinguisher`,
@@ -147,17 +148,17 @@ private theorem isOraclePPTOn_ivModePrfHandler
   have hbodyIv : IsOraclePPTOn (Operation := Unit) EIv encBits
       (fun q : ((ℕ × List Bool) × (Unit × List Bool)) × List Bool =>
         bodyQueries q.1.1.1 q.2 (if bit then dropFrame q.1.2.2 else unframe q.1.2.2)) :=
-    hbody.preprocess' ((hn.comp (ComputableInPolyTime.fst _ _)).prod
+    hbody.preprocess ((hn.comp (ComputableInPolyTime.fst _ _)).prod
       ((ComputableInPolyTime.snd _ _).prod (hmsg.comp (ComputableInPolyTime.fst _ _))))
   have hyes : IsOraclePPTOn (Operation := Unit) EIv encBits
       (fun q : ((ℕ × List Bool) × (Unit × List Bool)) × List Bool =>
         (q.2 ++ ·) <$>
           bodyQueries q.1.1.1 q.2 (if bit then dropFrame q.1.2.2 else unframe q.1.2.2)) :=
-    hbodyIv.map_with' (f := fun q body => q.2 ++ body)
+    hbodyIv.map_with (f := fun q body => q.2 ++ body)
       (ComputableInPolyTime.bitsAppend (by dsimp only [EIv]; fun_prop)
         (ComputableInPolyTime.snd _ _))
   unfold ivModePrfHandler
-  exact IsOraclePPTOn.cond' hcond
+  exact IsOraclePPTOn.cond hcond
     (IsOraclePPTOn.bind_with ((isPPTOn_sampleList.preprocess hn).isOraclePPTOn) hyes)
     (ComputableInPolyTime.isOraclePPTOn (ComputableInPolyTime.const []))
 
@@ -190,6 +191,45 @@ private theorem length_le_of_mem_support_ivModePrfHandler
     subst hreplyEq
     simp
 
+/-- **Efficiency of the reduction at a reindexed block length.** When `blockLen` is computable in
+polynomial time in unary, running `ivModeToPrfDistinguisher` at block width `blockLen n` on
+`adversary n []` is uniform strict oracle PPT whenever `adversary` is. -/
+theorem isOraclePPT_ivModeToPrfDistinguisher_blockLen
+    {blockLen : ℕ → ℕ} (hblock : ComputableInPolyTime blockLen encUnary encUnary)
+    {bodyQueries : ℕ → List Bool → List Bool → WordOracleComp Unit (List Bool)}
+    (hbody : IsOraclePPTOn (encPair encUnary (encPair encBits encBits)) encBits
+      (fun ((n, iv, msg) : ℕ × List Bool × List Bool) => bodyQueries n iv msg))
+    (hbodyLen : ∀ n iv msg reply, reply ∈ OracleComp.support (bodyQueries n iv msg) →
+      reply.length ≤ msg.length)
+    {adversary : OracleDistinguisher} (hadversary : IsOraclePPT encBool adversary) (bit : Bool) :
+    IsOraclePPT encBool fun n aux =>
+      ivModeToPrfDistinguisher bodyQueries (fun _ _ => adversary n []) bit (blockLen n) aux := by
+  let ECaller := encPair encUnary encBits
+  let EReq := encPair (encFinEnum Unit) encBits
+  have hprepHandler : ComputableInPolyTime
+      (fun p : (ℕ × List Bool) × (Unit × List Bool) => ((blockLen p.1.1, p.1.2), p.2))
+      (encPair ECaller EReq) (encPair ECaller EReq) :=
+    (((hblock.comp (by dsimp only [ECaller]; fun_prop)).prod
+      (by dsimp only [ECaller]; fun_prop)).comp (ComputableInPolyTime.fst _ _)).prod
+      (ComputableInPolyTime.snd _ _)
+  have hres : ComputableInPolyTime
+      (fun p : (ℕ × List Bool) × List Bool => blockLen p.1.1 + p.2.length)
+      (encPair ECaller encBits) encUnary :=
+    ComputableInPolyTime.unary_add'
+      (hblock.comp ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)))
+      (ComputableInPolyTime.length_bits.comp (ComputableInPolyTime.snd _ _))
+  change IsOraclePPTOn ECaller encBool
+    (fun caller : ℕ × List Bool => ProbOracleComp.simulate
+      (ivModePrfHandler bodyQueries (blockLen caller.1) bit) (adversary caller.1 []))
+  simp only [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
+  exact IsOraclePPTOn.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
+    (handler := fun caller : ℕ × List Bool => ivModePrfHandler bodyQueries (blockLen caller.1) bit)
+    (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
+    (resources := fun caller request => blockLen caller.1 + request.length)
+    hadversary (by dsimp only [ECaller]; fun_prop)
+    ((isOraclePPTOn_ivModePrfHandler hbody bit).preprocess hprepHandler) hres
+    fun _ _ _ hreply => length_le_of_mem_support_ivModePrfHandler hbodyLen hreply
+
 /-- **Efficiency of the reduction.** If the body queries are strict oracle PPT on
 `(1ⁿ, iv, msg)` and none of their outputs is longer than the message, then for every uniform
 strict oracle-PPT adversary, `ivModeToPrfDistinguisher bodyQueries adversary bit` is uniform
@@ -202,17 +242,9 @@ theorem isOraclePPT_ivModeToPrfDistinguisher
     (hbodyLen : ∀ n iv msg reply, reply ∈ OracleComp.support (bodyQueries n iv msg) →
       reply.length ≤ msg.length)
     {adversary : OracleDistinguisher} (hadversary : IsOraclePPT encBool adversary) (bit : Bool) :
-    IsOraclePPT encBool (ivModeToPrfDistinguisher bodyQueries adversary bit) := by
-  change IsOraclePPTOn (encPair encUnary encBits) encBool
-    (fun caller : ℕ × List Bool => ProbOracleComp.simulate
-      (ivModePrfHandler bodyQueries caller.1 bit) (adversary caller.1 []))
-  simp only [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
-  exact IsOraclePPTOn.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
-    (handler := fun caller : ℕ × List Bool => ivModePrfHandler bodyQueries caller.1 bit)
-    (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
-    (resources := fun caller request => caller.1 + request.length)
-    hadversary (by fun_prop) (isOraclePPTOn_ivModePrfHandler hbody bit) (by fun_prop)
-    fun _ _ _ hreply => length_le_of_mem_support_ivModePrfHandler hbodyLen hreply
+    IsOraclePPT encBool (ivModeToPrfDistinguisher bodyQueries adversary bit) :=
+  isOraclePPT_ivModeToPrfDistinguisher_blockLen ComputableInPolyTime.id' hbody hbodyLen
+    hadversary bit
 
 /-! ### The real game -/
 
@@ -376,7 +408,7 @@ theorem isOraclePPT_ivStreamToPrfDistinguisher
       (fun a : ℕ × List Bool × List Bool => (a.1, a.2.1, a.2.2.length / a.1)) EIn
       (encPair encUnary (encPair encBits encUnary)) := by
     dsimp only [EIn]; fun_prop
-  refine isOraclePPT_ivModeToPrfDistinguisher ((hks.preprocess' hargs).map_with'
+  refine isOraclePPT_ivModeToPrfDistinguisher ((hks.preprocess hargs).map_with
     (f := fun a ks => List.zipWith xor ks a.2.2)
     (ComputableInPolyTime.bitsZipWithInput xor (ComputableInPolyTime.snd _ _)
       (by dsimp only [EIn]; fun_prop))) (fun _ _ _ _ hreply => ?_) hadversary bit

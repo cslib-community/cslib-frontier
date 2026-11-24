@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.ForgerBridge
 public import CslibFrontier.Crypto.Computational.IndexedSignature.Counter
 public import CslibFrontier.Crypto.Computational.Signature.Scheme
 public import CslibFrontier.Crypto.Computational.WordSignature
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 
 /-!
@@ -19,9 +20,13 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 At each security parameter `n`, every word-level signature game is a typed forgery experiment of
 one fixed scheme, played by the word forger with its requests decoded.
 
-* `SignatureScheme.eufCmaGame` and `SignatureScheme.eufOneTimeGame` are `eufCmaExperiment` and
-  `oneTimeEufCmaExperiment` of `S.toScheme n`: the scheme with the same algorithms at parameter
-  `n` whose verification accepts only `n`-bit messages.
+* `SignatureScheme.eufCmaGame` is `eufCmaExperiment` of `S.toScheme n`: the scheme with the same
+  algorithms at parameter `n` on the message space of `n`-bit words, which signs a word of another
+  length as `[]`. The word oracle refuses such a query instead; the laws agree because the forgery
+  is an `n`-bit message.
+* `SignatureScheme.eufOneTimeGame` is the forgery experiment of `S.toScheme n` against the signer
+  that answers the first `n`-bit query and refuses every other query (`Signer.restrict`). A refused
+  query does not use up the one answer.
 * `WordSignatureScheme.eufCmaGame` is `eufCmaExperiment` of `S.toScheme n`, with no restriction.
 * `IndexedSignatureScheme.indexedEufCmaGame` is the indexed experiment of `S.toScheme n`. The word
   oracle reads every request with the total decoder `requestDecoder`, so the typed forger
@@ -47,10 +52,10 @@ of answered pairs, oldest first, and the two agree up to that representation.
 
 * `Cslib.Crypto.Forger.eval_eufCmaExperiment_toTyped`,
   `Cslib.Crypto.Forger.eval_eufCmaExperiment_restrict_toTyped`: the EUF-CMA experiment of any typed
-  scheme on words, restricted or not, played by a word forger, is the word-level game against the
-  signing oracle that records the queried messages.
+  scheme on words, unrestricted or on a message space, played by a word forger, is the word-level
+  game against the signing oracle on that space that records the queried messages.
 * `Cslib.Crypto.SignatureScheme.eufCmaGame_eq_eufCmaExperiment`,
-  `Cslib.Crypto.SignatureScheme.eufOneTimeGame_eq_oneTimeEufCmaExperiment`,
+  `Cslib.Crypto.SignatureScheme.eufOneTimeGame_eq_forgeExperiment`,
   `Cslib.Crypto.WordSignatureScheme.eufCmaGame_eq_eufCmaExperiment`,
   `Cslib.Crypto.IndexedSignatureScheme.indexedEufCmaGame_eq_eufCmaExperiment`,
   `Cslib.Crypto.IndexedSignatureScheme.counterEufCmaGame_eq_counterEufCmaExperiment`: the word games
@@ -145,8 +150,8 @@ theorem Forger.eval_eufCmaExperiment_toTyped
   dsimp only
   rw [← eval_runLogWith_rename (adversary n pk) (fun w => w) (Signer.ofSign S.sign sk)
     (SignatureScheme.signingOracleOf S.sign sk) fun request log => by
-      simp [ProbOracleComp.logOracle, SignatureScheme.signingOracleOf, ProbComp.eval_map,
-        PMF.map_comp, Function.comp_def]]
+      simp [ProbOracleComp.logOracle, SignatureScheme.signingOracleOf,
+        SignatureScheme.signingOracleOn, ProbComp.eval_map, PMF.map_comp, Function.comp_def]]
   rw [PMF.bind_map]
   congr 1
   funext x
@@ -154,9 +159,37 @@ theorem Forger.eval_eufCmaExperiment_toTyped
   simp only [Function.comp_apply, freshMessage, List.contains_reverse]
   cases S.verify pk msg sig <;> simp
 
-/-- The EUF-CMA experiment of a scheme on words restricted to the messages accepted by `adm`,
-played by `adversary.toTyped n`, is the word-level game that also requires the forged message to
-be admissible. -/
+/-- Running a word forger against the logging signer of `S.restrict adm`, and keeping only the
+admissible messages of the log, newest first, is running it against the word signing oracle on
+`adm`. The typed signer answers a query outside `adm` with `[]` and logs it, while the word oracle
+answers `[]` and does not record it. -/
+private theorem eval_runLogWith_restrict
+    (S : Signature.Scheme (List Bool) (List Bool) (List Bool) (List Bool)) (adm : List Bool → Bool)
+    {α : Type} (program : WordOracleComp Unit α) (sk : List Bool) :
+    (ProbComp.eval (ProbOracleComp.runLogWith (OracleComp.interpret
+        (sumHandler (fun k => OracleComp.query
+          (spec := probOracleSpec fun _ : List Bool => List Bool) (.inl k))
+          (fun request => ProbOracleComp.query request.2))
+        program) (Signer.ofSign (S.restrict adm).sign sk))).map
+        (fun (a, log) => (a, ((log.filter (fun p => adm p.1)).map Prod.fst).reverse)) =
+      ProbComp.eval ((OracleComp.interpret
+        (sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
+          (SignatureScheme.signingOracleOn adm S.sign sk)) program).run []) :=
+  Forger.eval_runLogWith_rename_state program (fun w => w) (Signer.ofSign (S.restrict adm).sign sk)
+    (SignatureScheme.signingOracleOn adm S.sign sk)
+    (fun log => ((log.filter (fun p => adm p.1)).map Prod.fst).reverse) fun request log => by
+      by_cases hadm : adm request.2 = true
+      · simp [ProbOracleComp.logOracle, SignatureScheme.signingOracleOn, hadm, List.filter_append,
+          ProbComp.eval_map, PMF.map_comp, Function.comp_def]
+      · simp only [Bool.not_eq_true] at hadm
+        simp [ProbOracleComp.logOracle, SignatureScheme.signingOracleOn, hadm, List.filter_append,
+          show (default : List Bool) = [] from rfl]
+
+/-- The EUF-CMA experiment of a scheme on words restricted to the message space `adm`, played by
+`adversary.toTyped n`, is the word-level game against the signing oracle on `adm`, which also
+requires the forged message to be admissible. The typed signer answers a query outside `adm` with
+`[]` and logs it; the word oracle answers `[]` without recording it. The laws agree because such a
+log entry never names an admissible forgery. -/
 theorem Forger.eval_eufCmaExperiment_restrict_toTyped
     (S : Signature.Scheme (List Bool) (List Bool) (List Bool) (List Bool)) (adm : List Bool → Bool)
     (adversary : Forger) (n : ℕ) :
@@ -164,18 +197,37 @@ theorem Forger.eval_eufCmaExperiment_restrict_toTyped
       let (pk, sk) ← S.keyGen
       let ((msg, sig), queried) ← (OracleComp.interpret
         (sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-          (SignatureScheme.signingOracleOf S.sign sk)) (adversary n pk)).run []
+          (SignatureScheme.signingOracleOn adm S.sign sk)) (adversary n pk)).run []
       return adm msg && !queried.contains msg && S.verify pk msg sig) := by
-  rw [Forger.eval_eufCmaExperiment_toTyped]
-  simp only [Signature.Scheme.restrict_keyGen, Signature.Scheme.restrict_sign,
-    Signature.Scheme.restrict_verify, ProbComp.eval_bind, ProbComp.eval_pure]
-  refine congrArg _ (funext fun ⟨pk, sk⟩ => congrArg _ (funext fun ⟨⟨msg, sig⟩, queried⟩ => ?_))
-  cases adm msg <;> simp
+  simp only [forgeExperiment, Signature.Scheme.restrict_keyGen, ProbComp.eval_bind,
+    ProbComp.eval_pure]
+  congr 1
+  funext keys
+  obtain ⟨pk, sk⟩ := keys
+  dsimp only
+  rw [← eval_runLogWith_restrict S adm (adversary n pk) sk, PMF.bind_map]
+  congr 1
+  funext x
+  obtain ⟨⟨msg, sig⟩, log⟩ := x
+  -- On an admissible message, the filtered log names it exactly when the full log does.
+  have hfilter : (adm msg && !((log.filter (fun p => adm p.1)).map Prod.fst).contains msg) =
+      (adm msg && !(log.map Prod.fst).contains msg) := by
+    cases hadm : adm msg
+    · rfl
+    · have hmem : msg ∈ (log.filter (fun p => adm p.1)).map Prod.fst ↔
+          msg ∈ log.map Prod.fst := by
+        simp only [List.mem_map, List.mem_filter]
+        exact ⟨fun ⟨a, ⟨ha, _⟩, h⟩ => ⟨a, ha, h⟩, fun ⟨a, ha, h⟩ => ⟨a, ⟨ha, h ▸ hadm⟩, h⟩⟩
+      simp only [Bool.true_and, List.contains_eq_mem]
+      exact congrArg (!·) (decide_eq_decide.mpr hmem)
+  simp only [Function.comp_apply, Signature.Scheme.restrict_verify, freshMessage,
+    List.contains_reverse, hfilter]
+  cases adm msg <;> cases S.verify pk msg sig <;> simp
 
 namespace SignatureScheme
 
-/-- The typed scheme of `S` at parameter `n`: the same algorithms at `n`, restricted to `n`-bit
-messages, as in the word-level games. -/
+/-- The typed scheme of `S` at parameter `n`: the same algorithms at `n`, on the message space of
+`n`-bit words, as in the word-level games. Signing a word of another length returns `[]`. -/
 def toScheme (S : SignatureScheme) (n : ℕ) :
     Signature.Scheme (List Bool) (List Bool) (List Bool) (List Bool) :=
   Signature.Scheme.restrict ⟨S.keyGen n, S.sign, S.verify⟩ (·.length == n)
@@ -183,7 +235,8 @@ def toScheme (S : SignatureScheme) (n : ℕ) :
 @[simp] theorem toScheme_keyGen (S : SignatureScheme) (n : ℕ) :
     (S.toScheme n).keyGen = S.keyGen n := rfl
 
-@[simp] theorem toScheme_sign (S : SignatureScheme) (n : ℕ) : (S.toScheme n).sign = S.sign := rfl
+@[simp] theorem toScheme_sign (S : SignatureScheme) (n : ℕ) (sk msg : List Bool) :
+    (S.toScheme n).sign sk msg = if msg.length == n then S.sign sk msg else pure [] := rfl
 
 @[simp] theorem toScheme_verify (S : SignatureScheme) (n : ℕ) (pk msg sig : List Bool) :
     (S.toScheme n).verify pk msg sig = (msg.length == n && S.verify pk msg sig) := rfl
@@ -205,31 +258,36 @@ theorem eufCmaGame_eq_eufCmaExperiment (S : SignatureScheme) (adversary : Forger
   (Forger.eval_eufCmaExperiment_restrict_toTyped ⟨S.keyGen n, S.sign, S.verify⟩ (·.length == n)
     adversary n).symm
 
-/-- At each parameter `n`, the word-level one-time EUF-CMA game is the typed one-time EUF-CMA
-experiment of `S.toScheme n` played by `adversary.toTyped n`. -/
-theorem eufOneTimeGame_eq_oneTimeEufCmaExperiment (S : SignatureScheme) (adversary : Forger)
-    (n : ℕ) :
+/-- At each parameter `n`, the word-level one-time EUF-CMA game is the forgery experiment of
+`S.toScheme n` against the signer that answers the first `n`-bit query and refuses every other
+query, played by `adversary.toTyped n`. A refused query is not logged, so it does not use up the one
+answer; in the typed one-time experiment of `S.toScheme n` (`oneTimeEufCmaExperiment`) a query of
+another length would be answered with `[]` and would use it up. -/
+theorem eufOneTimeGame_eq_forgeExperiment (S : SignatureScheme) (adversary : Forger) (n : ℕ) :
     ProbComp.eval (S.eufOneTimeGame adversary n) =
-      ProbComp.eval ((S.toScheme n).oneTimeEufCmaExperiment (adversary.toTyped n)) := by
-  simp only [eufOneTimeGame, forgeExperiment, toScheme_keyGen, ProbComp.eval_bind,
-    ProbComp.eval_pure]
+      ProbComp.eval (forgeExperiment (S.keyGen n)
+        ((Signer.ofSign S.sign).restrict (·.length == n)).oneTime
+        (fun pk _ => (S.toScheme n).verify pk) freshMessage (adversary.toTyped n)) := by
+  simp only [eufOneTimeGame, forgeExperiment, ProbComp.eval_bind, ProbComp.eval_pure]
   congr 1
   funext keys
   obtain ⟨pk, sk⟩ := keys
   dsimp only
   rw [← eval_runLogWith_rename (adversary n pk) (fun w => w)
-    ((Signer.ofSign (S.toScheme n).sign).oneTime sk) (S.oneTimeSigningOracle sk)
+    (((Signer.ofSign S.sign).restrict (·.length == n)).oneTime sk) (S.oneTimeSigningOracle n sk)
     fun request log => by
-      cases log with
-      | nil =>
-        simp [ProbOracleComp.logOracle, oneTimeSigningOracle, oneTimeSigningOracleOf,
-          ProbComp.eval_map, PMF.map_comp, Function.comp_def]
-      | cons p log =>
-        simp only [ProbOracleComp.logOracle, toScheme_sign, Signer.oneTime_cons, ProbComp.eval_pure,
-          PMF.pure_map, List.map_cons, List.reverse_cons, oneTimeSigningOracle,
-          oneTimeSigningOracleOf, List.isEmpty_iff, List.append_eq_nil_iff, List.reverse_eq_nil_iff,
-          List.map_eq_nil_iff, List.cons_ne_self, and_false, ↓reduceIte]
-        rfl]
+      by_cases hadm : (request.2.length == n) = true
+      · cases log with
+        | nil =>
+          simp [ProbOracleComp.logOracle, oneTimeSigningOracle, oneTimeSigningOracleOn, hadm,
+            ProbComp.eval_map, PMF.map_comp, Function.comp_def]
+        | cons p log =>
+          simp [ProbOracleComp.logOracle, oneTimeSigningOracle, oneTimeSigningOracleOn,
+            show (default : List Bool) = [] from rfl]
+      · simp only [Bool.not_eq_true] at hadm
+        cases log <;>
+          simp [ProbOracleComp.logOracle, oneTimeSigningOracle, oneTimeSigningOracleOn, hadm,
+            show (default : List Bool) = [] from rfl]]
   rw [PMF.bind_map]
   congr 1
   funext x
@@ -247,8 +305,10 @@ theorem succProbability_eufCmaGame (S : SignatureScheme) (adversary : Forger) (n
 experiment. -/
 theorem succProbability_eufOneTimeGame (S : SignatureScheme) (adversary : Forger) (n : ℕ) :
     Game.succProbability (ProbComp.eval (S.eufOneTimeGame adversary n)) =
-      ((S.toScheme n).oneTimeEufCmaExperiment (adversary.toTyped n)).succProbability := by
-  rw [Experiment.succProbability, eufOneTimeGame_eq_oneTimeEufCmaExperiment]
+      (forgeExperiment (S.keyGen n) ((Signer.ofSign S.sign).restrict (·.length == n)).oneTime
+        (fun pk _ => (S.toScheme n).verify pk) freshMessage
+        (adversary.toTyped n)).succProbability := by
+  rw [Experiment.succProbability, eufOneTimeGame_eq_forgeExperiment]
 
 end SignatureScheme
 
@@ -334,6 +394,7 @@ theorem indexedEufCmaGame_eq_eufCmaExperiment (S : IndexedSignatureScheme)
   obtain ⟨⟨u, msg, sig⟩, log⟩ := x
   simp only [Function.comp_apply, Prod.map, id, toScheme_verify, freshMessage,
     List.contains_reverse]
+  rw [show decide (u < (S.toScheme n).capacity) = decide (u < S.capacity n) from rfl]
   cases S.verify pk u msg sig <;> simp
 
 /-- Running the typed counter forger against the logging counter signer, and keeping only the
@@ -373,8 +434,7 @@ private theorem eval_runLogWith_toCounter (S : IndexedSignatureScheme) (adversar
     rw [Forger.counterRelay_run] at h
     by_cases hcap : log.length < S.capacity n
     · rw [ite_eq_left hcap] at h
-      simp only [OracleComp.interpret_map, StateT.run_map, ProbOracleComp.query,
-        OracleComp.interpret_query] at h
+      simp only [interp_norm, ProbOracleComp.query] at h
       dsimp only [OracleComp.sumHandler, StateT.run] at h
       simp only [ProbOracleComp.logOracle, Signer.counter, hcap, ite_true, ProbComp.eval_map,
         PMF.monad_map_eq_map, PMF.map_comp, PMF.mem_support_map_iff, Function.comp_apply] at h
@@ -383,7 +443,7 @@ private theorem eval_runLogWith_toCounter (S : IndexedSignatureScheme) (adversar
       obtain ⟨-, rfl, rfl⟩ := h
       simp
     · rw [ite_eq_right hcap] at h
-      simp only [OracleComp.interpret_pure, StateT.run_pure] at h
+      simp only [interp_norm] at h
       simp_all [PMF.monad_pure_eq_pure]
   case step =>
     rintro q ⟨j, log⟩ (rfl : j = log.length)
@@ -391,8 +451,7 @@ private theorem eval_runLogWith_toCounter (S : IndexedSignatureScheme) (adversar
     rw [Forger.counterRelay_run]
     by_cases hcap : log.length < S.capacity n
     · rw [ite_eq_left hcap]
-      simp only [OracleComp.interpret_map, StateT.run_map, ProbOracleComp.query,
-        OracleComp.interpret_query, counterSigningOracle, hcap, ite_true]
+      simp only [interp_norm, ProbOracleComp.query, counterSigningOracle, hcap, ite_true]
       dsimp only [OracleComp.sumHandler, StateT.run]
       simp only [ProbOracleComp.logOracle, Signer.counter, hcap, ite_true, ProbComp.eval_map,
         ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_map_eq_map, PMF.map_comp]
@@ -416,7 +475,8 @@ theorem counterEufCmaGame_eq_counterEufCmaExperiment (S : IndexedSignatureScheme
   obtain ⟨pk, sk⟩ := keys
   dsimp only
   let post : (List Bool × ℕ × List Bool) × List (List Bool) → PMF Bool :=
-    fun ((m, u, σ), signed) => PMF.pure (!signed.contains m && S.verify pk u m σ)
+    fun ((m, u, σ), signed) =>
+      PMF.pure (decide (u < S.capacity n) && !signed.contains m && S.verify pk u m σ)
   symm
   calc _ = ((ProbComp.eval (ProbOracleComp.runLogWith (adversary.toCounter (S.capacity n) n pk)
           (Signer.counter (S.capacity n) S.sign sk))).map
@@ -426,6 +486,7 @@ theorem counterEufCmaGame_eq_counterEufCmaExperiment (S : IndexedSignatureScheme
         funext ⟨⟨m, u, σ⟩, log⟩
         simp only [Function.comp_apply, post, toScheme_verify, freshMessage,
           List.contains_reverse]
+        rw [show decide (u < (S.toScheme n).capacity) = decide (u < S.capacity n) from rfl]
         cases S.verify pk u m σ <;> simp
     _ = _ := by
         rw [eval_runLogWith_toCounter, PMF.bind_map]

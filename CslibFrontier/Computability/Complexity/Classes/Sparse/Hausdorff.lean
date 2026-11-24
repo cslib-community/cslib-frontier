@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Tally
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import Mathlib.Data.Set.Finite.List
+import CslibFrontier.Foundations.Data.List.Forall2
 
 /-!
 # Hausdorff decompositions of bounded truth-table reductions
@@ -93,14 +94,6 @@ def Hausdorff (f : List Bool → Bool) (b : List Bool) (j : ℕ) : Prop :=
 
 variable {f : List Bool → Bool} {b : List Bool}
 
-private theorem forall₂_le_trans {u v w : List Bool} (h₁ : List.Forall₂ (· ≤ ·) u v)
-    (h₂ : List.Forall₂ (· ≤ ·) v w) : List.Forall₂ (· ≤ ·) u w := by
-  induction h₁ generalizing w with
-  | nil => cases h₂; exact .nil
-  | cons hab _ ih =>
-    cases h₂ with
-    | cons hbc h₂ => exact .cons (le_trans hab hbc) (ih h₂)
-
 private theorem count_le_of_forall₂ {v w : List Bool} (h : List.Forall₂ (· ≤ ·) v w) :
     v.count true ≤ w.count true := by
   induction h with
@@ -171,7 +164,7 @@ theorem Hausdorff.of_succ {j : ℕ} (hH : Hausdorff f b (j + 1)) : Hausdorff f b
   rw [zip_cons_cons] at hc
   have hstep := hc (h, v) List.mem_cons_self
   refine ⟨v, t, fun p hp => hc p (List.mem_cons_of_mem _ hp), by simpa using ht, ?_,
-    forall₂_le_trans hstep.1 hb⟩
+    hstep.1.trans hb⟩
   have hne := hstep.2.2
   rw [hf, decide_even_succ] at hne
   revert hne

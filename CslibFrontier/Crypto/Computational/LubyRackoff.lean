@@ -42,7 +42,8 @@ the rounds backwards.
 the Luby–Rackoff cipher is a pseudorandom permutation
 (`PseudorandomFunction.prp_lubyRackoffCipher`).
 The proof follows the textbook. The 3-wise parallel composition of the PRF
-(`PseudorandomFunction.multiKey`) replaces the three keyed rounds with independent random functions.
+(`PseudorandomFunction.multiKey_constantCount`) replaces the three keyed rounds with independent
+random functions.
 The adapter `lubyRackoffAdversary` turns a block-cipher adversary into a three-channel one, which
 costs one oracle-PPT reduction (`isOraclePPT_lubyRackoffAdversary`). With random rounds, the
 information-theoretic bound `LubyRackoff.advantage_feistel3RandomRoundsGame_idealPermGame_le`
@@ -426,7 +427,7 @@ private theorem isOraclePPTOn_feistelRoundQuery {α : Type} {input : α ↪ List
     (hblock : ComputableInPolyTime block input encBits) :
     IsOraclePPTOn input encBits (fun a => feistelRoundQuery i (n a) (block a)) :=
   let hfst := ComputableInPolyTime.fst input encBits
-  (IsOraclePPTOn.query_take' i (hblock.bitsDropWithInput hn) hn).map_with'
+  (IsOraclePPTOn.query_take i (hblock.bitsDropWithInput hn) hn).map_with
     (f := fun a reply => (block a).drop (n a) ++
       List.zipWith Bool.xor ((block a).take (n a)) reply)
     (computableInPolyTime_feistelRoundWord (g := fun p : α × List Bool => fun _ => p.2)
@@ -438,7 +439,7 @@ private theorem isOraclePPTOn_feistelInvRoundQuery {α : Type} {input : α ↪ L
     (hblock : ComputableInPolyTime block input encBits) :
     IsOraclePPTOn input encBits (fun a => feistelInvRoundQuery i (n a) (block a)) :=
   let hfst := ComputableInPolyTime.fst input encBits
-  (IsOraclePPTOn.query_take' i (hblock.bitsTakeWithInput hn) hn).map_with'
+  (IsOraclePPTOn.query_take i (hblock.bitsTakeWithInput hn) hn).map_with
     (f := fun a reply => List.zipWith Bool.xor ((block a).drop (n a)) reply ++
       (block a).take (n a))
     (computableInPolyTime_feistelInvRoundWord (g := fun p : α × List Bool => fun _ => p.2)
@@ -553,7 +554,7 @@ theorem isOraclePPT_lubyRackoffAdversary {adversary : OracleDistinguisher}
   have hblock := (ComputableInPolyTime.snd (encPair encUnary encBits)
     (encPair (encFinEnum Unit) encBits)).snd'
   refine isOraclePPT_interpret_handler hadversary
-    (IsOraclePPTOn.ite'
+    (IsOraclePPTOn.ite
       (ComputableInPolyTime.unary_eq' (hblock.trans ComputableInPolyTime.length_bits)
         (ComputableInPolyTime.unary_mul' (.const 2) hn))
       (isOraclePPTOn_feistelNetworkQuery [0, 1, 2] hn hblock)
@@ -792,7 +793,7 @@ theorem PseudorandomFunction.prp_lubyRackoffCipher {family : List Bool → List 
       (IsOraclePPT encBool) := by
     intro adversary hadversary
     simpa only [eval_prpRealGame_lubyRackoffCipher hfamily] using
-      hfamily.multiKey 3 (lubyRackoffAdversary adversary)
+      hfamily.multiKey_constantCount 3 (lubyRackoffAdversary adversary)
         (isOraclePPT_lubyRackoffAdversary hadversary)
   refine hreal.trans (Game.Indistinguishable.of_birthday_queryBounded_real
     (base := fun n => ((2 : ℝ≥0) ^ n)⁻¹) 3 (by negligible) fun n Q adversary hQ => ?_)
@@ -931,10 +932,10 @@ theorem isOraclePPT_strongLubyRackoffAdversary {adversary : StrongPRPDistinguish
     (encPair (encFinEnum Bool) encBits)
   have hblock := hreq.snd'
   refine isOraclePPT_interpret_handler hadversary
-    (IsOraclePPTOn.ite'
+    (IsOraclePPTOn.ite
       (ComputableInPolyTime.unary_eq' (hblock.trans ComputableInPolyTime.length_bits)
         (ComputableInPolyTime.unary_mul' (.const 2) hn))
-      (IsOraclePPTOn.cond' (hreq.fst'.trans (.of_finite id))
+      (IsOraclePPTOn.cond (hreq.fst'.trans (.of_finite id))
         (isOraclePPTOn_feistelNetworkInvQuery [0, 1, 2, 3] hn hblock)
         (isOraclePPTOn_feistelNetworkQuery [0, 1, 2, 3] hn hblock))
       ((ComputableInPolyTime.const ([] : List Bool)).isPPTOn.isOraclePPTOn (Operation := Fin 4)))
@@ -1232,7 +1233,7 @@ theorem PseudorandomFunction.strongPRP_lubyRackoff4Cipher
       (IsOraclePPT encBool) := by
     intro adversary hadversary
     simpa only [eval_strongPRPRealGame_lubyRackoff4Cipher hfamily] using
-      hfamily.multiKey 4 (strongLubyRackoffAdversary adversary)
+      hfamily.multiKey_constantCount 4 (strongLubyRackoffAdversary adversary)
         (isOraclePPT_strongLubyRackoffAdversary hadversary)
   refine hreal.trans (Game.Indistinguishable.of_birthday_queryBounded_real
     (base := fun n => ((2 : ℝ≥0) ^ n)⁻¹) 4 (by negligible) fun n Q adversary hQ => ?_)

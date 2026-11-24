@@ -78,11 +78,11 @@ def labelRepresentative (r : BitString (n + (w + w))) : BitString n :=
 
 /-- The first word of a label: the cycle length. -/
 def labelLength (r : BitString (n + (w + w))) : BitVec w :=
-  word fun i => r (Fin.natAdd n (Fin.castAdd w i))
+  BitString.equivBitVec fun i => r (Fin.natAdd n (Fin.castAdd w i))
 
 /-- The second word of a label: the phase. -/
 def labelPhase (r : BitString (n + (w + w))) : BitVec w :=
-  word fun i => r (Fin.natAdd n (Fin.natAdd w i))
+  BitString.equivBitVec fun i => r (Fin.natAdd n (Fin.natAdd w i))
 
 /-- Unpacking the representative from `labelBits c ell phi` recovers `c`. -/
 @[simp] theorem labelRepresentative_labelBits (c : BitString n) (ell phi : BitVec w) :
@@ -93,12 +93,13 @@ def labelPhase (r : BitString (n + (w + w))) : BitVec w :=
 /-- Unpacking the cycle-length word from `labelBits c ell phi` recovers `ell`. -/
 @[simp] theorem labelLength_labelBits (c : BitString n) (ell phi : BitVec w) :
     labelLength (labelBits c ell phi) = ell := by
-  simp only [labelLength, labelBits, Fin.append_left, Fin.append_right, word_getLsbD]
+  simp only [labelLength, labelBits, Fin.append_left, Fin.append_right,
+    BitString.equivBitVec_getLsbD]
 
 /-- Unpacking the phase word from `labelBits c ell phi` recovers `phi`. -/
 @[simp] theorem labelPhase_labelBits (c : BitString n) (ell phi : BitVec w) :
     labelPhase (labelBits c ell phi) = phi := by
-  simp only [labelPhase, labelBits, Fin.append_right, word_getLsbD]
+  simp only [labelPhase, labelBits, Fin.append_right, BitString.equivBitVec_getLsbD]
 
 /-- The width of a canonical label: a state, then two words of `n + 3` bits. -/
 abbrev labelWidth (n : ℕ) : ℕ := n + ((n + 3) + (n + 3))
@@ -175,10 +176,11 @@ theorem synthesis_correctLabel (s : Set (BooleanFunction a))
     Synthesis interpretation s (wires fun x => correctLabel (r x) j) (50 * (w + 1) ^ 2) := by
   have hlen : wordWires (fun x => labelLength (r x)) ⊆ s := by
     rintro _ ⟨i, rfl⟩
-    simpa only [labelLength, getLsbD_word] using hr ⟨_, rfl⟩
+    simpa only [labelLength, BitString.getLsbD_equivBitVec] using hr ⟨_, rfl⟩
   have hp := synthesis_subMod s (fun x => labelPhase (r x)) (fun _ => BitVec.ofNat w j)
     (fun x => labelLength (r x))
-    (fun i => by simpa only [labelPhase, getLsbD_word] using hr ⟨_, rfl⟩) (fun _ => hc _)
+    (fun i => by simpa only [labelPhase, BitString.getLsbD_equivBitVec] using hr ⟨_, rfl⟩)
+    (fun _ => hc _)
     (fun i => hlen ⟨i, rfl⟩) (hc false)
   refine (hp.trans (Synthesis.of_subset (labelBits_wires_subset _ _ _ _ ?_ ?_ ?_))).mono
     Set.Subset.rfl Set.Subset.rfl (by omega)
@@ -229,7 +231,8 @@ private theorem shortRepresentative_eq : shortRepresentative f K x = canonicalCy
       exact iterate_mem_cycleSet f hx j.val
 
 include hx hK in
-private theorem shortLength_eq : shortLength (w := w) f K x = BitVec.ofNat w (cycleLength f x) := by
+/-- The scanned first positive return is the cycle length when that return fits the scan. -/
+theorem shortLength_eq : shortLength (w := w) f K x = BitVec.ofNat w (cycleLength f x) := by
   have hmin : Function.minimalPeriod f x = cycleLength f x :=
     (cycleLength_eq_minimalPeriod_of_mem_periodicPts f hx).symm
   apply firstIndex_spec _ ⟨cycleLength f x, by omega⟩
@@ -273,6 +276,29 @@ theorem shortLabel_eq_canonicalLabel : shortLabel f K x = canonicalLabel f x := 
 
 end Short
 
+/-- Given the orbit prefix, the first positive return is obtained with one comparison and
+one word selection per position. -/
+theorem synthesis_shortLength (s : Set (BooleanFunction a)) (f : BitString n → BitString n)
+    (init : BitString a → BitString n) (K : ℕ)
+    (hp : ∀ j : Fin (K + 1), ∀ bit, (fun x => f^[j.val] (init x) bit) ∈ s)
+    (hc : ∀ b : Bool, (fun _ : BitString a => b) ∈ s) :
+    Synthesis interpretation s (wordWires fun x => shortLength (w := w) f K (init x))
+      ((K + 1) * (6 * n + 1 + 4 * w)) := by
+  let back := fun x (j : Fin (K + 1)) => decide (0 < j.val ∧ f^[j.val] (init x) = init x)
+  have hback := Synthesis.family (I := interpretation) (s := s) (fun j x => back x j)
+    (fun _ => 6 * n + 1) fun j => by
+      by_cases hj : 0 < j.val
+      · simpa only [back, hj, true_and] using synthesis_bits_eq s (fun x => f^[j.val] (init x))
+          init (fun _ ⟨i, e⟩ => e ▸ hp j i) (fun _ ⟨i, e⟩ => e ▸ hp 0 i)
+      · simpa only [back, hj, false_and, decide_false] using
+          (Synthesis.of_mem (s := s) (I := interpretation) (hc false)).mono
+            Set.Subset.rfl Set.Subset.rfl (Nat.zero_le _)
+  have hl := synthesis_firstIndex (w := w) (s ∪ Set.range fun j x => back x j) back
+    (fun j => Or.inr ⟨j, rfl⟩) fun b => Or.inl (hc b)
+  refine (hback.trans hl).mono Set.Subset.rfl Set.Subset.rfl ?_
+  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
+  exact le_of_eq (by ring)
+
 /-- **Short-cycle labels.** Once the first `K + 1` states of an orbit are available, its short
 label costs one minimum scan, two first-position scans, their equality tests and one modular
 difference. -/
@@ -289,17 +315,8 @@ theorem synthesis_shortLabel (s : Set (BooleanFunction a)) (f : BitString n → 
   have hprefix (j : Fin (K + 1)) : wires (fun x => f^[j.val] (init x)) ⊆ src := by
     rintro _ ⟨bit, rfl⟩
     exact Or.inl (hp j bit)
-  let back := fun x (j : Fin (K + 1)) => decide (0 < j.val ∧ f^[j.val] (init x) = init x)
-  have hback := Synthesis.family (I := interpretation) (s := src) (fun j x => back x j)
-    (fun _ => 6 * n + 1) fun j => by
-      by_cases hj : 0 < j.val
-      · simpa only [back, hj, true_and] using synthesis_bits_eq src (fun x => f^[j.val] (init x))
-          init (hprefix j) (hprefix 0)
-      · simpa only [back, hj, false_and, decide_false] using
-          (Synthesis.of_mem (s := src) (I := interpretation) (Or.inl (hc false))).mono
-            Set.Subset.rfl Set.Subset.rfl (Nat.zero_le _)
-  have hl := synthesis_firstIndex (w := n + 3) (src ∪ Set.range fun j x => back x j) back
-    (fun j => Or.inr ⟨j, rfl⟩) fun b => Or.inl (Or.inl (hc b))
+  have hl := synthesis_shortLength (w := n + 3) src f init K
+    (fun j bit => Or.inl (hp j bit)) (fun b => Or.inl (hc b))
   let hit := fun x (j : Fin (K + 1)) => decide (f^[j.val] (init x) = rep x)
   have hhit := Synthesis.family (I := interpretation) (s := src) (fun j x => hit x j)
     (fun _ => 6 * n + 1) fun j =>
@@ -308,7 +325,7 @@ theorem synthesis_shortLabel (s : Set (BooleanFunction a)) (f : BitString n → 
     (fun j => Or.inr ⟨j, rfl⟩) fun b => Or.inl (Or.inl (hc b))
   let ell := fun x => shortLength (w := n + 3) f K (init x)
   let time := fun x => shortTime (w := n + 3) f K (init x)
-  have hscans := hm.comp ((hback.trans hl).union (hhit.trans ht))
+  have hscans := hm.comp (hl.union (hhit.trans ht))
   let src2 := s ∪ (wires rep ∪ (wordWires ell ∪ wordWires time))
   have hphase := synthesis_subMod src2 (fun _ => (0 : BitVec (n + 3))) time ell
     (fun i => by

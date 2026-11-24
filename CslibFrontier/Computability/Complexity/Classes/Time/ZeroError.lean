@@ -48,8 +48,9 @@ decides the complement in the same way. So the problem is in `RP ∩ coRP`, whic
 (`Cslib.Complexity.ZPP_eq_RP_inter_coRP`).
 
 The converse, that the library's `ZPP` is contained in `⋃_d ZTIME(n ^ d)`, needs a machine that
-repeats a zero-error verifier until it answers, and is not proved here. So Arora and Barak,
-Theorem 7.8, for the draft's `ZPP` remains open in the library; this file proves one inclusion.
+repeats a zero-error verifier until it answers. It is proved in
+`CslibFrontier.Computability.Complexity.Classes.Time.LasVegas`, which also states Arora and Barak,
+Theorem 7.8, for the draft's `ZPP`.
 
 ## Main definitions
 
@@ -276,7 +277,7 @@ theorem ZTIME_pow_subset_coRP (d : ℕ) : ZTIME enc (· ^ d) ⊆ coRP enc := fun
 /-- **`ZTIME(n ^ d) ⊆ ZPP`**: the problems decided with zero error in expected polynomial time in
 the sense of [Arora and Barak, Definition 7.7][AroraBarak07] are in the library's `ZPP`. This is
 one inclusion of the draft's definition `ZPP = ⋃_c ZTIME(n ^ c)` against the library's `ZPP`; the
-converse is not proved here. -/
+converse is `Cslib.Complexity.exists_mem_ZTIME_pow_of_mem_ZPP`. -/
 theorem ZTIME_pow_subset_ZPP (d : ℕ) : ZTIME enc (· ^ d) ⊆ ZPP enc := fun _ hA => by
   rw [ZPP_eq_RP_inter_coRP]
   exact ⟨ZTIME_pow_subset_RP d hA, ZTIME_pow_subset_coRP d hA⟩

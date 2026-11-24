@@ -240,8 +240,7 @@ private theorem natAbs_result_of_intBudget {d W M₀ k : ℕ} (hd : 0 < d)
   have hprod := natAbs_prod_entries_le hforall
   rw [ElimState.result, Int.natAbs_mul]
   calc s.scalar.natAbs * (s.live.map fun (f : FactorTable ℤ V) => f.entries.getD 0 0).prod.natAbs
-      ≤ d ^ iso * (d ^ (buds.map Prod.fst).sum * W ^ (buds.map Prod.snd).sum) :=
-        Nat.mul_le_mul hiso hprod
+      ≤ d ^ iso * (d ^ (buds.map Prod.fst).sum * W ^ (buds.map Prod.snd).sum) := by gcongr
     _ = d ^ (iso + (buds.map Prod.fst).sum) * W ^ (buds.map Prod.snd).sum := by
         rw [pow_add, mul_assoc]
     _ ≤ d ^ k * W ^ M₀ :=

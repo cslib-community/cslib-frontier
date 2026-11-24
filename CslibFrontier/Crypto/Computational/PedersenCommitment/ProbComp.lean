@@ -207,8 +207,8 @@ theorem isPPTOn_pedersenKeyGenProb :
   have hn := ComputableInPolyTime.fst encUnary F.encDesc
   have hd := ComputableInPolyTime.snd encUnary F.encDesc
   have hs := F.isPPTOn_sampleExp hn hd
-  have hg := F.computableInPolyTime_generator.tidy
-  have hsmul := F.computableInPolyTime_smul.tidy
+  have hg := F.computableInPolyTime_generator
+  have hsmul := F.computableInPolyTime_smul
   have hpair : ComputableInPolyTime
       (fun q : (ℕ × F.Desc) × ℕ =>
         (q.1.2, F.smul (q.1.2, q.2, F.encode q.1.2 (F.generator q.1.2))))
@@ -449,7 +449,7 @@ theorem isPPTOn_pedersenHidingProbExperiment {adversary : Encryption.WordAdversa
     exact hA.choose.preprocess
       (parameter := fun p : (ℕ × F.Desc) × F.PedersenKey => p.1.1)
       (auxiliary := fun p : (ℕ × F.Desc) × F.PedersenKey => F.pedersenScheme.encodeKey p.2)
-      hn.tidy (henc.comp hk).tidy
+      hn (henc.comp hk)
   have hmsg : ComputableInPolyTime
       (fun q : ((ℕ × F.Desc) × F.PedersenKey) × Encryption.ChoiceOut (List Bool) =>
         if bit && F.validPedersenMessageBool q.1.2.1 q.2.1.1 &&
@@ -582,27 +582,14 @@ theorem succProbability_pedersenBindingGame_pedersenKeyDistProb_le (setup : ℕ 
     (F.advantage_pedersenBindingGame_pedersenKeyDistProb_bindingGame_le setup adversary n)).trans
     (add_le_add (F.succProbability_pedersenBindingGame_le_discreteLogGame setup adversary n) le_rfl)
 
-/-- **Computational binding of Pedersen commitments under `pedersenKeyDistProb` and the
-discrete-logarithm assumption**. -/
-theorem DiscreteLog.pedersenBinding_pedersenKeyDistProb {F : PrimeOrderGroupFamily}
-    {setup : ℕ → PMF F.Desc} (hDL : F.DiscreteLog setup)
-    (adversary : ℕ → List Bool →
-      ProbComp (List Bool × (List Bool × List Bool) × (List Bool × List Bool)))
-    (hA : IsPPTOn (encPair encUnary encBits)
-      (encPair encBits (encPair (encPair encBits encBits) (encPair encBits encBits)))
-      (fun input => adversary input.1 input.2)) :
-    Negligible fun n =>
-      Game.succProbability
-        (F.pedersenScheme.bindingGame (F.pedersenKeyDistProb setup) adversary n) := by
-  have hdl := hDL (F.pedersenToDLAdversary adversary) (F.isPPTOn_pedersenToDLAdversary hA)
-  negligible using fun n =>
-    F.succProbability_pedersenBindingGame_pedersenKeyDistProb_le setup adversary n
-
 /-- **Computational binding (`CommitmentScheme.Binding`) of `pedersenScheme` under
 `pedersenKeyDistProb` and the discrete-logarithm assumption**. -/
 theorem DiscreteLog.pedersenScheme_binding_pedersenKeyDistProb {F : PrimeOrderGroupFamily}
     {setup : ℕ → PMF F.Desc} (hDL : F.DiscreteLog setup) :
-    F.pedersenScheme.Binding (F.pedersenKeyDistProb setup) :=
-  fun adversary hA => hDL.pedersenBinding_pedersenKeyDistProb adversary hA
+    F.pedersenScheme.Binding (F.pedersenKeyDistProb setup) := by
+  intro adversary hA
+  have hdl := hDL (F.pedersenToDLAdversary adversary) (F.isPPTOn_pedersenToDLAdversary hA)
+  negligible using fun n =>
+    F.succProbability_pedersenBindingGame_pedersenKeyDistProb_le setup adversary n
 
 end Cslib.Crypto.PrimeOrderGroupFamily

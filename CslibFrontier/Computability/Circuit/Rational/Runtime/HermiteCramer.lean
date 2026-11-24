@@ -647,11 +647,7 @@ theorem computableInPolyTime_hermiteRecoverZero
     ComputableInPolyTime
       (fun x => hermiteRecoverZero (nodes x) (J x) (Ω x) (jets x))
       encIn encIntBin := by
-  have hflat : ComputableInPolyTime (fun x => (jets x).flatten) encIn (encList encIntBin) := by
-    simp only [List.flatten_eq_flatMap]
-    fun_prop
-  unfold hermiteRecoverZero
-  fun_prop
+  fun_prop [hermiteRecoverZero]
 
 /-- Direct tuple certificate for `hermiteRecoverZero` over binary integers and unary order `J`. -/
 theorem hermiteRecoverZero_polytime :
@@ -699,16 +695,6 @@ theorem computableInPolyTime_modPowTwo_sum_hermiteRecoverZero
     ComputableInPolyTime
       (fun x => ((coordJets x).map (hermiteRecoverZero (nodes x) (J x) (Ω x))).sum.modPowTwo (ℓ x))
       encIn encIntBin := by
-  have hitem : ComputableInPolyTime
-      (fun p : α × List (List ℤ) => hermiteRecoverZero (nodes p.1) (J p.1) (Ω p.1) p.2)
-      (encPair encIn (encList (encList encIntBin))) encIntBin := by fun_prop
-  have hmap : ComputableInPolyTime
-      (fun x => (coordJets x).map (hermiteRecoverZero (nodes x) (J x) (Ω x)))
-      encIn (encList encIntBin) :=
-    ComputableInPolyTime.mapWithInput hcoordJets hitem
-  have hsum : ComputableInPolyTime
-      (fun x => ((coordJets x).map (hermiteRecoverZero (nodes x) (J x) (Ω x))).sum)
-      encIn encIntBin := by fun_prop
-  exact ComputableInPolyTime.intBin_modPowTwo' hsum hℓ
+  fun_prop
 
 end Cslib.Circuits.Rational

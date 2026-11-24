@@ -35,7 +35,7 @@ public section
 
 namespace Turing.MultiTapeTM.ComputableInO
 
-open ComputableTidilyInDegree (findStep foldl_findStep filterStep foldl_filterStep mapStep
+open ComputableInDegree (findStep foldl_findStep filterStep foldl_filterStep mapStep
   foldl_mapStep length_encList_filter_le)
 
 variable {γ α β π : Type} {encIn : γ ↪ List Bool} {enc : α ↪ List Bool} {encB : β ↪ List Bool}

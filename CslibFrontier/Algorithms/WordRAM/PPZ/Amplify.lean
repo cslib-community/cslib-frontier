@@ -9,7 +9,7 @@ module
 
 import CslibFrontier.Computability.WordRAM.MemoryView
 
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Havoc
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.PPZ.Round
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Amplify
@@ -18,6 +18,7 @@ import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.PMF.EventBind
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Foundations.Data.Nat.CeilDiv
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # The PPZ algorithm on the randomized word RAM
@@ -383,7 +384,7 @@ theorem ampLoopWith_law {φ : CNF (Fin n)} {C Tb w Tc : ℕ} {S : List ℕ}
     obtain ⟨y₁, hy₁, -, hf₁, hm₁⟩ := decCounter_rename_spec hx.frame.zero_eq hx.frame.one_eq
       hx.bLen_eq (by rw [hx.bBase_eq]; exact hx.digits) (by rw [hx.bBase_eq]; exact hfit)
     replace hf₁ : y₁.regs sFound = 0 := by rw [hf₁]; split_ifs; rfl
-    have hz₁ : y₁.regs zero = 0 := (hy₁.regs_eq (by decide)).trans hx.frame.zero_eq
+    have hz₁ : y₁.regs zero = 0 := by regs_frame
     have hbody : ExecWithin w (ampBodyWith core) x (y₁.set flag 0)
         (9 * decSteps ds + 4 + 2) :=
       WP.execWithin (by refine WP.seq (WP.of_execWithin hy₁ ?_); wram_exec [hf₁, hz₁]; rfl)
@@ -411,14 +412,13 @@ theorem ampLoopWith_law {φ : CNF (Fin n)} {C Tb w Tc : ℕ} {S : List ℕ}
     have hv₁ : Nat.ofDigits 2 (decDigits ds) = j := by
       have := Schoening.ofDigits_decDigits hx.binary (by omega)
       omega
-    have hz₁ : y₁.regs zero = 0 := (hy₁.regs_eq (by decide)).trans hx.frame.zero_eq
+    have hz₁ : y₁.regs zero = 0 := by regs_frame
     have hfr₁ : RoundFrame φ C Tb y₁.mem y₁ :=
       hx.frame.of_exec_mem_lt (by decide) hy₁ fun a ha => hm₁ a (by omega)
     have hpar₁ : HoldsList (Tb + 2 * n) S y₁.mem :=
       hx.params.frame fun a _ ha => hm₁ a ha
-    have hb₁ : y₁.regs bBase = Tb + 2 * n + S.length :=
-      (hy₁.regs_eq (by decide)).trans hx.bBase_eq
-    have hl₁ : y₁.regs bLen = ds.length := (hy₁.regs_eq (by decide)).trans hx.bLen_eq
+    have hb₁ : y₁.regs bBase = Tb + 2 * n + S.length := by regs_frame
+    have hl₁ : y₁.regs bLen = ds.length := by regs_frame
     have hcf : ¬(Cond.eq sFound zero).Holds y₁ := by simp [Cond.holds_eq, hf₁, hz₁]
     -- one round
     have hcore' := (((hcore.law y₁.mem y₁ hfr₁ hpar₁).withPreserves hcore.preserves_bBase)
@@ -430,18 +430,15 @@ theorem ampLoopWith_law {φ : CNF (Fin n)} {C Tb w Tc : ℕ} {S : List ℕ}
     have hrest := ExecRandLaw.seq_det_right (T₂ := 12 * (encodeClauses φ).length + 5 + 3)
       (c₂ := ram[ ⟪roundCheck⟫; if out = one then [ flag ← zero ] else [ flag ← one ] ])
       (Q := Q) hcore' fun y ⟨⟨⟨⟨hy, hyb⟩, hyB⟩, hyL⟩, _⟩ => by
-        obtain ⟨z, hz, hzm, hfz, hzo⟩ := roundCheck_exec hw hT hy hyb
-        have hzB : z.regs bBase = Tb + 2 * n + S.length :=
-          (hz.regs_eq (by decide)).trans (hyB.trans hb₁)
-        have hzL : z.regs bLen = ds.length := (hz.regs_eq (by decide)).trans (hyL.trans hl₁)
-        refine WP.exists_execWithin (WP.seq (WP.of_execWithin hz ?_))
+        refine WP.exists_execWithin (WP.seq ?_)
+        wram_call (roundCheck_exec hw hT hy hyb) framed with v m ⟨rfl, hfz, hzo⟩
         by_cases he : φ.eval (assignmentAt y.mem Tb n) = true <;>
           simp only [he, Bool.false_eq_true, ↓reduceIte] at hzo <;>
-          wram_exec [hzo, hfz.one_eq, hfz.zero_eq] <;>
-          exact ⟨⟨hfz.set (by decide) _, by wram_simp [hzB], by wram_simp [hzL],
-            by wram_simp [hzo, he, hzm, Bool.false_eq_true, ↓reduceIte],
-            by wram_simp [hfz.zero_eq, hfz.one_eq, he, hzm, Bool.false_eq_true, ↓reduceIte]⟩,
-            by simp [hzm]⟩
+          wram_exec [hzo, hy.one_eq, hy.zero_eq] <;>
+          exact ⟨⟨hfz.set (by decide) _, by wram_simp [hyB, hb₁], by wram_simp [hyL, hl₁],
+            by wram_simp [hzo, he, Bool.false_eq_true, ↓reduceIte],
+            by wram_simp [hy.zero_eq, hy.one_eq, he, Bool.false_eq_true, ↓reduceIte]⟩,
+            by wram_simp⟩
     have hbody : ExecRandLaw w (ampBodyWith core) x Q
         (9 * decSteps ds + 4 + (Tc + (12 * (encodeClauses φ).length + 5 + 3) + 2)) (2 * n)
         (fun y => partialAssignmentAt y.mem Tb n) (roundWith O) :=
@@ -703,42 +700,29 @@ theorem countSetup_spec {w B e c : ℕ} (x : Data 32) (hz : x.regs zero = 0) (ho
   refine WP.exists_execWithin ?_
   unfold countSetup countTop
   wram_exec [hz]
-  obtain ⟨y₁, hy₁, hm₁⟩ := fillLoop_spec (w := w) (B := B) (e := e)
-    (hw.of_le (by omega)) e (x.set iReg 0) (by wram_simp [hB]) (by wram_simp [he])
-    (by wram_simp [hz]) (by wram_simp [ho]) (by wram_simp)
-  simp only [Data.set_regs, Function.update_self, Nat.add_zero, Data.set_mem] at hm₁
-  have hr₁ {i : Fin 32} (hi : fillLoop.Preserves i) (hi' : i ≠ iReg) : y₁.regs i = x.regs i :=
-    (hy₁.regs_eq hi).trans (by simp [Function.update_of_ne hi'])
-  have hb₁ : y₁.regs bBase = B := (hr₁ (by decide) (by decide)).trans hB
-  have he₁ : y₁.regs eReg = e := (hr₁ (by decide) (by decide)).trans he
-  have ho₁ : y₁.regs one = 1 := (hr₁ (by decide) (by decide)).trans ho
-  have hc₁ : y₁.regs cReg = c := (hr₁ (by decide) (by decide)).trans hc
-  have hz₁ : y₁.regs zero = 0 := (hr₁ (by decide) (by decide)).trans hz
-  refine WP.of_execWithin hy₁ ?_
-  wram_exec [hb₁, he₁, ho₁, hc₁, hz₁]
+  wram_call (fillLoop_spec (w := w) (B := B) (e := e) (hw.of_le (by omega)) e _ ..) framed [*]
+    with v₁ m₁ rfl
+  wram_exec [hB, he, ho, hc, hz]
+  simp only [countDigits] at hlen
   wram_call (mulAdd_rename_spec (w := w) (a := c) (cy := 0) (Bd := c)
-    (ds := List.replicate e 0 ++ [1])
-    (by wram_simp [hz₁]) (by wram_simp [ho₁]) (by wram_simp) (by wram_simp)
-    (by wram_simp [List.length_append, List.length_replicate, List.length_singleton])
-    (by
-      wram_simp [hb₁]
-      rintro ⟨t, ht⟩
-      simp only [List.length_append, List.length_replicate, List.length_singleton] at ht
-      change Function.update y₁.mem (B + e) 1 (B + t) = (List.replicate e 0 ++ [1])[t]
-      by_cases hte : t = e
-      · simp [hte]
-      · rw [Function.update_of_ne (by omega), congrFun hm₁ _, ite_eq_left (by omega),
-          List.getElem_append_left (by simp; omega), List.getElem_replicate])
-    (fun d hd => by
-      simp only [List.mem_append, List.mem_replicate, List.mem_singleton] at hd; omega)
-    le_rfl (Nat.zero_le _) (hw.of_le (by omega))
-    (by wram_simp [hb₁]; exact hw.of_le (by simp only [countDigits] at hlen; omega)))
-    with y₃ ⟨hh₃, hl₃, hm₃⟩
-  wram_simp [hb₁] at hh₃ hm₃
-  refine ⟨by simp only [countSetupTime, countDigits] at hlen ⊢; omega, hl₃, hh₃, fun a ha => ?_⟩
-  rw [hm₃ a ha]
-  simp only [Data.set_mem, Data.write_mem]
-  rw [Function.update_of_ne (by omega), congrFun hm₁ a, ite_eq_right (by omega)]
+    (ds := List.replicate e 0 ++ [1]) ..) framed
+    [*, List.length_append, List.length_replicate, List.length_singleton]
+    with v₃ m₃ ⟨hh₃, hl₃, hm₃⟩
+  · refine ⟨by simp only [countSetupTime]; omega, hl₃, hh₃, fun a ha => ?_⟩
+    rw [hm₃ a ha]
+    wram_simp
+    exact ite_eq_right (by omega)
+  · rintro ⟨t, ht⟩
+    simp only [List.length_append, List.length_replicate, List.length_singleton] at ht
+    change Function.update (β := fun _ => ℕ) _ (B + e) 1 (B + t) = (List.replicate e 0 ++ [1])[t]
+    by_cases hte : t = e
+    · simp [hte]
+    · simp only [Function.update_of_ne (show B + t ≠ B + e by omega)]
+      rw [ite_eq_left (by omega), List.getElem_append_left (by simp; omega),
+        List.getElem_replicate]
+  · intro d hd
+    simp only [List.mem_append, List.mem_replicate, List.mem_singleton] at hd
+    omega
 
 /-- The instruction bound of the counter's setup. -/
 def countTime (k n c : ℕ) : ℕ := 5 * ppzExp k n + 10 * ppzCounterLen k n c + 13
@@ -805,7 +789,7 @@ theorem ampProgram_spec (k c : ℕ) (hk : 1 ≤ k) (φ : CNF (Fin n)) {w : ℕ}
         (v = 0 ∨ (v = 1 ∧
           φ.eval (assignmentAt d.mem ((k :: c :: encode φ).length + 1) n) = true))) ∧
     (evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map Schoening.cfgSuccess =
+      (.init (k :: c :: encode φ))).map RandCfg.accepts =
         repeatRound φ (ppzRounds k n c) := by
   set L := (k :: c :: encode φ).length with hL
   have hE : (encodeClauses φ).length ≤ L := by
@@ -838,7 +822,7 @@ theorem ampProgram_spec (k c : ℕ) (hk : 1 ≤ k) (φ : CNF (Fin n)) {w : ℕ}
         (show n * (28 * (encodeClauses φ).length + 40) + 6 + 12 * (encodeClauses φ).length + 35 ≤
           n * (28 * L + 40) + 12 * L + 41 by omega)
       omega)
-    Schoening.cfgSuccess fun _ _ => rfl
+    RandCfg.accepts fun _ _ => rfl
   refine ⟨hhalt, hcalls, fun cfg hcfg => ?_, hlaw⟩
   obtain ⟨d, rfl, -, hd⟩ := hpost cfg hcfg
   exact ⟨_, d, rfl, hd⟩
@@ -850,7 +834,7 @@ theorem ampProgram_failure_eq (k c : ℕ) (hk : 1 ≤ k) (φ : CNF (Fin n)) {w :
     (hw : Fits w ((k :: c :: encode φ).length + 2 * n + k * n + k + 2 * c +
       ppzCounterLen k n c + 2)) :
     ((evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map Schoening.cfgSuccess false).toReal =
+      (.init (k :: c :: encode φ))).map RandCfg.accepts false).toReal =
       (1 - roundSuccessProb φ) ^ ppzRounds k n c := by
   rw [(ampProgram_spec k c hk φ hw).2.2.2, repeatRound_false_toReal]
 
@@ -862,7 +846,7 @@ theorem ampProgram_failure_le_exp {k c : ℕ} (hk : 1 ≤ k) {φ : CNF (Fin n)} 
     (hw : Fits w ((k :: c :: encode φ).length + 2 * n + k * n + k + 2 * c +
       ppzCounterLen k n c + 2)) :
     ((evalRand w ampProgram (ampTime k n c (k :: c :: encode φ).length)
-      (.init (k :: c :: encode φ))).map Schoening.cfgSuccess false).toReal ≤ Real.exp (-c) := by
+      (.init (k :: c :: encode φ))).map RandCfg.accepts false).toReal ≤ Real.exp (-c) := by
   rw [(ampProgram_spec k c hk φ hw).2.2.2]
   exact repeatRoundWith_false_le_exp (roundSuccessProb_ge hk hφ hlen)
     (le_two_pow_mul_mul_rpow_neg (le_ppzExp hk n))

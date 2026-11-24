@@ -16,9 +16,14 @@ import CslibFrontier.Tactic.Synthesis
 # Circuits for `Lin` and `P_L`
 
 [Boneh and Shoup, Theorem 22.14, p. 981][BonehShoup2023] calls the algorithm `Lin` efficient and
-the program `P_L` efficiently computable, without naming a model. This file bounds the circuits
-that compute `MonotoneSpanProgram.recombination`, `MonotoneSpanProgram.nullVector` and
-`MonotoneSpanProgram.normalForm` themselves, with the program and the coalition as inputs.
+the program `P_L` efficiently computable. For the deterministic algorithms `Lin` and `P_L`, the
+book's efficiency requirement (Definition 2.8, p. 30) is one algorithm on bit-string inputs whose
+running time is polynomially bounded uniformly across inputs; Definition 2.8 additionally permits a
+negligible running-time tail for probabilistic algorithms. This file
+bounds the circuits that compute `MonotoneSpanProgram.recombination`,
+`MonotoneSpanProgram.nullVector` and `MonotoneSpanProgram.normalForm` themselves, with the program
+and the coalition as inputs. The bounds are a step toward the efficiency claims of Theorem 22.14,
+not those claims.
 
 For each shape of program (number of parties `N`, `tailDim + 1` columns, row dimensions
 `rowDim`), there is one circuit. Its available wires are the matrix entries `M i row c` and, for
@@ -32,7 +37,7 @@ operations. With `r = ∑ i, rowDim i` rows, `d = tailDim + 1` columns and
 `(r + 1) * d ^ 2 + d * (r + 1) ^ 2`.
 
 Open: a bound in bit operations over an encoded field, and uniformity of the circuits in the
-shape `(N, tailDim, rowDim)`.
+shape `(N, tailDim, rowDim)` (#5293).
 
 ## Main results
 
@@ -76,12 +81,13 @@ private theorem full_stack (tailDim : ℕ) (rowDim : Fin N → ℕ)
   simp only [MonotoneSpanProgram.stack, mem_filter, mem_univ, true_and, e]
   split_ifs <;> rfl
 
-/-- **A circuit for `Lin`** ([BonehShoup2023], Theorem 22.14(a), p. 981). For a program with
+/-- A field-gate circuit for `Lin` for each shape of program, a step toward the efficiency claim
+of [BonehShoup2023], Theorem 22.14(a) (p. 981), not that claim. For a program with
 `r = ∑ i, rowDim i` rows and `tailDim + 1` columns whose entries, together with the membership
 values of a coalition, are available wires, the entries of the recombination vectors of that
 coalition cost at most `kernelVecCost (tailDim + 1) (r + 1) + r * (tailDim + 2) + 2` gates, one
 gate being any function of at most two field elements. A bound in bit operations and uniformity
-in the shape are open. -/
+in the shape are open (#5293). -/
 theorem full_recombination (tailDim : ℕ) (rowDim : Fin N → ℕ)
     (M : (i : Fin N) → Fin (rowDim i) → Fin (tailDim + 1) → (Fin N' → F) → F)
     (χ : Fin N → (Fin N' → F) → F)
@@ -153,12 +159,13 @@ theorem full_nullVector (tailDim : ℕ) (rowDim : Fin N → ℕ)
   · dsimp +zetaDelta [Builder.add, Builder.start]
     omega
 
-/-- **A circuit for `P_L`** ([BonehShoup2023], Theorem 22.14(b), p. 981). For a program with
+/-- A field-gate circuit for `P_L` for each shape of program, a step toward the efficiency claim
+of [BonehShoup2023], Theorem 22.14(b) (p. 981), not that claim. For a program with
 `r = ∑ i, rowDim i` rows and `tailDim + 1` columns whose entries, together with the membership
 values of a coalition, are available wires, all entries of `normalForm` of that coalition cost
 at most `kernelVecCost r (tailDim + 1) + r * (3 * tailDim + 4)` gates, one gate being any
 function of at most two field elements. A bound in bit operations and uniformity in the shape
-are open. -/
+are open (#5293). -/
 theorem full_normalForm (tailDim : ℕ) (rowDim : Fin N → ℕ)
     (M : (i : Fin N) → Fin (rowDim i) → Fin (tailDim + 1) → (Fin N' → F) → F)
     (χ : Fin N → (Fin N' → F) → F)

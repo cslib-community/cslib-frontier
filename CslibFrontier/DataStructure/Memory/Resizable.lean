@@ -12,6 +12,7 @@ public import CslibFrontier.DataStructure.Memory.Field
 public import CslibFrontier.DataStructure.StateTransition.Refinement
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 public import Mathlib.Data.Nat.Log
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Word-granular resizable memory specification
@@ -284,8 +285,8 @@ theorem zeroAbove_step {w : ℕ} {s : State} {o : Op}
     dsimp only [step] at hb ⊢
     have hle : k ≤ s.frontier := hv
     by_cases hlt : b < s.frontier
-    · exact clear_of_owns (by simp only [Block.Owns]; omega)
-    · rw [clear_of_not_owns (by simp only [Block.Owns]; omega)]; exact hs b (by omega)
+    · exact clear_of_owns (by wram_omega)
+    · rw [clear_of_not_owns (by wram_omega)]; exact hs b (by omega)
 
 /-- Every valid operation preserves `Canonical w`. -/
 theorem canonical_step {w : ℕ} {s : State} {o : Op}
@@ -340,7 +341,7 @@ theorem demonicStep_of_step (w : ℕ) (s : State) (o : Op) :
   | read _ | grow _ => exact ⟨rfl, rfl⟩
   | write _ _ | shrink _ => rfl
   | growDirty k =>
-    refine ⟨rfl, rfl, fun a ha => clear_of_not_owns (by simp only [Block.Owns]; omega), ?_⟩
+    refine ⟨rfl, rfl, fun a ha => clear_of_not_owns (by wram_omega), ?_⟩
     intro a hlo hhi
     dsimp only [step]
     rw [clear_of_owns ⟨hlo, hhi⟩]
@@ -450,7 +451,7 @@ theorem UnchangedOutside.step_write (s : State) (a v : ℕ) :
 theorem UnchangedOutside.step_grow (s : State) (k : ℕ) :
     UnchangedOutside s (step s (.grow k)).1 ∅ := fun a ha _ => by
   have hlt : a < s.frontier := lt_of_lt_of_le ha (min_le_left _ _)
-  exact clear_of_not_owns (by simp only [Block.Owns]; omega)
+  exact clear_of_not_owns (by wram_omega)
 
 theorem UnchangedOutside.step_growDirty (s : State) (k : ℕ) :
     UnchangedOutside s (step s (.growDirty k)).1 ∅ :=
@@ -459,7 +460,7 @@ theorem UnchangedOutside.step_growDirty (s : State) (k : ℕ) :
 theorem UnchangedOutside.step_shrink (s : State) (k : ℕ) :
     UnchangedOutside s (step s (.shrink k)).1 ∅ := fun a ha _ => by
   have hlt : a < s.frontier - k := lt_of_lt_of_le ha (min_le_right _ _)
-  exact clear_of_not_owns (by simp only [Block.Owns]; omega)
+  exact clear_of_not_owns (by wram_omega)
 
 /-- If a block `b` lies below `min s.frontier s'.frontier` and is disjoint from `W`, then
 `UnchangedOutside s s' W` preserves `b.Realizes`. -/

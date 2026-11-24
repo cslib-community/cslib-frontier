@@ -11,7 +11,7 @@ public import CslibFrontier.Computability.Complexity.Classes.BQP.Time
 public import CslibFrontier.Computability.Circuit.Quantum.PathNetworkPolyTime
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.FastLeaves
 public import CslibFrontier.Computability.Complexity.Classes.Time
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 public import CslibFrontier.Computability.GenericRAM.Native.ExpTimePolySpace
 import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.ContractionCall
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic

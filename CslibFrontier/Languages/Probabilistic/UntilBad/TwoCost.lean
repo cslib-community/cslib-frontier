@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Languages.Probabilistic.UntilBad
+import CslibFrontier.Probability.PMF.BindFailure
 import CslibFrontier.Probability.PMF.Event
 
 /-!
@@ -63,7 +64,6 @@ theorem toOuterMeasure_bad_le_two_budgets {ι σ β : Type} {spec : ι → Type}
       PMF.toOuterMeasure_pure_apply, ite_eq_right (show (a, s) ∉ {x : β × σ | bad x.2} from hs)]
     exact zero_le
   | liftBind q cont k₁ _ ih =>
-    classical
     obtain ⟨hle₂, hcont₂⟩ := IsCostBounded.liftBind_iff.mp hk₂
     -- One budget step: the growth bound for `q` and the remaining `(k₁, k₂ - cost₂ q)` calls add
     -- up to the budget for `(k₁ + cost₁ q, k₂)` calls. Shared by both channels below.
@@ -81,36 +81,17 @@ theorem toOuterMeasure_bad_le_two_budgets {ι σ β : Type} {spec : ι → Type}
             ring
         _ = b s + ((k₁ + cost₁ q : ℕ) : ℝ≥0∞) * δ + (k₂ : ℝ≥0∞) * δ' := by
             rw [Nat.sub_add_cancel hle₂]
-    simp only [run_interpret_bind, run_interpret_query,
-      Probability.PMF.monad_bind_eq_bind, PMF.toOuterMeasure_bind_apply]
+    simp only [run_interpret_bind, run_interpret_query, Probability.PMF.monad_bind_eq_bind]
     set B₁ : ℝ≥0∞ := budget₁ s + ((k₁ + cost₁ q : ℕ) : ℝ≥0∞) * δ₁₁ + (k₂ : ℝ≥0∞) * δ₁₂
     set B₂ : ℝ≥0∞ := budget₂ s + ((k₁ + cost₁ q : ℕ) : ℝ≥0∞) * δ₂₁ + (k₂ : ℝ≥0∞) * δ₂₂
     set K : ℝ≥0∞ := (k₁ : ℝ≥0∞) * B₁ + ((k₂ - cost₂ q : ℕ) : ℝ≥0∞) * B₂
-    have hterm (y : spec q × σ) : (handler q s) y *
-        ((OracleComp.interpret handler (cont y.1)).run y.2).toOuterMeasure {x | bad x.2} ≤
-        (handler q s) y * ({x : spec q × σ | bad x.2}.indicator 1 y + K) := by
-      by_cases hmem : y ∈ (handler q s).support
-      · refine mul_le_mul_of_nonneg_left ?_ zero_le
-        by_cases hy : bad y.2
-        · have : y ∈ {x : spec q × σ | bad x.2} := hy
-          rw [Set.indicator_of_mem this, Pi.one_apply]
-          exact (Probability.PMF.toOuterMeasure_le_one _ _).trans le_self_add
-        · have : y ∉ {x : spec q × σ | bad x.2} := hy
-          rw [Set.indicator_of_notMem this, zero_add]
-          refine (ih y.1 (hcont₂ y.1) hy).trans ?_
-          simp only [K, B₁, B₂]
-          refine add_le_add (mul_le_mul_of_nonneg_left ?_ zero_le)
-            (mul_le_mul_of_nonneg_left ?_ zero_le)
-          · exact hbudget budget₁ δ₁₁ δ₁₂ y.2 (hgrow₁ q s hs y hmem hy)
-          · exact hbudget budget₂ δ₂₁ δ₂₂ y.2 (hgrow₂ q s hs y hmem hy)
-      · rw [(PMF.apply_eq_zero_iff _ _).mpr hmem, zero_mul, zero_mul]
-    calc ∑' y, (handler q s) y *
-          ((OracleComp.interpret handler (cont y.1)).run y.2).toOuterMeasure {x | bad x.2}
-        ≤ ∑' y, (handler q s) y * ({x : spec q × σ | bad x.2}.indicator 1 y + K) :=
-          tsum_le_tsum hterm
-      _ = (handler q s).toOuterMeasure {x | bad x.2} + K := by
-          simp only [mul_add, tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul,
-            Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator]
+    calc _ ≤ (handler q s).toOuterMeasure {x | bad x.2} + K :=
+          Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ _ fun y hmem hy =>
+            (ih y.1 (hcont₂ y.1) hy).trans <| add_le_add
+              (mul_le_mul_of_nonneg_left
+                (hbudget budget₁ δ₁₁ δ₁₂ y.2 (hgrow₁ q s hs y hmem hy)) zero_le)
+              (mul_le_mul_of_nonneg_left
+                (hbudget budget₂ δ₂₁ δ₂₂ y.2 (hgrow₂ q s hs y hmem hy)) zero_le)
       _ ≤ ((cost₁ q : ℝ≥0∞) * B₁ + (cost₂ q : ℝ≥0∞) * B₂) + K := by
           refine add_le_add ((hstep q s hs).trans ?_) le_rfl
           refine add_le_add ?_ ?_

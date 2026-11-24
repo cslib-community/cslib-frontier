@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.LinearAlgebra.Matrix.Permanent
+import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 
 /-!
 # The permanent of a 0/1 matrix
@@ -25,6 +26,9 @@ respecting that relation (`Matrix.card_filter_isPermMatrix`).
 * `Matrix.permanent_eq_card_filter_of_le_one`: the permanent of a 0/1 matrix counts permutations.
 * `Matrix.card_filter_isPermMatrix`: Boolean permutation matrices supported in a relation are as
   many as the permutations along it.
+* `Matrix.permanent_ne_zero_iff_of_nonneg`: a matrix with nonnegative entries has a nonzero
+  permanent exactly when some permutation runs along nonzero entries, that is, when the bipartite
+  graph of its support has a perfect matching.
 -/
 
 public section
@@ -89,5 +93,16 @@ theorem permanent_eq_card_filter_of_le_one {A : Matrix n n ℕ} (hA : ∀ i j, A
   · exact prod_eq_one fun i _ => h i
   · obtain ⟨i, hi⟩ := not_forall.1 h
     exact prod_eq_zero (mem_univ i) (by have := hA i (σ i); simp only [transpose_apply]; omega)
+
+/-- **The permanent of a nonnegative matrix is nonzero exactly on its support's matchings.** Over
+an ordered semiring without zero divisors, a matrix with nonnegative entries has a nonzero
+permanent exactly when some permutation `σ` has `A i (σ i) ≠ 0` for every `i`. -/
+theorem permanent_ne_zero_iff_of_nonneg {R : Type*} [CommSemiring R] [PartialOrder R]
+    [IsOrderedRing R] [NoZeroDivisors R] [Nontrivial R] {A : Matrix n n R}
+    (hA : ∀ i j, 0 ≤ A i j) : A.permanent ≠ 0 ↔ ∃ σ : Equiv.Perm n, ∀ i, A i (σ i) ≠ 0 := by
+  rw [← permanent_transpose, permanent]
+  simp only [transpose_apply]
+  rw [Ne, sum_eq_zero_iff_of_nonneg fun σ _ => prod_nonneg fun i _ => hA _ _]
+  simp [prod_eq_zero_iff]
 
 end Matrix

@@ -17,6 +17,11 @@ conditions distinguish the two parameter ends, including when the new route clos
 Adding a segment to an already closed route cannot preserve simplicity, and a new
 degenerate segment is rejected.
 
+## Main results
+
+* `Cslib.Polygonal.Route.IsSimple.position_eq_of_eval_eq`: exact continuum position
+  equality from equal evaluations on a simple route with distinct ends.
+
 These are original finite route constructions. No topological path replacement theorem
 or geometric drawing provider is assumed.
 -/
@@ -106,7 +111,8 @@ theorem position_prepend_succ (a : ℂ) (p : Route) (i : Fin p.segments) (t : �
 theorem position_append_castSucc (p : Route) (b : ℂ) (i : Fin p.segments) (t : ℝ) :
     (p.append b).position i.castSucc t = p.position i t := rfl
 
-private theorem position_eq_of_open {p : Route} (hp : p.IsSimple)
+/-- On a simple route with distinct ends, equal evaluations have equal chain positions. -/
+theorem IsSimple.position_eq_of_eval_eq {p : Route} (hp : p.IsSimple)
     (hopen : p.start ≠ p.finish) (i j : Fin p.segments) {s t : ℝ}
     (hs : s ∈ Set.Icc 0 1) (ht : t ∈ Set.Icc 0 1) (heq : p.eval i s = p.eval j t) :
     p.position i s = p.position j t := by
@@ -185,7 +191,7 @@ theorem IsSimple.prepend {p : Route} (hp : p.IsSimple) {a : ℂ} (ha : a ≠ p.s
       rw [eval_prepend_succ a p i s, eval_prepend_succ a p j t] at heq
       left
       rw [position_prepend_succ, position_prepend_succ,
-        position_eq_of_open hp hopen i j hs ht heq]
+        IsSimple.position_eq_of_eval_eq hp hopen i j hs ht heq]
 
 private theorem start_finish_ne_of_append_contacts {p : Route} {b : ℂ}
     (hcontact : ∀ (i : Fin p.segments) (s t : ℝ), s ∈ Set.Icc 0 1 → t ∈ Set.Icc 0 1 →
@@ -246,7 +252,7 @@ theorem IsSimple.append {p : Route} (hp : p.IsSimple) {b : ℂ} (hb : p.finish �
     | cast j =>
       rw [eval_append_castSucc p b i s, eval_append_castSucc p b j t] at heq
       left
-      exact position_eq_of_open hp hopen i j hs ht heq
+      exact IsSimple.position_eq_of_eval_eq hp hopen i j hs ht heq
 
 /-- Simplicity rejects a degenerate newly prepended segment. -/
 theorem IsSimple.prepend_ne {p : Route} {a : ℂ} (h : (Route.prepend a p).IsSimple) :

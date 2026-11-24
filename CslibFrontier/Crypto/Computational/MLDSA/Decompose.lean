@@ -111,10 +111,15 @@ private theorem dvd_sub_power2Rem (r : ZMod q) :
     (((2 ^ d : ℕ) : ℤ) ∣ (r.val : ℤ) - power2Rem q d r) :=
   (ZMod.intCast_eq_intCast_iff_dvd_sub _ _ _).mp (ZMod.coe_valMinAbs _)
 
+/-- The integer outputs of power-of-two rounding reconstruct the canonical representative. -/
+theorem power2Round_high_mul_add_low (r : ZMod q) :
+    (power2Round q d r).1 * (2 ^ d : ℕ) + (power2Round q d r).2 = (r.val : ℤ) := by
+  rw [power2Round, Int.ediv_mul_cancel (dvd_sub_power2Rem r), sub_add_cancel]
+
 /-- **Power2Round reconstruction.** The two outputs reconstruct the input modulo `q`. -/
 theorem intCast_power2Round_high_mul_add_low [NeZero q] (r : ZMod q) :
     ((((power2Round q d r).1 * (2 ^ d : ℕ) + (power2Round q d r).2 : ℤ)) : ZMod q) = r := by
-  rw [power2Round, Int.ediv_mul_cancel (dvd_sub_power2Rem r), sub_add_cancel]
+  rw [power2Round_high_mul_add_low]
   simp
 
 /-- For `d > 0`, the low output of `Power2Round` lies in
@@ -325,8 +330,7 @@ theorem decompose_intCast_mul_add (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1)
   by_cases hx : 0 ≤ a * (2 * γ₂) + b
   · -- No reduction modulo `q` happens, and this is not the wrap-around case.
     have hxq : a * (2 * γ₂) + b < q := by
-      have : a * (2 * γ₂) ≤ (m - 1) * (2 * γ₂) :=
-        mul_le_mul_of_nonneg_right (by omega) (by positivity)
+      have : a * (2 * γ₂) ≤ (m - 1) * (2 * γ₂) := by gcongr; omega
       linarith
     have hv : (r.val : ℤ) = a * (2 * γ₂) + b := by
       rw [hval, Int.emod_eq_of_lt hx hxq]
