@@ -2438,6 +2438,7 @@ public import CslibFrontier.Computability.Complexity.Classes.NP.Relation
 public import CslibFrontier.Computability.Complexity.Classes.NP.SelfReduction
 public import CslibFrontier.Computability.Complexity.Classes.NP.StrictVerifier
 public import CslibFrontier.Computability.Complexity.Classes.NP.TruthTable
+public import CslibFrontier.Computability.Complexity.Classes.NP.UniversalSearch
 public import CslibFrontier.Computability.Complexity.Classes.NP.Witness
 public import CslibFrontier.Computability.Complexity.Classes.NoninteractiveZeroKnowledge
 public import CslibFrontier.Computability.Complexity.Classes.Operators
@@ -4462,6 +4463,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Comp
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Computable.Defs
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Countable
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Hardwire
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.IterateWhile
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.OraclePartrec
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.OraclePrograms
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Partialize
