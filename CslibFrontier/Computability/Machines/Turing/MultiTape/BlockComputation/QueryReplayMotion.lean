@@ -97,7 +97,7 @@ theorem valid_inSpace : ComputableInSpace (valid (k := k) (Q := Q)) encArgs encB
         (of_inO (ComputableInO.pi_apply (encFinite SignType) (some h))) hexpected))
   have hall := budget_finite (encC := encBool)
     (fun f : Fin k → Bool => decide (∀ h, f h = true)) hwork
-  have hguard := budget_natLt (budget_const (encB := encNat) 0 (.refl _)) hb
+  have hguard := budget_natLt (budget_const (encB := encNat) 0) hb
   have hinputGuard := budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
     (budget_prod hguard hinput)
   exact (budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)

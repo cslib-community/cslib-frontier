@@ -39,7 +39,7 @@ output are uncharged, exactly as in the existing native `RunsInSpace` convention
 * [M. Sipser, *Introduction to the Theory of Computation*, Section 8.6][Sipser2013]
 -/
 
-@[expose] public section
+public section
 
 namespace Turing.MultiTapeNTM
 
@@ -70,7 +70,7 @@ theorem exists_decidesInSpace_compl
     (fun a => abstractTime k State (J₀ a) (enc a).length)
     (fun a => queryMachine_haltsWithin (hJ₀ a)) (A := Aᶜ) (fun a => ?_)
     (fun a => s (enc a).length + 1) (fun a => Nat.add_le_add_right (hs _) 1)
-    ((MultiTapeTM.ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _)
+    (MultiTapeTM.ComputableInSpace.budget_const _)
     ⟨(40 * Fintype.card (Register k) + 4) * (8 * c₁ + 8 * c₂ + Fintype.card (Option State) + 7) +
       172, fun a choices => (length_run_le (hJ₀ a) choices).trans ?_⟩
   · exact (not_congr (hA a).2).trans
