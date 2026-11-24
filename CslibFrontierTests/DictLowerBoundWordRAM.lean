@@ -1092,6 +1092,37 @@ theorem twoSlot_actualTime_bridge_sanity :
 
 /-! ### 2. Concrete Client Instantiations of All 4 Generic Word-RAM Transfer Bridges -/
 
+private theorem validHist_flatExec_of_steps {B : Basis} {U V n M r_ds k_init w base : ℕ}
+    {P : SubroutineCode B r_ds k_init} {params : Fin k_init → ℕ}
+    (C : DataStructure.WordRAM.Randomized.StateTransitionImpl P (Dynamic.spec U V n) w base params
+      (Dictionary.empty U))
+    (hbase : Fits w base)
+    (hparams_fit : ∀ j, Fits w (params j))
+    (hparams_fr : ∀ j, P.initParams j = P.frontierReg → params j = base)
+    (hparams_agree : ∀ i j, P.initParams i = P.initParams j → params i = params j) :
+    ∃ ν₀ : PMF (C.Seed × Data r_ds),
+      (∀ p ∈ ν₀.support,
+        p.2.Bounded w ∧ ∀ a ∉ (Block.mk base C.space).footprint, p.2.mem a = 0) ∧
+      (∀ ops ∈ validHistoriesUpTo U V n M,
+        flatExpectedBodyTime w (P.code.program P.output) P.input C.encode (ν₀.map Prod.snd) ops
+          ≠ ⊤ ∧
+        ∃ ν_final,
+          ExecFlatProgramOps (Dynamic.spec U V n) C.Seed w base C.space
+            (P.code.program P.output) P.input C.encode (fun o _ regs => C.decode o regs)
+            (Dictionary.empty U) ops ν₀ ν_final
+            (flatExpectedBodyTime w (P.code.program P.output) P.input C.encode
+              (ν₀.map Prod.snd) ops)) ∧
+      (∀ ops ∈ validHistoriesUpTo U V n M,
+        ∃ ν_final T_ops, T_ops ≠ ⊤ ∧
+          ExecFlatProgramOps (Dynamic.spec U V n) C.Seed w base C.space
+            (P.code.program P.output) P.input C.encode (fun o _ regs => C.decode o regs)
+            (Dictionary.empty U) ops ν₀ ν_final T_ops) := by
+  obtain ⟨ν₀, hsupp₀, hsteps⟩ :=
+    exists_flat_exec_of_stateTransitionImpl C hbase hparams_fit hparams_fr hparams_agree
+  refine ⟨ν₀, hsupp₀, fun ops hops => (hsteps ops hops.1).2, fun ops hops => ?_⟩
+  obtain ⟨_, hfin, ν_f, hex⟩ := hsteps ops hops.1
+  exact ⟨ν_f, _, hfin, hex⟩
+
 private theorem linear_lb_iqd {S_max w : ℕ}
     {D_det : IndexedScheme (Dynamic.Op 4) Dynamic.Op.Result S_max w}
     (hcorr : ∀ ops ∈ validHistoriesUpTo 4 2 2 (4 * 2 + 1),
@@ -1171,27 +1202,18 @@ theorem all_four_transfer_bridges_concrete :
     rw [← persistentRegCount_eq_persCount, hp0]
   have hpcr : persCount (twoSlotRandCode 0 false).input = 0 := by
     rw [← persistentRegCount_eq_persCount, hpr]
-  obtain ⟨ν_d, hsupp_d, hsteps_d⟩ :=
-    exists_flat_exec_of_stateTransitionImpl C_det0 (fits_zero 4) nofun nofun nofun
-  obtain ⟨ν_r, hsupp_r, hsteps_r⟩ :=
-    exists_flat_exec_of_stateTransitionImpl C_rand (fits_zero 4) nofun nofun nofun
-  refine ⟨⟨ν_d, fun ops hops => (hsteps_d ops hops.1).2, ?_⟩,
-    ⟨ν_r, fun ops hops => (hsteps_r ops hops.1).2, ?_⟩, ?_, ?_, ?_, ?_⟩
+  obtain ⟨ν_d, hsupp_d, hreal_d, hcorr_d⟩ :=
+    validHist_flatExec_of_steps (M := 9) C_det0 (fits_zero 4) nofun nofun nofun
+  obtain ⟨ν_r, hsupp_r, hreal_r, hcorr_r⟩ :=
+    validHist_flatExec_of_steps (M := 7) C_rand (fits_zero 4) nofun nofun nofun
+  refine ⟨⟨ν_d, hreal_d, ?_⟩, ⟨ν_r, hreal_r, ?_⟩, ?_, ?_, ?_, ?_⟩
   · have h := expectedFlatTime_ge_of_indexedScheme (by decide) (by decide) (by decide) le_rfl
       ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
-      C_det0.encode (fun o _ regs => C_det0.decode o regs) ν_d hsupp_d
-      (fun ops hops => by
-        obtain ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1
-        exact ⟨ν_f, _, hfin, hex⟩)
-      linear_lb_iqd
+      C_det0.encode (fun o _ regs => C_det0.decode o regs) ν_d hsupp_d hcorr_d linear_lb_iqd
     simpa [hpc0] using h
   · have h := expectedFlatTime_update_ge_of_indexedScheme (by decide) (by decide) (by decide) le_rfl
       ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
-      C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r
-      (fun ops hops => by
-        obtain ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1
-        exact ⟨ν_f, _, hfin, hex⟩)
-      linear_lb_upd
+      C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r hcorr_r linear_lb_upd
     simpa [hpcr] using h
   · have h := expectedTotalCost_ge_of_indexedScheme (by decide) (by decide) C_det0
       (fits_zero 4) nofun nofun nofun le_rfl linear_lb_iqd
@@ -1312,39 +1334,34 @@ theorem wordram_theorem1_1_concrete_instantiations :
     rw [hmax]; push_cast; linarith [benchmarkBits_31_2_2_ge]
   have hsp_det : C_det.space = 2 := rfl
   have hsp_rand : C_rand.space = 2 := rfl
-  obtain ⟨ν_d, hsupp_d, hsteps_d⟩ :=
-    exists_flat_exec_of_stateTransitionImpl C_det (fits_zero 6) nofun nofun nofun
-  obtain ⟨ν_r, hsupp_r, hsteps_r⟩ :=
-    exists_flat_exec_of_stateTransitionImpl C_rand (fits_zero 6) nofun nofun nofun
-  obtain ⟨ν_1, hsupp_1, hsteps_1⟩ :=
-    exists_flat_exec_of_stateTransitionImpl C_rel (by decide) nofun nofun nofun
+  obtain ⟨ν_d, hsupp_d, hreal_d, hcorr_d⟩ :=
+    validHist_flatExec_of_steps (M := 9) C_det (fits_zero 6) nofun nofun nofun
+  obtain ⟨ν_r, hsupp_r, hreal_r, hcorr_r⟩ :=
+    validHist_flatExec_of_steps (M := 9) C_rand (fits_zero 6) nofun nofun nofun
+  obtain ⟨ν_1, hsupp_1, hreal_1, hcorr_1⟩ :=
+    validHist_flatExec_of_steps (M := 9) C_rel (by decide) nofun nofun nofun
   obtain ⟨c₁, hc₁, hf₁⟩ := expectedFlatTime_ge_of_iterLog_redundancy.{0}
     (α := 1) (c_R := 1) (c_w := 2) 0 (by norm_num) (by norm_num) (by norm_num)
   obtain ⟨c₂, hc₂, hf₂⟩ := expectedFlatTime_ge_of_iterLog_redundancy.{0}
     (α := 1) (c_R := 4) (c_w := 2) 1 (by norm_num) (by norm_num) (by norm_num)
   obtain ⟨c₃, hc₃, hb₁⟩ := expectedTotalCost_ge_of_iterLog_redundancy
     (α := 1) (c_R := 1) (c_w := 2) 0 (by norm_num) (by norm_num) (by norm_num)
-  refine ⟨⟨ν_d, fun ops hops => (hsteps_d ops hops.1).2, c₁, hc₁, ?_⟩,
-    ⟨ν_r, fun ops hops => (hsteps_r ops hops.1).2, c₁, hc₁, ?_⟩,
-    ⟨ν_1, fun ops hops => (hsteps_1 ops hops.1).2, c₂, hc₂, ?_⟩,
-    ⟨c₃, hc₃, ?_⟩, ⟨c₃, hc₃, ?_⟩⟩
+  refine ⟨⟨ν_d, hreal_d, c₁, hc₁, ?_⟩, ⟨ν_r, hreal_r, c₁, hc₁, ?_⟩,
+    ⟨ν_1, hreal_1, c₂, hc₂, ?_⟩, ⟨c₃, hc₃, ?_⟩, ⟨c₃, hc₃, ?_⟩⟩
   · have h := hf₁ (by decide) (by decide) hpoly (by decide) le_rfl hk_hi (by omega) hw_31_2
       (by rw [hpc0]; exact hsp_iter)
       ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
-      C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d
-      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1; ⟨ν_f, _, hfin, hex⟩
+      C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d hcorr_d
     push_cast at h; rwa [mul_one] at h
   · have h := hf₁ (k := Nat.logStar 2) (by decide) (by decide) hpoly (by decide) hk_hi le_rfl
       (by omega) hw_31_2 (by rw [hpcr]; exact hsp_star)
       ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
-      C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r
-      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1; ⟨ν_f, _, hfin, hex⟩
+      C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r hcorr_r
     push_cast at h; exact h
   · have h := hf₂ (k := Nat.logStar 2) (by decide) (by decide) hpoly (by decide) hk_hi le_rfl
       (by rw [hpc1]) hw_31_2 (by rw [hpc1]; exact hsp_rel)
       ((twoSlotDetCode 2 true).code.program (twoSlotDetCode 2 true).output)
-      C_rel.encode (fun o _ regs => C_rel.decode o regs) ν_1 hsupp_1
-      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_1 ops hops.1; ⟨ν_f, _, hfin, hex⟩
+      C_rel.encode (fun o _ regs => C_rel.decode o regs) ν_1 hsupp_1 hcorr_1
     push_cast at h; exact h
   · have h := hb₁ (by decide) (by decide) hpoly (by decide) le_rfl hk_hi (by omega) hw_31_2 C_det
       (by rw [hsp_det, hp0]; exact hsp_iter) (fits_zero 6) nofun nofun nofun
@@ -1434,12 +1451,12 @@ theorem wordram_theorem1_2_concrete_instantiations :
     rw [max_eq_left (by norm_num : (1 : ℝ) ≤ 3 / 2), Nat.cast_ofNat]
     norm_num
   have hlpos : 0 < Real.logb 2 (4 / 3) := hlog_eq ▸ logb_four_thirds_pos
-  obtain ⟨ν_d, hsupp_d, hsteps_d⟩ :=
-    exists_flat_exec_of_stateTransitionImpl C_det (fits_zero 6) nofun nofun nofun
-  obtain ⟨ν_r, hsupp_r, hsteps_r⟩ :=
-    exists_flat_exec_of_stateTransitionImpl C_rand (fits_zero 6) nofun nofun nofun
-  obtain ⟨ν_1, hsupp_1, hsteps_1⟩ :=
-    exists_flat_exec_of_stateTransitionImpl C_rel_rand (by decide) nofun nofun nofun
+  obtain ⟨ν_d, hsupp_d, hreal_d, hcorr_d⟩ :=
+    validHist_flatExec_of_steps (M := 9) C_det (fits_zero 6) nofun nofun nofun
+  obtain ⟨ν_r, hsupp_r, hreal_r, hcorr_r⟩ :=
+    validHist_flatExec_of_steps (M := 9) C_rand (fits_zero 6) nofun nofun nofun
+  obtain ⟨ν_1, hsupp_1, hreal_1, hcorr_1⟩ :=
+    validHist_flatExec_of_steps (M := 9) C_rel_rand (by decide) nofun nofun nofun
   obtain ⟨c₁, hc₁, hf₁⟩ := expectedFlatTime_ge_of_sublinear_redundancy.{0}
     (α := 1) (c_w := 2) 0 (by norm_num) (by norm_num)
   obtain ⟨c₂, hc₂, hf₂⟩ := expectedFlatTime_ge_iterLogStar_add_log_div.{0}
@@ -1450,42 +1467,37 @@ theorem wordram_theorem1_2_concrete_instantiations :
     (α := 1) (c_w := 2) 0 (by norm_num) (by norm_num)
   obtain ⟨c₅, hc₅, hb₂⟩ := expectedTotalCost_ge_iterLogStar_add_log_div
     (α := 1) (c_R := 1) (c_w := 2) 0 (by norm_num) (by norm_num) (by norm_num)
-  refine ⟨⟨ν_d, fun ops hops => (hsteps_d ops hops.1).2,
+  refine ⟨⟨ν_d, hreal_d,
       ⟨c₁ * 2 * Real.logb 2 (4 / 3), by positivity, ?_⟩, ⟨c₂, hc₂, ?_⟩⟩,
-    ⟨ν_r, fun ops hops => (hsteps_r ops hops.1).2,
+    ⟨ν_r, hreal_r,
       ⟨c₁ * 2 * Real.logb 2 (4 / 3), by positivity, ?_⟩, ⟨c₂, hc₂, ?_⟩⟩,
-    ⟨ν_1, fun ops hops => (hsteps_1 ops hops.1).2, c₃, hc₃, ?_⟩,
+    ⟨ν_1, hreal_1, c₃, hc₃, ?_⟩,
     ⟨c₄ * 2 * Real.logb 2 (4 / 3), by positivity, ?_⟩,
     ⟨c₅, hc₅, ?_⟩⟩
   · have h := hf₁ (R := 3 / 2) (by decide) (by decide) hpoly (by decide) (by norm_num) (by omega)
       hw_31_2 (by rw [hpc0]; exact hsp_sub)
       ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
-      C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d
-      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1; ⟨ν_f, _, hfin, hex⟩
+      C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d hcorr_d
     rw [hlog_eq] at h; push_cast at h; exact h
   · have h := hf₂ (R := 3 / 2) (by decide) (by decide) hpoly (by decide) (by norm_num) (by omega)
       hw_31_2 (by rw [hpc0]; exact hsp_sub)
       ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
-      C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d
-      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1; ⟨ν_f, _, hfin, hex⟩
+      C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d hcorr_d
     rw [hlog_eq, hls2, max_eq_right hlpos.le] at h; push_cast at h; exact h
   · have h := hf₁ (R := 3 / 2) (by decide) (by decide) hpoly (by decide) (by norm_num) (by omega)
       hw_31_2 (by rw [hpcr]; exact hsp_sub)
       ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
-      C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r
-      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1; ⟨ν_f, _, hfin, hex⟩
+      C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r hcorr_r
     rw [hlog_eq] at h; push_cast at h; exact h
   · have h := hf₂ (R := 3 / 2) (by decide) (by decide) hpoly (by decide) (by norm_num) (by omega)
       hw_31_2 (by rw [hpcr]; exact hsp_sub)
       ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
-      C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r
-      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1; ⟨ν_f, _, hfin, hex⟩
+      C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r hcorr_r
     rw [hlog_eq, hls2, max_eq_right hlpos.le] at h; push_cast at h; exact h
   · have h := hf₃ (R := 8) (by decide) (by decide) hpoly (by decide) (by norm_num)
       (by rw [hpcr1]) hw_31_2 (by rw [hpcr1]; exact hsp_rel)
       ((twoSlotRandCode 2 true).code.program (twoSlotRandCode 2 true).output)
-      C_rel_rand.encode (fun o _ regs => C_rel_rand.decode o regs) ν_1 hsupp_1
-      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_1 ops hops.1; ⟨ν_f, _, hfin, hex⟩
+      C_rel_rand.encode (fun o _ regs => C_rel_rand.decode o regs) ν_1 hsupp_1 hcorr_1
     refine (ENNReal.ofReal_le_ofReal ?_).trans h
     rw [hls2]; push_cast
     have hnn : 0 ≤ max (0 : ℝ) (Real.logb 2 (2 / max (8 : ℝ) 1)) := le_max_left _ _
@@ -1604,10 +1616,10 @@ theorem wordram_theorem1_3_concrete_instantiations :
     rw [max_eq_left (by norm_num : (1 : ℝ) ≤ 3 / 2), Nat.cast_ofNat]
     norm_num
   have hlpos : 0 < Real.logb 2 (4 / 3) := hlog_eq ▸ logb_four_thirds_pos
-  obtain ⟨ν_d, hsupp_d, hsteps_d⟩ :=
-    exists_flat_exec_of_stateTransitionImpl C_det (fits_zero 14) nofun nofun nofun
-  obtain ⟨ν_r, hsupp_r, hsteps_r⟩ :=
-    exists_flat_exec_of_stateTransitionImpl C_rand (fits_zero 14) nofun nofun nofun
+  obtain ⟨ν_d, hsupp_d, hreal_d, hcorr_d⟩ :=
+    validHist_flatExec_of_steps (M := 7) C_det (fits_zero 14) nofun nofun nofun
+  obtain ⟨ν_r, hsupp_r, hreal_r, hcorr_r⟩ :=
+    validHist_flatExec_of_steps (M := 7) C_rand (fits_zero 14) nofun nofun nofun
   obtain ⟨c₁, hc₁, hf₁⟩ := expectedFlatTime_update_ge_iterLog.{0}
     (α_V := 1) (c_R := 1) (c_w := 2) 0 (by norm_num) (by norm_num) (by norm_num)
   obtain ⟨c₂, hc₂, hf₂⟩ := expectedFlatTime_update_ge_sublinear.{0}
@@ -1620,9 +1632,9 @@ theorem wordram_theorem1_3_concrete_instantiations :
     (α_V := 1) (c_w := 2) 0 (by norm_num) (by norm_num)
   obtain ⟨c₆, hc₆, hb₃⟩ := expectedTotalCost_update_ge_iterLogStar_add_log_div
     (α_V := 1) (c_R := 1) (c_w := 2) 0 (by norm_num) (by norm_num) (by norm_num)
-  refine ⟨⟨ν_d, fun ops hops => (hsteps_d ops hops.1).2,
+  refine ⟨⟨ν_d, hreal_d,
       ⟨c₁, hc₁, ?_⟩, ⟨c₂ * 2 * Real.logb 2 (4 / 3), by positivity, ?_⟩, ⟨c₃, hc₃, ?_⟩⟩,
-    ⟨ν_r, fun ops hops => (hsteps_r ops hops.1).2,
+    ⟨ν_r, hreal_r,
       ⟨c₁, hc₁, ?_⟩, ⟨c₂ * 2 * Real.logb 2 (4 / 3), by positivity, ?_⟩, ⟨c₃, hc₃, ?_⟩⟩,
     ⟨c₄, hc₄, ?_⟩,
     ⟨c₅ * 2 * Real.logb 2 (4 / 3), by positivity, ?_⟩,
@@ -1630,38 +1642,32 @@ theorem wordram_theorem1_3_concrete_instantiations :
   · have h := hf₁ (by decide) (by decide) (by decide) hV_lo le_rfl hk_hi (by omega) hw_15_1024
       (by rw [hpc0]; exact hsp_iter)
       ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
-      C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d
-      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1; ⟨ν_f, _, hfin, hex⟩
+      C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d hcorr_d
     push_cast at h; rwa [mul_one] at h
   · have h := hf₂ (R := 3 / 2) (by decide) (by decide) (by decide) hV_lo (by norm_num) (by omega)
       hw_15_1024 (by rw [hpc0]; exact hsp_sub)
       ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
-      C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d
-      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1; ⟨ν_f, _, hfin, hex⟩
+      C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d hcorr_d
     rw [hlog_eq] at h; push_cast at h; exact h
   · have h := hf₃ (R := 3 / 2) (by decide) (by decide) (by decide) hV_lo (by norm_num) (by omega)
       hw_15_1024 (by rw [hpc0]; exact hsp_sub)
       ((twoSlotDetCode 0 false).code.program (twoSlotDetCode 0 false).output)
-      C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d
-      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_d ops hops.1; ⟨ν_f, _, hfin, hex⟩
+      C_det.encode (fun o _ regs => C_det.decode o regs) ν_d hsupp_d hcorr_d
     rw [hlog_eq, hls2, max_eq_right hlpos.le] at h; push_cast at h; exact h
   · have h := hf₁ (k := Nat.logStar 2) (by decide) (by decide) (by decide) hV_lo hk_hi le_rfl
       (by omega) hw_15_1024 (by rw [hpcr]; exact hsp_star)
       ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
-      C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r
-      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1; ⟨ν_f, _, hfin, hex⟩
+      C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r hcorr_r
     push_cast at h; exact h
   · have h := hf₂ (R := 3 / 2) (by decide) (by decide) (by decide) hV_lo (by norm_num) (by omega)
       hw_15_1024 (by rw [hpcr]; exact hsp_sub)
       ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
-      C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r
-      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1; ⟨ν_f, _, hfin, hex⟩
+      C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r hcorr_r
     rw [hlog_eq] at h; push_cast at h; exact h
   · have h := hf₃ (R := 3 / 2) (by decide) (by decide) (by decide) hV_lo (by norm_num) (by omega)
       hw_15_1024 (by rw [hpcr]; exact hsp_sub)
       ((twoSlotRandCode 0 false).code.program (twoSlotRandCode 0 false).output)
-      C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r
-      fun ops hops => let ⟨_, hfin, ν_f, hex⟩ := hsteps_r ops hops.1; ⟨ν_f, _, hfin, hex⟩
+      C_rand.encode (fun o _ regs => C_rand.decode o regs) ν_r hsupp_r hcorr_r
     rw [hlog_eq, hls2, max_eq_right hlpos.le] at h; push_cast at h; exact h
   · have h := hb₁ (by decide) (by decide) (by decide) hV_lo le_rfl hk_hi (by omega) hw_15_1024
       C_det (by rw [hsp_det, hp0]; exact hsp_iter)

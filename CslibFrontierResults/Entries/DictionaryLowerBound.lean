@@ -201,8 +201,9 @@ register_result "dict-wordram-iterlog-redundancy" where
     endpoints); CslibFrontierTests/DictLowerBoundWordRAM.lean proves those hypotheses for its \
     concrete Basis.standard two-slot fixture programs. Bounded-error Monte Carlo schemes and \
     adaptive sequence adversaries are not covered. Outside-fleet source checks: PR #5704 \
-    (reviews 5911577643, 5911560173, 5911573135, 6016497849, 6016914204, 6028316750) and \
-    https://github.com/cslib-community/cslib-frontier/pull/7973#pullrequestreview-6031553531."
+    (reviews 5911577643, 5911560173, 5911573135, 6016497849, 6016914204, 6028316750), \
+    https://github.com/cslib-community/cslib-frontier/pull/7973#pullrequestreview-6031553531, \
+    and https://github.com/cslib-community/cslib-frontier/pull/7973#pullrequestreview-6032172066."
 
 register_result "dict-wordram-sublinear-redundancy" where
   title := "Sublinear-redundancy and combined Word-RAM lower bounds for dynamic succinct \
@@ -242,8 +243,9 @@ register_result "dict-wordram-sublinear-redundancy" where
     CslibFrontierTests/DictLowerBoundWordRAM.lean proves those hypotheses for its concrete \
     Basis.standard two-slot fixture programs. Bounded-error Monte Carlo schemes and adaptive \
     sequence adversaries are not covered. Outside-fleet source checks: PR #5704 \
-    (reviews 5911577643, 5911560173, 5911573135, 6016497849, 6016914204, 6028316750) and \
-    https://github.com/cslib-community/cslib-frontier/pull/7973#pullrequestreview-6031553531."
+    (reviews 5911577643, 5911560173, 5911573135, 6016497849, 6016914204, 6028316750), \
+    https://github.com/cslib-community/cslib-frontier/pull/7973#pullrequestreview-6031553531, \
+    and https://github.com/cslib-community/cslib-frontier/pull/7973#pullrequestreview-6032172066."
 
 register_result "dict-wordram-update-lower-bound" where
   title := "Update-only Word-RAM lower bounds for dynamic succinct dictionaries with large values"
@@ -289,7 +291,8 @@ register_result "dict-wordram-update-lower-bound" where
     CslibFrontierTests/DictLowerBoundWordRAM.lean proves those hypotheses for its concrete \
     Basis.standard two-slot fixture programs. Bounded-error Monte Carlo schemes and adaptive \
     adversaries are not covered. Outside-fleet source checks: PR #5704 \
-    (reviews 5911577643, 5911560173, 5911573135, 6016497849, 6016914204, 6028316750) and \
-    https://github.com/cslib-community/cslib-frontier/pull/7973#pullrequestreview-6031553531."
+    (reviews 5911577643, 5911560173, 5911573135, 6016497849, 6016914204, 6028316750), \
+    https://github.com/cslib-community/cslib-frontier/pull/7973#pullrequestreview-6031553531, \
+    and https://github.com/cslib-community/cslib-frontier/pull/7973#pullrequestreview-6032172066."
 
 end

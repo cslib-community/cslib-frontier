@@ -91,10 +91,11 @@ Word-RAM model and boundary conventions:
   `ExecFlatProgramOps` execution with admissible budget `T_ops` also witnesses `ExecFlatProgramOps`
   at the exact intrinsic expected non-`halt` body-instruction count
   `flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops` (accumulating
-  `expectedTime w p_op ⟨0, prepareFlatRegs input encode o x⟩ - 1` along the unique limiting halting
-  distribution `flatStateDist`), preserving the coupled distributions `(ν₀, ν_final)` and zero-error
-  correctness, with `flatExpectedBodyTime ... ops ≤ T_ops`. Total expected executed instructions
-  including each operation's terminal `halt` satisfy
+  `expectedTime w p_op ⟨0, prepareFlatRegs input encode o x⟩ - 1` along `flatStateDist`, which on
+  certified histories coincides with the exact limiting halting distribution at every operation
+  boundary), preserving the coupled distributions `(ν₀, ν_final)` and zero-error correctness, with
+  `flatExpectedBodyTime ... ops ≤ T_ops`. Total expected executed instructions including each
+  operation's terminal `halt` satisfy
   `flatExpectedTime ... ops = flatExpectedBodyTime ... ops + ops.length`
   (`flatExpectedTime_eq_add_length`). All six `expectedFlatTime_*` headlines (and both generic
   `expectedFlatTime{,_update}_ge_of_indexedScheme` bridges) directly lower-bound
