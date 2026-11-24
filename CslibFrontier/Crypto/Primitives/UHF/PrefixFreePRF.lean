@@ -571,7 +571,9 @@ theorem isOraclePPT_prefixFreeBatchReduction {width outLen Q : ℕ → ℕ}
   apply hrun.isOraclePPTOn.bind_with
   simpa only [map_eq_bind_pure_comp, Function.comp_def] using htraverse.map hcollision
 
-private theorem isPrefixFreeOn_prefixFreeBatchReduction {width cap Q : ℕ → ℕ}
+/-- On complete positive-width blocks, the batch wrapper is prefix-free for every oracle reply
+width, independently of the cap it uses when reading replies. -/
+theorem isPrefixFreeOn_prefixFreeBatchReduction {width cap Q : ℕ → ℕ}
     {valid oracleValid : ℕ → List Bool → Bool}
     (guessBatch : ℕ × ℕ → ProbComp (List (List Bool))) (n outLen : ℕ)
     (haligned : ∀ word, valid n word = true → 0 < width n ∧ width n ∣ word.length) :
