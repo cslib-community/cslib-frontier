@@ -107,18 +107,15 @@ theorem isSome_wnWitness : ∀ {k : ℕ} {s s' : State},
     unfold wnWitness
     split_ifs with hss
     · rfl
-    simp only [wellNestedStep, Finset.mem_filter, Finset.mem_univ, true_and] at h
+    simp only [wellNestedStep, Finset.mem_filter, Finset.mem_univ, true_and,
+      Option.orElse_eq_orElse, Option.orElse_eq_or, Option.isSome_or, Bool.or_eq_true] at h ⊢
     rcases h with h | ⟨a, s₂, hT, h⟩ | ⟨a, b, i, γ, s₂, s₃, s₄, hT, h₂, hT', h₄⟩
     · exact absurd h hss
-    · simp only [Option.orElse_eq_orElse, Option.orElse_eq_or, Option.isSome_or,
-        Bool.or_eq_true]
-      refine .inl (List.findSome?_isSome_iff.mpr ⟨(a, s₂), FinEnum.mem_toList _, ?_⟩)
+    · refine .inl (List.findSome?_isSome_iff.mpr ⟨(a, s₂), FinEnum.mem_toList _, ?_⟩)
       dsimp only
       simp only [hT, ↓reduceIte, Option.isSome_map]
       exact isSome_wnWitness h
-    · simp only [Option.orElse_eq_orElse, Option.orElse_eq_or, Option.isSome_or,
-        Bool.or_eq_true]
-      refine .inr (List.findSome?_isSome_iff.mpr ⟨(a, b, i, γ, s₂, s₃, s₄), FinEnum.mem_toList _,
+    · refine .inr (List.findSome?_isSome_iff.mpr ⟨(a, b, i, γ, s₂, s₃, s₄), FinEnum.mem_toList _,
         ?_⟩)
       dsimp only
       obtain ⟨w₁, hw₁⟩ := Option.isSome_iff_exists.mp (isSome_wnWitness h₂)

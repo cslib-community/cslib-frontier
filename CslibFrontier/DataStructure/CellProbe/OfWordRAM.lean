@@ -72,14 +72,23 @@ cells of width `wideSubroutineWidth P w`, additive overhead at most `2` regardle
   `Cslib.DataStructure.WordRAM.StateTransitionImpl.simInit`: deterministic `StateTransitionImpl`
   simulation bridges and fresh-initializer probe tree.
 * `Cslib.DataStructure.CellProbe.prepareFlatRegs`,
-  `Cslib.DataStructure.CellProbe.ExecFlatProgramOps`: flat `(ν₀, p_op)` multi-operation Las Vegas
-  execution contract.
+  `Cslib.DataStructure.CellProbe.ExecFlatProgramOps`,
+  `Cslib.DataStructure.CellProbe.flatStateDist`,
+  `Cslib.DataStructure.CellProbe.flatExpectedBodyTime`,
+  `Cslib.DataStructure.CellProbe.flatExpectedTime`: flat `(ν₀, p_op)` multi-operation Las Vegas
+  execution contract, plus boundary state distribution and intrinsic expected running times on
+  certified `ExecFlatProgramOps` histories.
 * `Cslib.DataStructure.WordRAM.Randomized.ExecStepsRand`,
   `Cslib.DataStructure.WordRAM.Randomized.ObliviousSequenceImpl.HasFiniteExecRand`: finite-tree
   `ExecRand` step witness for exact zero-slack oblivious-sequence simulation.
 
 ## Main results
 
+* `Cslib.DataStructure.CellProbe.ExecFlatProgramOps.tighten_actualBodyTime`,
+  `Cslib.DataStructure.CellProbe.flatExpectedTime_eq_add_length`: checked actual-time tightening
+  bridge showing every certified `ExecFlatProgramOps` admits the exact intrinsic expected non-`halt`
+  body instruction count `flatExpectedBodyTime` (`≤ T_ops`), preserving coupled distributions and
+  correctness.
 * `Cslib.DataStructure.CellProbe.exists_cellProbe_of_flatPrograms`,
   `Cslib.DataStructure.CellProbe.exists_cellProbeWide_of_flatPrograms`,
   `Cslib.DataStructure.CellProbe.flat_wordRAM_lower_bound_of_det_cellProbe`,
@@ -402,6 +411,180 @@ inductive ExecFlatProgramOps {B : Basis} {r : ℕ}
         (ν.bind fun p => (μ_step p).map fun ⟨ℓ, _, y⟩ => (ℓ, y)) ν_final T_rest →
       ExecFlatProgramOps D Latent w base space p_op input encode decode s (o :: ops) ν ν_final
         ((∑' p, ν p * T_step p) + T_rest)
+
+private noncomputable def haltedOutputPMF {B : Basis} {r : ℕ} (w : ℕ) (p_op : Program B r)
+    (x : Data r) : PMF (ℕ × Data r) :=
+  match Classical.propDecidable (HasSum (haltedLim w p_op x) 1) with
+  | .isTrue h => ⟨haltedLim w p_op x, h⟩
+  | .isFalse _ => PMF.pure (0, x)
+
+private theorem haltedOutputPMF_eq_of_execProgramDist {B : Basis} {r w : ℕ} {p_op : Program B r}
+    {x : Data r} {μ : PMF (ℕ × Data r)} {T : ℝ≥0∞}
+    (h : ExecProgramDist w p_op x μ T) :
+    haltedOutputPMF w p_op x = μ := by
+  have heq : haltedLim w p_op x = μ := funext h.haltedLim_eq
+  have hsum : HasSum (haltedLim w p_op x) 1 := heq ▸ μ.2
+  dsimp only [haltedOutputPMF]
+  cases Classical.propDecidable (HasSum (haltedLim w p_op x) 1) with
+  | isTrue _ => exact PMF.ext h.haltedLim_eq
+  | isFalse hnot => exact absurd hsum hnot
+
+private noncomputable def flatStepDataDist {B : Basis} {r : ℕ} {Op : Type*}
+    (w : ℕ) (p_op : Program B r) (input : Fin r → Bool) (encode : Op → Fin r → ℕ)
+    (o : Op) (ρ : PMF (Data r)) : PMF (Data r) :=
+  ρ.bind fun x =>
+    (haltedOutputPMF w p_op (prepareFlatRegs input encode o x)).map Prod.snd
+
+/-- Machine-state distribution `PMF (Data r)` obtained by folding the limiting halting law of `p_op`
+over `ops` from initial state distribution `ρ`. On any **certified** `ExecFlatProgramOps` history,
+every step halts with mass `1` and this coincides with the exact final `Data r` marginal
+(`ExecFlatProgramOps.tighten_actualBodyTime`); on uncertified steps whose halting mass is below `1`
+(e.g., an empty program `[]`), a private fallback point mass keeps the transition total. -/
+noncomputable def flatStateDist {B : Basis} {r : ℕ} {Op : Type*}
+    (w : ℕ) (p_op : Program B r) (input : Fin r → Bool) (encode : Op → Fin r → ℕ) :
+    PMF (Data r) → List Op → PMF (Data r)
+  | ρ, [] => ρ
+  | ρ, o :: ops =>
+    flatStateDist w p_op input encode (flatStepDataDist w p_op input encode o ρ) ops
+
+/-- Expected non-`halt` body-instruction count accumulated along `flatStateDist` when running flat
+program `p_op` on `ops` from initial state distribution `ρ : PMF (Data r)`. On any **certified**
+`ExecFlatProgramOps` history, every step halts with mass `1` and this equals the exact intrinsic
+expected body-instruction count (`expectedTime - 1` summed across the exact step marginals,
+independent of any caller-supplied time budget `T`, latent variable `Latent`, or proof witness; see
+`ExecFlatProgramOps.tighten_actualBodyTime`). On uncertified histories with halting mass below `1`,
+subsequent steps advance through the private fallback point mass. -/
+noncomputable def flatExpectedBodyTime {B : Basis} {r : ℕ} {Op : Type*}
+    (w : ℕ) (p_op : Program B r) (input : Fin r → Bool) (encode : Op → Fin r → ℕ) :
+    PMF (Data r) → List Op → ℝ≥0∞
+  | _, [] => 0
+  | ρ, o :: ops =>
+    (∑' x, ρ x * (expectedTime w p_op ⟨0, prepareFlatRegs input encode o x⟩ - 1)) +
+      flatExpectedBodyTime w p_op input encode (flatStepDataDist w p_op input encode o ρ) ops
+
+/-- Expected total executed Word-RAM instruction count (including each operation's terminal `halt`
+step) accumulated along `flatStateDist` when running `p_op` on `ops` from `ρ : PMF (Data r)`.
+Equals the exact total expected executed instruction count on **certified** `ExecFlatProgramOps`
+histories (`flatExpectedTime_eq_add_length`); on uncertified histories with halting mass below `1`,
+subsequent steps advance through the private fallback point mass. -/
+noncomputable def flatExpectedTime {B : Basis} {r : ℕ} {Op : Type*}
+    (w : ℕ) (p_op : Program B r) (input : Fin r → Bool) (encode : Op → Fin r → ℕ) :
+    PMF (Data r) → List Op → ℝ≥0∞
+  | _, [] => 0
+  | ρ, o :: ops =>
+    (∑' x, ρ x * expectedTime w p_op ⟨0, prepareFlatRegs input encode o x⟩) +
+      flatExpectedTime w p_op input encode (flatStepDataDist w p_op input encode o ρ) ops
+
+/-- Running any `WordRAM.Program` from an active state `⟨0, x⟩` takes expected time at least `1`.
+-/
+theorem one_le_expectedTime {B : Basis} {r : ℕ} (w : ℕ) (p_op : Program B r) (x : Data r) :
+    (1 : ℝ≥0∞) ≤ expectedTime w p_op ⟨0, x⟩ := by
+  rw [expectedTime_eq_expectedStepsFrom, expectedStepsFrom_running]
+  exact le_self_add
+
+/-- Total expected executed instructions (`flatExpectedTime`, including each operation's terminal
+`halt` step) equal `flatExpectedBodyTime + ops.length`. -/
+theorem flatExpectedTime_eq_add_length {B : Basis} {r : ℕ} {Op : Type*}
+    (w : ℕ) (p_op : Program B r) (input : Fin r → Bool) (encode : Op → Fin r → ℕ)
+    (ρ : PMF (Data r)) (ops : List Op) :
+    flatExpectedTime w p_op input encode ρ ops =
+      flatExpectedBodyTime w p_op input encode ρ ops + (ops.length : ℝ≥0∞) := by
+  induction ops generalizing ρ with
+  | nil => simp [flatExpectedTime, flatExpectedBodyTime]
+  | cons o ops ih =>
+    simp only [flatExpectedTime, flatExpectedBodyTime, List.length_cons, Nat.cast_add, Nat.cast_one]
+    have hstep :
+        (∑' x, ρ x * expectedTime w p_op ⟨0, prepareFlatRegs input encode o x⟩) =
+          (∑' x, ρ x * (expectedTime w p_op ⟨0, prepareFlatRegs input encode o x⟩ - 1)) + 1 := by
+      have hcongr :
+          (∑' x, ρ x * expectedTime w p_op ⟨0, prepareFlatRegs input encode o x⟩) =
+            ∑' x, ρ x * ((expectedTime w p_op ⟨0, prepareFlatRegs input encode o x⟩ - 1) + 1) :=
+        tsum_congr fun x => by rw [tsub_add_cancel_of_le (one_le_expectedTime w p_op _)]
+      rw [hcongr]
+      simp_rw [mul_add, mul_one]
+      rw [tsum_add, ρ.tsum_coe]
+    rw [hstep, ih]
+    ac_rfl
+
+/-- The non-`halt` body instruction expectation `flatExpectedBodyTime` never exceeds the total
+executed instruction expectation `flatExpectedTime`. -/
+theorem flatExpectedBodyTime_le_flatExpectedTime {B : Basis} {r : ℕ} {Op : Type*}
+    (w : ℕ) (p_op : Program B r) (input : Fin r → Bool) (encode : Op → Fin r → ℕ)
+    (ρ : PMF (Data r)) (ops : List Op) :
+    flatExpectedBodyTime w p_op input encode ρ ops ≤ flatExpectedTime w p_op input encode ρ ops :=
+  (le_self_add).trans_eq (flatExpectedTime_eq_add_length w p_op input encode ρ ops).symm
+
+/-- **Actual-time tightening bridge:** any certified `ExecFlatProgramOps` derivation from `ν` to
+`ν_final` with admissible budget `T_ops` also witnesses `ExecFlatProgramOps` with the **exact**
+intrinsic expected non-`halt` body-instruction count `flatExpectedBodyTime w p_op input encode
+(ν.map Prod.snd) ops` (preserving the exact coupled initial/final distributions `(ν, ν_final)`,
+intermediate transitions, and zero-error decode/framing correctness), dominates it
+(`flatExpectedBodyTime ... ≤ T_ops`), and evolves the `Data r` marginal along `flatStateDist`. -/
+theorem ExecFlatProgramOps.tighten_actualBodyTime {B : Basis} {r w base space : ℕ}
+    {D : StateTransitionSpec.{u, v, 0}}
+    {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D.HasStepFn f]
+    {Latent : Type z} {p_op : Program B r} {input : Fin r → Bool}
+    {encode : D.Op → Fin r → ℕ}
+    {decode : (o : D.Op) → ℕ → (Fin r → ℕ) → Option (D.Result o)}
+    {s : D.State} {ops : List D.Op} {ν ν_final : PMF (Latent × Data r)} {T_ops : ℝ≥0∞}
+    (hex : ExecFlatProgramOps D Latent w base space p_op input encode decode s ops
+      ν ν_final T_ops) :
+    ExecFlatProgramOps D Latent w base space p_op input encode decode s ops ν ν_final
+      (flatExpectedBodyTime w p_op input encode (ν.map Prod.snd) ops) ∧
+    flatExpectedBodyTime w p_op input encode (ν.map Prod.snd) ops ≤ T_ops ∧
+    ν_final.map Prod.snd = flatStateDist w p_op input encode (ν.map Prod.snd) ops := by
+  induction hex with
+  | nil s ν => exact ⟨.nil s ν, le_rfl, rfl⟩
+  | @cons s o ops_rem ν ν_final μ_step T_step T_rest hstep _ ih =>
+    let ν₁ : PMF (Latent × Data r) := ν.bind fun p => (μ_step p).map fun ⟨ℓ, _, y⟩ => (ℓ, y)
+    have hmap_eq :
+        ν₁.map Prod.snd = flatStepDataDist w p_op input encode o (ν.map Prod.snd) := by
+      dsimp only [flatStepDataDist]
+      rw [PMF.map_bind, PMF.bind_map]
+      refine Probability.PMF.bind_congr_on_support ν _ _ fun p hp => ?_
+      have hμ : (μ_step p).map Prod.snd =
+          haltedOutputPMF w p_op (prepareFlatRegs input encode o p.2) :=
+        (haltedOutputPMF_eq_of_execProgramDist (hstep p hp).2.1).symm
+      rw [PMF.map_comp]
+      change ((μ_step p).map (Prod.snd ∘ fun q => (q.1, q.2.2))) =
+        (haltedOutputPMF w p_op (prepareFlatRegs input encode o p.2)).map Prod.snd
+      rw [← hμ, PMF.map_comp]
+      rfl
+    let t_act : Latent × Data r → ℝ≥0∞ :=
+      fun p => expectedTime w p_op ⟨0, prepareFlatRegs input encode o p.2⟩ - 1
+    have hstep_act :
+        (∑' p, ν p * t_act p) =
+          ∑' x, (ν.map Prod.snd) x *
+            (expectedTime w p_op ⟨0, prepareFlatRegs input encode o x⟩ - 1) :=
+      (Probability.PMF.tsum_map_mul ν Prod.snd
+        (fun x => expectedTime w p_op ⟨0, prepareFlatRegs input encode o x⟩ - 1)).symm
+    have hstep_le : (∑' p, ν p * t_act p) ≤ ∑' p, ν p * T_step p :=
+      Probability.PMF.tsum_mul_mono_support ν fun p hp =>
+        tsub_le_iff_right.mpr (hstep p hp).2.1.1
+    obtain ⟨ih_exec, ih_le, ih_dist⟩ := ih
+    refine ⟨?_, ?_, ?_⟩
+    · rw [flatExpectedBodyTime, ← hmap_eq, ← hstep_act]
+      refine .cons (μ_step := μ_step) (T_step := t_act) (fun p hp => ?_) ih_exec
+      obtain ⟨harg, hpd, hpost⟩ := hstep p hp
+      refine ⟨harg, ⟨?_, hpd.2.1, hpd.2.2⟩, hpost⟩
+      exact le_of_eq (tsub_add_cancel_of_le (one_le_expectedTime w p_op _)).symm
+    · rw [flatExpectedBodyTime, ← hmap_eq, ← hstep_act]
+      exact add_le_add hstep_le ih_le
+    · rw [ih_dist, hmap_eq, flatStateDist]
+
+/-- Any admissible `ExecFlatProgramOps` budget `T_ops` dominates the exact expected body-instruction
+count `flatExpectedBodyTime w p_op input encode (ν.map Prod.snd) ops`. -/
+theorem ExecFlatProgramOps.flatExpectedBodyTime_le {B : Basis} {r w base space : ℕ}
+    {D : StateTransitionSpec.{u, v, 0}}
+    {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D.HasStepFn f]
+    {Latent : Type z} {p_op : Program B r} {input : Fin r → Bool}
+    {encode : D.Op → Fin r → ℕ}
+    {decode : (o : D.Op) → ℕ → (Fin r → ℕ) → Option (D.Result o)}
+    {s : D.State} {ops : List D.Op} {ν ν_final : PMF (Latent × Data r)} {T_ops : ℝ≥0∞}
+    (hex : ExecFlatProgramOps D Latent w base space p_op input encode decode s ops
+      ν ν_final T_ops) :
+    flatExpectedBodyTime w p_op input encode (ν.map Prod.snd) ops ≤ T_ops :=
+  hex.tighten_actualBodyTime.2.1
 
 private theorem ne_top_of_mem_support_of_tsum_ne_top {α : Type*} {ν : PMF α} {f : α → ℝ≥0∞}
     (hsum : (∑' a, ν a * f a) ≠ ⊤) {a : α} (ha : a ∈ ν.support) : f a ≠ ⊤ :=
@@ -946,7 +1129,10 @@ theorem ExecStepsOfFn.toExecFlatProgramOps
     obtain ⟨hdec, hrep, hmod⟩ := hq_all q₀ hq₀
     exact ⟨C.bounded hrep, hdec, hmod⟩
 
-private theorem exists_init_and_flat_steps
+/-- Initialize a `WordRAM.Randomized.StateTransitionImpl` from zeroed memory starting at `d₀`,
+returning the initial coupled distribution `ν₀` and certified finite `ExecFlatProgramOps` executions
+bounded by `C.initPotential + D.totalCost C.charge s₀ ops` along every valid history `ops`. -/
+theorem exists_init_and_flat_steps
     (C : WordRAM.Randomized.StateTransitionImpl P D w base params s₀)
     {d₀ : Data r_ds} (hd₀ : d₀.Bounded w)
     (hfr : d₀.regs P.frontierReg = base)
