@@ -310,7 +310,8 @@ def _peel_atom(text: str, start: int, end: int
     if start >= end or _has_top_level(text, start, end, ",∘"):
         return None
     if PROD_PROJ.match(text, start, end):
-        return _peel_prod_app(text, start, end)
+        peel = _peel_prod_app(text, start, end)
+        return peel[:4] if peel is not None and _skip_ws(text, peel[4], end) == end else None
     dot = _trailing_dot_run(text, start, end)
     if dot is not None:
         dot_off, dot_txt = dot
@@ -375,8 +376,9 @@ def _unwrap_ident_parens(tokens: list[re.Match[str]], match: dict[int, int],
 
 
 def _peel_prod_app(text: str, prod_start: int, limit: int, first_line_col: int = 0
-                   ) -> tuple[int, str, set[int], set[int]] | None:
-    """Unwrap nested `Prod.fst`/`Prod.snd` projection steps starting at `prod_start`."""
+                   ) -> tuple[int, str, set[int], set[int], int] | None:
+    """Unwrap nested `Prod.fst`/`Prod.snd` projection steps starting at `prod_start`, returning
+    `(depth, label, prod_offsets, dot_offsets, consumed_end)`."""
     m = PROD_PROJ.match(text, prod_start, limit)
     if not m:
         return None
@@ -390,24 +392,26 @@ def _peel_prod_app(text: str, prod_start: int, limit: int, first_line_col: int =
             return None
         if PROD_PROJ.match(text, arg_start, limit):
             sub = _peel_prod_app(text, arg_start, limit, first_line_col)
-            if sub is not None:
-                return sub[0] + 1, _wrap_prod(step, sub[1]), {m.start(), *sub[2]}, sub[3]
+            if sub is not None and _rhs_ends(
+                    text, sub[4], limit, m.start(), first_line_col, is_pipe_forward=False):
+                return sub[0] + 1, _wrap_prod(step, sub[1]), {m.start(), *sub[2]}, sub[3], sub[4]
         arg_end = _single_postfix_end(text, arg_start, limit)
-        # Only consume `<| e.2` if `e.2` is the entire operand of `<|` / `$` (not `p.2 + q`,
-        # `p.2 x`, or `p.2 |> f`).
+        # Only consume `<| e` if `e` is the entire operand of `<|` / `$` (not `e + q`,
+        # `e x`, or `e |> f`). Within a comma/semicolon-free span `<|` still wraps the whole tail.
         if not _rhs_ends(text, arg_end, limit, m.start(), first_line_col, is_pipe_forward=False):
-            return 1, f"{step} …", {m.start()}, set()
+            consumed_end = arg_end if _has_top_level(text, arg_start, limit, ",;") else limit
+            return 1, f"{step} …", {m.start()}, set(), consumed_end
         sub = _peel_atom(text, arg_start, arg_end)
         if sub is not None:
-            return sub[0] + 1, _wrap_prod(step, sub[1]), {m.start(), *sub[2]}, sub[3]
-        return 1, f"{step} …", {m.start()}, set()
+            return sub[0] + 1, _wrap_prod(step, sub[1]), {m.start(), *sub[2]}, sub[3], arg_end
+        return 1, f"{step} …", {m.start()}, set(), arg_end
     arg_end = _single_postfix_end(text, nxt, limit)
     if arg_end == nxt:
         return None
     sub = _peel_atom(text, nxt, arg_end)
     if sub is not None:
-        return sub[0] + 1, _wrap_prod(step, sub[1]), {m.start(), *sub[2]}, sub[3]
-    return 1, f"{step} …", {m.start()}, set()
+        return sub[0] + 1, _wrap_prod(step, sub[1]), {m.start(), *sub[2]}, sub[3], arg_end
+    return 1, f"{step} …", {m.start()}, set(), arg_end
 
 
 def _matching_open(text: str, close_pos: int) -> int:
@@ -432,6 +436,12 @@ def _prod_chains(text: str, exempt: list[tuple[int, int]], first_line_col: int =
 
     def is_exempt(off: int) -> bool:
         return any(s <= off < e for s, e in exempt)
+
+    def extend_hit(target_off: int, new_off: int, suffix: str) -> None:
+        for idx, (hoff, hlbl) in enumerate(hits):
+            if hoff == target_off:
+                hits[idx] = (new_off, f"({hlbl}){suffix}")
+                return
 
     # 1. Prefix `Prod.fst`/`Prod.snd` (`Prod.fst (Prod.snd p)`, `Prod.fst p.2`, `Prod.fst <| ...`)
     for m in PROD_PROJ.finditer(text):
@@ -459,16 +469,13 @@ def _prod_chains(text: str, exempt: list[tuple[int, int]], first_line_col: int =
         if _has_top_level(text, istart, iend, ",∘"):
             continue
         if PROD_PROJ.match(text, istart, iend):
-            if istart in consumed_prods:
-                # Extend the existing hit label for `(Prod.fst (Prod.snd p)).1`.
-                for idx, (hoff, hlbl) in enumerate(hits):
-                    if hoff == istart:
-                        hits[idx] = (i, f"({hlbl}){dm[0]}")
-                        break
-                consumed_dots.add(dm.start())
-                continue
             peel = _peel_prod_app(text, istart, iend, first_line_col)
-            if peel is not None:
+            if peel is not None and _skip_ws(text, peel[4], iend) == iend:
+                if istart in consumed_prods:
+                    # Extend the existing hit label for `(Prod.fst (Prod.snd p)).1`.
+                    extend_hit(istart, i, dm[0])
+                    consumed_dots.add(dm.start())
+                    continue
                 if not is_exempt(i):
                     hits.append((i, f"({peel[1]}){dm[0]}"))
                 consumed_prods |= peel[2]
@@ -502,6 +509,7 @@ def _prod_chains(text: str, exempt: list[tuple[int, int]], first_line_col: int =
             lhs_end -= 1
         d_offs: set[int] = set()
         lhs_label = ""
+        extended = False
         if lhs_end > 0:
             lm = re.search(r"((?:\." + COMPONENT + r")+)$", text[:lhs_end])
             if lm and lm.start() > 0:
@@ -525,13 +533,19 @@ def _prod_chains(text: str, exempt: list[tuple[int, int]], first_line_col: int =
                 open_i = _matching_open(text, lhs_end - 1)
                 if open_i >= 0 and text[open_i] == "(" and _is_head_pos(text, open_i):
                     istart, iend = _strip_parens(text, open_i + 1, lhs_end - 1)
-                    pm = PROD_PROJ.match(text, istart, iend)
-                    if pm and not _has_top_level(text, istart, iend, ",∘") \
-                            and _skip_ws(text, pm.end(), iend) < iend:
-                        lhs_label = f"(Prod.{pm[1]} …)"
-                        p_offs.add(istart)
-        if len(steps) >= 2 or lhs_label:
-            if not is_exempt(prod_off):
+                    if PROD_PROJ.match(text, istart, iend) \
+                            and not _has_top_level(text, istart, iend, ",∘"):
+                        peel = _peel_prod_app(text, istart, iend, first_line_col)
+                        if peel is not None and _skip_ws(text, peel[4], iend) == iend:
+                            if istart in consumed_prods:
+                                extend_hit(istart, open_i, " |> " + " |> ".join(steps))
+                                extended = True
+                            else:
+                                lhs_label = f"({peel[1]})"
+                                p_offs |= peel[2]
+                                d_offs |= peel[3]
+        if extended or len(steps) >= 2 or lhs_label:
+            if not extended and not is_exempt(prod_off):
                 hits.append((prod_off, " |> ".join([lhs_label or "…", *steps])))
             consumed_prods |= p_offs
             consumed_dots |= d_offs

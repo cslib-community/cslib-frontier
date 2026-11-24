@@ -148,6 +148,15 @@ class RuleTests(unittest.TestCase):
             chains("def f (p q : (ℕ × ℕ) × ℕ) := Prod.fst (Prod.fst p, Prod.snd (Prod.fst q))\n"
                    "def g (p : (ℕ × ℕ) × ℕ) := Prod.fst (h (p.1.2))\n"),
             ["Prod.snd (Prod.fst …)", ".1.2"])
+        # Inner chains remain counted when an outer <| is intercepted, and parenthesized
+        # chains extend cleanly or stay separate from outer dotted projections.
+        self.assertEqual(
+            chains("def a (p : ℕ × (ℕ × ℕ)) := Prod.fst <| Prod.fst (Prod.snd p) |> Prod.swap\n"
+                   "def b (p : ℕ × (ℕ × ℕ)) := Prod.fst <| Prod.snd <| Prod.fst p |> Prod.swap\n"
+                   "def c (p : (ℕ × ℕ) × (ℕ × ℕ)) := (Prod.fst (Prod.snd p)) |> Prod.fst\n"
+                   "def d (p : (ℕ × ℕ) × (ℕ × ℕ)) := (Prod.fst (Prod.snd p) + q).1.2\n"),
+            ["Prod.fst (Prod.snd …)", "Prod.fst (Prod.snd …)",
+             "(Prod.fst (Prod.snd …)) |> Prod.fst", "Prod.fst (Prod.snd …)", ".1.2"])
 
     def test_allowed_prod_projections_do_not_count(self) -> None:
         # Point-free composition is explicitly allowed by CONTRIBUTING.md, including after `|>`.
@@ -157,7 +166,8 @@ class RuleTests(unittest.TestCase):
                    "def h (p : ℕ × (ℕ × ℕ)) : ℕ := p.2 |> Prod.fst ∘ Prod.swap\n"
                    "def i (p : ℕ × (ℕ × ℕ)) : ℕ := p |> Prod.snd |> Prod.fst ∘ Prod.swap\n"
                    "def j (p : ℕ × (ℕ × ℕ)) : ℕ := p |> Prod.snd ∘ Prod.swap |> Prod.fst\n"), [])
-        # Single projection, higher-order arguments, field separator, checked indexing proof.
+        # Single projection, higher-order arguments, field separator, checked indexing proof,
+        # and whole-operand / whole-parenthesized-span boundaries under <| / $ / ().
         self.assertEqual(
             chains("def a (p : ℕ × ℕ) : ℕ := Prod.fst p\n"
                    "def b := xs.map Prod.fst\n"
@@ -169,9 +179,20 @@ class RuleTests(unittest.TestCase):
                    "def h := Prod.fst (Prod.fst p, x)\n"
                    "def i := Prod.fst <| p.2 + q\n"
                    "def i2 := Prod.fst <| p.2 |> f\n"
+                   "def i3 := Prod.fst <| Prod.snd p |> Prod.swap\n"
+                   "def i4 := Prod.fst $ Prod.snd p |> Prod.swap\n"
+                   "def i5 := Prod.fst <| Prod.snd p + q\n"
+                   "def i6 := Prod.fst $ Prod.snd p + q\n"
+                   "def i7 := Prod.fst <| Prod.snd p x\n"
                    "def j := Prod.fst <| p.2 x\n"
                    "def k := f x.2 |> Prod.fst\n"
                    "def m := p.2 |> Prod.fst + 1\n"
+                   "def n1 := Prod.fst (Prod.snd p + q)\n"
+                   "def n2 := Prod.fst (Prod.snd p |> Prod.swap)\n"
+                   "def n3 := (Prod.snd p + q).1\n"
+                   "def n4 := (Prod.snd p |> Prod.swap).1\n"
+                   "def n5 := (Prod.snd p + q) |> Prod.fst\n"
+                   "def n6 := (Prod.snd p |> Prod.swap) |> Prod.fst\n"
                    "def l := Prod.fst xs[i]'h.2\n"), [])
         # Ignored inside proofs, comments, docstrings, private decls, and efficiency predicates.
         self.assertEqual(
