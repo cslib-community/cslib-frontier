@@ -77,7 +77,11 @@ noncomputable def Controlled.wordCoordinateFingerprintLabels {α : Type} {n : α
     (decodeCoordinateFingerprint_modulus_polyTime hD hj hwords)
     (decodeCoordinateFingerprint_parameter_polyTime hD hj hwords)
     (decodeCoordinateFingerprint_target_polyTime hD hj hwords)
-    (fun q => (by decide : 0 < 2).trans (hb q).1) (fun q => by
+    (fun q => (by decide : 0 < 2).trans (hb q).1)
+    (CoordinateFingerprint.modulusBound_polyTime hD)
+    (fun q => by
+      obtain ⟨_, hcap, _, _⟩ := hb q
+      exact hcap) (fun q => by
       obtain ⟨_, _, _, ht⟩ := hb q
       exact ht)
 
@@ -114,6 +118,24 @@ noncomputable def Controlled.wordCoordinateFingerprintTests {α : Type} {n : α 
   (C.wordCoordinateFingerprintLabels E hn hdpos hF hd word hword).onCoordinate
     (C.arity_computable.comp (fst enc encNat)) (fun q => ⟨q.2 % n q.1, Nat.mod_lt _ (hn q.1)⟩)
     (addressedCoordinate_polyTime C.arity_computable)
+
+/-- The fingerprint rows share the degree bound, norm exponent and prime cutoff at row zero.
+The modulus cap depends only on the instance, even when different addresses decode different
+actual moduli from the shared word. -/
+theorem Controlled.wordCoordinateFingerprintTests_bounds_eq {α : Type} {n : α → ℕ}
+    {enc : α ↪ List Bool} {a : ℕ} {F : (w : α) → MvPolynomial (Fin (n w)) ℤ}
+    (C : Controlled F enc a) (E : Decoder enc) {d : α → ℕ}
+    (hn : ∀ w, 0 < n w) (hdpos : ∀ w, 1 ≤ d w)
+    (hF : ∀ w, (F w).totalDegree ≤ d w + 1) (hd : ComputableInPolyTime d enc encNat)
+    (word : α → List Bool) (hword : ComputableInPolyTime word enc encBits) (w : α) (j : ℕ) :
+    let labels := C.wordCoordinateFingerprintTests E hn hdpos hF hd word hword
+    labels.degreeBound (w, j) = labels.degreeBound (w, 0) ∧
+      labels.massExponent (w, j) = labels.massExponent (w, 0) ∧
+      labels.cutoff (w, j) = labels.cutoff (w, 0) := by
+  simp only [wordCoordinateFingerprintTests, degreeBound_onCoordinate, massExponent_onCoordinate,
+    cutoff_onCoordinate]
+  simp only [wordCoordinateFingerprintLabels]
+  apply Controlled.criticalCoordinateFingerprintLabels_bounds_eq <;> rfl
 
 /-- Place the leading deformation coefficient at the variable selected by a binary address. -/
 noncomputable def indexedCoordinateEquation {n d : ℕ}

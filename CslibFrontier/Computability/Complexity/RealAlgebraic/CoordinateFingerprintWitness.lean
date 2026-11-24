@@ -46,11 +46,14 @@ structure CoordinateFingerprint where
   /-- Signed value of the fingerprint to select. -/
   target : ℤ
 
-private def modulusBound (D : ℕ) : ℕ := 2 * (D ^ 3 + 2)
+/-- The common decoded-modulus bound for coordinate polynomials of degree at most `D`. -/
+@[expose] def CoordinateFingerprint.modulusBound (D : ℕ) : ℕ := 2 * (D ^ 3 + 2)
+
+open CoordinateFingerprint (modulusBound)
 
 /-- The admissible ranges for a fingerprint of a polynomial of degree at most `D`. -/
 @[expose] def CoordinateFingerprint.Bounded (D : ℕ) (f : CoordinateFingerprint) : Prop :=
-  2 < f.modulus ∧ f.modulus ≤ 2 * (D ^ 3 + 2) ∧ f.parameter < f.modulus ∧
+  2 < f.modulus ∧ f.modulus ≤ modulusBound D ∧ f.parameter < f.modulus ∧
     f.target.natAbs ≤ D * f.modulus
 
 /-- The framed binary list, followed by an arbitrary padding suffix. -/
@@ -93,7 +96,9 @@ theorem decodeCoordinateFingerprint_bounded (D : ℕ) (word : List Bool) (i : �
   refine ⟨hmin, hmax, Nat.mod_lt _ (by omega), ?_⟩
   split_ifs <;> simpa only [Int.natAbs_neg, Int.natAbs_natCast]
 
-private theorem modulusBound_polyTime {α : Type} {enc : α ↪ List Bool} {D : α → ℕ}
+/-- Compute the common modulus bound in binary polynomial time. -/
+theorem CoordinateFingerprint.modulusBound_polyTime {α : Type}
+    {enc : α ↪ List Bool} {D : α → ℕ}
     (hD : ComputableInPolyTime D enc encNat) :
     ComputableInPolyTime (fun w => modulusBound (D w)) enc encNat :=
   binary_mul' (.const 2) (binary_add' (binary_pow' hD (.const 3)) (.const 2))
@@ -114,7 +119,8 @@ theorem decodeCoordinateFingerprint_modulus_polyTime {α : Type} {enc : α ↪ L
     ComputableInPolyTime (fun w => (decodeCoordinateFingerprint (D w) (word w) (i w)).modulus)
       enc encNat :=
   binary_add' (.const 3)
-    (binary_mod' (entry_polyTime hw hi 0) (binary_sub' (modulusBound_polyTime hD) (.const 2)))
+    (binary_mod' (entry_polyTime hw hi 0)
+      (binary_sub' (CoordinateFingerprint.modulusBound_polyTime hD) (.const 2)))
 
 /-- Reading the bounded modular-power parameter takes polynomial time. -/
 theorem decodeCoordinateFingerprint_parameter_polyTime {α : Type} {enc : α ↪ List Bool}
@@ -152,7 +158,7 @@ theorem coordinateFingerprintWitnessWidth_polyTime {α : Type} {enc : α ↪ Lis
     {D n : α → ℕ} (hD : ComputableInPolyTime D enc encNat)
     (hn : ComputableInPolyTime n enc encUnary) :
     ComputableInPolyTime (fun w => coordinateFingerprintWitnessWidth (D w) (n w)) enc encUnary := by
-  have hU := modulusBound_polyTime hD
+  have hU := CoordinateFingerprint.modulusBound_polyTime hD
   have htarget := binary_add' (binary_mul' (.const 2) (binary_mul' hD hU)) (.const 1)
   have hsize := binary_size.comp (binary_max' hU htarget)
   have hentry := unary_add' (unary_mul' (.const 2) hsize) (.const 1)
