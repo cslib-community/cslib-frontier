@@ -4,14 +4,24 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (test driver)
+
 import CslibFrontier.GameTheory.Mechanism.PostedPrice
-import CslibFrontierTests.GameTheory.OptimalAuction
+import Mathlib.MeasureTheory.Measure.Lebesgue.Basic
+import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.Finiteness
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.NormNum
+import Mathlib.Tactic.Positivity
+import Mathlib.Tactic.Ring
 
 /-!
-# Sequential posted-price auctions, single-sample pricing, and Bulow–Klemperer checks
+# Sequential posted-price auctions, single-sample pricing, and Bulow–Klemperer clients
 
-Concrete finite-support and continuous checks exercising the public API and subtle model
-boundaries of `ProphetSample` and `PostedPrice`:
+This is a `module` importing only the public surface of
+`CslibFrontier.GameTheory.Mechanism.PostedPrice` (and transitively `ProphetSample`), verifying that
+ordinary clients can exercise the API without `import all`:
 
 1. **Group strategy-proofness boundary at price indifference**: at `p = ![1, 1]` and `v = ![1, 5]`,
    bidder `0` has zero surplus (`1 - 1 = 0`) and can deviate to `0` so coalition `{0, 1}` strictly
@@ -27,14 +37,16 @@ boundaries of `ProphetSample` and `PostedPrice`:
 3. **Single-sample tie-breaking boundary**: on deterministic `PMF.pure 1`, naive strict comparison
    against `maxⱼ sⱼ` collects `0` (`expectedReward_strictSampleRule_pure_eq_zero`), whereas
    `singleSamplePostedPrice` is DSIC, IR, and collects `≥ 1/2` of Vickrey welfare `1`.
-4. **Asymmetric non-i.i.d. regular revenue `1/2`-approximation**: on two non-identical bidders
-   (bidder `0` uniform on `[0, 1]`, bidder `1` with rising density `2v` on `[0, 1]`),
+4. **Asymmetric non-i.i.d. regular revenue `1/2`-approximation**: on two non-identical regular
+   bidders (`Uniform[0, 1]` and `Uniform[0, 2]`, with distinct densities and support bounds),
    `postedPrice (virtualPostedPrices ...)` achieves `≥ 1/2` of every DSIC, IR single-item
    mechanism's revenue.
-5. **Bulow–Klemperer theorem**: on `Uniform[0, 1]`, the prior-independent `2`-bidder Vickrey auction
-   with zero reserve beats Myerson's `1`-bidder optimal auction with reserve `1/2`, and the
-   `3`-bidder Vickrey auction beats Myerson's `2`-bidder optimal auction.
+5. **Bulow–Klemperer checks**: the `(n + 1)`-bidder prior-independent Vickrey auction with zero
+   reserve beats Myerson's `n`-bidder optimal auction on `Uniform[0, 1]` (`n = 1`) and
+   `Uniform[0, 2]` (`n = 2`).
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.GameTheory.PostedPrice
 
@@ -57,13 +69,13 @@ example :
     (postedPrice p).utility 1 (v 1) v = 0 ∧
     (postedPrice p).utility 1 (v 1) b = 4 := by
   dsimp only
-  have hw_v0 : AcceptWins (fun i z => (![ (1 : ℝ), 1] i) ≤ z) ![1, 5] 0 :=
+  have hw_v0 : AcceptWins (fun i z => (![(1 : ℝ), 1] i) ≤ z) ![1, 5] 0 :=
     ⟨by simp, fun j hj => absurd hj (Fin.not_lt_zero j)⟩
-  have hl_v1 : ¬ AcceptWins (fun i z => (![ (1 : ℝ), 1] i) ≤ z) ![1, 5] 1 :=
+  have hl_v1 : ¬ AcceptWins (fun i z => (![(1 : ℝ), 1] i) ≤ z) ![1, 5] 1 :=
     fun hw => hw.2 0 Fin.zero_lt_one (by simp)
-  have hl_b0 : ¬ AcceptWins (fun i z => (![ (1 : ℝ), 1] i) ≤ z) ![0, 5] 0 :=
+  have hl_b0 : ¬ AcceptWins (fun i z => (![(1 : ℝ), 1] i) ≤ z) ![0, 5] 0 :=
     fun hw => by have := hw.1; norm_num at this
-  have hw_b1 : AcceptWins (fun i z => (![ (1 : ℝ), 1] i) ≤ z) ![0, 5] 1 := by
+  have hw_b1 : AcceptWins (fun i z => (![(1 : ℝ), 1] i) ≤ z) ![0, 5] 1 := by
     refine ⟨by norm_num, fun j hj => ?_⟩
     fin_cases j
     · norm_num
@@ -95,10 +107,8 @@ example : expectedWelfare SingleParameter.Vickrey.allocation (tightBidderLaws 1)
     expectedWelfare SingleParameter.Vickrey.allocation (tightBidderLaws 1) ≤
       2 * expectedWelfare (postedPrice (fun _ : Fin 2 => (3 / 4 : ℝ))).allocation
         (tightBidderLaws 1) := by
-  have hofFn : List.ofFn (tightBidderLaws 1) = tightLaws 1 := by
-    simp [tightBidderLaws, tightLaws_eq]
   have hmax : expectedMax (List.ofFn (tightBidderLaws 1)) = 3 / 2 := by
-    rw [hofFn, expectedMax_tightLaws]
+    rw [list_ofFn_tightBidderLaws, expectedMax_tightLaws]
     norm_num
   have hvick : expectedWelfare SingleParameter.Vickrey.allocation (tightBidderLaws 1) = 3 / 2 := by
     rw [expectedWelfare_vickrey_eq_expectedMax, hmax]
@@ -142,9 +152,12 @@ example :
 /-! ### 3. Single-sample tie-breaking witness on a point mass -/
 
 /-- On a single deterministic bidder with value `1` (`PMF.pure 1`), naive strict comparison against
-the sample maximum collects `0`, while the randomized tie-breaking `singleSamplePostedPrice` is
-DSIC, IR, and collects at least `1/2` of the Vickrey welfare `1`. -/
+the sample maximum collects `0`, while `singleSamplePostedPrice` is DSIC, individually rational,
+normalized, single-item feasible, and collects at least `1/2` of the Vickrey welfare `1`. -/
 example :
+    (∀ {n : ℕ} (s : Fin n → ℝ≥0) (π : Equiv.Perm (Fin (2 * n))),
+      (singleSamplePostedPrice s π).IsDSIC ∧ (singleSamplePostedPrice s π).IsIR ∧
+        (singleSamplePostedPrice s π).IsNormalized) ∧
     strictSampleExpectedReward (fun _ : Fin 1 => PMF.pure (1 : ℝ≥0)) = 0 ∧
     expectedWelfare SingleParameter.Vickrey.allocation (fun _ : Fin 1 => PMF.pure (1 : ℝ≥0)) = 1 ∧
     (1 : ℝ≥0∞) ≤ 2 * ∑' s, piFin (fun _ : Fin 1 => PMF.pure (1 : ℝ≥0)) s *
@@ -158,7 +171,9 @@ example :
     have hofFn : List.ofFn (fun _ : Fin 1 => PMF.pure (1 : ℝ≥0)) = [PMF.pure 1] := by simp
     rw [hofFn, expectedMax, tsum_jointLaw_cons_mul, tsum_pure_mul, tsum_jointLaw_nil_mul]
     simp [listMax]
-  refine ⟨expectedReward_strictSampleRule_pure_eq_zero 1, hvick, ?_⟩
+  refine ⟨fun s π => ⟨singleSamplePostedPrice_isDSIC s π, singleSamplePostedPrice_isIR s π,
+    singleSamplePostedPrice_isNormalized s π⟩,
+    expectedReward_strictSampleRule_pure_eq_zero 1, hvick, ?_⟩
   rw [← hvick]
   exact expectedWelfare_vickrey_le_two_mul_singleSamplePostedPrice _
 
@@ -166,31 +181,94 @@ example :
 
 section NonIID
 
-open CslibFrontierTests.GameTheory.OptimalAuction
+/-- Uniform distribution on `[0, 1]`. -/
+noncomputable abbrev unif : Measure ℝ := volume.restrict (Icc 0 1)
 
-/-- Asymmetric two-bidder environment: bidder `0` is `Uniform[0, 1]` and bidder `1` has rising
-density `2v` on `[0, 1]`. -/
-noncomputable def asymMeasure : Fin 2 → Measure ℝ := ![unif, rising]
+/-- Virtual valuation of `Uniform[0, 1]`. -/
+noncomputable abbrev unifVirtualValue : ℝ → ℝ := virtualValue unif fun _ => 1
+
+instance : IsProbabilityMeasure unif :=
+  ⟨by rw [Measure.restrict_apply_univ, Real.volume_Icc, sub_zero, ENNReal.ofReal_one]⟩
+
+theorem unifVirtualValue_monotoneOn : MonotoneOn unifVirtualValue (Ioi 0) :=
+  (isRegular_uniform.strictMonoOn_Ioi hasValueDensity_uniform).monotoneOn
+
+/-- Constant density `1/2` on `[0, 2]`. -/
+noncomputable def unif2Density (_ : ℝ) : ℝ≥0 := 1 / 2
+
+/-- Uniform distribution on `[0, 2]`. -/
+noncomputable def unif2 : Measure ℝ :=
+  (volume.restrict (Icc (0 : ℝ) 2)).withDensity fun v => (unif2Density v : ENNReal)
+
+/-- Virtual valuation of `Uniform[0, 2]`. -/
+noncomputable abbrev unif2VirtualValue : ℝ → ℝ := virtualValue unif2 unif2Density
+
+theorem hasValueDensity_unif2 : HasValueDensity unif2 unif2Density 2 where
+  measurable := measurable_const
+  eq_withDensity := rfl
+  pos := fun _ _ => by dsimp only [unif2Density]; positivity
+
+instance : IsProbabilityMeasure unif2 := by
+  refine ⟨?_⟩
+  rw [unif2, withDensity_apply _ MeasurableSet.univ, Measure.restrict_univ]
+  have hconst : (fun v : ℝ => (unif2Density v : ENNReal)) = fun _ => ENNReal.ofReal (1 / 2) :=
+    funext fun _ => by simp only [unif2Density, ← ENNReal.ofReal_coe_nnreal]; norm_num
+  rw [hconst, setLIntegral_const, Real.volume_Icc, ← ENNReal.ofReal_mul (by norm_num)]
+  norm_num
+
+theorem unif2_real_Ioi {v : ℝ} (hv0 : 0 ≤ v) (hv2 : v ≤ 2) :
+    unif2.real (Ioi v) = (2 - v) / 2 := by
+  have hset : Ioi v ∩ Icc (0 : ℝ) 2 = Ioc v 2 := by
+    ext w
+    simp only [mem_inter_iff, mem_Ioi, mem_Icc, mem_Ioc]
+    exact ⟨fun ⟨h1, _, h3⟩ => ⟨h1, h3⟩, fun ⟨h1, h3⟩ => ⟨h1, hv0.trans h1.le, h3⟩⟩
+  rw [measureReal_def, unif2, withDensity_apply _ measurableSet_Ioi,
+    Measure.restrict_restrict measurableSet_Ioi, hset]
+  have hconst : (fun w : ℝ => (unif2Density w : ENNReal)) = fun _ => ENNReal.ofReal (1 / 2) :=
+    funext fun _ => by simp only [unif2Density, ← ENNReal.ofReal_coe_nnreal]; norm_num
+  rw [hconst, setLIntegral_const, Real.volume_Ioc, ← ENNReal.ofReal_mul (by norm_num),
+    ENNReal.toReal_ofReal (by linarith)]
+  ring
+
+theorem virtualValue_unif2 {v : ℝ} (hv0 : 0 ≤ v) (hv2 : v ≤ 2) :
+    unif2VirtualValue v = 2 * v - 2 := by
+  rw [unif2VirtualValue, virtualValue, unif2_real_Ioi hv0 hv2, unif2Density]
+  norm_num
+  ring
+
+theorem isRegular_unif2 : IsRegular unif2 unif2Density 2 := by
+  intro a ha b hb hab
+  change unif2VirtualValue a < unif2VirtualValue b
+  rw [virtualValue_unif2 ha.1.le ha.2.le, virtualValue_unif2 hb.1.le hb.2.le]
+  linarith
+
+/-- Asymmetric two-bidder environment: bidder `0` is `Uniform[0, 1]` and bidder `1` is
+`Uniform[0, 2]`. -/
+noncomputable def asymMeasure : Fin 2 → Measure ℝ := ![unif, unif2]
 
 /-- Densities for `asymMeasure`. -/
-noncomputable def asymDensity : Fin 2 → ℝ → ℝ≥0 := ![fun _ => 1, risingDensity]
+noncomputable def asymDensity : Fin 2 → ℝ → ℝ≥0 := ![fun _ => 1, unif2Density]
+
+/-- Upper support bounds `[1, 2]` for `asymMeasure`. -/
+def asymBound : Fin 2 → ℝ := ![1, 2]
 
 instance (i : Fin 2) : IsProbabilityMeasure (asymMeasure i) := by
   fin_cases i
   · change IsProbabilityMeasure unif; infer_instance
-  · change IsProbabilityMeasure rising; infer_instance
+  · change IsProbabilityMeasure unif2; infer_instance
 
-theorem hasValueDensity_asym (i : Fin 2) : HasValueDensity (asymMeasure i) (asymDensity i) 1 := by
+theorem hasValueDensity_asym (i : Fin 2) :
+    HasValueDensity (asymMeasure i) (asymDensity i) (asymBound i) := by
   fin_cases i
   · exact hasValueDensity_uniform
-  · exact hasValueDensity_rising
+  · exact hasValueDensity_unif2
 
-theorem isRegular_asym (i : Fin 2) : IsRegular (asymMeasure i) (asymDensity i) 1 := by
+theorem isRegular_asym (i : Fin 2) : IsRegular (asymMeasure i) (asymDensity i) (asymBound i) := by
   fin_cases i
   · exact isRegular_uniform
-  · exact isRegular_rising
+  · exact isRegular_unif2
 
-/-- **Non-vacuous non-i.i.d. check**: on the asymmetric `(Uniform[0, 1], f(v) = 2v)` single-item
+/-- **Non-vacuous non-i.i.d. check**: on the asymmetric `(Uniform[0, 1], Uniform[0, 2])` single-item
 environment, the sequential posted-price mechanism `postedPrice (virtualPostedPrices ...)` is DSIC,
 IR, and achieves at least `1/2` of the expected revenue of the Vickrey auction (and of every DSIC,
 IR single-item mechanism). -/
@@ -208,10 +286,10 @@ example :
       (fun v _ => SingleParameter.Vickrey.allocation_mem_singleItemFeasible v)
       SingleParameter.Vickrey.measurable_allocation⟩
 
-/-! ### 5. Bulow–Klemperer checks on `Uniform[0, 1]` -/
+/-! ### 5. Bulow–Klemperer checks on `Uniform[0, 1]` and `Uniform[0, 2]` -/
 
-/-- **Bulow–Klemperer for `n = 1` vs `2` uniform bidders**: the `2`-bidder prior-independent Vickrey
-auction with zero reserve beats Myerson's optimal `1`-bidder auction (reserve `1/2`). -/
+/-- **Bulow–Klemperer for `n = 1` vs `2` `Uniform[0, 1]` bidders**: the `2`-bidder
+prior-independent Vickrey auction with zero reserve beats Myerson's optimal `1`-bidder auction. -/
 example :
     ∫ v, ∑ i : Fin 1,
         (myerson (SingleParameter.Vickrey.reserveAllocation (ι := Fin 1) unifVirtualValue)).payment
@@ -226,21 +304,21 @@ example :
     (SingleParameter.Vickrey.measurable_reserveAllocation
       hasValueDensity_uniform.measurable_virtualValue)
 
-/-- **Bulow–Klemperer for `n = 2` vs `3` rising-density bidders**: the `3`-bidder prior-independent
-Vickrey auction with zero reserve beats Myerson's optimal `2`-bidder auction (reserve `1 / √3`). -/
+/-- **Bulow–Klemperer for `n = 2` vs `3` `Uniform[0, 2]` bidders**: the `3`-bidder
+prior-independent Vickrey auction with zero reserve beats Myerson's optimal `2`-bidder auction. -/
 example :
     ∫ v, ∑ i : Fin 2,
         (myerson (SingleParameter.Vickrey.reserveAllocation (ι := Fin 2)
-          risingVirtualValue)).payment v i ∂Measure.pi (fun _ : Fin 2 => rising) ≤
+          unif2VirtualValue)).payment v i ∂Measure.pi (fun _ : Fin 2 => unif2) ≤
       ∫ v, ∑ j : Fin 3, (SingleParameter.Vickrey.mechanism (ι := Fin 3)).payment v j
-        ∂Measure.pi (fun _ : Fin 3 => rising) :=
-  bulow_klemperer hasValueDensity_rising isRegular_rising
+        ∂Measure.pi (fun _ : Fin 3 => unif2) :=
+  bulow_klemperer hasValueDensity_unif2 isRegular_unif2
     (myerson_isDSIC (SingleParameter.Vickrey.isMonotone_reserveAllocation
-      (isRegular_rising.strictMonoOn_Ioi hasValueDensity_rising).monotoneOn))
+      (isRegular_unif2.strictMonoOn_Ioi hasValueDensity_unif2).monotoneOn))
     (myerson_isIR fun v _ => SingleParameter.Vickrey.reserveAllocation_nonneg _ v)
     (fun v _ => SingleParameter.Vickrey.reserveAllocation_mem_singleItemFeasible _ v)
     (SingleParameter.Vickrey.measurable_reserveAllocation
-      hasValueDensity_rising.measurable_virtualValue)
+      hasValueDensity_unif2.measurable_virtualValue)
 
 end NonIID
 

@@ -650,7 +650,7 @@ def singleSampleAccept {n : ℕ} (s : Fin n → ℝ≥0) (π : Equiv.Perm (Fin (
 
 /-- **The single-sample posted-price mechanism**: post the uniform price `sampleMaxPrice s`
 (`maxⱼ sⱼ`) and break exact ties at `sampleMaxPrice s` using `π`. -/
-@[expose] noncomputable def singleSamplePostedPrice {n : ℕ} (s : Fin n → ℝ≥0)
+noncomputable def singleSamplePostedPrice {n : ℕ} (s : Fin n → ℝ≥0)
     (π : Equiv.Perm (Fin (2 * n))) : Mechanism (Fin n) :=
   acceptMechanism (fun _ => sampleMaxPrice s) (singleSampleAccept s π)
 
@@ -748,6 +748,7 @@ theorem expectedWelfare_vickrey_le_two_mul_singleSamplePostedPrice {n : ℕ}
           expectedWelfare (singleSamplePostedPrice s π).allocation μ := by
   rw [expectedWelfare_vickrey_eq_expectedMax]
   simp_rw [expectedWelfare_singleSamplePostedPrice]
+  rw [← singleSampleExpectedReward_eq]
   exact expectedMax_le_two_mul_singleSampleExpectedReward μ
 
 /-! ### Tight `1/2` barrier for fixed-order posted-price revenue and welfare -/
@@ -757,6 +758,10 @@ bidder `0` has sure value `1`, and bidder `1` has value `k + 1` with probability
 `0` otherwise. -/
 noncomputable def tightBidderLaws (k : ℕ) : Fin 2 → PMF ℝ≥0 :=
   ![PMF.pure 1, longShot k]
+
+/-- Converting `tightBidderLaws k` to a list recovers `tightLaws k`. -/
+theorem list_ofFn_tightBidderLaws (k : ℕ) : List.ofFn (tightBidderLaws k) = tightLaws k := by
+  simp [tightBidderLaws, tightLaws_eq]
 
 /-- For an individually rational mechanism, expected revenue never exceeds expected social welfare.
 -/
@@ -780,9 +785,7 @@ theorem expectedWelfare_postedPrice_tightBidderLaws_le_one (k : ℕ) (p : Fin 2 
     | _ => false
   have hle := expectedReward_tightLaws_le k stop
   refine le_trans ?_ hle
-  have hofFn : List.ofFn (tightBidderLaws k) = tightLaws k := by
-    simp [tightBidderLaws, tightLaws_eq]
-  rw [expectedWelfare, expectedReward, ← hofFn, tsum_jointLaw_ofFn_mul]
+  rw [expectedWelfare, expectedReward, ← list_ofFn_tightBidderLaws k, tsum_jointLaw_ofFn_mul]
   refine tsum_le_tsum fun v => mul_le_mul_right ?_ _
   rw [Fin.sum_univ_two]
   have hlist : List.ofFn v = [v 0, v 1] := by simp
@@ -905,10 +908,7 @@ theorem exists_postedPrice_revenue_lt {c : ℝ≥0∞} (hc : 1 < 2 * c) :
       c * ((2 * k + 1) / (k + 1)) :=
     (expectedRevenuePMF_le_expectedWelfare (postedPrice_isIR p) _).trans_lt hwel
   have hvick : expectedWelfare Vickrey.allocation (tightBidderLaws k) = (2 * k + 1) / (k + 1) := by
-    rw [expectedWelfare_vickrey_eq_expectedMax]
-    have hofFn : List.ofFn (tightBidderLaws k) = tightLaws k := by
-      simp [tightBidderLaws, tightLaws_eq]
-    rw [hofFn, expectedMax_tightLaws]
+    rw [expectedWelfare_vickrey_eq_expectedMax, list_ofFn_tightBidderLaws, expectedMax_tightLaws]
   rw [expectedRevenuePMF_swapped_tightBidderLaws, hvick]
   exact ⟨hrev, hwel⟩
 

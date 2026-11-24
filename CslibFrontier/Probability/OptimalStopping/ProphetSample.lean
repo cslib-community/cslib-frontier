@@ -104,7 +104,7 @@ abbrev TaggedValue (n : ℕ) : Type := ℝ≥0 ×ₗ Fin (2 * n)
 samples `s : Fin n → ℝ≥0` and a tie-breaking permutation `π : Equiv.Perm (Fin (2 * n))`, stop at
 step `i` (`past.length = i`) iff `(x, π (2i + 1))` exceeds every tagged sample `(s j, π (2j))` in
 lexicographic order. -/
-@[expose] noncomputable def singleSampleRule {n : ℕ} (s : Fin n → ℝ≥0)
+noncomputable def singleSampleRule {n : ℕ} (s : Fin n → ℝ≥0)
     (π : Equiv.Perm (Fin (2 * n))) : List ℝ≥0 → Bool
   | [] => false
   | x :: past =>
@@ -116,10 +116,19 @@ lexicographic order. -/
 /-- Expected reward of the single-sample stopping algorithm on `n` independent distributions `μ`:
 draw one sample vector `s ~ piFin μ`, an independent uniform permutation `π`, and run
 `singleSampleRule s π` online on `jointLaw (List.ofFn μ)`. -/
-@[expose] noncomputable def singleSampleExpectedReward {n : ℕ} (μ : Fin n → PMF ℝ≥0) : ℝ≥0∞ :=
+noncomputable def singleSampleExpectedReward {n : ℕ} (μ : Fin n → PMF ℝ≥0) : ℝ≥0∞ :=
   ∑' s, piFin μ s *
     ∑' π, uniformOfFintype (Equiv.Perm (Fin (2 * n))) π *
       expectedReward (singleSampleRule s π) (List.ofFn μ)
+
+/-- Unfolding equation for `singleSampleExpectedReward`. -/
+theorem singleSampleExpectedReward_eq {n : ℕ} (μ : Fin n → PMF ℝ≥0) :
+    singleSampleExpectedReward μ =
+      ∑' s, piFin μ s *
+        ∑' π, uniformOfFintype (Equiv.Perm (Fin (2 * n))) π *
+          expectedReward (singleSampleRule s π) (List.ofFn μ) := by
+  unfold singleSampleExpectedReward
+  rfl
 
 /-- Deterministic strict-maximum rule: accept the first online value strictly exceeding every
 offline sample `s j` (and positive when `n = 0`). -/
