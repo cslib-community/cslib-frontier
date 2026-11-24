@@ -11,6 +11,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Poly
 import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
 
 /-! `growth_poly` without the modules that prove the certificate lemmas: a certificate in the
 context gives no leaf, and the failure names the module to import. The import set is minimal on
@@ -80,4 +81,19 @@ example {α β : Type} {encIn : α ↪ List Bool} {encOut : β ↪ List Bool} {f
 -- `DegreeBounded.polyBounded` is in scope (`ResourceBounds` imports `ResourceBounds.Degree`).
 example {α : Type} {size u : α → ℕ} (hu : DegreeBounded size u 2) :
     PolyBounded size (fun a => u a * size a) := by
+  growth_poly
+
+-- An `encList` length bound without `Complexity.Lists` names `length_le_length_encList`'s module.
+/--
+error: growth_poly: no rule or local fact bounds
+  (fl a).length
+by a polynomial in
+  size a
+Add a `PolyBounded` fact or a certificate for it to the context, or pass one as `growth_poly [h]`.
+The certificate `hfl` gives no bound: `Turing.MultiTapeTM.length_le_length_encList` is not imported. Import `CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Lists`.
+-/
+#guard_msgs in
+example {α : Type} {size : α → ℕ} {fl : α → List ℕ}
+    (hfl : PolyBounded size (fun a => (encList encUnary (fl a)).length)) :
+    PolyBounded size (fun a => (fl a).length) := by
   growth_poly

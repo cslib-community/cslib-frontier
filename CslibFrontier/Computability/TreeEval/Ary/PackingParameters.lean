@@ -210,8 +210,7 @@ theorem length_encList_residues_le (hd : 0 < d) (hb : 0 < b) (values : List ℕ)
   have hscalar := chunkCount_mul_framed_fieldModulus_size_le hd hb 2
   calc
     _ ≤ values.length * (2 * (fieldModulus d b).size + 1) := hlist
-    _ ≤ ((d + 1) * chunkCount d b) * (2 * (fieldModulus d b).size + 1) :=
-      Nat.mul_le_mul_right _ hlen
+    _ ≤ ((d + 1) * chunkCount d b) * (2 * (fieldModulus d b).size + 1) := by gcongr
     _ = (d + 1) * (chunkCount d b * (2 * (fieldModulus d b).size + 1)) :=
       Nat.mul_assoc ..
     _ ≤ (d + 1) * (9 * (b + chunkWidth d b)) := Nat.mul_le_mul_left _ hscalar

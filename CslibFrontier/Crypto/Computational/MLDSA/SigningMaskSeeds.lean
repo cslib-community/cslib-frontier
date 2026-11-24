@@ -8,10 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
+-- Reads private `fixedHedgeGame` and `scoreWithSetup`, plus unexposed `distinctHedgeGame`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Primitives.ByteString
+-- Reads private `Table`, `RawWord`, `install`, and `byteAt_install`, plus `uniformPrefixes`.
+import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.UniformExtend
@@ -113,7 +113,11 @@ private theorem coupled_off {a b n : ℕ} (base : Xofs) (s : Level) (seed : Fixe
     (miss : 64 ≤ i ∨ ∀ p, seedInput (signingSeedBytes (streams base T₁ T₂) s seed) t p ≠ x) :
     let pair := coupled base s seed t ha hb r T₁ T₂
     pair.shared.h256.byteAt x i = pair.background.h256.byteAt x i := by
-  dsimp only [coupled, streams]
+  dsimp only
+  rw [show (coupled ..).shared.h256 = install base.h256 (Function.extend (seedCells t
+      (signingSeedBytes (streams base T₁ T₂) s seed) (signingSeedBytes_length ..) ha hb) r T₂)
+      from rfl,
+    show (coupled ..).background.h256 = install base.h256 T₂ from rfl]
   simp only [byteAt_install]
   by_cases inside : x.length ≤ a ∧ i < b
   · simp only [dite_eq_left inside]
@@ -122,10 +126,8 @@ private theorem coupled_off {a b n : ℕ} (base : Xofs) (s : Level) (seed : Fixe
     rcases miss with offset | raw
     · have eq : p.2.val = i := congrArg (fun z => z.2.val) hp
       exact (Nat.not_lt_of_ge offset) (eq ▸ p.2.isLt)
-    · apply raw p.1
-      apply word_inj (hx := (seedInput_length (signingSeedBytes_length ..) t p.1).le.trans ha)
-        (hy := inside.1)
-      exact congrArg Prod.fst hp
+    · exact raw p.1 (word_inj (hx := (seedInput_length (signingSeedBytes_length ..) t p.1).le.trans
+        ha) (hy := inside.1) (congrArg Prod.fst hp))
   · simp [inside]
 
 private theorem coupled_key {a b n : ℕ} (base : Xofs) (s : Level) (seed : FixedBytes 32)
@@ -133,17 +135,14 @@ private theorem coupled_key {a b n : ℕ} (base : Xofs) (s : Level) (seed : Fixe
     (T₁ T₂ : Table a b) :
     let pair := coupled base s seed t ha hb r T₁ T₂
     pair.shared.expandKeySeed s seed = pair.background.expandKeySeed s seed := by
-  let pair := coupled base s seed t ha hb r T₁ T₂
-  let x := keySeedInput s seed
-  change pair.shared.h256.read x 128 = pair.background.h256.read x 128
-  have len : x.length = 272 := length_keySeedInput s seed
+  dsimp only [Xofs.expandKeySeed]
   apply read_eq_of_byteAt_eq
   intro i _
   apply coupled_off _ _ _ _ _ _ _ _ _ _ _ (.inr _)
   intro p eq
   have he := congrArg List.length eq
-  rw [seedInput_length (signingSeedBytes_length ..), len] at he
-  contradiction
+  rw [seedInput_length (signingSeedBytes_length ..), length_keySeedInput] at he
+  omega
 
 /-- Algorithm 7 reads exactly the assigned mask seed at each programmed address. The private
 key component in that address is derived on the shared XOF through Algorithm 6. -/
@@ -158,19 +157,19 @@ theorem read_of_mem_sampleSigningMaskSeeds {base : Xofs} {s : Level} {seed : Fix
     PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at h
   obtain ⟨T₁, _, T₂, _, rfl⟩ := h
   rw [coupled_key]
-  let H := streams base T₁ T₂
-  let key := signingSeedBytes H s seed
+  let key := signingSeedBytes (streams base T₁ T₂) s seed
   let x := seedInput key t (i, μ)
-  let e := seedCells t key (signingSeedBytes_length H s seed) ha hb
+  let e := seedCells t key (signingSeedBytes_length ..) ha hb
   let G := install base.h256 (Function.extend e (seedBytes n rows) T₂)
-  change G.read x 64 = _
+  rw [show (coupled ..).shared.h256 = G from rfl,
+    show maskSeedInput (((coupled ..).background.expandKeySeed s seed).drop 96) (t i)
+      (List.ofFn μ) = x from rfl]
   apply List.ext_getElem
   · rw [G.length_read, FixedBytes.length_toList]
   · intro j hj _
     have small : j < 64 := hj.trans_le (G.length_read ..).le
-    let c : SeedCell n := ((i, μ), ⟨j, small⟩)
     have hx : x.length ≤ a := (seedInput_length (signingSeedBytes_length ..) ..).le.trans ha
-    have loc : e c = (word x hx, ⟨j, small.trans_le hb⟩) := rfl
+    have loc : e ((i, μ), ⟨j, small⟩) = (word x hx, ⟨j, small.trans_le hb⟩) := rfl
     rw [getElem_read _ _ small]
     simp only [G, byteAt_install, dite_eq_left (And.intro hx (small.trans_le hb)), ← loc,
       e.injective.extend_apply, FixedBytes.toList, List.getElem_ofFn]

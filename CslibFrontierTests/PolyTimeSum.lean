@@ -4,10 +4,22 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (test driver)
+
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 import CslibFrontier.Tactic.PolyTime
 
-/-! Tagged encodings, empty summands, and captured constructor certificates. -/
+/-!
+# Ordinary-import checks for `PolyTime.Sum`
+
+Tagged encodings, empty summands, constructor certificates, `sumGetLeft?` / `sumGetRight?`,
+point-free `Sum.elim`, nested captured `sumElimWithInput`, and summand-encoding mismatch rejection.
+-/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.PolyTimeSum
 
@@ -32,5 +44,29 @@ example {α β Input : Type} (left : α ↪ List Bool) (right : β ↪ List Bool
   refine ⟨rfl, rfl, rfl, ?_, by fun_prop, by fun_prop, by fun_prop⟩
   fail_if_success (clear hf; fun_prop)
   fun_prop
+
+example : ComputableInPolyTime
+    (fun s : ℕ ⊕ (ℕ × Bool) => (s.getLeft?, s.getRight?))
+    (encSum encNat (encPair encUnary encBool))
+    (encPair (encOption encNat) (encOption (encPair encUnary encBool))) := by
+  fun_prop
+
+example : ComputableInPolyTime
+    (Sum.elim (fun n : ℕ => n + 1) (fun b : Bool => if b then 2 else 0))
+    (encSum encNat encBool) encNat := by
+  fun_prop
+
+example : ComputableInPolyTime
+    (fun p : ℕ × (ℕ ⊕ (Bool ⊕ ℕ)) =>
+      p.2.elim (fun n => p.1 + n)
+        (fun rest => rest.elim (fun b => if b then p.1 else 0) (fun m => p.1 * m)))
+    (encPair encNat (encSum encNat (encSum encBool encNat))) encNat := by
+  fun_prop
+
+-- Negative guard: `sumElimWithInput` must not conflate `encNat` and `encUnary` summand encodings.
+example (f : ℕ → ℕ) (_hf : ComputableInPolyTime f encUnary encNat) : True := by
+  fail_if_success
+    exact (by fun_prop : ComputableInPolyTime (Sum.elim f id) (encSum encNat encNat) encNat)
+  trivial
 
 end CslibFrontierTests.PolyTimeSum

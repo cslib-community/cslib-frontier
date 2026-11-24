@@ -29,9 +29,14 @@ the client syntax, unfolding definitions, with one rule per form:
   minima/maxima and Boolean decisions are lifted to paid branches, including inside returned
   constructors; only the selected alternative contributes fit and definedness conditions.
 * the four memory queries: `Realizes.read`, `write`, `alloc` and `allocDirty`.
+* `DataStructure.link` / `PFunctor.FreeM.liftM`: lowers linked free-monad source programs
+  incrementally, matching local certificates on linked sub-calls before unfolding them, distributing
+  monadic binds and conditional branches, and reducing record layout addresses to word arithmetic.
 * a method with a local `Realizes` certificate: `Realizes.reindex`, selecting its
-  arguments from live words before unfolding its implementation. Computed arguments are first
-  staged by certified glue using the method's input encoding; the method's work is retained.
+  arguments from live words before unfolding its implementation (across tuples, data structures,
+  and finite word vectors). Non-live scalar coordinates inside composite arguments are staged
+  individually by certified glue; other computed arguments fall back to whole-argument staging in
+  the method's input encoding, retaining the method's work.
 * `if` on natural `=`, `≠`, `<`, `≤`, `>` or `≥`, combined with `¬`, `∧` and `∨`:
   `Realizes.branch` (`branch₀` for zero component work), retaining short-circuiting.
   Named guards unfold to these forms.
@@ -73,9 +78,7 @@ the generated work's comparison with the requested budget under the same entry a
 Zero work and definitionally matching budgets close automatically. Local method certificates
 are tried in context order; the remaining rule
 selection follows the client syntax, without searching for bounds. An unsupported form is
-reported with its subterm. A called method whose arguments are not all live words first stages
-its whole encoded argument with a charged `pure` step. This also supports custom input encodings
-without requiring a `WordEncoding` instance for the method's argument type.
+reported with its subterm.
 
 `realize [certificate₁, …]` first adds the supplied proof terms as local facts in list order,
 then runs the same tactic. Existing local certificates retain priority.
@@ -122,6 +125,32 @@ private structure Out where
 private def finLit (n i : Nat) : MetaM Expr :=
   mkNumeral (mkApp (mkConst ``Fin) (mkNatLit n)) i
 
+/-- Evaluate a literal `Fin` index to `Nat` when concrete. -/
+private def evalFinLit? (idx : Expr) : MetaM (Option Nat) := do
+  if idx.isAppOfArity ``OfNat.ofNat 3 then
+    if let some n := (idx.getArg! 1).rawNatLit? then return some n
+  let idx' ← whnf idx
+  if idx'.isAppOfArity ``Fin.mk 3 then
+    return ← (evalNat (idx'.getArg! 1)).run
+  return none
+
+/-- Extract the `j`-th element of a `Matrix.vecCons` spine `![x₀, …, x_{k-1}]`. -/
+private def extractVecElem? (vec : Expr) : Nat → Option Expr
+  | 0 => if vec.isAppOfArity ``Matrix.vecCons 4 then some (vec.getArg! 2) else none
+  | j + 1 =>
+    if vec.isAppOfArity ``Matrix.vecCons 4 then extractVecElem? (vec.getArg! 3) j else none
+
+/-- Reduce `(![x₀, …, x_{k-1}] j)` applications on concrete `Fin` indices. -/
+private def reduceFinVecApps (e : Expr) : MetaM Expr :=
+  Meta.transform e (post := fun sub => do
+    if sub.isApp then
+      let fn := sub.appFn!
+      if fn.isAppOfArity ``Matrix.vecCons 4 then
+        if let some j ← evalFinLit? sub.appArg! then
+          if let some elem := extractVecElem? fn j then
+            return .done elem
+    return .continue)
+
 /-- The number of words of an encoding `α ↪ (Fin l → ℕ)`. -/
 private def encodingWidth (enc : Expr) : MetaM Nat := do
   let ty ← instantiateMVars (← inferType enc)
@@ -151,15 +180,90 @@ private def findAtom (atoms : Array Expr) (e : Expr) : MetaM (Option Nat) := do
     if ← withNewMCtxDepth (isDefEq e' atoms[i]) then return some i
   return none
 
-/-- Reduce `(a, b).1` and `(a, b).2` everywhere. -/
-private def reducePairs (e : Expr) : MetaM Expr :=
-  Meta.transform e (post := fun e => do
-    if e.isAppOfArity ``Prod.fst 3 then
-      if let some (_, _, a, _) := e.appArg!.app4? ``Prod.mk then return .done a
-    if e.isAppOfArity ``Prod.snd 3 then
-      if let some (_, _, _, b) := e.appArg!.app4? ``Prod.mk then return .done b
-    if let .proj ``Prod i s := e then
-      if let some (_, _, a, b) := s.app4? ``Prod.mk then return .done (if i == 0 then a else b)
+/-- Reduce structure projections on constructors and literal `Matrix.vecCons` lookups everywhere. -/
+private def reduceProjections (e : Expr) : MetaM Expr := do
+  let env ← getEnv
+  Meta.transform e (post := fun sub => do
+    if let .proj s i target := sub then
+      if isStructure env s then
+        let ctor := getStructureCtor env s
+        if target.getAppFn.isConstOf ctor.name then
+          let args := target.getAppArgs
+          if args.size == ctor.numParams + ctor.numFields && ctor.numParams + i < args.size then
+            return .done args[ctor.numParams + i]!
+    if let some fnName := sub.getAppFn.constName? then
+      if let some info := env.getProjectionFnInfo? fnName then
+        if !info.fromClass && sub.getAppNumArgs ≥ info.numParams + 1 then
+          let subArgs := sub.getAppArgs
+          let target := subArgs[info.numParams]!
+          if target.getAppFn.isConstOf info.ctorName then
+            if let some (.ctorInfo ci) := env.find? info.ctorName then
+              let tArgs := target.getAppArgs
+              if tArgs.size == ci.numParams + ci.numFields &&
+                  ci.numParams + info.i < tArgs.size then
+                let field := tArgs[ci.numParams + info.i]!
+                return .done (mkAppN field (subArgs.extract (info.numParams + 1) subArgs.size))
+    if sub.isApp then
+      let fn := sub.appFn!
+      if fn.isAppOfArity ``Matrix.vecCons 4 then
+        if let some j ← evalFinLit? sub.appArg! then
+          if let some elem := extractVecElem? fn j then
+            return .done elem
+    return .continue)
+
+/-- Extract the base expression `x` if `fieldExpr` is the `idx`-th projection of structure `s`
+from `x`. -/
+private def structProjBase? (env : Environment) (s : Name) (ctorName : Name)
+    (numParams idx : Nat) (fieldExpr : Expr) : Option Expr :=
+  let fieldExpr := fieldExpr.consumeMData
+  match fieldExpr with
+  | .proj s' i base => if s' == s && i == idx then some base.consumeMData else none
+  | _ =>
+    if let some fnName := fieldExpr.getAppFn.constName? then
+      if let some info := env.getProjectionFnInfo? fnName then
+        if !info.fromClass && info.ctorName == ctorName && info.i == idx &&
+            fieldExpr.getAppNumArgs == numParams + 1 then
+          some fieldExpr.appArg!.consumeMData
+        else none
+      else none
+    else none
+
+/-- Eta-contract `Ctor.mk params (proj₀ x) … (proj_{m-1} x)` back to `x`, and rewrite any remaining
+raw `Expr.proj` nodes (produced by unification structure-eta) into named projection functions so
+syntactic tactics such as `omega` see the same projection terms as user hypotheses. -/
+private def etaContractStructures (e : Expr) : MetaM Expr := do
+  let env ← getEnv
+  let contracted ← Meta.transform e (post := fun sub => do
+    if let some ctorName := sub.getAppFn.constName? then
+      if let some (.ctorInfo ci) := env.find? ctorName then
+        if isStructure env ci.induct && ci.induct != ``Prod && ci.induct != ``Sigma &&
+            ci.numFields > 0 then
+          let args := sub.getAppArgs
+          if args.size == ci.numParams + ci.numFields then
+            if let some base := structProjBase? env ci.induct ctorName ci.numParams 0
+                args[ci.numParams]! then
+              let allMatch := (List.range ci.numFields).all fun i =>
+                structProjBase? env ci.induct ctorName ci.numParams i
+                  args[ci.numParams + i]! == some base
+              if allMatch then
+                if ← withNewMCtxDepth (isDefEq sub base) then
+                  return .done base
+    return .continue)
+  Meta.transform contracted (post := fun sub => do
+    if let .proj s idx base := sub then
+      if let some sInfo := getStructureInfo? env s then
+        if h : idx < sInfo.fieldNames.size then
+          let fname := sInfo.fieldNames[idx]
+          if let some projFn := getProjFnForField? env s fname then
+            if let some pInfo := env.getProjectionFnInfo? projFn then
+              if !pInfo.fromClass then
+                let saved ← saveState
+                try
+                  let fnApp ← mkAppM projFn #[base]
+                  if ← withNewMCtxDepth (isDefEq sub fnApp) then
+                    return .done fnApp
+                  saved.restore
+                catch _ => saved.restore
     return .continue)
 
 /-- `φ₀ ∧ (φ₁ ∧ … φₙ)`, or `True`. -/
@@ -744,6 +848,23 @@ private def normalizeBranch? (body : Expr) : MetaM (Option Simp.Result) := do
     return some { normalized with proof? := some (← mkEqTrans h (← normalized.getProof)) }
   return none
 
+/-- Reduce a static non-word `ite` (`true = true`, etc.) when its decidability instance reduces
+definitionally to `isTrue` or `isFalse`. -/
+private def reduceStaticIte? (d body : Expr) : MetaM (Option Expr) := do
+  unless body.isAppOfArity ``ite 5 do return none
+  let c := body.getArg! 1
+  if c.containsFVar d.fvarId! then return none
+  if ← (try let _ ← parseCond c; pure true catch _ => pure false) then return none
+  let dec ← whnfI (body.getArg! 2)
+  if dec.isAppOfArity ``Decidable.isTrue 2 then return some (body.getArg! 3)
+  if dec.isAppOfArity ``Decidable.isFalse 2 then return some (body.getArg! 4)
+  let b ← whnfI (← mkAppOptM ``decide #[c, body.getArg! 2])
+  if b.isConstOf ``Bool.true then
+    if ← withNewMCtxDepth (isDefEq body (body.getArg! 3)) then return some (body.getArg! 3)
+  if b.isConstOf ``Bool.false then
+    if ← withNewMCtxDepth (isDefEq body (body.getArg! 4)) then return some (body.getArg! 4)
+  return none
+
 /-- The comparison of a loop guard, with a checked equivalence to its native test.
 Successor lower bounds use the predecessor directly, without computing a successor word. -/
 private partial def parseGuard (g : Expr) (orig : Expr := g.headBeta) (fuel : Nat := 64) :
@@ -784,19 +905,101 @@ private def rebuildCond (c a b : Expr) : MetaM Expr := do
   else if c.isAppOfArity ``LT.lt 4 then mkAppM ``LT.lt #[a, b]
   else mkAppM ``GT.gt #[b, a]
 
-/-- Whether the head is a client form `realize` handles directly. -/
-private def isClientForm (e : Expr) : Bool :=
+/-- Primitive syntax forms on which local method certificates are never queried. -/
+private def isPrimitiveClientForm (e : Expr) : Bool :=
   e.isAppOfArity ``Bind.bind 6 || e.isAppOfArity ``PFunctor.FreeM.bind 5 ||
   e.isAppOfArity ``Pure.pure 4 || e.isAppOfArity ``PFunctor.FreeM.pure 3 ||
   e.isAppOfArity ``PFunctor.FreeM.lift 2 || e.isAppOfArity ``PFunctor.FreeM.liftBind 4 ||
-  e.isAppOfArity ``ite 5 || e.isAppOfArity ``boundedWhile 8
+  e.isAppOfArity ``ite 5
 
-/-- Unfold definitions until a client form appears. -/
-private partial def normBody (e : Expr) (fuel : Nat := 64) : MetaM Expr := do
-  let e ← whnfR e
-  if isClientForm e || fuel == 0 then return e
-  if let some e' ← unfoldDefinition? e then return ← normBody e'.headBeta (fuel - 1)
-  return e
+/-- Whether the head is a client form `realize` handles directly without unfolding. -/
+private def isClientForm (e : Expr) : Bool :=
+  isPrimitiveClientForm e || e.isAppOfArity ``PFunctor.FreeM.liftM 7 ||
+  e.isAppOfArity ``boundedWhile 8 || e.isAppOfArity ``iterate 6
+
+/-- Reduce a layout/projection scalar address to word arithmetic by pure definitional steps,
+stopping as soon as a live word, numeral or word-arithmetic operator is reached. -/
+private def normScalar (atoms : Array Expr) (e : Expr) : MetaM Expr := do
+  let isStop (x : Expr) : Bool :=
+    if x.isFVar || x.isLit || x.isBVar || x.isMVar then true
+    else if let some c := x.getAppFn.constName? then
+      [``HAdd.hAdd, ``HSub.hSub, ``HMul.hMul, ``HDiv.hDiv, ``HMod.hMod,
+       ``HAnd.hAnd, ``HOr.hOr, ``HXor.hXor, ``HShiftLeft.hShiftLeft, ``HShiftRight.hShiftRight,
+       ``OfNat.ofNat, ``Nat.zero, ``Nat.succ, ``DFunLike.coe,
+       ``Memory.State.mem, ``Memory.State.frontier,
+       ``StateTransitionSpec.clientResult, ``StateTransitionSpec.clientState].contains c
+    else false
+  let env ← getEnv
+  let mut cur := e
+  for _ in [0:32] do
+    if isStop cur then break
+    if (← findAtom atoms cur).isSome then break
+    let head := cur.getAppFn
+    let args := cur.getAppArgs
+    if let .proj s idx sv := head then
+      let svR ← whnfR sv
+      let ctor := getStructureCtor env s
+      if isStructure env s && svR.getAppFn.isConstOf ctor.name &&
+          svR.getAppNumArgs == ctor.numParams + ctor.numFields &&
+          ctor.numParams + idx < svR.getAppNumArgs then
+        cur := (mkAppN (svR.getArg! (ctor.numParams + idx)) args).headBeta
+        continue
+      if let some sv' ← unfoldDefinition? svR then
+        let sv' := sv'.headBeta
+        if isStructure env s && sv'.getAppFn.isConstOf ctor.name &&
+            sv'.getAppNumArgs == ctor.numParams + ctor.numFields &&
+            ctor.numParams + idx < sv'.getAppNumArgs then
+          cur := (mkAppN (sv'.getArg! (ctor.numParams + idx)) args).headBeta
+        else
+          cur := mkAppN (.proj s idx sv') args
+        continue
+      break
+    if let some next ← unfoldDefinition? cur then
+      cur := next.headBeta
+      continue
+    let next ← whnfR cur
+    if next != cur then
+      cur := next
+      continue
+    break
+  return cur
+
+/-- Normalize an interpreted lower-interface operation `interp op` to a client form or primitive
+memory query with reduced scalar operands while preserving definitional (`rfl`) equality. -/
+private def normInterpOp (atoms : Array Expr) (e : Expr) : MetaM Expr := do
+  let isStop (x : Expr) : Bool :=
+    isClientForm x ||
+    x.isAppOfArity ``Memory.read 1 || x.isAppOfArity ``Memory.write 2 ||
+    x.isAppOfArity ``Memory.alloc 1 || x.isAppOfArity ``Memory.allocDirty 1 ||
+    x.isAppOfArity ``PFunctor.FreeM.lift 2
+  let mut cur := e.headBeta
+  for _ in [0:32] do
+    if isStop cur then break
+    if let some next ← unfoldDefinition? cur then
+      cur := next.headBeta
+      continue
+    let next ← whnfR cur
+    if next != cur then
+      cur := next
+      continue
+    break
+  if cur.isAppOfArity ``Memory.read 1 then
+    return mkApp cur.getAppFn (← normScalar atoms cur.appArg!)
+  if cur.isAppOfArity ``Memory.write 2 then
+    return mkApp2 cur.getAppFn (← normScalar atoms (cur.getArg! 0))
+      (← normScalar atoms (cur.getArg! 1))
+  if cur.isAppOfArity ``Memory.alloc 1 || cur.isAppOfArity ``Memory.allocDirty 1 then
+    return mkApp cur.getAppFn (← normScalar atoms cur.appArg!)
+  if cur.isAppOfArity ``PFunctor.FreeM.lift 2 then
+    let op ← whnfR cur.appArg!
+    if op.isAppOfArity ``Memory.Op.read 1 then
+      return mkApp2 cur.getAppFn (cur.getArg! 0)
+        (mkApp op.getAppFn (← normScalar atoms op.appArg!))
+    if op.isAppOfArity ``Memory.Op.write 2 then
+      return mkApp2 cur.getAppFn (cur.getArg! 0)
+        (mkApp2 op.getAppFn (← normScalar atoms (op.getArg! 0))
+          (← normScalar atoms (op.getArg! 1)))
+  return cur
 
 /-- An optional answer that a `match` in the client inspects: a discriminant of an `Option` type
 that depends on the environment variable `d`. -/
@@ -855,10 +1058,11 @@ private def transportField (proof eq : Expr) (index : Nat) : MetaM Expr := do
 /-- State `proof` as `Realizes B prog input output safe work`, for the client `prog`
 as written and the domain `safe` in the client's terms.
 
-The rule's statement agrees with this one by construction: up to unfolding `prog`, reducing pair
-projections, and evaluating the live words, which were located as the weak-head normal forms of
-`input d i`. The kernel checks the agreement locally at each form. Elaboration does not re-check
-it, because unfolding composed domains with nested interpreter runs grows with the client. -/
+The rule's statement agrees with this one by construction: up to unfolding `prog`, reducing
+structure projections, and evaluating the live words, which were located as the weak-head normal
+forms of `input d i`. The kernel checks the agreement locally at each form. Elaboration does not
+re-check it, because unfolding composed domains with nested interpreter runs grows with the
+client. -/
 private def certify (ctx : Ctx) (env : Env) (proof prog output safe work : Expr) : MetaM Expr := do
   mkExpectedTypeHint proof
     (← mkAppM ``Realizes #[ctx.basis, prog, env.input, output, safe, work])
@@ -881,8 +1085,8 @@ private def bindRun (hP hQ reply next : Expr) : TermElabM Expr := do
           else mkAppM ``HAdd.hAdd #[wp, wq]
         let charged ← mkAppM ``HAdd.hAdd
           #[← mkAppM ``HAdd.hAdd #[wp, wq], mkNatLit 1]
-        return (← mkLambdaFVars #[d, s] (← reducePairs sum),
-          ← mkLambdaFVars #[d, s] (← reducePairs charged))
+        return (← mkLambdaFVars #[d, s] (← reduceProjections sum),
+          ← mkLambdaFVars #[d, s] (← reduceProjections charged))
     let proof ← mkAppM ``Realizes.bind #[hP, hQ]
     let ty ← inferType proof
     let proof ← mkExpectedTypeHint proof (mkAppN ty.getAppFn (ty.getAppArgs.set! 9 charged))
@@ -891,18 +1095,102 @@ private def bindRun (hP hQ reply next : Expr) : TermElabM Expr := do
     lambdaBoundedTelescope f 2 fun xs b => do mkLambdaFVars xs (← mkEqRefl b)
   mkAppM ``Realizes.bind₀_of_run #[hP, hQ, reply, next, ← refl reply, ← refl next]
 
-/-- Expose pair projections to unification when a certificate packages curried arguments.
-Other types remain whole metavariables: no data constructor or runtime value is guessed. -/
+/-- Expose tuple and pure data-structure projections to unification when a certificate packages
+curried arguments. Structures carrying `Prop` proofs (such as `Fin` or `Subtype`) and other types
+remain whole metavariables: no runtime value or proof witness is guessed. -/
 private partial def callArgument (ty : Expr) : MetaM Expr := do
   let ty ← whnfR ty
-  if let some (a, b) := ty.app2? ``Prod then
-    return mkAppN (mkConst ``Prod.mk ty.getAppFn.constLevels!)
-      #[a, b, ← callArgument a, ← callArgument b]
-  if let some (a, b) := ty.app2? ``Sigma then
-    let x ← callArgument a
-    return mkAppN (mkConst ``Sigma.mk ty.getAppFn.constLevels!)
-      #[a, b, x, ← callArgument (b.beta #[x])]
+  if !(← isProp ty) && (← isClass? ty).isNone then
+    if let .const s us := ty.getAppFn then
+      let env ← getEnv
+      if isStructure env s then
+        let ctor := getStructureCtor env s
+        if ctor.numFields > 0 && ty.getAppNumArgs == ctor.numParams then
+          let saved ← saveState
+          let ctorFn := mkAppN (mkConst ctor.name us) ty.getAppArgs
+          let mut acc := ctorFn
+          let mut remTy ← inferType ctorFn
+          let mut ok := true
+          for _ in [0:ctor.numFields] do
+            if ok then
+              match ← whnf remTy with
+              | .forallE _ dom body _ =>
+                if ← isProp dom then
+                  ok := false
+                else
+                  let field ← callArgument dom
+                  acc := mkApp acc field
+                  remTy := body.instantiate1 field
+              | _ => ok := false
+          if ok then return acc
+          saved.restore
   mkFreshExprMVar ty
+
+/-- Recognize `Fin k → ℕ` for a concrete positive width `k`. -/
+private def finVecWidth? (ty : Expr) : MetaM (Option Nat) := do
+  let ty ← whnfR ty
+  let .forallE _ dom body _ := ty | return none
+  if body.hasLooseBVars then return none
+  unless (← whnfR body).isConstOf ``Nat do return none
+  let some n := (← whnfR dom).app1? ``Fin | return none
+  let some k ← (evalNat (← whnf n)).run | return none
+  if 1 ≤ k && k ≤ 32 then return some k
+  return none
+
+/-- Unify a certificate's method pattern against `body`, trying `callArgument` first and falling
+back to an explicit `![?x₀, …, ?x_{k-1}]` vector when the certificate's environment is
+`Fin k → ℕ`. Aligns `DataStructure.link` and `PFunctor.FreeM.liftM` heads without unfolding the
+layout inside `methods`. -/
+private def matchMethodCall (certArgs : Array Expr) (body : Expr) : MetaM (Option Expr) := do
+  let tryWithArg (arg : Expr) (reduceVec : Bool) : MetaM (Option Expr) := do
+    let mut called := (mkApp certArgs[5]! arg).headBeta
+    if reduceVec then called ← reduceFinVecApps called
+    let mut target := body
+    if called.isAppOfArity ``Cslib.DataStructure.link 5 &&
+        target.isAppOfArity ``PFunctor.FreeM.liftM 7 then
+      if let some c' ← unfoldDefinition? called then called := c'.headBeta
+    else if target.isAppOfArity ``Cslib.DataStructure.link 5 &&
+        called.isAppOfArity ``PFunctor.FreeM.liftM 7 then
+      if let some t' ← unfoldDefinition? target then target := t'.headBeta
+    let matched ← if called.getAppFn == target.getAppFn &&
+        called.getAppNumArgs == target.getAppNumArgs then
+        (called.getAppArgs.zip target.getAppArgs).allM fun (a, b) => do
+          let a ← whnfR a
+          let b ← whnfR b
+          if (← isClass? (← inferType a)).isSome then
+            withTransparency .default (isDefEq a b)
+          else
+            withReducible (isDefEq a b)
+      else withReducible (isDefEq called target)
+    unless matched do return none
+    let arg ← instantiateMVars arg
+    if arg.hasMVar then return none
+    return some arg
+  let saved ← saveState
+  let arg ← callArgument certArgs[2]!
+  if let some res ← tryWithArg arg false then return some res
+  saved.restore
+  if let some fk ← finVecWidth? certArgs[2]! then
+    let savedVec ← saveState
+    let mvars ← (List.range fk).mapM fun _ => mkFreshExprMVar (mkConst ``Nat)
+    let vecArg ← vecOf mvars
+    if let some res ← tryWithArg vecArg true then return some res
+    savedVec.restore
+  return none
+
+/-- Check whether `cand` matches any local `Realizes` certificate in the current basis, without
+modifying metavariable state. -/
+private def matchesLocalCert (ctx : Ctx) (cand : Expr) : MetaM Bool := do
+  for decl in ← getLCtx do
+    if decl.isImplementationDetail then continue
+    let ty ← instantiateMVars decl.type
+    unless ty.isAppOfArity ``Realizes 10 do continue
+    let args := ty.getAppArgs
+    let hit ← withNewMCtxDepth do
+      unless ← withReducible (isDefEq args[4]! ctx.basis) do return false
+      return (← matchMethodCall args cand).isSome
+    if hit then return true
+  return false
 
 /-- Wire a matched method's encoded argument to live words, retaining its domain. -/
 private def reindexCall (env : Env) (d arg certificate : Expr) (positions : Array Nat) :
@@ -910,6 +1198,7 @@ private def reindexCall (env : Env) (d arg certificate : Expr) (positions : Arra
   let ty ← instantiateMVars (← inferType certificate)
   unless ty.isAppOfArity ``Realizes 10 do
     throwError "realize: expected a `Realizes` method certificate{indentExpr ty}"
+  let argClean ← etaContractStructures arg
   let args := ty.getAppArgs
   let k := positions.size
   let finK := mkApp (mkConst ``Fin) (mkNatLit k)
@@ -918,7 +1207,7 @@ private def reindexCall (env : Env) (d arg certificate : Expr) (positions : Arra
     | [] => mkAppOptM ``Matrix.vecEmpty #[finEnv]
     | i :: is => do mkAppM ``Matrix.vecCons #[← finLit env.k i, ← indices is]
   let ix ← indices positions.toList
-  let f ← mkLambdaFVars #[d] arg
+  let f ← mkLambdaFVars #[d] argClean
   let hwTy ← withLocalDeclD `e env.ty fun e => withLocalDeclD `i finK fun i => do
     let lhs := mkApp (← mkAppM ``DFunLike.coe #[args[6]!, f.beta #[e]]) i
     let rhs := mkApp (← mkAppM ``DFunLike.coe #[env.input, e]) (mkApp ix i)
@@ -927,15 +1216,119 @@ private def reindexCall (env : Env) (d arg certificate : Expr) (positions : Arra
   let proof ← mkAppM ``Realizes.reindex #[certificate, f, env.input, ix, hw]
   let safe ← withLocalDeclD `w (mkConst ``Nat) fun w =>
     withLocalDeclD `s (mkConst ``Memory.State) fun s => do
-      mkLambdaFVars #[w, d, s] (← reducePairs (mkApp3 args[8]! w arg s))
+      mkLambdaFVars #[w, d, s] (← reduceProjections (args[8]!.beta #[w, argClean, s]))
   let work ← withLocalDeclD `s (mkConst ``Memory.State) fun s => do
-    mkLambdaFVars #[d, s] (← reducePairs (mkApp2 args[9]! arg s))
+    mkLambdaFVars #[d, s] (← reduceProjections (args[9]!.beta #[argClean, s]))
   return { proof, output := args[7]!, safe, work }
 
+/-- Find the first non-live `ℕ`-valued expression inside a tuple/structure/vector argument spine.
+Returns `none` when no `ℕ` leaf decomposes cleanly, letting the caller fall back to whole-argument
+staging. -/
+private partial def findMissingNatLeaf? (atoms : Array Expr) (e : Expr) : MetaM (Option Expr) := do
+  let e := e.consumeMData
+  if e.isAppOfArity ``Prod.mk 4 || e.isAppOfArity ``Sigma.mk 4 ||
+      e.isAppOfArity ``Matrix.vecCons 4 then
+    if let some m ← findMissingNatLeaf? atoms (e.getArg! 2) then return some m
+    return ← findMissingNatLeaf? atoms (e.getArg! 3)
+  if e.isAppOfArity ``Matrix.vecEmpty 1 then return none
+  if let some ctorName := e.getAppFn.constName? then
+    if let some (.ctorInfo ci) := (← getEnv).find? ctorName then
+      if isStructure (← getEnv) ci.induct && ci.numFields > 0 then
+        let args := e.getAppArgs
+        if args.size == ci.numParams + ci.numFields then
+          for i in [ci.numParams : args.size] do
+            if let some m ← findMissingNatLeaf? atoms args[i]! then return some m
+          return none
+  let ty ← whnfR (← inferType e)
+  if ty.isConstOf ``Nat then
+    if (← findAtom atoms e).isNone then return some e
+  return none
+
+/-- Replace every occurrence of `target` inside the tuple/structure/`Matrix.vecCons` spine of `e`
+with `repl` (keeping type parameters untouched). -/
+private partial def replaceNatLeaf (e target repl : Expr) : MetaM Expr := do
+  let e := e.consumeMData
+  if e == target then return repl
+  if e.isAppOfArity ``Prod.mk 4 || e.isAppOfArity ``Sigma.mk 4 ||
+      e.isAppOfArity ``Matrix.vecCons 4 then
+    let a ← replaceNatLeaf (e.getArg! 2) target repl
+    let b ← replaceNatLeaf (e.getArg! 3) target repl
+    return mkAppN e.getAppFn ((e.getAppArgs.set! 2 a).set! 3 b)
+  if let some ctorName := e.getAppFn.constName? then
+    if let some (.ctorInfo ci) := (← getEnv).find? ctorName then
+      if isStructure (← getEnv) ci.induct && ci.numFields > 0 then
+        let mut args := e.getAppArgs
+        if args.size == ci.numParams + ci.numFields then
+          for i in [ci.numParams : args.size] do
+            args := args.set! i (← replaceNatLeaf args[i]! target repl)
+          return mkAppN e.getAppFn args
+  return e
+
+/-- Lightweight `extend` for staging a single `ℕ` coordinate when old atoms are already cached. -/
+private def extendNatFast (env : Env) (natEnc : Expr) : MetaM Env := do
+  let ty ← mkAppM ``Prod #[env.ty, mkConst ``Nat]
+  let input ← appendInput env natEnc 1
+  let atoms ← withLocalDeclD `x ty fun x => do
+    let x1 ← mkAppM ``Prod.fst #[x]
+    let x2 ← mkAppM ``Prod.snd #[x]
+    let old ← env.atoms.mapM fun a => mkLambdaFVars #[x] (a.beta #[x1])
+    return old.push (← mkLambdaFVars #[x] x2)
+  return { ty, k := env.k + 1, input, atoms }
+
+/-- Stage only the non-live `ℕ` coordinates inside a wide composite argument `arg` one word at a
+time, carrying `positions` directly so live coordinates (e.g. a 36-word parameter record) are
+never re-analyzed or copied. -/
+private partial def stageCallCoords (env : Env) (d : Expr) (atoms : Array Expr)
+    (arg methodCert : Expr) (k : Nat) (coords : Array Expr) (positions : Array (Option Nat))
+    (stage : Env → Expr → Array Expr → Expr → Expr → TermElabM Out)
+    (natEnc : Expr) (fuel : Nat := 16) : TermElabM (Option Out) := do
+  if positions.all Option.isSome then
+    return some (← reindexCall env d arg methodCert (positions.map Option.get!))
+  if fuel == 0 then return none
+  let some missing ← findMissingNatLeaf? atoms arg | return none
+  let missingWhnf ← whnf missing
+  -- Ensure `missing` actually covers at least one currently-`none` coordinate slot.
+  let mut matchedAny := false
+  let mut newPositions := positions
+  for i in [0:k] do
+    if positions[i]!.isNone then
+      if coords[i]! == missingWhnf ||
+          (← withNewMCtxDepth (isDefEq coords[i]! missingWhnf)) then
+        newPositions := newPositions.set! i (some env.k)
+        matchedAny := true
+  unless matchedAny do return none
+  let hP ← stage env d atoms missing natEnc
+  let env' ← extendNatFast env natEnc
+  let hQ? ← withLocalDeclD `x env'.ty fun x => do
+    let x1 ← mkAppM ``Prod.fst #[x]
+    let x2 ← mkAppM ``Prod.snd #[x]
+    let argAtX1 := arg.replaceFVar d x1
+    let missingAtX1 := missing.replaceFVar d x1
+    let arg' ← replaceNatLeaf argAtX1 missingAtX1 x2
+    if arg' == argAtX1 then return none
+    unless ← isTypeCorrect arg' do return none
+    let coords' := coords.map (·.replaceFVar d x1)
+    let atoms' := env'.atoms.map (·.beta #[x])
+    stageCallCoords env' x atoms' arg' methodCert k coords' newPositions
+      stage natEnc (fuel - 1)
+  let some hQ := hQ? | return none
+  let (reply, next) ← withLocalDeclD `s (mkConst ``Memory.State) fun s => do
+    return (← mkLambdaFVars #[d, s] missing, ← mkLambdaFVars #[d, s] s)
+  let proof ← bindRun hP.proof hQ.proof reply next
+  let safe ← withLocalDeclD `w (mkConst ``Nat) fun w =>
+    withLocalDeclD `s (mkConst ``Memory.State) fun s => do
+      let pair ← mkAppM ``Prod.mk #[d, missing]
+      mkLambdaFVars #[w, d, s] (mkAnd (hP.safe.beta #[w, d, s])
+        (← reduceProjections (hQ.safe.beta #[w, pair, s])))
+  return some { proof, output := hQ.output, safe, work := ← certificateWork proof }
+
 /-- Reuse a local method certificate before unfolding its body. Live arguments use static
-wiring; otherwise a certified `pure` stage computes the argument in the callee's encoding. -/
+wiring; otherwise a certified `pure` stage computes only the non-live scalar coordinates when the
+argument decomposes along tuple/structure/vector constructors, falling back to whole-argument
+staging in the callee's encoding. -/
 private def tryRealizeCall (ctx : Ctx) (env : Env) (d : Expr) (atoms : Array Expr)
-    (body : Expr) (output? : Option Expr) (stage : Expr → Expr → TermElabM Out) :
+    (body : Expr) (output? : Option Expr)
+    (stage : Env → Expr → Array Expr → Expr → Expr → TermElabM Out) :
     TermElabM (Option Out) := do
   for decl in ← getLCtx do
     if decl.isImplementationDetail then continue
@@ -946,45 +1339,39 @@ private def tryRealizeCall (ctx : Ctx) (env : Env) (d : Expr) (atoms : Array Exp
       let args := ty.getAppArgs
       unless ← withReducible (isDefEq args[4]! ctx.basis) do
         throwError "realize: the method's basis differs"
-      let arg ← callArgument args[2]!
-      let called := (mkApp args[5]! arg).headBeta
-      -- Solve dependent arguments in binder order without unfolding a matching method head.
-      let matched ← if called.getAppFn == body.getAppFn &&
-          called.getAppNumArgs == body.getAppNumArgs then
-          (called.getAppArgs.zip body.getAppArgs).allM fun (a, b) => do
-            let a ← whnfR a
-            let b ← whnfR b
-            -- Inherited instances such as a monad's `Pure` can be definitionally the direct
-            -- instance after unfolding their implementation. Keep runtime data opaque.
-            if (← isClass? (← inferType a)).isSome then
-              withTransparency .default (isDefEq a b)
-            else
-              withReducible (isDefEq a b)
-        else withReducible (isDefEq called body)
-      unless matched do
-        throwError "realize: the method does not match"
-      let arg ← instantiateMVars arg
-      if arg.hasMVar then throwError "realize: the method argument is undetermined"
+      let some arg ← matchMethodCall args body
+        | throwError "realize: the method does not match"
       discard <| checkOutput decl.toExpr output?
       let k ← encodingWidth args[6]!
       let coords ← encodingAtoms args[6]! arg k
       let positions ← coords.mapM fun a => liftMetaM (findAtom atoms a)
       if positions.all Option.isSome then
         return some (← reindexCall env d arg decl.toExpr (positions.map Option.get!))
-      -- Stage the typed argument, rather than guessing an inverse for its encoding. The pure
-      -- bind reduces to the original call, and the existing glue rule charges its computation.
-      let hP ← stage arg args[6]!
+      -- Stage only the non-live `ℕ` leaves when `arg` decomposes along tuple/structure/vector
+      -- constructors (e.g. a 36-word `DictParams` or `Fin k → ℕ` vector with live coordinates).
+      if k > 1 || !(arg.isFVar || arg.isAppOf ``Prod.fst || arg.isAppOf ``Prod.snd) then
+        let savedCoord ← saveState
+        try
+          let natEnc ← encodingOf (mkConst ``Nat)
+          if let some out ← stageCallCoords env d atoms arg decl.toExpr k
+              coords positions stage natEnc (fuel := max 16 k) then
+            return some out
+          savedCoord.restore
+        catch _ => savedCoord.restore
+      -- Fallback: stage the typed argument in the callee's input encoding.
+      let argClean ← etaContractStructures arg
+      let hP ← stage env d atoms argClean args[6]!
       let env' ← extend env args[2]! args[6]! k
       let hQ ← withLocalDeclD `x env'.ty fun x => do
         reindexCall env' x (← mkAppM ``Prod.snd #[x]) decl.toExpr
           ((Array.range k).map (env.k + ·))
       let (reply, next) ← withLocalDeclD `s (mkConst ``Memory.State) fun s => do
-        return (← mkLambdaFVars #[d, s] arg, ← mkLambdaFVars #[d, s] s)
+        return (← mkLambdaFVars #[d, s] argClean, ← mkLambdaFVars #[d, s] s)
       let proof ← bindRun hP.proof hQ.proof reply next
       let safe ← withLocalDeclD `w (mkConst ``Nat) fun w =>
         withLocalDeclD `s (mkConst ``Memory.State) fun s => do
           mkLambdaFVars #[w, d, s] (mkAnd (hP.safe.beta #[w, d, s])
-            (← reducePairs (mkApp3 args[8]! w arg s)))
+            (← reduceProjections (args[8]!.beta #[w, argClean, s])))
       return some { proof, output := hQ.output, safe, work := ← certificateWork proof }
     catch _ => saved.restore
   return none
@@ -1065,19 +1452,190 @@ private partial def realizeProg (ctx : Ctx) (env : Env) (prog : Expr) (output? :
     TermElabM Out :=
   withLocalDeclD `d env.ty fun d => do
     let atoms := env.atoms.map (·.beta #[d])
-    let stage (a output : Expr) : TermElabM Out := do
+    let stage (eEnv : Env) (eD : Expr) (eAtoms : Array Expr) (a output : Expr) :
+        TermElabM Out := do
       let body ← mkAppOptM ``Pure.pure #[mkConst ``Memory.Prog, none, none, a]
-      realizeBody ctx env d atoms body (some output)
-    if let some out ← tryRealizeCall ctx env d atoms (prog.beta #[d]).headBeta output? stage then
-      return { out with proof := ← certify ctx env out.proof prog out.output out.safe out.work }
-    let body ← normBody (prog.beta #[d]).headBeta
-    let out ← realizeBody ctx env d atoms body output?
+      realizeBody ctx eEnv eD eAtoms body (some output)
+    let mut body := (prog.beta #[d]).headBeta
+    for _ in [0:64] do
+      if !isPrimitiveClientForm body then
+        if let some out ← tryRealizeCall ctx env d atoms body output? stage then
+          return { out with proof := ← certify ctx env out.proof prog out.output out.safe out.work }
+      let bodyR ← whnfR body
+      if isClientForm bodyR then
+        let out ← realizeBody ctx env d atoms bodyR output?
+        return { out with proof := ← certify ctx env out.proof prog out.output out.safe out.work }
+      if bodyR != body && !isPrimitiveClientForm bodyR then
+        if let some out ← tryRealizeCall ctx env d atoms bodyR output? stage then
+          return { out with proof := ← certify ctx env out.proof prog out.output out.safe out.work }
+      if let some next ← unfoldDefinition? bodyR then
+        body := next.headBeta
+      else
+        let out ← realizeBody ctx env d atoms bodyR output?
+        return { out with proof := ← certify ctx env out.proof prog out.output out.safe out.work }
+    let out ← realizeBody ctx env d atoms (← whnfR body) output?
     return { out with proof := ← certify ctx env out.proof prog out.output out.safe out.work }
+
+/-- Certify a linked free-monad client `PFunctor.FreeM.liftM interp src` without unfolding `liftM`
+to its recursor, preserving local certificate matches and closed-form memory states. -/
+private partial def realizeLiftM (ctx : Ctx) (env : Env) (d : Expr) (atoms : Array Expr)
+    (body : Expr) (output? : Option Expr) : TermElabM Out := do
+  let stage (eEnv : Env) (eD : Expr) (eAtoms : Array Expr) (a output : Expr) :
+      TermElabM Out := do
+    let b ← mkAppOptM ``Pure.pure #[mkConst ``Memory.Prog, none, none, a]
+    realizeBody ctx eEnv eD eAtoms b (some output)
+  let bArgs := body.getAppArgs
+  let (P, m, α, instPure, instBind, interp) :=
+    (bArgs[0]!, bArgs[1]!, bArgs[2]!, bArgs[3]!, bArgs[4]!, bArgs[5]!)
+  let mkLift (ty src' : Expr) : Expr :=
+    mkAppN body.getAppFn #[P, m, ty, instPure, instBind, interp, src']
+  let congrFrom (rhs eqStep : Expr) : TermElabM Out := do
+    let out ← realizeProg ctx env (← mkLambdaFVars #[d] rhs) output?
+    let eq ← mkLambdaFVars #[d]
+      (← mkExpectedTypeHint (← mkEqSymm eqStep) (← mkEq rhs body))
+    return { out with proof := ← mkAppM ``Realizes.congr #[out.proof, eq] }
+  let mut src := bArgs[6]!.headBeta
+  for _ in [0:64] do
+    if !isPrimitiveClientForm src then
+      if let some out ← tryRealizeCall ctx env d atoms (mkLift α src) output? stage then
+        return out
+    let srcR ← whnfR src
+    if srcR != src && !isPrimitiveClientForm srcR then
+      if let some out ← tryRealizeCall ctx env d atoms (mkLift α srcR) output? stage then
+        return out
+    if let some reduced ← reduceStaticIte? d srcR then
+      src := reduced
+      continue
+    -- `pure a`
+    let pure? : Option Expr :=
+      if srcR.isAppOfArity ``Pure.pure 4 then some srcR.appArg!
+      else if srcR.isAppOfArity ``PFunctor.FreeM.pure 3 then some srcR.appArg!
+      else if srcR.getAppFn matches .proj ``Pure 0 _ && srcR.getAppNumArgs == 2 then
+        some srcR.appArg!
+      else none
+    if let some a := pure? then
+      let pureBody ← mkAppOptM ``Pure.pure #[m, instPure, α, a]
+      return ← realizeBody ctx env d atoms pureBody output?
+    -- `FreeM.lift op`
+    if srcR.isAppOfArity ``PFunctor.FreeM.lift 2 then
+      let op := srcR.appArg!
+      let eqStep ← mkAppOptM ``PFunctor.FreeM.liftM_lift #[P, m, none, none, interp, op]
+      let rhs ← normInterpOp atoms (mkApp interp op)
+      return ← congrFrom rhs eqStep
+    -- `FreeM.liftBind op cont`
+    if srcR.isAppOfArity ``PFunctor.FreeM.liftBind 4 then
+      let op := srcR.getArg! 2
+      let cont := srcR.getArg! 3
+      let first ← normInterpOp atoms (mkApp interp op)
+      let domTy := (← whnf (← inferType cont)).bindingDomain!
+      let contLift ← withLocalDeclD `u domTy fun u =>
+        mkLambdaFVars #[u] (mkLift α (mkApp cont u).headBeta)
+      return ← realizeBind ctx env d first contLift output?
+    -- `if c then p₁ else p₂`
+    if srcR.isAppOfArity ``ite 5 then
+      let srcTy := srcR.getArg! 0
+      let liftFn ← withLocalDeclD `p srcTy fun p => mkLambdaFVars #[p] (mkLift α p)
+      let eqStep ← mkAppOptM ``apply_ite #[srcTy, mkApp m α, liftFn,
+        srcR.getArg! 1, srcR.getArg! 2, srcR.getArg! 3, srcR.getArg! 4]
+      let some (_, _, rhs) := (← inferType eqStep).eq?
+        | throwError "realize: internal error lifting a linked conditional"
+      return ← congrFrom rhs eqStep
+    -- `x >>= k` in `FreeM P`
+    let bind? : Option (Expr × Expr × Expr) :=
+      if srcR.isAppOfArity ``Bind.bind 6 then
+        some (srcR.getArg! 2, srcR.getArg! 4, srcR.getArg! 5)
+      else if srcR.isAppOfArity ``PFunctor.FreeM.bind 5 then
+        some (srcR.getArg! 1, srcR.getArg! 3, srcR.getArg! 4)
+      else if srcR.getAppFn matches .proj ``Bind 0 _ && srcR.getAppNumArgs == 4 then
+        some (srcR.getArg! 0, srcR.getArg! 2, srcR.getArg! 3)
+      else none
+    if let some (β, x, k) := bind? then
+      if ← matchesLocalCert ctx (mkLift β x) then
+        let eqStep ← mkAppOptM ``PFunctor.FreeM.liftM_bind #[P, m, none, interp, none, β, α, x, k]
+        let contLift ← withLocalDeclD `u β fun u =>
+          mkLambdaFVars #[u] (mkLift α (mkApp k u).headBeta)
+        let rhs ← mkAppOptM ``Bind.bind #[m, instBind, β, α, mkLift β x, contLift]
+        return ← congrFrom rhs eqStep
+      let xR ← whnfR x
+      if let some reducedX ← reduceStaticIte? d xR then
+        src := ← mkAppOptM ``PFunctor.FreeM.bind #[P, β, α, reducedX, k]
+        continue
+      let xPure? : Option Expr :=
+        if xR.isAppOfArity ``Pure.pure 4 then some xR.appArg!
+        else if xR.isAppOfArity ``PFunctor.FreeM.pure 3 then some xR.appArg!
+        else if xR.getAppFn matches .proj ``Pure 0 _ && xR.getAppNumArgs == 2 then
+          some xR.appArg!
+        else none
+      if let some a := xPure? then
+        src := (mkApp k a).headBeta
+        continue
+      if xR.isAppOfArity ``PFunctor.FreeM.lift 2 then
+        let op := xR.appArg!
+        let first ← normInterpOp atoms (mkApp interp op)
+        let contLift ← withLocalDeclD `u β fun u =>
+          mkLambdaFVars #[u] (mkLift α (mkApp k u).headBeta)
+        return ← realizeBind ctx env d first contLift output?
+      if xR.isAppOfArity ``PFunctor.FreeM.liftBind 4 then
+        let op := xR.getArg! 2
+        let cont := xR.getArg! 3
+        let first ← normInterpOp atoms (mkApp interp op)
+        let domTy := (← whnf (← inferType cont)).bindingDomain!
+        let contLift ← withLocalDeclD `u domTy fun u => do
+          let bound ← mkAppOptM ``PFunctor.FreeM.bind #[P, β, α, (mkApp cont u).headBeta, k]
+          mkLambdaFVars #[u] (mkLift α bound)
+        return ← realizeBind ctx env d first contLift output?
+      if xR.isAppOfArity ``ite 5 then
+        let xTy := xR.getArg! 0
+        let bindWrap ← withLocalDeclD `p xTy fun p => do
+          let pos := if srcR.isAppOfArity ``Bind.bind 6 then 4
+            else if srcR.isAppOfArity ``PFunctor.FreeM.bind 5 then 3
+            else 2
+          mkLambdaFVars #[p] (mkAppN srcR.getAppFn (srcR.getAppArgs.set! pos p))
+        let eqInner ← mkAppOptM ``apply_ite #[xTy, ← inferType srcR, bindWrap,
+          xR.getArg! 1, xR.getArg! 2, xR.getArg! 3, xR.getArg! 4]
+        let some (_, _, innerRhs) := (← inferType eqInner).eq?
+          | throwError "realize: internal error distributing a linked conditional bind"
+        let liftWrap ← withLocalDeclD `q (← inferType srcR) fun q =>
+          mkLambdaFVars #[q] (mkLift α q)
+        let eqStep ← mkAppM ``congrArg #[liftWrap, eqInner]
+        return ← congrFrom (mkLift α innerRhs) eqStep
+      let xBind? : Option (Expr × Expr × Expr) :=
+        if xR.isAppOfArity ``Bind.bind 6 then
+          some (xR.getArg! 2, xR.getArg! 4, xR.getArg! 5)
+        else if xR.isAppOfArity ``PFunctor.FreeM.bind 5 then
+          some (xR.getArg! 1, xR.getArg! 3, xR.getArg! 4)
+        else if xR.getAppFn matches .proj ``Bind 0 _ && xR.getAppNumArgs == 4 then
+          some (xR.getArg! 0, xR.getArg! 2, xR.getArg! 3)
+        else none
+      if let some (_, y, h) := xBind? then
+        let eqInner ← mkAppM ``bind_assoc #[y, h, k]
+        let some (_, _, innerRhs) := (← inferType eqInner).eq?
+          | throwError "realize: internal error reassociating a linked bind"
+        let liftWrap ← withLocalDeclD `q (← inferType srcR) fun q =>
+          mkLambdaFVars #[q] (mkLift α q)
+        let eqStep ← mkAppM ``congrArg #[liftWrap, eqInner]
+        return ← congrFrom (mkLift α innerRhs) eqStep
+      if let some xNext ← unfoldDefinition? xR then
+        src := ← mkAppOptM ``PFunctor.FreeM.bind #[P, β, α, xNext.headBeta, k]
+        continue
+      let eqStep ← mkAppOptM ``PFunctor.FreeM.liftM_bind #[P, m, none, interp, none, β, α, x, k]
+      let contLift ← withLocalDeclD `u β fun u =>
+        mkLambdaFVars #[u] (mkLift α (mkApp k u).headBeta)
+      let rhs ← mkAppOptM ``Bind.bind #[m, instBind, β, α, mkLift β x, contLift]
+      return ← congrFrom rhs eqStep
+    if let some next ← unfoldDefinition? srcR then
+      src := next.headBeta
+    else
+      break
+  throwError "realize: unsupported linked client form{indentExpr (mkLift α src)}"
 
 /-- Certify the body of a client for the environment variable `d`. -/
 private partial def realizeBody (ctx : Ctx) (env : Env) (d : Expr) (atoms : Array Expr)
     (body : Expr) (output? : Option Expr) : TermElabM Out := do
   let k := env.k
+  -- linked free-monad source
+  if body.isAppOfArity ``PFunctor.FreeM.liftM 7 then
+    return ← realizeLiftM ctx env d atoms body output?
   -- sequencing
   let bind? : Option (Expr × Expr) :=
     if body.isAppOfArity ``Bind.bind 6 then some (body.getArg! 4, body.getArg! 5)
@@ -1141,6 +1699,8 @@ private partial def realizeBody (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arra
     return { proof, output, safe := ← trueSafe env.ty, work := ← zeroWork env.ty }
   -- branching
   if body.isAppOfArity ``ite 5 then
+    if let some reduced ← reduceStaticIte? d body then
+      return ← realizeProg ctx env (← mkLambdaFVars #[d] reduced) output?
     if (← cond? (body.getArg! 1)).isNone then
       if let some normalized ← normalizeBranch? body then
         let out ← realizeBody ctx env d atoms normalized.expr output?
@@ -1303,7 +1863,7 @@ private partial def realizeIterate (ctx : Ctx) (env : Env) (d : Expr) (atoms : A
   let safe ← withLocalDeclD `w (mkConst ``Nat) fun w =>
     withLocalDeclD `s (mkConst ``Memory.State) fun s => do
       let pair ← mkAppM ``Prod.mk #[d, a]
-      let sn ← reducePairs (hN.safe.beta #[w, pair, s])
+      let sn ← reduceProjections (hN.safe.beta #[w, pair, s])
       let sl ← mkAppM ``iterationSafe #[body, hB.safe, w, d, n, a, s]
       mkLambdaFVars #[w, d, s] (mkAnd (hA.safe.beta #[w, d, s]) (mkAnd sn sl))
   let progR ← mkLambdaFVars #[d] (← mkAppM ``iterate #[body, d, n, a])
@@ -1325,7 +1885,7 @@ private partial def realizeIterate (ctx : Ctx) (env : Env) (d : Expr) (atoms : A
     let clientWork ← withLocalDeclD `x pairTy fun x =>
       withLocalDeclD `s state fun s => do
         let pair ← mkAppM ``Prod.mk #[d, ← mkAppM ``Prod.snd #[x]]
-        mkLambdaFVars #[x, s] (← reducePairs (hB.work.beta #[pair, s]))
+        mkLambdaFVars #[x, s] (← reduceProjections (hB.work.beta #[pair, s]))
     let work' ← withLocalDeclD `s state fun s => do
       mkLambdaFVars #[d, s] (← mkAppM ``iterationWork #[step, clientWork, D, n, a, s])
     let hw ← withLocalDeclD `x σ fun x => withLocalDeclD `s state fun s => do
@@ -1349,10 +1909,10 @@ private partial def realizeIterate (ctx : Ctx) (env : Env) (d : Expr) (atoms : A
     withLocalDeclD `x pairTy fun x =>
       withLocalDeclD `s state fun s => do
         let pair ← mkAppM ``Prod.mk #[d, ← mkAppM ``Prod.snd #[x]]
-        mkLambdaFVars #[w, x, s] (← reducePairs (hB.safe.beta #[w, pair, s]))
+        mkLambdaFVars #[w, x, s] (← reduceProjections (hB.safe.beta #[w, pair, s]))
   let safe' ← withLocalDeclD `w nat fun w => withLocalDeclD `s state fun s => do
     let pair ← mkAppM ``Prod.mk #[d, a]
-    let sn ← reducePairs (hN.safe.beta #[w, pair, s])
+    let sn ← reduceProjections (hN.safe.beta #[w, pair, s])
     let sl ← mkAppM ``iterationSafe #[step, clientSafe, w, D, n, a, s]
     mkLambdaFVars #[w, d, s] (mkAnd (hA.safe.beta #[w, d, s]) (mkAnd sn sl))
   let pointwise ← withLocalDeclD `w nat fun w => withLocalDeclD `s state fun s => do
@@ -1365,7 +1925,7 @@ private partial def realizeIterate (ctx : Ctx) (env : Env) (d : Expr) (atoms : A
       #[env.ty, σ, ← inferType D, body, step, hB.safe, clientSafe, w, d, D, hbody, hs, n, a, s]
     let h ← mkAppM ``propext #[h]
     let pair ← mkAppM ``Prod.mk #[d, a]
-    let sn ← reducePairs (hN.safe.beta #[w, pair, s])
+    let sn ← reduceProjections (hN.safe.beta #[w, pair, s])
     let wrap ← withLocalDeclD `p (mkSort Level.zero) fun p =>
       mkLambdaFVars #[p] (mkAnd (hA.safe.beta #[w, d, s]) (mkAnd sn p))
     mkLambdaFVars #[w, d, s] (← mkAppM ``congrArg
@@ -1483,14 +2043,14 @@ private partial def realizeWhile (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arr
   let safeB ← withLocalDeclD `w nat fun w => withLocalDeclD `x pairTy fun x =>
     withLocalDeclD `s state fun s => do
       let y ← mkAppM ``Prod.mk #[e₀, ← mkAppM ``Prod.snd #[x]]
-      mkLambdaFVars #[w, x, s] (← reducePairs (hB.safe.beta #[w, y, s]))
+      mkLambdaFVars #[w, x, s] (← reduceProjections (hB.safe.beta #[w, y, s]))
   let safe ← withLocalDeclD `w nat fun w => withLocalDeclD `s state fun s => do
     let spec ← mkAppM ``Memory.spec #[w]
     let valid ← mkAppM ``StateTransitionSpec.ValidHistory
       #[spec, s, ← mkAppM ``StateTransitionSpec.clientHistory #[spec, s, body]]
     let loop ← mkArrow valid
       (← mkAppOptM ``whileSafe #[Δ, σ, G, inst, step, safeB, w, D, n, a, s])
-    let dom := mkAnd (← reducePairs (hA.safe.beta #[w, e₀, s])) loop
+    let dom := mkAnd (← reduceProjections (hA.safe.beta #[w, e₀, s])) loop
     mkLambdaFVars #[w, d, s] <| match hC? with
       | some hC => mkAnd (hC.safe.beta #[w, d, s]) dom
       | none => dom
@@ -1526,7 +2086,7 @@ private partial def realizeWhile (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arr
   let clientWork ← withLocalDeclD `x pairTy fun x =>
     withLocalDeclD `s state fun s => do
       let y ← mkAppM ``Prod.mk #[e₀, ← mkAppM ``Prod.snd #[x]]
-      mkLambdaFVars #[x, s] (← reducePairs (hB.work.beta #[y, s]))
+      mkLambdaFVars #[x, s] (← reduceProjections (hB.work.beta #[y, s]))
   let work' ← withLocalDeclD `s state fun s => do
     mkLambdaFVars #[d, s] (← mkAppOptM ``whileWork
       #[Δ, σ, G, inst, step, clientWork, D, n, a, s])
@@ -1565,7 +2125,7 @@ private partial def realizeBind (ctx : Ctx) (env : Env) (d m f : Expr) (output? 
   let safe ← withLocalDeclD `w (mkConst ``Nat) fun w =>
     withLocalDeclD `s (mkConst ``Memory.State) fun s => do
       let pair ← mkAppM ``Prod.mk #[d, reply.beta #[d, s]]
-      let sq ← reducePairs (hQ.safe.beta #[w, pair, next.beta #[d, s]])
+      let sq ← reduceProjections (hQ.safe.beta #[w, pair, next.beta #[d, s]])
       mkLambdaFVars #[w, d, s] (mkAnd (hP.safe.beta #[w, d, s]) sq)
   return { proof, output := hQ.output, safe, work := ← certificateWork proof }
 

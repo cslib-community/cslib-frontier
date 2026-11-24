@@ -1262,8 +1262,7 @@ private theorem rompelBase_goodLightPairs_frac_ge {n m : ℕ} (c : ℕ)
       have hpow2 : (2 : ℝ) ≤ (2 : ℝ) ^ t := by
         exact_mod_cast Nat.pow_le_pow_right (by decide : 0 < 2) ht_pos
       have hcoeff : (1 + 2 * (2 : ℝ) ^ t) * (#eqPairs : ℝ) ≤
-          (4 * (2 : ℝ) ^ t - 3) * (#eqPairs : ℝ) :=
-        mul_le_mul_of_nonneg_right (by linarith) (Nat.cast_nonneg _)
+          (4 * (2 : ℝ) ^ t - 3) * (#eqPairs : ℝ) := by gcongr; linarith
       linarith
   rw [hcoll_eq, div_le_div_iff₀ (by norm_num) (by positivity)]
   have hcover_r : (2 ^ n : ℝ) * (2 ^ n : ℝ) ≤

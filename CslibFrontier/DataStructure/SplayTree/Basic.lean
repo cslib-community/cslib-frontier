@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.SearchTree.Cost
 public import CslibFrontier.DataStructure.OrderedSet.Basic
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Self-Adjusting Splay Trees
@@ -475,39 +476,39 @@ theorem elements_splayUp (x : α) (l r : BinaryTree α) (ctx : List (Frame α)) 
   | case2 l r p c =>
     ext y
     simp only [splayUp, plug, mem_elements_node]
-    tauto
+    lrat_tauto
   | case3 l r c p =>
     ext y
     simp only [splayUp, plug, mem_elements_node]
-    tauto
+    lrat_tauto
   | case4 l r p c g d ctx ih =>
     simp only [splayUp, plug_left]
     rw [ih]
     apply elements_plug_congr
     ext y
     simp only [mem_elements_node]
-    tauto
+    lrat_tauto
   | case5 l r c p d g ctx ih =>
     simp only [splayUp, plug_right]
     rw [ih]
     apply elements_plug_congr
     ext y
     simp only [mem_elements_node]
-    tauto
+    lrat_tauto
   | case6 l r a p g d ctx ih =>
     simp only [splayUp, plug_right, plug_left]
     rw [ih]
     apply elements_plug_congr
     ext y
     simp only [mem_elements_node]
-    tauto
+    lrat_tauto
   | case7 l r p c d g ctx ih =>
     simp only [splayUp, plug_left, plug_right]
     rw [ih]
     apply elements_plug_congr
     ext y
     simp only [mem_elements_node]
-    tauto
+    lrat_tauto
 
 private theorem ordered_zig_left {x p : α} {a b c : BinaryTree α}
     (h : Ordered (.node p (.node x a b) c)) :
@@ -549,7 +550,7 @@ private theorem ordered_zig_zag_lr {x p g : α} {a b c d : BinaryTree α}
   obtain ⟨hp, hd, hpg, hgd⟩ := h
   have hrot : Ordered (.node g (.node x (.node p a b) c) d) :=
     ⟨ordered_zig_right hp, hd, fun y hy => hpg y (by
-      simp only [mem_elements_node] at hy ⊢; tauto), hgd⟩
+      simp only [mem_elements_node] at hy ⊢; lrat_tauto), hgd⟩
   exact ordered_zig_left hrot
 
 private theorem ordered_zig_zag_rl {x p g : α} {a b c d : BinaryTree α}
@@ -558,7 +559,7 @@ private theorem ordered_zig_zag_rl {x p g : α} {a b c d : BinaryTree α}
   obtain ⟨hd, hp, hdg, hgp⟩ := h
   have hrot : Ordered (.node g d (.node x a (.node p b c))) :=
     ⟨hd, ordered_zig_left hp, hdg, fun y hy => hgp y (by
-      simp only [mem_elements_node] at hy ⊢; tauto)⟩
+      simp only [mem_elements_node] at hy ⊢; lrat_tauto)⟩
   exact ordered_zig_right hrot
 
 /-- `splayUp` preserves `Ordered` whenever the reconstructed initial tree is `Ordered`. -/
@@ -572,19 +573,19 @@ theorem ordered_splayUp {x : α} {l r : BinaryTree α} {ctx : List (Frame α)}
   | case4 l r p c g d ctx ih =>
     apply ih
     refine ordered_plug_congr ctx ?_ ordered_zig_zig_left h
-    ext y; simp only [mem_elements_node]; tauto
+    ext y; simp only [mem_elements_node]; lrat_tauto
   | case5 l r c p d g ctx ih =>
     apply ih
     refine ordered_plug_congr ctx ?_ ordered_zig_zig_right h
-    ext y; simp only [mem_elements_node]; tauto
+    ext y; simp only [mem_elements_node]; lrat_tauto
   | case6 l r a p g d ctx ih =>
     apply ih
     refine ordered_plug_congr ctx ?_ ordered_zig_zag_lr h
-    ext y; simp only [mem_elements_node]; tauto
+    ext y; simp only [mem_elements_node]; lrat_tauto
   | case7 l r p c d g ctx ih =>
     apply ih
     refine ordered_plug_congr ctx ?_ ordered_zig_zag_rl h
-    ext y; simp only [mem_elements_node]; tauto
+    ext y; simp only [mem_elements_node]; lrat_tauto
 
 /-- Descend the search path for `x` in `t`, returning the node containing `x` if present or the
 last non-empty node visited before an empty child ([SleatorTarjan1985b], Section 3, pp. 660–661,
@@ -1037,14 +1038,14 @@ private theorem split_partition {t : BinaryTree α} (ht : Ordered t) (x : α) :
     dsimp only
     split <;> rename_i hxr <;> dsimp only <;> refine ⟨?_, fun y hy => ?_, fun y hy => ?_⟩
     · ext y; simp only [Finset.mem_union, ← he, mem_elements_node, elements_nil_eq,
-        Finset.notMem_empty, false_or]; tauto
+        Finset.notMem_empty, false_or]; lrat_tauto
     · exact (splay_split_lt ht hs hxr y hy).le
     · rcases mem_elements_node.mp hy with rfl | hy | hy
       · exact hxr
       · simp at hy
       · exact lt_trans hxr (hrR y hy)
     · ext y; simp only [Finset.mem_union, ← he, mem_elements_node, elements_nil_eq,
-        Finset.notMem_empty, or_false]; tauto
+        Finset.notMem_empty, or_false]; lrat_tauto
     · have hrx : r ≤ x := le_of_not_gt hxr
       rcases mem_elements_node.mp hy with rfl | hy | hy
       · exact hrx
@@ -1116,7 +1117,7 @@ private theorem exists_splay_eq_node {t : BinaryTree α} (ht : t ≠ .nil) (x : 
     all_goals
       ext y
       simp only [mem_elements_node, elements_nil_eq, Finset.notMem_empty, Finset.mem_insert]
-      tauto
+      lrat_tauto
 
 theorem ordered_insert {t : BinaryTree α} (ht : Ordered t) (x : α) :
     Ordered (insert x t).tree := by
@@ -1242,7 +1243,7 @@ theorem minimum_answer_eq {t : BinaryTree α} (ht : Ordered t) :
           rw [hm] at heR
           ext y
           simp only [← he, mem_elements_node, ← heR]
-          tauto
+          lrat_tauto
 
 theorem ordered_successor {t : BinaryTree α} (ht : Ordered t) (x : α) :
     Ordered (successor x t).tree := by

@@ -70,7 +70,7 @@ private theorem sq_mul_le_sq_one_sub {l u : ℝ} (hu₀ : 0 ≤ u) (hu₁ : u �
     (hl : 39 * u < |l ^ 2 - 1|) : 169 * u ^ 2 ≤ (1 - l) ^ 2 := by
   by_contra hlt
   push Not at hlt
-  have h13 : |1 - l| < 13 * u := abs_lt_of_sq_lt_sq (by nlinarith) (by linarith)
+  have h13 : |1 - l| < 13 * u := abs_lt_of_sq_lt_sq (by nlinarith only [hlt]) (by positivity)
   have hplus : |l + 1| ≤ |1 - l| + 2 := by
     calc |l + 1| = |2 - (1 - l)| := by ring_nf
       _ ≤ |(2 : ℝ)| + |1 - l| := abs_sub _ _
@@ -80,11 +80,9 @@ private theorem sq_mul_le_sq_one_sub {l u : ℝ} (hu₀ : 0 ≤ u) (hu₁ : u �
   have h1 : |l ^ 2 - 1| ≤ 13 * u * (13 * u + 2) := by
     rw [hfac]
     calc |1 - l| * |l + 1| ≤ 13 * u * (|1 - l| + 2) :=
-          mul_le_mul h13.le hplus (abs_nonneg _) (by linarith)
-      _ ≤ 13 * u * (13 * u + 2) := by
-          apply mul_le_mul_of_nonneg_left _ (by linarith)
-          linarith
-  nlinarith
+          mul_le_mul h13.le hplus (abs_nonneg _) (by positivity)
+      _ ≤ 13 * u * (13 * u + 2) := by gcongr
+  nlinarith only [hu₀, hu₁, hl, h1]
 
 /-- **A sign far from a near-unit square**: if `f ^ 2 = 1`, `0 ≤ δ ≤ 1 / 1600` and
 `|ℓ ^ 2 - 1| > 39 √δ`, then `(f - ℓ) ^ 2 ≥ 169 δ` [O'Donnell, Exercise 9.5][ODonnell2014]. -/
@@ -96,13 +94,10 @@ theorem mul_le_sq_sub_of_sq_eq_one {f l δ : ℝ} (hf : f ^ 2 = 1) (hδ₀ : 0 �
       rw [show (1 / 1600 : ℝ) = (1 / 40) ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]]
     exact Real.sqrt_le_sqrt hδ₁
   have hsq : √δ ^ 2 = δ := Real.sq_sqrt hδ₀
-  rcases mul_eq_zero.mp (show (f - 1) * (f + 1) = 0 by linear_combination hf) with h | h
-  · have := sq_mul_le_sq_one_sub hu₀ hu₁ hl
-    rw [show f = 1 by linarith]
-    nlinarith
-  · have := sq_mul_le_sq_one_sub hu₀ hu₁ (l := -l) (by rwa [neg_sq])
-    rw [show f = -1 by linarith]
-    nlinarith
+  rcases sq_eq_one_iff.mp hf with rfl | rfl
+  · simpa only [hsq] using sq_mul_le_sq_one_sub hu₀ hu₁ hl
+  · simpa only [hsq, show (-1 - l) ^ 2 = (1 - -l) ^ 2 by ring] using
+      sq_mul_le_sq_one_sub hu₀ hu₁ (l := -l) (by rwa [neg_sq])
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
@@ -204,7 +199,7 @@ theorem exists_one_sub_le_abs_fourierCoeff_singleton {f : (ι → Bool) → Bool
       (fun x => sq_nonneg _) (169 * δ')
     rw [← hδ'] at hmk
     rcases hδ'0.lt_or_eq with hpos | hzero
-    · nlinarith
+    · nlinarith only [hpos, h97, hd, hmk]
     · -- `δ' = 0`: then `F = ℓ`, so `ℓ ^ 2 = 1 = A` everywhere, and the event is empty
       have hFℓ0 : ∀ x, F x = ℓ x := by
         have := (Fintype.expect_eq_zero_iff_of_nonneg (fun x => sq_nonneg (F x - ℓ x))).mp
@@ -212,26 +207,25 @@ theorem exists_one_sub_le_abs_fourierCoeff_singleton {f : (ι → Bool) → Bool
         intro x
         have hx := congrFun this x
         simp only [Pi.zero_apply, sq_eq_zero_iff] at hx
-        linarith
+        linarith only [hx]
       have hempty : ({x | √V / 2 < |ℓ x ^ 2 - A|} : Finset (ι → Bool)) = ∅ := by
         ext x
         simp only [mem_filter, mem_univ, true_and, Finset.notMem_empty, iff_false, not_lt]
-        rw [← hFℓ0 x, show A = 1 by linarith, hFsq x, sub_self, abs_zero]
+        rw [← hFℓ0 x, show A = 1 by linarith only [hzero, hδ'A], hFsq x, sub_self, abs_zero]
         positivity
       rw [hempty, dens_empty, NNRat.cast_zero] at h97
       norm_num at h97
   -- hence `∑ᵢ aᵢ ^ 4 ≥ 1 - 3202 δ'`, and the largest `aᵢ ^ 2` bounds it
   have h4 : 1 - 3202 * δ' ≤ ∑ i, a i ^ 4 := by
-    have hA' : A = 1 - δ' := by linarith
-    nlinarith
+    nlinarith only [hVle, hVeq, hδ'A, hδ'0]
   cases isEmpty_or_nonempty ι with
   | inl h =>
     -- with no coordinates `W^1[f] = 0`, so `δ' = 1 > 1 / 1600`
     have h0 : A = 0 := by simp [hA, Finset.univ_eq_empty]
-    linarith
+    linarith only [h0, hδ'A, hδ'1]
   | inr h =>
     obtain ⟨i₀, -, hi₀⟩ := exists_max_image univ (fun i => a i ^ 2) univ_nonempty
-    have hA1 : A ≤ 1 := by linarith
+    have hA1 : A ≤ 1 := by linarith only [hδ'A, hδ'0]
     have hsum4 : ∑ i, a i ^ 4 ≤ a i₀ ^ 2 := by
       calc ∑ i, a i ^ 4 = ∑ i, a i ^ 2 * a i ^ 2 := sum_congr rfl fun i _ => by ring
         _ ≤ ∑ i, a i₀ ^ 2 * a i ^ 2 :=
@@ -241,11 +235,12 @@ theorem exists_one_sub_le_abs_fourierCoeff_singleton {f : (ι → Bool) → Bool
         _ = a i₀ ^ 2 := mul_one _
     have habs1 : |a i₀| ≤ 1 := by
       rw [← sq_le_one_iff_abs_le_one]
-      linarith [single_le_sum (f := fun i => a i ^ 2) (fun j _ => sq_nonneg _) (mem_univ i₀)]
+      linarith only [hA1, single_le_sum (f := fun i => a i ^ 2) (fun j _ => sq_nonneg _)
+        (mem_univ i₀)]
     have hsqabs : a i₀ ^ 2 ≤ |a i₀| := by
-      rw [← sq_abs]
-      nlinarith [abs_nonneg (a i₀)]
-    exact ⟨i₀, by linarith⟩
+      rw [← sq_abs, sq]
+      exact mul_le_of_le_one_left (abs_nonneg _) habs1
+    exact ⟨i₀, by linarith only [h4, hsum4, hsqabs, hδ'δ]⟩
 
 /-- **The Friedgut–Kalai–Naor (FKN) Theorem**: if a Boolean function `f`, read as signs, has
 Fourier weight `W^1[f] ≥ 1 - δ` at degree one, then `f` is `1601 δ`-close to a dictator or a
@@ -276,7 +271,7 @@ theorem exists_hammingDist_xor_div_le_of_le_levelWeight_one [Nonempty ι]
       · rw [decide_eq_true ha, signVal_true, abs_of_neg ha]; ring
       · rw [decide_eq_false ha, signVal_false, abs_of_nonneg (not_lt.mp ha), one_mul]
     rw [hcorr', mul_div_assoc] at hcorr
-    linarith
+    linarith only [hi, hcorr]
   · -- for `δ > 1 / 1600` the bound exceeds one and holds for any `i` and `b`
     push Not at hδ
     refine ⟨Classical.arbitrary ι, false, ?_⟩
@@ -287,7 +282,7 @@ theorem exists_hammingDist_xor_div_le_of_le_levelWeight_one [Nonempty ι]
       rw [Fintype.card_fun, Fintype.card_bool] at this
       exact_mod_cast this
     rw [div_le_iff₀ (by positivity)]
-    nlinarith [pow_pos (by norm_num : (0 : ℝ) < 2) (Fintype.card ι)]
+    nlinarith only [hδ, h1, pow_pos (by norm_num : (0 : ℝ) < 2) (Fintype.card ι)]
 
 /-- **Boolean functions of degree-one weight one are signed dictators**: if `W^1[f] = 1`, then
 `f x = b ⊕ x_i` for some coordinate `i` and bit `b` [O'Donnell, Exercise 1.19(a)][ODonnell2014].

@@ -64,8 +64,13 @@ abbrev State (k : ℕ) (Q : Type) :=
     SupplierChunk.State k Q :=
   fun ((context, _, _, limit), counter, _) =>
     SupplierChunk.prepare e ((context.chunkWidth, context.chunk),
-      (context.inputLength, context.blockWidth, context.schedule, context.interval,
-        limit, counter, context.stride))
+      { inputLength := context.inputLength
+        blockWidth := context.blockWidth
+        schedule := context.schedule
+        interval := context.interval
+        limit
+        counter
+        stride := context.stride })
 
 /-- Default metadata affects only `init`; actual interpolation states are prepared separately. -/
 @[expose] def template : QueryGate.Params Context :=
@@ -95,8 +100,8 @@ theorem initial_inSpace : ComputableInSpace (initial (k := k) (Q := Q))
       (fun q => (QueryGate.encParams encContext q).length) :=
     of_inO (ComputableInO.of_eq (f := id) fun _ => rfl)
   have hcaller := budget_prod hid (budget_prod
-    (budget_const (encB := encNat) 0 (.refl _))
-    (budget_const (encB := encNat) 0 (.refl _)))
+    (budget_const (encB := encNat) 0)
+    (budget_const (encB := encNat) 0))
   exact (budget_comp_linear
     (of_inO (ComputableInO.inl (QueryGate.encState encContext)
       (encPair (QueryGate.encState encContext) (SupplierChunk.encState (k := k) (Q := Q)))))
@@ -119,8 +124,8 @@ theorem start_inSpace (e : Q ≃ Fin s) :
   have hcounter := (snd (QueryGate.encParams encContext) (encPair encNat encNat)).fst'
   exact (budget_comp_linear (SupplierChunk.prepare_inSpace (k := k) e)
     (budget_prod (budget_prod hm hchunk)
-      (budget_prod hN (budget_prod hb (budget_prod hσ (budget_prod hi
-        (budget_prod hlimit (budget_prod hcounter hstride)))))))).of_enc_eq fun _ => rfl
+      (Supplier.encArgs_mk_budget hN hb hσ hi hlimit hcounter hstride))).of_enc_eq
+        fun _ => rfl
 
 /-- Queries include native initialization of the requested checked table call. -/
 theorem machine_query_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :

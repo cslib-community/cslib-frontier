@@ -8,9 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
+-- Reads private `History` and `accepted`, plus unexposed `publicPairSigning` and `Xofs.verify`.
 import all CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Bind
 

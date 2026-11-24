@@ -55,8 +55,7 @@ theorem mul_succ_div_sqrt_log_two_le {A C x y : ℕ} (h : y ≤ C * x + C) :
     _ ≤ A * (4 * C + 7) * (x + 2) / sqrt (log 2 (x + 2)) := mul_div_le_mul_div_assoc _ _ _
     _ ≤ A * (8 * C + 14) * (x + 1) / sqrt (log 2 (x + 2)) :=
         Nat.div_le_div_right (by
-          calc A * (4 * C + 7) * (x + 2) ≤ A * (4 * C + 7) * (2 * (x + 1)) :=
-                Nat.mul_le_mul_left _ (by omega)
+          calc A * (4 * C + 7) * (x + 2) ≤ A * (4 * C + 7) * (2 * (x + 1)) := by gcongr; omega
             _ = A * (8 * C + 14) * (x + 1) := by ring)
 
 end Nat

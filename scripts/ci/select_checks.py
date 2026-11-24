@@ -13,16 +13,31 @@ def prose_path(path: str) -> bool:
             or re.fullmatch(r"(policy|roadmap|results)/[^/]+\.md", path) is not None)
 
 
-def classify(event: str, paths: list[str]) -> tuple[bool, bool]:
-    """Return whether to run Lean and the origin suite. Unknown changes get both."""
+def manual_markdown_path(path: str) -> bool:
+    """Markdown pages under `manual/` (excluding `manual/**/data/*` code and fixtures)."""
+    return re.fullmatch(
+        r"manual/(?:(?!data/)[a-z][a-z0-9-]*/)?[A-Za-z0-9_-]+\.md", path) is not None
+
+
+def classify(event: str, paths: list[str]) -> tuple[bool, bool, bool]:
+    """Return whether to run Lean, the origin suite, and Lean-side Python tooling unit tests.
+
+    Unknown, empty, forced, or push/manual changes enable all three (fail-closed)."""
     if not paths or event not in {"pull_request", "merge_group"}:
-        return True, True
+        return True, True, True
     docs_only = all(prose_path(path) for path in paths)
     origin_unaffected = all(
         prose_path(path) or path == "references.bib"
         or re.fullmatch(r"CslibFrontier(?:Tests|Results)?(?:/[^/]+)*\.lean", path)
         for path in paths)
-    return event != "pull_request" or not docs_only, not origin_unaffected
+    tooling_unaffected = all(
+        prose_path(path) or path == "references.bib" or manual_markdown_path(path)
+        or (path != "CslibFrontierResults/Registry.lean"
+            and re.fullmatch(r"CslibFrontier(?:Tests|Results)?(?:/[^/]+)*\.lean", path) is not None)
+        for path in paths)
+    return (event != "pull_request" or not docs_only,
+            not origin_unaffected,
+            not tooling_unaffected)
 
 
 def git(*args: str) -> bytes:
@@ -58,10 +73,12 @@ def main() -> None:
             paths = event_paths(event, payload, os.environ["GITHUB_SHA"])
         except (KeyError, ValueError, OSError, subprocess.CalledProcessError) as error:
             print(f"Full validation because the comparison is unavailable: {error}")
-    lean, origin = classify(event, paths)
-    print(f"{len(paths)} changed paths; Lean: {lean}; HTTP cache origin: {origin}")
+    lean, origin, tooling = classify(event, paths)
+    print(f"{len(paths)} changed paths; Lean: {lean}; HTTP cache origin: {origin}; "
+          f"Lean tooling tests: {tooling}")
     with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-        print(f"lean={str(lean).lower()}\norigin={str(origin).lower()}", file=output)
+        print(f"lean={str(lean).lower()}\norigin={str(origin).lower()}\n"
+              f"tooling={str(tooling).lower()}", file=output)
 
 
 if __name__ == "__main__":

@@ -20,7 +20,8 @@ import Cslib.Crypto.Primitives.PRG.Basic
 Concrete security of generators (`Cslib.Crypto.PRG.Generator.Secure`) is relative to a class of
 admissible tests. This module supplies the nonuniform class: the deterministic tests computed by
 De Morgan circuits with at most `t` gates (`IsCircuitTest`), where every AND, OR, NOT and constant
-gate counts. The proof of the natural proofs barrier uses two levels of circuit security
+gate counts. `isCircuitTest_iff_exists_circuit` identifies this class with explicit circuits and
+their size bound. The proof of the natural proofs barrier uses two levels of circuit security
 [RazborovRudich1997, Theorem 4.1, pp. 30–31]:
 
 * a keyed family of Boolean functions is pseudorandom against circuits when the generator mapping
@@ -74,6 +75,27 @@ deterministic tests whose circuit complexity is at most `t`. As the admissible a
 def IsCircuitTest {m : ℕ} (t : ℕ) (adversary : Adversary (BitString m)) : Prop :=
   ∃ test : BooleanFunction m, complexity interpretation (single test) ≤ t ∧
     adversary = fun x => PMF.pure (test x)
+
+/-- The semantic class of size-bounded circuit tests is exactly the class realized by one-output
+De Morgan circuits of that size. Size counts every gate, including constants. -/
+theorem isCircuitTest_iff_exists_circuit {inputCount size : ℕ}
+    (test : BitString inputCount → PMF Bool) :
+    IsCircuitTest size test ↔
+      ∃ circuit : Circuit signature inputCount 1, circuit.size ≤ size ∧
+        test = fun input => PMF.pure (circuit.eval interpretation input 0) := by
+  constructor
+  · rintro ⟨f, hf, rfl⟩
+    obtain ⟨circuit, hcomputes, hsize⟩ := complexity_le_iff.mp hf
+    refine ⟨circuit, hsize, ?_⟩
+    funext input
+    rw [hcomputes input]
+    rfl
+  · rintro ⟨circuit, hsize, rfl⟩
+    refine ⟨fun input => circuit.eval interpretation input 0, ?_, rfl⟩
+    refine (complexity_le_of_computes circuit ?_).trans hsize
+    intro input
+    funext output
+    exact congrArg (circuit.eval interpretation input) (Subsingleton.elim output 0)
 
 section Generator
 

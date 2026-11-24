@@ -52,10 +52,6 @@ private theorem untilStep_some (step : β → β) (done : β → Bool) (b : β) 
     untilStep step done (some b) = if done b then none else some (step b) := by
   cases h : done b <;> simp [untilStep, h]
 
-private theorem untilStep_none (step : β → β) (done : β → Bool) :
-    untilStep step done none = none := by
-  simp [untilStep]
-
 private theorem iterate_untilStep (step : β → β) (done : β → Bool) (b : β) {m : ℕ}
     (hm : ∀ j < m, done (step^[j] b) = false) :
     (untilStep step done)^[m] (some b) = some (step^[m] b) := by
@@ -80,7 +76,7 @@ private theorem untilStep_inSpace {step : β → β} {done : β → Bool} {Ss Sd
   have hs := budget_optionSome (budget_comp hstep hget (.of_le fun _ => by omega))
   have hc := budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && !p.2)
     (budget_prod (budget_optionIsSome (budget_id hl)) hd)
-  exact budget_ite hc hs (budget_const none hl)
+  exact budget_ite hc hs (budget_const none)
 
 end Round
 
@@ -184,7 +180,7 @@ theorem iterateUntil {init : α → β} {step : β → β} {done : β → Bool} 
   have hit (x : α) {j : ℕ} (hj : j ≤ n x) :
       (untilStep step done)^[j] (some (init x)) = some (step^[j] (init x)) :=
     iterate_untilStep step done _ fun i hi => hlt x i (by omega)
-  have h := iterateWhileSome (untilStep_inSpace hstep hdone) (untilStep_none step done)
+  have h := iterateWhileSome (untilStep_inSpace hstep hdone) rfl
     (budget_optionSome hinit) (r := n) (Q := fun x => Q x + B x + 1) (B := fun x => B x + 1)
     (fun x => by rw [Function.iterate_succ_apply', hit x le_rfl, untilStep_some, hn]; rfl)
     (fun x j hj => by rw [hit x hj]; exact Option.some_ne_none _)

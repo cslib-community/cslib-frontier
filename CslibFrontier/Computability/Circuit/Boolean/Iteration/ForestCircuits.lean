@@ -35,7 +35,7 @@ square-root-size bound `O(optimizedBudget n c.size (2 ^ n))` (`forest_reachabili
 * `Cslib.Circuits.Boolean.Iteration.forest_reachability_circuit`: decides general reachability
   within `4500000 * powerBudget n c.size (2 ^ n) L` gates.
 * `Cslib.Circuits.Boolean.Iteration.forest_reachability_optimized`: decides general reachability
-  within `13500000 * optimizedBudget n c.size (2 ^ n)` gates.
+  within `9000000 * optimizedBudget n c.size (2 ^ n)` gates.
 
 ## References
 
@@ -163,12 +163,12 @@ theorem forest_reachability_circuit (c : Circuit signature n n) (L : ℕ)
     omega
 
 /-- **Square-root reachability.** Optimizing the checkpoint parameter `L` gives a circuit of size at
-most `13500000 * optimizedBudget n c.size (2 ^ n)` deciding reachability for all state pairs. -/
+most `9000000 * optimizedBudget n c.size (2 ^ n)` deciding reachability for all state pairs. -/
 theorem forest_reachability_optimized (c : Circuit signature n n) :
     ∃ out : Circuit signature (n + n) 1,
       (∀ z, out.eval interpretation z 0 = true ↔
         ∃ t, (c.eval interpretation)^[t] (inputLeft z) = inputRight z) ∧
-      (out.size : ℝ) ≤ 13500000 * optimizedBudget n c.size (2 ^ n) := by
+      (out.size : ℝ) ≤ 9000000 * optimizedBudget n c.size (2 ^ n) := by
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, hout, hs⟩ := forest_reachability_circuit c L hL hLN
   refine ⟨out, hout, ?_⟩

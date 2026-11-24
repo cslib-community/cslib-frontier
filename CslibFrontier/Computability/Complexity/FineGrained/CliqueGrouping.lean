@@ -623,8 +623,7 @@ private lemma encPair_unary_cnf_length_pow_le (r : ℕ) (φ : CNF ℕ) {D E : �
     push_cast
     nlinarith
   calc (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D
-      ≤ (((frame (encUnary r)).length + 1 : ℕ) * (((encCNF φ).length : ℝ) + 1)) ^ D :=
-        pow_le_pow_left₀ (by positivity) hp D
+      ≤ (((frame (encUnary r)).length + 1 : ℕ) * (((encCNF φ).length : ℝ) + 1)) ^ D := by gcongr
     _ = (((frame (encUnary r)).length + 1 : ℕ) : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ D :=
         mul_pow _ _ _
     _ ≤ (((frame (encUnary r)).length + 1 : ℕ) : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ E := by

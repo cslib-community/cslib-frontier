@@ -82,7 +82,7 @@ private theorem realize_parameters (e B : (language L).Term α) (v : α → Fin 
     (parameters L e B).Realize v ↔
       0 < (e.realize v).val ∧ (B.realize v).val = 2 ^ (e.realize v).val ∧
       (B.realize v).val ^ 3 < n := by
-  fo_simp [parameters, Function.comp_def, Fin.le_def, and_assoc]
+  fo_simp [parameters, Fin.le_def, and_assoc]
   constructor
   · rintro ⟨he, hB, u, hs, hc⟩
     refine ⟨by lia, hB, ?_⟩
@@ -211,7 +211,7 @@ private theorem smallFormula_complete {k : ℕ} (v : Fin 2 × Fin k → Fin n) (
     simpa only [hx] using hb
   fo_simp [smallFormula]
   refine ⟨a, x 0, x 1, ?_⟩
-  fo_simp [ite_eq_left hb']
+  fo_simp [hb']
   exact ⟨⟨by lia, fun _ => rfl⟩, fun _ => rfl⟩
 
 end TupleBit
@@ -232,7 +232,7 @@ theorem realize_tupleBit (v : Fin 2 × Fin k → Fin n) :
   by_cases hk : k = 0
   · subst k
     simp [tupleBit, lexRank_apply]
-  · fo_simp [tupleBit, ite_eq_right hk]
+  · fo_simp [tupleBit, hk]
     constructor
     · rintro (h | h)
       · exact TupleBit.smallFormula_sound v h
