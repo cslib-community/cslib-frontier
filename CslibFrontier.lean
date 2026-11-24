@@ -1116,6 +1116,15 @@ public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet
 public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.Scan
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates
 public import CslibFrontier.Algorithms.WordRAM.TwoSAT
+public import CslibFrontier.Algorithms.WordRAM.TwoSAT.ClauseCheck
+public import CslibFrontier.Algorithms.WordRAM.TwoSAT.Defs
+public import CslibFrontier.Algorithms.WordRAM.TwoSAT.EquivDFS
+public import CslibFrontier.Algorithms.WordRAM.TwoSAT.Extract
+public import CslibFrontier.Algorithms.WordRAM.TwoSAT.ImplCSR
+public import CslibFrontier.Algorithms.WordRAM.TwoSAT.ImplDeg
+public import CslibFrontier.Algorithms.WordRAM.TwoSAT.ImplFill
+public import CslibFrontier.Algorithms.WordRAM.TwoSAT.Layout
+public import CslibFrontier.Algorithms.WordRAM.TwoSAT.Programs
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination
 public import CslibFrontier.Algorithms.WordRAM.Yates
 public import CslibFrontier.Algorithms.WordRAM.ZFunction
