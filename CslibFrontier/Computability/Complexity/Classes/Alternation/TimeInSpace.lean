@@ -25,10 +25,21 @@ alternating machine within space `O(s n)`, when `s` is space-constructible and `
 (`Cslib.Complexity.DTIME_two_pow_mul_subset_ASPACE_of_spaceConstructible`). The alternating machine
 computes the step count `T = 2 ^ E`, with `E = O(s n)`, in binary within space `O(s n)`, and plays
 the local circuit-value game on the tableau of `T` steps of the deterministic machine
-(`Cslib.Complexity.exists_decidesInSpace_of_runFrom`). This is the inclusion
-`DTIME(c ^ S(n)) ⊆ ASPACE(S(n))` of
-[Chandra, Kozen and Stockmeyer, Theorem 3.4][ChandraKozenStockmeyer1981] for space-constructible
-bounds only.
+(`Cslib.Complexity.exists_decidesInSpace_of_runFrom`). This is
+[Chandra, Kozen and Stockmeyer, Theorem 3.4][ChandraKozenStockmeyer1981],
+`DTIME(T(n)) ⊆ ASPACE(c · log T(n))`, at `T(n) = 2 ^ (c * s n)` and for space-constructible bounds
+only.
+
+`ASPACE` bounds the space of every configuration reachable from the initial one, whichever player
+chooses (`Turing.MultiTapeATM.RecognizesInSpace`), and asks every branch to halt. The proof of
+[Chandra, Kozen and Stockmeyer, Theorem 3.4][ChandraKozenStockmeyer1981] guesses the step and the
+cell existentially, without a bound, which suffices under their Definition 2.5, where only the
+accepting computations of accepted instances are bounded. Under the bound of `ASPACE`, guessing the
+step count, or doubling it while a game shows that the deterministic machine has not yet halted,
+does not suffice: a branch cannot wait for the value of a game, so the branch that continues after
+a false claim that the machine has not halted is reachable, and on it the step count grows without
+bound. Here the hypothesis bounds the step count on every branch instead, as in
+[Chandra, Kozen and Stockmeyer, Theorem 2.6(b)][ChandraKozenStockmeyer1981].
 
 ## Main results
 

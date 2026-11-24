@@ -8,6 +8,7 @@ module
 
 import CslibFrontier.Computability.Complexity.Classes.Alternation.LogSpaceGame
 import CslibFrontier.Computability.Complexity.Classes.Alternation.TimeInSpace
+import CslibFrontier.Computability.Complexity.Classes.Constructible.Space
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 
 /-!
@@ -17,7 +18,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 parametric class `ASPACE (log₂ n)`, and a nonvacuity witness: the words starting with `true`,
 neither empty nor everything, are in `P` and hence decided by an alternating machine within
 logarithmic space (`Cslib.Complexity.P_subset_AL`). The hypotheses of
-`Cslib.Complexity.DTIME_two_pow_mul_subset_ASPACE_of_spaceConstructible` hold for `s n = n`.
+`Cslib.Complexity.DTIME_two_pow_mul_subset_ASPACE_of_spaceConstructible` hold for `s n = n` and
+at the sharp edge `s n = ⌊log₂ n⌋` of its hypothesis `⌊log₂ n⌋ ≤ s n`.
 -/
 
 set_option linter.privateModule false
@@ -50,5 +52,10 @@ example : ∃ (k : ℕ) (State : Type) (_ : Finite State) (atm : Turing.MultiTap
 at `s n = n` it gives `DTIME(2 ^ (c * n)) ⊆ ASPACE(n)`. -/
 example (c : ℕ) : DTIME encBits (fun n => 2 ^ (c * n)) ⊆ ASPACE encBits fun n => n :=
   DTIME_two_pow_mul_subset_ASPACE_of_spaceConstructible spaceConstructible_id Nat.log2_le_self c
+
+/-- At the sharp edge `s n = ⌊log₂ n⌋` of the hypothesis `⌊log₂ n⌋ ≤ s n`, the space-constructible
+form gives `DTIME(2 ^ (c * ⌊log₂ n⌋)) ⊆ ASPACE(⌊log₂ n⌋)`. -/
+example (c : ℕ) : DTIME encBits (fun n => 2 ^ (c * Nat.log2 n)) ⊆ ASPACE encBits Nat.log2 :=
+  DTIME_two_pow_mul_subset_ASPACE_of_spaceConstructible spaceConstructible_log2 (fun _ => le_rfl) c
 
 end CslibFrontierTests.ALEqP

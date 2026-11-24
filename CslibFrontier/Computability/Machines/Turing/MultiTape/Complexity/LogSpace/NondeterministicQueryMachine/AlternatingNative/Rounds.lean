@@ -37,57 +37,6 @@ namespace Turing.NondeterministicQueryMachine
 
 open MultiTapeTM
 
-/-- A deterministic phase of an alternating machine: the lift `L` of a deterministic run of `D`
-whose two moves agree along its running steps. Acceptance from the lifted start is acceptance from
-the lifted end after the phase's length. -/
-private theorem exists_phase_aux {k : ℕ} {S S' : Type} {input : List Bool}
-    {atm : MultiTapeATM k Bool S'} {D : MultiTapeTM k Bool S}
-    (L : Cfg k Bool S input → Cfg k Bool S' input)
-    (hstep : ∀ b (c : Cfg k Bool S input), c.state ≠ none → atm.next b (L c) = L (D.step c))
-    (hrun : ∀ c : Cfg k Bool S input, c.state ≠ none → (L c).state ≠ none) :
-    ∀ (t : ℕ) (c : Cfg k Bool S input), (D.runFrom c t).state = none →
-      ∃ τ, ∀ n, atm.AcceptsWithin n (L c) ↔ τ ≤ n ∧ atm.AcceptsWithin (n - τ) (L (D.runFrom c t))
-  | 0, c, _ => ⟨0, fun n => by simp [MultiTapeTM.runFrom]⟩
-  | t + 1, c, ht => by
-    obtain ⟨τ, hτ⟩ := exists_phase_aux L hstep hrun t (D.step c) ht
-    change ∃ τ, ∀ n, atm.AcceptsWithin n (L c) ↔
-      τ ≤ n ∧ atm.AcceptsWithin (n - τ) (L (D.runFrom (D.step c) t))
-    by_cases hc : c.state = none
-    · refine ⟨τ, fun n => ?_⟩
-      rw [← hτ n, MultiTapeTM.step_of_halt hc]
-    · refine ⟨τ + 1, fun n => ?_⟩
-      cases n with
-      | zero =>
-        obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp (hrun c hc)
-        exact iff_of_false (MultiTapeATM.not_acceptsWithin_zero atm hq)
-          (fun h => absurd h.1 (by omega))
-      | succ m =>
-        rw [MultiTapeATM.acceptsWithin_succ_of_next_eq (fun b => hstep b c hc), hτ m,
-          Nat.add_sub_add_right, Nat.add_le_add_iff_right]
-
-private theorem exists_phase {k : ℕ} {S S' : Type} {input : List Bool}
-    {atm : MultiTapeATM k Bool S'} {D : MultiTapeTM k Bool S}
-    (L : Cfg k Bool S input → Cfg k Bool S' input)
-    (hstep : ∀ b (c : Cfg k Bool S input), c.state ≠ none → atm.next b (L c) = L (D.step c))
-    (hrun : ∀ c : Cfg k Bool S input, c.state ≠ none → (L c).state ≠ none)
-    {t : ℕ} {c d : Cfg k Bool S input} (hd : D.runFrom c t = d) (ht : d.state = none) :
-    ∃ τ, ∀ n, atm.AcceptsWithin n (L c) ↔ τ ≤ n ∧ atm.AcceptsWithin (n - τ) (L d) := by
-  subst hd
-  exact exists_phase_aux L hstep hrun t c ht
-
-/-- Two consecutive phases form one phase. -/
-private theorem phase_trans {k : ℕ} {S : Type} {input : List Bool} {atm : MultiTapeATM k Bool S}
-    {c d e : Cfg k Bool S input} {τ₁ τ₂ : ℕ}
-    (h₁ : ∀ n, atm.AcceptsWithin n c ↔ τ₁ ≤ n ∧ atm.AcceptsWithin (n - τ₁) d)
-    (h₂ : ∀ n, atm.AcceptsWithin n d ↔ τ₂ ≤ n ∧ atm.AcceptsWithin (n - τ₂) e) (n : ℕ) :
-    atm.AcceptsWithin n c ↔ τ₁ + τ₂ ≤ n ∧ atm.AcceptsWithin (n - (τ₁ + τ₂)) e := by
-  rw [h₁, h₂, Nat.sub_sub]
-  constructor
-  · rintro ⟨h, h', he⟩
-    exact ⟨by omega, he⟩
-  · rintro ⟨h, he⟩
-    exact ⟨by omega, by omega, he⟩
-
 namespace Native
 
 variable {k : ℕ} {SI SF : Type} {SP : Bool → Type}
@@ -173,12 +122,12 @@ private theorem exists_pass (a : α) (s : σ) (hs : (M.withInit (start a)).Reach
   obtain ⟨t, ht⟩ := R.pass_spec a s hs b flag
   obtain ⟨ws', e, hrun, ⟨rfl, rfl⟩, -⟩ :=
     transformsTapes_iff_runFrom.mp ht (enc a) _ [] ⟨rfl, rfl⟩
-  obtain ⟨τ, hτ⟩ := exists_phase (atm := R.atm)
+  obtain ⟨τ, hτ⟩ := MultiTapeATM.exists_acceptsWithin_iff_of_lift (atm := R.atm)
     (fun c : Cfg R.k Bool (R.SP b) (enc a) =>
       (c.mapState (Native.passState b)).mapState (Option.map (·, g)))
     (fun b' c hc => Native.next_pass R.I R.P R.F R.C b' b g c hc)
     (fun c _ => by simp [Cfg.mapState, Native.passState]) hrun rfl
-  exact ⟨τ + 1, phase_trans hτ (R.acceptsWithin_check a _ g)⟩
+  exact ⟨τ + 1, MultiTapeATM.acceptsWithin_iff_of_phase_trans hτ (R.acceptsWithin_check a _ g)⟩
 
 /-- The initializer, followed by its continuation check, leads to the boundary of the start. -/
 private theorem exists_init (a : α) :
@@ -187,7 +136,7 @@ private theorem exists_init (a : α) :
   obtain ⟨t, ht⟩ := R.initial_spec a
   obtain ⟨ws', e, hrun, ⟨rfl, rfl⟩, -⟩ :=
     transformsTapes_iff_runFrom.mp ht (enc a) _ [] ⟨rfl, rfl⟩
-  obtain ⟨τ, hτ⟩ := exists_phase (atm := R.atm)
+  obtain ⟨τ, hτ⟩ := MultiTapeATM.exists_acceptsWithin_iff_of_lift (atm := R.atm)
     (fun c : Cfg R.k Bool R.SI (enc a) =>
       (c.mapState Native.initState).mapState (Option.map (·, (none : Option Bool))))
     (fun b c hc => Native.next_init R.I R.P R.F R.C b none c hc)
@@ -196,7 +145,7 @@ private theorem exists_init (a : α) :
       wordsCfg (enc a) (some (.init R.I.q₀, none)) (fun _ => []) [] :=
     Cfg.init_eq_wordsCfg _ _
   rw [hinit]
-  exact ⟨τ + 1, phase_trans hτ (R.acceptsWithin_check a _ none)⟩
+  exact ⟨τ + 1, MultiTapeATM.acceptsWithin_iff_of_phase_trans hτ (R.acceptsWithin_check a _ none)⟩
 
 /-- **Acceptance from the first round boundary.** The alternating native machine accepts exactly
 when the boundary of the start state, with an empty guess register, accepts within some number of
@@ -218,7 +167,7 @@ theorem exists_acceptsWithin_boundaryCfg_of_halted (a : α) (s : σ)
     ∃ τ, ∀ n, R.atm.AcceptsWithin n (R.boundaryCfg a s g) ↔ τ ≤ n ∧ M.accept s = true := by
   obtain ⟨t, ht⟩ := R.final_spec a s hs false
   obtain ⟨ws', e, hrun, rfl, -⟩ := transformsTapes_iff_runFrom.mp ht (enc a) _ [] ⟨rfl, rfl⟩
-  obtain ⟨τ, hτ⟩ := exists_phase (atm := R.atm)
+  obtain ⟨τ, hτ⟩ := MultiTapeATM.exists_acceptsWithin_iff_of_lift (atm := R.atm)
     (fun c : Cfg R.k Bool R.SF (enc a) =>
       (c.mapState Native.finishState).mapState (Option.map (·, g)))
     (fun b c hc => Native.next_finish R.I R.P R.F R.C b g c hc)
