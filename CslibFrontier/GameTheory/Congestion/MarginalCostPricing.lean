@@ -9,16 +9,12 @@ module
 
 public import CslibFrontier.GameTheory.Congestion.BeckmannPotential
 public import Mathlib.Analysis.Calculus.Deriv.Basic
-import Mathlib.Analysis.Calculus.Deriv.Add
-import Mathlib.Analysis.Calculus.Deriv.Comp
 import Mathlib.Analysis.Calculus.Deriv.Mul
 import Mathlib.Analysis.Convex.Deriv
 import Mathlib.Analysis.Convex.Slope
 import Mathlib.Topology.Algebra.Monoid
 import Mathlib.Topology.Order.Compact
 import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.NormNum
-import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 
 /-!
@@ -34,12 +30,12 @@ externality imposed on the `x` units of traffic already using `e`.
 Following Roughgarden [Roughgarden2007Routing], Sections 18.3.1 and 18.5.1 (originally due to
 Pigou, 1920, and Beckmann, McGuire and Winsten, 1956), this module proves:
 
-* **Derivative identity** (`hasDerivWithinAt_mul_marginalCost`, `hasDerivAt_mul_marginalCost`):
+* **Derivative identity** (`hasDerivWithinAt_mul_marginalCost`):
   `x ↦ x * c(x)` has derivative `marginalCost c c' x = c x + x * c' x`.
 * **Optimality characterization and equivalence with marginal-cost Wardrop equilibria**
-  (`isOptimal_iff_marginalCost_le`, `isOptimal_iff_isWardrop_withMarginalCost`,
+  (`IsOptimal.isWardrop_withMarginalCost_within`, `isOptimal_iff_isWardrop_withMarginalCost`,
   [Roughgarden2007Routing], Proposition 18.9 and Corollary 18.10): when `x ↦ x * latency e x` is
-  convex on `[0, ∞)` and `latency e` has derivative `c' e` on `[0, ∞)`, a feasible flow `f*` is
+  convex on `[0, ∞)` and `latency e` has derivative `c' e` within `[0, ∞)`, a feasible flow `f*` is
   socially optimal for `G` if and only if every flow-carrying path of `f*` minimizes marginal path
   cost `∑ e ∈ resources p, marginalCost (latency e) (c' e) (edgeFlow f* e)` within its commodity,
   that is, if and only if `f*` is a Wardrop equilibrium of `G.withMarginalCost c'`.
@@ -68,13 +64,11 @@ Pigou, 1920, and Beckmann, McGuire and Winsten, 1956), this module proves:
 
 ## Main results
 
-* `Cslib.GameTheory.hasDerivWithinAt_mul_marginalCost` and
-  `Cslib.GameTheory.hasDerivAt_mul_marginalCost`: derivative of `x ↦ x * c(x)`.
+* `Cslib.GameTheory.hasDerivWithinAt_mul_marginalCost`: derivative of `x ↦ x * c(x)`.
 * `Cslib.GameTheory.NonatomicCongestionGame.exists_isOptimal`: existence of optimal flows on
   compact feasible polytopes under continuous latencies.
-* `Cslib.GameTheory.NonatomicCongestionGame.IsOptimal.isWardrop_withMarginalCost`,
-  `Cslib.GameTheory.NonatomicCongestionGame.isOptimal_iff_isWardrop_withMarginalCost` and
-  `Cslib.GameTheory.NonatomicCongestionGame.isOptimal_iff_marginalCost_le`
+* `Cslib.GameTheory.NonatomicCongestionGame.IsOptimal.isWardrop_withMarginalCost_within` and
+  `Cslib.GameTheory.NonatomicCongestionGame.isOptimal_iff_isWardrop_withMarginalCost`
   ([Roughgarden2007Routing], Proposition 18.9 and Corollary 18.10): marginal-cost characterization
   of socially optimal flows.
 * `Cslib.GameTheory.NonatomicCongestionGame.pigouvianTax_nonneg`,
@@ -108,12 +102,6 @@ theorem hasDerivWithinAt_mul_marginalCost {c c' : ℝ → ℝ} {s : Set ℝ} {x 
   have h := (hasDerivWithinAt_id x s).fun_smul hc
   simpa only [id_eq, smul_eq_mul, one_mul, add_comm, marginalCost] using h
 
-/-- Product-rule derivative of `y ↦ y * c y` at `x`. -/
-theorem hasDerivAt_mul_marginalCost {c c' : ℝ → ℝ} {x : ℝ} (hc : HasDerivAt c (c' x) x) :
-    HasDerivAt (fun y : ℝ => y * c y) (marginalCost c c' x) x := by
-  have h := (hasDerivAt_id x).fun_smul hc
-  simpa only [id_eq, smul_eq_mul, one_mul, add_comm, marginalCost] using h
-
 namespace NonatomicCongestionGame
 
 variable {K P E : Type*} [Fintype P] [DecidableEq E] (G : NonatomicCongestionGame K P E)
@@ -122,12 +110,6 @@ variable {K P E : Type*} [Fintype P] [DecidableEq E] (G : NonatomicCongestionGam
 feasible flows ([Roughgarden2007Routing], Section 18.2.1, p. 463). -/
 @[expose] def IsOptimal [DecidableEq K] (f : P → ℝ) : Prop :=
   G.IsFeasible f ∧ ∀ g, G.IsFeasible g → G.cost f ≤ G.cost g
-
-/-- `G.IsOptimal f` is equivalent to feasibility together with
-`IsMinOn G.cost {g | G.IsFeasible g} f`. -/
-theorem isOptimal_iff_isMinOn [DecidableEq K] {f : P → ℝ} :
-    G.IsOptimal f ↔ G.IsFeasible f ∧ IsMinOn G.cost {g | G.IsFeasible g} f :=
-  Iff.rfl
 
 /-- If resource latencies are continuous on `[0, ∞)` and a feasible flow exists, then `G` admits a
 socially optimal flow. -/
@@ -150,12 +132,12 @@ theorem exists_isOptimal [DecidableEq K] [Finite E]
 /-- The nonatomic congestion game `(G, r, c*)` obtained by replacing each edge latency `latency e`
 by its marginal cost `marginalCost (latency e) (c' e)`
 ([Roughgarden2007Routing], Section 18.3.1). -/
-@[expose] def withMarginalCost (c' : E → ℝ → ℝ) : NonatomicCongestionGame K P E :=
+def withMarginalCost (c' : E → ℝ → ℝ) : NonatomicCongestionGame K P E :=
   { G with latency := fun e => marginalCost (G.latency e) (c' e) }
 
 /-- The taxed nonatomic congestion game `(G, r, c + τ)` obtained by adding a per-unit edge tax
 `τ e` to each resource `e` ([Roughgarden2007Routing], Section 18.5.1). -/
-@[expose] def withTaxes (τ : E → ℝ) : NonatomicCongestionGame K P E :=
+def withTaxes (τ : E → ℝ) : NonatomicCongestionGame K P E :=
   { G with latency := fun e x => G.latency e x + τ e }
 
 /-- The **Pigouvian marginal-cost tax** `τ_e = edgeFlow f e * c' e (edgeFlow f e)` associated with
@@ -164,38 +146,74 @@ a flow `f` and latency derivatives `c'`
 @[expose] def pigouvianTax (c' : E → ℝ → ℝ) (f : P → ℝ) (e : E) : ℝ :=
   G.edgeFlow f e * c' e (G.edgeFlow f e)
 
+omit [Fintype P] [DecidableEq E] in
+@[simp]
+theorem withMarginalCost_commodity (c' : E → ℝ → ℝ) :
+    (G.withMarginalCost c').commodity = G.commodity := by
+  rfl
+
+omit [Fintype P] [DecidableEq E] in
+@[simp]
+theorem withMarginalCost_resources (c' : E → ℝ → ℝ) :
+    (G.withMarginalCost c').resources = G.resources := by
+  rfl
+
+omit [Fintype P] [DecidableEq E] in
+@[simp]
+theorem withMarginalCost_rate (c' : E → ℝ → ℝ) :
+    (G.withMarginalCost c').rate = G.rate := by
+  rfl
+
 omit [DecidableEq E] in
 @[simp]
 theorem withMarginalCost_isFeasible [DecidableEq K] (c' : E → ℝ → ℝ) (f : P → ℝ) :
-    (G.withMarginalCost c').IsFeasible f ↔ G.IsFeasible f :=
-  Iff.rfl
+    (G.withMarginalCost c').IsFeasible f ↔ G.IsFeasible f := by
+  rfl
 
 @[simp]
 theorem withMarginalCost_edgeFlow (c' : E → ℝ → ℝ) (f : P → ℝ) (e : E) :
-    (G.withMarginalCost c').edgeFlow f e = G.edgeFlow f e :=
+    (G.withMarginalCost c').edgeFlow f e = G.edgeFlow f e := by
   rfl
 
 omit [Fintype P] [DecidableEq E] in
 @[simp]
 theorem withMarginalCost_latency (c' : E → ℝ → ℝ) (e : E) :
-    (G.withMarginalCost c').latency e = marginalCost (G.latency e) (c' e) :=
+    (G.withMarginalCost c').latency e = marginalCost (G.latency e) (c' e) := by
+  rfl
+
+omit [Fintype P] [DecidableEq E] in
+@[simp]
+theorem withTaxes_commodity (τ : E → ℝ) :
+    (G.withTaxes τ).commodity = G.commodity := by
+  rfl
+
+omit [Fintype P] [DecidableEq E] in
+@[simp]
+theorem withTaxes_resources (τ : E → ℝ) :
+    (G.withTaxes τ).resources = G.resources := by
+  rfl
+
+omit [Fintype P] [DecidableEq E] in
+@[simp]
+theorem withTaxes_rate (τ : E → ℝ) :
+    (G.withTaxes τ).rate = G.rate := by
   rfl
 
 omit [DecidableEq E] in
 @[simp]
 theorem withTaxes_isFeasible [DecidableEq K] (τ : E → ℝ) (f : P → ℝ) :
-    (G.withTaxes τ).IsFeasible f ↔ G.IsFeasible f :=
-  Iff.rfl
+    (G.withTaxes τ).IsFeasible f ↔ G.IsFeasible f := by
+  rfl
 
 @[simp]
 theorem withTaxes_edgeFlow (τ : E → ℝ) (f : P → ℝ) (e : E) :
-    (G.withTaxes τ).edgeFlow f e = G.edgeFlow f e :=
+    (G.withTaxes τ).edgeFlow f e = G.edgeFlow f e := by
   rfl
 
 omit [Fintype P] [DecidableEq E] in
 @[simp]
 theorem withTaxes_latency (τ : E → ℝ) (e : E) (x : ℝ) :
-    (G.withTaxes τ).latency e x = G.latency e x + τ e :=
+    (G.withTaxes τ).latency e x = G.latency e x + τ e := by
   rfl
 
 /-- At the flow `f` that defines the Pigouvian taxes, the taxed network
@@ -203,14 +221,14 @@ theorem withTaxes_latency (τ : E → ℝ) (e : E) (x : ℝ) :
 identical path latencies to every path. -/
 theorem withTaxes_pigouvianTax_pathLatency (c' : E → ℝ → ℝ) (f : P → ℝ) (p : P) :
     (G.withTaxes (G.pigouvianTax c' f)).pathLatency f p =
-      (G.withMarginalCost c').pathLatency f p :=
+      (G.withMarginalCost c').pathLatency f p := by
   rfl
 
 /-- A flow `f` is a Wardrop equilibrium of `G.withTaxes (G.pigouvianTax c' f)` if and only if it is
 a Wardrop equilibrium of `G.withMarginalCost c'`. -/
 theorem isWardrop_withTaxes_pigouvianTax_iff [DecidableEq K] (c' : E → ℝ → ℝ) (f : P → ℝ) :
-    (G.withTaxes (G.pigouvianTax c' f)).IsWardrop f ↔ (G.withMarginalCost c').IsWardrop f :=
-  Iff.rfl
+    (G.withTaxes (G.pigouvianTax c' f)).IsWardrop f ↔ (G.withMarginalCost c').IsWardrop f := by
+  rfl
 
 section FirstOrderConditions
 
@@ -240,80 +258,15 @@ theorem IsOptimal.isWardrop_withMarginalCost_within [DecidableEq K] [Finite E] {
   have := Fintype.ofFinite E
   rw [isWardrop_iff_variationalInequality]
   refine ⟨hf.1, fun g hg => ?_⟩
-  simp only [withMarginalCost_isFeasible] at hg
-  simp only [withMarginalCost_edgeFlow]
-  have h edge : HasDerivWithinAt
-      (fun t : ℝ => ((1 - t) * G.edgeFlow f edge + t * G.edgeFlow g edge) *
-        G.latency edge ((1 - t) * G.edgeFlow f edge + t * G.edgeFlow g edge))
-      (marginalCost (G.latency edge) (c' edge) (G.edgeFlow f edge) *
-        (G.edgeFlow g edge - G.edgeFlow f edge)) (Icc 0 1) 0 := by
-    have hlin : HasDerivAt (fun t : ℝ => (1 - t) * G.edgeFlow f edge + t * G.edgeFlow g edge)
-        (G.edgeFlow g edge - G.edgeFlow f edge) 0 := by
-      have h1 : HasDerivAt (fun t : ℝ => (1 - t) * G.edgeFlow f edge) (-G.edgeFlow f edge) 0 := by
-        simpa only [id_eq, smul_eq_mul, neg_one_mul] using
-          ((hasDerivAt_id (0 : ℝ)).const_sub (1 : ℝ)).smul_const (G.edgeFlow f edge)
-      have h2 : HasDerivAt (fun t : ℝ => t * G.edgeFlow g edge) (G.edgeFlow g edge) 0 := by
-        simpa only [id_eq, smul_eq_mul, one_mul] using
-          (hasDerivAt_id (0 : ℝ)).smul_const (G.edgeFlow g edge)
-      have h12 := h1.fun_add h2
-      simpa only [sub_eq_neg_add] using h12
-    have h0 : (1 - (0 : ℝ)) * G.edgeFlow f edge + (0 : ℝ) * G.edgeFlow g edge =
-        G.edgeFlow f edge := by ring
-    have hprod : HasDerivWithinAt (fun y : ℝ => y * G.latency edge y)
-        (marginalCost (G.latency edge) (c' edge) (G.edgeFlow f edge))
-        (Ici 0) ((1 - (0 : ℝ)) * G.edgeFlow f edge + (0 : ℝ) * G.edgeFlow g edge) := by
-      rw [h0]
-      exact hasDerivWithinAt_mul_marginalCost (hderiv edge)
-    have hmaps : MapsTo (fun t : ℝ => (1 - t) * G.edgeFlow f edge + t * G.edgeFlow g edge)
-        (Icc 0 1) (Ici 0) := by
-      intro t ⟨ht0, ht1⟩
-      exact add_nonneg (mul_nonneg (sub_nonneg.2 ht1) (G.edgeFlow_nonneg hf.1.1 edge))
-        (mul_nonneg ht0 (G.edgeFlow_nonneg hg.1 edge))
-    simpa only [Function.comp_def, smul_eq_mul,
-      mul_comm (G.edgeFlow g edge - G.edgeFlow f edge)] using
-      hprod.scomp (0 : ℝ) hlin.hasDerivWithinAt hmaps
-  have hsum : HasDerivWithinAt
-      (fun t : ℝ => ∑ e, ((1 - t) * G.edgeFlow f e + t * G.edgeFlow g e) *
-        G.latency e ((1 - t) * G.edgeFlow f e + t * G.edgeFlow g e))
-      (∑ e, marginalCost (G.latency e) (c' e) (G.edgeFlow f e) *
-        (G.edgeFlow g e - G.edgeFlow f e)) (Ioc 0 1) 0 :=
-    (HasDerivWithinAt.fun_sum fun e _ => h e).mono Ioc_subset_Icc_self
-  have hslope := (hasDerivWithinAt_iff_tendsto_slope' (by simp)).1 hsum
-  have hnonneg : ∀ᶠ t in 𝓝[Ioc 0 1] (0 : ℝ),
-      0 ≤ slope (fun t : ℝ => ∑ e, ((1 - t) * G.edgeFlow f e + t * G.edgeFlow g e) *
-        G.latency e ((1 - t) * G.edgeFlow f e + t * G.edgeFlow g e)) 0 t := by
-    filter_upwards [self_mem_nhdsWithin] with t ⟨ht0, ht1⟩
-    rw [slope_def_field]
-    have hfeas : G.IsFeasible ((1 - t) • f + t • g) :=
-      hf.1.convex_combo G hg (sub_nonneg.2 ht1) ht0.le (sub_add_cancel 1 t)
-    have hcost_t : ∑ e, ((1 - t) * G.edgeFlow f e + t * G.edgeFlow g e) *
-        G.latency e ((1 - t) * G.edgeFlow f e + t * G.edgeFlow g e) =
-        G.cost ((1 - t) • f + t • g) := by
-      rw [G.cost_eq_sum_edgeFlow]
-      refine Finset.sum_congr rfl fun e _ => ?_
-      simp only [G.edgeFlow_add, G.edgeFlow_smul]
-    have hcost_0 : ∑ e, (1 * G.edgeFlow f e + 0 * G.edgeFlow g e) *
-        G.latency e (1 * G.edgeFlow f e + 0 * G.edgeFlow g e) = G.cost f := by
-      rw [G.cost_eq_sum_edgeFlow]
-      refine Finset.sum_congr rfl fun e _ => ?_
-      ring_nf
-    simp only [sub_zero]
-    rw [hcost_t, hcost_0]
-    exact div_nonneg (sub_nonneg.2 (hf.2 _ hfeas)) ht0.le
-  have hnt : (𝓝[Ioc (0 : ℝ) 1] 0).NeBot :=
-    mem_closure_iff_nhdsWithin_neBot.1
-      (by rw [closure_Ioc zero_ne_one]; exact left_mem_Icc.2 zero_le_one)
-  have hlim := ge_of_tendsto hslope hnonneg
-  simp only [mul_sub, Finset.sum_sub_distrib, withMarginalCost_latency] at hlim ⊢
-  linarith
-
-/-- Necessary condition for `HasDerivAt`: an optimal flow is a Wardrop equilibrium for marginal
-costs. -/
-theorem IsOptimal.isWardrop_withMarginalCost [DecidableEq K] [Finite E] {c' : E → ℝ → ℝ}
-    {f : P → ℝ} (hf : G.IsOptimal f)
-    (hderiv : ∀ e, HasDerivAt (G.latency e) (c' e (G.edgeFlow f e)) (G.edgeFlow f e)) :
-    (G.withMarginalCost c').IsWardrop f :=
-  hf.isWardrop_withMarginalCost_within fun e => (hderiv e).hasDerivWithinAt
+  have hmin : IsMinOn (fun h => ∑ e, G.edgeFlow h e * G.latency e (G.edgeFlow h e))
+      {h | G.IsFeasible h} f := fun h hh => by
+    change ∑ e, G.edgeFlow f e * G.latency e (G.edgeFlow f e) ≤
+      ∑ e, G.edgeFlow h e * G.latency e (G.edgeFlow h e)
+    rw [← G.cost_eq_sum_edgeFlow, ← G.cost_eq_sum_edgeFlow]
+    exact hf.2 h hh
+  simpa only [withMarginalCost_edgeFlow, withMarginalCost_latency] using
+    hf.1.sum_mul_edgeFlow_le_of_isMinOn (H := fun e u => u * G.latency e u) hmin
+      (fun e => hasDerivWithinAt_mul_marginalCost (hderiv e)) hg
 
 /-- Sufficient condition under convexity: if `x ↦ x * latency e x` is convex on `[0, ∞)` and `f`
 is a Wardrop equilibrium of `G.withMarginalCost c'`, then `f` is socially optimal for `G`. -/
@@ -342,10 +295,18 @@ theorem isOptimal_of_isWardrop_withMarginalCost_within [DecidableEq K] [Finite E
   simp only [mul_sub, Finset.sum_sub_distrib] at hsum
   linarith
 
-/-- **Equivalence of optimal flows and marginal-cost Wardrop equilibria**
-([Roughgarden2007Routing], Corollary 18.10): when `x ↦ x * latency e x` is convex on `[0, ∞)` and
-`latency e` has derivative `c' e` within `[0, ∞)`, a flow `f` is socially optimal for `G` if and
-only if `f` is a Wardrop equilibrium of `G.withMarginalCost c'`. -/
+/-- **Characterization of optimal flows and equivalence with marginal-cost Wardrop equilibria**
+([Roughgarden2007Routing], Proposition 18.9 and Corollary 18.10, pp. 468–469): when
+`x ↦ x * latency e x` is convex on `[0, ∞)` and `latency e` has derivative `c' e` within `[0, ∞)`,
+a flow `f` is socially optimal for `G` if and only if `f` is a Wardrop equilibrium of
+`G.withMarginalCost c'`.
+
+*Precision note relative to [Roughgarden2007Routing], Proposition 18.9:* the source assumes that
+`x ↦ x * c_e(x)` is convex and continuously differentiable (`C¹`) on `[0, ∞)`, which admits
+latencies such as `c_e(x) = √x` where `x * √x = x ^ (3 / 2)` is `C¹` at `0` even though `c_e` is
+not differentiable at `0`. To write the marginal cost explicitly as `c_e(x) + x * c'_e(x)`, the
+hypothesis `hderiv` here requires right-differentiability of `G.latency e` itself within `[0, ∞)`
+at every `x ≥ 0` (including `x = 0`). -/
 theorem isOptimal_iff_isWardrop_withMarginalCost [DecidableEq K] [Finite E] {c' : E → ℝ → ℝ}
     (hconv : ∀ e, ConvexOn ℝ (Ici 0) (fun x => x * G.latency e x))
     (hderiv : ∀ e x, 0 ≤ x → HasDerivWithinAt (G.latency e) (c' e x) (Ici 0) x)
@@ -354,18 +315,6 @@ theorem isOptimal_iff_isWardrop_withMarginalCost [DecidableEq K] [Finite E] {c' 
   ⟨fun hf => hf.isWardrop_withMarginalCost_within fun e =>
       hderiv e _ (G.edgeFlow_nonneg hf.1.1 e),
     isOptimal_of_isWardrop_withMarginalCost_within hconv hderiv⟩
-
-/-- **Characterization of optimal flows** ([Roughgarden2007Routing], Proposition 18.9): when
-`x ↦ x * latency e x` is convex on `[0, ∞)` and `latency e` has derivative `c' e` within `[0, ∞)`,
-a flow `f*` is socially optimal for `G` if and only if it is feasible and every flow-carrying path
-minimizes the sum of marginal edge costs `marginalCost (latency e) (c' e)` within its commodity. -/
-theorem isOptimal_iff_marginalCost_le [DecidableEq K] [Finite E] {c' : E → ℝ → ℝ}
-    (hconv : ∀ e, ConvexOn ℝ (Ici 0) (fun x => x * G.latency e x))
-    (hderiv : ∀ e x, 0 ≤ x → HasDerivWithinAt (G.latency e) (c' e x) (Ici 0) x)
-    {f : P → ℝ} :
-    G.IsOptimal f ↔ G.IsFeasible f ∧ ∀ p q, G.commodity p = G.commodity q → 0 < f p →
-      (G.withMarginalCost c').pathLatency f p ≤ (G.withMarginalCost c').pathLatency f q :=
-  isOptimal_iff_isWardrop_withMarginalCost hconv hderiv
 
 /-! ### Theorem 18.27: Pigouvian marginal-cost taxes -/
 

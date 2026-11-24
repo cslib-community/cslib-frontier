@@ -40,33 +40,35 @@ a population of nonatomic users routes traffic over `T` days, producing feasible
   which in the single-commodity unit-rate model equals the source's `R(T) ≤ ε * T` against every
   fixed path (`hasAvgRegretLe_unit_iff`).
 
-This module establishes four results on the time-averaged flow
-`timeAverageFlow f T = fun p => (∑ t < T, f t p) / T`:
+This module formalizes [BlumMansour2007AGT], Theorem 4.18 (p. 97), together with original
+nonlinear time-average extensions inspired by the bounded-slope discussion in
+[BlumMansour2007AGT], Section 4.7, pp. 97–98 (where the source's informal per-day
+`(1 - ε)`-fraction convergence claim from Blum, Even-Dar and Ligett, 2006 remains open under
+#7789):
 
-* **Cost Jensen bound for convex nondecreasing latencies** (`convexOn_mul_of_monotoneOn_convexOn`,
-  `cost_timeAverageFlow_le`): whenever edge latencies are nondecreasing and convex on `[0, ∞)` (or
-  more generally whenever `x ↦ x * latency e x` is convex on `[0, ∞)`), `G.cost` is convex on
-  nonnegative flows, so `G.cost (timeAverageFlow f T) ≤ (∑ t < T, G.cost (f t)) / T`.
-* **Exact `ε`-Wardrop convergence via Jensen, and Theorem 4.18 for affine latencies**
-  (`isApproxWardrop_timeAverageFlow_of_concaveOn`,
-  `HasAffineLatencies.isApproxWardrop_timeAverageFlow`,
-  `HasAffineLatencies.isApproxWardrop_timeAverageFlow_unit`, [BlumMansour2007AGT], Theorem 4.18):
-  when `latency e` is concave on `[0, ∞)` and `x ↦ x * latency e x` is convex on `[0, ∞)` — in
-  particular for all nonnegative affine latencies — average regret `≤ ε` implies that
-  `timeAverageFlow f T` is `ε`-Wardrop with *no* degradation in `ε`.
-* **Superlinear counterexample to literal `ε` preservation**
-  (`exists_not_isApproxWardrop_timeAverageFlow_sq`):
+* **Theorem 4.18 for affine latencies**
+  (`HasAffineLatencies.isApproxWardrop_timeAverageFlow`,
+  `HasAffineLatencies.isApproxWardrop_timeAverageFlow_unit`, [BlumMansour2007AGT], Theorem 4.18,
+  p. 97): when every edge latency is nonnegative affine, average external regret `≤ ε` implies
+  that `timeAverageFlow f T` is feasible and `ε`-Wardrop with *no* degradation in `ε`.
+* **Cost Jensen bound** (`cost_timeAverageFlow_le`): whenever `x ↦ x * latency e x` is convex on
+  `[0, ∞)`, `G.cost (timeAverageFlow f T) ≤ (∑ t < T, G.cost (f t)) / T`.
+* **Original concave-latency generalization** (`isApproxWardrop_timeAverageFlow_of_concaveOn`,
+  original): extends Theorem 4.18's Jensen proof to any concave latencies on `[0, ∞)` with convex
+  edge cost `x ↦ x * latency e x`.
+* **Original quadratic counterexample to literal `ε`-preservation**
+  (`exists_not_isApproxWardrop_timeAverageFlow_sq`, original):
   for the convex quadratic latency `x ^ 2` on `pigouNetwork (· ^ 2) 1`, two daily flows have
   average regret `44 / 64` while their time average has Wardrop gap `45 / 64 > 44 / 64`, showing
   that literal `ε`-preservation requires concavity/linearity of `latency e` on the benchmark side.
-* **General nonlinear bounded-slope convergence**
+* **Original bounded-slope time-average convergence**
   (`isApproxWardrop_timeAverageFlow_of_lipschitz`,
   `isApproxWardrop_timeAverageFlow_of_convexOn_of_lipschitz`,
-  `isWardrop_timeAverageFlow_of_hasAvgRegretLe_zero`, [BlumMansour2007AGT], Section 4.7,
-  pp. 97–98): for *any* nondecreasing `L`-Lipschitz latencies on `[0, ∞)`, bounding edge-latency
-  fluctuations via the Chebyshev covariance identity `(c_e(x_t) - c_e(x̂))^2 ≤
-  L * (x_t - x̂) * (c_e(x_t) - c_e(x̂))` proves that `timeAverageFlow f T` is
-  `(ε + 2 * totalFlow * √(|E| * L * ε))`-Wardrop (improving to
+  `isWardrop_timeAverageFlow_of_hasAvgRegretLe_zero`, original formulations inspired by
+  [BlumMansour2007AGT], Section 4.7, pp. 97–98): for *any* nondecreasing `L`-Lipschitz latencies
+  on `[0, ∞)`, bounding edge-latency fluctuations via the Chebyshev covariance identity
+  `(c_e(x_t) - c_e(x̂))^2 ≤ L * (x_t - x̂) * (c_e(x_t) - c_e(x̂))` proves that
+  `timeAverageFlow f T` is `(ε + 2 * totalFlow * √(|E| * L * ε))`-Wardrop (improving to
   `ε + totalFlow * √(|E| * L * ε)` when `latency e` is also convex on `[0, ∞)`, and giving an
   exact Wardrop equilibrium when `ε = 0`).
 
@@ -79,26 +81,25 @@ This module establishes four results on the time-averaged flow
 
 ## Main results
 
-* `Cslib.GameTheory.NonatomicCongestionGame.isApproxWardrop_zero_iff` and
-  `Cslib.GameTheory.NonatomicCongestionGame.isApproxWardrop_unit_iff`: characterizations of
-  `IsApproxWardrop`.
-* `Cslib.GameTheory.NonatomicCongestionGame.hasAvgRegretLe_unit_iff`: equivalence with the
-  single-commodity pathwise `R(T) ≤ ε * T` condition.
-* `Cslib.GameTheory.convexOn_mul_of_monotoneOn_convexOn` and
-  `Cslib.GameTheory.NonatomicCongestionGame.cost_timeAverageFlow_le`: convexity of `x * c(x)` and
-  Jensen bound on `cost (timeAverageFlow f T)`.
-* `Cslib.GameTheory.NonatomicCongestionGame.isApproxWardrop_timeAverageFlow_of_concaveOn`,
-  `Cslib.GameTheory.NonatomicCongestionGame.HasAffineLatencies.isApproxWardrop_timeAverageFlow` and
+* `Cslib.GameTheory.NonatomicCongestionGame.isApproxWardrop_unit_iff` and
+  `Cslib.GameTheory.NonatomicCongestionGame.hasAvgRegretLe_unit_iff`: single-commodity unit-rate
+  equivalences matching `C(f) ≤ ε + min_p pathLatency f p` and `R(T) ≤ ε * T`.
+* `Cslib.GameTheory.NonatomicCongestionGame.cost_timeAverageFlow_le`: Jensen bound on
+  `cost (timeAverageFlow f T)`.
+* `Cslib.GameTheory.NonatomicCongestionGame.HasAffineLatencies.isApproxWardrop_timeAverageFlow` and
   `Cslib.GameTheory.NonatomicCongestionGame.HasAffineLatencies.isApproxWardrop_timeAverageFlow_unit`
-  ([BlumMansour2007AGT], Theorem 4.18): exact `ε`-Wardrop convergence for affine (and concave with
-  convex edge cost) latencies.
-* `Cslib.GameTheory.NonatomicCongestionGame.exists_not_isApproxWardrop_timeAverageFlow_sq`:
-  quadratic counterexample showing literal `ε` fails without concavity/linearity of `latency e`.
+  ([BlumMansour2007AGT], Theorem 4.18, p. 97): exact `ε`-Wardrop convergence for nonnegative
+  affine latencies.
+* `Cslib.GameTheory.NonatomicCongestionGame.isApproxWardrop_timeAverageFlow_of_concaveOn`
+  (original): exact `ε`-Wardrop convergence for concave latencies with convex edge cost.
+* `Cslib.GameTheory.NonatomicCongestionGame.exists_not_isApproxWardrop_timeAverageFlow_sq`
+  (original): quadratic counterexample showing literal `ε` fails without concavity/linearity of
+  `latency e`.
 * `Cslib.GameTheory.NonatomicCongestionGame.isApproxWardrop_timeAverageFlow_of_lipschitz` and
   `Cslib.GameTheory.NonatomicCongestionGame.isWardrop_timeAverageFlow_of_hasAvgRegretLe_zero`
-  (plus `isApproxWardrop_timeAverageFlow_of_convexOn_of_lipschitz`,
-  [BlumMansour2007AGT], Section 4.7, pp. 97–98): `O(ε + √ε)` convergence for general nonlinear
-  nondecreasing bounded-slope latencies.
+  (plus `isApproxWardrop_timeAverageFlow_of_convexOn_of_lipschitz`; original, inspired by
+  [BlumMansour2007AGT], Section 4.7, pp. 97–98): `O(ε + √ε)` time-average convergence for general
+  nonlinear nondecreasing bounded-slope latencies.
 
 ## References
 
@@ -119,7 +120,7 @@ open Finset
 
 /-- If `c : ℝ → ℝ` is nondecreasing and convex on `[0, ∞)`, then `x ↦ x * c x` is convex on
 `[0, ∞)`. -/
-theorem convexOn_mul_of_monotoneOn_convexOn {c : ℝ → ℝ} (hm : MonotoneOn c (Set.Ici 0))
+private theorem convexOn_mul_of_monotoneOn_convexOn {c : ℝ → ℝ} (hm : MonotoneOn c (Set.Ici 0))
     (hc : ConvexOn ℝ (Set.Ici 0) c) : ConvexOn ℝ (Set.Ici 0) (fun x => x * c x) := by
   refine ⟨convex_Ici 0, fun x hx y hy a b ha hb hab => ?_⟩
   simp only [smul_eq_mul]
@@ -215,7 +216,7 @@ is equivalent to feasibility of each `f t` together with
 `∀ p, (∑ t < T, G.cost (f t)) / T ≤ (∑ t < T, G.pathLatency (f t) p) / T + ε`, i.e.,
 `R(T) ≤ ε * T` in [BlumMansour2007AGT], Section 4.7, p. 97. -/
 theorem hasAvgRegretLe_unit_iff {G : NonatomicCongestionGame Unit P E}
-    (hr : G.rate () = 1) {f : ℕ → P → ℝ} {T : ℕ} (_hT : 0 < T) {ε : ℝ} :
+    (hr : G.rate () = 1) {f : ℕ → P → ℝ} {T : ℕ} {ε : ℝ} :
     G.HasAvgRegretLe f T ε ↔
       (∀ t < T, G.IsFeasible (f t)) ∧
         ∀ p, (∑ t ∈ range T, G.cost (f t)) / T ≤
@@ -291,8 +292,8 @@ private theorem sum_range_inv_eq_one {T : ℕ} (hT : 0 < T) :
   rw [sum_const, card_range, nsmul_eq_mul, mul_inv_cancel₀ hT_pos.ne']
 
 /-- When `x ↦ x * latency e x` is convex on `[0, ∞)` for every resource `e` (in particular for
-every nondecreasing convex latency by `convexOn_mul_of_monotoneOn_convexOn`), the cost of the
-time-averaged flow is at most the time average of the daily flow costs. -/
+every nondecreasing convex latency), the cost of the time-averaged flow is at most the time average
+of the daily flow costs. -/
 theorem cost_timeAverageFlow_le [Finite E]
     (hconv : ∀ e, ConvexOn ℝ (Set.Ici 0) (fun x => x * G.latency e x))
     {f : ℕ → P → ℝ} {T : ℕ} (hT : 0 < T) (hf : ∀ t < T, ∀ p, 0 ≤ f t p) :
@@ -306,7 +307,7 @@ theorem cost_timeAverageFlow_le [Finite E]
   simp only [smul_eq_mul, ← div_eq_inv_mul, ← sum_div] at hj
   rwa [G.edgeFlow_timeAverageFlow]
 
-/-- **Exact `ε`-Wardrop convergence under concave edge latencies with convex edge cost**: if
+/-- **Original concave-latency generalization of [BlumMansour2007AGT], Theorem 4.18**: if
 `latency e` is concave on `[0, ∞)` and `x ↦ x * latency e x` is convex on `[0, ∞)` (for instance,
 `c(x) = a x + b` or `c(x) = x ^ α` with `0 ≤ α ≤ 1`), then any flow sequence with average external
 regret at most `ε` over `T > 0` steps has time-average flow that is feasible and `ε`-Wardrop. -/
@@ -367,14 +368,15 @@ theorem HasAffineLatencies.isApproxWardrop_timeAverageFlow_unit [Finite E]
     (hR : ∀ p, ∑ t ∈ range T, G.cost (f t) - ∑ t ∈ range T, G.pathLatency (f t) p ≤ ε * T) :
     G.IsApproxWardrop ε (timeAverageFlow f T) := by
   have hT_pos : (0 : ℝ) < T := by exact_mod_cast hT
-  refine hG.isApproxWardrop_timeAverageFlow hT ((hasAvgRegretLe_unit_iff hr hT).2 ⟨hf, fun p => ?_⟩)
+  refine hG.isApproxWardrop_timeAverageFlow hT ((hasAvgRegretLe_unit_iff hr).2 ⟨hf, fun p => ?_⟩)
   rw [div_le_iff₀ hT_pos, add_mul, div_mul_cancel₀ _ hT_pos.ne']
   linarith [hR p]
 
-/-- **Quadratic counterexample to literal `ε`-preservation without concavity/linearity**: on
-`pigouNetwork (· ^ 2) 1`, the two-day sequence `f 0 = ![0, 1]`, `f 1 = ![1 / 2, 1 / 2]` has
-average external regret `44 / 64`, whereas `timeAverageFlow f 2 = ![1 / 4, 3 / 4]` has Wardrop gap
-`45 / 64 > 44 / 64` and is therefore *not* `(44 / 64)`-Wardrop. -/
+/-- **Original quadratic counterexample to literal `ε`-preservation without concavity/linearity**
+(inspired by [BlumMansour2007AGT], Section 4.7, pp. 97–98): on `pigouNetwork (· ^ 2) 1`, the
+two-day sequence `f 0 = ![0, 1]`, `f 1 = ![1 / 2, 1 / 2]` has average external regret `44 / 64`,
+whereas `timeAverageFlow f 2 = ![1 / 4, 3 / 4]` has Wardrop gap `45 / 64 > 44 / 64` and is
+therefore *not* `(44 / 64)`-Wardrop. -/
 theorem exists_not_isApproxWardrop_timeAverageFlow_sq :
     ∃ (f : ℕ → Fin 2 → ℝ),
       (pigouNetwork (fun x : ℝ => x ^ 2) 1).HasAvgRegretLe f 2 (44 / 64) ∧
@@ -383,7 +385,7 @@ theorem exists_not_isApproxWardrop_timeAverageFlow_sq :
   let G := pigouNetwork (fun x : ℝ => x ^ 2) 1
   let f : ℕ → Fin 2 → ℝ := fun t => if t = 0 then ![0, 1] else ![1 / 2, 1 / 2]
   refine ⟨f, ?_, ?_⟩
-  · rw [hasAvgRegretLe_unit_iff rfl (by decide)]
+  · rw [hasAvgRegretLe_unit_iff rfl]
     refine ⟨fun t ht => ?_, fun p => ?_⟩
     · have ht2 : t = 0 ∨ t = 1 := by omega
       rcases ht2 with rfl | rfl
@@ -397,10 +399,8 @@ theorem exists_not_isApproxWardrop_timeAverageFlow_sq :
           ext i; fin_cases i <;> norm_num
         rw [← h12]
         exact pigouNetwork_isFeasible (fun x : ℝ => x ^ 2) (by norm_num) (by norm_num)
-    · have hflow : ∀ g : Fin 2 → ℝ, ∀ e, G.edgeFlow g e = g e := fun g e => by
-        simp [edgeFlow, G, pigouNetwork, Finset.filter_eq]
-      simp only [sum_range_succ, sum_range_zero, zero_add, G, pigouNetwork_cost, pathLatency,
-        hflow, f, ↓reduceIte]
+    · simp only [sum_range_succ, sum_range_zero, zero_add, pigouNetwork_cost, pathLatency,
+        pigouNetwork_edgeFlow, f, ↓reduceIte]
       fin_cases p <;> norm_num [pigouNetwork]
   · rw [isApproxWardrop_unit_iff rfl]
     rintro ⟨_, hmin⟩
@@ -410,13 +410,14 @@ theorem exists_not_isApproxWardrop_timeAverageFlow_sq :
       simp only [timeAverageFlow, sum_range_succ, sum_range_zero, zero_add, f, ↓reduceIte]
       fin_cases i <;> norm_num
     have hp0 : G.pathLatency ![1 / 4, 3 / 4] 0 = (1 / 4 : ℝ) ^ 2 := by
-      simp [pathLatency, G, pigouNetwork, edgeFlow, Finset.filter_eq]
+      simp only [pathLatency, G, pigouNetwork_edgeFlow]
+      simp [pigouNetwork]
     rw [havg, pigouNetwork_cost, hp0] at h0
     norm_num at h0
 
 end JensenAndAffine
 
-/-! ### General nonlinear bounded-slope convergence (Section 4.7, pp. 97–98) -/
+/-! ### Original bounded-slope time-average convergence (inspired by Section 4.7, pp. 97–98) -/
 
 section BoundedSlopeNonlinear
 
@@ -568,11 +569,12 @@ private theorem abs_avgPathLatency_sub_pathLatency_le [DecidableEq K] [Fintype E
     _ ≤ (∑ p, f 0 p) * √((Fintype.card E : ℝ) * L * ε) :=
         mul_le_mul_of_nonneg_left habs (sum_nonneg fun p _ => hf0.1 p)
 
-/-- **General nonlinear bounded-slope convergence to approximate Wardrop equilibrium**
-([BlumMansour2007AGT], Section 4.7, pp. 97–98): if every resource latency is nondecreasing and
-`L`-Lipschitz on `[0, ∞)` (`L ≥ 0`), then any flow sequence `f` with average external regret at
-most `ε` over `T > 0` steps has time-average flow `timeAverageFlow f T` that is
-`(ε + 2 * (∑ p, f 0 p) * √(|E| * L * ε))`-Wardrop. -/
+/-- **Original bounded-slope time-average convergence to approximate Wardrop equilibrium**
+(inspired by the bounded-slope discussion in [BlumMansour2007AGT], Section 4.7, pp. 97–98; the
+source's per-day `(1 - ε)`-fraction convergence claim remains open under #7789): if every resource
+latency is nondecreasing and `L`-Lipschitz on `[0, ∞)` (`L ≥ 0`), then any flow sequence `f` with
+average external regret at most `ε` over `T > 0` steps has time-average flow `timeAverageFlow f T`
+that is `(ε + 2 * (∑ p, f 0 p) * √(|E| * L * ε))`-Wardrop. -/
 theorem isApproxWardrop_timeAverageFlow_of_lipschitz [DecidableEq K] [Fintype E]
     {L : ℝ} (hL : 0 ≤ L)
     (hm : ∀ e, MonotoneOn (G.latency e) (Set.Ici 0))
@@ -604,8 +606,9 @@ theorem isApproxWardrop_timeAverageFlow_of_lipschitz [DecidableEq K] [Fintype E]
   have hcost_fbar : ∑ p, fbar p * G.pathLatency fbar p = G.cost fbar := rfl
   linarith [hreg.2 g hg]
 
-/-- Sharpened nonlinear bound when resource latencies are **convex**, nondecreasing and
-`L`-Lipschitz on `[0, ∞)`: convexity gives
+/-- **Original sharpened bounded-slope time-average bound for convex latencies** (inspired by
+[BlumMansour2007AGT], Section 4.7, pp. 97–98): when resource latencies are convex, nondecreasing
+and `L`-Lipschitz on `[0, ∞)`, convexity gives
 `G.cost (timeAverageFlow f T) ≤ (∑ t < T, G.cost (f t)) / T` directly, eliminating one of the two
 fluctuation error terms. -/
 theorem isApproxWardrop_timeAverageFlow_of_convexOn_of_lipschitz [DecidableEq K] [Fintype E]
@@ -624,8 +627,10 @@ theorem isApproxWardrop_timeAverageFlow_of_convexOn_of_lipschitz [DecidableEq K]
   have hg_diff := (abs_le.1 (abs_avgPathLatency_sub_pathLatency_le hL hm hlip hT hreg hg)).2
   linarith [hreg.2 g hg]
 
-/-- At zero external regret (`ε = 0`), for any nondecreasing `L`-Lipschitz latencies on `[0, ∞)`,
-the time-averaged flow is an exact Wardrop equilibrium. -/
+/-- **Original zero-regret time-average convergence for bounded-slope latencies** (corollary of
+`isApproxWardrop_timeAverageFlow_of_lipschitz`): at zero external regret (`ε = 0`), for any
+nondecreasing `L`-Lipschitz latencies on `[0, ∞)`, the time-averaged flow is an exact Wardrop
+equilibrium. -/
 theorem isWardrop_timeAverageFlow_of_hasAvgRegretLe_zero [DecidableEq K] [Finite E]
     {L : ℝ} (hL : 0 ≤ L)
     (hm : ∀ e, MonotoneOn (G.latency e) (Set.Ici 0))

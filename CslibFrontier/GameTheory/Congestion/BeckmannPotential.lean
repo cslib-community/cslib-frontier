@@ -8,9 +8,14 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.GameTheory.Congestion.PigouBound
+public import Mathlib.Analysis.Calculus.Deriv.Basic
 public import Mathlib.Analysis.Convex.Function
 public import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
+import Mathlib.Analysis.Calculus.Deriv.Add
+import Mathlib.Analysis.Calculus.Deriv.Comp
+import Mathlib.Analysis.Calculus.Deriv.Mul
 import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
+import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
 import Mathlib.Topology.Algebra.Monoid
 import Mathlib.Topology.Compactness.Compact
 import Mathlib.Topology.Order.Compact
@@ -18,6 +23,7 @@ import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Positivity
+import Mathlib.Tactic.Ring
 
 /-!
 # Beckmann's potential and existence and uniqueness of Wardrop equilibria
@@ -275,8 +281,13 @@ variable {K P E : Type*} [Fintype P] [DecidableEq E] [Fintype E]
 
 /-- **Beckmann's potential** ([Roughgarden2007Routing], Equation (18.3), originally due to
 Beckmann, McGuire and Winsten, 1956): `Φ(f) = ∑ e, ∫ x in 0..edgeFlow f e, latency e x`. -/
-@[expose] noncomputable def beckmannPotential (f : P → ℝ) : ℝ :=
+noncomputable def beckmannPotential (f : P → ℝ) : ℝ :=
   ∑ e, ∫ x in (0 : ℝ)..G.edgeFlow f e, G.latency e x
+
+/-- Unfolding equation for `beckmannPotential`. -/
+theorem beckmannPotential_def (f : P → ℝ) :
+    G.beckmannPotential f = ∑ e, ∫ x in (0 : ℝ)..G.edgeFlow f e, G.latency e x := by
+  rfl
 
 /-- A function continuous on `[0, ∞)` is interval-integrable between any two nonnegative reals. -/
 private theorem intervalIntegrable_of_continuousOn_Ici {c : ℝ → ℝ} (hc : ContinuousOn c (Ici 0))
@@ -323,107 +334,83 @@ private theorem mul_sub_le_integral_sub_and_le {c : ℝ → ℝ} (hc : Continuou
     rw [integral_const, smul_eq_mul] at hlo hhi
     constructor <;> linarith
 
-/-- The primitive `u ↦ ∫ x in 0..u, c x` is continuous on `[0, ∞)` when `c` is continuous on
-`[0, ∞)`. -/
-private theorem continuousOn_primitive_Ici {c : ℝ → ℝ} (hc : ContinuousOn c (Ici 0)) :
-    ContinuousOn (fun u => ∫ x in (0 : ℝ)..u, c x) (Ici 0) := by
-  intro u₀ hu₀
-  rw [Metric.continuousWithinAt_iff]
-  intro ε hε
-  have hK : IsCompact (Icc 0 (u₀ + 1)) := isCompact_Icc
-  have hne : (Icc (0 : ℝ) (u₀ + 1)).Nonempty := nonempty_Icc.2 (by linarith [mem_Ici.1 hu₀])
-  obtain ⟨u_max, _, humax⟩ := hK.exists_isMaxOn hne
-    (continuous_norm.comp_continuousOn (hc.mono (Icc_subset_Ici_self)))
-  set M := ‖c u_max‖ + 1
-  have hM_pos : 0 < M := by positivity
-  refine ⟨min 1 (ε / M), lt_min zero_lt_one (div_pos hε hM_pos), fun u hu hdist => ?_⟩
-  rw [Real.dist_eq] at hdist ⊢
-  have hu0 : 0 ≤ u := mem_Ici.1 hu
-  have hu_le : u ≤ u₀ + 1 := by
-    have := lt_of_lt_of_le hdist (min_le_left _ _)
-    linarith [abs_lt.1 this]
-  rw [integral_sub_zero_eq hc hu₀ hu0]
-  have hbound : ∀ x ∈ uIoc u₀ u, ‖c x‖ ≤ M := by
-    intro x hx
-    have hxIcc : x ∈ Icc 0 (u₀ + 1) := by
-      rcases uIoc_subset_uIcc hx with ⟨h1, h2⟩
-      exact ⟨le_trans (le_min hu₀ hu0) h1, le_trans h2 (max_le (by linarith) hu_le)⟩
-    have hle : ‖c x‖ ≤ ‖c u_max‖ := humax hxIcc
-    linarith
-  have hnorm := norm_integral_le_of_norm_le_const hbound
-  rw [Real.norm_eq_abs] at hnorm
-  have hlt : M * |u - u₀| < ε := by
-    have hlt' : |u - u₀| < ε / M := lt_of_lt_of_le hdist (min_le_right _ _)
-    rwa [lt_div_iff₀' hM_pos] at hlt'
-  linarith
+/-- By the Fundamental Theorem of Calculus, `u ↦ ∫ x in 0..u, c x` has derivative `c a` within
+`[0, ∞)` at every `a ≥ 0` when `c` is continuous on `[0, ∞)`. -/
+private theorem hasDerivWithinAt_primitive_Ici {c : ℝ → ℝ} (hc : ContinuousOn c (Ici 0))
+    {a : ℝ} (ha : 0 ≤ a) :
+    HasDerivWithinAt (fun u => ∫ x in (0 : ℝ)..u, c x) (c a) (Ici 0) a := by
+  have : Fact (a ∈ Icc 0 (a + 1)) := ⟨⟨ha, by linarith⟩⟩
+  have hcont : ContinuousOn c (Icc 0 (a + 1)) := hc.mono Icc_subset_Ici_self
+  have hd : HasDerivWithinAt (fun u => ∫ x in (0 : ℝ)..u, c x) (c a) (Icc 0 (a + 1)) a :=
+    integral_hasDerivWithinAt_right (intervalIntegrable_of_continuousOn_Ici hc le_rfl ha)
+      (hcont.stronglyMeasurableAtFilter_nhdsWithin measurableSet_Icc a)
+      (hcont a ⟨ha, by linarith⟩)
+  exact hd.mono_of_mem_nhdsWithin <|
+    Filter.inter_mem self_mem_nhdsWithin (mem_nhdsWithin_of_mem_nhds (Iic_mem_nhds (by linarith)))
 
-/-- Directional derivative limit of `∫ x in 0..(a + t * d), c x` as `t → 0⁺` on `[0, ∞)`. -/
-private theorem tendsto_div_integral_sub {c : ℝ → ℝ} (hc : ContinuousOn c (Ici 0))
-    {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) :
-    Tendsto (fun t : ℝ =>
-        ((∫ x in (0 : ℝ)..((1 - t) * a + t * b), c x) - ∫ x in (0 : ℝ)..a, c x) / t)
-      (𝓝[Ioc 0 1] 0) (𝓝 (c a * (b - a))) := by
-  rw [Metric.tendsto_nhds]
-  intro ε hε
-  rcases eq_or_ne a b with rfl | hab_ne
-  · refine eventually_nhdsWithin_of_forall fun t _ => ?_
-    have heq : (1 - t) * a + t * a = a := by ring
-    rw [heq, sub_self, zero_div, sub_self, mul_zero, dist_self]
-    exact hε
-  · have hba : b ≠ a := Ne.symm hab_ne
-    have hpos : 0 < |b - a| := abs_pos.2 (sub_ne_zero.2 hba)
-    have hc_at := Metric.continuousWithinAt_iff.1 (hc a ha) (ε / (2 * |b - a|))
-      (div_pos hε (by positivity))
-    obtain ⟨δ, hδ, hδc⟩ := hc_at
-    have hnhds : Ioo (-min 1 (δ / |b - a|)) (min 1 (δ / |b - a|)) ∈ 𝓝 (0 : ℝ) :=
-      Ioo_mem_nhds (neg_lt_zero.2 (lt_min zero_lt_one (div_pos hδ hpos)))
-        (lt_min zero_lt_one (div_pos hδ hpos))
-    filter_upwards [mem_nhdsWithin_of_mem_nhds hnhds, self_mem_nhdsWithin] with t ht htIoc
-    obtain ⟨ht0, ht1⟩ := htIoc
-    have ht_lt : t < δ / |b - a| := lt_of_lt_of_le ht.2 (min_le_right _ _)
-    set u := (1 - t) * a + t * b
-    have hu0 : 0 ≤ u := add_nonneg (mul_nonneg (sub_nonneg.2 ht1) ha) (mul_nonneg ht0.le hb)
-    have hconst : c a * (b - a) = (∫ _ in a..u, c a) / t := by
-      rw [integral_const, smul_eq_mul]
-      have hu_sub : u - a = t * (b - a) := by dsimp only [u]; ring
-      rw [hu_sub]
-      field_simp [ht0.ne']
-    rw [integral_sub_zero_eq hc ha hu0, hconst, Real.dist_eq, ← sub_div,
-      ← integral_sub (intervalIntegrable_of_continuousOn_Ici hc ha hu0) intervalIntegrable_const,
-      abs_div, abs_of_pos ht0]
-    have hbound : ∀ x ∈ uIoc a u, ‖c x - c a‖ ≤ ε / (2 * |b - a|) := by
-      intro x hx
-      rcases uIoc_subset_uIcc hx with ⟨hx1, hx2⟩
-      have hx0 : 0 ≤ x := le_trans (le_min ha hu0) hx1
-      have hdist_x : dist x a < δ := by
-        rw [Real.dist_eq]
-        have hu_sub : |u - a| = t * |b - a| := by
-          have : u - a = t * (b - a) := by dsimp only [u]; ring
-          rw [this, abs_mul, abs_of_pos ht0]
-        have hxa_le : |x - a| ≤ |u - a| := by
-          rcases le_total a u with hau | hua
-          · rw [min_eq_left hau] at hx1
-            rw [max_eq_right hau] at hx2
-            rw [abs_of_nonneg (sub_nonneg.2 hx1), abs_of_nonneg (sub_nonneg.2 hau)]
-            linarith
-          · rw [min_eq_right hua] at hx1
-            rw [max_eq_left hua] at hx2
-            rw [abs_of_nonpos (sub_nonpos.2 hx2), abs_of_nonpos (sub_nonpos.2 hua)]
-            linarith
-        exact lt_of_le_of_lt hxa_le (by rw [hu_sub]; exact (lt_div_iff₀ hpos).1 ht_lt)
-      exact (hδc hx0 hdist_x).le
-    have hnorm := norm_integral_le_of_norm_le_const hbound
-    rw [Real.norm_eq_abs] at hnorm
-    have hu_abs : |u - a| = t * |b - a| := by
-      have : u - a = t * (b - a) := by dsimp only [u]; ring
-      rw [this, abs_mul, abs_of_pos ht0]
-    rw [div_lt_iff₀ ht0]
-    calc |∫ x in a..u, (c x - c a)|
-        ≤ (ε / (2 * |b - a|)) * |u - a| := hnorm
-      _ = (ε / 2) * t := by
-          rw [hu_abs]
-          field_simp [hpos.ne']
-      _ < ε * t := by nlinarith
+/-- First-order variational inequality for a separable edge-flow objective: if `f` is feasible and
+minimizes `g ↦ ∑ e, H e (G.edgeFlow g e)` over `{g | G.IsFeasible g}`, and each `H e` has
+derivative `d e` within `[0, ∞)` at `G.edgeFlow f e`, then
+`∑ e, d e * G.edgeFlow f e ≤ ∑ e, d e * G.edgeFlow g e` for every feasible flow `g`. -/
+theorem IsFeasible.sum_mul_edgeFlow_le_of_isMinOn [DecidableEq K]
+    {G : NonatomicCongestionGame K P E} {H : E → ℝ → ℝ} {d : E → ℝ} {f : P → ℝ}
+    (hf : G.IsFeasible f)
+    (hmin : IsMinOn (fun g => ∑ e, H e (G.edgeFlow g e)) {g | G.IsFeasible g} f)
+    (hderiv : ∀ e, HasDerivWithinAt (H e) (d e) (Ici 0) (G.edgeFlow f e))
+    {g : P → ℝ} (hg : G.IsFeasible g) :
+    ∑ e, d e * G.edgeFlow f e ≤ ∑ e, d e * G.edgeFlow g e := by
+  have hterm : ∀ e, HasDerivWithinAt
+      (fun t : ℝ => H e ((1 - t) * G.edgeFlow f e + t * G.edgeFlow g e))
+      (d e * (G.edgeFlow g e - G.edgeFlow f e)) (Icc 0 1) 0 := by
+    intro e
+    have hlin : HasDerivAt (fun t : ℝ => (1 - t) * G.edgeFlow f e + t * G.edgeFlow g e)
+        (G.edgeFlow g e - G.edgeFlow f e) 0 := by
+      have h1 : HasDerivAt (fun t : ℝ => (1 - t) * G.edgeFlow f e) (-G.edgeFlow f e) 0 := by
+        simpa only [id_eq, smul_eq_mul, neg_one_mul] using
+          ((hasDerivAt_id (0 : ℝ)).const_sub (1 : ℝ)).smul_const (G.edgeFlow f e)
+      have h2 : HasDerivAt (fun t : ℝ => t * G.edgeFlow g e) (G.edgeFlow g e) 0 := by
+        simpa only [id_eq, smul_eq_mul, one_mul] using
+          (hasDerivAt_id (0 : ℝ)).smul_const (G.edgeFlow g e)
+      simpa only [sub_eq_neg_add] using h1.fun_add h2
+    have h0 : (1 - (0 : ℝ)) * G.edgeFlow f e + (0 : ℝ) * G.edgeFlow g e = G.edgeFlow f e := by
+      ring
+    have hH : HasDerivWithinAt (H e) (d e) (Ici 0)
+        ((1 - (0 : ℝ)) * G.edgeFlow f e + (0 : ℝ) * G.edgeFlow g e) := by
+      rw [h0]
+      exact hderiv e
+    have hmaps : MapsTo (fun t : ℝ => (1 - t) * G.edgeFlow f e + t * G.edgeFlow g e)
+        (Icc 0 1) (Ici 0) := fun t ⟨ht0, ht1⟩ =>
+      add_nonneg (mul_nonneg (sub_nonneg.2 ht1) (G.edgeFlow_nonneg hf.1 e))
+        (mul_nonneg ht0 (G.edgeFlow_nonneg hg.1 e))
+    simpa only [Function.comp_def, smul_eq_mul,
+      mul_comm (G.edgeFlow g e - G.edgeFlow f e)] using
+      hH.scomp (0 : ℝ) hlin.hasDerivWithinAt hmaps
+  have hsum : HasDerivWithinAt
+      (fun t : ℝ => ∑ e, H e ((1 - t) * G.edgeFlow f e + t * G.edgeFlow g e))
+      (∑ e, d e * (G.edgeFlow g e - G.edgeFlow f e)) (Ioc 0 1) 0 :=
+    (HasDerivWithinAt.fun_sum fun e _ => hterm e).mono Ioc_subset_Icc_self
+  have hslope := (hasDerivWithinAt_iff_tendsto_slope' (by simp)).1 hsum
+  have hnonneg : ∀ᶠ t in 𝓝[Ioc 0 1] (0 : ℝ),
+      0 ≤ slope (fun t : ℝ => ∑ e, H e ((1 - t) * G.edgeFlow f e + t * G.edgeFlow g e)) 0 t := by
+    filter_upwards [self_mem_nhdsWithin] with t ⟨ht0, ht1⟩
+    rw [slope_def_field]
+    have hfeas : G.IsFeasible ((1 - t) • f + t • g) :=
+      hf.convex_combo G hg (sub_nonneg.2 ht1) ht0.le (sub_add_cancel 1 t)
+    have hval_t : ∑ e, H e ((1 - t) * G.edgeFlow f e + t * G.edgeFlow g e) =
+        ∑ e, H e (G.edgeFlow ((1 - t) • f + t • g) e) :=
+      Finset.sum_congr rfl fun e _ => by simp only [G.edgeFlow_add, G.edgeFlow_smul]
+    have hval_0 : ∑ e, H e (1 * G.edgeFlow f e + 0 * G.edgeFlow g e) =
+        ∑ e, H e (G.edgeFlow f e) :=
+      Finset.sum_congr rfl fun e _ => by ring_nf
+    simp only [sub_zero]
+    rw [hval_t, hval_0]
+    exact div_nonneg (sub_nonneg.2 (hmin hfeas)) ht0.le
+  have hnt : (𝓝[Ioc (0 : ℝ) 1] 0).NeBot :=
+    mem_closure_iff_nhdsWithin_neBot.1
+      (by rw [closure_Ioc zero_ne_one]; exact left_mem_Icc.2 zero_le_one)
+  have hlim := ge_of_tendsto hslope hnonneg
+  simp only [mul_sub, Finset.sum_sub_distrib] at hlim
+  linarith
 
 /-- `beckmannPotential` is continuous on the set of nonnegative path flows when resource latencies
 are continuous on `[0, ∞)`. -/
@@ -433,8 +420,9 @@ theorem continuousOn_beckmannPotential (hc : ∀ e, ContinuousOn (G.latency e) (
   refine continuousOn_finsetSum _ fun e _ => ?_
   have hef : Continuous (fun f : P → ℝ => G.edgeFlow f e) :=
     continuous_finsetSum _ fun p _ => continuous_apply p
-  exact (continuousOn_primitive_Ici (hc e)).comp hef.continuousOn
-    fun f hf => G.edgeFlow_nonneg hf e
+  have hprim : ContinuousOn (fun u => ∫ x in (0 : ℝ)..u, G.latency e x) (Ici 0) :=
+    fun _ hu => (hasDerivWithinAt_primitive_Ici (hc e) hu).continuousWithinAt
+  exact hprim.comp hef.continuousOn fun f hf => G.edgeFlow_nonneg hf e
 
 /-- `beckmannPotential` is convex on the feasible flow polytope when resource latencies are
 continuous and nondecreasing on `[0, ∞)`. -/
@@ -443,7 +431,7 @@ theorem convexOn_beckmannPotential [DecidableEq K]
     (hm : ∀ e, MonotoneOn (G.latency e) (Ici 0)) :
     ConvexOn ℝ {f : P → ℝ | G.IsFeasible f} G.beckmannPotential := by
   refine ⟨G.convex_setOf_isFeasible, fun f hf g hg a b ha hb hab => ?_⟩
-  simp only [beckmannPotential, smul_eq_mul, Finset.mul_sum, ← Finset.sum_add_distrib]
+  simp only [beckmannPotential_def, smul_eq_mul, Finset.mul_sum, ← Finset.sum_add_distrib]
   refine Finset.sum_le_sum fun e _ => ?_
   set xf := G.edgeFlow f e
   set xg := G.edgeFlow g e
@@ -474,7 +462,7 @@ theorem IsWardrop.isMinOn_beckmannPotential [DecidableEq K] {G : NonatomicConges
   have hvi := (isWardrop_iff_variationalInequality.1 hf).2 g hg
   have hsub : ∑ e, G.latency e (G.edgeFlow f e) * (G.edgeFlow g e - G.edgeFlow f e) ≤
       G.beckmannPotential g - G.beckmannPotential f := by
-    simp only [beckmannPotential, ← Finset.sum_sub_distrib]
+    simp only [beckmannPotential_def, ← Finset.sum_sub_distrib]
     refine Finset.sum_le_sum fun e _ =>
       (mul_sub_le_integral_sub_and_le (hc e) (hm e)
         (G.edgeFlow_nonneg hf.1.1 e) (G.edgeFlow_nonneg hg.1 e)).1
@@ -490,36 +478,10 @@ theorem IsFeasible.isWardrop_of_isMinOn_beckmannPotential [DecidableEq K]
     {G : NonatomicCongestionGame K P E}
     (hc : ∀ e, ContinuousOn (G.latency e) (Ici 0)) {f : P → ℝ} (hf : G.IsFeasible f)
     (hmin : IsMinOn G.beckmannPotential {g | G.IsFeasible g} f) :
-    G.IsWardrop f := by
-  rw [isWardrop_iff_variationalInequality]
-  refine ⟨hf, fun g hg => ?_⟩
-  have htend : Tendsto (fun t : ℝ =>
-      (G.beckmannPotential ((1 - t) • f + t • g) - G.beckmannPotential f) / t)
-      (𝓝[Ioc 0 1] 0)
-      (𝓝 (∑ e, G.latency e (G.edgeFlow f e) * (G.edgeFlow g e - G.edgeFlow f e))) := by
-    have hfun : (fun t : ℝ =>
-        (G.beckmannPotential ((1 - t) • f + t • g) - G.beckmannPotential f) / t) =
-        fun t : ℝ => ∑ e,
-          ((∫ x in (0 : ℝ)..((1 - t) * G.edgeFlow f e + t * G.edgeFlow g e), G.latency e x) -
-            ∫ x in (0 : ℝ)..G.edgeFlow f e, G.latency e x) / t := by
-      ext t
-      simp only [beckmannPotential, ← Finset.sum_sub_distrib, Finset.sum_div,
-        G.edgeFlow_add, G.edgeFlow_smul]
-    rw [hfun]
-    exact tendsto_finsetSum _ fun e _ =>
-      tendsto_div_integral_sub (hc e) (G.edgeFlow_nonneg hf.1 e) (G.edgeFlow_nonneg hg.1 e)
-  have hnonneg : ∀ᶠ t in 𝓝[Ioc 0 1] (0 : ℝ),
-      0 ≤ (G.beckmannPotential ((1 - t) • f + t • g) - G.beckmannPotential f) / t := by
-    filter_upwards [self_mem_nhdsWithin] with t ⟨ht0, ht1⟩
-    have hfeas : G.IsFeasible ((1 - t) • f + t • g) :=
-      hf.convex_combo G hg (sub_nonneg.2 ht1) ht0.le (sub_add_cancel 1 t)
-    exact div_nonneg (sub_nonneg.2 (hmin hfeas)) ht0.le
-  have hnt : (𝓝[Ioc (0 : ℝ) 1] 0).NeBot :=
-    mem_closure_iff_nhdsWithin_neBot.1
-      (by rw [closure_Ioc zero_ne_one]; exact left_mem_Icc.2 zero_le_one)
-  have hlim := ge_of_tendsto htend hnonneg
-  simp only [mul_sub, Finset.sum_sub_distrib] at hlim
-  linarith
+    G.IsWardrop f :=
+  isWardrop_iff_variationalInequality.2 ⟨hf, fun _ hg =>
+    hf.sum_mul_edgeFlow_le_of_isMinOn (H := fun e u => ∫ x in (0 : ℝ)..u, G.latency e x)
+      hmin (fun e => hasDerivWithinAt_primitive_Ici (hc e) (G.edgeFlow_nonneg hf.1 e)) hg⟩
 
 /-- **Beckmann's potential characterization** ([Roughgarden2007Routing], Proposition 18.11): for
 continuous nondecreasing latencies on `[0, ∞)`, a feasible flow is a Wardrop equilibrium if and
@@ -642,10 +604,7 @@ theorem pigouNetwork_id_isWardrop_iff {f : Fin 2 → ℝ} :
     · exact hxy
     · exact le_rfl
   have hlat := isWardrop_latency_eq hm hf (pigouNetwork_isWardrop _ zero_le_one) 0
-  have hflow : ∀ g : Fin 2 → ℝ, (pigouNetwork (fun x => x) 1).edgeFlow g 0 = g 0 := fun g => by
-    simp [edgeFlow, pigouNetwork, Finset.filter_eq]
-  rw [hflow f, hflow ![1, 0]] at hlat
-  simp only [pigouNetwork_latency_zero, Matrix.cons_val_zero] at hlat
+  simp only [pigouNetwork_edgeFlow, pigouNetwork_latency_zero, Matrix.cons_val_zero] at hlat
   have hsum : f 0 + f 1 = 1 := by
     have h := hf.1.2 ()
     simpa [pigouNetwork, Fin.sum_univ_two] using h
@@ -693,7 +652,7 @@ theorem beckmannPotential_le_cost [Fintype E]
     (hm : ∀ e, MonotoneOn (G.latency e) (Ici 0))
     {f : P → ℝ} (hf : ∀ p, 0 ≤ f p) :
     G.beckmannPotential f ≤ G.cost f := by
-  rw [beckmannPotential, G.cost_eq_sum_edgeFlow]
+  rw [beckmannPotential_def, G.cost_eq_sum_edgeFlow]
   refine Finset.sum_le_sum fun e _ => ?_
   have h := (mul_sub_le_integral_sub_and_le (hc e) (hm e) le_rfl (G.edgeFlow_nonneg hf e)).2
   simp only [integral_same, sub_zero] at h
@@ -714,7 +673,7 @@ theorem IsWardrop.cost_le_mul_of_le_mul_integral [DecidableEq K] [Finite E] {γ 
       = ∑ e, G.edgeFlow f e * G.latency e (G.edgeFlow f e) := G.cost_eq_sum_edgeFlow f
     _ ≤ ∑ e, γ * ∫ y in (0 : ℝ)..G.edgeFlow f e, G.latency e y :=
         Finset.sum_le_sum fun e _ => hub e _ (G.edgeFlow_nonneg hf.1.1 e)
-    _ = γ * G.beckmannPotential f := by rw [beckmannPotential, Finset.mul_sum]
+    _ = γ * G.beckmannPotential f := by rw [beckmannPotential_def, Finset.mul_sum]
     _ ≤ γ * G.beckmannPotential g :=
         mul_le_mul_of_nonneg_left (hf.isMinOn_beckmannPotential hc hm hg) hγ
     _ ≤ γ * G.cost g :=

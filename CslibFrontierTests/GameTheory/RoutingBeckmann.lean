@@ -4,10 +4,19 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (test driver)
+
 import CslibFrontier.GameTheory.Congestion.BeckmannPotential
 import CslibFrontier.GameTheory.Congestion.MarginalCostPricing
 import CslibFrontier.GameTheory.Congestion.CapacityAugmentation
 import CslibFrontier.GameTheory.Congestion.WardropNoRegret
+import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
+import Mathlib.Data.Fin.VecNotation
+import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.NormNum
 
 /-!
 # Nonatomic routing: Beckmann potential, Pigouvian taxes, capacity augmentation, and no-regret flow
@@ -35,6 +44,8 @@ Checked concrete instances exercising the nonatomic selfish routing developments
   Wardrop gap `1/16 ≤ 1/8`), whereas quadratic `x ^ 2` breaks literal `ε`-preservation
   (`45/64 > 44/64`) and satisfies the Lipschitz `O(ε + √ε)` bound.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.GameTheory.RoutingBeckmann
 
@@ -64,13 +75,11 @@ example :
       linearPigou.beckmannPotential ![1 / 2, 1 / 2] = 5 / 8 ∧
       linearPigou.cost ![1 / 2, 1 / 2] = 3 / 4 ∧
       linearPigou.cost ![1, 0] = 1 := by
-  have heflow : ∀ (g : Fin 2 → ℝ) (e : Fin 2), linearPigou.edgeFlow g e = g e := fun g e => by
-    simp [edgeFlow, linearPigou, pigouNetwork, Finset.filter_eq]
   have hpot : ∀ g : Fin 2 → ℝ,
       linearPigou.beckmannPotential g = (g 0) ^ 2 / 2 + g 1 := by
     intro g
     have h10 : (1 : Fin 2) ≠ 0 := by decide
-    rw [beckmannPotential, Fin.sum_univ_two, heflow, heflow]
+    rw [beckmannPotential_def, Fin.sum_univ_two, pigouNetwork_edgeFlow, pigouNetwork_edgeFlow]
     simp only [linearPigou, pigouNetwork, h10, ↓reduceIte]
     rw [integral_id, intervalIntegral.integral_const]
     simp [smul_eq_mul]
@@ -90,19 +99,8 @@ example : ∃ f, linearPigou.IsWardrop f :=
 /-! ### 2. Pigouvian marginal-cost taxes on Pigou's network -/
 
 /-- Even split `![1/2, 1/2]` is socially optimal on `linearPigou`. -/
-theorem linearPigou_isOptimal_half : linearPigou.IsOptimal ![1 / 2, 1 / 2] := by
-  have hfeas : linearPigou.IsFeasible ![1 / 2, 1 / 2] := by
-    have h12 : (![1 / 2, (1 : ℝ) - 1 / 2] : Fin 2 → ℝ) = ![1 / 2, 1 / 2] := by
-      ext i; fin_cases i <;> norm_num
-    rw [← h12]
-    exact pigouNetwork_isFeasible (fun x => x) (by norm_num) (by norm_num)
-  refine ⟨hfeas, fun g hg => ?_⟩
-  rw [pigouNetwork_cost, pigouNetwork_cost]
-  have hsum : g 0 + g 1 = 1 := by
-    have hs := hg.2 ()
-    simpa [linearPigou, pigouNetwork, Fin.sum_univ_two] using hs
-  simp only [Matrix.cons_val_zero, Matrix.cons_val_one]
-  nlinarith [sq_nonneg (g 0 - 1 / 2)]
+theorem linearPigou_isOptimal_half : linearPigou.IsOptimal ![1 / 2, 1 / 2] :=
+  ⟨pigouNetwork_id_priceOfStability.1, pigouNetwork_id_priceOfStability.2.1⟩
 
 /-- Latency derivatives `c' 0 x = 1`, `c' 1 x = 0` on `linearPigou`. -/
 def linearPigouDeriv : Fin 2 → ℝ → ℝ := fun e _ => if e = 0 then 1 else 0
@@ -117,11 +115,9 @@ example :
       (∀ f, (linearPigou.withTaxes ![1 / 2, 0]).IsWardrop f →
         linearPigou.cost f = linearPigou.cost ![1 / 2, 1 / 2] ∧ linearPigou.IsOptimal f) ∧
       ∀ f, (linearPigou.withTaxes ![1 / 2, 0]).IsWardrop f ↔ f = ![1 / 2, 1 / 2] := by
-  have heflow : ∀ (g : Fin 2 → ℝ) (e : Fin 2), linearPigou.edgeFlow g e = g e := fun g e => by
-    simp [edgeFlow, linearPigou, pigouNetwork, Finset.filter_eq]
   have htax : linearPigou.pigouvianTax linearPigouDeriv ![1 / 2, 1 / 2] = ![1 / 2, 0] := by
     ext e
-    simp only [pigouvianTax, heflow, linearPigouDeriv]
+    simp only [pigouvianTax, pigouNetwork_edgeFlow, linearPigouDeriv]
     fin_cases e <;> norm_num
   have hderiv : ∀ e, HasDerivWithinAt (linearPigou.latency e)
       (linearPigouDeriv e (linearPigou.edgeFlow ![1 / 2, 1 / 2] e))
@@ -137,35 +133,34 @@ example :
     · exact le_rfl
   refine ⟨htax, fun f hf => ?_, fun f => ⟨fun hf => ?_, fun hf => ?_⟩⟩
   · exact linearPigou_isOptimal_half.cost_eq_of_isWardrop_withTaxes hmono hderiv (htax ▸ hf)
-  · have hfeas : linearPigou.IsFeasible f := hf.1
+  · have hfeas : linearPigou.IsFeasible f := (linearPigou.withTaxes_isFeasible _ _).1 hf.1
     have hsum : f 0 + f 1 = 1 := by
       have hs := hfeas.2 ()
       simpa [linearPigou, pigouNetwork, Fin.sum_univ_two] using hs
     have hp0 : (linearPigou.withTaxes ![1 / 2, 0]).pathLatency f 0 = f 0 + 1 / 2 := by
-      rw [pathLatency]
-      change ∑ e ∈ ({0} : Finset (Fin 2)),
-          (linearPigou.withTaxes ![1 / 2, 0]).latency e
-            ((linearPigou.withTaxes ![1 / 2, 0]).edgeFlow f e) = f 0 + 1 / 2
-      rw [Finset.sum_singleton, withTaxes_latency, withTaxes_edgeFlow, heflow]
-      rfl
+      simp only [pathLatency, withTaxes_resources, withTaxes_latency, withTaxes_edgeFlow,
+        pigouNetwork_edgeFlow]
+      change ∑ e ∈ ({0} : Finset (Fin 2)), (linearPigou.latency e (f e) + ![1 / 2, 0] e) =
+        f 0 + 1 / 2
+      rw [Finset.sum_singleton]
+      simp [linearPigou, pigouNetwork]
     have hp1 : (linearPigou.withTaxes ![1 / 2, 0]).pathLatency f 1 = 1 := by
       have h10 : (1 : Fin 2) ≠ 0 := by decide
-      rw [pathLatency]
-      change ∑ e ∈ ({1} : Finset (Fin 2)),
-          (linearPigou.withTaxes ![1 / 2, 0]).latency e
-            ((linearPigou.withTaxes ![1 / 2, 0]).edgeFlow f e) = 1
-      rw [Finset.sum_singleton, withTaxes_latency]
+      simp only [pathLatency, withTaxes_resources, withTaxes_latency, withTaxes_edgeFlow,
+        pigouNetwork_edgeFlow]
+      change ∑ e ∈ ({1} : Finset (Fin 2)), (linearPigou.latency e (f e) + ![1 / 2, 0] e) = 1
+      rw [Finset.sum_singleton]
       simp [linearPigou, pigouNetwork, h10]
     have hf0_le : f 0 ≤ 1 / 2 := by
       by_contra hgt
       push Not at hgt
-      have hle := hf.2 0 1 rfl (by linarith)
+      have hle := hf.2 0 1 (by simp) (by linarith)
       rw [hp0, hp1] at hle
       linarith
     have hf1_le : f 1 ≤ 1 / 2 := by
       by_contra hgt
       push Not at hgt
-      have hle := hf.2 1 0 rfl (by linarith)
+      have hle := hf.2 1 0 (by simp) (by linarith)
       rw [hp1, hp0] at hle
       linarith
     ext i
@@ -220,32 +215,41 @@ def braessEmbed : Fin 2 ↪ Fin 3 where
   inj' a b h := Fin.ext (by simpa using congrArg Fin.val h)
 
 /-- Restricting `braessAugmented` along `braessEmbed` has the exact same feasible flows and cost
-`3/2` at `![1/2, 1/2]`, and `HasAffineLatencies.cost_le_four_thirds_restrictPaths` bounds the
-augmented Wardrop cost `2` by `4/3 * (3/2) = 2` with equality. -/
+`3/2` at `![1/2, 1/2]`, `braessAugmented` strictly worsens equilibrium cost from `3/2` to `2`, and
+`HasAffineLatencies.cost_le_four_thirds_restrictPaths` bounds the augmented Wardrop cost `2` by
+`4/3 * (3/2) = 2` with equality. -/
 example :
     (braessAugmented.restrictPaths braessEmbed).cost ![1 / 2, 1 / 2] = 3 / 2 ∧
-      braessAugmented.cost ![0, 0, 1] = 2 ∧
+      braessAugmented.IsOptimal ![1 / 2, 1 / 2, 0] ∧
+      braessInitial.cost ![1 / 2, 1 / 2] < braessAugmented.cost ![0, 0, 1] ∧
+      braessAugmented.cost ![0, 0, 1] = 4 / 3 * braessInitial.cost ![1 / 2, 1 / 2] ∧
       braessAugmented.cost ![0, 0, 1] ≤
         4 / 3 * (braessAugmented.restrictPaths braessEmbed).cost ![1 / 2, 1 / 2] := by
   have hfeas : (braessAugmented.restrictPaths braessEmbed).IsFeasible ![1 / 2, 1 / 2] := by
     refine ⟨fun p => by fin_cases p <;> norm_num, fun _ => ?_⟩
-    simp [restrictPaths, braessAugmented, Fin.sum_univ_two]
+    simp [Fin.sum_univ_two]
     norm_num
   have hcost_sub :
       (braessAugmented.restrictPaths braessEmbed).cost ![1 / 2, 1 / 2] = 3 / 2 := by
-    rw [← braessAugmented.cost_extendFlow braessEmbed ![1 / 2, 1 / 2]]
-    have hext : extendFlow braessEmbed ![1 / 2, 1 / 2] = ![1 / 2, 1 / 2, 0] := by
+    rw [← braessAugmented.cost_extend braessEmbed ![1 / 2, 1 / 2]]
+    have hext :
+        Function.extend braessEmbed (![1 / 2, 1 / 2] : Fin 2 → ℝ) 0 = ![1 / 2, 1 / 2, 0] := by
       ext p
       fin_cases p
-      · exact extendFlow_apply_map braessEmbed ![1 / 2, 1 / 2] 0
-      · exact extendFlow_apply_map braessEmbed ![1 / 2, 1 / 2] 1
-      · refine extendFlow_eq_zero_of_forall_ne braessEmbed ![1 / 2, 1 / 2] fun q => ?_
-        fin_cases q <;> decide
+      · exact braessEmbed.injective.extend_apply (![1 / 2, 1 / 2] : Fin 2 → ℝ) 0 0
+      · exact braessEmbed.injective.extend_apply (![1 / 2, 1 / 2] : Fin 2 → ℝ) 0 1
+      · refine Function.extend_apply' (f := braessEmbed) (![1 / 2, 1 / 2] : Fin 2 → ℝ)
+          (0 : Fin 3 → ℝ) 2 fun ⟨q, hq⟩ => ?_
+        fin_cases q <;> exact absurd hq (by decide)
     rw [hext, braessAugmented_cost]
     norm_num
-  have hw : braessAugmented.IsWardrop ![0, 0, 1] := braessAugmented_isWardrop_iff.2 rfl
-  refine ⟨hcost_sub, braess_paradox.2.2.2.1,
-    braessAugmented_hasAffineLatencies.cost_le_four_thirds_restrictPaths braessEmbed hw hfeas⟩
+  have hw₁ : braessInitial.IsWardrop ![1 / 2, 1 / 2] := braessInitial_isWardrop_iff.2 rfl
+  have hw₂ : braessAugmented.IsWardrop ![0, 0, 1] := braessAugmented_isWardrop_iff.2 rfl
+  have hlt : braessInitial.cost ![1 / 2, 1 / 2] < braessAugmented.cost ![0, 0, 1] := by
+    rw [braessInitial_cost, braessAugmented_cost]
+    norm_num
+  refine ⟨hcost_sub, braessAugmented_isOptimal_half, hlt, braess_paradox hw₁ hw₂,
+    braessAugmented_hasAffineLatencies.cost_le_four_thirds_restrictPaths braessEmbed hw₂ hfeas⟩
 
 /-! ### 4. Capacity augmentation, affine `δ = 1/4` threshold, and `√x` concave Pigou check -/
 
@@ -260,11 +264,11 @@ example :
       linearPigou.cost ![1 / 2, 5 / 8] < linearPigou.cost ![1, 0] := by
   have hf54 : (linearPigou.scaleRate (1 + 1 / 4)).IsFeasible ![1 / 2, 3 / 4] := by
     refine ⟨fun p => by fin_cases p <;> norm_num, fun _ => ?_⟩
-    simp [linearPigou, scaleRate, pigouNetwork, Fin.sum_univ_two]
+    simp [linearPigou, pigouNetwork, Fin.sum_univ_two]
     norm_num
   have hf98 : (linearPigou.scaleRate (1 + 1 / 8)).IsFeasible ![1 / 2, 5 / 8] := by
     refine ⟨fun p => by fin_cases p <;> norm_num, fun _ => ?_⟩
-    simp [linearPigou, scaleRate, pigouNetwork, Fin.sum_univ_two]
+    simp [linearPigou, pigouNetwork, Fin.sum_univ_two]
     norm_num
   refine ⟨hf54,
     linearPigou_hasAffineLatencies.cost_le_of_scaleRate le_rfl
@@ -306,10 +310,8 @@ example :
       linearPigou.cost (timeAverageFlow f 2) -
         linearPigou.pathLatency (timeAverageFlow f 2) 0 = 1 / 16 := by
   intro f
-  have heflow : ∀ (g : Fin 2 → ℝ) (e : Fin 2), linearPigou.edgeFlow g e = g e := fun g e => by
-    simp [edgeFlow, linearPigou, pigouNetwork, Finset.filter_eq]
   have hreg : linearPigou.HasAvgRegretLe f 2 (1 / 8) := by
-    rw [hasAvgRegretLe_unit_iff rfl (by decide)]
+    rw [hasAvgRegretLe_unit_iff rfl]
     refine ⟨fun t ht => ?_, fun p => ?_⟩
     · have ht2 : t = 0 ∨ t = 1 := by omega
       rcases ht2 with rfl | rfl
@@ -320,7 +322,7 @@ example :
         exact pigouNetwork_isFeasible (fun x => x) zero_le_one le_rfl
       · exact linearPigou_isOptimal_half.1
     · simp only [Finset.sum_range_succ, Finset.sum_range_zero, zero_add, linearPigou,
-        pigouNetwork_cost, pathLatency, heflow, f, ↓reduceIte]
+        pigouNetwork_cost, pathLatency, pigouNetwork_edgeFlow, f, ↓reduceIte]
       fin_cases p <;> norm_num [pigouNetwork]
   have havg : timeAverageFlow f 2 = ![3 / 4, 1 / 4] := by
     ext i
@@ -336,7 +338,7 @@ example :
       rw [pathLatency]
       change ∑ e ∈ ({0} : Finset (Fin 2)),
           linearPigou.latency e (linearPigou.edgeFlow ![3 / 4, 1 / 4] e) = 3 / 4
-      rw [Finset.sum_singleton, heflow]
+      rw [Finset.sum_singleton, pigouNetwork_edgeFlow]
       rfl
     change (3 / 4 : ℝ) * (3 / 4) + (1 / 4) * 1 -
         linearPigou.pathLatency ![3 / 4, 1 / 4] 0 = 1 / 16

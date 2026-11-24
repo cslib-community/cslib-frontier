@@ -39,15 +39,15 @@ atomic separation counterexamples, and network-design paradoxes from Roughgarden
   Exercise 18.6): the class of nonnegative, nondecreasing, concave functions on `[0, ∞)` (including
   `id`, nonnegative constants, and `Real.sqrt`) has exact Pigou bound `4/3`.
 * **Asymptotics of the polynomial Pigou bound**
-  (`tendsto_polynomialPigouBound_mul_log_div`, `tendsto_polynomialPigouBound_nat_mul_log_div`,
-  [Roughgarden2007Routing], Example 18.3 and Exercise 18.1): as `p → ∞`,
-  `(1 - p * (p + 1) ^ (-(p + 1) / p))⁻¹ * (Real.log p / p) → 1`, so the polynomial price of
-  anarchy grows as `Θ(p / ln p)`.
+  (`tendsto_toReal_pigouBound_polynomialLatencies_mul_log_div`,
+  [Roughgarden2007Routing], Example 18.3 and Exercise 18.1): as `d → ∞`,
+  `(pigouBound (polynomialLatencies d)).toReal * (Real.log d / d) → 1`, so the polynomial price of
+  anarchy grows as `Θ(d / ln d)`.
 * **Capacity augmentation and link speedup** (`scaleRate`, `speedup`,
   `IsWardrop.cost_le_inv_mul_of_scaleRate`, `IsWardrop.cost_le_of_scaleRate_two`,
-  `IsWardrop.speedup_two_cost_le`, `pigouNetwork_pow_scaleRate_two_cost_ge_one`,
-  `exists_pigouNetwork_pow_scaleRate_cost_lt`, `exists_atomic_pureNash_socialCost_gt_doubled`,
-  `HasAffineLatencies.cost_le_of_scaleRate`, `affine_scaleRate_bound_iff`,
+  `IsWardrop.speedup_two_cost_le`, `exists_pigouNetwork_pow_scaleRate_cost_lt`,
+  `exists_atomic_pureNash_socialCost_gt_doubled`, `HasAffineLatencies.cost_le_of_scaleRate`,
+  `affine_scaleRate_bound_iff`,
   [Roughgarden2007Routing], Example 18.28, Theorem 18.29, Corollary 18.30, and Exercise 18.8(a–e)):
   * For arbitrary nonnegative nondecreasing latencies and `δ > 0`, a Wardrop equilibrium for rate
     `r` costs at most `(1 / δ)` times any flow feasible for `(1 + δ) r` (`δ = 1` gives the
@@ -59,8 +59,9 @@ atomic separation counterexamples, and network-design paradoxes from Roughgarden
   * For nonnegative affine latencies, the exact smallest augmentation threshold is `δ = 1 / 4`
     (rate `(5 / 4) r`).
 * **Braess's paradox and subnetwork bounds** (`braessInitial`, `braessAugmented`,
-  `braessInitial_isWardrop_iff`, `braessAugmented_isWardrop_iff`, `restrictPaths`, `extendFlow`,
-  `isFeasible_extendFlow`, `IsWardrop.cost_le_toReal_pigouBound_mul_restrictPaths`,
+  `braessInitial_isWardrop_iff`, `braessAugmented_isWardrop_iff`, `braessAugmented_isOptimal_half`,
+  `braess_paradox`, `restrictPaths`, `isFeasible_extend`,
+  `IsWardrop.cost_le_toReal_pigouBound_mul_restrictPaths`,
   `HasAffineLatencies.cost_le_four_thirds_restrictPaths`, [Roughgarden2007Routing], Example 18.4
   and Remark 18.22): adding a zero-cost edge to the four-node Wheatstone network raises the unique
   Wardrop equilibrium cost from `3/2` to `2 = (4/3) * (3/2)`, which is worst possible across all
@@ -73,8 +74,8 @@ atomic separation counterexamples, and network-design paradoxes from Roughgarden
 * `Cslib.GameTheory.NonatomicCongestionGame.scaleRate`: demand-scaled game `(G, α r, c)`.
 * `Cslib.GameTheory.NonatomicCongestionGame.speedup`: link-speedup game with latencies
   `c_e(x / α) / α`.
-* `Cslib.GameTheory.NonatomicCongestionGame.restrictPaths`, `extendFlow`: subnetwork restriction
-  along an injection `ι : P₁ ↪ P₂` and zero-extension of path flows.
+* `Cslib.GameTheory.NonatomicCongestionGame.restrictPaths`: subnetwork restriction along an
+  injection `ι : P₁ ↪ P₂`.
 * `Cslib.GameTheory.NonatomicCongestionGame.braessInitial`,
   `Cslib.GameTheory.NonatomicCongestionGame.braessAugmented`: the four-node Wheatstone network
   before and after adding the zero-cost edge.
@@ -84,10 +85,8 @@ atomic separation counterexamples, and network-design paradoxes from Roughgarden
 * `Cslib.GameTheory.pigouBound_concaveLatencies` and
   `Cslib.GameTheory.NonatomicCongestionGame.IsWardrop.cost_le_four_thirds_of_mem_concaveLatencies`
   ([Roughgarden2007Routing], Exercise 18.6): `α(concaveLatencies) = 4/3`.
-* `Cslib.GameTheory.tendsto_polynomialPigouBound_mul_log_div`,
-  `Cslib.GameTheory.tendsto_polynomialPigouBound_nat_mul_log_div`, and
-  `Cslib.GameTheory.tendsto_toReal_pigouBound_polynomialLatencies_mul_log_div`
-  ([Roughgarden2007Routing], Exercise 18.1): asymptotic growth `~ p / ln p` of the polynomial Pigou
+* `Cslib.GameTheory.tendsto_toReal_pigouBound_polynomialLatencies_mul_log_div`
+  ([Roughgarden2007Routing], Exercise 18.1): asymptotic growth `~ d / ln d` of the polynomial Pigou
   bound.
 * `Cslib.GameTheory.NonatomicCongestionGame.IsWardrop.cost_le_inv_mul_of_scaleRate` and
   `Cslib.GameTheory.NonatomicCongestionGame.IsWardrop.cost_le_of_scaleRate_two`
@@ -96,8 +95,7 @@ atomic separation counterexamples, and network-design paradoxes from Roughgarden
 * `Cslib.GameTheory.NonatomicCongestionGame.IsWardrop.speedup_cost_le` and
   `Cslib.GameTheory.NonatomicCongestionGame.IsWardrop.speedup_two_cost_le`
   ([Roughgarden2007Routing], Corollary 18.30 and Exercise 18.8(a)): link-speedup corollaries.
-* `Cslib.GameTheory.NonatomicCongestionGame.pigouNetwork_pow_scaleRate_two_cost_ge_one` and
-  `Cslib.GameTheory.NonatomicCongestionGame.exists_pigouNetwork_pow_scaleRate_cost_lt`
+* `Cslib.GameTheory.NonatomicCongestionGame.exists_pigouNetwork_pow_scaleRate_cost_lt`
   ([Roughgarden2007Routing], Example 18.28 and Exercise 18.8(d)): tightness on nonlinear Pigou
   networks.
 * `Cslib.GameTheory.CongestionGame.exists_atomic_pureNash_socialCost_gt_doubled`
@@ -107,8 +105,9 @@ atomic separation counterexamples, and network-design paradoxes from Roughgarden
   ([Roughgarden2007Routing], Exercise 18.8(e)): exact affine augmentation threshold `δ = 1/4`.
 * `Cslib.GameTheory.NonatomicCongestionGame.braessInitial_isWardrop_iff`,
   `Cslib.GameTheory.NonatomicCongestionGame.braessAugmented_isWardrop_iff`,
+  `Cslib.GameTheory.NonatomicCongestionGame.braessAugmented_isOptimal_half`,
   `Cslib.GameTheory.NonatomicCongestionGame.braess_paradox`,
-  `Cslib.GameTheory.NonatomicCongestionGame.isFeasible_extendFlow`,
+  `Cslib.GameTheory.NonatomicCongestionGame.isFeasible_extend`,
   `Cslib.GameTheory.NonatomicCongestionGame.IsWardrop.cost_le_toReal_pigouBound_mul_restrictPaths`,
   and
   `Cslib.GameTheory.NonatomicCongestionGame.HasAffineLatencies.cost_le_four_thirds_restrictPaths`
@@ -211,10 +210,9 @@ theorem NonatomicCongestionGame.IsWardrop.cost_le_four_thirds_of_mem_concaveLate
 
 /-! ### Exercise 18.1: asymptotic growth of the polynomial Pigou bound -/
 
-/-- **Asymptotics of the polynomial Pigou bound** ([Roughgarden2007Routing], Example 18.3 and
-Exercise 18.1): as `p → ∞` in `ℝ`,
-`(1 - p * (p + 1) ^ (-(p + 1) / p))⁻¹ * (Real.log p / p) → 1`. -/
-theorem tendsto_polynomialPigouBound_mul_log_div :
+/-- Real-parameter asymptotics of the polynomial Pigou bound:
+`(1 - p * (p + 1) ^ (-(p + 1) / p))⁻¹ * (Real.log p / p) → 1` as `p → ∞`. -/
+private theorem tendsto_polynomialPigouBound_mul_log_div :
     Tendsto (fun p : ℝ => (1 - p * (p + 1) ^ (-(p + 1) / p))⁻¹ * (Real.log p / p))
       atTop (𝓝 1) := by
   set u : ℝ → ℝ := fun p => Real.log (p + 1) / p
@@ -312,9 +310,9 @@ theorem tendsto_polynomialPigouBound_mul_log_div :
   have hlogp : Real.log p ≠ 0 := (Real.log_pos (by linarith)).ne'
   field_simp [hp0, hlogp]
 
-/-- Natural-number degree form of Exercise 18.1: as the polynomial degree bound `d : ℕ` tends to
-infinity, `(1 - d * (d + 1) ^ (-(d + 1) / d))⁻¹ * (Real.log d / d) → 1`. -/
-theorem tendsto_polynomialPigouBound_nat_mul_log_div :
+/-- Natural-number degree form of the polynomial Pigou bound asymptotics:
+`(1 - d * (d + 1) ^ (-(d + 1) / d))⁻¹ * (Real.log d / d) → 1` as `d → ∞`. -/
+private theorem tendsto_polynomialPigouBound_nat_mul_log_div :
     Tendsto (fun d : ℕ =>
         (1 - (d : ℝ) * ((d : ℝ) + 1) ^ (-((d : ℝ) + 1) / (d : ℝ)))⁻¹ * (Real.log d / d))
       atTop (𝓝 1) := by
@@ -327,24 +325,9 @@ Exercise 18.1): `(pigouBound (polynomialLatencies d)).toReal * (Real.log d / d) 
 theorem tendsto_toReal_pigouBound_polynomialLatencies_mul_log_div :
     Tendsto (fun d : ℕ => (pigouBound (polynomialLatencies d)).toReal * (Real.log d / d))
       atTop (𝓝 1) := by
-  refine tendsto_polynomialPigouBound_nat_mul_log_div.congr' ?_
-  filter_upwards [eventually_ge_atTop 1] with d hd
-  have hd_pos : (0 : ℝ) < d := by exact_mod_cast hd
-  have hd1_pos : (0 : ℝ) < d + 1 := by positivity
-  have hpow_lt : ((d : ℝ) + 1) ^ (-((d : ℝ) + 1) / (d : ℝ)) < ((d : ℝ) + 1)⁻¹ := by
-    have hgt : (1 : ℝ) < d + 1 := by linarith
-    have hexp : -((d : ℝ) + 1) / (d : ℝ) < (-1 : ℝ) := by
-      rw [div_lt_iff₀ hd_pos]; linarith
-    simpa only [Real.rpow_neg_one] using Real.rpow_lt_rpow_of_exponent_lt hgt hexp
-  have hden_pos : 0 < 1 - (d : ℝ) * ((d : ℝ) + 1) ^ (-((d : ℝ) + 1) / (d : ℝ)) := by
-    have hmul : (d : ℝ) * ((d : ℝ) + 1) ^ (-((d : ℝ) + 1) / (d : ℝ)) <
-        (d : ℝ) * ((d : ℝ) + 1)⁻¹ := mul_lt_mul_of_pos_left hpow_lt hd_pos
-    have hlt1 : (d : ℝ) * ((d : ℝ) + 1)⁻¹ < 1 := by
-      rw [← div_eq_mul_inv, div_lt_one hd1_pos]; linarith
-    linarith
-  have hexp_eq : -(((d : ℝ) + 1) / (d : ℝ)) = -((d : ℝ) + 1) / (d : ℝ) := (neg_div _ _).symm
-  rw [pigouBound_polynomialLatencies, hexp_eq,
-    ENNReal.toReal_ofReal (inv_nonneg.2 hden_pos.le)]
+  refine tendsto_polynomialPigouBound_nat_mul_log_div.congr fun d => ?_
+  rw [pigouBound_polynomialLatencies,
+    ENNReal.toReal_ofReal (inv_nonneg.2 (one_sub_pigouConst_pos d).le), neg_div]
 
 /-! ### Capacity augmentation (Theorem 18.29, Corollary 18.30, Example 18.28, Exercise 18.8) -/
 
@@ -356,65 +339,65 @@ variable {K P E : Type*} [Fintype P] [DecidableEq E] (G : NonatomicCongestionGam
 
 /-- The demand-scaled game `(G, α r, c)` where every commodity's traffic rate is multiplied by `α`
 ([Roughgarden2007Routing], Section 18.5.2). -/
-@[expose] def scaleRate (α : ℝ) : NonatomicCongestionGame K P E :=
+def scaleRate (α : ℝ) : NonatomicCongestionGame K P E :=
   { G with rate := fun k => α * G.rate k }
 
 /-- The link-speedup game `(G, r, c̃)` with `c̃_e(x) = c_e(x / α) / α` ([Roughgarden2007Routing],
 Corollary 18.30, where `α = 2`). -/
-@[expose] noncomputable def speedup (α : ℝ) : NonatomicCongestionGame K P E :=
+noncomputable def speedup (α : ℝ) : NonatomicCongestionGame K P E :=
   { G with latency := fun e x => G.latency e (x / α) / α }
 
 omit [Fintype P] [DecidableEq E] in
 @[simp]
-theorem scaleRate_commodity (α : ℝ) : (G.scaleRate α).commodity = G.commodity := rfl
+theorem scaleRate_commodity (α : ℝ) : (G.scaleRate α).commodity = G.commodity := by rfl
 
 omit [Fintype P] [DecidableEq E] in
 @[simp]
-theorem scaleRate_resources (α : ℝ) : (G.scaleRate α).resources = G.resources := rfl
+theorem scaleRate_resources (α : ℝ) : (G.scaleRate α).resources = G.resources := by rfl
 
 omit [Fintype P] [DecidableEq E] in
 @[simp]
-theorem scaleRate_rate (α : ℝ) (k : K) : (G.scaleRate α).rate k = α * G.rate k := rfl
+theorem scaleRate_rate (α : ℝ) (k : K) : (G.scaleRate α).rate k = α * G.rate k := by rfl
 
 omit [Fintype P] [DecidableEq E] in
 @[simp]
-theorem scaleRate_latency (α : ℝ) : (G.scaleRate α).latency = G.latency := rfl
+theorem scaleRate_latency (α : ℝ) : (G.scaleRate α).latency = G.latency := by rfl
 
 @[simp]
 theorem scaleRate_edgeFlow (α : ℝ) (f : P → ℝ) (e : E) :
-    (G.scaleRate α).edgeFlow f e = G.edgeFlow f e :=
+    (G.scaleRate α).edgeFlow f e = G.edgeFlow f e := by
   rfl
 
 @[simp]
 theorem scaleRate_pathLatency (α : ℝ) (f : P → ℝ) (p : P) :
-    (G.scaleRate α).pathLatency f p = G.pathLatency f p :=
+    (G.scaleRate α).pathLatency f p = G.pathLatency f p := by
   rfl
 
 @[simp]
 theorem scaleRate_cost (α : ℝ) (f : P → ℝ) :
-    (G.scaleRate α).cost f = G.cost f :=
+    (G.scaleRate α).cost f = G.cost f := by
   rfl
 
 omit [Fintype P] [DecidableEq E] in
 @[simp]
-theorem speedup_commodity (α : ℝ) : (G.speedup α).commodity = G.commodity := rfl
+theorem speedup_commodity (α : ℝ) : (G.speedup α).commodity = G.commodity := by rfl
 
 omit [Fintype P] [DecidableEq E] in
 @[simp]
-theorem speedup_resources (α : ℝ) : (G.speedup α).resources = G.resources := rfl
+theorem speedup_resources (α : ℝ) : (G.speedup α).resources = G.resources := by rfl
 
 omit [Fintype P] [DecidableEq E] in
 @[simp]
-theorem speedup_rate (α : ℝ) : (G.speedup α).rate = G.rate := rfl
+theorem speedup_rate (α : ℝ) : (G.speedup α).rate = G.rate := by rfl
 
 omit [Fintype P] [DecidableEq E] in
 @[simp]
 theorem speedup_latency (α : ℝ) (e : E) (x : ℝ) :
-    (G.speedup α).latency e x = G.latency e (x / α) / α := rfl
+    (G.speedup α).latency e x = G.latency e (x / α) / α := by rfl
 
 @[simp]
 theorem speedup_edgeFlow (α : ℝ) (f : P → ℝ) (e : E) :
-    (G.speedup α).edgeFlow f e = G.edgeFlow f e :=
+    (G.speedup α).edgeFlow f e = G.edgeFlow f e := by
   rfl
 
 variable {G}
@@ -555,25 +538,6 @@ theorem IsWardrop.speedup_two_cost_le [DecidableEq K] [Finite E]
   norm_num at h ⊢
   exact h
 
-/-- **Nonlinear Pigou at doubled rate `r = 2`** ([Roughgarden2007Routing], Example 18.28): for
-every degree `d`, every flow feasible for `(pigouNetwork (· ^ d) 1).scaleRate 2` has cost at least
-`1 = (pigouNetwork (· ^ d) 1).cost ![1, 0]`. -/
-theorem pigouNetwork_pow_scaleRate_two_cost_ge_one (d : ℕ) {g : Fin 2 → ℝ}
-    (hg : ((pigouNetwork (fun x : ℝ => x ^ d) 1).scaleRate 2).IsFeasible g) :
-    1 ≤ (pigouNetwork (fun x : ℝ => x ^ d) 1).cost g := by
-  have h := (pigouNetwork_isWardrop (fun x : ℝ => x ^ d) zero_le_one).cost_le_of_scaleRate_two
-    (fun e x hx => by
-      fin_cases e
-      · exact pow_nonneg hx d
-      · simp [pigouNetwork])
-    (fun e x hx y _ hxy => by
-      fin_cases e
-      · exact pow_le_pow_left₀ hx hxy d
-      · exact le_rfl)
-    hg
-  rw [pigouNetwork_cost] at h
-  simpa using h
-
 /-- **Tightness of the `(1 + δ)r` capacity-augmentation bound `1 / δ`** ([Roughgarden2007Routing],
 Example 18.28 and Exercise 18.8(d)): for every `δ > 0` and `ε > 0`, there exist a degree `d : ℕ`
 and a flow `g` feasible for `(pigouNetwork (· ^ d) 1).scaleRate (1 + δ)` with `cost g < δ + ε`
@@ -591,12 +555,13 @@ theorem exists_pigouNetwork_pow_scaleRate_cost_lt {δ ε : ℝ} (hδ : 0 < δ) (
   have ht_pos : 0 < t := by linarith
   have ht_lt_one : t < 1 := by linarith
   obtain ⟨d, hd⟩ := exists_pow_lt_of_lt_one hη_pos ht_lt_one
-  refine ⟨d, ![t, 1 + δ - t], ⟨fun p => ?_, fun _ => ?_⟩, ?_⟩
-  · fin_cases p
-    · exact ht_pos.le
-    · change 0 ≤ 1 + δ - t
-      linarith
-  · simp [scaleRate, pigouNetwork, Fin.sum_univ_two]
+  refine ⟨d, ![t, 1 + δ - t], ?_, ?_⟩
+  · refine ⟨fun p => ?_, fun _ => ?_⟩
+    · fin_cases p
+      · exact ht_pos.le
+      · change 0 ≤ 1 + δ - t
+        linarith
+    · simp [scaleRate_commodity, scaleRate_rate, pigouNetwork, Fin.sum_univ_two]
   · rw [pigouNetwork_cost]
     simp only [Matrix.cons_val_zero, Matrix.cons_val_one, one_pow, mul_one]
     have hpow : t * t ^ d ≤ t ^ d := mul_le_of_le_one_left (pow_nonneg ht_pos.le d) ht_lt_one.le
@@ -672,7 +637,7 @@ theorem affine_scaleRate_bound_iff {δ : ℝ} (hδ0 : 0 ≤ δ) :
     · fin_cases p
       · simp [g]
       · simp [g]; linarith
-    · simp [G, scaleRate, pigouNetwork, g, Fin.sum_univ_two]
+    · simp [G, scaleRate_commodity, scaleRate_rate, pigouNetwork, g, Fin.sum_univ_two]
       ring
   have hg_opt : (G.scaleRate (1 + δ)).IsOptimal g := by
     refine ⟨hg_feas, fun q hq => ?_⟩
@@ -680,7 +645,7 @@ theorem affine_scaleRate_bound_iff {δ : ℝ} (hδ0 : 0 ≤ δ) :
       mul_one]
     have hsum : q 0 + q 1 = 1 + δ := by
       have hs := hq.2 ()
-      simpa [G, scaleRate, pigouNetwork, Fin.sum_univ_two] using hs
+      simpa [G, scaleRate_commodity, scaleRate_rate, pigouNetwork, Fin.sum_univ_two] using hs
     nlinarith [sq_nonneg (q 0 - 1 / 2)]
   have hbound := h Unit (Fin 2) (Fin 2) G ![1, 0] g hG hf hg_opt
   simp only [G, pigouNetwork_cost, g, Matrix.cons_val_zero, Matrix.cons_val_one, mul_one,
@@ -767,76 +732,75 @@ variable {K P₁ P₂ E : Type*} [Fintype P₁] [Fintype P₂] [DecidableEq E]
 
 /-- The subnetwork congestion game obtained by restricting available paths along an injection
 `ι : P₁ ↪ P₂` ([Roughgarden2007Routing], Remark 18.22). -/
-@[expose] def restrictPaths : NonatomicCongestionGame K P₁ E where
+def restrictPaths : NonatomicCongestionGame K P₁ E where
   commodity p := G.commodity (ι p)
   resources p := G.resources (ι p)
   rate := G.rate
   latency := G.latency
 
-/-- Zero-extension of a path flow `f₁ : P₁ → ℝ` along an injection `ι : P₁ ↪ P₂`. -/
-noncomputable def extendFlow (f₁ : P₁ → ℝ) (p₂ : P₂) : ℝ :=
-  open Classical in
-  if h : ∃ p₁, ι p₁ = p₂ then f₁ h.choose else 0
-
-omit [Fintype P₂] in
+omit [Fintype P₁] [Fintype P₂] [DecidableEq E] in
 @[simp]
-theorem extendFlow_apply_map (f₁ : P₁ → ℝ) (p₁ : P₁) :
-    extendFlow ι f₁ (ι p₁) = f₁ p₁ := by
-  classical
-  have hex : ∃ q, ι q = ι p₁ := ⟨p₁, rfl⟩
-  simp only [extendFlow, hex, ↓reduceDIte]
-  rw [ι.injective hex.choose_spec]
+theorem restrictPaths_commodity (p : P₁) :
+    (G.restrictPaths ι).commodity p = G.commodity (ι p) := by rfl
 
-omit [Fintype P₂] in
-theorem extendFlow_eq_zero_of_forall_ne (f₁ : P₁ → ℝ) {p₂ : P₂} (h : ∀ p₁, ι p₁ ≠ p₂) :
-    extendFlow ι f₁ p₂ = 0 := by
-  classical
-  have hnot : ¬ ∃ p₁, ι p₁ = p₂ := fun ⟨p₁, hp₁⟩ => h p₁ hp₁
-  simp only [extendFlow, hnot, ↓reduceDIte]
+omit [Fintype P₁] [Fintype P₂] [DecidableEq E] in
+@[simp]
+theorem restrictPaths_resources (p : P₁) :
+    (G.restrictPaths ι).resources p = G.resources (ι p) := by rfl
 
-/-- Summing any weighted quantity against `extendFlow ι f₁` over `P₂` reduces to `P₁`. -/
-private theorem sum_extendFlow_mul (f₁ : P₁ → ℝ) (w : P₂ → ℝ) :
-    ∑ p₂, extendFlow ι f₁ p₂ * w p₂ = ∑ p₁, f₁ p₁ * w (ι p₁) := by
+omit [Fintype P₁] [Fintype P₂] [DecidableEq E] in
+@[simp]
+theorem restrictPaths_rate : (G.restrictPaths ι).rate = G.rate := by rfl
+
+omit [Fintype P₁] [Fintype P₂] [DecidableEq E] in
+@[simp]
+theorem restrictPaths_latency : (G.restrictPaths ι).latency = G.latency := by rfl
+
+/-- Summing any weighted quantity against `Function.extend ι f₁ 0` over `P₂` reduces to `P₁`. -/
+private theorem sum_extend_mul (f₁ : P₁ → ℝ) (w : P₂ → ℝ) :
+    ∑ p₂, Function.extend ι f₁ 0 p₂ * w p₂ = ∑ p₁, f₁ p₁ * w (ι p₁) := by
   classical
   have hsub : Finset.univ.image ι ⊆ (Finset.univ : Finset P₂) := Finset.subset_univ _
   rw [← Finset.sum_subset hsub]
   · rw [Finset.sum_image fun _ _ _ _ h => ι.injective h]
-    exact Finset.sum_congr rfl fun p₁ _ => by rw [extendFlow_apply_map]
+    exact Finset.sum_congr rfl fun p₁ _ => by rw [ι.injective.extend_apply]
   · intro p₂ _ hp₂
     rw [Finset.mem_image] at hp₂
     push Not at hp₂
-    rw [extendFlow_eq_zero_of_forall_ne ι f₁ fun p₁ => hp₂ p₁ (Finset.mem_univ p₁), zero_mul]
+    have hnot : ¬ ∃ p₁, ι p₁ = p₂ := fun ⟨p₁, hp₁⟩ => hp₂ p₁ (Finset.mem_univ p₁) hp₁
+    rw [Function.extend_apply' (f := ι) f₁ (0 : P₂ → ℝ) p₂ hnot, Pi.zero_apply, zero_mul]
 
 omit [DecidableEq E] in
 /-- Zero-extending a feasible flow of `G.restrictPaths ι` yields a feasible flow of `G`. -/
-theorem isFeasible_extendFlow [DecidableEq K] {f₁ : P₁ → ℝ}
+theorem isFeasible_extend [DecidableEq K] {f₁ : P₁ → ℝ}
     (hf₁ : (G.restrictPaths ι).IsFeasible f₁) :
-    G.IsFeasible (extendFlow ι f₁) := by
+    G.IsFeasible (Function.extend ι f₁ 0) := by
   refine ⟨fun p₂ => ?_, fun k => ?_⟩
-  · classical
-    simp only [extendFlow]
-    split_ifs with h
-    · exact hf₁.1 h.choose
-    · exact le_rfl
-  · have h1 := sum_extendFlow_mul ι f₁ (fun p₂ => if G.commodity p₂ = k then 1 else 0)
+  · by_cases h : ∃ p₁, ι p₁ = p₂
+    · obtain ⟨p₁, rfl⟩ := h
+      rw [ι.injective.extend_apply]
+      exact hf₁.1 p₁
+    · rw [Function.extend_apply' (f := ι) f₁ (0 : P₂ → ℝ) p₂ h]
+      exact le_rfl
+  · have h1 := sum_extend_mul ι f₁ (fun p₂ => if G.commodity p₂ = k then 1 else 0)
     simp only [mul_ite, mul_one, mul_zero, ← Finset.sum_filter] at h1
     rw [h1]
     exact hf₁.2 k
 
 /-- Zero-extension preserves every edge flow. -/
-theorem edgeFlow_extendFlow (f₁ : P₁ → ℝ) (e : E) :
-    G.edgeFlow (extendFlow ι f₁) e = (G.restrictPaths ι).edgeFlow f₁ e := by
-  have h1 := sum_extendFlow_mul ι f₁ (fun p₂ => if e ∈ G.resources p₂ then 1 else 0)
+theorem edgeFlow_extend (f₁ : P₁ → ℝ) (e : E) :
+    G.edgeFlow (Function.extend ι f₁ 0) e = (G.restrictPaths ι).edgeFlow f₁ e := by
+  have h1 := sum_extend_mul ι f₁ (fun p₂ => if e ∈ G.resources p₂ then 1 else 0)
   simp only [mul_ite, mul_one, mul_zero, ← Finset.sum_filter] at h1
   exact h1
 
 /-- Zero-extension preserves total social cost: in particular, adding paths/edges to a network can
 only decrease or preserve the minimum feasible cost. -/
-theorem cost_extendFlow [Finite E] (f₁ : P₁ → ℝ) :
-    G.cost (extendFlow ι f₁) = (G.restrictPaths ι).cost f₁ := by
+theorem cost_extend [Finite E] (f₁ : P₁ → ℝ) :
+    G.cost (Function.extend ι f₁ 0) = (G.restrictPaths ι).cost f₁ := by
   have := Fintype.ofFinite E
   rw [G.cost_eq_sum_edgeFlow, (G.restrictPaths ι).cost_eq_sum_edgeFlow]
-  exact Finset.sum_congr rfl fun e _ => by rw [G.edgeFlow_extendFlow ι f₁ e]; rfl
+  exact Finset.sum_congr rfl fun e _ => by rw [G.edgeFlow_extend ι f₁ e]; rfl
 
 /-- **General bound on Braess's paradox** ([Roughgarden2007Routing], Remark 18.22): if `G` has
 nonnegative nondecreasing latencies in `C` with `pigouBound C ≠ ⊤`, then any Wardrop equilibrium
@@ -849,8 +813,8 @@ theorem IsWardrop.cost_le_toReal_pigouBound_mul_restrictPaths [DecidableEq K] [F
     {f₂ : P₂ → ℝ} (hf₂ : G.IsWardrop f₂)
     {f₁ : P₁ → ℝ} (hf₁ : (G.restrictPaths ι).IsFeasible f₁) :
     G.cost f₂ ≤ (pigouBound C).toReal * (G.restrictPaths ι).cost f₁ := by
-  rw [← G.cost_extendFlow ι f₁]
-  exact hf₂.cost_le_toReal_pigouBound_mul htop hC h0 hm (G.isFeasible_extendFlow ι hf₁)
+  rw [← G.cost_extend ι f₁]
+  exact hf₂.cost_le_toReal_pigouBound_mul htop hC h0 hm (G.isFeasible_extend ι hf₁)
 
 /-- **Affine bound on Braess's paradox** ([Roughgarden2007Routing], Remark 18.22): adding edges or
 paths to a network with nonnegative affine latencies cannot increase the Wardrop equilibrium cost
@@ -860,8 +824,8 @@ theorem HasAffineLatencies.cost_le_four_thirds_restrictPaths [DecidableEq K] [Fi
     {f₂ : P₂ → ℝ} (hf₂ : G.IsWardrop f₂)
     {f₁ : P₁ → ℝ} (hf₁ : (G.restrictPaths ι).IsFeasible f₁) :
     G.cost f₂ ≤ 4 / 3 * (G.restrictPaths ι).cost f₁ := by
-  rw [← G.cost_extendFlow ι f₁]
-  exact hf₂.cost_le hG (G.isFeasible_extendFlow ι hf₁)
+  rw [← G.cost_extend ι f₁]
+  exact hf₂.cost_le hG (G.isFeasible_extend ι hf₁)
 
 end Subnetwork
 
@@ -871,7 +835,7 @@ section BraessWheatstone
 ([Roughgarden2007Routing], Example 18.4, Figure 18.2(a)): edges `0 = (s, v)` and `3 = (w, t)` have
 latency `x`, edges `1 = (v, t)` and `2 = (s, w)` have latency `1`; path `0` is `{0, 1}` and path
 `1` is `{2, 3}`, routing `1` unit of traffic. -/
-@[expose] def braessInitial : NonatomicCongestionGame Unit (Fin 2) (Fin 4) where
+def braessInitial : NonatomicCongestionGame Unit (Fin 2) (Fin 4) where
   commodity _ := ()
   resources p := if p = 0 then {0, 1} else {2, 3}
   rate _ := 1
@@ -880,7 +844,7 @@ latency `x`, edges `1 = (v, t)` and `2 = (s, w)` have latency `1`; path `0` is `
 /-- **Augmented four-node Wheatstone network** after adding the zero-cost edge `4 = (v, w)` and
 cross path `2 = {0, 4, 3}` (`s → v → w → t`, [Roughgarden2007Routing], Example 18.4,
 Figure 18.2(b)). -/
-@[expose] def braessAugmented : NonatomicCongestionGame Unit (Fin 3) (Fin 5) where
+def braessAugmented : NonatomicCongestionGame Unit (Fin 3) (Fin 5) where
   commodity _ := ()
   resources p := match p with
     | 0 => {0, 1}
@@ -893,6 +857,18 @@ Figure 18.2(b)). -/
     | 2 => 1
     | 3 => x
     | 4 => 0
+
+@[simp]
+theorem braessInitial_commodity (p : Fin 2) : braessInitial.commodity p = () := by rfl
+
+@[simp]
+theorem braessInitial_rate (k : Unit) : braessInitial.rate k = 1 := by rfl
+
+@[simp]
+theorem braessAugmented_commodity (p : Fin 3) : braessAugmented.commodity p = () := by rfl
+
+@[simp]
+theorem braessAugmented_rate (k : Unit) : braessAugmented.rate k = 1 := by rfl
 
 /-- Both Wheatstone networks have nonnegative affine latencies. -/
 theorem braessInitial_hasAffineLatencies : braessInitial.HasAffineLatencies :=
@@ -1048,31 +1024,33 @@ theorem braessAugmented_isWardrop_iff {f : Fin 3 → ℝ} :
         · exact h2'
       rw [hall p, hall q]
 
-/-- **Braess's paradox summary** ([Roughgarden2007Routing], Example 18.4 and Remark 18.22):
-`braessInitial` has unique Wardrop cost `3/2`; `braessAugmented` has optimal flow
-`![1/2, 1/2, 0]` of cost `3/2`, while its unique Wardrop equilibrium `![0, 0, 1]` has cost
-`2 = 4 / 3 * (3 / 2)`, attaining the worst-case affine Braess ratio `4/3`. -/
-theorem braess_paradox :
-    braessInitial.cost ![1 / 2, 1 / 2] = 3 / 2 ∧
-      braessAugmented.IsOptimal ![1 / 2, 1 / 2, 0] ∧
-      braessAugmented.cost ![1 / 2, 1 / 2, 0] = 3 / 2 ∧
-      braessAugmented.cost ![0, 0, 1] = 2 ∧
-      braessAugmented.cost ![0, 0, 1] = 4 / 3 * braessInitial.cost ![1 / 2, 1 / 2] := by
-  have hopt_cost : braessAugmented.cost ![1 / 2, 1 / 2, 0] = 3 / 2 := by
-    rw [braessAugmented_cost]; norm_num
-  refine ⟨by rw [braessInitial_cost]; norm_num,
-    ⟨⟨fun p => by fin_cases p <;> norm_num, fun _ => ?_⟩, fun g hg => ?_⟩,
-    hopt_cost,
-    by rw [braessAugmented_cost]; norm_num,
-    by rw [braessAugmented_cost, braessInitial_cost]; norm_num⟩
-  · simp [braessAugmented, Fin.sum_univ_three]
+/-- The even split `![1 / 2, 1 / 2, 0]` (avoiding the cross edge) is socially optimal in
+`braessAugmented`, with total cost `3 / 2`. -/
+theorem braessAugmented_isOptimal_half :
+    braessAugmented.IsOptimal ![1 / 2, 1 / 2, 0] := by
+  refine ⟨⟨fun p => by fin_cases p <;> norm_num, fun _ => ?_⟩, fun g hg => ?_⟩
+  · simp only [braessAugmented_commodity, braessAugmented_rate, Finset.filter_true,
+      Fin.sum_univ_three, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
     norm_num
-  · rw [hopt_cost, braessAugmented_cost]
+  · rw [braessAugmented_cost, braessAugmented_cost]
     have hsum : g 0 + g 1 + g 2 = 1 := by
       have h := hg.2 ()
-      simpa [braessAugmented, Fin.sum_univ_three, add_assoc] using h
+      simpa only [braessAugmented_commodity, braessAugmented_rate, Finset.filter_true,
+        Fin.sum_univ_three, add_assoc] using h
     have hg2 : 0 ≤ g 2 := hg.1 2
+    simp only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
     nlinarith [sq_nonneg (g 0 - g 1), sq_nonneg (g 2)]
+
+/-- **Braess's paradox** ([Roughgarden2007Routing], Example 18.4 and Remark 18.22): adding the
+zero-cost cross edge to the four-node Wheatstone network increases every Wardrop equilibrium's
+cost by a factor of `4 / 3` (from `3 / 2` to `2`), attaining the worst-case affine bound
+`HasAffineLatencies.cost_le_four_thirds_restrictPaths`. -/
+theorem braess_paradox {f₁ : Fin 2 → ℝ} {f₂ : Fin 3 → ℝ}
+    (hf₁ : braessInitial.IsWardrop f₁) (hf₂ : braessAugmented.IsWardrop f₂) :
+    braessAugmented.cost f₂ = 4 / 3 * braessInitial.cost f₁ := by
+  rw [braessInitial_isWardrop_iff.1 hf₁, braessAugmented_isWardrop_iff.1 hf₂,
+    braessInitial_cost, braessAugmented_cost]
+  norm_num
 
 end BraessWheatstone
 
