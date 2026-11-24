@@ -6395,6 +6395,7 @@ public import CslibFrontier.Crypto.Protocols.FAEST.Conversion
 public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness
 public import CslibFrontier.Crypto.Protocols.FRI.BatchProtocol
 public import CslibFrontier.Crypto.Protocols.FRI.BatchSoundness
+public import CslibFrontier.Crypto.Protocols.FRI.DeepALI
 public import CslibFrontier.Crypto.Protocols.FRI.Folding
 public import CslibFrontier.Crypto.Protocols.FRI.JohnsonSoundness
 public import CslibFrontier.Crypto.Protocols.FRI.Protocol

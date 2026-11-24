@@ -347,6 +347,11 @@ Michael A. Bender, Martin Farach-Colton, John Kuszmaul, William Kuszmaul and Min
 
 Manuel Blum, Robert W. Floyd, Vaughan Pratt, Ronald L. Rivest and Robert E. Tarjan. *Time Bounds for Selection*. Journal of Computer and System Sciences 7(4), 448–461, 1973. https://doi.org/10.1016/S0022-0000(73)80033-9 . Bibliographic metadata and the abstract's `5.4305 n` comparison bound for `PICK` were checked through secondary search results on 2026-11-08; the paper's text was not read. The manual attributes to this paper only the median-of-medians selection algorithm and that constant. The groups-of-five accounting in the Lean files follows the presentation in [clrs09](#clrs09), Section 9.3, which was not checked against the printed book.
 
+<a id="bgks20"></a>
+## bgks20
+
+Eli Ben-Sasson, Lior Goldberg, Swastik Kopparty and Shubhangi Saraf. "DEEP-FRI: Sampling Outside the Box Improves Soundness." *11th Innovations in Theoretical Computer Science Conference (ITCS 2020)*, LIPIcs 151, 5:1–5:32, Schloss Dagstuhl, 2020. https://doi.org/10.4230/LIPIcs.ITCS.2020.5 ; preliminary versions `arXiv:1903.12243` and IACR Cryptology ePrint Archive 2019/336. The library's key is `BenSassonGoldbergKoppartySaraf2020`. Bibliographic metadata checked via DOI and DBLP records on 2026-11-24 UTC; the primary PDF was not directly inspected in this pass, so internal theorem and page locators are not claimed. Cited in [FRI/DeepALI.lean](../CslibFrontier/Crypto/Protocols/FRI/DeepALI.lean) for out-of-domain DEEP quotienting (`deepQuotientPoly`, `deepQuotientWord`) and the DEEP-ALI algebraic linking protocol (`DeepALISystem`, `deepALIGame`), whose correlated-agreement soundness bounds compose integer Johnson list-size bounds with smooth and binary batched FRI ([bciks20](#bciks20)).
+
 <a id="bhr12"></a>
 ## bhr12
 
