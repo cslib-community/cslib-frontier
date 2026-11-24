@@ -4,7 +4,17 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.GameTheory.Extensive.ZeroSum
+module
+-- upstream: local-only (tests)
+
+public import CslibFrontier.GameTheory.Extensive.ZeroSum
+import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Data.Fintype.BigOperators
+import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.LinearCombination
+import Mathlib.Tactic.NormNum
+import Mathlib.Tactic.Ring
 
 /-!
 # Checked tests for zero-sum extensive-form games, sequence form minimax, and subgame perfection
@@ -18,8 +28,8 @@ Non-vacuous checked examples exercising `CslibFrontier.GameTheory.Extensive.Zero
   against `64 × 64 = 4096` normal-form pure strategy pairs. Certifies `kuhnGame_perfectRecall`,
   `kuhnGame_isZeroSum`, and two distinct minimax behavioral equilibria (`α = 0` and `α = 1 / 3`
   for player `false`) via `isBehaviorNash_of_saddle`, establishing exact game value `-1 / 18`,
-  `IsBehaviorNash`, `IsSeqNash`, `seq_iSup_iInf_eq_iInf_iSup = -1 / 18`, and
-  `IsBehaviorNash.interchange`.
+  `IsBehaviorNash`, `IsSeqNash`, `isBehaviorNash_iff_maximin_minimax`,
+  `isSeqNash_iff_maximin_minimax`, and `seq_iSup_iInf_eq_iInf_iSup = -1 / 18`.
 * **Witness 2 — Zero-sum perfect-information tree with chance & off-path non-SPE Nash
   (`zeroPerfectTree`)**: verifies `PerfectInfoTree.IsZeroSum`, `isPureSPE_iff_isBehaviorSPE`,
   `backwardInduction_isBehaviorSPE`, `backwardInduction_isSeqNash`,
@@ -30,10 +40,18 @@ Non-vacuous checked examples exercising `CslibFrontier.GameTheory.Extensive.Zero
 * **Witness 3 — Deterministic (`HasNoChance`) sequential asymmetric matching pennies
   (`detSeqMP`)**: exercises `HasNoChance.leafSeqPair_injective`,
   `HasNoChance.seqPayoffMat_leafSeqPair` at concrete terminal leaves,
-  `card_support_seqPayoffMat_le_card_terminal (≤ 5)`, and equality of mixed, behavioral, and
+  `card_support_seqPayoffMat_le_card_terminal (≤ 5)`, sparse-support and leaf-sum bilinear
+  evaluation (`dotProduct_seqPayoffMat_mulVec_eq_sum_support`,
+  `dotProduct_seqPayoffMat_mulVec_eq_sum_terminal`), and equality of mixed, behavioral, and
   sequence-form minimax values (`1 / 3`) via `mixed_minimax_eq_behavior_minimax` and
   `mixed_iSup_iInf_eq_iInf_iSup`.
+* **Witness 4 — Full two-player equilibrium interchangeability (`biGame`)**: `3 × 3` zero-sum
+  extensive game with strictly dominated actions (`a = 2`) and two equilibria `(0, 0)` and `(1, 1)`
+  differing in **both** players (`β₁ false ≠ β₂ false` and `β₁ true ≠ β₂ true`), exercising
+  `IsBehaviorNash.interchange` and `IsSeqNash.interchange`.
 -/
+
+@[expose] public section
 
 namespace CslibFrontierTests.GameTheory.ExtensiveZeroSum
 
@@ -64,10 +82,10 @@ open Cslib.GameTheory Cslib.GameTheory.Extensive Finset Matrix
   | 4 => 0
   | 5 => 1
 
-private theorem uniformSix_isMixed : IsMixedStrategy (fun _ : Fin 6 => (1 / 6 : ℝ)) :=
+theorem uniformSix_isMixed : IsMixedStrategy (fun _ : Fin 6 => (1 / 6 : ℝ)) :=
   isMixedStrategy_iff.2 ⟨fun _ => by norm_num, by norm_num⟩
 
-private theorem fairCoin_isMixed : IsMixedStrategy (fun _ : Bool => (1 / 2 : ℝ)) :=
+theorem fairCoin_isMixed : IsMixedStrategy (fun _ : Bool => (1 / 2 : ℝ)) :=
   isMixedStrategy_iff.2 ⟨fun _ => by norm_num, by norm_num⟩
 
 /-- Kuhn poker information sets: for player `false`, `(card, afterCheckBet)`; for player `true`,
@@ -99,6 +117,7 @@ private theorem fairCoin_isMixed : IsMixedStrategy (fun _ : Bool => (1 / 2 : ℝ
     kuhnDealTree (kuhnCard₀ d) (kuhnCard₁ d)
 
 theorem kuhnGame_isZeroSum : kuhnGame.IsZeroSum := by
+  rw [ExtensiveTree.isZeroSum_iff]
   intro z
   cases z with
   | chance _ sub =>
@@ -275,7 +294,7 @@ private theorem kuhnGame_evalBehavior_false (β : ∀ i, ∀ h : kuhnH i, kuhnAc
   ring
 
 /-- Player `false`'s parameterized family of minimax behavioral strategies (`0 ≤ α ≤ 1 / 3`) in
-3-card Kuhn poker ([vonStengel2007], Example 3.1). -/
+3-card Kuhn poker. -/
 @[reducible] noncomputable def kuhnOptFalse (α : ℝ) :
     ∀ h : kuhnH false, kuhnAct false h → ℝ
   | (0, false), a => if a then α else 1 - α
@@ -403,6 +422,8 @@ open Classical in
 /-- Full 3-card Kuhn poker minimax certification:
 * both `kuhnOptProfile 0` (`α = 0`) and `kuhnOptProfile (1 / 3)` (`α = 1 / 3`) are distinct
   behavioral and sequence-form Nash equilibria with exact minimax value `-1 / 18`;
+* `isBehaviorNash_iff_maximin_minimax` and `isSeqNash_iff_maximin_minimax` certify maximin/minimax
+  extremality (`IsGreatest` / `IsLeast`) in both behavioral and sequence form;
 * `seq_iSup_iInf_eq_iInf_iSup`, `behavior_iSup_iInf_eq_iInf_iSup`, and `seqLowerVal` /
   `behaviorLowerVal` all agree on `-1 / 18`;
 * equilibrium interchangeability (`IsBehaviorNash.interchange`) preserves both `IsBehaviorNash`
@@ -415,6 +436,14 @@ theorem kuhnGame_minimax_and_equilibria :
         (kuhnGame.behaviorToRealizationPlan true kuhnOptTrue) ∧
       kuhnGame.IsSeqNash (kuhnGame.behaviorToRealizationPlan false (kuhnOptFalse (1 / 3)))
         (kuhnGame.behaviorToRealizationPlan true kuhnOptTrue) ∧
+      IsGreatest (kuhnGame.behaviorLowerVal '' {β₀ | IsBehaviorStrategy β₀})
+        (kuhnGame.behaviorLowerVal (kuhnOptFalse 0)) ∧
+      IsLeast (kuhnGame.behaviorUpperVal '' {β₁ | IsBehaviorStrategy β₁})
+        (kuhnGame.behaviorUpperVal kuhnOptTrue) ∧
+      IsGreatest (kuhnGame.seqLowerVal '' {x' | kuhnGame.IsRealizationPlan false x'})
+        (kuhnGame.seqLowerVal (kuhnGame.behaviorToRealizationPlan false (kuhnOptFalse 0))) ∧
+      IsLeast (kuhnGame.seqUpperVal '' {y' | kuhnGame.IsRealizationPlan true y'})
+        (kuhnGame.seqUpperVal (kuhnGame.behaviorToRealizationPlan true kuhnOptTrue)) ∧
       kuhnGame.evalBehavior (kuhnOptProfile 0) false = -(1 / 18 : ℝ) ∧
       kuhnGame.evalBehavior (kuhnOptProfile (1 / 3)) false = -(1 / 18 : ℝ) ∧
       (⨆ x : {x : SeqVar kuhnGame false → ℝ // kuhnGame.IsRealizationPlan false x},
@@ -432,6 +461,11 @@ theorem kuhnGame_minimax_and_equilibria :
     kuhnOptProfile_saddle (α := (0 : ℝ)) le_rfl (by norm_num)
   obtain ⟨hn1, hs1, hev1, _, _⟩ :=
     kuhnOptProfile_saddle (α := (1 / 3 : ℝ)) (by norm_num) le_rfl
+  obtain ⟨⟨_, hb_max⟩, ⟨_, hb_min⟩⟩ :=
+    (kuhnGame_isZeroSum.isBehaviorNash_iff_maximin_minimax
+      kuhnGame_perfectRecall (kuhnOptProfile 0)).1 hn0
+  obtain ⟨⟨_, hs_max⟩, ⟨_, hs_min⟩⟩ :=
+    (kuhnGame_isZeroSum.isSeqNash_iff_maximin_minimax kuhnGame_perfectRecall _ _).1 hs0
   have hne : kuhnOptProfile 0 ≠ kuhnOptProfile (1 / 3) := by
     intro heq
     have h0 := congrFun (congrFun (congrFun heq false) (0, false)) true
@@ -447,7 +481,8 @@ theorem kuhnGame_minimax_and_equilibria :
             x.1 ⬝ᵥ (kuhnGame.seqPayoffMat false *ᵥ y.1)) = -(1 / 18 : ℝ) :=
     (kuhnGame_isZeroSum.seq_iSup_iInf_eq_iInf_iSup kuhnGame_perfectRecall).symm.trans hsup_eq
   obtain ⟨hint_n, hint_v⟩ := hn1.interchange kuhnGame_perfectRecall kuhnGame_isZeroSum hn0
-  exact ⟨hn0, hn1, hne, hs0, hs1, hev0, hev1, hsup_eq, hinf_eq, hint_n, hint_v.trans hev1⟩
+  exact ⟨hn0, hn1, hne, hs0, hs1, hb_max, hb_min, hs_max, hs_min,
+    hev0, hev1, hsup_eq, hinf_eq, hint_n, hint_v.trans hev1⟩
 
 /-! ### 2. Zero-sum perfect-information tree with chance & off-path non-SPE Nash -/
 
@@ -552,11 +587,16 @@ theorem zeroPerfectThreat_not_isPureSPE : ¬ zeroPerfectTree.IsPureSPE zeroPerfe
   norm_num at hsub
 
 open Classical in
-/-- Connects `zeroPerfectTree.backwardInduction` to `IsBehaviorSPE`, sequence-form LP minimax
-(value `2`), `IsPureNash`, `IsMixedNash`, and certifies the off-path non-SPE Nash equilibrium
-`zeroPerfectThreat`. -/
+/-- Connects `zeroPerfectTree.backwardInduction` to `IsBehaviorSPE`,
+`PerfectInfoTree.backwardInduction_isSeqNash`, sequence-form LP minimax (value `2`), `IsPureNash`,
+`IsMixedNash`, and certifies the off-path non-SPE Nash equilibrium `zeroPerfectThreat`. -/
 theorem zeroPerfectTree_spe_vs_threat :
     zeroPerfectTree.IsBehaviorSPE (zeroPerfectTree.toExtensiveBehavior zeroPerfectSPE) ∧
+      zeroPerfectTree.toExtensiveTree.IsSeqNash
+        (zeroPerfectTree.toExtensiveTree.behaviorToRealizationPlan false
+          (zeroPerfectTree.toExtensiveBehavior (zeroPerfectTree.backwardInduction).1 false))
+        (zeroPerfectTree.toExtensiveTree.behaviorToRealizationPlan true
+          (zeroPerfectTree.toExtensiveBehavior (zeroPerfectTree.backwardInduction).1 true)) ∧
       (zeroPerfectTree.backwardInduction).2 false = 2 ∧
       (⨆ x : {x : SeqVar zeroPerfectTree.toExtensiveTree false → ℝ //
           zeroPerfectTree.toExtensiveTree.IsRealizationPlan false x},
@@ -578,6 +618,7 @@ theorem zeroPerfectTree_spe_vs_threat :
           (zeroPerfectTree.backwardInduction).2) := by
   have hspeB := (PerfectInfoTree.isPureSPE_iff_isBehaviorSPE zeroPerfectTree zeroPerfectSPE).1
     zeroPerfectSPE_isPureSPE
+  have hbi_seq := PerfectInfoTree.backwardInduction_isSeqNash zeroPerfectTree
   have hbi_eq : (zeroPerfectTree.backwardInduction).2 = zsPayoff 2 := by
     have heq := zeroPerfectTree_isZeroSum.isPureNash_expectedPayoff_eq_backwardInduction
       zeroPerfectSPE_isPureSPE.isPureNash
@@ -607,7 +648,7 @@ theorem zeroPerfectTree_spe_vs_threat :
     zeroPerfectTree_isZeroSum.isMixedNash_expectedPayoff_eq_backwardInduction
       ((CostGame.isMixedNash_single_iff _ zeroPerfectSPE).2
         zeroPerfectSPE_isPureSPE.isPureNash)
-  exact ⟨hspeB, hbi0, hs_lo.symm.trans hbi0, hs_hi.symm.trans hbi0, hthreatB,
+  exact ⟨hspeB, hbi_seq, hbi0, hs_lo.symm.trans hbi0, hs_hi.symm.trans hbi0, hthreatB,
     hthreat_not_spe, hthreat_ev, hspe_ev, hmix_ev⟩
 
 /-! ### 3. Chance-free (`HasNoChance`) sequential asymmetric matching pennies (`1 / 3`) -/
@@ -651,6 +692,7 @@ theorem detSeqMP_hasNoChance : detSeqMP.HasNoChance := by
   · exact fun _ _ => trivial
 
 theorem detSeqMP_isZeroSum : detSeqMP.IsZeroSum := by
+  rw [ExtensiveTree.isZeroSum_iff]
   intro z
   cases z with
   | decision a₀ sub =>
@@ -706,7 +748,7 @@ theorem detSeqMP_perfectRecall (i : Bool) : detSeqMP.PerfectRecall i := by
   | false => rw [detSeqMP_playerSeq_false h hv₁, detSeqMP_playerSeq_false h hv₂]
   | true => rw [detSeqMP_playerSeq_true h hv₁, detSeqMP_playerSeq_true h hv₂]
 
-private noncomputable def detOptB : ∀ i, ∀ h : detH i, detAct i h → ℝ
+noncomputable def detOptB : ∀ i, ∀ h : detH i, detAct i h → ℝ
   | false, false, a => if a then 1 else 0
   | false, true, a => if a then 1 / 3 else 2 / 3
   | true, (), a => if a then 1 / 3 else 2 / 3
@@ -764,7 +806,10 @@ open Classical in
 /-- Chance-free witness: `detSeqMP.HasNoChance` injects leaves into sequence pairs
 (`leafSeqPair_injective`), each matrix cell `detSeqMP.seqPayoffMat false` at a leaf's
 `leafSeqPair` equals the exact leaf payoff `z.payoff false`, the nonzero support has cardinality
-`≤ 5`, and mixed, behavioral, and sequence-form minimax values all equal `1 / 3`. -/
+`≤ 5`, sparse-support and leaf-indexed bilinear sums
+(`dotProduct_seqPayoffMat_mulVec_eq_sum_support`, `dotProduct_seqPayoffMat_mulVec_eq_sum_terminal`)
+both evaluate to `1 / 3`, and mixed, behavioral, and sequence-form minimax values all equal
+`1 / 3`. -/
 theorem detSeqMP_sparse_and_mixed_minimax :
     Fintype.card (Terminal detSeqMP) = 5 ∧
       (univ.filter (fun e : SeqVar detSeqMP false × SeqVar detSeqMP true =>
@@ -773,6 +818,16 @@ theorem detSeqMP_sparse_and_mixed_minimax :
       (detSeqMP.seqPayoffMat false
         (detSeqMP.leafSeqPair (.decision true (.decision true (.decision true .leaf)))).1
         (detSeqMP.leafSeqPair (.decision true (.decision true (.decision true .leaf)))).2 = 3) ∧
+      (∑ e ∈ univ.filter (fun e : SeqVar detSeqMP false × SeqVar detSeqMP true =>
+          detSeqMP.seqPayoffMat false e.1 e.2 ≠ 0),
+        detSeqMP.behaviorToRealizationPlan false (detOptB false) e.1 *
+          detSeqMP.seqPayoffMat false e.1 e.2 *
+          detSeqMP.behaviorToRealizationPlan true (detOptB true) e.2) = 1 / 3 ∧
+      (∑ z : Terminal detSeqMP,
+        (z.chanceWeight *
+          detSeqMP.behaviorToRealizationPlan false (detOptB false) (detSeqMP.leafSeqPair z).1 *
+          detSeqMP.behaviorToRealizationPlan true (detOptB true) (detSeqMP.leafSeqPair z).2) *
+          z.payoff false) = 1 / 3 ∧
       (⨆ μ₀ : {μ₀ : PureStrategy detH detAct false → ℝ // IsMixedStrategy μ₀},
           ⨅ μ₁ : {μ₁ : PureStrategy detH detAct true → ℝ // IsMixedStrategy μ₁},
             detSeqMP.evalMixed (fun | false => μ₀.1 | true => μ₁.1) false) = 1 / 3 ∧
@@ -792,7 +847,7 @@ theorem detSeqMP_sparse_and_mixed_minimax :
       (detSeqMP.leafSeqPair (.decision true (.decision true (.decision true .leaf)))).2 = 3 := by
     rw [detSeqMP_hasNoChance.seqPayoffMat_leafSeqPair]
     rfl
-  obtain ⟨_, _, _, hbv, _⟩ :=
+  obtain ⟨_, _, hev, hbv, _⟩ :=
     detSeqMP_isZeroSum.isBehaviorNash_of_saddle detSeqMP_perfectRecall (1 / 3 : ℝ)
       detOptB_isBehavior
       (fun β₀ hβ₀ => by
@@ -816,6 +871,18 @@ theorem detSeqMP_sparse_and_mixed_minimax :
           simpa [Fintype.sum_bool, add_comm] using (hβ₁ ()).sum_eq_one
         simp only [detOptB, ↓reduceIte, Bool.false_eq_true]
         linarith)
+  have hbilin : detSeqMP.behaviorToRealizationPlan false (detOptB false) ⬝ᵥ
+      (detSeqMP.seqPayoffMat false *ᵥ
+        detSeqMP.behaviorToRealizationPlan true (detOptB true)) = 1 / 3 :=
+    (evalBehavior_eq_seqPayoffMat detSeqMP detOptB false).symm.trans hev
+  have hsum_supp :=
+    (dotProduct_seqPayoffMat_mulVec_eq_sum_support detSeqMP false
+      (detSeqMP.behaviorToRealizationPlan false (detOptB false))
+      (detSeqMP.behaviorToRealizationPlan true (detOptB true))).symm.trans hbilin
+  have hsum_term :=
+    (dotProduct_seqPayoffMat_mulVec_eq_sum_terminal detSeqMP false
+      (detSeqMP.behaviorToRealizationPlan false (detOptB false))
+      (detSeqMP.behaviorToRealizationPlan true (detOptB true))).symm.trans hbilin
   have hmix_lo :
       (⨆ μ₀ : {μ₀ : PureStrategy detH detAct false → ℝ // IsMixedStrategy μ₀},
           ⨅ μ₁ : {μ₁ : PureStrategy detH detAct true → ℝ // IsMixedStrategy μ₁},
@@ -827,6 +894,147 @@ theorem detSeqMP_sparse_and_mixed_minimax :
           ⨆ μ₀ : {μ₀ : PureStrategy detH detAct false → ℝ // IsMixedStrategy μ₀},
             detSeqMP.evalMixed (fun | false => μ₀.1 | true => μ₁.1) false) = 1 / 3 :=
     (detSeqMP_isZeroSum.mixed_iSup_iInf_eq_iInf_iSup detSeqMP_perfectRecall).symm.trans hmix_lo
-  exact ⟨hcard, hsupp, hinj, hentry, hmix_lo, hmix_hi⟩
+  exact ⟨hcard, hsupp, hinj, hentry, hsum_supp, hsum_term, hmix_lo, hmix_hi⟩
+
+/-! ### 4. Two-player equilibrium interchangeability with distinct strategies for both players -/
+
+/-- Singleton information sets for a `3 × 3` simultaneous-move zero-sum extensive game. -/
+@[reducible] def biH : Bool → Type := fun _ => Unit
+
+/-- Three actions (`0`, `1` optimal, `2` strictly dominated) for each player. -/
+@[reducible] def biAct : ∀ i, biH i → Type := fun _ _ => Fin 3
+
+/-- Zero-sum payoff where `{0, 1} × {0, 1}` pays `1`, `a₀ = 2` pays `-1` against `{0, 1}`, and
+`a₁ = 2` pays `3` against `{0, 1}` (strictly suboptimal for player `true`). -/
+@[reducible] def biPayoff (a₀ a₁ : Fin 3) : Bool → ℝ :=
+  zsPayoff (if a₀ = 2 then (if a₁ = 2 then 0 else -1) else (if a₁ = 2 then 3 else 1))
+
+/-- Two-player zero-sum extensive game admitting distinct optimal strategies for both players while
+strictly dominating action `2` for both players. -/
+@[reducible] def biGame : ExtensiveTree Bool biH biAct :=
+  .decision false () fun a₀ => .decision true () fun a₁ => .leaf (biPayoff a₀ a₁)
+
+theorem biGame_isZeroSum : biGame.IsZeroSum := by
+  rw [ExtensiveTree.isZeroSum_iff]
+  intro z
+  cases z with
+  | decision a₀ s =>
+    cases s with
+    | decision a₁ s' => cases s'; exact add_neg_cancel _
+
+theorem biGame_perfectRecall (i : Bool) : biGame.PerfectRecall i := by
+  intro h v₁ v₂ hv₁ hv₂
+  cases i with
+  | false =>
+    have seq_nil : ∀ {v : Node biGame}, v.IsDecisionOf false () → v.playerSeq false = [] := by
+      intro v hv
+      cases v with
+      | here => rfl
+      | decision _ s =>
+        cases s with
+        | here => exact absurd hv (by simp)
+        | decision _ s' => cases s'; exact absurd hv (by simp)
+    rw [seq_nil hv₁, seq_nil hv₂]
+  | true =>
+    have seq_nil : ∀ {v : Node biGame}, v.IsDecisionOf true () → v.playerSeq true = [] := by
+      intro v hv
+      cases v with
+      | here => exact absurd hv (by simp)
+      | decision _ s =>
+        cases s with
+        | here => rfl
+        | decision _ s' => cases s'; exact absurd hv (by simp)
+    rw [seq_nil hv₁, seq_nil hv₂]
+
+/-- Deterministic behavior strategy placing weight `1` on action `k : Fin 3`. -/
+@[reducible] def biPureStrat (k : Fin 3) : ∀ _ : Unit, Fin 3 → ℝ :=
+  fun _ a => if a = k then 1 else 0
+
+/-- Profile in `biGame` where both players play action `k`. -/
+@[reducible] def biPureProf (k : Fin 3) : ∀ i, ∀ h : biH i, biAct i h → ℝ :=
+  fun _ => biPureStrat k
+
+private theorem biPureStrat_isBehavior (i : Bool) (k : Fin 3) :
+    IsBehaviorStrategy (H := biH) (Act := biAct) (i := i) (biPureStrat k) := by
+  intro _
+  refine isMixedStrategy_iff.2 ⟨fun a => ?_, ?_⟩
+  · fin_cases k <;> fin_cases a <;> simp [biPureStrat]
+  · fin_cases k <;> simp [biPureStrat]
+
+private theorem biGame_evalBehavior_false (β : ∀ i, ∀ h : biH i, biAct i h → ℝ) :
+    biGame.evalBehavior β false =
+      (β false () 0 + β false () 1) * ((β true () 0 + β true () 1) * 1 + β true () 2 * 3) +
+        β false () 2 * ((β true () 0 + β true () 1) * (-1)) := by
+  simp only [ExtensiveTree.evalBehavior, Fin.sum_univ_three, biPayoff, zsPayoff]
+  norm_num
+  ring
+
+private theorem biPureProf_nash_of_ne_two {k : Fin 3} (hk : k ≠ 2) :
+    biGame.IsBehaviorNash (biPureProf k) ∧
+      biGame.IsSeqNash (biGame.behaviorToRealizationPlan false (biPureStrat k))
+        (biGame.behaviorToRealizationPlan true (biPureStrat k)) ∧
+      biGame.evalBehavior (biPureProf k) false = 1 := by
+  have hk_sum : biPureStrat k () 0 + biPureStrat k () 1 = 1 ∧ biPureStrat k () 2 = 0 := by
+    fin_cases k
+    · simp [biPureStrat]
+    · simp [biPureStrat]
+    · exact absurd rfl hk
+  obtain ⟨hn, hs, hev, _, _⟩ :=
+    biGame_isZeroSum.isBehaviorNash_of_saddle biGame_perfectRecall (β := biPureProf k) 1
+      (fun i => biPureStrat_isBehavior i k)
+      (fun β₀ hβ₀ => by
+        rw [biGame_evalBehavior_false]
+        have hsum : β₀ () 0 + β₀ () 1 + β₀ () 2 = 1 := by
+          simpa [Fin.sum_univ_three, add_assoc] using (hβ₀ ()).sum_eq_one
+        have h2 := (hβ₀ ()).nonneg 2
+        dsimp only [biPureProf]
+        rw [hk_sum.1, hk_sum.2]
+        linarith)
+      (fun β₁ hβ₁ => by
+        rw [biGame_evalBehavior_false]
+        have hsum : β₁ () 0 + β₁ () 1 + β₁ () 2 = 1 := by
+          simpa [Fin.sum_univ_three, add_assoc] using (hβ₁ ()).sum_eq_one
+        have h2 := (hβ₁ ()).nonneg 2
+        dsimp only [biPureProf]
+        rw [hk_sum.1, hk_sum.2]
+        linarith)
+  exact ⟨hn, hs, hev⟩
+
+open Classical in
+/-- Exercises `IsBehaviorNash.interchange` and `IsSeqNash.interchange` on two equilibria
+`biPureProf 0` and `biPureProf 1` that differ in **both** player `false` and player `true`, while
+confirming that dominated profile `biPureProf 2` is not a Nash equilibrium. -/
+theorem biGame_two_sided_interchange :
+    biPureProf 0 false ≠ biPureProf 1 false ∧
+      biPureProf 0 true ≠ biPureProf 1 true ∧
+      biGame.IsBehaviorNash (fun | false => biPureProf 0 false | true => biPureProf 1 true) ∧
+      biGame.evalBehavior (fun | false => biPureProf 0 false | true => biPureProf 1 true) false =
+        1 ∧
+      biGame.IsSeqNash (biGame.behaviorToRealizationPlan false (biPureStrat 0))
+        (biGame.behaviorToRealizationPlan true (biPureStrat 1)) ∧
+      biGame.behaviorToRealizationPlan false (biPureStrat 0) ⬝ᵥ
+        (biGame.seqPayoffMat false *ᵥ
+          biGame.behaviorToRealizationPlan true (biPureStrat 1)) = 1 ∧
+      ¬ biGame.IsBehaviorNash (biPureProf 2) := by
+  obtain ⟨hn0, hs0, hev0⟩ := biPureProf_nash_of_ne_two (k := 0) (by decide)
+  obtain ⟨hn1, hs1, _⟩ := biPureProf_nash_of_ne_two (k := 1) (by decide)
+  have hneF : biPureProf 0 false ≠ biPureProf 1 false := by
+    intro h
+    have h0 := congrFun (congrFun h ()) 0
+    norm_num [biPureProf, biPureStrat] at h0
+  have hneT : biPureProf 0 true ≠ biPureProf 1 true := hneF
+  obtain ⟨hintB, hvB⟩ := hn0.interchange biGame_perfectRecall biGame_isZeroSum hn1
+  obtain ⟨hintS, hvS⟩ := hs0.interchange biGame_perfectRecall biGame_isZeroSum hs1
+  have hvS_one : biGame.behaviorToRealizationPlan false (biPureStrat 0) ⬝ᵥ
+      (biGame.seqPayoffMat false *ᵥ
+        biGame.behaviorToRealizationPlan true (biPureStrat 1)) = 1 :=
+    hvS.trans ((evalBehavior_eq_seqPayoffMat biGame (biPureProf 0) false).symm.trans hev0)
+  have hnot2 : ¬ biGame.IsBehaviorNash (biPureProf 2) := by
+    intro hn2
+    have hopt := ((biGame_isZeroSum.isBehaviorNash_iff_saddlePoint (biPureProf 2)).1 hn2).2.1
+      (biPureStrat 0) (biPureStrat_isBehavior false 0)
+    rw [biGame_evalBehavior_false, biGame_evalBehavior_false] at hopt
+    norm_num [biPureProf, biPureStrat] at hopt
+  exact ⟨hneF, hneT, hintB, hvB.trans hev0, hintS, hvS_one, hnot2⟩
 
 end CslibFrontierTests.GameTheory.ExtensiveZeroSum
