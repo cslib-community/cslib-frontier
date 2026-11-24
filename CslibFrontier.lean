@@ -9058,6 +9058,8 @@ public import CslibFrontier.GameTheory.Mechanism.Vickrey
 public import CslibFrontier.GameTheory.Mechanism.VickreyVCG
 public import CslibFrontier.GameTheory.Mechanism.VirtualValue
 public import CslibFrontier.GameTheory.MixedStrategy
+public import CslibFrontier.GameTheory.NetworkFormation.FairConnection
+public import CslibFrontier.GameTheory.NetworkFormation.Witnesses
 public import CslibFrontier.GameTheory.P2P.Generosity
 public import CslibFrontier.GameTheory.PerfectInformation
 public import CslibFrontier.GameTheory.RandomAssignment.Basic
