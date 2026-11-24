@@ -8,6 +8,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CharacteristicCoefficients
 import CslibFrontier.Foundations.Data.MvPolynomial.LowestComponent
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueCoeffNorm
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueParameterDegree
 import Mathlib.Tactic.NormNum
 
@@ -136,5 +137,21 @@ example :
   intro F hF
   apply Nat.eq_zero_of_le_zero
   simpa using totalDegree_relativeValuePolynomial_coeff_le (ell := 2) (by decide) F hF 2
+
+-- The lower relation and objective retain their norm bounds with both blocks present.
+open MvPolynomial in
+open MvPolynomial.CriticalSystem in
+example :
+    let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := X (.inl 0) + X (.inr 0)
+    let e := sumRingEquiv ℤ (Fin 1) (Option (Fin 1))
+    (e.symm (criticalLower 2 (fun _ => 0) (X none) (relativeSource F) 0)).coeffNorm1 ≤ 2 ∧
+      (e.symm (deformedPolynomial 2 (fun _ => 0) (X none) (relativeSource F))).coeffNorm1 ≤ 7 := by
+  intro F e
+  have hdegree : F.totalDegree ≤ 1 := (totalDegree_add _ _).trans (by simp)
+  have hnorm : F.coeffNorm1 ≤ 2 := (MvPolynomial.coeffNorm1_add_le _ _).trans (by simp)
+  refine ⟨(coeffNorm1_relativeCriticalLower_le (ell := 2) (by decide) F 0).trans ?_,
+    (coeffNorm1_relativeDeformedPolynomial_le (ell := 2) (by decide) F).trans ?_⟩
+  · exact Nat.mul_le_mul hdegree hnorm
+  · exact Nat.add_le_add_left (Nat.mul_le_mul_left 3 hnorm) 1
 
 end CslibFrontierTests.RealAlgebraicCharacteristic
