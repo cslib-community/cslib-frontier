@@ -13,6 +13,7 @@ public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import CslibFrontier.Foundations.Data.BitString.Agree
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Foundations.Combinatorics.Hoeffding
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.SpecificLimits.Basic
 import Mathlib.Data.Fintype.Powerset
 import Mathlib.Order.Interval.Finset.Nat
@@ -400,8 +401,7 @@ theorem exists_rectangleBias {K : ℕ} {b : ℝ} (hb : 0 < b)
           refine mul_lt_of_lt_one_left (by positivity) ?_
           refine (mul_le_mul_of_nonneg_right (two_pow_le_exp _) (exp_pos _).le).trans_lt ?_
           rw [← exp_add, exp_lt_one_iff]
-          push_cast
-          linarith
+          cast_linarith
   by_contra! h
   have huniv : bad = Finset.univ := eq_univ_of_forall fun f => by simp [bad, h]
   rw [huniv, card_univ, Fintype.card_fun, Fintype.card_bool] at hcount

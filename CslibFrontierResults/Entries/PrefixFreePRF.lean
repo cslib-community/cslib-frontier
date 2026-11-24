@@ -38,3 +38,25 @@ register_result "extendable-prefix-free-prf-computational-universality" where
     caps each of its two replies at the width it computes by public PRF evaluation. \
     The resulting queries are nonempty and in the PRF domain, so the library's \
     domain-relative prefix condition applies to the source game."
+
+register_result "extendable-prefix-free-prf-multi-query-universality" where
+  title := "An extendable prefix-free PRF is computationally multi-query universal"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 7.4",
+      locator := "v0.6, Section 7.2.2, printed pp. 259–260; equation (7.9)" }
+  ]
+  theorems := [
+    Cslib.Crypto.UHF.isMultiQueryUHF_of_extendable_prefixFreePRF,
+    Cslib.Crypto.UHF.succProbability_multiQueryGame_le_prefixFreeBatchReduction,
+    Cslib.Crypto.UHF.isQueryBounded_prefixFreeBatchReduction
+  ]
+  scope := "Uniform strict PPT adversaries, a uniform n-bit key, and public unary security \
+    parameter. Valid hash inputs are aligned raw bit lists within a polynomial block cap. \
+    The block width and hash-domain recognition are polynomial-time computable. \
+    Each one-block extension is in the PRF domain, which eventually contains the all-zero \
+    block used to compute the reply width by public evaluation. Both alphabet reciprocals \
+    are negligible. The wrapper filters and deduplicates the batch, appends a fresh block, \
+    and tests equality of fixed-width replies. The adversary's strict PPT certificate gives \
+    the query cap. Equation (7.9) keeps the sharper birthday term choose(Q, 2) over the \
+    size of the reply alphabet."
