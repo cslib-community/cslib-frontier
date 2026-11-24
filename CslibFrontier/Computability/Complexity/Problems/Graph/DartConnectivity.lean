@@ -13,8 +13,9 @@ import Mathlib.Data.List.GetD
 /-!
 # Dart invariants and existing graph components
 
-Adjacency is witnessed by a listed edge occurrence. Vertex and edge-reversal invariants
-are constant on existing declared-vertex components. Point components have no darts.
+Adjacency and trails in induced simple graphs lift to oriented occurrences in the edge list.
+Vertex and edge-reversal invariants are constant on existing declared-vertex components.
+Point components have no darts.
 -/
 
 public section
@@ -35,6 +36,36 @@ theorem exists_of_adj {G : Graph} {u v : ℕ} (h : G.toSimpleGraph.Adj u v) :
     change G.edges[i.val] = (v, u) at hi
     refine ⟨(i, true), ?_, ?_⟩ <;>
       simp [vertex, reverse, edgeEndpoint, hi]
+
+/-- Either orientation of a dart gives the same unordered pair of listed endpoints. -/
+theorem sym2_vertex_reverse {G : Graph} (d : Dart G) :
+    (s(d.vertex, d.reverse.vertex) : Sym2 ℕ) = s(G.edges[d.1].1, G.edges[d.1].2) := by
+  rcases d with ⟨i, b⟩
+  rw [edge_eq_vertices i]
+  cases b
+  · rfl
+  · exact Sym2.eq_swap
+
+/-- Each step of a trail in an induced simple graph lifts to an oriented listed edge.
+The chosen occurrences have distinct indices, and preserve the order of the trail's vertices. -/
+theorem exists_darts_of_induced_trail {G : Graph} {S : Set ℕ} {u v : S}
+    (p : (G.toSimpleGraph.induce S).Walk u v) (hp : p.IsTrail) :
+    ∃ d : Fin p.length → Dart G, Function.Injective (fun i => (d i).1) ∧
+      ∀ i, (d i).vertex = (p.getVert i).val ∧
+        (d i).reverse.vertex = (p.getVert (i.val + 1)).val := by
+  classical
+  have hlift (i : Fin p.length) : ∃ d : Dart G,
+      d.vertex = (p.getVert i).val ∧ d.reverse.vertex = (p.getVert (i.val + 1)).val :=
+    exists_of_adj (p.adj_getVert_succ i.isLt)
+  choose d hd using hlift
+  refine ⟨d, ?_, hd⟩
+  intro i j hij
+  have hi : i.val < p.edges.length := p.length_edges.symm ▸ i.isLt
+  have hj : j.val < p.edges.length := p.length_edges.symm ▸ j.isLt
+  apply Fin.ext ((hp.edges_nodup.getElem_inj_iff (hi := hi) (hj := hj)).mp ?_)
+  apply Sym2.map.injective (f := Subtype.val) Subtype.val_injective
+  simp only [SimpleGraph.Walk.getElem_edges, Sym2.map_mk, ← (hd i).1, ← (hd i).2,
+    ← (hd j).1, ← (hd j).2, sym2_vertex_reverse, hij]
 
 /-- Vertex invariance and reversal invariance imply constancy on existing edge components.
 Only finite listed edge witnesses are used; the ambient natural-number universe need not be

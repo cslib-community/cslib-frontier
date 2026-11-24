@@ -193,7 +193,7 @@ theorem readBit_classicalRun_andCodes {cs : List ℕ} {w : ℕ} (hc : ∀ c ∈ 
   induction cs generalizing w with
   | nil =>
     simp only [andCodes, classicalRun_cons, classicalRun_nil, readBit_classicalStep,
-      List.all_nil, Bool.and_true, hx w le_rfl (by simp)]
+      target_mk, controls_mk, List.all_nil, Bool.and_true, hx w le_rfl (by simp)]
     simp [show w < m by simpa using hw]
   | cons c cs ih =>
     have hc' := hc c (List.mem_cons_self ..)
@@ -208,7 +208,7 @@ theorem readBit_classicalRun_andCodes {cs : List ℕ} {w : ℕ} (hc : ∀ c ∈ 
         omega
     rw [andCodes, classicalRun_append, classicalRun_cons, classicalRun_nil, readBit_classicalStep,
       readBit_classicalRun_of_forall_ne (hne w (by omega))]
-    simp only [List.all_cons, List.all_nil, Bool.and_true,
+    simp only [target_mk, controls_mk, List.all_cons, List.all_nil, Bool.and_true,
       readBit_classicalRun_of_forall_ne (hne c (by omega)),
       ih hcs (by omega) fun i h₁ h₂ => hx i (by omega) (by omega), hx w le_rfl (by omega)]
     simp [show w < m by omega]

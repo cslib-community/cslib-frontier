@@ -327,7 +327,7 @@ private theorem eval_run_ivModePrfHandler_randomFunction
     (hprogram : ∀ q, (program q).run (fun x => pure (f x)) = blockModeOracle bodyBlocks ℓ bit q)
     (hword : ∀ iv m, m.length % n = 0 → (bodyQueries n (List.ofFn iv) m).run
         (fun request => pure (randomFunctionOracle n f request.2)) =
-          pure ((bodyBlocks iv (BitString.padBlocks n m.length m)).flatMap List.ofFn))
+          pure ((bodyBlocks iv (BitString.toBlocks n m)).flatMap List.ofFn))
     (request : Unit × List Bool) (hℓ : (unframe request.2).length / n ≤ ℓ) :
     ProbComp.eval ((ivModePrfHandler bodyQueries n bit request).run
         fun r => pure (randomFunctionOracle n f r.2)) =
@@ -337,7 +337,7 @@ private theorem eval_run_ivModePrfHandler_randomFunction
   dsimp only
   by_cases hvalid : blockPairValid n (unframe request.2) (dropFrame request.2) = true
   · have hmod := length_select_mod_of_blockPairValid hvalid bit
-    have hsel := blockModeSelect_padBlocks bit hvalid hℓ
+    have hsel := blockModeSelect_toBlocks bit hvalid hℓ
     simp only [hvalid, ↓reduceIte, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
       ProbOracleComp.run_map, ProbOracleComp.run_query, hprogram, blockModeOracle, hsel,
       ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, ProbComp.eval_uniform,
@@ -364,7 +364,7 @@ theorem eval_prfIdealGame_ivModeToPrfDistinguisher
       blockModeOracle (bodyBlocks f) ℓ bit q)
     (hword : ∀ f iv m, m.length % n = 0 → (bodyQueries n (List.ofFn iv) m).run
         (fun request => pure (randomFunctionOracle n f request.2)) =
-          pure ((bodyBlocks f iv (BitString.padBlocks n m.length m)).flatMap List.ofFn))
+          pure ((bodyBlocks f iv (BitString.toBlocks n m)).flatMap List.ofFn))
     (adversary : OracleDistinguisher)
     (hℓ : (adversary n []).QueriesSatisfy fun request => (unframe request.2).length / n ≤ ℓ) :
     ProbComp.eval (prfIdealGame id id (ivModeToPrfDistinguisher bodyQueries adversary bit) n) =
@@ -465,7 +465,7 @@ theorem eval_prfIdealGame_ivStreamToPrfDistinguisher
     (fun f iv m hm => by
       rw [ivStreamBodyQueries, ProbOracleComp.run_map, hword, map_pure,
         BitString.flatMap_ofFn_zipWith_add _ _ (by rw [hlen]),
-        BitString.flatMap_ofFn_padBlocks (Nat.dvd_of_mod_eq_zero hm), BitString.length_padBlocks])
+        BitString.flatMap_ofFn_toBlocks (Nat.dvd_of_mod_eq_zero hm), BitString.length_toBlocks])
     adversary (hℓ.mono fun _ h => (Nat.div_le_self _ _).trans ((length_unframe_le _).trans h))
 
 end Cslib.Crypto
