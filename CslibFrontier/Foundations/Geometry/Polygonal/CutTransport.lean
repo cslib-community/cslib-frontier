@@ -13,6 +13,7 @@ import CslibFrontier.Foundations.Geometry.Polygonal.CoordinateOrder
 import CslibFrontier.Foundations.Geometry.Polygonal.Germs
 import CslibFrontier.Foundations.Data.List.ConsecutivePairs
 import CslibFrontier.Foundations.Data.List.FlatMapPositions
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Convex.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
@@ -86,10 +87,9 @@ private theorem sourceSamples_ordered (p : Route) (S : Finset ℝ) (c : ℂ →�
     have hy' : y = (Fin.last p.bends, 1) := List.mem_singleton.mp hy
     subst y
     have hi : i.val ≤ p.bends := by have := i.isLt; dsimp [Route.segments] at *; omega
-    have hi' : (i.val : ℝ) ≤ p.bends := by exact_mod_cast hi
     have ht' := segmentCuts_dropLast_bounds hcut
     dsimp [sourcePosition]
-    linarith
+    cast_linarith [hi]
 
 private theorem sourceBlock_length (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ[ℝ] ℝ) (i : Fin p.segments) :
     1 ≤ (sourceBlock p S c i).length ∧ (sourceBlock p S c i).length ≤ S.card + 1 := by

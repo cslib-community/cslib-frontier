@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 public import CslibFrontier.Algorithms.WordRAM.GomoryHu
+import CslibFrontier.Algorithms.Lean.GomoryHu.WeightedCut
 
 /-!
 # Tests for Gusfield's Gomory–Hu tree algorithm on the Word-RAM

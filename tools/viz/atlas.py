@@ -3,7 +3,7 @@
 # Authors: Samuel Schlesinger
 """An atlas of the library: the import graph drawn as a map of sub-area territories.
 
-Each library module keeps its place in the import-graph layout of `evolution.py`. Every point of
+Each library module keeps its place in a nested sub-area layout (`nested_layout`). Every point of
 the picture belongs to the sub-area (`<Area>/<Sub>`) of its nearest module, up to a coastline
 distance, so sub-areas become territories: a Voronoi diagram of the modules, coloured by sub-area.
 Territories take their area's palette colour in a few lightness steps, with borders between
@@ -15,8 +15,9 @@ imported one.
 from __future__ import annotations
 
 import colorsys
+import hashlib
+import json
 import math
-import shutil
 import subprocess
 from collections import Counter
 from pathlib import Path
@@ -30,15 +31,25 @@ import history as h
 import style as s
 
 GRID = 2  # territory raster step in pixels at 1080p
+ATLAS_LAYOUT_VERSION = 1
 
 
 def nested_layout(H: h.History, seed: int = 7) -> dict[str, tuple[float, float]]:
-    """Positions for every library module that ever existed, nested by sub-area.
+    """Positions for every library module that ever existed, nested by area and sub-area, cached.
 
-    Sub-areas are laid out first, as a graph weighted by the imports between them with an extra
-    pull between sub-areas of the same area; each gets a disc sized by its module count, and the
-    discs are pushed apart until they do not overlap. Each sub-area's modules are then laid out
-    by their own imports (and folders) inside its disc. Territories come out contiguous."""
+    Within each area, sub-areas are laid out as discs weighted by inter-sub-area imports and pushed
+    apart; the areas are then packed as discs weighted by cross-area imports, and each sub-area's
+    modules are laid out by their own imports and folders inside its disc. Territories come out
+    contiguous."""
+    if not H.commits:
+        return {}
+    cache = None
+    if hasattr(H.blobs, "fingerprint"):
+        key = f"{ATLAS_LAYOUT_VERSION}:{seed}:{H.blobs.fingerprint}:{H.commits[-1].sha}"
+        fp = hashlib.sha256(key.encode()).hexdigest()[:16]
+        cache = h.HERE / ".cache" / f"atlas-layout-{fp}.json"
+        if cache.exists():
+            return {m: tuple(p) for m, p in json.loads(cache.read_text()).items()}
     import networkx as nx
 
     latest: dict[str, str] = {}
@@ -47,6 +58,8 @@ def nested_layout(H: h.History, seed: int = 7) -> dict[str, tuple[float, float]]
             if b and h.is_library(p):
                 latest[p] = b
     graph = h.import_graph(H.blobs, latest)
+    if not graph:
+        return {}
     sub = {m: _sub_of(m) for m in graph}
     members: dict[str, list[str]] = {}
     for m, sb in sub.items():
@@ -139,6 +152,11 @@ def nested_layout(H: h.History, seed: int = 7) -> dict[str, tuple[float, float]]
         c, r = centers[sb], radius[sb]
         for m, (x, y) in local.items():
             out[m] = (float(c[0] + x * r), float(c[1] + y * r))
+    if cache is not None:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        for old in cache.parent.glob("atlas-layout-*.json"):
+            old.unlink()
+        cache.write_text(json.dumps(out))
     return out
 
 
@@ -159,13 +177,7 @@ def _sub_of(module: str) -> str:
 
 class Atlas(ev.Renderer):
     def __init__(self, H: h.History, width: int, height: int):
-        super().__init__(H, width, height)
-        pos = nested_layout(H)
-        self.mods = sorted(pos)
-        self.mid = {m: i for i, m in enumerate(self.mods)}
-        self.P = np.array([pos[m] for m in self.mods])
-        self.area = np.array([s.ALL_AREAS.index(h.area_of(m.replace(".", "/") + ".lean"))
-                              for m in self.mods])
+        super().__init__(H, width, height, pos=nested_layout(H))
         self.sub_names = sorted({_sub_of(m) for m in self.mods})
         self.sub_idx = {n: i for i, n in enumerate(self.sub_names)}
         self.sub = np.array([self.sub_idx[_sub_of(m)] for m in self.mods])
@@ -226,6 +238,7 @@ class Atlas(ev.Renderer):
         edge[:, 1:] |= lab[:, 1:] != lab[:, :-1]
         edge[1:, :] |= lab[1:, :] != lab[:-1, :]
         owner = np.where(lab == len(self.sub_names), np.roll(lab, 1, axis=1), lab)
+        owner = np.where(owner == len(self.sub_names), np.roll(lab, 1, axis=0), owner)
         rgb[edge] = self.border[owner[edge]]
         img = Image.fromarray(rgb, "RGB").resize((gw * g, gh * g), Image.NEAREST).crop((0, 0, W, Hh))
         d = ImageDraw.Draw(img, "RGBA")
@@ -320,6 +333,7 @@ class Atlas(ev.Renderer):
         img.paste(layer, (0, 0), layer)
 
     def _core(self, pts):
+        # The densest cell, so the label sits on the territory rather than between parts.
         cell = 36 * self.u
         k, c = np.unique(np.floor(pts / cell).astype(int), axis=0, return_counts=True)
         return (k[np.argmax(c)] + 0.5) * cell
@@ -348,8 +362,8 @@ class Atlas(ev.Renderer):
         img.paste(layer, (0, 0), layer)
 
     def labels(self, d, sp, vis):
-        """Countries (areas) large and faint; regions (sub-areas) sized by module count. A label
-        is dropped when it would overlap one already placed, largest first."""
+        """Regions (sub-areas) sized by module count. A label is dropped when it would overlap
+        one already placed, largest first."""
         u = self.u
         placed: list[tuple[float, float, float, float]] = []
 
@@ -359,13 +373,6 @@ class Atlas(ev.Renderer):
                 return False
             return all(x1 < a0 or x0 > a1 or y1 < b0 or y0 > b1 for a0, b0, a1, b1 in placed)
 
-        def core(pts):
-            # The densest cell, so the label sits on the territory rather than between parts.
-            cell = 36 * u
-            k, c = np.unique(np.floor(pts / cell).astype(int), axis=0, return_counts=True)
-            return (k[np.argmax(c)] + 0.5) * cell
-
-        self._placed = placed
         regions = Counter(self.sub[vis])
         for si, n in regions.most_common():
             if n < 12:
@@ -373,7 +380,7 @@ class Atlas(ev.Renderer):
             name = self.sub_names[si]
             text = name.split("/", 1)[-1]
             sel = sp[self.sub[vis] == si]
-            x, y = core(sel)
+            x, y = self._core(sel)
             f = self.f_region[min(3, int(math.log2(max(n, 12) / 12) / 1.3))]
             box = d.textbbox((x, y), text, font=f, anchor="mm")
             box = (box[0] - 4, box[1] - 2, box[2] + 4, box[3] + 2)
@@ -439,6 +446,10 @@ def video(H: h.History, out: Path, seconds: float = 60, fps: int = 30, width: in
         recent = {m: (t - tt) / glow_span for m, tt in touched.items() if t - tt < glow_span}
         img = R.draw(t, st, smooth=1 if f == 0 else 0.06, recent=recent, comets=comets)
         ff.stdin.write(img.tobytes())
+    while ci < len(H.commits):
+        st.apply(H.commits[ci])
+        ci += 1
+    st.refresh()
     for f in range(int(hold * fps)):
         img = R.draw(t1, st, smooth=0.06, recent={})
         ff.stdin.write(img.tobytes())
