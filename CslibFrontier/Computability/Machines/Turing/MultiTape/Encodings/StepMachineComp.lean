@@ -57,7 +57,7 @@ public instance : Finite CompPhase :=
 /-- Countdowns, as triples. -/
 @[expose] public def Countdown.equivProd : Countdown ≃ ℕ × Bool × ℕ where
   toFun c := (c.k, c.found, c.len)
-  invFun p := ⟨p.1, p.2.1, p.2.2⟩
+  invFun := fun (k, found, len) => ⟨k, found, len⟩
 
 /-- Countdowns, as words. -/
 @[expose] public def encCountdown : Countdown ↪ List Bool :=
@@ -69,7 +69,7 @@ variable {σf σg : Type}
 @[expose] public def CompState.equivProd :
     CompState σf σg ≃ (σg × ℕ) × CompPhase × σf × Countdown where
   toFun s := (s.g, s.phase, s.f, s.cd)
-  invFun p := ⟨p.1, p.2.1, p.2.2.1, p.2.2.2⟩
+  invFun := fun (g, phase, f, cd) => ⟨g, phase, f, cd⟩
 
 /-- The states of `g.comp f`, as words. -/
 @[expose] public def encCompState (encF : σf ↪ List Bool) (encG : σg ↪ List Bool) :

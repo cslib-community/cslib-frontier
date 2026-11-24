@@ -76,6 +76,8 @@ the same hash seeds, so the induction runs over all start distributions with the
 
 ## Main results
 
+* `Cslib.Crypto.PRG.Nisan.blocks_apply_eq_foldl`: one block of the generator, from the binary
+  digits of its index.
 * `Cslib.Crypto.PRG.Nisan.abs_dens_foldlIdx_blocks_sub_le`: Nisan's generator fools time-dependent
   transition functions with `w` states.
 * `Cslib.Crypto.PRG.Nisan.abs_dens_eval_blocks_sub_le`: Nisan's generator fools read-once branching
@@ -134,6 +136,46 @@ theorem ofFn_blocks_succ (h : ι → X → X) (k : ℕ) (x : X) (hs : Fin (k + 1
   rw [List.ofFn_congr (by rw [pow_succ, mul_two] : 2 ^ (k + 1) = 2 ^ k + 2 ^ k), ←
     List.ofFn_fin_append]
   simp only [blocks, Fin.cast_cast, Fin.cast_eq_self]
+
+/-- **A block of Nisan's generator on its own**: block `j` applies, in order of the hash seeds, the
+hash `h (hs ℓ)` exactly at the levels `ℓ` for which bit `k - 1 - ℓ` of `j` is set, the first seed
+choosing the most significant bit. So one block costs `k` hash evaluations, not `2 ^ k`. -/
+theorem blocks_apply_eq_foldl (h : ι → X → X) (k : ℕ) (x : X) (hs : Fin k → ι)
+    (j : Fin (2 ^ k)) :
+    blocks h k x hs j = (List.finRange k).foldl
+      (fun y (ℓ : Fin k) => if (j : ℕ).testBit (k - 1 - ℓ) then h (hs ℓ) y else y) x := by
+  induction k generalizing x with
+  | zero => rfl
+  | succ k ih =>
+    rw [List.finRange_succ, List.foldl_cons, List.foldl_map, Fin.val_zero, Nat.sub_zero,
+      Nat.add_sub_cancel, blocks]
+    dsimp only
+    by_cases hj : (j : ℕ) < 2 ^ k
+    · have hcast : j.cast (by rw [pow_succ, mul_two]) =
+          Fin.castAdd (2 ^ k) (⟨j, hj⟩ : Fin (2 ^ k)) := Fin.ext rfl
+      rw [hcast, Fin.append_left, ih, Nat.testBit_lt_two_pow hj]
+      simp only [Bool.false_eq_true, ↓reduceIte]
+      congr 1
+      funext y ℓ
+      rw [Fin.val_succ, show k - (ℓ + 1) = k - 1 - ℓ by omega]
+      rfl
+    · have hj' : (j : ℕ) - 2 ^ k < 2 ^ k := by
+        have := j.isLt
+        have h2 : 2 ^ (k + 1) = 2 ^ k * 2 := pow_succ 2 k
+        omega
+      have hcast : j.cast (by rw [pow_succ, mul_two]) =
+          Fin.natAdd (2 ^ k) (⟨j - 2 ^ k, hj'⟩ : Fin (2 ^ k)) := Fin.ext (by simp; omega)
+      have hjeq : (j : ℕ) = 2 ^ k + (j - 2 ^ k) := by omega
+      have htop : (j : ℕ).testBit k = true := by
+        rw [hjeq, Nat.testBit_two_pow_add_eq, Nat.testBit_lt_two_pow hj', Bool.not_false]
+      have hlow (m : ℕ) (hm : m < k) : (j : ℕ).testBit m = ((j : ℕ) - 2 ^ k).testBit m := by
+        have := Nat.testBit_two_pow_add_gt hm ((j : ℕ) - 2 ^ k)
+        rwa [← hjeq] at this
+      rw [hcast, Fin.append_right, ih, htop, ite_eq_left rfl]
+      congr 1
+      funext y ℓ
+      rw [Fin.val_succ, show k - (ℓ + 1) = k - 1 - ℓ by omega, hlow _ (by omega)]
+      rfl
 
 /-- Nisan's generator with the hash family `h` and `k` hash seeds: the seed is a block and `k` hash
 seeds, the output is `2 ^ k` blocks. -/
