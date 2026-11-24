@@ -75,11 +75,11 @@ private theorem exists_schedule_pow_mul_le {κ : Type*} [Fintype κ] [Nonempty R
     rw [hsum, ← card_univ, ← prod_const]
     exact prod_le_prod fun i _ => Nat.add_le_add_left (hB h hh i) T
   -- averaging over the `T ^ card κ` schedules
-  by_contra hcon
-  simp only [not_exists, not_le] at hcon
-  have hlt := sum_lt_sum_of_nonempty (univ_nonempty (α := κ → R)) fun ρ _ => hcon ρ
-  rw [sum_const, card_univ, Fintype.card_fun, smul_eq_mul, ← mul_sum] at hlt
-  exact htotal.not_gt (Nat.lt_of_mul_lt_mul_left hlt)
+  have hle : ∑ ρ : κ → R, T ^ Fintype.card κ * ∑ h ∈ 𝓗, 2 ^ #{i | ρ i ∈ bad h i} ≤
+      ∑ _ρ : κ → R, #𝓗 * (T + B) ^ Fintype.card κ := by
+    rw [← mul_sum, sum_const, card_univ, Fintype.card_fun, smul_eq_mul]
+    exact Nat.mul_le_mul_left _ htotal
+  exact (exists_le_of_sum_le univ_nonempty hle).imp fun _ h => h.2
 
 /-- **Lemma 3.11** of [KhannaPuttermanSong2026] (§3.4, p. 21), abstracted from the certificate
 procedure. Let `bad h i` be a set of at most `B` of the `T = Fintype.card R ≥ 1` rounds, for every
