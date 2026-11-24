@@ -153,4 +153,24 @@ noncomputable def Controlled.indexedCoordinateEquations {α : Type} {n : α → 
     (fun q => hdpos q.1) (fun q => hF q.1) (hd.comp hw) hi).onCoordinate
       (C.arity_computable.comp hw) i hi
 
+/-- The indexed coordinate equations share bounds across all addresses of the same input. -/
+theorem Controlled.indexedCoordinateEquations_bounds_eq {α : Type} {n : α → ℕ}
+    {enc : α ↪ List Bool} {a : ℕ} {F : (w : α) → MvPolynomial (Fin (n w)) ℤ}
+    (C : Controlled F enc a) (E : Decoder enc) {d : α → ℕ}
+    (hn : ∀ w, 0 < n w) (hdpos : ∀ w, 1 ≤ d w)
+    (hF : ∀ w, (F w).totalDegree ≤ d w + 1) (hd : ComputableInPolyTime d enc encNat)
+    (w : α) (j : ℕ) :
+    let equations := C.indexedCoordinateEquations E hn hdpos hF hd
+    equations.degreeBound (w, j) = equations.degreeBound (w, 0) ∧
+      equations.massExponent (w, j) = equations.massExponent (w, 0) ∧
+      equations.cutoff (w, j) = equations.cutoff (w, 0) := by
+  let i (q : α × ℕ) : Fin (n q.1) := ⟨q.2 % n q.1, Nat.mod_lt _ (hn q.1)⟩
+  have hw := fst enc encNat
+  have hi := addressedCoordinate_polyTime C.arity_computable
+  let CQ := C.preprocess (fun q : α × ℕ => q.1) hw
+  simpa only [indexedCoordinateEquations, degreeBound_onCoordinate, massExponent_onCoordinate,
+    cutoff_onCoordinate, CQ, i] using CQ.criticalCoordinateEquations_bounds_eq
+      (Decoder.pair E Decoder.nat) i (fun q => hdpos q.1) (fun q => hF q.1) (hd.comp hw) hi
+      (w, j) (w, 0) rfl rfl rfl rfl
+
 end Cslib.Complexity.RealAlgebraic

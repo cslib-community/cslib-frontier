@@ -501,8 +501,8 @@ example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
   rw [List.getD_eq_getElem?_getD]
   rfl
 
--- Row zero reads the source even though the family also contains its coordinate equations.
-example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
+-- The cutoff at any binary address suffices to evaluate the source at row zero.
+example (w j p : ℕ) (z : List ℕ) (hp : p.Prime) :
     let F : MvPolynomial (Fin 1) ℤ := X 0
     let C : Controlled (fun _ : ℕ => F) encNat 0 :=
       Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
@@ -510,10 +510,14 @@ example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
       (fun _ => by decide) (fun _ => by decide) (fun _ => (totalDegree_X_le 0).trans (by decide))
       (.const 1)
     rows.evaluate ∈ CountingFunction 18 (encEvaluation (encPair encNat encNat)) encNat ∧
-      (rows.cutoff (w, 0) < p → rows.evaluate ((w, 0), p, z) = z.getD 0 0 % p) := by
+      (rows.cutoff (w, j) < p → rows.evaluate ((w, 0), p, z) = z.getD 0 0 % p) := by
   intro F C rows
   refine ⟨rows.evaluate_mem, fun hcut => ?_⟩
-  rw [rows.evaluate_eq (w, 0) p z hp hcut, selectionEquation_zero]
+  obtain ⟨_, _, hc⟩ := C.selectionEquations_bounds_eq
+    (n := fun _ : ℕ => 1) (d := fun _ => 1) Decoder.nat
+    (fun _ => by decide) (fun _ => by decide) (fun _ => (totalDegree_X_le 0).trans (by decide))
+    (.const 1) w j
+  rw [rows.evaluate_eq (w, 0) p z hp (hc ▸ hcut), selectionEquation_zero]
   simp only [F, evaluation, MvPolynomial.eval₂_X, ZMod.val_natCast,
     List.getD_eq_getElem?_getD, Fin.val_zero]
 

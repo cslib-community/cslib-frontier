@@ -137,6 +137,25 @@ noncomputable def ite (CP : Controlled P enc a) (CQ : Controlled Q enc a) (guard
         CQ.evaluate_eq w p z hp ((le_max_right _ _).trans_lt hcut)
     · simpa only [h, ite_true] using CP.evaluate_eq w p z hp ((le_max_left _ _).trans_lt hcut)
 
+/-- A guarded family uses the maximum degree bound of its two branches. -/
+@[simp] theorem degreeBound_ite (CP : Controlled P enc a) (CQ : Controlled Q enc a)
+    (guard : α → Bool) (hguard : ComputableInPolyTime guard enc encBool) (w : α) :
+    (CP.ite CQ guard hguard).degreeBound w = max (CP.degreeBound w) (CQ.degreeBound w) := by
+  rfl
+
+/-- A guarded family uses the maximum norm exponent of its two branches. -/
+@[simp] theorem massExponent_ite (CP : Controlled P enc a) (CQ : Controlled Q enc a)
+    (guard : α → Bool) (hguard : ComputableInPolyTime guard enc encBool) (w : α) :
+    (CP.ite CQ guard hguard).massExponent w =
+      max (CP.massExponent w) (CQ.massExponent w) := by
+  rfl
+
+/-- A guarded family uses the maximum prime cutoff of its two branches. -/
+@[simp] theorem cutoff_ite (CP : Controlled P enc a) (CQ : Controlled Q enc a)
+    (guard : α → Bool) (hguard : ComputableInPolyTime guard enc encBool) (w : α) :
+    (CP.ite CQ guard hguard).cutoff w = max (CP.cutoff w) (CQ.cutoff w) := by
+  rfl
+
 /-- A polynomial-time integer family gives a controlled constant polynomial. -/
 @[expose] noncomputable def constant (hn : ComputableInPolyTime n enc encUnary)
     (c : α → ℤ) (hc : ComputableInPolyTime c enc encIntBin) :

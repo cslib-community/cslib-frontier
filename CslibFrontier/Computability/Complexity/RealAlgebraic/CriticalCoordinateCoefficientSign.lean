@@ -688,6 +688,22 @@ noncomputable def criticalCoordinateEquations {α : Type} {n : α → ℕ}
     rw [evaluation_univariate]
     simpa only [ZMod.val_natCast] using congrArg ZMod.val hr
 
+/-- The coordinate-equation bounds depend only on the arity, deformation degree,
+source norm exponent and source prime cutoff. -/
+theorem criticalCoordinateEquations_bounds_eq {α : Type} {n : α → ℕ}
+    {enc : α ↪ List Bool} {a : ℕ} {F : (w : α) → MvPolynomial (Fin (n w)) ℤ}
+    (C : Controlled F enc a) (E : Decoder enc) {d : α → ℕ}
+    (i : (w : α) → Fin (n w)) (hdpos : ∀ w, 1 ≤ d w)
+    (hF : ∀ w, (F w).totalDegree ≤ d w + 1) (hd : ComputableInPolyTime d enc encNat)
+    (hi : ComputableInPolyTime (fun w => (i w).val) enc encNat)
+    (u v : α) (hn : n u = n v) (hduv : d u = d v)
+    (hm : C.massExponent u = C.massExponent v) (hc : C.cutoff u = C.cutoff v) :
+    let equations := C.criticalCoordinateEquations E i hdpos hF hd hi
+    equations.degreeBound u = equations.degreeBound v ∧
+      equations.massExponent u = equations.massExponent v ∧
+      equations.cutoff u = equations.cutoff v := by
+  simp [criticalCoordinateEquations, hn, hduv, hm, hc]
+
 /-- Package the coordinate fingerprint polynomials for supplied binary parameters as a controlled
 univariate family. This is the controlled-family step of lean-canny's `ControlledIndexedLabels`
 at commit `970f28a5ecefc1327402ade16c068aa4b1b2c183`, before witness-word decoding. -/
