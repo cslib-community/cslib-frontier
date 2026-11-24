@@ -83,9 +83,11 @@ game nor a security reduction.
   `clawExperiment_clawReduction_gCollisionForger_eq_pure_false`: formal separation showing a
   `G`-collision wins `extractedExperiment` without winning `clawExperiment`, proving the binding
   term cannot be dropped.
-* `zeroOpeningClawAttack_eval_eq_pure_true`, `clawExperiment_zeroOpeningClawAttack_eq_false`:
-  zero-opening scaling breaks `clawExperiment` with probability `1` when `F 0 = 0` and
-  `G 0 = 0`, and fails identically (`PMF.pure false`) when `G 0 ≠ 0`.
+* `zeroOpeningClawAttack_eval_eq_pure_true`,
+  `clawExperiment_zeroOpeningClawAttack_option_eq_false_of_tail_ne_zero`,
+  `clawExperiment_zeroOpeningClawAttack_eq_false_of_tail_ne_zero`: zero-opening scaling breaks
+  `clawExperiment` with probability `1` when `F 0 = 0` and `G 0 = 0`, and fails identically
+  (`PMF.pure false`) when `G 0 ≠ 0`.
 
 ## References
 
@@ -369,7 +371,9 @@ theorem actEmbed_injective_of_disjoint {Nullifier Context I F : Type} [AddCommGr
     (refundEmbed : ℕ → (I → F))
     (hstate_slot : ∀ nf ctx t i, isRefund i = true → encodeState nf ctx t i = 0)
     (hrefund_slot : ∀ x i, isRefund i = false → refundEmbed x i = 0)
-    (hstate_inj : Function.Injective fun p : Nullifier × Context × ℕ => encodeState p.1 p.2.1 p.2.2)
+    (hstate_inj : ∀ {nf₁ nf₂ ctx₁ ctx₂ t₁ t₂},
+      encodeState nf₁ ctx₁ t₁ = encodeState nf₂ ctx₂ t₂ →
+      nf₁ = nf₂ ∧ ctx₁ = ctx₂ ∧ t₁ = t₂)
     (hrefund_inj : Function.Injective refundEmbed) :
     Function.Injective (actEmbed encodeState refundEmbed) := by
   rintro ⟨nf₁, ctx₁, t₁, x₁⟩ ⟨nf₂, ctx₂, t₂, x₂⟩ heq
@@ -388,9 +392,7 @@ theorem actEmbed_injective_of_disjoint {Nullifier Context I F : Type} [AddCommGr
     have hr := congrFun hrefund_eq i
     simp only [actEmbed, Pi.add_apply] at hi
     exact add_right_cancel (hi.trans (congrArg (encodeState nf₂ ctx₂ t₂ i + ·) hr.symm))
-  have hp := hstate_inj (a₁ := (nf₁, ctx₁, t₁)) (a₂ := (nf₂, ctx₂, t₂)) hstate_eq
-  rcases Prod.mk.inj hp with ⟨rfl, hp'⟩
-  rcases Prod.mk.inj hp' with ⟨rfl, rfl⟩
+  obtain ⟨rfl, rfl, rfl⟩ := hstate_inj hstate_eq
   subst hx
   rfl
 

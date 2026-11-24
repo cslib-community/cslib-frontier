@@ -67,13 +67,13 @@ private theorem actEmbed_fin4_injective :
     match i with
     | 0 | 1 | 2 => rfl
     | 3 => exact absurd rfl hi
-  · rintro ⟨nf₁, ctx₁, t₁⟩ ⟨nf₂, ctx₂, t₂⟩ h
+  · intro nf₁ nf₂ ctx₁ ctx₂ t₁ t₂ h
     have h0 := congrFun h 0
     have h1 := congrFun h 1
     have h2 := congrFun h 2
     simp only [encodeStateFin4, Matrix.cons_val_zero, Matrix.cons_val_one,
       Matrix.cons_val] at h0 h1 h2
-    exact Prod.ext (Int.ofNat.inj h0) (Prod.ext (Int.ofNat.inj h1) (Int.ofNat.inj h2))
+    exact ⟨Int.ofNat.inj h0, Int.ofNat.inj h1, Int.ofNat.inj h2⟩
   · intro x₁ x₂ h
     have h3 := congrFun h 3
     simp only [refundEmbedFin4, Matrix.cons_val] at h3
