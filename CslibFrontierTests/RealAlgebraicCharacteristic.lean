@@ -51,6 +51,18 @@ example :
     MvPolynomial.coeffNorm1_one.le MvPolynomial.coeffNorm1_add_le MvPolynomial.coeffNorm1_mul_le
     MvPolynomial.coeffNorm1_neg MvPolynomial.coeffNorm1_nsmul (by decide) r hr hR v hdeg hV
 
+-- A mixed witness/parameter monomial enters the actual relative critical system.
+open MvPolynomial.CriticalSystem in
+example :
+    let F : MvPolynomial (Fin 1 ⊕ Fin 1) ℤ := MvPolynomial.X (.inl 0) * MvPolynomial.X (.inr 0)
+    let hF : F.totalDegree ≤ 2 := (MvPolynomial.totalDegree_mul _ _).trans (by simp)
+    (relativeValuePolynomial (by decide : 1 ≤ 2) F hF).sum (fun _ q => q.coeffNorm1) ≤
+      2 ^ relativeValueCoeffNormExponent 1 2 0 := by
+  dsimp only
+  apply sum_coeffNorm1_relativeValuePolynomial_le (by decide)
+  exact (MvPolynomial.coeffNorm1_mul_le _ _).trans
+    (by simp only [MvPolynomial.coeffNorm1_X, one_mul, pow_zero, le_refl])
+
 -- The logarithm's zero slot is masked before inversion, including at the smallest prime.
 example (t : ℕ) : traceLogarithmResidue 2 0 t = 0 := by
   simp [traceLogarithmResidue]

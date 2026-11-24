@@ -23,13 +23,14 @@ and `b` give an explicit binary exponent bounding the coefficient norm of the sy
 critical-value polynomial. This bound supplies the norm hypothesis for choosing a
 parameter that avoids repeated critical values and a prescribed cutoff. For zero-centered
 relative systems, the source norm bounds the lower relations and deformed objective after
-joining the witness and parameter blocks.
+joining the witness and parameter blocks. These estimates give a binary norm bound for
+the coefficients of the relative critical-value polynomial.
 
-Adapted from `SeparatedPotentialMass`, `ParametricCriticalBounds`, and `RelativeCriticalMass`
-in lean-canny at
-`970f28a5ecefc1327402ade16c068aa4b1b2c183`. The lower relations and the deformed potential
-share a common norm allowance, and the characteristic-polynomial estimate uses the
-sharper residue bound for the actual quotient.
+Adapted from `SeparatedPotentialMass`, `ParametricCriticalBounds`, `RelativeCriticalMass`,
+and `RelativeCharacteristicBounds` in lean-canny at
+`970f28a5ecefc1327402ade16c068aa4b1b2c183`. In the separated system, the lower relations
+and deformed potential share a common norm allowance. Both characteristic-polynomial estimates
+use the sharper residue bound for the actual quotient.
 -/
 
 public section
@@ -220,5 +221,44 @@ theorem coeffNorm1_relativeDeformedPolynomial_le {n ell : ℕ} {κ : Type*} (hel
   refine (coeffNorm1_add_le _ _).trans (Nat.add_le_add hpotential ?_)
   exact (coeffNorm1_mul_le _ _).trans
     (Nat.mul_le_mul hscale (coeffNorm1_relativeSource_le F))
+
+/-- A binary norm budget for the relative critical-value polynomial. The input has witness
+arity `n`, witness relation exponent `ell`, and coefficient norm at most `2 ^ b`. -/
+@[expose] def relativeValueCoeffNormExponent (n ell b : ℕ) : ℕ :=
+  PurePower.multiplicationMatrixCharpolyCoeffNormExponent n ell (ell + 1)
+    ((n + (ell + 1)).size + b) (ell.size + b)
+
+/-- Bound the sum of the coefficient norms of the relative critical-value polynomial.
+Its coefficients are polynomials in the retained parameters and the penalty variable. -/
+theorem sum_coeffNorm1_relativeValuePolynomial_le {n ell b : ℕ} {κ : Type*} (hell : 2 ≤ ell)
+    (F : MvPolynomial (Fin n ⊕ κ) ℤ) (hF : F.totalDegree ≤ ell) (hb : F.coeffNorm1 ≤ 2 ^ b) :
+    (relativeValuePolynomial (by omega : 1 ≤ ell) F hF).sum (fun _ q => q.coeffNorm1) ≤
+      2 ^ relativeValueCoeffNormExponent n ell b := by
+  have hpos : 1 ≤ ell := by omega
+  let G := relativeSource F
+  let a : Fin n → MvPolynomial (Option κ) ℤ := fun _ => 0
+  let u : MvPolynomial (Option κ) ℤ := X none
+  let r := criticalLower ell a u G
+  let v := deformedPolynomial ell a u G
+  have hG : G.totalDegree ≤ ell := (totalDegree_relativeSource_le F).trans hF
+  have hrnorm (i : Fin n) : (r i).coeff.sum (fun _ q => q.coeffNorm1) ≤ 2 ^ (ell.size + b) := by
+    have h := coeffNorm1_relativeCriticalLower_le hpos F i
+    rw [coeffNorm1_sumRingEquiv_symm] at h
+    exact h.trans ((Nat.mul_le_mul (hF.trans (Nat.lt_size_self ell).le) hb).trans_eq
+      (pow_add 2 ell.size b).symm)
+  have hvnorm : v.coeff.sum (fun _ q => q.coeffNorm1) ≤ 2 ^ ((n + (ell + 1)).size + b) := by
+    have h := coeffNorm1_relativeDeformedPolynomial_le hpos F
+    rw [coeffNorm1_sumRingEquiv_symm] at h
+    refine h.trans ?_
+    calc
+      _ ≤ n * 2 ^ b + (ell + 1) * 2 ^ b :=
+        Nat.add_le_add (by simpa only [mul_one] using Nat.mul_le_mul_left n Nat.one_le_two_pow)
+          (Nat.mul_le_mul_left _ hb)
+      _ = (n + (ell + 1)) * 2 ^ b := (Nat.add_mul ..).symm
+      _ ≤ _ := (Nat.mul_le_mul_right _ (Nat.lt_size_self _).le).trans_eq (pow_add 2 _ _).symm
+  exact PurePower.sum_multiplicationMatrix_charpoly_le_pow_two coeffNorm1_zero coeffNorm1_one.le
+    coeffNorm1_add_le coeffNorm1_mul_le coeffNorm1_neg coeffNorm1_nsmul hell r
+    (criticalLower_degree ell hpos a u G hG) hrnorm v
+    (totalDegree_deformedPolynomial_le ell a u G (hG.trans (Nat.le_succ _))) hvnorm
 
 end MvPolynomial.CriticalSystem
