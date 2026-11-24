@@ -9009,6 +9009,7 @@ public import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.DiscreteClinchi
 public import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.Impossibility
 public import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.TwoBidderClinching
 public import CslibFrontier.GameTheory.Mechanism.CombinatorialAuction.Walrasian
+public import CslibFrontier.GameTheory.Mechanism.CremerMcLean
 public import CslibFrontier.GameTheory.Mechanism.CriticalBid
 public import CslibFrontier.GameTheory.Mechanism.DigitalGoods.ProfitExtraction
 public import CslibFrontier.GameTheory.Mechanism.Domains
