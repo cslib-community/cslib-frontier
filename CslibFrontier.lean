@@ -7392,6 +7392,7 @@ public import CslibFrontier.Foundations.Combinatorics.Quiver.Path.Chain
 public import CslibFrontier.Foundations.Combinatorics.RectangleFreeMatrix
 public import CslibFrontier.Foundations.Combinatorics.ReplacementCounting
 public import CslibFrontier.Foundations.Combinatorics.ReplacementDesignBridge
+public import CslibFrontier.Foundations.Combinatorics.SetFamily.BeckFiala
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.Oddtown
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.PairwiseIntersection
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.RayChaudhuriWilson
