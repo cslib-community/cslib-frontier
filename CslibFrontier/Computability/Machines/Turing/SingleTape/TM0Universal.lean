@@ -121,10 +121,6 @@ private theorem dom_M₂ (n : ℕ) :
   rw [this]
   rfl
 
-/-- The stack alphabet of `PartrecToTM2` is primcodable through an enumeration. -/
-noncomputable instance primcodableΓ' : Primcodable Γ' :=
-  Primcodable.ofEquiv _ (Fintype.equivFin Γ')
-
 /-- The tape alphabet of `M₀` is primcodable through an enumeration. -/
 noncomputable instance primcodableTapeΓ : Primcodable (TM2to1.Γ' K' fun _ : K' => Γ') :=
   letI := Classical.decEq (TM2to1.Γ' K' fun _ : K' => Γ')
@@ -134,33 +130,6 @@ noncomputable instance primcodableTapeΓ : Primcodable (TM2to1.Γ' K' fun _ : K'
 noncomputable instance primcodableS₀ : Primcodable (S₀ : Set (TM1to0.Λ' M₁)) :=
   letI := Classical.decEq (S₀ : Set (TM1to0.Λ' M₁))
   Primcodable.ofEquiv _ (Fintype.equivFin _)
-
-private theorem primrec_trNat : Primrec trNat := by
-  have hdig : Primrec fun b : Bool => if b then Γ'.bit1 else Γ'.bit0 := Primrec.dom_finite _
-  have hl : Primrec fun p : Unit × List (List Γ') => p.2 := Primrec.snd
-  have hlen : Primrec fun p : Unit × List (List Γ') => p.2.length := Primrec.list_length.comp hl
-  have hget : Primrec fun p : Unit × List (List Γ') => p.2[p.2.length.div2]? :=
-    Primrec.list_getElem?.comp hl (Primrec.nat_div2.comp hlen)
-  have hcons : Primrec₂ fun (p : Unit × List (List Γ')) (t : List Γ') =>
-      (if p.2.length.bodd then Γ'.bit1 else Γ'.bit0) :: t :=
-    Primrec.list_cons.comp₂ (hdig.comp (Primrec.nat_bodd.comp (hlen.comp Primrec.fst))).to₂
-      Primrec₂.right
-  have hg : Primrec₂ fun (_ : Unit) (l : List (List Γ')) =>
-      some (((l[l.length.div2]?).map fun t =>
-        (if l.length.bodd then Γ'.bit1 else Γ'.bit0) :: t).getD []) :=
-    (Primrec.option_some.comp (Primrec.option_getD.comp (Primrec.option_map hget hcons)
-      (Primrec.const ([] : List Γ')))).to₂
-  have := Primrec.nat_strong_rec (fun (_ : Unit) n => trNat n) hg fun _ n => by
-    change some ((((List.range n).map trNat)[(((List.range n).map trNat).length).div2]?).map
-      (fun t => (if (((List.range n).map trNat).length).bodd then Γ'.bit1 else Γ'.bit0) :: t)
-        |>.getD []) = some (trNat n)
-    rw [List.length_map, List.length_range]
-    rcases Nat.eq_zero_or_pos n with rfl | hn
-    · rfl
-    · have hlt : n.div2 < n := by rw [Nat.div2_val]; omega
-      rw [List.getElem?_map, List.getElem?_range hlt, Option.map_some, Option.map_some,
-        Option.getD_some, trNat_eq n, ite_eq_right (Nat.pos_iff_ne_zero.mp hn)]
-  exact (this.comp (Primrec.const ()) Primrec.id).of_eq fun _ => rfl
 
 private theorem primrec_trInit :
     Primrec (TM2to1.trInit (Γ := fun _ : K' => Γ') K'.main) := by

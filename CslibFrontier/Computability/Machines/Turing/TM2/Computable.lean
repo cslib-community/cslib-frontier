@@ -12,6 +12,8 @@ public import CslibFrontier.Computability.Machines.Turing.TM2.Simulation
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Computable.Defs
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Bits
 public import Mathlib.Computability.Partrec
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Partrec
 import CslibFrontier.Computability.Machines.Turing.TM2.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -44,6 +46,8 @@ halts.
 * `Turing.TM2.isComputable_of_eval`: a halting run of a stack machine with finite labels, state
   and alphabets, from a configuration computed in polynomial time, is computed by a total machine.
 * `Computable.isComputable`: computable functions are computable by total multi-tape machines.
+* `Turing.MultiTapeTM.isComputable_iff_computable`: with these encodings, computability by total
+  multi-tape machines is Mathlib's computability.
 -/
 
 public section
@@ -222,3 +226,24 @@ theorem Computable.isComputable {α β : Type} [Primcodable α] [Primcodable β]
       exact Part.mem_map halt (Part.mem_some _)
     obtain ⟨b, hb, hbhalt⟩ := (Part.mem_map_iff _).1 hmem
     exact ⟨b, hb, readDigits_halt c _ b hbhalt⟩
+
+/-- Reading a word as a number, least significant bit first, is primitive recursive. -/
+private theorem primrec_ofBits : Primrec ofBits := by
+  have hbit : Primrec₂ fun (_ : List Bool) (p : Bool × ℕ) => Nat.bit p.1 p.2 :=
+    (Primrec.cond (Primrec.fst.comp Primrec.snd)
+      (Primrec.succ.comp (Primrec.nat_mul.comp (Primrec.const 2) (Primrec.snd.comp Primrec.snd)))
+      (Primrec.nat_mul.comp (Primrec.const 2) (Primrec.snd.comp Primrec.snd))).to₂.of_eq
+      fun _ p => by cases p.1 <;> rfl
+  exact (Primrec.list_foldr Primrec.id (Primrec.const 0) hbit).of_eq fun _ => rfl
+
+/-- **Computability by multi-tape machines is computability.** With the binary digits `encNat` of
+the `Encodable` index of the input and output, a function is computed by a total binary
+multi-tape Turing machine with finitely many states exactly when it is `Computable`. -/
+theorem Turing.MultiTapeTM.isComputable_iff_computable {α β : Type} [Primcodable α]
+    [Primcodable β] {f : α → β} :
+    IsComputable f ((Encodable.encode' α).trans encNat) ((Encodable.encode' β).trans encNat) ↔
+      Computable f := by
+  refine ⟨fun h => ?_, Computable.isComputable⟩
+  have hbits := h.computable_enc (primrec_bits.comp Primrec.encode).to_comp
+  exact Computable.encode_iff.1 ((primrec_ofBits.to_comp.comp hbits).of_eq fun a => by
+    simp [encNat_apply, Encodable.encode'])

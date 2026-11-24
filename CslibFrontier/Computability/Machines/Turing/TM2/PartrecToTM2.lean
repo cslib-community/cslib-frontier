@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Computability.TuringMachine.ToPartrec
+public import Mathlib.Computability.Primrec.List
 
 /-!
 # The stack machine of a partial recursive code on finitely many labels
@@ -178,6 +179,45 @@ theorem trNat_eq_map_bits (n : ℕ) :
         rfl
       rw [trNat_eq, hbits, List.map_cons, ← ih _ hlt]
       simp [hn]
+
+/-- The stack alphabet of `PartrecToTM2` is primcodable through an enumeration. -/
+noncomputable instance primcodableΓ' : Primcodable Γ' :=
+  Primcodable.ofEquiv _ (Fintype.equivFin Γ')
+
+/-- The stack encoding of numbers is primitive recursive. -/
+theorem primrec_trNat : Primrec trNat := by
+  have hdig : Primrec fun b : Bool => if b then Γ'.bit1 else Γ'.bit0 := Primrec.dom_finite _
+  have hl : Primrec fun p : Unit × List (List Γ') => p.2 := Primrec.snd
+  have hlen : Primrec fun p : Unit × List (List Γ') => p.2.length := Primrec.list_length.comp hl
+  have hget : Primrec fun p : Unit × List (List Γ') => p.2[p.2.length.div2]? :=
+    Primrec.list_getElem?.comp hl (Primrec.nat_div2.comp hlen)
+  have hcons : Primrec₂ fun (p : Unit × List (List Γ')) (t : List Γ') =>
+      (if p.2.length.bodd then Γ'.bit1 else Γ'.bit0) :: t :=
+    Primrec.list_cons.comp₂ (hdig.comp (Primrec.nat_bodd.comp (hlen.comp Primrec.fst))).to₂
+      Primrec₂.right
+  have hg : Primrec₂ fun (_ : Unit) (l : List (List Γ')) =>
+      some (((l[l.length.div2]?).map fun t =>
+        (if l.length.bodd then Γ'.bit1 else Γ'.bit0) :: t).getD []) :=
+    (Primrec.option_some.comp (Primrec.option_getD.comp (Primrec.option_map hget hcons)
+      (Primrec.const ([] : List Γ')))).to₂
+  have := Primrec.nat_strong_rec (fun (_ : Unit) n => trNat n) hg fun _ n => by
+    change some ((((List.range n).map trNat)[(((List.range n).map trNat).length).div2]?).map
+      (fun t => (if (((List.range n).map trNat).length).bodd then Γ'.bit1 else Γ'.bit0) :: t)
+        |>.getD []) = some (trNat n)
+    rw [List.length_map, List.length_range]
+    rcases Nat.eq_zero_or_pos n with rfl | hn
+    · rfl
+    · have hlt : n.div2 < n := by rw [Nat.div2_val]; omega
+      rw [List.getElem?_map, List.getElem?_range hlt, Option.map_some, Option.map_some,
+        Option.getD_some, trNat_eq n, ite_eq_right (Nat.pos_iff_ne_zero.mp hn)]
+  exact (this.comp (Primrec.const ()) Primrec.id).of_eq fun _ => rfl
+
+/-- The binary digits of a number are primitive recursive. -/
+theorem primrec_bits : Primrec Nat.bits :=
+  (Primrec.list_map primrec_trNat
+    ((Primrec.dom_finite fun x : Γ' => x == Γ'.bit1).comp Primrec.snd).to₂).of_eq fun n => by
+    rw [trNat_eq_map_bits, List.map_map]
+    exact (List.map_congr_left fun b _ => by cases b <;> rfl).trans (List.map_id _)
 
 /-- The labels that a run of the compiled program of `c` can visit. -/
 abbrev Label (c : Code) : Type := (codeSupp c Cont'.halt : Finset Λ')
