@@ -7,9 +7,10 @@ Authors: Renfei Zhou
 module
 -- upstream: candidate
 
-public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.DemoteRead
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.Frame
+-- `import all`: shares private internal helpers within the `TailSlabOps` split.
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.DemoteRead
-import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctTailOps
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabDemote
@@ -23,7 +24,9 @@ Proves `WindowCoupled` and `CompOpFrame` preservation for a single step `compDem
 against `demoteStepProg`.
 -/
 
-public section
+-- This proof-only companion is intentionally private; sibling `TailSlabOps` modules use
+-- `import all`.
+set_option linter.privateModule false
 
 namespace Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
 
@@ -43,7 +46,7 @@ attribute [local simp] prog_memoryCost_map prog_clientResult_read prog_runClient
 attribute [local simp] prog_memoryCost_read prog_clientResult_write prog_runClient_state_write
 attribute [local simp] prog_memoryCost_write
 
-theorem compDemoteStep_effect {metaBase itemBase U V w N m_cap b k : ℕ}
+private theorem compDemoteStep_effect {metaBase itemBase U V w N m_cap b k : ℕ}
     {s_fix s : Memory.State}
     (henv : CompEpochEnv U V w N metaBase itemBase m_cap s)
     (hb_pos : 0 < bucketBits N)
@@ -329,5 +332,3 @@ theorem compDemoteStep_effect {metaBase itemBase U V w N m_cap b k : ℕ}
   · rw [hst_all, hbwin6_eq, hgm6_1, hm6_eq]; exact hm_cap
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
-
-end

@@ -8,9 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.Frame
-import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
-import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.TailPush
-import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.PromoteSlab
+-- `import all`: shares private internal helpers within the `TailSlabOps` split.
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.TailPush
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.PromoteSlab
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctTailOps
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabMove

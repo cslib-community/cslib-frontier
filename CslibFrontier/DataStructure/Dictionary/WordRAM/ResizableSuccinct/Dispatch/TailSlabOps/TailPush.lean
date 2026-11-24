@@ -8,7 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.Frame
-import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
+-- `import all`: shares private internal helpers within the `TailSlabOps` split.
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctTailOps
 import Mathlib.Tactic.Linarith
@@ -21,7 +22,9 @@ Implements and certifies `compPushBackTailWriteGenProg`, coupling compacted circ
 and tail-item append to `pushBackTailWriteProg` via `FixedCoupled`.
 -/
 
-public section
+-- This proof-only companion is intentionally private; sibling `TailSlabOps` modules use
+-- `import all`.
+set_option linter.privateModule false
 
 namespace Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
 
@@ -62,14 +65,14 @@ private def compPushBackWriteReadProg :
 
 /-- Grow the circular tail window on the right, append a tail entry for bucket `b`, write
 `(q_val, v_val)`, and return `r_b'`. -/
-def compPushBackTailWriteGenProg :
+private def compPushBackTailWriteGenProg :
     (((CompParams × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ → Memory.Prog ℕ
   | ((((cp, (metaBase, itemBase)), b), q_val), v_val) => do
     let wn ← compPushBackReadWinProg (cp, metaBase)
     let d_new ← compPushBackGrowGMProg (((cp, metaBase), b), wn)
     compPushBackWriteReadProg ((((cp, (metaBase, itemBase)), b), d_new), (q_val, v_val))
 
-@[simp] theorem memoryCost_compPushBackTailWriteGenProg
+@[simp] private theorem memoryCost_compPushBackTailWriteGenProg
     (d : (((CompParams × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (compPushBackTailWriteGenProg d) s = 42 := by
   rcases d with ⟨⟨⟨⟨cp, ⟨metaBase, itemBase⟩⟩, b⟩, q_val⟩, v_val⟩
@@ -77,7 +80,7 @@ def compPushBackTailWriteGenProg :
     compPushBackWriteReadProg, writeCompItemGenProg]
 
 /-- Precondition for `compPushBackTailWriteGenProg`. -/
-@[expose] def CompPushBackTailWritePre (w : ℕ) :
+private def CompPushBackTailWritePre (w : ℕ) :
     (((CompParams × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ → Memory.State → Prop
   | ((((cp, (metaBase, itemBase)), b), q_val), v_val), s =>
     ∃ U V N m_cap s_fix,
@@ -92,7 +95,7 @@ def compPushBackTailWriteGenProg :
       q_val < 2 ^ quotientBits U N ∧
       v_val < 2 ^ valBits V
 
-theorem compPushBackTailWrite_effect {metaBase itemBase U V w N m_cap b q_val v_val : ℕ}
+private theorem compPushBackTailWrite_effect {metaBase itemBase U V w N m_cap b q_val v_val : ℕ}
     {s_fix s : Memory.State}
     (henv : CompEpochEnv U V w N metaBase itemBase m_cap s)
     (hb_pos : 0 < bucketBits N)
@@ -427,7 +430,7 @@ private theorem realizesBounded_compPushBackWriteRead :
     rw [StateTransitionSpec.clientState_bind, clientState_writeCompValGenProg,
       clientState_writeCompQuotGenProg]
 
-theorem realizesBounded_compPushBackTailWriteGen :
+private theorem realizesBounded_compPushBackTailWriteGen :
     RealizesBounded .exact compPushBackTailWriteGenProg
       (WordEncoding.encode (α := (((CompParams × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ))
       (WordEncoding.encode (α := ℕ))
@@ -488,7 +491,7 @@ theorem realizesBounded_compPushBackTailWriteGen :
         StateTransitionSpec.clientResult_pure, hgm_w1]
       omega
 
-theorem validProg_compPushBackTailWriteGen {w : ℕ}
+private theorem validProg_compPushBackTailWriteGen {w : ℕ}
     {d : (((CompParams × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ} {s : Memory.State}
     (h : CompPushBackTailWritePre w d s) :
     ValidProg w 0 s (compPushBackTailWriteGenProg d) := by
@@ -578,5 +581,3 @@ theorem validProg_compPushBackTailWriteGen {w : ℕ}
   exact validProg_readCompGMGen ⟨(henv2.of_mem_eq (by rw [hs3_fr])).compMetaEnv, hr_idx_lt⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
-
-end

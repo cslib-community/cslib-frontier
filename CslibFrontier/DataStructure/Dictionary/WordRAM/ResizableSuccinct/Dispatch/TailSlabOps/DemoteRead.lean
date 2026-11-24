@@ -8,7 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.Frame
-import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
+-- `import all`: shares private internal helpers within the `TailSlabOps` split.
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctTailOps
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabDemote
@@ -22,7 +23,9 @@ Defines the per-coordinate demotion step `compDemoteStepGenProg` and its metadat
 `compDemoteStep_read_spec`.
 -/
 
-public section
+-- This proof-only companion is intentionally private; sibling `TailSlabOps` modules use
+-- `import all`.
+set_option linter.privateModule false
 
 namespace Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
 
@@ -82,7 +85,7 @@ private def compDemoteFinishStepProg :
     compDemoteSwapItemsProg (((cp, itemBase), (g_del, g_last)), qv)
 
 /-- Single step `k` of `K`-step compacted slab demotion for bucket `b`. -/
-def compDemoteStepGenProg :
+private def compDemoteStepGenProg :
     ((CompParams × (ℕ × ℕ)) × ℕ) × ℕ → Memory.Prog ℕ
   | (((cp, (metaBase, itemBase)), b), k) => do
     let gmInfo ← compDemoteReadGMProg (((cp, metaBase), b), k)
@@ -90,7 +93,7 @@ def compDemoteStepGenProg :
     compDemoteFinishStepProg (((((cp, (metaBase, itemBase)), b), gmInfo), qv))
     pure (k + 1)
 
-@[simp] theorem memoryCost_compDemoteStepGenProg
+@[simp] private theorem memoryCost_compDemoteStepGenProg
     (x : ((CompParams × (ℕ × ℕ)) × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (compDemoteStepGenProg x) s = 58 := by
   rcases x with ⟨⟨⟨cp, ⟨metaBase, itemBase⟩⟩, b⟩, k⟩
@@ -98,13 +101,13 @@ def compDemoteStepGenProg :
     compDemoteFinishStepProg, compDemoteWinAppendProg, compDemoteSwapItemsProg,
     writeCompItemGenProg]
 
-theorem one_le_memoryCost_compDemoteStepGenProg
+private theorem one_le_memoryCost_compDemoteStepGenProg
     (x : ((CompParams × (ℕ × ℕ)) × ℕ) × ℕ) (s : Memory.State) :
     1 ≤ memoryCost (compDemoteStepGenProg x) s := by
   rw [memoryCost_compDemoteStepGenProg]; omega
 
 /-- Precondition for `compDemoteStepGenProg`. -/
-@[expose] def CompDemoteStepPre (w : ℕ) :
+private def CompDemoteStepPre (w : ℕ) :
     ((CompParams × (ℕ × ℕ)) × ℕ) × ℕ → Memory.State → Prop
   | (((cp, (metaBase, itemBase)), b), k), s =>
     ∃ U V N m_cap s_fix,
@@ -201,5 +204,3 @@ private theorem compDemoteStep_read_spec {metaBase itemBase U V w N m_cap b k : 
   exact ⟨hst, hres, hv⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
-
-end

@@ -20,7 +20,9 @@ congruence helpers, `WindowCoupled` circular-window write/copy/shrink lemmas, an
 `writeCompItemGenProg`.
 -/
 
-public section
+-- This proof-only companion is intentionally private; sibling `TailSlabOps` modules use
+-- `import all`.
+set_option linter.privateModule false
 
 namespace Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
 
@@ -40,7 +42,7 @@ attribute [local simp] prog_memoryCost_map prog_clientResult_read prog_runClient
 attribute [local simp] prog_memoryCost_read prog_clientResult_write prog_runClient_state_write
 attribute [local simp] prog_memoryCost_write
 
-theorem CompOpFrame.of_gmFrame {metaBase itemBase U V w N m_items m_cap : ℕ}
+private theorem CompOpFrame.of_gmFrame {metaBase itemBase U V w N m_items m_cap : ℕ}
     {s s' : Memory.State} (h : CompGmFrame metaBase itemBase U V w N m_items s s') :
     CompOpFrame metaBase itemBase U V w N m_cap s s' := by
   have h0 : offCompLM U w N ≤ offCompGM U w N := Nat.le_add_right _ _
@@ -48,22 +50,22 @@ theorem CompOpFrame.of_gmFrame {metaBase itemBase U V w N m_items m_cap : ℕ}
   have h2 : offDenseToTail U w N ≤ offCompItems U w N := Nat.le_add_right _ _
   exact ⟨h.frontier_eq, fun a hm _ => h.outside_eq a (by omega)⟩
 
-theorem tailBijection_of_gm_eq {N : ℕ} {gm₁ gm₂ : ℕ → ℕ} (h : gm₁ = gm₂)
+private theorem tailBijection_of_gm_eq {N : ℕ} {gm₁ gm₂ : ℕ → ℕ} (h : gm₁ = gm₂)
     (htail : TailBijection N gm₂ (fun b' => gm₂ (gmRIdx b')) (gm₂ 1)) :
     TailBijection N gm₁ (fun b' => gm₁ (gmRIdx b')) (gm₁ 1) := by
   rw [h]; exact htail
 
-theorem slabBijection_of_gm_eq {N : ℕ} {gm₁ gm₂ : ℕ → ℕ} (h : gm₁ = gm₂)
+private theorem slabBijection_of_gm_eq {N : ℕ} {gm₁ gm₂ : ℕ → ℕ} (h : gm₁ = gm₂)
     (hslab : SlabBijection N gm₂ (fun b' => gm₂ (gmQIdx b')) (gm₂ 0)) :
     SlabBijection N gm₁ (fun b' => gm₁ (gmQIdx b')) (gm₁ 0) := by
   rw [h]; exact hslab
 
-theorem slotStoreInv_of_gm_eq {N : ℕ} {gm₁ gm₂ : ℕ → ℕ} (h : gm₁ = gm₂)
+private theorem slotStoreInv_of_gm_eq {N : ℕ} {gm₁ gm₂ : ℕ → ℕ} (h : gm₁ = gm₂)
     (hs : SlotStoreInv N gm₂) :
     SlotStoreInv N gm₁ := by
   rw [h]; exact hs
 
-theorem compOpFrame_writeCompQuot {metaBase itemBase U V w N m_cap d q : ℕ}
+private theorem compOpFrame_writeCompQuot {metaBase itemBase U V w N m_cap d q : ℕ}
     (hw : 0 < w) (hd : d < m_cap) (s : Memory.State) :
     CompOpFrame metaBase itemBase U V w N m_cap s
       ((Memory.spec 0).clientState s
@@ -71,7 +73,7 @@ theorem compOpFrame_writeCompQuot {metaBase itemBase U V w N m_cap d q : ℕ}
   rw [clientState_writeCompQuotGenProg]
   exact ⟨rfl, fun a _ hi => writeCompQuot_outside hw hd s.mem hi⟩
 
-theorem compOpFrame_writeCompVal {metaBase itemBase U V w N m_cap d v : ℕ}
+private theorem compOpFrame_writeCompVal {metaBase itemBase U V w N m_cap d v : ℕ}
     (hw : 0 < w) (hd : d < m_cap) (s : Memory.State) :
     CompOpFrame metaBase itemBase U V w N m_cap s
       ((Memory.spec 0).clientState s
@@ -79,7 +81,7 @@ theorem compOpFrame_writeCompVal {metaBase itemBase U V w N m_cap d v : ℕ}
   rw [clientState_writeCompValGenProg]
   exact ⟨rfl, fun a _ hi => writeCompVal_outside hw hd s.mem hi⟩
 
-theorem compOpFrame_copyCompItem {metaBase itemBase U V w N m_cap src dst : ℕ}
+private theorem compOpFrame_copyCompItem {metaBase itemBase U V w N m_cap src dst : ℕ}
     (hw : 0 < w) (hsrc : src < m_cap) (hdst : dst < m_cap) (s : Memory.State) :
     CompOpFrame metaBase itemBase U V w N m_cap s
       ((Memory.spec 0).clientState s
@@ -88,7 +90,7 @@ theorem compOpFrame_copyCompItem {metaBase itemBase U V w N m_cap src dst : ℕ}
   exact ⟨rfl, fun a _ hi =>
     (writeCompVal_outside hw hdst _ hi).trans (writeCompQuot_outside hw hdst s.mem hi)⟩
 
-theorem compOpFrame_tailWindow {metaBase itemBase U V w N m_cap : ℕ} {s s' : Memory.State}
+private theorem compOpFrame_tailWindow {metaBase itemBase U V w N m_cap : ℕ} {s s' : Memory.State}
     (hfr : s'.frontier = s.frontier)
     (hout : ∀ a, ¬(metaBase + offTailToDense U w N ≤ a ∧ a < metaBase + offCompItems U w N) →
       s'.mem a = s.mem a) :
@@ -97,7 +99,7 @@ theorem compOpFrame_tailWindow {metaBase itemBase U V w N m_cap : ℕ} {s s' : M
   have h1 : offCompGM U w N ≤ offTailToDense U w N := Nat.le_add_right _ _
   exact ⟨hfr, fun a hm _ => hout a (by omega)⟩
 
-theorem maxTailItems_pos_of_bucketBits_pos {N : ℕ} (hb_pos : 0 < bucketBits N) :
+private theorem maxTailItems_pos_of_bucketBits_pos {N : ℕ} (hb_pos : 0 < bucketBits N) :
     0 < maxTailItems N := by
   have hb0 : bucketBits N ≠ 0 := hb_pos.ne'
   have hB : 0 < numBuckets N := numBuckets_pos N
@@ -106,11 +108,11 @@ theorem maxTailItems_pos_of_bucketBits_pos {N : ℕ} (hb_pos : 0 < bucketBits N)
   rw [ite_eq_right hb0]
   exact Nat.mul_pos hB (by omega)
 
-theorem physByBase_slab {N b_win : ℕ} (dt : ℕ → ℕ) {g : ℕ} (hg : g < b_win) :
+private theorem physByBase_slab {N b_win : ℕ} (dt : ℕ → ℕ) {g : ℕ} (hg : g < b_win) :
     physByBase N b_win dt g = g := by
   unfold physByBase; split_ifs <;> rfl
 
-theorem physByBase_tail_denseOfCirc {N b_win n_win : ℕ} {td dt : ℕ → ℕ}
+private theorem physByBase_tail_denseOfCirc {N b_win n_win : ℕ} {td dt : ℕ → ℕ}
     (hb_pos : 0 < bucketBits N) (hw : WindowInv (maxTailItems N) b_win n_win td dt)
     {t : ℕ} (ht : t < n_win) :
     let d := denseOfCirc (maxTailItems N) b_win (td t)
@@ -126,7 +128,7 @@ theorem physByBase_tail_denseOfCirc {N b_win n_win : ℕ} {td dt : ℕ → ℕ}
   rw [ite_eq_right hb0, ite_eq_right (by omega : ¬d < b_win),
     denseOfCirc_mod hM_pos hc_lt, hw.dt_td t ht]
 
-theorem physByBase_range_and_inj {N b_win n_win : ℕ} {td dt : ℕ → ℕ}
+private theorem physByBase_range_and_inj {N b_win n_win : ℕ} {td dt : ℕ → ℕ}
     (hb_pos : 0 < bucketBits N) (hbn : b_win + n_win ≤ N) (hM : n_win ≤ maxTailItems N)
     (hw : WindowInv (maxTailItems N) b_win n_win td dt) :
     (∀ d < b_win + n_win,
@@ -166,7 +168,7 @@ theorem physByBase_range_and_inj {N b_win n_win : ℕ} {td dt : ℕ → ℕ}
 
 /-- Writing `(q, v)` to dense slot `d < b_win + n_win` in `s` preserves `WindowCoupled` against
 updating `(quotAt, valAt)` at `g = physByBase N b_win dt d` in `s_fix`. -/
-theorem windowCoupled_write_at {metaBase itemBase U V w N b_win n_win d g q v : ℕ}
+private theorem windowCoupled_write_at {metaBase itemBase U V w N b_win n_win d g q v : ℕ}
     {s_fix s_fix' s : Memory.State}
     (hw : 0 < w) (hitem : metaBase + offCompItems U w N ≤ itemBase)
     (hb_pos : 0 < bucketBits N) (hbn : b_win + n_win ≤ N) (hM : n_win ≤ maxTailItems N)
@@ -224,7 +226,7 @@ theorem windowCoupled_write_at {metaBase itemBase U V w N b_win n_win d g q v : 
 
 /-- Copying dense slot `src → dst` in `s` preserves `WindowCoupled` against copying `g_src → g_dst`
 in `(quotAt, valAt)` of `s_fix`. -/
-theorem windowCoupled_copyCompItem {metaBase itemBase U V w N b_win n_win src dst
+private theorem windowCoupled_copyCompItem {metaBase itemBase U V w N b_win n_win src dst
     g_src g_dst : ℕ} {s_fix s_fix' s : Memory.State}
     (hw : 0 < w) (hitem : metaBase + offCompItems U w N ≤ itemBase)
     (hb_pos : 0 < bucketBits N) (hbn : b_win + n_win ≤ N) (hM : n_win ≤ maxTailItems N)
@@ -261,7 +263,7 @@ theorem windowCoupled_copyCompItem {metaBase itemBase U V w N b_win n_win src ds
 
 /-- Copying `(b_win + n') → d_last` followed by `winShrinkRight` transitions `WindowCoupled`
 from `(b_win, n' + 1, b_win + n' + 1)` to `(b_win, n', b_win + n')` against the same `s_fix`. -/
-theorem windowCoupled_shrinkRight {metaBase itemBase U V w N b_win n' : ℕ}
+private theorem windowCoupled_shrinkRight {metaBase itemBase U V w N b_win n' : ℕ}
     {s_fix s : Memory.State}
     (hw : 0 < w) (hitem : metaBase + offCompItems U w N ≤ itemBase)
     (hb_pos : 0 < bucketBits N) (hM : n' + 1 ≤ maxTailItems N)
@@ -344,7 +346,7 @@ theorem windowCoupled_shrinkRight {metaBase itemBase U V w N b_win n' : ℕ}
 /-- Copying `b_win → d_last`, calling `winShrinkLeft`, and writing `(q, v)` to `b_win` transitions
 `WindowCoupled` from `(b_win, n' + 1, m)` to `(b_win + 1, n', m)` against updating `(quotAt, valAt)`
 at `b_win` to `(q, v)`. -/
-theorem windowCoupled_shrinkLeft_write {metaBase itemBase U V w N b_win n' q v : ℕ}
+private theorem windowCoupled_shrinkLeft_write {metaBase itemBase U V w N b_win n' q v : ℕ}
     {s_fix s_fix' s : Memory.State}
     (hw : 0 < w) (hitem : metaBase + offCompItems U w N ≤ itemBase)
     (hb_pos : 0 < bucketBits N) (hbn : b_win + (n' + 1) ≤ N) (hM : n' + 1 ≤ maxTailItems N)
@@ -480,17 +482,17 @@ theorem windowCoupled_shrinkLeft_write {metaBase itemBase U V w N b_win n' q v :
 
 
 /-- Write `(q_val, v_val)` to dense compacted item slot `dst` at `itemBase`. -/
-@[expose] def writeCompItemGenProg : ((CompParams × ℕ) × ℕ) × (ℕ × ℕ) → Memory.Prog Unit
+private def writeCompItemGenProg : ((CompParams × ℕ) × ℕ) × (ℕ × ℕ) → Memory.Prog Unit
   | (((cp, itemBase), dst), (q_val, v_val)) => do
     writeCompQuotGenProg (((cp, itemBase), dst), q_val)
     writeCompValGenProg (((cp, itemBase), dst), v_val)
 
 /-- Precondition for `writeCompItemGenProg`. -/
-@[expose] def WriteCompItemPre (w : ℕ) : ((CompParams × ℕ) × ℕ) × (ℕ × ℕ) → Memory.State → Prop
+private def WriteCompItemPre (w : ℕ) : ((CompParams × ℕ) × ℕ) × (ℕ × ℕ) → Memory.State → Prop
   | (((cp, itemBase), dst), _qv), s =>
     ∃ m_items, CompItemEnv w cp itemBase m_items s ∧ dst < m_items
 
-theorem realizesBounded_writeCompItemGen :
+private theorem realizesBounded_writeCompItemGen :
     RealizesBounded .exact writeCompItemGenProg
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × (ℕ × ℕ)))
       (WordEncoding.encode (α := Unit))
@@ -504,7 +506,7 @@ theorem realizesBounded_writeCompItemGen :
     simp only [StateTransitionSpec.clientState, runClient_state_writeCompQuotGenProg] at *)
   all_goals exact ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hdst⟩
 
-theorem validProg_writeCompItemGen {w : ℕ} {d : ((CompParams × ℕ) × ℕ) × (ℕ × ℕ)}
+private theorem validProg_writeCompItemGen {w : ℕ} {d : ((CompParams × ℕ) × ℕ) × (ℕ × ℕ)}
     {s : Memory.State} (h : WriteCompItemPre w d s) :
     ValidProg w 0 s (writeCompItemGenProg d) := by
   rcases d with ⟨⟨⟨cp, itemBase⟩, dst⟩, ⟨q_val, v_val⟩⟩
@@ -518,5 +520,3 @@ theorem validProg_writeCompItemGen {w : ℕ} {d : ((CompParams × ℕ) × ℕ) �
   exact validProg_writeCompValGen ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr1⟩, hdst⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
-
-end

@@ -7,9 +7,10 @@ Authors: Renfei Zhou
 module
 -- upstream: candidate
 
-public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.DemoteRead
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.Frame
+-- `import all`: shares private internal helpers within the `TailSlabOps` split.
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.DemoteRead
-import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctTailOps
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabDemote
@@ -23,7 +24,9 @@ Certifies `realizesBounded_compDemoteStep` and `validProg_compDemoteStep` for a 
 step.
 -/
 
-public section
+-- This proof-only companion is intentionally private; sibling `TailSlabOps` modules use
+-- `import all`.
+set_option linter.privateModule false
 
 namespace Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
 
@@ -196,7 +199,7 @@ private theorem realizesBounded_compDemoteFinishStep :
     rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
       StateTransitionSpec.clientState_pure, hfr2.frontier_eq, hf1]
 
-theorem realizesBounded_compDemoteStep :
+private theorem realizesBounded_compDemoteStep :
     RealizesBounded .exact compDemoteStepGenProg
       (WordEncoding.encode (α := ((CompParams × (ℕ × ℕ)) × ℕ) × ℕ))
       (WordEncoding.encode (α := ℕ))
@@ -311,7 +314,7 @@ private theorem validProg_compDemoteFinishStep {w : ℕ}
       clientState_writeCompQuotGenProg]
   exact validProg_writeCompItemGen ⟨m_cap, (henv2.of_mem_eq (by rw [hf3])).compItemEnv, hg_last⟩
 
-theorem validProg_compDemoteStep {w : ℕ}
+private theorem validProg_compDemoteStep {w : ℕ}
     {x : ((CompParams × (ℕ × ℕ)) × ℕ) × ℕ} {s : Memory.State}
     (h : CompDemoteStepPre w x s) :
     ValidProg w 0 s (compDemoteStepGenProg x) := by
@@ -367,5 +370,3 @@ theorem validProg_compDemoteStep {w : ℕ}
     fun _ _ => validProg_pure _
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
-
-end

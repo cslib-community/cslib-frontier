@@ -8,10 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.Frame
-import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
-import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.PromoteRead
-import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.PromoteStepEffect
-import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.PromoteStepRealize
+-- `import all`: shares private internal helpers within the `TailSlabOps` split.
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.PromoteRead
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.PromoteStepEffect
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.PromoteStepRealize
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctTailOps
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabMove
@@ -25,7 +26,9 @@ Assembles the `K`-iteration loop (`RealizesBounded.iterate₀`) and `compGmPushS
 `compPromoteSlabGenProg` coupled to `promoteSlabProg`.
 -/
 
-public section
+-- This proof-only companion is intentionally private; sibling `TailSlabOps` modules use
+-- `import all`.
+set_option linter.privateModule false
 
 namespace Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
 
@@ -125,7 +128,7 @@ private theorem iterate_compPromoteStep_spec {metaBase itemBase U V w N m_cap b 
       exact ⟨⟨U, V, N, m_cap, s_fix, rfl, henv, hb_pos, hstep, hcpl, hm_cap⟩, hsafe_m⟩
 
 /-- Promote `K = slabSize N` tail items of bucket `b` into a newly allocated full slab. -/
-def compPromoteSlabGenProg : (CompParams × (ℕ × ℕ)) × ℕ → Memory.Prog Unit
+private def compPromoteSlabGenProg : (CompParams × (ℕ × ℕ)) × ℕ → Memory.Prog Unit
   | ((cp, (metaBase, itemBase)), b) => do
     let k0 ← pure 0
     let K ← pure (cpSlabSize cp)
@@ -133,7 +136,7 @@ def compPromoteSlabGenProg : (CompParams × (ℕ × ℕ)) × ℕ → Memory.Prog
     compGmPushSlabGenProg ((cp, metaBase), b)
 
 /-- Precondition for `compPromoteSlabGenProg`. -/
-@[expose] def CompPromoteSlabPre (w : ℕ) : (CompParams × (ℕ × ℕ)) × ℕ → Memory.State → Prop
+private def CompPromoteSlabPre (w : ℕ) : (CompParams × (ℕ × ℕ)) × ℕ → Memory.State → Prop
   | ((cp, (metaBase, itemBase)), b), s =>
     ∃ U V N m_cap s_fix,
       cp = mkCompParams U V w N ∧
@@ -143,7 +146,7 @@ def compPromoteSlabGenProg : (CompParams × (ℕ × ℕ)) × ℕ → Memory.Prog
       FixedCoupled metaBase itemBase U V w N s_fix s ∧
       totalSlots N (compGmAt metaBase U w N s.mem) ≤ m_cap
 
-theorem compPromoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
+private theorem compPromoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
     {s_fix s : Memory.State}
     (henv : CompEpochEnv U V w N metaBase itemBase m_cap s)
     (hb_pos : 0 < bucketBits N)
@@ -265,7 +268,7 @@ theorem compPromoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
       ((mkCompParams U V w N, metaBase), b) s₁
     omega
 
-theorem realizesBounded_compPromoteSlabGen :
+private theorem realizesBounded_compPromoteSlabGen :
     RealizesBounded .exact compPromoteSlabGenProg
       (WordEncoding.encode (α := (CompParams × (ℕ × ℕ)) × ℕ))
       (WordEncoding.encode (α := Unit))
@@ -311,7 +314,7 @@ theorem realizesBounded_compPromoteSlabGen :
     · rw [hfr_loop.frontier_eq]; exact henv.meta_le_frontier
     · rw [hcpl_loop.gm_eq]; exact hp_lt1
 
-theorem validProg_compPromoteSlabGen {w : ℕ} {d : (CompParams × (ℕ × ℕ)) × ℕ}
+private theorem validProg_compPromoteSlabGen {w : ℕ} {d : (CompParams × (ℕ × ℕ)) × ℕ}
     {s : Memory.State} (h : CompPromoteSlabPre w d s) :
     ValidProg w 0 s (compPromoteSlabGenProg d) := by
   rcases d with ⟨⟨cp, ⟨metaBase, itemBase⟩⟩, b⟩
@@ -354,5 +357,3 @@ theorem validProg_compPromoteSlabGen {w : ℕ} {d : (CompParams × (ℕ × ℕ))
     by rw [hcpl_loop.gm_eq]; exact hp_lt1⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
-
-end

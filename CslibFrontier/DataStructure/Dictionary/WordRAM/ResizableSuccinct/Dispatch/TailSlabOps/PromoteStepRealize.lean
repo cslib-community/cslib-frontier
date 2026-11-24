@@ -7,9 +7,10 @@ Authors: Renfei Zhou
 module
 -- upstream: candidate
 
-public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.PromoteRead
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.Frame
+-- `import all`: shares private internal helpers within the `TailSlabOps` split.
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.PromoteRead
-import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctTailOps
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabMove
@@ -23,7 +24,9 @@ Certifies `realizesBounded_compPromoteStep` and `validProg_compPromoteStep` for 
 step.
 -/
 
-public section
+-- This proof-only companion is intentionally private; sibling `TailSlabOps` modules use
+-- `import all`.
+set_option linter.privateModule false
 
 namespace Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
 
@@ -349,7 +352,7 @@ private theorem realizesBounded_compPromoteFinishStep :
     dsimp only [s3]; rw [hs3_eq]; dsimp only [s2]; rw [hs2_eq, hf1]
     exact henv.meta_le_frontier
 
-theorem realizesBounded_compPromoteStep :
+private theorem realizesBounded_compPromoteStep :
     RealizesBounded .exact compPromoteStepGenProg
       (WordEncoding.encode (α := ((CompParams × (ℕ × ℕ)) × ℕ) × ℕ))
       (WordEncoding.encode (α := ℕ))
@@ -515,7 +518,7 @@ private theorem validProg_compPromoteFinishStep {w : ℕ}
     henv.lt_pow_U, henv.le_pow_V, rfl, by rw [hf3]; exact henv.meta_le_frontier, hb_pos, hb,
     tailBijection_of_gm_eq hgm3 htail, by rw [hgm3]; exact hr_pos⟩
 
-theorem validProg_compPromoteStep {w : ℕ}
+private theorem validProg_compPromoteStep {w : ℕ}
     {x : ((CompParams × (ℕ × ℕ)) × ℕ) × ℕ} {s : Memory.State}
     (h : CompPromoteStepPre w x s) :
     ValidProg w 0 s (compPromoteStepGenProg x) := by
@@ -604,5 +607,3 @@ theorem validProg_compPromoteStep {w : ℕ}
     fun _ _ => validProg_pure _
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
-
-end

@@ -8,7 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.Frame
-import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
+-- `import all`: shares private internal helpers within the `TailSlabOps` split.
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctTailOps
 import Mathlib.Tactic.Linarith
@@ -21,7 +22,9 @@ Implements and certifies `compRemoveLastTailItemGenProg`, coupling compacted cir
 swap-and-shrink removal to `removeLastTailItemProg` via `FixedCoupled`.
 -/
 
-public section
+-- This proof-only companion is intentionally private; sibling `TailSlabOps` modules use
+-- `import all`.
+set_option linter.privateModule false
 
 namespace Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
 
@@ -85,12 +88,12 @@ private def compRemoveTailApplyProg :
     compRemoveTailGMOnlyGenProg ((cp, metaBase), b)
 
 /-- Remove the last tail item of bucket `b` and shrink the circular tail window on the right. -/
-def compRemoveLastTailItemGenProg : (CompParams × (ℕ × ℕ)) × ℕ → Memory.Prog Unit
+private def compRemoveLastTailItemGenProg : (CompParams × (ℕ × ℕ)) × ℕ → Memory.Prog Unit
   | ((cp, (metaBase, itemBase)), b) => do
     let loc ← compRemoveTailLocateProg ((cp, metaBase), b)
     compRemoveTailApplyProg ((((cp, (metaBase, itemBase)), b), loc))
 
-@[simp] theorem memoryCost_compRemoveLastTailItemGenProg
+@[simp] private theorem memoryCost_compRemoveLastTailItemGenProg
     (d : (CompParams × (ℕ × ℕ)) × ℕ) (s : Memory.State) :
     memoryCost (compRemoveLastTailItemGenProg d) s = 72 := by
   rcases d with ⟨⟨cp, ⟨metaBase, itemBase⟩⟩, b⟩
@@ -99,7 +102,7 @@ def compRemoveLastTailItemGenProg : (CompParams × (ℕ × ℕ)) × ℕ → Memo
     compRemoveTailApplyProg]
 
 /-- Precondition for `compRemoveLastTailItemGenProg`. -/
-@[expose] def CompRemoveLastTailPre (w : ℕ) :
+private def CompRemoveLastTailPre (w : ℕ) :
     (CompParams × (ℕ × ℕ)) × ℕ → Memory.State → Prop
   | ((cp, (metaBase, itemBase)), b), s =>
     ∃ U V N m_cap s_fix,
@@ -240,7 +243,7 @@ private theorem compRemoveTailLocate_spec {metaBase itemBase U V w N m_cap b : �
     exact validProg_bind (validProg_denseOfCircGen _ _) (validProg_pure _)
   exact ⟨hst, hres, hv⟩
 
-theorem compRemoveLastTailItem_effect {metaBase itemBase U V w N m_cap b : ℕ}
+private theorem compRemoveLastTailItem_effect {metaBase itemBase U V w N m_cap b : ℕ}
     {s_fix s : Memory.State}
     (henv : CompEpochEnv U V w N metaBase itemBase m_cap s)
     (hb_pos : 0 < bucketBits N)
@@ -703,7 +706,7 @@ private theorem realizesBounded_compRemoveTailApply :
     rw [hf3]; dsimp only [s2]; rw [hs2_eq]; dsimp only [s1]; rw [hs1_eq]
     exact henv.meta_le_frontier
 
-theorem realizesBounded_compRemoveLastTailItemGen :
+private theorem realizesBounded_compRemoveLastTailItemGen :
     RealizesBounded .exact compRemoveLastTailItemGenProg
       (WordEncoding.encode (α := (CompParams × (ℕ × ℕ)) × ℕ))
       (WordEncoding.encode (α := Unit))
@@ -743,7 +746,7 @@ theorem realizesBounded_compRemoveLastTailItemGen :
     · have := hwin0.dense_lt _ ht_del_lt; omega
     · have := hwin0.dense_lt _ hn'_lt; omega
 
-theorem validProg_compRemoveLastTailItemGen {w : ℕ} {d : (CompParams × (ℕ × ℕ)) × ℕ}
+private theorem validProg_compRemoveLastTailItemGen {w : ℕ} {d : (CompParams × (ℕ × ℕ)) × ℕ}
     {s : Memory.State} (h : CompRemoveLastTailPre w d s) :
     ValidProg w 0 s (compRemoveLastTailItemGenProg d) := by
   rcases d with ⟨⟨cp, ⟨metaBase, itemBase⟩⟩, b⟩
@@ -857,5 +860,3 @@ theorem validProg_compRemoveLastTailItemGen {w : ℕ} {d : (CompParams × (ℕ �
     tailBijection_of_gm_eq hgm3' htail, by rw [hgm3']; exact hr_pos⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
-
-end

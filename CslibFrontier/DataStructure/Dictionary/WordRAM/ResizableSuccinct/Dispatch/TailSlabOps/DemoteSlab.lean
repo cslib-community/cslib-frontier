@@ -8,10 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.Frame
-import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
-import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.DemoteRead
-import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.DemoteStepEffect
-import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.DemoteStepRealize
+-- `import all`: shares private internal helpers within the `TailSlabOps` split.
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.WindowHelpers
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.DemoteRead
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.DemoteStepEffect
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.DemoteStepRealize
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctTailOps
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabDemote
@@ -25,7 +26,9 @@ Assembles the `K`-iteration loop (`RealizesBounded.iterate₀`) and `compGmPopSl
 `compDemoteSlabGenProg` coupled to `demoteSlabProg`.
 -/
 
-public section
+-- This proof-only companion is intentionally private; sibling `TailSlabOps` modules use
+-- `import all`.
+set_option linter.privateModule false
 
 namespace Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
 
@@ -126,7 +129,7 @@ private theorem iterate_compDemoteStep_spec {metaBase itemBase U V w N m_cap b :
       exact ⟨⟨U, V, N, m_cap, s_fix, rfl, henv, hb_pos, hstep, hcpl, hm_cap⟩, hsafe_m⟩
 
 /-- Demote the top full slab of bucket `b` into `K = slabSize N` tail items. -/
-def compDemoteSlabGenProg : (CompParams × (ℕ × ℕ)) × ℕ → Memory.Prog Unit
+private def compDemoteSlabGenProg : (CompParams × (ℕ × ℕ)) × ℕ → Memory.Prog Unit
   | ((cp, (metaBase, itemBase)), b) => do
     let k0 ← pure 0
     let K ← pure (cpSlabSize cp)
@@ -134,7 +137,7 @@ def compDemoteSlabGenProg : (CompParams × (ℕ × ℕ)) × ℕ → Memory.Prog 
     compGmPopSlabGenProg ((cp, metaBase), b)
 
 /-- Precondition for `compDemoteSlabGenProg`. -/
-@[expose] def CompDemoteSlabPre (w : ℕ) : (CompParams × (ℕ × ℕ)) × ℕ → Memory.State → Prop
+private def CompDemoteSlabPre (w : ℕ) : (CompParams × (ℕ × ℕ)) × ℕ → Memory.State → Prop
   | ((cp, (metaBase, itemBase)), b), s =>
     ∃ U V N m_cap s_fix,
       cp = mkCompParams U V w N ∧
@@ -144,7 +147,7 @@ def compDemoteSlabGenProg : (CompParams × (ℕ × ℕ)) × ℕ → Memory.Prog 
       FixedCoupled metaBase itemBase U V w N s_fix s ∧
       totalSlots N (compGmAt metaBase U w N s.mem) ≤ m_cap
 
-theorem compDemoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
+private theorem compDemoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
     {s_fix s : Memory.State}
     (henv : CompEpochEnv U V w N metaBase itemBase m_cap s)
     (hb_pos : 0 < bucketBits N)
@@ -271,7 +274,7 @@ theorem compDemoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
       ((mkCompParams U V w N, metaBase), b) s₁
     omega
 
-theorem realizesBounded_compDemoteSlabGen :
+private theorem realizesBounded_compDemoteSlabGen :
     RealizesBounded .exact compDemoteSlabGenProg
       (WordEncoding.encode (α := (CompParams × (ℕ × ℕ)) × ℕ))
       (WordEncoding.encode (α := Unit))
@@ -321,7 +324,7 @@ theorem realizesBounded_compDemoteSlabGen :
     · rw [hfr_loop.frontier_eq]; exact henv.meta_le_frontier
     · rw [hcpl_loop.gm_eq]; exact hloopK.qb_pos
 
-theorem validProg_compDemoteSlabGen {w : ℕ} {d : (CompParams × (ℕ × ℕ)) × ℕ}
+private theorem validProg_compDemoteSlabGen {w : ℕ} {d : (CompParams × (ℕ × ℕ)) × ℕ}
     {s : Memory.State} (h : CompDemoteSlabPre w d s) :
     ValidProg w 0 s (compDemoteSlabGenProg d) := by
   rcases d with ⟨⟨cp, ⟨metaBase, itemBase⟩⟩, b⟩
@@ -368,5 +371,3 @@ theorem validProg_compDemoteSlabGen {w : ℕ} {d : (CompParams × (ℕ × ℕ)) 
     by rw [hcpl_loop.gm_eq]; exact hloopK.qb_pos⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
-
-end
