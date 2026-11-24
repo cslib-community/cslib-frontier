@@ -3624,6 +3624,12 @@ public import CslibFrontier.Computability.Distributed.ClockSync.Basic
 public import CslibFrontier.Computability.Distributed.ClockSync.ByzantineSync
 public import CslibFrontier.Computability.Distributed.ClockSync.LundeliusLynch
 public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability
+public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.Basic
+public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.CallIndex
+public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.FilterPos
+public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.Locality
+public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.Nonblocking
+public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Linearizability.Register
 public import CslibFrontier.Computability.Distributed.ConcurrentObjects.Progress
 public import CslibFrontier.Computability.Distributed.ConcurrentObjects.TreiberStack
 public import CslibFrontier.Computability.Distributed.DijkstraScholten.Basic
