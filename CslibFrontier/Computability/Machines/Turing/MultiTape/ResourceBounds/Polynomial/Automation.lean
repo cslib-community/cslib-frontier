@@ -17,7 +17,7 @@ public meta import Lean.Elab.Tactic
 
 `growth_poly` proves `Turing.MultiTapeTM.PolyBounded size cost` by the closure rules for
 constants, the input size, addition, multiplication, fixed powers, powers with additive,
-constant-multiple, minimum or locally bounded exponents, fixed-domain `Finset.sum`, conditionals
+constant-multiple, minimum or locally bounded exponents, conditionals
 (`if`, non-dependent `dite`, `cond`), one-sided `min`, and extensible `@[growth_poly]` closure and
 pointwise `ℕ` bound/equation rules (covering floor and ceiling logarithms, `Nat.log2`,
 `b ^ Nat.log b _`, square root, maximum, truncated subtraction, division and remainder, structural
@@ -182,7 +182,7 @@ attribute [growth_poly]
 
 /-- `growth_poly` proves `Turing.MultiTapeTM.PolyBounded size cost` by the closure rules for
 constants, the input size, `+`, `*`, fixed powers, powers with additive, constant-multiple,
-minimum or locally bounded exponents, fixed-domain `Finset.sum`, conditionals (`if`, non-dependent
+minimum or locally bounded exponents, conditionals (`if`, non-dependent
 `dite`, `cond`), one-sided `min`, and extensible `@[growth_poly]` closure and `ℕ` bound/equation
 rules (including `Nat.log`, `Nat.clog`, `Nat.log2`, `b ^ Nat.log b _`, `Nat.sqrt`, `max`,
 truncated `-`, `/`, `%`, structural `List.length` bounds, and encoding-length rules for `encPair`,
@@ -488,7 +488,7 @@ private partial def addFact (facts : Facts) (origPf pf ty : Expr) (depth : Nat :
   let ty ← whnfR (← instantiateMVars ty)
   if let some (size, _) := polyBoundedArgs? ty then
     let ty' ← normalizeFact ty
-    let pf ← if ty' == ty then pure pf else mkExpectedTypeHint pf ty'
+    let pf ← if (← inferType pf) == ty' then pure pf else mkExpectedTypeHint pf ty'
     let u' := ty'.getArg! 2
     let facts := { facts with bounds := facts.bounds.push (pf, !isIdFn u') }
     return ← decomposeEncBound facts origPf pf size u'
@@ -761,8 +761,6 @@ private inductive Step where
   | close (pf : Expr)
   /-- Apply this closure rule and continue with its `PolyBounded` subgoals. -/
   | apply (rule : Name)
-  /-- Apply `PolyBounded.sum` over a fixed `Finset` and prove the bound for each element. -/
-  | finsetSum
   /-- Apply this rule to the fact `pf` and continue with the remaining `PolyBounded` subgoals. -/
   | applyTo (rule : Name) (pf : Expr)
   /-- Apply an already-instantiated rule proof and continue with its `PolyBounded` subgoals. -/
@@ -829,15 +827,11 @@ private def reduceProdMatch? (body : Expr) : MetaM (Option Expr) := do
   let .reduced res ← reduceMatcher? { m with discrs := #[pair] }.toExpr | return none
   return some res.headBeta
 
-/-- Try applying `PolyBounded.comp` to `pf : PolyBounded size' v` for `goalTy = PolyBounded size u`,
-exposing tuple components for `g : α → β` and rejecting self-reductions. -/
-private def tryComp? (pf goalTy α size : Expr) : MetaM (Option Expr) := do
+/-- Try applying `PolyBounded.comp` to `pf : PolyBounded size' v` using map `g : α → β` for
+`goalTy = PolyBounded size u`, rejecting self-reductions and unresolved metavariables. -/
+private def tryCompWith? (pf goalTy α β size size' v g : Expr) : MetaM (Option Expr) := do
   let saved ← saveState
   try
-    let pfTy ← whnfR (← inferType pf)
-    let some (size', v) := polyBoundedArgs? pfTy | do saved.restore; return none
-    let β := pfTy.getArg! 0
-    let g ← prepareProdArg α β
     let comp ← mkAppOptM ``Turing.MultiTapeTM.PolyBounded.comp
       #[some α, some β, some size, some size', some v, some g, some pf]
     let .forallE _ subTy concl _ ← whnfR (← inferType comp) | do saved.restore; return none
@@ -854,6 +848,22 @@ private def tryComp? (pf goalTy α size : Expr) : MetaM (Option Expr) := do
   catch _ =>
     saved.restore
     return none
+
+/-- Try applying `PolyBounded.comp` to `pf : PolyBounded size' v` for `goalTy = PolyBounded size u`,
+trying a single metavariable `g : α → β` first (matching `origin/main` so un-expanded `Prod`
+projections and nested `Prod` abbreviations unify directly) and falling back to tuple component
+splitting via `prepareProdArg` when needed. -/
+private def tryComp? (pf goalTy α size : Expr) : MetaM (Option Expr) := do
+  let pfTy ← whnfR (← inferType pf)
+  let some (size', v) := polyBoundedArgs? pfTy | return none
+  let β := pfTy.getArg! 0
+  let gPlain ← mkFreshExprMVar (← mkArrow α β)
+  if let some comp ← tryCompWith? pf goalTy α β size size' v gPlain then
+    return some comp
+  let βWhnf ← whnfR β
+  unless βWhnf.isAppOfArity ``Prod 2 do return none
+  let gProd ← prepareProdArg α βWhnf
+  tryCompWith? pf goalTy α β size size' v gProd
 
 /-- Drop an `id` at the head of `e`. -/
 private def stripId (e : Expr) : Expr :=
@@ -894,7 +904,6 @@ private def stepHeadRecognized (facts : Facts) (goalTy size a body : Expr) : Met
       return true
   if (condRule? body).isSome then return true
   if (← nondepDiteToIte? body).isSome then return true
-  if body.isAppOfArity ``Finset.sum 5 && !dependsOnInput (body.getArg! 3) then return true
   if (← powSplit? facts a body).isSome then return true
   let candGoal := mkAppN goalTy.getAppFn #[goalTy.getArg! 0, size, ← mkLambdaFVars #[a] body]
   if (← findClosureRule? candGoal body).isSome then return true
@@ -955,24 +964,20 @@ private def chooseStep (facts : Facts) (goalTy size u : Expr) : MetaM Step := do
     if body.isAppOfArity ``Min.min 4 then
       return .applyFirst ``Turing.MultiTapeTM.PolyBounded.min_left
         ``Turing.MultiTapeTM.PolyBounded.min_right
+    let isVarPow := body.isAppOfArity ``HPow.hPow 6 && dependsOnInput (body.getArg! 5)
     if let some rule := coreOpRule? body then
-      if rule != ``Turing.MultiTapeTM.PolyBounded.pow then
+      if !isVarPow then
         return .apply rule
-      if !dependsOnInput (body.getArg! 5) then
-        return .apply rule
-      if let some (rhs, hleBody) ← findPointwiseBound? facts body then
-        return ← mkMono rhs hleBody
-      if let some (rhs, hleBody) ← powSplit? facts a body then
-        return ← mkMono rhs hleBody
     if let some rule := condRule? body then
       return .apply rule
     if let some iteExpr ← nondepDiteToIte? body then
       return .change (← mkLambdaFVars #[a] iteExpr)
-    if body.isAppOfArity ``Finset.sum 5 && !dependsOnInput (body.getArg! 3) then
-      return .finsetSum
     -- Pointwise `ℕ` inequalities/equations from context, hints, or `@[growth_poly]`.
     if let some (rhs, hleBody) ← findPointwiseBound? facts body then
       return ← mkMono rhs hleBody
+    if isVarPow then
+      if let some (rhs, hleBody) ← powSplit? facts a body then
+        return ← mkMono rhs hleBody
     -- Registered `@[growth_poly]` closure rules.
     if let some rule ← findClosureRule? goalTy body then
       trace[growth_poly] "closure rule {.ofConstName rule}: {body}"
@@ -1032,12 +1037,6 @@ private partial def prove (facts : Facts) (g : MVarId) (fuel : Nat) : MetaM Unit
     g.assign (← mkAppM ``Turing.MultiTapeTM.PolyBounded.mono #[g', hle])
     prove facts g'.mvarId! (fuel - 1)
   | .apply rule => applyRule (← mkConstWithFreshMVarLevels rule)
-  | .finsetSum =>
-    let gs ← g.apply (← mkConstWithFreshMVarLevels ``Turing.MultiTapeTM.PolyBounded.sum)
-    for g' in gs do
-      unless ← g'.isAssigned do
-        let (_, g'') ← g'.introNP 2
-        prove facts g'' (fuel - 1)
   | .applyTo rule pf => applyRule (← applyTo rule pf)
   | .applyProof rulePf => applyRule rulePf
   | .applyFirst first second =>

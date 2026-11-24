@@ -11,7 +11,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeFinitePrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Pi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Bounds
-import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Direct finite-table construction, lookup and update
@@ -35,7 +34,9 @@ theorem ofFn {count : ℕ} {values : α → Fin count → Value}
   classical
   choose d e hd using fun i => (hvalues i).exists_degree
   have hbound : PolyBounded (fun a => (input a).length)
-      (fun a => (input a).length + ∑ i, ((input a).length + 1) ^ d i) := by growth_poly
+      (fun a => (input a).length + ∑ i, ((input a).length + 1) ^ d i) :=
+    PolyBounded.self.add (.sum Finset.univ fun i _ =>
+      (PolyBounded.self.add (.const 1)).pow (d i))
   exact (ComputableInO.ofFn fun i => (hd i).inO).computableInPolyTime hbound hbound
 
 /-- Construct a table by computing each entry, retaining the original input in each computation. -/

@@ -1128,8 +1128,12 @@ theorem initCertificate_isPolynomial (enc : M.Encoding)
 
 theorem constRegsCertificate_isPolynomial (enc : M.Encoding) {initRegFn : α → M.Value}
     (initReg : NativeCertificate initRegFn ei enc.value) (hreg : initReg.IsPolynomial) :
-    (constRegsCertificate (r := r) enc initReg).IsPolynomial :=
-  ⟨by growth_poly, by growth_poly⟩
+    (constRegsCertificate (r := r) enc initReg).IsPolynomial := by
+  refine ⟨.add .self ?_, .add .self ?_⟩
+  · simpa [Finset.sum_const, Finset.card_univ, Fintype.card_fin] using
+      (PolyBounded.const r).mul hreg.1
+  · simpa [Finset.sum_const, Finset.card_univ, Fintype.card_fin] using
+      (PolyBounded.const r).mul hreg.2
 
 theorem initConstCertificate_isPolynomial (enc : M.Encoding)
     {initRegFn defaultFn : α → M.Value}

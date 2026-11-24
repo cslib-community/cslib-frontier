@@ -284,7 +284,7 @@ example : True := by
   fail_if_success have : Cslib.WordRAM.Fits 3 8 := by growth_poly
   trivial
 
-/-! ### Extensible `@[growth_poly]`, powers of logs, `Finset.sum`, and input decomposition -/
+/-! ### Extensible `@[growth_poly]`, powers of logs, local bounds, and input decomposition -/
 
 private def customMetric (n : ℕ) : ℕ := 3 * n + 2
 
@@ -336,10 +336,23 @@ example {α β : Type*} {size u v : α → ℕ} {xs : α → List β} {ys : α �
       (xs a).zipIdx.length + (xs a).tail.length + ((xs a).eraseIdx (v a)).length) := by
   growth_poly
 
--- Fixed-domain `Finset.sum` and local pointwise `fvar` bounds.
-example {α : Type*} {size f : α → ℕ} {d : ℕ → ℕ} {s : Finset ℕ}
+-- Local pointwise `fvar` bounds.
+example {α : Type*} {size f : α → ℕ} {d : ℕ}
     (hf : ∀ a, f a ≤ size a + 3) :
-    PolyBounded size (fun a => f a + ∑ j ∈ s, (f a + 1) ^ d j) := by
+    PolyBounded size (fun a => f a + 2 * (f a + 1) ^ d) := by
+  growth_poly
+
+-- Non-reducible `PolyBounded` wrapper + nested-`Prod` `abbrev` projection in `PolyBounded.comp`.
+private abbrev NestedProdCtx : Type := (ℕ × ℕ) × (List Bool × ℕ)
+
+private def WrappedPolyBounded {α : Type*} (size cost : α → ℕ) : Prop :=
+  PolyBounded size cost
+
+example {β γ : Type*} {size : (ℕ × β) × (NestedProdCtx × γ) → ℕ}
+    {size' cost : β × NestedProdCtx → ℕ}
+    (hcost : WrappedPolyBounded size' cost)
+    (hsize' : PolyBounded size (fun a => size' (a.1.2, a.2.1))) :
+    PolyBounded size (fun a => cost (a.1.2, a.2.1) + 1) := by
   growth_poly
 
 -- Automatic decomposition of `enc_structure` + `encPair` + `encList` + `encUnary` + `encBits`
