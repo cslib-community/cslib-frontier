@@ -549,6 +549,21 @@ theorem budget_length {l : α → List ε} (hl : ComputableInSpace l encIn (encL
     ComputableInSpace (fun x => (l x).length) encIn encNat Bs :=
   budget_comp_lin length (linear_mul 8) hl
 
+/-- Read an indexed binary natural, with zero as the default, within the caller's budget. -/
+theorem budget_getD {l : α → List ℕ} {i : α → ℕ}
+    (hl : ComputableInSpace l encIn (encList encNat) Bs)
+    (hi : ComputableInSpace i encIn encNat Bs) :
+    ComputableInSpace (fun x => (l x).getD (i x) 0) encIn encNat Bs :=
+  budget_comp_lin getD (linear_mul 8) (budget_prod hl hi)
+
+/-- Replace an indexed binary natural within the caller's budget. -/
+theorem budget_set {l : α → List ℕ} {i v : α → ℕ}
+    (hl : ComputableInSpace l encIn (encList encNat) Bs)
+    (hi : ComputableInSpace i encIn encNat Bs)
+    (hv : ComputableInSpace v encIn encNat Bs) :
+    ComputableInSpace (fun x => (l x).set (i x) (v x)) encIn (encList encNat) Bs :=
+  budget_comp_lin set (linear_mul 128) (budget_prod hl (budget_prod hi hv))
+
 end BudgetOps
 
 /-- The successor, within the budget. -/
