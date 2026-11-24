@@ -398,6 +398,15 @@ public import CslibFrontier.Algorithms.WordRAM.AKS.PolyPow
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick
 public import CslibFrontier.Algorithms.WordRAM.Arborescence
 public import CslibFrontier.Algorithms.WordRAM.Auction
+public import CslibFrontier.Algorithms.WordRAM.Auction.BidStep
+public import CslibFrontier.Algorithms.WordRAM.Auction.Instance
+public import CslibFrontier.Algorithms.WordRAM.Auction.Loop
+public import CslibFrontier.Algorithms.WordRAM.Auction.RowScan
+public import CslibFrontier.Algorithms.WordRAM.Auction.ScanFill
+public import CslibFrontier.Algorithms.WordRAM.Auction.Scatter
+public import CslibFrontier.Algorithms.WordRAM.Auction.Solve
+public import CslibFrontier.Algorithms.WordRAM.Auction.SumCost
+public import CslibFrontier.Algorithms.WordRAM.Auction.Workspace
 public import CslibFrontier.Algorithms.WordRAM.BellmanFord
 public import CslibFrontier.Algorithms.WordRAM.BinarySearch
 public import CslibFrontier.Algorithms.WordRAM.BurrowsWheeler
