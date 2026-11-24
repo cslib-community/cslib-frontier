@@ -27,8 +27,8 @@ optional *parent edge* `sel l c : Option E` of each block `c` at level `l`. The 
 `⟨x, j⟩` (`Cslib.Query.ChainQuery`) asks for a heaviest edge of the chain of `x` below level `j`,
 with weights learned by comparisons in `FreeM (LEQuery E)`.
 
-`Cslib.Query.chainMaxima` is Komlós's top-down procedure ([Komlos1985]; in the form of
-[King1997], §3). It processes the levels from the top. At level `i` it keeps, for every query
+`Cslib.Query.chainMaxima` is Komlós's top-down procedure ([Komlos1985]; in the form used by
+[King1997] on a full branching tree). It processes the levels from the top. At level `i` it keeps, for every query
 `⟨x, j⟩` with `i < j`, the heaviest chain edge at the levels `i, …, j - 1`. Within a block `c` at
 level `i`, the queries still open above `i + 1`, sorted by `j`, have nondecreasing answers at
 level `i + 1`, so a single binary search against the parent edge `sel i c` finds which of them it
@@ -37,9 +37,11 @@ answers.
 
 When at most `N l` blocks at level `l` hold a query still open above `l + 1`, and these counts at
 least halve from each level to the next, as they do for the levels of Borůvka's algorithm on a
-forest, the total is at most `4 N 0 + 2 q` comparisons for `q` queries. This is the counting at the
-heart of [King1997], Lemma 3 (via `log₂ s ≤ l + s / 2 ^ l` at level `l`, in place of the
-concavity of the logarithm).
+forest, the total is at most `4 N 0 + 2 q` comparisons for `q` queries. This is Komlós's counting
+on a full branching tree as King uses it, done here with `log₂ s ≤ l + s / 2 ^ l` at level `l` in
+place of the concavity of the logarithm. The texts of [Komlos1985] and [King1997] were not
+consulted for this module, so no locators into them are given; the argument is the standard
+one.
 
 ## Main definitions
 
