@@ -11,9 +11,10 @@ public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.MaxFlow.VertexSeparator
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Core
 public import CslibFrontier.Algorithms.WordRAM.Karger.Contract
-import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Bounds
-import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Spec
+-- `import all`: reads `private theorem ekProg_flow_spec` without exporting it from `EdmondsKarp`.
+import all CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Spec
 import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
+import CslibFrontier.Foundations.Data.List.RowMajor
 import CslibFrontier.Tactic.Realize
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -46,7 +47,6 @@ namespace Cslib.Algorithms.WordRAM.EdmondsKarp
 
 open Cslib.Algorithms.Lean.MaxFlow Cslib.DataStructure Cslib.WordRAM Cslib.WordRAM.Realization
 open Cslib.Algorithms.WordRAM.Karger
-open Cslib.Algorithms.WordRAM.EdmondsKarp.Internal
 open StateTransitionSpec (clientResult_bind clientState_bind clientResult_pure clientState_pure)
 
 /-! ### Uniform minimum vertex separator by vertex splitting -/
@@ -155,7 +155,7 @@ private theorem sepInit_mem_edge {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableR
       if G.Adj u v then 1 else 0 := by
   have hlt :
       u.1 * n + v.1 < (flattenMatrix (fun a b : Fin n => if G.Adj a b then 1 else 0)).length := by
-    rw [length_flattenMatrix]; exact idx_lt_sq u.2 v.2
+    rw [length_flattenMatrix]; exact List.mul_add_lt_sq u.2 v.2
   change (if 2 + 3 * n + u.1 * n + v.1 = 0 then (encodeSepInput G Z A B).length
     else (encodeSepInput G Z A B).getD (2 + 3 * n + u.1 * n + v.1 - 1) 0) = _
   rw [ite_eq_right (by omega), show 2 + 3 * n + u.1 * n + v.1 - 1 =
@@ -283,9 +283,9 @@ private theorem sepVertStep_realizes :
     obtain ⟨hw, hv⟩ := h
     apply hw.of_le
     have h1 : (d.2 + d.1 + 2) * (d.1 + d.1 + 2) + 1 <
-        (d.1 + d.1 + 2) * (d.1 + d.1 + 2) := idx_lt_sq (by omega) (by omega)
+        (d.1 + d.1 + 2) * (d.1 + d.1 + 2) := List.mul_add_lt_sq (by omega) (by omega)
     have h2 : (d.2 + 2) * (d.1 + d.1 + 2) + (d.2 + d.1 + 2) <
-        (d.1 + d.1 + 2) * (d.1 + d.1 + 2) := idx_lt_sq (by omega) (by omega)
+        (d.1 + d.1 + 2) * (d.1 + d.1 + 2) := List.mul_add_lt_sq (by omega) (by omega)
     sep_omega
 
 private theorem sepEdgeInner_realizes :
@@ -298,9 +298,9 @@ private theorem sepEdgeInner_realizes :
   all_goals
     obtain ⟨hw, hu, hv⟩ := h
     apply hw.of_le
-    have h1 : d.1.2 * d.1.1 + d.2 < d.1.1 * d.1.1 := idx_lt_sq hu hv
+    have h1 : d.1.2 * d.1.1 + d.2 < d.1.1 * d.1.1 := List.mul_add_lt_sq hu hv
     have h2 : (d.1.2 + d.1.1 + 2) * (d.1.1 + d.1.1 + 2) + (d.2 + 2) <
-        (d.1.1 + d.1.1 + 2) * (d.1.1 + d.1.1 + 2) := idx_lt_sq (by omega) (by omega)
+        (d.1.1 + d.1.1 + 2) * (d.1.1 + d.1.1 + 2) := List.mul_add_lt_sq (by omega) (by omega)
     sep_omega
 
 private theorem sepEdgeOuter_realizes :
@@ -448,9 +448,9 @@ private theorem validHistory_sepMain {w n : ℕ} {st : Memory.State}
     refine validHistory_iterate_nat (Inv := SepReady w n) n 0 (fun v hv t ht => ⟨?_, ?_⟩) hs2
     · unfold sepVertStep
       have h1 : (v + n + 2) * sepNodes n + 1 < sepNodes n * sepNodes n :=
-        idx_lt_sq (by dsimp only [sepNodes]; omega) (by dsimp only [sepNodes]; omega)
+        List.mul_add_lt_sq (by dsimp only [sepNodes]; omega) (by dsimp only [sepNodes]; omega)
       have h2 : (v + 2) * sepNodes n + (v + n + 2) < sepNodes n * sepNodes n :=
-        idx_lt_sq (by dsimp only [sepNodes]; omega) (by dsimp only [sepNodes]; omega)
+        List.mul_add_lt_sq (by dsimp only [sepNodes]; omega) (by dsimp only [sepNodes]; omega)
       refine validHistory_read_bind (by have := ht.2; sep_omega) ?_
       refine validHistory_read_bind (by have := ht.2; sep_omega) ?_
       refine validHistory_read_bind (by have := ht.2; sep_omega) ?_
@@ -473,9 +473,9 @@ private theorem validHistory_sepMain {w n : ℕ} {st : Memory.State}
         (validHistory_iterate_nat (Inv := SepReady w n) n 0 (fun v hv t' ht' => ⟨?_, ?_⟩) ht)
         (validHistory_pure _ _ _)
       · unfold sepEdgeInner
-        have h1 : u * n + v < n * n := idx_lt_sq (by omega) (by omega)
+        have h1 : u * n + v < n * n := List.mul_add_lt_sq (by omega) (by omega)
         have h2 : (u + n + 2) * sepNodes n + (v + 2) < sepNodes n * sepNodes n :=
-          idx_lt_sq (by dsimp only [sepNodes]; omega) (by dsimp only [sepNodes]; omega)
+          List.mul_add_lt_sq (by dsimp only [sepNodes]; omega) (by dsimp only [sepNodes]; omega)
         refine validHistory_read_bind (by have := ht'.2; sep_omega) ?_
         exact validHistory_write_bind (by have := ht'.2; sep_omega)
           (by split_ifs <;> first | exact fits_zero w | exact hn1fit) (validHistory_pure _ _ _)
@@ -562,7 +562,7 @@ private theorem sepBuild_spec {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
       set aZ := sepMatBase n + (k + 2) * sepNodes n + (k + n + 2)
       have hneAZ : aA ≠ aZ := by
         intro h
-        have hxy := fin_mul_add_inj (M := sepNodes n)
+        have hxy := List.fin_mul_add_inj (M := sepNodes n) (N := sepNodes n)
           (x₁ := ⟨0, by dsimp only [sepNodes]; omega⟩)
           (y₁ := ⟨k + 2, by dsimp only [sepNodes]; omega⟩)
           (x₂ := ⟨k + 2, by dsimp only [sepNodes]; omega⟩)
@@ -571,7 +571,7 @@ private theorem sepBuild_spec {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
         have := congrArg Fin.val hxy.1; dsimp only at this; omega
       have hneAB : aA ≠ aB := by
         intro h
-        have hxy := fin_mul_add_inj (M := sepNodes n)
+        have hxy := List.fin_mul_add_inj (M := sepNodes n) (N := sepNodes n)
           (x₁ := ⟨0, by dsimp only [sepNodes]; omega⟩)
           (y₁ := ⟨k + 2, by dsimp only [sepNodes]; omega⟩)
           (x₂ := ⟨k + n + 2, by dsimp only [sepNodes]; omega⟩)
@@ -579,7 +579,7 @@ private theorem sepBuild_spec {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
         have := congrArg Fin.val hxy.1; dsimp only at this; omega
       have hneBZ : aB ≠ aZ := by
         intro h
-        have hxy := fin_mul_add_inj (M := sepNodes n)
+        have hxy := List.fin_mul_add_inj (M := sepNodes n) (N := sepNodes n)
           (x₁ := ⟨k + n + 2, by dsimp only [sepNodes]; omega⟩)
           (y₁ := ⟨1, by dsimp only [sepNodes]; omega⟩)
           (x₂ := ⟨k + 2, by dsimp only [sepNodes]; omega⟩)
@@ -594,7 +594,7 @@ private theorem sepBuild_spec {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
       · set addr := sepMatBase n + x.1 * sepNodes n + y.1
         by_cases hz : addr = aZ
         · rw [hz, Function.update_self, hzk]
-          have hxy := fin_mul_add_inj (M := sepNodes n) (x₁ := x) (y₁ := y)
+          have hxy := List.fin_mul_add_inj (M := sepNodes n) (x₁ := x) (y₁ := y)
             (x₂ := ⟨k + 2, by dsimp only [sepNodes]; omega⟩)
             (y₂ := ⟨k + n + 2, by dsimp only [sepNodes]; omega⟩)
             (by dsimp only [addr, aZ] at hz ⊢; omega)
@@ -606,7 +606,7 @@ private theorem sepBuild_spec {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
         · rw [Function.update_of_ne hz]
           by_cases hb : addr = aB
           · rw [hb, Function.update_self, hbk]
-            have hxy := fin_mul_add_inj (M := sepNodes n) (x₁ := x) (y₁ := y)
+            have hxy := List.fin_mul_add_inj (M := sepNodes n) (x₁ := x) (y₁ := y)
               (x₂ := ⟨k + n + 2, by dsimp only [sepNodes]; omega⟩)
               (y₂ := ⟨1, by dsimp only [sepNodes]; omega⟩)
               (by dsimp only [addr, aB] at hb ⊢; omega)
@@ -619,7 +619,7 @@ private theorem sepBuild_spec {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
           · rw [Function.update_of_ne hb]
             by_cases ha : addr = aA
             · rw [ha, Function.update_self, hak]
-              have hxy := fin_mul_add_inj (M := sepNodes n) (x₁ := x) (y₁ := y)
+              have hxy := List.fin_mul_add_inj (M := sepNodes n) (x₁ := x) (y₁ := y)
                 (x₂ := ⟨0, by dsimp only [sepNodes]; omega⟩)
                 (y₂ := ⟨k + 2, by dsimp only [sepNodes]; omega⟩)
                 (by dsimp only [addr, aA] at ha ⊢; omega)
@@ -666,7 +666,7 @@ private theorem sepBuild_spec {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
     (n := n) (a := 0) (s := st1) ⟨Nat.zero_add _, hlo1, fun x y => by
       rw [dite_eq_right (by omega), dite_eq_right (by omega), dite_eq_right (by omega),
         Nat.add_assoc]
-      exact hM1 _ (idx_lt_sq x.2 y.2)⟩
+      exact hM1 _ (List.mul_add_lt_sq x.2 y.2)⟩
   have h2r : (Memory.spec 0).clientResult st1 (iterate sepVertStep n n 0) = n := by
     have := h2.1; omega
   have h3 := iterate_invariant_of sepEdgeOuter n
@@ -705,7 +705,7 @@ private theorem sepBuild_spec {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
           have hkv : kv < n := by omega
           have hge : t'.mem (2 + 3 * n + ku * n + kv) =
               if G.Adj ⟨ku, hku⟩ ⟨kv, hkv⟩ then 1 else 0 := by
-            have hlt : ku * n + kv < n * n := idx_lt_sq hku hkv
+            have hlt : ku * n + kv < n * n := List.mul_add_lt_sq hku hkv
             rw [hlo' _ (by dsimp only [sepMatBase]; omega)]
             exact hG ⟨ku, hku⟩ ⟨kv, hkv⟩
           unfold sepEdgeInner
@@ -717,7 +717,7 @@ private theorem sepBuild_spec {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
           · by_cases heq : sepMatBase n + x.1 * sepNodes n + y.1 =
                 sepMatBase n + (ku + n + 2) * sepNodes n + (kv + 2)
             · rw [heq, Function.update_self, hge]
-              have hxy := fin_mul_add_inj (M := sepNodes n) (x₁ := x) (y₁ := y)
+              have hxy := List.fin_mul_add_inj (M := sepNodes n) (x₁ := x) (y₁ := y)
                 (x₂ := ⟨ku + n + 2, by dsimp only [sepNodes]; omega⟩)
                 (y₂ := ⟨kv + 2, by dsimp only [sepNodes]; omega⟩) (by dsimp only; omega)
               have hxu : x.1 = ku + n + 2 := congrArg Fin.val hxy.1
@@ -977,7 +977,7 @@ theorem exists_minSeparator_program :
     rw [hlo0 _ (by have := v.2; dsimp only [sepMatBase]; omega)]; exact sepInit_mem_B G Z A B v
   have hG0 : ∀ u v : Fin n, st0.mem (2 + 3 * n + u.1 * n + v.1) = if G.Adj u v then 1 else 0 := by
     intro u v
-    have hlt := idx_lt_sq u.2 v.2
+    have hlt := List.mul_add_lt_sq u.2 v.2
     rw [hlo0 _ (by dsimp only [sepMatBase]; omega)]; exact sepInit_mem_edge G Z A B u v
   obtain ⟨hlo3, hmat3⟩ := sepBuild_spec G Z A B hZ0 hA0 hB0 hG0
   set st1 := (Memory.spec 0).clientState st0

@@ -11,9 +11,10 @@ public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.MaxFlow.EdmondsKarp
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Core
 public import CslibFrontier.Algorithms.WordRAM.Karger.Contract
-import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Bounds
-import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Spec
+-- `import all`: reads `private theorem ekProg_flow_spec` without exporting it from `EdmondsKarp`.
+import all CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Spec
 import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
+import CslibFrontier.Foundations.Data.List.RowMajor
 import CslibFrontier.Tactic.Realize
 import Mathlib.Tactic.Linarith
 
@@ -45,7 +46,6 @@ namespace Cslib.Algorithms.WordRAM.EdmondsKarp
 
 open Cslib.Algorithms.Lean.MaxFlow Cslib.DataStructure Cslib.WordRAM Cslib.WordRAM.Realization
 open Cslib.Algorithms.WordRAM.Karger
-open Cslib.Algorithms.WordRAM.EdmondsKarp.Internal
 open StateTransitionSpec (clientResult_bind clientState_bind clientResult_pure clientState_pure)
 
 /-! ### Uniform dense Edmonds–Karp flat program -/
@@ -226,7 +226,7 @@ private theorem flowInit_mem_matrix {n : ℕ} (N : Network (Fin n)) {i : ℕ} (h
 
 private theorem flowInit_mat_eq {n : ℕ} (N : Network (Fin n)) (u v : Fin n) :
     (Memory.State.init (encodeFlowInput N)).mem (4 + u.1 * n + v.1) = N.cap u v := by
-  have hlt := idx_lt_sq u.2 v.2
+  have hlt := List.mul_add_lt_sq u.2 v.2
   rw [Nat.add_assoc, flowInit_mem_matrix N hlt, getElem_flattenMatrix]
 
 private theorem flowInit_le {n B : ℕ} {N : Network (Fin n)} (hB : ∀ u v, N.cap u v ≤ B)
@@ -355,7 +355,7 @@ theorem exists_edmondsKarp_program :
   rw [clientResult_width w (ekFullProg ())] at hhalt
   set st1 := (Memory.spec 0).clientState st (Memory.alloc (ekScratch n))
   have hmat1 : ∀ u v : Fin n, st1.mem (4 + u.1 * n + v.1) = N.cap u v := fun u v => by
-    have hidx := idx_lt_sq u.2 v.2
+    have hidx := List.mul_add_lt_sq u.2 v.2
     exact (Memory.mem_step_of_lt_frontier st (.alloc (ekScratch n)) (by rw [hfr]; omega)
       (by simp)).trans (flowInit_mat_eq N u v)
   have hal : ∀ i < n * n, st1.mem (4 + i) ≤ B := fun i hi =>
@@ -363,7 +363,7 @@ theorem exists_edmondsKarp_program :
       (by simp)).trans_le (flowInit_le hB hi)
   set M := ((Memory.spec 0).clientResult st1 (iterate ekMaxStep 4 (n * n) (0, 0))).2
   have hM_ge : ∀ u v : Fin n, N.cap u v ≤ M := fun u v => by
-    have h := (ekMaxScan_spec hal).2 (u.1 * n + v.1) (idx_lt_sq u.2 v.2)
+    have h := (ekMaxScan_spec hal).2 (u.1 * n + v.1) (List.mul_add_lt_sq u.2 v.2)
     rw [show 4 + (u.1 * n + v.1) = 4 + u.1 * n + v.1 by omega, hmat1 u v] at h
     exact h
   have hst_ek : (Memory.spec 0).clientState st (ekFullProg ()) =

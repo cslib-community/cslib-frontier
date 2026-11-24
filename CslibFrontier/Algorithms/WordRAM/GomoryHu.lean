@@ -12,7 +12,6 @@ public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Core
 public import CslibFrontier.Algorithms.WordRAM.Karger.Contract
 public import CslibFrontier.Computability.WordRAM.Time
 public import CslibFrontier.Foundations.Combinatorics.WeightedCut.MinCutBetween
-import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Bounds
 import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Spec
 import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
 import CslibFrontier.Foundations.Data.List.RowMajor

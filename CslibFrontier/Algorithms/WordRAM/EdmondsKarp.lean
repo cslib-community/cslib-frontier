@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Bounds
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Core
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Spec
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.UniformBipartite
@@ -18,12 +17,12 @@ public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.UniformVertexSeparato
 /-!
 # Dense Edmonds–Karp maximum flow, bipartite matching, and vertex separators on the Word-RAM
 
-Umbrella module re-exporting the dense Edmonds–Karp solver (`Core`, `Bounds`, `Spec`) and the three
-uniform `Basis.exact` reductions (`UniformFlow`, `UniformBipartite`, `UniformVertexSeparator`).
-Clients such as `CslibFrontier.Algorithms.WordRAM.GomoryHu` that only call `ekProg` directly may
-import `CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Core`,
-`CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Bounds`, and
-`CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Spec`.
+Umbrella module re-exporting the dense Edmonds–Karp solver (`Core`, `Spec`) and the three uniform
+`Basis.exact` reductions (`UniformFlow`, `UniformBipartite`, `UniformVertexSeparator`); internal
+helpers (`Internal`, `BfsSemantics`, `Bounds`) stay out of the public surface. Clients such as
+`CslibFrontier.Algorithms.WordRAM.GomoryHu` that only call `ekProg` directly may import
+`CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Core` publicly and
+`CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Spec` privately.
 
 ## Main definitions
 

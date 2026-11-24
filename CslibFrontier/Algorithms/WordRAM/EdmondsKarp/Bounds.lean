@@ -9,37 +9,26 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Core
+public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Internal
+import CslibFrontier.Foundations.Data.List.RowMajor
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!
-# Memory cost, admissibility, frames, and return bounds for `ekProg`
+# Internal subroutine cost, admissibility, frame, and accumulator bounds
 
-Resource budgets (`ekCost`, `memoryCost_ekProg_le`), memory-history admissibility
-(`validHistory_ekProg`), external memory preservation (`preservesAt_ekProg`), and output upper
-bounds (`ekProg_result_le`) for `Cslib.Algorithms.WordRAM.EdmondsKarp.ekProg`.
-
-## Main definitions
-
-* `Cslib.Algorithms.WordRAM.EdmondsKarp.ekCost`: `O(n ^ 5)` memory-operation budget of `ekProg`.
-
-## Main results
-
-* `Cslib.Algorithms.WordRAM.EdmondsKarp.memoryCost_ekProg_le`: `ekProg` issues at most `ekCost c.n`
-  memory operations.
-* `Cslib.Algorithms.WordRAM.EdmondsKarp.validHistory_ekProg`: `ekProg` stays within `Fits w` when
-  `CtxFits w c`.
-* `Cslib.Algorithms.WordRAM.EdmondsKarp.preservesAt_ekProg`: `ekProg` preserves memory outside
-  its scratch region.
-* `Cslib.Algorithms.WordRAM.EdmondsKarp.ekProg_result_le`: return value bound.
+Memory-operation counts, `ValidHistory`, preservation frames, and cut-accumulator bounds for the
+internal subroutines (`roundStep`, `cutOuterStep`, `augStep`) of
+`Cslib.Algorithms.WordRAM.EdmondsKarp`. Imported privately by
+`CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Spec`.
 -/
 
 public section
 
-namespace Cslib.Algorithms.WordRAM.EdmondsKarp
+namespace Cslib.Algorithms.WordRAM.EdmondsKarp.Internal
 
 open Cslib.DataStructure Cslib.WordRAM Cslib.WordRAM.Realization
-open Cslib.Algorithms.WordRAM.EdmondsKarp.Internal
+open Cslib.Algorithms.WordRAM.EdmondsKarp
 open StateTransitionSpec (clientResult_bind clientState_bind clientResult_pure clientState_pure)
 
 attribute [local client_simps] runClient_read runClient_write
@@ -47,7 +36,7 @@ attribute [local client_simps] runClient_read runClient_write
 /-- `omega` after unfolding the layout abbreviations and reducing projections. -/
 local macro "ek_omega" : tactic => `(tactic| (
   dsimp -failIfUnchanged only [CtxFits, ekScratch, ekBound, capAddr, flowAddr, distAddr,
-    predAddr] at *
+    predAddr, Prod.fst, Prod.snd] at *
   omega))
 
 /-! ### Memory-operation counts -/
@@ -66,7 +55,7 @@ private theorem memoryCost_bfsInnerStep_le (d : ((Ctx × ℕ) × ℕ) × ℕ) (s
   exact le_trans (memoryCost_bind_le (memoryCost_read _ _).le fun _ t1 =>
     memoryCost_bind_le (memoryCost_readResCap_le _ t1) fun _ t2 =>
       memoryCost_ite_le (memoryCost_bind_le (memoryCost_write _ _ t2).le fun _ t3 =>
-        memoryCost_map_write_le _ _ _ t3) (Nat.zero_le _)) (by decide)
+        le_refl 1) (Nat.zero_le _)) (by decide)
 
 /-- Number of `x < n` (as `Fin n`) with `lo ≤ x` satisfying `P`, split at `x = lo`. -/
 private theorem card_filter_ge_split {n lo : ℕ} (hlo : lo < n) (P : Fin n → Prop)
@@ -235,19 +224,20 @@ private theorem memoryCost_augStep_le (d : (Ctx × ℕ) × ℕ) (s : Memory.Stat
       memoryCost_ite_le (memoryCost_bind_le (memoryCost_read _ _).le fun _ t3 =>
         memoryCost_bind_le (memoryCost_read _ _).le fun _ t4 =>
           memoryCost_ite_le (memoryCost_bind_le (memoryCost_write _ _ t4).le fun _ t5 =>
-            memoryCost_map_write_le _ _ _ t5) (Nat.zero_le _))
+            le_refl 1) (Nat.zero_le _))
         (Nat.zero_le _)) (Nat.zero_le _)) (by decide)
 
-private theorem memoryCost_roundStep_le (d : (Ctx × (ℕ × ℕ)) × ℕ) (s : Memory.State) :
-    memoryCost (roundStep d) s ≤ 13 * (d.1.1.n + 1) ^ 2 := by
+theorem memoryCost_roundStep_le (d : (Ctx × (ℕ × ℕ)) × ℕ) (s : Memory.State) :
+    memoryCost (roundStep d) s ≤ 13 * (let ((c, _), _) := d; c.n + 1) ^ 2 := by
+  rcases d with ⟨⟨c, ⟨src, snk⟩⟩, flag⟩
   unfold roundStep
   dsimp only
   have hbr : ∀ dt t, memoryCost
-      (if 0 < dt ∧ dt < d.1.1.n then do
-        let r ← iterate bnStep d.1.1 dt (d.1.2.2, 2 * d.1.1.capBound)
-        let _ ← iterate augStep (d.1.1, r.2) dt d.1.2.2
+      (if 0 < dt ∧ dt < c.n then do
+        let r ← iterate bnStep c dt (snk, 2 * c.capBound)
+        let _ ← iterate augStep (c, r.2) dt snk
         pure 0
-      else pure 1) t ≤ 11 * d.1.1.n := by
+      else pure 1) t ≤ 11 * c.n := by
     intro dt t
     rw [memoryCost_ite]
     split_ifs with hdt
@@ -263,12 +253,12 @@ private theorem memoryCost_roundStep_le (d : (Ctx × (ℕ × ℕ)) × ℕ) (s : 
       memoryCost_bind_le (memoryCost_read _ _).le fun dt t3 => hbr dt t3)
       (Nat.zero_le _)) ?_
   dsimp only
-  have h : 13 * (d.1.1.n + 1) ^ 2 = 13 * (d.1.1.n * d.1.1.n) + 26 * d.1.1.n + 13 := by ring
-  have h' : 8 * (d.1.1.n + 1) ^ 2 = 8 * (d.1.1.n * d.1.1.n) + 16 * d.1.1.n + 8 := by ring
-  have hsq := Nat.le_mul_self d.1.1.n
+  have h : 13 * (c.n + 1) ^ 2 = 13 * (c.n * c.n) + 26 * c.n + 13 := by ring
+  have h' : 8 * (c.n + 1) ^ 2 = 8 * (c.n * c.n) + 16 * c.n + 8 := by ring
+  have hsq := Nat.le_mul_self c.n
   omega
 
-private theorem memoryCost_cutOuterStep_le (d : Ctx × (ℕ × ℕ)) (s : Memory.State) :
+theorem memoryCost_cutOuterStep_le (d : Ctx × (ℕ × ℕ)) (s : Memory.State) :
     memoryCost (cutOuterStep d) s ≤ 1 + 2 * d.1.n := by
   unfold cutOuterStep
   have hin : ∀ va t, memoryCost (cutInnerStep ((d.1, d.2.1), va)) t ≤ 2 := fun va t => by
@@ -282,38 +272,10 @@ private theorem memoryCost_cutOuterStep_le (d : Ctx × (ℕ × ℕ)) (s : Memory
         (memoryCost_pure _ t2).le) (Nat.zero_le _)) ?_
   omega
 
-/-- Memory-operation budget of `ekProg` on `n` vertices, `O(n ^ 5)`. -/
-abbrev ekCost (n : ℕ) : ℕ := 20 * (n + 1) ^ 5
-
-theorem memoryCost_ekProg_le (c : Ctx) (s t : ℕ) (st : Memory.State) :
-    memoryCost (ekProg (c, (s, t))) st ≤ ekCost c.n := by
-  unfold ekProg
-  dsimp only
-  set n := c.n
-  refine le_trans (memoryCost_bind_le (memoryCost_fillRange_le _ _ _ st) fun _ t1 =>
-    memoryCost_bind_le (memoryCost_iterate_le_of roundStep (13 * (n + 1) ^ 2) (c, (s, t))
-      (fun _ _ => memoryCost_roundStep_le _ _) (n * n * n) 0 t1) fun _ t2 =>
-      memoryCost_bind_le (memoryCost_iterate_le_of cutOuterStep (1 + 2 * n) c
-        (fun _ _ => memoryCost_cutOuterStep_le _ _) n (0, 0) t2) fun _ t3 =>
-        (memoryCost_pure _ t3).le) ?_
-  have h1 : 13 * (n + 1) ^ 2 * (n * n * n) ≤ 13 * (n + 1) ^ 5 := by
-    have : n * n * n ≤ (n + 1) ^ 3 := by
-      have := Nat.pow_le_pow_left (Nat.le_succ n) 3
-      simpa [pow_succ, pow_zero, one_mul, mul_assoc] using this
-    calc 13 * (n + 1) ^ 2 * (n * n * n) ≤ 13 * (n + 1) ^ 2 * (n + 1) ^ 3 :=
-          Nat.mul_le_mul_left _ this
-      _ = 13 * (n + 1) ^ 5 := by ring
-  have h2 : (1 + 2 * n) * n + n * n ≤ 7 * (n + 1) ^ 5 := by
-    have : (n + 1) ^ 2 ≤ (n + 1) ^ 5 := Nat.pow_le_pow_right (Nat.succ_pos n) (by decide)
-    nlinarith
-  dsimp only [ekCost]
-  omega
-
-
 /-! ### Admissibility (`ValidHistory`) -/
 
 /-- The solver's memory invariant: well-formed memory and an allocated scratch area. -/
-private abbrev EkReady (w : ℕ) (c : Ctx) (t : Memory.State) : Prop :=
+abbrev EkReady (w : ℕ) (c : Ctx) (t : Memory.State) : Prop :=
   Memory.WellFormed w t ∧ c.scratchBase + ekScratch c.n ≤ t.frontier
 
 private theorem ekReady_write {w : ℕ} {c : Ctx} {t : Memory.State} (ht : EkReady w c t)
@@ -328,8 +290,10 @@ private theorem validHistory_readResCap {w : ℕ} {d : (Ctx × ℕ) × ℕ} {t :
     (ht : EkReady w d.1.1 t) (hlay : d.1.1.matBase + d.1.1.n * d.1.1.n ≤ d.1.1.scratchBase)
     (hu : d.1.2 < d.1.1.n) (hv : d.2 < d.1.1.n) :
     (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t (readResCap d)) := by
-  have h1 := idx_lt_sq hu hv
-  have h2 := idx_lt_sq hv hu
+  rcases d with ⟨⟨c, u⟩, v⟩
+  dsimp only at ht hlay hu hv
+  have h1 := List.mul_add_lt_sq hu hv
+  have h2 := List.mul_add_lt_sq hv hu
   have hfr := ht.2
   unfold readResCap
   refine validHistory_read_bind (by ek_omega) ?_
@@ -399,6 +363,8 @@ private theorem validHistory_bnStep {w : ℕ} {d : Ctx × (ℕ × ℕ)} {t : Mem
 private theorem validHistory_augStep {w : ℕ} {d : (Ctx × ℕ) × ℕ} {t : Memory.State}
     (hc : CtxFits w d.1.1) (hn : 0 < d.1.1.n) (ht : EkReady w d.1.1 t) :
     (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t (augStep d)) := by
+  rcases d with ⟨⟨c, δ⟩, cur⟩
+  dsimp only at hc hn ht
   obtain ⟨hlay, hws, hwb⟩ := hc
   have hfr := ht.2
   unfold augStep
@@ -406,8 +372,8 @@ private theorem validHistory_augStep {w : ℕ} {d : (Ctx × ℕ) × ℕ} {t : Me
   refine validHistory_ite (fun hcur => ?_) (fun _ => validHistory_pure _ _ _)
   refine validHistory_read_bind (by ek_omega) ?_
   refine validHistory_ite (fun hp => ?_) (fun _ => validHistory_pure _ _ _)
-  have h1 := idx_lt_sq hcur hp
-  have h2 := idx_lt_sq hp hcur
+  have h1 := List.mul_add_lt_sq hcur hp
+  have h2 := List.mul_add_lt_sq hp hcur
   refine validHistory_read_bind (by ek_omega) ?_
   refine validHistory_read_bind (by ek_omega) ?_
   refine validHistory_ite (fun hg => ?_) (fun _ => validHistory_pure _ _ _)
@@ -415,9 +381,11 @@ private theorem validHistory_augStep {w : ℕ} {d : (Ctx × ℕ) × ℕ} {t : Me
   exact validHistory_write_bind (by ek_omega) (hwb.of_le (by split_ifs <;> ek_omega))
     (validHistory_pure _ _ _)
 
-private theorem validHistory_roundStep {w : ℕ} {d : (Ctx × (ℕ × ℕ)) × ℕ} {t : Memory.State}
-    (hc : CtxFits w d.1.1) (hs : d.1.2.1 < d.1.1.n) (hsnk : d.1.2.2 < d.1.1.n)
-    (ht : EkReady w d.1.1 t) :
+theorem validHistory_roundStep {w : ℕ} {d : (Ctx × (ℕ × ℕ)) × ℕ} {t : Memory.State}
+    (hc : let ((c, _), _) := d; CtxFits w c)
+    (hs : let ((c, (s, _)), _) := d; s < c.n)
+    (hsnk : let ((c, (_, t')), _) := d; t' < c.n)
+    (ht : EkReady w (let ((c, _), _) := d; c) t) :
     (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t (roundStep d)) := by
   obtain ⟨⟨c, src, snk⟩, st⟩ := d
   dsimp only at hc hs hsnk ht
@@ -442,8 +410,9 @@ private theorem validHistory_roundStep {w : ℕ} {d : (Ctx × (ℕ × ℕ)) × �
       (MonotoneMemInv.pres ht1 (hbn _)))
     (validHistory_pure _ _ _)
 
-private theorem validHistory_cutOuterStep {w : ℕ} {d : Ctx × (ℕ × ℕ)} {t : Memory.State}
-    (hlay : d.1.matBase + d.1.n * d.1.n ≤ d.1.scratchBase) (hu : d.2.1 < d.1.n)
+theorem validHistory_cutOuterStep {w : ℕ} {d : Ctx × (ℕ × ℕ)} {t : Memory.State}
+    (hlay : d.1.matBase + d.1.n * d.1.n ≤ d.1.scratchBase)
+    (hu : let (c, (u, _)) := d; u < c.n)
     (ht : EkReady w d.1 t) :
     (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t (cutOuterStep d)) := by
   have hfr := ht.2
@@ -453,7 +422,7 @@ private theorem validHistory_cutOuterStep {w : ℕ} {d : Ctx × (ℕ × ℕ)} {t
   refine validHistory_bind_step
     (validHistory_iterate_fst (Inv := EkReady w d.1) d.1.n 0 _
       (fun v hv b t' ht' => ⟨?_, ?_⟩) ht) (validHistory_pure _ _ _)
-  · have h1 := idx_lt_sq hu (show v < d.1.n by omega)
+  · have h1 := List.mul_add_lt_sq hu (show v < d.1.n by omega)
     have hfr' := ht'.2
     unfold cutInnerStep
     refine validHistory_read_bind (by ek_omega) ?_
@@ -461,33 +430,7 @@ private theorem validHistory_cutOuterStep {w : ℕ} {d : Ctx × (ℕ × ℕ)} {t
     exact validHistory_ite (fun _ => validHistory_pure _ _ _) (fun _ => validHistory_pure _ _ _)
   · exact clientResult_cutInnerStep_fst _ _ _
 
-theorem validHistory_ekProg {w : ℕ} {c : Ctx} {src snk : ℕ} {s : Memory.State}
-    (hc : CtxFits w c) (hs : src < c.n) (ht : snk < c.n)
-    (hwf : Memory.WellFormed w s) (hfr : c.scratchBase + ekScratch c.n ≤ s.frontier) :
-    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (ekProg (c, (src, snk)))) := by
-  have hr : EkReady w c s := ⟨hwf, hfr⟩
-  unfold ekProg
-  dsimp only
-  have hfill := validHistory_fillRange (base := flowAddr c 0 0) (val := 0) (len := c.n * c.n) hwf
-    (by ek_omega) (fits_zero w)
-  refine validHistory_bind_step hfill ?_
-  have hr1 : EkReady w c _ := MonotoneMemInv.pres hr hfill
-  have hrounds := validHistory_iterate_inv (EkReady w c) roundStep (c, (src, snk))
-    (fun a t' ht' => validHistory_roundStep (d := ((c, (src, snk)), a)) hc hs ht ht')
-    (c.n * c.n * c.n) 0 hr1
-  refine validHistory_bind_step hrounds ?_
-  have hr2 : EkReady w c _ := MonotoneMemInv.pres hr1 hrounds
-  refine validHistory_bind_step
-    (validHistory_iterate_fst (Inv := EkReady w c) c.n 0 0
-      (fun u hu b t' ht' => ⟨validHistory_cutOuterStep (d := (c, (u, b))) hc.1
-        (by dsimp only; omega) ht',
-        ?_⟩) hr2) (validHistory_pure _ _ _)
-  exact clientResult_cutOuterStep_fst _ _ _
-
-
-/-! ### Frame and result bound of the solver -/
-
-namespace Internal
+/-! ### Frame and result bound of internal subroutines -/
 
 theorem preservesAt_augStep {a : ℕ} {c : Ctx} {δ cur : ℕ}
     (ha : a < flowAddr c 0 0 ∨ distAddr c 0 ≤ a) : PreservesAt a (augStep ((c, δ), cur)) := by
@@ -497,8 +440,8 @@ theorem preservesAt_augStep {a : ℕ} {c : Ctx} {δ cur : ℕ}
   split_ifs with hcur
   · refine preservesAt_bind (preservesAt_read _ _) fun p => ?_
     split_ifs with hp
-    · have h1 := idx_lt_sq hcur hp
-      have h2 := idx_lt_sq hp hcur
+    · have h1 := List.mul_add_lt_sq hcur hp
+      have h2 := List.mul_add_lt_sq hp hcur
       refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
       refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
       refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
@@ -524,25 +467,12 @@ theorem preservesAt_roundStep {a : ℕ} {c : Ctx} {src snk sv : ℕ}
     (preservesAt_iterate (fun _ => preservesAt_augStep (c := c) (by ek_omega)) _ _)
     fun _ => preservesAt_pure _ _
 
-end Internal
-
-theorem preservesAt_ekProg {a : ℕ} {c : Ctx} {src snk : ℕ} (hs : src < c.n)
-    (ha : a < c.scratchBase ∨ c.scratchBase + ekScratch c.n ≤ a) :
-    PreservesAt a (ekProg (c, (src, snk))) := by
-  unfold ekProg
-  dsimp only
-  refine preservesAt_bind (preservesAt_fillRange (by ek_omega)) fun _ => ?_
-  refine preservesAt_bind (preservesAt_iterate
-    (fun sv => preservesAt_roundStep (c := c) (src := src) (snk := snk) (sv := sv)
-      hs ha) _ _) fun _ => ?_
-  exact preservesAt_bind (fun t => congrArg (fun st : Memory.State => st.mem a)
-    (clientState_iterate_eq_of _ _ (fun _ t' => cutOuterStep_state _ t') _ _ t))
-    fun _ => preservesAt_pure _ _
-
 private theorem cutInnerStep_acc_le (d : (Ctx × ℕ) × (ℕ × ℕ)) (t : Memory.State)
     (h : d.2.2 ≤ d.1.1.n * d.1.1.n * d.1.1.capBound + d.1.1.capBound) :
     ((Memory.spec 0).clientResult t (cutInnerStep d)).2 ≤
       d.1.1.n * d.1.1.n * d.1.1.capBound + d.1.1.capBound := by
+  rcases d with ⟨⟨c, u⟩, ⟨v, acc⟩⟩
+  dsimp only at h ⊢
   unfold cutInnerStep
   dsimp only
   rw [clientResult_bind_read, clientResult_bind_read]
@@ -553,30 +483,21 @@ private theorem cutInnerStep_acc_le (d : (Ctx × ℕ) × (ℕ × ℕ)) (t : Memo
   · rw [clientResult_pure]
     exact h
 
-private theorem cutOuterStep_acc_le (d : Ctx × (ℕ × ℕ)) (t : Memory.State)
-    (h : d.2.2 ≤ d.1.n * d.1.n * d.1.capBound + d.1.capBound) :
+theorem cutOuterStep_acc_le (d : Ctx × (ℕ × ℕ)) (t : Memory.State)
+    (h : let (c, (_, acc)) := d; acc ≤ c.n * c.n * c.capBound + c.capBound) :
     ((Memory.spec 0).clientResult t (cutOuterStep d)).2 ≤
       d.1.n * d.1.n * d.1.capBound + d.1.capBound := by
+  rcases d with ⟨c, ⟨u, acc⟩⟩
+  dsimp only at h ⊢
   unfold cutOuterStep
   dsimp only
   rw [clientResult_bind_read]
   split_ifs
   · rw [clientResult_bind, clientResult_pure]
-    exact iterate_invariant_of cutInnerStep (d.1, d.2.1)
-      (fun _ (va : ℕ × ℕ) _ => va.2 ≤ d.1.n * d.1.n * d.1.capBound + d.1.capBound)
-      (fun _ va t' hva => cutInnerStep_acc_le ((d.1, d.2.1), va) t' hva) h
+    exact iterate_invariant_of cutInnerStep (c, u)
+      (fun _ (va : ℕ × ℕ) _ => va.2 ≤ c.n * c.n * c.capBound + c.capBound)
+      (fun _ va t' hva => cutInnerStep_acc_le ((c, u), va) t' hva) h
   · rw [clientResult_pure]
     exact h
 
-theorem ekProg_result_le (c : Ctx) (s t : ℕ) (st : Memory.State) :
-    (Memory.spec 0).clientResult st (ekProg (c, (s, t))) ≤
-      c.n * c.n * c.capBound + c.capBound := by
-  unfold ekProg
-  rw [clientResult_bind, clientResult_bind,
-    clientResult_bind, clientResult_pure]
-  exact iterate_invariant_of cutOuterStep c
-    (fun _ (ua : ℕ × ℕ) _ => ua.2 ≤ c.n * c.n * c.capBound + c.capBound)
-    (fun _ ua t' hua => cutOuterStep_acc_le (c, ua) t' hua) (Nat.zero_le _)
-
-
-end Cslib.Algorithms.WordRAM.EdmondsKarp
+end Cslib.Algorithms.WordRAM.EdmondsKarp.Internal

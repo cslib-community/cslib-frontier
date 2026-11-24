@@ -10,8 +10,9 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.MaxFlow.BipartiteMatching
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Core
-import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Bounds
-import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Spec
+import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Internal
+-- `import all`: reads `private theorem ekProg_flow_spec` without exporting it from `EdmondsKarp`.
+import all CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Spec
 import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
 import CslibFrontier.Foundations.Data.List.RowMajor
 import CslibFrontier.Tactic.Realize
@@ -86,11 +87,6 @@ private abbrev bmScratch (m r : ℕ) : ℕ :=
 private abbrev bmWorkspace (m r : ℕ) : ℕ :=
   3 + m * r + 2 * ((2 + (m + r)) * (2 + (m + r))) + 2 * (2 + (m + r)) + m + r
 
-private theorem idx_lt_rect {u v m r : ℕ} (hu : u < m) (hv : v < r) : u * r + v < m * r := by
-  have h1 : (u + 1) * r ≤ m * r := Nat.mul_le_mul_right r hu
-  rw [Nat.succ_mul] at h1
-  omega
-
 private theorem length_encodeBipartiteMatrix {m r : ℕ} (G : Fin m × Fin r → Bool) :
     (encodeBipartiteMatrix G).length = m * r := by
   simp [encodeBipartiteMatrix, List.length_flatMap, List.map_const', List.sum_replicate]
@@ -98,7 +94,8 @@ private theorem length_encodeBipartiteMatrix {m r : ℕ} (G : Fin m × Fin r →
 private theorem getElem_encodeBipartiteMatrix {m r : ℕ} (G : Fin m × Fin r → Bool)
     (u : Fin m) (v : Fin r) :
     (encodeBipartiteMatrix G)[u.1 * r + v.1]'(by
-      rw [length_encodeBipartiteMatrix]; exact idx_lt_rect u.2 v.2) =
+      rw [length_encodeBipartiteMatrix]
+      exact Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2) =
       if G (u, v) then 1 else 0 := by
   have hlen : ∀ x ∈ List.finRange m,
       ((List.finRange r).map fun w => if G (x, w) then 1 else 0).length = r := fun _ _ => by
@@ -107,7 +104,8 @@ private theorem getElem_encodeBipartiteMatrix {m r : ℕ} (G : Fin m × Fin r �
     (fun x => (List.finRange r).map fun w => if G (x, w) then 1 else 0) r hlen
     (i := u.1) (j := v.1) (by simp [u.2]) v.2
   have hlt : u.1 * r + v.1 < (encodeBipartiteMatrix G).length := by
-    rw [length_encodeBipartiteMatrix]; exact idx_lt_rect u.2 v.2
+    rw [length_encodeBipartiteMatrix]
+    exact Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2
   have h1 : (encodeBipartiteMatrix G)[u.1 * r + v.1]? = some (if G (u, v) then 1 else 0) := by
     simpa [encodeBipartiteMatrix] using hq
   rw [List.getElem?_eq_getElem hlt] at h1
@@ -117,7 +115,8 @@ private theorem bmInit_mem_edge {m r : ℕ} (G : Fin m × Fin r → Bool) (u : F
     (Memory.State.init (encodeBipartiteInput G)).mem (3 + u.1 * r + v.1) =
       if G (u, v) then 1 else 0 := by
   have hlt : u.1 * r + v.1 < (encodeBipartiteMatrix G).length := by
-    rw [length_encodeBipartiteMatrix]; exact idx_lt_rect u.2 v.2
+    rw [length_encodeBipartiteMatrix]
+    exact Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2
   change (if 3 + u.1 * r + v.1 = 0 then (encodeBipartiteInput G).length
     else (encodeBipartiteInput G).getD (3 + u.1 * r + v.1 - 1) 0) = _
   rw [ite_eq_right (by omega), show 3 + u.1 * r + v.1 - 1 = (u.1 * r + v.1) + 2 by omega]
@@ -271,7 +270,7 @@ private theorem bmSnkStep_realizes :
     apply hw.of_le
     have h1 : (2 + d.1.1 + d.2) * (2 + (d.1.1 + d.1.2)) + 1 <
         (2 + (d.1.1 + d.1.2)) * (2 + (d.1.1 + d.1.2)) :=
-      idx_lt_sq (by omega) (by omega)
+      List.mul_add_lt_sq (by omega) (by omega)
     bm_omega
 
 private theorem bmEdgeInner_realizes :
@@ -284,10 +283,11 @@ private theorem bmEdgeInner_realizes :
   all_goals
     obtain ⟨hw, hu, hv⟩ := h
     apply hw.of_le
-    have h1 : d.1.2 * d.1.1.2 + d.2 < d.1.1.1 * d.1.1.2 := idx_lt_rect hu hv
+    have h1 : d.1.2 * d.1.1.2 + d.2 < d.1.1.1 * d.1.1.2 :=
+      Nat.mul_comm d.1.1.2 d.1.2 ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hv
     have h2 : (2 + d.1.2) * (2 + (d.1.1.1 + d.1.1.2)) + (2 + d.1.1.1 + d.2) <
         (2 + (d.1.1.1 + d.1.1.2)) * (2 + (d.1.1.1 + d.1.1.2)) :=
-      idx_lt_sq (by omega) (by omega)
+      List.mul_add_lt_sq (by omega) (by omega)
     bm_omega
 
 private theorem bmEdgeOuter_realizes :
@@ -327,7 +327,8 @@ private theorem bmCovLInner_realizes :
   all_goals
     obtain ⟨hw, hu, hv⟩ := h
     apply hw.of_le
-    have h1 : d.1.2 * d.1.1.2 + d.2 < d.1.1.1 * d.1.1.2 := idx_lt_rect hu hv
+    have h1 : d.1.2 * d.1.1.2 + d.2 < d.1.1.1 * d.1.1.2 :=
+      Nat.mul_comm d.1.1.2 d.1.2 ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hv
     bm_omega
 
 private theorem bmCovLOuter_realizes :
@@ -512,7 +513,7 @@ private theorem validHistory_bmMain {w m r : ℕ} {st : Memory.State}
     refine validHistory_iterate_nat (Inv := BmReady w m r) r 0 (fun v hv t ht => ⟨?_, ?_⟩) hs3
     · unfold bmSnkStep
       have h1 : (2 + m + v) * bmNodes m r + 1 < bmNodes m r * bmNodes m r :=
-        idx_lt_sq (by dsimp only [bmNodes]; omega) (by dsimp only [bmNodes]; omega)
+        List.mul_add_lt_sq (by dsimp only [bmNodes]; omega) (by dsimp only [bmNodes]; omega)
       exact validHistory_write_bind (by have := ht.2; bm_omega)
         (hw.of_le (by bm_omega)) (validHistory_pure _ _ _)
     · rfl
@@ -528,9 +529,10 @@ private theorem validHistory_bmMain {w m r : ℕ} {st : Memory.State}
         (validHistory_iterate_nat (Inv := BmReady w m r) r 0 (fun v hv t' ht' => ⟨?_, ?_⟩) ht)
         (validHistory_pure _ _ _)
       · unfold bmEdgeInner
-        have h1 : u * r + v < m * r := idx_lt_rect (by omega) (by omega)
+        have h1 : u * r + v < m * r :=
+          Nat.mul_comm r u ▸ Nat.mul_add_lt_mul_of_lt_of_lt (by omega) (by omega)
         have h2 : (2 + u) * bmNodes m r + (2 + m + v) < bmNodes m r * bmNodes m r :=
-          idx_lt_sq (by dsimp only [bmNodes]; omega) (by dsimp only [bmNodes]; omega)
+          List.mul_add_lt_sq (by dsimp only [bmNodes]; omega) (by dsimp only [bmNodes]; omega)
         refine validHistory_read_bind (by have := ht'.2; bm_omega) ?_
         exact validHistory_write_bind (by have := ht'.2; bm_omega)
           (hw.of_le (by split_ifs <;> bm_omega)) (validHistory_pure _ _ _)
@@ -573,7 +575,8 @@ private theorem validHistory_bmMain {w m r : ℕ} {st : Memory.State}
         (validHistory_iterate_nat (Inv := BmReady w m r) r 0 (fun v hv t' ht' => ⟨?_, ?_⟩) ht1)
         (validHistory_pure _ _ _)
       · unfold bmCovLInner
-        have h1 : u * r + v < m * r := idx_lt_rect (by omega) (by omega)
+        have h1 : u * r + v < m * r :=
+          Nat.mul_comm r u ▸ Nat.mul_add_lt_mul_of_lt_of_lt (by omega) (by omega)
         refine validHistory_read_bind (by have := ht'.2; bm_omega) ?_
         refine validHistory_read_bind (by have := ht'.2; bm_omega) ?_
         refine validHistory_ite (fun _ => ?_) (fun _ => validHistory_pure _ _ _)
@@ -606,7 +609,7 @@ private theorem bmBuild_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Mem
   have h1 := fillRange_spec (bmMatBase m r) 0 (bmNodes m r * bmNodes m r) st
   have hG1 : ∀ u : Fin m, ∀ v : Fin r, st1.mem (3 + u.1 * r + v.1) = if G (u, v) then 1 else 0 := by
     intro u v
-    have hlt : u.1 * r + v.1 < m * r := idx_lt_rect u.2 v.2
+    have hlt : u.1 * r + v.1 < m * r := Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2
     rw [h1.2 _ (Or.inl (by dsimp only [bmMatBase]; omega))]
     exact hG u v
   have hM1 : ∀ a < bmNodes m r * bmNodes m r, st1.mem (bmMatBase m r + a) = 0 := h1.1
@@ -623,7 +626,7 @@ private theorem bmBuild_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Mem
       · rw [Function.update_of_ne (by omega)]; exact hlo a ha
       · by_cases heq : bmMatBase m r + x.1 * bmNodes m r + y.1 = bmMatBase m r + (2 + k)
         · rw [heq, Function.update_self]
-          have hxy := fin_mul_add_inj (M := bmNodes m r) (x₁ := x) (y₁ := y)
+          have hxy := List.fin_mul_add_inj (M := bmNodes m r) (x₁ := x) (y₁ := y)
             (x₂ := ⟨0, by dsimp only [bmNodes]; omega⟩)
             (y₂ := ⟨2 + k, by dsimp only [bmNodes]; omega⟩) (by dsimp only; omega)
           have hx0 : x.1 = 0 := congrArg Fin.val hxy.1
@@ -641,7 +644,7 @@ private theorem bmBuild_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Mem
             · omega)
     (n := m) (a := 0) (s := st1) ⟨Nat.zero_add _, fun _ _ => rfl, fun x y => by
       rw [ite_eq_right (by omega), Nat.add_assoc]
-      exact hM1 _ (idx_lt_sq x.2 y.2)⟩
+      exact hM1 _ (List.mul_add_lt_sq x.2 y.2)⟩
   have h2r : (Memory.spec 0).clientResult st1 (iterate bmSrcStep (m, r) m 0) = m := by
     have := h2.1; omega
   have h3 := iterate_invariant_of bmSnkStep (m, r)
@@ -659,7 +662,7 @@ private theorem bmBuild_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Mem
       · by_cases heq : bmMatBase m r + x.1 * bmNodes m r + y.1 =
             bmMatBase m r + (2 + m + k) * bmNodes m r + 1
         · rw [heq, Function.update_self]
-          have hxy := fin_mul_add_inj (M := bmNodes m r) (x₁ := x) (y₁ := y)
+          have hxy := List.fin_mul_add_inj (M := bmNodes m r) (x₁ := x) (y₁ := y)
             (x₂ := ⟨2 + m + k, by dsimp only [bmNodes]; omega⟩)
             (y₂ := ⟨1, by dsimp only [bmNodes]; omega⟩) (by dsimp only; omega)
           have hxk : x.1 = 2 + m + k := congrArg Fin.val hxy.1
@@ -715,7 +718,8 @@ private theorem bmBuild_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Mem
         (fun remv kv t' ⟨hsumv, hlo', hmat'⟩ => by
           have hkv : kv < r := by omega
           have hgread : t'.mem (3 + ku * r + kv) = if G (⟨ku, hku⟩, ⟨kv, hkv⟩) then 1 else 0 := by
-            have hlt : ku * r + kv < m * r := idx_lt_rect hku hkv
+            have hlt : ku * r + kv < m * r :=
+              Nat.mul_comm r ku ▸ Nat.mul_add_lt_mul_of_lt_of_lt hku hkv
             rw [hlo' _ (by dsimp only [bmMatBase]; omega)]
             exact hG1 ⟨ku, hku⟩ ⟨kv, hkv⟩
           unfold bmEdgeInner
@@ -727,7 +731,7 @@ private theorem bmBuild_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Mem
           · by_cases heq : bmMatBase m r + x.1 * bmNodes m r + y.1 =
                 bmMatBase m r + (2 + ku) * bmNodes m r + (2 + m + kv)
             · rw [heq, Function.update_self, hgread]
-              have hxy := fin_mul_add_inj (M := bmNodes m r) (x₁ := x) (y₁ := y)
+              have hxy := List.fin_mul_add_inj (M := bmNodes m r) (x₁ := x) (y₁ := y)
                 (x₂ := ⟨2 + ku, by dsimp only [bmNodes]; omega⟩)
                 (y₂ := ⟨2 + m + kv, by dsimp only [bmNodes]; omega⟩) (by dsimp only; omega)
               have hxu : x.1 = 2 + ku := congrArg Fin.val hxy.1
@@ -806,7 +810,7 @@ private theorem bmBuild_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Mem
   have h4r : (Memory.spec 0).clientResult st3 (iterate bmEdgeOuter (m, r) m 0) = m := by
     have := h4.1; omega
   refine ⟨fun u v => ?_, fun x y => ?_⟩
-  · have hlt : u.1 * r + v.1 < m * r := idx_lt_rect u.2 v.2
+  · have hlt : u.1 * r + v.1 < m * r := Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2
     rw [h4.2.1 _ (by dsimp only [bmMatBase]; omega)]
     exact hG1 u v
   · have hm4 := h4.2.2 x y
@@ -904,7 +908,8 @@ private theorem bmCovL_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
             then 1 else 0)
         (fun remv kv t' ⟨hsumv, hne, hcur⟩ => by
           have hkv : kv < r := by omega
-          have hlt : ku * r + kv < m * r := idx_lt_rect hku hkv
+          have hlt : ku * r + kv < m * r :=
+            Nat.mul_comm r ku ▸ Nat.mul_add_lt_mul_of_lt_of_lt hku hkv
           have hg : t'.mem (3 + ku * r + kv) = if G (⟨ku, hku⟩, ⟨kv, hkv⟩) then 1 else 0 := by
             rw [hne _ (by bm_omega), hfr _ (Or.inl (by bm_omega))]
             exact hG ⟨ku, hku⟩ ⟨kv, hkv⟩
@@ -1003,7 +1008,7 @@ private theorem bmMain_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
   set st0 := (Memory.spec 0).clientState st (Memory.alloc (bmScratch m r))
   have hG0 : ∀ u : Fin m, ∀ v : Fin r, st0.mem (3 + u.1 * r + v.1) = if G (u, v) then 1 else 0 := by
     intro u v
-    have hlt : u.1 * r + v.1 < m * r := idx_lt_rect u.2 v.2
+    have hlt : u.1 * r + v.1 < m * r := Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2
     exact (Memory.mem_step_of_lt_frontier st (.alloc (bmScratch m r)) (by rw [hfr]; omega)
       (by simp)).trans (hG u v)
   obtain ⟨hG4, hmat4⟩ := bmBuild_spec G hG0
@@ -1033,14 +1038,14 @@ private theorem bmMain_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
       st5.mem (distAddr ⟨bmNodes m r, bmMatBase m r, bmScrBase m r, 1⟩ x.1) < bmNodes m r
   have hG5 : ∀ u : Fin m, ∀ v : Fin r, st5.mem (3 + u.1 * r + v.1) = if G (u, v) then 1 else 0 := by
     intro u v
-    have hlt : u.1 * r + v.1 < m * r := idx_lt_rect u.2 v.2
+    have hlt : u.1 * r + v.1 < m * r := Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2
     rw [hEk_frame _ (Or.inl (by bm_omega))]
     exact hG4 u v
   obtain ⟨hR_fr, hR_cov⟩ := bmCovR_spec (m := m) (r := r) st5
   set st6 := (Memory.spec 0).clientState st5 (iterate bmCovRStep (m, r) r 0)
   have hG6 : ∀ u : Fin m, ∀ v : Fin r, st6.mem (3 + u.1 * r + v.1) = if G (u, v) then 1 else 0 := by
     intro u v
-    have hlt : u.1 * r + v.1 < m * r := idx_lt_rect u.2 v.2
+    have hlt : u.1 * r + v.1 < m * r := Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2
     rw [hR_fr _ (by bm_omega)]
     exact hG5 u v
   obtain ⟨hL_fr, hL_cov⟩ := bmCovL_spec G hG6
@@ -1071,7 +1076,7 @@ private theorem bmMain_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
   · intro u v
     rw [hst_main]
     have h1 : (2 + u.1) * bmNodes m r + (2 + m + v.1) < bmNodes m r * bmNodes m r :=
-      idx_lt_sq (by have := u.2; dsimp only [bmNodes]; omega)
+      List.mul_add_lt_sq (by have := u.2; dsimp only [bmNodes]; omega)
         (by have := v.2; dsimp only [bmNodes]; omega)
     rw [hL_fr _ (Or.inl (by dsimp only [bmMatchAddr]; bm_omega)),
       hR_fr _ (by dsimp only [bmMatchAddr]; bm_omega)]

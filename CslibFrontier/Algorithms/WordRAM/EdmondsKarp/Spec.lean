@@ -9,21 +9,33 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.GomoryHu.WeightedCut
-public import CslibFrontier.Algorithms.Lean.MaxFlow.EdmondsKarp
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Core
+import CslibFrontier.Algorithms.Lean.MaxFlow.EdmondsKarp
 import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.BfsSemantics
 import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Bounds
+import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Internal
+import CslibFrontier.Foundations.Data.List.RowMajor
+import CslibFrontier.Tactic.Realize
+import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!
-# Functional correctness specification of `ekProg`
+# Relocatable dense Edmonds–Karp solver, resource bounds, and specification
 
-Path reconstruction, bottleneck calculation, flow augmentation, cut-capacity accumulation, and
-end-to-end minimum-cut correctness (`ekProg_spec`) for
-`Cslib.Algorithms.WordRAM.EdmondsKarp.ekProg`.
+Defines the relocatable solver subroutine `Cslib.Algorithms.WordRAM.EdmondsKarp.ekProg` together
+with its exact-basis realization, `O(n ^ 5)` memory budget (`ekCost`), history admissibility, frame
+property, return-value bound, and end-to-end minimum-cut correctness (`ekProg_spec`).
+
+## Main definitions
+
+* `Cslib.Algorithms.WordRAM.EdmondsKarp.ekProg`, `ekCost`: the relocatable dense Edmonds–Karp
+  subroutine and its `O(n ^ 5)` memory-operation budget.
 
 ## Main results
 
+* `Cslib.Algorithms.WordRAM.EdmondsKarp.ekProg_realizes`: compilation to `Basis.exact`.
+* `Cslib.Algorithms.WordRAM.EdmondsKarp.memoryCost_ekProg_le`, `validHistory_ekProg`,
+  `preservesAt_ekProg`, `ekProg_result_le`: cost, admissibility, frame, and return-value bound.
 * `Cslib.Algorithms.WordRAM.EdmondsKarp.ekProg_spec`: correctness of `ekProg` for minimum `s`–`t`
   cuts (`IsMinCutBetween (cutWeight W)`).
 -/
@@ -44,22 +56,6 @@ local macro "ek_omega" : tactic => `(tactic| (
   omega))
 
 /-! ### Semantics: the augmenting path, its bottleneck, and the augmentation -/
-
-namespace Internal
-
-theorem fin_mul_add_inj {M : ℕ} {x₁ y₁ x₂ y₂ : Fin M}
-    (h : x₁.1 * M + y₁.1 = x₂.1 * M + y₂.1) : x₁ = x₂ ∧ y₁ = y₂ := by
-  have hM : 0 < M := Nat.zero_lt_of_lt x₁.2
-  have hd : (x₁.1 * M + y₁.1) / M = (x₂.1 * M + y₂.1) / M := congrArg (· / M) h
-  have hm : (x₁.1 * M + y₁.1) % M = (x₂.1 * M + y₂.1) % M := congrArg (· % M) h
-  rw [Nat.mul_comm x₁.1 M, Nat.mul_add_div hM, Nat.div_eq_of_lt y₁.2, add_zero,
-    Nat.mul_comm x₂.1 M, Nat.mul_add_div hM, Nat.div_eq_of_lt y₂.2, add_zero] at hd
-  rw [Nat.mul_comm x₁.1 M, Nat.mul_add_mod, Nat.mod_eq_of_lt y₁.2,
-    Nat.mul_comm x₂.1 M, Nat.mul_add_mod, Nat.mod_eq_of_lt y₂.2] at hm
-  exact ⟨Fin.ext hd, Fin.ext hm⟩
-
-
-end Internal
 
 private def buildPath {M : ℕ} (parOf : Fin M → Fin M) : ℕ → Fin M → List (Fin M)
   | 0, cur => [cur]
@@ -273,7 +269,7 @@ private theorem iterate_augStep_spec (hB : ∀ u v, W u v ≤ B) (f : (Network.m
     have haddr : ∀ a b a' b' : Fin n, flowAddr c a.1 b.1 = flowAddr c a'.1 b'.1 →
         a = a' ∧ b = b' := fun a b a' b' h => by
       dsimp only [c, flowAddr] at h
-      exact fin_mul_add_inj (by omega)
+      exact List.fin_mul_add_inj (by omega)
     have hflow1 : ∀ x y : Fin n, u1.mem (flowAddr c x.1 y.1) =
         if (x, y) = (parOf cur, cur) then f x y + (δ - min δ (f y x))
         else if (y, x) = (parOf cur, cur) then f x y - min δ (f x y)
@@ -633,19 +629,129 @@ end Final
 private theorem roundStep_idle {d : (Ctx × (ℕ × ℕ)) × ℕ} (h : d.2 ≠ 0) (t : Memory.State) :
     (Memory.spec 0).clientResult t (roundStep d) = 1 ∧
       (Memory.spec 0).clientState t (roundStep d) = t := by
+  rcases d with ⟨⟨c, ⟨s, t'⟩⟩, flag⟩
+  dsimp only at h
   unfold roundStep
   dsimp only
   exact ⟨by rw [clientResult_bind_read, ite_eq_right h, clientResult_pure],
     by rw [clientState_bind_read, ite_eq_right h, clientState_pure]⟩
 
 
-namespace Internal
+/-! ### The dense Edmonds–Karp solver (`ekProg`), its bounds, and specification -/
+
+/-- **Dense Edmonds–Karp** (`d = (c, (s, t))`): clear the flow, run `n ^ 3` rounds (rounds after
+`t` stops being reached do nothing), and return the weight of the reached set of the final
+search. -/
+def ekProg (d : Ctx × (ℕ × ℕ)) : Memory.Prog ℕ := do
+  let c := d.1
+  fillRange ((flowAddr c 0 0, 0), c.n * c.n)
+  let _ ← iterate roundStep d (c.n * c.n * c.n) 0
+  let r ← iterate cutOuterStep c c.n (0, 0)
+  pure r.2
+
+theorem ekProg_realizes :
+    Realizes .exact ekProg (WordEncoding.encode (α := Ctx × (ℕ × ℕ)))
+      (WordEncoding.encode (α := ℕ))
+      (fun w d _ => let (c, s, t) := d; CtxFits w c ∧ s < c.n ∧ t < c.n) (fun _ _ => 0) := by
+  unfold ekProg
+  realize [fillRange_realizes, roundStep_realizes, cutOuterStep_realizes]
+  all_goals
+    obtain ⟨⟨hlay, hws, hwb⟩, hs, ht⟩ := h
+    try
+      dsimp -failIfUnchanged only [CtxFits, ekScratch, ekBound, capAddr, flowAddr, distAddr,
+        predAddr] at *
+      first
+      | omega
+      | (apply Fits.of_le hws; omega)
+      | (apply Fits.of_le hwb; omega)
+  · refine iterationSafe_of_stepInv _ _ w _ (fun _ _ _ => True) ?_ trivial
+    intro _ _ _ _
+    exact ⟨⟨⟨hlay, hws, hwb⟩, hs, ht⟩, trivial⟩
+  · refine iterationSafe_of_stepInv _ _ w _
+      (fun rem (ua : ℕ × ℕ) _ => ua.1 + rem = d.1.n) ?_ (Nat.zero_add _)
+    intro rem ua t hsum
+    dsimp only at *
+    refine ⟨⟨⟨hlay, hws, hwb⟩, by omega⟩, ?_⟩
+    rw [clientResult_cutOuterStep_fst]; omega
+
+/-- Memory-operation budget of `ekProg` on `n` vertices, `O(n ^ 5)`. -/
+abbrev ekCost (n : ℕ) : ℕ := 20 * (n + 1) ^ 5
+
+theorem memoryCost_ekProg_le (c : Ctx) (s t : ℕ) (st : Memory.State) :
+    memoryCost (ekProg (c, (s, t))) st ≤ ekCost c.n := by
+  unfold ekProg
+  dsimp only
+  set n := c.n
+  refine le_trans (memoryCost_bind_le (memoryCost_fillRange_le _ _ _ st) fun _ t1 =>
+    memoryCost_bind_le (memoryCost_iterate_le_of roundStep (13 * (n + 1) ^ 2) (c, (s, t))
+      (fun _ _ => memoryCost_roundStep_le _ _) (n * n * n) 0 t1) fun _ t2 =>
+      memoryCost_bind_le (memoryCost_iterate_le_of cutOuterStep (1 + 2 * n) c
+        (fun _ _ => memoryCost_cutOuterStep_le _ _) n (0, 0) t2) fun _ t3 =>
+        (memoryCost_pure _ t3).le) ?_
+  have h1 : 13 * (n + 1) ^ 2 * (n * n * n) ≤ 13 * (n + 1) ^ 5 := by
+    have : n * n * n ≤ (n + 1) ^ 3 := by
+      have := Nat.pow_le_pow_left (Nat.le_succ n) 3
+      simpa [pow_succ, pow_zero, one_mul, mul_assoc] using this
+    calc 13 * (n + 1) ^ 2 * (n * n * n) ≤ 13 * (n + 1) ^ 2 * (n + 1) ^ 3 :=
+          Nat.mul_le_mul_left _ this
+      _ = 13 * (n + 1) ^ 5 := by ring
+  have h2 : (1 + 2 * n) * n + n * n ≤ 7 * (n + 1) ^ 5 := by
+    have : (n + 1) ^ 2 ≤ (n + 1) ^ 5 := Nat.pow_le_pow_right (Nat.succ_pos n) (by decide)
+    nlinarith
+  dsimp only [ekCost]
+  omega
+
+theorem validHistory_ekProg {w : ℕ} {c : Ctx} {src snk : ℕ} {s : Memory.State}
+    (hc : CtxFits w c) (hs : src < c.n) (ht : snk < c.n)
+    (hwf : Memory.WellFormed w s) (hfr : c.scratchBase + ekScratch c.n ≤ s.frontier) :
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (ekProg (c, (src, snk)))) := by
+  have hr : EkReady w c s := ⟨hwf, hfr⟩
+  unfold ekProg
+  dsimp only
+  have hfill := validHistory_fillRange (base := flowAddr c 0 0) (val := 0) (len := c.n * c.n) hwf
+    (by ek_omega) (fits_zero w)
+  refine validHistory_bind_step hfill ?_
+  have hr1 : EkReady w c _ := MonotoneMemInv.pres hr hfill
+  have hrounds := validHistory_iterate_inv (EkReady w c) roundStep (c, (src, snk))
+    (fun a t' ht' => validHistory_roundStep (d := ((c, (src, snk)), a)) hc hs ht ht')
+    (c.n * c.n * c.n) 0 hr1
+  refine validHistory_bind_step hrounds ?_
+  have hr2 : EkReady w c _ := MonotoneMemInv.pres hr1 hrounds
+  refine validHistory_bind_step
+    (validHistory_iterate_fst (Inv := EkReady w c) c.n 0 0
+      (fun u hu b t' ht' => ⟨validHistory_cutOuterStep (d := (c, (u, b))) hc.1
+        (by dsimp only; omega) ht',
+        ?_⟩) hr2) (validHistory_pure _ _ _)
+  exact clientResult_cutOuterStep_fst _ _ _
+
+theorem preservesAt_ekProg {a : ℕ} {c : Ctx} {src snk : ℕ} (hs : src < c.n)
+    (ha : a < c.scratchBase ∨ c.scratchBase + ekScratch c.n ≤ a) :
+    PreservesAt a (ekProg (c, (src, snk))) := by
+  unfold ekProg
+  dsimp only
+  refine preservesAt_bind (fun s => (fillRange_spec _ _ _ s).2 _ (by ek_omega)) fun _ => ?_
+  refine preservesAt_bind (preservesAt_iterate
+    (fun sv => preservesAt_roundStep (c := c) (src := src) (snk := snk) (sv := sv)
+      hs ha) _ _) fun _ => ?_
+  exact preservesAt_bind (fun t => congrArg (fun st : Memory.State => st.mem a)
+    (clientState_iterate_eq_of _ _ (fun _ t' => cutOuterStep_state _ t') _ _ t))
+    fun _ => preservesAt_pure _ _
+
+theorem ekProg_result_le (c : Ctx) (s t : ℕ) (st : Memory.State) :
+    (Memory.spec 0).clientResult st (ekProg (c, (s, t))) ≤
+      c.n * c.n * c.capBound + c.capBound := by
+  unfold ekProg
+  rw [clientResult_bind, clientResult_bind,
+    clientResult_bind, clientResult_pure]
+  exact iterate_invariant_of cutOuterStep c
+    (fun _ (ua : ℕ × ℕ) _ => ua.2 ≤ c.n * c.n * c.capBound + c.capBound)
+    (fun _ ua t' hua => cutOuterStep_acc_le (c, ua) t' hua) (Nat.zero_le _)
 
 /-- **Correctness of dense Edmonds–Karp on a flow network.** On a state holding the capacities
 `N.cap ≤ B` at `mb`, `ekProg` leaves memory outside its scratch area unchanged, stores an integral
 maximum flow `f` at `flowAddr`, marks `C = f.reachableCut` via `distAddr < n` as a minimum `s`–`t`
 cut with `f.value = N.cutCapacity C`, and returns `N.cutCapacity C`. -/
-theorem ekProg_flow_spec {n mb sb B : ℕ} (N : Network (Fin n)) (hst : N.s ≠ N.t)
+private theorem ekProg_flow_spec {n mb sb B : ℕ} (N : Network (Fin n)) (hst : N.s ≠ N.t)
     (hB : ∀ u v, N.cap u v ≤ B) (hlay : mb + n * n ≤ sb) {st : Memory.State}
     (hW : ∀ u v : Fin n, st.mem (mb + u.1 * n + v.1) = N.cap u v) :
     let c : Ctx := ⟨n, mb, sb, B⟩
@@ -667,10 +773,10 @@ theorem ekProg_flow_spec {n mb sb B : ℕ} (N : Network (Fin n)) (hst : N.s ≠ 
   set s1 := (Memory.spec 0).clientState st (fillRange ((flowAddr ⟨n, mb, sb, B⟩ 0 0, 0), n * n))
   have hs1 := fillRange_spec (flowAddr ⟨n, mb, sb, B⟩ 0 0) 0 (n * n) st
   have hW1 : MatLoaded n mb N.cap s1 := fun u v => by
-    rw [hs1.2 _ (Or.inl (by have := idx_lt_sq u.2 v.2; ek_omega))]
+    rw [hs1.2 _ (Or.inl (by have := List.mul_add_lt_sq u.2 v.2; ek_omega))]
     exact hW u v
   have hf1 : FlowStored sb (Network.Flow.zero N) s1 := fun x y => by
-    have h := hs1.1 (x.1 * n + y.1) (idx_lt_sq x.2 y.2)
+    have h := hs1.1 (x.1 * n + y.1) (List.mul_add_lt_sq x.2 y.2)
     have he : flowAddr ⟨n, mb, sb, B⟩ 0 0 + (x.1 * n + y.1) = sb + x.1 * n + y.1 := by
       dsimp only [flowAddr]; ring
     rw [he] at h
@@ -685,7 +791,7 @@ theorem ekProg_flow_spec {n mb sb B : ℕ} (N : Network (Fin n)) (hst : N.s ≠ 
     (fun rem sv tt ⟨hsv, hWt, k, flows, paths, hseq, hft, h0, h1⟩ => by
       have hWt' : ∀ tt', (∀ a, (a < sb ∨ sb + ekScratch n ≤ a) → tt'.mem a = tt.mem a) →
           MatLoaded n mb N.cap tt' := fun tt' hfr u v => by
-        rw [hfr _ (Or.inl (by have := idx_lt_sq u.2 v.2; omega))]
+        rw [hfr _ (Or.inl (by have := List.mul_add_lt_sq u.2 v.2; omega))]
         exact hWt u v
       have hfr_round : ∀ a, (a < sb ∨ sb + ekScratch n ≤ a) →
           ((Memory.spec 0).clientState tt (roundStep ((⟨n, mb, sb, B⟩, (N.s.1, N.t.1)), sv))).mem a
@@ -790,9 +896,6 @@ theorem ekProg_flow_spec {n mb sb B : ℕ} (N : Network (Fin n)) (hst : N.s ≠ 
   have hres : ((Memory.spec 0).clientResult s2 (iterate cutOuterStep ⟨n, mb, sb, B⟩ n (0, 0))).2 =
       N.cutCapacity C := iterate_cutOuter_spec hB hW2 C hC hC'
   exact ⟨fun u v => hf2 u v, hle, hmax, hmin, hC_eq, hval, hres⟩
-
-
-end Internal
 
 /-- **Correctness of dense Edmonds–Karp.** On a state holding the capacities `W ≤ B` at `mb`,
 `ekProg` leaves memory outside its scratch area unchanged, the set `C` of vertices whose final

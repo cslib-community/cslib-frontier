@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.MaxFlow.EdmondsKarp
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Core
+public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Internal
+import CslibFrontier.Foundations.Data.List.RowMajor
 
 /-!
 # Residual-graph breadth-first search semantics for `ekProg`
@@ -55,13 +57,13 @@ variable {n mb sb B : ℕ} {W : Fin n → Fin n → ℕ} {src snk : Fin n}
 theorem MatLoaded.congr {t t' : Memory.State} (hlay : mb + n * n ≤ sb)
     (hW : MatLoaded n mb W t) (h : ∀ a < sb + n * n, t'.mem a = t.mem a) :
     MatLoaded n mb W t' := fun u v => by
-  rw [h _ (by have := idx_lt_sq u.2 v.2; omega)]
+  rw [h _ (by have := List.mul_add_lt_sq u.2 v.2; omega)]
   exact hW u v
 
 theorem FlowStored.congr {N : Network (Fin n)} {f : N.Flow} {t t' : Memory.State}
     (hf : FlowStored sb f t) (h : ∀ a < sb + n * n, t'.mem a = t.mem a) :
     FlowStored sb f t' := fun x y => by
-  rw [h _ (by have := idx_lt_sq x.2 y.2; omega)]
+  rw [h _ (by have := List.mul_add_lt_sq x.2 y.2; omega)]
   exact hf x y
 
 theorem readResCap_spec (hB : ∀ u v, W u v ≤ B) {t : Memory.State}

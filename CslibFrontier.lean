@@ -404,6 +404,7 @@ public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.BfsSemantics
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Bounds
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Core
+public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Internal
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.Spec
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.UniformBipartite
 public import CslibFrontier.Algorithms.WordRAM.EdmondsKarp.UniformFlow
