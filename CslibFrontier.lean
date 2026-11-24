@@ -236,13 +236,17 @@ public import CslibFrontier.Algorithms.Lean.Sort.Bitonic.Trace
 public import CslibFrontier.Algorithms.Lean.Sort.Bitonic.ZeroOne
 public import CslibFrontier.Algorithms.Lean.StableMatching.Basic
 public import CslibFrontier.Algorithms.Lean.StableMatching.Blocking
+public import CslibFrontier.Algorithms.Lean.StableMatching.Core
 public import CslibFrontier.Algorithms.Lean.StableMatching.DeferredAcceptance
 public import CslibFrontier.Algorithms.Lean.StableMatching.Incentives
 public import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.Basic
 public import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.Complete
 public import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.DeferredAcceptance
+public import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.Incentives
+public import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.Lattice
 public import CslibFrontier.Algorithms.Lean.StableMatching.Incomplete.RuralHospitals
 public import CslibFrontier.Algorithms.Lean.StableMatching.Lattice
+public import CslibFrontier.Algorithms.Lean.StableMatching.RothImpossibility
 public import CslibFrontier.Algorithms.Lean.SteinerTree.Graph
 public import CslibFrontier.Algorithms.Lean.SteinerTree.Metric
 public import CslibFrontier.Algorithms.Lean.StoerWagner.Basic
