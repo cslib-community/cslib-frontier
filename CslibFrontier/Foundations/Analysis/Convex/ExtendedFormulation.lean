@@ -10,10 +10,6 @@ module
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.NonnegRank
 public import Mathlib.Analysis.Convex.Hull
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.LinearProgramming
-import Mathlib.Analysis.Convex.Basic
-import Mathlib.Data.Matrix.Block
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
 
 /-!
 # Extended formulations and Yannakakis's factorization theorem

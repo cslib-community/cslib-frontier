@@ -203,18 +203,6 @@ theorem size_le_of_solve_eq_unsat {φ : CNF ℕ} {cert : Array Std.Tactic.BVDeci
 
 /-! ### The lower bound on pigeonhole formulas -/
 
-/-- A tree-like refutation of `PHP^m_n` relabelled along an injective map, `m > n`, has at least
-`(n / 2 + 1) ^ (n / 2)` leaves. -/
-private theorem pow_half_le_leafCount_relabel_pigeonhole {m n : ℕ} {f : Fin m × Fin n → ℕ}
-    (hf : Function.Injective f) (hnm : n < m) (d : ((pigeonhole m n).relabel f).Derivation []) :
-    (n / 2 + 1) ^ (n / 2) ≤ d.toDecisionTree.leafCount := by
-  obtain ⟨d', hs⟩ := Derivation.exists_size_eq_of_relabel hf d
-  have h₁ := d.two_mul_leafCount_toDecisionTree
-  have h₂ := d'.two_mul_leafCount_toDecisionTree
-  have hle := (Nat.pow_le_pow_left (by omega : n / 2 + 1 ≤ n + 1 - n / 2) (n / 2)).trans
-    (d'.pow_le_leafCount_pigeonhole (n / 2) hnm)
-  omega
-
 /-- **The solver's refutations of the pigeonhole formulas have `2 ^ Ω(n log n)` nodes.** For
 `m > n` and an injective map `f` numbering the variables of `PHP^m_n`, the search finds a refutation
 of the relabelled formula, and it has at least `(n / 2 + 1) ^ (n / 2)` nodes. This is the bound of
@@ -225,7 +213,7 @@ theorem pow_half_le_size_refutation?_pigeonhole {m n : ℕ} {f : Fin m × Fin n 
     ∃ d, refutation? ((pigeonhole m n).relabel f) = some d ∧ (n / 2 + 1) ^ (n / 2) ≤ d.size := by
   obtain ⟨d, hd⟩ := exists_refutation?_eq_some
     (by rw [satisfiable_relabel hf]; exact not_satisfiable_pigeonhole hnm)
-  exact ⟨d, hd, (pow_half_le_leafCount_relabel_pigeonhole hf hnm d).trans
+  exact ⟨d, hd, (d.pow_half_le_leafCount_relabel_pigeonhole hf hnm).trans
     d.leafCount_toDecisionTree_le_size⟩
 
 /-- **The solver's certificates for the pigeonhole formulas have `2 ^ Ω(n log n)` steps.** For
@@ -240,6 +228,6 @@ theorem pow_half_le_size_solve_pigeonhole {m n : ℕ} {f : Fin m × Fin n → �
       (n / 2 + 1) ^ (n / 2) ≤ cert.size := by
   obtain ⟨d, hd, -⟩ := pow_half_le_size_refutation?_pigeonhole hf hnm
   exact ⟨d.toLRAT, solve_eq_unsat_iff.2 ⟨d, hd, rfl⟩,
-    d.size_toLRAT ▸ pow_half_le_leafCount_relabel_pigeonhole hf hnm d⟩
+    d.size_toLRAT ▸ d.pow_half_le_leafCount_relabel_pigeonhole hf hnm⟩
 
 end Cslib.Algorithms.Lean.DPLL

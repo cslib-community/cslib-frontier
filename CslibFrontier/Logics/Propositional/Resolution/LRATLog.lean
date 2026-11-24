@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.Resolution.LRAT
+public import CslibFrontier.Foundations.Data.Array.SetGrow
 
 /-! # LRAT certificates built step by step
 
@@ -51,41 +52,6 @@ namespace Cslib.Logic.PL.CNF
 
 open Std.Tactic.BVDecide (LRAT.IntAction)
 
-/-- Setting the entry `i` of an array of options to `x`, growing the array with `none` if needed. -/
-def optSet {α : Type} (a : Array (Option α)) (i : ℕ) (x : Option α) : Array (Option α) :=
-  if i < a.size then a.set! i x
-  -- pushing directly at the end, so that the array is updated in place
-  else if i = a.size then a.push x
-  else (a ++ Array.replicate (i - a.size) none).push x
-
-theorem getD_optSet {α : Type} (a : Array (Option α)) (i j : ℕ) (x : Option α) :
-    (optSet a i x).getD j none = if j = i then x else a.getD j none := by
-  unfold optSet
-  by_cases hi : i < a.size
-  · rw [ite_eq_left hi]
-    simp only [Array.set!_eq_setIfInBounds, Array.getD_eq_getD_getElem?,
-      Array.getElem?_setIfInBounds]
-    by_cases hj : j = i
-    · subst hj; simp [hi]
-    · simp [hj, Ne.symm hj]
-  rw [ite_eq_right hi]
-  by_cases he : i = a.size
-  · rw [ite_eq_left he]
-    subst he
-    simp only [Array.getD_eq_getD_getElem?, Array.getElem?_push]
-    by_cases hj : j = a.size <;> simp [hj]
-  rw [ite_eq_right he]
-  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_push, Array.size_append,
-    Array.size_replicate, Array.getElem?_append, Array.getElem?_replicate]
-  by_cases hj : j = i
-  · subst hj; simp only [↓reduceIte]; split <;> first | rfl | omega
-  · have h' : ¬ j = a.size + (i - a.size) := by omega
-    simp only [hj, h', ↓reduceIte]
-    by_cases hlt : j < a.size
-    · simp [hlt]
-    · simp only [hlt, ↓reduceIte, Array.getElem?_eq_none (by omega : a.size ≤ j)]
-      split <;> rfl
-
 /-- **An index in chunks**: the entries by number, in arrays of `256`, so that updating a shared
 index copies the array of chunks and one chunk rather than every entry. -/
 abbrev Chunks (α : Type) := Array (Array (Option α))
@@ -98,7 +64,7 @@ def chunkGet {α : Type} (a : Chunks α) (i : ℕ) : Option α :=
 def chunkSet {α : Type} (a : Chunks α) (i : ℕ) (x : Option α) : Chunks α :=
   let k := i / 256
   let a := if k < a.size then a else a ++ Array.replicate (k + 1 - a.size) #[]
-  a.modify k fun c => optSet c (i % 256) x
+  a.modify k fun c => c.setGrow (i % 256) none x
 
 theorem chunkGet_empty {α : Type} (j : ℕ) : chunkGet (#[] : Chunks α) j = none := by
   simp [chunkGet]
@@ -133,7 +99,7 @@ theorem chunkGet_chunkSet {α : Type} (a : Chunks α) (i j : ℕ) (x : Option α
     simp only [Option.map_some, Option.getD_some]
     rw [show (a'[i / 256]'hsize) = a'.getD (i / 256) #[] by
       simp [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem hsize], hgrow,
-      ← Array.getD_eq_getD_getElem?, getD_optSet]
+      ← Array.getD_eq_getD_getElem?, Array.getD_setGrow]
     by_cases hj : j = i
     · subst hj; simp
     · have : ¬ j % 256 = i % 256 := fun h => hj (hdecomp.2 ⟨hk.symm, h⟩)

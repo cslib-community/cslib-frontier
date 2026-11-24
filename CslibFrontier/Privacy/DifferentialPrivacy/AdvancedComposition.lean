@@ -129,8 +129,8 @@ theorem renyiMoment_transcriptWeight_le {K L : List R → R → ℝ≥0∞} (hL 
   | zero =>
     rw [Probability.renyiMoment, tsum_eq_single [] fun l hl => by cases l with
       | nil => exact absurd rfl hl
-      | cons r h => simp [transcriptWeight]]
-    simp [transcriptWeight]
+      | cons r h => simp only [transcriptWeight, zero_mul]]
+    simp only [transcriptWeight, div_one, ENNReal.one_rpow, mul_one, pow_zero, le_rfl]
   | succ k ih =>
     rw [renyiMoment_transcriptWeight_succ hL hα, pow_succ]
     calc ∑' h, transcriptWeight K k h *
@@ -151,22 +151,23 @@ theorem adaptiveComposition_apply {D : Type v} (M : List R → D → PMF R) (k :
   | zero =>
     rw [adaptiveComposition_zero]
     cases l with
-    | nil => simp [transcriptWeight]
-    | cons r h => simp [transcriptWeight]
+    | nil => simp only [PMF.pure_apply, ↓reduceIte, transcriptWeight]
+    | cons r h => simp only [PMF.pure_apply, reduceCtorEq, ↓reduceIte, transcriptWeight]
   | succ k ih =>
     rw [adaptiveComposition_succ, PMF.bind_apply]
     cases l with
     | nil =>
-      simp [transcriptWeight]
+      simp only [PMF.bind_apply, PMF.pure_apply, reduceCtorEq, ↓reduceIte, mul_zero,
+        tsum_zero, transcriptWeight]
     | cons r h =>
       simp only [transcriptWeight]
       rw [tsum_eq_single h fun h' hh' => by
         rw [PMF.bind_apply]
-        simp only [PMF.pure_apply, List.cons.injEq]
-        simp [Ne.symm hh']]
+        simp only [PMF.pure_apply, List.cons.injEq, Ne.symm hh', and_false, ↓reduceIte,
+          mul_zero, tsum_zero]]
       rw [PMF.bind_apply, tsum_eq_single r fun r' hr' => by
-        simp [PMF.pure_apply, Ne.symm hr']]
-      simp [ih]
+        simp only [PMF.pure_apply, List.cons.injEq, Ne.symm hr', false_and, ↓reduceIte, mul_zero]]
+      simp only [PMF.pure_apply, ↓reduceIte, mul_one, ih]
 
 /-- Transcript weights are monotone in the kernel. -/
 theorem transcriptWeight_mono {K K' : List R → R → ℝ≥0∞} (hK : ∀ h r, K' h r ≤ K h r) :
@@ -250,9 +251,12 @@ theorem tsum_tsub_transcriptWeight_le {K L : List R → R → ℝ≥0∞} {ε : 
   have hK1 : ∀ h, ∑' r, K h r ≤ 1 := fun h => (hsum h).trans (hL1 h)
   rcases hε.eq_or_lt with rfl | hε
   · have hKL' : K = L := funext fun h => funext fun r =>
-      le_antisymm (by simpa using hKL h r) (by simpa using hLK h r)
+      le_antisymm
+        (by simpa only [Real.exp_zero, ENNReal.ofReal_one, one_mul] using hKL h r)
+        (by simpa only [Real.exp_zero, ENNReal.ofReal_one, one_mul] using hLK h r)
     rw [hKL']
-    simp [tsub_self]
+    simp only [mul_zero, zero_mul, add_zero, Real.exp_zero, ENNReal.ofReal_one, one_mul,
+      tsub_self, tsum_zero, zero_le]
   rcases Nat.eq_zero_or_pos k with rfl | hk
   · rw [Nat.cast_zero, mul_zero, div_zero, neg_zero, Real.exp_zero, ENNReal.ofReal_one]
     exact (tsum_le_tsum fun _ => tsub_le_self).trans (tsum_transcriptWeight_zero K).le
@@ -444,7 +448,8 @@ theorem DifferentiallyPrivate.advancedComposition_experiment {D' : Type*} {Ω R 
     add_nonneg (mul_nonneg (Real.sqrt_nonneg _) hε)
       (mul_nonneg (mul_nonneg k.cast_nonneg hε) (by linarith [Real.one_le_exp hε]))
   have hcoins : DifferentiallyPrivate (fun _ _ => True) (fun _ : Bool => coins) 0 0 :=
-    DifferentiallyPrivate.of_apply_le fun _ _ _ r => by simp
+    DifferentiallyPrivate.of_apply_le fun _ _ _ _ => by
+      simp only [Real.exp_zero, ENNReal.ofReal_one, one_mul, le_rfl]
   have hview (ω : Ω) : DifferentiallyPrivate (fun _ _ => True)
       (Privacy.adaptiveComposition (fun history b => mech ω history (data ω history b)) k)
       (Real.sqrt (2 * k * Real.log (1 / δ')) * ε + k * ε * (Real.exp ε - 1))

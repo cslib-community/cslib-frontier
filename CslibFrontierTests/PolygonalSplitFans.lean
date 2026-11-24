@@ -18,6 +18,52 @@ namespace CslibFrontierTests.PolygonalSplitFans
 
 open Cslib Cslib.Polygonal Cslib.Complexity Cslib.Complexity.Graph
 
+private theorem one_mem_unit_circle : (1 : ℂ) ∈ Metric.sphere (0 : ℂ) 1 := by
+  norm_num [Metric.mem_sphere, dist_eq_norm]
+
+private theorem I_mem_unit_circle : Complex.I ∈ Metric.sphere (0 : ℂ) 1 := by
+  norm_num [Metric.mem_sphere, dist_eq_norm]
+
+private theorem neg_mem_unit_circle {w : ℂ} (hw : w ∈ Metric.sphere (0 : ℂ) 1) :
+    -w ∈ Metric.sphere (0 : ℂ) 1 := by
+  simpa only [Metric.mem_sphere, dist_zero_right, norm_neg] using hw
+
+-- The two diameters meet at zero and their port ends alternate.
+example :
+    Xor (sbtw ((-1 : ℂ).arg : Real.Angle) ((-Complex.I).arg : Real.Angle)
+        ((1 : ℂ).arg : Real.Angle))
+      (sbtw ((-1 : ℂ).arg : Real.Angle) (Complex.I.arg : Real.Angle)
+        ((1 : ℂ).arg : Real.Angle)) := by
+  have h := circle_chord_inter_iff_alternates
+    (neg_mem_unit_circle one_mem_unit_circle) one_mem_unit_circle
+    (neg_mem_unit_circle I_mem_unit_circle) I_mem_unit_circle
+    (by norm_num [Complex.ext_iff]) (by norm_num [Complex.ext_iff])
+    (by norm_num [Complex.ext_iff]) (by norm_num [Complex.ext_iff])
+    (by norm_num [Complex.ext_iff]) (by norm_num [Complex.ext_iff])
+  have hmid (w : ℂ) : (0 : ℂ) ∈ openSegment ℝ (-w) w := by
+    simpa only [midpoint_neg_self] using midpoint_mem_openSegment (𝕜 := ℝ) (-w) w
+  simpa only [sub_zero] using h.mp ⟨0, hmid 1, hmid Complex.I⟩
+
+-- Opposite sides of the inscribed square have no interior contact.
+example :
+    ¬Xor (sbtw ((1 : ℂ).arg : Real.Angle) ((-1 : ℂ).arg : Real.Angle)
+        (Complex.I.arg : Real.Angle))
+      (sbtw ((1 : ℂ).arg : Real.Angle) ((-Complex.I).arg : Real.Angle)
+        (Complex.I.arg : Real.Angle)) := by
+  have h := circle_chord_inter_iff_alternates one_mem_unit_circle I_mem_unit_circle
+    (neg_mem_unit_circle one_mem_unit_circle) (neg_mem_unit_circle I_mem_unit_circle)
+    (by norm_num [Complex.ext_iff]) (by norm_num [Complex.ext_iff])
+    (by norm_num [Complex.ext_iff]) (by norm_num [Complex.ext_iff])
+    (by norm_num [Complex.ext_iff]) (by norm_num [Complex.ext_iff])
+  simp only [sub_zero] at h
+  apply mt h.mpr
+  rintro ⟨w, hw₁, hw₂⟩
+  rw [openSegment_eq_image_lineMap] at hw₁ hw₂
+  obtain ⟨s, _, hs⟩ := hw₁
+  obtain ⟨t, _, ht⟩ := hw₂
+  have he := congrArg (fun z : ℂ => z.re + z.im) (hs.trans ht.symm)
+  norm_num [AffineMap.lineMap_apply_module'] at he
+
 private noncomputable def angle (n : ℕ) (i : Fin n) : ℝ :=
   ((i.val : ℝ) + 1) * Real.pi / (n + 1)
 

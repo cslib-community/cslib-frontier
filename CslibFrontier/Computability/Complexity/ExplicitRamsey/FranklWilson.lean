@@ -80,16 +80,31 @@ open Finset SimpleGraph Turing.MultiTapeTM
 
 namespace Cslib.ExplicitRamsey
 
+/-- Target subset size `q.2.1` in an `(n, d, l)` label query. -/
+abbrev labelSize (q : ℕ × ℕ × List ℕ) : ℕ := q.2.1
+
+/-- Candidate entry list `q.2.2` in an `(n, d, l)` label query. -/
+abbrev labelEntries (q : ℕ × ℕ × List ℕ) : List ℕ := q.2.2
+
 /-- Recognizes names of `d`-subsets of `Fin n`: strictly increasing lists of length `d` with
 entries below `n`. The input is `(n, d, l)`. -/
 @[expose] def isSubsetLabel (q : ℕ × ℕ × List ℕ) : Bool :=
-  decide (q.2.2.length = q.2.1) && q.2.2.isSortedLT &&
-    q.2.2.all fun x => decide (x < q.1)
+  decide ((labelEntries q).length = labelSize q) && (labelEntries q).isSortedLT &&
+    (labelEntries q).all fun x => decide (x < q.1)
+
+/-- Residue target `q.2.1` in a `(p, d, a, b)` Frankl–Wilson adjacency query. -/
+abbrev adjResidue (q : ℕ × ℕ × List ℕ × List ℕ) : ℕ := q.2.1
+
+/-- First vertex label `q.2.2.1` in a `(p, d, a, b)` Frankl–Wilson adjacency query. -/
+abbrev adjFirst (q : ℕ × ℕ × List ℕ × List ℕ) : List ℕ := q.2.2.1
+
+/-- Second vertex label `q.2.2.2` in a `(p, d, a, b)` Frankl–Wilson adjacency query. -/
+abbrev adjSecond (q : ℕ × ℕ × List ℕ × List ℕ) : List ℕ := q.2.2.2
 
 /-- Frankl–Wilson adjacency on names: whether the number of entries of the first name occurring in
 the second is not congruent to `d` mod `p`. The input is `(p, d, a, b)`. -/
 @[expose] def subsetAdj (q : ℕ × ℕ × List ℕ × List ℕ) : Bool :=
-  (q.2.2.1.filter fun x => decide (x ∈ q.2.2.2)).length % q.1 != q.2.1 % q.1
+  ((adjFirst q).filter fun x => decide (x ∈ adjSecond q)).length % q.1 != adjResidue q % q.1
 
 /-- Recognizes names of vertices of the Frankl–Wilson graph for the prime `p`: the
 `(p² - 1)`-subsets of `Fin (p ^ 3)`. The input is `(p, l)`. -/
@@ -130,8 +145,8 @@ strictly increasing lists of length `d` with entries below `n`. -/
 theorem range_subsetLabel (n d : ℕ) :
     Set.range (subsetLabel (n := n) (d := d)) = {l | isSubsetLabel (n, d, l) = true} := by
   ext l
-  simp only [Set.mem_range, Set.mem_ofPred_eq, isSubsetLabel, Bool.and_eq_true, decide_eq_true_eq,
-    List.isSortedLT_iff, List.all_eq_true]
+  simp only [Set.mem_range, Set.mem_ofPred_eq, isSubsetLabel, labelSize, labelEntries,
+    Bool.and_eq_true, decide_eq_true_eq, List.isSortedLT_iff, List.all_eq_true]
   constructor
   · rintro ⟨s, rfl⟩
     refine ⟨⟨?_, sortedLT_subsetLabel s⟩, fun x hx => ?_⟩

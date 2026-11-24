@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeNatFrontends
 import CslibFrontier.Foundations.Data.Nat.SqrtLog.Shifted
+import CslibFrontier.Tactic.PolyTime
 import Mathlib.Data.Finset.Lattice.Fold
 
 /-!
@@ -146,25 +147,12 @@ theorem optimumFromCounts_thresholdCounts (F : Instance) :
 /-- Differences are polynomial-time on binary counts. -/
 theorem histogramFromCounts_polyTime :
     ComputableInPolyTime histogramFromCounts (encList encNat) (encList encNat) := by
-  have hsub := ComputableInPolyTime.binary_sub'
-    (ComputableInPolyTime.fst encNat encNat) (ComputableInPolyTime.snd encNat encNat)
-  exact (ComputableInPolyTime.map hsub).comp
-    ((ComputableInPolyTime.zip encNat encNat).comp
-      (ComputableInPolyTime.id'.prod (ComputableInPolyTime.tail (encA := encNat))))
+  polytime [histogramFromCounts]
 
 /-- Recovering the optimum is polynomial-time in the list of binary counts. -/
 theorem optimumFromCounts_polyTime :
     ComputableInPolyTime optimumFromCounts (encList encNat) encNat := by
-  have hp : ComputableInPolyTime (fun p : List ℕ × ℕ => decide (0 < p.2))
-      (encPair (encList encNat) encNat) encBool :=
-    ComputableInPolyTime.binary_lt' (ComputableInPolyTime.const 0)
-      (ComputableInPolyTime.snd _ _)
-  have hn : ComputableInPolyTime
-      (fun counts : List ℕ => counts.countP (fun n => decide (0 < n)))
-      (encList encNat) encUnary :=
-    ComputableInPolyTime.countPWithInput (encA := encNat) ComputableInPolyTime.id' hp
-  exact ComputableInPolyTime.unary_to_binary.comp
-    (ComputableInPolyTime.unary_sub' hn (ComputableInPolyTime.const 1))
+  polytime [optimumFromCounts]
 
 /-! ### Native runtime bounds -/
 

@@ -85,12 +85,6 @@ length-preserving keyed block-function family (`PseudorandomFunction`), completi
   formalizes the concrete Section 6.6.1 Method 1 composition (`prependLengthWord` followed by basic
   CBC-MAC) over `{0,1}^n` whole-block messages of `0` to `L n` blocks (including the `0`-block
   empty message, so the prepended chain has `1` to `L n + 1` blocks).
-* **Factor of `2` in the URF collision term.** [BonehShoup2023], Theorem 6.3, equation (6.7)
-  (printed p. 227) bounds the prefix-free URF-to-ideal gap by `(Q * ℓ) ^ 2 / (2 * |X|)`. Here
-  `advantage_cbcMac_le` and `advantage_lengthPrependedCbcMac_le` inherit the looser constant
-  `Q ^ 2 * (ℓ n) ^ 2 / 2 ^ n` (twice `(6.7)`) and `Q ^ 2 * (L n + 1) ^ 2 / 2 ^ n` from
-  `abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le` and
-  `abs_lengthPrependedUniformFunctionSuccess_sub_lengthPrependedIdealSuccess_le`.
 * **Uniform strict oracle-PPT adversaries and flat bit-word messages.** Following the asymptotic
   reading of [BonehShoup2023], Sections 2.3 and 4.4.5, adversaries are uniform strict `IsOraclePPT`
   programs over `List Bool` with `n`-bit keys and blocks (`|X| = 2 ^ n`), and queries outside the
@@ -1264,7 +1258,7 @@ Theorem 6.3, printed pp. 226–229): for any length-preserving `family`, block-c
 distinguisher `adversary` that at parameter `n` makes at most `Q` queries and is prefix-free on
 `cbcBlockValid ℓ n`, the domain-restricted PRF advantage of `cbcMacFamily family` is at most the
 length-preserving PRF advantage of `cbcMacToPrfDistinguisher ℓ adversary` plus
-`Q ^ 2 * (ℓ n) ^ 2 / 2 ^ n` (twice equation `(6.7)`'s `(Q * ℓ) ^ 2 / (2 * |X|)`). -/
+`Q ^ 2 * (ℓ n) ^ 2 / (2 * 2 ^ n)` (equation (6.7) with `|X| = 2 ^ n`). -/
 theorem advantage_cbcMac_le {family : List Bool → List Bool → List Bool}
     (hlen : ∀ key query : List Bool, query.length = key.length →
       (family key query).length = key.length)
@@ -1277,7 +1271,7 @@ theorem advantage_cbcMac_le {family : List Bool → List Bool → List Bool}
       Game.advantage
         (ProbComp.eval (prfRealGame id family (cbcMacToPrfDistinguisher ℓ adversary) n))
         (ProbComp.eval (prfIdealGame id id (cbcMacToPrfDistinguisher ℓ adversary) n)) +
-      (Q : ℝ≥0) ^ 2 * (ℓ n : ℝ≥0) ^ 2 / 2 ^ n := by
+      (Q : ℝ≥0) ^ 2 * (ℓ n : ℝ≥0) ^ 2 / (2 * 2 ^ n) := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · have hfalse : cbcBlockValid ℓ 0 = fun _ => false := by
       funext msg
@@ -1300,7 +1294,7 @@ theorem advantage_cbcMac_le {family : List Bool → List Bool → List Bool}
     have hidealLe : Game.advantage
         (ProbComp.eval (prfIdealGame id id (cbcMacToPrfDistinguisher ℓ adversary) n))
         (ProbComp.eval (prfIdealGameOn (cbcBlockValid ℓ) id adversary n)) ≤
-      (Q : ℝ≥0) ^ 2 * (ℓ n : ℝ≥0) ^ 2 / 2 ^ n := by
+      (Q : ℝ≥0) ^ 2 * (ℓ n : ℝ≥0) ^ 2 / (2 * 2 ^ n) := by
       let codec := cbcInputCodec n (ℓ n) hn
       let P := codec.adapt (adversary n [])
       let D : PMF (OracleComp (CBCOracleSpec n (ℓ n)) Bool) :=
@@ -1361,7 +1355,7 @@ theorem advantage_cbcMac_le {family : List Bool → List Bool → List Bool}
 235–236): whenever `L n < 2 ^ n` and `adversary` makes at most `Q` queries at parameter
 `n`, the variable-length PRF advantage of `lengthPrependedCbcMacFamily family` on `lpBlockValid L`
 is at most the length-preserving PRF advantage of `lengthPrependedToPrfDistinguisher L adversary`
-plus `Q ^ 2 * (L n + 1) ^ 2 / 2 ^ n`. -/
+plus `Q ^ 2 * (L n + 1) ^ 2 / (2 * 2 ^ n)`. -/
 theorem advantage_lengthPrependedCbcMac_le {family : List Bool → List Bool → List Bool}
     (hlen : ∀ key query : List Bool, query.length = key.length →
       (family key query).length = key.length)
@@ -1374,12 +1368,12 @@ theorem advantage_lengthPrependedCbcMac_le {family : List Bool → List Bool →
       Game.advantage
         (ProbComp.eval (prfRealGame id family (lengthPrependedToPrfDistinguisher L adversary) n))
         (ProbComp.eval (prfIdealGame id id (lengthPrependedToPrfDistinguisher L adversary) n)) +
-      (Q : ℝ≥0) ^ 2 * ((L n : ℝ≥0) + 1) ^ 2 / 2 ^ n := by
+      (Q : ℝ≥0) ^ 2 * ((L n : ℝ≥0) + 1) ^ 2 / (2 * 2 ^ n) := by
   rw [← eval_prfRealGame_lengthPrependedToPrfDistinguisher hlen L adversary n]
   have hidealLe : Game.advantage
       (ProbComp.eval (prfIdealGame id id (lengthPrependedToPrfDistinguisher L adversary) n))
       (ProbComp.eval (prfIdealGameOn (lpBlockValid L) id adversary n)) ≤
-    (Q : ℝ≥0) ^ 2 * ((L n : ℝ≥0) + 1) ^ 2 / 2 ^ n := by
+    (Q : ℝ≥0) ^ 2 * ((L n : ℝ≥0) + 1) ^ 2 / (2 * 2 ^ n) := by
     let codec := lengthPrependedCodec n (L n) hL
     let P := codec.adapt (adversary n [])
     let D : PMF (OracleComp (LengthPrependedSpec n (L n)) Bool) :=
@@ -1496,7 +1490,7 @@ theorem PseudorandomFunction.prfOn_lengthPrependedCbcMac
             (prfRealGame id family (lengthPrependedToPrfDistinguisher L adversary) n))
           (ProbComp.eval
             (prfIdealGame id id (lengthPrependedToPrfDistinguisher L adversary) n)) +
-        (Q n : ℝ≥0) ^ 2 * ((L n : ℝ≥0) + 1) ^ 2 / 2 ^ n := by
+        (Q n : ℝ≥0) ^ 2 * ((L n : ℝ≥0) + 1) ^ 2 / (2 * 2 ^ n) := by
       filter_upwards [hL.polynomiallyBounded.eventually_lt_two_pow] with n hLn
       exact advantage_lengthPrependedCbcMac_le hF.length_eq L adversary hLn (hQ n)
     negligible eventually hev
@@ -2211,7 +2205,7 @@ theorem isOraclePPT_lengthPrependedMacToPrfDistinguisher {L : ℕ → ℕ}
 via Section 6.6 Theorem 6.8, printed pp. 224, 226–229, and 235–236): whenever `L n < 2 ^ n` and
 `adversary` makes at most `Q` signing queries at parameter `n`, its strong forgery probability on
 `lpBlockValid L` is at most the PRF advantage of `lengthPrependedMacToPrfDistinguisher L adversary`
-plus `(Q + 1) ^ 2 * (L n + 1) ^ 2 / 2 ^ n + 1 / 2 ^ n`. -/
+plus `(Q + 1) ^ 2 * (L n + 1) ^ 2 / (2 * 2 ^ n) + 1 / 2 ^ n`. -/
 theorem succProbability_macSufCmaGameOn_lengthPrependedCbcMac_le
     {family : List Bool → List Bool → List Bool}
     (hlen : ∀ key query : List Bool, query.length = key.length →
@@ -2226,7 +2220,7 @@ theorem succProbability_macSufCmaGameOn_lengthPrependedCbcMac_le
           (prfRealGame id family (lengthPrependedMacToPrfDistinguisher L adversary) n))
         (ProbComp.eval
           (prfIdealGame id id (lengthPrependedMacToPrfDistinguisher L adversary) n)) +
-      ((Q : ℝ≥0) + 1) ^ 2 * ((L n : ℝ≥0) + 1) ^ 2 / 2 ^ n +
+      ((Q : ℝ≥0) + 1) ^ 2 * ((L n : ℝ≥0) + 1) ^ 2 / (2 * 2 ^ n) +
       (1 : ℝ≥0) / 2 ^ n := by
   have hmac := succProbability_macSufCmaGameOn_le (valid := lpBlockValid L)
     (fun key query _ => length_lengthPrependedCbcMacFamily hlen key query) adversary n
@@ -2503,7 +2497,7 @@ Section 6.3 Theorem 6.2 and Section 6.4.1 Theorem 6.3, printed pp. 224 and 226�
 `0 < n`, and a forger making at most `Q` signing queries, the `SUFCMA` forgery probability against
 `cbcFixedBlockMAC ℓ hℓ family hpoly` is at most the PRF advantage of
 `cbcFixedBlockMacToPrfDistinguisher ℓ adversary` plus
-`(Q + 1) ^ 2 * (ℓ n) ^ 2 / 2 ^ n + 1 / 2 ^ n`. -/
+`(Q + 1) ^ 2 * (ℓ n) ^ 2 / (2 * 2 ^ n) + 1 / 2 ^ n`. -/
 theorem succProbability_sufCmaGame_cbcFixedBlockMAC_le (ℓ : ℕ → ℕ)
     (hℓ : ComputableInPolyTime ℓ encUnary encUnary)
     {family : List Bool → List Bool → List Bool}
@@ -2518,7 +2512,7 @@ theorem succProbability_sufCmaGame_cbcFixedBlockMAC_le (ℓ : ℕ → ℕ)
       Game.advantage
         (ProbComp.eval (prfRealGame id family (cbcFixedBlockMacToPrfDistinguisher ℓ adversary) n))
         (ProbComp.eval (prfIdealGame id id (cbcFixedBlockMacToPrfDistinguisher ℓ adversary) n)) +
-      ((Q : ℝ≥0) + 1) ^ 2 * (ℓ n : ℝ≥0) ^ 2 / 2 ^ n +
+      ((Q : ℝ≥0) + 1) ^ 2 * (ℓ n : ℝ≥0) ^ 2 / (2 * 2 ^ n) +
       (1 : ℝ≥0) / 2 ^ n := by
   rw [eval_sufCmaGame_det (cbcFixedBlockMAC ℓ hℓ family hpoly) (by rfl) (cbcMacFamily family)
     (by rfl) (by rfl)]
@@ -2581,7 +2575,7 @@ theorem PseudorandomFunction.sufCma_cbcFixedBlockMAC
         (ProbComp.eval (prfRealGame id family (cbcFixedBlockMacToPrfDistinguisher ℓ adversary) n))
         (ProbComp.eval
           (prfIdealGame id id (cbcFixedBlockMacToPrfDistinguisher ℓ adversary) n)) +
-      ((Q n : ℝ≥0) + 1) ^ 2 * (ℓ n : ℝ≥0) ^ 2 / 2 ^ n +
+      ((Q n : ℝ≥0) + 1) ^ 2 * (ℓ n : ℝ≥0) ^ 2 / (2 * 2 ^ n) +
       (1 : ℝ≥0) / 2 ^ n := by
     filter_upwards [Filter.eventually_ge_atTop 1] with n hn
     exact succProbability_sufCmaGame_cbcFixedBlockMAC_le ℓ hℓ hF.polyTime hF.length_eq adversary
