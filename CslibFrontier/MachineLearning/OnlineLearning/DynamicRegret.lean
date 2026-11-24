@@ -36,6 +36,8 @@ to separate the comparator drift `pathLength u T` from the static diameter term 
 
 ## Main results
 
+* `Cslib.MachineLearning.OnlineLearning.OCO.norm_sub_sq_sub_le`: squared-distance shift estimate
+  `‖x - w‖ ^ 2 - ‖x - v‖ ^ 2 ≤ 2 * D * ‖w - v‖` (shared with `AdaGrad`).
 * `Cslib.MachineLearning.OnlineLearning.OCO.sum_sub_le_sum_inner_dynamic`: subgradient
   linearization against a sequence of comparators `u : ℕ → E`.
 * `Cslib.MachineLearning.OnlineLearning.OCO.ogd_dynamic_sum_inner_le`: nonincreasing positive step
@@ -55,9 +57,12 @@ to separate the comparator drift `pathLength u T` from the static diameter term 
 
 ## References
 
+Exact section, theorem, and page locators below are unverified against primary PDFs (pending an
+outside-fleet source check).
+
 * [M. Zinkevich, *Online Convex Programming and Generalized Infinitesimal Gradient
-  Ascent*][Zinkevich2003]
-* [E. Hazan, *Introduction to Online Convex Optimization*, 2nd ed.][Hazan2022]
+  Ascent*][Zinkevich2003] (locator unverified)
+* [E. Hazan, *Introduction to Online Convex Optimization*, 2nd ed.][Hazan2022] (locator unverified)
 -/
 
 public section
@@ -101,7 +106,7 @@ variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
 omit [InnerProductSpace ℝ E] in
 /-- Difference of squared distances between a point `x` and two comparators `v, w` in a set of
 diameter at most `D`: `‖x - w‖ ^ 2 - ‖x - v‖ ^ 2 ≤ 2 * D * ‖w - v‖`. -/
-private theorem norm_sub_sq_sub_le {D : ℝ} {x v w : E}
+theorem norm_sub_sq_sub_le {D : ℝ} {x v w : E}
     (hv : ‖x - v‖ ≤ D) (hw : ‖x - w‖ ≤ D) :
     ‖x - w‖ ^ 2 - ‖x - v‖ ^ 2 ≤ 2 * D * ‖w - v‖ := by
   have h1 : ‖x - w‖ - ‖x - v‖ ≤ ‖w - v‖ := by
@@ -266,6 +271,24 @@ private theorem sum_ogd_grad_norm_sq_le (hP : IsPythagoreanProjection K proj) (h
         pow_le_pow_left₀ (norm_nonneg _) (hG t _ (ogd_mem hP hx₀ t)) 2
     _ = (T : ℝ) * G ^ 2 := by simp [sum_const, card_range, nsmul_eq_mul]
 
+private theorem ogd_dynamic_regret_le_of_const {f : ℕ → E → ℝ}
+    (hP : IsPythagoreanProjection K proj) (hx₀ : x₀ ∈ K) {D G c : ℝ}
+    (hD : ∀ x ∈ K, ∀ y ∈ K, ‖x - y‖ ≤ D) (hG : ∀ t, ∀ x ∈ K, ‖grad t x‖ ≤ G)
+    (hsub : ∀ t, ∀ x ∈ K, ∀ y ∈ K, f t x + ⟪grad t x, y - x⟫ ≤ f t y)
+    (hc : 0 < c) {u : ℕ → E} (hu : ∀ t, u t ∈ K) (T : ℕ) :
+    ∑ t ∈ range T, (f t (ogd proj (fun _ => c) grad x₀ t) - f t (u t)) ≤
+      D ^ 2 / (2 * c) + D / c * pathLength u T + c * ((T : ℝ) * G ^ 2) / 2 := by
+  refine (sum_sub_le_sum_inner_dynamic hsub (ogd_mem hP hx₀) hu T).trans ?_
+  have h := ogd_dynamic_sum_inner_le_of_const (grad := grad) hP hx₀ hD hc hu T
+  have hx0 : ‖x₀ - u 0‖ ^ 2 / (2 * c) ≤ D ^ 2 / (2 * c) :=
+    div_le_div_of_nonneg_right
+      (pow_le_pow_left₀ (norm_nonneg _) (hD _ hx₀ _ (hu 0)) 2) (by positivity)
+  have hgs := sum_ogd_grad_norm_sq_le (grad := grad) hP hx₀ hG (fun _ => c) T
+  have hgrad : c * (∑ t ∈ range T, ‖grad t (ogd proj (fun _ => c) grad x₀ t)‖ ^ 2) / 2 ≤
+      c * ((T : ℝ) * G ^ 2) / 2 :=
+    div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hgs hc.le) (by norm_num)
+  linarith
+
 /-- **Dynamic regret of OGD with standard fixed step size** `η = D / (G * √T)`:
 for a diameter-`D` set and `G`-bounded subgradients, dynamic regret over `T ≥ 1` rounds against
 any comparator sequence `u` in `K` is at most `G * (D + pathLength u T) * √T`. When `u` is
@@ -281,27 +304,19 @@ theorem ogd_dynamic_regret_le_fixed {f : ℕ → E → ℝ} (hP : IsPythagoreanP
   have hsqT : 0 < √(T : ℝ) := sqrt_pos.mpr hTpos
   set c := D / (G * √(T : ℝ)) with hcdef
   have hc : 0 < c := div_pos hD0 (mul_pos hG0 hsqT)
-  refine (sum_sub_le_sum_inner_dynamic hsub (ogd_mem hP hx₀) hu T).trans ?_
-  have h := ogd_dynamic_sum_inner_le_of_const (grad := grad) hP hx₀ hD hc hu T
-  have hx0 : ‖x₀ - u 0‖ ^ 2 ≤ D ^ 2 :=
-    pow_le_pow_left₀ (norm_nonneg _) (hD _ hx₀ _ (hu 0)) 2
-  have hinit : ‖x₀ - u 0‖ ^ 2 / (2 * c) ≤ D ^ 2 / (2 * c) :=
-    div_le_div_of_nonneg_right hx0 (by positivity)
-  have hgs := sum_ogd_grad_norm_sq_le (grad := grad) hP hx₀ hG (fun _ => c) T
-  have hgrad : c * (∑ t ∈ range T, ‖grad t (ogd proj (fun _ => c) grad x₀ t)‖ ^ 2) / 2 ≤
-      c * ((T : ℝ) * G ^ 2) / 2 :=
-    div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hgs hc.le) (by norm_num)
+  have hreg := ogd_dynamic_regret_le_of_const hP hx₀ hD hG hsub hc hu T
   have halg : D ^ 2 / (2 * c) + D / c * pathLength u T + c * ((T : ℝ) * G ^ 2) / 2 =
       G * (D + pathLength u T) * √(T : ℝ) := by
     rw [hcdef]
     have hsq : (√(T : ℝ)) ^ 2 = (T : ℝ) := sq_sqrt hTpos.le
     field_simp
     nlinarith [hsq]
-  linarith
+  exact hreg.trans_eq halg
 
-/-- **Optimal path-length-tuned dynamic regret of OGD** [Zinkevich2003]: when an upper bound
-`P ≥ pathLength u T` is used to tune the constant step size `η = √(D ^ 2 + 2 * D * P) / (G * √T)`,
-the dynamic regret over `T ≥ 1` rounds is at most `G * √(T * (D ^ 2 + 2 * D * P))`. -/
+/-- **Optimal path-length-tuned dynamic regret of OGD** [Zinkevich2003] (locator unverified): when
+an upper bound `P ≥ pathLength u T` is used to tune the constant step size
+`η = √(D ^ 2 + 2 * D * P) / (G * √T)`, the dynamic regret over `T ≥ 1` rounds is at most
+`G * √(T * (D ^ 2 + 2 * D * P))`. -/
 theorem ogd_dynamic_regret_le_tuned {f : ℕ → E → ℝ} (hP : IsPythagoreanProjection K proj)
     (hx₀ : x₀ ∈ K) {D G P : ℝ} (hD0 : 0 < D) (hG0 : 0 < G)
     (hD : ∀ x ∈ K, ∀ y ∈ K, ‖x - y‖ ≤ D) (hG : ∀ t, ∀ x ∈ K, ‖grad t x‖ ≤ G)
@@ -317,17 +332,9 @@ theorem ogd_dynamic_regret_le_tuned {f : ℕ → E → ℝ} (hP : IsPythagoreanP
   set A := D ^ 2 + 2 * D * P
   set c := √A / (G * √(T : ℝ)) with hcdef
   have hc : 0 < c := div_pos (sqrt_pos.mpr hApos) (mul_pos hG0 (sqrt_pos.mpr hTpos))
-  refine (sum_sub_le_sum_inner_dynamic hsub (ogd_mem hP hx₀) hu T).trans ?_
-  have h := ogd_dynamic_sum_inner_le_of_const (grad := grad) hP hx₀ hD hc hu T
-  have hx0 : ‖x₀ - u 0‖ ^ 2 / (2 * c) ≤ D ^ 2 / (2 * c) :=
-    div_le_div_of_nonneg_right
-      (pow_le_pow_left₀ (norm_nonneg _) (hD _ hx₀ _ (hu 0)) 2) (by positivity)
+  have hreg := ogd_dynamic_regret_le_of_const hP hx₀ hD hG hsub hc hu T
   have hpl : D / c * pathLength u T ≤ D / c * P :=
     mul_le_mul_of_nonneg_left hpath (div_nonneg hD0.le hc.le)
-  have hgs := sum_ogd_grad_norm_sq_le (grad := grad) hP hx₀ hG (fun _ => c) T
-  have hgrad : c * (∑ t ∈ range T, ‖grad t (ogd proj (fun _ => c) grad x₀ t)‖ ^ 2) / 2 ≤
-      c * ((T : ℝ) * G ^ 2) / 2 :=
-    div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hgs hc.le) (by norm_num)
   have hsqrt_mul : √((T : ℝ) * A) = √(T : ℝ) * √A := sqrt_mul hTpos.le A
   have halg : D ^ 2 / (2 * c) + D / c * P + c * ((T : ℝ) * G ^ 2) / 2 =
       G * (√(T : ℝ) * √A) := by
@@ -404,8 +411,8 @@ theorem ogd_dynamic_regret_le_three_halves {f : ℕ → E → ℝ} (hP : IsPytha
     push_cast
     nlinarith [mul_pos hG0 hD0]
 
-/-- **Dynamic regret under Zinkevich's `1 / √(t + 1)` schedule** [Zinkevich2003]: for `T ≥ 1`,
-dynamic regret after `T` rounds is at most
+/-- **Dynamic regret under Zinkevich's `1 / √(t + 1)` schedule** [Zinkevich2003] (locator
+unverified): for `T ≥ 1`, dynamic regret after `T` rounds is at most
 `(D ^ 2 / 2 + D * pathLength u T) * √T + (√T - 1 / 2) * G ^ 2`. -/
 theorem ogd_dynamic_regret_le_zinkevich {f : ℕ → E → ℝ} (hP : IsPythagoreanProjection K proj)
     (hx₀ : x₀ ∈ K) {D G : ℝ} (hD : ∀ x ∈ K, ∀ y ∈ K, ‖x - y‖ ≤ D)

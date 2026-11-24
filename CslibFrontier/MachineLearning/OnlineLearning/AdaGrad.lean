@@ -62,13 +62,14 @@ squared gradient norms seen so far and scales the step size inversely by their s
 * `Cslib.MachineLearning.OnlineLearning.OCO.adaGradBox_regret_le`,
   `Cslib.MachineLearning.OnlineLearning.OCO.adaGradBox_regret_le_optimal`: diagonal `AdaGrad`
   regret bounds on a finite-dimensional box.
-* `Cslib.MachineLearning.OnlineLearning.OCO.sum_sqrt_le_sqrt_card_mul_sum`: Cauchy–Schwarz
-  comparison between diagonal `∑ i, √(a i)` and Euclidean `√(|ι| * ∑ i, a i)`.
 
 ## References
 
-* [E. Hazan, *Introduction to Online Convex Optimization*, 2nd ed.][Hazan2022]
-* [F. Orabona, *A Modern Introduction to Online Learning*][Orabona2019]
+Exact section, theorem, and page locators below are unverified against primary PDFs (pending an
+outside-fleet source check).
+
+* [E. Hazan, *Introduction to Online Convex Optimization*, 2nd ed.][Hazan2022] (locator unverified)
+* [F. Orabona, *A Modern Introduction to Online Learning*][Orabona2019] (locator unverified)
 -/
 
 public section
@@ -248,22 +249,6 @@ theorem adaGradNorm_dynamic_sum_inner_le {K : Set E} {proj : E → E}
     have : 0 ≤ D ^ 2 / (2 * γ) * √ε := by positivity
     linarith
   | succ T =>
-    have hshift : ∀ t v w, v ∈ K → w ∈ K →
-        ‖x t - w‖ ^ 2 - ‖x t - v‖ ^ 2 ≤ 2 * D * ‖w - v‖ := fun t v w hv hw => by
-      have h1 : ‖x t - w‖ - ‖x t - v‖ ≤ ‖w - v‖ := by
-        have ht := norm_sub_le_norm_sub_add_norm_sub (x t) v w
-        rw [norm_sub_rev v w] at ht; linarith
-      have hsum : ‖x t - w‖ + ‖x t - v‖ ≤ 2 * D := by
-        linarith [hD _ (adaGradNorm_mem hP hx₀ grad γ ε t) _ hv,
-          hD _ (adaGradNorm_mem hP hx₀ grad γ ε t) _ hw]
-      have hmul : (‖x t - w‖ - ‖x t - v‖) * (‖x t - w‖ + ‖x t - v‖) ≤ 2 * D * ‖w - v‖ := by
-        calc (‖x t - w‖ - ‖x t - v‖) * (‖x t - w‖ + ‖x t - v‖)
-            ≤ ‖w - v‖ * (‖x t - w‖ + ‖x t - v‖) :=
-              mul_le_mul_of_nonneg_right h1 (add_nonneg (norm_nonneg _) (norm_nonneg _))
-          _ ≤ ‖w - v‖ * (2 * D) := mul_le_mul_of_nonneg_left hsum (norm_nonneg _)
-          _ = 2 * D * ‖w - v‖ := by ring
-      linarith [show ‖x t - w‖ ^ 2 - ‖x t - v‖ ^ 2 =
-        (‖x t - w‖ - ‖x t - v‖) * (‖x t - w‖ + ‖x t - v‖) by ring]
     have key : ∀ k : ℕ, 2 * ∑ t ∈ range (k + 1), ⟪grad t (x t), x t - u t⟫ ≤
         √(S (k + 1)) / γ * (D ^ 2 - ‖x (k + 1) - u k‖ ^ 2) +
           (2 * D / γ) * pathLength u (k + 1) * √(S (k + 1)) +
@@ -285,7 +270,9 @@ theorem adaGradNorm_dynamic_sum_inner_le {K : Set E} {proj : E → E}
         have hd_le : ‖x (k + 1) - u (k + 1)‖ ^ 2 ≤ D ^ 2 :=
           pow_le_pow_left₀ (norm_nonneg _)
             (hD _ (adaGradNorm_mem hP hx₀ grad γ ε (k + 1)) _ (hu (k + 1))) 2
-        have hsw := hshift (k + 1) (u k) (u (k + 1)) (hu k) (hu (k + 1))
+        have hsw := norm_sub_sq_sub_le
+          (hD _ (adaGradNorm_mem hP hx₀ grad γ ε (k + 1)) _ (hu k))
+          (hD _ (adaGradNorm_mem hP hx₀ grad γ ε (k + 1)) _ (hu (k + 1)))
         have h1 : √(S (k + 1)) / γ * (D ^ 2 - ‖x (k + 1) - u k‖ ^ 2) ≤
             √(S (k + 1)) / γ * (D ^ 2 - ‖x (k + 1) - u (k + 1)‖ ^ 2) +
               (2 * D / γ) * ‖u (k + 1) - u k‖ * √(S (k + 1)) := by
@@ -585,17 +572,6 @@ theorem adaGradBox_regret_le_optimal {ι : Type*} [Fintype ι] {l r : ι → ℝ
     _ = √2 * D * ∑ i : ι, √(ε + ∑ t ∈ range T,
             (grad t (adaGradBox l r grad (D / √2) ε x₀ t) i) ^ 2) -
           D / √2 * (Fintype.card ι : ℝ) * √ε := by rw [← mul_sum]
-
-/-- Cauchy–Schwarz comparison verifying that diagonal `AdaGrad`'s `∑ i, √(a i)` is always bounded
-by the isotropic worst case `√(card ι * ∑ i, a i)` (with strict slack on sparse gradients). -/
-theorem sum_sqrt_le_sqrt_card_mul_sum {ι : Type*} [Fintype ι] {a : ι → ℝ} (ha : ∀ i, 0 ≤ a i) :
-    ∑ i : ι, √(a i) ≤ √((Fintype.card ι : ℝ) * ∑ i : ι, a i) := by
-  have hcs := Finset.sum_mul_sq_le_sq_mul_sq (univ : Finset ι) (fun _ => (1 : ℝ)) (fun i => √(a i))
-  simp only [one_mul, one_pow, sum_const, card_univ, nsmul_eq_mul, mul_one] at hcs
-  have hsq : ∑ i : ι, √(a i) ^ 2 = ∑ i : ι, a i :=
-    sum_congr rfl fun i _ => sq_sqrt (ha i)
-  rw [hsq] at hcs
-  exact le_sqrt_of_sq_le hcs
 
 end DiagonalAdaGrad
 

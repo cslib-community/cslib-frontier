@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Analysis.InnerProductSpace.MetricProjection
-public import CslibFrontier.MachineLearning.OnlineLearning.OnlineGradientDescent
+import CslibFrontier.MachineLearning.OnlineLearning.OnlineGradientDescent
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -46,9 +46,6 @@ strong convexity of `ψ` via `μ / 2 * (primal (y - x)) ^ 2 ≤ bregmanDiv ψ gr
 * `Cslib.MachineLearning.OnlineLearning.OCO.bregmanDiv_self`,
   `Cslib.MachineLearning.OnlineLearning.OCO.bregmanDiv_three_point`: reflexivity and three-point
   identity.
-* `Cslib.MachineLearning.OnlineLearning.OCO.bregmanDiv_nonneg_of_subgrad`,
-  `Cslib.MachineLearning.OnlineLearning.OCO.bregmanDiv_ge_of_strongConvex`: nonnegativity and
-  quadratic lower bound from convexity / strong convexity.
 * `Cslib.MachineLearning.OnlineLearning.OCO.bregman_pythagorean`: generalized Pythagorean
   inequality for Bregman projections.
 * `Cslib.MachineLearning.OnlineLearning.OCO.bregmanDiv_sq_norm_half`: Euclidean specialization
@@ -65,8 +62,11 @@ strong convexity of `ψ` via `μ / 2 * (primal (y - x)) ^ 2 ≤ bregmanDiv ψ gr
 
 ## References
 
-* [E. Hazan, *Introduction to Online Convex Optimization*, 2nd ed.][Hazan2022]
-* [F. Orabona, *A Modern Introduction to Online Learning*][Orabona2019]
+Exact section, theorem, and page locators below are unverified against primary PDFs (pending an
+outside-fleet source check).
+
+* [E. Hazan, *Introduction to Online Convex Optimization*, 2nd ed.][Hazan2022] (locator unverified)
+* [F. Orabona, *A Modern Introduction to Online Learning*][Orabona2019] (locator unverified)
 -/
 
 public section
@@ -96,23 +96,6 @@ theorem bregmanDiv_three_point (ψ : E → ℝ) (gradψ : E → E) (x y z : E) :
   have h1 : x - z = (x - y) + (y - z) := by abel
   rw [h1, inner_add_right, inner_sub_left]
   ring
-
-/-- Nonnegativity of `bregmanDiv` from the first-order convexity inequality on `K`. -/
-theorem bregmanDiv_nonneg_of_subgrad {K : Set E} {ψ : E → ℝ} {gradψ : E → E}
-    (hsub : ∀ x ∈ K, ∀ y ∈ K, ψ y + ⟪gradψ y, x - y⟫ ≤ ψ x)
-    {x y : E} (hx : x ∈ K) (hy : y ∈ K) :
-    0 ≤ bregmanDiv ψ gradψ x y := by
-  unfold bregmanDiv
-  linarith [hsub x hx y hy]
-
-/-- Quadratic lower bound from `μ`-strong convexity in a real inner product space:
-`μ / 2 * ‖x - y‖ ^ 2 ≤ bregmanDiv ψ gradψ x y`. -/
-theorem bregmanDiv_ge_of_strongConvex {K : Set E} {ψ : E → ℝ} {gradψ : E → E} {μ : ℝ}
-    (hsc : ∀ x ∈ K, ∀ y ∈ K, ψ y + ⟪gradψ y, x - y⟫ + μ / 2 * ‖x - y‖ ^ 2 ≤ ψ x)
-    {x y : E} (hx : x ∈ K) (hy : y ∈ K) :
-    μ / 2 * ‖x - y‖ ^ 2 ≤ bregmanDiv ψ gradψ x y := by
-  unfold bregmanDiv
-  linarith [hsc x hx y hy]
 
 /-- **Generalized Pythagorean inequality for Bregman projections**: if `y'` satisfies the
 first-order optimality condition `0 ≤ ⟪gradψ y' - gradψ y, u - y'⟫` against `u`, then
