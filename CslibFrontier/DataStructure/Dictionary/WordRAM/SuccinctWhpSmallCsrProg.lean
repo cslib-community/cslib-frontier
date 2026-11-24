@@ -287,8 +287,7 @@ private theorem realizes_smallScanStep :
       SmallScanStepPre
       (fun _ _ => 0) := by
   unfold smallScanStepProg
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_readPackedGen]
   all_goals (
     rcases d with ⟨⟨srt, u_val⟩, i, f1, free1⟩
     clear hwords hmem
@@ -525,11 +524,8 @@ theorem realizes_smallStepOpGen :
       (fun w (((cp, base), _), _) _ => WhpSmallEnvGen w cp base)
       (fun _ _ => 0) := by
   unfold smallStepOpGenProg
-  have hex := realizes_extractSmallRtGen
-  have hsl := realizes_smallScanLoop
-  have hrp := realizes_readPackedGen
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_extractSmallRtGen, realizes_smallScanLoop, realizes_readPackedGen,
+      realizes_writePackedGen]
   all_goals (
     rcases d with ⟨⟨⟨cp, base⟩, opTag⟩, u_val, v_val⟩
     clear hwords hmem
@@ -1142,8 +1138,7 @@ private theorem realizes_csrScanStep :
       CsrScanStepPre
       (fun _ _ => 0) := by
   unfold csrScanStepProg
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_readPackedGen]
   all_goals (
     rcases d with ⟨⟨crt, lo, q_val⟩, k, f1⟩
     clear hwords hmem
@@ -1296,9 +1291,7 @@ private theorem realizes_csrShiftDownStep :
       CsrShiftDownStepPre
       (fun _ _ => 0) := by
   unfold csrShiftDownStepProg
-  have hrp := realizes_readPackedGen
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_readPackedGen, realizes_writePackedGen]
   all_goals (
     rcases d with ⟨⟨crt, i₀⟩, k⟩
     dsimp only [CsrShiftDownStepPre] at h
@@ -1508,9 +1501,7 @@ private theorem realizes_csrShiftUpStep :
       CsrShiftUpStepPre
       (fun _ _ => 0) := by
   unfold csrShiftUpStepProg
-  have hrp := realizes_readPackedGen
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_readPackedGen, realizes_writePackedGen]
   all_goals (
     rcases d with ⟨⟨crt, N⟩, k⟩
     dsimp only [CsrShiftUpStepPre] at h
@@ -1728,9 +1719,7 @@ private theorem realizes_csrAdjustStep :
       CsrAdjustStepPre
       (fun _ _ => 0) := by
   unfold csrAdjustStepProg
-  have hrp := realizes_readPackedGen
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_readPackedGen, realizes_writePackedGen]
   all_goals (
     rcases d with ⟨⟨crt, b, decTag⟩, k⟩
     clear hwords hmem
@@ -2010,10 +1999,7 @@ private theorem realizes_csrSplitAndBounds :
       CsrPrefixPre
       (fun _ _ => 0) := by
   unfold csrSplitAndBoundsProg
-  have hmh := realizes_mkHashRtGen
-  have hmc := realizes_mkCsrRtGen
-  have hfs := realizes_feistelSplitRt
-  realize
+  realize [realizes_mkHashRtGen, realizes_mkCsrRtGen, realizes_feistelSplitRt]
   rcases d with ⟨⟨wp, base⟩, u_val⟩
   dsimp only [CsrPrefixPre] at h
   obtain ⟨c, U, V, w₀, n_max, θ, henv, rfl, hseed⟩ := h
@@ -2067,9 +2053,7 @@ private theorem realizes_csrReadAndScan :
       (fun w d _ => CsrRtEnvGen w d.1)
       (fun _ _ => 0) := by
   unfold csrReadAndScanProg
-  have hrp := realizes_readPackedGen
-  have hsl := realizes_csrScanLoop
-  realize
+  realize [realizes_readPackedGen, realizes_csrScanLoop]
   all_goals (
     rcases d with ⟨crt, b, q_val⟩
     clear hwords hmem
@@ -2149,9 +2133,7 @@ private theorem realizes_csrPrefixGen :
       CsrPrefixPre
       (fun _ _ => 0) := by
   unfold csrPrefixGenProg
-  have hsb := realizes_csrSplitAndBounds
-  have hrs := realizes_csrReadAndScan
-  realize
+  realize [realizes_csrSplitAndBounds, realizes_csrReadAndScan]
   all_goals (
     rcases d with ⟨⟨wp, base⟩, u_val⟩
     clear hwords hmem
@@ -2446,12 +2428,8 @@ private theorem realizes_csrStepBody :
       CsrStepBodyPre
       (fun _ _ => 0) := by
   unfold csrStepBodyProg
-  have hrp := realizes_readPackedGen
-  have hwp := realizes_writePackedGen
-  have hsu := realizes_csrShiftUpLoop
-  have hsd := realizes_csrShiftDownLoop
-  have had := realizes_csrAdjustLoop
-  realize
+  realize [realizes_readPackedGen, realizes_writePackedGen, realizes_csrShiftUpLoop,
+      realizes_csrShiftDownLoop, realizes_csrAdjustLoop]
   all_goals (
     rcases d with ⟨⟨⟨⟨⟨crt, ok⟩, b, q_val⟩, ⟨lo, hi⟩, N, f1⟩, opTag⟩, v_val⟩
     clear hwords hmem
@@ -2502,9 +2480,7 @@ theorem realizes_csrStepOpGen :
       CsrStepOpPre
       (fun _ _ => 0) := by
   unfold csrStepOpGenProg
-  have hpr := realizes_csrPrefixGen
-  have hbd := realizes_csrStepBody
-  realize
+  realize [realizes_csrPrefixGen, realizes_csrStepBody]
   all_goals (
     rcases d with ⟨⟨⟨wp, base⟩, opTag⟩, u_val, v_val⟩
     clear hwords hmem

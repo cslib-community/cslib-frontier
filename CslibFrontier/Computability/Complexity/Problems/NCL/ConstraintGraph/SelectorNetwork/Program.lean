@@ -74,82 +74,65 @@ enc_structure encBlock (budget : ℕ) : Block budget where
   vertices := (vertices blocks).map (Vertex.map (fun e => (names blocks).idxOf e))
   edgeCount := (names blocks).length
 
+open scoped Block
+attribute [local fun_prop] Template.computableInPolyTime_instantiate
+
 /-- Reading the actual bounded local template from a block is polynomial-time. -/
+@[local fun_prop]
 private theorem computableInPolyTime_blockTemplate (budget : ℕ) :
     ComputableInPolyTime (fun b : Block budget => b.shape.val.template)
-      (encBlock budget) encTemplate := by
-  simpa only [Function.comp_def] using (Cell.computableInPolyTime_template budget).comp
-    (encBlock_shape_polyTime budget (ComputableInPolyTime.id' (encIn := encBlock budget)))
+      (encBlock budget) encTemplate :=
+  (Cell.computableInPolyTime_template budget).comp (by fun_prop)
 
+@[local fun_prop]
 private theorem computableInPolyTime_blockVertices (budget : ℕ) :
     ComputableInPolyTime (blockVertices (budget := budget)) (encBlock budget)
       (encList (encVertex encUnary)) := by
   unfold blockVertices
-  have ht := computableInPolyTime_blockTemplate budget
-  have hc : ComputableInPolyTime (fun b : Block budget => b.context)
-      (encBlock budget) encTemplateContext := by fun_prop
-  simpa only [Function.comp_def] using
-    Template.computableInPolyTime_instantiate.comp (ht.prod hc)
+  fun_prop
 
+@[local fun_prop]
 private theorem computableInPolyTime_blockNames (budget : ℕ) :
     ComputableInPolyTime (blockNames (budget := budget)) (encBlock budget) (encList encUnary) := by
   have hp := encTemplate_privateWires_polyTime (computableInPolyTime_blockTemplate budget)
-  have hm : ComputableInPolyTime (fun b : Block budget =>
-      b.shape.val.template.privateWires.map (fun j => b.context.privateBase + j))
-      (encBlock budget) (encList encUnary) :=
-    ComputableInPolyTime.mapWithInput hp (by fun_prop)
   unfold blockNames
   fun_prop
 
+@[local fun_prop]
 private theorem computableInPolyTime_vertices (budget : ℕ) :
     ComputableInPolyTime (vertices (budget := budget)) (encList (encBlock budget))
       (encList (encVertex encUnary)) := by
   unfold vertices
-  apply ComputableInPolyTime.flatMapWithInput (ComputableInPolyTime.id')
-  simpa only [Function.comp_def] using (computableInPolyTime_blockVertices budget).comp
-    (ComputableInPolyTime.snd (encList (encBlock budget)) (encBlock budget))
+  fun_prop
 
+@[local fun_prop]
 private theorem computableInPolyTime_names (budget : ℕ) :
     ComputableInPolyTime (names (budget := budget)) (encList (encBlock budget))
       (encList encUnary) := by
   unfold names
-  apply ComputableInPolyTime.flatMapWithInput (ComputableInPolyTime.id')
-  simpa only [Function.comp_def] using (computableInPolyTime_blockNames budget).comp
-    (ComputableInPolyTime.snd (encList (encBlock budget)) (encBlock budget))
+  fun_prop
 
+@[local fun_prop]
 private theorem computableInPolyTime_compactVertex :
     ComputableInPolyTime (fun p : List ℕ × Vertex ℕ => p.2.map (fun e => p.1.idxOf e))
       (encPair (encList encUnary) (encVertex encUnary)) (encVertex encNat) := by
   apply Vertex.computableInPolyTime_mapWithInput (by fun_prop)
-  have hl : ComputableInPolyTime
-      (fun p : (List ℕ × Vertex ℕ) × ℕ => p.1.1)
-      (encPair (encPair (encList encUnary) (encVertex encUnary)) encUnary) (encList encUnary) := by
-    fun_prop
-  have he : ComputableInPolyTime (fun p : (List ℕ × Vertex ℕ) × ℕ => p.2)
-      (encPair (encPair (encList encUnary) (encVertex encUnary)) encUnary) encUnary := by fun_prop
   simpa only [Function.comp_def] using ComputableInPolyTime.unary_to_binary.comp
-    (ComputableInPolyTime.idxOfWithInput hl he)
+    (ComputableInPolyTime.idxOfWithInput (by fun_prop) (by fun_prop))
 
 /-- Block-list graph emission is polynomial-time in the standard explicit graph encoding. -/
 theorem computableInPolyTime_graph (budget : ℕ) :
     ComputableInPolyTime (graph (budget := budget)) (encList (encBlock budget)) encAndOrGraph := by
-  have hv := computableInPolyTime_vertices budget
-  have hn := computableInPolyTime_names budget
+  open scoped AndOrGraph in
   have hports : ComputableInPolyTime (fun blocks : List (Block budget) =>
       (vertices blocks).map (fun v => v.map (fun e => (names blocks).idxOf e)))
-      (encList (encBlock budget)) (encList (encVertex encNat)) := by
-    apply ComputableInPolyTime.mapWithInput hv
-    have hpair : ComputableInPolyTime
-        (fun p : List (Block budget) × Vertex ℕ => (names p.1, p.2))
-        (encPair (encList (encBlock budget)) (encVertex encUnary))
-        (encPair (encList encUnary) (encVertex encUnary)) := by
-      exact (hn.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)
-    simpa only [Function.comp_def] using computableInPolyTime_compactVertex.comp hpair
+      (encList (encBlock budget)) (encList (encVertex encNat)) :=
+    ComputableInPolyTime.mapWithInput (computableInPolyTime_vertices budget)
+      (computableInPolyTime_compactVertex.comp
+        (g := fun p : List (Block budget) × Vertex ℕ => (names p.1, p.2)) (by fun_prop))
   have hc : ComputableInPolyTime (fun blocks : List (Block budget) => (names blocks).length)
-      (encList (encBlock budget)) encNat := by
-    have hl : ComputableInPolyTime (fun blocks : List (Block budget) => (names blocks).length)
-        (encList (encBlock budget)) encUnary := by fun_prop
-    simpa only [Function.comp_def] using ComputableInPolyTime.unary_to_binary.comp hl
+      (encList (encBlock budget)) encNat :=
+    ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
   unfold graph
   fun_prop
 
@@ -178,16 +161,13 @@ enc_structure encStateBlock (budget : ℕ) : StateBlock budget where
 theorem computableInPolyTime_bits (budget : ℕ) :
     ComputableInPolyTime (bits (budget := budget)) (encList (encStateBlock budget))
       (encList encBool) := by
+  open scoped StateBlock in
   have hb : ComputableInPolyTime (blockBits (budget := budget))
-      (encStateBlock budget) (encList encBool) := by
-    have hp := (Cell.computableInPolyTime_privateBits budget).comp
-      ((encStateBlock_shape_polyTime budget ComputableInPolyTime.id').prod
-        (encStateBlock_boundary_polyTime budget ComputableInPolyTime.id'))
-    unfold blockBits
-    fun_prop
-  unfold bits
-  apply ComputableInPolyTime.flatMapWithInput ComputableInPolyTime.id'
-  simpa only [Function.comp_def] using hb.comp
-    (ComputableInPolyTime.snd (encList (encStateBlock budget)) (encStateBlock budget))
+      (encStateBlock budget) (encList encBool) :=
+    ComputableInPolyTime.listAppend' (by fun_prop)
+      ((Cell.computableInPolyTime_privateBits budget).comp
+        (g := fun b : StateBlock budget => (b.shape, b.boundary)) (by fun_prop))
+  exact ComputableInPolyTime.flatMapWithInput (list := id) (by fun_prop)
+    (hb.comp (ComputableInPolyTime.snd _ _))
 
 end Cslib.Complexity.NCL.SelectorNetwork.AndOr.Program

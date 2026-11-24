@@ -15,6 +15,7 @@ import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Foundations.Data.Nat.Log
 import CslibFrontier.Tactic.PolyTime
 import Mathlib.Data.List.GetD
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -527,18 +528,8 @@ private theorem computableInPolyTime_iterate_merkleParents
     (fun p => levelInv_merkleLeafLevel hlen p.1 p.2)
     (fun _ _ _ _ hinv => hinv.merkleParents hlen)
     (size := fun p => (2 * p.2.length + 1) * (2 * p.1.length + 1))
-    ?_ ?_).1
-  · refine PolyBounded.of_forall_le 9 2 fun p => ?_
-    have h1 : p.1.length ≤ (encPair encBits (encList encBits) p).length := by
-      enc_len [encPair_apply]
-    have h2 : p.2.length ≤ (encPair encBits (encList encBits) p).length := by
-      have := length_le_length_encList encBits p.2
-      enc_len
-    set s := (encPair encBits (encList encBits) p).length
-    calc (2 * p.2.length + 1) * (2 * p.1.length + 1) ≤ (2 * s + 1) * (2 * s + 1) := by
-          gcongr
-      _ ≤ 9 * (s + 1) ^ 2 := by nlinarith
-  · exact fun _ _ _ _ hinv => length_encList_level_le (fun y hy => (hinv.1 y hy).le) hinv.2
+    (by growth_poly)
+    (fun _ _ _ _ hinv => length_encList_level_le (fun y hy => (hinv.1 y hy).le) hinv.2)).1
 
 /-- Computing the root of a Merkle tree is polynomial-time for a polynomial-time keyed hash whose
 digests have the length of the key. -/
@@ -593,21 +584,9 @@ theorem computableInPolyTime_merklePath
           · simp only [hnil, List.length_nil, zero_le],
       by simpa [merklePathStep] using hinv.2.2.2⟩)
     (size := fun p => 3 * ((2 * p.2.1.length + 1) * (2 * p.1.length + 1)) + 2 * p.2.2 + 2)
-    ?_ ?_).1
+    (by growth_poly) ?_).1
   · exact (ComputableInPolyTime.snd _ _).comp
       ((ComputableInPolyTime.snd _ _).comp hiter)
-  · refine PolyBounded.of_forall_le 40 2 fun p => ?_
-    set s := (encPair encBits (encPair (encList encBits) encUnary) p).length
-    have h1 : p.1.length ≤ s := by
-      enc_len [s, encPair_apply]
-    have h2 : p.2.1.length ≤ s := by
-      have := length_le_length_encList encBits p.2.1
-      enc_len [s, encPair_apply]
-    have h3 : p.2.2 ≤ s := by
-      enc_len [s, encPair_apply]
-    calc 3 * ((2 * p.2.1.length + 1) * (2 * p.1.length + 1)) + 2 * p.2.2 + 2 ≤
-        3 * ((2 * s + 1) * (2 * s + 1)) + 2 * s + 2 := by gcongr
-      _ ≤ 40 * (s + 1) ^ 2 := by nlinarith
   · intro p j state hj hinv
     have hlevel := length_encList_level_le (fun y hy => (hinv.1.1 y hy).le) hinv.1.2
     have hpath := length_encList_level_le hinv.2.2.1

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Turing
 public import CslibFrontier.Computability.WordRAM.OfTuring
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Polynomial time on the word RAM and on multi-tape Turing machines
@@ -89,12 +90,10 @@ theorem turingComputableInPolyTime_iff_exists_computesInTime (φ : Basis.additiv
   · rintro ⟨r, p, T, W, hT, hW, hp⟩
     -- Simulate at a computable width above `W |encIn a|` and the input length.
     obtain ⟨width, hwidth, hge⟩ := exists_unary_majorant (encIn := encIn)
-      (u := fun a => W (encIn a).length + (encIn a).length + 1)
-      (((PolyBounded.of_polynomiallyBounded _ hW).add PolyBounded.self).add (.const 1))
+      (u := fun a => W (encIn a).length + (encIn a).length + 1) (by growth_poly)
     refine hp.turingComputableInPolyTime_of_width hop hwidth
       (fun a => by have := hge a; omega) (fun a => ⟨?_, fun v hv => ?_⟩)
-      (computableInPolyTime_map_toNat encIn)
-      ((PolyBounded.of_polynomiallyBounded _ hT).comp PolyBounded.self)
+      (computableInPolyTime_map_toNat encIn) (by growth_poly)
     · have := hge a
       rw [List.length_map]
       exact Nat.lt_two_pow_self.trans_le (Nat.pow_le_pow_right (by norm_num) (by omega))

@@ -17,10 +17,11 @@ import Mathlib.Tactic.Ring
 /-!
 # Goldberg–Tarjan Relabel-to-Front Scheduler and Operation Bounds
 
-Formalizes the **relabel-to-front** (discharge with current-arc pointers) push–relabel maximum-flow
-scheduler of Goldberg and Tarjan ([GoldbergTarjan1988], Sections 3–4; [CLRS2009], Sections
-26.4–26.5), with its `O(|V|³)` push/relabel operation, discharge, and current-arc pointer-advance
-count bounds, on the integral networks of `CslibFrontier.Algorithms.Lean.MaxFlow.Basic`.
+Formalizes the **relabel-to-front** topological list maximum-flow scheduler ([CLRS2009], Section
+26.5) on the push–relabel and current-arc discharge framework of Goldberg and Tarjan
+([GoldbergTarjan1988]; [CLRS2009], Section 26.4), with its `O(|V|³)` push/relabel operation,
+discharge, and current-arc pointer-advance count bounds, on the integral networks of
+`CslibFrontier.Algorithms.Lean.MaxFlow.Basic`.
 
 ## Model and source mapping
 
@@ -1734,9 +1735,8 @@ structure RelabelToFrontOutput (N : Network V) where
   discharges := st.discharges
   advances := st.advances
 
-/-- The **relabel-to-front** maximum-flow scheduler ([GoldbergTarjan1988], Sections 3–4;
-[CLRS2009], Section 26.5), with initial vertex order `vs`, neighbor lists `adj`, and normalizers
-`caNorm` / `stNorm`. -/
+/-- The **relabel-to-front** maximum-flow scheduler ([GoldbergTarjan1988]; [CLRS2009], Section
+26.5), with initial vertex order `vs`, neighbor lists `adj`, and normalizers `caNorm` / `stNorm`. -/
 @[expose] def relabelToFrontWith (N : Network V) (vs : List V) (adj : V → List V)
     (caNorm : CAState N → CAState N) (stNorm : RTFState N → RTFState N) :
     RelabelToFrontOutput N :=
@@ -1745,7 +1745,7 @@ structure RelabelToFrontOutput (N : Network V) where
     RelabelToFrontOutput.ofState r.1 r.2
 
 /-- **Correctness and sharp discharge and current-arc advance count bounds for
-`relabelToFrontWith`** ([GoldbergTarjan1988], Sections 3–4; [CLRS2009], Section 26.5): for
+`relabelToFrontWith`** ([GoldbergTarjan1988]; [CLRS2009], Section 26.5): for
 `N.s ≠ N.t`, valid neighbor lists `adj`, a duplicate-free list `vs` of `V \ {N.s, N.t}`, and
 identity normalizers, `relabelToFrontWith` performs a valid run of `PushRelabel` operations ending
 in a maximum flow and a minimum cut of equal value, with at most
@@ -1846,7 +1846,7 @@ private theorem ops_sum_bound (n : ℕ) (hn : 2 ≤ n) :
   omega
 
 /-- **`O(|V|³)` push/relabel and discharge count bounds for `relabelToFrontWith`**
-([GoldbergTarjan1988], Sections 3–4; [CLRS2009], Sections 26.4–26.5): at most `2|V|²` relabels,
+([GoldbergTarjan1988]; [CLRS2009], Sections 26.4–26.5): at most `2|V|²` relabels,
 `2|V||E|` saturating pushes, `2|V|³` discharge calls, `2|V|³` (hence `≤ 4|V|³`) nonsaturating
 pushes, and `4|V|³` total push/relabel operations. -/
 theorem relabelToFrontWith_bounds {vs : List V} (hnodup : vs.Nodup)
@@ -1972,7 +1972,7 @@ and current-arc advances. -/
   relabelToFront N (exactAdj N)
 
 /-- **Correctness and `O(n³)` push/relabel operation, discharge, and current-arc advance count
-bounds for `relabelToFront`** ([GoldbergTarjan1988], Sections 3–4; [CLRS2009], Section 26.5). -/
+bounds for `relabelToFront`** ([GoldbergTarjan1988]; [CLRS2009], Section 26.5). -/
 theorem relabelToFront_correct {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
     (hadj : AdjValid N adj) (hst : N.s ≠ N.t) :
     let out := relabelToFront N adj

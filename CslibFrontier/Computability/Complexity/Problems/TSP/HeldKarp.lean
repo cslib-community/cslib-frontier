@@ -25,6 +25,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.StreamFold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 import Mathlib.Data.List.GetD
 import Mathlib.Tactic.Linarith
@@ -1957,26 +1958,7 @@ private theorem computableInO_hkInit :
   have hpoly_all : PolyBounded (fun x : TSPInstance => (encTSP x).length)
       (fun x => Td x + Sn x + Si x + Tn x + Ti x + x.dist.length +
         (encNat (x.dist.length - 1)).length + Sd x) := by
-    have hdl : PolyBounded (fun x : TSPInstance => (encTSP x).length) (fun x => x.dist.length) := by
-      refine PolyBounded.of_forall_le 1 1 fun x => ?_
-      have h1 : x.dist.length ≤ (encTSP x).length := by
-        refine (length_le_length_encList (encList encNat) x.dist).trans ?_
-        rw [encTSP_apply]; enc_len
-      simp only [pow_one, one_mul]
-      omega
-    have hnl : PolyBounded (fun x : TSPInstance => (encTSP x).length)
-        (fun x => (encNat (x.dist.length - 1)).length) := by
-      refine PolyBounded.of_forall_le 1 1 fun x => ?_
-      have h1 : (encNat (x.dist.length - 1)).length ≤ x.dist.length := by
-        have hlt : x.dist.length - 1 < 2 ^ x.dist.length :=
-          (Nat.sub_le _ _).trans_lt Nat.lt_two_pow_self
-        exact length_encNat_le_of_lt_two_pow hlt
-      have h2 : x.dist.length ≤ (encTSP x).length := by
-        refine (length_le_length_encList (encList encNat) x.dist).trans ?_
-        rw [encTSP_apply]; enc_len
-      simp only [pow_one, one_mul]
-      omega
-    exact (((((((hTd.add hSn).add hSi).add hTn).add hTi).add hdl).add hnl).add hSd)
+    growth_poly
   obtain ⟨c, d, hcd⟩ := hpoly_all.exists_le
   have hB_le : ∀ x : TSPInstance,
       B x ≤ 64 * (2 ^ (x.dist.length - 1) * ((encTSP x).length + 1) ^ 2) := fun x => by
@@ -2465,30 +2447,7 @@ private theorem computableInO_tmOptCost :
   have hpoly_cnt : PolyBounded (fun x : TSPInstance => (encTSP x).length)
       (fun x => Tcnt x + Scnt x + (encNat ((x.dist.length - 1) * (x.dist.length - 1))).length +
         x.dist.length) := by
-    have hdl : PolyBounded (fun x : TSPInstance => (encTSP x).length) (fun x => x.dist.length) := by
-      refine PolyBounded.of_forall_le 1 1 fun x => ?_
-      have : x.dist.length ≤ (encTSP x).length := by
-        refine (length_le_length_encList (encList encNat) x.dist).trans ?_
-        rw [encTSP_apply]; enc_len
-      simp only [pow_one, one_mul]
-      omega
-    have hnl : PolyBounded (fun x : TSPInstance => (encTSP x).length)
-        (fun x => (encNat ((x.dist.length - 1) * (x.dist.length - 1))).length) := by
-      refine PolyBounded.of_forall_le 2 1 fun x => ?_
-      have hx : x.dist.length ≤ (encTSP x).length := by
-        refine (length_le_length_encList (encList encNat) x.dist).trans ?_
-        rw [encTSP_apply]; enc_len
-      have hsq : (x.dist.length - 1) * (x.dist.length - 1) < 2 ^ (2 * (encTSP x).length) := by
-        calc (x.dist.length - 1) * (x.dist.length - 1)
-            ≤ x.dist.length * x.dist.length := Nat.mul_le_mul (Nat.sub_le _ _) (Nat.sub_le _ _)
-          _ ≤ (encTSP x).length * (encTSP x).length := Nat.mul_le_mul hx hx
-          _ < 2 ^ (encTSP x).length * 2 ^ (encTSP x).length :=
-            Nat.mul_lt_mul_of_lt_of_lt Nat.lt_two_pow_self Nat.lt_two_pow_self
-          _ = 2 ^ (2 * (encTSP x).length) := by rw [← pow_add, two_mul]
-      have := length_encNat_le_of_lt_two_pow hsq
-      simp only [pow_one]
-      omega
-    exact ((hTcnt.add hScnt).add hnl).add hdl
+    growth_poly
   obtain ⟨c, d, hcd⟩ := hpoly_cnt.exists_le
   let e := 2 * max d d₀ + 2 * ds + 4
   have hmono_bound : ∀ x : TSPInstance,
@@ -2706,6 +2665,7 @@ private theorem computableInO_tmOptCost :
   · exact (hmono_bound x).1.trans (Nat.mul_le_mul_left _ (Nat.le_succ _))
   · exact (hmono_bound x).2.trans (Nat.mul_le_mul_left _ (Nat.le_succ _))
 
+@[growth_poly]
 private theorem length_encNat_tmOptCost_le (x : TSPInstance) :
     (encNat (tmOptCost x)).length ≤ 4 * ((encTSP x).length + 1) ^ 2 + 2 := by
   unfold tmOptCost
@@ -2768,31 +2728,7 @@ private theorem computableInO_tmDecide :
   have hpoly_all : PolyBounded (fun x : TSPInstance => (encTSP x).length)
       (fun x => Tz x + Sz x + Tb x + Sb x +
         (Tle (tmOptCost x, x.bound) + Sle (tmOptCost x, x.bound))) := by
-    obtain ⟨c₁, d₁, hcd₁⟩ := (hTle.add hSle).exists_le
-    have hle_poly : PolyBounded (fun x : TSPInstance => (encTSP x).length)
-        (fun x => Tle (tmOptCost x, x.bound) + Sle (tmOptCost x, x.bound)) := by
-      refine PolyBounded.of_forall_le (c₁ * 16 ^ d₁) (2 * d₁) fun x => ?_
-      have hlen_opt := length_encNat_tmOptCost_le x
-      have hlen_b : (encNat x.bound).length ≤ (encTSP x).length := by
-        rw [encTSP_apply]; enc_len
-      have hpair : (encPair encNat encNat (tmOptCost x, x.bound)).length + 1 ≤
-          16 * ((encTSP x).length + 1) ^ 2 := by
-        rw [length_encPair]
-        have hL1 : (encTSP x).length + 1 ≤ ((encTSP x).length + 1) ^ 2 :=
-          Nat.le_self_pow (by decide) _
-        change 2 * (encNat (tmOptCost x)).length + 1 + (encNat x.bound).length + 1 ≤ _
-        omega
-      have hpow : ((encPair encNat encNat (tmOptCost x, x.bound)).length + 1) ^ d₁ ≤
-          16 ^ d₁ * ((encTSP x).length + 1) ^ (2 * d₁) := by
-        calc _ ≤ (16 * ((encTSP x).length + 1) ^ 2) ^ d₁ := Nat.pow_le_pow_left hpair d₁
-          _ = 16 ^ d₁ * ((encTSP x).length + 1) ^ (2 * d₁) := by
-              rw [Nat.mul_pow, ← pow_mul]
-      have h1 := hcd₁ (tmOptCost x, x.bound)
-      calc Tle (tmOptCost x, x.bound) + Sle (tmOptCost x, x.bound)
-          ≤ c₁ * ((encPair encNat encNat (tmOptCost x, x.bound)).length + 1) ^ d₁ := h1
-        _ ≤ c₁ * (16 ^ d₁ * ((encTSP x).length + 1) ^ (2 * d₁)) := Nat.mul_le_mul_left _ hpow
-        _ = c₁ * 16 ^ d₁ * ((encTSP x).length + 1) ^ (2 * d₁) := by ring
-    exact (((hTz.add hSz).add hTb).add hSb).add hle_poly
+    growth_poly
   obtain ⟨c, d, hcd⟩ := hpoly_all.exists_le
   let e := max e₀ d + 1
   refine ⟨e, hif.mono (c + 4) (fun x => ?_) (fun x => ?_)⟩
@@ -2862,10 +2798,7 @@ theorem exists_computableInO_heldKarpDecide_toTSP :
   have hcomp := hHK.comp hred
   have hpoly : PolyBounded (fun G : Graph => (encGraph G).length)
       (fun G => Tr G + Sr G + ((encTSP (toTSP G)).length + 1) ^ e₀) := by
-    have hlen : PolyBounded (fun G : Graph => (encGraph G).length)
-        (fun G => (encTSP (toTSP G)).length + 1) :=
-      computableInPolyTime_toTSP.polyBounded_length.add (PolyBounded.of_forall_le 1 0 (by simp))
-    exact (hTr.add hSr).add (hlen.pow e₀)
+    growth_poly [computableInPolyTime_toTSP]
   obtain ⟨c, d, hcd⟩ := hpoly.exists_le
   refine ⟨d, hcomp.mono (2 * c + 2) (fun G => ?_) (fun G => ?_)⟩
   all_goals

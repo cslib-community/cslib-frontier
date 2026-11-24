@@ -81,10 +81,10 @@ theorem load_inSpace : ComputableInSpace (load (k := k) (Q := Q)) encArgs encCon
     (budget_natMod hinputResidue hb))
   have hcoordinate := budget_natSub hhi hlo
   have hnonnegative := budget_finite (encC := encBool) Bool.not (budget_natLt hhi hlo)
-  have hinRange := budget_natLt hcoordinate (budget_natAdd hN (budget_const 2 (.refl _)))
+  have hinRange := budget_natLt hcoordinate (budget_natAdd hN (budget_const 2))
   have hvalid := budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
     (budget_prod hnonnegative hinRange)
-  have hpos := budget_ite hvalid hcoordinate (budget_const (encB := encNat) 0 (.refl _))
+  have hpos := budget_ite hvalid hcoordinate (budget_const (encB := encNat) 0)
   have hheads := pi_linear (Index := Fin k) fun h =>
     budget_natAdd hb (budget_natMod (budget_comp_linear
       (of_inO (ComputableInO.pi_apply encNat (some h))) hresidues) hb)
