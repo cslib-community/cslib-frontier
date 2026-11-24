@@ -8356,6 +8356,8 @@ public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Duality
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Equivalent
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Extension
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Network
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Basic
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Random
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Spectrum
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Unit
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.WireExponent

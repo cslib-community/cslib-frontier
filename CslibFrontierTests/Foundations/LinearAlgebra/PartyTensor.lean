@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Duality
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Extension
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Random
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.WireExponent
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
@@ -93,5 +94,17 @@ example {ε : ℝ} (hε : 0 < ε) :
         prod fun β => (fun _ : Unit => (1 : PartyTensor K Unit)) β ^ v i β :=
   exists_coveredBy_pow_of_forall_le (C := 1) (A := fun _ : Unit => 1)
     ⟨fun _ => (), one_ne_zero⟩ ⟨(), fun _ => (), one_ne_zero⟩ (fun _ => ⟨(), le_rfl⟩) hε
+
+/-- The wire exponent of a spectral point is a price, hence a pseudometric. -/
+example (F : SpectralPoint K I) (p q r : I) :
+    IsPrice K F.wireExponent ∧ F.wireExponent p r ≤ F.wireExponent p q + F.wireExponent q r :=
+  ⟨isPrice_wireExponent F, (isPrice_wireExponent F).triangle p q r⟩
+
+/-- Extending the zero price to two further points, with weight `1` on one map. -/
+example : ∃ w' : Bool ⊕ Unit → Bool ⊕ Unit → ℝ, IsPrice K w' ∧
+    (∀ y y', w' (Sum.inl y) (Sum.inl y') = 0) := by
+  obtain ⟨w', h, h1, -⟩ := (isPrice_zero (K := K) (Y := Bool)).exists_extend_of_weights
+    (fun _ : Unit => (1 : ℝ)) (fun _ => zero_le_one) (by simp) (fun _ _ => true)
+  exact ⟨w', h, h1⟩
 
 end Cslib.PartyTensorTests
