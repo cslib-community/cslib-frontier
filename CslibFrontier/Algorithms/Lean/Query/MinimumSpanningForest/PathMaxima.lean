@@ -56,8 +56,9 @@ last comparison per query picks the heavier of the two chain maxima.
 The answer is right by King's reduction: the heaviest parent edge `f` on the two chains is the
 heaviest edge on the path of `F`. No edge of `F` lighter than `f` leaves the block that selected
 it, so the edges lighter than `f` do not join `u` and `v`. Conversely, the bottleneck edge `g` of
-the path (`Cslib.Multigraph.exists_bottleneck`) is selected at some level by a block that, since no lighter edge leaves it and `F` is
-acyclic, holds exactly one of `u` and `v`; so `g` is on one of the two chains.
+the path (`Cslib.Multigraph.exists_bottleneck`) is selected at some level by a block that, since
+no lighter edge leaves it and `F` is acyclic, holds exactly one of `u` and `v`; so `g` is on one of
+the two chains.
 
 ## Main definitions
 
