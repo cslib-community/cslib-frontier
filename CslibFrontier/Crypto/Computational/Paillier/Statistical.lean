@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Computational.Paillier.Finite
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
 import CslibFrontier.Crypto.Game.CloseTo
+import CslibFrontier.Foundations.Data.ZMod.Basic
 
 /-!
 # Statistical homomorphism of word-encoded Paillier encryption
@@ -35,7 +36,7 @@ continuation.
 
 ## Main results
 
-* `Cslib.Crypto.Paillier.closeTo_encrypt_uniform`: the word encryption law is close to the
+* `Cslib.Crypto.Paillier.closeTo_encrypt_paillierEncrypt`: the word encryption law is close to the
   encoded uniform-unit encryption law.
 * `Cslib.Crypto.Paillier.closeTo_addCiphertexts_encrypt`: multiplying a supported ciphertext by
   fresh encryption is close to fresh encryption of the sum.
@@ -66,7 +67,7 @@ private theorem ciphertext_eq_val (N : ℕ) [NeZero N] (m r : ℕ) (hr : r.Copri
 
 /-- Word encryption with the actual dyadic sampler is within `5 / 2 ^ n` of encryption with
 uniform unit randomness, with both laws represented by the same ciphertext words. -/
-theorem closeTo_encrypt_uniform (d : Desc) (n m : ℕ)
+theorem closeTo_encrypt_paillierEncrypt (d : Desc) (n m : ℕ)
     (hsize : n ≤ d.p.size ∧ n ≤ d.q.size) :
     CloseTo (ProbComp.eval (encrypt n (encNat d.modulus) m))
       ((ProbComp.eval (paillierEncrypt d.modulus (m : ZMod d.modulus))).map
@@ -89,12 +90,8 @@ theorem closeTo_encrypt_uniform (d : Desc) (n m : ℕ)
   convert h using 1
   congr 2
   funext u
-  have hunit : ZMod.unitOfCoprime (u : ZMod d.modulus).val
-      (ZMod.val_coe_unit_coprime u) = u := by
-    ext
-    simp only [ZMod.coe_unitOfCoprime, ZMod.natCast_zmod_val]
-  rw [unitOrOne, ite_eq_left (ZMod.val_coe_unit_coprime u),
-    ciphertext_eq_val d.modulus m _ (ZMod.val_coe_unit_coprime u), hunit]
+  rw [unitOrOne_val_coe_unit, ciphertext_eq_val d.modulus m _ (ZMod.val_coe_unit_coprime u),
+    ZMod.unitOfCoprime_val]
 
 /-- Multiplying any supported word ciphertext of `m₁` by a fresh word encryption of `m₂` is
 within `10 / 2 ^ n` of fresh word encryption of `m₁ + m₂`. Only the fresh randomness is replaced
@@ -131,11 +128,11 @@ theorem closeTo_addCiphertexts_encrypt (d : Desc) (n m₁ m₂ : ℕ)
         simp only [Function.comp_apply, addCiphertexts, ofBits_encNat, hword,
           Units.val_mul, ZMod.val_mul]
       _ = _ := by rw [eval_mul_paillierEncrypt hc₁]; simp only [Nat.cast_add]
-  have h := (closeTo_encrypt_uniform d n m₂ hsize).map
+  have h := (closeTo_encrypt_paillierEncrypt d n m₂ hsize).map
     (addCiphertexts (encNat d.modulus) (encNat (ciphertext d.modulus m₁ r₁)))
   rw [hideal] at h
   simpa only [← ENNReal.add_div, show (5 : ℝ≥0∞) + 5 = 10 by norm_num] using
-    h.trans (closeTo_encrypt_uniform d n (m₁ + m₂) hsize).symm
+    h.trans (closeTo_encrypt_paillierEncrypt d n (m₁ + m₂) hsize).symm
 
 /-- Multiplying two independent word encryptions is within `10 / 2 ^ n` of fresh word
 encryption of the sum. The bound is uniform in the first ciphertext, so averaging over it adds
