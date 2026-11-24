@@ -1,6 +1,7 @@
 import CslibFrontierResults.Entries
 import CslibFrontierResults.Entries.AlternatingTimeSpace
 import CslibFrontierResults.Entries.CBCMAC
+import CslibFrontierResults.Entries.Cooperative
 import CslibFrontierResults.Entries.DFSWordRAM
 import CslibFrontierResults.Entries.DeterminantalUniversality
 import CslibFrontierResults.Entries.DictionaryLowerBound
@@ -39,5 +40,4 @@ import CslibFrontierResults.Entries.SturmReduced
 import CslibFrontierResults.Entries.TwoSATWordRAM
 import CslibFrontierResults.Entries.VeriPBClique
 import CslibFrontierResults.Entries.VeriPBSubgraphIso
-import CslibFrontierResults.GameTheory.Cooperative
 import CslibFrontierResults.Registry
