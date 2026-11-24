@@ -2374,6 +2374,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Ladner.Basic
 public import CslibFrontier.Computability.Complexity.Classes.Ladner.Density
 public import CslibFrontier.Computability.Complexity.Classes.Ladner.PolyTime
 public import CslibFrontier.Computability.Complexity.Classes.Ladner.Stages
+public import CslibFrontier.Computability.Complexity.Classes.LogCFL
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Closure
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Complement
@@ -3989,6 +3990,9 @@ public import CslibFrontier.Computability.MCSP.Succinct
 public import CslibFrontier.Computability.MCSP.SuccinctNP
 public import CslibFrontier.Computability.MCSP.SuccinctNP.Words
 public import CslibFrontier.Computability.MCSP.ZeroErrorAverageCase
+public import CslibFrontier.Computability.Machines.AuxPDA.Basic
+public import CslibFrontier.Computability.Machines.AuxPDA.Counting
+public import CslibFrontier.Computability.Machines.AuxPDA.Surface
 public import CslibFrontier.Computability.Machines.ReadMachine.Basic
 public import CslibFrontier.Computability.Machines.ReadMachine.StepMachine
 public import CslibFrontier.Computability.Machines.ReadMachine.Tidy
