@@ -8,45 +8,44 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.BooleanAnalysis.Tribes
+public import CslibFrontier.Foundations.Data.BitString.Threshold
 public import CslibFrontier.Probability.Resilience
+import CslibFrontier.Foundations.BooleanAnalysis.Majority
 import CslibFrontier.Foundations.Data.BitString.Sign
-import CslibFrontier.Foundations.Data.Finset.ExpectPi
 
 /-!
 # Composed resilient functions and iterated majority
 
 Composing an outer Boolean function `g : BitString m → Bool` with `m` block functions
 `h : Fin m → BitString w → Bool` (`Cslib.BitString.composeBlocks`) preserves monotonicity and
-self-duality, splits uniform expectations across blocks (`Cslib.BitString.expect_prod_blocks`),
-and characterizes coalitional undeterminedness blockwise (`isUndetermined_composeBlocks_iff`):
-a coalition `Q` leaves `composeBlocks g h` undetermined at `x` precisely when the active blocks
-where `tribePart Q j` leaves `h j` undetermined leave `g` undetermined on the block outputs.
+self-duality, and characterizes coalitional undeterminedness blockwise
+(`isUndetermined_composeBlocks_iff`): a coalition `Q` leaves `composeBlocks g h` undetermined at
+`x` precisely when the active blocks where `tribePart Q j` leaves `h j` undetermined leave `g`
+undetermined on the block outputs.
 
-When `g = maj3` is the `3`-bit majority and each block function `h j` is self-dual, uniform
-independence across blocks gives the exact composition identity
-`I_Q(maj3 ∘ (h₀, h₁, h₂)) = (p₀ + p₁ + p₂ - p₀ * p₁ * p₂) / 2 ≤ (p₀ + p₁ + p₂) / 2` where
+When `g = Cslib.majority 3` is the `3`-bit majority and each block function `h j` is self-dual,
+uniform independence across blocks (`Cslib.BitString.expect_prod_tribe` in `Tribes`) gives the
+exact composition identity
+`I_Q(majority 3 ∘ (h₀, h₁, h₂)) = (p₀ + p₁ + p₂ - p₀ * p₁ * p₂) / 2 ≤ (p₀ + p₁ + p₂) / 2` where
 `pⱼ = I_{Qⱼ}(hⱼ)` (`Cslib.BitString.coalitionInfluence_composeBlocks_maj3`). Iterating this
 `d` times yields the Ben-Or–Linial iterated `3`-majority `iterMaj3 d` on `3 ^ d` bits: it is
 monotone, self-dual, exactly balanced (`1 / 2`), and `(q, q / 2 ^ d)`-resilient for every `q`
 (`Cslib.BitString.isResilient_iterMaj3`), i.e. `I_q ≤ q / n ^ (log₂ 3)⁻¹ ≈ q / n ^ 0.63`
 without `tribes`'s `q < log n` threshold barrier
-(compare [Chattopadhyay–Zuckerman][ChattopadhyayZuckerman2019]; locator not re-verified
-against primary PDF).
+[Chattopadhyay–Zuckerman][ChattopadhyayZuckerman2019].
 
 ## Main definitions
 
 * `Cslib.BitString.composeBlocks`: block composition `g ∘ (h₀, ..., h_{m-1})` on
   `BitString (m * w)`.
-* `Cslib.BitString.maj3`: the balanced monotone self-dual majority of three bits.
 * `Cslib.BitString.iterMaj3`: depth-`d` iterated `3`-majority on `BitString (3 ^ d)`.
 
 ## Main results
 
-* `Cslib.BitString.monotone_composeBlocks`, `Cslib.BitString.isUndetermined_composeBlocks_iff`,
-  `Cslib.BitString.sum_card_tribePart`, `Cslib.BitString.expect_prod_blocks`: structural laws
-  for block composition.
-* `Cslib.BitString.coalitionInfluence_composeBlocks_maj3`: exact resilience recursion for `maj3`
-  composed with self-dual blocks.
+* `Cslib.BitString.monotone_composeBlocks`, `Cslib.BitString.isUndetermined_composeBlocks_iff`:
+  structural laws for block composition.
+* `Cslib.BitString.coalitionInfluence_composeBlocks_maj3`: exact resilience recursion for
+  `Cslib.majority 3` composed with self-dual blocks.
 * `Cslib.BitString.monotone_iterMaj3`, `Cslib.BitString.iterMaj3_not`,
   `Cslib.BitString.expect_bitVal_iterMaj3`, `Cslib.BitString.isResilient_iterMaj3`: monotonicity,
   self-duality, exact balance, and `(q, q / 2 ^ d)`-resilience of `iterMaj3 d`.
@@ -90,25 +89,6 @@ theorem composeBlocks_not_of_selfDual {m w : ℕ} {g : BitString m → Bool}
         congr 1; funext j; exact hh j _
     _ = !g (fun j => h j (fun i => x (finProdFinEquiv (j, i)))) := hg _
 
-/-- The sizes of the block parts `tribePart Q j` sum to `#Q`. -/
-theorem sum_card_tribePart {m w : ℕ} (Q : Finset (Fin (m * w))) :
-    ∑ j : Fin m, #(tribePart Q j) = #Q := by
-  have hmap : (univ.sigma (tribePart Q)).image (fun p => finProdFinEquiv (p.1, p.2)) = Q := by
-    ext k
-    simp only [mem_image, mem_sigma, mem_univ, true_and, mem_tribePart, Sigma.exists]
-    constructor
-    · rintro ⟨j, i, hij, rfl⟩
-      exact hij
-    · intro hk
-      obtain ⟨⟨j, i⟩, rfl⟩ := finProdFinEquiv.surjective k
-      exact ⟨j, i, hk, rfl⟩
-  conv_rhs => rw [← hmap]
-  rw [card_image_of_injective]
-  · simp [card_sigma]
-  · rintro ⟨j₁, i₁⟩ ⟨j₂, i₂⟩ h
-    obtain ⟨rfl, rfl⟩ := Prod.ext_iff.mp (finProdFinEquiv.injective h)
-    rfl
-
 /-- Coalition undeterminedness for `composeBlocks g h`: `Q` leaves the composed function
 undetermined at `x` if and only if the set of blocks where `tribePart Q j` leaves `h j`
 undetermined leaves `g` undetermined on the block outputs. -/
@@ -121,24 +101,19 @@ theorem isUndetermined_composeBlocks_iff {m w : ℕ} (g : BitString m → Bool)
         g fun j => h j fun i => x (finProdFinEquiv (j, i)) := by
   constructor
   · rintro ⟨y, z, hy, hz, hne⟩
-    refine ⟨fun j => h j fun i => y (finProdFinEquiv (j, i)),
-      fun j => h j fun i => z (finProdFinEquiv (j, i)), ?_, ?_, hne⟩
-    · intro j hj
+    have agree (u : BitString (m * w)) (hu : ∀ k ∉ Q, u k = x k) (j : Fin m)
+        (hj : j ∉ univ.filter fun j =>
+          IsUndetermined (tribePart Q j) (h j) fun i => x (finProdFinEquiv (j, i))) :
+        h j (fun i => u (finProdFinEquiv (j, i))) =
+          h j (fun i => x (finProdFinEquiv (j, i))) := by
       rw [mem_filter] at hj
-      have hnot : ¬IsUndetermined (tribePart Q j) (h j) fun i => x (finProdFinEquiv (j, i)) :=
-        fun hdet => hj ⟨mem_univ j, hdet⟩
       by_contra hdiff
-      apply hnot
-      exact ⟨fun i => y (finProdFinEquiv (j, i)), fun i => x (finProdFinEquiv (j, i)),
-        fun i hi => hy _ (by simpa [mem_tribePart] using hi), fun _ _ => rfl, hdiff⟩
-    · intro j hj
-      rw [mem_filter] at hj
-      have hnot : ¬IsUndetermined (tribePart Q j) (h j) fun i => x (finProdFinEquiv (j, i)) :=
-        fun hdet => hj ⟨mem_univ j, hdet⟩
-      by_contra hdiff
-      apply hnot
-      exact ⟨fun i => z (finProdFinEquiv (j, i)), fun i => x (finProdFinEquiv (j, i)),
-        fun i hi => hz _ (by simpa [mem_tribePart] using hi), fun _ _ => rfl, hdiff⟩
+      exact hj ⟨mem_univ j,
+        fun i => u (finProdFinEquiv (j, i)), fun i => x (finProdFinEquiv (j, i)),
+        fun i hi => hu _ (by simpa [mem_tribePart] using hi), fun _ _ => rfl, hdiff⟩
+    exact ⟨fun j => h j fun i => y (finProdFinEquiv (j, i)),
+      fun j => h j fun i => z (finProdFinEquiv (j, i)),
+      agree y hy, agree z hz, hne⟩
   · rintro ⟨a, b, ha, hb, hne⟩
     have pick (u : Fin m → Bool)
         (hu : ∀ j, ¬IsUndetermined (tribePart Q j) (h j) (fun i => x (finProdFinEquiv (j, i))) →
@@ -172,20 +147,6 @@ theorem isUndetermined_composeBlocks_iff {m w : ℕ} (g : BitString m → Bool)
     refine ⟨y, z, hyQ, hzQ, ?_⟩
     simpa only [composeBlocks, hy_val, hz_val] using hne
 
-private def blockEquiv (m w : ℕ) : (Fin m → BitString w) ≃ BitString (m * w) :=
-  (Equiv.curry (Fin m) (Fin w) Bool).symm.trans (finProdFinEquiv.arrowCongr (Equiv.refl Bool))
-
-/-- Uniform expectation of a product of block functions factors across the `m` blocks. -/
-theorem expect_prod_blocks {m w : ℕ} (φ : Fin m → BitString w → ℝ) :
-    𝔼 x : BitString (m * w), ∏ j, φ j (fun i => x (finProdFinEquiv (j, i))) =
-      ∏ j, 𝔼 u : BitString w, φ j u := by
-  have heq : (𝔼 x : BitString (m * w), ∏ j, φ j (fun i => x (finProdFinEquiv (j, i)))) =
-      𝔼 y : (Fin m → BitString w), ∏ j, φ j (y j) := by
-    refine (Fintype.expect_equiv (blockEquiv m w) _ _ fun y => ?_).symm
-    refine prod_congr rfl fun j _ => ?_
-    simp [blockEquiv]
-  rw [heq, ← Fintype.prod_expect φ]
-
 /-! ### Self-dual functions and `3`-majority composition -/
 
 section SelfDual
@@ -208,21 +169,25 @@ private theorem isUndetermined_compl (Q : Finset ι) {f : (ι → Bool) → Bool
   rw [hx]
   exact hstep _ h
 
+private theorem expect_not_isUndetermined_symm {f : (ι → Bool) → Bool}
+    (hf : ∀ x, f (fun i => !x i) = !f x) (Q : Finset ι) :
+    𝔼 x, (if ¬IsUndetermined Q f x ∧ f x = true then (1 : ℝ) else 0) =
+      𝔼 x, (if ¬IsUndetermined Q f x ∧ f x = false then (1 : ℝ) else 0) := by
+  let inv : (ι → Bool) ≃ (ι → Bool) :=
+    { toFun := fun x i => !x i
+      invFun := fun x i => !x i
+      left_inv := fun x => funext fun i => Bool.not_not (x i)
+      right_inv := fun x => funext fun i => Bool.not_not (x i) }
+  refine Fintype.expect_equiv inv _ _ fun x => ?_
+  simp [inv, isUndetermined_compl Q hf x, hf x]
+
 /-- For a self-dual function, the uniform probabilities of being determined as `true` or as
 `false` outside `Q` are both `(1 - I_Q(f)) / 2`. -/
 theorem expect_not_isUndetermined_and_eq_true {f : (ι → Bool) → Bool}
     (hf : ∀ x, f (fun i => !x i) = !f x) (Q : Finset ι) :
     𝔼 x, (if ¬IsUndetermined Q f x ∧ f x = true then (1 : ℝ) else 0) =
       (1 - coalitionInfluence (PMF.uniformOfFintype (ι → Bool)) Q f) / 2 := by
-  let inv : (ι → Bool) ≃ (ι → Bool) :=
-    { toFun := fun x i => !x i
-      invFun := fun x i => !x i
-      left_inv := fun x => funext fun i => Bool.not_not (x i)
-      right_inv := fun x => funext fun i => Bool.not_not (x i) }
-  have hsym : 𝔼 x, (if ¬IsUndetermined Q f x ∧ f x = true then (1 : ℝ) else 0) =
-      𝔼 x, (if ¬IsUndetermined Q f x ∧ f x = false then (1 : ℝ) else 0) := by
-    refine Fintype.expect_equiv inv _ _ fun x => ?_
-    simp [inv, isUndetermined_compl Q hf x, hf x]
+  have hsym := expect_not_isUndetermined_symm hf Q
   have hsum : (𝔼 x, (if ¬IsUndetermined Q f x ∧ f x = true then (1 : ℝ) else 0)) +
       (𝔼 x, (if ¬IsUndetermined Q f x ∧ f x = false then (1 : ℝ) else 0)) =
       1 - coalitionInfluence (PMF.uniformOfFintype (ι → Bool)) Q f := by
@@ -239,17 +204,8 @@ theorem expect_not_isUndetermined_and_eq_true {f : (ι → Bool) → Bool}
 theorem expect_not_isUndetermined_and_eq_false {f : (ι → Bool) → Bool}
     (hf : ∀ x, f (fun i => !x i) = !f x) (Q : Finset ι) :
     𝔼 x, (if ¬IsUndetermined Q f x ∧ f x = false then (1 : ℝ) else 0) =
-      (1 - coalitionInfluence (PMF.uniformOfFintype (ι → Bool)) Q f) / 2 := by
-  let inv : (ι → Bool) ≃ (ι → Bool) :=
-    { toFun := fun x i => !x i
-      invFun := fun x i => !x i
-      left_inv := fun x => funext fun i => Bool.not_not (x i)
-      right_inv := fun x => funext fun i => Bool.not_not (x i) }
-  have hsym : 𝔼 x, (if ¬IsUndetermined Q f x ∧ f x = true then (1 : ℝ) else 0) =
-      𝔼 x, (if ¬IsUndetermined Q f x ∧ f x = false then (1 : ℝ) else 0) := by
-    refine Fintype.expect_equiv inv _ _ fun x => ?_
-    simp [inv, isUndetermined_compl Q hf x, hf x]
-  linarith [expect_not_isUndetermined_and_eq_true hf Q]
+      (1 - coalitionInfluence (PMF.uniformOfFintype (ι → Bool)) Q f) / 2 :=
+  (expect_not_isUndetermined_symm hf Q).symm.trans (expect_not_isUndetermined_and_eq_true hf Q)
 
 /-- Every self-dual function is balanced (`𝔼 bitVal = 1 / 2`). -/
 theorem expect_bitVal_eq_half_of_selfDual {f : (ι → Bool) → Bool}
@@ -269,21 +225,8 @@ theorem expect_bitVal_eq_half_of_selfDual {f : (ι → Bool) → Bool}
 
 end SelfDual
 
-/-- The balanced monotone self-dual majority of `3` bits. -/
-@[expose] def maj3 (v : BitString 3) : Bool :=
-  (v 0 && v 1) || (v 0 && v 2) || (v 1 && v 2)
-
-/-- `maj3` is monotone. -/
-theorem monotone_maj3 : Monotone maj3 := by
-  decide
-
-/-- `maj3` is self-dual. -/
-theorem maj3_not (v : BitString 3) : maj3 (fun i => !v i) = !maj3 v := by
-  revert v
-  decide
-
 private theorem isUndetermined_maj3_classify (S : Finset (Fin 3)) (v : BitString 3) :
-    IsUndetermined S maj3 v ↔
+    IsUndetermined S (majority 3) v ↔
       2 ≤ #S ∨ (S = {0} ∧ v 1 ≠ v 2) ∨ (S = {1} ∧ v 0 ≠ v 2) ∨ (S = {2} ∧ v 0 ≠ v 1) := by
   revert S v
   decide
@@ -308,12 +251,13 @@ private theorem maj3_split_nat (d0 d1 d2 b0 b1 b2 : Bool) :
   revert d0 d1 d2 b0 b1 b2
   decide
 
-/-- **Exact `maj3` coalition-influence composition identity**: composing `maj3` with three
-self-dual block functions `h₀, h₁, h₂` yields coalition influence
+/-- **Exact `3`-majority coalition-influence composition identity**: composing `Cslib.majority 3`
+with three self-dual block functions `h₀, h₁, h₂` yields coalition influence
 `(p₀ + p₁ + p₂ - p₀ * p₁ * p₂) / 2 ≤ (p₀ + p₁ + p₂) / 2`, where `pⱼ = I_{Qⱼ}(hⱼ)`. -/
 theorem coalitionInfluence_composeBlocks_maj3 {w : ℕ} (h : Fin 3 → BitString w → Bool)
     (hh : ∀ j u, h j (fun i => !u i) = !h j u) (Q : Finset (Fin (3 * w))) :
-    coalitionInfluence (PMF.uniformOfFintype (BitString (3 * w))) Q (composeBlocks maj3 h) =
+    coalitionInfluence (PMF.uniformOfFintype (BitString (3 * w))) Q
+        (composeBlocks (majority 3) h) =
       let p j := coalitionInfluence (PMF.uniformOfFintype (BitString w)) (tribePart Q j) (h j)
       (p 0 + p 1 + p 2 - p 0 * p 1 * p 2) / 2 := by
   dsimp only
@@ -340,7 +284,7 @@ theorem coalitionInfluence_composeBlocks_maj3 {w : ℕ} (h : Fin 3 → BitString
   let sl (x : BitString (3 * w)) (j : Fin 3) : BitString w :=
     fun i => x (finProdFinEquiv (j, i))
   have hsplit (x : BitString (3 * w)) :
-      (if IsUndetermined Q (composeBlocks maj3 h) x then (1 : ℝ) else 0) =
+      (if IsUndetermined Q (composeBlocks (majority 3) h) x then (1 : ℝ) else 0) =
         eU 0 (sl x 0) * eU 1 (sl x 1) * eU 2 (sl x 2) +
         eU 0 (sl x 0) * eU 1 (sl x 1) * eD 2 (sl x 2) +
         eU 0 (sl x 0) * eD 1 (sl x 1) * eU 2 (sl x 2) +
@@ -351,7 +295,7 @@ theorem coalitionInfluence_composeBlocks_maj3 {w : ℕ} (h : Fin 3 → BitString
         eF 0 (sl x 0) * eU 1 (sl x 1) * eT 2 (sl x 2) +
         eT 0 (sl x 0) * eF 1 (sl x 1) * eU 2 (sl x 2) +
         eF 0 (sl x 0) * eT 1 (sl x 1) * eU 2 (sl x 2) := by
-    rw [if_congr (isUndetermined_composeBlocks_iff maj3 h Q x) rfl rfl,
+    rw [if_congr (isUndetermined_composeBlocks_iff (majority 3) h Q x) rfl rfl,
       if_congr (isUndetermined_maj3_classify _ _) rfl rfl]
     let d0 : Bool := decide (IsUndetermined (tribePart Q 0) (h 0) (sl x 0))
     let d1 : Bool := decide (IsUndetermined (tribePart Q 1) (h 1) (sl x 1))
@@ -461,7 +405,7 @@ theorem coalitionInfluence_composeBlocks_maj3 {w : ℕ} (h : Fin 3 → BitString
     have hR : (𝔼 u, f0 u) * (𝔼 u, f1 u) * (𝔼 u, f2 u) = ∏ j : Fin 3, 𝔼 u, F j u := by
       rw [Fin.prod_univ_three]
       rfl
-    rw [hL, hR, expect_prod_blocks F]
+    rw [hL, hR, expect_prod_tribe F]
   rw [coalitionInfluence_uniformOfFintype]
   simp_rw [hsplit, expect_add_distrib, hprod, heU, heD, heT, heF]
   ring
@@ -469,11 +413,12 @@ theorem coalitionInfluence_composeBlocks_maj3 {w : ℕ} (h : Fin 3 → BitString
 /-! ### Iterated `3`-majority (`iterMaj3`) -/
 
 /-- Ben-Or–Linial iterated `3`-majority on `3 ^ d` bits: at depth `0`, a single coordinate bit; at
-depth `d + 1`, `maj3` composed over three independent copies of `iterMaj3 d`. -/
+depth `d + 1`, `Cslib.majority 3` composed over three independent copies of `iterMaj3 d`. -/
 @[expose] def iterMaj3 : (d : ℕ) → BitString (3 ^ d) → Bool
   | 0, x => x 0
   | d + 1, x =>
-    composeBlocks maj3 (fun _ => iterMaj3 d) fun k => x (k.cast (@Nat.pow_succ' 3 d).symm)
+    composeBlocks (majority 3) (fun _ => iterMaj3 d)
+      fun k => x (k.cast (@Nat.pow_succ' 3 d).symm)
 
 /-- `iterMaj3 d` is monotone. -/
 theorem monotone_iterMaj3 (d : ℕ) : Monotone (iterMaj3 d) := by
@@ -481,7 +426,7 @@ theorem monotone_iterMaj3 (d : ℕ) : Monotone (iterMaj3 d) := by
   | zero => exact fun x y hxy => hxy 0
   | succ d ih =>
     intro x y hxy
-    exact monotone_composeBlocks monotone_maj3 (fun _ => ih) fun k =>
+    exact monotone_composeBlocks monotone_majority (fun _ => ih) fun k =>
       hxy (k.cast (@Nat.pow_succ' 3 d).symm)
 
 /-- `iterMaj3 d` is self-dual. -/
@@ -490,7 +435,7 @@ theorem iterMaj3_not (d : ℕ) (x : BitString (3 ^ d)) :
   induction d with
   | zero => rfl
   | succ d ih =>
-    exact composeBlocks_not_of_selfDual maj3_not (fun _ => ih) _
+    exact composeBlocks_not_of_selfDual (majority_not 1) (fun _ => ih) _
 
 /-- `iterMaj3 d` is balanced: `𝔼 bitVal = 1 / 2`. -/
 theorem expect_bitVal_iterMaj3 (d : ℕ) :
@@ -534,9 +479,9 @@ theorem coalitionInfluence_iterMaj3_le (d : ℕ) (Q : Finset (Fin (3 ^ d))) :
     let Q' : Finset (Fin (3 * 3 ^ d)) :=
       Q.map (Fin.castOrderIso (@Nat.pow_succ' 3 d)).toEquiv.toEmbedding
     have hre := coalitionInfluence_comp_finCast (@Nat.pow_succ' 3 d)
-      (composeBlocks maj3 (fun _ => iterMaj3 d)) Q
+      (composeBlocks (majority 3) (fun _ => iterMaj3 d)) Q
     change coalitionInfluence (PMF.uniformOfFintype (BitString (3 ^ (d + 1)))) Q
-        (fun x => composeBlocks maj3 (fun _ => iterMaj3 d) fun k =>
+        (fun x => composeBlocks (majority 3) (fun _ => iterMaj3 d) fun k =>
           x (k.cast (@Nat.pow_succ' 3 d).symm)) ≤ (#Q : ℝ) / 2 ^ (d + 1)
     rw [hre, coalitionInfluence_composeBlocks_maj3 _ (fun _ => iterMaj3_not d) Q']
     dsimp only
@@ -546,7 +491,7 @@ theorem coalitionInfluence_iterMaj3_le (d : ℕ) (Q : Finset (Fin (3 ^ d))) :
     have hp_prod : 0 ≤ p 0 * p 1 * p 2 := mul_nonneg (mul_nonneg (hp_nonneg 0) (hp_nonneg 1))
       (hp_nonneg 2)
     have hp_le (j : Fin 3) : p j ≤ (#(tribePart Q' j) : ℝ) / 2 ^ d := ih (tribePart Q' j)
-    have hsum : ∑ j : Fin 3, #(tribePart Q' j) = #Q' := sum_card_tribePart Q'
+    have hsum : ∑ j : Fin 3, #(tribePart Q' j) = #Q' := (card_eq_sum_card_tribePart Q').symm
     have hcard : #Q' = #Q := card_map _
     calc (p 0 + p 1 + p 2 - p 0 * p 1 * p 2) / 2
         ≤ (p 0 + p 1 + p 2) / 2 := by linarith

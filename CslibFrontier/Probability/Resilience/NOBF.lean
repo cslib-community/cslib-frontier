@@ -22,8 +22,7 @@ import CslibFrontier.Probability.StatisticalDistance
 
 Resilient functions extract near-uniform bits from non-oblivious bit-fixing (NOBF) sources whose
 good coordinates `Qᶜ` are `t`-wise independent (or close to it) while the adversarial coordinates
-`Q` depend arbitrarily on the good bits ([Chattopadhyay–Zuckerman][ChattopadhyayZuckerman2019];
-locator not re-verified against primary PDF).
+`Q` depend arbitrarily on the good bits [Chattopadhyay–Zuckerman][ChattopadhyayZuckerman2019].
 
 This module supplies:
 1. Uniform extension of a distribution on `Qᶜ` to the full cube (`Cslib.BitString.extendUniform`),
@@ -348,33 +347,21 @@ theorem abs_sum_bitVal_sub_le_coalitionInfluence_add_dist (Z D : PMF (ι → Boo
     |(∑ x, (Z x).toReal * bitVal ℝ (f x)) - ∑ x, (D x).toReal * bitVal ℝ (f x)| ≤
       coalitionInfluence D Q f + dist (Z.map Qᶜ.restrict) (D.map Qᶜ.restrict) := by
   have h1 := sum_bitVal_sub_le_coalitionInfluence_add_dist Z D Q f
-  have h2 :
-      (∑ x, (D x).toReal * bitVal ℝ (f x)) - ∑ x, (Z x).toReal * bitVal ℝ (f x) ≤
-        coalitionInfluence D Q f + dist (Z.map Qᶜ.restrict) (D.map Qᶜ.restrict) := by
-    rw [← sum_fiberBitSum Z Q f, ← sum_fiberBitSum D Q f, ← sum_sub_distrib,
-      coalitionInfluence_eq_sum_map_restrict D Q f, dist_comm, dist_eq_sum_max_zero_sub,
-      ← sum_add_distrib]
-    refine sum_le_sum fun u _ => ?_
-    by_cases hu : IsUndetermined Q f (defaultExtend Q u)
-    · rw [ite_eq_left hu, mul_one]
-      have hD := fiberBitSum_le_map_restrict D Q f u
-      have hZ := fiberBitSum_nonneg Z Q f u
-      linarith [le_max_left (0 : ℝ) ((D.map Qᶜ.restrict u).toReal - (Z.map Qᶜ.restrict u).toReal)]
-    · rw [ite_eq_right hu, mul_zero, zero_add,
-        fiberBitSum_eq_of_not_isUndetermined Z Q f hu,
-        fiberBitSum_eq_of_not_isUndetermined D Q f hu, ← sub_mul]
-      have hb0 : 0 ≤ bitVal ℝ (f (defaultExtend Q u)) := by
-        cases f (defaultExtend Q u) <;> norm_num
-      have hb1 : bitVal ℝ (f (defaultExtend Q u)) ≤ 1 := by
-        cases f (defaultExtend Q u) <;> norm_num
-      calc ((D.map Qᶜ.restrict u).toReal - (Z.map Qᶜ.restrict u).toReal) *
-            bitVal ℝ (f (defaultExtend Q u))
-          ≤ max 0 ((D.map Qᶜ.restrict u).toReal - (Z.map Qᶜ.restrict u).toReal) *
-            bitVal ℝ (f (defaultExtend Q u)) :=
-            mul_le_mul_of_nonneg_right (le_max_right _ _) hb0
-        _ ≤ max 0 ((D.map Qᶜ.restrict u).toReal - (Z.map Qᶜ.restrict u).toReal) * 1 :=
-            mul_le_mul_of_nonneg_left hb1 (le_max_left _ _)
-        _ = max 0 ((D.map Qᶜ.restrict u).toReal - (Z.map Qᶜ.restrict u).toReal) := mul_one _
+  have h2 := sum_bitVal_sub_le_coalitionInfluence_add_dist Z D Q (fun x => !f x)
+  have hnot_und : ∀ x, IsUndetermined Q (fun y => !f y) x ↔ IsUndetermined Q f x := by
+    intro x
+    constructor <;> rintro ⟨y, z, hy, hz, hne⟩ <;>
+      exact ⟨y, z, hy, hz, fun h => hne (by simpa [Bool.not_eq_eq_eq_not] using h)⟩
+  have hinf : coalitionInfluence D Q (fun y => !f y) = coalitionInfluence D Q f := by
+    refine sum_congr rfl fun x _ => ?_
+    simp only [hnot_und x]
+  have hsum_not (P : PMF (ι → Bool)) :
+      ∑ x, (P x).toReal * bitVal ℝ (!f x) = 1 - ∑ x, (P x).toReal * bitVal ℝ (f x) := by
+    have hpt (x : ι → Bool) :
+        (P x).toReal * bitVal ℝ (!f x) = (P x).toReal - (P x).toReal * bitVal ℝ (f x) := by
+      cases f x <;> simp [bitVal]
+    simp_rw [hpt, sum_sub_distrib, sum_toReal]
+  rw [hinf, hsum_not Z, hsum_not D] at h2
   rw [abs_le]
   constructor <;> linarith
 

@@ -4,19 +4,22 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Computability.Circuit.Boolean.Braverman.AlmostResilience
 import CslibFrontier.Foundations.BooleanAnalysis.FourierBitVal
+import CslibFrontier.Foundations.BooleanAnalysis.Majority
 import CslibFrontier.Foundations.BooleanAnalysis.ResilientComposition
-import CslibFrontier.Probability.Extractor.LeftoverHash
-import CslibFrontier.Probability.Extractor.ResilientTwoSource
+public import CslibFrontier.Probability.Extractor.LeftoverHash
+public import CslibFrontier.Probability.Extractor.ResilientTwoSource
+import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.Uniform
-import CslibFrontierTests.Tribes
 
 /-!
 # Chattopadhyay–Zuckerman resilient functions and two-source extractor reduction
 
 Non-vacuous concrete instances and boundary checks across the five modules formalizing steps toward
-[Chattopadhyay–Zuckerman][ChattopadhyayZuckerman2019] (`#895` M2):
+[Chattopadhyay–Zuckerman][ChattopadhyayZuckerman2019]:
 1. Fourier smoothing (`Cslib.BitString.exists_isKWiseIndependent_dist_le`,
    `exists_isKWiseIndependent_dist_le_of_dist_map_restrict_le`) and almost-`t`-wise Braverman /
    Tribes resilience (`Cslib.Circuits.Boolean.Braverman.AlmostResilience`) on an explicit
@@ -24,8 +27,8 @@ Non-vacuous concrete instances and boundary checks across the five modules forma
 2. Cube-versus-marginal equivalence (`isKWiseResilient_iff_forall_compl`) and sharp NOBF
    extraction (`dist_map_uniformOfFintype_bool_le_of_coalitionInfluence`,
    `dist_map_uniformOfFintype_bool_le_of_isKWiseSmallBias_restrict`) on a `3`-bit non-oblivious
-   bit-fixing source for `maj3`, paired with a negative parity boundary.
-3. Exact `maj3` coalition-influence composition (`coalitionInfluence_composeBlocks_maj3`) and
+   bit-fixing source for `Cslib.majority 3`, paired with a negative parity boundary.
+3. Exact `3`-majority coalition-influence composition (`coalitionInfluence_composeBlocks_maj3`) and
    Ben-Or–Linial iterated `3`-majority (`iterMaj3`, `isResilient_iterMaj3`) on `9` bits.
 4. Concrete unconditional `IsTwoSourceExtractor` instantiation at error `3 / 16 < 1 / 2` for weak
    sources (`k₁ = 13 < 24`, `k₂ = 70 < 72`) via `isTwoSourceExtractor_of_resilient_condenser`, plus
@@ -270,11 +273,11 @@ private theorem extendUniform_uniformOfFintype_three :
 
 private theorem coalitionInfluence_maj3_pair {D : PMF (BitString 3)}
     (hD : IsKWiseIndependent 2 D) (a b c : Fin 3) (hbc : b ≠ c)
-    (hiff : ∀ x : BitString 3, IsUndetermined {a} maj3 x ↔ x b ≠ x c) :
-    coalitionInfluence D {a} maj3 = 1 / 2 := by
+    (hiff : ∀ x : BitString 3, IsUndetermined {a} (majority 3) x ↔ x b ≠ x c) :
+    coalitionInfluence D {a} (majority 3) = 1 / 2 := by
   rw [coalitionInfluence]
   have hpt (x : BitString 3) :
-      (if IsUndetermined {a} maj3 x then (1 : ℝ) else 0) =
+      (if IsUndetermined {a} (majority 3) x then (1 : ℝ) else 0) =
         (1 - chi ℝ ({b, c} : Finset (Fin 3)) x) / 2 := by
     have hchi : chi ℝ ({b, c} : Finset (Fin 3)) x = signVal (x b) * signVal (x c) := by
       rw [← chi_singleton b x, ← chi_singleton c x, ← chi_union (disjoint_singleton.mpr hbc)]
@@ -287,7 +290,7 @@ private theorem coalitionInfluence_maj3_pair {D : PMF (BitString 3)}
 
 private theorem coalitionInfluence_maj3_eq_half {D : PMF (BitString 3)}
     (hD : IsKWiseIndependent 2 D) {Q : Finset (Fin 3)} (hQ : #Q = 1) :
-    coalitionInfluence D Q maj3 = 1 / 2 := by
+    coalitionInfluence D Q (majority 3) = 1 / 2 := by
   rw [card_eq_one] at hQ
   obtain ⟨j, rfl⟩ := hQ
   fin_cases j
@@ -295,17 +298,17 @@ private theorem coalitionInfluence_maj3_eq_half {D : PMF (BitString 3)}
   · exact coalitionInfluence_maj3_pair hD 1 0 2 (by decide) fun x => by revert x; decide
   · exact coalitionInfluence_maj3_pair hD 2 0 1 (by decide) fun x => by revert x; decide
 
--- Positive NOBF extraction check on `maj3` via
+-- Positive NOBF extraction check on `majority 3` via
 -- `dist_map_uniformOfFintype_bool_le_of_coalitionInfluence`:
--- `dist (nobf3.map maj3) uniform ≤ 1 / 2`.
+-- `dist (nobf3.map (majority 3)) uniform ≤ 1 / 2`.
 example :
-    dist (nobf3.map maj3) (PMF.uniformOfFintype Bool) ≤ 1 / 2 := by
+    dist (nobf3.map (majority 3)) (PMF.uniformOfFintype Bool) ≤ 1 / 2 := by
   have h := dist_map_uniformOfFintype_bool_le_of_coalitionInfluence nobf3
-    (PMF.uniformOfFintype (BitString 3)) Q₀ maj3
+    (PMF.uniformOfFintype (BitString 3)) Q₀ (majority 3)
   have hmean : ∑ x : BitString 3,
-      ((PMF.uniformOfFintype (BitString 3)) x).toReal * bitVal ℝ (maj3 x) = 1 / 2 := by
+      ((PMF.uniformOfFintype (BitString 3)) x).toReal * bitVal ℝ (majority 3 x) = 1 / 2 := by
     rw [sum_uniformOfFintype_mul]
-    exact expect_bitVal_eq_half_of_selfDual maj3_not
+    exact expect_bitVal_eq_half_of_selfDual (majority_not 1)
   have hmarg : nobf3.map Q₀ᶜ.restrict = (PMF.uniformOfFintype (BitString 3)).map Q₀ᶜ.restrict := by
     rw [← extendUniform_uniformOfFintype_three, map_restrict_compl_extendUniform,
       nobf3_map_restrict]
@@ -315,21 +318,24 @@ example :
   exact h
 
 -- Cube-vs-marginal equivalence (`isKWiseResilient_iff_forall_compl`) and
--- `dist_map_uniformOfFintype_bool_le_of_isKWiseSmallBias_restrict` checked on `maj3`.
+-- `dist_map_uniformOfFintype_bool_le_of_isKWiseSmallBias_restrict` checked on `majority 3`.
 example :
     (∀ Q : Finset (Fin 3), #Q = 1 → ∀ D' : PMF (↥Qᶜ → Bool), IsKWiseIndependent 2 D' →
-      coalitionInfluence (extendUniform Q D') Q maj3 ≤ 1 / 2) ↔
-    IsKWiseResilient 2 1 (1 / 2) maj3 :=
+      coalitionInfluence (extendUniform Q D') Q (majority 3) ≤ 1 / 2) ↔
+    IsKWiseResilient 2 1 (1 / 2) (majority 3) :=
   isKWiseResilient_iff_forall_compl.symm
 
-example : dist (nobf3.map maj3) (PMF.uniformOfFintype Bool) ≤ 1 / 2 := by
+example : dist (nobf3.map (majority 3)) (PMF.uniformOfFintype Bool) ≤ 1 / 2 := by
   have hZ : IsKWiseSmallBias 3 0 (nobf3.map Q₀ᶜ.restrict) := by
     rw [nobf3_map_restrict]
     exact isKWiseIndependent_uniformOfFintype 3
   have hf_bias : ∀ D' : PMF (BitString 3), IsKWiseIndependent 3 D' →
-      |(∑ x, (D' x).toReal * bitVal ℝ (maj3 x)) - 1 / 2| ≤ 0 := by
+      |(∑ x, (D' x).toReal * bitVal ℝ (majority 3 x)) - 1 / 2| ≤ 0 := by
     intro D' hD'
-    have hf : ∀ x : BitString 3, bitVal ℝ (maj3 x) =
+    have hmaj : ∀ x : BitString 3,
+        majority 3 x = ((x 0 && x 1) || (x 0 && x 2) || (x 1 && x 2)) := by
+      decide
+    have hf : ∀ x : BitString 3, bitVal ℝ (majority 3 x) =
         1 / 2 - (chi ℝ ({0} : Finset (Fin 3)) x + chi ℝ ({1} : Finset (Fin 3)) x +
           chi ℝ ({2} : Finset (Fin 3)) x - chi ℝ ({0, 1, 2} : Finset (Fin 3)) x) / 4 := by
       intro x
@@ -338,10 +344,9 @@ example : dist (nobf3.map maj3) (PMF.uniformOfFintype Bool) ≤ 1 / 2 := by
         have hu : ({0, 1, 2} : Finset (Fin 3)) = {0} ∪ ({1} ∪ {2}) := by decide
         rw [hu, chi_union (by decide), chi_union (by decide), chi_singleton, chi_singleton,
           chi_singleton, mul_assoc]
-      rw [chi_singleton, chi_singleton, chi_singleton, h012]
-      cases h0 : x 0 <;> cases h1 : x 1 <;> cases h2 : x 2 <;>
-        simp [maj3, bitVal, h0, h1, h2] <;> norm_num
-    have hsum : ∑ x, (D' x).toReal * bitVal ℝ (maj3 x) =
+      rw [chi_singleton, chi_singleton, chi_singleton, h012, hmaj]
+      cases x 0 <;> cases x 1 <;> cases x 2 <;> simp [bitVal] <;> norm_num
+    have hsum : ∑ x, (D' x).toReal * bitVal ℝ (majority 3 x) =
         1 / 2 - (bias D' {0} + bias D' {1} + bias D' {2} - bias D' {0, 1, 2}) / 4 := by
       simp_rw [hf, mul_sub, sum_sub_distrib, ← sum_mul, sum_toReal, one_mul, mul_div_assoc',
         ← sum_div, mul_sub, mul_add, sum_sub_distrib, sum_add_distrib]
@@ -353,9 +358,9 @@ example : dist (nobf3.map maj3) (PMF.uniformOfFintype Bool) ≤ 1 / 2 := by
       abs_nonpos_iff.mp (hD' {0, 1, 2} ⟨0, by simp⟩ (by decide))
     rw [hsum, hb0, hb1, hb2, hball]
     norm_num
-  have hf_res : IsKWiseResilient 3 1 (1 / 2) maj3 := fun Q hQ D hD =>
+  have hf_res : IsKWiseResilient 3 1 (1 / 2) (majority 3) := fun Q hQ D hD =>
     (coalitionInfluence_maj3_eq_half (hD.mono (by decide)) hQ).le
-  have h := dist_map_uniformOfFintype_bool_le_of_isKWiseSmallBias_restrict nobf3 Q₀ maj3
+  have h := dist_map_uniformOfFintype_bool_le_of_isKWiseSmallBias_restrict nobf3 Q₀ (majority 3)
     (t := 3) (q := 1) (ε₁ := 0) (ε₂ := 1 / 2) (γ := 0) (by decide) (by decide) le_rfl
     hZ hf_bias hf_res
   simpa using h
@@ -411,13 +416,13 @@ example :
   · convert isResilient_iterMaj3 2 2 using 1
     norm_num
 
--- Exact `maj3` composition identity on `3 * 3` bits with one compromised bit per block
+-- Exact `3`-majority composition identity on `3 * 3` bits with one compromised bit per block
 -- (`Q = {0, 3, 6}`): each block has influence `1 / 2`, giving
 -- `(1 / 2 + 1 / 2 + 1 / 2 - 1 / 8) / 2 = 11 / 16`, strictly below the naive union bound `3 / 4`.
 example :
     coalitionInfluence (PMF.uniformOfFintype (BitString (3 * 3 ^ 1)))
       ({0, 3, 6} : Finset (Fin (3 * 3 ^ 1)))
-      (composeBlocks maj3 (fun _ => iterMaj3 1)) = 11 / 16 := by
+      (composeBlocks (majority 3) (fun _ => iterMaj3 1)) = 11 / 16 := by
   rw [coalitionInfluence_composeBlocks_maj3 _ (fun _ => iterMaj3_not 1)]
   dsimp only
   have hsingle (j : Fin 3)
@@ -425,16 +430,19 @@ example :
       coalitionInfluence (PMF.uniformOfFintype (BitString (3 ^ 1)))
         (tribePart ({0, 3, 6} : Finset (Fin (3 * 3 ^ 1))) j) (iterMaj3 1) = 1 / 2 := by
     rw [hpart]
-    have hfun : (iterMaj3 1 : BitString 3 → Bool) = maj3 := by
+    have hfun : (iterMaj3 1 : BitString 3 → Bool) = majority 3 := by
       funext x
       rfl
     rw [hfun]
     exact coalitionInfluence_maj3_eq_half
       (isKWiseIndependent_uniformOfFintype 2) (card_singleton 0)
-  have hp0 := hsingle 0 (by decide)
-  have hp1 : tribePart ({0, 3, 6} : Finset (Fin (3 * 3 ^ 1))) 1 = {0} := by decide
-  have hp2 : tribePart ({0, 3, 6} : Finset (Fin (3 * 3 ^ 1))) 2 = {0} := by decide
-  rw [hp0, hsingle 1 hp1, hsingle 2 hp2]
+  have hp0 : tribePart ({0, 3, 6} : Finset (Fin (3 * 3 ^ 1))) 0 = {0} := by
+    ext i; rw [mem_tribePart]; fin_cases i <;> decide
+  have hp1 : tribePart ({0, 3, 6} : Finset (Fin (3 * 3 ^ 1))) 1 = {0} := by
+    ext i; rw [mem_tribePart]; fin_cases i <;> decide
+  have hp2 : tribePart ({0, 3, 6} : Finset (Fin (3 * 3 ^ 1))) 2 = {0} := by
+    ext i; rw [mem_tribePart]; fin_cases i <;> decide
+  rw [hsingle 0 hp0, hsingle 1 hp1, hsingle 2 hp2]
   norm_num
 
 end Composition
@@ -468,7 +476,7 @@ private theorem isKWiseResilient_zero_zero {D : ℕ} (t : ℕ) (f : BitString D 
       (funext fun i => hb i (notMem_empty i)).symm))
   rw [coalitionInfluence_eq_zero_of_forall_not D' hzero]
 
-private def blockCond (y : BitString (3 * 24)) (i : Fin 3) : Fin 1 → BitString 24 :=
+public def blockCond (y : BitString (3 * 24)) (i : Fin 3) : Fin 1 → BitString 24 :=
   fun _ k => y (finProdFinEquiv (i, k))
 
 private theorem blockCond_isSource (q : PMF (BitString (3 * 24))) (hq : 70 ≤ minEntropy q)
@@ -477,8 +485,8 @@ private theorem blockCond_isSource (q : PMF (BitString (3 * 24))) (hq : 70 ≤ m
       (Real.logb 2 (Fintype.card (Fin 1 → BitString 24)) - 2) 0 := by
   classical
   have hlog : Real.logb 2 (Fintype.card (Fin 1 → BitString 24)) = 24 := by
-    have hcard : Fintype.card (Fin 1 → BitString 24) = Fintype.card (BitString 24) := by simp
-    rw [hcard, BitString.logb_card]
+    have hcard : Fintype.card (Fin 1 → BitString 24) = 2 ^ 24 := by simp
+    rw [hcard, Nat.cast_pow, Nat.cast_ofNat, Real.logb_pow]
     norm_num
   rw [hlog]
   refine isSource_of_le_minEntropy ((le_minEntropy_iff _).mpr fun r => ?_) 0
@@ -551,7 +559,7 @@ private theorem linearHash24_isAdviceNM :
       0 13 (1 / 128) := by
   rw [isAdviceNonMalleableExtractor_zero_iff]
   intro _ source hsource
-  have hhk : (1 : ℝ) + 2 * Real.logb 2 ((1 / 64 : ℝ)⁻¹) ≤ 13 := by
+  have hhk : ((1 : ℕ) : ℝ) + 2 * Real.logb 2 ((1 / 64 : ℝ)⁻¹) ≤ 13 := by
     rw [show (1 / 64 : ℝ)⁻¹ = (2 : ℝ) ^ 6 by norm_num, Real.logb_pow]
     norm_num
   have hLH := LinearHash.isStrongExtractor 24 1 (by norm_num : (0 : ℝ) < 1 / 64) hhk source hsource
@@ -580,7 +588,7 @@ private theorem linearHash24_isAdviceNM :
 
 -- Concrete unconditional `IsTwoSourceExtractor` witness (`t = 0, q_bad = 0`) for genuinely weak
 -- sources (`k₁ = 13 < 24`, `k₂ = 70 < 72`) with non-trivial error `3 / 16 < 1 / 2`.
-theorem cz_blockCondenser_twoSourceExtractor :
+public theorem cz_blockCondenser_twoSourceExtractor :
     IsTwoSourceExtractor
       (fun (x : BitString 24) (y : BitString (3 * 24)) =>
         LinearHash.hash (blockCond y 0) x 0) 13 70 (3 / 16) := by
@@ -601,7 +609,7 @@ example (q : PMF (BitString 10)) (hq : 7 ≤ minEntropy q) :
     ∃ B : Finset (Fin 1024), #B ≤ 512 ∧
       ∀ i ∉ B, IsSource (q.map fun y => LinearHash.hash (eSeed.symm i) y) 1 (1 / 8 : ℝ≥0) := by
   intro eSeed
-  have hhk : (1 : ℝ) + 2 * Real.logb 2 ((1 / 8 : ℝ)⁻¹) ≤ 7 := by
+  have hhk : ((1 : ℕ) : ℝ) + 2 * Real.logb 2 ((1 / 8 : ℝ)⁻¹) ≤ 7 := by
     rw [show (1 / 8 : ℝ)⁻¹ = (2 : ℝ) ^ 3 by norm_num, Real.logb_pow]
     norm_num
   have hLH := LinearHash.isStrongExtractor 10 1 (by norm_num : (0 : ℝ) < 1 / 8) hhk
@@ -629,7 +637,8 @@ example (q : PMF (BitString 10)) (hq : 7 ≤ minEntropy q) :
   obtain ⟨B, hBcard, hBgood⟩ :=
     exists_badSet_isSource_of_isStrongExtractor hcond hq (by norm_num : (0 : ℝ≥0) < 1 / 8)
   have hlog : Real.logb 2 (Fintype.card (BitString 1)) = 1 := by
-    rw [BitString.logb_card 1, Nat.cast_one]
+    have hcard : Fintype.card (BitString 1) = 2 := by simp
+    rw [hcard, Nat.cast_ofNat, Real.logb_self_eq_one one_lt_two]
   rw [hlog] at hBgood
   have hfloor : Nat.floor ((1 / 16 : ℝ) * (1024 : ℕ) / ((1 / 8 : ℝ≥0) : ℝ)) ≤ 512 := by
     norm_num

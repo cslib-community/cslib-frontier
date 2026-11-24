@@ -29,14 +29,12 @@ outside which the condensed distribution has min-entropy deficiency at most `Δ`
 `t`-non-malleable extractor `nmExt : X → Seed₂ → Fin D → Bool`, and a `(t + 1)`-independent
 `(q_bad, ε_res)`-resilient Boolean function `f : BitString D → Bool` with `(t + 1)`-independent
 bias at most `ε_bias` yields a two-source extractor `fun x y => f fun i => nmExt x (cond y i) i`
-([Chattopadhyay–Zuckerman][ChattopadhyayZuckerman2019]; locator not re-verified against primary
-PDF).
+[Chattopadhyay–Zuckerman][ChattopadhyayZuckerman2019].
 
 This is the conditional reduction endpoint of the Chattopadhyay–Zuckerman framework: instantiating
-it unconditionally for polylogarithmic min-entropy remains open under `#895` pending explicit
-non-malleable extractors and optimal depth-`4` resilient functions. Both condenser-based and
-strong-extractor specializations are included below and exercised on concrete witnesses in
-`CslibFrontierTests.CZResilientExtractor`.
+it unconditionally for polylogarithmic min-entropy requires explicit non-malleable extractors and
+optimal depth-`4` resilient functions, which are not constructed here. Both condenser-based and
+strong-extractor specializations are included below.
 
 ## Main definitions
 
@@ -627,8 +625,7 @@ condenser `cond` (missing at most `q_bad` bad seeds, with min-entropy deficiency
 `γ` on good seeds), an advice `t`-non-malleable extractor `nmExt`, and a `(t + 1)`-independent
 `(q_bad, ε_res)`-resilient function `f` of `(t + 1)`-independent bias at most `ε_bias` yields a
 two-source extractor `fun x y => f fun i => nmExt x (cond y i) i`
-([Chattopadhyay–Zuckerman][ChattopadhyayZuckerman2019]; locator not re-verified against primary
-PDF). -/
+[Chattopadhyay–Zuckerman][ChattopadhyayZuckerman2019]. -/
 theorem isTwoSourceExtractor_of_resilient_condenser
     {X Y Seed₂ : Type*} [Finite X] [Finite Y] {D : ℕ} [NeZero D]
     [Fintype Seed₂] [Nonempty Seed₂]

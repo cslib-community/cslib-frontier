@@ -18,9 +18,9 @@ import CslibFrontier.Probability.PMF
 Using Fourier smoothing (`Cslib.BitString.exists_isKWiseIndependent_dist_le_of_isKWiseSmallBias`),
 this module extends Braverman's theorem and the bounded-independence resilience transfer of
 `CslibFrontier.Computability.Circuit.Boolean.Braverman.Resilience`
-([Chattopadhyay–Zuckerman, Theorem 4.1][ChattopadhyayZuckerman2019]; locator not re-verified
-against primary PDF) from exact `t`-wise independence to `t`-wise `γ`-biased and almost `t`-wise
-independent distributions, resolving the gap noted in the docstring of `Braverman.Resilience`.
+[Chattopadhyay–Zuckerman, Theorem 4.1][ChattopadhyayZuckerman2019] from exact `t`-wise
+independence to `t`-wise `γ`-biased and almost `t`-wise independent distributions, resolving the
+gap noted in the docstring of `Braverman.Resilience`.
 
 If `D` is `t`-wise `γ`-biased on `n` bits (or every `t`-marginal is within statistical distance
 `γ` of uniform), smoothing produces an exact `t`-wise independent distribution `D'` within
@@ -91,9 +91,9 @@ theorem fools_bitVal_of_isKWiseSmallBias {D : PMF (BitString n)} {d p t : ℕ} {
   linarith
 
 /-- **Bias under almost `t`-wise independence**
-([Chattopadhyay–Zuckerman, Theorem 4.1, bias part][ChattopadhyayZuckerman2019]; locator not
-re-verified against primary PDF): extension of `abs_sum_bitVal_sub_half_le_of_isKWiseIndependent`
-to `t`-wise `γ`-biased distributions via Fourier smoothing. -/
+[Chattopadhyay–Zuckerman, Theorem 4.1][ChattopadhyayZuckerman2019]: extension of
+`abs_sum_bitVal_sub_half_le_of_isKWiseIndependent` to `t`-wise `γ`-biased distributions via
+Fourier smoothing. -/
 theorem abs_sum_bitVal_sub_half_le_of_isKWiseSmallBias {D : PMF (BitString n)} {d p t : ℕ}
     {ε₁ γ : ℝ} (hp : 1 ≤ p) (C : Circuit Unbounded.signature n 1)
     (hfan : C.FanInAtMost (2 ^ p - 1)) (hsize : C.size ≤ 2 ^ p) (hd : C.depth ≤ d)
@@ -110,9 +110,9 @@ theorem abs_sum_bitVal_sub_half_le_of_isKWiseSmallBias {D : PMF (BitString n)} {
   linarith
 
 /-- **Coalition influence under `t`-wise `γ`-bias**
-([Chattopadhyay–Zuckerman, Theorem 4.1, influence part][ChattopadhyayZuckerman2019]; locator not
-re-verified against primary PDF): extends `coalitionInfluence_le_of_independence_le` from exact
-`t`-wise independence to `t`-wise `γ`-biased distributions via Fourier smoothing. -/
+[Chattopadhyay–Zuckerman, Theorem 4.1][ChattopadhyayZuckerman2019]: extends
+`coalitionInfluence_le_of_independence_le` from exact `t`-wise independence to `t`-wise `γ`-biased
+distributions via Fourier smoothing. -/
 theorem coalitionInfluence_le_of_isKWiseSmallBias {D : PMF (BitString n)} {d p t : ℕ} {ε₂ γ : ℝ}
     (hp : 2 ≤ p) (C : Circuit Unbounded.signature n 1)
     (hmono : Monotone fun x => C.eval Unbounded.interpretation x 0)

@@ -24,10 +24,10 @@ adjusting the low-degree Fourier coefficients of the probability mass function
 (`Cslib.BitString.isKWiseSmallBias_of_dist_map_restrict_le`).
 
 Compare the classic smoothing theorem of Alon, Goldreich, and Mansour (2003) and
-[Chattopadhyay–Zuckerman][ChattopadhyayZuckerman2019] (locator not re-verified against primary
-PDF); our explicit Fourier-projection density perturbation gives a self-contained bound
-`dist D D' ≤ B / (1 + B) ≤ n ^ k * ε` with an unconditional counting bound
-`#{S | S.Nonempty ∧ #S ≤ k} ≤ n ^ k` (`Cslib.BitString.card_filter_nonempty_card_le_pow`).
+[Chattopadhyay–Zuckerman][ChattopadhyayZuckerman2019]; our explicit Fourier-projection density
+perturbation gives a self-contained bound `dist D D' ≤ B / (1 + B) ≤ n ^ k * ε` with an
+unconditional counting bound `#{S | S.Nonempty ∧ #S ≤ k} ≤ n ^ k`
+(`Cslib.BitString.card_filter_nonempty_card_le_pow`).
 
 ## Main results
 
