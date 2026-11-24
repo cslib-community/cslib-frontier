@@ -217,8 +217,8 @@ def prependFalseBitCIAdversary (bit : Bool) (ctBound : ℕ → ℕ) : CIAdversar
 polynomial time. -/
 theorem isOraclePPT_prependFalseBitCIAdversary (bit : Bool) {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
-    IsOraclePPT encBits (prependFalseBitCIAdversary bit ctBound) := by
-  ppt [prependFalseBitCIAdversary, maulCIAdversary]
+    IsOraclePPT encBits (prependFalseBitCIAdversary bit ctBound) :=
+  isOraclePPT_maulCIAdversary (by fun_prop) bit hctBound
 
 private theorem tailFallback_false_cons_maul (E : SymmetricCipher) (n : ℕ)
     (k msg ct : List Bool) (hk : k ∈ (ProbComp.eval (E.keyGen n)).support) (hmsg : msg.length = n)
@@ -258,7 +258,7 @@ Exercise 5.10, printed p. 165). -/
 theorem not_oneTimeCiphertextIntegrity_tailFallback (E : SymmetricCipher) :
     ¬ E.tailFallback.OneTimeCiphertextIntegrity :=
   E.tailFallback.not_oneTimeCiphertextIntegrity_of_maul (maul := fun _ ct => false :: ct)
-    (by fun_prop) false fun n _ k hk ct hct =>
+    (by fun_prop) false 0 fun n _ k hk ct hct =>
       tailFallback_false_cons_maul E n k _ ct hk List.length_replicate hct
 
 /-- `E.tailFallback` never satisfies `CiphertextIntegrity` ([KatzLindell2020], Exercise 5.10,
@@ -287,8 +287,8 @@ def tailFallbackCCAAdversary (ctBound : ℕ → ℕ) : CCAAdversary :=
 polynomial time. -/
 theorem isOraclePPT_tailFallbackCCAAdversary {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
-    IsOraclePPT encBool (tailFallbackCCAAdversary ctBound) := by
-  ppt [tailFallbackCCAAdversary, maulCCAAdversary]
+    IsOraclePPT encBool (tailFallbackCCAAdversary ctBound) :=
+  isOraclePPT_maulCCAAdversary (by fun_prop) true hctBound
 
 private theorem eval_encForgeGame_prependFalseBitCIAdversary (E : SymmetricCipher)
     (bit : Bool) (ctBound : ℕ → ℕ) (n : ℕ)
@@ -311,9 +311,9 @@ theorem not_oneTimeINDCCA_tailFallback {E : SymmetricCipher} (hforge : E.EncForg
     (by fun_prop) true
     (fun n bit k ct => (E.decrypt n k (false :: ct)).isSome &&
       !([List.replicate n bit].contains ((E.decrypt n k (false :: ct)).getD [])))
-    (fun bit ctBound hctBoundPoly hctBound => ?_)
-    fun n _ bit k hk ct hct => ⟨List.ne_cons_self.symm, ?_⟩
-  · have h := hforge.negligible (prependFalseBitCIAdversary bit ctBound)
+    (fun bit => ?_) 0 fun n _ bit k hk ct hct => ⟨List.ne_cons_self.symm, ?_⟩
+  · obtain ⟨ctBound, hctBoundPoly, hctBound⟩ := E.exists_ciphertext_length_bound_of_length_eq
+    have h := hforge.negligible (prependFalseBitCIAdversary bit ctBound)
       (isOraclePPT_prependFalseBitCIAdversary bit hctBoundPoly)
     refine h.congr fun n => ?_
     rw [eval_encForgeGame_prependFalseBitCIAdversary E bit ctBound n (hctBound n)]
@@ -549,8 +549,8 @@ def etmRedundantCIAdversary (ctBound : ℕ → ℕ) : CIAdversary :=
 polynomial time. -/
 theorem isOraclePPT_etmRedundantCIAdversary {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
-    IsOraclePPT encBits (etmRedundantCIAdversary ctBound) := by
-  ppt [etmRedundantCIAdversary, SymmetricCipher.maulCIAdversary]
+    IsOraclePPT encBits (etmRedundantCIAdversary ctBound) :=
+  SymmetricCipher.isOraclePPT_maulCIAdversary (by fun_prop) false hctBound
 
 private abbrev etmRedundantMaul (ct : List Bool) : List Bool :=
   encPair encBits encBits (unframe ct, false :: dropFrame ct)
@@ -617,7 +617,7 @@ theorem not_oneTimeCiphertextIntegrity_encryptThenMAC_redundantTag
     (hctLen : ∀ n, E.CiphertextLength n (M.msgLen n)) :
     ¬ (encryptThenMAC E M.redundantTag hctLen).OneTimeCiphertextIntegrity :=
   (encryptThenMAC E M.redundantTag hctLen).not_oneTimeCiphertextIntegrity_of_maul
-    (maul := fun _ => etmRedundantMaul) (by fun_prop) false fun _ _ _ hk _ hct =>
+    (maul := fun _ => etmRedundantMaul) (by fun_prop) false 0 fun _ _ _ hk _ hct =>
       (decrypt_encryptThenMAC_redundantTag_of_mem_support E M hctLen hk
         List.length_replicate hct).imp_right fun h => by rw [h]; rfl
 
@@ -658,8 +658,8 @@ def etmRedundantCCAAdversary (ctBound : ℕ → ℕ) : CCAAdversary :=
 polynomial time. -/
 theorem isOraclePPT_etmRedundantCCAAdversary {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
-    IsOraclePPT encBool (etmRedundantCCAAdversary ctBound) := by
-  ppt [etmRedundantCCAAdversary, SymmetricCipher.maulCCAAdversary]
+    IsOraclePPT encBool (etmRedundantCCAAdversary ctBound) :=
+  SymmetricCipher.isOraclePPT_maulCCAAdversary (by fun_prop) true hctBound
 
 /-- In `ccaOneTimeGame` against `encryptThenMAC E M.redundantTag hctLen` at challenge bit `bit`,
 `etmRedundantCCAAdversary ctBound` outputs `true` iff `some (List.replicate n bit)` encodes to
@@ -686,7 +686,7 @@ theorem not_oneTimeINDCCA_encryptThenMAC_redundantTag
     (hctLen : ∀ n, E.CiphertextLength n (M.msgLen n)) :
     ¬ (encryptThenMAC E M.redundantTag hctLen).OneTimeINDCCA :=
   (encryptThenMAC E M.redundantTag hctLen).not_oneTimeINDCCA_of_maul
-    (maul := fun _ => etmRedundantMaul) (by fun_prop) true fun _ _ _ _ hk _ hct =>
+    (maul := fun _ => etmRedundantMaul) (by fun_prop) true 0 fun _ _ _ _ hk _ hct =>
       decrypt_encryptThenMAC_redundantTag_of_mem_support E M hctLen hk List.length_replicate hct
 
 /-- `encryptThenMAC E M.redundantTag hctLen` never satisfies `INDCCA`

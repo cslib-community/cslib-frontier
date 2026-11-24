@@ -21,23 +21,27 @@ import CslibFrontier.Tactic.PPT
 /-!
 # Ciphertext-mauling attacks on symmetric ciphers
 
-A symmetric cipher fails ciphertext integrity, and chosen-ciphertext security, as soon as an
-adversary can transform (*maul*) an honest ciphertext into a different one that still decrypts
-([BonehShoup2023], Sections 9.1 and 9.2.1). This module packages the two attacks that the cipher
-counterexamples of the library share. Each result here is an attack theorem: it concludes that a
-cipher is *not* secure.
+A symmetric cipher fails ciphertext integrity as soon as an adversary can transform (*maul*) an
+honest ciphertext into a different word that still decrypts ([BonehShoup2023], Section 9.1). It
+fails chosen-ciphertext security when, in addition, what the mauled word decrypts to reveals which
+message was encrypted ([BonehShoup2023], Section 9.2.1). A mauled word that decrypts to the same
+plaintext in both worlds breaks ciphertext integrity but not CCA security. This module packages the
+two attacks that the cipher counterexamples of the library share. Each result here is an attack
+theorem: it concludes that a cipher is *not* secure.
 
-`maulCIAdversary maul bit ctBound` asks for an encryption of `bit^n`, reads the first
-`ctBound n` bits of the reply and outputs `maul n` of them. If, on every honest key and
-ciphertext, the mauled word differs from the ciphertext and decrypts, it wins the
-ciphertext-integrity games with probability `1`.
+`maulCIAdversary maul bit ctBound` asks for an encryption of `bit^n`, reads the first `ctBound n`
+bits of the reply and outputs `maul n` of them. If, on every honest key and ciphertext, the mauled
+word differs from the ciphertext and decrypts, it wins the ciphertext-integrity games with
+probability `1`.
 
 `maulCCAAdversary maul target ctBound` asks for the challenge encryption of `(0^n, 1^n)`, asks the
-decryption oracle on `maul n` of the ciphertext, and outputs whether the reply is `target^n`. In
-world `bit` the mauled word should decrypt to `(cond target bit !bit)^n`: the challenge message
-itself when `target = true`, its complement when `target = false`. The adversary then outputs
-`bit` for `n ≥ 1`. A variant allows the mauled word to decrypt otherwise on a bad event of
-negligible probability.
+decryption oracle on `maul n` of the (truncated) ciphertext, and outputs whether the first `n + 1`
+bits of the oracle's reply equal `encOption encBits (some target^n)`, which is `n + 1` bits long.
+The CCA hypothesis is world-dependent: in world `bit` the mauled word must differ from the
+challenge and decrypt to `(cond target bit !bit)^n`, the challenge message itself when
+`target = true` and its complement when `target = false`. The adversary then outputs `bit` for
+`n ≥ 1`. A variant allows any other outcome on a bad event of negligible probability in each
+world.
 
 ## Main definitions
 
@@ -46,16 +50,22 @@ negligible probability.
 
 ## Main results
 
+* `Cslib.Crypto.SymmetricCipher.isOraclePPT_maulCIAdversary`,
+  `Cslib.Crypto.SymmetricCipher.isOraclePPT_maulCCAAdversary`: both adversaries are oracle PPT
+  when the maul and the reply bound are polynomial-time.
 * `Cslib.Crypto.SymmetricCipher.eval_ciOneTimeGame_maulCIAdversary`,
   `Cslib.Crypto.SymmetricCipher.eval_ciGame_maulCIAdversary`: the forger wins with probability `1`.
 * `Cslib.Crypto.SymmetricCipher.not_oneTimeCiphertextIntegrity_of_maul`: a polynomial-time maul
-  that works for all `n ≥ 1` breaks one-time ciphertext integrity.
+  that works from some parameter on breaks one-time ciphertext integrity.
 * `Cslib.Crypto.SymmetricCipher.eval_ccaOneTimeGame_maulCCAAdversary`,
-  `Cslib.Crypto.SymmetricCipher.eval_ccaOneTimeGame_maulCCAAdversary_eq_pure`: the distinguisher's
-  output when the mauled word decrypts to a fixed message, and to `(cond target bit !bit)^n`.
+  `Cslib.Crypto.SymmetricCipher.eval_ccaOneTimeGame_maulCCAAdversary_eq_pure`: when the mauled
+  word decrypts to a fixed message, the distinguisher outputs the result of the Boolean test of
+  that message against `target^n`, which may fail; when it decrypts to `(cond target bit !bit)^n`,
+  it outputs `bit`.
 * `Cslib.Crypto.SymmetricCipher.not_oneTimeINDCCA_of_maul`,
   `Cslib.Crypto.SymmetricCipher.not_oneTimeINDCCA_of_maul_or_bad`: a polynomial-time maul with the
-  decryption above, exactly or outside a negligible bad event, breaks one-time CCA security.
+  world-dependent decryption above from some parameter on, exactly or outside a negligible bad
+  event, breaks one-time CCA security.
 
 ## References
 
@@ -82,7 +92,8 @@ def maulCIAdversary (maul : ℕ → List Bool → List Bool) (bit : Bool) (ctBou
     let ct ← List.take (ctBound n) <$> ProbOracleComp.query ((), List.replicate n bit)
     return maul n ct
 
-private theorem isOraclePPT_maulCIAdversary {maul : ℕ → List Bool → List Bool}
+/-- The mauling forger is oracle PPT when the maul and the reply bound are polynomial-time. -/
+theorem isOraclePPT_maulCIAdversary {maul : ℕ → List Bool → List Bool}
     (hmaul : ComputableInPolyTime (fun p : ℕ × List Bool => maul p.1 p.2)
       (encPair encUnary encBits) encBits)
     (bit : Bool) {ctBound : ℕ → ℕ} (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
@@ -128,14 +139,14 @@ theorem eval_ciGame_maulCIAdversary (E : SymmetricCipher)
     Bool.and_self, ↓reduceIte, runWith_norm, pmf_norm]
 
 /-- **A polynomial-time ciphertext maul breaks one-time ciphertext integrity.** If, for every
-`n ≥ 1`, on every honest key and ciphertext of `bit^n`, `maul n` changes the ciphertext into a
+`n ≥ n₀`, on every honest key and ciphertext of `bit^n`, `maul n` changes the ciphertext into a
 word that decrypts, then `E` is not `OneTimeCiphertextIntegrity`. -/
 theorem not_oneTimeCiphertextIntegrity_of_maul (E : SymmetricCipher)
     {maul : ℕ → List Bool → List Bool}
     (hmaulPoly : ComputableInPolyTime (fun p : ℕ × List Bool => maul p.1 p.2)
       (encPair encUnary encBits) encBits)
-    (bit : Bool)
-    (hmaul : ∀ n, 1 ≤ n → ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
+    (bit : Bool) (n₀ : ℕ)
+    (hmaul : ∀ n, n₀ ≤ n → ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
       ∀ ct ∈ (ProbComp.eval (E.encrypt n k (List.replicate n bit))).support,
         maul n ct ≠ ct ∧ (E.decrypt n k (maul n ct)).isSome = true) :
     ¬ E.OneTimeCiphertextIntegrity := by
@@ -145,7 +156,7 @@ theorem not_oneTimeCiphertextIntegrity_of_maul (E : SymmetricCipher)
     (isOraclePPT_maulCIAdversary hmaulPoly bit hctBoundPoly)
   have hle : ∀ᶠ n in Filter.atTop, (1 : ℝ≥0) ≤
       Game.succProbability (ProbComp.eval (E.ciOneTimeGame (maulCIAdversary maul bit ctBound) n)) :=
-    Filter.eventually_atTop.mpr ⟨1, fun n hn => by
+    Filter.eventually_atTop.mpr ⟨n₀, fun n hn => by
       rw [E.eval_ciOneTimeGame_maulCIAdversary bit ctBound n (hctBound n) (hmaul n hn)]
       simp [Game.succProbability]⟩
   exact not_negligible_const one_ne_zero (by negligible eventually hle)
@@ -165,7 +176,9 @@ def maulCCAAdversary (maul : ℕ → List Bool → List Bool) (target : Bool) (c
     let reply ← List.take (n + 1) <$> ProbOracleComp.query (true, maul n ct)
     return (reply == encOption encBits (some (List.replicate n target)))
 
-private theorem isOraclePPT_maulCCAAdversary {maul : ℕ → List Bool → List Bool}
+/-- The mauling distinguisher is oracle PPT when the maul and the reply bound are
+polynomial-time. -/
+theorem isOraclePPT_maulCCAAdversary {maul : ℕ → List Bool → List Bool}
     (hmaul : ComputableInPolyTime (fun p : ℕ × List Bool => maul p.1 p.2)
       (encPair encUnary encBits) encBits)
     (target : Bool) {ctBound : ℕ → ℕ}
@@ -303,22 +316,21 @@ private theorem le_ccaAdvantage_of_maul (E : SymmetricCipher)
   exact htrue.trans (by gcongr; exact hadv.trans (by gcongr))
 
 /-- **A polynomial-time ciphertext maul breaks one-time CCA security, up to a bad event.** If, for
-every `n ≥ 1` and world `bit`, on every honest key `k` and ciphertext `ct` of `bit^n`, `maul n`
+every `n ≥ n₀` and world `bit`, on every honest key `k` and ciphertext `ct` of `bit^n`, `maul n`
 changes `ct` into a word that decrypts to `(cond target bit !bit)^n` unless `bad n bit k ct`
-holds, and the bad event has negligible probability in each world for every polynomial-time
-ciphertext bound, then `E` is not `OneTimeINDCCA`. -/
+holds, and the bad event has negligible probability in each world, then `E` is not
+`OneTimeINDCCA`. -/
 theorem not_oneTimeINDCCA_of_maul_or_bad (E : SymmetricCipher)
     {maul : ℕ → List Bool → List Bool}
     (hmaulPoly : ComputableInPolyTime (fun p : ℕ × List Bool => maul p.1 p.2)
       (encPair encUnary encBits) encBits)
     (target : Bool) (bad : ℕ → Bool → List Bool → List Bool → Bool)
-    (hbadNeg : ∀ bit ctBound, ComputableInPolyTime ctBound encUnary encUnary →
-      (∀ n, E.CiphertextLengthLE n (ctBound n)) →
-      Negligible fun n => Game.succProbability (do
+    (hbadNeg : ∀ bit, Negligible fun n => Game.succProbability (do
         let k ← ProbComp.eval (E.keyGen n)
         let ct ← ProbComp.eval (E.encrypt n k (List.replicate n bit))
         return bad n bit k ct))
-    (hmaul : ∀ n, 1 ≤ n → ∀ bit, ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
+    (n₀ : ℕ)
+    (hmaul : ∀ n, n₀ ≤ n → ∀ bit, ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
       ∀ ct ∈ (ProbComp.eval (E.encrypt n k (List.replicate n bit))).support,
         maul n ct ≠ ct ∧
           (E.decrypt n k (maul n ct) = some (List.replicate n (cond target bit !bit)) ∨
@@ -330,7 +342,7 @@ theorem not_oneTimeINDCCA_of_maul_or_bad (E : SymmetricCipher)
     (isOraclePPT_maulCCAAdversary hmaulPoly target hctBoundPoly)
   have hbad (bit : Bool) : Negligible fun n => Game.succProbability
       ((E.encDist bit n).bind fun p => PMF.pure (bad n bit p.1 p.2)) := by
-    refine (hbadNeg bit ctBound hctBoundPoly hctBound).congr fun n => ?_
+    refine (hbadNeg bit).congr fun n => ?_
     simp only [encDist, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind,
       PMF.pure_bind]
   have := hbad false
@@ -341,25 +353,26 @@ theorem not_oneTimeINDCCA_of_maul_or_bad (E : SymmetricCipher)
         (ProbComp.eval (E.ccaOneTimeGame (maulCCAAdversary maul target ctBound) false n))
         (ProbComp.eval (E.ccaOneTimeGame (maulCCAAdversary maul target ctBound) true n)) +
       Game.succProbability ((E.encDist true n).bind fun p => PMF.pure (bad n true p.1 p.2)) :=
-    Filter.eventually_atTop.mpr ⟨1, fun n hn =>
-      E.le_ccaAdvantage_of_maul target ctBound (fun bit p => bad n bit p.1 p.2) n hn (hctBound n)
-        fun bit k hk ct hct => hmaul n hn bit k hk ct hct⟩
+    Filter.eventually_atTop.mpr ⟨max n₀ 1, fun n hn =>
+      E.le_ccaAdvantage_of_maul target ctBound (fun bit p => bad n bit p.1 p.2) n
+        ((le_max_right n₀ 1).trans hn) (hctBound n)
+        fun bit k hk ct hct => hmaul n ((le_max_left n₀ 1).trans hn) bit k hk ct hct⟩
   exact not_negligible_const one_ne_zero (by negligible eventually hle)
 
-/-- **A polynomial-time ciphertext maul breaks one-time CCA security.** If, for every `n ≥ 1` and
+/-- **A polynomial-time ciphertext maul breaks one-time CCA security.** If, for every `n ≥ n₀` and
 world `bit`, on every honest key and ciphertext of `bit^n`, `maul n` changes the ciphertext into a
 word that decrypts to `(cond target bit !bit)^n`, then `E` is not `OneTimeINDCCA`. -/
 theorem not_oneTimeINDCCA_of_maul (E : SymmetricCipher) {maul : ℕ → List Bool → List Bool}
     (hmaulPoly : ComputableInPolyTime (fun p : ℕ × List Bool => maul p.1 p.2)
       (encPair encUnary encBits) encBits)
-    (target : Bool)
-    (hmaul : ∀ n, 1 ≤ n → ∀ bit, ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
+    (target : Bool) (n₀ : ℕ)
+    (hmaul : ∀ n, n₀ ≤ n → ∀ bit, ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
       ∀ ct ∈ (ProbComp.eval (E.encrypt n k (List.replicate n bit))).support,
         maul n ct ≠ ct ∧
           E.decrypt n k (maul n ct) = some (List.replicate n (cond target bit !bit))) :
     ¬ E.OneTimeINDCCA :=
   E.not_oneTimeINDCCA_of_maul_or_bad hmaulPoly target (fun _ _ _ _ => false)
-    (fun _ _ _ _ => by simp [Game.succProbability])
+    (fun _ => by simp [Game.succProbability]) n₀
     fun n hn bit k hk ct hct => (hmaul n hn bit k hk ct hct).imp_right Or.inl
 
 end SymmetricCipher

@@ -156,12 +156,20 @@ def partialTagCIAdversary (ctBound : ℕ → ℕ) : CIAdversary :=
   SymmetricCipher.maulCIAdversary
     (fun _ ct => encPair encBits encBits (flipHeadBit (unframe ct), dropFrame ct)) false ctBound
 
+/-- Flipping the first initial-value bit of a framed ciphertext and keeping its tag, on the second
+component, is polynomial-time. -/
+private theorem computableInPolyTime_partialTagMaul :
+    ComputableInPolyTime
+      (fun p : ℕ × List Bool => encPair encBits encBits (flipHeadBit (unframe p.2), dropFrame p.2))
+      (encPair encUnary encBits) encBits := by
+  polytime
+
 /-- `partialTagCIAdversary` is uniformly strict oracle-PPT (`IsOraclePPT`) when `ctBound` is
 computable in plain polynomial time. -/
 theorem isOraclePPT_partialTagCIAdversary {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
-    IsOraclePPT encBits (partialTagCIAdversary ctBound) := by
-  ppt [partialTagCIAdversary, SymmetricCipher.maulCIAdversary]
+    IsOraclePPT encBits (partialTagCIAdversary ctBound) :=
+  SymmetricCipher.isOraclePPT_maulCIAdversary computableInPolyTime_partialTagMaul false hctBound
 
 /-- `partialTagCIAdversary` makes at most `1` encryption query. -/
 theorem isQueryBounded_partialTagCIAdversary (ctBound : ℕ → ℕ) (n : ℕ) (aux : List Bool) :
@@ -249,18 +257,11 @@ theorem not_oneTimeCiphertextIntegrity_prfCipherPartialTag
       (encPair encBits encBits) encBits)
     (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length)
     (M : MACScheme) (hmsgLen : ∀ n, M.msgLen n = n) :
-    ¬ (prfCipherPartialTag family hpoly hlen M hmsgLen).OneTimeCiphertextIntegrity := by
-  intro hci
-  let E' := prfCipherPartialTag family hpoly hlen M hmsgLen
-  obtain ⟨ctBound, hctBoundPoly, hctBound⟩ := E'.exists_ciphertext_length_bound_of_length_eq
-  have hneg := (hci.negligible (partialTagCIAdversary ctBound)
-    (isOraclePPT_partialTagCIAdversary hctBoundPoly)).shift 1
-  have hconst : Negligible (fun _ : ℕ => (1 : ℝ≥0)) := by
-    refine hneg.congr fun n => ?_
-    rw [eval_ciOneTimeGame_prfCipherPartialTag_partialTagCIAdversary family hpoly hlen M hmsgLen
-      ctBound (by omega) (hctBound (n + 1))]
-    simp [Game.succProbability]
-  exact not_negligible_const one_ne_zero hconst
+    ¬ (prfCipherPartialTag family hpoly hlen M hmsgLen).OneTimeCiphertextIntegrity :=
+  SymmetricCipher.not_oneTimeCiphertextIntegrity_of_maul _ computableInPolyTime_partialTagMaul
+    false 1 fun _ hn _ hk _ hct =>
+      malleate_prfCipherPartialTag_ciphertext family hpoly hlen M hmsgLen hn hk
+        List.length_replicate hct
 
 /-- `prfCipherPartialTag` unconditionally fails `CiphertextIntegrity` for every `MACScheme` on
 `n`-bit messages. -/

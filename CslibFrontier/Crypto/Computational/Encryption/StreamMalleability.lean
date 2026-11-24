@@ -97,9 +97,41 @@ def prfCipherCCAAdversary : CCAAdversary :=
   SymmetricCipher.maulCCAAdversary (fun n ct => ivStreamXorBody n (List.replicate n true) ct)
     false (fun n => 2 * n)
 
+/-- XORing `1ⁿ` into a word after its `n`-bit initial value, as a function of `(n, word)`, is
+polynomial-time. -/
+private theorem computableInPolyTime_prfCipherMaul :
+    ComputableInPolyTime
+      (fun p : ℕ × List Bool => ivStreamXorBody p.1 (List.replicate p.1 true) p.2)
+      (encPair encUnary encBits) encBits := by
+  have hp := ComputableInPolyTime.id' (encIn := encPair encUnary encBits)
+  exact computableInPolyTime_ivStreamXorBody hp.fst'
+    ((ComputableInPolyTime.bitsReplicate true).comp hp.fst') hp.snd'
+
 /-- `prfCipherCCAAdversary` is an efficient oracle adversary. -/
-theorem isOraclePPT_prfCipherCCAAdversary : IsOraclePPT encBool prfCipherCCAAdversary := by
-  ppt [prfCipherCCAAdversary, SymmetricCipher.maulCCAAdversary]
+theorem isOraclePPT_prfCipherCCAAdversary : IsOraclePPT encBool prfCipherCCAAdversary :=
+  SymmetricCipher.isOraclePPT_maulCCAAdversary computableInPolyTime_prfCipherMaul false
+    (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) .id')
+
+/-- For `n ≥ 1`, XORing `1ⁿ` into an honest encryption of `bit^n` under `prfCipher` gives a
+different word that decrypts to the complement `(!bit)^n`. -/
+private theorem maul_prfCipher (family : List Bool → List Bool → List Bool)
+    (hpoly : ComputableInPolyTime (fun pair => family pair.1 pair.2)
+      (encPair encBits encBits) encBits)
+    (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length)
+    (bit : Bool) {n : ℕ} (hn : 1 ≤ n) {k ct : List Bool}
+    (hk : k ∈ (ProbComp.eval ((prfCipher family hpoly hlen).keyGen n)).support)
+    (hct : ct ∈ (ProbComp.eval ((prfCipher family hpoly hlen).encrypt n k
+      (List.replicate n bit))).support) :
+    ivStreamXorBody n (List.replicate n true) ct ≠ ct ∧
+      (prfCipher family hpoly hlen).decrypt n k (ivStreamXorBody n (List.replicate n true) ct) =
+        some (List.replicate n (cond false bit !bit)) := by
+  obtain ⟨hdec, hne⟩ := prfCipher_decrypt_ivStreamXorBody family hpoly hlen hk
+    List.length_replicate (List.length_replicate (a := true)) hct
+  have hflip : List.zipWith xor (List.replicate n bit) (List.replicate n true) =
+      List.replicate n !bit := by
+    simp
+  rw [hflip] at hdec hne
+  exact ⟨hne (by cases bit <;> simp [List.replicate_inj] <;> omega), hdec⟩
 
 /-- `prfCipherCCAAdversary` guesses the challenge bit of the one-time chosen-ciphertext game
 against `prfCipher` with probability `1`, for every family and every `1 ≤ n`
@@ -110,17 +142,10 @@ theorem eval_ccaOneTimeGame_prfCipher (family : List Bool → List Bool → List
     (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length)
     (bit : Bool) {n : ℕ} (hn : 1 ≤ n) :
     ProbComp.eval ((prfCipher family hpoly hlen).ccaOneTimeGame prfCipherCCAAdversary bit n) =
-      PMF.pure bit := by
-  refine SymmetricCipher.eval_ccaOneTimeGame_maulCCAAdversary_eq_pure _ false bit _ (Or.inr hn)
+      PMF.pure bit :=
+  SymmetricCipher.eval_ccaOneTimeGame_maulCCAAdversary_eq_pure _ false bit _ (Or.inr hn)
     (fun k hk _ hmsg ct hct => (prfCipher_ciphertext_length family hpoly hlen n k hk _ hmsg ct
-      hct).le) fun k hk ct hct => ?_
-  obtain ⟨hdec, hne⟩ := prfCipher_decrypt_ivStreamXorBody family hpoly hlen hk
-    List.length_replicate (List.length_replicate (a := true)) hct
-  have hflip : List.zipWith xor (List.replicate n bit) (List.replicate n true) =
-      List.replicate n !bit := by
-    simp
-  rw [hflip] at hdec hne
-  exact ⟨hne (by cases bit <;> simp [List.replicate_inj] <;> omega), hdec⟩
+      hct).le) fun _ hk _ hct => maul_prfCipher family hpoly hlen bit hn hk hct
 
 /-- The one-block PRF cipher `prfCipher` is not one-time CCA-secure, for any family
 ([BonehShoup2023], Section 9.2.1), although it is CPA-secure for a pseudorandom family
@@ -129,14 +154,9 @@ theorem not_oneTimeINDCCA_prfCipher (family : List Bool → List Bool → List B
     (hpoly : ComputableInPolyTime (fun pair => family pair.1 pair.2)
       (encPair encBits encBits) encBits)
     (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length) :
-    ¬ (prfCipher family hpoly hlen).OneTimeINDCCA := by
-  intro hcca
-  have hcomp := (hcca prfCipherCCAAdversary isOraclePPT_prfCipherCCAAdversary).shift 1
-  refine not_negligible_const (one_ne_zero (α := ℝ≥0)) (hcomp.congr fun n => ?_)
-  dsimp only
-  rw [eval_ccaOneTimeGame_prfCipher family hpoly hlen false (Nat.le_add_left 1 n),
-    eval_ccaOneTimeGame_prfCipher family hpoly hlen true (Nat.le_add_left 1 n)]
-  simp [Game.advantage, Game.succProbability]
+    ¬ (prfCipher family hpoly hlen).OneTimeINDCCA :=
+  SymmetricCipher.not_oneTimeINDCCA_of_maul _ computableInPolyTime_prfCipherMaul false 1
+    fun _ hn bit _ hk _ hct => maul_prfCipher family hpoly hlen bit hn hk hct
 
 /-- The one-block PRF cipher `prfCipher` is not CCA-secure, for any family ([BonehShoup2023],
 Section 9.2.1). -/

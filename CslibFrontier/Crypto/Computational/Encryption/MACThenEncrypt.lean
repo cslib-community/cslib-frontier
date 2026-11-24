@@ -811,6 +811,12 @@ private theorem malleate_macThenEncrypt_extendCipher_ciphertext
     exact decrypt_macThenEncrypt_extendCipher_append_true E M ptLen hptLenPoly hmsgLen hpairLen n
       hke hkm hmsg htag hc
 
+/-- Replacing the last bit of a word by `true`, on the second component, is polynomial-time. -/
+private theorem computableInPolyTime_flipLastBit :
+    ComputableInPolyTime (fun p : ℕ × List Bool => p.2.take (p.2.length - 1) ++ [true])
+      (encPair encUnary encBits) encBits := by
+  polytime
+
 /-- One-query ciphertext-integrity adversary against `macThenEncrypt E.extendCipher M ptLen ...`:
 encrypts `0^n` and flips the trailing `false` bit of the ciphertext to `true`. -/
 def macThenEncryptExtendCIAdversary (ctBound : ℕ → ℕ) : CIAdversary :=
@@ -819,8 +825,8 @@ def macThenEncryptExtendCIAdversary (ctBound : ℕ → ℕ) : CIAdversary :=
 /-- `macThenEncryptExtendCIAdversary` is uniformly strict oracle-PPT. -/
 theorem isOraclePPT_macThenEncryptExtendCIAdversary {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
-    IsOraclePPT encBits (macThenEncryptExtendCIAdversary ctBound) := by
-  ppt [macThenEncryptExtendCIAdversary, SymmetricCipher.maulCIAdversary]
+    IsOraclePPT encBits (macThenEncryptExtendCIAdversary ctBound) :=
+  SymmetricCipher.isOraclePPT_maulCIAdversary computableInPolyTime_flipLastBit false hctBound
 
 /-- `macThenEncryptExtendCIAdversary` succeeds with probability `1` in `ciOneTimeGame` against
 `macThenEncrypt E.extendCipher M ptLen ...`. -/
@@ -853,7 +859,7 @@ theorem not_oneTimeCiphertextIntegrity_macThenEncrypt_extendCipher (E : Symmetri
     ¬ (macThenEncrypt E.extendCipher M ptLen hptLenPoly hmsgLen
         hpairLen).OneTimeCiphertextIntegrity :=
   SymmetricCipher.not_oneTimeCiphertextIntegrity_of_maul _
-    (maul := fun _ ct => ct.take (ct.length - 1) ++ [true]) (by fun_prop) false
+    (maul := fun _ ct => ct.take (ct.length - 1) ++ [true]) computableInPolyTime_flipLastBit false 0
     fun n _ _ hk _ hct =>
       (malleate_macThenEncrypt_extendCipher_ciphertext E M ptLen hptLenPoly hmsgLen hpairLen n hk
         List.length_replicate hct).imp_right fun h => by rw [h]; rfl
@@ -882,8 +888,8 @@ def macThenEncryptExtendCCAAdversary (ctBound : ℕ → ℕ) : CCAAdversary :=
 /-- `macThenEncryptExtendCCAAdversary` is uniformly strict oracle-PPT. -/
 theorem isOraclePPT_macThenEncryptExtendCCAAdversary {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
-    IsOraclePPT encBool (macThenEncryptExtendCCAAdversary ctBound) := by
-  ppt [macThenEncryptExtendCCAAdversary, SymmetricCipher.maulCCAAdversary]
+    IsOraclePPT encBool (macThenEncryptExtendCCAAdversary ctBound) :=
+  SymmetricCipher.isOraclePPT_maulCCAAdversary computableInPolyTime_flipLastBit true hctBound
 
 /-- In `ccaOneTimeGame` against `macThenEncrypt E.extendCipher M ptLen ...`,
 `macThenEncryptExtendCCAAdversary` outputs `bit` with probability `1` whenever `bit = true` or
@@ -942,7 +948,7 @@ theorem not_oneTimeINDCCA_macThenEncrypt_extendCipher (E : SymmetricCipher)
     ¬ (macThenEncrypt E.extendCipher M ptLen hptLenPoly hmsgLen
         hpairLen).OneTimeINDCCA :=
   SymmetricCipher.not_oneTimeINDCCA_of_maul _
-    (maul := fun _ ct => ct.take (ct.length - 1) ++ [true]) (by fun_prop) true
+    (maul := fun _ ct => ct.take (ct.length - 1) ++ [true]) computableInPolyTime_flipLastBit true 0
     fun n _ _ _ hk _ hct => malleate_macThenEncrypt_extendCipher_ciphertext E M ptLen hptLenPoly
       hmsgLen hpairLen n hk List.length_replicate hct
 

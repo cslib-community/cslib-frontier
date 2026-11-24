@@ -267,17 +267,13 @@ theorem isPPTOn_dlSelfReduceRetryAdversary_invEps
         input.1 input.2) :=
   F.isPPTOn_dlSelfReduceRetryAdversary hA (by fun_prop)
 
-/-- The CDH correction term computed with natural-number scalars, `q - σ % q` for `-σ`, is the
-one of `cdhSelfReduceAdversary`. -/
+/-- Adding the encoded CDH correction term is the subtraction of `cdhSelfReduceAdversary`. -/
 private theorem add_correction_eq (d : F.Desc) (u v w : F.Carrier d) (ρ τ : ℕ) :
-    w + ((((F.order d - τ % F.order d : ℕ) : ZMod (F.order d)) • u +
-        ((F.order d - ρ % F.order d : ℕ) : ZMod (F.order d)) • v) +
-        (((F.order d - ρ % F.order d : ℕ) : ZMod (F.order d)) * (τ : ZMod (F.order d))) •
-          F.generator d) =
+    w + (-((τ : ZMod (F.order d)) • u) - (ρ : ZMod (F.order d)) • v -
+        ((ρ : ZMod (F.order d)) * τ) • F.generator d) =
       w - (τ : ZMod (F.order d)) • u - (ρ : ZMod (F.order d)) • v -
         ((ρ : ZMod (F.order d)) * τ) • F.generator d := by
-  rw [ZMod.natCast_sub_mod_eq_neg, ZMod.natCast_sub_mod_eq_neg]
-  module
+  abel
 
 /-- **The CDH self-reduction is efficient**: if the CDH adversary is uniform strict PPT, so is
 `cdhSelfReduceAdversary`. -/
@@ -297,16 +293,13 @@ theorem isPPT_cdhSelfReduceAdversary {adversary : F.CDHAdversary} (hA : adversar
   have hρ : ComputableInPolyTime (fun p : (F.CDHInput × ℕ) × ℕ => p.1.2) E encNat := by fun_prop
   have hτ : ComputableInPolyTime (fun p : (F.CDHInput × ℕ) × ℕ => p.2) E encNat := by fun_prop
   have hg := computableInPolyTime_encode_generator hd
-  have hq := F.computableInPolyTime_order.comp hd
   have hcall := IsPPTOn.preprocess hA (F.encCDHInput_mk_polyTime hn hd
     (computableInPolyTime_encode_add hd hu (computableInPolyTime_encode_natCast_smul hd hρ hg))
     (computableInPolyTime_encode_add hd hv (computableInPolyTime_encode_natCast_smul hd hτ hg)))
-  have hnegτ := hq.binary_sub' (hτ.binary_mod' hq)
-  have hnegρ := hq.binary_sub' (hρ.binary_mod' hq)
-  have hcorr := computableInPolyTime_encode_add hd (computableInPolyTime_encode_add hd
-    (computableInPolyTime_encode_natCast_smul hd hnegτ hu)
-    (computableInPolyTime_encode_natCast_smul hd hnegρ hv))
-    (computableInPolyTime_encode_natCast_smul hd (hnegρ.binary_mul' hτ) hg)
+  have hcorr := computableInPolyTime_encode_sub hd (computableInPolyTime_encode_sub hd
+    (computableInPolyTime_encode_neg hd (computableInPolyTime_encode_natCast_smul hd hτ hu))
+    (computableInPolyTime_encode_natCast_smul hd hρ hv))
+    (computableInPolyTime_encode_natCast_smul hd (hρ.binary_mul' hτ) hg)
   have hfst : ComputableInPolyTime (fun pair : ((F.CDHInput × ℕ) × ℕ) × List Bool => pair.1)
       (encPair E encBits) E := by fun_prop
   have hsnd : ComputableInPolyTime (fun pair : ((F.CDHInput × ℕ) × ℕ) × List Bool => pair.2)
@@ -315,12 +308,9 @@ theorem isPPT_cdhSelfReduceAdversary {adversary : F.CDHAdversary} (hA : adversar
       F.sampleExp x.secParam x.groupParameters >>= fun ρ =>
       F.sampleExp x.secParam x.groupParameters >>= fun τ =>
       (fun z => F.add (x.groupParameters, z, F.encode x.groupParameters
-        ((((F.order x.groupParameters - τ % F.order x.groupParameters : ℕ) :
-            ZMod (F.order x.groupParameters)) • x.leftPublic +
-          ((F.order x.groupParameters - ρ % F.order x.groupParameters : ℕ) :
-            ZMod (F.order x.groupParameters)) • x.rightPublic) +
-          (((F.order x.groupParameters - ρ % F.order x.groupParameters) * τ : ℕ) :
-            ZMod (F.order x.groupParameters)) • F.generator x.groupParameters))) <$>
+        (-((τ : ZMod (F.order x.groupParameters)) • x.leftPublic) -
+          (ρ : ZMod (F.order x.groupParameters)) • x.rightPublic -
+          ((ρ * τ : ℕ) : ZMod (F.order x.groupParameters)) • F.generator x.groupParameters))) <$>
         (F.encode x.groupParameters <$> adversary x.secParam x.groupParameters
           (x.leftPublic + (ρ : ZMod (F.order x.groupParameters)) • F.generator x.groupParameters)
           (x.rightPublic +
