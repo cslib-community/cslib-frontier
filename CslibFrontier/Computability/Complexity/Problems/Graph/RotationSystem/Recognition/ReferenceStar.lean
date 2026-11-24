@@ -290,11 +290,11 @@ theorem referenceDrawing_fixedWord_clockwise_iff {I : FixedRotationInput} (hI : 
     referenceDrawing_fixedWord_arg_lt_iff hI hw ha hc]
   tauto
 
-/-- The boundary ports of an embedding realizing a prescribed word have the same clockwise
+/-- The boundary ports at a vertex realizing a prescribed word have the same clockwise
 triples as the matching reference rays. The radius changes the port positions but does not
 change their order as seen from the original center. -/
 theorem cutPort_clockwise_iff_reference {I : FixedRotationInput} (hI : Valid I)
-    {D : PolygonalDrawing I.graph} (hD : D.IsEmbedding) {r : RotationSystem I.graph}
+    {D : PolygonalDrawing I.graph} {r : RotationSystem I.graph}
     (hReal : D.Realizes r) (hfixed : Realizes I r) {ρ : ℝ} (hρ : 0 < ρ)
     {v : ℕ} {word : List ℕ} (hw : I.orders.getD v none = some word)
     {a b c : Dart I.graph} (ha : a.index ∈ word) (hb : b.index ∈ word) (hc : c.index ∈ word)
@@ -308,7 +308,7 @@ theorem cutPort_clockwise_iff_reference {I : FixedRotationInput} (hI : Valid I)
   have hav := fixedWord_dart_vertex hI hw ha
   have hbv := fixedWord_dart_vertex hI hw hb
   have hcv := fixedWord_dart_vertex hI hw hc
-  exact (hReal.cutPort_clockwise hD v hρ (Metric.mem_ball_self hρ)
+  exact (hReal.cutPort_clockwise v hρ (Metric.mem_ball_self hρ)
     a b c hav hbv hcv hab hbc hac).trans
     ((hfixed.mem_rotationInterval_iff_fixedWord hI hw ha hb hc hab hbc hac).trans
       (referenceDrawing_fixedWord_clockwise_iff hI hw ha hb hc hab hbc hac).symm)

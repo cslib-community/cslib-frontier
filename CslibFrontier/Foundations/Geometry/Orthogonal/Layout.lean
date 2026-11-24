@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Simple
 import Aesop
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
@@ -294,11 +295,9 @@ theorem fan_bridge_disjoint {n e u v w : ℕ} (hw : w < n) (s t q : Fin 3) :
   intro p hp hq
   have hb := fan_bounds hp
   have hy := (mem_bridge.1 hq).1
-  have hw' : (w : ℝ) + 1 ≤ n := by exact_mod_cast hw
   have he : (0 : ℝ) ≤ e := by positivity
   simp only [track] at hy
-  push_cast at hy
-  linarith
+  cast_linarith [hw]
 
 /-- Distinct edge tracks give disjoint upper bridges. -/
 theorem bridge_disjoint {n e f u v a b : ℕ} (hef : e ≠ f) (s t q r : Fin 3) :

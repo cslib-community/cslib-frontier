@@ -7,8 +7,11 @@ Authors: Samuel Schlesinger
 import CslibFrontier.Computability.Complexity.Classes.Alternation.NP
 import CslibFrontier.Computability.Complexity.Classes.Alternation.Savitch
 import CslibFrontier.Computability.Complexity.Classes.Alternation.TQBF
+import CslibFrontier.Computability.Complexity.Classes.Constructible.UnaryClock
+import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.Polynomial
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 
 /-!
 # Tests: alternating machines and `AP = PSPACE`
@@ -19,7 +22,10 @@ which puts `Set.univ` and `∅` in `AP` with explicit machines, and their games 
 lost. Two game verifiers, one won by the existential player's first move and one lost to the
 universal player's, put `Set.univ` and `∅` in `AP` through the guess-then-verify machine.
 Single-bit moves on concrete predicates, rounds of quantifiers on a concrete formula, and
-Savitch's midpoint game on a two-word graph.
+Savitch's midpoint game on a two-word graph. `Set.univ` and `∅`, in nondeterministic polynomial
+space through `P`, are midpoint games won and lost on every instance. For a time-constructible
+`s`, the number of moves of the midpoint game at width `K * (n + s n + 1)` is written in unary
+within time `O((n + s n + 1) ^ 2)`, here for `s n = n`.
 -/
 
 namespace CslibFrontierTests.Alternation
@@ -269,5 +275,127 @@ example : ¬Alternation true (List.replicate (2 * ((1 + 1) * 1)) 1)
 example : Alternation true ([1] ++ [1, 1]) (fun z => z.take 1 = [true]) :=
   (alternation_append_iff fun z => by
     simp only [List.sum_cons, List.sum_nil, List.take_take]; rfl).mpr ⟨[true], rfl, rfl⟩
+
+/-! ### Nondeterministic space as a midpoint game -/
+
+/-- Problems in `P` are in `NSPACE (· ^ j)` for some `j`. -/
+private theorem exists_mem_NSPACE_of_mem_P {α : Type} {enc : α ↪ List Bool} {A : Set α}
+    (h : A ∈ P enc) : ∃ j, A ∈ NSPACE enc (· ^ j) :=
+  mem_NPSPACE_iff_exists_mem_NSPACE.mp (PSPACE_subset_NPSPACE (P_subset_PSPACE h))
+
+/-- `Set.univ`, in `NSPACE (· ^ j)` through `P`, is a midpoint game that the existential player
+wins on every instance, at every width above the bound. -/
+example {α : Type} (enc : α ↪ List Bool) : ∃ (j k : ℕ) (State : Type) (_ : Finite State)
+    (ntm : MultiTapeNTM k Bool State) (K : ℕ), ∀ a w,
+      K * ((enc a).length + (enc a).length ^ j + 1) ≤ w →
+        Alternation true (List.replicate (2 * ((2 * w + 2 + 1) * (2 * w + 2))) 1) fun z =>
+          Reachability.midpointGame ntm.codeEdge (2 * w + 2) (2 * w + 2)
+            (MultiTapeNTM.viewCode w (ntm.initView (enc a))) (MultiTapeNTM.acceptCode w) z =
+              true := by
+  obtain ⟨j, hj⟩ := exists_mem_NSPACE_of_mem_P (enc := enc) (A := Set.univ)
+    ⟨fun _ => true, MultiTapeTM.ComputableInPolyTime.const _, fun _ => by simp⟩
+  obtain ⟨k, State, hfin, ntm, K, h⟩ := exists_midpointGame_of_mem_NSPACE hj
+  exact ⟨j, k, State, hfin, ntm, K, fun a w hw => (h a w hw).mp (Set.mem_univ a)⟩
+
+/-- `∅`, in `NSPACE (· ^ j)` through `P`, is a midpoint game that the existential player loses on
+every instance, at every width above the bound. -/
+example {α : Type} (enc : α ↪ List Bool) : ∃ (j k : ℕ) (State : Type) (_ : Finite State)
+    (ntm : MultiTapeNTM k Bool State) (K : ℕ), ∀ a w,
+      K * ((enc a).length + (enc a).length ^ j + 1) ≤ w →
+        ¬Alternation true (List.replicate (2 * ((2 * w + 2 + 1) * (2 * w + 2))) 1) fun z =>
+          Reachability.midpointGame ntm.codeEdge (2 * w + 2) (2 * w + 2)
+            (MultiTapeNTM.viewCode w (ntm.initView (enc a))) (MultiTapeNTM.acceptCode w) z =
+              true := by
+  obtain ⟨j, hj⟩ := exists_mem_NSPACE_of_mem_P (enc := enc) (A := ∅)
+    ⟨fun _ => false, MultiTapeTM.ComputableInPolyTime.const _, fun _ => by simp⟩
+  obtain ⟨k, State, hfin, ntm, K, h⟩ := exists_midpointGame_of_mem_NSPACE hj
+  exact ⟨j, k, State, hfin, ntm, K, fun a w hw => (h a w hw).not.mp (Set.notMem_empty a)⟩
+
+/-! ### The number of moves of the midpoint game in unary -/
+
+section MoveCount
+
+open Turing.MultiTapeTM
+
+/-- For a time-constructible `s` and a constant `K`, the number of moves of the midpoint game on
+codes of `2 * w + 2` bits, `w = K * (n + s n + 1)`, as in `exists_midpointGame_of_mem_NSPACE`, is
+written in unary within time and space `O((n + s n + 1) ^ 2)`. -/
+private theorem computableInO_midpointMoveCount {α : Type} (enc : α ↪ List Bool) {s : ℕ → ℕ}
+    (hs : TimeConstructible s) (K : ℕ) :
+    ComputableInO (fun a : α =>
+      2 * ((2 * (K * ((enc a).length + s (enc a).length + 1)) + 2 + 1) *
+        (2 * (K * ((enc a).length + s (enc a).length + 1)) + 2))) enc encUnary
+      (fun a => ((enc a).length + s (enc a).length + 1) ^ 2)
+      fun a => ((enc a).length + s (enc a).length + 1) ^ 2 := by
+  have hF : ComputableInPolyTime (fun p : ℕ × ℕ =>
+      2 * ((2 * (K * (p.1 + p.2 + 1)) + 2 + 1) * (2 * (K * (p.1 + p.2 + 1)) + 2)))
+      (encPair encNat encNat) encNat := by
+    fun_prop
+  have h := (hs.computableInO_unary_of_polyTime hF).comp
+    (ComputableInO.of_eq (f := fun a : α => enc a) (encMid := encBits) fun _ => rfl)
+  have hbound (a : α) : (enc a).length + ((enc a).length + s (enc a).length +
+      2 * ((2 * (K * ((enc a).length + s (enc a).length + 1)) + 2 + 1) *
+        (2 * (K * ((enc a).length + s (enc a).length + 1)) + 2))) ≤
+      (8 * K ^ 2 + 20 * K + 14) * (((enc a).length + s (enc a).length + 1) ^ 2 + 1) := by
+    set m := (enc a).length + s (enc a).length + 1
+    have hm : (enc a).length + ((enc a).length + s (enc a).length) ≤ 2 * m := by omega
+    have hm2 : m ≤ m ^ 2 := by nlinarith
+    have e : 2 * ((2 * (K * m) + 2 + 1) * (2 * (K * m) + 2)) =
+        8 * K ^ 2 * m ^ 2 + 20 * (K * m) + 12 := by
+      ring
+    have hKm : K * m ≤ K * m ^ 2 := Nat.mul_le_mul_left K hm2
+    have e2 : (8 * K ^ 2 + 20 * K + 14) * (m ^ 2 + 1) =
+        8 * K ^ 2 * m ^ 2 + 20 * (K * m ^ 2) + 14 * m ^ 2 + (8 * K ^ 2 + 20 * K + 14) := by
+      ring
+    omega
+  refine h.mono (8 * K ^ 2 + 20 * K + 14) (fun a => ?_) fun a => ?_ <;>
+    simpa only [Function.comp_apply, encBits_apply] using hbound a
+
+/-- The hypotheses are satisfiable: for `s n = n`, which is time-constructible, the number of moves
+of the midpoint game at width `K * (2 * n + 1)` is written in unary within time
+`O((2 * n + 1) ^ 2)`. -/
+example {α : Type} (enc : α ↪ List Bool) (K : ℕ) :
+    ComputableInO (fun a : α =>
+      2 * ((2 * (K * ((enc a).length + (enc a).length + 1)) + 2 + 1) *
+        (2 * (K * ((enc a).length + (enc a).length + 1)) + 2))) enc encUnary
+      (fun a => ((enc a).length + (enc a).length + 1) ^ 2)
+      fun a => ((enc a).length + (enc a).length + 1) ^ 2 :=
+  computableInO_midpointMoveCount enc (s := fun n => n) timeConstructible_id K
+
+/-- **Interface check for the remaining step of `NSPACE(s) ⊆ ATIME((n + s n) ^ 2)`.** This is not a
+proof of that inclusion: the hypothesis `hV`, a verifier of Savitch's midpoint game within time
+`O((n + s n) ^ 2)` on the views of every machine, is proved neither here nor in the library. The
+example checks that, given such a verifier, `exists_midpointGame_of_mem_NSPACE`, the move count
+`computableInO_midpointMoveCount` and `mem_ATIME_of_alternation` give the inclusion for a
+time-constructible `s`, with no further hypothesis. -/
+example {α : Type} (enc : α ↪ List Bool) {A : Set α} {s : ℕ → ℕ} (hs : TimeConstructible s)
+    (hV : ∀ (k : ℕ) (State : Type) (_ : Finite State) (ntm : MultiTapeNTM k Bool State) (K : ℕ),
+      ∃ (TV SV : α × List Bool → ℕ) (C : ℕ),
+        ComputableInO (fun x : α × List Bool =>
+          Reachability.midpointGame ntm.codeEdge
+            (2 * (K * ((enc x.1).length + s (enc x.1).length + 1)) + 2)
+            (2 * (K * ((enc x.1).length + s (enc x.1).length + 1)) + 2)
+            (MultiTapeNTM.viewCode (K * ((enc x.1).length + s (enc x.1).length + 1))
+              (ntm.initView (enc x.1)))
+            (MultiTapeNTM.acceptCode (K * ((enc x.1).length + s (enc x.1).length + 1))) x.2)
+          (encPair enc encBits) encBool TV SV ∧
+        ∀ a z, TV (a, z) ≤ C * ((enc a).length + s (enc a).length) ^ 2 + C)
+    (h : A ∈ NSPACE enc s) : A ∈ ATIME enc fun n => (n + s n) ^ 2 := by
+  obtain ⟨k, State, hfin, ntm, K, hA⟩ := exists_midpointGame_of_mem_NSPACE h
+  obtain ⟨TV, SV, C, hVc, hTV⟩ := hV k State hfin ntm K
+  refine mem_ATIME_of_alternation (C := C + 24 * K ^ 2 + 40 * K + 60)
+    (computableInO_midpointMoveCount enc hs K) hVc (fun a => hA a _ le_rfl) (fun a => ?_)
+    fun a z _ => (hTV a z).trans (by nlinarith)
+  set p := (enc a).length + s (enc a).length
+  have hn : (enc a).length ≤ p := Nat.le_add_right _ _
+  have hp : p ≤ p ^ 2 + 1 := by nlinarith
+  have e : 2 * ((2 * (K * (p + 1)) + 2 + 1) * (2 * (K * (p + 1)) + 2)) + (p + 1) ^ 2 =
+      (8 * K ^ 2 + 1) * p ^ 2 + (16 * K ^ 2 + 20 * K + 2) * p + (8 * K ^ 2 + 20 * K + 13) := by
+    ring
+  have hKp : K * p ≤ K * (p ^ 2 + 1) := Nat.mul_le_mul_left K hp
+  have hK2p : K ^ 2 * p ≤ K ^ 2 * (p ^ 2 + 1) := Nat.mul_le_mul_left _ hp
+  nlinarith [Nat.zero_le (C * p ^ 2), Nat.zero_le (K * p ^ 2), Nat.zero_le (K ^ 2 * p ^ 2)]
+
+end MoveCount
 
 end CslibFrontierTests.Alternation

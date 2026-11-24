@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Basic.Real.Basic
 public import Mathlib.Data.Nat.Choose.Basic
 import CslibFrontier.Foundations.Data.Nat.Choose
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.Order.Field.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -57,7 +58,7 @@ theorem Nat.choose_add_le_choose_mul_div_pow {n t k : ℕ} (ht : n < 2 * t) :
             n.choose t * ((n - t : ℕ) : ℝ) ^ k := by exact_mod_cast h
         refine le_trans (mul_le_mul_of_nonneg_left (pow_le_pow_left₀ htpos.le ?_ k)
           (by positivity)) this
-        push_cast; linarith
+        cast_linarith
       rw [div_pow, mul_div_assoc', le_div_iff₀ (by positivity)]
       exact h'
     · rw [Nat.choose_eq_zero_of_lt htk, Nat.cast_zero]
@@ -67,5 +68,4 @@ theorem Nat.choose_add_le_choose_mul_div_pow {n t k : ℕ} (ht : n < 2 * t) :
     have hnpos : (0 : ℝ) < n := by exact_mod_cast hn
     refine mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (by positivity) ?_ k) (by positivity)
     rw [div_le_div_iff₀ htpos hnpos]
-    have : (n : ℝ) ≤ 2 * t := by exact_mod_cast ht.le
-    nlinarith [show (0 : ℝ) ≤ ((n - t : ℕ) : ℝ) by positivity]
+    cast_nlinarith [ht.le, show (0 : ℝ) ≤ ((n - t : ℕ) : ℝ) by positivity]

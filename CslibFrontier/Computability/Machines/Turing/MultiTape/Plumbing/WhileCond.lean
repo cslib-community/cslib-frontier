@@ -74,19 +74,6 @@ lemma step_check (p : Fin (input.length + 2)) (ws : Fin k → List Symbol) (out 
   rcases hc : condAt c input p ws <;> simp only [condAt] at hc <;>
     tm_step [combine, adaptedTr, condTest, hc, wordsCfgAt]
 
-/-- One round: from the test with the condition holding, the loop runs `tm` once and is back at
-the test, after at most `τ + 1` steps and with its heads within `[-σ, σ]`. -/
-lemma exists_runFrom_round {d : Cfg k Symbol (State ⊕ Unit) input} {t : ℕ}
-    {p p' : Fin (input.length + 2)} {w w' : Fin k → List Symbol} {out out' : List Symbol}
-    {τ σ : ℕ} (hd : ConfinedRun (whileCond c tm) d (wordsCfgAt input p (some (.inr ())) w out) t σ)
-    (hc : condAt c input p w)
-    (hrun : tm.runFrom (wordsCfgAt input p (some tm.q₀) w out) τ = wordsCfgAt input p' none w' out')
-    (hsp : (MultiTapeNTM.RunPath.ofDeterministic tm (wordsCfgAt input p (some tm.q₀) w out)
-      τ).space ≤ σ) :
-    ∃ u ≤ τ, ConfinedRun (whileCond c tm) d (wordsCfgAt input p' (some (.inr ())) w' out')
-      (t + (u + 1)) σ :=
-  hd.exists_combine_round (by rw [step_check, hc]; rfl) hrun hsp
-
 end WhileCond
 
 open WhileCond in
@@ -108,45 +95,7 @@ public theorem transformsTapesAt_whileCond {c : Option Symbol → (Fin k → Opt
       condAt c input p ws = false ∧ R input p ws emitted) :
     TransformsTapesAt (whileCond c tm) (fun input p ws => P 0 input p ws [])
       (fun input _ _ p' ws' emitted => R input p' ws' emitted)
-      (∑ n ∈ Finset.range rounds, (t n + 1) + 1) (2 * k * s + k) := by
-  intro input p ws out hP0
-  rw [show (whileCond c tm).q₀ = .inr () from rfl]
-  set start := wordsCfgAt (State := State ⊕ Unit) input p (some (.inr ())) ws out with hstart
-  -- after `n ≤ rounds` rounds the loop is back at the test with `P n` holding
-  have hrec : ∀ n ≤ rounds, ∃ m ≤ ∑ j ∈ Finset.range n, (t j + 1),
-      ∃ (pn : Fin (input.length + 2)) (wsn : Fin k → List Symbol) (acc : List Symbol),
-      ConfinedRun (whileCond c tm) start (wordsCfgAt input pn (some (.inr ())) wsn (out ++ acc))
-        m s ∧ P n input pn wsn acc := by
-    intro n hn
-    induction n with
-    | zero =>
-      exact ⟨0, by simp, p, ws, [], ⟨by simp [runFrom, hstart], fun l => by
-        simp [MultiTapeNTM.RunPath.visitedByTapeHead, MultiTapeNTM.RunPath.ofDeterministic,
-          hstart, Finset.subset_iff]⟩, hP0⟩
-    | succ n ih =>
-      obtain ⟨m, hm, pn, wsn, acc, hc, hPn⟩ := ih (by lia)
-      obtain ⟨pn', wsn', e, hrunTm, hQ, hsp⟩ := hround n (by lia) acc input pn wsn (out ++ acc) hPn
-      obtain ⟨u, hu, hc'⟩ :=
-        exists_runFrom_round hc (hmore n (by lia) input pn wsn acc hPn) hrunTm hsp
-      rw [List.append_assoc] at hc'
-      exact ⟨m + (u + 1), by rw [Finset.sum_range_succ]; lia, pn', wsn', acc ++ e, hc', hQ⟩
-  obtain ⟨m, hm, pLast, wsLast, acc, hc, hPlast⟩ := hrec rounds le_rfl
-  obtain ⟨hstop, hR⟩ := hend input pLast wsLast acc hPlast
-  have hfinal : (whileCond c tm).runFrom start (m + 1) =
-      wordsCfgAt input pLast none wsLast (out ++ acc) := by
-    rw [runFrom_succ, hc.reaches, step_check, hstop]
-    rfl
-  have hhalt : ((whileCond c tm).runFrom start (m + 1)).Halted := by rw [hfinal]; rfl
-  refine ⟨pLast, wsLast, acc, ?_, hR, ?_⟩
-  · rw [runFrom_eq_of_halt _ _ (by lia) hhalt, hfinal]
-  · rw [space_eq_of_halt _ (by lia) hhalt]
-    refine space_le_of_visited_subset_Icc _ _ fun l => ?_
-    rw [visitedByTapeHead_add, hc.reaches]
-    refine Finset.union_subset (hc.confined l) (visitedByTapeHead_subset _ fun j hj => ?_)
-    rcases j with _ | j
-    · simp [runFrom]
-    · rw [runFrom_eq_of_halt (τ := 1) _ _ (by lia) (by rw [runFrom_one, step_check, hstop]; rfl),
-        runFrom_one, step_check, hstop]
-      simp
+      (∑ n ∈ Finset.range rounds, (t n + 1) + 1) (2 * k * s + k) :=
+  transformsTapesAt_combine_test (fun p ws out => step_check p ws out) hround hmore hend
 
 end Turing.MultiTapeTM
