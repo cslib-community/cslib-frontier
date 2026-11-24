@@ -1336,13 +1336,15 @@ section Tightness
 @[expose] noncomputable def kellyTightBid (n : ℕ) : Fin (n + 1) → ℝ :=
   fun i => if i = 0 then 1 / 4 else 1 / (4 * (n : ℝ))
 
-private theorem isAdmissibleUtility_linear {a : ℝ} (ha : 0 < a) :
+/-- Every positive-slope linear utility `x ↦ a * x` (`0 < a`) satisfies `IsAdmissibleUtility`. -/
+theorem isAdmissibleUtility_linear {a : ℝ} (ha : 0 < a) :
     IsAdmissibleUtility (fun x => a * x) where
   concaveOn := ⟨convex_Ici 0, fun x _ y _ p q _ _ _ => by simp only [smul_eq_mul]; linarith⟩
   strictMonoOn := fun _ _ _ _ hxy => mul_lt_mul_of_pos_left hxy ha
   differentiableOn := (differentiable_id.const_mul a).differentiableOn
 
-private theorem derivWithin_linear {a x : ℝ} (hx : 0 ≤ x) :
+/-- Right-sided derivative on `[0, ∞)` of a linear function `t ↦ a * t` at `0 ≤ x`. -/
+theorem derivWithin_linear {a x : ℝ} (hx : 0 ≤ x) :
     derivWithin (fun t : ℝ => a * t) (Ici 0) x = a := by
   have hd : HasDerivWithinAt (fun t : ℝ => a * t) a (Ici 0) x := by
     simpa only [mul_one] using ((hasDerivAt_id' x).const_mul a).hasDerivWithinAt
