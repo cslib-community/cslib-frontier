@@ -449,7 +449,8 @@ theorem childCall_child (inst : Instance V E) (hX : inst.vertices.Nonempty) {i :
   simp only [childCall, card_child_vertices_lt cfg o inst hX hi, ↓reduceDIte]
 
 omit [DecidableEq V] [DecidableEq E] in
-private theorem sum_map_flatMap_range {α M : Type*} [AddCommMonoid M] (f : α → M)
+/-- A sum over the concatenation of lists indexed by the rounds is a sum over the rounds. -/
+theorem sum_map_flatMap_range {α M : Type*} [AddCommMonoid M] (f : α → M)
     (g : ℕ → List α) (n : ℕ) :
     (((List.range n).flatMap g).map f).sum = ∑ i ∈ range n, ((g i).map f).sum := by
   induction n with
