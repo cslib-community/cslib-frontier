@@ -22,7 +22,8 @@ executes a charged loop, moving one value at a time.
 ## Main definitions
 
 * `spec`: the existing FIFO specification restricted to fitting words and a fixed capacity.
-* `contents`: the FIFO sequence represented by a pair of stacks.
+* `Stacks`, `Stacks.contents`: logical two-stack state (`front` and `rear`) and the FIFO sequence it
+  represents.
 * `pairStep`: the corresponding transition of the two stacks.
 
 ## Main results
@@ -47,45 +48,54 @@ abbrev spec (w capacity : ℕ) : DataStructure.StateTransitionSpec :=
     | .enqueue v => q.length < capacity ∧ Fits w v
     | .dequeue => True
 
+/-- Logical two-stack state of a FIFO queue: `front` stores the oldest elements in FIFO order and
+`rear` stores newly enqueued elements in reverse FIFO order. -/
+structure Stacks where
+  /-- Oldest elements in FIFO order, popped first by `dequeue`. -/
+  front : List ℕ
+  /-- Newest elements in reverse FIFO order, reversed into `front` when `front` is empty. -/
+  rear : List ℕ
+  deriving DecidableEq, Repr
+
 /-- Front is in FIFO order; rear is in reverse FIFO order. -/
-def contents (s : List ℕ × List ℕ) : List ℕ := s.1 ++ s.2.reverse
+def Stacks.contents (s : Stacks) : List ℕ := s.front ++ s.rear.reverse
 
 /-- Mathematical description of the machine's two-stack transition, including an empty pop. -/
-def pairStep (s : List ℕ × List ℕ) (o : QueueOp ℕ) :
-    (List ℕ × List ℕ) × (queue ℕ).Result o :=
+def pairStep (s : Stacks) (o : QueueOp ℕ) :
+    Stacks × (queue ℕ).Result o :=
   match o with
-  | .enqueue v => ((s.1, v :: s.2), ())
-  | .dequeue => match s.1 with
-    | [] => ((s.2.reverse.tail, []), s.2.reverse.head?)
-    | a :: front => ((front, s.2), some a)
+  | .enqueue v => (⟨s.front, v :: s.rear⟩, ())
+  | .dequeue => match s.front with
+    | [] => (⟨s.rear.reverse.tail, []⟩, s.rear.reverse.head?)
+    | a :: front => (⟨front, s.rear⟩, some a)
 
 /-- Projecting the concrete stack transition gives exactly the specified FIFO step. -/
-theorem pairStep_correct (s : List ℕ × List ℕ) (o : QueueOp ℕ) :
-    (contents (pairStep s o).1, (pairStep s o).2) = (queue ℕ).stepFn (contents s) o := by
+theorem pairStep_correct (s : Stacks) (o : QueueOp ℕ) :
+    ((pairStep s o).1.contents, (pairStep s o).2) = (queue ℕ).stepFn s.contents o := by
   obtain ⟨front, rear⟩ := s
   cases o with
-  | enqueue v => simp [pairStep, contents, queue, List.reverse_cons, List.append_assoc]
-  | dequeue => cases front <;> simp [pairStep, contents, queue]
+  | enqueue v => simp [pairStep, Stacks.contents, queue, List.reverse_cons, List.append_assoc]
+  | dequeue => cases front <;> simp [pairStep, Stacks.contents, queue]
 
 /-- The sum of live stack lengths is the FIFO length, not the size of the reserved regions. -/
-theorem contents_length (s : List ℕ × List ℕ) :
-    (contents s).length = s.1.length + s.2.length := by
-  simp [contents]
+theorem Stacks.contents_length (s : Stacks) :
+    s.contents.length = s.front.length + s.rear.length := by
+  simp [Stacks.contents]
 
 /-- Enqueues require one spare slot; dequeues cannot increase the number of live values. -/
-theorem pairStep_length_le {w capacity : ℕ} {s : List ℕ × List ℕ}
-    (hs : (contents s).length ≤ capacity) (o : QueueOp ℕ)
-    (hv : (spec w capacity).valid (contents s) o) :
-    (contents (pairStep s o).1).length ≤ capacity := by
+theorem pairStep_length_le {w capacity : ℕ} {s : Stacks}
+    (hs : s.contents.length ≤ capacity) (o : QueueOp ℕ)
+    (hv : (spec w capacity).valid s.contents o) :
+    (pairStep s o).1.contents.length ≤ capacity := by
   have hc := congrArg (fun p => p.1.length) (pairStep_correct s o)
   rw [hc]
   cases o with
   | enqueue v =>
-    change (contents s ++ [v]).length ≤ capacity
+    change (s.contents ++ [v]).length ≤ capacity
     simp only [List.length_append, List.length_singleton]
     exact Nat.succ_le_of_lt hv.1
   | dequeue =>
-    change (contents s).tail.length ≤ capacity
+    change s.contents.tail.length ≤ capacity
     simp only [List.length_tail]
     omega
 

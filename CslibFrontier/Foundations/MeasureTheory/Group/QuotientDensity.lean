@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Init
 public import Mathlib.MeasureTheory.Group.FundamentalDomain
 public import Mathlib.MeasureTheory.Measure.WithDensity
-import Mathlib.MeasureTheory.Constructions.Polish.Basic
 public import Mathlib.Topology.Algebra.InfiniteSum.Module
 
 /-!
