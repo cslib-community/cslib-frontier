@@ -1203,6 +1203,21 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvatur
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.MidpointTerm
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Window
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.WindowMean
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Act
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Avg
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Block
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Blow
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Exchange
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Len
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Main
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Num
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Para
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Rank
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Transversal
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Uni
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Walk
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Window
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Words
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinear
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinearGadget
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinearLowerBound
@@ -6634,6 +6649,7 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.KickTree.Layout
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.KickTree.Prog
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.LinearProbing
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.LinearProbing.FiveWise
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.LowerBound
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.PackedSlice
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
@@ -7075,6 +7091,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Convolution
 public import CslibFrontier.Foundations.BooleanAnalysis.CoordinateOperators
 public import CslibFrontier.Foundations.BooleanAnalysis.CoordinateSampling
 public import CslibFrontier.Foundations.BooleanAnalysis.CoveringProduct
+public import CslibFrontier.Foundations.BooleanAnalysis.DNFWidth
 public import CslibFrontier.Foundations.BooleanAnalysis.Decomposition
 public import CslibFrontier.Foundations.BooleanAnalysis.Degree
 public import CslibFrontier.Foundations.BooleanAnalysis.DegreeOneWeight
@@ -8833,6 +8850,7 @@ public import CslibFrontier.Logics.Propositional.CNF.Simplification
 public import CslibFrontier.Logics.Propositional.CNF.SparseDesignCounter
 public import CslibFrontier.Logics.Propositional.CNF.SparseParityCounter
 public import CslibFrontier.Logics.Propositional.CNF.StdSat
+public import CslibFrontier.Logics.Propositional.CNF.Tautology
 public import CslibFrontier.Logics.Propositional.CNF.ThreeCNF
 public import CslibFrontier.Logics.Propositional.CNF.ThreeCNF.Exact
 public import CslibFrontier.Logics.Propositional.CNF.ThreeCNF.Exact.PolyTime

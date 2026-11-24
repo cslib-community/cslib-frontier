@@ -143,9 +143,9 @@ theorem components_inSpace (d : Data) :
     (snd encState (encOption encBool))
   have ha := budget_comp_linear answer_inSpace (budget_prod hdata hb)
   exact ⟨encData_address_budget (encState_data_budget hid),
-    encState_mk_budget hdata (budget_const true (.refl _)),
+    encState_mk_budget hdata (budget_const true),
     budget_finite (encC := encBits) (fun b => [b]) ha,
-    encState_halted_budget hid, budget_const [] (.refl _)⟩
+    encState_halted_budget hid, budget_const []⟩
 
 /-- Explicit storage bound: two binary counters, the suffix, and a halting bit. -/
 theorem length_encState (cut i : ℕ) (suffix : List Bool) (halt : Bool) :
