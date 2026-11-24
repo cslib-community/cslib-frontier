@@ -140,28 +140,28 @@ private theorem staged_tag (w capacity : ℕ) (o : Queue.QueueOp ℕ) (x : Data 
   rw [Function.update_of_ne tag_ne_zero]
   exact prepare_tag w capacity o x
 
-private noncomputable def committed (m : ℕ × ℕ) (x : Data registers) : Data registers :=
-  (x.set (src 0) m.1).set (src 1) m.2
+private noncomputable def committed (m : Counts) (x : Data registers) : Data registers :=
+  (x.set (src 0) m.front).set (src 1) m.rear
 
-private theorem commit_exec {w : ℕ} {x : Data registers} {m : ℕ × ℕ}
-    (h0 : x.regs (result 0) = m.1) (h1 : x.regs (result 1) = m.2) :
+private theorem commit_exec {w : ℕ} {x : Data registers} {m : Counts}
+    (h0 : x.regs (result 0) = m.front) (h1 : x.regs (result 1) = m.rear) :
     Exec w commit x (committed m x) 2 := by
   have h0' : Exec (B := .standard) w (.op (.copy (src 0) (result 0))) x
-      (x.set (src 0) m.1) 1 := by
+      (x.set (src 0) m.front) 1 := by
     simpa only [h0] using (Exec.copy (B := .standard) (w := w)
       (x := x) (d := src 0) (s := result 0))
-  have hr : (x.set (src 0) m.1).regs (result 1) = m.2 := by
+  have hr : (x.set (src 0) m.front).regs (result 1) = m.rear := by
     simpa only [Data.set_regs, Function.update_of_ne (src_ne_result 0 1).symm] using h1
   exact h0'.seq (by
     simpa only [hr] using (Exec.copy (B := .standard) (w := w)
-      (x := x.set (src 0) m.1) (d := src 1) (s := result 1)))
+      (x := x.set (src 0) m.front) (d := src 1) (s := result 1)))
 
-private theorem committed_other (m : ℕ × ℕ) (x : Data registers) (i : Fin registers)
+private theorem committed_other (m : Counts) (x : Data registers) (i : Fin registers)
     (h0 : i ≠ src 0) (h1 : i ≠ src 1) : (committed m x).regs i = x.regs i := by
   simp only [committed, Data.set_regs, Function.update_of_ne h1, Function.update_of_ne h0]
 
-private theorem committed_counts (m : ℕ × ℕ) (x : Data registers) :
-    (committed m x).regs (src 0) = m.1 ∧ (committed m x).regs (src 1) = m.2 := by
+private theorem committed_counts (m : Counts) (x : Data registers) :
+    (committed m x).regs (src 0) = m.front ∧ (committed m x).regs (src 1) = m.rear := by
   have hn : src 0 ≠ src 1 := src_injective.ne (by decide)
   simp [committed, Data.set, hn]
 
@@ -235,7 +235,7 @@ theorem execute_enqueue {w base capacity v : ℕ} {front back : List ℕ} {x : D
     (congrArg b.regs (enqueue_result_eq 0)).symm.trans (ho 0)
   have hB : b.regs (result 1) = back.length + 1 :=
     (congrArg b.regs (enqueue_result_eq 1)).symm.trans (ho 1)
-  let m := (front.length, back.length + 1)
+  let m : Counts := ⟨front.length, back.length + 1⟩
   have hcommit : Exec w commit b (committed m b) 2 := commit_exec h0 hB
   have hcond : (Cond.eq tag zero).Holds z := by
     change z.regs tag = z.regs zero
@@ -284,16 +284,16 @@ counts, and decodes its faithful option result. The bound includes the negative 
 two instructions and the call halt, without charging any hidden metadata installation. -/
 theorem execute_dequeue {w base capacity : ℕ} {front back : List ℕ} {x : Data registers}
     (h1 : Fits w 1) (hr : Rep w base capacity front back x) :
-    let p := pairStep (front, back) .dequeue
+    let p := pairStep ⟨front, back⟩ .dequeue
     ∃ y n, Exec w program ((implementation w capacity).prepare .dequeue x) y n ∧
       n + 1 ≤ Backend.factor family *
         (memoryCost (dequeue ![front.length, back.length, base, capacity, 0])
           (memoryState (Backend.frontier family) x) + 1) + 6 ∧
-      Rep w base capacity p.1.1 p.1.2 y ∧
+      Rep w base capacity p.1.front p.1.rear y ∧
       (implementation w capacity).decode .dequeue y.regs = some p.2 ∧
       Modifies (footprint base capacity) x.mem y.mem := by
   let d : Input := ![front.length, back.length, base, capacity, 0]
-  let p := pairStep (front, back) .dequeue
+  let p := pairStep ⟨front, back⟩ .dequeue
   let z := staged w capacity .dequeue x
   have hdom : transferDomain w d (memoryState (Backend.frontier family) x) := by
     change front.length + back.length ≤ capacity ∧
@@ -321,9 +321,9 @@ theorem execute_dequeue {w base capacity : ℕ} {front back : List ℕ} {x : Dat
   have hn' : n ≤ Backend.factor family *
       (memoryCost (dequeue d) (memoryState (Backend.frontier family) x) + 1) := by
     simpa only [Nat.add_zero] using hn
-  let m := (p.1.1.length, p.1.2.length)
-  have h0 : b.regs (result 0) = m.1 := ho 0
-  have hB : b.regs (result 1) = m.2 := ho 1
+  let m : Counts := ⟨p.1.front.length, p.1.rear.length⟩
+  have h0 : b.regs (result 0) = m.front := ho 0
+  have hB : b.regs (result 1) = m.rear := ho 1
   have hcommit : Exec w commit b (committed m b) 2 := commit_exec h0 hB
   have hcond : ¬(Cond.eq tag zero).Holds z := by
     change ¬z.regs tag = z.regs zero
@@ -362,9 +362,9 @@ theorem execute_dequeue {w base capacity : ℕ} {front back : List ℕ} {x : Dat
       rfl
     · rw [committed_other m b _ (src_ne_frontier 0).symm (src_ne_frontier 1).symm,
         hfrontier, hr.frontier_eq]
-    · have hs := pairStep_length_le (w := w) (capacity := capacity) (s := (front, back))
-        (by simpa only [contents_length] using hr.size_le) .dequeue trivial
-      simpa only [contents_length] using hs
+    · have hs := pairStep_length_le (w := w) (capacity := capacity) (s := ⟨front, back⟩)
+        (by simpa only [Stacks.contents_length] using hr.size_le) .dequeue trivial
+      simpa only [Stacks.contents_length] using hs
     · rw [hmem]
       exact hcontents.2.1
     · rw [hmem]
@@ -385,17 +385,17 @@ the globally chosen exchange factor, control, metadata copies and halt are all c
 The external controller and tag/payload delivery remain the original dynamic-call boundary. -/
 theorem execute {w base capacity : ℕ} {front back : List ℕ} {x : Data registers}
     (h1 : Fits w 1) (hr : Rep w base capacity front back x) (o : Queue.QueueOp ℕ)
-    (hv : (spec w capacity).valid (contents (front, back)) o) :
-    let p := pairStep (front, back) o
+    (hv : (spec w capacity).valid (Stacks.contents ⟨front, back⟩) o) :
+    let p := pairStep ⟨front, back⟩ o
     ∃ y n, Exec w program ((implementation w capacity).prepare o x) y n ∧
       (implementation w capacity).decode o y.regs = some p.2 ∧
-      Rep w base capacity p.1.1 p.1.2 y ∧
+      Rep w base capacity p.1.front p.1.rear y ∧
       Modifies (footprint base capacity) x.mem y.mem ∧
       n + 1 + potential y ≤ 4 * Backend.factor family + 6 + potential x := by
   cases o with
   | enqueue v =>
-    change (contents (front, back)).length < capacity ∧ Fits w v at hv
-    rw [contents_length] at hv
+    change (Stacks.contents ⟨front, back⟩).length < capacity ∧ Fits w v at hv
+    rw [Stacks.contents_length] at hv
     obtain ⟨y, n, he, hn, hry, hm⟩ := execute_enqueue h1 hr hv.1 hv.2
     refine ⟨y, n, he, rfl, hry, hm, ?_⟩
     simp only [potential, hry.backLen_eq, hr.backLen_eq, List.length_cons,
@@ -414,7 +414,7 @@ theorem execute {w base capacity : ℕ} {front back : List ℕ} {x : Data regist
     have hpay := dequeue_memory_amortized hw hdom
     rw [hcontents.1] at hpay
     change memoryCost (dequeue d) (memoryState (Backend.frontier family) x) +
-      2 * (pairStep (front, back) .dequeue).1.2.length ≤ 3 + 2 * back.length at hpay
+      2 * (pairStep ⟨front, back⟩ .dequeue).1.rear.length ≤ 3 + 2 * back.length at hpay
     change n + 1 ≤ Backend.factor family *
       (memoryCost (dequeue d) (memoryState (Backend.frontier family) x) + 1) + 6 at hn
     refine ⟨y, n, he, ha, hry, hm, ?_⟩
@@ -439,7 +439,7 @@ noncomputable def certificate {w base capacity : ℕ} (h1 : Fits w 1) :
     (execute := fun o hr hv => by
       obtain ⟨front, back, rfl, hr⟩ := hr
       obtain ⟨y, n, he, ha, hy, _, _⟩ := execute h1 hr o hv
-      have hs := pairStep_correct (front, back) o
+      have hs := pairStep_correct ⟨front, back⟩ o
       exact ⟨y, n, he, ha.trans (congrArg some (congrArg Prod.snd hs)),
         ⟨_, _, (congrArg Prod.fst hs).symm, hy⟩⟩)
 

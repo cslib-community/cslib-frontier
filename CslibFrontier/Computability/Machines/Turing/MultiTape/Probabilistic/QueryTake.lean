@@ -164,6 +164,48 @@ private theorem getElem?_toList_append_drop_take (answer : List Bool) (pos r : �
   have htail : answer.drop (pos + 1) = (answer.drop pos).tail := by simp
   rw [hhead, htail, head_toList_append_tail_take]
 
+omit [DecidableEq Operation] in
+private theorem inputSymbol_config_append {x pre suf : List Bool} {b : Bool}
+    (h : x = pre ++ b :: suf) (state : Option QueryTakeState) {idx : ℕ} {hle : idx ≤ x.length}
+    (out : List Bool) (ch : Operation → Channel Bool) (hidx : idx = pre.length := by rfl) :
+    (config x state idx hle out ch).tapes.inputSymbol = some b := by
+  subst hidx
+  have hlt : pre.length < x.length := by subst h; simp
+  rw [inputSymbolInner pre.length (by simp [config]; lia) hlt]
+  cases h
+  simp
+
+omit [DecidableEq Operation] in
+private theorem step_config_right {x : List Bool} (state state' : Option QueryTakeState)
+    {idx idx' : ℕ} (hlt : idx < x.length) (hidx' : idx' = idx + 1) (hle' : idx' ≤ x.length)
+    (out out' : List Bool) (emit : Option Bool) (hout' : out' = out ++ emit.toList)
+    (ch ch' : Operation → Channel Bool)
+    (writeBuf : Operation → Option Bool) (moveAns : Operation → SignType)
+    (hch' : ((config x state idx hlt.le out ch).step
+      { inputTape := 1, workTapes := Fin.elim0, output := emit, state := state' }
+      writeBuf moveAns).channels = ch') :
+    (config x state idx hlt.le out ch).step
+      { inputTape := 1, workTapes := Fin.elim0, output := emit, state := state' }
+      writeBuf moveAns =
+    config x state' idx' hle' out' ch' := by
+  refine Config.ext ?_ hch'
+  refine Cfg.ext_zero_tapes rfl ?_ (by simp [Config.step, config, Turing.Action.apply, hout'])
+  apply Fin.ext
+  change (moveInputPos _ .pos).val = idx' + 1
+  rw [moveInputPos_pos_of_ne_right _ (by simp only [config]; lia)]
+  simp [config, hidx']
+
+omit [DecidableEq Operation] in
+private theorem step_config_right_idle {x : List Bool} (state state' : Option QueryTakeState)
+    {idx : ℕ} (hlt : idx < x.length) (hle' : idx + 1 ≤ x.length)
+    (out : List Bool) (ch : Operation → Channel Bool) :
+    (config x state idx hlt.le out ch).step
+      { inputTape := 1, workTapes := Fin.elim0, output := none, state := state' }
+      (fun _ => none) (fun _ => 0) =
+    config x state' (idx + 1) hle' out ch :=
+  step_config_right state state' hlt rfl hle' out out none (by simp) ch ch
+    (fun _ => none) (fun _ => 0) (funext fun _ => by simp [Config.step, config])
+
 /-- Scanning `List.replicate remLimit true` in state `.copyReply` appends `(answer.drop pos).take
 remLimit` to `out` and halts at the right boundary in `remLimit + 1` steps. -/
 theorem run_copyReply (x : List Bool)
@@ -196,35 +238,21 @@ theorem run_copyReply (x : List Bool)
   | succ remLimit ih =>
     intro pre h pos answer out ch hch s
     have hlt : pre.length < x.length := by subst h; simp
-    have hget : x[pre.length]'hlt = true := by
-      cases h
-      simp
     have hsym : (config x (some .copyReply) pre.length hlt.le out ch).tapes.inputSymbol =
-        some true := by
-      rw [inputSymbolInner pre.length (by simp [config]; lia) hlt]
-      exact congrArg some hget
+        some true :=
+      inputSymbol_config_append (by simpa [List.replicate_succ] using h) (some .copyReply) out ch
     have hans : (config x (some .copyReply) pre.length hlt.le out ch).answerSymbols op =
         answer[pos]? := by
       simp [Config.answerSymbols, config, hch, Channel.answerSymbol]
     let ch' := Function.update ch op ⟨[], answer, ((pos + 1 : ℕ) : ℤ)⟩
-    have hstep :
-        (config x (some .copyReply) pre.length hlt.le out ch).step
-          { inputTape := 1, workTapes := Fin.elim0, output := answer[pos]?,
-            state := some .copyReply }
-          (fun _ => none) (Function.update (fun _ => 0) op 1) =
-        config x (some .copyReply) (pre ++ [true]).length
-          (by subst h; simp) (out ++ (answer[pos]?).toList) ch' := by
-      refine Config.ext ?_ ?_
-      · refine Cfg.ext_zero_tapes rfl ?_ (by simp [Config.step, config, Turing.Action.apply])
-        apply Fin.ext
-        change (moveInputPos _ .pos).val = (pre ++ [true]).length + 1
-        rw [moveInputPos_pos_of_ne_right _ (by simp only [config]; lia)]
-        simp [config]
-      · funext other
+    have hstep := step_config_right (some .copyReply) (some .copyReply) hlt (by simp)
+      (by subst h; simp : (pre ++ [true]).length ≤ x.length) out (out ++ (answer[pos]?).toList)
+      answer[pos]? rfl ch ch' (fun _ => none) (Function.update (fun _ => 0) op 1)
+      (by
+        funext other
         by_cases heq : other = op
-        · subst other
-          simp [Config.step, config, ch', hch, Nat.cast_add]
-        · simp [Config.step, config, ch', heq]
+        · subst other; simp [Config.step, config, ch', hch, Nat.cast_add]
+        · simp [Config.step, config, ch', heq])
     have hsplit : pre ++ List.replicate (remLimit + 1) true =
         (pre ++ [true]) ++ List.replicate remLimit true := by
       rw [List.replicate_succ, ← List.singleton_append, List.append_assoc]
@@ -256,24 +284,11 @@ theorem run_frame (x : List Bool)
   | nil =>
     intro pre suf h out ch s
     have hlt : pre.length < x.length := by subst h; simp
-    have hget : x[pre.length]'hlt = false := by
-      cases h
-      simp
     have hsym : (config x (some .marker) pre.length hlt.le out ch).tapes.inputSymbol =
-        some false := by
-      rw [inputSymbolInner pre.length (by simp [config]; lia) hlt]
-      exact congrArg some hget
-    have hstep₁ :
-        (config x (some .marker) pre.length hlt.le out ch).step
-          { inputTape := 1, workTapes := Fin.elim0, output := none, state := some .submit }
-          (fun _ => none) (fun _ => 0) =
-        config x (some .submit) (pre.length + 1) (by subst h; simp) out ch := by
-      refine Config.ext ?_ (funext fun _ => by simp [Config.step, config])
-      refine Cfg.ext_zero_tapes rfl ?_ (by simp [Config.step, config, Turing.Action.apply])
-      apply Fin.ext
-      change (moveInputPos _ .pos).val = pre.length + 1 + 1
-      rw [moveInputPos_pos_of_ne_right _ (by simp only [config]; lia)]
-      rfl
+        some false :=
+      inputSymbol_config_append (by simpa [List.append_assoc] using h) (some .marker) out ch
+    have hstep₁ := step_config_right_idle (some .marker) (some .submit) hlt
+      (by subst h; simp) out ch
     change ProbOracleComp.runWith oracle
         ((queryTakeCore op).runOracleConfigFrom (0 + 1 + 1)
           (config x (some .marker) pre.length hlt.le out ch)) s = _
@@ -290,51 +305,28 @@ theorem run_frame (x : List Bool)
   | cons b rem ih =>
     intro pre suf h out ch s
     have hlt₁ : pre.length < x.length := by subst h; simp
-    have hget₁ : x[pre.length]'hlt₁ = true := by
-      cases h
-      simp
     have hsym₁ : (config x (some .marker) pre.length hlt₁.le out ch).tapes.inputSymbol =
-        some true := by
-      rw [inputSymbolInner pre.length (by simp [config]; lia) hlt₁]
-      exact congrArg some hget₁
+        some true :=
+      inputSymbol_config_append (by simpa [frame_cons, List.append_assoc] using h)
+        (some .marker) out ch
     have hlt₂ : pre.length + 1 < x.length := by subst h; simp
-    have hget₂ : x[pre.length + 1]'hlt₂ = b := by
-      cases h
-      simp [List.getElem_append_right]
     have hsym₂ : (config x (some .bit) (pre.length + 1) hlt₂.le out ch).tapes.inputSymbol =
-        some b := by
-      rw [inputSymbolInner (pre.length + 1) (by simp [config]; lia) hlt₂]
-      exact congrArg some hget₂
+        some b :=
+      inputSymbol_config_append
+        (show x = (pre ++ [true]) ++ b :: (frame rem ++ suf) by
+          simpa [frame_cons, List.append_assoc] using h)
+        (some .bit) out ch (by simp)
     let ch' := Function.update ch op
       { ch op with queryBuffer := (ch op).queryBuffer ++ [b] }
-    have hstep₁ :
-        (config x (some .marker) pre.length hlt₁.le out ch).step
-          { inputTape := 1, workTapes := Fin.elim0, output := none, state := some .bit }
-          (fun _ => none) (fun _ => 0) =
-        config x (some .bit) (pre.length + 1) hlt₂.le out ch := by
-      refine Config.ext ?_ (funext fun _ => by simp [Config.step, config])
-      refine Cfg.ext_zero_tapes rfl ?_ (by simp [Config.step, config, Turing.Action.apply])
-      apply Fin.ext
-      change (moveInputPos _ .pos).val = pre.length + 1 + 1
-      rw [moveInputPos_pos_of_ne_right _ (by simp only [config]; lia)]
-      rfl
-    have hstep₂ :
-        (config x (some .bit) (pre.length + 1) hlt₂.le out ch).step
-          { inputTape := 1, workTapes := Fin.elim0, output := none, state := some .marker }
-          (Function.update (fun _ => none) op (some b)) (fun _ => 0) =
-        config x (some .marker) (pre ++ [true, b]).length
-          (by subst h; simp) out ch' := by
-      refine Config.ext ?_ ?_
-      · refine Cfg.ext_zero_tapes rfl ?_ (by simp [Config.step, config, Turing.Action.apply])
-        apply Fin.ext
-        change (moveInputPos _ .pos).val = (pre ++ [true, b]).length + 1
-        rw [moveInputPos_pos_of_ne_right _ (by simp only [config]; lia)]
-        simp [config]
-      · funext other
+    have hstep₁ := step_config_right_idle (some .marker) (some .bit) hlt₁ hlt₂.le out ch
+    have hstep₂ := step_config_right (some .bit) (some .marker) hlt₂ (by simp)
+      (by subst h; simp : (pre ++ [true, b]).length ≤ x.length) out out none (by simp) ch ch'
+      (Function.update (fun _ => none) op (some b)) (fun _ => 0)
+      (by
+        funext other
         by_cases heq : other = op
-        · subst other
-          simp [Config.step, config, ch']
-        · simp [Config.step, config, ch', heq]
+        · subst other; simp [Config.step, config, ch']
+        · simp [Config.step, config, ch', heq])
     have h2 : 2 * (b :: rem).length + 2 = (2 * rem.length + 2) + 1 + 1 := by simp; lia
     have hsplit : pre ++ frame (b :: rem) ++ suf = (pre ++ [true, b]) ++ frame rem ++ suf := by
       simp [frame_cons, List.append_assoc]
