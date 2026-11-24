@@ -95,8 +95,6 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
     ∃ y, ExecWithin w settleCode x y ((11 * L + 10) + freezePass L * S.comp.length) ∧
       TableStateAt g (settle (List.finRange L) S) y ∧
       y.regs rOuterIdx = x.regs rOuterIdx := by
-  have hwb := outBaseAddr_lt_wordBound g
-  have hfit_top : Fits w (outBaseAddr g + slots g) := hw.of_le (by omega)
   have hpick_init : ∃ x1, ExecWithin w settlePickInit x x1 3 ∧
       ConstRegs g x1 ∧ x1.regs rChosen = 0 ∧ x1.regs rTmp3 = 0 ∧ x1.regs rLabIdx = 0 ∧
       x1.regs rCompLen = S.comp.length ∧ x1.regs rOuterIdx = x.regs rOuterIdx ∧
@@ -123,66 +121,61 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
         have hk_reg : z.regs rLabIdx = k := rfl
         have htake_succ : (List.finRange L).take (k + 1) =
             (List.finRange L).take k ++ [⟨k, hk⟩] := by
-          rw [List.take_succ_eq_append_getElem (by simp [hk]), List.getElem_finRange]
+          rw [List.take_succ_eq_append_getElem (by simp only [List.length_finRange]; exact hk),
+            List.getElem_finRange]
           rfl
-        have : Fits w (candBase g + k) := hfit_top.of_le (by
-          simp only [outBaseAddr, compBase, stackBase, invBase] at *; omega)
-        have : Fits w (k + 1) := hfit_top.of_le (by
-          simp only [outBaseAddr, compBase, stackBase, invBase] at *; omega)
+        have : Fits w (candBase g + k) := fits_top hw (by wram_omega)
+        have : Fits w (k + 1) := fits_top hw (by wram_omega)
         cases hok : optAt k with
         | some c =>
           rw [hok] at hzOpt
           have hnext : optAt (k + 1) = some c := by
-            simp [optAt, htake_succ, List.find?_append,
-              show ((List.finRange L).take k).find? S.cand = some c from hok]
+            simp only [optAt, htake_succ, List.find?_append,
+              show ((List.finRange L).take k).find? S.cand = some c from hok, Option.some_or]
           unfold pickChosenBody
           wram_exec [hzC.zero, hzC.one, hk_reg, hzOpt.1]
           refine ⟨⟨by wram_simp [hzC], by wram_simp [hzCL], by wram_simp [hzIdx],
             by wram_simp [hzMem], ?_⟩, by wram_simp⟩
-          rw [hnext]
-          exact ⟨by wram_simp [hzOpt.1], by wram_simp [hzOpt.2]⟩
+          rw [hnext]; exact ⟨by wram_simp [hzOpt.1], by wram_simp [hzOpt.2]⟩
         | none =>
           rw [hok] at hzOpt
           have hck_mem : z.mem (candBase g + k) = (S.cand ⟨k, hk⟩).toNat := by
             rw [hzMem]; exact hS.cand_mem k hk
           cases hck : S.cand ⟨k, hk⟩ with
           | true =>
-            have hck1 : (S.cand ⟨k, hk⟩).toNat = 1 := by simp [hck]
+            have hck1 : (S.cand ⟨k, hk⟩).toNat = 1 := by simp only [hck, Bool.toNat_true]
             have hnext : optAt (k + 1) = some ⟨k, hk⟩ := by
-              simp [optAt, htake_succ, List.find?_append,
-                show ((List.finRange L).take k).find? S.cand = none from hok, hck]
+              simp only [optAt, htake_succ, List.find?_append,
+                show ((List.finRange L).take k).find? S.cand = none from hok, Option.none_or,
+                List.find?_cons, hck]
             unfold pickChosenBody
             wram_exec [hzC.zero, hzC.one, hzC.candB, hk_reg, hzOpt.1, hck_mem, hck1]
             refine ⟨⟨by wram_simp [hzC], by wram_simp [hzCL], by wram_simp [hzIdx],
               by wram_simp [hzMem], ?_⟩, by wram_simp⟩
-            rw [hnext]
-            exact ⟨by wram_simp, by wram_simp⟩
+            rw [hnext]; exact ⟨by wram_simp, by wram_simp⟩
           | false =>
-            have hck0 : (S.cand ⟨k, hk⟩).toNat = 0 := by simp [hck]
+            have hck0 : (S.cand ⟨k, hk⟩).toNat = 0 := by simp only [hck, Bool.toNat_false]
             have hnext : optAt (k + 1) = none := by
-              simp [optAt, htake_succ, List.find?_append,
-                show ((List.finRange L).take k).find? S.cand = none from hok, hck]
+              simp only [optAt, htake_succ, List.find?_append,
+                show ((List.finRange L).take k).find? S.cand = none from hok, Option.none_or,
+                List.find?_cons, hck, List.find?_nil]
             unfold pickChosenBody
             wram_exec [hzC.zero, hzC.one, hzC.candB, hk_reg, hzOpt.1, hck_mem, hck0]
             refine ⟨⟨by wram_simp [hzC], by wram_simp [hzCL], by wram_simp [hzIdx],
               by wram_simp [hzMem], ?_⟩, by wram_simp⟩
-            rw [hnext]
-            exact ⟨by wram_simp [hzOpt.1], by wram_simp [hzOpt.2]⟩)
+            rw [hnext]; exact ⟨by wram_simp [hzOpt.1], by wram_simp [hzOpt.2]⟩)
       (by rw [hlab1]; exact Nat.zero_le _)
-      (by rw [hlab1]; refine ⟨hc1, hcl1, hidx1, hm1, ?_⟩; simp [optAt, ht3_1, hch1])
+      (by rw [hlab1]; refine ⟨hc1, hcl1, hidx1, hm1, ?_⟩
+          simp only [optAt, List.take_zero, List.find?_nil, ht3_1, hch1, and_self])
   rw [hlab1, Nat.sub_zero] at hx2
   set chosen : Fin L := ((List.finRange L).find? S.cand).getD default
   have hchosen_reg : x2.regs rChosen = chosen.val := by
-    have htakeL : (List.finRange L).take L = List.finRange L := List.take_of_length_le (by simp)
+    have htakeL : (List.finRange L).take L = List.finRange L :=
+      List.take_of_length_le (by simp only [List.length_finRange, le_rfl])
     simp only [optAt, htakeL] at hopt2
-    cases hfind : (List.finRange L).find? S.cand with
-    | none =>
-      rw [hfind] at hopt2
-      simp only [chosen, hfind, Option.getD_none]
-      exact hopt2.2
-    | some c =>
-      rw [hfind] at hopt2
-      simp only [chosen, hfind, Option.getD_some]
+    cases hfind : (List.finRange L).find? S.cand <;>
+    · rw [hfind] at hopt2
+      simp only [chosen, hfind, Option.getD_none, Option.getD_some]
       exact hopt2.2
   have hrem_init : ∃ x3, ExecWithin w (ram[ rRem ← rZero ] : Code .standard 34) x2 x3 1 ∧
       TableStateAt g S x3 ∧ x3.regs rChosen = chosen.val ∧ x3.regs rRem = 0 ∧
@@ -221,12 +214,9 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
           simp only [tabAt]
           rw [List.take_succ_eq_append_getElem hk, List.foldl_append, List.foldl_cons,
             List.foldl_nil]
-        have : Fits w (compBase g + (S.comp.length - 1 - k)) := hfit_top.of_le (by
-          simp only [outBaseAddr] at *; omega)
-        have : Fits w (visBase g + v) := hfit_top.of_le (by
-          simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase] at *; omega)
-        have : Fits w (k + 1) := hfit_top.of_le (by
-          simp only [outBaseAddr] at *; omega)
+        have : Fits w (compBase g + (S.comp.length - 1 - k)) := fits_top hw (by wram_omega)
+        have : Fits w (visBase g + v) := fits_top hw (by wram_omega)
+        have : Fits w (k + 1) := fits_top hw (by wram_omega)
         have hload_v : ∃ z1, ExecWithin w freezeLoadV z z1 6 ∧
             ConstRegs g z1 ∧ z1.regs rSrc = v ∧ z1.regs rTmp1 = z.mem (visBase g + v) ∧
             z1.regs rChosen = chosen.val ∧ z1.regs rRem = k ∧
@@ -241,7 +231,7 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
         | none =>
           have hvis0 : z.mem (visBase g + v) = 0 := hzT.vis_none v hv_lt hgv
           have hc_br : ¬ (Cond.eq rTmp1 rOne).Holds z1 := by
-            simp [Cond.holds_eq, hz1T1, hvis0, hz1C.one]
+            simp only [Cond.holds_eq, hz1T1, hvis0, hz1C.one, Nat.zero_ne_one, not_false_eq_true]
           have hnop_rem : ExecWithin w (.op (.copy rRem rRem)) z1 z1 1 :=
             ⟨1, le_rfl, exec_nop rRem z1⟩
           have hinc : ∃ z2, ExecWithin w
@@ -258,12 +248,13 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
             have hgv' : (tabAt k).getD v none = none := hgv
             rw [hgv']
             simp only [freeze, Option.map_none]
-            apply List.ext_getElem (by simp)
+            apply List.ext_getElem (by simp only [List.length_set])
             intro i hi1 hi2
             rw [List.getElem_set]
             split_ifs with hiv
             · subst hiv
-              simpa [List.getD_eq_getElem?_getD, hi2] using hgv'.symm
+              simpa only [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi2,
+                Option.getD_some] using hgv'.symm
             · rfl
           refine ⟨z2, (hz1_ex.seq ((ExecWithin.branch_neg hc_br hnop_rem).seq hz2_ex)).mono
               (by omega),
@@ -273,14 +264,11 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
         | some fn =>
           obtain ⟨hvis1, htab_fn⟩ := hzT.vis_some v hv_lt fn hgv
           have hc_br : (Cond.eq rTmp1 rOne).Holds z1 := by
-            simp [Cond.holds_eq, hz1T1, hvis1, hz1C.one]
-          have : Fits w (v * L) := hfit_top.of_le (by
-            simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase] at *; omega)
-          have : Fits w (tabBase g + v * L) := hfit_top.of_le (by
-            simp only [outBaseAddr, compBase, stackBase, invBase, candBase] at *; omega)
-          have : Fits w (tabBase g + v * L + chosen.val) := hfit_top.of_le (by
-            have := chosen.isLt
-            simp only [outBaseAddr, compBase, stackBase, invBase] at *; omega)
+            simp only [Cond.holds_eq, hz1T1, hvis1, hz1C.one]
+          have : Fits w (v * L) := fits_top hw (by wram_omega)
+          have : Fits w (tabBase g + v * L) := fits_top hw (by wram_omega)
+          have : Fits w (tabBase g + v * L + chosen.val) :=
+            fits_top hw (by have := chosen.isLt; wram_omega)
           have hprep_f : ∃ z2, ExecWithin w freezePrep z1 z2 5 ∧
               ConstRegs g z2 ∧ z2.regs rTmp2 = tabBase g + v * L ∧
               z2.regs rTmp3 = (fn chosen).val ∧ z2.regs rLabIdx = 0 ∧
@@ -312,10 +300,8 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
                 obtain ⟨hwC, hwT2, hwT3, hwCh, hwRem, hwCL, hwIdx, hwRow, hwFr⟩ := hw0
                 set a := w0.regs rLabIdx
                 have ha_reg : w0.regs rLabIdx = a := rfl
-                have : Fits w (tabBase g + v * L + a) := hfit_top.of_le (by
-                  simp only [outBaseAddr, compBase, stackBase, invBase] at *; omega)
-                have : Fits w (a + 1) := hfit_top.of_le (by
-                  simp only [outBaseAddr, compBase, stackBase, invBase] at *; omega)
+                have : Fits w (tabBase g + v * L + a) := fits_top hw (by wram_omega)
+                have : Fits w (a + 1) := fits_top hw (by wram_omega)
                 have hpws := prefix_write_step (e := fun _ => (fn chosen).val) hwRow hwFr
                   (rfl : Function.update w0.mem (tabBase g + v * L + a) (fn chosen).val = _)
                 unfold freezeSlotBody
@@ -343,16 +329,14 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
           refine ⟨z4, (hz1_ex.seq ((ExecWithin.branch_pos hc_br (hz2_ex.seq hz3_ex)).seq
               hz4_ex)).mono (by omega),
             ⟨?_, hz4Ch, hz4CL, hz4Idx, hzCM.frame fun a ha1 _ => by
-              rw [hz4m]; exact hz3Fr a (by simp only [compBase, stackBase, invBase] at *; omega)⟩,
-            hz4Rem⟩
+              rw [hz4m]; exact hz3Fr a (by wram_omega)⟩, hz4Rem⟩
           have hlen_k : (tabAt k).length = slots g := hzT.len_table
           have hgv' : (tabAt k).getD v none = some fn := hgv
-          refine ⟨hz4C, hzT.inp.frame (fun a ha => hfr_low a
-              (by simp only [tabBase, visBase, nodeBase]; omega)),
-            hzT.bkt.frame (fun a ha => hfr_low a (by simp only [tabBase]; omega)),
+          refine ⟨hz4C, hzT.inp.frame (fun a ha => hfr_low a (by wram_omega)),
+            hzT.bkt.frame (fun a ha => hfr_low a (by wram_omega)),
             by rw [htab_next, List.length_set, hlen_k],
             fun u hu hun => ?_, fun u hu fn' huf => ?_⟩
-          · rw [hfr_low _ (by simp only [tabBase]; omega)]
+          · rw [hfr_low _ (by wram_omega)]
             have huv : u ≠ v := by
               rintro rfl
               change (tabAt (k + 1)).getD v none = none at hun
@@ -368,16 +352,14 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
               rw [htab_next, List.getD_set_self (hlen_k ▸ hv_lt), hgv'] at huf
               simp only [freeze, Option.map_some, Option.some.injEq] at huf
               subst huf
-              exact ⟨by rw [hfr_low _ (by simp only [tabBase]; omega)]; exact hvis1,
+              exact ⟨by rw [hfr_low _ (by wram_omega)]; exact hvis1,
                 fun a ha => by rw [hz4m]; exact hz3Row a ha⟩
             · have huf' : ({ S with table := tabAt k } : State (Fin L)).get u = some fn' := by
                 change (tabAt (k + 1)).getD u none = some fn' at huf
                 rwa [htab_next, List.getD_set_ne (Ne.symm huv)] at huf
               obtain ⟨hu1, hutab⟩ := hzT.vis_some u hu fn' huf'
-              exact ⟨by rw [hfr_low _ (by simp only [tabBase]; omega)]; exact hu1,
-                fun a ha => by
-                  rw [hz4m, hz3Fr _ (not_in_tabRow huv ha)]
-                  exact hutab a ha⟩)
+              exact ⟨by rw [hfr_low _ (by wram_omega)]; exact hu1,
+                fun a ha => by rw [hz4m, hz3Fr _ (not_in_tabRow huv ha)]; exact hutab a ha⟩)
       (by rw [hrem3]; exact Nat.zero_le _)
       (by rw [hrem3]; exact ⟨hT3, hch3, hcl3, hidx3, hcm3⟩)
   rw [hrem3, Nat.sub_zero] at hx4
@@ -387,7 +369,7 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
     exact ⟨by wram_simp [hT4.consts], by wram_simp [hidx4], by wram_simp⟩
   obtain ⟨y, hx5, hc5, hidx5, hm5⟩ := hclr
   have htab_end : tabAt S.comp.length = (settle (List.finRange L) S).table := by
-    simp [tabAt, settle, chosen]
+    simp only [tabAt, settle, chosen, List.take_length]
   have hmul_frz : S.comp.length * (5 * L + 20 + 2) = freezePass L * S.comp.length :=
     Nat.mul_comm S.comp.length (freezePass L)
   refine ⟨y, (hx1.seq (hx2.seq (hx3.seq (hx4.seq hx5)))).mono (by omega),

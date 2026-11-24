@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.Combinatorics.MinIsolation.BaseSix
 public import CslibFrontier.Foundations.Data.Nat.TwoAdicInterval
 public import Mathlib.Logic.Function.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -67,16 +68,8 @@ private theorem vertexWeight_update (code : V → Fin ℓ → Bool) (seed : Fin 
     (i : ℕ) (v : V) (hi : i ≠ 0) (j : Fin ℓ) :
     vertexWeight code (update seed j true) i v =
       vertexWeight code (update seed j false) i v + coefficient i j * (code v j).toNat := by
-  let delta := coefficient i j * (code v j).toNat
-  have hdelta : (∑ k : Fin ℓ, if k = j then delta else 0) = delta := by simp
   simp only [vertexWeight, hi, ↓reduceIte]
-  change _ = _ + delta
-  rw [← hdelta, ← sum_add_distrib]
-  refine sum_congr rfl fun k _ => ?_
-  by_cases h : k = j
-  · subst k
-    simp [delta]
-  · simp [h]
+  exact MinIsolation.BaseSix.levelWeight_update (padicValNat 2 i) (code v) seed j
 
 private theorem intervalWeight_update (code : V → Fin ℓ → Bool) (seed : Fin ℓ → Bool)
     (layers : Finset ℕ) (hpos : ∀ i ∈ layers, i ≠ 0) (column : ℕ → V) (j : Fin ℓ) :
@@ -141,14 +134,12 @@ theorem minIntervalWeight_update_bounds (code : V → Fin ℓ → Bool) (seed : 
     let d₀ := minIntervalWeight code (update seed j false) (Icc a b) column paths hne
     let d₁ := minIntervalWeight code (update seed j true) (Icc a b) column paths hne
     d₀ + coefficient mid j * (code v j).toNat ≤ d₁ ∧
-      d₁ ≤ d₀ + coefficient mid j * (code v j).toNat + coefficient mid j / 2 := by
-  obtain ⟨p₀, hp₀, h₀⟩ := exists_minIntervalWeight code (update seed j false) (Icc a b) column hne
-  obtain ⟨p₁, hp₁, h₁⟩ := exists_minIntervalWeight code (update seed j true) (Icc a b) column hne
-  have hb₀ := (intervalWeight_update_bounds code seed ha hm hmax (column p₀) j).2
-  have hb₁ := (intervalWeight_update_bounds code seed ha hm hmax (column p₁) j).1
-  rw [h₀, hcolumn p₀ hp₀] at hb₀
-  rw [h₁, hcolumn p₁ hp₁] at hb₁
-  exact ⟨(Nat.add_le_add_right (minIntervalWeight_le code _ _ column hne hp₁) _).trans hb₁,
-    (minIntervalWeight_le code _ _ column hne hp₀).trans hb₀⟩
+      d₁ ≤ d₀ + coefficient mid j * (code v j).toNat + coefficient mid j / 2 :=
+  MinIsolation.BaseSix.minWeight_update_bounds
+    (fun p s => intervalWeight code s (Icc a b) (column p)) hne (m := padicValNat 2 mid)
+    (c := code v) seed j fun p hp => by
+      have h := intervalWeight_update_bounds code seed ha hm hmax (column p) j
+      rw [hcolumn p hp] at h
+      exact h
 
 end Cslib.Reachability.Hoza

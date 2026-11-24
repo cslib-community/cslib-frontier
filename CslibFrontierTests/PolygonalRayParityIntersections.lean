@@ -8,6 +8,7 @@ module
 -- upstream: local-only (ordinary straight-observation parity clients)
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersections
+import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionParity
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
 import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 import CslibFrontier.Foundations.Geometry.SegmentSign
@@ -668,5 +669,214 @@ example :
         norm_num at hr)
   have h := hray c (Finset.mem_singleton_self c)
   exact ⟨r, hgerm, by simpa only [Finset.mem_singleton_self, decide_true] using h⟩
+
+-- The observation is exactly at cut height and starts with odd ray parity.
+example : ∃ r : Route, r.start = 0 ∧ r.finish = ⟨0, 2⟩ ∧
+    r.rayParity 1 ⟨-1, 1⟩ = false := by
+  classical
+  let b : ℂ := ⟨0, 2⟩
+  let c : ℂ := ⟨-1, 1⟩
+  let points : Finset ℂ := {c}
+  have hconn : IsPathConnected (Set.univ : Set ℂ) :=
+    (convex_univ : Convex ℝ (Set.univ : Set ℂ)).isPathConnected ⟨0, Set.mem_univ 0⟩
+  have hcut : AffineMap.lineMap (0 : ℂ) b (1 / 2 : ℝ) ∈
+      Set.univ \ (↑points : Set ℂ) := by
+    refine ⟨Set.mem_univ _, ?_⟩
+    intro h
+    have he : AffineMap.lineMap (0 : ℂ) b (1 / 2 : ℝ) = c := Finset.mem_singleton.mp h
+    have hr := congrArg Complex.re he
+    norm_num [AffineMap.lineMap_apply_module', Complex.real_smul, Complex.mul_re, b, c] at hr
+  obtain ⟨r, he, -, -, -, hr⟩ :=
+    Route.exists_line_add_rayParity isOpen_univ hconn points points (fun _ h => h)
+      (fun z _ => Set.mem_univ z) 0 b (t := 1 / 2) (by constructor <;> norm_num) hcut
+      (u := 1) one_ne_zero
+  have hline : (Route.line 0 b).rayParity 1 c = true := by
+    rw [Route.rayParity_line]
+    norm_num [RayCrosses, horizontalIntercept, b, c]
+  refine ⟨r, he false, he true, ?_⟩
+  have hc : c ∈ points := Finset.mem_singleton_self _
+  simpa only [hline, hc, decide_true, BooleanRing.add_self, Bool.zero_eq_false] using hr c hc
+
+-- The bent route crosses the observation ray twice, while the horizontal route
+-- has no crossings. The observation is aligned with both endpoints.
+example :
+    ((Route.line 0 ⟨1, 2⟩).concat (Route.line ⟨1, 2⟩ ⟨2, 0⟩)).rayParity 1 ⟨-1, 0⟩ =
+      false := by
+  classical
+  let b : ℂ := ⟨2, 0⟩
+  let m : ℂ := ⟨1, 2⟩
+  let p := (Route.line 0 m).concat (Route.line m b)
+  let q := Route.line 0 b
+  let K := Complex.reLm ⁻¹' Set.Ici (0 : ℝ)
+  have hK : Convex ℝ K := (convex_Ici _).linear_preimage Complex.reLm
+  have hz : (⟨-1, 0⟩ : ℂ) ∉ K := by
+    change ¬(0 : ℝ) ≤ -1
+    norm_num
+  have h0 : (0 : ℂ) ∈ K := by change (0 : ℝ) ≤ 0; exact le_rfl
+  have hm : m ∈ K := by change (0 : ℝ) ≤ 1; exact zero_le_one
+  have hb : b ∈ K := by change (0 : ℝ) ≤ 2; norm_num
+  have hp : p.support ⊆ K := by
+    change ((Route.line 0 m).concat (Route.line m b)).support ⊆ K
+    rw [Route.support_concat _ _ rfl, Route.support_line, Route.support_line]
+    exact Set.union_subset (hK.segment_subset h0 hm) (hK.segment_subset hm hb)
+  have hq : q.support ⊆ K := by
+    change (Route.line 0 b).support ⊆ K
+    rw [Route.support_line]
+    exact hK.segment_subset h0 hb
+  have hend (side : Bool) : p.endpoint side = q.endpoint side := by
+    change ((Route.line 0 m).concat (Route.line m b)).endpoint side =
+      (Route.line 0 b).endpoint side
+    rw [Route.endpoint_concat _ _ rfl]
+    cases side <;> rfl
+  change p.rayParity 1 ⟨-1, 0⟩ = false
+  rw [Route.rayParity_eq_of_support_subset_convex p q (hend false) (hend true)
+    hK hp hq hz]
+  change (Route.line 0 b).rayParity 1 ⟨-1, 0⟩ = false
+  rw [Route.rayParity_line]
+  exact decide_eq_false (not_rayCrosses_of_im_eq (by simp only [one_mul]; rfl) _)
+
+-- The original bend lies at the observation height. A perturbation can put it on either side.
+open Classical in
+example :
+    let bend (m : ℂ) : Route := ⟨1, fun i => if i.val = 1 then m else ⟨i.val, 0⟩⟩
+    ∃ ε : ℝ, 0 < ε ∧ ∀ m : ℂ, dist m ⟨1, 1⟩ < ε →
+      ∀ w ∈ ({⟨-1, 1⟩, ⟨-1, 0⟩} : Finset ℂ),
+        w ∉ (bend m).support ∧ ∀ u : ℂ,
+          (bend m).rayParity u w = (bend ⟨1, 1⟩).rayParity u w := by
+  let bend (m : ℂ) : Route := ⟨1, fun i => if i.val = 1 then m else ⟨i.val, 0⟩⟩
+  let c : ℂ := ⟨1, 1⟩
+  let points : Finset ℂ := {⟨-1, 1⟩, ⟨-1, 0⟩}
+  let K := Complex.reLm ⁻¹' Set.Ici (0 : ℝ)
+  have hK : Convex ℝ K := (convex_Ici _).linear_preimage Complex.reLm
+  have hnode (i : Fin ((bend c).segments + 1)) : (bend c).point i ∈ K := by
+    fin_cases i <;> norm_num [bend, c, K]
+  have havoid (z : ℂ) (hz : z ∈ points) : z ∉ (bend c).support := by
+    have hre : z.re = -1 := by
+      simp only [points, Finset.mem_insert, Finset.mem_singleton] at hz
+      rcases hz with rfl | rfl <;> rfl
+    rw [Route.support]
+    intro hz'
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hz'
+    have hc := hK.segment_subset (hnode i.castSucc) (hnode i.succ) hi
+    change (0 : ℝ) ≤ z.re at hc
+    norm_num [hre] at hc
+  obtain ⟨ε, hε, hmove⟩ :=
+    (bend c).exists_pos_rayParity_eq_of_point_dist_lt_finset points havoid
+  refine ⟨ε, hε, fun m hm w hw => ?_⟩
+  have hdist (i : Fin ((bend c).segments + 1)) :
+      dist ((bend m).point i) ((bend c).point i) < ε := by
+    fin_cases i
+    · simpa [bend] using hε
+    · exact hm
+    · simpa [bend] using hε
+  exact hmove (bend m).point rfl rfl hdist w hw
+
+private def retracedSegment (a b : ℂ) : Route where
+  bends := 1
+  point i := if i.val = 1 then b else a
+
+private theorem support_retracedSegment (a b : ℂ) :
+    (retracedSegment a b).support = segment ℝ a b := by
+  ext z
+  rw [Route.support, Set.mem_iUnion]
+  constructor
+  · rintro ⟨i, hi⟩
+    change Fin 2 at i
+    fin_cases i
+    · exact hi
+    · rw [segment_symm]
+      exact hi
+  · exact fun hz => ⟨0, hz⟩
+
+private theorem retracedSegment_point_eq (a b : ℂ) (i : Fin 3) :
+    (retracedSegment a b).point i = a ∨ (retracedSegment a b).point i = b := by
+  change (if i.val = 1 then b else a) = a ∨ (if i.val = 1 then b else a) = b
+  by_cases h : i.val = 1 <;> simp [h]
+
+-- A horizontal and a vertical closed route both retrace their segment through zero.
+open Classical in
+example :
+    let p := retracedSegment (-1) 1
+    let q := retracedSegment (-Complex.I) Complex.I
+    (0 : ℂ) ∈ openSegment ℝ (p.point (0 : Fin p.segments).castSucc)
+      (p.point (0 : Fin p.segments).succ) ∧
+    (0 : ℂ) ∈ openSegment ℝ (q.point (0 : Fin q.segments).castSucc)
+      (q.point (0 : Fin q.segments).succ) ∧
+    p.intersectionParity q = false := by
+  have hmid (a : ℂ) : (0 : ℂ) ∈ openSegment ℝ (-a) a := by
+    simpa only [midpoint_neg_self] using midpoint_mem_openSegment (𝕜 := ℝ) (-a) a
+  refine ⟨hmid 1, hmid Complex.I, ?_⟩
+  apply Route.intersectionParity_eq_false_of_closed rfl rfl
+  · intro i
+    change Fin 2 at i
+    fin_cases i
+    · change (-1 : ℂ) ≠ 1
+      norm_num [Complex.ext_iff]
+    · change (1 : ℂ) ≠ -1
+      norm_num [Complex.ext_iff]
+  · intro i
+    change Fin 2 at i
+    fin_cases i
+    · change -Complex.I ≠ Complex.I
+      norm_num [Complex.ext_iff]
+    · change Complex.I ≠ -Complex.I
+      norm_num [Complex.ext_iff]
+  · intro i
+    rw [support_retracedSegment, segment_eq_image_lineMap]
+    rintro ⟨t, _, h⟩
+    rcases retracedSegment_point_eq (-1) 1 i with hi | hi <;>
+      rw [hi] at h <;> have hre := congrArg Complex.re h <;>
+      norm_num [AffineMap.lineMap_apply_module'] at hre
+  · intro i
+    rw [support_retracedSegment, segment_eq_image_lineMap]
+    rintro ⟨t, _, h⟩
+    rcases retracedSegment_point_eq (-Complex.I) Complex.I i with hi | hi <;>
+      rw [hi] at h <;> have him := congrArg Complex.im h <;>
+      norm_num [AffineMap.lineMap_apply_module'] at him
+
+-- Each family repeats a nonhorizontal segment twice. The two supports cross at zero.
+open Classical in
+example :
+    let a : ℂ := Complex.I
+    let b : ℂ := ⟨1, 1⟩
+    let crosses := (openSegment ℝ (-a) a ∩ openSegment ℝ (-b) b).Nonempty
+    crosses ∧ (∑ _ : Bool, true * ∑ _ : Bool, true * decide crosses) = (0 : Bool) := by
+  intro a b crosses
+  have hm (z : ℂ) : (0 : ℂ) ∈ openSegment ℝ (-z) z := by
+    simpa only [midpoint_neg_self] using midpoint_mem_openSegment (𝕜 := ℝ) (-z) z
+  refine ⟨⟨0, hm a, hm b⟩, ?_⟩
+  have vertical {z : ℂ} (hz : z ∈ segment ℝ (-a) a) : z.re = 0 := by
+    rw [segment_eq_image_lineMap] at hz
+    obtain ⟨s, _, rfl⟩ := hz
+    simp [a, AffineMap.lineMap_apply_module']
+  have diagonal {z : ℂ} (hz : z ∈ segment ℝ (-b) b) : z.re = z.im := by
+    rw [segment_eq_image_lineMap] at hz
+    obtain ⟨s, _, rfl⟩ := hz
+    simp [b, AffineMap.lineMap_apply_module']
+  apply sum_openIntersections_eq_zero_of_even
+    (fun _ : Bool => -a) (fun _ => a) (fun _ : Bool => -b) (fun _ => b)
+    (fun _ => true) (fun _ => true)
+  · intro i
+    norm_num [a]
+  · intro j
+    norm_num [b]
+  · intro i j _ _
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · intro h
+      have hh := diagonal h
+      norm_num [a] at hh
+    · intro h
+      have hh := diagonal h
+      norm_num [a] at hh
+    · intro h
+      have hh := vertical h
+      norm_num [b] at hh
+    · intro h
+      have hh := vertical h
+      norm_num [b] at hh
+  · intro p
+    simp only [Fintype.sum_bool, BooleanRing.add_self, Bool.zero_eq_false]
+  · intro p
+    simp only [Fintype.sum_bool, BooleanRing.add_self, Bool.zero_eq_false]
 
 end CslibFrontierTests.PolygonalRayParityIntersections

@@ -181,22 +181,24 @@ theorem outBaseAddr_lt_wordBound {L : ℕ} (g : Graph (Fin L → Fin L)) :
     headBase, wordBound]
   nlinarith
 
+/-- Any address up to `outBaseAddr g + slots g + 2` fits when `wordBound g` fits. -/
+theorem fits_top {L w a : ℕ} {g : Graph (Fin L → Fin L)} (hw : Fits w (wordBound g))
+    (ha : a ≤ outBaseAddr g + slots g + 2) : Fits w a :=
+  hw.of_le (ha.trans (outBaseAddr_lt_wordBound g))
+
 /-- Every encoded edge record lies below `headBase g`. -/
 theorem edge_end_le_headBase {L j : ℕ} {g : Graph (Fin L → Fin L)}
     (hj : j < g.edges.length) : 4 + j * (L + 2) + (L + 2) ≤ headBase g := by
   have : j * (L + 2) + (L + 2) ≤ g.edges.length * (L + 2) := by
-    simpa [Nat.succ_mul] using Nat.mul_le_mul_right (L + 2) hj
+    simpa only [Nat.succ_mul] using Nat.mul_le_mul_right (L + 2) hj
   simp only [headBase]
   omega
 
 /-- Every encoded edge record fits within `wordBound g`. -/
 theorem edge_end_le_wordBound {L j : ℕ} {g : Graph (Fin L → Fin L)}
-    (hj : j < g.edges.length) : 4 + j * (L + 2) + (L + 2) ≤ wordBound g := by
-  have h1 := edge_end_le_headBase hj
-  have h2 := outBaseAddr_lt_wordBound g
-  simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase, visBase,
-    nodeBase] at h2
-  omega
+    (hj : j < g.edges.length) : 4 + j * (L + 2) + (L + 2) ≤ wordBound g :=
+  (edge_end_le_headBase hj).trans (by wram_omega : headBase g ≤ outBaseAddr g + slots g + 2)
+    |>.trans (outBaseAddr_lt_wordBound g)
 
 /-- Basic linear bound relating `|g.edges|`, `slots g`, and `L` to `wordBound g`. -/
 theorem edges_lt_wordBound {L : ℕ} (g : Graph (Fin L → Fin L)) :
@@ -207,7 +209,7 @@ theorem edges_lt_wordBound {L : ℕ} (g : Graph (Fin L → Fin L)) :
 /-- Self-copy instruction `r ← r` executes in 1 step as a no-op. -/
 theorem exec_nop {w : ℕ} (r : Fin 34) (x : Data 34) :
     Exec (B := .standard) w (.op (.copy r r)) x x 1 := by
-  have h : x.set r (x.regs r) = x := by cases x; simp [Data.set]
+  have h : x.set r (x.regs r) = x := by cases x; simp only [Data.set, Function.update_eq_self]
   simpa only [h] using
     (Exec.copy : Exec (B := .standard) w (.op (.copy r r)) x (x.regs r |> x.set r) 1)
 
@@ -217,15 +219,18 @@ theorem not_in_tabRow {L u w a : ℕ} {g : Graph (Fin L → Fin L)}
     ¬ (tabBase g + w * L ≤ tabBase g + u * L + a ∧
         tabBase g + u * L + a < tabBase g + w * L + L) := by
   rcases Nat.lt_or_gt_of_ne huw with h | h
-  · have : u * L + L ≤ w * L := by simpa [Nat.succ_mul] using Nat.mul_le_mul_right L h
+  · have : u * L + L ≤ w * L := by
+      simpa only [Nat.succ_mul] using Nat.mul_le_mul_right L h
     omega
-  · have : w * L + L ≤ u * L := by simpa [Nat.succ_mul] using Nat.mul_le_mul_right L h
+  · have : w * L + L ≤ u * L := by
+      simpa only [Nat.succ_mul] using Nat.mul_le_mul_right L h
     omega
 
 /-- Every valid slot row `w < slots g` ends at or below `candBase g`. -/
 theorem tabRow_hi_le_candBase {L w : ℕ} {g : Graph (Fin L → Fin L)} (hw : w < slots g) :
     tabBase g + w * L + L ≤ candBase g := by
-  have : w * L + L ≤ slots g * L := by simpa [Nat.succ_mul] using Nat.mul_le_mul_right L hw
+  have : w * L + L ≤ slots g * L := by
+    simpa only [Nat.succ_mul] using Nat.mul_le_mul_right L hw
   simp only [candBase]
   omega
 
@@ -274,33 +279,38 @@ theorem inputAt_init {L : ℕ} (g : Graph (Fin L → Fin L)) :
   have hm0 : (Data.init (encode g) : Data 34).mem 0 = 3 + g.edges.length * (L + 2) := by
     rw [Data.init_mem_zero, length_encode]
   have hm1 : (Data.init (encode g) : Data 34).mem 1 = L := by
-    rw [Data.init_mem_succ]; simp [encode]
+    rw [Data.init_mem_succ]; simp only [encode, List.getD_cons_zero]
   have hm2 : (Data.init (encode g) : Data 34).mem 2 = g.vertices := by
-    rw [show (2 : ℕ) = 1 + 1 from rfl, Data.init_mem_succ]; simp [encode]
+    rw [show (2 : ℕ) = 1 + 1 from rfl, Data.init_mem_succ]
+    simp only [encode, List.getD_cons_succ, List.getD_cons_zero]
   have hm3 : (Data.init (encode g) : Data 34).mem 3 = g.edges.length := by
-    rw [show (3 : ℕ) = 2 + 1 from rfl, Data.init_mem_succ]; simp [encode]
+    rw [show (3 : ℕ) = 2 + 1 from rfl, Data.init_mem_succ]
+    simp only [encode, List.getD_cons_succ, List.getD_cons_zero]
   have hedge : ∀ j (hj : j < g.edges.length) r (hr : r < L + 2),
       (Data.init (encode g) : Data 34).mem (4 + j * (L + 2) + r) =
-        (encodeEdge g.edges[j])[r]'(by simp [hr]) := by
+        (encodeEdge g.edges[j])[r]'(by simp only [length_encodeEdge]; exact hr) := by
     intro j hj r hr
     rw [show 4 + j * (L + 2) + r = (3 + (j * (L + 2) + r)) + 1 by omega, Data.init_mem_succ]
     simp only [encode, List.getD_eq_getElem?_getD]
     change ([L, g.vertices, g.edges.length] ++ g.edges.flatMap encodeEdge)[
       3 + (j * (L + 2) + r)]?.getD 0 = _
-    rw [List.getElem?_append_right (by simp)]
+    rw [List.getElem?_append_right (by simp only [List.length_cons, List.length_nil]; omega)]
     simp only [List.length_cons, List.length_nil, Nat.add_sub_cancel_left]
     rw [List.getElem?_flatMap_mul_add g.edges encodeEdge (L + 2)
-      (fun _ _ => length_encodeEdge _) hj hr, List.getElem?_eq_getElem (by simp [hr])]
+      (fun _ _ => length_encodeEdge _) hj hr,
+      List.getElem?_eq_getElem (by simp only [length_encodeEdge]; exact hr)]
     rfl
   refine ⟨⟨hm0, hm1, hm2, hm3, ?_, ?_, ?_⟩, ?_⟩
   · intro j hj
-    simpa [encodeEdge] using hedge j hj 0 (by omega)
+    simpa only [encodeEdge, List.getElem_cons_zero, Nat.add_zero] using hedge j hj 0 (by omega)
   · intro j hj
-    simpa [encodeEdge] using hedge j hj 1 (by omega)
+    simpa only [encodeEdge, List.getElem_cons_succ, List.getElem_cons_zero] using
+      hedge j hj 1 (by omega)
   · intro j hj a ha
     have h := hedge j hj (a + 2) (by omega)
     rw [show 4 + j * (L + 2) + (a + 2) = 4 + j * (L + 2) + 2 + a by omega] at h
-    simpa [encodeEdge] using h
+    simpa only [encodeEdge, List.getElem_cons_succ, List.getElem_map, List.getElem_finRange,
+      Fin.cast_mk] using h
   · intro a ha
     have ha1 : a = (a - 1) + 1 := by simp only [headBase] at ha; omega
     rw [ha1, Data.init_mem_succ]
@@ -375,6 +385,59 @@ structure ConstRegs {L : ℕ} (g : Graph (Fin L → Fin L)) (x : Data 34) : Prop
       stackB := by simpa only [Data.set_regs_of_ne (ne rStackBase (by decide))] using h.stackB
       compB := by simpa only [Data.set_regs_of_ne (ne rCompBase (by decide))] using h.compB
       outB := by simpa only [Data.set_regs_of_ne (ne outBase (by decide))] using h.outB }
+
+/-- Preserved Phase 3 state registers `17 .. 27` (`rStackLen`, `rCompLen`, `rOuterIdx`,
+`rCurNode`, `rRem`, `rEdgeIdx`, `rSrc`, `rDst`) across scratch operations. -/
+structure Phase3Regs (x y : Data 34) : Prop where
+  /-- `rEdgeIdx` is preserved. -/
+  edgeIdx : y.regs rEdgeIdx = x.regs rEdgeIdx
+  /-- `rSrc` is preserved. -/
+  src : y.regs rSrc = x.regs rSrc
+  /-- `rDst` is preserved. -/
+  dst : y.regs rDst = x.regs rDst
+  /-- `rStackLen` is preserved. -/
+  stackLen : y.regs rStackLen = x.regs rStackLen
+  /-- `rCompLen` is preserved. -/
+  compLen : y.regs rCompLen = x.regs rCompLen
+  /-- `rCurNode` is preserved. -/
+  curNode : y.regs rCurNode = x.regs rCurNode
+  /-- `rRem` is preserved. -/
+  rem : y.regs rRem = x.regs rRem
+  /-- `rOuterIdx` is preserved. -/
+  outerIdx : y.regs rOuterIdx = x.regs rOuterIdx
+
+/-- Reflexivity of `Phase3Regs`. -/
+theorem Phase3Regs.refl (x : Data 34) : Phase3Regs x x :=
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- Transitivity of `Phase3Regs`. -/
+theorem Phase3Regs.trans {x y z : Data 34}
+    (h2 : Phase3Regs y z) (h1 : Phase3Regs x y) : Phase3Regs x z :=
+  ⟨h2.1.trans h1.1, h2.2.trans h1.2, h2.3.trans h1.3, h2.4.trans h1.4,
+    h2.5.trans h1.5, h2.6.trans h1.6, h2.7.trans h1.7, h2.8.trans h1.8⟩
+
+/-- Memory writes preserve `Phase3Regs`. -/
+@[wram_simps] theorem Phase3Regs.write_iff (x y : Data 34) (a v : ℕ) :
+    Phase3Regs x (y.write a v) ↔ Phase3Regs x y := by
+  simp only [Data.write]
+  exact ⟨fun h => ⟨h.1, h.2, h.3, h.4, h.5, h.6, h.7, h.8⟩,
+    fun h => ⟨h.1, h.2, h.3, h.4, h.5, h.6, h.7, h.8⟩⟩
+
+/-- Updating registers outside `17 .. 27` preserves `Phase3Regs`. -/
+@[wram_simps] theorem Phase3Regs.set_iff (x y : Data 34) {r : Fin 34} (v : ℕ)
+    (hr : r.val ≤ 16 ∨ 28 ≤ r.val) :
+    Phase3Regs x (y.set r v) ↔ Phase3Regs x y := by
+  have ne (i : Fin 34) (hi : 17 ≤ i.val ∧ i.val ≤ 27) : i ≠ r := fun h => by
+    rw [h] at hi; omega
+  constructor <;> intro h <;> exact
+    { edgeIdx := by simpa only [Data.set_regs_of_ne (ne rEdgeIdx (by decide))] using h.edgeIdx
+      src := by simpa only [Data.set_regs_of_ne (ne rSrc (by decide))] using h.src
+      dst := by simpa only [Data.set_regs_of_ne (ne rDst (by decide))] using h.dst
+      stackLen := by simpa only [Data.set_regs_of_ne (ne rStackLen (by decide))] using h.stackLen
+      compLen := by simpa only [Data.set_regs_of_ne (ne rCompLen (by decide))] using h.compLen
+      curNode := by simpa only [Data.set_regs_of_ne (ne rCurNode (by decide))] using h.curNode
+      rem := by simpa only [Data.set_regs_of_ne (ne rRem (by decide))] using h.rem
+      outerIdx := by simpa only [Data.set_regs_of_ne (ne rOuterIdx (by decide))] using h.outerIdx }
 
 /-- Null-terminated linked list in `[nodeBase g, top)` representing a list of edges of `g`. -/
 inductive AdjChain {L : ℕ} (g : Graph (Fin L → Fin L)) (mem : ℕ → ℕ) (top : ℕ) :
@@ -458,13 +521,30 @@ structure StateAt {L : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin L))
   /-- `compBase g` holds `S.comp.reverse`. -/
   comp_mem : HoldsList (compBase g) S.comp.reverse x.mem
 
+/-- Transport `TableStateAt` across memory writes outside `[0, tabBase g + slots g * L)`. -/
+theorem TableStateAt.frame {L : ℕ} {g : Graph (Fin L → Fin L)} {S S' : State (Fin L)}
+    {x y : Data 34} (h : TableStateAt g S x) (hc : ConstRegs g y) (htab : S'.table = S.table)
+    (bound : ℕ) (hb : tabBase g + slots g * L ≤ bound) (hfr : ∀ a < bound, y.mem a = x.mem a) :
+    TableStateAt g S' y := by
+  refine ⟨hc, h.inp.frame (fun a ha => hfr a (by wram_omega)),
+    h.bkt.frame (fun a ha => hfr a (by wram_omega)), htab ▸ h.len_table,
+    fun v hv hvn => by
+      change S'.table.getD v none = none at hvn
+      rw [htab] at hvn
+      rw [hfr _ (by wram_omega)]; exact h.vis_none v hv hvn,
+    fun v hv fn hvf => ?_⟩
+  change S'.table.getD v none = some fn at hvf
+  rw [htab] at hvf
+  obtain ⟨hv1, hvtab⟩ := h.vis_some v hv fn hvf
+  have hv_cb := tabRow_hi_le_candBase (g := g) hv
+  exact ⟨by rw [hfr _ (by wram_omega)]; exact hv1,
+    fun a ha => by rw [hfr _ (by wram_omega)]; exact hvtab a ha⟩
+
 /-- Transport `TableStateAt` across register updates that leave memory unchanged. -/
 theorem TableStateAt.of_eq {L : ℕ} {g : Graph (Fin L → Fin L)} {S : State (Fin L)}
     {x y : Data 34} (h : TableStateAt g S x) (hc : ConstRegs g y) (hm : y.mem = x.mem) :
     TableStateAt g S y :=
-  ⟨hc, hm ▸ h.inp, hm ▸ h.bkt, h.len_table,
-    fun v hv hvn => hm ▸ h.vis_none v hv hvn,
-    fun v hv fn hvf => hm ▸ h.vis_some v hv fn hvf⟩
+  h.frame hc rfl (tabBase g + slots g * L) le_rfl fun _ _ => congrFun hm _
 
 /-- Transport `StateAt` across scratch-register updates that preserve `rStackLen`, `rCompLen`,
 and memory. -/
@@ -481,26 +561,13 @@ theorem StateAt.frame_inv {L : ℕ} {g : Graph (Fin L → Fin L)} {S : State (Fi
     (hsl : y.regs rStackLen = S.stack.length) (hcl : y.regs rCompLen = S.comp.length)
     (hfr : ∀ a, ¬ (invBase g ≤ a ∧ a < invBase g + L) → y.mem a = x.mem a) :
     StateAt g S y :=
-  StateAt.mk ⟨hc,
-    hS.inp.frame (fun a ha =>
-      hfr _ (by simp only [invBase, candBase, tabBase, visBase, nodeBase]; omega)),
-    hS.bkt.frame (fun a ha =>
-      hfr _ (by simp only [invBase, candBase, tabBase]; omega)),
-    hS.len_table,
-    fun v hv hvn => by
-      rw [hfr _ (by simp only [invBase, candBase, tabBase]; omega)]
-      exact hS.vis_none v hv hvn,
-    fun v hv fn hvf => by
-      obtain ⟨hv1, hvtab⟩ := hS.vis_some v hv fn hvf
-      have hv_cb := tabRow_hi_le_candBase (g := g) hv
-      exact ⟨by rw [hfr _ (by simp only [invBase, candBase, tabBase]; omega)]; exact hv1,
-        fun a ha => by rw [hfr _ (by simp only [invBase] at *; omega)]; exact hvtab a ha⟩⟩
-    hS.pot_le
-    (fun a ha => by rw [hfr _ (by simp only [invBase] at *; omega)]; exact hS.cand_mem a ha)
-    hsl hS.stack_lt
-    (hS.stack_mem.frame fun a ha1 _ => hfr _ (by simp only [stackBase] at *; omega))
-    hcl hS.comp_le hS.comp_lt
-    (hS.comp_mem.frame fun a ha1 _ => hfr _ (by simp only [compBase, stackBase] at *; omega))
+  ⟨hS.toTableStateAt.frame hc rfl (invBase g) (by wram_omega) (fun a ha => hfr a (by omega)),
+    hS.pot_le,
+    fun a ha => by rw [hfr _ (by wram_omega)]; exact hS.cand_mem a ha,
+    hsl, hS.stack_lt,
+    hS.stack_mem.frame (fun a _ _ => hfr _ (by wram_omega)),
+    hcl, hS.comp_le, hS.comp_lt,
+    hS.comp_mem.frame (fun a _ _ => hfr _ (by wram_omega))⟩
 
 /-- Establish `StateAt g (push S u f) y` after writing row `u`, setting `vis[u] := 1`, and
 pushing `u` onto the stack array. -/
@@ -524,11 +591,10 @@ theorem StateAt.push_slot {L : ℕ} {g : Graph (Fin L → Fin L)} {S : State (Fi
     unfold State.potential at hpot
     omega
   have hfr_low : ∀ a < visBase g, y.mem a = x.mem a := fun a ha =>
-    hframe a (by simp only [tabBase] at *; omega) (by omega)
-      (by simp only [stackBase, invBase, candBase, tabBase] at *; omega)
+    hframe a (by wram_omega) (by omega) (by wram_omega)
   have hpot_push : statePotential (push S u f) ≤ slots g :=
     (step_push (hS.len_table ▸ hu) hnone f).potential_le.trans hS.pot_le
-  refine ⟨⟨hc, hS.inp.frame (fun a ha => hfr_low a (by simp only [visBase, nodeBase]; omega)),
+  refine ⟨⟨hc, hS.inp.frame (fun a ha => hfr_low a (by wram_omega)),
       hS.bkt.frame hfr_low, length_push S u f ▸ hS.len_table, fun v hv hvn => ?_,
       fun v hv fn hvf => ?_⟩,
     hpot_push,
@@ -538,8 +604,7 @@ theorem StateAt.push_slot {L : ℕ} {g : Graph (Fin L → Fin L)} {S : State (Fi
       rw [get_push_self (hS.len_table ▸ hu)] at hvn
       nomatch hvn
     rw [get_push_ne S hne] at hvn
-    rw [hframe _ (by simp only [tabBase]; omega) (by omega)
-      (by simp only [stackBase, invBase, candBase, tabBase] at *; omega)]
+    rw [hframe _ (by wram_omega) (by omega) (by wram_omega)]
     exact hS.vis_none v hv hvn
   · by_cases huv : u = v
     · subst huv
@@ -549,28 +614,23 @@ theorem StateAt.push_slot {L : ℕ} {g : Graph (Fin L → Fin L)} {S : State (Fi
     · rw [get_push_ne S huv] at hvf
       obtain ⟨hv1, hvtab⟩ := hS.vis_some v hv fn hvf
       refine ⟨?_, fun a ha => ?_⟩
-      · rw [hframe _ (by simp only [tabBase]; omega) (by omega)
-          (by simp only [stackBase, invBase, candBase, tabBase] at *; omega)]
+      · rw [hframe _ (by wram_omega) (by omega) (by wram_omega)]
         exact hv1
-      · rw [hframe _ (not_in_tabRow (Ne.symm huv) ha) (by simp only [tabBase]; omega)
-          (by have := tabRow_hi_le_candBase (g := g) hv
-              simp only [stackBase, invBase] at *; omega)]
+      · rw [hframe _ (not_in_tabRow (Ne.symm huv) ha) (by wram_omega)
+          (by have := tabRow_hi_le_candBase (g := g) hv; wram_omega)]
         exact hvtab a ha
   · rw [show (push S u f).cand = S.cand from rfl,
-      hframe _ (by omega) (by simp only [candBase, tabBase] at *; omega)
-        (by simp only [stackBase, invBase] at *; omega)]
+      hframe _ (by omega) (by wram_omega) (by wram_omega)]
     exact hS.cand_mem a ha
-  · simpa [push] using hstk_len
+  · simpa only [push, List.length_cons] using hstk_len
   · rcases List.mem_cons.mp hv with rfl | hv
     · exact hu
     · exact hS.stack_lt v hv
-  · simpa [push] using hstk_mem
-  · exact hS.comp_mem.frame fun a ha1 ha2 => by
+  · simpa only [push, List.reverse_cons] using hstk_mem
+  · exact hS.comp_mem.frame fun a _ ha2 => by
       have hcl := hS.comp_le
       rw [List.length_reverse] at ha2
-      exact hframe a (by simp only [compBase, stackBase, invBase] at *; omega)
-        (by simp only [compBase, stackBase, invBase, candBase, tabBase] at *; omega)
-        (by simp only [compBase] at *; omega)
+      exact hframe a (by wram_omega) (by wram_omega) (by wram_omega)
 
 /-- Load visited flags `vis[rSrc]` and `vis[rDst]` into `rTmp1` and `rTmp2`. -/
 def edgeVisLoad : Code .standard 34 := ram[
@@ -591,31 +651,21 @@ def extendPrep (fromReg toReg : Fin 34) : Code .standard 34 := ram[
 theorem edgeVisLoad_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin L))
     (x : Data 34) (j : ℕ) (hj : j < g.edges.length)
     (hS : StateAt g S x)
-    (heptr : x.regs rEdgeIdx = 4 + j * (L + 2))
     (hsrc_reg : x.regs rSrc = g.edges[j].src)
     (hdst_reg : x.regs rDst = g.edges[j].dst)
     (hw : Fits w (wordBound g)) :
     ∃ x1, ExecWithin w edgeVisLoad x x1 4 ∧ ConstRegs g x1 ∧
       x1.regs rTmp1 = x.mem (visBase g + g.edges[j].src) ∧
       x1.regs rTmp2 = x.mem (visBase g + g.edges[j].dst) ∧
-      x1.regs rEdgeIdx = 4 + j * (L + 2) ∧
-      x1.regs rSrc = g.edges[j].src ∧ x1.regs rDst = g.edges[j].dst ∧
-      x1.regs rStackLen = S.stack.length ∧ x1.regs rCompLen = S.comp.length ∧
-      x1.regs rCurNode = x.regs rCurNode ∧ x1.regs rRem = x.regs rRem ∧
-      x1.regs rOuterIdx = x.regs rOuterIdx ∧ x1.mem = x.mem := by
+      Phase3Regs x x1 ∧ x1.mem = x.mem := by
   have hs_lt : g.edges[j].src < slots g := src_lt_slots (List.getElem_mem hj)
   have hd_lt : g.edges[j].dst < slots g := dst_lt_slots (List.getElem_mem hj)
-  have hwb := outBaseAddr_lt_wordBound g
-  have hfit_top : Fits w (outBaseAddr g + slots g) := hw.of_le (by omega)
-  have : Fits w (visBase g + g.edges[j].src) := hfit_top.of_le (by
-    simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase] at *; omega)
-  have : Fits w (visBase g + g.edges[j].dst) := hfit_top.of_le (by
-    simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase] at *; omega)
+  have : Fits w (visBase g + g.edges[j].src) := fits_top hw (by wram_omega)
+  have : Fits w (visBase g + g.edges[j].dst) := fits_top hw (by wram_omega)
   unfold edgeVisLoad
   wram_exec [hS.consts.visB, hsrc_reg, hdst_reg]
-  exact ⟨by wram_simp [hS.consts], by wram_simp, by wram_simp, by wram_simp [heptr],
-    by wram_simp [hsrc_reg], by wram_simp [hdst_reg], by wram_simp [hS.stack_len],
-    by wram_simp [hS.comp_len], by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
+  exact ⟨by wram_simp [hS.consts], by wram_simp, by wram_simp,
+    by wram_simp [Phase3Regs.refl], by wram_simp⟩
 
 /-- Specification for `extendPrep`. -/
 theorem extendPrep_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (fromReg toReg : Fin 34)
@@ -626,29 +676,17 @@ theorem extendPrep_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (fromReg toReg
     (hw : Fits w (wordBound g)) :
     ∃ x2, ExecWithin w (extendPrep fromReg toReg) x1 x2 5 ∧ ConstRegs g x2 ∧
       x2.regs rTmp2 = tabBase g + u * L ∧ x2.regs rTmp3 = tabBase g + v * L ∧
-      x2.regs rLabIdx = 0 ∧
-      x2.regs rEdgeIdx = x1.regs rEdgeIdx ∧ x2.regs rSrc = x1.regs rSrc ∧
-      x2.regs rDst = x1.regs rDst ∧ x2.regs rStackLen = x1.regs rStackLen ∧
-      x2.regs rCompLen = x1.regs rCompLen ∧ x2.regs rCurNode = x1.regs rCurNode ∧
-      x2.regs rRem = x1.regs rRem ∧ x2.regs rOuterIdx = x1.regs rOuterIdx ∧
-      x2.mem = x1.mem := by
+      x2.regs rLabIdx = 0 ∧ Phase3Regs x1 x2 ∧ x2.mem = x1.mem := by
   have hcb_u := tabRow_hi_le_candBase (g := g) hu
   have hcb_v := tabRow_hi_le_candBase (g := g) hv
-  have hwb := outBaseAddr_lt_wordBound g
-  have hfit_top : Fits w (outBaseAddr g + slots g) := hw.of_le (by omega)
-  have : Fits w (u * L) := hfit_top.of_le (by
-    simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase] at *; omega)
-  have : Fits w (v * L) := hfit_top.of_le (by
-    simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase] at *; omega)
-  have : Fits w (tabBase g + u * L) := hfit_top.of_le (by
-    simp only [outBaseAddr, compBase, stackBase, invBase, candBase] at *; omega)
-  have : Fits w (tabBase g + v * L) := hfit_top.of_le (by
-    simp only [outBaseAddr, compBase, stackBase, invBase, candBase] at *; omega)
+  have : Fits w (u * L) := fits_top hw (by wram_omega)
+  have : Fits w (v * L) := fits_top hw (by wram_omega)
+  have : Fits w (tabBase g + u * L) := fits_top hw (by wram_omega)
+  have : Fits w (tabBase g + v * L) := fits_top hw (by wram_omega)
   rcases hregs with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;>
   · unfold extendPrep
     wram_exec [hc1.zero, hc1.regL, hc1.tabB, hfrom, hto]
-    exact ⟨by wram_simp [hc1], by wram_simp, by wram_simp, by wram_simp, by wram_simp,
-      by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
-      by wram_simp, by wram_simp, by wram_simp⟩
+    exact ⟨by wram_simp [hc1], by wram_simp, by wram_simp, by wram_simp,
+      by wram_simp [Phase3Regs.refl], by wram_simp⟩
 
 end Cslib.Complexity.UniqueGames.Propagation

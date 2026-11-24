@@ -155,6 +155,18 @@ end-of-input flag. -/
   ⟨fun q => match q with | .start => 0 | .put => 1,
     by intro a b h; cases a <;> cases b <;> simp_all⟩
 
+/-- One past the largest code that a state numbering assigns. This bounds the codes in use; it is
+not the cardinality of the state type. -/
+@[expose] def stateEncodingBound {State : Type} [Fintype State] (stateEncoding : State ↪ ℕ) : ℕ :=
+  Finset.univ.sup (fun state => stateEncoding state) + 1
+
+/-- Every state code lies strictly below `stateEncodingBound`. -/
+theorem stateEncoding_lt_stateEncodingBound {State : Type} [Fintype State]
+    (stateEncoding : State ↪ ℕ) (state : State) :
+    stateEncoding state < stateEncodingBound stateEncoding :=
+  Nat.lt_succ_of_le
+    (Finset.le_sup (f := fun state => stateEncoding state) (Finset.mem_univ state))
+
 private def descriptionSymbolCode : Option Bool → ℕ
   | none => 0
   | some false => 1
@@ -248,24 +260,20 @@ code, this is its emitted program-size charge even if compilation itself is offl
     {encOut : β ↪ List Bool} (compiler : NativeCompiler f encIn encOut) : ℕ :=
   descLen compiler.description
 
-/-- One past the largest numeric code used by the recorded control-state encoding. This is an
-actual-code bound, not the cardinality of the state type. -/
+/-- `stateEncodingBound` of the recorded control-state encoding. -/
 @[expose] def stateBound {α β : Type*} {f : α → β}
     {encIn : α ↪ List Bool} {encOut : β ↪ List Bool}
-    (compiler : NativeCompiler f encIn encOut) : ℕ := by
+    (compiler : NativeCompiler f encIn encOut) : ℕ :=
   letI := compiler.stateFintype
-  exact Finset.univ.sup (fun state => compiler.stateEncoding state) + 1
+  stateEncodingBound compiler.stateEncoding
 
 /-- Every recorded state code lies strictly below `stateBound`. -/
 theorem stateEncoding_lt_stateBound {α β : Type*} {f : α → β}
     {encIn : α ↪ List Bool} {encOut : β ↪ List Bool}
     (compiler : NativeCompiler f encIn encOut) (state : compiler.State) :
-    compiler.stateEncoding state < compiler.stateBound := by
-  let := compiler.stateFintype
-  have h := Finset.le_sup (s := Finset.univ)
-    (f := fun state => compiler.stateEncoding state) (Finset.mem_univ state)
-  simp only [stateBound]
-  omega
+    compiler.stateEncoding state < compiler.stateBound :=
+  letI := compiler.stateFintype
+  stateEncoding_lt_stateEncodingBound compiler.stateEncoding state
 
 /-- Forget tidiness while retaining the same named machine and independent bounds. -/
 theorem computesInTimeAndSpace {α β : Type*} {f : α → β} {encIn : α ↪ List Bool}

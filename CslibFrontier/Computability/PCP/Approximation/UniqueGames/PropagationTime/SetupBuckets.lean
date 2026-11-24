@@ -140,16 +140,12 @@ private theorem initSetup_spec {L w : ℕ} (g : Graph (Fin L → Fin L))
       y.regs rStride = L + 2 ∧ y.regs rN = g.vertices ∧ y.regs rE = g.edges.length ∧
       y.regs rEdgeBase = 4 ∧ y.regs rOuterIdx = 0 ∧
       y.mem = (Data.init (encode g) : Data 34).mem := by
-  have hwb := outBaseAddr_lt_wordBound g
-  have hfit_hb : Fits w (headBase g + L + 2) := hw.of_le (by
-    simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase, visBase,
-      nodeBase] at hwb
-    omega)
-  have : Fits w 4 := hfit_hb.of_le (by simp only [headBase]; omega)
-  have : Fits w 3 := hfit_hb.of_le (by simp only [headBase]; omega)
-  have : Fits w 2 := hfit_hb.of_le (by simp only [headBase]; omega)
-  have : Fits w 1 := hfit_hb.of_le (by simp only [headBase]; omega)
-  have : Fits w (L + 2) := hfit_hb.of_le (by simp only [headBase]; omega)
+  have hfit_hb : Fits w (headBase g + L + 2) := fits_top hw (by wram_omega)
+  have : Fits w 4 := hfit_hb.of_le (by wram_omega)
+  have : Fits w 3 := hfit_hb.of_le (by wram_omega)
+  have : Fits w 2 := hfit_hb.of_le (by wram_omega)
+  have : Fits w 1 := hfit_hb.of_le (by wram_omega)
+  have : Fits w (L + 2) := hfit_hb.of_le (by wram_omega)
   unfold initSetupCode
   wram_exec [Data.init_regs, hinp.mem1, hinp.mem2, hinp.mem3]
   wram_simp
@@ -164,29 +160,20 @@ private theorem layoutSetupA_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x :
       y.regs rStride = L + 2 ∧ y.regs rN = slots g ∧ y.regs rE = g.edges.length ∧
       y.regs rEdgeBase = 4 ∧ y.regs rHeadBase = headBase g ∧ y.regs rNodeBase = nodeBase g ∧
       y.regs rVisBase = visBase g ∧ y.regs rTabBase = tabBase g ∧ y.mem = x.mem := by
-  have hfit_tb : Fits w (tabBase g + 4) := hw.of_le (by
-    simp only [tabBase, visBase, nodeBase, headBase, wordBound]
-    nlinarith)
-  have : Fits w 4 := hfit_tb.of_le (by omega)
-  have : Fits w (3 + g.edges.length * (L + 2) + 1) := hfit_tb.of_le (by
-    simp only [tabBase, visBase, nodeBase, headBase]; omega)
-  have : Fits w (3 + g.edges.length * (L + 2) + 1 + slots g) := hfit_tb.of_le (by
-    simp only [tabBase, visBase, nodeBase, headBase]; omega)
-  have : Fits w (4 * g.edges.length) := hfit_tb.of_le (by
-    simp only [tabBase, visBase, nodeBase, headBase]; omega)
+  have : Fits w 4 := fits_top hw (by wram_omega)
+  have : Fits w (3 + g.edges.length * (L + 2) + 1) := fits_top hw (by wram_omega)
+  have : Fits w (3 + g.edges.length * (L + 2) + 1 + slots g) := fits_top hw (by wram_omega)
+  have : Fits w (4 * g.edges.length) := fits_top hw (by wram_omega)
   have : Fits w (3 + g.edges.length * (L + 2) + 1 + slots g + 4 * g.edges.length) :=
-    hfit_tb.of_le (by simp only [tabBase, visBase, nodeBase, headBase]; omega)
+    fits_top hw (by wram_omega)
   have : Fits w (3 + g.edges.length * (L + 2) + 1 + slots g + 4 * g.edges.length + slots g) :=
-    hfit_tb.of_le (by simp only [tabBase, visBase, nodeBase, headBase]; omega)
+    fits_top hw (by wram_omega)
   unfold layoutSetupA
   wram_exec [hz0, hz1, hzN, hzE, hm0]
   refine ⟨by wram_simp [hz0], by wram_simp [hz1], by wram_simp [hz2], by wram_simp [hzL],
     by wram_simp [hzSt], by wram_simp [hzN], by wram_simp [hzE], by wram_simp [hzEB],
-    by wram_simp; simp only [headBase]; omega,
-    by wram_simp; simp only [nodeBase, headBase]; omega,
-    by wram_simp; simp only [visBase, nodeBase, headBase]; omega,
-    by wram_simp; simp only [tabBase, visBase, nodeBase, headBase]; omega,
-    by wram_simp⟩
+    by wram_simp; wram_omega, by wram_simp; wram_omega,
+    by wram_simp; wram_omega, by wram_simp; wram_omega, by wram_simp⟩
 
 private theorem layoutSetupB_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x : Data 34)
     (hz0 : x.regs rZero = 0) (hz1 : x.regs rOne = 1) (hz2 : x.regs rTwo = 2)
@@ -197,20 +184,12 @@ private theorem layoutSetupB_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x :
     (hw : Fits w (wordBound g)) :
     ∃ y, ExecWithin w layoutSetupB x y 8 ∧
       ConstRegs g y ∧ y.regs rNodeFree = nodeBase g ∧ y.regs rOuterIdx = 0 ∧ y.mem = x.mem := by
-  have hwb := outBaseAddr_lt_wordBound g
-  have hfit_out : Fits w (outBaseAddr g) := hw.of_le (by omega)
-  have : Fits w (slots g * L) := hfit_out.of_le (by
-    simp only [outBaseAddr, compBase, stackBase, invBase, candBase]; omega)
-  have : Fits w (tabBase g + slots g * L) := hfit_out.of_le (by
-    simp only [outBaseAddr, compBase, stackBase, invBase, candBase]; omega)
-  have : Fits w (tabBase g + slots g * L + L) := hfit_out.of_le (by
-    simp only [outBaseAddr, compBase, stackBase, invBase, candBase]; omega)
-  have : Fits w (tabBase g + slots g * L + L + L) := hfit_out.of_le (by
-    simp only [outBaseAddr, compBase, stackBase, invBase, candBase]; omega)
-  have : Fits w (tabBase g + slots g * L + L + L + slots g) := hfit_out.of_le (by
-    simp only [outBaseAddr, compBase, stackBase, invBase, candBase]; omega)
-  have : Fits w (tabBase g + slots g * L + L + L + slots g + slots g) := hfit_out.of_le (by
-    simp only [outBaseAddr, compBase, stackBase, invBase, candBase]; omega)
+  have : Fits w (slots g * L) := fits_top hw (by wram_omega)
+  have : Fits w (tabBase g + slots g * L) := fits_top hw (by wram_omega)
+  have : Fits w (tabBase g + slots g * L + L) := fits_top hw (by wram_omega)
+  have : Fits w (tabBase g + slots g * L + L + L) := fits_top hw (by wram_omega)
+  have : Fits w (tabBase g + slots g * L + L + L + slots g) := fits_top hw (by wram_omega)
+  have : Fits w (tabBase g + slots g * L + L + L + slots g + slots g) := fits_top hw (by wram_omega)
   unfold layoutSetupB
   wram_exec [hz0, hzL, hzN, hzNB, hzTB]
   refine ⟨?_, by wram_simp, by wram_simp, by wram_simp⟩
@@ -266,7 +245,8 @@ theorem slotsSetup_spec {L w : ℕ} (g : Graph (Fin L → Fin L))
       (by rw [hzIdx0]; exact Nat.zero_le _)
       (by rw [hzIdx0]; exact ⟨hz0, hz1, hz2, hzL, hzSt, hzN0, hzE, hzEB, hx1m⟩)
   rw [hzIdx0, Nat.sub_zero] at hx2
-  have hzN_eq : x2.regs rN = slots g := by rw [hzN']; simp [slotsPrefix, slots]
+  have hzN_eq : x2.regs rN = slots g := by
+    rw [hzN']; simp only [slotsPrefix, List.take_length, slots]
   have hx2_mem0 : x2.mem 0 = 3 + g.edges.length * (L + 2) := by rw [hx2m]; exact hinp.mem0
   obtain ⟨x3, hx3, ha0, ha1, ha2, haL, haSt, haN, haE, haEB, haHB, haNB, haVB, haTB, hx3m⟩ :=
     layoutSetupA_spec (w := w) g x2 hz0' hz1' hz2' hzL' hzSt' hzN_eq hzE' hzEB' hx2_mem0 hw
@@ -336,13 +316,10 @@ private theorem prependToSlot_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (sl
         AdjChain g y.mem (y.regs rNodeFree) (y.mem (headBase g + v))
           ((bs.set u (g.edges[j] :: bs.getD u [])).getD v [])) ∧
       ∀ a, visBase g ≤ a → y.mem a = 0 := by
-  have hwb := outBaseAddr_lt_wordBound g
   have hprep := prepend_adjChain hlen hu hj hlo hbs
-  have hfit_vis : Fits w (visBase g) := hw.of_le (by
-    simp only [outBaseAddr, compBase, stackBase, invBase, candBase, tabBase] at hwb; omega)
-  have hfit_hb : Fits w (headBase g + u) := hfit_vis.of_le (by simp only [visBase, nodeBase]; omega)
-  have hfit_nf1 : Fits w (x.regs rNodeFree + 1) := hfit_vis.of_le (by omega)
-  have hfit_nf2 : Fits w (x.regs rNodeFree + 2) := hfit_vis.of_le hhi
+  have : Fits w (headBase g + u) := fits_top hw (by wram_omega)
+  have : Fits w (x.regs rNodeFree + 1) := fits_top hw (by wram_omega)
+  have : Fits w (x.regs rNodeFree + 2) := fits_top hw (by wram_omega)
   have hfr_inp : ∀ a < headBase g,
       Function.update (Function.update (Function.update x.mem (x.regs rNodeFree) j)
         (x.regs rNodeFree + 1) (x.mem (headBase g + u))) (headBase g + u) (x.regs rNodeFree) a =
@@ -474,7 +451,7 @@ theorem bucketsLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) {x : Data 34}
                 Code .standard 34)
               z1 z2 9 := by
             have hcond : ¬ (Cond.eq rSrc rDst).Holds z1 := by
-              simp [Cond.holds_eq, hz1Src, hy1Src, hz1Dst, hy1Dst, hsd]
+              simp only [Cond.holds_eq, hz1Src, hy1Src, hz1Dst, hy1Dst, hsd, not_false_eq_true]
             exact ExecWithin.branch_neg hcond hz2
           have hinc : ∃ z3, ExecWithin w
               (ram[ rOuterIdx ← rOuterIdx + rOne ] : Code .standard 34) z2 z3 1 ∧

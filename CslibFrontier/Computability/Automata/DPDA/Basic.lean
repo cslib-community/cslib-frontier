@@ -110,14 +110,9 @@ theorem step_of_symbol {M : DPDA State Symbol Γ} {q : State} {γ : Γ} {move : 
     {a : Symbol} {input : List Symbol} {tail : List Γ}
     (h : M.transition q γ (some a) = some move) :
     M.Step ⟨q, a :: input, γ :: tail⟩ ⟨move.state, input, move.replacement ++ tail⟩ := by
-  have hε : M.transition q γ none = none := by
-    cases he : M.transition q γ none with
-    | none => rfl
-    | some _ =>
-      have hn := M.epsilon_exclusive q γ a (by simp [he])
-      rw [h] at hn
-      contradiction
-  simp [Step, step?, hε, h]
+  cases he : M.transition q γ none with
+  | none => simp [Step, step?, he, h]
+  | some _ => exact absurd h (by simp [M.epsilon_exclusive q γ a (by simp [he])])
 
 /-- Any two steps starting at the same configuration have the same target. -/
 theorem step_deterministic {M : DPDA State Symbol Γ} {c d e : Config State Symbol Γ}

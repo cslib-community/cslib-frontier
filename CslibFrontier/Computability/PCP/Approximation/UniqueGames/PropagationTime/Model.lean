@@ -80,10 +80,10 @@ theorem buckets_spec (n : ℕ) (l : List (Edge (α → α))) (hl : ∀ e ∈ l, 
     change (List.replicate n []).getD u [] = []
     by_cases hu : u < n
     · exact List.getD_replicate _ hu
-    · exact List.getD_eq_default _ _ (by simpa using hu)
+    · exact List.getD_eq_default _ _ (by simpa only [List.length_replicate, not_lt] using hu)
   | cons e l ih =>
     obtain ⟨hlen, hget⟩ := ih fun d hd => hl d (List.mem_cons_of_mem _ hd)
-    have he := hl e (by simp)
+    have he := hl e List.mem_cons_self
     change (insertEdge (buckets n l) e).length = n ∧
       ∀ u, (insertEdge (buckets n l) e).getD u [] = (e :: l).filter (incident u)
     unfold insertEdge
@@ -94,10 +94,12 @@ theorem buckets_spec (n : ℕ) (l : List (Edge (α → α))) (hl : ∀ e ∈ l, 
       · subst hu
         rw [List.getD_eq_getElem?_getD, List.getElem?_set_self hs, Option.getD_some,
           hget, List.filter_cons]
-        simp [incident]
+        simp only [incident, beq_self_eq_true, Bool.true_or, ↓reduceIte]
       · rw [List.getD_eq_getElem?_getD, List.getElem?_set_ne (Ne.symm hu),
           ← List.getD_eq_getElem?_getD, hget, List.filter_cons]
-        simp [incident, Ne.symm hu, ← hsd]
+        rw [ite_eq_right fun h => by
+          simp only [incident, hsd, Bool.or_self, beq_iff_eq] at h
+          exact hu (h.symm.trans hsd.symm)]
     · have hlen1 : ((buckets n l).set e.src (e :: (buckets n l).getD e.src [])).length = n := by
         rw [List.length_set, hlen]
       refine ⟨by rw [List.length_set, hlen1], fun u => ?_⟩
@@ -108,16 +110,18 @@ theorem buckets_spec (n : ℕ) (l : List (Edge (α → α))) (hl : ∀ e ∈ l, 
       · subst hu
         rw [List.getD_eq_getElem?_getD, List.getElem?_set_self hd, Option.getD_some,
           hget, List.filter_cons]
-        simp [incident]
+        simp only [incident, beq_self_eq_true, Bool.or_true, ↓reduceIte]
       · by_cases hu' : u = e.src
         · subst hu'
           rw [List.getD_eq_getElem?_getD, List.getElem?_set_ne (Ne.symm hu),
             List.getElem?_set_self hs, Option.getD_some, hget, List.filter_cons]
-          simp [incident]
+          simp only [incident, beq_self_eq_true, Bool.true_or, ↓reduceIte]
         · rw [List.getD_eq_getElem?_getD, List.getElem?_set_ne (Ne.symm hu),
             List.getElem?_set_ne (Ne.symm hu'), ← List.getD_eq_getElem?_getD,
             hget, List.filter_cons]
-          simp [incident, Ne.symm hu, Ne.symm hu']
+          rw [ite_eq_right fun h => by
+            simp only [incident, Bool.or_eq_true, beq_iff_eq] at h
+            exact h.elim (fun h => hu' h.symm) (fun h => hu h.symm)]
 
 /-- The incidence lists of a graph's slots are its `adj` lists. -/
 theorem buckets_getD (g : Graph (α → α)) (u : ℕ) :
@@ -136,7 +140,7 @@ constraint (L - 1)`. -/
 /-- Each encoded edge over `Fin L` occupies `L + 2` words. -/
 @[simp] theorem length_encodeEdge {L : ℕ} (e : Edge (Fin L → Fin L)) :
     (encodeEdge e).length = L + 2 := by
-  simp [encodeEdge]
+  simp only [encodeEdge, List.length_cons, List.length_map, List.length_finRange]
 
 /-- Flat Word-RAM input encoding of a unique-games instance over `Fin L`:
 `[L, g.vertices, |g.edges|]` followed by the `(L + 2)`-word records of `g.edges`. -/
@@ -146,7 +150,8 @@ constraint (L - 1)`. -/
 /-- Total word length of `encode g`. -/
 @[simp] theorem length_encode {L : ℕ} (g : Graph (Fin L → Fin L)) :
     (encode g).length = 3 + g.edges.length * (L + 2) := by
-  simp [encode, List.length_flatMap]
+  simp only [encode, List.length_cons, List.length_flatMap, length_encodeEdge,
+    List.map_const', List.sum_replicate, smul_eq_mul]
   omega
 
 /-- Length-prefixed output words representing `Option (ℕ → Fin L)` on the `n` vertex slots:
@@ -187,7 +192,8 @@ theorem decodeSolution_encodeSolution {L : ℕ} [NeZero L] (g : Graph (Fin L →
       simp only [hget, Fin.is_lt, ↓reduceDIte, Fin.eta]
     · have hget : ((List.range (slots g)).map fun u => (labelling (List.finRange L) g u).val).getD
           v 0 = 0 :=
-        List.getD_eq_default _ _ (by simpa using hv)
+        List.getD_eq_default _ _
+          (by simpa only [List.length_map, List.length_range, not_lt] using hv)
       have hnone : (run (List.finRange L) g).get v = none := by
         simp only [State.get]
         exact List.getD_eq_default _ _ (by rw [length_run_table]; omega)
