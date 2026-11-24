@@ -10,7 +10,6 @@ module
 public import CslibFrontier.MachineLearning.PACLearning.NatarajanDimension
 public import CslibFrontier.MachineLearning.PACLearning.Packing
 import CslibFrontier.Foundations.Data.Nat.Choose.Real
-import CslibFrontier.MachineLearning.PACLearning.HausslerPacking
 
 /-!
 # Packing and covering numbers of multiclass Natarajan classes
@@ -44,8 +43,7 @@ multiclass classes:
 
 ## Main results
 
-- `natarajanSum_le_exp_mul_pow`, `natarajanSum_le_exp_mul_pow_of_two_le`: exponential-polynomial
-  upper bounds on `natarajanSum`.
+- `natarajanSum_le_exp_mul_pow`: exponential-polynomial upper bound on `natarajanSum`.
 - `card_le_natarajanSum_of_two_mul_log_card_lt`: subsampling bound for `ε`-separated multiclass
   labelings.
 - `card_le_div_pow_of_natarajanShatters`, `card_le_div_pow_of_natarajanShatters_of_two_le`,
@@ -90,14 +88,6 @@ theorem natarajanSum_le_exp_mul_pow (n k d : ℕ) {T : ℝ} (hT : 1 ≤ T) :
         gcongr
         exact Cslib.sum_choose_le_exp_mul_pow n d T hT
     _ = Real.exp (n / T) * (T * (K : ℝ)) ^ d := by rw [mul_assoc, ← mul_pow]
-
-/-- Exponential-polynomial form of Natarajan's lemma when `2 ≤ k`:
-`natarajanSum n k d ≤ exp (n / T) · (T · (k choose 2)) ^ d`. -/
-theorem natarajanSum_le_exp_mul_pow_of_two_le {k : ℕ} (hk : 2 ≤ k) (n d : ℕ) {T : ℝ}
-    (hT : 1 ≤ T) :
-    (natarajanSum n k d : ℝ) ≤ Real.exp (n / T) * (T * k.choose 2) ^ d := by
-  have hmax : max 1 (k.choose 2) = k.choose 2 := max_eq_right (Nat.choose_pos hk)
-  simpa only [hmax] using natarajanSum_le_exp_mul_pow n k d hT
 
 /-- **Multiclass packing by `natarajanSum`.** If every finite set N-shattered by `C` has size at
 most `d`, the labelings in `P ⊆ (· ∘ x) '' C` pairwise differ on at least `ε m` of the `m > 0`

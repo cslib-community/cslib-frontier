@@ -10,6 +10,7 @@ module
 public import CslibFrontier.MachineLearning.PACLearning.GrowthFunction
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 public import Mathlib.InformationTheory.Hamming
+import CslibFrontier.Foundations.Data.Code.HammingBound
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-! # Packing numbers of a binary class on a sample
@@ -243,5 +244,23 @@ theorem card_le_div_pow_of_le_hammingDist {C : ConceptClass α Bool} {d : ℕ}
         have hgrowth : (P.card : ℝ) ≤ growthFunction C r := by
           exact_mod_cast card_le_growthFunction_of_two_mul_log_card_lt C hm hPC hP hlog
         simpa only [mul_one] using hgrowth.trans (growthFunction_le_exp_mul_pow hC r hT1)
+
+/-- Every finite set `L : Finset (Fin m → β)` contains an `ε`-separated subset `N ⊆ L` (`0 ≤ ε`)
+whose `ε m`-Hamming balls cover `L`. -/
+theorem exists_subset_separated_and_covering {β : Type*} [DecidableEq β] {m : ℕ}
+    (L : Finset (Fin m → β)) {ε : ℝ} (hε : 0 ≤ ε) :
+    ∃ N ⊆ L, (∀ u ∈ N, ∀ v ∈ N, u ≠ v → ε * m ≤ hammingDist u v) ∧
+      ∀ u ∈ L, ∃ v ∈ N, (hammingDist v u : ℝ) ≤ ε * m := by
+  obtain ⟨N, hNL, hNsep, hcov⟩ :=
+    Cslib.Code.exists_subset_pairwise_lt_hammingDist_forall_exists_le L ⌊ε * m⌋₊
+  refine ⟨N, hNL, ?_, ?_⟩
+  · intro u hu v hv huv
+    have hlt : ⌊ε * m⌋₊ + 1 ≤ hammingDist u v := hNsep hu hv huv
+    calc ε * m ≤ (⌊ε * m⌋₊ : ℝ) + 1 := (Nat.lt_floor_add_one (ε * m)).le
+      _ ≤ hammingDist u v := by exact_mod_cast hlt
+  · intro u hu
+    obtain ⟨v, hvN, hvu⟩ := hcov u hu
+    exact ⟨v, hvN, (by exact_mod_cast hvu : (hammingDist v u : ℝ) ≤ ⌊ε * m⌋₊).trans
+      (Nat.floor_le (by positivity))⟩
 
 end Cslib.MachineLearning.PACLearning

@@ -10,7 +10,7 @@ module
 public import CslibFrontier.MachineLearning.PACLearning.DualVCDimension
 public import CslibFrontier.MachineLearning.PACLearning.GrowthFunction
 public import Mathlib.InformationTheory.Hamming
-import CslibFrontier.Foundations.Data.Code.HammingBound
+import CslibFrontier.MachineLearning.PACLearning.Packing
 import Mathlib.Analysis.SpecialFunctions.ExpDeriv
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -28,24 +28,30 @@ subset `P ⊆ {0, 1}^m` whose shattered sets have size at most `d` satisfies
 
 This module formalizes Haussler's sphere-packing bound and its Hamming covering-net corollary:
 
-1. **Weighted one-inclusion shifting inequality** (`sum_min_update_le_mul_sum`,
-   [Haussler1995, Lemma 1]): for any nonnegative weight `μ : (ι → Bool) → ℝ` whose positive support
-   shatters no finite set of more than `d` coordinates, the sum of `min (μ f) (μ (update f i true))`
-   over all hypercube edges is at most `d · ∑ f, μ f`. Coordinate shifting replaces `μ` on
-   `Fin (n + 1) → Bool` by pointwise `max` and `min` across coordinate `0`, whose supports shatter
-   at most `d` and `d - 1` coordinates respectively.
+1. **Weighted one-inclusion shifting inequality** (`sum_min_update_le_mul_sum`): a weighted
+   coordinate-shifting strengthening of the hypercube edge-density bound in [Haussler1995]. For any
+   nonnegative weight `μ : (ι → Bool) → ℝ` whose positive support shatters no finite set of more
+   than `d` coordinates, the sum of `min (μ f) (μ (update f i true))` over all hypercube edges is
+   at most `d · ∑ f, μ f`. Coordinate shifting replaces `μ` on `Fin (n + 1) → Bool` by pointwise
+   `max` and `min` across coordinate `0`, whose supports shatter at most `d` and `d - 1`
+   coordinates respectively.
 2. **Harmonic-mean edge bound** (`sum_harmonic_update_le_two_mul_sum`): since
    `2 a b / (a + b) ≤ 2 min a b` for `a, b ≥ 0`, the harmonic-mean edge sum is at most
-   `2 d · ∑ f, μ f`.
+   `2 d · ∑ f, μ f`, obtained directly from the weighted shifting step without an edge-orientation
+   argument.
 3. **Random-projection fiber gap** (`mul_sub_expect_card_image_le`): applying the harmonic-mean
    bound to fiber multiplicities of `P` on uniform `(r + 1)`-tuples `t : Fin (r + 1) → Fin m`
+   (sampled *with replacement*, so the argument allows `r = ⌊2 (d + 1) / ε⌋₊` even when `r ≥ m`)
    and counting within-fiber disagreements across the `(r + 1)`-st coordinate yields
    `((r + 1) ε - 2 d) |P| ≤ (r + 1) ε · 𝔼_s [|P|_s|]`.
-4. **Haussler's sphere-packing theorem** (`card_le_exp_mul_add_one_mul_pow_of_setShatters`,
-   `card_le_exp_mul_add_one_mul_pow`, [Haussler1995, Corollary 1]): choosing
-   `r = ⌊2 (d + 1) / ε⌋₊` and bounding `|P|_s|` by `growthFunction_le_exp_mul_pow` at `T = 2 / ε`
-   gives `|P| ≤ e (d + 1) (2 e / ε) ^ d` for `0 < ε ≤ 1`, along with the `vcDim` form and the
-   maximal-packing covering-net bound (`exists_covering_haussler`).
+4. **Haussler's Boolean `n`-cube sphere-packing theorem**
+   (`card_le_exp_mul_add_one_mul_pow_of_setShatters`, `card_le_exp_mul_add_one_mul_pow`,
+   [Haussler1995]): choosing `r = ⌊2 (d + 1) / ε⌋₊` and bounding `|P|_s|` by
+   `growthFunction_le_exp_mul_pow` at `T = 2 / ε` gives `|P| ≤ e (d + 1) (2 e / ε) ^ d` for
+   `0 < ε ≤ 1`, along with the `vcDim` form and the maximal-packing covering-net bound
+   (`exists_covering_haussler`). The 1995 *J. Combin. Theory Ser. A* PDF has not been inspected
+   firsthand here, so internal lemma/theorem numbers are omitted; the general `L¹(P)` probability-
+   measure extension remains open under #4920.
 
 ## Main definitions
 
@@ -60,8 +66,7 @@ This module formalizes Haussler's sphere-packing bound and its Hamming covering-
 - `mul_sub_expect_card_image_le`: `((r + 1) ε - 2 d) |P| ≤ (r + 1) ε · 𝔼_s [|P|_s|]`.
 - `card_le_exp_mul_add_one_mul_pow_of_setShatters`, `card_le_exp_mul_add_one_mul_pow`,
   `card_le_exp_mul_vcDim_add_one_mul_pow`: Haussler's `e (d + 1) (2 e / ε) ^ d` packing bound.
-- `exists_subset_separated_and_covering`, `exists_covering_haussler`: `ε m`-Hamming covering net of
-  size at most `e (d + 1) (2 e / ε) ^ d`.
+- `exists_covering_haussler`: `ε m`-Hamming covering net of size at most `e (d + 1) (2 e / ε) ^ d`.
 
 ## References
 
@@ -81,7 +86,7 @@ variable {α ι : Type*}
 /-! ### 1. Weighted hypercube min-edge shifting inequality -/
 
 /-- Sum of `min (μ f) (μ (Function.update f i true))` across all undirected hypercube edges `(i, f)`
-with `f i = false` [Haussler1995, Lemma 1]. -/
+with `f i = false` (weighted analogue of the hypercube edge count in [Haussler1995]). -/
 noncomputable def hypercubeEdgeMinSum [DecidableEq ι] [Fintype ι] (μ : (ι → Bool) → ℝ) : ℝ :=
   ∑ i : ι, ∑ f : ι → Bool,
     if f i = false then min (μ f) (μ (Function.update f i true)) else 0
@@ -267,9 +272,10 @@ private theorem sum_min_update_fin_le :
       push_cast at ih_max ⊢
       nlinarith [hsplit, hedge0, hedges_succ, hsum_total]
 
-/-- **Haussler's Weighted One-Inclusion Inequality** [Haussler1995, Lemma 1]: if
-`μ : (ι → Bool) → ℝ` is nonnegative and its support `{f | 0 < μ f}` shatters no finite set of more
-than `d` coordinates, then `hypercubeEdgeMinSum μ ≤ d * ∑ f, μ f`. -/
+/-- **Weighted hypercube edge-density inequality** (a weighted coordinate-shifting strengthening of
+the edge-density lemma in [Haussler1995]): if `μ : (ι → Bool) → ℝ` is nonnegative and its support
+`{f | 0 < μ f}` shatters no finite set of more than `d` coordinates, then
+`hypercubeEdgeMinSum μ ≤ d * ∑ f, μ f`. -/
 theorem sum_min_update_le_mul_sum [DecidableEq ι] [Fintype ι] {d : ℕ} {μ : (ι → Bool) → ℝ}
     (hμ : ∀ f, 0 ≤ μ f)
     (hsh : ∀ W : Finset ι, SetShatters {f : ι → Bool | 0 < μ f} ↑W → W.card ≤ d) :
@@ -646,7 +652,7 @@ theorem mul_sub_expect_card_image_le {m d : ℕ} (hm : 0 < m) {P : Finset (Fin m
   have hdiv := le_of_mul_le_mul_left hcomb (mul_pos hm_pos hm_pow)
   linarith
 
-/-- **Haussler's Sphere-Packing Theorem** for a Boolean subset [Haussler1995, Corollary 1]: if
+/-- **Haussler's Sphere-Packing Theorem** for a Boolean subset [Haussler1995]: if
 `P : Finset (Fin m → Bool)` shatters no finite set of more than `d` coordinates and its members
 pairwise have Hamming distance at least `ε m` (`0 < ε ≤ 1`), then
 `P.card ≤ e (d + 1) (2 e / ε) ^ d`. -/
@@ -733,11 +739,11 @@ theorem card_le_exp_mul_add_one_mul_pow_of_setShatters {m d : ℕ} {P : Finset (
       _ = (x - 2 * d) * (Real.exp 1 * (d + 1) * (2 * Real.exp 1 / ε) ^ d) := by ring
   exact le_of_mul_le_mul_left hfinal hx_sub_pos
 
-/-- **Haussler's Sphere-Packing Theorem** for concept classes on a sample
-[Haussler1995, Corollary 1]: if every finite set shattered by `C : ConceptClass α Bool` has at most
-`d` points, then any `ε`-separated set `P ⊆ restriction C x` of labelings on `m` sample points
-(`0 < ε ≤ 1`) has at most `e (d + 1) (2 e / ε) ^ d` elements, sharpening Dudley's `(8 / ε) ^ (2 d)`
-bound in `card_le_div_pow_of_le_hammingDist`. -/
+/-- **Haussler's Sphere-Packing Theorem** for concept classes on a sample [Haussler1995]: if every
+finite set shattered by `C : ConceptClass α Bool` has at most `d` points, then any `ε`-separated set
+`P ⊆ restriction C x` of labelings on `m` sample points (`0 < ε ≤ 1`) has at most
+`e (d + 1) (2 e / ε) ^ d` elements, sharpening Dudley's `(8 / ε) ^ (2 d)` bound in
+`card_le_div_pow_of_le_hammingDist`. -/
 theorem card_le_exp_mul_add_one_mul_pow {C : ConceptClass α Bool} {d : ℕ}
     (hC : ∀ W : Finset α, SetShatters C ↑W → W.card ≤ d) {m : ℕ} {x : Fin m → α}
     {P : Finset (Fin m → Bool)} (hPC : ∀ u ∈ P, u ∈ restriction C x) {ε : ℝ} (hε : 0 < ε)
@@ -759,24 +765,6 @@ theorem card_le_exp_mul_vcDim_add_one_mul_pow {C : ConceptClass α Bool} (hC : H
     (hP : ∀ u ∈ P, ∀ v ∈ P, u ≠ v → ε * m ≤ hammingDist u v) :
     (P.card : ℝ) ≤ Real.exp 1 * (vcDim C + 1) * (2 * Real.exp 1 / ε) ^ vcDim C :=
   card_le_exp_mul_add_one_mul_pow (fun _ hW => hW.card_le_vcDim hC) hPC hε hε1 hP
-
-/-- Every finite set `L : Finset (Fin m → β)` contains an `ε`-separated subset `N ⊆ L` (`0 ≤ ε`)
-whose `ε m`-Hamming balls cover `L`. -/
-theorem exists_subset_separated_and_covering {β : Type*} [DecidableEq β] {m : ℕ}
-    (L : Finset (Fin m → β)) {ε : ℝ} (hε : 0 ≤ ε) :
-    ∃ N ⊆ L, (∀ u ∈ N, ∀ v ∈ N, u ≠ v → ε * m ≤ hammingDist u v) ∧
-      ∀ u ∈ L, ∃ v ∈ N, (hammingDist v u : ℝ) ≤ ε * m := by
-  obtain ⟨N, hNL, hNsep, hcov⟩ :=
-    Cslib.Code.exists_subset_pairwise_lt_hammingDist_forall_exists_le L ⌊ε * m⌋₊
-  refine ⟨N, hNL, ?_, ?_⟩
-  · intro u hu v hv huv
-    have hlt : ⌊ε * m⌋₊ + 1 ≤ hammingDist u v := hNsep hu hv huv
-    calc ε * m ≤ (⌊ε * m⌋₊ : ℝ) + 1 := (Nat.lt_floor_add_one (ε * m)).le
-      _ ≤ hammingDist u v := by exact_mod_cast hlt
-  · intro u hu
-    obtain ⟨v, hvN, hvu⟩ := hcov u hu
-    exact ⟨v, hvN, (by exact_mod_cast hvu : (hammingDist v u : ℝ) ≤ ⌊ε * m⌋₊).trans
-      (Nat.floor_le (by positivity))⟩
 
 /-- **Haussler Hamming covering-number bound:** if every finite set shattered by `C` has size at
 most `d`, then for any `m` sample points `x` and `0 < ε ≤ 1`, `restriction C x` admits an
