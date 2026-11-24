@@ -39,6 +39,7 @@ inequality (Q) at well-chosen points, convexity along lines, a telescoping sum a
 
 ## Main results
 
+* `meanNorm_le_meanLength`, `le_meanNorm`, `meanNorm_nonneg`: `N` as an infimum.
 * `crossingMetrics_sheetMetrics`, `crossingLength_meanLength`, `meanNorm_eq_homogenization`,
   `tendsto_meanLength_div`.
 * `meanNorm_parallelogram`: Lemma C.2.
@@ -68,6 +69,38 @@ noncomputable def meanLength (W : ℕ → Bool × ℤ × ℤ → Bool × ℤ × 
 /-- The paper's `N(g) = inf ν(S g)/S` over the integers `S ≥ 1`. -/
 noncomputable def meanNorm (W : ℕ → Bool × ℤ × ℤ → Bool × ℤ × ℤ → ℝ) (g : ℤ × ℤ) : ℝ :=
   sInf {r : ℝ | ∃ S : ℕ, 0 < S ∧ r = meanLength W (S • g) / S}
+
+section Norm
+
+variable (W : ℕ → Bool × ℤ × ℤ → Bool × ℤ × ℤ → ℝ) (g : ℤ × ℤ)
+
+theorem meanLength_nonneg : 0 ≤ meanLength W g := WindowFn.rms_nonneg _
+
+/-- `N(g)` is the greatest lower bound of the `ν(S g)/S`, `S ≥ 1`. -/
+theorem meanNorm_isGLB :
+    IsGLB {r : ℝ | ∃ S : ℕ, 0 < S ∧ r = meanLength W (S • g) / S} (meanNorm W g) :=
+  isGLB_csInf ⟨_, 1, one_pos, rfl⟩
+    ⟨0, by rintro _ ⟨S, -, rfl⟩; exact div_nonneg (meanLength_nonneg _ _) (Nat.cast_nonneg _)⟩
+
+/-- An upper bound on `N` needs one `S`. -/
+theorem meanNorm_le {S : ℕ} (hS : 0 < S) : meanNorm W g ≤ meanLength W (S • g) / S :=
+  (meanNorm_isGLB W g).1 ⟨S, hS, rfl⟩
+
+theorem meanNorm_le_meanLength : meanNorm W g ≤ meanLength W g := by
+  simpa using meanNorm_le W g one_pos
+
+/-- A lower bound on `N` needs all `S`. -/
+theorem le_meanNorm {c : ℝ} (h : ∀ S : ℕ, 0 < S → c * S ≤ meanLength W (S • g)) :
+    c ≤ meanNorm W g := by
+  refine (meanNorm_isGLB W g).2 ?_
+  rintro _ ⟨S, hS, rfl⟩
+  rw [le_div_iff₀ (by exact_mod_cast hS)]
+  exact h S hS
+
+theorem meanNorm_nonneg : 0 ≤ meanNorm W g :=
+  le_meanNorm W g fun S _ => by rw [zero_mul]; exact meanLength_nonneg _ _
+
+end Norm
 
 variable {W : ℕ → Bool × ℤ × ℤ → Bool × ℤ × ℤ → ℝ} {Λ : ℝ}
 
