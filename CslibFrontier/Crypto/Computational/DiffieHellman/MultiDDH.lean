@@ -266,8 +266,14 @@ theorem multiDDHRerandomizeLaw_real (d : F.Desc) (ι : Type*) [Fintype ι] [Deci
   relabel_uniform
     (fun r : ι → ZMod (F.order d) × ZMod (F.order d) =>
       (fun i => (r i).1 + (r i).2 * β, fun i => (r i).2))
-  funext i
-  simp [ddhFixedURerandomize_smul_generator]
+  · intro r₁ r₂ h
+    funext i
+    have h₁ := congr_fun (Prod.mk.inj h).1 i
+    have h₂ := congr_fun (Prod.mk.inj h).2 i
+    rw [h₂] at h₁
+    exact Prod.ext (add_right_cancel h₁) h₂
+  · funext i
+    simp [ddhFixedURerandomize_smul_generator]
 
 /-- On any non-DDH triple `(α • g, β • g, γ • g)` with `γ ≠ α * β`, `multiDDHRerandomizeLaw`
 produces `multiDDHRandomTupleLaw d ι` ([BonehShoup2023], Exercise 10.11). -/

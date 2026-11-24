@@ -41,6 +41,9 @@ example {q : ℕ} [NeZero q] (β : ZMod q) {γ : Type*} (g : (Fin 2 → ZMod q) 
         (PMF.uniformOfFintype (Fin 2 → ZMod q)).map fun b => g (a, b)) := by
   relabel_uniform (fun r : Fin 2 → ZMod q × ZMod q =>
     (fun i => (r i).1 + (r i).2 * β, fun i => (r i).2))
+  intro r₁ r₂ h; funext i
+  have h₁ := congr_fun (Prod.mk.inj h).1 i; have h₂ := congr_fun (Prod.mk.inj h).2 i
+  rw [h₂] at h₁; exact Prod.ext (add_right_cancel h₁) h₂
 example {n k : ℕ} (c : Fin k → Fin n → Bool) {γ : Type*} (f : (Fin k → Fin n → Bool) → γ) :
     ((PMF.uniformOfFintype (Fin k → Fin n → Bool)).map fun r => f fun j m => xor (r j m) (c j m)) =
       (PMF.uniformOfFintype (Fin k → Fin n → Bool)).map f := by
@@ -63,13 +66,6 @@ example {q : ℕ} [NeZero q] (b : ZMod q) {γ : Type*} (k : ZMod q → PMF γ) :
     ((PMF.uniformOfFintype (ZMod q)).bind fun τ => (PMF.uniformOfFintype (ZMod q)).bind fun σ =>
       k (σ + τ * b)) = (PMF.uniformOfFintype (ZMod q)).bind k := by
   drop_uniform with τ; relabel_uniform (Equiv.addRight (τ * b))
-example {q : ℕ} [NeZero q] (c : ZMod q) {γ : Type*} (f : ZMod q → γ) (x : γ) :
-    ((PMF.uniformOfFintype (ZMod q)).map (fun y => f (y + c))) x =
-      ((PMF.uniformOfFintype (ZMod q)).map f) x := by relabel_uniform (Equiv.addRight c)
-example {q : ℕ} [NeZero q] (c : ZMod q) {γ : Type*} (k : ZMod q → PMF γ) (x₀ : γ)
-    (h : ((PMF.uniformOfFintype (ZMod q)).bind fun x => k (x + c)) = PMF.pure x₀) :
-    ((PMF.uniformOfFintype (ZMod q)).bind k) = PMF.pure x₀ := by
-  relabel_uniform (Equiv.addRight c) at h; exact h
 example {q : ℕ} [NeZero q] (c d : ZMod q) {γ : Type*} (f : ZMod q → ZMod q → γ) :
     (((PMF.uniformOfFintype (ZMod q)).map (· + c)).bind fun x =>
         ((PMF.uniformOfFintype (ZMod q)).map (· + d)).map fun y => f x y) =
@@ -77,7 +73,7 @@ example {q : ℕ} [NeZero q] (c d : ZMod q) {γ : Type*} (f : ZMod q → ZMod q 
   relabel_uniform (Equiv.refl (ZMod q × ZMod q))
 example (n m : ℕ) (h : n = m) : n = m := by
   fail_if_success relabel_uniform (Equiv.refl Bool)
-  fail_if_success drop_uniform
+  fail_if_success drop_uniform with x
   exact h
 
 end CslibFrontierTests.UniformRelabelTactic

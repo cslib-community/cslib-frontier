@@ -15,7 +15,6 @@ import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Tactic.PMFSwap
-import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # LWE decode-then-extract computational fuzzy extractor
@@ -324,10 +323,25 @@ section Hardcore
 
 variable {m k l q : ℕ} [NeZero q]
 
-/-- Matrix `[A₁ | A₂]` whose first `k` columns are `A₁` and whose last `l` columns are `A₂`. -/
+/-- The matrix `[A₁ | A₂]` whose first `k` columns are `A₁` and whose last `l` columns are
+`A₂`. -/
 def joinCols (A₁ : Matrix (Fin m) (Fin k) (ZMod q)) (A₂ : Matrix (Fin m) (Fin l) (ZMod q)) :
     Matrix (Fin m) (Fin (k + l)) (ZMod q) :=
   Matrix.of fun i => Fin.append (A₁ i) (A₂ i)
+
+/-- Splitting the columns identifies pairs `(A₁, A₂)` with matrices `[A₁ | A₂]`. -/
+private def joinColsEquiv :
+    Matrix (Fin m) (Fin k) (ZMod q) × Matrix (Fin m) (Fin l) (ZMod q) ≃
+      Matrix (Fin m) (Fin (k + l)) (ZMod q) where
+  toFun A := joinCols A.fst A.snd
+  invFun A :=
+    (Matrix.of fun i j => A i (Fin.castAdd l j), Matrix.of fun i j => A i (Fin.natAdd k j))
+  left_inv A := by
+    obtain ⟨A₁, A₂⟩ := A
+    ext <;> simp [joinCols]
+  right_inv A := by
+    ext i j
+    refine Fin.addCases (fun j => ?_) (fun j => ?_) j <;> simp [joinCols]
 
 omit [NeZero q] in
 /-- `[A₁ | A₂] (x₁ ‖ x₂) = A₁ x₁ + A₂ x₂`. -/
@@ -382,25 +396,14 @@ private theorem realGame_embed (W : PMF (Fin m → ZMod q))
         (PMF.uniformOfFintype (Matrix (Fin m) (Fin (k + l)) (ZMod q))).bind fun A =>
           (PMF.uniformOfFintype (Fin (k + l) → ZMod q)).bind fun x =>
             F (fun i => x (Fin.castAdd l i)) A (A.mulVec x + w) := by
-  rw [PMF.bind_comm _ W]
-  congr 1 with w : 1
-  relabel_uniform (fun p : (Fin l → ZMod q) × Matrix (Fin m) (Fin l) (ZMod q) ×
-      Matrix (Fin m) (Fin k) (ZMod q) × (Fin k → ZMod q) =>
-    (joinCols p.2.2.1 p.2.1, Fin.append p.2.2.2 p.1)) with p
-  · rintro ⟨x₂, A₂, A₁, x₁⟩ ⟨y₂, B₂, B₁, y₁⟩ h
-    obtain ⟨hA, hx⟩ := Prod.mk.inj h
-    refine Prod.ext (funext fun i => ?_) (Prod.ext ?_ (Prod.ext ?_ (funext fun i => ?_)))
-    · simpa using congr_fun hx (Fin.natAdd k i)
-    · ext i j; simpa [joinCols] using congr_fun (congr_fun hA i) (Fin.natAdd k j)
-    · ext i j; simpa [joinCols] using congr_fun (congr_fun hA i) (Fin.castAdd l j)
-    · simpa using congr_fun hx (Fin.castAdd l i)
-  · simp only [Fintype.card_prod]
-    rw [Fintype.card_congr Matrix.of.symm, Fintype.card_congr Matrix.of.symm,
-      Fintype.card_congr Matrix.of.symm]
-    simp only [Fintype.card_pi, Fintype.card_fin, ZMod.card, Finset.prod_const, Finset.card_univ,
-      ← pow_mul, ← pow_add]
-    congr 1; ring
-  · simp only [Fin.append_left, joinCols_mulVec_append, add_assoc]
+  conv_rhs =>
+    enter [2, w]
+    rw [← Probability.PMF.uniformOfFintype_bind_bind_equiv joinColsEquiv]
+    enter [2, A₁, 2, A₂]
+    rw [← Probability.PMF.uniformOfFintype_bind_bind_equiv (Fin.appendEquiv k l)]
+  simp only [joinColsEquiv, Fin.appendEquiv, Equiv.coe_fn_mk, Fin.append_left,
+    joinCols_mulVec_append, add_assoc]
+  pmf_swap
 
 /-- The LWE real game of `hardcoreKeyReduction D` (uniform secret, error law `W`) is the real
 fuzzy-extractor game of `lweFuzzyExtractor`. -/

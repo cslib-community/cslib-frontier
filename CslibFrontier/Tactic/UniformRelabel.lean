@@ -14,17 +14,16 @@ public meta import Lean.Elab.Tactic
 /-!
 # Relabeling and dropping uniform draws
 
-* `relabel_uniform e [with x] [at loc]`: equates uniform `PMF` draws (collapsing nested product
-  draws) along `e : α ≃ β` or `f : α → β`, auto-discharging standard bijectivities, or rewrites
-  in place with `Equiv`s.
-* `drop_uniform [with x]`: simplifies constant `PMF.bind` stages via `PMF.bind_const` and peels
-  leading draws with `bind_const_of_eq`.
+* `relabel_uniform e [with x]`: equates `PMF` distributions whose leading uniform draws
+  (`Cslib.Probability.PMF.uniformOfFintype`, collapsing nested `Prod` draws) match up to
+  `e : α ≃ β` or `f : α → β`, auto-discharging standard bijectivities.
+* `drop_uniform with x`: simplifies constant `PMF.bind` stages via `PMF.bind_const` and peels an
+  unused leading `PMF.bind` stage `μ.bind fun y => f y = g` to `f x = g` via `bind_const_of_eq`.
 
-## Main results
+## Main definitions
 
-* `Cslib.Tactic.UniformRelabel.uniformOfFintype_bind_bind`
-* `Cslib.Tactic.UniformRelabel.uniformOfFintype_map_bijective`
-* `Cslib.Tactic.UniformRelabel.bind_const_of_eq`
+* `relabel_uniform`: equate uniform `PMF` draws along a bijection or map.
+* `drop_uniform`: simplify constant `PMF.bind` stages and peel a leading `PMF.bind` draw.
 -/
 
 public section
@@ -33,15 +32,7 @@ namespace Cslib.Tactic.UniformRelabel
 
 open Cslib.Probability
 
-/-- Collapse two consecutive independent uniform draws into one draw on the product type. -/
-theorem uniformOfFintype_bind_bind {α β γ : Type*}
-    [Fintype α] [Nonempty α] [Fintype β] [Nonempty β] (k : α → β → PMF γ) :
-    ((PMF.uniformOfFintype α).bind fun a => (PMF.uniformOfFintype β).bind fun b => k a b) =
-      (PMF.uniformOfFintype (α × β)).bind (fun p => k p.1 p.2) := by
-  rw [← PMF.uniformOfFintype_prod α β, PMF.bind_bind]
-  simp only [PMF.bind_map, Function.comp_def]
-
-/-- Push a `PMF.map` through a bijection `f : α → β` of finite nonempty types. -/
+/-- Internal tactic bridge lemma pushing `PMF.map` through a bijection of finite nonempty types. -/
 theorem uniformOfFintype_map_bijective {α β γ : Type*}
     [Fintype α] [Nonempty α] [Fintype β] [Nonempty β]
     {f : α → β} (hf : Function.Bijective f) {g : β → γ} {g' : α → γ}
@@ -49,7 +40,7 @@ theorem uniformOfFintype_map_bijective {α β γ : Type*}
     (PMF.uniformOfFintype α).map g' = (PMF.uniformOfFintype β).map g :=
   PMF.uniformOfFintype_bind_bijective hf fun a => congrArg PMF.pure (hg a)
 
-/-- Prove `μ.bind f = g` by proving `∀ a, f a = g`. -/
+/-- Internal tactic bridge lemma proving `μ.bind f = g` from `∀ a, f a = g`. -/
 theorem bind_const_of_eq {α β : Type*} (μ : PMF α) (f : α → PMF β) (g : PMF β)
     (h : ∀ a, f a = g) : μ.bind f = g := by
   rw [show f = fun _ => g from funext h, PMF.bind_const]
@@ -129,11 +120,21 @@ private def chainOpt (a b : Expr) (h₁? h₂? : Option Expr) : MetaM (Option Ex
   | some h, none | none, some h => return some (← castEq a b h)
   | some h₁, some h₂ => return some (← castEq a b (← mkEqTrans h₁ h₂))
 
-private def mergeUniformPair (x R : Expr) (thm : Name) (bodyLam : Expr) :
+private def mergeUniformPair (x L R : Expr) (isBind : Bool) (bodyLam : Expr) :
     MetaM (Option (Expr × Expr)) := do
   let bName := match bodyLam.cleanupAnnotations with | .lam n _ _ _ => n | _ => `b
-  let pf ← mkAppM thm #[← withLocalDecl bName .default R fun y =>
-    mkLambdaFVars #[x, y] (mkApp bodyLam y).headBeta]
+  let fnXY ← withLocalDecl bName .default R fun y =>
+    mkLambdaFVars #[x, y] (mkApp bodyLam y).headBeta
+  let pf ← if isBind then
+    let pairTy ← mkAppM ``Prod #[L, R]
+    let reflE ← mkAppOptM ``Equiv.refl #[some pairTy]
+    let kPair ← withLocalDecl `p .default pairTy fun p => do
+      let fst ← mkAppM ``Prod.fst #[p]
+      let snd ← mkAppM ``Prod.snd #[p]
+      mkLambdaFVars #[p] (mkApp2 fnXY fst snd).headBeta
+    mkAppM ``Cslib.Probability.PMF.uniformOfFintype_bind_bind_equiv #[reflE, kPair]
+  else
+    mkAppM ``Cslib.Probability.PMF.uniformOfFintype_bind_map #[fnXY]
   let some (_, _, rhsExpr) := (← inferType pf).eq? | return none
   return some (rhsExpr, pf)
 
@@ -167,11 +168,11 @@ private partial def collapseToType (targetTy e : Expr) : MetaM (Expr × Option E
     cur := mid
   let some (.bind αFinal contFinal) := parseUniform? cur | return (cur, hCur?)
   let mergeRes? ← withLocalDecl xName .default αFinal fun x => do
-    let some (thm, β, fn) := (match parseUniform? (mkApp contFinal x).headBeta with
-      | some (.map β fn) => some (``Cslib.Probability.PMF.uniformOfFintype_bind_map, β, fn)
-      | some (.bind β fn) => some (``uniformOfFintype_bind_bind, β, fn)
+    let some (isBind, β, fn) := (match parseUniform? (mkApp contFinal x).headBeta with
+      | some (.map β fn) => some (false, β, fn)
+      | some (.bind β fn) => some (true, β, fn)
       | _ => none) | return none
-    if ← isDefEq β R then mergeUniformPair x R thm fn else return none
+    if ← isDefEq β R then mergeUniformPair x αFinal R isBind fn else return none
   if let some (merged, hMerge) := mergeRes? then
     return (merged, ← chainOpt e0 merged hCur? (some hMerge))
   return (cur, hCur?)
@@ -201,9 +202,7 @@ private def trySolveInjective (g : MVarId) : TacticM Bool := do
             all_goals
               first
               | rfl | (apply add_left_cancel; assumption)
-              | (apply add_right_cancel; assumption) | (simp_all; done))
-         | (funext i; have h₁ := congr_fun h.1 i; have h₂ := congr_fun h.2 i
-            rw [h₂] at h₁; exact Prod.ext (add_right_cancel h₁) h₂))
+              | (apply add_right_cancel; assumption) | (simp_all; done)))
     | fail)))
 
 private def tryRefineSplit (n : Nat) (g : MVarId) (stx : TSyntax `tactic) :
@@ -223,9 +222,8 @@ private def dischargeBijective (equivHint : Option Expr) (α β : Expr) (g : MVa
          all_goals
            first
            | rfl
-           | (ext <;> simp only [Bool.xor_assoc, Bool.xor_self, Bool.xor_false, Bool.not_not])
-           | (ext x₁ x₂ <;>
-               simp only [Bool.xor_assoc, Bool.xor_self, Bool.xor_false, Bool.not_not])))) then
+           | (ext <;> simp only [Bool.xor_assoc, Bool.xor_self,
+               Bool.xor_false, Bool.not_not])))) then
       return []
     if let some [gInj] ←
         tryRefineSplit 1 g (← `(tactic| refine Finite.injective_iff_bijective.mp ?_)) then
@@ -301,124 +299,44 @@ private def tryRelabelEq (goal : MVarId) (eTerm : Expr) (var? : Option Name) :
   sInit.restore
   tryOrientation true
 
-private def abstractEquivLam (eTerm srcTy dstTy : Expr) (sameDom : Bool) (origLam : Expr) :
-    MetaM (Option (Expr × Expr)) := withTransparency .default do
-  let xName := match origLam.cleanupAnnotations with | .lam n _ _ _ => n | _ => `y
-  let eCoe ← mkAppM ``DFunLike.coe #[eTerm]
-  let eInvCoe ← mkAppM ``DFunLike.coe #[← mkAppM ``Equiv.symm #[eTerm]]
-  let res? ← withLocalDecl xName .default srcTy fun x =>
-    withLocalDecl xName .default dstTy fun y => do
-      let pat := (mkApp eCoe x).headBeta
-      let symmApp := (mkApp eInvCoe y).headBeta
-      let foundRef ← IO.mkRef false
-      let newBody ← Meta.transform (mkApp origLam x).headBeta (pre := fun sub => do
-        if ← isDefEq sub pat then foundRef.set true; return .done y
-        if sub == x then return .done symmApp
-        return .continue)
-      if sameDom && !(← foundRef.get) then return none
-      return some (← mkLambdaFVars #[y] newBody)
-  let some newLam := res? | return none
-  let ctx ← mkSimpCtx #[``Equiv.symm_apply_apply]
-  let hk ← withLocalDecl xName .default srcTy fun x' => do
-    let lhsX := (mkApp origLam x').headBeta
-    let rhsX := (mkApp newLam (mkApp eCoe x')).headBeta
-    let (r, _) ← Meta.simp rhsX ctx
-    if !(← isDefEq lhsX r.expr) then
-      throwError "relabel_uniform: failed to equate abstracted body with original"
-    mkLambdaFVars #[x'] (← mkEqSymm (← castEq rhsX lhsX (← r.getProof)))
-  return some (newLam, hk)
-
-private def tryRelabelInPlace (loc : Location) (eTerm : Expr) : TacticM Bool := withMainContext do
-  let (_, srcTy, dstTy, isEquiv) ← classifyMap eTerm
-  if !isEquiv then return false
-  let rewroteRef ← IO.mkRef false
-  let sameDom ← isDefEq srcTy dstTy
-  let methods : Simp.Methods := {
-    pre := fun sub => do
-      if sameDom && (← rewroteRef.get) then return .done { expr := sub }
-      let some uh := parseUniform? sub | return .continue
-      if !(← isDefEq uh.dom srcTy) then return .continue
-      let (origLam, isBind) ← match uh with
-        | .bind _ c => pure (c, true) | .map _ f => pure (f, false) | .bare _ => return .continue
-      let some (newLam, hk) ← abstractEquivLam eTerm srcTy dstTy sameDom origLam | return .continue
-      let dstUnif ← mkAppOptM ``Cslib.Probability.PMF.uniformOfFintype #[some dstTy, none, none]
-      let hBij ← mkAppM ``Equiv.bijective #[eTerm]
-      let newExpr ← mkAppM (if isBind then ``PMF.bind else ``PMF.map)
-        (if isBind then #[dstUnif, newLam] else #[newLam, dstUnif])
-      let thm := if isBind then ``Cslib.Probability.PMF.uniformOfFintype_bind_bijective
-        else ``uniformOfFintype_map_bijective
-      let pf ← mkAppM thm #[hBij, hk]
-      rewroteRef.set true
-      return .done { expr := newExpr, proof? := some (← castEq sub newExpr pf) } }
-  let ctx ← mkSimpCtx #[]
-  let run (e : Expr) : MetaM Simp.Result := do
-    rewroteRef.set false
-    let (r, _) ← Simp.main (← instantiateMVars e) ctx (methods := methods)
-    unless ← rewroteRef.get do throwError "relabel_uniform: no matching uniform draw found"
-    return r
-  try
-    withLocation loc
-      (atLocal := fun h => do
-        match ← applySimpResultToLocalDecl (← getMainGoal) h (← run (← h.getType)) false with
-        | none => replaceMainGoal [] | some (_, g) => replaceMainGoal [g])
-      (atTarget := do
-        let g ← getMainGoal
-        let g' ← applySimpResultToTarget g (← instantiateMVars (← g.getType)) (← run (← g.getType))
-        try withReducible g'.refl; replaceMainGoal [] catch _ => replaceMainGoal [g'])
-      (failed := fun _ => throwError "relabel_uniform: no matching uniform draw found")
-    return true
-  catch _ => return false
-
-/-- `relabel_uniform e [with x] [at loc]` relabels `PMF.uniformOfFintype` draws along `e : α ≃ β`
-or `f : α → β`. On a `PMF` equality it normalizes `Bind`/`Pure`/`Map` notation, collapses
+/-- `relabel_uniform e [with x]` relabels `PMF.uniformOfFintype` draws along `e : α ≃ β` or
+`f : α → β`. On a `PMF` equality it normalizes `Bind`/`Pure`/`Map` notation, collapses
 consecutive uniform draws along nested products when needed, applies
 `uniformOfFintype_bind_bijective` / `uniformOfFintype_map_bijective`, and auto-discharges standard
-bijectivities; with `at loc` (or as fallback for `Equiv`s) it rewrites draws in place. -/
-syntax (name := relabelUniform) "relabel_uniform " term (" with " ident)?
-  (Lean.Parser.Tactic.location)? : tactic
+bijectivities. -/
+syntax (name := relabelUniform) "relabel_uniform " term (" with " ident)? : tactic
 
 @[inherit_doc relabelUniform]
 elab_rules : tactic
-  | `(tactic| relabel_uniform $eStx $[with $v?]? $[$loc?]?) => withMainContext do
+  | `(tactic| relabel_uniform $eStx $[with $v?]?) => withMainContext do
     let eRaw ← elabTerm eStx none (mayPostpone := false)
     Term.synthesizeSyntheticMVarsNoPostponing
     let eTerm ← instantiateMVars eRaw
-    if let some locStx := loc? then
-      unless ← tryRelabelInPlace (expandLocation locStx) eTerm do
-        throwError "relabel_uniform: could not rewrite any uniform draw at location using {eStx}"
-      return
-    let sSave ← saveState
-    if let some remaining ← tryRelabelEq (← getMainGoal) eTerm (v?.map (·.getId)) then
-      replaceMainGoal remaining; return
-    sSave.restore
-    unless ← tryRelabelInPlace (.targets #[] true) eTerm do
-      throwError "relabel_uniform: no matching uniform draw equality or target for {eStx}"
+    let some remaining ← tryRelabelEq (← getMainGoal) eTerm (v?.map (·.getId))
+      | throwError "relabel_uniform: no matching uniform draw equality for {eStx}"
+    replaceMainGoal remaining
 
-/-- `drop_uniform [with x]` simplifies constant `μ.bind fun _ => q` stages via `PMF.bind_const`
-and, with `with x`, peels a leading sample `μ.bind fun y => f y = g` to `f x = g`. -/
-syntax (name := dropUniform) "drop_uniform" (" with " ident)? : tactic
+/-- `drop_uniform with x` simplifies constant `PMF.bind` stages via `PMF.bind_const` and peels a
+leading `PMF.bind` draw `μ.bind fun y => f y = g` to `f x = g` via `bind_const_of_eq`. -/
+syntax (name := dropUniform) "drop_uniform" " with " ident : tactic
 
 @[inherit_doc dropUniform]
 elab_rules : tactic
-  | `(tactic| drop_uniform $[with $v?]?) => withMainContext do
+  | `(tactic| drop_uniform with $varId) => withMainContext do
     let goal ← getMainGoal
     let some (lhsRaw, rhsRaw) ← pmfEq? goal
       | throwError "drop_uniform: expected an equation of distributions `PMF _`"
     let (lhsN, hln?) ← normExpr #[``PMF.bind_const] lhsRaw
     let (rhsN, hrn?) ← normExpr #[``PMF.bind_const] rhsRaw
     let gNow ← rewriteEqGoal goal lhsRaw rhsRaw lhsN rhsN hln? hrn?
-    try withReducible gNow.refl; replaceMainGoal []; return catch _ => pure ()
-    let some varId := v? | do
-      if hln?.isNone && hrn?.isNone then throwError "drop_uniform: no constant `PMF.bind` to drop"
-      replaceMainGoal [gNow]
-    let some (l, r) ← pmfEq? gNow | replaceMainGoal [gNow]; return
+    let some (l, r) ← pmfEq? gNow | throwError "drop_uniform: internal error"
     let peelStx ←
       if l.cleanupAnnotations.headBeta.isAppOfArity ``PMF.bind 4 then
         `(tactic| refine Cslib.Tactic.UniformRelabel.bind_const_of_eq _ _ _ ?_)
       else if r.cleanupAnnotations.headBeta.isAppOfArity ``PMF.bind 4 then
         `(tactic| refine (Cslib.Tactic.UniformRelabel.bind_const_of_eq _ _ _ ?_).symm)
       else throwError "drop_uniform: neither side is a `PMF.bind` chain"
-    let [gSub] ← runStrict gNow peelStx | replaceMainGoal [gNow]; return
+    let [gSub] ← runStrict gNow peelStx | throwError "drop_uniform: failed to peel leading bind"
     replaceMainGoal [(← gSub.intro varId.getId).2]
 
 end Cslib.Tactic.UniformRelabel
