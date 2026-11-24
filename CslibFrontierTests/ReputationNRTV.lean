@@ -4,9 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.GameTheory.Reputation.RepeatedPD
-import CslibFrontier.GameTheory.Reputation.PeerPrediction
-import CslibFrontier.GameTheory.Reputation.Sybilproof
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.GameTheory.Reputation.RepeatedPD
+public import CslibFrontier.GameTheory.Reputation.PeerPrediction
+public import CslibFrontier.GameTheory.Reputation.Sybilproof
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
@@ -20,6 +23,8 @@ Exercises the definitions, characterizations, and subtle model boundaries across
 * `CslibFrontier.GameTheory.Reputation.PeerPrediction` (§27.4, Proposition 1, Exercise 27.6), and
 * `CslibFrontier.GameTheory.Reputation.Sybilproof` (§27.5, Theorems 27.5 & 27.7–27.9, Figure 27.2).
 -/
+
+public section
 
 namespace CslibFrontierTests.ReputationNRTV
 

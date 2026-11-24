@@ -65,11 +65,15 @@ Richard Zeckhauser, *"Eliciting Informative Feedback: The Peer-Prediction Method
 
 ## Main definitions
 
-* `Cslib.GameTheory.Reputation.PeerPredictionModel`, `signalProb`, `typePosterior`,
-  `peerPosterior`, `StochasticallyRelevant`
-* `Cslib.GameTheory.Reputation.jointSignalProb`, `condSignalProb`, `interimTransfer`,
-  `IsBayesNashReporting`, `IsStrictBayesNashReporting`, `truthfulStrategy`
-* `Cslib.GameTheory.Reputation.logPeerTransfer`, `balancedLogPeerTransfer`
+* `Cslib.GameTheory.Reputation.PeerPredictionModel`,
+  `PeerPredictionModel.signalProb`, `PeerPredictionModel.typePosterior`,
+  `PeerPredictionModel.peerPosterior`, `PeerPredictionModel.StochasticallyRelevant`
+* `Cslib.GameTheory.Reputation.PeerPredictionModel.jointSignalProb`,
+  `PeerPredictionModel.condSignalProb`, `PeerPredictionModel.interimTransfer`,
+  `PeerPredictionModel.IsBayesNashReporting`, `PeerPredictionModel.IsStrictBayesNashReporting`,
+  `PeerPredictionModel.truthfulStrategy`
+* `Cslib.GameTheory.Reputation.PeerPredictionModel.logPeerTransfer`,
+  `PeerPredictionModel.balancedLogPeerTransfer`
 
 ## Main results
 
@@ -78,8 +82,8 @@ Richard Zeckhauser, *"Eliciting Informative Feedback: The Peer-Prediction Method
 * `Cslib.GameTheory.Reputation.PeerPredictionModel.exists_scale_effort_incentive`: MRZ
   Proposition 2 (effort elicitation with ex-post participation).
 * `Cslib.GameTheory.Reputation.PeerPredictionModel.sum_balancedLogPeerTransfer_eq_zero` and
-  `truthful_isStrictBayesNash_balancedLogPeerTransfer`: MRZ Equation `(4)` budget-balanced peer
-  prediction.
+  `PeerPredictionModel.truthful_isStrictBayesNash_balancedLogPeerTransfer`: MRZ Equation `(4)`
+  budget-balanced peer prediction.
 * `Cslib.GameTheory.Reputation.PeerPredictionModel.constStrategy_isStrictBayesNash_logPeerTransfer`:
   NRTV §27.4.2 Footnote 2 uninformative constant equilibrium.
 * `Cslib.GameTheory.Reputation.PeerPredictionModel.observedPeer_misreport_strict_gain`:

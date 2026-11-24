@@ -135,10 +135,14 @@ structure TrustGraph (V : Type*) where
 namespace TrustGraph
 
 /-- Empty trust graph with zero trust on all pairs. -/
-def empty (V : Type*) : TrustGraph V where
+@[expose] def empty (V : Type*) : TrustGraph V where
   weight _ _ := 0
   weight_nonneg _ _ := le_rfl
   weight_diag _ := rfl
+
+@[simp]
+theorem empty_weight (V : Type*) (u v : V) : (empty V).weight u v = 0 :=
+  rfl
 
 /-- Transport a trust graph along a bijection `e : V ≃ V'`. -/
 def relabel {V V' : Type*} (e : V ≃ V') (G : TrustGraph V) : TrustGraph V' where
@@ -873,7 +877,7 @@ theorem isValueSybilproof_maxFlowRep : SeededRepFn.IsValueSybilproof maxFlowRep 
 /-- Post-attack 4-vertex trust graph of **Figure 27.2** ([FriedmanResnickSami2007, p. 692]) on
 `Fin 4` (`0 = s`, `1 = a`, `2 = b`, `3 = a'`): `a` retains incoming edge `s → a` (`1`) while Sybil
 `a'` takes outgoing edge `a' → b` (`7 / 10`), severing the `s → a → b` flow path. -/
-noncomputable def maxFlowCounterexampleSybilGraph : TrustGraph (Fin 4) where
+private noncomputable def maxFlowCounterexampleSybilGraph : TrustGraph (Fin 4) where
   weight
     | 0, 1 => 1
     | 3, 2 => 7 / 10
@@ -923,7 +927,7 @@ private theorem weight_le_cutWeight {V : Type*} [Fintype V] [DecidableEq V] (G :
     single_le_sum (fun w _ => G.weight_nonneg u w) (mem_sdiff.mpr ⟨mem_univ v, hv⟩)
   exact h1.trans (single_le_sum (fun x _ => sum_nonneg fun w _ => G.weight_nonneg x w) hu)
 
-theorem maxFlowRep_maxFlowCounterexampleGraph :
+private theorem maxFlowRep_maxFlowCounterexampleGraph :
     maxFlowRep maxFlowCounterexampleGraph 0 1 = 1 ∧
       maxFlowRep maxFlowCounterexampleGraph 0 2 = 6 / 5 := by
   constructor
@@ -952,7 +956,7 @@ theorem maxFlowRep_maxFlowCounterexampleGraph :
         simp [cutWeight, Fin.sum_univ_three, maxFlowCounterexampleGraph]
         norm_num
 
-theorem maxFlowRep_maxFlowCounterexampleSybilGraph :
+private theorem maxFlowRep_maxFlowCounterexampleSybilGraph :
     maxFlowRep maxFlowCounterexampleSybilGraph 0 1 = 1 ∧
       maxFlowRep maxFlowCounterexampleSybilGraph 0 2 = 1 / 2 := by
   constructor

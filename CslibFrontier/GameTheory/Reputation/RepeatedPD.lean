@@ -59,9 +59,16 @@ Reputation Systems"*, Chapter 27 of *Algorithmic Game Theory* [FriedmanResnickSa
     `entryFee_deters_perpetual_whitewashing_iff`).
   * With free pseudonyms, Pay-Your-Dues (`pydAction`, `pydNextStanding`) gives a `goodVeteran` a
     stage-payoff advantage of `2` over a `newcomer` against veteran partners
-    (`pyd_goodVeteran_vs_newcomer_gap`), makes truthful `PYD` without whitewashing optimal at every
-    standing iff `1 / 2 ≤ δ` (`pyd_incentive_iff`, strictly optimal on cooperative prescriptions for
-    `1 / 2 < δ`), and incurs newcomer–veteran welfare `1 < 2` (`pyd_newcomer_welfare_bounds`).
+    (`pyd_goodVeteran_vs_newcomer_gap`), makes truthful `PYD` without whitewashing at `.newcomer`
+    and `.goodVeteran` standings optimal across all partner standings iff `1 / 2 ≤ δ`
+    (`pyd_incentive_iff`, strictly optimal on cooperative prescriptions for `1 / 2 < δ`), and incurs
+    newcomer–veteran welfare `1 < 2` (`pyd_newcomer_welfare_bounds`).
+  * *Model scope note:* Unlike the full public-history strategy `IsSPNE` theorems above,
+    `personalizedGrim_incentive_iff`, `entryFee_deters_*`, and `pyd_incentive_iff` verify the
+    closed-form discounted stream and one-step Bellman inequalities against the explicit expressions
+    `personalizedGrimDevPayoff`, `honestEntryPayoff` / `oneShotWhitewashPayoff` /
+    `perpetualWhitewashPayoff`, and `pydContValue` rather than deriving continuation payoffs from an
+    explicit `N`-player random-matching or pseudonym-reset repeated game.
 
 ## Main definitions
 
@@ -108,14 +115,14 @@ inductive PDAction : Type
 
 /-- Stage payoff to the row player in the Prisoner's Dilemma of [FriedmanResnickSami2007, §27.2,
 p. 680]: `π(C, C) = 1`, `π(D, D) = 0`, `π(D, C) = 2`, and `π(C, D) = -1`. -/
-def pdPayoff : PDAction → PDAction → ℝ
+@[expose] def pdPayoff : PDAction → PDAction → ℝ
   | .cooperate, .cooperate => 1
   | .defect, .defect => 0
   | .defect, .cooperate => 2
   | .cooperate, .defect => -1
 
 /-- Sum of both players' stage payoffs [FriedmanResnickSami2007, §27.3, p. 682]. -/
-def pdWelfare (a b : PDAction) : ℝ :=
+@[expose] def pdWelfare (a b : PDAction) : ℝ :=
   pdPayoff a b + pdPayoff b a
 
 theorem pdPayoff_defect_gt_cooperate (b : PDAction) :
@@ -760,8 +767,9 @@ Exercise 27.5, p. 697]. -/
 noncomputable def personalizedGrimDevPayoff (δ : ℝ) (N : ℕ) : ℝ :=
   discountedPayoff δ fun t => if t = 0 then 2 else ((N : ℝ) - 1) / (N : ℝ)
 
-/-- **Exercise 27.5** ([FriedmanResnickSami2007, §27.2, p. 681 & p. 697]): with `N ≥ 1` potential
-partners and uniform matching probability `1 / N`, Personalized-Grim deters a one-shot defection
+/-- **Exercise 27.5** ([FriedmanResnickSami2007, §27.2, p. 681 & p. 697]): in the closed-form
+expected stream `personalizedGrimDevPayoff δ N` for `N ≥ 1` potential partners under uniform
+`1 / N` matching, Personalized-Grim deters a one-shot defection
 (`personalizedGrimDevPayoff δ N ≤ 1`) if and only if `(N : ℝ) / (N + 1) ≤ δ`. -/
 theorem personalizedGrim_incentive_iff {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) {N : ℕ}
     (hN : 1 ≤ N) :
@@ -844,7 +852,8 @@ theorem oneShotWhitewashPayoff_eq {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 
   ring
 
 /-- **Entry-fee deterrence of whitewashing** ([FriedmanResnickSami2007, §27.3, p. 682];
-[FriedmanResnick2001]): for `0 < δ < 1`, upfront registration fee `f` deters one-shot whitewashing
+[FriedmanResnick2001]): for `0 < δ < 1`, in the closed-form discounted streams above, upfront
+registration fee `f` deters one-shot whitewashing
 (`oneShotWhitewashPayoff δ f ≤ honestEntryPayoff δ f`) if and only if `1 / δ ≤ f`. -/
 theorem entryFee_deters_whitewashing_iff {δ f : ℝ} (hδ₀ : 0 < δ) (hδ₁ : δ < 1) :
     oneShotWhitewashPayoff δ f ≤ honestEntryPayoff δ f ↔ 1 / δ ≤ f := by
@@ -852,8 +861,9 @@ theorem entryFee_deters_whitewashing_iff {δ f : ℝ} (hδ₀ : 0 < δ) (hδ₁ 
   have h1 : 0 < 1 - δ := by linarith
   constructor <;> intro h <;> nlinarith
 
-/-- Perpetual defect-and-whitewash is deterred by the exact same registration threshold
-`1 / δ ≤ f` [FriedmanResnickSami2007, §27.3, p. 682]. -/
+/-- In the closed-form discounted stream `perpetualWhitewashPayoff`, perpetual defect-and-whitewash
+is deterred by the exact same registration threshold `1 / δ ≤ f`
+[FriedmanResnickSami2007, §27.3, p. 682]. -/
 theorem entryFee_deters_perpetual_whitewashing_iff {δ f : ℝ} (hδ₀ : 0 < δ) (hδ₁ : δ < 1) :
     perpetualWhitewashPayoff δ f ≤ honestEntryPayoff δ f ↔ 1 / δ ≤ f := by
   rw [perpetualWhitewashPayoff, discountedPayoff_const hδ₀.le hδ₁,
@@ -871,7 +881,7 @@ inductive ReputationStanding : Type
 /-- **Pay-Your-Dues (`PYD`)** action rule [FriedmanResnickSami2007, §27.3, p. 682]:
 cooperate with `goodVeteran`s, defect against `badVeteran`s, and against a `newcomer` cooperate
 only if one is also a `newcomer` (veterans defect against newcomers). -/
-def pydAction (selfStanding partnerStanding : ReputationStanding) : PDAction :=
+@[expose] def pydAction (selfStanding partnerStanding : ReputationStanding) : PDAction :=
   match partnerStanding with
   | .goodVeteran => .cooperate
   | .badVeteran => .defect
@@ -882,7 +892,7 @@ def pydAction (selfStanding partnerStanding : ReputationStanding) : PDAction :=
 
 /-- Next-period standing under `PYD`, allowing optional free whitewashing (`whitewash = true`
 resets the pseudonym to `.newcomer`) [FriedmanResnickSami2007, §27.3, p. 682]. -/
-def pydNextStanding (selfStanding partnerStanding : ReputationStanding) (act : PDAction)
+@[expose] def pydNextStanding (selfStanding partnerStanding : ReputationStanding) (act : PDAction)
     (whitewash : Bool) : ReputationStanding :=
   if whitewash then .newcomer
   else if selfStanding ≠ .badVeteran ∧ act = pydAction selfStanding partnerStanding then
@@ -912,16 +922,17 @@ theorem pyd_newcomer_welfare_bounds :
 /-- Continuation value against a community of `goodVeteran` partners when playing `PYD` (with
 `badVeteran` whitewashing to `newcomer` when `1 / 2 ≤ δ`, or `max 0 (2 * δ - 1)` in general)
 [FriedmanResnickSami2007, §27.3, p. 682; Exercise 27.4, p. 697]. -/
-def pydContValue (δ : ℝ) : ReputationStanding → ℝ
+@[expose] def pydContValue (δ : ℝ) : ReputationStanding → ℝ
   | .goodVeteran => 1
   | .newcomer => 2 * δ - 1
   | .badVeteran => 0
 
-/-- **Pay-Your-Dues equilibrium threshold** ([FriedmanResnickSami2007, §27.3, p. 682 & Exercise
-27.4, p. 697]; [FriedmanResnick2001]): for `0 ≤ δ < 1`, following `pydAction` without whitewashing
-at `.newcomer` and `.goodVeteran` (and whitewashing at `.badVeteran` vs staying `.badVeteran`)
-weakly dominates every stage action `a : PDAction` and whitewashing choice `w : Bool` against
-`goodVeteran` partners if and only if `1 / 2 ≤ δ`. -/
+/-- **Pay-Your-Dues one-step Bellman threshold** ([FriedmanResnickSami2007, §27.3, p. 682 &
+Exercise 27.4, p. 697]; [FriedmanResnick2001]): for `0 ≤ δ < 1`, under the closed-form continuation
+values `pydContValue δ`, following `pydAction` without whitewashing at `.newcomer` and
+`.goodVeteran` weakly dominates every stage action `a : PDAction` and whitewashing choice
+`w : Bool` across all partner standings `partner : ReputationStanding` if and only if
+`1 / 2 ≤ δ`. -/
 theorem pyd_incentive_iff {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) :
     (∀ s ∈ ({ReputationStanding.newcomer, .goodVeteran} : Set ReputationStanding),
       ∀ (partner : ReputationStanding) (a : PDAction) (w : Bool),
