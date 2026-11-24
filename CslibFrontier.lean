@@ -6404,8 +6404,10 @@ public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Priva
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Recognition
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Shamir
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Sources
+public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Feldman
 public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Interpolation
 public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Linear
+public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Pedersen
 public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Product
 public import CslibFrontier.Crypto.Protocols.SelectiveFailure
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Abort
