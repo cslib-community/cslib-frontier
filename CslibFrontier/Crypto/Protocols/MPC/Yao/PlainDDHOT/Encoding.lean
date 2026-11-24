@@ -43,8 +43,6 @@ level.
 
 * The function descriptions `c n` are a parameter of `Yao.kdfDDHProbFamily` and not part of its
   public parameters, so no machine reads them: `desc` writes the group description only.
-* `encDDHOTSenderBitCoins` is stated here because this module is its only client; it concerns the
-  DDH transfer, not Yao's protocol.
 
 ## Main definitions
 
@@ -59,18 +57,6 @@ level.
 -/
 
 public section
-
-namespace Cslib.Crypto.Protocols.MPC
-
-open Turing.MultiTapeTM
-
-/-- The encoding of the sender's raw coins in the fair-coin DDH transfer: its five bit strings in
-turn, all but the last framed. -/
-enc_structure encDDHOTSenderBitCoins : DDHOTSenderBitCoins where
-  exponentBits : encBits, coinR₀Bits : encBits, coinS₀Bits : encBits, coinR₁Bits : encBits,
-  coinS₁Bits : encBits
-
-end Cslib.Crypto.Protocols.MPC
 
 namespace Cslib.Crypto.Protocols.MPC.Yao
 
