@@ -10,6 +10,7 @@ import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Entries.HadamardRigidity
 import CslibFrontierResults.Entries.HalfBlockPRPCCA
 import CslibFrontierResults.Entries.HashThenPRF
+import CslibFrontierResults.Entries.IndirectRevelation
 import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.MinimumSpanningTree
@@ -39,5 +40,4 @@ import CslibFrontierResults.Entries.SturmReduced
 import CslibFrontierResults.Entries.TwoSATWordRAM
 import CslibFrontierResults.Entries.VeriPBClique
 import CslibFrontierResults.Entries.VeriPBSubgraphIso
-import CslibFrontierResults.GameTheory.IndirectRevelation
 import CslibFrontierResults.Registry

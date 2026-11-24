@@ -6,163 +6,179 @@ Authors: Samuel Schlesinger
 
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
-import CslibFrontier.GameTheory.Mechanism.Domains
 import CslibFrontier.GameTheory.Mechanism.Indirect
-import CslibFrontier.GameTheory.Mechanism.MultiUnit
-import CslibFrontier.GameTheory.Mechanism.Randomized
+import CslibFrontier.GameTheory.Mechanism.VCG
 import CslibFrontier.GameTheory.SocialChoice.GibbardSatterthwaiteReduction
 
 /-!
-# Collected results: indirect mechanisms, revelation principles, and multi-unit auctions
+# Collected results: VCG on restricted domains, Gibbard–Satterthwaite, and revelation principles
 -/
 
 open Cslib.GameTheory
 
-register_result "gibbard-satterthwaite-nisan-reduction" where
-  title := "Single-voter monotonicity and Nisan's reduction from Gibbard–Satterthwaite to Arrow"
+register_result "gibbard-satterthwaite-single-monotonicity" where
+  title := "Single-voter monotonicity is equivalent to strategy-proofness"
   topic := "game theory"
   sources := [
     { paper := Nisan2007,
-      theorem := "Proposition 9.6, Lemma 9.10, and Lemma 9.11",
-      locator := "§9.2.4, pp. 214–215" }
+      theorem := "Proposition 9.6",
+      locator := "§9.2.4, p. 214" }
   ]
   theorems := [
     SocialChoice.SocialChoiceFunction.isSingleMonotone_iff_isStrategyProof,
-    SocialChoice.SocialChoiceFunction.isSingleMonotone_iff_isMaskinMonotone,
-    SocialChoice.SocialChoiceFunction.nisanSWF_antisymm,
-    SocialChoice.SocialChoiceFunction.toWeakRanking_nisanRanking,
-    SocialChoice.SocialChoiceFunction.nisanSWF_isPareto_and_isIIA_and_not_isDictatorial
+    SocialChoice.SocialChoiceFunction.isSingleMonotone_iff_isMaskinMonotone
   ]
   scope := "Single-voter monotonicity (Definition 9.5) is equivalent to strategy-proofness on \
     arbitrary voter and alternative types, and for finite electorates [Finite V] also to Maskin \
-    monotonicity. For finite V and any strategy-proof social choice function f onto A, Nisan's \
-    extension nisanSWF (a ≽ b ↔ f (P.toTopSet {a, b}) = a, Definition 9.9) defines an \
-    antisymmetric weak ranking (equivalently strict Ranking A via nisanRanking, Lemma 9.10) \
-    satisfying weak Pareto (under [Nonempty V] or [Nontrivial A], discharging the implicit \
-    n ≥ 1 assumption when |A| = 1), IIA, and preservation of dictators (Lemma 9.11). Note that \
-    Nisan's x ≺ y denotes 'y preferred to x' (Prefers y x)."
+    monotonicity. Note that Nisan's x ≺ y denotes 'y preferred to x' (Prefers y x)."
 
-register_result "vcg-restricted-domains-and-feasible-bridge" where
-  title := "Restricted-domain Groves/VCG and feasible-set bridge to single-parameter auctions"
+register_result "gibbard-satterthwaite-nisan-swf-order" where
+  title := "Nisan's pairwise-top extension defines a strict social welfare function"
   topic := "game theory"
   sources := [
     { paper := Nisan2007,
-      theorem := "Theorem 9.17, Lemma 9.20, and §9.3.5.1",
-      locator := "§9.3.3–9.3.5.1, pp. 219–220" },
-    { paper := Groves1973, theorem := unverified, locator := unverified },
-    { paper := Clarke1971, theorem := unverified, locator := unverified }
+      theorem := "Lemma 9.10",
+      locator := "§9.2.4, p. 215" }
+  ]
+  theorems := [
+    SocialChoice.SocialChoiceFunction.nisanSWF_antisymm,
+    SocialChoice.SocialChoiceFunction.toWeakRanking_nisanRanking
+  ]
+  scope := "For finite V and any strategy-proof social choice function f onto A, Nisan's \
+    extension nisanSWF (a ≽_P b ↔ f (P.toTopSet {a, b}) = a, Definition 9.9) defines a total, \
+    transitive, antisymmetric weak ranking—equivalently a strict Ranking A via nisanRanking."
+
+register_result "gibbard-satterthwaite-nisan-swf-properties" where
+  title := "Nisan's induced social welfare function is Pareto, IIA, and preserves dictators"
+  topic := "game theory"
+  sources := [
+    { paper := Nisan2007,
+      theorem := "Lemma 9.11",
+      locator := "§9.2.4, p. 215" }
+  ]
+  theorems := [
+    SocialChoice.SocialChoiceFunction.nisanSWF_isPareto,
+    SocialChoice.SocialChoiceFunction.nisanSWF_isPareto_of_nontrivial,
+    SocialChoice.SocialChoiceFunction.nisanSWF_isIIA,
+    SocialChoice.SocialChoiceFunction.nisanSWF_isDictator_iff,
+    SocialChoice.SocialChoiceFunction.nisanSWF_isDictatorial_iff
+  ]
+  scope := "For finite V and any strategy-proof social choice function f onto A, Nisan's \
+    extension nisanSWF (a ≽_P b ↔ f (P.toTopSet {a, b}) = a, Definition 9.9) satisfies weak \
+    Pareto (under [Nonempty V] or [Nontrivial A], discharging the source's implicit n ≥ 1 \
+    assumption when |A| = 1), independence of irrelevant alternatives, and has the exact same \
+    dictators as f (hence is non-dictatorial iff f is non-dictatorial)."
+
+register_result "vcg-groves-dsic-restricted-domain" where
+  title := "Groves and VCG mechanisms are DSIC on restricted valuation domains"
+  topic := "game theory"
+  sources := [
+    { paper := Nisan2007,
+      theorem := "Theorem 9.17",
+      locator := "§9.3.3, p. 219" },
+    { paper := Groves1973, theorem := unverified, locator := unverified }
   ]
   theorems := [
     Cslib.GameTheory.Mechanism.groves_isDSICOn,
-    Cslib.GameTheory.Mechanism.vcg_noPositiveTransfersOn,
-    Cslib.GameTheory.Mechanism.vcg_isIROn,
-    Cslib.GameTheory.SingleParameter.Mechanism.isDSIC_iff_isDSICOn_toMechanismOn,
-    Cslib.GameTheory.SingleParameter.Mechanism.isIR_iff_isIROn_toMechanismOn,
-    Cslib.GameTheory.SingleParameter.Vickrey.vcg_singleItemFeasible_allocation,
-    Cslib.GameTheory.SingleParameter.Vickrey.vcg_singleItemFeasible_payment
+    Cslib.GameTheory.Mechanism.vcg_isDSICOn
   ]
-  scope := "Direct quasilinear mechanisms on restricted valuation domains V : ι → Set (Ω → ℝ): \
-    Groves mechanisms are DSIC on V whenever the outcome rule maximizes welfare on V, and VCG \
-    with Clarke pivot payments (finite nonempty Ω) has nonnegative payments on V and satisfies \
-    IsIROn V when valuations in V are nonnegative. SingleParameter.Mechanism.toMechanismOn \
-    embeds single-parameter mechanisms whose allocations lie in X : Set (ι → ℝ) directly into \
-    Mechanism ι X with IsDSICOn / IsIROn equivalences on Mechanism.linearDomain Subtype.val \
-    (assuming each bidder has some outcome in X with nonzero coordinate), and specializing \
-    Mechanism.vcg to Vickrey.singleItemFeasible recovers Vickrey.mechanism on nonnegative bids."
+  scope := "Direct quasilinear mechanisms on restricted valuation domains V : ι → Set (Ω → ℝ) \
+    with finitely many agents [Fintype ι] [DecidableEq ι]: any Groves mechanism whose outcome \
+    rule maximizes reported welfare on V and whose pivots are independent of agent i's report on \
+    V is dominant-strategy incentive compatible on V (IsDSICOn V), in particular VCG with Clarke \
+    pivot payments on a finite nonempty outcome type Ω."
 
-register_result "randomized-mechanisms-universal-vs-expectation" where
-  title := "Universal truthfulness implies truthfulness in expectation, and separation on Bool"
+register_result "vcg-clarke-pivot-properties-restricted-domain" where
+  title := "VCG with Clarke pivot makes no positive transfers and is individually rational on \
+    nonnegative domains"
   topic := "game theory"
   sources := [
     { paper := Nisan2007,
-      theorem := "Definition 9.38 and §9.5.6",
-      locator := "§9.5.6, pp. 231–232" }
+      theorem := "Lemma 9.20",
+      locator := "§9.3.4, pp. 219–220" },
+    { paper := Clarke1971, theorem := unverified, locator := unverified }
   ]
   theorems := [
-    RandomizedMechanism.IsUniversallyDSICOn.isTruthfulInExpectationOn,
-    RandomizedMechanism.IsUniversallyDSICOn.isTruthfulInExpectationOn_of_support_finite,
-    RandomizedMechanism.exists_isTruthfulInExpectation_not_isUniversallyDSIC
+    Cslib.GameTheory.Mechanism.vcg_noPositiveTransfersOn,
+    Cslib.GameTheory.Mechanism.vcg_isIROn
   ]
-  scope := "Randomized mechanisms modeled as PMF (Mechanism ι Ω) (discrete countable distributions \
-    over deterministic direct mechanisms). Under summability of utilities across R.dist (automatic \
-    for finite support or bounded utilities), universal DSIC on V implies truthfulness in \
-    expectation on V. Conversely, coinFlipMechanism on Unit and Bool has support of size 2, is \
-    truthful in expectation on Set.univ, and fails IsUniversallyDSICOn even on nonnegative \
-    valuations."
+  scope := "For finite agents [Fintype ι] [DecidableEq ι] and finite nonempty outcomes Ω, VCG \
+    with Clarke pivot payments makes no positive transfers on every domain V \
+    (NoPositiveTransfersOn V), and whenever the outcome rule maximizes welfare on V and every \
+    valuation in every V i is nonnegative, VCG is ex-post individually rational on V (IsIROn V)."
 
-register_result "revelation-principle-dominant" where
-  title := "Dominant-strategy and ex-post-Nash revelation principles for indirect mechanisms"
+register_result "revelation-principle-restrict-range" where
+  title := "Restricting action spaces to equilibrium ranges turns ex-post Nash into dominant \
+    strategies"
   topic := "game theory"
   sources := [
     { paper := Nisan2007,
-      theorem := "Proposition 9.23, Proposition 9.25, and Corollary 9.26",
-      locator := "§9.4.1–9.4.3, pp. 223–225" },
+      theorem := "Proposition 9.23",
+      locator := "§9.4.1, p. 223" }
+  ]
+  theorems := [
+    Cslib.GameTheory.IncompleteInfoGame.IsExPostNash.isDominantStrategyEquilibrium_restrictRange
+  ]
+  scope := "For arbitrary player, type, and action spaces (with [DecidableEq ι] for \
+    Function.update): restricting each player's action space X i to Set.range (s i) turns any \
+    ex-post Nash equilibrium s of an IncompleteInfoGame into a dominant-strategy equilibrium."
+
+register_result "revelation-principle-dominant" where
+  title := "Dominant-strategy revelation principle for indirect mechanisms"
+  topic := "game theory"
+  sources := [
+    { paper := Nisan2007,
+      theorem := "Proposition 9.25",
+      locator := "§9.4.3, pp. 224–225" },
     { paper := DasguptaHammondMaskin1979, theorem := unverified, locator := unverified }
   ]
   theorems := [
-    Cslib.GameTheory.IncompleteInfoGame.IsExPostNash.isDominantStrategyEquilibrium_restrictRange,
     Cslib.GameTheory.IndirectMechanism.revelation_isTruthful,
-    Cslib.GameTheory.IndirectMechanism.exists_truthful_of_implementsInDominantStrategies,
+    Cslib.GameTheory.IndirectMechanism.exists_truthful_of_implementsInDominantStrategies
+  ]
+  scope := "For arbitrary player, type, action, and outcome types (with [DecidableEq ι]): \
+    composing an indirect quasilinear mechanism M with a dominant-strategy equilibrium s yields \
+    a truthful direct mechanism M.revelation s implementing the same social choice function with \
+    identical equilibrium payments."
+
+register_result "revelation-principle-ex-post-nash" where
+  title := "Ex-post-Nash revelation principle for indirect mechanisms"
+  topic := "game theory"
+  sources := [
+    { paper := Nisan2007,
+      theorem := "Corollary 9.26",
+      locator := "§9.4.3, p. 225" }
+  ]
+  theorems := [
     Cslib.GameTheory.IndirectMechanism.revelation_isTruthful_of_isExPostNash,
     Cslib.GameTheory.IndirectMechanism.exists_truthful_of_implementsInExPostNash,
     Cslib.GameTheory.IndirectMechanism.toMechanism_isDSICOn_of_isExPostNash
   ]
-  scope := "For arbitrary player, type, action, and outcome types (no finiteness assumptions \
-    beyond [DecidableEq ι] for Function.update): restricting each player's action space X i to \
-    Set.range (s i) turns any ex-post Nash equilibrium s into a dominant-strategy equilibrium \
-    (Proposition 9.23), and composing an indirect quasilinear mechanism M with a dominant-strategy \
-    or ex-post-Nash equilibrium s yields a truthful direct mechanism M.revelation s implementing \
-    the same outcome rule with identical equilibrium payments (Proposition 9.25 and Corollary \
-    9.26), as well as an IsDSICOn V direct Mechanism ι Ω on valuation domains."
+  scope := "For arbitrary player, type, action, and outcome types (with [DecidableEq ι]): \
+    composing an indirect quasilinear mechanism M with an ex-post Nash equilibrium s yields a \
+    truthful direct mechanism M.revelation s implementing the same social choice function with \
+    identical equilibrium payments (via Proposition 9.23), and induces an IsDSICOn V direct \
+    Mechanism ι Ω on valuation domains."
 
 register_result "revelation-principle-bayesian" where
-  title := "Bayesian revelation principle and multi-parameter Bayes–Nash bridge"
+  title := "Bayesian revelation principle for indirect mechanisms"
   topic := "game theory"
   sources := [
     { paper := Nisan2007,
-      theorem := "Proposition 9.44 (and §9.6.1)",
+      theorem := "Proposition 9.44",
       locator := "§9.6.1, p. 234" },
     { paper := Myerson1981, theorem := unverified, locator := unverified },
     { paper := Harsanyi1967, theorem := unverified, locator := unverified }
   ]
   theorems := [
-    Cslib.GameTheory.BayesianGame.isBayesNash_of_isExPostNash,
-    Cslib.GameTheory.SingleParameter.Mechanism.isBayesNash_iff_toBayesianGame,
     Cslib.GameTheory.BayesianMechanism.revelation_isTruthful,
     Cslib.GameTheory.BayesianMechanism.revelation_interimPayment_eq,
     Cslib.GameTheory.BayesianMechanism.exists_truthful_of_implementsInBayesNash,
     Cslib.GameTheory.IndirectMechanism.toMechanism_isBICOn
   ]
   scope := "Finite player set [Fintype ι] [DecidableEq ι] with general measurable type spaces T i \
-    and independent prior measures prior i (including discrete PMF priors via BayesianGame.ofPMF \
-    and bridged to SingleParameter.Mechanism.IsBayesNash via toBayesianGame under integrability on \
-    Icc 0 (h j)). Composing an indirect BayesianMechanism M with a Bayes–Nash equilibrium s yields \
-    a truthful direct BayesianMechanism M.revelation s preserving priors, valuations, implemented \
-    outcomes, ex-post equilibrium payments, and interim expected payments (Proposition 9.44), and \
-    induces an IsBICOn μ V direct Mechanism ι Ω on valuation domains."
-
-register_result "multi-unit-vickrey-auction" where
-  title := "Multi-unit k-item (k + 1)-st price truthfulness vs (j + 1)-st price manipulability"
-  topic := "game theory"
-  sources := [
-    { paper := Nisan2007,
-      theorem := "§9.3.5.4 (Multiunit auctions)",
-      locator := "§9.3.5.4, p. 221" },
-    { paper := Vickrey1961, theorem := unverified, locator := unverified }
-  ]
-  theorems := [
-    Cslib.GameTheory.SingleParameter.MultiUnit.isWelfareMaximizing_allocation,
-    Cslib.GameTheory.SingleParameter.MultiUnit.criticalBidMechanism_eq_on_nonneg,
-    Cslib.GameTheory.SingleParameter.MultiUnit.mechanism_payment_eq_myersonPayment,
-    Cslib.GameTheory.SingleParameter.MultiUnit.mechanism_isDSIC,
-    Cslib.GameTheory.SingleParameter.MultiUnit.mechanism_isIR,
-    Cslib.GameTheory.SingleParameter.MultiUnit.not_isDSIC_nextBidMechanism
-  ]
-  scope := "Single-minded unit-demand bidders [LinearOrder ι] [Fintype ι] competing for k \
-    identical items (multiUnitFeasible k = {x | (∀ i, x i ∈ {0, 1}) ∧ ∑ i, x i ≤ k}), with ties \
-    broken toward smaller indices matching Vickrey.Wins. Top-k allocation maximizes welfare on \
-    nonnegative bids; charging every winner the uniform (k + 1)-st highest bid (0 when |ι| ≤ k) \
-    agrees with criticalBidMechanism and myerson on nonnegative bids and is DSIC, IR, and \
-    normalized, whereas charging the j-th highest bidder (1 ≤ j ≤ k) the (j + 1)-st highest bid \
-    (nextBidMechanism k) fails IsDSIC whenever 2 ≤ k and 2 ≤ Fintype.card ι (tight bounds via \
-    nextBidMechanism_one_eq_mechanism and nextBidMechanism_isDSIC_of_card_le_one)."
+    and independent prior measures prior i (intended to carry IsProbabilityMeasure). Composing \
+    an indirect BayesianMechanism M with a Bayes–Nash equilibrium s yields a truthful direct \
+    BayesianMechanism M.revelation s preserving priors, valuations, implemented outcomes, \
+    ex-post equilibrium payments, and interim expected payments, and induces an IsBICOn μ V \
+    direct Mechanism ι Ω on valuation domains."
