@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Deterministic
 
 import Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Counters stored in work-head positions
@@ -116,13 +117,7 @@ theorem step_cfg (q₀ : State)
       decide (counters i = 0) := by
     split_ifs <;> simp_all
   simp only [hi]
-  apply Cfg.ext
-  · rfl
-  · rfl
-  · rfl
-  · funext i
-    exact movement_cast (counters i) _
-  · rfl
+  tm_step [cfg, movement_cast]
 
 /-- Initialization writes exactly the origin markers and starts every counter at zero. -/
 theorem step_init (q₀ : State)

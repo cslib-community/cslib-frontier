@@ -139,10 +139,7 @@ theorem polytime_nextRow (H : RotationMap (Fin b) D) (e : Fin b ≃ (Fin 2 → D
 theorem polytime_next (H : RotationMap (Fin b) D) (e : Fin b ≃ (Fin 2 → D × D))
     (hb : 0 < b) (label : D ↪ List Bool) :
     ComputableInPolyTime (next H e hb) (encoding label) (encoding label) := by
-  unfold next
-  have hrow := polytime_nextRow H e hb label
-  unfold encoding at hrow ⊢
-  exact ComputableInPolyTime.mapWithInput (by fun_prop) hrow
+  fun_prop [next]
 
 /-- Every stored word, finite table, and row delimiter contributes to the size bound. -/
 theorem length_encoding_le (label : D ↪ List Bool) {table : TowerTable D} (h : table.Valid)

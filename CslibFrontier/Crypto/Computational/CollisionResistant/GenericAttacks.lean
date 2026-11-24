@@ -45,8 +45,9 @@ Every refutation needs `2 ^ ℓ(n)` to be polynomial in `n` (the birthday statem
 time), so they cover constant and logarithmic digest lengths, where brute force alone refutes
 collision resistance; the birthday refutation adds a certified finder with success `1/2` on
 `msgLen(n)`-bit messages. Nothing compares the `√N` samples with the `N + 1` messages of brute force
-in machine time. The `2 ^ ℓ + 1` hash evaluations of brute force are not counted; the oracle-call
-count of `Birthday.lean` is for the birthday finder.
+in machine time. `CslibFrontier.Crypto.Computational.CollisionResistant.BruteForce` counts the
+`2 ^ ℓ + 1` hash evaluations of brute force as oracle calls, as `Birthday.lean` does for the
+birthday finder.
 
 ## Differences from [BonehShoup2023]
 

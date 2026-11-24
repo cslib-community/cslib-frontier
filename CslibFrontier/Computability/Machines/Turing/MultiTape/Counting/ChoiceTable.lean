@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Exe
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Binary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.AcceptCount
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.ChoiceTable
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Parsimonious binary replay of list-choice machines
@@ -115,11 +116,6 @@ private def simCfg {width : ℕ} (hw : 0 < width) (cfg : Cfg k Bool State input)
     cfg.inputPos, cfg.workTapes, cfg.workTapePos,
     if cfg.state = none ∧ cfg.output = [true] then [true] else []⟩
 
-private theorem initial_table {width : ℕ} (hw : 0 < width)
-    (machine : MultiTapeCTM k Bool State) (input : List Bool) :
-    ((table hw machine).initialConfig input).tapes =
-      simCfg hw (Cfg.init machine.initial input) := rfl
-
 private theorem step_table {width : ℕ} (hw : 0 < width)
     (machine : MultiTapeCTM k Bool State) {cfg : Cfg k Bool (ScanState width State) input}
     {s : ScanState width State} (hs : cfg.state = some s) (bit : Bool) :
@@ -158,12 +154,8 @@ private theorem step_buffer_before_end {width : ℕ} (hw : 0 < width)
   simp only [advance, Cfg.mk.injEq, Option.some.injEq, ScanState.mk.injEq,
     and_true, true_and]
   constructor
-  · apply Fin.ext
-    change min (cursor.val + 1) (width - 1) = cursor.val + 1
-    omega
-  · apply Fin.ext
-    change min (2 * value.val + bit.toNat) (2 ^ width - 1) = 2 * value.val + bit.toNat
-    omega
+  · fin_index
+  · fin_index
 
 private theorem step_buffer_at_end {width : ℕ} (hw : 0 < width)
     (machine : MultiTapeCTM k Bool State) (cfg : Cfg k Bool State input) (state : State)

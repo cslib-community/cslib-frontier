@@ -77,17 +77,14 @@ theorem realize_convert {d m k : ℕ} (B : (language L).Term α)
         Nat.ofDigits (B.realize v).val (List.ofFn fun i => ((z i).realize v).val) := by
   have ha (w : ((Fin (k + 1) ⊕ Fin 2 × Fin k) × Fin d) → Fin n) b' x' y' z' :=
     realize_affine (d := d) (B.relabel Sum.inl) b' x' y' z' (Sum.elim v w)
-      (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using hB)
-      (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using hBn)
+      (by fo_simp; exact hB) (by fo_simp; exact hBn)
   have hm (w : ((Fin (k + 1) ⊕ Fin 2 × Fin k) × Fin d) → Fin n) x' y' z' :=
     realize_multiply (d := d) (m := m) (B.relabel Sum.inl) x' y' z' (Sum.elim v w)
-      (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using hB)
-      (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using hBn)
+      (by fo_simp; exact hB) (by fo_simp; exact hBn)
   have hd (w : ((Fin (k + 1) ⊕ Fin 2 × Fin k) × Fin d) → Fin n) x' z' :=
     realize_decode (d := d) (B.relabel Sum.inl) x' z' (Sum.elim v w)
-      (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using
-        Nat.le_of_lt hB)
-  fo_simp [convert, ha, hm, hd, Function.comp_def, Fin.ext_iff, Nat.one_mul, and_assoc]
+      (by fo_simp; exact Nat.le_of_lt hB)
+  fo_simp [convert, ha, hm, hd, Fin.ext_iff, Nat.one_mul, and_assoc]
   constructor
   · rintro ⟨hNdigits, hz, w, hw0, hwe, hs⟩
     refine ⟨hNdigits, hz, ?_⟩

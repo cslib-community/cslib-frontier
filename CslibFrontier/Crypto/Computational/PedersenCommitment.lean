@@ -59,25 +59,29 @@ one. We establish:
 2. **Unconditional hiding (`pedersenCommitLaw_eq_uniform_of_ne_zero`,
    `pedersenCommitLaw_eq_of_ne_zero`, `pedersen_perfectlyHidingAt`,
    `advantage_pedersen_hidingExperiment_le`, `pedersenHidingForKey_eq_of_ne_zero`,
-   `advantage_pedersenHidingGame_le`, `negligible_advantage_pedersenHidingGame`,
-   `pedersenScheme_statisticalHiding`)**: for every non-identity commitment key `h ≠ 0`, a uniform
-   blinding exponent `r ← PMF.uniformOfFintype (ZMod (F.order d))` makes `pedersenCommit d h m r`
-   uniformly distributed on `F.Carrier d` and independent of `m`. Consequently, at any fixed `d` and
-   `h ≠ 0`, the chosen-message hiding distributions for `bit = false` and `bit = true` in
-   `F.pedersenScheme.hidingForKey ⟨d, h⟩` are identical against every (even computationally
-   unbounded) two-stage adversary `Encryption.WordAdversary`. When the key exponent
-   `α ← PMF.uniformOfFintype (ZMod (F.order d))` is drawn uniformly from all of `ZMod (F.order d)`
-   (matching `discreteLogGame` and [BonehShoup2023], Exercise 20.5), the degenerate key `α = 0`
-   occurs with probability `1 / F.order d`, bounding any unbounded adversary's hiding advantage in
-   `F.pedersenScheme.hidingGame (F.pedersenKeyDist setup)` by `1 / m` whenever supported groups have
-   order at least `m`.
+   `advantage_pedersenHidingGame_le`, `negligible_advantage_pedersenHidingGame_ideal`,
+   `pedersenScheme_statisticalHiding_ideal`)**: for every non-identity commitment key `h ≠ 0`, a
+   uniform blinding exponent `r ← PMF.uniformOfFintype (ZMod (F.order d))` makes
+   `pedersenCommit d h m r` uniformly distributed on `F.Carrier d` and independent of `m`.
+   Consequently, at any fixed `d` and `h ≠ 0`, the chosen-message hiding distributions for
+   `bit = false` and `bit = true` in `F.pedersenScheme.hidingForKey ⟨d, h⟩` are identical against
+   every (even computationally unbounded) two-stage adversary `Encryption.WordAdversary`. When the
+   key exponent `α ← PMF.uniformOfFintype (ZMod (F.order d))` is drawn uniformly from all of
+   `ZMod (F.order d)` (matching `discreteLogGame` and [BonehShoup2023], Exercise 20.5), the
+   degenerate key `α = 0` occurs with probability `1 / F.order d`, bounding any unbounded
+   adversary's hiding advantage in `F.pedersenScheme.hidingGame (F.pedersenKeyDist setup)` by
+   `1 / m` whenever supported groups have order at least `m`. That game draws the key exponent and
+   the commitment randomness exactly uniformly at the `PMF` level, so its asymptotic hiding
+   theorems are ideal-sampling steps; the hiding bound for the fair-coin samplers is
+   `negligible_advantage_pedersenHidingProbGame` in
+   `CslibFrontier/Crypto/Computational/PedersenCommitment/ProbComp.lean`.
 3. **Computational binding under the discrete-logarithm assumption (`pedersenVerify`,
    `inv_mul_eq_of_pedersenCommit_eq`, `succProbability_pedersen_bindingExperiment_le`,
    `extractNat_eq_of_pedersenCommit_eq`, `pedersenToDLAdversary`, `pedersenToDLAdversary_encode`,
-   `succProbability_pedersenBindingGame_le_discreteLogGame`, `isPPTOn_pedersenToDLAdversary`,
-   `DiscreteLog.pedersenBinding`, `DiscreteLog.pedersenScheme_binding`)**: any verified double
-   opening `(c, (m₀, o₀), (m₁, o₁))` with `m₀ ≠ m₁` and `pedersenVerify d h mᵢ c oᵢ = true` for
-   `i ∈ {0, 1}` under `h = α • g` has `(ofBits m₀ : ZMod q) ≠ (ofBits m₁ : ZMod q)`, forces
+   `succProbability_pedersenBindingGame_le_discreteLogGame`, `isPPTOn_pedersenToDLAdversary`)**:
+   any verified double opening `(c, (m₀, o₀), (m₁, o₁))` with `m₀ ≠ m₁` and
+   `pedersenVerify d h mᵢ c oᵢ = true` for `i ∈ {0, 1}` under `h = α • g` has
+   `(ofBits m₀ : ZMod q) ≠ (ofBits m₁ : ZMod q)`, forces
    `(ofBits o₀ : ZMod q) ≠ (ofBits o₁ : ZMod q)`, and yields `α = (o₁ - o₀)⁻¹ * (m₀ - m₁)` modulo
    `q` ([Pedersen1991], Section 3, Theorem 3.1; [BonehShoup2023], Section 10.6.1, Fact 10.3 and
    Theorem 10.4), computed in polynomial time via Fermat's little theorem as
@@ -86,7 +90,9 @@ one. We establish:
    The word reduction `pedersenToDLAdversary` checks the collision with the encoded verifier
    `encodePedersenVerify` and is, on every key, the typed reduction `pedersenToDL` run on the
    adversary read through `pedersenCollisionOf` (`pedersenToDLAdversary_encode`), so the word bound
-   is the typed one at each group.
+   is the typed one at each group. The asymptotic binding theorem, for the fair-coin key law
+   `pedersenKeyDistProb`, is `DiscreteLog.pedersenScheme_binding_pedersenKeyDistProb` in
+   `CslibFrontier/Crypto/Computational/PedersenCommitment/ProbComp.lean`.
 
 ## Main definitions
 
@@ -138,21 +144,34 @@ one. We establish:
   run the experiments of `pedersen d`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.pedersenCommitLaw_eq_uniform_of_ne_zero`,
   `Cslib.Crypto.PrimeOrderGroupFamily.pedersenCommitLaw_eq_of_ne_zero`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.pedersenHidingForKey_eq_of_ne_zero`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_pedersenHidingGame_le`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.negligible_advantage_pedersenHidingGame`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.pedersenScheme_statisticalHiding`: perfect hiding for
-  `h ≠ 0` and unconditional `1 / m` hiding bound over uniform `α : ZMod (F.order d)`.
+  `Cslib.Crypto.PrimeOrderGroupFamily.pedersenHidingForKey_eq_of_ne_zero`: perfect hiding for
+  `h ≠ 0`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.extractNat_eq_of_pedersenCommit_eq`: two distinct openings
   of one commitment under `h = α • g` recover `α` with `extractNat`; shared with the
   discrete-logarithm hash reduction in `CslibFrontier.Crypto.Computational.DiscreteLog.GroupHash`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.pedersenToDLAdversary_encode`: the word reduction is the
   typed reduction `pedersenToDL` on the adversary read through `pedersenCollisionOf`.
-* `Cslib.Crypto.PrimeOrderGroupFamily.succProbability_pedersenBindingGame_le_discreteLogGame`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.isPPTOn_pedersenToDLAdversary`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.DiscreteLog.pedersenBinding`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.DiscreteLog.pedersenScheme_binding`: computational binding
-  under the discrete-logarithm assumption.
+* `Cslib.Crypto.PrimeOrderGroupFamily.isPPTOn_pedersenToDLAdversary`: the binding reduction is
+  uniform strict PPT.
+
+## Ideal-sampling steps
+
+The games under the key law `F.pedersenKeyDist setup` draw the key exponent exactly uniformly at
+the `PMF` level, and the hiding game also draws the commitment randomness that way. These results
+are steps toward the theorems of
+`CslibFrontier/Crypto/Computational/PedersenCommitment/ProbComp.lean`, which sample with
+`sampleExp`, not the cited results.
+
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_pedersenHidingGame_le`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.negligible_advantage_pedersenHidingGame_ideal`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.pedersenScheme_statisticalHiding_ideal`: unconditional
+  `1 / m` hiding bound over uniform `α : ZMod (F.order d)`, and its asymptotic form, toward
+  `negligible_advantage_pedersenHidingProbGame`. A native `CommitmentScheme.StatisticalHiding`
+  instance cannot be stated yet, because `CommitmentScheme.commitDist` takes no security parameter
+  (#6133).
+* `Cslib.Crypto.PrimeOrderGroupFamily.succProbability_pedersenBindingGame_le_discreteLogGame`:
+  exact binding-to-discrete-logarithm bound, which
+  `DiscreteLog.pedersenScheme_binding_pedersenKeyDistProb` applies the assumption through.
 
 ## References
 
@@ -241,9 +260,9 @@ theorem encodePedersenCommit_encode (d : F.Desc) (h : F.Carrier d) (m r : ℕ) :
 theorem computableInPolyTime_encodePedersenCommit :
     ComputableInPolyTime F.encodePedersenCommit
       (encPair F.encDesc (encPair encBits (encPair encNat encNat))) encBits := by
-  have hgen := F.computableInPolyTime_generator.tidy
-  have hsmul := F.computableInPolyTime_smul.tidy
-  have hadd := F.computableInPolyTime_add.tidy
+  have hgen := F.computableInPolyTime_generator
+  have hsmul := F.computableInPolyTime_smul
+  have hadd := F.computableInPolyTime_add
   unfold encodePedersenCommit
   polytime
 
@@ -666,12 +685,14 @@ theorem advantage_pedersenHidingGame_le (setup : ℕ → PMF F.Desc)
   rw [one_div]
   exact inv_anti₀ (by exact_mod_cast hm0) (by exact_mod_cast hm d hd)
 
-/-- **Asymptotic unconditional hiding of Pedersen commitments** ([Pedersen1991], Section 3,
-Theorem 3.1; [BonehShoup2023], Section 8.12, Definition 8.8, and Exercise 20.5): when every
-supported group at parameter `n` has order at least `m n > 0` and `1 / m n` is negligible, every
-(even computationally unbounded) `Encryption.WordAdversary` has negligible advantage in
-`F.pedersenScheme.hidingGame (F.pedersenKeyDist setup)`. -/
-theorem negligible_advantage_pedersenHidingGame (setup : ℕ → PMF F.Desc)
+/-- Ideal-sampling step toward `negligible_advantage_pedersenHidingProbGame`, not the cited result:
+when every supported group at parameter `n` has order at least `m n > 0` and `1 / m n` is
+negligible, every (even computationally unbounded) `Encryption.WordAdversary` has negligible
+advantage in `F.pedersenScheme.hidingGame (F.pedersenKeyDist setup)`, whose key exponent and
+commitment randomness are drawn exactly uniformly at the `PMF` level (after [Pedersen1991],
+Section 3, Theorem 3.1; [BonehShoup2023], Section 8.12, Definition 8.8, and Exercise 20.5). The
+native `CommitmentScheme` form is blocked on #6133. -/
+theorem negligible_advantage_pedersenHidingGame_ideal (setup : ℕ → PMF F.Desc)
     (adversary : Encryption.WordAdversary)
     {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n) (hm : ∀ n, ∀ d ∈ (setup n).support, m n ≤ F.order d)
     (hinv : Negligible fun n => (1 / m n : ℝ≥0)) :
@@ -681,14 +702,18 @@ theorem negligible_advantage_pedersenHidingGame (setup : ℕ → PMF F.Desc)
   negligible_of_le hinv fun n =>
     F.advantage_pedersenHidingGame_le setup adversary n (m n) (hm0 n) (hm n)
 
-/-- **Statistical hiding (`CommitmentScheme.StatisticalHiding`) of `pedersenScheme`**
-([Pedersen1991], Section 3, Theorem 3.1; [BonehShoup2023], Section 8.12, Definition 8.8, and
-Exercise 20.5). -/
-theorem pedersenScheme_statisticalHiding (setup : ℕ → PMF F.Desc)
+/-- Ideal-sampling step toward `negligible_advantage_pedersenHidingProbGame`, not the cited result:
+`pedersenScheme` is statistically hiding (`CommitmentScheme.StatisticalHiding`) under the key law
+`F.pedersenKeyDist setup`, where the key exponent and the commitment randomness are drawn exactly
+uniformly at the `PMF` level (after [Pedersen1991], Section 3, Theorem 3.1; [BonehShoup2023],
+Section 8.12, Definition 8.8, and Exercise 20.5). `CommitmentScheme.commitDist` takes no
+security parameter, so `pedersenScheme` cannot commit with the fair-coin sampler
+`pedersenCommitProb` (#6133). -/
+theorem pedersenScheme_statisticalHiding_ideal (setup : ℕ → PMF F.Desc)
     {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n) (hm : ∀ n, ∀ d ∈ (setup n).support, m n ≤ F.order d)
     (hinv : Negligible fun n => (1 / m n : ℝ≥0)) :
     F.pedersenScheme.StatisticalHiding (F.pedersenKeyDist setup) :=
-  fun adversary _ => F.negligible_advantage_pedersenHidingGame setup adversary hm0 hm hinv
+  fun adversary _ => F.negligible_advantage_pedersenHidingGame_ideal setup adversary hm0 hm hinv
 
 /-! ### Computational binding under the discrete-logarithm assumption -/
 
@@ -894,30 +919,6 @@ theorem isPPTOn_pedersenToDLAdversary
         (encPair encBits (encPair (encPair encBits encBits) (encPair encBits encBits))))
       encBits := by
     fun_prop
-  exact hextract.tidy.isPPTOn
-
-/-- **Computational binding of Pedersen commitments under the discrete-logarithm assumption**
-([Pedersen1991], Section 3, Theorem 3.1; [BonehShoup2023], Section 8.12, Definition 8.8, and
-Section 10.6.1, Theorem 10.4): if `F.DiscreteLog setup` holds, every uniform strict PPT adversary
-succeeds in `F.pedersenScheme.bindingGame (F.pedersenKeyDist setup)` with negligible probability. -/
-theorem DiscreteLog.pedersenBinding {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
-    (hDL : F.DiscreteLog setup)
-    (adversary : ℕ → List Bool →
-      ProbComp (List Bool × (List Bool × List Bool) × (List Bool × List Bool)))
-    (hA : IsPPTOn (encPair encUnary encBits)
-      (encPair encBits (encPair (encPair encBits encBits) (encPair encBits encBits)))
-      (fun input => adversary input.1 input.2)) :
-    Negligible fun n =>
-      Game.succProbability (F.pedersenScheme.bindingGame (F.pedersenKeyDist setup) adversary n) :=
-  negligible_of_le (hDL (F.pedersenToDLAdversary adversary) (F.isPPTOn_pedersenToDLAdversary hA))
-    (F.succProbability_pedersenBindingGame_le_discreteLogGame setup adversary)
-
-/-- **Computational binding (`CommitmentScheme.Binding`) of `pedersenScheme` under the
-discrete-logarithm assumption** ([Pedersen1991], Section 3, Theorem 3.1; [BonehShoup2023],
-Section 8.12, Definition 8.8, and Section 10.6.1, Theorem 10.4). -/
-theorem DiscreteLog.pedersenScheme_binding {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
-    (hDL : F.DiscreteLog setup) :
-    F.pedersenScheme.Binding (F.pedersenKeyDist setup) :=
-  fun adversary hA => hDL.pedersenBinding adversary hA
+  exact hextract.isPPTOn
 
 end Cslib.Crypto.PrimeOrderGroupFamily

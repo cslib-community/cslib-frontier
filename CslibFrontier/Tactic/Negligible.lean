@@ -24,8 +24,11 @@ public meta import Mathlib.Tactic.Positivity
 `ℝ≥0` or `ℝ`.
 
 * `negligible` normalizes local `let` bindings, unary polynomial-time certificates
-  (`ComputableInPolyTime f encUnary encUnary`), pointwise `Pi` operations, and unit fractions
-  `1 / x`, then runs `fun_prop` with arithmetic dischargers (`norm_num`, `positivity`, `omega`).
+  (`ComputableInPolyTime f encUnary encUnary`), `Bool`-indexed `Negligible` hypotheses, pointwise
+  `Pi` operations, and unit fractions `1 / x`, then runs `fun_prop` with arithmetic dischargers
+  (`norm_num`, `positivity`, `omega`).
+* `negligible [f, g]` (combinable with `using hle` or `eventually hle`) unfolds named wrapper
+  definitions in the residual `Negligible` goal before normalization.
 * `negligible using hle` reduces `Negligible f` along a pointwise bound `hle` proving either
   `∀ n, f n ≤ B n` in `ℝ≥0` or `∀ n, (f n : ℝ) ≤ B n` in `ℝ` (including `.toReal` bounds on
   `Game.succProbability`), pushing `Real.toNNReal` structurally through sums, products, quotients,
@@ -90,11 +93,10 @@ theorem natCast_mul_ofNat_eq (m k : ℕ) [k.AtLeastTwo] :
     (m : ℝ≥0) * ofNat(k) = ((m * ofNat(k) : ℕ) : ℝ≥0) :=
   (Nat.cast_mul m ofNat(k)).symm
 
-/-- Certificate lemmas deriving `Cslib.PolynomiallyBounded` from unary polynomial-time hypotheses
-when their modules are imported. -/
+/-- Certificate lemmas deriving `Cslib.PolynomiallyBounded` from local unary polynomial-time
+hypotheses when their module is imported. -/
 private meta def unaryPolyCertificateLemmas : List Name :=
-  [`Turing.MultiTapeTM.ComputableInPolyTime.polynomiallyBounded,
-   `Turing.MultiTapeTM.ComputableTidilyInPolyTime.polynomiallyBounded]
+  [`Turing.MultiTapeTM.ComputableInPolyTime.polynomiallyBounded]
 
 /-- Apply a unary polynomial-time certificate lemma `lem` to local hypothesis `h`, if it unifies. -/
 private meta def applyUnaryCertificate? (lem : Name) (h : Expr) : MetaM (Option Expr) := do
@@ -148,24 +150,28 @@ private meta partial def expandSelectedLets (shouldUnfold : FVarId → Bool) (e 
     | _ => return .continue
   Core.betaReduce (← Meta.transform (← instantiateMVars e) (pre := step))
 
-/-- Try proving `PolynomiallyBounded p` via `fun_prop`. -/
-private meta def provePolynomiallyBounded? (p : Expr) : MetaM (Option Expr) := do
-  let saved ← saveState
-  let goalTy := mkApp (mkConst ``Cslib.PolynomiallyBounded) p
-  let mvar ← mkFreshExprSyntheticOpaqueMVar goalTy
-  try
-    let gs ← (Tactic.run mvar.mvarId! do evalTactic (← `(tactic| fun_prop))).run'
-    unless gs.isEmpty do
+/-- Try proving `PolynomiallyBounded p` in `g`'s context via `fun_prop` without unfolding local
+`let` bindings. -/
+private meta def provePolynomiallyBoundedOnGoal? (g : MVarId) (p : Expr) : MetaM (Option Expr) :=
+  g.withContext do
+    let saved ← saveState
+    let goalTy := mkApp (mkConst ``Cslib.PolynomiallyBounded) p
+    let mvar ← mkFreshExprSyntheticOpaqueMVar goalTy
+    try
+      let gs ← (Tactic.run mvar.mvarId! do
+        withConfig (fun cfg => { cfg with zetaDelta := false }) do
+          evalTactic (← `(tactic| fun_prop))).run'
+      unless gs.isEmpty do
+        saved.restore
+        return none
+      let pf ← instantiateMVars mvar
+      if pf.hasExprMVar then
+        saved.restore
+        return none
+      return some pf
+    catch _ =>
       saved.restore
       return none
-    let pf ← instantiateMVars mvar
-    if pf.hasExprMVar then
-      saved.restore
-      return none
-    return some pf
-  catch _ =>
-    saved.restore
-    return none
 
 /-- Try proving `0 ≤ x` in `ℝ` using `positivity` or `norm_num`. -/
 private meta def proveRealNonneg? (x : Expr) : MetaM (Option Expr) := do
@@ -320,14 +326,15 @@ private meta def prepareNegligibleContext : TacticM Unit := withMainContext do
   for decl in lctx do
     if decl.isImplementationDetail then continue
     let ty ← instantiateMVars decl.type
-    if (ty.find? (·.isConstOf ``Cslib.Crypto.Negligible)).isSome then
-      for id in (collectFVars {} ty).fvarIds do
+    let tyR ← whnfR ty
+    if (tyR.find? (·.isConstOf ``Cslib.Crypto.Negligible)).isSome then
+      for id in (collectFVars {} tyR).fvarIds do
         protectedFVars := protectedFVars.insert id
     if decl.isLet then
       if ← isScalarOrParamFunType ty then
         numericLetIds := numericLetIds.insert decl.fvarId
 
-  -- Assert `PolynomiallyBounded` for unary `ComputableInPolyTime` certificates and `ℕ → ℕ` `let`s.
+  -- Assert polynomial-bound and `Bool`-specialized `Negligible` hypotheses from local context.
   let mut newHyps : Array Hypothesis := #[]
   let mut knownPolyFns : Array Expr := #[]
   for decl in lctx do
@@ -337,41 +344,78 @@ private meta def prepareNegligibleContext : TacticM Unit := withMainContext do
       knownPolyFns := knownPolyFns.push ty.appArg!
 
   for decl in lctx do
-    if decl.isImplementationDetail then continue
+    if decl.isImplementationDetail || decl.isLet then continue
     let ty ← instantiateMVars decl.type
-    if decl.isLet then
-      if ← isNatToNatType ty then
-        let fnExpr := decl.toExpr
-        unless knownPolyFns.any (· == fnExpr) do
-          if let some val := decl.value? then
-            let expanded ← expandSelectedLets (fun id => numericLetIds.contains id) val
-            if let some hp ← provePolynomiallyBounded? expanded then
-              let hypTy := mkApp (mkConst ``Cslib.PolynomiallyBounded) fnExpr
-              if ← isDefEq hypTy (← inferType hp) then
-                let hinted ← mkExpectedTypeHint hp hypTy
-                newHyps := newHyps.push {
-                  userName := decl.userName.appendAfter "_poly"
-                  type := hypTy
-                  value := hinted
-                }
-                knownPolyFns := knownPolyFns.push fnExpr
-    else if ← isProp ty then
-      let mut candidates : Array Expr := #[decl.toExpr]
-      if (← whnfR ty).isAppOfArity ``And 2 then
-        candidates := candidates.push (← mkAppM ``And.left #[decl.toExpr])
-        candidates := candidates.push (← mkAppM ``And.right #[decl.toExpr])
-      for cand in candidates do
-        for lem in unaryPolyCertificateLemmas do
-          if let some pf ← applyUnaryCertificate? lem cand then
-            let pfTy ← instantiateMVars (← inferType pf)
-            if pfTy.isAppOfArity ``Cslib.PolynomiallyBounded 1 then
-              unless knownPolyFns.any (· == pfTy.appArg!) do
-                newHyps := newHyps.push { userName := `hpoly_cert, type := pfTy, value := pf }
-                knownPolyFns := knownPolyFns.push pfTy.appArg!
+    if ← isProp ty then
+      let tyR ← whnfR ty
+      if let .forallE _ dom body _ := tyR then
+        if (← whnfR dom).isConstOf ``Bool then
+          let tyFalse := body.instantiate1 (mkConst ``Bool.false)
+          if (← whnfR tyFalse).consumeMData.isAppOfArity ``Cslib.Crypto.Negligible 1 then
+            let tyTrue := body.instantiate1 (mkConst ``Bool.true)
+            newHyps := newHyps.push {
+              userName := decl.userName.appendAfter "_false"
+              type := tyFalse
+              value := mkApp decl.toExpr (mkConst ``Bool.false)
+            }
+            newHyps := newHyps.push {
+              userName := decl.userName.appendAfter "_true"
+              type := tyTrue
+              value := mkApp decl.toExpr (mkConst ``Bool.true)
+            }
+      let mut candidates : Array (Expr × Expr) := #[(decl.toExpr, tyR)]
+      if tyR.isAppOfArity ``And 2 then
+        candidates := candidates.push
+          (← mkAppM ``And.left #[decl.toExpr], ← whnfR (tyR.getArg! 0))
+        candidates := candidates.push
+          (← mkAppM ``And.right #[decl.toExpr], ← whnfR (tyR.getArg! 1))
+      for (cand, candTy) in candidates do
+        if candTy.isAppOf `Turing.MultiTapeTM.ComputableInPolyTime then
+          for lem in unaryPolyCertificateLemmas do
+            if let some pf ← applyUnaryCertificate? lem cand then
+              let pfTy ← instantiateMVars (← inferType pf)
+              if pfTy.isAppOfArity ``Cslib.PolynomiallyBounded 1 then
+                unless knownPolyFns.any (· == pfTy.appArg!) do
+                  newHyps := newHyps.push { userName := `hpoly_cert, type := pfTy, value := pf }
+                  knownPolyFns := knownPolyFns.push pfTy.appArg!
 
   if !newHyps.isEmpty then
     let (_, g') ← g.assertHypotheses newHyps
     g := g'
+
+  -- Incrementally derive `PolynomiallyBounded` for local `ℕ → ℕ` `let` bindings without
+  -- transitively unfolding already-certified `let`s.
+  let letFVarIds ← g.withContext do
+    let mut ids : Array FVarId := #[]
+    for decl in ← getLCtx do
+      if decl.isImplementationDetail || !decl.isLet then continue
+      if ← isNatToNatType (← instantiateMVars decl.type) then
+        ids := ids.push decl.fvarId
+    return ids
+  for fvarId in letFVarIds do
+    let fnExpr := mkFVar fvarId
+    if knownPolyFns.any (· == fnExpr) then
+      protectedFVars := protectedFVars.insert fvarId
+    else
+      let hyp? ← g.withContext do
+        let some decl := (← getLCtx).find? fvarId | return none
+        let some val := decl.value? | return none
+        let expanded ← expandSelectedLets
+          (fun id => numericLetIds.contains id && !protectedFVars.contains id) val
+        let some hp ← provePolynomiallyBoundedOnGoal? g expanded | return none
+        let hypTy := mkApp (mkConst ``Cslib.PolynomiallyBounded) fnExpr
+        unless ← isDefEq hypTy (← inferType hp) do return none
+        let hinted ← mkExpectedTypeHint hp hypTy
+        return some ({
+          userName := decl.userName.appendAfter "_poly"
+          type := hypTy
+          value := hinted
+        } : Hypothesis)
+      if let some hyp := hyp? then
+        let (_, g') ← g.assertHypotheses #[hyp]
+        g := g'
+        knownPolyFns := knownPolyFns.push fnExpr
+        protectedFVars := protectedFVars.insert fvarId
 
   -- Unfold inline `let`s and unprotected local numeric `let`s in the target.
   g ← g.withContext do
@@ -394,10 +438,10 @@ private meta def normalizeNegligibleForms : TacticM Unit := withMainContext do
       replaceMainGoal [g']
   try
     evalTactic (← `(tactic|
-      simp only [Pi.add_apply, Pi.mul_apply, Pi.pow_apply, one_div, div_eq_mul_inv, one_mul,
-        mul_inv, pow_add, ← inv_pow, ← Nat.cast_pow, ← Nat.cast_mul, ← Nat.cast_add,
-        natCast_add_one_eq, one_add_natCast_eq, natCast_add_ofNat_eq, ofNat_add_natCast_eq,
-        ofNat_mul_natCast_eq, natCast_mul_ofNat_eq]))
+      simp (config := { zetaDelta := false }) only [Pi.add_apply, Pi.mul_apply, Pi.pow_apply,
+        one_div, div_eq_mul_inv, one_mul, mul_inv, pow_add, ← inv_pow, ← Nat.cast_pow,
+        ← Nat.cast_mul, ← Nat.cast_add, natCast_add_one_eq, one_add_natCast_eq,
+        natCast_add_ofNat_eq, ofNat_add_natCast_eq, ofNat_mul_natCast_eq, natCast_mul_ofNat_eq]))
   catch _ => pure ()
   if (← getUnsolvedGoals).isEmpty then return
   withMainContext do
@@ -412,46 +456,75 @@ private meta def normalizeNegligibleForms : TacticM Unit := withMainContext do
         let ident := mkIdent decl.userName
         try
           evalTactic (← `(tactic|
-            simp only [Pi.add_apply, Pi.mul_apply, Pi.pow_apply, one_div, div_eq_mul_inv,
-              one_mul, mul_inv, ← inv_pow] at $ident:ident))
+            simp (config := { zetaDelta := false }) only [Pi.add_apply, Pi.mul_apply,
+              Pi.pow_apply, one_div, div_eq_mul_inv, one_mul, mul_inv, ← inv_pow] at $ident:ident))
         catch _ => pure ()
 
-/-- Replace occurrences in `e` matching `pat` at `.instances` transparency (without unfolding `def`
-games) by `replacement`, descending only through `ℝ≥0` arithmetic combinators (`+`, `*`, `/`, `^`,
-`⁻¹`, `NNReal.sqrt`, `Finset.sum`). -/
-private meta partial def replaceAtInstances (pat replacement e : Expr) : MetaM (Expr × Bool) := do
-  if !e.hasLooseBVars then
-    if ← withNewMCtxDepth (withReducibleAndInstances (isDefEq e pat)) then
-      return (replacement, true)
-  let c := e.cleanupAnnotations
-  for opName in #[``HAdd.hAdd, ``HMul.hMul, ``HDiv.hDiv] do
+/-- Traverse 6-argument binary arithmetic applications in `binOps` (visiting both operands
+`args[4]!` and `args[5]!`) and `HPow.hPow` (visiting only the base `args[4]!` and leaving the
+exponent `args[5]!` untouched), rebuilding modified nodes with `mkApp4`/`mkApp2`. -/
+private meta def walkBinaryAndPow (binOps : Array Name)
+    (recur : Expr → MetaM (Expr × Bool)) (c e : Expr) :
+    MetaM (Option (Expr × Bool)) := do
+  for opName in binOps do
     if c.isAppOfArity opName 6 then
       let args := c.getAppArgs
-      let (l', ml) ← replaceAtInstances pat replacement args[4]!
-      let (r', mr) ← replaceAtInstances pat replacement args[5]!
+      let (l', ml) ← recur args[4]!
+      let (r', mr) ← recur args[5]!
       if ml || mr then
         let pre := mkApp4 c.getAppFn args[0]! args[1]! args[2]! args[3]!
-        return (mkApp2 pre l' r', true)
+        return some (mkApp2 pre l' r', true)
       else
-        return (e, false)
+        return some (e, false)
   if c.isAppOfArity ``HPow.hPow 6 then
     let args := c.getAppArgs
-    let (b', mb) ← replaceAtInstances pat replacement args[4]!
+    let (b', mb) ← recur args[4]!
     if mb then
       let pre := mkApp4 c.getAppFn args[0]! args[1]! args[2]! args[3]!
-      return (mkApp2 pre b' args[5]!, true)
+      return some (mkApp2 pre b' args[5]!, true)
     else
-      return (e, false)
+      return some (e, false)
+  return none
+
+/-- Replace occurrences in a `ℕ` expression `e` matching `pat` at `.instances` transparency
+(without unfolding `let` bindings or `def`s) by `replacement`. -/
+private meta partial def replaceNatAtInstances (pat replacement e : Expr) :
+    MetaM (Expr × Bool) := do
+  if !e.hasLooseBVars then
+    let matched ← withConfig (fun cfg => { cfg with zetaDelta := false }) do
+      withNewMCtxDepth (withReducibleAndInstances (isDefEq e pat))
+    if matched then
+      return (replacement, true)
+  let c := e.cleanupAnnotations
+  if let some res ←
+      walkBinaryAndPow #[``HAdd.hAdd, ``HMul.hMul] (replaceNatAtInstances pat replacement) c e then
+    return res
+  if c.isApp && c.getAppNumArgs == 1 then
+    if (← inferType c.appArg!).isConstOf ``Nat then
+      let (a', ma) ← replaceNatAtInstances pat replacement c.appArg!
+      if ma then return (mkApp c.appFn! a', true)
+  return (e, false)
+
+/-- Walk `NNReal` arithmetic combinators (`+`, `*`, `/`, `^`, `Inv.inv`, `NNReal.sqrt`,
+`Finset.sum`), replacing any subterm where `onSubterm` returns `some replacement`. -/
+private meta partial def walkNNRealCombinators (onSubterm : Expr → MetaM (Option Expr))
+    (e : Expr) : MetaM (Expr × Bool) := do
+  if let some e' ← onSubterm e then
+    return (e', true)
+  let c := e.cleanupAnnotations
+  if let some res ← walkBinaryAndPow #[``HAdd.hAdd, ``HMul.hMul, ``HDiv.hDiv]
+      (walkNNRealCombinators onSubterm) c e then
+    return res
   if c.isAppOfArity ``Inv.inv 3 then
     let args := c.getAppArgs
-    let (a', ma) ← replaceAtInstances pat replacement args[2]!
+    let (a', ma) ← walkNNRealCombinators onSubterm args[2]!
     if ma then
       return (mkApp (mkApp2 c.getAppFn args[0]! args[1]!) a', true)
     else
       return (e, false)
   if c.isAppOfArity ``DFunLike.coe 6 then
     let args := c.getAppArgs
-    let (a', ma) ← replaceAtInstances pat replacement args[5]!
+    let (a', ma) ← walkNNRealCombinators onSubterm args[5]!
     if ma then
       return (mkApp c.appFn! a', true)
     else
@@ -461,60 +534,103 @@ private meta partial def replaceAtInstances (pat replacement e : Expr) : MetaM (
     let f := args[4]!
     if let .forallE idxName dom _ _ ← whnf (← inferType f) then
       let (f', mf) ← withLocalDeclD idxName dom fun i => do
-        let (body', mb) ← replaceAtInstances pat replacement (mkApp f i).headBeta
+        let (body', mb) ← walkNNRealCombinators onSubterm (mkApp f i).headBeta
         if mb then return (← mkLambdaFVars #[i] body', true) else return (f, false)
       if mf then
         return (mkApp (mkApp4 c.getAppFn args[0]! args[1]! args[2]! args[3]!) f', true)
   return (e, false)
 
-/-- Abstract local `Negligible g` hypotheses whose pointwise value `g n` appears in the goal (up to
-`.instances` transparency) into fresh local variables `(fn : ℕ → ℝ≥0) (hfn : Negligible fn)` so
-`fun_prop` never unfolds distinct `def` games during leaf unification. -/
-private meta def abstractNegligibleHypotheses : TacticM Unit := withMainContext do
-  let mut gGoal ← getMainGoal
-  let candIds ← gGoal.withContext do
+/-- Abstract one local `predName fn` hypothesis whose pointwise value `fn n` occurs in `gGoal`
+(rewritten by `replaceBody`) into fresh `(fn_var : Nat -> cod) (hfn : predName fn_var)`. -/
+private meta def abstractHypothesisAt (gGoal : MVarId) (fvarId : FVarId) (predName : Name)
+    (codTy : Expr) (noZetaCheck : Bool)
+    (replaceBody : Expr → Expr → Expr → MetaM (Expr × Bool)) : MetaM MVarId :=
+  gGoal.withContext do
+    let some decl := (← getLCtx).find? fvarId | return gGoal
+    let ty ← whnfR (← instantiateMVars decl.type)
+    unless ty.consumeMData.isAppOfArity predName 1 do return gGoal
+    let gFn := ty.consumeMData.appArg!
+    let target := (← instantiateMVars (← gGoal.getType)).consumeMData
+    unless target.isAppOfArity ``Cslib.Crypto.Negligible 1 do return gGoal
+    let targetFn ← Core.betaReduce (← etaExpand target.appArg!)
+    let .lam paramName paramDom curBody _ := targetFn | return gGoal
+    let fnTy ← mkArrow (mkConst ``Nat) codTy
+    let absRes? ← withLocalDeclD (decl.userName.appendAfter "_fn") fnTy fun fnFVar => do
+      let (newLam, matched) ← withLocalDeclD paramName paramDom fun n => do
+        let pat := (mkApp gFn n).headBeta
+        let (body', m) ← replaceBody pat (mkApp fnFVar n) (curBody.instantiate1 n)
+        return (← mkLambdaFVars #[n] body', m)
+      if !matched then return none
+      let newTarget := mkApp (mkConst ``Cslib.Crypto.Negligible) newLam
+      let absPred ← mkLambdaFVars #[fnFVar] newTarget
+      let predFnTy := mkApp (mkConst predName) fnFVar
+      let forallProp ← withLocalDeclD decl.userName predFnTy fun hfn => do
+        mkForallFVars #[fnFVar, hfn] newTarget
+      return some (absPred, forallProp)
+    let some (absPred, forallProp) := absRes? | return gGoal
+    let instTarget := (mkApp absPred gFn).headBeta
+    let checkDefEq := withNewMCtxDepth (withReducibleAndInstances (isDefEq target instTarget))
+    let ok ← if noZetaCheck then
+        withConfig (fun cfg => { cfg with zetaDelta := false }) checkDefEq
+      else
+        checkDefEq
+    unless ok do return gGoal
+    let gGoal' ← gGoal.replaceTargetDefEq instTarget
+    let predGFnTy := mkApp (mkConst predName) gFn
+    let hProof ← mkExpectedTypeHint decl.toExpr predGFnTy
+    let mvar ← mkFreshExprSyntheticOpaqueMVar forallProp
+    gGoal'.assign (mkApp2 mvar gFn hProof)
+    let (_, gNext) ← mvar.mvarId!.introNP 2
+    try gNext.clear fvarId catch _ => pure gNext
+
+/-- Collect non-trivial local hypothesis IDs with head `predName` (skipping plain `cdecl` fvar
+arguments unless `includeLetFVars` holds and the argument is a local `let`). -/
+private meta def collectAbstractableHypIds (gGoal : MVarId) (predName : Name)
+    (includeLetFVars : Bool) : MetaM (Array FVarId) :=
+  gGoal.withContext do
     let mut ids : Array FVarId := #[]
     for decl in ← getLCtx do
       if decl.isImplementationDetail || decl.isLet then continue
       let ty ← whnfR (← instantiateMVars decl.type)
-      unless ty.consumeMData.isAppOfArity ``Cslib.Crypto.Negligible 1 do continue
-      if ty.consumeMData.appArg!.eta.isFVar then continue
+      unless ty.consumeMData.isAppOfArity predName 1 do continue
+      let arg := ty.consumeMData.appArg!.eta
+      if arg.isFVar then
+        if includeLetFVars then
+          if let some argDecl := (← getLCtx).find? arg.fvarId! then
+            if !argDecl.isLet then continue
+        else
+          continue
       ids := ids.push decl.fvarId
     return ids
+
+/-- Abstract local `Negligible g` and composite/`let`-backed `PolynomiallyBounded p` hypotheses
+whose pointwise values appear in the goal (up to `.instances` transparency) into fresh local `cdecl`
+variables so `fun_prop` never unfolds distinct `def` games, composite projections, or chained local
+`let` definitions. -/
+private meta def abstractNegligibleHypotheses : TacticM Unit := withMainContext do
+  let mut gGoal ← getMainGoal
+  -- Abstract complete `Negligible` leaves first so the polynomial pass cannot rewrite inside them.
+  let candIds ← collectAbstractableHypIds gGoal ``Cslib.Crypto.Negligible false
+  let replaceNegl (pat replacement e : Expr) : MetaM (Expr × Bool) :=
+    walkNNRealCombinators (fun sub => do
+      if !sub.hasLooseBVars then
+        if ← withNewMCtxDepth (withReducibleAndInstances (isDefEq sub pat)) then
+          return some replacement
+      return none) e
   for fvarId in candIds do
-    gGoal ← gGoal.withContext do
-      let some decl := (← getLCtx).find? fvarId | return gGoal
-      let ty ← whnfR (← instantiateMVars decl.type)
-      unless ty.consumeMData.isAppOfArity ``Cslib.Crypto.Negligible 1 do return gGoal
-      let gFn := ty.consumeMData.appArg!
-      let target := (← instantiateMVars (← gGoal.getType)).consumeMData
-      unless target.isAppOfArity ``Cslib.Crypto.Negligible 1 do return gGoal
-      let targetFn ← Core.betaReduce (← etaExpand target.appArg!)
-      let .lam paramName paramDom curBody _ := targetFn | return gGoal
-      let fnTy ← mkArrow (mkConst ``Nat) (mkConst ``NNReal)
-      let absRes? ← withLocalDeclD (decl.userName.appendAfter "_fn") fnTy fun fnFVar => do
-        let (newLam, matched) ← withLocalDeclD paramName paramDom fun n => do
-          let pat := (mkApp gFn n).headBeta
-          let (body', m) ← replaceAtInstances pat (mkApp fnFVar n) (curBody.instantiate1 n)
-          return (← mkLambdaFVars #[n] body', m)
-        if !matched then return none
-        let newTarget := mkApp (mkConst ``Cslib.Crypto.Negligible) newLam
-        let absPred ← mkLambdaFVars #[fnFVar] newTarget
-        let negFnTy := mkApp (mkConst ``Cslib.Crypto.Negligible) fnFVar
-        let forallProp ← withLocalDeclD decl.userName negFnTy fun hfn => do
-          mkForallFVars #[fnFVar, hfn] newTarget
-        return some (absPred, forallProp)
-      let some (absPred, forallProp) := absRes? | return gGoal
-      let instTarget := (mkApp absPred gFn).headBeta
-      unless ← withNewMCtxDepth (withReducibleAndInstances (isDefEq target instTarget)) do
-        return gGoal
-      let gGoal' ← gGoal.replaceTargetDefEq instTarget
-      let negGFnTy := mkApp (mkConst ``Cslib.Crypto.Negligible) gFn
-      let hProof ← mkExpectedTypeHint decl.toExpr negGFnTy
-      let mvar ← mkFreshExprSyntheticOpaqueMVar forallProp
-      gGoal'.assign (mkApp2 mvar gFn hProof)
-      let (_, gNext) ← mvar.mvarId!.introNP 2
-      try gNext.clear fvarId catch _ => pure gNext
+    gGoal ← abstractHypothesisAt gGoal fvarId ``Cslib.Crypto.Negligible (mkConst ``NNReal) false
+      replaceNegl
+  let polyCandIds ← collectAbstractableHypIds gGoal ``Cslib.PolynomiallyBounded true
+  let replacePoly (pat replacement e : Expr) : MetaM (Expr × Bool) :=
+    walkNNRealCombinators (fun sub => do
+      let c := sub.cleanupAnnotations
+      if c.isAppOfArity ``Nat.cast 3 then
+        let (m', mm) ← replaceNatAtInstances pat replacement (c.getArg! 2)
+        return if mm then some (mkApp c.appFn! m') else none
+      return none) e
+  for fvarId in polyCandIds do
+    gGoal ← abstractHypothesisAt gGoal fvarId ``Cslib.PolynomiallyBounded (mkConst ``Nat) true
+      replacePoly
   replaceMainGoal [gGoal]
 
 /-- Apply a pointwise or eventual upper bound `hle` in `ℝ≥0` or `ℝ`. -/
@@ -549,6 +665,9 @@ private meta def applyBound (eventually : Bool) (hle : TSyntax `term) : TacticM 
       {indentExpr target}\n\
       Expected a bound in `ℝ≥0` (`f n ≤ B n`) or `ℝ` (`(f n : ℝ) ≤ B n`).{detail}"
 
+/-- Optional bracketed identifier list `[f₁, f₂, …]` for `negligible`. -/
+syntax neglUnfolds := " [" ident,+ "]"
+
 /-- Pointwise bound clause `using hle` for `negligible`. -/
 syntax negligibleUsingClause := " using " term
 
@@ -559,14 +678,17 @@ syntax negligibleEventuallyClause := ppSpace &"eventually" ppSpace term
 losses, dyadic reciprocals `((2 : ℝ≥0) ^ n)⁻¹` and `1 / 2 ^ n`, birthday bounds, square roots,
 geometric decay, parameter shifts/scalings, and finite range sums.
 
+* `negligible [f, g]` unfolds named wrapper definitions in the `Negligible` goal before
+  normalization (combinable with `using hle` or `eventually hle`).
 * `negligible using hle` first reduces the goal along `hle`, where `hle` proves either
   `∀ n, f n ≤ B n` in `ℝ≥0` or `∀ n, (f n : ℝ) ≤ B n` in `ℝ`.
 * `negligible eventually hle` first reduces the goal along `hle`, where `hle` proves either
   `∀ᶠ n in Filter.atTop, f n ≤ B n` in `ℝ≥0` or `∀ᶠ n in Filter.atTop, (f n : ℝ) ≤ B n` in `ℝ`. -/
-syntax (name := negligibleTactic) "negligible"
+syntax (name := negligibleTactic) "negligible" (neglUnfolds)?
   (negligibleUsingClause <|> negligibleEventuallyClause)? : tactic
 
-/-- Elaborate `negligible`, `negligible using hle`, and `negligible eventually hle`. -/
+/-- Elaborate `negligible`, `negligible [defs]`, `negligible using hle`, and
+`negligible eventually hle`. -/
 @[tactic negligibleTactic]
 meta def evalNegligible : Tactic := fun stx => focus <| withMainContext do
   let g ← getMainGoal
@@ -576,11 +698,19 @@ meta def evalNegligible : Tactic := fun stx => focus <| withMainContext do
     throwError "negligible: expected a goal `Cslib.Crypto.Negligible f`, got:{indentExpr rawTarget}"
   if whnfTarget != rawTarget then
     replaceMainGoal [← g.replaceTargetDefEq whnfTarget]
-  match stx with
-  | `(tactic| negligible using $hle) => applyBound false hle
-  | `(tactic| negligible eventually $hle) => applyBound true hle
-  | `(tactic| negligible) => pure ()
-  | _ => throwUnsupportedSyntax
+  let (unfolds?, bound?) ← match stx with
+    | `(tactic| negligible $[$u:neglUnfolds]? $[using $hle]?) =>
+      pure (u, hle.map (false, ·))
+    | `(tactic| negligible $[$u:neglUnfolds]? eventually $hle) =>
+      pure (u, some (true, hle))
+    | _ => throwUnsupportedSyntax
+  if let some (eventually, hle) := bound? then
+    applyBound eventually hle
+  if (← getUnsolvedGoals).isEmpty then return
+  if let some u := unfolds? then
+    let `(neglUnfolds| [$ids,*]) := u | throwUnsupportedSyntax
+    let simpTerms ← ids.getElems.mapM fun id => `(Parser.Tactic.simpLemma| $id:ident)
+    evalTactic (← `(tactic| simp only [$simpTerms,*]))
   if (← getUnsolvedGoals).isEmpty then return
   prepareNegligibleContext
   if (← getUnsolvedGoals).isEmpty then return

@@ -224,11 +224,9 @@ private theorem falseView_real : falseView ∈
             (circuitTrace (square F) (fun _ => 1) Fin.elim0) c.u c.v (fun _ => 0), ()), ())) := by
     unfold circuitReceiverView
     rw [voleWorld_eval]
-    simp [zeroReceiver, circuitCheck, liftProver, liftVerifier, runAgainst,
-      ProverStrategy.hoist, VerifierStrategy.hoist, circuitCheckSpec,
-      threeMoveSpec, ProbOracleComp.query,
-      OracleComp.sumHandler, VOLECorrelation.senderView, PMF.map, Function.comp_def,
-      OracleComp.interpret_pure, OracleComp.interpret_bind]
+    simp [zeroReceiver, circuitCheck, liftProver, liftVerifier, runAgainst, ProverStrategy.hoist,
+      VerifierStrategy.hoist, circuitCheckSpec, threeMoveSpec, ProbOracleComp.query,
+      OracleComp.sumHandler, VOLECorrelation.senderView, PMF.map, Function.comp_def]
   rw [hrun, PMF.mem_support_map_iff]
   refine ⟨voleSample (fun _ => 0) (fun _ => 0) 1,
     (mem_support_voleIdealDist_iff _).mpr (valid_voleSample _ _ _), ?_⟩

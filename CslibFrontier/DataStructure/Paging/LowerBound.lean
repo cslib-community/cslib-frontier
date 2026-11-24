@@ -348,8 +348,6 @@ theorem validSchedule_offlineLookahead {k : Nat} (hk : 0 < k) (p₀ : α) {pages
           exact htail_sched
         simpa only [List.take_append_drop] using happ
 termination_by _ reqs _ _ _ => reqs.length
-decreasing_by
-  all_goals simp_wf; first | done | omega
 
 /-- Fault bound for `offlineLookahead`: `k` times the offline fault count is at most
 `reqs.length + (k - 1) * (k - s.card) + (k - 1)`. -/
@@ -432,8 +430,6 @@ theorem scheduleCost_offlineLookahead_bound {k : Nat} (hk : 0 < k) (p₀ : α) {
             List.length_cons, htail_len] at ih ⊢
           omega
 termination_by _ reqs _ _ _ => reqs.length
-decreasing_by
-  all_goals simp_wf; first | done | omega
 
 /-! ### Competitive-ratio impossibility theorems ([SleatorTarjan1985], Theorem 5) -/
 

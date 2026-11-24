@@ -67,8 +67,9 @@ When a declaration claims to formalize a cited result, give the precise source v
 locator and map the source claim to Lean: quantifiers, hypotheses, models, encodings and resource
 conventions. Verify locators and quotations against the source itself; invented or misattributed
 ones block approval. New mathematics needs no source; label it original. Search for an existing
-notion before adding a public definition, and explain any parallel one. Reviewers may ask for a
-checked instance where a definition holds and one where it fails.
+notion before adding a public definition, and explain any parallel one. Include a checked test
+witness on subtle model boundaries (self-loops, asymmetric matrices, repeated or malformed
+queries); reviewers may also ask for instances where a definition holds and where it fails.
 
 ### Faithful headlines
 
@@ -109,7 +110,7 @@ An encoding is part of what a statement claims, so statements show every encodin
 the reader parse the same nested one repeatedly. For new and changed statements:
 
 1. **Name repeated compound encodings.** A nested application of `encPair`, `encList`,
-   `encOption`, `encSum`, `encFramed`, `encPi` or `encDPi` that occurs in the types of three or
+   `encOption`, `encSum`, `encSigma`, `encFramed`, `encPi` or `encDPi` that occurs in the types of three or
    more public declarations of a module gets a named `abbrev`, used everywhere.
 2. **Document the layout** in the `abbrev`'s docstring: order of parts, framing, tag bits.
 3. **Keep it reducible:** `abbrev`, not `def`, and never a `local notation`.
@@ -121,6 +122,10 @@ the reader parse the same nested one repeatedly. For new and changed statements:
 6. **Show meaning-bearing choices** (unary or binary, graph and matrix representation, framing
    that changes a length bound) in the name or the first docstring line.
 7. **No hidden defaults:** no elaborator or typeclass chooses an encoding (`enc%`, #1830, is parked).
+8. **Keep restricted-class results on the general encoding:** state a restricted language as
+   `{x | x ∈ Problem ∧ Restricted x}` and a promise or conditional algorithm with `Restricted x` as
+   a hypothesis on the general instance type, rather than encoding a caller-supplied witness or
+   decomposition unless the source takes that representation as input.
 
 ### Security theorems
 
@@ -147,8 +152,8 @@ says "locator not verified" until a reviewer has confirmed the locator at the so
 claiming a cited result rests on the source's assumption, on one review accepts as the same in
 another formal setting, or on one the source's implies; otherwise it is a stand-in. A novel
 assumption may support a result presented as original and named for it.
-`scripts/check_security_premises.py`, `scripts/check_reduction_witnesses.py` and
-`scripts/check_hardness_assumptions.py` supplement these rules; they do not replace semantic review.
+`scripts/check_hardness_assumptions.py` checks the inventory; the premise and reduction-witness
+scans are advisory. None replaces semantic review.
 
 ## Review cycle
 
@@ -175,7 +180,9 @@ to reach a count. A review does the following, in this order.
    it parallel a neighbouring API? Name what you asked the author to delete, merge or make
    private, or say that you looked and found nothing to remove. A review without an answer to
    this question is incomplete. A zero reference count alone does not justify removing expected
-   mathematical API.
+   mathematical API. Automation justified by the code it removes must shrink the diff overall,
+   and each new branch must serve callers beyond one definition or module
+   ([details](policy/review.md#review-cycle)).
 3. **Name the first real property.** For each new definition, construction or transcribed
    algorithm, say what its first non-trivial property is (signatures verify, the padding is
    block-aligned, the simulator's output is close) and whether this PR proves it. Unfoldings,
@@ -207,10 +214,10 @@ A non-authoring agent may review work from the same coordinator or account, in a
 review context, reaching its own verdict. Anyone who took part in the implementation or its
 design cannot supply that review. If a shared GitHub account prevents formal approval, use one
 brief PR comment naming the reviewer agent or session, revision and verdict. Agent review is
-never presented as human review. Before a published theorem enters the
-[results inventory](results/README.md), its statement is checked against the source by a
-reviewer, human or agent, from outside the authoring fleet, who records the check in a comment
-that says who made it ([policy/review.md](policy/review.md#review-cycle)).
+never presented as human review. A headline for a cited result is presented as a step or is
+registered in the [results inventory](results/README.md), once a reviewer, human or agent, from
+outside the authoring fleet checks its statement against the source, opens the definitions it
+names and records the check ([policy/review.md](policy/review.md#review-cycle)).
 
 ### Approve and queue
 
@@ -412,7 +419,8 @@ For Lean, dependency or build changes, all of these and the other CI checks must
 final revision before integration. A successful hosted run for that revision supplies full
 validation; run `scripts/check.sh` locally only when asked or when hosted coverage is
 unavailable. During development, check affected modules and representative clients;
-`scripts/check.sh --quick --no-full-fallback [--base REF]` is the local checkpoint, and exit
+`scripts/check.sh --focused [--base REF]` (deferring unchanged global `Smoke`/`Axioms` leaves to
+CI) or `scripts/check.sh --quick --no-full-fallback [--base REF]` is the local checkpoint, and exit
 status 3 means "run focused checks and leave the full run to CI". Documentation-only changes need
 consistency and link checks, not a rebuild. `lake exe mk_all` regenerates `CslibFrontier.lean`
 after adding a file; new tests go in `CslibFrontierTests/`. Details and what each mode covers:
@@ -442,6 +450,11 @@ Keep the cslib pin on an upstream `main` SHA and coordinate bumps in focused dep
 When the pin adopts merged work, the same commit replaces the superseded local file with its
 deprecated shim ([details](policy/build-and-files.md#staying-current-with-upstream)).
 
+Every pin bump lists the upstream PRs labelled `cslib-frontier-adaptation` that merged in the
+range it crosses. These are design changes, such as new or more general definitions, that need
+more than repaired proofs: adapt to each in the bump, or defer it as the cleanup rule allows
+([query and procedure](policy/build-and-files.md#upstream-changes-labelled-for-adaptation)).
+
 ## Design commitments (do not re-litigate casually)
 
 - Base pin is upstream cslib `main` at a SHA; never a fork.
@@ -454,6 +467,9 @@ deprecated shim ([details](policy/build-and-files.md#staying-current-with-upstre
   The tidy computability calculus is being deleted (#862); tidiness survives only as a machine-level
   kernel inside the Machines layer, used inside proofs of plain rules.
 - Programs are `PFunctor.FreeM` values; a machine's clocked run is itself a program.
+- Running times are Word-RAM or multi-tape Turing-machine theorems. `TimeM` is permanently
+  removed and forbidden (#7636, #6301; enforced by `scripts/check_timem.py`): its ticks are
+  unchecked annotations ([Running-time claims](policy/statements.md#running-time-claims)).
 - The universal machine is an interpreter program certified by the calculus, not a hand-built
   machine.
 - Do not cite the unpublished draft "A Small Calculus of Finite Computation" in source or PR text.

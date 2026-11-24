@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Decision.Program
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Charged polynomial value bound
@@ -43,37 +44,27 @@ theorem exec_power {w B E : ℕ} (x : Data 16)
   have hbody (y : Data 16) (hy : I y) (hlt : (Cond.lt zero remaining).Holds y) :
       ∃ z, ExecWithin w powerBody y z 2 ∧ I z ∧ z.regs remaining < y.regs remaining := by
     obtain ⟨hyc, hyv, hyr, hym⟩ := hy
-    have hyz : y.regs zero = 0 := (hyr _ (by decide) (by decide)).trans hz
-    have hyo : y.regs one = 1 := (hyr _ (by decide) (by decide)).trans ho
-    have hys : y.regs scale = B := (hyr _ (by decide) (by decide)).trans hs
+    have hyz : y.regs zero = 0 := by regs_frame
+    have hyo : y.regs one = 1 := by regs_frame
+    have hys : y.regs scale = B := by regs_frame
     have hcpos : 0 < y.regs remaining := by simpa only [Cond.holds_lt, hyz] using hlt
     have hexp : E - y.regs remaining + 1 = E - (y.regs remaining - 1) := by omega
     have hmul : Fits w (B ^ (E - y.regs remaining) * B) := by
       rw [← pow_succ]
       exact hfit.of_le (Nat.pow_le_pow_right hB (by omega))
     have hdec : Fits w (y.regs remaining - 1) := hcount.of_le (by omega)
-    let z := y.set envelope (B ^ (E - y.regs remaining) * B)
-      |>.set remaining (y.regs remaining - 1)
-    have he : ExecWithin w powerBody y z 2 := by
-      ram_eval [powerBody, z, hyv, hys, hyo, hmul, hdec,
-        envelope, scale, remaining, one, Fin.mk.injEq]
-    refine ⟨z, he, ⟨?_, ?_, ?_, ?_⟩, ?_⟩
-    · simpa +decide [z, envelope, remaining] using (show y.regs remaining - 1 ≤ E by omega)
-    · simp +decide only [z, Data.set_regs, Function.update_apply, envelope, remaining,
-        ↓reduceIte]
-      rw [← pow_succ, hexp]
-    · intro i hie hir
-      exact (by simp only [z, Data.set_regs, Function.update_of_ne hir,
-        Function.update_of_ne hie] : z.regs i = y.regs i).trans (hyr i hie hir)
-    · exact hym
-    · have hlt : y.regs remaining - 1 < y.regs remaining := by omega
-      simpa +decide [z, envelope, remaining] using hlt
+    refine WP.exists_execWithin ?_
+    unfold powerBody
+    wram_exec [hyv, hys, hyo, hmul, hdec]
+    exact ⟨⟨by wram_simp; omega, by wram_simp; rw [← pow_succ, hexp],
+      fun i hie hir => by wram_simp [hie, hir]; exact hyr i hie hir, by wram_simp [hym]⟩,
+      by wram_simp; omega⟩
   have hx : I x := ⟨by omega, by simp only [hc, hv, Nat.sub_self, pow_zero],
     fun _ _ _ => rfl, rfl⟩
   obtain ⟨y, he, hy, hstop⟩ := ExecWithin.loop_invariant I
     (fun y => y.regs remaining) hbody hx
   obtain ⟨hyc, hyv, hyr, hym⟩ := hy
-  have hyz : y.regs zero = 0 := (hyr _ (by decide) (by decide)).trans hz
+  have hyz : y.regs zero = 0 := by regs_frame
   have hy0 : y.regs remaining = 0 := by
     change ¬y.regs zero < y.regs remaining at hstop
     omega

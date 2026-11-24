@@ -125,7 +125,7 @@ theorem IsOraclePPTWithAux.isOraclePPTOn_triple
     {program : α → β → List Bool → WordOracleComp Operation γ}
     (h : IsOraclePPTWithAux (encPair enc₁ enc₂) output (fun (a, b) z => program a b z)) :
     IsOraclePPTOn (encAuxTriple enc₁ enc₂) output (fun ⟨a, b, z⟩ => program a b z) :=
-  h.isOraclePPTOn.preprocess'
+  h.isOraclePPTOn.preprocess
     (prepare := fun p : α × β × List Bool => ((p.1, p.2.1), p.2.2)) (by fun_prop)
 
 /-- Truncating the auxiliary input of a three-argument `IsPPTOn` program to a polynomial in the
@@ -382,7 +382,26 @@ such that:
    every valid instance-witness pair `(x, w)` (`isWitness x w = true`,
    `w.length ≤ c_w * (n + 1) ^ d_w`) and every **arbitrary, unbounded** auxiliary input
    `z : List Bool` have distinguishing advantage at most `1 / ((n : ℝ) + 1) ^ k` when interacting
-   with `prover (enc x).length x w`. -/
+   with `prover (enc x).length x w`.
+
+*Source.* This is zero knowledge with respect to auxiliary input, [Goldreich1998Fragments],
+Definition 4.3.8, pp. 151–152, with the clock conventions stated after it (p. 152): the verifier,
+the simulator and the distinguisher are clocked in `|x|` (here `(enc x).length`) alone, the
+auxiliary input `z` may have any length and is also given to the distinguisher, the verifier's
+output is compared with the simulator's, and the gap is measured in `|x|`. It differs from the
+source as follows.
+* The prover's private input ranges over valid witnesses (`isWitness x w`) of length at most
+  `c_w * (|x| + 1) ^ d_w`, for every `c_w` and `d_w`, where the source's ranges over every string
+  with which the prover meets the completeness condition. The prover is the family `prover` run at
+  security parameter `|x|`. This weakens the notion.
+* The simulator must also depend only on a prefix of `z` of length polynomial in `|x|` (item 1). A
+  machine clocked in `|x|`, as the source's simulator is, reads no more of `z` than that.
+* The distinguisher is clocked in the lengths of the instance and the view together, where the
+  source's is clocked in `|x|`. Both views have length polynomial in `|x|`, since the verifier and
+  the simulator are clocked in `|x|`, so the two clocks admit the same distinguishers on them.
+
+It is a property of the prover alone; `ZKProof.InstanceAuxiliaryInputZeroKnowledge` states it for
+the prover of a proof system. -/
 def InstanceAuxiliaryInputZeroKnowledge {α : Type} (enc : α ↪ List Bool)
     (prover : ℕ → α → List Bool → Prover Unit)
     (isWitness : α → List Bool → Bool) : Prop :=
@@ -530,7 +549,8 @@ def UnboundedAuxiliaryInputZeroKnowledge (zk : ZKProof enc A soundness) : Prop :
   Cslib.Crypto.UnboundedAuxiliaryInputZeroKnowledge enc zk.prover zk.isWitness
 
 /-- Goldreich-style `x`-indexed auxiliary-input zero knowledge with unbounded `z` for a bundled
-`ZKProof`. -/
+`ZKProof`: `InstanceAuxiliaryInputZeroKnowledge` of its prover and witness relation, which is
+[Goldreich1998Fragments], Definition 4.3.8, pp. 151–152, with the deviations listed there. -/
 def InstanceAuxiliaryInputZeroKnowledge (zk : ZKProof enc A soundness) : Prop :=
   Cslib.Crypto.InstanceAuxiliaryInputZeroKnowledge enc zk.prover zk.isWitness
 

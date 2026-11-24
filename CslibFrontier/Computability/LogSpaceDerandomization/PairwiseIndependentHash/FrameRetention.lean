@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.LogSpaceDerandomization.ColumnDetector
 public import CslibFrontier.Probability.PairwiseIndependentHash.FrameChannel
+public import CslibFrontier.Tactic.PositivityLemma
 import CslibFrontier.Probability.PairwiseIndependentHash.Shift
 import Mathlib.LinearAlgebra.Matrix.GeneralLinearGroup.Card
 
@@ -85,6 +86,7 @@ noncomputable def frameDensity [NeZero P] : ℝ :=
   Fintype.card (Frame P H r) / Fintype.card (Fin r → Fin H → ZMod P)
 
 /-- The frame density is nonnegative. -/
+@[positivity_lemma]
 theorem frameDensity_nonneg [NeZero P] : 0 ≤ frameDensity P H r := by
   rw [frameDensity]
   positivity
@@ -146,6 +148,7 @@ theorem one_div_two_le_frameDensity (hr : r < H) : 1 / 2 ≤ frameDensity P H r 
   linarith [one_sub_le_prod_one_sub hp r hr.le]
 
 /-- For `r ≤ H` the frame density is positive. -/
+@[positivity_lemma]
 theorem frameDensity_pos (hr : r ≤ H) : 0 < frameDensity P H r := by
   have := Frame.nonempty (P := P) hr
   rw [frameDensity]
@@ -267,7 +270,7 @@ theorem dens_two_mul_card_filter_eval_mem_lt_le (hr : 0 < r) (hL : L ≤ P) (A :
     fun s ↦ 2 * (#{y ∈ A | polyChannelEval s y ∈ retentionBox P H L} : ℝ) <
       #A * ((L : ℝ) / P) ^ H
   simp only [← FrameChannel.eval_eq_polyChannelEval] at h
-  exact h.trans (div_le_div_of_nonneg_right ht (frameDensity_nonneg))
+  exact h.trans (div_le_div_of_nonneg_right ht (by positivity))
 
 end Transfer
 
@@ -300,7 +303,6 @@ theorem retentionChannels_frameRetains {ident : V → ZMod P} (hident : Function
       (4 / frameDensity P H r) := by
   obtain ⟨hL, hlow, hup, -, -⟩ := affineRetains_rates (P := P) (H := H) hPa ha
   set π : ℝ := (((⌈P * a⌉₊ : ℕ) : ℝ) / P) ^ H
-  have hq := frameDensity_pos (P := P) hr
   have hπ : 0 < π := (pow_pos (pos_of_one_le_mul (Nat.cast_nonneg P) hPa) H).trans_le hlow
   have hdens : ∀ v, (dens {s : FrameChannel P H r | frameRetains P H ⌈P * a⌉₊ s (ident v)} : ℝ) =
       π := fun v ↦ by
@@ -309,7 +311,7 @@ theorem retentionChannels_frameRetains {ident : V → ZMod P} (hident : Function
     rfl
   refine ⟨hdens, hdens, by rw [one_mul]; exact hlow, hup, fun w y hwy ↦ ?_, fun A hA ↦ ?_⟩
   · refine (dens_eval_mem_and_eval_mem_le hr0 hL hL (hident.ne hwy)).trans ?_
-    rw [hdens, div_mul_eq_mul_div, div_mul_eq_mul_div, div_le_div_iff_of_pos_right hq]
+    rw [hdens, div_mul_eq_mul_div, div_mul_eq_mul_div, div_le_div_iff_of_pos_right (by positivity)]
     exact mul_le_mul_of_nonneg_right hup hπ.le
   · have hcard : #(A.image ident) = #A := card_image_of_injective A hident
     have hfilter : ∀ s : FrameChannel P H r,
@@ -334,12 +336,11 @@ theorem retentionChannels_frameRetains_of_lt {ident : V → ZMod P}
       ((((⌈P * a⌉₊ : ℕ) : ℝ) / P) ^ H) 1 (2 ^ H) (2 ^ (H + 1)) 8 := by
   have h := retentionChannels_frameRetains hident hr0 hr.le hPa ha
   have hq := one_div_two_le_frameDensity (P := P) hr
-  have hq0 : 0 < frameDensity P H r := by linarith
   have hpair : 2 ^ H / frameDensity P H r ≤ 2 ^ (H + 1) := by
-    rw [div_le_iff₀ hq0, pow_succ]
+    rw [div_le_iff₀ (by positivity), pow_succ]
     nlinarith [pow_pos (by norm_num : (0 : ℝ) < 2) H]
   have hvar : 4 / frameDensity P H r ≤ 8 := by
-    rw [div_le_iff₀ hq0]
+    rw [div_le_iff₀ (by positivity)]
     linarith
   refine ⟨h.dens_X, h.dens_Y, h.lower, h.upper, fun w y hwy ↦ (h.pair w y hwy).trans ?_,
     fun A hA ↦ (h.tail A hA).trans ?_⟩

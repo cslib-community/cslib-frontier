@@ -149,6 +149,23 @@ end ShadeState
     (if hasHorizontal component quadrant && hasVertical component quadrant then
       decide (state.west ≠ state.south) else true)
 
+/-- Swap the two wire shades without changing port incidence. -/
+@[expose] def ShadeState.flip (state : ShadeState) : ShadeState :=
+  { west := state.west.map Shade.opposite
+    east := state.east.map Shade.opposite
+    south := state.south.map Shade.opposite
+    north := state.north.map Shade.opposite }
+
+/-- Swapping both shades preserves the local shade rules. -/
+theorem ShadeState.flip_allowed {component : Thick} {quadrant : Quadrant}
+    {state : ShadeState} (allowed : allowedFor component quadrant state = true) :
+    allowedFor component quadrant (ShadeState.flip state) = true := by
+  have flip_eq (a b : Option Shade) :
+      a.map Shade.opposite = b.map Shade.opposite ↔ a = b :=
+    (Option.map_injective
+      (show Function.Involutive Shade.opposite from Shade.opposite_opposite).injective).eq_iff
+  simpa [allowedFor, ShadeState.flip, flip_eq] using allowed
+
 /-- The incidence, transmission and crossing conditions of one allowed quarter. -/
 structure Allowed (component : Thick) (quadrant : Quadrant) (state : ShadeState) : Prop where
   /-- West labels are present exactly where the red wire meets the west edge. -/
@@ -619,6 +636,17 @@ theorem Related.symm {parity : Bool} {first second : Option Shade}
   · exact Eq.symm relation
   · rcases relation with ⟨shade, rfl, rfl⟩
     exact ⟨shade.opposite, rfl, by simp⟩
+
+/-- A source shade and path parity uniquely determine the target shade. -/
+theorem Related.right_unique {parity : Bool} {a b c : Option Shade}
+    (hab : Related parity a b) (hac : Related parity a c) : b = c := by
+  cases parity
+  · exact hab.symm.trans hac
+  · obtain ⟨s, hs, hb⟩ := hab
+    obtain ⟨t, ht, hc⟩ := hac
+    have hst : s = t := Option.some.inj (hs.symm.trans ht)
+    subst t
+    exact hb.trans hc.symm
 
 /-- Shade relations compose by taking the exclusive-or of their parities. -/
 theorem Related.trans {first second third : Option Shade}

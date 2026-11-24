@@ -1,0 +1,147 @@
+/-
+Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Samuel Schlesinger
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Handler
+public import CslibFrontier.Foundations.Quantum.Measurement.Classical
+public import CslibFrontier.Foundations.Quantum.Register
+import all CslibFrontier.Foundations.Quantum.Measurement.Classical
+import CslibFrontier.Probability.PMF.Expect
+
+/-!
+# Changing the replies to a coherent XOR query
+
+The query-magnitude method of [Bennett et al.][BBBV1997] bounds the effect of changing
+oracle answers on a quantum computation. Here the input is a joint density matrix
+on a placed query and an arbitrary reference. The bound for one call uses the actual
+probability of measuring an address at which the two response words differ.
+-/
+
+public section
+
+namespace Cslib.Quantum
+
+open Matrix
+open scoped ComplexOrder
+
+/-- Input-weighted squared norm of the difference of two placed XOR gates, including the
+untouched reference register. For any common purification of the input, it is the squared
+norm of the difference of its two output vectors. It can be positive for identical output
+density matrices when the outputs differ by a global phase. -/
+@[expose] noncomputable def xorQueryDisturbance {a b m : ℕ} {κ : Type*} [Fintype κ] [DecidableEq κ]
+    (H G : (Fin a → Bool) → Fin b → Bool) (A : Fin (a + b) ↪ Fin m)
+    (ρ : Matrix ((Fin m → Bool) × κ) ((Fin m → Bool) × κ) ℂ) : ℝ :=
+  let u := onFirst (κ := κ) (xorQuery H A).matrix
+  let v := onFirst (κ := κ) (xorQuery G A).matrix
+  (densityConj (u.val - v.val) ρ).trace.re
+
+/-- The squared amplitude displacement at one coherent call is at most four times
+the probability that a measurement of its live address reports different replies. -/
+theorem xorQueryDisturbance_le {a b m : ℕ} {κ : Type*} [Fintype κ] [DecidableEq κ]
+    (H G : (Fin a → Bool) → Fin b → Bool) (A : Fin (a + b) ↪ Fin m)
+    {ρ : Matrix ((Fin m → Bool) × κ) ((Fin m → Bool) × κ) ℂ} (hρ : IsDensityMatrix ρ) :
+    xorQueryDisturbance H G A ρ ≤ 4 * ((((POVM.basis.measureDensity ρ hρ).map fun z =>
+      decide (H (queryRegisters A z.1).1 ≠ G (queryRegisters A z.1).1)) true).toReal) := by
+  classical
+  let u := onFirst (κ := κ) (xorQuery H A).matrix
+  let v := onFirst (κ := κ) (xorQuery G A).matrix
+  let D := u.val - v.val
+  let bad := fun z : (Fin m → Bool) × κ =>
+    decide (H (queryRegisters A z.1).1 ≠ G (queryRegisters A z.1).1)
+  have mask : D * outcomeProjection bad true = D := by
+    rw [outcomeProjection_eq_diagonal]
+    ext i j
+    rw [mul_diagonal]
+    by_cases eq : H (queryRegisters A j.1).1 = G (queryRegisters A j.1).1
+    · have col : (xorQuery H A).eval (ket j.1) = (xorQuery G A).eval (ket j.1) := by
+        obtain ⟨⟨x, y, w⟩, hj⟩ := (queryRegisters A).symm.surjective j.1
+        rw [← hj, Equiv.apply_symm_apply] at eq
+        rw [← hj, xorQuery_eval_ket, xorQuery_eval_ket, eq]
+      have entry := congrArg (fun ψ : Qubits m => ψ.ofLp i.1) col
+      simp only [PlacedGate.eval_ket_apply] at entry
+      simp [D, u, v, coe_onFirst, Matrix.kroneckerMap_apply, entry, bad]
+    · rw [ite_eq_left (show bad j = true from decide_eq_true eq), mul_one]
+  have bound := trace_densityConj_sub_le
+    (mem_unitaryGroup_iff'.mp u.property) (mem_unitaryGroup_iff'.mp v.property)
+    (classicalDensityBranch_posSemidef bad true hρ.posSemidef)
+  change (densityConj D (densityConj (outcomeProjection bad true) ρ)).trace.re ≤ _ at bound
+  rw [← densityConj_mul, mask] at bound
+  change (densityConj D ρ).trace.re ≤ 4 * (((POVM.basis.measureDensity ρ hρ).map bad) true).toReal
+  have pos := (classicalDensityBranch_posSemidef bad true hρ.posSemidef).trace_nonneg
+  rw [map_measureDensity_basis_apply, ENNReal.toReal_ofReal (Complex.nonneg_iff.mp pos).1]
+  exact bound
+
+/-- For a random change of the reply table independent of the input density matrix, a
+pointwise change probability of at most `δ` gives mean squared disturbance at most `4 * δ`
+on any placement. The address measured in the live register can have an arbitrary law. -/
+theorem mean_xorQueryDisturbance_le {a b m : ℕ} {κ ι : Type*} [Fintype κ] [DecidableEq κ]
+    [Fintype ι] (μ : PMF ι) (G : ι → (Fin a → Bool) → Fin b → Bool)
+    (H : (Fin a → Bool) → Fin b → Bool) (A : Fin (a + b) ↪ Fin m)
+    {ρ : Matrix ((Fin m → Bool) × κ) ((Fin m → Bool) × κ) ℂ} (hρ : IsDensityMatrix ρ)
+    {δ : ℝ} (hit : ∀ x, ((μ.map fun y => decide (G y x ≠ H x)) true).toReal ≤ δ) :
+    ∑ y, (μ y).toReal * xorQueryDisturbance (G y) H A ρ ≤ 4 * δ := by
+  classical
+  let basis := POVM.basis.measureDensity ρ hρ
+  let bad y (z : (Fin m → Bool) × κ) := decide (G y (queryRegisters A z.1).1 ≠ H
+    (queryRegisters A z.1).1)
+  have mix : (μ.bind fun y => basis.map (bad y)) =
+      basis.bind fun z => μ.map fun y => bad y z := by
+    simp only [← PMF.bind_pure_comp, Function.comp_def]
+    exact PMF.bind_comm ..
+  calc
+    _ ≤ ∑ y, (μ y).toReal * (4 * ((basis.map (bad y)) true).toReal) :=
+      Finset.sum_le_sum fun y _ =>
+        mul_le_mul_of_nonneg_left (xorQueryDisturbance_le (G y) H A hρ) ENNReal.toReal_nonneg
+    _ = 4 * ((μ.bind fun y => basis.map (bad y)) true).toReal := by
+      rw [Probability.PMF.bind_apply_toReal, Finset.mul_sum]
+      exact Finset.sum_congr rfl fun _ _ => mul_left_comm ..
+    _ ≤ 4 * δ := by
+      rw [mix, Probability.PMF.bind_apply_toReal]
+      exact mul_le_mul_of_nonneg_left
+        (Probability.PMF.sum_mul_le basis _ δ fun z => hit (queryRegisters A z.1).1) (by norm_num)
+
+/-- For a native query on the initial address and response wires, the squared change of any
+one outcome's square-root probability is bounded by the query disturbance. The device may be
+entangled with an arbitrary finite reference. -/
+theorem DeviceState.sq_sqrt_query_readout_sub_le {a b w : ℕ} {κ σ : Type} {α : Type*}
+    [Fintype κ] [DecidableEq κ] [Fintype α] (st : DeviceState (a + b + w) κ σ)
+    (M : POVM α ((Fin (a + b + w) → Bool) × κ)) (outcome : α)
+    (G H : (Fin a → Bool) → Fin b → Bool) :
+    let p := fun T => M.densityProb (st.instruction T .query).density outcome
+    (√(p G) - √(p H)) ^ 2 ≤
+      xorQueryDisturbance G H (Fin.castLEEmb (Nat.le_add_right (a + b) w)) st.density := by
+  classical
+  intro p
+  let A := Fin.castLEEmb (Nat.le_add_right (a + b) w)
+  let U := fun (T : (Fin a → Bool) → Fin b → Bool) => (onFirst (κ := κ) (xorQuery T A).matrix).val
+  have born (T) : p T = M.densityProb (densityConj (U T) st.density) outcome := by
+    simp only [p, DeviceState.instruction_apply, OracleGateCode.toPlacedGate?,
+      Nat.le_add_right, ↓reduceDIte, DeviceState.evolve_density, U, coe_onFirst, A]
+  let D := U G - U H
+  have diff := M.abs_sqrt_densityProb_sub_le outcome st.isDensityMatrix.posSemidef (U G) (U H)
+  rw [← born, ← born] at diff
+  have pos := (st.isDensityMatrix.posSemidef.mul_mul_conjTranspose_same D).trace_nonneg
+  change _ ≤ (densityConj D st.density).trace.re
+  rw [← sq_abs, ← Real.sq_sqrt (show 0 ≤ (densityConj D st.density).trace.re by
+    simpa only [densityConj_apply] using (Complex.nonneg_iff.mp pos).1)]
+  exact pow_le_pow_left₀ (abs_nonneg _) diff 2
+
+/-- A readout may depend on the sampled table change. Its mean squared change in the
+square root of one outcome's probability is bounded by the mean query disturbance. -/
+theorem DeviceState.mean_sq_sqrt_query_readout_sub_le {a b w : ℕ} {κ σ : Type} {α ι : Type*}
+    [Fintype κ] [DecidableEq κ] [Fintype α] [Fintype ι] (st : DeviceState (a + b + w) κ σ)
+    (μ : PMF ι) (M : ι → POVM α ((Fin (a + b + w) → Bool) × κ)) (outcome : α)
+    (G : ι → (Fin a → Bool) → Fin b → Bool) (H : (Fin a → Bool) → Fin b → Bool) :
+    let p y T := (M y).densityProb (st.instruction T .query).density outcome
+    ∑ y, (μ y).toReal * (√(p y (G y)) - √(p y H)) ^ 2 ≤
+      ∑ y, (μ y).toReal * xorQueryDisturbance (G y) H
+        (Fin.castLEEmb (Nat.le_add_right (a + b) w)) st.density :=
+  Finset.sum_le_sum fun y _ => mul_le_mul_of_nonneg_left
+    (st.sq_sqrt_query_readout_sub_le (M y) outcome (G y) H) ENNReal.toReal_nonneg
+
+end Cslib.Quantum

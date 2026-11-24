@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Crypto.Computational.GGM.Security
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Tactic.PPT
 
 /-! GGM's evaluator, adaptive games, uniform reduction and conditional security theorem. Concrete
@@ -13,6 +14,9 @@ generators below exercise the certificates without being assumed pseudorandom. -
 namespace CslibFrontierTests.GGM
 
 open Turing.MultiTapeTM Cslib Cslib.Crypto Cslib.Probability
+
+-- Search compares certificate programs and encodings without unfolding machine witnesses.
+attribute [local irreducible] ComputableInPolyTime
 
 example : GGM.eval (fun seed => seed ++ seed.reverse ++ [true]) [false, true] [true, false] =
     [true, false] := by decide
@@ -81,9 +85,7 @@ example (generator : List Bool → List Bool) (n : ℕ) :
   rw [GGM.hybridGame_zero]
   simp only [prfRealGame, id_eq, ProbOracleComp.run, ProbComp.eval_bind,
     ProbOracleComp.eval_interpret]
-  simpa [ProbOracleComp.interpret_sample] using
-    (show OracleComp.interpret ProbComp.unifOracle (ProbComp.uniform Bool) =
-      PMF.uniformOfFintype Bool from ProbComp.eval_uniform Bool)
+  simp [interp_norm]
 
 -- Captured samplers and computed indices use ordinary list and option operations.
 example : IsPPTOn (encPair encUnary encBits) (encPair encBits GGM.cacheEncoding)

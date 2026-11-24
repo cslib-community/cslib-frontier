@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.WordRAM.Power.Rename
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Memory
 
 /-!
@@ -36,9 +37,6 @@ instance (i : Fin registers) : Decidable (PowersLocal i) :=
 /-- The five-register power assignment is injective. -/
 theorem powerRegisters_injective : Function.Injective powerRegisters := by decide
 
-private theorem powers_preserves (i : Fin registers) : ¬PowersLocal i → powers.Preserves i := by
-  decide +kernel +revert
-
 /-- The power routine charges its five constant initializations and the renamed `4*L+5`
 `Power.program` execution. The only width premise is a bound on ordinary input-derived
 natural numbers. -/
@@ -49,39 +47,34 @@ theorem exec_powers {w L Q : ℕ} (x : Data registers) (hL : x.regs inputDepth =
       y.regs nil = 0 ∧ y.regs one = 1 ∧ y.regs two = 2 ∧ y.regs ten = 10 ∧
       y.regs nine = 9 ∧ y.regs frameWidth = 4 ∧
       (∀ i, ¬PowersLocal i → y.regs i = x.regs i) := by
-  have hspan : 1 ≤ (10 : ℕ) ^ L := by
-    have hp : 0 < (10 : ℕ) ^ L := by positivity
-    omega
+  have hspan : 1 ≤ (10 : ℕ) ^ L := Nat.one_le_pow L _ (by decide)
   have hscalar : L + 128 + 128 * 10 ^ L ≤ addressBound L Q := by
     have hm := Nat.mul_le_mul_left L hspan
     unfold addressBound
     nlinarith
   have hbase := hbound.of_le hscalar
-  have h0 : Fits w 0 := fits_zero w
   have h10 : Fits w 10 := hbase.of_le (by omega)
   have hfit_pow : Fits w (10 ^ L + L + 2) := hbase.of_le (by omega)
-  let x0 := ((((x.set nil 0).set two 2).set ten 10).set nine 9).set frameWidth 4
-  have hsetup : ExecWithin w powerSetup x x0 5 := by
-    ram_eval [powerSetup, x0, h0, h10]
-  have hx0_ten : (x0.comap powerRegisters).regs Power.base = 10 := by
-    simp +decide [x0, powerRegisters, Power.base, nil, two, ten, nine, frameWidth]
-  have hx0_depth : (x0.comap powerRegisters).regs Power.exponent = L := by
-    simpa +decide [x0, powerRegisters, Power.exponent, inputDepth, nil, two, ten, nine,
-      frameWidth] using hL
-  obtain ⟨y, hpow, hv, hc, ho, hm, hb', hd', -⟩ :=
-    Power.exec_rename powerRegisters powerRegisters_injective 10 L (by decide) x0
-      hx0_ten hx0_depth hfit_pow
-  have he : ExecWithin w powers x y (4 * L + 10) :=
-    (hsetup.seq hpow).mono (by omega)
-  refine ⟨y, he, hm, hd', hv, hc, ?_, ho, ?_, hb', ?_, ?_,
-    fun i hi => he.regs_eq (powers_preserves i hi)⟩
-  · simpa +decide [x0, nil, two, ten, nine, frameWidth] using
-      hpow.regs_eq (by decide : (Power.program.rename powerRegisters).Preserves nil)
-  · simpa +decide [x0, nil, two, ten, nine, frameWidth] using
-      hpow.regs_eq (by decide : (Power.program.rename powerRegisters).Preserves two)
-  · simpa +decide [x0, nil, two, ten, nine, frameWidth] using
-      hpow.regs_eq (by decide : (Power.program.rename powerRegisters).Preserves nine)
-  · simpa +decide [x0, nil, two, ten, nine, frameWidth] using
-      hpow.regs_eq (by decide : (Power.program.rename powerRegisters).Preserves frameWidth)
+  refine WP.exists_execWithin ?_
+  unfold powers powerSetup
+  wram_exec [h10]
+  wram_call (Power.exec_rename powerRegisters powerRegisters_injective 10 L (by decide) _
+    (by change Data.regs _ ten = 10; wram_simp)
+    (by change Data.regs _ inputDepth = L; wram_simp [hL]) hfit_pow)
+    with y ⟨hv, hc, ho, hm, hb', hd', hframe⟩
+  change y.regs span = 10 ^ L at hv
+  change y.regs index = L at hc
+  change y.regs one = 1 at ho
+  change y.regs ten = 10 at hb'
+  change y.regs inputDepth = L at hd'
+  refine ⟨by omega, hm, hd', hv, hc, by regs_frame, ho, by regs_frame, hb', by regs_frame,
+    by regs_frame, fun i hi => ?_⟩
+  by_cases hid : i = inputDepth
+  · subst hid
+    exact hd'.trans hL.symm
+  · simp only [PowersLocal, not_or] at hi
+    rcases hi with ⟨h1, h2, h3, h4, h5, h6, h7, h8⟩
+    rw [hframe i fun j => by fin_cases j <;> simp [powerRegisters] <;> tauto]
+    wram_simp
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

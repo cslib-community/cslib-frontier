@@ -24,9 +24,10 @@ import Mathlib.Data.Fintype.Pi
 
 A semantically secure cipher is secure against message recovery ([BonehShoup2023], Section 2.2.3,
 Attack Game 2.2, p. 18; Definition 2.3 and Theorem 2.7, p. 19). We formalize both the concrete
-exact advantage identity for a typed symmetric cipher `Cipher K M C` and the asymptotic word-level
-statement over `{0, 1}^{msgLen n}` against `DEMOneTimeKeyWordINDCPA` together with its uniform
-strict PPT certificate.
+exact advantage identity for a typed symmetric cipher `Cipher K M C` and the asymptotic theorem for
+a cipher with message space `{0, 1}^{msgLen n}`, whose semantic security admits exactly the
+challenge pairs of two `msgLen n`-bit messages, together with the uniform strict PPT certificate of
+the reduction.
 
 Relative to [BonehShoup2023], §2.2.3, pp. 18–19, this formalization makes two hypotheses explicit:
 * On a concrete `Cipher K M C`, `messageRecoveryAdvantage_eq_advantage_messageRecoveryReduction`
@@ -37,10 +38,12 @@ Relative to [BonehShoup2023], §2.2.3, pp. 18–19, this formalization makes two
 * On word messages `{0, 1}^{msgLen n}`, an adversary `A : ℕ → List Bool → ProbComp (List Bool)` can
   output lists of arbitrary length, whereas Attack Game 2.2 requires `mHat ∈ M`.
   `messageRecoveryWordAdvantage_eq_demKeyGameOn` and
-  `DEMOneTimeKeyWordINDCPA.negligible_messageRecoveryWordAdvantage` therefore require
+  `DEMOneTimeKeyINDCPAOn.negligible_messageRecoveryWordAdvantage` therefore require
   `hA_len : ∀ n ct mHat, mHat ∈ (ProbComp.eval (A n ct)).support → mHat.length = msgLen n`, plus
-  `ComputableInPolyTime msgLen encUnary encUnary` for PPT message sampling. Checked counterexamples
-  in `CslibFrontierTests.Crypto.MessageRecovery` show that `hvalid` and `hA_len` are needed.
+  `ComputableInPolyTime msgLen encUnary encUnary` for PPT message sampling. All messages of
+  `{0, 1}^{msgLen n}` have one length, so the reduction's pairs are admissible and no counterpart of
+  `hvalid` is needed there. Checked counterexamples in `CslibFrontierTests.Crypto.MessageRecovery`
+  show that `hvalid` and `hA_len` are needed.
 
 ## Main definitions
 
@@ -61,9 +64,10 @@ Relative to [BonehShoup2023], §2.2.3, pp. 18–19, this formalization makes two
 * `Cslib.Crypto.Encryption.isPPT_messageRecoveryWordToDEMAdversary`: uniform strict PPT
   certificate `AdversaryOf.IsPPT encBits (messageRecoveryWordToDEMAdversary msgLen A)`.
 * `Cslib.Crypto.Encryption.messageRecoveryWordAdvantage_eq_demKeyGameOn`: exact word-level
-  advantage equality derived from the concrete identity.
-* `Cslib.Crypto.Encryption.DEMOneTimeKeyWordINDCPA.negligible_messageRecoveryWordAdvantage`:
-  asymptotic Theorem 2.7 for `DEMOneTimeKeyWordINDCPA`.
+  advantage equality derived from the concrete identity, the equation of the proof of Theorem 2.7.
+* `Cslib.Crypto.Encryption.DEMOneTimeKeyINDCPAOn.negligible_messageRecoveryWordAdvantage`:
+  asymptotic Theorem 2.7 for the message space `{0, 1}^{msgLen n}`, from semantic security on
+  challenge pairs of `msgLen n`-bit messages.
 
 ## References
 
@@ -226,7 +230,9 @@ theorem isPPT_messageRecoveryWordToDEMAdversary {msgLen : ℕ → ℕ}
   · dsimp only [messageRecoveryWordToDEMAdversary, messageRecoveryReduction]
     ppt
 
-/-- Exact word-level advantage equality for Theorem 2.7, derived from the concrete equality
+/-- Exact word-level advantage equality of the proof of Theorem 2.7 ([BonehShoup2023], p. 19):
+`MRadv[A, E](n) = SSadv[B, E](n)` for `B := messageRecoveryWordToDEMAdversary msgLen A`, in Attack
+Game 2.1 with challenge pairs of two `msgLen n`-bit messages. Derived from the concrete equality
 `messageRecoveryAdvantage_eq_advantage_messageRecoveryReduction` over `BitString (msgLen n)`. The
 length hypothesis `hA_len` models Attack Game 2.2's requirement `mHat ∈ M`. -/
 theorem messageRecoveryWordAdvantage_eq_demKeyGameOn (msgLen keyLen : ℕ → ℕ)
@@ -236,9 +242,11 @@ theorem messageRecoveryWordAdvantage_eq_demKeyGameOn (msgLen keyLen : ℕ → �
     (n : ℕ) :
     messageRecoveryWordAdvantage msgLen keyLen encryptSym A n =
       Game.advantage
-        (ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
+        (ProbComp.eval (demKeyGameOn
+          (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n)
           keyLen encryptSym (messageRecoveryWordToDEMAdversary msgLen A) false n))
-        (ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
+        (ProbComp.eval (demKeyGameOn
+          (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n)
           keyLen encryptSym (messageRecoveryWordToDEMAdversary msgLen A) true n)) := by
   let E : Cipher (List Bool) (BitString (msgLen n)) (List Bool) :=
     ⟨fun k m => encryptSym n k (List.ofFn m), fun _ _ => pure (fun _ => false)⟩
@@ -269,14 +277,15 @@ theorem messageRecoveryWordAdvantage_eq_demKeyGameOn (msgLen keyLen : ℕ → �
   have hgame : ∀ bit : Bool,
       ProbComp.eval (E.oneTimeExperiment sampleKey (fun _ _ => true)
         (messageRecoveryReduction (ProbComp.uniform (BitString (msgLen n))) A') bit) =
-      ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
+      ProbComp.eval (demKeyGameOn
+        (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n)
         keyLen encryptSym (messageRecoveryWordToDEMAdversary msgLen A) bit n) := by
     intro bit
     simp only [Cipher.oneTimeExperiment, messageRecoveryReduction, demKeyGameOn,
       messageRecoveryWordToDEMAdversary, lrExperiment, ChoiceOut.msg₀, ChoiceOut.msg₁,
       E, sampleKey, A', ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
       BitString.eval_sampleList, BitString.uniformList, PMF.bind_map, PMF.bind_bind,
-      PMF.pure_bind, Function.comp_def, List.length_ofFn, beq_self_eq_true]
+      PMF.pure_bind, Function.comp_def, List.length_ofFn, beq_self_eq_true, Bool.and_self]
     congr 1; funext k; congr 1; funext m₀; congr 1; funext m₁
     cases bit <;> simp only [MessagePair.select_false, MessagePair.select_true,
       Bool.false_eq_true, ↓reduceIte]
@@ -287,26 +296,30 @@ theorem messageRecoveryWordAdvantage_eq_demKeyGameOn (msgLen keyLen : ℕ → �
   rw [messageRecoveryAdvantage, hmr, hcard] at hconc
   rw [messageRecoveryWordAdvantage, hconc, Experiment.advantage, hgame false, hgame true]
 
-/-- **Theorem 2.7 (asymptotic word-level statement)** ([BonehShoup2023], Theorem 2.7, p. 19):
-if `encryptSym` is one-time key IND-CPA secure (`DEMOneTimeKeyWordINDCPA`), `msgLen` is unary
-polynomial-time computable, and `A` is uniform strict PPT outputting words of length `msgLen n`
-(modeling Attack Game 2.2's `mHat ∈ M`), then `A` has negligible message-recovery advantage. -/
-theorem DEMOneTimeKeyWordINDCPA.negligible_messageRecoveryWordAdvantage {msgLen keyLen : ℕ → ℕ}
+/-- **Theorem 2.7, for the message space `{0, 1}^L`** ([BonehShoup2023], Section 2.2.3.1, p. 19):
+a semantically secure cipher is secure against message recovery. The book states Theorem 2.7 for
+any message space `M`, but its reduction submits two independent uniform messages, which Attack
+Game 2.1 admits only when all messages of `M` have one length, as they do in `{0, 1}^L`. Here
+`L = msgLen n` at security parameter `n`, with `msgLen` computable in polynomial time in unary.
+The premise is semantic security in Attack Game 2.1 (Definition 2.2, p. 16) with a uniform
+`keyLen n`-bit key, against uniform strict PPT two-stage adversaries, for exactly the challenge
+pairs of the message space: two `msgLen n`-bit messages. The conclusion: every uniform strict PPT
+adversary `A` that outputs words of length `msgLen n` (`hA_len`, Attack Game 2.2's `mHat ∈ M`),
+given `1ⁿ` and the ciphertext of a uniform `msgLen n`-bit message, has negligible advantage
+`|Pr[W] - 1 / 2^(msgLen n)|` (`messageRecoveryWordAdvantage`, Attack Game 2.2 and Definition 2.3,
+pp. 18–19). The reduction
+`messageRecoveryWordToDEMAdversary` is certified by `isPPT_messageRecoveryWordToDEMAdversary`, and
+`messageRecoveryWordAdvantage_eq_demKeyGameOn` is the proof's exact equation. -/
+theorem DEMOneTimeKeyINDCPAOn.negligible_messageRecoveryWordAdvantage {msgLen keyLen : ℕ → ℕ}
     {encryptSym : ℕ → List Bool → List Bool → ProbComp (List Bool)}
-    (hsec : DEMOneTimeKeyWordINDCPA keyLen encryptSym)
+    (hsec : DEMOneTimeKeyINDCPAOn
+      (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n) encBits keyLen encryptSym)
     (hmsgLen : ComputableInPolyTime msgLen encUnary encUnary)
     {A : ℕ → List Bool → ProbComp (List Bool)}
     (hA : IsPPTOn (encPair encUnary encBits) encBits (fun ⟨n, ct⟩ => A n ct))
     (hA_len : ∀ n ct mHat, mHat ∈ (ProbComp.eval (A n ct)).support → mHat.length = msgLen n) :
-    Negligible (messageRecoveryWordAdvantage msgLen keyLen encryptSym A) := by
-  have hB : Negligible fun n =>
-      Game.advantage
-        (ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
-          keyLen encryptSym (messageRecoveryWordToDEMAdversary msgLen A) false n))
-        (ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
-          keyLen encryptSym (messageRecoveryWordToDEMAdversary msgLen A) true n)) :=
-    hsec _ (isPPT_messageRecoveryWordToDEMAdversary hmsgLen hA)
-  exact hB.congr fun n =>
+    Negligible (messageRecoveryWordAdvantage msgLen keyLen encryptSym A) :=
+  (hsec _ (isPPT_messageRecoveryWordToDEMAdversary hmsgLen hA)).congr fun n =>
     (messageRecoveryWordAdvantage_eq_demKeyGameOn msgLen keyLen encryptSym A hA_len n).symm
 
 end MessageRecoveryWord

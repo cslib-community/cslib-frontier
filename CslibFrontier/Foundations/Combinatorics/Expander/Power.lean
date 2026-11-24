@@ -220,7 +220,6 @@ theorem spectralExpansion_pow {t : ℕ} (ht : t ≠ 0) :
   have hc := (G.pow t).spectralExpansion_nonneg
   suffices h : G.spectralExpansion ≤ (G.pow t).spectralExpansion ^ (t⁻¹ : ℝ) by
     calc G.spectralExpansion ^ t ≤ ((G.pow t).spectralExpansion ^ (t⁻¹ : ℝ)) ^ t := by
-          have := G.spectralExpansion_nonneg
           gcongr
       _ = _ := Real.rpow_inv_natCast_pow hc ht
   refine spectralExpansion_le (by positivity) fun f hf ↦ ?_

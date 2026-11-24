@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Languages.Probabilistic.UntilBad
 public import Mathlib.Data.Nat.Choose.Basic
+import CslibFrontier.Probability.PMF.BindFailure
 import CslibFrontier.Probability.PMF.Event
 
 /-!
@@ -69,29 +70,10 @@ theorem toOuterMeasure_bad_choose_two_cost_le {ι σ α : Type} {spec : ι → T
       PMF.toOuterMeasure_pure_apply, ite_eq_right (show (a, s) ∉ {x : α × σ | bad x.2} from hs)]
     exact zero_le
   | liftBind q cont a _ ih =>
-    classical
     obtain ⟨hc₂, hcont₂⟩ := IsCostBounded.liftBind_iff.mp hk₂
-    simp only [run_interpret_bind, run_interpret_query,
-      Probability.PMF.monad_bind_eq_bind, PMF.toOuterMeasure_bind_apply]
+    simp only [run_interpret_bind, run_interpret_query, Probability.PMF.monad_bind_eq_bind]
     set M : ℕ := a * (size s + cost₁ q + cost₂ q) + a * (k₂ - cost₂ q) + a.choose 2
     set K : ℝ≥0∞ := (M : ℝ≥0∞) * δ
-    have hterm (y : spec q × σ) :
-        (handler q s) y *
-          ((interpret handler (cont y.1)).run y.2).toOuterMeasure {x | bad x.2} ≤
-        (handler q s) y * ({x : spec q × σ | bad x.2}.indicator 1 y + K) := by
-      by_cases hmem : y ∈ (handler q s).support
-      · refine mul_le_mul_of_nonneg_left ?_ zero_le
-        by_cases hy : bad y.2
-        · have : y ∈ {x : spec q × σ | bad x.2} := hy
-          rw [Set.indicator_of_mem this, Pi.one_apply]
-          exact (Probability.PMF.toOuterMeasure_le_one _ _).trans le_self_add
-        · have : y ∉ {x : spec q × σ | bad x.2} := hy
-          rw [Set.indicator_of_notMem this, zero_add]
-          refine (ih y.1 (hcont₂ y.1) hy).trans ?_
-          simp only [K, M]
-          gcongr
-          exact hgrow q s hs y hmem hy
-      · rw [(PMF.apply_eq_zero_iff _ _).mpr hmem, zero_mul, zero_mul]
     have hchoose : a.choose 2 + a * cost₁ q + (cost₁ q).choose 2 = (a + cost₁ q).choose 2 := by
       suffices ∀ c, a.choose 2 + a * c + c.choose 2 = (a + c).choose 2 from this (cost₁ q)
       intro c
@@ -114,13 +96,12 @@ theorem toOuterMeasure_bad_choose_two_cost_le {ι σ α : Type} {spec : ι → T
         rw [Nat.add_mul, Nat.mul_add, Nat.mul_add]
         omega
       omega
-    calc ∑' y, (handler q s) y *
-          ((interpret handler (cont y.1)).run y.2).toOuterMeasure {x | bad x.2}
-        ≤ ∑' y, (handler q s) y * ({x : spec q × σ | bad x.2}.indicator 1 y + K) :=
-          tsum_le_tsum hterm
-      _ = (handler q s).toOuterMeasure {x | bad x.2} + K := by
-          simp only [mul_add, tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul,
-            Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator]
+    calc _ ≤ (handler q s).toOuterMeasure {x | bad x.2} + K :=
+          Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ _ fun y hmem hy =>
+            (ih y.1 (hcont₂ y.1) hy).trans (by
+              simp only [K, M]
+              gcongr
+              exact hgrow q s hs y hmem hy)
       _ ≤ (cost₁ q * size s + (cost₁ q).choose 2 : ℕ) * δ + K :=
           add_le_add (hstep q s hs) le_rfl
       _ = ((cost₁ q * size s + (cost₁ q).choose 2 + M : ℕ) : ℝ≥0∞) * δ := by

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.NearNeighbor.LSH
 public import CslibFrontier.Probability.LocalitySensitiveHash.Measure
 import CslibFrontier.Probability.EventCount
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.MeasureTheory.Integral.Lebesgue.Markov
 import Mathlib.MeasureTheory.Measure.Real
 
@@ -169,10 +170,9 @@ theorem measureReal_query_eq_none_le {far : X → X → Prop} [DecidableRel far]
     refine (measure_mono hsub).trans ((measure_union_le A B).trans ?_)
     rw [hA]
     exact add_le_add le_rfl hB
-  refine (ENNReal.toReal_le_add hle (ENNReal.pow_ne_top (measure_ne_top _ _)) hBfin).trans ?_
-  rw [ENNReal.toReal_pow, hcompl, ENNReal.toReal_div, ENNReal.toReal_mul, ENNReal.toReal_mul,
-    ENNReal.toReal_natCast, ENNReal.toReal_natCast, ENNReal.toReal_natCast,
-    ENNReal.toReal_ofReal hP₂, ← mul_assoc]
+  ennreal_to_real at hle
+  refine hle.trans ?_
+  rw [hcompl, ← mul_assoc]
   have h1 : 0 ≤ 1 - measureCollisionProb ν g x₀ q :=
     sub_nonneg.2 (measureCollisionProb_le_one _ _ _ _)
   gcongr

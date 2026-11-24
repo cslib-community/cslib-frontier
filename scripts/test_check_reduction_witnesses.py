@@ -510,6 +510,73 @@ class MainTests(unittest.TestCase):
         self.assertIn("every module is enforced", out)
         self.assertIn(f"{SIGNATURE_PATH}:30: {EXEMPT}", err)
 
+    def test_advisory_mode_prints_a_new_reduction_and_succeeds(self) -> None:
+        # Outside GitHub Actions there is no workflow notice, whatever the caller's environment.
+        with mock.patch.dict(c.os.environ, {"GITHUB_ACTIONS": "false"}):
+            code, out, err = self.run_main({}, "--advisory")
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn("prompt to look, not a failure", out)
+        self.assertIn(f"{SCHNORR_PATH}:20: {UNCERTIFIED}", out)
+        self.assertIn("bound stated by `Cslib.Crypto.Schnorr.succProbability_le`", out)
+        # The untouched module is counted, not listed.
+        self.assertNotIn(EXEMPT, out)
+        self.assertIn("advisory, nothing is enforced. 1 more difference(s) in modules this "
+                      "change does not touch", out)
+        self.assertNotIn("::notice", out)
+        with mock.patch.dict(c.os.environ, {"GITHUB_ACTIONS": "true"}):
+            code, out, _ = self.run_main(None, "--advisory")
+        self.assertEqual(code, 0)
+        self.assertIn("::notice title=Reduction witnesses (advisory)::1 difference(s)", out)
+
+    def test_advisory_mode_prints_stale_and_unverified_entries_and_succeeds(self) -> None:
+        with mock.patch.object(c.cer, "touched_modules", return_value={ELGAMAL_PATH}):
+            code, out, err = self.run_main({**BASELINE, CERTIFIED: entry(ELGAMAL_PATH)},
+                                           "--advisory")
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn(f"{ELGAMAL_PATH}: {CERTIFIED} (certified (direct:", out)
+        reductions, _ = c.parse(VIA_OUTPUT)
+        problem = "headline `H` mentions neither `X` nor `Y` in its statement or proof"
+        with mock.patch.object(c, "scan", return_value=(reductions,
+                                                        c.parse_checks(check_row([problem])))):
+            code, out, err = self.run_main({**BASELINE, VIA_REDUCTION: VIA_ENTRY},
+                                           "--all", "--advisory")
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn(f"{GARBLING_PATH}: {VIA_REDUCTION}: {problem}", out)
+
+    def test_advisory_mode_is_quiet_without_differences(self) -> None:
+        with mock.patch.dict(c.os.environ, {"GITHUB_ACTIONS": "true"}):
+            code, out, err = self.run_main(BASELINE, "--advisory")
+        self.assertEqual((code, err), (0, ""))
+        self.assertNotIn("::notice", out)
+        self.assertIn("checking 1 changed module(s); advisory, nothing is enforced.\n", out)
+
+    def test_advisory_mode_reports_every_module_when_the_checker_changes(self) -> None:
+        with mock.patch.object(c, "checker_changed", return_value=True):
+            code, out, _ = self.run_main({}, "--advisory")
+        self.assertEqual(code, 0)
+        self.assertIn("every module is reported", out)
+        self.assertIn(f"{SIGNATURE_PATH}:30: {EXEMPT}", out)
+
+    def test_advisory_mode_still_fails_on_a_broken_tool(self) -> None:
+        # A malformed baseline and a crashed scan are errors, not findings.
+        self.baseline.write_text(json.dumps({UNCERTIFIED: {"module": SCHNORR_PATH,
+                                                           "kind": "known", "why": "x"}}))
+        with self.assertRaises(SystemExit) as raised:
+            self.run_main(None, "--advisory")
+        self.assertIn("expected a JSON object", str(raised.exception.code))
+        self.baseline.write_text("{not json")
+        with self.assertRaises(json.JSONDecodeError):
+            self.run_main(None, "--advisory")
+        with mock.patch.object(c, "scan", side_effect=SystemExit("the reader failed")), \
+                self.assertRaises(SystemExit) as raised:
+            self.run_main({}, "--advisory")
+        self.assertEqual(raised.exception.code, "the reader failed")
+
+    def test_advisory_mode_does_not_write_the_baseline(self) -> None:
+        with self.assertRaises(SystemExit) as raised:
+            self.run_main({}, "--advisory", "--update-baseline")
+        self.assertEqual(raised.exception.code, 2)
+
     def test_report_mode_succeeds(self) -> None:
         code, out, _ = self.run_main({}, "--report")
         self.assertEqual(code, 0)
@@ -1119,8 +1186,8 @@ class CompiledFixtureTests(unittest.TestCase):
 
 class CommittedFilesTests(unittest.TestCase):
     """These run on every event, merge groups included, so they check only the baseline file
-    itself. Whether its entries match the library (a moved or deleted module, say) is the pull
-    request check's job, which merge groups only report."""
+    itself. Whether its entries match the library (a moved or deleted module, say) is for the
+    advisory reports to show."""
 
     def test_baseline_is_canonical_and_justified(self) -> None:
         baseline = c.load_baseline(c.BASELINE)

@@ -36,7 +36,10 @@ oracle (`RandomizedROAdversary.FullQueryBounds A qG qH qD`),
   + 2 (qG + qH + qD) 2^{-γ}`,
 
 where `B = romBotCpaReduction A` is one two-stage IND-CPA adversary that draws its own challenge
-messages. Unlike the
+messages. This concrete bound is the per-parameter step of the asymptotic theorem for the
+word-level family, `WordPKE.INDCPA.romINDCCABot` in
+`CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordSecurity`, which applies the IND-CPA
+assumption to the certified word-level reduction `WordPKE.romBotCpaReductionWord`. Unlike the
 implicit-rejection transform `FO-notbot` (module
 `CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot`), `FO^⊥` has no secret fallback seed
 and therefore no `2 qH / |M|` seed-guessing term; conversely, because `decapsBot` explicitly
@@ -108,9 +111,10 @@ Def. 2.4 / Fig. 4.
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.Scheme.advantage_eagerIndCcaBotGame_simBotGame_le`: the
   eager `FO^⊥` IND-CCA game and the keyless simulator game `simBotGame` differ by at most
   `(qG + qH + 1) δ + qD · 2^{-γ}`.
-* `Cslib.Crypto.Protocols.FujisakiOkamoto.Scheme.indCcaBotAdvantage_le`: ROM IND-CCA security of
-  `FO^⊥` from two-stage IND-CPA security, `δ`-correctness and `γ`-spreadness, through the one
-  reduction `romBotCpaReduction A`.
+* `Cslib.Crypto.Protocols.FujisakiOkamoto.Scheme.indCcaBotAdvantage_le`: the concrete ROM IND-CCA
+  bound for `FO^⊥` over one scheme, from the two-stage IND-CPA advantage of the one reduction
+  `romBotCpaReduction A`, `δ`-correctness and `γ`-spreadness; the per-parameter step of
+  `WordPKE.INDCPA.romINDCCABot`.
 
 ## References
 
@@ -142,7 +146,8 @@ against the lazy random oracles `G` and `H`. -/
 def roBotHandler (S : Scheme PK SK M R CT K) (pk : PK) (sk : SK) (cStar : CT)
     (q : ROQuery M CT) : StateT (ROCache M R CT K) ProbComp (ROResp R K q) :=
   ROQuery.dispatch (roHashG S.pke.sampleCoins) (roHashH S.sampleKey)
-    (S.decapsBotM (roHashG S.pke.sampleCoins) (roHashH S.sampleKey) pk sk) cStar q
+    (S.decapsBotM (roHashG S.pke.sampleCoins)
+      (fun mc => roHashH S.sampleKey (false, mc)) pk sk) cStar q
 
 /-- The executable ROM IND-CCA security game for `FO^⊥ = U^⊥ ∘ T` with bit `b : Bool`. When
 `b = false`, the adversary receives the real encapsulated key `kReal = H(false, m*, c*)`; when
@@ -169,12 +174,12 @@ noncomputable def indCcaBotAdvantage (S : Scheme PK SK M R CT K)
   Experiment.advantage (A.play S.roIndCcaBotGame false) (A.play S.roIndCcaBotGame true)
 
 /-- Stateless handler for `S.eagerIndCcaBotGame`: `G` and `H` are complete functions and
-decapsulation queries for `c ≠ cStar` evaluate `S.decapsBot G H pk sk c`. -/
+decapsulation queries for `c ≠ cStar` evaluate `S.decapsBot G (fun mc => H (false, mc)) pk sk c`. -/
 noncomputable def eagerBotHandler (S : Scheme PK SK M R CT K) (G : M → R)
     (H : Bool × M × CT → K) (pk : PK) (sk : SK) (cStar : CT) (q : ROQuery M CT) :
     PMF (ROResp R K q) :=
-  ROQuery.dispatch (PMF.pure ∘ G) (PMF.pure ∘ H) (fun c => PMF.pure (S.decapsBot G H pk sk c))
-    cStar q
+  ROQuery.dispatch (PMF.pure ∘ G) (PMF.pure ∘ H)
+    (fun c => PMF.pure (S.decapsBot G (fun mc => H (false, mc)) pk sk c)) cStar q
 
 /-- The eager random-oracle IND-CCA game for `FO^⊥`, defined directly from `S.pke.keyGen`,
 `S.encapsBot`, and `S.decapsBot` over eager random oracles `G ← S.coinTable` and
@@ -184,7 +189,7 @@ noncomputable def eagerIndCcaBotGame [Fintype M] [Finite R] [Fintype CT] [Finite
   let (pk, sk) ← ProbComp.eval S.pke.keyGen
   let G ← S.coinTable
   let H ← S.keyTable (Bool × M × CT)
-  let (cStar, kReal) ← ProbComp.eval (S.encapsBot G H pk)
+  let (cStar, kReal) ← ProbComp.eval (S.encapsBot G (fun mc => H (false, mc)) pk)
   let kRand ← ProbComp.eval S.sampleKey
   let kStar := if b then kRand else kReal
   OracleComp.interpret (S.eagerBotHandler G H pk sk cStar) (A ⟨pk, cStar, kStar⟩)
@@ -194,7 +199,7 @@ omit [DecidableEq M] in
 def botDecaps (S : Scheme PK SK M R CT K) (pk : PK) (sk : SK) (c : CT) :
     OracleComp (ROSpec M R CT K) (Option K) :=
   S.decapsBotM (fun m => OracleComp.query (spec := ROSpec M R CT K) (Sum.inl m))
-    (fun x => OracleComp.query (spec := ROSpec M R CT K) (Sum.inr x)) pk sk c
+    (fun x => OracleComp.query (spec := ROSpec M R CT K) (Sum.inr (false, x))) pk sk c
 
 /-- `roBotHandler` is the lazy handler of `romProgram` with `FO^⊥` decapsulation. -/
 theorem roBotHandler_eq_romHandler (S : Scheme PK SK M R CT K) (pk : PK) (sk : SK) (cStar : CT) :
@@ -208,11 +213,12 @@ omit [DecidableEq M] in
 theorem eagerBotHandler_eq_romEagerHandler (S : Scheme PK SK M R CT K) (G : M → R)
     (H : Bool × M × CT → K) (pk : PK) (sk : SK) (cStar : CT) :
     S.eagerBotHandler G H pk sk cStar = romEagerHandler G H (S.botDecaps pk sk) cStar := by
-  have hd (c : CT) : PMF.pure (S.decapsBot G H pk sk c) = OracleComp.interpret
-      (OracleComp.sumHandler (fun m => PMF.pure (G m)) (fun x => PMF.pure (H x)))
-      (S.botDecaps pk sk c) := by
+  have hd (c : CT) : PMF.pure (S.decapsBot G (fun mc => H (false, mc)) pk sk c) =
+      OracleComp.interpret
+        (OracleComp.sumHandler (fun m => PMF.pure (G m)) (fun x => PMF.pure (H x)))
+        (S.botDecaps pk sk c) := by
     simp only [botDecaps, interpret_decapsBotM, OracleComp.interpret_query]
-    change _ = S.decapsBotM (m := PMF) (pure ∘ G) (pure ∘ H) pk sk c
+    change _ = S.decapsBotM (m := PMF) (pure ∘ G) (pure ∘ fun mc => H (false, mc)) pk sk c
     rw [decapsBotM_pure]
     rfl
   funext q
@@ -694,8 +700,9 @@ theorem advantage_eagerIndCcaBotGame_simBotGame_le [Fintype M] [Nonempty M] [Fin
     _ ≤ qD * (2 : ℝ) ^ (-γ) + ((qG + qH + 1 : ℕ) : ℝ) * δ := add_le_add h₁ h₂
     _ = ((qG + qH + 1 : ℕ) : ℝ) * δ + qD * (2 : ℝ) ^ (-γ) := add_comm _ _
 
-/-- **ROM IND-CCA security of `FO^⊥ = U^⊥ ∘ T` from two-stage IND-CPA**
-([HofheinzHoevelmannsKiltz2017], Theorems 3.2 and 3.3, composed directly). Let the messages be
+/-- The concrete ROM IND-CCA bound for `FO^⊥ = U^⊥ ∘ T` over one fixed scheme, the step at each
+parameter of `WordPKE.INDCPA.romINDCCABot`; it is not the bound of
+[HofheinzHoevelmannsKiltz2017], whose Theorems 3.2 and 3.3 it follows. Let the messages be
 uniform, the PKE `δ`-correct and `γ`-spread, and let every coin value of the randomized adversary
 `A` make at most `qG` queries to `G`, `qH` queries to `H` and `qD` queries to `decaps`. Then the
 single IND-CPA reduction `romBotCpaReduction A` satisfies
@@ -706,7 +713,25 @@ replies and the independent ideal challenge key in `roIndCcaBotGame` and `eagerI
 drawn from the arbitrary key sampler `S.sampleKey : ProbComp K`; taking `S.sampleKey` uniform on
 `K` recovers the standard uniform-ideal-key experiment of [HofheinzHoevelmannsKiltz2017], §2.2,
 Def. 2.4 / Fig. 4. This is a concrete bound for one fixed scheme; it says nothing about the running
-time of the reduction. -/
+time of the reduction, which the word-level reduction `WordPKE.romBotCpaReductionWord` certifies.
+
+*Relation to the source* (IACR ePrint 2017/604, version of 2 November 2021). The proof follows the
+game hops of Theorem 3.2 (`T`, p. 12) and Theorem 3.3 (`U^⊥`, p. 14) but composes them directly,
+without the intermediate OW-PCVA game, and its bound differs from theirs in every term. In HHK17's
+hidden-bit convention (halving both sides) it reads
+`Adv(A) ≤ 2 · Adv^{IND-CPA}(romBotCpaReduction A) + (qG + qH) / |M| + (qG + qH + 1) δ
+  + (qG + qH + qD) 2^{-γ}`,
+while composing the two theorems as stated, with the at most `qH` plaintext-checking and `qH`
+validity queries that Theorem 3.3 gives its OW-PCVA adversary, yields, for some IND-CPA adversary
+`A'`,
+`Adv(A) ≤ 3 · Adv^{IND-CPA}(A') + (2 qG + 1) / |M| + (qG + qH) δ + qH 2^{-γ}`,
+which the `FO^⊥` row of the §3.3 table (p. 22) simplifies to
+`q_RO (δ + 2^{-γ}) + 3 q_RO / |M| + 3 · Adv^{IND-CPA}(A')` with `q_RO = qG + qH`. Neither bound
+implies the other: this one has the smaller IND-CPA coefficient, and the smaller message-space term
+when `qH ≤ qG + 1`, but a correctness term larger by `δ` and a spreadness term that grows with `qG`
+and `qD`. The query counts are not the same either: HHK17 counts every evaluation of `G` and `H` in
+the experiment, the experiment's own included (§2.1, p. 9), while `FullQueryBounds` counts only
+the adversary's explicit queries. -/
 theorem indCcaBotAdvantage_le [Fintype M] [Nonempty M] [Finite R] [Finite CT] [Finite K]
     (S : Scheme PK SK M R CT K) (A : RandomizedROAdversary PK M R CT K) {qG qH qD : ℕ}
     (hq : A.FullQueryBounds qG qH qD)
