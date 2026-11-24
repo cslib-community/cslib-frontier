@@ -43,7 +43,7 @@ it by the bit "position `0` holds `0`" and, for every position `i`, by
 ## References
 
 * [L. G. Valiant, *Completeness classes in algebra*][Valiant1979Algebra]
-* [Claude, *VP ≠ VNP over every field*][Anthropic2026VPVNP]
+* [Claude, *VP ≠ VNP over every field*][AnthropicVPVNP2026]
 -/
 
 public section
@@ -277,7 +277,7 @@ private theorem totalDegree_hcWitness_le :
   · simp
 
 /-- **The Hamiltonian cycle family belongs to `VNP`** over every commutative ring `K`
-[Claude, *VP ≠ VNP over every field*][Anthropic2026VPVNP]. The witness sums over `n * n` bits a
+[Claude, *VP ≠ VNP over every field*][AnthropicVPVNP2026]. The witness sums over `n * n` bits a
 polynomial with circuits of `O(n ^ 4)` nodes. -/
 theorem hcFamily_mem_VNP : hcFamily K ∈ VNP K := by
   have hb : PolynomiallyBounded fun n => 40 * (n + 1) ^ 4 :=

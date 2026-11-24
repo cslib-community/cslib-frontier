@@ -34,7 +34,7 @@ Padding segments fill up any larger size.
 
 ## References
 
-* [Claude, *VP ≠ VNP over every field*][Anthropic2026VPVNP], Proposition prop:hc-grid
+* [Claude, *VP ≠ VNP over every field*][AnthropicVPVNP2026], Proposition prop:hc-grid
 -/
 
 
@@ -726,7 +726,7 @@ namespace Matrix
 open Finset HamiltonianCycleGrid
 
 /-- **Grid sums are Hamiltonian cycle sums** [Claude, *VP ≠ VNP over every
-field*][Anthropic2026VPVNP], Proposition prop:hc-grid. In every commutative semiring, for
+field*][AnthropicVPVNP2026], Proposition prop:hc-grid. In every commutative semiring, for
 surjections `v : N → V` and `w : N → K` of finite types and weights `W n x r`, the grid sum `∑ x, ∑
 r, ∏ n, W n (x (v n)) (r (w n))` is the Hamiltonian cycle sum of an `S × S` matrix, for every `S ≥
 40 * |N|`, whose entries are `0`, `1` and single values `W n x r`. -/

@@ -20,7 +20,7 @@ negative power of `ε`, and the terms without `ε` are those of `P`. `P` is *app
 nodes* (`ApproximatedWithin`) when such a `Q` is computed within `s` nodes over `K⸨X⸩`, the
 circuit's
 constants being Laurent series. This is approximative (border) complexity in the form of
-[Claude, *VP ≠ VNP over every field*][Anthropic2026VPVNP]. The closure `VPBar K` of
+[Claude, *VP ≠ VNP over every field*][AnthropicVPVNP2026]. The closure `VPBar K` of
 `VP K` consists of the p-families approximated within polynomially many nodes.
 
 The constants of an approximating circuit may be cut off at a high power of `ε`: changing every
@@ -45,7 +45,7 @@ Laurent polynomials (`ApproximatedWithin.exists_laurentPolynomial`).
 
 ## References
 
-* [Claude, *VP ≠ VNP over every field*][Anthropic2026VPVNP]
+* [Claude, *VP ≠ VNP over every field*][AnthropicVPVNP2026]
 -/
 
 public section
@@ -137,7 +137,7 @@ theorem ApproximatedWithin.of_isAffineProjection {P : MvPolynomial σ K} {Q : Mv
 
 /-! ### The closure of VP -/
 
-/-- The closure `VPBar K` of `VP K` [Claude, *VP ≠ VNP over every field*][Anthropic2026VPVNP]:
+/-- The closure `VPBar K` of `VP K` [Claude, *VP ≠ VNP over every field*][AnthropicVPVNP2026]:
 the p-families whose members are approximated within a polynomially bounded number of nodes. -/
 @[expose] def VPBar (K : Type u) [CommRing K] : Set (PolynomialFamily K) :=
   {f | f.IsPFamily ∧ ∃ b : ℕ → ℕ, PolynomiallyBounded b ∧ ∀ n, ApproximatedWithin (f.poly n) (b n)}

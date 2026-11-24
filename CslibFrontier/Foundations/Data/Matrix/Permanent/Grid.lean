@@ -42,7 +42,7 @@ chosen with the fibres of `v` and `w` as cycles.
 
 ## References
 
-* [Claude, *VP ≠ VNP over every field*][Anthropic2026VPVNP], Proposition prop:grid
+* [Claude, *VP ≠ VNP over every field*][AnthropicVPVNP2026], Proposition prop:grid
 -/
 
 public section
@@ -528,7 +528,7 @@ private theorem exists_permanent_fin {R C : Type*} [CommRing R] [Fintype C] [Dec
       · exact Or.inl (Or.inr rfl)
       · exact Or.inl (Or.inl rfl)
 
-/-- **Grid sums are permanents** [Claude, *VP ≠ VNP over every field*][Anthropic2026VPVNP],
+/-- **Grid sums are permanents** [Claude, *VP ≠ VNP over every field*][AnthropicVPVNP2026],
 Proposition prop:grid. Let `R` be a commutative ring in which `2` has an inverse `h`, let
 `v : N → V` and `w : N → K` be surjections of finite types, and let `W n x r ∈ R`. Then the grid
 sum `∑ x, ∑ r, ∏ n, W n (x (v n)) (r (w n))` is the permanent of an `S × S` matrix, for every

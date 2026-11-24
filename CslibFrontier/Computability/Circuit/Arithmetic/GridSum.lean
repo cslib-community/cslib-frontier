@@ -45,7 +45,7 @@ sums, hence affine projections of every family complete for grid sums
 
 ## References
 
-* [Claude, *VP ≠ VNP over every field*][Anthropic2026VPVNP], Proposition prop:grid,
+* [Claude, *VP ≠ VNP over every field*][AnthropicVPVNP2026], Proposition prop:grid,
   Corollary cor:clauses, Proposition prop:hc-grid
 -/
 
@@ -106,7 +106,7 @@ private theorem map_aeval_genericMatrix {S : ℕ} (M : Matrix (Fin S) (Fin S) (M
   simp [genericMatrix, entries]
 
 /-- **The permanent is complete for grid sums** with blow-up `3` when `2 ≠ 0`
-[Claude, *VP ≠ VNP over every field*][Anthropic2026VPVNP], Proposition prop:grid. -/
+[Claude, *VP ≠ VNP over every field*][AnthropicVPVNP2026], Proposition prop:grid. -/
 theorem gridComplete_permFamily (h2 : (2 : K) ≠ 0) : GridComplete (permFamily K) 3 := by
   intro ι N V W' _ _ _ _ _ v w hv hw W o hW S hS
   have hC2 : (C (2⁻¹ : K) : MvPolynomial ι K) * 2 = 1 := by
@@ -129,7 +129,7 @@ theorem gridComplete_permFamily (h2 : (2 : K) ≠ 0) : GridComplete (permFamily 
     exact hW n x r
 
 /-- **The Hamiltonian cycle polynomial is complete for grid sums** with blow-up `40` in every
-characteristic [Claude, *VP ≠ VNP over every field*][Anthropic2026VPVNP], Proposition
+characteristic [Claude, *VP ≠ VNP over every field*][AnthropicVPVNP2026], Proposition
 prop:hc-grid. -/
 theorem gridComplete_hcFamily : GridComplete (hcFamily K) 40 := by
   intro ι N V W' _ _ _ _ _ v w hv hw W o hW S hS
@@ -153,7 +153,7 @@ noncomputable def clauseSum {R V Θ : Type*} [CommRing R] [Fintype V] [Decidable
   ∑ x : V → Bool, ∏ κ, if ∀ l ∈ lits κ, x l.1 = l.2 then wt κ else 1
 
 /-- **Clause sums are affine projections** of every family complete for grid sums
-[Claude, *VP ≠ VNP over every field*][Anthropic2026VPVNP], Corollary cor:clauses. Let every clause
+[Claude, *VP ≠ VNP over every field*][AnthropicVPVNP2026], Corollary cor:clauses. Let every clause
 have a literal, every bit occur in a literal, and every weight be a variable or a constant. Then
 the clause sum is an affine projection of `G.poly S` for every `S ≥ κ * N`, where `N` is the total
 number of literals. Each literal is an incidence between its bit and its clause. -/

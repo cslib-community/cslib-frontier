@@ -37,7 +37,7 @@ in which it visits them from `0` on (`hamiltonianCycleSum_eq_sum_orders`).
 
 ## References
 
-* [Claude, *VP ≠ VNP over every field*][Anthropic2026VPVNP]
+* [Claude, *VP ≠ VNP over every field*][AnthropicVPVNP2026]
 -/
 
 public section

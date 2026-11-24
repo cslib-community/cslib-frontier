@@ -19,7 +19,7 @@ arithmetic circuit with at most `s` nodes: some `n` of its variables feed a circ
 `c : Circuit (arithSignature K) n 1` whose output is `P` as a formal polynomial, and
 `n + c.size ≤ s`. Inputs count one node each, like constants, additions and multiplications. This
 is the node count of [Arora and Barak, Section 6.1][AroraBarak09] and of the circuits of
-[Claude, *VP ≠ VNP over every field*][Anthropic2026VPVNP], which are lists of `s` polynomials,
+[Claude, *VP ≠ VNP over every field*][AnthropicVPVNP2026], which are lists of `s` polynomials,
 each a variable, a constant, or the sum or product of two earlier ones. For polynomial families
 the convention does not matter: `Cslib.Circuits.Arithmetic.mem_VP_iff` characterizes `VP` by
 `ComputedWithin`.
@@ -53,7 +53,7 @@ gates for each input, hence at most a factor five (`ComputedWithin.of_isAffinePr
 
 * [S. Arora and B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09],
   Section 6.1
-* [Claude, *VP ≠ VNP over every field*][Anthropic2026VPVNP]
+* [Claude, *VP ≠ VNP over every field*][AnthropicVPVNP2026]
 -/
 
 public section
