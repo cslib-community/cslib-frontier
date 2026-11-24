@@ -1,8 +1,7 @@
 # Mechanism design
 
-The modules under `CslibFrontier/GameTheory/Mechanism/` formalize direct, randomized, indirect, and
-Bayesian mechanisms with quasilinear utilities, following Roughgarden's CS364A lecture notes (2013),
-Lectures 2–5 and 7, and [Nisan][nisan07] (Chapter 9 of *Algorithmic Game Theory*, 2007).
+The modules under `CslibFrontier/GameTheory/Mechanism/` formalize sealed-bid mechanisms with
+quasilinear utilities, following Roughgarden's CS364A lecture notes (2013), Lectures 2–5 and 7.
 They are mathematical models of incentives: allocation and payment rules are arbitrary real
 functions, and no running time is charged. Hardness and approximation of the allocation
 problems, such as knapsack, are separate questions. Preference aggregation without money, starting
@@ -63,20 +62,6 @@ index (`Wins`), and pays `highestOtherBid b i`, which is `0` with a single bidde
 `singleItemFeasible`) and `mechanism_payment_eq_myersonPayment` are Lecture 2, Claims 4.1–4.2 and
 Theorem 5.1 (1)–(2), and Lecture 3, §6.
 
-`CslibFrontier.GameTheory.Mechanism.MultiUnit` treats single-minded multi-unit auctions of `k`
-identical items over `multiUnitFeasible k` (0-1 vectors with `∑ xᵢ ≤ k`; [Nisan][nisan07], §9.3.5.4,
-p. 221). Ordering bidders by bid with ties broken towards
-smaller indices (`Beats`, 0-indexed `rank`), `allocation k` awards one item to each bidder with
-`rank b i < k` and maximizes welfare (`isWelfareMaximizing_allocation`). Charging every winner the
-uniform `(k + 1)`-st highest bid (`bidAtRank k b`, `0` when `Fintype.card ι ≤ k`) defines
-`MultiUnit.mechanism k`, which agrees on nonnegative bids with `criticalBidMechanism (allocation k)`
-and `myerson (allocation k)` (`criticalBidMechanism_eq_on_nonneg`,
-`mechanism_payment_eq_myersonPayment`) and is DSIC, IR and normalized (`mechanism_isDSIC`,
-`mechanism_isIR`, `mechanism_isNormalized`). By contrast, charging the `j`-th highest bidder
-(`1 ≤ j ≤ k`) the `(j + 1)`-st highest bid (`MultiUnit.nextBidMechanism k`) fails `IsDSIC` whenever
-`2 ≤ k` and `2 ≤ Fintype.card ι` (`not_isDSIC_nextBidMechanism`), with both bounds tight
-(`nextBidMechanism_one_eq_mechanism`, `nextBidMechanism_isDSIC_of_card_le_one`).
-
 `CslibFrontier.GameTheory.Mechanism.Knapsack` defines `knapsackFeasible w W`, the 0-1 vectors with
 `∑ wᵢ xᵢ ≤ W`. `exists_knapsack_isWelfareMaximizing` gives a welfare-maximizing rule whose
 critical-bid mechanism is DSIC and IR with Myerson's payments (Lecture 4, §1.2–1.3). It is an
@@ -116,81 +101,12 @@ welfare-maximizing rule that picks `winner b` on the linear valuations of `b` ma
 and charge at `b` exactly as `Vickrey.mechanism` (`vcg_toSingleParameter_eq_of_eq_winner`), and
 `exists_vcg_toSingleParameter_eq` provides such a rule for all nonnegative bids.
 
-`CslibFrontier.GameTheory.Mechanism.Domains` completes restricted-domain direct mechanisms and the
-feasible-set bridge ([Nisan][nisan07], Definitions 9.14, 9.15 and 9.18, Theorem 9.17, Lemma 9.20,
-and §9.3.5.1):
-
-- `Mechanism.IsIROn M V` and `Mechanism.NoPositiveTransfersOn M V` quantify over profiles `∀ j, b j
-  ∈ V j`, with `V i = Set.univ` characterized by `isIROn_univ_iff` and
-  `noPositiveTransfersOn_univ_iff` (`IsIR.isIROn` transfers `IsIR` to any domain of nonnegative
-  valuations). `groves_isDSICOn`, `vcg_isDSICOn`, `vcg_noPositiveTransfersOn` and `vcg_isIROn`
-  (assuming nonnegative valuations on `V`) give restricted-domain Groves and VCG.
-- `isIR_toSingleParameter_iff` and `SingleParameter.Mechanism.isIR_iff_isIROn_toMechanism` supply
-  the `IsIR` half of the linear-valuation equivalence. More directly,
-  `SingleParameter.Mechanism.toMechanismOn` embeds any single-parameter mechanism whose allocations
-  on nonnegative bids belong to `X : Set (ι → ℝ)` into `Mechanism ι X`, with `IsDSICOn` and `IsIROn`
-  equivalences on `linearDomain Subtype.val` whenever each bidder has some outcome in `X` with
-  nonzero coordinate (`isDSIC_iff_isDSICOn_toMechanismOn`, `isIR_iff_isIROn_toMechanismOn`).
-- `SingleParameter.Vickrey.vcgOutcome` runs `Mechanism.vcg` directly on the feasible-set subtype
-  `Vickrey.singleItemFeasible` and pulls back via `toSingleParameter Subtype.val` to
-  `Vickrey.mechanism` on every nonnegative bid profile (`vcg_singleItemFeasible_allocation`,
-  `vcg_singleItemFeasible_payment`).
-
-## Randomized, indirect and Bayesian mechanisms, and the revelation principles
-
-`CslibFrontier.GameTheory.Mechanism.Randomized` models randomized direct mechanisms as discrete
-distributions `RandomizedMechanism ι Ω` wrapping `PMF (Mechanism ι Ω)` ([Nisan][nisan07], §9.5.6,
-Definition 9.38). `IsUniversallyDSICOn R V` asks that every deterministic mechanism in
-`R.dist.support` satisfy `IsDSICOn V`, whereas `IsTruthfulInExpectationOn R V` asks that truthful
-reporting maximize expected quasilinear utility `R.expectedUtility i v b`. Whenever expected
-utilities are summable across `R.dist` (`HasSummableUtilityOn`, automatic for finite support or
-bounded utilities), universal truthfulness implies truthfulness in expectation
-(`IsUniversallyDSICOn.isTruthfulInExpectationOn`,
-`IsUniversallyDSICOn.isTruthfulInExpectationOn_of_support_finite`). The converse fails even for one
-agent and two outcomes (`Bool`) on nonnegative valuations: `coinFlipMechanism` has expected utility
-`(v true + v false) / 2 - 1` independent of the report (`coinFlipMechanism_isTruthfulInExpectation`)
-while neither deterministic branch in its support is DSIC
-(`not_isUniversallyDSICOn_coinFlipMechanism`,
-`exists_isTruthfulInExpectation_not_isUniversallyDSIC`).
-
-`CslibFrontier.GameTheory.Mechanism.Indirect` formalizes normal-form indirect protocols and both the
-dominant-strategy and Bayesian revelation principles ([Nisan][nisan07], §9.4 and §9.6.1):
-
-- `IncompleteInfoGame ι T X` (Definition 9.21) gives each player a type space `T i`, an action space
-  `X i` and a private-value utility `utility i : T i → (∀ j, X j) → ℝ`. Strategy profiles
-  `s : ∀ i, T i → X i` admit `IsDominantStrategyEquilibrium` and `IsExPostNash` (Definition 9.22,
-  equivalent to pure Nash equilibrium of `fullInfoCostGame` at every type profile via
-  `isExPostNash_iff_forall_isPureNash`). Restricting each action space `X i` to `Set.range (s i)`
-  (`restrictRange`) turns any ex-post Nash equilibrium into a dominant-strategy equilibrium
-  (`IsExPostNash.isDominantStrategyEquilibrium_restrictRange`, Proposition 9.23).
-- `IndirectMechanism ι X Ω` pairs `outcome : (∀ i, X i) → Ω` with `payment : (∀ i, X i) → ι → ℝ`.
-  Composing `M` with an equilibrium `s` yields the direct mechanism `M.revelation s` (`X' = T`) with
-  identical equilibrium outcomes and payments, proving the dominant-strategy revelation principle
-  (`revelation_isTruthful`, `exists_truthful_of_implementsInDominantStrategies`, Proposition 9.25)
-  and its ex-post-Nash corollary (`revelation_isTruthful_of_isExPostNash`,
-  `exists_truthful_of_implementsInExPostNash`, `toMechanism_isDSICOn_of_isExPostNash`,
-  Corollary 9.26).
-- `BayesianGame ι T X` (Definitions 9.40–9.41) adds independent prior measures `prior i : Measure
-  (T i)` (with discrete `PMF` constructor `BayesianGame.ofPMF`), defining `interimUtility` against
-  `Measure.pi B.prior`, `IsBayesNashOn` and `IsBayesNash` (`isBayesNash_of_isExPostNash`).
-  `SingleParameter.Mechanism.toBayesianGame` and `isBayesNash_iff_toBayesianGame` bridge
-  single-parameter `IsBayesNash` to `BayesianGame.IsBayesNashOn`.
-- `BayesianMechanism ι T X Ω` and `Mechanism.IsBICOn` (Definitions 9.42–9.43) formalize Bayesian
-  implementation and Bayesian incentive compatibility. Composing any Bayesian implementation `(M,
-  s)` produces a truthful direct `M.revelation s` preserving priors, valuations, outcomes, ex-post
-  payments and `interimPayment` (`BayesianMechanism.revelation_isTruthful`,
-  `BayesianMechanism.revelation_interimPayment_eq`,
-  `BayesianMechanism.exists_truthful_of_implementsInBayesNash`, `IndirectMechanism.toMechanism_isBICOn`,
-  Proposition 9.44).
-
 ## Revenue maximization: virtual values and Myerson's optimal auction
 
 Import `CslibFrontier.GameTheory.Mechanism.OptimalAuction` (Lecture 5; Myerson 1981). Valuations are
 independent, bidder `i`'s drawn from `μ i`. Expectations are Bochner integrals over the product
-`Measure.pi μ` of the payments at truthful bids `v`. Here a DSIC mechanism is compared directly
-with other DSIC mechanisms, both played truthfully (for the Bayesian revelation principle reducing
-indirect Bayes–Nash equilibria to truthful direct mechanisms, see
-`CslibFrontier.GameTheory.Mechanism.Indirect` above).
+`Measure.pi μ` of the payments at truthful bids `v`. The revelation principle is not formalized: a
+DSIC mechanism is compared with other DSIC mechanisms, both played truthfully.
 
 - `HasValueDensity μ f h` says `μ = (volume.restrict (Icc 0 h)).withDensity f` with
   `f : ℝ → NNReal` measurable and positive on `(0, h)`. Positivity matters: `virtualValue μ f v =
@@ -398,17 +314,8 @@ on top (`Ranking.extend`).
 
 The ranking operations used by the proof are in the Ranking module: `Ranking.top`,
 `Ranking.toTopSet`, `Ranking.restrict` and `Ranking.extend`, each with a definitional `_iff` lemma
-or membership lemmas, together with the profile-wide operation `Profile.toTopSet` in
-`GibbardSatterthwaite.lean`. The companion module
-`CslibFrontier.GameTheory.SocialChoice.GibbardSatterthwaiteReduction` exposes Nisan's standalone
-primitives ([Nisan][nisan07], §9.2.3–9.2.4): single-voter monotonicity `IsSingleMonotone` and its
-equivalences `isSingleMonotone_iff_isStrategyProof` (Proposition 9.6, requiring no finiteness) and
-`isSingleMonotone_iff_isMaskinMonotone`, plus the induced social welfare function `nisanSWF` and
-strict-ranking wrapper `nisanRanking` (`nisanSWF_antisymm`, `toWeakRanking_nisanRanking`, Lemma
-9.10; `nisanSWF_isPareto`, `nisanSWF_isIIA`, `nisanSWF_isDictator_iff`, and
-`nisanSWF_isPareto_and_isIIA_and_not_isDictatorial`, Lemma 9.11, with `[Nonempty V]` or
-`[Nontrivial A]` supplying the nonemptiness needed when `|A| = 1`). The set of alternatives may be
-infinite, as for Arrow's theorem. The electorate must be finite, since Arrow's theorem is used.
+or membership lemmas. The set of alternatives may be infinite, as for Arrow's theorem. The
+electorate must be finite, since Arrow's theorem is used.
 
 To apply the theorem to a concrete rule, prove `IsStrategyProof` (or `IsMaskinMonotone`) and
 exhibit three distinct outcomes. To show that a rule escapes it, find the hypothesis that fails:
@@ -472,16 +379,6 @@ second-price interim rules `x(v) = v`, `p(v) = v²/2` are incentive compatible w
 curve is not. In the two-bidder first-price auction, bidding `v / 2` is an equilibrium, a bid of
 `1/4` wins with probability `1/2`, truthful bidding is not an equilibrium, and both auctions earn
 `1/3`. With three bidders the bid is `2v/3` and both earn `1/2`; a lone bidder bids `0`.
-
-The [indirect, revelation and multi-unit examples](../../CslibFrontierTests/GameTheory/IndirectRevelation.lean)
-are a `module` checking `nisanSWF` on 3-voter `Bool` majority rule (and failure of
-`IsSingleMonotone` for anti-majority), VCG directly on `Vickrey.singleItemFeasible` matching
-`Vickrey.mechanism` on `(3, 5, 4)`, `toMechanismOn` subtype embedding, failure of `IsIROn` on
-`Set.univ` for negative valuations, `coinFlipMechanism` separating truthfulness in expectation from
-universal truthfulness alongside a 2-branch universally DSIC mixture, a 2-player `spoilerGame` whose
-ex-post Nash equilibrium becomes dominant only after `restrictRange` (Proposition 9.23), dominant
-and discrete Bayesian revelation simulations, and the 2-unit, 3-bidder `(k + 1)`-st price vs
-`(j + 1)`-st price shading example on `(10, 8, 5)`.
 
 To prove that a concrete rule is implementable, prove `IsMonotone` by `intro i b hb z hz z' hz'
 hzz'` followed by `change` to the explicit curve inequality. Then apply `myerson_isDSIC`, or, for
@@ -603,19 +500,15 @@ that acts as player `0` on the shortest 3-cycle without being globally dictatori
 
 ## Known Limitations
 
-Indirect mechanisms in `Indirect.lean` model normal-form strategy profiles `s : ∀ i, T i → X i`;
-extensive-form / sequential multistage implementation (such as ascending-clock English auction game
-trees) and randomized mechanisms over uncountable mechanism spaces beyond discrete `PMF`s are not
-yet formalized. Also not yet formalized:
+Only deterministic, sealed-bid mechanisms are covered for auctions and VCG: dominant-strategy incentive compatibility in general, and Bayes–Nash equilibrium for single-parameter mechanisms. Not yet formalized:
 the sponsored-search payment formula (Lecture 3, (8)–(9)), the greedy knapsack rule and its
 1/2-approximation (Lecture 4, §2.2, Theorem 2.1), ironing for irregular distributions, regular
 distributions whose virtual valuation is unbounded below at `0` (such as `f(v) = 2v`),
-revenue optimality directly over Bayesian incentive-compatible (`IsBICOn`) multi-parameter or
-single-parameter mechanisms (Lecture 5, §3.2), first-price equilibria for non-uniform or asymmetric
-priors and their uniqueness (Hartline, §2.9), the all-pay auction, a measurable argmax for
-virtual-welfare maximization, the Green–Laffont/Holmström characterization of DSIC welfare
-maximizers, and any computational cost of allocation rules. See `ROADMAP.md` and issues #2947,
-#3001 and #3173.
+optimality among Bayesian incentive-compatible mechanisms (Lecture 5, §3.2), the revelation
+principle, first-price equilibria for non-uniform or asymmetric priors and their uniqueness
+(Hartline, §2.9), the all-pay auction, a measurable argmax for virtual-welfare maximization, the
+Green–Laffont/Holmström characterization of DSIC welfare maximizers, and any
+computational cost of allocation rules. See `ROADMAP.md` and issues #2947, #3001 and #3173.
 
 For facility location, only single-facility mechanisms optimizing expected social cost (sum of
 distances) are formalized. Strategyproof onto rules are characterized on intervals, trees, and
