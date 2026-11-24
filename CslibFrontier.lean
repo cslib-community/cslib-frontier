@@ -6351,6 +6351,17 @@ public import CslibFrontier.Crypto.Protocols.FRI.Folding
 public import CslibFrontier.Crypto.Protocols.FRI.JohnsonSoundness
 public import CslibFrontier.Crypto.Protocols.FRI.Protocol
 public import CslibFrontier.Crypto.Protocols.FRI.Soundness
+public import CslibFrontier.Crypto.Protocols.FRI.Soundness.BinaryBCS
+public import CslibFrontier.Crypto.Protocols.FRI.Soundness.BinaryBridge
+public import CslibFrontier.Crypto.Protocols.FRI.Soundness.BinaryDefs
+public import CslibFrontier.Crypto.Protocols.FRI.Soundness.BinarySoundness
+public import CslibFrontier.Crypto.Protocols.FRI.Soundness.Counting
+public import CslibFrontier.Crypto.Protocols.FRI.Soundness.CurveGap
+public import CslibFrontier.Crypto.Protocols.FRI.Soundness.SmoothBCS
+public import CslibFrontier.Crypto.Protocols.FRI.Soundness.SmoothEscape
+public import CslibFrontier.Crypto.Protocols.FRI.Soundness.SmoothInteractive
+public import CslibFrontier.Crypto.Protocols.FRI.Soundness.SymbolEncoding
+public import CslibFrontier.Crypto.Protocols.FRI.Soundness.Transcript
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Correctness
