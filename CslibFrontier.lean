@@ -8433,7 +8433,9 @@ public import CslibFrontier.GameTheory.Mechanism.LinearValuation
 public import CslibFrontier.GameTheory.Mechanism.Myerson
 public import CslibFrontier.GameTheory.Mechanism.OptimalAuction
 public import CslibFrontier.GameTheory.Mechanism.Revenue
+public import CslibFrontier.GameTheory.Mechanism.Roberts
 public import CslibFrontier.GameTheory.Mechanism.SingleParameter
+public import CslibFrontier.GameTheory.Mechanism.Taxation
 public import CslibFrontier.GameTheory.Mechanism.VCG
 public import CslibFrontier.GameTheory.Mechanism.Vickrey
 public import CslibFrontier.GameTheory.Mechanism.VickreyVCG
