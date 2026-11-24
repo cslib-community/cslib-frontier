@@ -25,6 +25,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Words
 import CslibFrontier.Computability.PCP.Encoded.Size
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.OptionMatch
 
 /-!
@@ -551,17 +552,9 @@ private lemma length_encUGState_step_le (L : ℕ) [NeZero L]
 private theorem poly_run (L : ℕ) [NeZero L] :
     ComputableInPolyTime (run (List.finRange L)) (encUGGraph L) (encUGState L) := by
   unfold run
-  have hsl := (poly_slots L).polyBounded
-  have hvg := (poly_visitGrowth_comp L (poly_slots L)).polyBounded
-  have hpre : PolyBounded (fun g => (encUGGraph L g).length)
-      (fun g => 4 * (slots g * (2 * (L * (2 * L + 1) + 1) + 1)) + 2 * (3 * L)) :=
-    ((PolyBounded.const 4).mul (hsl.mul (.const _))).add (.const _)
   have hboundPoly : PolyBounded (fun g => (encUGGraph L g).length) (runBound L) := by
-    unfold runBound
-    exact hpre.add (((PolyBounded.const 2).mul ((((hpre.add ((PolyBounded.const 2).mul
-      (((PolyBounded.const 2).mul hsl).add (.const 1)))).add (.const 4)).add
-      (hsl.mul (((length_list (encUGEdge L)).comp
-        (Graph.isPolyTime_edges .id')).polyBounded.mul hvg))))).add (.const 4))
+    growth_poly [poly_slots L, poly_visitGrowth_comp L (poly_slots L),
+      Graph.isPolyTime_edges (enc := encUGFn L) .id']
   refine foldlWith
     (encP := encUGGraph L) (encB := encUGState L) (encA := encUGEdge L)
     (par := id) (list := fun g => g.edges) (init := init) (step := step (List.finRange L))

@@ -1039,10 +1039,9 @@ theorem realizes_promoteSlabGen :
       (WordEncoding.encode (α := DictParams × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
       PromoteSlabGenPre
       (fun _ _ => 0) := by
-  have hloop := realizes_promoteLoopGen
-  have hpush := realizes_gmPushSlabGen
   realizeDictWith [promoteSlabGenPre_mk, iterationSafe_promoteStepGenProg_mk,
     promoteLoopGenProg_mk, gmPushSlabGenPre_mk, gmPushSlabGenProg_mk]
+    using [realizes_promoteLoopGen, realizes_gmPushSlabGen]
   · exact (iterate_promoteStepProg_spec hw h.2.2 (slabSize n_max) 0 s
       (by omega) (promoteLoopInv_zero h.2.1)).2.2 h.1
   · rcases d with ⟨base, b⟩

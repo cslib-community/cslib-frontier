@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.Connector
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.Pathwidth
 public import Mathlib.Combinatorics.SimpleGraph.Finite
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.Zify
@@ -692,9 +693,7 @@ private theorem inner_bag_card (hy : Function.Injective y) {w : ℝ} (hw0 : 0 �
       exact le_trans (by exact_mod_cast Finset.card_le_card hsubB) this
   have hc := Finset.card_le_card hsub
   have hu := Finset.card_union_le A B
-  have : ((intervalBag (start G y l) (finish G y l) t).card : ℝ) ≤ A.card + B.card := by
-    exact_mod_cast hc.trans hu
-  linarith
+  cast_linarith [hc.trans hu]
 
 open Classical in
 /-- Outer phase: at most one leaving vertex plus an outer frontier at a
@@ -711,7 +710,6 @@ private theorem outer_bag_card (hy : Function.Injective y)
     rcases mem_outer_phase hl hi hv with h | h
     · exact Finset.mem_union_left _ (by simp [A, h])
     · exact Finset.mem_union_right _ (by simp [B, h])
-  have hA : (A.card : ℝ) ≤ 1 := by exact_mod_cast card_rank_eq_le hy i
   obtain ⟨x, hx⟩ := exists_rank_eq hy hin
   have hx0 : 0 < y x := not_le.mp fun h => by
     have := (lower_iff y x).mpr h
@@ -726,10 +724,7 @@ private theorem outer_bag_card (hy : Function.Injective y)
     le_trans (by exact_mod_cast Finset.card_le_card hsubB) (hout (y x) hx0)
   have hc := Finset.card_le_card hsub
   have hu := Finset.card_union_le A B
-  have : ((intervalBag (start G y l) (finish G y l) (i + K G y + 2)).card : ℝ) ≤
-      A.card + B.card := by
-    exact_mod_cast hc.trans hu
-  linarith
+  cast_linarith [hc.trans hu, card_rank_eq_le hy i]
 
 open Classical in
 /-- Connector phase: `|D| + max(|U'|, |W'|) + 2`. -/
