@@ -9,14 +9,10 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.SecretRowServices
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
+-- Reads private `RowAgreement.replay`, `queryChanged`, and unexposed `secretRowDeviceGame`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SecretRowServices
-import all CslibFrontier.Crypto.Computational.MLDSA.SecretRowPrediction
-import all CslibFrontier.Crypto.Computational.MLDSA.SharedSecretExpansion
-import all CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningSimulation
+-- Reads private `Test`, `addressTest_law`, `changed`, `changedAt`, and `finite_gap`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
 
 /-!
 # The key-distribution switch for the adaptive ML-DSA public-pair signer
@@ -58,12 +54,9 @@ private theorem finite_draw (s : Level) (pair : MLDSA.PublicKey s.params) (H : X
   · apply finite_bind (Set.toFinite _)
     intro _ _
     simp
-  · apply finite_bind
-    · unfold simulateFreshSigningAttempt
-      rw [PMF.support_map]
-      exact (Set.toFinite _).image _
-    · intro _ _
-      simp
+  · apply finite_bind (simulateFreshSigningAttempt_support_finite ..)
+    intro _ _
+    simp
 
 private theorem finite_retries {α ι : Type} (p : PMF (Option α)) (hp : p.support.Finite)
     (l : List ι) : (l.findSomeM? fun _ => p).support.Finite := by

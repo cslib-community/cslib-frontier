@@ -110,11 +110,13 @@ private theorem advance_inSpace :
   have hid := budget_id hin
   have hrem := encScaleState_remaining_budget hid
   have hv := encScaleState_value_budget hid
-  have htwo := budget_const (encB := encNat) 2 hin
+  have htwo :=
+    budget_const (encIn := encScaleState) (Bs := fun s => (encScaleState s).length) (encB := encNat)
+      2
   have hcond := budget_boolAnd (budget_boolNot (budget_natIsZero hrem))
     (budget_natIsZero (budget_natMod hrem htwo))
   have hnext := encScaleState_mk_budget (budget_natDiv hrem htwo)
-    (budget_natMul (budget_const 6 hin) hv)
+    (budget_natMul (budget_const 6) hv)
   exact (budget_ite hcond hnext hid).of_enc_eq fun s => by
     simp [advance, Nat.dvd_iff_mod_eq_zero]
 

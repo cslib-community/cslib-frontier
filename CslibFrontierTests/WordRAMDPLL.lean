@@ -6,12 +6,12 @@ Authors: Matthew Doty
 
 module
 
-public import CslibFrontier.Algorithms.WordRAM.DPLL.Solver
-public meta import CslibFrontier.Algorithms.WordRAM.DPLL.Solver
+public import CslibFrontier.Algorithms.WordRAM.DPLL.Refutation
+public meta import CslibFrontier.Algorithms.WordRAM.DPLL.Refutation
 
 /-! An ordinary-module client of the DPLL solver on the word RAM: the encoding of small formulas,
 runs of the exported compiled program that return the solver's answer and model, and the exported
-cost theorem `program_spec` at word size `64`. -/
+cost theorem `program_spec` at word size `64`; then the variant that writes its search tree. -/
 
 set_option linter.hashCommand false
 
@@ -79,6 +79,51 @@ example : ∃ n ≤ 2 ^ (Cslib.Algorithms.Lean.DPLL.depth full + 1) * (37 * (enc
       62) + 10 * 2 + 14,
     ExecutesList 64 program (State.init (encode 2 full)) (answerWords 2 full) n :=
   program_spec 2 full (by decide) (w := 64) (by decide)
+
+/-! ### The variant writing the search tree -/
+
+/-- The variant on `encode N φ` with a generous instruction budget. -/
+def runSolverLog (N : ℕ) (φ : CNF ℕ) : Option (List ℕ × ℕ) :=
+  runList programLog 100000 (State.init (encode N φ))
+
+-- On `full`, the clauses start at addresses `2, 5, 8, 11` and the literal array at `T = 14`. The
+-- search branches on `x0` (cell `14 + 1`), propagates `x1` (cell `14 + 3`), which falsifies the
+-- clause at `11`, and its negation, which falsifies the clause at `8`; then on `¬x0` it
+-- propagates `x1` again, falsifying the clauses at `5` and at `2`. The output is `0` followed by
+-- these words in preorder.
+#guard (runSolverLog 2 full).map Prod.fst == some [0, 15, 17, 11, 8, 17, 5, 2]
+
+#guard refutationWords 2 full == [0, 15, 17, 11, 8, 17, 5, 2]
+
+-- The words read back to a tree with four leaves, and nothing is left over.
+#guard (decodeTree full 7 [15, 17, 11, 8, 17, 5, 2]).map (fun r => (r.1.leafCount, r.2)) ==
+  some (4, [])
+
+-- On a satisfiable formula the variant returns the model, as the solver does.
+#guard (runSolverLog 3 unitFirst).map Prod.fst == some [1, 0, 0, 1]
+
+#guard refutationWords 3 unitFirst == answerWords 3 unitFirst
+
+-- The search tree of `full` has four leaves, so every run takes at least four instructions.
+example : (Cslib.Algorithms.Lean.DPLL.searchTree full 2 []).leafCount = 4 := by decide
+
+/-- The numbering `(i, j) ↦ 2 i + j` of the variables of `PHP^3_2`. -/
+def number (p : Fin 3 × Fin 2) : ℕ := 2 * (p.1 : ℕ) + p.2
+
+theorem number_injective : Function.Injective number := fun p q h => by
+  have := p.2.isLt
+  have := q.2.isLt
+  simp only [number] at h
+  exact Prod.ext (Fin.ext (by omega)) (Fin.ext (by omega))
+
+-- The hypotheses of `programLog_pigeonhole` hold for `PHP^3_2` numbered by `number`, with `N = 6`
+-- at word size `64`.
+example : (∃ k ≤ 301 * 2 ^ 6 * (encode 6 ((CNF.pigeonhole 3 2).relabel number)).length,
+        ExecutesList 64 programLog (State.init (encode 6 ((CNF.pigeonhole 3 2).relabel number)))
+          (refutationWords 6 ((CNF.pigeonhole 3 2).relabel number)) k) ∧
+      ∀ v k, Executes 64 programLog (State.init (encode 6 ((CNF.pigeonhole 3 2).relabel number)))
+        v k → (2 / 2 + 1) ^ (2 / 2) ≤ k :=
+  programLog_pigeonhole number_injective (by decide) 6 (by decide) (w := 64) (by decide)
 
 end CslibFrontierTests.WordRAMDPLL
 
