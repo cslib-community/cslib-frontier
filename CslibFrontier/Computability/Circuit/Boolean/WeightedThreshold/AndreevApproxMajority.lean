@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.AndreevLowerBound
 import CslibFrontier.Foundations.Combinatorics.ApproximateMajority
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Approximate majorities of depth-two threshold circuits for Andreev's function
@@ -170,12 +171,11 @@ theorem wireCount_ge_of_approxMajority_andreev_of_le_two_pow {b m t : ℕ} (hm :
 /-- A strict majority of `t` votes is a `1 / (2 t)`-approximate majority. -/
 private theorem mul_half_add_inv_le_of_lt_two_mul {t k : ℕ} (h : t < 2 * k) :
     (t : ℝ) * (1 / 2 + 1 / (2 * t)) ≤ k := by
-  have h' : (t : ℝ) + 1 ≤ 2 * k := by exact_mod_cast h
   rcases Nat.eq_zero_or_pos t with rfl | ht
   · simp
   · have htinv : (t : ℝ) * (1 / (2 * t)) = 1 / 2 := by field_simp
     rw [mul_add, htinv]
-    linarith
+    cast_linarith [h]
 
 /-- On every input strictly more than half of the votes are correct, so the family is nonempty. -/
 private theorem pos_of_majorityVote {b m t : ℕ} (C : Fin t → Circuit signature (2 ^ b + b * m) 1)

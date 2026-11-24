@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Data.Fintype.OrderStatistic
 public import CslibFrontier.GameTheory.Mechanism.FacilityLocation.Basic
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -250,9 +251,8 @@ theorem not_isStrategyProof_meanMechanism [DecidableEq ι] (hcard : 2 ≤ Fintyp
   have hx0 : x i₀ = 0 := by simp only [x, ite_true]
   rw [hx0, hmean_x, hmean_upd] at hle
   simp only [Real.dist_eq, zero_sub, abs_neg, abs_zero] at hle
-  have hcard_r : (2 : ℝ) ≤ Fintype.card ι := by exact_mod_cast hcard
   have hlt : 0 < |((Fintype.card ι : ℝ) - 1) / Fintype.card ι| :=
-    abs_pos.2 (div_ne_zero (by linarith) (by positivity))
+    abs_pos.2 (div_ne_zero (by cast_linarith [hcard]) (by positivity))
   exact hlt.not_ge hle
 
 end RealMechanisms
