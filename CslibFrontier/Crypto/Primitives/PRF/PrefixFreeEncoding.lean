@@ -24,6 +24,7 @@ nonempty lists of blocks whose range is a prefix-free set (`InformationTheory.Is
 * `Cslib.Crypto.PRF.stopBitEncode`: Method 2 stop-bit encoding (§6.6.1, p. 236), appending `false`
   to every block except the last and `true` to the last block.
 * `Cslib.Crypto.PRF.separatingBlock`: a common extension block for two queries.
+* `Cslib.Crypto.PRF.findFreshBlock`: bounded search in an indexed block alphabet.
 * `Cslib.Crypto.PRF.freshBatchBlock`: a block absent from a batch of queries.
 
 ## Main results
@@ -198,22 +199,26 @@ theorem separatingBlock_prefix_incomparable {X : Type*} [BEq X] [LawfulBEq X]
     simp only [List.length_append, List.length_singleton] at hle
     omega
 
+/-- Find the first unused block among at most `used.length + 1` entries in an indexed alphabet. -/
+@[expose] def findFreshBlock {α : Type*} [BEq α] {size : ℕ} (blockAt : Fin size → α)
+    (used : List α) : Option α :=
+  let candidates := (List.finRange (min size (used.length + 1))).map fun i =>
+    blockAt (Fin.castLE (min_le_left _ _) i)
+  candidates.find? fun block => !used.contains block
+
 /-- Search the first `min (2 ^ n) (b + 1)` bit strings for a block absent from `messages`, where
 `b` counts all block occurrences. This is the block-selection step of [BonehShoup2023], v0.6,
 Theorem 7.4 (printed pp. 259–260). It returns `none` when the batch uses the whole alphabet. -/
 @[expose] def freshBatchBlock {n : ℕ} (messages : List (List (BitString n))) :
     Option (BitString n) :=
-  let used := messages.flatten
-  let candidates := (List.finRange (min (2 ^ n) (used.length + 1))).map fun i =>
-    (BitString.equivFin n).symm (Fin.castLE (min_le_left _ _) i)
-  candidates.find? fun block => !used.contains block
+  findFreshBlock (BitString.equivFin n).symm messages.flatten
 
 /-- Appending a block returned by the batch search makes the extended messages prefix-free. -/
 theorem isPrefixFree_append_of_freshBatchBlock_eq_some {n : ℕ}
     {messages : List (List (BitString n))} {block : BitString n}
     (hblock : freshBatchBlock messages = some block) :
     InformationTheory.IsPrefixFree ((fun msg => msg ++ [block]) '' {msg | msg ∈ messages}) := by
-  unfold freshBatchBlock at hblock
+  unfold freshBatchBlock findFreshBlock at hblock
   have hfresh : block ∉ messages.flatten := by simpa using List.find?_some hblock
   have hnotMem {msg} (hm : msg ∈ messages) : block ∉ msg :=
     fun hb => hfresh (List.mem_flatten.mpr ⟨msg, hm, hb⟩)
