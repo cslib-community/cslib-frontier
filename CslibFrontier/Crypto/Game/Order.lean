@@ -8,6 +8,7 @@ module
 -- upstream: candidate (addition to Cslib/Crypto/Game.lean)
 
 public import CslibFrontier.Crypto.Game
+import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.ToReal
 
@@ -22,6 +23,8 @@ the distinguishing advantage of two experiments bounds one success probability b
 
 * `Cslib.Crypto.Game.succProbability_mono`: success probability is monotone in the mass of
   `true`.
+* `Cslib.Crypto.Game.succProbability_bind_pure_le_add`: union bound for Boolean tests of one
+  distribution.
 * `Cslib.Crypto.Game.succProbability_le_add_of_advantage_le`,
   `Cslib.Crypto.Game.coe_succProbability_le_add_of_advantage_le`: bound a game's success probability
   by another game's success probability plus their distinguishing advantage.
@@ -41,6 +44,19 @@ open scoped ENNReal NNReal
 theorem succProbability_mono {g₁ g₂ : Game} (h : g₁ true ≤ g₂ true) :
     g₁.succProbability ≤ g₂.succProbability :=
   ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) h
+
+/-- **Union bound for Boolean tests of one distribution**: if `f a` implies `g₁ a ∨ g₂ a` on the
+support of `p`, then testing `f` succeeds with probability at most the sum for `g₁` and `g₂`. -/
+theorem succProbability_bind_pure_le_add {α : Type} (p : PMF α) {f g₁ g₂ : α → Bool}
+    (h : ∀ a ∈ p.support, f a = true → g₁ a = true ∨ g₂ a = true) :
+    succProbability (p.bind fun a => PMF.pure (f a)) ≤
+      succProbability (p.bind fun a => PMF.pure (g₁ a)) +
+        succProbability (p.bind fun a => PMF.pure (g₂ a)) := by
+  unfold succProbability
+  rw [← ENNReal.toNNReal_add (PMF.apply_ne_top _ true) (PMF.apply_ne_top _ true)]
+  exact ENNReal.toNNReal_mono
+    (ENNReal.add_ne_top.mpr ⟨PMF.apply_ne_top _ true, PMF.apply_ne_top _ true⟩)
+    (Probability.PMF.map_true_le_add p h)
 
 /-- Bounding `advantage g₀ g₁ ≤ B` bounds `succProbability g₀ ≤ succProbability g₁ + B`. -/
 theorem succProbability_le_add_of_advantage_le {g₀ g₁ : Game} {B : ℝ≥0}

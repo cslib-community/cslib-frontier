@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Crypto.Computational.Encryption.Authenticated.Malleability
 public import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC
 public import CslibFrontier.Crypto.Computational.FlipHeadBit
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
@@ -152,21 +153,20 @@ noncomputable def prfCipherPartialTag
 body and MAC tag unchanged. -/
 @[expose]
 def partialTagCIAdversary (ctBound : ℕ → ℕ) : CIAdversary :=
-  fun n _ => do
-    let ct ← List.take (ctBound n) <$> ProbOracleComp.query ((), List.replicate n false)
-    return encPair encBits encBits (flipHeadBit (unframe ct), dropFrame ct)
+  SymmetricCipher.maulCIAdversary
+    (fun _ ct => encPair encBits encBits (flipHeadBit (unframe ct), dropFrame ct)) false ctBound
 
 /-- `partialTagCIAdversary` is uniformly strict oracle-PPT (`IsOraclePPT`) when `ctBound` is
 computable in plain polynomial time. -/
 theorem isOraclePPT_partialTagCIAdversary {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
     IsOraclePPT encBits (partialTagCIAdversary ctBound) := by
-  ppt [partialTagCIAdversary]
+  ppt [partialTagCIAdversary, SymmetricCipher.maulCIAdversary]
 
 /-- `partialTagCIAdversary` makes at most `1` encryption query. -/
 theorem isQueryBounded_partialTagCIAdversary (ctBound : ℕ → ℕ) (n : ℕ) (aux : List Bool) :
     (partialTagCIAdversary ctBound n aux).IsQueryBounded 1 := by
-  unfold partialTagCIAdversary
+  unfold partialTagCIAdversary SymmetricCipher.maulCIAdversary
   have hq :
       (List.take (ctBound n) <$>
         (ProbOracleComp.query ((), List.replicate n false) :
@@ -181,16 +181,17 @@ private theorem malleate_prfCipherPartialTag_ciphertext
       (encPair encBits encBits) encBits)
     (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length)
     (M : MACScheme) (hmsgLen : ∀ n, M.msgLen n = n)
-    {n : ℕ} (hn : 1 ≤ n) {ke km msg ct : List Bool}
-    (hke : ke ∈ (ProbComp.eval ((prfCipher family hpoly hlen).keyGen n)).support)
-    (hkm : km ∈ (ProbComp.eval (M.keyGen n)).support)
+    {n : ℕ} (hn : 1 ≤ n) {k msg ct : List Bool}
+    (hk : k ∈ (ProbComp.eval ((prfCipherPartialTag family hpoly hlen M hmsgLen).keyGen n)).support)
     (hmsg : msg.length = n)
     (hct : ct ∈ (ProbComp.eval ((prfCipherPartialTag family hpoly hlen M hmsgLen).encrypt n
-      (encPair encBits encBits (ke, km)) msg)).support) :
+      k msg)).support) :
     encPair encBits encBits (flipHeadBit (unframe ct), dropFrame ct) ≠ ct ∧
-    ((prfCipherPartialTag family hpoly hlen M hmsgLen).decrypt n
-      (encPair encBits encBits (ke, km))
+    ((prfCipherPartialTag family hpoly hlen M hmsgLen).decrypt n k
       (encPair encBits encBits (flipHeadBit (unframe ct), dropFrame ct))).isSome = true := by
+  simp only [prfCipherPartialTag, encryptThenMAC, partialTagMAC, ProbComp.eval_bind,
+    ProbComp.eval_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hk
+  obtain ⟨ke, hke, km, hkm, rfl⟩ := hk
   simp only [prfCipherPartialTag, encryptThenMAC, partialTagMAC, ProbComp.eval_bind,
     ProbComp.eval_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff,
     unframe_encPair_encBits, dropFrame_encPair_encBits] at hct
@@ -235,21 +236,10 @@ theorem eval_ciOneTimeGame_prfCipherPartialTag_partialTagCIAdversary
     (hctBound :
       (prfCipherPartialTag family hpoly hlen M hmsgLen).CiphertextLengthLE n (ctBound n)) :
     ProbComp.eval ((prfCipherPartialTag family hpoly hlen M hmsgLen).ciOneTimeGame
-      (partialTagCIAdversary ctBound) n) = PMF.pure true := by
-  simp only [SymmetricCipher.ciOneTimeGame, partialTagCIAdversary, runWith_norm, pmf_norm]
-  refine PMF.bind_eq_pure_of_forall_mem_support fun k hk => ?_
-  have hk' := hk
-  simp only [prfCipherPartialTag, encryptThenMAC, partialTagMAC, ProbComp.eval_bind,
-    ProbComp.eval_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hk'
-  obtain ⟨ke, hke, km, hkm, rfl⟩ := hk'
-  simp only [SymmetricCipher.oneTimeCIEncryptionOracle, List.isEmpty_nil,
-    List.length_replicate, beq_self_eq_true, Bool.and_self, ↓reduceIte, pmf_norm]
-  refine PMF.bind_eq_pure_of_forall_mem_support fun ct hct => ?_
-  rw [List.take_of_length_le (hctBound _ hk _ List.length_replicate ct hct)]
-  obtain ⟨hne, hdec⟩ := malleate_prfCipherPartialTag_ciphertext family hpoly hlen M hmsgLen
-    hn hke hkm List.length_replicate hct
-  simp only [encPair_apply, encBits_apply] at hne hdec
-  simp [hne, hdec]
+      (partialTagCIAdversary ctBound) n) = PMF.pure true :=
+  SymmetricCipher.eval_ciOneTimeGame_maulCIAdversary _ false ctBound n hctBound fun _ hk _ hct =>
+    malleate_prfCipherPartialTag_ciphertext family hpoly hlen M hmsgLen hn hk List.length_replicate
+      hct
 
 /-- `prfCipherPartialTag` unconditionally fails `OneTimeCiphertextIntegrity` for every `MACScheme`
 on `n`-bit messages. -/

@@ -5582,6 +5582,7 @@ public import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
 public import CslibFrontier.Crypto.Computational.ElGamal.StronglyUnpredictable
 public import CslibFrontier.Crypto.Computational.ElGamal.Unpredictable
 public import CslibFrontier.Crypto.Computational.Encryption.Authenticated
+public import CslibFrontier.Crypto.Computational.Encryption.Authenticated.Malleability
 public import CslibFrontier.Crypto.Computational.Encryption.Basic
 public import CslibFrontier.Crypto.Computational.Encryption.Bitwise
 public import CslibFrontier.Crypto.Computational.Encryption.BlockModeWord

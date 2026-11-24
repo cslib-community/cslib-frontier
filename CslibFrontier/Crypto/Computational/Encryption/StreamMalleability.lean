@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Crypto.Computational.Encryption.Authenticated.Malleability
 public import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC
 public import CslibFrontier.Crypto.Computational.Encryption.IVStream.Malleability
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
@@ -93,17 +94,12 @@ initial value, ask the decryption oracle for the result, and output `true` iff i
 to `0ⁿ`. -/
 @[expose]
 def prfCipherCCAAdversary : CCAAdversary :=
-  fun n _ => do
-    let m0 := List.replicate n false
-    let m1 := List.replicate n true
-    let ct ← List.take (2 * n) <$>
-      ProbOracleComp.query (false, encPair encBits encBits (m0, m1))
-    let dec ← List.take (n + 1) <$> ProbOracleComp.query (true, ivStreamXorBody n m1 ct)
-    return (dec == encOption encBits (some m0))
+  SymmetricCipher.maulCCAAdversary (fun n ct => ivStreamXorBody n (List.replicate n true) ct)
+    false (fun n => 2 * n)
 
 /-- `prfCipherCCAAdversary` is an efficient oracle adversary. -/
 theorem isOraclePPT_prfCipherCCAAdversary : IsOraclePPT encBool prfCipherCCAAdversary := by
-  ppt [prfCipherCCAAdversary]
+  ppt [prfCipherCCAAdversary, SymmetricCipher.maulCCAAdversary]
 
 /-- `prfCipherCCAAdversary` guesses the challenge bit of the one-time chosen-ciphertext game
 against `prfCipher` with probability `1`, for every family and every `1 ≤ n`
@@ -115,30 +111,16 @@ theorem eval_ccaOneTimeGame_prfCipher (family : List Bool → List Bool → List
     (bit : Bool) {n : ℕ} (hn : 1 ≤ n) :
     ProbComp.eval ((prfCipher family hpoly hlen).ccaOneTimeGame prfCipherCCAAdversary bit n) =
       PMF.pure bit := by
-  have hbit : (if bit then List.replicate n true else List.replicate n false) =
-      List.replicate n bit := by
-    cases bit <;> rfl
-  simp only [SymmetricCipher.ccaOneTimeGame, prfCipherCCAAdversary,
-    SymmetricCipher.oneTimeCCAOracle, unframe_encPair_encBits, dropFrame_encPair_encBits, hbit,
-    List.isEmpty_nil, List.length_replicate, beq_self_eq_true, Bool.and_self, Bool.false_eq_true,
-    ↓reduceIte, runWith_norm, pmf_norm]
-  refine PMF.bind_eq_pure_of_forall_mem_support fun k hk =>
-    PMF.bind_eq_pure_of_forall_mem_support fun ct hct => ?_
+  refine SymmetricCipher.eval_ccaOneTimeGame_maulCCAAdversary_eq_pure _ false bit _ (Or.inr hn)
+    (fun k hk _ hmsg ct hct => (prfCipher_ciphertext_length family hpoly hlen n k hk _ hmsg ct
+      hct).le) fun k hk ct hct => ?_
   obtain ⟨hdec, hne⟩ := prfCipher_decrypt_ivStreamXorBody family hpoly hlen hk
     List.length_replicate (List.length_replicate (a := true)) hct
   have hflip : List.zipWith xor (List.replicate n bit) (List.replicate n true) =
       List.replicate n !bit := by
     simp
   rw [hflip] at hdec hne
-  have hnc : [ct].contains (ivStreamXorBody n (List.replicate n true) ct) = false := by
-    simpa using hne (by cases bit <;> simp [List.replicate_inj] <;> omega)
-  rw [List.take_of_length_le
-    (prfCipher_ciphertext_length family hpoly hlen n k hk _ List.length_replicate ct hct).le]
-  simp only [hnc, Bool.false_eq_true, ↓reduceIte, hdec, ProbComp.eval_pure, PMF.pure_bind]
-  rw [List.take_of_length_le (by simp)]
-  cases bit with
-  | true => simp
-  | false => simp [beq_eq_false_iff_ne.mpr (Nat.one_le_iff_ne_zero.mp hn)]
+  exact ⟨hne (by cases bit <;> simp [List.replicate_inj] <;> omega), hdec⟩
 
 /-- The one-block PRF cipher `prfCipher` is not one-time CCA-secure, for any family
 ([BonehShoup2023], Section 9.2.1), although it is CPA-secure for a pseudorandom family

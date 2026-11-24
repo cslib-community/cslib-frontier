@@ -7,6 +7,7 @@ Authors: Karn Seth
 module
 -- upstream: candidate
 
+public import CslibFrontier.Crypto.Computational.Encryption.Authenticated.Malleability
 public import CslibFrontier.Crypto.Computational.Encryption.EncForge
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 import CslibFrontier.Crypto.Negligible.Basic
@@ -86,24 +87,6 @@ namespace Cslib.Crypto
 open Probability Turing.MultiTapeTM
 open scoped NNReal ENNReal
 
-private theorem succProbability_bind_pure_bool_le {α : Type} (p : PMF α) (f g : α → Bool)
-    (hfg : ∀ a ∈ p.support, f a = true → g a = true) :
-    Game.succProbability (p.bind (fun a => PMF.pure (f a))) ≤
-      Game.succProbability (p.bind (fun a => PMF.pure (g a))) := by
-  unfold Game.succProbability
-  exact ENNReal.toNNReal_mono (PMF.apply_ne_top _ true) (Probability.PMF.map_true_mono p hfg)
-
-private theorem succProbability_bind_pure_bool_le_add {α : Type} (p : PMF α) (f g₁ g₂ : α → Bool)
-    (hfg : ∀ a ∈ p.support, f a = true → g₁ a = true ∨ g₂ a = true) :
-    Game.succProbability (p.bind (fun a => PMF.pure (f a))) ≤
-      Game.succProbability (p.bind (fun a => PMF.pure (g₁ a))) +
-        Game.succProbability (p.bind (fun a => PMF.pure (g₂ a))) := by
-  unfold Game.succProbability
-  rw [← ENNReal.toNNReal_add (PMF.apply_ne_top _ true) (PMF.apply_ne_top _ true)]
-  exact ENNReal.toNNReal_mono
-    (ENNReal.add_ne_top.mpr ⟨PMF.apply_ne_top _ true, PMF.apply_ne_top _ true⟩)
-    (Probability.PMF.map_true_le_add p hfg)
-
 /-! ### Katz–Lindell Exercise 5.10: `INDCPA ∧ EncForge` Does Not Imply `INDCCA`
 
 Given any symmetric cipher `E`, `E.tailFallback` has the same `keyGen` and `encrypt` as `E`, and
@@ -114,212 +97,6 @@ decrypts `ct` by returning `E.decrypt n k ct` when it is `some msg`, or falling 
 whenever `E.EncForge` holds, by querying decryption on `false :: ct`). -/
 
 namespace SymmetricCipher
-
-/-! ### Generic Ciphertext-Mauling Attack Combinators -/
-
-private abbrev maulCIAdversary (maul : List Bool → List Bool) (bit : Bool) (ctBound : ℕ → ℕ) :
-    CIAdversary :=
-  fun n _ => do
-    let ct ← List.take (ctBound n) <$> ProbOracleComp.query ((), List.replicate n bit)
-    return maul ct
-
-private theorem isOraclePPT_maulCIAdversary {maul : List Bool → List Bool}
-    (hmaul : ComputableInPolyTime maul encBits encBits) (bit : Bool) {ctBound : ℕ → ℕ}
-    (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
-    IsOraclePPT encBits (maulCIAdversary maul bit ctBound) := by
-  ppt [maulCIAdversary]
-
-private abbrev maulCCAAdversary (maul : List Bool → List Bool) (ctBound : ℕ → ℕ) :
-    CCAAdversary :=
-  fun n _ => do
-    let m0 := List.replicate n false
-    let m1 := List.replicate n true
-    let ct ← List.take (ctBound n) <$>
-      ProbOracleComp.query (false, encPair encBits encBits (m0, m1))
-    let reply ← List.take (n + 1) <$>
-      ProbOracleComp.query (true, maul ct)
-    return (reply == encOption encBits (some m1))
-
-private theorem isOraclePPT_maulCCAAdversary {maul : List Bool → List Bool}
-    (hmaul : ComputableInPolyTime maul encBits encBits) {ctBound : ℕ → ℕ}
-    (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
-    IsOraclePPT encBool (maulCCAAdversary maul ctBound) := by
-  ppt [maulCCAAdversary]
-
-private theorem singleton_contains_eq_false_of_ne {ct ct' : List Bool} (hne : ct' ≠ ct) :
-    [ct].contains ct' = false := by
-  rw [Bool.eq_false_iff, ne_eq, List.contains_iff_mem, List.mem_singleton]
-  exact hne
-
-private theorem eval_ciOneTimeGame_maulCIAdversary (E : SymmetricCipher)
-    {maul : List Bool → List Bool} (bit : Bool) (ctBound : ℕ → ℕ) (n : ℕ)
-    (hctBound : E.CiphertextLengthLE n (ctBound n))
-    (hmaul : ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
-      ∀ ct ∈ (ProbComp.eval (E.encrypt n k (List.replicate n bit))).support,
-        maul ct ≠ ct ∧ (E.decrypt n k (maul ct)).isSome = true) :
-    ProbComp.eval (E.ciOneTimeGame (maulCIAdversary maul bit ctBound) n) = PMF.pure true := by
-  simp only [ciOneTimeGame, maulCIAdversary, oneTimeCIEncryptionOracle, List.isEmpty_nil,
-    List.length_replicate, beq_self_eq_true, Bool.and_self, ↓reduceIte, runWith_norm, pmf_norm]
-  refine PMF.bind_eq_pure_of_forall_mem_support fun k hk =>
-    PMF.bind_eq_pure_of_forall_mem_support fun ct hct => ?_
-  obtain ⟨hne, hdec⟩ := hmaul k hk ct hct
-  rw [List.take_of_length_le (hctBound k hk _ List.length_replicate ct hct),
-    singleton_contains_eq_false_of_ne hne, hdec]
-  rfl
-
-private theorem eval_ciGame_maulCIAdversary (E : SymmetricCipher)
-    {maul : List Bool → List Bool} (bit : Bool) (ctBound : ℕ → ℕ) (n : ℕ)
-    (hctBound : E.CiphertextLengthLE n (ctBound n))
-    (hmaul : ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
-      ∀ ct ∈ (ProbComp.eval (E.encrypt n k (List.replicate n bit))).support,
-        maul ct ≠ ct ∧ (E.decrypt n k (maul ct)).isSome = true) :
-    ProbComp.eval (E.ciGame (maulCIAdversary maul bit ctBound) n) = PMF.pure true := by
-  rw [← E.eval_ciOneTimeGame_maulCIAdversary bit ctBound n hctBound hmaul]
-  simp only [ciGame, ciOneTimeGame, maulCIAdversary, ciEncryptionOracle,
-    oneTimeCIEncryptionOracle, List.isEmpty_nil, List.length_replicate, beq_self_eq_true,
-    Bool.and_self, ↓reduceIte, runWith_norm, pmf_norm]
-
-private theorem le_ciAdvantage_of_maul (E : SymmetricCipher)
-    {maul : List Bool → List Bool} (bit : Bool) (ctBound : ℕ → ℕ) (n : ℕ)
-    (hctBound : E.CiphertextLengthLE n (ctBound n))
-    (hmaul : ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
-      ∀ ct ∈ (ProbComp.eval (E.encrypt n k (List.replicate n bit))).support,
-        maul ct ≠ ct ∧ (E.decrypt n k (maul ct)).isSome = true) :
-    (1 : ℝ≥0) ≤
-      Game.succProbability
-        (ProbComp.eval (E.ciOneTimeGame (maulCIAdversary maul bit ctBound) n)) := by
-  rw [E.eval_ciOneTimeGame_maulCIAdversary bit ctBound n hctBound hmaul]
-  simp [Game.succProbability]
-
-private theorem not_oneTimeCiphertextIntegrity_of_maul (E : SymmetricCipher)
-    {maul : List Bool → List Bool} (hmaulPoly : ComputableInPolyTime maul encBits encBits)
-    (bit : Bool)
-    (hmaul : ∀ n, ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
-      ∀ ct ∈ (ProbComp.eval (E.encrypt n k (List.replicate n bit))).support,
-        maul ct ≠ ct ∧ (E.decrypt n k (maul ct)).isSome = true) :
-    ¬ E.OneTimeCiphertextIntegrity := by
-  intro hci
-  obtain ⟨ctBound, hctBoundPoly, hctBound⟩ := E.exists_ciphertext_length_bound_of_length_eq
-  have := hci.negligible (maulCIAdversary maul bit ctBound)
-    (isOraclePPT_maulCIAdversary hmaulPoly bit hctBoundPoly)
-  exact not_negligible_const one_ne_zero (by
-    negligible using fun n => E.le_ciAdvantage_of_maul bit ctBound n (hctBound n) (hmaul n))
-
-private noncomputable abbrev encDist (E : SymmetricCipher) (bit : Bool) (n : ℕ) :
-    PMF (List Bool × List Bool) :=
-  (ProbComp.eval (E.keyGen n)).bind fun k =>
-    (ProbComp.eval (E.encrypt n k (List.replicate n bit))).map fun ct => (k, ct)
-
-private theorem eval_ccaOneTimeGame_maulCCAAdversary (E : SymmetricCipher)
-    {maul : List Bool → List Bool} (bit : Bool) (ctBound : ℕ → ℕ) (n : ℕ)
-    (hctBound : E.CiphertextLengthLE n (ctBound n))
-    (hne : ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
-      ∀ ct ∈ (ProbComp.eval (E.encrypt n k (List.replicate n bit))).support, maul ct ≠ ct) :
-    ProbComp.eval (E.ccaOneTimeGame (maulCCAAdversary maul ctBound) bit n) =
-      (E.encDist bit n).bind fun p => PMF.pure
-        (List.take (n + 1) (encOption encBits (E.decrypt n p.1 (maul p.2))) ==
-          encOption encBits (some (List.replicate n true))) := by
-  have hbit : (if bit then List.replicate n true else List.replicate n false) =
-      List.replicate n bit := by cases bit <;> rfl
-  simp only [ccaOneTimeGame, maulCCAAdversary, oneTimeCCAOracle, encDist,
-    unframe_encPair_encBits, dropFrame_encPair_encBits, hbit, List.isEmpty_nil,
-    List.length_replicate, beq_self_eq_true, Bool.and_self, Bool.false_eq_true, ↓reduceIte,
-    runWith_norm, pmf_norm]
-  peel_binds k ct
-  simp [List.take_of_length_le (hctBound k k_mem _ List.length_replicate ct ct_mem),
-    hne k k_mem ct ct_mem, pmf_norm]
-
-private theorem take_encOption_some_replicate (n : ℕ) (b : Bool) :
-    List.take (n + 1) (encOption encBits (some (List.replicate n b))) =
-      encOption encBits (some (List.replicate n b)) := by
-  apply List.take_of_length_le
-  simp [encOption_some, encBits_apply]
-
-private theorem encOption_some_replicate_false_beq_true {n : ℕ} (hn : 1 ≤ n) :
-    (encOption encBits (some (List.replicate n false)) ==
-      encOption encBits (some (List.replicate n true))) = false := by
-  rw [Bool.eq_false_iff]
-  intro h
-  have heq := Option.some.inj ((encOption encBits).injective (beq_iff_eq.mp h))
-  cases n with
-  | zero => contradiction
-  | succ m => simp at heq
-
-private theorem le_ccaAdvantage_of_maul (E : SymmetricCipher)
-    {maul : List Bool → List Bool} (ctBound : ℕ → ℕ)
-    (bad : Bool → List Bool × List Bool → Bool) (n : ℕ) (hn : 1 ≤ n)
-    (hctBound : E.CiphertextLengthLE n (ctBound n))
-    (hmaul : ∀ bit k, k ∈ (ProbComp.eval (E.keyGen n)).support →
-      ∀ ct ∈ (ProbComp.eval (E.encrypt n k (List.replicate n bit))).support,
-        maul ct ≠ ct ∧
-          (E.decrypt n k (maul ct) = some (List.replicate n bit) ∨ bad bit (k, ct) = true)) :
-    (1 : ℝ≥0) ≤
-      Game.succProbability ((E.encDist false n).bind fun p => PMF.pure (bad false p)) +
-      Game.advantage
-        (ProbComp.eval (E.ccaOneTimeGame (maulCCAAdversary maul ctBound) false n))
-        (ProbComp.eval (E.ccaOneTimeGame (maulCCAAdversary maul ctBound) true n)) +
-      Game.succProbability ((E.encDist true n).bind fun p => PMF.pure (bad true p)) := by
-  have htrue : (1 : ℝ≥0) ≤
-      Game.succProbability
-        (ProbComp.eval (E.ccaOneTimeGame (maulCCAAdversary maul ctBound) true n)) +
-      Game.succProbability ((E.encDist true n).bind fun p => PMF.pure (bad true p)) := by
-    have h1 : (1 : ℝ≥0) =
-        Game.succProbability ((E.encDist true n).bind fun _ => PMF.pure true) := by
-      simp [Game.succProbability]
-    rw [h1, E.eval_ccaOneTimeGame_maulCCAAdversary true ctBound n hctBound
-      fun k hk ct hct => (hmaul true k hk ct hct).1]
-    refine succProbability_bind_pure_bool_le_add _ _ _ _ fun ⟨k, ct⟩ hp _ => ?_
-    simp only [encDist, PMF.mem_support_bind_iff, PMF.mem_support_map_iff, Prod.mk.injEq] at hp
-    obtain ⟨k, hk, ct, hct, rfl, rfl⟩ := hp
-    rcases (hmaul true k hk ct hct).2 with hdec | hbad
-    · rw [hdec, take_encOption_some_replicate, beq_self_eq_true]
-      exact Or.inl rfl
-    · exact Or.inr hbad
-  have hfalse :
-      Game.succProbability
-        (ProbComp.eval (E.ccaOneTimeGame (maulCCAAdversary maul ctBound) false n)) ≤
-      Game.succProbability ((E.encDist false n).bind fun p => PMF.pure (bad false p)) := by
-    rw [E.eval_ccaOneTimeGame_maulCCAAdversary false ctBound n hctBound
-      fun k hk ct hct => (hmaul false k hk ct hct).1]
-    refine succProbability_bind_pure_bool_le _ _ _ fun ⟨k, ct⟩ hp hwin => ?_
-    simp only [encDist, PMF.mem_support_bind_iff, PMF.mem_support_map_iff, Prod.mk.injEq] at hp
-    obtain ⟨k, hk, ct, hct, rfl, rfl⟩ := hp
-    rcases (hmaul false k hk ct hct).2 with hdec | hbad
-    · rw [hdec, take_encOption_some_replicate, encOption_some_replicate_false_beq_true hn] at hwin
-      contradiction
-    · exact hbad
-  have hadv := Game.succProbability_le_add_of_advantage_le
-    (g₀ := ProbComp.eval (E.ccaOneTimeGame (maulCCAAdversary maul ctBound) true n))
-    (g₁ := ProbComp.eval (E.ccaOneTimeGame (maulCCAAdversary maul ctBound) false n))
-    (Game.advantage_comm _ _).le
-  exact htrue.trans (by gcongr; exact hadv.trans (by gcongr))
-
-private theorem not_oneTimeINDCCA_of_maul (E : SymmetricCipher)
-    {maul : List Bool → List Bool} (hmaulPoly : ComputableInPolyTime maul encBits encBits)
-    (bad : ℕ → Bool → List Bool × List Bool → Bool)
-    (hbadNeg : ∀ bit ctBound, ComputableInPolyTime ctBound encUnary encUnary →
-      (∀ n, E.CiphertextLengthLE n (ctBound n)) →
-      Negligible fun n =>
-        Game.succProbability ((E.encDist bit n).bind fun p => PMF.pure (bad n bit p)))
-    (hmaul : ∀ n, 1 ≤ n → ∀ bit k, k ∈ (ProbComp.eval (E.keyGen n)).support →
-      ∀ ct ∈ (ProbComp.eval (E.encrypt n k (List.replicate n bit))).support,
-        maul ct ≠ ct ∧
-          (E.decrypt n k (maul ct) = some (List.replicate n bit) ∨ bad n bit (k, ct) = true)) :
-    ¬ E.OneTimeINDCCA := by
-  intro hcca
-  obtain ⟨ctBound, hctBoundPoly, hctBound⟩ := E.exists_ciphertext_length_bound_of_length_eq
-  have := hcca (maulCCAAdversary maul ctBound) (isOraclePPT_maulCCAAdversary hmaulPoly hctBoundPoly)
-  have := hbadNeg false ctBound hctBoundPoly hctBound
-  have := hbadNeg true ctBound hctBoundPoly hctBound
-  have hle : ∀ᶠ n in Filter.atTop, (1 : ℝ≥0) ≤
-      Game.succProbability ((E.encDist false n).bind fun p => PMF.pure (bad n false p)) +
-      Game.advantage
-        (ProbComp.eval (E.ccaOneTimeGame (maulCCAAdversary maul ctBound) false n))
-        (ProbComp.eval (E.ccaOneTimeGame (maulCCAAdversary maul ctBound) true n)) +
-      Game.succProbability ((E.encDist true n).bind fun p => PMF.pure (bad n true p)) :=
-    Filter.eventually_atTop.mpr ⟨1, fun n hn =>
-      E.le_ccaAdvantage_of_maul ctBound (bad n) n hn (hctBound n) (hmaul n hn)⟩
-  exact not_negligible_const one_ne_zero (by negligible eventually hle)
 
 /-- Modified symmetric cipher `E.tailFallback` ([KatzLindell2020], Exercise 5.10, printed p. 165):
 `keyGen` and `encrypt` are identical to `E`, while `decrypt n k ct` returns `E.decrypt n k ct`
@@ -416,7 +193,7 @@ theorem succProbability_encForgeGame_tailFallback_le (E : SymmetricCipher)
         !p.2.2.contains ((E.decrypt n p.1 p.2.1.tail).getD []))) by
     simpa only [encForgeGame, tailCIAdversary, hkeyGen, horacle, runDist, runWith_norm,
       pmf_norm] using this
-  refine succProbability_bind_pure_bool_le_add runDist _ _ _ fun p _ hwin => ?_
+  refine Game.succProbability_bind_pure_le_add runDist fun p _ hwin => ?_
   dsimp only [tailFallback] at hwin
   split_ifs at hwin with h1 h2
   · exact Or.inl hwin
@@ -434,16 +211,14 @@ theorem EncForge.tailFallback {E : SymmetricCipher} (h : E.EncForge) :
 /-- One-query ciphertext-integrity / `EncForge` adversary that queries encryption on `bit^n`
 (truncating the reply to `ctBound n`) and prepends `false` to the returned ciphertext. -/
 def prependFalseBitCIAdversary (bit : Bool) (ctBound : ℕ → ℕ) : CIAdversary :=
-  fun n _ => do
-    let ct ← List.take (ctBound n) <$> ProbOracleComp.query ((), List.replicate n bit)
-    return (false :: ct)
+  maulCIAdversary (fun _ ct => false :: ct) bit ctBound
 
 /-- `prependFalseBitCIAdversary` is strict oracle-PPT whenever `ctBound` is computable in plain
 polynomial time. -/
 theorem isOraclePPT_prependFalseBitCIAdversary (bit : Bool) {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
     IsOraclePPT encBits (prependFalseBitCIAdversary bit ctBound) := by
-  ppt [prependFalseBitCIAdversary]
+  ppt [prependFalseBitCIAdversary, maulCIAdversary]
 
 private theorem tailFallback_false_cons_maul (E : SymmetricCipher) (n : ℕ)
     (k msg ct : List Bool) (hk : k ∈ (ProbComp.eval (E.keyGen n)).support) (hmsg : msg.length = n)
@@ -482,8 +257,9 @@ theorem eval_ciGame_tailFallback_prependFalseBitCIAdversary (E : SymmetricCipher
 Exercise 5.10, printed p. 165). -/
 theorem not_oneTimeCiphertextIntegrity_tailFallback (E : SymmetricCipher) :
     ¬ E.tailFallback.OneTimeCiphertextIntegrity :=
-  E.tailFallback.not_oneTimeCiphertextIntegrity_of_maul (by fun_prop) false fun n k hk ct hct =>
-    tailFallback_false_cons_maul E n k _ ct hk List.length_replicate hct
+  E.tailFallback.not_oneTimeCiphertextIntegrity_of_maul (maul := fun _ ct => false :: ct)
+    (by fun_prop) false fun n _ k hk ct hct =>
+      tailFallback_false_cons_maul E n k _ ct hk List.length_replicate hct
 
 /-- `E.tailFallback` never satisfies `CiphertextIntegrity` ([KatzLindell2020], Exercise 5.10,
 printed p. 165). -/
@@ -505,30 +281,24 @@ theorem not_authenticatedEncryption_tailFallback (E : SymmetricCipher) :
 printed p. 165): queries left-or-right encryption on `(0^n, 1^n)` to obtain `ct`, queries
 decryption on `false :: ct`, and outputs whether the decrypted message equals `some 1^n`. -/
 def tailFallbackCCAAdversary (ctBound : ℕ → ℕ) : CCAAdversary :=
-  fun n _ => do
-    let m0 := List.replicate n false
-    let m1 := List.replicate n true
-    let ct ← List.take (ctBound n) <$>
-      ProbOracleComp.query (false, encPair encBits encBits (m0, m1))
-    let reply ← List.take (n + 1) <$>
-      ProbOracleComp.query (true, false :: ct)
-    return (reply == encOption encBits (some m1))
+  maulCCAAdversary (fun _ ct => false :: ct) true ctBound
 
 /-- `tailFallbackCCAAdversary` is strict oracle-PPT whenever `ctBound` is computable in plain
 polynomial time. -/
 theorem isOraclePPT_tailFallbackCCAAdversary {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
     IsOraclePPT encBool (tailFallbackCCAAdversary ctBound) := by
-  ppt [tailFallbackCCAAdversary]
+  ppt [tailFallbackCCAAdversary, maulCCAAdversary]
 
 private theorem eval_encForgeGame_prependFalseBitCIAdversary (E : SymmetricCipher)
     (bit : Bool) (ctBound : ℕ → ℕ) (n : ℕ)
     (hctBound : E.CiphertextLengthLE n (ctBound n)) :
-    ProbComp.eval (E.encForgeGame (prependFalseBitCIAdversary bit ctBound) n) =
-      (E.encDist bit n).bind (fun p => PMF.pure
-        ((E.decrypt n p.1 (false :: p.2)).isSome &&
-          !([List.replicate n bit].contains ((E.decrypt n p.1 (false :: p.2)).getD [])))) := by
-  simp only [encForgeGame, prependFalseBitCIAdversary, encForgeOracle, encDist,
+    ProbComp.eval (E.encForgeGame (prependFalseBitCIAdversary bit ctBound) n) = do
+      let k ← ProbComp.eval (E.keyGen n)
+      let ct ← ProbComp.eval (E.encrypt n k (List.replicate n bit))
+      return (E.decrypt n k (false :: ct)).isSome &&
+        !([List.replicate n bit].contains ((E.decrypt n k (false :: ct)).getD [])) := by
+  simp only [encForgeGame, prependFalseBitCIAdversary, maulCIAdversary, encForgeOracle,
     List.length_replicate, beq_self_eq_true, ↓reduceIte, runWith_norm, pmf_norm]
   peel_binds k ct
   rw [List.take_of_length_le (hctBound k k_mem _ List.length_replicate ct ct_mem)]
@@ -537,9 +307,10 @@ private theorem eval_encForgeGame_prependFalseBitCIAdversary (E : SymmetricCiphe
 ([KatzLindell2020], Exercise 5.10, printed p. 165). -/
 theorem not_oneTimeINDCCA_tailFallback {E : SymmetricCipher} (hforge : E.EncForge) :
     ¬ E.tailFallback.OneTimeINDCCA := by
-  refine E.tailFallback.not_oneTimeINDCCA_of_maul (maul := (false :: ·)) (by fun_prop)
-    (fun n bit p => (E.decrypt n p.1 (false :: p.2)).isSome &&
-      !([List.replicate n bit].contains ((E.decrypt n p.1 (false :: p.2)).getD [])))
+  refine E.tailFallback.not_oneTimeINDCCA_of_maul_or_bad (maul := fun _ ct => false :: ct)
+    (by fun_prop) true
+    (fun n bit k ct => (E.decrypt n k (false :: ct)).isSome &&
+      !([List.replicate n bit].contains ((E.decrypt n k (false :: ct)).getD [])))
     (fun bit ctBound hctBoundPoly hctBound => ?_)
     fun n _ bit k hk ct hct => ⟨List.ne_cons_self.symm, ?_⟩
   · have h := hforge.negligible (prependFalseBitCIAdversary bit ctBound)
@@ -636,7 +407,7 @@ private theorem succProbability_redundantTag_runDist_le (M : MACScheme)
         Game.succProbability (runDist.bind fun p => PMF.pure
             ((p.2.1.1.length == M.msgLen n) && !p.2.2.contains p.2.1.1 &&
               M.verify p.1 p.2.1.1 p.2.1.2.tail)) := by
-  refine succProbability_bind_pure_bool_le_add _ _ _ _ fun p _ hwin => ?_
+  refine Game.succProbability_bind_pure_le_add _ fun p _ hwin => ?_
   dsimp only [redundantTag] at hwin
   simp only [Bool.and_eq_true, Bool.or_eq_true] at hwin ⊢
   rcases hwin with ⟨⟨hlen, hfresh⟩, hver | ⟨_, hverTail⟩⟩
@@ -771,16 +542,15 @@ theorem encForge_encryptThenMAC_redundantTag (E : SymmetricCipher) (M : MACSchem
 reply to `ctBound n`) to obtain `ct = encPair encBits encBits (c, tag)`, and outputs
 `encPair encBits encBits (unframe ct, false :: dropFrame ct)`. -/
 def etmRedundantCIAdversary (ctBound : ℕ → ℕ) : CIAdversary :=
-  fun n _ => do
-    let ct ← List.take (ctBound n) <$> ProbOracleComp.query ((), List.replicate n false)
-    return encPair encBits encBits (unframe ct, false :: dropFrame ct)
+  SymmetricCipher.maulCIAdversary
+    (fun _ ct => encPair encBits encBits (unframe ct, false :: dropFrame ct)) false ctBound
 
 /-- `etmRedundantCIAdversary` is strict oracle-PPT whenever `ctBound` is computable in plain
 polynomial time. -/
 theorem isOraclePPT_etmRedundantCIAdversary {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
     IsOraclePPT encBits (etmRedundantCIAdversary ctBound) := by
-  ppt [etmRedundantCIAdversary]
+  ppt [etmRedundantCIAdversary, SymmetricCipher.maulCIAdversary]
 
 private abbrev etmRedundantMaul (ct : List Bool) : List Bool :=
   encPair encBits encBits (unframe ct, false :: dropFrame ct)
@@ -820,7 +590,7 @@ theorem eval_ciOneTimeGame_encryptThenMAC_redundantTag_etmRedundantCIAdversary
       ((encryptThenMAC E M.redundantTag hctLen).ciOneTimeGame
         (etmRedundantCIAdversary ctBound) n) = PMF.pure true :=
   (encryptThenMAC E M.redundantTag hctLen).eval_ciOneTimeGame_maulCIAdversary
-    (maul := etmRedundantMaul) false ctBound n hctBound fun _ hk _ hct =>
+    (maul := fun _ => etmRedundantMaul) false ctBound n hctBound fun _ hk _ hct =>
       (decrypt_encryptThenMAC_redundantTag_of_mem_support E M hctLen hk
         List.length_replicate hct).imp_right fun h => by rw [h]; rfl
 
@@ -836,7 +606,7 @@ theorem eval_ciGame_encryptThenMAC_redundantTag_etmRedundantCIAdversary
       ((encryptThenMAC E M.redundantTag hctLen).ciGame
         (etmRedundantCIAdversary ctBound) n) = PMF.pure true :=
   (encryptThenMAC E M.redundantTag hctLen).eval_ciGame_maulCIAdversary
-    (maul := etmRedundantMaul) false ctBound n hctBound fun _ hk _ hct =>
+    (maul := fun _ => etmRedundantMaul) false ctBound n hctBound fun _ hk _ hct =>
       (decrypt_encryptThenMAC_redundantTag_of_mem_support E M hctLen hk
         List.length_replicate hct).imp_right fun h => by rw [h]; rfl
 
@@ -847,7 +617,7 @@ theorem not_oneTimeCiphertextIntegrity_encryptThenMAC_redundantTag
     (hctLen : ∀ n, E.CiphertextLength n (M.msgLen n)) :
     ¬ (encryptThenMAC E M.redundantTag hctLen).OneTimeCiphertextIntegrity :=
   (encryptThenMAC E M.redundantTag hctLen).not_oneTimeCiphertextIntegrity_of_maul
-    (maul := etmRedundantMaul) (by fun_prop) false fun _ _ hk _ hct =>
+    (maul := fun _ => etmRedundantMaul) (by fun_prop) false fun _ _ _ hk _ hct =>
       (decrypt_encryptThenMAC_redundantTag_of_mem_support E M hctLen hk
         List.length_replicate hct).imp_right fun h => by rw [h]; rfl
 
@@ -881,21 +651,15 @@ theorem not_authenticatedEncryption_encryptThenMAC_redundantTag
 `encPair encBits encBits (unframe ct, false :: dropFrame ct)`, and outputs whether the decrypted
 message equals `some 1^n`. -/
 def etmRedundantCCAAdversary (ctBound : ℕ → ℕ) : CCAAdversary :=
-  fun n _ => do
-    let m0 := List.replicate n false
-    let m1 := List.replicate n true
-    let ct ← List.take (ctBound n) <$>
-      ProbOracleComp.query (false, encPair encBits encBits (m0, m1))
-    let reply ← List.take (n + 1) <$>
-      ProbOracleComp.query (true, encPair encBits encBits (unframe ct, false :: dropFrame ct))
-    return (reply == encOption encBits (some m1))
+  SymmetricCipher.maulCCAAdversary
+    (fun _ ct => encPair encBits encBits (unframe ct, false :: dropFrame ct)) true ctBound
 
 /-- `etmRedundantCCAAdversary` is strict oracle-PPT whenever `ctBound` is computable in plain
 polynomial time. -/
 theorem isOraclePPT_etmRedundantCCAAdversary {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
     IsOraclePPT encBool (etmRedundantCCAAdversary ctBound) := by
-  ppt [etmRedundantCCAAdversary]
+  ppt [etmRedundantCCAAdversary, SymmetricCipher.maulCCAAdversary]
 
 /-- In `ccaOneTimeGame` against `encryptThenMAC E M.redundantTag hctLen` at challenge bit `bit`,
 `etmRedundantCCAAdversary ctBound` outputs `true` iff `some (List.replicate n bit)` encodes to
@@ -910,20 +674,10 @@ theorem eval_ccaOneTimeGame_encryptThenMAC_redundantTag_etmRedundantCCAAdversary
         (etmRedundantCCAAdversary ctBound) bit n) =
       PMF.pure
         (List.take (n + 1) (encOption encBits (some (List.replicate n bit))) ==
-          encOption encBits (some (List.replicate n true))) := by
-  refine Eq.trans ((encryptThenMAC E M.redundantTag hctLen).eval_ccaOneTimeGame_maulCCAAdversary
-    (maul := etmRedundantMaul) bit ctBound n hctBound fun _ hk _ hct =>
-      (decrypt_encryptThenMAC_redundantTag_of_mem_support E M hctLen hk
-        List.length_replicate hct).1) ?_
-  refine PMF.bind_eq_pure_of_forall_mem_support fun ⟨k, ct⟩ hp => ?_
-  simp only [SymmetricCipher.encDist, PMF.mem_support_bind_iff, PMF.mem_support_map_iff,
-    Prod.mk.injEq] at hp
-  obtain ⟨k, hk, ct, hct, rfl, rfl⟩ := hp
-  have hdec := (decrypt_encryptThenMAC_redundantTag_of_mem_support E M hctLen hk
-    List.length_replicate hct).2
-  exact congrArg PMF.pure (congrArg
-    (fun opt => List.take (n + 1) (encOption encBits opt) ==
-      encOption encBits (some (List.replicate n true))) hdec)
+          encOption encBits (some (List.replicate n true))) :=
+  (encryptThenMAC E M.redundantTag hctLen).eval_ccaOneTimeGame_maulCCAAdversary
+    (maul := fun _ => etmRedundantMaul) true bit ctBound n hctBound _ fun _ hk _ hct =>
+      decrypt_encryptThenMAC_redundantTag_of_mem_support E M hctLen hk List.length_replicate hct
 
 /-- `encryptThenMAC E M.redundantTag hctLen` never satisfies `OneTimeINDCCA`
 ([KatzLindell2020], Exercise 5.4, printed p. 164). -/
@@ -932,13 +686,8 @@ theorem not_oneTimeINDCCA_encryptThenMAC_redundantTag
     (hctLen : ∀ n, E.CiphertextLength n (M.msgLen n)) :
     ¬ (encryptThenMAC E M.redundantTag hctLen).OneTimeINDCCA :=
   (encryptThenMAC E M.redundantTag hctLen).not_oneTimeINDCCA_of_maul
-    (maul := etmRedundantMaul) (by fun_prop)
-    (fun _ _ _ => false)
-    (fun _ _ _ _ => by simp [Game.succProbability])
-    fun _ _ _ _ hk _ hct => by
-      obtain ⟨hne, hdec⟩ :=
-        decrypt_encryptThenMAC_redundantTag_of_mem_support E M hctLen hk List.length_replicate hct
-      exact ⟨hne, Or.inl hdec⟩
+    (maul := fun _ => etmRedundantMaul) (by fun_prop) true fun _ _ _ _ hk _ hct =>
+      decrypt_encryptThenMAC_redundantTag_of_mem_support E M hctLen hk List.length_replicate hct
 
 /-- `encryptThenMAC E M.redundantTag hctLen` never satisfies `INDCCA`
 ([KatzLindell2020], Exercise 5.4, printed p. 164). -/
