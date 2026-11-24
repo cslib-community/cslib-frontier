@@ -55,8 +55,8 @@ def lits₂ : Unit → List ((Empty ⊕ Σ _ : Unit, Fin 3) × Bool) := fun _ =>
 example : domainClauseSum lits₂ (fun _ => (2 : ℤ)) Empty.elim = 4 := by
   decide
 
-/-- The same as a clause sum over the one-hot bits. -/
-example : clauseSumWith (oneHotLits lits₂) (oneHotWeights fun _ => (2 : ℤ)) Empty.elim = 4 := by
+/-- The same as a clause sum over the one-hot bits, with weights in the semiring `ℕ`. -/
+example : clauseSumWith (oneHotLits lits₂) (oneHotWeights fun _ => (2 : ℕ)) Empty.elim = 4 := by
   rw [← domainClauseSum_eq_clauseSumWith]
   decide
 

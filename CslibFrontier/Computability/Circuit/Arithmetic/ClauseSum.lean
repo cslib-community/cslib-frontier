@@ -51,11 +51,11 @@ namespace Cslib.Circuits.Arithmetic
 
 open MvPolynomial Finset
 
-variable {R : Type*} [CommRing R]
+variable {R : Type*} [CommSemiring R]
 
 /-- A *clause sum*: the sum, over the bits `x`, of the product over the clauses `κ` of the weight
 of `κ` if all its literals hold, and `1` otherwise. A literal `(b, e)` holds when `x b = e`. -/
-@[expose] noncomputable def clauseSum {R V Θ : Type*} [CommRing R] [Fintype V] [DecidableEq V]
+@[expose] noncomputable def clauseSum {R V Θ : Type*} [CommSemiring R] [Fintype V] [DecidableEq V]
     [Fintype Θ] (lits : Θ → List (V × Bool)) (wt : Θ → R) : R :=
   ∑ x : V → Bool, ∏ κ, if ∀ l ∈ lits κ, x l.1 = l.2 then wt κ else 1
 
@@ -132,35 +132,30 @@ theorem domainClauseSum_eq_clauseSumWith (lits : Θ → List ((ι ⊕ Σ d, E d)
   refine sum_of_injOn Pi.oneHot Pi.oneHot_injective.injOn (fun _ _ => mem_univ _) ?_ ?_
   · intro a _ ha
     rw [Fintype.prod_sum_type, Fintype.prod_sum_type]
-    by_cases hex : ∀ d, ∃ e, a ⟨d, e⟩ = true
-    · choose g hg using hex
-      have hne : a ≠ Pi.oneHot g := fun h => ha ⟨g, mem_univ _, h.symm⟩
-      obtain ⟨⟨d, e⟩, he⟩ := Function.ne_iff.1 hne
-      have hde : g d ≠ e := by
-        rintro rfl
-        exact he (by simp [hg])
-      have hat : a ⟨d, e⟩ = true := by simpa [hde] using he
+    -- `a` is no one-hot encoding: some point has no set bit, or two
+    have hna : ¬ ∀ d, ∃! e, a ⟨d, e⟩ = true := fun h =>
+      ha (by simpa using (Pi.exists_oneHot_eq_iff a).2 h)
+    obtain ⟨d, hd⟩ := not_forall.1 hna
+    by_cases hex : ∃ e, a ⟨d, e⟩ = true
+    · obtain ⟨e, he⟩ := hex
+      obtain ⟨e', he', hne⟩ : ∃ e', a ⟨d, e'⟩ = true ∧ e' ≠ e := by
+        by_contra h
+        push Not at h
+        exact hd ⟨e, he, h⟩
       have : (∏ q : (Σ d, E d) × (Σ d, E d),
           if ∀ l ∈ oneHotLits lits (.inr (.inr q)), Sum.elim x a l.1 = l.2 then
             oneHotWeights (E := E) wt (.inr (.inr q)) else 1) = 0 := by
-        refine prod_eq_zero (mem_univ (⟨d, e⟩, ⟨d, g d⟩)) ?_
-        have hpq : (⟨d, e⟩ : Σ d, E d) ≠ ⟨d, g d⟩ := by
-          intro h
-          exact hde (eq_of_heq (Sigma.mk.inj h).2).symm
-        simp [oneHotLits, oneHotWeights, hat, hg, hpq]
+        refine prod_eq_zero (mem_univ (⟨d, e'⟩, ⟨d, e⟩)) ?_
+        have hpq : (⟨d, e'⟩ : Σ d, E d) ≠ ⟨d, e⟩ := fun h => hne (eq_of_heq (Sigma.mk.inj h).2)
+        simp [oneHotLits, oneHotWeights, he, he', hpq]
       rw [this, mul_zero, mul_zero]
     · push Not at hex
-      obtain ⟨d, hd⟩ := hex
       have : (∏ d : D, if ∀ l ∈ oneHotLits lits (.inr (.inl d)), Sum.elim x a l.1 = l.2 then
             oneHotWeights (E := E) wt (.inr (.inl d)) else 1) = 0 := by
-        refine prod_eq_zero (mem_univ d) ?_
-        rw [ite_eq_left_iff.2]
-        · rfl
-        · intro h
-          exact absurd (fun l hl => by
-            simp only [oneHotLits, List.mem_map, Finset.mem_toList, mem_univ, true_and] at hl
-            obtain ⟨e, rfl⟩ := hl
-            simpa using hd e) h
+        refine prod_eq_zero (mem_univ d) ((ite_eq_left fun l hl => ?_).trans rfl)
+        simp only [oneHotLits, List.mem_map, Finset.mem_toList, mem_univ, true_and] at hl
+        obtain ⟨e, rfl⟩ := hl
+        simpa using hex e
       rw [this, zero_mul, mul_zero]
   · intro g _
     rw [Fintype.prod_sum_type, Fintype.prod_sum_type]
