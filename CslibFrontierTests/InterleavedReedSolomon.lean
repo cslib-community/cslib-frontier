@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mayank Rathee, Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (test)
+
 import CslibFrontier.Crypto.Protocols.PolynomialCommitment.LigeroProximity
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.Tactic.NormNum.Prime
@@ -16,9 +19,9 @@ Exercises `Cslib.Code.interleavedLinear`, `minDist_interleavedLinear`,
 bound (`toOuterMeasure_sum_smul_close_le_of_three_mul_lt_minDist`), the Reed–Solomon unique-decoding
 `d / 2` proximity and extraction bounds (`toOuterMeasure_sum_smul_reedSolomon_close_le`,
 `exists_unique_mem_interleavedLinear_reedSolomon`), and the Ligero cheating-prover proximity and
-evaluation soundness theorems (`ligeroProximityReduction_reedSolomon_complete`,
-`ligeroProximityReduction_reedSolomon_sound`, `toOuterMeasure_ligeroEvalCheck_false_le`) over
-`ZMod 7`, `ZMod 11`, and `ZMod 17`:
+evaluation soundness theorems (`ligeroProximityReduction_complete`,
+`ligeroProximityReduction_reedSolomon_sound`, `toOuterMeasure_ligeroEvalCheck_false_le`) via
+ordinary `module` imports over `ZMod 7`, `ZMod 11`, and `ZMod 17`:
 
 1. **Minimum distance preservation** (`ZMod 7`, `n = 7, k = 3, d = 5`):
    `minDist (interleavedLinear (Fin 3) (reedSolomon id 3)) = 5`.
@@ -40,6 +43,9 @@ evaluation soundness theorems (`ligeroProximityReduction_reedSolomon_complete`,
    `e`-corrupted matrix.
 -/
 
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.InterleavedReedSolomon
 
 open Cslib Cslib.Code Cslib.Crypto.Protocols Cslib.Interactive Cslib.Probability Polynomial
@@ -48,6 +54,30 @@ open scoped BigOperators ENNReal Matrix NNReal
 instance : Fact (Nat.Prime 7) := ⟨by norm_num⟩
 instance : Fact (Nat.Prime 11) := ⟨by norm_num⟩
 instance : Fact (Nat.Prime 17) := ⟨by norm_num⟩
+
+/-- If every row of `W : ι → Fin m → F` lies within Hamming distance `e` of `0` inside the
+Reed–Solomon unique-decoding radius `2 * e + k ≤ |ι|`, while `e < hammingDist W 0`, then `W` has
+column-Hamming distance strictly greater than `e` from every codeword of
+`interleavedLinear (Fin m) (reedSolomon α k)`. -/
+private lemma far_of_rows_close_zero {F ι : Type*} [Field F] [DecidableEq F] [Fintype ι]
+    {α : ι → F} (hα : Function.Injective α) {e k m : ℕ}
+    (hunique : 2 * e + k ≤ Fintype.card ι) {W : ι → Fin m → F}
+    (hrows : ∀ r : Fin m, hammingDist (fun i => W i r) 0 ≤ e)
+    (hW0 : e < hammingDist W 0) :
+    ∀ V ∈ interleavedLinear (Fin m) (reedSolomon α k), e < hammingDist W V := by
+  intro V hV
+  by_contra hle
+  have hle_e : hammingDist W V ≤ e := Nat.le_of_not_lt hle
+  have hV0 : V = 0 := by
+    funext i r
+    have hrow : hammingDist (fun j => W j r) (fun j => V j r) ≤ e :=
+      le_trans (Finset.card_le_card fun j hj => by
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hj ⊢
+        exact fun hEq => hj (congrFun hEq r)) hle_e
+    exact congrFun (eq_of_hammingDist_le_reedSolomon (f := fun j => W j r) hα hunique
+      (mem_interleavedLinear.1 hV r) (Submodule.zero_mem _) hrow (hrows r)) i
+  rw [hV0] at hle_e
+  exact hW0.not_ge hle_e
 
 /-! ### 1. Minimum distance of an interleaved Reed–Solomon code over `ZMod 7` -/
 
@@ -71,28 +101,8 @@ def farW_d3 : Fin 7 → Fin 2 → ZMod 11 :=
   fun i r => if i.val = 0 ∧ r.val = 0 then 1 else if i.val = 1 ∧ r.val = 1 then 1 else 0
 
 lemma farW_d3_not_close :
-    ∀ V ∈ interleavedLinear (Fin 2) (reedSolomon pts7_11 3), 1 < hammingDist farW_d3 V := by
-  intro V hV
-  by_contra hle
-  have hle1 : hammingDist farW_d3 V ≤ 1 := Nat.le_of_not_lt hle
-  have hrow_dist (r : Fin 2) : hammingDist (fun i => farW_d3 i r) (fun i => V i r) ≤ 1 := by
-    refine le_trans (Finset.card_le_card fun i hi => ?_) hle1
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hi ⊢
-    exact fun hEq => hi (congrFun hEq r)
-  have hrow0 : (fun i => V i 0) = 0 :=
-    eq_of_hammingDist_le_reedSolomon (f := fun i => farW_d3 i 0) pts7_11_injective
-      (e := 1) (by simp) (hV 0) (Submodule.zero_mem _) (hrow_dist 0) (by decide)
-  have hrow1 : (fun i => V i 1) = 0 :=
-    eq_of_hammingDist_le_reedSolomon (f := fun i => farW_d3 i 1) pts7_11_injective
-      (e := 1) (by simp) (hV 1) (Submodule.zero_mem _) (hrow_dist 1) (by decide)
-  have hV0 : V = 0 := by
-    funext i r
-    fin_cases r
-    · exact congrFun hrow0 i
-    · exact congrFun hrow1 i
-  rw [hV0] at hle1
-  have hdist2 : hammingDist farW_d3 0 = 2 := by decide
-  omega
+    ∀ V ∈ interleavedLinear (Fin 2) (reedSolomon pts7_11 3), 1 < hammingDist farW_d3 V :=
+  far_of_rows_close_zero pts7_11_injective (by simp) (by decide) (by decide)
 
 theorem test_d3_interleaved_bound_nonvacuous :
     (PMF.uniformOfFintype (Fin 2 → ZMod 11)).toOuterMeasure
@@ -123,28 +133,8 @@ def farW_d2 : Fin 6 → Fin 2 → ZMod 11 :=
     else 0
 
 lemma farW_d2_not_close :
-    ∀ V ∈ interleavedLinear (Fin 2) (reedSolomon pts6_11 2), 2 < hammingDist farW_d2 V := by
-  intro V hV
-  by_contra hle
-  have hle2 : hammingDist farW_d2 V ≤ 2 := Nat.le_of_not_lt hle
-  have hrow_dist (r : Fin 2) : hammingDist (fun i => farW_d2 i r) (fun i => V i r) ≤ 2 := by
-    refine le_trans (Finset.card_le_card fun i hi => ?_) hle2
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hi ⊢
-    exact fun hEq => hi (congrFun hEq r)
-  have hrow0 : (fun i => V i 0) = 0 :=
-    eq_of_hammingDist_le_reedSolomon (f := fun i => farW_d2 i 0) pts6_11_injective
-      (e := 2) (by simp) (hV 0) (Submodule.zero_mem _) (hrow_dist 0) (by decide)
-  have hrow1 : (fun i => V i 1) = 0 :=
-    eq_of_hammingDist_le_reedSolomon (f := fun i => farW_d2 i 1) pts6_11_injective
-      (e := 2) (by simp) (hV 1) (Submodule.zero_mem _) (hrow_dist 1) (by decide)
-  have hV0 : V = 0 := by
-    funext i r
-    fin_cases r
-    · exact congrFun hrow0 i
-    · exact congrFun hrow1 i
-  rw [hV0] at hle2
-  have hdist4 : hammingDist farW_d2 0 = 4 := by decide
-  omega
+    ∀ V ∈ interleavedLinear (Fin 2) (reedSolomon pts6_11 2), 2 < hammingDist farW_d2 V :=
+  far_of_rows_close_zero pts6_11_injective (by simp) (by decide) (by decide)
 
 theorem test_rs_unique_d2_negative_witness :
     (PMF.uniformOfFintype (Fin 2 → ZMod 11)).toOuterMeasure
@@ -163,6 +153,7 @@ def trueV_d2 : Fin 6 → Fin 2 → ZMod 11 :=
   fun i r => if r.val = 0 then 2 * pts6_11 i + 1 else 3 * pts6_11 i + 4
 
 lemma trueV_d2_mem : trueV_d2 ∈ interleavedLinear (Fin 2) (reedSolomon pts6_11 2) := by
+  rw [mem_interleavedLinear]
   intro r
   fin_cases r
   · change (fun i => trueV_d2 i 0) ∈ reedSolomon pts6_11 2
@@ -233,25 +224,8 @@ lemma farM_17_not_mem_proximityLang :
     farM_17 ∉ ligeroProximityLang 2 (reedSolomonGenerator pts6_17 2) 2 := by
   rintro ⟨V, hV, hle2⟩
   rw [codeOfGenerator_reedSolomonGenerator] at hV
-  have hrow_dist (r : Fin 2) :
-      hammingDist (fun i => Function.swap farM_17 i r) (fun i => V i r) ≤ 2 := by
-    refine le_trans (Finset.card_le_card fun i hi => ?_) hle2
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hi ⊢
-    exact fun hEq => hi (congrFun hEq r)
-  have hrow0 : (fun i => V i 0) = 0 :=
-    eq_of_hammingDist_le_reedSolomon (f := fun i => Function.swap farM_17 i 0) pts6_17_injective
-      (e := 2) (by simp) (hV 0) (Submodule.zero_mem _) (hrow_dist 0) (by decide)
-  have hrow1 : (fun i => V i 1) = 0 :=
-    eq_of_hammingDist_le_reedSolomon (f := fun i => Function.swap farM_17 i 1) pts6_17_injective
-      (e := 2) (by simp) (hV 1) (Submodule.zero_mem _) (hrow_dist 1) (by decide)
-  have hV0 : V = 0 := by
-    funext i r
-    fin_cases r
-    · exact congrFun hrow0 i
-    · exact congrFun hrow1 i
-  rw [hV0] at hle2
-  have hdist4 : hammingDist (Function.swap farM_17) 0 = 4 := by decide
-  omega
+  exact (far_of_rows_close_zero pts6_17_injective (by simp) (by decide) (by decide) V hV).not_ge
+    hle2
 
 /-- Over `ZMod 17` (`n = 6, k = 2, e = 2, q = 3`), the Reed–Solomon Ligero proximity reduction is
 perfectly complete and rejects `farM_17` against **every** prover strategy except with probability

@@ -136,7 +136,7 @@ theorem vecMul_mem_codeOfGenerator {F : Type*} [CommSemiring F] {l n : ℕ}
 
 /-- The `k × n` Vandermonde generator matrix for `Cslib.Code.reedSolomon α k` at evaluation points
 `α : Fin n → F`, with entry `(d, j)` equal to `α j ^ (d : ℕ)`. -/
-def reedSolomonGenerator {F : Type*} [Semiring F] {n : ℕ} (α : Fin n → F) (k : ℕ) :
+@[expose] def reedSolomonGenerator {F : Type*} [Semiring F] {n : ℕ} (α : Fin n → F) (k : ℕ) :
     Matrix (Fin k) (Fin n) F :=
   Matrix.of fun d j => α j ^ (d : ℕ)
 
