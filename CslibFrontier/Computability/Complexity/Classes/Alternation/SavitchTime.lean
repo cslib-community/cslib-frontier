@@ -15,11 +15,12 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Cas
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.BitString.Cut
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.CodeEdge
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.WordTransducers
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 
 /-!
-# Savitch's midpoint game in alternating time, from its edge test
+# Nondeterministic space in alternating time: `NSPACE s ⊆ ATIME ((n + s n) ^ 2)`
 
 A play of Savitch's midpoint game on the views of a nondeterministic machine `ntm` ends with the
 edge test of two endpoints, each the midpoint of the last level with a given half or, if there is
@@ -31,14 +32,14 @@ codes, `Turing.MultiTapeNTM.codeEdge`: the width and the number of moves in unar
 (`Cslib.Complexity.TimeConstructible.computableInO_unary_of_polyTime`), both endpoints
 (`Cslib.Reachability.computableInO_lastMidpoint`), the code of the initial view and the accepting
 code within linear time, and the comparison of the endpoints within quadratic time
-(`Turing.MultiTapeNTM.computableInO_midpointLeaf_of_codeEdge`).
+(`Turing.MultiTapeNTM.computableInO_midpointLeaf`).
 
-The result, `Cslib.Complexity.NSPACE_subset_ATIME_sq_of_codeEdge`, is a step toward
-`NSPACE(S) ⊆ ⋃_{c > 0} ATIME(c * S ^ 2)` for `S(n) ≥ n` [Chandra, Kozen and Stockmeyer, Theorem
-3.1][ChandraKozenStockmeyer1981], not that theorem: it assumes that the edge test of codes of every
-machine runs within time quadratic in the length of its encoded pair of words, which is proved
-neither here nor elsewhere in the library. The edge test decodes two views, and compares the second
-with the results of the finitely many actions the machine permits on the first.
+The result, `Cslib.Complexity.NSPACE_subset_ATIME_sq`, is `NSPACE s ⊆ ATIME ((n + s n) ^ 2)` for a
+time-constructible `s`, after [Chandra, Kozen and Stockmeyer, Theorem
+3.1][ChandraKozenStockmeyer1981] (`NSPACE(S) ⊆ ⋃_{c > 0} ATIME(c * S ^ 2)` for `S(n) ≥ n`). The
+edge test decodes two views, and compares the second with the results of the finitely many actions
+the machine permits on the first, within quadratic time
+(`Turing.MultiTapeNTM.computableInO_codeEdge`).
 
 The views record the input, so the codes have width linear in `n + s n`, and the bound is
 `O((n + s n) ^ 2)` (Sipser's form) for every `s`; under the hypothesis `s n ≥ n` of Theorem 3.1 it
@@ -51,10 +52,9 @@ in unary.
 
 ## Main results
 
-* `Turing.MultiTapeNTM.computableInO_midpointLeaf_of_codeEdge`: the leaf test runs within quadratic
-  time if the edge test of codes does.
-* `Cslib.Complexity.NSPACE_subset_ATIME_sq_of_codeEdge`: if the edge test of codes of every machine
-  runs within quadratic time, then `NSPACE s ⊆ ATIME ((n + s n) ^ 2)` for a time-constructible `s`.
+* `Turing.MultiTapeNTM.computableInO_midpointLeaf`: the leaf test runs within quadratic time.
+* `Cslib.Complexity.NSPACE_subset_ATIME_sq`: `NSPACE s ⊆ ATIME ((n + s n) ^ 2)` for a
+  time-constructible `s`.
 
 ## References
 
@@ -99,15 +99,11 @@ private theorem computableInO_map_false :
   .of_bounds (ComputableInTimeAndSpace.map_bits _) 12 (fun l => by simp only [encBits_apply]; omega)
     (fun _ => Nat.zero_le _) fun l => by simp only [encBits_apply, List.length_map]; omega
 
-/-- **The leaf test from the edge test.** If the edge test `Turing.MultiTapeNTM.codeEdge` of `ntm`
-runs within time and space quadratic in the length of its encoded pair of words, so does the leaf
-test `Turing.MultiTapeNTM.midpointLeaf`, in the length of its encoded input: the code of the
-initial view and the accepting code are written within linear time, and the two endpoints are
-compared within quadratic time (`Turing.MultiTapeTM.ComputableInO.eq'`). -/
-theorem computableInO_midpointLeaf_of_codeEdge (ntm : MultiTapeNTM k Bool State)
-    (hedge : ComputableInO (fun p : List Bool × List Bool => ntm.codeEdge p.1 p.2)
-      (encPair encBits encBits) encBool (fun p => (encPair encBits encBits p).length ^ 2)
-      fun p => (encPair encBits encBits p).length ^ 2) :
+/-- **The leaf test of the midpoint game runs within quadratic time** in the length of its encoded
+input: the edge test of codes is quadratic (`Turing.MultiTapeNTM.computableInO_codeEdge`), the code
+of the initial view and the accepting code are written within linear time, and the two endpoints
+are compared within quadratic time (`Turing.MultiTapeTM.ComputableInO.eq'`). -/
+theorem computableInO_midpointLeaf (ntm : MultiTapeNTM k Bool State) :
     ComputableInO
       (fun ((w, input, u, v) : ℕ × List Bool × Option (List Bool) × Option (List Bool)) =>
         ntm.midpointLeaf w input u v)
@@ -117,6 +113,7 @@ theorem computableInO_midpointLeaf_of_codeEdge (ntm : MultiTapeNTM k Bool State)
         (encOption encBits))) p).length ^ 2)
       fun p => (encPair encUnary (encPair encBits (encPair (encOption encBits)
         (encOption encBits))) p).length ^ 2 := by
+  have hedge := ntm.computableInO_codeEdge
   set E := encPair encUnary (encPair encBits (encPair (encOption encBits) (encOption encBits)))
     with hE
   set N := fun p : ℕ × List Bool × Option (List Bool) × Option (List Bool) => (E p).length
@@ -386,26 +383,20 @@ private theorem NSPACE_subset_ATIME_sq_of_midpointLeaf {s : ℕ → ℕ} (hs : T
     nlinarith [Nat.zero_le ((8 * K + 15) ^ 2 * p ^ 2), Nat.zero_le (K * p ^ 2),
       Nat.zero_le (K ^ 2 * p ^ 2)]
 
-/-- This is not `NSPACE(S) ⊆ ⋃_{c > 0} ATIME(c * S ^ 2)` [Chandra, Kozen and Stockmeyer, Theorem
-3.1][ChandraKozenStockmeyer1981] but a step toward it, **the reduction of
-`NSPACE s ⊆ ATIME ((n + s n) ^ 2)` to the edge test of codes**: the hypothesis `hedge`, that the
-edge test `Turing.MultiTapeNTM.codeEdge` of the codes of the views of every machine runs within
-time and space quadratic in the length of its encoded pair of words, is a step of that simulation
-that is proved neither here nor elsewhere in the library.
+/-- **`NSPACE s ⊆ ATIME ((n + s n) ^ 2)` for a time-constructible `s`**, after [Chandra, Kozen and
+Stockmeyer, Theorem 3.1][ChandraKozenStockmeyer1981]: every problem in `NSPACE s` is in
+`ATIME ((n + s n) ^ 2)`. The alternating machine plays Savitch's midpoint game on the views of a
+machine deciding the problem (`Cslib.Complexity.exists_midpointGame_of_mem_NSPACE`), and its
+verifier, including the leaf test (`Turing.MultiTapeNTM.computableInO_midpointLeaf`), runs within
+time `O((n + s n) ^ 2)`.
 
-Given it, every problem in `NSPACE s`, for a time-constructible `s`, is in
-`ATIME ((n + s n) ^ 2)`: the leaf test of the midpoint game then runs within quadratic time
-(`Turing.MultiTapeNTM.computableInO_midpointLeaf_of_codeEdge`), and the alternating machine plays
-the midpoint game on the views of a machine deciding the problem. The bound is Sipser's form
-`O((n + s n) ^ 2)`, which is `O(s n ^ 2)` under the hypothesis `s n ≥ n` of Theorem 3.1; unlike
-Theorem 3.1, `s` is assumed time-constructible. -/
-theorem NSPACE_subset_ATIME_sq_of_codeEdge {s : ℕ → ℕ} (hs : TimeConstructible s)
-    (hedge : ∀ {k : ℕ} {State : Type} [Finite State] (ntm : MultiTapeNTM k Bool State),
-      ComputableInO (fun p : List Bool × List Bool => ntm.codeEdge p.1 p.2)
-        (encPair encBits encBits) encBool (fun p => (encPair encBits encBits p).length ^ 2)
-        fun p => (encPair encBits encBits p).length ^ 2) :
+Theorem 3.1 states `NSPACE(S) ⊆ ⋃_{c > 0} ATIME(c * S ^ 2)` for `S(n) ≥ n`. This statement differs
+in two ways: `s` is assumed time-constructible, to write the number of moves of the game in unary
+(Theorem 3.1 assumes no constructibility); and the bound is Sipser's form `O((n + s n) ^ 2)`, for
+every `s`, which is `O(s n ^ 2)` exactly under the hypothesis `s n ≥ n` of Theorem 3.1. Both
+classes are relative to the encoding `enc` of instances. -/
+theorem NSPACE_subset_ATIME_sq {s : ℕ → ℕ} (hs : TimeConstructible s) :
     NSPACE enc s ⊆ ATIME enc fun n => (n + s n) ^ 2 :=
-  NSPACE_subset_ATIME_sq_of_midpointLeaf hs fun ntm =>
-    ntm.computableInO_midpointLeaf_of_codeEdge (hedge ntm)
+  NSPACE_subset_ATIME_sq_of_midpointLeaf hs fun ntm => ntm.computableInO_midpointLeaf
 
 end Cslib.Complexity
