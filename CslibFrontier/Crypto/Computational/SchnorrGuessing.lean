@@ -113,22 +113,23 @@ theorem inv_two_pow_le_succProbability_schnorrDirectGame (setup : ℕ → PMF F.
 polynomial time (`ComputableInPolyTime m encUnary encUnary`). -/
 theorem isPPT_schnorrGuessingImpersonator {m : ℕ → ℕ}
     (hm : ComputableInPolyTime m encUnary encUnary) : (F.schnorrGuessingImpersonator m).IsPPT := by
-  have hm' := hm.tidy
   refine ⟨?_, ?_⟩
   · have h := F.isPPTOn_schnorrSimulatedTranscript
       (encIn := encPair encUnary (encPair F.encDesc encBits))
       (n := fun p => p.1) (d := fun p => p.2.1) (u := fun p => p.2.2) (m := fun p => m p.1)
       (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
-    exact h.bind_with ((ComputableInPolyTime.tidy (by fun_prop)).isPPTOn)
-  · exact (ComputableInPolyTime.tidy (by fun_prop)).isPPTOn
+    exact h.bind_with (ComputableInPolyTime.isPPTOn (by fun_prop))
+  · exact ComputableInPolyTime.isPPTOn (by fun_prop)
 
 /-- **Negligible `1 / 2 ^ k n` is necessary for security against direct attacks**: for every
 `setup` and `k : ℕ → ℕ`, if every uniform strict-PPT impersonator wins
 `schnorrDirectGame setup k` with negligible probability, then `1 / 2 ^ k n` is negligible. The
 proof instantiates the universal quantifier at `schnorrGuessingImpersonator fun _ => 0` using
 `inv_two_pow_le_succProbability_schnorrDirectGame` and `isPPT_schnorrGuessingImpersonator` (no
-efficiency condition on `k` is needed). The converse, under the discrete-logarithm assumption, is
-`negligible_schnorrDirectGame`. -/
+efficiency condition on `k` is needed). The game here draws the key ideally; the converse for the
+native-key game `schnorrDirectProbGame`, under the discrete-logarithm assumption, is
+`negligible_schnorrDirectProbGame`, and the two games differ by at most `1 / 2 ^ n`
+(`advantage_schnorrDirectProbGame_schnorrDirectGame_le`). -/
 theorem negligible_inv_two_pow_of_negligible_schnorrDirectGame (setup : ℕ → PMF F.Desc) {k : ℕ → ℕ}
     (h : ∀ A : F.SchnorrImpersonator, A.IsPPT →
       Negligible fun n => Game.succProbability (F.schnorrDirectGame setup k A n)) :

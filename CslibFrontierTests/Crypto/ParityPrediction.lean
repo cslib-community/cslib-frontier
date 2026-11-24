@@ -21,10 +21,14 @@ Checked clients and counterexamples for
   `parityAdvantage_eq_half_mul_advantage_parityReduction`.
 * Concrete word-level client: predicting `false` against `otpKeyWordEncrypt (fun n => n + 1)`
   on `(n + 1)`-bit messages discharges every hypothesis of
-  `DEMOneTimeKeyWordINDCPA.negligible_parityWordAdvantage` and proves negligible parity-prediction
+  `DEMOneTimeKeyINDCPAOn.negligible_parityWordAdvantage` and proves negligible parity-prediction
   advantage.
 * Counterexamples showing `1 ≤ L` (`hL`), `hvalid` (concrete), and `∀ n, 1 ≤ msgLen n` (`hpos`)
   are all necessary.
+* The premise concerns only the message space: `leakyOtpEncrypt` pads `(n + 1)`-bit messages and
+  sends every other message in the clear. It is semantically secure on its message space, so the
+  theorem applies to it, but it fails `DEMOneTimeKeyWordINDCPA`, which also admits equal-length
+  pairs of other lengths.
 -/
 
 public section
@@ -91,9 +95,11 @@ example :
     Negligible
       (parityWordAdvantage (fun n => n + 1) (fun n => n + 1)
         (otpKeyWordEncrypt (fun n => n + 1)) (fun _ _ => pure false)) := by
-  refine (demOneTimeKeyWordINDCPA_otpKeyWordEncrypt
-      (fun n => n + 1)).negligible_parityWordAdvantage
-    ?_ (fun n => Nat.le_add_left 1 n) ?_ <;> ppt
+  have hsec : DEMOneTimeKeyINDCPAOn
+      (fun n _ m₀ m₁ => m₀.length == n + 1 && m₁.length == n + 1) encBits (fun n => n + 1)
+      (otpKeyWordEncrypt (fun n => n + 1)) :=
+    (demOneTimeKeyINDCPA_otpKeyWordEncrypt (fun n => n + 1)).demOneTimeKeyINDCPAOn (by fun_prop)
+  exact hsec.negligible_parityWordAdvantage (by fun_prop) (fun n => Nat.le_add_left 1 n) (by ppt)
 
 end ConcreteAndWordClients
 
@@ -178,15 +184,19 @@ theorem cex_parityWord_len_zero :
     let A : ℕ → List Bool → ProbComp Bool := fun _ _ => pure false
     parityWordAdvantage msgLen keyLen encryptSym A 0 = (1 : ℝ≥0) / 2 ∧
       Game.advantage
-        (ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
+        (ProbComp.eval (demKeyGameOn
+          (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n)
           keyLen encryptSym (parityWordToDEMAdversary msgLen A) false 0))
-        (ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
+        (ProbComp.eval (demKeyGameOn
+          (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n)
           keyLen encryptSym (parityWordToDEMAdversary msgLen A) true 0)) = 0 := by
   intro msgLen keyLen encryptSym A
   refine ⟨parityWordAdvantage_msgLen_zero keyLen encryptSym 0, ?_⟩
-  have heq : ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
+  have heq : ProbComp.eval (demKeyGameOn
+        (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n)
         keyLen encryptSym (parityWordToDEMAdversary msgLen A) false 0) =
-      ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
+      ProbComp.eval (demKeyGameOn
+        (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n)
         keyLen encryptSym (parityWordToDEMAdversary msgLen A) true 0) := by
     simp only [demKeyGameOn, parityWordToDEMAdversary, parityReduction, ChoiceOut.msg₀,
       ChoiceOut.msg₁, Bool.false_eq_true, ↓reduceIte, encryptSym, A, ProbComp.eval_bind,
@@ -194,17 +204,19 @@ theorem cex_parityWord_len_zero :
   rw [heq, Game.advantage_self]
 
 /-- Dropping `hpos : ∀ n, 1 ≤ msgLen n` also falsifies the conclusion of
-`DEMOneTimeKeyWordINDCPA.negligible_parityWordAdvantage`: `A = fun _ _ => pure false`
+`DEMOneTimeKeyINDCPAOn.negligible_parityWordAdvantage`: `A = fun _ _ => pure false`
 against `otpKeyWordEncrypt keyLen` has constant parity-prediction advantage `1/2` at every `n`. -/
 theorem cex_parityWord_not_negligible (keyLen : ℕ → ℕ) :
     let msgLen : ℕ → ℕ := fun _ => 0
     let A : ℕ → List Bool → ProbComp Bool := fun _ _ => pure false
-    DEMOneTimeKeyWordINDCPA keyLen (otpKeyWordEncrypt keyLen) ∧
+    DEMOneTimeKeyINDCPAOn (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n)
+        encBits keyLen (otpKeyWordEncrypt keyLen) ∧
       ComputableInPolyTime msgLen encUnary encUnary ∧
       IsPPTOn (encPair encUnary encBits) encBool (fun ⟨n, ct⟩ => A n ct) ∧
       ¬ Negligible (parityWordAdvantage msgLen keyLen (otpKeyWordEncrypt keyLen) A) := by
   intro msgLen A
-  refine ⟨demOneTimeKeyWordINDCPA_otpKeyWordEncrypt keyLen, ?_, ?_, ?_⟩
+  refine ⟨(demOneTimeKeyINDCPA_otpKeyWordEncrypt keyLen).demOneTimeKeyINDCPAOn ?_, ?_, ?_, ?_⟩
+  · ppt
   · ppt
   · ppt
   · intro hneg
@@ -212,5 +224,76 @@ theorem cex_parityWord_not_negligible (keyLen : ℕ → ℕ) :
       (hneg.congr fun n => parityWordAdvantage_msgLen_zero keyLen (otpKeyWordEncrypt keyLen) n)
 
 end Counterexamples
+
+section MessageSpace
+
+/-- One-time pad on `(n + 1)`-bit messages, under `(n + 1)`-bit keys; every message of another
+length is sent in the clear. -/
+def leakyOtpEncrypt (n : ℕ) (k m : List Bool) : ProbComp (List Bool) :=
+  if m.length = n + 1 then otpKeyWordEncrypt (fun n => n + 1) n k m else pure m
+
+/-- `leakyOtpEncrypt` is semantically secure on its message space `{0, 1}^{n + 1}`: on those
+messages it is the one-time pad. -/
+theorem demOneTimeKeyINDCPAOn_leakyOtpEncrypt :
+    DEMOneTimeKeyINDCPAOn (fun n _ m₀ m₁ => m₀.length == n + 1 && m₁.length == n + 1) encBits
+      (fun n => n + 1) leakyOtpEncrypt := by
+  have hotp : DEMOneTimeKeyINDCPAOn (fun n _ m₀ m₁ => m₀.length == n + 1 && m₁.length == n + 1)
+      encBits (fun n => n + 1) (otpKeyWordEncrypt (fun n => n + 1)) :=
+    (demOneTimeKeyINDCPA_otpKeyWordEncrypt _).demOneTimeKeyINDCPAOn (by fun_prop)
+  intro adversary hadversary
+  have hgame : ∀ b n, demKeyGameOn (fun n _ m₀ m₁ => m₀.length == n + 1 && m₁.length == n + 1)
+      (fun n => n + 1) leakyOtpEncrypt adversary b n =
+      demKeyGameOn (fun n _ m₀ m₁ => m₀.length == n + 1 && m₁.length == n + 1)
+      (fun n => n + 1) (otpKeyWordEncrypt (fun n => n + 1)) adversary b n := by
+    intro b n
+    simp only [demKeyGameOn]
+    congr 1; funext k; congr 1; funext choice
+    split_ifs <;> simp_all [leakyOtpEncrypt]
+  simpa only [hgame] using hotp adversary hadversary
+
+/-- Theorem 2.8 applies to `leakyOtpEncrypt`: every uniform strict PPT parity predictor has
+negligible advantage on its `(n + 1)`-bit messages. -/
+example {A : ℕ → List Bool → ProbComp Bool}
+    (hA : IsPPTOn (encPair encUnary encBits) encBool (fun ⟨n, ct⟩ => A n ct)) :
+    Negligible (parityWordAdvantage (fun n => n + 1) (fun n => n + 1) leakyOtpEncrypt A) :=
+  demOneTimeKeyINDCPAOn_leakyOtpEncrypt.negligible_parityWordAdvantage (by fun_prop)
+    (fun n => Nat.le_add_left 1 n) hA
+
+/-- Submits two different `(n + 2)`-bit messages and returns the first bit of the ciphertext. -/
+def lengthLeakAdversary : WordAdversary where
+  choose n _ := pure ((List.replicate (n + 2) false, List.replicate (n + 2) true), [])
+  guess _ _ ct := pure (ct.headD false)
+
+/-- `lengthLeakAdversary` is uniform strict PPT. -/
+theorem isPPT_lengthLeakAdversary : AdversaryOf.IsPPT encBits lengthLeakAdversary where
+  choose := IsPPTOn.isPPT (ComputableInPolyTime.isPPTOn (by polytime))
+  guess := ComputableInPolyTime.isPPTOn (by polytime)
+
+/-- `leakyOtpEncrypt` fails `DEMOneTimeKeyWordINDCPA`, which admits every equal-length pair:
+`lengthLeakAdversary` reads the challenge bit off an `(n + 2)`-bit plaintext sent in the clear. So
+the premise of Theorem 2.8 on the message space is strictly weaker than equal-length security. -/
+theorem not_demOneTimeKeyWordINDCPA_leakyOtpEncrypt :
+    ¬ DEMOneTimeKeyWordINDCPA (fun n => n + 1) leakyOtpEncrypt := by
+  intro hsec
+  have heval : ∀ b n, ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
+      (fun n => n + 1) leakyOtpEncrypt lengthLeakAdversary b n) = PMF.pure b := by
+    intro b n
+    cases b <;> simp only [demKeyGameOn, lengthLeakAdversary, leakyOtpEncrypt, ChoiceOut.msg₀,
+      ChoiceOut.msg₁, List.replicate_succ, List.length_cons, List.length_replicate,
+      beq_self_eq_true, ↓reduceIte, Nat.succ_ne_self, List.headD_cons, Bool.false_eq_true,
+      ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, BitString.eval_sampleList,
+      PMF.bind_const]
+  have hadv : ∀ n, Game.advantage
+      (ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length) (fun n => n + 1)
+        leakyOtpEncrypt lengthLeakAdversary false n))
+      (ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length) (fun n => n + 1)
+        leakyOtpEncrypt lengthLeakAdversary true n)) = 1 := by
+    intro n
+    rw [heval false n, heval true n]
+    simp [Game.advantage, Game.succProbability]
+  exact not_negligible_const one_ne_zero
+    ((hsec lengthLeakAdversary isPPT_lengthLeakAdversary).congr hadv)
+
+end MessageSpace
 
 end CslibFrontierTests.Crypto.ParityPrediction

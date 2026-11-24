@@ -70,7 +70,7 @@ variable [DecidableEq Operation] [Finite Operation]
 theorem isOraclePPTOn_command {α : Type} (input : α ↪ List Bool)
     (operation : DeviceOperation ⊕ Operation) (word : List Bool) :
     IsOraclePPTOn input encUnit (fun _ => command operation word) :=
-  (IsOraclePPTOn.query_take' operation (.const word) (.const 0)).map' (.const ())
+  (IsOraclePPTOn.query_take operation (.const word) (.const 0)).map (.const ())
 
 /-- A fixed elementary gate request has a native polynomial-time certificate. -/
 theorem isOraclePPTOn_gate {α : Type} (input : α ↪ List Bool) (code : PhaseGateCode) :
@@ -83,7 +83,7 @@ theorem isOraclePPTOn_requestBit {α : Type} (input : α ↪ List Bool)
     (operation : DeviceOperation ⊕ Operation) {word : α → List Bool}
     (hword : ComputableInPolyTime word input encBits) :
     IsOraclePPTOn input encBool (fun x => requestBit operation (word x)) :=
-  (IsOraclePPTOn.query_take' operation hword (.const 1)).map'
+  (IsOraclePPTOn.query_take operation hword (.const 1)).map
     (ComputableInPolyTime.headD false)
 
 end Native

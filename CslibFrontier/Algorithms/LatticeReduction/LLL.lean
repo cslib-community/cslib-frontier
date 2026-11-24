@@ -638,8 +638,7 @@ theorem potential_realRows_lt_inv_pow {δ : ℚ} (hδ0 : 0 < δ) (hδ1 : δ < 1)
     exact_mod_cast (Nat.lt_pow_succ_log_self (by norm_num) (sqNormSum B)).le
   have h3 := two_le_inv_pow_swapFactor hδ0 hδ1
   calc potential (realRows B) ≤ (sqNormSum B : ℝ) ^ (n * (n - 1) / 2) := h1
-    _ ≤ ((2 : ℝ) ^ (Nat.log 2 (sqNormSum B) + 1)) ^ (n * (n - 1) / 2) :=
-        pow_le_pow_left₀ (Nat.cast_nonneg _) h2 _
+    _ ≤ ((2 : ℝ) ^ (Nat.log 2 (sqNormSum B) + 1)) ^ (n * (n - 1) / 2) := by gcongr
     _ ≤ ((((δ : ℝ)⁻¹) ^ swapFactor δ) ^ (Nat.log 2 (sqNormSum B) + 1)) ^ (n * (n - 1) / 2) :=
         pow_le_pow_left₀ (by positivity) (pow_le_pow_left₀ (by norm_num) h3 _) _
     _ = ((δ : ℝ)⁻¹) ^ swapBudgetOf δ n (sqNormSum B) := by

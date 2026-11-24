@@ -13,6 +13,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Tidy
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.ClearWork
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Loop.ExpectedTime
+import CslibFrontier.Probability.PMF.Event
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Ring
 
@@ -44,6 +46,9 @@ then halts; no further round is executed.
   the result and the external oracle state.
 * `Turing.MultiTapePTM.RunsInSpace.iterateWhile`: the same supplied closed machine uses
   workspace independent of the number of rounds, with an explicit terminal-round certificate.
+* `Turing.MultiTapePTM.tsum_toOuterMeasure_compl_iterateWhile_le`: a Las Vegas iteration, whose
+  rounds stop at a random round and continue with probability at most `q`, halts with an answer
+  with probability tending to one, within expected time `O(D / (1 - q))` for rounds of `D` steps.
 
 ## References
 
@@ -100,7 +105,8 @@ noncomputable def prepareRound (mark : Bool) : MultiTapeTM (k + 1 + 2) Bool Prep
 variable (k) in
 /-- Finish the iteration: output the current word and clear its tape. -/
 noncomputable def finish (mark : Bool) : MultiTapeTM (k + 1 + 2) Bool FinishState :=
-  (emitWord (emitEmb k) mark).seq ((clearWork Bool).extendTapes (tapeEmb (curTape k)))
+  (emitWord (emitEmb k) mark).seq
+    ((MultiTapeTM.clearWork Bool).extendTapes (tapeEmb (curTape k)))
 
 /-- Preparing a round moves the next word `v` to the current tape, replacing `vp`. -/
 theorem transformsTapes_prepareRound (mark : Bool) (vp v : List Bool) :
@@ -386,5 +392,166 @@ public theorem RunsInSpace.iterateWhile {tm : MultiTapePTM k Bool State Empty} (
   exact hbound.mono (by
     have : max (3 * L + 6) (max (t + 10 * L + 22) (5 * L + 11)) = t + 10 * L + 22 := by omega
     rw [this])
+
+open scoped ENNReal in
+open IterateWhile RepeatUntilBlank in
+/-- **Las Vegas iteration.** Let the words of an iteration be *retry* words, from which `tm` draws
+the next word by `step` within `t` steps, and *answer* words, from which `tm` produces the empty
+word within `t` steps, all non-empty and of length at most `L`. If from a retry word the next word
+is again a retry word with probability at most `q`, and otherwise an answer word, then
+`tm.iterateWhile mark`, started on a retry word, halts with an answer word as output with
+probability tending to one: summed over all clocks, the probability of not having done so is at
+most `8 * L + 17 + D + D * (1 - q)⁻¹` for the round time `D = t + 10 * L + 23`. In particular this
+bounds the expected running time. -/
+public theorem tsum_toOuterMeasure_compl_iterateWhile_le {tm : MultiTapePTM k Bool State}
+    (mark : Bool)
+    {t L : ℕ} {q : ℝ≥0∞} {retry answer : Set (List Bool)} {step : List Bool → ProbComp (List Bool)}
+    {w₀ : List Bool} (hw₀ : w₀ ∈ retry)
+    (hretry : ∀ w ∈ retry, tm.ComputesTidily w t (ProbOracleComp.sample (step w)))
+    (hanswer : ∀ w ∈ answer, tm.ComputesTidily w t (pure []))
+    (hsupport : ∀ w ∈ retry, ∀ w' ∈ (ProbComp.eval (step w)).support, w' ∈ retry ∨ w' ∈ answer)
+    (hq : ∀ w ∈ retry, (ProbComp.eval (step w)).toOuterMeasure retry ≤ q)
+    (hlength : ∀ w, w ∈ retry ∨ w ∈ answer → w ≠ [] ∧ w.length ≤ L) :
+    ∑' s, (ProbComp.eval ((tm.iterateWhile mark).runClosedConfigFrom s
+      ((tm.iterateWhile mark).initialConfig w₀))).toOuterMeasure
+        {final | final.tapes.state = none ∧ final.tapes.output ∈ answer}ᶜ ≤
+      ((8 * L + 17 : ℕ) : ℝ≥0∞) +
+        (((t + 10 * L + 23 : ℕ) : ℝ≥0∞) + ((t + 10 * L + 23 : ℕ) : ℝ≥0∞) * (1 - q)⁻¹) := by
+  classical
+  set rnd := tm.iterateWhileRound mark
+  set U := MultiTapePTM.repeatUntilBlank (nextTape k) rnd
+  set R := t + 10 * L + 22 with hR
+  let startU (vp v : List Bool) : Config (k + 1 + 2) Bool (RoundState State ⊕ Unit) Empty w₀ :=
+    runConfig { tapes := wordsCfg w₀ (some rnd.initial) (words vp v) [], channels := Empty.elim }
+  let goodU : Set (Config (k + 1 + 2) Bool (RoundState State ⊕ Unit) Empty w₀) :=
+    {c | c.tapes.state = none ∧ ∃ v ∈ answer, c.tapes = wordsCfg w₀ none (words v []) []}
+  have hgoodU : ∀ c ∈ goodU, c.tapes.state = none := fun c hc => hc.1
+  -- a round from the words `vp`, `v` takes at most `R` steps
+  have hround (vp v : List Bool) (hvp : vp.length ≤ L) (hv : v ∈ retry ∨ v ∈ answer)
+      {p : ProbComp (List Bool)} (hp : tm.ComputesTidily v t (ProbOracleComp.sample p))
+      (hpl : ∀ w' ∈ (ProbComp.eval p).support, w'.length ≤ L) :
+      rnd.RunsWords w₀ (words vp v) [] R (ProbOracleComp.sample p) (fun v' => words v v')
+        (fun _ => []) := by
+    refine (RunsWords.iterateWhileRound (x := w₀) mark hp (l := L) (fun _ _ s w' s' hw' => ?_)
+      []).mono ?_
+    · rw [ProbOracleComp.runWith_sample, PMF.mem_support_map_iff] at hw'
+      obtain ⟨w'', hw'', heq⟩ := hw'
+      cases heq
+      exact hpl _ hw''
+    · have := (hlength v hv).2
+      omega
+  -- a round from an answer word ends the loop
+  have hstop (vp v : List Bool) (hvp : vp.length ≤ L) (hv : v ∈ answer) (m : ℕ) :
+      (ProbComp.eval (U.runClosedConfigFrom (R + (1 + m)) (startU vp v))).toOuterMeasure
+        goodUᶜ = 0 := by
+    refine le_antisymm (((hround vp v hvp (Or.inr hv) (p := pure []) (hanswer v hv)
+      (by simp)).toOuterMeasure_compl_repeatUntilBlank_le (nextTape k) hgoodU m).trans_eq ?_)
+      zero_le
+    rw [ProbComp.eval_pure, PMF.pure_bind, List.nil_append,
+      eval_runClosedConfigFrom_check_nil _ _ (words_next v []) m, PMF.toOuterMeasure_pure_apply,
+      ite_eq_right]
+    exact fun h => h ⟨rfl, v, hv, rfl⟩
+  -- after `n` further rounds from a retry word, the loop is still going with probability `q ^ n`
+  have hgeom : ∀ n, ∀ vp v, vp.length ≤ L → v ∈ retry → ∀ j,
+      (ProbComp.eval (U.runClosedConfigFrom (R + 1 + (n * (R + 1) + j))
+        (startU vp v))).toOuterMeasure
+        goodUᶜ ≤ q ^ n := by
+    intro n
+    induction n with
+    | zero => exact fun _ _ _ _ _ => (PMF.toOuterMeasure_le_one _ _).trans_eq (pow_zero q).symm
+    | succ n ih =>
+      intro vp v hvp hv j
+      have hvL := (hlength v (Or.inl hv)).2
+      rw [show R + 1 + ((n + 1) * (R + 1) + j) = R + (1 + (R + 1 + (n * (R + 1) + j))) by ring]
+      refine ((hround vp v hvp (Or.inl hv) (hretry v hv) fun w' hw' =>
+        (hlength w' (hsupport v hv w' hw')).2).toOuterMeasure_compl_repeatUntilBlank_le
+          (nextTape k) hgoodU _).trans ?_
+      rw [PMF.toOuterMeasure_bind_apply]
+      calc _ ≤ ∑' v', retry.indicator (ProbComp.eval (step v)) v' * q ^ n := by
+            refine tsum_le_tsum fun v' => ?_
+            by_cases hv' : v' ∈ (ProbComp.eval (step v)).support
+            · have hne := (hlength v' (hsupport v hv v' hv')).1
+              rw [List.nil_append, eval_runClosedConfigFrom_check_ne_nil _ _ (by rwa [words_next])]
+              by_cases ha : v' ∈ answer
+              · have h0 := hstop v v' hvL ha (n * (R + 1) + j)
+                rw [show R + (1 + (n * (R + 1) + j)) = R + 1 + (n * (R + 1) + j) by omega] at h0
+                rw [h0, mul_zero]
+                exact zero_le
+              · have hr : v' ∈ retry := (hsupport v hv v' hv').resolve_right ha
+                rw [Set.indicator_of_mem hr]
+                exact mul_le_mul_of_nonneg_left (ih v v' hvL hr j) zero_le
+            · rw [(PMF.apply_eq_zero_iff _ _).mpr hv', zero_mul]
+              exact zero_le
+        _ = (ProbComp.eval (step v)).toOuterMeasure retry * q ^ n := by
+            rw [PMF.toOuterMeasure_apply, ENNReal.tsum_mul_right]
+        _ ≤ q * q ^ n := by gcongr; exact hq v hv
+        _ = q ^ (n + 1) := (pow_succ' q n).symm
+  have hU := tsum_le_of_geometric (D := R + 1) (q := q)
+    (f := fun s => (ProbComp.eval (U.runClosedConfigFrom s (startU [] w₀))).toOuterMeasure goodUᶜ)
+    (by omega) (fun _ => PMF.toOuterMeasure_le_one _ _) fun n j => hgeom n [] w₀ (by simp) hw₀ j
+  -- the load phase writes the start word to the next tape
+  set load : MultiTapePTM (k + 1 + 2) Bool _ := ofDeterministic (loadWord Bool (nextTape k))
+  set fin : MultiTapePTM (k + 1 + 2) Bool FinishState := ofDeterministic (finish k mark)
+  have hw₀L := (hlength w₀ (Or.inl hw₀)).2
+  have hload : ProbComp.eval (load.runClosedConfigFrom (3 * L + 6) (load.initialConfig w₀)) =
+      PMF.pure { tapes := wordsCfg w₀ none (words [] w₀) [], channels := Empty.elim } := by
+    have hrw := (RunsWords.of_transformsTapes (Operation := Empty) (x := w₀) (out₀ := [])
+      (transformsTapes_loadWord (nextTape k) w₀) ⟨rfl, rfl⟩ (ws' := words (k := k) [] w₀)
+      (emitted := []) (fun _ _ h => ⟨h.1.trans (words_nil_cur w₀).symm, h.2⟩)).mono
+        (time' := 3 * L + 6) (by omega)
+    rw [RunsWords.eval_runClosedConfigFrom (p := pure ()) hrw _ (Cfg.init_eq_wordsCfg _ _),
+      ProbComp.eval_pure, PMF.pure_map]
+    rfl
+  -- the finish phase outputs an answer word left by the loop
+  let good : Set (Config (k + 1 + 2) Bool (MachineState State) Empty w₀) :=
+    {final | final.tapes.state = none ∧ final.tapes.output ∈ answer}
+  have hfin (r : Config (k + 1 + 2) Bool (RoundState State ⊕ Unit) Empty w₀) (hr : r ∈ goodU) :
+      (ProbComp.eval (fin.runClosedConfigFrom (5 * L + 11) (Sequential.start fin r))).toOuterMeasure
+        (Sequential.right ⁻¹' (Sequential.right ⁻¹' good)ᶜ) = 0 := by
+    obtain ⟨-, v, hv, hrt⟩ := hr
+    have hrw := (RunsWords.of_transformsTapes (Operation := Empty) (x := w₀) (out₀ := [])
+      (transformsTapes_finish (k := k) mark v) rfl (ws' := fun _ => []) (emitted := v)
+      (fun _ _ h => h)).mono (time' := 5 * L + 11) (by have := (hlength v (Or.inr hv)).2; omega)
+    rw [RunsWords.eval_runClosedConfigFrom (p := pure ()) hrw _
+      (by rw [Sequential.start, hrt, withState_wordsCfg]), ProbComp.eval_pure, PMF.pure_map,
+      PMF.toOuterMeasure_pure_apply, ite_eq_right]
+    simpa [good, Sequential.right, Cfg.mapState, wordsCfg] using hv
+  -- each clock of the whole machine, shifted by the two phases, against the loop
+  have hshift (s : ℕ) :
+      (ProbComp.eval ((tm.iterateWhile mark).runClosedConfigFrom ((3 * L + 6) + (5 * L + 11) + s)
+        ((tm.iterateWhile mark).initialConfig w₀))).toOuterMeasure goodᶜ ≤
+        (ProbComp.eval (U.runClosedConfigFrom s (startU [] w₀))).toOuterMeasure goodUᶜ := by
+    rw [show 3 * L + 6 + (5 * L + 11) + s = (3 * L + 6) + (s + (5 * L + 11)) by omega]
+    change (ProbComp.eval ((load.seq (U.seq fin)).runClosedConfigFrom _
+      (Sequential.left (U.seq fin) (load.initialConfig w₀)))).toOuterMeasure goodᶜ ≤ _
+    refine (toOuterMeasure_compl_seq_le load (U.seq fin) (good := good) (fun c hc => hc.1)
+      _ _ _).trans ?_
+    set r₀ : Config (k + 1 + 2) Bool ((Unit ⊕ RewindState) ⊕ RewindWorkState) Empty w₀ :=
+      { tapes := wordsCfg w₀ none (words [] w₀) [], channels := Empty.elim }
+    have hr₀ : r₀.tapes.state = none := rfl
+    rw [hload, tsum_eq_single r₀ fun r hr => by rw [PMF.pure_apply, ite_eq_right hr, zero_mul],
+      PMF.pure_apply, ite_eq_left rfl, one_mul, ite_eq_left hr₀]
+    have hstart : Sequential.start (U.seq fin) r₀ = Sequential.left fin (startU [] w₀) :=
+      Config.ext (by simp [r₀, Sequential.start, Sequential.left, startU, runConfig, U,
+        MultiTapePTM.repeatUntilBlank, withState_wordsCfg, mapState_wordsCfg, handOver])
+        (Subsingleton.elim _ _)
+    rw [hstart, Set.preimage_compl]
+    refine (toOuterMeasure_compl_seq_le U fin (good := Sequential.right ⁻¹' good)
+      (fun c hc => by simpa [Sequential.right, Cfg.mapState] using hc.1) s (5 * L + 11) _).trans ?_
+    rw [PMF.toOuterMeasure_apply]
+    refine tsum_le_tsum fun r => ?_
+    by_cases hr : r ∈ goodU
+    · rw [Set.indicator_of_notMem (Set.notMem_compl_iff.mpr hr), ite_eq_left hr.1, hfin r hr,
+        mul_zero]
+    · rw [Set.indicator_of_mem (Set.mem_compl hr)]
+      split_ifs
+      · exact mul_le_of_le_one_right' (PMF.toOuterMeasure_le_one _ _)
+      · rw [mul_one]
+  refine (tsum_le_add_of_shift _ (fun _ => PMF.toOuterMeasure_le_one _ _) hshift).trans ?_
+  have hcast : (((3 * L + 6) + (5 * L + 11) : ℕ) : ℝ≥0∞) = ((8 * L + 17 : ℕ) : ℝ≥0∞) := by
+    congr 1
+    omega
+  rw [hcast]
+  exact add_le_add le_rfl hU
 
 end Turing.MultiTapePTM

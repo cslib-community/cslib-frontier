@@ -15,7 +15,7 @@ import Mathlib.Tactic.Linarith
 # Pointwise bounds up to constants
 
 `u ≼ v` says that `u a ≤ c * (v a + 1)` for some constant `c` and every `a`: the bounds of
-`Turing.MultiTapeTM.ComputableTidilyInO`. The relation is a preorder, closed under sums, constant
+`Turing.MultiTapeTM.ComputableInO`. The relation is a preorder, closed under sums, constant
 factors, products and powers of padded bounds, and composition. The tactic `bigO` splits a goal
 `u ≼ v` along sums, case distinctions, constant factors and powers of `u` and closes the parts by
 assumption, through two assumptions, by reflexivity or as constants.

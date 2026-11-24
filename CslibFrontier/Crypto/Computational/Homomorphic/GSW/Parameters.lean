@@ -163,9 +163,7 @@ theorem computableInPolyTime_noise :
 @[fun_prop]
 theorem computableInPolyTime_width :
     ComputableInPolyTime width encUnary encUnary := by
-  have := ComputableInPolyTime.unary_clog_const 2
-  unfold width
-  fun_prop
+  fun_prop [width]
 
 /-- The ciphertext dimension is uniformly computable on unary parameters. -/
 @[fun_prop]

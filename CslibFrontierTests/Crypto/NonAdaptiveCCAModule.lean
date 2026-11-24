@@ -75,8 +75,9 @@ example {F : PrimeOrderGroupFamily}
     (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary)
     (hmem : ∀ d x, isElem (d, x) = true ↔ x ∈ Set.range (F.encode d))
     (hDDH : F.DDH (fun n => PMF.pure (d n)))
-    (hCR : CollisionResistantFor F.withKey.encDesc
-      (F.withKeySetup (fun n => PMF.pure (d n)) keyLen) (F.withKey.cramerShoupHashMod H))
+    (hCR : CollisionResistantForOn F.withKey.encDesc
+      (F.withKeySetup (fun n => PMF.pure (d n)) keyLen) (F.withKey.cramerShoupHashMod H)
+      (fun _ => F.withKey.isCramerShoupHashInput false (F.isElemWithKey isElem)))
     {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n)
     (hm : ∀ n, m n ≤ F.order (d n))
     (hinv : Negligible fun n => (1 / m n : ℝ≥0)) :

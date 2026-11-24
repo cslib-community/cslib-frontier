@@ -224,7 +224,7 @@ theorem isOraclePPTOn_npVerifier {p : Polynomial ℕ} {V : α × List Bool → B
     (hV : ComputableInPolyTime V (encPair enc encBits) encBool) :
     IsOraclePPTOn enc encBool (npVerifier enc p V) := by
   unfold npVerifier
-  refine IsOraclePPTOn.map_with' (IsOraclePPTOn.query_take' () (by fun_prop) ?_) ?_
+  refine IsOraclePPTOn.map_with (IsOraclePPTOn.query_take () (by fun_prop) ?_) ?_
   · exact (ComputableInPolyTime.unary_eval p).comp (ComputableInPolyTime.encoding_length enc)
   · refine ComputableInPolyTime.bool_and' ?_ (by simpa only [Prod.mk.eta] using hV)
     exact (ComputableInPolyTime.length_bits.comp (.snd enc encBits)).decide_eq'

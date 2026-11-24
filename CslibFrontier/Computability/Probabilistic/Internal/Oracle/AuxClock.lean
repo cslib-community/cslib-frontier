@@ -19,6 +19,8 @@ import CslibFrontier.Tactic.SuppCases
 public import CslibFrontier.Computability.Probabilistic.PPT.AuxClock.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Oracle.Normalization
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLoops
+
 /-! # Internal primary-input clock and auxiliary-prefix machines
 
 The public auxiliary-clock contracts are defined in `PPT.AuxClock.Basic`; this module keeps
@@ -100,7 +102,7 @@ theorem IsOraclePPTOn.take_aux {program : α → List Bool → WordOracleComp Op
     (h : IsOraclePPTOn (encPair input encBits) output (fun (a, z) => program a z)) (c d : ℕ) :
     IsOraclePPTOn (encPair input encBits) output
       (fun (a, z) => program a (z.take (c * ((input a).length + 1) ^ d))) :=
-  h.preprocess' (computableInPolyTime_take_aux input c d)
+  h.preprocess (computableInPolyTime_take_aux input c d)
 
 /-! ### Upgrading prefix-truncated `IsOraclePPTOn` / `IsPPTOn` programs to
 `IsOraclePPTWithAux` / `IsPPTWithAux` -/
@@ -127,7 +129,7 @@ private def unframePrefixCore : MultiTapeTM 0 Bool Bool :=
     | _, _ => ⟨0, Fin.elim0, none, none⟩
 
 private noncomputable def unframePrefixTM : MultiTapeTM 0 Bool (Bool ⊕ RewindState) :=
-  unframePrefixCore.seq (rewindInput Bool)
+  unframePrefixCore.seq (MultiTapeTM.rewindInput Bool)
 
 private def unframePrefixCfg (x : List Bool) (state : Option Bool) (idx : ℕ)
     (hidx : idx ≤ x.length) (out : List Bool) : Cfg 0 Bool Bool x where
@@ -244,16 +246,16 @@ private theorem computesTidily_unframePrefixTM (u z : List Bool) :
     rw [hinit]
     exact hcore
   have hrew :
-      (rewindInput Bool).runFrom
+      (MultiTapeTM.rewindInput Bool).runFrom
         ((unframePrefixCfg (frame u ++ z) none (([] : List Bool).length + 2 * u.length)
-          hlen (out₀ ++ u)).withState (some (rewindInput Bool).q₀))
+          hlen (out₀ ++ u)).withState (some (MultiTapeTM.rewindInput Bool).q₀))
         (2 * u.length + 2) =
       wordsCfg (frame u ++ z) none (fun _ => []) (out₀ ++ u) := by
     have htime : 2 * u.length + 2 =
         (⟨(([] : List Bool).length + 2 * u.length) + 1, by lia⟩ :
           Fin ((frame u ++ z).length + 2)).val - 1 + 2 := by simp
     rw [htime]
-    exact (runFrom_rewindInput _ Fin.elim0 Fin.elim0 (out₀ ++ u)).trans
+    exact (MultiTapeTM.runFrom_rewindInput _ Fin.elim0 Fin.elim0 (out₀ ++ u)).trans
       (Cfg.ext_zero_tapes rfl rfl rfl)
   have hseq := runFrom_seq hcore' rfl hrew rfl
   have htot : 4 * u.length + 3 = (2 * u.length + 1) + (2 * u.length + 2) := by lia
@@ -272,7 +274,8 @@ private def takeFromWorkCore : MultiTapeTM 1 Bool Unit :=
 
 private noncomputable def takeFromWorkTM :
     MultiTapeTM 1 Bool ((Unit ⊕ RewindWorkState) ⊕ RewindState) :=
-  (takeFromWorkCore.seq (rewindWork Bool)).seq ((rewindInput Bool).extendTapes (noTapes 1))
+  (takeFromWorkCore.seq (MultiTapeTM.rewindWork Bool)).seq
+    ((MultiTapeTM.rewindInput Bool).extendTapes (noTapes 1))
 
 private def takeFromWorkCfg (x : List Bool) (K : ℕ) (state : Option Unit) (idx : ℕ)
     (hidx : idx ≤ x.length) (pos : ℕ) (out : List Bool) : Cfg 1 Bool Unit x where
@@ -409,17 +412,20 @@ private theorem runFrom_takeFromWorkTM (x : List Bool) (K : ℕ) (out₀ : List 
     ⟨none, ⟨min K x.length + 1, by lia⟩, fun _ => tapeOfList (List.replicate K true),
       fun _ => 0, out₀ ++ x.take K⟩
   have hrewW :
-      (rewindWork Bool).runFrom (mid₁.withState (some (rewindWork Bool).q₀)) (K + 2) = mid₂ := by
+      (MultiTapeTM.rewindWork Bool).runFrom
+        (mid₁.withState (some (MultiTapeTM.rewindWork Bool).q₀)) (K + 2) = mid₂ := by
     let w := List.replicate K true
     have hlen : w.length = K := by simp [w]
-    change (rewindWork Bool).runFrom
-      ⟨some (rewindWork Bool).q₀, ⟨min K x.length + 1, by lia⟩, fun _ => tapeOfList w,
+    change (MultiTapeTM.rewindWork Bool).runFrom
+      ⟨some (MultiTapeTM.rewindWork Bool).q₀, ⟨min K x.length + 1, by lia⟩,
+        fun _ => tapeOfList w,
         fun _ => (K : ℤ), out₀ ++ x.take K⟩ (K + 2) =
       ⟨none, ⟨min K x.length + 1, by lia⟩, fun _ => tapeOfList w, fun _ => 0, out₀ ++ x.take K⟩
     rw [← hlen]
-    exact runFrom_rewindWork_none _ _ _ rfl le_rfl
+    exact MultiTapeTM.runFrom_rewindWork_none _ _ _ rfl le_rfl
   have hseq₁ := runFrom_seq hcore' rfl hrewW rfl
-  let rewI : MultiTapeTM 1 Bool RewindState := (rewindInput Bool).extendTapes (noTapes 1)
+  let rewI : MultiTapeTM 1 Bool RewindState :=
+    (MultiTapeTM.rewindInput Bool).extendTapes (noTapes 1)
   have hrewI_early :
       rewI.runFrom ((mid₂.mapState (Option.map (Sum.inr (α := Unit)))).withState (some rewI.q₀))
         (min K x.length + 2) =
@@ -428,12 +434,12 @@ private theorem runFrom_takeFromWorkTM (x : List Bool) (K : ℕ) (out₀ : List 
     rw [runFrom_noTapes]
     have hno : noTapesCfg ((mid₂.mapState (Option.map (Sum.inr (α := Unit)))).withState
         (some rewI.q₀)) =
-        ⟨some (rewindInput Bool).q₀, ⟨min K x.length + 1, by lia⟩,
+        ⟨some (MultiTapeTM.rewindInput Bool).q₀, ⟨min K x.length + 1, by lia⟩,
           Fin.elim0, Fin.elim0, out₀ ++ x.take K⟩ :=
       Cfg.ext_zero_tapes rfl rfl rfl
     have htime : min K x.length + 2 =
         (⟨min K x.length + 1, by lia⟩ : Fin (x.length + 2)).val - 1 + 2 := by simp
-    rw [hno, htime, runFrom_rewindInput]
+    rw [hno, htime, MultiTapeTM.runFrom_rewindInput]
     exact Cfg.ext rfl rfl rfl rfl rfl
   have hrewI :
       rewI.runFrom ((mid₂.mapState (Option.map (Sum.inr (α := Unit)))).withState (some rewI.q₀))
@@ -454,7 +460,7 @@ private noncomputable def takePrefixPTM {k : ℕ} {State : Type}
         (((Unit ⊕ RewindWorkState) ⊕ RewindState) ⊕ Unit ⊕ RewindWorkState)) Operation :=
   budget.outputToWord.seq
     (((ofDeterministic takeFromWorkTM).extendTapes (tapeEmb (Fin.last k))).seq
-      (ofDeterministic ((clearWork Bool).extendTapes (tapeEmb (Fin.last k)))))
+      (ofDeterministic ((MultiTapeTM.clearWork Bool).extendTapes (tapeEmb (Fin.last k)))))
 
 private theorem computesTidily_takePrefixPTM {k : ℕ} {State : Type}
     {budget : MultiTapePTM k Bool State Operation} {x : List Bool} {t K : ℕ}
@@ -506,7 +512,7 @@ private theorem computesTidily_takePrefixPTM {k : ℕ} {State : Type}
       (s₀ s₁ : OracleState),
       (y, s₁) ∈ (ProbOracleComp.runWith oracle (pure (x.take K)) s₀).support →
       (ofDeterministic (Oracle := Operation)
-        ((clearWork Bool).extendTapes (tapeEmb (Fin.last k)))).RunsWords
+        ((MultiTapeTM.clearWork Bool).extendTapes (tapeEmb (Fin.last k)))).RunsWords
         x ws ([] ++ id y) (3 * (K + 1)) (pure ())
         (fun _ _ => []) (fun _ => []) := by
     intro y _ _ _ _ _
@@ -521,7 +527,7 @@ private theorem computesTidily_takePrefixPTM {k : ℕ} {State : Type}
       (((ofDeterministic takeFromWorkTM : MultiTapePTM 1 Bool _ Operation).extendTapes
         (tapeEmb (Fin.last k))).seq
         (ofDeterministic (Oracle := Operation)
-          ((clearWork Bool).extendTapes (tapeEmb (Fin.last k))))).RunsWords
+          ((MultiTapeTM.clearWork Bool).extendTapes (tapeEmb (Fin.last k))))).RunsWords
         x (Function.update (fun _ => []) (Fin.last k) w') ([] ++ []) ((3 * K + 5) + 3 * (K + 1))
         (pure (x.take K)) (fun _ _ => []) id := by
     intro w' OracleState oracle s s' hw'
@@ -719,7 +725,7 @@ theorem IsPPTWithAux.preprocess {γ : Type} {middle : β ↪ List Bool} {out : �
   have hbound : ComputableInPolyTime
       (fun a : α => c * ((middle (prepare a)).length + 1) ^ d) input encUnary := by
     fun_prop
-  obtain ⟨C, D, hle⟩ := hbound.tidy.polyBounded.exists_le
+  obtain ⟨C, D, hle⟩ := hbound.polyBounded.exists_le
   have hppt : IsPPTOn (encPair input encBits) out (fun (a, z) => program (prepare a) z) :=
     h.isPPTOn.preprocess (prepare := fun (a, z) => (prepare a, z)) (by fun_prop)
   exact (hppt.isPPTWithAux_take C D).congr fun a z => htake (prepare a) z (hle a)
@@ -735,9 +741,9 @@ theorem IsOraclePPTWithAux.preprocess {γ : Type} {middle : β ↪ List Bool} {o
   have hbound : ComputableInPolyTime
       (fun a : α => c * ((middle (prepare a)).length + 1) ^ d) input encUnary := by
     fun_prop
-  obtain ⟨C, D, hle⟩ := hbound.tidy.polyBounded.exists_le
+  obtain ⟨C, D, hle⟩ := hbound.polyBounded.exists_le
   have hppt : IsOraclePPTOn (encPair input encBits) out (fun (a, z) => program (prepare a) z) :=
-    h.isOraclePPTOn.preprocess' (prepare := fun (a, z) => (prepare a, z)) (by fun_prop)
+    h.isOraclePPTOn.preprocess (prepare := fun (a, z) => (prepare a, z)) (by fun_prop)
   exact (hppt.isOraclePPTWithAux_take C D).congr fun a z State oracle s =>
     htake (prepare a) z (hle a) State oracle s
 

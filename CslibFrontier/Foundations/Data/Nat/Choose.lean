@@ -8,6 +8,7 @@ module
 -- upstream: candidate (to Mathlib's `Mathlib/Combinatorics/Choose/Bounds.lean` or cslib)
 
 public import CslibFrontier.Init
+public import Mathlib.Algebra.BigOperators.Fin
 public import Mathlib.Data.Nat.Choose.Basic
 public import Mathlib.Data.Nat.Factorial.Basic
 import Mathlib.Algebra.Order.Ring.Pow
@@ -44,11 +45,16 @@ the Kővári–Sós–Turán bound.
 * `Nat.descFactorial_mul_pow_le`, `Nat.choose_mul_pow_le`, `Nat.choose_mul_sub_mul_pow_le`,
   `Nat.two_mul_pred_pow_le`, `Nat.two_pow_mul_choose_sub_le`: power comparisons and the
   block-avoidance binomial estimate.
-* `Nat.choose_le_two_pow_mul_choose_sub`: shrinking the ground set by `d` scales `U.choose k` by at
-  most `2 ^ k * (U - d).choose k` when `2 * d + k ≤ U + 1`.
+* `Nat.choose_le_two_pow_mul_choose_sub`, `Nat.choose_le_two_pow_mul_choose_sub_of_two_mul_le`:
+  shrinking the ground set by `d` scales `U.choose k` by at most `2 ^ k * (U - d).choose k` (when
+  `2 * d + k ≤ U + 1`) or `2 ^ d * (U - d).choose k` (when `2 * k ≤ U - d + 1`).
+* `Nat.prod_choose_partition_mul_pow_factorial`: ordered equal-block partition identity
+  `(∏ i : Fin F, ((F - i.val) * m).choose m) * m.factorial ^ F = (F * m).factorial`.
 -/
 
 public section
+
+open scoped BigOperators
 
 namespace Nat
 
@@ -258,5 +264,43 @@ theorem choose_le_two_pow_mul_choose_sub {U d k : ℕ} (hk : k ≤ U - d) (h : 2
     _ ≤ (U - d).choose k * (2 * (U - d + 1 - k)) ^ k :=
         Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) k)
     _ = (U - d + 1 - k) ^ k * (2 ^ k * (U - d).choose k) := by rw [Nat.mul_pow]; ring
+
+/-- Shrinking `N` by `d` (`k ≤ N - d`, `2 * k ≤ N - d + 1`) multiplies `choose · k` by `≤ 2 ^ d`. -/
+theorem choose_le_two_pow_mul_choose_sub_of_two_mul_le {N d k : ℕ}
+    (hk : k ≤ N - d) (h2k : 2 * k ≤ N - d + 1) :
+    N.choose k ≤ 2 ^ d * (N - d).choose k := by
+  rcases Nat.eq_zero_or_pos k with rfl | hk_pos
+  · simpa using Nat.one_le_two_pow
+  have h1 := choose_mul (n := N) (k := k + d) (s := k) (Nat.le_add_right k d)
+  have h2 := choose_mul (n := N) (k := k + d) (s := d) (Nat.le_add_left d k)
+  rw [Nat.add_sub_cancel_left] at h1
+  rw [Nat.add_sub_cancel, ← choose_symm_add] at h2
+  have hle := Nat.mul_le_mul_right ((N - d).choose k)
+    (choose_le_two_pow_mul_choose_sub (U := N) (d := k) (k := d) (by omega) (by omega))
+  exact Nat.le_of_mul_le_mul_right (c := (N - k).choose d)
+    (by nlinarith [h1.symm.trans h2]) (choose_pos (by omega))
+
+/-- Multinomial identity `(∏_{i < F} C((F - i) * m, m)) * (m!)^F = (F * m)!` counting ordered
+partitions of an `(F * m)`-element set into `F` blocks of size `m`. -/
+theorem prod_choose_partition_mul_pow_factorial (F m : ℕ) :
+    (∏ i : Fin F, ((F - i.val) * m).choose m) * m.factorial ^ F = (F * m).factorial := by
+  induction F with
+  | zero => simp
+  | succ F ih =>
+    rw [Fin.prod_univ_succ, Fin.val_zero, Nat.sub_zero, pow_succ]
+    have hrest : (∏ i : Fin F, ((F + 1 - (Fin.succ i).val) * m).choose m) =
+        ∏ i : Fin F, ((F - i.val) * m).choose m :=
+      Finset.prod_congr rfl fun i _ => by simp
+    rw [hrest]
+    have hchoose := choose_mul_factorial_mul_factorial
+      (show m ≤ (F + 1) * m from Nat.le_mul_of_pos_left m (Nat.succ_pos F))
+    have hsub : (F + 1) * m - m = F * m := by rw [Nat.succ_mul, Nat.add_sub_cancel]
+    rw [hsub] at hchoose
+    calc ((F + 1) * m).choose m * (∏ i : Fin F, ((F - i.val) * m).choose m) *
+          (m.factorial ^ F * m.factorial)
+        = ((F + 1) * m).choose m * m.factorial *
+            ((∏ i : Fin F, ((F - i.val) * m).choose m) * m.factorial ^ F) := by ring
+      _ = ((F + 1) * m).choose m * m.factorial * (F * m).factorial := by rw [ih]
+      _ = ((F + 1) * m).factorial := hchoose
 
 end Nat

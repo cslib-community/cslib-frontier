@@ -117,6 +117,20 @@ theorem IsHuffmanBuild.leaves_perm {α β : Type*} [Add β] [LE β] {w : α → 
       simp only [List.map_cons, List.flatten_cons, CodeTree.leaves_leaf, List.singleton_append, ih]
   exact hflat syms ▸ h.leaves_perm_flatten
 
+theorem IsHuffmanBuild.map {α₁ α₂ β : Type*} [Add β] [LE β]
+    {w₁ : α₁ → β} {w₂ : α₂ → β} {f : α₁ → α₂} (hw : ∀ a, w₂ (f a) = w₁ a)
+    {F : List (CodeTree α₁)} {T : CodeTree α₁} (h : IsHuffmanBuild w₁ F T) :
+    IsHuffmanBuild w₂ (F.map (CodeTree.map f)) (T.map f) := by
+  induction h with
+  | single t => exact .single (t.map f)
+  | @step F F_rest t₁ t₂ T hmin _ ih =>
+    refine .step ⟨?_, ?_⟩ ih
+    · simpa [List.map_cons] using hmin.perm.map (CodeTree.map f)
+    · intro t' ht'
+      rcases List.mem_map.mp ht' with ⟨t, ht, rfl⟩
+      rw [CodeTree.weight_map t₁ hw, CodeTree.weight_map t₂ hw, CodeTree.weight_map t hw]
+      exact hmin.weight_le t ht
+
 /-! ## Monoid rearrangement and depth-weighted list swaps -/
 
 /-- Subtraction-free rearrangement inequality: if `d₁ ≤ d₂` and `w₁ ≤ w₂`, assigning the larger
@@ -279,35 +293,27 @@ def rotateDeepestLeft {δ : Type*} : CodeTree δ → CodeTree δ
 
 @[simp] theorem maxDepth_rotateDeepestLeft {δ : Type*} (T : CodeTree δ) :
     (rotateDeepestLeft T).maxDepth = T.maxDepth := by
-  induction T with
-  | leaf _ => rfl
-  | branch l r ihl ihr =>
-    simp only [rotateDeepestLeft]
-    split_ifs <;> simp [CodeTree.maxDepth, ihl, ihr, Nat.max_comm]
+  fun_induction rotateDeepestLeft T <;> simp_all [CodeTree.maxDepth, Nat.max_comm]
 
 theorem leaves_rotateDeepestLeft_perm {δ : Type*} (T : CodeTree δ) :
     (rotateDeepestLeft T).leaves.Perm T.leaves := by
-  induction T with
-  | leaf _ => exact List.Perm.refl _
-  | branch l r ihl ihr =>
-    simp only [rotateDeepestLeft]
-    split_ifs
-    · exact ihl.append (List.Perm.refl _)
-    · exact (ihr.append (List.Perm.refl _)).trans List.perm_append_comm
+  fun_induction rotateDeepestLeft T with
+  | case1 => exact List.Perm.refl _
+  | case2 l r _ ih => exact ih.append (List.Perm.refl _)
+  | case3 l r _ ih => exact (ih.append (List.Perm.refl _)).trans List.perm_append_comm
 
 theorem weightedPathLength_rotateDeepestLeft {δ β : Type*} [AddCommMonoid β]
     (W : δ → β) (T : CodeTree δ) :
     (rotateDeepestLeft T).weightedPathLength W = T.weightedPathLength W := by
-  induction T with
-  | leaf _ => rfl
-  | branch l r ihl ihr =>
-    have hwl := CodeTree.weight_eq_of_leaves_perm W (leaves_rotateDeepestLeft_perm l)
-    have hwr := CodeTree.weight_eq_of_leaves_perm W (leaves_rotateDeepestLeft_perm r)
-    simp only [rotateDeepestLeft]
-    split_ifs
-    · simp only [CodeTree.weightedPathLength_branch, ihl, hwl]
-    · simp only [CodeTree.weightedPathLength_branch, ihr, hwr]
-      ac_rfl
+  fun_induction rotateDeepestLeft T with
+  | case1 => rfl
+  | case2 l r _ ih =>
+    have hw := CodeTree.weight_eq_of_leaves_perm W (leaves_rotateDeepestLeft_perm l)
+    simp only [CodeTree.weightedPathLength_branch, ih, hw]
+  | case3 l r _ ih =>
+    have hw := CodeTree.weight_eq_of_leaves_perm W (leaves_rotateDeepestLeft_perm r)
+    simp only [CodeTree.weightedPathLength_branch, ih, hw]
+    ac_rfl
 
 /-- `LeftCherryAtDepth T D u v C` witnesses that `T` has the sibling cherry
 `.branch (.leaf u) (.leaf v)` at depth `D` along its leftmost spine, with contraction context `C`
@@ -350,15 +356,13 @@ theorem exists_leftCherryAtDepth_rotateDeepestLeft {δ : Type*} (l r : CodeTree 
         simp only [CodeTree.maxDepth] at hab ⊢
         omega
       exact ⟨u, v, fun z => .branch (C z) b, hd ▸ LeftCherryAtDepth.left hC⟩
-  induction T with
-  | leaf _ => simp [CodeTree.maxDepth] at h1
-  | branch l r ihl ihr =>
-    simp only [rotateDeepestLeft]
-    split_ifs with hcmp
-    · exact hstep hcmp ihl
-    · have hcomm : (CodeTree.branch l r).maxDepth = (CodeTree.branch r l).maxDepth := by
-        simp [CodeTree.maxDepth, Nat.max_comm]
-      exact hcomm ▸ hstep (by omega) ihr
+  fun_induction rotateDeepestLeft T with
+  | case1 => simp [CodeTree.maxDepth] at h1
+  | case2 l r hcmp ih => exact hstep hcmp ih
+  | case3 l r hcmp ih =>
+    have hcomm : (CodeTree.branch l r).maxDepth = (CodeTree.branch r l).maxDepth := by
+      simp [CodeTree.maxDepth, Nat.max_comm]
+    exact hcomm ▸ hstep (by omega) ih
 
 theorem LeftCherryAtDepth.leaves_and_depths {δ : Type*} {T : CodeTree δ} {D : ℕ} {u v : δ}
     {C : δ → CodeTree δ} (h : LeftCherryAtDepth T D u v C) :

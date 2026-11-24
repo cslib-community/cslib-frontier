@@ -86,15 +86,7 @@ variable {machine}
 /-- At most all coin strings are accepted. -/
 theorem viewAcceptCount_le (t : ℕ) (finite : FiniteCfg k Bool State) :
     machine.viewAcceptCount t finite ≤ 2 ^ t := by
-  induction t generalizing finite with
-  | zero =>
-    simp only [viewAcceptCount, pow_zero]
-    split_ifs <;> omega
-  | succ t ih =>
-    simp only [viewAcceptCount, pow_succ]
-    have h₁ := ih (machine.viewCoinStep finite false)
-    have h₂ := ih (machine.viewCoinStep finite true)
-    omega
+  fun_induction viewAcceptCount machine t finite <;> simp only [pow_succ, pow_zero] at * <;> omega
 
 open scoped Classical in
 /-- **The count is an entry of the power of the configuration matrix** on any set of views
@@ -210,18 +202,7 @@ private theorem computableInPolyTime_lookupCount [Finite State] :
     ComputableInPolyTime (fun p : List (FiniteCfg k Bool State × ℕ) × FiniteCfg k Bool State =>
       lookupCount p.1 p.2) (encPair (encList (encPair encFiniteCfg encNat)) encFiniteCfg)
       encNat := by
-  unfold lookupCount
-  have hfilter := ComputableInPolyTime.filterWithInput
-    (encA := encPair encFiniteCfg encNat)
-    (encIn := encPair (encList (encPair encFiniteCfg encNat)) encFiniteCfg)
-    (test := fun (p : List (FiniteCfg k Bool State × ℕ) × FiniteCfg k Bool State)
-      (entry : FiniteCfg k Bool State × ℕ) => decide (entry.1 = p.2))
-    (ComputableInPolyTime.fst _ _)
-    (ComputableInPolyTime.decide_eq' ((ComputableInPolyTime.fst _ _).comp
-      (ComputableInPolyTime.snd _ _)) ((ComputableInPolyTime.snd _ _).comp
-      (ComputableInPolyTime.fst _ _)))
-  exact (ComputableInPolyTime.headD (encA := encNat) 0).comp
-    ((ComputableInPolyTime.map (ComputableInPolyTime.snd encFiniteCfg encNat)).comp hfilter)
+  fun_prop [lookupCount]
 
 /-- A round of evaluation is polynomial-time. -/
 private theorem computableInPolyTime_countRound [Finite State] (M : MultiTapePTM k Bool State) :

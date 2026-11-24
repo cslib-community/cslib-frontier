@@ -67,48 +67,10 @@ theorem exec_after_product {w U m n g p : ℕ} (values : ℕ → ℤ)
           x.regs (productBank 42) + CallableProduct.windowSize n Q ≤ u →
           r.mem u = x.mem u) ∧
         (∀ j : Fin 320, j.val < 65 → r.regs j = x.regs (productBank j)))
-    (hfit : Fits (w + 2)
-      (4 * x.regs (productBank 42) +
-        4 * CallableProduct.windowSize n (RecordProduct.recordQueryCount n (D m) p values idx) +
-        offset +
-        4 * RecordProduct.recordQueryCount n (D m) p values idx + 4 * D m +
-        2 * (n * D m) + 9 * (n * n) + 4 * n + g + 4096)) :
-    let hn : 0 < n := lt_of_lt_of_le (by omega : 0 < D m)
-      ((Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN)
-    let q := RecordProduct.recordQueries n (D m) p idx
-    let Q := RecordProduct.recordQueryCount n (D m) p values idx
-    let qs := RecordProduct.decodedQueries hn x.mem q Q
-    let first := idx.piece * pieceSize (D m) g
-    let length := min (pieceSize (D m) g) (n - first)
-    ∃ y S, ExecWithin (w + 2) (.seq (product.rename productBank) consume) x y
-        (T + 5 * Nat.sqrt (D m) + 8 * Q +
-          (42 * length + 28) * S + 52) ∧
-      y.regs Reg.scans = S ∧ (y.regs Reg.found = 0 ∨ y.regs Reg.found = 1) ∧
-      S ≤ Nat.count (fun j => y.mem (y.regs (productBank RecordProduct.Reg.result) + j) ≠ 0 ∧
-        ∀ c : Fin length,
-          AB (x.mem (q + 2 * j)) (x.mem (q + 2 * j + 1)) +
-            BC (x.mem (q + 2 * j + 1)) (first + c.val) +
-            AC (x.mem (q + 2 * j)) (first + c.val) ≠ 0) Q + y.regs Reg.found ∧
-      (y.regs Reg.found = 1 ↔ ∃ j < Q,
-        y.mem (y.regs (productBank RecordProduct.Reg.result) + j) ≠ 0 ∧
-        ∃ c, first ≤ c ∧ c < first + length ∧
-          AB (x.mem (q + 2 * j)) (x.mem (q + 2 * j + 1)) +
-            BC (x.mem (q + 2 * j + 1)) c + AC (x.mem (q + 2 * j)) c = 0) ∧
-      (∀ j : Fin qs.length,
-        y.mem (y.regs (productBank RecordProduct.Reg.result) + j.val) = Signed.encode
-          ((RecordProduct.leftMatrix m n g p values idx *
-            RecordProduct.rightMatrix m n g p values idx) (qs.get j).1 (qs.get j).2)) ∧
-      (y.regs Reg.found = 1 →
-        y.regs Reg.witnessA < n ∧ y.regs Reg.witnessB < n ∧
-        first ≤ y.regs Reg.witnessC ∧ y.regs Reg.witnessC < first + length ∧
-        AB (y.regs Reg.witnessA) (y.regs Reg.witnessB) +
-          BC (y.regs Reg.witnessB) (y.regs Reg.witnessC) +
-          AC (y.regs Reg.witnessA) (y.regs Reg.witnessC) = 0 ∧
-        ∃ j < Q, y.regs Reg.witnessA = x.mem (q + 2 * j) ∧
-          y.regs Reg.witnessB = x.mem (q + 2 * j + 1)) ∧
-      (∀ u, u < x.regs (productBank 42) ∨
-        x.regs (productBank 42) + CallableProduct.windowSize n Q ≤ u → y.mem u = x.mem u) ∧
-      (∀ j : Fin 320, j.val < 65 → y.regs (productBank j) = x.regs (productBank j)) := by
+    (hfit : Fits (w + 2) (witnessWindow n (D m) g (x.regs (productBank 42))
+      (RecordProduct.recordQueryCount n (D m) p values idx) offset)) :
+    WitnessPost (.seq (product.rename productBank) consume) (w := w) (g := g) hD hN values
+      AB BC AC x idx (fun _ => T) := by
   obtain ⟨hinputEnd, hrec, hq, hfirst, hv, hcoords, hprefix⟩ :=
     record_view values initial _ h hD
       ((Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN) hg hp idx hidx

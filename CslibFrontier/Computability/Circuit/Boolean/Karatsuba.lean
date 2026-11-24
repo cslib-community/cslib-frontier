@@ -267,7 +267,6 @@ subtractions of width `2w`. -/
   | 0 => 0
   | 1 => 1
   | w + 2 => 3 * gates ((w + 3) / 2) + 26 * ((w + 3) / 2) + 172 * (w + 2) + 34
-decreasing_by omega
 
 @[simp] theorem gates_zero : gates 0 = 0 := by rw [gates]
 
@@ -527,23 +526,24 @@ theorem val_equivFin_mulBits (w : ℕ) (x : BitString (w + w)) :
   have hbits : mulBits w x = fun i : Fin (w + w) => (BitVec.ofNat (w + w) N).getLsbD i.val := by
     funext i
     simp only [mulBits, BitVec.getLsbD_ofNat, i.isLt, decide_true, Bool.true_and, N]
-  rw [hbits, ← toNat_word_eq_equivFin, word_getLsbD, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hN]
+  rw [hbits, ← BitString.toNat_equivBitVec_eq_equivFin, BitString.equivBitVec_getLsbD,
+    BitVec.toNat_ofNat, Nat.mod_eq_of_lt hN]
 
 /-- **Karatsuba multiplication circuits.** The `2w`-bit product of two `w`-bit numbers has
 circuit complexity at most `Karatsuba.gates w + 1` over the De Morgan basis; the extra gate is
 the `false` constant. -/
 theorem complexity_mulBits_le (w : ℕ) :
     complexity interpretation (mulBits w) ≤ Karatsuba.gates w + 1 := by
-  let A : BitString (w + w) → BitVec w := fun x => word (BitString.fstBits x)
-  let B : BitString (w + w) → BitVec w := fun x => word (BitString.sndBits x)
+  let A : BitString (w + w) → BitVec w := fun x => BitString.equivBitVec (BitString.fstBits x)
+  let B : BitString (w + w) → BitVec w := fun x => BitString.equivBitVec (BitString.sndBits x)
   have hA : wordWires A ⊆ inputs (w + w) ∪ {fun _ => false} := by
     rintro _ ⟨i, rfl⟩
     refine Or.inl ⟨Fin.castAdd w i, funext fun x => ?_⟩
-    simp only [A, getLsbD_word, BitString.fstBits_apply]
+    simp only [A, BitString.getLsbD_equivBitVec, BitString.fstBits_apply]
   have hB : wordWires B ⊆ inputs (w + w) ∪ {fun _ => false} := by
     rintro _ ⟨i, rfl⟩
     refine Or.inl ⟨Fin.natAdd w i, funext fun x => ?_⟩
-    simp only [B, getLsbD_word, BitString.sndBits_apply]
+    simp only [B, BitString.getLsbD_equivBitVec, BitString.sndBits_apply]
   have h := (Synthesis.const (n := w + w) (s := inputs (w + w)) false).trans
     (Karatsuba.synthesis_wideMul w _ A B hA hB (Or.inr rfl))
   obtain ⟨c, hc, hsize⟩ := Synthesis.exists_circuit_outputs (m := w + w) h
@@ -554,9 +554,10 @@ theorem complexity_mulBits_le (w : ℕ) :
     simp only [mulBits, Karatsuba.wideMul.eq_def, A, B]
     rw [← BitVec.testBit_toNat]
     congr 1
-    have := Karatsuba.toNat_wideMul (word (BitString.fstBits x)) (word (BitString.sndBits x))
+    have := Karatsuba.toNat_wideMul (BitString.equivBitVec (BitString.fstBits x))
+      (BitString.equivBitVec (BitString.sndBits x))
     simp only [Karatsuba.wideMul] at this
-    rw [this, toNat_word_eq_equivFin, toNat_word_eq_equivFin]
+    rw [this, BitString.toNat_equivBitVec_eq_equivFin, BitString.toNat_equivBitVec_eq_equivFin]
   exact (complexity_le_of_computes c hcomp).trans (by omega)
 
 /-- The `2w`-bit product has circuit complexity at most `1257 w ^ log₂ 3 + 1`. -/

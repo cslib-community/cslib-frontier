@@ -155,7 +155,7 @@ theorem isPPTOn_maskBit {α : Type} {input : α ↪ List Bool} {mask : α → Pr
     {truth : α → Bool} (hmask : IsPPTOn input encBool mask)
     (htruth : ComputableInPolyTime truth input encBool) :
     IsPPTOn input encBool (fun a => maskBit (mask a) (truth a)) :=
-  hmask.bind_with (IsPPTOn.cond' (.snd input encBool)
+  hmask.bind_with (IsPPTOn.cond (.snd input encBool)
     (isPPTOn_uniform_bool (encPair input encBool))
     ((ComputableInPolyTime.fst input encBool).trans htruth).isPPTOn)
 

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Machine
 import Mathlib.Tactic.GCongr
+import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!
@@ -19,20 +20,38 @@ bounds in the encoded description length, encoded input length, clock length, an
 simulated steps. These estimates are shared by unary-clock polynomial-time simulation and the
 time-hierarchy construction.
 
-## Main results
+The generic implementation expressions are also shared by specialization and encoded-interpreter
+resource accounting; both clients use the same time and workspace formulas.
 
-* `Turing.MultiTapeTM.Universal.computableInO_universal`: a plain native machine certificate
-  for the strengthened time and space bounds, including a zero clock.
+## Main results
 
 * `Turing.MultiTapeTM.Universal.runBound_mono`: the space bound grows with the number of steps.
 * `Turing.MultiTapeTM.Universal.universal_bounds_le`: for `D, N, L ≤ B` and `1 ≤ J`, the time
   expression is at most `100000 * (B + 1) ^ 4 * J ^ 2` and the space bound is at most
   `200 * (B + 1) ^ 2 * J`.
+* `Turing.MultiTapeTM.Universal.computableInO_universal_polynomialBound`: the plain simulator
+  certificate with polynomial input-size and clock bounds.
 -/
 
 public section
 
 namespace Turing.MultiTapeTM.Universal
+
+/-- The resource expression used by the native universal-machine implementation before its
+constant-factor machine compilation. -/
+@[expose] def universalImplementationTime (i : Desc × List ℕ × ℕ) : ℕ :=
+  let (description, input, clock) := i
+  (clock + 1) *
+      (stepBound (descLen description) (encList encUnary input).length clock +
+        runBound (descLen description) (encList encUnary input).length clock +
+          ((encNat clock).length + 1) ^ 2) +
+    ((eIn i).length + 1) ^ 2
+
+/-- The workspace expression used by the native universal-machine implementation before its
+constant-factor machine compilation. -/
+@[expose] def universalImplementationSpace (i : Desc × List ℕ × ℕ) : ℕ :=
+  let (description, input, clock) := i
+  runBound (descLen description) (encList encUnary input).length clock + (eIn i).length
 
 /-- The universal simulator's space bound grows with the number of simulated steps. -/
 theorem runBound_mono {D N t t' : ℕ} (h : t ≤ t') : runBound D N t ≤ runBound D N t' := by
@@ -95,42 +114,49 @@ theorem universal_bounds_le {D N J B L : ℕ} (hD : D ≤ B) (hN : N ≤ B) (hL 
     _ ≤ 100000 * (M ^ 4 * J ^ 2) := by omega
     _ = 100000 * M ^ 4 * J ^ 2 := by ring
 
-
-/-- A plain native machine computes the clocked universal function within a quartic factor in
-the complete encoded input length and a quadratic factor in the number of simulated steps.
-The statement includes a zero clock. Its size factor includes the simulated input and binary
-clock, so it does not assert fixed-machine quadratic simulation as those inputs vary. -/
-theorem computableInO_universal :
-    ComputableInO universal eIn eOut
-      (fun i => ((eIn i).length + 1) ^ 4 * (i.2.2 + 1) ^ 2)
-      (fun i => ((eIn i).length + 1) ^ 2 * (i.2.2 + 1)) := by
-  have hbounds (i : Desc × List ℕ × ℕ) :=
-    universal_bounds_le (D := descLen i.1) (N := (encList encUnary i.2.1).length)
-      (L := (encNat i.2.2).length) (B := (eIn i).length) (J := i.2.2 + 1)
-      (length_le_encPair_left _ _ i)
-      ((length_le_encPair_left _ _ i.2).trans (length_le_encPair_right _ _ i))
-      ((length_le_encPair_right _ _ i.2).trans (length_le_encPair_right _ _ i))
-      (Nat.le_add_left 1 i.2.2)
-  refine computableTidilyInO_universal.computableInO.mono 100001 (fun i => ?_) (fun i => ?_)
-  · have hstep := stepBound_mono (D := descLen i.1) (N := (encList encUnary i.2.1).length)
-      le_rfl le_rfl (Nat.le_add_right i.2.2 1)
-    have hrun := runBound_mono (D := descLen i.1) (N := (encList encUnary i.2.1).length)
-      (Nat.le_add_right i.2.2 1)
-    have htime := (Nat.mul_le_mul (show i.2.2 + 1 ≤ i.2.2 + 1 + 1 by omega)
-      (Nat.add_le_add_right (Nat.add_le_add hstep hrun) _)).trans (hbounds i).1
-    have hinput : ((eIn i).length + 1) ^ 2 ≤ ((eIn i).length + 1) ^ 4 * (i.2.2 + 1) ^ 2 :=
-      (Nat.pow_le_pow_right (by omega) (by omega : 2 ≤ 4)).trans
-        (Nat.le_mul_of_pos_right _ (by positivity))
-    have : 100000 * ((eIn i).length + 1) ^ 4 * (i.2.2 + 1) ^ 2 =
-      100000 * (((eIn i).length + 1) ^ 4 * (i.2.2 + 1) ^ 2) := by ring
-    omega
-  · have hrun := (runBound_mono (D := descLen i.1) (N := (encList encUnary i.2.1).length)
-      (Nat.le_add_right i.2.2 1)).trans (hbounds i).2
-    have hinput : (eIn i).length ≤ ((eIn i).length + 1) ^ 2 * (i.2.2 + 1) :=
-      (Nat.le_succ _).trans ((Nat.le_self_pow two_ne_zero _).trans
-        (Nat.le_mul_of_pos_right _ (by omega)))
-    have : 200 * ((eIn i).length + 1) ^ 2 * (i.2.2 + 1) =
-      200 * (((eIn i).length + 1) ^ 2 * (i.2.2 + 1)) := by ring
-    omega
+attribute [local irreducible] ComputableInO eDesc in
+/-- The universal function with separate polynomial dependence on encoded input size and clock:
+time `O((I + 1) ^ 4 * (t + 1) ^ 2)` and space `O((I + 1) ^ 2 * (t + 1))`.
+This absorbs the detailed machine resource expressions before composing simulator certificates. -/
+theorem computableInO_universal_polynomialBound : ComputableInO universal eIn eOut
+    (fun i => ((eIn i).length + 1) ^ 4 * (i.2.2 + 1) ^ 2)
+    (fun i => ((eIn i).length + 1) ^ 2 * (i.2.2 + 1)) := by
+  have hresources (i : Desc × List ℕ × ℕ) := by
+    let I := (eIn i).length
+    have hI : I = 2 * descLen i.1 + 1 +
+        (2 * (encList encUnary i.2.1).length + 1 + (encNat i.2.2).length) := by
+      simp only [I, length_encPair, descLen]
+    obtain ⟨ht, hs⟩ := universal_bounds_le
+      (D := descLen i.1) (N := (encList encUnary i.2.1).length)
+      (L := (encNat i.2.2).length) (J := i.2.2 + 1) (B := I)
+      (by omega) (by omega) (by omega) (by omega)
+    have hstep := stepBound_mono (le_refl (descLen i.1))
+      (le_refl (encList encUnary i.2.1).length) (Nat.le_succ i.2.2)
+    have hrun := runBound_mono (D := descLen i.1)
+      (N := (encList encUnary i.2.1).length) (Nat.le_succ i.2.2)
+    have htime :
+        (i.2.2 + 1) * (stepBound (descLen i.1) (encList encUnary i.2.1).length i.2.2 +
+          runBound (descLen i.1) (encList encUnary i.2.1).length i.2.2 +
+          ((encNat i.2.2).length + 1) ^ 2) ≤
+        100000 * (I + 1) ^ 4 * (i.2.2 + 1) ^ 2 := by
+      apply le_trans ?_ ht
+      gcongr; exact Nat.le_succ _
+    have hpad : (I + 1) ^ 2 ≤ (I + 1) ^ 4 * (i.2.2 + 1) ^ 2 := by
+      have hp := Nat.pow_le_pow_right (by omega : 1 ≤ I + 1) (by omega : 2 ≤ 4)
+      exact hp.trans (Nat.le_mul_of_pos_right _ (by positivity))
+    have hspace : I ≤ (I + 1) ^ 2 * (i.2.2 + 1) := by
+      have hp := Nat.le_self_pow (by norm_num : 2 ≠ 0) (I + 1)
+      exact (Nat.le_succ I).trans (hp.trans (Nat.le_mul_of_pos_right _ (by omega)))
+    refine And.intro (show
+      (i.2.2 + 1) * (stepBound (descLen i.1) (encList encUnary i.2.1).length i.2.2 +
+        runBound (descLen i.1) (encList encUnary i.2.1).length i.2.2 +
+        ((encNat i.2.2).length + 1) ^ 2) + (I + 1) ^ 2 ≤
+      100001 * ((I + 1) ^ 4 * (i.2.2 + 1) ^ 2 + 1) from ?_)
+      (show runBound (descLen i.1) (encList encUnary i.2.1).length i.2.2 + I ≤
+        100001 * ((I + 1) ^ 2 * (i.2.2 + 1) + 1) from ?_)
+    · nlinarith
+    · nlinarith [hrun.trans hs]
+  exact computableInO_universal.mono 100001 (fun i => (hresources i).1)
+    (fun i => (hresources i).2)
 
 end Turing.MultiTapeTM.Universal

@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Interactive.Security
 public import CslibFrontier.Computability.Interactive.ThreeMove
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PMFSwap
 
@@ -239,11 +240,9 @@ theorem maskedMulCheck_complete (left right output : ι → Fin n) :
           (r, (maskedMulCheckReply left right output w c.u c.v r, ()))),
             some (), ((), ()))) := by
     simp only [World.eval, Reduction.run, Verifier.execute, maskedMulCheck_output]
-    simp only [pmf_norm, maskedMulCheck, liftProver, runStrategy, maskedMulCheckSpec,
-      threeMoveSpec, ProbOracleComp.interpret_sample, ProbOracleComp.interpret_query,
-      OracleComp.interpret_bind, OracleComp.interpret_pure, voleWorld, ProbOracleComp.runWith_bind,
-      ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, pure_bind,
-      VOLECorrelation.senderView]
+    simp only [interp_norm, pmf_norm, maskedMulCheck, liftProver, runStrategy, maskedMulCheckSpec,
+      threeMoveSpec, voleWorld, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
+      ProbOracleComp.runWith_pure, pure_bind, VOLECorrelation.senderView]
     apply PMF.bind_congr_on_support
     intro c hc
     let oracle : (q : Unit ⊕ Unit) →
@@ -275,12 +274,11 @@ theorem maskedMulCheckView_eq (left right output : ι → Fin n) (w : Fin n → 
       let r ← PMF.uniformOfFintype (ι → F)
       return (c.receiverView, (voleCommitWitness w (Fin.init c.u),
         (r, (maskedMulCheckReply left right output w c.u c.v r, ()))))) := by
-  simp only [pmf_norm, maskedMulCheckView, maskedMulCheck, maskedMulCheckSpec,
-    threeMoveSpec, World.eval, Reduction.run, Verifier.execute, Verifier.output,
-    liftProver, runStrategy, Transcript.challenges, OracleInterface.full, voleWorld,
-    ProbOracleComp.interpret_sample, ProbOracleComp.interpret_query, OracleComp.interpret_bind,
-    OracleComp.interpret_pure, VOLECorrelation.senderView, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, pure_bind]
+  simp only [interp_norm, pmf_norm, maskedMulCheckView, maskedMulCheck, maskedMulCheckSpec,
+    threeMoveSpec, World.eval, Reduction.run, Verifier.execute, Verifier.output, liftProver,
+    runStrategy, Transcript.challenges, OracleInterface.full, voleWorld, VOLECorrelation.senderView,
+    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
+    pure_bind]
   congr 1 with c : 1
   let oracle : (q : Unit ⊕ Unit) →
       StateT (Option (VOLECorrelation F (n + 1))) PMF

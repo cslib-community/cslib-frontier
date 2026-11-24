@@ -85,16 +85,9 @@ namespace Nat.RecursiveIn.KleenePost
 @[expose]
 def halting : Set ℕ := { c | (Nat.Partrec.Code.eval (ofNat Nat.Partrec.Code c) c).Dom }
 
-/-- Boolean decision procedure for `haltsPred`. -/
-private def haltsPredDecide (c : Nat.RecursiveIn.Code) (τ : List Bool) (x : ℕ) (e : ℕ) : Bool :=
-  match Encodable.decode (α := List Bool × ℕ × ℕ) e with
-  | Option.none => false
-  | Option.some (σ, k, y) =>
-    (τ <+: σ) && (Nat.RecursiveIn.Code.evaln (bits σ) k c x == Option.some y)
-
-/-- Partial-search wrapper returning `some e` when `e` witnesses `haltsPredDecide c τ x e`. -/
+/-- Partial-search wrapper returning `some e` when `e` witnesses `haltsPred c τ x e`. -/
 private def haltsPredOpt (c : Nat.RecursiveIn.Code) (τ : List Bool) (x : ℕ) (e : ℕ) : Option ℕ :=
-  bif haltsPredDecide c τ x e then Option.some e else Option.none
+  if haltsPred c τ x e then Option.some e else Option.none
 
 /-- Uncurried form of `haltsPredOpt` for primitive recursion combinators. -/
 private def haltsPredOptAll (p : Nat.RecursiveIn.Code × List Bool × ℕ) (e : ℕ) : Option ℕ :=
@@ -113,60 +106,40 @@ private lemma primrec_evaln_all :
       (((fst.comp (snd.comp snd)).pair (fst.comp fst)).pair (snd.comp (snd.comp fst)))
   exact primrec_evaln.comp H
 
-private lemma primrec_evaln_eq_all :
-    _root_.Primrec (fun (q : (Nat.RecursiveIn.Code × List Bool × ℕ) × List Bool × ℕ × ℕ) =>
-      Nat.RecursiveIn.Code.evaln (bits q.2.1) q.2.2.1 q.1.1 q.1.2.2 == Option.some q.2.2.2) := by
-  have H : _root_.Primrec (fun (q : (Nat.RecursiveIn.Code × List Bool × ℕ) × List Bool × ℕ × ℕ) =>
-      decide (Nat.RecursiveIn.Code.evaln (bits q.2.1) q.2.2.1 q.1.1 q.1.2.2 =
-        Option.some q.2.2.2)) :=
-    (PrimrecRel.comp _root_.Primrec.eq primrec_evaln_all
-      (option_some.comp (snd.comp (snd.comp snd)))).decide
-  exact H.of_eq fun q => by
-    cases Nat.RecursiveIn.Code.evaln (bits q.2.1) q.2.2.1 q.1.1 q.1.2.2 <;>
-      simp
-    rfl
-
 private lemma primrec_haltsPredOptAll : Primrec₂ haltsPredOptAll := by
   have hp1 : _root_.Primrec (fun (q : (Nat.RecursiveIn.Code × List Bool × ℕ) × List Bool × ℕ × ℕ) =>
       decide (q.1.2.1 <+: q.2.1)) :=
     (PrimrecRel.comp list_isPrefix (fst.comp (snd.comp fst)) (fst.comp snd)).decide
+  have hp2 : _root_.Primrec (fun (q : (Nat.RecursiveIn.Code × List Bool × ℕ) × List Bool × ℕ × ℕ) =>
+      decide (Nat.RecursiveIn.Code.evaln (bits q.2.1) q.2.2.1 q.1.1 q.1.2.2 =
+        Option.some q.2.2.2)) :=
+    (PrimrecRel.comp _root_.Primrec.eq primrec_evaln_all
+      (option_some.comp (snd.comp (snd.comp snd)))).decide
   have hs : _root_.Primrec (fun (q : (Nat.RecursiveIn.Code × List Bool × ℕ) × List Bool × ℕ × ℕ) =>
       decide (q.1.2.1 <+: q.2.1) &&
-        (Nat.RecursiveIn.Code.evaln (bits q.2.1) q.2.2.1 q.1.1 q.1.2.2 ==
+        decide (Nat.RecursiveIn.Code.evaln (bits q.2.1) q.2.2.1 q.1.1 q.1.2.2 =
           Option.some q.2.2.2)) :=
-    _root_.Primrec.and.comp hp1 primrec_evaln_eq_all
+    _root_.Primrec.and.comp hp1 hp2
   have hs_to₂ : Primrec₂ (fun (arg : (Nat.RecursiveIn.Code × List Bool × ℕ) × ℕ)
       (p : List Bool × ℕ × ℕ) =>
       decide (arg.1.2.1 <+: p.1) &&
-        (Nat.RecursiveIn.Code.evaln (bits p.1) p.2.1 arg.1.1 arg.1.2.2 == Option.some p.2.2)) :=
+        decide (Nat.RecursiveIn.Code.evaln (bits p.1) p.2.1 arg.1.1 arg.1.2.2 =
+          Option.some p.2.2)) :=
     hs.comp ((fst.comp fst).pair snd)
   have H_match : _root_.Primrec (fun arg : (Nat.RecursiveIn.Code × List Bool × ℕ) × ℕ =>
-      haltsPredDecide arg.1.1 arg.1.2.1 arg.1.2.2 arg.2) :=
+      decide (haltsPred arg.1.1 arg.1.2.1 arg.1.2.2 arg.2)) :=
     (_root_.Primrec.option_casesOn (_root_.Primrec.decode.comp snd) (_root_.Primrec.const false)
       hs_to₂).of_eq fun arg => by
-      dsimp [haltsPredDecide]
-      cases Encodable.decode (α := List Bool × ℕ × ℕ) arg.2 <;> rfl
+      rw [Bool.eq_iff_iff]
+      cases h : Encodable.decode (α := List Bool × ℕ × ℕ) arg.2 <;>
+        simp [haltsPred, h, Option.mem_def]
   exact (_root_.Primrec.cond H_match (option_some.comp snd)
-    (_root_.Primrec.const Option.none)).of_eq fun _ => rfl
-
-private lemma haltsPred_iff_haltsPredDecide
-    (c : Nat.RecursiveIn.Code) (τ : List Bool) (x : ℕ) (e : ℕ) :
-    haltsPred c τ x e ↔ haltsPredDecide c τ x e = true := by
-  dsimp [haltsPred, haltsPredDecide]
-  cases Encodable.decode (α := List Bool × ℕ × ℕ) e <;> simp
+    (_root_.Primrec.const Option.none)).of_eq fun arg => by
+    simp [haltsPredOptAll, haltsPredOpt]
 
 private lemma halts_iff_haltsPredOpt_dom (c : Nat.RecursiveIn.Code) (τ : List Bool) (x : ℕ) :
     Halts c τ x ↔ (Nat.rfindOpt (haltsPredOpt c τ x)).Dom := by
-  rw [Halts_iff_exists_haltsPred]
-  rw [Nat.rfindOpt_dom]
-  constructor
-  · rintro ⟨e, he⟩
-    exact ⟨e, e, by dsimp [haltsPredOpt]; rw [(haltsPred_iff_haltsPredDecide c τ x e).mp he]; rfl⟩
-  · rintro ⟨e, a, he⟩
-    dsimp [haltsPredOpt] at he
-    cases h : haltsPredDecide c τ x e
-    · simp [h] at he
-    · exact ⟨e, (haltsPred_iff_haltsPredDecide c τ x e).mpr h⟩
+  simp [Halts_iff_exists_haltsPred, Nat.rfindOpt_dom, haltsPredOpt]
 
 private lemma partrec_haltsPredOpt_rfindOpt :
     Partrec fun (p : Nat.RecursiveIn.Code × List Bool × ℕ) =>
@@ -237,14 +210,8 @@ private lemma rfindOpt_haltsPredOpt_eq_some_find {c : Code} {τ : List Bool} {x 
       Part.some (Nat.find (p := haltsPred c τ x) ((Halts_iff_exists_haltsPred c τ x).mp h)) := by
   set h_ex := (Halts_iff_exists_haltsPred c τ x).mp h
   set e₀ := Nat.find h_ex
-  have he₀ : haltsPredDecide c τ x e₀ = true :=
-    (haltsPred_iff_haltsPredDecide c τ x e₀).mp (Nat.find_spec h_ex)
-  have hmin : ∀ m < e₀, haltsPredDecide c τ x m = false := by
-    intro m hm
-    have hm' := Nat.find_min h_ex hm
-    cases h_dec : haltsPredDecide c τ x m
-    · rfl
-    · exact (hm' ((haltsPred_iff_haltsPredDecide c τ x m).mpr h_dec)).elim
+  have he₀ : haltsPred c τ x e₀ := Nat.find_spec h_ex
+  have hmin : ∀ m < e₀, ¬haltsPred c τ x m := fun _ hm => Nat.find_min h_ex hm
   ext a
   simp only [Nat.rfindOpt, Part.mem_bind_iff, Part.mem_some_iff]
   constructor
