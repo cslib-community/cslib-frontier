@@ -7,7 +7,8 @@ Authors: Samuel Schlesinger
 module
 
 import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.KDF
-import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT
+import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.DDHProb
+import CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.KDF
 import CslibFrontierTests.Crypto.PrimeFieldGroups
 
 /-!
@@ -15,8 +16,10 @@ import CslibFrontierTests.Crypto.PrimeFieldGroups
 
 A client of `CslibFrontier.Crypto.Protocols.MPC.MaskedOT.KDF`,
 `CslibFrontier.Crypto.Protocols.MPC.MaskedOT.DDH`,
-`CslibFrontier.Crypto.Protocols.MPC.Composition.Cost` and
-`CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT` under module encapsulation.
+`CslibFrontier.Crypto.Protocols.MPC.MaskedOT.DDHProb`,
+`CslibFrontier.Crypto.Protocols.MPC.Composition.Cost`,
+`CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT` and
+`CslibFrontier.Crypto.Protocols.MPC.Yao.PlainDDHOT.KDF` under module encapsulation.
 
 * The key-derivation mask is checked on the groups `ZMod p` of `primeFields` with a constant
   two-bit key: masking twice recovers a two-bit word, and every masked word has the width of the
@@ -29,6 +32,14 @@ A client of `CslibFrontier.Crypto.Protocols.MPC.MaskedOT.KDF`,
   at `{1}` is `ddhOTReceiverSim` exists.
 * The per-transfer cost `ddhMaskedOTReceiverCost` is `⊤` away from the coalition `{1}`.
 * The bound for Yao's protocol applies over `ZMod 5`.
+* With the key-derivation mask at the prime `5` of `primeFields`: a family of simulators of the
+  masked transfer whose member at `{1}` is `maskedOTReceiverSim` exists; the bound for one transfer
+  over the DDH transfer applies to two-bit inputs under the constant two-bit key; the cost
+  `kdfDDHMaskedOTReceiverCost` is `⊤` away from the coalition `{1}`; and the statements for Yao's
+  protocol, for a corrupted evaluator and for a corrupted garbler, apply when the offered values
+  are two bits long.
+* Over the fair-coin DDH transfer `ddhOTProbProtocol` at the prime `5`: a family of simulators whose
+  member at `{1}` is `ddhOTReceiverSimProb` exists, and the bound for one masked transfer applies.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -172,5 +183,134 @@ example {Fn Λ : Type} (Gs : Garbling.Scheme Fn) (hproj : Gs.encode = Garbling.p
     (1 : ZMod 5) 5 one_generates mask unmask samplePads T₁ hT₁ S₁ S₂ hS₂ x D
 
 end Composition
+
+/-! ### The key-derivation mask over the DDH transfer -/
+
+/-- **A family of simulators of the masked transfer with `maskedOTReceiverSim` at `{1}` exists**,
+so the hypothesis `hS₁` of the theorems is satisfiable. At the other coalitions the family returns
+the views of one fixed execution; it only inhabits the type. -/
+example : ∃ S₁ : (J : Finset (Fin 2)) → CoalitionSimulator
+      (maskedOTSchedule (primeFields.Carrier five) (List Bool)) (OTIn (List Bool))
+      (MaskedOTCoins (primeFields.Carrier five)) (OTOut (List Bool)) J,
+    S₁ {1} = maskedOTReceiverSim (primeFields.kdfMask constKDF five) (primeFields.kdfPads five)
+      (Cslib.BitString.sampleList 2) := by
+  classical
+  obtain ⟨⟨v, -⟩, -⟩ := ((maskedOT (primeFields.kdfMask constKDF five)
+    (primeFields.kdfMask constKDF five) (primeFields.kdfPads five)).evalWith
+      (otWorld (primeFields.Carrier five)) (wordInputs false)).support_nonempty
+  exact ⟨fun J => if h : J = {1} then h ▸ maskedOTReceiverSim (primeFields.kdfMask constKDF five)
+      (primeFields.kdfPads five) (Cslib.BitString.sampleList 2)
+    else fun _ _ => pure fun i => v i.1, dite_eq_left rfl⟩
+
+section KDFComposition
+
+/-- `primeFields` is reducible, so instance search sees its order at `five` unfolded and does not
+find the family's instance `NeZero (F.order d)`; it is supplied from the primality of the order. -/
+local instance : NeZero (primeFields.order five) := ⟨(primeFields.prime_order five).ne_zero⟩
+
+variable
+  (S₁ : (J : Finset (Fin 2)) → CoalitionSimulator
+    (maskedOTSchedule (primeFields.Carrier five) (List Bool)) (OTIn (List Bool))
+    (MaskedOTCoins (primeFields.Carrier five)) (OTOut (List Bool)) J)
+  (hS₁ : S₁ {1} = maskedOTReceiverSim (primeFields.kdfMask constKDF five)
+    (primeFields.kdfPads five) (Cslib.BitString.sampleList 2))
+  (S₂ : (J : Finset (Fin 2)) → CoalitionSimulator (ddhOTSchedule (primeFields.Carrier five))
+    (OTIn (primeFields.Carrier five)) (DDHOTCoins (primeFields.order five))
+    (OTOut (primeFields.Carrier five)) J)
+  (hS₂ : S₂ {1} = ddhOTReceiverSim (primeFields.generator five) (primeFields.order five))
+
+include hS₁ hS₂ in
+/-- **The hypotheses of `semiHonestAdvantage_kdfMaskedOT_ddhOT_receiver_le` are satisfiable.** At
+the prime `5`, with the constant two-bit key and two-bit inputs, the advantage against a corrupted
+receiver of the masked transfer over the DDH transfer is at most the key-derivation advantage of
+`maskedOTReceiverToKDFDistinguisherAt` plus the expected DDH advantage. The constant key hides
+nothing; the instance only witnesses the hypotheses. -/
+example (σ : Bool) (n : ℕ) (D : _) :=
+  primeFields.semiHonestAdvantage_kdfMaskedOT_ddhOT_receiver_le constKDF (fun _ => 2) n five
+    (fun _ => rfl) S₁ hS₁ S₂ hS₂ (wordInputs σ) (by cases σ <;> rfl) D
+
+/-- **The key-derivation cost is stated for a corrupted receiver only.** At the coalition `{0}` it
+is `⊤`. -/
+example (σ : Bool) (n : ℕ) (D : _) :
+    primeFields.kdfDDHMaskedOTReceiverCost constKDF (fun _ => 2) n five S₂ () {0}
+      (wordInputs σ) D = ⊤ :=
+  dite_eq_right (by decide)
+
+include hS₁ hS₂ in
+/-- **Yao's protocol over the batched masked transfer with the key-derivation mask over the DDH
+transfer at the prime `5`, corrupted evaluator.** The bound of
+`Yao.semiHonestAdvantage_composedProtocol_kdfDDHMaskedOT_evaluator_le` applies at every parameter
+`n ≥ 1`, for a correct garbling scheme with a projective encoding whose offered values are two
+bits long. -/
+example {Fn Λ : Type} (Gs : Garbling.Scheme Fn) (hproj : Gs.encode = Garbling.projectiveEncode)
+    (hcorrect : Gs.Correct) {n : ℕ} (hn : 0 < n) (c : Yao.Params Gs) (Φ : Garbling.SideInfo Fn Λ)
+    (S : ℕ → Garbling.PrvSimulator Λ)
+    (T₁ : (I : Finset (Fin 2)) →
+      CoalitionSimulator (Yao.schedule c) (Yao.Input c) Yao.Coins (fun _ => List Bool) I)
+    (hT₁ : T₁ {1} = Yao.evaluatorSim Gs Φ S n c) (x : (i : Fin 2) → Yao.Input c i)
+    (hlen : ∀ (r : (i : Fin 2) → Yao.Coins i) (j : Fin c.evaluatorLen) (b : Bool),
+      (Yao.transferQueries n c x r 0 j b).length = 2) (D : _) :=
+  Yao.semiHonestAdvantage_composedProtocol_kdfDDHMaskedOT_evaluator_le primeFields constKDF
+    (fun _ => 2) hproj hcorrect hn c Φ S five (fun _ => rfl) x hlen T₁ hT₁ S₁ hS₁ S₂ hS₂ D
+
+/-- **The same protocol, corrupted garbler.** The statement of
+`Yao.semiHonestAdvantage_composedProtocol_kdfDDHMaskedOT_garbler_eq_zero` applies at every
+parameter `n ≥ 1`, for a correct garbling scheme with a projective encoding whose offered values
+are two bits long, with the sender simulators at the coalition `{0}`. -/
+example {Fn : Type} (Gs : Garbling.Scheme Fn) (hproj : Gs.encode = Garbling.projectiveEncode)
+    (hcorrect : Gs.Correct) {n : ℕ} (hn : 0 < n) (c : Yao.Params Gs)
+    (T₁ : (I : Finset (Fin 2)) →
+      CoalitionSimulator (Yao.schedule c) (Yao.Input c) Yao.Coins (fun _ => List Bool) I)
+    (hT₁ : T₁ {0} = Yao.garblerSim Gs n c) (x : (i : Fin 2) → Yao.Input c i)
+    (hlen : ∀ (r : (i : Fin 2) → Yao.Coins i) (j : Fin c.evaluatorLen) (b : Bool),
+      (Yao.transferQueries n c x r 0 j b).length = 2)
+    (R₁ : (J : Finset (Fin 2)) → CoalitionSimulator
+      (maskedOTSchedule (primeFields.Carrier five) (List Bool)) (OTIn (List Bool))
+      (MaskedOTCoins (primeFields.Carrier five)) (OTOut (List Bool)) J)
+    (hR₁ : R₁ {0} = maskedOTSenderSim (primeFields.kdfPads five))
+    (R₂ : (J : Finset (Fin 2)) → CoalitionSimulator (ddhOTSchedule (primeFields.Carrier five))
+      (OTIn (primeFields.Carrier five)) (DDHOTCoins (primeFields.order five))
+      (OTOut (primeFields.Carrier five)) J)
+    (hR₂ : R₂ {0} = ddhOTSenderSim (primeFields.generator five) (primeFields.order five))
+    (D : _) :=
+  Yao.semiHonestAdvantage_composedProtocol_kdfDDHMaskedOT_garbler_eq_zero primeFields constKDF
+    (fun _ => 2) hproj hcorrect hn c five (fun _ => rfl) x hlen T₁ hT₁ R₁ hR₁ R₂ hR₂ D
+
+end KDFComposition
+
+/-! ### The masked transfer over the fair-coin DDH transfer -/
+
+/-- **A family of simulators of the fair-coin DDH transfer with `ddhOTReceiverSimProb` at `{1}`
+exists**, so the hypothesis `hS₂` of `semiHonestAdvantage_maskedOT_ddhOTProb_receiver_le` is
+satisfiable. At the other coalitions the family returns the views of one fixed execution; it only
+inhabits the type. -/
+example (n : ℕ) : ∃ S₂ : (J : Finset (Fin 2)) → CoalitionSimulator
+      (ddhOTSchedule (primeFields.Carrier five)) (OTIn (primeFields.Carrier five))
+      (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool)) (OTOut (primeFields.Carrier five)) J,
+    S₂ {1} = primeFields.ddhOTReceiverSimProb n five := by
+  classical
+  obtain ⟨⟨v, -⟩, -⟩ := ((primeFields.ddhOTProbProtocol n five).evalWith noOracleWorld
+    (Fin.cases (motive := fun i => OTIn (primeFields.Carrier five) i)
+      ((0, 0) : primeFields.Carrier five × primeFields.Carrier five)
+      fun _ => false)).support_nonempty
+  exact ⟨fun J => if h : J = {1} then h ▸ primeFields.ddhOTReceiverSimProb n five
+    else fun _ _ => pure fun i => v i.1, dite_eq_left rfl⟩
+
+/-- **The masked transfer of words over the fair-coin DDH transfer at the prime `5`, corrupted
+receiver.** The bound for one distinguisher applies at every security parameter: the advantage is
+at most the pad-hiding advantage plus the expected DDH advantage of
+`maskedOTToDDHProbDistinguisher` plus `14 / 2 ^ n`. -/
+example (n : ℕ) (mask unmask : primeFields.Carrier five → List Bool → List Bool)
+    (samplePads : ProbComp (primeFields.Carrier five × primeFields.Carrier five))
+    (S₁ : (J : Finset (Fin 2)) → CoalitionSimulator
+      (maskedOTSchedule (primeFields.Carrier five) (List Bool)) (OTIn (List Bool))
+      (MaskedOTCoins (primeFields.Carrier five)) (OTOut (List Bool)) J)
+    (S₂ : (J : Finset (Fin 2)) → CoalitionSimulator
+      (ddhOTSchedule (primeFields.Carrier five)) (OTIn (primeFields.Carrier five))
+      (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool)) (OTOut (primeFields.Carrier five)) J)
+    (hS₂ : S₂ {1} = primeFields.ddhOTReceiverSimProb n five)
+    (x : (i : Fin 2) → OTIn (List Bool) i) (D : _) :=
+  primeFields.semiHonestAdvantage_maskedOT_ddhOTProb_receiver_le n five mask unmask samplePads S₁
+    S₂ hS₂ x D
 
 end CslibFrontierTests.Crypto.YaoPlainDDHOT
