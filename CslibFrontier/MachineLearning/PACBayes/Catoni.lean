@@ -7,13 +7,11 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.MachineLearning.LossMinimization.Basic
-public import CslibFrontier.Probability.ChangeOfMeasure
-import CslibFrontier.MachineLearning.PACBayes.Gibbs
+public import CslibFrontier.MachineLearning.PACBayes.Basic
+import CslibFrontier.Probability.DonskerVaradhan
 import CslibFrontier.Probability.SubGaussian
 import Mathlib.Analysis.Convex.Integral
 import Mathlib.MeasureTheory.Integral.Pi
-import Mathlib.Probability.Moments.Variance
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -21,14 +19,15 @@ import Mathlib.Tactic.Positivity
 /-!
 # PAC-Bayes bounds for general measurable spaces: Catoni, Hoeffding, and Gibbs oracle bounds
 
-Extends `CslibFrontier.MachineLearning.PACBayes.Basic` from countable hypothesis spaces `ι` to
-**arbitrary measurable hypothesis spaces** `(Θ, mΘ)` (including uncountable/continuous parameter
-spaces such as `ℝᵈ` with a Gaussian or uniform prior), assuming joint measurability
-`Measurable (Function.uncurry ℓ)` of the `[0, 1]`-bounded loss `ℓ : Θ → Z → ℝ`.
+Extends `CslibFrontier.MachineLearning.PACBayes.Basic` on **arbitrary measurable hypothesis
+spaces** `(Θ, mΘ)` (including uncountable/continuous parameter spaces such as `ℝᵈ` with a Gaussian
+or uniform prior), assuming joint measurability `Measurable (Function.uncurry ℓ)` of the
+`[0, 1]`-bounded loss `ℓ : Θ → Z → ℝ`.
 
 Using the Donsker–Varadhan change-of-measure inequality
-(`CslibFrontier.Probability.ChangeOfMeasure`) and Gibbs variational optimality
-(`CslibFrontier.MachineLearning.PACBayes.Gibbs`), this module proves:
+(`CslibFrontier.Probability.ChangeOfMeasure`), the shared Tonelli–Markov and joint-measurability
+helpers in `CslibFrontier.MachineLearning.PACBayes.Basic`, and Gibbs variational optimality
+(`CslibFrontier.Probability.DonskerVaradhan`), this module proves:
 
 1. **Catoni's PAC-Bayes bound** [Catoni2007, Theorem 1.2.6] (exact constant `1` — no `log m` or
    `log (m + 1)` slack!). For any scale `c > 0`, define the convex, strictly increasing potential
@@ -47,14 +46,16 @@ Using the Donsker–Varadhan change-of-measure inequality
 3. **Linear PAC-Bayes–Hoeffding (`PAC-Bayes-λ`) bounds** [Catoni2007] [Alquier2024, Theorem 2.1].
    Upper and lower two-sided deviations for any inverse temperature `lam > 0`:
    `𝔼_Q L_D ≤ 𝔼_Q L_S + (KL(Q ‖ P) + log (1 / δ)) / lam + lam / (8 * m)` (and reversed).
-4. **General measurable McAllester bound.** Same `log (√m / δ)` bound as `PACBayes/Basic.lean`,
-   lifted from countable `ι` to arbitrary measurable `Θ`.
-5. **Gibbs posterior excess-risk oracle inequalities** [Alquier2024]. With probability at least
+4. **Gibbs posterior excess-risk oracle inequalities** [Alquier2024]. With probability at least
    `1 - δ`, the Gibbs posterior `Q̂ S = P.tilted (-lam * L_S)` satisfies:
    - for any **fixed** comparator `Q` with `KL(Q ‖ P) < ∞`:
      `𝔼_{Q̂} L_D ≤ 𝔼_Q L_D + KL(Q ‖ P) / lam + lam / (4 * m) + 2 * log (2 / δ) / lam`;
    - **simultaneously** for **every** (even data-dependent) `Q` with `KL(Q ‖ P) < ∞`:
      `𝔼_{Q̂} L_D ≤ 𝔼_Q L_D + 2 * KL(Q ‖ P) / lam + lam / (4 * m) + 2 * log (2 / δ) / lam`.
+
+(The general measurable McAllester `log (√m / δ)` bound
+`measure_pi_exists_integral_risk_gt_of_measurable` lives directly in
+`CslibFrontier.MachineLearning.PACBayes.Basic`.)
 
 Differences from the sources: `δ < 1` is not required; posteriors with `klDiv Q P = ⊤` are
 excluded (for which the bounds are vacuous); losses are required to be jointly measurable in
@@ -77,8 +78,6 @@ excluded (for which the bounds are vacuous); losses are required to be jointly m
 * `Cslib.MachineLearning.PACBayes.measure_pi_exists_hoeffding_integral_risk_gt`,
   `Cslib.MachineLearning.PACBayes.measure_pi_exists_hoeffding_integral_risk_lt`: upper and lower
   linear PAC-Bayes–Hoeffding bounds [Alquier2024, Theorem 2.1].
-* `Cslib.MachineLearning.PACBayes.measure_pi_exists_mcallester_integral_risk_gt`: McAllester's
-  `log (√m / δ)` bound on arbitrary measurable hypothesis spaces.
 * `Cslib.MachineLearning.PACBayes.measure_pi_gibbs_fixed_oracle_gt`,
   `Cslib.MachineLearning.PACBayes.measure_pi_gibbs_oracle_gt`: excess-risk oracle inequalities for
   the Gibbs posterior `P.tilted (fun θ => -lam * empiricalRisk ℓ S θ)`.
@@ -92,7 +91,6 @@ outside-fleet source check).
   Learning*][Catoni2007], Theorem 1.2.6 (locator unverified against primary PDF)
 * [P. Alquier, *User-friendly Introduction to PAC-Bayes Bounds*][Alquier2024], Theorem 2.1
   (locator unverified against primary PDF)
-* [D. A. McAllester, *PAC-Bayesian model averaging*][McAllester1999] (locator unverified)
 -/
 
 public section
@@ -106,12 +104,20 @@ open scoped ENNReal BigOperators
 
 /-- Catoni's log-Laplace potential `Φ_c(p) = -log (1 - p * (1 - exp (-c))) / c` for `c > 0`
 and `p ∈ [0, 1]` [Catoni2007] (locator unverified). -/
-@[expose] noncomputable def catoniPhi (c p : ℝ) : ℝ :=
+noncomputable def catoniPhi (c p : ℝ) : ℝ :=
   -log (1 - p * (1 - exp (-c))) / c
 
+/-- Defining equation of `catoniPhi`. -/
+theorem catoniPhi_def (c p : ℝ) :
+    catoniPhi c p = -log (1 - p * (1 - exp (-c))) / c := by rw [catoniPhi]
+
 /-- Inverse of Catoni's potential: `Φ_c⁻¹(y) = (1 - exp (-c * y)) / (1 - exp (-c))`. -/
-@[expose] noncomputable def catoniInv (c y : ℝ) : ℝ :=
+noncomputable def catoniInv (c y : ℝ) : ℝ :=
   (1 - exp (-c * y)) / (1 - exp (-c))
+
+/-- Defining equation of `catoniInv`. -/
+theorem catoniInv_def (c y : ℝ) :
+    catoniInv c y = (1 - exp (-c * y)) / (1 - exp (-c)) := by rw [catoniInv]
 
 private theorem one_sub_exp_neg_pos {c : ℝ} (hc : 0 < c) : 0 < 1 - exp (-c) :=
   sub_pos.mpr (exp_lt_one_iff.mpr (neg_neg_of_pos hc))
@@ -216,77 +222,6 @@ private theorem continuousOn_catoniPhi {c : ℝ} (hc : 0 < c) :
   refine ContinuousOn.neg ?_
   refine ContinuousOn.log ?_ fun p hp => (catoniArg_pos hc hp).ne'
   fun_prop
-
-/-! ### General measurable hypothesis spaces: Tonelli–Markov and joint measurability -/
-
-section JointMeasurability
-
-variable {Θ Z : Type*} [MeasurableSpace Θ] [MeasurableSpace Z]
-
-/-- Markov's inequality for an average over a general measurable prior `P` (not restricted to
-countable spaces), via Tonelli's theorem on the jointly measurable nonnegative kernel `F`. -/
-theorem measure_ofReal_div_le_lintegral_le_of_measurable {Ω : Type*} [MeasurableSpace Ω]
-    (μ : Measure Ω) [SFinite μ] (P : Measure Θ) [IsProbabilityMeasure P]
-    {F : Ω → Θ → ℝ≥0∞} (hFm : Measurable (Function.uncurry F)) {B : ℝ}
-    (hB : ∀ θ, ∫⁻ ω, F ω θ ∂μ ≤ ENNReal.ofReal B) (hB0 : 0 < B) {δ : ℝ} (hδ : 0 < δ) :
-    μ {ω | ENNReal.ofReal (B / δ) ≤ ∫⁻ θ, F ω θ ∂P} ≤ ENNReal.ofReal δ := by
-  have hswap : ∫⁻ ω, ∫⁻ θ, F ω θ ∂P ∂μ ≤ ENNReal.ofReal B := by
-    rw [lintegral_lintegral_swap hFm.aemeasurable]
-    calc ∫⁻ θ, ∫⁻ ω, F ω θ ∂μ ∂P ≤ ∫⁻ _, ENNReal.ofReal B ∂P := lintegral_mono hB
-      _ = ENNReal.ofReal B := by simp
-  have hthr : ENNReal.ofReal (B / δ) ≠ 0 := by
-    rw [ne_eq, ENNReal.ofReal_eq_zero, not_le]
-    exact div_pos hB0 hδ
-  refine (meas_ge_le_lintegral_div hFm.lintegral_prod_right.aemeasurable hthr
-    ENNReal.ofReal_ne_top).trans ?_
-  refine (ENNReal.div_le_div_right hswap _).trans_eq ?_
-  rw [← ENNReal.ofReal_div_of_pos (div_pos hB0 hδ)]
-  congr 1
-  field_simp
-
-/-- The true risk `θ ↦ trueRisk ℓ D θ` is measurable for any jointly measurable `[0, 1]`-loss
-`ℓ` and probability distribution `D`. -/
-private theorem measurable_trueRisk {D : Measure Z} [IsProbabilityMeasure D] {ℓ : Θ → Z → ℝ}
-    (hℓ : Measurable (Function.uncurry ℓ)) (hℓ01 : ∀ θ z, ℓ θ z ∈ Icc (0 : ℝ) 1) :
-    Measurable (trueRisk ℓ D) := by
-  have heq : trueRisk ℓ D = fun θ => (∫⁻ z, ENNReal.ofReal (ℓ θ z) ∂D).toReal := by
-    ext θ
-    have hθ : Measurable (ℓ θ) := hℓ.comp (measurable_const.prodMk measurable_id)
-    have hint : Integrable (ℓ θ) D :=
-      Integrable.of_mem_Icc 0 1 hθ.aemeasurable (ae_of_all _ fun z => hℓ01 θ z)
-    rw [trueRisk_def, integral_eq_lintegral_of_nonneg_ae
-      (ae_of_all _ fun z => (hℓ01 θ z).1) hint.1]
-  rw [heq]
-  exact hℓ.ennreal_ofReal.lintegral_prod_right.ennreal_toReal
-
-/-- Joint measurability of `((S, θ) ↦ empiricalRisk ℓ S θ)` from joint measurability of `ℓ`. -/
-private theorem measurable_empiricalRisk_prod {ℓ : Θ → Z → ℝ}
-    (hℓ : Measurable (Function.uncurry ℓ)) (m : ℕ) :
-    Measurable fun p : (Fin m → Z) × Θ => empiricalRisk ℓ p.1 p.2 := by
-  simp_rw [empiricalRisk_eq_sum_div]
-  refine (Finset.measurable_sum _ fun j _ => ?_).div_const _
-  exact hℓ.comp (measurable_snd.prodMk ((measurable_pi_apply j).comp measurable_fst))
-
-private theorem measurable_empiricalRisk_theta {ℓ : Θ → Z → ℝ}
-    (hℓ : Measurable (Function.uncurry ℓ)) {m : ℕ} (S : Fin m → Z) :
-    Measurable fun θ => empiricalRisk ℓ S θ :=
-  (measurable_empiricalRisk_prod hℓ m).comp (measurable_const.prodMk measurable_id)
-
-private theorem integrable_trueRisk {D : Measure Z} [IsProbabilityMeasure D] {ℓ : Θ → Z → ℝ}
-    (hℓ : Measurable (Function.uncurry ℓ)) (hℓ01 : ∀ θ z, ℓ θ z ∈ Icc (0 : ℝ) 1)
-    (Q : Measure Θ) [IsProbabilityMeasure Q] :
-    Integrable (trueRisk ℓ D) Q :=
-  Integrable.of_mem_Icc 0 1 (measurable_trueRisk hℓ hℓ01).aemeasurable
-    (ae_of_all _ fun θ => trueRisk_mem_Icc ℓ D (hℓ01 θ))
-
-private theorem integrable_empiricalRisk {ℓ : Θ → Z → ℝ}
-    (hℓ : Measurable (Function.uncurry ℓ)) (hℓ01 : ∀ θ z, ℓ θ z ∈ Icc (0 : ℝ) 1)
-    {m : ℕ} (S : Fin m → Z) (Q : Measure Θ) [IsProbabilityMeasure Q] :
-    Integrable (empiricalRisk ℓ S) Q :=
-  Integrable.of_mem_Icc 0 1 (measurable_empiricalRisk_theta hℓ S).aemeasurable
-    (ae_of_all _ fun θ => empiricalRisk_mem_Icc ℓ S (hℓ01 θ))
-
-end JointMeasurability
 
 /-! ### Exponential moment bounds -/
 
@@ -480,7 +415,7 @@ theorem measure_pi_exists_catoniPhi_integral_risk_gt
   set F : (Fin m → Z) → Θ → ℝ≥0∞ := fun S θ =>
     ENNReal.ofReal (exp (m * c * (catoniPhi c (trueRisk ℓ D θ) - empiricalRisk ℓ S θ)))
   have hphi_meas : Measurable fun θ => catoniPhi c (trueRisk ℓ D θ) := by
-    have htr := measurable_trueRisk (D := D) hℓ hℓ01
+    have htr := measurable_trueRisk_of_measurable (D := D) hℓ hℓ01
     refine (((measurable_const.sub (htr.mul measurable_const)).log.neg).div_const c)
   have hFm : Measurable (Function.uncurry F) := by
     refine Measurable.ennreal_ofReal (Measurable.exp (measurable_const.mul ?_))
@@ -496,7 +431,7 @@ theorem measure_pi_exists_catoniPhi_integral_risk_gt
   rw [Set.mem_ofPred_eq, not_le] at hB
   set f : Θ → ℝ := fun θ => m * c * (catoniPhi c (trueRisk ℓ D θ) - empiricalRisk ℓ S θ)
   have hf_meas : Measurable f :=
-    measurable_const.mul (hphi_meas.sub (measurable_empiricalRisk_theta hℓ S))
+    measurable_const.mul (hphi_meas.sub (measurable_empiricalRisk_arg hℓ S))
   have hf_bd (θ : Θ) : |f θ| ≤ (m : ℝ) * c := by
     have h1 := catoniPhi_mem_Icc hc (trueRisk_mem_Icc ℓ D (hℓ01 θ))
     have h2 := empiricalRisk_mem_Icc ℓ S (hℓ01 θ)
@@ -517,8 +452,9 @@ theorem measure_pi_exists_catoniPhi_integral_risk_gt
   have hphi_int : Integrable (fun θ => catoniPhi c (trueRisk ℓ D θ)) Q :=
     Integrable.of_mem_Icc 0 1 hphi_meas.aemeasurable
       (ae_of_all _ fun θ => catoniPhi_mem_Icc hc (trueRisk_mem_Icc ℓ D (hℓ01 θ)))
-  have htr_int : Integrable (trueRisk ℓ D) Q := integrable_trueRisk hℓ hℓ01 Q
-  have hemp_int : Integrable (empiricalRisk ℓ S) Q := integrable_empiricalRisk hℓ hℓ01 S Q
+  have htr_int : Integrable (trueRisk ℓ D) Q := integrable_trueRisk_of_measurable hℓ hℓ01 Q
+  have hemp_int : Integrable (empiricalRisk ℓ S) Q :=
+    integrable_empiricalRisk_of_measurable hℓ hℓ01 S Q
   have hjensen : catoniPhi c (∫ θ, trueRisk ℓ D θ ∂Q) ≤
       ∫ θ, catoniPhi c (trueRisk ℓ D θ) ∂Q :=
     (convexOn_catoniPhi hc).map_integral_le (continuousOn_catoniPhi hc) isClosed_Icc
@@ -558,7 +494,7 @@ theorem measure_pi_exists_catoni_integral_risk_gt
   have htr_mem : ∫ θ, trueRisk ℓ D θ ∂Q ∈ Icc (0 : ℝ) 1 :=
     ⟨integral_nonneg fun θ => (trueRisk_mem_Icc ℓ D (hℓ01 θ)).1, by
       calc ∫ θ, trueRisk ℓ D θ ∂Q ≤ ∫ _ : Θ, (1 : ℝ) ∂Q :=
-            integral_mono (integrable_trueRisk hℓ hℓ01 Q) (integrable_const 1)
+            integral_mono (integrable_trueRisk_of_measurable hℓ hℓ01 Q) (integrable_const 1)
               fun θ => (trueRisk_mem_Icc ℓ D (hℓ01 θ)).2
         _ = 1 := by simp⟩
   by_contra hle
@@ -606,7 +542,7 @@ theorem measure_pi_exists_realizable_integral_risk_gt
   have hmR : (0 : ℝ) < m := Nat.cast_pos.2 hm
   set F : (Fin m → Z) → Θ → ℝ≥0∞ := fun S θ =>
     ENNReal.ofReal (if empiricalRisk ℓ S θ = 0 then exp (m * trueRisk ℓ D θ) else 0)
-  have htr_meas : Measurable (trueRisk ℓ D) := measurable_trueRisk hℓ hℓ01
+  have htr_meas : Measurable (trueRisk ℓ D) := measurable_trueRisk_of_measurable hℓ hℓ01
   have hFm : Measurable (Function.uncurry F) := by
     refine Measurable.ennreal_ofReal (Measurable.ite ?_ ?_ measurable_const)
     · exact (measurable_empiricalRisk_prod hℓ m) (measurableSet_singleton 0)
@@ -622,10 +558,10 @@ theorem measure_pi_exists_realizable_integral_risk_gt
   rw [Set.mem_ofPred_eq, not_le] at hB
   have hAe0 : ∀ᵐ θ ∂Q, empiricalRisk ℓ S θ = 0 :=
     (integral_eq_zero_iff_of_nonneg (fun θ => (empiricalRisk_mem_Icc ℓ S (hℓ01 θ)).1)
-      (integrable_empiricalRisk hℓ hℓ01 S Q)).mp hzero
+      (integrable_empiricalRisk_of_measurable hℓ hℓ01 S Q)).mp hzero
   set g : Θ → ℝ := fun θ => if empiricalRisk ℓ S θ = 0 then exp (m * trueRisk ℓ D θ) else 0
   have hg_meas : Measurable g :=
-    Measurable.ite ((measurable_empiricalRisk_theta hℓ S) (measurableSet_singleton 0))
+    Measurable.ite ((measurable_empiricalRisk_arg hℓ S) (measurableSet_singleton 0))
       (measurable_const.mul htr_meas).exp measurable_const
   have hg_nn (θ : Θ) : 0 ≤ g θ := by dsimp [g]; split_ifs <;> positivity
   have hg_bd (θ : Θ) : g θ ≤ exp m := by
@@ -643,13 +579,13 @@ theorem measure_pi_exists_realizable_integral_risk_gt
         (klDiv Q P).toReal + log (1 / δ + ε) := by
     let f : Θ → ℝ := fun θ => if empiricalRisk ℓ S θ = 0 then m * trueRisk ℓ D θ else log ε
     have hf_meas : Measurable f :=
-      Measurable.ite ((measurable_empiricalRisk_theta hℓ S) (measurableSet_singleton 0))
+      Measurable.ite ((measurable_empiricalRisk_arg hℓ S) (measurableSet_singleton 0))
         (measurable_const.mul htr_meas) measurable_const
     have hf_ae : f =ᵐ[Q] fun θ => (m : ℝ) * trueRisk ℓ D θ := by
       filter_upwards [hAe0] with θ hθ
       simp [f, hθ]
     have hfQ : Integrable f Q :=
-      ((integrable_trueRisk hℓ hℓ01 Q).const_mul (m : ℝ)).congr hf_ae.symm
+      ((integrable_trueRisk_of_measurable hℓ hℓ01 Q).const_mul (m : ℝ)).congr hf_ae.symm
     have hexp_le (θ : Θ) : exp (f θ) ≤ g θ + ε := by
       dsimp only [f, g]
       split_ifs
@@ -704,7 +640,7 @@ private theorem measure_pi_hoeffding_core
   have hmR : (0 : ℝ) < m := Nat.cast_pos.2 hm
   set B : ℝ := exp (t ^ 2 / (8 * m))
   have hB_pos : 0 < B := exp_pos _
-  have htr_meas : Measurable (trueRisk ℓ D) := measurable_trueRisk hℓ hℓ01
+  have htr_meas : Measurable (trueRisk ℓ D) := measurable_trueRisk_of_measurable hℓ hℓ01
   set F : (Fin m → Z) → Θ → ℝ≥0∞ := fun S θ =>
     ENNReal.ofReal (exp (t * (trueRisk ℓ D θ - empiricalRisk ℓ S θ)))
   have hFm : Measurable (Function.uncurry F) :=
@@ -748,7 +684,7 @@ private theorem measure_pi_hoeffding_core
   rw [Set.mem_ofPred_eq, not_le] at hB'
   set f : Θ → ℝ := fun θ => t * (trueRisk ℓ D θ - empiricalRisk ℓ S θ)
   have hf_meas : Measurable f :=
-    measurable_const.mul (htr_meas.sub (measurable_empiricalRisk_theta hℓ S))
+    measurable_const.mul (htr_meas.sub (measurable_empiricalRisk_arg hℓ S))
   have hf_bd (θ : Θ) : |f θ| ≤ |t| := by
     rw [abs_mul]
     exact (mul_le_mul_of_nonneg_left (abs_trueRisk_sub_empiricalRisk_le_one S (hℓ01 θ))
@@ -768,7 +704,8 @@ private theorem measure_pi_hoeffding_core
     rw [show B / δ = B * (1 / δ) by ring, log_mul hB_pos.ne' (one_div_pos.mpr hδ).ne', log_exp]
   have hf_eq : ∫ θ, f θ ∂Q = t * (∫ θ, trueRisk ℓ D θ ∂Q - ∫ θ, empiricalRisk ℓ S θ ∂Q) := by
     simp only [f, integral_const_mul,
-      integral_sub (integrable_trueRisk hℓ hℓ01 Q) (integrable_empiricalRisk hℓ hℓ01 S Q)]
+      integral_sub (integrable_trueRisk_of_measurable hℓ hℓ01 Q)
+        (integrable_empiricalRisk_of_measurable hℓ hℓ01 S Q)]
   linarith
 
 /-- **Linear PAC-Bayes–Hoeffding bound (`PAC-Bayes-λ`, upper tail)** [Catoni2007]
@@ -822,86 +759,6 @@ theorem measure_pi_exists_hoeffding_integral_risk_lt
       lam * ∫ θ, trueRisk ℓ D θ ∂Q +
         lam * (((klDiv Q P).toReal + log (1 / δ)) / lam) + lam * (lam / (8 * m)) by ring]
 
-/-- **McAllester's PAC-Bayes bound on an arbitrary measurable hypothesis space** [McAllester1999]
-(locator unverified): lifts `PACBayes/Basic.lean`'s countable-space theorem to any
-`[MeasurableSpace Θ]` via joint measurability `Measurable (Function.uncurry ℓ)`. -/
-theorem measure_pi_exists_mcallester_integral_risk_gt
-    (hℓ : Measurable (Function.uncurry ℓ)) (hℓ01 : ∀ θ z, ℓ θ z ∈ Icc (0 : ℝ) 1)
-    {m : ℕ} (hm : 2 ≤ m) (P : Measure Θ) [IsProbabilityMeasure P] {δ : ℝ} (hδ : 0 < δ) :
-    Measure.pi (fun _ : Fin m => D) {S | ∃ Q : Measure Θ, IsProbabilityMeasure Q ∧
-      klDiv Q P ≠ ⊤ ∧ ∫ θ, empiricalRisk ℓ S θ ∂Q +
-        sqrt (((klDiv Q P).toReal + log (sqrt m / δ)) / (2 * (m - 1))) <
-        ∫ θ, trueRisk ℓ D θ ∂Q} ≤ ENNReal.ofReal δ := by
-  have hm0 : 0 < m := by omega
-  have hmR : (0 : ℝ) < m := Nat.cast_pos.2 hm0
-  have hlam : (0 : ℝ) < 2 * (m - 1) := by
-    have : (2 : ℝ) ≤ m := by exact_mod_cast hm
-    linarith
-  have htr_meas : Measurable (trueRisk ℓ D) := measurable_trueRisk hℓ hℓ01
-  set F : (Fin m → Z) → Θ → ℝ≥0∞ := fun S θ =>
-    ENNReal.ofReal (exp (2 * (m - 1) * (trueRisk ℓ D θ - empiricalRisk ℓ S θ) ^ 2))
-  have hFm : Measurable (Function.uncurry F) :=
-    ((measurable_const.mul (((htr_meas.comp measurable_snd).sub
-      (measurable_empiricalRisk_prod hℓ m)).pow_const 2))).exp.ennreal_ofReal
-  have hmom (θ : Θ) : ∫⁻ S, F S θ ∂Measure.pi (fun _ : Fin m => D) ≤ ENNReal.ofReal (sqrt m) := by
-    have hθm : Measurable (ℓ θ) := hℓ.comp (measurable_const.prodMk measurable_id)
-    have hc : (((4 * m : NNReal)⁻¹ : NNReal) : ℝ) = (4 * (m : ℝ))⁻¹ := by push_cast; ring
-    have key : 1 - 2 * (2 * ((m : ℝ) - 1)) * (4 * (m : ℝ))⁻¹ = (m : ℝ)⁻¹ := by field_simp; ring
-    have h := (Cslib.Probability.hasSubgaussianMGF_integral_sub_sum_div D hθm (hℓ01 θ)
-      hm0).lintegral_exp_mul_sq_le (s := 2 * (m - 1)) (by linarith)
-        (by rw [hc]; have := inv_pos.2 hmR; linarith)
-    simp only [F, trueRisk_def, empiricalRisk_eq_sum_div]
-    refine h.trans_eq ?_
-    rw [hc, key, sqrt_inv, inv_inv]
-  have hmarkov := measure_ofReal_div_le_lintegral_le_of_measurable
-    (Measure.pi fun _ : Fin m => D) P hFm hmom (sqrt_pos.2 hmR) hδ
-  refine (measure_mono fun S hS => ?_).trans hmarkov
-  obtain ⟨Q, hQ, hQP, hlt⟩ := hS
-  by_contra hB
-  rw [Set.mem_ofPred_eq, not_le] at hB
-  set g : Θ → ℝ := fun θ => trueRisk ℓ D θ - empiricalRisk ℓ S θ
-  have hg_meas : Measurable g := htr_meas.sub (measurable_empiricalRisk_theta hℓ S)
-  have hg_bd (θ : Θ) : |g θ| ≤ 1 := abs_trueRisk_sub_empiricalRisk_le_one S (hℓ01 θ)
-  have hf_meas : Measurable (fun θ => 2 * (m - 1) * g θ ^ 2) :=
-    measurable_const.mul (hg_meas.pow_const 2)
-  have hf_bd (θ : Θ) : ‖2 * (m - 1) * g θ ^ 2‖ ≤ 2 * ((m : ℝ) - 1) := by
-    rw [Real.norm_of_nonneg (mul_nonneg hlam.le (sq_nonneg _))]
-    have hsq : g θ ^ 2 ≤ 1 := by
-      simpa only [one_pow, sq_abs] using pow_le_pow_left₀ (abs_nonneg _) (hg_bd θ) 2
-    nlinarith
-  have hfQ : Integrable (fun θ => 2 * (m - 1) * g θ ^ 2) Q :=
-    Integrable.of_bound hf_meas.aestronglyMeasurable (2 * ((m : ℝ) - 1)) (ae_of_all _ hf_bd)
-  have hexpP : Integrable (fun θ => exp (2 * (m - 1) * g θ ^ 2)) P :=
-    Integrable.of_bound hf_meas.exp.aestronglyMeasurable (exp (2 * ((m : ℝ) - 1)))
-      (ae_of_all _ fun θ => by
-        rw [Real.norm_of_nonneg (exp_pos _).le]
-        have h := hf_bd θ
-        rw [Real.norm_of_nonneg (mul_nonneg hlam.le (sq_nonneg _))] at h
-        exact exp_le_exp.mpr h)
-  have hcm := Cslib.Probability.integral_le_toReal_klDiv_add_log_integral_exp hQP hfQ hexpP
-  have hpos : 0 < ∫ θ, exp (2 * (m - 1) * g θ ^ 2) ∂P := integral_exp_pos hexpP
-  rw [← ofReal_integral_eq_lintegral_ofReal hexpP (ae_of_all _ fun _ => (exp_pos _).le),
-    ENNReal.ofReal_lt_ofReal_iff_of_nonneg hpos.le] at hB
-  have hlog : log (∫ θ, exp (2 * (m - 1) * g θ ^ 2) ∂P) < log (sqrt m / δ) := log_lt_log hpos hB
-  have hmem : MemLp g 2 Q := MemLp.of_bound hg_meas.aestronglyMeasurable 1
-    (ae_of_all _ fun θ => by rw [Real.norm_eq_abs]; exact hg_bd θ)
-  have hjensen : (∫ θ, g θ ∂Q) ^ 2 ≤ ∫ θ, g θ ^ 2 ∂Q := by
-    have := variance_nonneg g Q
-    rw [variance_eq_sub hmem] at this
-    simpa only [Pi.pow_apply, sub_nonneg] using this
-  have hmul_int : ∫ θ, 2 * (m - 1) * g θ ^ 2 ∂Q = 2 * (m - 1) * ∫ θ, g θ ^ 2 ∂Q :=
-    integral_const_mul _ _
-  have hsub_int : ∫ θ, g θ ∂Q = ∫ θ, trueRisk ℓ D θ ∂Q - ∫ θ, empiricalRisk ℓ S θ ∂Q :=
-    integral_sub (integrable_trueRisk hℓ hℓ01 Q) (integrable_empiricalRisk hℓ hℓ01 S Q)
-  have hsq_le : (∫ θ, g θ ∂Q) ^ 2 ≤
-      ((klDiv Q P).toReal + log (sqrt m / δ)) / (2 * (m - 1)) := by
-    rw [le_div_iff₀ hlam]
-    nlinarith
-  have hsqrt_le : ∫ θ, g θ ∂Q ≤
-      sqrt (((klDiv Q P).toReal + log (sqrt m / δ)) / (2 * (m - 1))) :=
-    (le_abs_self _).trans (abs_le_sqrt hsq_le)
-  linarith
-
 /-! ### Gibbs posterior excess-risk oracle inequalities -/
 
 private theorem integrable_exp_neg_empiricalRisk {ℓ : Θ → Z → ℝ}
@@ -910,7 +767,7 @@ private theorem integrable_exp_neg_empiricalRisk {ℓ : Θ → Z → ℝ}
     (P : Measure Θ) [IsProbabilityMeasure P] :
     Integrable (fun θ => exp (-lam * empiricalRisk ℓ S θ)) P :=
   Integrable.of_mem_Icc 0 1
-    (measurable_const.mul (measurable_empiricalRisk_theta hℓ S)).exp.aemeasurable
+    (measurable_const.mul (measurable_empiricalRisk_arg hℓ S)).exp.aemeasurable
     (ae_of_all _ fun θ => ⟨(exp_pos _).le,
       exp_le_one_iff.mpr (mul_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr hlam.le)
         (empiricalRisk_mem_Icc ℓ S (hℓ01 θ)).1)⟩)
@@ -934,9 +791,10 @@ private theorem gibbs_oracle_combine
   set Qhat := P.tilted fun θ => -lam * empiricalRisk ℓ S θ
   have hexp := integrable_exp_neg_empiricalRisk hℓ hℓ01 S hlam P
   have : IsProbabilityMeasure Qhat := isProbabilityMeasure_tilted hexp
-  have hhat_emp : Integrable (empiricalRisk ℓ S) Qhat := integrable_empiricalRisk hℓ hℓ01 S Qhat
+  have hhat_emp : Integrable (empiricalRisk ℓ S) Qhat :=
+    integrable_empiricalRisk_of_measurable hℓ hℓ01 S Qhat
   have hhat_kl : klDiv Qhat P ≠ ⊤ :=
-    klDiv_tilted_self_ne_top hexp (hhat_emp.const_mul (-lam))
+    Cslib.Probability.klDiv_tilted_self_ne_top hexp (hhat_emp.const_mul (-lam))
   have hgood1 : ∫ θ, trueRisk ℓ D θ ∂Qhat ≤ ∫ θ, empiricalRisk ℓ S θ ∂Qhat +
       ((klDiv Qhat P).toReal + log (1 / (δ / 2))) / lam + lam / (8 * m) := by
     by_contra hbad
@@ -944,8 +802,8 @@ private theorem gibbs_oracle_combine
     exact hnot1 ⟨Qhat, inferInstance, hhat_kl, hbad⟩
   have hopt : ∫ θ, empiricalRisk ℓ S θ ∂Qhat + (klDiv Qhat P).toReal / lam ≤
       ∫ θ, empiricalRisk ℓ S θ ∂Q + (klDiv Q P).toReal / lam :=
-    freeEnergy_tilted_le (g := empiricalRisk ℓ S) hQP hlam
-      (integrable_empiricalRisk hℓ hℓ01 S Q) hexp hhat_emp
+    Cslib.Probability.freeEnergy_tilted_le (g := empiricalRisk ℓ S) hQP hlam
+      (integrable_empiricalRisk_of_measurable hℓ hℓ01 S Q) hexp hhat_emp
   have hlog_eq : 1 / (δ / 2) = 2 / δ := by ring
   rw [hlog_eq] at hgood1 hgood2
   have h1' : ((klDiv Qhat P).toReal + log (2 / δ)) / lam =

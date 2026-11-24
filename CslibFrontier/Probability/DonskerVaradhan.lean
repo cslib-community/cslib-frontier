@@ -40,17 +40,15 @@ Completes the variational duality of the Kullback–Leibler divergence built on
 
 ## Main results
 
-* `Cslib.MachineLearning.PACBayes.klDiv_tilted_right_ne_top`,
-  `Cslib.MachineLearning.PACBayes.toReal_klDiv_tilted_right`: KL divergence against a tilted
-  measure.
-* `Cslib.MachineLearning.PACBayes.klDiv_tilted_self_ne_top`,
-  `Cslib.MachineLearning.PACBayes.toReal_klDiv_tilted_self`: equality case of change of measure.
-* `Cslib.MachineLearning.PACBayes.log_integral_exp_eq_sSup`: Fenchel dual of `KL(· ‖ ν)`.
-* `Cslib.MachineLearning.PACBayes.toReal_klDiv_eq_sSup`: full Donsker–Varadhan variational formula.
-* `Cslib.MachineLearning.PACBayes.freeEnergy_sub_eq_toReal_klDiv_tilted`,
-  `Cslib.MachineLearning.PACBayes.freeEnergy_tilted_le`,
-  `Cslib.MachineLearning.PACBayes.freeEnergy_eq_tilted_iff`: unique optimality of the Gibbs
-  posterior.
+* `Cslib.Probability.klDiv_tilted_right_ne_top`,
+  `Cslib.Probability.toReal_klDiv_tilted_right`: KL divergence against a tilted measure.
+* `Cslib.Probability.klDiv_tilted_self_ne_top`,
+  `Cslib.Probability.toReal_klDiv_tilted_self`: equality case of change of measure.
+* `Cslib.Probability.log_integral_exp_eq_sSup`: Fenchel dual of `KL(· ‖ ν)`.
+* `Cslib.Probability.toReal_klDiv_eq_sSup`: full Donsker–Varadhan variational formula.
+* `Cslib.Probability.freeEnergy_sub_eq_toReal_klDiv_tilted`,
+  `Cslib.Probability.freeEnergy_tilted_le`,
+  `Cslib.Probability.freeEnergy_eq_tilted_iff`: unique optimality of the Gibbs posterior.
 
 ## References
 
@@ -65,7 +63,7 @@ outside-fleet source check).
 
 public section
 
-namespace Cslib.MachineLearning.PACBayes
+namespace Cslib.Probability
 
 open MeasureTheory ProbabilityTheory InformationTheory Filter Real
 open scoped ENNReal Topology
@@ -330,4 +328,4 @@ theorem freeEnergy_eq_tilted_iff {μ ν : Measure α} [IsProbabilityMeasure μ]
     left
     rw [h, klDiv_self, ENNReal.toReal_zero]
 
-end Cslib.MachineLearning.PACBayes
+end Cslib.Probability

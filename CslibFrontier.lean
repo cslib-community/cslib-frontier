@@ -9229,7 +9229,6 @@ public import CslibFrontier.MachineLearning.OnlineLearning.WeightedMajority
 public import CslibFrontier.MachineLearning.OnlineLearning.ZeroSum
 public import CslibFrontier.MachineLearning.PACBayes.Basic
 public import CslibFrontier.MachineLearning.PACBayes.Catoni
-public import CslibFrontier.MachineLearning.PACBayes.Gibbs
 public import CslibFrontier.MachineLearning.PACBayes.Inversion
 public import CslibFrontier.MachineLearning.PACBayes.KL
 public import CslibFrontier.MachineLearning.PACLearning.AgnosticFiniteClass
@@ -9388,6 +9387,7 @@ public import CslibFrontier.Probability.DDGTree.Rejection
 public import CslibFrontier.Probability.Distributional.Distinguishing
 public import CslibFrontier.Probability.Distributional.Search
 public import CslibFrontier.Probability.Divergence
+public import CslibFrontier.Probability.DonskerVaradhan
 public import CslibFrontier.Probability.Entropy
 public import CslibFrontier.Probability.Entropy.BitString
 public import CslibFrontier.Probability.Entropy.Continuity

@@ -8,8 +8,8 @@ module
 -- upstream: local-only (tests)
 
 import CslibFrontier.MachineLearning.PACBayes.Catoni
-import CslibFrontier.MachineLearning.PACBayes.Gibbs
 import CslibFrontier.MachineLearning.PACBayes.Inversion
+import CslibFrontier.Probability.DonskerVaradhan
 import Mathlib.MeasureTheory.Measure.Lebesgue.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
@@ -22,19 +22,21 @@ set_option linter.privateModule false
 
 Ordinary-import `module` client (zero `import all`) verifying:
 
-1. **Donsker–Varadhan / Gibbs optimality (`Gibbs`)**: on `Bool` equipped with the uniform prior
-   `P = (1/2) δ_false + (1/2) δ_true`, `P.tilted f` hits exact equality in the change-of-measure
-   bound (`toReal_klDiv_tilted_self`), strictly minimizes the free energy `∫ g ∂μ + KL(μ ‖ P) / β`
-   against a non-tilted point mass `Measure.dirac false` (negative witness), and matches
-   `log_integral_exp_eq_sSup` / `toReal_klDiv_eq_sSup`.
+1. **Donsker–Varadhan / Gibbs optimality (`CslibFrontier.Probability.DonskerVaradhan`)**: on `Bool`
+   equipped with the uniform prior `P = (1/2) δ_false + (1/2) δ_true`, `P.tilted f` hits exact
+   equality in the change-of-measure bound (`toReal_klDiv_tilted_self`), strictly minimizes the free
+   energy `∫ g ∂μ + KL(μ ‖ P) / β` against a non-tilted point mass `Measure.dirac false` (negative
+   witness), and matches `log_integral_exp_eq_sSup` / `toReal_klDiv_eq_sSup`.
 2. **Catoni's potential and PAC-Bayes bounds on an *uncountable* hypothesis space (`Catoni`)**:
    instantiates `measure_pi_exists_catoni_integral_risk_gt`,
    `measure_pi_exists_catoni_linear_integral_risk_gt`,
    `measure_pi_exists_realizable_integral_risk_gt`,
-   `measure_pi_exists_hoeffding_integral_risk_gt`, `measure_pi_exists_mcallester_integral_risk_gt`,
+   `measure_pi_exists_hoeffding_integral_risk_gt`,
+   `measure_pi_exists_integral_risk_gt_of_measurable`,
    `measure_pi_gibbs_fixed_oracle_gt`, and `measure_pi_gibbs_oracle_gt` on the **uncountable**
    threshold class `Θ = ℝ` equipped with the uniform Lebesgue prior `volume.restrict (Icc 0 1)`
-   (a space where `PACBayes/Basic.lean`'s `[Countable ι]` does not apply!).
+   (a space where the `[Countable ι]` form in `CslibFrontier.MachineLearning.PACBayes.Basic`
+   does not apply!).
 3. **Catoni potential identity check**: exact `catoniPhi` boundary values at `p = 0, 1`,
    `catoniInv_catoniPhi` at `c = 2, p = 1/3`, and `catoniPhi_le_self` at `c = 1, p = 1/2`.
 4. **Analytical `binaryKL` inversions (`Inversion`)**: numerical strict comparisons showing the
@@ -256,7 +258,7 @@ example (D : Measure (ℝ × Bool)) [IsProbabilityMeasure D] :
           sqrt (((klDiv Q unitIntervalPrior).toReal + log (sqrt 10 / (1 / 20))) /
             (2 * ((10 : ℝ) - 1))) <
         ∫ θ, trueRisk threshLoss D θ ∂Q} ≤ ENNReal.ofReal (1 / 20) :=
-  measure_pi_exists_mcallester_integral_risk_gt measurable_threshLoss threshLoss_mem_Icc
+  measure_pi_exists_integral_risk_gt_of_measurable measurable_threshLoss threshLoss_mem_Icc
     (by decide) unitIntervalPrior (by norm_num)
 
 /-! ### 3. `binaryKL` inversions and fast-rate separation over Pinsker -/
