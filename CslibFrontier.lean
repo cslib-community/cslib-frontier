@@ -6826,9 +6826,11 @@ public import CslibFrontier.DataStructure.OrderedSet.ExtractMin
 public import CslibFrontier.DataStructure.OrderedSet.Spec
 public import CslibFrontier.DataStructure.PackedLane
 public import CslibFrontier.DataStructure.Paging.Basic
+public import CslibFrontier.DataStructure.Paging.FIFO
 public import CslibFrontier.DataStructure.Paging.LRU
 public import CslibFrontier.DataStructure.Paging.LowerBound
 public import CslibFrontier.DataStructure.Paging.Marking
+public import CslibFrontier.DataStructure.Paging.RandomizedLowerBound
 public import CslibFrontier.DataStructure.PrefixSums.CellProbe.LowerBound
 public import CslibFrontier.DataStructure.PrefixSums.Spec
 public import CslibFrontier.DataStructure.PrefixSums.WordRAM.Dynamic
