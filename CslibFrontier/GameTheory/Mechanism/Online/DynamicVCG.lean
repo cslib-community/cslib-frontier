@@ -26,8 +26,13 @@ as in Exercise 16.8), and per-period agent valuations `val : ι → ℕ → S �
 An efficient MDP policy `π*` maximizes expected discounted total social welfare
 `W*(t, h, s)` over the remaining horizon `h` starting from time `t` and state `s`. For each agent
 `i`, let `W*_{-i}(t, h, s)` be the optimal expected discounted social welfare of the remaining
-agents `j ≠ i`. The *dynamic VCG* (or *dynamic pivot*, *marginal-externality*) per-period payment
-when taking action `k` at `(t, h + 1, s)` is
+agents `j ≠ i`. In the single-agent deviation model formalized here, the environment holds other
+agents' true valuations `othersVal i` fixed (`env.val` encodes the true reported types of `j ≠ i`),
+so `isTruthful` and `delayedUtility_le_truthful` establish *within-period / Markov-perfect
+equilibrium truthfulness against truthful other agents* ([Parkes2007], Theorem 16.28;
+[BergemannValimaki2010]), rather than dominant-strategy incentive compatibility (`DSIC`) under
+arbitrary misreports by `j ≠ i`. The *dynamic VCG* (or *dynamic pivot*, *marginal-externality*)
+per-period payment when taking action `k` at `(t, h + 1, s)` is
 `pᵢ(t, h + 1, s, k) = W*_{-i}(t, h + 1, s) - (∑_{j ≠ i} rⱼ + γ · E[W*_{-i}(t + 1, h, s')])`.
 
 ## Main definitions
@@ -52,19 +57,24 @@ when taking action `k` at `(t, h + 1, s)` is
 
 * `DynamicEnv.evalFrom_le_optimalValue`, `DynamicEnv.evalFrom_optimalPolicy`: Bellman optimality of
   `optimalPolicy` across *all* history-dependent policies.
+* `DynamicEnv.evalFrom_le_optimalValueWithout`, `DynamicEnv.evalFrom_optimalPolicyWithout`,
+  `DynamicEnv.pivotPayment_optimalPolicyWithout`: Bellman optimality of `optimalPolicyWithout` for
+  `othersVal i` (`W*_{-i}`) and zero marginal-externality payments along it.
 * `DynamicEnv.agentUtility_eq_totalVal_sub`: exact telescoping identity showing that for *every*
   history-dependent policy `σ`, agent `i`'s expected cumulative utility equals the expected total
   social welfare under `σ` minus the agent-independent baseline `W*_{-i}(t, h, s)`.
-* `DynamicEnv.isTruthful`: dynamic VCG truthfulness — truthful reporting (inducing `optimalPolicy`)
-  maximizes agent `i`'s expected discounted utility against every history-dependent deviation
-  policy `σ` ([Parkes2007], Theorem 16.28; [ParkesSingh2003]; [BergemannValimaki2010], locators
-  not verified against primary PDF).
+* `DynamicEnv.isTruthful`: within-period / Markov-perfect equilibrium truthfulness of dynamic VCG
+  against truthful other agents — truthful reporting (inducing `optimalPolicy`) maximizes agent
+  `i`'s expected discounted utility against every history-dependent deviation policy `σ` when
+  other agents report truthfully (`othersVal i` fixed; [Parkes2007], Theorem 16.28;
+  [ParkesSingh2003]; [BergemannValimaki2010], locators not verified against primary PDF).
 * `DynamicEnv.pivotPayment_nonneg`: per-period no positive transfers (`0 ≤ pivotPayment`).
 * `DynamicEnv.isIR`: within-period individual rationality at every period `t` and state `s` when
   agent `i`'s per-period valuations are nonnegative.
 * `DynamicEnv.pivotPayment_optimalActionWithout`, `DynamicEnv.delayedUtility_le_truthful`:
   delaying arrival (while unserved and paying zero under the without-`i` optimal policy) cannot
-  strictly improve expected utility when agent `i`'s valuations are nonnegative.
+  strictly improve expected utility against truthful other agents when `i`'s valuations are
+  nonnegative.
 
 ## References
 
@@ -284,6 +294,24 @@ variable {ι S K : Type*} [Fintype ι] [DecidableEq ι] [Fintype S] [Fintype K] 
     (t₀ h₀ len₀ : ℕ) : List S → K :=
   toHistoryPolicy (env.bellmanAction (env.othersVal i)) t₀ h₀ len₀
 
+/-- Bellman optimality without agent `i`: no history-dependent policy achieves higher expected
+discounted without-`i` welfare than `optimalValueWithout`. -/
+theorem evalFrom_le_optimalValueWithout (env : DynamicEnv ι S K) (i : ι) (σ : List S → K)
+    (t h : ℕ) (hist : List S) (s : S) :
+    env.evalFrom (env.othersVal i) σ t h hist s ≤ env.optimalValueWithout i t h s :=
+  env.evalFrom_le_bellmanValue (env.othersVal i) σ t h hist s
+
+/-- The without-`i` efficient MDP policy `optimalPolicyWithout` attains `optimalValueWithout`
+exactly. -/
+theorem evalFrom_optimalPolicyWithout (env : DynamicEnv ι S K) (i : ι) (t₀ h₀ : ℕ)
+    (hist : List S) (s : S) :
+    env.evalFrom (env.othersVal i) (env.optimalPolicyWithout i t₀ h₀ hist.length)
+        t₀ h₀ hist s =
+      env.optimalValueWithout i t₀ h₀ s := by
+  have h := env.evalFrom_toHistoryPolicy_bellmanAction (env.othersVal i) t₀ h₀ hist.length 0
+    hist s (by simp) (Nat.zero_le h₀)
+  simpa only [Nat.add_zero, Nat.sub_zero, optimalPolicyWithout, optimalValueWithout] using h
+
 /-- Per-period dynamic VCG (marginal-externality / dynamic pivot) payment charged to agent `i`
 when action `k` is taken at period `t`, remaining horizon `h + 1`, and state `s`
 ([Parkes2007], §16.6; [ParkesSingh2003]; [BergemannValimaki2010], locators not verified against
@@ -312,6 +340,17 @@ theorem pivotPayment_optimalActionWithout (env : DynamicEnv ι S K) (i : ι)
   have := env.qValue_bellmanAction (env.othersVal i) t h s
   unfold qValue at this
   linarith
+
+/-- After `e` steps from `(t₀, h₀, len₀)`, `optimalPolicyWithout` incurs zero pivot payment. -/
+theorem pivotPayment_optimalPolicyWithout (env : DynamicEnv ι S K) (i : ι)
+    {t₀ h₀ len₀ e : ℕ} (hist : List S) (hlen : hist.length = len₀ + e) (s : S) :
+    env.pivotPayment i (t₀ + e) (h₀ - e - 1) s
+      (env.optimalPolicyWithout i t₀ h₀ len₀ (s :: hist)) = 0 := by
+  have hel : hist.length - len₀ = e := by omega
+  unfold optimalPolicyWithout toHistoryPolicy
+  dsimp only
+  rw [hel]
+  exact env.pivotPayment_optimalActionWithout i (t₀ + e) (h₀ - e - 1) s
 
 /-- Expected discounted cumulative utility of agent `i` under dynamic VCG payments when the
 mechanism executes history-dependent policy `σ` over remaining horizon `h` starting at `(t, s)`. -/
@@ -349,10 +388,11 @@ theorem agentUtility_eq_totalVal_sub (env : DynamicEnv ι S K) (i : ι) (σ : Li
     have hval := env.val_add_othersVal i t s k
     linarith
 
-/-- Dynamic VCG truthfulness: truthful reporting (which induces the efficient MDP policy
-`optimalPolicy`) maximizes agent `i`'s expected discounted cumulative utility over *all*
-history-dependent deviation policies `σ`
-([Parkes2007], Theorem 16.28; [ParkesSingh2003]; [BergemannValimaki2010], locators not verified
+/-- Within-period / Markov-perfect equilibrium truthfulness of Dynamic VCG against truthful other
+agents: holding the remaining agents' true valuations `othersVal i` fixed in `env.val`, truthful
+reporting (inducing `optimalPolicy`) maximizes agent `i`'s expected discounted cumulative utility
+over *all* history-dependent deviation policies `σ` (not DSIC under arbitrary misreports by `j ≠ i`;
+[Parkes2007], Theorem 16.28; [ParkesSingh2003]; [BergemannValimaki2010], locators not verified
 against primary PDF). -/
 theorem isTruthful (env : DynamicEnv ι S K) (i : ι) (σ : List S → K)
     (t₀ h₀ : ℕ) (hist : List S) (s : S) :
@@ -416,10 +456,11 @@ and agent `i` gets `0` value and pays `0`; thereafter the mechanism follows `σ`
     env.discount *
       ∑ s' : S, (env.trans s k s').toReal * delayedUtility env i σ d (t + 1) h (s :: hist) s'
 
-/-- Arrival-delay truthfulness of Dynamic VCG: if agent `i` has nonnegative valuations, delaying
+/-- Arrival-delay within-period / Markov-perfect truthfulness of Dynamic VCG against truthful
+other agents (`othersVal i` fixed in `env.val`): if agent `i` has nonnegative valuations, delaying
 arrival by `d` periods (receiving zero value and paying zero while unreported under the without-`i`
 optimal policy) and then inducing any history-dependent policy `σ` yields expected utility at most
-the truthful Dynamic VCG utility from arrival
+truthful Dynamic VCG utility from arrival
 ([Parkes2007], §16.6, Theorem 16.28; [ParkesSingh2003], locators not verified against primary PDF).
 -/
 theorem delayedUtility_le_truthful (env : DynamicEnv ι S K) (i : ι)

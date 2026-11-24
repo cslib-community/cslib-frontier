@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import Mathlib.Algebra.Order.BigOperators.Group.Finset
 public import Mathlib.Basic.ENNReal.Real
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
@@ -50,8 +51,13 @@ earlier arrival, later departure, and strictly higher value (`a₂ ≤ a₁`, `d
   `Policy.IsImplementable`.
 * `Mechanism`, `Mechanism.utility`, `Mechanism.IsDSIC`, `Mechanism.IsDSICNoEarlyArrival`,
   `Mechanism.IsIR`, `Mechanism.IsNPT`, `Mechanism.IsLoserZero`.
+* `welfare`, `revenue`: realized social welfare of an allocation map and total seller revenue of
+  an online mechanism.
 
 ## Main results
+
+* `welfare_nonneg`, `welfare_eq_sum_filter`, `revenue_nonneg`: nonnegativity of realized social
+  welfare and NPT revenue, and sum characterization of feasible allocation welfare.
 
 * `Policy.criticalValue_update`, `Policy.criticalValue_antitone`: for a monotone policy, the
   critical value is independent of agent `i`'s report and nonincreasing as the interval `[a, d]`
@@ -83,7 +89,7 @@ earlier arrival, later departure, and strictly higher value (`a₂ ≤ a₁`, `d
   Auctions*][HajiaghayiKleinbergParkes2004]
 -/
 
-open scoped ENNReal
+open scoped BigOperators ENNReal
 
 public section
 
@@ -689,5 +695,41 @@ theorem isImplementable_iff_isMonotone {π : Policy ι τ} :
       criticalMechanism_isNPT π, criticalMechanism_isLoserZero π⟩
 
 end Policy
+
+section AggregateObjectives
+
+variable {ι τ : Type*} [Fintype ι] [Preorder τ]
+
+/-- Realized social welfare of an allocation map `f : ι → Option τ` on online profile `θ`. -/
+@[expose] noncomputable def welfare (θ : ι → AgentType τ) (f : ι → Option τ) : ℝ :=
+  ∑ i : ι, (θ i).realizedValue (f i)
+
+theorem welfare_nonneg (θ : ι → AgentType τ) (f : ι → Option τ) :
+    0 ≤ welfare θ f :=
+  Finset.sum_nonneg fun i _ => (θ i).realizedValue_nonneg (f i)
+
+theorem welfare_eq_sum_filter {θ : ι → AgentType τ} {f : ι → Option τ}
+    (hwin : ∀ i t, f i = some t → (θ i).InWindow t) :
+    welfare θ f = ∑ i ∈ Finset.univ.filter (fun i => (f i).isSome), (θ i).value := by
+  classical
+  unfold welfare
+  rw [Finset.sum_filter]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  cases h : f i with
+  | none =>
+    simp only [AgentType.realizedValue_none, Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
+  | some t =>
+    simp only [AgentType.realizedValue_some_of_inWindow (hwin i t h),
+      Option.isSome_some, ↓reduceIte]
+
+/-- Total seller revenue of an online mechanism `M` on online profile `θ`. -/
+@[expose] noncomputable def revenue (M : Mechanism ι τ) (θ : ι → AgentType τ) : ℝ :=
+  ∑ i : ι, M.payment θ i
+
+theorem revenue_nonneg {M : Mechanism ι τ} (hnpt : M.IsNPT) (θ : ι → AgentType τ) :
+    0 ≤ revenue M θ :=
+  Finset.sum_nonneg fun i _ => hnpt i θ
+
+end AggregateObjectives
 
 end Cslib.GameTheory.OnlineMechanism

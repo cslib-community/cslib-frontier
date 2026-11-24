@@ -42,7 +42,8 @@ and §16.3.3, locators not verified against primary PDF):
 
 * `PriceSchedule`, `PriceSchedule.policy`, `PriceSchedule.arrivalMechanism`.
 * `ThresholdWins`, `thresholdSingleItemPolicy`, `thresholdSingleItemMechanism`.
-* `singleItemWelfare`, `singleItemRevenue`.
+  Social welfare (`welfare`) and seller revenue (`revenue`) live in
+  `CslibFrontier.GameTheory.Mechanism.Online.Basic`.
 
 ## Main results
 
@@ -55,8 +56,9 @@ and §16.3.3, locators not verified against primary PDF):
   `thresholdSingleItemMechanism_isDSICNoEarlyArrival`, `thresholdSingleItemMechanism_isIR`,
   `thresholdSingleItemMechanism_isNPT`, `thresholdSingleItemMechanism_isLoserZero`: causality,
   single-unit feasibility, truthfulness under arbitrary departures, IR, NPT, and loser-zero.
-* `geometricThreshold_expected_welfare`, `geometricThreshold_expected_revenue`: `2m`-competitive
-  welfare and revenue bounds for the uniform geometric threshold auction over `[L, L · 2^m)`.
+* `le_welfare_and_revenue_threshold`, `geometricThreshold_expected_welfare`,
+  `geometricThreshold_expected_revenue`: `2m`-competitive welfare and revenue bounds for the
+  uniform geometric threshold auction over `[L, L · 2^m)`.
 
 ## References
 
@@ -456,22 +458,12 @@ section GeometricThreshold
 
 variable {ι : Type*} [Fintype ι] [LinearOrder ι] {T : ℕ}
 
-/-- Social welfare of a single-item online policy `π` on profile `θ`. -/
-@[expose] noncomputable def singleItemWelfare (π : Policy ι (Fin T))
-    (θ : ι → AgentType (Fin T)) : ℝ :=
-  ∑ i : ι, (θ i).realizedValue (π.alloc θ i)
-
-/-- Total seller revenue of an online mechanism `M` on profile `θ`. -/
-@[expose] noncomputable def singleItemRevenue (M : Mechanism ι (Fin T))
-    (θ : ι → AgentType (Fin T)) : ℝ :=
-  ∑ i : ι, M.payment θ i
-
 /-- Whenever some agent has value at least `p`, the fixed-threshold single-item auction achieves
 both welfare and revenue at least `p`. -/
-theorem le_singleItemWelfare_and_revenue_threshold {p : ℝ} (hp : 0 ≤ p)
+theorem le_welfare_and_revenue_threshold {p : ℝ} (hp : 0 ≤ p)
     {θ : ι → AgentType (Fin T)} (hex : ∃ i : ι, p ≤ (θ i).value) :
-    p ≤ singleItemWelfare (thresholdSingleItemPolicy p) θ ∧
-      p ≤ singleItemRevenue (thresholdSingleItemMechanism p) θ := by
+    p ≤ welfare θ ((thresholdSingleItemPolicy p).alloc θ) ∧
+      p ≤ revenue (thresholdSingleItemMechanism p) θ := by
   classical
   obtain ⟨w, hw⟩ := exists_thresholdWins hex
   have hw_alloc : (thresholdSingleItemPolicy p).alloc θ w = some (θ w).arrival := by
@@ -481,13 +473,13 @@ theorem le_singleItemWelfare_and_revenue_threshold {p : ℝ} (hp : 0 ≤ p)
   have hw_pay : (thresholdSingleItemMechanism p).payment θ w = p := by
     simp only [thresholdSingleItemMechanism, hw_alloc, Option.isSome_some, ↓reduceIte]
   constructor
-  · unfold singleItemWelfare
+  · unfold welfare
     have hterm : (θ w).realizedValue ((thresholdSingleItemPolicy p).alloc θ w) ≤
         ∑ i : ι, (θ i).realizedValue ((thresholdSingleItemPolicy p).alloc θ i) :=
       Finset.single_le_sum (fun i _ => (θ i).realizedValue_nonneg _) (Finset.mem_univ w)
     rw [hw_val] at hterm
     exact hw.1.trans hterm
-  · unfold singleItemRevenue
+  · unfold revenue
     have hterm : (thresholdSingleItemMechanism p).payment θ w ≤
         ∑ i : ι, (thresholdSingleItemMechanism p).payment θ i :=
       Finset.single_le_sum
@@ -545,11 +537,12 @@ theorem geometricThreshold_expected_welfare {L : ℝ} (hL : 0 < L) {m : ℕ} (hm
     (θ i_max).value ≤
       (2 * (m : ℝ)) *
         ((∑ k : Fin m,
-            singleItemWelfare (thresholdSingleItemPolicy (L * (2 : ℝ) ^ k.val)) θ) / (m : ℝ)) :=
+            welfare θ ((thresholdSingleItemPolicy (L * (2 : ℝ) ^ k.val)).alloc θ)) /
+          (m : ℝ)) :=
   geometricThreshold_expected_bound hL hm hlo hhi
-    (fun p => singleItemWelfare (thresholdSingleItemPolicy p) θ)
-    (fun _ _ => Finset.sum_nonneg fun i _ => (θ i).realizedValue_nonneg _)
-    (fun _ hp hle => (le_singleItemWelfare_and_revenue_threshold hp ⟨i_max, hle⟩).1)
+    (fun p => welfare θ ((thresholdSingleItemPolicy p).alloc θ))
+    (fun _ _ => welfare_nonneg _ _)
+    (fun _ hp hle => (le_welfare_and_revenue_threshold hp ⟨i_max, hle⟩).1)
 
 /-- Uniform geometric threshold single-item online auction: choosing threshold `p_k = L · 2^k`
 uniformly over `k : Fin m` (`0 < L`, `0 < m`) is also `2m`-competitive for *seller revenue* against
@@ -560,12 +553,12 @@ theorem geometricThreshold_expected_revenue {L : ℝ} (hL : 0 < L) {m : ℕ} (hm
     (θ i_max).value ≤
       (2 * (m : ℝ)) *
         ((∑ k : Fin m,
-            singleItemRevenue (thresholdSingleItemMechanism (L * (2 : ℝ) ^ k.val)) θ) /
+            revenue (thresholdSingleItemMechanism (L * (2 : ℝ) ^ k.val)) θ) /
           (m : ℝ)) :=
   geometricThreshold_expected_bound hL hm hlo hhi
-    (fun p => singleItemRevenue (thresholdSingleItemMechanism p) θ)
-    (fun _ hp => Finset.sum_nonneg fun i _ => thresholdSingleItemMechanism_isNPT hp i θ)
-    (fun _ hp hle => (le_singleItemWelfare_and_revenue_threshold hp ⟨i_max, hle⟩).2)
+    (fun p => revenue (thresholdSingleItemMechanism p) θ)
+    (fun _ hp => revenue_nonneg (thresholdSingleItemMechanism_isNPT hp) θ)
+    (fun _ hp hle => (le_welfare_and_revenue_threshold hp ⟨i_max, hle⟩).2)
 
 end GeometricThreshold
 

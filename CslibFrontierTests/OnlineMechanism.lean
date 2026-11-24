@@ -4,9 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.GameTheory.Mechanism.Online.Basic
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.GameTheory.Mechanism.Online.Basic
 import CslibFrontier.GameTheory.Mechanism.Online.DynamicVCG
-import CslibFrontier.GameTheory.Mechanism.Online.ExpiringItems
+public import CslibFrontier.GameTheory.Mechanism.Online.ExpiringItems
 import CslibFrontier.GameTheory.Mechanism.Online.PostedPrice
 import CslibFrontier.Probability.PMF
 import Mathlib.Algebra.BigOperators.Fin
@@ -249,7 +252,7 @@ However, when *late-departure* misreports are permitted, Agent 1 with true type 
 Agent 0 `(0, 0, 1)` and Agent 2 `(1, 1, 0)` raises its utility from `1` to `2` by misreporting
 `(0, 1, 2)` (winning at `t = 0` while dropping its critical value from `1` to `0`), proving
 `¬ (greedyMechanism (fun _ => 1)).IsDSICNoEarlyArrival`. -/
-theorem greedyMechanism_late_departure_attack :
+public theorem greedyMechanism_late_departure_attack :
     (greedyMechanism (ι := Fin 3) (T := 2) (fun _ => 1)).IsDSIC ∧
     ¬ (greedyMechanism (ι := Fin 3) (T := 2) (fun _ => 1)).IsDSICNoEarlyArrival := by
   classical
@@ -460,13 +463,14 @@ private def subsidizedAlwaysWin : Mechanism Unit (Fin 2) where
 
 /-- Boundary witness for Lemma 16.14 (`payment_eq_criticalPayment`): dropping `IsNPT` breaks
 uniqueness of critical payments, since `subsidizedAlwaysWin` is `IsDSIC`, `IsIR`, and `IsLoserZero`
-while charging `-1 ≠ 0 = criticalPayment`. -/
+while charging `-1 ≠ 0 = criticalPayment`. Also exercises `AgentType.isValidMisreport_refl`. -/
 theorem npt_necessary_for_payment_uniqueness :
     subsidizedAlwaysWin.IsDSIC ∧ subsidizedAlwaysWin.IsIR ∧ subsidizedAlwaysWin.IsLoserZero ∧
       ¬ subsidizedAlwaysWin.IsNPT ∧
       ∃ θ, subsidizedAlwaysWin.payment θ () ≠ subsidizedAlwaysWin.policy.criticalPayment θ () := by
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · intro _ θ θ_true hmis
+    have _ := θ_true.isValidMisreport_refl
     have hin : θ_true.InWindow (θ ()).arrival :=
       AgentType.InWindow.of_isValidMisreport hmis ⟨le_rfl, (θ ()).arrival_le_departure⟩
     simp only [Mechanism.utility, subsidizedAlwaysWin, alwaysWinPolicy, Function.update_self,
@@ -722,14 +726,26 @@ theorem iceCream_dynamicVCG_witness :
     norm_num
   exact ⟨hW0, hW0_no0, hW0_no1, hp1, hu0, hu1, hu0_dev⟩
 
-/-- Dynamic VCG on `iceCreamEnv` is truthful and individually rational (non-vacuity witness). -/
+/-- Dynamic VCG on `iceCreamEnv` is truthful and individually rational (non-vacuity witness),
+and `optimalPolicyWithout` attains `optimalValueWithout` with zero pivot payment. -/
 example :
-    ∀ (i : Fin 3) (σ : List IceCreamState → IceCreamAction),
+    (∀ (i : Fin 3) (σ : List IceCreamState → IceCreamAction),
       iceCreamEnv.agentUtility i σ 0 2 [] ⟨false, false⟩ ≤
         iceCreamEnv.agentUtility i (iceCreamEnv.optimalPolicy 0 2 0) 0 2 [] ⟨false, false⟩ ∧
-      0 ≤ iceCreamEnv.agentUtility i (iceCreamEnv.optimalPolicy 0 2 0) 0 2 [] ⟨false, false⟩ :=
-  fun i σ => ⟨iceCreamEnv.isTruthful i σ 0 2 [] ⟨false, false⟩,
-    iceCreamEnv.isIR i (iceCream_val_nonneg i) 0 2 [] ⟨false, false⟩⟩
+      0 ≤ iceCreamEnv.agentUtility i (iceCreamEnv.optimalPolicy 0 2 0) 0 2 [] ⟨false, false⟩) ∧
+    iceCreamEnv.evalFrom (iceCreamEnv.othersVal 0)
+      (iceCreamEnv.optimalPolicyWithout 0 0 2 0) 0 2 [] ⟨false, false⟩ = 10 ∧
+    iceCreamEnv.pivotPayment 0 0 1 ⟨false, false⟩
+      (iceCreamEnv.optimalPolicyWithout 0 0 2 0 [⟨false, false⟩]) = 0 := by
+  refine ⟨fun i σ => ⟨iceCreamEnv.isTruthful i σ 0 2 [] ⟨false, false⟩,
+    iceCreamEnv.isIR i (iceCream_val_nonneg i) 0 2 [] ⟨false, false⟩⟩, ?_, ?_⟩
+  · have hno0 : iceCreamEnv.optimalValueWithout 0 0 2 ⟨false, false⟩ = 10 :=
+      iceCream_dynamicVCG_witness.2.1
+    rw [← hno0]
+    simpa only [List.length_nil] using
+      iceCreamEnv.evalFrom_optimalPolicyWithout 0 0 2 [] ⟨false, false⟩
+  · exact iceCreamEnv.pivotPayment_optimalPolicyWithout 0 (t₀ := 0) (h₀ := 2) (len₀ := 0) (e := 0)
+      [] rfl ⟨false, false⟩
 
 end DynamicVCGWitness
 
@@ -781,17 +797,17 @@ example :
       (thresholdSingleItemPolicy (ι := Fin 2) (T := 2) (1 * (2 : ℝ) ^ k.val)).IsCausal) ∧
     (5 : ℝ) ≤ (2 * (3 : ℝ)) *
       ((∑ k : Fin 3,
-        singleItemWelfare (thresholdSingleItemPolicy (1 * (2 : ℝ) ^ k.val)) θ) / (3 : ℝ)) ∧
+        welfare θ ((thresholdSingleItemPolicy (1 * (2 : ℝ) ^ k.val)).alloc θ)) / (3 : ℝ)) ∧
     (5 : ℝ) ≤ (2 * (3 : ℝ)) *
       ((∑ k : Fin 3,
-        singleItemRevenue (thresholdSingleItemMechanism (1 * (2 : ℝ) ^ k.val)) θ) / (3 : ℝ)) := by
+        revenue (thresholdSingleItemMechanism (1 * (2 : ℝ) ^ k.val)) θ) / (3 : ℝ)) := by
   intro θ
   refine ⟨fun k => ⟨thresholdSingleItemMechanism_isDSICNoEarlyArrival (by positivity),
     thresholdSingleItemPolicy_isCausal _⟩, ?_, ?_⟩
-  · exact geometricThreshold_expected_welfare (L := 1) (by norm_num) (m := 3) (by decide)
-      (i_max := 1) (by simp [θ]) (by simp [θ]; norm_num)
-  · exact geometricThreshold_expected_revenue (L := 1) (by norm_num) (m := 3) (by decide)
-      (i_max := 1) (by simp [θ]) (by simp [θ]; norm_num)
+  · exact geometricThreshold_expected_welfare (ι := Fin 2) (T := 2) (L := 1) (by norm_num)
+      (m := 3) (by decide) (θ := θ) (i_max := 1) (by simp [θ]) (by simp [θ]; norm_num)
+  · exact geometricThreshold_expected_revenue (ι := Fin 2) (T := 2) (L := 1) (by norm_num)
+      (m := 3) (by decide) (θ := θ) (i_max := 1) (by simp [θ]) (by simp [θ]; norm_num)
 
 end PostedPriceWitness
 
