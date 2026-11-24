@@ -7260,6 +7260,7 @@ public import CslibFrontier.Foundations.Analysis.SpecialFunctions.FiberCount
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.GoemansWilliamson
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.GoemansWilliamsonDicut
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.Hyperbolic
+public import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogDivLogLog
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogSum
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogTwoPow
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb

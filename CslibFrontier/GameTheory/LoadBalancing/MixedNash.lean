@@ -113,6 +113,12 @@ theorem expectedMakespan_single [Nonempty M] (G : LoadBalancingGame ι M) (A : �
     G.expectedMakespan (fun i => Pi.single (A i) 1) = G.makespan A := by
   simp [expectedMakespan, productWeight_single]
 
+/-- When `optMakespan = 0`, every job has weight `0`, so every profile has zero expected makespan.
+-/
+theorem expectedMakespan_eq_zero_of_optMakespan_eq_zero [Nonempty M] (G : LoadBalancingGame ι M)
+    (hopt0 : G.optMakespan = 0) (p : ι → M → ℝ) : G.expectedMakespan p = 0 := by
+  simp [expectedMakespan, G.makespan_eq_zero_of_optMakespan_eq_zero hopt0]
+
 /-- **Closed-form expected deviation cost** ([Vocking2007], Eq. (20.1)): when player `i` deviates
 to machine `j` against a profile `p` of probability vectors, its expected cost is
 `expectedLoad p j + (1 - p i j) * (weight i / speed j)`. -/

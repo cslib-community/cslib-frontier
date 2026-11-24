@@ -10,6 +10,7 @@ module
 public import CslibFrontier.GameTheory.LoadBalancing.MixedNash
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpOneSubInvPow
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogDivLogLog
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
@@ -93,15 +94,27 @@ open Finset
 
 /-- `m` unit-weight jobs on `m` identical machines (balls-into-bins instance; [Vocking2007],
 §20.3.1). -/
-@[expose] def unitIdenticalGame (m : ℕ) : LoadBalancingGame (Fin m) (Fin m) :=
+def unitIdenticalGame (m : ℕ) : LoadBalancingGame (Fin m) (Fin m) :=
   LoadBalancingGame.identical (fun _ => 1) (fun _ => zero_le_one)
 
+@[simp] theorem unitIdenticalGame_weight (m : ℕ) (i : Fin m) :
+    (unitIdenticalGame m).weight i = 1 := by
+  simp [unitIdenticalGame, identical]
+
+@[simp] theorem unitIdenticalGame_speed (m : ℕ) (j : Fin m) :
+    (unitIdenticalGame m).speed j = 1 := by
+  simp [unitIdenticalGame, identical]
+
 /-- The uniform mixed strategy profile `p i j = 1 / m` on `m` identical machines. -/
-@[expose] noncomputable def uniformMixedProfile (m : ℕ) : Fin m → Fin m → ℝ :=
+noncomputable def uniformMixedProfile (m : ℕ) : Fin m → Fin m → ℝ :=
   fun _ _ => 1 / (m : ℝ)
 
+@[simp] theorem uniformMixedProfile_apply (m : ℕ) (i j : Fin m) :
+    uniformMixedProfile m i j = 1 / (m : ℝ) := by
+  simp [uniformMixedProfile]
+
 theorem isIdentical_unitIdenticalGame (m : ℕ) : (unitIdenticalGame m).IsIdentical :=
-  fun _ => rfl
+  unitIdenticalGame_speed m
 
 /-- Optimal makespan of `m` unit jobs on `m` identical machines (`m ≥ 1`) is `1`. -/
 theorem optMakespan_unitIdenticalGame (m : ℕ) [NeZero m] :
@@ -573,15 +586,15 @@ theorem ballsIntoBins_tail_ge_half {m k : ℕ} [NeZero m] (hk : 2 ≤ k)
   set p : ℝ := ((m.choose k : ℝ) * ((m - 1 : ℕ) : ℝ) ^ (m - k)) / (m : ℝ) ^ m
   set q : ℝ :=
     ((m.choose k : ℝ) * ((m - k).choose k : ℝ) * ((m - 2 : ℕ) : ℝ) ^ (m - 2 * k)) / (m : ℝ) ^ m
+  have hbin : ∀ j : Fin m, ∑ A : Fin m → Fin m, w * ind A j = p := fun j => by
+    simp only [ind, mul_ite, mul_one, mul_zero, ← sum_filter, sum_const, nsmul_eq_mul,
+      card_filter_binLoad_eq]
+    simp only [w, p, one_div_pow, Nat.cast_mul, Nat.cast_pow]
+    ring
   -- Compute `E[Y] = m * p`.
   have hEY : ∑ A : Fin m → Fin m, w * Y A = (m : ℝ) * p := by
     simp only [Y, mul_sum]
     rw [sum_comm]
-    have hbin : ∀ j : Fin m, ∑ A : Fin m → Fin m, w * ind A j = p := fun j => by
-      simp only [ind, mul_ite, mul_one, mul_zero, ← sum_filter, sum_const, nsmul_eq_mul,
-        card_filter_binLoad_eq]
-      simp only [w, p, one_div_pow, Nat.cast_mul, Nat.cast_pow]
-      ring
     simp only [hbin, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
   -- Compute `E[Y^2] = m * p + m * (m - 1) * q`.
   have hEY2 : ∑ A : Fin m → Fin m, w * (Y A) ^ 2 =
@@ -604,11 +617,6 @@ theorem ballsIntoBins_tail_ge_half {m k : ℕ} [NeZero m] (hk : 2 ≤ k)
     simp_rw [hsq, sum_add_distrib]
     congr 1
     · rw [sum_comm]
-      have hbin : ∀ j : Fin m, ∑ A : Fin m → Fin m, w * ind A j = p := fun j => by
-        simp only [ind, mul_ite, mul_one, mul_zero, ← sum_filter, sum_const, nsmul_eq_mul,
-          card_filter_binLoad_eq]
-        simp only [w, p, one_div_pow, Nat.cast_mul, Nat.cast_pow]
-        ring
       simp only [hbin, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
     · rw [sum_comm]
       have houter : ∀ j₁ : Fin m,
@@ -745,7 +753,9 @@ theorem ballsIntoBins_expectedMakespan_ge_half_of_factorial {m k : ℕ} [NeZero 
         sum_le_sum fun A _ => hpt A
     _ = (unitIdenticalGame m).expectedMakespan (uniformMixedProfile m) := rfl
 
-private theorem one_le_expectedMakespan_unitIdenticalGame (m : ℕ) [NeZero m] :
+/-- On `m ≥ 1` identical machines with `m` unit jobs, the uniform profile has expected makespan at
+least `1`. -/
+theorem one_le_expectedMakespan_unitIdenticalGame (m : ℕ) [NeZero m] :
     1 ≤ (unitIdenticalGame m).expectedMakespan (uniformMixedProfile m) := by
   have hp1 : ∀ i : Fin m, ∑ j : Fin m, uniformMixedProfile m i j = 1 := fun _ => by
     have hm_pos : (0 : ℝ) < (m : ℝ) := Nat.cast_pos.mpr (NeZero.pos m)
@@ -804,17 +814,8 @@ theorem expectedMakespan_uniformMixedProfile_ge_log_div_log_log {m : ℕ} [NeZer
       have hexpk : Real.exp (k : ℝ) < (3 : ℝ) ^ k := by
         rw [show (k : ℝ) = (k : ℕ) * (1 : ℝ) by ring, Real.exp_nat_mul]
         exact pow_lt_pow_left₀ hexp1 (Real.exp_pos 1).le (by omega)
-      have hfac : 2 ^ (k - 1) ≤ k.factorial := by
-        have h := Nat.factorial_mul_pow_le_factorial (m := 1) (n := k - 1)
-        have hadd : 1 + (k - 1) = k := by omega
-        simpa only [Nat.factorial_one, one_mul, hadd] using h
       have h3le : 3 ^ k ≤ m := by
-        have h4 : 4 ^ k ≤ 2 * (2 ^ k * k.factorial) := by
-          have hpow : 4 ^ k = 2 * 2 ^ k * 2 ^ (k - 1) := by
-            have h2k : 2 * k = 1 + k + (k - 1) := by omega
-            rw [show (4 : ℕ) = 2 ^ 2 by norm_num, ← pow_mul, h2k, pow_add, pow_add, pow_one]
-          rw [hpow, mul_assoc]
-          exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hfac)
+        have h4 := Nat.four_pow_le_two_mul_two_pow_mul_factorial (by omega : 1 ≤ k)
         have h34 : 3 ^ k ≤ 4 ^ k := Nat.pow_le_pow_left (by norm_num) k
         have hfk' : 3 * (2 ^ k * k.factorial) ≤ m := by
           dsimp only [f] at hfk_le
@@ -823,64 +824,32 @@ theorem expectedMakespan_uniformMixedProfile_ge_log_div_log_log {m : ℕ} [NeZer
       have h3le_real : (3 : ℝ) ^ k ≤ (m : ℝ) := by exact_mod_cast h3le
       exact hexpk.trans_le h3le_real
     have hm_pos_real : (0 : ℝ) < (m : ℝ) := (Real.exp_pos _).trans hexp_lt_m
-    have hk_lt_logm : (k : ℝ) < Real.log (m : ℝ) := by
-      rw [← Real.log_exp (k : ℝ)]
-      exact Real.log_lt_log (Real.exp_pos _) hexp_lt_m
-    have hlogm_gt1 : 1 < Real.log (m : ℝ) := by linarith
-    have hloglogm_pos : 0 < Real.log (Real.log (m : ℝ)) := Real.log_pos hlogm_gt1
-    have hlogk_lt : Real.log (k : ℝ) < Real.log (Real.log (m : ℝ)) :=
-      Real.log_lt_log (by linarith) hk_lt_logm
-    have hlog2_le_logk : Real.log 2 ≤ Real.log (k : ℝ) :=
-      Real.log_le_log (by norm_num) hk_real
-    have hlogk_pos : 0 < Real.log (k : ℝ) := Real.log_pos (by linarith)
     have hlog3_le : Real.log 3 ≤ (k : ℝ) * Real.log (k : ℝ) := by
-      have h3le : (3 : ℝ) ≤ (k : ℝ) ^ 2 := by nlinarith
-      calc Real.log 3 ≤ Real.log ((k : ℝ) ^ 2) := Real.log_le_log (by norm_num) h3le
+      have hlogk_pos : 0 < Real.log (k : ℝ) := Real.log_pos (by linarith)
+      calc Real.log 3 ≤ Real.log ((k : ℝ) ^ 2) := Real.log_le_log (by norm_num) (by nlinarith)
         _ = 2 * Real.log (k : ℝ) := by rw [Real.log_pow]; norm_num
         _ ≤ (k : ℝ) * Real.log (k : ℝ) := by nlinarith
-    have hlog_k1 : Real.log ((k + 1 : ℕ) : ℝ) ≤ 2 * Real.log (k : ℝ) := by
-      have hk1_le : ((k + 1 : ℕ) : ℝ) ≤ (k : ℝ) ^ 2 := by push_cast; nlinarith
-      calc Real.log ((k + 1 : ℕ) : ℝ)
-          ≤ Real.log ((k : ℝ) ^ 2) := Real.log_le_log (by positivity) hk1_le
-        _ = 2 * Real.log (k : ℝ) := by rw [Real.log_pow]; norm_num
     have hm_le_nat : m ≤ 3 * 2 ^ (k + 1) * (k + 1) ^ (k + 1) :=
       hm_lt_next.le.trans (Nat.mul_le_mul_left _ (Nat.factorial_le_pow (k + 1)))
     have hm_le : (m : ℝ) ≤ 3 * (2 : ℝ) ^ (k + 1) * ((k + 1 : ℕ) : ℝ) ^ (k + 1) := by
       exact_mod_cast hm_le_nat
-    have hlogm_le : Real.log (m : ℝ) ≤ 6 * (k : ℝ) * Real.log (Real.log (m : ℝ)) := by
+    have hlogm_le : Real.log (m : ℝ) ≤ 6 * (k : ℝ) * Real.log (k : ℝ) := by
+      have h1 := Real.add_mul_log_two_le (d := 1) hk_real zero_le_one
+      have h2 := Real.add_one_mul_log_add_one_le hk_real
       calc Real.log (m : ℝ)
           ≤ Real.log (3 * (2 : ℝ) ^ (k + 1) * ((k + 1 : ℕ) : ℝ) ^ (k + 1)) :=
             Real.log_le_log hm_pos_real hm_le
-        _ = Real.log 3 + ((k + 1 : ℕ) : ℝ) * Real.log 2 +
-              ((k + 1 : ℕ) : ℝ) * Real.log ((k + 1 : ℕ) : ℝ) := by
+        _ = Real.log 3 + ((k : ℝ) + 1) * Real.log 2 +
+              ((k : ℝ) + 1) * Real.log ((k : ℝ) + 1) := by
             rw [Real.log_mul (by positivity) (by positivity),
               Real.log_mul (by positivity) (by positivity), Real.log_pow, Real.log_pow]
-        _ ≤ (k : ℝ) * Real.log (k : ℝ) +
-              ((3 / 2 : ℝ) * (k : ℝ)) * Real.log (k : ℝ) +
-              ((3 / 2 : ℝ) * (k : ℝ)) * (2 * Real.log (k : ℝ)) := by
-            push_cast
-            have h1 : ((k : ℝ) + 1) * Real.log 2 ≤ ((3 / 2 : ℝ) * (k : ℝ)) * Real.log (k : ℝ) := by
-              calc ((k : ℝ) + 1) * Real.log 2
-                  ≤ ((k : ℝ) + 1) * Real.log (k : ℝ) :=
-                    mul_le_mul_of_nonneg_left hlog2_le_logk (by linarith)
-                _ ≤ ((3 / 2 : ℝ) * (k : ℝ)) * Real.log (k : ℝ) :=
-                    mul_le_mul_of_nonneg_right (by linarith) hlogk_pos.le
-            have h2 : ((k : ℝ) + 1) * Real.log ((k : ℝ) + 1) ≤
-                ((3 / 2 : ℝ) * (k : ℝ)) * (2 * Real.log (k : ℝ)) := by
-              have hlog_k1' : Real.log ((k : ℝ) + 1) ≤ 2 * Real.log (k : ℝ) := by
-                simpa only [Nat.cast_add, Nat.cast_one] using hlog_k1
-              calc ((k : ℝ) + 1) * Real.log ((k : ℝ) + 1)
-                  ≤ ((k : ℝ) + 1) * (2 * Real.log (k : ℝ)) :=
-                    mul_le_mul_of_nonneg_left hlog_k1' (by linarith)
-                _ ≤ ((3 / 2 : ℝ) * (k : ℝ)) * (2 * Real.log (k : ℝ)) :=
-                    mul_le_mul_of_nonneg_right (by linarith) (by positivity)
-            linarith
-        _ ≤ 6 * (k : ℝ) * Real.log (k : ℝ) := by nlinarith
-        _ ≤ 6 * (k : ℝ) * Real.log (Real.log (m : ℝ)) := by nlinarith
-    have hdiv : Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) ≤ 6 * (k : ℝ) :=
-      (div_le_iff₀ hloglogm_pos).mpr hlogm_le
+            push_cast; ring
+        _ ≤ 6 * (k : ℝ) * Real.log (k : ℝ) := by
+            nlinarith [Real.log_pos (by linarith : (1 : ℝ) < k)]
+    obtain ⟨hloglogm_pos, hratio_le_k⟩ :=
+      Real.inv_mul_log_div_log_log_le hk_real (by norm_num : (0 : ℝ) < 6) hexp_lt_m hlogm_le
     have hk_bound := ballsIntoBins_expectedMakespan_ge_half_of_factorial (m := m) hk2 hfk_le
-    have hratio_pos : 0 < Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) := by positivity
+    have hratio_nn : 0 ≤ Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) := by positivity
     linarith
   · -- Small `3 ≤ m ≤ 23`: `1 ≤ expectedMakespan` and `(1 / 20) * (log m / log (log m)) ≤ 1`.
     have h1 := one_le_expectedMakespan_unitIdenticalGame m

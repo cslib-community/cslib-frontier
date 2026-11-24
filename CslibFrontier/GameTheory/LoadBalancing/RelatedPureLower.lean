@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.GameTheory.LoadBalancing.Basic
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogDivLogLog
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Analysis.Complex.ExponentialBounds
@@ -104,7 +105,8 @@ assigned to each machine in tier `t + 1` under the pure Nash equilibrium. -/
 abbrev relatedPureLowerJob (k : ℕ) : Type :=
   Σ t : Fin k, Fin (relatedPureLowerTierCount k (t.val + 1)) × Fin (2 * (t.val + 1))
 
-private theorem tierCount_pos (k : ℕ) {t : ℕ} (ht : t ≤ k) :
+/-- Every tier `t ≤ k` of `relatedPureLower k` has at least one machine. -/
+theorem relatedPureLowerTierCount_pos (k : ℕ) {t : ℕ} (ht : t ≤ k) :
     0 < relatedPureLowerTierCount k t := by
   unfold relatedPureLowerTierCount
   have hdvd : t.factorial ∣ k.factorial := Nat.factorial_dvd_factorial ht
@@ -112,14 +114,16 @@ private theorem tierCount_pos (k : ℕ) {t : ℕ} (ht : t ≤ k) :
     Nat.div_pos (Nat.le_of_dvd (Nat.factorial_pos k) hdvd) (Nat.factorial_pos t)
   positivity
 
-private theorem tierCount_last (k : ℕ) : relatedPureLowerTierCount k k = 1 := by
+/-- The top tier `k` of `relatedPureLower k` has exactly `1` machine. -/
+theorem relatedPureLowerTierCount_last (k : ℕ) : relatedPureLowerTierCount k k = 1 := by
   simp [relatedPureLowerTierCount, Nat.div_self (Nat.factorial_pos k)]
 
 private theorem tierCount_zero (k : ℕ) :
     relatedPureLowerTierCount k 0 = 2 ^ k * k.factorial := by
   simp [relatedPureLowerTierCount]
 
-private theorem tierCount_eq_mul_succ (k : ℕ) {t : ℕ} (ht : t < k) :
+/-- Tier count recurrence: `m_t = m_{t + 1} * (2 * (t + 1))` for every `t < k`. -/
+theorem relatedPureLowerTierCount_eq_mul_succ (k : ℕ) {t : ℕ} (ht : t < k) :
     relatedPureLowerTierCount k t =
       relatedPureLowerTierCount k (t + 1) * (2 * (t + 1)) := by
   unfold relatedPureLowerTierCount
@@ -141,23 +145,36 @@ private theorem tierCount_eq_mul_succ (k : ℕ) {t : ℕ} (ht : t < k) :
   ring
 
 instance (k : ℕ) : Nonempty (relatedPureLowerMachine k) :=
-  ⟨⟨Fin.last k, ⟨0, tierCount_pos k le_rfl⟩⟩⟩
+  ⟨⟨Fin.last k, ⟨0, relatedPureLowerTierCount_pos k le_rfl⟩⟩⟩
 
 /-- **Czumaj–Vöcking pure PoA lower-bound game** ([CzumajVocking2002]; [Vocking2007], Theorem 20.9):
 `k + 1` tiers of machines with speeds `2 ^ t`, and `m_t` jobs of weight `2 ^ t` for each `t < k`.
 -/
-@[expose] def relatedPureLower (k : ℕ) :
+def relatedPureLower (k : ℕ) :
     LoadBalancingGame (relatedPureLowerJob k) (relatedPureLowerMachine k) where
   weight i := (2 : ℝ) ^ i.1.val
   speed j := (2 : ℝ) ^ j.1.val
   weight_nonneg _ := by positivity
   speed_pos _ := by positivity
 
+@[simp] theorem relatedPureLower_weight (k : ℕ) (i : relatedPureLowerJob k) :
+    (relatedPureLower k).weight i = (2 : ℝ) ^ i.1.val := by
+  simp [relatedPureLower]
+
+@[simp] theorem relatedPureLower_speed (k : ℕ) (j : relatedPureLowerMachine k) :
+    (relatedPureLower k).speed j = (2 : ℝ) ^ j.1.val := by
+  simp [relatedPureLower]
+
 /-- The worst-case pure Nash equilibrium on `relatedPureLower k`: every job of type `t` goes to
 its designated machine in tier `t + 1`. -/
-@[expose] def relatedPureLowerNE (k : ℕ) :
+def relatedPureLowerNE (k : ℕ) :
     relatedPureLowerJob k → relatedPureLowerMachine k :=
   fun ⟨t, u, _⟩ => ⟨t.succ, u⟩
+
+@[simp] theorem relatedPureLowerNE_apply (k : ℕ) (t : Fin k)
+    (u : Fin (relatedPureLowerTierCount k (t.val + 1))) (v : Fin (2 * (t.val + 1))) :
+    relatedPureLowerNE k ⟨t, u, v⟩ = ⟨t.succ, u⟩ := by
+  simp [relatedPureLowerNE]
 
 /-- Exact machine load under `relatedPureLowerNE k`: every machine in tier `r` has load `r`. -/
 theorem load_relatedPureLowerNE (k : ℕ) (j : relatedPureLowerMachine k) :
@@ -250,7 +267,7 @@ theorem makespan_relatedPureLowerNE (k : ℕ) :
     rw [load_relatedPureLowerNE]
     exact_mod_cast Nat.le_of_lt_succ r.isLt
   · calc (k : ℝ) = (relatedPureLower k).load (relatedPureLowerNE k)
-            ⟨Fin.last k, ⟨0, tierCount_pos k le_rfl⟩⟩ := by
+            ⟨Fin.last k, ⟨0, relatedPureLowerTierCount_pos k le_rfl⟩⟩ := by
           simp [load_relatedPureLowerNE]
       _ ≤ (relatedPureLower k).makespan (relatedPureLowerNE k) :=
           (relatedPureLower k).load_le_makespan _ _
@@ -259,7 +276,7 @@ theorem makespan_relatedPureLowerNE (k : ℕ) :
 private def relatedPureLowerOpt (k : ℕ) :
     relatedPureLowerJob k → relatedPureLowerMachine k :=
   fun ⟨t, p⟩ =>
-    ⟨t.castSucc, (finProdFinEquiv p).cast (tierCount_eq_mul_succ k t.isLt).symm⟩
+    ⟨t.castSucc, (finProdFinEquiv p).cast (relatedPureLowerTierCount_eq_mul_succ k t.isLt).symm⟩
 
 private theorem relatedPureLowerOpt_injective (k : ℕ) :
     Function.Injective (relatedPureLowerOpt k) := by
@@ -267,8 +284,8 @@ private theorem relatedPureLowerOpt_injective (k : ℕ) :
   have ht : t₁ = t₂ := Fin.castSucc_injective _ (congrArg Sigma.fst h)
   subst ht
   have hslot :
-      (finProdFinEquiv p₁).cast (tierCount_eq_mul_succ k t₁.isLt).symm =
-        (finProdFinEquiv p₂).cast (tierCount_eq_mul_succ k t₁.isLt).symm :=
+      (finProdFinEquiv p₁).cast (relatedPureLowerTierCount_eq_mul_succ k t₁.isLt).symm =
+        (finProdFinEquiv p₂).cast (relatedPureLowerTierCount_eq_mul_succ k t₁.isLt).symm :=
     eq_of_heq (Sigma.mk.inj_iff.mp h).2
   have hslot' : finProdFinEquiv p₁ = finProdFinEquiv p₂ := by
     apply Fin.ext
@@ -294,7 +311,7 @@ private theorem load_relatedPureLowerOpt_le_one (k : ℕ) (j : relatedPureLowerM
     have ht_eq : i₀.1.val = j.1.val := by
       have := congrArg (fun x : relatedPureLowerMachine k => x.1.val) hAi₀
       simpa only [relatedPureLowerOpt, Fin.val_castSucc] using this
-    simp only [relatedPureLower, ht_eq]
+    simp only [relatedPureLower_weight, relatedPureLower_speed, ht_eq]
     rw [div_self (by positivity)]
   · rw [not_nonempty_iff_eq_empty] at hS
     rw [show (∑ i with relatedPureLowerOpt k i = j, (relatedPureLower k).weight i) =
@@ -310,20 +327,10 @@ theorem optMakespan_relatedPureLower_le_one (k : ℕ) :
 /-- For `k ≥ 1`, `relatedPureLower k` has strictly positive optimal makespan. -/
 theorem optMakespan_relatedPureLower_pos {k : ℕ} (hk : 1 ≤ k) :
     0 < (relatedPureLower k).optMakespan := by
-  have hsum_pos : 0 < ∑ i : relatedPureLowerJob k, (relatedPureLower k).weight i := by
-    let i₀ : relatedPureLowerJob k :=
-      ⟨⟨0, hk⟩, (⟨0, tierCount_pos k hk⟩, ⟨0, by omega⟩)⟩
-    refine sum_pos' (fun i _ => (relatedPureLower k).weight_nonneg i) ⟨i₀, mem_univ _, ?_⟩
-    simp [relatedPureLower, i₀]
-  have hvol := (relatedPureLower k).sum_weight_le_sum_speed_mul_optMakespan
-  have hsp_pos : 0 < ∑ j : relatedPureLowerMachine k, (relatedPureLower k).speed j :=
-    sum_pos (fun j _ => (relatedPureLower k).speed_pos j) univ_nonempty
-  by_contra hle
-  push Not at hle
-  have h0 : (∑ j : relatedPureLowerMachine k, (relatedPureLower k).speed j) *
-      (relatedPureLower k).optMakespan ≤ 0 :=
-    mul_nonpos_of_nonneg_of_nonpos hsp_pos.le hle
-  linarith
+  let i₀ : relatedPureLowerJob k :=
+    ⟨⟨0, hk⟩, (⟨0, relatedPureLowerTierCount_pos k hk⟩, ⟨0, by omega⟩)⟩
+  refine (relatedPureLower k).optMakespan_pos_of_weight_pos (i := i₀) ?_
+  simp [i₀]
 
 /-- Total machine count in `relatedPureLower k` is at most `2 ^ (k + 1) * k!`. -/
 theorem card_relatedPureLowerMachine_le (k : ℕ) :
@@ -338,7 +345,7 @@ theorem card_relatedPureLowerMachine_le (k : ℕ) :
       2 * relatedPureLowerTierCount k (t + 1) ≤ relatedPureLowerTierCount k t := by
     intro t ht
     rw [mem_range] at ht
-    rw [tierCount_eq_mul_succ k ht]
+    rw [relatedPureLowerTierCount_eq_mul_succ k ht]
     have h1 : 1 ≤ t + 1 := Nat.succ_pos t
     nlinarith
   have hsum_le :
@@ -378,16 +385,7 @@ private theorem card_relatedPureLowerMachine_two :
 
 private theorem exp_lt_card_relatedPureLowerMachine {k : ℕ} (hk : 2 ≤ k) :
     Real.exp (k : ℝ) < (Fintype.card (relatedPureLowerMachine k) : ℝ) := by
-  have hfac : 2 ^ (k - 1) ≤ k.factorial := by
-    have h := Nat.factorial_mul_pow_le_factorial (m := 1) (n := k - 1)
-    have hadd : 1 + (k - 1) = k := by omega
-    simpa only [Nat.factorial_one, one_mul, hadd] using h
-  have h4 : 4 ^ k ≤ 2 * (2 ^ k * k.factorial) := by
-    have hpow : 4 ^ k = 2 * 2 ^ k * 2 ^ (k - 1) := by
-      have h2k : 2 * k = 1 + k + (k - 1) := by omega
-      rw [show (4 : ℕ) = 2 ^ 2 by norm_num, ← pow_mul, h2k, pow_add, pow_add, pow_one]
-    rw [hpow, mul_assoc]
-    exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hfac)
+  have h4 := Nat.four_pow_le_two_mul_two_pow_mul_factorial (by omega : 1 ≤ k)
   have hexp1 : Real.exp 1 < (2.72 : ℝ) := Real.exp_one_lt_d9.trans (by norm_num)
   have h2_lt : (2 : ℝ) * Real.exp (k : ℝ) < (4 : ℝ) ^ k := by
     have hratio : (2 : ℝ) * (2.72 : ℝ) ^ k ≤ (4 : ℝ) ^ k := by
@@ -406,26 +404,6 @@ private theorem exp_lt_card_relatedPureLowerMachine {k : ℕ} (hk : 2 ≤ k) :
     exact_mod_cast tierCount_zero_le_card k
   linarith
 
-/-- Shared logarithmic inversion step: if `2 ≤ k`, `exp k < m`, and `log m ≤ c * k * log k`,
-then `(1 / c) * (log m / log (log m)) ≤ k`. -/
-private theorem inv_mul_log_div_log_log_le {k : ℕ} {m c : ℝ} (hk : 2 ≤ k) (hc : 0 < c)
-    (hexp : Real.exp (k : ℝ) < m) (hlogm : Real.log m ≤ c * (k : ℝ) * Real.log (k : ℝ)) :
-    (1 / c) * (Real.log m / Real.log (Real.log m)) ≤ (k : ℝ) := by
-  have hk_real : (2 : ℝ) ≤ (k : ℝ) := by exact_mod_cast hk
-  have hk_lt_logm : (k : ℝ) < Real.log m := by
-    rw [← Real.log_exp (k : ℝ)]
-    exact Real.log_lt_log (Real.exp_pos _) hexp
-  have hloglog_pos : 0 < Real.log (Real.log m) := Real.log_pos (by linarith)
-  have hlogk_lt : Real.log (k : ℝ) < Real.log (Real.log m) :=
-    Real.log_lt_log (by linarith) hk_lt_logm
-  have hle : Real.log m ≤ c * (k : ℝ) * Real.log (Real.log m) :=
-    hlogm.trans (mul_le_mul_of_nonneg_left hlogk_lt.le (by positivity))
-  have hdiv : Real.log m / Real.log (Real.log m) ≤ c * (k : ℝ) :=
-    (div_le_iff₀ hloglog_pos).mpr hle
-  calc (1 / c) * (Real.log m / Real.log (Real.log m))
-      ≤ (1 / c) * (c * (k : ℝ)) := mul_le_mul_of_nonneg_left hdiv (by positivity)
-    _ = (k : ℝ) := by field_simp
-
 /-- **Asymptotic pure PoA lower bound along the `k`-tier family**: for every `k ≥ 2`,
 `relatedPureLowerNE k` achieves makespan at least
 `(1 / 3) * (log |M| / log (log |M|)) * optMakespan`. -/
@@ -439,32 +417,20 @@ theorem makespan_relatedPureLowerNE_ge_log_div_log_log {k : ℕ} (hk : 2 ≤ k) 
   have hk_real : (2 : ℝ) ≤ (k : ℝ) := by exact_mod_cast hk
   have hexp_lt : Real.exp (k : ℝ) < (M : ℝ) := exp_lt_card_relatedPureLowerMachine hk
   have hM_pos : (0 : ℝ) < (M : ℝ) := (Real.exp_pos _).trans hexp_lt
-  have hlog2_le_logk : Real.log 2 ≤ Real.log (k : ℝ) :=
-    Real.log_le_log (by norm_num) hk_real
-  have hlogk_pos : 0 < Real.log (k : ℝ) := Real.log_pos (by linarith)
   have hM_le : (M : ℝ) ≤ (2 : ℝ) ^ (k + 1) * (k : ℝ) ^ k := by
     exact_mod_cast (card_relatedPureLowerMachine_le k).trans
       (Nat.mul_le_mul_left _ (Nat.factorial_le_pow k))
   have hlogM_le : Real.log (M : ℝ) ≤ 3 * (k : ℝ) * Real.log (k : ℝ) := by
+    have h1 := Real.add_mul_log_two_le (d := 1) hk_real zero_le_one
     calc Real.log (M : ℝ)
         ≤ Real.log ((2 : ℝ) ^ (k + 1) * (k : ℝ) ^ k) := Real.log_le_log hM_pos hM_le
-      _ = ((k + 1 : ℕ) : ℝ) * Real.log 2 + (k : ℝ) * Real.log (k : ℝ) := by
+      _ = ((k : ℝ) + 1) * Real.log 2 + (k : ℝ) * Real.log (k : ℝ) := by
           rw [Real.log_mul (by positivity) (by positivity), Real.log_pow, Real.log_pow]
-      _ ≤ (2 * (k : ℝ)) * Real.log (k : ℝ) + (k : ℝ) * Real.log (k : ℝ) := by
-          push_cast
-          have h1 : ((k : ℝ) + 1) * Real.log 2 ≤ (2 * (k : ℝ)) * Real.log (k : ℝ) := by
-            calc ((k : ℝ) + 1) * Real.log 2
-                ≤ ((k : ℝ) + 1) * Real.log (k : ℝ) :=
-                  mul_le_mul_of_nonneg_left hlog2_le_logk (by linarith)
-              _ ≤ (2 * (k : ℝ)) * Real.log (k : ℝ) :=
-                  mul_le_mul_of_nonneg_right (by linarith) hlogk_pos.le
-          linarith
-      _ = 3 * (k : ℝ) * Real.log (k : ℝ) := by ring
-  have hratio_le_k := inv_mul_log_div_log_log_le hk (by norm_num : (0 : ℝ) < 3) hexp_lt hlogM_le
-  have hk_lt_logM : (k : ℝ) < Real.log (M : ℝ) := by
-    rw [← Real.log_exp (k : ℝ)]
-    exact Real.log_lt_log (Real.exp_pos _) hexp_lt
-  have hloglogM_pos : 0 < Real.log (Real.log (M : ℝ)) := Real.log_pos (by linarith)
+          push_cast; rfl
+      _ ≤ 3 * (k : ℝ) * Real.log (k : ℝ) := by
+          nlinarith [Real.log_pos (by linarith : (1 : ℝ) < k)]
+  obtain ⟨hloglogM_pos, hratio_le_k⟩ :=
+    Real.inv_mul_log_div_log_log_le hk_real (by norm_num : (0 : ℝ) < 3) hexp_lt hlogM_le
   rw [makespan_relatedPureLowerNE]
   have hratio_nn : 0 ≤ (1 / 3 : ℝ) * (Real.log (M : ℝ) / Real.log (Real.log (M : ℝ))) := by
     positivity
@@ -605,12 +571,12 @@ theorem exists_relatedPureNash_makespan_ge_log_div_log_log {m : ℕ} [NeZero m] 
       · rw [load_relatedPureLowerNE]
         exact_mod_cast Nat.le_of_lt_succ (eM ⟨j.val, hj⟩).1.isLt
       · positivity
-    · let jtop : Fin m := embedM ⟨Fin.last k, ⟨0, tierCount_pos k le_rfl⟩⟩
+    · let jtop : Fin m := embedM ⟨Fin.last k, ⟨0, relatedPureLowerTierCount_pos k le_rfl⟩⟩
       have htop_lt : jtop.val < M k := (eM.symm _).isLt
       calc (k : ℝ) = G.load A jtop := by
             rw [hload_embed (relatedPureLowerNE k) jtop, dite_eq_left htop_lt]
             have hfin : (⟨jtop.val, htop_lt⟩ : Fin (M k)) =
-                eM.symm ⟨Fin.last k, ⟨0, tierCount_pos k le_rfl⟩⟩ := Fin.ext rfl
+                eM.symm ⟨Fin.last k, ⟨0, relatedPureLowerTierCount_pos k le_rfl⟩⟩ := Fin.ext rfl
             rw [hfin, eM.apply_symm_apply, load_relatedPureLowerNE]
             simp
         _ ≤ G.makespan A := G.load_le_makespan A jtop
@@ -621,72 +587,32 @@ theorem exists_relatedPureNash_makespan_ge_log_div_log_log {m : ℕ} [NeZero m] 
     · exact load_relatedPureLowerOpt_le_one k _
     · exact zero_le_one
   have hopt_pos : 0 < G.optMakespan := by
-    have hsum_pos : 0 < ∑ i : Fin n, G.weight i := by
-      let i₀ : Fin n := eJ.symm ⟨⟨0, by omega⟩, (⟨0, tierCount_pos k (by omega)⟩, ⟨0, by omega⟩)⟩
-      refine sum_pos' (fun i _ => G.weight_nonneg i) ⟨i₀, mem_univ _, ?_⟩
-      simp [G, relatedPureLower, i₀]
-    have hvol := G.sum_weight_le_sum_speed_mul_optMakespan
-    have hsp_pos : 0 < ∑ j : Fin m, G.speed j :=
-      sum_pos (fun j _ => G.speed_pos j) univ_nonempty
-    by_contra hle
-    push Not at hle
-    have h0 : (∑ j : Fin m, G.speed j) * G.optMakespan ≤ 0 :=
-      mul_nonpos_of_nonneg_of_nonpos hsp_pos.le hle
-    linarith
+    let i₀ : Fin n :=
+      eJ.symm ⟨⟨0, by omega⟩, (⟨0, relatedPureLowerTierCount_pos k (by omega)⟩, ⟨0, by omega⟩)⟩
+    refine G.optMakespan_pos_of_weight_pos (i := i₀) ?_
+    simp [G, i₀]
   -- Asymptotic bound: `(1 / 5) * (log m / log (log m)) ≤ k`.
   have hk_real : (2 : ℝ) ≤ (k : ℝ) := by exact_mod_cast hk2
   have hexp_lt_m : Real.exp (k : ℝ) < (m : ℝ) :=
     (exp_lt_card_relatedPureLowerMachine hk2).trans_le (by exact_mod_cast hMk_le)
   have hm_pos_real : (0 : ℝ) < (m : ℝ) := (Real.exp_pos _).trans hexp_lt_m
-  have hk_lt_logm : (k : ℝ) < Real.log (m : ℝ) := by
-    rw [← Real.log_exp (k : ℝ)]
-    exact Real.log_lt_log (Real.exp_pos _) hexp_lt_m
-  have hlogm_gt1 : 1 < Real.log (m : ℝ) := by linarith
-  have hloglogm_pos : 0 < Real.log (Real.log (m : ℝ)) := Real.log_pos hlogm_gt1
-  have hlog2_le_logk : Real.log 2 ≤ Real.log (k : ℝ) :=
-    Real.log_le_log (by norm_num) hk_real
-  have hlogk_pos : 0 < Real.log (k : ℝ) := Real.log_pos (by linarith)
   have hm_le_nat : m ≤ 2 ^ (k + 2) * (k + 1) ^ (k + 1) :=
     hm_lt_next.le.trans ((card_relatedPureLowerMachine_le (k + 1)).trans
       (Nat.mul_le_mul_left _ (Nat.factorial_le_pow (k + 1))))
   have hm_le : (m : ℝ) ≤ (2 : ℝ) ^ (k + 2) * ((k + 1 : ℕ) : ℝ) ^ (k + 1) := by
     exact_mod_cast hm_le_nat
-  have hlog_k1 : Real.log ((k + 1 : ℕ) : ℝ) ≤ 2 * Real.log (k : ℝ) := by
-    have hk1_le : ((k + 1 : ℕ) : ℝ) ≤ (k : ℝ) ^ 2 := by
-      push_cast
-      nlinarith
-    calc Real.log ((k + 1 : ℕ) : ℝ)
-        ≤ Real.log ((k : ℝ) ^ 2) := Real.log_le_log (by positivity) hk1_le
-      _ = 2 * Real.log (k : ℝ) := by rw [Real.log_pow]; norm_num
   have hlogm_le : Real.log (m : ℝ) ≤ 5 * (k : ℝ) * Real.log (k : ℝ) := by
+    have h1 := Real.add_mul_log_two_le (d := 2) hk_real (by norm_num)
+    have h2 := Real.add_one_mul_log_add_one_le hk_real
     calc Real.log (m : ℝ)
         ≤ Real.log ((2 : ℝ) ^ (k + 2) * ((k + 1 : ℕ) : ℝ) ^ (k + 1)) :=
           Real.log_le_log hm_pos_real hm_le
-      _ = ((k + 2 : ℕ) : ℝ) * Real.log 2 +
-            ((k + 1 : ℕ) : ℝ) * Real.log ((k + 1 : ℕ) : ℝ) := by
+      _ = ((k : ℝ) + 2) * Real.log 2 + ((k : ℝ) + 1) * Real.log ((k : ℝ) + 1) := by
           rw [Real.log_mul (by positivity) (by positivity), Real.log_pow, Real.log_pow]
-      _ ≤ (2 * (k : ℝ)) * Real.log (k : ℝ) +
-            ((3 / 2 : ℝ) * (k : ℝ)) * (2 * Real.log (k : ℝ)) := by
-          push_cast
-          have h1 : ((k : ℝ) + 2) * Real.log 2 ≤ (2 * (k : ℝ)) * Real.log (k : ℝ) := by
-            calc ((k : ℝ) + 2) * Real.log 2
-                ≤ ((k : ℝ) + 2) * Real.log (k : ℝ) :=
-                  mul_le_mul_of_nonneg_left hlog2_le_logk (by linarith)
-              _ ≤ (2 * (k : ℝ)) * Real.log (k : ℝ) :=
-                  mul_le_mul_of_nonneg_right (by linarith) hlogk_pos.le
-          have h2 : ((k : ℝ) + 1) * Real.log ((k : ℝ) + 1) ≤
-              ((3 / 2 : ℝ) * (k : ℝ)) * (2 * Real.log (k : ℝ)) := by
-            have hlog_k1' : Real.log ((k : ℝ) + 1) ≤ 2 * Real.log (k : ℝ) := by
-              simpa only [Nat.cast_add, Nat.cast_one] using hlog_k1
-            calc ((k : ℝ) + 1) * Real.log ((k : ℝ) + 1)
-                ≤ ((k : ℝ) + 1) * (2 * Real.log (k : ℝ)) :=
-                  mul_le_mul_of_nonneg_left hlog_k1' (by linarith)
-              _ ≤ ((3 / 2 : ℝ) * (k : ℝ)) * (2 * Real.log (k : ℝ)) :=
-                  mul_le_mul_of_nonneg_right (by linarith) (by positivity)
-          linarith
-      _ = 5 * (k : ℝ) * Real.log (k : ℝ) := by ring
-  have hratio_le_k :=
-    inv_mul_log_div_log_log_le hk2 (by norm_num : (0 : ℝ) < 5) hexp_lt_m hlogm_le
+          push_cast; ring
+      _ ≤ 5 * (k : ℝ) * Real.log (k : ℝ) := by linarith
+  obtain ⟨hloglogm_pos, hratio_le_k⟩ :=
+    Real.inv_mul_log_div_log_log_le hk_real (by norm_num : (0 : ℝ) < 5) hexp_lt_m hlogm_le
   have hbound :
       (1 / 5 : ℝ) * (Real.log (m : ℝ) / Real.log (Real.log (m : ℝ))) * G.optMakespan ≤
         G.makespan A := by

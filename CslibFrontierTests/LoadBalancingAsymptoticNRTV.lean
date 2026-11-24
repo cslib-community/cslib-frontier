@@ -4,9 +4,16 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.GameTheory.LoadBalancing.BallsIntoBins
-import CslibFrontier.GameTheory.LoadBalancing.MixedPoA
-import CslibFrontier.GameTheory.LoadBalancing.RelatedPureLower
+module
+-- upstream: local-only (tests)
+
+public import CslibFrontier.GameTheory.LoadBalancing.BallsIntoBins
+public import CslibFrontier.GameTheory.LoadBalancing.MixedPoA
+public import CslibFrontier.GameTheory.LoadBalancing.RelatedPureLower
+import Mathlib.Data.Fin.VecNotation
+import Mathlib.Data.Fintype.Sigma
+import Mathlib.Data.Nat.Factorial.Basic
+import Mathlib.Tactic.NormNum
 
 /-!
 # Asymptotic selfish load-balancing bounds: witnesses and boundary checks
@@ -23,6 +30,8 @@ Concrete checked witnesses exercising:
   expected-load bound, Chernoff tail check, two-sided `Θ(log m / log log m)` sandwich on
   `unitIdenticalGame m` for `m ≥ 3`, and zero-weight degenerate boundary (`optMakespan = 0`).
 -/
+
+public section
 
 namespace CslibFrontierTests.LoadBalancingAsymptoticNRTV
 
@@ -46,7 +55,8 @@ example : (relatedPureLower 1).toCostGame.IsPureNash (relatedPureLowerNE 1) ∧
 
 /-- `k = 2`: `13` machines (`m_0 = 8`, `m_1 = 4`, `m_2 = 1`), pure NE with makespan `2`, not
 identical, satisfying the `(1 / 3) * log |M| / log (log |M|)` lower bound. -/
-example : (relatedPureLower 2).toCostGame.IsPureNash (relatedPureLowerNE 2) ∧
+theorem relatedPureLower_two_witness :
+    (relatedPureLower 2).toCostGame.IsPureNash (relatedPureLowerNE 2) ∧
     (relatedPureLower 2).makespan (relatedPureLowerNE 2) = 2 ∧
     ¬ (relatedPureLower 2).IsIdentical ∧
     (1 / 3 : ℝ) *
@@ -58,7 +68,7 @@ example : (relatedPureLower 2).toCostGame.IsPureNash (relatedPureLowerNE 2) ∧
     makespan_relatedPureLowerNE_ge_log_div_log_log le_rfl⟩
   intro hId
   have h := hId ⟨⟨1, by omega⟩, ⟨0, by norm_num [relatedPureLowerTierCount, Nat.factorial]⟩⟩
-  norm_num [relatedPureLower] at h
+  norm_num [relatedPureLower_speed] at h
 
 /-- `k = 3`: `79` machines (`48 + 24 + 6 + 1 ≤ 96`), pure NE with makespan `3`. -/
 example : (relatedPureLower 3).toCostGame.IsPureNash (relatedPureLowerNE 3) ∧

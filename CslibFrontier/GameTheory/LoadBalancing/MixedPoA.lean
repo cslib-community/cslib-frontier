@@ -9,11 +9,11 @@ module
 
 public import CslibFrontier.GameTheory.LoadBalancing.MixedNash
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogDivLogLog
 import CslibFrontier.Probability.Chernoff
 import CslibFrontier.Probability.PMF.Event
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.Real.Sqrt
 import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Tactic.FieldSimp
@@ -219,25 +219,10 @@ theorem IsIdentical.expectedMakespan_le_log_div_log_log
   set m : ℕ := Fintype.card M
   have hm3 : (3 : ℝ) ≤ (m : ℝ) := by exact_mod_cast hm
   have hm_pos : (0 : ℝ) < (m : ℝ) := by linarith
-  have hexp1 : Real.exp 1 < 3 := Real.exp_one_lt_d9.trans (by norm_num)
-  have hlogm_gt1 : 1 < Real.log (m : ℝ) := by
-    rw [← Real.log_exp 1]
-    exact Real.log_lt_log (Real.exp_pos 1) (hexp1.trans_le hm3)
+  have hlogm_gt1 : 1 < Real.log (m : ℝ) := Real.one_lt_log_of_three_le hm3
   have hloglog_pos : 0 < Real.log (Real.log (m : ℝ)) := Real.log_pos hlogm_gt1
   rcases G.optMakespan_nonneg.eq_or_lt with hopt0 | hopt_pos
-  · -- Degenerate case `optMakespan = 0`: every job has weight `0`, so `expectedMakespan p = 0`.
-    have hsum0 : ∑ i, G.weight i = 0 := by
-      have h1 := G.sum_weight_le_sum_speed_mul_optMakespan
-      rw [← hopt0, mul_zero] at h1
-      exact le_antisymm h1 (sum_nonneg fun i _ => G.weight_nonneg i)
-    have hw0 : ∀ i, G.weight i = 0 := fun i =>
-      (sum_eq_zero_iff_of_nonneg fun k _ => G.weight_nonneg k).mp hsum0 i (mem_univ i)
-    have hms0 : ∀ A, G.makespan A = 0 := fun A => by
-      refine le_antisymm ((G.makespan_le_iff A).mpr fun j => ?_) (G.makespan_nonneg A)
-      rw [G.load_eq_sum_div]
-      simp [hw0]
-    rw [expectedMakespan, ← hopt0, mul_zero]
-    simp [hms0]
+  · rw [G.expectedMakespan_eq_zero_of_optMakespan_eq_zero hopt0.symm p, ← hopt0, mul_zero]
   · -- Main case `0 < optMakespan`.
     set x : ℝ := Real.log (m : ℝ)
     set T : ℝ := 12 * x / Real.log x
@@ -256,9 +241,7 @@ theorem IsIdentical.expectedMakespan_le_log_div_log_log
       have hsq : √x * √x = x := Real.mul_self_sqrt (by linarith)
       nlinarith
     have hT_ge2 : 2 ≤ T := by linarith
-    have hlog3_gt1 : 1 < Real.log 3 := by
-      rw [← Real.log_exp 1]
-      exact Real.log_lt_log (Real.exp_pos 1) hexp1
+    have hlog3_gt1 : 1 < Real.log 3 := Real.one_lt_log_of_three_le le_rfl
     have hlogT2 : Real.log x / 2 + 1 < Real.log (T / 2) := by
       have hT2_eq : T / 2 = 3 * (T / 6) := by ring
       rw [hT2_eq, Real.log_mul (by norm_num) (by linarith)]

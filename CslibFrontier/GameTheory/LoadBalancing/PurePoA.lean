@@ -10,9 +10,9 @@ module
 public import CslibFrontier.GameTheory.LoadBalancing.Basic
 public import Mathlib.Analysis.Real.Sqrt
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogDivLogLog
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Data.Fin.Basic
 import Mathlib.Data.Finset.Max
 import Mathlib.Data.Nat.Factorial.BigOperators
@@ -945,25 +945,11 @@ theorem makespan_le_log_div_log_log_mul_optMakespan (G : LoadBalancingGame ι M)
         G.optMakespan := by
   set m : ℕ := Fintype.card M
   have hm3 : (3 : ℝ) ≤ m := by exact_mod_cast hm
-  have hexp1 : Real.exp 1 < 3 := Real.exp_one_lt_d9.trans (by norm_num)
-  have hlogm_gt1 : 1 < Real.log (m : ℝ) := by
-    rw [← Real.log_exp 1]
-    exact Real.log_lt_log (Real.exp_pos 1) (hexp1.trans_le hm3)
+  have hlogm_gt1 : 1 < Real.log (m : ℝ) := Real.one_lt_log_of_three_le hm3
   have hloglog_pos : 0 < Real.log (Real.log (m : ℝ)) := Real.log_pos hlogm_gt1
   have hratio_pos : 0 < 4 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) := by positivity
   rcases G.optMakespan_nonneg.eq_or_lt with hopt0 | hopt_pos
-  · -- If `optMakespan = 0`, all jobs have weight `0`, so `makespan A = 0`.
-    have hsum0 : ∑ i, G.weight i = 0 := by
-      have h1 := G.sum_weight_le_sum_speed_mul_optMakespan
-      rw [← hopt0, mul_zero] at h1
-      exact le_antisymm h1 (sum_nonneg fun i _ => G.weight_nonneg i)
-    have hw0 : ∀ i, G.weight i = 0 := fun i =>
-      (sum_eq_zero_iff_of_nonneg fun k _ => G.weight_nonneg k).mp hsum0 i (mem_univ i)
-    have hms0 : G.makespan A = 0 := by
-      refine le_antisymm ((G.makespan_le_iff A).mpr fun j => ?_) (G.makespan_nonneg A)
-      rw [G.load_eq_sum_div]
-      simp [hw0]
-    rw [hms0, ← hopt0, mul_zero]
+  · rw [G.makespan_eq_zero_of_optMakespan_eq_zero hopt0.symm A, ← hopt0, mul_zero]
   · have hms_nn : 0 ≤ G.makespan A := G.makespan_nonneg A
     by_cases hsmall : G.makespan A ≤ 2 * G.optMakespan
     · nlinarith
