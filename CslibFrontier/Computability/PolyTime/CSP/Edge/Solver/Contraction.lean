@@ -319,14 +319,6 @@ private theorem poly_constraint : ComputableInPolyTime
   have hi : ComputableInPolyTime
       (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) => p.2.2)
       encConstraintArgs encNat := ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
-  -- Fix the map's binary position encoding before composing the conditional branches.
-  have hmap : ComputableInPolyTime
-      (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) =>
-        (Table.outsidePositions p.2.1.scope.length (Blossom.positions p.1.2 p.2.1.scope)).map
-          (fun j => p.2.1.scope.getD j 0)) encConstraintArgs (encList encNat) :=
-    ComputableInPolyTime.mapWithInput
-      (computableInPolyTime_outsideWith (by fun_prop) (by fun_prop))
-      (computableInPolyTime_nameReadWith (by fun_prop) (by fun_prop))
   unfold constraint
   exact ComputableInPolyTime.ite' (by fun_prop) (by fun_prop)
     (encConstraint_mk_polyTime (by fun_prop) (by fun_prop))
