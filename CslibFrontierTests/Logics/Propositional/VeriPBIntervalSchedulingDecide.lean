@@ -8,11 +8,13 @@ module
 -- upstream: local-only (tests)
 
 -- `import all`: the kernel evaluates `stepTop` and `runTop`, and the dynamic program `certify` with
--- its private helpers (`order`, `step`, `bound`, …) and the proof log, whose bodies are not
--- exposed.
+-- its private helpers (`order`, `step`, `bound`, …), the proof log, the clique encoding and
+-- Mathlib's `List.insertionSort`, whose bodies are not exposed.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.DynamicProgramming
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.IntervalScheduling
+import all CslibFrontier.Logics.Propositional.PseudoBoolean.Graph.Clique
+import all Mathlib.Data.List.Sort
 import Mathlib.Data.Fin.VecNotation
 
 /-! A kernel-checked client of certified weighted interval scheduling: the kernel runs the dynamic

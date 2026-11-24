@@ -11,6 +11,7 @@ import CslibFrontier.Logics.Propositional.PseudoBoolean.LongestPath
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 import CslibFrontierTests.Logics.Propositional.VeriPBProofText
+import Mathlib.Data.Fin.VecNotation
 -- `#guard` runs the dynamic program, the checkers and the brute force at compile time.
 public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.LongestPath
 public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
@@ -47,16 +48,22 @@ open CslibFrontierTests.Logics.Propositional.VeriPBProofText
 
 /-- Acceptance of the proof of the dynamic program on an acyclic graph bounds every walk. -/
 example {m n : ℕ} (src dst : Fin n → Fin m) (c : Fin n → ℕ) (s t : Fin m)
-    (hG : Cslib.Relation.Acyclic fun u v => ∃ e, src e = u ∧ dst e = v)
+    (hG : Relation.Acyclic fun u v => ∃ e, src e = u ∧ dst e = v)
     (h : checkRed (formula src dst s t) (some (negProfit c)) (certify src dst c s t).proof = true)
     (k : ℕ) (hk : (certify src dst c s t).optimum = some k) (l : List (Fin n))
     (hl : IsWalk src dst s l t) : (l.map c).sum ≤ k :=
   ((isGreatest_of_checkRed_certify hG h).1 k hk).2 ⟨l, hl, rfl⟩
 
-/-- The encoding on an instance: choosing the edges `0 → 1` and `1 → 2` satisfies flow
-conservation from `0` to `2`, and choosing `0 → 1` alone does not. -/
-example : (∀ c ∈ formula (m := 3) ![0, 1] ![1, 2] 0 2, c.Holds fun v => v == 0 || v == 1) ∧
-    ¬ ∀ c ∈ formula (m := 3) ![0, 1] ![1, 2] 0 2, c.Holds fun v => v == 0 := by
+/-- The sources of the edges `0 → 1` and `1 → 2`. -/
+def src₀ : Fin 2 → Fin 3 := ![0, 1]
+
+/-- The targets of the edges. -/
+def dst₀ : Fin 2 → Fin 3 := ![1, 2]
+
+/-- The encoding on an instance: choosing both edges satisfies flow conservation from `0` to `2`,
+and choosing the first alone does not. -/
+example : (∀ c ∈ formula src₀ dst₀ 0 2, c.Holds fun v => v == 0 || v == 1) ∧
+    ¬ ∀ c ∈ formula src₀ dst₀ 0 2, c.Holds fun v => v == 0 := by
   decide
 
 /-! ### Evaluated runs -/
