@@ -65,11 +65,7 @@ private theorem loadData_cache {x : State M (layout extra regs)} {t : BinaryTree
       heightValue, record]
 
 private theorem one_ne_two : (1 : Fin (regs + 1 + 2)) ≠ 2 := by
-  intro h
-  have hv := congrArg Fin.val h
-  change 1 = 2 % (regs + 1 + 2) at hv
-  rw [Nat.mod_eq_of_lt (show 2 < regs + 1 + 2 by omega)] at hv
-  omega
+  simp [Fin.ext_iff, Nat.mod_eq_of_lt (show 2 < regs + 1 + 2 by omega)]
 
 /-- Reading the child caches takes six instructions and preserves the heap and client
 registers. -/

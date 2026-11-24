@@ -12,6 +12,7 @@ public import Mathlib.Data.Finset.Powerset
 public import Mathlib.Algebra.BigOperators.Group.Finset.Defs
 public import Mathlib.Basic.Real.Basic
 import CslibFrontier.Foundations.Data.Finset.Markov
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Finset.Prod
@@ -227,10 +228,9 @@ theorem card_filter_card_inter_lt_mul_sq_le (hU : U ⊆ s) {m : ℕ} (hm : #s * 
   refine (card_filter_mul_le_sum _ _ _ (fun _ _ => sq_nonneg _) fun J _ hJ => ?_).trans
     (sum_card_inter_sub_sq_le hU)
   have hX : (#(U ∩ J) : ℝ) ≤ m := by exact_mod_cast hJ.le
-  have hmR : (#s : ℝ) * m ≤ #U * ℓ := by exact_mod_cast hm
   have hcX : (#s : ℝ) * #(U ∩ J) ≤ #s * m := mul_le_mul_of_nonneg_left hX (by positivity)
   calc ((#U : ℝ) * ℓ - #s * m) ^ 2 ≤ (#U * ℓ - #s * #(U ∩ J)) ^ 2 :=
-        pow_le_pow_left₀ (by linarith) (by linarith) 2
+        pow_le_pow_left₀ (by cast_linarith [hm]) (by cast_linarith) 2
     _ = (#s * #(U ∩ J) - #U * ℓ) ^ 2 := by ring
 
 /-- **Most `ℓ`-subsets meet `U` in at least half the expected number of elements**: if the
