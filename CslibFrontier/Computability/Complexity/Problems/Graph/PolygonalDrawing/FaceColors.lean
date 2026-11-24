@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDra
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Sectors
 public import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionParity
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.FaceDartColors
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 
 /-!
 # Right-side colors of polygonal drawings
@@ -244,13 +245,8 @@ private theorem Frame.color_route_ends_of_segment_crossings (F : Frame D)
   have telescope :
       (∑ i : Fin (n + 1), (p i + q i)) + (∑ i : Fin n, (q i.castSucc + p i.succ)) =
         p 0 + q (Fin.last n) := by
-    simp only [Finset.sum_add_distrib]
-    rw [Fin.sum_univ_succ p, Fin.sum_univ_castSucc q]
-    generalize (∑ i : Fin n, p i.succ) = left
-    generalize (∑ i : Fin n, q i.castSucc) = right
-    calc
-      _ = (p 0 + q (Fin.last n)) + (left + left) + (right + right) := by ac_rfl
-      _ = _ := by simp only [BooleanRing.add_self, add_zero]
+    simpa only [BooleanRing.sub_eq_add, add_comm] using
+      Fin.sum_univ_adjacent_differences (n := n) p q
   change p 0 + q (Fin.last n) = _
   rw [← telescope, Finset.sum_congr rfl (fun i _ => hsegment i),
     Finset.sum_congr rfl (fun i _ => hbend i), Finset.sum_add_distrib,
