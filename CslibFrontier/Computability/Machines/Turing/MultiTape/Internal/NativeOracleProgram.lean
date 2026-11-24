@@ -13,8 +13,10 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Universal.Description
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.TapeLemmas
 
+import Mathlib.Data.Finset.Sort
 import Mathlib.Data.Fintype.Pi
 import Mathlib.Data.Fintype.Prod
+import Mathlib.Data.List.Lex
 
 /-!
 # Named native oracle programs
@@ -41,14 +43,14 @@ a description at runtime.
 The semantic function in the type is a specification proved by `computes`, and every witness is
 assembled from named machine terms.
 
-A witness is a mathematical object, not an executable generator. Only the deterministic leaves
-installed by `ofCompiler` carry an explicit transition table (`NativeCompiler.table`). The composing
-constructors store the `noncomputable` machines `tidyComp`, `itePTM` and `iterateWhile`; `queryTake`
-takes its finite-state instance from `Fintype.ofFinite`, and `Description.ofMachine` orders its rows
-through `Finset.toList`, both of which depend on choice. The field `computes`,
-`runWith_descriptionRun` and the `descLen` bounds are therefore statements about the retained
-machine in the model. An effective, table-backed generator for the composed machines and their
-finite enumeration is not provided; it is tracked in #5467.
+A witness is a mathematical object, not an executable generator. `Description.ofMachine` lists the
+rows of a given machine in increasing order of encoded key and does not use choice, but only the
+deterministic leaves installed by `ofCompiler` carry an explicit transition table
+(`NativeCompiler.table`). The composing constructors store the `noncomputable` machines `tidyComp`,
+`itePTM` and `iterateWhile`, and `queryTake` takes its finite-state instance from
+`Fintype.ofFinite`, which depends on choice. The field `computes`, `runWith_descriptionRun` and the
+`descLen` bounds are therefore statements about the retained machine in the model. An effective,
+table-backed generator for the composed machines is not provided; it is tracked in #5467.
 
 ## Main definitions
 
@@ -56,7 +58,9 @@ finite enumeration is not provided; it is tracked in #5467.
 * `Turing.MultiTapePTM.Internal.OnlineAccounting`: a clock split into phases.
 * `Turing.MultiTapePTM.Internal.ClassifiedCompiler`: a named deterministic compiler with a phase
   classification of its clock.
-* `Turing.MultiTapePTM.Internal.NativeOracleProgram.description`: its first-order description.
+* `Turing.MultiTapePTM.Internal.Description.ofMachine`: the first-order description of a machine
+  under a numbering of its states.
+* `Turing.MultiTapePTM.Internal.NativeOracleProgram.description`: the description of a witness.
 * `Turing.MultiTapePTM.Internal.NativeOracleProgram.fairBit`: the named one-step sampler.
 * `Turing.MultiTapePTM.Internal.NativeOracleProgram.queryTake`: the named fixed-operation
   bounded-prefix query artifact.
@@ -66,10 +70,10 @@ finite enumeration is not provided; it is tracked in #5467.
 
 ## Main results
 
-* `Turing.MultiTapePTM.Internal.Description.runConfigFrom_ofMachine`: clocked execution of the
-  description simulates the retained Boolean machine.
 * `Turing.MultiTapePTM.Internal.NativeOracleProgram.runWith_descriptionRun`: the generated
   description preserves the retained machine's exact law under every stateful oracle handler.
+* `Turing.MultiTapePTM.Internal.Description.table_length_ofMachine`: the description has exactly
+  one row for every control, input-head symbol, work-head observation and answer-head observation.
 * `Turing.MultiTapePTM.Internal.NativeOracleProgram.outputBits_le_time`: every emitted result fits
   in the charged online clock.
 
@@ -89,34 +93,27 @@ open Cslib Cslib.Probability Turing.MultiTapeMachine Turing.MultiTapeTM
 namespace Description
 
 open Turing.MultiTapePTM.Universal
+open Turing.MultiTapeTM.Internal.NativeCompiler (stateEncodingBound
+  stateEncoding_lt_stateEncodingBound)
 
 variable {k r : ℕ} {State : Type} [Fintype State]
 
-/-- One plus the largest explicitly assigned state tag. -/
-@[expose] noncomputable def stateCount (stateEncoding : State ↪ ℕ) : ℕ :=
-  Finset.univ.sup (fun state => stateEncoding state) + 1
-
-theorem stateEncoding_lt_stateCount (stateEncoding : State ↪ ℕ) (state : State) :
-    stateEncoding state < stateCount stateEncoding := by
-  unfold stateCount
-  exact Nat.lt_succ_of_le (Finset.le_sup (Finset.mem_univ state))
-
 /-- The recorded natural state tag as a control of the declared finite state count. -/
-@[expose] def stateEmbedding (stateEncoding : State ↪ ℕ) :
-    State ↪ Fin (stateCount stateEncoding) :=
-  ⟨fun state => ⟨stateEncoding state, stateEncoding_lt_stateCount stateEncoding state⟩,
+private def stateEmbedding (stateEncoding : State ↪ ℕ) :
+    State ↪ Fin (stateEncodingBound stateEncoding) :=
+  ⟨fun state => ⟨stateEncoding state, stateEncoding_lt_stateEncodingBound stateEncoding state⟩,
     fun _ _ h => stateEncoding.injective (Fin.ext_iff.mp h)⟩
 
 /-- Native controls occupy the non-trap controls of a first-order description. -/
-@[expose] def controlEmbedding (stateEncoding : State ↪ ℕ) :
-    State ↪ Option (Fin (stateCount stateEncoding)) :=
+private def controlEmbedding (stateEncoding : State ↪ ℕ) :
+    State ↪ Option (Fin (stateEncodingBound stateEncoding)) :=
   (stateEmbedding stateEncoding).trans
     ⟨some, fun _ _ h => Option.some.inj h⟩
 
 /-- Rename a native action into the alphabet and finite control of its description. -/
-def mapAction (stateEncoding : State ↪ ℕ) :
+private def mapAction (stateEncoding : State ↪ ℕ) :
     MultiTapeMachine.Action k Bool State (Fin r) →
-      MultiTapeMachine.Action k ℕ (Option (Fin (stateCount stateEncoding))) (Fin r)
+      MultiTapeMachine.Action k ℕ (Option (Fin (stateEncodingBound stateEncoding))) (Fin r)
   | .step ordinary querySymbols answerMoves =>
       .step (ordinary.map (controlEmbedding stateEncoding)
         Turing.MultiTapeTM.Universal.eBit)
@@ -127,7 +124,7 @@ def mapAction (stateEncoding : State ↪ ℕ) :
       .query operation (controlEmbedding stateEncoding next)
 
 /-- Encode a native Boolean oracle action into first-order syntax. -/
-def action (stateEncoding : State ↪ ℕ) :
+private def action (stateEncoding : State ↪ ℕ) :
     MultiTapeMachine.Action k Bool State (Fin r) → Universal.Act
   | .step ordinary querySymbols answerMoves =>
       .step (Turing.MultiTapeTM.Universal.Act.ofAction
@@ -137,22 +134,22 @@ def action (stateEncoding : State ↪ ℕ) :
         (List.ofFn answerMoves)
   | .query operation next => .query operation.val (stateEncoding next)
 
-theorem nextControl_map (stateEncoding : State ↪ ℕ) (state : Option State) :
-    Universal.nextControl (stateCount stateEncoding) (state.map stateEncoding) =
+private theorem nextControl_map (stateEncoding : State ↪ ℕ) (state : Option State) :
+    Universal.nextControl (stateEncodingBound stateEncoding) (state.map stateEncoding) =
       state.map (controlEmbedding stateEncoding) := by
   cases state with
   | none => rfl
   | some state =>
-      change Universal.nextControl (stateCount stateEncoding) (some (stateEncoding state)) =
-        some (controlEmbedding stateEncoding state)
+      change Universal.nextControl (stateEncodingBound stateEncoding)
+        (some (stateEncoding state)) = some (controlEmbedding stateEncoding state)
       rw [Universal.nextControl_some_of_lt _ _
-        (stateEncoding_lt_stateCount stateEncoding state)]
+        (stateEncoding_lt_stateEncodingBound stateEncoding state)]
       rfl
 
 /-- First-order action denotation is exactly native state/symbol renaming. -/
-theorem action_toAction (stateEncoding : State ↪ ℕ)
+private theorem action_toAction (stateEncoding : State ↪ ℕ)
     (native : MultiTapeMachine.Action k Bool State (Fin r)) :
-    (action stateEncoding native).toAction k (stateCount stateEncoding) r =
+    (action stateEncoding native).toAction k (stateEncodingBound stateEncoding) r =
       mapAction stateEncoding native := by
   cases native with
   | step ordinary querySymbols answerMoves =>
@@ -162,27 +159,33 @@ theorem action_toAction (stateEncoding : State ↪ ℕ)
         nextControl_map]
   | query operation next =>
       rw [action, Universal.Act.toAction_query_of_lt _ _ _ _ _ operation.isLt
-        (stateEncoding_lt_stateCount stateEncoding next)]
+        (stateEncoding_lt_stateEncodingBound stateEncoding next)]
       rfl
 
-/-- The two explicitly stored branches of one native transition observation. -/
-def branches (stateEncoding : State ↪ ℕ) (machine : MultiTapePTM k Bool State (Fin r))
-    (state : State) (input : Option Bool) (work : Fin k → Option Bool)
-    (answers : Fin r → Option Bool) : Universal.Branches :=
-  { falseBranch := action stateEncoding (machine.tr state input work answers false)
-    trueBranch := action stateEncoding (machine.tr state input work answers true) }
+/-- What a native machine reads in one step: its control, the input-head symbol, the symbol under
+each work head and the symbol under each answer head. -/
+private abbrev Observation (k r : ℕ) (State : Type) : Type :=
+  State × Option Bool × (Fin k → Option Bool) × (Fin r → Option Bool)
+
+/-- The table row of one observation: its encoded key, and the encoded transition for each value
+of the private coin. -/
+private def row (stateEncoding : State ↪ ℕ) (machine : MultiTapePTM k Bool State (Fin r)) :
+    Observation k r State → Universal.Key × Universal.Branches
+  | (state, input, work, answers) =>
+      (Universal.key (stateEncoding state)
+          (input.map Turing.MultiTapeTM.Universal.eBit)
+          (Option.map Turing.MultiTapeTM.Universal.eBit ∘ work)
+          (Option.map Turing.MultiTapeTM.Universal.eBit ∘ answers),
+        { falseBranch := action stateEncoding (machine.tr state input work answers false)
+          trueBranch := action stateEncoding (machine.tr state input work answers true) })
 
 omit [Fintype State] in
-/-- Encoded transition observations determine the native observation. -/
-theorem key_injective (stateEncoding : State ↪ ℕ) : Function.Injective
-    (fun ((state, input, work, answers) :
-        State × Option Bool × (Fin k → Option Bool) × (Fin r → Option Bool)) =>
-      Universal.key (stateEncoding state)
-        (input.map Turing.MultiTapeTM.Universal.eBit)
-        (Option.map Turing.MultiTapeTM.Universal.eBit ∘ work)
-        (Option.map Turing.MultiTapeTM.Universal.eBit ∘ answers)) := by
+/-- Distinct observations have distinct row keys. -/
+private theorem row_key_injective (stateEncoding : State ↪ ℕ)
+    (machine : MultiTapePTM k Bool State (Fin r)) :
+    Function.Injective fun observation => (row stateEncoding machine observation).1 := by
   rintro ⟨state, input, work, answers⟩ ⟨state', input', work', answers'⟩ h
-  simp only [Universal.key, Universal.Key.mk.injEq,
+  simp only [row, Universal.key, Universal.Key.mk.injEq,
     Turing.MultiTapeTM.Universal.Key.mk.injEq] at h
   rcases h with ⟨⟨hstate, hinput, hwork⟩, hanswers⟩
   have hwork' := (Option.map_injective
@@ -193,61 +196,68 @@ theorem key_injective (stateEncoding : State ↪ ℕ) : Function.Injective
     Option.map_injective Turing.MultiTapeTM.Universal.eBit.injective hinput,
     hwork', hanswers']
 
-/-- Explicitly enumerate every finite control, Boolean read symbol, work-head observation and
-finite operation-head observation of a native machine. -/
-noncomputable abbrev ofMachine (stateEncoding : State ↪ ℕ)
+/-- Observations ordered by their encoded row keys. -/
+@[instance_reducible] private def observationOrder (stateEncoding : State ↪ ℕ)
+    (machine : MultiTapePTM k Bool State (Fin r)) : LinearOrder (Observation k r State) :=
+  LinearOrder.lift'
+    (fun observation => Universal.eKey (row stateEncoding machine observation).1)
+    (Universal.eKey.injective.comp (row_key_injective stateEncoding machine))
+
+/-- The rows of a native machine's description: one for every control, input-head symbol,
+work-head observation and answer-head observation, in increasing order of encoded key. -/
+def table (stateEncoding : State ↪ ℕ) (machine : MultiTapePTM k Bool State (Fin r)) :
+    List (Universal.Key × Universal.Branches) :=
+  letI := observationOrder stateEncoding machine
+  ((Finset.univ : Finset (Observation k r State)).sort (· ≤ ·)).map (row stateEncoding machine)
+
+/-- The first-order description of a native machine under a numbering of its states. Its controls
+are the state tags below `stateEncodingBound`, and its transition table is `table`. -/
+abbrev ofMachine (stateEncoding : State ↪ ℕ)
     (machine : MultiTapePTM k Bool State (Fin r)) : Universal.Desc :=
   { tapes := k
-    states := stateCount stateEncoding
+    states := stateEncodingBound stateEncoding
     operations := r
     q₀ := stateEncoding machine.initial
-    table :=
-      (Finset.univ : Finset
-        (State × Option Bool × (Fin k → Option Bool) × (Fin r → Option Bool))).toList.map
-        fun (state, input, work, answers) =>
-          (Universal.key (stateEncoding state)
-            (input.map Turing.MultiTapeTM.Universal.eBit)
-            (Option.map Turing.MultiTapeTM.Universal.eBit ∘ work)
-            (Option.map Turing.MultiTapeTM.Universal.eBit ∘ answers),
-          branches stateEncoding machine state input work answers) }
+    table := table stateEncoding machine }
 
-/-- The explicitly enumerated table selects the native transition at every encoded observation. -/
-theorem find?_ofMachine (stateEncoding : State ↪ ℕ)
-    (machine : MultiTapePTM k Bool State (Fin r)) (state : State)
-    (input : Option Bool) (work : Fin k → Option Bool) (answers : Fin r → Option Bool) :
-    (ofMachine stateEncoding machine).table.find?
-      (fun entry => entry.1 = Universal.key (stateEncoding state)
-        (input.map Turing.MultiTapeTM.Universal.eBit)
-        (Option.map Turing.MultiTapeTM.Universal.eBit ∘ work)
-        (Option.map Turing.MultiTapeTM.Universal.eBit ∘ answers)) =
-      some (Universal.key (stateEncoding state)
-        (input.map Turing.MultiTapeTM.Universal.eBit)
-        (Option.map Turing.MultiTapeTM.Universal.eBit ∘ work)
-        (Option.map Turing.MultiTapeTM.Universal.eBit ∘ answers),
-        branches stateEncoding machine state input work answers) := by
-  let target :=
-    (Universal.key (stateEncoding state)
-      (input.map Turing.MultiTapeTM.Universal.eBit)
-      (Option.map Turing.MultiTapeTM.Universal.eBit ∘ work)
-      (Option.map Turing.MultiTapeTM.Universal.eBit ∘ answers),
-      branches stateEncoding machine state input work answers)
-  have hmem : target ∈ (ofMachine stateEncoding machine).table := by
-    exact List.mem_map.mpr
-      ⟨(state, input, work, answers), Finset.mem_toList.mpr (Finset.mem_univ _), rfl⟩
+/-- Number of rows of `table`: one of three input-head symbols, one of three symbols at each work
+head and one of three symbols at each answer head, for every native control. -/
+@[expose] def observationRowCount (stateCard tapeCount operationCount : ℕ) : ℕ :=
+  stateCard * 3 * 3 ^ tapeCount * 3 ^ operationCount
+
+/-- The table of `ofMachine` has exactly `observationRowCount` rows. -/
+theorem table_length_ofMachine (stateEncoding : State ↪ ℕ)
+    (machine : MultiTapePTM k Bool State (Fin r)) :
+    (ofMachine stateEncoding machine).table.length =
+      observationRowCount (Fintype.card State) k r := by
+  simp [table, observationRowCount, Finset.length_sort, Finset.card_univ,
+    Fintype.card_prod, Fintype.card_option, Fintype.card_bool, Fintype.card_fin,
+    Nat.mul_assoc]
+
+/-- Looking up the key of an observation in the table returns the row of that observation. -/
+private theorem find?_table (stateEncoding : State ↪ ℕ)
+    (machine : MultiTapePTM k Bool State (Fin r)) (observation : Observation k r State) :
+    (table stateEncoding machine).find?
+        (fun entry => entry.1 = (row stateEncoding machine observation).1) =
+      some (row stateEncoding machine observation) := by
+  have hmem : row stateEncoding machine observation ∈ table stateEncoding machine := by
+    rw [table]
+    refine List.mem_map.mpr ⟨observation, ?_, rfl⟩
+    simp only [Finset.mem_sort, Finset.mem_univ]
   obtain ⟨entry, hfind⟩ := Option.isSome_iff_exists.mp
-    ((List.find?_isSome (p := fun entry => decide (entry.1 = target.1))).mpr
-      ⟨target, hmem, by simp⟩)
-  obtain ⟨⟨state', input', work', answers'⟩, -, rfl⟩ :=
-    List.mem_map.mp (List.mem_of_find?_eq_some hfind)
+    ((List.find?_isSome
+      (p := fun entry => decide (entry.1 = (row stateEncoding machine observation).1))).mpr
+      ⟨_, hmem, by simp⟩)
+  have hentry := List.mem_of_find?_eq_some hfind
+  rw [table] at hentry
+  obtain ⟨other, -, rfl⟩ := List.mem_map.mp hentry
   have hkey := List.find?_some hfind
   simp only [decide_eq_true_eq] at hkey
-  cases key_injective stateEncoding
-    (a₁ := (state', input', work', answers'))
-    (a₂ := (state, input, work, answers)) hkey
+  cases row_key_injective stateEncoding machine (a₁ := other) (a₂ := observation) hkey
   exact hfind
 
 /-- Description lookup and denotation reproduce the renamed native transition. -/
-theorem ofMachine_action (stateEncoding : State ↪ ℕ)
+private theorem ofMachine_action (stateEncoding : State ↪ ℕ)
     (machine : MultiTapePTM k Bool State (Fin r)) (state : State)
     (input : Option Bool) (work : Fin k → Option Bool) (answers : Fin r → Option Bool)
     (coin : Bool) :
@@ -257,95 +267,93 @@ theorem ofMachine_action (stateEncoding : State ↪ ℕ)
       (Option.map Turing.MultiTapeTM.Universal.eBit ∘ answers) coin =
         mapAction stateEncoding (machine.tr state input work answers coin) := by
   simp only [Universal.Desc.action]
-  rw [show ((stateEmbedding stateEncoding state : Fin (stateCount stateEncoding)) : ℕ) =
+  rw [show ((stateEmbedding stateEncoding state : Fin (stateEncodingBound stateEncoding)) : ℕ) =
     stateEncoding state by rfl]
-  change (match (ofMachine stateEncoding machine).table.find?
-      (fun entry => entry.1 = Universal.key (stateEncoding state)
-        (input.map Turing.MultiTapeTM.Universal.eBit)
-        (Option.map Turing.MultiTapeTM.Universal.eBit ∘ work)
-        (Option.map Turing.MultiTapeTM.Universal.eBit ∘ answers)) with
-    | none => Universal.haltAction k (stateCount stateEncoding) r
-    | some entry => (entry.2.get coin).toAction k (stateCount stateEncoding) r) =
+  change (match (table stateEncoding machine).find?
+      (fun entry => entry.1 = (row stateEncoding machine (state, input, work, answers)).1) with
+    | none => Universal.haltAction k (stateEncodingBound stateEncoding) r
+    | some entry => (entry.2.get coin).toAction k (stateEncodingBound stateEncoding) r) =
       mapAction stateEncoding (machine.tr state input work answers coin)
-  rw [find?_ofMachine stateEncoding machine state input work answers]
-  cases coin <;> simp [branches, action_toAction]
+  rw [find?_table stateEncoding machine (state, input, work, answers)]
+  cases coin <;> simp [row, action_toAction]
 
 /-- Decode a natural symbol at the native Boolean boundary. Only `0` and `1` occur on simulated
 paths; other symbols are mapped to `false` to make the adapter total. -/
 def decodeBit (symbol : ℕ) : Bool := symbol = 1
 
-@[simp] theorem decodeBit_eBit (bit : Bool) :
+@[simp] private theorem decodeBit_eBit (bit : Bool) :
     decodeBit (Turing.MultiTapeTM.Universal.eBit bit) = bit := by
   cases bit <;> rfl
 
+private theorem decodeBit_map_eBit (word : List Bool) :
+    word.map (decodeBit ∘ Turing.MultiTapeTM.Universal.eBit) = word := by
+  induction word with
+  | nil => rfl
+  | cons bit tail ih =>
+      simp only [List.map_cons, Function.comp_apply, decodeBit_eBit, ih]
+
 /-- Rename the symbols stored in one communication channel. -/
-@[expose] def mapChannel (channel : Channel Bool) : Channel ℕ where
+private def mapChannel (channel : Channel Bool) : Channel ℕ where
   queryBuffer := channel.queryBuffer.map Turing.MultiTapeTM.Universal.eBit
   answer := channel.answer.map Turing.MultiTapeTM.Universal.eBit
   answerPos := channel.answerPos
 
 /-- Rename ordinary tapes, controls and communication words in one native configuration. -/
-@[expose] def mapConfig (stateEncoding : State ↪ ℕ) {input : List Bool}
+private def mapConfig (stateEncoding : State ↪ ℕ) {input : List Bool}
     (cfg : Config k Bool State (Fin r) input) :
-    Config k ℕ (Option (Fin (stateCount stateEncoding))) (Fin r)
+    Config k ℕ (Option (Fin (stateEncodingBound stateEncoding))) (Fin r)
       (input.map Turing.MultiTapeTM.Universal.eBit) where
   tapes := cfg.tapes.map (controlEmbedding stateEncoding) Turing.MultiTapeTM.Universal.eBit
   channels operation := mapChannel (cfg.channels operation)
 
-@[simp] theorem mapConfig_inputSymbol (stateEncoding : State ↪ ℕ) {input : List Bool}
+@[simp] private theorem mapConfig_inputSymbol (stateEncoding : State ↪ ℕ) {input : List Bool}
     (cfg : Config k Bool State (Fin r) input) :
     (mapConfig stateEncoding cfg).tapes.inputSymbol =
       cfg.tapes.inputSymbol.map Turing.MultiTapeTM.Universal.eBit :=
   Cfg.inputSymbol_map _ _ _
 
-@[simp] theorem mapConfig_workTapeSymbols (stateEncoding : State ↪ ℕ) {input : List Bool}
+@[simp] private theorem mapConfig_workTapeSymbols (stateEncoding : State ↪ ℕ) {input : List Bool}
     (cfg : Config k Bool State (Fin r) input) (tape : Fin k) :
     (mapConfig stateEncoding cfg).tapes.workTapeSymbols tape =
       (cfg.tapes.workTapeSymbols tape).map Turing.MultiTapeTM.Universal.eBit :=
   rfl
 
-@[simp] theorem mapConfig_output (stateEncoding : State ↪ ℕ) {input : List Bool}
-    (cfg : Config k Bool State (Fin r) input) :
-    (mapConfig stateEncoding cfg).tapes.output =
-      cfg.tapes.output.map Turing.MultiTapeTM.Universal.eBit :=
-  rfl
-
-@[simp] theorem mapChannel_answerSymbol (channel : Channel Bool) :
+@[simp] private theorem mapChannel_answerSymbol (channel : Channel Bool) :
     (mapChannel channel).answerSymbol =
       channel.answerSymbol.map Turing.MultiTapeTM.Universal.eBit := by
   by_cases h : 0 ≤ channel.answerPos
   · simp only [mapChannel, Channel.answerSymbol, h, ↓reduceIte, List.getElem?_map]
   · simp only [mapChannel, Channel.answerSymbol, h, ↓reduceIte, Option.map_none]
 
-@[simp] theorem mapConfig_answerSymbols (stateEncoding : State ↪ ℕ) {input : List Bool}
+@[simp] private theorem mapConfig_answerSymbols (stateEncoding : State ↪ ℕ) {input : List Bool}
     (cfg : Config k Bool State (Fin r) input) (operation : Fin r) :
     (mapConfig stateEncoding cfg).answerSymbols operation =
       (cfg.answerSymbols operation).map Turing.MultiTapeTM.Universal.eBit :=
   mapChannel_answerSymbol _
 
 /-- Renaming commutes with initial configurations of a machine and its description. -/
-theorem mapConfig_initial (stateEncoding : State ↪ ℕ)
+private theorem mapConfig_initial (stateEncoding : State ↪ ℕ)
     (machine : MultiTapePTM k Bool State (Fin r)) (input : List Bool) :
     mapConfig stateEncoding (machine.initialConfig input) =
       (ofMachine stateEncoding machine).toMachine.initialConfig
         (input.map Turing.MultiTapeTM.Universal.eBit) := by
   change mapConfig stateEncoding (machine.initialConfig input) =
     ({ tapes := Cfg.init
-        (Fin.ofNat? (stateCount stateEncoding) (stateEncoding machine.initial))
+        (Fin.ofNat? (stateEncodingBound stateEncoding) (stateEncoding machine.initial))
         (input.map Turing.MultiTapeTM.Universal.eBit) } :
-      Config k ℕ (Option (Fin (stateCount stateEncoding))) (Fin r)
+      Config k ℕ (Option (Fin (stateEncodingBound stateEncoding))) (Fin r)
         (input.map Turing.MultiTapeTM.Universal.eBit))
   apply Config.ext
   · change (Cfg.init machine.initial input).map (controlEmbedding stateEncoding)
       Turing.MultiTapeTM.Universal.eBit = _
     rw [Cfg.map_init]
     rw [Fin.ofNat?_eq_some_of_lt _ _
-      (stateEncoding_lt_stateCount stateEncoding machine.initial)]
+      (stateEncoding_lt_stateEncodingBound stateEncoding machine.initial)]
     rfl
   · rfl
 
 /-- Renaming commutes with a local tape/channel step. -/
-theorem mapConfig_step (stateEncoding : State ↪ ℕ) {input : List Bool}
+private theorem mapConfig_step (stateEncoding : State ↪ ℕ) {input : List Bool}
     (cfg : Config k Bool State (Fin r) input) (ordinary : Turing.Action k Bool State)
     (querySymbols : Fin r → Option Bool) (answerMoves : Fin r → SignType) :
     (mapConfig stateEncoding cfg).step
@@ -361,7 +369,7 @@ theorem mapConfig_step (stateEncoding : State ↪ ℕ) {input : List Bool}
     cases querySymbols operation <;> rfl
 
 /-- Renaming commutes with installing an arbitrary reply on one channel. -/
-theorem mapConfig_receive (stateEncoding : State ↪ ℕ) {input : List Bool}
+private theorem mapConfig_receive (stateEncoding : State ↪ ℕ) {input : List Bool}
     (cfg : Config k Bool State (Fin r) input) (operation : Fin r) (next : State)
     (reply : List Bool) :
     (mapConfig stateEncoding cfg).receive operation (controlEmbedding stateEncoding next)
@@ -375,21 +383,9 @@ theorem mapConfig_receive (stateEncoding : State ↪ ℕ) {input : List Bool}
       simp [Config.receive, mapConfig, mapChannel]
     · simp [Config.receive, mapConfig, mapChannel, h]
 
-@[simp] theorem mapChannel_queryBuffer (channel : Channel Bool) :
-    (mapChannel channel).queryBuffer =
-      channel.queryBuffer.map Turing.MultiTapeTM.Universal.eBit :=
-  rfl
-
-@[simp] theorem decodeBit_map_eBit (word : List Bool) :
-    word.map (decodeBit ∘ Turing.MultiTapeTM.Universal.eBit) = word := by
-  induction word with
-  | nil => rfl
-  | cons bit tail ih =>
-      simp only [List.map_cons, Function.comp_apply, decodeBit_eBit, ih]
-
 /-- Query adapter used when executing a natural-symbol description against the original Boolean
-word handler. It decodes the request and re-encodes the reply; this work is semantic simulation,
-not an uncharged runtime implementation claim. -/
+word handler: it decodes the request and re-encodes the reply. The adapter is part of the
+statement of `NativeOracleProgram.runWith_descriptionRun`; no machine is charged for it. -/
 @[expose] def encodedQuery (operation : Fin r) (word : List ℕ) :
     ProbOracleComp (fun _ : Fin r × List Bool => List Bool) (List ℕ) :=
   (List.map Turing.MultiTapeTM.Universal.eBit) <$>
@@ -397,7 +393,7 @@ not an uncharged runtime implementation claim. -/
 
 /-- Every bounded run of the generated first-order description simulates the retained Boolean
 machine configuration-for-configuration, including queries and private coins. -/
-theorem runConfigFrom_ofMachine (stateEncoding : State ↪ ℕ)
+private theorem runConfigFrom_ofMachine (stateEncoding : State ↪ ℕ)
     (machine : MultiTapePTM k Bool State (Fin r)) {input : List Bool} (fuel : ℕ)
     (cfg : Config k Bool State (Fin r) input) :
     (ofMachine stateEncoding machine).toMachine.runConfigFrom
@@ -461,7 +457,7 @@ theorem runConfigFrom_ofMachine (stateEncoding : State ↪ ℕ)
 
 /-- The run-level simulation remains exact after interpreting both programs with any shared
 stateful Boolean-word handler. -/
-theorem runWith_ofMachine {OracleState : Type} (stateEncoding : State ↪ ℕ)
+private theorem runWith_ofMachine {OracleState : Type} (stateEncoding : State ↪ ℕ)
     (machine : MultiTapePTM k Bool State (Fin r)) {input : List Bool} (fuel : ℕ)
     (cfg : Config k Bool State (Fin r) input)
     (handler : Fin r × List Bool → StateT OracleState PMF (List Bool))
