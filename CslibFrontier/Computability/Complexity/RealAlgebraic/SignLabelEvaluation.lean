@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.U
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Basic
 public import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomial
 import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Products
+import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Range
 import CslibFrontier.Computability.Complexity.RealAlgebraic.DyadicSignEvaluation
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryOrder
 
@@ -22,10 +23,11 @@ the sum of squares range over the unary number of tests, so they stay at that le
 with one denominator omitted are evaluated directly, including when a denominator is zero.
 
 The weighted fingerprint label uses binary-length addresses for its denominator products.
-Its evaluator agrees with the integer label at every prime.
+Its evaluator agrees with the integer label at every prime. Beyond the dyadic tests
+it uses three levels for the products and one further level for the weighted sum.
 
 Adapted from `RootLabelModularEvaluation`, `RootLabelModularCorrectness`, `RootLabelEvaluation`,
-and `FingerprintModularCorrectness` in lean-canny at commit
+`FingerprintModularCorrectness`, and `FingerprintModularEvaluation` in lean-canny at commit
 `970f28a5ecefc1327402ade16c068aa4b1b2c183`, using the precisions of the integer labels.
 -/
 
@@ -47,6 +49,19 @@ private def clearedSignLabelResidue (p m : ℕ) (den num target : ℕ → ℕ) :
     let omitted := unaryModularProduct m p (fun j => if j = i then 1 else den j)
     powMod p (modularSub p (num i) (target i * den i) * omitted) 2)
 
+private theorem omittedDenominatorFactor_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
+    {den : α × ℕ → ℕ} (hden : den ∈ CountingFunction a (encPair enc encNat) encNat) :
+    (fun r : (α × ℕ) × ℕ => if r.2 = r.1.2 then 1 else den (r.1.1, r.2)) ∈
+      CountingFunction a (encPair (encPair enc encNat) encNat) encNat := by
+  have hvalue := CountingFunction.preprocess hden
+    (input := encPair (encPair enc encNat) encNat)
+    (g := fun r : (α × ℕ) × ℕ => (r.1.1, r.2)) (by fun_prop)
+  have heq : ComputableInPolyTime (fun r : (α × ℕ) × ℕ => decide (r.2 = r.1.2))
+      (encPair (encPair enc encNat) encNat) encBool := by fun_prop
+  simpa only [decide_eq_true_eq] using
+    CountingFunction.ite (CountingFunction.of_polyTime heq)
+      (CountingFunction.of_polyTime (.const 1)) hvalue
+
 private theorem clearedSignLabelResidue_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
     {p m : α → ℕ} {den num target : α × ℕ → ℕ}
     (hp : ComputableInPolyTime p enc encNat)
@@ -59,15 +74,8 @@ private theorem clearedSignLabelResidue_mem {α : Type} {enc : α ↪ List Bool}
         CountingFunction a enc encNat := by
   have hf := ComputableInPolyTime.fst enc encNat
   have hp' := CountingFunction.of_polyTime (a := a) (hp.comp hf)
-  have hden' := CountingFunction.preprocess hden
-    (input := encPair (encPair enc encNat) encNat)
-    (g := fun w : (α × ℕ) × ℕ => (w.1.1, w.2)) (by fun_prop)
-  have heq : ComputableInPolyTime (fun w : (α × ℕ) × ℕ => decide (w.2 = w.1.2))
-      (encPair (encPair enc encNat) encNat) encBool := by fun_prop
-  have hfactor := CountingFunction.ite (CountingFunction.of_polyTime heq)
-    (CountingFunction.of_polyTime (.const 1)) hden'
-  simp only [decide_eq_true_eq] at hfactor
-  have homit := unaryModularProduct_mem (hm.comp hf) (hp.comp hf) (fun w => hpos w.1) hfactor
+  have homit := unaryModularProduct_mem (hm.comp hf) (hp.comp hf) (fun w => hpos w.1)
+    (omittedDenominatorFactor_mem hden)
   have hdiff := modularSub_mem hp' hnum (CountingFunction.nat_mul htarget hden)
   have hterm := CountingFunction.powMod hp' (CountingFunction.nat_mul hdiff homit)
     (CountingFunction.of_polyTime (.const 2))
@@ -216,5 +224,62 @@ theorem fingerprintLabelResidue_cast {p m : ℕ} [Fact p.Prime] (B M : ℕ)
     Polynomial.eval₂_finsetProd,
     Polynomial.eval₂_add, Polynomial.eval₂_comp, Polynomial.eval₂_neg, Int.coe_castRingHom,
     Int.cast_ofNat, Int.cast_natCast, d, t, f, v]
+
+/-- The full fingerprint evaluator is in `CountingFunction (a + 7)`. The modulus,
+precision, weight budget, and number of weighted tests are polynomial-time binary
+parameters. Test residues are addressed at level `a`. The weights and target residue
+can be supplied at level `a + 6`, the level of the cleared numerator products. -/
+theorem fingerprintLabelResidue_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
+    (E : Decoder enc) {p B M m target : α → ℕ} {value weight : α × ℕ → ℕ}
+    (hp : ComputableInPolyTime p enc encNat) (hB : ComputableInPolyTime B enc encNat)
+    (hM : ComputableInPolyTime M enc encNat) (hm : ComputableInPolyTime m enc encNat)
+    (hv : value ∈ CountingFunction a (encPair enc encNat) encNat)
+    (hw : weight ∈ CountingFunction (a + 6) (encPair enc encNat) encNat)
+    (ht : target ∈ CountingFunction (a + 6) enc encNat) :
+    (fun x => fingerprintLabelResidue (p x) (B x) (M x) (m x)
+      (fun i => value (x, i)) (fun i => weight (x, i)) (target x)) ∈
+        CountingFunction (a + 7) enc encNat := by
+  let q (x : α) := max 1 (p x)
+  let den (r : α × ℕ) := signTestDenominatorResidue (q r.1) (B r.1) (M r.1 + 1) (value r)
+  let num (r : α × ℕ) := signTestNumeratorResidue (q r.1) (B r.1) (M r.1 + 1) (value r)
+  let common (x : α) := primeFieldRangeProduct (q x) (m x + 1) (fun i => den (x, i))
+  let cleared (r : α × ℕ) := num r * primeFieldRangeProduct (q r.1) (m r.1 + 1)
+    (fun j => if j = r.2 then 1 else den (r.1, j))
+  have hq : ComputableInPolyTime q enc encNat :=
+    ComputableInPolyTime.binary_max' (.const 1) hp
+  have hf := ComputableInPolyTime.fst enc encNat
+  have hs := ComputableInPolyTime.binary_add' hM (.const 1)
+  have hwidth := ComputableInPolyTime.binary_add' hm (.const 1)
+  obtain ⟨hden, hnum⟩ := signTestResidues_mem (Decoder.pair E Decoder.nat) (hq.comp hf)
+    (hB.comp hf) (hs.comp hf) hv
+  change den ∈ _ at hden
+  change num ∈ _ at hnum
+  have hcommon : common ∈ CountingFunction (a + 6) enc encNat :=
+    CountingFunction.primeFieldRangeProduct_mem E hq hwidth hden
+  have homit := CountingFunction.primeFieldRangeProduct_mem (Decoder.pair E Decoder.nat)
+    (hq.comp hf) (hwidth.comp hf) (omittedDenominatorFactor_mem hden)
+  have hcleared : cleared ∈ CountingFunction (a + 6) (encPair enc encNat) encNat :=
+    CountingFunction.nat_mul (CountingFunction.mono (by omega : a + 3 ≤ a + 6) hnum) homit
+  have hnext : ComputableInPolyTime (fun r : α × ℕ => (r.1, r.2 + 1))
+      (encPair enc encNat) (encPair enc encNat) :=
+    hf.prod (ComputableInPolyTime.binary_add' (ComputableInPolyTime.snd _ _) (.const 1))
+  have hsum := CountingFunction.sum_range E
+    (CountingFunction.nat_mul hw (CountingFunction.preprocess hcleared hnext)) hm
+  have hzero := CountingFunction.preprocess hcleared
+    (ComputableInPolyTime.id'.prod (ComputableInPolyTime.const 0))
+  have hcommon' := CountingFunction.mono (Nat.le_succ (a + 6)) hcommon
+  have htarget' := CountingFunction.mono (Nat.le_succ (a + 6)) ht
+  have hzero' := CountingFunction.mono (Nat.le_succ (a + 6)) hzero
+  have hmod : q ∈ CountingFunction (a + 7) enc encNat := CountingFunction.of_polyTime hq
+  have hscore := modularSub_mem hmod (CountingFunction.nat_mod hsum hmod)
+    (CountingFunction.nat_mul htarget' hcommon')
+  have hqualifier := modularSub_mem hmod hzero' hcommon'
+  have hsquare {f : α → ℕ} (h : f ∈ CountingFunction (a + 7) enc encNat) :
+      (fun x => powMod (q x) (f x) 2) ∈ CountingFunction (a + 7) enc encNat :=
+    CountingFunction.powMod hmod h (CountingFunction.of_polyTime (.const 2))
+  have herrors := CountingFunction.map
+    (CountingFunction.prod (hsquare hscore) (hsquare hqualifier)) ComputableInPolyTime.binary_add
+  exact modularSub_mem hmod (hsquare hcommon')
+    (CountingFunction.nat_mul (CountingFunction.of_polyTime (.const 4)) herrors)
 
 end Cslib.Complexity.RealAlgebraic

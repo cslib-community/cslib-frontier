@@ -20,6 +20,7 @@ import CslibFrontier.Foundations.Data.List.Lookup
 import Mathlib.Data.List.GetD
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Uniform polynomial-time construction of small-bias families
@@ -185,10 +186,8 @@ theorem poweringMasks_polyTime :
     unfold smallBiasDegree
     fun_prop
   have hsize : PolyBounded (fun p : ℕ × ℕ => (enc p).length)
-      (fun p => 2 ^ smallBiasDegree p.1 p.2) :=
-    (((PolyBounded.const 2).mul
-      (((fst encUnary encUnary).polyBounded.mul (snd encUnary encUnary).polyBounded).add
-        (.const 1)))).mono fun p => (fieldSize_bounds p.1 p.2).2
+      (fun p => 2 ^ smallBiasDegree p.1 p.2) := by
+    growth_poly [fun p : ℕ × ℕ => (fieldSize_bounds p.1 p.2).2]
   have hbound : ComputableInPolyTime
       (fun p : ℕ × ℕ => 2 ^ (smallBiasDegree p.1 p.2 + 1)) enc encUnary :=
     binary_to_unary_bounded (binary_two_pow.comp (unary_add' hw (const 1)))

@@ -225,9 +225,7 @@ theorem exists_computableInO_comp (r : SizeSensitiveReduction encA encB μA μB)
   have hcomp := hg.comp hf.inO
   have hS : PolyBounded (fun a => (encA a).length)
       (fun a => ((encA a).length + 1) ^ d + Sg (r.toFun a)) := by
-    have hpow : PolyBounded (fun a => (encA a).length)
-        (fun a => ((encA a).length + 1) ^ d) := by growth_poly
-    exact hpow.add (hSg.comp r.polyBounded_output_length)
+    growth_poly [r.polyBounded_output_length]
   exact ⟨d, _, hS, hcomp⟩
 
 /-- Polynomial space transfers along any `SizeSensitiveReduction`. -/
@@ -727,7 +725,6 @@ private theorem exists_computableInO_foldl_of_ansBound
   have hOverhead : PolyBounded (fun a => (encA a).length)
       (fun a => ((encA a).length + 1) ^ dl + ((encA a).length + 1) ^ di +
         stepPoly a + accBound a + listLen a) := by
-    dsimp only [stepPoly, pairBound, ansPairBound]
     growth_poly
   obtain ⟨c, e, hce⟩ := hOverhead.exists_le
   refine ⟨c, e, hfold.mono_le (fun a => ?_) (fun a => ?_)⟩
@@ -774,15 +771,11 @@ theorem exists_computableInO_foldl (r : DisjointBatchReduction encA encB μA μB
   have hans_mem (a : α) {b : β} (hb : b ∈ (r.toBatch a).items) : (encG (g b)).length ≤ ansMax a :=
     (hglen b).trans (Nat.mul_le_mul_left kg (Nat.add_le_add_right (hsg_mem a hb) 1))
   have hlistPoly : PolyBounded (fun a => (encA a).length) listLen := r.polyBounded_batch_length
-  have hansPoly : PolyBounded (fun a => (encA a).length) ansMax := by
-    dsimp only [ansMax, sgMax]
-    growth_poly
+  have hansPoly : PolyBounded (fun a => (encA a).length) ansMax := by growth_poly
   obtain ⟨c, e, hfold⟩ := r.exists_computableInO_foldl_of_ansBound hinit hcombine hg haccPoly
     hansPoly hacc (fun a _ hb => hans_mem a hb) (fun a _ hb => hsg_mem a hb)
   have hSPoly : PolyBounded (fun a => (encA a).length)
-      (fun a => c * ((encA a).length + 1) ^ e + sgMax a) := by
-    dsimp only [sgMax]
-    growth_poly
+      (fun a => c * ((encA a).length + 1) ^ e + sgMax a) := by growth_poly
   exact ⟨c, e, _, hSPoly, hfold⟩
 
 /-- **Exponential-time OR transfer over a summed-measure disjoint-instance batch.**
@@ -848,8 +841,6 @@ theorem exists_computableInO_cappedSum (r : DisjointBatchReduction encA encB μA
   have hinit : ComputableInPolyTime (fun a => CappedNatAcc.init (2 ^ capBits a))
       encA encCappedNatAcc :=
     CappedNatAcc.computableInPolyTime_init hcapPow
-  have hcapPoly : PolyBounded (fun a => (encA a).length) capBits := by
-    simpa only [encUnary_apply, List.length_replicate] using hcap.polyBounded_length
   have haccPoly : PolyBounded (fun a => (encA a).length)
       (fun a => 3 * (capBits a + 1) + 2) := by growth_poly
   have haccBound (a : α) (i : ℕ) (_ : i ≤ (r.toBatch a).items.length) :
@@ -1377,7 +1368,7 @@ private theorem exists_leafLen_le (S : StackAccumulationSpec encA encK encS encB
   obtain ⟨cl, dl, hleaf_len⟩ := S.computableInPolyTime_leafInstance.polyBounded_length.exists_le
   let leafLen (a : α) : ℕ :=
     cl * (2 * stateBound a + (encS S.defaultNode).length + 3) ^ dl
-  refine ⟨leafLen, by dsimp only [leafLen]; growth_poly, fun a i hi => ?_⟩
+  refine ⟨leafLen, by growth_poly, fun a i hi => ?_⟩
   have hst := hstate a i hi
   have htn : (encStackNodeInput encK encS
       (S.topNode ((S.step g)^[i] (S.initState a)))).length ≤
@@ -1478,14 +1469,11 @@ private theorem exists_computableInO_run_of_spaceBound
     hstate
   have hwhole := (ha.inO.comp hloop).of_enc_eq (g := S.run g) fun _ => rfl
   let clockLen (a : α) : ℕ := (encNat (S.rounds a)).length
-  have hclkPoly : PolyBounded (fun a => (encA a).length) clockLen :=
-    S.computableInPolyTime_rounds.polyBounded_length
   have hOverhead : PolyBounded (fun a => (encA a).length)
       (fun a => ((encA a).length + 1) ^ dn + ((encA a).length + 1) ^ di +
         (stateBound a + 1) ^ da + stepPoly a + stateBound a +
         (clockLen a + 1) ^ 2 + clockLen a) := by
-    dsimp only [stepPoly]
-    growth_poly
+    growth_poly [S.computableInPolyTime_rounds]
   obtain ⟨c, e, hce⟩ := hOverhead.exists_le
   have hfin (a : α) : ((encSt ((S.step g)^[S.rounds a] (S.initState a))).length + 1) ^ da ≤
       (stateBound a + 1) ^ da :=
@@ -1541,9 +1529,7 @@ theorem exists_computableInO_run (S : StackAccumulationSpec encA encK encS encB 
   obtain ⟨c, e, hcert⟩ := S.exists_computableInO_run_of_spaceBound hg hstatePoly hansPoly
     hstate hans htime hsg
   have hSpacePoly : PolyBounded (fun a => (encA a).length)
-      (fun a => c * ((encA a).length + 1) ^ e + sgBound a) := by
-    dsimp only [sgBound]
-    growth_poly
+      (fun a => c * ((encA a).length + 1) ^ e + sgBound a) := by growth_poly
   exact ⟨c, e, _, hSpacePoly, hcert,
     ComputableInPolySpace.of_inSpace hSpacePoly (ComputableInSpace.of_inO hcert)⟩
 
