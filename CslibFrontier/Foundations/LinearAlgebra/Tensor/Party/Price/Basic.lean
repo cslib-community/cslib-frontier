@@ -36,7 +36,6 @@ and `Paper.Prices` (the definition and its properties).
   pseudometrics.
 * `Cslib.PartyTensor.IsPrice.comp`, `IsPrice.smul`, `Cslib.PartyTensor.isClosed_setOf_isPrice`,
   `Cslib.PartyTensor.isPrice_of_tendsto`, `Cslib.PartyTensor.isCompact_setOf_isPrice_le`.
-* `Cslib.PartyTensor.SpectralPoint.wireExponent_pull`: the wire exponents of a pull-back.
 * `Cslib.PartyTensor.SpectralPoint.apply_wires`: a spectral point at a product of wires.
 -/
 
@@ -47,16 +46,6 @@ namespace Cslib.PartyTensor
 open Finset Filter
 
 variable {K : Type} [Field K]
-
-/-- The wire exponents of a pull-back are those of the images. -/
-theorem SpectralPoint.wireExponent_pull {I J : Type} [Fintype I] [DecidableEq I] [Fintype J]
-    [DecidableEq J] (F : SpectralPoint K I) (π : J → I) (p q : J) :
-    (F.pull π).wireExponent p q = F.wireExponent (π p) (π q) := by
-  rw [wireExponent, wireExponent, pull_apply, wire, wire]
-  congr 1
-  refine F.congr ((antisymmRel_push_push π ![p, q] (unit K (Fin 2) 2)).trans ?_)
-  have : π ∘ ![p, q] = ![π p, π q] := by funext i; fin_cases i <;> rfl
-  rw [this]
 
 section Finite
 
@@ -74,7 +63,7 @@ variable {U V : Type} [Fintype U] [DecidableEq U] [Fintype V] [DecidableEq V]
 theorem priceCone_comp (f : U → V) {d : V → V → ℝ} (h : d ∈ priceCone K V) :
     (fun a b => d (f a) (f b)) ∈ priceCone K U := by
   obtain ⟨F, c, hc, rfl⟩ := h
-  exact ⟨F.pull f, c, hc, by funext a b; rw [F.wireExponent_pull]⟩
+  exact ⟨F.pull f, c, hc, by funext a b; rw [F.pull_wireExponent]⟩
 
 omit [Field K] in
 private theorem continuous_comp {X Y : Type*} (f : X → Y) :

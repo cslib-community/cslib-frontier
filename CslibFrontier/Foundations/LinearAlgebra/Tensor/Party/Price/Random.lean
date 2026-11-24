@@ -38,7 +38,7 @@ on).
 * `Cslib.PartyTensor.push_le_prod_wire_hubs`, `Cslib.PartyTensor.push_inl_le_prod_wire_hubs`.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.PartyTensor
 
@@ -76,7 +76,7 @@ private theorem prop_random_spectral (F : SpectralPoint K P) {m : ℕ} (θ : Fin
     have h2 : ∀ l, F (push (Sum.elim id (σ l)) (wire K 2 a b)) =
         2 ^ F.wireExponent (Sum.elim id (σ l) a) (Sum.elim id (σ l) b) := by
       intro l
-      rw [← F.pull_apply, (F.pull _).apply_wire_two, F.wireExponent_pull]
+      rw [← F.pull_apply, (F.pull _).apply_wire_two, F.pull_wireExponent]
     simp only [h2] at h1
     rw [F'.apply_wire_two] at h1
     have h3 : ∏ l, ((2 : ℝ) ^ F.wireExponent (Sum.elim id (σ l) a) (Sum.elim id (σ l) b)) ^ θ l =
@@ -95,7 +95,7 @@ private theorem prop_random_spectral (F : SpectralPoint K P) {m : ℕ} (θ : Fin
   have hsum : ∑ e : P × P, F'.wireExponent (Sum.inl e.1) (Sum.inl e.2) = ∑ e : P × P,
       F.wireExponent e.1 e.2 := by
     rw [← F'.pull_apply, (F'.pull _).map_prod, F.map_prod] at hC
-    simp only [SpectralPoint.apply_wire_two, SpectralPoint.wireExponent_pull] at hC
+    simp only [SpectralPoint.apply_wire_two, SpectralPoint.pull_wireExponent] at hC
     rw [← Real.rpow_sum_of_pos (by norm_num), ← Real.rpow_sum_of_pos (by norm_num)] at hC
     have h2 := congrArg (Real.logb 2) hC
     rwa [Real.logb_rpow (by norm_num) (by norm_num), Real.logb_rpow (by norm_num) (by norm_num)]
