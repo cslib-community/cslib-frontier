@@ -16,9 +16,6 @@ public import Mathlib.Topology.Order.Compact
 public import Mathlib.Topology.Algebra.Order.Field
 public import Mathlib.Topology.Instances.Real.Lemmas
 import Mathlib.Topology.UniformSpace.HeineCantor
-import Mathlib.Order.Filter.Extr
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
 
 /-!
 # Brouwer's fixed-point theorem on the cube

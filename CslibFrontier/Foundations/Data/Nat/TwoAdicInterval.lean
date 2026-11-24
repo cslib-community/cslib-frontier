@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Data.Finset.Max
 public import Mathlib.Order.Interval.Finset.Nat
 public import Mathlib.Data.Nat.PadicValNat
+import CslibFrontier.Foundations.Combinatorics.MinIsolation.BaseSix
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
@@ -119,23 +120,6 @@ theorem existsUnique_max_multiplicity_two_Icc {a b : ℕ} (ha : 0 < a) (hab : a 
     (Finset.mem_filter.mpr ⟨hx, rfl⟩)
 
 open Finset in
-private theorem two_mul_sum_six_pow_le (m : ℕ) :
-    2 * (∑ k ∈ range m, (2 : ℕ) ^ (m - k) * 6 ^ k) ≤ 6 ^ m := by
-  induction m with
-  | zero => simp
-  | succ m ih =>
-    have hsum : (∑ k ∈ range m, (2 : ℕ) ^ (m + 1 - k) * 6 ^ k) =
-        2 * (∑ k ∈ range m, (2 : ℕ) ^ (m - k) * 6 ^ k) := by
-      rw [mul_sum]
-      refine sum_congr rfl fun k hk => ?_
-      have := mem_range.mp hk
-      rw [show m + 1 - k = m - k + 1 by omega, pow_succ]
-      ac_rfl
-    rw [sum_range_succ, hsum, Nat.add_sub_cancel_left, pow_succ 6]
-    simp only [pow_one]
-    omega
-
-open Finset in
 /-- The nonmaximal layers together contribute at most half the maximal power of six.
 This is the finite geometric estimate used in [Hoza2026NLUL, Lemma 2.3]. -/
 theorem two_mul_sum_six_pow_multiplicity_erase_le {a b j : ℕ} (ha : 0 < a)
@@ -145,20 +129,20 @@ theorem two_mul_sum_six_pow_multiplicity_erase_le {a b j : ℕ} (ha : 0 < a)
   let m := multiplicity 2 j
   have hm : ((Icc a b).filter fun i => multiplicity 2 i = m).card ≤ 1 := by
     simpa using card_filter_Icc_multiplicity_two_le ha le_rfl hmax
-  have hlt : ∀ i ∈ (Icc a b).erase j, multiplicity 2 i ∈ range m := by
+  have hlt : ∀ i ∈ ((Icc a b).erase j).val, multiplicity 2 i < m := by
     intro i hi
-    obtain ⟨hne, hi⟩ := mem_erase.mp hi
-    refine mem_range.mpr ((hmax i hi).lt_of_ne fun h => hne ?_)
+    obtain ⟨hne, hi⟩ := mem_erase.mp (show i ∈ (Icc a b).erase j from hi)
+    refine (hmax i hi).lt_of_ne fun h => hne ?_
     exact card_le_one_iff.mp hm (mem_filter.mpr ⟨hi, h⟩) (mem_filter.mpr ⟨hj, rfl⟩)
-  rw [← sum_fiberwise_of_maps_to' hlt (fun k => (6 : ℕ) ^ k)]
-  apply le_trans _ (two_mul_sum_six_pow_le m)
-  apply Nat.mul_le_mul_left
-  refine sum_le_sum fun k hk => ?_
-  rw [sum_const, nsmul_eq_mul]
-  apply Nat.mul_le_mul_right
-  refine (card_le_card fun i hi => ?_).trans
-    (card_filter_Icc_multiplicity_two_le ha (mem_range.mp hk).le hmax)
-  obtain ⟨hi, he⟩ := mem_filter.mp hi
-  exact mem_filter.mpr ⟨mem_of_mem_erase hi, he⟩
+  have hcard : ∀ k < m, ((((Icc a b).erase j).val).filter fun i => multiplicity 2 i = k).card ≤
+      2 ^ (m - k) := by
+    intro k hk
+    change (((Icc a b).erase j).filter fun i => multiplicity 2 i = k).card ≤ 2 ^ (m - k)
+    refine (card_le_card fun i hi => ?_).trans
+      (card_filter_Icc_multiplicity_two_le ha hk.le hmax)
+    obtain ⟨hi, he⟩ := mem_filter.mp hi
+    exact mem_filter.mpr ⟨mem_of_mem_erase hi, he⟩
+  exact Cslib.MinIsolation.BaseSix.two_mul_sum_six_pow_multiset_le
+    ((Icc a b).erase j).val (multiplicity 2) hlt hcard
 
 end Nat

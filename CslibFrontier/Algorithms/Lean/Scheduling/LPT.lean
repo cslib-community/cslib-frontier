@@ -12,7 +12,6 @@ public import Mathlib.Data.Fin.Tuple.Sort
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
 
 /-!
 # Graham's Longest-Processing-Time Rule

@@ -7,6 +7,7 @@ Authors: Anthropic, PBC, Christian Reitwiessner
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Circuit.Arithmetic.ClauseSum
 public import CslibFrontier.Computability.Circuit.Arithmetic.ComputedWithin
 public import CslibFrontier.Computability.Circuit.Arithmetic.HamiltonianCycle
 import CslibFrontier.Foundations.Data.Matrix.HamiltonianCycle.Grid
@@ -35,7 +36,6 @@ sums, hence affine projections of every family complete for grid sums
 
 * `Cslib.Circuits.Arithmetic.affineIn`: the polynomials affine in a given variable.
 * `Cslib.Circuits.Arithmetic.GridComplete`: completeness for grid sums.
-* `Cslib.Circuits.Arithmetic.clauseSum`: sums of products of clauses.
 
 ## Main results
 
@@ -145,12 +145,6 @@ theorem gridComplete_hcFamily : GridComplete (hcFamily K) 40 := by
     exact IsAffine.of_mem_affineIn (hW n x r)
 
 /-! ### Clause sums -/
-
-/-- A *clause sum*: the sum, over the bits `x`, of the product over the clauses `κ` of the weight
-of `κ` if all its literals hold, and `1` otherwise. A literal `(b, e)` holds when `x b = e`. -/
-noncomputable def clauseSum {R V Θ : Type*} [CommRing R] [Fintype V] [DecidableEq V]
-    [Fintype Θ] (lits : Θ → List (V × Bool)) (wt : Θ → R) : R :=
-  ∑ x : V → Bool, ∏ κ, if ∀ l ∈ lits κ, x l.1 = l.2 then wt κ else 1
 
 /-- **Clause sums are affine projections** of every family complete for grid sums
 [Claude, *VP ≠ VNP over every field*][AnthropicVPVNP2026], Corollary cor:clauses. Let every clause

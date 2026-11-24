@@ -59,17 +59,17 @@ open Cslib.DataStructure.Dictionary.WordRAM.BitPackedArray
 /-! ## Section 1: `deletePrepProg` via `realize` -/
 
 /-- Parameter-free Phase 1 of `delete` (`d = (dp, (((base, b), q_target), m))`):
-searches bucket `b` for `q_target`; if found (`res.1.1 = 1`), resolves the last slot `phys_last` of
-bucket `b`, reads its quotient `q_last`, and returns `(res, q_last)`; otherwise returns
-`(((0, 0), 0), 0)`. -/
+searches bucket `b` for `q_target`; if found (`searchResFound res = 1`), resolves the last slot
+`phys_last` of bucket `b`, reads its quotient `q_last`, and returns `(res, q_last)`; otherwise
+returns `(((0, 0), 0), 0)`. -/
 @[expose]
 def deletePrepGenProg
     (d : DictParams × (((ℕ × ℕ) × ℕ) × ℕ)) : Memory.Prog (((ℕ × ℕ) × ℕ) × ℕ) := do
   let res ← searchBucketGenProg d
   let z1 ← pure 1
-  if res.1.1 = z1 then do
-    let phys_last ← lastSlotOfGenProg (d.1, d.2.1.1)
-    let q_last ← readQuotGenProg (d.1, (d.2.1.1.1, phys_last))
+  if searchResFound res = z1 then do
+    let phys_last ← lastSlotOfGenProg (d.1, bucketCallPair d.2)
+    let q_last ← readQuotGenProg (d.1, (bucketCallBase d.2, phys_last))
     pure (res, q_last)
   else do
     let z0 ← pure 0
@@ -113,7 +113,8 @@ theorem realizes_deletePrepGen :
       SearchMicroChainGenPre
       (fun _ _ => 0) := by
   realizeDictWith [searchMicroChainGenPre_mk, SearchMicroChainPre, searchBucketGenProg_mk,
-    lastSlotOfGenPre_mk, lastSlotOfGenProg_mk] using
+    lastSlotOfGenPre_mk, lastSlotOfGenProg_mk, searchResFound, bucketCallBase,
+    bucketCallPair] using
     [realizes_searchBucketGen, realizes_lastSlotOfGen, realizes_readQuotGen]
   · exact h
   · exact fits_const_of_dictEnv h.1 (by decide)
@@ -126,6 +127,22 @@ theorem realizes_deletePrepGen :
     have hbc := searchBucketProg_found_imp_pos_bCount h hc
     rw [clientResult_lastSlotOfProg d.1.1 s h.2.2.2.1 h.2.1 hbc]
     exact (slotOf_lt_and_injective h.2.2.2.1).1 d.1.1.2 h.2.1 _ (by omega)
+
+/-- Search header `(found, j_del)` in a `deletePrepProg` result
+`(((found, j_del), phys_del), q_last)`. -/
+abbrev deletePrepHdr (prep : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ × ℕ := prep.1.1
+
+/-- Found flag (`1` if found, `0` otherwise) in a `deletePrepProg` result
+`(((found, j_del), phys_del), q_last)`. -/
+abbrev deletePrepFound (prep : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := prep.1.1.1
+
+/-- Bucket-local slot index `j_del` in a `deletePrepProg` result
+`(((found, j_del), phys_del), q_last)`. -/
+abbrev deletePrepIdx (prep : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := prep.1.1.2
+
+/-- Physical slot `phys_del` in a `deletePrepProg` result
+`(((found, j_del), phys_del), q_last)`. -/
+abbrev deletePrepPhys (prep : ((ℕ × ℕ) × ℕ) × ℕ) : ℕ := prep.1.2
 
 /-- Specification of `deletePrepProg` under `BucketStateInv` when `m = mOf q_target`. -/
 theorem deletePrepProg_bucket_spec {U V w₀ n_max h_space w base b q_target m : ℕ}
@@ -144,20 +161,20 @@ theorem deletePrepProg_bucket_spec {U V w₀ n_max h_space w base b q_target m :
     prep.2 < 2 ^ quotientBits U n_max ∧
     (if ∃ j < bCount n_max gm b,
          quotAt base U w₀ n_max h_space s.mem (slotOf n_max gm b j) = q_target then
-       prep.1.1.1 = 1 ∧
-       prep.1.1.2 < bCount n_max gm b ∧
-       quotAt base U w₀ n_max h_space s.mem (slotOf n_max gm b prep.1.1.2) = q_target ∧
-       prep.1.2 = slotOf n_max gm b prep.1.1.2 ∧
+       deletePrepFound prep = 1 ∧
+       deletePrepIdx prep < bCount n_max gm b ∧
+       quotAt base U w₀ n_max h_space s.mem (slotOf n_max gm b (deletePrepIdx prep)) = q_target ∧
+       deletePrepPhys prep = slotOf n_max gm b (deletePrepIdx prep) ∧
        prep.2 = quotAt base U w₀ n_max h_space s.mem (slotOf n_max gm b (bCount n_max gm b - 1))
      else
-       prep.1.1.1 = 0 ∧ prep.2 = 0) := by
+       deletePrepFound prep = 0 ∧ prep.2 = 0) := by
   intro gm d prog prep
-  dsimp only [gm, d, prog, prep]
+  dsimp only [gm, d, prog, prep, deletePrepFound, deletePrepIdx, deletePrepPhys]
   have ⟨hsb_st, hsb_cost, hres⟩ :=
     searchBucketProg_bucket_spec hinv henv hb hm_eq hm_lt (q_target := q_target)
   dsimp only at hsb_st hsb_cost hres
   simp only [deletePrepProg, deletePrepGenProg, searchBucketGenProg_mk, lastSlotOfGenProg_mk,
-    readQuotGenProg_mk, pure_bind]
+    readQuotGenProg_mk, bucketCallBase, bucketCallPair, pure_bind]
   rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     memoryCost_bind_of_clientState_eq hsb_st, hsb_st]
   set res := (Memory.spec 0).clientResult s
@@ -182,19 +199,34 @@ theorem deletePrepProg_bucket_spec {U V w₀ n_max h_space w base b q_target m :
     exact ⟨rfl, by omega, quotAt_lt base U w₀ n_max h_space s.mem _,
       hf1, hj_lt, hq_match, hphys_eq, rfl⟩
   · rw [ite_eq_right hex] at hres
-    rw [ite_eq_right (show res.1.1 ≠ 1 by omega), ite_eq_right hex, memoryCost_pure]
+    rw [ite_eq_right (show searchResFound res ≠ 1 by omega), ite_eq_right hex, memoryCost_pure]
     exact ⟨rfl, by omega, Nat.two_pow_pos _, rfl, rfl⟩
 
 /-! ## Section 2: `deleteSwapProg`, `deleteFoundProg`, and `deleteFinishProg` via `realize` -/
+
+/-- Logical index `j_del` of the deleted slot in `((((base, b), j_del), phys_del), extra)`. -/
+abbrev deleteSlotIdx {α : Type} (d : (((ℕ × ℕ) × ℕ) × ℕ) × α) : ℕ := d.1.1.2
+
+/-- Physical slot `phys_del` of the deleted slot in `((((base, b), j_del), phys_del), extra)`. -/
+abbrev deleteSlotPhys {α : Type} (d : (((ℕ × ℕ) × ℕ) × ℕ) × α) : ℕ := d.1.2
+
+/-- Target slot descriptor `(((base, b), j_del), phys_del)` in a delete-slot input. -/
+abbrev deleteSlotTarget {α : Type} (d : (((ℕ × ℕ) × ℕ) × ℕ) × α) : ((ℕ × ℕ) × ℕ) × ℕ := d.1
+
+/-- Micro-bucket `m_last` of the relocated last slot in a `deleteSwapProg` input. -/
+abbrev deleteSwapMicro (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.2.1
+
+/-- Logical index `j_last` of the relocated last slot in a `deleteSwapProg` input. -/
+abbrev deleteSwapLastIdx (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.2.2
 
 /-- Parameter-free swap helper for `delete` when `j_del < j_last`
 (`d = (dp, ((((base, b), j_del), phys_del), (m_last, j_last)))`). -/
 @[expose]
 def deleteSwapGenProg
     (d : DictParams × ((((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ))) : Memory.Prog Unit := do
-  unlinkIfIndexedGenProg ((d.1, (d.2.1.1.1, d.2.2.1)), d.2.2.2)
-  copyLastPayloadGenProg (d.1, (d.2.1.1.1, d.2.1.2))
-  prependIfIndexedGenProg ((d.1, (d.2.1.1.1, d.2.2.1)), d.2.1.1.2)
+  unlinkIfIndexedGenProg ((d.1, (nestedCallPair d.2, deleteSwapMicro d.2)), deleteSwapLastIdx d.2)
+  copyLastPayloadGenProg (d.1, (nestedCallPair d.2, deleteSlotPhys d.2))
+  prependIfIndexedGenProg ((d.1, (nestedCallPair d.2, deleteSwapMicro d.2)), deleteSlotIdx d.2)
 
 /-- Swap helper for `delete` when `j_del < j_last`
 (`d = ((((base, b), j_del), phys_del), (m_last, j_last))`):
@@ -217,6 +249,7 @@ theorem memoryCost_deleteSwapProg_le (U V w n_max h_space : ℕ)
     memoryCost (deleteSwapProg U V w n_max h_space d) s ≤ 50 := by
   simp only [deleteSwapProg, deleteSwapGenProg, unlinkIfIndexedGenProg_mk,
     copyLastPayloadGenProg_mk, prependIfIndexedGenProg_mk,
+    nestedCallPair, deleteSwapMicro, deleteSwapLastIdx, deleteSlotPhys, deleteSlotIdx,
     ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
   let s₁ := (Memory.spec 0).clientState s
     (unlinkIfIndexedProg U V w n_max h_space ((d.1.1.1, d.2.1), d.2.2))
@@ -231,33 +264,41 @@ theorem memoryCost_deleteSwapProg_le (U V w n_max h_space : ℕ)
 @[expose]
 def DeleteSwapPre (U V w₀ n_max h_space w : ℕ)
     (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) (s : Memory.State) : Prop :=
-  DictEnvGen w (mkDictParams U V w₀ n_max h_space) d.1.1.1.1 ∧
-  SlotStoreInv n_max (gmAt d.1.1.1.1 U V w₀ n_max h_space s.mem) ∧
-  d.1.1.1.2 < numBuckets n_max ∧
-  d.2.1 < numMicroPerBucket n_max ∧
-  1 ≤ bCount n_max (gmAt d.1.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.1.2 ∧
-  d.1.2 < n_max ∧
-  d.2.2 < n_max ∧
+  let base := nestedCallBase d
+  let b := nestedCallBucket d
+  let m_last := deleteSwapMicro d
+  let j_last := deleteSwapLastIdx d
+  DictEnvGen w (mkDictParams U V w₀ n_max h_space) base ∧
+  SlotStoreInv n_max (gmAt base U V w₀ n_max h_space s.mem) ∧
+  b < numBuckets n_max ∧
+  m_last < numMicroPerBucket n_max ∧
+  1 ≤ bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b ∧
+  deleteSlotPhys d < n_max ∧
+  j_last < n_max ∧
   ∃ L : ℕ → ℕ → List ℕ,
-    AllChainsValid n_max (lmAt d.1.1.1.1 U V w₀ n_max h_space s.mem) L ∧
-    (d.2.2 < effBucketCap n_max → d.2.2 ∈ L d.1.1.1.2 d.2.1)
+    AllChainsValid n_max (lmAt base U V w₀ n_max h_space s.mem) L ∧
+    (j_last < effBucketCap n_max → j_last ∈ L b m_last)
 
 /-- Parameter-free precondition for `deleteSwapGenProg` in `Realizes`. -/
 @[expose]
 def DeleteSwapGenPre (w : ℕ)
     (d : DictParams × ((((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ))) (s : Memory.State) : Prop :=
-  let gm := gmAt d.2.1.1.1.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem
-  let lm := lmAt d.2.1.1.1.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem
-  DictEnvGen w d.1 d.2.1.1.1.1 ∧
+  let base := nestedCallBase d.2
+  let b := nestedCallBucket d.2
+  let m_last := deleteSwapMicro d.2
+  let j_last := deleteSwapLastIdx d.2
+  let gm := gmAt base (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem
+  let lm := lmAt base (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem
+  DictEnvGen w d.1 base ∧
   SlotStoreInv (dpNMax d.1) gm ∧
-  d.2.1.1.1.2 < numBuckets (dpNMax d.1) ∧
-  d.2.2.1 < numMicroPerBucket (dpNMax d.1) ∧
-  1 ≤ bCount (dpNMax d.1) gm d.2.1.1.1.2 ∧
-  d.2.1.2 < dpNMax d.1 ∧
-  d.2.2.2 < dpNMax d.1 ∧
+  b < numBuckets (dpNMax d.1) ∧
+  m_last < numMicroPerBucket (dpNMax d.1) ∧
+  1 ≤ bCount (dpNMax d.1) gm b ∧
+  deleteSlotPhys d.2 < dpNMax d.1 ∧
+  j_last < dpNMax d.1 ∧
   ∃ L : ℕ → ℕ → List ℕ,
     AllChainsValid (dpNMax d.1) lm L ∧
-    (d.2.2.2 < effBucketCap (dpNMax d.1) → d.2.2.2 ∈ L d.2.1.1.1.2 d.2.2.1)
+    (j_last < effBucketCap (dpNMax d.1) → j_last ∈ L b m_last)
 
 @[simp]
 theorem deleteSwapGenPre_mk (U V w₀ n_max h_space w : ℕ)
@@ -285,7 +326,9 @@ theorem realizes_deleteSwapGen :
   realizeDictWith [deleteSwapGenPre_mk, DeleteSwapPre,
     unlinkIfIndexedGenPre_mk, UnlinkIfIndexedPre, unlinkIfIndexedGenProg_mk,
     copyLastPayloadGenPre_mk, CopyLastPayloadPre, copyLastPayloadGenProg_mk,
-    prependIfIndexedGenPre_mk, PrependIfIndexedPre, prependIfIndexedGenProg_mk] using
+    prependIfIndexedGenPre_mk, PrependIfIndexedPre, prependIfIndexedGenProg_mk,
+    nestedCallBase, nestedCallBucket, nestedCallPair, deleteSlotIdx, deleteSlotPhys,
+    deleteSwapMicro, deleteSwapLastIdx] using
     [realizes_unlinkIfIndexedGen, realizes_copyLastPayloadGen, realizes_prependIfIndexedGen]
   all_goals obtain ⟨L, hval, hmem_if⟩ := h.2.2.2.2.2.2.2
   · exact unlinkIfIndexedPre_of_allChainsValid h.1 h.2.2.1 h.2.2.2.1 hval hmem_if
@@ -375,19 +418,25 @@ private theorem deleteSwapProg_effect
 
 end
 
+/-- Micro-bucket `m` of the deleted slot in a `deleteFoundProg` input. -/
+abbrev deleteFoundMicro (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.2.1
+
+/-- Micro-bucket `m_last` of the bucket's last slot in a `deleteFoundProg` input. -/
+abbrev deleteFoundLastMicro (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.2.2
+
 /-- Parameter-free found-branch helper for `delete`
 (`d = (dp, ((((base, b), j_del), phys_del), (m, m_last)))`). -/
 @[expose]
 def deleteFoundGenProg
     (d : DictParams × ((((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ))) : Memory.Prog Unit := do
-  unlinkIfIndexedGenProg ((d.1, (d.2.1.1.1, d.2.2.1)), d.2.1.1.2)
-  let c_b ← readBucketCountGenProg (d.1, d.2.1.1.1)
+  unlinkIfIndexedGenProg ((d.1, (nestedCallPair d.2, deleteFoundMicro d.2)), deleteSlotIdx d.2)
+  let c_b ← readBucketCountGenProg (d.1, nestedCallPair d.2)
   let j_last ← pure (c_b - 1)
-  if d.2.1.1.2 < j_last then do
-    deleteSwapGenProg (d.1, (d.2.1, (d.2.2.2, j_last)))
-    popBackSlotGenProg (d.1, d.2.1.1.1)
+  if deleteSlotIdx d.2 < j_last then do
+    deleteSwapGenProg (d.1, (deleteSlotTarget d.2, (deleteFoundLastMicro d.2, j_last)))
+    popBackSlotGenProg (d.1, nestedCallPair d.2)
   else
-    popBackSlotGenProg (d.1, d.2.1.1.1)
+    popBackSlotGenProg (d.1, nestedCallPair d.2)
 
 /-- Found-branch helper for `delete` (`d = ((((base, b), j_del), phys_del), (m, m_last))`):
 unlinks `j_del` from `(b, m)`, reads `c_b`, runs `deleteSwapProg` if `j_del < c_b - 1`, and
@@ -408,12 +457,12 @@ theorem deleteFoundGenProg_mk (U V w n_max h_space : ℕ)
 @[expose]
 def DeleteFoundPre (U V w₀ n_max h_space w : ℕ)
     (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) (s : Memory.State) : Prop :=
-  let base := d.1.1.1.1
-  let b := d.1.1.1.2
-  let j_del := d.1.1.2
-  let phys_del := d.1.2
-  let m := d.2.1
-  let m_last := d.2.2
+  let base := nestedCallBase d
+  let b := nestedCallBucket d
+  let j_del := deleteSlotIdx d
+  let phys_del := deleteSlotPhys d
+  let m := deleteFoundMicro d
+  let m_last := deleteFoundLastMicro d
   let gm := gmAt base U V w₀ n_max h_space s.mem
   let lm := lmAt base U V w₀ n_max h_space s.mem
   DictEnvGen w (mkDictParams U V w₀ n_max h_space) base ∧
@@ -432,12 +481,12 @@ def DeleteFoundPre (U V w₀ n_max h_space w : ℕ)
 @[expose]
 def DeleteFoundGenPre (w : ℕ)
     (d : DictParams × ((((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ))) (s : Memory.State) : Prop :=
-  let base := d.2.1.1.1.1
-  let b := d.2.1.1.1.2
-  let j_del := d.2.1.1.2
-  let phys_del := d.2.1.2
-  let m := d.2.2.1
-  let m_last := d.2.2.2
+  let base := nestedCallBase d.2
+  let b := nestedCallBucket d.2
+  let j_del := deleteSlotIdx d.2
+  let phys_del := deleteSlotPhys d.2
+  let m := deleteFoundMicro d.2
+  let m_last := deleteFoundLastMicro d.2
   let gm := gmAt base (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem
   let lm := lmAt base (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem
   DictEnvGen w d.1 base ∧
@@ -468,7 +517,9 @@ theorem realizes_deleteFoundGen :
   realizeDictWith [deleteFoundGenPre_mk, DeleteFoundPre,
     unlinkIfIndexedGenPre_mk, UnlinkIfIndexedPre, unlinkIfIndexedGenProg_mk,
     deleteSwapGenPre_mk, DeleteSwapPre, deleteSwapGenProg_mk,
-    popBackSlotGenPre_mk, PopBackSlotPre, popBackSlotGenProg_mk] using
+    popBackSlotGenPre_mk, PopBackSlotPre, popBackSlotGenProg_mk,
+    nestedCallBase, nestedCallBucket, nestedCallPair, deleteSlotIdx, deleteSlotPhys,
+    deleteSlotTarget, deleteFoundMicro, deleteFoundLastMicro] using
     [realizes_unlinkIfIndexedGen, realizes_readBucketCountGen,
       realizes_deleteSwapGen, realizes_popBackSlotGen]
   · obtain ⟨L, hval, hmem_del, _⟩ := h.2.2.2.2.2.2.2
@@ -511,15 +562,39 @@ theorem realizes_deleteFoundGen :
     have hgm_sw := hsw.2.2.1.trans eff_u.2.2.2.2.1
     exact ⟨h.1, by rw [hgm_sw]; exact h.2.1, h.2.2.1, by rw [hgm_sw]; exact hbc_pos⟩
 
+/-- Base address `base` in a `deleteFinishProg` input
+`(((((base, b), (found, j_del)), phys_del), m), m_last)`. -/
+abbrev deleteFinishBase (d : ((((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ) : ℕ := d.1.1.1.1.1
+
+/-- Base-and-bucket pair `(base, b)` in a `deleteFinishProg` input. -/
+abbrev deleteFinishPair (d : ((((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ) : ℕ × ℕ := d.1.1.1.1
+
+/-- Found flag `found` in a `deleteFinishProg` input. -/
+abbrev deleteFinishFound (d : ((((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ) : ℕ := d.1.1.1.2.1
+
+/-- Logical index `j_del` in a `deleteFinishProg` input. -/
+abbrev deleteFinishIdx (d : ((((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ) : ℕ := d.1.1.1.2.2
+
+/-- Physical slot `phys_del` in a `deleteFinishProg` input. -/
+abbrev deleteFinishPhys (d : ((((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ) : ℕ := d.1.1.2
+
+/-- Micro-bucket `m` in a `deleteFinishProg` input. -/
+abbrev deleteFinishMicro (d : ((((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ) : ℕ := d.1.2
+
+/-- Extract the `deleteFoundProg` input `((((base, b), j_del), phys_del), (m, m_last))` from a
+`deleteFinishProg` input. -/
+abbrev deleteFinishToFound (d : ((((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ) :
+    (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ) :=
+  (((deleteFinishPair d, deleteFinishIdx d), deleteFinishPhys d), (deleteFinishMicro d, d.2))
+
 /-- Parameter-free Phase 2 of `delete`
 (`d = (dp, (((((base, b), (found, j_del)), phys_del), m), m_last))`). -/
 @[expose]
 def deleteFinishGenProg
     (d : DictParams × (((((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ)) : Memory.Prog Unit := do
   let z1 ← pure 1
-  if d.2.1.1.1.2.1 = z1 then
-    deleteFoundGenProg
-      (d.1, (((d.2.1.1.1.1, d.2.1.1.1.2.2), d.2.1.1.2), (d.2.1.2, d.2.2)))
+  if deleteFinishFound d.2 = z1 then
+    deleteFoundGenProg (d.1, deleteFinishToFound d.2)
   else
     pure ()
 
@@ -541,19 +616,17 @@ theorem deleteFinishGenProg_mk (U V w n_max h_space : ℕ)
 @[expose]
 def DeleteFinishPre (U V w₀ n_max h_space w : ℕ)
     (d : ((((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ) (s : Memory.State) : Prop :=
-  DictEnvGen w (mkDictParams U V w₀ n_max h_space) d.1.1.1.1.1 ∧
-  (d.1.1.1.2.1 = 1 →
-    DeleteFoundPre U V w₀ n_max h_space w
-      (((d.1.1.1.1, d.1.1.1.2.2), d.1.1.2), (d.1.2, d.2)) s)
+  DictEnvGen w (mkDictParams U V w₀ n_max h_space) (deleteFinishBase d) ∧
+  (deleteFinishFound d = 1 →
+    DeleteFoundPre U V w₀ n_max h_space w (deleteFinishToFound d) s)
 
 /-- Parameter-free precondition for `deleteFinishGenProg` in `Realizes`. -/
 @[expose]
 def DeleteFinishGenPre (w : ℕ)
     (d : DictParams × (((((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ)) (s : Memory.State) : Prop :=
-  DictEnvGen w d.1 d.2.1.1.1.1.1 ∧
-  (d.2.1.1.1.2.1 = 1 →
-    DeleteFoundGenPre w
-      (d.1, (((d.2.1.1.1.1, d.2.1.1.1.2.2), d.2.1.1.2), (d.2.1.2, d.2.2))) s)
+  DictEnvGen w d.1 (deleteFinishBase d.2) ∧
+  (deleteFinishFound d.2 = 1 →
+    DeleteFoundGenPre w (d.1, deleteFinishToFound d.2) s)
 
 @[simp]
 theorem deleteFinishGenPre_mk (U V w₀ n_max h_space w : ℕ)
@@ -568,7 +641,9 @@ theorem realizes_deleteFinishGen :
       DeleteFinishGenPre
       (fun _ _ => 0) := by
   realizeDictWith [deleteFinishGenPre_mk, DeleteFinishPre,
-    deleteFoundGenPre_mk, DeleteFoundPre, deleteFoundGenProg_mk] using [realizes_deleteFoundGen]
+    deleteFoundGenPre_mk, DeleteFoundPre, deleteFoundGenProg_mk,
+    deleteFinishBase, deleteFinishPair, deleteFinishFound, deleteFinishIdx,
+    deleteFinishPhys, deleteFinishMicro, deleteFinishToFound] using [realizes_deleteFoundGen]
   · exact fits_const_of_dictEnv h.1 (by decide)
   · exact h.2 hc
 
@@ -657,6 +732,7 @@ private theorem deleteFoundProg_prePop_spec
   have hcost_base : memoryCost prog s ≤ 16 + memoryCost tail s₁ := by
     simp only [prog, tail, deleteFoundProg, deleteFoundGenProg, unlinkIfIndexedGenProg_mk,
       readBucketCountGenProg_mk, deleteSwapGenProg_mk, popBackSlotGenProg_mk,
+      nestedCallPair, deleteFoundMicro, deleteSlotIdx, deleteSlotTarget, deleteFoundLastMicro,
       pure_bind, ← PFunctor.FreeM.bind_eq_bind]
     rw [memoryCost_bind, memoryCost_bind, clientState_readBucketCountProg,
       clientResult_readBucketCountProg (base, b) s₁ hb, hgm_u1]
@@ -863,7 +939,7 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
     let prep := (Memory.spec 0).clientResult s
       (deletePrepProg U V w₀ n_max h_space (((base, b), q_target), m))
     let m_last := mOf prep.2
-    let d_fin := (((((base, b), prep.1.1), prep.1.2), m), m_last)
+    let d_fin := (((((base, b), deletePrepHdr prep), deletePrepPhys prep), m), m_last)
     let s' := (Memory.spec 0).clientState s (deleteFinishProg U V w₀ n_max h_space d_fin)
     let gm' := gmAt base U V w₀ n_max h_space s'.mem
     let B' := Function.update B b (Function.update (B b) q_target none)
@@ -879,6 +955,7 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
   intro gm₀ prep m_last d_fin s' gm' B'
   have ⟨_, _, hq_lt, hprep⟩ :=
     deletePrepProg_bucket_spec hinv henv hb hm_eq hm_lt (q_target := q_target)
+  dsimp only [deletePrepFound, deletePrepIdx, deletePrepPhys] at hq_lt hprep
   have hm_last_lt : m_last < numMicroPerBucket n_max := hmOf_lt prep.2 hq_lt
   by_cases hex : ∃ j < bCount n_max gm₀ b,
       quotAt base U w₀ n_max h_space s.mem (slotOf n_max gm₀ b j) = q_target
@@ -889,11 +966,18 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
         (slotOf n_max gm₀ b (bCount n_max gm₀ b - 1))) := congrArg mOf hq_last_eq
     have hpre_fin : DeleteFinishPre U V w₀ n_max h_space w d_fin s :=
       ⟨henv, fun _ => ⟨henv, hinv.hslot, hb, hm_lt, hm_last_lt, hj_del_lt,
-        hphys_del_eq ▸ (slotOf_lt_and_injective hinv.hslot).1 b hb _ hj_del_lt,
+        by
+          dsimp only [d_fin, deletePrepHdr, deletePrepPhys, deleteFinishToFound, deleteFinishPhys,
+            deleteSlotPhys]
+          exact hphys_del_eq ▸ (slotOf_lt_and_injective hinv.hslot).1 b hb _ hj_del_lt,
         L, hinv.hchains,
         fun hc => (hinv.hchain_mem b hb m hm_lt _).mpr ⟨hj_del_lt, hc, hq_del ▸ hm_eq.symm⟩,
         fun hc => (hinv.hchain_mem b hb m_last hm_last_lt _).mpr
-          ⟨by dsimp only [d_fin, gm₀] at *; omega, hc, hm_last_eq.symm⟩⟩⟩
+          ⟨by
+              dsimp only [d_fin, deletePrepHdr, deletePrepPhys, gm₀, deleteFinishToFound,
+                deleteFinishPair, nestedCallBase, nestedCallBucket] at *
+              omega,
+            hc, hm_last_eq.symm⟩⟩⟩
     obtain ⟨s_mid, L_mid, hst_mid, hcost_mid, hf_mid, hout_mid, hgm_mid,
         hold_other_mid, hold_b_mid, hval_mid, hmem_other_mid, hmem_b_mid⟩ :=
       deleteFoundProg_prePop_spec hw hinv hb hm_eq hm_lt hm_last_lt hj_del_lt hq_del hm_last_eq
@@ -904,7 +988,9 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
         (base := base) (b := b) hw s_mid (by rw [hgm_mid]; exact hinv.hslot) hb hbc_mid
     have hfin : deleteFinishProg U V w₀ n_max h_space d_fin = deleteFoundProg U V w₀ n_max h_space
         ((((base, b), prep.1.1.2), slotOf n_max gm₀ b prep.1.1.2), (m, m_last)) := by
-      simp only [d_fin, deleteFinishProg, deleteFinishGenProg, deleteFoundGenProg_mk, pure_bind]
+      simp only [d_fin, deletePrepHdr, deletePrepPhys, deleteFinishProg, deleteFinishGenProg,
+        deleteFoundGenProg_mk, deleteFinishFound, deleteFinishToFound, deleteFinishPair,
+        deleteFinishIdx, deleteFinishPhys, deleteFinishMicro, pure_bind]
       rw [ite_eq_left hf1, hphys_del_eq]
     have hs'_eq : s' = (Memory.spec 0).clientState s_mid
         (popBackSlotProg U V w₀ n_max h_space (base, b)) := by rw [← hst_mid, ← hfin]
@@ -933,10 +1019,13 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
       simp only [B', Function.update_eq_self_iff, Option.not_isSome_iff_eq_none.mp hnot_some]
     have hne1 : prep.1.1.1 ≠ 1 := by have hf0 := hprep.1; dsimp only [prep]; omega
     have hfin : deleteFinishProg U V w₀ n_max h_space d_fin = pure () := by
-      simp only [d_fin, deleteFinishProg, deleteFinishGenProg, deleteFoundGenProg_mk, pure_bind]
+      simp only [d_fin, deletePrepHdr, deletePrepPhys, deleteFinishProg, deleteFinishGenProg,
+        deleteFoundGenProg_mk, deleteFinishFound, pure_bind]
       exact ite_eq_right hne1
     have hs'_eq : s' = s := by dsimp only [s']; rw [hfin]; rfl
-    exact ⟨⟨henv, fun h => by dsimp only [d_fin] at h; omega⟩,
+    exact ⟨⟨henv, fun h => by
+        dsimp only [d_fin, deletePrepHdr, deletePrepPhys, deleteFinishFound] at h
+        omega⟩,
       by rw [hs'_eq], fun _ _ => by rw [hs'_eq], ⟨L, by rw [hs'_eq, hB_eq]; exact hinv⟩,
       by dsimp only [gm', gm₀]; rw [hs'_eq, ite_eq_right hnot_some],
       by dsimp only [gm', gm₀]; rw [hs'_eq, hfin, memoryCost_pure]; omega⟩
