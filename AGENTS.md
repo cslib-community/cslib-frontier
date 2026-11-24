@@ -205,49 +205,45 @@ to reach a count. A review does the following, in this order.
    inspected. Lean acceptance does not establish that a definition matches its intended
    mathematics.
 
-After fixes, review the delta and the reasoning it affects; do not repeat a full review of
-unchanged code. An approval carries across a mechanical delta only when a coordinator verifies
-that meaning, exports, attributes, imports and automation are preserved; changed reasoning, API,
-source claims or security claims need fresh non-author review.
+After fixes, review the delta; do not re-review unchanged code. Approval carries across a mechanical
+delta when a coordinator verifies meaning, exports, attributes, imports and automation; changed
+reasoning, API, source or security claims need fresh non-author review.
 
-A non-authoring agent may review work from the same coordinator or account, in a separate
-review context, reaching its own verdict. Anyone who took part in the implementation or its
-design cannot supply that review. If a shared GitHub account prevents formal approval, use one
-brief PR comment naming the reviewer agent or session, revision and verdict. Agent review is
-never presented as human review. A headline for a cited result is presented as a step or is
-registered in the [results inventory](results/README.md), once a reviewer, human or agent, from
-outside the authoring fleet checks its statement against the source, opens the definitions it
-names and records the check ([policy/review.md](policy/review.md#review-cycle)).
+A non-authoring agent may review work from the same coordinator or account in a separate context
+(no one who implemented or designed it). On a shared account, start the comment with the canonical
+line (`Verdict: <APPROVE|REQUEST CHANGES> @ <sha> | Reviewer: <id> (<model>) | Author: <id> | agent review, not human review`;
+[details](policy/review.md#review-cycle)). Agent review is never human review. Prefer landing
+verified Lean modules as standalone steps first and registering
+[results inventory](results/README.md) entries in follow-up PRs after an outside-fleet source check
+(or a maintainer-authorized provisional same-fleet check, pending confirmation).
 
 ### Approve and queue
 
-Approving a PR's exact current head and queueing it are one step. The non-authoring reviewer
-queues the approved head with `scripts/queue_pr.py`, run from a trusted checkout of current
-`main` ([command](manual/workflows/agent-operations.md#queue-approved-work-and-keep-its-approval)).
-Authors do not queue their own PRs. Approve without queueing, and say why, when human review has
-been requested or the approval names a hold (an unlanded lower PR, a migration, or pending
-source or advisory-notice review). A passing check does not release a review hold; do not start
-`queue_pr.py --wait` while running CI will still produce notices that need review.
+Approval and queueing are one step: the non-authoring reviewer queues the exact approved head via
+`scripts/queue_pr.py` from trusted current `main`
+([command](manual/workflows/agent-operations.md#queue-approved-work-and-keep-its-approval)); authors
+never queue their own PRs. Hold without queueing (and say why) when human review is requested or a
+hold remains (lower PR, migration, pending source or notice review). Passing CI does not clear a
+hold; do not pass `--wait` while running CI will still produce notices needing review.
 
-**Every merge to `main` goes through the merge queue.** Never call a direct merge endpoint: the
-REST merge API, a GitHub connector's `merge_pull_request` tool, or `gh pr merge --admin`. With
-admin rights such a call skips the queue, lands a combination that was never built, and restarts
-every queued build. The only exception is a human maintainer's explicit request for that PR,
-recorded in the PR.
+**Every merge to `main` goes through the merge queue.** Never use direct merge endpoints (REST API,
+`merge_pull_request`, `gh pr merge --admin`); they bypass queue CI and restart queued builds. Only
+exception: explicit human-maintainer request on that PR—warn if queue builds run, and record why and
+the merged SHA.
 
-A queued PR is not done. Coordinators watch queued batches until they land, requeue ejected PRs,
-and sequence tree-wide refactors so they do not stall smaller PRs behind cold rebuilds.
+A queued PR is not done. Pre-check waves (`scripts/queue_status.py prefix`), separate
+`references.bib`/`manual/sources.md` and hub edits from leaf waves, watch batches land, and requeue
+ejections.
 
 ### Restacks
 
-Merge `main` into a PR only when it conflicts with `main`, needs a change on `main` to pass CI,
-or a lower stacked PR has landed; refreshing an approved PR only replaces the approved head.
-Dequeue a queued PR before pushing to it. A restack keeps its approval when
-`python3 scripts/check_restack.py <approved head> <new head>` passes, run from a checkout of
-current `origin/main`, and CI passes at the new head; the non-author who queues reruns the
-command. `scripts/restack_mechanical.py` performs aggregate-only and bibliography-only restacks.
-Never trust a `merge=union` result for the import aggregates; regenerate them with
-`lake exe mk_all`.
+Merge `main` only on conflict, a CI dependency on `main`, or after a lower stacked PR lands. Dequeue
+before pushing to a queued PR. Approval carries when `python3 scripts/check_restack.py <approved> <new>`
+passes (from `origin/main`) and CI passes; the queueing non-author reruns it.
+`scripts/restack_mechanical.py` handles aggregate/bib restacks. Never use `merge=union` on
+aggregates, `references.bib`, or `manual/sources.md`; regenerate aggregates with `lake exe mk_all`,
+and check `references.bib` and `manual/sources.md` for duplicates added on both sides after merging
+`main` ([caveat](policy/review.md#restacks)).
 
 ## Proof hygiene
 
@@ -288,8 +284,9 @@ Full text: [policy/workflow.md](policy/workflow.md). Each agent works as a **coo
 Changing roles does not make an author eligible to approve their own changes. Give parallel
 agents distinct scope, branches and build outputs; the delegating agent brings their work to
 completion. When review or integration is the bottleneck, do requested fixes, reviews and landing
-before starting more PRs; a coordinator starts or commissions no new PR work while more than ten
-of its fleet's need its own action ([backpressure](policy/workflow.md#backpressure-and-tending)). Use issues for substantial tasks and search for existing ones first; do
+before starting more PRs; a coordinator opens no *new* feature PRs while more than ten open PRs
+need its fleet's action, without blocking review, restacks or queueing of already-approved work
+([backpressure](policy/workflow.md#backpressure-and-tending)). Use issues for substantial tasks and search for existing ones first; do
 not open an issue or PR for each incidental cleanup.
 
 ### Completion and scope
@@ -346,8 +343,10 @@ contributors' work and source credit.
 
 Treat the user's checkout and the shared Git object database as protected infrastructure.
 
-- Never import reconstructed Git objects, install shallow boundaries or experiment with history
-  repair in a shared database; use an independent repository.
+- Never import reconstructed Git objects, install shallow boundaries or repair a shared Git database
+  without authorization; use an independent repo. For a crash-truncated `.git/reftable/tables.list`,
+  snapshot read-only with `sha256sum` first and wait for maintainer approval
+  ([details](policy/workflow.md#repository-isolation)).
 - Never delete objects, refs, worktree registrations or metadata belonging to another session.
 - Worktrees share one stash stack: never push, pop, apply or drop stash entries. Keep work in
   progress as a commit on your own branch or a patch file in your scratch directory.
