@@ -8,8 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.BooleanAnalysis.CharacterProjection
-public import CslibFrontier.Foundations.Data.BitString.Affine
-import Mathlib.Algebra.BigOperators.Option
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Tactic.Linarith
@@ -54,13 +52,7 @@ multiplied by the sign of its constant term. -/
 theorem sum_abs_fourierCoeff_signVal_eq_one_of_isAffine
     {f : (ι → Bool) → Bool} (hf : IsAffine f) :
     ∑ S, |fourierCoeff (fun x => signVal (f x)) S| = 1 := by
-  obtain ⟨T, -, hT⟩ := exists_affine_of_add_add
-    (M := (univ : Finset ι)) (fun x y h => congrArg f (funext fun i => h i (mem_univ i))) hf
-  have hsign : (fun x => signVal (f x)) = fun x => signVal (f 0) * chi ℝ T x := by
-    funext x
-    rw [hT x, Bool.add_eq_xor, signVal_xor, chi_eq_signVal_parityOn]
-    congr 2
-    exact (parityOn_eq_sum T x).symm
+  obtain ⟨T, hsign⟩ := exists_signVal_eq_mul_chi_of_isAffine hf
   simp [hsign, fourierCoeff_const_mul, fourierCoeff_chi, apply_ite abs]
 
 /-- A Boolean function on at most two coordinates has spectral norm at most two, by
@@ -83,13 +75,7 @@ theorem sum_abs_fourierCoeff_sum_mul_le [Fintype α]
     (c : α → ℝ) (f : α → (ι → Bool) → ℝ) :
     ∑ S, |fourierCoeff (fun x => ∑ i, c i * f i x) S| ≤
       ∑ i, |c i| * ∑ S, |fourierCoeff (f i) S| := by
-  have hcoeff (S : Finset ι) :
-      fourierCoeff (fun x => ∑ i, c i * f i x) S =
-        ∑ i, c i * fourierCoeff (f i) S := by
-    simp only [fourierCoeff, sum_mul, mul_assoc]
-    rw [expect_sum_comm]
-    simp only [← mul_expect]
-  simp only [hcoeff]
+  simp only [fourierCoeff_sum_mul]
   calc
     ∑ S, |∑ i, c i * fourierCoeff (f i) S| ≤
         ∑ S, ∑ i, |c i| * |fourierCoeff (f i) S| := by
@@ -97,14 +83,6 @@ theorem sum_abs_fourierCoeff_sum_mul_le [Fintype α]
     _ = ∑ i, |c i| * ∑ S, |fourierCoeff (f i) S| := by
       rw [sum_comm]
       simp only [mul_sum]
-
-private theorem chi_option_elim [Finite κ] [DecidableEq κ]
-    (S : Finset (Option κ)) (b : Bool) (y : κ → Bool) :
-    chi ℝ S (fun o => o.elim b y) =
-      (if none ∈ S then signVal b else 1) * chi ℝ S.eraseNone y := by
-  let := Fintype.ofFinite κ
-  simp only [chi_eq_prod_univ, Fintype.prod_option, Option.elim_none, Option.elim_some,
-    mem_eraseNone, signVal_eq_neg_one_pow]
 
 /-- Adjoining a Boolean function of selected coordinates multiplies a uniform spectral
 bound for all characters by at most the spectral norm of the adjoined function. The map
@@ -126,12 +104,7 @@ theorem sum_abs_fourierCoeff_chi_append_le
         (fun x => chi ℝ S (fun o => o.elim (φ (v x ∘ args)) (v x))) =
           fun x => ∑ T, fourierCoeff (fun y => signVal (φ y)) T *
             chi ℝ (symmDiff (projectSet args T) S.eraseNone) (v x) := by
-      funext x
-      rw [chi_option_elim, ite_eq_left hnone,
-        ← sum_fourierCoeff_mul_chi (fun y => signVal (φ y)) (v x ∘ args), sum_mul]
-      apply sum_congr rfl
-      intro T _
-      rw [mul_assoc, chi_comp_eq_chi_projectSet, chi_mul_chi]
+      exact funext fun x => chi_append_eq_sum φ args S hnone (v x)
     rw [heq]
     refine (sum_abs_fourierCoeff_sum_mul_le _ _).trans ?_
     calc
