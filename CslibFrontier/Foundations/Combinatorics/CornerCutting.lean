@@ -202,6 +202,7 @@ theorem cutsCorner_reflect_snd {m i j : ℕ} (hj : j < m) :
   rw [show m - j = m - 1 - j + 1 by omega, show m - (j + 1) = m - 1 - j by omega]
   omega
 
+/-- An involution on `gridBorder m` transferring `CutsCorner` preserves its border count. -/
 private theorem card_filter_cutsCorner_gridBorder_eq_of_involution {g g' : ℕ → ℕ → Bool} {m : ℕ}
     (f : ℕ × ℕ → ℕ × ℕ) (hmem : ∀ p ∈ gridBorder m, f p ∈ gridBorder m)
     (hinv : ∀ p ∈ gridBorder m, f (f p) = p)

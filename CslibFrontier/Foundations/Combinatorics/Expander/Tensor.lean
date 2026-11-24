@@ -207,9 +207,8 @@ theorem spectralExpansion_tensor_le :
       gcongr
     _ = _ := by ring
 
-private theorem spectralExpansion_le_of_proj {W E : Type*}
-    [Fintype W] [Nonempty W] [Fintype E] [Nonempty E]
-    [Nonempty V] [Nonempty D] [Nonempty V'] [Nonempty D']
+/-- A rotation map whose walk and vertex expectation lift along `proj` has `λ(K) ≤ λ(G ⊗ H)`. -/
+private theorem spectralExpansion_le_of_proj {W E : Type*} [Fintype W] [Fintype E]
     (K : RotationMap W E) (proj : V × V' → W)
     (hproj : ∀ f : W → ℝ, 𝔼 p, f (proj p) = 𝔼 w, f w)
     (hwalk : ∀ f : W → ℝ, (G.tensor H).walk (fun p ↦ f (proj p)) = fun p ↦ K.walk f (proj p)) :
