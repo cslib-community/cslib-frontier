@@ -8,6 +8,7 @@ module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.Hybrid
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid.Independent
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid.Split
 import Mathlib.Data.Set.Finite.List
 
@@ -107,3 +108,37 @@ example :
               tables.1 tables.2 request.2 else []))) (compareReplies 2 []) :=
   eval_prefixHybridGame_add_eq_split boundedWords (cascadeFamily (fun _ => 1) toggle)
     compareReplies 2 1 1 (by decide) (cascadeFamily_nil _ _) (fun _ _ h => h)
+
+private def realValid (_ : ℕ) (word : List Bool) : Bool :=
+  [[false], [true, false], [true, true]].contains word
+
+-- An earlier short reply picks the next query, which is then repeated.
+private def adaptiveSides : OracleDistinguisher := fun _ _ => do
+  let short ← ProbOracleComp.query ((), [false])
+  let long := [true, short.headD false]
+  let first ← ProbOracleComp.query ((), long)
+  let repeated ← ProbOracleComp.query ((), long)
+  return first == repeated && short.headD false
+
+private theorem adaptiveSides_prefixFree :
+    IsPrefixFreeOn (realValid 2) 2 (adaptiveSides 2 []) := by
+  have h : WordPrefixFree (fun _ => true) [[false], [true, false], [true, true]] := by
+    unfold WordPrefixFree
+    decide
+  intro _ _ _ _ _ x _ hx y _ hy hne hprefix
+  exact h x (by simpa [realValid] using hx) rfl y (by simpa [realValid] using hy) rfl hne hprefix
+
+example :
+    let Labels := {word : List Bool // word.length ≤ 1} → BitString 2
+    ProbComp.eval (cascadePrefixHybridGame realValid (fun _ => 1) toggle adaptiveSides 2 1) =
+      (PMF.uniformOfFintype (Labels × Labels)).bind fun tables =>
+        OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle (fun request =>
+          PMF.pure (prefixHybridIndependentLabelOracle (realValid 2)
+            (cascadeFamily (fun _ => 1) toggle) tables.1 tables.2 request.2)))
+          (adaptiveSides 2 []) :=
+  eval_prefixHybridGame_eq_independentLabels realValid (cascadeFamily (fun _ => 1) toggle)
+    adaptiveSides 2 1
+    (fun seed suffix hseed => (length_cascadeFamily (fun key block _ => by
+      unfold toggle
+      split <;> simp) seed suffix).trans hseed)
+    adaptiveSides_prefixFree
