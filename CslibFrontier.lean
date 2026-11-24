@@ -4637,6 +4637,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBoun
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Envelope
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Init
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run.FirstStep
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.SingleTape

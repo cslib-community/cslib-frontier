@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Binary-counted folds in polynomial space
@@ -74,9 +75,8 @@ theorem natFold [Inhabited α] [Inhabited β]
       encIn (encPair encIn (encPair encNat encState)) :=
     id'.prod ((of_polyTime (ComputableInPolyTime.const 0)).prod hinit)
   have hsize : PolyBounded (fun x => (encIn x).length)
-      (fun x => 2 * (encIn x).length + 2 * (encNat (count x)).length + bound x + 2) :=
-    ((((PolyBounded.const 2).mul PolyBounded.self).add
-      ((PolyBounded.const 2).mul hcount.polyBounded_length)).add hbound).add (PolyBounded.const 2)
+      (fun x => 2 * (encIn x).length + 2 * (encNat (count x)).length + bound x + 2) := by
+    growth_poly
   have hrun := iterate hcount hstart hadvance hsize (fun x k hk => by
     rw [iterate_advance]
     have hi := length_encNat_mono hk

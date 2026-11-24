@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Protocols.UC.PPT
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 
 /-!
@@ -329,18 +330,7 @@ requests. -/
   init := cert.init
   normalize := cert.normalize
   growth p w := cert.growth p w + cert.growth p w.tail
-  growth_poly := by
-    have htail : PolyBounded
-        (fun pair : PPTParam n × List Bool => (encPair (encPPTParam n) encBits pair).length)
-        (fun pair => cert.growth pair.1 pair.2.tail) := by
-      have hlen : PolyBounded
-          (fun pair : PPTParam n × List Bool => (encPair (encPPTParam n) encBits pair).length)
-          (fun pair => (encPair (encPPTParam n) encBits (pair.1, pair.2.tail)).length) :=
-        PolyBounded.self.mono fun pair => by
-          simp only [length_encPair, encBits_apply, List.length_tail]
-          omega
-      exact cert.growth_poly.comp hlen
-    exact cert.growth_poly.add htail
+  growth_poly := by growth_poly [cert.growth_poly]
   handle := by
     let iE := WordInterface.protocol party netPort
     let iE' := WordInterface.protocol party (WordPort.sum party netPort)

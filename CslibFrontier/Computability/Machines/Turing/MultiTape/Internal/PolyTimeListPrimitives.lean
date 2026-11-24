@@ -10,6 +10,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Pol
 import CslibFrontier.Foundations.Data.List.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.UnaryMachines
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Append
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Direct plain list primitives
@@ -172,11 +173,7 @@ theorem bitsReverse : ComputableInPolyTime List.reverse encBits encBits := by
   have hfold := foldl' (encA := encBool) (encL := encBits) (encB := encBits)
     (list := id) (init := fun _ => []) (step := fun reversed bit => bit :: reversed)
     id' (const []) (bitsCons (snd encBits encBool) (fst encBits encBool))
-    (B := fun word => word.length) (by
-      apply PolyBounded.of_forall_le 1 1
-      intro word
-      simp only [encBits_apply, Nat.pow_one, Nat.one_mul]
-      omega) (by
+    (B := fun word => word.length) (by growth_poly) (by
       intro word i _
       rw [List.foldl_flip_cons_eq_append']
       simp only [encBits_apply, List.length_append, List.length_reverse,
@@ -220,12 +217,7 @@ theorem range : ComputableInPolyTime List.range encUnary (encList encUnary) := b
   have hlist : ComputableInPolyTime (fun n : ℕ => List.replicate n true) encUnary encBits :=
     of_eq fun _ => rfl
   have hbound : PolyBounded (fun n => (encUnary n).length)
-      (fun n => 2 * n + 1 + rangeOutputBound n) := by
-    apply PolyBounded.of_forall_le 8 2
-    intro n
-    simp only [encUnary_apply, List.length_replicate]
-    dsimp [rangeOutputBound]
-    nlinarith
+      (fun n => 2 * n + 1 + rangeOutputBound n) := by growth_poly
   have hfold := foldl' (encA := encBool) (encL := encBits) (encB := rangeEncoding)
     (list := fun n : ℕ => List.replicate n true) (init := fun _ => (0, [])) (step := rangeStep)
     hlist (const (0, [])) rangeStepCertificate hbound (by

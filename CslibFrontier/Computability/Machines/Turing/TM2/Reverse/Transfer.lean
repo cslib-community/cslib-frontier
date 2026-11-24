@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.TM2.Reverse.Bounds
 public import CslibFrontier.Computability.Machines.Turing.TM2.Recoding
 public import CslibFrontier.Computability.Complexity.Classes.Space.TM2
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Resource transfer from multi-tape machines to Mathlib stack machines
@@ -55,9 +56,8 @@ theorem ComputableInTimeAndSpace.exists_tm2ComputableInPolyTime
   obtain ⟨k, State, hfinite, tm, htm⟩ := h
   let : Fintype State := Fintype.ofFinite State
   have htime : PolyBounded (fun a => (encIn a).length)
-      (fun a => (encIn a).length + (k + 1) * (t a + 1) + (encOut (f a)).length + 3) :=
-    ((PolyBounded.self.add ((PolyBounded.const (k + 1)).mul (ht.add (.const 1)))).add
-      (ht.mono fun a => (htm a).length_output_le)).add (.const 3)
+      (fun a => (encIn a).length + (k + 1) * (t a + 1) + (encOut (f a)).length + 3) := by
+    growth_poly [fun a => (htm a).length_output_le]
   obtain ⟨p, hp⟩ := htime.exists_polynomial
   let target : TM2ComputableInPolyTime encIn encOut f := {
     tm := ToTM2.machine tm.q₀ tm.tr

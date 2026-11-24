@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 import CslibFrontier.Foundations.Data.List.EraseDupsBy
 import Cslib.Foundations.Data.Polynomial.Monotone
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import Mathlib.Data.List.GetD
 
 /-!
@@ -409,8 +410,7 @@ theorem computableInPolyTime_acceptsWith {π : Type} {encP : π ↪ List Bool} {
         (hlen φ _).trans (Nat.le_succ _)⟩)
       (size := fun φ => (width φ + 1) *
         (2 * ((encCNF φ).length * (4 * (encCNF φ).length + 5)) + 1))
-      ((hwidth.add (.const 1)).mul (((PolyBounded.const 2).mul (PolyBounded.self.mul
-        (((PolyBounded.const 4).mul .self).add (.const 5)))).add (.const 1)))
+      (by growth_poly)
       (fun φ pre nodes _ h => (length_encList_le _ _
         fun a ha => (mem_vars_and_length_le_of_map_fst_eq h.1 (h.2.1 a ha)).elim
           length_encNode_le).trans (Nat.mul_le_mul_right _ h.2.2))).1
