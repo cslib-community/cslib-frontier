@@ -4,11 +4,16 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.Circuit.Quantum.SuperdenseCoding
-import CslibFrontier.Crypto.Protocols.Quantum.KeyLowerBound
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.Computability.Circuit.Quantum.SuperdenseCoding
+public import CslibFrontier.Crypto.Protocols.Quantum.KeyLowerBound
 
 /-! Holevo's bound, superdense-coding optimality, and the `2n`-bit private-quantum-channel key
 lower bound: concrete tight instances and model-boundary witnesses. -/
+
+public section
 
 namespace CslibFrontierTests.QuantumHolevo
 
@@ -24,11 +29,12 @@ example : vonNeumannEntropy (pureState bell) = 0 :=
   vonNeumannEntropy_pureState norm_bell
 
 example : vonNeumannEntropy (partialTraceRight (pureState bell)) = 1 := by
-  rw [bell, partialTraceRight_pureState_maxEntangled, vonNeumannEntropy_maximallyMixed,
-    Fintype.card_bool, Nat.cast_ofNat, Real.logb, div_self (Real.log_pos (by norm_num)).ne']
+  rw [bell_eq_maxEntangled, partialTraceRight_pureState_maxEntangled,
+    vonNeumannEntropy_maximallyMixed, Fintype.card_bool, Nat.cast_ofNat, Real.logb,
+    div_self (Real.log_pos (by norm_num)).ne']
 
 example : vonNeumannEntropy (partialTraceLeft (pureState bell)) = 1 := by
-  rw [← vonNeumannEntropy_partialTrace_pureState_eq bell, bell,
+  rw [← vonNeumannEntropy_partialTrace_pureState_eq bell, bell_eq_maxEntangled,
     partialTraceRight_pureState_maxEntangled, vonNeumannEntropy_maximallyMixed,
     Fintype.card_bool, Nat.cast_ofNat, Real.logb, div_self (Real.log_pos (by norm_num)).ne']
 
@@ -116,7 +122,8 @@ theorem measureDensity_superdensePOVM (ab : Bool × Bool) :
         (PMF.pure ab out).toReal := by
     rw [hpure, POVM.densityProb_pureState, superdensePOVM, POVM.prob_comap]
     have hst : WithLp.toLp 2 ((superdenseDecoding : Matrix (Bool × Bool) (Bool × Bool) ℂ) *ᵥ
-        ψ.ofLp) = superdenseState ab.1 ab.2 := rfl
+        ψ.ofLp) = superdenseState ab.1 ab.2 := by
+      rw [← unitaryEquiv_apply, ← superdenseState_def]
     rw [hst, POVM.prob_basis]
     have hsc := congrArg (fun m : PMF (Bool × Bool) => m out) (superdense_coding ab.1 ab.2)
     rw [measure_apply] at hsc
@@ -186,7 +193,7 @@ theorem isPrivateQuantumChannel_oneTimePad (α : Type*) [Fintype α] [DecidableE
       (∑ k, f k ⊗ₖ (1 : Matrix Unit Unit ℂ)) = (∑ k, f k) ⊗ₖ (1 : Matrix Unit Unit ℂ) := by
     ext ⟨u, ⟨⟩⟩ ⟨u', ⟨⟩⟩
     simp [Matrix.sum_apply]
-  rw [hsum_kr, ← Finset.smul_sum, ← OneTimePad.averageCiphertext,
+  rw [hsum_kr, ← Finset.smul_sum, ← OneTimePad.averageCiphertext_def,
     OneTimePad.averageCiphertext_eq (isDensityMatrix_pureState hψ)]
 
 example (α : Type*) [Fintype α] [DecidableEq α] :
@@ -241,6 +248,17 @@ example :
     div_self (Real.log_pos (by norm_num)).ne'] at hlow
   linarith
 
+-- Non-basis product witness via `mem_unentangledPureStates`: `|+⟩^{⊗ n}` with
+-- `|+⟩ = (1 / √2) (|0⟩ + |1⟩)` belongs to `unentangledPureStates α`.
+example (α : Type*) [Fintype α] :
+    let plus : EuclideanSpace ℂ Bool :=
+      unitaryEquiv ⟨Gate.hadamardMatrix, Gate.hadamardMatrix_mem_unitaryGroup⟩ (ket false)
+    let prodPlus : EuclideanSpace ℂ (α → Bool) := WithLp.toLp 2 fun u => ∏ _i : α, plus.ofLp (u _i)
+    prodPlus ∈ unentangledPureStates α := by
+  intro plus prodPlus
+  rw [mem_unentangledPureStates]
+  exact ⟨fun _ => plus, fun _ => by rw [LinearIsometryEquiv.norm_map, norm_ket], fun _ => rfl⟩
+
 -- Boundary 2: the two-qubit Bell state `(1 / √2) (|00⟩ + |11⟩)` is a normalized pure state
 -- outside `unentangledPureStates (Fin 2)`, confirming `unentangledPureStates` is a strict subset.
 noncomputable def bellFin2 : EuclideanSpace ℂ (Fin 2 → Bool) :=
@@ -269,7 +287,8 @@ example : ‖bellFin2‖ = 1 ∧ bellFin2 ∉ unentangledPureStates (Fin 2) := b
       simp only [Finset.sum_add_distrib, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
       norm_num
     exact (sq_eq_one_iff.mp hsq).resolve_right (by linarith [norm_nonneg bellFin2])
-  · rintro ⟨φ, -, hφ⟩
+  · rw [mem_unentangledPureStates]
+    rintro ⟨φ, -, hφ⟩
     have h00 := hφ (fun _ => false)
     have h11 := hφ (fun _ => true)
     have h01 := hφ ![false, true]

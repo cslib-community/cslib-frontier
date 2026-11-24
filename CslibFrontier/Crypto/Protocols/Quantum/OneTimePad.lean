@@ -113,6 +113,11 @@ eavesdropper who does not know the key. -/
 noncomputable def averageCiphertext (ρ : Op ι) : Op ι :=
   (Fintype.card ((ι → Bool) × (ι → Bool)) : ℂ)⁻¹ • ∑ k, encrypt k ρ
 
+theorem averageCiphertext_def (ρ : Op ι) :
+    averageCiphertext ρ =
+      (Fintype.card ((ι → Bool) × (ι → Bool)) : ℂ)⁻¹ • ∑ k, encrypt k ρ := by
+  rfl
+
 theorem card_key : Fintype.card ((ι → Bool) × (ι → Bool)) = 4 ^ Fintype.card ι := by
   rw [Fintype.card_prod, Fintype.card_fun, Fintype.card_bool, ← mul_pow]
   norm_num

@@ -236,6 +236,14 @@ def unentangledPureStates (α : Type*) [Fintype α] : Set (EuclideanSpace ℂ (�
   {ψ | ∃ φ : α → EuclideanSpace ℂ Bool,
     (∀ i, ‖φ i‖ = 1) ∧ ∀ u, ψ.ofLp u = ∏ i, (φ i).ofLp (u i)}
 
+omit [DecidableEq α] in
+@[simp]
+theorem mem_unentangledPureStates (ψ : EuclideanSpace ℂ (α → Bool)) :
+    ψ ∈ unentangledPureStates α ↔
+      ∃ φ : α → EuclideanSpace ℂ Bool,
+        (∀ i, ‖φ i‖ = 1) ∧ ∀ u, ψ.ofLp u = ∏ i, (φ i).ofLp (u i) := by
+  rfl
+
 /-- Every unentangled product state has unit Euclidean norm. -/
 theorem norm_eq_one_of_mem_unentangledPureStates {ψ : EuclideanSpace ℂ (α → Bool)}
     (hψ : ψ ∈ unentangledPureStates α) : ‖ψ‖ = 1 := by
