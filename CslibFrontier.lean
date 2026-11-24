@@ -1610,6 +1610,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.SemiCircuit.Rewiring
 public import CslibFrontier.Computability.Circuit.Boolean.SemiCircuit.Simplification
 public import CslibFrontier.Computability.Circuit.Boolean.SemiUnbounded
 public import CslibFrontier.Computability.Circuit.Boolean.SemiUnbounded.MinIsolation
+public import CslibFrontier.Computability.Circuit.Boolean.SemiUnbounded.WeightGenerator
 public import CslibFrontier.Computability.Circuit.Boolean.ShallowSymmetric
 public import CslibFrontier.Computability.Circuit.Boolean.ShallowSymmetric.Bounds
 public import CslibFrontier.Computability.Circuit.Boolean.ShallowSymmetric.Construction
