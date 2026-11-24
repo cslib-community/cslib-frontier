@@ -1893,6 +1893,13 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Truncat
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.VertexDesc
 public import CslibFrontier.Computability.Circuit.Frontier.TensorRank
 public import CslibFrontier.Computability.Circuit.Frontier.TensorRank.ThreeWayCut
+public import CslibFrontier.Computability.Circuit.Frontier.TensorRank.ThreeWayCut.BadCountPointwise
+public import CslibFrontier.Computability.Circuit.Frontier.TensorRank.ThreeWayCut.BalancedCut
+public import CslibFrontier.Computability.Circuit.Frontier.TensorRank.ThreeWayCut.Coefficient
+public import CslibFrontier.Computability.Circuit.Frontier.TensorRank.ThreeWayCut.DegreeThreeCap
+public import CslibFrontier.Computability.Circuit.Frontier.TensorRank.ThreeWayCut.PlanarGeometry
+public import CslibFrontier.Computability.Circuit.Frontier.TensorRank.ThreeWayCut.QuotientColoring
+public import CslibFrontier.Computability.Circuit.Frontier.TensorRank.ThreeWayCut.SampleSpace
 public import CslibFrontier.Computability.Circuit.Frontier.ThresholdTop
 public import CslibFrontier.Computability.Circuit.Frontier.TwoSidedWitness
 public import CslibFrontier.Computability.Circuit.Frontier.Unconditional
