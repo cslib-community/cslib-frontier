@@ -280,27 +280,20 @@ theorem semOutput_rename_iff {π : ℕ → ℕ} {I O : Instance} {b : Option ℤ
     have hQS : ∀ {Q}, O.preserved = some Q → ∀ v ∈ Q, v ∈ I.allVars ∪ O.allVars :=
       fun hQ v hv => .inr (mem_allVars_of_preserved hQ hv)
     constructor
-    · rintro ⟨P', Q', hP', hQ', hmem, himg⟩
+    · rintro ⟨P', Q', hP', hQ', hbij⟩
       change Option.map _ I.preserved = some P' at hP'
       change Option.map _ O.preserved = some Q' at hQ'
       obtain ⟨P, hP, rfl⟩ := Option.map_eq_some_iff.1 hP'
       obtain ⟨Q, hQ, rfl⟩ := Option.map_eq_some_iff.1 hQ'
-      refine ⟨P, Q, hP, hQ, fun x => ⟨fun hx => ?_, fun hx => ?_⟩, fun v hv => ?_⟩
-      · obtain ⟨y, hy, hxy⟩ := List.mem_map.1 ((hmem (π x)).1 (List.mem_map_of_mem hx))
-        exact hπ (hQS hQ y hy) (hPS hP x hx) hxy ▸ hy
-      · obtain ⟨y, hy, hxy⟩ := List.mem_map.1 ((hmem (π x)).2 (List.mem_map_of_mem hx))
-        exact hπ (hPS hP y hy) (hQS hQ x hx) hxy ▸ hy
-      · have h := himg v hv
-        rwa [image_solsLE_rename (injOn_vars hπ hI (hPS hP)),
-          image_solsLE_rename (injOn_vars hπ hO (hPS hP))] at h
-    · rintro ⟨P, Q, hP, hQ, hmem, himg⟩
-      refine ⟨P.map π, Q.map π, by simp [rename, hP], by simp [rename, hQ], fun x => ?_,
-        fun v hv => ?_⟩
-      · simp only [List.mem_map]
-        exact exists_congr fun y => and_congr_left' (hmem y)
-      · rw [image_solsLE_rename (injOn_vars hπ hI (hPS hP)),
-          image_solsLE_rename (injOn_vars hπ hO (hPS hP))]
-        exact himg v hv
+      refine ⟨P, Q, hP, hQ, fun v hv => ?_⟩
+      have h := hbij v hv
+      rwa [image_solsLE_rename (injOn_vars hπ hI (hPS hP)),
+        image_solsLE_rename (injOn_vars hπ hO (hQS hQ))] at h
+    · rintro ⟨P, Q, hP, hQ, hbij⟩
+      refine ⟨P.map π, Q.map π, by simp [rename, hP], by simp [rename, hQ], fun v hv => ?_⟩
+      rw [image_solsLE_rename (injOn_vars hπ hI (hPS hP)),
+        image_solsLE_rename (injOn_vars hπ hO (hQS hQ))]
+      exact hbij v hv
 
 end Instance
 

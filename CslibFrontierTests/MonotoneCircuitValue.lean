@@ -66,17 +66,11 @@ example (w : List Bool) : copySpec.machine.run (frame w) (copySpec.rounds w.leng
 
 /-- The generic writer's space hypotheses are realized by this concrete instance. -/
 example : ComputableInLogSpace id (encFramed encBits) encBits := by
-  have hin : (fun p => (CircuitValue.WriterSpec.encStepIn p).length) ≼
-      fun p => CircuitValue.wBudget p.1 := .of_le_linear 2 0 fun p => by
-    simp only [length_encPair, encBool_apply, CircuitValue.wBudget]
-    simp only [encNat_apply, List.length_cons, List.length_nil, zero_add, add_zero,
-      Order.add_one_le_iff]
-    omega
   refine copySpec.computableInLogSpace (fun w => by
     simp [CircuitValue.WriterSpec.output, copySpec])
-    (ComputableInSpace.budget_const (encB := encNat) 0 hin)
-    (ComputableInSpace.budget_const (encB := encBits) [] hin)
-    (ComputableInSpace.budget_const (encB := encBits) [] hin) ?_
+    (ComputableInSpace.budget_const (encB := encNat) 0)
+    (ComputableInSpace.budget_const (encB := encBits) [])
+    (ComputableInSpace.budget_const (encB := encBits) []) ?_
   change PolynomiallyBounded fun _ : ℕ => 0
   fun_prop
 

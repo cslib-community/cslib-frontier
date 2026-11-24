@@ -134,8 +134,7 @@ private theorem or_budget {f g : α → Bool}
 private theorem dispatch_budget {κ β : Type} {encB : β ↪ List Bool}
     (l : List κ) (d : κ) (F : κ → α → β)
     (hF : ∀ p, ComputableInSpace (F p) enc encB S) {i : α → ℕ}
-    (hi : ComputableInSpace i enc encNat S)
-    (_hin : (fun a => (enc a).length) ≼ S) :
+    (hi : ComputableInSpace i enc encNat S) :
     ComputableInSpace (fun a => F (l.getD (i a) d) a) enc encB S := by
   induction l generalizing i with
   | nil => simpa using hF d
@@ -147,12 +146,11 @@ private theorem dispatch_budget {κ β : Type} {encB : β ↪ List Bool}
 /-- Case distinction on the finite phase, retaining an arbitrary common budget. -/
 theorem phaseCases_budget {β : Type} {encB : β ↪ List Bool} {s : α → State}
     (hs : ComputableInSpace s enc encState S) (F : Phase → α → β)
-    (hF : ∀ p, ComputableInSpace (F p) enc encB S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hF : ∀ p, ComputableInSpace (F p) enc encB S) :
     ComputableInSpace (fun a => F (s a).phase a) enc encB S := by
   refine (dispatch_budget
     [.round, .target, .candidate, .walk, .guess, .edge, .observe, .done, .accept, .reject]
-    .reject F hF (phaseCode_budget hs) hin).of_enc_eq fun a => ?_
+    .reject F hF (phaseCode_budget hs)).of_enc_eq fun a => ?_
   cases (s a).phase <;> rfl
 
 /-- Constructing a state from its finite label, ten binary registers and two flags. -/
@@ -169,13 +167,12 @@ theorem state_budget {s : α → State}
     (hguess : ComputableInSpace (fun a => (s a).guess) enc encNat S)
     (hbits : ComputableInSpace (fun a => (s a).bits) enc encNat S)
     (hhit : ComputableInSpace (fun a => (s a).hit) enc encBool S)
-    (hfinal : ComputableInSpace (fun a => (s a).finalScan) enc encBool S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hfinal : ComputableInSpace (fun a => (s a).finalScan) enc encBool S) :
     ComputableInSpace s enc encState S := by
   have hregs := budget_cons hround (budget_cons hcount (budget_cons htarget
     (budget_cons hnext (budget_cons hcandidate (budget_cons hselected
     (budget_cons hremaining (budget_cons hcurrent (budget_cons hguess
-    (budget_cons hbits (budget_const [] hin))))))))))
+    (budget_cons hbits (budget_const []))))))))))
   exact (budget_prod hp (budget_prod hregs (budget_prod hhit hfinal))).of_enc_eq fun _ => rfl
 
 /-- Reading the `round` register preserves the common budget. -/
@@ -265,18 +262,16 @@ private theorem not_budget {f : α → Bool}
 
 /-- Halt detection reads only the finite phase. -/
 theorem halted_budget {s : α → State}
-    (hs : ComputableInSpace s enc encState S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hs : ComputableInSpace s enc encState S) :
     ComputableInSpace (fun a => halted (s a)) enc encBool S := by
   refine (phaseCases_budget hs (fun p _ => p == .accept || p == .reject)
-    (fun p => budget_const _ hin) hin).of_enc_eq fun _ => rfl
+    (fun p => budget_const _)).of_enc_eq fun _ => rfl
 
 /-- Acceptance detection reads only the finite phase. -/
 theorem accepting_budget {s : α → State}
-    (hs : ComputableInSpace s enc encState S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hs : ComputableInSpace s enc encState S) :
     ComputableInSpace (fun a => (s a).phase == .accept) enc encBool S :=
-  phaseCases_budget hs (fun p _ => p == .accept) (fun _ => budget_const _ hin) hin
+  phaseCases_budget hs (fun p _ => p == .accept) (fun _ => budget_const _)
 
 variable {N width source : α → ℕ} {s : α → State} {answer choice : α → Bool}
 
@@ -287,12 +282,11 @@ theorem widthBinary_budget (hw : ComputableInSpace width enc encUnary S) :
 
 /-- The complete register bound, with unary width, uses linear space on all inputs. -/
 theorem registerBound_budget (hN : ComputableInSpace N enc encNat S)
-    (hw : ComputableInSpace width enc encUnary S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hw : ComputableInSpace width enc encUnary S) :
     ComputableInSpace (fun a => registerBound (N a) (width a)) enc encNat S :=
   budget_natAdd (budget_natAdd (budget_natAdd hN
     (budget_comp_linear unaryTwoPow_inSpace hw)) (widthBinary_budget hw))
-    (budget_const 2 hin)
+    (budget_const 2)
 
 /-- A native certificate for the underlying local instruction, with no validity assumption. -/
 theorem instruction_budget (hN : ComputableInSpace N enc encNat S)
@@ -300,8 +294,7 @@ theorem instruction_budget (hN : ComputableInSpace N enc encNat S)
     (hsource : ComputableInSpace source enc encNat S)
     (hs : ComputableInSpace s enc encState S)
     (hanswer : ComputableInSpace answer enc encBool S)
-    (hchoice : ComputableInSpace choice enc encBool S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hchoice : ComputableInSpace choice enc encBool S) :
     ComputableInSpace
       (fun a => instruction (N a) (width a) (source a) (s a) (answer a) (choice a))
       enc encState S := by
@@ -317,7 +310,7 @@ theorem instruction_budget (hN : ComputableInSpace N enc encNat S)
   have h_bits := bits_budget hs
   have h_hit := hit_budget hs
   have h_finalScan := finalScan_budget hs
-  have hguessStep := budget_natAdd (budget_natMul (budget_const 2 hin) h_guess)
+  have hguessStep := budget_natAdd (budget_natMul (budget_const 2) h_guess)
     (toNat_budget hchoice)
   have hhitStep := or_budget (or_budget h_hit hanswer)
     (and_budget (not_budget h_finalScan) (natBEq_budget h_candidate h_target))
@@ -327,119 +320,114 @@ theorem instruction_budget (hN : ComputableInSpace N enc encNat S)
     cases p with
     | round =>
       exact (iteProp_budget (budget_natLt (budget_natSucc h_round) hN)
-        (state_budget (budget_const 1 hin)
-          h_round h_count (budget_const 0 hin) (budget_const 0 hin) h_candidate h_selected
-            h_remaining h_current h_guess h_bits h_hit (budget_const false hin) hin)
-        (state_budget (budget_const 2 hin)
-          h_round h_count h_target h_nextCount (budget_const 0 hin) (budget_const 0 hin)
-            h_remaining h_current h_guess h_bits (budget_const false hin) (budget_const true hin)
-            hin))
+        (state_budget (budget_const 1)
+          h_round h_count (budget_const 0) (budget_const 0) h_candidate h_selected
+            h_remaining h_current h_guess h_bits h_hit (budget_const false))
+        (state_budget (budget_const 2)
+          h_round h_count h_target h_nextCount (budget_const 0) (budget_const 0)
+            h_remaining h_current h_guess h_bits (budget_const false) (budget_const true)))
     | target =>
       exact (iteProp_budget (budget_natLt h_target hN)
-        (state_budget (budget_const 2 hin)
-          h_round h_count h_target h_nextCount (budget_const 0 hin) (budget_const 0 hin)
-            h_remaining h_current h_guess h_bits (budget_const false hin) h_finalScan hin)
-        (state_budget (budget_const 0 hin)
+        (state_budget (budget_const 2)
+          h_round h_count h_target h_nextCount (budget_const 0) (budget_const 0)
+            h_remaining h_current h_guess h_bits (budget_const false) h_finalScan)
+        (state_budget (budget_const 0)
           (budget_natSucc h_round) h_nextCount h_target h_nextCount h_candidate h_selected
-            h_remaining h_current h_guess h_bits h_hit h_finalScan hin))
+            h_remaining h_current h_guess h_bits h_hit h_finalScan))
     | candidate =>
       exact (iteProp_budget (budget_natLt h_candidate hN)
         (budget_ite hchoice
-        (state_budget (budget_const 3 hin)
+        (state_budget (budget_const 3)
           h_round h_count h_target h_nextCount h_candidate h_selected h_round hsource h_guess
-            h_bits h_hit h_finalScan hin)
-        (state_budget (budget_const 2 hin)
+            h_bits h_hit h_finalScan)
+        (state_budget (budget_const 2)
           h_round h_count h_target h_nextCount (budget_natSucc h_candidate) h_selected h_remaining
-            h_current h_guess h_bits h_hit h_finalScan hin))
-        (state_budget (budget_const 7 hin)
+            h_current h_guess h_bits h_hit h_finalScan))
+        (state_budget (budget_const 7)
           h_round h_count h_target h_nextCount h_candidate h_selected h_remaining h_current
-            h_guess h_bits h_hit h_finalScan hin))
+            h_guess h_bits h_hit h_finalScan))
     | walk =>
       exact (iteProp_budget (budget_natIsZero h_remaining)
         (iteProp_budget (budget_natEq h_current h_candidate)
-        (state_budget (budget_const 6 hin)
+        (state_budget (budget_const 6)
           h_round h_count h_target h_nextCount h_candidate h_selected h_remaining h_current
-            h_guess h_bits h_hit h_finalScan hin)
-        (budget_const reject hin))
-        (state_budget (budget_const 4 hin)
+            h_guess h_bits h_hit h_finalScan)
+        (budget_const reject))
+        (state_budget (budget_const 4)
           h_round h_count h_target h_nextCount h_candidate h_selected h_remaining h_current
-            (budget_const 0 hin) hw h_hit h_finalScan hin))
+            (budget_const 0) hw h_hit h_finalScan))
     | guess =>
       exact (iteProp_budget (budget_natIsZero h_bits)
         (iteProp_budget (budget_natLt h_guess hN)
-        (state_budget (budget_const 5 hin)
+        (state_budget (budget_const 5)
           h_round h_count h_target h_nextCount h_candidate h_selected h_remaining h_current
-            h_guess h_bits h_hit h_finalScan hin)
-        (budget_const reject hin))
-        (state_budget (budget_const 4 hin)
+            h_guess h_bits h_hit h_finalScan)
+        (budget_const reject))
+        (state_budget (budget_const 4)
           h_round h_count h_target h_nextCount h_candidate h_selected h_remaining h_current
-          hguessStep (budget_natPred h_bits) h_hit h_finalScan hin))
+          hguessStep (budget_natPred h_bits) h_hit h_finalScan))
     | edge =>
       exact (budget_ite (or_budget (natBEq_budget h_current h_guess) hanswer)
-        (state_budget (budget_const 3 hin)
+        (state_budget (budget_const 3)
           h_round h_count h_target h_nextCount h_candidate h_selected (budget_natPred h_remaining)
-            h_guess h_guess h_bits h_hit h_finalScan hin)
-        (budget_const reject hin))
+            h_guess h_guess h_bits h_hit h_finalScan)
+        (budget_const reject))
     | observe =>
-      exact (state_budget (budget_const 2 hin)
+      exact (state_budget (budget_const 2)
           h_round h_count h_target h_nextCount (budget_natSucc h_candidate)
           (budget_natSucc h_selected) h_remaining h_current h_guess h_bits
-          hhitStep h_finalScan hin)
+          hhitStep h_finalScan)
     | done =>
       exact (iteProp_budget (budget_natEq h_selected h_count)
         (budget_ite h_finalScan
         (budget_ite h_hit
-        (budget_const reject hin)
-        (budget_const accept hin))
-        (state_budget (budget_const 1 hin)
+        (budget_const reject)
+        (budget_const accept))
+        (state_budget (budget_const 1)
           h_round h_count (budget_natSucc h_target)
             (budget_natAdd h_nextCount (toNat_budget h_hit)) h_candidate h_selected h_remaining
-            h_current h_guess h_bits h_hit h_finalScan hin))
-        (budget_const reject hin))
+            h_current h_guess h_bits h_hit h_finalScan))
+        (budget_const reject))
     | accept =>
-      exact (state_budget (budget_const 8 hin)
+      exact (state_budget (budget_const 8)
           h_round h_count h_target h_nextCount h_candidate h_selected h_remaining h_current
-            h_guess h_bits h_hit h_finalScan hin)
+            h_guess h_bits h_hit h_finalScan)
     | reject =>
-      exact (state_budget (budget_const 9 hin)
+      exact (state_budget (budget_const 9)
           h_round h_count h_target h_nextCount h_candidate h_selected h_remaining h_current
-            h_guess h_bits h_hit h_finalScan hin)
-  refine (phaseCases_budget hs _ hbranches hin).of_enc_eq fun a => ?_
+            h_guess h_bits h_hit h_finalScan)
+  refine (phaseCases_budget hs _ hbranches).of_enc_eq fun a => ?_
   cases s a
   rfl
 
 /-- The candidate cost is a fixed arithmetic expression in the supplied parameters. -/
 theorem candidateCost_budget (hN : ComputableInSpace N enc encNat S)
-    (hw : ComputableInSpace width enc encNat S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hw : ComputableInSpace width enc encNat S) :
     ComputableInSpace (fun a => candidateCost (N a) (width a)) enc encNat S :=
-  budget_natAdd (budget_natMul hN (budget_natAdd hw (budget_const 3 hin))) (budget_const 4 hin)
+  budget_natAdd (budget_natMul hN (budget_natAdd hw (budget_const 3))) (budget_const 4)
 
 /-- The target cost uses a fixed number of binary arithmetic operations. -/
 theorem targetCost_budget (hN : ComputableInSpace N enc encNat S)
-    (hw : ComputableInSpace width enc encNat S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hw : ComputableInSpace width enc encNat S) :
     ComputableInSpace (fun a => targetCost (N a) (width a)) enc encNat S :=
-  budget_natAdd (budget_natMul (budget_natSucc hN) (candidateCost_budget hN hw hin))
-    (budget_const 6 hin)
+  budget_natAdd (budget_natMul (budget_natSucc hN) (candidateCost_budget hN hw))
+    (budget_const 6)
 
 /-- The round cost uses a fixed number of binary arithmetic operations. -/
 theorem roundCost_budget (hN : ComputableInSpace N enc encNat S)
-    (hw : ComputableInSpace width enc encNat S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hw : ComputableInSpace width enc encNat S) :
     ComputableInSpace (fun a => roundCost (N a) (width a)) enc encNat S :=
-  budget_natAdd (budget_natMul (budget_natSucc hN) (targetCost_budget hN hw hin))
-    (budget_const 2 hin)
+  budget_natAdd (budget_natMul (budget_natSucc hN) (targetCost_budget hN hw))
+    (budget_const 2)
 
 /-- The full progress measure is computed in the common budget on arbitrary states. -/
 theorem rank_budget (hN : ComputableInSpace N enc encNat S)
     (hw : ComputableInSpace width enc encNat S)
-    (hs : ComputableInSpace s enc encState S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hs : ComputableInSpace s enc encState S) :
     ComputableInSpace (fun a => rank (N a) (width a) (s a)) enc encNat S := by
-  have hc := candidateCost_budget hN hw hin
-  have ht := targetCost_budget hN hw hin
-  have hr := roundCost_budget hN hw hin
+  have hc := candidateCost_budget hN hw
+  have ht := targetCost_budget hN hw
+  have hr := roundCost_budget hN hw
   have h_round := round_budget hs
   have h_target := target_budget hs
   have h_candidate := candidate_budget hs
@@ -448,47 +436,46 @@ theorem rank_budget (hN : ComputableInSpace N enc encNat S)
   have h_finalScan := finalScan_budget hs
   have hbranches (p : Phase) : ComputableInSpace
       (fun a => rank (N a) (width a) { s a with phase := p }) enc encNat S := by
-    have hb := budget_ite h_finalScan (budget_const (encB := encNat) 0 hin)
+    have hb := budget_ite h_finalScan (budget_const (encB := encNat) 0)
       (budget_natAdd
         (budget_natMul (budget_natPred (budget_natSub hN h_round)) hr)
         (budget_natMul (budget_natPred (budget_natSub hN h_target)) ht))
     have hu := budget_natMul (budget_natPred (budget_natSub hN h_candidate)) hc
-    have hw3 := budget_natAdd hw (budget_const 3 hin)
+    have hw3 := budget_natAdd hw (budget_const 3)
     cases p with
     | round =>
-      exact budget_natAdd (budget_natMul (budget_natSub hN h_round) hr) (budget_const 1 hin)
+      exact budget_natAdd (budget_natMul (budget_natSub hN h_round) hr) (budget_const 1)
     | target =>
       exact budget_natAdd (budget_natAdd
         (budget_natMul (budget_natPred (budget_natSub hN h_round)) hr)
-        (budget_natMul (budget_natSub hN h_target) ht)) (budget_const 2 hin)
+        (budget_natMul (budget_natSub hN h_target) ht)) (budget_const 2)
     | candidate =>
       exact budget_natAdd (budget_natAdd hb
-        (budget_natMul (budget_natSub hN h_candidate) hc)) (budget_const 4 hin)
+        (budget_natMul (budget_natSub hN h_candidate) hc)) (budget_const 4)
     | walk =>
       exact budget_natAdd (budget_natAdd (budget_natAdd hb hu)
-        (budget_natMul h_remaining hw3)) (budget_const 6 hin)
+        (budget_natMul h_remaining hw3)) (budget_const 6)
     | guess =>
       exact budget_natAdd (budget_natAdd (budget_natAdd (budget_natAdd hb hu)
-        (budget_natMul (budget_natPred h_remaining) hw3)) h_bits) (budget_const 8 hin)
+        (budget_natMul (budget_natPred h_remaining) hw3)) h_bits) (budget_const 8)
     | edge =>
       exact budget_natAdd (budget_natAdd (budget_natAdd hb hu)
-        (budget_natMul (budget_natPred h_remaining) hw3)) (budget_const 7 hin)
-    | observe => exact budget_natAdd (budget_natAdd hb hu) (budget_const 5 hin)
-    | done => exact budget_natAdd hb (budget_const 3 hin)
-    | accept => exact budget_const 0 hin
-    | reject => exact budget_const 0 hin
-  refine (phaseCases_budget hs _ hbranches hin).of_enc_eq fun a => ?_
+        (budget_natMul (budget_natPred h_remaining) hw3)) (budget_const 7)
+    | observe => exact budget_natAdd (budget_natAdd hb hu) (budget_const 5)
+    | done => exact budget_natAdd hb (budget_const 3)
+    | accept => exact budget_const 0
+    | reject => exact budget_const 0
+  refine (phaseCases_budget hs _ hbranches).of_enc_eq fun a => ?_
   cases s a
   rfl
 
 /-- All ten storage checks are executable within the budget, including on malformed states. -/
 theorem bounded_budget (hN : ComputableInSpace N enc encNat S)
     (hw : ComputableInSpace width enc encUnary S)
-    (hs : ComputableInSpace s enc encState S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hs : ComputableInSpace s enc encState S) :
     ComputableInSpace (fun a => decide (Bounded (N a) (width a) (s a)))
       enc encBool S := by
-  have hB := registerBound_budget hN hw hin
+  have hB := registerBound_budget hN hw
   have h := and_budget (budget_natLt (round_budget hs) hB)
     (and_budget (budget_natLt (count_budget hs) hB)
     (and_budget (budget_natLt (target_budget hs) hB)
@@ -510,15 +497,14 @@ theorem advance_budget (hN : ComputableInSpace N enc encNat S)
     (hsource : ComputableInSpace source enc encNat S)
     (hs : ComputableInSpace s enc encState S)
     (hanswer : ComputableInSpace answer enc encBool S)
-    (hchoice : ComputableInSpace choice enc encBool S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hchoice : ComputableInSpace choice enc encBool S) :
     ComputableInSpace
       (fun a => advance (N a) (width a) (source a) (s a) (answer a) (choice a))
       enc encState S := by
   have hw' := widthBinary_budget hw
-  have hi := instruction_budget hN hw' hsource hs hanswer hchoice hin
-  have hb := bounded_budget hN hw hi hin
-  have hr := budget_natLt (rank_budget hN hw' hi hin) (rank_budget hN hw' hs hin)
+  have hi := instruction_budget hN hw' hsource hs hanswer hchoice
+  have hb := bounded_budget hN hw hi
+  have hr := budget_natLt (rank_budget hN hw' hi) (rank_budget hN hw' hs)
   have hcheck := (and_budget hb hr).of_enc_eq (encC := encBool)
     (g := fun a => decide (Bounded (N a) (width a)
       (instruction (N a) (width a) (source a) (s a) (answer a) (choice a)) ∧
@@ -526,16 +512,15 @@ theorem advance_budget (hN : ComputableInSpace N enc encNat S)
         (instruction (N a) (width a) (source a) (s a) (answer a) (choice a)) <
       rank (N a) (width a) (s a))) (fun a => by
         congr 1)
-  exact (budget_ite (halted_budget hs hin) hs
-    (iteProp_budget hcheck hi (budget_const reject hin))).of_enc_eq fun _ => rfl
+  exact (budget_ite (halted_budget hs) hs
+    (iteProp_budget hcheck hi (budget_const reject))).of_enc_eq fun _ => rfl
 
 /-- Initializing the controller includes its source-range check. -/
 theorem initial_budget (hN : ComputableInSpace N enc encNat S)
-    (hsource : ComputableInSpace source enc encNat S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hsource : ComputableInSpace source enc encNat S) :
     ComputableInSpace (fun a => initial (N a) (source a)) enc encState S := by
-  exact iteProp_budget (budget_natLt hsource hN) (budget_const ({} : State) hin)
-    (budget_const reject hin)
+  exact iteProp_budget (budget_natLt hsource hN) (budget_const ({} : State))
+    (budget_const reject)
 
 /-- Tagged binary data for one edge or bad-vertex request. -/
 def queryData : Query → Bool × ℕ × ℕ
@@ -553,15 +538,14 @@ def encQuery : Query ↪ List Bool :=
       ((encPair encBool (encPair encNat encNat)).injective h)⟩
 
 /-- The explicit request, including the finite-phase and final-scan selection. -/
-theorem query_budget (hs : ComputableInSpace s enc encState S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+theorem query_budget (hs : ComputableInSpace s enc encState S) :
     ComputableInSpace (fun a => query (s a)) enc (encOption encQuery) S := by
   have hedge {u v : α → ℕ} (hu : ComputableInSpace u enc encNat S)
       (hv : ComputableInSpace v enc encNat S) :
       ComputableInSpace (fun a => Query.edge (u a) (v a)) enc encQuery S :=
-    (budget_prod (budget_const false hin) (budget_prod hu hv)).of_enc_eq fun _ => rfl
-  have hbad := (budget_prod (budget_const true hin)
-    (budget_prod (candidate_budget hs) (budget_const (encB := encNat) 0 hin))).of_enc_eq
+    (budget_prod (budget_const false) (budget_prod hu hv)).of_enc_eq fun _ => rfl
+  have hbad := (budget_prod (budget_const true)
+    (budget_prod (candidate_budget hs) (budget_const (encB := encNat) 0))).of_enc_eq
     (g := fun a => Query.bad (s a).candidate) (encC := encQuery) (fun _ => rfl)
   have hsome {q : α → Query} (hq : ComputableInSpace q enc encQuery S) :
       ComputableInSpace (fun a => some (q a)) enc (encOption encQuery) S :=
@@ -569,11 +553,11 @@ theorem query_budget (hs : ComputableInSpace s enc encState S)
       (of_inO (ComputableInDegree.optionSome (enc₁ := encQuery)).inO_one) hq
   have hbranches (p : Phase) : ComputableInSpace
       (fun a => query { s a with phase := p }) enc (encOption encQuery) S := by
-    cases p <;> dsimp only [query] <;> try exact budget_const none hin
+    cases p <;> dsimp only [query] <;> try exact budget_const none
     · exact hsome (hedge (current_budget hs) (guess_budget hs))
     · exact hsome (budget_ite (finalScan_budget hs) hbad
         (hedge (candidate_budget hs) (target_budget hs)))
-  refine (phaseCases_budget hs _ hbranches hin).of_enc_eq fun a => ?_
+  refine (phaseCases_budget hs _ hbranches).of_enc_eq fun a => ?_
   cases s a
   rfl
 
@@ -592,6 +576,6 @@ theorem advance_inSpace :
   have hrest := snd encNat
     (encPair encUnary (encPair encNat (encPair encState (encPair encBool encBool))))
   exact advance_budget hN hrest.fst' hrest.snd'.fst' hrest.snd'.snd'.fst'
-    hrest.snd'.snd'.snd'.fst' hrest.snd'.snd'.snd'.snd' (.refl _)
+    hrest.snd'.snd'.snd'.fst' hrest.snd'.snd'.snd'.snd'
 
 end Turing.InductiveCounting
