@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Structured
 import Mathlib.Data.List.GetD
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Width-independent native program prefixes
@@ -78,7 +79,7 @@ theorem Op.eval_mem_above {B : Basis} {r w a : ℕ} {o : Op B r} {x y : Data r}
   | store d s =>
     cases h
     change Function.update x.mem (x.regs d) (x.regs s) a = x.mem a
-    exact Function.update_of_ne (by have := hx.1 d; dsimp only [Fits] at this; omega) _ _
+    exact Function.update_of_ne (by have := hx.1 d; wram_omega [this]) _ _
 
 /-- A complete native step preserves memory beyond the admitted address-word universe. -/
 theorem Next.mem_above {B : Basis} {r w a : ℕ} {p : Program B r} {s t : State r}
@@ -130,7 +131,6 @@ theorem Runs.prefix_bounds_init {B : Basis} {r w W P v total k : ℕ}
     change input.getD a 0 = 0
     apply List.getD_eq_default
     have hlen := hi.1
-    dsimp only [Fits] at hlen
-    omega
+    wram_omega [hlen]
 
 end Cslib.WordRAM

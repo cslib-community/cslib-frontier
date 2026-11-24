@@ -39,8 +39,8 @@ private theorem oddOnes_false : oddOnes [true, true] = false := by decide
 
 /-- The parity fold runs with constant workspace, hence in logarithmic space. -/
 private theorem computableInLogSpace_oddOnes : ComputableInLogSpace oddOnes encBits encBool := by
-  obtain ⟨c, h, -⟩ := ComputableTidilyInO.foldl_bits_finite encBool (fun b x => b ^^ x) false
-  exact ⟨_, c, h.computableInTimeAndSpace.mono (fun _ => le_rfl) fun _ =>
+  obtain ⟨c, h, -⟩ := ComputableInO.foldl_bits_finite encBool (fun b x => b ^^ x) false
+  exact ⟨_, c, h.mono (fun _ => le_rfl) fun _ =>
     by simpa using Nat.le_mul_of_pos_right c (Nat.succ_pos _)⟩
 
 attribute [local program_certificate] computableInLogSpace_oddOnes

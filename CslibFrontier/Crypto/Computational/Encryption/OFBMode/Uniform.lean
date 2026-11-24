@@ -310,13 +310,17 @@ private theorem isOraclePPTOn_ofbKeystreamQueries {α : Type} {input : α ↪ Li
   have hquery : IsOraclePPTOn (Operation := Unit) EStep encBits
       (fun pair : α × (List Bool × List Bool) => List.take (n pair.1) <$>
         ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool) ((), pair.2.1)) :=
-    IsOraclePPTOn.query_take' () (by dsimp only [EStep]; fun_prop) hnStep
+    IsOraclePPTOn.query_take () (by dsimp only [EStep]; fun_prop) hnStep
+  have hcallbackInput := ComputableInPolyTime.id' (encIn := encPair EStep encBits)
+  have houtput := ComputableInPolyTime.bitsAppend hcallbackInput.fst'.snd'.snd'
+    hcallbackInput.snd'
   have hstep : IsOraclePPTOn EStep (encPair encBits encBits)
       (fun pair : α × (List Bool × List Bool) => ofbKeystreamStep (n pair.1) pair.2) :=
-    hquery.map_with' (f := fun pair y => (y, pair.2.2 ++ y)) (by dsimp only [EStep]; fun_prop)
+    hquery.map_with (f := fun pair y => (y, pair.2.2 ++ y))
+      (hcallbackInput.snd'.prod houtput)
   have hnBound : PolyBounded (fun a => (input a).length) n := by
     simpa only [encUnary_apply, List.length_replicate] using hn.polyBounded_length
-  have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth'
+  have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth
     (stateEncoding := encPair encBits encBits)
     (initial := fun a => (iv a, ([] : List Bool))) (count := blocks)
     (step := fun a state => ofbKeystreamStep (n a) state)
@@ -328,7 +332,7 @@ private theorem isOraclePPTOn_ofbKeystreamQueries {α : Type} {input : α ↪ Li
       have htake := List.length_take_le (n a) reply
       simp only [length_encPair, encBits_apply, List.length_append]
       omega)
-  exact hloop.map' (ComputableInPolyTime.snd _ _)
+  exact hloop.map (ComputableInPolyTime.snd _ _)
 
 /-- **Efficiency of the reduction.** For every uniform strict oracle-PPT adversary,
 `ofbToPrfDistinguisher adversary bit` is uniform strict oracle PPT. -/

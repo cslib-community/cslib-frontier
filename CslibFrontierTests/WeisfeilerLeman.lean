@@ -116,17 +116,17 @@ def hasCommonNeighbor : FiniteVariable.CountingFormula Language.graph 3 :=
   .ex 2 (.rel adj ![0, 2] ⊓ .rel adj ![1, 2])
 
 theorem quantifierRank_hasCommonNeighbor : hasCommonNeighbor.quantifierRank = 1 := by
-  rw [hasCommonNeighbor, FiniteVariable.CountingFormula.quantifierRank_ex,
-    FiniteVariable.CountingFormula.quantifierRank_inf,
-    FiniteVariable.CountingFormula.quantifierRank_rel,
-    FiniteVariable.CountingFormula.quantifierRank_rel, max_self]
+  rw [hasCommonNeighbor, FiniteVariable.GenFormula.quantifierRank_ex,
+    FiniteVariable.GenFormula.quantifierRank_inf,
+    FiniteVariable.GenFormula.quantifierRank_rel,
+    FiniteVariable.GenFormula.quantifierRank_rel, max_self]
 
 theorem freeVars_hasCommonNeighbor :
     ↑hasCommonNeighbor.freeVars ⊆ Set.range (Fin.castSucc : Fin 2 → Fin 3) := by
   intro j hj
-  rw [hasCommonNeighbor, FiniteVariable.CountingFormula.freeVars_ex,
-    FiniteVariable.CountingFormula.freeVars_inf, FiniteVariable.CountingFormula.freeVars_rel,
-    FiniteVariable.CountingFormula.freeVars_rel] at hj
+  rw [hasCommonNeighbor, FiniteVariable.GenFormula.freeVars_ex,
+    FiniteVariable.GenFormula.freeVars_inf, FiniteVariable.GenFormula.freeVars_rel,
+    FiniteVariable.GenFormula.freeVars_rel] at hj
   fin_cases j
   · exact ⟨0, rfl⟩
   · exact ⟨1, rfl⟩
@@ -142,19 +142,19 @@ theorem hasCommonNeighbor_separates_edges :
           (Fin.snoc (![.inl 0, .inl 1] : Fin 2 → Fin 3 ⊕ Fin 3) (.inl 0))) := by
   refine ⟨?_, ?_⟩
   · let := (cycleGraph 6).structure
-    rw [hasCommonNeighbor, FiniteVariable.CountingFormula.realize_ex]
+    rw [hasCommonNeighbor, FiniteVariable.GenFormula.realize_ex]
     rintro ⟨v, hv⟩
-    rw [FiniteVariable.CountingFormula.realize_inf, FiniteVariable.CountingFormula.realize_rel,
-      FiniteVariable.CountingFormula.realize_rel, ← FinVec.map_eq, ← FinVec.map_eq] at hv
+    rw [FiniteVariable.GenFormula.realize_inf, FiniteVariable.GenFormula.realize_rel,
+      FiniteVariable.GenFormula.realize_rel, ← FinVec.map_eq, ← FinVec.map_eq] at hv
     simp only [FinVec.map] at hv
     have hex : ∃ x : Fin 6, (cycleGraph 6).Adj 0 x ∧ (cycleGraph 6).Adj 1 x := ⟨v, hv.1, hv.2⟩
     revert hex
     decide
   · let := (cycleGraph 3 ⊕g cycleGraph 3).structure
-    rw [hasCommonNeighbor, FiniteVariable.CountingFormula.realize_ex]
+    rw [hasCommonNeighbor, FiniteVariable.GenFormula.realize_ex]
     refine ⟨.inl 2, ?_⟩
-    rw [FiniteVariable.CountingFormula.realize_inf, FiniteVariable.CountingFormula.realize_rel,
-      FiniteVariable.CountingFormula.realize_rel, ← FinVec.map_eq, ← FinVec.map_eq]
+    rw [FiniteVariable.GenFormula.realize_inf, FiniteVariable.GenFormula.realize_rel,
+      FiniteVariable.GenFormula.realize_rel, ← FinVec.map_eq, ← FinVec.map_eq]
     simp only [FinVec.map]
     exact ⟨sum_adj_inl.2 (by decide), sum_adj_inl.2 (by decide)⟩
 

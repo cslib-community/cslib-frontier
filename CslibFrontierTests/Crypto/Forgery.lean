@@ -23,6 +23,14 @@ example (sign : Unit → Bool → ProbComp Bool) (m : Bool) :
 example (sign : Unit → Bool → ProbComp Bool) (p : Bool × Bool) (m : Bool) :
     (Signer.ofSign sign).oneTime () [p] m = none := by simp
 
+-- The restricted policy refuses an inadmissible query. A refused query is not logged, so under
+-- `oneTime` it leaves the one answer for the next admissible query.
+example (sign : Unit → Bool → ProbComp Bool) :
+    (Signer.ofSign sign).restrict id () [] false = none := by simp
+
+example (sign : Unit → Bool → ProbComp Bool) :
+    ((Signer.ofSign sign).restrict id).oneTime () [] true = some (sign () true) := by simp
+
 -- The indexed policy refuses a used index and signs a fresh one below the capacity.
 example (sign : Unit → ℕ → Bool → ProbComp Bool) :
     Signer.indexed 2 sign () [((0, true), false)] (0, false) = none := by simp [Signer.indexed]
@@ -73,9 +81,18 @@ example (A : Signature.Forger Unit Bool Bool) :
 
 /-! ### Word-level schemes -/
 
--- At parameter `n`, the typed scheme of a word-level scheme rejects messages of other lengths.
+-- At parameter `n`, the typed scheme of a word-level scheme rejects messages of other lengths
+-- and signs them as `[]`.
 example (S : SignatureScheme) (pk sig : List Bool) : (S.toScheme 2).verify pk [true] sig = false :=
   by simp
+
+example (S : SignatureScheme) (sk : List Bool) : (S.toScheme 2).sign sk [true] = pure [] := by
+  simp
+
+-- The word signing oracle refuses a message of another length: it answers `[]` and records
+-- nothing.
+example (S : SignatureScheme) (sk : List Bool) (queried : List (List Bool)) :
+    S.signingOracle 2 sk ((), [true]) queried = pure ([], queried) := rfl
 
 -- The typed forger asks the message of each word request.
 example (pk msg : List Bool) :

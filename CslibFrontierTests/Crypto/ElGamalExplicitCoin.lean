@@ -37,9 +37,9 @@ under the secret key `α`. -/
 example {G : Type} [AddCommGroup G] (q : ℕ) [NeZero q] [Module (ZMod q) G] (g : G)
     (α β : ZMod q) (x : G) :
     (elGamalExplicitCoinPKE q g).dec α (β • g, β • α • g + x) = some x :=
-  elGamalExplicitCoinPKE_correct q g (α • g, α)
-    (by simp [ExplicitCoinPKE.toPKE, elGamalExplicitCoinPKE]) x _
-    (by simpa [ExplicitCoinPKE.toPKE, ExplicitCoinPKE.encrypt, elGamalExplicitCoinPKE]
+  elGamalExplicitCoinPKEWith_correct q g ($ᵗ ZMod q) (α • g, α)
+    (by simp [ExplicitCoinPKE.toPKE, elGamalExplicitCoinPKEWith]) x _
+    (by simpa [ExplicitCoinPKE.toPKE, ExplicitCoinPKE.encrypt, elGamalExplicitCoinPKEWith]
       using ⟨β, rfl, rfl⟩)
 
 /-- At a member of a group family, encryption is the library's `elGamalEncrypt`. -/
@@ -58,6 +58,6 @@ example {G : Type} [AddCommGroup G] [DecidableEq G] (q : ℕ) [NeZero q] [Module
     (α : ZMod q) (ct : G × G) :
     pure ((elGamalExplicitCoinPKE q g).dec α ct) =
       (some <$> elGamalDecryptOracle q α ct : ProbComp (Option G)) := by
-  simp [elGamalExplicitCoinPKE, elGamalDecryptOracle]
+  simp [elGamalExplicitCoinPKEWith, elGamalDecryptOracle]
 
 end CslibFrontierTests.Crypto.ElGamalExplicitCoin

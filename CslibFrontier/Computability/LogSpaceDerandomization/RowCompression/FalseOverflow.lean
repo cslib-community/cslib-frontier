@@ -178,7 +178,6 @@ theorem one_le_sum_clippedError_pow_of_firstOverflow_dyadic {s : Finset ι}
     1 ≤ (2 : ℝ) ^ (p + 1) / ((n j : ℝ) * dyadicFloor η m j ^ p) *
       ∑ y ∈ s, clippedError (truth y 0) (truth y 1)
         (uncompressedRow Δ a.row (j + 1) y) ^ p := by
-  have hρ := dyadicFloor_pos hη m j
   have hρ1 : dyadicFloor η m j ≤ 1 := by
     have h := dyadicFloor_le_scale_div hη.le m j
     linarith
@@ -187,7 +186,8 @@ theorem one_le_sum_clippedError_pow_of_firstOverflow_dyadic {s : Finset ι}
     (show 0 ≤ a.defaultValue by rw [ha]) j hover.1
   rw [ha, sub_zero] at hzabs
   have hz : (iterate s n K (dyadicFloor η m) Δ a j).defaultValue ≤ dyadicFloor η m j := by grind
-  apply one_le_sum_clippedError_pow_of_overflow hn hρ hρ1 hz hover.2 hfirst hsecond ?_ hheavy p
+  apply one_le_sum_clippedError_pow_of_overflow hn (by positivity) hρ1 hz hover.2 hfirst hsecond ?_
+    hheavy p
   intro y _ ν
   rw [uncompressedRow_succ]
   simp only [inputRow, Pi.add_apply, add_sub_add_right_eq_sub]

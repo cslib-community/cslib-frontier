@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Boolean.Oracle.Selection
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Oracle circuits with fixed queries
@@ -61,8 +62,7 @@ def fixedQueryCircuit (pts : Fin N → BitString w) (c : Circuit signature (N + 
     (O : Language Bool) (x : BitString n) :
     (fixedQueryCircuit pts c).eval (oracleInterpretation O) x =
       c.eval interpretation (Fin.append (fun i => O.slice w (pts i)) x) := by
-  rw [fixedQueryCircuit, Circuit.eval_comp, Circuit.eval_comp, Circuit.eval_append,
-    Circuit.eval_wiring, Circuit.eval_mapOp (I := interpretation)]
+  simp only [circuit_simps, fixedQueryCircuit, Circuit.eval_mapOp (I := interpretation)]
   congr 1
   funext j
   refine Fin.addCases (fun i => ?_) (fun i => ?_) j
@@ -73,28 +73,21 @@ def fixedQueryCircuit (pts : Fin N → BitString w) (c : Circuit signature (N + 
 
 @[simp] theorem size_fixedQueryCircuit (pts : Fin N → BitString w)
     (c : Circuit signature (N + n) 1) : (fixedQueryCircuit pts c).size = c.size + N + 2 := by
-  simp only [fixedQueryCircuit, Circuit.size_comp, Circuit.size_append, Circuit.size_mapOp,
-    size_queryLayer, size_constLayer, Circuit.size_wiring]
+  simp only [circuit_simps, fixedQueryCircuit, size_queryLayer, size_constLayer]
   omega
 
 /-- The circuit has `N` oracle gates. -/
 @[simp] theorem cost_program_fixedQueryCircuit (pts : Fin N → BitString w)
     (c : Circuit signature (N + n) 1) :
     (fixedQueryCircuit pts c).program.cost OracleOp.queryWeight = N := by
-  rw [fixedQueryCircuit, Circuit.cost_program_comp, Circuit.cost_program_comp,
-    Circuit.cost_program_append, cost_program_queryLayer, cost_program_constLayer,
-    Circuit.cost_program_wiring]
+  simp only [circuit_simps, fixedQueryCircuit]
   simp
 
 /-- The circuit has at most one oracle gate on any path: its queries are fixed. -/
 theorem depthWith_fixedQueryCircuit_le (pts : Fin N → BitString w)
     (c : Circuit signature (N + n) 1) :
     (fixedQueryCircuit pts c).depthWith OracleOp.queryWeight ≤ 1 := by
-  refine (Circuit.depthWith_comp_le _ _ _).trans ?_
-  rw [depthWith_mapOp_toOracle, Nat.zero_add]
-  refine (Circuit.depthWith_comp_le _ _ _).trans ?_
-  rw [depthWith_constLayer, Nat.add_zero]
-  exact (Circuit.depthWith_append_le _ _ _).trans (max_le (depthWith_queryLayer_le _) (by simp))
+  circuit_bound [fixedQueryCircuit, depthWith_mapOp_toOracle, depthWith_constLayer]
 
 /-- The circuit has fan-in at most `max w 2`: its oracle gates have `w` arguments. -/
 theorem fanInAtMost_fixedQueryCircuit (pts : Fin N → BitString w)

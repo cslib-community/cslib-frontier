@@ -51,17 +51,17 @@ specifies stamps, retries and seeding.
 
 If a small change causes a large rebuild, inspect its imports and exported interface. Public declarations and exposed definition bodies can invalidate dependents. The [build fan-out case study](../history/case-studies.md) explains why widely imported hubs can be costly. A slow rebuild alone does not demonstrate a cache defect.
 
-The output-based audits (`audit_queries.py`, `check_changed_files.py`, `check_tidy_surface.py`
-and `check_tidy_usage.py`) need a complete build of the library and tests. Their shared
-[`lean_outputs.py`](../../scripts/lean_outputs.py) preflight checks the physical output inventory
-before invoking Lake: current source modules, including the root aggregate and glob-built tests,
-must have their recorded module artifacts. The test-inclusive inventory also includes its
-root-package `CslibFrontierResults` dependency, its aggregate and current result source modules.
-Ordinary single-part modules and split module-system
-outputs are distinguished by their traces. A cache entry or local `.ltar` archive does not count
-as an unpacked artifact. A cold or partial tree is refused as missing or stale without asking
-Lake to restore its missing outputs. `parallel_defs.py` uses the same guard with its existing
-library-only scope; it does not require test or results outputs. Run `scripts/check.sh` explicitly when the checkout and
+The test-inclusive output-based audits (`audit_queries.py`, `check_changed_files.py` and
+`check_tidy_usage.py`) need a complete build of the library and tests, whereas
+`check_tidy_surface.py` and `parallel_defs.py` check only `CslibFrontier` and do not require test
+or results outputs. Their shared [`lean_outputs.py`](../../scripts/lean_outputs.py) preflight
+checks the physical output inventory before invoking Lake: current source modules for the
+requested roots, including the root aggregate and any glob-built tests, must have their recorded
+module artifacts. The test-inclusive inventory also includes its root-package
+`CslibFrontierResults` dependency, its aggregate and current result source modules. Ordinary
+single-part modules and split module-system outputs are distinguished by their traces. A cache
+entry or local `.ltar` archive does not count as an unpacked artifact. A cold or partial tree is
+refused as missing or stale without asking Lake to restore its missing outputs. Run `scripts/check.sh` explicitly when the checkout and
 resources are ready for full validation, then retry the audit. `--no-build-check` disables
 freshness verification; it does not repair missing artifacts or certify a partial audit.
 `check_changed_files.py --source-only` skips its output-based module-doc name lint and needs
@@ -123,7 +123,7 @@ On Linux hosts and containers with the stock kernel default `vm.max_map_count = 
 
 Under the `module` system, importing a compiled module maps up to five files into the `lean` process (`.olean`, `.olean.server`, `.olean.private`, `.ir`, and `.ir.sig`). Importing `CslibFrontierResults` alone creates about 46,400 virtual memory areas (VMAs) across ~9,267 transitive modules, and importing `CslibFrontier` (as `Smoke.lean`, `Axioms.lean`, `lake lint`, and `checkInitImports` do) creates about 70,800 VMAs across ~14,133 transitive modules in one process. When a single `lean` process reaches `/proc/sys/vm/max_map_count`, `mmap` fails with `ENOMEM`; Lean's `src/library/module.cpp` heap-copy fallback then calls `malloc` and passes an unchecked `NULL` buffer to `read` (`EFAULT`), hiding VMA exhaustion behind a file-read exception. Inspecting `/proc/<pid>/maps` on the parent `lake` launcher (~6,000 mappings) misses this limit because the mappings belong to the child `lean`, `runLinter`, or `checkInitImports` executable. Keep this failure mode distinct from host-wide file-handle exhaustion (`fs.file-max`, below) and from `setImportedIREntries` segmentation faults on hosts that already have a large `vm.max_map_count` ([#4122](https://github.com/cslib-community/cslib-frontier/issues/4122)).
 
-Full `scripts/check.sh` and `scripts/full_check.py` run [`scripts/check_vm_map_count.py`](../../scripts/check_vm_map_count.py) before whole-library steps; quick mode (`scripts/check.sh --quick`) does not require this headroom. To check the host limit or measure the live VMA breakdown inside a child `lean` importer process:
+Full `scripts/check.sh` and `scripts/full_check.py` run [`scripts/check_vm_map_count.py`](../../scripts/check_vm_map_count.py) before whole-library steps; ordinary quick mode can also need it because the affected tests include `Smoke` and `Axioms`. For a leaf edit on such a host, `scripts/check.sh --focused` defers those two global tests to CI when they are unedited leaves. Other selected clients still need enough mappings for their own imports. To check the host limit or measure the live VMA breakdown inside a child `lean` importer process:
 
 ```bash
 python3 scripts/check_vm_map_count.py
@@ -131,7 +131,7 @@ python3 scripts/check_vm_map_count.py --measure CslibFrontierResults
 python3 scripts/check_vm_map_count.py --measure CslibFrontier
 ```
 
-When an operator controls the host or VM kernel configuration, raise `vm.max_map_count` to `262144` or higher (for example `sudo sysctl -w vm.max_map_count=262144` or a persistent `/etc/sysctl.d/` setting; GitHub-hosted Ubuntu runners use `2097152`, and unprivileged containers inherit the host kernel's sysctl). Do not silently modify shared-host kernel settings without operator authorization, and do not claim a local full `scripts/check.sh` run passed when whole-library steps were skipped or blocked: validate affected modules with `scripts/check.sh --quick --no-full-fallback` (and targeted `lake build` commands), record the `vm.max_map_count` blocker in the PR or issue, and rely on hosted CI for whole-library validation.
+When an operator controls the host or VM kernel configuration, raise `vm.max_map_count` to `262144` or higher (for example `sudo sysctl -w vm.max_map_count=262144` or a persistent `/etc/sysctl.d/` setting; GitHub-hosted Ubuntu runners use `2097152`, and unprivileged containers inherit the host kernel's sysctl). Do not silently modify shared-host kernel settings without operator authorization, and do not claim a local full `scripts/check.sh` run passed when whole-library steps were skipped or blocked: validate affected modules with `scripts/check.sh --focused` or a targeted `scripts/build.sh` command, record the `vm.max_map_count` blocker in the PR or issue, and rely on hosted CI for whole-library validation.
 
 ## Diagnose "Too many open files in system"
 

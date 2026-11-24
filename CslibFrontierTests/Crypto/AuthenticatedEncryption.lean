@@ -410,7 +410,7 @@ theorem isOraclePPT_firstBitCPAAdversary : IsOraclePPT encBool firstBitCPAAdvers
       (encPair (encPair encUnary encBits) encBits) encBool := by
     polytime
   unfold firstBitCPAAdversary
-  exact ((IsOraclePPTOn.query_take' () hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
+  exact ((IsOraclePPTOn.query_take () hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
 
 /-- In the one-time game at a positive parameter, the single query is answered by the chosen
 plaintext itself, so the adversary outputs the challenge bit. -/
@@ -439,9 +439,9 @@ theorem not_oneTimeINDCPA_echoCipher : ¬ echoCipher.OneTimeINDCPA := by
 answer is then `[]`: the adversary outputs `false` under both challenge bits, so the attack that
 breaks multi-query `INDCPA` has no advantage here. -/
 theorem eval_cpaOneTimeGame_detCPAAdversary (bit : Bool) (n : ℕ) :
-    ProbComp.eval (echoCipher.cpaOneTimeGame SymmetricCipher.detCPAAdversary bit (n + 1)) =
+    ProbComp.eval (echoCipher.cpaOneTimeGame (SymmetricCipher.detCPAAdversary id) bit (n + 1)) =
       PMF.pure false := by
-  simp only [SymmetricCipher.cpaOneTimeGame, SymmetricCipher.detCPAAdversary,
+  simp only [SymmetricCipher.cpaOneTimeGame, SymmetricCipher.detCPAAdversary, id_eq,
     OracleComp.interpret_bind, OracleComp.interpret_map, OracleComp.interpret_pure,
     ProbOracleComp.interpret_query, StateT.run_bind, StateT.run_map, StateT.run_pure,
     ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure]
@@ -472,7 +472,7 @@ theorem isOraclePPT_firstBitCCAAdversary : IsOraclePPT encBool firstBitCCAAdvers
       (encPair (encPair encUnary encBits) encBits) encBool := by
     polytime
   unfold firstBitCCAAdversary
-  exact ((IsOraclePPTOn.query_take' false hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
+  exact ((IsOraclePPTOn.query_take false hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
 
 theorem eval_ccaOneTimeGame_firstBitCCAAdversary (bit : Bool) (n : ℕ) :
     ProbComp.eval (echoCipher.ccaOneTimeGame firstBitCCAAdversary bit (n + 1)) = PMF.pure bit := by

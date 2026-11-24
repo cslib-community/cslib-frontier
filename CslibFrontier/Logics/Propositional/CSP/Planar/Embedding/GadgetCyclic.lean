@@ -56,4 +56,15 @@ noncomputable def GadgetWitness.rotate {n : ℕ} {R : Set (Fin (n + 1) → Bool)
   rw [← hp]
   exact h.accepted
 
+/-- The actual gadget rotation uses the RIGHT table before its free labels move forwards.
+Relabeling retains that literal table; no reflected scope order or new certificate is chosen. -/
+theorem GadgetWitness.rotate_certificate {n : ℕ} {R : Set (Fin (n + 1) → Bool)}
+    {g : PPGadget arity sem R} (w : GadgetWitness g) :
+    w.rotate.certificate =
+      rotateBoundaryCertificateRight g.body.occurrences.length (n + 1) w.certificate := by
+  unfold GadgetWitness.rotate
+  dsimp only
+  erw [Witness.relabel_certificate]
+  rw [Witness.unrotateOfFn_certificate]
+
 end Cslib.Complexity.CSP.OrderedBoundary

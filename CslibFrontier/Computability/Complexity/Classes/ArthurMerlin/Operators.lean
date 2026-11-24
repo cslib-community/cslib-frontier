@@ -21,9 +21,11 @@ encodings. The NP predicate existentially quantifies over Merlin's reply; conver
 verifier splits its message at Arthur's prescribed coin length and runs the NP verifier.
 The NP certificate bound is evaluated at the encoded pair length, not the instance length.
 
-This is the operator milestone associated with Exercise 8.5 of [AroraBarak07]. The correspondence
-with randomized reductions to 3SAT in Definition 7.20, and the nondeterministic circuit endpoint
-of Exercise 7.5, are separate obligations.
+This is the operator form of Exercise 8.5 of [AroraBarak07]. The correspondence with randomized
+reductions to 3SAT in Definition 7.20, and Exercise 8.5 in that form, are
+`Cslib.Complexity.setOf_bpReducible_ThreeSAT` and
+`Cslib.Complexity.AMk_two_eq_setOf_bpReducible_ThreeSAT`. The nondeterministic circuit endpoint of
+Exercise 7.5 is a separate obligation.
 
 ## Main results
 

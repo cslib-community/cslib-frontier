@@ -134,8 +134,7 @@ theorem subexponentiallyBounded_sqrtThreshold : SubexponentiallyBounded sqrtThre
     rw [pow_succ 2 (Nat.sqrt n + 1)]
     have := Nat.one_le_two_pow (n := Nat.sqrt n + 1)
     omega
-  calc c * Nat.clog 2 (2 ^ (Nat.sqrt n + 1) + 1) ≤ c * (Nat.sqrt n + 2) :=
-        Nat.mul_le_mul_left c hclog
+  calc c * Nat.clog 2 (2 ^ (Nat.sqrt n + 1) + 1) ≤ c * (Nat.sqrt n + 2) := by gcongr
     _ ≤ Nat.sqrt n * Nat.sqrt n := by nlinarith
     _ ≤ n := Nat.sqrt_le n
 

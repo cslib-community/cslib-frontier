@@ -198,14 +198,6 @@ private def term (gs : List GateCode) (x y : List Bool) (σ : Bool) (π : List B
   if (gs.foldl pathStep (x, π, σ)).1 = y then
     (if (gs.foldl pathStep (x, π, σ)).2.2 then -1 else 1) else 0
 
-private theorem pathRun_eq (gs : List GateCode) (x π : List Bool) :
-    pathRun gs x π = ((gs.foldl pathStep (x, π, false)).1, (gs.foldl pathStep (x, π, false)).2.2) :=
-  rfl
-
-private theorem pathTerm_eq_term (gs : List GateCode) (x y π : List Bool) :
-    pathTerm gs x y π = term gs x y false π :=
-  rfl
-
 /-- **Amplitudes are path sums** (generalized over the initial sign). -/
 private theorem sgn_mul_run_ofCodes_apply (gs : List GateCode)
     (hgs : ∀ g ∈ gs, g.WellFormed m) (x y : Fin m → Bool) (σ : Bool) :

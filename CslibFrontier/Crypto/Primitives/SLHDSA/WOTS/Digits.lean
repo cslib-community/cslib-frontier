@@ -13,7 +13,7 @@ public import Mathlib.Algebra.BigOperators.Fin
 public import Mathlib.Algebra.Order.Floor.Div
 import CslibFrontier.Foundations.Data.BitString.List.BinaryOrder
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Tactic
+import Mathlib.Tactic.NormNum
 
 /-!
 # FIPS 205 WOTS+ message and checksum digits

@@ -13,6 +13,8 @@ public import CslibFrontier.Computability.WordRAM.Realization.Witness
 public import CslibFrontier.DataStructure.PriorityQueue.BinaryHeap.Native.Encoding
 import CslibFrontier.Tactic.Realize
 import CslibFrontier.Computability.WordRAM.Realization.Backend
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Source-faithful native sift-down
@@ -164,6 +166,7 @@ def Shape (w : ℕ) (d : Argument) (k : ℕ) (s : Memory.State) : Prop :=
     HeapShape d.capacity d.layout.base d.size s.mem ∧ 1 ≤ k ∧ k ≤ d.size + 1
 
 /-- The logarithmic distance to the last occupied level. -/
+@[wram_arith]
 def rank (d : Argument) (k : ℕ) : ℕ := Nat.log 2 d.size - Nat.log 2 k
 
 /-- Each continuing body keeps the existing shape and strictly decreases its ghost rank.
@@ -197,8 +200,7 @@ theorem step_triple {w : ℕ} {d : Argument} {k : ℕ} {s : Memory.State}
       refine ⟨⟨ht, hn, hA, hshape', hc1, by omega⟩, ?_⟩
       have hl := log_child hk hc
       have hm := Nat.log_mono_right (b := 2) hcS
-      unfold rank
-      omega
+      wram_omega
     · refine Triple.pure ⟨⟨ht, hn, hA, hshape, by omega, le_rfl⟩, ?_⟩
       have hm : Nat.log 2 d.size ≤ Nat.log 2 (d.size + 1) :=
         Nat.log_mono_right (by omega)
@@ -262,8 +264,7 @@ theorem loop_safe {w : ℕ} {d : Argument} {k : ℕ} {s : Memory.State}
   · have hsrc := (guard_iff hi.1 hi.2.2.2.2.1).mp hg
     have hm := Nat.log_mono_right (b := 2) hsrc.2
     have hl := log_child hsrc.1 (show (2 * a) / 2 = a by omega)
-    unfold rank at hz
-    omega
+    wram_omega [hz]
   · obtain ⟨_, _, hpost⟩ := triple_iff.mp (step_triple hi hg)
     rw [clientResult_width w, clientState_width w] at hpost
     exact ⟨⟨hi, hg⟩, hpost⟩

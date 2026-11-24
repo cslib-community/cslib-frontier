@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Cell
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Charged shared-coordinate array loop
@@ -63,12 +64,12 @@ theorem exec_cells {w : ℕ} (hw : 0 < w) (side : Bool) (x : Data 32)
       ∃ z, ExecWithin (w + 2) (cellBody side) y z 205 ∧ Inv (y.regs cell + 1) z ∧
         z.regs cell = y.regs cell + 1 := by
     obtain ⟨hr, hm, hf⟩ := hy
-    have hys : y.regs src = s := (hr src (by decide) (by decide)).trans hsrc
-    have hyd : y.regs dst = d := (hr dst (by decide) (by decide)).trans hdst
-    have hyn : y.regs stride = n := (hr stride (by decide) (by decide)).trans hn
-    have hy7 : y.regs seven = 7 := (hr seven (by decide) (by decide)).trans hseven
-    have hy10 : y.regs ten = 10 := (hr ten (by decide) (by decide)).trans hten
-    have hy1 : y.regs one = 1 := (hr one (by decide) (by decide)).trans hone
+    have hys : y.regs src = s := by regs_frame
+    have hyd : y.regs dst = d := by regs_frame
+    have hyn : y.regs stride = n := by regs_frame
+    have hy7 : y.regs seven = 7 := by regs_frame
+    have hy10 : y.regs ten = 10 := by regs_frame
+    have hy1 : y.regs one = 1 := by regs_frame
     have hyinput (a : Fin 7) :
         y.mem (s + (y.regs cell / (10 * n) * 7 + a.val) * n + y.regs cell % n) =
           encode (v (y.regs cell) a) := by
@@ -110,10 +111,6 @@ instance (i : Fin 32) : Decidable (StageLocal i) :=
   inferInstanceAs (Decidable (CellLocal i ∨ i = stride ∨ i = stageSize ∨ i = src ∨
     i = dst ∨ i = prefixes ∨ i = stage))
 
-private theorem stage_preserves (side : Bool) (i : Fin 32) :
-    9 ≤ i.val → ¬StageLocal i → (stageBody side).Preserves i := by
-  decide +kernel +revert
-
 /-- A complete coordinate stage, including stride division, stage-size arithmetic, both
 cell-loop control instructions per entry, buffer alternation and the next-stage counters. -/
 theorem exec_stageBody {w : ℕ} (hw : 0 < w) (side : Bool) (x : Data 32)
@@ -139,48 +136,24 @@ theorem exec_stageBody {w : ℕ} (hw : 0 < w) (side : Bool) (x : Data 32)
   have hN : Fits (w + 2) (P * 10 * n) := haddr.of_le (by nlinarith)
   have hnfit : Fits (w + 2) n := haddr.of_le (by nlinarith)
   have hdiv : 7 * n / 7 = n := by omega
-  let z := (((x.set stride n).set stageSize (P * 10)).set stageSize (P * 10 * n)).set cell 0
-  have hz : ExecWithin (w + 2) stageHead x z 4 := by
-    ram_eval [stageHead, z, hn, hseven, hp, hten, hdiv, hnfit, h10P, hN,
-      stride, prefixes, ten, seven, stageSize, cell, Fin.mk.injEq]
-  have hzr (a : Fin 32) (ha : a ≠ stride ∧ a ≠ stageSize ∧ a ≠ cell) :
-      z.regs a = x.regs a := by
-    simp only [z, Data.set_regs, Function.update_of_ne ha.1, Function.update_of_ne ha.2.1,
-      Function.update_of_ne ha.2.2]
-  obtain ⟨u, hu, hum, huf, hur⟩ := exec_cells hw side z P n s d hP hnpos
-    ((hzr src (by decide)).trans hsrc) ((hzr dst (by decide)).trans hdst)
-    (by simp [z]) (by simp [z, stride, stageSize, cell])
-    ((hzr seven (by decide)).trans hseven) ((hzr ten (by decide)).trans hten)
-    ((hzr one (by decide)).trans hone)
-    (by simp [z, stageSize, cell, Nat.mul_comm]) v B hB hv hmem hval haddr hdisj
-  have ur (a : Fin 32) (ha : 9 ≤ a.val) (hl : ¬CellLocal a)
-      (hzl : a ≠ stride ∧ a ≠ stageSize ∧ a ≠ cell) : u.regs a = x.regs a :=
-    (hur a ha hl).trans (hzr a hzl)
-  have us : u.regs dst = d := (ur dst (by decide) (by decide) (by decide)).trans hdst
-  have uo : u.regs output = o := (ur output (by decide) (by decide) (by decide)).trans hout
-  have uq : u.regs scratch = q := (ur scratch (by decide) (by decide) (by decide)).trans hscratch
-  have up : u.regs prefixes = P := (ur prefixes (by decide) (by decide) (by decide)).trans hp
-  have uj : u.regs stage = j := (ur stage (by decide) (by decide) (by decide)).trans hj
-  have ut : u.regs ten = 10 := (ur ten (by decide) (by decide) (by decide)).trans hten
-  have u1 : u.regs one = 1 := (ur one (by decide) (by decide) (by decide)).trans hone
+  refine WP.exists_execWithin ?_
+  unfold stageBody stageHead stageTail
+  wram_exec [hn, hseven, hp, hten, hdiv, hnfit, h10P, hN]
+  wram_call (exec_cells hw side _ P n s d hP hnpos (by wram_simp [hsrc]) (by wram_simp [hdst])
+    (by wram_simp) (by wram_simp) (by wram_simp [hseven]) (by wram_simp [hten])
+    (by wram_simp [hone]) (by wram_simp; ring) v B hB hv hmem hval haddr hdisj)
+    with u ⟨hum, huf, hur⟩
   have un : u.regs stride = n := by
     rw [hur stride (by decide) (by decide)]
-    simp [z, stride, stageSize, cell]
-  let y := (((u.set src d).set dst (if d = o then q else o)).set prefixes (P * 10)).set
-    stage (j + 1)
-  have hy : ExecWithin (w + 2) stageTail u y 6 := by
-    by_cases hdo : d = o
-    all_goals ram_eval [stageTail, y, us, uo, uq, up, uj, ut, u1, hdo, h10P, hjfit,
-      src, dst, output, scratch, prefixes, stage, ten, one, Fin.mk.injEq]
-  have he : ExecWithin (w + 2) (stageBody side) x y (207 * (10 * P * n) + 12) :=
-    (hz.seq (hu.seq hy)).mono (by omega)
-  refine ⟨y, he, hum, huf, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simp [y, src, dst, prefixes, stage]
-  · simp [y, dst, prefixes, stage]
-  · simpa [y, src, dst, prefixes, stage, stride] using un
-  · simp [y, prefixes, stage, Nat.mul_comm]
-  · simp [y]
-  · intro a ha hl
-    exact he.regs_eq (stage_preserves side a ha hl)
+    wram_simp
+  wram_exec * [h10P, hjfit]
+  all_goals
+    refine ⟨hum, huf, by wram_simp, by wram_simp; simp [hc], by wram_simp; exact un,
+      by wram_simp; ring, by wram_simp, fun a ha hl => ?_⟩
+    simp only [StageLocal, CellLocal, not_or] at hl
+    rcases hl with ⟨⟨h1, h2, h3, h4, h5, h6, h7, h8⟩, h9, h10, h11, h12, h13, h14⟩
+    wram_simp
+    rw [hur a ha (by simp [CellLocal, h1, h2, h3, h4, h5, h6, h7, h8])]
+    wram_simp
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Encoding

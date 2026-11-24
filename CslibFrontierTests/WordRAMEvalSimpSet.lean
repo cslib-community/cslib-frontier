@@ -84,8 +84,8 @@ meta def literalSimp (basis args : Syntax.TSepArray
       Cslib.WordRAM.Cond.holds_eq, Cslib.WordRAM.Cond.holds_lt,
       Cslib.WordRAM.Data.set_regs, Cslib.WordRAM.Data.set_mem,
       Cslib.WordRAM.Data.write_regs, Cslib.WordRAM.Data.write_mem, Function.update_self,
-      Function.update_apply, bind, Option.map_some, Option.bind_some, Option.map_none,
-      Option.bind_none, ↓reduceIte, Nat.reduceAdd, Nat.reduceMul, Nat.reduceSub,
+      Function.update_apply, Fin.mk.injEq, bind, Option.map_some, Option.bind_some,
+      Option.map_none, Option.bind_none, ↓reduceIte, Nat.reduceAdd, Nat.reduceMul, Nat.reduceSub,
       Nat.reduceDiv, Nat.reduceMod, Nat.reducePow, Nat.reduceAnd, Nat.reduceOr,
       Nat.reduceXor, Nat.reduceShiftLeft, Nat.reduceShiftRight, Nat.reduceLT,
       Nat.reduceLeDiff, Nat.reduceEqDiff, $args,*])
@@ -146,7 +146,7 @@ private def under : Code .exact 2 := ram_exact[ a ← #3; b ← a - b; b ← b /
 /-! The simp contexts, without and with the caller's lemmas, local hypotheses, `←`, `↓` and
 erasures. The checks leave the goal unchanged. -/
 
-/-- info: 42 theorems, 5 unfolded, 16 simprocs -/
+/-- info: 43 theorems, 5 unfolded, 16 simprocs -/
 #guard_msgs in
 set_option linter.unusedTactic false in
 example : True := by
@@ -156,7 +156,7 @@ example : True := by
       Cslib.WordRAM.BinOp.eval] []
   trivial
 
-/-- info: 42 theorems, 5 unfolded, 16 simprocs -/
+/-- info: 43 theorems, 5 unfolded, 16 simprocs -/
 #guard_msgs in
 set_option linter.unusedTactic false in
 example : True := by
@@ -166,7 +166,7 @@ example : True := by
       Cslib.WordRAM.BinOp.evalExact] []
   trivial
 
-/-- info: 46 theorems, 6 unfolded, 14 simprocs -/
+/-- info: 47 theorems, 6 unfolded, 14 simprocs -/
 #guard_msgs in
 set_option linter.unusedTactic false in
 set_option linter.unusedVariables false in

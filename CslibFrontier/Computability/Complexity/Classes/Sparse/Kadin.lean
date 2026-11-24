@@ -67,7 +67,7 @@ The algorithm (`Cslib.Complexity.KadinCensus.program`) runs `⌈log₂ (N + 1)�
 search (`Cslib.Complexity.KadinCensus.searchStepProgram`) on an interval containing the census,
 where `N` is the polynomial census bound, each round making one request to the encodings of the
 satisfiable formulas through the Cook–Levin reduction, and then makes one last request. The loop
-is certified by `Cslib.Probability.IsOraclePPTOn.iterateWith_spec'`; every reachable interval lies
+is certified by `Cslib.Probability.IsOraclePPTOn.iterateWith_spec`; every reachable interval lies
 in `[0, N]`.
 
 ## Main definitions
@@ -440,7 +440,7 @@ theorem isOraclePPTOn_program {enc : α ↪ List Bool} {req fin : α × ℕ → 
         (encPair (encPair enc (encPair encUnary encUnary)) encBool) encUnary := by fun_prop
     exact ComputableInPolyTime.ite' (ComputableInPolyTime.snd _ _) (hmid'.prod hhi)
       (hlo.prod (ComputableInPolyTime.unary_sub' hmid' (ComputableInPolyTime.const 1)))
-  have hyes := hq.map_with' (f := fun pair b => if b then ((pair.2.1 + pair.2.2 + 1) / 2, pair.2.2)
+  have hyes := hq.map_with (f := fun pair b => if b then ((pair.2.1 + pair.2.2 + 1) / 2, pair.2.2)
     else (pair.2.1, (pair.2.1 + pair.2.2 + 1) / 2 - 1)) hpost
   have hno : IsOraclePPTOn (Operation := Unit) (encPair enc (encPair encUnary encUnary))
       (encPair encUnary encUnary) (fun pair : α × ℕ × ℕ => pure pair.2) :=
@@ -450,7 +450,7 @@ theorem isOraclePPTOn_program {enc : α ↪ List Bool} {req fin : α × ℕ → 
   have hstep : IsOraclePPTOn (encPair enc (encPair encUnary encUnary)) (encPair encUnary encUnary)
       (fun pair : α × ℕ × ℕ => OracleComp.interpret ProbOracleComp.query
         (searchStepProgram req pair.1 pair.2)) := by
-    refine (IsOraclePPTOn.ite' (condition := fun pair : α × ℕ × ℕ => pair.2.1 < pair.2.2) hcond
+    refine (IsOraclePPTOn.ite (condition := fun pair : α × ℕ × ℕ => pair.2.1 < pair.2.2) hcond
       hyes hno).congr fun pair State oracle s => ?_
     unfold searchStepProgram
     split_ifs <;> simp only [OracleComp.interpret_map, OracleComp.interpret_pure]
@@ -458,7 +458,7 @@ theorem isOraclePPTOn_program {enc : α ↪ List Bool} {req fin : α × ℕ → 
     (ComputableInPolyTime.const 0).prod hN
   have hsize : PolyBounded (fun a => (enc a).length) (fun a => 3 * N a + 1) :=
     ((PolyBounded.const 3).mul hN.polyBounded).add (.const 1)
-  have hit := IsOraclePPTOn.iterateWith_spec' (input := enc)
+  have hit := IsOraclePPTOn.iterateWith_spec (input := enc)
     (stateEncoding := encPair encUnary encUnary) (count := count)
     (initial := fun a => ((0 : ℕ), N a))
     (step := fun a st => OracleComp.interpret ProbOracleComp.query (searchStepProgram req a st))

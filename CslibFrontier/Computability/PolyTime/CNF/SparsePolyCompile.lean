@@ -1219,7 +1219,7 @@ theorem computableInPolyTime_compileParitySystemBounded (k : ℕ)
 @[fun_prop]
 theorem computableInPolyTime_equationVars :
     ComputableInPolyTime equationVars encSparseEquation (encList encNat) := by
-  exact computableInPolyTime_sortDedup.comp (.of_tidy (ComputableTidilyInPolyTime.flatten encNat))
+  exact computableInPolyTime_sortDedup.comp ((ComputableInPolyTime.flatten encNat))
 
 /-- Computing `varDegree v sys` (returned in unary) is polynomial-time. -/
 @[fun_prop]

@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.WordRAM.Function
 public import CslibFrontier.Computability.WordRAM.MapOp
 public import CslibFrontier.Computability.WordRAM.Realization.Program
 public import CslibFrontier.Computability.WordRAM.Realization.Witness
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Functions computed by realized memory clients
@@ -66,16 +67,11 @@ theorem uniformComputableInPolyTime {B : Basis} (φ : Basis.exact.Simulates B)
   let fr : Fin r := ⟨0, by omega⟩
   let src : Fin k → Fin r := fun j => ⟨j.val + 1, by omega⟩
   let tmp : Fin (l + h.scratchSize + 1) → Fin r := fun j => ⟨k + 1 + j.val, by omega⟩
-  have hsrc : Function.Injective src := fun a b hab =>
-    Fin.ext (by have := congrArg Fin.val hab; simp only [src] at this; omega)
-  have htmp : Function.Injective tmp := fun a b hab =>
-    Fin.ext (by have := congrArg Fin.val hab; simp only [tmp] at this; omega)
-  have hd : ∀ a b, src a ≠ tmp b := fun a b hab => by
-    have := congrArg Fin.val hab; simp only [src, tmp] at this; omega
-  have hf : ∀ b, tmp b ≠ fr := fun b hb => by
-    have := congrArg Fin.val hb; simp only [tmp, fr] at this; omega
-  have hs : ∀ a, src a ≠ fr := fun a ha => by
-    have := congrArg Fin.val ha; simp only [src, fr] at this; omega
+  have hsrc : Function.Injective src := by fin_index [src]
+  have htmp : Function.Injective tmp := by fin_index [tmp]
+  have hd : ∀ a b, src a ≠ tmp b := by fin_index [src, tmp]
+  have hf : ∀ b, tmp b ≠ fr := by fin_index [tmp, fr]
+  have hs : ∀ a, src a ≠ fr := by fin_index [src, fr]
   refine UniformComputableInPolyTime.of_code
     ((Code.seq (inputPrefix fr (tmp (Fin.last _)) src) (h.code fr src tmp)).mapSimulates φ)
     (tmp (Fin.castAdd (h.scratchSize + 1) i)) (T := fun n => 2 * k + 5 + h.factor * (T n + 1))

@@ -149,6 +149,24 @@ theorem cachedHeight_eq_height {t : AVLTree α} (hc : HeightConsistent t) :
     simp only [cachedHeight_node, toBinaryTree_node, BinaryTree.height, hh, ihl hcl, ihr hcr]
     omega
 
+/-- A labelled binary tree has at most one decoration by consistent cached heights. -/
+theorem HeightConsistent.eq_of_toBinaryTree_eq {t u : AVLTree α}
+    (ht : t.HeightConsistent) (hu : u.HeightConsistent) (eq : t.toBinaryTree = u.toBinaryTree) :
+    t = u := by
+  induction t generalizing u with
+  | nil => cases u <;> simp_all [toBinaryTree]
+  | node key height l r il ir =>
+    cases u with
+    | nil => cases eq
+    | node key' height' l' r' =>
+      obtain ⟨rfl, el, er⟩ := BinaryTree.node.inj eq
+      have left := il ht.2.1 hu.2.1 el
+      have right := ir ht.2.2 hu.2.2 er
+      subst l' r'
+      have same : height = height' := ht.1.trans hu.1.symm
+      subst height'
+      rfl
+
 /-- The Fibonacci step of the node-count bound: sibling heights `n`, `m` differing by at most `1`
 give `Nat.fib (1 + max n m + 2) ≤ Nat.fib (n + 2) + Nat.fib (m + 2)`. -/
 private theorem fib_one_add_max_add_two_le {n m : ℕ} (hnm : n ≤ m + 1) (hmn : m ≤ n + 1) :
@@ -240,6 +258,23 @@ heights. -/
         rotateLeft a l (rotateRight ra rl rr)
   else
     mkNode a l r
+
+/-- Rebalancing never returns the empty tree. -/
+theorem balance_ne_nil (a : α) (l r : AVLTree α) : balance a l r ≠ .nil := by
+  have right (a : α) (l r : AVLTree α) : rotateRight a l r ≠ .nil := by
+    cases l <;> simp [rotateRight, mkNode]
+  have left (a : α) (l r : AVLTree α) : rotateLeft a l r ≠ .nil := by
+    cases r <;> simp [rotateLeft, mkNode]
+  unfold balance
+  split
+  · split
+    · simp [mkNode]
+    · split <;> apply right
+  · split
+    · split
+      · simp [mkNode]
+      · split <;> apply left
+    · simp [mkNode]
 
 /-- Single right rotation preserves `HeightConsistent`. -/
 theorem heightConsistent_rotateRight {a : α} {l r : AVLTree α}
@@ -629,18 +664,12 @@ theorem valid_and_height_balance (a : α) {l r : AVLTree α} (hl : Valid l) (hr 
 @[simp]
 theorem elements_insert (x : α) (t : AVLTree α) :
     elements (insert x t) = Insert.insert x (elements t) := by
-  induction t with
-  | nil => simp [insert, mkNode]
-  | node a h l r ihl ihr =>
-    simp only [insert]
-    split <;> rename_i hxa
-    · ext y
-      simp [elements_balance, ihl, or_left_comm]
-    · split <;> rename_i hax
-      · ext y
-        simp [elements_balance, ihr, or_left_comm]
-      · have heq : x = a := le_antisymm (le_of_not_gt hax) (le_of_not_gt hxa)
-        simp [heq]
+  fun_induction insert x t with
+  | case1 => simp [mkNode] -- nil
+  | case2 _ _ _ _ _ ih | case3 _ _ _ _ _ _ ih => -- x < a: insert into l; a < x: into r
+    ext y
+    simp [elements_balance, ih, or_left_comm]
+  | case4 a h l r hxa hax => simp [le_antisymm (le_of_not_gt hax) (le_of_not_gt hxa)] -- x = a
 
 private theorem valid_and_height_insert {t : AVLTree α} (ht : Valid t) (x : α) :
     Valid (insert x t) ∧

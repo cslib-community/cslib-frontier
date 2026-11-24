@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.Data.BitString.ZModTwo
+public import CslibFrontier.Foundations.Data.BitString.ZModSpace
 public import CslibFrontier.Foundations.Data.Code.Linear
 public import Mathlib.LinearAlgebra.Matrix.Rank
 public import Mathlib.LinearAlgebra.Matrix.ToLin
@@ -46,9 +46,13 @@ transfers dimension, cardinality `2 ^ dim`, and rate from `ZMod 2`
   `Cslib.Code.finrank_parityCheckCode_add_rank`: rate and dimension bounds.
 * `Cslib.Code.lt_minDist_parityCheckCode_iff`: minimum distance from minimum nonzero kernel weight.
 * `Cslib.Code.shortenLinear_parityCheckCode`: shortening drops columns not in the retained image.
-* `Cslib.Code.mem_parityCheckCode_zmodTwo_iff`,
+* `Cslib.Code.submoduleZModIso_parityCheckCode`,
+  `Cslib.Code.finrank_parityCheckCode_bool_add_rank`,
+  `Cslib.Code.orthogonal_parityCheckCode`,
+  `Cslib.Code.orthogonal_parityCheckCode_bool`,
+  `Cslib.Code.mem_parityCheckCode_zmodTwo_iff`,
   `Cslib.Code.card_parityCheckCode_bool_eq_two_pow_finrank`,
-  `Cslib.Code.rate_parityCheckCode_bool`: binary `Bool` ↔ `ZMod 2` bridge.
+  `Cslib.Code.rate_parityCheckCode_bool`: dual row-space and binary `Bool` ↔ `ZMod 2` bridges.
 
 ## References
 
@@ -86,6 +90,10 @@ theorem syndrome_eq (H : Matrix κ ι R) (x : ι → R) : syndrome H x = H *ᵥ 
 theorem mem_parityCheckCode {H : Matrix κ ι R} {x : ι → R} :
     x ∈ parityCheckCode H ↔ H *ᵥ x = 0 :=
   LinearMap.mem_ker
+
+instance instDecidableMemParityCheckCode [Fintype κ] [DecidableEq R] (H : Matrix κ ι R) :
+    DecidablePred (· ∈ parityCheckCode H) :=
+  fun x => decidable_of_iff (H *ᵥ x = 0) mem_parityCheckCode.symm
 
 /-- A word lies in `parityCheckCode H` iff it is orthogonal to every row of `H`. -/
 theorem mem_parityCheckCode_iff_forall_dotProduct {H : Matrix κ ι R} {x : ι → R} :
@@ -164,6 +172,11 @@ theorem card_le_finrank_parityCheckCode_add [Fintype κ] (H : Matrix κ ι F) :
   have h2 := Matrix.rank_le_card_height H
   omega
 
+/-- Over a field `F`, the dual code `orthogonal (parityCheckCode H)` is the row space of `H`. -/
+theorem orthogonal_parityCheckCode [Fintype κ] (H : Matrix κ ι F) :
+    Cslib.BitString.orthogonal (parityCheckCode H) = LinearMap.range H.transpose.mulVecLin :=
+  Cslib.BitString.orthogonal_ker_mulVecLin H
+
 end Field
 
 section Binary
@@ -172,34 +185,38 @@ open Cslib.BitString
 
 variable {κ ι : Type*} [Fintype ι]
 
+/-- `submoduleZModIso` maps a Boolean parity-check code `parityCheckCode H` to
+`parityCheckCode (H.map bitEquiv.symm)`. -/
+theorem submoduleZModIso_parityCheckCode (H : Matrix κ ι Bool) :
+    submoduleZModIso ι (parityCheckCode H) = parityCheckCode (H.map bitEquiv.symm) := by
+  rw [parityCheckCode, parityCheckCode, submoduleZModIso_ker, linearMapZModEquiv_mulVecLin]
+
+/-- Rank-nullity for a Boolean parity-check matrix `H : Matrix κ ι Bool`:
+`rank (H.map bitEquiv.symm) + dim Bool (parityCheckCode H) = |ι|`. -/
+theorem finrank_parityCheckCode_bool_add_rank (H : Matrix κ ι Bool) :
+    (H.map bitEquiv.symm).rank + Module.finrank Bool (parityCheckCode H) = Fintype.card ι := by
+  rw [← finrank_submoduleZModIso, submoduleZModIso_parityCheckCode]
+  exact finrank_parityCheckCode_add_rank (H.map bitEquiv.symm)
+
+/-- Over `Bool`, the dual code `orthogonal (parityCheckCode H)` is the row space of `H`. -/
+theorem orthogonal_parityCheckCode_bool [Fintype κ] (H : Matrix κ ι Bool) :
+    orthogonal (parityCheckCode H) = LinearMap.range H.transpose.mulVecLin :=
+  orthogonal_ker_mulVecLin_bool H
+
 /-- Membership in a Boolean parity-check code `parityCheckCode H` is equivalent to membership in the
 corresponding `ZMod 2` parity-check code under `bitEquiv.symm`. -/
 theorem mem_parityCheckCode_zmodTwo_iff (H : Matrix κ ι Bool) (x : ι → Bool) :
     (fun i => bitEquiv.symm (x i)) ∈ parityCheckCode (H.map bitEquiv.symm) ↔
       x ∈ parityCheckCode H := by
-  simp only [mem_parityCheckCode_iff_forall_dotProduct, Matrix.map_apply, dotProduct]
-  refine forall_congr' fun i => ?_
-  have hmap : ∑ j : ι, bitEquiv.symm (H i j) * bitEquiv.symm (x j) =
-      bitEquiv.symm (∑ j : ι, H i j * x j) := by
-    simp only [map_sum, map_mul]
-  rw [hmap]
-  exact ⟨fun h => bitEquiv.symm.injective (h.trans bitEquiv.symm.map_zero.symm),
-    fun h => by rw [h, bitEquiv.symm.map_zero]⟩
+  rw [← submoduleZModIso_parityCheckCode]
+  exact toZModSpace_mem_submoduleZModIso (x := x)
 
 /-- A binary parity-check code `parityCheckCode H` (`Bool`) has cardinality `2 ^ dim` matching its
 `ZMod 2` partner. -/
 theorem card_parityCheckCode_bool_eq_two_pow_finrank (H : Matrix κ ι Bool) :
     Nat.card (parityCheckCode H) =
       2 ^ Module.finrank (ZMod 2) (parityCheckCode (H.map bitEquiv.symm)) := by
-  let e : parityCheckCode H ≃ parityCheckCode (H.map bitEquiv.symm) :=
-    { toFun := fun x => ⟨fun i => bitEquiv.symm (x.1 i),
-        (mem_parityCheckCode_zmodTwo_iff H x.1).2 x.2⟩
-      invFun := fun y => ⟨fun i => bitEquiv (y.1 i), by
-        rw [← mem_parityCheckCode_zmodTwo_iff H]
-        simpa only [RingEquiv.symm_apply_apply] using y.2⟩
-      left_inv := fun x => Subtype.ext (funext fun i => bitEquiv.apply_symm_apply (x.1 i))
-      right_inv := fun y => Subtype.ext (funext fun i => bitEquiv.symm_apply_apply (y.1 i)) }
-  rw [Nat.card_congr e, card_linearCode_eq_pow_finrank, ZMod.card]
+  rw [natCard_submodule_bool, ← finrank_submoduleZModIso, submoduleZModIso_parityCheckCode]
 
 /-- The rate of a binary parity-check code `parityCheckCode H` equals its `ZMod 2` dimension
 divided by `|ι|`. -/

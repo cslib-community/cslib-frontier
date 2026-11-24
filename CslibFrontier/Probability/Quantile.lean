@@ -36,10 +36,10 @@ public section
 
 namespace Cslib.Probability.PMF
 
-variable {α : Type*} [Fintype α]
+variable {α β : Type*} [Fintype α] [LinearOrder β]
 
 /-- A finite score distribution has a cutoff bracketing every probability level. -/
-theorem exists_quantile (source : PMF α) (score : α → ℝ) {δ : ℝ}
+theorem exists_quantile (source : PMF α) (score : α → β) {δ : ℝ}
     (hδ : 0 ≤ δ) (hδone : δ ≤ 1) :
     ∃ cutoff ∈ Set.range score,
       (∑ x, if score x < cutoff then (source x).toReal else 0) ≤ δ ∧
@@ -73,7 +73,7 @@ theorem exists_quantile (source : PMF α) (score : α → ℝ) {δ : ℝ}
     simpa only [ite_eq_right (hnone _), Finset.sum_const_zero] using hδ
 
 /-- A lower tail has the prescribed mass, filling only the boundary level fractionally. -/
-theorem exists_lowerTail (source : PMF α) (score : α → ℝ) {δ : ℝ}
+theorem exists_lowerTail (source : PMF α) (score : α → β) {δ : ℝ}
     (hδ : 0 ≤ δ) (hδone : δ ≤ 1) :
     ∃ cutoff ∈ Set.range score, ∃ softSet : α → ℝ,
       (∀ x, softSet x ∈ Set.Icc 0 1) ∧

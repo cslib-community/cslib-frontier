@@ -154,6 +154,17 @@ inductive Symbol where
   | .disequality, [a, b] => decide (a ≠ b)
   | _, _ => false
 
+/-- The ordered relation symbol reads its canonical tuple without changing any coordinate. -/
+theorem sem_relation (R : Set (Fin 4 → Bool)) [DecidablePred (· ∈ R)]
+    (x : Fin 4 → Bool) : sem R .relation (List.ofFn x) = true ↔ x ∈ R := by
+  rw [tuple_eq x]
+  simp [sem, List.ofFn_succ]
+
+/-- The binary symbol has exactly disequality semantics in its original argument order. -/
+theorem sem_disequality (R : Set (Fin 4 → Bool)) [DecidablePred (· ∈ R)]
+    (x : Fin 2 → Bool) : sem R .disequality (List.ofFn x) = true ↔ x 0 ≠ x 1 := by
+  simp [sem, List.ofFn_succ]
+
 /-- Figure 1(a)'s four constraints. Auxiliary indices `0,1,2` are `m,m̄,v̄₂`.
 The order inside each scope is the numbered order in the figure. -/
 @[expose] def figureOneABody : CSP Symbol (Fin 4 ⊕ Fin 3) :=
@@ -236,6 +247,12 @@ The body still has exactly the four constraints displayed in the source. -/
 @[expose] def nearSem : Unit → List Bool → Bool
   | _, [a, b, c, d] => decide (![a, b, c, d] ∈ nearCross)
   | _, _ => false
+
+/-- Figure 1(b)'s symbol reads NEAR-CROSS at precisely the canonical ordered tuple. -/
+theorem nearSem_relation (x : Fin 4 → Bool) :
+    nearSem () (List.ofFn x) = true ↔ x ∈ nearCross := by
+  rw [tuple_eq x]
+  simp [nearSem, List.ofFn_succ]
 
 /-- Figure 1(b)'s two constraints; its one auxiliary is `m`. -/
 @[expose] def figureOneBBody : CSP Unit (Fin 4 ⊕ Fin 1) :=

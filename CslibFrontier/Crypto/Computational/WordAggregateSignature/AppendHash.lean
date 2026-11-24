@@ -88,8 +88,26 @@ def appendHash (S : WordAggregateSignatureScheme) {Param : Type} {Digest : Param
     return encPair encBits encBits (h, sigAg)
   aggregate_ppt := by
     have hdec := (Decoder.bits.pair decParam).computableInPolyTime
-    have hhash := @computableInPolyTime_hash_comp _ _ _ _ _ hH
-    ppt
+    let input := encPair encBits
+      (encPair (encList encBits) (encPair (encList encBits) (encList encBits)))
+    have hid := ComputableInPolyTime.id' (encIn := input)
+    have hdecoded := hdec.comp hid.fst'
+    have hprepare := hdecoded.fst'.prod hid.snd'
+    have hcall := S.aggregate_ppt.preprocess hprepare
+    have hword := ComputableInPolyTime.encoding_comp
+      (hid.snd'.fst'.prod hid.snd'.snd'.fst')
+    have hhash := hH.comp (hdecoded.snd'.prod hword)
+    have hresult : ComputableInPolyTime
+        (fun q : (List Bool × List (List Bool) × List (List Bool) × List (List Bool)) ×
+          List Bool => encPair encBits encBits
+            (encDigest ((Decoder.bits.pair decParam).decode q.1.1).2
+              (H ((Decoder.bits.pair decParam).decode q.1.1).2
+                (encPair (encList encBits) (encList encBits) (q.1.2.1, q.1.2.2.1))), q.2))
+        (encPair input encBits) encBits := by
+      exact ComputableInPolyTime.encoding_comp
+        ((hhash.comp (ComputableInPolyTime.fst input encBits)).prod
+          (ComputableInPolyTime.snd input encBits))
+    simpa only [bind_pure_comp, Function.comp_def] using hcall.map_with hresult
   aggregateVerify param' pks ms sigAg' :=
     let (param, d) := (Decoder.bits.pair decParam).decode param'
     let (h, sigAg) := (Decoder.bits.pair Decoder.bits).decode sigAg'

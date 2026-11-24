@@ -57,6 +57,8 @@ universe w
 
 namespace Cslib.DataStructure.BTree
 
+open Cslib.SortedAssoc (leI)
+
 section Polymorphic
 
 variable {α β : Type} {m : Type → Type w} [Monad m]
@@ -162,25 +164,15 @@ variable {α β : Type} {m n : Type → Type*} [Monad m] [Monad n]
 theorem _root_.Cslib.IsMonadHom.map_predM (hf : IsMonadHom m n f) (le : α → α → m Bool)
     (visit : m Unit) (k : α) (tr : BTree α β) :
     f (predM le visit k tr) = predM (fun a b => f (le a b)) (f visit) k tr := by
-  match tr with
-  | .leaf => simp [predM_leaf, hf.map_pure]
-  | .node first [] => simp [predM_node_nil, hf.map_bind, hf.map_predM le visit k first]
-  | .node first ((k', v, c) :: rest) =>
-    simp [predM_node_cons, hf.map_bind, hf.map_pure, apply_ite f, hf.map_predM le visit k first,
-      hf.map_predM le visit k (.node c rest)]
-termination_by sizeOf tr
+  fun_induction predM le visit k tr <;>
+    simp [predM, hf.map_bind, hf.map_pure, apply_ite f, *]
 
 /-- A monad morphism commutes with the successor search. -/
 theorem _root_.Cslib.IsMonadHom.map_succM (hf : IsMonadHom m n f) (le : α → α → m Bool)
     (visit : m Unit) (k : α) (tr : BTree α β) :
     f (succM le visit k tr) = succM (fun a b => f (le a b)) (f visit) k tr := by
-  match tr with
-  | .leaf => simp [succM_leaf, hf.map_pure]
-  | .node first [] => simp [succM_node_nil, hf.map_bind, hf.map_succM le visit k first]
-  | .node first ((k', v, c) :: rest) =>
-    simp [succM_node_cons, hf.map_bind, hf.map_pure, apply_ite f, hf.map_succM le visit k first,
-      hf.map_succM le visit k (.node c rest)]
-termination_by sizeOf tr
+  fun_induction succM le visit k tr <;>
+    simp [succM, hf.map_bind, hf.map_pure, apply_ite f, *]
 
 end Transfer
 
@@ -240,49 +232,31 @@ fallback for the search in the child before it. -/
 in `toList`. -/
 theorem pred?_eq_of_isSortedAssoc (h : tr.toList.IsSortedAssoc) (k : α) :
     pred? k tr = SortedAssoc.pred? k tr.toList := by
-  fun_induction predM (m := Id) leI (pure ()) k tr with
-  | case1 => simp
-  | case2 first ih => simpa using ih (by simpa using h)
-  | case3 first k' v c rest ih₁ ih₂ =>
-    rw [toList_node, toListRest_cons, List.cons_append] at h ⊢
-    rw [toList_node] at ih₂
-    obtain ⟨h₁, h₂, _, hgt⟩ := List.isSortedAssoc_append_cons_iff.1 h
-    rw [pred?_node_cons]
+  induction h using induction_isSortedAssoc with
+  | leaf => simp
+  | node_nil _ _ ih => simpa using ih
+  | node_cons first k' v c rest _ _ _ hgt ih₁ ih₂ =>
+    rw [pred?_node_cons, toList_node_cons, SortedAssoc.pred?_append, SortedAssoc.pred?_cons,
+      ih₁, ih₂]
     by_cases hk : k ≤ k'
-    · have hn : SortedAssoc.pred? k ((k', v) :: (c.toList ++ toListRest rest)) = none := by
-        apply SortedAssoc.pred?_eq_none_iff.2
-        intro p hp
-        rcases List.mem_cons.1 hp with rfl | hp
-        · exact hk
-        · exact hk.trans (hgt p hp).le
-      simp only [hk, ↓reduceIte, SortedAssoc.pred?_append, hn, Option.none_or, ih₁ h₁]
-    · have hs : SortedAssoc.pred? k [(k', v)] = some (k', v) := by
-        simp only [SortedAssoc.pred?_singleton, lt_of_not_ge hk, ↓reduceIte]
-      rw [← List.singleton_append (x := (k', v))]
-      simp only [hk, ↓reduceIte, SortedAssoc.pred?_append, hs, Option.or_assoc,
-        Option.some_or, ih₂ h₂]
+    · rw [SortedAssoc.pred?_eq_none_iff.2 fun p hp => hk.trans (hgt p hp).le]
+      simp [hk, not_lt.2 hk]
+    · simp [hk, lt_of_not_ge hk]
 
 /-- Model equation: on a tree with sorted entries, `succ?` is the model's strict successor
 in `toList`. -/
 theorem succ?_eq_of_isSortedAssoc (h : tr.toList.IsSortedAssoc) (k : α) :
     succ? k tr = SortedAssoc.succ? k tr.toList := by
-  fun_induction succM (m := Id) leI (pure ()) k tr with
-  | case1 => simp
-  | case2 first ih => simpa using ih (by simpa using h)
-  | case3 first k' v c rest ih₁ ih₂ =>
-    rw [toList_node, toListRest_cons, List.cons_append] at h ⊢
-    rw [toList_node] at ih₁
-    obtain ⟨h₁, h₂, hlt, _⟩ := List.isSortedAssoc_append_cons_iff.1 h
-    rw [succ?_node_cons, ← List.singleton_append (x := (k', v))]
+  induction h using induction_isSortedAssoc with
+  | leaf => simp
+  | node_nil _ _ ih => simpa using ih
+  | node_cons first k' v c rest _ _ hlt _ ih₁ ih₂ =>
+    rw [succ?_node_cons, toList_node_cons, SortedAssoc.succ?_append, SortedAssoc.succ?_cons,
+      ih₁, ih₂]
     by_cases hk : k' ≤ k
-    · have hn : SortedAssoc.succ? k first.toList = none :=
-        SortedAssoc.succ?_eq_none_iff.2 fun p hp => (hlt p hp).le.trans hk
-      have hs : SortedAssoc.succ? k [(k', v)] = none := by
-        simp only [SortedAssoc.succ?_singleton, not_lt.2 hk, ↓reduceIte]
-      simp only [hk, ↓reduceIte, SortedAssoc.succ?_append, hn, hs, Option.none_or, ih₁ h₂]
-    · have hs : SortedAssoc.succ? k [(k', v)] = some (k', v) := by
-        simp only [SortedAssoc.succ?_singleton, lt_of_not_ge hk, ↓reduceIte]
-      simp only [hk, ↓reduceIte, SortedAssoc.succ?_append, hs, Option.some_or, ih₂ h₁]
+    · rw [SortedAssoc.succ?_eq_none_iff.2 fun p hp => (hlt p hp).le.trans hk]
+      simp [hk, not_lt.2 hk]
+    · simp [hk, lt_of_not_ge hk]
 
 /-- Model equation for strict predecessor on well-formed trees. -/
 theorem pred?_eq (h : IsWF t tr) (k : α) : pred? k tr = SortedAssoc.pred? k tr.toList :=

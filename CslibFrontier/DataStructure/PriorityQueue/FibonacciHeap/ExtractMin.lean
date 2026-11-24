@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.Consolidation
 public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.DecreaseKey
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Fibonacci-heap `extractMin` over a record of named cells
@@ -161,6 +163,7 @@ def extractMin (n : ℕ) : Prog (Option (Fin n × ℕ)) := do
     pure (if h : m - 1 < n then some (⟨m - 1, h⟩, kz) else none)
 
 /-- The amortized charge of `extractMin` on a queue with `m` handles. -/
+@[wram_arith]
 def extractCharge (m : ℕ) : ℕ := 92 * (Nat.log 2 m + 1)
 
 
@@ -374,7 +377,7 @@ theorem wp_extractMin {K : ℕ} {g : Cell → ℕ} (hI : Inv n K g) (hfit : Fits
   rcases minRoot_cases hI with h0 | ⟨m, -, hm, -⟩
   · have h0' : g .minRoot = 0 := h0
     simp only [extractMin, Record.wp_read_bind, h0', ite_true, Record.wp_pure, Cell.ok, true_and]
-    refine ⟨?_, hI, by simp [extractCharge]; omega⟩
+    refine ⟨?_, hI, by wram_omega⟩
     simp [IndexedMinPQ.step, (FibRawInv.findMin_eq_none hI h0).2]
   obtain ⟨cs, E, hD⟩ := FibRawInv.detach hI hm
   have hm' : g .minRoot = m.val + 1 := hm

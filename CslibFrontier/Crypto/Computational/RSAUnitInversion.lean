@@ -229,7 +229,7 @@ theorem isPPT_unitRSAToRSA {A : RSAInverter} (hA : A.IsPPT) : (unitRSAToRSA A).I
       encRSAInput encNat :=
     computableInPolyTime_rsaNonUnitRoot (by fun_prop) (by fun_prop) (by fun_prop)
       (fun x => x.challenge.pos)
-  refine (IsPPTOn.ite' hcond hA hroot.isPPTOn).congr fun x => ?_
+  refine (IsPPTOn.ite hcond hA hroot.isPPTOn).congr fun x => ?_
   unfold unitRSAToRSA
   split <;> simp
 

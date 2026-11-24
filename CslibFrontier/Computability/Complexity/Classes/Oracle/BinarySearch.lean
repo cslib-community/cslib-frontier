@@ -143,14 +143,14 @@ theorem isOraclePPTOn_search {input : α ↪ List Bool} {u : α → List Bool} {
       (encPair encNat encUnary) (fun pair : List Bool × (ℕ × ℕ) =>
         OracleComp.interpret ProbOracleComp.query (searchQuery pair.1 pair.2)) := by
     simp only [interpret_searchQuery]
-    refine IsOraclePPTOn.ite' (by fun_prop)
+    refine IsOraclePPTOn.ite (by fun_prop)
       (ComputableInPolyTime.snd encBits (encPair encNat encUnary)).isOraclePPTOn ?_
-    exact IsOraclePPTOn.map_with' (IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop))
+    exact IsOraclePPTOn.map_with (IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop))
       (by fun_prop)
   have hstep : IsOraclePPTOn (encPair input (encPair encNat encUnary)) (encPair encNat encUnary)
       (fun pair : α × (ℕ × ℕ) =>
         OracleComp.interpret ProbOracleComp.query (searchQuery (u pair.1) pair.2)) :=
-    hstep₀.preprocess' (prepare := fun pair : α × (ℕ × ℕ) => (u pair.1, pair.2))
+    hstep₀.preprocess (prepare := fun pair : α × (ℕ × ℕ) => (u pair.1, pair.2))
       ((hu.comp (ComputableInPolyTime.fst input (encPair encNat encUnary))).prod
         (ComputableInPolyTime.snd input (encPair encNat encUnary)))
   have hpreserve (a : α) (i : ℕ) (s : ℕ × ℕ) (hi : i < N a)
@@ -179,11 +179,11 @@ theorem isOraclePPTOn_search {input : α ↪ List Bool} {u : α → List Bool} {
     enc_len [encNat_apply]
   have hNpoly : PolyBounded (fun a => (input a).length) N :=
     hN.polyBounded_length.mono fun _ => by simp [encUnary_apply]
-  exact (IsOraclePPTOn.iterateWith_spec'
+  exact (IsOraclePPTOn.iterateWith_spec
     (step := fun a s => OracleComp.interpret ProbOracleComp.query (searchQuery (u a) s))
     hN hinit hstep (fun a i s => s.2 = N a - i ∧ s.1 + 2 ^ s.2 ≤ 2 ^ N a)
     (fun a => ⟨by simp, by simp⟩) hpreserve
-    (((PolyBounded.const 3).mul hNpoly).add (.const 1)) hbound).1.map'
+    (((PolyBounded.const 3).mul hNpoly).add (.const 1)) hbound).1.map
     (ComputableInPolyTime.fst encNat encUnary)
 
 end BinarySearch

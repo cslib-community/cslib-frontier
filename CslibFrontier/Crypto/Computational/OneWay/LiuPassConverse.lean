@@ -22,6 +22,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.UniformNat
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Converse of Liu–Pass: Average-Case Hardness of $K^t$ Implies One-Way Functions
@@ -682,15 +683,8 @@ theorem weakOneWay_reindex_liuPassCore
   have hsumH := PMF.toReal_true_add_toReal_false distH
   have hsumA := PMF.toReal_true_add_toReal_false distA
   have hfailH_ge : 1 / ((p.eval n : ℕ) : ℝ) ≤ (distH false).toReal := by linarith
-  have hpow_ne_zero : (2 ^ (lenWidth n + Kolmogorov.copyOverhead) : ENNReal) ≠ 0 := by positivity
-  have hpow_ne_top : (2 ^ (lenWidth n + Kolmogorov.copyOverhead) : ENNReal) ≠ ⊤ :=
-    ENNReal.pow_ne_top ENNReal.ofNat_ne_top
-  have hinv_ne_top : (2 ^ (lenWidth n + Kolmogorov.copyOverhead) : ENNReal)⁻¹ ≠ ⊤ :=
-    ENNReal.inv_ne_top.mpr hpow_ne_zero
-  have hfail_le := heuristic_fail_mul_le_family_fail ht hlawA n
-  have hfail_real := ENNReal.toReal_mono (PMF.apply_ne_top distA false) hfail_le
-  rw [ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_pow,
-    ENNReal.toReal_ofNat] at hfail_real
+  have hfail_real := heuristic_fail_mul_le_family_fail ht hlawA n
+  ennreal_to_real at hfail_real
   have hpow_le :
       (2 : ℝ) ^ (lenWidth n + Kolmogorov.copyOverhead) ≤
         (C : ℝ) * ((n + (Kolmogorov.copyOverhead + 1) : ℕ) : ℝ) := by

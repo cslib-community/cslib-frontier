@@ -50,6 +50,21 @@ KERNEL_RECURSOR_ANCHORS = frozenset({
     ("Init/Prelude.html", "Eq.rec"),
     ("Init/Prelude.html", "Eq.ndrec"),
 })
+# Kernel- and compiler-generated inductive/structure auxiliary declarations that `doc-gen4`
+# links to in elaborated terms but omits from its generated HTML declaration index.
+GENERATED_RECURSOR_SUFFIXES = frozenset({
+    "rec",
+    "recOn",
+    "casesOn",
+    "brecOn",
+    "binductionOn",
+    "below",
+    "ibelow",
+    "ndrec",
+    "ndrecOn",
+    "noConfusion",
+    "noConfusionType",
+})
 HREF_RE = re.compile(r'href="([^"]*)"')
 ID_ATTR_RE = re.compile(r'id="([^"]*)"')
 DEP_BROKEN_LINK_RE = re.compile(
@@ -315,7 +330,7 @@ def rewrite_external_dependency_links(docs, index, external_pages):
             local_anchors_by_page[rel].update(page_anchors(docs / rel, anchor_cache))
 
     def recursor_parent_fragment(norm, fragment):
-        """Link omitted generated recursors to their indexed inductive/structure parent."""
+        """Link omitted generated recursors/eliminators to their indexed inductive/structure parent."""
         if not fragment:
             return fragment
         anchor = unquote(fragment)
@@ -323,7 +338,10 @@ def rewrite_external_dependency_links(docs, index, external_pages):
             return fragment
         parent, _, suffix = anchor.rpartition(".")
         info = index.get("declarations", {}).get(parent, {})
-        if suffix != "rec" or info.get("kind") not in ("inductive", "structure"):
+        if (
+            suffix not in GENERATED_RECURSOR_SUFFIXES
+            or info.get("kind") not in ("inductive", "structure")
+        ):
             return fragment
         parent_link = urlsplit(info.get("docLink", ""))
         if (

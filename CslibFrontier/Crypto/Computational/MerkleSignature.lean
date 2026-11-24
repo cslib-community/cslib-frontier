@@ -168,7 +168,7 @@ theorem verify_sign (hlen : ∀ k m, (H k m).length = k.length) (n : ℕ)
   have hvk : (otsKeys.map Prod.fst).getD u [] = (otsKeys.getD u ([], [])).1 := by
     rw [List.getD_eq_getElem _ _ (by simpa using hu'), List.getD_eq_getElem _ _ hu',
       List.getElem_map]
-  have hopen := merkleVerify_merklePath_of_clog_eq (H := H) (k := k) hdepth hu
+  have hopen := merkleVerify_merklePath_of_clog_eq (H := H) (k := k) (hlen k) hdepth hu
   rw [hvk] at hopen
   have hverify := S.verify_sign n _ hkey (H k msg) (by rw [hlen, hk]) ots hots_sig
   simp only [verify, encodeSignature, signatureDecoder.decode_enc]
@@ -205,10 +205,7 @@ theorem computableInPolyTime_publicKey :
     ComputableInPolyTime
       (fun p : List Bool × List (List Bool × List Bool) => publicKey H p.1 p.2)
       (encPair encBits (encList (encPair encBits encBits))) encBits := by
-  have hk := ComputableInPolyTime.fst encBits (encList (encPair encBits encBits))
-  have hroot := (computableInPolyTime_merkleRoot hH hlen).comp
-    (hk.prod (computableInPolyTime_keyMap.comp (ComputableInPolyTime.snd _ _)))
-  exact (hk.prod hroot).encoding_comp
+  fun_prop [publicKey]
 
 include hH hlen hcap in
 /-- Merkle key generation is uniformly strict PPT. -/
