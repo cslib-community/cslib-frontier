@@ -9,20 +9,17 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.StateCount
-import Mathlib.Algebra.Order.Ring.Star
-import Mathlib.Algebra.Polynomial.Basic
+import Mathlib.Algebra.BigOperators.Ring.Finset
+import Mathlib.Algebra.Field.GeomSum
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
-import Mathlib.Tactic.Basify
-import Mathlib.Tactic.ENatToNat
-import Mathlib.Tactic.Monotonicity.Lemmas
 
 /-!
 # The number of states
 
-Lemma B.1 (lem:count) of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. A state is a pair of
+Lemma B.1 of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. A state is a pair of
 finite sets of natural numbers; `stateCount E` is the number of states of energy at most `E`.
 There is `κ > 0` with `log (stateCount E) ≤ κ √E` for all `E` and
 `log (stateCount E) ≥ (κ - ε) √E` for every `ε > 0` and all large `E`
@@ -41,17 +38,17 @@ gives the upper bound `10 √E`.
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
-  Lemma B.1 of the paper; module `Paper.States`
+  Lemma B.1 of the paper; module `Paper.States` (`lem_count`)
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Curvature
 
 open Finset Filter
 
 /-- The number `P(E)` of states of energy at most `E`. -/
-def stateCount (E : ℕ) : ℕ := (lowStates E).card
+@[expose] def stateCount (E : ℕ) : ℕ := (lowStates E).card
 
 /-- Proof of Lemma B.1: interleaving `k` states (put `k i + r` into the first set for `i` in the
 first set of the `r`-th state, and `k j + k - 1 - r` into the second set for `j` in its second
@@ -173,7 +170,7 @@ private theorem lem_count_upper {E : ℕ} (hE : 1 ≤ E) : Real.log (stateCount 
         mul_le_mul h2 h2 (Nat.cast_nonneg _) (Real.exp_pos _).le
     _ = _ := by rw [← Real.exp_add]; ring_nf
 
-/-- **Paper: Lemma B.1 (lem:count).** There is `κ > 0` with `log P(E) ≤ κ √E` for all `E`, and
+/-- **Paper: Lemma B.1.** There is `κ > 0` with `log P(E) ≤ κ √E` for all `E`, and
 `log P(E) ≥ (κ - ε) √E` for every `ε > 0` and all large `E`. -/
 theorem exists_log_stateCount_asymptotic : ∃ κ : ℝ,
     0 < κ ∧ (∀ E : ℕ, Real.log (stateCount E) ≤ κ * √E) ∧

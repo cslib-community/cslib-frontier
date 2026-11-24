@@ -12,7 +12,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvatur
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.StateWords
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.AtOne
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.GlueDeterminant
-public import Mathlib.Algebra.Polynomial.Reverse
+import Mathlib.Algebra.Polynomial.Reverse
 import Mathlib.Algebra.Polynomial.Basic
 import Mathlib.LinearAlgebra.Matrix.SchurComplement
 import Mathlib.Algebra.Polynomial.Div
@@ -24,7 +24,7 @@ import Mathlib.Tactic.Ring
 /-!
 # The identity for two crossing wires
 
-Proposition B.2 (prop:identity) of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. For sizes
+Proposition B.2 of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. For sizes
 `μ, ν` and energies `e₁, e₂`, with `Θ = 2 (e₁ + e₂)`, there are integer tensors `Ψ_0, …, Ψ_Θ` on
 four copies of the states (`states μ e₁`, `states ν e₂`) such that their sum is the product of the
 two diagonal tensors, `Ψ_N` is a sum of at most `(N + 1) P(N)` products of a function of
@@ -47,12 +47,10 @@ and `d` and gives the high coefficients.
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
-  Proposition B.2 of the paper; module `Paper.Identity`
+  Proposition B.2 of the paper; module `Paper.Identity` (`prop_identity`)
 -/
 
-@[expose] public section
-
-set_option linter.unusedSimpArgs false
+public section
 
 namespace Cslib.Circuits.Arithmetic.Separation.Curvature
 
@@ -60,8 +58,6 @@ open Finset Matrix
 open PowerSeries
     (meixnerB meixnerC pow_dvd_meixnerB_orthogonality pow_mul_meixnerB_of_mul_eq_one
         pow_mul_meixnerC_of_mul_eq_one)
-
-
 
 /-- The paper's `E(T)`, for `T = (T₁, T₂)`. -/
 private def enT {K : ℕ} (T : Finset (Fin K ⊕ Fin K)) : ℕ :=
@@ -91,7 +87,6 @@ private theorem sum_ite_val (K n : ℕ) (f : ℕ → R) :
     ∑ r : Fin K, (if n = (r : ℕ) then f r else 0) = if n < K then f n else 0 := by
   rw [Fin.sum_univ_eq_sum_range (fun r => if n = r then f r else 0) K, Finset.sum_ite_eq]
   simp
-
 
 /-- Proof of Proposition B.2, the coefficients: the block of rows `a, d` and columns `c, b` is
 congruent modulo `X^(2K)` to `F D G`, with `F = facA`, `G = facB` and the block `blU`; its part at
@@ -674,7 +669,7 @@ private theorem prop_identity_reflection_coeff (sa : Word μ) (sb : Word ν) (sc
 
 end reflect
 
-/-- **Paper: Proposition B.2 (prop:identity).** Let `Θ = 2 (e₁ + e₂)`. There are integer tensors
+/-- **Paper: Proposition B.2.** Let `Θ = 2 (e₁ + e₂)`. There are integer tensors
 `Ψ_0, …, Ψ_Θ` such that (a) `∑_N Ψ_N` is the product of the diagonal tensors of the states of size
 `μ` and energy `e₁` (at `a, c`) and of size `ν` and energy `e₂` (at `b, d`); (b) `Ψ_N` is a sum of
 at most `(N + 1) P(N)` products of a function of `(s_a, s_d)` and one of `(s_b, s_c)`; (c) `Ψ_N`
