@@ -75,14 +75,15 @@ theorem PL.sum {ι : Type*} (S : Finset ι) (M : ι → Matrix (Fin h) (Fin h) (
 @[expose] def bQ (h n : ℕ) : ℕ := 4 ^ (h + 3) * (9 * (n + 2) ^ 3) * (n + 1) ^ 3
 
 theorem WL.el_layer (h3 : 3 ≤ h) (i j : Fin h) (hij : i ≠ j) :
-    WL h2 (El i j hij (s (n + 2) ^ (n + 1)) : G h (n + 1)) (bQ h n) :=
+    WL h2 (SpecialLinearGroup.transvection hij (s (n + 2) ^ (n + 1)) : G h (n + 1)) (bQ h n) :=
   WL.el_pow h3 (fun i j hij => WL.el_s h3 i j hij) (n + 1) (by omega) i j hij
 
 omit [NeZero h] in
 theorem lay_single (i j : Fin h) (hij : i ≠ j) (htr : (Matrix.single i j (1 : ZMod 2)).trace = 0) :
-    lay (n := n) (Matrix.single i j 1) htr = El i j hij (s (n + 2) ^ (n + 1)) := by
+    lay (n := n) (Matrix.single i j 1) htr =
+        SpecialLinearGroup.transvection hij (s (n + 2) ^ (n + 1)) := by
   refine Subtype.ext ?_
-  rw [lay_val, layMat, El_val, transvection]
+  rw [lay_val, layMat, SpecialLinearGroup.transvection_coe]
   congr 1
   ext a b
   rw [Matrix.smul_apply, Matrix.map_apply, Matrix.single_apply, Matrix.single_apply, smul_eq_mul]
@@ -90,18 +91,10 @@ theorem lay_single (i j : Fin h) (hij : i ≠ j) (htr : (Matrix.single i j (1 : 
   · rw [map_one, mul_one]
   · rw [map_zero, mul_zero]
 
-omit [NeZero h] in
-theorem trace_single_ne (i j : Fin h) (hij : i ≠ j) : (Matrix.single i j (1 : ZMod 2)).trace = 0 :=
-    by
-  rw [Matrix.trace]
-  refine Finset.sum_eq_zero fun a _ => ?_
-  rw [Matrix.diag_apply, Matrix.single_apply, ite_eq_right]
-  rintro ⟨rfl, rfl⟩
-  exact hij rfl
 
 theorem PL.single (h3 : 3 ≤ h) (i j : Fin h) (hij : i ≠ j) : PL h2 n (Matrix.single i j 1)
     (bQ h n) :=
-  ⟨trace_single_ne i j hij, by rw [lay_single i j hij]; exact WL.el_layer h3 i j hij⟩
+  ⟨Matrix.trace_single_eq_of_ne i j 1 hij, by rw [lay_single i j hij]; exact WL.el_layer h3 i j hij⟩
 
 theorem trace_diag (i : Fin h) : (Matrix.single i i (1 : ZMod 2) + Matrix.single 0 0 1).trace =
     0 := by
@@ -111,12 +104,15 @@ theorem trace_diag (i : Fin h) : (Matrix.single i i (1 : ZMod 2) + Matrix.single
 /-- The diagonal elements of the layer. -/
 theorem lay_diag (i : Fin h) (hi : i ≠ 0) :
     lay (n := n) (Matrix.single i i 1 + Matrix.single 0 0 1) (trace_diag i) =
-      El 0 i hi.symm (s (n + 2) ^ (n + 1)) * El i 0 hi 1 *
-        (El 0 i hi.symm (s (n + 2) ^ (n + 1)) * El i 0 hi 1) * El i 0 hi (s (n + 2) ^ (n + 1)) := by
+      SpecialLinearGroup.transvection hi.symm (s (n + 2) ^ (n + 1)) *
+          SpecialLinearGroup.transvection hi 1 *
+        (SpecialLinearGroup.transvection hi.symm (s (n + 2) ^ (n + 1)) *
+            SpecialLinearGroup.transvection hi 1) *
+                SpecialLinearGroup.transvection hi (s (n + 2) ^ (n + 1)) := by
   refine Subtype.ext ?_
   have hs : s (n + 2) ^ (n + 1) * s (n + 2) ^ (n + 1) = 0 := by rw [← sq, s_sq]
   set σ := s (n + 2) ^ (n + 1) with hσ
-  simp only [Matrix.SpecialLinearGroup.coe_mul, El_val, transvection]
+  simp only [Matrix.SpecialLinearGroup.coe_mul, SpecialLinearGroup.transvection_coe]
   have hl : layMat n (Matrix.single i i 1 + Matrix.single 0 0 1) =
       1 + (Matrix.single i i σ + Matrix.single 0 0 σ) := by
     rw [layMat, ← hσ]

@@ -58,37 +58,37 @@ variable (h n : ℕ) [NeZero h]
   dF := inferInstance
   fN := inferInstance
   dN' := inferInstance
-  e0 := fun e => EE.start e
-  e1 := fun e => (gen h2 (EE.kind e) : G h n) • (EE.start e)
+  e0 := fun e => e.start
+  e1 := fun e => (gen h2 e.kind : G h n) • e.start
   e_ne := fun e => (gen_smul_ne h2 _ _).symm
-  ty := fun e => EE.kind e
+  ty := fun e => e.kind
   card_ed := fun j _ i => card_edges h2 j i
   deg := fun j _ c i => deg_edges h2 j c i
   vx := vert
   co := cor
   vx_co := fun _ i => vert_cor_bijective _ i
   card_fl := card_U h
-  cN := fun ν => NN.elt ν
-  dN := fun ν => x h (NN.idx ν) * (NN.elt ν)
-  n_ne := fun ν e => x_ne_one (NN.idx ν) (by simpa using e.symm)
+  cN := fun ν => ν.elt
+  dN := fun ν => x h ν.idx * ν.elt
+  n_ne := fun ν e => x_ne_one ν.idx (by simpa using e.symm)
   nr := fun _ i => Equiv.ofBijective _ (nearFun_bijective h2 _ i)
   nr_vx0 := fun _ i e => rfl
   nr_vx1 := fun _ i e => by
-    change vert i ((gen h2 e.1.1.1 : G h n) • e.1.1.2) = vert i e.1.1.2
+    change vert i ((gen h2 e.1.kind : G h n) • e.1.start) = vert i e.1.start
     rw [gen_idx h2 i _ e.2, vert_th]
   nr_co := fun _ i e => by
-    change s(cor i e.1.1.2, cor i ((gen h2 e.1.1.1 : G h n) • e.1.1.2)) =
-      s((npair (idx i e.1.1.1 e.2) (cor i e.1.1.2)).1.2,
-        x h (npair (idx i e.1.1.1 e.2) (cor i e.1.1.2)).1.1 *
-            (npair (idx i e.1.1.1 e.2) (cor i e.1.1.2)).1.2)
+    change s(cor i e.1.start, cor i ((gen h2 e.1.kind : G h n) • e.1.start)) =
+      s((npair (idx i e.1.kind e.2) (cor i e.1.start)).elt,
+        x h (npair (idx i e.1.kind e.2) (cor i e.1.start)).idx *
+            (npair (idx i e.1.kind e.2) (cor i e.1.start)).elt)
     rw [gen_idx h2 i _ e.2, cor_th]
     exact npair_sym _ _
   π := pr
   πE := prE h2
   πV := prV
   π_ends := fun _ e => by
-    change s(pr e.1.2, (gen h2 e.1.1 : G h n) • pr e.1.2) =
-        s(pr e.1.2, pr ((gen h2 e.1.1 : G h n) • e.1.2))
+    change s(pr e.start, (gen h2 e.kind : G h n) • pr e.start) =
+        s(pr e.start, pr ((gen h2 e.kind : G h n) • e.start))
     rw [tower_equivariant]
   π_ty := fun _ _ => rfl
   card_X := fun _ hj => card_XX_succ hj
@@ -101,15 +101,6 @@ variable (h n : ℕ) [NeZero h]
 
 variable {h n}
 
-/-- `edge_type` with the projections that unfolding the tower produces. -/
-private theorem edge_type' {j : ℕ} (h2 : 2 ≤ h) (k : Fin h) (c : XX h n j) :
-    (edge h2 k c).1.1 = k :=
-  edge_type h2 k c
-
-/-- `edge_end` with the projections that unfolding the tower produces. -/
-private theorem edge_end' {j : ℕ} (h2 : 2 ≤ h) (k : Fin h) (c : XX h n j) :
-    (edge h2 k c).1.2 = c ∨ (edge h2 k c).1.2 = (gen h2 k : G h n) • c :=
-  edge_end h2 k c
 
 /-- The edges along a list of types. -/
 @[expose] noncomputable def path (h2 : 2 ≤ h) {j : ℕ} : List (Fin h) → XX h n j → List (EE h n h2 j)
@@ -124,10 +115,10 @@ theorem length_path (h2 : 2 ≤ h) {j : ℕ} (l : List (Fin h)) (c : XX h n j) :
 
 theorem step_edge (h2 : 2 ≤ h) {j : ℕ} (k : Fin h) (c : XX h n j) :
     (tower h n h2).step (edge h2 k c) c = (gen h2 k : G h n) • c := by
-  have hu : (tower h n h2).step (edge h2 k c) c = if (edge h2 k c).1.2 = c then
-      (gen h2 (edge h2 k c).1.1 : G h n) • (edge h2 k c).1.2 else (edge h2 k c).1.2 := rfl
-  rw [hu, edge_type']
-  rcases edge_end' h2 k c with e | e
+  have hu : (tower h n h2).step (edge h2 k c) c = if (edge h2 k c).start = c then
+      (gen h2 (edge h2 k c).kind : G h n) • (edge h2 k c).start else (edge h2 k c).start := rfl
+  rw [hu, edge_type]
+  rcases edge_end h2 k c with e | e
   · rw [ite_eq_left e, e]
   · rw [ite_eq_right, e]
     rw [e]
@@ -142,11 +133,11 @@ theorem walk_path (h2 : 2 ≤ h) {j : ℕ} (l : List (Fin h)) (c : XX h n j) :
     simp
   | cons k l ih =>
     refine ⟨?_, ?_⟩
-    · rcases edge_end' h2 k c with e | e
+    · rcases edge_end h2 k c with e | e
       · exact Or.inl e
       · right
-        change (gen h2 (edge h2 k c).1.1 : G h n) • (edge h2 k c).1.2 = c
-        rw [edge_type', e, gen_gen]
+        change (gen h2 (edge h2 k c).kind : G h n) • (edge h2 k c).start = c
+        rw [edge_type, e, gen_gen]
     · rw [step_edge]
       have h3 := ih ((gen h2 k : G h n) • c)
       rw [← mul_smul] at h3
@@ -169,11 +160,11 @@ theorem count_path (h2 : 2 ≤ h) {j : ℕ} (l : List (Fin h)) (e : EE h n h2 j)
     have h4 : (∑ c : XX h n j, if edge h2 k c = e then 1 else 0) ≤ 2 := by
       rw [← Finset.card_filter]
       have h5 : (univ.filter fun c : XX h n j => edge h2 k c = e) ⊆
-          {e.1.2, (gen h2 k : G h n) • e.1.2} := by
+          {e.start, (gen h2 k : G h n) • e.start} := by
         intro c hc
         rw [mem_filter] at hc
         rw [mem_insert, mem_singleton]
-        rcases edge_end' h2 k c with e1 | e1
+        rcases edge_end h2 k c with e1 | e1
         · left
           rw [← hc.2, e1]
         · right
@@ -244,20 +235,21 @@ theorem exists_routes (h2 : 2 ≤ h) {m : ℕ} (hm : ∀ g : G h n, WL h2 g m) :
            len := rte_length h2 w hw1
            use := rte_use h2 w hw1 }⟩
 
+omit [NeZero h] in
 /-- Sums over the near pairs. -/
 theorem sum_NN {M : Type*} [AddCommMonoid M] (f : Fin (h - 1) → U h → M)
     (hf : ∀ l u, f l (x h l * u) = f l u) :
-    ∑ l, ∑ u, f l u = ∑ ν : NN h, f (NN.idx ν) (NN.elt ν) + ∑ ν : NN h,
-        f (NN.idx ν) (NN.elt ν) := by
+    ∑ l, ∑ u, f l u = ∑ ν : NN h, f ν.idx ν.elt + ∑ ν : NN h,
+        f ν.idx ν.elt := by
   classical
   rw [← Fintype.sum_prod_type (fun p : Fin (h - 1) × U h => f p.1 p.2),
     ← Finset.sum_filter_add_sum_filter_not univ (fun p : Fin (h - 1) × U h => FU p.1 p.2)]
   have h1 : ∑ p ∈ univ.filter (fun p : Fin (h - 1) × U h => FU p.1 p.2), f p.1 p.2 = ∑ ν : NN h,
-      f ν.1.1 ν.1.2 := by
-    refine Finset.sum_bij' (fun p hp => (⟨p, (mem_filter.1 hp).2⟩ : NN h))
-        (fun ν _ => ν.1) ?_ ?_ ?_ ?_ ?_
+      f ν.idx ν.elt := by
+    refine Finset.sum_bij' (fun p hp => (⟨p.1, p.2, (mem_filter.1 hp).2⟩ : NN h))
+        (fun ν _ => (ν.idx, ν.elt)) ?_ ?_ ?_ ?_ ?_
     · intro p _; exact mem_univ _
-    · intro ν _; exact mem_filter.2 ⟨mem_univ _, ν.2⟩
+    · intro ν _; exact mem_filter.2 ⟨mem_univ _, ν.first⟩
     · intro p _; rfl
     · intro ν _; rfl
     · intro p _; rfl
