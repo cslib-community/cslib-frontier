@@ -8570,6 +8570,9 @@ public import CslibFrontier.GameTheory.Congestion.Hedge
 public import CslibFrontier.GameTheory.Congestion.Nonatomic
 public import CslibFrontier.GameTheory.Congestion.PLS
 public import CslibFrontier.GameTheory.Congestion.PigouBound
+public import CslibFrontier.GameTheory.Congestion.Pricing.Oligopoly
+public import CslibFrontier.GameTheory.Congestion.Pricing.ParallelSerial
+public import CslibFrontier.GameTheory.Congestion.Pricing.PricedWardrop
 public import CslibFrontier.GameTheory.Congestion.Stability
 public import CslibFrontier.GameTheory.Congestion.StrongNash
 public import CslibFrontier.GameTheory.Cooperative.Basic
