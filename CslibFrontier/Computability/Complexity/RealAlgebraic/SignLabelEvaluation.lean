@@ -10,6 +10,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.UnaryModularList
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Basic
 public import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomial
+import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Products
 import CslibFrontier.Computability.Complexity.RealAlgebraic.DyadicSignEvaluation
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryOrder
 
@@ -20,9 +21,12 @@ The dyadic test evaluations contribute three counting levels. The denominator pr
 the sum of squares range over the unary number of tests, so they stay at that level. Products
 with one denominator omitted are evaluated directly, including when a denominator is zero.
 
-Adapted from `RootLabelModularEvaluation`, `RootLabelModularCorrectness` and
-`RootLabelEvaluation` in lean-canny at commit `970f28a5ecefc1327402ade16c068aa4b1b2c183`,
-using the formula and precision of `Polynomial.signLabelPolynomial`.
+The weighted fingerprint label uses binary-length addresses for its denominator products.
+Its evaluator agrees with the integer label at every prime.
+
+Adapted from `RootLabelModularEvaluation`, `RootLabelModularCorrectness`, `RootLabelEvaluation`,
+and `FingerprintModularCorrectness` in lean-canny at commit
+`970f28a5ecefc1327402ade16c068aa4b1b2c183`, using the precisions of the integer labels.
 -/
 
 public section
@@ -31,6 +35,11 @@ namespace Cslib.Complexity.RealAlgebraic
 
 open Turing.MultiTapeTM
 open scoped BigOperators
+
+private theorem prod_omit_eq {R : Type*} [CommMonoid R] {n : ℕ} (d : Fin n → R) (i : Fin n) :
+    (∏ j : Fin n, if j = i then 1 else d j) = ∏ j ∈ Finset.univ.erase i, d j := by
+  rw [← Finset.prod_ite_mem_eq (Finset.univ.erase i) d]
+  simp only [Finset.mem_erase, Finset.mem_univ, and_true, ne_eq, ite_not]
 
 private def clearedSignLabelResidue (p m : ℕ) (den num target : ℕ → ℕ) : ℕ :=
   let common := unaryModularProduct m p den
@@ -136,9 +145,76 @@ theorem signLabelResidue_cast {p m : ℕ} [Fact p.Prime] (B : ℕ)
   rw [powMod_of_ne_zero hp.ne_zero, ZMod.natCast_mod, Nat.cast_pow, Nat.cast_mul,
     modularSub_cast hp.pos, Nat.cast_mul, hnum, ht, hden, unaryModularProduct_cast]
   simp only [Nat.cast_ite, Nat.cast_one, Fin.val_inj, hden]
-  have homit : (∏ j : Fin m, if j = i then 1 else d j) = ∏ j ∈ Finset.univ.erase i, d j := by
-    rw [← Finset.prod_ite_mem_eq (Finset.univ.erase i) d]
-    simp only [Finset.mem_erase, Finset.mem_univ, and_true, ne_eq, ite_not]
-  rw [homit]
+  rw [prod_omit_eq]
+
+/-- Evaluate the cleared fingerprint label from addressed test residues. The test at
+index zero qualifies the point and weight `i` attaches to test `i + 1`. Both the
+common denominator and its omitted-factor products use binary factor counts.
+A zero modulus is treated as one. -/
+noncomputable def fingerprintLabelResidue (p B M m : ℕ) (value weight : ℕ → ℕ)
+    (target : ℕ) : ℕ :=
+  let q := max 1 p
+  let den (i : ℕ) := signTestDenominatorResidue q B (M + 1) (value i)
+  let num (i : ℕ) := signTestNumeratorResidue q B (M + 1) (value i)
+  let common := primeFieldRangeProduct q (m + 1) den
+  let cleared (i : ℕ) :=
+    num i * primeFieldRangeProduct q (m + 1) (fun j => if j = i then 1 else den j)
+  let weighted := (∑ i ∈ Finset.range m, weight i * cleared (i + 1)) % q
+  let score := modularSub q weighted (target * common)
+  let qualifier := modularSub q (cleared 0) common
+  modularSub q (powMod q common 2) (4 * (powMod q score 2 + powMod q qualifier 2))
+
+/-- At every prime the addressed residue evaluator gives the integer fingerprint label.
+Only genuine test and weight indices need correct values, and denominators may vanish. -/
+theorem fingerprintLabelResidue_cast {p m : ℕ} [Fact p.Prime] (B M : ℕ)
+    (g : Fin (m + 1) → Polynomial ℤ) (w : Fin m → ℕ) (target : ℤ) (x : ZMod p)
+    (value weight : ℕ → ℕ) (targetValue : ℕ)
+    (hv : ∀ i : Fin (m + 1), (value i.val : ZMod p) = (g i).eval₂ (Int.castRingHom (ZMod p)) x)
+    (hw : ∀ i : Fin m, (weight i.val : ZMod p) = (w i : ZMod p))
+    (ht : (targetValue : ZMod p) = (target : ZMod p)) :
+    (fingerprintLabelResidue p B M m value weight targetValue : ZMod p) =
+      (Polynomial.fingerprintLabelPolynomial B M g w target).eval₂
+        (Int.castRingHom (ZMod p)) x := by
+  let f := (Polynomial.dyadicSignProduct B (M + 1)).eval₂ (Int.castRingHom (ZMod p))
+  let v (i : Fin (m + 1)) := (g i).eval₂ (Int.castRingHom (ZMod p)) x
+  let d (i : Fin (m + 1)) := f (v i) + f (-v i)
+  let t (i : Fin (m + 1)) := (f (v i) - f (-v i)) * ∏ j ∈ Finset.univ.erase i, d j
+  let den (i : ℕ) := signTestDenominatorResidue p B (M + 1) (value i)
+  let num (i : ℕ) := signTestNumeratorResidue p B (M + 1) (value i)
+  let P := primeFieldRangeProduct p (m + 1) den
+  let T (i : ℕ) := num i * primeFieldRangeProduct p (m + 1) (fun j => if j = i then 1 else den j)
+  let S := ∑ i ∈ Finset.range m, weight i * T (i + 1)
+  have htests (i : Fin (m + 1)) :
+      (den i.val : ZMod p) = d i ∧ (num i.val : ZMod p) = f (v i) - f (-v i) := by
+    simpa only [den, num, d, f, v, ← hv i] using
+      signTestResidues_cast (p := p) B (M + 1) (value i.val)
+  have hP : (P : ZMod p) = ∏ i, d i := by
+    dsimp only [P]
+    rw [primeFieldRangeProduct_cast]
+    exact Finset.prod_congr rfl fun i _ => (htests i).1
+  have hT (i : Fin (m + 1)) : (T i.val : ZMod p) = t i := by
+    dsimp only [T]
+    rw [Nat.cast_mul, (htests i).2, primeFieldRangeProduct_cast]
+    simp only [t, Nat.cast_ite, Nat.cast_one, Fin.val_inj, fun j => (htests j).1, prod_omit_eq]
+  have hS : (S : ZMod p) = ∑ i : Fin m, (w i : ZMod p) * t i.succ := by
+    dsimp only [S]
+    rw [Nat.cast_sum, Finset.sum_range]
+    apply Finset.sum_congr rfl
+    intro i _
+    rw [Nat.cast_mul, hw i]
+    exact congrArg ((w i : ZMod p) * ·) (hT i.succ)
+  have hzero : (T 0 : ZMod p) = t 0 := hT 0
+  have hp : p.Prime := Fact.out
+  rw [fingerprintLabelResidue, max_eq_right hp.one_le]
+  change (modularSub p (powMod p P 2)
+    (4 * (powMod p (modularSub p (S % p) (targetValue * P)) 2 +
+      powMod p (modularSub p (T 0) P) 2)) : ZMod p) = _
+  simp only [modularSub_cast hp.pos, powMod_of_ne_zero hp.ne_zero, ZMod.natCast_mod, Nat.cast_pow,
+    Nat.cast_mul, Nat.cast_add, Nat.cast_ofNat, hP, hS, ht, hzero]
+  simp only [Polynomial.fingerprintLabelPolynomial, Polynomial.eval₂_sub, Polynomial.eval₂_pow,
+    Polynomial.eval₂_mul, Polynomial.eval₂_C, Polynomial.eval₂_finsetSum,
+    Polynomial.eval₂_finsetProd,
+    Polynomial.eval₂_add, Polynomial.eval₂_comp, Polynomial.eval₂_neg, Int.coe_castRingHom,
+    Int.cast_ofNat, Int.cast_natCast, d, t, f, v]
 
 end Cslib.Complexity.RealAlgebraic
