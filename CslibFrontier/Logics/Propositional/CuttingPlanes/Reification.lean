@@ -30,7 +30,7 @@ The partial assignment is `τ` on a finite set `S` of variables. The restriction
 `Cslib.Logic.PL.Ineq.restrict` substitutes its values (equation (27)), and the implication with
 reification coefficient `K` is `D↾ρ + K • guard S τ`, where `Cslib.Logic.PL.Ineq.guard` sums the
 literals that `ρ` makes false. For `K` at least the degree `Cslib.Logic.PL.Ineq.degree` of `D↾ρ`
-(the degree of its normalized form, as in equations (28) and (31)), it holds exactly when
+(the reification coefficient of §2.1, which equation (31) uses for `C↾ρ`), it holds exactly when
 `⋀_{v ∈ S} xᵥ = τ v ⇒ D` does (`Cslib.Logic.PL.Ineq.holds_restrict_add_guard`). The lifting
 (`Cslib.Logic.PL.CuttingPlanes.IsProof.lift`) follows the paper's proof:
 
@@ -87,10 +87,11 @@ variable {V : Type*}
 
 /-! ### The degree -/
 
-/-- **The degree** of `I` as a normalized pseudo-Boolean constraint (`deg(D)` in equation (28)
-of the paper): writing `aᵥ xᵥ` as `aᵥ + |aᵥ| (1 - xᵥ)` for every negative `aᵥ` turns `I` into a
-constraint over literals with natural coefficients and bound `b - ∑_{aᵥ < 0} aᵥ`, here clamped at
-`0`. -/
+/-- **The degree** of `I` as a normalized pseudo-Boolean constraint: the reification coefficient
+`K = A − ∑ᵢ min(cᵢ, 0)` of §2.1 of the paper (p. 9:3), called the degree in the proof of its
+Theorem 1 (Case 1, p. 9:19). Writing `aᵥ xᵥ` as `aᵥ + |aᵥ| (1 - xᵥ)` for every negative `aᵥ`
+turns `I` into a constraint over literals with natural coefficients and bound
+`b - ∑_{aᵥ < 0} aᵥ`, here clamped at `0`. -/
 def degree (I : Ineq V) : ℕ := (I.bound + I.coeff.sum fun _ a => ((-a).toNat : ℤ)).toNat
 
 /-- No assignment falls short of the bound of `I` by more than its degree. -/
@@ -104,7 +105,7 @@ theorem bound_sub_lhs_le_degree (σ : V → Bool) (I : Ineq V) : I.bound - I.lhs
   have := Int.self_le_toNat (I.bound + I.coeff.sum fun _ a => ((-a).toNat : ℤ))
   rw [degree]; omega
 
-/-- **The degree is the largest shortfall**: `deg I ≤ n` iff no assignment falls short of the
+/-- **The degree is the largest shortfall**: `I.degree ≤ n` iff no assignment falls short of the
 bound of `I` by more than `n`. The assignment setting exactly the negative coefficients attains
 the degree. -/
 theorem degree_le_iff {I : Ineq V} {n : ℕ} : I.degree ≤ n ↔ ∀ σ, I.bound - I.lhs σ ≤ n := by
@@ -267,8 +268,8 @@ private theorem offCoeff_lt (I : Ineq V) {v : V} (hv : v ∈ S) :
   simp only [guardLiftBound, Nat.cast_add, Nat.cast_one]
   linarith
 
-/-- **Lemma 2 of the paper, as an identity**: adding `(K - sᵥ) ℓ̄ᵥ ≥ 0` to `I` for every `v ∈ S`
-gives `I↾ρ + K • guard`. -/
+/-- **The identity behind the lifting after Lemma 2**: adding `(K - sᵥ) ℓ̄ᵥ ≥ 0` to `I` for every
+`v ∈ S` gives `I↾ρ + K • guard`. -/
 private theorem add_sum_offLit (I : Ineq V) (K : ℕ) (hK : ∀ v ∈ S, offCoeff τ I v ≤ K) :
     I + ∑ v ∈ S, ((K : ℤ) - offCoeff τ I v).toNat • offLit τ v =
       I.restrict S τ + K • guard S τ := by
