@@ -8,17 +8,29 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Mathlib
+public import Mathlib.Algebra.Ring.Defs
 
 /-!
 # Sum machines
 
-Data are binary trees. A program is a formula of a small functional language; it is applied to a tree. A formula may
-guess a bit, reject, multiply the weight of the run by a fixed constant `θ` of the ring `A` (named by a list of
-bits), or by a constant that is *only named* (`mul`); the names are kept in the *bill* of the run. `run a b` applies
-the program that is the value of `a` to the value of `b`. Every step costs 1.
+Data are binary trees (`Interpreter.Tree`). A program is a formula of a small functional language
+(`Interpreter.Fm`), applied to a tree. A formula may guess a bit, reject, multiply the weight of
+the run by a fixed constant `θ` of the ring `A` (named by a list of bits), or by a constant that is
+only named (`mul`); the names are kept in the *bill* of the run (`Interpreter.Run`). `run a b`
+applies the program that is the value of `a` to the value of `b`. Every step costs `1`.
 
-`Ev θ F x l`: all runs of the formula `F` at the tree `x` stop, and `l` is the list of the accepting runs.
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `NS1.Machine`.
+
+## Main definitions
+
+* `Interpreter.Tree`, `Interpreter.Fm`, `Interpreter.Run`.
+* `Interpreter.Ev θ F x l`: all runs of `F` at `x` stop, and `l` is the list of the accepting runs.
+* `Interpreter.Dt θ F x o k`: `F` at `x` is deterministic, with value `o` after `k` steps.
+
+## Main results
+
+* `Interpreter.Ev.unique`: the list of runs is unique.
+* `Interpreter.Ev.ite_true`, `Ev.ite_false`, `Ev.run_det`, `Ev.lett`: evaluation rules.
 -/
 
 public section
@@ -237,16 +249,21 @@ end Run
 inductive Ev (θ : List Bool → A) : Fm → Tree → List (Run A) → Prop
   | quote (c x : Tree) : Ev θ (.quote c) x [.det 1 c]
   | id (x : Tree) : Ev θ .id x [.det 1 x]
-  | hd {a : Fm} {x : Tree} {l : List (Run A)} : Ev θ a x l → Ev θ (.hd a) x (l.map fun r => r.tick r.out.hd)
-  | tl {a : Fm} {x : Tree} {l : List (Run A)} : Ev θ a x l → Ev θ (.tl a) x (l.map fun r => r.tick r.out.tl)
+  | hd {a : Fm} {x : Tree} {l : List (Run A)} : Ev θ a x l →
+      Ev θ (.hd a) x (l.map fun r => r.tick r.out.hd)
+  | tl {a : Fm} {x : Tree} {l : List (Run A)} : Ev θ a x l →
+      Ev θ (.tl a) x (l.map fun r => r.tick r.out.tl)
   | cons {a b : Fm} {x : Tree} {la lb : List (Run A)} : Ev θ a x la → Ev θ b x lb →
       Ev θ (.cons a b) x (la.flatMap fun r => lb.map fun s => (r.seq s).tick (.cons r.out s.out))
   | ite {a b c : Fm} {x : Tree} {la : List (Run A)} {L : Run A → List (Run A)} : Ev θ a x la →
       (∀ r ∈ la, r.out ≠ .nil → Ev θ b x (L r)) → (∀ r ∈ la, r.out = .nil → Ev θ c x (L r)) →
       Ev θ (.ite a b c) x (la.flatMap fun r => (L r).map fun s => (r.seq s).tick s.out)
-  | run {a b : Fm} {x : Tree} {la lb : List (Run A)} {L : Run A → Run A → List (Run A)} : Ev θ a x la → Ev θ b x lb →
+  | run {a b : Fm} {x : Tree} {la lb : List (Run A)} {L : Run A → Run A → List (Run A)} : Ev θ a x
+      la → Ev θ b x lb →
       (∀ r ∈ la, ∀ s ∈ lb, Ev θ (Fm.ofTree r.out) s.out (L r s)) →
-      Ev θ (.run a b) x (la.flatMap fun r => lb.flatMap fun s => (L r s).map fun t => ((r.seq s).seq t).tick t.out)
+      Ev θ (.run a b) x
+          (la.flatMap fun r => lb.flatMap fun s => (L r s).map fun t =>
+              ((r.seq s).seq t).tick t.out)
   | guess (x : Tree) : Ev θ .guess x [.det 1 .nil, .det 1 Tree.one]
   | fail (x : Tree) : Ev θ .fail x []
   | theta {a : Fm} {x : Tree} {l : List (Run A)} : Ev θ a x l →
@@ -257,7 +274,8 @@ inductive Ev (θ : List Bool → A) : Fm → Tree → List (Run A) → Prop
 variable {θ : List Bool → A}
 
 /-- The list of the accepting runs is determined. -/
-theorem Ev.unique {F : Fm} {x : Tree} {l l' : List (Run A)} (h : Ev θ F x l) (h' : Ev θ F x l') : l = l' := by
+theorem Ev.unique {F : Fm} {x : Tree} {l l' : List (Run A)} (h : Ev θ F x l)
+    (h' : Ev θ F x l') : l = l' := by
   induction h generalizing l' with
   | quote c x => cases h'; rfl
   | id x => cases h'; rfl
@@ -291,7 +309,8 @@ variable (θ) in
 open Classical in
 variable (θ) in
 /-- The accepting runs (if all runs stop). -/
-@[expose] noncomputable def evl (F : Fm) (x : Tree) : List (Run A) := if h : Hl θ F x then h.choose else []
+@[expose] noncomputable def evl (F : Fm) (x : Tree) : List (Run A) :=
+    if h : Hl θ F x then h.choose else []
 
 theorem Hl.ev {F : Fm} {x : Tree} (h : Hl θ F x) : Ev θ F x (evl θ F x) := by
   rw [evl, dite_eq_left h]
@@ -299,11 +318,14 @@ theorem Hl.ev {F : Fm} {x : Tree} (h : Hl θ F x) : Ev θ F x (evl θ F x) := by
 
 theorem Ev.hl {F : Fm} {x : Tree} {l : List (Run A)} (h : Ev θ F x l) : Hl θ F x := ⟨l, h⟩
 
-theorem Ev.evl {F : Fm} {x : Tree} {l : List (Run A)} (h : Ev θ F x l) : evl θ F x = l := h.hl.ev.unique h
+theorem Ev.evl {F : Fm} {x : Tree} {l : List (Run A)} (h : Ev θ F x l) : evl θ F x = l :=
+    h.hl.ev.unique h
 
 theorem Ev.run' {a b : Fm} {x : Tree} {la lb : List (Run A)} (ha : Ev θ a x la) (hb : Ev θ b x lb)
     (h : ∀ r ∈ la, ∀ s ∈ lb, Hl θ (Fm.ofTree r.out) s.out) : Ev θ (.run a b) x
-      (la.flatMap fun r => lb.flatMap fun s => (Cslib.Circuits.Arithmetic.Separation.Interpreter.evl θ (Fm.ofTree r.out) s.out).map fun t =>
+      (la.flatMap fun r => lb.flatMap fun s =>
+          (Cslib.Circuits.Arithmetic.Separation.Interpreter.evl θ (Fm.ofTree r.out) s.out).map fun
+              t =>
         ((r.seq s).seq t).tick t.out) :=
   .run ha hb fun r hr s hs => (h r hr s hs).ev
 
@@ -314,9 +336,11 @@ theorem Dt.quote (c x : Tree) : Dt θ (.quote c) x c 1 := Ev.quote c x
 
 theorem Dt.id (x : Tree) : Dt θ .id x x 1 := Ev.id x
 
-theorem Dt.hd {a : Fm} {x o : Tree} {k : ℕ} (h : Dt θ a x o k) : Dt θ (.hd a) x o.hd (k + 1) := Ev.hd h
+theorem Dt.hd {a : Fm} {x o : Tree} {k : ℕ} (h : Dt θ a x o k) : Dt θ (.hd a) x o.hd (k + 1) :=
+    Ev.hd h
 
-theorem Dt.tl {a : Fm} {x o : Tree} {k : ℕ} (h : Dt θ a x o k) : Dt θ (.tl a) x o.tl (k + 1) := Ev.tl h
+theorem Dt.tl {a : Fm} {x o : Tree} {k : ℕ} (h : Dt θ a x o k) : Dt θ (.tl a) x o.tl (k + 1) :=
+    Ev.tl h
 
 theorem Dt.cons {a b : Fm} {x o p : Tree} {k j : ℕ} (ha : Dt θ a x o k) (hb : Dt θ b x p j) :
     Dt θ (.cons a b) x (.cons o p) (k + j + 1) := by
@@ -326,7 +350,8 @@ theorem Dt.cons {a b : Fm} {x o p : Tree} {k j : ℕ} (ha : Dt θ a x o k) (hb :
 /-- Weights and costs of runs after a step without guesses. -/
 @[expose] def Run.delay (k : ℕ) (r : Run A) : Run A := ⟨k + r.cost, r.th, r.bill, r.out⟩
 
-theorem Ev.ite_true {a b c : Fm} {x o : Tree} {k : ℕ} {l : List (Run A)} (ha : Dt θ a x o k) (ho : o ≠ .nil)
+theorem Ev.ite_true {a b c : Fm} {x o : Tree} {k : ℕ} {l : List (Run A)} (ha : Dt θ a x o k)
+    (ho : o ≠ .nil)
     (hb : Ev θ b x l) : Ev θ (.ite a b c) x (l.map (Run.delay (k + 1))) := by
   have := Ev.ite (c := c) (L := fun _ => l) ha (fun r _ _ => hb) (fun r hr h => by
     simp only [List.mem_singleton] at hr
@@ -350,7 +375,8 @@ theorem Ev.ite_false {a b c : Fm} {x : Tree} {k : ℕ} {l : List (Run A)} (ha : 
   simp [Run.delay, Run.det, Run.seq, Run.tick]
   omega
 
-theorem Ev.run_det {a b : Fm} {x p d : Tree} {k j : ℕ} {l : List (Run A)} (ha : Dt θ a x p k) (hb : Dt θ b x d j)
+theorem Ev.run_det {a b : Fm} {x p d : Tree} {k j : ℕ} {l : List (Run A)} (ha : Dt θ a x p k)
+    (hb : Dt θ b x d j)
     (h : Ev θ (Fm.ofTree p) d l) : Ev θ (.run a b) x (l.map (Run.delay (k + j + 1))) := by
   have := Ev.run (L := fun _ _ => l) ha hb (fun r hr s hs => by
     simp only [List.mem_singleton] at hr hs
@@ -367,7 +393,9 @@ theorem Ev.run_det {a b : Fm} {x p d : Tree} {k j : ℕ} {l : List (Run A)} (ha 
 
 theorem Ev.lett {e body : Fm} {x : Tree} {le : List (Run A)} (he : Ev θ e x le)
     (h : ∀ s ∈ le, Hl θ body s.out) : Ev θ (lett e body) x
-      (le.flatMap fun s => (Cslib.Circuits.Arithmetic.Separation.Interpreter.evl θ body s.out).map fun t => ⟨s.cost + t.cost + 2, s.th * t.th, s.bill ++ t.bill, t.out⟩) := by
+      (le.flatMap fun s =>
+          (Cslib.Circuits.Arithmetic.Separation.Interpreter.evl θ body s.out).map fun t =>
+              ⟨s.cost + t.cost + 2, s.th * t.th, s.bill ++ t.bill, t.out⟩) := by
   have := Ev.run' (Dt.quote (θ := θ) body.code x) he (fun r hr s hs => by
     simp only [List.mem_singleton] at hr
     subst hr

@@ -8,10 +8,22 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Mathlib
+public import Mathlib.RingTheory.Jacobson.Ring
+import Mathlib.Algebra.Algebra.ZMod
+import Mathlib.RingTheory.RegularLocalRing.Defs
 
 /-!
 # A field that is finitely generated as a ring is finite
+
+`ℤ` is a Jacobson ring (`Cslib.instIsJacobsonRingInt`), so a field that is of finite type over
+`ℤ` is a finite `ℤ`-module, hence of positive characteristic and finite
+(`Cslib.finite_of_finiteType_int`). This is the arithmetic form of the Nullstellensatz used in
+*VP ≠ VNP over every field* [AnthropicVPVNP2026], module `NS1.Finite`.
+
+## Main results
+
+* `Cslib.instIsJacobsonRingInt`: `IsJacobsonRing ℤ`.
+* `Cslib.finite_of_finiteType_int`: a field of finite type over `ℤ` is finite.
 -/
 
 public section
@@ -31,11 +43,12 @@ instance instIsJacobsonRingInt : IsJacobsonRing ℤ := by
     rcases Int.isUnit_iff.1 h1 with h2 | h2
     · have : x * x = 0 := by omega
       exact mul_self_eq_zero.1 this
-    · nlinarith [mul_self_nonneg x]
+    · linarith [mul_self_nonneg x]
   · have : P.IsMaximal := hP.isMaximal h
     exact Ideal.jacobson_eq_self_of_isMaximal
 
-theorem finite_of_finiteType_int (E : Type) [Field E] (h : (Int.castRingHom E).FiniteType) : Finite E := by
+theorem finite_of_finiteType_int (E : Type)
+    [Field E] (h : (Int.castRingHom E).FiniteType) : Finite E := by
   have : Algebra.FiniteType ℤ E := by
     rw [← RingHom.finiteType_algebraMap, algebraMap_int_eq]
     exact h

@@ -9,12 +9,22 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Interp
+import Mathlib.Tactic.Linarith.Frontend
+import Mathlib.Tactic.NormNum.Ineq
 
 /-!
 # The interpreter
 
-`IF` at `(IF, (f, (x, t)))` simulates the formula `f` at `x` with the budgets `t`; its value is the value of the run
-and the budgets that are left.
+`Interpreter.IF` at `(IF, (f, (x, t)))` simulates the formula `f` at `x` with the budgets `t`;
+instead of multiplying by a named constant it subtracts `1` from the budget of that name. Its value
+is the value of the run and the budgets that are left. `Interpreter.simS` describes the simulated
+runs.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `NS1.Eval`.
+
+## Main definitions
+
+* `Interpreter.IF`, `Interpreter.env`, `Interpreter.simS`.
 -/
 
 public section
@@ -29,8 +39,10 @@ section Rel
 
 variable {α β γ δ : Type*}
 
-theorem forall₂_flatMap {R : α → β → Prop} {S : γ → δ → Prop} {l : List α} {l' : List β} {f : α → List γ}
-    {g : β → List δ} (h : List.Forall₂ R l l') (hf : ∀ a ∈ l, ∀ b ∈ l', R a b → List.Forall₂ S (f a) (g b)) :
+theorem forall₂_flatMap {R : α → β → Prop} {S : γ → δ → Prop} {l : List α} {l' : List β}
+    {f : α → List γ}
+    {g : β → List δ} (h : List.Forall₂ R l l')
+        (hf : ∀ a ∈ l, ∀ b ∈ l', R a b → List.Forall₂ S (f a) (g b)) :
     List.Forall₂ S (l.flatMap f) (l'.flatMap g) := by
   induction h with
   | nil => simp
@@ -39,7 +51,8 @@ theorem forall₂_flatMap {R : α → β → Prop} {S : γ → δ → Prop} {l :
     refine List.rel_append (hf _ List.mem_cons_self _ List.mem_cons_self hab) (ih fun a ha b hb =>
       hf a (List.mem_cons_of_mem _ ha) b (List.mem_cons_of_mem _ hb))
 
-theorem forall₂_exists {R : α → β → Prop} {l : List α} {l' : List β} (h : List.Forall₂ R l l') {a : α} (ha : a ∈ l) :
+theorem forall₂_exists {R : α → β → Prop} {l : List α} {l' : List β} (h : List.Forall₂ R l l')
+    {a : α} (ha : a ∈ l) :
     ∃ b ∈ l', R a b := by
   induction h with
   | nil => simp at ha
@@ -53,7 +66,8 @@ theorem forall₂_exists {R : α → β → Prop} {l : List α} {l' : List β} (
 theorem lett_rel {e body : Fm} {x : Tree} {le : List (Run A)} (he : Ev θ e x le) {Q : List β}
     {R : Run A → β → Prop} (hR : List.Forall₂ R le Q) {Q2 : β → List γ} {R2 : Run A → γ → Prop}
     (h : ∀ s ∈ le, ∀ b ∈ Q, R s b → ∃ l2, Ev θ body s.out l2 ∧
-      List.Forall₂ (fun t c => R2 ⟨s.cost + t.cost + 2, s.th * t.th, s.bill ++ t.bill, t.out⟩ c) l2 (Q2 b)) :
+      List.Forall₂ (fun t c => R2 ⟨s.cost + t.cost + 2, s.th * t.th, s.bill ++ t.bill, t.out⟩ c) l2
+          (Q2 b)) :
     ∃ l, Ev θ (lett e body) x l ∧ List.Forall₂ R2 l (Q.flatMap Q2) := by
   refine ⟨_, Ev.lett he fun s hs => ?_, forall₂_flatMap hR fun s hs b hb hsb => ?_⟩
   · obtain ⟨b, hb, hsb⟩ := forall₂_exists hR hs
@@ -87,11 +101,12 @@ theorem selF_ev {cs : List Fm} {b : Fm} {x o : Tree} {k : ℕ} (hb : Dt θ b x o
       simp only [List.length_cons]
       nlinarith
     | cons a o =>
-      obtain ⟨k', hk', h'⟩ := ih (b := .tl b) (o := o) hb.tl (fun c hc => h c (by simpa [len] using hc))
+      obtain ⟨k', hk', h'⟩ := ih (b := .tl b)
+          (o := o) hb.tl (fun c hc => h c (by simpa [len] using hc))
         (fun hl => h0 (by simp only [List.length_cons, len]; omega))
       refine ⟨k + 1 + k', ?_, ?_⟩
       · simp only [List.length_cons]
-        nlinarith
+        linarith
       · have := Ev.ite_true (c := c) hb (by simp) h'
         rw [List.map_map] at this
         refine Eq.mp ?_ this
@@ -121,7 +136,8 @@ section Code
 @[expose] def call1 : Fm := .cons .id (rec' .id (.hd (fA .id)) (fX .id) (fS .id))
 
 /-- Second call, with everything kept. -/
-@[expose] def call2 : Fm := .cons .id (rec' (.hd .id) (.tl (fA (.hd .id))) (fX (.hd .id)) (.tl (.tl .id)))
+@[expose] def call2 : Fm :=
+    .cons .id (rec' (.hd .id) (.tl (fA (.hd .id))) (fX (.hd .id)) (.tl (.tl .id)))
 
 /-- The cases of the interpreter. -/
 @[expose] def caseL : List Fm := [
@@ -140,7 +156,8 @@ section Code
     (rec' (.hd .id) (.hd (.tl (fA (.hd .id)))) (fX (.hd .id)) (.tl (.tl .id)))
     (rec' (.hd .id) (.tl (.tl (fA (.hd .id)))) (fX (.hd .id)) (.tl (.tl .id)))),
   -- run
-  lett call1 (lett call2 (rec' (.hd (.hd .id)) (.hd (.tl (.hd .id))) (.hd (.tl .id)) (.tl (.tl .id)))),
+  lett call1
+      (lett call2 (rec' (.hd (.hd .id)) (.hd (.tl (.hd .id))) (.hd (.tl .id)) (.tl (.tl .id)))),
   -- guess
   .cons .guess (fS .id),
   -- fail
@@ -148,7 +165,8 @@ section Code
   -- theta
   lett (rec' .id (fA .id) (fX .id) (fS .id)) (.cons (.theta (.hd .id)) (.tl .id)),
   -- mul
-  lett (rec' .id (fA .id) (fX .id) (fS .id)) (.cons (.quote .nil) (.run (.quote DC.code) (.cons (.quote DC.code) .id)))
+  lett (rec' .id (fA .id) (fX .id) (fS .id))
+      (.cons (.quote .nil) (.run (.quote DC.code) (.cons (.quote DC.code) .id)))
   ]
 
 /-- The interpreter. -/
@@ -157,25 +175,30 @@ section Code
 /-- The environment of the interpreter. -/
 @[expose] def env (f x : Tree) (t : Bt) : Tree := .cons IF.code (.cons f (.cons x t.enc))
 
-theorem Dt.fX {b : Fm} {y f x : Tree} {t : Bt} {k : ℕ} (h : Dt θ b y (env f x t) k) : Dt θ (fX b) y x (k + 3) :=
+theorem Dt.fX {b : Fm} {y f x : Tree} {t : Bt} {k : ℕ} (h : Dt θ b y (env f x t) k) : Dt θ (fX b) y
+    x (k + 3) :=
   .hd (.tl (.tl h))
 
-theorem Dt.fS {b : Fm} {y f x : Tree} {t : Bt} {k : ℕ} (h : Dt θ b y (env f x t) k) : Dt θ (fS b) y t.enc (k + 3) :=
+theorem Dt.fS {b : Fm} {y f x : Tree} {t : Bt} {k : ℕ} (h : Dt θ b y (env f x t) k) : Dt θ (fS b) y
+    t.enc (k + 3) :=
   .tl (.tl (.tl h))
 
-theorem Dt.fO {b : Fm} {y f x : Tree} {t : Bt} {k : ℕ} (h : Dt θ b y (env f x t) k) : Dt θ (fO b) y f.hd (k + 3) :=
+theorem Dt.fO {b : Fm} {y f x : Tree} {t : Bt} {k : ℕ} (h : Dt θ b y (env f x t) k) : Dt θ (fO b) y
+    f.hd (k + 3) :=
   .hd (.hd (.tl h))
 
-theorem Dt.fA {b : Fm} {y f x : Tree} {t : Bt} {k : ℕ} (h : Dt θ b y (env f x t) k) : Dt θ (fA b) y f.tl (k + 3) :=
+theorem Dt.fA {b : Fm} {y f x : Tree} {t : Bt} {k : ℕ} (h : Dt θ b y (env f x t) k) : Dt θ (fA b) y
+    f.tl (k + 3) :=
   .tl (.hd (.tl h))
 
 /-- A recursive call. -/
 theorem rec_ev {b a x s : Fm} {y g z : Tree} {f' x' : Tree} {t t' : Bt} {kb ka kx ks : ℕ}
-    (hb : Dt θ b y (env f' x' t') kb) (ha : Dt θ a y g ka) (hx : Dt θ x y z kx) (hs : Dt θ s y t.enc ks)
+    (hb : Dt θ b y (env f' x' t') kb) (ha : Dt θ a y g ka) (hx : Dt θ x y z kx)
+        (hs : Dt θ s y t.enc ks)
     {l : List (Run A)} (h : Ev θ IF (env g z t) l) :
     Ev θ (rec' b a x s) y (l.map (Run.delay (2 * kb + ka + kx + ks + 6))) := by
   have := Ev.run_det (Dt.hd hb) (.cons (.hd hb) (.cons ha (.cons hx hs))) (l := l) (by
-    show Ev θ (Fm.ofTree IF.code) _ l
+    change Ev θ (Fm.ofTree IF.code) _ l
     rw [Fm.ofTree_code]
     exact h)
   refine Eq.mp ?_ this
@@ -215,7 +238,8 @@ theorem simS_append {t : Bt} {l l' : List (Run A)} : simS t (l ++ l') = simS t l
   simp [simS]
 
 omit [CommRing A] in
-theorem simS_flatMap {t : Bt} {la : List (Run A)} {L : Run A → List (Run A)} {G : Run A → Run A → Run A}
+theorem simS_flatMap {t : Bt} {la : List (Run A)} {L : Run A → List (Run A)}
+    {G : Run A → Run A → Run A}
     (h : ∀ r s, (G r s).bill = r.bill ++ s.bill) : simS t (la.flatMap fun r => (L r).map (G r)) =
       (simS t la).flatMap fun q => (simS q.2 (L q.1)).map fun p => (G q.1 p.1, p.2) := by
   have one : ∀ (r : Run A) (l : List (Run A)), simS t (l.map (G r)) =
@@ -229,12 +253,15 @@ theorem simS_flatMap {t : Bt} {la : List (Run A)} {L : Run A → List (Run A)} {
       intro s _
       simp [h, Bt.decAll_append, hd]
     | some t' =>
-      simp only [Option.toList_some, List.map_cons, List.map_nil, List.flatMap_cons, List.flatMap_nil,
+      simp only
+          [Option.toList_some, List.map_cons, List.map_nil, List.flatMap_cons, List.flatMap_nil,
         List.append_nil]
       induction l with
       | nil => rfl
       | cons s l ih =>
-        simp only [simS, List.map_cons, List.filterMap_cons, h, Bt.decAll_append, hd, Option.bind_some] at ih ⊢
+        simp only
+            [simS, List.map_cons, List.filterMap_cons, h, Bt.decAll_append, hd, Option.bind_some]
+                at ih ⊢
         cases Bt.decAll s.bill t' with
         | none => exact ih
         | some t'' =>

@@ -13,7 +13,19 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpre
 /-!
 # Budgets
 
-A budget is a trie with numbers (in binary, lowest digit first) at its leaves; the leaves are named by the paths.
+A budget (`Interpreter.Bt`) is a trie with numbers (in binary, lowest digit first) at its
+leaves; the leaves are named by their paths. Budgets are decremented along a word (`Bt.dec`,
+`Bt.decAll`), and their height and number of nodes are controlled.
+
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `NS1.Budget`.
+
+## Main definitions
+
+* `Interpreter.Bt`, `Interpreter.Bt.dec`, `Interpreter.Bt.decAll`, `Interpreter.Bt.enc`.
+
+## Main results
+
+* `Interpreter.Bt.ht_decAll`, `Interpreter.Bt.nds_decAll`: bounds after decrementing.
 -/
 
 public section
@@ -148,7 +160,8 @@ theorem nds_dec {p : List Bool} {t t' : Bt} (h : dec p t = some t') : t'.nds = t
         obtain ⟨v, hv, rfl⟩ := h
         simp [nds, ihl hv]
 
-theorem decAll_append (b b' : List (List Bool)) (t : Bt) : decAll (b ++ b') t = (decAll b t).bind (decAll b') := by
+theorem decAll_append (b b' : List (List Bool)) (t : Bt) : decAll (b ++ b') t =
+    (decAll b t).bind (decAll b') := by
   induction b generalizing t with
   | nil => rfl
   | cons p b ih =>
@@ -167,7 +180,8 @@ theorem ht_decAll {b : List (List Bool)} {t t' : Bt} (h : decAll b t = some t') 
     obtain ⟨s, hs, h⟩ := h
     rw [ih h, ht_dec hs]
 
-theorem nds_decAll {b : List (List Bool)} {t t' : Bt} (h : decAll b t = some t') : t'.nds = t.nds := by
+theorem nds_decAll {b : List (List Bool)} {t t' : Bt} (h : decAll b t = some t') : t'.nds =
+    t.nds := by
   induction b generalizing t with
   | nil =>
     simp only [decAll, Option.some.injEq] at h

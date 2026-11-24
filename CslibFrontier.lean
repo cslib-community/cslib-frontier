@@ -1218,6 +1218,11 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Uni
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Walk
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Window
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Words
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Budget
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Eval
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.EvalThm
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Interp
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Machine
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinear
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinearGadget
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinearLowerBound
@@ -7928,6 +7933,7 @@ public import CslibFrontier.Foundations.FieldTheory.Finite.ReducedMonomial
 public import CslibFrontier.Foundations.FieldTheory.Finite.Subfield
 public import CslibFrontier.Foundations.FieldTheory.Finite.Trinomial
 public import CslibFrontier.Foundations.FieldTheory.Finite.UnitSum
+public import CslibFrontier.Foundations.FieldTheory.FiniteOfFiniteType
 public import CslibFrontier.Foundations.FieldTheory.TensorBasis
 public import CslibFrontier.Foundations.Geometry.CAT0.Basic
 public import CslibFrontier.Foundations.Geometry.CAT0.Toolkit
