@@ -26,7 +26,7 @@ stages differ as well.
   of replacing the first stage plus the expected advantage of replacing the second.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto.Game
 

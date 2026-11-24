@@ -327,34 +327,34 @@ theorem advantage_replacement_le_replacementBound (P : Protocol m spec₁ sc₁ 
     mul_le_mul' le_rfl (advantage_kernelRun_le_replacementBound W₁ W₂ Sub S₂ I P.steps _ _))
 
 /-- **Concrete composition theorem.** For every outer protocol `P` in the oracle world `W₁`, outer
-simulators `S₁`, subprotocols `Sub` in `W₂` and subprotocol simulators `S₂`, the semi-honest
-advantage of `D` against `P.compose Sub` with the composed simulator is at most the advantage of
-the reduction `composeDistinguisher P S₂ I x D` against `P` with `S₁ I`, plus the expectation over
-the outer coins of `Composition.replacementBound`: the sum over the oracle rounds of `P` of the
-expected semi-honest advantage of the round's distinguisher `Composition.roundDistinguisher`
-against the round's subprotocol `Sub op`, for the functionality `W₁ op` with the simulator `S₂ op`,
-on the round's query tuple.
+simulator `S₁` for coalition `I`, subprotocols `Sub` in `W₂` and subprotocol simulators `S₂`, the
+semi-honest advantage of `D` against `P.compose Sub` with `composeSim P S₁ S₂` is at most the
+advantage of the reduction `composeDistinguisher P S₂ I x D` against `P` with `S₁`, plus the
+expectation over the outer coins of `Composition.replacementBound`: the sum over the oracle rounds
+of `P` of the expected semi-honest advantage of the round's distinguisher
+`Composition.roundDistinguisher` against the round's subprotocol `Sub op`, for the functionality
+`W₁ op` with the simulator `S₂ op`, on the round's query tuple.
 
 This is the concrete, per-instance form of the hybrid argument for Goldreich's Theorem 7.5.7, not
 the cited theorem: nothing is assumed about `P`, `Sub` or the simulators, and no efficiency of the
 distinguishers is claimed. -/
 theorem semiHonestAdvantage_compose_le_replacementBound (P : Protocol m spec₁ sc₁ In Coins₁ Out)
     (W₁ : MultiOracleWorld spec₁) (W₂ : MultiOracleWorld spec₂) (f : Functionality m In Out)
-    (S₁ : (I : Finset (Fin m)) → CoalitionSimulator sc₁ In Coins₁ Out I)
+    (I : Finset (Fin m)) (S₁ : CoalitionSimulator sc₁ In Coins₁ Out I)
     (Sub : (op : spec₁.Op) →
       Protocol (spec₁.arity op) spec₂ (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op))
     (S₂ : (op : spec₁.Op) → (J : Finset (Fin (spec₁.arity op))) →
       CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J)
-    (I : Finset (Fin m)) (x : (i : Fin m) → In i)
+    (x : (i : Fin m) → In i)
     (D : ((i : I) → PartyView In (Schedule.ComposedCoins Coins₂ Coins₁ sc₁)
       (Schedule.compose sc₂ sc₁) i) × ((i : Fin m) → Out i) → ProbComp Bool) :
-    (semiHonestAdvantage (P.compose Sub) W₂ f I (composeSim P S₁ S₂ I) x D : ℝ≥0∞) ≤
-      semiHonestAdvantage P W₁ f I (S₁ I) x (composeDistinguisher P S₂ I x D) +
+    (semiHonestAdvantage (P.compose Sub) W₂ f I (composeSim P S₁ S₂) x D : ℝ≥0∞) ≤
+      semiHonestAdvantage P W₁ f I S₁ x (composeDistinguisher P S₂ I x D) +
         ∑' c₁, ProbComp.eval (OracleComp.pi P.sampleCoins) c₁ *
           replacementBound W₁ W₂ Sub S₂ I P.steps (fun i => (x i, c₁ i))
             (fun res => D (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2)) := by
   refine (ENNReal.coe_le_coe.mpr
-    (semiHonestAdvantage_compose_le P W₁ W₂ f S₁ Sub S₂ I x D)).trans ?_
+    (semiHonestAdvantage_compose_le P W₁ W₂ f I S₁ Sub S₂ x D)).trans ?_
   rw [ENNReal.coe_add]
   exact add_le_add le_rfl (advantage_replacement_le_replacementBound P W₁ W₂ Sub S₂ I x D)
 
