@@ -8529,6 +8529,7 @@ public import CslibFrontier.GameTheory.Strategic.Hedge
 public import CslibFrontier.GameTheory.Strategic.Mixed
 public import CslibFrontier.GameTheory.Strategic.Nash
 public import CslibFrontier.GameTheory.Strategic.NoRegret
+public import CslibFrontier.GameTheory.Strategic.Payoff
 public import CslibFrontier.GameTheory.Strategic.Potential
 public import CslibFrontier.GameTheory.Strategic.Semialgebraic
 public import CslibFrontier.GameTheory.Strategic.Smooth

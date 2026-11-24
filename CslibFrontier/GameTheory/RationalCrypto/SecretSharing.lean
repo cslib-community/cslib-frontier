@@ -10,8 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Basic
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Shamir
-public import CslibFrontier.GameTheory.Strategic.Basic
-public import CslibFrontier.GameTheory.Strategic.StrongNash
+public import CslibFrontier.GameTheory.Strategic.Payoff
 import CslibFrontier.Probability.PMF.Expect
 import Mathlib.Analysis.SpecificLimits.Basic
 import Mathlib.Data.Finset.Card
@@ -32,8 +31,14 @@ exclusivity and correctness preferences `U⁺ > U > U⁻`:
 3. `uMinus` (`U⁻`): the party fails to learn the secret (whether nobody learns or others learn
    while this party fails).
 
+General utility-maximization game infrastructure (`Cslib.GameTheory.PayoffGame`, `IsPureNash`,
+`IsCoalitionProofUpTo`, `WeaklyDominatesOn`, `idowdsIter`, and `HasBackwardInductionDominance`)
+lives in `CslibFrontier.GameTheory.Strategic.Payoff`, bridged directly to
+`Cslib.GameTheory.CostGame` and `CostGame.idowdsSeq` in
+`CslibFrontier.GameTheory.Strategic.Dominance`.
+
 This module formalizes the `(t, n)` and `(n, n)` rational secret-sharing reconstruction games and
-the two foundational results of the theory:
+two foundational results:
 
 1. **Halpern–Teague bounded-round impossibility** ([HalpernTeague2004]; [DodisRabin2007],
    Section 8.5.2(a)):
@@ -41,16 +46,17 @@ the two foundational results of the theory:
      weakly dominates broadcasting for every player, so a single step of iterated deletion of
      weakly dominated strategies (`IDoWDS`) eliminates broadcasting and leaves only `"never
      broadcast"` (`ReconstructionGame.idowdsIter_simultaneousGame_one`).
-   - More generally, in any `T`-round cutoff mechanism admitting backward-induction weak dominance
-     (`PayoffGame.HasBackwardInductionDominance`), `k` steps of `IDoWDS` eliminate the top `k`
-     participation horizons and `T` steps leave only `0` (`"never broadcast"`,
-     `PayoffGame.idowdsIter_eq_singleton_zero`). This applies unconditionally to the `(t, n)`
-     `T`-round gradual-release game (`ReconstructionGame.idowdsIter_gradualReleaseGame`,
+   - More generally, in any `T`-round cutoff mechanism admitting `HasBackwardInductionDominance`,
+     `k` steps of `IDoWDS` eliminate the top `k` participation horizons and `T` steps leave only
+     `0` (`"never broadcast"`, `PayoffGame.idowdsIter_eq_singleton_zero`). This applies
+     unconditionally to the `T`-round `(t, n)` gradual-release game
+     (`ReconstructionGame.idowdsIter_gradualReleaseGame`,
      `ReconstructionGame.idowdsIter_uniformRampGame`), while in the `T`-round known-final-round
      dummy-prefix game (`ReconstructionGame.knownHorizonGame`), final-round withholding eliminates
      full participation in one step so no surviving profile reconstructs the secret.
-2. **Randomized geometric-termination protocol** ([HalpernTeague2004];
-   [AbrahamDolevGonenHalpern2006]; [DodisRabin2007], Section 8.5.2(b) and Theorem 8.9):
+2. **Randomized geometric-termination protocol (`k < n` utility-dependent regime)**
+   ([HalpernTeague2004]; [AbrahamDolevGonenHalpern2006]; [DodisRabin2007], Section 8.5.2(b) and
+   Theorem 8.9):
    - In each round `r : ℕ`, a dealer (or preprocessed mediator) distributes fresh shares using an
      information-theoretic `AccessScheme` (such as `shamirUniformAccessScheme`), sharing the
      genuine secret with probability `p ∈ (0, 1)` and a dummy value with probability `1 - p`, while
@@ -62,41 +68,47 @@ the two foundational results of the theory:
      For `n`-out-of-`n` reconstruction with `p < criticalStoppingProb`, honest broadcast weakly
      dominates withholding and is the unique strategy surviving `IDoWDS` in each stage
      (`idowdsIter_geometricStageGame_one`).
-   - **Infinite-horizon cryptographic protocol:** by `AccessScheme.viewDist_eq_of_not_authorized`,
-     no unauthorized coalition `C` can distinguish genuine shares from dummy shares before deciding
-     whether to withhold in round `r`. An exact telescoping identity over all `r : ℕ`
-     (`uAll_sub_geometricExpectedUtility`) shows that honest simultaneous broadcast achieves
-     expected utility `U` and, when `p ≤ criticalStoppingProb`, is immune to arbitrary multi-round
-     share-inspecting deviations by any unauthorized coalition (`honestProfile_isCoalitionProof`,
-     giving `(t - 1)`-resilience `honestProfile_isCoalitionProofUpTo` for `(t, n)` threshold
-     schemes). When `p < criticalStoppingProb`, any unilateral strategy that withholds with
-     positive probability in some round achieves strictly less than `U`
-     (`payoff_lt_uAll_of_withholdProb_pos`), and for `n`-out-of-`n` sharing the condition
-     `p ≤ criticalStoppingProb` is both necessary and sufficient for Nash equilibrium
-     (`honestProfile_isPureNash_iff`).
+   - **Infinite-horizon cryptographic protocol with joint-view share-pooling coalitions:** by
+     `AccessScheme.viewDist_eq_of_not_authorized`, no unauthorized coalition `C` pooling its joint
+     share view `(j : C) → Share j.1` and pooling its unbroadcast shares with the round's broadcast
+     set (`GeometricProtocol.learnedFromCoalition`) can distinguish genuine shares from dummy
+     shares before deciding its joint round action `CoalitionStrategy C`. An exact telescoping
+     identity over all `r : ℕ` (`uAll_sub_geometricExpectedUtility`) shows that honest
+     simultaneous broadcast achieves expected utility `U` and, when `p ≤ criticalStoppingProb`, is
+     immune to arbitrary joint multi-round share-inspecting coalition deviations for every
+     unauthorized coalition (`honestProfile_isJointCoalitionProof`, giving `(t - 1)`-resilience
+     `honestProfile_isJointCoalitionProofUpTo` for `(t, n)` threshold schemes, which strictly
+     subsumes independent strategies via `payoff_piecewise_le_coalitionPayoff` and
+     `IsJointCoalitionProofUpTo.toPayoffGame`). Moreover, across the entire no-honest-majority
+     threshold regime `n < 2 * t - 1`, `p ≤ criticalStoppingProb` is both necessary and sufficient
+     for `(t - 1)`-coalitional resilience (`honestProfile_isJointCoalitionProofUpTo_iff`). When
+     `p < criticalStoppingProb`, any unilateral strategy that withholds with positive probability in
+     some round achieves strictly less than `U` (`payoff_lt_uAll_of_withholdProb_pos`).
+
+**Scope boundary vs `[DodisRabin2007]`, Theorem 8.9:** Theorem 8.9 in `[DodisRabin2007]` states
+`k`-resilient equilibria *surviving `IDoWDS`* across three expected-round regimes (`k < n`
+utility-dependent; `k < n/2` fixed rounds with utility parameter; `k < n/3` utility-independent).
+Here, `IDoWDS` survival is proved on the one-shot `n`-out-of-`n` stage game `geometricStageGame`
+(`idowdsIter_geometricStageGame_one`), and only the `k < n` (`t - 1 < n`) utility-dependent
+geometric-termination regime is formalized for multi-round `GeometricProtocol`; fixed-round
+`k < n/2` and utility-independent `k < n/3` protocols are out of scope.
 
 ## Main definitions
 
-* `PayoffGame`: strategic game in utility-maximization form, bridged to
-  `Cslib.GameTheory.CostGame` via `PayoffGame.toCostGame`.
-* `PayoffGame.WeaklyDominatesOn`, `PayoffGame.idowdsStep`, `PayoffGame.idowdsIter`: weak
-  dominance and iterated deletion of weakly dominated strategies ([DodisRabin2007],
-  Definition 8.8).
-* `PayoffGame.HasBackwardInductionDominance`: backward-induction weak dominance condition on
-  `T`-round cutoff games.
-* `SecretSharingPrefs`: rational secret-sharing utility levels `uMinus < uAll < uPlus`
-  (`U⁻ < U < U⁺`), outcome utility `outcomeUtility`, and threshold
+* `Cslib.GameTheory.RationalCrypto.SecretSharingPrefs`: rational secret-sharing utility levels
+  `uMinus < uAll < uPlus` (`U⁻ < U < U⁺`), outcome utility `outcomeUtility`, and threshold
   `criticalStoppingProb = (uAll - uMinus) / (uPlus - uMinus)`.
-* `ReconstructionGame`, `ReconstructionGame.allOfAll`: `(t, n)` and `(n, n)` rational
-  secret-sharing reconstruction games (`simultaneousGame`, `gradualReleaseGame`,
-  `uniformRampGame`, `knownHorizonGame`, `geometricStageGame`).
-* `GeometricProtocol`, `GeometricProtocol.ofShamir`: infinite-horizon geometric-stopping rational
-  secret-sharing protocol over any `AccessScheme` (and specialized to finite-field Shamir sharing).
+* `Cslib.GameTheory.RationalCrypto.ReconstructionGame`, `ReconstructionGame.allOfAll`: `(t, n)`
+  and `(n, n)` rational secret-sharing reconstruction games (`simultaneousGame`,
+  `gradualReleaseGame`, `uniformRampGame`, `knownHorizonGame`, `geometricStageGame`).
+* `Cslib.GameTheory.RationalCrypto.GeometricProtocol`, `GeometricProtocol.ofShamir`,
+  `GeometricProtocol.CoalitionStrategy`, `GeometricProtocol.learnedFromCoalition`,
+  `GeometricProtocol.coalitionPayoff`, `GeometricProtocol.IsJointCoalitionProofUpTo`:
+  infinite-horizon geometric-stopping rational secret-sharing protocol over any `AccessScheme`
+  (and finite-field Shamir sharing) with pooled joint-view coalition deviations.
 
 ## Main results
 
-* `PayoffGame.idowdsIter_eq_singleton_zero`: `T` steps of `IDoWDS` reduce any `T`-round game with
-  backward-induction dominance to `{0}` (`"never broadcast"`).
 * `ReconstructionGame.withhold_weaklyDominates_broadcast`,
   `ReconstructionGame.idowdsIter_simultaneousGame_one`: in simultaneous `(t, n)` share broadcast
   (`2 ≤ t ≤ n`), withholding weakly dominates broadcasting and is the unique survivor of `IDoWDS`.
@@ -115,20 +127,21 @@ the two foundational results of the theory:
   `p < criticalStoppingProb`.
 * `uAll_sub_geometricExpectedUtility`: exact infinite-horizon telescoping identity for expected
   utility under arbitrary round withholding probabilities.
-* `GeometricProtocol.roundBroadcastDist_piecewise_eq`: unauthorized coalitions induce identical
-  broadcast-vector distributions in genuine and dummy rounds.
-* `GeometricProtocol.honestProfile_isCoalitionProof`,
-  `GeometricProtocol.honestProfile_isCoalitionProofUpTo`,
-  `GeometricProtocol.ofShamir_honestProfile_isCoalitionProofUpTo`: for
-  `stopProb ≤ criticalStoppingProb`, honest simultaneous broadcast is resilient against multi-round
-  share-inspecting deviations by any unauthorized coalition (`(t - 1)`-resilient for `(t, n)`
-  threshold and Shamir schemes).
-* `GeometricProtocol.payoff_lt_uAll_of_withholdProb_pos`: for `stopProb < criticalStoppingProb`,
-  any unilateral strategy that withholds with positive probability in some round gets strictly
-  lower expected utility than `honestProfile`.
-* `GeometricProtocol.honestProfile_isPureNash_iff`: for `n`-out-of-`n` sharing (`2 ≤ n`),
-  `honestProfile` is a pure Nash equilibrium of the full multi-round share-inspecting game if and
-  only if `stopProb ≤ criticalStoppingProb`.
+* `GeometricProtocol.roundCoalitionBroadcastDist_eq`,
+  `GeometricProtocol.honestProfile_isJointCoalitionProof`,
+  `GeometricProtocol.honestProfile_isJointCoalitionProofUpTo`,
+  `GeometricProtocol.ofShamir_honestProfile_isJointCoalitionProofUpTo`,
+  `GeometricProtocol.IsJointCoalitionProofUpTo.toPayoffGame`: for
+  `stopProb ≤ criticalStoppingProb`, honest simultaneous broadcast is resilient against arbitrary
+  multi-round joint-view share-pooling coalition deviations (`(t - 1)`-resilient for `(t, n)`
+  threshold and Shamir schemes), subsuming independent-strategy deviations.
+* `GeometricProtocol.honestProfile_isJointCoalitionProofUpTo_iff`: in any `(t, n)` threshold
+  scheme in the no-honest-majority regime `n < 2 * t - 1`, `honestProfile` is `(t - 1)`-resilient
+  against pooled joint-view coalitions if and only if `stopProb ≤ criticalStoppingProb`.
+* `GeometricProtocol.payoff_lt_uAll_of_withholdProb_pos`,
+  `GeometricProtocol.honestProfile_isPureNash_iff`: strict optimality against positive-probability
+  withholding when `stopProb < criticalStoppingProb`, and exact `n`-out-of-`n` Nash equilibrium
+  characterization.
 
 ## References
 
@@ -147,189 +160,6 @@ namespace Cslib.GameTheory.RationalCrypto
 open Cslib.Crypto.Protocols.SecretSharing
 open Cslib.Probability Cslib.Probability.PMF
 open Finset Filter Topology
-
-/-! ### Strategic payoff games, coalitional resilience, and `IDoWDS` -/
-
-/-- A strategic (normal-form) game in **utility-maximization form**: player `i` chooses a strategy
-in `S i`, and `payoff i s` is player `i`'s real-valued utility at profile `s : ∀ i, S i`. -/
-structure PayoffGame (ι : Type*) (S : ι → Type*) where
-  /-- The utility of player `i` at strategy profile `s`. -/
-  payoff : ι → (∀ i, S i) → ℝ
-
-namespace PayoffGame
-
-section General
-
-variable {ι : Type*} {S : ι → Type*} (G : PayoffGame ι S)
-
-/-- View a payoff-maximization game as a `CostGame` with negated utilities `-payoff i s`. -/
-@[expose] def toCostGame : CostGame ι S where
-  cost i s := -G.payoff i s
-
-@[simp]
-theorem toCostGame_cost (i : ι) (s : ∀ i, S i) :
-    G.toCostGame.cost i s = -G.payoff i s :=
-  rfl
-
-section DecidablePlayer
-
-variable [DecidableEq ι]
-
-/-- A profile `s` is a **pure Nash equilibrium** if no player can strictly increase its payoff by a
-unilateral deviation. -/
-@[expose] def IsPureNash (s : ∀ i, S i) : Prop :=
-  ∀ i (a : S i), G.payoff i (Function.update s i a) ≤ G.payoff i s
-
-/-- A profile `s` is a **strict pure Nash equilibrium** if every non-equilibrium unilateral
-deviation `a ≠ s i` strictly decreases the deviating player's payoff. -/
-@[expose] def IsStrictPureNash (s : ∀ i, S i) : Prop :=
-  ∀ i (a : S i), a ≠ s i → G.payoff i (Function.update s i a) < G.payoff i s
-
-/-- Pure Nash equilibria of `G` coincide with pure Nash equilibria of `G.toCostGame`. -/
-theorem isPureNash_toCostGame_iff {s : ∀ i, S i} :
-    G.toCostGame.IsPureNash s ↔ G.IsPureNash s := by
-  simp only [CostGame.IsPureNash, IsPureNash, toCostGame_cost, neg_le_neg_iff]
-
-/-- Every strict pure Nash equilibrium is a pure Nash equilibrium. -/
-theorem IsStrictPureNash.isPureNash {G : PayoffGame ι S} {s : ∀ i, S i}
-    (h : G.IsStrictPureNash s) : G.IsPureNash s := by
-  intro i a
-  rcases eq_or_ne a (s i) with rfl | hne
-  · simp only [Function.update_eq_self, le_rfl]
-  · exact (h i a hne).le
-
-/-- A profile `s` is **coalition-proof up to size `k`** (`k`-resilient in the strong uniform sense
-that no member of a deviating coalition of size at most `k` strictly gains; compare
-[DodisRabin2007], Section 8.4.1, and [AbrahamDolevGonenHalpern2006]) if for every coalition `C`
-with `C.card ≤ k` and every joint deviation `t`, every member `i ∈ C` has payoff at most
-`G.payoff i s`. -/
-@[expose] def IsCoalitionProofUpTo (k : ℕ) (s : ∀ i, S i) : Prop :=
-  ∀ (C : Finset ι), C.card ≤ k → ∀ (t : ∀ i, S i), ∀ i ∈ C,
-    G.payoff i (C.piecewise t s) ≤ G.payoff i s
-
-/-- Coalition-proofness up to `k ≥ 1` implies `IsPureNash` via singleton coalitions. -/
-theorem IsCoalitionProofUpTo.isPureNash {G : PayoffGame ι S} {k : ℕ} {s : ∀ i, S i}
-    (h : G.IsCoalitionProofUpTo k s) (hk : 1 ≤ k) : G.IsPureNash s := by
-  intro i a
-  have hsingle := h {i} (by simp [hk]) (Function.update s i a) i (Finset.mem_singleton_self i)
-  rwa [Finset.piecewise_singleton, Function.update_self] at hsingle
-
-/-- Coalition-proofness up to `Fintype.card ι` implies `CostGame.IsStrongNash` on `G.toCostGame`. -/
-theorem IsCoalitionProofUpTo.isStrongNash_toCostGame [Fintype ι] {G : PayoffGame ι S} {k : ℕ}
-    {s : ∀ i, S i} (h : G.IsCoalitionProofUpTo k s) (hk : Fintype.card ι ≤ k) :
-    G.toCostGame.IsStrongNash s := by
-  rintro C t ⟨_, i, hi, hlt⟩
-  simp only [toCostGame_cost, neg_lt_neg_iff] at hlt
-  exact (h C (C.card_le_univ.trans hk) t i hi).not_gt hlt
-
-/-- Strategy `a` **weakly dominates** strategy `b` for player `i` relative to surviving strategy
-sets `R` ([DodisRabin2007], Definition 8.8; [HalpernTeague2004]): `a` is at least as good as `b`
-against all profiles in `R`, and strictly better against at least one profile in `R`. -/
-@[expose] def WeaklyDominatesOn (R : ∀ i, Set (S i)) (i : ι) (a b : S i) : Prop :=
-  (∀ s : ∀ j, S j, (∀ j, s j ∈ R j) →
-      G.payoff i (Function.update s i b) ≤ G.payoff i (Function.update s i a)) ∧
-    ∃ s : ∀ j, S j, (∀ j, s j ∈ R j) ∧
-      G.payoff i (Function.update s i b) < G.payoff i (Function.update s i a)
-
-/-- Strategy `b` of player `i` is **weakly dominated** in `R` if some strategy `a ∈ R i` weakly
-dominates `b` relative to `R`. -/
-@[expose] def IsWeaklyDominatedOn (R : ∀ i, Set (S i)) (i : ι) (b : S i) : Prop :=
-  ∃ a ∈ R i, G.WeaklyDominatesOn R i a b
-
-/-- One simultaneous round of **deletion of weakly dominated strategies** ([DodisRabin2007],
-Definition 8.8). -/
-@[expose] def idowdsStep (R : ∀ i, Set (S i)) : ∀ i, Set (S i) :=
-  fun i => { b ∈ R i | ¬ G.IsWeaklyDominatedOn R i b }
-
-/-- `k`-fold **iterated deletion of weakly dominated strategies (`IDoWDS`)**, starting from the
-full strategy space `Set.univ` ([DodisRabin2007], Definition 8.8). -/
-@[expose] def idowdsIter (k : ℕ) : ∀ i, Set (S i) :=
-  G.idowdsStep^[k] (fun _ => Set.univ)
-
-@[simp]
-theorem idowdsIter_zero : G.idowdsIter 0 = fun _ => Set.univ :=
-  rfl
-
-theorem idowdsIter_succ (k : ℕ) : G.idowdsIter (k + 1) = G.idowdsStep (G.idowdsIter k) :=
-  Function.iterate_succ_apply' G.idowdsStep k _
-
-/-- No strategy weakly dominates itself. -/
-theorem not_weaklyDominatesOn_self (R : ∀ i, Set (S i)) (i : ι) (a : S i) :
-    ¬ G.WeaklyDominatesOn R i a a := by
-  rintro ⟨_, s, _, hlt⟩
-  exact lt_irrefl _ hlt
-
-end DecidablePlayer
-
-end General
-
-/-! ### General `T`-round backward-induction weak-dominance collapse -/
-
-section BackwardInduction
-
-variable {ι : Type*} [DecidableEq ι] {T : ℕ}
-
-/-- A `T`-round cutoff game on `Fin (T + 1)` (`0` = never broadcast, `m + 1` = participate through
-round `m + 1`) has **backward-induction weak dominance** if at every active horizon `m < T`, once
-cutoffs above `m + 1` have been eliminated, stopping at `m` weakly dominates continuing to `m + 1`
-and no cutoff `≤ m` is weakly dominated. -/
-@[expose] def HasBackwardInductionDominance (G : PayoffGame ι (fun _ => Fin (T + 1))) : Prop :=
-  ∀ m (hm : m < T),
-    let R : ∀ _ : ι, Set (Fin (T + 1)) := fun _ => { r | r.val ≤ m + 1 }
-    (∀ i, G.WeaklyDominatesOn R i ⟨m, by omega⟩ ⟨m + 1, by omega⟩) ∧
-      ∀ i (r : Fin (T + 1)), r.val ≤ m → ¬ G.IsWeaklyDominatedOn R i r
-
-private theorem idowdsStep_cutoff_eq {G : PayoffGame ι (fun _ => Fin (T + 1))}
-    (hbi : G.HasBackwardInductionDominance) {m : ℕ} (hm : m < T) :
-    G.idowdsStep (fun _ => { r : Fin (T + 1) | r.val ≤ m + 1 }) =
-      fun _ => { r : Fin (T + 1) | r.val ≤ m } := by
-  obtain ⟨hdom, hsurv⟩ := hbi m hm
-  funext i
-  ext r
-  simp only [idowdsStep, Set.mem_ofPred_eq]
-  constructor
-  · rintro ⟨hrle, hndom⟩
-    rcases Nat.eq_or_lt_of_le hrle with heq | hlt
-    · exfalso
-      have hr : r = ⟨m + 1, by omega⟩ := Fin.ext heq
-      rw [hr] at hndom
-      exact hndom ⟨⟨m, by omega⟩, Nat.le_succ m, hdom i⟩
-    · omega
-  · intro hrle
-    exact ⟨Nat.le_succ_of_le hrle, hsurv i r hrle⟩
-
-/-- Under `HasBackwardInductionDominance`, after `k ≤ T` rounds of `IDoWDS`, the surviving
-strategies of every player are precisely the cutoffs `r ≤ T - k`. -/
-theorem idowdsIter_eq_le_sub {G : PayoffGame ι (fun _ => Fin (T + 1))}
-    (hbi : G.HasBackwardInductionDominance) {k : ℕ} (hk : k ≤ T) :
-    G.idowdsIter k = fun _ => { r : Fin (T + 1) | r.val ≤ T - k } := by
-  induction k with
-  | zero =>
-    funext i
-    ext r
-    simp only [idowdsIter_zero, Set.mem_univ, Nat.sub_zero, Set.mem_ofPred_eq, true_iff]
-    omega
-  | succ k ih =>
-    rw [idowdsIter_succ, ih (Nat.le_of_succ_le hk)]
-    have hsub : T - k = (T - (k + 1)) + 1 := by omega
-    simp only [hsub]
-    exact idowdsStep_cutoff_eq hbi (by omega)
-
-/-- **Abstract Halpern–Teague backward-induction collapse**: in any `T`-round cutoff mechanism with
-backward-induction weak dominance, `T` rounds of `IDoWDS` eliminate every positive participation
-horizon and leave only `{0}` (`"never broadcast"`). -/
-theorem idowdsIter_eq_singleton_zero {G : PayoffGame ι (fun _ => Fin (T + 1))}
-    (hbi : G.HasBackwardInductionDominance) :
-    G.idowdsIter T = fun _ => {0} := by
-  rw [idowdsIter_eq_le_sub hbi le_rfl]
-  funext i
-  ext r
-  simp only [Nat.sub_self, Set.mem_ofPred_eq, Nat.le_zero, Set.mem_singleton_iff, Fin.ext_iff,
-    Fin.val_zero]
-
-end BackwardInduction
-
-end PayoffGame
 
 /-! ### Rational secret-sharing preferences (`U⁺ > U > U⁻`) and `(t, n)` reconstruction -/
 
@@ -366,7 +196,7 @@ private theorem uAll_sub_uMinus_pos (prefs : SecretSharingPrefs) :
 /-- Payoff of player `i` when `learned : Finset ι` is the set of players who reconstruct the
 secret: `uAll` if everyone learns, `uPlus` if `i` learns and some player does not, and `uMinus` if
 `i` fails to learn. -/
-@[expose] def outcomeUtility {ι : Type*} [Fintype ι] [DecidableEq ι]
+def outcomeUtility {ι : Type*} [Fintype ι] [DecidableEq ι]
     (prefs : SecretSharingPrefs) (learned : Finset ι) (i : ι) : ℝ :=
   if i ∈ learned then
     if learned = Finset.univ then prefs.uAll else prefs.uPlus
@@ -419,8 +249,12 @@ theorem uMinus_le_outcomeUtility {ι : Type*} [Fintype ι] [DecidableEq ι]
 /-- The **critical stopping probability** `(U - U⁻) / (U⁺ - U⁻) ∈ (0, 1)` governing incentive
 compatibility in randomized geometric-termination secret-sharing protocols ([HalpernTeague2004];
 [AbrahamDolevGonenHalpern2006]; [DodisRabin2007], Section 8.5.2(b)). -/
-@[expose] noncomputable def criticalStoppingProb (prefs : SecretSharingPrefs) : ℝ :=
+noncomputable def criticalStoppingProb (prefs : SecretSharingPrefs) : ℝ :=
   (prefs.uAll - prefs.uMinus) / (prefs.uPlus - prefs.uMinus)
+
+theorem criticalStoppingProb_eq (prefs : SecretSharingPrefs) :
+    prefs.criticalStoppingProb = (prefs.uAll - prefs.uMinus) / (prefs.uPlus - prefs.uMinus) := by
+  rfl
 
 theorem criticalStoppingProb_pos (prefs : SecretSharingPrefs) :
     0 < prefs.criticalStoppingProb :=
@@ -463,13 +297,38 @@ structure ReconstructionGame (ι : Type*) [Fintype ι] where
 
 namespace ReconstructionGame
 
+private theorem idowdsIter_bool_one_eq_singleton {ι : Type*} [DecidableEq ι]
+    (G : PayoffGame ι (fun _ => Bool)) (kept : Bool)
+    (hdom : ∀ i, G.WeaklyDominatesOn (fun _ => Set.univ) i kept (!kept)) :
+    G.idowdsIter 1 = fun _ => {kept} := by
+  funext i
+  ext b
+  by_cases hbk : b = kept
+  · subst hbk
+    simp only [PayoffGame.mem_idowdsIter_succ_iff, PayoffGame.idowdsIter_zero, Set.mem_univ,
+      true_and, Set.mem_singleton_iff, iff_true]
+    rintro ⟨a, _, ha⟩
+    by_cases hak : a = b
+    · subst hak
+      exact G.not_weaklyDominatesOn_self _ i a ha
+    · have hne : a = !b := by cases a <;> cases b <;> first | exact absurd rfl hak | rfl
+      subst hne
+      obtain ⟨hle, _⟩ := ha
+      obtain ⟨_, s, _, hlt⟩ := hdom i
+      exact (hle s fun _ => Set.mem_univ _).not_gt hlt
+  · have hne : b = !kept := by cases b <;> cases kept <;> first | exact absurd rfl hbk | rfl
+    subst hne
+    simp only [PayoffGame.mem_idowdsIter_succ_iff, PayoffGame.idowdsIter_zero, Set.mem_univ,
+      true_and, Set.mem_singleton_iff, Bool.not_eq_self, iff_false, not_not]
+    exact ⟨kept, Set.mem_univ _, hdom i⟩
+
 section Model
 
 variable {ι : Type*} [Fintype ι]
 
 /-- Canonical **`n`-out-of-`n` rational secret-sharing reconstruction game**, where every party's
 share is required (`threshold = Fintype.card ι`). -/
-@[expose] def allOfAll (ι : Type*) [Fintype ι] (prefs : SecretSharingPrefs)
+def allOfAll (ι : Type*) [Fintype ι] (prefs : SecretSharingPrefs)
     (hcard : 2 ≤ Fintype.card ι) : ReconstructionGame ι where
   prefs := prefs
   threshold := Fintype.card ι
@@ -477,18 +336,23 @@ share is required (`threshold = Fintype.card ι`). -/
   threshold_le_card := le_rfl
 
 @[simp]
+theorem allOfAll_prefs (prefs : SecretSharingPrefs) (hcard : 2 ≤ Fintype.card ι) :
+    (allOfAll ι prefs hcard).prefs = prefs := by
+  rfl
+
+@[simp]
 theorem allOfAll_threshold (prefs : SecretSharingPrefs) (hcard : 2 ≤ Fintype.card ι) :
-    (allOfAll ι prefs hcard).threshold = Fintype.card ι :=
+    (allOfAll ι prefs hcard).threshold = Fintype.card ι := by
   rfl
 
 /-- The underlying `(threshold, n)` monotone `AccessStructure` of `R`. -/
-@[expose] def accessStructure (R : ReconstructionGame ι) : AccessStructure ι :=
+def accessStructure (R : ReconstructionGame ι) : AccessStructure ι :=
   AccessStructure.threshold ι R.threshold
 
 @[simp]
 theorem accessStructure_authorized_iff (R : ReconstructionGame ι) (s : Finset ι) :
-    R.accessStructure.authorized s ↔ R.threshold ≤ s.card :=
-  Iff.rfl
+    R.accessStructure.authorized s ↔ R.threshold ≤ s.card := by
+  rfl
 
 /-- When `R.threshold = Fintype.card ι` (`n`-out-of-`n`), `R.accessStructure` coincides with
 `AccessStructure.all ι`. -/
@@ -498,7 +362,7 @@ theorem accessStructure_eq_all_of_threshold_eq_card (R : ReconstructionGame ι)
   rw [accessStructure, hfull, AccessStructure.all_eq_threshold]
 
 /-- The set of parties whose share is broadcast under Boolean action profile `s : ι → Bool`. -/
-@[expose] def broadcastSet (s : ι → Bool) : Finset ι :=
+def broadcastSet (s : ι → Bool) : Finset ι :=
   Finset.univ.filter fun j => s j = true
 
 @[simp]
@@ -523,7 +387,7 @@ variable [DecidableEq ι] (R : ReconstructionGame ι)
 /-- The set of players who reconstruct the secret when `B : Finset ι` is the set of publicly
 broadcast shares: player `j` holds `insert j B`, so `j` learns iff `threshold ≤ (insert j B).card`.
 -/
-@[expose] def learnedSet (B : Finset ι) : Finset ι :=
+def learnedSet (B : Finset ι) : Finset ι :=
   Finset.univ.filter fun j => R.threshold ≤ (insert j B).card
 
 @[simp]
@@ -632,8 +496,13 @@ private theorem exists_pivotal_opponents (i : ι) :
 
 /-- The **simultaneous `(t, n)` share-broadcast game** ([HalpernTeague2004]; [DodisRabin2007],
 Section 8.5.2(a)): each player chooses `true` (broadcast share) or `false` (withhold share). -/
-@[expose] def simultaneousGame : PayoffGame ι (fun _ => Bool) where
+def simultaneousGame : PayoffGame ι (fun _ => Bool) where
   payoff i s := R.prefs.outcomeUtility (R.learnedSet (broadcastSet s)) i
+
+@[simp]
+theorem simultaneousGame_payoff (i : ι) (s : ι → Bool) :
+    R.simultaneousGame.payoff i s = R.prefs.outcomeUtility (R.learnedSet (broadcastSet s)) i := by
+  rfl
 
 private theorem broadcastSet_update_false (s : ι → Bool) (i : ι) :
     broadcastSet (Function.update s i false) = (broadcastSet s).erase i := by
@@ -683,21 +552,8 @@ theorem withhold_weaklyDominates_broadcast (i : ι) :
 one round of `IDoWDS` eliminates `true` (`broadcast`) and leaves only `{false}` (`"never
 broadcast"`), yielding `learnedSet = ∅` and utility `uMinus` for every player. -/
 theorem idowdsIter_simultaneousGame_one :
-    R.simultaneousGame.idowdsIter 1 = fun _ => {false} := by
-  funext i
-  ext b
-  simp only [PayoffGame.idowdsIter_succ, PayoffGame.idowdsIter_zero, PayoffGame.idowdsStep,
-    Set.mem_univ, true_and, Set.mem_ofPred_eq, Set.mem_singleton_iff]
-  cases b
-  · simp only [iff_true]
-    rintro ⟨a, _, hdom⟩
-    cases a
-    · exact R.simultaneousGame.not_weaklyDominatesOn_self _ i false hdom
-    · obtain ⟨hle, _⟩ := hdom
-      obtain ⟨_, s, _, hlt⟩ := R.withhold_weaklyDominates_broadcast i
-      exact (hle s fun _ => Set.mem_univ _).not_gt hlt
-  · simp only [Bool.true_eq_false, iff_false, not_not]
-    exact ⟨false, Set.mem_univ _, R.withhold_weaklyDominates_broadcast i⟩
+    R.simultaneousGame.idowdsIter 1 = fun _ => {false} :=
+  idowdsIter_bool_one_eq_singleton R.simultaneousGame false R.withhold_weaklyDominates_broadcast
 
 omit [DecidableEq ι] in
 /-- Active broadcasters at round `m` under cutoff profile `s : ι → Fin (T + 1)`: players choosing
@@ -1177,12 +1033,14 @@ theorem payoff_knownHorizonGame_eq_uMinus_of_mem_idowdsIter_one (R : Reconstruct
   have hnot_last : ∀ j, (s j).val ≤ T - 1 := by
     intro j
     have hmem : ¬ (R.knownHorizonGame T).IsWeaklyDominatedOn
-        ((R.knownHorizonGame T).idowdsIter 0) j (s j) := (hs j).2
+        ((R.knownHorizonGame T).idowdsIter 0) j (s j) :=
+      ((PayoffGame.mem_idowdsIter_succ_iff (G := R.knownHorizonGame T) (k := 0)).mp (hs j)).2
     by_contra hgt
     have hj_last : s j = Fin.last T := by
       ext; dsimp [Fin.last]; omega
     rw [hj_last] at hmem
-    refine hmem ⟨⟨T - 1, by omega⟩, Set.mem_univ _, ⟨fun s' _ => ?_, ?_⟩⟩
+    refine hmem ⟨⟨T - 1, by omega⟩, by rw [PayoffGame.idowdsIter_zero]; exact Set.mem_univ _,
+      ⟨fun s' _ => ?_, ?_⟩⟩
     · set s₀ := Function.update s' j ⟨T - 1, by omega⟩
       set s₁ := Function.update s' j (Fin.last T)
       have hbefore : ∀ c < T - 1, roundActive s₀ c = roundActive s₁ c := by
@@ -1237,7 +1095,7 @@ theorem payoff_knownHorizonGame_eq_uMinus_of_mem_idowdsIter_one (R : Reconstruct
             rampPayoffFrom_lt_pos R qK s₁ j hm hc1, rampPayoffFrom_ge R qK s₁ j hlast_false]
     · obtain ⟨S, hjS, hScard⟩ := R.exists_pivotal_opponents j
       let sp := pivotalCutoffProfile S (Fin.last T)
-      refine ⟨sp, fun _ => Set.mem_univ _, ?_⟩
+      refine ⟨sp, fun _ => by rw [PayoffGame.idowdsIter_zero]; exact Set.mem_univ _, ?_⟩
       set s₀ := Function.update sp j ⟨T - 1, by omega⟩
       set s₁ := Function.update sp j (Fin.last T)
       have hm : T - 1 < T := by omega
@@ -1319,7 +1177,7 @@ stopping parameter `p ∈ (0, 1)` ([HalpernTeague2004]; [AbrahamDolevGonenHalper
 reconstructs the secret (`p`) or continues to an identical subgame with equilibrium value `uAll`
 (`1 - p`), giving `uAll`; if any player withholds, the round yields `learnedSet (broadcastSet s)`
 when genuine (`p`) and triggers grim-abort `uMinus` when dummy (`1 - p`). -/
-@[expose] def geometricStageGame (p : ℝ) : PayoffGame ι (fun _ => Bool) where
+def geometricStageGame (p : ℝ) : PayoffGame ι (fun _ => Bool) where
   payoff i s :=
     if ∀ j, s j = true then
       R.prefs.uAll
@@ -1327,26 +1185,42 @@ when genuine (`p`) and triggers grim-abort `uMinus` when dummy (`1 - p`). -/
       p * R.prefs.outcomeUtility (R.learnedSet (broadcastSet s)) i +
         (1 - p) * R.prefs.uMinus
 
+@[simp]
+theorem geometricStageGame_payoff (p : ℝ) (i : ι) (s : ι → Bool) :
+    (R.geometricStageGame p).payoff i s =
+      if ∀ j, s j = true then
+        R.prefs.uAll
+      else
+        p * R.prefs.outcomeUtility (R.learnedSet (broadcastSet s)) i +
+          (1 - p) * R.prefs.uMinus := by
+  rfl
+
+private theorem geometricStageGame_update_false_le (p : ℝ) (hp0 : 0 ≤ p) (i : ι) :
+    (R.geometricStageGame p).payoff i (Function.update (fun _ : ι => true) i false) ≤
+      p * R.prefs.uPlus + (1 - p) * R.prefs.uMinus := by
+  have hnot_all : ¬ ∀ j, Function.update (fun _ : ι => true) i false j = true :=
+    fun h => Bool.false_ne_true (by simpa using h i)
+  rw [geometricStageGame_payoff]
+  split_ifs
+  have hle : R.prefs.outcomeUtility
+      (R.learnedSet (broadcastSet (Function.update (fun _ : ι => true) i false))) i ≤
+      R.prefs.uPlus :=
+    R.prefs.outcomeUtility_le_uPlus _ i
+  nlinarith
+
 /-- For `0 ≤ p ≤ criticalStoppingProb`, honest simultaneous broadcast (`fun _ => true`) is a
 **pure Nash equilibrium** of `R.geometricStageGame p` for every `(t, n)` reconstruction game
 (`2 ≤ t ≤ n`). -/
 theorem honest_isPureNash_geometricStageGame {p : ℝ} (hp0 : 0 ≤ p)
     (hp : p ≤ R.prefs.criticalStoppingProb) :
     (R.geometricStageGame p).IsPureNash (fun _ => true) := by
+  have htrue : ∀ i, (R.geometricStageGame p).payoff i (fun _ => true) = R.prefs.uAll := fun i => by
+    simp [geometricStageGame_payoff]
   intro i b
   cases b
-  · have hall_t : ∀ _ : ι, true = true := fun _ => rfl
-    have hnot_all : ¬ ∀ j, Function.update (fun _ : ι => true) i false j = true :=
-      fun h => Bool.false_ne_true (by simpa using h i)
-    dsimp only [geometricStageGame]
-    split_ifs
-    have hle : R.prefs.outcomeUtility
-        (R.learnedSet (broadcastSet (Function.update (fun _ : ι => true) i false))) i ≤
-        R.prefs.uPlus :=
-      R.prefs.outcomeUtility_le_uPlus _ i
-    have htemp : p * R.prefs.uPlus + (1 - p) * R.prefs.uMinus ≤ R.prefs.uAll :=
-      R.prefs.temptation_le_uAll_iff.mpr hp
-    nlinarith
+  · rw [htrue i]
+    exact (R.geometricStageGame_update_false_le p hp0 i).trans
+      (R.prefs.temptation_le_uAll_iff.mpr hp)
   · simp [Function.update_eq_self]
 
 /-- For `0 ≤ p < criticalStoppingProb`, honest simultaneous broadcast (`fun _ => true`) is a
@@ -1355,20 +1229,13 @@ game (`2 ≤ t ≤ n`). -/
 theorem honest_isStrictPureNash_geometricStageGame {p : ℝ} (hp0 : 0 ≤ p)
     (hp : p < R.prefs.criticalStoppingProb) :
     (R.geometricStageGame p).IsStrictPureNash (fun _ => true) := by
+  have htrue : ∀ i, (R.geometricStageGame p).payoff i (fun _ => true) = R.prefs.uAll := fun i => by
+    simp [geometricStageGame_payoff]
   intro i b hb
   cases b
-  · have hall_t : ∀ _ : ι, true = true := fun _ => rfl
-    have hnot_all : ¬ ∀ j, Function.update (fun _ : ι => true) i false j = true :=
-      fun h => Bool.false_ne_true (by simpa using h i)
-    dsimp only [geometricStageGame]
-    split_ifs
-    have hle : R.prefs.outcomeUtility
-        (R.learnedSet (broadcastSet (Function.update (fun _ : ι => true) i false))) i ≤
-        R.prefs.uPlus :=
-      R.prefs.outcomeUtility_le_uPlus _ i
-    have htemp : p * R.prefs.uPlus + (1 - p) * R.prefs.uMinus < R.prefs.uAll :=
-      R.prefs.temptation_lt_uAll_iff.mpr hp
-    nlinarith
+  · rw [htrue i]
+    exact (R.geometricStageGame_update_false_le p hp0 i).trans_lt
+      (R.prefs.temptation_lt_uAll_iff.mpr hp)
   · exact absurd rfl hb
 
 /-- **Exact stage Nash characterization for `n`-out-of-`n`**: when `R.threshold = Fintype.card ι`
@@ -1429,25 +1296,10 @@ theorem broadcast_weaklyDominates_withhold_geometricStageGame {p : ℝ} (hp0 : 0
         exact Bool.false_ne_true this
       have hnot_false : ¬ ∀ l, Function.update s i false l = true :=
         fun h => Bool.false_ne_true (by simpa using h i)
-      have hcard_lt_true :
-          (insert i (broadcastSet (Function.update s i true))).card < R.threshold := by
-        have hsub :
-            insert i (broadcastSet (Function.update s i true)) ⊆ Finset.univ.erase j := by
-          intro l hl
-          simp only [Finset.mem_erase, ne_eq, Finset.mem_univ, and_true]
-          rintro rfl
-          rcases Finset.mem_insert.mp hl with hji' | hmem
-          · exact hji hji'
-          · rw [mem_broadcastSet_iff, Function.update_of_ne hji, hj_false] at hmem
-            exact Bool.false_ne_true hmem
-        have hle := Finset.card_le_card hsub
-        rw [Finset.card_erase_of_mem (Finset.mem_univ j), Finset.card_univ] at hle
-        have := R.two_le_threshold
-        omega
-      have hcard_lt_false :
-          (insert i (broadcastSet (Function.update s i false))).card < R.threshold := by
-        have hsub :
-            insert i (broadcastSet (Function.update s i false)) ⊆ Finset.univ.erase j := by
+      have hcard_lt : ∀ b : Bool,
+          (insert i (broadcastSet (Function.update s i b))).card < R.threshold := by
+        intro b
+        have hsub : insert i (broadcastSet (Function.update s i b)) ⊆ Finset.univ.erase j := by
           intro l hl
           simp only [Finset.mem_erase, ne_eq, Finset.mem_univ, and_true]
           rintro rfl
@@ -1461,10 +1313,11 @@ theorem broadcast_weaklyDominates_withhold_geometricStageGame {p : ℝ} (hp0 : 0
         omega
       have hu_true : R.prefs.outcomeUtility
           (R.learnedSet (broadcastSet (Function.update s i true))) i = R.prefs.uMinus :=
-        R.prefs.outcomeUtility_of_not_mem (by rw [mem_learnedSet_iff]; omega)
+        R.prefs.outcomeUtility_of_not_mem (by rw [mem_learnedSet_iff]; exact (hcard_lt true).not_ge)
       have hu_false : R.prefs.outcomeUtility
           (R.learnedSet (broadcastSet (Function.update s i false))) i = R.prefs.uMinus :=
-        R.prefs.outcomeUtility_of_not_mem (by rw [mem_learnedSet_iff]; omega)
+        R.prefs.outcomeUtility_of_not_mem
+          (by rw [mem_learnedSet_iff]; exact (hcard_lt false).not_ge)
       dsimp only [geometricStageGame]
       split_ifs
       rw [hu_true, hu_false]
@@ -1473,26 +1326,13 @@ theorem broadcast_weaklyDominates_withhold_geometricStageGame {p : ℝ} (hp0 : 0
 
 /-- **Stage `IDoWDS` survival for `n`-out-of-`n`**: when `0 ≤ p < criticalStoppingProb`, one round
 of `IDoWDS` on `R.geometricStageGame p` eliminates withholding and leaves only `{true}`
-(`"honest broadcast"`). -/
+(`"honest broadcast"`, matching [DodisRabin2007], Theorem 8.9's one-shot stage argument; the
+multi-round `k < n/2` and `k < n/3` variants are outside this module's scope). -/
 theorem idowdsIter_geometricStageGame_one {p : ℝ} (hp0 : 0 ≤ p)
     (hp : p < R.prefs.criticalStoppingProb) (hfull : R.threshold = Fintype.card ι) :
-    (R.geometricStageGame p).idowdsIter 1 = fun _ => {true} := by
-  funext i
-  ext b
-  simp only [PayoffGame.idowdsIter_succ, PayoffGame.idowdsIter_zero, PayoffGame.idowdsStep,
-    Set.mem_univ, true_and, Set.mem_ofPred_eq, Set.mem_singleton_iff]
-  cases b
-  · simp only [Bool.false_eq_true, iff_false, not_not]
-    exact ⟨true, Set.mem_univ _,
-      R.broadcast_weaklyDominates_withhold_geometricStageGame hp0 hp hfull i⟩
-  · simp only [iff_true]
-    rintro ⟨a, _, hdom⟩
-    cases a
-    · obtain ⟨hle, _⟩ := hdom
-      obtain ⟨_, s, _, hlt⟩ :=
-        R.broadcast_weaklyDominates_withhold_geometricStageGame hp0 hp hfull i
-      exact (hle s fun _ => Set.mem_univ _).not_gt hlt
-    · exact (R.geometricStageGame p).not_weaklyDominatesOn_self _ i true hdom
+    (R.geometricStageGame p).idowdsIter 1 = fun _ => {true} :=
+  idowdsIter_bool_one_eq_singleton (R.geometricStageGame p) true
+    (R.broadcast_weaklyDominates_withhold_geometricStageGame hp0 hp hfull)
 
 end Broadcast
 
@@ -1505,11 +1345,11 @@ end ReconstructionGame
 /-- Probability of reaching round `r` under independent round stopping probability `p` and
 round-by-round withholding probabilities `q : ℕ → ℝ`: rounds `0, ..., r - 1` were all dummy rounds
 and nobody withheld in those rounds. -/
-@[expose] def reachProb (p : ℝ) (q : ℕ → ℝ) (r : ℕ) : ℝ :=
+def reachProb (p : ℝ) (q : ℕ → ℝ) (r : ℕ) : ℝ :=
   ∏ m ∈ Finset.range r, (1 - p) * (1 - q m)
 
 @[simp]
-theorem reachProb_zero (p : ℝ) (q : ℕ → ℝ) : reachProb p q 0 = 1 :=
+theorem reachProb_zero (p : ℝ) (q : ℕ → ℝ) : reachProb p q 0 = 1 := by
   rfl
 
 theorem reachProb_succ (p : ℝ) (q : ℕ → ℝ) (r : ℕ) :
@@ -1562,7 +1402,7 @@ theorem hasSum_reachProb_termination {p : ℝ} {q : ℕ → ℝ} (hp0 : 0 < p) (
 
 /-- Infinite-horizon expected utility of a player (when pivotal upon withholding) under stopping
 probability `p` and round withholding probabilities `q : ℕ → ℝ`. -/
-@[expose] noncomputable def geometricExpectedUtility (prefs : SecretSharingPrefs) (p : ℝ)
+noncomputable def geometricExpectedUtility (prefs : SecretSharingPrefs) (p : ℝ)
     (q : ℕ → ℝ) : ℝ :=
   ∑' r : ℕ, reachProb p q r *
     ((1 - q r) * p * prefs.uAll + q r * (p * prefs.uPlus + (1 - p) * prefs.uMinus))
@@ -1727,21 +1567,105 @@ round-`r` share `sh : Share i` (given no earlier abort occurred), decide whether
 (`true`) or withhold (`false`). -/
 abbrev Strategy (i : ι) := ℕ → Share i → Bool
 
+/-- Joint multi-round strategy of a coalition `C : Finset ι`: at round `r : ℕ`, all members of `C`
+pool their round-`r` shares `(j : C) → Share j.1` and jointly choose each member's broadcast
+action `C → Bool`. -/
+abbrev CoalitionStrategy (C : Finset ι) := ℕ → ((j : C) → Share j.1) → (C → Bool)
+
+/-- Lift an individual strategy family `τ` to a `CoalitionStrategy` where each member `j ∈ C`
+depends solely on its own share. -/
+def CoalitionStrategy.ofProfile (C : Finset ι) (τ : ∀ i, Strategy (Share := Share) i) :
+    CoalitionStrategy (Share := Share) C :=
+  fun r v j => τ j.1 r (v j)
+
+omit [Fintype ι] [DecidableEq ι] in
+@[simp]
+theorem CoalitionStrategy.ofProfile_apply (C : Finset ι)
+    (τ : ∀ i, Strategy (Share := Share) i) (r : ℕ) (v : (j : C) → Share j.1) (j : C) :
+    CoalitionStrategy.ofProfile C τ r v j = τ j.1 r (v j) := by
+  rfl
+
 /-- The **honest simultaneous broadcast profile**: every party broadcasts its share in every active
 round (combined with the protocol's grim-trigger abort if any party previously withheld). -/
-@[expose] def honestProfile : ∀ i, Strategy (Share := Share) i :=
+def honestProfile : ∀ i, Strategy (Share := Share) i :=
   fun _ _ _ => true
 
+omit [Fintype ι] [DecidableEq ι] in
+@[simp]
+theorem honestProfile_apply (i : ι) (r : ℕ) (sh : Share i) :
+    honestProfile (Share := Share) i r sh = true := by
+  rfl
+
 /-- Distribution of the simultaneous broadcast vector `ι → Bool` in round `r` when `payload` is
-shared under `proto.source`. -/
-@[expose] noncomputable def roundBroadcastDist (σ : ∀ i, Strategy (Share := Share) i)
+shared under `proto.source` and players run per-party strategies `σ`. -/
+noncomputable def roundBroadcastDist (σ : ∀ i, Strategy (Share := Share) i)
     (r : ℕ) (payload : Payload) : PMF (ι → Bool) :=
   proto.source.map fun k j => σ j r (proto.scheme.share k payload j)
 
+omit [DecidableEq ι] in
+theorem roundBroadcastDist_eq_map (σ : ∀ i, Strategy (Share := Share) i)
+    (r : ℕ) (payload : Payload) :
+    proto.roundBroadcastDist σ r payload =
+      proto.source.map fun k j => σ j r (proto.scheme.share k payload j) := by
+  rfl
+
+/-- Distribution of the simultaneous broadcast vector `ι → Bool` in round `r` when coalition `C`
+pools its round-`r` shares via joint strategy `τC : CoalitionStrategy C` and all parties outside `C`
+broadcast honestly (`true`). -/
+noncomputable def roundCoalitionBroadcastDist (C : Finset ι)
+    (τC : CoalitionStrategy (Share := Share) C) (r : ℕ) (payload : Payload) :
+    PMF (ι → Bool) :=
+  (proto.scheme.viewDist proto.source C payload).map fun v j =>
+    if hj : j ∈ C then τC r v ⟨j, hj⟩ else true
+
+theorem roundCoalitionBroadcastDist_ofProfile (C : Finset ι)
+    (τ : ∀ i, Strategy (Share := Share) i) (r : ℕ) (payload : Payload) :
+    proto.roundCoalitionBroadcastDist C (CoalitionStrategy.ofProfile C τ) r payload =
+      proto.roundBroadcastDist (C.piecewise τ honestProfile) r payload := by
+  simp only [roundCoalitionBroadcastDist, roundBroadcastDist, AccessScheme.viewDist,
+    AccessStructure.viewDistOf, PMF.map_comp, CoalitionStrategy.ofProfile_apply]
+  congr 1
+  funext k j
+  by_cases hj : j ∈ C
+  · simp [Function.comp_apply, hj]
+  · simp [Function.comp_apply, hj, honestProfile_apply]
+
+/-- **Cryptographic share-indistinguishability bridge for share-pooling coalitions**: when an
+unauthorized coalition `C` (`¬ proto.scheme.access.authorized C`) pools its joint share view via
+`τC : CoalitionStrategy C`, the induced round-`r` broadcast distribution `PMF (ι → Bool)` is
+identical in genuine rounds and dummy rounds. -/
+theorem roundCoalitionBroadcastDist_eq {C : Finset ι}
+    (hC : ¬ proto.scheme.access.authorized C)
+    (τC : CoalitionStrategy (Share := Share) C) (r : ℕ) :
+    proto.roundCoalitionBroadcastDist C τC r proto.genuine =
+      proto.roundCoalitionBroadcastDist C τC r proto.dummy := by
+  simp only [roundCoalitionBroadcastDist,
+    proto.scheme.viewDist_eq_of_not_authorized proto.source_mem hC proto.genuine proto.dummy]
+
+/-- Specialization of `roundCoalitionBroadcastDist_eq` to per-party deviating strategies
+`C.piecewise τ honestProfile`. -/
+theorem roundBroadcastDist_piecewise_eq {C : Finset ι}
+    (hC : ¬ proto.scheme.access.authorized C)
+    (τ : ∀ i, Strategy (Share := Share) i) (r : ℕ) :
+    proto.roundBroadcastDist (C.piecewise τ honestProfile) r proto.genuine =
+      proto.roundBroadcastDist (C.piecewise τ honestProfile) r proto.dummy := by
+  rw [← proto.roundCoalitionBroadcastDist_ofProfile C τ r proto.genuine,
+    ← proto.roundCoalitionBroadcastDist_ofProfile C τ r proto.dummy]
+  exact proto.roundCoalitionBroadcastDist_eq hC _ r
+
+private theorem mem_support_roundCoalitionBroadcastDist {C : Finset ι}
+    {τC : CoalitionStrategy (Share := Share) C} {r : ℕ} {payload : Payload} {b : ι → Bool}
+    (hb : b ∈ (proto.roundCoalitionBroadcastDist C τC r payload).support) {j : ι} (hj : j ∉ C) :
+    b j = true := by
+  rw [roundCoalitionBroadcastDist, PMF.mem_support_map_iff] at hb
+  obtain ⟨v, _, hv⟩ := hb
+  have hbj : (if h : j ∈ C then τC r v ⟨j, h⟩ else true) = b j := congrFun hv j
+  split_ifs at hbj
+  exact hbj.symm
+
 /-- Set of players who reconstruct the secret when broadcast vector `b : ι → Bool` occurs in a
-genuine round: player `m` sees `insert m (broadcastSet b)` and learns iff that coalition is
-authorized in `proto.scheme.access`. -/
-@[expose] noncomputable def learnedFromVec (b : ι → Bool) : Finset ι :=
+genuine round without coalition share-pooling: player `m` sees `insert m (broadcastSet b)`. -/
+noncomputable def learnedFromVec (b : ι → Bool) : Finset ι :=
   open Classical in
   Finset.univ.filter fun m =>
     proto.scheme.access.authorized (insert m (ReconstructionGame.broadcastSet b))
@@ -1759,32 +1683,174 @@ theorem learnedFromVec_const_true :
   ext m
   simp [mem_learnedFromVec_iff, ReconstructionGame.broadcastSet_const_true, proto.univ_authorized]
 
-/-- Probability that all players broadcast in dummy round `r` under strategy profile `σ` (so no
-abort occurs and the protocol advances to round `r + 1`). -/
-@[expose] noncomputable def roundContinueProb (σ : ∀ i, Strategy (Share := Share) i) (r : ℕ) : ℝ :=
+/-- Set of players who reconstruct the secret in a genuine round when coalition `C` pools all of
+its own unbroadcast shares with the publicly broadcast shares `broadcastSet b`: members `m ∈ C`
+hold `C ∪ broadcastSet b`, while honest outsiders `m ∉ C` hold `insert m (broadcastSet b)`. -/
+noncomputable def learnedFromCoalition (C : Finset ι) (b : ι → Bool) : Finset ι :=
+  open Classical in
+  Finset.univ.filter fun m =>
+    proto.scheme.access.authorized
+      (if m ∈ C then C ∪ ReconstructionGame.broadcastSet b
+       else insert m (ReconstructionGame.broadcastSet b))
+
+@[simp]
+theorem mem_learnedFromCoalition_iff {C : Finset ι} {b : ι → Bool} {m : ι} :
+    m ∈ proto.learnedFromCoalition C b ↔
+      proto.scheme.access.authorized
+        (if m ∈ C then C ∪ ReconstructionGame.broadcastSet b
+         else insert m (ReconstructionGame.broadcastSet b)) := by
+  classical
+  simp [learnedFromCoalition]
+
+@[simp]
+theorem learnedFromCoalition_const_true (C : Finset ι) :
+    proto.learnedFromCoalition C (fun _ => true) = Finset.univ := by
+  ext m
+  rw [mem_learnedFromCoalition_iff, ReconstructionGame.broadcastSet_const_true]
+  simp only [Finset.mem_univ, iff_true]
+  split_ifs
+  · rw [Finset.union_eq_right.mpr (Finset.subset_univ C)]
+    exact proto.univ_authorized
+  · simp [proto.univ_authorized]
+
+@[simp]
+theorem learnedFromCoalition_singleton (i : ι) (b : ι → Bool) :
+    proto.learnedFromCoalition {i} b = proto.learnedFromVec b := by
+  ext m
+  simp only [mem_learnedFromCoalition_iff, mem_learnedFromVec_iff, Finset.mem_singleton]
+  split_ifs with hmi
+  · subst hmi; rw [Finset.singleton_union]
+  · rfl
+
+private theorem outcomeUtility_learnedFromVec_le_coalition {C : Finset ι} {h₀ : ι}
+    (hh₀C : h₀ ∉ C) {b : ι → Bool} (hh₀B : h₀ ∈ ReconstructionGame.broadcastSet b)
+    {i : ι} (hiC : i ∈ C) :
+    proto.prefs.outcomeUtility (proto.learnedFromVec b) i ≤
+      proto.prefs.outcomeUtility (proto.learnedFromCoalition C b) i := by
+  let B := ReconstructionGame.broadcastSet b
+  by_cases hB : proto.scheme.access.authorized B
+  · have hLv : proto.learnedFromVec b = Finset.univ := by
+      ext m
+      simp only [mem_learnedFromVec_iff, Finset.mem_univ, iff_true]
+      exact proto.scheme.access.mono (Finset.subset_insert m B) hB
+    have hLc : proto.learnedFromCoalition C b = Finset.univ := by
+      ext m
+      simp only [mem_learnedFromCoalition_iff, Finset.mem_univ, iff_true]
+      split_ifs
+      · exact proto.scheme.access.mono Finset.subset_union_right hB
+      · exact proto.scheme.access.mono (Finset.subset_insert m B) hB
+    rw [hLv, hLc]
+  · have hh₀_not : h₀ ∉ proto.learnedFromCoalition C b := by
+      simp only [mem_learnedFromCoalition_iff, hh₀C, ↓reduceIte, Finset.insert_eq_of_mem hh₀B]
+      exact hB
+    have hne_univ : proto.learnedFromCoalition C b ≠ Finset.univ :=
+      fun h => hh₀_not (h ▸ Finset.mem_univ h₀)
+    by_cases hiV : i ∈ proto.learnedFromVec b
+    · have hiC' : i ∈ proto.learnedFromCoalition C b := by
+        rw [mem_learnedFromVec_iff] at hiV
+        simp only [mem_learnedFromCoalition_iff, hiC, ↓reduceIte]
+        exact proto.scheme.access.mono
+          (Finset.insert_subset (Finset.subset_union_left hiC) Finset.subset_union_right) hiV
+      rw [proto.prefs.outcomeUtility_of_mem_of_ne_univ hiC' hne_univ]
+      exact proto.prefs.outcomeUtility_le_uPlus _ i
+    · rw [proto.prefs.outcomeUtility_of_not_mem hiV]
+      exact proto.prefs.uMinus_le_outcomeUtility _ i
+
+/-- Probability that all players broadcast in dummy round `r` under per-party strategies `σ`. -/
+noncomputable def roundContinueProb (σ : ∀ i, Strategy (Share := Share) i) (r : ℕ) : ℝ :=
   (proto.roundBroadcastDist σ r proto.dummy (fun _ => true)).toReal
 
-/-- Expected payoff of player `i` conditioned on round `r` being the genuine round. -/
-@[expose] noncomputable def genuineStagePayoff (σ : ∀ i, Strategy (Share := Share) i)
+omit [DecidableEq ι] in
+theorem roundContinueProb_eq (σ : ∀ i, Strategy (Share := Share) i) (r : ℕ) :
+    proto.roundContinueProb σ r =
+      (proto.roundBroadcastDist σ r proto.dummy (fun _ => true)).toReal := by
+  rfl
+
+/-- Probability that all players broadcast in dummy round `r` under coalition strategy `τC` against
+honest outsiders. -/
+noncomputable def coalitionContinueProb (C : Finset ι)
+    (τC : CoalitionStrategy (Share := Share) C) (r : ℕ) : ℝ :=
+  (proto.roundCoalitionBroadcastDist C τC r proto.dummy (fun _ => true)).toReal
+
+@[simp]
+theorem coalitionContinueProb_ofProfile (C : Finset ι)
+    (τ : ∀ i, Strategy (Share := Share) i) (r : ℕ) :
+    proto.coalitionContinueProb C (CoalitionStrategy.ofProfile C τ) r =
+      proto.roundContinueProb (C.piecewise τ honestProfile) r := by
+  simp only [coalitionContinueProb, roundContinueProb, roundCoalitionBroadcastDist_ofProfile]
+
+/-- Expected payoff of player `i` conditioned on round `r` being the genuine round under per-party
+strategies `σ`. -/
+noncomputable def genuineStagePayoff (σ : ∀ i, Strategy (Share := Share) i)
     (r : ℕ) (i : ι) : ℝ :=
   ∑ b : ι → Bool, (proto.roundBroadcastDist σ r proto.genuine b).toReal *
     proto.prefs.outcomeUtility (proto.learnedFromVec b) i
 
-/-- Full infinite-horizon strategic game of `proto` over share-inspecting multi-round strategies. -/
-@[expose] noncomputable def toPayoffGame : PayoffGame ι (Strategy (Share := Share)) where
-  payoff i σ :=
-    ∑' r : ℕ,
-      reachProb proto.stopProb (fun m => 1 - proto.roundContinueProb σ m) r *
-        (proto.stopProb * proto.genuineStagePayoff σ r i +
-          (1 - proto.stopProb) * (1 - proto.roundContinueProb σ r) * proto.prefs.uMinus)
+/-- Expected payoff of player `i` conditioned on round `r` being the genuine round under joint
+share-pooling coalition strategy `τC` (with pooled reconstruction `learnedFromCoalition C`). -/
+noncomputable def coalitionGenuineStagePayoff (C : Finset ι)
+    (τC : CoalitionStrategy (Share := Share) C) (r : ℕ) (i : ι) : ℝ :=
+  ∑ b : ι → Bool, (proto.roundCoalitionBroadcastDist C τC r proto.genuine b).toReal *
+    proto.prefs.outcomeUtility (proto.learnedFromCoalition C b) i
 
-omit [DecidableEq ι] in
-private theorem roundContinueProb_bounds (σ : ∀ i, Strategy (Share := Share) i) (r : ℕ) :
-    0 ≤ 1 - proto.roundContinueProb σ r ∧ 1 - proto.roundContinueProb σ r ≤ 1 := by
-  have h0 : 0 ≤ proto.roundContinueProb σ r := ENNReal.toReal_nonneg
-  have h1 : proto.roundContinueProb σ r ≤ 1 := by
-    unfold roundContinueProb
-    exact ENNReal.toReal_mono ENNReal.one_ne_top (PMF.coe_le_one _ _)
+private noncomputable def evalHorizon (dGen dDum : ℕ → PMF (ι → Bool))
+    (L : (ι → Bool) → Finset ι) (i : ι) : ℝ :=
+  let q : ℕ → ℝ := fun r => 1 - (dDum r (fun _ => true)).toReal
+  ∑' r : ℕ, reachProb proto.stopProb q r *
+    (proto.stopProb *
+        (∑ b : ι → Bool, (dGen r b).toReal * proto.prefs.outcomeUtility (L b) i) +
+      (1 - proto.stopProb) * q r * proto.prefs.uMinus)
+
+/-- Full infinite-horizon strategic game of `proto` over per-party share-inspecting strategies. -/
+noncomputable def toPayoffGame : PayoffGame ι (Strategy (Share := Share)) where
+  payoff i σ := proto.evalHorizon
+    (fun r => proto.roundBroadcastDist σ r proto.genuine)
+    (fun r => proto.roundBroadcastDist σ r proto.dummy)
+    proto.learnedFromVec i
+
+theorem toPayoffGame_payoff (σ : ∀ i, Strategy (Share := Share) i) (i : ι) :
+    proto.toPayoffGame.payoff i σ =
+      ∑' r : ℕ,
+        reachProb proto.stopProb (fun m => 1 - proto.roundContinueProb σ m) r *
+          (proto.stopProb * proto.genuineStagePayoff σ r i +
+            (1 - proto.stopProb) * (1 - proto.roundContinueProb σ r) * proto.prefs.uMinus) := by
+  rfl
+
+/-- Infinite-horizon expected payoff of player `i` when coalition `C` pools its round-`r` shares via
+`τC : CoalitionStrategy C`, outsiders play `honestProfile`, and `C` pools unbroadcast shares in the
+genuine round (`learnedFromCoalition C`). -/
+noncomputable def coalitionPayoff (C : Finset ι)
+    (τC : CoalitionStrategy (Share := Share) C) (i : ι) : ℝ :=
+  proto.evalHorizon
+    (fun r => proto.roundCoalitionBroadcastDist C τC r proto.genuine)
+    (fun r => proto.roundCoalitionBroadcastDist C τC r proto.dummy)
+    (proto.learnedFromCoalition C) i
+
+theorem coalitionPayoff_eq (C : Finset ι)
+    (τC : CoalitionStrategy (Share := Share) C) (i : ι) :
+    proto.coalitionPayoff C τC i =
+      ∑' r : ℕ,
+        reachProb proto.stopProb (fun m => 1 - proto.coalitionContinueProb C τC m) r *
+          (proto.stopProb * proto.coalitionGenuineStagePayoff C τC r i +
+            (1 - proto.stopProb) * (1 - proto.coalitionContinueProb C τC r) *
+              proto.prefs.uMinus) := by
+  rfl
+
+/-- `honestProfile` is **jointly coalition-proof up to size `k`** (`k`-resilient against
+share-pooling coalitions; [AbrahamDolevGonenHalpern2006]; [DodisRabin2007], Theorem 8.9's `k < n`
+regime) if no coalition `C` of cardinality at most `k` can strictly increase any member's expected
+utility using any joint `CoalitionStrategy C` with pooled reconstruction
+`learnedFromCoalition C`. -/
+@[expose] def IsJointCoalitionProofUpTo (k : ℕ) : Prop :=
+  ∀ (C : Finset ι), C.card ≤ k → ∀ (τC : CoalitionStrategy (Share := Share) C), ∀ i ∈ C,
+    proto.coalitionPayoff C τC i ≤ proto.toPayoffGame.payoff i honestProfile
+
+omit [Fintype ι] [DecidableEq ι] in
+private theorem continueProb_bounds (d : PMF (ι → Bool)) :
+    0 ≤ 1 - (d (fun _ => true)).toReal ∧ 1 - (d (fun _ => true)).toReal ≤ 1 := by
+  have h0 : 0 ≤ (d (fun _ => true)).toReal := ENNReal.toReal_nonneg
+  have h1 : (d (fun _ => true)).toReal ≤ 1 :=
+    ENNReal.toReal_mono ENNReal.one_ne_top (PMF.coe_le_one _ _)
   exact ⟨by linarith, by linarith⟩
 
 /-- Under `honestProfile`, every player achieves exact expected utility `uAll`. -/
@@ -1794,8 +1860,8 @@ theorem payoff_honestProfile (i : ι) :
   have hdist : ∀ r payload,
       proto.roundBroadcastDist honestProfile r payload = PMF.pure (fun _ => true) := by
     intro r payload
-    unfold roundBroadcastDist honestProfile
-    exact PMF.map_const proto.source (fun _ : ι => true)
+    rw [roundBroadcastDist_eq_map]
+    exact PMF.map_const proto.source _
   have hcont : ∀ r, 1 - proto.roundContinueProb honestProfile r = 0 := by
     intro r
     simp [roundContinueProb, hdist]
@@ -1808,7 +1874,8 @@ theorem payoff_honestProfile (i : ι) :
       simp [PMF.pure_apply, hbne]
     · intro hnot
       exact absurd (Finset.mem_univ _) hnot
-  simp only [toPayoffGame, hcont, hgen]
+  rw [toPayoffGame_payoff]
+  simp only [hcont, hgen]
   have hmatch : (∑' r : ℕ, reachProb proto.stopProb (fun _ => 0) r *
       (proto.stopProb * proto.prefs.uAll +
         (1 - proto.stopProb) * 0 * proto.prefs.uMinus)) =
@@ -1818,60 +1885,27 @@ theorem payoff_honestProfile (i : ι) :
   rw [hmatch]
   exact geometricExpectedUtility_zero proto.prefs proto.stopProb_pos proto.stopProb_lt_one.le
 
-/-- **Cryptographic share-indistinguishability bridge**: when an unauthorized coalition `C`
-(`¬ proto.scheme.access.authorized C`) deviates jointly to `τ` while all parties outside `C` follow
-`honestProfile`, the induced round-`r` broadcast-vector distribution `PMF (ι → Bool)` is identical
-in genuine rounds and dummy rounds. -/
-theorem roundBroadcastDist_piecewise_eq {C : Finset ι}
-    (hC : ¬ proto.scheme.access.authorized C)
-    (τ : ∀ i, Strategy (Share := Share) i) (r : ℕ) :
-    proto.roundBroadcastDist (C.piecewise τ honestProfile) r proto.genuine =
-      proto.roundBroadcastDist (C.piecewise τ honestProfile) r proto.dummy := by
-  let liftView : ((j : C) → Share j.1) → (ι → Bool) :=
-    fun v j => if hj : j ∈ C then τ j r (v ⟨j, hj⟩) else true
-  have hfactor : ∀ payload,
-      proto.roundBroadcastDist (C.piecewise τ honestProfile) r payload =
-        (proto.scheme.viewDist proto.source C payload).map liftView := by
-    intro payload
-    simp only [roundBroadcastDist, AccessScheme.viewDist, AccessStructure.viewDistOf, PMF.map_comp]
-    congr 1
-    funext k j
-    by_cases hj : j ∈ C
-    · simp [Function.comp_apply, liftView, hj]
-    · simp [Function.comp_apply, liftView, hj, honestProfile]
-  rw [hfactor proto.genuine, hfactor proto.dummy,
-    proto.scheme.viewDist_eq_of_not_authorized proto.source_mem hC proto.genuine proto.dummy]
-
-/-- Bound on `genuineStagePayoff` when an unauthorized coalition `C` deviates: with probability
-`roundContinueProb` everyone broadcasts (`uAll`), and with the complementary probability
-`1 - roundContinueProb` the outcome payoff is at most `uPlus`. -/
-private theorem genuineStagePayoff_piecewise_le {C : Finset ι}
-    (hC : ¬ proto.scheme.access.authorized C)
-    (τ : ∀ i, Strategy (Share := Share) i) (r : ℕ) (i : ι) :
-    proto.genuineStagePayoff (C.piecewise τ honestProfile) r i ≤
-      proto.roundContinueProb (C.piecewise τ honestProfile) r * proto.prefs.uAll +
-        (1 - proto.roundContinueProb (C.piecewise τ honestProfile) r) * proto.prefs.uPlus := by
-  set σ := C.piecewise τ honestProfile
-  set d := proto.roundBroadcastDist σ r proto.dummy
-  have heq : proto.roundBroadcastDist σ r proto.genuine = d :=
-    proto.roundBroadcastDist_piecewise_eq hC τ r
+private theorem stage_le_of_eq (d : PMF (ι → Bool)) {L : (ι → Bool) → Finset ι}
+    (hL : L (fun _ => true) = Finset.univ) (i : ι) :
+    ∑ b : ι → Bool, (d b).toReal * proto.prefs.outcomeUtility (L b) i ≤
+      (d (fun _ => true)).toReal * proto.prefs.uAll +
+        (1 - (d (fun _ => true)).toReal) * proto.prefs.uPlus := by
   have hsum_one : ∑ b : ι → Bool, (d b).toReal = 1 := sum_toReal d
   have hall_split : ∑ b : ι → Bool, (d b).toReal *
-      proto.prefs.outcomeUtility (proto.learnedFromVec b) i ≤
+      proto.prefs.outcomeUtility (L b) i ≤
       (d (fun _ => true)).toReal * proto.prefs.uAll +
         ∑ b ∈ Finset.univ.erase (fun _ : ι => true), (d b).toReal * proto.prefs.uPlus := by
     rw [← Finset.add_sum_erase Finset.univ _ (Finset.mem_univ (fun _ : ι => true))]
     gcongr with b hb
-    · rw [proto.learnedFromVec_const_true, SecretSharingPrefs.outcomeUtility_univ]
+    · rw [hL, SecretSharingPrefs.outcomeUtility_univ]
     · exact proto.prefs.outcomeUtility_le_uPlus _ i
   have herase_sum : ∑ b ∈ Finset.univ.erase (fun _ : ι => true), (d b).toReal =
       1 - (d (fun _ => true)).toReal := by
     have := Finset.add_sum_erase Finset.univ (fun b => (d b).toReal)
       (Finset.mem_univ (fun _ : ι => true))
     linarith
-  simp only [genuineStagePayoff, heq, roundContinueProb]
   calc
-    ∑ b : ι → Bool, (d b).toReal * proto.prefs.outcomeUtility (proto.learnedFromVec b) i
+    ∑ b : ι → Bool, (d b).toReal * proto.prefs.outcomeUtility (L b) i
       ≤ (d (fun _ => true)).toReal * proto.prefs.uAll +
           ∑ b ∈ Finset.univ.erase (fun _ : ι => true), (d b).toReal * proto.prefs.uPlus :=
         hall_split
@@ -1879,122 +1913,71 @@ private theorem genuineStagePayoff_piecewise_le {C : Finset ι}
           (1 - (d (fun _ => true)).toReal) * proto.prefs.uPlus := by
         rw [← Finset.sum_mul, herase_sum]
 
-/-- Exact equality for `genuineStagePayoff` under a unilateral deviation `σ_i` in an `n`-out-of-`n`
-scheme (`proto.scheme.access = AccessStructure.all ι`, `2 ≤ Fintype.card ι`): whenever `i`
-withholds while all `j ≠ i` broadcast, `learnedFromVec = {i} ≠ univ`, so `i` gets `uPlus` with
-exact equality. -/
-private theorem genuineStagePayoff_update_eq_of_all
-    (hall_acc : proto.scheme.access = AccessStructure.all ι) (hcard : 2 ≤ Fintype.card ι)
-    (i : ι) (σ_i : Strategy (Share := Share) i) (r : ℕ) :
-    proto.genuineStagePayoff (Function.update honestProfile i σ_i) r i =
-      proto.roundContinueProb (Function.update honestProfile i σ_i) r * proto.prefs.uAll +
-        (1 - proto.roundContinueProb (Function.update honestProfile i σ_i) r) *
-          proto.prefs.uPlus := by
-  have hsingle_unauth : ¬ proto.scheme.access.authorized {i} := by
-    rw [hall_acc, AccessStructure.all_authorized_iff_eq_univ]
-    intro heq
-    have := congrArg Finset.card heq
-    simp only [Finset.card_singleton, Finset.card_univ] at this
-    omega
-  set σ := Function.update honestProfile i σ_i
-  have hpiece : σ = ({i} : Finset ι).piecewise σ honestProfile := by
-    simp only [σ, Finset.piecewise_singleton, Function.update_self]
-  set d := proto.roundBroadcastDist σ r proto.dummy
-  have heq : proto.roundBroadcastDist σ r proto.genuine = d := by
-    have h := proto.roundBroadcastDist_piecewise_eq hsingle_unauth σ r
-    rwa [← hpiece] at h
-  have hsupp : ∀ b : ι → Bool, b ≠ (fun _ => true) →
-      (d b).toReal = 0 ∨ b = Function.update (fun _ : ι => true) i false := by
-    intro b hbne
-    by_cases hother : ∀ j ≠ i, b j = true
-    · right
-      funext j
-      rcases eq_or_ne j i with hj | hne
-      · subst hj
-        simp only [Function.update_self]
-        cases hbi : b j
-        · rfl
-        · exfalso
-          apply hbne
-          funext l
-          rcases eq_or_ne l j with rfl | hlj
-          · exact hbi
-          · exact hother l hlj
-      · simp [Function.update_of_ne hne, hother j hne]
-    · left
-      push Not at hother
-      obtain ⟨j, hji, hjf⟩ := hother
-      have hdzero : d b = 0 := by
-        dsimp only [d, roundBroadcastDist]
-        rw [PMF.apply_eq_zero_iff, PMF.mem_support_map_iff]
-        rintro ⟨k, _, hk⟩
-        have hkj := congrFun hk j
-        simp only [σ, Function.update_of_ne hji, honestProfile] at hkj
-        exact hjf hkj.symm
-      simp [hdzero]
-  let b₀ := Function.update (fun _ : ι => true) i false
-  have hlearned_b₀ : proto.learnedFromVec b₀ = {i} := by
-    ext m
-    simp only [mem_learnedFromVec_iff, hall_acc, AccessStructure.all_authorized_iff_eq_univ,
-      Finset.mem_singleton]
-    rcases eq_or_ne m i with rfl | hmi
-    · simp only [iff_true]
-      ext l
-      rcases eq_or_ne l m with rfl | hlm
-      · simp
-      · simp [b₀, ReconstructionGame.mem_broadcastSet_iff, Function.update_of_ne hlm]
-    · simp only [hmi, iff_false]
-      intro huniv
-      have hi_mem : i ∈ insert m (ReconstructionGame.broadcastSet b₀) := huniv ▸ Finset.mem_univ i
-      rcases Finset.mem_insert.mp hi_mem with h | h
-      · exact hmi h.symm
-      · simp [b₀, ReconstructionGame.mem_broadcastSet_iff] at h
-  have hne_univ : ({i} : Finset ι) ≠ Finset.univ := by
-    intro heq'
-    have := congrArg Finset.card heq'
-    simp only [Finset.card_singleton, Finset.card_univ] at this
-    omega
-  have hu_b₀ : proto.prefs.outcomeUtility (proto.learnedFromVec b₀) i = proto.prefs.uPlus := by
-    rw [hlearned_b₀]
-    exact proto.prefs.outcomeUtility_of_mem_of_ne_univ (Finset.mem_singleton_self i) hne_univ
-  have hsum_one : ∑ b : ι → Bool, (d b).toReal = 1 := sum_toReal d
-  have herase_sum : ∑ b ∈ Finset.univ.erase (fun _ : ι => true), (d b).toReal =
-      1 - (d (fun _ => true)).toReal := by
-    have := Finset.add_sum_erase Finset.univ (fun b => (d b).toReal)
-      (Finset.mem_univ (fun _ : ι => true))
-    linarith
-  simp only [genuineStagePayoff, heq, roundContinueProb]
-  rw [← Finset.add_sum_erase Finset.univ _ (Finset.mem_univ (fun _ : ι => true)),
-    proto.learnedFromVec_const_true, SecretSharingPrefs.outcomeUtility_univ]
-  congr 1
-  calc
-    ∑ b ∈ Finset.univ.erase (fun _ : ι => true),
-        (d b).toReal * proto.prefs.outcomeUtility (proto.learnedFromVec b) i
-      = ∑ b ∈ Finset.univ.erase (fun _ : ι => true), (d b).toReal * proto.prefs.uPlus := by
-        refine Finset.sum_congr rfl fun b hb => ?_
-        rcases hsupp b (Finset.ne_of_mem_erase hb) with hz | rfl
-        · simp [hz]
-        · rw [hu_b₀]
-    _ = (1 - (d (fun _ : ι => true)).toReal) * proto.prefs.uPlus := by
-        rw [← Finset.sum_mul, herase_sum]
+private theorem summable_evalHorizon (dGen dDum : ℕ → PMF (ι → Bool))
+    (L : (ι → Bool) → Finset ι) (i : ι) :
+    let q : ℕ → ℝ := fun r => 1 - (dDum r (fun _ => true)).toReal
+    Summable fun r => reachProb proto.stopProb q r *
+      (proto.stopProb *
+          (∑ b : ι → Bool, (dGen r b).toReal * proto.prefs.outcomeUtility (L b) i) +
+        (1 - proto.stopProb) * q r * proto.prefs.uMinus) := by
+  intro q
+  have hq0 : ∀ r, 0 ≤ q r := fun r => (continueProb_bounds (dDum r)).1
+  have hq1 : ∀ r, q r ≤ 1 := fun r => (continueProb_bounds (dDum r)).2
+  have hp0 := proto.stopProb_pos
+  have hp1 := proto.stopProb_lt_one.le
+  have hreach_sum := summable_reachProb hp0 hp1 hq0 hq1
+  let B : ℝ := |proto.prefs.uPlus| + |proto.prefs.uAll| + |proto.prefs.uMinus| + 1
+  have hM_le_B : |proto.prefs.uMinus| ≤ B := by
+    dsimp [B]; linarith [abs_nonneg proto.prefs.uPlus, abs_nonneg proto.prefs.uAll]
+  have hP_le_B : |proto.prefs.uPlus| ≤ B := by
+    dsimp [B]; linarith [abs_nonneg proto.prefs.uAll, abs_nonneg proto.prefs.uMinus]
+  have hgen_abs : ∀ r,
+      |∑ b : ι → Bool, (dGen r b).toReal * proto.prefs.outcomeUtility (L b) i| ≤ B := by
+    intro r
+    calc
+      |∑ b : ι → Bool, (dGen r b).toReal * proto.prefs.outcomeUtility (L b) i|
+        ≤ ∑ b : ι → Bool, |(dGen r b).toReal * proto.prefs.outcomeUtility (L b) i| :=
+          Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ b : ι → Bool, (dGen r b).toReal * B := by
+          refine Finset.sum_le_sum fun b _ => ?_
+          rw [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
+          refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
+          have hlo := proto.prefs.uMinus_le_outcomeUtility (L b) i
+          have hhi := proto.prefs.outcomeUtility_le_uPlus (L b) i
+          obtain ⟨hm1, _⟩ := abs_le.mp hM_le_B
+          obtain ⟨_, hp2⟩ := abs_le.mp hP_le_B
+          exact abs_le.mpr ⟨by linarith, by linarith⟩
+      _ = B := by rw [← Finset.sum_mul, sum_toReal, one_mul]
+  refine Summable.of_norm_bounded (hreach_sum.mul_right (2 * B)) fun r => ?_
+  rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg (reachProb_nonneg hp1 hq1 r)]
+  refine mul_le_mul_of_nonneg_left ?_ (reachProb_nonneg hp1 hq1 r)
+  have h1 : |proto.stopProb *
+      ∑ b : ι → Bool, (dGen r b).toReal * proto.prefs.outcomeUtility (L b) i| ≤ B := by
+    rw [abs_mul, abs_of_pos hp0]
+    exact (mul_le_mul_of_nonneg_right hp1 (abs_nonneg _)).trans
+      (by rw [one_mul]; exact hgen_abs r)
+  have h2 : |(1 - proto.stopProb) * q r * proto.prefs.uMinus| ≤ B := by
+    have hqr0 := hq0 r
+    have hqr1 := hq1 r
+    rw [abs_mul, abs_mul, abs_of_nonneg (by linarith), abs_of_nonneg hqr0]
+    have hc : (1 - proto.stopProb) * q r ≤ 1 := by nlinarith
+    exact (mul_le_mul_of_nonneg_right hc (abs_nonneg _)).trans (by rw [one_mul]; exact hM_le_B)
+  exact (abs_add_le _ _).trans (by linarith)
 
-/-- Upper bound on a deviating unauthorized coalition's infinite-horizon payoff by
-`geometricExpectedUtility`. -/
-theorem payoff_piecewise_le_geometricExpectedUtility {C : Finset ι}
-    (hC : ¬ proto.scheme.access.authorized C)
-    (τ : ∀ i, Strategy (Share := Share) i) (i : ι) :
-    proto.toPayoffGame.payoff i (C.piecewise τ honestProfile) ≤
+private theorem evalHorizon_le_geometricExpectedUtility {d : ℕ → PMF (ι → Bool)}
+    {L : (ι → Bool) → Finset ι} (hL : L (fun _ => true) = Finset.univ) (i : ι) :
+    proto.evalHorizon d d L i ≤
       geometricExpectedUtility proto.prefs proto.stopProb
-        (fun r => 1 - proto.roundContinueProb (C.piecewise τ honestProfile) r) := by
-  set σ := C.piecewise τ honestProfile
-  set q : ℕ → ℝ := fun r => 1 - proto.roundContinueProb σ r
-  have hq0 : ∀ r, 0 ≤ q r := fun r => (proto.roundContinueProb_bounds σ r).1
-  have hq1 : ∀ r, q r ≤ 1 := fun r => (proto.roundContinueProb_bounds σ r).2
+        (fun r => 1 - (d r (fun _ => true)).toReal) := by
+  set q : ℕ → ℝ := fun r => 1 - (d r (fun _ => true)).toReal
+  have hq0 : ∀ r, 0 ≤ q r := fun r => (continueProb_bounds (d r)).1
+  have hq1 : ∀ r, q r ≤ 1 := fun r => (continueProb_bounds (d r)).2
   have hp0 := proto.stopProb_pos
   have hp1 := proto.stopProb_lt_one.le
   have hterm_le : ∀ r : ℕ,
       reachProb proto.stopProb q r *
-          (proto.stopProb * proto.genuineStagePayoff σ r i +
+          (proto.stopProb *
+              (∑ b : ι → Bool, (d r b).toReal * proto.prefs.outcomeUtility (L b) i) +
             (1 - proto.stopProb) * q r * proto.prefs.uMinus) ≤
         reachProb proto.stopProb q r *
           ((1 - q r) * proto.stopProb * proto.prefs.uAll +
@@ -2002,55 +1985,18 @@ theorem payoff_piecewise_le_geometricExpectedUtility {C : Finset ι}
               (1 - proto.stopProb) * proto.prefs.uMinus)) := by
     intro r
     refine mul_le_mul_of_nonneg_left ?_ (reachProb_nonneg hp1 hq1 r)
-    have hgen := proto.genuineStagePayoff_piecewise_le hC τ r i
-    have h1q : proto.roundContinueProb σ r = 1 - q r := by simp [q]
+    have hgen := proto.stage_le_of_eq (d r) hL i
+    have h1q : (d r (fun _ => true)).toReal = 1 - q r := by simp [q]
     rw [h1q] at hgen
     nlinarith
   have hreach_sum := summable_reachProb hp0 hp1 hq0 hq1
   let B : ℝ := |proto.prefs.uPlus| + |proto.prefs.uAll| + |proto.prefs.uMinus| + 1
-  have hB_pos : 0 ≤ B := by dsimp [B]; positivity
   have hM_le_B : |proto.prefs.uMinus| ≤ B := by
     dsimp [B]; linarith [abs_nonneg proto.prefs.uPlus, abs_nonneg proto.prefs.uAll]
   have hA_le_B : |proto.prefs.uAll| ≤ B := by
     dsimp [B]; linarith [abs_nonneg proto.prefs.uPlus, abs_nonneg proto.prefs.uMinus]
   have hP_le_B : |proto.prefs.uPlus| ≤ B := by
     dsimp [B]; linarith [abs_nonneg proto.prefs.uAll, abs_nonneg proto.prefs.uMinus]
-  have hgen_abs : ∀ r, |proto.genuineStagePayoff σ r i| ≤ B := by
-    intro r
-    unfold genuineStagePayoff
-    calc
-      |∑ b : ι → Bool, (proto.roundBroadcastDist σ r proto.genuine b).toReal *
-          proto.prefs.outcomeUtility (proto.learnedFromVec b) i|
-        ≤ ∑ b : ι → Bool, |(proto.roundBroadcastDist σ r proto.genuine b).toReal *
-            proto.prefs.outcomeUtility (proto.learnedFromVec b) i| :=
-          Finset.abs_sum_le_sum_abs _ _
-      _ ≤ ∑ b : ι → Bool, (proto.roundBroadcastDist σ r proto.genuine b).toReal * B := by
-          refine Finset.sum_le_sum fun b _ => ?_
-          rw [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
-          refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
-          have hlo := proto.prefs.uMinus_le_outcomeUtility (proto.learnedFromVec b) i
-          have hhi := proto.prefs.outcomeUtility_le_uPlus (proto.learnedFromVec b) i
-          obtain ⟨hm1, _⟩ := abs_le.mp hM_le_B
-          obtain ⟨_, hp2⟩ := abs_le.mp hP_le_B
-          exact abs_le.mpr ⟨by linarith, by linarith⟩
-      _ = B := by rw [← Finset.sum_mul, sum_toReal, one_mul]
-  have hsum_lhs : Summable fun r => reachProb proto.stopProb q r *
-      (proto.stopProb * proto.genuineStagePayoff σ r i +
-        (1 - proto.stopProb) * q r * proto.prefs.uMinus) := by
-    refine Summable.of_norm_bounded (hreach_sum.mul_right (2 * B)) fun r => ?_
-    rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg (reachProb_nonneg hp1 hq1 r)]
-    refine mul_le_mul_of_nonneg_left ?_ (reachProb_nonneg hp1 hq1 r)
-    have h1 : |proto.stopProb * proto.genuineStagePayoff σ r i| ≤ B := by
-      rw [abs_mul, abs_of_pos hp0]
-      exact (mul_le_mul_of_nonneg_right hp1 (abs_nonneg _)).trans
-        (by rw [one_mul]; exact hgen_abs r)
-    have h2 : |(1 - proto.stopProb) * q r * proto.prefs.uMinus| ≤ B := by
-      have hqr0 := hq0 r
-      have hqr1 := hq1 r
-      rw [abs_mul, abs_mul, abs_of_nonneg (by linarith), abs_of_nonneg hqr0]
-      have hc : (1 - proto.stopProb) * q r ≤ 1 := by nlinarith
-      exact (mul_le_mul_of_nonneg_right hc (abs_nonneg _)).trans (by rw [one_mul]; exact hM_le_B)
-    exact (abs_add_le _ _).trans (by linarith)
   have hsum_rhs : Summable fun r => reachProb proto.stopProb q r *
       ((1 - q r) * proto.stopProb * proto.prefs.uAll +
         q r * (proto.stopProb * proto.prefs.uPlus +
@@ -2077,25 +2023,103 @@ theorem payoff_piecewise_le_geometricExpectedUtility {C : Finset ι}
       rw [mul_add]
       exact (abs_add_le _ _).trans (by linarith)
     exact (abs_add_le _ _).trans (by linarith)
-  exact hsum_lhs.tsum_le_tsum hterm_le hsum_rhs
+  exact (proto.summable_evalHorizon d d L i).tsum_le_tsum hterm_le hsum_rhs
 
-/-- **Theorem 2 (Cryptographic Geometric-Termination Coalition Resilience)** ([HalpernTeague2004];
-[AbrahamDolevGonenHalpern2006]; [DodisRabin2007], Section 8.5.2(b) and Theorem 8.9): when
-`stopProb ≤ prefs.criticalStoppingProb`, no unauthorized coalition `C`
-(`¬ scheme.access.authorized C`) can increase any member's expected utility above `uAll` by any
-joint multi-round share-inspecting deviation. -/
-theorem honestProfile_isCoalitionProof (hp : proto.stopProb ≤ proto.prefs.criticalStoppingProb)
-    {C : Finset ι} (hC : ¬ proto.scheme.access.authorized C)
+private theorem evalHorizon_tsum_le_of_pointwise
+    {dGen₁ dDum₁ dGen₂ dDum₂ : ℕ → PMF (ι → Bool)} {L₁ L₂ : (ι → Bool) → Finset ι} {i : ι}
+    (hGen : ∀ r b, dGen₁ r b = dGen₂ r b)
+    (hDum : ∀ r, dDum₁ r (fun _ => true) = dDum₂ r (fun _ => true))
+    (hL : ∀ r b, dGen₁ r b ≠ 0 →
+      proto.prefs.outcomeUtility (L₁ b) i ≤ proto.prefs.outcomeUtility (L₂ b) i) :
+    proto.evalHorizon dGen₁ dDum₁ L₁ i ≤ proto.evalHorizon dGen₂ dDum₂ L₂ i := by
+  have hdum_toReal : ∀ r,
+      (dDum₂ r (fun _ => true)).toReal = (dDum₁ r (fun _ => true)).toReal :=
+    fun r => congrArg ENNReal.toReal (hDum r).symm
+  have hterm : ∀ r : ℕ,
+      reachProb proto.stopProb (fun m => 1 - (dDum₁ m (fun _ => true)).toReal) r *
+          (proto.stopProb *
+              (∑ b : ι → Bool, (dGen₁ r b).toReal * proto.prefs.outcomeUtility (L₁ b) i) +
+            (1 - proto.stopProb) * (1 - (dDum₁ r (fun _ => true)).toReal) *
+              proto.prefs.uMinus) ≤
+        reachProb proto.stopProb (fun m => 1 - (dDum₁ m (fun _ => true)).toReal) r *
+          (proto.stopProb *
+              (∑ b : ι → Bool, (dGen₂ r b).toReal * proto.prefs.outcomeUtility (L₂ b) i) +
+            (1 - proto.stopProb) * (1 - (dDum₁ r (fun _ => true)).toReal) *
+              proto.prefs.uMinus) := by
+    intro r
+    refine mul_le_mul_of_nonneg_left ?_
+      (reachProb_nonneg proto.stopProb_lt_one.le
+        (fun m => (continueProb_bounds (dDum₁ m)).2) r)
+    have hsum_le :
+        ∑ b : ι → Bool, (dGen₁ r b).toReal * proto.prefs.outcomeUtility (L₁ b) i ≤
+          ∑ b : ι → Bool, (dGen₂ r b).toReal * proto.prefs.outcomeUtility (L₂ b) i := by
+      refine Finset.sum_le_sum fun b _ => ?_
+      by_cases hb : dGen₁ r b = 0
+      · have hb2 : dGen₂ r b = 0 := by rw [← hGen r b, hb]
+        simp [hb, hb2]
+      · rw [← hGen r b]
+        exact mul_le_mul_of_nonneg_left (hL r b hb) ENNReal.toReal_nonneg
+    nlinarith [proto.stopProb_pos]
+  unfold evalHorizon
+  dsimp only
+  simp_rw [hdum_toReal]
+  refine (proto.summable_evalHorizon dGen₁ dDum₁ L₁ i).tsum_le_tsum hterm ?_
+  simpa only [hdum_toReal] using proto.summable_evalHorizon dGen₂ dDum₂ L₂ i
+/-- Upper bound on a deviating unauthorized coalition's infinite-horizon payoff under joint
+share-pooling strategies `τC : CoalitionStrategy C` by `geometricExpectedUtility`. -/
+theorem payoff_coalition_le_geometricExpectedUtility {C : Finset ι}
+    (hC : ¬ proto.scheme.access.authorized C)
+    (τC : CoalitionStrategy (Share := Share) C) (i : ι) :
+    proto.coalitionPayoff C τC i ≤
+      geometricExpectedUtility proto.prefs proto.stopProb
+        (fun r => 1 - proto.coalitionContinueProb C τC r) := by
+  unfold coalitionPayoff coalitionContinueProb
+  simp_rw [proto.roundCoalitionBroadcastDist_eq hC τC]
+  exact proto.evalHorizon_le_geometricExpectedUtility (proto.learnedFromCoalition_const_true C) i
+
+/-- Upper bound on a deviating unauthorized coalition's infinite-horizon payoff under per-party
+strategies `C.piecewise τ honestProfile` by `geometricExpectedUtility`. -/
+theorem payoff_piecewise_le_geometricExpectedUtility {C : Finset ι}
+    (hC : ¬ proto.scheme.access.authorized C)
     (τ : ∀ i, Strategy (Share := Share) i) (i : ι) :
     proto.toPayoffGame.payoff i (C.piecewise τ honestProfile) ≤
-      proto.toPayoffGame.payoff i honestProfile := by
-  rw [proto.payoff_honestProfile i]
-  refine (proto.payoff_piecewise_le_geometricExpectedUtility hC τ i).trans ?_
-  set q : ℕ → ℝ := fun r => 1 - proto.roundContinueProb (C.piecewise τ honestProfile) r
-  have hq0 : ∀ r, 0 ≤ q r :=
-    fun r => (proto.roundContinueProb_bounds (C.piecewise τ honestProfile) r).1
-  have hq1 : ∀ r, q r ≤ 1 :=
-    fun r => (proto.roundContinueProb_bounds (C.piecewise τ honestProfile) r).2
+      geometricExpectedUtility proto.prefs proto.stopProb
+        (fun r => 1 - proto.roundContinueProb (C.piecewise τ honestProfile) r) := by
+  unfold toPayoffGame roundContinueProb
+  dsimp only
+  simp_rw [proto.roundBroadcastDist_piecewise_eq hC τ]
+  exact proto.evalHorizon_le_geometricExpectedUtility proto.learnedFromVec_const_true i
+
+/-- **Joint coalition strategies subsume independent per-party deviations**: for any coalition
+`C ≠ Finset.univ` (`∃ h₀ ∉ C`), any per-party deviation `τ` yields member `i ∈ C` at most the
+pooled coalition payoff `coalitionPayoff C (CoalitionStrategy.ofProfile C τ) i`. -/
+theorem payoff_piecewise_le_coalitionPayoff {C : Finset ι} (hC : C ≠ Finset.univ)
+    (τ : ∀ i, Strategy (Share := Share) i) {i : ι} (hi : i ∈ C) :
+    proto.toPayoffGame.payoff i (C.piecewise τ honestProfile) ≤
+      proto.coalitionPayoff C (CoalitionStrategy.ofProfile C τ) i := by
+  have hex : ∃ h₀ : ι, h₀ ∉ C := by
+    by_contra hall
+    push Not at hall
+    exact hC (Finset.eq_univ_iff_forall.mpr hall)
+  obtain ⟨h₀, hh₀C⟩ := hex
+  refine proto.evalHorizon_tsum_le_of_pointwise
+    (fun r b => (proto.roundCoalitionBroadcastDist_ofProfile C τ r proto.genuine ▸ rfl))
+    (fun r => (proto.roundCoalitionBroadcastDist_ofProfile C τ r proto.dummy ▸ rfl)) ?_
+  intro r b hb
+  have hb_supp : b ∈ (proto.roundCoalitionBroadcastDist C (CoalitionStrategy.ofProfile C τ)
+      r proto.genuine).support := by
+    rw [proto.roundCoalitionBroadcastDist_ofProfile, PMF.mem_support_iff]
+    exact hb
+  have hh₀_true := proto.mem_support_roundCoalitionBroadcastDist hb_supp hh₀C
+  have hh₀B : h₀ ∈ ReconstructionGame.broadcastSet b :=
+    ReconstructionGame.mem_broadcastSet_iff.mpr hh₀_true
+  exact proto.outcomeUtility_learnedFromVec_le_coalition hh₀C hh₀B hi
+
+omit [DecidableEq ι] in
+private theorem geometricExpectedUtility_le_uAll
+    (hp : proto.stopProb ≤ proto.prefs.criticalStoppingProb)
+    {q : ℕ → ℝ} (hq0 : ∀ r, 0 ≤ q r) (hq1 : ∀ r, q r ≤ 1) :
+    geometricExpectedUtility proto.prefs proto.stopProb q ≤ proto.prefs.uAll := by
   have hgap := uAll_sub_geometricExpectedUtility proto.prefs proto.stopProb_pos
     proto.stopProb_lt_one.le hq0 hq1
   have hmargin : 0 ≤ proto.prefs.uAll -
@@ -2110,19 +2134,86 @@ theorem honestProfile_isCoalitionProof (hp : proto.stopProb ≤ proto.prefs.crit
     exact mul_nonneg hmargin htsum_nonneg
   linarith
 
+/-- **Cryptographic Geometric-Termination Coalition Resilience for Share-Pooling Coalitions**
+([HalpernTeague2004]; [AbrahamDolevGonenHalpern2006]; [DodisRabin2007], Section 8.5.2(b) and
+Theorem 8.9's `k < n` utility-dependent regime): when `stopProb ≤ prefs.criticalStoppingProb`, no
+unauthorized coalition `C` (`¬ scheme.access.authorized C`) can increase any player's expected
+utility above `uAll` by any joint multi-round share-inspecting deviation `CoalitionStrategy C` even
+when pooling all coalition shares under `learnedFromCoalition`. -/
+theorem honestProfile_isJointCoalitionProof
+    (hp : proto.stopProb ≤ proto.prefs.criticalStoppingProb)
+    {C : Finset ι} (hC : ¬ proto.scheme.access.authorized C)
+    (τC : CoalitionStrategy (Share := Share) C) (i : ι) :
+    proto.coalitionPayoff C τC i ≤ proto.toPayoffGame.payoff i honestProfile := by
+  rw [proto.payoff_honestProfile i]
+  exact (proto.payoff_coalition_le_geometricExpectedUtility hC τC i).trans
+    (proto.geometricExpectedUtility_le_uAll hp
+      (fun r => (continueProb_bounds _).1) (fun r => (continueProb_bounds _).2))
+
+/-- **`(t - 1)`-coalitional resilience against share-pooling coalitions**
+([AbrahamDolevGonenHalpern2006]; [DodisRabin2007], Theorem 8.9's `k < n` regime): when
+`proto.scheme` has threshold `t` (`1 ≤ t`) and `stopProb ≤ criticalStoppingProb`, `honestProfile`
+is jointly coalition-proof against all share-pooling coalitions of size at most `t - 1`.
+Unlike `[DodisRabin2007]`, Theorem 8.9, survival of iterated deletion of weakly dominated
+strategies (`IDoWDS`) on multi-round `GeometricProtocol` is not claimed here (only stage-game
+`IDoWDS` uniqueness is formalized in `ReconstructionGame.idowdsIter_geometricStageGame_one`). -/
+theorem honestProfile_isJointCoalitionProofUpTo {t : ℕ} (ht : 1 ≤ t)
+    (hacc : proto.scheme.access = AccessStructure.threshold ι t)
+    (hp : proto.stopProb ≤ proto.prefs.criticalStoppingProb) :
+    proto.IsJointCoalitionProofUpTo (t - 1) := by
+  intro C hC τC i _
+  refine proto.honestProfile_isJointCoalitionProof hp ?_ τC i
+  rw [hacc, AccessStructure.threshold_authorized_iff]
+  omega
+
+/-- In `GeometricProtocol.ofShamir`, when `p ≤ prefs.criticalStoppingProb`, `honestProfile` is
+jointly coalition-proof up to Shamir polynomial degree `params.threshold` (`(t - 1)`-resilient
+against share-pooling coalitions for `t = params.threshold + 1`). -/
+theorem ofShamir_honestProfile_isJointCoalitionProofUpTo
+    {F ι : Type*} [Field F] [Fintype F] [Nonempty F] [Fintype ι] [DecidableEq ι]
+    (prefs : SecretSharingPrefs) (params : Shamir.Params F ι) (genuine dummy : F)
+    (p : ℝ) (hp0 : 0 < p) (hp1 : p < 1) (hp : p ≤ prefs.criticalStoppingProb) :
+    (ofShamir prefs params genuine dummy p hp0 hp1).IsJointCoalitionProofUpTo params.threshold :=
+  (ofShamir prefs params genuine dummy p hp0 hp1).honestProfile_isJointCoalitionProofUpTo
+    (Nat.succ_le_succ (Nat.zero_le _)) rfl hp
+
+/-- Joint coalition-proofness up to `k < Fintype.card ι` implies `PayoffGame.IsCoalitionProofUpTo`
+against independent per-party deviations. -/
+theorem IsJointCoalitionProofUpTo.toPayoffGame {proto : GeometricProtocol ι Payload Key Share}
+    {k : ℕ} (h : proto.IsJointCoalitionProofUpTo k) (hk : k < Fintype.card ι) :
+    proto.toPayoffGame.IsCoalitionProofUpTo k honestProfile := by
+  intro C hC τ i hiC
+  have hC_ne : C ≠ Finset.univ := fun heq => by
+    have := congrArg Finset.card heq
+    rw [Finset.card_univ] at this
+    omega
+  exact (proto.payoff_piecewise_le_coalitionPayoff hC_ne τ hiC).trans
+    (h C hC (CoalitionStrategy.ofProfile C τ) i hiC)
+
+/-- **Theorem 2 (Cryptographic Geometric-Termination Coalition Resilience)**: when
+`stopProb ≤ prefs.criticalStoppingProb`, no unauthorized coalition `C`
+(`¬ scheme.access.authorized C`) can increase any player's expected utility above `uAll` by any
+per-party multi-round share-inspecting deviation. -/
+theorem honestProfile_isCoalitionProof (hp : proto.stopProb ≤ proto.prefs.criticalStoppingProb)
+    {C : Finset ι} (hC : ¬ proto.scheme.access.authorized C)
+    (τ : ∀ i, Strategy (Share := Share) i) (i : ι) :
+    proto.toPayoffGame.payoff i (C.piecewise τ honestProfile) ≤
+      proto.toPayoffGame.payoff i honestProfile := by
+  rw [proto.payoff_honestProfile i]
+  exact (proto.payoff_piecewise_le_geometricExpectedUtility hC τ i).trans
+    (proto.geometricExpectedUtility_le_uAll hp
+      (fun r => (continueProb_bounds _).1) (fun r => (continueProb_bounds _).2))
+
 /-- **`(t - 1)`-coalitional resilience (`IsCoalitionProofUpTo (t - 1)`) for `(t, n)` threshold
-schemes** ([AbrahamDolevGonenHalpern2006]; [DodisRabin2007], Theorem 8.9): when `proto.scheme` has
-threshold `t` (`1 ≤ t`) and `stopProb ≤ criticalStoppingProb`, `honestProfile` is coalition-proof
-against all coalitions of size at most `t - 1` (and in particular a pure Nash equilibrium whenever
-`2 ≤ t`). -/
+schemes**: corollary of `honestProfile_isJointCoalitionProofUpTo`. -/
 theorem honestProfile_isCoalitionProofUpTo {t : ℕ} (ht : 1 ≤ t)
     (hacc : proto.scheme.access = AccessStructure.threshold ι t)
     (hp : proto.stopProb ≤ proto.prefs.criticalStoppingProb) :
     proto.toPayoffGame.IsCoalitionProofUpTo (t - 1) honestProfile := by
-  intro C hC τ i _
-  refine proto.honestProfile_isCoalitionProof hp ?_ τ i
-  rw [hacc, AccessStructure.threshold_authorized_iff]
-  omega
+  have ht_le : t ≤ Fintype.card ι := by
+    have := proto.univ_authorized
+    rwa [hacc, AccessStructure.threshold_authorized_iff, Finset.card_univ] at this
+  exact (proto.honestProfile_isJointCoalitionProofUpTo ht hacc hp).toPayoffGame (by omega)
 
 /-- In `GeometricProtocol.ofShamir`, when `p ≤ prefs.criticalStoppingProb`, `honestProfile` is
 coalition-proof up to Shamir polynomial degree `params.threshold` (`(t - 1)`-resilient for
@@ -2132,9 +2223,109 @@ theorem ofShamir_honestProfile_isCoalitionProofUpTo
     (prefs : SecretSharingPrefs) (params : Shamir.Params F ι) (genuine dummy : F)
     (p : ℝ) (hp0 : 0 < p) (hp1 : p < 1) (hp : p ≤ prefs.criticalStoppingProb) :
     (ofShamir prefs params genuine dummy p hp0 hp1).toPayoffGame.IsCoalitionProofUpTo
-      params.threshold honestProfile := by
-  exact (ofShamir prefs params genuine dummy p hp0 hp1).honestProfile_isCoalitionProofUpTo
-    (Nat.succ_le_succ (Nat.zero_le _)) rfl hp
+      params.threshold honestProfile :=
+  (ofShamir_honestProfile_isJointCoalitionProofUpTo
+    prefs params genuine dummy p hp0 hp1 hp).toPayoffGame params.threshold_lt_card
+
+/-- Exact expected payoff of coalition member `i ∈ C` when a nonempty proper coalition `C` whose
+complement `Finset.univ \ C` is unauthorized withholds unconditionally in round `0` (`fun _ _ _ =>
+false`): `C` learns exclusively in genuine round `0` (`stopProb * uPlus + (1 - stopProb) * uMinus`).
+-/
+theorem coalitionPayoff_const_false {C : Finset ι} (hC_ne : C.Nonempty) (hC_univ : C ≠ Finset.univ)
+    (hOut : ¬ proto.scheme.access.authorized (Finset.univ \ C)) {i : ι} (hi : i ∈ C) :
+    proto.coalitionPayoff C (fun _ _ _ => false) i =
+      proto.stopProb * proto.prefs.uPlus + (1 - proto.stopProb) * proto.prefs.uMinus := by
+  let bC : ι → Bool := fun j => decide (j ∉ C)
+  have hdist : ∀ r payload,
+      proto.roundCoalitionBroadcastDist C (fun _ _ _ => false) r payload = PMF.pure bC := by
+    intro r payload
+    unfold roundCoalitionBroadcastDist
+    have hfn : (fun (v : (j : C) → Share j.1) (j : ι) =>
+        if hj : j ∈ C then false else true) = fun _ => bC := by
+      funext v j
+      by_cases hj : j ∈ C
+      · simp [bC, hj]
+      · simp [bC, hj]
+    rw [hfn]
+    exact PMF.map_const _ bC
+  have hbC_ne : bC ≠ (fun _ => true) := by
+    obtain ⟨j₀, hj₀⟩ := hC_ne
+    intro h
+    have hj := congrFun h j₀
+    simp [bC, hj₀] at hj
+  have hcont : ∀ r, proto.coalitionContinueProb C (fun _ _ _ => false) r = 0 := by
+    intro r
+    simp [coalitionContinueProb, hdist, PMF.pure_apply, hbC_ne.symm]
+  have hreach_succ : ∀ r,
+      reachProb proto.stopProb
+        (fun m => 1 - proto.coalitionContinueProb C (fun _ _ _ => false) m) (r + 1) = 0 := by
+    intro r
+    induction r with
+    | zero => simp [reachProb_succ, hcont]
+    | succ r ih => rw [reachProb_succ, ih, zero_mul]
+  have hB : ReconstructionGame.broadcastSet bC = Finset.univ \ C := by
+    ext j
+    simp [bC, ReconstructionGame.mem_broadcastSet_iff]
+  have hL : proto.learnedFromCoalition C bC = C := by
+    ext m
+    rw [mem_learnedFromCoalition_iff, hB]
+    by_cases hm : m ∈ C
+    · have hunion : C ∪ (Finset.univ \ C) = Finset.univ := by
+        ext x
+        simp only [Finset.mem_union, Finset.mem_sdiff, Finset.mem_univ, true_and, iff_true]
+        exact em (x ∈ C)
+      simp [hm, hunion, proto.univ_authorized]
+    · have hm_mem : m ∈ Finset.univ \ C := Finset.mem_sdiff.mpr ⟨Finset.mem_univ m, hm⟩
+      simp [hm, Finset.insert_eq_of_mem hm_mem, hOut]
+  have hu : proto.prefs.outcomeUtility (proto.learnedFromCoalition C bC) i = proto.prefs.uPlus := by
+    rw [hL]
+    exact proto.prefs.outcomeUtility_of_mem_of_ne_univ hi hC_univ
+  have hgen0 : proto.coalitionGenuineStagePayoff C (fun _ _ _ => false) 0 i =
+      proto.prefs.uPlus := by
+    unfold coalitionGenuineStagePayoff
+    rw [hdist, Finset.sum_eq_single bC]
+    · simp [hu]
+    · intro b _ hbne
+      simp [PMF.pure_apply, hbne]
+    · intro hnot
+      exact absurd (Finset.mem_univ _) hnot
+  rw [coalitionPayoff_eq, tsum_eq_single 0]
+  · simp [reachProb_zero, hcont, hgen0]
+  · intro r hr
+    obtain ⟨m, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hr
+    simp [hreach_succ m]
+
+/-- **Sharp no-honest-majority threshold characterization** ([AbrahamDolevGonenHalpern2006];
+[DodisRabin2007]): in any `(t, n)` threshold scheme with `1 ≤ t` in the no-honest-majority regime
+`Fintype.card ι < 2 * t - 1`, `honestProfile` is `(t - 1)`-coalitionally resilient against
+share-pooling coalitions if and only if `stopProb ≤ prefs.criticalStoppingProb`. -/
+theorem honestProfile_isJointCoalitionProofUpTo_iff {t : ℕ} (ht : 1 ≤ t)
+    (hno_maj : Fintype.card ι < 2 * t - 1)
+    (hacc : proto.scheme.access = AccessStructure.threshold ι t) :
+    proto.IsJointCoalitionProofUpTo (t - 1) ↔
+      proto.stopProb ≤ proto.prefs.criticalStoppingProb := by
+  refine ⟨fun h => ?_, proto.honestProfile_isJointCoalitionProofUpTo ht hacc⟩
+  have ht_le : t ≤ Fintype.card ι := by
+    have := proto.univ_authorized
+    rwa [hacc, AccessStructure.threshold_authorized_iff, Finset.card_univ] at this
+  have hsub_le : t - 1 ≤ (Finset.univ : Finset ι).card := by
+    rw [Finset.card_univ]
+    omega
+  obtain ⟨C, _, hCcard⟩ := Finset.exists_subset_card_eq hsub_le
+  have hC_ne : C.Nonempty := Finset.card_pos.mp (by omega)
+  have hC_univ : C ≠ Finset.univ := fun heq => by
+    have := congrArg Finset.card heq
+    rw [Finset.card_univ] at this
+    omega
+  have hOut : ¬ proto.scheme.access.authorized (Finset.univ \ C) := by
+    rw [hacc, AccessStructure.threshold_authorized_iff, Finset.card_sdiff]
+    simp only [Finset.inter_univ, Finset.card_univ]
+    omega
+  have ⟨i, hi⟩ := hC_ne
+  have hpay := proto.coalitionPayoff_const_false hC_ne hC_univ hOut hi
+  have hle := h C (by omega) (fun _ _ _ => false) i hi
+  rw [proto.payoff_honestProfile i, hpay] at hle
+  exact proto.prefs.temptation_le_uAll_iff.mp hle
 
 /-- **Strict optimality of `honestProfile` for `stopProb < criticalStoppingProb`**: if singleton
 `{i}` is unauthorized and player `i` deviates to any share-inspecting strategy `σ_i` that withholds
@@ -2155,8 +2346,8 @@ theorem payoff_lt_uAll_of_withholdProb_pos
     rw [Finset.piecewise_singleton, Function.update_self]
   set σ := ({i} : Finset ι).piecewise (Function.update honestProfile i σ_i) honestProfile
   set q : ℕ → ℝ := fun r => 1 - proto.roundContinueProb σ r
-  have hq0 : ∀ r, 0 ≤ q r := fun r => (proto.roundContinueProb_bounds σ r).1
-  have hq1 : ∀ r, q r ≤ 1 := fun r => (proto.roundContinueProb_bounds σ r).2
+  have hq0 : ∀ r, 0 ≤ q r := fun r => (continueProb_bounds _).1
+  have hq1 : ∀ r, q r ≤ 1 := fun r => (continueProb_bounds _).2
   have hex : ∃ r, 0 < q r := by simpa [σ, q, ← hpiece] using hwithhold
   let r₀ := Nat.find hex
   have hr₀_pos : 0 < q r₀ := Nat.find_spec hex
@@ -2194,40 +2385,38 @@ theorem honestProfile_isPureNash_iff
     proto.toPayoffGame.IsPureNash honestProfile ↔
       proto.stopProb ≤ proto.prefs.criticalStoppingProb := by
   refine ⟨fun hnash => ?_, fun hp => ?_⟩
-  · -- Necessity: test round-0 unconditional withholding `fun _ _ => false` for player `i`.
-    have hne : Nonempty ι := Fintype.card_pos_iff.mp (by omega)
+  · have hne : Nonempty ι := Fintype.card_pos_iff.mp (by omega)
     obtain ⟨i⟩ := hne
     let σ_false : Strategy (Share := Share) i := fun _ _ => false
-    set σ := Function.update honestProfile i σ_false
-    have hcont0 : proto.roundContinueProb σ 0 = 0 := by
-      unfold roundContinueProb roundBroadcastDist
-      have hz : (proto.source.map fun k j => σ j 0 (proto.scheme.share k proto.dummy j))
-          (fun _ => true) = 0 := by
-        rw [PMF.apply_eq_zero_iff, PMF.mem_support_map_iff]
-        rintro ⟨k, _, hk⟩
-        have hki := congrFun hk i
-        simp [σ, σ_false] at hki
-      simp [hz]
-    have hreach_succ : ∀ r,
-        reachProb proto.stopProb (fun m => 1 - proto.roundContinueProb σ m) (r + 1) = 0 := by
-      intro r
-      induction r with
-      | zero => simp [reachProb_succ, hcont0]
-      | succ r ih => rw [reachProb_succ, ih, zero_mul]
-    have hgen0 : proto.genuineStagePayoff σ 0 i = proto.prefs.uPlus := by
-      have := proto.genuineStagePayoff_update_eq_of_all hall_acc hcard i σ_false 0
-      simpa [σ, hcont0] using this
-    have hpay : proto.toPayoffGame.payoff i σ =
-        proto.stopProb * proto.prefs.uPlus + (1 - proto.stopProb) * proto.prefs.uMinus := by
-      unfold toPayoffGame
+    have hC_univ : ({i} : Finset ι) ≠ Finset.univ := fun heq => by
+      have := congrArg Finset.card heq
+      simp only [Finset.card_singleton, Finset.card_univ] at this
+      omega
+    have hOut : ¬ proto.scheme.access.authorized (Finset.univ \ {i}) := by
+      rw [hall_acc, AccessStructure.all_authorized_iff]
+      intro h
+      exact (Finset.mem_sdiff.mp (h i)).2 (Finset.mem_singleton_self i)
+    have hcoal_pay := proto.coalitionPayoff_const_false (Finset.singleton_nonempty i) hC_univ hOut
+      (Finset.mem_singleton_self i)
+    have hstrat : (CoalitionStrategy.ofProfile {i} (Function.update honestProfile i σ_false)) =
+        fun _ _ _ => false := by
+      funext r v j
+      have hj : j = ⟨i, Finset.mem_singleton_self i⟩ := Subtype.ext (Finset.mem_singleton.mp j.2)
+      subst hj
+      rw [CoalitionStrategy.ofProfile_apply, Function.update_self]
+    have hpiece : Function.update honestProfile i σ_false =
+        ({i} : Finset ι).piecewise (Function.update honestProfile i σ_false) honestProfile := by
+      rw [Finset.piecewise_singleton, Function.update_self]
+    have hL_eq : proto.learnedFromCoalition {i} = proto.learnedFromVec :=
+      funext (proto.learnedFromCoalition_singleton i)
+    have hpay_eq : proto.toPayoffGame.payoff i (Function.update honestProfile i σ_false) =
+        proto.coalitionPayoff {i} (fun _ _ _ => false) i := by
+      rw [hpiece, ← hstrat]
+      unfold toPayoffGame coalitionPayoff
       dsimp only
-      rw [tsum_eq_single 0]
-      · simp [reachProb_zero, hcont0, hgen0]
-      · intro r hr
-        obtain ⟨m, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hr
-        simp [hreach_succ m]
+      simp_rw [proto.roundCoalitionBroadcastDist_ofProfile, hL_eq]
     have hle := hnash i σ_false
-    rw [proto.payoff_honestProfile i, hpay] at hle
+    rw [proto.payoff_honestProfile i, hpay_eq, hcoal_pay] at hle
     exact proto.prefs.temptation_le_uAll_iff.mp hle
   · have hthresh : proto.scheme.access = AccessStructure.threshold ι (Fintype.card ι) := by
       rw [hall_acc, AccessStructure.all_eq_threshold]

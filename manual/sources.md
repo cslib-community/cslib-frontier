@@ -14,6 +14,11 @@ Scott Aaronson. *The Busy Beaver Frontier*. ACM SIGACT News 51(3), 32–54, 2020
 
 Amir Abboud, Keren Censor-Hillel, Seri Khoury and Ami Paz. "Smaller Cuts, Higher Lower Bounds." *ACM Transactions on Algorithms* 17(4), article 30, 30:1–30:40, 2021. https://doi.org/10.1145/3469834 ; preprint arXiv:1901.01630. Checked against the publisher's PDF on 2026-11-13: Definition 4 (families of streaming lower bound graphs, p. 30:32) and Theorem 14 (p. 30:33: an `R`-pass streaming algorithm with `M` bits of memory for such a family gives `RM = Ω(CC(f))`, deterministic and randomized). The protocol in the proof of Theorem 14 sends at most `(2R − 1)M` bits (`M` from Alice in each pass and from Bob in every pass but the last); the proof incorrectly writes this total as `R(2M − 1)`, which does not affect the asymptotic statement. The library counts the same protocol exactly, `(2p − 1)b` bits of memory states, plus one bit so that the output is determined by the transcript (in the source, only Bob learns the answer). arXiv:1901.01630v2 numbers these Definition 3 and Theorem 15.
 
+<a id="abrahamdolevgonenhalpern2006"></a>
+## abrahamdolevgonenhalpern2006
+
+Ittai Abraham, Danny Dolev, Rica Gonen and Joseph Y. Halpern. "Distributed Computing Meets Game Theory: Robust Mechanisms for Rational Secret Sharing and Multiparty Computation." *Proceedings of the Twenty-Fifth Annual ACM Symposium on Principles of Distributed Computing (PODC 2006)*, 53–62, 2006. https://doi.org/10.1145/1146381.1146393 . Bibliographic metadata only (`references.bib`); the full text was not inspected locally in this pass and no theorem locators are attributed here. Cited in [SecretSharing.lean](../CslibFrontier/GameTheory/RationalCrypto/SecretSharing.lean) and [Payoff.lean](../CslibFrontier/GameTheory/Strategic/Payoff.lean) alongside [dodisrabin2007](#dodisrabin2007) for `k`-resilient equilibria (`(t - 1)`-resilience) in rational secret sharing via randomized geometric termination.
+
 <a id="abukhzam2007"></a>
 ## abukhzam2007
 
@@ -809,6 +814,11 @@ Irit Dinur. “The PCP Theorem by Gap Amplification.” *Journal of the ACM* 54(
 
 Irit Dinur. “Mildly Exponential Reduction from Gap 3SAT to Polynomial-Gap Label-Cover.” *Electronic Colloquium on Computational Complexity*, Report TR16-128, 2016. https://eccc.weizmann.ac.il/report/2016/128/ . Bibliographic metadata checked against the ECCC report record; the report's full text was inspected for Hypothesis 2.5 (p. 5), which has at most $D n$ clauses and fixed soundness $< 0.9$. Used alongside [manurangsiraghavendra2017](#manurangsiraghavendra2017) to document the Gap Exponential Time Hypothesis adaptation (`GapETH`, `rGapETH`) in [FineGrained/GapETH.lean](../CslibFrontier/Computability/Complexity/FineGrained/GapETH.lean).
 
+<a id="dodisrabin2007"></a>
+## dodisrabin2007
+
+Yevgeniy Dodis and Tal Rabin. "Cryptography and Game Theory." Chapter 8 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 181–206, 2007. https://doi.org/10.1017/CBO9780511800481.010 . Bibliographic metadata checked in `references.bib`; the primary chapter PDF was not inspected locally in this pass, so locators (`Section 8.1.2`, `Section 8.4.1`, `Section 8.5.2`, `Definition 8.8`, `Footnote 9`, `p. 200`, `Theorem 8.9`) follow the pinned audit record and have not yet been verified against the primary source. Cited by [Dominance.lean](../CslibFrontier/GameTheory/Strategic/Dominance.lean) (`IDoWDS`), [Payoff.lean](../CslibFrontier/GameTheory/Strategic/Payoff.lean) (`PayoffGame.WeaklyDominatesOn`, `PayoffGame.idowdsIter`), and [SecretSharing.lean](../CslibFrontier/GameTheory/RationalCrypto/SecretSharing.lean) (Halpern–Teague bounded-round `IDoWDS` collapse and the utility-dependent `k < n` geometric-termination protocol, with 1-shot stage `IDoWDS` survival proved on `geometricStageGame` for `(n, n)` sharing; the `k < n/2` and `k < n/3` regimes of Theorem 8.9 are not formalized).
+
 <a id="dolev1982"></a>
 ## dolev1982
 
@@ -1183,6 +1193,11 @@ Dan Gusfield. *Algorithms on Strings, Trees, and Sequences: Computer Science and
 ## hadzilacostoueg1994
 
 Vassos Hadzilacos and Sam Toueg. *A Modular Approach to Fault-Tolerant Broadcasts and Related Problems*. Technical Report TR94-1425, Department of Computer Science, Cornell University, May 1994. https://hdl.handle.net/1813/6207 . Checked firsthand on 2026-11-22 against the Cornell eCommons scan (`https://ecommons.cornell.edu/server/api/core/bitstreams/5c4f64e7-53d3-4098-a28b-341974cb86b2/content`, SHA-256 `cb3ba50162af16ed480ccdabf38661653577002f19ccce6790b072ae412002c5`; cited by printed report page numbers, where printed page `p` is PDF page `p + 2`): §3.1 (pp. 9–10, Reliable Broadcast = Validity + Agreement + Integrity on p. 10), §3.3 (pp. 11–12, Causal Broadcast and prefix-closed Causal Order, Theorem 1), §3.4 (pp. 12–13, Atomic Broadcast = Reliable Broadcast + Total Order on p. 13), §3.8 (pp. 14–15, Uniform Integrity on p. 14 and Uniform Causal/Total Order and Uniform counterparts on p. 15), §3.9 (pp. 15–16, modular broadcast hierarchy on p. 16), §7.1 (pp. 56–57, Consensus specification), §7.2.1 (p. 58, Figure 13 transformation of Atomic Broadcast into Consensus, Theorem 13, and Corollary 2 establishing 1-crash asynchronous impossibility via FLP), and §7.2.2 (pp. 59–63, Figure 14 on p. 60 transforming Consensus and Reliable Broadcast into Atomic Broadcast, Lemmas 1–5 and Corollary 3 on pp. 61–63, and Theorem 14 and Corollary 4 on p. 63). As steps toward [#7297](https://github.com/cslib-community/cslib-frontier/issues/7297) in [CausalBroadcast/TotalOrder.lean](../CslibFrontier/Computability/Distributed/CausalBroadcast/TotalOrder.lean), `TotalOrderBroadcastAlg` follows `Cslib.FLP.Algorithm` in supplying one initial broadcast value `inp p : V` per process `p` (`start`) for the Figure 13 / Theorem 13 / Corollary 2 reduction (`consensusOfTotalOrderBroadcast`, `not_exists_oneShotTotalOrderBroadcast_ge_one`) and the `0`-fault sequencer `zeroFaultTotalOrderAlg` (`exists_oneShotTotalOrderBroadcast_iff_eq_zero`), while `ConsensusSlotExec` and `totalOrderBroadcast_of_consensusSlotExec` model the multi-shot Figure 14 / Chandra–Toueg Figure 7 batch reduction over arbitrary `[LinearOrder Msg]` at the abstract discrete-time (`t : ℕ`) subprotocol-trace level.
+
+<a id="halpernteague2004"></a>
+## halpernteague2004
+
+Joseph Y. Halpern and Vanessa Teague. "Rational Secret Sharing and Multiparty Computation: Extended Abstract." *Proceedings of the Thirty-Sixth Annual ACM Symposium on Theory of Computing (STOC 2004)*, 623–632, 2004. https://doi.org/10.1145/1007352.1007447 . Bibliographic metadata only (`references.bib`); the full text was not inspected locally in this pass and no section or theorem locators are attributed here. Cited in [SecretSharing.lean](../CslibFrontier/GameTheory/RationalCrypto/SecretSharing.lean) and [Payoff.lean](../CslibFrontier/GameTheory/Strategic/Payoff.lean) for bounded-round `IDoWDS` impossibility in rational secret sharing and randomized geometric-termination share reconstruction.
 
 <a id="harpeledindykmotwani12"></a>
 ## harpeledindykmotwani12
