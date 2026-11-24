@@ -107,11 +107,11 @@ noncomputable def schedule (γ : ℕ) (hγ : 0 < γ) (inst : Instance V E) :
 variable [LinearOrder W] {cfg : Config V E} {w : E → W}
 
 open scoped Classical in
-/-- **Lemma 3.11** ([KhannaPuttermanSong2026], §3.4, p. 21) for the run: when the configuration
-uses `Cslib.Query.Certificate.schedule`, at most `(log |𝓗| + 2m/t) / log 2` edges of a call act in
-one of their bad rounds, where `𝓗 = histories γ inst` is the family of Lemma 3.10. Any estimator
-and any correct exact minimum spanning forest subroutine may be used. A step in the proof of
-[KhannaPuttermanSong2026] Theorem 4.1 (#8325). -/
+/-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): the schedule bound,
+Lemma 3.11 (§3.4, p. 21), for the run. When the configuration uses
+`Cslib.Query.Certificate.schedule`, at most `(log |𝓗| + 2m/t) / log 2` edges of a call act in one
+of their bad rounds, where `𝓗 = histories γ inst` is the family of Lemma 3.10. Any estimator and
+any correct exact minimum spanning forest subroutine may be used. -/
 theorem card_badRound_schedule_mul_log_two_le (hw : Function.Injective w)
     (hmsf : cfg.ExactMsf w) {inst : Instance V E} (hwf : inst.WellFormed) (hγ : 0 < cfg.γ)
     (hs : cfg.sched = schedule cfg.γ hγ) :
