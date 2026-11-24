@@ -593,7 +593,9 @@ private theorem eventually_sturmReducedVariations_of_eval_eq_zero {p : ℝ[X]} (
         rw [htail_def, head?_sturmSeq hB0] at hf
         cases hf
         exact hdne) hy
-    rw [hvar, sturmReducedVariations, show p / EuclideanDomain.gcd p (derivative p) = A from rfl,
+    rw [hvar]
+    dsimp only [sturmReducedVariations]
+    rw [show p / EuclideanDomain.gcd p (derivative p) = A from rfl,
       show derivative p / EuclideanDomain.gcd p (derivative p) = B from rfl,
       hseq_eq, List.map_cons, hAx, List.signVariations_zero_cons]
   have hhead_tail : ∃ rest, tail = B :: rest := by
@@ -619,7 +621,8 @@ private theorem eventually_sturmReducedVariations_of_eval_eq_zero {p : ℝ[X]} (
         sturmReducedVariations p x := by
       simpa only [hrest, List.map_cons] using htail_y
     conv_lhs =>
-      rw [sturmReducedVariations, show p / EuclideanDomain.gcd p (derivative p) = A from rfl,
+      dsimp only [sturmReducedVariations]
+      rw [show p / EuclideanDomain.gcd p (derivative p) = A from rfl,
         show derivative p / EuclideanDomain.gcd p (derivative p) = B from rfl,
         hseq_eq, hrest, List.map_cons, List.map_cons,
         List.signVariations_cons_cons_of_ne_zero _ hAy_ne hBy_ne, hA_y, hB_y, ite_eq_left rfl,
@@ -645,7 +648,8 @@ private theorem eventually_sturmReducedVariations_of_eval_eq_zero {p : ℝ[X]} (
         sturmReducedVariations p x := by
       simpa only [hrest, List.map_cons] using htail_y
     conv_lhs =>
-      rw [sturmReducedVariations, show p / EuclideanDomain.gcd p (derivative p) = A from rfl,
+      dsimp only [sturmReducedVariations]
+      rw [show p / EuclideanDomain.gcd p (derivative p) = A from rfl,
         show derivative p / EuclideanDomain.gcd p (derivative p) = B from rfl,
         hseq_eq, hrest, List.map_cons, List.map_cons,
         List.signVariations_cons_cons_of_ne_zero _ hAy_ne hBy_ne, ite_eq_right hne_sign, htail_y']

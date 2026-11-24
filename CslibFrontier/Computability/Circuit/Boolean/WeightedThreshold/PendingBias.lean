@@ -94,7 +94,8 @@ private theorem card_image_le_of_factorsThrough {α β γ : Type*} [Fintype α] 
     [DecidableEq γ] (f : α → γ) (g : α → β) (hfg : ∀ x y, g x = g y → f x = f y) :
     (univ.image f).card ≤ Fintype.card β := by
   rw [← Fintype.card_coe]
-  refine Fintype.card_le_of_injective (fun c : univ.image f => g (mem_image.mp c.property).choose) ?_
+  refine Fintype.card_le_of_injective
+    (fun c : univ.image f => g (mem_image.mp c.property).choose) ?_
   intro c₁ c₂ h
   ext
   rw [← (mem_image.mp c₁.property).choose_spec.2, ← (mem_image.mp c₂.property).choose_spec.2]
@@ -246,6 +247,7 @@ theorem pendingBiasTrace_eq_pendingBias (p : Program signature n g) (x : Fin n �
     have := i.isLt
     have hk : k < g := by omega
     rw [pendingBiasTrace, pendingBias_succ, ih]
+    dsimp only
     congr 1
     have hprefix :
         (fun j : Fin k =>
@@ -547,7 +549,9 @@ private theorem pendingBiasTrace_add_eq_of_pendingBiasTrace_eq (p : Program sign
       hsuff ⟨d, by omega⟩
     unfold inputSummary at hin
     change pendingBiasTrace p z₁ ((k + d) + 1) i = pendingBiasTrace p z₂ ((k + d) + 1) i
-    rw [pendingBiasTrace, pendingBiasTrace, ih, hin]
+    rw [pendingBiasTrace, pendingBiasTrace, ih]
+    dsimp only
+    rw [hin]
 
 /-- Under phased input access across cut `k`, the pending-bias state
 `pendingBiasTrace p (enc x y₀) k` at a reference right input `y₀` determines the entire row `f x`.

@@ -103,9 +103,9 @@ private theorem choose_add_le_choose_mul_pow_two {U E n Re : ℕ}
       exact_mod_cast hnE
     have hexp1 : Real.exp 1 ≤ 4 := by linarith [Real.exp_one_lt_d9]
     calc (1 + δ) ^ n ≤ (Real.exp δ) ^ n := pow_le_pow_left₀ (by dsimp only [δ]; positivity) h1 n
-      _ = Real.exp ((n : ℝ) * δ) := (Real.exp_nat_mul δ n).symm
+      _ = Real.exp ((n : ℝ) * δ) := (Real.exp_natCast_mul n δ).symm
       _ ≤ Real.exp (Re : ℝ) := Real.exp_le_exp.mpr hnδ
-      _ = (Real.exp 1) ^ Re := by rw [← Real.exp_nat_mul, mul_one]
+      _ = (Real.exp 1) ^ Re := by rw [← Real.exp_natCast_mul, mul_one]
       _ ≤ (4 : ℝ) ^ Re := pow_le_pow_left₀ (Real.exp_nonneg 1) hexp1 Re
       _ = (2 ^ (2 * Re) : ℝ) := by
           have h4 : (4 : ℝ) = (2 : ℝ) ^ 2 := by norm_num

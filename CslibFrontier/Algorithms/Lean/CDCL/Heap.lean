@@ -203,6 +203,7 @@ theorem heapifyUpF_perm : ∀ (fuel : Nat) {sz : Nat} (a : Vector α sz) (i : Fi
   | _ + 1, _, _, ⟨0, _⟩ => .refl _
   | fuel + 1, _, a, ⟨i' + 1, hi⟩ => by
     rw [heapifyUpF]
+    dsimp only
     split
     · exact (heapifyUpF_perm fuel _ _).trans (Vector.swap_perm ..)
     · exact .refl _

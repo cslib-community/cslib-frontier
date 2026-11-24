@@ -170,6 +170,7 @@ private theorem not_prefix_append_separatingBlock_of_length_le {X : Type*} [BEq 
     have hget : v.getD u.length a = v[u.length] := by
       rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt, Option.getD_some]
     rw [separatingBlock, ite_eq_left hlen, hget] at hnext
+    dsimp only at hnext
     split_ifs at hnext with h
     · exact hab ((beq_iff_eq.mp h).symm.trans hnext)
     · exact h (beq_iff_eq.mpr hnext)

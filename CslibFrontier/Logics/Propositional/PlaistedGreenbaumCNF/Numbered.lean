@@ -161,6 +161,7 @@ private theorem perm_relabel_plaistedGreenbaumClauses (A : Proposition (Fin n)) 
         List.getElem?_append_left (List.getElem?_eq_some_iff.1 hC).1]
       exact hC
     rw [plaistedGreenbaumClauses]
+    dsimp only
     generalize ha : A.plaistedGreenbaumClauses _ k acc = a
     obtain ⟨hkA, hvA, hpA⟩ := ha ▸ ihA _ k acc hlA
     generalize hb : B.plaistedGreenbaumClauses _ a.next a.clauses = b
@@ -203,6 +204,7 @@ private theorem eval_plaistedGreenbaumClauses {σ : ℕ → Bool} (A : Propositi
     · exact ⟨h.2, fun hp => (hp.symm.trans h.1).symm⟩
   | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
     rw [plaistedGreenbaumClauses] at h ⊢
+    dsimp only at h ⊢
     generalize ha : A.plaistedGreenbaumClauses _ k acc = a at h ⊢
     generalize hb : B.plaistedGreenbaumClauses _ a.next a.clauses = b at h ⊢
     have ihB := hb ▸ ihB _ a.next a.clauses
