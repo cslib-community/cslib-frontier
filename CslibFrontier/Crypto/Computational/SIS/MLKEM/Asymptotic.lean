@@ -12,7 +12,7 @@ public import CslibFrontier.Crypto.Computational.SIS.MLKEM.Security
 public import CslibFrontier.Crypto.Computational.LWE.Module.Native
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Crypto.Game.CloseTo
-import CslibFrontier.Crypto.Negligible.Dyadic
+import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Computability.Probabilistic.Sampling
@@ -636,16 +636,10 @@ theorem indCPA_kpkeIdealCoins_of_decisionModuleLWEWith {P : ℕ → Params} [∀
     (kpke P).INDCPA := by
   intro A hA
   simp only [← eval_sampleVecCBD] at hkey hct
-  have hk₀ := hkey _ (isPPT_keyReduction hP hA false)
-  have hk₁ := hkey _ (isPPT_keyReduction hP hA true)
-  have hc₀ := hct _ (isPPT_ciphertextReduction hP hA false)
-  have hc₁ := hct _ (isPPT_ciphertextReduction hP hA true)
+  have hkBit (b : Bool) := hkey _ (isPPT_keyReduction hP hA b)
+  have hcBit (b : Bool) := hct _ (isPPT_ciphertextReduction hP hA b)
   have hk : ComputableInPolyTime (fun κ => (P κ).k) encUnary encUnary := by fun_prop
   have hn : ComputableInPolyTime (fun κ => (P κ).n) encUnary encUnary := by fun_prop
-  have hε := PolynomiallyBounded.negligible_div_two_pow
-    ((hk.polynomiallyBounded.mul hk.polynomiallyBounded).mul hn.polynomiallyBounded)
-  push_cast at hε
-  exact negligible_of_le ((hε.add ((hk₀.add hc₀).add (hk₁.add hc₁))).add hε)
-    fun κ => advantage_gameOn_le P A κ
+  negligible [ModuleLWE.advantage] using advantage_gameOn_le P A
 
 end Cslib.Crypto.MLKEM

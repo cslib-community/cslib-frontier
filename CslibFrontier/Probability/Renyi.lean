@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Cslib.Probability.PMF
 public import CslibFrontier.Probability.HockeyStick
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Analysis.MeanInequalities
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -195,8 +196,9 @@ private theorem mul_div_rpow_tsum_le {α : ℝ} (hα : 1 < α) {u v : X → ℝ�
   have hUV0 : U / V ≠ 0 := ENNReal.div_ne_zero.mpr ⟨hU0, hV⟩
   have hUV_top : U / V ≠ ⊤ := ENNReal.div_ne_top hU hV0
   set R : ℝ := (U / V).toReal
-  have hR : 0 < R := ENNReal.toReal_pos hUV0 hUV_top
-  have hUV_eq : U / V = ENNReal.ofReal R := (ENNReal.ofReal_toReal hUV_top).symm
+  have hR : 0 < R := by dsimp only [R]; ennreal_to_real using pos_iff_ne_zero.mpr hUV0
+  have hUV_rpow_t : (U / V) ^ t ≠ ⊤ := ENNReal.rpow_ne_top_of_nonneg ht.le hUV_top
+  have hUV_rpow_α : (U / V) ^ α ≠ ⊤ := ENNReal.rpow_ne_top_of_nonneg hα0.le hUV_top
   have hpt (x : X) :
       u x * (U / V) ^ t ≤
         ENNReal.ofReal (1 / α) * (u x * (u x / v x) ^ t) +
@@ -204,16 +206,18 @@ private theorem mul_div_rpow_tsum_le {α : ℝ} (hα : 1 < α) {u v : X → ℝ�
     rcases eq_or_ne (u x) 0 with hux0 | hux0
     · simp [hux0]
     have hvx0 : v x ≠ 0 := hsupp' x hux0
-    have ha : 0 < (u x).toReal := ENNReal.toReal_pos hux0 (hu_top x)
-    have hb : 0 < (v x).toReal := ENNReal.toReal_pos hvx0 (hv_top x)
-    have hyoung := young_mul_rpow hα ha hb hR
-    rw [← ENNReal.ofReal_toReal (hu_top x), ← ENNReal.ofReal_toReal (hv_top x), hUV_eq,
-      ← ENNReal.ofReal_div_of_pos hb, ENNReal.ofReal_rpow_of_pos hR,
-      ENNReal.ofReal_rpow_of_pos (div_pos ha hb), ENNReal.ofReal_rpow_of_pos hR,
-      ← ENNReal.ofReal_mul ha.le, ← ENNReal.ofReal_mul ha.le, ← ENNReal.ofReal_mul hb.le,
-      ← ENNReal.ofReal_mul (by positivity), ← ENNReal.ofReal_mul (by positivity),
-      ← ENNReal.ofReal_add (by positivity) (by positivity)]
-    exact ENNReal.ofReal_le_ofReal hyoung
+    have hux_top := hu_top x
+    have hvx_top := hv_top x
+    have ha : 0 < (u x).toReal := by ennreal_to_real using pos_iff_ne_zero.mpr hux0
+    have hb : 0 < (v x).toReal := by ennreal_to_real using pos_iff_ne_zero.mpr hvx0
+    have huv_rpow : (u x / v x) ^ t ≠ ⊤ :=
+      ENNReal.rpow_ne_top_of_nonneg ht.le (ENNReal.div_ne_top hux_top hvx0)
+    have hyoung : (u x).toReal * ((U / V).toReal) ^ t ≤
+        1 / α * ((u x).toReal * ((u x).toReal / (v x).toReal) ^ t) +
+          t / α * ((v x).toReal * ((U / V).toReal) ^ α) := young_mul_rpow hα ha hb hR
+    ennreal_to_real
+    ennreal_to_real at hyoung
+    exact hyoung
   have hsum_ineq :
       U * (U / V) ^ t ≤
         ENNReal.ofReal (1 / α) * M + ENNReal.ofReal (t / α) * (V * (U / V) ^ α) := by
@@ -224,40 +228,26 @@ private theorem mul_div_rpow_tsum_le {α : ℝ} (hα : 1 < α) {u v : X → ℝ�
       _ = ENNReal.ofReal (1 / α) * M + ENNReal.ofReal (t / α) * (V * (U / V) ^ α) := by
           rw [tsum_add, ENNReal.tsum_mul_left, ENNReal.tsum_mul_left, ENNReal.tsum_mul_right]
   have hV_eq : V * (U / V) ^ α = U * (U / V) ^ t := by
-    have hUP : 0 < U.toReal := ENNReal.toReal_pos hU0 hU
-    have hVP : 0 < V.toReal := ENNReal.toReal_pos hV0 hV
-    have hR_def : R = U.toReal / V.toReal := ENNReal.toReal_div U V
-    rw [hUV_eq, ← ENNReal.ofReal_toReal hV, ← ENNReal.ofReal_toReal hU,
-      ENNReal.ofReal_rpow_of_pos hR, ENNReal.ofReal_rpow_of_pos hR,
-      ← ENNReal.ofReal_mul hVP.le, ← ENNReal.ofReal_mul hUP.le]
-    refine congrArg ENNReal.ofReal ?_
-    calc V.toReal * R ^ α
-        = V.toReal * (R ^ (1 : ℝ) * R ^ t) := by
-          rw [← Real.rpow_add hR]
-          exact congrArg (fun e => V.toReal * R ^ e) (by dsimp only [t]; ring)
-      _ = U.toReal * R ^ t := by
-          rw [Real.rpow_one, hR_def]
+    have hVP : 0 < V.toReal := by ennreal_to_real using pos_iff_ne_zero.mpr hV0
+    have hR_pos : 0 < U.toReal / V.toReal := by
+      dsimp only [R] at hR; ennreal_to_real at hR; exact hR
+    ennreal_to_real
+    calc V.toReal * (U.toReal / V.toReal) ^ α
+        = V.toReal * ((U.toReal / V.toReal) ^ (1 : ℝ) * (U.toReal / V.toReal) ^ t) := by
+          rw [← Real.rpow_add hR_pos]
+          exact congrArg (fun e => V.toReal * (U.toReal / V.toReal) ^ e) (by dsimp only [t]; ring)
+      _ = U.toReal * (U.toReal / V.toReal) ^ t := by
+          rw [Real.rpow_one]
           field_simp [hVP.ne']
   rw [hV_eq] at hsum_ineq
-  have hL_top : U * (U / V) ^ t ≠ ⊤ :=
-    ENNReal.mul_ne_top hU (ENNReal.rpow_ne_top_of_nonneg ht.le hUV_top)
+  have hL_top : U * (U / V) ^ t ≠ ⊤ := ENNReal.mul_ne_top hU hUV_rpow_t
   generalize U * (U / V) ^ t = L at hsum_ineq hL_top ⊢
-  have hRHS_top :
-      ENNReal.ofReal (1 / α) * M + ENNReal.ofReal (t / α) * L ≠ ⊤ :=
-    ENNReal.add_ne_top.mpr ⟨ENNReal.mul_ne_top ENNReal.ofReal_ne_top hM_top,
-      ENNReal.mul_ne_top ENNReal.ofReal_ne_top hL_top⟩
-  have hreal := ENNReal.toReal_mono hRHS_top hsum_ineq
-  rw [ENNReal.toReal_add (ENNReal.mul_ne_top ENNReal.ofReal_ne_top hM_top)
-      (ENNReal.mul_ne_top ENNReal.ofReal_ne_top hL_top),
-    ENNReal.toReal_mul, ENNReal.toReal_mul,
-    ENNReal.toReal_ofReal (by positivity), ENNReal.toReal_ofReal (by positivity)] at hreal
+  ennreal_to_real at hsum_ineq ⊢
   have hw : 1 / α + t / α = 1 := by dsimp only [t]; field_simp; ring
   have h1L : 1 / α * L.toReal + t / α * L.toReal = L.toReal := by
     rw [← add_mul, hw, one_mul]
   have hmul_le : (1 / α) * L.toReal ≤ (1 / α) * M.toReal := by linarith
-  have hle_real : L.toReal ≤ M.toReal :=
-    le_of_mul_le_mul_left hmul_le (by positivity)
-  exact (ENNReal.toReal_le_toReal hL_top hM_top).mp hle_real
+  exact le_of_mul_le_mul_left hmul_le (by positivity)
 
 end Moment
 
@@ -321,9 +311,7 @@ theorem renyiDiv_le_ofReal_iff {α ε : ℝ} (hα : 1 < α) (p q : PMF X) (hε :
   dsimp only [renyiDiv]
   split_ifs with htop
   · simp [htop]
-  · have hM1 : 1 ≤ (renyiMoment α p q).toReal := by
-      have := ENNReal.toReal_mono htop h1
-      rwa [ENNReal.toReal_one] at this
+  · have hM1 : 1 ≤ (renyiMoment α p q).toReal := by ennreal_to_real using h1
     have hM0 : 0 < (renyiMoment α p q).toReal := zero_lt_one.trans_le hM1
     rw [ENNReal.ofReal_le_ofReal_iff hε, div_le_iff₀ ht, mul_comm ε (α - 1),
       Real.log_le_iff_le_exp hM0, ← ENNReal.ofReal_le_ofReal_iff (Real.exp_pos _).le,
@@ -378,9 +366,9 @@ theorem renyiDiv_bind_le {α : ℝ} (hα : 1 < α) (p q : PMF X) (K : X → PMF 
   have hmom := renyiMoment_bind_le hα.le p q K
   have htop_bind : renyiMoment α (p.bind K) (q.bind K) ≠ ⊤ := ne_top_of_le_ne_top htop hmom
   have h1_bind : 1 ≤ (renyiMoment α (p.bind K) (q.bind K)).toReal := by
-    simpa using ENNReal.toReal_mono htop_bind (one_le_renyiMoment hα (p.bind K) (q.bind K))
-  have hle_real : (renyiMoment α (p.bind K) (q.bind K)).toReal ≤ (renyiMoment α p q).toReal :=
-    ENNReal.toReal_mono htop hmom
+    ennreal_to_real using one_le_renyiMoment hα (p.bind K) (q.bind K)
+  have hle_real : (renyiMoment α (p.bind K) (q.bind K)).toReal ≤ (renyiMoment α p q).toReal := by
+    ennreal_to_real using hmom
   simp only [renyiDiv, htop, htop_bind, ↓reduceIte]
   refine ENNReal.ofReal_le_ofReal (div_le_div_of_nonneg_right ?_ (sub_pos.mpr hα).le)
   exact Real.log_le_log (zero_lt_one.trans_le h1_bind) hle_real

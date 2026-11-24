@@ -621,8 +621,7 @@ private theorem subexp_add_le {a b : ℝ} {C₁ C₂ C L d : ℕ} {A : ℝ}
       ≤ ((C₁ : ℝ) + (C₂ : ℝ)) * (L + 1 : ℝ) ^ d * (2 : ℝ) ^ A := by
         rw [add_mul, add_mul]; exact add_le_add ha hb
     _ ≤ (C : ℝ) * (L + 1 : ℝ) ^ d * (2 : ℝ) ^ A :=
-        mul_le_mul_of_nonneg_right
-          (mul_le_mul_of_nonneg_right (by exact_mod_cast hC) (by positivity)) (by positivity)
+        by gcongr; exact_mod_cast hC
 
 private theorem polySys_time_bound_of_branchPolylog (k N₀_top N₀_branch : ℕ)
     {branchEval : BranchEvalInput → ℕ}

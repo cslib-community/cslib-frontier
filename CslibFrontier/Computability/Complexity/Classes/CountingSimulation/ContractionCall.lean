@@ -82,6 +82,7 @@ theorem ContractionAlgorithm.expTimePolySpace_branch
   have si := hS (by omega) (hi a).2
   have tf := hT (by omega) (hf a).1
   have sf := hS (by omega) (hf a).2
+  dsimp only
   rw [NativeCertificate.branch_time, NativeCertificate.branch_space, NativeCertificate.comp_time,
     NativeCertificate.comp_space, Nat.mul_assoc]
   have hsplit (c₁ c₂ c₃ c₄ Z : ℕ) :

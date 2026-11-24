@@ -295,8 +295,7 @@ private theorem lineErrors_le {q Q a ε D δ : ℝ} (hq : 1 < q) (hQ : 1 ≤ Q) 
   have hterm2 : Q * (Q - 1) * δ / (q - 1) / Q ≤ Q * (D / (q - 1)) := by
     rw [div_div, div_le_iff₀ (by positivity)]
     have : Q * (Q - 1) * δ ≤ Q * Q * D :=
-      mul_le_mul (mul_le_mul_of_nonneg_left (by linarith only [hQ]) (by linarith only [hQ]))
-        hδD hδ (by positivity)
+      by gcongr; linarith only [hQ]
     calc Q * (Q - 1) * δ ≤ Q * Q * D := this
       _ = Q * (D / (q - 1)) * ((q - 1) * Q) := by field_simp
   rw [add_div]

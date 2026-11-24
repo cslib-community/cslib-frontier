@@ -85,6 +85,40 @@ example {K M X : Type*} (seed : PMF K) {pf : M → List X} (h : IsPrefixFreeEnco
         (fun hpre => hne ((IsPrefixFreeEncoding.iff_forall_prefix.mp h).2 m₁ m₀ hpre).symm)
   simp [hempty]
 
+/-- The longer query's next block is avoided, including when the shorter query is empty. -/
+example : separatingBlock false true ([] : List Bool) [false] = true := by decide
+
+/-- Reversing a proper-prefix pair still gives two prefix-incomparable queries. -/
+example :
+    let c := separatingBlock false true [true, false] [true]
+    (¬ [true, false] ++ [c] <+: [true] ++ [c]) ∧
+      (¬ [true] ++ [c] <+: [true, false] ++ [c]) :=
+  separatingBlock_prefix_incomparable (by decide) (by decide)
+
+/-- Equal-length distinct queries are also separated by the common extension. -/
+example :
+    let c := separatingBlock false true [true] [false]
+    (¬ [true] ++ [c] <+: [false] ++ [c]) ∧ (¬ [false] ++ [c] <+: [true] ++ [c]) :=
+  separatingBlock_prefix_incomparable (by decide) (by decide)
+
+/-- A batch containing the empty word and a proper-prefix pair gets a common delimiter. -/
+example : ∃ block, freshBatchBlock [[], [blk01], [blk01, blk10]] = some block ∧
+    InformationTheory.IsPrefixFree
+      ((fun msg => msg ++ [block]) '' {msg | msg ∈ [[], [blk01], [blk01, blk10]]}) :=
+  isPrefixFree_append_freshBatchBlock (by decide)
+
+/-- Three occurrences of the zero block leave the one block free in a two-block alphabet. -/
+example :
+    let zero : BitString 1 := fun _ => false
+    let one : BitString 1 := fun _ => true
+    let messages := [[zero], [zero, zero]]
+    InformationTheory.IsPrefixFree ((fun msg => msg ++ [one]) '' {msg | msg ∈ messages}) := by
+  dsimp only
+  exact isPrefixFree_append_of_freshBatchBlock_eq_some (by decide)
+
+/-- If both one-bit blocks occur in the batch, the search reports exhaustion. -/
+example : freshBatchBlock (n := 1) [[fun _ => false], [fun _ => true]] = none := by decide
+
 /-- info: 'Cslib.Crypto.PRF.isPrefixFreeEncoding_stopBitEncode' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms isPrefixFreeEncoding_stopBitEncode

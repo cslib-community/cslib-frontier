@@ -190,41 +190,24 @@ theorem length_range_node_cons (lo hi k : α) (v : β) (first c : BTree α β)
 of `toList` to the closed interval. -/
 theorem range_eq_of_isSortedAssoc (h : tr.toList.IsSortedAssoc) (lo hi : α) :
     range lo hi tr = SortedAssoc.range lo hi tr.toList := by
-  induction tr using (measure (sizeOf : BTree α β → ℕ)).wf.induction with
-  | h tr ih =>
-    cases tr with
-    | leaf => simp
-    | node first rest =>
-      cases rest with
-      | nil =>
-        simpa using ih first (by simp_wf; omega) (by simpa using h)
-      | cons e rest =>
-        obtain ⟨k, v, c⟩ := e
-        rw [toList_node, toListRest_cons, List.cons_append] at h ⊢
-        obtain ⟨h₁, h₂, hlt, hgt⟩ := List.isSortedAssoc_append_cons_iff.1 h
-        have ih₁ := ih first (by simp_wf; omega) h₁
-        have ih₂ := ih (.node c rest) (by simp_wf; omega) (by simpa using h₂)
-        rw [toList_node] at ih₂
-        rw [range_node_cons, SortedAssoc.range_append, SortedAssoc.range_cons]
-        -- Separator sortedness justifies pruning the child before the separator or the
-        -- entire suffix after it when the corresponding comparison fails.
-        have hbelow (hlo : ¬lo ≤ k) : SortedAssoc.range lo hi first.toList = [] :=
-          SortedAssoc.range_eq_nil_iff.2 fun p hp =>
-            Or.inl ((hlt p hp).trans (lt_of_not_ge hlo))
-        have hafter (hhi : ¬k ≤ hi) :
-            SortedAssoc.range lo hi (c.toList ++ toListRest rest) = [] :=
-          SortedAssoc.range_eq_nil_iff.2 fun p hp =>
-            Or.inr ((lt_of_not_ge hhi).trans (hgt p hp))
-        by_cases hlo : lo ≤ k
-        · by_cases hhi : k ≤ hi
-          · simp [hlo, hhi, ih₁, ih₂]
-          · rw [hafter hhi]
-            simp [hlo, hhi, ih₁]
-        · rw [hbelow hlo]
-          by_cases hhi : k ≤ hi
-          · simp [hlo, hhi, ih₂]
-          · rw [hafter hhi]
-            simp [hlo, hhi]
+  induction h using induction_isSortedAssoc with
+  | leaf => simp
+  | node_nil _ _ ih => simpa using ih
+  | node_cons first k v c rest _ _ hlt hgt ih₁ ih₂ =>
+    rw [range_node_cons, toList_node_cons, SortedAssoc.range_append, SortedAssoc.range_cons,
+      ih₁, ih₂]
+    have hbelow : (if lo ≤ k then SortedAssoc.range lo hi first.toList else []) =
+        SortedAssoc.range lo hi first.toList := by
+      split_ifs with hlo
+      · rfl
+      · exact (SortedAssoc.range_eq_nil_iff.2 fun p hp =>
+          Or.inl ((hlt p hp).trans (lt_of_not_ge hlo))).symm
+    rw [hbelow]
+    by_cases hhi : k ≤ hi
+    · by_cases hlo : lo ≤ k <;> simp [hlo, hhi]
+    · rw [SortedAssoc.range_eq_nil_iff.2 fun p hp =>
+        Or.inr ((lt_of_not_ge hhi).trans (hgt p hp))]
+      simp [hhi]
 
 /-- Model equation for closed-interval queries on well-formed trees. -/
 theorem range_eq (h : IsWF t tr) (lo hi : α) :

@@ -8,12 +8,19 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Probability.Product
+public import Mathlib.Logic.Function.DependsOn
+import CslibFrontier.Foundations.Probability.SecondMoment
 
 /-!
 # Coordinate events in finite products
 
 ## Main results
 
+* `Cslib.Probability.PMF.toOuterMeasure_pi_eq`: the probability that coordinate `i` equals `a` is
+  `p i a`.
+* `Cslib.Probability.PMF.toOuterMeasure_pi_inter_eq_mul`,
+  `Cslib.Probability.PMF.toOuterMeasure_pi_eq_inter`: events depending on disjoint sets of
+  coordinates (in particular `x i = a` and an event avoiding `i`) are independent.
 * `Cslib.Probability.PMF.toOuterMeasure_pi_forall`: the probability that every coordinate lies in
   its own event is the product of the probabilities.
 * `Cslib.Probability.PMF.toOuterMeasure_pi_exists_le`: a union bound for coordinate events.
@@ -22,6 +29,41 @@ public import CslibFrontier.Probability.Product
 public section
 
 namespace Cslib.Probability.PMF
+
+open MeasureTheory ProbabilityTheory
+
+/-- Coordinate `i` of an independent tuple equals `a` with probability `p i a`. -/
+theorem toOuterMeasure_pi_eq {ι : Type*} [Fintype ι] {α : ι → Type*} [∀ i, Finite (α i)]
+    (p : ∀ i, PMF (α i)) (i : ι) (a : α i) :
+    (pi p).toOuterMeasure {x | x i = a} = p i a := by
+  rw [show {x : ∀ i, α i | x i = a} = (fun x => x i) ⁻¹' {a} from rfl,
+    ← PMF.toOuterMeasure_map_apply, pi_map_eval, PMF.toOuterMeasure_apply_singleton]
+
+/-- **Events on disjoint coordinates are independent**: in an independent product, an event
+depending only on the coordinates in `S` and an event depending only on the coordinates in a
+disjoint set `T` are independent. This is the finite-PMF form of
+`ProbabilityTheory.indepSet_pi_of_dependsOn`. -/
+theorem toOuterMeasure_pi_inter_eq_mul {V : Type*} [Fintype V] {α : V → Type*} [∀ v, Finite (α v)]
+    (p : ∀ v, PMF (α v)) {S T : Set V}
+    (hST : Disjoint S T) {E F : Set (∀ v, α v)} (hE : DependsOn (· ∈ E) S)
+    (hF : DependsOn (· ∈ F) T) :
+    (pi p).toOuterMeasure (E ∩ F) = (pi p).toOuterMeasure E * (pi p).toOuterMeasure F := by
+  let (v : V) : MeasurableSpace (α v) := ⊤
+  have hmeas (B : Set (∀ v, α v)) : MeasurableSet B := (Set.to_countable B).measurableSet
+  have hind := indepSet_pi_of_dependsOn (μ := fun v => (p v).toMeasure) (hmeas E) (hmeas F)
+    hE hF hST
+  rw [← toMeasure_pi] at hind
+  simpa only [PMF.toMeasure_apply_eq_toOuterMeasure_apply _ (hmeas _)] using
+    (indepSet_iff_measure_inter_eq_mul (hmeas E) (hmeas F) _).1 hind
+
+/-- Fixing coordinate `i` to `a` is independent of any event `E` depending only on a coordinate set
+`S` with `i ∉ S`. -/
+theorem toOuterMeasure_pi_eq_inter {ι : Type*} [Fintype ι] {α : ι → Type*} [∀ i, Finite (α i)]
+    (p : ∀ i, PMF (α i)) {i : ι} {a : α i} {S : Set ι} (hi : i ∉ S)
+    {E : Set (∀ i, α i)} (hE : DependsOn (· ∈ E) S) :
+    (pi p).toOuterMeasure ({x | x i = a} ∩ E) = p i a * (pi p).toOuterMeasure E := by
+  rw [toOuterMeasure_pi_inter_eq_mul p (Set.disjoint_singleton_left.2 hi)
+    (fun _ _ h => propext <| by simp [h i rfl]) hE, toOuterMeasure_pi_eq]
 
 /-- The probability that every coordinate of an independent tuple lies in its own event is the
 product of the probabilities. -/

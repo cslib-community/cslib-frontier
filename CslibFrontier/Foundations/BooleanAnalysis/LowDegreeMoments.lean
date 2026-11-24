@@ -244,8 +244,7 @@ theorem dens_le_exp_neg_mul_rpow {k : ℕ} {f : (ι → Bool) → ℝ} (hf : f �
   have hmom : 𝔼 x, |f x| ^ q = lpNorm q f ^ q := (lpNorm_rpow hqpos.ne' f).symm
   have hmain : (t * N) ^ q * D ≤ (√(q - 1) ^ k * N) ^ q := by
     calc (t * N) ^ q * D ≤ (t * N) ^ q *
-          (dens ({x | (t * N) ^ q ≤ |f x| ^ q} : Finset (ι → Bool)) : ℝ) :=
-          mul_le_mul_of_nonneg_left hd (by positivity)
+          (dens ({x | (t * N) ^ q ≤ |f x| ^ q} : Finset (ι → Bool)) : ℝ) := by gcongr
       _ ≤ 𝔼 x, |f x| ^ q := hmk
       _ = lpNorm q f ^ q := hmom
       _ ≤ (√(q - 1) ^ k * N) ^ q :=

@@ -1130,6 +1130,8 @@ theorem friSmoothBatchIOP_sound_of_johnson_eta [Fintype F] [DecidableEq F]
   exact not_lt_of_ge
     (friSmoothBatchIOP_interactiveGame_le_of_johnson_eta params t hη hα hfar P) hacc
 
+/-! #### Smooth Closed-Form Johnson & `η`-Gap BCS-FRI ROM Bounds -/
+
 /-- **Original explicit-constant Johnson adaptive two-channel smooth batched BCS-FRI ROM
 soundness** ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]). -/
 theorem friSmoothBatchBCS_romSoundness_bound_of_johnson [Fintype F] [DecidableEq F]
@@ -1358,6 +1360,8 @@ section BinaryBatchJohnsonCorollaries
 
 variable {F : Type} [Field F]
 
+/-! #### Binary Batched Error Definitions, Bridges, and Conditional Escape -/
+
 /-- Per-round escape budget vector for `(params.m + 2)`-round `friBatchIOP`. -/
 noncomputable abbrev friBatchRoundEscape (params : FRIParams F) (ε_batch : ℝ≥0∞)
     (e : ℕ) (ε_commit : Fin params.m → ℝ≥0∞) : Fin (params.m + 2) → ℝ≥0∞ :=
@@ -1515,6 +1519,8 @@ theorem friBatchIOP_interactiveGame_le_of_escape [Fintype F] [DecidableEq F]
       hbatch)
     ((weightedLineEscapePerRound_iff_weightedCurveEscapePerRound params _ _).mp hesc)
     (by rwa [params.toSmooth_batchProximityLang]) P
+
+/-! #### Binary Unique-Decoding Batched FRI Soundness & BCS ROM -/
 
 /-- Exact identity between the integer-numerator `ℝ≥0∞` unique-decoding batched commit error and
 `ENNReal.ofReal (friBatchUniqueCommitError params)`. -/
@@ -1696,6 +1702,8 @@ theorem friBatchBCS_corrAgree_romSoundness_bound_of_unique [Fintype F] [Decidabl
       omega
   gcongr
 
+/-! #### Binary Discrete Guruswami–Sudan Batched FRI Soundness & BCS ROM -/
+
 /-- **Explicit-parameter Guruswami–Sudan step toward batched FRI commit-phase soundness**
 (corollary of `friSmoothBatchCommitGame_le_of_johnson_discrete`). -/
 theorem friBatchCommitGame_le_of_johnson_discrete [Fintype F]
@@ -1858,6 +1866,8 @@ theorem friBatchBCS_romSoundness_bound_of_prover_verifier_of_johnson_discrete
     (batchRound0Escape_of_johnson_discrete params t hm₀ hk₀_le hinterp₀ hroot₀ hbound₀)
     (weightedLineGapBound_of_johnson_discrete params he mRound DRound hm hk_le hinterp hroot hbound)
     hdec σ hMT hFS hops
+
+/-! #### Binary Closed-Form Johnson & `η`-Gap Interactive IOP Bounds -/
 
 /-- **Original explicit-constant Johnson batched FRI commit-phase upper bound
 (`batchProximityLang`)** (corollary of `friSmoothBatchCommitGame_proximity_le_of_johnson`). -/
@@ -2024,6 +2034,8 @@ theorem friBatchIOP_sound_of_johnson_eta [Fintype F] [DecidableEq F]
     stmt ∈ params.batchCorrAgreeLang t α := by
   by_contra hfar
   exact not_lt_of_ge (friBatchIOP_interactiveGame_le_of_johnson_eta params t hη hα hfar P) hacc
+
+/-! #### Binary Closed-Form Johnson & `η`-Gap BCS-FRI ROM Bounds -/
 
 /-- **Original explicit-constant Johnson adaptive two-channel batched BCS-FRI ROM soundness**
 ([BenSassonChiesaSpooner2016]; [ChiesaYogev2024]). -/

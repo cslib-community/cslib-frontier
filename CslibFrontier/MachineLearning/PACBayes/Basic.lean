@@ -233,8 +233,7 @@ theorem measure_pi_exists_integral_risk_gt_log_div (hℓ : ∀ i, Measurable (�
     Real.log_le_log (div_pos (Real.sqrt_pos.2 (by linarith)) hδ)
       (div_le_div_of_nonneg_right hsqrt hδ.le)
   have hlam : (0 : ℝ) ≤ 2 * (m - 1) := by linarith
-  exact add_le_add le_rfl
-    (Real.sqrt_le_sqrt (div_le_div_of_nonneg_right (add_le_add le_rfl hlog) hlam))
+  gcongr
 
 /-- **The Occam bound as a PAC-Bayes corollary** [ShalevShwartzBenDavid2014, Exercise 31.2]:
 taking point-mass posteriors, with probability at least `1 - δ` every index `i` with `P {i} > 0`

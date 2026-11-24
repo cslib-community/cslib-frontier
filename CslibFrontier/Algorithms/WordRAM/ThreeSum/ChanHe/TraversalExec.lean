@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalProgram
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Charged native execution of the Chan–He traversal controller
@@ -48,7 +49,8 @@ theorem oneRoot_zero {w capacity : ℕ} (x : Data 128) (hx : x.Bounded w)
       (.seq (.op (.const zero 0)) (.seq (.op (.const one 1))
         (.seq (.op (.copy (registers WordStack.ptr) stackBase))
           (.op (.const (registers WordStack.len) 0))))) x a 4 := by
-    ram_eval [a, zero, one, registers, WordStack.ptr, WordStack.len, stackBase, h1]
+    dsimp only [a]
+    wram_exec
   have haslots (i : Fin 7) : a.regs (slot i) = x.regs (slot i) := by
     fin_cases i <;>
       simp +decide [a, slot, registers, WordStack.ptr, WordStack.len, zero, one]
