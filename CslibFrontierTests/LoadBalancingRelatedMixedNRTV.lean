@@ -4,9 +4,20 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.GameTheory.LoadBalancing.MixedPoA
-import CslibFrontier.GameTheory.LoadBalancing.RelatedMixedLower
-import CslibFrontier.GameTheory.LoadBalancing.RelatedMixedPoA
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.Init
+public import CslibFrontier.GameTheory.LoadBalancing.MixedPoA
+public import CslibFrontier.GameTheory.LoadBalancing.RelatedMixedLower
+public import CslibFrontier.GameTheory.LoadBalancing.RelatedMixedPoA
+import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Data.Fintype.BigOperators
+import Mathlib.Data.Nat.Factorial.Basic
+import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.NormNum
+import Mathlib.Tactic.Positivity
 
 /-!
 # Uniformly related mixed PoA and small-weight identical PoA: witnesses and boundary checks
@@ -27,6 +38,8 @@ Concrete checked witnesses exercising:
   `0 < OPT ≤ 1`, distinct machine speeds), universal `m = 16` and `m = 1000` witnesses, and
   two-sided `Θ(log m / log log log m)` sandwich for all `m ≥ 16`.
 -/
+
+public section
 
 namespace CslibFrontierTests.LoadBalancingRelatedMixedNRTV
 

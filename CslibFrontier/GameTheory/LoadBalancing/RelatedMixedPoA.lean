@@ -140,18 +140,10 @@ private theorem mem_expectedSpeedPrefix_of_expectedLoad_ge (G : LoadBalancingGam
     {p : ι → M → ℝ} {Aopt : ι → M} (hp : G.toCostGame.IsMixedNash p)
     (hAopt : G.makespan Aopt = G.optMakespan) {k : ℕ} {i : ι} {j : M} (hij : 0 < p i j)
     (hge : ((k + 1 : ℕ) : ℝ) * G.optMakespan ≤ G.expectedLoad p j) :
-    Aopt i ∈ G.expectedSpeedPrefix p k := by
-  classical
-  rw [expectedSpeedPrefix, mem_filter]
-  refine ⟨mem_univ _, fun j' hj' => ?_⟩
-  have hNE := G.expectedLoad_le_of_isMixedNash_pos hp hij j'
-  have hdiv : G.weight i / G.speed j' ≤ G.weight i / G.speed (Aopt i) :=
-    div_le_div_of_nonneg_left (G.weight_nonneg i) (G.speed_pos (Aopt i)) hj'
-  have hopt : G.weight i / G.speed (Aopt i) ≤ G.optMakespan := by
-    rw [← hAopt]
-    exact G.weight_div_speed_le_makespan Aopt i
-  push_cast at hge
-  linarith
+    Aopt i ∈ G.expectedSpeedPrefix p k :=
+  G.mem_prefix_of_nash_load_ge hAopt
+    (fun m => by simp only [expectedSpeedPrefix, mem_filter, mem_univ, true_and]) hge
+    (G.expectedLoad_le_of_isMixedNash_pos hp hij)
 
 omit [DecidableEq ι] [Fintype M] [DecidableEq M] [Nonempty M] in
 /-- Speed-weighted expected load over a subset `S` of machines equals the probability-weighted
@@ -168,25 +160,44 @@ private theorem sum_speed_mul_expectedLoad_subset (G : LoadBalancingGame ι M) (
   have hs := (G.speed_pos j).ne'
   field_simp
 
-/-- Weight of jobs assigned by `Aopt` to a subset `S` of machines is at most
-`optMakespan * ∑_{j ∈ S} speed j`. -/
-private theorem sum_weight_Aopt_mem_le (G : LoadBalancingGame ι M) {Aopt : ι → M}
-    (hAopt : G.makespan Aopt = G.optMakespan) (S : Finset M) :
-    ∑ i with Aopt i ∈ S, G.weight i ≤ G.optMakespan * ∑ j ∈ S, G.speed j := by
-  have hfib : ∑ i with Aopt i ∈ S, G.weight i = ∑ j ∈ S, G.speed j * G.load Aopt j := by
-    simp_rw [G.speed_mul_load]
-    rw [← sum_fiberwise_of_maps_to (s := univ.filter fun i => Aopt i ∈ S)
-      (t := S) (g := Aopt) (fun i hi => (mem_filter.mp hi).2)]
-    refine sum_congr rfl fun j hj => sum_congr ?_ fun _ _ => rfl
-    ext i
-    simp only [mem_filter, mem_univ, true_and]
-    exact ⟨fun h => h.2, fun h => ⟨h ▸ hj, h⟩⟩
-  rw [hfib, mul_sum]
-  refine sum_le_sum fun j _ => ?_
-  have hl : G.load Aopt j ≤ G.optMakespan := by
-    rw [← hAopt]
-    exact G.load_le_makespan Aopt j
-  nlinarith [(G.speed_pos j).le]
+/-- Speed-sum comparison across any two machine subsets `S₁, S₂` under a mixed Nash equilibrium:
+if every machine in `S₁` has `expectedLoad p j ≥ c * optMakespan` and every job placing positive
+probability on `S₁` is assigned by `Aopt` into `S₂`, then `c * ∑_{S₁} speed ≤ ∑_{S₂} speed`. -/
+private theorem speed_sum_mul_le_of_expectedLoad_ge (G : LoadBalancingGame ι M)
+    {p : ι → M → ℝ} {Aopt : ι → M} (hp : G.toCostGame.IsMixedNash p)
+    (hopt : 0 < G.optMakespan) (hAopt : G.makespan Aopt = G.optMakespan)
+    {c : ℝ} (S₁ S₂ : Finset M)
+    (hle : ∀ j ∈ S₁, c * G.optMakespan ≤ G.expectedLoad p j)
+    (hmap : ∀ i : ι, ∀ j ∈ S₁, 0 < p i j → Aopt i ∈ S₂) :
+    c * ∑ j ∈ S₁, G.speed j ≤ ∑ j ∈ S₂, G.speed j := by
+  classical
+  have h1 : c * G.optMakespan * ∑ j ∈ S₁, G.speed j ≤
+      ∑ j ∈ S₁, G.speed j * G.expectedLoad p j := by
+    rw [mul_sum]
+    refine sum_le_sum fun j hj => ?_
+    have hl := hle j hj
+    nlinarith [(G.speed_pos j).le]
+  have h2 : ∑ j ∈ S₁, G.speed j * G.expectedLoad p j ≤ ∑ i with Aopt i ∈ S₂, G.weight i := by
+    rw [G.sum_speed_mul_expectedLoad_subset p S₁, sum_filter]
+    refine sum_le_sum fun i _ => ?_
+    by_cases hi : Aopt i ∈ S₂
+    · rw [ite_eq_left hi]
+      have hple1 : ∑ j ∈ S₁, p i j ≤ 1 := by
+        rw [← (hp.1 i).sum_eq_one]
+        exact sum_le_univ_sum_of_nonneg fun j => (hp.1 i).nonneg j
+      nlinarith [G.weight_nonneg i]
+    · rw [ite_eq_right hi]
+      have hzero : ∑ j ∈ S₁, p i j = 0 := by
+        refine sum_eq_zero fun j hj => ?_
+        rcases ((hp.1 i).nonneg j).eq_or_lt with h0 | hpos
+        · exact h0.symm
+        · exact absurd (hmap i j hj hpos) hi
+      rw [hzero, zero_mul]
+  have h3 := G.sum_weight_Aopt_mem_le hAopt S₂
+  have hcomb : G.optMakespan * (c * ∑ j ∈ S₁, G.speed j) ≤
+      G.optMakespan * ∑ j ∈ S₂, G.speed j := by
+    linarith
+  exact le_of_mul_le_mul_left hcomb hopt
 
 /-- **Mixed-Nash speed-prefix cardinality growth**: for every mixed Nash equilibrium `p` with
 `0 < optMakespan` and every `k : ℕ`,
@@ -195,98 +206,15 @@ theorem card_expectedSpeedPrefix_ge (G : LoadBalancingGame ι M) {p : ι → M �
     (hp : G.toCostGame.IsMixedNash p) (hopt : 0 < G.optMakespan) (k : ℕ) :
     (k + 1) * #(G.expectedSpeedPrefix p (k + 1)) ≤ #(G.expectedSpeedPrefix p k) := by
   classical
-  by_cases hne : (G.expectedSpeedPrefix p (k + 1)).Nonempty
-  · obtain ⟨Aopt, hAopt⟩ := G.exists_makespan_eq_optMakespan
-    have hsub : G.expectedSpeedPrefix p (k + 1) ⊆ G.expectedSpeedPrefix p k := by
-      intro j hj
-      simp only [expectedSpeedPrefix, mem_filter, mem_univ, true_and] at hj ⊢
-      intro j' hj'
-      have := hj j' hj'
-      push_cast at this
-      linarith [G.optMakespan_nonneg]
-    have hspeed_sum :
-        ((k + 1 : ℕ) : ℝ) * ∑ j ∈ G.expectedSpeedPrefix p (k + 1), G.speed j ≤
-          ∑ j ∈ G.expectedSpeedPrefix p k, G.speed j := by
-      have h1 :
-          ((k + 1 : ℕ) : ℝ) * G.optMakespan * ∑ j ∈ G.expectedSpeedPrefix p (k + 1), G.speed j ≤
-            ∑ j ∈ G.expectedSpeedPrefix p (k + 1), G.speed j * G.expectedLoad p j := by
-        rw [mul_sum]
-        refine sum_le_sum fun j hj => ?_
-        have hl := G.mul_optMakespan_le_expectedLoad_of_mem_prefix p (k + 1) hj
-        nlinarith [(G.speed_pos j).le]
-      have h2 :
-          ∑ j ∈ G.expectedSpeedPrefix p (k + 1), G.speed j * G.expectedLoad p j ≤
-            ∑ i with Aopt i ∈ G.expectedSpeedPrefix p k, G.weight i := by
-        rw [G.sum_speed_mul_expectedLoad_subset p (G.expectedSpeedPrefix p (k + 1)), sum_filter]
-        refine sum_le_sum fun i _ => ?_
-        by_cases hmem : Aopt i ∈ G.expectedSpeedPrefix p k
-        · rw [ite_eq_left hmem]
-          have hple1 : ∑ j ∈ G.expectedSpeedPrefix p (k + 1), p i j ≤ 1 := by
-            rw [← (hp.1 i).sum_eq_one]
-            exact sum_le_univ_sum_of_nonneg fun j => (hp.1 i).nonneg j
-          nlinarith [G.weight_nonneg i]
-        · rw [ite_eq_right hmem]
-          have hzero : ∑ j ∈ G.expectedSpeedPrefix p (k + 1), p i j = 0 := by
-            refine sum_eq_zero fun j hj => ?_
-            rcases ((hp.1 i).nonneg j).eq_or_lt with h0 | hpos
-            · exact h0.symm
-            · exact absurd
-                (G.mem_expectedSpeedPrefix_of_expectedLoad_ge hp hAopt hpos
-                  (G.mul_optMakespan_le_expectedLoad_of_mem_prefix p (k + 1) hj)) hmem
-          rw [hzero, zero_mul]
-      have h3 := G.sum_weight_Aopt_mem_le hAopt (G.expectedSpeedPrefix p k)
-      have hcomb :
-          G.optMakespan * (((k + 1 : ℕ) : ℝ) * ∑ j ∈ G.expectedSpeedPrefix p (k + 1), G.speed j) ≤
-            G.optMakespan * ∑ j ∈ G.expectedSpeedPrefix p k, G.speed j := by
-        linarith
-      exact le_of_mul_le_mul_left hcomb hopt
-    obtain ⟨jmin, hjmin, hmin⟩ := exists_min_image (G.expectedSpeedPrefix p (k + 1)) G.speed hne
-    set smin : ℝ := G.speed jmin
-    have hsmin_pos : 0 < smin := G.speed_pos jmin
-    have hsdiff_lt :
-        ∀ j ∈ G.expectedSpeedPrefix p k \ G.expectedSpeedPrefix p (k + 1), G.speed j ≤ smin := by
-      intro j hj
-      rw [mem_sdiff] at hj
-      by_contra hgt
-      push Not at hgt
-      apply hj.2
-      rw [expectedSpeedPrefix, mem_filter]
-      refine ⟨mem_univ j, fun j' hj' => ?_⟩
-      exact (mem_filter.mp hjmin).2 j' (hgt.le.trans hj')
-    have hsplit_sum : ∑ j ∈ G.expectedSpeedPrefix p k, G.speed j =
-        (∑ j ∈ G.expectedSpeedPrefix p (k + 1), G.speed j) +
-        (∑ j ∈ G.expectedSpeedPrefix p k \ G.expectedSpeedPrefix p (k + 1), G.speed j) := by
-      rw [← sum_union disjoint_sdiff, union_sdiff_of_subset hsub]
-    have hlhs : (k : ℝ) * (#(G.expectedSpeedPrefix p (k + 1)) : ℝ) * smin ≤
-        (k : ℝ) * ∑ j ∈ G.expectedSpeedPrefix p (k + 1), G.speed j := by
-      rw [mul_assoc]
-      refine mul_le_mul_of_nonneg_left ?_ (Nat.cast_nonneg k)
-      calc (#(G.expectedSpeedPrefix p (k + 1)) : ℝ) * smin =
-              ∑ _j ∈ G.expectedSpeedPrefix p (k + 1), smin := by simp
-        _ ≤ ∑ j ∈ G.expectedSpeedPrefix p (k + 1), G.speed j := sum_le_sum fun j hj => hmin j hj
-    have hrhs : ∑ j ∈ G.expectedSpeedPrefix p k \ G.expectedSpeedPrefix p (k + 1), G.speed j ≤
-        (#(G.expectedSpeedPrefix p k \ G.expectedSpeedPrefix p (k + 1)) : ℝ) * smin := by
-      calc ∑ j ∈ G.expectedSpeedPrefix p k \ G.expectedSpeedPrefix p (k + 1), G.speed j
-          ≤ ∑ _j ∈ G.expectedSpeedPrefix p k \ G.expectedSpeedPrefix p (k + 1), smin :=
-            sum_le_sum fun j hj => hsdiff_lt j hj
-        _ = (#(G.expectedSpeedPrefix p k \ G.expectedSpeedPrefix p (k + 1)) : ℝ) * smin := by simp
-    have hnat_real : (k : ℝ) * (#(G.expectedSpeedPrefix p (k + 1)) : ℝ) ≤
-        (#(G.expectedSpeedPrefix p k \ G.expectedSpeedPrefix p (k + 1)) : ℝ) := by
-      rw [hsplit_sum] at hspeed_sum
-      push_cast at hspeed_sum
-      nlinarith
-    have hnat :
-        k * #(G.expectedSpeedPrefix p (k + 1)) ≤
-          #(G.expectedSpeedPrefix p k \ G.expectedSpeedPrefix p (k + 1)) := by
-      exact_mod_cast hnat_real
-    rw [card_sdiff_of_subset hsub] at hnat
-    have hcard_le : #(G.expectedSpeedPrefix p (k + 1)) ≤ #(G.expectedSpeedPrefix p k) :=
-      card_le_card hsub
-    have hdist : (k + 1) * #(G.expectedSpeedPrefix p (k + 1)) =
-        k * #(G.expectedSpeedPrefix p (k + 1)) + #(G.expectedSpeedPrefix p (k + 1)) := by ring
-    omega
-  · rw [not_nonempty_iff_eq_empty] at hne
-    simp [hne]
+  refine G.card_speedPrefix_step_of_sum_speed_le (G.expectedLoad p) (G.expectedSpeedPrefix p)
+    (fun r j => by simp only [expectedSpeedPrefix, mem_filter, mem_univ, true_and])
+    G.optMakespan_nonneg k fun _ => ?_
+  obtain ⟨Aopt, hAopt⟩ := G.exists_makespan_eq_optMakespan
+  exact G.speed_sum_mul_le_of_expectedLoad_ge hp hopt hAopt
+    (G.expectedSpeedPrefix p (k + 1)) (G.expectedSpeedPrefix p k)
+    (fun j hj => G.mul_optMakespan_le_expectedLoad_of_mem_prefix p (k + 1) hj)
+    fun i j hj hpos => G.mem_expectedSpeedPrefix_of_expectedLoad_ge hp hAopt hpos
+      (G.mul_optMakespan_le_expectedLoad_of_mem_prefix p (k + 1) hj)
 
 /-- Factorial bound on machine count from a large expected load: if `0 < optMakespan` and some
 machine `j` has `expectedLoad p j ≥ (c + 1) * optMakespan`, then `c! ≤ |M|`. -/
@@ -311,35 +239,8 @@ private theorem factorial_le_card_of_expectedLoad_ge (G : LoadBalancingGame ι M
   obtain ⟨i₀, hi₀⟩ := hi₀_exists
   have hLc_ne : 1 ≤ #(G.expectedSpeedPrefix p c) :=
     card_pos.mpr ⟨Aopt i₀, G.mem_expectedSpeedPrefix_of_expectedLoad_ge hp hAopt hi₀ hge⟩
-  have hstep : ∀ d ≤ c, (∏ r ∈ range d, (c - r)) * #(G.expectedSpeedPrefix p c) ≤
-      #(G.expectedSpeedPrefix p (c - d)) := by
-    intro d
-    induction d with
-    | zero => intro _; simp
-    | succ d ih =>
-      intro hd
-      rw [prod_range_succ, mul_right_comm, mul_comm _ (c - d)]
-      have hcd : c - d = (c - (d + 1)) + 1 := by omega
-      have hrec := G.card_expectedSpeedPrefix_ge hp hopt (c - (d + 1))
-      rw [← hcd] at hrec
-      calc (c - d) * ((∏ r ∈ range d, (c - r)) * #(G.expectedSpeedPrefix p c))
-          ≤ (c - d) * #(G.expectedSpeedPrefix p (c - d)) := Nat.mul_le_mul_left _ (ih (by omega))
-        _ ≤ #(G.expectedSpeedPrefix p (c - (d + 1))) := hrec
-  have hprod_eq : ∏ r ∈ range c, (c - r) = c.factorial := by
-    rw [Nat.factorial_eq_prod_range_add_one]
-    have hrev := Finset.prod_range_reflect (fun r => r + 1) c
-    rw [← hrev]
-    refine prod_congr rfl fun r hr => ?_
-    rw [mem_range] at hr
-    omega
-  have hc_le : c.factorial ≤ #(G.expectedSpeedPrefix p 0) := by
-    calc c.factorial = c.factorial * 1 := (mul_one _).symm
-      _ ≤ (∏ r ∈ range c, (c - r)) * #(G.expectedSpeedPrefix p c) := by
-          rw [hprod_eq]
-          exact Nat.mul_le_mul_left _ hLc_ne
-      _ ≤ #(G.expectedSpeedPrefix p (c - c)) := hstep c le_rfl
-      _ = #(G.expectedSpeedPrefix p 0) := by rw [Nat.sub_self]
-  exact hc_le.trans (card_le_univ _)
+  exact factorial_le_card_of_prefix_step (G.expectedSpeedPrefix p)
+    (G.card_expectedSpeedPrefix_ge hp hopt) hLc_ne
 
 /-- **Maximum expected load in uniformly related mixed Nash equilibria**: on `m = |M| ≥ 3`
 uniformly related machines, every machine `j` has expected load at most
@@ -403,38 +304,9 @@ private theorem exists_mem_expectedGroup_speed_gt_two_mul (G : LoadBalancingGame
   -- Speed-sum comparison: `(k + 3) * ∑_{L_{k+3}} speed ≤ ∑_H speed`.
   have hspeed_le :
       ((k + 3 : ℕ) : ℝ) * ∑ a ∈ G.expectedSpeedPrefix p (k + 3), G.speed a ≤
-        ∑ j ∈ H, G.speed j := by
-    have h1 :
-        ((k + 3 : ℕ) : ℝ) * G.optMakespan * ∑ a ∈ G.expectedSpeedPrefix p (k + 3), G.speed a ≤
-          ∑ a ∈ G.expectedSpeedPrefix p (k + 3), G.speed a * G.expectedLoad p a := by
-      rw [mul_sum]
-      refine sum_le_sum fun a ha => ?_
-      have hl := G.mul_optMakespan_le_expectedLoad_of_mem_prefix p (k + 3) ha
-      nlinarith [(G.speed_pos a).le]
-    have h2 :
-        ∑ a ∈ G.expectedSpeedPrefix p (k + 3), G.speed a * G.expectedLoad p a ≤
-          ∑ i with Aopt i ∈ H, G.weight i := by
-      rw [G.sum_speed_mul_expectedLoad_subset p (G.expectedSpeedPrefix p (k + 3)), sum_filter]
-      refine sum_le_sum fun i _ => ?_
-      by_cases hi : Aopt i ∈ H
-      · rw [ite_eq_left hi]
-        have hple1 : ∑ a ∈ G.expectedSpeedPrefix p (k + 3), p i a ≤ 1 := by
-          rw [← (hp.1 i).sum_eq_one]
-          exact sum_le_univ_sum_of_nonneg fun a => (hp.1 i).nonneg a
-        nlinarith [G.weight_nonneg i]
-      · rw [ite_eq_right hi]
-        have hzero : ∑ a ∈ G.expectedSpeedPrefix p (k + 3), p i a = 0 := by
-          refine sum_eq_zero fun a ha => ?_
-          rcases ((hp.1 i).nonneg a).eq_or_lt with h0 | hpos
-          · exact h0.symm
-          · exact absurd (hmap i a ha hpos) hi
-        rw [hzero, zero_mul]
-    have h3 := G.sum_weight_Aopt_mem_le hAopt H
-    have hcomb :
-        G.optMakespan * (((k + 3 : ℕ) : ℝ) * ∑ a ∈ G.expectedSpeedPrefix p (k + 3), G.speed a) ≤
-          G.optMakespan * ∑ j ∈ H, G.speed j := by
-      linarith
-    exact le_of_mul_le_mul_left hcomb hopt
+        ∑ j ∈ H, G.speed j :=
+    G.speed_sum_mul_le_of_expectedLoad_ge hp hopt hAopt (G.expectedSpeedPrefix p (k + 3)) H
+      (fun a ha => G.mul_optMakespan_le_expectedLoad_of_mem_prefix p (k + 3) ha) hmap
   -- If no machine in `L_{k+2} \ L_{k+3}` has speed `> 2 * speed b`, then `H ⊆ L_{k+3}`.
   by_contra hnone
   push Not at hnone
@@ -515,6 +387,11 @@ theorem weight_le_twelve_mul_speed_mul_optMakespan (G : LoadBalancingGame ι M) 
       linarith
     have hws_nn : 0 ≤ G.weight i / G.speed j :=
       div_nonneg (G.weight_nonneg i) (G.speed_pos j).le
+    have hlhs_ge : (3 / 4 : ℝ) * (G.weight i / G.speed j) ≤
+        (1 - p i j) * (G.weight i / G.speed j) := by
+      nlinarith
+    suffices hdiv_le : G.weight i / G.speed j ≤ 12 * G.optMakespan by
+      linarith [(div_le_iff₀ (G.speed_pos j)).mp hdiv_le]
     by_cases hLk3 : (G.expectedSpeedPrefix p (k + 3)).Nonempty
     · -- Compare `j` against `j'` with `speed j' > 2 * speed j` and `E[ℓ_{j'}] < (k + 3) * OPT`.
       obtain ⟨j', hsp', hEj'⟩ := G.exists_faster_expectedLoad_lt hp hopt_pos hEj_lt hLk3
@@ -528,13 +405,7 @@ theorem weight_le_twelve_mul_speed_mul_optMakespan (G : LoadBalancingGame ι M) 
       have hrhs_le : (1 - p i j') * (G.weight i / G.speed j') ≤ G.weight i / G.speed j' := by
         have : 0 ≤ G.weight i / G.speed j' := div_nonneg (G.weight_nonneg i) (G.speed_pos j').le
         nlinarith [(hp.1 i).nonneg j']
-      have hlhs_ge : (3 / 4 : ℝ) * (G.weight i / G.speed j) ≤
-          (1 - p i j) * (G.weight i / G.speed j) := by
-        nlinarith
-      have hdiv_le : G.weight i / G.speed j ≤ 12 * G.optMakespan := by
-        push_cast at hEj'
-        linarith
-      have := (div_le_iff₀ (G.speed_pos j)).mp hdiv_le
+      push_cast at hEj'
       linarith
     · -- `L_{k+3}` is empty, so every machine (including `Aopt i`) has `E[ℓ] < (k + 4) * OPT`.
       rw [not_nonempty_iff_eq_empty] at hLk3
@@ -567,13 +438,7 @@ theorem weight_le_twelve_mul_speed_mul_optMakespan (G : LoadBalancingGame ι M) 
         have : 0 ≤ G.weight i / G.speed (Aopt i) :=
           div_nonneg (G.weight_nonneg i) (G.speed_pos (Aopt i)).le
         nlinarith [(hp.1 i).nonneg (Aopt i)]
-      have hlhs_ge : (3 / 4 : ℝ) * (G.weight i / G.speed j) ≤
-          (1 - p i j) * (G.weight i / G.speed j) := by
-        nlinarith
-      have hdiv_le : G.weight i / G.speed j ≤ 12 * G.optMakespan := by
-        push_cast at hEAopt_lt
-        linarith
-      have := (div_le_iff₀ (G.speed_pos j)).mp hdiv_le
+      push_cast at hEAopt_lt
       linarith
 
 end SpeedDoublingAndJobCap
