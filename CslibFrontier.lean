@@ -1736,6 +1736,7 @@ public import CslibFrontier.Computability.Circuit.Encoding.PolyTime
 public import CslibFrontier.Computability.Circuit.Erase
 public import CslibFrontier.Computability.Circuit.Evaluation
 public import CslibFrontier.Computability.Circuit.FanIn
+public import CslibFrontier.Computability.Circuit.FinOps
 public import CslibFrontier.Computability.Circuit.Formula
 public import CslibFrontier.Computability.Circuit.Formula.NodeCount
 public import CslibFrontier.Computability.Circuit.Frontier.Arborescence

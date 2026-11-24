@@ -1,0 +1,150 @@
+/-
+Copyright (c) 2026 Anthropic, PBC. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Anthropic, Christian Reitwiessner
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Init
+public import Cslib.Computability.Circuit.Program
+import Mathlib.Data.Fin.VecNotation
+
+/-!
+# Straight-line programs over all operations on a finite set
+
+`Cslib.Circuits.finOps D` is the signature with one constant symbol for every element of `Fin D`
+and one binary symbol for every operation `Fin D → Fin D → Fin D`; `Cslib.Circuits.finOpsInterp D`
+interprets them on `Fin D`. Programs over it are the straight-line programs of
+*VP ≠ VNP over every field* [AnthropicVPVNP2026] (module `Nc.Cut.Slp`, `IsSlpStep`), which are
+lists of functions each of which is an input, a constant, or a binary operation of two earlier
+ones.
+
+The two descriptions agree up to the inputs: a list of `p` such steps is computed by a program
+with `p` gates (`Cslib.Circuits.exists_program_of_isSlpStep`), and a program with `p` gates on
+`n` inputs gives a list of `n + p` steps (`Cslib.Circuits.exists_isSlpStep_of_program`).
+
+## Main definitions
+
+* `Cslib.Circuits.finOps`, `Cslib.Circuits.finOpsInterp`.
+* `Cslib.Circuits.IsSlpStep`: one step of a straight-line program given as a list of functions.
+
+## Main results
+
+* `Cslib.Circuits.exists_program_of_isSlpStep`, `Cslib.Circuits.exists_isSlpStep_of_program`.
+
+## References
+
+* [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
+  module `Nc.Cut.Slp`
+-/
+
+public section
+
+namespace Cslib.Circuits
+
+variable {D : ℕ}
+
+/-- The signature of all constants and all binary operations on `Fin D`. -/
+abbrev finOps (D : ℕ) : Signature where
+  Op := Fin D ⊕ (Fin D → Fin D → Fin D)
+  Arity
+    | .inl _ => 0
+    | .inr _ => 2
+
+/-- The interpretation of `finOps D` on `Fin D`. -/
+@[expose] def finOpsInterp (D : ℕ) : Interpretation (finOps D) (Fin D)
+  | .inl c, _ => c
+  | .inr φ, a => φ (a (0 : Fin 2)) (a (1 : Fin 2))
+
+variable {Inp : Type} {n : ℕ}
+
+/-- Step `k` of the list `fn`: an input coordinate, a constant, or a binary operation of two earlier
+steps. -/
+@[expose] def IsSlpStep (inp : Fin n → Inp → Fin D) (fn : ℕ → Inp → Fin D) (k : ℕ) : Prop :=
+  (∃ i, fn k = inp i) ∨ (∃ c, fn k = fun _ => c) ∨
+    ∃ i < k, ∃ j < k, ∃ φ : Fin D → Fin D → Fin D, ∀ x, fn k x = φ (fn i x) (fn j x)
+
+/-- A list of `p` steps is computed by a program with `p` gates, gate `k` computing step `k`. -/
+theorem exists_program_of_isSlpStep (inp : Fin n → Inp → Fin D) (fn : ℕ → Inp → Fin D) {p : ℕ}
+    (h : ∀ k < p, IsSlpStep inp fn k) :
+    ∃ P : Program (finOps D) n p,
+      ∀ (k : Fin p) x, P.eval (finOpsInterp D) (fun i => inp i x) k = fn k x := by
+  suffices key : ∀ q ≤ p, ∃ P : Program (finOps D) n q,
+      ∀ (k : Fin q) x, P.eval (finOpsInterp D) (fun i => inp i x) k = fn k x from key p le_rfl
+  intro q hq
+  induction q with
+  | zero => exact ⟨.empty, fun k => k.elim0⟩
+  | succ q ih =>
+    obtain ⟨P, hP⟩ := ih (by omega)
+    have step : ∃ line : Line (finOps D) n q, ∀ x,
+        line.eval (finOpsInterp D) (fun i => inp i x)
+          (P.eval (finOpsInterp D) (fun i => inp i x)) = fn q x := by
+      rcases h q (by omega) with ⟨i, hi⟩ | ⟨c, hc⟩ | ⟨i, hi, j, hj, φ, hφ⟩
+      · exact ⟨⟨.inr fun a _ => a, (![Wire.input i, Wire.input i] : Fin 2 → Wire n q)⟩, fun x => by
+          simp [Line.eval, finOpsInterp, hi]⟩
+      · exact ⟨⟨.inl c, Fin.elim0⟩, fun x => by simp [Line.eval, finOpsInterp, hc]⟩
+      · refine ⟨⟨.inr φ, (![Wire.gate ⟨i, hi⟩, Wire.gate ⟨j, hj⟩] : Fin 2 → Wire n q)⟩, fun x => ?_⟩
+        simp [Line.eval, finOpsInterp, hφ, hP]
+    obtain ⟨line, hline⟩ := step
+    refine ⟨.gate P line, fun k x => ?_⟩
+    induction k using Fin.lastCases with
+    | last => simpa using hline x
+    | cast k => simpa using hP k x
+
+/-- A program with `p` gates on `n` inputs gives a list of `n + p` steps: first the inputs, then
+the gates. -/
+theorem exists_isSlpStep_of_program [NeZero D] (inp : Fin n → Inp → Fin D) {p : ℕ}
+    (P : Program (finOps D) n p) :
+    ∃ fn : ℕ → Inp → Fin D, (∀ k < n + p, IsSlpStep inp fn k) ∧
+      (∀ i : Fin n, fn i = inp i) ∧
+      ∀ (k : Fin p) x, fn (n + k) x = P.eval (finOpsInterp D) (fun i => inp i x) k := by
+  classical
+  induction P with
+  | empty =>
+    refine ⟨fun m x => if h : m < n then inp ⟨m, h⟩ x else 0, fun k hk => ?_, fun i => ?_,
+      fun k => k.elim0⟩
+    · exact Or.inl ⟨⟨k, by omega⟩, funext fun x => by simp [show k < n by omega]⟩
+    · funext x
+      simp
+  | @gate g P line ih =>
+    obtain ⟨fn, hs, hin, hg⟩ := ih
+    let I := finOpsInterp D
+    let new : Inp → Fin D := fun x => line.eval I (fun i => inp i x) (P.eval I fun i => inp i x)
+    -- the step index of a wire, and its value
+    let idx : Wire n g → ℕ := fun w => Wire.elim (fun i => (i : ℕ)) (fun j => n + j) w
+    have hidx : ∀ w, idx w < n + g := fun w => by cases w <;> simp [idx, Wire.elim]; omega
+    have hval : ∀ w x, fn (idx w) x = Wire.elim (fun i => inp i x) (P.eval I fun i => inp i x) w :=
+      fun w x => by
+        cases w with
+        | input i => simp [idx, Wire.elim, hin i]
+        | gate j => simp [idx, Wire.elim, hg j x, I]
+    have hne : ∀ m < n + g, Function.update fn (n + g) new m = fn m := fun m hm =>
+      Function.update_of_ne (by omega) _ _
+    refine ⟨Function.update fn (n + g) new, fun k hk => ?_, fun i => ?_, fun k x => ?_⟩
+    · rcases Nat.lt_succ_iff_lt_or_eq.1 (show k < n + g + 1 by omega) with hk | rfl
+      · rcases hs k hk with ⟨i, h1⟩ | ⟨c, h1⟩ | ⟨i, hi, j, hj, φ, h1⟩
+        · exact Or.inl ⟨i, by rw [hne k hk, h1]⟩
+        · exact Or.inr (Or.inl ⟨c, by rw [hne k hk, h1]⟩)
+        · refine Or.inr (Or.inr ⟨i, hi, j, hj, φ, fun x => ?_⟩)
+          rw [hne k hk, hne i (by omega), hne j (by omega), h1]
+      · rw [IsSlpStep, Function.update_self]
+        obtain ⟨op, wires⟩ := line
+        cases op with
+        | inl c => exact Or.inr (Or.inl ⟨c, funext fun x => rfl⟩)
+        | inr φ =>
+          refine Or.inr (Or.inr ⟨idx (wires 0), hidx _, idx (wires 1), hidx _, φ, fun x => ?_⟩)
+          rw [hne _ (hidx _), hne _ (hidx _), hval, hval]
+          rfl
+    · funext x
+      rw [hne i (by omega), hin i]
+    · induction k using Fin.lastCases with
+      | last =>
+        rw [Program.eval_gate_last]
+        simp [new]
+        rfl
+      | cast k =>
+        rw [Program.eval_gate_castSucc, Fin.val_castSucc, hne _ (by omega), hg k x]
+
+end Cslib.Circuits
