@@ -918,16 +918,17 @@ private def rebuildCond (c a b : Expr) : MetaM Expr := do
 private def isClientMap (e : Expr) : Bool :=
   e.isAppOfArity ``Functor.map 6 || e.isAppOfArity ``PFunctor.FreeM.map 5
 
-/-- Primitive syntax forms on which local method certificates are never queried. -/
+/-- Primitive syntax forms on which local method certificates are never queried. A result map is
+not one: a certificate may cover a whole mapped client. -/
 private def isPrimitiveClientForm (e : Expr) : Bool :=
-  isClientMap e || e.isAppOfArity ``Bind.bind 6 || e.isAppOfArity ``PFunctor.FreeM.bind 5 ||
+  e.isAppOfArity ``Bind.bind 6 || e.isAppOfArity ``PFunctor.FreeM.bind 5 ||
   e.isAppOfArity ``Pure.pure 4 || e.isAppOfArity ``PFunctor.FreeM.pure 3 ||
   e.isAppOfArity ``PFunctor.FreeM.lift 2 || e.isAppOfArity ``PFunctor.FreeM.liftBind 4 ||
   e.isAppOfArity ``ite 5
 
 /-- Whether the head is a client form `realize` handles directly without unfolding. -/
 private def isClientForm (e : Expr) : Bool :=
-  isPrimitiveClientForm e || e.isAppOfArity ``PFunctor.FreeM.liftM 7 ||
+  isPrimitiveClientForm e || isClientMap e || e.isAppOfArity ``PFunctor.FreeM.liftM 7 ||
   e.isAppOfArity ``boundedWhile 8 || e.isAppOfArity ``iterate 6
 
 /-- Reduce a layout/projection scalar address to word arithmetic by pure definitional steps,
@@ -1618,7 +1619,7 @@ private partial def realizeLiftM (ctx : Ctx) (env : Env) (d : Expr) (atoms : Arr
       for _ in [0:64] do
         if !isPrimitiveClientForm cur && (← matchesLocalCert ctx (mkLift β cur)) then break
         let curR ← whnfR cur
-        if isPrimitiveClientForm curR then
+        if isPrimitiveClientForm curR || isClientMap curR then
           xR? := some curR
           break
         let some next ← unfoldDefinition? curR | break

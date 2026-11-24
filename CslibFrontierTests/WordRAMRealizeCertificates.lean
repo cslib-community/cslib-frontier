@@ -139,6 +139,37 @@ example (src : ℕ → Record.Prog ℕ ℕ)
       word word (fun _ _ _ => True) (fun _ _ => 0) := by
   realize [hm]
 
+-- A certificate for a whole mapped client is used before the map is traversed: there is none
+-- for `p` itself.
+example (p : ℕ → Memory.Prog ℕ) (f : ℕ → ℕ)
+    (hmap : Realizes .exact (fun n => f <$> p n) word word (fun _ _ _ => True) (fun _ _ => 0)) :
+    Realizes .exact (fun n => f <$> p n) word word (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize [hmap]
+
+example (p : ℕ → Memory.Prog ℕ) (f : ℕ → ℕ)
+    (hmap : Realizes .exact (fun n => f <$> p n) word word (fun _ _ _ => True) (fun _ _ => 0)) :
+    Realizes .exact (fun n => do Memory.read (← f <$> p n)) word word
+      (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize [hmap]
+
+-- The same for a whole mapped linked client, also when its source unfolds to the map.
+example (p : ℕ → Record.Prog ℕ ℕ) (f : ℕ → ℕ)
+    (hmap : Realizes .exact (fun b => link ((offsetLayout b).methods 0) (f <$> p b)) word word
+      (fun _ _ _ => True) (fun _ _ => 0)) :
+    Realizes .exact (fun b => do Memory.read (← link ((offsetLayout b).methods 0) (f <$> p b)))
+      word word (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize [hmap]
+
+private def mappedSource (p : ℕ → Record.Prog ℕ ℕ) (f : ℕ → ℕ) (b : ℕ) : Record.Prog ℕ ℕ :=
+  f <$> p b
+
+example (p : ℕ → Record.Prog ℕ ℕ) (f : ℕ → ℕ)
+    (hmap : Realizes .exact (fun b => link ((offsetLayout b).methods 0) (f <$> p b)) word word
+      (fun _ _ _ => True) (fun _ _ => 0)) :
+    Realizes .exact (fun b => link ((offsetLayout b).methods 0) (mappedSource p f b)) word word
+      (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize [hmap]
+
 -- The client is restated before certification, here by unfolding a definition.
 private def readTwice (a : ℕ) : Memory.Prog ℕ := do
   let _ ← Memory.read a
