@@ -20,6 +20,8 @@ and edge `1` of weight `1`. The answer to `(0, 2)` is edge `1`, and the answer t
 `none`. Parallel edges and self-loops are cycles, so the acyclicity hypothesis excludes them.
 -/
 
+public section
+
 namespace Cslib.Query.PathMaximaTests
 
 open Cslib.Multigraph
