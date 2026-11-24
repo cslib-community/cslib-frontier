@@ -3290,6 +3290,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFea
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeCoefficient
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeValue
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledSigns
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateSelection

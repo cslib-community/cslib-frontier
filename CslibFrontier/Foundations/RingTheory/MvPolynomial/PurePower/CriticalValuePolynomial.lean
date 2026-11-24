@@ -15,6 +15,7 @@ public import Mathlib.Algebra.MvPolynomial.Equiv
 public import Mathlib.Algebra.MvPolynomial.Rename
 public import Mathlib.LinearAlgebra.Matrix.Charpoly.Basic
 public import Mathlib.Algebra.Polynomial.Eval.Defs
+public import Mathlib.Logic.Equiv.Fin.Basic
 import CslibFrontier.Foundations.Data.MvPolynomial.LastVariable
 
 /-!
@@ -30,6 +31,7 @@ polynomial of the corresponding normalized quotient over the target ring.
 The relative construction retains a whole parameter block in the coefficients, so
 specialization gives the critical-value polynomial for an individual witness fiber.
 Evaluation of the flattened relative polynomial agrees with evaluation in that fiber.
+`finiteRelativeValuePolynomial` orders the variables for evaluation from coordinate lists.
 The lower relations and deformed objective have parameter degree at most the source degree
 plus one in each coefficient of the witness variables.
 
@@ -208,6 +210,38 @@ is indexed by `none`, the penalty by `some none`, and parameter `i` by `some (so
     (F : MvPolynomial (Fin n ⊕ κ) ℤ) (hF : F.totalDegree ≤ ell) :
     MvPolynomial (Option (Option κ)) ℤ :=
   (optionEquivLeft ℤ (Option κ)).symm (relativeValuePolynomial hell F hF)
+
+/-- The critical value is at slot zero, the penalty at slot one, and the retained parameters
+follow at slots `i + 2`. The source variables are the witness block followed by the parameters. -/
+@[expose] noncomputable def finiteRelativeValuePolynomial {m : ℕ} (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) :
+    MvPolynomial (Fin (m + 2)) ℤ :=
+  rename (fun i : Option (Option (Fin m)) =>
+    i.elim ⟨0, by omega⟩ (fun j => j.elim ⟨1, by omega⟩ (fun k => k.succ.succ)))
+    (flattenedRelativeValuePolynomial hell (rename finSumFinEquiv.symm F)
+      ((totalDegree_rename_le _ _).trans hF))
+
+/-- The finite list-order polynomial evaluates as the flattened polynomial with its first slots
+read individually and its parameter block read from the remaining list. -/
+theorem eval₂_finiteRelativeValuePolynomial {m : ℕ} (φ : ℤ →+* T) (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (z : List ℕ) :
+    eval₂ φ (fun i => ((z[i.val]?.getD 0 : ℕ) : T)) (finiteRelativeValuePolynomial hell F hF) =
+      eval₂ φ
+        (fun i : Option (Option (Fin m)) => i.elim ((z[0]?.getD 0 : ℕ) : T)
+          (fun j => j.elim ((z[1]?.getD 0 : ℕ) : T)
+            (fun k => (((z.drop 2)[k.val]?.getD 0 : ℕ) : T))))
+        (flattenedRelativeValuePolynomial hell (rename finSumFinEquiv.symm F)
+          ((totalDegree_rename_le _ _).trans hF)) := by
+  rw [finiteRelativeValuePolynomial, eval₂_rename]
+  congr 2
+  funext i
+  rcases i with _ | (_ | k)
+  · rfl
+  · rfl
+  · have hi : k.succ.succ.val = 2 + k.val := by
+      simp only [Fin.val_succ]
+      omega
+    simp only [Function.comp_apply, Option.elim_some, List.getElem?_drop, hi]
 
 private theorem relativeSource_map (F : MvPolynomial (Fin n ⊕ κ) ℤ) (u : T) (x : κ → T) :
     (relativeSource F).map (eval₂Hom (Int.castRingHom T) (fun i => i.elim u x)) =

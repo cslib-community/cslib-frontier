@@ -31,8 +31,8 @@ penalty and parameters, over a prime satisfying the trace interpolation and sour
 Adapted from `PointBlocks`, `FinitePolynomialBlocks`, `FrozenPolynomialEvaluation`, and
 `FrozenCriticalCoefficients` in lean-canny (`970f28a5ecefc1327402ade16c068aa4b1b2c183`).
 The full evaluator adapts `RelativeCharacteristicEvaluation` and `RelativeCharacteristicCorrectness`
-at the same commit. Packaging this evaluation into a controlled family remains open under
-[#6560](https://github.com/cslib-community/cslib-frontier/issues/6560).
+at the same commit. `ControlledRelativeValue` packages the evaluator with the source-based bounds
+for [#6560](https://github.com/cslib-community/cslib-frontier/issues/6560).
 -/
 
 public section

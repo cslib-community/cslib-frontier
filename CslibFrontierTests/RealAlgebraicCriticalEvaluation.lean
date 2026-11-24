@@ -13,6 +13,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinate
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeCoefficient
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeValue
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateSelection
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
@@ -305,6 +306,16 @@ example :
   have hresidue : (3 : ZMod 11).val = 3 := by decide
   simp [flattenedRelativeValuePolynomial, relativeValuePolynomial, relativeSource, valuePolynomial,
     deformedPolynomial, potentialPolynomial, Matrix.charpoly_zero, NormalIndex, hresidue]
+
+-- The packaged evaluator has one retained coordinate and the two distinguished slots.
+example :
+    let C : Controlled (fun _ : ℕ => (X 1 : MvPolynomial (Fin (1 + 1)) ℤ)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 1) (.const 1)
+    let Q : Controlled (n := fun _ => 3) _ encNat 10 :=
+      C.relativeValueFamily (n := fun _ => 1) (m := fun _ => 1) Decoder.nat (.const 1) (.const 1)
+    Q.evaluate ∈ CountingFunction 10 (encEvaluation encNat) encNat := by
+  intro C Q
+  exact Q.evaluate_mem
 
 -- At u = 1, the equation for F = X is X² + 1 = 0. The value t = 5 is a root mod 13.
 example : (criticalCoordinatePolynomialValue 13 1 1 1 0 5 (fun z => z[0]?.getD 0) :
