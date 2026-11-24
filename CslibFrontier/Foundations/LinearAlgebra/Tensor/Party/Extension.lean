@@ -13,7 +13,7 @@ import CslibFrontier.Foundations.Algebra.Covering.Gauge
 /-!
 # Extending spectral points to more parties
 
-Proposition A.4 (prop:extend) of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. Let
+Proposition prop:extend of *VP ≠ VNP over every field* [AnthropicVPVNP2026]. Let
 `ι : I → I'` and `π l : I' → I` be maps with `π l ∘ ι = id`, let `θ l ≥ 0` add up to `1`, let `F` be
 a spectral point on `I` and `C` a tensor on `I`. Then there is a spectral point `F'` on `I'` with
 `F' t ≤ ∏ l, F (π l t) ^ θ l` for all `t`, and `F' (ι C) = F C`
@@ -43,7 +43,7 @@ variable {K : Type} [Field K] {I : Type} [Fintype I] [DecidableEq I]
 
 namespace SpectralPoint
 
-/-- The product `f t = ∏ l, F (π l t) ^ θ l` of Proposition A.4. -/
+/-- The product `f t = ∏ l, F (π l t) ^ θ l` of Proposition prop:extend. -/
 private noncomputable def extendProduct (π : L → I' → I) (θ : L → ℝ) (F : SpectralPoint K I)
     (t : PartyTensor K I') : ℝ :=
   ∏ l, F (push (π l) t) ^ θ l
@@ -210,7 +210,7 @@ private theorem exists_localize (p : UpperFunctional K I) (f : PartyTensor K I) 
     toAntisymmetrization_mul, toAntisymmetrization_mul]
   exact this
 
-/-- **Paper: Proposition A.4 (prop:extend).** "Let `ι : I → I′` and `π_l : I′ → I`, `l ≤ L`, be maps
+/-- **Paper: Proposition prop:extend.** "Let `ι : I → I′` and `π_l : I′ → I`, `l ≤ L`, be maps
 with `π_l ι = id`, let `θ_l ≥ 0` add up to `1`, let `φ` be a spectral point on `I`, and let `C` be a
 tensor on `I`. There is a spectral point `φ′` on `I′` with `φ′(t) ≤ ∏ φ(π_l t)^θ_l` for all `t`, and
 `φ′(ιC) = φ(C)`." The maps are indexed by any finite type `L`. -/
