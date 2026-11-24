@@ -124,27 +124,23 @@ theorem exists_signWith (S : IndexedSignatureScheme) :
 /-- The seeded algorithms of any indexed scheme, read off its strict-PPT certificates. -/
 noncomputable def seeded (S : IndexedSignatureScheme) : S.Seeded :=
   let hk := S.exists_keyGenWith
-  let hk_spec := hk.choose_spec.choose_spec
-  let hk_rest := hk_spec.2
-  let hk_laws := hk_rest.2
+  let ⟨hkw_poly, hkb_poly, hkw_supp, hkw_eval⟩ := hk.choose_spec.choose_spec
   let hs := S.exists_signWith
-  let hs_spec := hs.choose_spec.choose_spec
-  let hs_rest := hs_spec.2
-  let hs_laws := hs_rest.2
+  let ⟨hsw_poly, hsb_poly, hsw_supp, hsw_eval⟩ := hs.choose_spec.choose_spec
   { keyGenWith := hk.choose
     keyGenBudget := hk.choose_spec.choose
     signWith := fun sk u msg coins => hs.choose (sk, u, msg) coins
     signBudget := fun sk u msg => hs.choose_spec.choose (sk, u, msg)
-    keyGenWith_polyTime := hk_spec.1
-    keyGenBudget_polyTime := hk_rest.1
-    keyGenWith_mem_support := hk_laws.1
-    eval_keyGen := hk_laws.2
-    signWith_polyTime := hs_spec.1
-    signBudget_polyTime := hs_rest.1
+    keyGenWith_polyTime := hkw_poly
+    keyGenBudget_polyTime := hkb_poly
+    keyGenWith_mem_support := hkw_supp
+    eval_keyGen := hkw_eval
+    signWith_polyTime := hsw_poly
+    signBudget_polyTime := hsb_poly
     signWith_mem_support := fun sk u msg coins =>
-      hs_laws.1 (sk, u, msg) coins
+      hsw_supp (sk, u, msg) coins
     eval_sign := fun sk u msg length h =>
-      hs_laws.2 (sk, u, msg) length h }
+      hsw_eval (sk, u, msg) length h }
 
 end IndexedSignatureScheme
 

@@ -74,6 +74,8 @@ from all its messages. The wrapper queries each retained distinct message once a
   a winning bounded batch makes the real wrapper accept.
 * `Cslib.Crypto.UHF.eval_prfIdealGameOn_prefixFreeBatchReduction_le`:
   the ideal batch wrapper's acceptance probability has the birthday bound.
+* `Cslib.Crypto.UHF.succProbability_multiQueryGame_le_prefixFreeBatchReduction`:
+  the concrete advantage bound (7.9) in the word model.
 -/
 
 public section
@@ -797,5 +799,44 @@ theorem eval_prfIdealGameOn_prefixFreeBatchReduction_le
   · change (ProbOracleComp.runWith (memoize (fun _ => dist)) program []).toOuterMeasure
       {result | ¬(result.2.map Prod.snd).Nodup} ≤ _
     simpa only [List.length_nil, mul_zero, zero_add, div_eq_mul_inv] using hBirthday
+
+/-- The concrete comparison in [BonehShoup2023], v0.6, Theorem 7.4
+(printed pp. 259–260, equation (7.9)). Multi-query collision success is at most the
+prefix-free wrapper's PRF advantage plus the birthday term. The bound keeps
+`(Q n).choose 2` from the ideal-game analysis, which is at most the book's `Q ^ 2 / 2`. -/
+theorem succProbability_multiQueryGame_le_prefixFreeBatchReduction
+    {width outLen Q : ℕ → ℕ} {valid oracleValid : ℕ → List Bool → Bool}
+    (family : List Bool → List Bool → List Bool)
+    (guessBatch : ℕ × ℕ → ProbComp (List (List Bool))) (n maxBlocks : ℕ)
+    (hBudget : ∀ guesses ∈ (ProbComp.eval (guessBatch (n, n))).support, guesses.length ≤ Q n)
+    (hBlocks : ∀ word, valid n word = true → word.length / width n ≤ maxBlocks)
+    (hAlphabet : maxBlocks * Q n < 2 ^ width n)
+    (hDomain : ∀ {word block}, valid n word = true → block.length = width n →
+      oracleValid n (word ++ block) = true)
+    (hExtend : ∀ {key left right block}, key.length = n →
+      valid n left = true → valid n right = true → block.length = width n →
+      family key left = family key right →
+      family key (left ++ block) = family key (right ++ block)) :
+    Game.succProbability (multiQueryGame pure (fun _ d => valid d)
+      (fun _ d (key : BitString d) => family (List.ofFn key)) guessBatch n) ≤
+    Game.advantage
+      (ProbComp.eval (prfRealGameOn oracleValid family
+        (prefixFreeBatchReduction width outLen Q valid guessBatch) n))
+      (ProbComp.eval (prfIdealGameOn oracleValid outLen
+        (prefixFreeBatchReduction width outLen Q valid guessBatch) n)) +
+      (Q n).choose 2 / (2 : ℝ≥0) ^ outLen n := by
+  let ideal : Game := ProbComp.eval (prfIdealGameOn oracleValid outLen
+    (prefixFreeBatchReduction width outLen Q valid guessBatch) n)
+  have hIdeal : ideal.succProbability ≤ (Q n).choose 2 / (2 : ℝ≥0) ^ outLen n := by
+    apply ENNReal.coe_le_coe.mp
+    rw [Game.coe_succProbability_ennreal, ENNReal.coe_div (pow_ne_zero _ two_ne_zero),
+      ENNReal.coe_natCast, ENNReal.coe_pow, ENNReal.coe_ofNat]
+    exact eval_prfIdealGameOn_prefixFreeBatchReduction_le guessBatch n hDomain
+  refine (succProbability_multiQueryGame_le_real_prefixFreeBatchReduction
+    (outLen := outLen) family guessBatch n maxBlocks hBudget hBlocks hAlphabet
+      hDomain hExtend).trans
+    ((Game.succProbability_le_add_of_advantage_le (g₁ := ideal) le_rfl).trans ?_)
+  rw [add_comm ideal.succProbability]
+  exact add_le_add le_rfl hIdeal
 
 end Cslib.Crypto.UHF
